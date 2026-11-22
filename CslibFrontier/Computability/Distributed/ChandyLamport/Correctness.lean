@@ -18,7 +18,7 @@ import Mathlib.Data.List.Perm.Basic
 # Chandy–Lamport consistent-cut permutation, stable-property detection, and liveness
 
 This module proves the main correctness and liveness theorems of the Chandy–Lamport global snapshot
-algorithm ([ChandyLamport1985]):
+algorithm ([ChandyLamport1985], §3.3, §4 Theorem 1, and §5, pp. 70–75):
 
 1. **FIFO cut invariant (`project_chan_eq_preInFlight_append_postInFlight`,
    `preRecv_pops_preInFlight`, `postRecv_records_iff_preInFlight`):** At every reachable augmented
@@ -1146,13 +1146,14 @@ private lemma cutMTr_preserves_valid [DecidableEq P] {C₁ C₂ : CutState P S M
   | refl => exact hv
   | stepL htr _ ih => exact ih (sys.cutTr_preserves_valid hv htr)
 
-/-- **Chandy–Lamport explicit causal permutation theorem:** for any finite execution
-`S_init →*[xl] S_final` from a pre-snapshot state `S_init` to a snapshot-complete state `S_final`,
-executing all pre-snapshot events (`tracePreEvents S_init xl`) from `project S_init` reaches
-`extractSnapshot S_final` in `sys.lts`, executing all post-snapshot events
-(`tracePostEvents S_init xl`) from `extractSnapshot S_final` reaches `project S_final` in
+/-- **Chandy–Lamport explicit causal permutation theorem ([ChandyLamport1985], §4, Theorem 1,
+pp. 72–73):** for any finite execution `S_init →*[xl] S_final` from a pre-snapshot state `S_init` to
+a snapshot-complete state `S_final`, executing all pre-snapshot events (`tracePreEvents S_init xl`)
+from `project S_init` reaches `extractSnapshot S_final` in `sys.lts`, executing all post-snapshot
+events (`tracePostEvents S_init xl`) from `extractSnapshot S_final` reaches `project S_final` in
 `sys.lts`, and `tracePreEvents S_init xl ++ tracePostEvents S_init xl` is a permutation of
-`eraseTrace xl`. -/
+`eraseTrace xl` (any prefix before `S_init` and suffix after `S_final` compose unchanged via
+`LTS.MTr.comp`). -/
 theorem chandyLamport_perm_mTr [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S_init S_final : SnapGlobalState P S M} {xl : List (SnapEvent P S M)}
     (hpre : sys.IsPreSnapshot S_init)
@@ -1198,11 +1199,11 @@ theorem chandyLamport_perm_mTr [DecidableEq P] [DecidableRel sys.graph.Adj]
   rw [← hC₁_eq]
   exact ⟨hmtr_pre, hC₂_s ▸ hmtr_post, hperm⟩
 
-/-- **Chandy–Lamport consistent-cut reachability theorem ([ChandyLamport1985]):** if a finite
-augmented execution starts before any snapshot action (`IsPreSnapshot S_init`) and ends at a state
-where the global snapshot is complete (`IsSnapshotComplete S_final`), then in the underlying FIFO
-system `sys.lts`, the assembled snapshot `S* = extractSnapshot S_final` is reachable from
-`project S_init` and `project S_final` is reachable from `S*`. -/
+/-- **Chandy–Lamport consistent-cut reachability theorem ([ChandyLamport1985], §4, Theorem 1,
+p. 72):** if a finite augmented execution starts before any snapshot action (`IsPreSnapshot S_init`)
+and ends at a state where the global snapshot is complete (`IsSnapshotComplete S_final`), then in
+the underlying FIFO system `sys.lts`, the assembled snapshot `S* = extractSnapshot S_final` is
+reachable from `project S_init` and `project S_final` is reachable from `S*`. -/
 theorem chandyLamport_consistent_cut [DecidableEq P] [DecidableRel sys.graph.Adj]
     {S_init S_final : SnapGlobalState P S M} {xl : List (SnapEvent P S M)}
     (hpre : sys.IsPreSnapshot S_init)
@@ -1215,11 +1216,11 @@ theorem chandyLamport_consistent_cut [DecidableEq P] [DecidableRel sys.graph.Adj
 
 /-! ### Part 3: Stable-property detection corollary -/
 
-/-- **Stable-property detection (`stablePred_transfer`, [ChandyLamport1985]):** for every stable
-global predicate `Φ` of `sys`, if `Φ` holds in the recorded snapshot `extractSnapshot S_final`,
-then `Φ` holds in the actual physical state `project S_final` once the snapshot finishes;
-contrapositively, if `Φ` fails in `extractSnapshot S_final`, then `Φ` had not yet become true at
-`project S_init`. -/
+/-- **Stable-property detection (`stablePred_transfer`, [ChandyLamport1985], §5, pp. 74–75):** for
+every stable global predicate `Φ` of `sys`, if `Φ` holds in the recorded snapshot
+`extractSnapshot S_final`, then `Φ` holds in the actual physical state `project S_final` once the
+snapshot finishes; contrapositively (matching `y(S_ι) → definite` on p. 74), if `Φ` fails in
+`extractSnapshot S_final`, then `Φ` had not yet become true at `project S_init`. -/
 theorem stablePred_transfer [DecidableEq P] [DecidableRel sys.graph.Adj]
     {Φ : GlobalState P S M → Prop} (hΦ : IsStablePred sys Φ)
     {S_init S_final : SnapGlobalState P S M} {xl : List (SnapEvent P S M)}
@@ -1529,10 +1530,11 @@ private lemma path_propagation [DecidableEq P] [DecidableRel sys.graph.Adj]
     obtain ⟨k₂, hk₁₂, hv, _⟩ := sys.edge_propagation hpre₀ hexec hfair hadj hu
     exact ⟨k₂, hk₀₁.trans hk₁₂, hv⟩
 
-/-- **Chandy–Lamport snapshot completion liveness ([ChandyLamport1985]):** on any finite strongly
-connected communication graph, in any infinite execution starting from a pre-snapshot state that
-satisfies weak FIFO channel delivery fairness (`FairChannels`) and in which at least one process
-records a snapshot (`((ss k₀).proc p₀).snapState.isSome`), there exists a step `K` from which
+/-- **Chandy–Lamport snapshot completion liveness ([ChandyLamport1985], §3.3, p. 71):** on any
+finite strongly connected communication graph, in any infinite execution starting from a
+pre-snapshot state that satisfies weak FIFO channel delivery fairness (`FairChannels`, realizing
+`(L1)` while atomic marker handling discharges `(L2)`) and in which at least one process records a
+snapshot (`((ss k₀).proc p₀).snapState.isSome`), there exists a step `K` from which
 `IsSnapshotComplete (ss k)` holds permanently (`∀ k ≥ K`). -/
 theorem snapshot_liveness [Finite P] [DecidableEq P] [DecidableRel sys.graph.Adj]
     (hsc : StronglyConnected sys.graph)

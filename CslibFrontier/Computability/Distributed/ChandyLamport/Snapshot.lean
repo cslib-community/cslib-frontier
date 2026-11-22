@@ -12,9 +12,9 @@ public import CslibFrontier.Computability.Distributed.ChandyLamport.Basic
 /-!
 # Chandy–Lamport marker snapshot transformation and FIFO cut invariants
 
-This module defines the Chandy–Lamport global-state recording transformation ([ChandyLamport1985])
-on top of any asynchronous FIFO message-passing `System P S M`, without freezing or blocking
-underlying application transitions.
+This module defines the Chandy–Lamport global-state recording transformation ([ChandyLamport1985],
+§3.2, p. 70) on top of any asynchronous FIFO message-passing `System P S M`, without freezing or
+blocking underlying application transitions.
 
 Wire channels carry `WireMsg M` values—either an application message `.app m` or a control
 `.marker`. Each process `p` maintains:

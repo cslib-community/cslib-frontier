@@ -17,11 +17,15 @@ import Mathlib.Data.Fintype.Pi
 
 This module models asynchronous distributed systems communicating over point-to-point first-in,
 first-out (FIFO) channels along a directed communication graph `Digraph P`, following the underlying
-system model of [ChandyLamport1985].
+system model of [ChandyLamport1985] (§2, pp. 65–68, and §1, p. 64 for stable properties).
 
 Each ordered pair `(src, dest)` of processes has an unbounded reliable FIFO queue
 `chan src dest : List M` whose head is the next message deliverable to `dest` and whose tail
-receives newly sent messages via append. A `System P S M` specifies:
+receives newly sent messages via append. Where §2 (p. 66, Figure 1) allows parallel labeled channels
+and single-channel 5-tuple events `⟨p, s, s', M, c⟩` over finite process/channel sets, `System P S M`
+over `Digraph P` models at most one channel per ordered pair (including self-loops), leaves
+`P S M : Type*` unrestricted, and allows each step to emit a list `sent : List (P × M)` of outgoing
+messages atomically:
 
 * a directed communication graph `graph : Digraph P`,
 * allowed spontaneous internal/send steps `internal p st st' sent` at process `p`, and
@@ -428,8 +432,9 @@ end System
 /-! ### Stable global predicates -/
 
 /-- A global predicate `Φ` is *stable* for `sys` if once `Φ` holds in a state `s`, it continues to
-hold in every successor state `s'` of `sys.lts` ([ChandyLamport1985]). Standard examples include
-deadlock, computation termination, loss of all tokens, and garbage collection of an object. -/
+hold in every successor state `s'` of `sys.lts` ([ChandyLamport1985], §1, p. 64, equivalent via
+`IsStablePred.canReach` to closure under reachability). Standard examples include deadlock,
+computation termination, and loss of all tokens in a token ring. -/
 @[expose] def IsStablePred {P S M : Type*} [DecidableEq P]
     (sys : System P S M) (Φ : GlobalState P S M → Prop) : Prop :=
   ∀ s a s', sys.lts.Tr s a s' → Φ s → Φ s'
