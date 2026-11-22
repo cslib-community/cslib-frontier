@@ -10,14 +10,16 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.CarryLookahead.Query.Counting
-public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedRouting
+public import
+  CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedRouting
 
 /-!
 # One Boolean value game for a reduced polynomial product
 
 The finishing carry-lookahead adder, the complete signed carry-save tree, and its operand-bit
-ports form one local Boolean decoder. Reachable addresses contain only a query and a bounded
-local formula; neither a polynomial nor an exponentially large row is stored in an address.
+ports form one local Boolean decoder. Addresses store structural queries and local formulas.
+The constructed root and source references use bounded templates; the raw address type also
+admits other formulas. Neither a polynomial nor an exponentially large row is stored in an address.
 
 For a coefficient index below the modulus degree, the root game computes a specified bit of
 the product reduced modulo the sparse trinomial.
@@ -43,53 +45,68 @@ inductive Node where
   | port (path : List Bool) (carry : Bool) (bit : ℕ) (index : Fin 7)
   deriving DecidableEq
 
-/-- A macro node and one of its local Boolean formulas. -/
+/-- A structural macro query and a local formula; constructed roots use the fragment template. -/
 abbrev Address := FormulaExpansion.Address Node 7
 
-private def height (q p : ℕ) : ℕ := Nat.clog 2 (2 * q) + Nat.clog 2 p + 2
+/-- The height of the signed diagonal and partial-product tree. -/
+@[expose] def height (q p : ℕ) : ℕ := Nat.clog 2 (2 * q) + Nat.clog 2 p + 2
 
-private def rounds (p : ℕ) : ℕ := Nat.clog 2 (p + 1)
+/-- The number of parallel-prefix rounds in the finishing adder. -/
+@[expose] def rounds (p : ℕ) : ℕ := Nat.clog 2 (p + 1)
 
+/-- The two carry-save components of the signed coefficient sum. -/
 private noncomputable def pair {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) :
     BitString (p + p) :=
   CarrySaveQuery.tree (reducedLeaves q i u v) (height q p) []
 
+/-- The carry-save components followed by the zero incoming carry. -/
 private noncomputable def adderInput {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) :
     BitString (p + p + 1) :=
   Fin.append (Fin.append (CarrySaveQuery.component (pair q i u v) false)
     (CarrySaveQuery.component (pair q i u v) true)) ![false]
 
--- Away from input wires, the adder's operations and children do not depend on its input bits.
-private def finishDecoder (p : ℕ) : Decoder CarryLookahead.Query.Address :=
+/-- The finishing adder with placeholder input bits. Its internal gates are input-independent. -/
+@[expose] def finishDecoder (p : ℕ) : Decoder CarryLookahead.Query.Address :=
   CarryLookahead.Query.decoder p (rounds p) (fun _ => false)
 
-private def operationFormula : Op → Formula signature 7
+/-- The fixed local formula of one Boolean operation, using its first two ports. -/
+@[expose] def operationFormula : Op → Formula signature 7
   | .const b => Formula.const b
   | .not => (Formula.input 0).not
   | .and => (Formula.input 0).and (.input 1)
   | .or => (Formula.input 0).or (.input 1)
 
+/-- The two operand bits, with the local two's-complement sign correction. -/
 private def signedFormula : Formula signature 7 :=
   ((Formula.input 0).and (.input 1)).xor (.input 2)
 
-private noncomputable def formula {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) :
-    Node → Formula signature 7
+/-- The operand-independent local formula. Ports are placeholders; a containing circuit
+replaces them by the routed operand query or its local sign correction. -/
+@[expose] def template (p : ℕ) : Node → Formula signature 7
   | .finish (.input j) => if j < p + p then .input 0 else Formula.const false
   | .finish a => operationFormula ((finishDecoder p).op a)
   | .tree a => if a.bit < p then
-      if a.remaining = 0 then signedFormula else CarrySaveLocal.formula a.carry
+      if a.remaining = 0 then ((Formula.input 0).and (.input 1)).xor (.input 2)
+      else CarrySaveLocal.formula a.carry
       else Formula.const false
+  | .port _ _ _ _ => Formula.const false
+
+private noncomputable def formula {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) :
+    Node → Formula signature 7
   | .port path carry bit j => Formula.const
       (if bit < p then signedBit u v q i path bit carry j else false)
+  | a => template p a
 
-private def finishSource (p : ℕ) (a : CarryLookahead.Query.Address) (j : Fin 7) : Option Node :=
+/-- The internal adder references of a finishing-adder node. -/
+@[expose] def finishSource (p : ℕ) (a : CarryLookahead.Query.Address) (j : Fin 7) : Option Node :=
   match (finishDecoder p).op a with
   | .const _ => none
   | .not => if j = 0 then some (.finish ((finishDecoder p).child a false)) else none
   | .and | .or => if j = 0 then some (.finish ((finishDecoder p).child a false))
       else if j = 1 then some (.finish ((finishDecoder p).child a true)) else none
 
-private def source (q p : ℕ) : Node → Fin 7 → Option Node
+/-- Internal references of the signed fragment, independent of the operand values. -/
+@[expose] def source (q p : ℕ) : Node → Fin 7 → Option Node
   | .finish (.input j), port =>
       if j < p + p ∧ port = 0 then
         some (.tree ⟨[], height q p, decide (p ≤ j), if p ≤ j then j - p else j⟩)
@@ -101,12 +118,19 @@ private def source (q p : ℕ) : Node → Fin 7 → Option Node
       else none
   | .port _ _ _ _, _ => none
 
-private noncomputable def semantic {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) : Node → Bool
-  | .finish a => CarryLookahead.Query.value p (rounds p) (adderInput q i u v) a
+/-- The Boolean value of each signed-product macro node. -/
+@[expose] noncomputable def nodeValue {p : ℕ} (q i : ℕ)
+    (u v : (ZMod (2 ^ p))[X]) : Node → Bool
+  | .finish a =>
+      let components := CarrySaveQuery.tree (reducedLeaves q i u v) (height q p) []
+      CarryLookahead.Query.value p (rounds p)
+        (Fin.append (Fin.append (CarrySaveQuery.component components false)
+          (CarrySaveQuery.component components true)) ![false]) a
   | .tree a => CarrySaveQuery.value (reducedLeaves q i u v) a
   | .port path carry bit j => if bit < p then signedBit u v q i path bit carry j else false
 
-private def nodeRank (q p : ℕ) : Node → ℕ
+/-- Internal macro rank; every port is at rank zero. -/
+@[expose] def nodeRank (q p : ℕ) : Node → ℕ
   | .finish a => height q p + 2 + CarryLookahead.Query.rank (rounds p) a
   | .tree a => a.remaining + 1
   | .port _ _ _ _ => 0
@@ -123,31 +147,40 @@ noncomputable def root {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
 
 /-- Boolean meaning of every local formula address in the unified product circuit. -/
 noncomputable def value {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) : Address → Bool :=
-  FormulaExpansion.value (source q p) (semantic q i u v)
+  FormulaExpansion.value (source q p) (nodeValue q i u v)
 
 /-- A proof-only gate rank, with thirteen steps allowed per macro-node rank. -/
 def rank (q p : ℕ) : Address → ℕ :=
   FormulaExpansion.rank 12 (nodeRank q p)
 
-private theorem formula_depth {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) (a : Node) :
-    (formula q i u v a).depth ≤ 12 := by
+/-- Every operand-independent local template has bounded Boolean depth. -/
+theorem template_depth (p : ℕ) (a : Node) : (template p a).depth ≤ 12 := by
   have hop (op : Op) : (operationFormula op).depth ≤ 12 := by
     cases op <;> simp [operationFormula]
   cases a with
   | finish a =>
-    cases a <;> simp only [formula]
+    cases a <;> simp only [template]
     · split <;> decide
     all_goals exact hop _
   | tree a =>
-    simp only [formula]
+    simp only [template]
     split
     · split
-      · decide
+      · change signedFormula.depth ≤ 12
+        decide
       · exact CarrySaveLocal.depth_formula_le _
     · decide
+  | port path carry bit j => simp [template, Formula.depth_const]
+
+private theorem formula_depth {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) (a : Node) :
+    (formula q i u v a).depth ≤ 12 := by
+  cases a with
+  | finish a => simpa only [formula] using template_depth p (.finish a)
+  | tree a => simpa only [formula] using template_depth p (.tree a)
   | port path carry bit j => simp [formula, Formula.depth_const]
 
-private theorem finishSource_rank (q p : ℕ) (a : CarryLookahead.Query.Address) (j : Fin 7)
+/-- Every finishing-adder reference lowers its rank before entering a carry-save tree. -/
+theorem finishSource_rank (q p : ℕ) (a : CarryLookahead.Query.Address) (j : Fin 7)
     (b : Node) (h : finishSource p a j = some b) : nodeRank q p b < nodeRank q p (.finish a) := by
   have hd := CarryLookahead.Query.descends p (rounds p) (fun _ => false)
   cases ho : (finishDecoder p).op a with
@@ -180,7 +213,8 @@ private theorem finishSource_rank (q p : ℕ) (a : CarryLookahead.Query.Address)
         omega
       · simp at h
 
-private theorem source_rank (q p : ℕ) (a : Node) (j : Fin 7) (b : Node)
+/-- Every internal fragment reference lowers its macro rank. -/
+theorem source_rank (q p : ℕ) (a : Node) (j : Fin 7) (b : Node)
     (h : source q p a j = some b) : nodeRank q p b < nodeRank q p a := by
   cases a with
   | finish a =>
@@ -215,37 +249,40 @@ theorem descends {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) :
   FormulaExpansion.descends (formula q i u v) (source q p)
     (formula_depth q i u v) (source_rank q p)
 
-private theorem finish_input_value {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X]) (j : ℕ) :
-    CarryLookahead.Query.readInput p (adderInput q i u v) j =
-      if j < p + p then
-        CarrySaveQuery.value (reducedLeaves q i u v)
-          ⟨[], height q p, decide (p ≤ j), if p ≤ j then j - p else j⟩
-      else false := by
+/-- Reading the finishing input pair selects the corresponding root carry-save component;
+the extra incoming carry and every out-of-range input are false. -/
+theorem read_tree_input {p : ℕ} (leaves : List Bool → BitString (p + p)) (depth j : ℕ) :
+    CarryLookahead.Query.readInput p
+      (Fin.append (Fin.append (CarrySaveQuery.component (CarrySaveQuery.tree leaves depth []) false)
+        (CarrySaveQuery.component (CarrySaveQuery.tree leaves depth []) true)) ![false]) j =
+      if j < p + p then CarrySaveQuery.value leaves
+        ⟨[], depth, decide (p ≤ j), if p ≤ j then j - p else j⟩ else false := by
   by_cases h₀ : j < p
-  · simp [CarryLookahead.Query.readInput, adderInput, Fin.append, Fin.addCases, h₀,
+  · simp [CarryLookahead.Query.readInput, Fin.append, Fin.addCases, h₀,
       show j < p + p by omega, show j < p + p + 1 by omega, Nat.not_le.mpr h₀,
-      CarrySaveQuery.value, pair]
+      CarrySaveQuery.value]
   · by_cases h₁ : j < p + p
     · have hp : p ≤ j := by omega
       have hj : j - p < p := by omega
-      simp [CarryLookahead.Query.readInput, adderInput, Fin.append, Fin.addCases, h₀, h₁,
-        show j < p + p + 1 by omega, hp, hj, CarrySaveQuery.value, pair]
+      simp [CarryLookahead.Query.readInput, Fin.append, Fin.addCases, h₀, h₁,
+        show j < p + p + 1 by omega, hp, hj, CarrySaveQuery.value]
     · by_cases h₂ : j < p + p + 1
       · have he : j = p + p := by omega
         subst j
-        simp [CarryLookahead.Query.readInput, adderInput, Fin.append, Fin.addCases]
+        simp [CarryLookahead.Query.readInput, Fin.append, Fin.addCases]
       · simp [CarryLookahead.Query.readInput, h₁, h₂]
 
 private theorem finish_formula_value {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
     (a : CarryLookahead.Query.Address) :
     (operationFormula ((finishDecoder p).op a)).eval interpretation
-      (fun j => (finishSource p a j).elim false (semantic q i u v)) =
+      (fun j => (finishSource p a j).elim false (nodeValue q i u v)) =
         (finishDecoder p).eval
           (CarryLookahead.Query.value p (rounds p) (adderInput q i u v)) a := by
   cases ho : (finishDecoder p).op a <;>
-    simp [operationFormula, finishSource, ho, semantic, Decoder.eval]
+    simp [operationFormula, finishSource, ho, nodeValue, adderInput, pair, Decoder.eval]
 
-private theorem finish_eval_eq (p : ℕ) (input : BitString (p + p + 1))
+/-- Away from input nodes the finishing decoder is independent of all input values. -/
+theorem finish_eval_eq (p : ℕ) (input : BitString (p + p + 1))
     (values : CarryLookahead.Query.Address → Bool) (a : CarryLookahead.Query.Address)
     (ha : ∀ j, a ≠ .input j) :
     (finishDecoder p).eval values a =
@@ -258,20 +295,20 @@ private theorem finish_eval_eq (p : ℕ) (input : BitString (p + p + 1))
 
 private theorem formula_value {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
     (hv : v.natDegree < 2 * q) (a : Node) :
-    semantic q i u v a = (formula q i u v a).eval interpretation
-      (fun j => (source q p a j).elim false (semantic q i u v)) := by
+    nodeValue q i u v a = (formula q i u v a).eval interpretation
+      (fun j => (source q p a j).elim false (nodeValue q i u v)) := by
   cases a with
   | finish a =>
     cases a
     case input j =>
-      simp only [semantic, CarryLookahead.Query.value]
-      rw [finish_input_value]
-      by_cases hj : j < p + p <;> simp [formula, source, hj, semantic]
+      simp only [nodeValue, CarryLookahead.Query.value]
+      rw [read_tree_input]
+      by_cases hj : j < p + p <;> simp [formula, template, source, hj, nodeValue]
     all_goals
-      simp only [formula, source]
+      simp only [formula, template, source]
       rw [finish_formula_value]
       rw [finish_eval_eq p (adderInput q i u v) _ _ (by intro j h; cases h)]
-      simp only [semantic]
+      simp only [nodeValue]
       exact CarryLookahead.Query.value_eq_eval p (rounds p) (adderInput q i u v) _
   | tree a =>
     rcases a with ⟨path, remaining, carry, bit⟩
@@ -281,25 +318,37 @@ private theorem formula_value {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
         have h := value_reduced_eq_gate u v q i hv path carry ⟨bit, hb⟩
         have hp (j : Fin 7) := value_port u v q i j path ⟨bit, hb⟩ carry
         simp only [signedGate, hp] at h
-        simpa [semantic, formula, source, signedFormula, hb] using h
+        simpa [nodeValue, formula, template, source, hb] using h
       | succ remaining =>
         have h := CarrySaveQuery.value_layer (reducedLeaves q i u v)
           path remaining carry ⟨bit, hb⟩
-        rw [semantic, h]
-        simp only [formula, source, hb, ↓reduceIte, Nat.add_eq_zero_iff, Nat.one_ne_zero,
+        rw [nodeValue, h]
+        simp only [formula, template, source, hb, ↓reduceIte, Nat.add_eq_zero_iff, Nat.one_ne_zero,
           and_false]
         congr 1
         funext j
         cases he : CarrySaveQuery.descend ⟨path, remaining + 1, carry, bit⟩ j <;>
-          simp [semantic]
-    · simp [semantic, CarrySaveQuery.value, formula, source, hb]
-  | port path carry bit j => simp [semantic, formula]
+          simp [nodeValue]
+    · simp [nodeValue, CarrySaveQuery.value, formula, template, source, hb]
+  | port path carry bit j => simp [nodeValue, formula]
+
+/-- Nonterminal fragment nodes satisfy their operand-independent local templates. Operand
+ports are deliberately excluded: a containing circuit routes them to its own input queries. -/
+theorem nodeValue_eq_template {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
+    (hv : v.natDegree < 2 * q) (a : Node)
+    (ha : ∀ path carry bit j, a ≠ .port path carry bit j) :
+    nodeValue q i u v a = (template p a).eval interpretation
+      (fun j => (source q p a j).elim false (nodeValue q i u v)) := by
+  cases a with
+  | finish a => exact formula_value q i u v hv _
+  | tree a => exact formula_value q i u v hv _
+  | port path carry bit j => exact False.elim (ha path carry bit j rfl)
 
 /-- The integrated semantic value satisfies every decoded local Boolean equation. -/
 theorem value_eq_eval {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
     (hv : v.natDegree < 2 * q) (a : Address) :
     value q i u v a = (decoder q i u v).eval (value q i u v) a :=
-  FormulaExpansion.value_eq_eval (formula q i u v) (source q p) (semantic q i u v)
+  FormulaExpansion.value_eq_eval (formula q i u v) (source q p) (nodeValue q i u v)
     (formula_value q i u v hv) a
 
 private theorem value_root_eq_word {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
@@ -347,6 +396,17 @@ theorem ends_root {p : ℕ} (q i : ℕ) (u v : (ZMod (2 ^ p))[X])
   simp only [rank, FormulaExpansion.rank, root, FormulaExpansion.root, nodeRank,
     CarryLookahead.Query.rank, height, rounds]
   omega
+
+/-- The reusable fragment's finishing node reads the selected bit of the extension-ring
+product; its operands may therefore be supplied recursively by a larger circuit. -/
+theorem nodeValue_product (m p : ℕ) (x y : GaloisRingArith.Ring p (modulus m))
+    (i : Fin (modulus m).length) (bit : Fin p) :
+    nodeValue (3 ^ modulusExp m) i.val (representative m p x) (representative m p y)
+      (.finish (.sum bit.val)) =
+        ((representative m p (x * y)).coeff i.val).val.testBit bit.val := by
+  simp only [nodeValue, rounds]
+  rw [CarryLookahead.Query.value_pair_sum_eq]
+  exact bit_reducedTree m p x y i bit
 
 /-- Specializing the unified game to representatives gives the corresponding extension-ring
 product bit. The same decoder handles the two's-complement corrections internally. -/

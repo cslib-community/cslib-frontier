@@ -31,7 +31,7 @@ remaining interval fields and the binary source length. The prepared record cont
 
 public section
 
-namespace Turing.MultiTapePTM.IntervalData.InputWindow
+namespace Turing.MultiTapePTM.IntervalData
 
 open MultiTapeTM ComputableInPolyTime
 
@@ -53,7 +53,8 @@ private theorem fields_deg : ComputableInDegree
 private theorem input_deg : ComputableInDegree (IntervalData.input (k := k) (State := State))
     encIntervalData encBits 1 1 := fields_deg.fst'
 
-private theorem replace_deg : ComputableInDegree
+/-- Replacing the source field preserves all interval metadata and takes linear encoded time. -/
+theorem replaceInput_deg : ComputableInDegree
     (fun a : IntervalData k State × List Bool => { a.1 with input := a.2 })
     (encPair encIntervalData encBits) encIntervalData 1 1 := by
   have hd := fields_deg.comp (ComputableInDegree.fst
@@ -61,12 +62,14 @@ private theorem replace_deg : ComputableInDegree
   exact ((ComputableInDegree.snd encIntervalData encBits).prod hd.snd').of_enc_eq
     (fun _ => encIntervalData_apply _)
 
+namespace InputWindow
+
 private def strip (d : IntervalData k State) : IntervalData k State := { d with input := [] }
 
 /-- Removing the source field preserves all interval metadata and takes linear encoded time. -/
 theorem stripInput_deg : ComputableInDegree (fun d : IntervalData k State => { d with input := [] })
     encIntervalData encIntervalData 1 1 := by
-  exact replace_deg.comp (ComputableInDegree.id'.prod
+  exact replaceInput_deg.comp (ComputableInDegree.id'.prod
     ((ComputableInDegree.const (encMid := encBits) []).mono (d' := 1) (e' := 1)))
 
 private theorem length_eq (d : IntervalData k State) :
@@ -189,7 +192,7 @@ theorem exists_prepare_inO : ∃ D, let budget := fun d : IntervalData k State =
   have hdrop := ComputableInDegree.bitsDrop.inO_one.comp_linear (input_deg.inO_one.prod hu)
   have htake := ComputableInDegree.bitsTake.inO_one.comp_linear
     (hdrop.prod (encCut_width_deg.inO_one.comp_linear hc))
-  have hdata := replace_deg.inO_one.comp_linear (stripInput_deg.inO_one.prod htake)
+  have hdata := replaceInput_deg.inO_one.comp_linear (stripInput_deg.inO_one.prod htake)
   have hprep := encInputWindow_mk_deg.inO_one.comp_linear
     (hdata.prod (horigin.prod (encCut_position_deg.inO_one.comp_linear hc)))
   have heq (d : IntervalData k State) :
@@ -224,4 +227,6 @@ theorem exists_prepare_inO : ∃ D, let budget := fun d : IntervalData k State =
     have hl := length_eq d <;> have ho := cut_origin_le d <;>
     dsimp only [extra, Function.comp_apply] <;> omega
 
-end Turing.MultiTapePTM.IntervalData.InputWindow
+end InputWindow
+
+end Turing.MultiTapePTM.IntervalData

@@ -73,6 +73,39 @@ theorem embedding_private (k scratch size : ℕ) (hk : k ≤ scratch) (hsize : 1
   rw [ite_eq_right (Nat.not_lt.mpr hi)]
   omega
 
+private theorem runsBetween_updates {k K : ℕ} {S : Type}
+    (tm : MultiTapeTM (k + 12) Bool S) (e : Fin (k + 12) ↪ Fin K)
+    (input : List Bool) (words : Fin K → List Bool) (out : List Bool)
+    (left right : Fin (k + 12)) (leftWord rightWord : List Bool) (time : ℕ)
+    (hr : tm.runFrom
+      ((CarrySaveDepthPrepare.config input (fun i => words (e i)) out).withState (some tm.q₀))
+      time = (CarrySaveDepthPrepare.config input
+        (Function.update (Function.update (fun i => words (e i)) left leftWord)
+          right rightWord) out).withState none) :
+    RunsBetween (input := input) (tm.extendTapes e)
+      { tapesCfg input words 0 0 out with inputPos := 0 }
+      { tapesCfg input (Function.update (Function.update words (e left) leftWord)
+          (e right) rightWord) 0 0 out with inputPos := 0 }
+      time (K * (time + 1)) := by
+  apply RunsBetween.of_runFrom
+  rw [runFrom_extendTapes]
+  change embed e (tm.runFrom
+    ((CarrySaveDepthPrepare.config input (fun i => words (e i)) out).withState (some tm.q₀))
+      time) _ _ = _
+  rw [hr]
+  have ht := embed_tapesCfg (input := input) (e := e)
+    (v := Function.update (Function.update (fun i => words (e i)) left leftWord) right rightWord)
+    (ws := words)
+    (ws' := Function.update (Function.update words (e left) leftWord) (e right) rightWord)
+    (ov := 0) (hv := 0) (o := 0) (h := 0) (o' := 0) (h' := 0) (out := out)
+    (fun i => ⟨by simp [Function.update_apply, e.injective.eq_iff], rfl, rfl⟩)
+    (fun i hi => ⟨by
+      have hne (j) : i ≠ e j := fun h => hi ⟨j, h.symm⟩
+      simp [Function.update_of_ne (hne left), Function.update_of_ne (hne right)], rfl, rfl⟩)
+  have ht' := congrArg (fun cfg : Cfg K Bool Unit input =>
+    ({ cfg with inputPos := 0 } : Cfg K Bool Unit input).withState (none : Option S)) ht
+  simpa only [CarrySaveDepthPrepare.config, embed, Cfg.withState] using ht'
+
 /-- One uniform depth machine fits beside any larger protected evaluator. Only its two depth
 words change; the shared scratch, all other protected words and both trailing tapes survive. -/
 theorem exists_prepare :
@@ -106,26 +139,42 @@ theorem exists_prepare :
     (by simpa only [h7] using hcount) (by simpa only [h0] using hheight)
     (by simpa only [h4] using hfront)
     (fun i hi => hblank _ (embedding_private k scratch size hk hsize i hi))
-  apply RunsBetween.of_runFrom
-  rw [runFrom_extendTapes]
-  change embed e (tm.runFrom
-    ((CarrySaveDepthPrepare.config input (fun i => words (e i)) out).withState (some tm.q₀))
-      (c * ((encNat n).length + 1) ^ d)) _ _ = _
-  rw [hr]
-  have ht := embed_tapesCfg (input := input) (e := e)
-    (v := Function.update (Function.update (fun i => words (e i)) 0
-      (encNat (Nat.clog 2 n))) 4 (encUnary (Nat.clog 2 n)))
-    (ws := words)
-    (ws' := Function.update (Function.update words (e 0) (encNat (Nat.clog 2 n)))
-      (e 4) (encUnary (Nat.clog 2 n)))
-    (ov := 0) (hv := 0) (o := 0) (h := 0) (o' := 0) (h' := 0) (out := out)
-    (fun i => ⟨by simp [Function.update_apply, e.injective.eq_iff], rfl, rfl⟩)
-    (fun i hi => ⟨by
-      have hne (j) : i ≠ e j := fun h => hi ⟨j, h.symm⟩
-      simp [Function.update_of_ne (hne 0), Function.update_of_ne (hne 4)], rfl, rfl⟩)
-  have ht' := congrArg (fun cfg : Cfg (scratch + size + 2) Bool Unit input =>
-    ({ cfg with inputPos := 0 } : Cfg (scratch + size + 2) Bool Unit input).withState
-      (none : Option S)) ht
-  simpa only [h0, h4, CarrySaveDepthPrepare.config, embed, Cfg.withState] using ht'
+  simpa only [h0, h4] using runsBetween_updates tm e input words out 0 4
+    (encNat (Nat.clog 2 n)) (encUnary (Nat.clog 2 n)) _ hr
+
+/-- Expand an already known binary height beside a protected evaluator. Only the count and
+unary frontier change, and the expansion time is linear in the supplied height. -/
+theorem exists_prepare_height :
+    ∃ (k : ℕ) (S : Type) (_ : Finite S) (tm : MultiTapeTM (k + 12) Bool S) (c : ℕ),
+      ∀ (scratch size : ℕ) (hk : k ≤ scratch) (hsize : 12 ≤ size)
+        (input : List Bool) (height : ℕ) (words : Fin (scratch + size + 2) → List Bool)
+        (out : List Bool),
+        words (coreTapes scratch size hsize 0) = encNat height →
+        words (coreTapes scratch size hsize 7) = [] →
+        words (coreTapes scratch size hsize 4) = [] →
+        (∀ i, i.val < scratch → words i = []) →
+        RunsBetween (input := input) (tm.extendTapes (embedding k scratch size hk hsize))
+          { tapesCfg input words 0 0 out with inputPos := 0 }
+          { tapesCfg input
+              (Function.update
+                (Function.update words (coreTapes scratch size hsize 7) (encNat (2 ^ height)))
+                (coreTapes scratch size hsize 4) (encUnary height))
+              0 0 out with inputPos := 0 }
+          (c * (height + 1)) ((scratch + size + 2) * (c * (height + 1) + 1)) := by
+  obtain ⟨k, S, hS, tm, c, htm⟩ := CarrySaveDepthPrepare.exists_prepare_height
+  refine ⟨k, S, hS, tm, c, ?_⟩
+  intro scratch size hk hsize input height words out hheight hcount hfront hblank
+  let e := embedding k scratch size hk hsize
+  have hcore (i : Fin 12) : e (Fin.castLE (by omega) i) = coreTapes scratch size hsize i :=
+    embedding_core k scratch size hk hsize i
+  have h0 : e 0 = coreTapes scratch size hsize 0 := hcore 0
+  have h4 : e 4 = coreTapes scratch size hsize 4 := hcore 4
+  have h7 : e 7 = coreTapes scratch size hsize 7 := hcore 7
+  have hr := htm input height (fun i => words (e i)) out
+    (by simpa only [h0] using hheight) (by simpa only [h7] using hcount)
+    (by simpa only [h4] using hfront)
+    (fun i hi => hblank _ (embedding_private k scratch size hk hsize i hi))
+  simpa only [h7, h4] using runsBetween_updates tm e input words out 7 4
+    (encNat (2 ^ height)) (encUnary height) _ hr
 
 end Turing.MultiTapeATM.CarrySaveDepthPrepare.Embedded

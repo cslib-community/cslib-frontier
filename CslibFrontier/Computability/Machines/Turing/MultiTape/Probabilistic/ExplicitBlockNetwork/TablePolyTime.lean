@@ -431,6 +431,17 @@ def tableEntryPlan (b : ℕ) (input : List Bool) (q σ v : ℕ) (P : List ℕ) (
   else .inr (decide (j.testBit (P.idxOf (v - q * (3 * k + 2))) =
     j.testBit (P.idxOf (q * (3 * k + 1) * letterBits k s b + (v - q * (3 * k + 2))))))
 
+omit [Finite State] [DecidableEq State] in
+/-- The compiler reads the source only to attach it to the selected interval. Every branch
+decision and every other interval field is independent of the source word. -/
+theorem tableEntryPlan_input (b : ℕ) (input input' : List Bool) (q σ v : ℕ)
+    (P : List ℕ) (j : ℕ) :
+    tableEntryPlan e machine b input q σ v P j =
+      (tableEntryPlan e machine b input' q σ v P j).map
+        (fun d => { d with input := input }) id := by
+  simp only [tableEntryPlan]
+  split_ifs <;> rfl
+
 /-- The left tag contains the existing framed interval record; the right tag a single Boolean. -/
 noncomputable abbrev encTableEntryPlan : (IntervalData k State ⊕ Bool) ↪ List Bool :=
   encSum encIntervalData encBool

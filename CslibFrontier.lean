@@ -1679,6 +1679,9 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastCon
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedValueGame
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SparseProduct
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SparseProductQuery
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Entry
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Rank
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionDerivation
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionLeaf
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionMachine

@@ -60,7 +60,8 @@ public theorem native_table_entries :
       ∀ (host : List Bool) (kind : Fin 6) (bit : Fin 2) (claim : Bool),
         let a := request kind bit claim
         let cfg := SharedWordFork.start src atm host (BlockTableEntry.encRequest a) 0
-        let time := C * ((BlockTableEntry.encRequest a).length + 1) ^ E
+        let time := C * (a.input.length +
+          ((BlockTableEntry.encRequest { a with input := [] }).length + 1) ^ E + 1)
         atm.HaltsWithin time cfg ∧ (atm.AcceptsWithin time cfg ↔
           (value kind && decide (bit.val = 0)) = claim) := by
   obtain ⟨u, src, Q, hQ, atm, C, E, h⟩ :=
