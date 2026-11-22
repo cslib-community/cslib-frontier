@@ -25,6 +25,7 @@ register_result "sergeev-explicit-bk-sequence" where
     Cslib.IsBkSet.choose_le_card,
     Cslib.existsUnique_neg_one_pow_mul_five_pow_eq,
     Cslib.zmod_eq_neg_one_pow_mul_five_pow_dlogFiveModTwoPow,
+    Cslib.length_sergeevBkSequence,
     Cslib.isBkSequence_map_zmod_sergeevBkSequence,
     Cslib.isBkSequence_sergeevBkSequence,
     Cslib.two_pow_sergeevModulusExp_sub_two_lt,
@@ -46,17 +47,22 @@ register_result "sergeev-explicit-bk-sequence-polytime" where
   topic := "computational complexity"
   sources := [
     { paper := Sergeev2023BkSequence,
-      theorem := "Polynomial-time constructibility of H[n, k] via O(r^2) discrete log (unnumbered)",
+      theorem := "Polynomial-time constructibility of H[n, k] in time (n + k)^O(1) (unnumbered)",
       locator := "Abstract, p. 1, and Construction, pp. 2–3 (arXiv:2304.03988v1)" }
   ]
   theorems := [
     Cslib.Complexity.computableInPolyTime_dlogFiveModTwoPow,
     Cslib.Complexity.computableInPolyTime_sergeevBkSequence
   ]
-  scope := "Unconditional plain multi-tape Turing machine certificate \
+  scope := "Unconditional plain multi-tape Turing machine polynomial bit-time certificate \
     ComputableInPolyTime (fun p : ℕ × ℕ => sergeevBkSequence p.1 p.2) (encPair encUnary encUnary) \
-    (encList encNat): given (n, k) in unary (input length Θ(n + k), matching the paper's \
+    (encList encNat) (together with computableInPolyTime_dlogFiveModTwoPow on \
+    encPair encUnary encNat): given (n, k) in unary (input length Θ(n + k), matching the paper's \
     (n + k)^O(1) runtime parameter), computes the framed list of binary-encoded elements of \
-    sergeevBkSequence n k (matching footnote 1 on p. 1) in polynomial time via trial-division \
-    enumeration of firstOddPrimes n and sequential O(r^2)-operation bit extraction in \
-    dlogFiveModTwoPow."
+    sergeevBkSequence n k (matching footnote 1 on p. 1) in polynomial bit time via \
+    trial-division enumeration of firstOddPrimes n (replacing the paper's sieve option) and \
+    sequential bit extraction in dlogFiveModTwoPow. The paper's O(r^2) figure on pp. 2–3 counts \
+    arithmetic operations for the discrete logarithm, whereas \
+    computableInPolyTime_dlogFiveModTwoPow and computableInPolyTime_sergeevBkSequence certify \
+    polynomial bit time on a multi-tape Turing machine (a separate explicit O(r^2) \
+    arithmetic-operation count is left open in #7625)."
