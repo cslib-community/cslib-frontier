@@ -108,7 +108,7 @@ private theorem runFrom_leaf {p : ℕ} [Fact p.Prime] {st : List Frame} {v : Fin
   have hlen : st.length = H := by simpa using Tree.length_of_nodeAt_leaf hv
   obtain ⟨R', h', hR', hS'⟩ := runFrom_leaf_loop hv R hR neg t out ℓ le_rfl
   refine ⟨R', ?_, hR', ?_⟩
-  · rw [show ℓ + 2 = 1 + (ℓ + 1) by omega, ReadMachine.runFrom_add, ReadMachine.runFrom_one]
+  · rw [ReadMachine.runFrom_succ]
     have h0 : machine.next T.encode (cfg (ℓ := ℓ) (H := H) p R st (.call neg t) .run out) =
         cfg (ℓ := ℓ) (H := H) p R st (.call neg t) (.leaf 0) out := by
       simp [ReadMachine.next, machine, step, runStep, hlen]
@@ -189,8 +189,7 @@ private theorem runFrom_update {p : ℕ} [Fact p.Prime] {fr : Frame} {st : List 
   obtain ⟨acc, h', hlen, -, hsum⟩ :=
     runFrom_scan_loop (p := p) (fr := fr) hf R out (tableLength ℓ) le_rfl
   refine ⟨subtractSums p (sgnVal p fr.neg) fr.target acc R, ?_, hR.subtractSums hp _ _ _, ?_⟩
-  · rw [show tableLength ℓ + 2 = 1 + (tableLength ℓ + 1) by omega, ReadMachine.runFrom_add,
-      ReadMachine.runFrom_one]
+  · rw [ReadMachine.runFrom_succ]
     have h0 : machine.next T.encode (cfg (ℓ := ℓ) (H := H) p R (fr :: st) .ret .run out) =
         cfg (ℓ := ℓ) (H := H) p R (fr :: st) .ret (.scan 0 (List.replicate ℓ 0)) out := by
       obtain ⟨j, ph, neg, t⟩ := fr

@@ -216,7 +216,7 @@ open NondeterministicQueryMachine in
 There are nevertheless four accepting occurrences at any sufficient native clock. -/
 example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length + 1))
     (input : List Bool) {fuel : ℕ} (hclock : R.machine.RunsInTime input fuel) :
-    (Native.countingMachine R.I R.P R.F R.C).branchCount (fun out => out == [true]) fuel
+    (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel
       (R.machine.initCfg input) = 4 := by
   have hatTwo (bits : List Bool) (h : bits.length = 2) : twoPass.replay input bits 0 = 2 := by
     obtain ⟨b, c, rfl⟩ := List.length_eq_two.mp h
@@ -231,7 +231,7 @@ example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length +
       rfl
   have hset :
       {bits : List Bool | twoPass.FirstHalting input bits 0 ∧
-        ([twoPass.accept (twoPass.replay input bits 0)] == [true])} =
+        twoPass.accept (twoPass.replay input bits 0) = true} =
       {bits : List Bool | bits.length = 2} := by
     ext bits
     simp only [Set.mem_ofPred_eq, FirstHalting]
@@ -252,8 +252,7 @@ example (R : Routines twoPass (fun _ => 0) encBits (fun a => Nat.log2 a.length +
       refine ⟨⟨rfl, fun n hn => hlive _ ?_⟩, rfl⟩
       rw [List.length_take_of_le hn.le, ← h]
       exact hn
-  have hcount := R.branchCount_eq_encard_firstHalting input hclock
-    (fun out => out == [true])
+  have hcount := R.acceptCount_eq_encard_firstHalting input hclock
   rw [encBits_apply, hset, Cslib.BitString.encard_setOf_length_eq] at hcount
   exact_mod_cast hcount
 
