@@ -86,8 +86,8 @@ theorem queriesSatisfy_recursiveDlog (base : S → S → OracleComp (GroupOracle
     (q e : ℕ) (g u : S) :
     OracleComp.QueriesSatisfy GroupQuery.IsProduct (recursiveDlog base q e g u) := by
   fun_induction recursiveDlog base q e g u with
-  | case1 e g u => exact hbase g u
-  | case2 e g u he ih₁ ih₂ =>
+  | case1 e g u => exact hbase g u -- e ≤ 1: base solver
+  | case2 e g u he ih₁ ih₂ => -- 1 < e: recurse on `e / 2` and `e - e / 2`
     exact .bind (queriesSatisfy_power _ _) fun g₁ =>
       .bind (queriesSatisfy_power _ _) fun u₁ =>
         .bind (ih₁ g₁ u₁) fun _ =>
@@ -105,10 +105,10 @@ theorem isQueryBounded_recursiveDlog {base : S → S → OracleComp (GroupOracle
     OracleComp.IsQueryBounded (recursiveDlog base q e g u)
       (e * T + 6 * e * Nat.clog 2 e * Nat.clog 2 q) := by
   fun_induction recursiveDlog base q e g u with
-  | case1 e g u he1 =>
+  | case1 e g u he1 => -- e ≤ 1: base solver
     obtain rfl : e = 1 := by omega
     simpa using hbase g u
-  | case2 e g u he1 ih₁ ih₂ =>
+  | case2 e g u he1 ih₁ ih₂ => -- 1 < e: recurse on `e / 2` and `e - e / 2`
     have he2 : 2 ≤ e := by omega
     set f := e / 2; set d := e - e / 2
     have hfd : f + d = e := by omega

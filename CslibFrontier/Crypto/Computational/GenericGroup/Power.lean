@@ -72,8 +72,8 @@ theorem isQueryBounded_product (a b : S) :
 theorem queriesSatisfy_power (ℓ : S) (k : ℕ) :
     OracleComp.QueriesSatisfy GroupQuery.IsProduct (power (n := n) ℓ k) := by
   fun_induction power (n := n) ℓ k with
-  | case1 => exact .pure _
-  | case2 k hk ih =>
+  | case1 => exact .pure _ -- k ≤ 1
+  | case2 k hk ih => -- 1 < k: square `power ℓ (k / 2)`
     refine .bind ih fun h => .bind (queriesSatisfy_product h h) fun sq => ?_
     split_ifs <;> [exact .pure _; exact queriesSatisfy_product sq ℓ]
 
@@ -82,8 +82,8 @@ returns; the factor `2` is this library's and exponent arithmetic is not costed.
 theorem isQueryBounded_power (ℓ : S) (k : ℕ) :
     OracleComp.IsQueryBounded (power (n := n) ℓ k) (2 * Nat.log 2 k) := by
   fun_induction power (n := n) ℓ k with
-  | case1 => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _)
-  | case2 k hk ih =>
+  | case1 => exact (OracleComp.IsCostBounded.pure _ 0).mono (Nat.zero_le _) -- k ≤ 1
+  | case2 k hk ih => -- 1 < k: square `power ℓ (k / 2)`
     have hk1 : 1 < k := by omega
     have hlog : Nat.log 2 k = Nat.log 2 (k / 2) + 1 := Nat.log_of_one_lt_of_le (by omega) hk1
     refine .mono (n := 2 * Nat.log 2 (k / 2) + (1 + 1))
@@ -106,10 +106,10 @@ theorem evalPure_power {L : ZMod n → S} {O : (q : GroupQuery n S) → GroupOra
     (β : ZMod n) {k : ℕ} (hk : 1 ≤ k) :
     (power (n := n) (L β) k).evalPure O = L ((k : ZMod n) * β) := by
   fun_induction power (n := n) (L β) k with
-  | case1 k hk1 =>
+  | case1 k hk1 => -- k ≤ 1
     obtain rfl : k = 1 := by omega
     rw [OracleComp.evalPure_pure, Nat.cast_one, one_mul]
-  | case2 k hk1 ih =>
+  | case2 k hk1 ih => -- 1 < k: square `power (L β) (k / 2)`
     rw [OracleComp.evalPure_bind, ih (by omega), OracleComp.evalPure_bind, evalPure_product hO]
     split_ifs with hmod
     · rw [OracleComp.evalPure_pure, ← add_mul, ← two_mul]

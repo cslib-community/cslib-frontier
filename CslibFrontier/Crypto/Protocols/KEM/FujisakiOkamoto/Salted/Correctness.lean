@@ -287,14 +287,14 @@ private theorem lookup_offTargetKeyCache [DecidableEq (JointInput JointPrefix M 
       if input = ⟨S.jointPrefix pk, input.message, input.salt⟩ then none
       else (entries.lookup input).map JointReply.key := by
   fun_induction offTargetKeyCache S pk entries with
-  | case1 => simp only [List.lookup_nil, Option.map_none]; split <;> rfl
-  | case2 cached reply rest hcached ih =>
+  | case1 => simp only [List.lookup_nil, Option.map_none]; split <;> rfl -- []
+  | case2 cached reply rest hcached ih => -- on-target entry: dropped
     rw [ih]
     by_cases hinput : input = ⟨S.jointPrefix pk, input.message, input.salt⟩
     · simp only [ite_eq_left hinput]
     · have hne : input ≠ cached := by rintro rfl; exact hinput hcached
       simp only [ite_eq_right hinput, List.lookup_cons, beq_eq_false_iff_ne.mpr hne]
-  | case3 cached reply rest hcached ih =>
+  | case3 cached reply rest hcached ih => -- off-target entry: kept
     by_cases heq : input = cached
     · subst cached
       simp only [ite_eq_right hcached, List.lookup_cons, beq_self_eq_true, Option.map_some]

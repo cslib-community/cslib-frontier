@@ -90,11 +90,11 @@ theorem length_le_of_mem_simPropWords (k : ℕ) (t : Topo) (free : List Bool)
     (coins : List Bool) (s : ℕ) :
     ∀ w ∈ simPropWords k t free coins s, w.length ≤ k + 2 := by
   fun_induction simPropWords k t free coins s with
-  | case1 =>
+  | case1 => -- 0: input labels
     intro w hw
     obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hw
     simp [PointPermute.length_simLabel]
-  | case2 s hsq ws ih =>
+  | case2 s hsq ws ih => -- s + 1, s < t.q: append gate `s`
     intro w hw
     rcases List.mem_append.mp hw with hw | hw
     · exact ih w hw
@@ -108,7 +108,7 @@ theorem length_le_of_mem_simPropWords (k : ℕ) (t : Topo) (free : List Bool)
         rw [List.length_zipWith]
         omega
       · simp [PointPermute.length_simLabel]
-  | case3 => assumption
+  | case3 => assumption -- s + 1, ¬s < t.q: unchanged
 
 /-- On a valid circuit `f` and any flag list `free` agreeing with `isXorGate f.1` on `Fin f.1.q`,
 the first `n + s` words of `simPropWords` are the typed propagated `simBaseLabels`. -/

@@ -46,8 +46,9 @@ private theorem Trace.parse_raw {i n : ℕ} (t : Trace i n) : parse i n t.raw = 
 private theorem raw_of_parse {i n : ℕ} {xs : List Byte} {t : Trace i n}
     (h : parse i n xs = some t) : t.raw = xs := by
   fun_induction parse i n xs with
-  | case1 => cases Option.some.inj h; rfl
-  | case2 => cases h
+  | case1 => cases Option.some.inj h; rfl -- 0, tail: done
+  | case2 => cases h -- k + 1, []: out of bytes
+  -- k + 1, b :: rest: reject (`i < b`) or accept (`b ≤ i`)
   | case3 _ _ b _ _ ih | case4 _ _ b _ _ ih =>
     obtain ⟨u, hu, rfl⟩ := Option.map_eq_some_iff.mp h
     exact congrArg (b :: ·) (ih hu)

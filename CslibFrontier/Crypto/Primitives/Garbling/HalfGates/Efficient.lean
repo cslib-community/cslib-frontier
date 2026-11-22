@@ -92,17 +92,17 @@ private theorem length_zeroGate_le (k g : ℕ) (Δ a b : List Bool) (isAnd : Boo
 private theorem length_le_of_mem_zeroWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool)
     (s : ℕ) : ∀ w ∈ zeroWords hash k f coins s, w.length ≤ k + 2 := by
   fun_induction zeroWords hash k f coins s with
-  | case1 =>
+  | case1 => -- 0: input words
     intro w hw
     obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hw
     simp [inputWord]
-  | case2 s hsq ws ih =>
+  | case2 s hsq ws ih => -- s + 1, s < f.q: append gate `s`
     intro w hw
     rcases List.mem_append.mp hw with hw | hw
     · exact ih w hw
     · rw [List.mem_singleton.mp hw]
       exact length_zeroGate_le hash _ _ _ _ _ _ (length_getD_le ih _)
-  | case3 => assumption
+  | case3 => assumption -- s + 1, ¬s < f.q: unchanged
 
 /-- The first `n + s` zero label words, for `s ≤ q`. -/
 private theorem length_zeroWords (k : ℕ) (f : ConventionalCircuit) (coins : List Bool) {s : ℕ}

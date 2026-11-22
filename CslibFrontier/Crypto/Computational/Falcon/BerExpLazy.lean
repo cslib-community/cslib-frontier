@@ -158,13 +158,14 @@ theorem berExpLazyTrace_accepted {thresholds samples : List Byte}
     (hlength : thresholds.length = samples.length) :
     (berExpLazyTrace thresholds samples).accepted = decide (samples < thresholds) := by
   fun_induction berExpLazyTrace thresholds samples with
+  -- sample < threshold: accept
   | case1 threshold thresholds sample samples hlt => simpa using List.Lex.rel hlt
-  | case2 threshold thresholds sample samples _ hgt =>
+  | case2 threshold thresholds sample samples _ hgt => -- threshold < sample: reject
     simp [(show threshold :: thresholds < sample :: samples from List.Lex.rel hgt).le]
-  | case3 threshold thresholds sample samples hle hge _ ih =>
+  | case3 threshold thresholds sample samples hle hge _ ih => -- equal bytes: recurse
     obtain rfl := le_antisymm (not_lt.mp hge) (not_lt.mp hle)
     simpa [List.lex_cons_iff] using ih (by simpa using hlength)
-  | case4 thresholds samples hnot =>
+  | case4 thresholds samples hnot => -- either list exhausted
     match thresholds, samples, hlength with
     | [], [], _ => rfl
     | _ :: _, _ :: _, _ => exact (hnot _ _ _ _ rfl rfl).elim
