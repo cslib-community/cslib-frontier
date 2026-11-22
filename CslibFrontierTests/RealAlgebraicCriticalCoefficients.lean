@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEva
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ShiftedCriticalObjectiveEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
@@ -56,6 +57,16 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- The one-variable zero source supports an input-dependent shift and grid point at level 13.
+example : (fun w : ℕ × List ℕ =>
+    criticalShiftedObjectiveResidue 101 1 1 0 w.1 w.2 [⟨0, 1⟩] (fun _ => 0)) ∈
+    CountingFunction 13 (encPair encNat (encList encNat)) encNat :=
+  criticalShiftedObjectiveResidue_mem (a := 0) (Decoder.pair Decoder.nat (Decoder.list Decoder.nat))
+    (p := fun _ => 101) (n := fun _ => 1) (d := fun _ => 1) (b := fun _ => 0)
+    (e := Prod.fst) (z := Prod.snd) (data := fun _ => [⟨0, 1⟩]) (value := fun _ => 0)
+    (.const 101) (.const 1) (.const 1) (.const 0) (by fun_prop) (by fun_prop)
+    (.const _) (CountingFunction.of_polyTime (.const 0))
 
 -- The zero source in one variable supplies the full label certificate at every binary address.
 example : (fun z : ℕ => criticalRootLabelResidue 101 1 1 0 z [] (fun _ => 0)) ∈
