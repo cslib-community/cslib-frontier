@@ -3929,6 +3929,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FramePrefix
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.IterateUntil
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Justesen
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.JustesenBit
@@ -3944,6 +3945,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.I
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Lists
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BoundedSearch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.SmallSpace
