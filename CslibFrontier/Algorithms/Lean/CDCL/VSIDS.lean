@@ -60,8 +60,9 @@ variable.
 
 The choice of variable does not affect correctness: the solver only needs an unassigned variable
 of the database, or the fact that there is none. `Activity.pick` scans for one of greatest
-activity (`Activity.pick_some`, `Activity.pick_none`, `Activity.pick_max`); the solver uses it
-when the variable order runs out.
+activity (`Activity.pick_some`, `Activity.pick_none`, `Activity.pick_max`); the solver uses it,
+with every activity `0`, when VSIDS is off. With VSIDS, the order runs out only when every
+admitted variable is assigned (`VarOrder.pop_none`).
 
 ## Main definitions
 
@@ -90,6 +91,8 @@ when the variable order runs out.
   and the positions consistent.
 * `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_spec`: the variable popped has the greatest activity
   among the unassigned variables, and the order keeps its invariant.
+* `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_none`: with enough fuel, popping finds no variable
+  only by emptying the heap.
 -/
 
 @[expose] public section
@@ -955,7 +958,7 @@ structure VarOrder.Popped where
 
 /-- **Popping the decision variable**, as MiniSat's `pickBranchLit`: the top of the heap is
 removed until it is an unassigned variable admitted by `occ`. `none` if the heap runs out, or the
-fuel does. -/
+fuel does; with more fuel than variables in the heap, the heap runs out (`VarOrder.pop_none`). -/
 def VarOrder.pop (A : Activity) (asg : Assign) (occ : ℕ → Bool) :
     (fuel : ℕ) → VarOrder → VarOrder.Popped
   | 0, H => ⟨none, H⟩
@@ -1027,5 +1030,33 @@ theorem VarOrder.pop_spec {A : Activity} {asg : Assign} {M : Trail} {V : List �
           exact absurd this (by decide)
         · exact (hm' v).2 ⟨hcov v hv hvM hvo, fun e => hne (by rw [e])⟩
     · exact ⟨hwf, hp, rfl, fun _ h => absurd h (by simp), fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
+
+private theorem VarOrder.size_removeTop (A : Activity) (H : VarOrder) (h : 0 < H.heap.size) :
+    (H.removeTop A h).heap.size = H.heap.size - 1 := by
+  unfold VarOrder.removeTop
+  dsimp only
+  split <;> simp
+
+/-- **Popping with more fuel than variables** finds none only by emptying the heap. -/
+theorem VarOrder.pop_none (A : Activity) (asg : Assign) (occ : ℕ → Bool) :
+    ∀ (fuel : ℕ) (H : VarOrder), H.heap.size < fuel →
+    (VarOrder.pop A asg occ fuel H).var = none → (VarOrder.pop A asg occ fuel H).order.heap.size = 0
+  | 0, _, hf, _ => absurd hf (Nat.not_lt_zero _)
+  | fuel + 1, H, hf, hn => by
+    unfold VarOrder.pop at hn ⊢
+    split
+    · rename_i h
+      simp only [h, ↓reduceDIte] at hn
+      dsimp only at hn ⊢
+      split
+      · rename_i hskip
+        simp only [hskip, ↓reduceIte] at hn
+        exact VarOrder.pop_none A asg occ fuel _ (by rw [VarOrder.size_removeTop]; omega) hn
+      · rename_i hskip
+        simp only [hskip, Bool.false_eq_true, ↓reduceIte] at hn
+        exact absurd hn (by simp)
+    · rename_i h
+      change H.heap.size = 0
+      omega
 
 end Cslib.Algorithms.Lean.CDCL
