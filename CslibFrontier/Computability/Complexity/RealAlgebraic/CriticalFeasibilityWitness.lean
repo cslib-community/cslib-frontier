@@ -119,7 +119,7 @@ private theorem exists_padded_witness {D N e : ℕ} (L : List (Fin D × SignType
   omega
 
 /-- The determinant at the bounded derivative-sign label and shift read from a witness word. -/
-noncomputable def criticalFeasibilityDeterminant {n ell : ℕ} (hell : 1 ≤ ell) (b : ℕ)
+@[expose] noncomputable def criticalFeasibilityDeterminant {n ell : ℕ} (hell : 1 ≤ ell) (b : ℕ)
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (word : List Bool) : ℤ :=
   let w := decodeCriticalFeasibilityWitness word
   let L := decodeRootLabel (D := ell ^ n) (pow_pos (by omega) _) (n * ell.size) w.label

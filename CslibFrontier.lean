@@ -3144,6 +3144,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.Characteristi
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
@@ -3228,17 +3229,26 @@ public import CslibFrontier.Computability.DecisionTree.SpectralNorm
 public import CslibFrontier.Computability.DecisionTree.Switching
 public import CslibFrontier.Computability.DecisionTree.SwitchingProbability
 public import CslibFrontier.Computability.DecisionTree.Symmetric
+public import CslibFrontier.Computability.Distributed.ABD.Basic
+public import CslibFrontier.Computability.Distributed.ABD.Impossibility
+public import CslibFrontier.Computability.Distributed.ABD.Protocol
 public import CslibFrontier.Computability.Distributed.ApproxAgreement.Protocol
 public import CslibFrontier.Computability.Distributed.ApproxAgreement.TrimmedMidpoint
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Basic
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Bracha
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Impossibility
+public import CslibFrontier.Computability.Distributed.AtomicCommit.ThreePhaseCommit
+public import CslibFrontier.Computability.Distributed.AtomicCommit.TwoPhaseCommit
 public import CslibFrontier.Computability.Distributed.BenOr.Basic
 public import CslibFrontier.Computability.Distributed.BenOr.Liveness
 public import CslibFrontier.Computability.Distributed.Byzantine.Basic
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
+public import CslibFrontier.Computability.Distributed.Byzantine.PhaseKing
 public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
+public import CslibFrontier.Computability.Distributed.ClockSync.Basic
+public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
+public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctness
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
@@ -3251,6 +3261,8 @@ public import CslibFrontier.Computability.Distributed.OrientedCycle.LCL.Linear
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Linial
 public import CslibFrontier.Computability.Distributed.OrientedCycle.MIS
 public import CslibFrontier.Computability.Distributed.OrientedCycle.RoundComplexity
+public import CslibFrontier.Computability.Distributed.Paxos.Basic
+public import CslibFrontier.Computability.Distributed.Paxos.Liveness
 public import CslibFrontier.Computability.GenericRAM.Algebraic
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.GenericRAM.Native
@@ -3474,6 +3486,7 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.ScheduledFineP
 public import CslibFrontier.Computability.LogSpaceDerandomization.ScheduledProductMean
 public import CslibFrontier.Computability.LogSpaceDerandomization.SignedResidualBins
 public import CslibFrontier.Computability.LogSpaceDerandomization.SourceRelease
+public import CslibFrontier.Computability.LogSpaceDerandomization.StageContext
 public import CslibFrontier.Computability.LogSpaceDerandomization.StochasticAtom
 public import CslibFrontier.Computability.LogSpaceDerandomization.TrueSampleMeans
 public import CslibFrontier.Computability.MCSP.AntiChecker
@@ -4631,6 +4644,7 @@ public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.LinearHash
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
+public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle.Normalization
@@ -4929,6 +4943,7 @@ public import CslibFrontier.Computability.WordRAM.Defs
 public import CslibFrontier.Computability.WordRAM.Dynamic
 public import CslibFrontier.Computability.WordRAM.ExactLog
 public import CslibFrontier.Computability.WordRAM.ExactNotation
+public import CslibFrontier.Computability.WordRAM.FlatEndpoint
 public import CslibFrontier.Computability.WordRAM.Footprint
 public import CslibFrontier.Computability.WordRAM.Function
 public import CslibFrontier.Computability.WordRAM.GhostLoop
@@ -4942,6 +4957,7 @@ public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.MemoryView
 public import CslibFrontier.Computability.WordRAM.MemoryWindow
+public import CslibFrontier.Computability.WordRAM.MemoryWindow.Dynamic
 public import CslibFrontier.Computability.WordRAM.MemoryWindow.Normalization
 public import CslibFrontier.Computability.WordRAM.Multiword
 public import CslibFrontier.Computability.WordRAM.Multiword.Arithmetic
@@ -5794,6 +5810,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 public import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
@@ -7871,6 +7888,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 public import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm.Init
+public import CslibFrontier.Languages.Probabilistic.Oracle.Lens
 public import CslibFrontier.Languages.Probabilistic.Oracle.LimitQueries
 public import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 public import CslibFrontier.Languages.Probabilistic.Oracle.Norm.Init
@@ -7935,6 +7953,7 @@ public import CslibFrontier.Languages.Probabilistic.UniformNat.Support
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 public import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
+public import CslibFrontier.Languages.Probabilistic.UntilBad.PlantedQuery
 public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 public import CslibFrontier.Languages.Probabilistic.Vector
 public import CslibFrontier.Languages.SQL.Column
@@ -8447,6 +8466,7 @@ public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
 public import CslibFrontier.Logics.RealArithmetic.Basic
 public import CslibFrontier.Logics.RealArithmetic.Encoding
+public import CslibFrontier.Logics.RealArithmetic.ModularEvaluation
 public import CslibFrontier.Logics.SecondOrder.Basic
 public import CslibFrontier.Logics.SecondOrder.Coloring
 public import CslibFrontier.Logics.SecondOrder.Encoding
@@ -8848,6 +8868,7 @@ public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 public import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 public import CslibFrontier.Probability.StatisticalDistance.Coupling
+public import CslibFrontier.Probability.StatisticalDistance.CouplingBind
 public import CslibFrontier.Probability.StatisticalDistance.DirectProduct
 public import CslibFrontier.Probability.StatisticalDistance.Event
 public import CslibFrontier.Probability.StatisticalDistance.OptimalCoupling
