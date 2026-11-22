@@ -157,6 +157,12 @@ private noncomputable def parityTriangle (c : ℂ) (r : ℝ) : Route where
     else if i.val = 2 then ⟨c.re - r, c.im + r⟩
     else ⟨c.re - r, c.im - r⟩
 
+private theorem parityTriangle_point (c : ℂ) (r : ℝ) (i : Fin 4) :
+    (parityTriangle c r).point i =
+      if i.val = 1 then ⟨c.re + r, c.im⟩
+      else if i.val = 2 then ⟨c.re - r, c.im + r⟩
+      else ⟨c.re - r, c.im - r⟩ := rfl
+
 open Classical in
 private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
     (parityTriangle c r).rayParity 1 z =
@@ -173,12 +179,12 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
       (c.re + r - (c.re - r)) = _
     rw [show c.im - (c.im - r) = r by ring]
     field_simp [hr.ne']
-    <;> ring
+    ring
   have hbd : horizontalIntercept b d z.im = c.re + r - 2 * (z.im - c.im) := by
     change c.re + r + (z.im - c.im) / (c.im + r - c.im) * (c.re - r - (c.re + r)) = _
     rw [show c.im + r - c.im = r by ring]
     field_simp [hr.ne']
-    <;> ring
+    ring
   have hda : horizontalIntercept d a z.im = c.re - r := by
     change c.re - r + (z.im - (c.im + r)) / (c.im - r - (c.im + r)) *
       (c.re - r - (c.re - r)) = _
@@ -200,7 +206,8 @@ private theorem parityTriangle_bits (c z : ℂ) {r : ℝ} (hr : 0 < r) :
     rfl
   rw [hsum]
   simp only [RayCrosses, min_eq_left ha, max_eq_right ha, min_eq_left hb, max_eq_right hb,
-    min_eq_right (ha.trans hb), max_eq_left (ha.trans hb), hab, hbd, hda] <;> rfl
+    min_eq_right (ha.trans hb), max_eq_left (ha.trans hb), hab, hbd, hda]
+  rfl
 
 private theorem parityTriangle_center (c : ℂ) {r : ℝ} (hr : 0 < r) :
     (parityTriangle c r).rayParity 1 c = true := by
@@ -255,16 +262,16 @@ private theorem parityTriangle_support (c : ℂ) {r : ℝ} (hr : 0 < r)
     ((parityTriangle c r).point i.succ) t
   change Fin 3 at i
   fin_cases i <;>
-    norm_num [parityTriangle, Complex.add_re, Complex.real_smul, Complex.mul_re,
+    norm_num [parityTriangle_point, Complex.add_re, Complex.real_smul, Complex.mul_re,
       Complex.ofReal_re, Complex.sub_re, Complex.ofReal_im] at hre him
   all_goals
     refine ⟨?_, max_le (abs_le.mpr ⟨?_, ?_⟩) (abs_le.mpr ⟨?_, ?_⟩)⟩
     · intro heq
       have hx := congrArg Complex.re heq
       have hy := congrArg Complex.im heq
-      norm_num [parityTriangle, Route.eval] at hx hy <;> nlinarith
+      norm_num [Route.eval, parityTriangle_point] at hx hy <;> nlinarith
     all_goals
-      norm_num [parityTriangle, Route.eval] <;> nlinarith
+      norm_num [Route.eval, parityTriangle_point] <;> nlinarith
 
 /-- An arbitrarily small three-segment closed route can toggle horizontal ray parity
 at exactly one point of a finite set. Its support avoids the center and every observation
@@ -308,7 +315,7 @@ theorem exists_rayParity_isolating_loop (points : Finset ℂ) (c : ℂ)
   refine ⟨parityTriangle c r, rfl, rfl, ?_, ?_, ?_, ?_, parityTriangle_center c hr, ?_⟩
   · intro i
     change Fin 3 at i
-    fin_cases i <;> intro heq <;> norm_num [parityTriangle] at heq <;> linarith
+    fin_cases i <;> intro heq <;> norm_num [parityTriangle_point] at heq <;> linarith
   · exact fun h => (parityTriangle_support c hr h).1 rfl
   · intro z hz hs
     obtain ⟨hne, hle⟩ := parityTriangle_support c hr hs
