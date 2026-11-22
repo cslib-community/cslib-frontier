@@ -4839,6 +4839,7 @@ public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.LinearHash
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
+public import CslibFrontier.Computability.Probabilistic.Oracle.CachedSampler
 public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
@@ -8153,6 +8154,7 @@ public import CslibFrontier.Languages.Probabilistic.RandomOracle.ImageCollision
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Invariant
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
+public import CslibFrontier.Languages.Probabilistic.RandomOracle.QueryHit
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Represented
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Sum
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Through
