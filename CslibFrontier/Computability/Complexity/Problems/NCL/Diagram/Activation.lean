@@ -205,9 +205,9 @@ private theorem forward_vertexList (hI : I.Forward) (D : Diagram Γ a b)
     simp only [vertexList, List.forall_mem_append, List.forall_mem_map, Vertex.forward_map]
     constructor
     · simpa only [Function.comp_def, name_tensorLeft] using
-        ih₁ (fun i => top ((appendEquiv a c).symm (.inl i))) k (fun i => htop _)
+        ih₁ (fun i => top ((List.appendIndexEquiv a c) (.inl i))) k (fun i => htop _)
     · simpa only [Function.comp_def, name_tensorRight] using
-        ih₂ (fun i => top ((appendEquiv a c).symm (.inr i))) (k + D₁.innerCount)
+        ih₂ (fun i => top ((List.appendIndexEquiv a c) (.inr i))) (k + D₁.innerCount)
           (fun i => (htop _).trans_le (Nat.le_add_right _ _))
 
 private theorem legal_sweep (hI : I.Forward) (D : Diagram Γ a b) {s t : D.Edge → Bool}

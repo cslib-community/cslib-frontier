@@ -21,7 +21,6 @@ clauses. Repeated binders retain their ordinary shadowing semantics.
 
 ## Main definitions
 
-* `Cslib.Complexity.NCL.QBF.Source.Input`: upstream alternating prenex CNF inputs.
 * `Cslib.Complexity.NCL.QBF.Source.normalize`: replace open inputs by a fixed false instance.
 
 ## Main results
@@ -43,22 +42,19 @@ namespace Cslib.Complexity.NCL.QBF.Source
 
 open Cslib.Logic.PL Cslib.Logic.PL.QBF
 
-/-- An upstream alternating prenex CNF input, with variable names encoded in binary. -/
-abbrev Input := PrenexCNF
-
 /-- A fixed false closed source: `∃ x, ∀ y, y`. -/
-@[expose] def noInput : Input := ⟨[(0, 1)], [[(1, true)]]⟩
+@[expose] def noInput : PrenexCNF := ⟨[(0, 1)], [[(1, true)]]⟩
 
 /-- Every literal's name occurs in the prefix, including shadowed names. -/
-@[expose] def isClosedInput (x : Input) : Bool :=
+@[expose] def isClosedInput (x : PrenexCNF) : Bool :=
   x.matrix.all fun c => c.all fun l => decide (l.1 ∈ roundVars x.rounds)
 
-private theorem isClosedInput_eq_true_iff (x : Input) :
+private theorem isClosedInput_eq_true_iff (x : PrenexCNF) :
     isClosedInput x = true ↔ (rounds x.rounds (ofCNF x.matrix)).Closed := by
   simp only [isClosedInput, List.all_eq_true, decide_eq_true_eq, closed_rounds_ofCNF_iff]
 
 /-- Retain closed formulas and replace open formulas by a fixed false instance. -/
-@[expose] def normalize (x : Input) : Input :=
+@[expose] def normalize (x : PrenexCNF) : PrenexCNF :=
   if isClosedInput x then x else noInput
 
 private theorem no_notMem : noInput ∉ TQBFCNF := by
@@ -66,7 +62,7 @@ private theorem no_notMem : noInput ∉ TQBFCNF := by
   decide +kernel
 
 /-- Every normalized input is closed. -/
-theorem normalize_closed (x : Input) :
+theorem normalize_closed (x : PrenexCNF) :
     (rounds (normalize x).rounds (ofCNF (normalize x).matrix)).Closed := by
   unfold normalize
   split_ifs with hc
@@ -76,7 +72,7 @@ theorem normalize_closed (x : Input) :
 
 /-- **Normalization preserves the full upstream source language**, including inputs with free
 variables, empty prefixes, empty matrices, and empty clauses. -/
-theorem normalize_mem_iff (x : Input) : normalize x ∈ TQBFCNF ↔ x ∈ TQBFCNF := by
+theorem normalize_mem_iff (x : PrenexCNF) : normalize x ∈ TQBFCNF ↔ x ∈ TQBFCNF := by
   unfold normalize
   split_ifs with hc
   · rfl

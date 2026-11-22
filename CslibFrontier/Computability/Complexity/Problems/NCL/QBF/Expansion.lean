@@ -61,62 +61,62 @@ theorem checkGens_circuit (qs : List Quantifier) (ms : List (List Bool)) :
 
 /-- Expand a normalized source circuit into primitive AND/OR gadgets. -/
 @[expose]
-def diagram (x : Source.Input) : Diagram Prim [] [] := (Reduction.circuit x).subst Gate.expand
+def diagram (x : PrenexCNF) : Diagram Prim [] [] := (Reduction.circuit x).subst Gate.expand
 
 /-- The open simulation fixes the source edges within the expanded circuit. -/
-@[expose] def openSim (x : Source.Input) :
+@[expose] def openSim (x : PrenexCNF) :
     OpenSim Gate.interp Prim.interp (Reduction.circuit x) (diagram x) :=
   openSimSubst Gate.expandOpenSim (Reduction.circuit x)
 
 /-- The canonical extension of the source initial configuration. -/
-@[expose] def initial (x : Source.Input) : Realization Prim.interp (diagram x) [] [] where
+@[expose] def initial (x : PrenexCNF) : Realization Prim.interp (diagram x) [] [] where
   orient := (openSim x).enc (Reduction.initial x).orient
   legal := (openSim x).legal_enc (Reduction.initial x).legal
   top_eq := rfl
   bot_eq := rfl
 
 /-- The canonical extension of the source's fixed target. -/
-@[expose] def target (x : Source.Input) : Realization Prim.interp (diagram x) [] [] where
+@[expose] def target (x : PrenexCNF) : Realization Prim.interp (diagram x) [] [] where
   orient := (openSim x).enc (Reduction.target x).orient
   legal := (openSim x).legal_enc (Reduction.target x).legal
   top_eq := rfl
   bot_eq := rfl
 
 /-- The tracked output-memory edge in the expansion. -/
-@[expose] def output (x : Source.Input) : (diagram x).Edge := (openSim x).ι (Reduction.output x)
+@[expose] def output (x : PrenexCNF) : (diagram x).Edge := (openSim x).ι (Reduction.output x)
 
 /-- The tracked inactive try edge for edge-to-edge reachability. -/
-@[expose] def tryIn (x : Source.Input) : (diagram x).Edge := (openSim x).ι (Reduction.tryIn x)
+@[expose] def tryIn (x : PrenexCNF) : (diagram x).Edge := (openSim x).ι (Reduction.tryIn x)
 
 /-- The tracked satisfied edge for edge-to-edge reachability. -/
-@[expose] def satOut (x : Source.Input) : (diagram x).Edge := (openSim x).ι (Reduction.satOut x)
+@[expose] def satOut (x : PrenexCNF) : (diagram x).Edge := (openSim x).ι (Reduction.satOut x)
 
 /-- Every vertex of an expanded source circuit is an AND or OR vertex. -/
-theorem isAndOr (x : Source.Input) : ((diagram x).graph Prim.interp).IsAndOr :=
+theorem isAndOr (x : PrenexCNF) : ((diagram x).graph Prim.interp).IsAndOr :=
   Gate.expand_isAndOr_of_check _ (checkGens_circuit _ _)
 
 /-- No expanded vertex contains both endpoints of any edge. -/
-theorem loopFree (x : Source.Input) : ((diagram x).graph Prim.interp).LoopFree :=
+theorem loopFree (x : PrenexCNF) : ((diagram x).graph Prim.interp).LoopFree :=
   Gate.expand_loopFree_of_check _ (checkGens_circuit _ _)
 
 /-- Every edge has two opposite ports of equal weight. -/
-theorem wellFormed (x : Source.Input) : ((diagram x).graph Prim.interp).WellFormed :=
+theorem wellFormed (x : PrenexCNF) : ((diagram x).graph Prim.interp).WellFormed :=
   Gate.expand_wellFormed_of_check _ (checkGens_circuit _ _)
 
 /-- Fixed-target correctness survives expansion of all circuit generators. -/
-theorem reachable_iff_mem_TQBFCNF (x : Source.Input) :
+theorem reachable_iff_mem_TQBFCNF (x : PrenexCNF) :
     ((diagram x).graph Prim.interp).Reachable (initial x).orient (target x).orient ↔ x ∈ TQBFCNF :=
   (Gate.expandSimulation (Reduction.circuit x)).reachable_enc_iff.trans
     (Reduction.reachable_iff_mem_TQBFCNF x)
 
 /-- The tracked output edge is reversible exactly for true closed source inputs. -/
-theorem canReverse_iff_mem_TQBFCNF (x : Source.Input) :
+theorem canReverse_iff_mem_TQBFCNF (x : PrenexCNF) :
     ((diagram x).graph Prim.interp).CanReverse (initial x).orient (output x) ↔ x ∈ TQBFCNF :=
   ((Gate.expandSimulation (Reduction.circuit x)).canReverse_enc_iff (fun _ => rfl)).trans
     (Reduction.canReverse_iff_mem_TQBFCNF x)
 
 /-- Directional edge-to-edge correctness survives expansion, including arbitrary legal starts. -/
-theorem exists_reachable_sat_iff_mem_TQBFCNF (x : Source.Input) :
+theorem exists_reachable_sat_iff_mem_TQBFCNF (x : PrenexCNF) :
     (∃ s t, ((diagram x).graph Prim.interp).Legal s ∧ s (tryIn x) = false ∧
       t (satOut x) = false ∧ ((diagram x).graph Prim.interp).Reachable s t) ↔ x ∈ TQBFCNF :=
   ((Gate.expandSimulation (Reduction.circuit x)).exists_legal_reachable_iff

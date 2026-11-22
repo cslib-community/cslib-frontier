@@ -85,14 +85,14 @@ theorem botList_compRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c)
 theorem topList_tensor (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (t : (D₁.tensor D₂).Edge → Label) :
     (D₁.tensor D₂).topList t = D₁.topList (t ∘ tensorLeft D₁ D₂) ++
-      D₂.topList (t ∘ tensorRight D₁ D₂) := ofFn_appendEquiv a c _
+      D₂.topList (t ∘ tensorRight D₁ D₂) := List.ofFn_appendIndexEquiv a c _
 
 /-- Reading the bottom wires of a juxtaposition concatenates the readings of its parts. -/
 theorem botList_tensor (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (t : (D₁.tensor D₂).Edge → Label) :
     (D₁.tensor D₂).botList t = D₁.botList (t ∘ tensorLeft D₁ D₂) ++
       D₂.botList (t ∘ tensorRight D₁ D₂) :=
-  (ofFn_appendEquiv b d _).trans (congrArg₂ (· ++ ·)
+  (List.ofFn_appendIndexEquiv b d _).trans (congrArg₂ (· ++ ·)
     (List.ofFn_inj.2 (funext fun j => by simp [bottom_tensor_left]))
     (List.ofFn_inj.2 (funext fun j => by simp [bottom_tensor_right])))
 

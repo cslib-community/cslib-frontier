@@ -34,11 +34,11 @@ public section
 namespace Cslib.Complexity.NCL.QBF.Emit
 
 /-- Expanding the emitted instructions gives the numbered source word, with the same edge order. -/
-theorem expand_source (x : Source.Input) : expand (source x) = Numbered.word x :=
+theorem expand_source (x : PrenexCNF) : expand (source x) = Numbered.word x :=
   expand_circuit _ _
 
 /-- Compiling emitted source instructions gives exactly the reduction's graph data. -/
-theorem compile_source (x : Source.Input) :
+theorem compile_source (x : PrenexCNF) :
     language.compile (source x) = Reduction.graphData x :=
   (language.compile_eq_expand _).trans
     ((congrArg Word.compile (expand_source x)).trans (Reduction.graphData_eq_compile x).symm)

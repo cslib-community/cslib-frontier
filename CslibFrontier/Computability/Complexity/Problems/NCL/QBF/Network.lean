@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Gadgets.Gate
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Contract
+import CslibFrontier.Foundations.Data.List.Forall2
 
 /-!
 # The network of a formula in conjunctive normal form
@@ -174,15 +175,6 @@ theorem hits_mono : ∀ (m : List Bool) {ls' ls : List Bool}, List.Forall₂ (·
   | [], _, _, .cons _ _ => le_rfl
   | _ :: m, _, _, .cons h hs => and_or_le h (hits_mono m hs)
 
-private theorem forall₂_le_trans : ∀ {l₁ l₂ l₃ : List Bool}, List.Forall₂ (· ≤ ·) l₁ l₂ →
-    List.Forall₂ (· ≤ ·) l₂ l₃ → List.Forall₂ (· ≤ ·) l₁ l₃
-  | _, _, _, .nil, .nil => .nil
-  | _, _, _, .cons h hs, .cons h' hs' => .cons (le_trans h h') (forall₂_le_trans hs hs')
-
-private theorem forall₂_le_refl : ∀ l : List Bool, List.Forall₂ (· ≤ ·) l l
-  | [] => .nil
-  | _ :: l => .cons le_rfl (forall₂_le_refl l)
-
 /-- The contract of a step: the continuation needs the literal, and the new accumulator needs the
 old one, or the literal if collected. -/
 @[expose] def StepSpec (b : Bool) : List Bool → List Bool → Prop
@@ -299,7 +291,7 @@ theorem holds_conjoin (r : List Color) (n : ℕ) :
   | [] => (Holds.id _).mono fun x y hx _ h => by
     subst h
     obtain ⟨ls, w, rs, rfl, hls⟩ := exists_split n r hx
-    exact ⟨ls, w, rs, ls, w, rfl, rfl, hls, forall₂_le_refl ls, by simp⟩
+    exact ⟨ls, w, rs, ls, w, rfl, rfl, hls, List.forall₂_refl ls, by simp⟩
   | m :: ms => (((holds_clause ([B] ++ r) n m).comp
       ((holds_conj.tensor_id r).id_tensor (bundle n))).comp (holds_conjoin r n ms)).mono <| by
     rintro x y - - ⟨_, ⟨_, ⟨ls, rs₀, ls', v, rfl, rfl, hls, hf, hv⟩,
@@ -313,7 +305,7 @@ theorem holds_conjoin (r : List Color) (n : ℕ) :
     obtain ⟨rfl, h₄⟩ := List.append_inj h₂ (by simp [hf.length_eq, hls, hls₂])
     simp only [List.cons_append, List.nil_append, List.cons.injEq] at h₄
     obtain ⟨rfl, rfl⟩ := h₄
-    refine ⟨ls, b, q, ls'', w', rfl, rfl, hls, forall₂_le_trans hf' hf, ?_⟩
+    refine ⟨ls, b, q, ls'', w', rfl, rfl, hls, hf'.trans hf, ?_⟩
     simpa only [List.all_cons] using conj_le hw' hc hv (all_hits_mono ms hf)
 
 /-- The contract of the network: every continuation needs its literal, and the value of the
@@ -331,14 +323,14 @@ theorem holds_network (r : List Color) (n : ℕ) :
     rintro x y - - ⟨z, _, _, rfl, rfl, hz, x', y', q, rfl, rfl, hx', hy', -⟩
     obtain rfl := List.eq_nil_of_length_eq_zero hx'
     obtain ⟨v, rfl⟩ := List.length_eq_one_iff.1 hy'
-    exact ⟨z, q, z, v, rfl, rfl, by simpa using hz, forall₂_le_refl z, by simp⟩
+    exact ⟨z, q, z, v, rfl, rfl, by simpa using hz, List.forall₂_refl z, by simp⟩
   | m :: ms => ((holds_clause r n m).comp (holds_conjoin r n ms)).mono <| by
     rintro x y - - ⟨_, ⟨ls, rs, ls', v, rfl, rfl, hls, hf, hv⟩,
       ⟨ls₂, w, rs₂, ls'', w', h, rfl, hls₂, hf', hw'⟩⟩
     obtain ⟨rfl, h'⟩ := List.append_inj h (by simp [hf.length_eq, hls, hls₂])
     simp only [List.cons.injEq] at h'
     obtain ⟨rfl, rfl⟩ := h'
-    refine ⟨ls, rs, ls'', w', rfl, rfl, hls, forall₂_le_trans hf' hf, ?_⟩
+    refine ⟨ls, rs, ls'', w', rfl, rfl, hls, hf'.trans hf, ?_⟩
     simpa only [List.all_cons] using le_trans hw' (and_le_and hv (all_hits_mono ms hf))
 
 end Cslib.Complexity.NCL.QBF.Network

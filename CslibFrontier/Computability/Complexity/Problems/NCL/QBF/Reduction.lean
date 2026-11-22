@@ -46,36 +46,36 @@ namespace Cslib.Complexity.NCL.QBF.Reduction
 open Diagram Source Cslib.Logic.PL Cslib.Logic.PL.QBF
 
 /-- Emit a closed circuit after regularizing the source. -/
-@[expose] def circuit (x : Input) : Diagram Gate [] [] :=
+@[expose] def circuit (x : PrenexCNF) : Diagram Gate [] [] :=
   Circuit.diagram (quantifiers (normalize x).rounds)
     (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The circuit's explicit legal initial configuration. -/
-@[expose] def initial (x : Input) : Realization Gate.interp (circuit x) [] [] :=
+@[expose] def initial (x : PrenexCNF) : Realization Gate.interp (circuit x) [] [] :=
   Circuit.initial (quantifiers (normalize x).rounds)
     (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The fixed target, with the initial body and a set output record. -/
-@[expose] def target (x : Input) : Realization Gate.interp (circuit x) [] [] :=
+@[expose] def target (x : PrenexCNF) : Realization Gate.interp (circuit x) [] [] :=
   Circuit.target (quantifiers (normalize x).rounds)
     (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The output memory used by the configuration-to-edge question. -/
-@[expose] def output (x : Input) : (circuit x).Edge :=
+@[expose] def output (x : PrenexCNF) : (circuit x).Edge :=
   Circuit.output (quantifiers (normalize x).rounds)
     (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The try wire, initially inactive in the edge-to-edge question. -/
-@[expose] def tryIn (x : Input) : (circuit x).Edge :=
+@[expose] def tryIn (x : PrenexCNF) : (circuit x).Edge :=
   Circuit.tryIn (quantifiers (normalize x).rounds)
     (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The body sat wire, pointing up at the target of the edge-to-edge question. -/
-@[expose] def satOut (x : Input) : (circuit x).Edge :=
+@[expose] def satOut (x : PrenexCNF) : (circuit x).Edge :=
   Circuit.satOut (quantifiers (normalize x).rounds)
     (masks (normalize x).rounds (normalize x).matrix)
 
-private theorem truth_iff_mem (x : Input) :
+private theorem truth_iff_mem (x : PrenexCNF) :
     Chain.Truth (Matrix.Satisfies (masks (normalize x).rounds (normalize x).matrix))
       (quantifiers (normalize x).rounds) [] ↔ x ∈ TQBFCNF := by
   let n := normalize x
@@ -87,18 +87,18 @@ private theorem truth_iff_mem (x : Input) :
 
 /-- **Fixed-target correctness for every upstream input.** Open formulas are replaced by a
 fixed false instance before the closed circuit is constructed. -/
-theorem reachable_iff_mem_TQBFCNF (x : Input) :
+theorem reachable_iff_mem_TQBFCNF (x : PrenexCNF) :
     ((circuit x).graph Gate.interp).Reachable (initial x).orient (target x).orient ↔
       x ∈ TQBFCNF :=
   (Circuit.reachable_target_iff_truth _ _).trans (truth_iff_mem x)
 
 /-- **Configuration-to-edge correctness for every upstream input.** -/
-theorem canReverse_iff_mem_TQBFCNF (x : Input) :
+theorem canReverse_iff_mem_TQBFCNF (x : PrenexCNF) :
     ((circuit x).graph Gate.interp).CanReverse (initial x).orient (output x) ↔ x ∈ TQBFCNF :=
   (Circuit.canReverse_initial_iff_truth _ _).trans (truth_iff_mem x)
 
 /-- **Directional edge-to-edge correctness for every upstream input.** -/
-theorem exists_reachable_sat_iff_mem_TQBFCNF (x : Input) :
+theorem exists_reachable_sat_iff_mem_TQBFCNF (x : PrenexCNF) :
     (∃ s t, ((circuit x).graph Gate.interp).Legal s ∧ s (tryIn x) = false ∧
       t (satOut x) = false ∧ ((circuit x).graph Gate.interp).Reachable s t) ↔ x ∈ TQBFCNF :=
   (Circuit.exists_reachable_sat_iff_truth _ _).trans (truth_iff_mem x)

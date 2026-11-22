@@ -51,18 +51,18 @@ theorem configurationBits_circuit (recorded : Bool) (qs : List Quantifier)
   Interpretation.configurationBits_circuit Gate.bitMap recorded qs ms
 
 /-- Emit the source's canonical configuration with its chosen output record. -/
-@[expose] def sourceConfiguration (recorded : Bool) (x : Source.Input) : List Bool :=
+@[expose] def sourceConfiguration (recorded : Bool) (x : PrenexCNF) : List Bool :=
   configurationBits recorded (source x)
 
 /-- Clearing the output record gives exactly the numbered source initial configuration. -/
-theorem sourceConfiguration_false (x : Source.Input) :
+theorem sourceConfiguration_false (x : PrenexCNF) :
     sourceConfiguration false x = Numbered.initial x := by
   unfold Numbered.initial
   rw [Diagram.bits_closed]
   exact configurationBits_circuit false _ _
 
 /-- Setting the output record gives exactly the numbered fixed target configuration. -/
-theorem sourceConfiguration_true (x : Source.Input) :
+theorem sourceConfiguration_true (x : PrenexCNF) :
     sourceConfiguration true x = Numbered.target x := by
   unfold Numbered.target
   rw [Diagram.bits_closed]

@@ -55,7 +55,7 @@ theorem computableInPolyTime_configurationBits (B : Diagram.BitMap Gate) (record
 
 /-- Emit the normalized source's canonical configuration through a fixed bit map. -/
 @[expose] def sourceConfiguration (B : Diagram.BitMap Gate) (recorded : Bool)
-    (x : Source.Input) : List Bool :=
+    (x : PrenexCNF) : List Bool :=
   configurationBits B recorded (source x)
 
 /-- Emit the normalized source's initial or target bit list in polynomial time. -/

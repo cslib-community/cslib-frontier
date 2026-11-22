@@ -406,7 +406,7 @@ end OpenSim
   ι_injective := OpenSim.tensorι_injective S₁ S₂
   ι_top _ := rfl
   ι_bottom j := by
-    obtain ⟨j, rfl⟩ := (appendEquiv b d).symm.surjective j
+    obtain ⟨j, rfl⟩ := (List.appendIndexEquiv b d).surjective j
     rcases j with j | j
     · rw [bottom_tensor_left, bottom_tensor_left, OpenSim.tensorι_tensorLeft, S₁.ι_bottom]
     · rw [bottom_tensor_right, bottom_tensor_right, OpenSim.tensorι_tensorRight, S₂.ι_bottom]

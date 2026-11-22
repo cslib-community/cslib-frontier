@@ -918,7 +918,8 @@ register_result "ncl-and-or-pspace-complete" where
     per edge and moves reverse a single edge between legal orientations. The three input models \
     specify an initial configuration and a target edge, two edges with prescribed directions, \
     or two configurations. The reductions from alternating prenex CNF emit loop-free graphs. \
-    The upper bound uses deterministic Savitch search."
+    The upper bound uses deterministic Savitch search. \
+    Source check: https://github.com/cslib-community/cslib-frontier/pull/7455#issuecomment-7078246392."
 
 register_result "alternation-apspace-exp" where
   title := "Chandra–Kozen–Stockmeyer: APSPACE equals EXP"

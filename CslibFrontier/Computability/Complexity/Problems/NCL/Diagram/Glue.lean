@@ -260,7 +260,8 @@ theorem reverse_inr_comp_compLeft (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c
 /-- The configuration of a juxtaposition with the given configurations of its parts. -/
 @[expose] def glueTensor (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d) (t₁ : D₁.Edge → Label)
     (t₂ : D₂.Edge → Label) : (tensor D₁ D₂).Edge → Label
-  | .inl i => (appendEquiv a c i).elim (fun i => t₁ (.inl i)) (fun i => t₂ (.inl i))
+  | .inl i =>
+    ((List.appendIndexEquiv a c).symm i).elim (fun i => t₁ (.inl i)) (fun i => t₂ (.inl i))
   | .inr (.inl e) => t₁ (.inr e)
   | .inr (.inr e) => t₂ (.inr e)
 
@@ -281,7 +282,7 @@ theorem glueTensor_tensorRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d) (
 theorem tensor_cases {D₁ : Diagram Γ a b} {D₂ : Diagram Γ c d} (x : (tensor D₁ D₂).Edge) :
     (∃ y, x = tensorLeft D₁ D₂ y) ∨ ∃ z, x = tensorRight D₁ D₂ z := by
   rcases x with i | e | e
-  · obtain ⟨i, rfl⟩ := (appendEquiv a c).symm.surjective i
+  · obtain ⟨i, rfl⟩ := (List.appendIndexEquiv a c).surjective i
     rcases i with i | i
     · exact Or.inl ⟨.inl i, rfl⟩
     · exact Or.inr ⟨.inl i, rfl⟩
@@ -340,7 +341,7 @@ private theorem not_isBoundary_tensorLeft {D₁ : Diagram Γ a b} {D₂ : Diagra
   · exact absurd (Or.inl ⟨i, rfl⟩) hy
   rintro (⟨i, h⟩ | ⟨j, h⟩)
   · injection h
-  · obtain ⟨j, rfl⟩ := (appendEquiv b d).symm.surjective j
+  · obtain ⟨j, rfl⟩ := (List.appendIndexEquiv b d).surjective j
     rcases j with j | j
     · rw [bottom_tensor_left] at h
       exact hy (Or.inr ⟨j, tensorLeft_injective D₁ D₂ h⟩)
@@ -353,7 +354,7 @@ private theorem not_isBoundary_tensorRight {D₁ : Diagram Γ a b} {D₂ : Diagr
   · exact absurd (Or.inl ⟨i, rfl⟩) hz
   rintro (⟨i, h⟩ | ⟨j, h⟩)
   · injection h
-  · obtain ⟨j, rfl⟩ := (appendEquiv b d).symm.surjective j
+  · obtain ⟨j, rfl⟩ := (List.appendIndexEquiv b d).surjective j
     rcases j with j | j
     · rw [bottom_tensor_left] at h
       exact tensorLeft_ne_tensorRight D₁ D₂ _ _ h.symm

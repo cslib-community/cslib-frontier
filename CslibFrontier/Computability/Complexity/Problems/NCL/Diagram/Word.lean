@@ -212,13 +212,13 @@ theorem name_compRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c) (top : Fi
 theorem name_tensorLeft (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (top : Fin (a ++ c).length → ℕ) (k : ℕ) (x : D₁.Edge) :
     name (tensor D₁ D₂) top k (tensorLeft D₁ D₂ x) =
-      name D₁ (fun i => top ((appendEquiv a c).symm (.inl i))) k x := by
+      name D₁ (fun i => top ((List.appendIndexEquiv a c) (.inl i))) k x := by
   rcases x with i | e <;> rfl
 
 theorem name_tensorRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (top : Fin (a ++ c).length → ℕ) (k : ℕ) (x : D₂.Edge) :
     name (tensor D₁ D₂) top k (tensorRight D₁ D₂ x) =
-      name D₂ (fun j => top ((appendEquiv a c).symm (.inr j))) (k + innerCount D₁) x := by
+      name D₂ (fun j => top ((List.appendIndexEquiv a c) (.inr j))) (k + innerCount D₁) x := by
   rcases x with i | e
   · rfl
   · exact (Nat.add_assoc ..).symm
@@ -249,12 +249,13 @@ theorem run_toWord {a b : List Color} (D : Diagram Γ a b) (k : ℕ) (P S : List
       List.map_map, List.append_assoc, Vertex.map_comp_map (name_compLeft D₁ D₂ top c),
       Vertex.map_comp_map (name_compRight D₁ D₂ top c)]
   | @tensor a b c' d D₁ D₂ ih₁ ih₂ =>
-    rw [toWord, Word.run_append, ofFn_appendEquiv a c' top, ← List.append_assoc P,
+    rw [toWord, Word.run_append, List.ofFn_appendIndexEquiv a c' top, ← List.append_assoc P,
       List.append_assoc (P ++ _), ih₁ k P _ hP, ← List.append_assoc,
       ih₂ (k + b.length) _ S (by simp [hP])]
     simp only [Word.State.mk.injEq]
     refine ⟨?_, Nat.add_assoc .., ?_⟩
-    · rw [ofFn_appendEquiv b d (fun j => name (tensor D₁ D₂) top c ((tensor D₁ D₂).bottom j))]
+    · rw [List.ofFn_appendIndexEquiv b d
+        (fun j => name (tensor D₁ D₂) top c ((tensor D₁ D₂).bottom j))]
       simp only [bottom_tensor_left, bottom_tensor_right, name_tensorLeft, name_tensorRight,
         List.append_assoc]
     · simp only [vertexList, List.map_append, List.map_map, List.append_assoc,

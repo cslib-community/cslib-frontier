@@ -52,50 +52,50 @@ open Diagram
 
 /-- The exact number of edges in the emitted closed circuit. -/
 @[expose]
-def width (x : Source.Input) : ℕ := ([] : List Color).length + (Expanded.diagram x).innerCount
+def width (x : PrenexCNF) : ℕ := ([] : List Color).length + (Expanded.diagram x).innerCount
 
 /-- The number of vertices in drawing order. -/
 @[expose]
-def vertexCount (x : Source.Input) : ℕ := (vertexList Prim.interp (Expanded.diagram x)).length
+def vertexCount (x : PrenexCNF) : ℕ := (vertexList Prim.interp (Expanded.diagram x)).length
 
 /-- The emitted diagram flattened to a word. -/
-@[expose] def word (x : Source.Input) : Word := (Expanded.diagram x).toWord Prim.interp 0
+@[expose] def word (x : PrenexCNF) : Word := (Expanded.diagram x).toWord Prim.interp 0
 
 /-- Every emitted source word checks from the empty boundary to the empty boundary. -/
-theorem wellTyped_word (x : Source.Input) : (word x).WellTyped [] [] :=
+theorem wellTyped_word (x : PrenexCNF) : (word x).WellTyped [] [] :=
   wellTyped_toWord Prim.interp (Expanded.diagram x)
 
 /-- The emitted vertex data, with natural edge numbers. -/
-@[expose] def vertices (x : Source.Input) : List (Vertex ℕ) :=
+@[expose] def vertices (x : PrenexCNF) : List (Vertex ℕ) :=
   (finiteVertexList Prim.interp (Expanded.diagram x)).map (Vertex.map Fin.val)
 
 /-- The finite numbered semantics of the emitted circuit. -/
-@[expose] def graph (x : Source.Input) : ConstraintGraph (Fin (vertexCount x)) (Fin (width x)) :=
+@[expose] def graph (x : PrenexCNF) : ConstraintGraph (Fin (vertexCount x)) (Fin (width x)) :=
   finiteGraph Prim.interp (Expanded.diagram x)
 
 /-- Every numbered vertex is AND or OR. -/
-theorem isAndOr (x : Source.Input) : (graph x).IsAndOr :=
+theorem isAndOr (x : PrenexCNF) : (graph x).IsAndOr :=
   finiteGraph_isAndOr Prim.interp (Expanded.diagram x) (Expanded.isAndOr x)
 
 /-- Finite numbering introduces no self-loops. -/
-theorem loopFree (x : Source.Input) : (graph x).LoopFree :=
+theorem loopFree (x : PrenexCNF) : (graph x).LoopFree :=
   finiteGraph_loopFree Prim.interp (Expanded.diagram x) (Expanded.loopFree x)
 
 /-- Every numbered edge has two opposite ports of equal weight. -/
-theorem wellFormed (x : Source.Input) : (graph x).WellFormed :=
+theorem wellFormed (x : PrenexCNF) : (graph x).WellFormed :=
   finiteGraph_wellFormed Prim.interp (Expanded.diagram x) (Expanded.wellFormed x)
 
 /-- Running the emitted word gives exactly the vertex data and edge count. -/
-theorem run_word (x : Source.Input) :
+theorem run_word (x : PrenexCNF) :
     Word.run (word x) ⟨[], 0, []⟩ = ⟨[], width x, vertices x⟩ := by
   simpa only [word, vertices, width, List.length_nil, Nat.zero_add] using
     run_toWord_finite Prim.interp (Expanded.diagram x)
 
-@[simp] theorem length_vertices (x : Source.Input) : (vertices x).length = vertexCount x := by
+@[simp] theorem length_vertices (x : PrenexCNF) : (vertices x).length = vertexCount x := by
   simp [vertices, finiteVertexList, vertexCount]
 
 /-- Every listed edge number lies in the finite semantic interval. -/
-theorem vertices_bounded (x : Source.Input) :
+theorem vertices_bounded (x : PrenexCNF) :
     ∀ v ∈ vertices x, ∀ p ∈ v.ports, p.port.edge < width x := by
   intro v hv p hp
   obtain ⟨v, _, rfl⟩ := List.mem_map.1 hv
@@ -103,46 +103,46 @@ theorem vertices_bounded (x : Source.Input) :
   exact p.port.edge.isLt
 
 /-- The initial orientation as one bit per numbered edge. -/
-@[expose] def initial (x : Source.Input) : List Bool :=
+@[expose] def initial (x : PrenexCNF) : List Bool :=
   (Expanded.diagram x).bits (Expanded.initial x).orient
 
 /-- The fixed target orientation as one bit per numbered edge. -/
 @[expose]
-def target (x : Source.Input) : List Bool := (Expanded.diagram x).bits (Expanded.target x).orient
+def target (x : PrenexCNF) : List Bool := (Expanded.diagram x).bits (Expanded.target x).orient
 
-@[simp] theorem length_initial (x : Source.Input) : (initial x).length = width x :=
+@[simp] theorem length_initial (x : PrenexCNF) : (initial x).length = width x :=
   length_bits (Expanded.diagram x) (Expanded.initial x).orient
 
-@[simp] theorem length_target (x : Source.Input) : (target x).length = width x :=
+@[simp] theorem length_target (x : PrenexCNF) : (target x).length = width x :=
   length_bits (Expanded.diagram x) (Expanded.target x).orient
 
 /-- Read the initial bit list on the finite edge interval. -/
-@[expose] def initialConfig (x : Source.Input) : Fin (width x) → Bool :=
+@[expose] def initialConfig (x : PrenexCNF) : Fin (width x) → Bool :=
   fun i => (initial x).get (i.cast (length_initial x).symm)
 
 /-- Read the target bit list on the finite edge interval. -/
-@[expose] def targetConfig (x : Source.Input) : Fin (width x) → Bool :=
+@[expose] def targetConfig (x : PrenexCNF) : Fin (width x) → Bool :=
   fun i => (target x).get (i.cast (length_target x).symm)
 
-private theorem initialConfig_eq (x : Source.Input) : initialConfig x =
+private theorem initialConfig_eq (x : PrenexCNF) : initialConfig x =
     (Expanded.initial x).orient ∘ (Expanded.diagram x).numEquiv.symm :=
   funext fun i => get_bits (Expanded.diagram x) (Expanded.initial x).orient i
 
-private theorem targetConfig_eq (x : Source.Input) : targetConfig x =
+private theorem targetConfig_eq (x : PrenexCNF) : targetConfig x =
     (Expanded.target x).orient ∘ (Expanded.diagram x).numEquiv.symm :=
   funext fun i => get_bits (Expanded.diagram x) (Expanded.target x).orient i
 
 /-- The numbered output edge for configuration-to-edge reachability. -/
 @[expose]
-def output (x : Source.Input) : Fin (width x) := (Expanded.diagram x).numEquiv (Expanded.output x)
+def output (x : PrenexCNF) : Fin (width x) := (Expanded.diagram x).numEquiv (Expanded.output x)
 
 /-- The numbered try input for edge-to-edge reachability. -/
 @[expose]
-def tryIn (x : Source.Input) : Fin (width x) := (Expanded.diagram x).numEquiv (Expanded.tryIn x)
+def tryIn (x : PrenexCNF) : Fin (width x) := (Expanded.diagram x).numEquiv (Expanded.tryIn x)
 
 /-- The numbered satisfied output for edge-to-edge reachability. -/
 @[expose]
-def satOut (x : Source.Input) : Fin (width x) := (Expanded.diagram x).numEquiv (Expanded.satOut x)
+def satOut (x : PrenexCNF) : Fin (width x) := (Expanded.diagram x).numEquiv (Expanded.satOut x)
 
 private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
     (e : OutputLatch.diagram.Edge) :
@@ -158,7 +158,7 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
   exact name_compLeft (OutputLatch.diagram.subst Gate.expand) (D.subst Gate.expand) Fin.val 0 _
 
 /-- The output record always has edge number four. -/
-@[simp] theorem output_val (x : Source.Input) : (output x).val = 4 := by
+@[simp] theorem output_val (x : PrenexCNF) : (output x).val = 4 := by
   rw [output, numEquiv_val]
   let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
     (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
@@ -168,7 +168,7 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
   exact (controller_num D OutputLatch.mem).trans (by decide +kernel)
 
 /-- The outer try input always has edge number six. -/
-@[simp] theorem tryIn_val (x : Source.Input) : (tryIn x).val = 6 := by
+@[simp] theorem tryIn_val (x : PrenexCNF) : (tryIn x).val = 6 := by
   rw [tryIn, numEquiv_val]
   let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
     (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
@@ -178,7 +178,7 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
   exact (controller_num D OutputLatch.attempt).trans (by decide +kernel)
 
 /-- The body's returned sat always has edge number zero. -/
-@[simp] theorem satOut_val (x : Source.Input) : (satOut x).val = 0 := by
+@[simp] theorem satOut_val (x : PrenexCNF) : (satOut x).val = 0 := by
   rw [satOut, numEquiv_val]
   let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
     (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
@@ -187,12 +187,12 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
       (compLeft OutputLatch.diagram D OutputLatch.sat)) = 0
   exact (controller_num D OutputLatch.sat).trans (by decide +kernel)
 
-private theorem initial_legal (x : Source.Input) : (graph x).Legal (initialConfig x) := by
+private theorem initial_legal (x : PrenexCNF) : (graph x).Legal (initialConfig x) := by
   rw [initialConfig_eq]
   exact (finiteSimulation Prim.interp (Expanded.diagram x)).legal_enc (Expanded.initial x).legal
 
 /-- The initial bit list is legal and reaches its target exactly on true closed source inputs. -/
-theorem reachable_iff_mem_TQBFCNF (x : Source.Input) :
+theorem reachable_iff_mem_TQBFCNF (x : PrenexCNF) :
     (graph x).Legal (initialConfig x) ∧ (graph x).Reachable (initialConfig x) (targetConfig x) ↔
       x ∈ TQBFCNF := by
   rw [and_iff_right (initial_legal x), initialConfig_eq, targetConfig_eq]
@@ -200,7 +200,7 @@ theorem reachable_iff_mem_TQBFCNF (x : Source.Input) :
     (Expanded.reachable_iff_mem_TQBFCNF x)
 
 /-- Numbered configuration-to-edge correctness, including legality of the initial bit list. -/
-theorem canReverse_iff_mem_TQBFCNF (x : Source.Input) :
+theorem canReverse_iff_mem_TQBFCNF (x : PrenexCNF) :
     (graph x).Legal (initialConfig x) ∧ (graph x).CanReverse (initialConfig x) (output x) ↔
       x ∈ TQBFCNF := by
   rw [and_iff_right (initial_legal x), initialConfig_eq]
@@ -208,7 +208,7 @@ theorem canReverse_iff_mem_TQBFCNF (x : Source.Input) :
     (Expanded.canReverse_iff_mem_TQBFCNF x)
 
 /-- Directional edge-to-edge correctness on finite edge and vertex intervals. -/
-theorem exists_reachable_sat_iff_mem_TQBFCNF (x : Source.Input) :
+theorem exists_reachable_sat_iff_mem_TQBFCNF (x : PrenexCNF) :
     (∃ s t, (graph x).Legal s ∧ s (tryIn x) = false ∧ t (satOut x) = false ∧
       (graph x).Reachable s t) ↔ x ∈ TQBFCNF :=
   (finite_exists_reachable_iff Prim.interp (Expanded.diagram x)

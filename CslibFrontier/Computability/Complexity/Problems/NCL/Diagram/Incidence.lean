@@ -72,14 +72,14 @@ private theorem boundaryPorts_eq_sum {E : Type*} (a : List Color)
 private theorem boundaryPorts_append {E : Type*} (a b : List Color)
     (f : Fin (a ++ b).length → E) (d : Bool) :
     boundaryPorts (a ++ b) f d =
-      boundaryPorts a (fun i => f ((appendEquiv a b).symm (.inl i))) d +
-        boundaryPorts b (fun j => f ((appendEquiv a b).symm (.inr j))) d := by
+      boundaryPorts a (fun i => f ((List.appendIndexEquiv a b) (.inl i))) d +
+        boundaryPorts b (fun j => f ((List.appendIndexEquiv a b) (.inr j))) d := by
   unfold boundaryPorts
-  rw [ofFn_appendEquiv a b, Multiset.coe_add]
+  rw [List.ofFn_appendIndexEquiv a b, Multiset.coe_add]
   congr 1
   congr 1 <;> apply congrArg List.ofFn <;> funext i
-  · simp [appendEquiv]
-  · simp [appendEquiv]
+  · simp [List.appendIndexEquiv]
+  · simp [List.appendIndexEquiv]
 private def listedPorts {E : Type*} (vs : List (Vertex E)) : Multiset (WeightedPort E) :=
   ↑(vs.flatMap Vertex.ports)
 private theorem listedPorts_map {E E' : Type*} (vs : List (Vertex E)) (f : E → E') :

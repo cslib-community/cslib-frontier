@@ -52,7 +52,7 @@ abbrev encMasks := encList (encList encBool)
 
 /-- Emit instructions for the normalized source's quantifiers and literal masks. -/
 @[expose]
-def source (x : Source.Input) : Program := circuit (Source.prepare x).1 (Source.prepare x).2
+def source (x : PrenexCNF) : Program := circuit (Source.prepare x).1 (Source.prepare x).2
 
 /-- Emitting one literal position is polynomial-time in its offset and two Boolean flags. -/
 @[fun_prop]

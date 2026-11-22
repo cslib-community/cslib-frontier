@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Basic
 public import Mathlib.Data.Fintype.Sum
-public import Mathlib.Logic.Equiv.Fin.Basic
+public import CslibFrontier.Foundations.Data.List.Equiv
 import Mathlib.Data.Sum.Basic
 import Mathlib.Data.List.OfFn
 
@@ -92,18 +92,6 @@ inductive Diagram (Γ : List Color → List Color → Type) : List Color → Lis
   /-- The first diagram to the left of the second. -/
   | tensor {a b c d : List Color} : Diagram Γ a b → Diagram Γ c d → Diagram Γ (a ++ c) (b ++ d)
 
-/-- The wires of `a ++ c` are those of `a`, then those of `c`. -/
-@[expose]
-def appendEquiv {α : Type*} (a c : List α) : Fin (a ++ c).length ≃ Fin a.length ⊕ Fin c.length :=
-  (finCongr (List.length_append ..)).trans finSumFinEquiv.symm
-
-/-- A list over the wires of `a ++ c` is the list over the wires of `a`, then over those of `c`. -/
-theorem ofFn_appendEquiv {α : Type*} (a c : List Color) (f : Fin (a ++ c).length → α) :
-    List.ofFn f = List.ofFn (fun i => f ((appendEquiv a c).symm (.inl i))) ++
-      List.ofFn (fun j => f ((appendEquiv a c).symm (.inr j))) := by
-  rw [List.ofFn_congr (List.length_append ..), List.ofFn_add]
-  rfl
-
 namespace Diagram
 
 variable {Γ : List Color → List Color → Type} {a b c d : List Color}
@@ -144,12 +132,12 @@ variable {I}
 /-- The edges of the left part of a juxtaposition, as edges of the juxtaposition. -/
 @[expose]
 def tensorLeft (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d) : D₁.Edge → (tensor D₁ D₂).Edge :=
-  Sum.map ((appendEquiv a c).symm ∘ Sum.inl) Sum.inl
+  Sum.map ((List.appendIndexEquiv a c) ∘ Sum.inl) Sum.inl
 
 /-- The edges of the right part of a juxtaposition, as edges of the juxtaposition. -/
 @[expose]
 def tensorRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d) : D₂.Edge → (tensor D₁ D₂).Edge :=
-  Sum.map ((appendEquiv a c).symm ∘ Sum.inr) Sum.inr
+  Sum.map ((List.appendIndexEquiv a c) ∘ Sum.inr) Sum.inr
 
 /-- The edge of each wire of the bottom boundary. -/
 @[expose] def bottom : {a b : List Color} → (D : Diagram Γ a b) → Fin b.length → D.Edge
@@ -161,7 +149,7 @@ def tensorRight (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d) : D₂.Edge → 
     | .inl i => compLeft D₁ D₂ (bottom D₁ i)
     | .inr e => .inr (Sum.inr e)
   | _, _, tensor D₁ D₂, j =>
-    (appendEquiv _ _ j).elim (fun j => tensorLeft D₁ D₂ (bottom D₁ j))
+    ((List.appendIndexEquiv _ _).symm j).elim (fun j => tensorLeft D₁ D₂ (bottom D₁ j))
       (fun j => tensorRight D₁ D₂ (bottom D₂ j))
 
 /-- The edges of the lower part of a stack, as edges of the stack: its top wires are the bottom
@@ -212,11 +200,12 @@ theorem bottom_comp (D₂ : Diagram Γ b c) (j : Fin c.length) :
   cases h : D₂.bottom j <;> simp [bottom, compRight, h]
 
 theorem bottom_tensor_left (D₂ : Diagram Γ c d) (j : Fin b.length) :
-    (tensor D₁ D₂).bottom ((appendEquiv b d).symm (.inl j)) = tensorLeft D₁ D₂ (D₁.bottom j) := by
+    (tensor D₁ D₂).bottom (List.appendIndexEquiv b d (.inl j)) =
+      tensorLeft D₁ D₂ (D₁.bottom j) := by
   simp [bottom]
 
 theorem bottom_tensor_right (D₂ : Diagram Γ c d) (j : Fin d.length) :
-    (tensor D₁ D₂).bottom ((appendEquiv b d).symm (.inr j)) =
+    (tensor D₁ D₂).bottom ((List.appendIndexEquiv b d) (.inr j)) =
       tensorRight D₁ D₂ (D₂.bottom j) := by
   simp [bottom]
 
@@ -241,17 +230,17 @@ theorem compRight_injective (D₂ : Diagram Γ b c) (h₁ : Function.Injective D
     rw [h]
 
 theorem tensorLeft_injective (D₂ : Diagram Γ c d) : Function.Injective (tensorLeft D₁ D₂) :=
-  ((appendEquiv a c).symm.injective.comp Sum.inl_injective).sumMap Sum.inl_injective
+  ((List.appendIndexEquiv a c).injective.comp Sum.inl_injective).sumMap Sum.inl_injective
 
 theorem tensorRight_injective (D₂ : Diagram Γ c d) : Function.Injective (tensorRight D₁ D₂) :=
-  ((appendEquiv a c).symm.injective.comp Sum.inr_injective).sumMap Sum.inr_injective
+  ((List.appendIndexEquiv a c).injective.comp Sum.inr_injective).sumMap Sum.inr_injective
 
 theorem tensorLeft_ne_tensorRight (D₂ : Diagram Γ c d) (x : D₁.Edge) (y : D₂.Edge) :
     tensorLeft D₁ D₂ x ≠ tensorRight D₁ D₂ y := by
   rcases x with i | e <;> rcases y with i' | e' <;> simp only [tensorLeft, tensorRight] <;>
     intro h
   · injection h with h
-    exact absurd ((appendEquiv a c).symm.injective h) Sum.inl_ne_inr
+    exact absurd ((List.appendIndexEquiv a c).injective h) Sum.inl_ne_inr
   · injection h
   · injection h
   · injection h with h
@@ -320,8 +309,8 @@ theorem bottom_injective : {a b : List Color} → (D : Diagram Γ a b) → Funct
     simp only [bottom_comp] at h
     exact bottom_injective D₂ (compRight_injective D₁ D₂ (bottom_injective D₁) h)
   | _, _, tensor D₁ D₂ => fun j j' h => by
-    obtain ⟨j, rfl⟩ := (appendEquiv _ _).symm.surjective j
-    obtain ⟨j', rfl⟩ := (appendEquiv _ _).symm.surjective j'
+    obtain ⟨j, rfl⟩ := (List.appendIndexEquiv _ _).surjective j
+    obtain ⟨j', rfl⟩ := (List.appendIndexEquiv _ _).surjective j'
     rcases j with j | j <;> rcases j' with j' | j' <;>
       simp only [bottom_tensor_left, bottom_tensor_right] at h
     · rw [bottom_injective D₁ (tensorLeft_injective D₁ D₂ h)]

@@ -51,7 +51,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.QBF _root_.Turing.MultiTapeTM
   encPair (encList encQuantifier) (encList (encList encBool))
 
 /-- Prepare the normalized source's prefix and matrix masks for circuit emission. -/
-@[expose] def prepare (x : Input) : List Quantifier × List (List Bool) :=
+@[expose] def prepare (x : PrenexCNF) : List Quantifier × List (List Bool) :=
   (quantifiers (normalize x).rounds, masks (normalize x).rounds (normalize x).matrix)
 
 private abbrev clauseEncoding := encList (encPair encNat encBool)
@@ -124,16 +124,16 @@ theorem computableInPolyTime_quantifiers :
 /-- Compile all source clauses to literal masks in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_masks :
-    ComputableInPolyTime (fun x : Input => masks x.rounds x.matrix) encPrenexCNF
+    ComputableInPolyTime (fun x : PrenexCNF => masks x.rounds x.matrix) encPrenexCNF
       (encList (encList encBool)) := by
-  have hv : ComputableInPolyTime (fun x : Input => (roundVars x.rounds).reverse)
+  have hv : ComputableInPolyTime (fun x : PrenexCNF => (roundVars x.rounds).reverse)
       encPrenexCNF (encList encNat) := by
     unfold roundVars
     fun_prop
-  have hc : ComputableInPolyTime (fun x : Input => x.matrix) encPrenexCNF
+  have hc : ComputableInPolyTime (fun x : PrenexCNF => x.matrix) encPrenexCNF
       (encList (encList (encPair encNat encBool))) := by
     fun_prop
-  have hm : ComputableInPolyTime (fun p : Input × Clause ℕ =>
+  have hm : ComputableInPolyTime (fun p : PrenexCNF × Clause ℕ =>
       clauseMask (roundVars p.1.rounds).reverse p.2)
       (encPair encPrenexCNF clauseEncoding) (encList encBool) :=
     computableInPolyTime_clauseMask

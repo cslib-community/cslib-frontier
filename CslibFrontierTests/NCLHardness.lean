@@ -14,11 +14,11 @@ open Cslib.Complexity Cslib.Complexity.NCL QBF Turing.MultiTapeTM
 
 namespace CslibFrontierTests.NCLHardness
 
-example (x : Source.Input) :
+example (x : PrenexCNF) :
     encPrenexCNF x = encPair (encList (encPair encNat encNat)) encCNF
       (x.rounds, x.matrix) := rfl
 
-example (x : Source.Input) : (Reduction.graphData x).checkValid = true :=
+example (x : PrenexCNF) : (Reduction.graphData x).checkValid = true :=
   (AndOrGraph.checkValid_eq_true_iff _).2 (Reduction.graphData_valid x)
 
 example : Reduction.toConfig ⟨[], []⟩ ∈ AndOrNCL := by
