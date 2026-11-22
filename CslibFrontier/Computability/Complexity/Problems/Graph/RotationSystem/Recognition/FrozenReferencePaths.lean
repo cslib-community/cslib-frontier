@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 public import Mathlib.Topology.Connected.PathConnected
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.PathTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.SeparatedStarObstacles
@@ -20,7 +21,9 @@ import Mathlib.Topology.MetricSpace.Bounded
 
 The protected set consists of the original centers and the literal supports of all frozen
 reference spokes. The existing strip bounds separate the stars horizontally. Compactness
-gives common vertical bounds, so the complement is path connected.
+gives common vertical bounds, so the complement is path connected. A free subdivision
+vertex can therefore move to a vacant point in the complement while every frozen spoke
+retains its literal route.
 -/
 
 public section
@@ -225,5 +228,35 @@ theorem referencePoint_mem_frozenReferenceObstacle_iff {I : FixedRotationInput}
   vertex_mem_obstacle_iff hI (referenceDrawing_vertices_injective hI)
     (fun e i _ ht _ hw heq => referenceDrawing_vertex_contacts hI e i ht hw heq)
     (fun _ _ => rfl) (fun _ _ => rfl) hv
+
+/-- Move an unfrozen subdivision vertex to a vacant point outside the frozen reference
+obstacle. Other declared vertices stay fixed, and all frozen routes remain literal. -/
+theorem exists_move_unfrozen_reference_vertex {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing (subdivisionGraph I)} (hD : D.IsEmbedding)
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1)
+    {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices) (hfree : ¬ IsFrozenReferenceVertex I v)
+    {b : ℂ} (hb : b ∉ frozenReferenceObstacle I)
+    (hvacant : ∀ w ∈ (subdivisionGraph I).vertices, w ≠ v → b ≠ D.vertex w) :
+    ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧ E.vertex v = b ∧
+      (∀ w ∈ (subdivisionGraph I).vertices, w ≠ v → E.vertex w = D.vertex w) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 := by
+  let keep : Set (Fin (subdivisionGraph I).edges.length) :=
+    {e | ∃ d : Dart I.graph, e = (subdivisionDart I d).1 ∧
+      (I.orders.getD d.vertex none).isSome}
+  have hs : D.vertex v ∉ frozenReferenceObstacle I :=
+    fun h => hfree ((vertex_mem_frozenReferenceObstacle_iff hI hD hcenter hroute hv).mp h)
+  have hkeep : ∀ e ∈ keep, (D.route e).support ⊆ frozenReferenceObstacle I := by
+    rintro e ⟨d, rfl, hd⟩ z hz
+    rw [hroute d hd] at hz
+    exact (mem_frozenReferenceObstacle_iff hI).mpr (Or.inr ⟨d, hd, hz⟩)
+  obtain ⟨E, hE, hposition, hother, hkept⟩ :=
+    hD.exists_vertex_move_in_compl (subdivisionGraph_endpoints_declared hI) v hv
+      (frozenReferenceObstacle_isCompact I).isClosed
+      (frozenReferenceObstacle_compl_isPathConnected hI) hs hb hvacant keep hkeep
+  exact ⟨E, hE, hposition, hother, fun d hd =>
+    (hkept _ ⟨d, rfl, hd⟩).trans (hroute d hd)⟩
 
 end Cslib.Complexity.Graph.RotationRecognition
