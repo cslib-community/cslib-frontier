@@ -47,13 +47,8 @@ open _root_.Turing.MultiTapeTM
 theorem configurationBits_circuit (recorded : Bool) (qs : List Quantifier)
     (ms : List (List Bool)) :
     configurationBits recorded (circuit qs ms) =
-      Gate.extendedBits (Circuit.diagram qs ms) (Circuit.configuration recorded qs ms).orient := by
-  unfold circuit
-  rw [List.append_assoc, configurationBits_append, configurationBits_singleton,
-    configurationBits_body]
-  change _ = Gate.extendedBits (OutputLatch.diagram.comp (Matrix.body qs ms))
-    ((OutputLatch.canonical recorded true false).comp (Initial.body qs ms)).orient
-  exact (Gate.extendedBits_comp_realization _ _).symm
+      Gate.extendedBits (Circuit.diagram qs ms) (Circuit.configuration recorded qs ms).orient :=
+  Interpretation.configurationBits_circuit Gate.bitMap recorded qs ms
 
 /-- Emit the source's canonical configuration with its chosen output record. -/
 @[expose] def sourceConfiguration (recorded : Bool) (x : Source.Input) : List Bool :=
@@ -76,12 +71,8 @@ theorem sourceConfiguration_true (x : Source.Input) :
 /-- Concatenating a fixed finite table of fragment configurations is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_configurationBits (recorded : Bool) :
-    ComputableInPolyTime (configurationBits recorded) encProgram (encList encBool) := by
-  have h := (Interpretation.computableInPolyTime_configurationBits Gate.bitMap recorded).comp
-    Interpretation.computableInPolyTime_lift
-  change ComputableInPolyTime (fun p =>
-    Interpretation.configurationBits Gate.bitMap recorded (Interpretation.lift p)) _ _ at h
-  simpa only [configurationBits_erase, Interpretation.erase_lift] using h
+    ComputableInPolyTime (configurationBits recorded) encProgram (encList encBool) :=
+  Interpretation.computableInPolyTime_configurationBits Gate.bitMap recorded
 
 /-- Emit the normalized source's initial or target bit list in polynomial time. -/
 @[fun_prop]

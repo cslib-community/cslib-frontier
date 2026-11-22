@@ -76,7 +76,7 @@ structure Simulation (r : α → α → Prop) (r' : β → β → Prop) where
   step_enc {a a' : α} : r a a' → ReflTransGen r' (enc a) (enc a')
 
 /-- At most one step of `r`, mapped along `f` to at most one step of `p`. -/
-theorem reflGen_map {p : β → β → Prop} (f : α → β)
+private theorem reflGen_map {p : β → β → Prop} (f : α → β)
     (hf : ∀ ⦃a a'⦄, r a a' → ReflGen p (f a) (f a')) {a a' : α} :
     ReflGen r a a' → ReflGen p (f a) (f a')
   | .refl => .refl
@@ -132,7 +132,8 @@ theorem exists_reachable_enc_iff (S : Simulation r r') {P : α → Prop} {P' : �
   abs := S.abs ∘ T.abs
   enc := T.enc ∘ S.enc
   abs_enc a := (congrArg S.abs (T.abs_enc (S.enc a))).trans (S.abs_enc a)
-  step_abs h := reflGen_map S.abs (fun _ _ => S.step_abs) (T.step_abs h)
+  step_abs h := by
+    exact reflGen_map S.abs (fun _ _ => S.step_abs) (T.step_abs h)
   step_enc h := T.reachable_enc (S.step_enc h)
 
 /-- A bijection of states that preserves and reflects steps is a simulation. -/

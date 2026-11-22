@@ -45,13 +45,13 @@ theorem computableInPolyTime_configurationBits (B : Diagram.BitMap Gate) (record
     ComputableInPolyTime (configurationBits B recorded) encProgram (encList encBool) := by
   have hb : ComputableInPolyTime (opcodeBits B recorded) encOpcode (encList encBool) :=
     ComputableInPolyTime.of_finite _
-  have hi : ComputableInPolyTime (fun p : Program × (ℕ × Option Opcode) => p.2.2)
+  have hi : ComputableInPolyTime (fun p : Program × (ℕ × Opcode) => p.2.2)
       (encPair encProgram (encPair encUnary encOpcode)) encOpcode := by fun_prop
   have hl : ComputableInPolyTime (id : Program → Program) encProgram
       (encList (encPair encUnary encOpcode)) := ComputableInPolyTime.of_eq (fun _ => rfl)
   unfold configurationBits
   exact ComputableInPolyTime.flatMapWithInput
-    (f := fun (_ : Program) (i : ℕ × Option Opcode) => opcodeBits B recorded i.2) hl (hb.comp hi)
+    (f := fun (_ : Program) (i : ℕ × Opcode) => opcodeBits B recorded i.2) hl (hb.comp hi)
 
 /-- Emit the normalized source's canonical configuration through a fixed bit map. -/
 @[expose] def sourceConfiguration (B : Diagram.BitMap Gate) (recorded : Bool)

@@ -59,13 +59,15 @@ inductive Opcode
   | start
   /-- Start a blue wire constrained to be inactive. -/
   | fixed
-  /-- Cross two adjacent wires. -/
-  | swap
+  /-- Cross a blue wire followed by a red wire during a clause scan. -/
+  | swapBlueRed
+  /-- Cross a red wire followed by a blue wire during the return sweep. -/
+  | swapRedBlue
   deriving @[expose] DecidableEq, Repr
 
 instance : FinEnum Opcode :=
   FinEnum.ofList [.output, .ex, .all, .tapFirst, .tap, .conj, .returnGate, .cap, .start,
-    .fixed, .swap] (by intro op; cases op <;> simp)
+    .fixed, .swapBlueRed, .swapRedBlue] (by intro op; cases op <;> simp)
 
 /-- A sequence of fixed fragments, each paired with its wire offset. -/
 abbrev Program := List (ℕ × Opcode)
@@ -82,21 +84,13 @@ abbrev Program := List (ℕ × Opcode)
   | .cap => ⟨_, _, gen Gate.cap⟩
   | .start => ⟨_, _, gen Gate.start⟩
   | .fixed => ⟨_, _, Gate.node [] [.blue]⟩
-  | .swap => ⟨_, _, Diagram.swap .blue .red⟩
+  | .swapBlueRed => ⟨_, _, Diagram.swap .blue .red⟩
+  | .swapRedBlue => ⟨_, _, Diagram.swap .red .blue⟩
 
 /-- The fixed primitive diagram implementing each instruction tag. -/
-@[expose] def Opcode.fragment : Opcode → Σ a b : List Color, Diagram Prim a b
-  | .output => ⟨_, _, OutputLatch.diagram.subst Gate.expand⟩
-  | .ex => ⟨_, _, existsGadget.subst Gate.expand⟩
-  | .all => ⟨_, _, forallGadget.subst Gate.expand⟩
-  | .tapFirst => ⟨_, _, Network.tapFirst.subst Gate.expand⟩
-  | .tap => ⟨_, _, Network.tap.subst Gate.expand⟩
-  | .conj => ⟨_, _, Network.conj.subst Gate.expand⟩
-  | .returnGate => ⟨_, _, Matrix.returnGate.subst Gate.expand⟩
-  | .cap => ⟨_, _, (gen Gate.cap).subst Gate.expand⟩
-  | .start => ⟨_, _, (gen Gate.start).subst Gate.expand⟩
-  | .fixed => ⟨_, _, (Gate.node [] [.blue]).subst Gate.expand⟩
-  | .swap => ⟨_, _, .swap .blue .red⟩
+@[expose] def Opcode.fragment (op : Opcode) : Σ a b : List Color, Diagram Prim a b :=
+  let ⟨a, b, diagram⟩ := op.gateFragment
+  ⟨a, b, diagram.subst Gate.expand⟩
 
 /-- Expand one instruction to its primitive layers at the given offset. -/
 @[expose] def Opcode.word (op : Opcode) (k : ℕ) : Word :=
@@ -108,7 +102,7 @@ abbrev Program := List (ℕ × Opcode)
 
 /-- Emit a literal position after recording whether an earlier literal started the accumulator. -/
 @[expose] def collect (k : ℕ) (seen bit : Bool) : Program :=
-  if seen then [(k, if bit then .tap else .swap)] else if bit then [(k, .tapFirst)] else []
+  if seen then [(k, if bit then .tap else .swapBlueRed)] else if bit then [(k, .tapFirst)] else []
 
 /-- Sweep the literal bundle, ending an unstarted accumulator with a fixed inactive source. -/
 @[expose] def scan (k n : ℕ) (m : List Bool) (seen : Bool) : Program :=
@@ -152,7 +146,7 @@ theorem scan_succ (k n : ℕ) (m : List Bool) (seen : Bool) :
 /-- Emit the terminal network, move its value to the controls, and terminate the literals. -/
 @[expose] def terminal (k p : ℕ) (ms : List (List Bool)) : Program :=
   network (k + 2) (2 * p) ms ++
-    ((List.range (2 * p)).reverse.map fun i => (k + 2 + i, .swap)) ++
+    ((List.range (2 * p)).reverse.map fun i => (k + 2 + i, .swapRedBlue)) ++
     [(k, .returnGate)] ++ List.replicate p (k, .cap)
 
 /-- Emit a complete circuit from its prefix and mask matrix. -/

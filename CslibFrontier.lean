@@ -2986,7 +2986,6 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Basic
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Bits
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Interpretation
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Interpretation.Bits
-public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Program
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Source
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.WordTarget
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Execution

@@ -44,26 +44,10 @@ private def primitiveTarget : Interpretation.Target where
   map_comp _ _ := rfl
   map_tensor _ _ := rfl
 
-private theorem expand_erase (p : Interpretation.Program) :
-    primitiveTarget.language.expand p = expand (Interpretation.erase p) := by
-  induction p with
-  | nil => rfl
-  | cons i p ih =>
-    simp only [Word.Fixed.Language.expand, Interpretation.erase, List.map_cons,
-      List.flatMap_cons, expand]
-    change _ ++ primitiveTarget.language.expand p = _ ++ expand (Interpretation.erase p)
-    rw [ih]
-    congr 1
-    rcases i with ⟨k, op⟩
-    cases op with
-    | none => rfl
-    | some op => cases op <;> rfl
-
 /-- Expanding the circuit instructions preserves the source diagram and its edge order. -/
 theorem expand_circuit (qs : List Quantifier) (ms : List (List Bool)) :
     expand (circuit qs ms) =
-      ((OutputLatch.diagram.comp (Matrix.body qs ms)).subst Gate.expand).toWord Prim.interp 0 := by
-  rw [← Interpretation.erase_circuit, ← expand_erase]
-  exact Interpretation.expand_circuit primitiveTarget qs ms
+      ((OutputLatch.diagram.comp (Matrix.body qs ms)).subst Gate.expand).toWord Prim.interp 0 :=
+  Interpretation.expand_circuit primitiveTarget qs ms
 
 end Cslib.Complexity.NCL.QBF.Emit

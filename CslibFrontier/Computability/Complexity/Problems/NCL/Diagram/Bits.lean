@@ -45,63 +45,39 @@ variable {Γ : List Color → List Color → Type} {I : Interp Γ} {a b c d : Li
 @[expose] def innerBits (D : Diagram Γ a b) (s : D.Edge → Bool) : List Bool :=
   List.ofFn (fun i => s (.inr (D.innerEquiv.symm i)))
 
-private theorem innerBits_glueComp (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c)
-    (s₁ : D₁.Edge → Bool) (s₂ : D₂.Edge → Bool) :
-    (D₁.comp D₂).innerBits (glueComp D₁ D₂ s₁ s₂) = D₁.innerBits s₁ ++ D₂.innerBits s₂ := by
-  unfold innerBits
-  change (List.ofFn fun i : Fin (D₁.innerCount + D₂.innerCount) =>
-    glueComp D₁ D₂ s₁ s₂ (.inr ((D₁.comp D₂).innerEquiv.symm i))) = _
+private theorem ofFn_sumEquiv {α β γ : Type*} {m n : ℕ}
+    (e₁ : α ≃ Fin m) (e₂ : β ≃ Fin n) (f : α ⊕ β → γ) :
+    List.ofFn (fun i => f (((e₁.sumCongr e₂).trans finSumFinEquiv).symm i)) =
+      List.ofFn (fun i => f (.inl (e₁.symm i))) ++
+        List.ofFn (fun i => f (.inr (e₂.symm i))) := by
   rw [List.ofFn_add]
   congr 1
   · congr 1
     funext i
-    change glueComp D₁ D₂ s₁ s₂
-      (.inr (((D₁.innerEquiv.sumCongr D₂.innerEquiv).trans finSumFinEquiv).symm
-        (Fin.castAdd D₂.innerCount i))) = _
-    simp [finSumFinEquiv_symm_apply_castAdd, glueComp]
+    change f ((e₁.sumCongr e₂).symm (finSumFinEquiv.symm (Fin.castAdd n i))) = _
+    rw [finSumFinEquiv_symm_apply_castAdd]
+    rfl
   · congr 1
     funext i
-    change glueComp D₁ D₂ s₁ s₂
-      (.inr (((D₁.innerEquiv.sumCongr D₂.innerEquiv).trans finSumFinEquiv).symm
-        (Fin.natAdd D₁.innerCount i))) = _
-    simp [finSumFinEquiv_symm_apply_natAdd, glueComp]
+    change f ((e₁.sumCongr e₂).symm (finSumFinEquiv.symm (Fin.natAdd m i))) = _
+    rw [finSumFinEquiv_symm_apply_natAdd]
+    rfl
+
+private theorem innerBits_glueComp (D₁ : Diagram Γ a b) (D₂ : Diagram Γ b c)
+    (s₁ : D₁.Edge → Bool) (s₂ : D₂.Edge → Bool) :
+    (D₁.comp D₂).innerBits (glueComp D₁ D₂ s₁ s₂) = D₁.innerBits s₁ ++ D₂.innerBits s₂ :=
+  ofFn_sumEquiv D₁.innerEquiv D₂.innerEquiv
+    (fun e => glueComp D₁ D₂ s₁ s₂ (.inr e))
 
 private theorem innerBits_glueTensor (D₁ : Diagram Γ a b) (D₂ : Diagram Γ c d)
     (s₁ : D₁.Edge → Bool) (s₂ : D₂.Edge → Bool) :
-    (D₁.tensor D₂).innerBits (glueTensor D₁ D₂ s₁ s₂) = D₁.innerBits s₁ ++ D₂.innerBits s₂ := by
-  unfold innerBits
-  change (List.ofFn fun i : Fin (D₁.innerCount + D₂.innerCount) =>
-    glueTensor D₁ D₂ s₁ s₂ (.inr ((D₁.tensor D₂).innerEquiv.symm i))) = _
-  rw [List.ofFn_add]
-  congr 1
-  · congr 1
-    funext i
-    change glueTensor D₁ D₂ s₁ s₂
-      (.inr (((D₁.innerEquiv.sumCongr D₂.innerEquiv).trans finSumFinEquiv).symm
-        (Fin.castAdd D₂.innerCount i))) = _
-    simp [finSumFinEquiv_symm_apply_castAdd, glueTensor]
-  · congr 1
-    funext i
-    change glueTensor D₁ D₂ s₁ s₂
-      (.inr (((D₁.innerEquiv.sumCongr D₂.innerEquiv).trans finSumFinEquiv).symm
-        (Fin.natAdd D₁.innerCount i))) = _
-    simp [finSumFinEquiv_symm_apply_natAdd, glueTensor]
+    (D₁.tensor D₂).innerBits (glueTensor D₁ D₂ s₁ s₂) = D₁.innerBits s₁ ++ D₂.innerBits s₂ :=
+  ofFn_sumEquiv D₁.innerEquiv D₂.innerEquiv
+    (fun e => glueTensor D₁ D₂ s₁ s₂ (.inr e))
 
 private theorem bits_eq_top_append_inner (D : Diagram Γ a b) (s : D.Edge → Bool) :
-    D.bits s = List.ofFn (fun i => s (.inl i)) ++ D.innerBits s := by
-  unfold bits innerBits
-  rw [List.ofFn_add]
-  congr 1
-  · congr 1
-    funext i
-    change s (((Equiv.refl (Fin a.length)).sumCongr D.innerEquiv).trans
-      finSumFinEquiv |>.symm <| Fin.castAdd D.innerCount i) = _
-    simp [finSumFinEquiv_symm_apply_castAdd]
-  · congr 1
-    funext i
-    change s (((Equiv.refl (Fin a.length)).sumCongr D.innerEquiv).trans
-      finSumFinEquiv |>.symm <| Fin.natAdd a.length i) = _
-    simp [finSumFinEquiv_symm_apply_natAdd]
+    D.bits s = List.ofFn (fun i => s (.inl i)) ++ D.innerBits s :=
+  ofFn_sumEquiv (Equiv.refl (Fin a.length)) D.innerEquiv s
 
 /-- A diagram with no incoming wires serializes exactly its created edges. -/
 theorem bits_closed (D : Diagram Γ [] b) (s : D.Edge → Bool) : D.bits s = D.innerBits s := by

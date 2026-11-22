@@ -272,29 +272,3 @@ theorem exists_reachable_sat_iff_truth (qs : List Quantifier) (ms : List (List B
       exact hp
 
 end Cslib.Complexity.NCL.QBF.Circuit
-
-namespace Cslib.Complexity.NCL.QBF.Source
-
-open Cslib.Logic.PL Cslib.Logic.PL.QBF
-
-/-- The closed source circuit reaches its explicit target exactly when the closed upstream
-QBF is true. -/
-theorem circuit_reachable_iff_eval {V : Type*} [DecidableEq V] (ps : List (V × V)) (φ : CNF V)
-    (hclosed : (rounds ps (ofCNF φ)).Closed) (σ : V → Bool) :
-    ((Circuit.diagram (quantifiers ps) (masks ps φ)).graph Gate.interp).Reachable
-      (Circuit.initial (quantifiers ps) (masks ps φ)).orient
-      (Circuit.target (quantifiers ps) (masks ps φ)).orient ↔
-      (rounds ps (ofCNF φ)).eval σ = true :=
-  (Circuit.reachable_target_iff_truth _ _).trans (truth_iff_eval ps φ hclosed σ)
-
-/-- The closed source circuit's output memory is reversible from its explicit initial
-configuration exactly when the closed upstream QBF is true. -/
-theorem circuit_canReverse_iff_eval {V : Type*} [DecidableEq V] (ps : List (V × V)) (φ : CNF V)
-    (hclosed : (rounds ps (ofCNF φ)).Closed) (σ : V → Bool) :
-    ((Circuit.diagram (quantifiers ps) (masks ps φ)).graph Gate.interp).CanReverse
-      (Circuit.initial (quantifiers ps) (masks ps φ)).orient
-      (Circuit.output (quantifiers ps) (masks ps φ)) ↔
-      (rounds ps (ofCNF φ)).eval σ = true :=
-  (Circuit.canReverse_initial_iff_truth _ _).trans (truth_iff_eval ps φ hclosed σ)
-
-end Cslib.Complexity.NCL.QBF.Source

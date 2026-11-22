@@ -39,8 +39,9 @@ theorem expand_source (x : Source.Input) : expand (source x) = Numbered.word x :
 
 /-- Compiling emitted source instructions gives exactly the reduction's graph data. -/
 theorem compile_source (x : Source.Input) :
-    Word.compile (expand (source x)) = Reduction.graphData x :=
-  (congrArg Word.compile (expand_source x)).trans (Reduction.graphData_eq_compile x).symm
+    language.compile (source x) = Reduction.graphData x :=
+  (language.compile_eq_expand _).trans
+    ((congrArg Word.compile (expand_source x)).trans (Reduction.graphData_eq_compile x).symm)
 
 end Cslib.Complexity.NCL.QBF.Emit
 
@@ -52,9 +53,9 @@ open _root_.Turing.MultiTapeTM
 @[fun_prop]
 theorem computableInPolyTime_graphData :
     ComputableInPolyTime graphData encPrenexCNF encAndOrGraph := by
-  have h := Emit.computableInPolyTime_compile.comp Emit.computableInPolyTime_source
-  change ComputableInPolyTime (fun x => Emit.compile (Emit.source x)) _ _ at h
-  simpa only [Emit.compile_eq_expand, Emit.compile_source] using h
+  have h := Emit.language.computableInPolyTime_compile.comp Emit.computableInPolyTime_source
+  change ComputableInPolyTime (fun x => Emit.language.compile (Emit.source x)) _ _ at h
+  simpa only [Emit.compile_source] using h
 
 /-- The directional edge-to-edge reduction is polynomial-time in the standard encodings. -/
 @[fun_prop]

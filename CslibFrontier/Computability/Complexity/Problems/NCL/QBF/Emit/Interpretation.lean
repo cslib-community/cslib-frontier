@@ -19,7 +19,6 @@ preserving identity, composition and tensor can instantiate its fixed fragment t
 ## Main definitions
 
 * `Cslib.Complexity.NCL.QBF.Emit.Interpretation.Target`: a composition-preserving interpretation.
-* `Cslib.Complexity.NCL.QBF.Emit.Interpretation.circuit`: instructions retaining swap colors.
 
 ## Main results
 
@@ -55,11 +54,9 @@ structure Target where
 
 /-- Interpret the fixed fragments and the two color orders of adjacent swaps. -/
 abbrev Target.language (T : Target) : Word.Fixed.Language where
-  Opcode := Option Opcode
+  Opcode := Opcode
   enumeration := inferInstance
-  fragment
-    | some op => let ⟨_, _, diagram⟩ := op.gateFragment; ⟨_, _, T.map diagram⟩
-    | none => ⟨_, _, T.map (Diagram.swap .red .blue)⟩
+  fragment op := let ⟨a, b, diagram⟩ := op.gateFragment; ⟨a, b, T.map diagram⟩
 
 /-- Primitive diagram interpretation as a word-valued interpretation. -/
 private def Target.wordTarget (T : Target) : WordTarget Slice where
@@ -68,21 +65,13 @@ private def Target.wordTarget (T : Target) : WordTarget Slice where
   map_comp D₁ D₂ k := by rw [T.map_comp]; rfl
   map_tensor D₁ D₂ k := by rw [T.map_tensor]; rfl
 
-private theorem Target.expand_wordTarget (T : Target) (p : Program) :
-    T.language.expand p = T.wordTarget.expand p := by
-  unfold Word.Fixed.Language.expand WordTarget.expand
-  apply congrArg (fun f : (ℕ × Option Opcode) → Word => p.flatMap f)
-  funext i
-  cases i.2 <;> rfl
-
 variable (T : Target)
 
 /-- Interpretation commutes with complete circuit emission. -/
 theorem expand_circuit (qs : List Quantifier) (ms : List (List Bool)) :
     T.language.expand (circuit qs ms) =
-      (T.map (OutputLatch.diagram.comp (Matrix.body qs ms))).toWord Prim.interp 0 := by
-  rw [T.expand_wordTarget]
-  exact T.wordTarget.expand_circuit qs ms
+      (T.map (OutputLatch.diagram.comp (Matrix.body qs ms))).toWord Prim.interp 0 :=
+  T.wordTarget.expand_circuit qs ms
 
 end Interpretation
 end Cslib.Complexity.NCL.QBF.Emit
