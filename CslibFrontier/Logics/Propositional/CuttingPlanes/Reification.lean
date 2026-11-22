@@ -168,13 +168,14 @@ theorem offLit_eq (v : V) :
     offLit τ v = ⟨Finsupp.single v (if τ v then -1 else 1), -(τ v).toInt⟩ :=
   Ineq.ext (coeff_offLit v) (bound_offLit v)
 
-/-- At an assignment agreeing with `τ` on `v`, the literal `ℓ̄ᵥ` is false: its two sides agree. -/
 omit [DecidableEq V] in
+/-- At an assignment agreeing with `τ` on `v`, the literal `ℓ̄ᵥ` is false: its two sides agree. -/
 theorem lhs_offLit_of_eq {σ : V → Bool} {v : V} (h : σ v = τ v) :
     (offLit τ v).lhs σ = (offLit τ v).bound := by
   rw [offLit_eq, lhs_mk_single, h]
   cases τ v <;> simp
 
+omit [DecidableEq V] in
 theorem lhs_guard (σ : V → Bool) (h : ∀ v ∈ S, σ v = τ v) :
     (guard S τ).lhs σ = (guard S τ).bound := by
   simp only [guard, lhs_sum, bound_sum]
