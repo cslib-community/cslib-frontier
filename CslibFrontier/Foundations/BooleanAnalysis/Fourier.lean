@@ -65,6 +65,9 @@ coefficient on the circle, so the name is meant to be used qualified.
   orthonormal.
 * `Cslib.BitString.chi_add`, `Cslib.BitString.chi_mul_chi`: the characters are multiplicative,
   in the input and in the set.
+* `Cslib.BitString.fourierCoeff_comp_add`, `Cslib.BitString.fourierCoeff_comp_not`: the
+  coefficients of a translate `x ↦ g (x + y)` and of `x ↦ g(-x)`; so an even function has no
+  weight on sets of odd size (`Cslib.BitString.fourierCoeff_eq_zero_of_odd_card`).
 * `Cslib.BitString.sum_fourierCoeff_mul_chi`: the Fourier expansion.
 * `Cslib.BitString.sum_powerset_chi_mul_chi`: summed over the subsets of `K`, the characters
   at two points detect their agreement on `K`.
@@ -160,6 +163,10 @@ theorem sum_powerset_chi_mul_chi (K : Finset ι) (x y : ι → Bool)
   rw [← prod_one_add, prod_congr rfl fun i _ => h i, prod_ite_zero, prod_const]
   -- `prod_ite_zero` decides the agreement with its own instance; any two instances agree.
   convert rfl
+
+/-- The character of `S` at the all-`true` bit string is `(-1) ^ |S|`. -/
+theorem chi_const_true (S : Finset ι) : chi R S (fun _ => true) = (-1) ^ #S := by
+  simp [chi]
 
 section DecidableEq
 
@@ -291,6 +298,33 @@ theorem fourierCoeff_const_mul (c : ℝ) (f : (ι → Bool) → ℝ) (S : Finset
 theorem fourierCoeff_chi_mul (T : Finset ι) (f : (ι → Bool) → ℝ) (S : Finset ι) :
     fourierCoeff (fun x => chi ℝ T x * f x) S = fourierCoeff f (symmDiff T S) := by
   simp only [fourierCoeff, ← chi_mul_chi, mul_comm (chi ℝ T _), mul_assoc]
+
+/-- **The Fourier coefficients of a translate**: `x ↦ g (x + y)` has coefficient `χ_S(y) ĝ(S)`
+on `S`, since adding `y` permutes the cube and `χ_S(x + y) = χ_S(x) χ_S(y)`. -/
+theorem fourierCoeff_comp_add (g : (ι → Bool) → ℝ) (y : ι → Bool) (S : Finset ι) :
+    fourierCoeff (fun x => g (x + y)) S = chi ℝ S y * fourierCoeff g S := by
+  rw [fourierCoeff, fourierCoeff, mul_expect]
+  refine Fintype.expect_equiv (Equiv.addRight y) _ _ fun x => ?_
+  rw [Equiv.coe_addRight, chi_add]
+  linear_combination (-(g (x + y) * chi ℝ S x)) * chi_mul_self (R := ℝ) S y
+
+/-- **Complementing the input multiplies the coefficient on `S` by `(-1) ^ |S|`**: the Fourier
+coefficients of `x ↦ g(-x)`, the translate by the all-`true` string. This is the computation of
+[O'Donnell, Exercise 1.8(a)][ODonnell2014], which is about the dual `x ↦ -g(-x)`, without the
+outer sign. -/
+theorem fourierCoeff_comp_not (g : (ι → Bool) → ℝ) (S : Finset ι) :
+    fourierCoeff (fun x => g fun i => !x i) S = (-1) ^ #S * fourierCoeff g S := by
+  have h (x : ι → Bool) : (fun i => !x i) = x + fun _ => true :=
+    funext fun i => by rw [Pi.add_apply, Bool.add_eq_xor, Bool.xor_true]
+  simp only [h, fourierCoeff_comp_add, chi_const_true]
+
+/-- **An even function has no Fourier weight on sets of odd size**
+[O'Donnell, Exercise 1.8(c)][ODonnell2014]. -/
+theorem fourierCoeff_eq_zero_of_odd_card {g : (ι → Bool) → ℝ}
+    (hg : ∀ x, g (fun i => !x i) = g x) {S : Finset ι} (hS : Odd #S) : fourierCoeff g S = 0 := by
+  have h := fourierCoeff_comp_not g S
+  rw [funext hg, hS.neg_one_pow] at h
+  linarith
 
 /-- A constant has all its weight on the empty set. -/
 theorem fourierCoeff_const (c : ℝ) (S : Finset ι) :

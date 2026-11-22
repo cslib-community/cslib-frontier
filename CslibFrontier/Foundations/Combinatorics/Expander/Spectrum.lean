@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.Expander.Cheeger
 public import Mathlib.Analysis.InnerProductSpace.Spectrum
+import CslibFrontier.Foundations.Data.Finset.Expect
 
 /-!
 # Spectral theory of the walk operator on regular graphs
@@ -194,8 +195,7 @@ quotient is `μ`: `𝔼 v, f v * G.walk f v = μ * 𝔼 v, f v ^ 2`. -/
 private theorem expect_sq_pos_and_expect_mul_walk_eq {f : V → ℝ} {μ : ℝ} (hf : f ≠ 0)
     (hwalk : G.walk f = μ • f) :
     0 < 𝔼 v, f v ^ 2 ∧ 𝔼 v, f v * G.walk f v = μ * 𝔼 v, f v ^ 2 := by
-  obtain ⟨v₀, hv₀⟩ := Function.ne_iff.1 hf
-  refine ⟨expect_pos' (fun _ _ ↦ sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hv₀⟩, ?_⟩
+  refine ⟨Fintype.expect_sq_pos hf, ?_⟩
   rw [hwalk, mul_expect]
   exact expect_congr rfl fun v _ ↦ by
     simp only [Pi.smul_apply, smul_eq_mul]
@@ -377,9 +377,7 @@ private theorem le_secondEigenvalue_of_mul_norm_sq_le_inner [Nonempty V]
     μ ≤ G.secondEigenvalue := by
   set f : V → ℝ := u.ofLp
   have hf_ne : f ≠ 0 := fun h ↦ hu_ne (WithLp.ofLp_injective 2 h)
-  obtain ⟨v₀, hv₀⟩ := Function.ne_iff.1 hf_ne
-  have hpos : 0 < 𝔼 v, f v ^ 2 :=
-    expect_pos' (fun _ _ ↦ sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hv₀⟩
+  have hpos : 0 < 𝔼 v, f v ^ 2 := Fintype.expect_sq_pos hf_ne
   have hinner : ⟪u, G.walkEuclidean u⟫ = (Fintype.card V : ℝ) * 𝔼 v, f v * G.walk f v :=
     (card_mul_expect_mul u (G.walkEuclidean u)).symm
   have hnorm : ‖u‖ ^ 2 = (Fintype.card V : ℝ) * 𝔼 v, f v ^ 2 := by

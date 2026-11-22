@@ -18,8 +18,9 @@ import Mathlib.Tactic.Ring
 The *expectation over coordinate `i`* of a real function on the cube is its average over bit `i`,
 `Eᵢ f x = (f (x with xᵢ = false) + f (x with xᵢ = true)) / 2` (`BitString.coordExpect`), and the
 *coordinate Laplacian* is `Lᵢ f = f - Eᵢ f` (`BitString.coordLaplacian`)
-[O'Donnell, Definitions 2.23 and 2.25][ODonnell2014]. The Laplacian is `χ_{i}` times the
-derivative in `i` (`BitString.coordLaplacian_eq_chi_mul_derivative`); in Fourier terms `Eᵢ`
+[O'Donnell, Definitions 2.23 and 2.25][ODonnell2014]. The Laplacian is half the change from
+flipping bit `i` (`BitString.coordLaplacian_eq_flip`) and `χ_{i}` times the derivative in `i`
+(`BitString.coordLaplacian_eq_chi_mul_derivative`); in Fourier terms `Eᵢ`
 keeps the coefficients on the sets avoiding `i` and `Lᵢ` those on the sets containing `i`
 (`BitString.fourierCoeff_coordExpect`, `BitString.fourierCoeff_coordLaplacian`), and
 `⟨f, Lᵢ f⟩ = Infᵢ[f]` (`BitString.expect_mul_coordLaplacian`); averaging over `i` preserves the
@@ -38,7 +39,8 @@ The *Laplacian* `L = ∑ᵢ Lᵢ` (`BitString.laplacian`) multiplies the coeffic
 
 ## Main results
 
-* `Cslib.BitString.coordLaplacian_eq_chi_mul_derivative`: `Lᵢ f = χ_{i} Dᵢ f`.
+* `Cslib.BitString.coordLaplacian_eq_flip`, `Cslib.BitString.coordLaplacian_eq_chi_mul_derivative`:
+  `Lᵢ f x = (f x - f x^{⊕i}) / 2` and `Lᵢ f = χ_{i} Dᵢ f`.
 * `Cslib.BitString.fourierCoeff_coordExpect`, `Cslib.BitString.fourierCoeff_coordLaplacian`,
   `Cslib.BitString.fourierCoeff_laplacian`: the Fourier coefficients of the three operators.
 * `Cslib.BitString.expect_mul_coordLaplacian`, `Cslib.BitString.expect_mul_laplacian`:
@@ -72,6 +74,17 @@ variable {ι : Type*} [DecidableEq ι]
 theorem coordLaplacian_eq_chi_mul_derivative (i : ι) (f : (ι → Bool) → ℝ) (x : ι → Bool) :
     coordLaplacian i f x = chi ℝ {i} x * derivative i f x :=
   sub_eq_of_eq_add' (eq_add_chi_mul_derivative i f x)
+
+/-- **The coordinate Laplacian is half the change from flipping the bit**:
+`Lᵢ f x = (f x - f x^{⊕i}) / 2` [O'Donnell, Proposition 2.26][ODonnell2014]. -/
+theorem coordLaplacian_eq_flip (i : ι) (f : (ι → Bool) → ℝ) (x : ι → Bool) :
+    coordLaplacian i f x = (f x - f (update x i (!x i))) / 2 := by
+  simp only [coordLaplacian, coordExpect]
+  cases hx : x i
+  · rw [show update x i false = x from update_eq_self_iff.2 hx.symm, Bool.not_false]
+    ring
+  · rw [show update x i true = x from update_eq_self_iff.2 hx.symm, Bool.not_true]
+    ring
 
 /-- A function is the sum of its coordinate expectation and its coordinate Laplacian. -/
 theorem coordExpect_add_coordLaplacian (i : ι) (f : (ι → Bool) → ℝ) (x : ι → Bool) :

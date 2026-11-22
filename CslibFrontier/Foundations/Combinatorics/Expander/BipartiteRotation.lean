@@ -425,10 +425,10 @@ theorem abs_eigenvalue_le_nontrivialSingularValue_of_isBipartiteBalanced
     obtain ⟨x₀, hx₀⟩ := Function.ne_iff.1 hf0
     rcases x₀ with u₀ | v₀
     · have hL : 0 < 𝔼 u : L, fL u ^ 2 :=
-        expect_pos' (fun _ _ => sq_nonneg _) ⟨u₀, mem_univ u₀, sq_pos_iff.2 hx₀⟩
+        Fintype.expect_sq_pos (f := fL) (Function.ne_iff.2 ⟨u₀, hx₀⟩)
       linarith [show 0 ≤ 𝔼 v : R, fR v ^ 2 from expect_nonneg fun _ _ => sq_nonneg _]
     · have hR : 0 < 𝔼 v : R, fR v ^ 2 :=
-        expect_pos' (fun _ _ => sq_nonneg _) ⟨v₀, mem_univ v₀, sq_pos_iff.2 hx₀⟩
+        Fintype.expect_sq_pos (f := fR) (Function.ne_iff.2 ⟨v₀, hx₀⟩)
       linarith [show 0 ≤ 𝔼 u : L, fL u ^ 2 from expect_nonneg fun _ _ => sq_nonneg _]
   have hμ2 : μ ^ 2 ≤ B.nontrivialSingularValue ^ 2 := le_of_mul_le_mul_right h_sum_le hpos
   exact abs_le_of_sq_le_sq hμ2 B.nontrivialSingularValue_nonneg
