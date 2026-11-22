@@ -30,8 +30,7 @@ is allowed. At the right boundary, the optional read stops further rightward mov
 
 * `configuration_native`: full native configuration correspondence, with output held externally.
 * `components_inSpace`: all five native component certificates.
-* `length_native_run_le_of_space`, `length_native_run_le_budget`: saved-state bound from the
-  original workspace certificate.
+* `length_native_run_le_of_space`: saved-state bound from the original workspace certificate.
 * `computableInSpace_of_computes`: substitution from ordinary computation/workspace certificates.
 * `of_logSpace`: substitution from the unchanged ordinary logspace predicate.
 
@@ -222,31 +221,22 @@ theorem halted_native {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
   rw [run_eq]
   exact h
 
-/-- An ordinary native workspace certificate bounds the saved encoding, with the input head
-charged separately. No bound on the size of the output is needed. -/
-theorem length_native_run_le_of_space {k : ℕ} {S : Type} [Fintype S]
-    (eS : S ↪ ℕ) (tm : MultiTapeTM k Bool S) (x : List Bool) (t s : ℕ)
-    (hs : tm.RunsInSpace x s) :
-    (eCfg ((machine (desc eS eBit tm)).run x t)).length ≤
-      2 * descLen (desc eS eBit tm) + 3 + 2 * (encNat (x.length + 1)).length + 1 +
-        3 * (2 * descLen (desc eS eBit tm) + 5) * 2 * s + k := by
-  have h := length_native_run_le eS tm x t
-  have hb := hs (MultiTapeNTM.ComputationPath.ofDeterministic tm x t)
-  change (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg x) t).space ≤ s at hb
-  exact h.trans (by gcongr)
-
 /-- The explicit saved-configuration budget extracted from native workspace. -/
 noncomputable def budget {k : ℕ} {S : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm : MultiTapeTM k Bool S) (n s : ℕ) : ℕ :=
   2 * descLen (desc eS eBit tm) + 3 + 2 * (encNat (n + 1)).length + 1 +
     3 * (2 * descLen (desc eS eBit tm) + 5) * 2 * s + k
 
-/-- The saved configuration of a machine within space `s` fits its budget. -/
-theorem length_native_run_le_budget {k : ℕ} {S : Type} [Fintype S]
+/-- An ordinary native workspace certificate bounds the saved encoding by its budget, with the
+input head charged separately. No bound on the size of the output is needed. -/
+theorem length_native_run_le_of_space {k : ℕ} {S : Type} [Fintype S]
     (eS : S ↪ ℕ) (tm : MultiTapeTM k Bool S) (x : List Bool) (t s : ℕ)
     (hs : tm.RunsInSpace x s) :
-    (eCfg ((machine (desc eS eBit tm)).run x t)).length ≤ budget eS tm x.length s :=
-  length_native_run_le_of_space eS tm x t s hs
+    (eCfg ((machine (desc eS eBit tm)).run x t)).length ≤ budget eS tm x.length s := by
+  have h := length_native_run_le eS tm x t
+  have hb := hs (MultiTapeNTM.ComputationPath.ofDeterministic tm x t)
+  change (MultiTapeNTM.RunPath.ofDeterministic tm (tm.initCfg x) t).space ≤ s at hb
+  exact h.trans (by unfold budget; gcongr)
 
 /-- Native virtual-input substitution from an existing machine's own first-halt, output and
 workspace certificates. The five component certificates and saved-state encoding bound are

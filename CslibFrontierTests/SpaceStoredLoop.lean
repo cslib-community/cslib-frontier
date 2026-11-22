@@ -8,7 +8,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
-import CslibFrontier.Tactic.Space
 import CslibFrontierTests.SpaceQueryLoop
 
 /-!
@@ -17,7 +16,7 @@ import CslibFrontierTests.SpaceQueryLoop
 The binary length of the number of ones of a word, by doubling a power of two until it exceeds that
 number. Every round calls the whole counting routine of `CslibFrontierTests.SpaceQueryLoop` on the
 input and compares its value with the stored registers: the body is an ordinary function of the
-registers and the input, certified by `space`, and
+registers and the input, assembled from the budget rules, and
 `Turing.MultiTapeTM.ComputableInSpace.loopWith` runs it. No query machine is declared.
 -/
 

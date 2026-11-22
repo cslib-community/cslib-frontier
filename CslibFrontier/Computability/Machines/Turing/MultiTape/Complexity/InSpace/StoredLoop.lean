@@ -7,12 +7,11 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Native
+import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Native
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.QueryLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
 import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
-import CslibFrontier.Tactic.Space
 
 /-!
 # Loops whose body is any function of stored registers and the input
@@ -42,23 +41,17 @@ The trajectory of the registers is a hypothesis: the caller names the registers 
 round, shows that the body maps each to the next and stops at the last, and bounds their encoded
 length. Nothing is inferred about the loop.
 
-## Main definitions
-
-* `Turing.MultiTapeTM.StoredLoop.State`: the state of the loop machine.
-* `Turing.MultiTapeTM.StoredLoop.Inv`: its invariant, with the variant of the remaining rounds.
-
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInSpace.loopWith`: a loop whose body is any function of stored
   registers and the input, within the space of the body and of the registers.
 * `Turing.MultiTapeTM.ComputableInLogSpace.inSpace_context`: a logspace function of registers and
   the input with a short value, in context form.
-* `Turing.MultiTapeTM.StoredLoop.query_inSpace`, `.next_inSpace`, `.stop_inSpace`: the parts of
-  the loop machine, within space linear in its state.
-* `Turing.MultiTapeTM.StoredLoop.inv_round`: a round keeps the invariant.
--/
 
-public section
+## Implementation notes
+
+The loop machine, its state and its invariant are private to this module.
+-/
 
 namespace Turing.MultiTapeTM.StoredLoop
 
@@ -79,18 +72,18 @@ structure State where
 
 /-- States of the loop, as their fields: the three words framed, then the framed configuration
 and the stopping bit. -/
-enc_structure encState : State where
+private enc_structure encState : State where
   reg : encBits, pre : encBits, acc : encBits, cfg : eCfg, stop : encBool
 
 /-- The position of the simulated input head in the virtual input. -/
-@[expose] def vpos (s : State) : ℕ := s.cfg.inputPos - 1
+def vpos (s : State) : ℕ := s.cfg.inputPos - 1
 
 /-- The position read in the input: the virtual position past the stored prefix. -/
-@[expose] def query (s : State) : ℕ := vpos s - s.pre.length
+def query (s : State) : ℕ := vpos s - s.pre.length
 
 /-- The bit of the virtual input under the simulated head: a bit of the stored prefix, or the bit
 read in the input. -/
-@[expose] def symbol (s : State) (b : Option Bool) : Option Bool :=
+def symbol (s : State) (b : Option Bool) : Option Bool :=
   if vpos s < s.pre.length then some (s.pre.getD (vpos s) false) else b
 
 /-- The virtual input of the body: the framed registers followed by the input. On encoded
@@ -99,7 +92,7 @@ abbrev vinput (reg w : List Bool) : List Bool := frame reg ++ w
 
 /-- A round: a step of the simulated body, collecting its output; once the body has halted, stop
 if its output is empty, and otherwise start the body again on the registers it returned. -/
-@[expose] def next (d : Desc) (p : State × Option Bool) : State :=
+def next (d : Desc) (p : State × Option Bool) : State :=
   if p.1.cfg.state.isNone then
     if p.1.acc.isEmpty then ⟨p.1.reg, p.1.pre, p.1.acc, p.1.cfg, true⟩
     else ⟨p.1.acc.tail, frame p.1.acc.tail, [], init d, false⟩
@@ -113,7 +106,8 @@ private theorem bitsLength_inSpace : ComputableInSpace (fun l : List Bool => l.l
   of_inO ComputableInO.lengthNat
 
 /-- The position read in the input, within space linear in the state. -/
-theorem query_inSpace : ComputableInSpace query encState encNat fun s => (encState s).length := by
+theorem query_inSpace :
+    ComputableInSpace query encState encNat fun s => (encState s).length := by
   have hid := budget_id (enc := encState) (.refl _)
   exact budget_natSub (budget_natPred (eCfg_inputPos_budget (encState_cfg_budget hid)))
     (budget_comp_linear bitsLength_inSpace (encState_pre_budget hid))
@@ -225,25 +219,26 @@ theorem round_halted (s : State) (h : s.cfg.state.isNone = true) (b : Option Boo
 variable (N : ℕ) (regs : ℕ → List Bool) (T : ℕ → ℕ)
 
 /-- The state of the loop in round `j`, after `t` steps of the body on the registers `regs j`. -/
-@[expose] def running (j t : ℕ) : State :=
+def running (j t : ℕ) : State :=
   ⟨regs j, frame (regs j), (VirtualWord.Native.machine d).output (vinput (regs j) w) t,
     (VirtualWord.Native.machine d).run (vinput (regs j) w) t, false⟩
 
 /-- The state in which the loop stops, after round `N`. -/
-@[expose] def stopped : State :=
+def stopped : State :=
   ⟨regs N, frame (regs N), [],
     (VirtualWord.Native.machine d).run (vinput (regs N) w) (T N), true⟩
 
 /-- The invariant of the loop whose body halts after `T j` steps in round `j` and which stops
 after round `N`: the state is that of round `j ≤ N` after `t ≤ T j` steps of the body, or the
 stopped state. The variant `m` bounds the rounds of the query loop that are left. -/
-@[expose] def Inv (m : ℕ) (s : State) : Prop :=
+def Inv (m : ℕ) (s : State) : Prop :=
   (∃ j ≤ N, ∃ t ≤ T j, s = running d w regs j t ∧
     m = (N - j) * ((Finset.range (N + 1)).sup T + 2) + (T j - t) + 1) ∨
   (s = stopped d w N regs T ∧ m = 0)
 
 /-- The invariant holds at the start of the first round. -/
-theorem inv_start : ∃ m, Inv d w N regs T m ⟨regs 0, frame (regs 0), [], init d, false⟩ :=
+theorem inv_start :
+    ∃ m, Inv d w N regs T m ⟨regs 0, frame (regs 0), [], init d, false⟩ :=
   ⟨_, .inl ⟨0, Nat.zero_le _, 0, Nat.zero_le _, rfl, rfl⟩⟩
 
 variable {d w N regs T}
@@ -283,7 +278,8 @@ theorem inv_round
   · cases hs
 
 /-- Where the loop has stopped, the invariant determines the state. -/
-theorem eq_stopped_of_inv {m : ℕ} {s : State} (h : Inv d w N regs T m s) (hs : s.stop = true) :
+theorem eq_stopped_of_inv {m : ℕ} {s : State} (h : Inv d w N regs T m s)
+    (hs : s.stop = true) :
     s = stopped d w N regs T := by
   rcases h with ⟨j, -, t, -, rfl, -⟩ | ⟨rfl, -⟩
   · cases hs
@@ -303,9 +299,12 @@ end Rounds
 
 end Turing.MultiTapeTM.StoredLoop
 
-namespace Turing.MultiTapeTM
+public section
 
-open Universal StoredLoop
+namespace Turing.MultiTapeTM.StoredLoop
+
+open Universal ComputableInSpace
+
 
 /-- The logarithm of a sum is at most one summand plus the logarithm of the other. -/
 private theorem log2_add_le (u v : ℕ) : Nat.log2 (u + v) ≤ u + Nat.log2 v + 1 := by
@@ -324,8 +323,8 @@ logarithm of the length of the input, so the function is computable within that 
 value fits it. This turns the rules of `Turing.MultiTapeTM.ComputableInLogSpace`, such as
 projections and composition with a function of the input alone, into bodies of
 `Turing.MultiTapeTM.ComputableInSpace.loopWith`. -/
-theorem ComputableInLogSpace.inSpace_context {α ρ β : Type} {encA : α ↪ List Bool}
-    {encR : ρ ↪ List Bool} {encB : β ↪ List Bool} {f : ρ × α → β}
+theorem _root_.Turing.MultiTapeTM.ComputableInLogSpace.inSpace_context {α ρ β : Type}
+    {encA : α ↪ List Bool} {encR : ρ ↪ List Bool} {encB : β ↪ List Bool} {f : ρ × α → β}
     (h : ComputableInLogSpace f (encPair encR encA) encB)
     (hlen : ∃ L, ∀ p, (encB (f p)).length ≤
       L * ((encR p.1).length + Nat.log2 (encA p.2).length + 1)) :
@@ -352,8 +351,9 @@ where the registers are charged and the input is not, and let the registers of t
 `B a`. Then the final registers are computable within space `O(S + B + log n)` on inputs of
 length `n`: the body is simulated on the virtual input `encPair encR encA (r, a)`, whose framed
 first component is stored and whose second component is the input itself. -/
-theorem ComputableInSpace.loopWith {α ρ : Type} {encA : α ↪ List Bool} {encR : ρ ↪ List Bool}
-    {step : ρ × α → Option ρ} {init : α → ρ} {S B : α → ℕ} (r : α → ℕ → ρ) (n : α → ℕ)
+theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {encA : α ↪ List Bool}
+    {encR : ρ ↪ List Bool} {step : ρ × α → Option ρ} {init : α → ρ} {S B : α → ℕ}
+    (r : α → ℕ → ρ) (n : α → ℕ)
     (hinit : ComputableInSpace init encA encR S)
     (hstep : ComputableInSpace step (encPair encR encA) (encOption encR)
       fun p => (encR p.1).length + S p.2)
@@ -417,7 +417,7 @@ theorem ComputableInSpace.loopWith {α ρ : Type} {encA : α ↪ List Bool} {enc
     have hlenP : s.pre.length = 2 * (encR (r a j)).length + 1 := by rw [hspre, length_frame]
     have hlenA : s.acc.length ≤ c * ((encR (r a j)).length + S a + 1) :=
       hsacc.trans ((congrArg List.length (hfinal a j)).le.trans (hout (r a j, a)))
-    have hcfg := VirtualWord.Native.length_native_run_le_budget eS tm
+    have hcfg := VirtualWord.Native.length_native_run_le_of_space eS tm
       (vinput (encR (r a j)) (encA a)) t (c * ((encR (r a j)).length + S a + 1))
       (htm (r a j, a)).2.2
     have hbud := hC (vinput (encR (r a j)) (encA a)).length
@@ -444,4 +444,4 @@ theorem ComputableInSpace.loopWith {α ρ : Type} {encA : α ↪ List Bool} {enc
     rw [h₃]
     omega
 
-end Turing.MultiTapeTM
+end Turing.MultiTapeTM.StoredLoop
