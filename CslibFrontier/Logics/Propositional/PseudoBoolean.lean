@@ -170,13 +170,10 @@ def negMass (L : List (ℕ × ℤ)) : ℕ := (L.map fun e => (-e.2).toNat).sum
 
 theorem linVal_insertCoeff (σ : ℕ → Bool) (v : ℕ) (a : ℤ) (L : List (ℕ × ℤ)) :
     linVal σ (insertCoeff v a L) = a * ((σ v).toNat : ℤ) + linVal σ L := by
-  induction L with
-  | nil => simp [insertCoeff]
-  | cons e L ih =>
-    obtain ⟨u, b⟩ := e
-    by_cases h : u = v
-    · subst h; simp [insertCoeff]; ring
-    · simp [insertCoeff, h, ih]; ring
+  fun_induction insertCoeff v a L with
+  | case1 => simp
+  | case2 => simp; ring
+  | case3 u b L h ih => simp [ih]; ring
 
 /-- The value of a term is its signed coefficient times its variable, plus its coefficient if
 its literal is negative. -/
