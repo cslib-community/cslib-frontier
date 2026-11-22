@@ -68,6 +68,7 @@ public import CslibFrontier.Algorithms.Lean.Dijkstra.Client
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Cost
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Memory
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Binary
+public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Common
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Domain
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Export
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Fibonacci
@@ -5006,6 +5007,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.Random
 public import CslibFrontier.Computability.WordRAM.Realization.RandomLoop
 public import CslibFrontier.Computability.WordRAM.Realization.Reindex
 public import CslibFrontier.Computability.WordRAM.Realization.Result
+public import CslibFrontier.Computability.WordRAM.Realization.Structure
 public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
