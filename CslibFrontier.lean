@@ -3240,6 +3240,8 @@ public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMes
 public import CslibFrontier.Computability.Distributed.ChandyLamport.Basic
 public import CslibFrontier.Computability.Distributed.ChandyLamport.Correctness
 public import CslibFrontier.Computability.Distributed.ChandyLamport.Snapshot
+public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
+public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctness
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
 public import CslibFrontier.Computability.Distributed.OrientedCycle.ColeVishkin
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Graph
