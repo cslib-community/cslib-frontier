@@ -1301,6 +1301,11 @@ public import CslibFrontier.Computability.Circuit.Boolean.HardnessAmplification.
 public import CslibFrontier.Computability.Circuit.Boolean.Hastad
 public import CslibFrontier.Computability.Circuit.Boolean.Hastad.Sharp
 public import CslibFrontier.Computability.Circuit.Boolean.Hierarchy
+public import CslibFrontier.Computability.Circuit.Boolean.Inversion.Basic
+public import CslibFrontier.Computability.Circuit.Boolean.Inversion.Decrease
+public import CslibFrontier.Computability.Circuit.Boolean.Inversion.LowerBound
+public import CslibFrontier.Computability.Circuit.Boolean.Inversion.Markov
+public import CslibFrontier.Computability.Circuit.Boolean.Inversion.UpperBound
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Active
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.AffineController

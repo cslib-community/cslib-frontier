@@ -117,6 +117,18 @@ theorem monotone_weight : Monotone (weight : (ι → Bool) → ℕ) := fun x y h
     have hxi : x i = true := (mem_filter.1 hi).2
     exact mem_filter.2 ⟨mem_univ i, le_antisymm (Bool.le_true _) (hxi ▸ hxy i)⟩
 
+/-- Comparable Boolean vectors with equal weights are equal. -/
+theorem eq_of_le_of_weight_eq {x y : ι → Bool} (hxy : x ≤ y)
+    (hw : weight x = weight y) : x = y := by
+  have hsub : univ.filter (fun i => x i = true) ⊆ univ.filter (fun i => y i = true) := by
+    intro i hi
+    have hxi : x i = true := (mem_filter.1 hi).2
+    exact mem_filter.2 ⟨mem_univ i, le_antisymm (Bool.le_true _) (hxi ▸ hxy i)⟩
+  have heq := eq_of_subset_of_card_le hsub hw.ge
+  funext i
+  apply Bool.eq_iff_iff.mpr
+  simpa only [mem_filter, mem_univ, true_and] using (Finset.ext_iff.mp heq i)
+
 /-- The weight of a vector on `ι ⊕ κ` glued from `x` and `y` is the sum of their weights. -/
 @[simp] theorem weight_sum_elim {κ : Type*} [Fintype κ] (x : ι → Bool) (y : κ → Bool) :
     weight (Sum.elim x y) = weight x + weight y := by
