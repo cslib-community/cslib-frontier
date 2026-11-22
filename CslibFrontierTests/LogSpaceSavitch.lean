@@ -137,15 +137,18 @@ example : ∃ c₁ c₂ t, DecidableInTimeAndSpace startsTrue encBits t
 
 /-! ### Named runtime fields preserve the encoded words -/
 
+private abbrev encParamTuple : Bool × ℕ × ℕ × Option Bool ↪ List Bool :=
+  encPair encBool (encPair encNat (encPair encNat (encOption encBool)))
+
 example (s : Runtime) : encRuntime s =
-    encPair encNat (encPair encBool (Cslib.Reachability.Savitch.encRound encParam))
+    encPair encNat (encPair encBool (Cslib.Reachability.Savitch.encRound encParamTuple))
       (s.counter, s.started,
         (((s.round.setup.params.overflowMode, s.round.setup.params.radix,
           s.round.setup.params.inputLength, s.round.setup.params.symbol), s.round.setup.width),
           s.round.recursion)) := rfl
 
 example (p : EdgeParams) :
-    encEdgeParams p = encParam (p.overflowMode, p.radix, p.inputLength, p.symbol) := rfl
+    encEdgeParams p = encParamTuple (p.overflowMode, p.radix, p.inputLength, p.symbol) := rfl
 
 example (q : (EdgeParams × ℕ) × Cslib.Reachability.Savitch.State) :
     encSimulationRound (.ofRound q) = Cslib.Reachability.Savitch.encRound encEdgeParams q := rfl

@@ -297,11 +297,6 @@ end Graph
 
 /-! ### The query machine -/
 
-/-- The encoding of the parameter of the edge test: the round mode, the radix and the input length
-in binary, and the input bit read last. -/
-abbrev encParam : Bool × ℕ × ℕ × Option Bool ↪ List Bool :=
-  encPair encBool (encPair encNat (encPair encNat (encOption encBool)))
-
 /-- The parameters and unary vertex width share one frame. -/
 structure RoundSetup where
   /-- Parameters shared by all edge tests in this round. -/
