@@ -97,14 +97,15 @@ uniformity.
   correlation `2^{-γ n}` for a fixed `γ > 0`.
 * `Cslib.Circuits.Frontier.eventually_abs_correlation_quadForm_le_switched_multiarySize`,
   `Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le_switched_multiarySize`,
-  `Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt_switched_multiarySize`,
   `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_2787_multiarySize`,
   `Cslib.Circuits.Frontier.eventually_abs_correlation_quadForm_le_switched`,
   `Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le_switched`,
   `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt_switched`,
-  `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_2787`: the improved
-  median-switched Gaussian correlation threshold `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986`
-  (`≥ 278798 / 100000`), original to this library (via `layoutBound_switched`).
+  `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_2787`,
+ `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt_switched_multiarySize`
+  : the improved median-switched Gaussian correlation threshold
+  `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`≥ 278798 / 100000`), original to this library
+  (via `layoutBound_switched`).
 
 ## References
 

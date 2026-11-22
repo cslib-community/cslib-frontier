@@ -318,21 +318,49 @@ theorem card_innerGate_le_card_gate :
   Nat.card_le_card_of_injective (fun g => ⟨g.1, g.2.1⟩) fun _ _ h =>
     Subtype.ext (congrArg Subtype.val h :)
 
+/-- The reachable inner gate in `W` that owns a slot in `W`. -/
+private def slotGateIn {W : Set (Vertex c)} :
+    {t : Slot c // owner (.inl t) ∈ W} → InnerGateIn c W
+  | ⟨⟨⟨g, a⟩, hg⟩, hgW⟩ =>
+    ⟨⟨g, hg, Nat.pos_iff_ne_zero.mp (Nat.zero_lt_of_lt a.isLt)⟩, hgW⟩
+
+/-- Embed each slot in `W` into `(owning gate in W, bounded argument index)`. -/
+private def slotGateIdx {r : ℕ} (hfan : c.FanInAtMost r) {W : Set (Vertex c)} :
+    {t : Slot c // owner (.inl t) ∈ W} → InnerGateIn c W × Fin r
+  | t@⟨⟨⟨g, a⟩, _⟩, _⟩ =>
+    (slotGateIn t, ⟨a.val, a.isLt.trans_le (Program.fanInAtMost_iff.mp hfan g)⟩)
+
+private theorem slotGateIdx_injective {r : ℕ} (hfan : c.FanInAtMost r) (W : Set (Vertex c)) :
+    Function.Injective (slotGateIdx hfan (W := W)) := by
+  rintro ⟨⟨⟨g, a⟩, hg⟩, hgW⟩ ⟨⟨⟨g', a'⟩, hg'⟩, hgW'⟩ h
+  obtain ⟨hg_eq, ha_eq⟩ := Prod.mk.inj h
+  obtain rfl : g = g' := congrArg (fun x : InnerGateIn c W => x.val.val) hg_eq
+  obtain rfl : a = a' := Fin.ext (congrArg (Fin.val : Fin r → ℕ) ha_eq)
+  rfl
+
+/-- Slots in `W` whose owning gate satisfies `P` number at most `r` times the gates in `W`
+satisfying `P`. -/
+private theorem card_slot_subtype_le {r : ℕ} (hfan : c.FanInAtMost r) (W : Set (Vertex c))
+    (P : InnerGateIn c W → Prop) :
+    Nat.card {t : {t : Slot c // owner (.inl t) ∈ W} // P (slotGateIn t)} ≤
+      r * Nat.card {g : InnerGateIn c W // P g} := by
+  calc Nat.card {t : {t : Slot c // owner (.inl t) ∈ W} // P (slotGateIn t)}
+      ≤ Nat.card ({g : InnerGateIn c W // P g} × Fin r) := by
+        refine Nat.card_le_card_of_injective
+          (fun ⟨t, ht⟩ => (⟨slotGateIn t, ht⟩, (slotGateIdx hfan t).2)) ?_
+        rintro ⟨t₁, _⟩ ⟨t₂, _⟩ h
+        obtain ⟨hg, ha⟩ := Prod.mk.inj h
+        exact Subtype.ext (slotGateIdx_injective hfan W
+          (Prod.ext (congrArg Subtype.val hg) ha))
+    _ = r * Nat.card {g : InnerGateIn c W // P g} := by
+        rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Fin r), Fintype.card_fin, mul_comm]
+
 /-- There are at most `r` slots per reachable inner gate in `W`; constant gates have none. -/
 private theorem card_slot_le {r : ℕ} (hfan : c.FanInAtMost r) (W : Set (Vertex c)) :
     Nat.card {t : Slot c // owner (.inl t) ∈ W} ≤ r * Nat.card (InnerGateIn c W) := by
-  calc Nat.card {t : Slot c // owner (.inl t) ∈ W}
-      ≤ Nat.card (InnerGateIn c W × Fin r) := by
-        refine Nat.card_le_card_of_injective
-          (fun t => (⟨⟨t.1.1.1, t.1.2, Nat.pos_iff_ne_zero.mp (Nat.zero_lt_of_lt t.1.1.2.isLt)⟩,
-            t.2⟩, ⟨t.1.1.2.val,
-              t.1.1.2.isLt.trans_le (Program.fanInAtMost_iff.mp hfan t.1.1.1)⟩)) ?_
-        rintro ⟨⟨⟨g, a⟩, hg⟩, hgW⟩ ⟨⟨⟨g', a'⟩, hg'⟩, hgW'⟩ h
-        obtain rfl : g = g' := congrArg (fun x => x.1.1.1) h
-        obtain rfl : a = a' := Fin.ext (congrArg (fun x => x.2.val) h)
-        rfl
-    _ = r * Nat.card (InnerGateIn c W) := by
-        rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Fin r), Fintype.card_fin, mul_comm]
+  have h := card_slot_subtype_le hfan W fun _ => True
+  rwa [Nat.card_congr (Equiv.subtypeUnivEquiv fun _ => trivial),
+    Nat.card_congr (Equiv.subtypeUnivEquiv fun _ => trivial)] at h
 
 /-- There are two edges per consumer. -/
 theorem card_edge : Nat.card (Edge c) = 2 * Nat.card (Consumer c) := by
@@ -421,52 +449,40 @@ private theorem ncard_readIn_add_card_le (W : Set (Vertex c)) :
   exact Nat.card_le_card_of_injective (fun g => ⟨⟨g.1.1, g.1.2.1⟩, g.2⟩) fun _ _ h =>
     Subtype.ext (Subtype.ext (congrArg (fun g => g.1.1) h))
 
+/-- Whether a reachable inner gate in `W` has syntactic arity `1`. -/
+private def IsUnaryGateIn {W : Set (Vertex c)} : InnerGateIn c W → Prop
+  | ⟨⟨g, _, _⟩, _⟩ => σ.Arity (c.program.lines g).op = 1
+
 /-- Each unary gate in `W` has one slot, and each multiary gate in `W` has at most `r` slots. -/
 private theorem card_slot_le_unary_add_multiary {r : ℕ} (hfan : c.FanInAtMost r)
     (W : Set (Vertex c)) :
     Nat.card {t : Slot c // owner (.inl t) ∈ W} ≤
-      Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op = 1} +
-        r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
+      Nat.card {g : InnerGateIn c W // IsUnaryGateIn g} +
+        r * Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} := by
   classical
-  let Q : {t : Slot c // owner (.inl t) ∈ W} → Prop :=
-    fun t => σ.Arity (c.program.lines t.1.1.1).op = 1
+  let Q : {t : Slot c // owner (.inl t) ∈ W} → Prop := fun t => IsUnaryGateIn (slotGateIn t)
   have hsplit : Nat.card {t : Slot c // owner (.inl t) ∈ W} =
       Nat.card {t // Q t} + Nat.card {t // ¬ Q t} :=
-    (Nat.card_congr (Equiv.sumCompl Q).symm).trans (Nat.card_sum)
-  have hU : Nat.card {t // Q t} ≤
-      Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op = 1} := by
-    refine Nat.card_le_card_of_injective
-      (fun t => ⟨⟨⟨t.1.1.1.1, t.1.1.2, by omega⟩, t.1.2⟩, t.2⟩) ?_
+    (Nat.card_congr (Equiv.sumCompl Q).symm).trans Nat.card_sum
+  have hU : Nat.card {t // Q t} ≤ Nat.card {g : InnerGateIn c W // IsUnaryGateIn g} := by
+    refine Nat.card_le_card_of_injective (fun ⟨t, ht⟩ => ⟨slotGateIn t, ht⟩) ?_
     rintro ⟨⟨⟨⟨g, a⟩, hg⟩, hgW⟩, h1⟩ ⟨⟨⟨⟨g', a'⟩, hg'⟩, hgW'⟩, h1'⟩ h
-    obtain rfl : g = g' := congrArg (fun x => x.1.1.1) h
-    have ha0 : a.val = 0 := by have := a.isLt; dsimp [Q] at h1; omega
-    have ha0' : a'.val = 0 := by have := a'.isLt; dsimp [Q] at h1'; omega
+    obtain rfl : g = g' := congrArg (fun x : {g // IsUnaryGateIn g} => x.val.val.val) h
+    have ha0 : a.val = 0 := by have := a.isLt; dsimp [Q, IsUnaryGateIn, slotGateIn] at h1; omega
+    have ha0' : a'.val = 0 := by have := a'.isLt; dsimp [Q, IsUnaryGateIn, slotGateIn] at h1'; omega
     obtain rfl : a = a' := Fin.ext (ha0.trans ha0'.symm)
     rfl
-  have hM : Nat.card {t // ¬ Q t} ≤
-      r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
-    calc Nat.card {t // ¬ Q t}
-        ≤ Nat.card ({g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} × Fin r) := by
-          refine Nat.card_le_card_of_injective
-            (fun t => (⟨⟨⟨t.1.1.1.1, t.1.1.2,
-                Nat.pos_iff_ne_zero.mp (Nat.zero_lt_of_lt t.1.1.1.2.isLt)⟩, t.1.2⟩, t.2⟩,
-              ⟨t.1.1.1.2.val,
-                t.1.1.1.2.isLt.trans_le (Program.fanInAtMost_iff.mp hfan t.1.1.1.1)⟩)) ?_
-          rintro ⟨⟨⟨⟨g, a⟩, hg⟩, hgW⟩, _⟩ ⟨⟨⟨⟨g', a'⟩, hg'⟩, hgW'⟩, _⟩ h
-          obtain rfl : g = g' := congrArg (fun x => x.1.1.1.1) h
-          obtain rfl : a = a' := Fin.ext (congrArg (fun x => x.2.val) h)
-          rfl
-      _ = r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
-          rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Fin r), Fintype.card_fin, mul_comm]
+  have hM : Nat.card {t // ¬ Q t} ≤ r * Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} :=
+    card_slot_subtype_le hfan W fun g => ¬ IsUnaryGateIn g
   omega
 
 private theorem card_multiaryGateIn_le (W : Set (Vertex c)) :
-    Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} ≤ c.multiarySize := by
+    Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} ≤ c.multiarySize := by
   rw [Circuit.multiarySize, ← Nat.card_eq_finsetCard]
   refine Nat.card_le_card_of_injective
-    (fun g => ⟨g.1.1.1, Program.mem_multiaryGates.mpr
-      (by have := g.1.1.2.2; have := g.2; omega)⟩) ?_
-  rintro ⟨⟨⟨g, _⟩, _⟩, _⟩ ⟨⟨⟨g', _⟩, _⟩, _⟩ h
+    (fun ⟨⟨⟨g, _, hpos⟩, _⟩, hne1⟩ =>
+      ⟨g, Program.mem_multiaryGates.mpr (by dsimp [IsUnaryGateIn] at hne1; omega)⟩) ?_
+  rintro ⟨⟨⟨g, _, _⟩, _⟩, _⟩ ⟨⟨⟨g', _, _⟩, _⟩, _⟩ h
   obtain rfl : g = g' := congrArg Subtype.val h
   rfl
 
@@ -479,20 +495,19 @@ theorem ncard_touching_add_ncard_readIn_le_multiarySize {r : ℕ} (hfan : c.FanI
     ((graph c).touching W).ncard + ((network c I Acc).readIn W).ncard ≤
       W.ncard + (r - 1) * c.multiarySize := by
   classical
-  let P : InnerGateIn c W → Prop := fun g => σ.Arity (c.program.lines g.1.1).op = 1
   have hP : Nat.card (InnerGateIn c W) =
-      Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op = 1} +
-        Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} :=
-    (Nat.card_congr (Equiv.sumCompl P).symm).trans (Nat.card_sum)
+      Nat.card {g : InnerGateIn c W // IsUnaryGateIn g} +
+        Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} :=
+    (Nat.card_congr (Equiv.sumCompl IsUnaryGateIn).symm).trans Nat.card_sum
   have hE := ncard_touching_eq hW
   have hJ := card_junction_eq hW
   have hV := ncard_eq_add W
   have hslot := card_slot_le_unary_add_multiary hfan W
   have hsig := ncard_readIn_add_card_le I Acc W
   have hM := Nat.mul_le_mul_left (r - 1) (card_multiaryGateIn_le (c := c) W)
-  have hr : r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} ≤
-      (r - 1) * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} +
-        Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
+  have hr : r * Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} ≤
+      (r - 1) * Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} +
+        Nat.card {g : InnerGateIn c W // ¬ IsUnaryGateIn g} := by
     rcases r with _ | r
     · simp
     · simp [add_mul]

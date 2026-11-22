@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
 public import CslibFrontier.Computability.Circuit.Frontier.TwoSidedWitness
 public import CslibFrontier.Computability.Complexity.Classes.P.Slices
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AffineSource
+import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Analysis.SpecialFunctions.Log.Basic
@@ -335,18 +336,19 @@ theorem rectangleBias_of_isSumsetExtractor {n m k : ℕ} {ε : ℝ}
     exact (PMF.dist_map_le _ _ proj).trans (hext pA pB hkA hkB)
   rw [PMF.dist_uniformOfFintype_bool] at hdist
   have hpOut_true : (pOut true).toReal = ((R ∩ S).ncard : ℝ) / R.ncard := by
-    have h_enn := PMF.uniformOfFintype_map_apply (α := R)
-      (fun r : R => decide (ext r.val j = val)) true
-    have hcard_sub : Nat.card {r : R // decide (ext r.val j = val) = true} = (R ∩ S).ncard := by
-      rw [← Nat.card_coe_set_eq (R ∩ S)]
+    have hcard_fib :
+        ({r : R | decide (ext r.val j = val) = true} : Finset R).card = (R ∩ S).ncard := by
+      rw [← Fintype.card_coe, ← Nat.card_eq_fintype_card, ← Nat.card_coe_set_eq (R ∩ S)]
       refine Nat.card_congr
-        { toFun := fun r => ⟨r.val.val, r.val.property, of_decide_eq_true r.property⟩
-          invFun := fun x => ⟨⟨x.val, x.property.1⟩, decide_eq_true x.property.2⟩
+        { toFun := fun ⟨⟨x, hxR⟩, hxS⟩ =>
+            ⟨x, hxR, of_decide_eq_true (Finset.mem_filter.mp hxS).2⟩
+          invFun := fun ⟨x, hxR, hxS⟩ =>
+            ⟨⟨x, hxR⟩, Finset.mem_filter.mpr ⟨Finset.mem_univ _, decide_eq_true hxS⟩⟩
           left_inv := fun ⟨⟨_, _⟩, _⟩ => rfl
           right_inv := fun ⟨_, _, _⟩ => rfl }
     change (((PMF.uniformOfFintype R).map _) true).toReal = _
-    rw [h_enn, hcard_sub, hcardR, ENNReal.toReal_div, ENNReal.toReal_natCast,
-      ENNReal.toReal_natCast]
+    rw [PMF.toReal_uniformOfFintype_map_apply_true, Finset.dens_eq_card_div_card, hcard_fib,
+      hcardR, NNRat.cast_div, NNRat.cast_natCast, NNRat.cast_natCast]
   rw [hpOut_true] at hdist
   have hR_pos : (0 : ℝ) < R.ncard := by
     rw [← hcardR]

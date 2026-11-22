@@ -175,6 +175,55 @@ example : RectangleFree {x : BitString 1 | x 0 = true} 2 :=
   (rectangleBias_of_isSumsetExtractor isSumsetExtractor_id_one 0 true).rectangleFree
     (by norm_num) (by norm_num)
 
+/-- Every 1-bit map `ext : BitString n → BitString 1` is trivially a `(k, k, 1 / 2)` sumset
+extractor, allowing `rectangleBias_of_isSumsetExtractor` to be exercised on concrete rectangles of
+side size `2 ^ k` at small `n`. -/
+theorem isSumsetExtractor_one_half {n k : ℕ} (ext : BitString n → BitString 1) :
+    IsSumsetExtractor ext k k (1 / 2) := by
+  intro A B _ _
+  let e : BitString 1 ≃ Bool := Equiv.funUnique (Fin 1) Bool
+  let p := (A.bind fun a => B.map fun b => a + b).map ext
+  have hp : p = (p.map e).map e.symm := by
+    rw [PMF.map_comp, Equiv.symm_comp_self, PMF.map_id]
+  have hu : PMF.uniformOfFintype (BitString 1) = (PMF.uniformOfFintype Bool).map e.symm :=
+    (PMF.uniformOfFintype_map_equiv e.symm).symm
+  have hsum : ((p.map e) true).toReal + ((p.map e) false).toReal = 1 := by
+    simpa [Fintype.sum_bool] using PMF.sum_toReal (p.map e)
+  have h0 : 0 ≤ ((p.map e) true).toReal := ENNReal.toReal_nonneg
+  have h1 : ((p.map e) true).toReal ≤ 1 := by
+    linarith [ENNReal.toReal_nonneg (a := (p.map e) false)]
+  calc dist p (PMF.uniformOfFintype (BitString 1))
+      = dist ((p.map e).map e.symm) ((PMF.uniformOfFintype Bool).map e.symm) := by rw [← hp, ← hu]
+    _ ≤ dist (p.map e) (PMF.uniformOfFintype Bool) := PMF.dist_map_le _ _ e.symm
+    _ = |((p.map e) true).toReal - 1 / 2| := PMF.dist_uniformOfFintype_bool (p.map e)
+    _ ≤ 1 / 2 := abs_le.mpr ⟨by linarith, by linarith⟩
+
+/-- Non-vacuous rectangle-bridge check on `BitString 2` at `k = 1`, `X = {0}`, `A = univ`,
+`B = univ`, where both side cardinalities meet `2 ^ 1 = 2` and the rectangle has `4` elements. -/
+example :
+    let X : Set (Fin 2) := {0}
+    let A : Set (X → Bool) := Set.univ
+    let B : Set (↥Xᶜ → Bool) := Set.univ
+    2 ^ 1 ≤ A.ncard ∧ 2 ^ 1 ≤ B.ncard ∧ (rectangle X A B).ncard = 4 ∧
+      |((rectangle X A B ∩ {x : BitString 2 | (x 0 && x 1) = true}).ncard : ℝ) -
+        (rectangle X A B).ncard / 2| ≤ 1 / 2 * (rectangle X A B).ncard := by
+  dsimp only
+  have hXc : ({0} : Set (Fin 2))ᶜ = {1} := by
+    ext i
+    fin_cases i <;> simp
+  have hA : (Set.univ : Set (({0} : Set (Fin 2)) → Bool)).ncard = 2 := by
+    rw [Set.ncard_univ, Nat.card_fun, Nat.card_coe_set_eq, Set.ncard_singleton,
+      Nat.card_eq_fintype_card, Fintype.card_bool, pow_one]
+  have hB : (Set.univ : Set (↥({0} : Set (Fin 2))ᶜ → Bool)).ncard = 2 := by
+    rw [Set.ncard_univ, Nat.card_fun, Nat.card_coe_set_eq, hXc, Set.ncard_singleton,
+      Nat.card_eq_fintype_card, Fintype.card_bool, pow_one]
+  have hR : (rectangle (U := Bool) ({0} : Set (Fin 2)) Set.univ Set.univ).ncard = 4 := by
+    rw [ncard_rectangle, hA, hB]
+  have hbias := rectangleBias_of_isSumsetExtractor
+    (isSumsetExtractor_one_half (n := 2) (k := 1) fun x => fun _ => x 0 && x 1)
+    0 true {0} Set.univ Set.univ (by omega) (by omega)
+  exact ⟨by omega, by omega, hR, hbias⟩
+
 /-! ### 3. Asymptotic `multiarySize` and `SumsetBridge` client instantiations -/
 
 example : MultiaryLowerBound.{0, 0} (457597 / 100000) :=
