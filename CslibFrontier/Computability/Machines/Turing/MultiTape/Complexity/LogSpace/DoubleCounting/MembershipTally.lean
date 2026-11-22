@@ -373,21 +373,20 @@ theorem firstHalting_walk_return {τ : Type} (ctx : Context)
     have htail := ((M.firstHalting_cons_iff input choice choices _).mp h).2
     rw [M.replay_cons] at hend
     by_cases hhalt : walk.halted t = true
-    · cases choice
+    · have reject (hstep : M.step input (.inr (.inl (r, t))) choice = .inr (.inr none)) :
+          False := by
+        rw [hstep, M.replay_of_halted input rfl] at hend
+        cases hend
+      cases choice
       · cases hresult : result t with
         | none =>
-          rw [show M.step input (.inr (.inl (r, t))) false = .inr (.inr none) by
-            simp [M, NondeterministicQueryMachine.step, machine, hhalt, hresult],
-            M.replay_of_halted input rfl] at hend
-          cases hend
+          exact (reject (by
+            simp [M, NondeterministicQueryMachine.step, machine, hhalt, hresult])).elim
         | some remaining =>
           rw [show M.step input (.inr (.inl (r, t))) false = .inl (r.record remaining) by
             simp [M, NondeterministicQueryMachine.step, machine, hhalt, hresult]] at htail hend
           exact ⟨[], choices, remaining, rfl, ⟨hhalt, by simp⟩, hresult, htail, hend⟩
-      · rw [show M.step input (.inr (.inl (r, t))) true = .inr (.inr none) by
-          simp [M, NondeterministicQueryMachine.step, machine, hhalt],
-          M.replay_of_halted input rfl] at hend
-        cases hend
+      · exact (reject (by simp [M, NondeterministicQueryMachine.step, machine, hhalt])).elim
     · have hlive := Bool.eq_false_iff.mpr hhalt
       rw [step_pending_live _ _ _ _ _ _ _ _ hlive] at htail hend
       obtain ⟨bits, rest, remaining, hbits, hfirst, hresult, hrest, hdone⟩ :=
