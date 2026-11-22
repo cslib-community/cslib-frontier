@@ -66,21 +66,11 @@ open _root_.Turing _root_.Turing.MultiTapeNTM _root_.Turing.MultiTapeNTM.Configu
 
 variable {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
 
-/-- The radix exceeds the number of control tags by more than one, for every `c`, so the initial
-view fits it. -/
-private theorem card_succ_lt_radix (n : ℕ) :
-    Fintype.card (Option State) + 1 < radix (radixExponent State c) n :=
-  calc Fintype.card (Option State) + 1 < 2 ^ (Fintype.card (Option State) + 1) :=
-        Nat.lt_two_pow_self
-    _ ≤ (n + 2) ^ (Fintype.card (Option State) + 1) := Nat.pow_le_pow_left (by omega) _
-    _ ≤ radix (radixExponent State c) n :=
-      Nat.pow_le_pow_right (by omega) (by simp only [radixExponent]; omega)
-
 /-- The start vertex is a vertex of the ambient graph. -/
 theorem startID_lt_vertexBound (n : ℕ) :
     startID ntm (radix (radixExponent State c) n) <
       vertexBound (k := k) (radix (radixExponent State c) n) :=
-  vertexID_init ntm _ [] ▸ vertexID_lt (fits_init (w := []) (card_succ_lt_radix c n))
+  startID_lt (card_succ_lt_radix c n)
 
 /-- The arcs of the configuration graph on `w`, with a sink at `vertexBound`: an arc of the
 compact configuration graph between identifiers below `vertexBound`, and an arc from each
