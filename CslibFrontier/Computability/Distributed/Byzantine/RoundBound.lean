@@ -13,21 +13,42 @@ import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
-# The `t + 1` round lower bound for Byzantine agreement
+# The `t + 1` round lower bound for interactive consistency and Byzantine agreement
 
-No deterministic synchronous protocol on `n ≥ 2` processes solves Byzantine agreement against `t`
-faults in `R ≤ t` rounds ([Fischer and Lynch][FischerLynch1982]). Combined with the `3t + 1` node
-bound (`CslibFrontier.Computability.Distributed.Byzantine.NodeBound`) and the `(t + 1)`-round oral
-messages protocol (`CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages`), this
-determines the exact two-parameter solvability region: a protocol on `P` solves Byzantine agreement
-against `t` faults in `R` rounds if and only if `Fintype.card P ≤ 1` or
+[Fischer and Lynch][FischerLynch1982] (§§1–3, pp. 183–184; §6, Theorem 5, p. 185) prove that no
+deterministic synchronous protocol on `n ≥ t + 2` processes solves *interactive consistency*—where
+each correct process outputs a common vector recording every correct process's private input—against
+`t` Byzantine faults in `R ≤ t` rounds
+(`InteractiveProtocol.not_solvesInteractiveConsistency_of_rounds_le`).
+
+Adapting the same backward crash-peeling argument (`Protocol.not_agreement_and_zero_unanimity`) to
+single-bit consensus (`Cslib.Distributed.Byzantine.Protocol`) and combining it with the `n ≤ 3t`
+node bound (`CslibFrontier.Computability.Distributed.Byzantine.NodeBound`) rules out Boolean
+Byzantine agreement for all `n ≥ 2` and `R ≤ t`
+(`Protocol.not_solvesByzantineAgreement_of_rounds_le`). Strict majority over the output vector gives
+the same-round reduction from Boolean Byzantine agreement to interactive consistency whenever
+`2 * t < Fintype.card P` (`InteractiveProtocol.solvesByzantineAgreement_toByzantineAgreement`).
+Together with the `(t + 1)`-round oral messages protocol
+(`CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages`), this determines the
+exact two-parameter solvability region for Boolean Byzantine agreement: a protocol on `P` solves
+Byzantine agreement against `t` faults in `R` rounds if and only if `Fintype.card P ≤ 1` or
 `3 * t < Fintype.card P ∧ t + 1 ≤ R` (`exists_solvesByzantineAgreement_iff_full`).
 
 ## Proof outline
 
-By monotonicity in the fault threshold (`Protocol.SolvesByzantineAgreement.mono`) and the `n ≤ 3t`
-node bound (`Protocol.not_solvesByzantineAgreement`), it suffices to refute
-`π.SolvesByzantineAgreement R R` when `R + 2 ≤ Fintype.card P`.
+The shared backward-peeling core (`Protocol.not_agreement_and_zero_unanimity`) shows that on at
+least `R + 2` processes, no `R`-round protocol can simultaneously achieve `R`-fault agreement and
+distinguish all-`false` from all-`true` in the fault-free (`F = ∅`) run:
+
+* For interactive consistency (`t + 2 ≤ Fintype.card P`, `R ≤ t`, `[Nontrivial V]`), encoding
+  `Bool` into two distinct values `v₀ ≠ v₁ : V` and reading a fixed coordinate `p₀ : P` yields a
+  Boolean protocol satisfying both hypotheses (`R + 2 ≤ t + 2 ≤ Fintype.card P`), proving Theorem 5
+  of [Fischer and Lynch][FischerLynch1982]. (The bound `t + 2 ≤ Fintype.card P` is sharp: when
+  `Fintype.card P ≤ t + 1`, e.g. `Fin 2` with `t = 1`, `1` round suffices because any non-empty
+  fault set leaves at most `t` nonfaulty processes—at most one on `Fin 2`.)
+* For Boolean Byzantine agreement (`2 ≤ Fintype.card P`, `R ≤ t`), fault-threshold monotonicity
+  (`Protocol.SolvesByzantineAgreement.mono`) handles `R + 2 ≤ Fintype.card P`, while
+  `Protocol.not_solvesByzantineAgreement` (`NodeBound`) covers `2 ≤ Fintype.card P < R + 2 ≤ 3 * t`.
 
 Even crash-like (silent-omission) schedules suffice. Fix a default message `m₀ : M`. A partial
 schedule `(C, alive)` up to round `k` designates at most `k` faulty processes `C` and specifies
@@ -47,12 +68,27 @@ honest. Backward induction on the remaining rounds `d = R - k` proves simultaneo
    least one process outside `insert p C` remains correct in both runs.
 
 At `k = 0` (`C = ∅`, `d = R`), flipping the input vector from all-`false` to all-`true` one process
-at a time preserves the round-`R` decision of fault-free runs, contradicting validity.
+at a time preserves the round-`R` decision of fault-free runs, contradicting fault-free unanimity.
+
+## Main definitions
+
+* `Cslib.Distributed.Byzantine.InteractiveProtocol`: deterministic synchronous protocols for
+  interactive consistency over value domain `V`.
+* `Cslib.Distributed.Byzantine.InteractiveProtocol.SolvesInteractiveConsistency`: vector agreement
+  and per-coordinate validity against at most `t` faults after `R` rounds.
+* `Cslib.Distributed.Byzantine.InteractiveProtocol.toByzantineAgreement`: same-round majority
+  reduction from interactive consistency over `Bool` to `Protocol`.
 
 ## Main results
 
-* `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement_of_rounds_le`: no protocol on
-  `n ≥ 2` processes solves Byzantine agreement against `t` faults in `R ≤ t` rounds.
+* `Cslib.Distributed.Byzantine.InteractiveProtocol.not_solvesInteractiveConsistency_of_rounds_le`:
+  no protocol on `n ≥ t + 2` processes over `[Nontrivial V]` solves interactive consistency against
+  `t` faults in `R ≤ t` rounds ([Fischer and Lynch][FischerLynch1982], Theorem 5).
+* `Cslib.Distributed.Byzantine.InteractiveProtocol.solvesByzantineAgreement_toByzantineAgreement`:
+  when `2 * t < Fintype.card P`, an `R`-round interactive consistency protocol over `Bool` yields an
+  `R`-round Byzantine agreement protocol.
+* `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement_of_rounds_le`: Boolean
+  consensus adaptation ruling out `R ≤ t` rounds for all `n ≥ 2`.
 * `Cslib.Distributed.Byzantine.exists_solvesByzantineAgreement_iff_full`: complete characterization
   of `(t, R)`-solvability of synchronous Byzantine agreement on finite process sets.
 
@@ -102,13 +138,15 @@ private theorem state_crashAdv_eq (m₀ : M) (F : Finset P) (alive : ℕ → P �
     · simp only [hj, ↓reduceIte, crashAdv]
     · simp only [hj, ↓reduceIte, hF r (by omega) j hj i]
 
-private theorem crashDecision_agree {R : ℕ} (h : π.SolvesByzantineAgreement R R) (m₀ : M)
-    {C : Finset P} (hC : C.card ≤ R) {alive : ℕ → P → P → Bool}
+private theorem crashDecision_agree {R : ℕ}
+    (hagr : ∀ F : Finset P, F.card ≤ R → ∀ (adv : ℕ → P → P → M) (x : P → Bool),
+      ∀ i ∉ F, ∀ j ∉ F, π.decision F adv x R i = π.decision F adv x R j)
+    (m₀ : M) {C : Finset P} (hC : C.card ≤ R) {alive : ℕ → P → P → Bool}
     (halive : ∀ r < R, ∀ j ∉ C, ∀ i, alive r j i = true) (x : P → Bool)
     {i j : P} (hi : i ∉ C) (hj : j ∉ C) :
     π.output i (π.crashState m₀ alive x R i) = π.output j (π.crashState m₀ alive x R j) := by
   have heq := π.state_crashAdv_eq m₀ C alive x halive R le_rfl
-  simpa only [decision, heq] using h.agreement C hC (π.crashAdv m₀ alive x) x i hi j hj
+  simpa only [decision, heq] using hagr C hC (π.crashAdv m₀ alive x) x i hi j hj
 
 omit [DecidableEq P] in
 private theorem crashState_congr_lt (m₀ : M) {alive₁ alive₂ : ℕ → P → P → Bool} (x : P → Bool)
@@ -242,13 +280,16 @@ private theorem crashState_extAlive_eq_of_agree (m₀ : M) {k : ℕ} {C : Finset
       · simp only [hj, not_false_eq_true, decide_true, ↓reduceIte,
           crashState_extAlive_eq_of_agree m₀ hagree d j hj]
 
-/-- Core round-peeling theorem: on at least `R + 2` processes, no protocol solves Byzantine
-agreement against `R` faults in `R` rounds. -/
-private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
-    (hn : R + 2 ≤ Fintype.card P) : ¬ π.SolvesByzantineAgreement R R := by
-  intro h
-  obtain ⟨p₀, -, -⟩ := Finset.exists_mem_notMem_of_card_lt_card (s := (∅ : Finset P))
-    (t := Finset.univ) (by rw [Finset.card_empty, Finset.card_univ]; omega)
+/-- Shared backward-peeling core: on at least `R + 2` processes, no protocol simultaneously achieves
+`R`-fault agreement at round `R` and distinguishes all-`false` from all-`true` in the fault-free
+(`F = ∅`) run at some process `p₀`. -/
+private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
+    (hn : R + 2 ≤ Fintype.card P)
+    (hagr : ∀ F : Finset P, F.card ≤ R → ∀ (adv : ℕ → P → P → M) (x : P → Bool),
+      ∀ i ∉ F, ∀ j ∉ F, π.decision F adv x R i = π.decision F adv x R j)
+    {p₀ : P} (hval : ∀ adv : ℕ → P → P → M,
+      π.decision ∅ adv (fun _ => false) R p₀ = false ∧
+        π.decision ∅ adv (fun _ => true) R p₀ = true) : False := by
   let m₀ : M := π.send 0 p₀ (π.init p₀ false) p₀
   -- Backward induction on `d` (`k + d = R`), simultaneously proving single-process silencing
   -- (`P_silence`) and single-process state masking (`P_agree`).
@@ -276,7 +317,7 @@ private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
         subst hk
         rw [π.crashState_extAlive_eq m₀ k (insert p C) alive x,
           ← π.crashState_extAlive_eq m₀ k C alive x]
-        exact π.crashDecision_agree h m₀ hC
+        exact π.crashDecision_agree hagr m₀ hC
           (fun r _ j hj i => extAlive_honest halive r j hj i) x hi₁
           (fun hmem => hi₂ (Finset.mem_insert_of_mem hmem))
       · intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
@@ -288,9 +329,9 @@ private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
           omega
         obtain ⟨q₀, -, hq₀⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard
         have hq₀C : q₀ ∉ C := fun hmem => hq₀ (Finset.mem_insert_of_mem hmem)
-        have h₁ := π.crashDecision_agree h m₀ hC
+        have h₁ := π.crashDecision_agree hagr m₀ hC
           (fun r _ j hj i => extAlive_honest halive₁ r j hj i) x₁ hi₁ hq₀C
-        have h₂ := π.crashDecision_agree h m₀ hC
+        have h₂ := π.crashDecision_agree hagr m₀ hC
           (fun r _ j hj i => extAlive_honest halive₂ r j hj i) x₂ hq₀C hi₂
         have hmid : π.crashState m₀ (extAlive k C alive₁) x₁ k q₀ =
             π.crashState m₀ (extAlive k C alive₂) x₂ k q₀ := by
@@ -376,18 +417,29 @@ private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
     congrFun (π.state_crashAdv_eq m₀ ∅ aliveTrue x (fun _ _ _ _ _ => rfl) R le_rfl).symm p₀
   have hval_false : π.output p₀ (π.crashState m₀ aliveTrue (fun _ => false) R p₀) = false := by
     rw [hstate_eq]
-    exact h.validity ∅ (Nat.zero_le R) _ (fun _ => false) false (fun _ _ => rfl)
-      p₀ (Finset.notMem_empty p₀)
+    exact (hval _).1
   have hval_true : π.output p₀ (π.crashState m₀ aliveTrue (fun _ => true) R p₀) = true := by
     rw [hstate_eq]
-    exact h.validity ∅ (Nat.zero_le R) _ (fun _ => true) true (fun _ _ => rfl)
-      p₀ (Finset.notMem_empty p₀)
+    exact (hval _).2
   rw [hval_false, hval_true] at hfalse_true
   exact Bool.false_ne_true hfalse_true
 
-/-- **The `t + 1` round lower bound** ([Fischer and Lynch][FischerLynch1982]): no deterministic
-synchronous protocol on `n ≥ 2` processes solves Byzantine agreement against `t` faults in
-`R ≤ t` rounds. -/
+private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
+    (hn : R + 2 ≤ Fintype.card P) : ¬ π.SolvesByzantineAgreement R R := by
+  intro h
+  obtain ⟨p₀, -, -⟩ := Finset.exists_mem_notMem_of_card_lt_card (s := (∅ : Finset P))
+    (t := Finset.univ) (by rw [Finset.card_empty, Finset.card_univ]; omega)
+  exact π.not_agreement_and_zero_unanimity hn h.agreement (p₀ := p₀) fun adv =>
+    ⟨h.validity ∅ (Nat.zero_le R) adv (fun _ => false) false (fun _ _ => rfl) p₀
+      (Finset.notMem_empty p₀),
+     h.validity ∅ (Nat.zero_le R) adv (fun _ => true) true (fun _ _ => rfl) p₀
+      (Finset.notMem_empty p₀)⟩
+
+/-- **The `t + 1` round lower bound for Boolean Byzantine agreement** (Boolean consensus adaptation
+of [Fischer and Lynch][FischerLynch1982], §6, Theorem 5, p. 185): no deterministic synchronous
+protocol on `n ≥ 2` processes solves Boolean Byzantine agreement against `t` faults in `R ≤ t`
+rounds. For the source's interactive consistency formulation, see
+`InteractiveProtocol.not_solvesInteractiveConsistency_of_rounds_le`. -/
 theorem not_solvesByzantineAgreement_of_rounds_le [Fintype P] {t R : ℕ}
     (h2 : 2 ≤ Fintype.card P) (hR : R ≤ t) :
     ¬ π.SolvesByzantineAgreement t R := by
@@ -462,6 +514,170 @@ private theorem solvesByzantineAgreement_reindex {P Q S S' M M' : Type*}
 
 end Protocol
 
+/-! ### Interactive consistency and Fischer–Lynch Theorem 5 -/
+
+/-- A deterministic synchronous protocol for *interactive consistency* on the complete graph of
+processes `P` over value domain `V` ([Fischer and Lynch][FischerLynch1982], §§1–3, pp. 183–184).
+
+Process `i` starts with private value `inp i : V` in state `init i (inp i)`, exchanges
+point-to-point messages via `send` and `update` in synchronous rounds, and outputs a vector
+`output i s : P → V` estimating each process's private input. -/
+structure InteractiveProtocol (P V State Msg : Type*) where
+  /-- Initial state of process `i` with private input value `v : V`. -/
+  init : P → V → State
+  /-- `send r i s j`: message sent by `i` in state `s` to `j` in round `r + 1`. -/
+  send : ℕ → P → State → P → Msg
+  /-- `update r i s m`: state of `i` after round `r + 1`, where `m j` came from `j`. -/
+  update : ℕ → P → State → (P → Msg) → State
+  /-- Output vector `output i s : P → V` computed by process `i`, one coordinate per process. -/
+  output : P → State → P → V
+
+namespace InteractiveProtocol
+
+section Model
+
+variable {P V S M : Type*} [DecidableEq P] (π : InteractiveProtocol P V S M)
+
+/-- Local state of process `i` after `r` rounds on private inputs `inp : P → V` when processes in
+`F` are faulty and send `adv r j i` in round `r + 1`. -/
+@[expose] def state (F : Finset P) (adv : ℕ → P → P → M) (inp : P → V) : ℕ → P → S
+  | 0, i => π.init i (inp i)
+  | r + 1, i => π.update r i (state F adv inp r i)
+      (fun j => if j ∈ F then adv r j i else π.send r j (state F adv inp r j) i)
+
+/-- Output vector computed by process `i` after `R` rounds. -/
+@[expose] def decision (F : Finset P) (adv : ℕ → P → P → M) (inp : P → V) (R : ℕ) (i : P) :
+    P → V :=
+  π.output i (π.state F adv inp R i)
+
+/-- `π` assures interactive consistency against at most `t` Byzantine faults in `R` rounds
+([Fischer and Lynch][FischerLynch1982], §3, p. 184): whenever at most `t` processes are faulty,
+all nonfaulty processes output the same vector (`agreement`), and every nonfaulty process's vector
+records every nonfaulty process `r`'s private input `inp r` at coordinate `r` (`validity`). -/
+structure SolvesInteractiveConsistency (t R : ℕ) : Prop where
+  /-- Agreement: all correct processes output the same vector across all coordinates `r : P`. -/
+  agreement : ∀ F : Finset P, F.card ≤ t → ∀ (adv : ℕ → P → P → M) (inp : P → V),
+    ∀ i ∉ F, ∀ j ∉ F, π.decision F adv inp R i = π.decision F adv inp R j
+  /-- Validity: for correct `i` and correct `r`, coordinate `r` of `i`'s output equals `inp r`. -/
+  validity : ∀ F : Finset P, F.card ≤ t → ∀ (adv : ℕ → P → P → M) (inp : P → V),
+    ∀ i ∉ F, ∀ r ∉ F, π.decision F adv inp R i r = inp r
+
+/-- Tolerating `t` faults implies tolerating `t' ≤ t` faults. -/
+theorem SolvesInteractiveConsistency.mono {π : InteractiveProtocol P V S M} {t t' R : ℕ}
+    (h : π.SolvesInteractiveConsistency t R) (ht : t' ≤ t) :
+    π.SolvesInteractiveConsistency t' R where
+  agreement F hF := h.agreement F (hF.trans ht)
+  validity F hF := h.validity F (hF.trans ht)
+
+/-- **Fischer–Lynch `t + 1` round lower bound for interactive consistency**
+([Fischer and Lynch][FischerLynch1982], §6, Theorem 5, p. 185): over any nontrivial value domain `V`
+(`{0, 1} ⊆ V`), no deterministic synchronous protocol on `n ≥ t + 2` processes assures interactive
+consistency against `t` faults in `R ≤ t` rounds.
+
+The bound `t + 2 ≤ Fintype.card P` ensures at least two nonfaulty processes remain outside a
+`t`-fault set (Fischer and Lynch invoke the `n ≥ 3t + 1` bound of Pease, Shostak and Lamport for
+`t ≥ 1`, which implies `n ≥ t + 2`, and treat `t = 0` implicitly assuming `n ≥ 2`). When
+`Fintype.card P ≤ t + 1` (for instance `Fin 2` with `t = 1` and `R = 1`), `1` round suffices. -/
+theorem not_solvesInteractiveConsistency_of_rounds_le [Fintype P] [Nontrivial V] {t R : ℕ}
+    (hn : t + 2 ≤ Fintype.card P) (hR : R ≤ t) :
+    ¬ π.SolvesInteractiveConsistency t R := by
+  classical
+  intro h
+  obtain ⟨v₀, v₁, hv⟩ := exists_pair_ne V
+  obtain ⟨p₀, -, -⟩ := Finset.exists_mem_notMem_of_card_lt_card (s := (∅ : Finset P))
+    (t := Finset.univ) (by rw [Finset.card_empty, Finset.card_univ]; omega)
+  let π₀ : Protocol P S M := {
+    init := fun i b => π.init i (if b then v₁ else v₀)
+    send := π.send
+    update := π.update
+    output := fun i s => decide (π.output i s p₀ = v₁)
+  }
+  have hstate : ∀ (F : Finset P) (adv : ℕ → P → P → M) (x : P → Bool) (r : ℕ),
+      π₀.state F adv x r = π.state F adv (fun j => if x j then v₁ else v₀) r := by
+    intro F adv x r
+    induction r with
+    | zero => rfl
+    | succ r ih =>
+      funext i
+      simp only [Protocol.state, InteractiveProtocol.state, ih]
+      rfl
+  have hR_solves := h.mono hR
+  refine π₀.not_agreement_and_zero_unanimity (R := R) (by omega) ?_ (p₀ := p₀) ?_
+  · intro F hF adv x i hi j hj
+    simp only [Protocol.decision, hstate, π₀]
+    have hvec := hR_solves.agreement F hF adv (fun q => if x q then v₁ else v₀) i hi j hj
+    exact congrArg (fun vec => decide (vec p₀ = v₁)) hvec
+  · intro adv
+    have h₀ := hR_solves.validity ∅ (Nat.zero_le R) adv (fun _ => v₀) p₀
+      (Finset.notMem_empty p₀) p₀ (Finset.notMem_empty p₀)
+    have h₁ := hR_solves.validity ∅ (Nat.zero_le R) adv (fun _ => v₁) p₀
+      (Finset.notMem_empty p₀) p₀ (Finset.notMem_empty p₀)
+    simp only [InteractiveProtocol.decision] at h₀ h₁
+    simp only [Protocol.decision, hstate, π₀, ↓reduceIte, Bool.false_eq_true, h₀, h₁,
+      decide_eq_false hv, decide_true, and_self]
+
+end Model
+
+section Bridge
+
+variable {P S M : Type*} [DecidableEq P] [Fintype P] (π : InteractiveProtocol P Bool S M)
+
+/-- Same-round reduction from Boolean Byzantine agreement to Boolean interactive consistency: run
+`π` unchanged and decide `true` iff a strict majority of coordinates in the output vector are
+`true`. -/
+@[expose] def toByzantineAgreement : Protocol P S M where
+  init := π.init
+  send := π.send
+  update := π.update
+  output i s := decide (Fintype.card P < 2 * (Finset.univ.filter fun q => π.output i s q).card)
+
+private theorem toByzantineAgreement_state (F : Finset P) (adv : ℕ → P → P → M) (x : P → Bool) :
+    ∀ r : ℕ, π.toByzantineAgreement.state F adv x r = π.state F adv x r
+  | 0 => rfl
+  | r + 1 => by
+    have ih := toByzantineAgreement_state F adv x r
+    funext i
+    rw [Protocol.state, InteractiveProtocol.state, ih]
+    rfl
+
+/-- When `2 * t < Fintype.card P`, strict majority over an `R`-round interactive consistency
+protocol's output vector solves Boolean Byzantine agreement in the same `R` rounds. -/
+theorem solvesByzantineAgreement_toByzantineAgreement {t R : ℕ}
+    (ht : 2 * t < Fintype.card P) (h : π.SolvesInteractiveConsistency t R) :
+    π.toByzantineAgreement.SolvesByzantineAgreement t R where
+  agreement F hF adv x i hi j hj := by
+    rw [Protocol.decision, Protocol.decision, π.toByzantineAgreement_state]
+    have hvec := h.agreement F hF adv x i hi j hj
+    exact congrArg
+      (fun vec => decide (Fintype.card P < 2 * (Finset.univ.filter fun q => vec q).card)) hvec
+  validity F hF adv x v hv i hi := by
+    rw [Protocol.decision, π.toByzantineAgreement_state]
+    change decide
+      (Fintype.card P < 2 * (Finset.univ.filter fun q => π.decision F adv x R i q).card) = v
+    set ones := Finset.univ.filter fun q => π.decision F adv x R i q
+    cases v with
+    | false =>
+      have hsub : ones ⊆ F := fun q hq => by
+        by_contra hqF
+        have htrue : π.decision F adv x R i q = true := (Finset.mem_filter.1 hq).2
+        rw [h.validity F hF adv x i hi q hqF, hv q hqF] at htrue
+        exact Bool.false_ne_true htrue
+      have hle : ones.card ≤ t := (Finset.card_le_card hsub).trans hF
+      exact decide_eq_false (by omega)
+    | true =>
+      have hsub : Finset.univ \ F ⊆ ones := fun q hq => by
+        have hqF : q ∉ F := (Finset.mem_sdiff.1 hq).2
+        exact Finset.mem_filter.2 ⟨Finset.mem_univ q,
+          (h.validity F hF adv x i hi q hqF).trans (hv q hqF)⟩
+      have hge : Fintype.card P - F.card ≤ ones.card := by
+        simpa only [Finset.card_sdiff_of_subset (Finset.subset_univ F), Finset.card_univ] using
+          Finset.card_le_card hsub
+      exact decide_eq_true (by omega)
+
+end Bridge
+
+end InteractiveProtocol
+
 /-- **Complete two-parameter characterization of synchronous Byzantine agreement.**
 For a finite process type `P`, fault bound `t`, and fixed decision round `R`, some deterministic
 synchronous protocol solves Byzantine agreement on `P` against `t` faults in `R` rounds if and only
@@ -473,8 +689,9 @@ if `Fintype.card P ≤ 1` or both `3 * t < Fintype.card P` and `t + 1 ≤ R`:
   (`solvesByzantineAgreement_om`, [Lamport, Shostak and Pease][LamportShostakPease1982]).
 * `2 ≤ Fintype.card P ≤ 3 * t`: excluded by the node bound `Protocol.not_solvesByzantineAgreement`
   ([Fischer, Lynch and Merritt][FischerLynchMerritt1985]).
-* `2 ≤ Fintype.card P` and `R ≤ t`: excluded by the round bound
-  `Protocol.not_solvesByzantineAgreement_of_rounds_le` ([Fischer and Lynch][FischerLynch1982]). -/
+* `2 ≤ Fintype.card P` and `R ≤ t`: excluded by the Boolean consensus round bound
+  `Protocol.not_solvesByzantineAgreement_of_rounds_le` (adapted from
+  [Fischer and Lynch][FischerLynch1982], §6, Theorem 5, p. 185). -/
 theorem exists_solvesByzantineAgreement_iff_full.{u, v, w} (P : Type u) [Fintype P] [DecidableEq P]
     (t R : ℕ) :
     (∃ (S : Type v) (M : Type w) (π : Protocol P S M), π.SolvesByzantineAgreement t R) ↔

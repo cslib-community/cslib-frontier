@@ -21,101 +21,102 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 In the unauthenticated synchronous model (`Cslib.Distributed.Byzantine.Protocol`), Byzantine
 agreement requires `n > 3t` processes (`NodeBound`). With unforgeable digital signatures, the
-`(t + 1)`-round protocol of [Dolev and Strong][DolevStrong1983] solves single-sender Byzantine
-broadcast against up to `t` Byzantine faults for **every** finite process set `P` and **every**
-`t`—even when `t ≥ n - 1`—while each process relays at most two signed chains per recipient across
-the entire execution.
+`(t + 1)`-round protocol of [Dolev and Strong][DolevStrong1983] (§4, Theorem 3, pp. 662–663) solves
+single-sender Byzantine broadcast against up to `t` Byzantine faults for **every** finite process
+set `P` and **every** `t`—even when `t ≥ n - 1`—while each correct process sends at most two signed
+chains along each outgoing edge across the entire execution.
 
 ### Model and protocol-variant choices
 
-* **Information-theoretic signatures (`AuthProtocol.WellSigned`, `AuthProtocol.Unforgeable`):**
-  signatures are modeled directly via provenance predicates on execution traces rather than
-  cryptographic primitives.
-* **Built-in two-value relay cap (`extracted.length ≤ 2`):** `dolevStrong` directly incorporates the
-  two-value-capped variant over an arbitrary `[DecidableEq V]` value domain, relaying at most two
-  distinct values per process and using `[LinearOrder P]` (`Finset.min'`) for deterministic sender
-  tie-breaking without requiring an order on `V`.
+* **Provenance-based signature abstraction vs. nested signatures (`AuthProtocol.WellSigned`,
+  `AuthProtocol.Unforgeable`):** [Dolev and Strong][DolevStrong1983] (§4, pp. 661–662) represent
+  authenticated messages syntactically as nested labels `(((v)p₁)p₂⋯)pᵢ` in which each outer
+  signature binds the entire inner label. Here signatures are modeled information-theoretically via
+  value-level execution-trace provenance: a faulty process `j ∈ F` may attach any signer list whose
+  *correct* members `k ∉ F` each genuinely emitted a signed chain for `c.value` in an earlier step
+  `< r`. This gives faulty coalitions strictly more freedom (including reordering or splicing
+  signatures on a value already signed by those honest processes) without cryptographic primitives.
+* **Dealer-rooted exact-phase-length chains and forwarding outside `c.signers`:** matching
+  [Dolev and Strong][DolevStrong1983] (§4, Theorem 3, pp. 662–663), `dolevStrongEligible` requires
+  every accepted chain at step `r` (phase `r + 1`) to be rooted at `dealer`
+  (`c.signers.getLast? = some dealer`), have exact phase length `c.signers.length = r + 1` with
+  `Nodup` signers excluding the receiver, and carry a value not yet in `extracted`; `dolevStrong`
+  forwards cosigned chains only to recipients `dst ∉ c.signers`. Every honestly emitted chain
+  therefore satisfies `c.signers.length = r + 1 ≤ t + 1` (`dolevStrong_send_chain_props`), and no
+  process sends to itself.
+* **Built-in two-value relay cap and deterministic sender tie-breaking:** `dolevStrong` directly
+  incorporates Theorem 3's two-value cap (`extracted.length ≤ 2`, relaying at most two distinct
+  values per process) over an arbitrary `[DecidableEq V]` domain without requiring `[LinearOrder V]`
+  or `n ≥ 3`: `[LinearOrder P]` (`Finset.min'`) selects the minimum eligible sender in place of
+  Theorem 3's lexicographic message order.
 * **Point-to-point chain accounting (`AuthProtocol.correctMessagesSent`):** communication complexity
-  counts point-to-point `SignedChain` transmissions sent by correct processes, where each
-  transmitted chain in `dolevStrong` carries up to `t + 1` signer identities.
+  counts point-to-point `SignedChain` transmissions sent by correct processes (`≤ 2` per directed
+  edge `(j, dst)` with `j ≠ dst`, hence `≤ 2 * (n - F.card) * (n - 1)` total).
 
 ## Authenticated synchronous model
 
 A `SignedChain P V` pairs a candidate value `value : V` with a list `signers : List P` of process
-identities. An `AuthProtocol P V State dealer` gives `dealer` an initial state from its input
-`input : V`, gives every other process an input-independent initial state, and in each round `r + 1`
-sends lists of signed chains between every pair of processes before updating local states.
+identities (ordered outermost-first, with `dealer` at the root `getLast?` in `dolevStrong`). An
+`AuthProtocol P V State dealer` gives `dealer` an initial state from its input `input : V`, gives
+every other process an input-independent initial state, and in each round `r + 1` delivers lists of
+signed chains via the shared faulty-versus-honest selector `AuthProtocol.selectMsg` before updating
+local states.
 
-Signatures are modeled information-theoretically without cryptographic primitives by two symmetric
-unforgeability conditions:
-
-* `AuthProtocol.WellSigned`: whenever an honest execution step of process `j` emits a chain `c`,
-  every signer `k ∈ c.signers` other than `j` appeared on a chain for `c.value` that `j` received in
-  an earlier round `< r`.
-* `AuthProtocol.Unforgeable`: whenever a faulty process `j ∈ F` injects a chain `c` in round
-  `r + 1`, every *correct* signer `k ∈ c.signers` (`k ∉ F`) genuinely emitted a chain for `c.value`
-  carrying `k`'s signature in some earlier round `< r`. Faulty processes may freely forge signatures
-  of processes in `F`, recombine or strip faulty signers, flood multiple chains, equivocate across
-  recipients, or stay silent.
-
-`AuthProtocol.Unforgeable.exists_send_of_mem_signers` combines both conditions: in any well-signed
-protocol against an unforgeable adversary, any received chain carrying a correct process `k`'s
-signature witnesses that `k` itself emitted a signature for that value at or before the current
-round (and strictly before it whenever the sender is not `k`).
+`AuthProtocol.Unforgeable.exists_send_of_mem_signers` combines `WellSigned` and `Unforgeable`: in
+any well-signed protocol against an unforgeable adversary, any received chain carrying a correct
+process `k`'s signature witnesses that `k` itself emitted a signature for that value at or before
+the current round (and strictly before it whenever the sender is not `k`).
 
 ## The Dolev–Strong protocol
 
-`dolevStrong` directly formalizes the two-value-capped `(t + 1)`-round protocol over arbitrary
-`[DecidableEq V]`: each process maintains `DolevStrongState P V`, storing a list
-`extracted : List V` capped at `extracted.length ≤ 2` (so each process relays at most two distinct
-values) and `toRelay : List (SignedChain P V)` queued for the next round.
+Each process maintains `DolevStrongState P V`, storing `extracted : List V` (capped at length `≤ 2`)
+and `toRelay : List (SignedChain P V)` queued for the next round:
 
 * **Initialization:** `dealer` starts with `extracted = [input]` and
   `toRelay = [⟨input, [dealer]⟩]`; every `i ≠ dealer` starts with `extracted = []` and
   `toRelay = []`.
-* **Rounds `1` through `t + 1` (`0 ≤ r ≤ t`):** each process broadcasts `toRelay`. Upon receiving
-  incoming chains, process `i` accepts up to two new values (`extracted.length < 2`,
-  `c.value ∉ extracted`) carried by chains `c` with `dealer ∈ c.signers`, `i ∉ c.signers`,
-  `c.signers.Nodup`, and `r + 1 ≤ c.signers.length`, selecting the minimum eligible sender via
-  `Finset.min'` (`[LinearOrder P]` provides deterministic sender tie-breaking without ordering `V`).
-  If `r < t`, each newly extracted value is queued in `toRelay` as `⟨c.value, i :: c.signers⟩`
-  (carrying at most `t + 1` signer IDs). Rounds beyond `t + 1` leave states unchanged and send
-  nothing.
-* **Decision (`decideExtracted`):** if `extracted = [v]` (a unique singleton), output `v`; otherwise
-  (`[]` or two conflicting values) output the fallback default `v₀`.
+* **Rounds `1` through `t + 1` (`0 ≤ r ≤ t`):** each process sends `c ∈ toRelay` to every recipient
+  `dst ∉ c.signers`. Upon receiving incoming chains, process `i` runs two extraction passes
+  (`dolevStrongStepOnce`), accepting new values satisfying `dolevStrongEligible`
+  (`c.signers.getLast? = some dealer`, `i ∉ c.signers`, `c.signers.Nodup`,
+  `c.signers.length = r + 1`, `c.value ∉ extracted`, `extracted.length < 2`). If `r < t`, each newly
+  extracted value is queued in `toRelay` as `⟨c.value, i :: c.signers⟩`. Rounds beyond `t + 1` leave
+  states unchanged and send nothing.
+* **Decision (`decideExtracted`):** if `extracted = [v]`, output `v`; otherwise (`[]` or two
+  conflicting values) output the fallback default `v₀`.
 
 ### Correctness and communication complexity
 
-* **Validity (`dealer ∉ F`):** no unforgeable chain for `w ≠ input` can include `dealer`, while
-  `⟨input, [dealer]⟩` reaches every correct process in round `1`, so every correct process ends with
-  `extracted = [input]` and decides `input`.
-* **Agreement (`F.card ≤ t`):** if a correct process `p` extracts `v` in round `≤ t`, `p` relays a
-  valid chain for `v` in the next round (`≤ t + 1`), forcing every correct process `q` either to
-  extract `v` or to fill `extracted` to length `2`. If `p` extracts `v` in the final round `t + 1`,
-  the accepted chain has `t + 1 > F.card` distinct signers, so by pigeonhole it contains a correct
-  signer `k ∉ F` who already broadcast a valid chain for `v` in some round `≤ t`, again forcing `q`
-  to hold `v` or have `extracted.length = 2`. Consequently no correct process can hold a singleton
-  `[v]` while another holds `[]`, `[w]` (`w ≠ v`), or two values; `decideExtracted` therefore agrees
-  across all correct processes.
+* **Validity (`dealer ∉ F`):** every accepted chain has `getLast? = some dealer`, so unforgeability
+  rules out any `w ≠ input`, while `⟨input, [dealer]⟩` reaches every `i ≠ dealer` in round `1`; all
+  correct processes end with `extracted = [input]` and decide `input`.
+* **Agreement (`F.card ≤ t`):** if a correct process `p` queues a chain `c` in round `r ≤ t`, every
+  correct `q` either already lies in `c.signers` (hence already extracted `c.value` by provenance)
+  or lies outside `c.signers` and receives `c` directly from `p`, forcing `q` either to extract
+  `c.value` or to fill `extracted` to length `2`. If `p` extracts `v` in the final round `t + 1`,
+  the accepted chain has `t + 1 > F.card` distinct signers, so some correct signer `k ∉ F` already
+  queued a chain for `v` at a round `≤ t`, again forcing `q` to hold `v` or have
+  `extracted.length = 2`. Thus `decideExtracted` agrees across all correct processes.
 * **Polynomial communication (`dolevStrong_sum_send_length_le_two`,
-  `dolevStrong_correctMessagesSent_le`):** every relayed chain strictly increments
-  `extracted.length ≤ 2`, so each process sends at most `2` point-to-point `SignedChain`
-  transmissions (each carrying up to `t + 1` signer IDs) per recipient across the entire execution,
-  and correct processes send at most `2 * (n - F.card) * n` point-to-point `SignedChain`
-  transmissions in total.
+  `dolevStrong_correctMessagesSent_le`):** each process queues at most `2` chains across the entire
+  execution (`dolevStrong_sum_toRelay_length_eq`), never sends to itself, and sends at most `2`
+  chains to each other process, giving at most `2 * (n - F.card) * (n - 1)` point-to-point chains in
+  total.
 
 ## Main definitions
 
 * `Cslib.Distributed.Byzantine.SignedChain`: value paired with a signer list.
 * `Cslib.Distributed.Byzantine.AuthProtocol`: synchronous signed-message broadcast protocol.
-* `Cslib.Distributed.Byzantine.AuthProtocol.WellSigned`,
-  `Cslib.Distributed.Byzantine.AuthProtocol.Unforgeable`: honest and adversarial signature
+* `Cslib.Distributed.Byzantine.AuthProtocol.selectMsg`,
+  `Cslib.Distributed.Byzantine.AuthProtocol.WellSigned`,
+  `Cslib.Distributed.Byzantine.AuthProtocol.Unforgeable`: delivery selector and signature
   discipline.
 * `Cslib.Distributed.Byzantine.AuthProtocol.SolvesAuthenticatedBroadcast`: validity, agreement, and
   well-signedness against at most `t` faults after `R` rounds.
 * `Cslib.Distributed.Byzantine.AuthProtocol.correctMessagesSent`: total point-to-point signed chains
   emitted by correct processes over `R` rounds.
 * `Cslib.Distributed.Byzantine.DolevStrongState`, `Cslib.Distributed.Byzantine.decideExtracted`,
+  `Cslib.Distributed.Byzantine.dolevStrongEligible`,
   `Cslib.Distributed.Byzantine.dolevStrongStepOnce`, `Cslib.Distributed.Byzantine.dolevStrongRound`,
   `Cslib.Distributed.Byzantine.dolevStrong`: the `(t + 1)`-round Dolev–Strong broadcast protocol.
 
@@ -123,14 +124,17 @@ values) and `toRelay : List (SignedChain P V)` queued for the next round.
 
 * `Cslib.Distributed.Byzantine.AuthProtocol.Unforgeable.exists_send_of_mem_signers`: any received
   chain carrying a correct process's signature traces back to an authentic emission by that process.
+* `Cslib.Distributed.Byzantine.dolevStrong_send_chain_props`: every chain emitted by `dolevStrong`
+  at step `r` is rooted at `dealer`, has `Nodup` signers excluding the recipient, and has exact
+  length `r + 1 ≤ t + 1`.
 * `Cslib.Distributed.Byzantine.dolevStrong_solvesAuthenticatedBroadcast`: `dolevStrong` solves
   authenticated broadcast against `t` faults in any `R ≥ t + 1` rounds for arbitrary `P`.
-* `Cslib.Distributed.Byzantine.dolevStrong_sum_send_length_eq`: across `t + 1` rounds, each process
-  emits exactly `((state t i).extracted).length` chains per recipient.
+* `Cslib.Distributed.Byzantine.dolevStrong_sum_toRelay_length_eq`: across `t + 1` rounds, each
+  process queues `((state t i).extracted).length` chains in total.
 * `Cslib.Distributed.Byzantine.dolevStrong_sum_send_length_le_two`: every process emits at most `2`
   signed chains per recipient across any number of rounds.
 * `Cslib.Distributed.Byzantine.dolevStrong_correctMessagesSent_le`: correct processes emit at most
-  `2 * (Fintype.card P - F.card) * Fintype.card P` point-to-point signed chains in total.
+  `2 * (Fintype.card P - F.card) * (Fintype.card P - 1)` point-to-point signed chains in total.
 
 ## References
 
@@ -147,7 +151,7 @@ signatures are attached to it. -/
 structure SignedChain (P V : Type*) where
   /-- Broadcast value at the root of the signature chain. -/
   value : V
-  /-- Processes whose signatures are attached to this chain. -/
+  /-- Processes whose signatures are attached to this chain (outermost-first in `dolevStrong`). -/
   signers : List P
   deriving @[expose] DecidableEq
 
@@ -176,18 +180,24 @@ section Model
 
 variable {P V S : Type*} {dealer : P} [DecidableEq P] (π : AuthProtocol P V S dealer)
 
+/-- Faulty-versus-honest message selector at step `r` under global state `σ`: faulty processes in
+`F` inject `adv r src i`, while correct processes send `π.send r src (σ src) i`. -/
+@[expose] def selectMsg (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V))
+    (r : ℕ) (σ : P → S) (src i : P) : List (SignedChain P V) :=
+  if src ∈ F then adv r src i else π.send r src (σ src) i
+
 /-- Local state of process `i` after `r` rounds on `dealer` input `input` when processes in `F` are
 faulty and send `adv r j i` in round `r + 1`. -/
 @[expose] def state (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V)) (input : V) :
     ℕ → P → S
   | 0, i => if i = dealer then π.initDealer input else π.initOther i
   | r + 1, i => π.update r i (state F adv input r i)
-      (fun j => if j ∈ F then adv r j i else π.send r j (state F adv input r j) i)
+      (fun src => π.selectMsg F adv r (state F adv input r) src i)
 
 /-- Chains delivered from `src` to `i` in round `r + 1` (step `r`). -/
 @[expose] def receivedAt (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V)) (input : V)
     (r : ℕ) (src i : P) : List (SignedChain P V) :=
-  if src ∈ F then adv r src i else π.send r src (π.state F adv input r src) i
+  π.selectMsg F adv r (π.state F adv input r) src i
 
 /-- Decision of process `i` after `R` rounds. -/
 @[expose] def decision (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V)) (input : V)
@@ -229,7 +239,7 @@ theorem Unforgeable.exists_send_of_mem_signers {π : AuthProtocol P V S dealer}
   induction r using Nat.strong_induction_on with
   | ind r ih =>
     intro src i c hrec k hkC hkF
-    unfold receivedAt at hrec
+    unfold receivedAt selectMsg at hrec
     by_cases hsrc : src ∈ F
     · simp only [hsrc, ↓reduceIte] at hrec
       obtain ⟨r', hr', dst, c', hc', hval, hk'⟩ := hunf r src hsrc i c hrec k hkC hkF
@@ -280,12 +290,12 @@ end AuthProtocol
 /-! ### The Dolev–Strong protocol -/
 
 /-- Local process state in the Dolev–Strong protocol: at most two extracted candidate values and the
-newly cosigned chains queued to broadcast in the next round. -/
+newly cosigned chains queued to forward in the next round. -/
 @[ext]
 structure DolevStrongState (P V : Type*) where
   /-- Distinct values extracted from valid chains so far (capped at length `≤ 2`). -/
   extracted : List V
-  /-- Chains cosigned in the most recent round to be broadcast in the next round. -/
+  /-- Chains cosigned in the most recent round to be forwarded in the next round. -/
   toRelay : List (SignedChain P V)
   deriving @[expose] DecidableEq
 
@@ -295,15 +305,23 @@ fall back to `v₀` when zero or at least two values were extracted. -/
   | [v], _ => v
   | _, v₀ => v₀
 
+/-- Step-eligibility predicate for `dolevStrong` ([Dolev and Strong][DolevStrong1983], §4,
+Theorem 3, pp. 662–663): at step `r` (phase `r + 1`), process `i` in state `s` accepts an incoming
+chain `c` iff `c` is rooted at `dealer` (`c.signers.getLast? = some dealer`), has exact phase length
+`c.signers.length = r + 1` with `Nodup` signers excluding `i`, carries a fresh value
+`c.value ∉ s.extracted`, and `s.extracted` has not yet reached its two-value cap. -/
+abbrev dolevStrongEligible {P V : Type*} [DecidableEq P] [DecidableEq V]
+    (dealer i : P) (r : ℕ) (s : DolevStrongState P V) (c : SignedChain P V) : Prop :=
+  c.signers.getLast? = some dealer ∧ i ∉ c.signers ∧ c.signers.Nodup ∧
+    c.signers.length = r + 1 ∧ c.value ∉ s.extracted ∧ s.extracted.length < 2
+
 /-- Extract at most one new eligible value (from the minimum sender `j` offering one) and prepend
 its cosigned chain to `s.toRelay`. Running this twice per round suffices because `s.extracted` is
 capped at length `2`. -/
 @[expose] def dolevStrongStepOnce {P V : Type*} [Fintype P] [LinearOrder P] [DecidableEq V]
     (dealer i : P) (r : ℕ) (m : P → List (SignedChain P V))
     (s : DolevStrongState P V) : DolevStrongState P V :=
-  let elig (c : SignedChain P V) : Bool :=
-    decide (dealer ∈ c.signers ∧ i ∉ c.signers ∧ c.signers.Nodup ∧
-      r + 1 ≤ c.signers.length ∧ c.value ∉ s.extracted ∧ s.extracted.length < 2)
+  let elig (c : SignedChain P V) : Bool := decide (dolevStrongEligible dealer i r s c)
   let senders := (Finset.univ : Finset P).filter fun j => (m j).any elig
   if h : senders.Nonempty then
     let j₀ := senders.min' h
@@ -322,20 +340,21 @@ capped at length `2`. -/
   ⟨step2.extracted, if r < t then step2.toRelay else []⟩
 
 /-- **The Dolev–Strong `(t + 1)`-round authenticated broadcast protocol**
-([Dolev and Strong][DolevStrong1983]), with broadcaster `dealer`, default fallback value `v₀`, and
-fault bound `t`.
+([Dolev and Strong][DolevStrong1983], §4, Theorem 3, pp. 662–663), with broadcaster `dealer`,
+default fallback value `v₀`, and fault bound `t`.
 
-This formalization directly incorporates the two-value relay cap (`extracted.length ≤ 2`, relaying
-at most two distinct values per process) for arbitrary `[DecidableEq V]` with deterministic sender
-tie-breaking via `[LinearOrder P]`, models signatures information-theoretically via
-`AuthProtocol.WellSigned` and `AuthProtocol.Unforgeable` rather than cryptographic primitives, and
-counts point-to-point `SignedChain` transmissions (each carrying up to `t + 1` signer IDs) in
-`AuthProtocol.correctMessagesSent`. -/
+This formalization enforces dealer-rooted exact-phase-length chains (`dolevStrongEligible`:
+`c.signers.getLast? = some dealer`, `c.signers.length = r + 1`, `c.signers.Nodup`, `i ∉ c.signers`),
+forwards queued chains only to recipients `dst ∉ c.signers` (so every emitted chain has
+`c.signers.length = r + 1 ≤ t + 1`), incorporates Theorem 3's two-value relay cap
+(`extracted.length ≤ 2`) over arbitrary `[DecidableEq V]` with deterministic sender tie-breaking via
+`[LinearOrder P]`, and models signatures via trace provenance (`AuthProtocol.WellSigned` and
+`AuthProtocol.Unforgeable`) rather than nested cryptographic primitives. -/
 @[expose] def dolevStrong (P V : Type*) [Fintype P] [LinearOrder P] [DecidableEq V]
     (dealer : P) (v₀ : V) (t : ℕ) : AuthProtocol P V (DolevStrongState P V) dealer where
   initDealer v := ⟨[v], [⟨v, [dealer]⟩]⟩
   initOther _ := ⟨[], []⟩
-  send r _ s _ := if r ≤ t then s.toRelay else []
+  send r _ s dst := if r ≤ t then s.toRelay.filter (fun c => decide (dst ∉ c.signers)) else []
   update r i s m := if r ≤ t then dolevStrongRound dealer t i r s m else s
   output _ s := decideExtracted s.extracted v₀
 
@@ -351,18 +370,14 @@ eligible chain), or one eligible chain `c` from some sender `j₀` is accepted. 
 private theorem stepOnce_spec (i : P) (r : ℕ) (m : P → List (SignedChain P V))
     (s : DolevStrongState P V) :
     (dolevStrongStepOnce dealer i r m s = s ∧
-      ∀ j : P, ∀ c ∈ m j, ¬(dealer ∈ c.signers ∧ i ∉ c.signers ∧ c.signers.Nodup ∧
-        r + 1 ≤ c.signers.length ∧ c.value ∉ s.extracted ∧ s.extracted.length < 2)) ∨
+      ∀ j : P, ∀ c ∈ m j, ¬ dolevStrongEligible dealer i r s c) ∨
     ∃ (j₀ : P) (c : SignedChain P V), c ∈ m j₀ ∧
-      (dealer ∈ c.signers ∧ i ∉ c.signers ∧ c.signers.Nodup ∧
-        r + 1 ≤ c.signers.length ∧ c.value ∉ s.extracted ∧ s.extracted.length < 2) ∧
+      dolevStrongEligible dealer i r s c ∧
       dolevStrongStepOnce dealer i r m s =
         ⟨c.value :: s.extracted, ⟨c.value, i :: c.signers⟩ :: s.toRelay⟩ := by
   unfold dolevStrongStepOnce
   dsimp only
-  set elig : SignedChain P V → Bool := fun c =>
-    decide (dealer ∈ c.signers ∧ i ∉ c.signers ∧ c.signers.Nodup ∧
-      r + 1 ≤ c.signers.length ∧ c.value ∉ s.extracted ∧ s.extracted.length < 2)
+  set elig : SignedChain P V → Bool := fun c => decide (dolevStrongEligible dealer i r s c)
   split_ifs with h
   · have hj₀ : ((Finset.univ : Finset P).filter fun j => (m j).any elig).min' h ∈
         (Finset.univ : Finset P).filter fun j => (m j).any elig := Finset.min'_mem _ h
@@ -419,8 +434,8 @@ private theorem mem_stepOnce_toRelay {i : P} {r : ℕ} {m : P → List (SignedCh
     (hc' : c' ∈ (dolevStrongStepOnce dealer i r m s).toRelay) :
     c' ∈ s.toRelay ∨ (c'.value ∈ (dolevStrongStepOnce dealer i r m s).extracted ∧
       ∃ (src : P) (c₀ : SignedChain P V), c₀ ∈ m src ∧
-        dealer ∈ c₀.signers ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧ r + 1 ≤ c₀.signers.length ∧
-        c' = ⟨c₀.value, i :: c₀.signers⟩) := by
+        c₀.signers.getLast? = some dealer ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧
+        c₀.signers.length = r + 1 ∧ c' = ⟨c₀.value, i :: c₀.signers⟩) := by
   rcases stepOnce_spec dealer i r m s with ⟨heq, -⟩ | ⟨src, c₀, hcm, helig, heq⟩
   · rw [heq] at hc'
     exact Or.inl hc'
@@ -434,7 +449,8 @@ private theorem mem_stepOnce_extracted {i : P} {r : ℕ} {m : P → List (Signed
     {s : DolevStrongState P V} {v : V}
     (hv : v ∈ (dolevStrongStepOnce dealer i r m s).extracted) :
     v ∈ s.extracted ∨ ∃ (src : P) (c₀ : SignedChain P V), c₀ ∈ m src ∧ c₀.value = v ∧
-      dealer ∈ c₀.signers ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧ r + 1 ≤ c₀.signers.length ∧
+      c₀.signers.getLast? = some dealer ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧
+      c₀.signers.length = r + 1 ∧
       ⟨v, i :: c₀.signers⟩ ∈ (dolevStrongStepOnce dealer i r m s).toRelay := by
   rcases stepOnce_spec dealer i r m s with ⟨heq, -⟩ | ⟨src, c₀, hcm, helig, heq⟩
   · rw [heq] at hv
@@ -452,8 +468,8 @@ private theorem mem_round_toRelay {i : P} {r : ℕ} {s : DolevStrongState P V}
     (hc' : c' ∈ (dolevStrongRound dealer t i r s m).toRelay) :
     r < t ∧ c'.value ∈ (dolevStrongRound dealer t i r s m).extracted ∧
       ∃ (src : P) (c₀ : SignedChain P V), c₀ ∈ m src ∧
-        dealer ∈ c₀.signers ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧ r + 1 ≤ c₀.signers.length ∧
-        c' = ⟨c₀.value, i :: c₀.signers⟩ := by
+        c₀.signers.getLast? = some dealer ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧
+        c₀.signers.length = r + 1 ∧ c' = ⟨c₀.value, i :: c₀.signers⟩ := by
   dsimp only [dolevStrongRound] at hc' ⊢
   by_cases hrt : r < t
   · simp only [hrt, ↓reduceIte] at hc'
@@ -476,7 +492,8 @@ private theorem mem_round_extracted {i : P} {r : ℕ} {s : DolevStrongState P V}
     {m : P → List (SignedChain P V)} {v : V}
     (hv : v ∈ (dolevStrongRound dealer t i r s m).extracted) (hnew : v ∉ s.extracted) :
     ∃ (src : P) (c₀ : SignedChain P V), c₀ ∈ m src ∧ c₀.value = v ∧
-      dealer ∈ c₀.signers ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧ r + 1 ≤ c₀.signers.length ∧
+      c₀.signers.getLast? = some dealer ∧ i ∉ c₀.signers ∧ c₀.signers.Nodup ∧
+      c₀.signers.length = r + 1 ∧
       (r < t → ⟨v, i :: c₀.signers⟩ ∈ (dolevStrongRound dealer t i r s m).toRelay) := by
   dsimp only [dolevStrongRound] at hv ⊢
   set s1 := dolevStrongStepOnce dealer i r m ⟨s.extracted, []⟩
@@ -490,23 +507,14 @@ private theorem mem_round_extracted {i : P} {r : ℕ} {s : DolevStrongState P V}
       exact ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => by simp [hrt, hsub_rel _ hrel1]⟩
   · exact ⟨src, c₀, hcm, rfl, hd, hi, hnd, hlen, fun hrt => by simp [hrt, hrel2]⟩
 
-omit [Fintype P] [LinearOrder P] [DecidableEq V] in
-private theorem nodup_length_le_of_subset {l₁ l₂ : List V} (hnd : l₁.Nodup)
-    (hsub : ∀ x ∈ l₁, x ∈ l₂) : l₁.length ≤ l₂.length := by
-  classical
-  exact calc l₁.length
-      = l₁.toFinset.card := (List.toFinset_card_of_nodup hnd).symm
-    _ ≤ l₂.toFinset.card := Finset.card_le_card fun x hx =>
-        List.mem_toFinset.2 (hsub x (List.mem_toFinset.1 hx))
-    _ ≤ l₂.length := List.toFinset_card_le l₂
-
-/-- Reception progress: if some sender `src` delivers a chain `c` with `dealer ∈ c.signers`,
-`i ∉ c.signers`, `c.signers.Nodup`, and `r + 1 ≤ c.signers.length`, then after `dolevStrongRound`
-either `c.value` is in `extracted` or `extracted` has reached its cap of `2` values. -/
+/-- Reception progress: if some sender `src` delivers a chain `c` with
+`c.signers.getLast? = some dealer`, `i ∉ c.signers`, `c.signers.Nodup`, and
+`c.signers.length = r + 1`, then after `dolevStrongRound` either `c.value` is in `extracted` or
+`extracted` has reached its cap of `2` values. -/
 private theorem dolevStrongRound_accept_or_full {i : P} {r : ℕ} {s : DolevStrongState P V}
     {m : P → List (SignedChain P V)} (hlen : s.extracted.length ≤ 2) (hnodup : s.extracted.Nodup)
-    {src : P} {c : SignedChain P V} (hc : c ∈ m src) (hd : dealer ∈ c.signers)
-    (hi : i ∉ c.signers) (hnd : c.signers.Nodup) (hcard : r + 1 ≤ c.signers.length) :
+    {src : P} {c : SignedChain P V} (hc : c ∈ m src) (hd : c.signers.getLast? = some dealer)
+    (hi : i ∉ c.signers) (hnd : c.signers.Nodup) (hcard : c.signers.length = r + 1) :
     c.value ∈ (dolevStrongRound dealer t i r s m).extracted ∨
       (dolevStrongRound dealer t i r s m).extracted.length = 2 := by
   dsimp only [dolevStrongRound]
@@ -525,8 +533,9 @@ private theorem dolevStrongRound_accept_or_full {i : P} {r : ℕ} {s : DolevStro
   have hs2_le : s2.extracted.length ≤ 2 := h2.2.1
   have hlt2 : s2.extracted.length < 2 := by omega
   have hle12 : s1.extracted.length ≤ s2.extracted.length :=
-    nodup_length_le_of_subset h1.2.2.1 h2.1
-  have hle01 : s.extracted.length ≤ s1.extracted.length := nodup_length_le_of_subset hnodup h1.1
+    h1.2.2.1.length_le_of_subset h2.1
+  have hle01 : s.extracted.length ≤ s1.extracted.length :=
+    hnodup.length_le_of_subset h1.1
   have hnot1 : c.value ∉ s1.extracted := fun hv1 => hnot2 (h2.1 c.value hv1)
   have hnot0 : c.value ∉ s.extracted := fun hv0 => hnot1 (h1.1 c.value hv0)
   have h1_grow : s1.extracted.length = s.extracted.length + 1 := by
@@ -569,7 +578,8 @@ private theorem dolevStrong_state_succ_of_le (F : Finset P)
   simp only [hr, ↓reduceIte]
 
 private theorem dolevStrong_send (r : ℕ) (j : P) (s : DolevStrongState P V) (dst : P) :
-    (dolevStrong P V dealer v₀ t).send r j s dst = if r ≤ t then s.toRelay else [] :=
+    (dolevStrong P V dealer v₀ t).send r j s dst =
+      if r ≤ t then s.toRelay.filter (fun c => decide (dst ∉ c.signers)) else [] :=
   rfl
 
 private theorem state_extracted_props (F : Finset P)
@@ -647,7 +657,7 @@ private theorem state_dealer_extracted (F : Finset P)
         rcases stepOnce_spec dealer dealer r m st with ⟨heq, -⟩ | ⟨_, c, _, helig, _⟩
         · exact heq
         · obtain ⟨hd, hnd, -⟩ := helig
-          exact absurd hd hnd
+          exact absurd (List.mem_of_getLast? hd) hnd
       simp only [dolevStrongRound, hno, hext, ite_self]
     rw [dolevStrong_state_succ]
     by_cases hr : r ≤ t
@@ -657,82 +667,102 @@ private theorem state_dealer_extracted (F : Finset P)
       simp only [hr, ↓reduceIte]
       exact ⟨hext, fun _ => hrel hpos⟩
 
-/-- Every chain emitted by `dolevStrong` at step `r` contains `dealer`, has `Nodup` signers of
-length at least `r + 1`, and its value already belongs to the sender's `extracted` list. -/
-private theorem send_props (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V))
+/-- Unified invariant on every chain queued in `toRelay` at step `r ≤ t`: `c` is rooted at
+`dealer`, includes `j`, has `Nodup` signers of exact length `r + 1`, carries a value already in
+`j`'s `extracted` list, and every signer `k ≠ j` appeared on a chain received by `j` at `< r`. -/
+private theorem toRelay_props (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V))
+    (input : V) {r : ℕ} (hr : r ≤ t) {j : P} {c : SignedChain P V}
+    (hc : c ∈ ((dolevStrong P V dealer v₀ t).state F adv input r j).toRelay) :
+    c.signers.getLast? = some dealer ∧ j ∈ c.signers ∧ c.signers.Nodup ∧
+      c.signers.length = r + 1 ∧
+      c.value ∈ ((dolevStrong P V dealer v₀ t).state F adv input r j).extracted ∧
+      ∀ k ∈ c.signers, k ≠ j →
+        ∃ r' < r, ∃ src : P,
+          ∃ c₀ ∈ (dolevStrong P V dealer v₀ t).receivedAt F adv input r' src j,
+            c₀.value = c.value ∧ k ∈ c₀.signers := by
+  cases r with
+  | zero =>
+    rw [dolevStrong_state_zero] at hc ⊢
+    split_ifs at hc with hjd
+    · subst hjd
+      simp only [List.mem_singleton] at hc
+      subst hc
+      simp only [↓reduceIte]
+      refine ⟨rfl, List.mem_cons_self, List.nodup_singleton _, rfl, List.mem_cons_self, ?_⟩
+      intro k hk hkne
+      exact absurd (List.mem_singleton.1 hk) hkne
+    · simp at hc
+  | succ m =>
+    have hm : m ≤ t := by omega
+    rw [dolevStrong_state_succ] at hc ⊢
+    simp only [hm, ↓reduceIte] at hc ⊢
+    obtain ⟨_, hv, src, c₀, hc₀, hd, hj0, hnd, hlen, rfl⟩ := mem_round_toRelay dealer t hc
+    have hlast : (j :: c₀.signers).getLast? = some dealer := by
+      cases hcs : c₀.signers with
+      | nil => simp [hcs] at hd
+      | cons a rest => rw [List.getLast?_cons_cons, ← hcs, hd]
+    refine ⟨hlast, List.mem_cons_self, List.nodup_cons.2 ⟨hj0, hnd⟩, ?_, hv, ?_⟩
+    · simp only [List.length_cons, hlen]
+    · intro k hk hkne
+      rcases List.mem_cons.1 hk with rfl | hk0
+      · exact absurd rfl hkne
+      · exact ⟨m, Nat.lt_succ_self m, src, c₀, hc₀, rfl, hk0⟩
+
+/-- **Emitted chain structure** ([Dolev and Strong][DolevStrong1983], §4, Theorem 3, pp. 662–663):
+every chain `c` emitted by `dolevStrong` from `j` to `dst` at step `r` is rooted at `dealer`,
+contains `j`, excludes `dst`, has `Nodup` signers, and has exact phase length `r + 1 ≤ t + 1`. -/
+theorem dolevStrong_send_chain_props (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V))
     (input : V) {r : ℕ} {j dst : P} {c : SignedChain P V}
     (hc : c ∈ (dolevStrong P V dealer v₀ t).send r j
       ((dolevStrong P V dealer v₀ t).state F adv input r j) dst) :
-    r ≤ t ∧ dealer ∈ c.signers ∧ c.signers.Nodup ∧ r + 1 ≤ c.signers.length ∧
-      c.value ∈ ((dolevStrong P V dealer v₀ t).state F adv input r j).extracted := by
+    c.signers.getLast? = some dealer ∧ j ∈ c.signers ∧ dst ∉ c.signers ∧ c.signers.Nodup ∧
+      c.signers.length = r + 1 ∧ c.signers.length ≤ t + 1 := by
   rw [dolevStrong_send] at hc
   split_ifs at hc with hr
-  · cases r with
-    | zero =>
-      rw [dolevStrong_state_zero] at hc ⊢
-      split_ifs at hc with hjd
-      · subst hjd
-        simp only [List.mem_singleton] at hc
-        subst hc
-        simp [hr]
-      · simp at hc
-    | succ m =>
-      have hm : m ≤ t := by omega
-      rw [dolevStrong_state_succ] at hc ⊢
-      simp only [hm, ↓reduceIte] at hc ⊢
-      obtain ⟨_, hv, _, c₀, _, hd, hj0, hnd, hlen, rfl⟩ := mem_round_toRelay dealer t hc
-      refine ⟨hr, List.mem_cons_of_mem j hd, List.nodup_cons.2 ⟨hj0, hnd⟩, ?_, hv⟩
-      simp only [List.length_cons]
-      omega
+  · obtain ⟨hc_rel, hdst_b⟩ := List.mem_filter.1 hc
+    have hdst : dst ∉ c.signers := of_decide_eq_true hdst_b
+    obtain ⟨hd, hj, hnd, hlen, -, -⟩ := toRelay_props dealer v₀ t F adv input hr hc_rel
+    exact ⟨hd, hj, hdst, hnd, hlen, by omega⟩
   · simp at hc
 
 private theorem wellSigned_dolevStrong : (dolevStrong P V dealer v₀ t).WellSigned := by
   intro F adv input r j dst c hc k hk hk_ne
   rw [dolevStrong_send] at hc
   split_ifs at hc with hr
-  · cases r with
-    | zero =>
-      rw [dolevStrong_state_zero] at hc
-      split_ifs at hc with hjd
-      · subst hjd
-        simp only [List.mem_singleton] at hc
-        subst hc
-        simp only [List.mem_singleton] at hk
-        exact absurd hk hk_ne
-      · simp at hc
-    | succ m =>
-      have hm : m ≤ t := by omega
-      rw [dolevStrong_state_succ] at hc
-      simp only [hm, ↓reduceIte] at hc
-      obtain ⟨_, _, src, c₀, hc₀, _, _, _, _, rfl⟩ := mem_round_toRelay dealer t hc
-      rcases List.mem_cons.1 hk with rfl | hk0
-      · exact absurd rfl hk_ne
-      · exact ⟨m, Nat.lt_succ_self m, src, c₀, hc₀, rfl, hk0⟩
+  · exact (toRelay_props dealer v₀ t F adv input hr (List.mem_filter.1 hc).1).2.2.2.2.2 k hk hk_ne
   · simp at hc
 
-/-- Relay lemma: whenever a correct process `j ∉ F` emits a chain `c` at step `r ≤ t`, every
-correct process `q ∉ F` ends round `t + 1` either having extracted `c.value` or with `extracted`
-at its cap of length `2`. -/
-private theorem relay_reaches_all {F : Finset P} {adv : ℕ → P → P → List (SignedChain P V)}
-    {input : V} (hunf : (dolevStrong P V dealer v₀ t).Unforgeable F input adv)
-    {r : ℕ} {j : P} (hj : j ∉ F) {dst : P} {c : SignedChain P V}
-    (hc : c ∈ (dolevStrong P V dealer v₀ t).send r j
-      ((dolevStrong P V dealer v₀ t).state F adv input r j) dst)
+/-- Relay lemma: whenever a correct process `j ∉ F` queues a chain `c` in `toRelay` at step
+`r ≤ t`, every correct process `q ∉ F` ends round `t + 1` either having extracted `c.value` or with
+`extracted` at its cap of length `2`. -/
+private theorem toRelay_reaches_all {F : Finset P} {adv : ℕ → P → P → List (SignedChain P V)}
+     {input : V} (hunf : (dolevStrong P V dealer v₀ t).Unforgeable F input adv)
+    {r : ℕ} (hr : r ≤ t) {j : P} (hj : j ∉ F) {c : SignedChain P V}
+    (hc : c ∈ ((dolevStrong P V dealer v₀ t).state F adv input r j).toRelay)
     {q : P} (hq : q ∉ F) :
     c.value ∈ ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) q).extracted ∨
       ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) q).extracted.length = 2 := by
-  obtain ⟨hr, hd, hnd, hlen, -⟩ := send_props dealer v₀ t F adv input hc
-  have hcq : c ∈ (dolevStrong P V dealer v₀ t).receivedAt F adv input r j q := by
-    simp only [AuthProtocol.receivedAt, hj, ↓reduceIte, dolevStrong_send]
-    rw [dolevStrong_send] at hc
-    exact hc
+  obtain ⟨hd, -, hnd, hlen, hv_j, hprev⟩ := toRelay_props dealer v₀ t F adv input hr hc
   by_cases hqc : q ∈ c.signers
-  · obtain ⟨r', hr', dst', c', hc', hval, -⟩ :=
-      hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) r j q c hcq q hqc hq
-    obtain ⟨hr't, -, -, -, hv'⟩ := send_props dealer v₀ t F adv input hc'
-    rw [← hval]
-    exact Or.inl (extracted_mono dealer v₀ t F adv input q (by omega) hv')
-  · obtain ⟨hlen_r, hnd_r, -⟩ := state_extracted_props dealer v₀ t F adv input r q
+  · by_cases hqj : q = j
+    · subst hqj
+      exact Or.inl (extracted_mono dealer v₀ t F adv input q (by omega) hv_j)
+    · obtain ⟨r₁, hr₁, src, c₀, hc₀, hval₀, hq₀⟩ := hprev q hqc hqj
+      obtain ⟨r', hr', dst', c', hc', hval', -⟩ :=
+        hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) r₁ src j c₀ hc₀
+          q hq₀ hq
+      have hr't : r' ≤ t := by omega
+      rw [dolevStrong_send] at hc'
+      simp only [hr't, ↓reduceIte] at hc'
+      have hv' :=
+        (toRelay_props dealer v₀ t F adv input hr't (List.mem_filter.1 hc').1).2.2.2.2.1
+      rw [← hval₀, ← hval']
+      exact Or.inl (extracted_mono dealer v₀ t F adv input q (by omega) hv')
+  · have hcq : c ∈ (dolevStrong P V dealer v₀ t).receivedAt F adv input r j q := by
+      simp only [AuthProtocol.receivedAt, AuthProtocol.selectMsg, hj, ↓reduceIte, dolevStrong_send,
+        hr, List.mem_filter]
+      exact ⟨hc, decide_eq_true hqc⟩
+    obtain ⟨hlen_r, hnd_r, -⟩ := state_extracted_props dealer v₀ t F adv input r q
     have hstep := dolevStrongRound_accept_or_full dealer t
       (m := fun src => (dolevStrong P V dealer v₀ t).receivedAt F adv input r src q)
       hlen_r hnd_r (src := j) hcq hd hqc hnd hlen
@@ -740,8 +770,7 @@ private theorem relay_reaches_all {F : Finset P} {adv : ℕ → P → P → List
     rcases hstep with hv | hfull
     · exact Or.inl (extracted_mono dealer v₀ t F adv input q (by omega) hv)
     · refine Or.inr (le_antisymm (state_extracted_props dealer v₀ t F adv input (t + 1) q).1 ?_)
-      have hle := nodup_length_le_of_subset
-        (state_extracted_props dealer v₀ t F adv input (r + 1) q).2.1
+      have hle := (state_extracted_props dealer v₀ t F adv input (r + 1) q).2.1.length_le_of_subset
         (fun x hx => extracted_mono dealer v₀ t F adv input q
           (r₁ := r + 1) (r₂ := t + 1) (by omega) hx)
       omega
@@ -780,16 +809,15 @@ private theorem extracted_propagates {F : Finset P} (hF : F.card ≤ t)
   obtain ⟨src, c₀, hc₀, rfl, hd, hp0, hnd, hlen, hrel⟩ :=
     mem_round_extracted dealer t hin_r1 hnot_r
   by_cases hlt : r < t
-  · -- Extracted before the final round: `p` itself cosigns and broadcasts `c₀.value` at `r + 1`.
-    have hc'_send : ⟨c₀.value, p :: c₀.signers⟩ ∈
-        (dolevStrong P V dealer v₀ t).send (r + 1) p
-          ((dolevStrong P V dealer v₀ t).state F adv input (r + 1) p) p := by
-      have hr1 : r + 1 ≤ t := by omega
-      rw [dolevStrong_send, dolevStrong_state_succ]
-      simp only [hr1, hr, ↓reduceIte]
+  · -- Extracted before the final round: `p` itself cosigns and queues `c₀.value` at `r + 1`.
+    have hr1 : r + 1 ≤ t := by omega
+    have hc'_rel : ⟨c₀.value, p :: c₀.signers⟩ ∈
+        ((dolevStrong P V dealer v₀ t).state F adv input (r + 1) p).toRelay := by
+      rw [dolevStrong_state_succ]
+      simp only [hr, ↓reduceIte]
       exact hrel hlt
-    exact relay_reaches_all dealer v₀ t hunf hpF hc'_send hqF
-  · -- Extracted in the final round `r = t`: `c₀` has at least `t + 1 > F.card` distinct signers.
+    exact toRelay_reaches_all dealer v₀ t hunf hr1 hpF hc'_rel hqF
+  · -- Extracted in the final round `r = t`: `c₀` has `t + 1 > F.card` distinct signers.
     have hrt_eq : r = t := by omega
     subst r
     have hcard_lt : F.card < c₀.signers.toFinset.card := by
@@ -799,8 +827,11 @@ private theorem extracted_propagates {F : Finset P} (hF : F.card ≤ t)
     obtain ⟨r', hr', dst', c', hc', hval, -⟩ :=
       hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) t src p c₀ hc₀ k
         (List.mem_toFinset.1 hk_mem) hkF
+    have hr't : r' ≤ t := by omega
+    rw [dolevStrong_send] at hc'
+    simp only [hr't, ↓reduceIte] at hc'
     rw [← hval]
-    exact relay_reaches_all dealer v₀ t hunf hkF hc' hqF
+    exact toRelay_reaches_all dealer v₀ t hunf hr't hkF (List.mem_filter.1 hc').1 hqF
 
 omit [Fintype P] [LinearOrder P] [DecidableEq V] in
 private theorem not_two_mem_singleton {v a b : V} {rest : List V}
@@ -861,7 +892,8 @@ private theorem validity_dolevStrong_at_succ {F : Finset P} (hd : dealer ∉ F)
       (((dolevStrong P V dealer v₀ t).state F adv input (t + 1) dealer).extracted) v₀ = input
     rw [(state_dealer_extracted dealer v₀ t F adv input (t + 1)).1]
     rfl
-  · -- Every value extracted by `i` equals `input`, because every accepted chain carries `dealer`.
+  · -- Every value extracted by `i` equals `input`, because every accepted chain is rooted at
+    -- `dealer`.
     have hall_input :
         ∀ v ∈ ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) i).extracted,
           v = input := by
@@ -870,21 +902,24 @@ private theorem validity_dolevStrong_at_succ {F : Finset P} (hd : dealer ∉ F)
       have hr : r ≤ t := by omega
       rw [dolevStrong_state_succ] at hin_r1
       simp only [hr, ↓reduceIte] at hin_r1
-      obtain ⟨src, c₀, hc₀, rfl, hd_mem, -, -, -, -⟩ :=
+      obtain ⟨src, c₀, hc₀, rfl, hd_last, -, -, -, -⟩ :=
         mem_round_extracted dealer t hin_r1 hnot_r
-      obtain ⟨r', -, dst', c', hc', hval, -⟩ :=
+      obtain ⟨r', hr', dst', c', hc', hval, -⟩ :=
         hunf.exists_send_of_mem_signers (wellSigned_dolevStrong dealer v₀ t) r src i c₀ hc₀
-          dealer hd_mem hd
-      obtain ⟨-, -, -, -, hv'⟩ := send_props dealer v₀ t F adv input hc'
+          dealer (List.mem_of_getLast? hd_last) hd
+      have hr't : r' ≤ t := by omega
+      rw [dolevStrong_send] at hc'
+      simp only [hr't, ↓reduceIte] at hc'
+      have hv' :=
+        (toRelay_props dealer v₀ t F adv input hr't (List.mem_filter.1 hc').1).2.2.2.2.1
       rw [(state_dealer_extracted dealer v₀ t F adv input r').1, List.mem_singleton] at hv'
       exact hval.symm.trans hv'
-    -- And `dealer` broadcasts `⟨input, [dealer]⟩` in round `1` (`r = 0`).
-    have hsend0 : ⟨input, [dealer]⟩ ∈
-        (dolevStrong P V dealer v₀ t).send 0 dealer
-          ((dolevStrong P V dealer v₀ t).state F adv input 0 dealer) dealer := by
-      rw [dolevStrong_send, dolevStrong_state_zero]
+    -- And `dealer` queues `⟨input, [dealer]⟩` in round `1` (`r = 0`).
+    have hrel0 : ⟨input, [dealer]⟩ ∈
+        ((dolevStrong P V dealer v₀ t).state F adv input 0 dealer).toRelay := by
+      rw [dolevStrong_state_zero]
       simp
-    have hreach := relay_reaches_all dealer v₀ t hunf hd hsend0 hi
+    have hreach := toRelay_reaches_all dealer v₀ t hunf (Nat.zero_le t) hd hrel0 hi
     obtain ⟨_, hnd, -⟩ := state_extracted_props dealer v₀ t F adv input (t + 1) i
     simp only [AuthProtocol.decision, dolevStrong]
     match hlist : ((dolevStrong P V dealer v₀ t).state F adv input (t + 1) i).extracted with
@@ -904,9 +939,10 @@ private theorem validity_dolevStrong_at_succ {F : Finset P} (hd : dealer ∉ F)
         (List.nodup_cons.1 hnd).1 (heq ▸ List.mem_cons_self)
       exact absurd (hv1.trans hv2.symm) hne
 
-/-- **Dolev–Strong authenticated synchronous broadcast** ([Dolev and Strong][DolevStrong1983]):
-`dolevStrong P V dealer v₀ t` solves synchronous authenticated broadcast against up to `t`
-Byzantine faults in any `R ≥ t + 1` rounds, for arbitrary finite `P` without any `n > 3t` bound. -/
+/-- **Dolev–Strong authenticated synchronous broadcast** ([Dolev and Strong][DolevStrong1983],
+§4, Theorem 3, pp. 662–663): `dolevStrong P V dealer v₀ t` solves synchronous authenticated
+broadcast against up to `t` Byzantine faults in any `R ≥ t + 1` rounds, for arbitrary finite `P`
+without any `n > 3t` bound. -/
 theorem dolevStrong_solvesAuthenticatedBroadcast {R : ℕ} (hR : t + 1 ≤ R) :
     (dolevStrong P V dealer v₀ t).SolvesAuthenticatedBroadcast t R where
   wellSigned := wellSigned_dolevStrong dealer v₀ t
@@ -931,23 +967,19 @@ theorem dolevStrong_solvesAuthenticatedBroadcast {R : ℕ} (hR : t + 1 ≤ R) :
 
 /-! ### Polynomial communication complexity -/
 
-private theorem sum_send_length_prefix (F : Finset P)
-    (adv : ℕ → P → P → List (SignedChain P V)) (input : V) (i dst : P) :
+private theorem sum_toRelay_length_prefix (F : Finset P)
+    (adv : ℕ → P → P → List (SignedChain P V)) (input : V) (i : P) :
     ∀ m ≤ t,
       ∑ r ∈ Finset.range (m + 1),
-        ((dolevStrong P V dealer v₀ t).send r i
-          ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length =
+        ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length =
         ((dolevStrong P V dealer v₀ t).state F adv input m i).extracted.length
   | 0, _ => by
-    rw [Finset.sum_range_one, dolevStrong_send, dolevStrong_state_zero]
-    simp only [Nat.zero_le, ↓reduceIte]
+    rw [Finset.sum_range_one, dolevStrong_state_zero]
     split_ifs <;> rfl
   | m + 1, hm1 => by
     have hm_lt : m < t := by omega
     have hm_le : m ≤ t := by omega
-    rw [Finset.sum_range_succ, sum_send_length_prefix F adv input i dst m hm_le,
-      dolevStrong_send]
-    simp only [hm1, ↓reduceIte]
+    rw [Finset.sum_range_succ, sum_toRelay_length_prefix F adv input i m hm_le]
     obtain ⟨hlen_m, hnd_m, -⟩ := state_extracted_props dealer v₀ t F adv input m i
     have htele := (round_extracted_subset dealer t i m
       ((dolevStrong P V dealer v₀ t).state F adv input m i)
@@ -956,29 +988,58 @@ private theorem sum_send_length_prefix (F : Finset P)
     rw [dolevStrong_state_succ_of_le dealer v₀ t F adv input hm_le i]
     omega
 
-/-- **Exact per-process broadcast identity:** across all `t + 1` protocol rounds, each process `i`
-sends to each recipient `dst` exactly `((state t i).extracted).length` signed chains. -/
-theorem dolevStrong_sum_send_length_eq (F : Finset P)
-    (adv : ℕ → P → P → List (SignedChain P V)) (input : V) (i dst : P) :
+/-- **Exact relay-queue identity:** across all `t + 1` protocol rounds, each process `i` queues
+exactly `((state t i).extracted).length` signed chains in `toRelay`. -/
+theorem dolevStrong_sum_toRelay_length_eq (F : Finset P)
+    (adv : ℕ → P → P → List (SignedChain P V)) (input : V) (i : P) :
     ∑ r ∈ Finset.range (t + 1),
-      ((dolevStrong P V dealer v₀ t).send r i
-        ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length =
+      ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length =
       ((dolevStrong P V dealer v₀ t).state F adv input t i).extracted.length :=
-  sum_send_length_prefix dealer v₀ t F adv input i dst t le_rfl
+  sum_toRelay_length_prefix dealer v₀ t F adv input i t le_rfl
 
-/-- **Per-process relay bound:** across any number of rounds `R`, each process `i` sends at most
-`2` signed chains to each recipient `dst`. -/
+private theorem send_self_eq_nil (F : Finset P) (adv : ℕ → P → P → List (SignedChain P V))
+    (input : V) (r : ℕ) (i : P) :
+    (dolevStrong P V dealer v₀ t).send r i
+      ((dolevStrong P V dealer v₀ t).state F adv input r i) i = [] := by
+  rw [dolevStrong_send]
+  split_ifs with hr
+  · rw [List.filter_eq_nil_iff]
+    intro c hc
+    have hi := (toRelay_props dealer v₀ t F adv input hr hc).2.1
+    simp [hi]
+  · rfl
+
+/-- **Per-edge relay bound** ([Dolev and Strong][DolevStrong1983], §4, Theorem 3, p. 663): across
+any number of rounds `R`, each process `i` sends at most `2` signed chains to each recipient
+`dst`. -/
 theorem dolevStrong_sum_send_length_le_two (F : Finset P)
     (adv : ℕ → P → P → List (SignedChain P V)) (input : V) (R : ℕ) (i dst : P) :
     ∑ r ∈ Finset.range R,
       ((dolevStrong P V dealer v₀ t).send r i
         ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length ≤ 2 := by
+  have hstep : ∀ r, ((dolevStrong P V dealer v₀ t).send r i
+      ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length ≤
+      if r ≤ t then ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length else 0 :=
+    fun r => by
+      rw [dolevStrong_send]
+      split_ifs
+      · exact List.length_filter_le _ _
+      · simp
   by_cases hR0 : R = 0
   · subst hR0; simp
   · by_cases hR : R ≤ t + 1
     · obtain ⟨m, rfl⟩ : ∃ m, R = m + 1 := ⟨R - 1, by omega⟩
-      rw [sum_send_length_prefix dealer v₀ t F adv input i dst m (by omega)]
-      exact (state_extracted_props dealer v₀ t F adv input m i).1
+      calc ∑ r ∈ Finset.range (m + 1),
+            ((dolevStrong P V dealer v₀ t).send r i
+              ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length
+          ≤ ∑ r ∈ Finset.range (m + 1),
+              ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length := by
+            refine Finset.sum_le_sum fun r hr => ?_
+            have hrt : r ≤ t := by simp only [Finset.mem_range] at hr; omega
+            simpa only [hrt, ↓reduceIte] using hstep r
+        _ = ((dolevStrong P V dealer v₀ t).state F adv input m i).extracted.length :=
+            sum_toRelay_length_prefix dealer v₀ t F adv input i m (by omega)
+        _ ≤ 2 := (state_extracted_props dealer v₀ t F adv input m i).1
     · obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le (show t + 1 ≤ R by omega)
       have htail : ∑ r ∈ Finset.range (t + 1 + d),
           ((dolevStrong P V dealer v₀ t).send r i
@@ -993,19 +1054,49 @@ theorem dolevStrong_sum_send_length_le_two (F : Finset P)
           rw [← Nat.add_assoc, Finset.sum_range_succ, ih, dolevStrong_send]
           have hgt : ¬(t + 1 + d ≤ t) := by omega
           simp only [hgt, ↓reduceIte, List.length_nil, Nat.add_zero]
-      rw [htail, dolevStrong_sum_send_length_eq]
-      exact (state_extracted_props dealer v₀ t F adv input t i).1
+      rw [htail]
+      calc ∑ r ∈ Finset.range (t + 1),
+            ((dolevStrong P V dealer v₀ t).send r i
+              ((dolevStrong P V dealer v₀ t).state F adv input r i) dst).length
+          ≤ ∑ r ∈ Finset.range (t + 1),
+              ((dolevStrong P V dealer v₀ t).state F adv input r i).toRelay.length := by
+            refine Finset.sum_le_sum fun r hr => ?_
+            have hrt : r ≤ t := by simp only [Finset.mem_range] at hr; omega
+            simpa only [hrt, ↓reduceIte] using hstep r
+        _ = ((dolevStrong P V dealer v₀ t).state F adv input t i).extracted.length :=
+            dolevStrong_sum_toRelay_length_eq dealer v₀ t F adv input i
+        _ ≤ 2 := (state_extracted_props dealer v₀ t F adv input t i).1
 
-/-- **Polynomial communication complexity** ([Dolev and Strong][DolevStrong1983]): across any `R`
-rounds, all correct processes together emit at most
-`2 * (Fintype.card P - F.card) * Fintype.card P` point-to-point signed chains (in particular, at
-most `2 * Fintype.card P ^ 2`). -/
+/-- **Polynomial communication complexity** ([Dolev and Strong][DolevStrong1983], §4, Theorem 3,
+pp. 662–663): across any `R` rounds, all correct processes together emit at most
+`2 * (Fintype.card P - F.card) * (Fintype.card P - 1)` point-to-point signed chains—at most two per
+directed edge leaving a correct process. -/
 theorem dolevStrong_correctMessagesSent_le (F : Finset P)
     (adv : ℕ → P → P → List (SignedChain P V)) (input : V) (R : ℕ) :
     (dolevStrong P V dealer v₀ t).correctMessagesSent F adv input R ≤
-      2 * (Fintype.card P - F.card) * Fintype.card P := by
+      2 * (Fintype.card P - F.card) * (Fintype.card P - 1) := by
   unfold AuthProtocol.correctMessagesSent
   rw [Finset.sum_comm]
+  have hinner : ∀ j : P,
+      ∑ i ∈ Finset.univ, ∑ r ∈ Finset.range R,
+        ((dolevStrong P V dealer v₀ t).send r j
+          ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length ≤
+        2 * (Fintype.card P - 1) := fun j => by
+    rw [← Finset.add_sum_erase _ _ (Finset.mem_univ j)]
+    have hself : ∑ r ∈ Finset.range R,
+        ((dolevStrong P V dealer v₀ t).send r j
+          ((dolevStrong P V dealer v₀ t).state F adv input r j) j).length = 0 := by
+      simp [send_self_eq_nil]
+    rw [hself, zero_add]
+    calc ∑ i ∈ Finset.univ.erase j, ∑ r ∈ Finset.range R,
+          ((dolevStrong P V dealer v₀ t).send r j
+            ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length
+        ≤ ∑ _i ∈ Finset.univ.erase j, 2 :=
+          Finset.sum_le_sum fun i _ =>
+            dolevStrong_sum_send_length_le_two dealer v₀ t F adv input R j i
+      _ = 2 * (Fintype.card P - 1) := by
+          rw [Finset.sum_const, Finset.card_erase_of_mem (Finset.mem_univ j), Finset.card_univ]
+          exact Nat.mul_comm _ 2
   calc ∑ j ∈ Finset.univ \ F, ∑ r ∈ Finset.range R, ∑ i ∈ Finset.univ,
         ((dolevStrong P V dealer v₀ t).send r j
           ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length
@@ -1013,14 +1104,13 @@ theorem dolevStrong_correctMessagesSent_le (F : Finset P)
           ((dolevStrong P V dealer v₀ t).send r j
             ((dolevStrong P V dealer v₀ t).state F adv input r j) i).length :=
         Finset.sum_congr rfl fun _ _ => Finset.sum_comm
-    _ ≤ ∑ _j ∈ Finset.univ \ F, ∑ _i ∈ (Finset.univ : Finset P), 2 :=
-        Finset.sum_le_sum fun j _ => Finset.sum_le_sum fun i _ =>
-          dolevStrong_sum_send_length_le_two dealer v₀ t F adv input R j i
-    _ = 2 * (Fintype.card P - F.card) * Fintype.card P := by
-        rw [Finset.sum_const, Finset.sum_const]
-        change (Finset.univ \ F).card * ((Finset.univ : Finset P).card * 2) = _
+    _ ≤ ∑ _j ∈ Finset.univ \ F, 2 * (Fintype.card P - 1) :=
+        Finset.sum_le_sum fun j _ => hinner j
+    _ = 2 * (Fintype.card P - F.card) * (Fintype.card P - 1) := by
+        rw [Finset.sum_const]
+        change (Finset.univ \ F).card * (2 * (Fintype.card P - 1)) = _
         rw [Finset.card_sdiff_of_subset (Finset.subset_univ F), Finset.card_univ,
-          Nat.mul_comm (Fintype.card P) 2, ← Nat.mul_assoc, Nat.mul_comm _ 2]
+          ← Nat.mul_assoc, Nat.mul_comm _ 2]
 
 end DolevStrongProofs
 

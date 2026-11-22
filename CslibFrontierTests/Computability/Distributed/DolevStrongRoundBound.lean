@@ -11,19 +11,23 @@ import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
 import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 
-/-! Fischer–Lynch `t + 1` round lower bound and Dolev–Strong authenticated synchronous broadcast
-(checked as an ordinary `module` client):
+/-! Fischer–Lynch `t + 1` round lower bound (interactive consistency and Boolean consensus) and
+Dolev–Strong authenticated synchronous broadcast (checked as an ordinary `module` client):
 
 * Single-round naive authenticated broadcast (`directAuth`) solving `t = 0` in `1` round and
   failing against one equivocating dealer on `Fin 3`.
 * `dolevStrong` on `Fin 3, t = 2` (tolerating `2` traitors out of `3` generals, where
   unauthenticated Byzantine agreement is impossible even for `t = 1`), checked by `decide` against
-  coalition delayed-injection and equivocation attacks, plus multi-loyal agreement on `Fin 3`
-  (`F = {0}`) and `Fin 4` (`F = {0, 1}`, over `V = ℕ`), two-value flood capping in
-  `dolevStrongRound`, and exact/bounded message accounting.
-* `Protocol.not_solvesByzantineAgreement_of_rounds_le` refuting `R = 0` (`t = 0`, `Fin 2`), `R = 1`
-  (`t = 1`, `Fin 4`), and `R = 2` (`t = 2`, `Fin 7`), and instantiating the two-dimensional
-  characterization `exists_solvesByzantineAgreement_iff_full` across all four parameter regimes. -/
+  coalition delayed-injection, coalition split, equivocation, and two-value edge-saturation
+  attacks, plus multi-loyal agreement on `Fin 4` (`F = {0, 1}`, over `V = ℕ`), regression tests
+  rejecting overlong phase-1 chains (`[1, 0]` on `Fin 4, t = 2`) and non-dealer-rooted chains
+  (`[0, 1]`), three-value flood capping in `dolevStrongRound`, and the `2 * (n - F.card) * (n - 1)`
+  network message bound.
+* Fischer–Lynch interactive consistency (`InteractiveProtocol`): refutations at `R = 0, 1, 2` via
+  `not_solvesInteractiveConsistency_of_rounds_le`, a 1-round `Fin 2, t = 1` sharpness witness
+  `directIC_solves_fin2` showing `t + 2 ≤ Fintype.card P` cannot be weakened, the same-round
+  majority reduction `solvesByzantineAgreement_toByzantineAgreement`, Boolean consensus refutations
+  at `R = 0, 1, 2`, and the two-parameter `iff` `exists_solvesByzantineAgreement_iff_full`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.DolevStrongRoundBound
@@ -63,12 +67,13 @@ theorem directAuth_solves_zero (n : ℕ) (dealer : Fin (n + 1)) (v₀ : Bool) :
     have hval : ∀ q : Fin (n + 1),
         (directAuth (Fin (n + 1)) Bool dealer v₀).decision ∅ adv input 1 q = input := by
       intro q
-      by_cases hqd : q = dealer <;> simp [AuthProtocol.decision, AuthProtocol.state, directAuth,
-        hqd]
+      by_cases hqd : q = dealer <;> simp [AuthProtocol.decision, AuthProtocol.state,
+        AuthProtocol.selectMsg, directAuth, hqd]
     rw [hval i, hval j]
   validity F hF _ adv input _ i _ := by
     obtain rfl := Finset.card_eq_zero.1 (Nat.le_zero.1 hF)
-    by_cases hid : i = dealer <;> simp [AuthProtocol.decision, AuthProtocol.state, directAuth, hid]
+    by_cases hid : i = dealer <;> simp [AuthProtocol.decision, AuthProtocol.state,
+      AuthProtocol.selectMsg, directAuth, hid]
 
 /-- Equivocating dealer `0` on `Fin 3` sends `⟨true, [0]⟩` to `1` and `⟨false, [0]⟩` to `2`. -/
 def equivocatingDealer : ℕ → Fin 3 → Fin 3 → List (SignedChain (Fin 3) Bool) :=
@@ -107,7 +112,7 @@ example {S M : Type} (π : Protocol (Fin 3) S M) (R : ℕ) : ¬ π.SolvesByzanti
 /-- Coalition attack 1 on `Fin 3, t = 2` (`F = {0, 1}`, loyal `2`): faulty dealer `0` stays silent
 in round 1, then `0` and accomplice `1` conspire to inject a 2-signer chain `⟨true, [1, 0]⟩` in
 round 2 (`r = 1`), and attempt to inject a conflicting 2-signer chain `⟨false, [1, 0]⟩` in round 3
-(`r = 2`, rejected because `length = 2 < 3`). -/
+(`r = 2`, rejected because `length = 2 ≠ 3`). -/
 def coalitionDelayed : ℕ → Fin 3 → Fin 3 → List (SignedChain (Fin 3) Bool)
   | 1, 1, 2 => [⟨true, [1, 0]⟩]
   | 2, 0, 2 => [⟨false, [1, 0]⟩]
@@ -130,7 +135,7 @@ theorem unforgeable_coalitionDelayed (input : Bool) :
   | 2, 1, _ | 2, 2, _ | 2, 0, 0 | 2, 0, 1 => simp [coalitionDelayed] at hc
 
 -- Loyal general `2` accepts `true` in round 2, rejects the under-signed `false` chain in round 3,
--- and decides `true`!
+-- and decides `true`.
 example :
     let π := dolevStrong (Fin 3) Bool 0 false 2
     (π.state {0, 1} coalitionDelayed false 1 2).extracted = [] ∧
@@ -153,25 +158,88 @@ example :
     π.decision {0, 1} coalitionSplit true 3 2 = false := by
   decide
 
--- On `Fin 3, t = 2` with `F = {0}` (equivocating dealer `0`, TWO loyal generals `1` and `2`),
--- `1` and `2` temporarily disagree after round 1 (`[true]` vs `[false]`), cross-relay in round 2,
--- and reach unanimous agreement on the fallback `false` at round 3, sending exactly
--- `12 = 2 * (3 - 1) * 3` chains total (matching `dolevStrong_correctMessagesSent_le` tightly!).
+-- On `Fin 3, t = 2` with `F = {0}` (equivocating dealer `0`, two loyal generals `1` and `2`),
+-- `1` and `2` temporarily disagree after round 1 (`[true]` vs `[false]`), forward only to the
+-- non-signer peer in round 2 (`2` total messages across the entire run!), and agree on `false`.
 example :
     let π := dolevStrong (Fin 3) Bool 0 false 2
     (π.state {0} equivocatingDealer true 1 1).extracted = [true] ∧
     (π.state {0} equivocatingDealer true 1 2).extracted = [false] ∧
     π.decision {0} equivocatingDealer true 3 1 = false ∧
     π.decision {0} equivocatingDealer true 3 2 = false ∧
-    π.correctMessagesSent {0} equivocatingDealer true 3 = 12 := by
+    π.correctMessagesSent {0} equivocatingDealer true 3 = 2 := by
   decide
+
+/-- Per-edge tightness witness on `Fin 3, t = 2, F = {0}`: faulty dealer `0` sends two conflicting
+chains `[⟨true, [0]⟩, ⟨false, [0]⟩]` to `1` in round 1; `1` forwards both along edge `1 → 2` in
+round 2, saturating `dolevStrong_sum_send_length_le_two` (`= 2`). -/
+def twoValueDealer : ℕ → Fin 3 → Fin 3 → List (SignedChain (Fin 3) Bool)
+  | 0, 0, 1 => [⟨true, [0]⟩, ⟨false, [0]⟩]
+  | _, _, _ => []
+
+example :
+    let π := dolevStrong (Fin 3) Bool 0 false 2
+    (π.send 1 1 (π.state {0} twoValueDealer true 1 1) 2).length = 2 ∧
+    π.decision {0} twoValueDealer true 3 1 = false ∧
+    π.decision {0} twoValueDealer true 3 2 = false := by
+  decide
+
+/-! ### Regression tests for exact phase length (`c.signers.length = r + 1`) and dealer root -/
+
+/-- Overlong phase-1 chain injection (`P = Fin 4, t = 2, F = {0, 1}`): faulty dealer `0` injects a
+2-signer faulty-only chain `⟨true, [1, 0]⟩` to loyal `2` in round 1 (`r = 0`), and a non-dealer-root
+2-signer chain `⟨true, [0, 1]⟩` to loyal `2` in round 2 (`r = 1`). -/
+def overlongAndBadRootAttack : ℕ → Fin 4 → Fin 4 → List (SignedChain (Fin 4) Bool)
+  | 0, 0, 2 => [⟨true, [1, 0]⟩]
+  | 1, 0, 2 => [⟨true, [0, 1]⟩]
+  | _, _, _ => []
+
+-- All signers in `[1, 0]` and `[0, 1]` belong to `F = {0, 1}`, so the adversary is admissible!
+theorem unforgeable_overlongAndBadRootAttack (input : Bool) :
+    (dolevStrong (Fin 4) Bool 0 false 2).Unforgeable {0, 1} input overlongAndBadRootAttack := by
+  intro r j _ i c hc k hk hkF
+  match r, j, i with
+  | 0, 0, 2 =>
+    simp only [overlongAndBadRootAttack, List.mem_singleton] at hc
+    subst hc
+    exact False.elim (by revert k hk hkF; decide)
+  | 1, 0, 2 =>
+    simp only [overlongAndBadRootAttack, List.mem_singleton] at hc
+    subst hc
+    exact False.elim (by revert k hk hkF; decide)
+  | _ + 2, _, _ => simp [overlongAndBadRootAttack] at hc
+  | 0, 1, _ | 0, 2, _ | 0, 3, _ | 0, 0, 0 | 0, 0, 1 | 0, 0, 3 =>
+    simp [overlongAndBadRootAttack] at hc
+  | 1, 1, _ | 1, 2, _ | 1, 3, _ | 1, 0, 0 | 1, 0, 1 | 1, 0, 3 =>
+    simp [overlongAndBadRootAttack] at hc
+
+-- Because `dolevStrongEligible` requires `c.signers.length = r + 1` and
+-- `c.signers.getLast? = some dealer`, loyal `2` rejects `⟨true, [1, 0]⟩` in round 1 (`2 ≠ 1`) and
+-- rejects `⟨true, [0, 1]⟩` in round 2 (`getLast? ≠ some 0`), never emitting `[3, 2, 1, 0]`.
+example :
+    let π := dolevStrong (Fin 4) Bool 0 false 2
+    (π.state {0, 1} overlongAndBadRootAttack false 1 2).extracted = [] ∧
+    (π.state {0, 1} overlongAndBadRootAttack false 2 2).extracted = [] ∧
+    (π.state {0, 1} overlongAndBadRootAttack false 3 3).extracted = [] ∧
+    π.correctMessagesSent {0, 1} overlongAndBadRootAttack false 3 = 0 ∧
+    π.decision {0, 1} overlongAndBadRootAttack false 3 2 = false ∧
+    π.decision {0, 1} overlongAndBadRootAttack false 3 3 = false := by
+  decide
+
+-- Every chain honestly emitted by `dolevStrong` has `c.signers.length ≤ t + 1`.
+example (F : Finset (Fin 4)) (adv : ℕ → Fin 4 → Fin 4 → List (SignedChain (Fin 4) Bool))
+    (input : Bool) (r : ℕ) (j dst : Fin 4) (c : SignedChain (Fin 4) Bool)
+    (hc : c ∈ (dolevStrong (Fin 4) Bool 0 false 2).send r j
+      ((dolevStrong (Fin 4) Bool 0 false 2).state F adv input r j) dst) :
+    c.signers.length ≤ 3 :=
+  (dolevStrong_send_chain_props 0 false 2 F adv input hc).2.2.2.2.2
 
 /-! ### `Fin 4, t = 2` over infinite `V = ℕ`: 2 traitors `{0, 1}` vs 2 loyal generals `{2, 3}` -/
 
 /-- Traitors `0` (dealer) and `1` stay silent in round 1, send `⟨42, [1, 0]⟩` only to `2` in round
 2 (`r = 1`), and send under-signed `⟨99, [1, 0]⟩` to `3` in round 3 (`r = 2`). Round `t = 2` is not
 yet in agreement (`2` has `[42]`, `3` has `[]`), and round `t + 1 = 3` brings both `2` and `3` to
-decide `42`! -/
+decide `42` using a single forwarded message (`2 → 3`). -/
 def lateRelayAttack : ℕ → Fin 4 → Fin 4 → List (SignedChain (Fin 4) ℕ)
   | 1, 1, 2 => [⟨42, [1, 0]⟩]
   | 2, 1, 3 => [⟨99, [1, 0]⟩]
@@ -183,11 +251,11 @@ example :
     (π.state {0, 1} lateRelayAttack 7 2 3).extracted = [] ∧
     π.decision {0, 1} lateRelayAttack 7 3 2 = 42 ∧
     π.decision {0, 1} lateRelayAttack 7 3 3 = 42 ∧
-    π.correctMessagesSent {0, 1} lateRelayAttack 7 3 = 4 := by
+    π.correctMessagesSent {0, 1} lateRelayAttack 7 3 = 1 := by
   decide
 
 -- Flood capping: when a faulty dealer sends 3 distinct valid values in round 1, `dolevStrongRound`
--- caps `extracted` and `toRelay` at length `2`, and the network message bound holds.
+-- caps `extracted` and `toRelay` at length `2`, and the `2 * (n - F.card) * (n - 1)` bound holds.
 example :
     let m : Fin 3 → List (SignedChain (Fin 3) (Fin 4)) :=
       fun j => if j = 0 then [⟨1, [0]⟩, ⟨2, [0]⟩, ⟨3, [0]⟩] else []
@@ -197,12 +265,56 @@ example :
 
 example (F : Finset (Fin 5)) (adv : ℕ → Fin 5 → Fin 5 → List (SignedChain (Fin 5) ℕ))
     (input : ℕ) (R : ℕ) :
-    (dolevStrong (Fin 5) ℕ 0 0 4).correctMessagesSent F adv input R ≤ 50 := by
+    (dolevStrong (Fin 5) ℕ 0 0 4).correctMessagesSent F adv input R ≤ 40 := by
   have h := dolevStrong_correctMessagesSent_le (P := Fin 5) 0 0 4 F adv input R
   simp only [Fintype.card_fin] at h
   omega
 
-/-! ### Fischer–Lynch `t + 1` round lower bound and two-parameter `iff` -/
+/-! ### Fischer–Lynch Theorem 5: Interactive consistency round bound and `Fin 2` sharpness -/
+
+-- Interactive consistency (`t + 2 ≤ Fintype.card P`, `R ≤ t`, `[Nontrivial V]`):
+example {S M : Type} (π : InteractiveProtocol (Fin 2) Bool S M) :
+    ¬ π.SolvesInteractiveConsistency 0 0 :=
+  π.not_solvesInteractiveConsistency_of_rounds_le (by simp) le_rfl
+
+example {S M : Type} (π : InteractiveProtocol (Fin 3) Bool S M) :
+    ¬ π.SolvesInteractiveConsistency 1 1 :=
+  π.not_solvesInteractiveConsistency_of_rounds_le (by simp) le_rfl
+
+example {S M : Type} (π : InteractiveProtocol (Fin 4) ℕ S M) :
+    ¬ π.SolvesInteractiveConsistency 2 2 :=
+  π.not_solvesInteractiveConsistency_of_rounds_le (by simp) le_rfl
+
+/-- Direct 1-round interactive consistency protocol on `Fin 2`: each process sends its own private
+input in round `1` and outputs its own input at its own coordinate and the peer's message at the
+peer's coordinate. Demonstrates that `t + 2 ≤ Fintype.card P` in
+`not_solvesInteractiveConsistency_of_rounds_le` is sharp (`Fin 2, t = 1, R = 1` is solvable!). -/
+def directIC (V : Type*) : InteractiveProtocol (Fin 2) V (V × V) V where
+  init _ v := (v, v)
+  send _ _ s _ := s.1
+  update r i s m := if r = 0 then (s.1, m (1 - i)) else s
+  output i s r := if r = i then s.1 else s.2
+
+theorem directIC_solves_fin2 (V : Type*) :
+    (directIC V).SolvesInteractiveConsistency 1 1 where
+  agreement F _ adv inp i hi j hj := by
+    funext r
+    rcases Fin.exists_fin_two.1 ⟨i, rfl⟩ with rfl | rfl <;>
+      rcases Fin.exists_fin_two.1 ⟨j, rfl⟩ with rfl | rfl <;>
+      rcases Fin.exists_fin_two.1 ⟨r, rfl⟩ with rfl | rfl <;>
+      simp [InteractiveProtocol.decision, InteractiveProtocol.state, directIC, hi, hj]
+  validity F _ adv inp i _ r hr := by
+    rcases Fin.exists_fin_two.1 ⟨i, rfl⟩ with rfl | rfl <;>
+      rcases Fin.exists_fin_two.1 ⟨r, rfl⟩ with rfl | rfl <;>
+      simp [InteractiveProtocol.decision, InteractiveProtocol.state, directIC, hr]
+
+-- Same-round reduction from Boolean consensus to Boolean interactive consistency (`2 * t < n`).
+example {S M : Type} (π : InteractiveProtocol (Fin 7) Bool S M) (R : ℕ)
+    (h : π.SolvesInteractiveConsistency 3 R) :
+    π.toByzantineAgreement.SolvesByzantineAgreement 3 R :=
+  π.solvesByzantineAgreement_toByzantineAgreement (by simp) h
+
+/-! ### Boolean consensus `t + 1` round lower bound and two-parameter `iff` -/
 
 -- `R = 0` (`t = 0`, `Fin 2`): zero rounds never suffice on two processes, even without faults.
 example {S M : Type} (π : Protocol (Fin 2) S M) : ¬ π.SolvesByzantineAgreement 0 0 :=
