@@ -335,6 +335,7 @@ public import CslibFrontier.Algorithms.Reachability.InductiveCounting.Semantics
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.AllPairs
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Collisions
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator
+public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Certificate
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Scale
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedDigits
 public import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.SeedRank
