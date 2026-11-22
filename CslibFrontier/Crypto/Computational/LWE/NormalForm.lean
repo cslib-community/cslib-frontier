@@ -476,8 +476,11 @@ private theorem coe_toReal_game_le_one (g : Game) : (g true).toReal ≤ 1 := by
 
 end Proofs
 
-/-- Decision LWE with a secret drawn from the error distribution reduces to decision LWE with a
-uniform secret, losing the probability that a uniform `n × n` matrix is singular. -/
+/-- **Finite probability step toward normal-form decision LWE** ([Peikert2016], §4.2.1, p. 23).
+An adversary's error-secret decision-LWE advantage on `m` samples is bounded by
+`reduceNormalDecision`'s uniform-secret advantage on `n + m` samples plus the probability that a
+uniform `n × n` matrix over `ZMod q` is singular; polynomial-time efficiency (`IsPPTOn`) remains
+open (#3673). -/
 theorem decisionNormalForm {n m q : ℕ} [Fact (Nat.Prime q)]
     {noise : PMF (ZMod q)}
     (adversary : List Bool → ProbComp Bool) :
@@ -524,8 +527,11 @@ theorem decisionNormalForm {n m q : ℕ} [Fact (Nat.Prime q)]
   rw [← mul_sub, abs_mul, abs_of_nonneg (by linarith : (0 : ℝ) ≤ 1 - δ)]
   nlinarith [mul_nonneg hδ0 (sub_nonneg.mpr habs)]
 
-/-- Search LWE with a secret drawn from the error distribution reduces to search LWE with a
-uniform secret, losing the probability that a uniform `n × n` matrix is singular. -/
+/-- **Finite probability step toward normal-form search LWE** ([Peikert2016], §4.2.1, p. 23).
+An adversary's success probability in `searchGameErrorSecret` on `m` samples is bounded by
+`reduceNormalSearch`'s success probability in uniform-secret `searchGame` on `n + m` samples plus
+the probability that a uniform `n × n` matrix over `ZMod q` is singular; polynomial-time
+efficiency (`IsPPTOn`) remains open (#3673). -/
 theorem searchNormalForm {n m q : ℕ} [Fact (Nat.Prime q)]
     {noise : PMF (ZMod q)}
     (adversary : List Bool → ProbComp (List Bool)) :
