@@ -21,11 +21,11 @@ system model of [ChandyLamport1985] (§2, pp. 65–68, and §1, p. 64 for stable
 
 Each ordered pair `(src, dest)` of processes has an unbounded reliable FIFO queue
 `chan src dest : List M` whose head is the next message deliverable to `dest` and whose tail
-receives newly sent messages via append. Where §2 (p. 66, Figure 1) allows parallel labeled channels
-and single-channel 5-tuple events `⟨p, s, s', M, c⟩` over finite process/channel sets, `System P S M`
-over `Digraph P` models at most one channel per ordered pair (including self-loops), leaves
-`P S M : Type*` unrestricted, and allows each step to emit a list `sent : List (P × M)` of outgoing
-messages atomically:
+receives newly sent messages via append. Where §2 (p. 66, Figure 1) allows parallel labeled
+channels and single-channel 5-tuple events `⟨p, s, s', M, c⟩` over finite process/channel sets,
+`System P S M` over `Digraph P` models at most one channel per ordered pair (including self-loops),
+leaves `P S M : Type*` unrestricted, and allows each step to emit a list `sent : List (P × M)` of
+outgoing messages atomically:
 
 * a directed communication graph `graph : Digraph P`,
 * allowed spontaneous internal/send steps `internal p st st' sent` at process `p`, and
