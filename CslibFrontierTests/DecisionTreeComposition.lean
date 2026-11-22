@@ -180,9 +180,10 @@ example : ¬ OracleComp.IsCostBounded (fun _ => 1) unreachable.toFreeM 2 := by
   rw [← weightedDepth_le_iff_isCostBounded]
   decide
 
--- Returning a large result does not narrow the Boolean reply universe or change its budget.
+-- Returning a large result preserves every query branch after its output is discarded.
 example {β : Type 1} (t : DecisionTree Unit β) (w : Unit → ℕ) (n : ℕ) :
-    t.weightedDepth w ≤ n ↔ OracleComp.IsCostBounded w t.toFreeM n :=
-  weightedDepth_le_iff_isCostBounded t w n
+    t.weightedDepth w ≤ n ↔
+      OracleComp.IsCostBounded w (PFunctor.FreeM.map (fun _ => ()) t.toFreeM) n :=
+  weightedDepth_le_iff_isCostBounded_map_unit t w n
 
 end CslibFrontierTests.DecisionTreeComposition

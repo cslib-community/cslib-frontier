@@ -50,19 +50,19 @@ A budget says nothing about running time.
 
 namespace Cslib.OracleComp
 
-universe u v w x
+universe u v x
 
-variable {ι : Type u} {spec : OracleSpec.{u, v} ι} {α β : Type w}
+variable {ι : Type u} {spec : OracleSpec.{u, v} ι} {α β : Type v}
 
 /-- The calls of the program cost at most `n` in total on every path, whatever the answers, where
-a call `q` costs `cost q`. The final result type can live in any universe. -/
+a call `q` costs `cost q`. -/
 inductive IsCostBounded (cost : ι → ℕ) : OracleComp spec α → ℕ → Prop
   /-- Returning a value makes no call. -/
   | pure (a : α) (n : ℕ) : IsCostBounded cost (pure a) n
   /-- A call followed by continuations whose calls each cost at most `n`. -/
   | liftBind (q : ι) (cont : spec q → OracleComp spec α) (n : ℕ)
       (hcont : ∀ a, IsCostBounded cost (cont a) n) :
-      IsCostBounded cost (PFunctor.FreeM.bind (OracleComp.query q) cont) (n + cost q)
+      IsCostBounded cost (OracleComp.query q >>= cont) (n + cost q)
 
 /-- The program makes at most `n` oracle calls on every path, whatever the answers. -/
 abbrev IsQueryBounded (program : OracleComp spec α) (n : ℕ) : Prop :=
@@ -138,7 +138,7 @@ theorem add {cost' : ι → ℕ} {program : OracleComp spec α} {n n' : ℕ}
 
 /-- A program whose calls are replaced by programs over another interface, each call `q` costing
 at most `cost q` there, costs at most `n` there when its own calls cost at most `n`. -/
-theorem interpret {α : Type v} {κ : Type x} {target : OracleSpec.{x, v} κ} {cost' : κ → ℕ}
+theorem interpret {κ : Type x} {target : OracleSpec.{x, v} κ} {cost' : κ → ℕ}
     {handler : (q : ι) → OracleComp target (spec q)}
     (hhandler : ∀ q, IsCostBounded cost' (handler q) (cost q)) {program : OracleComp spec α}
     {n : ℕ} (h : IsCostBounded cost program n) :
@@ -146,20 +146,20 @@ theorem interpret {α : Type v} {κ : Type x} {target : OracleSpec.{x, v} κ} {c
   induction h with
   | pure a n => exact .pure a n
   | liftBind q cont n _ ih =>
-    rw [PFunctor.FreeM.bind_eq_bind, interpret_bind, interpret_query, Nat.add_comm]
+    rw [interpret_bind, interpret_query, Nat.add_comm]
     exact (hhandler q).bind ih
 
 /-- A program run through a stateful handler, each of whose calls `q` costs at most `cost q` on
 the target interface, costs at most `n` there when its own calls cost at most `n`. -/
-theorem run_interpret {α : Type v} {κ : Type u} {target : OracleSpec.{u, v} κ} {cost' : κ → ℕ}
-    {σ : Type v} {handler : (q : ι) → StateT σ (OracleComp target) (spec q)}
+theorem run_interpret {κ : Type u} {target : OracleSpec.{u, v} κ} {cost' : κ → ℕ} {σ : Type v}
+    {handler : (q : ι) → StateT σ (OracleComp target) (spec q)}
     (hhandler : ∀ q s, IsCostBounded cost' ((handler q).run s) (cost q))
     {program : OracleComp spec α} {n : ℕ} (h : IsCostBounded cost program n) (s : σ) :
     IsCostBounded cost' ((OracleComp.interpret handler program).run s) n := by
   induction h generalizing s with
   | pure a n => exact .pure (a, s) _
   | liftBind q cont n _ ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind, interp_norm]
+    simp only [interp_norm]
     rw [Nat.add_comm]
     exact (hhandler q s).bind fun result => ih result.1 result.2
 
@@ -259,8 +259,7 @@ theorem IsCostBounded.measure_le {cost : Query → ℕ} {program : OracleComp Re
     rcases hmem with ⟨-, rfl⟩
     omega
   | liftBind q cont n _ ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind, interp_norm, Probability.PMF.monad_bind_eq_bind,
-      PMF.mem_support_bind_iff] at hmem
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
     obtain ⟨⟨ans, s₁⟩, hans, hcont⟩ := hmem
     have h₁ := hstep q s ans s₁ hans
     have h₂ : size s' ≤ size s₁ + n := ih ans hcont
@@ -282,8 +281,7 @@ theorem IsCostBounded.transcript_cost_le {cost : Query → ℕ} {program : Oracl
     cases hmem
     simp
   | liftBind q cont n _ ih =>
-    simp only [PFunctor.FreeM.bind_eq_bind, interp_norm, Probability.PMF.monad_bind_eq_bind,
-      PMF.mem_support_bind_iff] at hmem
+    simp only [interp_norm, Probability.PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
     obtain ⟨⟨a, middle, seen⟩, hfirst, hrest⟩ := hmem
     simp only [StateT.run, withTranscript, PMF.mem_support_map_iff] at hfirst
     obtain ⟨⟨answer, next⟩, -, heq⟩ := hfirst
