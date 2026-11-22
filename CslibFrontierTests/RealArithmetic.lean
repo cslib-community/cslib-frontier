@@ -16,6 +16,7 @@ public meta import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
+import CslibFrontier.Logics.RealArithmetic.FormulaGatePolynomial
 import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
@@ -160,6 +161,35 @@ set_option linter.hashCommand false in
     formulaWordGateTermWord word (2 ^ 80) == encTerm 1 (.const 0) &&
     formulaWordGateTermWord [] 0 == encTerm 0 (.const 0) &&
     decide (0 < (formulaWordGateTermWord [] 0).length)
+
+-- The coefficient and outer variables specialize to different coordinates.
+example (x y : ℝ) :
+    let word := encFormula 1 (.eqZero (.var 0))
+    let coordinates : Fin word.length → Polynomial (Polynomial ℤ) :=
+      fun _ => Polynomial.C Polynomial.X + Polynomial.X ^ 2
+    Polynomial.aevalAeval x y (formulaWordGatePolynomial word 0 coordinates) = x + y ^ 2 := by
+  intro word coordinates
+  let formula : Formula 1 := .eqZero (.var 0)
+  have hw : word = encFormula 1 formula := rfl
+  have hnonempty : 0 < word.length := by decide
+  clear_value word
+  let first : Fin word.length := ⟨0, hnonempty⟩
+  have hterm : formulaWordGateTerm word 0 = .var first := by
+    have htokens : formulaWordTokens word =
+        [] ++ ((encFormula_tokens 1 formula).map FormulaToken.encodeTerms ++ []) := by
+      rw [hw, formulaWordTokens, normalizeFormulaWord,
+        ite_eq_left (validFormulaWord_encFormula formula), formulaTokensDecoder_decode_encFormula]
+      simp only [List.nil_append, List.append_nil, Option.getD_some]
+    have hrequest := formulaWordComparisonRequest_of_prefix formula [] [] htokens
+    change formulaWordComparisonRequest word 0 = some ⟨encTerm 1 (.var 0), false⟩ at hrequest
+    apply (encTerm _).injective
+    rw [encTerm_formulaWordGateTerm, formulaWordGateTermWord, hrequest, Option.elim_some]
+    exact (encTerm_rename (fun _ : Fin 1 => first) (fun i => by
+      change 0 = i.val
+      omega) (.var 0)).symm
+  rw [aevalAeval_formulaWordGatePolynomial, hterm]
+  simp only [Term.eval, coordinates, map_add, map_pow, Polynomial.aevalAeval_X,
+    Polynomial.aevalAeval_Y]
 
 -- The same comparison slots evaluate modulo a composite, with missing coordinates set to zero.
 set_option linter.hashCommand false in
