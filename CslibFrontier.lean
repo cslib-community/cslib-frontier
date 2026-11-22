@@ -2054,6 +2054,7 @@ public import CslibFrontier.Computability.Complexity.AffineDisperser.Li.ShoupPol
 public import CslibFrontier.Computability.Complexity.AffineDisperser.PolyTime
 public import CslibFrontier.Computability.Complexity.AffineDisperser.Program
 public import CslibFrontier.Computability.Complexity.AverageCase
+public import CslibFrontier.Computability.Complexity.BkSequencePolyTime
 public import CslibFrontier.Computability.Complexity.Classes.AWPP
 public import CslibFrontier.Computability.Complexity.Classes.AWPP.Amplification
 public import CslibFrontier.Computability.Complexity.Classes.AWPP.Closure
@@ -6873,6 +6874,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
+public import CslibFrontier.Foundations.Combinatorics.Additive.BkSequence
 public import CslibFrontier.Foundations.Combinatorics.Additive.SumsetCover
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.AffineSubspace
