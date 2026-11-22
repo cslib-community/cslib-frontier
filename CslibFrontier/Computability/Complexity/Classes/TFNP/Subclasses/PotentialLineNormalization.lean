@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLine
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -839,8 +840,6 @@ section Computability
 
 variable {enc : α ↪ List Bool} {n : α → ℕ} {P S : α × List Bool → List Bool}
   {V : α × List Bool → ℕ}
-
-attribute [local fun_prop] ComputableInPolyTime.bool_and' ComputableInPolyTime.binary_le'
 
 theorem endOfPotentialLinePromisedRel_mem_FNP
     (hn : ComputableInPolyTime n enc encUnary)

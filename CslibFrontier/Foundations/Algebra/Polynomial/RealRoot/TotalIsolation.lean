@@ -533,7 +533,8 @@ private theorem separatePairM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
     (hb₁ : -(cauchyBoundNat cs : ℚ) ≤ I₁.lower)
     (hb₂ : I₂.upper ≤ (cauchyBoundNat cs : ℚ))
     (hgap : IntervalGapOk ((ofCoeffList cs).map (algebraMap ℚ ℝ)) I₁ I₂) :
-    let res := (separatePairM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs) I₁ I₂).ret
+    let res := (separatePairM (CoeffList.trim cs) (sturmSeqList cs)
+      (mignotteBisectionDepth cs) I₁ I₂).ret
     let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
     I₁.lower ≤ res.1 ∧ res.1 ≤ I₁.upper ∧ I₂.lower ≤ res.2 ∧ res.2 ≤ I₂.upper ∧
       res.1 < res.2 ∧
@@ -699,7 +700,7 @@ private theorem separateChainM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
       (I₀ :: rest).Pairwise (IntervalGapOk pR) →
       I₀.lower ≤ curLower →
       (∀ r : ℝ, (I₀.lower : ℝ) ≤ r ∧ r ≤ (I₀.upper : ℝ) ∧ pR.IsRoot r → (curLower : ℝ) ≤ r) →
-      let out := (separateChainM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
+      let out := (separateChainM (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
         curLower (I₀ :: rest)).ret
       (∃ J₀ Js, out = J₀ :: Js ∧ J₀.lower = curLower) ∧
       out.Pairwise (fun A B => A.upper < B.lower) ∧
@@ -771,10 +772,10 @@ theorem isolateRootsTotalM_ret (cs : List ℚ) :
 
 private theorem isolateRootsTotal_eq_separateTouching (cs : List ℚ) :
     isolateRootsTotal cs =
-      (separateTouchingM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
+      (separateTouchingM (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
         (isolateRoots cs)).ret := by
   simp only [isolateRootsTotal, isolateRootsTotalM, isolateRoots, isolateRootsM, time_simps]
-  by_cases he : (trim cs).isEmpty = true
+  by_cases he : (CoeffList.trim cs).isEmpty = true
   · simp only [he, ↓reduceIte, time_simps, separateTouchingM]
   · simp only [he, Bool.false_eq_true, ↓reduceIte, time_simps]
 
@@ -798,7 +799,7 @@ theorem isolateRootsTotal_endpoint_bounds (cs : List ℚ) :
   | nil => simp only [separateTouchingM, time_simps]; rintro _ ⟨⟩
   | cons I₀ rest =>
     intro J hJ
-    have ⟨hlow, hup⟩ := separateChainM_dyadicBounded (trim cs) (sturmSeqList cs)
+    have ⟨hlow, hup⟩ := separateChainM_dyadicBounded (CoeffList.trim cs) (sturmSeqList cs)
       (mignotteBisectionDepth cs) (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs)
       (I₀ :: rest) I₀.lower ((hraw I₀ (hL ▸ List.mem_cons_self)).1.mono (by omega))
       (fun I hI => hraw I (hL ▸ hI)) J hJ
@@ -822,7 +823,7 @@ private theorem isolateRootsTotal_index_spec {cs : List ℚ} (hsep : (ofCoeffLis
     (fun I hI => ⟨isolateRoots_isIsolatingFor hsep I (hL ▸ hI),
       isolateRoots_mem_cauchy hsep I (hL ▸ hI)⟩)
     (hL ▸ isolateRoots_intervalGapOk hsep) le_rfl (fun _ h => h.1)).2.2 idx (hL ▸ hidx)
-  have htot : isolateRootsTotal cs = (separateChainM (trim cs) (sturmSeqList cs)
+  have htot : isolateRootsTotal cs = (separateChainM (CoeffList.trim cs) (sturmSeqList cs)
       (mignotteBisectionDepth cs) I₀.lower (I₀ :: rest)).ret := by
     simp only [isolateRootsTotal_eq_separateTouching, hL, separateTouchingM, TimeM.ret_bind]
   dsimp only at h ⊢
@@ -932,12 +933,11 @@ theorem isolateRootsTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
   let k := mignotteBisectionDepth cs
   let seq := sturmSeqList cs
   let vC := 2 * (seq.map List.length).sum + 6 * seq.length + 7
-  let eC := 2 * (trim cs).length + 1
-  have htnil : trim cs ≠ [] := fun h =>
-    hsep.ne_zero (by simpa only [h, ofCoeffList_nil] using (ofCoeffList_trim cs).symm)
-  have hte : (trim cs).isEmpty = false := List.isEmpty_eq_false_iff.mpr htnil
-  have ht_deg : (trim cs).length = d + 1 :=
-    (ofCoeffList_trim cs ▸ (isTrimmed_trim cs).natDegree_add_one htnil).symm
+  let eC := 2 * (CoeffList.trim cs).length + 1
+  have htnil : CoeffList.trim cs ≠ [] := mt (CoeffList.trim_eq_nil_iff cs).mp hsep.ne_zero
+  have hte : (CoeffList.trim cs).isEmpty = false := List.isEmpty_eq_false_iff.mpr htnil
+  have ht_deg : (CoeffList.trim cs).length = d + 1 :=
+    CoeffList.length_trim_eq_natDegree_add_one hsep.ne_zero
   have hseq_len : seq.length ≤ d + 1 := sturmSeqList_length_le cs
   have hseq_sum : (seq.map List.length).sum ≤ (d + 1) ^ 2 :=
     (List.sum_le_length_nsmul (seq.map List.length) (d + 1) fun _ hm => by
@@ -949,23 +949,23 @@ theorem isolateRootsTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
   let vL := sturmVariationsList seq (-b)
   let vR := sturmVariationsList seq b
   have hc_le : vL - vR ≤ d := sturmVariationsList_cauchy_sub_le hsep
-  have hraw_len : ((isolateIocM (trim cs) seq k k (-b) b vL vR).ret).length ≤ d :=
-    (isolateIocM_length_le hsep (trim cs) k k (-b) b vL vR hbb rfl rfl).trans hc_le
+  have hraw_len : ((isolateIocM (CoeffList.trim cs) seq k k (-b) b vL vR).ret).length ≤ d :=
+    (isolateIocM_length_le hsep (CoeffList.trim cs) k k (-b) b vL vR hbb rfl rfl).trans hc_le
   have hsplit_le : (if vL - vR ≤ 1 then 0 else k * ((vL - vR) / 2)) ≤ k * (d / 2) := by
     split_ifs; · exact Nat.zero_le _
     exact Nat.mul_le_mul_left k (Nat.div_le_div_right hc_le)
   have hvL := sturmVariationsListM_time_le seq (-b)
   have hvR := sturmVariationsListM_time_le seq b
-  have hbis := isolateIocTotalM_time_le hsep (trim cs) k k (-b) b vL vR hbb rfl rfl
-  have hsep_t := separateTouchingM_time_le (trim cs) seq k
-    (isolateIocM (trim cs) seq k k (-b) b vL vR).ret
+  have hbis := isolateIocTotalM_time_le hsep (CoeffList.trim cs) k k (-b) b vL vR hbb rfl rfl
+  have hsep_t := separateTouchingM_time_le (CoeffList.trim cs) seq k
+    (isolateIocM (CoeffList.trim cs) seq k k (-b) b vL vR).ret
   have := trimM_time_le cs; have := sturmSeqListM_time_le cs
   have := cauchyBoundNatM_time_le cs; have := mignotteBisectionDepthM_time_le cs
   simp only [isolateRootsTotalM, time_simps, hte, Bool.false_eq_true, ↓reduceIte]
   calc _ ≤ ((cs.length + 2) ^ 2 * (20 * cs.length + 35) + 35 * cs.length + k + 52) +
         (2 * vC + 2 + (if vL - vR ≤ 1 then 0 else k * ((vL - vR) / 2)) * (vC + seq.length + 10) +
           (vL - vR) * (2 * eC + 6 + k * (vC + eC + 4))) +
-        (((isolateIocM (trim cs) seq k k (-b) b vL vR).ret).length *
+        (((isolateIocM (CoeffList.trim cs) seq k k (-b) b vL vR).ret).length *
           (eC + vC + k * (2 * vC + 6) + 4) + 2) := by
           dsimp only [seq, b, k, vL, vR, vC, eC] at hbis hsep_t hvL hvR ⊢; omega
     _ ≤ _ := by dsimp only [vC, eC]; rw [ht_deg]; gcongr

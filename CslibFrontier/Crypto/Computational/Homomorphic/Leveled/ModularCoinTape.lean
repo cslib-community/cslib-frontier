@@ -14,7 +14,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Tactic.SuppCases
 
 /-!
@@ -289,10 +289,7 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
       simp only [hpos, and_self, ↓reduceIte]
     change _ = (BitString.uniformList (3 * coins n + zeroCoins)).map
       (fun tape => afterHop (tape.take (coins n)) (tape.drop (coins n)))
-    rw [hsize, PMF.map]
-    dsimp only [Function.comp_def]
-    rw [BitString.uniformList_bind_split (coins n) (2 * coins n + zeroCoins)
-      (fun first rest => PMF.pure (afterHop first rest))]
+    rw [hsize, BitString.uniformList_map_split (coins n) (2 * coins n + zeroCoins) afterHop]
     simp only [pmf_norm, modLeveledAdversary, hpos, and_self, ↓reduceIte, ProbComp.sampleModIndex,
       ProbComp.sampleModNat, ProbComp.sampleBinaryNat, BitString.eval_sampleList]
     congr 1 with first : 1
@@ -302,7 +299,7 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
         (publicKeyGame E adversary false) n keyCoins challengePk hkey
       have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
       rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
-      simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte, PMF.map] using
+      simpa only [pmf_norm, afterHop, index, hfirst, ↓reduceIte] using
           congrArg (PMF.map (tagLeveledChoice false false)) hlaw
     · change ¬min 3 (BitString.binaryValue first % 3) = 0 at hfirst
       by_cases hsecond : min 3 (BitString.binaryValue first % 3) = 1
@@ -310,35 +307,28 @@ theorem eval_modLeveledAdversary_choose_eq_map_coins (E : Scheme)
           (publicKeyGame E adversary true) n keyCoins challengePk hkey
         have hbudget : 2 * coins n + depth n * keyCoins ≤ 2 * coins n + zeroCoins := by omega
         rw [← BitString.uniformList_take hbudget, PMF.map_comp] at hlaw
-        simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte, PMF.map,
+        simpa only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
           Nat.one_ne_zero] using
             congrArg (PMF.map (tagLeveledChoice false true ∘ swapLeveledChoice)) hlaw
-      · simp only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
-          BitString.eval_sampleList]
-        have hsize : 2 * coins n + zeroCoins = coins n + (coins n + zeroCoins) := by omega
-        rw [hsize, BitString.uniformList_bind_split (coins n) (coins n + zeroCoins)
-          (fun second rest => PMF.pure
-            (if index (depth n) second = 0 then
-              if index (capacity n) (rest.take (coins n)) = 0 then
-                tagLeveledChoice true false (evaluateZero (n, challengePk) (rest.drop (coins n)))
-              else rejectLeveledChoice
-            else rejectLeveledChoice))]
-        congr 1 with second : 1
-        rw [BitString.uniformList_bind_split (coins n) zeroCoins
-          (fun third rest => PMF.pure
-            (if index (depth n) second = 0 then
+      · have hsize : 2 * coins n + zeroCoins = coins n + (coins n + zeroCoins) := by omega
+        have hsplit := BitString.uniformList_map_split3 (coins n) (coins n) zeroCoins
+          (fun second third rest =>
+            if index (depth n) second = 0 then
               if index (capacity n) third = 0 then
                 tagLeveledChoice true false (evaluateZero (n, challengePk) rest)
               else rejectLeveledChoice
-            else rejectLeveledChoice))]
+            else rejectLeveledChoice)
+        simp only [pmf_norm, afterHop, index, hfirst, hsecond, ↓reduceIte,
+          BitString.eval_sampleList, hsize] at hsplit ⊢
+        rw [hsplit]
+        congr 1 with second : 1
         congr 1 with third : 1
         split_ifs <;> simp [hzero, PMF.map, Function.comp_def]
   · simp only [modLeveledAdversary, hpos, ↓reduceIte, ProbComp.eval_map, hzero, PMF.map_comp]
     unfold modLeveledChooseCoins
-    simp only [hpos, ↓reduceIte, PMF.map, Function.comp_def]
-    rw [BitString.uniformList_bind_split (3 * coins n) zeroCoins
-      (fun _ rest => PMF.pure (tagLeveledChoice true false (evaluateZero (n, challengePk) rest))),
-      PMF.bind_const]
+    simp only [hpos, ↓reduceIte]
+    rw [← BitString.uniformList_drop (3 * coins n) zeroCoins, PMF.map_comp]
+    rfl
 
 /-- The original modular dispatch is native polynomial time using binary remainders and
 unary caps. The zero-link callback supplies its own already-certified actual replay. -/

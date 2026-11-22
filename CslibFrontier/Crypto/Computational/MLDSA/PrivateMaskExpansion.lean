@@ -111,8 +111,8 @@ private theorem prefixSeed_append (r : FixedBytes 64) (y : List Bool) :
       Keccak.bytesToBitsLE r.toList ++ y := ⟨r, y, rfl⟩
   rw [prefixSeed, dite_eq_left h]
   obtain ⟨rest, eq⟩ := h.choose_spec
-  exact List.ofFn_inj.mp (Keccak.bytesToBitsLE_injective
-    (List.append_inj eq (by simp [Keccak.length_bytesToBitsLE, FixedBytes.toList])).1)
+  exact List.ofFn_inj.mp (Keccak.bytesToBitsLE_injective (List.append_inj eq
+    (by simp only [Keccak.length_bytesToBitsLE, FixedBytes.toList, List.length_ofFn])).1)
 
 private theorem maskStreams_off_prefix {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (t : Fin n ↪ FixedBytes 64) (T₁ T₂ : Table a b) (rows : MaskInput n × Fin b → Byte)
@@ -139,18 +139,17 @@ private theorem keyGen_maskStreams {a b n : ℕ} (base : Xofs) (ha : 528 ≤ a)
     (s : Level) (seed : FixedBytes 32) (miss : ∀ i, (t i).toList ≠
       secretSeed (streams base T₁ T₂) s seed) :
     (maskStreams base ha t T₁ T₂ rows).keyGen s seed = (streams base T₁ T₂).keyGen s seed := by
-  let H := streams base T₁ T₂
-  let G := maskStreams base ha t T₁ T₂ rows
   have raw := maskStreams_off_length base ha t T₁ T₂ rows
-  apply Xofs.keyGen_congr_of_reads (H := H) (G := G) s seed rfl
-  · apply raw
-    rw [length_keySeedInput]
-    decide
+  apply Xofs.keyGen_congr_of_reads (H := streams base T₁ T₂)
+    (G := maskStreams base ha t T₁ T₂ rows) s seed rfl
+  · rw [Xofs.expandKeySeed, Xofs.expandKeySeed]
+    exact raw _ (by rw [length_keySeedInput]; decide) _
   · intro nonce
+    dsimp only [ExtendableOutput.readBytes]
     apply maskStreams_off
     rintro ⟨i, suf⟩ eq
-    have bs : (t i).toList ++ suf.toList = nonceInput (secretSeed H s seed) nonce :=
-      Keccak.bytesToBitsLE_injective eq
+    have bs : (t i).toList ++ suf.toList = nonceInput (secretSeed (streams base T₁ T₂) s seed)
+        nonce := Keccak.bytesToBitsLE_injective eq
     exact miss i (List.append_inj bs (by rw [FixedBytes.length_toList, secretSeed_length])).1
   · intro pk len
     apply raw

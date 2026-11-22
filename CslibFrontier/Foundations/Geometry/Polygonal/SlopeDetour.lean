@@ -122,7 +122,7 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
     rw [eval_slopeDetour]
     split_ifs with hi
     · have hx : -r ≤ (1 - t) * -r ∧ (1 - t) * -r ≤ 0 := by
-        constructor <;> nlinarith [ht.1, ht.2]
+        constructor <;> nlinarith only [ht.1, ht.2, hr]
       simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
         Complex.smul_re, Complex.smul_im, smul_eq_mul, mul_zero,
         add_zero]
@@ -130,11 +130,11 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
       rw [abs_of_nonpos hx.2]
       field_simp [hr.ne']
       ring
-    · have hx : 0 ≤ t * r ∧ t * r ≤ r := by constructor <;> nlinarith [ht.1, ht.2]
+    · have hx : 0 ≤ t * r ∧ t * r ≤ r := by constructor <;> nlinarith only [ht.1, ht.2, hr]
       simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
         Complex.smul_re, Complex.smul_im, smul_eq_mul, mul_zero,
         zero_add]
-      refine ⟨⟨by linarith [hx.1], hx.2⟩, ?_⟩
+      refine ⟨⟨by linarith only [hr, hx.1], hx.2⟩, ?_⟩
       rw [abs_of_nonneg hx.1]
       field_simp [hr.ne']
       ring
@@ -146,7 +146,7 @@ private theorem member_support {r s d : ℝ} {keep : Bool} (hr : 0 < r)
     simp only [AffineMap.lineMap_apply_module, Complex.add_re, Complex.add_im,
       Complex.smul_re, Complex.smul_im, smul_eq_mul, hd,
       zero_mul, add_zero]
-    refine ⟨⟨?_, ?_⟩, ?_⟩ <;> nlinarith [ht.1, ht.2]
+    refine ⟨⟨?_, ?_⟩, ?_⟩ <;> nlinarith only [ht.1, ht.2, hr]
 
 private theorem member_tube {r s d ε : ℝ} {keep : Bool} (hr : 0 < r)
     (hkeep : keep = true → d = 0) (hd : |d| < ε)
@@ -209,12 +209,12 @@ private theorem contact_abscissa {r s t d e q x y : ℝ} (hr : 0 < r) (hst : s �
     have hnonneg : 0 ≤ x := not_lt.mp h
     rw [abs_of_nonneg hnonneg] at hzero
     have hw : 0 ≤ 1 - x / r := sub_nonneg.mpr ((div_le_one hr).mpr hx.2)
-    have hx0 : x = 0 := by nlinarith [mul_nonneg hq.le hw]
+    have hx0 : x = 0 := by linarith only [hzero, hnonneg, mul_nonneg hq.le hw]
     rw [hx0] at hzero
     simp only [zero_div, sub_zero, mul_one, zero_add] at hzero
     exact hq.ne' hzero
   rw [abs_of_neg hneg] at hzero
-  apply (eq_div_iff (by linarith : r + q ≠ 0)).mpr
+  apply (eq_div_iff (by linarith only [hr, hq] : r + q ≠ 0)).mpr
   field_simp [hr.ne'] at hzero
   nlinarith only [hzero]
 
@@ -232,12 +232,10 @@ private theorem pair_separation {r s t d e q : ℝ} (hr : 0 < r) (hst : s ≠ t)
   let x := -r * q / (r + q)
   let z : ℂ := ⟨x, s * x + d * (1 + x / r)⟩
   have hrq : 0 < r + q := add_pos hr hq
-  have hx : -r / 3 < x ∧ x < 0 := by
-    constructor
-    · apply (lt_div_iff₀ hrq).mpr
-      nlinarith [mul_pos hr (by linarith : 0 < r - 2 * q)]
-    · exact div_neg_of_neg_of_pos (by nlinarith [mul_pos hr hq]) hrq
-  have hxr : x ∈ Set.Ioo (-r) 0 := ⟨by linarith [hx.1], hx.2⟩
+  have hx : -r / 3 < x ∧ x < 0 :=
+    ⟨(lt_div_iff₀ hrq).mpr (by nlinarith only [hr, hqr]),
+      div_neg_of_neg_of_pos (by nlinarith only [hr, hq]) hrq⟩
+  have hxr : x ∈ Set.Ioo (-r) 0 := ⟨by linarith only [hr, hx.1], hx.2⟩
   have hroot : s * x + d * (1 + x / r) = t * x + e * (1 + x / r) := by
     have he : (s - t) * x + (d - e) * (1 + x / r) = 0 := by
       rw [hd]
@@ -433,8 +431,9 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
         calc
           _ ≤ |(s i - a) ^ 2| + |c * (s i - a)| := abs_add_le _ _
           _ = _ := by rw [abs_of_nonneg (sq_nonneg (s i - a)), abs_mul, abs_of_pos hc]
-      _ ≤ μ * B := by dsimp [B]; nlinarith [mul_le_mul_of_nonneg_left hz hc.le]
-      _ < ε := by nlinarith
+      _ ≤ μ * B := mul_le_mul_of_nonneg_left
+          (add_le_add hsq (mul_le_mul_of_nonneg_left hz hc.le)) hμ.le
+      _ < ε := by linarith only [hμ, hμε]
   have hkeep (i : ι) : keep i = true → d i = 0 := by
     intro hi
     have hi' : fixedIndex = some i := of_decide_eq_true hi
@@ -450,13 +449,12 @@ theorem exists_slopeDetour_separation {ι : Type*} [Finite ι]
     let q := μ * (s i + s j - 2 * a + c)
     have hi := abs_le.mp (hM_i i)
     have hj := abs_le.mp (hM_i j)
-    have hfactor : 1 ≤ s i + s j - 2 * a + c ∧
-        s i + s j - 2 * a + c ≤ Q := by dsimp [c, Q]; constructor <;> linarith
-    have hq : 0 < q := by dsimp [q]; nlinarith [hfactor.1]
+    have hfactor : 1 ≤ s i + s j - 2 * a + c ∧ s i + s j - 2 * a + c ≤ Q := by
+      dsimp only [c, Q]; constructor <;> linarith only [hi.1, hi.2, hj.1, hj.2]
+    have hq : 0 < q := mul_pos hμ (by linarith only [hfactor.1])
     have hqr : q < r / 2 := by
-      have hle := mul_le_mul_of_nonneg_left hfactor.2 hμ.le
-      dsimp [q]
-      nlinarith
+      dsimp only [q]
+      linarith only [hμ, hμr, mul_le_mul_of_nonneg_left hfactor.2 hμ.le]
     exact pair_separation hr (fun h => hij (hs h)) hq hqr
       (height_sub a c μ (s i) (s j)) (keep i) (keep j) (hkeep i) (hkeep j)
   refine ⟨d, ?_⟩

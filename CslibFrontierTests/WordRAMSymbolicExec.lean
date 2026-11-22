@@ -390,6 +390,23 @@ example (w : ℕ) (x : Data 4) (ha : x.regs a = 1) (hb : x.regs b = 1) (hc : x.r
     (ExecWithin.loop_exit (by simp only [Cond.holds_lt, not_lt]; wram_simp [hd])) ?_
   wram_simp
 
+/-- `WP.loop_exit`, `WP.Exact.loop_exit`, and silent `wram_omega` in `wram_exec` / `wram_simp`. -/
+private def helperCap (n : ℕ) : ℕ := n + 10
+attribute [local wram_arith] helperCap
+
+example {w n : ℕ} (x : Data 4) (ha : x.regs a = n) (hcap : Fits w (helperCap n)) :
+    WP w (ram[ b ← #5; c ← a + b ]) x (fun y t => t ≤ 2 ∧ y.regs c = n + 5) := by
+  wram_exec [ha]
+  wram_simp
+
+example (x : Data 4) (ha : x.regs a = 0) (hd : x.regs d = 0) :
+    WP 8 moveLoop x (fun y t => t ≤ 2 ∧ y.regs a = 0) :=
+  WP.loop_exit (by simp [Cond.holds_lt, ha, hd]) ⟨le_rfl, ha⟩
+
+example (x : Data 4) (ha : x.regs a = 0) (hd : x.regs d = 0) :
+    WP.Exact 8 moveLoop x (fun y t => t = 2 ∧ y.regs a = 0) :=
+  WP.Exact.loop_exit (by simp [Cond.holds_lt, ha, hd]) ⟨rfl, ha⟩
+
 /-! ## Failures -/
 
 /-- error: wram_exec: nothing to execute in

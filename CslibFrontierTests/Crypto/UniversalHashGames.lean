@@ -9,10 +9,12 @@ module
 
 import Cslib.Foundations.Data.BitString
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
@@ -34,7 +36,7 @@ The prediction game reveals one digest and rejects a prediction for the queried 
 namespace Cslib.Crypto.UHF.Tests
 
 open Cslib.Probability
-open scoped ENNReal
+open scoped ENNReal NNReal
 
 private def hash (_ : Unit) (m : Fin 3) : Bool := decide (m = 0)
 
@@ -203,6 +205,64 @@ example :
 /-- No reply is needed to produce the initial zero digest for an empty message. -/
 example :
     (xorHashWordQueries 2 2 []).run (fun _ => pure []) = pure [false, false] := rfl
+
+/-- A constant table produces a collision for distinct valid one-bit messages. -/
+example :
+    (xorHashWordCollisionReduction (fun _ => 2) (fun _ => 1) (fun _ => 1)
+        (fun _ => pure ⟨[[true]], [[false]]⟩) 0 []).run (fun _ => pure [true]) =
+      pure true := rfl
+
+/-- A malformed block loses even when the constant table would give equal digests. -/
+example :
+    (xorHashWordCollisionReduction (fun _ => 2) (fun _ => 1) (fun _ => 1)
+        (fun _ => pure ⟨[[true, false]], [[false]]⟩) 0 []).run (fun _ => pure [true]) =
+      pure false := rfl
+
+open Turing.MultiTapeTM in
+/-- A two-block cap and `n`-bit blocks and digests instantiate the security result. -/
+example {family : List Bool → List Bool → List Bool}
+    (hPRF : PseudorandomFunctionOver (fun n => 2 + n) id family) :
+    IsComputationalUHF encUnary (encList encBits) (fun n => pure n)
+      (fun _ n => xorHashWordValid 2 n)
+      (fun _ => xorHashWordFamily (fun _ => 2) id id family) :=
+  isComputationalUHF_xorHashWordFamily hPRF (.const 2) .id' negligible_inv_two_pow
+
+/-- Only a distinct valid message within the cap produces a collision under a constant table. -/
+example :
+    let A : ℕ × ℕ → ProbComp (List (List (List Bool))) :=
+      fun _ => pure [[[false]], [[false]], [[true, true]], [[true]]]
+    let B := xorHashWordMultiQueryReduction (fun _ => 2) (fun _ => 1) (fun _ => 1)
+    (B (fun _ => 3) A 0 []).run (fun _ => pure [true]) = pure false ∧
+      (B (fun _ => 4) A 0 []).run (fun _ => pure [true]) = pure true ∧
+      (B (fun _ => 4) A 0 []).IsQueryBounded 8 :=
+  ⟨rfl, rfl, isQueryBounded_xorHashWordMultiQueryReduction _ _ _ _ _ _ _⟩
+
+/-- The direct bound applies to two valid one-block messages and three-bit digests. -/
+example :
+    let ℓ : ℕ → ℕ := fun _ => 2
+    let blockWidth : ℕ → ℕ := fun _ => 1
+    let width : ℕ → ℕ := fun _ => 3
+    let Q : ℕ → ℕ := fun _ => 2
+    let A : ℕ × ℕ → ProbComp (List (List (List Bool))) :=
+      fun _ => pure [[[false]], [[true]]]
+    let F : List Bool → List Bool → List Bool := fun _ _ => [false, false, false]
+    let B := xorHashWordMultiQueryReduction ℓ blockWidth width Q A
+    Game.succProbability
+        (multiQueryGame (fun n => pure n) (fun _ n => xorHashWordValid (ℓ n) (blockWidth n))
+          (fun _ => xorHashWordFamily ℓ blockWidth width F) A 0) ≤
+      Game.advantage (ProbComp.eval (prfRealGame (fun n => ℓ n + blockWidth n) F B 0))
+        (ProbComp.eval (prfIdealGame (fun n => ℓ n + blockWidth n) width B 0)) + 1 / 4 := by
+  intro ℓ blockWidth width Q A F B
+  have hquarter : ((Q 0 : ℝ≥0) ^ 2 / 2) * ((2 : ℝ≥0) ^ width 0)⁻¹ = 1 / 4 := by
+    norm_num [Q, width]
+  have hcap : ∀ ms ∈ (ProbComp.eval (A (0, 0))).support, ms.length ≤ Q 0 := by
+    intro ms hms
+    simp only [A, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hms
+    subst ms
+    decide
+  simpa only [hquarter] using
+    succProbability_multiQueryGame_xorHashWordFamily_le (ℓ := ℓ) (blockWidth := blockWidth)
+      (width := width) F (fun _ _ _ => rfl) A 0 hcap
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

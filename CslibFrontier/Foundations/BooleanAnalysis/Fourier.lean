@@ -33,9 +33,11 @@ The *character* of a set `S` of coordinates is `χ_S x = ∏_{i ∈ S} (-1) ^ (x
 analysis takes `R = ℝ`, where the sign of a bit is `BitString.signVal`. Bit strings add
 coordinatewise modulo two, `(x + y) i = (x i ^^ y i)`, through Mathlib's Boolean ring structure on
 `Bool`, and the characters turn sums into products (`BitString.chi_add`): they are additive
-characters of the cube (`BitString.chiChar`), whose sums are Mathlib's `AddChar.sum_eq_ite`. The
-characters are orthonormal for the uniform expectation (`BitString.expect_chi_mul_chi`), and every
-real function on the cube is the sum of its *Fourier expansion* `f = ∑_S f̂(S) χ_S`, with the
+characters of the cube (`BitString.chiChar`), whose sums are Mathlib's `AddChar.sum_eq_ite`.
+Summed over the subsets of `K`, `χ_S x χ_S y` is `2 ^ |K|` when `x` and `y` agree on `K` and
+`0` otherwise (`BitString.sum_powerset_chi_mul_chi`). The characters are orthonormal for
+the uniform expectation (`BitString.expect_chi_mul_chi`), and every real function on the cube is
+the sum of its *Fourier expansion* `f = ∑_S f̂(S) χ_S`, with the
 *Fourier coefficients* `f̂(S) = 𝔼_x f x χ_S x` (`BitString.fourierCoeff`,
 `BitString.sum_fourierCoeff_mul_chi`), which are unique
 (`BitString.fourierCoeff_sum_mul_chi`), so the Fourier transform is a linear equivalence
@@ -64,6 +66,8 @@ coefficient on the circle, so the name is meant to be used qualified.
 * `Cslib.BitString.chi_add`, `Cslib.BitString.chi_mul_chi`: the characters are multiplicative,
   in the input and in the set.
 * `Cslib.BitString.sum_fourierCoeff_mul_chi`: the Fourier expansion.
+* `Cslib.BitString.sum_powerset_chi_mul_chi`: summed over the subsets of `K`, the characters
+  at two points detect their agreement on `K`.
 * `Cslib.BitString.fourierCoeff_sum_mul_chi`, `Cslib.BitString.fourierCoeff_injective`:
   uniqueness of the Fourier coefficients.
 * `Cslib.BitString.expect_mul_eq_sum_fourierCoeff_mul`: Plancherel's identity.
@@ -142,6 +146,21 @@ theorem chi_mul_self (S : Finset ι) (x : ι → Bool) : chi R S x * chi R S x =
   rw [chi, ← prod_mul_distrib]
   exact prod_eq_one fun i _ => by cases x i <;> simp
 
+/-- The characters of the subsets of `K` at two points, summed, are `2 ^ |K|` when the points agree
+on `K` and `0` otherwise: the sum is the product over `K` of `1 + (-1) ^ xᵢ (-1) ^ yᵢ`. The
+statement takes the decidability of the agreement as an instance argument, as `Finset.sum_boole`
+does. -/
+theorem sum_powerset_chi_mul_chi (K : Finset ι) (x y : ι → Bool)
+    [Decidable (∀ i ∈ K, x i = y i)] :
+    ∑ S ∈ K.powerset, chi R S x * chi R S y = if ∀ i ∈ K, x i = y i then 2 ^ #K else 0 := by
+  have h (i : ι) :
+      1 + (-1 : R) ^ (x i).toNat * (-1) ^ (y i).toNat = if x i = y i then 2 else 0 := by
+    cases x i <;> cases y i <;> norm_num [one_add_one_eq_two]
+  simp only [chi, ← prod_mul_distrib]
+  rw [← prod_one_add, prod_congr rfl fun i _ => h i, prod_ite_zero, prod_const]
+  -- `prod_ite_zero` decides the agreement with its own instance; any two instances agree.
+  convert rfl
+
 section DecidableEq
 
 variable [DecidableEq ι]
@@ -213,20 +232,13 @@ section Fintype
 
 variable [Fintype ι]
 
-/-- The characters at two points, summed over all sets, detect equality of the points. -/
+/-- The characters at two points, summed over all sets, detect equality of the points: the case
+`K = univ` of `sum_powerset_chi_mul_chi`. -/
 theorem sum_chi_mul_chi (x y : ι → Bool) :
     ∑ S, chi ℝ S x * chi ℝ S y = if x = y then 2 ^ Fintype.card ι else 0 := by
   classical
-  have h := prod_add (fun i => signVal (x i) * signVal (y i)) (fun _ => (1 : ℝ)) univ
-  simp only [prod_const_one, mul_one, powerset_univ] at h
-  simp only [chi_eq_prod_signVal, ← prod_mul_distrib]
-  rw [← h]
-  simp only [signVal_mul_signVal]
-  split_ifs with hxy
-  · subst hxy
-    simp [one_add_one_eq_two]
-  · obtain ⟨i, hi⟩ := Function.ne_iff.1 hxy
-    exact prod_eq_zero (mem_univ i) (by simp [hi])
+  rw [← powerset_univ, sum_powerset_chi_mul_chi, card_univ]
+  simp only [mem_univ, forall_const, ← funext_iff]
 
 variable [DecidableEq ι]
 
@@ -290,6 +302,14 @@ theorem fourierCoeff_const (c : ℝ) (S : Finset ι) :
 theorem fourierCoeff_chi (S T : Finset ι) :
     fourierCoeff (chi ℝ S) T = if S = T then 1 else 0 :=
   expect_chi_mul_chi S T
+
+/-- A literal `x ↦ b ⊕ x_i`, read as `±1`, is `signVal b` times the character of `{i}`, so its
+only nonzero Fourier coefficient is `signVal b`, on `{i}`. -/
+theorem fourierCoeff_signVal_xor (b : Bool) (i : ι) (S : Finset ι) :
+    fourierCoeff (fun x => signVal (b ^^ x i)) S = if {i} = S then signVal b else 0 := by
+  have h : (fun x : ι → Bool => signVal (b ^^ x i)) = fun x => signVal b * chi ℝ {i} x :=
+    funext fun x => by rw [signVal_xor, chi_singleton]
+  rw [h, fourierCoeff_const_mul, fourierCoeff_chi, mul_ite, mul_one, mul_zero]
 
 /-- A parity, read as `±1`, is the character of its set, so all its weight is on that set. -/
 theorem fourierCoeff_signVal_parityOn (S U : Finset ι) :

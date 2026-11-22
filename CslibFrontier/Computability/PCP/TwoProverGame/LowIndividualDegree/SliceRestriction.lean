@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Quantum.Algebra.CStar
 import CslibFrontier.Foundations.Quantum.Algebra.MaxEntangled
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Algebra.Order.BigOperators.Expect
 
 /-!
@@ -59,7 +60,7 @@ theorem average_slice_axis_loss_le {n : ℕ}
       (restrictStrategy t S))) ≤
       (n + 2 : ℝ) *
         (1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .axis).commutingWinProb S) := by
-  rw [← uniform_sum_eq_expect]
+  rw [← Cslib.Probability.PMF.sum_uniformOfFintype_toReal_mul]
   simpa using
     commutingBranchLoss_restrict_le n d D .axis S
 
@@ -70,7 +71,7 @@ theorem average_slice_consistency_loss_le {n : ℕ}
     (𝔼 t : F, (1 - (branchGameWithDiagonalCap (F := F) n d D .consistency).commutingWinProb
         (restrictStrategy t S))) ≤
       1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .consistency).commutingWinProb S := by
-  rw [← uniform_sum_eq_expect]
+  rw [← Cslib.Probability.PMF.sum_uniformOfFintype_toReal_mul]
   simpa using
     commutingBranchLoss_restrict_le n d D .consistency S
 
@@ -84,7 +85,7 @@ theorem average_slice_diagonal_loss_le {n : ℕ}
       (restrictStrategy t S))) ≤
       (n + 2 : ℝ) *
         (1 - (branchGameWithDiagonalCap (F := F) (n + 1) d D .diagonal).commutingWinProb S) := by
-  rw [← uniform_sum_eq_expect]
+  rw [← Cslib.Probability.PMF.sum_uniformOfFintype_toReal_mul]
   simpa using
     commutingBranchLoss_restrict_le n d D .diagonal S
 
