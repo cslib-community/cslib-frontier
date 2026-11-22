@@ -28,13 +28,13 @@ namespace Cslib.Complexity.RealAlgebraic
 
 open Cslib Cslib.Logic.RealArithmetic Turing.MultiTapeTM ComputableInPolyTime
 
-/-- An indexed substituted gate coefficient has a sign computation in `F₈` when its
-coordinate values at Kronecker points are computable in polynomial time. The word and
+/-- An indexed substituted gate coefficient has a sign computation at level
+`max (a + 1) 5 + 3` when its coordinate evaluator at Kronecker points has level `a`. The word and
 all numeric bounds and indices use raw bit strings and binary naturals. The coordinate
 query receives an instance, a binary modulus and a binary field element, and returns a
 framed list of binary residues. Its semantic guarantee is only needed at primes above
 the supplied coordinate cutoff and at the canonical field representatives. -/
-theorem formulaWordGateCoefficientSign_mem {α : Type} {enc : α ↪ List Bool}
+theorem formulaWordGateCoefficientSign_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (D : Decoder enc) {word : α → List Bool}
     (coordinates : (w : α) → Fin (word w).length → Polynomial (Polynomial ℤ))
     {gate i j inner outer massExponent pointCutoff : α → ℕ}
@@ -46,7 +46,7 @@ theorem formulaWordGateCoefficientSign_mem {α : Type} {enc : α ↪ List Bool}
     (houter : ComputableInPolyTime outer enc encNat)
     (hmass : ComputableInPolyTime massExponent enc encNat)
     (hcutoff : ComputableInPolyTime pointCutoff enc encNat)
-    (hpoint : ComputableInPolyTime point (encPair (encPair enc encNat) encNat) (encList encNat))
+    (hpoint : point ∈ CountingFunction a (encPair (encPair enc encNat) encNat) (encList encNat))
     (hinnerBound : ∀ w k, (Polynomial.Bivariate.swap (coordinates w k)).natDegree ≤ inner w)
     (houterBound : ∀ w k, (coordinates w k).natDegree ≤ outer w)
     (hmassBound : ∀ w k, (coordinates w k).bivariateCoeffNorm1 ≤ 2 ^ massExponent w)
@@ -55,7 +55,7 @@ theorem formulaWordGateCoefficientSign_mem {α : Type} {enc : α ↪ List Bool}
         Polynomial.aevalAeval (z : ZMod p)
           ((z : ZMod p) ^ formulaWordGateKroneckerRadix (word w) (inner w)) (coordinates w k)) :
     (fun w => (((formulaWordGatePolynomial (word w) (gate w) (coordinates w)).coeff
-      (j w)).coeff (i w)).sign) ∈ CountingFunction 8 enc encIntBin := by
+      (j w)).coeff (i w)).sign) ∈ CountingFunction (max (a + 1) 5 + 3) enc encIntBin := by
   let P (w : α) := formulaWordGatePolynomial (word w) (gate w) (coordinates w)
   let radix (w : α) := formulaWordGateKroneckerRadix (word w) (inner w)
   let cutoff (w : α) :=
@@ -92,7 +92,7 @@ theorem formulaWordGateCoefficientSign_mem {α : Type} {enc : α ↪ List Bool}
       simpa only [Int.toNat_natCast] using
         congrArg Int.toNat (ZMod.val_intCast (n := p) (((P w).coeff (j w)).coeff (i w)))
   }
-  have hR : R.InCountingFunction 1 enc := by
+  have hR : R.InCountingFunction (a + 1) enc := by
     refine ⟨binary_mul' (formulaWordGateTermBudget_polyTime hword)
       (binary_add' hmass (.const 1)), ?_⟩
     have hw := fst enc encNat
@@ -102,11 +102,11 @@ theorem formulaWordGateCoefficientSign_mem {α : Type} {enc : α ↪ List Bool}
       (snd (encPair enc encNat) encNat)
     change (fun (w, p) => formulaWordGateCoefficientResidue (word w) (gate w) (max p 1)
       (radix w) (i w) (j w) (fun z => point ((w, max p 1), z))) ∈
-        CountingFunction 1 (encPair enc encNat) encNat
+        CountingFunction (a + 1) (encPair enc encNat) encNat
     exact formulaWordGateCoefficientResidue_mem (point := fun ((w, p), z) =>
       point ((w, max p 1), z)) (Decoder.pair D Decoder.nat)
       (hword.comp hw) (hgate.comp hw) hp (fun _ => (le_max_right _ _ : 1 ≤ _))
-      hr (hi.comp hw) (hj.comp hw) (hpoint.comp hargs)
+      hr (hi.comp hw) (hj.comp hw) (CountingFunction.preprocess hpoint hargs)
   have hL : ComputableInPolyTime cutoff enc encNat :=
     binary_max' hcutoff (formulaWordGateCoefficientPrimeCutoff_polyTime hword hinner houter)
   exact R.sign_mem_CountingFunction D hR hL fun _ _ h => by

@@ -21,8 +21,8 @@ Pack the bivariate coefficient indices in a single Kronecker exponent and use th
 finite-field coefficient sum on the gate's executable modular evaluations.
 This adapts `LeanCanny.ETR.BivariateTermReader.coefficient_eq` at
 lean-canny `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
-A polynomial-time source of the coordinate values yields a certificate at one
-counting-function level. The source for the critical-point family remains separate.
+A coordinate evaluator at counting-function level `a` yields a certificate at
+level `a + 1`. The source for the critical-point family remains separate.
 The word length and coordinate degree bounds give a uniform binary radix and
 prime cutoff for all gates.
 -/
@@ -97,9 +97,9 @@ Indices outside the radix or finite-field interpolation range return zero. -/
     else 0
   else 0
 
-/-- Polynomial-time coordinate queries give coefficient extraction in one counting-function
-level. The gate index, modulus, radix and coefficient indices are binary. -/
-theorem formulaWordGateCoefficientResidue_mem {α : Type} {enc : α ↪ List Bool}
+/-- Coordinate queries at level `a` give coefficient extraction at level `a + 1`.
+The gate index, modulus, radix and coefficient indices are binary. -/
+theorem formulaWordGateCoefficientResidue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (D : Decoder enc) {word : α → List Bool} {gate p radix i j : α → ℕ}
     {point : α × ℕ → List ℕ}
     (hword : ComputableInPolyTime word enc encBits)
@@ -107,18 +107,21 @@ theorem formulaWordGateCoefficientResidue_mem {α : Type} {enc : α ↪ List Boo
     (hp : ComputableInPolyTime p enc encNat) (hpos : ∀ w, 0 < p w)
     (hradix : ComputableInPolyTime radix enc encNat)
     (hi : ComputableInPolyTime i enc encNat) (hj : ComputableInPolyTime j enc encNat)
-    (hpoint : ComputableInPolyTime point (encPair enc encNat) (encList encNat)) :
+    (hpoint : point ∈ CountingFunction a (encPair enc encNat) (encList encNat)) :
     (fun w => formulaWordGateCoefficientResidue (word w) (gate w) (p w) (radix w)
-      (i w) (j w) (fun z => point (w, z))) ∈ CountingFunction 1 enc encNat := by
-  let hf := ComputableInPolyTime.fst enc encNat
-  have hv := formulaWordGateResidue_polyTime (hword.comp hf) (hgate.comp hf) (hp.comp hf)
-    (fun a => hpos a.1) hpoint
+      (i w) (j w) (fun z => point (w, z))) ∈ CountingFunction (a + 1) enc encNat := by
+  let query := encPair enc encNat
+  let coords := encList encNat
+  have hw := (ComputableInPolyTime.fst enc encNat).comp (ComputableInPolyTime.fst query coords)
+  have hgateValue := formulaWordGateResidue_polyTime (hword.comp hw) (hgate.comp hw) (hp.comp hw)
+    (fun ((w, _), _) => hpos w) (ComputableInPolyTime.snd query coords)
+  have hv := CountingFunction.comp_with (CountingFunction.of_polyTime hgateValue) hpoint
   have hk := ComputableInPolyTime.binary_add' hi (ComputableInPolyTime.binary_mul' hradix hj)
-  have hc := coefficientResidue_mem (a := 0) D hp hk (CountingFunction.of_polyTime hv)
+  have hc := coefficientResidue_mem D hp hk hv
   have hinner := ComputableInPolyTime.binary_lt' hi hradix
   have hfield := ComputableInPolyTime.binary_lt' hk
     (ComputableInPolyTime.binary_sub' hp (.const 1))
-  have hzero := CountingFunction.of_polyTime (a := 1) (ComputableInPolyTime.const 0 :
+  have hzero := CountingFunction.of_polyTime (a := a + 1) (ComputableInPolyTime.const 0 :
     ComputableInPolyTime (fun _ : α => (0 : ℕ)) enc encNat)
   simpa only [formulaWordGateCoefficientResidue, Function.comp_apply, decide_eq_true_eq] using
     CountingFunction.ite (CountingFunction.of_polyTime hinner)

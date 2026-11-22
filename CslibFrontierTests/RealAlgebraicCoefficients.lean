@@ -43,14 +43,14 @@ example (i j : ℕ) :
 
 -- The sign certificate accepts a coordinate evaluator implemented by zero padding.
 open Cslib.Logic.RealArithmetic in
-example :
+example (a : ℕ) :
     (fun word : List Bool => (((formulaWordGatePolynomial word 0 (fun _ => 0)).coeff 0).coeff
-      0).sign) ∈ CountingFunction 8 encBits encIntBin := by
-  exact formulaWordGateCoefficientSign_mem Decoder.bits (fun _ _ => 0)
+      0).sign) ∈ CountingFunction (max (a + 1) 5 + 3) encBits encIntBin := by
+  exact formulaWordGateCoefficientSign_mem (a := a) Decoder.bits (fun _ _ => 0)
     (inner := fun _ => 0) (outer := fun _ => 0) (massExponent := fun _ => 0)
     (pointCutoff := fun _ => 0) (point := fun _ => [])
     .id' (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0)
-    (.const []) (by simp) (by simp) (by simp) (by simp)
+    (CountingFunction.of_polyTime (.const [])) (by simp) (by simp) (by simp) (by simp)
 
 -- Defaulting absent exponent entries to zero selects the constant term.
 example : multivariateCoefficientResidue 5 1 [] (fun z =>
