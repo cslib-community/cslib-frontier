@@ -8,6 +8,7 @@ module
 -- upstream: local-only (real-arithmetic semantic and codec regression tests)
 
 import CslibFrontier.Computability.Complexity.Classes.ExistsReal
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
@@ -212,6 +213,20 @@ set_option linter.hashCommand false in
     formulaWordGateUpdate word 3 true [] == [true] &&
     formulaWordGateUpdate word 3 false [] == [false] &&
     formulaWordGateUpdate [] (2 ^ 80) true [] == [false]
+
+-- A positive sign never satisfies either comparison, so this reader uses a constant answer.
+example :
+    ComputableInPolySpace (fun word : List Bool => formulaWordGateValues word (fun _ => 1))
+      encBits encBits := by
+  refine formulaWordGateValues_polySpace_of_comparisonAnswers ComputableInPolyTime.id' ?_
+  refine ComputableInPolySpace.congr
+    (ComputableInPolySpace.of_polyTime (ComputableInPolyTime.const false)) ?_
+  rintro ⟨word, index⟩
+  cases formulaWordComparisonRequest word index with
+  | none => rfl
+  | some request =>
+    rcases request with ⟨_, strict⟩
+    cases strict <;> simp [Option.any, FormulaComparisonRequest.requestedSign]
 
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
