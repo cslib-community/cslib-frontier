@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import CslibFrontier.Tactic.Degree
 
 /-!
 # The universal machine within a space budget
@@ -293,39 +294,21 @@ private lemma length_eSSt_le (t i j : ℕ) :
 open ComputableInO
 
 /-- The first two elements of a list, in linear time and space. -/
+@[local fun_prop]
 lemma take_two_deg : ComputableInDegree (fun l : List ℕ => l.take 2) (encList encUnary)
     (encList encUnary) 1 1 := by
-  have hsingle : ComputableInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
-    .of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil]
-  have hhead := ComputableInDegree.headD (enc₁ := encUnary) (enc := encList encUnary) 0
-  have hempty := ComputableInDegree.isEmpty (enc₁ := encUnary) (enc := encList encUnary)
-  have htail := ComputableInDegree.tail (enc₁ := encUnary) (enc := encList encUnary)
-  have hone : ComputableInDegree (fun l : List ℕ => if l.isEmpty then [] else [l.headD 0])
-      (encList encUnary) (encList encUnary) 1 1 :=
-    (hempty.ite ((ComputableInDegree.const (encMid := encList encUnary) []).restrict _)
-      ((hsingle.comp hhead).restrict _)).mono
-  have hcons := (ComputableInDegree.cons encUnary).comp (hhead.prod (hone.comp htail))
-  refine ((hempty.ite ((ComputableInDegree.const (encMid := encList encUnary) []).restrict _)
-    (hcons.restrict _)).of_enc_eq fun l => ?_).mono
+  refine (by degree : ComputableInDegree
+    (fun l : List ℕ => match l.head? with
+      | none => []
+      | some a => a :: l.tail.head?.toList)
+    (encList encUnary) (encList encUnary) 1 1).of_enc_eq fun l => ?_
   rcases l with _ | ⟨a, _ | ⟨c, l⟩⟩ <;> rfl
 
 /-- The first two symbols of a list followed by an optional symbol, in linear time and space. -/
 lemma keepTwo_deg : ComputableInDegree
     (fun p : List ℕ × Option ℕ => (p.1 ++ p.2.toList).take 2)
     (encPair (encList encUnary) eSym) (encList encUnary) 1 1 := by
-  have hsingle : ComputableInDegree (fun n : ℕ => [n]) encUnary (encList encUnary) 1 1 :=
-    .of_frame fun n => by rw [encList_cons, encList_nil, List.append_nil]
-  have htoList : ComputableInDegree (fun e : Option ℕ => e.toList) eSym
-      (encList encUnary) 1 1 := by
-    refine (((ComputableInDegree.isSome encUnary).ite
-      ((hsingle.comp (ComputableInDegree.getD (enc₁ := encUnary) (enc := eSym) 0)).restrict
-        _) ((ComputableInDegree.const (encMid := encList encUnary) []).restrict _)).of_enc_eq
-      fun e => ?_).mono
-    cases e <;> rfl
-  have happ := (ComputableInDegree.listAppend encUnary).comp
-    ((ComputableInDegree.fst (encList encUnary) eSym).prod
-      (htoList.comp (ComputableInDegree.snd (encList encUnary) eSym)))
-  exact (take_two_deg.comp happ).mono
+  degree
 
 /-- The first two symbols of a list followed by an optional symbol, in time and space linear in the
 encoded input. -/
@@ -389,9 +372,8 @@ private lemma foldFinishS_inO : ComputableInO foldFinishS eSSt eOut
   have h₂ := snd eSt (encPair encUnary (encList encUnary))
   -- bridge for #862: tidy client of the plain `state_inO`
   have hst := state_inO.comp_linear h₁.fst'.snd'
-  have hnone := (ComputableInDegree.of_finite (encIn := encBool) (encMid := encBool)
-    fun b : Bool => !b).inO_one.comp_linear
-      ((ComputableInDegree.isSome encUnary).inO_one.comp_linear hst)
+  have hnone := (by degree : ComputableInDegree (fun o : Option ℕ => !o.isSome)
+    eSym encBool 1 0).inO_one.comp_linear hst
   refine ((h₂.snd'.prod hnone).of_enc_eq (g := foldFinishS) fun s => ?_).mono 2 (fun s => ?_)
     fun s => ?_
   · simp only [foldFinishS, Function.comp_apply]

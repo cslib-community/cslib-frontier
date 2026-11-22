@@ -14,6 +14,7 @@ import CslibFrontier.MachineLearning.PACLearning.DoubleSample
 import CslibFrontier.Probability.Chernoff
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.Product.MapMeasure
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
@@ -305,7 +306,7 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
     rfl
   have hεq : ε ≤ (q true).toReal := by
     rw [hqt]
-    exact (ENNReal.ofReal_le_iff_le_toReal (measure_ne_top _ _)).1 hε
+    ennreal_to_real using hε
   have hmean : ε * m ≤ ∑ i : Fin m, ∑ a, (q a).toReal * score i a := by
     simp only [score, Fintype.sum_bool, ite_true, mul_one, Bool.false_eq_true, ite_false,
       mul_zero, add_zero, Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul]
@@ -332,14 +333,9 @@ private theorem measure_pi_card_lt_le_half (μ : Measure Z) [IsProbabilityMeasur
           linarith [Real.exp_one_gt_d9]
   have hle := measure_mono (μ := (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure)
     hsub
-  have hne : (Cslib.Probability.PMF.pi fun _ : Fin m => q).toOuterMeasure
-      {b | ∑ i, score i (b i) ≤ (1 - 1 / 2) * (ε * m)} ≠ ⊤ :=
-    Cslib.Probability.PMF.toOuterMeasure_ne_top _ _
   refine hle.trans ?_
-  rw [show (1 / 2 : ℝ≥0∞) = ENNReal.ofReal (1 / 2) by
-      rw [ENNReal.ofReal_div_of_pos (by norm_num), ENNReal.ofReal_one, ENNReal.ofReal_ofNat],
-    ENNReal.le_ofReal_iff_toReal_le hne (by norm_num)]
-  exact hch.trans hexp.le
+  ennreal_to_real
+  linarith [hch, hexp]
 
 /-- Symmetrization: the double-sample event has probability at most `Π_G(2m) / 2 ^ k`. -/
 private theorem measure_doubleSampleEvent_mul_two_pow_le (μ : Measure Z)
