@@ -17,8 +17,9 @@ import Mathlib.Data.Fintype.EquivFin
 
 Different shared-memory synchronization primitives have strictly different wait-free consensus
 numbers — the maximum number of asynchronous crash-prone processes for which they can solve
-wait-free consensus ([LouiAbuAmara1987]; [Herlihy1991], §3, Definition 1, p. 130 & Figure 1,
-p. 126). Building on the bivalence and critical-configuration engine in
+wait-free consensus ([Herlihy1991], §3, Definition 1, p. 130 & Figure 1, p. 126; see also prior
+shared-register impossibility results in [LouiAbuAmara1987] noted in [Herlihy1991], §3.1, p. 132).
+Building on the bivalence and critical-configuration engine in
 `CslibFrontier/Computability/Distributed/SharedMemory/Basic.lean`, this module establishes the
 three fundamental levels `1 < 2 < ∞` of Herlihy's hierarchy:
 
@@ -27,16 +28,16 @@ three fundamental levels `1 < 2 < ∞` of Herlihy's hierarchy:
     protocol solves wait-free consensus over any value type and any nonempty object family.
   * `not_waitFreeConsensus_registers`: when `2 ≤ Fintype.card P`, no wait-free protocol using only
     atomic multi-reader multi-writer read/write registers (`registerObj`) solves binary consensus
-    ([LouiAbuAmara1987]; [Herlihy1991], §3.1, Theorem 2 & Figures 3–5, pp. 131–133). At a critical
-    configuration `c*` with `p ≠ q` stepping to `false`-univalent and `true`-univalent
-    configurations, operations on distinct registers or two reads commute, a read followed by a
-    write is invisible to the writer's solo continuation, and a write followed by a write overwrites
-    the earlier write without returning the overwritten value.
+    ([Herlihy1991], §3.1, Theorem 2 & Figures 3–5, pp. 131–133). At a critical configuration `c*`
+    with `p ≠ q` stepping to `false`-univalent and `true`-univalent configurations, operations on
+    distinct registers or two reads commute, a read followed by a write is invisible to the writer's
+    solo continuation, and a write followed by a write overwrites the earlier write without
+    returning the overwritten value.
   * `exists_register_consensus_iff`: binary wait-free consensus is solvable from atomic read/write
     registers if and only if `Fintype.card P ≤ 1`.
 
 * **Level `2` — Commuting-or-overwriting read-modify-write primitives ([Herlihy1991], §3.2,
-  Theorems 3–4, pp. 133–134):**
+  Figure 7 & Theorem 4, p. 134):**
   * `IsCommutingOrOverwriting` captures Herlihy's "interfering" algebraic obstruction for consensus
     number `2` ([Herlihy1991], §3.2, p. 134): any two operations on the same object either commute
     on the object's state or one overwrites the other's effect on the state. Atomic registers
@@ -44,8 +45,9 @@ three fundamental levels `1 < 2 < ∞` of Herlihy's hierarchy:
     all satisfy `IsCommutingOrOverwriting`.
   * `testAndSetProtocol` / `solvesWaitFreeConsensus_testAndSet_two`: an explicit 3-step protocol
     (write own proposal register, invoke `testAndSetObj`, read the winning process's proposal
-    register; [Herlihy1991], §3.2, Theorem 3 & Figure 7, pp. 133–134) solves wait-free consensus
-    whenever `Fintype.card P ≤ 2`.
+    register) formalizing the concrete `test&set` instance of [Herlihy1991], §3.2, Figure 7
+    (p. 134) solves wait-free consensus whenever `Fintype.card P ≤ 2` (Theorem 3's general
+    2-process lower bound over arbitrary nontrivial RMW functions remains open in `#7199`).
   * `not_waitFreeConsensus_rmw_of_three_le`: when `3 ≤ Fintype.card P`, no wait-free protocol over
     any indexed family of commuting-or-overwriting objects (including any mix of registers,
     `TestAndSet`, `Swap`, and `FetchAndAdd`; [Herlihy1991], §3.2, Theorem 4, p. 134) solves binary
@@ -85,7 +87,7 @@ three fundamental levels `1 < 2 < ∞` of Herlihy's hierarchy:
 
 * `Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_one`: 1-process consensus sufficiency.
 * `Cslib.Distributed.SharedMemory.not_waitFreeConsensus_registers`: 2-process impossibility for
-  atomic read/write registers ([LouiAbuAmara1987]; [Herlihy1991]).
+  atomic read/write registers ([Herlihy1991], §3.1, Theorem 2).
 * `Cslib.Distributed.SharedMemory.exists_register_consensus_iff`: register consensus solvable iff
   `Fintype.card P ≤ 1`.
 * `Cslib.Distributed.SharedMemory.isCommutingOrOverwriting_registerObj`,
@@ -319,10 +321,9 @@ theorem solvesWaitFreeConsensus_one {P I V : Type*} {Op Resp ObjState : I → Ty
   · rintro inp c v hr ⟨p, hp⟩
     exact ⟨p, ((hinv inp c hr p).2 v hp).symm⟩
 
-/-- **Loui–Abu-Amara / Herlihy Level-1 impossibility ([LouiAbuAmara1987]; [Herlihy1991], §3.1,
-Theorem 2 & Figures 3–5, pp. 131–133):** no wait-free deterministic shared-memory protocol using
-only atomic multi-reader multi-writer read/write registers solves binary consensus for
-`2 ≤ Fintype.card P` processes. -/
+/-- **Herlihy Level-1 register impossibility ([Herlihy1991], §3.1, Theorem 2 & Figures 3–5,
+pp. 131–133):** no wait-free deterministic shared-memory protocol using only atomic multi-reader
+multi-writer read/write registers solves binary consensus for `2 ≤ Fintype.card P` processes. -/
 theorem not_waitFreeConsensus_registers {P I S : Type*} {Val : I → Type*}
     [Fintype P] [DecidableEq P] [DecidableEq I]
     {init : ∀ i, Val i}
@@ -905,9 +906,10 @@ private theorem exists_other_of_card_le_two {P : Type*} [Fintype P]
   rw [hcard3, Finset.card_univ] at hle
   omega
 
-/-- **2-process `TestAndSet` sufficiency ([Herlihy1991], §3.2, Theorem 3 & Figure 7,
-pp. 133–134):** whenever `Fintype.card P ≤ 2`, there is a 3-step `testAndSetProtocol` solving
-wait-free consensus over `P` and `V`. -/
+/-- **2-process `TestAndSet` sufficiency (`test&set` instance of [Herlihy1991], §3.2, Figure 7,
+p. 134):** whenever `Fintype.card P ≤ 2`, there is a 3-step `testAndSetProtocol` solving wait-free
+consensus over `P` and `V` (Theorem 3's general 2-process lower bound over arbitrary nontrivial RMW
+functions is outside this module). -/
 theorem solvesWaitFreeConsensus_testAndSet_two {P : Type*} {V : Type u} [Fintype P] [DecidableEq P]
     (v₀ : V) (hcard : Fintype.card P ≤ 2) :
     ∃ other : P → P, (testAndSetProtocol (id : P → P) v₀ other).SolvesWaitFreeConsensus := by
@@ -950,10 +952,10 @@ theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState 
     · simp only [applyAt, Function.update_self, Function.update_idem, hover_p]
     · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
 
-/-- **Sharp Level-2 consensus characterization ([Herlihy1991], §3.2, Theorems 3–4, pp. 133–134):**
-wait-free binary consensus (`SolvesWaitFreeConsensus`) is solvable using `TestAndSet` objects and
-atomic read/write registers if and only if `Fintype.card P ≤ 2` (solvable for `0`, `1`, or `2`
-processes via `testAndSetProtocol`, and impossible for `3 ≤ Fintype.card P` by
+/-- **Sharp Level-2 `TestAndSet` consensus characterization ([Herlihy1991], §3.2, Figure 7 &
+Theorem 4, p. 134):** wait-free binary consensus (`SolvesWaitFreeConsensus`) is solvable using
+`TestAndSet` objects and atomic read/write registers if and only if `Fintype.card P ≤ 2` (solvable
+for `0`, `1`, or `2` processes via `testAndSetProtocol`, and impossible for `3 ≤ Fintype.card P` by
 `not_waitFreeConsensus_rmw_of_three_le`). -/
 theorem exists_testAndSet_consensus_iff {P : Type*} [Fintype P] [DecidableEq P] :
     (∃ (I : Type) (_ : DecidableEq I) (kind : I → TASRegKind.{0}) (S : Type)

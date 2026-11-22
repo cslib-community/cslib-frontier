@@ -17,9 +17,10 @@ import Mathlib.Data.Fintype.EquivFin
 # Wait-free shared-memory consensus and the critical-configuration engine
 
 This module models deterministic asynchronous shared-memory protocols interacting with an indexed
-family of typed deterministic sequential shared objects (`ObjSpec`), following [LouiAbuAmara1987]
-and [Herlihy1991]. It serves as the shared-memory counterpart to `Cslib.FLP` (asynchronous
-crash-fault message passing) and reuses `Cslib.LTS` for multistep reachability.
+family of typed deterministic sequential shared objects (`ObjSpec`), following [Herlihy1991]
+(§§2.2–3.1, pp. 128–133; see also prior register-impossibility work [LouiAbuAmara1987] cited in
+[Herlihy1991], §3.1, p. 132). It serves as the shared-memory counterpart to `Cslib.FLP`
+(asynchronous crash-fault message passing) and reuses `Cslib.LTS` for multistep reachability.
 
 In each global configuration (`Config`), every shared object `i : I` holds a sequential state in
 `ObjState i`, and every process `p : P` holds an internal local state in `S` together with a
@@ -41,14 +42,14 @@ decided, its decision is immutable and `p` takes no further active transitions i
   input.
 
 For binary consensus (`V = Bool`), we develop the constructive bivalence and critical-configuration
-engine ([LouiAbuAmara1987]; [Herlihy1991], §3.1, pp. 131–132):
+engine ([Herlihy1991], §3.1, pp. 131–133):
 * `Protocol.soloRun` computably drives any single process `p` to a decision from any accessible
   configuration via `WellFounded.fixF`, and `Protocol.soloRun_mem_proc_eq` shows that `p`'s solo
   execution depends only on `c.mem` and `c.proc p`.
 * `Protocol.exists_bivalent_init` proves that when `2 ≤ Fintype.card P`, every wait-free binary
   consensus protocol admits a bivalent initial configuration by flipping inputs one process at a
-  time from unanimous `false` to unanimous `true` ([LouiAbuAmara1987]; cf. [Herlihy1991], §3.1,
-  p. 131 for `|P| = 2`).
+  time from unanimous `false` to unanimous `true` (extending [Herlihy1991], §3.1, p. 131 from
+  `|P| = 2` to arbitrary `2 ≤ Fintype.card P`).
 * `Protocol.exists_critical_config` uses structural recursion on `Acc π.StepRel` directly (without
   König's lemma) to reach a critical bivalent configuration `c*` where every process is active and
   two distinct processes `p ≠ q` step to `false`-univalent and `true`-univalent configurations
@@ -238,9 +239,9 @@ def Reachable (π : Protocol P objs S V) (inp : P → V) (c : Config P ObjState 
 abbrev StepRel (π : Protocol P objs S V) (c' c : Config P ObjState S V) : Prop :=
   ∃ p, c.Active p ∧ π.step p c = c'
 
-/-- Wait-free termination ([LouiAbuAmara1987]; [Herlihy1991], §2.3 & §3, pp. 129–130): from every
-initial configuration `π.initConfig inp`, the active-step relation `π.StepRel` is accessible, so no
-infinite sequence of active steps exists from any reachable configuration. -/
+/-- Wait-free termination ([Herlihy1991], §2.3 & §3, pp. 129–130): from every initial configuration
+`π.initConfig inp`, the active-step relation `π.StepRel` is accessible, so no infinite sequence of
+active steps exists from any reachable configuration. -/
 abbrev WaitFree (π : Protocol P objs S V) : Prop :=
   ∀ inp : P → V, Acc π.StepRel (π.initConfig inp)
 
@@ -519,18 +520,17 @@ variable {P I S : Type*} {Op Resp ObjState : I → Type*}
   [DecidableEq P] [DecidableEq I]
 
 /-- Configuration `c` is `b`-univalent (`b`-valent) if `b` is reachable from `c` and `!b` is not
-([LouiAbuAmara1987]; [Herlihy1991], §3.1, p. 131). -/
+([Herlihy1991], §3.1, p. 131). -/
 def IsUnivalent (π : Protocol P objs S Bool) (c : Config P ObjState S Bool) (b : Bool) : Prop :=
   π.CanDecide c b ∧ ¬ π.CanDecide c (!b)
 
 /-- Configuration `c` is bivalent if both `false` and `true` are reachable decisions from `c`
-([LouiAbuAmara1987]; [Herlihy1991], §3.1, p. 131). -/
+([Herlihy1991], §3.1, p. 131). -/
 def IsBivalent (π : Protocol P objs S Bool) (c : Config P ObjState S Bool) : Prop :=
   π.CanDecide c false ∧ π.CanDecide c true
 
 /-- Configuration `c` is *critical* if `c` is bivalent yet every active step from `c` is a decision
-step leaving the set of bivalent configurations ([LouiAbuAmara1987]; [Herlihy1991], §3.1,
-pp. 131–132). -/
+step leaving the set of bivalent configurations ([Herlihy1991], §3.1, pp. 131–132). -/
 def IsCritical (π : Protocol P objs S Bool) (c : Config P ObjState S Bool) : Prop :=
   π.IsBivalent c ∧ ∀ p, c.Active p → ¬ π.IsBivalent (π.step p c)
 
@@ -561,11 +561,11 @@ theorem IsUnivalent.soloRun_decided {π : Protocol P objs S Bool} (w : P)
   · exact absurd hcan hu.2
   · exact hd
 
-/-- **Solo-indistinguishability contradiction ([LouiAbuAmara1987]; [Herlihy1991], §3.1,
-pp. 131–133):** if `c₀` is reachable from an accessible `false`-univalent configuration `u₀`, `c₁`
-is reachable from an accessible `true`-univalent configuration `u₁`, and `c₀` and `c₁` have
-identical shared memory and identical local state at some witness process `w`, then `w`'s solo
-execution yields a contradiction. -/
+/-- **Solo-indistinguishability contradiction ([Herlihy1991], §3.1, pp. 131–133):** if `c₀` is
+reachable from an accessible `false`-univalent configuration `u₀`, `c₁` is reachable from an
+accessible `true`-univalent configuration `u₁`, and `c₀` and `c₁` have identical shared memory and
+identical local state at some witness process `w`, then `w`'s solo execution yields a
+contradiction. -/
 theorem not_univalent_of_indistinguishable {π : Protocol P objs S Bool} (w : P)
     {u₀ u₁ c₀ c₁ : Config P ObjState S Bool}
     (ha₀ : Acc π.StepRel u₀) (ha₁ : Acc π.StepRel u₁)
@@ -618,9 +618,9 @@ private theorem univalent_initConfig_const {π : Protocol P objs S Bool}
   · exact absurd hd hno_opp
   · exact hd
 
-/-- **Initial bivalence ([LouiAbuAmara1987]; cf. [Herlihy1991], §3.1, p. 131):** every wait-free
-binary consensus protocol over `2 ≤ Fintype.card P` processes has at least one bivalent initial
-configuration. -/
+/-- **Initial bivalence (extending [Herlihy1991], §3.1, p. 131 from `|P| = 2` to
+`2 ≤ Fintype.card P` via single-input flips):** every wait-free binary consensus protocol over
+`2 ≤ Fintype.card P` processes has at least one bivalent initial configuration. -/
 theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
     (hcons : π.SolvesWaitFreeConsensus) (hcard : 2 ≤ Fintype.card P) :
     ∃ inp : P → Bool, π.IsBivalent (π.initConfig inp) := by
@@ -687,11 +687,11 @@ theorem exists_bivalent_init [Fintype P] (π : Protocol P objs S Bool)
     (LTS.CanReach.refl _ _) (LTS.CanReach.refl _ _) rfl
     (by simp only [initConfig, hinp_eq])
 
-/-- **Constructive critical configuration ([LouiAbuAmara1987]; [Herlihy1991], §3.1,
-pp. 131–132):** from any reachable bivalent configuration `c` of a wait-free binary consensus
-protocol, structural induction on `Reachable.acc` reaches a critical configuration `c*` in which
-every process is active and two distinct processes `p ≠ q` step to `false`-univalent and
-`true`-univalent configurations respectively. -/
+/-- **Constructive critical configuration ([Herlihy1991], §3.1, pp. 131–132):** from any reachable
+bivalent configuration `c` of a wait-free binary consensus protocol, structural induction on
+`Reachable.acc` reaches a critical configuration `c*` in which every process is active and two
+distinct processes `p ≠ q` step to `false`-univalent and `true`-univalent configurations
+respectively. -/
 theorem exists_critical_config (π : Protocol P objs S Bool)
     (hcons : π.SolvesWaitFreeConsensus) {inp : P → Bool} {c : Config P ObjState S Bool}
     (hr : π.Reachable inp c) (hbiv : π.IsBivalent c) :
