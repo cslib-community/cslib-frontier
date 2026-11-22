@@ -1561,6 +1561,7 @@ public import CslibFrontier.Computability.Circuit.Cyclic
 public import CslibFrontier.Computability.Circuit.Cyclic.Feedback
 public import CslibFrontier.Computability.Circuit.DagProtocol
 public import CslibFrontier.Computability.Circuit.Decomposable
+public import CslibFrontier.Computability.Circuit.Decomposable.Peeling
 public import CslibFrontier.Computability.Circuit.Depth
 public import CslibFrontier.Computability.Circuit.Descending
 public import CslibFrontier.Computability.Circuit.Encoding.Basic
@@ -1643,6 +1644,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Sweep
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Unconditional
+public import CslibFrontier.Computability.Circuit.Frontier.Linear.DirectedShift
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
 public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
@@ -1650,6 +1652,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.MultiPass
 public import CslibFrontier.Computability.Circuit.Frontier.Multigraph
 public import CslibFrontier.Computability.Circuit.Frontier.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
+public import CslibFrontier.Computability.Circuit.Frontier.PolynomialWitness
 public import CslibFrontier.Computability.Circuit.Frontier.Projection
 public import CslibFrontier.Computability.Circuit.Frontier.Rectangle
 public import CslibFrontier.Computability.Circuit.Frontier.Reduction
@@ -5941,6 +5944,7 @@ public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
 public import CslibFrontier.Crypto.Primitives.PRF.Invertible
 public import CslibFrontier.Crypto.Primitives.PRF.MultiKey
+public import CslibFrontier.Crypto.Primitives.PRF.PrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 public import CslibFrontier.Crypto.Primitives.PRF.RandomOracleModel
 public import CslibFrontier.Crypto.Primitives.PRF.ToPRG
@@ -6969,6 +6973,7 @@ public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.PairwiseIntersection
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.RayChaudhuriWilson
+public import CslibFrontier.Foundations.Combinatorics.SetFamily.ShadowDegeneracy
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.Basic
 public import CslibFrontier.Foundations.Combinatorics.SetPartition.JoinMatrix
 public import CslibFrontier.Foundations.Combinatorics.SharedSummaries
@@ -7835,6 +7840,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.PolynomialDense
 public import CslibFrontier.Foundations.Probability.Gaussian.Projection
 public import CslibFrontier.Foundations.Probability.Gaussian.Quadrant
 public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
+public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantMono
 public import CslibFrontier.Foundations.Probability.Gaussian.Quantile
 public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 public import CslibFrontier.Foundations.Probability.Gaussian.Real

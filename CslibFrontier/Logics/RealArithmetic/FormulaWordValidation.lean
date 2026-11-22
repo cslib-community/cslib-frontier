@@ -416,7 +416,8 @@ enc_structure encFormulaComparisonRequest : FormulaComparisonRequest where
   isStrict : encBool
 
 /-- The sign that makes the requested comparison true. -/
-def FormulaComparisonRequest.requestedSign (request : FormulaComparisonRequest) : SignType :=
+@[expose] def FormulaComparisonRequest.requestedSign
+    (request : FormulaComparisonRequest) : SignType :=
   if request.isStrict then -1 else 0
 
 private def comparisonRequest : FormulaToken → Option FormulaComparisonRequest
@@ -504,6 +505,18 @@ def formulaWordGateValueWithAnswer (word : List Bool) (index : ℕ)
     (answer : Bool) (value : ℕ → Bool) : Bool :=
   gateValueWithAnswer (formulaWordTokenAt word index) (formulaWordChildIndices word index)
     answer value
+
+/-- Two supplied answers give the same gate value if they agree whenever the gate requests
+a comparison. -/
+theorem formulaWordGateValueWithAnswer_congr (word : List Bool) (index : ℕ)
+    (value : ℕ → Bool) {a b : Bool}
+    (h : (formulaWordComparisonRequest word index).isSome = true → a = b) :
+    formulaWordGateValueWithAnswer word index a value =
+      formulaWordGateValueWithAnswer word index b value := by
+  by_cases hc : (formulaWordComparisonRequest word index).isSome = true
+  · rw [h hc]
+  · have hn : (comparisonRequest (formulaWordTokenAt word index)).isSome ≠ true := hc
+    simp only [formulaWordGateValueWithAnswer, gateValueWithAnswer, ite_eq_right hn]
 
 /-- Evaluate the Boolean part of a gate in polynomial time from a raw word, binary position,
 comparison answer, and a certified reader of values at binary positions. -/
