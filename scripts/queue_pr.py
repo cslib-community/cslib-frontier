@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Add a pull request to the merge queue at exactly the approved head.
 
-Usage: python3 scripts/queue_pr.py PR SHA [--wait MINUTES] [--repo OWNER/NAME]
+Usage: python3 scripts/queue_pr.py PR SHA [--wait MINUTES] [--allow-queue-conflict]
+                                   [--repo OWNER/NAME]
 
 This is the queueing half of approve-and-queue (AGENTS.md, "Approve and queue"). It refuses
 unless the pull request is open, not a draft, based on `main`, has head SHA, and merges cleanly
 into its base, and the required check (`REQUIRED_CHECKS`) has succeeded at SHA. All pages of check
 contexts are read from the same commit before selecting each required check's latest attempt.
 While that check is still running it waits up to `--wait` minutes (default 0: report and stop);
-it always waits briefly for GitHub to compute mergeability. It then enqueues with
+it always waits briefly for GitHub to compute mergeability. Just before enqueueing from a full
+local checkout, if other pull requests are already ahead in the merge queue, it replays that
+queue prefix with `scripts/queue_status.py` and refuses on a textual conflict unless
+`--allow-queue-conflict` is given. It then enqueues with
 `expectedHeadOid` = SHA, so a push after the approval can never be queued in its place.
 If it sleeps, it snapshots the PR discussion before the first sleep and rereads it just before
 enqueueing. A changed body, comment, submitted review or inline thread stops the waiting enqueue
@@ -28,12 +32,16 @@ running, 2 on a `gh` error. Requires an authenticated `gh` with write access to 
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
+from pathlib import Path
 import re
 import subprocess
 import sys
 import time
 
+ROOT = Path(__file__).resolve().parents[1]
 REPO = "cslib-community/cslib-frontier"
 # The checks the `main` ruleset requires (Settings → Rules → main), each with the GitHub App that
 # must report it (15368 is GitHub Actions), as the ruleset pins them; keep in sync with it.
@@ -362,12 +370,56 @@ def assess(pr: dict, sha: str) -> tuple[str, list[str]]:
     return ("pending", waiting) if waiting else ("ready", [])
 
 
+def check_queue_prefix(owner: str, name: str, number: int, sha: str,
+                       root: Path = ROOT) -> str | None:
+    """Replay any merge-queue entries ahead of `number` when `root` is a full Git checkout.
+
+    Returns a human-readable conflict description when the replay conflicts, or `None` when the
+    queue is empty, the replay merges cleanly, or `queue_pr.py` is running outside a full clone
+    (for example as an isolated copy in scratch or in a shallow checkout).
+    """
+    if not (root / ".git").exists():
+        return None
+    scripts_dir = str(Path(__file__).resolve().parent)
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    try:
+        import queue_status
+    except ImportError:
+        return None
+    try:
+        if queue_status.cr.out(root, "rev-parse", "--is-shallow-repository") == "true":
+            return None
+        base, entries = queue_status.prefix(owner, name, number, sha)
+        if not entries:
+            return None
+        queue_status.fetch_objects(
+            root, f"{owner}/{name}", [base, sha, *(queued_sha for _, queued_sha in entries)]
+        )
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            rc = queue_status.check_prefix(root, base, entries, sha)
+    except GhError:
+        raise
+    except (KeyError, TypeError, OSError, ValueError, subprocess.SubprocessError,
+            queue_status.cr.GitError) as error:
+        raise GhError(f"merge-queue prefix check failed: {error}") from error
+    if rc == 0:
+        return None
+    details = " ".join(line.strip() for line in output.getvalue().splitlines() if line.strip())
+    return (f"{details}; wait for the conflicting queue entry to land or pass "
+            "--allow-queue-conflict.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("pr", type=int, help="pull request number")
     parser.add_argument("sha", help="the full approved head commit")
     parser.add_argument("--wait", type=float, default=0, metavar="MINUTES",
                         help="wait this long for running required checks (default 0)")
+    parser.add_argument("--allow-queue-conflict", action="store_true",
+                        help="enqueue even when the head textually conflicts with earlier "
+                             "merge-queue entries")
     parser.add_argument("--repo", default=REPO, help=f"OWNER/NAME (default {REPO})")
     args = parser.parse_args(argv)
     if not re.fullmatch(r"[0-9a-f]{40}", args.sha):
@@ -407,6 +459,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"#{args.pr} not queued: its review discussion changed while waiting; "
                   "reread the PR and any review holds, then rerun the helper.")
             return 1
+        if not args.allow_queue_conflict:
+            conflict = check_queue_prefix(owner, name, args.pr, args.sha)
+            if conflict is not None:
+                print(f"#{args.pr} not queued: {conflict}")
+                return 1
         entry = (gh_graphql(ENQUEUE, id=pr["id"], sha=args.sha).get("enqueuePullRequest")
                  or {}).get("mergeQueueEntry")
     except GhError as error:

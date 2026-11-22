@@ -6,9 +6,11 @@ import contextlib
 import copy
 import io
 import json
+import os
 import pathlib
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import call, patch
 
@@ -130,6 +132,7 @@ class PaginationTests(unittest.TestCase):
         out = io.StringIO()
         with patch.object(queue_pr, "gh_graphql", side_effect=responses) as graphql, \
              patch.object(queue_pr, "fetch_discussion", return_value=("unchanged",)), \
+             patch.object(queue_pr, "check_queue_prefix", return_value=None), \
              patch.object(queue_pr.time, "sleep"), contextlib.redirect_stdout(out), \
              contextlib.redirect_stderr(out):
             status = queue_pr.main(["12", SHA, "--wait", wait])
@@ -406,6 +409,7 @@ class WaitingDiscussionTests(unittest.TestCase):
         snapshots = iter(discussions)
         with patch.object(queue_pr, "fetch_pr", side_effect=prs), \
              patch.object(queue_pr, "fetch_discussion", side_effect=snapshot) as discussion, \
+             patch.object(queue_pr, "check_queue_prefix", return_value=None), \
              patch.object(queue_pr.time, "sleep", side_effect=lambda _: events.append("sleep")), \
              patch.object(queue_pr, "gh_graphql", return_value={
                  "enqueuePullRequest": {"mergeQueueEntry": {"position": 1}}}) as api, \
@@ -493,6 +497,7 @@ class RetargetAncestorTests(unittest.TestCase):
                 })
                 out = io.StringIO()
                 with patch.object(queue_pr, "gh_graphql", side_effect=[page, entry]) as graphql, \
+                     patch.object(queue_pr, "check_queue_prefix", return_value=None), \
                      patch.object(queue_pr.subprocess, "run", return_value=compare) as run, \
                      contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
                     rc = queue_pr.main(["7108", SHA])
@@ -557,6 +562,109 @@ class RetargetAncestorTests(unittest.TestCase):
             fetched = queue_pr.fetch_pr("cslib-community", "cslib-frontier", 7108)
         self.assertEqual(queue_pr.assess(fetched, SHA),
                          ("pending", ["required checks are still running at the approved head"]))
+
+
+class QueuePrefixTests(unittest.TestCase):
+    def test_empty_queue_skips_object_fetch_and_enqueues(self) -> None:
+        import queue_status
+
+        with patch.object(queue_status, "prefix", return_value=(BASE_SHA, [])) as pref, \
+             patch.object(queue_status, "fetch_objects") as fetch, \
+             patch.object(queue_status.cr, "out", return_value="false"):
+            self.assertIsNone(queue_pr.check_queue_prefix("o", "r", 12, SHA))
+            pref.assert_called_once_with("o", "r", 12, SHA)
+            fetch.assert_not_called()
+
+    def test_isolated_copy_or_shallow_clone_skips_prefix_check(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(queue_pr.check_queue_prefix("o", "r", 12, SHA,
+                                                          root=pathlib.Path(tmp)))
+        import queue_status
+
+        with patch.object(queue_status.cr, "out", return_value="true"), \
+             patch.object(queue_status, "prefix") as pref:
+            self.assertIsNone(queue_pr.check_queue_prefix("o", "r", 12, SHA))
+            pref.assert_not_called()
+
+    def test_conflicting_queue_prefix_refuses_unless_allow_queue_conflict(self) -> None:
+        import queue_status
+
+        env = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.test",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.test"}
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, env):
+            root = pathlib.Path(tmp)
+
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+            def commit(path: str, content: str) -> str:
+                (root / path).write_text(content)
+                git("add", ".")
+                git("commit", "-qm", path)
+                return git("rev-parse", "HEAD")
+
+            git("init", "-q", "-b", "main")
+            base = commit("rows", "old\n")
+            non_conflicting = commit("other", "first PR\n")
+            git("switch", "-q", "--detach", base)
+            conflicting = commit("rows", "queued PR\n")
+            git("switch", "-q", "--detach", base)
+            candidate = commit("rows", "candidate PR\n")
+
+            with patch.object(queue_status, "prefix",
+                              return_value=(base, [(10, non_conflicting)])), \
+                 patch.object(queue_status, "fetch_objects"):
+                self.assertIsNone(
+                    queue_pr.check_queue_prefix("o", "r", 12, candidate, root=root))
+
+            with patch.object(queue_status, "prefix",
+                              return_value=(base, [(10, non_conflicting), (11, conflicting)])), \
+                 patch.object(queue_status, "fetch_objects"):
+                reason = queue_pr.check_queue_prefix("o", "r", 12, candidate, root=root)
+                self.assertIsNotNone(reason)
+                assert reason is not None
+                self.assertIn("'rows' first conflicts at #11", reason)
+                self.assertIn("--allow-queue-conflict", reason)
+
+            ready_pr = pr(check_run(), headRefOid=candidate)
+            ready_pr["commits"]["nodes"][0]["commit"]["oid"] = candidate
+            out = io.StringIO()
+            with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+                 patch.object(queue_pr, "check_queue_prefix", return_value=reason), \
+                 patch.object(queue_pr, "gh_graphql") as api, \
+                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = queue_pr.main(["12", candidate])
+            self.assertEqual(rc, 1, out.getvalue())
+            self.assertIn("#12 not queued:", out.getvalue())
+            api.assert_not_called()
+
+            entry = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 3}}}
+            out_override = io.StringIO()
+            with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+                 patch.object(queue_pr, "check_queue_prefix") as check_pref, \
+                 patch.object(queue_pr, "gh_graphql", return_value=entry) as api, \
+                 contextlib.redirect_stdout(out_override), \
+                 contextlib.redirect_stderr(out_override):
+                rc_override = queue_pr.main(["12", candidate, "--allow-queue-conflict"])
+            self.assertEqual(rc_override, 0, out_override.getvalue())
+            check_pref.assert_not_called()
+            api.assert_called_once_with(queue_pr.ENQUEUE, id="PR_1", sha=candidate)
+
+    def test_inconsistent_queue_listing_fails_closed_without_enqueuing(self) -> None:
+        import queue_status
+
+        ready_pr = pr(check_run())
+        out = io.StringIO()
+        with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+             patch.object(queue_status.cr, "out", return_value="false"), \
+             patch.object(queue_status, "prefix", side_effect=ValueError("queue changed")), \
+             patch.object(queue_pr, "gh_graphql") as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = queue_pr.main(["12", SHA])
+        self.assertEqual(rc, 2, out.getvalue())
+        self.assertIn("merge-queue prefix check failed", out.getvalue())
+        api.assert_not_called()
 
 
 if __name__ == "__main__":
