@@ -1567,6 +1567,7 @@ public import CslibFrontier.Computability.Circuit.Evaluation
 public import CslibFrontier.Computability.Circuit.FanIn
 public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Circuit.Formula.NodeCount
+public import CslibFrontier.Computability.Circuit.Frontier.Arborescence
 public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
 public import CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn
 public import CslibFrontier.Computability.Circuit.Frontier.BranchingProgram
@@ -6763,6 +6764,7 @@ public import CslibFrontier.Foundations.Combinatorics.SetPartition.JoinMatrix
 public import CslibFrontier.Foundations.Combinatorics.SharedSummaries
 public import CslibFrontier.Foundations.Combinatorics.ShiftColoring
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Acyclic
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.ArborescenceIndep
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.BallPath
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Berge
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CFI
