@@ -133,8 +133,6 @@ theorem programAt_fixed (header : ℕ) :
 /-- Fixed instruction graph, independent of dimensions and physical width. -/
 theorem program_fixed : program.size ≤ 160 ∧ ¬program.ReadsWidth := by decide
 
-private theorem reduce_preserves : ∀ i : Fin 32, 24 ≤ i.val → reduce.Preserves i := by decide
-
 private theorem input_weight (n p : ℕ) (values : List ℤ) (q : ℕ) :
     (Data.init (input n p values) : Data 32).mem (3 + q) = Signed.encode (values.getD q 0) := by
   rw [show 3 + q = (q + 2) + 1 by omega, Data.init_mem_succ]

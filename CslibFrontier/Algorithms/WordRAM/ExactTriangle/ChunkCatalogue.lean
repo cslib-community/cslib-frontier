@@ -182,8 +182,6 @@ theorem before_le {C : ℕ → ℕ} {cap p N : ℕ} (hcap : 0 < cap)
     ((hC r ((Finset.mem_range.mp hr).trans_le hrho)).trans
       (Nat.le_mul_of_pos_right N hcap))
 
-private theorem chunks_preserves : ∀ i : Fin 32, 14 ≤ i.val → chunks.Preserves i := by decide
-
 private theorem body_preserves : ∀ i : Fin 32,
     (14 ≤ i.val ∧ i ≠ cursor ∧ i ≠ written ∧ i ≠ heap ∧ i ≠ addr ∧ i ≠ temp) →
       body.Preserves i := by decide

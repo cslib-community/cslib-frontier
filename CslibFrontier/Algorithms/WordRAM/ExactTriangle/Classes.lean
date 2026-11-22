@@ -86,8 +86,6 @@ def program : Code .standard 20 :=
 /-- Fixed instruction graph, with no physical-width reads. -/
 theorem program_fixed : program.size ≤ 64 ∧ ¬program.ReadsWidth := by decide
 
-private theorem scan_preserves : ∀ i : Fin 20, 12 ≤ i.val → scan.Preserves i := by decide
-
 private theorem body_preserves : ∀ i : Fin 20,
     (i = src ∨ i = size ∨ i = counts ∨ i = queries ∨ i = modulus ∨ i = one ∨ i = stride) →
       body.Preserves i := by decide
@@ -164,43 +162,42 @@ theorem exec {w : ℕ} (x : Data 20) (R : ℕ → ℕ) (h1 : Fits w 1)
       refine WP.exists_execWithin_preserves (fun i hi => body_preserves i hi) ?_
       unfold body scan
       wram_exec [hys, hyd]
-      · have hread : ∀ q < n * n, y.mem (x.regs src + q) = R q := fun q hq => by
-          rw [hyframe _ (by dsimp [b, n] at *; omega) (by dsimp [d, b, n] at *; omega)]
-          exact hinput q hq
-        have hyn' : ∀ h, y.regs (Fin.castLE h QueryScan.size) = n := fun _ => hyn
-        have hysrc' : ∀ h, y.regs (Fin.castLE h QueryScan.src) = x.regs src := fun _ => hysrc
-        wram_call (QueryScan.exec _ R h1
-          (by wram_simp [hysrc', hyn']; exact hread)
-          (by wram_simp [hysrc', hyn']; exact hcount.of_le (by dsimp [b, n] at *; omega))
-          (by
-            wram_simp [hyn']
-            exact hquery.of_le (by dsimp [j, s] at *; rw [Nat.mul_comm _ (2 * (n * n))]; omega))
-          (by wram_simp [hysrc', hyn']; dsimp [j, s, b, d, n] at *; omega))
-          canonical scanReg_injective with v ⟨-, hvc, -, hvpairs, hvframe⟩
-        wram_simp [hyn'] at hvc hvpairs hvframe
-        have hv' : v.regs QueryScan.count = C j (n * n) := hvc
-        wram_exec [hv', hyb, hyo]
-        refine ⟨by wram_simp [hyn']; omega, fun hpres => ⟨by wram_simp; rfl, ?_, ?_, hpres⟩⟩
-        · intro q hq
-          change Function.update v.mem (b + j) (C j (n * n)) q =
-            Function.update y.mem (b + j) (C j (n * n)) q
-          by_cases hqb : q = b + j
-          · rw [hqb, Function.update_self, Function.update_self]
-          · rw [Function.update_of_ne hqb, Function.update_of_ne hqb]
-            apply hvframe q
-            rw [hv', Nat.mul_comm (y.regs cursor) s, Nat.add_comm (s * y.regs cursor) d]
-            have : C j (n * n) ≤ n * n := Nat.count_le _
-            dsimp [s, j] at *; omega
-        · intro q hq hkey
-          have hrank : C j q < n * n := (Nat.count_le _).trans_lt hq
-          have hcountaddr : b + j < d := by dsimp [b, d, p, j] at *; omega
-          obtain ⟨hp1, hp2⟩ := hvpairs q hq hkey
-          rw [Nat.mul_comm (y.regs cursor) s, Nat.add_comm (s * y.regs cursor) d] at hp1 hp2
-          change Function.update v.mem (b + j) (C j (n * n)) (d + s * j + 2 * C j q) = q / n ∧
-            Function.update v.mem (b + j) (C j (n * n)) (d + s * j + 2 * C j q + 1) = q % n
-          exact ⟨by rw [Function.update_of_ne (by omega)]; exact hp1,
-            by rw [Function.update_of_ne (by omega)]; exact hp2⟩
-      all_goals (dsimp [j, s, d] at *; fits)
+      have hread : ∀ q < n * n, y.mem (x.regs src + q) = R q := fun q hq => by
+        rw [hyframe _ (by dsimp [b, n] at *; omega) (by dsimp [d, b, n] at *; omega)]
+        exact hinput q hq
+      have hyn' : ∀ h, y.regs (Fin.castLE h QueryScan.size) = n := fun _ => hyn
+      have hysrc' : ∀ h, y.regs (Fin.castLE h QueryScan.src) = x.regs src := fun _ => hysrc
+      wram_call (QueryScan.exec _ R h1
+        (by wram_simp [hysrc', hyn']; exact hread)
+        (by wram_simp [hysrc', hyn']; exact hcount.of_le (by dsimp [b, n] at *; omega))
+        (by
+          wram_simp [hyn']
+          exact hquery.of_le (by dsimp [j, s] at *; rw [Nat.mul_comm _ (2 * (n * n))]; omega))
+        (by wram_simp [hysrc', hyn']; dsimp [j, s, b, d, n] at *; omega))
+        canonical scanReg_injective with v ⟨-, hvc, -, hvpairs, hvframe⟩
+      wram_simp [hyn'] at hvc hvpairs hvframe
+      have hv' : v.regs QueryScan.count = C j (n * n) := hvc
+      wram_exec [hv', hyb, hyo]
+      refine ⟨by wram_simp [hyn']; omega, fun hpres => ⟨by wram_simp; rfl, ?_, ?_, hpres⟩⟩
+      · intro q hq
+        change Function.update v.mem (b + j) (C j (n * n)) q =
+          Function.update y.mem (b + j) (C j (n * n)) q
+        by_cases hqb : q = b + j
+        · rw [hqb, Function.update_self, Function.update_self]
+        · rw [Function.update_of_ne hqb, Function.update_of_ne hqb]
+          apply hvframe q
+          rw [hv', Nat.mul_comm (y.regs cursor) s, Nat.add_comm (s * y.regs cursor) d]
+          have : C j (n * n) ≤ n * n := Nat.count_le _
+          dsimp [s, j] at *; omega
+      · intro q hq hkey
+        have hrank : C j q < n * n := (Nat.count_le _).trans_lt hq
+        have hcountaddr : b + j < d := by dsimp [b, d, p, j] at *; omega
+        obtain ⟨hp1, hp2⟩ := hvpairs q hq hkey
+        rw [Nat.mul_comm (y.regs cursor) s, Nat.add_comm (s * y.regs cursor) d] at hp1 hp2
+        change Function.update v.mem (b + j) (C j (n * n)) (d + s * j + 2 * C j q) = q / n ∧
+          Function.update v.mem (b + j) (C j (n * n)) (d + s * j + 2 * C j q + 1) = q % n
+        exact ⟨by rw [Function.update_of_ne (by omega)]; exact hp1,
+          by rw [Function.update_of_ne (by omega)]; exact hp2⟩
     obtain ⟨z, hcost, hzj, hzframe, hzpairs, hpres⟩ := hexec
     refine ⟨z, hcost, ⟨?_, (hpres one (by simp)).trans hyo, (hpres stride (by simp)).trans hys,
       by omega, ?_, ?_, ?_⟩, by omega⟩
@@ -234,16 +231,15 @@ theorem exec {w : ℕ} (x : Data 20) (R : ℕ → ℕ) (h1 : Fits w 1)
   refine WP.exists_execWithin ?_
   unfold program
   wram_exec
-  · wram_call (ExecWithin.loop_invariant I (fun y => p - y.regs cursor) hbody
-      ⟨fun i hi => by rcases hi with rfl | rfl | rfl | rfl | rfl <;> wram_simp,
-       by wram_simp, by wram_simp [s, n]; omega, by wram_simp; exact Nat.zero_le _,
-       fun _ hj => by wram_simp at hj, fun _ hj => by wram_simp at hj, fun _ _ _ => rfl⟩)
-      with y ⟨⟨hyr, -, -, hyc, hycounts, hypairs, hyframe⟩, hc⟩
-    have hyp : y.regs modulus = p := hyr modulus (by simp)
-    have hend : y.regs cursor = p := by simp only [Cond.holds_lt, hyp] at hc; omega
-    refine ⟨by wram_simp; simp only [Nat.add_assoc, Nat.reduceAdd]; dsimp [n, p]; omega,
-      hend, by simpa only [hend] using hycounts,
-      by simpa only [hend] using hypairs, by simpa only [hend] using hyframe⟩
-  all_goals (dsimp [s, n] at *; fits)
+  wram_call (ExecWithin.loop_invariant I (fun y => p - y.regs cursor) hbody
+    ⟨fun i hi => by rcases hi with rfl | rfl | rfl | rfl | rfl <;> wram_simp,
+     by wram_simp, by wram_simp [s, n]; omega, by wram_simp; exact Nat.zero_le _,
+     fun _ hj => by wram_simp at hj, fun _ hj => by wram_simp at hj, fun _ _ _ => rfl⟩)
+    with y ⟨⟨hyr, -, -, hyc, hycounts, hypairs, hyframe⟩, hc⟩
+  have hyp : y.regs modulus = p := hyr modulus (by simp)
+  have hend : y.regs cursor = p := by simp only [Cond.holds_lt, hyp] at hc; omega
+  refine ⟨by wram_simp; simp only [Nat.add_assoc, Nat.reduceAdd]; dsimp [n, p]; omega,
+    hend, by simpa only [hend] using hycounts,
+    by simpa only [hend] using hypairs, by simpa only [hend] using hyframe⟩
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.Classes

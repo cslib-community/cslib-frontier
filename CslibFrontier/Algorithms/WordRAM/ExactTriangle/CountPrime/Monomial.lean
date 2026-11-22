@@ -26,10 +26,6 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime
 
 open Cslib.WordRAM
 
-private theorem writeCoefficient_preserves (i : Fin 128) :
-    i ≠ Reg.coefficient → i ≠ Reg.address → writeCoefficient.Preserves i := by
-  decide +kernel +revert
-
 /-- A whole dirty p-word destination becomes the canonical coefficient block, with every
 test, address calculation and store charged. The key may be any unsigned word. -/
 theorem exec_writeCoefficients {w : ℕ} (x : Data 128)

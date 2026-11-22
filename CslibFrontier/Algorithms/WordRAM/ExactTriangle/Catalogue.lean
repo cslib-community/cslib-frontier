@@ -122,12 +122,6 @@ private theorem bank_injective : Function.Injective bank := by
   intro i j h
   exact Fin.ext (congrArg (fun k : Fin 32 => k.val) h)
 
-private theorem parameters_preserves : ∀ i : Fin 32, 15 ≤ i.val → parameters.Preserves i := by
-  decide
-
-private theorem chunks_preserves : ∀ i : Fin 32,
-    28 ≤ i.val → ChunkCatalogue.program.Preserves i := by decide
-
 /-- Exact computed parameters, residue/query arrays, concatenated descriptors and memory
 frame. This is the readback established by the actual native catalogue execution. -/
 @[expose]

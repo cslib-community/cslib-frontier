@@ -84,6 +84,9 @@ def program : Code .standard 15 :=
 /-- Fixed native code and no physical-width reads. -/
 theorem program_fixed : program.size ≤ 64 ∧ ¬program.ReadsWidth := by decide
 
+/-- Compute the finite splitting parameters from actual runtime dimensions. The two explicit
+ceiling-addition fits cover their temporary sums, and the fourth-power bound covers the square
+formed before dividing by `D`. The final halt is excluded. -/
 theorem exec {w : ℕ} (x : Data 15)
     (hD : Fits w (4 * x.regs dimension + 4))
     (hN : Fits w (4 * ((x.regs size * x.regs size) * (x.regs size * x.regs size)) + 4))
@@ -116,24 +119,22 @@ theorem exec {w : ℕ} (x : Data 15)
   wram_simp at hbroot hbm
   have hbroot' : b.regs 1 = sOf D := hbroot
   wram_exec [hbroot']
-  · wram_call (NatSqrt.exec _ (by wram_simp; exact hN.of_le (by dsimp [n, D] at hquot ⊢; omega)))
-      canonical sqrtReg_injective with d ⟨hdroot, -, hdm, -⟩
-    wram_simp at hdroot hdm
-    have hdroot' : d.regs 1 = queryCap n D := by
-      simpa only [queryCap, pow_two] using hdroot
-    have hH' : Fits w (n + (sOf D + g - 1) / g) := by
-      simpa only [pieceSize, Nat.ceilDiv_eq_add_pred_div] using hH
-    have hdivH' : (n + (sOf D + g - 1) / g - 1) / ((sOf D + g - 1) / g) ≤
-        n + (sOf D + g - 1) / g := (Nat.div_le_self ..).trans (Nat.sub_le ..)
-    wram_exec [hdroot', hbroot']
-    · refine ⟨?_, by wram_simp [hbroot']; rfl, by wram_simp [hdroot']; rfl,
-        by wram_simp [pieceSize, Nat.ceilDiv_eq_add_pred_div]; rfl,
-        by wram_simp [numPieces, pieceSize, Nat.ceilDiv_eq_add_pred_div]; rfl,
-        by wram_simp, by wram_simp, by wram_simp, hdm.trans hbm⟩
-      wram_simp [hbroot']
-      simp only [sOf, queryCap, pow_two]
-      omega
-    all_goals (dsimp [n, D, g] at *; fits)
-  all_goals (dsimp [n, D, g] at *; fits)
+  wram_call (NatSqrt.exec _ (by wram_simp; exact hN.of_le (by dsimp [n, D] at hquot ⊢; omega)))
+    canonical sqrtReg_injective with d ⟨hdroot, -, hdm, -⟩
+  wram_simp at hdroot hdm
+  have hdroot' : d.regs 1 = queryCap n D := by
+    simpa only [queryCap, pow_two] using hdroot
+  have hH' : Fits w (n + (sOf D + g - 1) / g) := by
+    simpa only [pieceSize, Nat.ceilDiv_eq_add_pred_div] using hH
+  have hdivH' : (n + (sOf D + g - 1) / g - 1) / ((sOf D + g - 1) / g) ≤
+      n + (sOf D + g - 1) / g := (Nat.div_le_self ..).trans (Nat.sub_le ..)
+  wram_exec [hdroot', hbroot']
+  refine ⟨?_, by wram_simp [hbroot']; rfl, by wram_simp [hdroot']; rfl,
+    by wram_simp [pieceSize, Nat.ceilDiv_eq_add_pred_div]; rfl,
+    by wram_simp [numPieces, pieceSize, Nat.ceilDiv_eq_add_pred_div]; rfl,
+    by wram_simp, by wram_simp, by wram_simp, hdm.trans hbm⟩
+  wram_simp [hbroot']
+  simp only [sOf, queryCap, pow_two]
+  omega
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.Parameters

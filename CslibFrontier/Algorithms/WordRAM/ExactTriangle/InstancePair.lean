@@ -152,9 +152,6 @@ private theorem bank_injective : Function.Injective bank := by
 private theorem header_preserves : ∀ i : Fin 32,
     17 ≤ i.val → i.val < 29 → (Code.seq setup writeHeader).Preserves i := by decide +kernel
 
-private theorem matrix_preserves (side : Bool) : ∀ i : Fin 32,
-    17 ≤ i.val → (matrix side).Preserves i := by cases side <;> decide
-
 /-- Six raw unsigned record words: residue, piece index, shared query pointer/count, then the
 two computed matrix pointers. Matrix entries themselves are raw zero/one words. -/
 @[expose]
