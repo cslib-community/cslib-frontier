@@ -670,10 +670,6 @@ private theorem mem_le_foldl_max {l : List ℕ} {a x : ℕ} (hx : x ∈ l) : x �
       · exact le_trans (le_max_right a x) (le_foldl_max_self ys _)
       · exact ih hx
 
-private theorem filter_length_add_not {α : Type*} (p : α → Bool) (l : List α) :
-    (l.filter p).length + (l.filter fun a => !p a).length = l.length := by
-  simpa [List.length_append] using (List.filter_append_perm p l).length_eq
-
 private theorem list_sum_map_le {α : Type*} (l : List α) (m : α → ℕ) {B : ℕ}
     (hm : ∀ a ∈ l, m a ≤ B) : (l.map m).sum ≤ l.length * B := by
   simpa [smul_eq_mul] using List.sum_le_length_nsmul (l.map m) B fun _ hn => by
@@ -686,7 +682,7 @@ private theorem length_elimVar_live_le [Semiring R] [DecidableEq V] (d : ℕ) (x
     split_ifs with hb
     · exact le_rfl
     · simp only [List.length_cons]
-      have hlen := filter_length_add_not (fun f : FactorTable R V => decide (x ∈ f.scope)) s.live
+      have hlen := List.length_eq_length_filter_add (l := s.live) fun f => decide (x ∈ f.scope)
       have hbpos : 1 ≤ (s.live.filter fun f => decide (x ∈ f.scope)).length := by
         cases h : s.live.filter fun f => decide (x ∈ f.scope) <;> simp_all
       simp only [decide_not]; omega
@@ -706,7 +702,7 @@ private theorem bucketFactors_add_live_le [Semiring R] [DecidableEq V] (d : ℕ)
   · simp only [stepStats, elimVar, hx, ↓reduceIte]
     split_ifs with hb
     · simp
-    · have hlen := filter_length_add_not (fun f : FactorTable R V => decide (x ∈ f.scope)) s.live
+    · have hlen := List.length_eq_length_filter_add (l := s.live) fun f => decide (x ∈ f.scope)
       simp only [decide_not, List.length_cons]; omega
   · simp [stepStats, elimVar, hx]
 
