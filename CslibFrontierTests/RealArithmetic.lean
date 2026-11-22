@@ -114,6 +114,23 @@ set_option linter.hashCommand false in
 set_option linter.hashCommand false in
 #guard !(validFormulaWord (encList encFormulaToken [.inl (), .inl ()]))
 
+-- Normalization keeps an encoded formula with a variable rank and a negative constant.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 2 (.and (.eqZero (.var 1)) (.ltZero (.const (-2))))
+  normalizeFormulaWord word == word
+
+-- A dangling negation normalizes to the encoding of falsity.
+set_option linter.hashCommand false in
+#guard normalizeFormulaWord (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) ==
+  encFormula 0 .false
+
+-- The total view preserves the existential semantics of a satisfiable formula.
+example :
+    (Formula.ofWord (encFormula 0 (.eqZero (.const 0)))).solutionSet.Nonempty := by
+  rw [← mem_ETR_iff_ofWord, encFormula_mem_ETR]
+  exact ⟨Fin.elim0, by simp [Formula.solutionSet, Term.eval]⟩
+
 -- An asymmetric two-block formula checks that existential coordinates come first.
 example : (Formula.eqZero (n := 2) (.var 0)).existsForallSolutionSet
     (r := 1) (s := 1) = {x | x 0 = 0} := by
