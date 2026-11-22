@@ -591,6 +591,11 @@ Avinandan Das, Pierre Fraigniaud, Ami Paz and Adi Rosén. "Semi-Streaming Algori
 
 Sanjoy Dasgupta, Anupam Gupta. “An Elementary Proof of a Theorem of Johnson and Lindenstrauss.” *Random Structures & Algorithms* 22(1), 60–65, 2003. https://doi.org/10.1002/rsa.10073 . Author-hosted copy: https://cseweb.ucsd.edu/~dasgupta/papers/jl.pdf . Checked against that copy on 2026-11-07 UTC: Theorem 2.1 on p. 61 (`0 < ε < 1` and `k ≥ 4 (ε²/2 - ε³/3)⁻¹ ln n`), and Lemma 2.2 on p. 62 (tails for the projection of a random unit vector onto `k` coordinates, proved with `𝔼 exp (sX²) = (1 - 2s)^(-1/2)` for a standard Gaussian `X`).
 
+<a id="demainehearn2008"></a>
+## demainehearn2008
+
+Erik D. Demaine and Robert A. Hearn. *Constraint Logic: A Uniform Framework for Modeling Computation as Games*. Proceedings of the 23rd IEEE Conference on Computational Complexity, 149–162, 2008. Section 3.1 introduces the red–blue connector with minimum inflow one. [Authors’ version](https://erikdemaine.org/papers/CL_Complexity2008/paper.pdf)
+
 <a id="desimone90"></a>
 ## desimone90
 
@@ -961,7 +966,7 @@ Juris Hartmanis. "Computational Complexity of One-Tape Turing Machine Computatio
 <a id="hearndemaine2005"></a>
 ## hearndemaine2005
 
-Robert A. Hearn and Erik D. Demaine. *PSPACE-completeness of sliding-block puzzles and other problems through the nondeterministic constraint logic model of computation*. Theoretical Computer Science 343 (2005), 72–96. Sections 2.1–2.2 of the authors’ version define the three reachability questions and the AND/OR vertex types. Theorem 5 and Corollary 6 (§3.1, pp. 7–8 of that version) give their polynomial-space upper bounds. The formalization proves these bounds for finite AND/OR multigraphs, allowing loops and parallel edges as in footnote 2 on p. 4. It uses one bit per edge and deterministic Savitch search. The bounds for general weighted graphs and the PSPACE-hardness directions remain open in this library. [Authors’ version](https://erikdemaine.org/papers/NCL_TCS/paper.pdf)
+Robert A. Hearn and Erik D. Demaine. *PSPACE-completeness of sliding-block puzzles and other problems through the nondeterministic constraint logic model of computation*. Theoretical Computer Science 343 (2005), 72–96. Sections 2.1–2.2 of the authors’ version define the three reachability questions and the AND/OR vertex types. Theorem 5 and Corollary 6 (§3.1, pp. 7–8 of that version) prove PSPACE-completeness of the three questions. The formalization covers finite AND/OR multigraphs, allowing loops and parallel edges as in footnote 2 on p. 4. It uses one bit per edge and deterministic Savitch search for the upper bounds. The polynomial-time reductions from alternating prenex CNF produce loop-free graphs. [Authors’ version](https://erikdemaine.org/papers/NCL_TCS/paper.pdf)
 
 <a id="heath24"></a>
 ## heath24

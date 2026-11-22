@@ -52,6 +52,7 @@ import CslibFrontier.Computability.Complexity.Problems.UDistance.Completeness
 import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
+import CslibFrontier.Computability.Complexity.Problems.NCL.Hardness
 import CslibFrontier.Computability.Complexity.Classes.Sparse.Envelope
 import CslibFrontier.Computability.Complexity.Classes.Advice.OneBit
 import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
@@ -899,6 +900,24 @@ register_result "alternation" where
     functions as in Arora–Barak, least-fixed-point acceptance), every computation path halting \
     within polynomial time; PSPACE is deterministic polynomial space; arbitrary injective \
     encodings. AL = P is not included: the library proves only AL ⊆ P."
+
+register_result "ncl-and-or-pspace-complete" where
+  title := "Hearn–Demaine: AND/OR constraint-logic reachability is PSPACE-complete"
+  topic := "space complexity"
+  sources := [
+    { paper := HearnDemaine2005, theorem := "Theorem 5 and Corollary 6",
+      locator := "Authors’ version, §3.1, pp. 7–8" }
+  ]
+  theorems := [
+    Cslib.Complexity.NCL.AndOrNCLEdge_pspaceComplete,
+    Cslib.Complexity.NCL.AndOrNCLEdgeToEdge_pspaceComplete,
+    Cslib.Complexity.NCL.AndOrNCL_pspaceComplete
+  ]
+  scope := "Finite AND/OR multigraphs with self-loops and parallel edges. States use one bit \
+    per edge and moves reverse a single edge between legal orientations. The three input models \
+    specify an initial configuration and a target edge, two edges with prescribed directions, \
+    or two configurations. The reductions from alternating prenex CNF emit loop-free graphs. \
+    The upper bound uses deterministic Savitch search."
 
 register_result "alternation-apspace-exp" where
   title := "Chandra–Kozen–Stockmeyer: APSPACE equals EXP"
