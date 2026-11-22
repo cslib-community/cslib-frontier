@@ -16,51 +16,51 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Tight Lundelius–Lynch bounds for clock synchronization
+# Lockstep drift-free clock-synchronization step bounds
 
-Over a complete network of `n = Fintype.card P` processes with drift-free hardware clocks and
-message transit delays in `[d_min, d_max]` (`d_min ≤ d_max`), this module establishes for the
-deterministic synchronous full-information `R`-round model (`Protocol P K R`) that the minimax
-worst-case clock skew is *exactly*
+This module proves a **synchronous lockstep, drift-free `R`-round step** towards the
+`((n - 1) / n) * (d_max - d_min)` clock-synchronization bound of
+[Lundelius and Lynch][LundeliusLynch1984], and is **not** the cited paper's general asynchronous
+event-driven lower bound (which remains open in
+[#7202](https://github.com/cslib-community/cslib-frontier/issues/7202)).
 
-`((n - 1) / n) * (d_max - d_min)`,
+Over a complete network of `n = Fintype.card P` processes with unit-rate drift-free hardware clocks
+and message transit delays in `[d_min, d_max]` (`d_min ≤ d_max`), we show for deterministic
+fixed-`R`-round lockstep protocols (`LockstepProtocol P K R`) that the minimax worst-case clock
+skew is `((n - 1) / n) * (d_max - d_min)` (for `n = 1`, `0 ≤ γ` holds trivially from `|x - x| = 0`):
 
-formalizing the bound of [Lundelius and Lynch][LundeliusLynch1984] (who consider event-driven
-deterministic message passing on `n ≥ 2` processes; for `n = 1`, `0 ≤ γ` holds trivially from
-`|x - x| = 0`).
-
-* **Lower bound (`lundeliusLynch_lower_bound`):** For `n = 1`, `0 ≤ γ` is immediate; for `n ≥ 2`,
-  starting from `(c₀, δ₀)` with `c₀ ≡ 0` and `δ₀ r i j = d_min` for `i ≤ j`, `d_max` for `i > j`
-  under an enumeration `P ≃ Fin n`, applying `syncOffset_shift_eq` across the `n - 1` prefix shifts
-  `s_m i = u` for `i < m` (`u = d_max - d_min`) keeps every shifted delay inside
-  `{d_min, d_max} ⊆ [d_min, d_max]`. Summing the `n - 1` adjacent bounds from the shifted
-  executions together with the wrap-around bound from the base execution telescopes all protocol
-  adjustments to zero, yielding `(n - 1) * u ≤ n * γ` for every `R`-round `Protocol P K R`
-  achieving skew `γ`.
-* **Matching upper bound (`lundeliusLynchAvg`, `lundeliusLynchAvg_achievesSkew`):** In 1 round,
-  each process broadcasts at local clock reading `0` and sets its adjustment to the average of
-  `estDiff d_min d_max p arrival q` over all `q : P`. For any `p ≠ q`, the two endpoint terms
-  `r = p` and `r = q` contribute error at most `u / 2` each while the remaining `n - 2` terms
-  contribute at most `u` each, achieving skew `((n - 1) / n) * u`.
-* **Sharp minimax characterization (`exists_achievesSkew_iff`):** Across all round counts `R`, a
-  deterministic synchronous full-information protocol `Protocol P K R` achieves skew `γ` if and
-  only if `((n - 1) / n) * (d_max - d_min) ≤ γ` (trivial `0 ≤ γ` for `n = 1`;
-  [Lundelius and Lynch][LundeliusLynch1984] for `n ≥ 2`); in particular, multi-round communication
-  (`R > 1`) cannot improve upon 1-round averaging.
+* **Lockstep lower-bound step (`lockstepClockSync_lower_bound`):** For `n = 1`, `0 ≤ γ` is
+  immediate; for `n ≥ 2`, starting from `(c₀, δ₀)` with `c₀ ≡ 0` and `δ₀ r i j = d_min` for
+  `i ≤ j`, `d_max` for `i > j` under an enumeration `P ≃ Fin n`, applying `syncOffset_shift_eq`
+  across the `n - 1` prefix shifts `s_m i = u` for `i < m` (`u = d_max - d_min`) keeps every
+  shifted delay inside `{d_min, d_max} ⊆ [d_min, d_max]`. Summing the `n - 1` adjacent bounds from
+  the shifted executions together with the wrap-around bound from the base execution telescopes all
+  protocol adjustments to zero, yielding `(n - 1) * u ≤ n * γ` for every `R`-round
+  `LockstepProtocol P K R` achieving skew `γ`.
+* **1-round lockstep averaging step (`lockstepClockAvg`, `lockstepClockAvg_achievesSkew`):** In 1
+  lockstep round, each process broadcasts at local clock reading `0` and sets its adjustment to the
+  average of `estDiff d_min d_max p arrival q` over all `q : P`. For any `p ≠ q`, the two endpoint
+  terms `r = p` and `r = q` contribute error at most `u / 2` each while the remaining `n - 2` terms
+  contribute at most `u` each, achieving lockstep skew `((n - 1) / n) * u`.
+* **Lockstep minimax step (`exists_achievesLockstepSkew_iff`):** Across all round counts `R`, a
+  `LockstepProtocol P K R` achieves skew `γ` if and only if `((n - 1) / n) * (d_max - d_min) ≤ γ`;
+  within the lockstep `R`-round model, multi-round communication (`R > 1`) cannot improve upon
+  1-round `lockstepClockAvg`.
 
 ## Main definitions
 
-* `Cslib.Distributed.ClockSync.lundeliusLynchAvg`: 1-round all-to-all midpoint-delay averaging
-  protocol.
+* `Cslib.Distributed.ClockSync.lockstepClockAvg`: 1-round lockstep all-to-all midpoint-delay
+  averaging protocol on drift-free clocks.
 
 ## Main results
 
-* `Cslib.Distributed.ClockSync.lundeliusLynch_lower_bound`: every `R`-round deterministic protocol
-  achieving skew `γ` satisfies `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ`.
-* `Cslib.Distributed.ClockSync.lundeliusLynchAvg_achievesSkew`: `lundeliusLynchAvg` achieves skew
-  `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min)` in 1 round.
-* `Cslib.Distributed.ClockSync.exists_achievesSkew_iff`: sharp characterization of achievable
-  clock skew across all round counts `R`.
+* `Cslib.Distributed.ClockSync.lockstepClockSync_lower_bound`: lockstep `R`-round step towards
+  [Lundelius and Lynch][LundeliusLynch1984] proving
+  `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ` (`#7202`).
+* `Cslib.Distributed.ClockSync.lockstepClockAvg_achievesSkew`: `lockstepClockAvg` achieves lockstep
+  skew `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min)` in 1 round.
+* `Cslib.Distributed.ClockSync.exists_achievesLockstepSkew_iff`: minimax skew characterization
+  within the synchronous lockstep `R`-round model (`#7202`).
 
 ## References
 
@@ -73,7 +73,7 @@ namespace Cslib.Distributed.ClockSync
 
 universe u v
 
-/-! ### Prefix-shifted executions and the `(1 - 1 / n) * (d_max - d_min)` lower bound -/
+/-! ### Prefix-shifted executions and the lockstep `(1 - 1 / n) * (d_max - d_min)` lower bound -/
 
 private theorem validDelays_prefixShift {P : Type u} {K : Type v}
     [AddCommGroup K] [LinearOrder K] {n : ℕ} (e : P ≃ Fin n)
@@ -99,16 +99,17 @@ private theorem validDelays_prefixShift {P : Type u} {K : Type v}
     · exact ⟨le_rfl, hd⟩
     · exact ⟨hd, le_rfl⟩
 
-/-- **Lundelius–Lynch tight lower bound** (for `2 ≤ Fintype.card P`,
-[Lundelius and Lynch][LundeliusLynch1984]; for `Fintype.card P = 1`, `0 ≤ γ` from `|x - x| = 0`):
-any deterministic synchronous full-information `R`-round protocol `π : Protocol P K R` achieving
-worst-case skew `γ` on a nonempty finite complete network `P` against transit delays in
-`[d_min, d_max]` (`d_min ≤ d_max`) satisfies
-`((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ`. -/
-theorem lundeliusLynch_lower_bound {P : Type u} [Fintype P] [Nonempty P]
+/-- A synchronous lockstep, drift-free `R`-round step towards
+[Lundelius and Lynch][LundeliusLynch1984], and not the cited asynchronous event-driven lower bound
+(`#7202`): any deterministic `R`-round `LockstepProtocol P K R` achieving worst-case skew `γ` on a
+nonempty finite complete network `P` against transit delays in `[d_min, d_max]` (`d_min ≤ d_max`)
+satisfies `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ` (for
+`Fintype.card P = 1`, `0 ≤ γ` follows immediately from `|x - x| = 0`; the prefix-shift telescoping
+argument applies to `2 ≤ Fintype.card P`). -/
+theorem lockstepClockSync_lower_bound {P : Type u} [Fintype P] [Nonempty P]
     {K : Type v} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
-    {R : ℕ} {π : Protocol P K R} {d_min d_max γ : K}
-    (hd : d_min ≤ d_max) (hπ : AchievesSkew π d_min d_max γ) :
+    {R : ℕ} {π : LockstepProtocol P K R} {d_min d_max γ : K}
+    (hd : d_min ≤ d_max) (hπ : AchievesLockstepSkew π d_min d_max γ) :
     ((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ := by
   set n := Fintype.card P
   have hn_pos : 1 ≤ n := Fintype.card_pos
@@ -177,23 +178,25 @@ theorem lundeliusLynch_lower_bound {P : Type u} [Fintype P] [Nonempty P]
     rw [div_mul_eq_mul_div, div_le_iff₀ hnK]
     linarith
 
-/-! ### Matching 1-round averaging upper bound and minimax characterization -/
+/-! ### 1-round lockstep averaging upper bound and lockstep minimax step -/
 
-/-- The 1-round all-to-all midpoint-delay averaging protocol of
-[Lundelius and Lynch][LundeliusLynch1984]: every process broadcasts at local clock reading `0`
-and sets its clock adjustment to `(∑ q : P, estDiff d_min d_max p v.lastArrival q) / |P|`. -/
-@[expose] def lundeliusLynchAvg {P : Type u} [Fintype P] [DecidableEq P]
-    {K : Type v} [Field K] (d_min d_max : K) : Protocol P K 1 where
+/-- 1-round lockstep all-to-all midpoint-delay averaging protocol on drift-free clocks (a
+synchronous lockstep step after [Lundelius and Lynch][LundeliusLynch1984], `#7202`): every process
+broadcasts at local clock reading `0` and sets its clock adjustment to
+`(∑ q : P, estDiff d_min d_max p v.lastArrival q) / |P|`. -/
+@[expose] def lockstepClockAvg {P : Type u} [Fintype P] [DecidableEq P]
+    {K : Type v} [Field K] (d_min d_max : K) : LockstepProtocol P K 1 where
   sendTime _ _ _ _ := 0
   adjust p v := (∑ q : P, estDiff d_min d_max p v.lastArrival q) / Fintype.card P
 
-/-- **Lundelius–Lynch averaging upper bound** [Lundelius and Lynch][LundeliusLynch1984]: the
-1-round averaging protocol `lundeliusLynchAvg` achieves worst-case clock skew
+/-- A synchronous lockstep, drift-free 1-round step after
+[Lundelius and Lynch][LundeliusLynch1984], and not the cited asynchronous event-driven result
+(`#7202`): `lockstepClockAvg` achieves worst-case lockstep clock skew
 `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min)` whenever `d_min ≤ d_max`. -/
-theorem lundeliusLynchAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] [Nonempty P]
+theorem lockstepClockAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] [Nonempty P]
     {K : Type v} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     {d_min d_max : K} (hd : d_min ≤ d_max) :
-    AchievesSkew (lundeliusLynchAvg (P := P) d_min d_max) d_min d_max
+    AchievesLockstepSkew (lockstepClockAvg (P := P) d_min d_max) d_min d_max
       (((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min)) := by
   intro c δ hδ p q
   set n := Fintype.card P
@@ -210,13 +213,13 @@ theorem lundeliusLynchAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] 
   · let recv : P → P → K := fun x r => arrivalReading c δ 0 r x 0
     let xEst : P → P → K := fun x r => c x + estDiff d_min d_max x (recv x) r
     have hsync : ∀ x : P,
-        (lundeliusLynchAvg d_min d_max).syncOffset c δ x = (∑ r : P, xEst x r) / n := by
+        (lockstepClockAvg d_min d_max).syncOffset c δ x = (∑ r : P, xEst x r) / n := by
       intro x
       have hsum : ∑ r : P, xEst x r = n * c x + ∑ r : P, estDiff d_min d_max x (recv x) r := by
         simp only [xEst, Finset.sum_add_distrib, Finset.sum_const, Finset.card_univ, nsmul_eq_mul,
           n]
-      dsimp only [Protocol.syncOffset, Protocol.adj, lundeliusLynchAvg, Protocol.localView,
-        LocalView.lastArrival, n]
+      dsimp only [LockstepProtocol.syncOffset, LockstepProtocol.adj, lockstepClockAvg,
+        LockstepProtocol.localView, LocalView.lastArrival, n]
       rw [hsum, add_div, mul_div_cancel_left₀ (c x) hnK_ne]
       rfl
     have herr : ∀ x r : P, |xEst x r - c r| ≤ u / 2 := fun x r =>
@@ -273,22 +276,24 @@ theorem lundeliusLynchAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] 
       div_mul_eq_mul_div, div_le_div_iff_of_pos_right hnK_pos]
     exact (Finset.abs_sum_le_sum_abs _ _).trans hsum_bound
 
-/-- **Minimax skew characterization for synchronous `R`-round protocols**: there exists a round
-count `R` and a deterministic synchronous full-information protocol `π : Protocol P K R` achieving
-worst-case clock skew `γ` on `P` against transit delays in `[d_min, d_max]` (`d_min ≤ d_max`) if
-and only if `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ` (trivial `0 ≤ γ`
-for `Fintype.card P = 1`; `lundeliusLynch_lower_bound` and `lundeliusLynchAvg_achievesSkew` after
-[Lundelius and Lynch][LundeliusLynch1984] for `2 ≤ Fintype.card P`). -/
-theorem exists_achievesSkew_iff {P : Type u} [Fintype P] [Nonempty P]
+/-- A synchronous lockstep, drift-free `R`-round minimax step towards
+[Lundelius and Lynch][LundeliusLynch1984], and not a characterization over asynchronous
+event-driven protocols (`#7202`): there exists a round count `R` and a deterministic
+`LockstepProtocol P K R` achieving worst-case clock skew `γ` on `P` against transit delays in
+`[d_min, d_max]` (`d_min ≤ d_max`) if and only if
+`((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ` (trivial `0 ≤ γ` for
+`Fintype.card P = 1`; `lockstepClockSync_lower_bound` and `lockstepClockAvg_achievesSkew` for
+`2 ≤ Fintype.card P`). -/
+theorem exists_achievesLockstepSkew_iff {P : Type u} [Fintype P] [Nonempty P]
     {K : Type v} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     {d_min d_max γ : K} (hd : d_min ≤ d_max) :
-    (∃ (R : ℕ) (π : Protocol P K R), AchievesSkew π d_min d_max γ) ↔
+    (∃ (R : ℕ) (π : LockstepProtocol P K R), AchievesLockstepSkew π d_min d_max γ) ↔
       ((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ := by
   constructor
   · rintro ⟨R, π, hπ⟩
-    exact lundeliusLynch_lower_bound hd hπ
+    exact lockstepClockSync_lower_bound hd hπ
   · intro hγ
     let _ := Classical.decEq P
-    exact ⟨1, lundeliusLynchAvg d_min d_max, (lundeliusLynchAvg_achievesSkew hd).mono hγ⟩
+    exact ⟨1, lockstepClockAvg d_min d_max, (lockstepClockAvg_achievesSkew hd).mono hγ⟩
 
 end Cslib.Distributed.ClockSync

@@ -14,20 +14,20 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 
 /-!
-# Client tests for physical clock synchronization
+# Client tests for lockstep drift-free clock synchronization
 
 Representative `module` client tests for `Cslib.Distributed.ClockSync`:
 
 * `decide +kernel`-checked 2-round time-shift indistinguishability (`localView`, `adj`,
   `syncOffset`) on `Fin 4` over `ℚ`;
-* `decide +kernel`-checked tightness of `lundeliusLynchAvg` on `Fin 1`, `Fin 2`, `Fin 3`, and
+* `decide +kernel`-checked tightness of `lockstepClockAvg` on `Fin 1`, `Fin 2`, `Fin 3`, and
   `Fin 4` over `ℚ`, attaining `(1 - 1 / n) * (d_max - d_min)` (`0`, `u / 2`, `2 * u / 3`,
   `3 * u / 4`) across every prefix-shifted execution;
-* minimax characterization `exists_achievesSkew_iff` (both achievability and impossibility below
-  `(1 - 1 / n) * u`) over `ℚ` and continuous time `ℝ`;
-* `decide +kernel`-checked `byzantineClockStep`, `byzantineSyncOffset`, and 2-round
-  `byzantineSyncOffsetIter` on `Fin 4, t = 1` against a wildly equivocating Byzantine clock,
-  contrasting with non-resilient `lundeliusLynchAvg`.
+* lockstep minimax characterization `exists_achievesLockstepSkew_iff` and lower bound
+  `lockstepClockSync_lower_bound` over `ℚ` and continuous time `ℝ`;
+* `decide +kernel`-checked `lockstepByzantineClockStep`, `lockstepDriftFreeByzantineOffset`, and
+  2-round `lockstepDriftFreeByzantineOffsetIter` on `Fin 4, t = 1` against a wildly equivocating
+  Byzantine clock, contrasting with non-resilient `lockstepClockAvg`.
 -/
 
 set_option linter.privateModule false
@@ -36,10 +36,10 @@ namespace CslibFrontierTests.Computability.Distributed.ClockSync
 
 open Cslib.Distributed.ClockSync
 
-/-! ### 2-round time-shift indistinguishability on `Fin 4` over `ℚ` -/
+/-! ### 2-round lockstep time-shift indistinguishability on `Fin 4` over `ℚ` -/
 
-/-- A concrete 2-round protocol whose round-1 send times depend on round-0 arrival readings. -/
-def twoRoundEcho : Protocol (Fin 4) ℚ 2 where
+/-- A concrete 2-round lockstep protocol whose round-1 send times depend on round-0 arrivals. -/
+def twoRoundEcho : LockstepProtocol (Fin 4) ℚ 2 where
   sendTime
     | ⟨0, _⟩, p, _, _ => p.val
     | ⟨1, _⟩, p, v, q => v.lastArrival q + p.val
@@ -90,17 +90,17 @@ def prefixShift (n m : ℕ) : Fin n → ℚ :=
 
 -- Fin 1: (1 - 1 / 1) * 4 = 0, exact zero skew.
 example :
-    (lundeliusLynchAvg (P := Fin 1) (1 : ℚ) 5).syncOffset (fun _ => 17 / 3) (baseDelays 1) 0 =
+    (lockstepClockAvg (P := Fin 1) (1 : ℚ) 5).syncOffset (fun _ => 17 / 3) (baseDelays 1) 0 =
       17 / 3 := by
   decide +kernel
 
-example : AchievesSkew (lundeliusLynchAvg (P := Fin 1) (1 : ℚ) 5) 1 5 0 := by
-  simpa using lundeliusLynchAvg_achievesSkew (P := Fin 1) (K := ℚ) (d_min := 1) (d_max := 5)
+example : AchievesLockstepSkew (lockstepClockAvg (P := Fin 1) (1 : ℚ) 5) 1 5 0 := by
+  simpa using lockstepClockAvg_achievesSkew (P := Fin 1) (K := ℚ) (d_min := 1) (d_max := 5)
     (by norm_num)
 
 -- Fin 2: (1 - 1 / 2) * u = u / 2 = 2, attained on both E₀ and shifted E₁.
 example :
-    let π := lundeliusLynchAvg (P := Fin 2) (1 : ℚ) 5
+    let π := lockstepClockAvg (P := Fin 2) (1 : ℚ) 5
     let c₀ : Fin 2 → ℚ := fun _ => 0
     let δ₀ := baseDelays 2
     let c₁ := shiftOffsets c₀ (prefixShift 2 1)
@@ -113,7 +113,7 @@ example :
 
 -- Fin 3: (1 - 1 / 3) * u = 2 * u / 3 = 8 / 3, attained on E₀, E₁, and E₂.
 example :
-    let π := lundeliusLynchAvg (P := Fin 3) (1 : ℚ) 5
+    let π := lockstepClockAvg (P := Fin 3) (1 : ℚ) 5
     let c₀ : Fin 3 → ℚ := fun _ => 0
     let δ₀ := baseDelays 3
     let c₁ := shiftOffsets c₀ (prefixShift 3 1)
@@ -127,7 +127,7 @@ example :
 
 -- Fin 4: (1 - 1 / 4) * u = 3 * u / 4 = 3, attained on all four executions E₀, E₁, E₂, E₃.
 example :
-    let π := lundeliusLynchAvg (P := Fin 4) (1 : ℚ) 5
+    let π := lockstepClockAvg (P := Fin 4) (1 : ℚ) 5
     let c₀ : Fin 4 → ℚ := fun _ => 0
     let δ₀ := baseDelays 4
     let c₁ := shiftOffsets c₀ (prefixShift 4 1)
@@ -142,26 +142,33 @@ example :
       π.syncOffset c₃ δ₃ 2 - π.syncOffset c₃ δ₃ 3 = 3 := by
   decide +kernel
 
-/-! ### Sharp minimax characterization over `ℚ` and continuous time `ℝ` -/
+/-! ### Lockstep minimax characterization over `ℚ` and continuous time `ℝ` -/
 
--- On Fin 4 with [d_min, d_max] = [1, 5], skew 3 is achievable (in 1 round), whereas 299 / 100
--- is impossible for any deterministic protocol of any number of rounds R.
-example : ∃ (R : ℕ) (π : Protocol (Fin 4) ℚ R), AchievesSkew π 1 5 3 := by
-  rw [exists_achievesSkew_iff (by norm_num)]
+-- On Fin 4 with [d_min, d_max] = [1, 5], skew 3 is achievable (in 1 lockstep round), whereas
+-- 299 / 100 is impossible for any deterministic LockstepProtocol of any round count R.
+example : ∃ (R : ℕ) (π : LockstepProtocol (Fin 4) ℚ R), AchievesLockstepSkew π 1 5 3 := by
+  rw [exists_achievesLockstepSkew_iff (by norm_num)]
   norm_num
 
-example : ¬ ∃ (R : ℕ) (π : Protocol (Fin 4) ℚ R), AchievesSkew π 1 5 (299 / 100) := by
-  rw [exists_achievesSkew_iff (by norm_num)]
+example :
+    ¬ ∃ (R : ℕ) (π : LockstepProtocol (Fin 4) ℚ R), AchievesLockstepSkew π 1 5 (299 / 100) := by
+  rw [exists_achievesLockstepSkew_iff (by norm_num)]
   norm_num
 
--- Continuous-time instantiation over `ℝ` on Fin 4: minimax skew is (3 / 4) * (d_max - d_min).
+-- Direct client check of `lockstepClockSync_lower_bound` on `twoRoundEcho` over `ℚ`.
+example {γ : ℚ} (h : AchievesLockstepSkew twoRoundEcho 1 5 γ) : 3 ≤ γ := by
+  have hlb := lockstepClockSync_lower_bound (d_min := (1 : ℚ)) (d_max := 5) (by norm_num) h
+  norm_num at hlb
+  exact hlb
+
+-- Continuous-time instantiation over `ℝ` on Fin 4: lockstep minimax skew is (3/4)*(d_max - d_min).
 example {d_min d_max γ : ℝ} (hd : d_min ≤ d_max) :
-    (∃ (R : ℕ) (π : Protocol (Fin 4) ℝ R), AchievesSkew π d_min d_max γ) ↔
+    (∃ (R : ℕ) (π : LockstepProtocol (Fin 4) ℝ R), AchievesLockstepSkew π d_min d_max γ) ↔
       (3 / 4 : ℝ) * (d_max - d_min) ≤ γ := by
-  rw [exists_achievesSkew_iff hd]
+  rw [exists_achievesLockstepSkew_iff hd]
   norm_num
 
-/-! ### Byzantine trimmed-midpoint resynchronization on `Fin 4, t = 1` over `ℚ` -/
+/-! ### Lockstep drift-free Byzantine trimmed-midpoint step on `Fin 4, t = 1` over `ℚ` -/
 
 /-- Initial offsets: honest processes `{0, 1, 2}` have skew `δ₀ = 8` (`0, 4, 8`); faulty `3` has
 offset `1000`. -/
@@ -182,42 +189,44 @@ def byzAdv : Fin 4 → Fin 4 → ℚ
   | _, _ => 0
 
 -- Plain fault-free averaging is broken by the equivocating clock `3` (skew > 300 between 0 and 1),
--- whereas `byzantineSyncOffset` trims out the Byzantine outlier and keeps all honest pairs
--- `{0, 1, 2}` within `δ₀ / 2 + (d_max - d_min) = 8 / 2 + 2 = 6` after 1 round and `5` after 2.
+-- whereas `lockstepDriftFreeByzantineOffset` trims out the Byzantine outlier and keeps honest
+-- pairs `{0, 1, 2}` within `8 / 2 + 2 = 6` after 1 round and within `5` after 2 rounds.
 example :
     let F : Finset (Fin 4) := {3}
     let avgRecv (p : Fin 4) : Fin 4 → ℚ :=
-      fun j => byzantineArrival F byzAdv byzOffsets byzDelays j p
+      fun j => lockstepByzantineArrival F byzAdv byzOffsets byzDelays j p
     let avgSync (p : Fin 4) : ℚ :=
       byzOffsets p + (∑ j : Fin 4, estDiff 1 3 p (avgRecv p) j) / 4
-    let r1 := byzantineSyncOffset 1 (1 : ℚ) 3 F byzAdv byzOffsets byzDelays
-    let r2 := byzantineSyncOffsetIter 1 (1 : ℚ) 3 F (fun _ => byzAdv) byzOffsets
+    let r1 := lockstepDriftFreeByzantineOffset 1 (1 : ℚ) 3 F byzAdv byzOffsets byzDelays
+    let r2 := lockstepDriftFreeByzantineOffsetIter 1 (1 : ℚ) 3 F (fun _ => byzAdv) byzOffsets
       (fun _ => byzDelays) 2
     300 < |avgSync 0 - avgSync 1| ∧
       |r1 0 - r1 1| ≤ 6 ∧ |r1 0 - r1 2| ≤ 6 ∧ |r1 1 - r1 2| ≤ 6 ∧
       |r2 0 - r2 1| ≤ 5 ∧ |r2 0 - r2 2| ≤ 5 ∧ |r2 1 - r2 2| ≤ 5 := by
   decide +kernel
 
--- Checked application of `byzantineSyncOffset_mem_Icc`, `byzantineSyncOffset_abs_sub_le`, and
--- `byzantineSyncOffsetIter_abs_sub_le` on Fin 4, t = 1.
+-- Checked application of `lockstepDriftFreeByzantineOffset_mem_Icc`,
+-- `lockstepDriftFreeByzantineOffset_abs_sub_le`, and
+-- `lockstepDriftFreeByzantineOffsetIter_abs_sub_le` on Fin 4, t = 1.
 example {c : Fin 4 → ℚ} {adv δ : Fin 4 → Fin 4 → ℚ}
     (hc_Icc : ∀ j ∉ ({3} : Finset (Fin 4)), 0 ≤ c j ∧ c j ≤ 8)
     (hc_skew : ∀ p ∉ ({3} : Finset (Fin 4)), ∀ q ∉ ({3} : Finset (Fin 4)), |c p - c q| ≤ 8)
     (hδ : ∀ j ∉ ({3} : Finset (Fin 4)), ∀ p ∉ ({3} : Finset (Fin 4)), 1 ≤ δ j p ∧ δ j p ≤ 3) :
-    (-1 ≤ byzantineSyncOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 0 ∧
-        byzantineSyncOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 0 ≤ 9) ∧
-      |byzantineSyncOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 0 -
-          byzantineSyncOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 2| ≤ 6 ∧
-      |byzantineSyncOffsetIter 1 1 3 ({3} : Finset (Fin 4)) (fun _ => adv) c (fun _ => δ) 3 0 -
-          byzantineSyncOffsetIter 1 1 3 ({3} : Finset (Fin 4)) (fun _ => adv) c
+    (-1 ≤ lockstepDriftFreeByzantineOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 0 ∧
+        lockstepDriftFreeByzantineOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 0 ≤ 9) ∧
+      |lockstepDriftFreeByzantineOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 0 -
+          lockstepDriftFreeByzantineOffset 1 1 3 ({3} : Finset (Fin 4)) adv c δ 2| ≤ 6 ∧
+      |lockstepDriftFreeByzantineOffsetIter 1 1 3 ({3} : Finset (Fin 4)) (fun _ => adv) c
+            (fun _ => δ) 3 0 -
+          lockstepDriftFreeByzantineOffsetIter 1 1 3 ({3} : Finset (Fin 4)) (fun _ => adv) c
             (fun _ => δ) 3 2| ≤ 9 / 2 := by
-  have hIcc := byzantineSyncOffset_mem_Icc (P := Fin 4) (t := 1) (by decide)
+  have hIcc := lockstepDriftFreeByzantineOffset_mem_Icc (P := Fin 4) (t := 1) (by decide)
     (F := {3}) (by decide) (lo := 0) (hi := 8) adv c δ hc_Icc hδ
     (p := 0) (by decide)
-  have h1 := byzantineSyncOffset_abs_sub_le (P := Fin 4) (t := 1) (by decide)
+  have h1 := lockstepDriftFreeByzantineOffset_abs_sub_le (P := Fin 4) (t := 1) (by decide)
     (F := {3}) (by decide) (d_min := 1) (d_max := 3) (δ₀ := 8) adv c δ hc_skew hδ
     (p := 0) (q := 2) (by decide) (by decide)
-  have h3 := byzantineSyncOffsetIter_abs_sub_le (P := Fin 4) (t := 1) (by decide)
+  have h3 := lockstepDriftFreeByzantineOffsetIter_abs_sub_le (P := Fin 4) (t := 1) (by decide)
     (F := {3}) (by decide) (d_min := 1) (d_max := 3) (δ₀ := 8)
     (fun _ => adv) c (fun _ => δ) hc_skew (fun _ => hδ) 3 (p := 0) (q := 2) (by decide) (by decide)
   exact ⟨⟨by linarith, by linarith⟩, by linarith, by linarith⟩
