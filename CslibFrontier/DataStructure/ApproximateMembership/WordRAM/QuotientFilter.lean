@@ -17,6 +17,7 @@ import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Word-RAM Implementation of the Two-Stage Quotient Filter
@@ -102,7 +103,7 @@ theorem two_mul_reducedChunkBits_lt_of_fits_space {base w w₀ n k : ℕ}
   have hc_le :=
     two_mul_reducedChunkBits_le (b := quotBits w₀ n) (by omega : w₀ ≤ w) hb_lt.le (by omega)
   have hsp_le : ReducedKWise.space w w₀ (quotBits w₀ n) (quotBits w₀ n) 5 ≤ space w w₀ n k := by
-    dsimp only [space]; omega
+    wram_omega
   exact ReducedKWise.two_mul_reducedChunkBits_lt_of_fits_space (base := base) (k := 5) hc_le
     (by fits [hsp_le])
 
@@ -439,7 +440,7 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
   have hw₀_le : w₀ ≤ w := by omega
   have hc_lt := two_mul_reducedChunkBits_lt_of_fits_space hw₀_pos hw hfit_space
   have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ b b 5) := by
-    have : ReducedKWise.space w w₀ b b 5 ≤ space w w₀ n k := by dsimp only [space, b]; omega
+    have : ReducedKWise.space w w₀ b b 5 ≤ space w w₀ n k := by wram_omega
     fits [this]
   obtain ⟨y_tab, he_tab_inner, hy_tab_0, htab, hframe_tab⟩ :=
     ReducedKWise.initTableCode_exec (k := 5) (x := x₁.comap kwiseMap)
@@ -498,9 +499,7 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
     have hmem_below : ∀ a < base + ReducedKWise.space w w₀ b b 5, y.mem a = z1.1.mem a := by
       intro a ha
       dsimp only [y, remInitData, Data.write, Data.set]
-      have hne : a ≠ remSeedAddr base w w₀ n := by
-        dsimp only [remSeedAddr, b] at ha ⊢
-        omega
+      have hne : a ≠ remSeedAddr base w w₀ n := by wram_omega [ha]
       rw [Function.update_of_ne hne]
       rfl
     have htab_y : ReducedKWise.TableRep base w w₀ b b 5 y.mem :=
@@ -524,21 +523,19 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
         y.mem a = 0 := by
       intro a hle hlt
       dsimp only [y, remInitData, Data.write, Data.set]
-      have hne : a ≠ remSeedAddr base w w₀ n := by dsimp only [fullBase] at hle; omega
+      have hne : a ≠ remSeedAddr base w w₀ n := by wram_omega [hle]
       rw [Function.update_of_ne hne]
       change z1.1.mem a = 0
       have ha1 : a < base ∨ base + ReducedKWise.seedWords w₀ b b 5 ≤ a := by
         dsimp only [fullBase, remSeedAddr, ReducedKWise.space, b] at hle ⊢
         omega
       have ha2 : a < ReducedKWise.tabBase base w₀ b b 5 ∨
-          base + ReducedKWise.space w w₀ b b 5 ≤ a := by
-        dsimp only [fullBase, remSeedAddr, b] at hle ⊢
-        omega
+          base + ReducedKWise.space w w₀ b b 5 ≤ a := by wram_omega [hle]
       rw [hframe1 a ha1]
       change y_tab.mem a = 0
       rw [hframe_tab a ha2]
       exact hzero a (Block.mem_footprint.mpr
-        ⟨by dsimp only [fullBase, remSeedAddr, Block.Owns] at hle ⊢; omega, hlt⟩)
+        ⟨by wram_omega [hle], hlt⟩)
     have hst_empty : extractFilterState base w w₀ n k y.mem =
         FilterState.empty (quotBits w₀ n) (remBits w₀ k) :=
       extractFilterState_of_zero hzero_slots
@@ -554,8 +551,8 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
       dsimp only [y, remInitData, Data.write, Data.set]
       have hne : a ≠ remSeedAddr base w w₀ n := by
         rcases ha with hlt | hge
-        · dsimp only [remSeedAddr] at hlt ⊢; omega
-        · dsimp only [remSeedAddr, space] at hge ⊢; omega
+        · wram_omega [hlt]
+        · wram_omega [hge]
       rw [Function.update_of_ne hne]
       change z1.1.mem a = x₁.mem a
       have ha1 : a < base ∨ base + ReducedKWise.seedWords w₀ b b 5 ≤ a := by
@@ -566,7 +563,7 @@ theorem initSetup_exec {U base w w₀ n k : ℕ}
           base + ReducedKWise.space w w₀ b b 5 ≤ a := by
         rcases ha with hlt | hge
         · exact Or.inl (by dsimp only [ReducedKWise.tabBase] at hlt ⊢; omega)
-        · exact Or.inr (by dsimp only [space, b] at hge ⊢; omega)
+        · exact Or.inr (by wram_omega [hge])
       rw [hframe1 a ha1]
       change y_tab.mem a = x₁.mem a
       exact hframe_tab a ha2
@@ -680,7 +677,7 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
   have hb_lt := quotBits_lt_w_of_fits_space hw₀_pos hw hfit_space
   have hc_lt := two_mul_reducedChunkBits_lt_of_fits_space hw₀_pos hw hfit_space
   have hfit_kwise : Fits w (base + ReducedKWise.space w w₀ b b 5) := by
-    have : ReducedKWise.space w w₀ b b 5 ≤ space w w₀ n k := by dsimp only [space, b]; omega
+    have : ReducedKWise.space w w₀ b b 5 ≤ space w w₀ n k := by wram_omega
     fits [this]
   have hS_lt : #S < 2 ^ b := card_lt_two_pow_quotBits hU hS
   set s1 := x.set (qfReg 246) (x.regs (qfReg 1))
@@ -794,9 +791,9 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
     have hmem_below : ∀ addr < base + ReducedKWise.space w w₀ b b 5,
         y.mem addr = x.mem addr := fun addr haddr => by
       rw [hy_mem_s']
-      exact hframe_y.2 addr (Or.inl (by dsimp only [fullBase, remSeedAddr, b] at *; omega))
+      exact hframe_y.2 addr (Or.inl (by wram_omega))
     have hrem_y : y.mem (remSeedAddr base w w₀ n) = p.2.val := by
-      rw [hy_mem_s', hframe_y.2 _ (Or.inl (by dsimp only [fullBase]; omega))]
+      rw [hy_mem_s', hframe_y.2 _ (Or.inl (by wram_omega))]
       exact hrem_seed
     have hmod_y : Modifies (Block.mk base (space w w₀ n k)).footprint x.mem y.mem := by
       intro addr haddr
@@ -804,7 +801,7 @@ theorem opCode_execWithin {U base w w₀ n k : ℕ}
       rw [hy_mem_s']
       apply hframe_y.2 addr
       rcases haddr with hlt | hge
-      · exact Or.inl (by dsimp only [fullBase, remSeedAddr] at *; omega)
+      · exact Or.inl (by wram_omega)
       · exact Or.inr hge
     exact ⟨⟨hy_bdd, hy_0, hy_fr', (tableRep_congr hmem_below).mpr htab,
       (seedRep_congr p.1 hmem_below).mpr hseed, hrem_y, hinv_y⟩, hmod_y⟩

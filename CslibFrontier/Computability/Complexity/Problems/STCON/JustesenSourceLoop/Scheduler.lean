@@ -45,13 +45,13 @@ prepared field in its state and uses it to start each scan on the original input
   a valid requested scan has exactly one first-halting selector list returning a verdict.
 * `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerScan_readReply_correct`:
   parsed scanner replies give the first tie or the reachability verdict for the requested source.
-* `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerEntry_inSpace`:
-  construct the original-word entry within the logarithmic workspace budget.
 * `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerScan_firstHalting_eq_reference` and
   `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerScan_readReply_eq_reference`:
   first-halting and parsed replies agree with the mathematical reference callback.
 * `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_replay_correct`:
   the unique successful replay returns the least min-isolating seed and decides reachability.
+* `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerEntry_inSpace`:
+  construct the original-word entry within the logarithmic workspace budget.
 * `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_haltsWithin_clock`:
   a common polynomial selector clock for every branch.
 * `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_length_run_le_log`:

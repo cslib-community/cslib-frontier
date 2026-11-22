@@ -341,6 +341,23 @@ example {k : ℕ} {State α : Type} [Fintype State] (ntm : MultiTapeNTM k Bool S
   exact ⟨ComputableInSpace.budget_comp_linear hq hs,
     ComputableInSpace.budget_comp_linear hh hs, ComputableInSpace.budget_comp_linear ha hs⟩
 
+open Cslib.Complexity in
+/-- The retained scheduler returns the original machine's decision on its unique successful
+trace, for any input on which the simulated machine obeys its space bound. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (hspace : ntm.RunsInSpace w (c * (Nat.log2 w.length + 1))) :
+    let M := justesenSeedScheduler ntm c
+    let entry := configurationJustesenSeedSchedulerEntry ntm c w
+    let reply := fun trace => SeedSchedulerMachine.reply (M.replay w trace entry).2
+    ∃ (answer : SeedSchedulerMachine.Answer) (bits : List Bool),
+      (answer.reachable = true ↔ ntm.Accepts w) ∧
+      M.FirstHalting w bits entry ∧ reply bits = some (some answer) ∧
+      ∀ other, M.FirstHalting w other entry → (reply other).isSome → other = bits := by
+  obtain ⟨answer, bits, _, _, _, hreach, hfirst, hreply, hunique⟩ :=
+    configurationJustesenSeedScheduler_replay_correct ntm c w
+  exact ⟨answer, bits, hreach.trans (configurationInstance_mem_iff ntm c hspace),
+    hfirst, hreply, hunique⟩
+
 /-- The original word produces the full retained entry within the compiler's budget. -/
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ComputableInSpace (configurationJustesenSeedSchedulerEntry ntm c)
@@ -375,22 +392,5 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   refine ⟨R, L, d, fun w => ⟨(h w).1, (h w).2, R.accepts_iff w, fun hspace => ?_⟩⟩
   simpa only [configurationInstance_mem_iff ntm c hspace] using
     configurationJustesenSeedScheduler_acceptCount ntm c R w (h w).2
-
-open Cslib.Complexity in
-/-- The retained scheduler returns the original machine's decision on its unique successful
-trace, for any input on which the simulated machine obeys its space bound. -/
-example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
-    (c : ℕ) (w : List Bool) (hspace : ntm.RunsInSpace w (c * (Nat.log2 w.length + 1))) :
-    let M := justesenSeedScheduler ntm c
-    let entry := configurationJustesenSeedSchedulerEntry ntm c w
-    let reply := fun trace => SeedSchedulerMachine.reply (M.replay w trace entry).2
-    ∃ (answer : SeedSchedulerMachine.Answer) (bits : List Bool),
-      (answer.reachable = true ↔ ntm.Accepts w) ∧
-      M.FirstHalting w bits entry ∧ reply bits = some (some answer) ∧
-      ∀ other, M.FirstHalting w other entry → (reply other).isSome → other = bits := by
-  obtain ⟨answer, bits, _, _, _, hreach, hfirst, hreply, hunique⟩ :=
-    configurationJustesenSeedScheduler_replay_correct ntm c w
-  exact ⟨answer, bits, hreach.trans (configurationInstance_mem_iff ntm c hspace),
-    hfirst, hreply, hunique⟩
 
 end CslibFrontierTests.STCONSeedScheduler

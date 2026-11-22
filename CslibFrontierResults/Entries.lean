@@ -365,6 +365,7 @@ import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
+import CslibFrontier.DataStructure.BTree.Comparisons.LowerBound
 import CslibFrontier.DataStructure.Dictionary.UniformProbing
 import CslibFrontier.DataStructure.NearNeighbor.Angular
 import CslibFrontier.DataStructure.NearNeighbor.PStable
@@ -12562,3 +12563,22 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
     (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
     outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
     https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "btree-rank-comparison-lower-bound" where
+  title := "Comparison lower bound for B-tree rank search"
+  topic := "algorithms"
+  sources := [
+    { paper := Knuth1998, theorem := unverified, locator := "Section 6.2.1" }
+  ]
+  theorems := [
+    Cslib.DataStructure.BTree.IsRank.lowerBound_infinite,
+    Cslib.DataStructure.BTree.IsRank.lowerBound_wfInput_infinite,
+    Cslib.DataStructure.BTree.rank_lowerBound_infinite
+  ]
+  scope := "Proves the ⌈log₂(n + 1)⌉ comparison lower bound for comparison-based rank programs \
+    (IsRank, satisfied by both rankQ and rankBinQ) on B-trees over an infinite key type in the \
+    FreeM (LEQuery α) query model: on any duplicate-free tree (rank_lowerBound_infinite), over \
+    general (BTree α β × α) inputs (IsRank.lowerBound_infinite), and over well-formed B-trees \
+    WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
+    comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
+    comparison lower bound for lookup remains open under #3674."
