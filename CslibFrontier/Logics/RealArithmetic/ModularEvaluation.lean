@@ -65,33 +65,35 @@ theorem evalResidue_eq {n p : ℕ} (hp : 0 < p) (point : List ℕ) (t : Term n) 
 
 /-- Process one constructor token from the right of a prefix stream. A leaf pushes a residue.
 A binary operator replaces the top two residues and fails if fewer than two are available. -/
-@[expose] def evalTokenStep {n : ℕ} (p : ℕ) (point : List ℕ) :
-    (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) → List ℕ → Option (List ℕ)
+@[expose] def evalTokenStep (p : ℕ) (point : List ℕ) :
+    TermToken → List ℕ → Option (List ℕ)
   | .inl z, stack => some ((z % (p : ℤ)).toNat :: stack)
-  | .inr (.inl i), stack => some (point[i.val]?.getD 0 % p :: stack)
+  | .inr (.inl i), stack => some (point[i]?.getD 0 % p :: stack)
   | .inr (.inr (.inl _)), l :: r :: stack => some ((l + r) % p :: stack)
   | .inr (.inr (.inr _)), l :: r :: stack => some ((l * r) % p :: stack)
   | .inr (.inr _), _ => none
 
 /-- Process prefix tokens from right to left, starting with an existing residue stack.
 Failure propagates if any operator has too few operands. -/
-@[expose] def evalTokenStack {n : ℕ} (p : ℕ) (point : List ℕ)
-    (tokens : List (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit)) (stack : List ℕ) : Option (List ℕ) :=
+@[expose] def evalTokenStack (p : ℕ) (point : List ℕ)
+    (tokens : List TermToken) (stack : List ℕ) : Option (List ℕ) :=
   tokens.foldr (fun token result => result.bind (evalTokenStep p point token)) (some stack)
 
 /-- Processing a complete term stream pushes its modular value above the initial stack. -/
 theorem evalTokenStack_tokens {n : ℕ} (p : ℕ) (point : List ℕ) (t : Term n) (stack : List ℕ) :
-    evalTokenStack p point (encTerm_tokens n t) stack = some (t.evalResidue p point :: stack) := by
+    evalTokenStack p point ((encTerm_tokens n t).map TermToken.ofFin) stack =
+      some (t.evalResidue p point :: stack) := by
   induction t generalizing stack with
   | const z => rfl
   | var i => rfl
   | add l r hl hr | mul l r hl hr =>
     simp only [evalTokenStack] at hl hr
-    simp only [encTerm_tokens, evalTokenStack, List.foldr_cons, List.foldr_append, List.foldr_nil,
-      hr, hl, Option.bind_some, evalTokenStep, evalResidue]
+    simp only [encTerm_tokens, List.map_append, List.map_cons, List.map_nil, evalTokenStack,
+      List.foldr_cons, List.foldr_append, List.foldr_nil, hr, hl, Option.bind_some]
+    rfl
 
-private theorem evalTokenStep_bounds {n p : ℕ} (hp : 0 < p) (point : List ℕ)
-    (token : ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) {stack result : List ℕ}
+private theorem evalTokenStep_bounds {p : ℕ} (hp : 0 < p) (point : List ℕ)
+    (token : TermToken) {stack result : List ℕ}
     (hs : ∀ x ∈ stack, x < p) (h : evalTokenStep p point token stack = some result) :
     result.length ≤ stack.length + 1 ∧ ∀ x ∈ result, x < p := by
   rcases token with z | (i | (_ | _))
@@ -110,8 +112,8 @@ private theorem evalTokenStep_bounds {n p : ℕ} (hp : 0 < p) (point : List ℕ)
 
 /-- Each successful suffix of the prefix stream grows the stack by at most one entry per token.
 For positive `p`, every entry stays below `p` if the initial entries do. -/
-theorem evalTokenStack_bounds {n p : ℕ} (hp : 0 < p) (point : List ℕ)
-    (tokens : List (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit)) {stack result : List ℕ}
+theorem evalTokenStack_bounds {p : ℕ} (hp : 0 < p) (point : List ℕ)
+    (tokens : List TermToken) {stack result : List ℕ}
     (hs : ∀ x ∈ stack, x < p) (h : evalTokenStack p point tokens stack = some result) :
     result.length ≤ stack.length + tokens.length ∧ ∀ x ∈ result, x < p := by
   induction tokens generalizing result with

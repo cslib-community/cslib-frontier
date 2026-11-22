@@ -30,12 +30,25 @@ The generated constructor, projection and injectivity APIs come from `derive_enc
 public section
 namespace Cslib.Logic.RealArithmetic
 
+open Turing.MultiTapeTM
 open scoped Turing.MultiTapeTM.EncodingPolicy.BinaryIntUnaryFin
 
 /-- Flat constructor stream with binary integer constants and unary variable ranks. -/
 derive_encoding encTerm (n : ℕ) : Term n
 /-- Flat Boolean constructor stream carrying complete binary-integer arithmetic term words. -/
 derive_encoding encFormula (n : ℕ) : Formula n
+
+/-- A prefix constructor token with a natural-number variable rank. The four alternatives are
+an integer constant, a variable, addition, and multiplication, in that order. -/
+abbrev TermToken := ℤ ⊕ ℕ ⊕ Unit ⊕ Unit
+
+/-- The term constructor tags, followed by a binary integer, unary rank, or empty payload. -/
+abbrev encTermToken : TermToken ↪ List Bool :=
+  encSum encIntBin (encSum encUnary (encSum encUnit encUnit))
+
+/-- Keep the constructor and payload of a typed token, reading a variable as its unary rank. -/
+@[expose] def TermToken.ofFin {n : ℕ} : (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) → TermToken :=
+  Sum.map id (Sum.map Fin.val id)
 
 /-- Preserving variable ranks preserves every bit of a term's encoding. -/
 theorem encTerm_rename {n m : ℕ} (f : Fin n → Fin m)
