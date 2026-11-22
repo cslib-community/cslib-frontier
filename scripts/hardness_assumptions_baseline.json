@@ -11,8 +11,7 @@
   "Cslib.Crypto.PRG.IsExponentiallySecure": "#5578: RazborovRudich1997 is not checked at the source.",
   "Cslib.Crypto.PRG.IsSubexponentiallySecure": "#5578: RazborovRudich1997 is not checked at the source.",
   "Cslib.Crypto.QuadraticResiduosityHard": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same).",
-  "Cslib.Crypto.RabinOneWay": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same).",
-  "Cslib.Crypto.SymmetricCipher.RealIdealAE": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same)."
+  "Cslib.Crypto.RabinOneWay": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same)."
  },
  "headlines": {}
 }
