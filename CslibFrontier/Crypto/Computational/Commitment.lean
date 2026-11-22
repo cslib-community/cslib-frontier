@@ -33,7 +33,9 @@ length `n` using a pseudorandom generator `generator`:
 `naorCommit generator r b seed` outputs `generator seed` when `b = false`, and
 `BitString.listXor (generator seed).length [generator seed, r]` when `b = true`.
 
-The general public-parameter interface is in `Commitment/Basic`.
+The general public-parameter interface is in `Commitment/Basic`. For the uniform single-bit
+guessing and binding theorem and the auxiliary-input prediction comparison, see
+`Commitment/Guessing`.
 
 ## Main definitions
 
@@ -352,8 +354,9 @@ commitments to its second chosen bit (`bit = true`) with non-negligible advantag
 This specializes the receiver-chosen pair in [Naor1991], Section 2, pp. 3–4 of the author's copy,
 to two bits. The receiver sends `r` and receives `commit r b seed` on a uniform `n`-bit seed.
 The distinguishing gap is twice the excess success probability of a uniform-bit guesser.
-Both worlds use the same `aux n`. The source also discusses side information correlated with the
-hidden bit and measures the gain over the receiver's prior guessing probability (#6256).
+Both worlds use the same `aux n`. For the source's comparison with a predictor given only prior
+information correlated with the bit, see `StatefulHiding.exists_priorPredictor` in
+`Commitment/Guessing`.
 
 *Clock convention.* `CommitmentReceiver.IsPPT` clocks `receiver.choose` polynomial in the length
 of its full encoded input `(1^n, aux n)`, i.e., `poly(n + (aux n).length)`, and clocks
@@ -599,8 +602,8 @@ theorem PseudorandomGenerator.naorGenerableStatefulHiding
 result: for any nonuniform pseudorandom generator (`NonuniformPRG`), `naorCommit generator`
 satisfies `StatefulHiding` against randomized stateful PPT receivers given any polynomially bounded
 auxiliary input family `aux : ℕ → List Bool`. Both games use the same advice.
-Section 2, p. 3 of the author's copy also compares prediction before and after commitment when
-the bit and the receiver's prior information have a joint law (#6256). -/
+For Section 2's comparison of prediction before and after commitment with a joint law on the
+bit and prior information, apply `StatefulHiding.exists_priorPredictor` in `Commitment/Guessing`. -/
 theorem NonuniformPRG.naorStatefulHiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length) :
@@ -745,7 +748,8 @@ theorem naorBindingProb_le_of_three_mul {generator : List Bool → List Bool} {l
 /-- Strict binding bound for positive seed length, the single-bit binding step of
 [Naor1991], Section 3, Theorem 3.1(2), p. 6 of the author's copy. Each pair of equal seeds
 produces the same zero shift, so the count in Claim 3.1 strictly overestimates the number
-of bad challenges. The hiding clause is tracked in #6256. -/
+of bad challenges. The single-bit protocol combines this bound with uniform guessing security
+in `PseudorandomGenerator.naorCommit_guessing_and_binding` in `Commitment/Guessing`. -/
 theorem naorBindingProb_lt_of_three_mul {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) {n : ℕ} (hn : 0 < n)
     (hstretch : 3 * n ≤ length n) : naorBindingProb generator length n < (1 / 2 : ℝ≥0∞) ^ n := by
@@ -1338,7 +1342,7 @@ result: packages `naorCommit generator` from any nonuniform pseudorandom generat
 with stretch at least `3 * n` into a `BitCommitmentScheme` providing `StatefulHiding` against
 randomized stateful PPT receivers given arbitrary polynomially bounded auxiliary input.
 `naorBindingProb_lt_of_three_mul` gives the strict probability bound for the binding clause.
-The hiding game uses advice fixed across its two worlds (#6256). -/
+The hiding game uses advice fixed across its two worlds. -/
 def NonuniformPRG.naorBitCommitment
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length)
@@ -1352,8 +1356,7 @@ result: proves `Nonempty BitCommitmentScheme` (with `StatefulHiding` against ran
 receivers given arbitrary polynomially bounded auxiliary input) from any nonuniform one-way function
 (`NonuniformOneWay`), composing the nonuniform OWF-to-PRG step
 (`NonuniformOneWay.exists_nonuniformPRG_three_mul`, [HILL1999]) with
-`NonuniformPRG.naorBitCommitment`. The latter carries the fixed-advice hiding guarantee
-compared with the source in #6256. -/
+`NonuniformPRG.naorBitCommitment`. The latter carries the fixed-advice hiding guarantee. -/
 theorem NonuniformOneWay.exists_bitCommitmentScheme {f : List Bool → List Bool}
     (hf : NonuniformOneWay f) :
     Nonempty BitCommitmentScheme := by
