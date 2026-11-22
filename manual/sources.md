@@ -957,6 +957,11 @@ Jason D. Hartline. *Mechanism Design and Approximation*, book manuscript; chapte
 
 Juris Hartmanis. "Computational Complexity of One-Tape Turing Machine Computations." *Journal of the ACM* 15(2), 325–339, 1968. https://doi.org/10.1145/321450.321464 . Bibliographic metadata checked through Crossref; the article body was not inspected in this pass. The manual cites it for the `n log n` lower bound on one-tape recognition of nonregular languages, as attributed in [Pighizzini 2009](#pighizzini2009), §1 and §4.
 
+<a id="hearndemaine2005"></a>
+## hearndemaine2005
+
+Robert A. Hearn and Erik D. Demaine. *PSPACE-completeness of sliding-block puzzles and other problems through the nondeterministic constraint logic model of computation*. Theoretical Computer Science 343 (2005), 72–96. Sections 2.1–2.2 of the authors’ version define the three reachability questions and the AND/OR vertex types. Theorem 5 and Corollary 6 (§3.1, pp. 7–8 of that version) give their polynomial-space upper bounds. The formalization proves these bounds for finite AND/OR multigraphs, allowing loops and parallel edges as in footnote 2 on p. 4. It uses one bit per edge and deterministic Savitch search. The bounds for general weighted graphs and the PSPACE-hardness directions remain open in this library. [Authors’ version](https://erikdemaine.org/papers/NCL_TCS/paper.pdf)
+
 <a id="heath24"></a>
 ## heath24
 
@@ -1637,7 +1642,7 @@ Zsigmond Nagy. “A Constructive Estimation of the Ramsey Numbers” (in Hungari
 <a id="naor91"></a>
 ## naor91
 
-Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences. Section 3 (pp. 5–6 of the same copy) gives the single-bit protocol and its hiding argument. On p. 6, Claim 3.1 counts pairs of seeds to bound the binding failure by `2⁻ⁿ`, and Theorem 3.1(2) states the strict inequality for sufficiently large `n`.
+Moni Naor. “Bit Commitment Using Pseudorandomness.” *Journal of Cryptology* 4(2), 151–158, 1991. https://doi.org/10.1007/BF00196774 . The journal version was not inspected. Read on 2026-11-15 in the author's copy, https://www.wisdom.weizmann.ac.il/~naor/PAPERS/bit.pdf (“Bit Commitment Using Pseudo-Randomness”, 10 pages, dated February 25, 2001; SHA-256 `938b32039291411c682ca457c8c040dba7f0dc264de91182e6cb8cdaaba633b6`), whose section and page numbers the library cites: Section 2 (pp. 3–4), the secrecy and binding conditions of a bit commitment, the remark on auxiliary input, and the conditions for commitments to many bits, in which the receiver selects the two sequences. Section 2, p. 4 allows any polynomial output length and treats the generator as a stream with efficient prefixes. Section 3 (pp. 5–6) uses its first `3n` bits. Theorem 3.1(1), p. 6 bounds the probability that a probabilistic polynomial-time receiver guesses the bit by one half plus any inverse polynomial for sufficiently large `n`. Claim 3.1 counts seed pairs to bound binding failure by `2⁻ⁿ`. Theorem 3.1(2) states the strict inequality.
 
 <a id="naoryung89"></a>
 ## naoryung89
