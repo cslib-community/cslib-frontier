@@ -109,7 +109,7 @@ structure Activity where
 def Activity.init (n : ℕ) : Activity := ⟨Array.replicate n 0, 2 ^ 40⟩
 
 /-- The activity of the variable `v`. -/
-def Activity.get (A : Activity) (v : ℕ) : ℕ := A.score.getD v 0
+@[inline] def Activity.get (A : Activity) (v : ℕ) : ℕ := A.score.getD v 0
 
 /-- **Bumping** `v`: its activity grows by the increment; if it reaches `2 ^ 60`, every activity
 and the increment are divided by `2 ^ 20`. The activities are an array indexed by variable: for
@@ -251,7 +251,7 @@ instance Activity.transOrd (A : Activity) : @Std.TransOrd ℕ A.keyOrd :=
 
 /-- Whether `a` comes before `b` in the order of the activities `A`: a lower activity, or the same
 and a smaller variable. -/
-def Activity.below (A : Activity) (a b : ℕ) : Bool :=
+@[inline] def Activity.below (A : Activity) (a b : ℕ) : Bool :=
   let x := A.get a
   let y := A.get b
   x < y || (x == y && a < b)
@@ -848,7 +848,7 @@ theorem Activity.le_get_modify (A : Activity) (u v c i : ℕ) :
 
 /-- **Bumping `v`** in the activities `A` and the order `H`: `Activity.bumpVar`, and the variable is
 moved up in the heap, or the heap is rebuilt if the activities were scaled down. -/
-def VarOrder.bumpVar (A : Activity) (H : VarOrder) (v : ℕ) : Activity × VarOrder :=
+@[inline] def VarOrder.bumpVar (A : Activity) (H : VarOrder) (v : ℕ) : Activity × VarOrder :=
   let score := A.score.modify v (· + A.inc)
   if score.getD v 0 >>> 60 != 0 then
     let A' : Activity := ⟨score.map (· >>> 20), A.inc >>> 20⟩
