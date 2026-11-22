@@ -133,34 +133,18 @@ theorem refineLeftLoopTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) :
       let vCost := 2 * (seq.map List.length).sum + 6 * seq.length + 7
       let eCost := 2 * t.length + 1
       (refineLeftLoopTotalM t seq fuel u v vu).time ≤ fuel * (vCost + eCost + 4) + 1
-  | 0, u, v, _ => by
-    dsimp only
-    simp only [refineLeftLoopTotalM, time_simps, zero_mul]
-    omega
+  | 0, _, _, _ => by simp only [refineLeftLoopTotalM, time_simps, zero_mul, le_refl]
   | fuel + 1, u, v, vu => by
-    dsimp only
-    let m := (u + v) / 2
-    have hsv := sturmVariationsListM_time_le seq m
-    dsimp only [m] at hsv
+    have hsv := sturmVariationsListM_time_le seq ((u + v) / 2)
     simp only [refineLeftLoopTotalM, time_simps]
-    have hsplit : (fuel + 1) * ((2 * (seq.map List.length).sum + 6 * seq.length + 7) +
-        (2 * t.length + 1) + 4) =
-        fuel * ((2 * (seq.map List.length).sum + 6 * seq.length + 7) +
-          (2 * t.length + 1) + 4) +
-        ((2 * (seq.map List.length).sum + 6 * seq.length + 7) + (2 * t.length + 1) + 4) :=
-      Nat.succ_mul fuel _
-    split_ifs with hvm
-    · simp only [TimeM.time_pure]
-      rw [hsplit]
-      omega
+    rw [Nat.succ_mul fuel]
+    split_ifs
+    · simp only [TimeM.time_pure]; omega
     · simp only [time_simps]
-      split_ifs with hem
-      · simp only [TimeM.time_pure]
-        rw [hsplit]
-        omega
-      · have ih := refineLeftLoopTotalM_time_le t seq fuel u m vu
-        dsimp only [m] at hsv ih
-        rw [hsplit]
+      split_ifs
+      · simp only [TimeM.time_pure]; omega
+      · have ih := refineLeftLoopTotalM_time_le t seq fuel u ((u + v) / 2) vu
+        dsimp only at ih
         omega
 
 /-- Step-charged conversion of a half-open isolating interval `(u, v]` into a closed isolating
@@ -197,15 +181,12 @@ theorem refineLeftRootTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) (fue
     let eCost := 2 * t.length + 1
     (refineLeftRootTotalM t seq fuel u v vu).time ≤
       2 * eCost + 3 + fuel * (vCost + eCost + 4) := by
-  dsimp only
   simp only [refineLeftRootTotalM, time_simps]
-  split_ifs with hev
-  · simp only [TimeM.time_pure]
-    omega
+  split_ifs
+  · simp only [TimeM.time_pure]; omega
   · simp only [time_simps]
-    split_ifs with heu
-    · simp only [TimeM.time_pure]
-      omega
+    split_ifs
+    · simp only [TimeM.time_pure]; omega
     · have hloop := refineLeftLoopTotalM_time_le t seq fuel u v vu
       dsimp only at hloop
       omega
@@ -272,28 +253,18 @@ private theorem isolateIocM_length_le {cs : List ℚ} (hsep : (ofCoeffList cs).S
       | zero => simp only [time_simps, Nat.zero_le]
       | succ fuel' =>
         simp only [time_simps, List.length_append]
-        let m := (u + v) / 2
-        let vm := sturmVariationsList (sturmSeqList cs) m
-        have hum : u ≤ m := by dsimp only [m]; linarith
-        have hmv : m ≤ v := by dsimp only [m]; linarith
-        have h1 : vm ≤ vu := hvu ▸ sturmVariationsList_antitone hsep hum
-        have h2 : vv ≤ vm := hvv ▸ sturmVariationsList_antitone hsep hmv
-        have ihL := isolateIocM_length_le hsep t depthBound fuel' u m vu vm hum hvu rfl
-        have ihR := isolateIocM_length_le hsep t depthBound fuel' m v vm vv hmv rfl hvv
-        dsimp only [m, vm] at ihL ihR h1 h2
+        have hum : u ≤ (u + v) / 2 := by linarith
+        have hmv : (u + v) / 2 ≤ v := by linarith
+        have := hvu ▸ sturmVariationsList_antitone hsep hum
+        have := hvv ▸ sturmVariationsList_antitone hsep hmv
+        have := isolateIocM_length_le hsep t depthBound fuel' u _ vu _ hum hvu rfl
+        have := isolateIocM_length_le hsep t depthBound fuel' _ v _ vv hmv rfl hvv
         omega
 
 private theorem sturmVariationsList_le_length (seq : List (List ℚ)) (x : ℚ) :
-    sturmVariationsList seq x ≤ seq.length := by
-  simp only [sturmVariationsList, List.signVariations]
-  calc (((((seq.map (evalCoeffList x)).map SignType.sign).filter (· ≠ 0)).destutter (· ≠ ·)).length
-        - 1)
-      ≤ ((((seq.map (evalCoeffList x)).map SignType.sign).filter (· ≠ 0)).destutter (· ≠ ·)).length
-        := Nat.sub_le _ _
-    _ ≤ (((seq.map (evalCoeffList x)).map SignType.sign).filter (· ≠ 0)).length :=
-        (List.destutter_sublist _ _).length_le
-    _ ≤ ((seq.map (evalCoeffList x)).map SignType.sign).length := List.length_filter_le _ _
-    _ = seq.length := by simp only [List.length_map]
+    sturmVariationsList seq x ≤ seq.length :=
+  (Nat.sub_le _ _).trans <| (List.destutter_sublist _ _).length_le.trans <|
+    (List.length_filter_le _ _).trans_eq (by simp only [List.length_map])
 
 private theorem isolateIocTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     (t : List ℚ) (depthBound : ℕ) :
@@ -310,36 +281,28 @@ private theorem isolateIocTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs
       (isolateIocTotalM t seq depthBound fuel u v vu vv).time ≤
         2 + (if c ≤ 1 then 0 else fuel * (c / 2)) * sTotal + c * rTotal
   | fuel, u, v, vu, vv, huv, hvu, hvv => by
-    dsimp only
-    let seq := sturmSeqList cs
-    let c := vu - vv
-    let vCost := 2 * (seq.map List.length).sum + 6 * seq.length + 7
-    let eCost := 2 * t.length + 1
-    let sTotal := vCost + seq.length + 10
-    let rTotal := 2 * eCost + 6 + depthBound * (vCost + eCost + 4)
     unfold isolateIocTotalM
-    dsimp only
     simp only [time_simps]
     by_cases hc0 : vu - vv = 0
-    · simp only [eq_true hc0, ↓reduceIte, TimeM.time_pure]
-      omega
+    · simp only [eq_true hc0, ↓reduceIte, TimeM.time_pure]; omega
     · simp only [eq_false hc0, ↓reduceIte, time_simps]
       by_cases hc1 : vu - vv = 1
-      · simp only [hc1, le_refl, ↓reduceIte, time_simps, zero_mul, one_mul]
-        have href := refineLeftRootTotalM_time_le t seq depthBound u v vu
-        dsimp only [seq] at href
+      · have href := refineLeftRootTotalM_time_le t (sturmSeqList cs) depthBound u v vu
+        dsimp only at href
+        simp only [hc1, le_refl, ↓reduceIte, time_simps, zero_mul, one_mul]
         omega
-      · have hc2 : 2 ≤ c := by dsimp only [c]; omega
-        have hif : ¬(vu - vv ≤ 1) := by omega
-        simp only [eq_false hc1, eq_false hif, ↓reduceIte]
+      · simp only [eq_false hc1, show ¬(vu - vv ≤ 1) by omega, ↓reduceIte]
+        set seq := sturmSeqList cs
+        let vC := 2 * (seq.map List.length).sum + 6 * seq.length + 7
+        let eC := 2 * t.length + 1
+        let sT := vC + seq.length + 10
+        let rT := 2 * eC + 6 + depthBound * (vC + eC + 4)
         cases fuel with
         | zero =>
+          have : 2 ≤ (vu - vv) * rT :=
+            Nat.mul_le_mul (show 2 ≤ vu - vv by omega) (show 1 ≤ rT by omega)
           simp only [time_simps, zero_mul]
-          have hr_pos : 1 ≤ rTotal := by dsimp only [rTotal]; omega
-          have hc_r : 2 ≤ c * rTotal := by
-            calc 2 = 2 * 1 := rfl
-              _ ≤ c * rTotal := Nat.mul_le_mul hc2 hr_pos
-          dsimp only [rTotal, vCost, eCost, seq, c] at hc_r
+          dsimp only [seq, vC, eC, rT] at this ⊢
           omega
         | succ fuel' =>
           simp only [time_simps]
@@ -347,43 +310,21 @@ private theorem isolateIocTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs
           let vm := sturmVariationsList seq m
           have hum : u ≤ m := by dsimp only [m]; linarith
           have hmv : m ≤ v := by dsimp only [m]; linarith
-          have hle_left : vm ≤ vu := hvu ▸ sturmVariationsList_antitone hsep hum
-          have hle_right : vv ≤ vm := hvv ▸ sturmVariationsList_antitone hsep hmv
+          have : vm ≤ vu := hvu ▸ sturmVariationsList_antitone hsep hum
+          have : vv ≤ vm := hvv ▸ sturmVariationsList_antitone hsep hmv
+          have hsum_c : (vu - vm) + (vm - vv) = vu - vv := by omega
           have hsv := sturmVariationsListM_time_le seq m
-          have hlenL :
-              ((isolateIocM t seq depthBound fuel' u m vu vm).ret).length ≤ seq.length := by
-            have hl1 := isolateIocM_length_le hsep t depthBound fuel' u m vu vm hum hvu rfl
-            have hl2 : vu ≤ seq.length := hvu ▸ sturmVariationsList_le_length seq u
-            dsimp only [seq] at hl2 ⊢
-            omega
+          have hl1 := isolateIocM_length_le hsep t depthBound fuel' u m vu vm hum hvu rfl
+          have hl2 : vu ≤ seq.length := hvu ▸ sturmVariationsList_le_length seq u
           have ihL := isolateIocTotalM_time_le hsep t depthBound fuel' u m vu vm hum hvu rfl
           have ihR := isolateIocTotalM_time_le hsep t depthBound fuel' m v vm vv hmv rfl hvv
-          let c₁ := vu - vm
-          let c₂ := vm - vv
-          have hsum_c : c₁ + c₂ = c := by omega
-          have hdiv : (if c₁ ≤ 1 then 0 else fuel' * (c₁ / 2)) +
-              (if c₂ ≤ 1 then 0 else fuel' * (c₂ / 2)) + 1 ≤ (fuel' + 1) * (c / 2) :=
-            hsum_c ▸ bisect_split_budget_le fuel' c₁ c₂ (by omega)
-          have hmul_div : ((if c₁ ≤ 1 then 0 else fuel' * (c₁ / 2)) +
-              (if c₂ ≤ 1 then 0 else fuel' * (c₂ / 2)) + 1) * sTotal ≤
-              (fuel' + 1) * (c / 2) * sTotal := Nat.mul_le_mul_right sTotal hdiv
-          have hlin : 2 + (1 + (2 + ((sturmVariationsListM seq m).time +
-              ((isolateIocTotalM t seq depthBound fuel' u m vu vm).time +
-                ((isolateIocTotalM t seq depthBound fuel' m v vm vv).time +
-                  (((isolateIocM t seq depthBound fuel' u m vu vm).ret).length + 1)))))) ≤
-              2 + ((if c₁ ≤ 1 then 0 else fuel' * (c₁ / 2)) * sTotal +
-                (if c₂ ≤ 1 then 0 else fuel' * (c₂ / 2)) * sTotal + sTotal) +
-                (c₁ * rTotal + c₂ * rTotal) := by
-            dsimp only [sTotal, rTotal, vCost, eCost, m, vm, seq, c₁, c₂, c] at *
-            omega
-          have hring : 2 + ((if c₁ ≤ 1 then 0 else fuel' * (c₁ / 2)) * sTotal +
-                (if c₂ ≤ 1 then 0 else fuel' * (c₂ / 2)) * sTotal + sTotal) +
-                (c₁ * rTotal + c₂ * rTotal) =
-              2 + ((if c₁ ≤ 1 then 0 else fuel' * (c₁ / 2)) +
-                (if c₂ ≤ 1 then 0 else fuel' * (c₂ / 2)) + 1) * sTotal +
-                (c₁ + c₂) * rTotal := by ring
-          rw [hring, hsum_c] at hlin
-          dsimp only [sTotal, rTotal, vCost, eCost, m, vm, seq, c, c₁, c₂] at hmul_div hlin ⊢
+          have hbudget : ((if vu - vm ≤ 1 then 0 else fuel' * ((vu - vm) / 2)) * sT +
+              (if vm - vv ≤ 1 then 0 else fuel' * ((vm - vv) / 2)) * sT + sT) ≤
+              (fuel' + 1) * ((vu - vv) / 2) * sT := by
+            have hdiv := hsum_c ▸ bisect_split_budget_le fuel' (vu - vm) (vm - vv) (by omega)
+            simpa only [add_mul, one_mul] using Nat.mul_le_mul_right sT hdiv
+          have hr : (vu - vm) * rT + (vm - vv) * rT = (vu - vv) * rT := by rw [← add_mul, hsum_c]
+          dsimp only [seq, m, vm, vC, eC, sT, rT] at ihL ihR hsv hl1 hl2 hbudget hr ⊢
           omega
 
 /-! ### Step-charged boundary separation into strictly disjoint closed intervals -/
@@ -416,35 +357,19 @@ theorem separateMidLoopM_time_le (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (a m b : ℚ) (vm : ℕ),
       let vCost := 2 * (seq.map List.length).sum + 6 * seq.length + 7
       (separateMidLoopM seq fuel a m b vm).time ≤ fuel * (2 * vCost + 6) + 1
-  | 0, _, _, _, _ => by
-    dsimp only
-    simp only [separateMidLoopM, time_simps, zero_mul]
-    omega
+  | 0, _, _, _, _ => by simp only [separateMidLoopM, time_simps, zero_mul, le_refl]
   | fuel + 1, a, m, b, vm => by
-    dsimp only
-    let m₁ := (a + m) / 2
-    let m₂ := (m + b) / 2
-    have hsv1 := sturmVariationsListM_time_le seq m₁
-    have hsv2 := sturmVariationsListM_time_le seq m₂
-    have hsplit : (fuel + 1) * (2 * (2 * (seq.map List.length).sum + 6 * seq.length + 7) + 6) =
-        fuel * (2 * (2 * (seq.map List.length).sum + 6 * seq.length + 7) + 6) +
-          (2 * (2 * (seq.map List.length).sum + 6 * seq.length + 7) + 6) :=
-      Nat.succ_mul fuel _
+    have hsv1 := sturmVariationsListM_time_le seq ((a + m) / 2)
+    have hsv2 := sturmVariationsListM_time_le seq ((m + b) / 2)
     simp only [separateMidLoopM, time_simps]
-    split_ifs with h1
-    · simp only [TimeM.time_pure]
-      dsimp only [m₁] at hsv1
-      rw [hsplit]
-      omega
+    rw [Nat.succ_mul fuel]
+    split_ifs
+    · simp only [TimeM.time_pure]; omega
     · simp only [time_simps]
-      split_ifs with h2
-      · simp only [TimeM.time_pure]
-        dsimp only [m₁, m₂] at hsv1 hsv2
-        rw [hsplit]
-        omega
-      · have ih := separateMidLoopM_time_le seq fuel m₁ m m₂ vm
-        dsimp only [m₁, m₂] at hsv1 hsv2 ih
-        rw [hsplit]
+      split_ifs
+      · simp only [TimeM.time_pure]; omega
+      · have ih := separateMidLoopM_time_le seq fuel ((a + m) / 2) m ((m + b) / 2) vm
+        dsimp only at ih
         omega
 
 private theorem separateMidLoopM_dyadicBounded (seq : List (List ℚ)) :
@@ -452,25 +377,18 @@ private theorem separateMidLoopM_dyadicBounded (seq : List (List ℚ)) :
       DyadicBounded B e a → DyadicBounded B e m → DyadicBounded B e b →
       let p := (separateMidLoopM seq fuel a m b vm).ret
       DyadicBounded B (e + fuel) p.1 ∧ DyadicBounded B (e + fuel) p.2
-  | 0, B, e, a, _, b, _, ha, _, hb => by
-    simp only [separateMidLoopM, time_simps]
-    exact ⟨ha, hb⟩
+  | 0, _, _, _, _, _, _, ha, _, hb => ⟨ha, hb⟩
   | fuel + 1, B, e, a, m, b, vm, ha, hm, hb => by
-    dsimp only [separateMidLoopM]
-    simp only [time_simps]
-    have hm1 : DyadicBounded B (e + 1) ((a + m) / 2) := ha.mid hm
-    have hm2 : DyadicBounded B (e + 1) ((m + b) / 2) := hm.mid hb
-    split_ifs with h1
-    · simp only [TimeM.ret_pure]
-      exact ⟨hm1.mono (by omega), hm.mono (by omega)⟩
+    simp only [separateMidLoopM, time_simps]
+    have hm1 := ha.mid hm
+    have hm2 := hm.mid hb
+    split_ifs
+    · exact ⟨hm1.mono (by omega), hm.mono (by omega)⟩
     · simp only [time_simps]
-      split_ifs with h2
-      · simp only [TimeM.ret_pure]
-        exact ⟨hm.mono (by omega), hm2.mono (by omega)⟩
-      · have ih := separateMidLoopM_dyadicBounded seq fuel B (e + 1)
-          ((a + m) / 2) m ((m + b) / 2) vm hm1 (hm.mono (by omega)) hm2
-        have heq : e + 1 + fuel = e + (fuel + 1) := by omega
-        simpa only [heq] using ih
+      split_ifs
+      · exact ⟨hm.mono (by omega), hm2.mono (by omega)⟩
+      · simpa only [Nat.add_right_comm, Nat.add_assoc] using
+          separateMidLoopM_dyadicBounded seq fuel B (e + 1) _ m _ vm hm1 (hm.mono (by omega)) hm2
 
 private theorem exists_root_Ioc_of_var_pos {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     {u v : ℚ} (huv : u ≤ v)
@@ -500,14 +418,12 @@ private theorem separateMidLoopM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).S
         (∀ r : ℝ, (res.1 : ℝ) < r → r ≤ (m : ℝ) → ¬pR.IsRoot r) ∧
         (∀ r : ℝ, (m : ℝ) < r → r ≤ (res.2 : ℝ) → ¬pR.IsRoot r)
   | 0, depth, a, m, b, vm, hsum, ham, hmb, hvm, hca, hcb, hnotm, hwidth => by
-    exfalso
-    have hdepth : depth = mignotteBisectionDepth cs := by omega
-    rw [hvm] at hca hcb
+    subst hvm
     obtain ⟨r₁, har₁, hr₁m, hr₁⟩ := exists_root_Ioc_of_var_pos hsep ham.le (by omega)
     obtain ⟨r₂, hmr₂, hr₂b, hr₂⟩ := exists_root_Ioc_of_var_pos hsep hmb.le (by omega)
-    have hr₁_lt_m : r₁ < (m : ℝ) := lt_of_le_of_ne hr₁m fun heq => hnotm (heq ▸ hr₁)
-    exact not_two_roots_of_width_le hsep hr₁ hr₂ (hr₁_lt_m.trans hmr₂) har₁.le hr₂b hdepth
-      hwidth
+    exact (not_two_roots_of_width_le hsep hr₁ hr₂
+      ((lt_of_le_of_ne hr₁m fun h => hnotm (h ▸ hr₁)).trans hmr₂) har₁.le hr₂b
+      (by omega) hwidth).elim
   | fuel + 1, depth, a, m, b, vm, hsum, ham, hmb, hvm, hca, hcb, hnotm, hwidth => by
     let seq := sturmSeqList cs
     let m₁ := (a + m) / 2
@@ -516,54 +432,31 @@ private theorem separateMidLoopM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).S
     have hm1m : m₁ < m := by dsimp only [m₁]; linarith
     have hmm2 : m < m₂ := by dsimp only [m₂]; linarith
     have hm2b : m₂ < b := by dsimp only [m₂]; linarith
-    have hva_m1 : sturmVariationsList seq m₁ ≤ sturmVariationsList seq a :=
-      sturmVariationsList_antitone hsep ham1.le
-    have hvm1_m : vm ≤ sturmVariationsList seq m₁ :=
-      hvm ▸ sturmVariationsList_antitone hsep hm1m.le
-    have hvm_m2 : sturmVariationsList seq m₂ ≤ vm :=
-      hvm ▸ sturmVariationsList_antitone hsep hmm2.le
-    have hvm2_b : sturmVariationsList seq b ≤ sturmVariationsList seq m₂ :=
-      sturmVariationsList_antitone hsep hm2b.le
-    dsimp only [seq, m₁, m₂] at hva_m1 hvm1_m hvm_m2 hvm2_b
-    dsimp only [separateMidLoopM]
-    simp only [time_simps]
+    have h1l := sturmVariationsList_antitone hsep ham1.le
+    have h1r := hvm ▸ sturmVariationsList_antitone hsep hm1m.le
+    have h2l := hvm ▸ sturmVariationsList_antitone hsep hmm2.le
+    have h2r := sturmVariationsList_antitone hsep hm2b.le
+    dsimp only [seq, m₁, m₂] at h1l h1r h2l h2r
+    simp only [separateMidLoopM, time_simps]
     split_ifs with h1
     · simp only [TimeM.ret_pure]
-      have h0 : sturmVariationsList seq m₁ - sturmVariationsList seq m = 0 := by
-        rw [← hvm]
-        dsimp only [seq, m₁]
-        omega
-      refine ⟨ham1.le, hm1m.le, le_rfl, hmb.le, hm1m, fun r h1r hrm =>
-        no_root_Ioc_of_card_eq_zero hsep hm1m.le h0 h1r hrm, fun r hmr hrm => ?_⟩
-      linarith
+      exact ⟨ham1.le, hm1m.le, le_rfl, hmb.le, hm1m,
+        fun r h1r' hrm => no_root_Ioc_of_card_eq_zero hsep hm1m.le
+          (by rw [← hvm]; dsimp only [m₁]; omega) h1r' hrm,
+        fun _ _ _ => by linarith⟩
     · simp only [time_simps]
       split_ifs with h2
       · simp only [TimeM.ret_pure]
-        have h0 : sturmVariationsList seq m - sturmVariationsList seq m₂ = 0 := by
-          rw [← hvm]
-          dsimp only [seq, m₂]
-          omega
-        refine ⟨ham.le, le_rfl, hmm2.le, hm2b.le, hmm2, fun r hmr hrm => by linarith,
-          fun r hmr hrm2 => no_root_Ioc_of_card_eq_zero hsep hmm2.le h0 hmr hrm2⟩
-      · have hca' : sturmVariationsList seq m₁ - vm = 1 := by
-          dsimp only [seq, m₁]
-          omega
-        have hcb' : vm - sturmVariationsList seq m₂ = 1 := by
-          dsimp only [seq, m₂]
-          omega
-        have hw_next : (m₂ - m₁ : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ (depth + 1) := by
-          have hhalf : (m₂ - m₁ : ℝ) = (b - a : ℝ) / 2 := by
-            dsimp only [m₁, m₂]
-            push_cast
-            ring
-          rw [hhalf, pow_succ]
-          calc (b - a : ℝ) / 2
-              ≤ (2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ depth) / 2 := by linarith
-            _ = 2 * (cauchyBoundNat cs : ℝ) / ((2 : ℝ) ^ depth * 2) := by ring
-        have ih := separateMidLoopM_spec hsep fuel (depth + 1) m₁ m m₂ vm (by omega)
-          hm1m hmm2 hvm hca' hcb' hnotm hw_next
-        rcases ih with ⟨ih1, ih2, ih3, ih4, ihlt, ihn1, ihn2⟩
-        exact ⟨ham1.le.trans ih1, ih2, ih3, ih4.trans hm2b.le, ihlt, ihn1, ihn2⟩
+        exact ⟨ham.le, le_rfl, hmm2.le, hm2b.le, hmm2, fun _ _ _ => by linarith,
+          fun r hmr hrm2 => no_root_Ioc_of_card_eq_zero hsep hmm2.le
+            (by rw [← hvm]; dsimp only [m₂]; omega) hmr hrm2⟩
+      · have hw_next : (m₂ - m₁ : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ (depth + 1) := by
+          have : (m₂ - m₁ : ℝ) = (b - a : ℝ) / 2 := by dsimp only [m₁, m₂]; push_cast; ring
+          rw [this, pow_succ, ← div_div]; linarith
+        rcases separateMidLoopM_spec hsep fuel (depth + 1) m₁ m m₂ vm (by omega) hm1m hmm2
+            hvm (by dsimp only [m₁]; omega) (by dsimp only [m₂]; omega) hnotm hw_next with
+          ⟨i1, i2, i3, i4, ilt, in1, in2⟩
+        exact ⟨ham1.le.trans i1, i2, i3, i4.trans hm2b.le, ilt, in1, in2⟩
 
 /-- Separate the boundary between two consecutive isolating intervals `I₁` and `I₂` in `TimeM ℕ`,
 returning `(u₁', l₂')` with `I₁.lower ≤ u₁' ≤ I₁.upper`, `I₂.lower ≤ l₂' ≤ I₂.upper`, and
@@ -588,17 +481,14 @@ theorem separatePairM_time_le (t : List ℚ) (seq : List (List ℚ)) (depth : �
     let eCost := 2 * t.length + 1
     (separatePairM t seq depth I₁ I₂).time ≤
       eCost + vCost + depth * (2 * vCost + 6) + 3 := by
-  dsimp only
   simp only [separatePairM, time_simps]
-  split_ifs with hlt
-  · simp only [TimeM.time_pure]
-    omega
+  split_ifs
+  · simp only [TimeM.time_pure]; omega
   · simp only [time_simps]
-    split_ifs with hel
-    · simp only [TimeM.time_pure]
-      omega
+    split_ifs
+    · simp only [TimeM.time_pure]; omega
     · simp only [time_simps]
-      have hsv := sturmVariationsListM_time_le seq I₁.upper
+      have := sturmVariationsListM_time_le seq I₁.upper
       have hmid := separateMidLoopM_time_le seq depth I₁.lower I₁.upper I₂.upper
         (sturmVariationsList seq I₁.upper)
       dsimp only at hmid
@@ -610,15 +500,12 @@ private theorem separatePairM_dyadicBounded (t : List ℚ) (seq : List (List ℚ
     (h2l : DyadicBounded B e I₂.lower) (h2u : DyadicBounded B e I₂.upper) :
     let p := (separatePairM t seq depth I₁ I₂).ret
     DyadicBounded B (e + depth) p.1 ∧ DyadicBounded B (e + depth) p.2 := by
-  dsimp only [separatePairM]
-  simp only [TimeM.ret_bind]
-  split_ifs with hlt
-  · simp only [TimeM.ret_pure]
-    exact ⟨h1u.mono (by omega), h2l.mono (by omega)⟩
+  simp only [separatePairM, time_simps]
+  split_ifs
+  · exact ⟨h1u.mono (by omega), h2l.mono (by omega)⟩
   · simp only [time_simps]
-    split_ifs with hel
-    · simp only [TimeM.ret_pure]
-      exact ⟨h1l.mono (by omega), h2l.mono (by omega)⟩
+    split_ifs
+    · exact ⟨h1l.mono (by omega), h2l.mono (by omega)⟩
     · simp only [time_simps]
       exact separateMidLoopM_dyadicBounded seq depth B e I₁.lower I₁.upper I₂.upper _
         h1l h1u h2u
@@ -652,69 +539,49 @@ private theorem separatePairM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
       res.1 < res.2 ∧
       (∀ r : ℝ, (I₁.lower : ℝ) ≤ r ∧ r ≤ (I₁.upper : ℝ) ∧ pR.IsRoot r → r ≤ (res.1 : ℝ)) ∧
       (∀ r : ℝ, (I₂.lower : ℝ) ≤ r ∧ r ≤ (I₂.upper : ℝ) ∧ pR.IsRoot r → (res.2 : ℝ) ≤ r) := by
-  let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
-  dsimp only [separatePairM]
-  simp only [TimeM.ret_bind]
+  simp only [separatePairM, TimeM.ret_bind]
   split_ifs with hlt
-  · simp only [TimeM.ret_pure]
-    exact ⟨hiso₁.1, le_rfl, le_rfl, hiso₂.1, hlt, fun _ h => h.2.1, fun _ h => h.1⟩
-  · rcases hgap with hlt' | ⟨heq_m, hnot0⟩
-    · exact absurd hlt' hlt
-    · have hnotm : ¬pR.IsRoot (I₁.upper : ℝ) := hnot0
-      simp only [time_simps]
+  · exact ⟨hiso₁.1, le_rfl, le_rfl, hiso₂.1, hlt, fun _ h => h.2.1, fun _ h => h.1⟩
+  · rcases hgap with hlt' | ⟨heq_m, hnotm⟩
+    · exact (hlt hlt').elim
+    · simp only [time_simps]
       split_ifs with hel
       · simp only [TimeM.ret_pure]
-        have hl_root : pR.IsRoot (I₁.lower : ℝ) :=
+        have hl_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
           IsRoot.def.mpr ((eval_rat_eq_zero_iff cs I₁.lower).mp hel)
-        have hl_lt : I₁.lower < I₁.upper := by
-          refine lt_of_le_of_ne hiso₁.1 fun heq => hnotm ?_
-          simpa only [heq] using hl_root
+        have hl_lt : I₁.lower < I₁.upper :=
+          lt_of_le_of_ne hiso₁.1 fun h => hnotm (h ▸ hl_root)
+        obtain ⟨_, _, huniq⟩ := hiso₁.2
         refine ⟨le_rfl, hiso₁.1, le_rfl, hiso₂.1, heq_m ▸ hl_lt, fun r hr => ?_, fun _ h => h.1⟩
-        obtain ⟨r₀, hr₀, huniq⟩ := hiso₁.2
-        have h1 := huniq r hr
-        have h2 := huniq (I₁.lower : ℝ) ⟨le_rfl, Rat.cast_le.mpr hiso₁.1, hl_root⟩
-        rw [h1, ← h2]
+        rw [huniq r hr, ← huniq _ ⟨le_rfl, Rat.cast_le.mpr hiso₁.1, hl_root⟩]
       · simp only [time_simps]
-        have hnotl : ¬pR.IsRoot (I₁.lower : ℝ) := fun h =>
-          hel ((eval_rat_eq_zero_iff cs I₁.lower).mpr h.eq_zero)
-        obtain ⟨r₁, ⟨hr₁l, hr₁u, hr₁_root⟩, hr₁_uniq⟩ := hiso₁.2
-        obtain ⟨r₂, ⟨hr₂l, hr₂u, hr₂_root⟩, hr₂_uniq⟩ := hiso₂.2
-        have hr₁_gt : (I₁.lower : ℝ) < r₁ := lt_of_le_of_ne hr₁l fun h => hnotl (h ▸ hr₁_root)
-        have hr₁_lt : r₁ < (I₁.upper : ℝ) := lt_of_le_of_ne hr₁u fun h => hnotm (h.symm ▸ hr₁_root)
-        have hr₂_gt : (I₁.upper : ℝ) < r₂ := by
-          have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
-          rw [heqR]
-          exact lt_of_le_of_ne hr₂l fun h => hnotm (heqR.symm ▸ (h ▸ hr₂_root))
-        have ham : I₁.lower < I₁.upper := Rat.cast_lt.mp (lt_trans hr₁_gt hr₁_lt)
-        have hmb : I₁.upper < I₂.upper := Rat.cast_lt.mp (lt_of_lt_of_le hr₂_gt hr₂u)
-        have hca : sturmVariationsList (sturmSeqList cs) I₁.lower -
-            sturmVariationsList (sturmSeqList cs) I₁.upper = 1 :=
-          sturmVariationsList_sub_eq_one_of_unique_Ioc hsep ham.le hr₁_root hr₁_gt hr₁u
-            fun x hxl hxu hx => hr₁_uniq x ⟨hxl.le, hxu, hx⟩
-        have hcb : sturmVariationsList (sturmSeqList cs) I₁.upper -
-            sturmVariationsList (sturmSeqList cs) I₂.upper = 1 :=
-          sturmVariationsList_sub_eq_one_of_unique_Ioc hsep hmb.le hr₂_root hr₂_gt hr₂u
-            fun x hxl hxu hx => by
-              have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
-              exact hr₂_uniq x ⟨(heqR ▸ hxl).le, hxu, hx⟩
+        have hnotl : ¬((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
+          fun h => hel ((eval_rat_eq_zero_iff cs I₁.lower).mpr h.eq_zero)
+        have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
+        obtain ⟨r₁, ⟨hr₁l, hr₁u, hr₁r⟩, hr₁_uniq⟩ := hiso₁.2
+        obtain ⟨r₂, ⟨hr₂l, hr₂u, hr₂r⟩, hr₂_uniq⟩ := hiso₂.2
+        have hr₁_gt : (I₁.lower : ℝ) < r₁ := lt_of_le_of_ne hr₁l fun h => hnotl (h ▸ hr₁r)
+        have hr₁_lt : r₁ < (I₁.upper : ℝ) := lt_of_le_of_ne hr₁u fun h => hnotm (h.symm ▸ hr₁r)
+        have hr₂_gt : (I₁.upper : ℝ) < r₂ :=
+          lt_of_le_of_ne (heqR ▸ hr₂l) fun h => hnotm (h ▸ hr₂r)
+        have ham : I₁.lower < I₁.upper := Rat.cast_lt.mp (hr₁_gt.trans hr₁_lt)
+        have hmb : I₁.upper < I₂.upper := Rat.cast_lt.mp (hr₂_gt.trans_le hr₂u)
+        have hca := sturmVariationsList_sub_eq_one_of_unique_Ioc hsep ham.le hr₁r hr₁_gt hr₁u
+          fun x hxl hxu hx => hr₁_uniq x ⟨hxl.le, hxu, hx⟩
+        have hcb := sturmVariationsList_sub_eq_one_of_unique_Ioc hsep hmb.le hr₂r hr₂_gt hr₂u
+          fun x hxl hxu hx => hr₂_uniq x ⟨(heqR ▸ hxl).le, hxu, hx⟩
         have hw0 : (I₂.upper - I₁.lower : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ 0 := by
-          have h1 := Rat.cast_le (K := ℝ).mpr hb₁
-          have h2 := Rat.cast_le (K := ℝ).mpr hb₂
-          simp only [Rat.cast_neg, Rat.cast_natCast, pow_zero, div_one] at h1 h2 ⊢
-          linarith
-        have hmid := separateMidLoopM_spec hsep (mignotteBisectionDepth cs) 0
-          I₁.lower I₁.upper I₂.upper _ (Nat.zero_add _) ham hmb rfl hca hcb hnotm hw0
-        rcases hmid with ⟨hm1, hm2, hm3, hm4, hmlt, hno1, hno2⟩
-        refine ⟨hm1, hm2, heq_m ▸ hm3, hm4, hmlt, fun r ⟨hrl, hru, hrr⟩ => ?_,
-          fun r ⟨hrl, hru, hrr⟩ => ?_⟩
-        · by_contra hgt
-          exact hno1 r (lt_of_not_ge hgt) hru hrr
-        · by_contra hgt
-          have hlt_r : r < _ := lt_of_not_ge hgt
-          have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
-          have hm_lt_r : (I₁.upper : ℝ) < r :=
-            lt_of_le_of_ne (heqR.symm ▸ hrl) fun h => hnotm (h ▸ hrr)
-          exact hno2 r hm_lt_r hlt_r.le hrr
+          have := Rat.cast_le (K := ℝ).mpr hb₁
+          have := Rat.cast_le (K := ℝ).mpr hb₂
+          push_cast at *
+          simp only [pow_zero, div_one]; linarith
+        rcases separateMidLoopM_spec hsep (mignotteBisectionDepth cs) 0 I₁.lower I₁.upper I₂.upper
+            _ (Nat.zero_add _) ham hmb rfl hca hcb hnotm hw0 with
+          ⟨hm1, hm2, hm3, hm4, hmlt, hno1, hno2⟩
+        refine ⟨hm1, hm2, heq_m ▸ hm3, hm4, hmlt,
+          fun r ⟨_, hru, hrr⟩ => le_of_not_gt fun hgt => hno1 r hgt hru hrr,
+          fun r ⟨hrl, _, hrr⟩ => le_of_not_gt fun hgt =>
+            hno2 r (lt_of_le_of_ne (heqR.symm ▸ hrl) fun h => hnotm (h ▸ hrr)) hgt.le hrr⟩
 
 /-- Walk a chain of isolating intervals carrying an updated `curLower` endpoint and separating
 every adjacent pair in `TimeM ℕ`. -/
@@ -759,32 +626,15 @@ private theorem separateChainM_time_le (t : List ℚ) (seq : List (List ℚ)) (d
       let eCost := 2 * t.length + 1
       let pCost := eCost + vCost + depth * (2 * vCost + 6) + 4
       (separateChainM t seq depth curLower L).time ≤ L.length * pCost + 1
-  | [], _ => by
-    dsimp only
-    simp only [separateChainM, time_simps, zero_mul]
-    omega
-  | [_], _ => by
-    dsimp only
-    simp only [separateChainM, time_simps, List.length_singleton, one_mul]
-    omega
-  | I₁ :: I₂ :: rest, curLower => by
-    dsimp only
-    simp only [separateChainM, time_simps]
+  | [], _ => by simp only [separateChainM, time_simps, zero_mul, le_refl]
+  | [_], _ => by simp only [separateChainM, time_simps, List.length_singleton, one_mul]; omega
+  | I₁ :: I₂ :: rest, _ => by
     have hp := separatePairM_time_le t seq depth I₁ I₂
     have ih := separateChainM_time_le t seq depth (I₂ :: rest)
       (separatePairM t seq depth I₁ I₂).ret.2
     dsimp only at hp ih
-    simp only [List.length_cons] at ih
-    have hsplit : (rest.length + 1 + 1) *
-        ((2 * t.length + 1) + (2 * (seq.map List.length).sum + 6 * seq.length + 7) +
-          depth * (2 * (2 * (seq.map List.length).sum + 6 * seq.length + 7) + 6) + 4) =
-        (rest.length + 1) *
-          ((2 * t.length + 1) + (2 * (seq.map List.length).sum + 6 * seq.length + 7) +
-            depth * (2 * (2 * (seq.map List.length).sum + 6 * seq.length + 7) + 6) + 4) +
-          ((2 * t.length + 1) + (2 * (seq.map List.length).sum + 6 * seq.length + 7) +
-            depth * (2 * (2 * (seq.map List.length).sum + 6 * seq.length + 7) + 6) + 4) :=
-      Nat.succ_mul (rest.length + 1) _
-    rw [hsplit]
+    simp only [separateChainM, time_simps, List.length_cons] at ih ⊢
+    rw [Nat.succ_mul]
     omega
 
 theorem separateTouchingM_time_le (t : List ℚ) (seq : List (List ℚ)) (depth : ℕ)
@@ -793,16 +643,12 @@ theorem separateTouchingM_time_le (t : List ℚ) (seq : List (List ℚ)) (depth 
     let eCost := 2 * t.length + 1
     let pCost := eCost + vCost + depth * (2 * vCost + 6) + 4
     (separateTouchingM t seq depth L).time ≤ L.length * pCost + 2 := by
-  dsimp only
   cases L with
-  | nil =>
-    simp only [separateTouchingM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-      List.length_nil, zero_mul]
-    omega
+  | nil => simp only [separateTouchingM, time_simps, List.length_nil, zero_mul]; omega
   | cons I₀ rest =>
-    simp only [separateTouchingM, TimeM.time_bind, TimeM.time_tick]
     have h := separateChainM_time_le t seq depth (I₀ :: rest) I₀.lower
     dsimp only at h
+    simp only [separateTouchingM, TimeM.time_bind, TimeM.time_tick]
     omega
 
 private theorem separateChainM_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
@@ -829,6 +675,22 @@ private theorem separateChainM_dyadicBounded (t : List ℚ) (seq : List (List �
     · exact separateChainM_dyadicBounded t seq depth B e (I₂ :: rest) _ hp.2
         (fun I hI => hL I (List.mem_cons_of_mem I₁ hI)) J hmem
 
+private theorem isolating_shrink {pR : ℝ[X]} {I : RootInterval} {l u : ℚ}
+    (hiso : I.IsIsolatingFor pR) (hl : I.lower ≤ l) (hu : u ≤ I.upper)
+    (hrl : ∀ r : ℝ, (I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r → (l : ℝ) ≤ r)
+    (hru : ∀ r : ℝ, (I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r → r ≤ (u : ℝ)) :
+    ({ lower := l, upper := u } : RootInterval).IsIsolatingFor pR ∧
+      I.lower ≤ l ∧ u ≤ I.upper ∧
+      ∀ r : ℝ, ((l : ℝ) ≤ r ∧ r ≤ (u : ℝ) ∧ pR.IsRoot r) ↔
+        ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) := by
+  have heq : ∀ r : ℝ, ((l : ℝ) ≤ r ∧ r ≤ (u : ℝ) ∧ pR.IsRoot r) ↔
+      ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) := fun r =>
+    ⟨fun ⟨h1, h2, h3⟩ => ⟨(Rat.cast_le.mpr hl).trans h1, h2.trans (Rat.cast_le.mpr hu), h3⟩,
+      fun h => ⟨hrl r h, hru r h, h.2.2⟩⟩
+  obtain ⟨r₀, hr₀, huniq⟩ := hiso.2
+  exact ⟨⟨Rat.cast_le.mp ((hrl r₀ hr₀).trans (hru r₀ hr₀)),
+    r₀, (heq r₀).mpr hr₀, fun r hr => huniq r ((heq r).mp hr)⟩, hl, hu, heq⟩
+
 private theorem separateChainM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
     ∀ (rest : List RootInterval) (I₀ : RootInterval) (curLower : ℚ),
       let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
@@ -850,76 +712,34 @@ private theorem separateChainM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
           ∀ r : ℝ, ((J.lower : ℝ) ≤ r ∧ r ≤ (J.upper : ℝ) ∧ pR.IsRoot r) ↔
             ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r)
   | [], I₀, curLower, hiso_all, _, hcur_le, hcur_root => by
-    let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
-    have h0 := (hiso_all I₀ List.mem_cons_self).1
-    obtain ⟨r₀, ⟨hr₀l, hr₀u, hr₀r⟩, hr₀_uniq⟩ := h0.2
-    have hcur_r₀ : (curLower : ℝ) ≤ r₀ := hcur_root r₀ ⟨hr₀l, hr₀u, hr₀r⟩
-    have hcur_up : curLower ≤ I₀.upper := Rat.cast_le.mp (hcur_r₀.trans hr₀u)
-    have hequiv : ∀ r : ℝ, ((curLower : ℝ) ≤ r ∧ r ≤ (I₀.upper : ℝ) ∧ pR.IsRoot r) ↔
-        ((I₀.lower : ℝ) ≤ r ∧ r ≤ (I₀.upper : ℝ) ∧ pR.IsRoot r) := by
-      intro r
-      exact ⟨fun ⟨hcl, hru, hrr⟩ => ⟨(Rat.cast_le.mpr hcur_le).trans hcl, hru, hrr⟩,
-        fun h => ⟨hcur_root r h, h.2.1, h.2.2⟩⟩
-    have hisoJ : ({ lower := curLower, upper := I₀.upper } : RootInterval).IsIsolatingFor pR :=
-      ⟨hcur_up, r₀, ⟨hcur_r₀, hr₀u, hr₀r⟩, fun r hr => hr₀_uniq r ((hequiv r).mp hr)⟩
+    have h0 := isolating_shrink (hiso_all I₀ List.mem_cons_self).1
+      hcur_le le_rfl hcur_root (fun _ h => h.2.1)
     simp only [separateChainM, TimeM.ret_bind, TimeM.ret_pure]
     refine ⟨⟨_, [], rfl, rfl⟩, List.pairwise_singleton _ _, fun k hk => ?_⟩
-    simp only [List.length_singleton] at hk
-    have hk0 : k = 0 := by omega
-    subst hk0
-    simp only [List.getElem_cons_zero]
-    exact ⟨hisoJ, hcur_le, le_rfl, hequiv⟩
+    obtain rfl : k = 0 := by simp only [List.length_singleton] at hk; omega
+    exact h0
   | I₁ :: rest', I₀, curLower, hiso_all, hpw, hcur_le, hcur_root => by
-    let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
     have hI₀ := hiso_all I₀ List.mem_cons_self
     have hI₁ := hiso_all I₁ (List.mem_cons_of_mem I₀ List.mem_cons_self)
-    have hpw_cons := List.pairwise_cons.mp hpw
-    have hgap01 : IntervalGapOk pR I₀ I₁ := hpw_cons.1 I₁ List.mem_cons_self
-    have hp := separatePairM_spec hsep hI₀.1 hI₁.1 hI₀.2.1 hI₁.2.2 hgap01
-    rcases hp with ⟨hp1, hp2, hp3, hp4, hplt, hproot1, hproot2⟩
-    let pair := (separatePairM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs) I₀ I₁).ret
-    have ih := separateChainM_spec hsep rest' I₁ pair.2
-      (fun I hI => hiso_all I (List.mem_cons_of_mem I₀ hI))
-      hpw_cons.2 hp3 hproot2
-    rcases ih with ⟨⟨J₁, Js, htail_eq, hJ₁_low⟩, htail_pw, htail_idx⟩
-    obtain ⟨r₀, ⟨hr₀l, hr₀u, hr₀r⟩, hr₀_uniq⟩ := hI₀.1.2
-    have hcur_r₀ : (curLower : ℝ) ≤ r₀ := hcur_root r₀ ⟨hr₀l, hr₀u, hr₀r⟩
-    have hr₀_u' : r₀ ≤ (pair.1 : ℝ) := hproot1 r₀ ⟨hr₀l, hr₀u, hr₀r⟩
-    have hJ₀_le : curLower ≤ pair.1 := Rat.cast_le.mp (hcur_r₀.trans hr₀_u')
-    have hequiv₀ : ∀ r : ℝ,
-        ((curLower : ℝ) ≤ r ∧ r ≤ (pair.1 : ℝ) ∧ pR.IsRoot r) ↔
-        ((I₀.lower : ℝ) ≤ r ∧ r ≤ (I₀.upper : ℝ) ∧ pR.IsRoot r) := by
-      intro r
-      exact ⟨fun ⟨hcl, hru, hrr⟩ =>
-          ⟨(Rat.cast_le.mpr hcur_le).trans hcl, hru.trans (Rat.cast_le.mpr hp2), hrr⟩,
-        fun h => ⟨hcur_root r h, hproot1 r h, h.2.2⟩⟩
-    have hisoJ₀ : ({ lower := curLower, upper := pair.1 } : RootInterval).IsIsolatingFor pR :=
-      ⟨hJ₀_le, r₀, ⟨hcur_r₀, hr₀_u', hr₀r⟩, fun r hr => hr₀_uniq r ((hequiv₀ r).mp hr)⟩
-    have hJ₁_iso : J₁.lower ≤ J₁.upper := by
-      have h0 := (htail_idx 0 (by simp only [List.length_cons]; omega)).1.1
+    rcases List.pairwise_cons.mp hpw with ⟨hgap, hpw_tail⟩
+    rcases separatePairM_spec hsep hI₀.1 hI₁.1 hI₀.2.1 hI₁.2.2
+        (hgap I₁ List.mem_cons_self) with ⟨_, hp2, hp3, _, hplt, hproot1, hproot2⟩
+    rcases separateChainM_spec hsep rest' I₁ _
+        (fun I hI => hiso_all I (List.mem_cons_of_mem I₀ hI)) hpw_tail hp3 hproot2 with
+      ⟨⟨J₁, Js, htail_eq, hJ₁_low⟩, htail_pw, htail_idx⟩
+    have hJ₁_le : J₁.lower ≤ J₁.upper := by
+      have h0 := (htail_idx 0 (Nat.zero_lt_succ _)).1.1
       simpa only [htail_eq, List.getElem_cons_zero] using h0
     simp only [separateChainM, TimeM.ret_bind, TimeM.ret_pure]
-    refine ⟨⟨_, _, rfl, rfl⟩, ?_, fun k hk => ?_⟩
-    · rw [List.pairwise_cons]
-      refine ⟨fun B hB => ?_, htail_pw⟩
-      rw [htail_eq] at hB htail_pw
+    refine ⟨⟨_, _, rfl, rfl⟩, List.pairwise_cons.mpr ⟨fun B hB => ?_, htail_pw⟩, ?_⟩
+    · rw [htail_eq] at hB htail_pw
       rcases List.mem_cons.mp hB with rfl | hBs
-      · dsimp only
-        rwa [hJ₁_low]
-      · have h1B : J₁.upper < B.lower := (List.pairwise_cons.mp htail_pw).1 B hBs
-        dsimp only
-        have hlt1 : pair.1 < J₁.lower := by rwa [hJ₁_low]
-        exact lt_trans (lt_of_lt_of_le hlt1 hJ₁_iso) h1B
-    · cases k with
-      | zero =>
-        simp only [List.getElem_cons_zero]
-        exact ⟨hisoJ₀, hcur_le, hp2, hequiv₀⟩
-      | succ k' =>
-        simp only [List.length_cons] at hk
-        have hk' : k' < (I₁ :: rest').length := by
-          simp only [List.length_cons]
-          omega
-        simpa only [List.getElem_cons_succ] using htail_idx k' hk'
+      · exact hJ₁_low ▸ hplt
+      · exact lt_of_lt_of_le (hJ₁_low ▸ hplt) hJ₁_le |>.trans
+          ((List.pairwise_cons.mp htail_pw).1 B hBs)
+    · rintro (_ | k') hk
+      · exact isolating_shrink hI₀.1 hcur_le hp2 hcur_root hproot1
+      · exact htail_idx k' (Nat.lt_of_succ_lt_succ hk)
 
 /-! ### End-to-end `TimeM ℕ`-charged computable isolator -/
 
@@ -974,22 +794,16 @@ theorem isolateRootsTotal_endpoint_bounds (cs : List ℚ) :
         Int.natAbs J.lower.num ≤ b * 2 ^ e ∧ Int.natAbs J.upper.num ≤ b * 2 ^ e := by
   rw [isolateRootsTotal_eq_separateTouching]
   have hraw := isolateRoots_dyadicBounded cs
-  let b := cauchyBoundNat cs
-  let k := mignotteBisectionDepth cs
   cases hL : isolateRoots cs with
-  | nil =>
-    simp only [separateTouchingM, time_simps]
-    intro _ h; cases h
+  | nil => simp only [separateTouchingM, time_simps]; rintro _ ⟨⟩
   | cons I₀ rest =>
-    simp only [separateTouchingM, TimeM.ret_bind]
     intro J hJ
-    have hI₀ := hraw I₀ (hL ▸ List.mem_cons_self)
-    have hd := separateChainM_dyadicBounded (trim cs) (sturmSeqList cs) k b (2 * k)
-      (I₀ :: rest) I₀.lower (hI₀.1.mono (by omega))
+    have ⟨hlow, hup⟩ := separateChainM_dyadicBounded (trim cs) (sturmSeqList cs)
+      (mignotteBisectionDepth cs) (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs)
+      (I₀ :: rest) I₀.lower ((hraw I₀ (hL ▸ List.mem_cons_self)).1.mono (by omega))
       (fun I hI => hraw I (hL ▸ hI)) J hJ
-    have heq : 2 * k + k = 3 * k := by omega
-    have hlow : DyadicBounded b (3 * k) J.lower := by simpa only [heq] using hd.1
-    have hup : DyadicBounded b (3 * k) J.upper := by simpa only [heq] using hd.2
+    rw [show 2 * mignotteBisectionDepth cs + mignotteBisectionDepth cs =
+      3 * mignotteBisectionDepth cs by omega] at hlow hup
     exact ⟨hlow, hup, hlow.den_le, hup.den_le, hlow.natAbs_num_le, hup.natAbs_num_le⟩
 
 private theorem isolateRootsTotal_index_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
@@ -1000,31 +814,19 @@ private theorem isolateRootsTotal_index_spec {cs : List ℚ} (hsep : (ofCoeffLis
     J.IsIsolatingFor pR ∧ I.lower ≤ J.lower ∧ J.upper ≤ I.upper ∧
       ∀ r : ℝ, ((J.lower : ℝ) ≤ r ∧ r ≤ (J.upper : ℝ) ∧ pR.IsRoot r) ↔
         ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) := by
-  have hiso := isolateRoots_isIsolatingFor hsep
-  have hcau := isolateRoots_mem_cauchy hsep
-  have hpw := isolateRoots_intervalGapOk hsep
   obtain ⟨I₀, rest, hL⟩ : ∃ I₀ rest, isolateRoots cs = I₀ :: rest := by
     cases h : isolateRoots cs with
-    | nil =>
-      simp only [h, List.length_nil] at hidx
-      omega
+    | nil => simp only [h, List.length_nil] at hidx; omega
     | cons I₀ rest => exact ⟨I₀, rest, rfl⟩
-  have hchain := separateChainM_spec hsep rest I₀ I₀.lower
-    (fun I hI => ⟨hiso I (hL ▸ hI), hcau I (hL ▸ hI)⟩)
-    (hL ▸ hpw) le_rfl (fun _ h => h.1)
-  have hidx' : idx < (I₀ :: rest).length := hL ▸ hidx
-  have h := hchain.2.2 idx hidx'
-  have htot_eq : isolateRootsTotal cs =
-      (separateChainM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
-        I₀.lower (I₀ :: rest)).ret := by
+  have h := (separateChainM_spec hsep rest I₀ I₀.lower
+    (fun I hI => ⟨isolateRoots_isIsolatingFor hsep I (hL ▸ hI),
+      isolateRoots_mem_cauchy hsep I (hL ▸ hI)⟩)
+    (hL ▸ isolateRoots_intervalGapOk hsep) le_rfl (fun _ h => h.1)).2.2 idx (hL ▸ hidx)
+  have htot : isolateRootsTotal cs = (separateChainM (trim cs) (sturmSeqList cs)
+      (mignotteBisectionDepth cs) I₀.lower (I₀ :: rest)).ret := by
     simp only [isolateRootsTotal_eq_separateTouching, hL, separateTouchingM, TimeM.ret_bind]
-  have hget : (isolateRootsTotal cs)[idx]'(by rw [isolateRootsTotal_length_eq]; exact hidx) =
-      ((separateChainM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
-        I₀.lower (I₀ :: rest)).ret)[idx]'(by rw [separateChainM_length]; exact hidx') :=
-    List.getElem_of_eq htot_eq _
-  have hgetI : (isolateRoots cs)[idx] = (I₀ :: rest)[idx] := List.getElem_of_eq hL hidx
   dsimp only at h ⊢
-  rwa [hget, hgetI]
+  rwa [List.getElem_of_eq hL hidx, List.getElem_of_eq htot _]
 
 /-- Soundness: every interval in `isolateRootsTotal cs` isolates a unique real root of
 `(ofCoeffList cs).map (algebraMap ℚ ℝ)`. -/
@@ -1032,8 +834,7 @@ theorem isolateRootsTotal_isIsolatingFor {cs : List ℚ} (hsep : (ofCoeffList cs
     ∀ J ∈ isolateRootsTotal cs, J.IsIsolatingFor ((ofCoeffList cs).map (algebraMap ℚ ℝ)) := by
   intro J hJ
   obtain ⟨idx, hidx, rfl⟩ := List.mem_iff_getElem.mp hJ
-  have hidx' : idx < (isolateRoots cs).length := by rwa [← isolateRootsTotal_length_eq]
-  exact (isolateRootsTotal_index_spec hsep idx hidx').1
+  exact (isolateRootsTotal_index_spec hsep idx (isolateRootsTotal_length_eq cs ▸ hidx)).1
 
 /-- Soundness in `Polynomial.aeval` form: every interval `J ∈ isolateRootsTotal cs` satisfies
 `J.lower ≤ J.upper` and contains a unique `x : ℝ` with `Polynomial.aeval x (ofCoeffList cs) = 0`. -/
@@ -1043,41 +844,30 @@ theorem isolateRootsTotal_aeval_unique {cs : List ℚ} (hsep : (ofCoeffList cs).
         Polynomial.aeval x (ofCoeffList cs) = 0 := by
   intro J hJ
   obtain ⟨hle, r₀, ⟨hl, hu, hr₀⟩, huniq⟩ := isolateRootsTotal_isIsolatingFor hsep J hJ
-  have haeval : ∀ x : ℝ, ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot x ↔
-      Polynomial.aeval x (ofCoeffList cs) = 0 := by
-    intro x
-    rw [IsRoot.def, Polynomial.eval_map_algebraMap]
-  refine ⟨hle, r₀, ⟨⟨hl, hu⟩, (haeval r₀).mp hr₀⟩, fun x ⟨⟨hxl, hxu⟩, hx0⟩ => ?_⟩
-  exact huniq x ⟨hxl, hxu, (haeval x).mpr hx0⟩
+  simp only [IsRoot.def, Polynomial.eval_map_algebraMap] at hr₀ huniq
+  exact ⟨hle, r₀, ⟨⟨hl, hu⟩, hr₀⟩, fun x ⟨⟨hxl, hxu⟩, hx0⟩ => huniq x ⟨hxl, hxu, hx0⟩⟩
 
 /-- Strict separation: every pair of intervals in `isolateRootsTotal cs` satisfies
 `J₁.upper < J₂.lower`. -/
 theorem isolateRootsTotal_pairwise_lt {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
     (isolateRootsTotal cs).Pairwise (fun J₁ J₂ => J₁.upper < J₂.lower) := by
   rw [isolateRootsTotal_eq_separateTouching]
-  have hiso := isolateRoots_isIsolatingFor hsep
-  have hcau := isolateRoots_mem_cauchy hsep
-  have hpw := isolateRoots_intervalGapOk hsep
   cases hL : isolateRoots cs with
-  | nil =>
-    simp only [separateTouchingM, time_simps]
-    exact List.Pairwise.nil
+  | nil => exact List.Pairwise.nil
   | cons I₀ rest =>
-    simp only [separateTouchingM, TimeM.ret_bind]
     exact (separateChainM_spec hsep rest I₀ I₀.lower
-      (fun I hI => ⟨hiso I (hL ▸ hI), hcau I (hL ▸ hI)⟩)
-      (hL ▸ hpw) le_rfl (fun _ h => h.1)).2.1
+      (fun I hI => ⟨isolateRoots_isIsolatingFor hsep I (hL ▸ hI),
+        isolateRoots_mem_cauchy hsep I (hL ▸ hI)⟩)
+      (hL ▸ isolateRoots_intervalGapOk hsep) le_rfl (fun _ h => h.1)).2.1
 
 /-- Closed-interval disjointness: the closed intervals `Set.Icc (J.lower : ℝ) (J.upper : ℝ)` of
 `isolateRootsTotal cs` are pairwise disjoint. -/
 theorem isolateRootsTotal_pairwise_disjoint {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
     (isolateRootsTotal cs).Pairwise
-      (Function.onFun Disjoint fun J => Set.Icc (J.lower : ℝ) (J.upper : ℝ)) := by
-  refine (isolateRootsTotal_pairwise_lt hsep).imp fun {J₁ J₂} hlt => ?_
-  rw [Function.onFun, Set.disjoint_left]
-  intro x hx₁ hx₂
-  have hltR : (J₁.upper : ℝ) < (J₂.lower : ℝ) := Rat.cast_lt.mpr hlt
-  linarith [hx₁.2, hx₂.1]
+      (Function.onFun Disjoint fun J => Set.Icc (J.lower : ℝ) (J.upper : ℝ)) :=
+  (isolateRootsTotal_pairwise_lt hsep).imp fun hlt =>
+    Set.disjoint_left.mpr fun _ hx₁ hx₂ =>
+      (hx₁.2.trans_lt (Rat.cast_lt.mpr hlt)).not_ge hx₂.1
 
 /-- The unique real root `x : ℝ` with `Polynomial.aeval x (ofCoeffList cs) = 0` inside the `i`-th
 interval of `isolateRootsTotal cs`. -/
@@ -1094,19 +884,16 @@ noncomputable def totalIsolatedRoot {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
 theorem totalIsolatedRoot_mem {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     (i : Fin (isolateRootsTotal cs).length) :
     let J := (isolateRootsTotal cs)[i]
-    (totalIsolatedRoot hsep i).1 ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) := by
-  have hi₀ : i.1 < (isolateRoots cs).length := (isolateRootsTotal_length_eq cs) ▸ i.2
-  have hmem₀ := isolatedRoot_mem hsep ⟨i.1, hi₀⟩
-  have hspec := isolateRootsTotal_index_spec hsep i.1 hi₀
-  have hr₀ := (isolatedRoot hsep ⟨i.1, hi₀⟩).2
-  have hJ := (hspec.2.2.2 (isolatedRoot hsep ⟨i.1, hi₀⟩).1).mpr ⟨hmem₀.1, hmem₀.2, hr₀⟩
-  exact ⟨hJ.1, hJ.2.1⟩
+    (totalIsolatedRoot hsep i).1 ∈ Set.Icc (J.lower : ℝ) (J.upper : ℝ) :=
+  let i₀ : Fin (isolateRoots cs).length := ⟨i.1, isolateRootsTotal_length_eq cs ▸ i.2⟩
+  let h := ((isolateRootsTotal_index_spec hsep i.1 i₀.2).2.2.2 _).mpr
+    ⟨(isolatedRoot_mem hsep i₀).1, (isolatedRoot_mem hsep i₀).2, (isolatedRoot hsep i₀).2⟩
+  ⟨h.1, h.2.1⟩
 
 /-- The real roots indexed by `totalIsolatedRoot hsep` are strictly increasing. -/
 theorem totalIsolatedRoot_strictMono {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) :
-    StrictMono (fun i : Fin (isolateRootsTotal cs).length => (totalIsolatedRoot hsep i).1) := by
-  intro i j hij
-  exact isolatedRoot_strictMono hsep hij
+    StrictMono (fun i : Fin (isolateRootsTotal cs).length => (totalIsolatedRoot hsep i).1) :=
+  fun _ _ hij => isolatedRoot_strictMono hsep hij
 
 /-- Bijection between `Fin (isolateRootsTotal cs).length` and
 `{x : ℝ // Polynomial.aeval x (ofCoeffList cs) = 0}` for separable `ofCoeffList cs`. -/
@@ -1114,20 +901,13 @@ theorem isolateRootsTotal_bijective {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
     Function.Bijective (totalIsolatedRoot hsep) := by
   have hbij := isolateRoots_bijective hsep
   refine ⟨fun i j hij => ?_, fun ⟨x, hx⟩ => ?_⟩
-  · have hval : (totalIsolatedRoot hsep i).1 = (totalIsolatedRoot hsep j).1 :=
+  · have hv : (totalIsolatedRoot hsep i).1 = (totalIsolatedRoot hsep j).1 :=
       congrArg Subtype.val hij
-    dsimp only [totalIsolatedRoot] at hval
-    have heq : (⟨i.1, (isolateRootsTotal_length_eq cs) ▸ i.2⟩ : Fin (isolateRoots cs).length) =
-        ⟨j.1, (isolateRootsTotal_length_eq cs) ▸ j.2⟩ :=
-      hbij.1 (Subtype.ext hval)
-    have hival : i.1 = j.1 := congrArg (Fin.val : Fin (isolateRoots cs).length → ℕ) heq
-    exact Fin.ext hival
-  · have hx' : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot x := by
-      rwa [IsRoot.def, Polynomial.eval_map_algebraMap]
-    obtain ⟨i₀, hi₀⟩ := hbij.2 ⟨x, hx'⟩
-    refine ⟨⟨i₀.1, (isolateRootsTotal_length_eq cs).symm ▸ i₀.2⟩, Subtype.ext ?_⟩
-    dsimp only [totalIsolatedRoot]
-    exact congrArg Subtype.val hi₀
+    have heq := hbij.1 (Subtype.ext hv)
+    exact Fin.ext (congrArg (Fin.val : Fin (isolateRoots cs).length → ℕ) heq)
+  · obtain ⟨i₀, hi₀⟩ := hbij.2 ⟨x, by rwa [IsRoot.def, Polynomial.eval_map_algebraMap]⟩
+    exact ⟨⟨i₀.1, (isolateRootsTotal_length_eq cs).symm ▸ i₀.2⟩,
+      Subtype.ext (show (isolatedRoot hsep i₀).1 = x from congrArg Subtype.val hi₀)⟩
 
 /-- Squarefree bijection form for `isolateRootsTotal cs`. -/
 theorem isolateRootsTotal_bijective_of_squarefree {cs : List ℚ}
@@ -1148,80 +928,47 @@ theorem isolateRootsTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
       d * (2 * eCost + 6 + k * (vCost + eCost + 4))
     let sepCost := d * (eCost + vCost + k * (2 * vCost + 6) + 4) + 2
     (isolateRootsTotalM cs).time ≤ prepCost + bisectCost + sepCost := by
-  dsimp only
-  let n := cs.length
   let d := (ofCoeffList cs).natDegree
   let k := mignotteBisectionDepth cs
   let seq := sturmSeqList cs
-  have hp0 : ofCoeffList cs ≠ 0 := hsep.ne_zero
-  have htnil : trim cs ≠ [] := fun hnil =>
-    hp0 (by rw [← ofCoeffList_trim cs, hnil, ofCoeffList_nil])
+  let vC := 2 * (seq.map List.length).sum + 6 * seq.length + 7
+  let eC := 2 * (trim cs).length + 1
+  have htnil : trim cs ≠ [] := fun h =>
+    hsep.ne_zero (by simpa only [h, ofCoeffList_nil] using (ofCoeffList_trim cs).symm)
   have hte : (trim cs).isEmpty = false := List.isEmpty_eq_false_iff.mpr htnil
-  have ht_deg : (trim cs).length = d + 1 := by
-    have h := (isTrimmed_trim cs).natDegree_add_one htnil
-    rw [ofCoeffList_trim] at h
-    exact h.symm
+  have ht_deg : (trim cs).length = d + 1 :=
+    (ofCoeffList_trim cs ▸ (isTrimmed_trim cs).natDegree_add_one htnil).symm
   have hseq_len : seq.length ≤ d + 1 := sturmSeqList_length_le cs
-  have hseq_sum : (seq.map List.length).sum ≤ (d + 1) ^ 2 := by
-    have hentry : ∀ m ∈ seq.map List.length, m ≤ d + 1 := by
-      intro m hm
-      obtain ⟨f, hf, rfl⟩ := List.mem_map.mp hm
-      exact (sturmSeqList_entry_length_le cs hf).trans (by omega)
-    calc (seq.map List.length).sum
-        ≤ (seq.map List.length).length * (d + 1) := List.sum_le_length_nsmul _ _ hentry
-      _ = seq.length * (d + 1) := by rw [List.length_map]
-      _ ≤ (d + 1) * (d + 1) := Nat.mul_le_mul_right (d + 1) hseq_len
-      _ = (d + 1) ^ 2 := (sq (d + 1)).symm
-  let vC_actual := 2 * (seq.map List.length).sum + 6 * seq.length + 7
-  let vC := 2 * (d + 1) ^ 2 + 6 * (d + 1) + 7
-  let eC_actual := 2 * (trim cs).length + 1
-  let eC := 2 * (d + 1) + 1
-  have hvC_le : vC_actual ≤ vC := by dsimp only [vC_actual, vC]; omega
-  have heC_eq : eC_actual = eC := by dsimp only [eC_actual, eC]; rw [ht_deg]
+  have hseq_sum : (seq.map List.length).sum ≤ (d + 1) ^ 2 :=
+    (List.sum_le_length_nsmul (seq.map List.length) (d + 1) fun _ hm => by
+      obtain ⟨_, hf, rfl⟩ := List.mem_map.mp hm
+      exact (sturmSeqList_entry_length_le cs hf).trans (by omega)).trans <| by
+        rw [smul_eq_mul, List.length_map, sq]; gcongr
   let b : ℚ := (cauchyBoundNat cs : ℚ)
-  have hb0 : (0 : ℚ) ≤ b := Nat.cast_nonneg _
+  have hbb : -b ≤ b := by linarith [show (0 : ℚ) ≤ b from Nat.cast_nonneg _]
   let vL := sturmVariationsList seq (-b)
   let vR := sturmVariationsList seq b
   have hc_le : vL - vR ≤ d := sturmVariationsList_cauchy_sub_le hsep
   have hraw_len : ((isolateIocM (trim cs) seq k k (-b) b vL vR).ret).length ≤ d :=
-    (isolateIocM_length_le hsep (trim cs) k k (-b) b vL vR (by linarith) rfl rfl).trans hc_le
-  have htr_t := trimM_time_le cs
-  have hseq_t := sturmSeqListM_time_le cs
-  have hcb_t := cauchyBoundNatM_time_le cs
-  have hmb_t := mignotteBisectionDepthM_time_le cs
-  have hvL_t := (sturmVariationsListM_time_le seq (-b)).trans hvC_le
-  have hvR_t := (sturmVariationsListM_time_le seq b).trans hvC_le
-  have hbis_raw := isolateIocTotalM_time_le hsep (trim cs) k k (-b) b vL vR (by linarith) rfl rfl
-  dsimp only at hbis_raw
+    (isolateIocM_length_le hsep (trim cs) k k (-b) b vL vR hbb rfl rfl).trans hc_le
   have hsplit_le : (if vL - vR ≤ 1 then 0 else k * ((vL - vR) / 2)) ≤ k * (d / 2) := by
-    split_ifs
-    · exact Nat.zero_le _
-    · exact Nat.mul_le_mul_left k (by omega)
-  have hbis_le : (isolateIocTotalM (trim cs) seq k k (-b) b vL vR).time ≤
-      2 + k * (d / 2) * (vC + (d + 1) + 10) + d * (2 * eC + 6 + k * (vC + eC + 4)) := by
-    have h1 : (if vL - vR ≤ 1 then 0 else k * ((vL - vR) / 2)) * (vC_actual + seq.length + 10) ≤
-        k * (d / 2) * (vC + (d + 1) + 10) :=
-      Nat.mul_le_mul hsplit_le (by omega)
-    have h2 : (vL - vR) * (2 * eC_actual + 6 + k * (vC_actual + eC_actual + 4)) ≤
-        d * (2 * eC + 6 + k * (vC + eC + 4)) :=
-      Nat.mul_le_mul hc_le (Nat.add_le_add (by omega) (Nat.mul_le_mul_left k (by omega)))
-    dsimp only [vC_actual, vC, eC_actual, eC, seq, vL, vR, k, b, d] at h1 h2 hbis_raw ⊢
-    omega
-  have hsep_raw := separateTouchingM_time_le (trim cs) seq k
-    ((isolateIocM (trim cs) seq k k (-b) b vL vR).ret)
-  dsimp only at hsep_raw
-  have hsep_le : (separateTouchingM (trim cs) seq k
-      ((isolateIocM (trim cs) seq k k (-b) b vL vR).ret)).time ≤
-      d * (eC + vC + k * (2 * vC + 6) + 4) + 2 := by
-    have hp_le : eC_actual + vC_actual + k * (2 * vC_actual + 6) + 4 ≤
-        eC + vC + k * (2 * vC + 6) + 4 :=
-      Nat.add_le_add_right (Nat.add_le_add (by omega) (Nat.mul_le_mul_left k (by omega))) 4
-    have hm := Nat.mul_le_mul hraw_len hp_le
-    dsimp only [vC_actual, eC_actual] at hm hsep_raw
-    omega
+    split_ifs; · exact Nat.zero_le _
+    exact Nat.mul_le_mul_left k (Nat.div_le_div_right hc_le)
+  have hvL := sturmVariationsListM_time_le seq (-b)
+  have hvR := sturmVariationsListM_time_le seq b
+  have hbis := isolateIocTotalM_time_le hsep (trim cs) k k (-b) b vL vR hbb rfl rfl
+  have hsep_t := separateTouchingM_time_le (trim cs) seq k
+    (isolateIocM (trim cs) seq k k (-b) b vL vR).ret
+  have := trimM_time_le cs; have := sturmSeqListM_time_le cs
+  have := cauchyBoundNatM_time_le cs; have := mignotteBisectionDepthM_time_le cs
   simp only [isolateRootsTotalM, time_simps, hte, Bool.false_eq_true, ↓reduceIte]
-  dsimp only [seq, b, k, vL, vR, vC, eC, n, d] at *
-  omega
+  calc _ ≤ ((cs.length + 2) ^ 2 * (20 * cs.length + 35) + 35 * cs.length + k + 52) +
+        (2 * vC + 2 + (if vL - vR ≤ 1 then 0 else k * ((vL - vR) / 2)) * (vC + seq.length + 10) +
+          (vL - vR) * (2 * eC + 6 + k * (vC + eC + 4))) +
+        (((isolateIocM (trim cs) seq k k (-b) b vL vR).ret).length *
+          (eC + vC + k * (2 * vC + 6) + 4) + 2) := by
+          dsimp only [seq, b, k, vL, vR, vC, eC] at hbis hsep_t hvL hvR ⊢; omega
+    _ ≤ _ := by dsimp only [vC, eC]; rw [ht_deg]; gcongr
 
 /-- Squarefree form of `isolateRootsTotalM_time_le`. -/
 theorem isolateRootsTotalM_time_le_of_squarefree {cs : List ℚ}
@@ -1247,134 +994,37 @@ private theorem totalTime_poly_bound {n d k B : ℕ}
       d * (2 * eCost + 6 + k * (vCost + eCost + 4))
     let sepCost := d * (eCost + vCost + k * (2 * vCost + 6) + 4) + 2
     prepCost + bisectCost + sepCost ≤ 84 * (n + 2) ^ 5 * (B + 2) := by
+  set N := n + 2
+  set M := B + 2
+  have h2N : 2 ≤ N := by omega
+  have h1M : 1 ≤ M := by omega
+  have h4 : 4 ≤ N ^ 2 := Nat.pow_le_pow_left h2N 2
+  have hN2 : N ≤ N ^ 2 := Nat.le_self_pow (by omega) N
+  have hv : 2 * (d + 1) ^ 2 + 6 * (d + 1) + 7 ≤ 10 * N ^ 2 := by
+    have : (d + 1) ^ 2 ≤ N ^ 2 := Nat.pow_le_pow_left (by omega) 2; omega
+  have he : 2 * (d + 1) + 1 ≤ 3 * N := by omega
+  have hp : ∀ {a c : ℕ}, a ≤ 5 → c * 2 ^ (5 - a) * N ^ a ≤ c * N ^ 5 := fun {a c} ha =>
+    calc c * 2 ^ (5 - a) * N ^ a ≤ c * N ^ (5 - a) * N ^ a := by gcongr
+      _ = c * N ^ 5 := by rw [mul_assoc, ← pow_add, Nat.sub_add_cancel ha]
   dsimp only
-  let N := n + 2
-  let M := B + 2
-  have h1_N : 1 ≤ N := by dsimp only [N]; omega
-  have h2_N : 2 ≤ N := by dsimp only [N]; omega
-  have h1_M : 1 ≤ M := by dsimp only [M]; omega
-  have hd_N : d ≤ N := by dsimp only [N]; omega
-  have hd1_N : d + 1 ≤ N := by dsimp only [N]; omega
-  have hd2_N : d / 2 ≤ N := by dsimp only [N]; omega
-  have h4_N2 : 4 ≤ N ^ 2 := by simpa using Nat.pow_le_pow_left h2_N 2
-  have h8_N3 : 8 ≤ N ^ 3 := by simpa using Nat.pow_le_pow_left h2_N 3
-  have h16_N4 : 16 ≤ N ^ 4 := by simpa using Nat.pow_le_pow_left h2_N 4
-  have h32_N5 : 32 ≤ N ^ 5 := by simpa using Nat.pow_le_pow_left h2_N 5
-  have hN_N2 : N ≤ N ^ 2 := by simpa using Nat.pow_le_pow_right h1_N (by omega : 1 ≤ 2)
-  have hN_N5 : N ≤ N ^ 5 := by simpa using Nat.pow_le_pow_right h1_N (by omega : 1 ≤ 5)
-  have hN2_N5 : N ^ 2 ≤ N ^ 5 := Nat.pow_le_pow_right h1_N (by omega)
-  have hN3_N5 : N ^ 3 ≤ N ^ 5 := Nat.pow_le_pow_right h1_N (by omega)
-  have hN5_P : N ^ 5 ≤ N ^ 5 * M := by
-    simpa only [Nat.mul_one] using Nat.mul_le_mul_left (N ^ 5) h1_M
-  let vCost := 2 * (d + 1) ^ 2 + 6 * (d + 1) + 7
-  let eCost := 2 * (d + 1) + 1
-  have hv_le : vCost ≤ 10 * N ^ 2 := by
-    have hsq1 : (d + 1) ^ 2 ≤ N ^ 2 := Nat.pow_le_pow_left hd1_N 2
-    have hd1_N2 : d + 1 ≤ N ^ 2 := hd1_N.trans hN_N2
-    dsimp only [vCost]
-    omega
-  have he_le : eCost ≤ 3 * N := by
-    dsimp only [eCost]
-    omega
-  have he_N2 : eCost ≤ 3 * N ^ 2 := he_le.trans (Nat.mul_le_mul_left 3 hN_N2)
-  have hprep : N ^ 2 * (20 * n + 35) + 35 * n + k + 52 ≤ 24 * N ^ 5 * M := by
-    have h20 : 20 * n + 35 ≤ 20 * N := by dsimp only [N]; omega
-    have h_p1 : N ^ 2 * (20 * n + 35) ≤ 20 * N ^ 5 * M := by
-      calc N ^ 2 * (20 * n + 35)
-          ≤ N ^ 2 * (20 * N) := Nat.mul_le_mul_left _ h20
-        _ = 20 * N ^ 3 := by ring
-        _ ≤ 20 * N ^ 5 := Nat.mul_le_mul_left 20 hN3_N5
-        _ ≤ 20 * (N ^ 5 * M) := Nat.mul_le_mul_left 20 hN5_P
-        _ = 20 * N ^ 5 * M := by ring
-    have h35 : 35 * n + 52 ≤ 48 * N := by dsimp only [N]; omega
-    have h_p2 : 35 * n + 52 ≤ 3 * N ^ 5 * M := by
-      calc 35 * n + 52
-          ≤ 48 * N := h35
-        _ = 3 * (16 * N) := by ring
-        _ ≤ 3 * (N ^ 4 * N) := Nat.mul_le_mul_left 3 (Nat.mul_le_mul_right N h16_N4)
-        _ = 3 * N ^ 5 := by ring
-        _ ≤ 3 * (N ^ 5 * M) := Nat.mul_le_mul_left 3 hN5_P
-        _ = 3 * N ^ 5 * M := by ring
-    have h_p3 : k ≤ N ^ 5 * M := hk.trans (Nat.mul_le_mul_right M hN2_N5)
-    calc N ^ 2 * (20 * n + 35) + 35 * n + k + 52
-        = N ^ 2 * (20 * n + 35) + (35 * n + 52) + k := by ring
-      _ ≤ 20 * N ^ 5 * M + 3 * N ^ 5 * M + N ^ 5 * M :=
-          Nat.add_le_add (Nat.add_le_add h_p1 h_p2) h_p3
-      _ = 24 * N ^ 5 * M := by ring
-  have hbis1 : 2 * vCost + 2 ≤ 3 * N ^ 5 * M := by
-    have h22 : 2 * vCost + 2 ≤ 24 * N ^ 2 := by omega
-    calc 2 * vCost + 2
-        ≤ 24 * N ^ 2 := h22
-      _ = 3 * (8 * N ^ 2) := by ring
-      _ ≤ 3 * (N ^ 3 * N ^ 2) := Nat.mul_le_mul_left 3 (Nat.mul_le_mul_right (N ^ 2) h8_N3)
-      _ = 3 * N ^ 5 := by ring
-      _ ≤ 3 * (N ^ 5 * M) := Nat.mul_le_mul_left 3 hN5_P
-      _ = 3 * N ^ 5 * M := by ring
-  have hbis2 : k * (d / 2) * (vCost + (d + 1) + 10) ≤ 14 * N ^ 5 * M := by
-    have hd1_N2 : d + 1 ≤ N ^ 2 := hd1_N.trans hN_N2
-    have hv' : vCost + (d + 1) + 10 ≤ 14 * N ^ 2 := by omega
-    calc k * (d / 2) * (vCost + (d + 1) + 10)
-        ≤ (N ^ 2 * M * N) * (14 * N ^ 2) := Nat.mul_le_mul (Nat.mul_le_mul hk hd2_N) hv'
-      _ = 14 * N ^ 5 * M := by ring
-  have hbis3 : d * (2 * eCost + 6 + k * (vCost + eCost + 4)) ≤ 16 * N ^ 5 * M := by
-    have h2e : 2 * eCost + 6 ≤ 2 * N ^ 4 * M := by
-      have h9 : 2 * eCost + 6 ≤ 16 * N := by omega
-      calc 2 * eCost + 6
-          ≤ 16 * N := h9
-        _ ≤ 2 * (8 * N) := by omega
-        _ ≤ 2 * (N ^ 3 * N) := Nat.mul_le_mul_left 2 (Nat.mul_le_mul_right N h8_N3)
-        _ = 2 * (N ^ 4 * 1) := by ring
-        _ ≤ 2 * (N ^ 4 * M) := Nat.mul_le_mul_left 2 (Nat.mul_le_mul_left (N ^ 4) h1_M)
-        _ = 2 * N ^ 4 * M := by ring
-    have hve : vCost + eCost + 4 ≤ 14 * N ^ 2 := by omega
-    have hkv : k * (vCost + eCost + 4) ≤ 14 * N ^ 4 * M := by
-      calc k * (vCost + eCost + 4)
-          ≤ (N ^ 2 * M) * (14 * N ^ 2) := Nat.mul_le_mul hk hve
-        _ = 14 * N ^ 4 * M := by ring
-    calc d * (2 * eCost + 6 + k * (vCost + eCost + 4))
-        ≤ N * (2 * N ^ 4 * M + 14 * N ^ 4 * M) := Nat.mul_le_mul hd_N (Nat.add_le_add h2e hkv)
-      _ = 16 * N ^ 5 * M := by ring
-  have hsep_t : d * (eCost + vCost + k * (2 * vCost + 6) + 4) + 2 ≤ 27 * N ^ 5 * M := by
-    have hev : eCost + vCost + 4 ≤ 4 * N ^ 4 * M := by
-      have h14 : eCost + vCost + 4 ≤ 16 * N ^ 2 := by omega
-      calc eCost + vCost + 4
-          ≤ 16 * N ^ 2 := h14
-        _ = 4 * (4 * N ^ 2) := by ring
-        _ ≤ 4 * (N ^ 2 * N ^ 2) := Nat.mul_le_mul_left 4 (Nat.mul_le_mul_right (N ^ 2) h4_N2)
-        _ = 4 * (N ^ 4 * 1) := by ring
-        _ ≤ 4 * (N ^ 4 * M) := Nat.mul_le_mul_left 4 (Nat.mul_le_mul_left (N ^ 4) h1_M)
-        _ = 4 * N ^ 4 * M := by ring
-    have h2v : 2 * vCost + 6 ≤ 22 * N ^ 2 := by omega
-    have hkv : k * (2 * vCost + 6) ≤ 22 * N ^ 4 * M := by
-      calc k * (2 * vCost + 6)
-          ≤ (N ^ 2 * M) * (22 * N ^ 2) := Nat.mul_le_mul hk h2v
-        _ = 22 * N ^ 4 * M := by ring
-    have hinner : eCost + vCost + k * (2 * vCost + 6) + 4 ≤ 26 * N ^ 4 * M := by
-      calc eCost + vCost + k * (2 * vCost + 6) + 4
-          = (eCost + vCost + 4) + k * (2 * vCost + 6) := by ring
-        _ ≤ 4 * N ^ 4 * M + 22 * N ^ 4 * M := Nat.add_le_add hev hkv
-        _ = 26 * N ^ 4 * M := by ring
-    have hd_mul : d * (eCost + vCost + k * (2 * vCost + 6) + 4) ≤ 26 * N ^ 5 * M := by
-      calc d * (eCost + vCost + k * (2 * vCost + 6) + 4)
-          ≤ N * (26 * N ^ 4 * M) := Nat.mul_le_mul hd_N hinner
-        _ = 26 * N ^ 5 * M := by ring
-    have h2_le : 2 ≤ N ^ 5 * M := (by omega : 2 ≤ 32).trans (h32_N5.trans hN5_P)
-    calc d * (eCost + vCost + k * (2 * vCost + 6) + 4) + 2
-        ≤ 26 * N ^ 5 * M + N ^ 5 * M := Nat.add_le_add hd_mul h2_le
-      _ = 27 * N ^ 5 * M := by ring
-  have hbis_all : 2 * vCost + 2 + k * (d / 2) * (vCost + (d + 1) + 10) +
-      d * (2 * eCost + 6 + k * (vCost + eCost + 4)) ≤ 33 * N ^ 5 * M := by
-    calc 2 * vCost + 2 + k * (d / 2) * (vCost + (d + 1) + 10) +
-          d * (2 * eCost + 6 + k * (vCost + eCost + 4))
-        ≤ 3 * N ^ 5 * M + 14 * N ^ 5 * M + 16 * N ^ 5 * M :=
-          Nat.add_le_add (Nat.add_le_add hbis1 hbis2) hbis3
-      _ = 33 * N ^ 5 * M := by ring
-  calc (N ^ 2 * (20 * n + 35) + 35 * n + k + 52) +
-        (2 * vCost + 2 + k * (d / 2) * (vCost + (d + 1) + 10) +
-          d * (2 * eCost + 6 + k * (vCost + eCost + 4))) +
-        (d * (eCost + vCost + k * (2 * vCost + 6) + 4) + 2)
-      ≤ 24 * N ^ 5 * M + 33 * N ^ 5 * M + 27 * N ^ 5 * M :=
-        Nat.add_le_add (Nat.add_le_add hprep hbis_all) hsep_t
+  calc _ ≤ (N ^ 2 * (20 * N) + 35 * N + N ^ 2 * M + 52) +
+          (2 * (10 * N ^ 2) + 2 + N ^ 2 * M * N * (14 * N ^ 2) +
+            N * (2 * (3 * N) + 6 + N ^ 2 * M * (14 * N ^ 2))) +
+          (N * (3 * N + 10 * N ^ 2 + N ^ 2 * M * (22 * N ^ 2) + 4) + 2) := by
+            gcongr <;> omega
+    _ = 50 * (N ^ 5 * M) + 20 * N ^ 3 + 10 * N ^ 3 + 29 * N ^ 2 + 45 * N + N ^ 2 * M + 56 := by
+          ring
+    _ ≤ 50 * (N ^ 5 * M) + 8 * N ^ 5 + 4 * N ^ 5 + 3 * N ^ 5 + N ^ 5 * M + 2 * N ^ 5 := by
+          have := hp (a := 3) (c := 8) (by omega)
+          have := hp (a := 2) (c := 4) (by omega)
+          have := hp (a := 1) (c := 3) (by omega)
+          have := hp (a := 0) (c := 2) (by omega)
+          have : N ^ 2 * M ≤ N ^ 5 * M :=
+            Nat.mul_le_mul_right M (Nat.pow_le_pow_right (by omega) (by omega))
+          norm_num at *; omega
+    _ ≤ 84 * (N ^ 5 * M) := by
+          have : N ^ 5 ≤ N ^ 5 * M := Nat.le_mul_of_pos_right _ h1M
+          omega
     _ = 84 * N ^ 5 * M := by ring
 
 /-- Closed-form polynomial operation-count bound on `isolateRootsTotalM cs` purely in terms of
@@ -1404,28 +1054,19 @@ theorem isolateRootsTotal_endpoint_bounds_of_bitBound {B : ℕ} {cs : List ℚ}
         Int.natAbs J.lower.num ≤ 3 * 2 ^ (2 * B + E) ∧
         Int.natAbs J.upper.num ≤ 3 * 2 ^ (2 * B + E) := by
   intro J hJ
-  dsimp only
-  let E := 3 * (cs.length + 2) ^ 2 * (B + 2)
-  have hraw := isolateRootsTotal_endpoint_bounds cs J hJ
-  dsimp only at hraw
-  rcases hraw with ⟨_, _, hlden, huden, hlnum, hunum⟩
-  have he_le : 3 * mignotteBisectionDepth cs ≤ E := by
-    have hk := mignotteBisectionDepth_le_of_bitBound hB
-    calc 3 * mignotteBisectionDepth cs
-        ≤ 3 * ((cs.length + 2) ^ 2 * (B + 2)) := Nat.mul_le_mul_left 3 hk
-      _ = E := by dsimp only [E]; ring
-  have hpow_e : 2 ^ (3 * mignotteBisectionDepth cs) ≤ 2 ^ E :=
-    Nat.pow_le_pow_right (by omega) he_le
-  have hb_raw : cauchyBoundNat cs ≤ 2 ^ (2 * B) + 2 := cauchyBoundNat_le_of_bitBound hB
-  have h1_pow : 1 ≤ 2 ^ (2 * B) := Nat.one_le_pow (2 * B) 2 (by omega)
-  have hb_le : cauchyBoundNat cs ≤ 3 * 2 ^ (2 * B) := by omega
-  have hmul_le : cauchyBoundNat cs * 2 ^ (3 * mignotteBisectionDepth cs) ≤
-      3 * 2 ^ (2 * B + E) := by
-    calc cauchyBoundNat cs * 2 ^ (3 * mignotteBisectionDepth cs)
-        ≤ (3 * 2 ^ (2 * B)) * 2 ^ E := Nat.mul_le_mul hb_le hpow_e
-      _ = 3 * (2 ^ (2 * B) * 2 ^ E) := by ring
-      _ = 3 * 2 ^ (2 * B + E) := by rw [← Nat.pow_add]
-  exact ⟨hlden.trans hpow_e, huden.trans hpow_e, hlnum.trans hmul_le, hunum.trans hmul_le⟩
+  rcases isolateRootsTotal_endpoint_bounds cs J hJ with ⟨_, _, hlden, huden, hlnum, hunum⟩
+  have hpow : 2 ^ (3 * mignotteBisectionDepth cs) ≤ 2 ^ (3 * (cs.length + 2) ^ 2 * (B + 2)) :=
+    Nat.pow_le_pow_right (by omega) <|
+      (Nat.mul_le_mul_left 3 (mignotteBisectionDepth_le_of_bitBound hB)).trans_eq (by ring)
+  have hmul : cauchyBoundNat cs * 2 ^ (3 * mignotteBisectionDepth cs) ≤
+      3 * 2 ^ (2 * B + 3 * (cs.length + 2) ^ 2 * (B + 2)) := by
+    have hb : cauchyBoundNat cs ≤ 3 * 2 ^ (2 * B) := by
+      have := cauchyBoundNat_le_of_bitBound hB
+      have := Nat.one_le_pow (2 * B) 2 (by omega)
+      omega
+    calc _ ≤ 3 * 2 ^ (2 * B) * 2 ^ (3 * (cs.length + 2) ^ 2 * (B + 2)) := by gcongr
+      _ = _ := by rw [mul_assoc, ← Nat.pow_add]
+  exact ⟨hlden.trans hpow, huden.trans hpow, hlnum.trans hmul, hunum.trans hmul⟩
 
 /-- Combined specification of the computable `TimeM ℕ`-charged isolator `isolateRootsTotalM cs` for
 any squarefree `p : ℚ[X]` represented by `cs : List ℚ` (`ofCoeffList cs = p`) with coefficient bit
@@ -1558,20 +1199,13 @@ theorem polyTotalIsolatedRoot_strictMono {p : ℚ[X]} (hsq : Squarefree p) :
 `{x : ℝ // Polynomial.aeval x p = 0}`. -/
 theorem isolatePolyRootsTotal_bijective {p : ℚ[X]} (hsq : Squarefree p) :
     Function.Bijective (polyTotalIsolatedRoot hsq) := by
-  have heq : ofCoeffList (p.coeffsBelow (p.natDegree + 1)) = p :=
-    Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
   have hbij := isolateRootsTotal_bijective (polySeparable hsq)
   refine ⟨fun i j hij => ?_, fun ⟨x, hx⟩ => ?_⟩
-  · have hval : (polyTotalIsolatedRoot hsq i).1 = (polyTotalIsolatedRoot hsq j).1 :=
+  · have hv : (polyTotalIsolatedRoot hsq i).1 = (polyTotalIsolatedRoot hsq j).1 :=
       congrArg Subtype.val hij
-    dsimp only [polyTotalIsolatedRoot] at hval
-    exact hbij.1 (Subtype.ext hval)
-  · have hx' : Polynomial.aeval x (ofCoeffList (p.coeffsBelow (p.natDegree + 1))) = 0 := by
-      simpa only [heq] using hx
-    obtain ⟨i, hi⟩ := hbij.2 ⟨x, hx'⟩
-    refine ⟨i, Subtype.ext ?_⟩
-    dsimp only [polyTotalIsolatedRoot]
-    exact congrArg Subtype.val hi
+    exact hbij.1 (Subtype.ext hv)
+  · obtain ⟨i, hi⟩ := hbij.2 ⟨x, by rwa [Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self _)]⟩
+    exact ⟨i, Subtype.ext (show (polyTotalIsolatedRoot hsq i).1 = x from congrArg Subtype.val hi)⟩
 
 /-- End-to-end `TimeM ℕ` operation-count bound for `isolatePolyRootsTotalM p` on squarefree
 `p : ℚ[X]`. -/
@@ -1586,17 +1220,19 @@ theorem isolatePolyRootsTotalM_time_le {p : ℚ[X]} (hsq : Squarefree p) :
       d * (2 * eCost + 6 + k * (vCost + eCost + 4))
     let sepCost := d * (eCost + vCost + k * (2 * vCost + 6) + 4) + 2
     (isolatePolyRootsTotalM p).time ≤ prepCost + bisectCost + sepCost := by
-  dsimp only [isolatePolyRootsTotalM]
-  have heq : ofCoeffList (p.coeffsBelow (p.natDegree + 1)) = p :=
-    Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
-  have hlen : (p.coeffsBelow (p.natDegree + 1)).length = p.natDegree + 1 :=
-    Polynomial.length_coeffsBelow p (p.natDegree + 1)
-  have hle := isolateRootsTotalM_time_le_of_squarefree
-    (cs := p.coeffsBelow (p.natDegree + 1)) (heq.symm ▸ hsq)
-  dsimp only at hle
-  rw [heq, hlen] at hle
-  have hd3 : p.natDegree + 1 + 2 = p.natDegree + 3 := by omega
-  simpa only [hd3] using hle
+  have heq := Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
+  have hle := isolateRootsTotalM_time_le_of_squarefree (heq.symm ▸ hsq)
+  dsimp only [isolatePolyRootsTotalM] at hle ⊢
+  rw [heq, Polynomial.length_coeffsBelow] at hle
+  exact hle
+
+private theorem hasCoeffBitBound_coeffsBelow {B : ℕ} {p : ℚ[X]}
+    (hB : ∀ i ≤ p.natDegree, Int.natAbs (p.coeff i).num ≤ 2 ^ B ∧ (p.coeff i).den ≤ 2 ^ B) :
+    HasCoeffBitBound B (p.coeffsBelow (p.natDegree + 1)) := by
+  intro _ hc
+  simp only [Polynomial.coeffsBelow, List.mem_map, List.mem_range] at hc
+  obtain ⟨i, hi, rfl⟩ := hc
+  exact hB i (Nat.lt_succ_iff.mp hi)
 
 /-- Closed-form polynomial `TimeM ℕ` cost bound on `isolatePolyRootsTotalM p` in terms of
 `p.natDegree` and a bound `B` on the numerator/denominator bit-lengths of `p`'s coefficients. -/
@@ -1604,18 +1240,11 @@ theorem isolatePolyRootsTotalM_time_le_of_bitBound {B : ℕ} {p : ℚ[X]}
     (hsq : Squarefree p)
     (hB : ∀ i ≤ p.natDegree, Int.natAbs (p.coeff i).num ≤ 2 ^ B ∧ (p.coeff i).den ≤ 2 ^ B) :
     (isolatePolyRootsTotalM p).time ≤ 84 * (p.natDegree + 3) ^ 5 * (B + 2) := by
-  dsimp only [isolatePolyRootsTotalM]
-  have heq : ofCoeffList (p.coeffsBelow (p.natDegree + 1)) = p :=
-    Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
-  have hcsB : HasCoeffBitBound B (p.coeffsBelow (p.natDegree + 1)) := by
-    intro c hc
-    simp only [Polynomial.coeffsBelow, List.mem_map, List.mem_range] at hc
-    obtain ⟨i, hi, rfl⟩ := hc
-    exact hB i (by omega)
-  have hle := isolateRootsTotalM_time_le_of_bitBound (heq.symm ▸ hsq) hcsB
-  rw [Polynomial.length_coeffsBelow] at hle
-  have hd3 : p.natDegree + 1 + 2 = p.natDegree + 3 := by omega
-  simpa only [hd3] using hle
+  have heq := Polynomial.ofCoeffList_coeffsBelow (Nat.lt_succ_self p.natDegree)
+  have h := isolateRootsTotalM_time_le_of_bitBound (heq.symm ▸ hsq)
+    (hasCoeffBitBound_coeffsBelow hB)
+  rw [Polynomial.length_coeffsBelow] at h
+  exact h
 
 /-- Polynomial dyadic numerator/denominator bounds on all endpoints of `isolatePolyRootsTotal p`
 given a bit-length bound `B` on `p`'s coefficients. -/
@@ -1625,17 +1254,9 @@ theorem isolatePolyRootsTotal_endpoint_bounds_of_bitBound {B : ℕ} {p : ℚ[X]}
       let E := 3 * (p.natDegree + 3) ^ 2 * (B + 2)
       J.lower.den ≤ 2 ^ E ∧ J.upper.den ≤ 2 ^ E ∧
         Int.natAbs J.lower.num ≤ 3 * 2 ^ (2 * B + E) ∧
-        Int.natAbs J.upper.num ≤ 3 * 2 ^ (2 * B + E) := by
-  have hcsB : HasCoeffBitBound B (p.coeffsBelow (p.natDegree + 1)) := by
-    intro c hc
-    simp only [Polynomial.coeffsBelow, List.mem_map, List.mem_range] at hc
-    obtain ⟨i, hi, rfl⟩ := hc
-    exact hB i (by omega)
-  intro J hJ
-  have h := isolateRootsTotal_endpoint_bounds_of_bitBound hcsB J hJ
-  dsimp only at h ⊢
+        Int.natAbs J.upper.num ≤ 3 * 2 ^ (2 * B + E) := fun J hJ => by
+  have h := isolateRootsTotal_endpoint_bounds_of_bitBound (hasCoeffBitBound_coeffsBelow hB) J hJ
   rw [Polynomial.length_coeffsBelow] at h
-  have hd3 : p.natDegree + 1 + 2 = p.natDegree + 3 := by omega
-  simpa only [hd3] using h
+  exact h
 
 end Cslib.RealRoot
