@@ -1591,7 +1591,7 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
     ProbOracleComp.runWith_map, PMF.map_comp]
   have hsim := ProbOracleComp.runWith_run_interpret_map
     (cpaToPrfHandler n bit)
-    (fun req s => ProbComp.eval (cachedRandomFunctionOracle n n req.2 s))
+    (fun req s => ProbComp.eval (cachedRandomFunctionOracle (·.length == n) n req.2 s))
     (fun q cache =>
       (prfCipherFaithfulStep n bit q ⟨cache, false⟩).map (Prod.map id PRFCipherBadState.cache))
     (fun _ => ()) id
@@ -1606,7 +1606,7 @@ private theorem eval_prfIdealGame_cpaToPrfDistinguisher (adversary : OracleDisti
           Function.comp_def, Prod.map_apply, id_eq]
         refine PMF.bind_congr_on_support _ _ _ fun r hr => ?_
         have hrLen : r.length = n := BitString.length_of_mem_support_uniformList hr
-        simp only [cachedRandomFunctionOracle, hrLen, ↓reduceIte, ProbComp.eval_memoize,
+        simp only [cachedRandomFunctionOracle, beq_iff_eq, hrLen, ↓reduceIte, ProbComp.eval_memoize,
           BitString.eval_sampleList]
         rfl
       · simp [hlenEq, ProbOracleComp.runWith_pure])

@@ -42,7 +42,7 @@ namespace Cslib.RandomOracle
 
 open Probability OracleComp
 
-variable {M Y Z α : Type} [DecidableEq M] [DecidableEq Y]
+variable {M Y Z α : Type} [BEq M] [LawfulBEq M] [DecidableEq Y]
 
 /-- Lazy sampling of a function on `Y` that is called at `φ m`, with the cache kept by query. In
 the cache-hit branch, `(m, z)` is still recorded when `m` is not yet cached so that `cache`
@@ -83,6 +83,7 @@ private theorem hasImageCollision_cons_of_lookup (φ : M → Y) {cache : List (M
     (congrArg Prod.fst heq).symm⟩
   exact bne_iff_ne.mp (List.lookup_eq_none_iff.mp hm e he) hm_eq
 
+omit [LawfulBEq M] in
 private theorem memoizeThrough_map_ofList (φ : M → Y) (dist : PMF Z) (m : M)
     (cache : List (M × Z)) :
     (memoizeThrough φ dist m cache).map
@@ -158,6 +159,7 @@ private theorem identicalUntilBad_memoizeThrough (φ : M → Y) (dist : PMF Z) :
     · exact h ▸ hp
     · exact h ▸ List.mem_cons_of_mem _ hp
 
+omit [LawfulBEq M] in
 /-- The result of a program run against `memoizeThrough φ dist` is its result when each query `m`
 is replaced by the query `φ m` to a lazily sampled function on `Y`. -/
 private theorem runWith_memoizeThrough_map_fst (φ : M → Y) (dist : PMF Z)
