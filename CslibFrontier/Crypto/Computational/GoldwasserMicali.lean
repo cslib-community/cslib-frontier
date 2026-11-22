@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
+public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 public import CslibFrontier.Crypto.Computational.Encryption.PublicKeyReplacement
 public import CslibFrontier.Crypto.Computational.QuadraticResiduosity
 public import CslibFrontier.Crypto.Computational.UnitSampling
@@ -72,7 +73,14 @@ modulus `N = p * q` and public nonresidue `z ∈ QNR_N^{+1}`:
   `QuadraticResiduosityHard` relative to `gen`, Blum moduli and `n`-bit primes. Its reduction
   `blumQRDistinguisher` encrypts `m₀` and multiplies the ciphertext by the challenge when
   `m₀ ≠ m₁`; it is certified strict PPT (`isPPTOn_blumQRDistinguisher`) and loses only a
-  `20 / 2 ^ n` sampling tail (`advantage_blumGame_le_qr`).
+  `20 / 2 ^ n` sampling tail (`advantage_blumGame_le_qr`). When the prime bit-lengths are also
+  polynomially bounded in `n` (as for `sizeBound = (· + c)` or any strict-PPT `gen`),
+  `wordINDCPA_blumGoldwasserMicali` provides the Blum-modulus multi-bit step toward #5293 (after
+  [KatzLindell2020], Section 15.4.4 and Exercise 15.12, locator not verified; not the textbook
+  `QNR_N^{+1}` key-generator endpoint), lifting `indcpa_blumGoldwasserMicali` through
+  `Encryption.INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le` to `Encryption.WordINDCPA`
+  for `(blumKeyGen gen, encryptWord)` with word decryption `decryptWord`
+  (`decryptWord_encryptWord_blumKeyGen`).
 * **Ideal public keys** ([KatzLindell2020], Theorem 15.29): for public keys drawn from
   `publicKeyLaw` (uniform `z ∈ QNR_N^{+1}`), `qrDistinguisher` reduces single-bit IND-CPA to
   `QuadraticResiduosityHard` with factor-`2` loss plus a `10 / 2 ^ n` sampling tail
@@ -400,7 +408,8 @@ theorem computableInPolyTime_mulCiphertexts :
 
 /-! ### Support-level correctness and XOR homomorphism -/
 
-private theorem decrypt_encPair (p q c : ℕ) :
+/-- Decrypting an `encNat`-encoded ciphertext under `sk = ⟨p, q⟩` evaluates `decryptNat p q`. -/
+theorem decrypt_encPair (p q c : ℕ) :
     decrypt (encPair encNat encNat (p, q)) (encNat c) = decryptNat p q c := by
   rw [decrypt, unframe_encPair, dropFrame_encPair, ofBits_encNat, ofBits_encNat,
     ofBits_encNat]
@@ -975,7 +984,7 @@ theorem indcpa_blumGoldwasserMicali {gen : ℕ → ProbComp ModulusDesc}
   exact negligible_of_le (hD.add (negligible_const_div_two_pow 20)) fun n =>
     advantage_blumGame_le_qr (hblum n) (hsize n) adversary
 
-/-! ### Multi-bit bitwise Goldwasser–Micali encryption and lossy-key IND-CPA -/
+/-! ### Multi-bit bitwise Goldwasser–Micali encryption and IND-CPA -/
 
 /-- Encrypt each bit of `bits` independently with `encrypt n pk`. -/
 noncomputable def encryptBits (n : ℕ) (pk : List Bool) (bits : List Bool) :
@@ -983,7 +992,7 @@ noncomputable def encryptBits (n : ℕ) (pk : List Bool) (bits : List Bool) :
   bits.mapM (encrypt n pk)
 
 /-- Word-valued bitwise encryption for `Encryption.gameOn`: frame `encryptBits` via
-`encList encBits`. -/
+`encList encBits` (definitionally `Encryption.bitwiseEncrypt encrypt`). -/
 noncomputable def encryptWord (n : ℕ) (pk : List Bool) (bits : List Bool) :
     ProbComp (List Bool) :=
   encList encBits <$> encryptBits n pk bits
@@ -992,51 +1001,131 @@ noncomputable def encryptWord (n : ℕ) (pk : List Bool) (bits : List Bool) :
 def decryptBits (sk : List Bool) (cts : List (List Bool)) : List Bool :=
   cts.map (decrypt sk)
 
+/-- Word-valued bitwise decryption: split a framed ciphertext word via `frames` and decrypt each
+bit (`Encryption.bitwiseDecrypt decrypt`). -/
+def decryptWord (sk ct : List Bool) : List Bool :=
+  Encryption.bitwiseDecrypt decrypt sk ct
+
 /-- Componentwise homomorphic XOR of two ciphertext lists. -/
 def xorCiphertexts (pk : List Bool) (cts₁ cts₂ : List (List Bool)) : List (List Bool) :=
   List.zipWith (mulCiphertexts pk) cts₁ cts₂
-
-/-- `encryptBits` is uniformly strict PPT. -/
-theorem isPPTOn_encryptBits :
-    IsPPTOn (encKeyedInput encBits) (encList encBits)
-      (fun ⟨n, pk, bits⟩ => encryptBits n pk bits) := by
-  let prog (x : ℕ × List Bool × List Bool) (b : Bool) : ProbComp (List Bool) :=
-    encrypt x.1 x.2.1 b
-  have hstep : IsPPTOn (encPair (encKeyedInput encBits) encBool) encBits
-      (fun p => prog p.1 p.2) := by
-    have hp1 := ComputableInPolyTime.fst (encKeyedInput encBits) encBool
-    have hn := (ComputableInPolyTime.fst encUnary (encPair encBits encBits)).comp hp1
-    have hpk := ((ComputableInPolyTime.snd encUnary (encPair encBits encBits)).fst').comp hp1
-    have hb := ComputableInPolyTime.snd (encKeyedInput encBits) encBool
-    exact (isPPTOn_encrypt.preprocess
-      (prepare := fun p : (ℕ × List Bool × List Bool) × Bool => (p.1.1, p.1.2.1, p.2))
-      (hn.prod (hpk.prod hb))).congr fun _ => rfl
-  have hlist : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
-      (encKeyedInput encBits) (encList encBool) :=
-    ComputableInPolyTime.bitsToList.comp
-      (ComputableInPolyTime.snd encUnary (encPair encBits encBits)).snd'
-  exact (IsPPTOn.mapMWith (program := prog) hstep hlist).congr fun ⟨_, _, _⟩ => rfl
 
 /-- `encryptWord` is uniformly strict PPT. -/
 @[program_certificate]
 theorem isPPTOn_encryptWord :
     IsPPTOn (encKeyedInput encBits) encBits
       (fun ⟨n, pk, bits⟩ => encryptWord n pk bits) :=
-  (isPPTOn_iff_encoded.mp isPPTOn_encryptBits).congr fun ⟨_, _, _⟩ => rfl
+  Encryption.isPPTOn_bitwiseEncrypt isPPTOn_encrypt
 
-/-- Perfect correctness of bitwise Goldwasser–Micali encryption. -/
+/-- `encryptBits` is uniformly strict PPT. -/
+theorem isPPTOn_encryptBits :
+    IsPPTOn (encKeyedInput encBits) (encList encBits)
+      (fun ⟨n, pk, bits⟩ => encryptBits n pk bits) :=
+  isPPTOn_iff_encoded.mpr isPPTOn_encryptWord
+
+/-- `decryptWord sk` on a framed list of bit ciphertexts evaluates `decryptBits sk`. -/
+@[simp] theorem decryptWord_encList (sk : List Bool) (cts : List (List Bool)) :
+    decryptWord sk (encList encBits cts) = decryptBits sk cts :=
+  Encryption.bitwiseDecrypt_encList decrypt sk cts
+
+/-- `decryptWord` is computable in polynomial time. -/
+theorem computableInPolyTime_decryptWord :
+    ComputableInPolyTime (fun ⟨sk, ct⟩ => decryptWord sk ct)
+      (encPair encBits encBits) encBits :=
+  Encryption.computableInPolyTime_bitwiseDecrypt computableInPolyTime_decrypt
+
+private theorem decryptBits_encryptBits_of_correct {n : ℕ} {pk sk : List Bool}
+    (hcorrect : ∀ b ct, ct ∈ (ProbComp.eval (encrypt n pk b)).support → decrypt sk ct = b)
+    (bits : List Bool) {cts : List (List Bool)}
+    (hcts : cts ∈ (ProbComp.eval (encryptBits n pk bits)).support) :
+    decryptBits sk cts = bits := by
+  rw [encryptBits, ProbComp.mem_support_mapM_iff] at hcts
+  rw [decryptBits]
+  induction hcts with
+  | nil => rfl
+  | cons hhead _ ih =>
+    simp only [List.map_cons, hcorrect _ _ hhead, ih]
+
+/-- Perfect correctness of bitwise Goldwasser–Micali encryption on ciphertext lists. -/
 theorem decryptBits_encryptBits {gen : ℕ → ProbComp KeyDesc} {n : ℕ}
     {keys : List Bool × List Bool} (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support)
     (bits : List Bool) {cts : List (List Bool)}
     (hcts : cts ∈ (ProbComp.eval (encryptBits n keys.1 bits)).support) :
-    decryptBits keys.2 cts = bits := by
-  induction bits generalizing cts with
-  | nil =>
-    supp_cases hcts [encryptBits, List.mapM_nil]; rfl
-  | cons b bs ih =>
-    supp_cases hcts [encryptBits, List.mapM_cons] with ⟨ct, hct, rest, hrest, rfl⟩
-    simp only [decryptBits, List.map_cons, decrypt_encrypt hkeys b hct]
-    exact congrArg (b :: ·) (ih hrest)
+    decryptBits keys.2 cts = bits :=
+  decryptBits_encryptBits_of_correct (fun b _ h => decrypt_encrypt hkeys b h) bits hcts
+
+/-- Perfect correctness of word-valued bitwise Goldwasser–Micali encryption (`encryptWord` /
+`decryptWord`). -/
+theorem decryptWord_encryptWord {gen : ℕ → ProbComp KeyDesc} {n : ℕ}
+    {keys : List Bool × List Bool} (hkeys : keys ∈ (ProbComp.eval (keyGen gen n)).support)
+    (bits : List Bool) {ct : List Bool}
+    (hct : ct ∈ (ProbComp.eval (encryptWord n keys.1 bits)).support) :
+    decryptWord keys.2 ct = bits :=
+  Encryption.bitwiseDecrypt_bitwiseEncrypt (fun b _ h => decrypt_encrypt hkeys b h) bits hct
+
+/-- Perfect correctness of Blum-modulus bitwise Goldwasser–Micali encryption on ciphertext lists. -/
+theorem decryptBits_encryptBits_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
+    (hblum : ∀ d ∈ (ProbComp.eval (gen n)).support, IsBlumModulus d.p d.q)
+    {keys : List Bool × List Bool} (hkeys : keys ∈ (ProbComp.eval (blumKeyGen gen n)).support)
+    (bits : List Bool) {cts : List (List Bool)}
+    (hcts : cts ∈ (ProbComp.eval (encryptBits n keys.1 bits)).support) :
+    decryptBits keys.2 cts = bits :=
+  decryptBits_encryptBits_of_correct
+    (fun b _ h => decrypt_encrypt_blumKeyGen hblum hkeys b h) bits hcts
+
+/-- Blum-modulus word-level round-trip correctness step (`blumKeyGen gen`, `encryptWord`,
+`decryptWord`) whenever `gen n` draws Blum moduli. -/
+theorem decryptWord_encryptWord_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
+    (hblum : ∀ d ∈ (ProbComp.eval (gen n)).support, IsBlumModulus d.p d.q)
+    {keys : List Bool × List Bool} (hkeys : keys ∈ (ProbComp.eval (blumKeyGen gen n)).support)
+    (bits : List Bool) {ct : List Bool}
+    (hct : ct ∈ (ProbComp.eval (encryptWord n keys.1 bits)).support) :
+    decryptWord keys.2 ct = bits :=
+  Encryption.bitwiseDecrypt_bitwiseEncrypt
+    (fun b _ h => decrypt_encrypt_blumKeyGen hblum hkeys b h) bits hct
+
+/-- Encoded bit length of `blumPublicKey (p * q)` in terms of an upper bound `B` on `p.size` and
+`q.size`. -/
+theorem length_blumPublicKey_le {p q B : ℕ} (hp : p.size ≤ B) (hq : q.size ≤ B) :
+    (blumPublicKey (p * q)).length ≤ 6 * B + 1 := by
+  have hmul : p * q < 2 ^ (2 * B) := by
+    calc p * q < 2 ^ B * 2 ^ B := Nat.mul_lt_mul'' (Nat.size_le.mp hp) (Nat.size_le.mp hq)
+      _ = 2 ^ (2 * B) := by rw [two_mul, pow_add]
+  have hsizeN : (p * q).bits.length ≤ 2 * B :=
+    Nat.size_eq_bits_len _ ▸ Nat.size_le.mpr hmul
+  have hsizeSub : (p * q - 1).bits.length ≤ 2 * B :=
+    Nat.size_eq_bits_len _ ▸ Nat.size_le.mpr (lt_of_le_of_lt (Nat.sub_le _ _) hmul)
+  simp only [blumPublicKey, encPair_apply, List.length_append, length_frame, encNat_apply]
+  omega
+
+/-- Blum-modulus multi-bit IND-CPA step toward #5293 (after [KatzLindell2020], Section 15.4.4 and
+Exercise 15.12, locator not verified; not the textbook `QNR_N^{+1}` key-generator endpoint). Let
+`gen` draw Blum moduli `N = p * q` (`p ≡ q ≡ 3 (mod 4)`) whose prime factors have bit-length at
+least `n` and at most `sizeBound n` for a polynomially bounded function `sizeBound` (for example
+`fun n => n + c`, `max · 5` for exact `n`-bit Blum primes at `n ≥ 5`, or the length cap of any
+uniform strict-PPT modulus sampler `gen`). If quadratic residuosity is hard relative to `gen`, then
+bitwise Goldwasser–Micali encryption with public nonresidue `-1` (`blumKeyGen gen`, `encryptWord`)
+satisfies `Encryption.WordINDCPA` against all uniform strict-PPT word adversaries.
+
+This combines `indcpa_blumGoldwasserMicali` with the certified single-bit-to-multi-bit hybrid
+reduction step `Encryption.INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le`
+(`Encryption.bitwiseToSingle`, `Encryption.isPPT_bitwiseToSingle`). The upper bound `hupper`
+keeps public keys polynomially long in `n` (`length_blumPublicKey_le`), bounding the length of any
+strict-PPT adversary's challenge words; `sizeBound` and `gen` need not be computable. -/
+theorem wordINDCPA_blumGoldwasserMicali {gen : ℕ → ProbComp ModulusDesc}
+    {sizeBound : ℕ → ℕ} (hbound : PolynomiallyBounded sizeBound)
+    (hblum : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support, IsBlumModulus d.p d.q)
+    (hsize : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support, n ≤ d.p.size ∧ n ≤ d.q.size)
+    (hupper : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support,
+      d.p.size ≤ sizeBound n ∧ d.q.size ≤ sizeBound n)
+    (hQR : QuadraticResiduosityHard fun n => ProbComp.eval (gen n)) :
+    Encryption.WordINDCPA (blumKeyGen gen) encryptWord := by
+  have hpkBound : PolynomiallyBounded (fun n => 6 * sizeBound n + 1) := by fun_prop
+  refine (indcpa_blumGoldwasserMicali hblum hsize
+    hQR).wordINDCPA_bitwiseEncrypt_of_publicKey_length_le hpkBound (fun n keys hkeys => ?_)
+    isPPTOn_encrypt
+  supp_cases hkeys [blumKeyGen] with ⟨d, hd, rfl⟩
+  exact length_blumPublicKey_le (hupper n d hd).1 (hupper n d hd).2
 
 /-- Ideal bitwise encryption law on a bit list `bits`. -/
 noncomputable def idealEncryptBits (N : ℕ) [NeZero N] (z : (ZMod N)ˣ) (bits : List Bool) :
@@ -1088,21 +1177,8 @@ theorem advantage_encryptBits_idealEncryptBits_le (d : ModulusDesc) (n : ℕ)
       (Game.advantage_bind_le_nnreal _ _ _ fun ct => ih fun cts => k (ct :: cts))).trans_eq ?_)
     simp only [List.length_cons, Nat.cast_add, Nat.cast_one]; ring
 
-/-- Admissibility predicate for bounded equal-length bit-word challenges. -/
-def validBoundedWords (maxLen : ℕ → ℕ) (n : ℕ) (_pk : List Bool) (m₀ m₁ : List Bool) : Bool :=
-  (m₀.length == m₁.length) && decide (m₀.length ≤ maxLen n)
-
-/-- `validBoundedWords maxLen` is computable in polynomial time on the challenge-pair input when
-`maxLen` is unary polynomial-time computable. -/
-theorem computableInPolyTime_validBoundedWords {maxLen : ℕ → ℕ}
-    (hmax : ComputableInPolyTime maxLen encUnary encUnary) :
-    ComputableInPolyTime (fun ⟨n, pk, m₀, m₁⟩ => validBoundedWords maxLen n pk m₀ m₁)
-      (encChallengePairInput encBits) encBool := by
-  unfold validBoundedWords
-  polytime
-
 /-- Chosen-message experiment for `encryptWord` under a given public-key `PMF` law and
-`validBoundedWords maxLen`. -/
+`Encryption.validBoundedWords maxLen`. -/
 noncomputable abbrev publicKeyWordGame (maxLen : ℕ → ℕ) (keys : PMF (List Bool))
     (adversary : Encryption.WordAdversary) (bit : Bool) (n : ℕ) : Game :=
   Encryption.publicKeyGameOn (validBoundedWords maxLen) keys encryptWord adversary bit n

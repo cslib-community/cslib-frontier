@@ -1233,26 +1233,11 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
     (learnedWatched C l).Perm (dedupLits C) :=
   (List.perm_cons_erase ((mem_dedupKey litKey_injective).2 hl)).symm
 
-/-- The activities `A` after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
-@[expose] def bumpedWith (o : Options) (A : Activity) (vs : List ℕ) : Activity :=
-  if o.vsids then A.bump vs else A
-
-/-- The activities after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
-@[expose] def WExec.bumped (S : WExec φ) (vs : List ℕ) : Activity := bumpedWith S.opts S.act vs
-
 /-- The activities `A` and the variable order `H` after a conflict meeting the variables `vs`, with
 VSIDS: the variables are bumped, and those in the heap move up (`VarOrder.bump`). -/
 @[expose] def bumpOrderWith (o : Options) (A : Activity) (H : VarOrder) (vs : List ℕ) :
     Activity × VarOrder :=
   if o.vsids then VarOrder.bump A H vs else (A, H)
-
-/-- The activities bumped with the order are those of `bumpedWith`. -/
-theorem bumpOrderWith_fst (o : Options) (A : Activity) (H : VarOrder) (vs : List ℕ) :
-    (bumpOrderWith o A H vs).1 = bumpedWith o A vs := by
-  unfold bumpOrderWith bumpedWith
-  split
-  · exact VarOrder.bump_fst A H vs 19
-  · rfl
 
 /-- The literal of an entry of the solver's trail. -/
 @[expose] def XEntry.lit : XEntry → Literal ℕ
@@ -1680,16 +1665,13 @@ theorem WExec.measure_push_lt {S S' : WExec φ} (hq : S.queue = []) (hq' : S'.qu
 /-- `pickVar` with the variable order `ord` given apart from the state, so that the solver can take
 it out of the state and pop the order in place. -/
 @[expose] def WExec.pickVarIn (S : WExec φ) (ord : VarOrder) : VarOrder.Popped :=
-  if S.opts.vsids then
-    match VarOrder.pop S.act S.assign S.occurs.assigned (ord.heap.size + 1) ord with
-    | ⟨some x, H⟩ => ⟨some x, H⟩
-    | ⟨none, H⟩ => ⟨S.act.pick S.assign S.exec.clauses.vars, H⟩
+  if S.opts.vsids then VarOrder.pop S.act S.assign S.occurs.assigned (ord.heap.size + 1) ord
   else ⟨(Activity.init 0).pick S.assign S.exec.clauses.vars, ord⟩
 
 /-- **The decision variable**, and the variable order after choosing it. With VSIDS, it is popped
-from the variable order (`Cslib.Algorithms.Lean.CDCL.VarOrder.pop`); should the order run out, the
-unassigned variables of the database are scanned for one of greatest activity. Without VSIDS, it is
-the first unassigned variable of the database. -/
+from the variable order (`Cslib.Algorithms.Lean.CDCL.VarOrder.pop`), with fuel enough to empty it
+(`Cslib.Algorithms.Lean.CDCL.VarOrder.pop_none`). Without VSIDS, it is the first unassigned
+variable of the database. -/
 @[expose] def WExec.pickVar (S : WExec φ) : VarOrder.Popped := S.pickVarIn S.order
 
 /-- **Decide** the variable `x`, at an empty queue, with the variable order `H`. -/
@@ -1714,14 +1696,8 @@ theorem WExec.Inv.pickVar_some {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOrd
   · rename_i hv
     obtain ⟨-, -, -, hpop, -⟩ := VarOrder.pop_spec (V := φ.vars) hS.assign
       (S.order.heap.size + 1) S.order (hS.order hv).wf (hS.order hv).pos (hS.order hv).covers
-    generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.heap.size + 1) S.order = r
-      at h hpop
-    obtain ⟨_ | y, H'⟩ := r
-    · exact Activity.pick_some hS.assign (congrArg VarOrder.Popped.var h)
-    · simp only [VarOrder.Popped.mk.injEq, Option.some.injEq] at h
-      obtain ⟨rfl, -⟩ := h
-      obtain ⟨hyM, hyo, -⟩ := hpop y rfl
-      exact ⟨(hS.occurs y).1 hyo, hyM⟩
+    obtain ⟨hxM, hxo, -⟩ := hpop x (by rw [h])
+    exact ⟨(hS.occurs x).1 hxo, hxM⟩
   · exact Activity.pick_some hS.assign (congrArg VarOrder.Popped.var h)
 
 /-- Without a decision variable, every variable of the database is assigned. -/
@@ -1730,11 +1706,16 @@ theorem WExec.Inv.pickVar_none {S : WExec φ} (hS : S.Inv) {H : VarOrder}
     ∀ x ∈ S.exec.clauses.vars, x ∈ Trail.vars S.M := by
   unfold WExec.pickVar WExec.pickVarIn at h
   split at h
-  · generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.heap.size + 1) S.order = r
-      at h
-    obtain ⟨_ | y, H'⟩ := r
-    · exact Activity.pick_none hS.assign (congrArg VarOrder.Popped.var h)
-    · simp at h
+  · rename_i hv
+    obtain ⟨-, -, -, -, hcov⟩ := VarOrder.pop_spec (V := φ.vars) hS.assign
+      (S.order.heap.size + 1) S.order (hS.order hv).wf (hS.order hv).pos (hS.order hv).covers
+    have h0 := VarOrder.pop_none S.act S.assign S.occurs.assigned _ S.order
+      (Nat.lt_succ_self _) (by rw [h])
+    simp only [h] at hcov h0
+    intro x hx
+    by_contra hxM
+    have := hcov x (hS.exec.mem_vars_of_clauses hx) hxM ((hS.occurs x).2 hx) (by simp)
+    exact absurd (Array.size_pos_of_mem this) (by omega)
   · exact Activity.pick_none hS.assign (congrArg VarOrder.Popped.var h)
 
 /-- **With VSIDS, the decision variable has the greatest activity** among the unassigned variables
@@ -1746,14 +1727,8 @@ theorem WExec.Inv.pickVar_max {S : WExec φ} (hS : S.Inv) (hv : S.opts.vsids = t
   simp only [hv, ↓reduceIte] at h
   obtain ⟨-, -, -, hpop, -⟩ := VarOrder.pop_spec (V := φ.vars) hS.assign
     (S.order.heap.size + 1) S.order (hS.order hv).wf (hS.order hv).pos (hS.order hv).covers
-  generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.heap.size + 1) S.order = r
-    at h hpop
-  obtain ⟨_ | y, H'⟩ := r
-  · exact fun z hz hzM => Activity.pick_max hS.assign (congrArg VarOrder.Popped.var h) hz hzM
-  · simp only [VarOrder.Popped.mk.injEq, Option.some.injEq] at h
-    obtain ⟨rfl, -⟩ := h
-    exact fun z hz hzM => (hpop _ rfl).2.2 z (hS.exec.mem_vars_of_clauses hz) hzM
-      ((hS.occurs z).2 hz)
+  exact fun z hz hzM => (hpop x (by rw [h])).2.2 z (hS.exec.mem_vars_of_clauses hz) hzM
+    ((hS.occurs z).2 hz)
 
 /-- After deciding the decision variable, the variable order keeps its invariant. -/
 theorem WExec.Inv.pickVar_order {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOrder}
@@ -1768,17 +1743,9 @@ theorem WExec.Inv.pickVar_order {S : WExec φ} (hS : S.Inv) {x : ℕ} {H : VarOr
   change VarOrder.Inv H S.act φ.vars (S.decide x H).M S.occurs.assigned
   unfold WExec.pickVar WExec.pickVarIn at h
   simp only [hv, ↓reduceIte] at h
-  generalize VarOrder.pop S.act S.assign S.occurs.assigned (S.order.heap.size + 1) S.order = r
-    at h hwf hp hs hcov
-  obtain ⟨_ | y, H'⟩ := r
-  · simp only [VarOrder.Popped.mk.injEq] at h
-    obtain ⟨-, rfl⟩ := h
-    exact ⟨hwf, hp, fun v hv' => hs ▸ hS'.room v hv',
-      fun v hv' hvM hvo => hcov v hv' (hM v hvM).1 hvo (by simp)⟩
-  · simp only [VarOrder.Popped.mk.injEq, Option.some.injEq] at h
-    obtain ⟨rfl, rfl⟩ := h
-    exact ⟨hwf, hp, fun v hv' => hs ▸ hS'.room v hv', fun v hv' hvM hvo =>
-      hcov v hv' (hM v hvM).1 hvo (by simpa using (hM v hvM).2.symm)⟩
+  simp only [h] at hwf hp hs hcov
+  exact ⟨hwf, hp, fun v hv' => hs ▸ hS'.room v hv', fun v hv' hvM hvo =>
+    hcov v hv' (hM v hvM).1 hvo (by simpa using (hM v hvM).2.symm)⟩
 
 /-- With the queue empty, no clause of the database is false if no short clause is. -/
 theorem WExec.Inv.noConflict {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])

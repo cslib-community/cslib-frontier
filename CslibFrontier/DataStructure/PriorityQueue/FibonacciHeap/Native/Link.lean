@@ -50,27 +50,11 @@ private theorem realizes_linkAs_history : Realizes .exact
       (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
         (DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
           (linkAs (d 2) (d 3))))) (fun _ _ => 0) := by
-  conv =>
-    arg 2
-    ext d
-    arg 2
-    simp only [linkAs, spliceAfter]
-  conv =>
-    arg 2
-    ext d
-    simp only [DataStructure.link, rd, wr, Record.read, Record.write,
-      PFunctor.FreeM.bind_eq_bind, PFunctor.FreeM.liftM_bind, PFunctor.FreeM.liftM_lift,
-      PFunctor.FreeM.liftM_pure,
-      Record.lift_ite,
-      Record.Layout.methods, layout]
   realize
   all_goals
     have hu := h.1.2.1
     have hx := h.1.2.2.1
-    try simp (disch := omega) only [Record.Layout.lift_read, Record.Layout.lift_write,
-      StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
-      StateTransitionSpec.runClient_lift, Memory.read, Memory.write,
-      Memory.step_read, Memory.step_write, Function.update_of_ne] at *
+    try simp (disch := omega) only [Function.update_of_ne] at *
   all_goals try first
     | exact h.1.1.of_le (by have := h.1.2.1; have := h.1.2.2.1; omega)
     | exact h.1.2.2.2 (by assumption)
@@ -97,67 +81,22 @@ theorem realizes_linkAs : Realizes .exact
     (.refl _) (WordEncoding.encode (α := Unit)) linkAsSafe (fun _ _ => 0) :=
   realizes_linkAs_history.consequence_valid (fun _ _ _ _ _ hv h => ⟨h, hv⟩)
 
-private def linkBody (d : Fin 4 → ℕ) : Memory.Prog ℕ := do
-  let ka ← Memory.read (d 1 + d 2)
-  let kb ← Memory.read (d 1 + d 3)
-  if IndexedMinPQ.RawPrioLT (d 3, kb) (d 2, ka) then
-    DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
-      (linkAs (d 3) (d 2))
-    pure (d 3)
-  else
-    DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
-      (linkAs (d 2) (d 3))
-    pure (d 2)
-
-private theorem linkBody_eq (d : Fin 4 → ℕ) : linkBody d =
-    DataStructure.link (E := Memory.spec 0) ((layout (d 0) (d 1)).methods 0)
-      (FibonacciHeap.link (d 2) (d 3)) := by
-  simp only [linkBody, FibonacciHeap.link, DataStructure.link, PFunctor.FreeM.liftM_bind]
-  congr 1 with ka : 1
-  congr 1 with kb : 1
-  by_cases hlt : IndexedMinPQ.RawPrioLT (d 3, kb) (d 2, ka) <;>
-    simp only [hlt, ite_true, ite_false, PFunctor.FreeM.liftM_bind, PFunctor.FreeM.liftM_pure]
-
 /-- Both roots have admissible attachment domains, so either result of their original priority
 comparison can be used without an extra branch-dependent representation. -/
 @[expose] def linkSafe (w : ℕ) (d : Fin 4 → ℕ) (s : Memory.State) : Prop :=
   linkAsSafe w d s ∧ linkAsSafe w ![d 0, d 1, d 3, d 2] s
-
-private theorem realizes_linkBody : Realizes .exact linkBody (.refl _)
-    (WordEncoding.encode (α := ℕ)) linkSafe (fun _ _ => 0) := by
-  have hRet : Realizes .exact (fun d : (Fin 4 → ℕ) × Unit => pure (d.1 2))
-      (appendWords (.refl _) (WordEncoding.encode (α := Unit)))
-      (WordEncoding.encode (α := ℕ)) (fun _ _ _ => True) (fun _ _ => 0) := by
-    realize
-  have hAttach := (realizes_linkAs.bind₀ hRet).reindex
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3]
-    (by intro d i; fin_cases i <;> rfl)
-  change Realizes .exact
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => do
-      DataStructure.link (E := Memory.spec 0) ((layout d.1.1.1 d.1.1.2).methods 0)
-        (linkAs d.1.2 d.2)
-      pure d.1.2)
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-    (fun w d s => linkAsSafe w ![d.1.1.1, d.1.1.2, d.1.2, d.2] s ∧ True)
-    (fun _ _ => 0) at hAttach
-  conv =>
-    arg 2
-    ext d
-    simp only [linkBody]
-  realize
-  all_goals first
-    | exact h.1.1.of_le (by have := h.1.2.1; have := h.1.2.2.1; omega)
-    | exact h.1
-    | exact h.2
 
 /-- Compile the original two-root link and return its actual priority-selected root. The
 native source retains both key reads and the complete child-list memory effect. -/
 theorem realizes_link : Realizes .exact
     (fun d : Fin 4 → ℕ => DataStructure.link (E := Memory.spec 0)
       ((layout (d 0) (d 1)).methods 0) (FibonacciHeap.link (d 2) (d 3)))
-    (.refl _) (WordEncoding.encode (α := ℕ)) linkSafe (fun _ _ => 0) :=
-  realizes_linkBody.congr linkBody_eq
+    (.refl _) (WordEncoding.encode (α := ℕ)) linkSafe (fun _ _ => 0) := by
+  realize [realizes_linkAs]
+  all_goals first
+    | exact h.1.1.of_le (by have := h.1.2.1; have := h.1.2.2.1; omega)
+    | exact h.1
+    | exact h.2
 
 /-- A real source root has the positive child pointer needed by the native attachment branch. -/
 theorem linkAsSafe_of_validRoot {n w base : ℕ} {mem : Memory.State} {T : FHTree n}

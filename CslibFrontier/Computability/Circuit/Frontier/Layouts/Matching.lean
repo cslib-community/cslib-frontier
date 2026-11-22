@@ -82,8 +82,9 @@ matched-edge branch-and-bound bound (`rrwilliams0/circuit-lb-4.6155n`).
   cost is at most the sum of the two star costs, with a strict concrete `(1, 0)` example (`1 < 2`).
 * `Cslib.Circuits.Frontier.Multigraph.matchingCost_le_edgeStraddles`: weak pointwise bound showing
   matching cost is at most the naive straddling count from `Median` (with equality for `M = ∅`).
-* `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_threshold_le_matchingCost`: exact cut bound at
-  every threshold `t`.
+* `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_threshold_add_slack_le_matchingCost`,
+  `Cslib.Circuits.Frontier.Multigraph.ncard_edgeCut_threshold_le_matchingCost`: exact cut and
+  unmatched-edge slack bounds at every threshold `t`.
 * `Cslib.Circuits.Frontier.Multigraph.exists_width_le_of_matching_edgeScore`: deterministic layout
   width bound over any grid of edge-score windows.
 -/
@@ -101,6 +102,11 @@ private def boolDiff (x y : Bool) : ℕ := if x = y then 0 else 1
 
 private theorem boolDiff_triangle (x y m : Bool) :
     boolDiff x y ≤ boolDiff x m + boolDiff y m := by
+  cases x <;> cases y <;> cases m <;> decide
+
+private theorem boolDiff_slack (x y m : Bool) :
+    boolDiff x y + 2 * (if x = true ∧ y = true ∧ m = false then 1 else 0) ≤
+      boolDiff x m + boolDiff y m := by
   cases x <;> cases y <;> cases m <;> decide
 
 /-- Optimal Boolean color for the first endpoint of a matched pair with outer colors `(a, b)` at
@@ -421,7 +427,9 @@ private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [I
     simpa only [huniq, hmate] using hq.2
   exact (pairKey_eq_of_eq_pair score hv h1 hp.1 hu h2 hq.1).symm
 
-private theorem matchingKey_matched [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
+/-- At any matched edge `e ∈ M` with outer incident edge pairs `{a, b}` at `G.src e` and `{c, d}`
+at `G.tgt e`, `matchingKey` evaluates to `pairKey` of the four outer edge scores. -/
+theorem matchingKey_matched [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
     {M : Set E} (hM : G.IsMatching M) (hloop : G.Loopless)
     (h3 : ∀ v, (G.incidenceSet v).ncard = 3) (score : E → α)
     {e a b c d : E} (he : e ∈ M)
@@ -620,39 +628,67 @@ theorem matchingCost_le_edgeStraddles [Finite V] [Finite E] {α : Type*} [Linear
     ← starCost_eq_ite_edgeStraddles score t hinc_t]
   exact twoVertexCost_le_starCost_add _ _ _ _ _
 
-/-- **Threshold cut bound.** For every threshold `t`, the cut of `{v | matchingKey G M score v < t}`
-in a loopless cubic multigraph (parallel edges allowed) is at most `G.matchingCost M score t`. -/
-theorem ncard_edgeCut_threshold_le_matchingCost [Finite V] [Finite E]
+/-- **Refined threshold cut bound.** For every threshold `t`, the cut of
+`P₀ = {v | matchingKey G M score v < t}` in a loopless cubic multigraph plus twice the number of
+unmatched edges inside `P₀` with `t ≤ score f` is at most `G.matchingCost M score t`. -/
+theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Finite E]
     {α : Type*} [LinearOrder α] [Inhabited α]
     (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
     {M : Set E} (hM : G.IsMatching M) (score : E → α) (t : α) :
-    (G.edgeCut {v | G.matchingKey M score v < t}).ncard ≤ G.matchingCost M score t := by
+    let P₀ := {v | G.matchingKey M score v < t}
+    (G.edgeCut P₀).ncard +
+      2 * {f | f ∉ M ∧ G.src f ∈ P₀ ∧ G.tgt f ∈ P₀ ∧ t ≤ score f}.ncard ≤
+      G.matchingCost M score t := by
   classical
+  intro P₀
   have := Fintype.ofFinite V
   have := Fintype.ofFinite E
   let col : V → Bool := fun v => decide (G.matchingKey M score v < t)
   let ecol : E → Bool := fun e => decide (score e < t)
+  let slack (e : E) : ℕ :=
+    if col (G.src e) = true ∧ col (G.tgt e) = true ∧ ecol e = false then 1 else 0
   let Mfin : Finset E := Finset.univ.filter (· ∈ M)
-  have hcut : (G.edgeCut {v | G.matchingKey M score v < t}).ncard =
-      ∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e)) := by
-    have hset : G.edgeCut {v | G.matchingKey M score v < t} =
-        ((Finset.univ.filter (· ∈ G.edgeCut {v | G.matchingKey M score v < t})) : Set E) := by
+  have hcut : (G.edgeCut P₀).ncard = ∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e)) := by
+    have hset : G.edgeCut P₀ = ((Finset.univ.filter (· ∈ G.edgeCut P₀)) : Set E) := by
       ext e; simp
     rw [hset, ncard_coe_finset, Finset.card_filter]
     refine Finset.sum_congr rfl fun e _ => ?_
-    simp only [col, boolDiff, mem_edgeCut, mem_ofPred_eq]
+    simp only [P₀, col, boolDiff, mem_edgeCut, mem_ofPred_eq]
     by_cases hs : G.matchingKey M score (G.src e) < t <;>
       by_cases ht : G.matchingKey M score (G.tgt e) < t <;>
       simp [hs, ht]
-  -- Split edges into matched edges `M` (kept directly) and unmatched edges (split by triangle
-  -- inequality across their endpoint incidences).
-  have hstep1 : ∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e)) ≤
+  have hslack : {f | f ∉ M ∧ G.src f ∈ P₀ ∧ G.tgt f ∈ P₀ ∧ t ≤ score f}.ncard =
+      ∑ e ∈ Mfinᶜ, slack e := by
+    have hset : {f | f ∉ M ∧ G.src f ∈ P₀ ∧ G.tgt f ∈ P₀ ∧ t ≤ score f} =
+        ((Mfinᶜ.filter fun e => slack e = 1) : Set E) := by
+      ext e
+      simp only [mem_ofPred_eq, Finset.coe_filter, Finset.mem_compl, Mfin, Finset.mem_filter,
+        Finset.mem_univ, true_and, slack, col, ecol, P₀, decide_eq_true_eq,
+        decide_eq_false_iff_not, not_lt]
+      constructor
+      · rintro ⟨hm, hs, ht, hsc⟩
+        exact ⟨hm, ite_eq_left ⟨hs, ht, hsc⟩⟩
+      · rintro ⟨hm, h1⟩
+        refine ⟨hm, ?_⟩
+        by_contra hnot
+        have h0 : (if G.matchingKey M score (G.src e) < t ∧
+            G.matchingKey M score (G.tgt e) < t ∧ t ≤ score e then 1 else 0) = 0 :=
+          ite_eq_right hnot
+        omega
+    rw [hset, ncard_coe_finset, Finset.card_filter]
+    refine Finset.sum_congr rfl fun e _ => ?_
+    dsimp only [slack]
+    split_ifs <;> omega
+  -- Split edges into matched edges `M` (kept directly) and unmatched edges (split across their
+  -- endpoint incidences with the slack term).
+  have hstep1 : (∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e))) + 2 * ∑ e ∈ Mfinᶜ, slack e ≤
       (∑ e ∈ Mfin, boolDiff (col (G.src e)) (col (G.tgt e))) +
       ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e)) := by
-    have hpart := (Finset.sum_add_sum_compl Mfin
-      (fun e => boolDiff (col (G.src e)) (col (G.tgt e)))).symm
-    rw [hpart]
-    exact Nat.add_le_add_left (Finset.sum_le_sum fun e _ => boolDiff_triangle _ _ (ecol e)) _
+    rw [← (Finset.sum_add_sum_compl Mfin (fun e => boolDiff (col (G.src e)) (col (G.tgt e)))),
+      add_assoc, two_mul, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    refine Nat.add_le_add_left (Finset.sum_le_sum fun e _ => ?_) _
+    rw [← two_mul]
+    exact boolDiff_slack _ _ (ecol e)
   -- Group the endpoint incidences of unmatched edges by vertex.
   have hgroup :
       ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e)) =
@@ -736,8 +772,8 @@ theorem ncard_edgeCut_threshold_le_matchingCost [Finite V] [Finite E]
       ← twoVertexEnergy_pairKey (score a) (score b) (score c) (score d) t]
     simp only [twoVertexEnergy, col, ecol, boolDiff, hks, hkt]
     omega
-  rw [hcut]
-  calc ∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e))
+  rw [hcut, hslack]
+  calc (∑ e : E, boolDiff (col (G.src e)) (col (G.tgt e))) + 2 * ∑ e ∈ Mfinᶜ, slack e
       ≤ (∑ e ∈ Mfin, boolDiff (col (G.src e)) (col (G.tgt e))) +
           ∑ e ∈ Mfinᶜ, (boolDiff (col (G.src e)) (ecol e) + boolDiff (col (G.tgt e)) (ecol e)) :=
         hstep1
@@ -751,12 +787,22 @@ theorem ncard_edgeCut_threshold_le_matchingCost [Finite V] [Finite E]
     _ = G.matchingCost M score t := by
         rw [hsingle, hpair, matchingCost, add_assoc]
 
+/-- **Threshold cut bound.** For every threshold `t`, the cut of `{v | matchingKey G M score v < t}`
+in a loopless cubic multigraph (parallel edges allowed) is at most `G.matchingCost M score t`. -/
+theorem ncard_edgeCut_threshold_le_matchingCost [Finite V] [Finite E]
+    {α : Type*} [LinearOrder α] [Inhabited α]
+    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
+    {M : Set E} (hM : G.IsMatching M) (score : E → α) (t : α) :
+    (G.edgeCut {v | G.matchingKey M score v < t}).ncard ≤ G.matchingCost M score t :=
+  (Nat.le_add_right _ _).trans
+    (ncard_edgeCut_threshold_add_slack_le_matchingCost hloop h3 hM score t)
+
 /-! ### Prefix cuts and grid layout bound -/
 
 /-- Every vertex whose `matchingKey` lies in a predicate `p` is either an endpoint or the `M`-mate
 of an endpoint of some edge whose score satisfies `p`. Thus each such edge produces at most `4`
 vertices. -/
-private theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
+theorem ncard_matchingKey_pred_le [Finite V] [Finite E]
     {α : Type*} [LinearOrder α] [Inhabited α]
     (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
     {M : Set E} (hM : G.IsMatching M) (score : E → α) (p : α → Prop) :
@@ -884,21 +930,24 @@ private theorem ncard_edgeCut_le_of_subset [Finite V] [Finite E]
   exact (ncard_le_ncard he).trans ((ncard_union_le _ _).trans
     (Nat.add_le_add_left (G.ncard_touching_le (fun v => (h3 v).le) _) _))
 
-/-- **Cut bound for a threshold prefix.** For any set `P` separated by a threshold `m` of
-`matchingKey`, its cut size is bounded by a lower tail, upper tail, or the matching cost at the
-grid threshold below `m` plus `12` times the window edge count. -/
-theorem ncard_edgeCut_le_matchingCost_add [Finite V] [Finite E]
+/-- **Threshold-grid reduction for `matchingKey`-separated sets.** Given any quantity `f : ℝ`
+bounded by `((G.edgeCut P).ncard : ℝ)` for a set `P` separated by `m` under `matchingKey`, `f ≤ B`
+whenever the lower tail, upper tail, and grid windows are bounded by `B`. -/
+theorem le_of_matchingKey_separated_grid [Finite V] [Finite E]
     (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
     {M : Set E} (hM : G.IsMatching M) (score : E → ℝ)
     {P : Set V} {m : ℝ}
     (hP : ∀ v ∈ P, G.matchingKey M score v ≤ m)
     (hPc : ∀ v ∉ P, m ≤ G.matchingKey M score v)
-    {a δ : ℝ} (hδ : 0 < δ) {K : ℕ} {B : ℝ}
+    {f : ℝ} (hf_cut : f ≤ (G.edgeCut P).ncard)
+    {a δ : ℝ} (hδ : 0 < δ) {K : ℕ} {B : ℝ} (cost : ℝ → ℝ)
+    (hf_step : ∀ t : ℝ, {v | G.matchingKey M score v < t} ⊆ P →
+      f ≤ cost t + 3 * ((P \ {v | G.matchingKey M score v < t}).ncard : ℝ))
     (low : 12 * ({e | score e < a}.ncard : ℝ) ≤ B)
     (high : 12 * ({e | a + K * δ ≤ score e}.ncard : ℝ) ≤ B)
-    (mid : ∀ i < K, (G.matchingCost M score (a + i * δ) : ℝ) +
+    (mid : ∀ i < K, cost (a + i * δ) +
       12 * ({e | a + i * δ ≤ score e ∧ score e < a + (i + 1) * δ}.ncard : ℝ) ≤ B) :
-    ((G.edgeCut P).ncard : ℝ) ≤ B := by
+    f ≤ B := by
   rcases lt_or_ge m a with hlow | hge
   · have hsub : P ⊆ {v | G.matchingKey M score v < a} := fun v hv => (hP v hv).trans_lt hlow
     have hcut : (G.edgeCut P).ncard ≤ 12 * {e | score e < a}.ncard := by
@@ -910,7 +959,7 @@ theorem ncard_edgeCut_le_matchingCost_add [Finite V] [Finite E]
         _ ≤ 3 * (4 * {e | score e < a}.ncard) :=
             Nat.mul_le_mul_left 3 (ncard_matchingKey_pred_le hloop h3 hM score (· < a))
         _ = 12 * {e | score e < a}.ncard := by ring
-    exact (Nat.cast_le.mpr hcut).trans (by push_cast; exact low)
+    exact hf_cut.trans ((Nat.cast_le.mpr hcut).trans (by push_cast; exact low))
   set top := a + K * δ
   rcases le_or_gt top m with htop | hlt
   · have hsub : Pᶜ ⊆ {v | top ≤ G.matchingKey M score v} := fun v hv => htop.trans (hPc v hv)
@@ -926,7 +975,7 @@ theorem ncard_edgeCut_le_matchingCost_add [Finite V] [Finite E]
         _ ≤ 3 * (4 * {e | top ≤ score e}.ncard) :=
             Nat.mul_le_mul_left 3 (ncard_matchingKey_pred_le hloop h3 hM score (top ≤ ·))
         _ = 12 * {e | top ≤ score e}.ncard := by ring
-    exact (Nat.cast_le.mpr hcut).trans (by push_cast; exact high)
+    exact hf_cut.trans ((Nat.cast_le.mpr hcut).trans (by push_cast; exact high))
   obtain ⟨i, hiK, ht, ht'⟩ := exists_grid_index hδ hge hlt
   set t := a + i * δ
   set t' := a + (i + 1) * δ
@@ -935,23 +984,40 @@ theorem ncard_edgeCut_le_matchingCost_add [Finite V] [Finite E]
     by_contra fun hvn => not_lt.mpr (ht.trans (hPc v hvn)) hv
   have hdiff : P \ P₀ ⊆ {v | t ≤ G.matchingKey M score v ∧ G.matchingKey M score v < t'} :=
     fun v ⟨hv, hvn⟩ => ⟨not_lt.mp hvn, (hP v hv).trans_lt ht'⟩
-  have hcut : (G.edgeCut P).ncard ≤ G.matchingCost M score t +
-      12 * {e | t ≤ score e ∧ score e < t'}.ncard := by
-    calc (G.edgeCut P).ncard
-        ≤ (G.edgeCut P₀).ncard + 3 * (P \ P₀).ncard := ncard_edgeCut_le_of_subset h3 hP₀
-      _ ≤ G.matchingCost M score t +
-          3 * {v | t ≤ G.matchingKey M score v ∧ G.matchingKey M score v < t'}.ncard :=
-          Nat.add_le_add (ncard_edgeCut_threshold_le_matchingCost hloop h3 hM score t)
-            (Nat.mul_le_mul_left 3 (ncard_le_ncard hdiff))
-      _ ≤ G.matchingCost M score t +
-          3 * (4 * {e | t ≤ score e ∧ score e < t'}.ncard) :=
-          Nat.add_le_add_left (Nat.mul_le_mul_left 3
-            (ncard_matchingKey_pred_le hloop h3 hM score fun x => t ≤ x ∧ x < t')) _
-      _ = G.matchingCost M score t + 12 * {e | t ≤ score e ∧ score e < t'}.ncard := by ring
-  calc ((G.edgeCut P).ncard : ℝ)
-      ≤ (G.matchingCost M score t : ℝ) +
-          12 * ({e | t ≤ score e ∧ score e < t'}.ncard : ℝ) := by exact_mod_cast hcut
-    _ ≤ B := mid i hiK
+  have hwin : 3 * (P \ P₀).ncard ≤ 12 * {e | t ≤ score e ∧ score e < t'}.ncard := by
+    calc 3 * (P \ P₀).ncard
+        ≤ 3 * {v | t ≤ G.matchingKey M score v ∧ G.matchingKey M score v < t'}.ncard :=
+          Nat.mul_le_mul_left 3 (ncard_le_ncard hdiff)
+      _ ≤ 3 * (4 * {e | t ≤ score e ∧ score e < t'}.ncard) :=
+          Nat.mul_le_mul_left 3
+            (ncard_matchingKey_pred_le hloop h3 hM score fun x => t ≤ x ∧ x < t')
+      _ = 12 * {e | t ≤ score e ∧ score e < t'}.ncard := by ring
+  have hwinR : 3 * ((P \ P₀).ncard : ℝ) ≤ 12 * ({e | t ≤ score e ∧ score e < t'}.ncard : ℝ) := by
+    exact_mod_cast hwin
+  linarith [hf_step t hP₀, mid i hiK]
+
+/-- **Cut bound for a threshold prefix.** For any set `P` separated by a threshold `m` of
+`matchingKey`, its cut size is bounded by a lower tail, upper tail, or the matching cost at the
+grid threshold below `m` plus `12` times the window edge count. -/
+theorem ncard_edgeCut_le_matchingCost_add [Finite V] [Finite E]
+    (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSet v).ncard = 3)
+    {M : Set E} (hM : G.IsMatching M) (score : E → ℝ)
+    {P : Set V} {m : ℝ}
+    (hP : ∀ v ∈ P, G.matchingKey M score v ≤ m)
+    (hPc : ∀ v ∉ P, m ≤ G.matchingKey M score v)
+    {a δ : ℝ} (hδ : 0 < δ) {K : ℕ} {B : ℝ}
+    (low : 12 * ({e | score e < a}.ncard : ℝ) ≤ B)
+    (high : 12 * ({e | a + K * δ ≤ score e}.ncard : ℝ) ≤ B)
+    (mid : ∀ i < K, (G.matchingCost M score (a + i * δ) : ℝ) +
+      12 * ({e | a + i * δ ≤ score e ∧ score e < a + (i + 1) * δ}.ncard : ℝ) ≤ B) :
+    ((G.edgeCut P).ncard : ℝ) ≤ B :=
+  le_of_matchingKey_separated_grid hloop h3 hM score hP hPc le_rfl hδ
+    (fun t => (G.matchingCost M score t : ℝ))
+    (fun t hP₀ => by
+      have h1 := (ncard_edgeCut_le_of_subset h3 hP₀).trans
+        (Nat.add_le_add_right (ncard_edgeCut_threshold_le_matchingCost hloop h3 hM score t) _)
+      exact_mod_cast h1)
+    low high mid
 
 /-- **The matched-edge pair-insertion layout.** Given a loopless cubic multigraph (parallel edges
 allowed), any matching `M`, any edge scores `score : E → ℝ`, and a grid `a, a + δ, ..., a + K δ`,

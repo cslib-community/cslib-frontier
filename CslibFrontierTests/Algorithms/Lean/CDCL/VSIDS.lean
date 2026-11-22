@@ -15,9 +15,10 @@ import CslibFrontier.Algorithms.Lean.CDCL.VSIDS
 The kernel checks the activities: a fresh state picks the first unassigned variable; a bumped
 variable is picked first; a later bump outweighs an earlier one, because the increment grows;
 assigned variables are never picked; and an activity past the limit scales every activity down.
-It also runs the variable order: popping gives the most active unassigned variable, skipping
-assigned variables, variables no longer occurring in the database, and stale entries, and putting
-back an entry keyed above the activity with the current activity.
+It also runs the variable order, an indexed heap: inserting records each variable's position;
+popping gives the most active unassigned variable, skipping assigned variables and variables no
+longer occurring in the database, and breaks ties by variable; bumping moves a variable up, and
+past the limit rebuilds the heap; and with every variable assigned, popping empties the heap.
 -/
 
 set_option linter.privateModule false

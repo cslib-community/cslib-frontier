@@ -8,11 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.WordRAM.Randomized.Structured
 public import CslibFrontier.Computability.WordRAM.Resizable.Clocked
 public import CslibFrontier.Computability.WordRAM.Resizable.LoopDist
 import CslibFrontier.Foundations.Analysis.ENNRealTsum
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.SupportTsum
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Compositional distributional execution (`ExecRCodeDist`) on the Resizable Word RAM
@@ -35,6 +38,8 @@ via `ExecRCodeDist.of_demonicExec`, compose with `.rand`, `.seq`, `.branch`, `.l
 * `Cslib.WordRAM.Resizable.ExecRCodeDist`: compositional structured execution certificate on
   `RCode B r` with expected step bound `T : ℝ≥0∞` and peak hardware frontier bound `L_peak : ℕ`
   (publicly re-exporting `Clocked` and `LoopDist`).
+* `Cslib.WordRAM.Resizable.ExecRandBounded`: frontier-bounded exact randomized execution of a
+  fixed-memory `Code B r` program, recording `Op.BoundedAccess L o x` on every data instruction.
 
 ## Main results
 
@@ -43,6 +48,11 @@ via `ExecRCodeDist.of_demonicExec`, compose with `.rand`, `.seq`, `.branch`, `.l
 * `Cslib.WordRAM.Resizable.ExecRCodeDist.toExecRProgramDist`: compiles `c.program out` to
   `ExecRProgramDist` with fault-freedom, `PeakFrontierLe`, `expectedTimeDemonic ≤ T + 1`, and exact
   halting-state distribution `μ`.
+* `Cslib.WordRAM.Resizable.ExecRCodeDist.of_execRandBounded`,
+  `Cslib.WordRAM.Resizable.ExecRCodeDist.of_execRandBounded_rename`,
+  `Cslib.WordRAM.Resizable.ExecRCodeDist.of_execRandBounded_rename_le`: lift frontier-bounded
+  `WordRAM.Code` randomized executions (directly or along an injective register map) into
+  `ExecRCodeDist`.
 
 ## References
 
@@ -144,15 +154,15 @@ theorem post_frontier_le (h : ExecRCodeDist w c x μ T L_peak) :
     ∀ y ∈ μ.support, y.frontier ≤ L_peak := by
   induction h with
   | of_demonicExec hd =>
-    intro z hz
-    rw [PMF.support_pure, Set.mem_singleton_iff] at hz; subst hz
-    obtain ⟨_, rfl, hfr⟩ := hd.exists_post_frontier_le; exact hfr
+    intro z hz; supp_cases hz
+    obtain ⟨_, rfl, hfr⟩ := hd.exists_post_frontier_le
+    exact hfr
   | rand hL _ =>
-    intro z hz; obtain ⟨_, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hz; exact hL
+    intro z hz; supp_cases hz; exact hL
   | mono _ _ ih | branch_pos _ _ ih | branch_neg _ _ ih => exact ih
   | mono_peak hL _ ih => exact fun z hz => (ih z hz).trans hL
   | seq _ _ _ ih₂ | loop_iter _ _ _ _ ih₂ =>
-    intro z hz; obtain ⟨u, hu, hzu⟩ := (PMF.mem_support_bind_iff _ _ _).mp hz
+    intro z hz; supp_cases hz with ⟨u, hu, hzu⟩
     exact ih₂ u hu z hzu
   | loop_geometric _ _ hp_pos hp_top _ _ hinv hp_exit hfr hx _ =>
     intro z hz
@@ -706,5 +716,342 @@ theorem toExecRProgramDist (h : ExecRCodeDist w c x μ T L_peak) (out : Fin r) :
       ((h.le_haltedReach_assemble (v := y.regs out) (d := y) hp).trans (iInf_le _ adv))
 
 end ExecRCodeDist
+
+/-! ## Lifting frontier-bounded randomized `WordRAM.Code` executions (`ExecRandBounded`) -/
+
+/-- Frontier-bounded randomized big-step execution of a structured `Code B r`. Mirrors
+`Cslib.WordRAM.ExecRand` while recording `Op.BoundedAccess L o x` on every data instruction,
+allowing any non-allocating randomized subroutine to lift directly to `ExecRCodeDist` on
+`RCode.ofCode c` (and across injective register renamings `c.rename f`). -/
+inductive ExecRandBounded {B : Basis} {r : ℕ} (w L : ℕ) :
+    Code B r → Data r → ProbComp (Data r × ℕ) → Prop where
+  /-- A data instruction whose memory access stays strictly below `L` takes `1` step. -/
+  | op {o : Op B r} {x y : Data r} :
+      o.BoundedAccess L x → o.eval w x = some y →
+      ExecRandBounded w L (.op o) x (pure (y, 1))
+  /-- Random uniform draw `rand dst src` takes `1` step with no memory access. -/
+  | rand {dst src : Fin r} {x : Data r} :
+      Fits w (x.regs src) →
+      ExecRandBounded w L (.rand dst src) x (do
+        let k ← ProbComp.unifFin (x.regs src)
+        pure (x.set dst k.val, 1))
+  /-- Sequencing composes bounded-access randomized executions via monadic `bind`. -/
+  | seq {c₁ c₂ : Code B r} {x : Data r}
+      {m₁ : ProbComp (Data r × ℕ)} {m₂ : Data r → ProbComp (Data r × ℕ)} :
+      ExecRandBounded w L c₁ x m₁ →
+      (∀ z ∈ m₁.support, ExecRandBounded w L c₂ z.1 (m₂ z.1)) →
+      ExecRandBounded w L (.seq c₁ c₂) x (do
+        let z₁ ← m₁
+        let z₂ ← m₂ z₁.1
+        pure (z₂.1, z₁.2 + z₂.2))
+  /-- Positive branch of a conditional adds `1` step. -/
+  | branch_pos {cond : Cond r} {pos neg : Code B r} {x : Data r} {m : ProbComp (Data r × ℕ)} :
+      cond.Holds x → ExecRandBounded w L pos x m →
+      ExecRandBounded w L (.branch cond pos neg) x ((fun z => (z.1, z.2 + 1)) <$> m)
+  /-- Negative branch of a conditional adds `2` steps. -/
+  | branch_neg {cond : Cond r} {pos neg : Code B r} {x : Data r} {m : ProbComp (Data r × ℕ)} :
+      ¬cond.Holds x → ExecRandBounded w L neg x m →
+      ExecRandBounded w L (.branch cond pos neg) x ((fun z => (z.1, z.2 + 2)) <$> m)
+  /-- Exiting a while loop takes `2` steps. -/
+  | loop_exit {cond : Cond r} {body : Code B r} {x : Data r} :
+      ¬cond.Holds x → ExecRandBounded w L (.loop cond body) x (pure (x, 2))
+  /-- One iteration of a while loop followed by the rest adds `z₁.2 + z₂.2 + 2` steps. -/
+  | loop_iter {cond : Cond r} {body : Code B r} {x : Data r}
+      {m₁ : ProbComp (Data r × ℕ)} {m₂ : Data r → ProbComp (Data r × ℕ)} :
+      cond.Holds x → ExecRandBounded w L body x m₁ →
+      (∀ z ∈ m₁.support, ExecRandBounded w L (.loop cond body) z.1 (m₂ z.1)) →
+      ExecRandBounded w L (.loop cond body) x (do
+        let z₁ ← m₁
+        let z₂ ← m₂ z₁.1
+        pure (z₂.1, z₁.2 + z₂.2 + 2))
+
+namespace ExecRandBounded
+
+/-- Forget the address bound `L` to obtain an `ExecRand` execution. -/
+theorem toExecRand {w L : ℕ} {c : Code B r} {x : Data r} {m : ProbComp (Data r × ℕ)}
+    (h : ExecRandBounded w L c x m) : ExecRand w c x m := by
+  induction h with
+  | op _ he => exact .op he
+  | rand hf => exact .rand hf
+  | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
+  | branch_pos hc _ ih => exact .branch_pos hc ih
+  | branch_neg hc _ ih => exact .branch_neg hc ih
+  | loop_exit hc => exact .loop_exit hc
+  | loop_iter hc _ _ ihb ihl => exact .loop_iter hc ihb ihl
+
+/-- Embed a deterministic frontier-bounded execution `ExecBoundedExact` as a point-mass
+`ExecRandBounded`. -/
+theorem of_execBoundedExact {w L n : ℕ} {c : Code B r} {x y : Data r}
+    (h : ExecBoundedExact w L c x y n) :
+    ExecRandBounded w L c x (pure (y, n)) := by
+  induction h with
+  | op hb he => exact .op hb he
+  | seq _ _ ih₁ ih₂ =>
+    simpa only [pure_bind] using ExecRandBounded.seq ih₁ (m₂ := fun _ => pure (_, _)) fun z hz => by
+      supp_cases hz; exact ih₂
+  | branch_pos hc _ ih =>
+    simpa only [map_pure] using ExecRandBounded.branch_pos hc ih
+  | branch_neg hc _ ih =>
+    simpa only [map_pure] using ExecRandBounded.branch_neg hc ih
+  | loop_exit hc => exact .loop_exit hc
+  | loop_iter hc _ _ ihb ihl =>
+    simpa only [pure_bind] using ExecRandBounded.loop_iter hc ihb
+      (m₂ := fun _ => pure (_, _)) fun z hz => by supp_cases hz; exact ihl
+
+/-- Prepend a register-only deterministic `Exec` onto an `ExecRandBounded`. -/
+theorem seq_of_exec_regOnly {w L n₁ : ℕ} {c₁ c₂ : Code B r} {x y : Data r}
+    {m₂ : ProbComp (Data r × ℕ)} (hc₁ : IsRegOnlyCode c₁) (h₁ : Exec w c₁ x y n₁)
+    (h₂ : ExecRandBounded w L c₂ y m₂) :
+    ExecRandBounded w L (.seq c₁ c₂) x ((fun z => (z.1, n₁ + z.2)) <$> m₂) := by
+  have hseq := ExecRandBounded.seq (of_execBoundedExact (.of_exec_regOnly hc₁ h₁))
+    (m₂ := fun _ => m₂) fun z hz => by supp_cases hz; exact h₂
+  simpa only [pure_bind, ← bind_pure_comp] using hseq
+
+/-- A `rand` instruction followed by a frontier-bounded deterministic `ExecBoundedExact` suffix. -/
+theorem rand_seq_det {w L : ℕ} {dst src : Fin r} {a : ℕ} {c₂ : Code B r} {x : Data r}
+    {f : Fin (a + 1) → Data r} {n : ℕ}
+    (hs : x.regs src = a) (hfit : Fits w a)
+    (h₂ : ∀ k : Fin (a + 1), ExecBoundedExact w L c₂ (x.set dst k.val) (f k) n) :
+    ExecRandBounded w L (.seq (.rand dst src) c₂) x (do
+      let k ← ProbComp.unifFin a
+      pure (f k, 1 + n)) := by
+  classical
+  have hr : ExecRandBounded (B := B) w L (.rand dst src) x (do
+      let k ← ProbComp.unifFin a
+      pure (x.set dst k.val, 1)) := by
+    have h0 := ExecRandBounded.rand (B := B) (L := L) (dst := dst) (src := src) (hs ▸ hfit)
+    rwa [hs] at h0
+  let m₂ : Data r → ProbComp (Data r × ℕ) := fun d =>
+    if h : d.regs dst < a + 1 then pure (f ⟨d.regs dst, h⟩, n) else pure (d, 0)
+  have hseq := ExecRandBounded.seq hr (m₂ := m₂) fun z hz => by
+    supp_cases hz with ⟨k, rfl⟩
+    simp only [m₂, Data.set_regs, Function.update_self, k.isLt, ↓reduceDIte]
+    exact of_execBoundedExact (h₂ k)
+  have heq : (do let z₁ ← do let k ← ProbComp.unifFin a; pure (x.set dst k.val, 1)
+                 let z₂ ← m₂ z₁.1; pure (z₂.1, z₁.2 + z₂.2)) =
+      (do let k ← ProbComp.unifFin a; pure (f k, 1 + n)) := by
+    simp only [pure_bind]
+    refine congrArg (ProbComp.unifFin a >>= ·) (funext fun k => ?_)
+    simp only [m₂, Data.set_regs, Function.update_self, k.isLt, ↓reduceDIte, pure_bind]
+  exact heq ▸ hseq
+
+private theorem boundedAccess_rename_iff {r' L : ℕ} {f : Fin r → Fin r'} (o : Op B r)
+    (x : Data r') : (o.rename f).BoundedAccess L x ↔ o.BoundedAccess L (x.comap f) := by
+  cases o <;> rfl
+
+/-- Rename registers in an `ExecRandBounded` execution along an injective map `f`. -/
+theorem rename {r' w L : ℕ} {f : Fin r → Fin r'} (hf : f.Injective)
+    {c : Code B r} {x : Data r'} {m : ProbComp (Data r × ℕ)}
+    (h : ExecRandBounded w L c (x.comap f) m) :
+    ExecRandBounded w L (c.rename f) x ((fun z => (z.1.extend f x, z.2)) <$> m) := by
+  generalize hx : x.comap f = x₀ at h
+  induction h generalizing x with
+  | @op o _ y hb ho =>
+    subst hx
+    have ho' : (o.rename f).eval w x = some (y.extend f x) := by rw [Op.eval_rename hf, ho]; rfl
+    simpa only [Code.rename, map_pure] using
+      ExecRandBounded.op ((boundedAccess_rename_iff o x).mpr hb) ho'
+  | @rand dst src _ hfit =>
+    subst hx
+    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
+        let k ← ProbComp.unifFin (x.regs (f src))
+        pure ((x.comap f).set dst k.val, 1))) = (do
+        let k ← ProbComp.unifFin (x.regs (f src))
+        pure (x.set (f dst) k.val, 1)) := by
+      rw [← bind_pure_comp, bind_assoc]
+      refine congrArg (ProbComp.unifFin (x.regs (f src)) >>= ·) (funext fun k => ?_)
+      simp only [pure_bind, Data.extend_set hf, Data.extend_comap hf]
+    simpa only [Code.rename, Data.comap_regs, heq] using ExecRandBounded.rand (x := x) hfit
+  | @seq c₁ c₂ _ m₁ m₂ _ h₂ ih₁ ih₂ =>
+    subst hx
+    have hseq := ExecRandBounded.seq (ih₁ rfl)
+      (m₂ := fun y' => (fun z => (z.1.extend f x, z.2)) <$> codeComp w c₂ (y'.comap f))
+      fun z' hz' => by
+        supp_cases hz' with ⟨z₁, hz₁, rfl⟩
+        rw [Data.comap_extend hf, (h₂ z₁ hz₁).toExecRand.codeComp_eq]
+        simpa only [Data.extend_extend hf] using
+          ih₂ z₁ hz₁ (x := z₁.1.extend f x) (Data.comap_extend hf z₁.1 x)
+    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
+        let z₁ ← m₁; let z₂ ← m₂ z₁.1; pure (z₂.1, z₁.2 + z₂.2))) = (do
+        let z₁ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> m₁
+        let z₂ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> codeComp w c₂ (z₁.1.comap f)
+        pure (z₂.1, z₁.2 + z₂.2)) := by
+      simp only [← bind_pure_comp, bind_assoc, pure_bind]
+      refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
+      rw [Data.comap_extend hf, (h₂ z₁ hz₁).toExecRand.codeComp_eq]
+    simpa only [Code.rename, heq] using hseq
+  | @branch_pos cond pos neg _ m hc _ ih =>
+    subst hx
+    simpa only [Code.rename, Functor.map_map] using
+      ExecRandBounded.branch_pos (neg := neg.rename f) ((Cond.holds_rename _ _).2 hc) (ih rfl)
+  | @branch_neg cond pos neg _ m hc _ ih =>
+    subst hx
+    simpa only [Code.rename, Functor.map_map] using
+      ExecRandBounded.branch_neg (pos := pos.rename f)
+        (fun h => hc ((Cond.holds_rename _ _).1 h)) (ih rfl)
+  | @loop_exit cond body _ hc =>
+    subst hx
+    simpa only [Code.rename, map_pure, Data.extend_comap hf] using
+      ExecRandBounded.loop_exit (body := body.rename f) (fun h => hc ((Cond.holds_rename _ _).1 h))
+  | @loop_iter cond body _ mb ml hc _ hl ihb ihl =>
+    subst hx
+    have hiter := ExecRandBounded.loop_iter ((Cond.holds_rename _ _).2 hc) (ihb rfl)
+      (m₂ := fun y' =>
+        (fun z => (z.1.extend f x, z.2)) <$> codeComp w (.loop cond body) (y'.comap f))
+      fun z' hz' => by
+        supp_cases hz' with ⟨z₁, hz₁, rfl⟩
+        rw [Data.comap_extend hf, (hl z₁ hz₁).toExecRand.codeComp_eq]
+        have hl' := ihl z₁ hz₁ (x := z₁.1.extend f x) (Data.comap_extend hf z₁.1 x)
+        change ExecRandBounded w L ((Code.loop cond body).rename f) (z₁.1.extend f x) _ at hl'
+        simpa only [Code.rename, Data.extend_extend hf] using hl'
+    have heq : ((fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> (do
+        let z₁ ← mb; let z₂ ← ml z₁.1; pure (z₂.1, z₁.2 + z₂.2 + 2))) = (do
+        let z₁ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$> mb
+        let z₂ ← (fun z : Data r × ℕ => (z.1.extend f x, z.2)) <$>
+          codeComp w (.loop cond body) (z₁.1.comap f)
+        pure (z₂.1, z₁.2 + z₂.2 + 2)) := by
+      simp only [← bind_pure_comp, bind_assoc, pure_bind]
+      refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
+      rw [Data.comap_extend hf, (hl z₁ hz₁).toExecRand.codeComp_eq]
+    simpa only [Code.rename, heq] using hiter
+
+end ExecRandBounded
+
+private theorem expect_bind_add_left {α β : Type} (m : ProbComp α) (k : α → ProbComp β)
+    (f : α → ℝ≥0∞) (g : β → ℝ≥0∞) :
+    ProbComp.expect m (fun a => ProbComp.expect (k a) (fun b => f a + g b)) =
+      ProbComp.expect m f + ProbComp.expect m (fun a => ProbComp.expect (k a) g) := by
+  have hrow : ∀ a, ProbComp.expect (k a) (fun b => f a + g b) =
+      f a + ProbComp.expect (k a) g := fun a => by
+    simp only [ProbComp.expect, mul_add]
+    rw [tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
+  simp_rw [hrow, ProbComp.expect, mul_add]
+  exact tsum_add
+
+/-- Lift a frontier-bounded randomized execution `ExecRandBounded w L c x.toData m` directly into
+`ExecRCodeDist` on `RCode.ofCode c` with unchanged hardware frontier `x.frontier`. -/
+theorem ExecRCodeDist.of_execRandBounded {w L_peak L : ℕ} {c : Code B r} {x : RData r}
+    {m : ProbComp (Data r × ℕ)}
+    (hL_peak : x.frontier ≤ L_peak) (hL : L ≤ x.frontier)
+    (h : ExecRandBounded w L c x.toData m) :
+    ExecRCodeDist w (RCode.ofCode c) x
+      (m.eval.map fun z => ⟨z.1.regs, z.1.mem, x.frontier⟩)
+      (ProbComp.expect m fun z => (z.2 : ℝ≥0∞)) L_peak := by
+  generalize hx0 : x.toData = x₀ at h
+  induction h generalizing x with
+  | @op o _ y hb he =>
+    subst hx0
+    exact (ExecRCodeDist.of_demonicExec
+      (.op hL_peak (evalResizable_of_boundedAccess hb hL he) rfl)).congr_dist
+      (by simp [ProbComp.eval_pure]) (by simp [ProbComp.expect_pure])
+  | @rand dst src _ hfit =>
+    subst hx0
+    cases x
+    refine (ExecRCodeDist.rand (B := B) (dst := dst) (src := src) hL_peak hfit).congr_dist ?_ ?_
+    · rw [ProbComp.eval_bind, PMF.map_bind]
+      simp only [ProbComp.eval_pure, PMF.pure_map]
+      rfl
+    · simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_one,
+        ProbComp.expect_const, le_rfl]
+  | @seq c₁ c₂ _ m₁ m₂ _ _ ih₁ ih₂ =>
+    subst hx0
+    let lift (z : Data r × ℕ) : RData r := ⟨z.1.regs, z.1.mem, x.frontier⟩
+    have hseq := ExecRCodeDist.seq (c₂ := RCode.ofCode c₂) (ih₁ hL_peak hL rfl)
+      (μ₂ := fun u => (m₂ u.toData).eval.map lift)
+      (T₂ := fun u => ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞))
+      fun u hu => by
+        supp_cases hu with ⟨z₁, hz₁, rfl⟩
+        rw [ProbComp.support_eval] at hz₁
+        exact ih₂ z₁ hz₁ (x := lift z₁) hL_peak hL rfl
+    refine hseq.congr_dist ?_ (le_of_eq ?_)
+    · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map]
+      rfl
+    · simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_add]
+      rw [Cslib.Probability.PMF.tsum_map_mul]
+      exact (expect_bind_add_left m₁ (fun z₁ => m₂ z₁.1) (fun z₁ => (z₁.2 : ℝ≥0∞))
+        (fun z₂ => (z₂.2 : ℝ≥0∞))).symm
+  | @branch_pos cond pos neg _ m hc _ ih =>
+    subst hx0
+    refine (ExecRCodeDist.branch_pos hc (ih hL_peak hL rfl)).congr_dist
+      (by simp only [ProbComp.eval_map, PMF.map_comp, Function.comp_def]) (le_of_eq ?_)
+    rw [ProbComp.expect_map]
+    simp only [Nat.cast_add, Nat.cast_one, ProbComp.expect_add, ProbComp.expect_const]
+  | @branch_neg cond pos neg _ m hc _ ih =>
+    subst hx0
+    refine (ExecRCodeDist.branch_neg hc (ih hL_peak hL rfl)).congr_dist
+      (by simp only [ProbComp.eval_map, PMF.map_comp, Function.comp_def]) (le_of_eq ?_)
+    rw [ProbComp.expect_map]
+    simp only [Nat.cast_add, Nat.cast_ofNat, ProbComp.expect_add, ProbComp.expect_const]
+  | @loop_exit cond body _ hc =>
+    subst hx0
+    exact (ExecRCodeDist.loop_exit hL_peak hc).congr_dist
+      (by cases x; simp [ProbComp.eval_pure]) (by simp [ProbComp.expect_pure])
+  | @loop_iter cond body _ m₁ m₂ hc _ _ ih₁ ih₂ =>
+    subst hx0
+    let lift (z : Data r × ℕ) : RData r := ⟨z.1.regs, z.1.mem, x.frontier⟩
+    have hloop := ExecRCodeDist.loop_iter hc (ih₁ hL_peak hL rfl)
+      (μ₂ := fun u => (m₂ u.toData).eval.map lift)
+      (T₂ := fun u => ProbComp.expect (m₂ u.toData) fun z => (z.2 : ℝ≥0∞))
+      fun u hu => by
+        supp_cases hu with ⟨z₁, hz₁, rfl⟩
+        rw [ProbComp.support_eval] at hz₁
+        exact ih₂ z₁ hz₁ (x := lift z₁) hL_peak hL rfl
+    refine hloop.congr_dist ?_ (le_of_eq ?_)
+    · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.map_bind, PMF.bind_map, PMF.pure_map]
+      rfl
+    · simp only [ProbComp.expect_bind, ProbComp.expect_pure, Nat.cast_add, Nat.cast_ofNat]
+      rw [Cslib.Probability.PMF.tsum_map_mul]
+      have hconst : ∀ z₁ : Data r × ℕ,
+          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞) + 2) =
+            ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞)) + 2 := fun _ => by
+        simp only [ProbComp.expect, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe,
+          one_mul]
+      have houter : ProbComp.expect m₁ (fun z₁ =>
+          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₂.2 : ℝ≥0∞)) + 2) =
+          ProbComp.expect m₁ (fun z₁ =>
+            ProbComp.expect (m₂ z₁.1) fun z₂ => (z₂.2 : ℝ≥0∞)) + 2 := by
+        simp only [ProbComp.expect, mul_add, tsum_add, ENNReal.tsum_mul_right, PMF.tsum_coe,
+          one_mul]
+      have hlhs : ∀ z₁ : Data r × ℕ, ProbComp.expect (m₂ z₁.1)
+          (fun z₂ => (z₁.2 : ℝ≥0∞) + (z₂.2 : ℝ≥0∞) + 2) =
+          ProbComp.expect (m₂ z₁.1) (fun z₂ => (z₁.2 : ℝ≥0∞) + ((z₂.2 : ℝ≥0∞) + 2)) :=
+        fun _ => by simp only [add_assoc]
+      simp_rw [hlhs]
+      rw [expect_bind_add_left m₁ (fun z₁ => m₂ z₁.1) (fun z₁ => (z₁.2 : ℝ≥0∞))
+        (fun z₂ => (z₂.2 : ℝ≥0∞) + 2)]
+      simp_rw [hconst]
+      rw [houter]
+      change ((ProbComp.expect m₁ fun z => (z.2 : ℝ≥0∞)) + 2) +
+          ProbComp.expect m₁ (fun z₁ => ProbComp.expect (m₂ z₁.1) fun z₂ => (z₂.2 : ℝ≥0∞)) = _
+      ac_rfl
+
+/-- Lift a frontier-bounded randomized execution `ExecRandBounded w L c (x.toData.comap f) m` along
+any injective register renaming `f : Fin r → Fin r'` directly into `ExecRCodeDist` on
+`RCode.ofCode (c.rename f)`, preserving `x.frontier`. -/
+theorem ExecRCodeDist.of_execRandBounded_rename {r' w L_peak L : ℕ}
+    {f : Fin r → Fin r'} (hf : f.Injective) {c : Code B r} {x : RData r'}
+    {m : ProbComp (Data r × ℕ)}
+    (hL_peak : x.frontier ≤ L_peak) (hL : L ≤ x.frontier)
+    (h : ExecRandBounded w L c (x.toData.comap f) m) :
+    ExecRCodeDist w (RCode.ofCode (c.rename f)) x
+      (m.eval.map fun z => ⟨(z.1.extend f x.toData).regs, z.1.mem, x.frontier⟩)
+      (ProbComp.expect m fun z => (z.2 : ℝ≥0∞)) L_peak := by
+  refine (of_execRandBounded hL_peak hL (h.rename hf)).congr_dist ?_ (le_of_eq ?_)
+  · rw [ProbComp.eval_map, PMF.map_comp]; rfl
+  · exact ProbComp.expect_map _ _ _
+
+/-- Worst-case step-bound specialization of `ExecRCodeDist.of_execRandBounded_rename`. -/
+theorem ExecRCodeDist.of_execRandBounded_rename_le {r' w L_peak L T : ℕ}
+    {f : Fin r → Fin r'} (hf : f.Injective) {c : Code B r} {x : RData r'}
+    {m : ProbComp (Data r × ℕ)}
+    (hL_peak : x.frontier ≤ L_peak) (hL : L ≤ x.frontier)
+    (h : ExecRandBounded w L c (x.toData.comap f) m)
+    (hT : ∀ z ∈ m.support, z.2 ≤ T) :
+    ExecRCodeDist w (RCode.ofCode (c.rename f)) x
+      (m.eval.map fun z => ⟨(z.1.extend f x.toData).regs, z.1.mem, x.frontier⟩)
+      (T : ℝ≥0∞) L_peak := by
+  refine (of_execRandBounded_rename hf hL_peak hL h).mono ?_
+  exact (ProbComp.expect_mono_on_support fun z hz => Nat.cast_le.mpr (hT z hz)).trans_eq
+    (ProbComp.expect_const m T)
 
 end Cslib.WordRAM.Resizable

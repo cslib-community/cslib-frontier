@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.State
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual span capture and complete box-ABI restoration
@@ -134,8 +135,6 @@ private theorem exec_restoreBoxArguments {w L m t N Q AA BB : ℕ} (x : Data 160
   all_goals simp [y, v₁, v, Data.comap_regs, eA, eB, eL, eM, eT, eH, eSpan,
     eD, eR, eV, eK, eS]
 
-set_option maxRecDepth 4096 in
--- The fixed caller frame check unfolds the existing 32-member 160-register protocol.
 /-- Actual checked span arithmetic and complete box argument restoration, including the
 saved query cursors and real temporary-to-grouped copy arguments. -/
 theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
@@ -165,11 +164,7 @@ theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
       y.regs QueriedProduct.Reg.length = b - a := by
   obtain ⟨u, hu, up, um, ui, _, uL, uA, uB, uq, un, uo, _⟩ :=
     QueriedProduct.exec_tileArguments x hp hx hj ha hstop hab hbQ (old_fits hfit)
-  have ub : Parameters L m t N Q u := by
-    exact ⟨(hu.regs_eq (by decide)).trans hb.threshold,
-      (hu.regs_eq (by decide)).trans hb.directory, (hu.regs_eq (by decide)).trans hb.records,
-      (hu.regs_eq (by decide)).trans hb.values, (hu.regs_eq (by decide)).trans hb.count,
-      (hu.regs_eq (by decide)).trans hb.results⟩
+  have ub : Parameters L m t N Q u := by regs_frame
   have fq : Fits w (QueriedProduct.codeBase L m N Q + a + (b - a)) := by
     apply allocated_fits hfit
     have h10 := Nat.zero_le (10 ^ L)
@@ -178,14 +173,8 @@ theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
       QueriedProduct.outputBase QueriedProduct.groupedBase QueriedProduct.originalBase
     omega
   obtain ⟨v, hv, vn, vs, vo, vd, vl, vm⟩ := exec_batchArguments u uq un uo ub.results fq
-  have vp : QueriedProduct.Parameters L m N Q v := up.of_frame (by
-    intro i hi
-    exact hv.regs_eq (by decide +revert))
-  have vb : Parameters L m t N Q v := by
-    exact ⟨(hv.regs_eq (by decide)).trans ub.threshold,
-      (hv.regs_eq (by decide)).trans ub.directory, (hv.regs_eq (by decide)).trans ub.records,
-      (hv.regs_eq (by decide)).trans ub.values, (hv.regs_eq (by decide)).trans ub.count,
-      (hv.regs_eq (by decide)).trans ub.results⟩
+  have vp : QueriedProduct.Parameters L m N Q v := by regs_frame
+  have vb : Parameters L m t N Q v := by regs_frame
   have vA : (v.comap QueriedProduct.bank).regs PrunedQuery.arrayA = _ :=
     (hv.regs_eq (by decide)).trans uA
   have vB : (v.comap QueriedProduct.bank).regs PrunedQuery.arrayB = _ :=
@@ -193,18 +182,11 @@ theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
   obtain ⟨y, hy, ym, yc, yi, yt, yV, yK, yA, yB⟩ :=
     exec_restoreBoxArguments v vp vb vA vB hfit
   have he : ExecWithin w tileArguments x y 44 := hu.seq (hv.seq hy)
-  refine ⟨y, he, hp.of_frame (by intro i hi; exact he.regs_eq (by decide +revert)),
-    ?_, ym.trans (vm.trans um), ?_, yc, yi, yt, yV, yK, yA, yB, ?_, ?_, ?_, ?_, ?_⟩
-  · exact ⟨(he.regs_eq (by decide)).trans hb.threshold,
-      (he.regs_eq (by decide)).trans hb.directory, (he.regs_eq (by decide)).trans hb.records,
-      (he.regs_eq (by decide)).trans hb.values, (he.regs_eq (by decide)).trans hb.count,
-      (he.regs_eq (by decide)).trans hb.results⟩
-  · exact (hy.regs_eq (by decide)).trans ((hv.regs_eq (by decide)).trans ui)
+  refine ⟨y, he, by regs_frame, by regs_frame, ym.trans (vm.trans um), by regs_frame,
+    yc, yi, yt, yV, yK, yA, yB, ?_, ?_, ?_, by regs_frame, by regs_frame⟩
   · exact (hy.regs_eq (by decide)).trans vn
   · have hs := (hy.regs_eq (by decide)).trans vs
     simpa only [Data.comap_regs, Nat.add_assoc, Nat.add_sub_of_le hab] using hs
   · exact (hy.regs_eq (by decide)).trans vo
-  · exact (hy.regs_eq (by decide)).trans vd
-  · exact (hy.regs_eq (by decide)).trans vl
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

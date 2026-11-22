@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
+public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
 public import CslibFrontier.Crypto.Primitives.UHF.Computational
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
@@ -26,7 +27,7 @@ import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Word reductions for hash-then-PRF
+# Computational security of hash-then-PRF on words
 
 The reduction samples a private hash key and forwards the digest of each valid word to its
 PRF challenger. Malformed words receive an empty reply without a call. A reply is read only
@@ -35,8 +36,7 @@ up to the declared output width, even if the challenger returns a longer word.
 This is the real-game step of [BonehShoup2023], v0.6, §7.3, printed p. 264, toward (7.21).
 The real law uses two independent uniform keys and the composition `PRF.hashThenPRF` from
 (7.18). The hash is given on words with a polynomial-time domain test. Repeated queries are
-allowed. The security conclusion of Theorem 7.7 is tracked in
-[#5790](https://github.com/cslib-community/cslib-frontier/issues/5790).
+allowed.
 
 The query collector for Game 2 runs the same adversary against a fresh lazy random function and
 outputs the distinct valid queries in its cache. It is strict PPT and its output length is bounded
@@ -44,9 +44,16 @@ by the adversary's query budget. Equation (7.22) is the ideal-game comparison: h
 random function changes the adversary's success probability by at most the probability that
 Game 2's collected queries contain a hash collision.
 
+The resulting uniform strict oracle-PPT security theorem is the word form of Theorem 7.7.
+The PRF key has `n` bits and the independently sampled hash key has `keyLen n` bits. The
+ideal random function is sampled lazily on the valid message domain regardless of its size.
+The two concrete bounds use the certified multi-query collector and the bounded fair-bit
+collision-pair reduction.
+
 ## Main definitions
 
 * `Cslib.Crypto.PRF.hashThenPRFWordReduction`: the explicit word-oracle adversary `B_F`.
+* `Cslib.Crypto.PRF.hashThenPRFWordRealGame`: the real game under independent keys.
 * `Cslib.Crypto.PRF.hashThenPRFWordIdealRun`: the decision and final cache in Game 2.
 * `Cslib.Crypto.PRF.hashThenPRFWordIdealQueries`: the word query collector `B'_H` in Game 2.
 
@@ -62,7 +69,11 @@ Game 2's collected queries contain a hash collision.
 * `Cslib.Crypto.PRF.length_le_of_mem_support_hashThenPRFWordIdealQueries`: output length respects
   the adversary's query bound.
 * `Cslib.Crypto.PRF.advantage_prfIdealGame_hashThenPRFWordReduction_le`: the comparison of the
-  two ideal games, a step toward Theorem 7.7.
+  two ideal games.
+* `Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_multiQuery` and
+  `Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_collision`: equations (7.20) and (7.19).
+* `Cslib.Crypto.PRF.computableInPolyTime_hashThenPRFWord`: the composition's evaluator.
+* `Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable`: the asymptotic word security theorem.
 -/
 
 public section
@@ -70,7 +81,7 @@ public section
 namespace Cslib.Crypto.PRF
 
 open Probability Turing.MultiTapeTM
-open scoped ENNReal
+open scoped ENNReal NNReal
 
 private def hashThenPRFWordHandler (valid : List Bool → Bool)
     (H : List Bool → List Bool) (outLen : ℕ) (request : Unit × List Bool) :
@@ -106,7 +117,7 @@ theorem isOraclePPT_hashThenPRFWordReduction {keyLen outLen : ℕ → ℕ}
     (houtLen : ComputableInPolyTime outLen encUnary encUnary)
     (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
     (hH : ComputableInPolyTime (fun p => H p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) encBits)
+      (encKeyedInput encBits) encBits)
     {A : OracleDistinguisher} (hA : IsOraclePPT encBool A) :
     IsOraclePPT encBool (hashThenPRFWordReduction keyLen outLen valid H A) := by
   let E := encPair encUnary encBits
@@ -142,6 +153,30 @@ theorem isOraclePPT_hashThenPRFWordReduction {keyLen outLen : ℕ → ℕ}
   have hsample := (hkeyLen.comp (ComputableInPolyTime.fst encUnary encBits)).sampleList
   exact (hsample.isOraclePPTOn.bind_with hrun).isOraclePPT
 
+/-- The word real game for (7.18) in [BonehShoup2023], v0.6, §7.3, printed pp. 262–264.
+Sample independent uniform hash and PRF keys, giving empty replies to invalid requests. -/
+@[expose] noncomputable def hashThenPRFWordRealGame (keyLen : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (H : ℕ → List Bool → List Bool → List Bool)
+    (F : List Bool → List Bool → List Bool) (A : OracleDistinguisher) (n : ℕ) : ProbComp Bool := do
+  let hashKey ← BitString.sampleList (keyLen n)
+  let prfKey ← BitString.sampleList n
+  (A n []).run fun req => pure (if valid n req.2 then
+    hashThenPRF (H n) F (hashKey, prfKey) req.2 else [])
+
+/-- Polynomial-time evaluation of the composition. The unary parameter is framed before the
+framed pair of word keys and the message. -/
+theorem computableInPolyTime_hashThenPRFWord
+    {H : ℕ → List Bool → List Bool → List Bool} {F : List Bool → List Bool → List Bool}
+    (hH : ComputableInPolyTime (fun p => H p.1 p.2.1 p.2.2)
+      (encKeyedInput encBits) encBits)
+    (hF : ComputableInPolyTime (fun p => F p.1 p.2) (encPair encBits encBits) encBits) :
+    ComputableInPolyTime (fun (n, keys, msg) => hashThenPRF (H n) F keys msg)
+      (encPair encUnary (encPair (encPair encBits encBits) encBits)) encBits := by
+  let payload := encPair (encPair encBits encBits) encBits
+  let hn := ComputableInPolyTime.fst encUnary payload
+  let hp := ComputableInPolyTime.snd encUnary payload
+  exact hF.comp (hp.fst'.snd'.prod (hH.comp (hn.prod (hp.fst'.fst'.prod hp.snd'))))
+
 /-- Real-game step of [BonehShoup2023], v0.6, §7.3, printed p. 264. The reduction run against
 the real PRF implements `hashThenPRF` under independent uniform keys. The input and output
 width hypotheses ensure that the PRF's malformed-request check and reply cap preserve valid
@@ -154,12 +189,9 @@ theorem eval_prfRealGame_hashThenPRFWordReduction {keyLen inLen outLen : ℕ →
     (hF : ∀ key query, query.length = inLen key.length → (F key query).length = outLen key.length)
     (A : OracleDistinguisher) (n : ℕ) :
     ProbComp.eval (prfRealGame inLen F (hashThenPRFWordReduction keyLen outLen valid H A) n) =
-      ProbComp.eval (do
-        let hashKey ← BitString.sampleList (keyLen n)
-        let prfKey ← BitString.sampleList n
-        (A n []).run fun req => pure (if valid n req.2 then
-          hashThenPRF (H n) F (hashKey, prfKey) req.2 else [])) := by
-  simp only [prfRealGame, hashThenPRFWordReduction, ProbOracleComp.run_bind,
+      ProbComp.eval (hashThenPRFWordRealGame keyLen valid H F A n) := by
+  simp only [prfRealGame, hashThenPRFWordRealGame, hashThenPRFWordReduction,
+    ProbOracleComp.run_bind,
     ProbOracleComp.run_sample, ProbOracleComp.run_simulate, ProbComp.eval_bind,
     BitString.eval_sampleList]
   rw [PMF.bind_comm]
@@ -335,6 +367,13 @@ private theorem eval_prfIdealGame_hashThenPRFWordReduction (keyLen inLen outLen 
       List.take_of_length_le List.length_ofFn.le]
   · simp only [hashThenPRFWordHandler, ite_eq_right hv, ProbOracleComp.run_pure]
 
+/-- Interpret the word hash's fixed-width keys and digests for the computational UHF games.
+The public setup supplies the key and digest widths. -/
+@[expose] def hashThenPRFWordHash (keyLen inLen : ℕ → ℕ)
+    (H : ℕ → List Bool → List Bool → List Bool) (n d : ℕ)
+    (key : BitString (keyLen d)) (msg : List Bool) : BitString (inLen d) :=
+  BitString.ofList (inLen d) (H n (List.ofFn key) msg)
+
 /-- The word-model ideal-game step (7.22) of [BonehShoup2023], v0.6, §7.3, printed p. 264.
 The advantage between a random function called on hashed valid words and a random function
 called on the valid words themselves is bounded by the certified collector's success in
@@ -349,17 +388,13 @@ theorem advantage_prfIdealGame_hashThenPRFWordReduction_le {keyLen inLen outLen 
       (ProbComp.eval
         (prfIdealGame inLen outLen (hashThenPRFWordReduction keyLen outLen valid H A) n))
       ((ProbComp.eval (hashThenPRFWordIdealRun outLen valid A (n, []))).map Prod.fst) : ℝ≥0∞) ≤
-      UHF.multiQueryGame (fun k => pure k) (fun k _ => valid k)
-        (fun k d (key : BitString (keyLen d)) msg =>
-          BitString.ofList (inLen d) (H k (List.ofFn key) msg))
+      UHF.multiQueryGame (fun k => pure k) (fun k _ => valid k) (hashThenPRFWordHash keyLen inLen H)
         (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n true := by
   let seed := PMF.uniformOfFintype (BitString (keyLen n))
   let law := ProbComp.eval (hashThenPRFWordIdealRun outLen valid A (n, []))
-  let digest (key : BitString (keyLen n)) (msg : List Bool) :=
-    BitString.ofList (inLen n) (H n (List.ofFn key) msg)
+  let digest := hashThenPRFWordHash keyLen inLen H n n
   have hprob : UHF.multiQueryGame (fun k => pure k) (fun k _ => valid k)
-        (fun k d (key : BitString (keyLen d)) msg =>
-          BitString.ofList (inLen d) (H k (List.ofFn key) msg))
+        (hashThenPRFWordHash keyLen inLen H)
         (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n true =
       ∑' key, seed key * law.toOuterMeasure
         {x | RandomOracle.HasImageCollision (digest key) x.2} := by
@@ -389,8 +424,100 @@ theorem advantage_prfIdealGame_hashThenPRFWordReduction_le {keyLen inLen outLen 
   have hconst : law.map Prod.fst = seed.bind fun _ => law.map Prod.fst := (PMF.bind_const _ _).symm
   nth_rw 1 [hconst]
   exact CloseTo.bind_right_tsum seed fun key _ => by
-    simpa only [law, eval_hashThenPRFWordIdealRun, digest] using
+    simpa only [law, eval_hashThenPRFWordIdealRun, digest, hashThenPRFWordHash] using
       RandomOracle.closeTo_runWith_memoize_simulate_query (digest key)
         (BitString.uniformList (outLen n)) (validWordProgram (valid n) (A n []))
+
+/-! ### Concrete and asymptotic security -/
+
+/-- Equation (7.20) of [BonehShoup2023], v0.6, §7.3, printed p. 263, in the product-key word
+model. The advantage of the hash-then-PRF test is bounded by the PRF wrapper's advantage plus
+the certified collector's multi-query collision success. -/
+theorem advantage_hashThenPRFWord_le_add_multiQuery {keyLen inLen outLen : ℕ → ℕ}
+    (valid : ℕ → List Bool → Bool) (H : ℕ → List Bool → List Bool → List Bool)
+    (F : List Bool → List Bool → List Bool)
+    (hH : ∀ n key msg, key.length = keyLen n → valid n msg = true →
+      (H n key msg).length = inLen n)
+    (hF : ∀ key query, query.length = inLen key.length → (F key query).length = outLen key.length)
+    (A : OracleDistinguisher) (n : ℕ) :
+    let B := hashThenPRFWordReduction keyLen outLen valid H A
+    Game.advantage (ProbComp.eval (hashThenPRFWordRealGame keyLen valid H F A n))
+        ((ProbComp.eval (hashThenPRFWordIdealRun outLen valid A (n, []))).map Prod.fst) ≤
+      Game.advantage (ProbComp.eval (prfRealGame inLen F B n))
+        (ProbComp.eval (prfIdealGame inLen outLen B n)) +
+        Game.succProbability (UHF.multiQueryGame (fun k => pure k) (fun k _ => valid k)
+          (hashThenPRFWordHash keyLen inLen H)
+          (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n) := by
+  intro B
+  have hcollision := advantage_prfIdealGame_hashThenPRFWordReduction_le
+    (outLen := outLen) valid H hH A n
+  rw [← Game.coe_succProbability_ennreal] at hcollision
+  rw [← eval_prfRealGame_hashThenPRFWordReduction valid H F hH hF A n]
+  exact (Game.advantage_triangle _ (ProbComp.eval (prfIdealGame inLen outLen B n)) _).trans
+    (add_le_add le_rfl (ENNReal.coe_le_coe.mp hcollision))
+
+/-- Equation (7.19) of [BonehShoup2023], v0.6, §7.3, printed p. 262, in the product-key word
+model. The single-pair wrapper uses the strict fair-bit sampler of Lemma 7.1. -/
+theorem advantage_hashThenPRFWord_le_add_collision {keyLen inLen outLen : ℕ → ℕ}
+    (valid : ℕ → List Bool → Bool) (H : ℕ → List Bool → List Bool → List Bool)
+    (F : List Bool → List Bool → List Bool)
+    (hH : ∀ n key msg, key.length = keyLen n → valid n msg = true →
+      (H n key msg).length = inLen n)
+    (hF : ∀ key query, query.length = inLen key.length → (F key query).length = outLen key.length)
+    (A : OracleDistinguisher) (n Q : ℕ) (hQ : (A n []).IsQueryBounded Q) :
+    let B := hashThenPRFWordReduction keyLen outLen valid H A
+    Game.advantage (ProbComp.eval (hashThenPRFWordRealGame keyLen valid H F A n))
+        ((ProbComp.eval (hashThenPRFWordIdealRun outLen valid A (n, []))).map Prod.fst) ≤
+      Game.advantage (ProbComp.eval (prfRealGame inLen F B n))
+        (ProbComp.eval (prfIdealGame inLen outLen B n)) +
+        ((Q : ℝ≥0) ^ 2 / 2) * Game.succProbability
+          (UHF.collisionGame (fun k => pure k) (fun k _ => valid k)
+            (hashThenPRFWordHash keyLen inLen H) (fun p => UHF.collisionPairReduction []
+              (hashThenPRFWordIdealQueries outLen valid A (p.1, []))) n) := by
+  intro B
+  refine (advantage_hashThenPRFWord_le_add_multiQuery valid H F hH hF A n).trans ?_
+  refine add_le_add le_rfl (UHF.succProbability_multiQueryGame_le_collisionPairReduction
+    (fun k => pure k) (fun k _ => valid k) (hashThenPRFWordHash keyLen inLen H) []
+    (fun p => hashThenPRFWordIdealQueries outLen valid A (p.1, [])) n ?_)
+  intro _ _ _ hms
+  exact length_le_of_mem_support_hashThenPRFWordIdealQueries hQ hms
+
+/-- Theorem 7.7 of [BonehShoup2023], v0.6, §7.3, printed pp. 262–265, for product keys and
+uniform strict oracle-PPT tests. The components provide efficient hash evaluation, domain
+recognition, unary key and digest width schedules, computational UHF security, and PRF
+security. The real game uses the composed evaluator with fresh independent keys. Its ideal
+game uses one lazy random function on the same valid words. Invalid queries receive `[]`
+in both games and repeated queries are allowed. The composition's evaluator is certified by
+`computableInPolyTime_hashThenPRFWord`. -/
+theorem hashThenPRFWord_indistinguishable {keyLen inLen outLen : ℕ → ℕ}
+    {valid : ℕ → List Bool → Bool} {H : ℕ → List Bool → List Bool → List Bool}
+    {F : List Bool → List Bool → List Bool}
+    (hkeyLen : ComputableInPolyTime keyLen encUnary encUnary)
+    (hinLen : ComputableInPolyTime inLen encUnary encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
+    (hH : ComputableInPolyTime (fun p => H p.1 p.2.1 p.2.2)
+      (encKeyedInput encBits) encBits)
+    (hwidth : ∀ n key msg, key.length = keyLen n → valid n msg = true →
+      (H n key msg).length = inLen n)
+    (hUHF : UHF.IsComputationalUHF encUnary encBits (fun k => pure k) (fun k _ => valid k)
+      (hashThenPRFWordHash keyLen inLen H))
+    (hPRF : PseudorandomFunctionOver inLen outLen F) :
+    Game.Indistinguishable
+      (fun A n => ProbComp.eval (hashThenPRFWordRealGame keyLen valid H F A n))
+      (fun A n => (ProbComp.eval (hashThenPRFWordIdealRun outLen valid A (n, []))).map Prod.fst)
+      (IsOraclePPT encBool) := by
+  intro A hA
+  have houtLen := hPRF.outLen_polyTime hinLen
+  let B := hashThenPRFWordReduction keyLen outLen valid H A
+  have hB : IsOraclePPT encBool B :=
+    isOraclePPT_hashThenPRFWordReduction hkeyLen houtLen hvalid hH hA
+  let C (p : ℕ × ℕ) := hashThenPRFWordIdealQueries outLen valid A (p.1, [])
+  have hC : IsPPTOn (encPair encUnary encUnary) (encList encBits) C :=
+    (isPPTOn_hashThenPRFWordIdealQueries houtLen hvalid hA).preprocess
+      ((ComputableInPolyTime.fst _ _).prod (ComputableInPolyTime.const []))
+  have hsetup : IsPPTOn encUnary encUnary (fun n => pure n) := ComputableInPolyTime.id'.isPPTOn
+  have hcollision := (hUHF.isMultiQueryUHF hsetup).negligible_succProbability C hC
+  exact negligible_of_le ((hPRF.secure B hB).add hcollision)
+    (fun n => advantage_hashThenPRFWord_le_add_multiQuery valid H F hwidth hPRF.length_eq A n)
 
 end Cslib.Crypto.PRF

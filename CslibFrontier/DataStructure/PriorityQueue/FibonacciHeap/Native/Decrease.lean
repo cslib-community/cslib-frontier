@@ -45,12 +45,11 @@ private def cutCascadeSafe (w : ℕ) (d : Fin 4 → ℕ) (s : Memory.State) : Pr
       ((layout (d 0) (d 1)).methods 0) (cut (d 2) (d 3))))
 
 private theorem realizes_cutCascade : Realizes .exact cutCascade (.refl _)
-    (WordEncoding.encode (α := Unit)) cutCascadeSafe (fun _ _ => 0) :=
-  (realizes_cut.bind₀ <| realizes_cascade.reindex
-    (fun d : (Fin 4 → ℕ) × Unit => ![d.1 0, d.1 1, d.1 3])
-    (appendWords (.refl _) (WordEncoding.encode (α := Unit))) ![0, 1, 3]
-    fun _ i => by fin_cases i <;> rfl).congr (fun _ => rfl) |>.consequence
-      (fun _ _ _ _ _ h => h) fun _ _ => le_rfl
+    (WordEncoding.encode (α := Unit)) cutCascadeSafe (fun _ _ => 0) := by
+  unfold cutCascade
+  realize [realizes_cut, realizes_cascade]
+  · exact h.1
+  · exact h.2
 
 private def decreasePrefix (d : Fin 4 → ℕ) : Memory.Prog Unit := do
   let pv ← Memory.read (d 1 + d 0 + d 2)
@@ -70,20 +69,10 @@ private def decreasePrefixSafe (w : ℕ) (d : Fin 4 → ℕ) (s : Memory.State) 
         (s.mem (d 1 + d 0 + d 2) - 1, s.mem (d 1 + (s.mem (d 1 + d 0 + d 2) - 1))) →
       cutCascadeSafe w ![d 0, d 1, d 2, s.mem (d 1 + d 0 + d 2) - 1] s)
 
-private theorem realizes_cutCascade_tuple : Realizes .exact
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => cutCascade ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-    (fun w d s => cutCascadeSafe w ![d.1.1.1, d.1.1.2, d.1.2, d.2] s) (fun _ _ => 0) :=
-  realizes_cutCascade.reindex
-    (fun d : ((ℕ × ℕ) × ℕ) × ℕ => ![d.1.1.1, d.1.1.2, d.1.2, d.2])
-    (WordEncoding.encode (α := ((ℕ × ℕ) × ℕ) × ℕ)) ![0, 1, 2, 3]
-    fun _ i => by fin_cases i <;> rfl
-
 private theorem realizes_decreasePrefix : Realizes .exact decreasePrefix (.refl _)
     (WordEncoding.encode (α := Unit)) decreasePrefixSafe (fun _ _ => 0) := by
-  have hCC := realizes_cutCascade_tuple
   unfold decreasePrefix
-  realize
+  realize [realizes_cutCascade]
   all_goals first
     | exact h.1.of_le (by have := h.2.1; omega)
     | exact h.1.of_le (by have := h.2.2.1 (by assumption); omega)
