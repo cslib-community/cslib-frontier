@@ -16,7 +16,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Un
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.BitString.UniformSplit
 
 /-!
 # Saved tapes for bit encryption and a challenge splice
@@ -96,20 +96,15 @@ theorem eval_spliceEncryptedBit_eq_map_coins (E : Scheme)
     ProbComp.eval (E.spliceEncryptedBit n pk before after challenge) =
       (BitString.uniformList ((before + after.length) * encCoins)).map
         (spliceEncryptedBitCoins evaluate n encCoins pk before after challenge) := by
-  rw [Nat.add_mul, PMF.map]
-  change _ = (BitString.uniformList (before * encCoins + after.length * encCoins)).bind
-    (fun tape => PMF.pure
-      (encryptBitsCoins evaluate n encCoins pk (List.replicate before false)
-        (tape.take (before * encCoins)) ++ challenge ::
-        encryptBitsCoins evaluate n encCoins pk after (tape.drop (before * encCoins))))
-  rw [BitString.uniformList_bind_split _ _ (fun front back => PMF.pure
-    (encryptBitsCoins evaluate n encCoins pk (List.replicate before false) front ++
-      challenge :: encryptBitsCoins evaluate n encCoins pk after back))]
   simp only [spliceEncryptedBit, ProbComp.eval_bind, ProbComp.eval_pure,
     E.eval_encryptBits_eq_map_coins evaluate n encCoins pk (List.replicate before false)
       (fun bit _ => hencrypt bit),
     E.eval_encryptBits_eq_map_coins evaluate n encCoins pk after (fun bit _ => hencrypt bit),
     List.length_replicate, PMF.bind_map, Function.comp_def]
+  rw [Nat.add_mul]
+  unfold spliceEncryptedBitCoins
+  simpa only [PMF.map, Function.comp_def] using
+    (BitString.uniformList_map_split _ _ _).symm
 
 /-- Padding the complete splice tape preserves its exact law. -/
 theorem eval_spliceEncryptedBit_eq_map_coins_of_le (E : Scheme)

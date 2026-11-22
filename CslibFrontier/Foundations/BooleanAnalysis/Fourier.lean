@@ -291,6 +291,14 @@ theorem fourierCoeff_chi (S T : Finset ι) :
     fourierCoeff (chi ℝ S) T = if S = T then 1 else 0 :=
   expect_chi_mul_chi S T
 
+/-- A literal `x ↦ b ⊕ x_i`, read as `±1`, is `signVal b` times the character of `{i}`, so its
+only nonzero Fourier coefficient is `signVal b`, on `{i}`. -/
+theorem fourierCoeff_signVal_xor (b : Bool) (i : ι) (S : Finset ι) :
+    fourierCoeff (fun x => signVal (b ^^ x i)) S = if {i} = S then signVal b else 0 := by
+  have h : (fun x : ι → Bool => signVal (b ^^ x i)) = fun x => signVal b * chi ℝ {i} x :=
+    funext fun x => by rw [signVal_xor, chi_singleton]
+  rw [h, fourierCoeff_const_mul, fourierCoeff_chi, mul_ite, mul_one, mul_zero]
+
 /-- A parity, read as `±1`, is the character of its set, so all its weight is on that set. -/
 theorem fourierCoeff_signVal_parityOn (S U : Finset ι) :
     fourierCoeff (fun x => signVal (parityOn S x)) U = if U = S then 1 else 0 := by

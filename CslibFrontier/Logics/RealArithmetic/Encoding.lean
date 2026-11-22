@@ -30,12 +30,38 @@ The generated constructor, projection and injectivity APIs come from `derive_enc
 public section
 namespace Cslib.Logic.RealArithmetic
 
+open Turing.MultiTapeTM
 open scoped Turing.MultiTapeTM.EncodingPolicy.BinaryIntUnaryFin
 
 /-- Flat constructor stream with binary integer constants and unary variable ranks. -/
 derive_encoding encTerm (n : ℕ) : Term n
 /-- Flat Boolean constructor stream carrying complete binary-integer arithmetic term words. -/
 derive_encoding encFormula (n : ℕ) : Formula n
+
+/-- A prefix constructor token with a natural-number variable rank. The four alternatives are
+an integer constant, a variable, addition, and multiplication, in that order. -/
+abbrev TermToken := ℤ ⊕ ℕ ⊕ Unit ⊕ Unit
+
+/-- The term constructor tags, followed by a binary integer, unary rank, or empty payload. -/
+abbrev encTermToken : TermToken ↪ List Bool :=
+  encSum encIntBin (encSum encUnary (encSum encUnit encUnit))
+
+/-- Keep the constructor and payload of a typed token, reading a variable as its unary rank. -/
+@[expose] def TermToken.ofFin {n : ℕ} : (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) → TermToken :=
+  Sum.map id (Sum.map Fin.val id)
+
+/-- A prefix formula token. The alternatives are falsity, equality to zero, strict inequality
+to zero, negation, conjunction, and disjunction. Comparison tokens carry a complete term word. -/
+abbrev FormulaToken := Unit ⊕ List Bool ⊕ List Bool ⊕ Unit ⊕ Unit ⊕ Unit
+
+/-- Encode the formula constructor tags followed by the term word or empty payload. -/
+abbrev encFormulaToken : FormulaToken ↪ List Bool :=
+  encSum encUnit (encSum encBits (encSum encBits (encSum encUnit (encSum encUnit encUnit))))
+
+/-- Keep a typed formula token's constructor and encode any comparison term as a word. -/
+@[expose] def FormulaToken.encodeTerms {n : ℕ} :
+    (Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit) → FormulaToken :=
+  Sum.map id (Sum.map (encTerm n) (Sum.map (encTerm n) id))
 
 /-- Preserving variable ranks preserves every bit of a term's encoding. -/
 theorem encTerm_rename {n m : ℕ} (f : Fin n → Fin m)

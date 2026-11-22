@@ -89,24 +89,22 @@ theorem exists_heuristic_of_mem_HeurP (b : List Bool → Bool)
   linarith
 
 /-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
-mildly hard on average against deterministic polynomial-time heuristics. -/
-theorem not_mildlyHardOnAverageDet_of_mem_HeurP (b : List Bool → Bool)
-    (h : (⟨{x | b x = true}, Ensemble.uniform⟩ : DistProblem) ∈ HeurP) :
-    ¬ MildlyHardOnAverageDet (fun x => (b x).toNat) := by
-  rintro ⟨p, hp, hhard⟩
-  obtain ⟨H, hH, hsucc⟩ := exists_heuristic_of_mem_HeurP b h p hp
-  obtain ⟨n, hn⟩ := (hhard H hH).exists
-  exact absurd hn (not_le.mpr (hsucc n))
-
-/-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
 even infinitely-often mildly hard on average against deterministic polynomial-time heuristics. -/
 theorem not_mildlyHardOnAverageIO_of_mem_HeurP (b : List Bool → Bool)
     (h : (⟨{x | b x = true}, Ensemble.uniform⟩ : DistProblem) ∈ HeurP) :
     ¬ MildlyHardOnAverageIO (fun x => (b x).toNat) := by
+  rw [MildlyHardOnAverageIO, MildlyHardOnAverageIOWith, mildlyHardOnAverageFor_isDetPolyTime_iff]
   rintro ⟨p, hp, hhard⟩
   obtain ⟨H, hH, hsucc⟩ := exists_heuristic_of_mem_HeurP b h p hp
   obtain ⟨n, hn⟩ := (hhard H hH).exists
-  exact absurd hn (not_le.mpr (hsucc n))
+  exact not_lt_of_ge hn (hsucc n)
+
+/-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
+mildly hard on average against deterministic polynomial-time heuristics. -/
+theorem not_mildlyHardOnAverageDet_of_mem_HeurP (b : List Bool → Bool)
+    (h : (⟨{x | b x = true}, Ensemble.uniform⟩ : DistProblem) ∈ HeurP) :
+    ¬ MildlyHardOnAverageDet (fun x => (b x).toNat) :=
+  fun hhard => not_mildlyHardOnAverageIO_of_mem_HeurP b h hhard.mildlyHardOnAverageIO
 
 /-- A Boolean function whose distributional problem under the uniform ensemble is in `HeurP` is not
 mildly hard on average against strict PPT heuristics

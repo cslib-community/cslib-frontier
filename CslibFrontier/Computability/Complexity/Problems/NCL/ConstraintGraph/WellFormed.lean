@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Basic
 public import Mathlib.Data.Multiset.Basic
 public import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Data.Fintype.Sum
 import Mathlib.Algebra.Order.Group.Multiset
 
 /-!
@@ -65,6 +66,35 @@ theorem portMultiset_get (vs : List (Vertex E)) :
     simp only [portMultiset, List.length_cons, Fin.sum_univ_succ, List.get_eq_getElem,
       List.flatMap_cons, ← Multiset.coe_add]
     congr 1
+
+/-- Ports of two graphs embedded in a common edge type add with multiplicity. -/
+theorem portMultiset_sumElim_map {V₁ V₂ E₁ E₂ : Type*} [Fintype V₁] [Fintype V₂]
+    (G₁ : ConstraintGraph V₁ E₁) (G₂ : ConstraintGraph V₂ E₂) (f₁ : E₁ → E) (f₂ : E₂ → E) :
+    portMultiset (Sum.elim (G₁.map f₁) (G₂.map f₂)) =
+      Multiset.map (WeightedPort.map f₁) G₁.portMultiset +
+        Multiset.map (WeightedPort.map f₂) G₂.portMultiset := by
+  rw [portMultiset, Fintype.sum_sum_type]
+  exact congrArg₂ (· + ·) (portMultiset_map G₁ f₁) (portMultiset_map G₂ f₂)
+
+/-- Bijective edge renaming preserves consistent incidences. -/
+theorem WellFormed.map [Fintype V] [Fintype E] [Fintype E']
+    {G : ConstraintGraph V E} (h : G.WellFormed) (f : E ≃ E') : (G.map f).WellFormed := by
+  obtain ⟨weight, hw⟩ := h
+  refine ⟨weight ∘ f.symm, ?_⟩
+  rw [portMultiset_map, hw, ← Multiset.coe_mapAddMonoidHom, map_sum]
+  apply Fintype.sum_equiv f
+  intro e
+  simp [WeightedPort.map, Port.map]
+
+/-- Reindexing vertices bijectively preserves every endpoint occurrence. -/
+theorem WellFormed.reindex {V' : Type*} [Fintype V] [Fintype V'] [Fintype E]
+    {G : ConstraintGraph V E} (h : G.WellFormed) (f : V' ≃ V) :
+    WellFormed (G ∘ f) := by
+  obtain ⟨weight, hw⟩ := h
+  refine ⟨weight, ?_⟩
+  calc
+    _ = G.portMultiset := Fintype.sum_equiv f _ _ (fun _ => rfl)
+    _ = _ := hw
 
 private theorem sum_filter_edge [Fintype E] [DecidableEq E] (ps : Multiset (WeightedPort E)) :
     (∑ e, ps.filter (fun p => p.port.edge = e)) = ps := by

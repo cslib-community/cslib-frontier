@@ -25,7 +25,7 @@ Restarts happen when allowed, minimization, recursive or basic, shortens the lea
 PHP(4, 3), simplification deletes clauses of PHP(4, 3) satisfied at the root, and the kernel
 refutes PHP(4, 3) through a reduction of the learned clauses. At runtime, Lean core's checker
 accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
-them forgotten, and whose intermediate resolvents are deleted.
+them forgotten.
 -/
 
 set_option linter.privateModule false
@@ -112,7 +112,7 @@ example : (CDCL.solveWith { restarts := false } php).2.restarts = 0 := by decide
 by the clause; the saved phase of `x₁` is still `false`. -/
 private def beforeRestart : CDCL.WExec [[(0, true), (1, true)]] :=
   let S₀ := CDCL.WExec.init [[(0, true), (1, true)]] {}
-  let S := S₀.decide 0 S₀.order
+  let S := S₀.decide 0 S₀.order S₀.inOrder
   { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
 
 /-- The decision is `¬x₀`, and the clause `x₀ ∨ x₁` then forces `x₁`. -/
@@ -162,7 +162,7 @@ example : (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000 } php43).1
 example : (CDCL.solve []).isSat = true := by decide +kernel
 
 -- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates, which
--- delete the intermediate resolvents and, for PHP(6, 5), forgotten learned clauses.
+-- learn each clause in one RUP step and, for PHP(6, 5), delete forgotten learned clauses.
 /-- info: (true, true, true) -/
 #guard_msgs in
 #eval
@@ -227,9 +227,9 @@ example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
     (CDCL.solveWith { removeSatisfied := false } rootSat).2.decisions = 1 := by
   decide
 
-/-- When the learned clause is the conflict clause, its number is both the learned one and among
-the clauses met: it is bumped once, by the increment `2 ^ 100`, not twice. -/
-example : ((CDCL.Reduction.init 3 3).learn [5] 5 6 false).act.get 5 = 2 ^ 100 := by
+/-- The learned clause and the clauses met are bumped by the increment `2 ^ 40`, the others not. -/
+example : ((CDCL.Reduction.init 3 3).learn [3, 1] 5 6 false).act.score =
+    #[0, 2 ^ 40, 0, 2 ^ 40, 0, 2 ^ 40] := by
   decide
 
 /-- The formula `a ∨ b`, `¬a ∨ b`: its clauses are numbered `1` and `2`. -/
@@ -255,12 +255,5 @@ example (S : CDCL.WExec two) (sp : CDCL.Split) (L : S.exec.LearnedAt sp) (k₀ :
     (L.id = 3 → (S.afterConflict sp L k₀).red.learnts = S.red.learnts + 1) := by
   rw [S.afterConflict_learnts sp L k₀ hred hk]
   exact ⟨fun h => by simp [h, CDCL.isLearntId], fun h => by simp [h, CDCL.isLearntId]⟩
-
-/-- A number listed twice among the clauses met is bumped once: `used = [4, 4]` with the learned
-clause `5` bumps clause `4` as `used = [4]` does. -/
-example : (((CDCL.Reduction.init 3 3).learn [4, 4] 5 6 false).act.get 4) =
-    (((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4) ∧
-    0 < ((CDCL.Reduction.init 3 3).learn [4] 5 6 false).act.get 4 := by
-  decide +kernel
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

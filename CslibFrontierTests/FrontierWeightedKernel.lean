@@ -104,6 +104,15 @@ example : (∑ e : Fin 5,
 example : ∃ (S : ∀ n, Set (Fin n → Bool)) (K : ℕ → ℕ), DenseRectangleFree S K ∧
     ∀ᶠ n in atTop, ∀ (σ : Signature.{0}) (I : Interpretation σ Bool) (Acc : Set Bool)
       (c : Circuit σ n 1), c.FanInAtMost 3 → c.Decides I Acc (S n) →
+        (2 - 1 / 100 : ℝ) * n < c.multiarySize := by
+  obtain ⟨S, hrf, hlog, hdef, _⟩ := exists_rectangleFree_family
+  have hSK : DenseRectangleFree S (fun n => n + 2) := ⟨hrf, hlog, hdef⟩
+  exact ⟨S, fun n => n + 2, hSK,
+    eventually_two_sub_mul_lt_multiarySize_fanInThree.{0, 0} hSK (by norm_num)⟩
+
+example : ∃ (S : ∀ n, Set (Fin n → Bool)) (K : ℕ → ℕ), DenseRectangleFree S K ∧
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{0}) (I : Interpretation σ Bool) (Acc : Set Bool)
+      (c : Circuit σ n 1), c.FanInAtMost 3 → c.Decides I Acc (S n) →
         (2 - 1 / 100 : ℝ) * n < c.innerSize := by
   obtain ⟨S, hrf, hlog, hdef, _⟩ := exists_rectangleFree_family
   have hSK : DenseRectangleFree S (fun n => n + 2) := ⟨hrf, hlog, hdef⟩
