@@ -1447,6 +1447,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.Razborov.Natural
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.RankProperty
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
 public import CslibFrontier.Computability.Circuit.Boolean.ReadOnce
+public import CslibFrontier.Computability.Circuit.Boolean.Rectifier
+public import CslibFrontier.Computability.Circuit.Boolean.Rectifier.Asymptotic
 public import CslibFrontier.Computability.Circuit.Boolean.Routing
 public import CslibFrontier.Computability.Circuit.Boolean.RoutingValues
 public import CslibFrontier.Computability.Circuit.Boolean.SeedFixing
