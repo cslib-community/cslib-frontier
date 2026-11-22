@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.AVLTree.Basic
 public import CslibFrontier.DataStructure.SearchTree.Erase
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Rebalancing deletion for AVL binary search trees
@@ -90,7 +91,7 @@ private theorem elements_splitMin (a : α) (ah : ℕ) (l r : AVLTree α) :
     have h := Finset.ext_iff.mp (ihl b bh lr) y
     simp only [splitMin, elements_balance, mem_elements_node, Finset.mem_insert,
       Finset.mem_union] at h ⊢
-    tauto
+    lrat_tauto
 
 private theorem elements_glue (l r : AVLTree α) :
     elements (glue l r) = elements l ∪ elements r := by
@@ -101,7 +102,7 @@ private theorem elements_glue (l r : AVLTree α) :
     have h := Finset.ext_iff.mp (elements_splitMin b bh rl rr) y
     simp only [glue, elements_balance, mem_elements_node, Finset.mem_insert,
       Finset.mem_union] at h ⊢
-    tauto
+    lrat_tauto
 
 private theorem valid_and_height_splitMin {a : α} {h : ℕ} {l r : AVLTree α}
     (ht : Valid (.node a h l r)) :

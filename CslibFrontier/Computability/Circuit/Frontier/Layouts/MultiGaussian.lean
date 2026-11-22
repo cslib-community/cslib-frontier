@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiOrder
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.VertexGaussian
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Gaussian vertex layouts of multigraphs
@@ -136,7 +137,7 @@ theorem exists_multi_vertex_sample [Finite V] [Finite E] (hloop : G.Loopless) {d
     congr 1
     ext e
     simp only [Multigraph.mem_edgeCut, crossingEvent, mem_ofPred_eq, mem_uIoc, ← not_lt]
-    tauto
+    lrat_tauto
   have htop : -T + M * δ = T := by
     rw [hδ]
     field_simp

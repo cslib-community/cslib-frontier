@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Swit
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.SwitchedLayout
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # One sample controls every frontier of the median-switched layout
@@ -909,7 +910,7 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
       (fun v => by
         simp only [crossFull, crossHiEv, Finset.mem_filter, Finset.mem_univ, true_and,
           mem_ofPred_eq, y]
-        tauto)
+        lrat_tauto)
       hin0 hcrHi (measureReal_lowerZero_vertex_le H hdeg hρ0 hρs hadj)
   · exact zero_le (outerFrontier H y 0) ((crossFull H y).filter fun x => y x ≤ 0)
       (outEv 0) crossLoEv
@@ -917,7 +918,7 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
       (fun v => by
         simp only [crossFull, crossLoEv, Finset.mem_filter, Finset.mem_univ, true_and,
           mem_ofPred_eq, y]
-        tauto)
+        lrat_tauto)
       hout0 hcrLo (measureReal_upperZero_vertex_le H hdeg hρ0 hρs hadj)
 
 end Cslib.Circuits.Frontier.Switched
