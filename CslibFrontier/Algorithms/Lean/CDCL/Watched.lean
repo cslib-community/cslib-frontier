@@ -1240,31 +1240,10 @@ theorem lits_below {N M₀ : Trail} {d : Literal ℕ} {x : Literal ℕ}
     (hx : x ∈ Trail.lits M₀) : x ∈ Trail.lits (N ++ ⟨d, true⟩ :: M₀) := by
   rw [lits_append]; exact List.mem_append_right _ (List.mem_cons_of_mem _ hx)
 
-/-- The learned clause without repetitions, its asserting literal first. -/
-@[expose] def learnedWatched (C : Clause ℕ) (l : Literal ℕ) : Clause ℕ := l :: (dedupLits C).erase l
-
-theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
-    (learnedWatched C l).Perm (dedupLits C) :=
-  (List.perm_cons_erase ((mem_dedupKey litKey_injective).2 hl)).symm
-
 /-- A learned clause has no repetitions. -/
 theorem Learned.dedupLits_clause {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
     dedupLits L.clause = L.clause :=
   dedupKey_of_nodup litKey_injective L.nodup
-
-/-- A learned clause has no repetitions and its asserting literal first, so it is already the
-clause to watch. -/
-theorem Learned.learnedWatched_eq {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
-    learnedWatched L.clause L.lit = L.clause := by
-  rw [learnedWatched, L.dedupLits_clause]
-  have hh := L.head
-  revert hh
-  generalize L.clause = C
-  rcases C with _ | ⟨a, rest⟩
-  · simp
-  · intro hh
-    cases Option.some.inj hh
-    rw [List.erase_cons_head]
 
 /-- The activities `A` after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
 @[expose] def bumpedWith (o : Options) (A : Activity) (vs : List ℕ) : Activity :=
