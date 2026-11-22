@@ -39,8 +39,6 @@ the supplied context, interpolation point and parameters. The limit is not a fre
 * `Cslib.TreeEval.Ary.Packed.QueryGate.prepare_inSpace`,
   `Cslib.TreeEval.Ary.Packed.QueryGate.initial_prepare_inSpace`: native space certificates for
   computing the grid limit and initializing fresh loop counters.
-* `Cslib.TreeEval.Ary.Packed.QueryGate.prepare_limit`: `prepare` sets the assignment limit to
-  `s ^ n`.
 -/
 
 public section
@@ -114,6 +112,7 @@ theorem initial_prepare_inSpace {γ : Type} (encG : γ ↪ List Bool) :
   exact budget_prod (prepare_inSpace encG)
     (budget_prod (budget_const 0 hin) (budget_const 0 hin))
 
+/-- Preparing parameters sets the assignment limit to `s ^ n`. -/
 @[simp] theorem prepare_limit {γ : Type} (q : Input γ) :
     Params.limit (prepare q) = Params.alphabet (prepare q) ^ Params.coords (prepare q) := rfl
 
