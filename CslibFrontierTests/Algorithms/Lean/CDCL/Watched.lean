@@ -94,7 +94,7 @@ example : (CDCL.solveWith {} [[(0, true)], [(0, false)]]).2.conflicts = 1 ∧
 them: on `x₀ ∨ x₁`, the decision `¬x₀` and the implied `x₁` are both processed. -/
 example : (CDCL.solveWith {} [[(0, true), (1, true)]]).2.decisions = 1 ∧
     (CDCL.solveWith {} [[(0, true), (1, true)]]).2.propagations = 2 := by
-  decide
+  decide +kernel
 
 /-- PHP(4, 3), with pigeon `i` in hole `j` as `3 * i + j`. -/
 private abbrev php43 : CNF ℕ := (CNF.pigeonhole 4 3).relabel fun x => 3 * x.1.val + x.2.val
