@@ -73,21 +73,29 @@ polynomial-time computable from binary degree and norm bounds. -/
   simpa only [Polynomial.parameterExclusionExponent] using binary_add' (binary_max' hres hcut)
     (.const 1)
 
+/-- The chosen parameter's exponent is polynomial-time computable from the source bounds. -/
+@[fun_prop] theorem criticalParameterExponent_polyTime {n ell b : α → ℕ}
+    (hn : ComputableInPolyTime n enc encUnary) (hell : ComputableInPolyTime ell enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => criticalParameterExponent (n w) (ell w) (b w))
+      enc encNat := by
+  simpa only [criticalParameterExponent] using
+    parameterExclusionExponent_polyTime (binary_pow' (hbase := hell) (hexponent := hn))
+      (parametricValueCoeffNormExponent_polyTime hn hell hb)
+
 /-- Compute the chosen parameter as a residue without expanding the integer power of two. -/
 @[expose] def criticalParameterResidue (p n ell b : ℕ) : ℕ :=
   powMod p 2 (criticalParameterExponent n ell b)
 
-/-- The chosen parameter modulo `p) is polynomial-time computable from unary arity and the
+/-- The chosen parameter modulo `p` is polynomial-time computable from unary arity and the
 binary modulus, pure-power degree and input norm exponent. -/
 @[fun_prop] theorem criticalParameterResidue_polyTime {p n ell b : α → ℕ}
     (hp : ComputableInPolyTime p enc encNat) (hn : ComputableInPolyTime n enc encUnary)
     (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
     ComputableInPolyTime (fun w => criticalParameterResidue (p w) (n w) (ell w) (b w))
       enc encNat := by
-  simpa only [criticalParameterResidue, criticalParameterExponent] using
-    computableInPolyTime_powMod hp (.const 2)
-      (parameterExclusionExponent_polyTime (binary_pow' (hbase := hell) (hexponent := hn))
-        (parametricValueCoeffNormExponent_polyTime hn hell hb))
+  simpa only [criticalParameterResidue] using
+    computableInPolyTime_powMod hp (.const 2) (criticalParameterExponent_polyTime hn hell hb)
 
 /-- For a nonzero modulus, the computed residue represents the chosen integer parameter. -/
 theorem criticalParameterResidue_cast {p : ℕ} (hp : p ≠ 0) (n ell b : ℕ) :

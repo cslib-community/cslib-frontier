@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.NOF.Protocol
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Leaves of number-on-forehead protocols
@@ -99,10 +100,7 @@ theorem leafCount_eq_one_of_isEmpty [IsEmpty ι] (p : Protocol X Z) : p.leafCoun
 theorem leafCount_le_two_pow_depth (p : Protocol X Z) : p.leafCount ≤ 2 ^ p.depth := by
   induction p with
   | output z => simp
-  | speak i send p₀ p₁ ih₀ ih₁ =>
-    rw [leafCount_speak, depth_speak, pow_succ, mul_two]
-    exact add_le_add (ih₀.trans (Nat.pow_le_pow_right two_pos (le_max_left _ _)))
-      (ih₁.trans (Nat.pow_le_pow_right two_pos (le_max_right _ _)))
+  | speak _ _ _ _ ih₀ ih₁ => exact Nat.add_le_two_pow_max_succ ih₀ ih₁
 
 /-- Two inputs reach the same leaf below a node when the speaker writes the same bit on both and
 they reach the same leaf of the branch taken. -/

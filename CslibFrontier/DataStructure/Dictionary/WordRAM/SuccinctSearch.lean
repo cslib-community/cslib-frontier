@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctMicroChain
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Succinct Dictionary Bucket Search and Query in `Memory.Prog` via `realize`
@@ -390,8 +391,7 @@ theorem realizes_resolveOvfStepGen :
       exact htail.ptr_lt d1.2 h.2.1 _ hr_lt
     have htot := h.2.2.2.1.multi_total_le hb_pos
     have hn_pos := one_le_n_max_of_bucketBits_pos hb_pos
-    unfold gmTailPtrIdx gmTailPtrFlatIdx at ht_lt
-    omega
+    wram_omega [ht_lt]
 
 /-! ## Section 2: Phase 2 Overflow Search (`ovfStepProg`, `ovfLoopProg`, `searchOverflowProg`) -/
 
@@ -890,9 +890,9 @@ theorem clientResult_initOvfSearchProg {U V w n_max h_space : ℕ}
           (dirSlabsPerBucket n_max - 1))) = _
     have hdir_pos := dirSlabsPerBucket_pos_of_pos hb_pos
     have hs_succ : (dirSlabsPerBucket n_max - 1) + 1 = dirSlabsPerBucket n_max := by omega
-    rw [(hinv.multi_slab hb_pos).above_eq d.2 hb _ (by unfold gmQIdx; omega)
-        (by unfold gmQIdx; omega), hs_succ, hcap_dir, Nat.mul_div_cancel _ hK]
-  · refine ⟨by change _ - _ = _ - _; omega, fun _ hq => by unfold gmQIdx at hq; omega⟩
+    rw [(hinv.multi_slab hb_pos).above_eq d.2 hb _ (by wram_omega)
+        (by wram_omega), hs_succ, hcap_dir, Nat.mul_div_cancel _ hK]
+  · refine ⟨by change _ - _ = _ - _; omega, fun _ hq => by wram_omega [hq]⟩
   · refine ⟨by change 0 = _ - _; omega, fun hc _ => by omega⟩
 
 theorem realizes_initOvfSearchGen :

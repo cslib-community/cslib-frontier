@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Pure Slab Bijection Preservation (`gmPushSlab`, `gmPopSlab`)
@@ -489,9 +490,7 @@ theorem gmUnlinkTopSlab_fields {n_max : ℕ} (gm : ℕ → ℕ) {b : ℕ} (hb : 
         else gm (gmSlabTopIdx b')) ∧
     (∀ idx, gmSlabDirBase n_max ≤ idx → gmUnlinkTopSlab n_max gm b idx = gm idx) ∧
     (∀ b' s, slabPtrOf n_max (gmUnlinkTopSlab n_max gm b) b' s = slabPtrOf n_max gm b' s) := by
-  have hge : gmSlabDirBase n_max ≤ gmSlabMetaBase n_max := by
-    unfold gmSlabMetaBase gmTailOwnerBase gmTailPtrBase
-    omega
+  have hge : gmSlabDirBase n_max ≤ gmSlabMetaBase n_max := by wram_omega
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
   · unfold gmUnlinkTopSlab gmQIdx gmSlabTopIdx
     rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
@@ -694,23 +693,23 @@ theorem gmPopSlab_preserves_tail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     have hb_last : gmUnlinkTopSlab n_max gm b
         (gmSlabOwnerBIdx n_max (gmUnlinkTopSlab n_max gm b 0 - 1)) < numBuckets n_max := by
       rw [hu.1, hu.2.2.2.2.2.1 _
-        (by unfold gmSlabOwnerBIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega)]
+        (by wram_omega)]
       exact (hslab.owner_valid (gm 0 - 1) hp_last_lt).1
     have hc := gmCompactSlab_fields_lt (gmUnlinkTopSlab n_max gm b) hlt hb_last
     refine ⟨by rw [hc.1, hu.1], by rw [hc.2.1, hu.2.1],
       fun b' hb' => by rw [hc.2.2.1 b' hb', hu.2.2.1 b' hb'],
       fun b' hb' => by rw [hc.2.2.2.1 b' hb', hu.2.2.2.1 b' hb'],
       fun idx hlo hhi => by
-        rw [hc.2.2.2.2.1 idx hlo hhi, hu.2.2.2.2.2.1 idx (by unfold gmTailPtrBase at hlo; omega)]⟩
+        rw [hc.2.2.2.2.1 idx hlo hhi, hu.2.2.2.2.2.1 idx (by wram_omega [hlo])]⟩
   · unfold gmCompactSlab
     rw [ite_eq_right hlt]
     refine ⟨by rw [Function.update_self, hu.1],
       by rw [Function.update_of_ne (by decide), hu.2.1],
-      fun b' hb' => by rw [Function.update_of_ne (by unfold gmRIdx; omega), hu.2.2.1 b' hb'],
-      fun b' hb' => by rw [Function.update_of_ne (by unfold gmQIdx; omega), hu.2.2.2.1 b' hb'],
+      fun b' hb' => by rw [Function.update_of_ne (by wram_omega), hu.2.2.1 b' hb'],
+      fun b' hb' => by rw [Function.update_of_ne (by wram_omega), hu.2.2.2.1 b' hb'],
       fun idx hlo _ => by
-        rw [Function.update_of_ne (by unfold gmTailPtrBase gmSlabDirBase at hlo; omega),
-          hu.2.2.2.2.2.1 idx (by unfold gmTailPtrBase at hlo; omega)]⟩
+        rw [Function.update_of_ne (by wram_omega [hlo]),
+          hu.2.2.2.2.2.1 idx (by wram_omega [hlo])]⟩
 
 /-- `gmPopSlab` preserves `TailBijection`. -/
 theorem tailBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
@@ -755,15 +754,15 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     simp only [↓reduceIte] at hs
     omega
   have hB_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabOwnerBIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerBIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hS_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabOwnerSIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerSIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hBel_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabBelowIdx n_max p :=
-    fun _ => by unfold gmSlabBelowIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hAbv_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabAboveIdx n_max p :=
-    fun _ => by unfold gmSlabAboveIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hDir_ge : ∀ b' s, gmSlabDirBase n_max ≤ gmSlabDirIdx n_max b' s :=
-    fun _ _ => by unfold gmSlabDirIdx; omega
+    fun _ _ => by wram_omega
   by_cases hlt : gm (gmSlabTopIdx b) < gm 0 - 1
   · have hlt' : gm (gmSlabTopIdx b) < gmUnlinkTopSlab n_max gm b 0 - 1 := by rwa [hu0]
     have hp_last_lt : gm 0 - 1 < gm 0 := by omega
@@ -1027,7 +1026,7 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
           if slabPtrOf n_max gm b' s = gm 0 - 1 then gm (gmSlabTopIdx b)
           else slabPtrOf n_max gm b' s := by
       intro b' hb' s hs
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       obtain ⟨hs_old, hne_del⟩ := hs_old_of_new b' hb' s hs
       have hne_last : slabPtrOf n_max gm b' s ≠ gm 0 - 1 := by rwa [← hp_del_eq]
       rw [ite_eq_right hne_last]
@@ -1036,21 +1035,21 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
         (by rw [hpop_eq, Function.update_self]; omega)
         (by
           rw [hpop_eq, Function.update_of_ne
-            (by have := hB_ge (slabPtrOf n_max gm b' s); unfold gmSlabDirBase at this; omega),
+            (by have := hB_ge (slabPtrOf n_max gm b' s); wram_omega [this]),
             huGe _ (hB_ge _)]
           exact hslab.ownerB_ptr b' hb' s hs_old)
         (by
           rw [hpop_eq, Function.update_of_ne
-            (by have := hS_ge (slabPtrOf n_max gm b' s); unfold gmSlabDirBase at this; omega),
+            (by have := hS_ge (slabPtrOf n_max gm b' s); wram_omega [this]),
             huGe _ (hS_ge _)]
           exact hslab.ownerS_ptr b' hb' s hs_old) ?_
       intro p₁ hp₁ p₂ hp₂ heqB heqS
       rw [hpop_eq, Function.update_self] at hp₁ hp₂
-      rw [hpop_eq, Function.update_of_ne (by have := hB_ge p₁; unfold gmSlabDirBase at this; omega),
-        Function.update_of_ne (by have := hB_ge p₂; unfold gmSlabDirBase at this; omega),
+      rw [hpop_eq, Function.update_of_ne (by have := hB_ge p₁; wram_omega [this]),
+        Function.update_of_ne (by have := hB_ge p₂; wram_omega [this]),
         huGe _ (hB_ge p₁), huGe _ (hB_ge p₂)] at heqB
-      rw [hpop_eq, Function.update_of_ne (by have := hS_ge p₁; unfold gmSlabDirBase at this; omega),
-        Function.update_of_ne (by have := hS_ge p₂; unfold gmSlabDirBase at this; omega),
+      rw [hpop_eq, Function.update_of_ne (by have := hS_ge p₁; wram_omega [this]),
+        Function.update_of_ne (by have := hS_ge p₂; wram_omega [this]),
         huGe _ (hS_ge p₁), huGe _ (hS_ge p₂)] at heqS
       obtain ⟨_, _, hptr1⟩ := hslab.owner_valid p₁ (by omega)
       obtain ⟨_, _, hptr2⟩ := hslab.owner_valid p₂ (by omega)
@@ -1059,7 +1058,7 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
         slabPtrOf n_max (gmPopSlab n_max gm b) b' s = slabPtrOf n_max gm b' s := by
       intro b' hb' s hs
       rw [hptr b' hb' s hs]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       have hne_del := (hs_old_of_new b' hb' s hs).2
       rw [hp_del_eq] at hne_del
       exact ite_eq_right hne_del
@@ -1068,23 +1067,23 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
       ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · intro b' hb' s hs
       rw [hptr_simpl b' hb' s hs, hpop_eq, Function.update_self]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       obtain ⟨hs_old, hne_del⟩ := hs_old_of_new b' hb' s hs
       have hp_lt_old := hslab.ptr_lt b' hb' s hs_old
       omega
     · intro b' hb' s hs
       rw [hptr_simpl b' hb' s hs, hpop_eq,
         Function.update_of_ne
-          (by have := hB_ge (slabPtrOf n_max gm b' s); unfold gmSlabDirBase at this; omega),
+          (by have := hB_ge (slabPtrOf n_max gm b' s); wram_omega [this]),
         huGe _ (hB_ge _)]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       exact hslab.ownerB_ptr b' hb' s (hs_old_of_new b' hb' s hs).1
     · intro b' hb' s hs
       rw [hptr_simpl b' hb' s hs, hpop_eq,
         Function.update_of_ne
-          (by have := hS_ge (slabPtrOf n_max gm b' s); unfold gmSlabDirBase at this; omega),
+          (by have := hS_ge (slabPtrOf n_max gm b' s); wram_omega [this]),
         huGe _ (hS_ge _)]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       exact hslab.ownerS_ptr b' hb' s (hs_old_of_new b' hb' s hs).1
     · intro p hp
       dsimp only
@@ -1093,18 +1092,18 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
       have hB_eq :
           gmPopSlab n_max gm b (gmSlabOwnerBIdx n_max p) = gm (gmSlabOwnerBIdx n_max p) := by
         rw [hpop_eq,
-          Function.update_of_ne (by have := hB_ge p; unfold gmSlabDirBase at this; omega),
+          Function.update_of_ne (by have := hB_ge p; wram_omega [this]),
           huGe _ (hB_ge p)]
       have hS_eq :
           gmPopSlab n_max gm b (gmSlabOwnerSIdx n_max p) = gm (gmSlabOwnerSIdx n_max p) := by
         rw [hpop_eq,
-          Function.update_of_ne (by have := hS_ge p; unfold gmSlabDirBase at this; omega),
+          Function.update_of_ne (by have := hS_ge p; wram_omega [this]),
           huGe _ (hS_ge p)]
       rw [hB_eq, hS_eq]
       obtain ⟨hb_p, hs_p, hptr_p⟩ := hslab.owner_valid p (by omega)
       have hs_new' : gm (gmSlabOwnerSIdx n_max p) <
           gmPopSlab n_max gm b (gmQIdx (gm (gmSlabOwnerBIdx n_max p))) := by
-        rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega), huQ _ hb_p]
+        rw [hpop_eq, Function.update_of_ne (by wram_omega), huQ _ hb_p]
         split_ifs with hbeq
         · have : gm (gmSlabOwnerSIdx n_max p) ≠ gm (gmQIdx b) - 1 := by
             intro heq; apply hp_ne_del; rw [← hptr_p, htop_b, hbeq, heq]
@@ -1116,14 +1115,14 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
       rw [hptr_simpl _ hb_p _ hs_new', hptr_p]
     · intro b' hb' s hs hdir
       rw [hptr_simpl b' hb' s hs, hpop_eq,
-        Function.update_of_ne (by have := hDir_ge b' s; unfold gmSlabDirBase at this; omega),
+        Function.update_of_ne (by have := hDir_ge b' s; wram_omega [this]),
         huGe _ (hDir_ge b' s)]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       exact hslab.dir_eq b' hb' s (hs_old_of_new b' hb' s hs).1 hdir
     · intro b' hb' s hs htop
       rw [hptr_simpl b' hb' s hs, hpop_eq,
-        Function.update_of_ne (by unfold gmSlabTopIdx; omega), huTop b' hb']
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs htop
+        Function.update_of_ne (by wram_omega), huTop b' hb']
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs htop
       obtain ⟨hs_old, _⟩ := hs_old_of_new b' hb' s hs
       rw [huQ b' hb'] at htop
       split_ifs with hbeq
@@ -1137,17 +1136,17 @@ theorem slabBijection_gmPopSlab {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
       have hs1_lt : s - 1 < gmPopSlab n_max gm b (gmQIdx b') := by omega
       rw [hptr_simpl b' hb' s hs, hptr_simpl b' hb' (s - 1) hs1_lt, hpop_eq,
         Function.update_of_ne
-          (by have := hBel_ge (slabPtrOf n_max gm b' s); unfold gmSlabDirBase at this; omega),
+          (by have := hBel_ge (slabPtrOf n_max gm b' s); wram_omega [this]),
         huGe _ (hBel_ge _)]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs
       exact hslab.below_eq b' hb' s (hs_old_of_new b' hb' s hs).1 hpos
     · intro b' hb' s hs habv
       have hs1_lt : s + 1 < gmPopSlab n_max gm b (gmQIdx b') := habv
       rw [hptr_simpl b' hb' s hs, hptr_simpl b' hb' (s + 1) hs1_lt, hpop_eq,
         Function.update_of_ne
-          (by have := hAbv_ge (slabPtrOf n_max gm b' s); unfold gmSlabDirBase at this; omega),
+          (by have := hAbv_ge (slabPtrOf n_max gm b' s); wram_omega [this]),
         huGe _ (hAbv_ge _)]
-      rw [hpop_eq, Function.update_of_ne (by unfold gmQIdx; omega)] at hs hs1_lt
+      rw [hpop_eq, Function.update_of_ne (by wram_omega)] at hs hs1_lt
       exact hslab.above_eq b' hb' s (hs_old_of_new b' hb' s hs).1
         (hs_old_of_new b' hb' (s + 1) hs1_lt).1
 

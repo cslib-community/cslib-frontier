@@ -17,6 +17,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PrepareReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape.Embed
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Tactic.Linarith
 
 /-!
@@ -85,20 +86,8 @@ private theorem start_ready (machine : MultiTapePTM k Bool State Oracle)
       InputFromTape.config true
         (AuxiliaryTape.config ((machine.extendTapes (Fin.castAddEmb r)).initialConfig input)
           (tapeOfList coins) 0 none) outer 1 := by
-  have htapes : (fun i : Fin (k + r + 1) =>
-      tapeOfList (Fin.snoc (α := fun _ => List Bool)
-        (fun _ : Fin (k + r) => []) coins i)) =
-      Fin.lastCases (tapeOfList coins) (fun _ _ => none) := by
-    funext i
-    induction i using Fin.lastCases <;> simp
-  have hpositions : (fun i : Fin (k + r + 1) =>
-      Fin.lastCases (motive := fun _ => ℤ) 0 (fun _ => 0) i) = (fun _ => (0 : ℤ)) := by
-    funext i
-    induction i using Fin.lastCases <;> simp
-  refine Config.ext ?_ rfl
-  simp [ready, MultiTapeMachine.Sequential.start, InputFromTape.config, AuxiliaryTape.config,
-    ReplayInput.initial, wordsCfg, initialConfig, Cfg.init, inCfg, Cfg.withState,
-    replayWithOracle, inputFromTape, MultiTapeMachine.inputFromTape, htapes, hpositions]
+  tm_step [ready, MultiTapeMachine.Sequential.start, InputFromTape.config, AuxiliaryTape.config,
+    ReplayInput.initial, initialConfig, inCfg]
 
 private def finish {input : List Bool} (cfg : Config k Bool State Oracle input)
     (coins outer : List Bool) : Config (k + 3) Bool (Control State) Oracle outer :=

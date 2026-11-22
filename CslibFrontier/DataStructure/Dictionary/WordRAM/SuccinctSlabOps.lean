@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Amortized `O(1)` Slot Allocation and Deallocation in `Memory.Prog`
@@ -388,7 +389,7 @@ theorem clientResult_lastSlotOfProg {U V w n_max h_space : ℕ} (d : ℕ × ℕ)
   · have hd2 : d.2 = 0 := by
       have : numBuckets n_max = 1 := by simp [numBuckets, hb0]
       omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     simp only [hb0, ↓reduceIte, StateTransitionSpec.clientResult_bind,
       clientResult_readGMProg s h0_lt]
     unfold slotOf bCount
@@ -424,12 +425,12 @@ theorem realizes_lastSlotOfGen :
       (fun _ _ => 0) := by
   realizeDictWith [lastSlotOfGenPre_mk] using [realizes_readGMGen]
   · exact h.1
-  · unfold globalMetaLen; omega
+  · wram_omega
   · have hd2 : d.2 = 0 := by
       have := h.2.2.1
       have : numBuckets n_max = 1 := by simp [numBuckets, hc]
       omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     rw [clientResult_readGMProg _ h0_lt]
     have hbc := h.2.2.2
     unfold bCount at hbc
@@ -476,10 +477,9 @@ theorem realizes_lastSlotOfGen :
     unfold gmRIdx at hr_pos
     have ht_lt := htail.ptr_lt d.2 h.2.2.1
       (gmAt d.1 U V w₀ n_max h_space s.mem (4 + 3 * d.2 + 1) - 1)
-      (by unfold gmRIdx; omega)
+      (by wram_omega)
     have htot := h.2.1.multi_total_le hb_pos
-    unfold gmTailPtrIdx gmTailPtrFlatIdx at ht_lt
-    omega
+    wram_omega [ht_lt]
 
 /-! ## Section 2: `pushBackSlotProg` via `realize` -/
 
@@ -569,7 +569,7 @@ theorem pushBackTailWriteProg_effect {U V w n_max h_space base b q_val v_val : �
       hw hb_pos hb s htail₀ hr_lt
   let s_app := (Memory.spec 0).clientState s (appendTailItemProg U V w n_max h_space (base, b))
   let g_new := (n_max - 1) - gm₀ 1
-  have hg_new_lt : g_new < n_max := by dsimp only [g_new]; omega
+  have hg_new_lt : g_new < n_max := by omega
   obtain ⟨hf_wq, hout_wq, hq_wq, hv_wq, hl_wq, hgm_wq⟩ :=
     writeQuotProg_effect (base := base) (V := V) (h_space := h_space) hw hg_new_lt hq_lt s_app
   let s_wq := (Memory.spec 0).clientState s_app
@@ -631,19 +631,17 @@ theorem pushBackTailWriteProg_effect {U V w n_max h_space base b q_val v_val : �
       have h1 : (slabPtrOf n_max gm₀ b' (j / slabSize n_max) + 1) * slabSize n_max ≤
           gm₀ 0 * slabSize n_max := Nat.mul_le_mul_right _ hp_lt
       rw [Nat.add_one_mul] at h1
-      dsimp only [g_new]
       omega
     · have hr'_lt : j - gm₀ (gmQIdx b') * slabSize n_max < gm₀ (gmRIdx b') := by omega
       have ht'_lt : gm₀ (gmTailPtrIdx n_max b' (j - gm₀ (gmQIdx b') * slabSize n_max)) < gm₀ 1 :=
         htail₀.ptr_lt b' hb' _ hr'_lt
-      dsimp only [g_new]
       omega
   refine ⟨hres, by rw [hst, hf_wv, hf_wq, hf_app],
     fun a ha => by
       rw [hst,
-        hout_wv a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-        hout_wq a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-        hout_app a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
+        hout_wv a (by wram_omega [ha]),
+        hout_wq a (by wram_omega [ha]),
+        hout_app a (by wram_omega [ha])],
     by rw [hst, hl_wv, hl_wq, hl_app],
     hgm1_eq,
     by rw [hgm1_eq]; exact htail₁,
@@ -765,9 +763,9 @@ theorem realizes_pushBackTailWriteGen :
   · exact h.1.1
   · exact appendTailItem_sub_lt_n_max hw h.2 d s h.1
   · refine fits_of_le_globalMetaLen h.1.1 h.2 hw hnU hU ?_
-    have := gmRIdx_lt h.2 h.1.2.2.1; unfold gmRIdx at this; omega
+    have := gmRIdx_lt h.2 h.1.2.2.1; wram_omega [this]
   · refine fits_of_le_globalMetaLen h.1.1 h.2 hw hnU hU ?_
-    have := gmRIdx_lt h.2 h.1.2.2.1; unfold gmRIdx at this; omega
+    have := gmRIdx_lt h.2 h.1.2.2.1; wram_omega [this]
   · exact gmRIdx_lt h.2 h.1.2.2.1
 
 /-- Parameter-free `Memory.Prog` operation appending `(q_val, v_val) = (d.1.2, d.2)` at logical
@@ -870,7 +868,7 @@ private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base
     unfold totalSlots at htot
     rw [ite_eq_left hb0] at htot
     change gm₀ 0 < n_max at htot
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     have hc1_lt : gm₀ 0 + 1 < 2 ^ globalPtrBits n_max :=
       lt_two_pow_globalPtrBits_of_le_n_max (by omega)
     obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
@@ -908,9 +906,9 @@ private theorem pushBackSlotProg_effect_of_clientState {U V w n_max h_space base
     refine ⟨by rw [hst, hf3, hf2, hf1],
       fun a ha => by
         rw [hst,
-          hout3 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-          hout2 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-          hout1 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
+          hout3 a (by wram_omega [ha]),
+          hout2 a (by wram_omega [ha]),
+          hout1 a (by wram_omega [ha])],
       by rw [hst, hl3, hl2, hl1],
       hinv',
       by unfold totalSlots; simp [hb0, hgm'_eq],
@@ -1142,14 +1140,14 @@ theorem realizes_pushBackSlotGen :
     dsimp only [d, PushBackSlotPre] at *
   )
   · exact h.1
-  · unfold globalMetaLen; omega
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  · wram_omega
+  · have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     rw [clientResult_readGMProg _ h0_lt]
     have htot := h.2.2.2.1
     unfold totalSlots at htot
     rw [ite_eq_left hc] at htot
     exact htot
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  · have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     rw [clientResult_readGMProg _ h0_lt]
     have htot := h.2.2.2.1
     unfold totalSlots at htot
@@ -1300,7 +1298,7 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
     simp only [hb0, ↓reduceIte] at hbc
     change 1 ≤ gm₀ 0 at hbc
     have hc_le : gm₀ 0 ≤ n_max := hinv.single_valid hb0
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     have hc1_lt : gm₀ 0 - 1 < 2 ^ globalPtrBits n_max :=
       lt_two_pow_globalPtrBits_of_le_n_max (by omega)
     obtain ⟨hf1, hout1, hq1, hv1, hl1, hg1⟩ :=
@@ -1328,7 +1326,7 @@ private theorem popBackSlotProg_effect_of_clientState {U V w n_max h_space base 
     refine ⟨by rw [hst, hf1],
       fun a ha => by
         rw [hst, hout1 a
-          (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
+          (by wram_omega [ha])],
       by rw [hst, hl1],
       hinv',
       by unfold totalSlots; simp only [hb0, ↓reduceIte, hgm'_eq, Function.update_self]; omega,
@@ -1567,12 +1565,12 @@ theorem realizes_popBackSlotGen :
     [realizes_readGMGen, realizes_writeGMGen, realizes_removeLastTailItemGen,
       realizes_demoteSlabGen]
   · exact h.1
-  · unfold globalMetaLen; omega
+  · wram_omega
   · have hd2 : d.2 = 0 := by
       have := h.2.2.1
       have : numBuckets n_max = 1 := by simp [numBuckets, hc]
       omega
-    have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     rw [clientResult_readGMProg _ h0_lt]
     have hbc := h.2.2.2
     unfold bCount at hbc
