@@ -34,6 +34,21 @@ private theorem rootValid (i : ℕ) (hi : i < setup.parameters.search.subdivisio
   change (1 + 1) * i < 4
   omega
 
+-- A terminal native transition retains the designated negative answer after a positive reply.
+example (scan : SeedScanRequest → List (Option ControllerVerdict))
+    (hscan : scan ⟨setup, 1, setup.originalSourceID 1⟩ = [some (.decided true)]) :
+    runSeedSchedulerForFrom setup sourceValid rootValid scan 1 (some (1, false)) =
+      [some ⟨1, false⟩] := by
+  let frame := seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1)
+  have hvalid : frame.Valid := seedSchedulerFrame_indexed_valid setup (by decide) (by decide) false
+  have hlast :
+      ¬frame.cursor + 1 < frame.request.setup.parameters.search.subdivision.originalCount :=
+    by decide
+  have hstep : seedSchedulerStep frame (some (.decided true)) = some (.inr (some false)) := by
+    simpa only [ite_eq_right hlast] using seedSchedulerStep_indexed_decided frame rfl true
+  exact runSeedSchedulerForFrom_step setup sourceValid rootValid scan rfl hvalid rfl hstep
+    (by intro value hv _; cases hv; exact hscan)
+
 -- Seed zero fails at the other source. Seed one is selected with the designated `false`
 -- answer, even though the other source answers `true`. Each of the two successful
 -- verdicts at seed zero continues to seed one, where the two outcomes multiply.
@@ -103,6 +118,17 @@ example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {frame : α → Se
     ComputableInSpace (fun a => seedSchedulerStep (frame a) none)
       enc encSeedSchedulerStepResult S :=
   budget_comp_linear seedSchedulerStep_noReply_inSpace hframe
+
+open ComputableInSpace in
+/-- The frame and source-loop verdict can arrive from separate producers at a shared budget. -/
+example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {frame : α → SeedSchedulerFrame} {reply : α → Option ControllerVerdict}
+    (hframe : ComputableInSpace frame enc encSeedSchedulerFrame S)
+    (hreply : ComputableInSpace reply enc
+      (encOption Turing.DoubleCounting.SourceRoundLoop.encVerdict) S) :
+    ComputableInSpace (fun a => seedSchedulerStep (frame a) (reply a))
+      enc encSeedSchedulerStepResult S :=
+  budget_comp_linear seedSchedulerStep_inSpace (budget_prod hframe hreply)
 
 private def rejecting (_ : SeedSchedulerFrame) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=

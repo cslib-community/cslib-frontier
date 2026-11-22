@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Operations
 public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.Probability
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Bit-Packed Slot Arrays for the Word-RAM Quotient Filter
@@ -304,11 +305,11 @@ private theorem extractBit_writePackedMem_of_disjoint {arr₁ arr₂ b d₂ w : 
 
 /-- Address `base + ReducedKWise.space w w₀ (quotBits w₀ n) (quotBits w₀ n) 5` storing the
 multiply-shift remainder seed `γ : RemSeed w₀`. -/
-@[expose] def remSeedAddr (base w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def remSeedAddr (base w w₀ n : ℕ) : ℕ :=
   base + ReducedKWise.space w w₀ (quotBits w₀ n) (quotBits w₀ n) 5
 
 /-- Base address of the `isFull` `1`-bit packed array (`packedWords (quotBits w₀ n) 1 w` words). -/
-@[expose] def fullBase (base w w₀ n : ℕ) : ℕ :=
+@[expose, wram_arith] def fullBase (base w w₀ n : ℕ) : ℕ :=
   remSeedAddr base w w₀ n + 1
 
 /-- Base address of the `isOcc` `1`-bit packed array (`packedWords (quotBits w₀ n) 1 w` words). -/
@@ -326,7 +327,7 @@ multiply-shift remainder seed `γ : RemSeed w₀`. -/
   runBase base w w₀ n + packedWords (quotBits w₀ n) 1 w
 
 /-- Total contiguous memory footprint `space w w₀ n k` of the two-stage quotient filter in words. -/
-@[expose] def space (w w₀ n k : ℕ) : ℕ :=
+@[expose, wram_arith] def space (w w₀ n k : ℕ) : ℕ :=
   let b := quotBits w₀ n
   let f := remBits w₀ k
   ReducedKWise.space w w₀ b b 5 + 1 + 3 * packedWords b 1 w + packedWords b f w

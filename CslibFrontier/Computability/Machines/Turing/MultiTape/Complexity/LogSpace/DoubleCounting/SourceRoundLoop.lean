@@ -180,6 +180,12 @@ variable (initial : Registers κ)
 
 local notation "M" => machine initial round roundStart roundReply member memberStart memberReply
 
+/-- The loop accepts exactly terminal states that carry a verdict, including a negative
+reachability verdict. -/
+theorem machine_accept_iff (s : State κ ρ μ) :
+    (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
+  rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+
 private def roundState (r : Registers κ) (s : ρ) : State κ ρ μ := .inl (.inl (r, s))
 
 private def memberState (r : Registers κ) (s : μ) : State κ ρ μ := .inl (.inr (r, s))
@@ -463,18 +469,10 @@ theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P
                   omega
                 exact ih _ hlt (r.advance a.tally) hnext suffix suffix' v v' rfl hleft hright
   intro left hl right hr
-  have accepted (bits : List Bool)
-      (h : (M).accept ((M).run input bits) = true) :
-      ∃ v, (M).run input bits = .inr (some v) := by
-    change (reply ((M).run input bits)).isSome = true at h
-    cases he : (M).run input bits with
-    | inl => rw [he] at h; cases h
-    | inr verdict =>
-      cases verdict with
-      | none => rw [he] at h; cases h
-      | some v => exact ⟨v, rfl⟩
-  obtain ⟨v, hv⟩ := accepted left hl.2
-  obtain ⟨v', hv'⟩ := accepted right hr.2
+  have haccept := machine_accept_iff initial round roundStart roundReply
+    member memberStart memberReply
+  obtain ⟨v, hv⟩ := (haccept _).mp hl.2
+  obtain ⟨v', hv'⟩ := (haccept _).mp hr.2
   exact aux initial hp left right v v'
     ((firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
       memberReply input left v).mp ⟨hl.1, hv⟩)
@@ -1009,9 +1007,8 @@ theorem native_firstHalting_accept_iff {α : Type} {enc : α ↪ List Bool} {S :
       member memberStart memberReply (enc a) bits verdict
     rw [← hinit, init_withInit, firstHalting_withInit, run_withInit] at h
     exact h
-  have haccept (s : State κ ρ μ) :
-      (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
-    rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+  have haccept := machine_accept_iff initial round roundStart roundReply
+    member memberStart memberReply
   rw [routines.existsUnique_accepting_replay_iff]
   constructor
   · rintro ⟨hfirst, htrue⟩
