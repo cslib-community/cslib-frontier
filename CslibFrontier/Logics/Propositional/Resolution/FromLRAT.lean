@@ -44,7 +44,6 @@ The size lower bounds for resolution then bound the size of every accepted certi
 
 ## Main definitions
 
-* `Cslib.Logic.PL.CNF.lratHintCount`: the total number of hints of a certificate.
 * `Cslib.Logic.PL.CNF.lratToProof`: the resolution proof of a certificate.
 
 ## Main results
@@ -66,14 +65,6 @@ namespace Cslib.Logic.PL.CNF
 
 open Std.Tactic.BVDecide (LRAT.IntAction)
 open Std.Sat (Literal.negate)
-
-/-- The **number of hints** of a certificate: the total length of the hint lists of its RUP and
-empty-clause steps. -/
-def lratHintCount : List LRAT.IntAction → ℕ
-  | [] => 0
-  | .addRup _ _ hints :: rest => hints.size + lratHintCount rest
-  | .addEmpty _ hints :: rest => hints.size + lratHintCount rest
-  | _ :: rest => lratHintCount rest
 
 /-- A clause of the checker's database, with its number, paired with a line of the proof under
 construction whose literals are among its own. -/

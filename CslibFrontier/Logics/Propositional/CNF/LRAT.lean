@@ -40,6 +40,7 @@ accepted certificate shows that the formula has no model
 * `Cslib.Logic.PL.Clause.residual`: what is left of a clause once its false literals are removed:
   nothing, one literal possibly repeated, or more.
 * `Cslib.Logic.PL.CNF.propagateHints`: unit propagation along hints.
+* `Cslib.Logic.PL.CNF.lratHintCount`: the number of hints of a certificate.
 * `Cslib.Logic.PL.CNF.checkLRAT`: the checker.
 
 ## Main results
@@ -231,6 +232,14 @@ theorem CNF.propagateHints_cons_of_forall_ne {db : List (ℕ × Clause ℕ)} {t 
   have hk : (fun e : ℕ × Clause ℕ => h == e.1) = (·.1 == h) := funext fun _ => BEq.comm
   refine propagateWith_cons_of_forall_ne (c := e.2) ?_ hfalse hnext
   simp only [List.lookup_eq_map_find?, hk, he, Option.map_some]
+
+/-- The **number of hints** of a certificate: the total length of the hint lists of its RUP and
+empty-clause steps. The checker reads no other hints: it rejects RAT steps. -/
+def CNF.lratHintCount : List LRAT.IntAction → ℕ
+  | [] => 0
+  | .addRup _ _ hints :: rest => hints.size + lratHintCount rest
+  | .addEmpty _ hints :: rest => hints.size + lratHintCount rest
+  | _ :: rest => lratHintCount rest
 
 /-- The checker on a database of numbered clauses. -/
 def CNF.checkLRATAux : List (ℕ × Clause ℕ) → List LRAT.IntAction → Bool
