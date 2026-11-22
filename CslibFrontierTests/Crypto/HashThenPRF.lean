@@ -23,6 +23,8 @@ Checks the finite and word PRF composition APIs as a `module` client:
 - tightness/necessity on constant hashes, counterexample when `m₀ = m₁` (`Z = Bool`), comparison
   with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe;
 - the word reduction forwards valid queries and gives an empty reply to malformed queries.
+- the ideal collector stores a repeated valid query once and skips a rejected query of the same
+  length.
 -/
 
 namespace Cslib.Crypto.PRF.Tests
@@ -50,6 +52,19 @@ example (msg : List Bool) :
   by_cases h : msg.length = 1
   · simp [h]
   · simp [beq_eq_false_iff_ne.mpr h]
+
+private def repeatedWordQueries : OracleDistinguisher := fun _ _ => do
+  let _ ← ProbOracleComp.query ((), [true])
+  let _ ← ProbOracleComp.query ((), [false])
+  let _ ← ProbOracleComp.query ((), [true])
+  return true
+
+example :
+    ProbComp.eval (hashThenPRFWordIdealQueries (fun _ => 0)
+      (fun _ word => word == [true]) repeatedWordQueries (1, [])) = PMF.pure [[true]] := by
+  simp only [hashThenPRFWordIdealQueries, repeatedWordQueries, ProbOracleComp.runState_bind,
+    ProbOracleComp.runState_query, ProbOracleComp.runState_pure, StateT.run_bind, StateT.run_pure]
+  simp [StateT.run, cachedRandomFunctionOracle, memoize, ProbComp.eval_map]
 
 /-! ### Instantiation with `coeffPolyHash` and equation (6.17) (§6.5, p. 231) -/
 

@@ -59,6 +59,35 @@ theorem formulaGateSuffixValue_polyTime {α : Type} {input : α ↪ List Bool}
     (listGetD_binary false hsuffix (binary_sub' hchild (binary_add' hgate (const 1))))
     (const false)
 
+/-- Prepend the value of an indexed gate to its computed suffix, given the answer to its
+comparison request. The answer is ignored at gates without a comparison request. -/
+def formulaWordGateUpdate (word : List Bool) (index : ℕ) (answer : Bool)
+    (suffix : List Bool) : List Bool :=
+  formulaWordGateValueWithAnswer word index answer (formulaGateSuffixValue suffix index) :: suffix
+
+/-- The Boolean gate update is polynomial time in the raw word, binary position,
+comparison-answer bit, and raw suffix. -/
+theorem formulaWordGateUpdate_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index : α → ℕ} {answer : α → Bool} {suffix : α → List Bool}
+    (hword : ComputableInPolyTime word input encBits)
+    (hindex : ComputableInPolyTime index input encNat)
+    (hanswer : ComputableInPolyTime answer input encBool)
+    (hsuffix : ComputableInPolyTime suffix input encBits) :
+    ComputableInPolyTime (fun a => formulaWordGateUpdate (word a) (index a) (answer a) (suffix a))
+      input encBits := by
+  have hread := formulaGateSuffixValue_polyTime (hsuffix.comp (fst input encNat))
+    (hindex.comp (fst input encNat)) (snd input encNat)
+  exact bitsCons (formulaWordGateValueWithAnswer_polyTime hword hindex hanswer hread) hsuffix
+
+/-- Supplying the comparison answer from the term signs gives the scan's next suffix. -/
+theorem formulaWordGateUpdate_eq_cons (word : List Bool) (index : ℕ)
+    (termSign : List Bool → SignType) (suffix : List Bool) :
+    formulaWordGateUpdate word index
+      ((formulaWordComparisonRequest word index).any fun request =>
+        decide (termSign request.termWord = request.requestedSign)) suffix =
+      formulaWordGateValue word index termSign (formulaGateSuffixValue suffix index) :: suffix := by
+  rw [formulaWordGateUpdate, formulaWordGateValueWithAnswer_eq]
+
 private def gateValuesAux (word : List Bool) (termSign : List Bool → SignType)
     (size : ℕ) : ℕ → List Bool
   | 0 => []
