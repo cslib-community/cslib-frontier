@@ -1641,6 +1641,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
 public import CslibFrontier.Computability.Circuit.Frontier.Projection
 public import CslibFrontier.Computability.Circuit.Frontier.Rectangle
 public import CslibFrontier.Computability.Circuit.Frontier.Reduction
+public import CslibFrontier.Computability.Circuit.Frontier.SumsetBridge
 public import CslibFrontier.Computability.Circuit.Frontier.Sweep
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ActiveCall

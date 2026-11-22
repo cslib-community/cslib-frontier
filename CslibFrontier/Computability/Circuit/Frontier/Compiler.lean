@@ -31,12 +31,13 @@ This file proves the graph-theoretic and counting properties of `Compiler.graph 
 * **Counting.** With `C` consumers, `W` signals and `m` outputs, the graph has `2 C` edges and
   `W + C + m` vertices, so its cycle rank is `C - W - m + 1`: the number of argument slots minus
   the number of signals, plus one. A gate of arity `k` has `k` slots, so it contributes `k - 1` to
-  the cycle rank, and a reachable input contributes `-1`. Hence, when the graph is connected, its
-  cycle rank is at most `(r - 1) s + 1 - |read|` for `s` gates of positive arity and fan-in at most
-  `r` (`cycleRank_add_ncard_read_le`). Gates of arity zero, the constants, only lower the cycle
-  rank, so the count charges only the *inner* gates (`Circuit.innerSize`). The count holds inside
-  every closed set of vertices, for instance a connected component
-  (`cycleRankOn_add_ncard_readIn_le`), and the count of the whole graph is its case for the set of
+  the cycle rank, and a reachable input contributes `-1`. Gates of arity zero only lower the cycle
+  rank and gates of arity one contribute `0`, so when the graph is connected its cycle rank is at
+  most `(r - 1) s + 1 - |read|` for `s` multiary gates (`Circuit.multiarySize`, hence also for
+  `Circuit.innerSize`) and fan-in at most `r` (`cycleRank_add_ncard_read_le_multiarySize`,
+  `cycleRank_add_ncard_read_le`). The count holds inside every closed set of vertices, for instance
+  a connected component (`cycleRankOn_add_ncard_readIn_le_multiarySize`,
+  `cycleRankOn_add_ncard_readIn_le`), and the count of the whole graph is its case for the set of
   all vertices.
 
 ## Main definitions
@@ -53,11 +54,14 @@ This file proves the graph-theoretic and counting properties of `Compiler.graph 
   vertex; an output depending on an input is joined to its vertex.
 * `Cslib.Circuits.Frontier.Compiler.maxDegreeLE`: for fan-in at most `r ≥ 2`, the degrees are at
   most `r + 1`; for fan-in two the graph is subcubic.
-* `Cslib.Circuits.Frontier.Compiler.ncard_touching_add_ncard_readIn_le`,
+* `Cslib.Circuits.Frontier.Compiler.ncard_touching_add_ncard_readIn_le_multiarySize`,
+  `Cslib.Circuits.Frontier.Compiler.cycleRankOn_add_ncard_readIn_le_multiarySize`,
+  `Cslib.Circuits.Frontier.Compiler.ncard_touching_add_ncard_readIn_le`,
   `Cslib.Circuits.Frontier.Compiler.cycleRankOn_add_ncard_readIn_le`: the edge and cycle-rank counts
   inside a closed set of vertices.
-* `Cslib.Circuits.Frontier.Compiler.cycleRank_add_ncard_read_le`: the cycle rank and the number
-  of inputs read add up to at most `(r - 1) s + 1`, where `s` counts the inner gates.
+* `Cslib.Circuits.Frontier.Compiler.cycleRank_add_ncard_read_le_multiarySize`,
+  `Cslib.Circuits.Frontier.Compiler.cycleRank_add_ncard_read_le`: the cycle rank and the number
+  of inputs read add up to at most `(r - 1) s + 1`, where `s` counts the multiary (or inner) gates.
 * `Cslib.Circuits.Frontier.Compiler.card_signal_le_innerSize`,
   `Cslib.Circuits.Frontier.Compiler.card_signal_le`: there are at most `r s + m` (hence at most
   `r * c.size + m`) reachable signals.
@@ -417,20 +421,78 @@ private theorem ncard_readIn_add_card_le (W : Set (Vertex c)) :
   exact Nat.card_le_card_of_injective (fun g => ⟨⟨g.1.1, g.1.2.1⟩, g.2⟩) fun _ _ h =>
     Subtype.ext (Subtype.ext (congrArg (fun g => g.1.1) h))
 
-/-- **The count inside a closed set, gate by gate.** For fan-in at most `r`, the edges at a
-closed set of vertices `W` and the inputs read in `W` number at most `(r - 1) s_W` more than the
-vertices of `W`, where `s_W` counts the reachable inner gates in `W`. -/
-private theorem ncard_touching_add_ncard_readIn_le_card_innerGateIn {r : ℕ} (hfan : c.FanInAtMost r)
+/-- Each unary gate in `W` has one slot, and each multiary gate in `W` has at most `r` slots. -/
+private theorem card_slot_le_unary_add_multiary {r : ℕ} (hfan : c.FanInAtMost r)
+    (W : Set (Vertex c)) :
+    Nat.card {t : Slot c // owner (.inl t) ∈ W} ≤
+      Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op = 1} +
+        r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
+  classical
+  let Q : {t : Slot c // owner (.inl t) ∈ W} → Prop :=
+    fun t => σ.Arity (c.program.lines t.1.1.1).op = 1
+  have hsplit : Nat.card {t : Slot c // owner (.inl t) ∈ W} =
+      Nat.card {t // Q t} + Nat.card {t // ¬ Q t} :=
+    (Nat.card_congr (Equiv.sumCompl Q).symm).trans (Nat.card_sum)
+  have hU : Nat.card {t // Q t} ≤
+      Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op = 1} := by
+    refine Nat.card_le_card_of_injective
+      (fun t => ⟨⟨⟨t.1.1.1.1, t.1.1.2, by omega⟩, t.1.2⟩, t.2⟩) ?_
+    rintro ⟨⟨⟨⟨g, a⟩, hg⟩, hgW⟩, h1⟩ ⟨⟨⟨⟨g', a'⟩, hg'⟩, hgW'⟩, h1'⟩ h
+    obtain rfl : g = g' := congrArg (fun x => x.1.1.1) h
+    have ha0 : a.val = 0 := by have := a.isLt; dsimp [Q] at h1; omega
+    have ha0' : a'.val = 0 := by have := a'.isLt; dsimp [Q] at h1'; omega
+    obtain rfl : a = a' := Fin.ext (ha0.trans ha0'.symm)
+    rfl
+  have hM : Nat.card {t // ¬ Q t} ≤
+      r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
+    calc Nat.card {t // ¬ Q t}
+        ≤ Nat.card ({g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} × Fin r) := by
+          refine Nat.card_le_card_of_injective
+            (fun t => (⟨⟨⟨t.1.1.1.1, t.1.1.2,
+                Nat.pos_iff_ne_zero.mp (Nat.zero_lt_of_lt t.1.1.1.2.isLt)⟩, t.1.2⟩, t.2⟩,
+              ⟨t.1.1.1.2.val,
+                t.1.1.1.2.isLt.trans_le (Program.fanInAtMost_iff.mp hfan t.1.1.1.1)⟩)) ?_
+          rintro ⟨⟨⟨⟨g, a⟩, hg⟩, hgW⟩, _⟩ ⟨⟨⟨⟨g', a'⟩, hg'⟩, hgW'⟩, _⟩ h
+          obtain rfl : g = g' := congrArg (fun x => x.1.1.1.1) h
+          obtain rfl : a = a' := Fin.ext (congrArg (fun x => x.2.val) h)
+          rfl
+      _ = r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
+          rw [Nat.card_prod, Nat.card_eq_fintype_card (α := Fin r), Fintype.card_fin, mul_comm]
+  omega
+
+private theorem card_multiaryGateIn_le (W : Set (Vertex c)) :
+    Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} ≤ c.multiarySize := by
+  rw [Circuit.multiarySize, ← Nat.card_eq_finsetCard]
+  refine Nat.card_le_card_of_injective
+    (fun g => ⟨g.1.1.1, Program.mem_multiaryGates.mpr
+      (by have := g.1.1.2.2; have := g.2; omega)⟩) ?_
+  rintro ⟨⟨⟨g, _⟩, _⟩, _⟩ ⟨⟨⟨g', _⟩, _⟩, _⟩ h
+  obtain rfl : g = g' := congrArg Subtype.val h
+  rfl
+
+/-- **The count inside a closed set, charging only multiary gates.** For fan-in at most `r`, the
+edges at a closed set of vertices `W` and the inputs read in `W` number at most `(r - 1) s` more
+than the vertices of `W`, where `s` counts the multiary gates (`arity ≥ 2`); constant and unary
+gates are free. -/
+theorem ncard_touching_add_ncard_readIn_le_multiarySize {r : ℕ} (hfan : c.FanInAtMost r)
     {W : Set (Vertex c)} (hW : (graph c).edgeCut W = ∅) :
     ((graph c).touching W).ncard + ((network c I Acc).readIn W).ncard ≤
-      W.ncard + (r - 1) * Nat.card (InnerGateIn c W) := by
+      W.ncard + (r - 1) * c.multiarySize := by
+  classical
+  let P : InnerGateIn c W → Prop := fun g => σ.Arity (c.program.lines g.1.1).op = 1
+  have hP : Nat.card (InnerGateIn c W) =
+      Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op = 1} +
+        Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} :=
+    (Nat.card_congr (Equiv.sumCompl P).symm).trans (Nat.card_sum)
   have hE := ncard_touching_eq hW
   have hJ := card_junction_eq hW
   have hV := ncard_eq_add W
-  have hslot := card_slot_le hfan W
+  have hslot := card_slot_le_unary_add_multiary hfan W
   have hsig := ncard_readIn_add_card_le I Acc W
-  have hr : r * Nat.card (InnerGateIn c W) ≤
-      (r - 1) * Nat.card (InnerGateIn c W) + Nat.card (InnerGateIn c W) := by
+  have hM := Nat.mul_le_mul_left (r - 1) (card_multiaryGateIn_le (c := c) W)
+  have hr : r * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} ≤
+      (r - 1) * Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} +
+        Nat.card {g : InnerGateIn c W // σ.Arity (c.program.lines g.1.1).op ≠ 1} := by
     rcases r with _ | r
     · simp
     · simp [add_mul]
@@ -443,8 +505,20 @@ theorem ncard_touching_add_ncard_readIn_le {r : ℕ} (hfan : c.FanInAtMost r)
     {W : Set (Vertex c)} (hW : (graph c).edgeCut W = ∅) :
     ((graph c).touching W).ncard + ((network c I Acc).readIn W).ncard ≤
       W.ncard + (r - 1) * c.innerSize :=
-  (ncard_touching_add_ncard_readIn_le_card_innerGateIn I Acc hfan hW).trans
-    (Nat.add_le_add_left (Nat.mul_le_mul_left _ (card_innerGateIn_le W)) _)
+  (ncard_touching_add_ncard_readIn_le_multiarySize I Acc hfan hW).trans
+    (Nat.add_le_add_left (Nat.mul_le_mul_left _ c.multiarySize_le_innerSize) _)
+
+/-- **The cycle rank of a closed set, charging only multiary gates.** For fan-in at most `r`, the
+cycle rank of a closed set of vertices `W` with at least `|W| - 1` edges and the number of inputs
+read in `W` add up to at most `(r - 1) s + 1`, where `s` counts the multiary gates. -/
+theorem cycleRankOn_add_ncard_readIn_le_multiarySize {r : ℕ} (hfan : c.FanInAtMost r)
+    {W : Set (Vertex c)} (hW : (graph c).edgeCut W = ∅)
+    (hconn : W.ncard ≤ ((graph c).touching W).ncard + 1) :
+    (graph c).cycleRankOn W + ((network c I Acc).readIn W).ncard ≤
+      (r - 1) * c.multiarySize + 1 := by
+  have := ncard_touching_add_ncard_readIn_le_multiarySize I Acc hfan hW
+  unfold Multigraph.cycleRankOn
+  omega
 
 /-- **The cycle rank of a closed set.** For fan-in at most `r`, the cycle rank of a closed set of
 vertices `W` with at least `|W| - 1` edges, for instance a connected component, and the number of
@@ -452,34 +526,42 @@ inputs read in `W` add up to at most `(r - 1) s + 1`, where `s` counts the inner
 theorem cycleRankOn_add_ncard_readIn_le {r : ℕ} (hfan : c.FanInAtMost r)
     {W : Set (Vertex c)} (hW : (graph c).edgeCut W = ∅)
     (hconn : W.ncard ≤ ((graph c).touching W).ncard + 1) :
-    (graph c).cycleRankOn W + ((network c I Acc).readIn W).ncard ≤ (r - 1) * c.innerSize + 1 := by
-  have := ncard_touching_add_ncard_readIn_le I Acc hfan hW
-  unfold Multigraph.cycleRankOn
-  omega
+    (graph c).cycleRankOn W + ((network c I Acc).readIn W).ncard ≤ (r - 1) * c.innerSize + 1 :=
+  (cycleRankOn_add_ncard_readIn_le_multiarySize I Acc hfan hW hconn).trans
+    (Nat.add_le_add_right (Nat.mul_le_mul_left _ c.multiarySize_le_innerSize) 1)
 
 /-! ### Counting in the whole graph -/
 
-/-- **The edge count.** For fan-in at most `r`, the edges of the graph and the inputs read by
-the network number at most `(r - 1) s` more than the vertices, where `s` counts the inner
-gates. This is the count inside the closed set of all vertices. -/
-private theorem card_edge_add_ncard_read_le {r : ℕ} (hfan : c.FanInAtMost r) :
+/-- **The edge count, charging only multiary gates.** For fan-in at most `r`, the edges of the
+graph and the inputs read by the network number at most `(r - 1) s` more than the vertices, where
+`s` counts the multiary gates. -/
+private theorem card_edge_add_ncard_read_le_multiarySize {r : ℕ} (hfan : c.FanInAtMost r) :
     Nat.card (Edge c) + (network c I Acc).read.ncard ≤
-      Nat.card (Vertex c) + (r - 1) * c.innerSize := by
-  have h := ncard_touching_add_ncard_readIn_le I Acc hfan (graph c).edgeCut_univ
+      Nat.card (Vertex c) + (r - 1) * c.multiarySize := by
+  have h := ncard_touching_add_ncard_readIn_le_multiarySize I Acc hfan (graph c).edgeCut_univ
   have htouch : (graph c).touching univ = univ := eq_univ_of_forall fun _ => Or.inl (mem_univ _)
   rw [htouch, ncard_univ, ncard_univ] at h
   exact h
+
+/-- **The cycle rank, charging only multiary gates.** For fan-in at most `r`, if the graph is
+connected (as it is for one output), its cycle rank and the number of inputs read by the network
+add up to at most `(r - 1) s + 1`, where `s` counts the multiary gates (`arity ≥ 2`). -/
+theorem cycleRank_add_ncard_read_le_multiarySize {r : ℕ} (hfan : c.FanInAtMost r)
+    (hconn : (graph c).toSimpleGraph.Connected) :
+    (graph c).cycleRank + (network c I Acc).read.ncard ≤ (r - 1) * c.multiarySize + 1 := by
+  have h := card_edge_add_ncard_read_le_multiarySize I Acc hfan
+  have hV := (graph c).card_le_card_add_one_of_connected hconn
+  unfold Multigraph.cycleRank
+  omega
 
 /-- **The cycle rank.** For fan-in at most `r`, if the graph is connected (as it is for one
 output), its cycle rank and the number of inputs read by the network add up to at most
 `(r - 1) s + 1`, where `s` counts the inner gates. -/
 theorem cycleRank_add_ncard_read_le {r : ℕ} (hfan : c.FanInAtMost r)
     (hconn : (graph c).toSimpleGraph.Connected) :
-    (graph c).cycleRank + (network c I Acc).read.ncard ≤ (r - 1) * c.innerSize + 1 := by
-  have h := card_edge_add_ncard_read_le I Acc hfan
-  have hV := (graph c).card_le_card_add_one_of_connected hconn
-  unfold Multigraph.cycleRank
-  omega
+    (graph c).cycleRank + (network c I Acc).read.ncard ≤ (r - 1) * c.innerSize + 1 :=
+  (cycleRank_add_ncard_read_le_multiarySize I Acc hfan hconn).trans
+    (Nat.add_le_add_right (Nat.mul_le_mul_left _ c.multiarySize_le_innerSize) 1)
 
 /-- **The number of vertices** is at most `2 r s + 3 m` for fan-in at most `r`, where `s` counts
 the inner gates and `m` the outputs. -/
