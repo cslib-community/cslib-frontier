@@ -18,6 +18,8 @@ between two levels. For a dictator, `Var = I = 1`, and the KKL Edge-Isoperimetri
 `(9 / 1) 9^{-1} = 1`, the maximum possible influence. The Kahn–Kalai–Linial theorem is applied to
 the nearly balanced Tribes function, whose variance is at least `3 / 4`. -/
 
+set_option linter.privateModule false
+
 public section
 
 namespace CslibFrontierTests.KahnKalaiLinial
@@ -75,7 +77,7 @@ private theorem totalInfluence_twoLevels : totalInfluence twoLevels = 3 := by
 
 /-- **The convexity step on two levels**: for `χ_{0} + χ_{0,1}`, with `Var = 2` and `I = 3`, it
 reads `2 · 3^{-3/2} ≤ 3^{-1} + 3^{-2} = 4 / 9`. -/
-theorem two_mul_one_third_rpow_le_four_ninths : 2 * (1 / 3 : ℝ) ^ (3 / 2 : ℝ) ≤ 4 / 9 := by
+example : 2 * (1 / 3 : ℝ) ^ (3 / 2 : ℝ) ≤ 4 / 9 := by
   have h := expect_sub_expect_sq_mul_one_third_rpow_le twoLevels
   rw [variance_twoLevels, totalInfluence_twoLevels,
     sum_mul_fourierCoeff_twoLevels_sq (by simp) (by simp)] at h
@@ -85,8 +87,7 @@ theorem two_mul_one_third_rpow_le_four_ninths : 2 * (1 / 3 : ℝ) ^ (3 / 2 : ℝ
 /-- **The KKL Edge-Isoperimetric Theorem on a dictator**: on every index set, for a dictator
 `x ↦ x i` (`Var = I = 1`) the theorem gives a coordinate of influence at least `1`, the maximum
 possible. -/
-theorem exists_one_le_influence_dictator (i : ι) :
-    ∃ j, 1 ≤ influence j fun x : ι → Bool => signVal (x i) := by
+example (i : ι) : ∃ j, 1 ≤ influence j fun x : ι → Bool => signVal (x i) := by
   obtain ⟨j, hj⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence (fun x : ι → Bool => x i)
     (by rw [variance_dictator]; norm_num)
   rw [variance_dictator, totalInfluence_dictator] at hj
@@ -95,7 +96,7 @@ theorem exists_one_le_influence_dictator (i : ι) :
 /-- **The Kahn–Kalai–Linial theorem for Tribes**: the nearly balanced Tribes function on
 `n = s w` bits, `s = tribesSize w` and `w ≥ 2`, has variance at least `3 / 4`, so the theorem gives
 a coordinate of influence at least `3 log n / (16 n)`. -/
-theorem exists_three_mul_log_div_le_influence_tribes {w : ℕ} (hw : 2 ≤ w) :
+example {w : ℕ} (hw : 2 ≤ w) :
     ∃ k, 3 * Real.log (tribesSize w * w : ℕ) / (16 * (tribesSize w * w : ℕ)) ≤
       influence k (fun x => signVal (tribes w (tribesSize w) x)) := by
   have hs : 1 ≤ tribesSize w :=
