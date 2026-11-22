@@ -7821,8 +7821,10 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Anticoncentration
 public import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 public import CslibFrontier.Foundations.BooleanAnalysis.Bonami
 public import CslibFrontier.Foundations.BooleanAnalysis.BooleanQuotient
+public import CslibFrontier.Foundations.BooleanAnalysis.Bribery
 public import CslibFrontier.Foundations.BooleanAnalysis.BucketWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.CharacterProjection
+public import CslibFrontier.Foundations.BooleanAnalysis.CoalitionalInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.Concentration
 public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators

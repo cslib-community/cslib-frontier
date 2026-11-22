@@ -12,6 +12,7 @@ public import Mathlib.Analysis.Real.Sqrt
 public import Mathlib.Data.Fintype.Powerset
 import CslibFrontier.Foundations.BooleanAnalysis.Bernoulli
 import CslibFrontier.Foundations.BooleanAnalysis.Influence
+import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.BitString.Weight
 
 /-!
@@ -150,10 +151,8 @@ private theorem mean_le_of_complement_obstruction (f : (ι → Bool) → ℝ) {k
   · exact hk.trans (le_add_of_nonneg_right (Real.sqrt_nonneg _))
   have hk' : 0 ≤ μ - k := by linarith
   have heq : (𝔼 x : ι → Bool, (f (fun i => !x i) - μ) ^ 2) =
-      𝔼 x, (f x - μ) ^ 2 := by
-    let e : Equiv.Perm (ι → Bool) := Function.Involutive.toPerm
-      (fun (x : ι → Bool) i => !x i) (fun x => by funext i; simp)
-    exact Fintype.expect_equiv e _ _ fun _ => rfl
+      𝔼 x, (f x - μ) ^ 2 :=
+    Fintype.expect_comp_not fun x => (f x - μ) ^ 2
   have hpt (x : ι → Bool) : (μ - k) ^ 2 ≤ (f x - μ) ^ 2 +
       (f (fun i => !x i) - μ) ^ 2 := by
     rcases h x with hx | hx

@@ -42,7 +42,8 @@ function of some of the coordinates has the same average on the product
 (`Fintype.expect_comp_fst`, `Fintype.expect_comp_snd`), and a function on a product splits
 orthogonally into its fiber averages and a part of average zero on every fiber
 (`Fintype.exists_eq_add_expect_fiber_eq_zero`). The uniform average on a finite group is
-translation invariant (`Fintype.expect_add_left`), and resampling one coordinate of a uniformly
+translation invariant (`Fintype.expect_add_left`). On the cube `ι → Bool` it is invariant under
+complementing every bit (`Fintype.expect_comp_not`). Resampling one coordinate of a uniformly
 random tuple leaves its average unchanged (`Fintype.expect_expect_update`).
 
 ## Main results
@@ -58,10 +59,11 @@ random tuple leaves its average unchanged (`Fintype.expect_expect_update`).
   function of some of the coordinates has the same average on the product.
 * `Fintype.expect_unique`, `Fintype.expect_bool`, `Fintype.expect_unique_bool`: averages on
   `Unique` types and `Bool`.
-* `Fintype.expect_add_left`, `Fintype.expect_expect_update`,
+* `Fintype.expect_add_left`, `Fintype.expect_comp_not`, `Fintype.expect_expect_update`,
   `Fintype.expect_comp_arrowCongr`, `Fintype.expect_sumElim`,
-  `Fintype.expect_restrict_coordinates`: translation, coordinate-resampling, coordinate-renaming,
-  disjoint-union splitting, and coordinate-restriction invariance of uniform averages.
+  `Fintype.expect_restrict_coordinates`: translation, complementation, coordinate-resampling,
+  coordinate-renaming, disjoint-union splitting, and coordinate-restriction invariance of uniform
+  averages.
 * `Fintype.expect_sub_expect_fiber`, `Fintype.expect_add_sq_of_expect_fiber_eq_zero`,
   `Fintype.exists_eq_add_expect_fiber_eq_zero`: orthogonal fiber decomposition of second moments on
   product types.
@@ -168,6 +170,13 @@ uniform average is unchanged. -/
 theorem expect_add_left {G : Type*} [AddGroup G] [Fintype G] (f : G → M) (x : G) :
     𝔼 y, f (x + y) = 𝔼 y, f y :=
   Fintype.expect_equiv (Equiv.addLeft x) _ _ fun _ ↦ rfl
+
+/-- **Complementing every bit** permutes the cube `ι → Bool`, so the uniform average is
+unchanged. -/
+theorem expect_comp_not [DecidableEq ι] (f : (ι → Bool) → M) :
+    𝔼 x : ι → Bool, f (fun i ↦ !x i) = 𝔼 x, f x :=
+  Fintype.expect_equiv (Function.Involutive.toPerm (fun x i ↦ !x i)
+    fun x ↦ funext fun i ↦ Bool.not_not (x i)) _ _ fun _ ↦ rfl
 
 /-- The uniform average over a type with a unique element is the value at `default`. -/
 theorem expect_unique [Unique α] (f : α → M) : 𝔼 a, f a = f default := by
