@@ -1776,6 +1776,42 @@ theorem ATrail.undoGo_decisions (T : ATrail) (o : Options) (act : Activity) (lo 
   | 0, _, _, _, _ => rfl
   | k + 1, A, H, P, n => by rw [undoGo, ATrail.undoGo_decisions T o act lo k]; rfl
 
+/-- **The variable of the newest marked entry** below position `i`, scanning down, or `0` if there
+is none. Below the newest decision, with the variables of the learned clause marked, it is the
+variable of the literal of the clause false at the highest level, the backjump level. -/
+@[expose] def ATrail.topMarked (T : ATrail) (marked : ℕ → Bool) : ℕ → ℕ
+  | 0 => 0
+  | i + 1 => if marked (T.lits.getD i 0 / 2) then T.lits.getD i 0 / 2 else T.topMarked marked i
+
+/-- **The clause `C` with its literal on the variable `w` second**, if it has one after its first
+literal. Stored with this order, a learned clause watches its asserting literal and, as in
+MiniSat, the literal false at the backjump level, the last of the others to become unassigned when
+backtracking, so that the clause is not left unit with a false watched literal. -/
+@[expose] def secondOn (w : ℕ) : Clause ℕ → Clause ℕ
+  | l :: rest =>
+    match rest.find? (fun y => y.1 == w) with
+    | some y => l :: y :: rest.erase y
+    | none => l :: rest
+  | [] => []
+
+/-- Moving a literal second permutes the clause. -/
+theorem perm_secondOn (w : ℕ) : ∀ C : Clause ℕ, (secondOn w C).Perm C
+  | [] => List.Perm.refl _
+  | l :: rest => by
+    rw [secondOn]
+    split
+    · rename_i y hy
+      exact ((List.perm_cons_erase (List.mem_of_find?_eq_some hy)).symm).cons l
+    · exact List.Perm.refl _
+
+/-- Moving a literal second keeps the first literal. -/
+theorem secondOn_cons (w : ℕ) (l : Literal ℕ) (rest : Clause ℕ) :
+    ∃ rest', secondOn w (l :: rest) = l :: rest' := by
+  rw [secondOn]
+  split
+  · exact ⟨_, rfl⟩
+  · exact ⟨_, rfl⟩
+
 /-- **Backjump and Learn with watches**, at the newest decision, at position `p` of the trail: the
 state after the conflict, with the learned clause in the store, watching its asserting literal, or
 among the short clauses, and the asserting literal queued. The entries undone are those from the
@@ -1818,7 +1854,8 @@ it. -/
     -- a learned clause's number is the log's next one, beyond the clauses of `φ`
     -- (`Learned.isLearntId_id`): it counts as learned, with no test of `φ.length`
     let red := reducedWith opts red L.used L.id (L.id + 1) true
-    let store := store.addClause L.id L.clause
+    -- the literal false at the backjump level is watched second
+    let store := store.addClause L.id (secondOn (T.topMarked marks.assigned p) L.clause)
     ⟨exec.afterConflictAt L q, assign, occurs, store, q, short, A, order,
       phase, red, level, simpAssigns, opts, stats,
       afterJumpMarks (T.splitAt p) L marks (jumpMarksAt_eq T p L)⟩
@@ -1969,8 +2006,22 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       · simp at hlen
       · simp at hlen
       · cases Option.some.inj hh; exact ⟨y, rest, rfl⟩
-    have hnd : (L.lit :: y :: rest).Nodup := hc ▸ L.nodup
-    have hmem : ∀ l, l ∈ L.lit :: y :: rest ↔ l ∈ L.clause := fun l => by rw [hc]
+    -- the clause stored is the learned clause with a literal moved second
+    obtain ⟨y, rest, hc⟩ : ∃ y rest, secondOn (S.exec.tr.topMarked
+        (jumpMarked (S.exec.tr.splitAt p) L) p) L.clause = L.lit :: y :: rest := by
+      obtain ⟨rest', hr⟩ := secondOn_cons (S.exec.tr.topMarked
+        (jumpMarked (S.exec.tr.splitAt p) L) p) L.lit (y :: rest)
+      have hlen := (perm_secondOn (S.exec.tr.topMarked
+        (jumpMarked (S.exec.tr.splitAt p) L) p) (L.lit :: y :: rest)).length_eq
+      rw [hr] at hlen
+      rcases rest' with _ | ⟨y', rest'⟩
+      · simp at hlen
+      · exact ⟨y', rest', hc ▸ hr⟩
+    have hperm := perm_secondOn (S.exec.tr.topMarked (jumpMarked (S.exec.tr.splitAt p) L) p)
+      L.clause
+    rw [hc] at hperm
+    have hnd : (L.lit :: y :: rest).Nodup := hperm.nodup_iff.2 L.nodup
+    have hmem : ∀ l, l ∈ L.lit :: y :: rest ↔ l ∈ L.clause := fun l => hperm.mem_iff
     refine ⟨⟨hEinv, ?_, fun e' he' => ?_, fun e' he' hl => ?_,
       by rw [hQ _ rfl rfl]; exact List.nodup_singleton _,
       fun x hx => by
