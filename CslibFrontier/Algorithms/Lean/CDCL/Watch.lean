@@ -11,20 +11,30 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 
 /-! # Two watched literals
 
-The watch store of the CDCL solver: an array of numbered clauses without repetitions, each an
-array of at least two literals, whose first two literals are its watches, and an array of watch
-lists indexed by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position of a
-clause and a *blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is
-skipped without reading its clause. A watch list is an array of numbers, two per watcher, the
-position of the clause and the key of the blocker (`litKey`, the word code `2 * v + b` of
-`Cslib.Algorithms.WordRAM.ClauseCode.litCode`), so that it holds no pointers. The invariants are
-stated on lists: the literals of a clause (`Array.toList`) and the watchers of a watch list read
-backwards (`watchList`, decoding the numbers with `unpackWatchers` and `litOfKey`), so that a
-watcher pushed at the end of the array is the head of the list.
+The watch store of the CDCL solver: an array of numbered clauses without repetitions, each of at
+least two literals, whose first two literals are its watches, and an array of watch lists indexed
+by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position of a clause and a
+*blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is skipped
+without reading its clause.
+
+The store holds numbers only, so that the solver follows no pointer to read a literal and
+allocates nothing to move a watch or keep a watcher. A literal is its key `2 * v + b` (`litKey`,
+the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a bijection
+between literals and numbers. A clause is an array of numbers: the keys of its literals, then its
+number (`WatchStore.codes`). A watch list is an array of numbers, two per watcher: the position of
+the clause and the key of the blocker.
+
+The invariants are stated on the store read back (the representation): its clauses, numbered
+arrays of literals (`WatchStore.clauses`, by `decodeClause`), and the watchers of a watch list,
+read backwards (`watchList`, by `unpackWatchers`), so that a watcher pushed at the end of the array
+is the head of the list. The operations of the solver have representation lemmas
+(`WatchStore.clauses_moveTo`, `WatchStore.clauses_addClause`, `watchList_addWatch`,
+`watchList_setWatch`), and `WatchStore.visit`, which reads the numbers, is specified on the
+literals read back (`WatchStore.visit_spec`, through `KeyVisit.lits`).
 
 Moving a watch, as in MiniSat, writes into the clause's array in place: its first two literals
 become the other watched literal and the new one, which takes the place of the literal no longer
-watched (`WatchStore.moveTo`), so that propagation allocates no clause.
+watched (`WatchStore.moveTo`).
 
 `WatchStore.Inv F M Q` relates the store to the database `F`, the trail `M` and the queue `Q`: its
 clauses are clauses of `F` up to repetition and order, every clause of `F` with two different
@@ -38,8 +48,8 @@ decision, and survives extending the trail (`Supported.cons`) and backjumping
 
 `WatchStore.visit` is the step of visiting one watcher on the watch list of a falsified literal,
 reading its clause by position (`findFree`), with its specification `WatchStore.visit_spec`; it
-reads the values of literals from an assignment
-indexed by variable (`Assign`) agreeing with the trail. `WatchStore.build` builds a store on a
+reads the values of literals, on their keys, from an assignment indexed by variable (`Assign`)
+agreeing with the trail. `WatchStore.build` builds a store on a
 trail, watching literals that are not false, so that it satisfies the invariant with every literal
 of the trail processed as long as no clause is false (`WatchStore.build_inv`).
 -/
@@ -246,11 +256,56 @@ theorem mem_clauseIds_addWatch_self (W : Watches) (i k b : ℕ) :
 /-- **The watch store**: the clauses with at least two literals, each with its watched literals
 first, and the watch lists, giving for each literal the clauses that may watch it. -/
 structure WatchStore where
-  /-- The numbered clauses, watched literals first, each an array of literals, so that moving a
-  watch updates it in place. -/
-  clauses : Array (ℕ × Array (Literal ℕ))
+  /-- The numbered clauses, each an array of numbers: the keys of its literals (`litKey`), watched
+  literals first, then its number. Moving a watch updates the array in place, and reading a literal
+  follows no pointer. -/
+  codes : Array (Array ℕ)
   /-- The watch lists, by `litKey`. -/
   watches : Watches
+
+/-- The number of a clause of the store: the last number of its array. -/
+@[expose] def clauseId (a : Array ℕ) : ℕ := a.getD (a.size - 1) 0
+
+/-- A clause of the store read back: its number, and its literals decoded from their keys, all the
+numbers of its array but the last. -/
+@[expose] def decodeClause (a : Array ℕ) : ℕ × Array (Literal ℕ) := (clauseId a, a.pop.map litOfKey)
+
+/-- **The clauses of the store**, read back as numbered arrays of literals (`decodeClause`). The
+invariants are stated on them; the solver reads `WatchStore.codes`. -/
+@[expose] def WatchStore.clauses (S : WatchStore) : Array (ℕ × Array (Literal ℕ)) :=
+  S.codes.map decodeClause
+
+theorem WatchStore.size_clauses (S : WatchStore) : S.clauses.size = S.codes.size :=
+  Array.size_map ..
+
+theorem WatchStore.getElem_clauses (S : WatchStore) {k : ℕ} (hk : k < S.codes.size) :
+    S.clauses[k]'(by rw [S.size_clauses]; exact hk) = decodeClause S.codes[k] :=
+  Array.getElem_map ..
+
+/-- Encoding the literals of a clause, then its number, and decoding them gives them back. -/
+theorem decodeClause_encode (id : ℕ) (c : Clause ℕ) :
+    decodeClause ((c.map litKey).toArray.push id) = (id, c.toArray) := by
+  simp [decodeClause, clauseId, Function.comp_def]
+
+/-- Writing into an array and dropping its last element, in either order. -/
+theorem pop_setIfInBounds (a : Array ℕ) (i v : ℕ) :
+    (a.setIfInBounds i v).pop = a.pop.setIfInBounds i v := by
+  apply Array.ext (by simp)
+  intro j h₁ h₂
+  rw [Array.getElem_pop, Array.getElem_setIfInBounds, Array.getElem_setIfInBounds,
+    Array.getElem_pop]
+  simpa using h₂
+
+@[simp] theorem clauseId_push (a : Array ℕ) (id : ℕ) : clauseId (a.push id) = id := by
+  simp [clauseId]
+
+/-- Writing before the last element keeps the number of a clause. -/
+theorem clauseId_setIfInBounds (a : Array ℕ) {i : ℕ} (v : ℕ) (h : i + 1 < a.size) :
+    clauseId (a.setIfInBounds i v) = clauseId a := by
+  simp only [clauseId, Array.size_setIfInBounds, Array.getD_eq_getD_getElem?,
+    Array.getElem?_setIfInBounds]
+  split <;> simp_all
+  omega
 
 /-- A literal is *processed* if it is on the trail and no longer in the propagation queue. -/
 @[expose] def Processed (M : Trail) (Q : List (Literal ℕ)) (x : Literal ℕ) : Prop :=
@@ -347,77 +402,126 @@ inductive Visit
   /-- The clause no longer watches `u`. -/
   | drop
 
+/-- **What a visit finds, on the keys**: `Visit` with the literals as their keys (`litKey`), so
+that the solver decodes none of them but the one it propagates. -/
+inductive KeyVisit
+  /-- The blocker is true. -/
+  | skip
+  /-- The other watched literal, of key `b`, is true. -/
+  | keep (b : ℕ)
+  /-- The literal of key `x` at position `j` replaces the watch, with blocker of key `b`. -/
+  | move (j x b : ℕ)
+  /-- The clause numbered `id` is unit, on the other watched literal, of key `l`. -/
+  | unit (l : ℕ) (id : ℕ)
+  /-- The clause numbered `id` is in conflict. -/
+  | conflict (id : ℕ)
+  /-- The clause no longer watches the literal. -/
+  | drop
+
+/-- The outcome with its literals decoded from their keys (`litOfKey`). -/
+@[expose] def KeyVisit.lits : KeyVisit → Visit
+  | .skip => .skip
+  | .keep b => .keep (litOfKey b)
+  | .move j x b => .move j (litOfKey x) (litOfKey b)
+  | .unit l id => .unit (litOfKey l) id
+  | .conflict id => .conflict id
+  | .drop => .drop
+
 /-- **The first position from `i` on, among `n`, of a literal of `c` that is not false** under
-`A`, if any. -/
-@[expose] def findFree (A : Assign) (c : Array (Literal ℕ)) : (n i : ℕ) → Option ℕ
-  | 0, _ => none
-  | n + 1, i => if h : i < c.size then (if A.isFalse c[i] then findFree A c n (i + 1) else some i)
-    else none
+`A`, read on the keys, or the size of `c` if there is none. -/
+@[expose] def findFree (A : Assign) (c : Array ℕ) : (n i : ℕ) → ℕ
+  | 0, _ => c.size
+  | n + 1, i => if h : i < c.size then (if A.isFalseKey c[i] then findFree A c n (i + 1) else i)
+    else c.size
 
-theorem findFree_some {A : Assign} {c : Array (Literal ℕ)} :
-    ∀ {n i j : ℕ}, findFree A c n i = some j → ∃ (h : j < c.size), i ≤ j ∧ A.isFalse c[j] = false
-  | 0, _, _, h => by simp [findFree] at h
-  | n + 1, i, j, h => by
-    unfold findFree at h
-    split at h
-    · split at h
-      · obtain ⟨hj, hij, hf⟩ := findFree_some h
-        exact ⟨hj, by omega, hf⟩
+theorem findFree_lt {A : Assign} {c : Array ℕ} :
+    ∀ {n i : ℕ} (h : findFree A c n i < c.size), i ≤ findFree A c n i ∧
+      findFree A c n i < i + n ∧ A.isFalseKey (c[findFree A c n i]'h) = false
+  | 0, _, h => by simp [findFree] at h
+  | n + 1, i, h => by
+    unfold findFree at h ⊢
+    split
+    · split
       · rename_i hi hf
-        cases h
-        exact ⟨hi, le_rfl, by simpa using hf⟩
-    · simp at h
+        simp only [hi, ↓reduceDIte, hf, ↓reduceIte] at h
+        obtain ⟨hij, hlt, hfree⟩ := findFree_lt h
+        exact ⟨by omega, by omega, hfree⟩
+      · rename_i hi hf
+        exact ⟨le_rfl, by omega, by simpa using hf⟩
+    · rename_i hi
+      simp [hi] at h
 
-theorem findFree_none {A : Assign} {c : Array (Literal ℕ)} :
-    ∀ {n i : ℕ}, findFree A c n i = none → c.size ≤ i + n →
-      ∀ j (h : j < c.size), i ≤ j → A.isFalse c[j] = true
-  | 0, i, _, hn, j, hj, hij => by omega
-  | n + 1, i, h, hn, j, hj, hij => by
+theorem findFree_none {A : Assign} {c : Array ℕ} :
+    ∀ {n i : ℕ}, ¬ findFree A c n i < c.size →
+      ∀ j (h : j < c.size), i ≤ j → j < i + n → A.isFalseKey c[j] = true
+  | 0, i, _, j, hj, hij, hjn => by omega
+  | n + 1, i, h, j, hj, hij, hjn => by
     unfold findFree at h
     split at h
     · split at h
       · rename_i hi hf
         by_cases hji : j = i
         · subst hji; exact hf
-        · exact findFree_none h (by omega) j hj (by omega)
-      · simp at h
+        · exact findFree_none h j hj (by omega) (by omega)
+      · rename_i hi _
+        exact absurd hi h
     · omega
 
-/-- **Visiting a watcher**, of the clause at position `k` with the blocker of key `b`, when its
-watched literal `u` has become false under the assignment `A`: it is skipped if its blocker is true
-(read on the key, `Assign.holdsKey`); otherwise its clause is read, by position. Inlined, so that
-the outcome is matched on without being built. -/
+/-- **Visiting a watcher**, of the clause at position `k` with the blocker of key `b`, when the
+watched literal of key `u` has become false under the assignment `A`: it is skipped if its blocker
+is true; otherwise its clause is read, by position. Everything is read on the keys
+(`Assign.holdsKey`, `Assign.isFalseKey`), and the literals are compared as numbers. Inlined, so
+that the outcome is matched on without being built. -/
 @[expose, inline]
-def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (k b : ℕ) : Visit :=
+def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
   if A.holdsKey b then .skip
-  else if hk : k < S.clauses.size then
-    let c := S.clauses[k].2
-    if h2 : 2 ≤ c.size then
+  else if hk : k < S.codes.size then
+    let c := S.codes[k]
+    if h2 : 3 ≤ c.size then
       let w₁ := c[0]
       let w₂ := c[1]
-      if Assign.litEq w₁ u || Assign.litEq w₂ u then
-        let other := if Assign.litEq w₁ u then w₂ else w₁
-        if A.holds other then .keep other
+      if w₁ == u || w₂ == u then
+        let other := if w₁ == u then w₂ else w₁
+        if A.holdsKey other then .keep other
         else
-          match hj : findFree A c (c.size - 2) 2 with
-          | some j => .move j (c[j]'(findFree_some hj).1) other
-          | none =>
-            if A.isFalse other then .conflict S.clauses[k].1
-            else .unit other S.clauses[k].1
+          -- the literals but the watched ones, before the clause's number
+          let j := findFree A c (c.size - 3) 2
+          if hj : j < c.size then .move j c[j] other
+          else if A.isFalseKey other then .conflict (clauseId c)
+          else .unit other (clauseId c)
       else .drop
     else .drop
   else .drop
 
-/-- **Moving a watch** of the clause at position `k`, from `u` to the literal `x` at position `j`,
-with the other watched literal `o` as blocker: as MiniSat does, the clause becomes `o`, `x`, then
-the others with `u` in place of `x`, written into its array in place, and the watch list of `x`
-gets the watcher. The arrays are taken out of the store first, so that they are updated in place
-when the store is not shared. -/
-@[expose] def WatchStore.moveTo (S : WatchStore) (k j : ℕ) (o x u : Literal ℕ) : WatchStore :=
-  let clauses := S.clauses
+/-- **Moving a watch** of the clause at position `k`, from the literal of key `u` to the one of
+key `x` at position `j`, with the other watched literal, of key `o`, as blocker: as MiniSat does,
+the clause becomes `o`, `x`, then the others with `u` in place of `x`, written into its array in
+place, and the watch list of `x` gets the watcher. The arrays are taken out of the store first, so
+that they are updated in place when the store is not shared. -/
+@[expose] def WatchStore.moveTo (S : WatchStore) (k j o x u : ℕ) : WatchStore :=
+  let codes := S.codes
   let watches := S.watches
-  ⟨clauses.modify k (fun e => (e.1, ((e.2.setIfInBounds 0 o).setIfInBounds 1 x).setIfInBounds j u)),
-    addWatch watches (litKey x) k (litKey o)⟩
+  ⟨codes.modify k (fun a => ((a.setIfInBounds 0 o).setIfInBounds 1 x).setIfInBounds j u),
+    addWatch watches x k o⟩
+
+/-- **The clauses after moving a watch**, read back: the literals of the keys written, at positions
+before the clause's number. -/
+theorem WatchStore.clauses_moveTo (S : WatchStore) (k j o x u : ℕ)
+    (hj : ∀ hk : k < S.codes.size, 1 < j ∧ j + 1 < S.codes[k].size) :
+    (S.moveTo k j o x u).clauses = S.clauses.modify k (fun e => (e.1,
+      ((e.2.setIfInBounds 0 (litOfKey o)).setIfInBounds 1 (litOfKey x)).setIfInBounds j
+        (litOfKey u))) := by
+  simp only [moveTo, clauses]
+  apply Array.ext (by simp)
+  intro i h₁ h₂
+  simp only [Array.getElem_map, Array.getElem_modify]
+  split
+  · rename_i hik; subst hik
+    have := hj (by simpa using h₁)
+    simp only [decodeClause, pop_setIfInBounds, Array.map_setIfInBounds, Prod.mk.injEq, and_true]
+    rw [clauseId_setIfInBounds _ _ (by simp; omega), clauseId_setIfInBounds _ _ (by simp; omega),
+      clauseId_setIfInBounds _ _ (by omega)]
+  · rfl
 
 /-- The other watched literal of a clause watching `u` with watched literals `w₁` and `w₂`. -/
 @[expose] def otherWatch (u w₁ w₂ : Literal ℕ) : Literal ℕ := if w₁ = u then w₂ else w₁
@@ -449,40 +553,52 @@ theorem toList_eq_cons_cons {α : Type} {c : Array α} (h : 2 ≤ c.size) :
   match l, h with
   | a :: b :: rest, _ => rfl
 
+/-- Comparing a key with the key of a literal is comparing the literals. -/
+theorem beq_litKey (n : ℕ) (u : Literal ℕ) : (n == litKey u) = decide (litOfKey n = u) := by
+  by_cases h : litOfKey n = u
+  · subst h; simp
+  · have : n ≠ litKey u := fun h' => h (by rw [h', litOfKey_litKey])
+    simp [h, this]
+
 /-- **The visit meets its specification**, under an assignment agreeing with the trail, for the
-watcher read back from the two numbers. -/
+watcher read back from the two numbers and the outcome read back from the keys. -/
 theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.Agrees M)
-    (u : Literal ℕ) (k b : ℕ) : VisitSpec S M u ⟨k, litOfKey b⟩ (S.visit A u k b) := by
+    (u : Literal ℕ) (k b : ℕ) :
+    VisitSpec S M u ⟨k, litOfKey b⟩ (S.visit A (litKey u) k b).lits := by
   unfold visit
   rw [Assign.holdsKey_eq]
-  generalize hw : (⟨k, litOfKey b⟩ : Watcher) = w
-  have hwk : k = w.clause := by rw [← hw]
-  have hwb : litOfKey b = w.blocker := by rw [← hw]
-  rw [hwk, hwb]
-  by_cases hb : A.holds w.blocker = true
-  · simp only [hb, ↓reduceIte, VisitSpec]
+  by_cases hb : A.holds (litOfKey b) = true
+  · simp only [hb, ↓reduceIte, KeyVisit.lits, VisitSpec]
     exact (hA.holds_iff _).1 hb
   simp only [hb, Bool.false_eq_true, ↓reduceIte]
-  by_cases hk : w.clause < S.clauses.size
+  by_cases hk : k < S.codes.size
   swap
-  · simp only [hk, ↓reduceDIte, VisitSpec]
-    exact fun hk' => hk'.elim
+  · simp only [hk, ↓reduceDIte, KeyVisit.lits, VisitSpec]
+    exact fun hk' => absurd (S.size_clauses ▸ hk') hk
   simp only [hk, ↓reduceDIte]
-  by_cases h2 : 2 ≤ S.clauses[w.clause].2.size
+  have hk' : k < S.clauses.size := by rw [S.size_clauses]; exact hk
+  have hck : S.clauses[k] = decodeClause S.codes[k] := S.getElem_clauses hk
+  have hcl : S.clauses[k].2.toList = S.codes[k].pop.toList.map litOfKey := by
+    rw [hck]; simp [decodeClause]
+  have hid : S.clauses[k].1 = clauseId S.codes[k] := by rw [hck]; rfl
+  by_cases h2 : 3 ≤ S.codes[k].size
   swap
-  · simp only [h2, ↓reduceDIte, VisitSpec]
+  · simp only [h2, ↓reduceDIte, KeyVisit.lits, VisitSpec]
     intro _ v₁ v₂ rest' hc'
-    have := congrArg List.length hc'
-    simp only [Array.length_toList, List.length_cons] at this
+    have := congrArg List.length (hcl.symm.trans hc')
+    simp only [List.length_map, Array.length_toList, Array.size_pop, List.length_cons] at this
     omega
   simp only [h2, ↓reduceDIte]
-  have hlist := toList_eq_cons_cons h2
-  generalize hw₁ : S.clauses[w.clause].2[0] = w₁ at hlist ⊢
-  generalize hw₂ : S.clauses[w.clause].2[1] = w₂ at hlist ⊢
-  simp only [Assign.litEq_eq_decide, Bool.or_eq_true, decide_eq_true_eq]
+  have h2' : 2 ≤ S.codes[k].pop.size := by simp; omega
+  have hlist : S.clauses[k].2.toList = litOfKey S.codes[k][0] :: litOfKey S.codes[k][1] ::
+      (S.codes[k].pop.toList.drop 2).map litOfKey := by
+    rw [hcl, toList_eq_cons_cons h2']; simp
+  simp only [beq_litKey, Bool.or_eq_true, decide_eq_true_eq]
+  generalize hw₁ : litOfKey S.codes[k][0] = w₁ at hlist ⊢
+  generalize hw₂ : litOfKey S.codes[k][1] = w₂ at hlist ⊢
   by_cases hu : w₁ = u ∨ w₂ = u
   swap
-  · simp only [hu, ↓reduceIte, VisitSpec]
+  · simp only [hu, ↓reduceIte, KeyVisit.lits, VisitSpec]
     intro _ v₁ v₂ rest' hc
     rw [hlist] at hc
     simp only [List.cons.injEq] at hc
@@ -490,34 +606,45 @@ theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.
     push Not at hu
     exact hu
   simp only [hu, ↓reduceIte]
-  have hother : (if w₁ = u then w₂ else w₁) = otherWatch u w₁ w₂ := rfl
-  rw [hother]
+  have hother : litOfKey (if w₁ = u then S.codes[k][1] else S.codes[k][0]) =
+      otherWatch u w₁ w₂ := by
+    unfold otherWatch; split <;> simp [hw₁, hw₂]
+  generalize (if w₁ = u then S.codes[k][1] else S.codes[k][0]) = oc at hother
+  rw [Assign.holdsKey_eq, hother]
   by_cases htrue : A.holds (otherWatch u w₁ w₂) = true
-  · simp only [htrue, ↓reduceIte, VisitSpec]
-    exact ⟨hk, w₁, w₂, _, hlist, hu, rfl, (hA.holds_iff _).1 htrue⟩
+  · simp only [htrue, ↓reduceIte, KeyVisit.lits, VisitSpec, hother]
+    exact ⟨hk', w₁, w₂, _, hlist, hu, rfl, (hA.holds_iff _).1 htrue⟩
   simp only [htrue, Bool.false_eq_true, ↓reduceIte]
+  generalize hjdef : findFree A S.codes[k] (S.codes[k].size - 3) 2 = j
   split
-  · rename_i j hj
-    obtain ⟨hjs, h2j, hfree⟩ := findFree_some hj
-    simp only [VisitSpec]
-    refine ⟨hk, w₁, w₂, _, j - 2, hlist, hu, by omega, ?_, fun h => ?_, rfl⟩
-    · rw [List.getElem?_drop, show 2 + (j - 2) = j by omega, Array.getElem?_toList,
-        Array.getElem?_eq_getElem hjs]
-    · rw [(hA.isFalse_iff _).2 h] at hfree
+  · rename_i hj
+    obtain ⟨h2j, hjn, hfree⟩ := findFree_lt (hjdef ▸ hj)
+    simp only [hjdef] at h2j hjn hfree
+    simp only [KeyVisit.lits, VisitSpec, hother]
+    refine ⟨hk', w₁, w₂, _, j - 2, hlist, hu, by omega, ?_, fun h => ?_, rfl⟩
+    · rw [List.getElem?_map, List.getElem?_drop, show 2 + (j - 2) = j by omega,
+        Array.getElem?_toList, Array.getElem?_pop]
+      simp only [show j < S.codes[k].size - 1 by omega, ↓reduceIte,
+        Array.getElem?_eq_getElem hj]
+      rfl
+    · rw [Assign.isFalseKey_eq, (hA.isFalse_iff _).2 h] at hfree
       exact absurd hfree (by decide)
   · rename_i hj
-    have hall : ∀ x ∈ S.clauses[w.clause].2.toList.drop 2, x.negate ∈ Trail.lits M := by
+    have hall : ∀ x ∈ (S.codes[k].pop.toList.drop 2).map litOfKey, x.negate ∈ Trail.lits M := by
       intro x hx
-      obtain ⟨m, hm, rfl⟩ := List.getElem_of_mem hx
-      simp only [List.getElem_drop, Array.getElem_toList]
-      rw [← hA.isFalse_iff]
-      exact findFree_none hj (by omega) _ _ (by omega)
+      obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
+      obtain ⟨m, hm, rfl⟩ := List.getElem_of_mem hy
+      simp only [List.getElem_drop, Array.getElem_toList, Array.getElem_pop]
+      rw [← hA.isFalse_iff, ← Assign.isFalseKey_eq]
+      simp only [List.length_drop, Array.length_toList, Array.size_pop] at hm
+      exact findFree_none (hjdef ▸ hj) _ _ (by omega) (by omega)
+    rw [Assign.isFalseKey_eq, hother]
     by_cases hfalse : A.isFalse (otherWatch u w₁ w₂) = true
-    · simp only [hfalse, ↓reduceIte, VisitSpec]
-      exact ⟨hk, w₁, w₂, _, trivial, hlist, hu, (hA.isFalse_iff _).1 hfalse, hall⟩
-    · simp only [hfalse, Bool.false_eq_true, ↓reduceIte, VisitSpec]
-      refine ⟨hk, w₁, w₂, _, trivial, hlist, hu, rfl, fun h => htrue ((hA.holds_iff _).2 h),
-        fun h => hfalse ((hA.isFalse_iff _).2 h), hall⟩
+    · simp only [hfalse, ↓reduceIte, KeyVisit.lits, VisitSpec]
+      exact ⟨hk', w₁, w₂, _, hid, hlist, hu, (hA.isFalse_iff _).1 hfalse, hall⟩
+    · simp only [hfalse, Bool.false_eq_true, ↓reduceIte, KeyVisit.lits, VisitSpec, hother]
+      refine ⟨hk', w₁, w₂, _, hid, hlist, hu, rfl,
+        fun h => htrue ((hA.holds_iff _).2 h), fun h => hfalse ((hA.isFalse_iff _).2 h), hall⟩
 
 /-! ### Changing the trail and the clauses -/
 
@@ -552,12 +679,23 @@ the other as blocker. -/
   | w₁ :: w₂ :: _ =>
     -- the position is read and the arrays taken out of the store first, so that the push and the
     -- watch lists update them in place when the store is not shared
-    let k := S.clauses.size
-    let clauses := S.clauses
+    let k := S.codes.size
+    let codes := S.codes
     let watches := S.watches
-    ⟨clauses.push (id, c.toArray), addWatch (addWatch watches (litKey w₁) k (litKey w₂)) (litKey w₂)
-      k (litKey w₁)⟩
+    -- `List.map`, not `Array.map`, so that the kernel and `decide` evaluate it
+    ⟨codes.push ((c.map litKey).toArray.push id),
+      addWatch (addWatch watches (litKey w₁) k (litKey w₂)) (litKey w₂) k (litKey w₁)⟩
   | _ => S
+
+/-- **The clauses after adding one**, read back: the clause added, with its literals. -/
+theorem WatchStore.clauses_addClause (S : WatchStore) (id : ℕ) (c : Clause ℕ) :
+    (S.addClause id c).clauses = match c with
+      | _ :: _ :: _ => S.clauses.push (id, c.toArray)
+      | _ => S.clauses := by
+  unfold addClause
+  split
+  · simp only [clauses, Array.map_push, decodeClause_encode]
+  · rfl
 
 /-- Adding a clause of the database, without repetitions, whose first watched literal is not
 falsified by a processed literal. -/
@@ -566,7 +704,12 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
     {rest : Clause ℕ} (hnd : (w₁ :: w₂ :: rest).Nodup)
     (hmem : ∀ l, l ∈ w₁ :: w₂ :: rest ↔ l ∈ C) (hw₁ : ¬ Processed M Q w₁.negate) :
     (S.addClause id (w₁ :: w₂ :: rest)).Inv ((id, C) :: F) M Q := by
-  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  suffices H : ∀ T : WatchStore, T.clauses = S.clauses.push (id, (w₁ :: w₂ :: rest).toArray) →
+      T.watches = addWatch (addWatch S.watches (litKey w₁) S.clauses.size (litKey w₂)) (litKey w₂)
+        S.clauses.size (litKey w₁) → T.Inv ((id, C) :: F) M Q from
+    H _ (S.clauses_addClause id _) (by simp [WatchStore.addClause, WatchStore.size_clauses])
+  intro T hcl hW
+  refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> rw [hcl] <;> (try rw [hW])
   · intro e' he'
     rcases Array.mem_push.1 he' with he' | rfl
     · obtain ⟨c, hc', hp⟩ := h.sound e' he'
@@ -586,15 +729,15 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
     · obtain ⟨e'', he'', h1, h2⟩ := h.covers e' he' hlen
       exact ⟨e'', Array.mem_push_of_mem _ he'', h1, h2⟩
   · intro k hk w hw
-    simp only [WatchStore.addClause, Array.size_push] at hk
-    simp only [WatchStore.addClause, watchList_addWatch]
+    simp only [Array.size_push] at hk
+    simp only [watchList_addWatch]
     by_cases hks : k = S.clauses.size
     · subst hks
-      simp only [WatchStore.addClause, Array.getElem_push_eq, List.toList_toArray,
+      simp only [Array.getElem_push_eq, List.toList_toArray,
         List.take_succ_cons, List.take_zero, List.mem_cons, List.not_mem_nil, or_false] at hw
+      clear hcl hW
       rcases hw with rfl | rfl <;> split_ifs <;> simp_all
     · have hk' : k < S.clauses.size := by omega
-      simp only [WatchStore.addClause] at hw
       rw [Array.getElem_push_lt hk'] at hw
       have := h.listed k hk' w hw
       split
@@ -603,7 +746,6 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
         · exact List.mem_cons_of_mem _ (by simp_all)
         · exact this
   · intro i x hx
-    simp only [WatchStore.addClause] at hx
     have hold : ∀ x ∈ watchList S.watches i,
         ∃ (hk : x.clause < (S.clauses.push (id, (w₁ :: w₂ :: rest).toArray)).size),
           x.blocker ∈ (S.clauses.push (id, (w₁ :: w₂ :: rest).toArray))[x.clause].2.toList :=
@@ -630,8 +772,9 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
 /-- The empty store. -/
 theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
     (⟨#[], #[]⟩ : WatchStore).Inv [] M Q :=
-  ⟨by simp, by simp, by simp, fun e he => by simp at he, fun k hk => by simp at hk,
-    fun i x hx => by simp [watchList, unpackWatchers] at hx, by simp⟩
+  ⟨by simp [WatchStore.clauses], by simp [WatchStore.clauses], by simp [WatchStore.clauses],
+    fun e he => by simp at he, fun k hk => by simp [WatchStore.clauses] at hk,
+    fun i x hx => by simp [watchList, unpackWatchers] at hx, by simp [WatchStore.clauses]⟩
 
 /-- A clause with its literals that are not false under the assignment `A` first, so that they are
 the ones watched. -/
