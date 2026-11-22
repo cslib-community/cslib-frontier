@@ -556,6 +556,6 @@ example :
     change (∑ i : Fin 4, if RayCrosses (1 * excursionSquare.point i.castSucc)
       (1 * excursionSquare.point i.succ) (1 * z) then (true : Bool) else 0) = _
     simp only [Fin.sum_univ_four, one_mul] <;> rfl
-  norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept]
+  norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept, Bool.zero_eq_false]
 
 end CslibFrontierTests.PolygonalRayParityIntersections
