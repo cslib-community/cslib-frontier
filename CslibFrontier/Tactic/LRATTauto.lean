@@ -27,12 +27,12 @@ checks the certificate; the proof uses no native evaluation, and its axioms are 
 The tactic reads the goal `P` as a proposition `A : Proposition (Fin n)` and a valuation
 `v : Fin n → Prop` of its atoms, with `A.eval v ↔ P`. It then applies
 `Cslib.Logic.PL.Proposition.eval_prop_of_checkLRAT` to `A` and `v`. Its hypothesis, that
-`Cslib.Logic.PL.CNF.checkLRAT` accepts `cert` on `(imp A falsum).tseitinNumberedCNF`, is proved
-by `decide` for the checker built for kernel reduction, `Cslib.Logic.PL.CNF.checkLRATKernel`,
-and rewritten with `Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`. So the kernel runs that
-checker, and only that run is trusted; where the certificate came from does not matter. The
-goals proved are the classical tautologies, since `eval_prop_of_checkLRAT` decides each atom
-classically.
+`Cslib.Logic.PL.CNF.checkLRAT` accepts `cert` on `(imp A falsum).plaistedGreenbaumNumberedCNF`,
+is proved by `decide` for the checker built for kernel reduction,
+`Cslib.Logic.PL.CNF.checkLRATKernel`, and rewritten with
+`Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`. So the kernel runs that checker, and only that
+run is trusted; where the certificate came from does not matter. The goals proved are the
+classical tautologies, since `eval_prop_of_checkLRAT` decides each atom classically.
 
 ## Reading the goal
 
@@ -51,8 +51,10 @@ classically.
 
 ## The certificate
 
-The certificate refutes the numbered Tseitin transformation of `imp A falsum`, in which the atom
-numbered `i` is the DIMACS variable `i + 1` and the clauses are numbered `1, 2, …` in order.
+The certificate refutes the numbered Plaisted–Greenbaum transformation of `imp A falsum`
+(`Cslib.Logic.PL.Proposition.plaistedGreenbaumNumberedCNF`), in which the atom numbered `i` is the
+DIMACS variable `i + 1` and the clauses are numbered `1, 2, …` in order. It keeps, for each
+subformula, only the direction of its Tseitin definition that the subformula's polarity needs.
 `lrat_tauto?` prints that formula in DIMACS form, with the atoms in comment lines, so that a SAT
 solver producing LRAT proofs can refute it. The lines of a textual LRAT proof are the `addRup`,
 `addEmpty` and `del` actions of the certificate; the checker rejects RAT steps, which some solvers
@@ -107,14 +109,20 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
 * `↔` is encoded by writing each side twice, so a goal that nests `↔` to depth `d` has up to
   `2 ^ d` copies of its innermost subformulas.
 * The kernel check takes most of the time. With the CDCL solver's certificates, trimmed, the
-  kernel checked the pigeonhole formulas for five pigeons in four holes and six in five
-  (certificates of 131 and 461 steps) in about 7 and 23 seconds, the chain of 320 implications
-  in about 3 seconds, and the distributivity of `∧` over `∨` on six disjunctions (32 steps) and
-  the associativity of `↔` on six atoms (67 steps) in about 2.5 seconds each. The time grows
-  with the number of steps and with the length of the clauses the hints name. The final step,
-  in which the kernel checks that the goal is the value of `A` under `v`, took under 0.3 seconds
-  on each of these goals, finding each atom by a binary search on its number. The benchmark
-  script `LRATTautoBench` in the repository's scripts measures these families.
+  kernel checked the pigeonhole formulas for six pigeons in five holes and seven in six
+  (certificates of 131 and 507 steps) in about 6 and 26 to 29 seconds, the chain of 320
+  implications (962 clauses, one step) in about 2 seconds, and the distributivity of `∧` over `∨`
+  on six disjunctions (32 steps) and the associativity of `↔` on six atoms (68 steps) in about 2
+  seconds each. On goals with few steps most of that time goes to reading the formula, so the
+  time grows with the number of clauses as well as with the number of steps and the length of
+  the clauses the hints name. Against the numbered Tseitin transformation, the
+  Plaisted–Greenbaum transformation halves the clauses and cut the kernel time by about a third
+  on the chain and distributivity families, by 5% to 27% on `↔` and by 8% to 17% on the
+  pigeonhole formulas for five and six pigeons. For seven pigeons, whose trimmed certificate grew
+  from 461 to 507 steps, two runs took 26 and 29 seconds against 27. The final step, in which the
+  kernel checks that the goal is the value of `A` under `v`, took under 0.3 seconds on each of
+  these goals, finding each atom by a binary search on its number. The benchmark script
+  `LRATTautoBench` in the repository's scripts measures these families.
 * The solver runs in Lean's interpreter, and its work counts toward `maxHeartbeats`; it takes a
   small fraction of the time of the kernel check, but on the larger formulas enough heartbeats
   that `set_option maxHeartbeats` must be raised.
@@ -128,12 +136,12 @@ open Lean Meta Elab Tactic Mathlib.Tactic
 open Cslib.Logic.PL
 
 /-- `lrat_tauto` closes a goal built from `∧`, `∨`, `→`, `¬`, `↔`, `True` and `False` over
-arbitrary propositions, from an LRAT certificate that refutes the numbered Tseitin transformation
-of the negated goal. The certificate is generated by the CDCL solver at elaboration time, or
-supplied as `lrat_tauto using cert` with `cert : Array LRAT.IntAction`; when the goal is not a
-propositional tautology, the error shows an assignment to its atoms, read as independent
-propositions, under which it is false. The kernel checks the certificate by evaluating
-`Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over non-propositions, such as
+arbitrary propositions, from an LRAT certificate that refutes the numbered Plaisted–Greenbaum
+transformation of the negated goal. The certificate is generated by the CDCL solver at
+elaboration time, or supplied as `lrat_tauto using cert` with `cert : Array LRAT.IntAction`; when
+the goal is not a propositional tautology, the error shows an assignment to its atoms, read as
+independent propositions, under which it is false. The kernel checks the certificate by
+evaluating `Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over non-propositions, such as
 `∀ p q : Prop`, are introduced first; hypotheses in the context are not used. The atoms are the
 maximal subterms that are not connectives, compared at reducible transparency.
 
@@ -144,8 +152,8 @@ body it can unfold. A certificate the checker rejects is reported as such.
 syntax (name := lratTauto) "lrat_tauto" (" using " term)? : tactic
 
 /-- `lrat_tauto?` prints the formula that a certificate for `lrat_tauto using` must refute: the
-numbered Tseitin transformation of the negated goal in DIMACS form, preceded by comment lines
-naming the variable of each atom. It leaves the goal unchanged. -/
+numbered Plaisted–Greenbaum transformation of the negated goal in DIMACS form, preceded by comment
+lines naming the variable of each atom. It leaves the goal unchanged. -/
 syntax (name := lratTautoQuery) "lrat_tauto?" : tactic
 
 /- `lrat_tauto?` only prints, so the unused tactic linter would flag every use. -/
@@ -273,7 +281,8 @@ private def explainRejection (checkE cert : Expr) (ex : Exception) : MetaM Messa
   | .ok r =>
     if r.isConstOf ``Bool.false then
       return m!"lrat_tauto: the LRAT checker rejected the certificate. It must refute the \
-        numbered Tseitin transformation of the negated goal, which `lrat_tauto?` prints."
+        numbered Plaisted–Greenbaum transformation of the negated goal, which `lrat_tauto?` \
+        prints."
     return m!"lrat_tauto: the kernel could not evaluate the LRAT checker on the \
       certificate{indentExpr cert}\nIt must be a closed term whose definition the kernel can \
       unfold."
@@ -367,10 +376,10 @@ private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
   arrayLit (mkApp2 (mkConst ``LRAT.Action [0, 0]) clauseT (mkConst ``Nat))
     (cert.toList.map action)
 
-/-- The certificate for the numbered Tseitin transformation `φ` of the negated goal, from the
-generator (`generateCert`), trimmed when the trimmed one is accepted; if `φ` is satisfiable, an
-error showing the assignment to the abstract atoms under which the goal's propositional structure
-is false. -/
+/-- The certificate for the numbered Plaisted–Greenbaum transformation `φ` of the negated goal,
+from the generator (`generateCert`), trimmed when the trimmed one is accepted; if `φ` is
+satisfiable, an error showing the assignment to the abstract atoms under which the goal's
+propositional structure is false. -/
 private def certFor (φ : CNF ℕ) (atoms : Array Expr) : MetaM (Array LRAT.IntAction) := do
   let start ← IO.monoMsNow
   match ← IO.lazyPure fun _ => generateCert φ with
@@ -415,11 +424,12 @@ private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withCo
   let cert ← match cert with
     | some cert => pure cert
     | none =>
-      certToExpr <$> certFor (Proposition.imp (s.toProposition n) .falsum).tseitinNumberedCNF atoms
+      let φ := (Proposition.imp (s.toProposition n) .falsum).plaistedGreenbaumNumberedCNF
+      certToExpr <$> certFor φ atoms
   let a := propositionToExpr (s.toProposition n)
   let negA := mkApp3 (mkConst ``Proposition.imp [0]) (toTypeExpr (Fin n)) a
     (mkApp (mkConst ``Proposition.falsum [0]) (toTypeExpr (Fin n)))
-  let φE ← mkAppM ``Proposition.tseitinNumberedCNF #[negA]
+  let φE ← mkAppM ``Proposition.plaistedGreenbaumNumberedCNF #[negA]
   let checkE ← mkAppM ``CNF.checkLRATKernel #[φE, cert]
   let checkProp ← mkEq checkE (mkConst ``Bool.true)
   let start ← IO.monoMsNow
@@ -461,12 +471,13 @@ elab_rules : tactic
       g.withContext do
         let (s, atoms) ← readGoal g
         let n := atoms.size
-        let φ := (Proposition.imp (s.toProposition n) .falsum).tseitinNumberedCNF
+        let φ := (Proposition.imp (s.toProposition n) .falsum).plaistedGreenbaumNumberedCNF
         let atomLines ← atoms.toList.zipIdx.mapM fun (e, i) => do
           let shown := (← ppExpr e).pretty 1000000
           return s!"c {i + 1} := {shown.replace "\n" " "}"
         return dimacs φ atomLines
-    logInfo m!"The numbered Tseitin transformation of the negated goal, in DIMACS form:\n{msg}"
+    logInfo m!"The numbered Plaisted–Greenbaum transformation of the negated goal, in DIMACS \
+      form:\n{msg}"
 
 end Cslib.Tactic.LRATTauto
 
