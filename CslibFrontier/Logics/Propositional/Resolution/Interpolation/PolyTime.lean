@@ -80,16 +80,10 @@ variable {encY : Y ↪ List Bool} {encZ : Z ↪ List Bool}
 
 /-! ### Variables and step search -/
 
-/-- Embedding the `A`-variables into the joint variables, by option elimination. -/
-private theorem sumMap_inl_eq (v : ℕ ⊕ Y) :
-    (Sum.map id Sum.inl v : ℕ ⊕ (Y ⊕ Z)) =
-      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun y => .inr (.inl y)) fun i => .inl i := by
-  rcases v with _ | _ <;> rfl
-
-/-- Embedding the `B`-variables into the joint variables, by option elimination. -/
-private theorem sumMap_inr_eq (v : ℕ ⊕ Z) :
-    (Sum.map id Sum.inr v : ℕ ⊕ (Y ⊕ Z)) =
-      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun z => .inr (.inr z)) fun i => .inl i := by
+/-- Embedding private variables into joint variables, by option elimination. -/
+private theorem sumMap_id_eq {α β : Type} (f : α → β) (v : ℕ ⊕ α) :
+    (Sum.map id f v : ℕ ⊕ β) =
+      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun a => .inr (f a)) fun i => .inl i := by
   rcases v with _ | _ <;> rfl
 
 private theorem getLeft? {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
@@ -104,25 +98,28 @@ private theorem isLeft {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ L
     ComputableInPolyTime (Sum.isLeft (α := α) (β := β)) (encSum encA encB) encBool :=
   (ComputableInO.isLeft_deg encA encB).computableInPolyTime
 
+/-- Mapping the right summand while fixing `ℕ` on the left is polynomial-time. -/
+private theorem sumMap_id {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool} {f : α → β}
+    (hf : ComputableInPolyTime f encA encB) :
+    ComputableInPolyTime (Sum.map id f : ℕ ⊕ α → ℕ ⊕ β) (encSum encNat encA)
+      (encSum encNat encB) := by
+  simp only [funext (sumMap_id_eq f)]
+  exact optionElimWithInput (getLeft? _ _)
+    (optionElimWithInput (getRight? _ _) (const _)
+      ((sumInr _ _).comp (hf.comp (snd _ _))))
+    ((sumInl _ _).comp (snd _ _))
+
 /-- The embedding of the `A`-variables is polynomial-time. -/
 private theorem sumMap_inl :
     ComputableInPolyTime (Sum.map id Sum.inl : ℕ ⊕ Y → ℕ ⊕ (Y ⊕ Z)) (encSum encNat encY)
-      (encSum encNat (encSum encY encZ)) := by
-  simp only [funext sumMap_inl_eq]
-  exact optionElimWithInput (getLeft? _ _)
-    (optionElimWithInput (getRight? _ _) (const _)
-      ((sumInr _ _).comp ((sumInl _ _).comp (snd _ _))))
-    ((sumInl _ _).comp (snd _ _))
+      (encSum encNat (encSum encY encZ)) :=
+  sumMap_id (sumInl _ _)
 
 /-- The embedding of the `B`-variables is polynomial-time. -/
 private theorem sumMap_inr :
     ComputableInPolyTime (Sum.map id Sum.inr : ℕ ⊕ Z → ℕ ⊕ (Y ⊕ Z)) (encSum encNat encZ)
-      (encSum encNat (encSum encY encZ)) := by
-  simp only [funext sumMap_inr_eq]
-  exact optionElimWithInput (getLeft? _ _)
-    (optionElimWithInput (getRight? _ _) (const _)
-      ((sumInr _ _).comp ((sumInr _ _).comp (snd _ _))))
-    ((sumInl _ _).comp (snd _ _))
+      (encSum encNat (encSum encY encZ)) :=
+  sumMap_id (sumInr _ _)
 
 /-- `k` constant gates before a binary gate on computed wires. -/
 private theorem replicate_snoc_binary {Op γ : Type} {encOp : Op ↪ List Bool}
@@ -352,8 +349,8 @@ in the binary encoding `Cslib.Circuits.Boolean.encCode`. On a refutation whose s
 are below the number of inputs, the code is that of a circuit computing an interpolant
 (`Cslib.Logic.PL.CNF.IsProof.ofCode_interpolantCode`). -/
 theorem CNF.computableInPolyTime_interpolantCode (encY : Y ↪ List Bool) (encZ : Z ↪ List Bool) :
-    ComputableInPolyTime (fun p : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
-        List (Clause (ℕ ⊕ (Y ⊕ Z))) => CNF.interpolantCode p.1 p.2.1.1 p.2.1.2 p.2.2)
+    ComputableInPolyTime (fun ((n, (A, B), ls) : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
+        List (Clause (ℕ ⊕ (Y ⊕ Z)))) => CNF.interpolantCode n A B ls)
       (encPair encUnary (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
         (encList (encList (encPair (encSum encNat encZ) encBool))))
         (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))))
