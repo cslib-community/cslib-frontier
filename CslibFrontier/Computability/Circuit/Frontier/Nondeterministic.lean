@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
@@ -62,11 +63,16 @@ fan-in two `s > (L - ε) n` with `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.
 * `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides`:
   the median-switched Gaussian `(L₃ - ε) n` frontier lower bound (`L₃ ≈ 4.575972`), original to
   this library (via `layoutBound_switched`, adapting the layout constant of [Gaspers2026]).
+* `eventually_crossingCover_sub_mul_lt_innerSize_of_nondeterministicDecides`:
+  the crossing-cover Gaussian-wave `(630649 / 130649 - ε) n` (`≈ 4.827048 n`) frontier lower bound
+  for nondeterministic circuits of fan-in two (via `layoutBound_crossingCover`).
 
 ## References
 
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
+* [J. Jeong, S. H. Sæther, J. A. Telle, *Maximum Matching Width: New Characterizations and a Fast
+  Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
 @[expose] public section
@@ -326,5 +332,31 @@ theorem eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides
   have h := eventually_lt_innerSize_of_nondeterministicDecides
     (mul_pos two_pos Switched.switchedCoefficient_pos) layoutBound_switched hSK hε
   rwa [Switched.one_add_inv_two_mul_switchedCoefficient] at h
+
+/-- **The crossing-cover frontier lower bound for nondeterministic circuits of fan-in two
+(`≈ 4.827048 n`).** Under the hypotheses of
+`eventually_two_sub_mul_lt_mul_innerSize_of_nondeterministicDecides`, instantiating the frontier
+framework with `layoutBound_crossingCover` (`J = 13`, `A = 130649 / 500000`), every circuit of
+fan-in at most two with any number of witness inputs deciding `S_n` nondeterministically has more
+than `(630649 / 130649 - ε) n` inner gates. -/
+theorem eventually_crossingCover_sub_mul_lt_innerSize_of_nondeterministicDecides
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
+        (630649 / 130649 - ε) * n < c.innerSize := by
+  have h := eventually_lt_innerSize_of_nondeterministicDecides
+    (by norm_num) layoutBound_crossingCover hSK hε
+  rwa [show (1 : ℝ) + 1 / (130649 / 500000) = 630649 / 130649 by norm_num] at h
+
+/-- **The `(4.8 - ε) n` frontier lower bound for nondeterministic fan-in-two circuits (`J = 5`).**
+Uses `layoutBound_five_div_nineteen` (`A = 5 / 19`). -/
+theorem eventually_24_div_5_sub_mul_lt_innerSize_of_nondeterministicDecides
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ (n + k) 1), c.FanInAtMost 2 → c.NondeterministicDecides I Acc (S n) →
+        (24 / 5 - ε) * n < c.innerSize := by
+  have h := eventually_lt_innerSize_of_nondeterministicDecides
+    (by norm_num) layoutBound_five_div_nineteen hSK hε
+  rwa [show (1 : ℝ) + 1 / (5 / 19) = 24 / 5 by norm_num] at h
 
 end Cslib.Circuits.Frontier

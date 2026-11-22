@@ -85,7 +85,7 @@ and #859 by `@galarnon42` and `@ArthurOstapenko`).
   Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier
 

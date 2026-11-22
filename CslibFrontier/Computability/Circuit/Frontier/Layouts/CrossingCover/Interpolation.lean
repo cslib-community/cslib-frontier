@@ -1399,4 +1399,3 @@ theorem exists_width_le_max_crossingCover [Finite V] [DecidableEq V]
 end Chain
 
 end Cslib.Circuits.Frontier.CrossingCover
-

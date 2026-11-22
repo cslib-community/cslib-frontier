@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.BoundedDegree
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
@@ -17,9 +18,12 @@ public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
 # Frontier lower bounds for fan-in two
 
 The frontier lower bound for fan-in two (`Cslib.Circuits.Frontier.eventually_lt_innerSize`) is
-conditional on the layout hypothesis `LayoutBound 3 A`, and gives `s > (1 + 1/A - ε) n`. Three
+conditional on the layout hypothesis `LayoutBound 3 A`, and gives `s > (1 + 1/A - ε) n`. Four
 layout bounds remove the hypothesis:
 
+* crossing-cover Gaussian-wave layouts (`Cslib.Circuits.Frontier.layoutBound_crossingCover` at
+  cutoff `J = 13`) give `A = 130649 / 500000`, so `1 + 1/A = 630649 / 130649 ≈ 4.827048 > 4.827`
+  (and `A = 5 / 19` at `J = 5`, giving `1 + 1/A = 24 / 5 = 4.8`);
 * median-switched Gaussian vertex-score layouts [Gaspers2026] give `A = 2 c₃` with
   `c₃ = (3 / (4π)) arccos (5 / 6)` (`Cslib.Circuits.Frontier.layoutBound_switched`), so
   `1 + 1/A = L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`;
@@ -75,11 +79,20 @@ agree with a set of bias at most `b_n` on large rectangles on at most a
 * `Cslib.Circuits.Frontier.averageCaseBound_switched`,
   `averageCaseBound_457597_div_100000`, `averageCaseBound_183_div_40`: bundled average-case
   median-switched claims.
+* `Cslib.Circuits.Frontier.eventually_crossingCover_sub_mul_lt_innerSize`,
+  `eventually_4827_div_1000_sub_mul_lt_innerSize`, `eventually_24_div_5_sub_mul_lt_innerSize`:
+  crossing-cover Gaussian-wave bounds (`630649 / 130649 ≈ 4.827048`, `4.827`, and `4.8`).
+* `Cslib.Circuits.Frontier.circuitLowerBound_crossingCover`, `circuitLowerBound_4827_div_1000`,
+  `circuitLowerBound_24_div_5`: bundled worst-case crossing-cover claims.
+* `Cslib.Circuits.Frontier.averageCaseBound_crossingCover`, `averageCaseBound_4827_div_1000`,
+  `averageCaseBound_24_div_5`: bundled average-case crossing-cover claims.
 
 ## References
 
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
+* [J. Jeong, S. H. Sæther, J. A. Telle, *Maximum Matching Width: New Characterizations and a Fast
+  Algorithm for Dominating Set*][JeongSaetherTelle2015]
 -/
 
 public section
@@ -252,5 +265,71 @@ theorem averageCaseBound_457597_div_100000 : AverageCaseBound.{u, v} (457597 / 1
 /-- **Circuits of fan-in two below `(4.575 - ε) n` gates barely beat guessing**. -/
 theorem averageCaseBound_183_div_40 : AverageCaseBound.{u, v} (183 / 40) :=
   averageCaseBound_switched.mono Switched.circuitCoefficient_ge_183_div_40
+
+/-! ### Crossing-cover Gaussian-wave bounds (`4.827048 n`) -/
+
+/-- **The crossing-cover frontier lower bound for fan-in two (`≈ 4.827048 n`).** Instantiating
+the frontier method with `layoutBound_crossingCover` (`J = 13`, `A = 130649 / 500000`), every large
+circuit of fan-in at most two deciding a dense rectangle-free set `S_n` has more than
+`(630649 / 130649 - ε) n` inner gates. -/
+theorem eventually_crossingCover_sub_mul_lt_innerSize
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
+        (630649 / 130649 - ε) * n < c.innerSize := by
+  have h := eventually_lt_innerSize (by norm_num) layoutBound_crossingCover hSK hε
+  rwa [show (1 : ℝ) + 1 / (130649 / 500000) = 630649 / 130649 by norm_num] at h
+
+/-- **The `(4.827 - ε) n` frontier lower bound for fan-in two.** Since
+`4827 / 1000 ≤ 630649 / 130649`, every large circuit of fan-in at most two deciding `S_n` has more
+than `(4827 / 1000 - ε) n` inner gates. -/
+theorem eventually_4827_div_1000_sub_mul_lt_innerSize
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
+        (4827 / 1000 - ε) * n < c.innerSize := by
+  filter_upwards [eventually_crossingCover_sub_mul_lt_innerSize.{u, v} hSK hε] with n hn
+  intro σ I Acc c hfan hS
+  refine lt_of_le_of_lt ?_ (hn σ I Acc c hfan hS)
+  exact mul_le_mul_of_nonneg_right (by norm_num) (Nat.cast_nonneg n)
+
+/-- **The `(4.8 - ε) n` frontier lower bound for fan-in two (`J = 5`).** Using
+`layoutBound_five_div_nineteen` (`A = 5 / 19`), every large circuit of fan-in at most two deciding
+`S_n` has more than `(24 / 5 - ε) n` inner gates. -/
+theorem eventually_24_div_5_sub_mul_lt_innerSize
+    (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost 2 → c.Decides I Acc (S n) →
+        (24 / 5 - ε) * n < c.innerSize := by
+  have h := eventually_lt_innerSize (by norm_num) layoutBound_five_div_nineteen hSK hε
+  rwa [show (1 : ℝ) + 1 / (5 / 19) = 24 / 5 by norm_num] at h
+
+/-- **Circuits of fan-in two deciding dense rectangle-free sets need
+`(630649 / 130649 - ε) n` (`≈ 4.827048 n`) gates**, via `layoutBound_crossingCover`. -/
+theorem circuitLowerBound_crossingCover : CircuitLowerBound.{u, v} (630649 / 130649) := by
+  have h := circuitLowerBound_of_layoutBound.{u, v} (by norm_num) layoutBound_crossingCover
+  rwa [show (1 : ℝ) + 1 / (130649 / 500000) = 630649 / 130649 by norm_num] at h
+
+/-- **Circuits of fan-in two deciding dense rectangle-free sets need `(4.827 - ε) n` gates.** -/
+theorem circuitLowerBound_4827_div_1000 : CircuitLowerBound.{u, v} (4827 / 1000) :=
+  circuitLowerBound_crossingCover.mono (by norm_num)
+
+/-- **Circuits of fan-in two deciding dense rectangle-free sets need `(4.8 - ε) n` gates.** -/
+theorem circuitLowerBound_24_div_5 : CircuitLowerBound.{u, v} (24 / 5) :=
+  circuitLowerBound_crossingCover.mono (by norm_num)
+
+/-- **Circuits of fan-in two below `(630649 / 130649 - ε) n` (`≈ 4.827048 n`) gates barely beat
+guessing** on sets of small bias on large rectangles, via `layoutBound_crossingCover`. -/
+theorem averageCaseBound_crossingCover : AverageCaseBound.{u, v} (630649 / 130649) := by
+  have h := averageCaseBound_of_layoutBound.{u, v} (by norm_num) layoutBound_crossingCover
+  rwa [show (1 : ℝ) + 1 / (130649 / 500000) = 630649 / 130649 by norm_num] at h
+
+/-- **Circuits of fan-in two below `(4.827 - ε) n` gates barely beat guessing.** -/
+theorem averageCaseBound_4827_div_1000 : AverageCaseBound.{u, v} (4827 / 1000) :=
+  averageCaseBound_crossingCover.mono (by norm_num)
+
+/-- **Circuits of fan-in two below `(4.8 - ε) n` gates barely beat guessing.** -/
+theorem averageCaseBound_24_div_5 : AverageCaseBound.{u, v} (24 / 5) :=
+  averageCaseBound_crossingCover.mono (by norm_num)
 
 end Cslib.Circuits.Frontier

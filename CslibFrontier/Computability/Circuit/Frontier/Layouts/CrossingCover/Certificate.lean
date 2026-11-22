@@ -294,7 +294,7 @@ theorem ar2InitDensity_continuous : Continuous fun p : ℝ × ℝ => ar2InitDens
 
 /-- Continuity of `ar2Kernel`. -/
 theorem ar2Kernel_continuous :
-    Continuous fun p : ℝ × ℝ × ℝ => ar2Kernel p.1 p.2.1 p.2.2 := by
+    Continuous fun (p : ℝ × ℝ × ℝ) => let (x, y, z) := p; ar2Kernel x y z := by
   unfold ar2Kernel
   fun_prop
 

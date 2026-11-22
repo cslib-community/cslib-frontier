@@ -1586,6 +1586,15 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.BoundedDegree
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Components
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Compression
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.AlternatingSum
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Certificate
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Concentration
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.CoverLifting
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.GaussianComparison
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Interpolation
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.Submodular
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover.TreeWave
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Cubic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CrossingCover
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SubmatrixRobust
@@ -101,11 +102,19 @@ uniformity.
   `exists_eventually_abs_correlation_hardForm_le_2787`: the improved median-switched Gaussian
   correlation threshold `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`≥ 278798 / 100000`),
   original to this library (via `layoutBound_switched`).
+* `Cslib.Circuits.Frontier.eventually_abs_correlation_quadForm_le_crossingCover`,
+  `eventually_abs_correlation_hardForm_le_crossingCover`,
+  `exists_eventually_abs_correlation_hardForm_le_of_lt_crossingCover`,
+  `exists_eventually_abs_correlation_hardForm_le_2913`: the crossing-cover Gaussian-wave
+  correlation threshold `380649 / 130649 ≈ 2.913524` (`> 2913 / 1000 = 2.913`), via
+  `layoutBound_crossingCover`.
 
 ## References
 
 * [S. Gaspers, *Path Decompositions of Sparse Graphs via Gaussian Sweeps and Faster
   Exponential Algorithms*][Gaspers2026]
+* [J. Jeong, S. H. Sæther, J. A. Telle, *Maximum Matching Width: New Characterizations and a Fast
+  Algorithm for Dominating Set*][JeongSaetherTelle2015]
 
 * [R. Chen, V. Kabanets, *Correlation bounds and #SAT algorithms for small linear-size
   circuits*][ChenKabanets2015]
@@ -401,5 +410,65 @@ theorem exists_eventually_abs_correlation_hardForm_le_2787 :
           |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
   exists_eventually_abs_correlation_hardForm_le_of_lt_switched
     (by linarith [Switched.correlationThreshold_ge])
+
+/-! ### The crossing-cover Gaussian-wave rate (`c* = 380649 / 130649 ≈ 2.913524`) -/
+
+/-- **Exponentially small correlation below `(380649 / 130649) n ≈ 2.913524 n` gates.** Using
+`layoutBound_crossingCover` (`A = 130649 / 500000`, `L = 630649 / 130649 ≈ 4.827048`), under the
+same cut-rank hypothesis on `Q_n + Q_nᵀ`, for every `c ≥ 1/2` and every
+`γ < (380649 / 130649 - c) / (2 * (630649 / 130649))`, every large circuit of fan-in at most two
+with at most `c n` inner gates has correlation at most `2^{-γ n}` with `quadForm (Q n)`. -/
+theorem eventually_abs_correlation_quadForm_le_crossingCover {c γ : ℝ} (hc : 1 / 2 ≤ c)
+    (hγ : γ < (380649 / 130649 - c) / (2 * (630649 / 130649)))
+    (Q : ∀ n, Matrix (Fin n) (Fin n) (ZMod 2)) (e : ℕ → ℝ)
+    (he : e =o[atTop] fun n => (n : ℝ))
+    (hQ : ∀ᶠ n in atTop, ∀ U : Set (Fin n), U.ncard = n / 2 →
+      ((n / 2 : ℕ) : ℝ) ≤ (Q n + (Q n)ᵀ).cutRank U + e n) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
+      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
+        |correlation {x | BitString.quadForm (Q n) x} {x | C.eval I x 0 ∈ Acc}| ≤
+          (2 : ℝ) ^ (-γ * n) :=
+  eventually_abs_correlation_quadForm_le_of_isLittleO (by norm_num) layoutBound_crossingCover hc
+    (by
+      have hrate :
+          (1 + 1 / (2 * (130649 / 500000 : ℝ)) - c) /
+              (2 * (1 + 1 / (130649 / 500000 : ℝ))) =
+            (380649 / 130649 - c) / (2 * (630649 / 130649)) := by
+        ring
+      rwa [hrate]) Q e he hQ
+
+/-- **Exponentially small correlation with `hardForm n` below `380649 / 130649 n` gates.** -/
+theorem eventually_abs_correlation_hardForm_le_crossingCover {c γ : ℝ} (hc : 1 / 2 ≤ c)
+    (hγ : γ < (380649 / 130649 - c) / (2 * (630649 / 130649))) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
+      (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
+        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
+  eventually_abs_correlation_quadForm_le_crossingCover hc hγ hardMatrix _
+    isLittleO_hardDeficiency (Eventually.of_forall half_le_cutRank_hardMatrix_add)
+
+/-- **Every coefficient below `380649 / 130649 ≈ 2.913524`.** -/
+theorem exists_eventually_abs_correlation_hardForm_le_of_lt_crossingCover {c : ℝ}
+    (hc : c < 380649 / 130649) :
+    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
+      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 → (C.innerSize : ℝ) ≤ c * n →
+        |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) := by
+  let c' : ℝ := max c (1 / 2)
+  let r : ℝ := (380649 / 130649 - c') / (2 * (630649 / 130649))
+  have hr : 0 < r := div_pos (sub_pos.mpr (max_lt hc (by norm_num))) (by norm_num)
+  refine ⟨r / 2, half_pos hr, ?_⟩
+  filter_upwards [eventually_abs_correlation_hardForm_le_crossingCover.{v} (le_max_right c _)
+    (γ := r / 2) (half_lt_self hr)] with n hn σ I Acc C hfan hsize
+  exact hn σ I Acc C hfan
+    (hsize.trans (mul_le_mul_of_nonneg_right (le_max_left c _) (Nat.cast_nonneg n)))
+
+/-- **Below `2.913 n` gates.** Some fixed `γ > 0` bounds, for all large `n`, the correlation of
+every circuit of fan-in at most two with at most `2.913 n` inner gates with `hardForm n` by
+`2^{-γ n}`. -/
+theorem exists_eventually_abs_correlation_hardForm_le_2913 :
+    ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool)
+      (Acc : Set Bool) (C : Circuit σ n 1), C.FanInAtMost 2 →
+        (C.innerSize : ℝ) ≤ 2913 / 1000 * n →
+          |correlation {x | hardForm n x} {x | C.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
+  exists_eventually_abs_correlation_hardForm_le_of_lt_crossingCover (by norm_num)
 
 end Cslib.Circuits.Frontier

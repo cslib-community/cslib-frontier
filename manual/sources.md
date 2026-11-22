@@ -1255,7 +1255,10 @@ Bibliographic metadata verified via DOI/arXiv summaries on 2026-11-22; the full 
 inspected directly in this pass. Cited for the notion of maximum-matching / crossing-vertex-cover
 width across graph bipartitions; the deterministic cutwidth interpolation, finite high-girth cover
 lifting, Gaussian wave comparison, alternating non-backtracking walk bound, Efron–Stein
-concentration, and certified quadrature formalization under
+concentration, and kernel-checked fixed-point Gauss–Legendre quadrature certification
+(`J = 5`: `< 5/38`, slope `24/5 = 4.8`; `J = 7`: `< 1308/10000`, slope `1577/327 ≈ 4.8226`;
+`J = 13`: `< 2613/20000`, slope `12613/2613 ≈ 4.82702`, and tight `< 130649/1000000`, slope
+`630649/130649 ≈ 4.82705 > 4.827`) under
 [CrossingCover](../CslibFrontier/Computability/Circuit/Frontier/Layouts/CrossingCover.lean)
 are authored cleanly from scratch in Lean 4, attributing the crossing-cover Gaussian-wave proof
 architecture to public contest submissions (PRs #843, #858, and #859 on

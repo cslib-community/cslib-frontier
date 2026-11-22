@@ -129,7 +129,7 @@ theorem crossingGraph_adj_iff (H : SimpleGraph V) (b : V → Bool) (u v : V) :
 /-- Restrict `D` to edges with both endpoints inside a `Finset V`. -/
 def restrictEdges (D : SimpleGraph V) (S : Finset V) : SimpleGraph V where
   Adj u v := D.Adj u v ∧ u ∈ S ∧ v ∈ S
-  symm := ⟨fun _ _ h => ⟨h.1.symm, h.2.2, h.2.1⟩⟩
+  symm := ⟨fun _ _ ⟨hadj, hu, hv⟩ => ⟨hadj.symm, hv, hu⟩⟩
   loopless := ⟨fun v h => D.loopless.irrefl v h.1⟩
 
 /-- A `Finset V` is a union of connected components of `D` if no edge crosses its boundary. -/

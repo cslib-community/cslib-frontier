@@ -51,7 +51,7 @@ bounded coordinate influence.
   `(γ + ξ) * |V|`, for every sufficiently large cubic graph.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier.CrossingCover
 

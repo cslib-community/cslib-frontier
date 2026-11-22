@@ -942,28 +942,29 @@ noncomputable def liftWalkAux (u' : V') :
       have hk : k = 0 := Fin.ext (by omega)
       subst hk; exact h0.symm, fun i => i.elim0⟩
   | j + 1, w, h0, hadj =>
-    let prev := liftWalkAux u' j (fun i => w i.castSucc) h0 (fun i => hadj i.castSucc)
-    let last := prev.1 (Fin.last j)
-    have hproj_last : cov.proj last = w (Fin.last j).castSucc := prev.2.2.1 (Fin.last j)
+    let ⟨prevW, hprev0, hprevProj, hprevAdj⟩ :=
+      liftWalkAux u' j (fun i => w i.castSucc) h0 (fun i => hadj i.castSucc)
+    let last := prevW (Fin.last j)
+    have hproj_last : cov.proj last = w (Fin.last j).castSucc := hprevProj (Fin.last j)
     have hadj_last : H.Adj (cov.proj last) (w (Fin.last (j + 1))) := by
       rw [hproj_last]
       exact hadj (Fin.last j)
     let next := cov.liftNeighbor last hadj_last
-    ⟨Fin.snoc prev.1 next, by simp [Fin.snoc, prev.2.1],
+    ⟨Fin.snoc prevW next, by simp [Fin.snoc, hprev0],
       fun k => by
         by_cases hk : k.1 < j + 1
         · have : k = (⟨k.1, hk⟩ : Fin (j + 1)).castSucc := Fin.ext rfl
           rw [this, Fin.snoc_castSucc]
-          exact prev.2.2.1 ⟨k.1, hk⟩
+          exact hprevProj ⟨k.1, hk⟩
         · have hkl : k = Fin.last (j + 1) := Fin.ext (by simp only [Fin.val_last]; omega)
           rw [hkl, Fin.snoc_last]
           exact cov.proj_liftNeighbor last hadj_last,
       fun i => by
         by_cases hi : i.1 < j
-        · have : i.castSucc = (⟨i.1, hi⟩ : Fin j).castSucc.castSucc := Fin.ext rfl
-          have : i.succ = (⟨i.1, hi⟩ : Fin j).succ.castSucc := Fin.ext rfl
-          simp only [Fin.snoc_castSucc, *]
-          exact prev.2.2.2 ⟨i.1, hi⟩
+        · have hc : i.castSucc = (⟨i.1, hi⟩ : Fin j).castSucc.castSucc := Fin.ext rfl
+          have hs : i.succ = (⟨i.1, hi⟩ : Fin j).succ.castSucc := Fin.ext rfl
+          rw [hc, hs, Fin.snoc_castSucc, Fin.snoc_castSucc]
+          exact hprevAdj ⟨i.1, hi⟩
         · have hil : i = Fin.last j := Fin.ext (by simp only [Fin.val_last]; omega)
           subst hil
           have hc : (Fin.last j : Fin (j + 1)).castSucc = (Fin.last j).castSucc := rfl
