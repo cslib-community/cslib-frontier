@@ -41,12 +41,13 @@ def criticalLabelDeterminantPrimeCutoff (n d b : ℕ) : ℕ :=
   max (ell * (D * (d + 2) + n * d + 1) + 1)
     (max (ell * (traceDegreeBound n d b + 1) + 1) (D * D + 1))
 
-/-- The shifted objective degree bound is computable in polynomial time from the source
-degree and norm bounds and the unary arity. -/
-theorem criticalLabelObjectiveDegreeBound_polyTime {α : Type} {enc : α ↪ List Bool}
+private theorem criticalShiftedLabelDegreeBound_polyTime {α : Type} {enc : α ↪ List Bool}
     {n ell b : α → ℕ} (hn : ComputableInPolyTime n enc encUnary)
     (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
-    ComputableInPolyTime (fun w => criticalLabelObjectiveDegreeBound (n w) (ell w) (b w))
+    ComputableInPolyTime (fun w =>
+      Polynomial.signLabelDegreeBound (n w * (ell w).size + 1)
+        (Polynomial.sparseRootLabelPrecision (ell w ^ n w)
+          (criticalRootLabelCoeffNormExponent (n w) (ell w) (b w))) (ell w ^ n w))
       enc encNat := by
   have hD := binary_pow' (hbase := hell) (hexponent := hn)
   have hN := unary_to_binary.comp (unary_mul' hn (binary_size.comp hell))
@@ -55,9 +56,44 @@ theorem criticalLabelObjectiveDegreeBound_polyTime {α : Type} {enc : α ↪ Lis
   have hm := binary_add' (binary_add' hN (.const 1)) (.const 1)
   have hfactor := binary_mul' (binary_mul' (.const 2) hm)
     (binary_add' (binary_mul' (.const 2) hprecision) (.const 1))
-  have hdegree := binary_mul' (.const 2) (binary_mul' hm (binary_mul' hfactor hD))
-  simpa only [criticalLabelObjectiveDegreeBound, Polynomial.signLabelDegreeBound,
-    Function.comp_apply] using binary_mul' hdegree (binary_add' hell (.const 1))
+  exact binary_mul' (.const 2) (binary_mul' hm (binary_mul' hfactor hD))
+
+/-- The shifted objective degree bound is computable in polynomial time from the source
+degree and norm bounds and the unary arity. -/
+theorem criticalLabelObjectiveDegreeBound_polyTime {α : Type} {enc : α ↪ List Bool}
+    {n ell b : α → ℕ} (hn : ComputableInPolyTime n enc encUnary)
+    (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => criticalLabelObjectiveDegreeBound (n w) (ell w) (b w))
+      enc encNat :=
+  binary_mul' (criticalShiftedLabelDegreeBound_polyTime hn hell hb) (binary_add' hell (.const 1))
+
+/-- The binary magnitude exponent for the critical label determinant is computable
+in polynomial time from unary arity and the binary source bounds. -/
+theorem criticalLabelDeterminantExponent_polyTime {α : Type} {enc : α ↪ List Bool}
+    {n ell b : α → ℕ} (hn : ComputableInPolyTime n enc encUnary)
+    (hell : ComputableInPolyTime ell enc encNat) (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => criticalLabelDeterminantExponent (n w) (ell w) (b w))
+      enc encNat := by
+  have hD := binary_pow' (hbase := hell) (hexponent := hn)
+  have hN := unary_to_binary.comp (unary_mul' hn (binary_size.comp hell))
+  have hm := binary_add' hN (.const 1)
+  have hm' := binary_add' hm (.const 1)
+  have hB := criticalRootLabelCoeffNormExponent_polyTime hn hell hb
+  have hderivative := iterateDerivativeNormExponent_polyTime hD hB
+  have hprecision := sparseRootLabelPrecision_polyTime hD hB
+  have hwidth := binary_add' (binary_mul' (.const 2) hprecision) (.const 1)
+  have hfactor := binary_mul' (binary_mul' (.const 2) hm') hwidth
+  have hlabel := binary_add' (unary_to_binary.comp (binary_size.comp hm))
+    (binary_mul' (.const 2) (binary_mul' hm' (binary_add'
+      (binary_mul' hfactor (binary_add' hwidth hderivative)) (.const 2))))
+  have hshift := binary_add' (binary_add' (binary_add' hlabel (.const 3)) hN) (.const 3)
+  have hsystem := binary_add'
+    (criticalSystemCoeffNormExponent_polyTime (unary_to_binary.comp hn) hell hb)
+    (criticalParameterExponent_polyTime hn hell hb)
+  have hobjective := binary_add' hshift
+    (binary_mul' hsystem (criticalShiftedLabelDegreeBound_polyTime hn hell hb))
+  exact multiplicationMatrixCharpolyCoeffNormExponent_polyTime hn hell
+    (criticalLabelObjectiveDegreeBound_polyTime hn hell hb) hobjective hsystem
 
 private theorem traceDegreeBound_polyTime {α : Type} {enc : α ↪ List Bool} {n d b : α → ℕ}
     (hn : ComputableInPolyTime n enc encUnary) (hd : ComputableInPolyTime d enc encNat)
@@ -96,6 +132,12 @@ noncomputable def criticalLabelDeterminantResidue (p n d b e : ℕ)
     (fun z => criticalShiftedObjectiveResidue p n d b e z data value)
     (fun z => criticalJacobianValue p n ell u z value)
     (fun i z => criticalLowerValue p n ell u i z value)
+
+/-- At any positive modulus the evaluator returns a canonical residue. -/
+theorem criticalLabelDeterminantResidue_lt {p : ℕ} (hp : 0 < p) (n d b e : ℕ)
+    (data : List RootLabelTestCode) (value : List ℕ → ℕ) :
+    criticalLabelDeterminantResidue p n d b e data value < p :=
+  Nat.mod_lt _ hp
 
 /-- The determinant costs eight counting levels above the shifted objective and twenty-one
 above the source evaluator. -/

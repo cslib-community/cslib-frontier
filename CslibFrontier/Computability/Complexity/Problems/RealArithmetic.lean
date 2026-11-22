@@ -7,7 +7,7 @@ Authors: lean-canny contributors, Erik Demaine
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.RealArithmetic.Encoding
+public import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
 
 /-!
@@ -69,6 +69,21 @@ Omitting the ambient dimension from the word does not change satisfiability. -/
       (Fin.castLE_injective (Nat.le_max_right n m)) q).mpr hq
   · intro hp
     exact Set.mem_iUnion.mpr ⟨n, Set.mem_image_of_mem (encFormula n) hp⟩
+
+/-- ETR membership agrees with satisfiability of the total formula view, on every bit word.
+In particular the view rejects malformed inputs by assigning them an empty solution set. -/
+theorem mem_ETR_iff_ofWord (word : List Bool) :
+    word ∈ ETR ↔ (Formula.ofWord word).solutionSet.Nonempty := by
+  by_cases h : validFormulaWord word = true
+  · have heq : encFormula word.length (Formula.ofWord word) = word := by
+      rw [encFormula_ofWord, normalizeFormulaWord, ite_eq_left h]
+    exact (congrArg (· ∈ ETR) heq.symm).to_iff.trans (encFormula_mem_ETR _)
+  · have hno : word ∉ ETR := by
+      intro hw
+      obtain ⟨n, p, _, hp⟩ := Set.mem_iUnion.mp hw
+      exact h (hp ▸ validFormulaWord_encFormula (n := n) p)
+    rw [Formula.ofWord_of_not_valid h, Formula.solutionSet]
+    simp [hno]
 
 /-- The two-block encoding has exactly the advertised truth condition, including when a
 representing formula has extra unused universal coordinates. -/

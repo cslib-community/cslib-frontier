@@ -98,26 +98,30 @@ variable {I : InstructionSet.{u, v, w}} (F : FlatMachine.{u, v, w, i} I)
 variable {F}
 
 /-- `p` contains `q` from label `base`. -/
-private def Contains (p : List F.Instr) (base : ℕ) (q : List F.Instr) : Prop :=
+@[expose] def Contains {α : Type*} (p : List α) (base : ℕ) (q : List α) : Prop :=
   ∃ pre post, p = pre ++ q ++ post ∧ pre.length = base
 
 namespace Contains
 
-variable {p q q₁ q₂ : List F.Instr} {base : ℕ} {j : F.Instr}
+variable {α : Type*} {p q q₁ q₂ : List α} {base : ℕ} {j : α}
 
-private theorem append_left (h : Contains p base (q₁ ++ q₂)) : Contains p base q₁ :=
+/-- Retain the left part of the contained block. -/
+theorem append_left (h : Contains p base (q₁ ++ q₂)) : Contains p base q₁ :=
   let ⟨pre, post, hp, hl⟩ := h
   ⟨pre, q₂ ++ post, by simp [hp], hl⟩
 
-private theorem append_right (h : Contains p base (q₁ ++ q₂)) :
+/-- Retain the right part and advance the starting label. -/
+theorem append_right (h : Contains p base (q₁ ++ q₂)) :
     Contains p (base + q₁.length) q₂ :=
   let ⟨pre, post, hp, hl⟩ := h
   ⟨pre ++ q₁, post, by simp [hp], by simp [hl]⟩
 
-private theorem cons_tail (h : Contains p base (j :: q)) : Contains p (base + 1) q :=
+/-- Drop the first instruction of the contained block. -/
+theorem cons_tail (h : Contains p base (j :: q)) : Contains p (base + 1) q :=
   append_right (q₁ := [j]) h
 
-private theorem head (h : Contains p base (j :: q)) : p[base]? = some j := by
+/-- Fetch the first instruction of the contained block. -/
+theorem head (h : Contains p base (j :: q)) : p[base]? = some j := by
   obtain ⟨pre, post, rfl, rfl⟩ := h
   simp
 

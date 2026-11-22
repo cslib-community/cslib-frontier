@@ -249,7 +249,7 @@ theorem eraseVisits_of_bounds_eq {t : Tree d} {m : ℕ} (hb : t.bounds = some (m
   | node b s c =>
     simp only [bounds] at hb
     subst b
-    simp [eraseVisits]
+    simp only [eraseVisits, ↓reduceIte, ite_self]
 
 /-- `erase` performs at most `d + 1` active recursive calls. -/
 theorem eraseVisits_le (t : Tree d) (x : ℕ) : t.eraseVisits x ≤ d + 1 :=
@@ -348,11 +348,11 @@ theorem finMinimum_spec {t : Tree d} (ht : t.Valid) :
     exact not_contains_of_bounds_none hb x.val
   | some b =>
     obtain ⟨m, M⟩ := b
-    have he := ht.extrema_of_bounds hb
-    have hm : m < universeSize d := ht.contains_lt he.2.2.1
+    obtain ⟨_, _, hm_mem, _, hbounds⟩ := ht.extrema_of_bounds hb
+    have hm : m < universeSize d := ht.contains_lt hm_mem
     simp only [finMinimum, minimum, hb, Option.map_some, dite_eq_left hm, LeastResult,
       mem_finElements_iff ht]
-    exact ⟨he.2.2.1, fun z hz => (he.2.2.2.2 z.val hz).1⟩
+    exact ⟨hm_mem, fun z hz => (hbounds z.val hz).1⟩
 
 /-- `finSuccessor` satisfies the optional-minimum contract for keys strictly above `x`. -/
 theorem finSuccessor_spec {t : Tree d} (ht : t.Valid) (x : Fin (universeSize d)) :
@@ -455,9 +455,8 @@ theorem rep_empty (d : ℕ) : Rep (∅ : Finset (Fin (universeSize d))) (Tree.em
     obtain ⟨ht, rfl⟩ := hr
     cases o with
     | contains x =>
-      refine ⟨?_, ht, rfl⟩
-      have h := (Tree.member_iff_contains ht x.val).trans (Tree.mem_finElements_iff ht x).symm
-      by_cases hx : x ∈ t.finElements <;> simp_all [step]
+      exact ⟨Bool.eq_iff_iff.mpr ((Tree.member_iff_contains ht x.val).trans
+        ((Tree.mem_finElements_iff ht x).symm.trans decide_eq_true_iff.symm)), ht, rfl⟩
     | insert x => exact ⟨rfl, Tree.valid_insert ht x.isLt, Tree.finElements_insert ht x⟩
     | delete x => exact ⟨rfl, Tree.valid_erase ht x.val, Tree.finElements_erase ht x⟩
     | minimum => exact ⟨(Tree.finMinimum_spec ht).eq_least, ht, rfl⟩
@@ -480,9 +479,8 @@ theorem exec_visits_le {t t' : Tree d} {o : Op (Fin (universeSize d))}
 
 /-- Uniform `d + 1` active-call depth bound (`O(log log U)` since `universeSize d = 2 ^ (2 ^ d)`)
 for `VanEmdeBoas.impl d`. -/
-theorem callDepthBound (d : ℕ) : Bound (impl d) id (fun _ _ => d + 1) := by
-  intro _ _ _ _ _ _ _ _ he
-  exact exec_visits_le he
+theorem callDepthBound (d : ℕ) : Bound (impl d) id (fun _ _ => d + 1) :=
+  fun _ _ he => exec_visits_le he
 
 /-- Every adaptive `OrderedSet` client over `Fin (universeSize d)` executes on `Tree d` with
 finite-set correctness and total active recursive calls at most `history.length * (d + 1)`. -/
