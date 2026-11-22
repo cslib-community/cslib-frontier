@@ -1,3 +1,4 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.DistributedMinimumSpanningTree
+import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry

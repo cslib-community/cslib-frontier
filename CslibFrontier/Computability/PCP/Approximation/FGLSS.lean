@@ -38,8 +38,9 @@ and its general identity:
 Here `r` is the number `V.coins x` of random bits the verifier uses on `x`.
 
 The companion module `FGLSSRuntime` gives the native construction and runtime certificate
-for item 1 in the nonadaptive model. The every-constant approximation hardness corollary
-remains open here.
+for item 1 in the nonadaptive model, and `IndependentSet` combines them with independent verifier
+repetition and `NP = PCP(log n, 1)` to prove every-constant NP-hardness of `GapIndependentSet` and
+`GapClique`.
 
 A view whose queries repeat a position with different answers is inconsistent with itself. The
 exercise states the conflict condition without discussing repeated queries; read literally, the
