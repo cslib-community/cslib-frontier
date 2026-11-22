@@ -88,7 +88,9 @@ modulus `N = p * q` and public nonresidue `z ∈ QNR_N^{+1}`:
   extends the lossy-public-key reduction to bounded equal-length bit words (`encryptWord`) with
   factor-`2` QR loss independent of message length (`advantage_publicKeyWordGame_le_qr`,
   `indistinguishable_publicKeyWordGame`). `publicKeyLaw` is a distribution, not a key-generation
-  algorithm: no generator `gen` whose `keyGen gen` matches it is constructed.
+  algorithm; `CslibFrontier.Crypto.Computational.GoldwasserMicali.TextbookKeyGen` constructs the
+  strict-PPT textbook key generator `textbookKeyGen` within `1 / 2 ^ n` statistical distance of
+  `publicKeyLaw` and proves single-bit and multi-bit IND-CPA security for it directly.
 * **Necessity of `J_N(z) = +1`**: `jacobiAttackAdversary` is a certified uniform strict-PPT
   adversary achieving exact IND-CPA advantage `1` whenever `z ∈ jacobiNegSet p q`
   (`advantage_jacobiAttackAdversary_eq_one`).
