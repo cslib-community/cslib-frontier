@@ -11,6 +11,7 @@ public import CslibFrontier.Crypto.Game.Experiment
 public import CslibFrontier.Crypto.Game.Hybrid
 public import CslibFrontier.Crypto.Protocols.UC.Linking
 public import CslibFrontier.Languages.Probabilistic.Vector
+import CslibFrontier.Languages.Probabilistic.Oracle.Vector
 import CslibFrontier.Languages.Probabilistic.Simulation
 
 /-!
@@ -83,6 +84,14 @@ theorem parFin_handle {m : ℕ} (M : Fin m → Machine I E) (j : Fin m) (e : ιE
       (fun x => ((x.1, Function.update s j x.2) : sessionSpec m E (j, e) × (parFin M).State)) <$>
         ((M j).handle e).run (s j) :=
   rfl
+
+/-- Running `m` packages with per-activation call budget `t` side by side gives a package with
+call budget `m * t`. -/
+theorem isBounded_parFin {m : ℕ} {M : Fin m → Machine I E} {t : ℕ}
+    (hM : ∀ j, (M j).IsBounded t) : (parFin M).IsBounded (m * t) := by
+  refine ⟨OracleComp.isCostBounded_pi fun j => (hM j).1, fun q s => ?_⟩
+  exact ((OracleComp.isCostBounded_map_iff _ _ _).mpr ((hM q.1).2 q.2 (s q.1))).mono
+    (Nat.le_mul_of_pos_left t q.1.pos)
 
 /-- Two packages importing the same interface, run side by side behind the sum of their exported
 interfaces: each query is answered by the corresponding package, on its own state. -/
@@ -173,7 +182,7 @@ private theorem isMonadHom_closeProgram :
 
 /-- The output distribution of a program run against a closed package: sample the initial state,
 then interpret the program with each activation read as a distribution. -/
-private theorem eval_run (N : Machine OracleSpec.empty E) (program : ProbOracleComp E α) :
+theorem eval_run (N : Machine OracleSpec.empty E) (program : ProbOracleComp E α) :
     (N.run program).eval = N.init.eval.bind fun s =>
       ((OracleComp.interpret (m := StateT N.State PMF)
         (fun q state => (Machine.closeProgram (N.handler q state)).eval) program).run s).map

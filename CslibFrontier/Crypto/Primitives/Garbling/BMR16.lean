@@ -16,9 +16,15 @@ import CslibFrontier.Probability.Uniform
 # The BMR16 garbling scheme for mixed-modulus circuits
 
 The garbling scheme of Ball, Malkin and Rosulek [BallMalkinRosulek2016, Figure 1]
-for mixed-modulus circuits (`MixedModulus.MixedModulusCircuit`). Each sort `i` has a secret offset
-`Δ_i = (δ_i, 1)` and each wire `w` of sort `i` a zero label `W_w^0`; the label of value
-`x ∈ ℤ_{μ i}` is `W_w^x = W_w^0 + x Δ_i`, whose colour is the colour of `W_w^0` plus `x`.
+for mixed-modulus circuits (`MixedModulus.MixedModulusCircuit`), its correctness, and the exact
+reduction identity behind its privacy for one hash, circuit, input and distinguisher. Privacy itself
+is not proved here: the privacy part of [BallMalkinRosulek2016] Theorem 1 needs a family of schemes,
+an assumption that bounds the adversary's efficiency and a certified reduction, and is tracked in
+#6068.
+
+Each sort `i` has a secret offset `Δ_i = (δ_i, 1)` and each wire `w` of sort `i` a zero label
+`W_w^0`; the label of value `x ∈ ℤ_{μ i}` is `W_w^x = W_w^0 + x Δ_i`, whose colour is the colour of
+`W_w^0` plus `x`.
 
 * `Add_m` and `Mult_c` gates are free: the output zero label is the sum of the input zero labels,
   or `c` times the input zero label, and no ciphertext is sent.
@@ -41,8 +47,8 @@ Privacy is simulation-based with the circuit's shape as side information: the si
 (`simulate`) samples one uniform label per input wire and uniform ciphertexts, and sets the
 decoding information so that the evaluated output labels decode to the output. It is polymorphic
 in the projection payload, so it cannot read the projection functions (a parametricity argument
-about its definition, not a theorem stated here), and it does not take the input. The main
-theorem `advantage_realGame_simGame` shows that the advantage of any distinguisher `D` between
+about its definition, not a theorem stated here), and it does not take the input. The reduction
+identity `advantage_realGame_simGame` shows that the advantage of any distinguisher `D` between
 the real and the simulated view is *equal* to the mixed-modulus CCR advantage
 (`MixedModulus.ccrAdvantage`) of an explicit reduction `reduction`, provided the tweaks of the
 gates are distinct. The reduction samples the active labels of the input wires, evaluates the
@@ -54,7 +60,10 @@ and against a random function the ciphertexts are uniform. The reduction is lega
 multiplier `0`, and its queries are determined by their tweak and multiplier. It asks several
 queries under one tweak, so it is not legal for the literal Definition 1 of
 [BallMalkinRosulek2016]; see `MixedModulus`. Running time is not tracked: there are no cost
-bounds for garbling, evaluation, the simulator or the reduction.
+bounds for garbling, evaluation, the simulator or the reduction. No assumption is applied, so no
+privacy bound is concluded: that needs an asymptotic form of mixed-modulus circular correlation
+robustness against efficient adversaries and a PPT certificate for a family version of the
+reduction (#6068).
 
 ## Main definitions
 
@@ -69,11 +78,9 @@ bounds for garbling, evaluation, the simulator or the reduction.
 * `Cslib.Crypto.Garbling.BMR16.Garbled.run_ofKeys`, `.Garbled.run_of_mem_support`: correctness.
 * `Cslib.Crypto.Garbling.BMR16.View.run_simulateWith`: simulated views decode to the output.
 * `Cslib.Crypto.Garbling.BMR16.reduction_isLegal`: the reduction is a legal adversary.
-* `Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame`: privacy, as an equality with the
+* `Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame`: the reduction identity, not a privacy
+  theorem: the advantage of a distinguisher between the real and the simulated view equals the
   mixed-modulus CCR advantage of the reduction.
-* `Cslib.Crypto.Garbling.BMR16.advantage_realGame_simGame_le_of_reduction_mem`: an algebraic
-  helper, not a security theorem: the bound `ε` of `MixedModulusCCR` transfers to privacy once the
-  caller shows that the reduction built from `D` lies in the assumption's adversary class.
 
 ## References
 
@@ -773,9 +780,14 @@ theorem simGame_eq_ccrIdealGame [Fintype T] [DecidableEq T] (H : MixedModulusHas
     fun N => ProbComp.eval (D ⟨N.1, A, decode (C.eval x) N.2⟩)]
   rfl
 
-/-- **Simulation privacy of BMR16.** For every mixed-modulus circuit `C`, input `x` and
+/-- The reduction identity behind the privacy of BMR16, not the privacy part of
+[BallMalkinRosulek2016] Theorem 1. For one hash `H`, mixed-modulus circuit `C`, input `x` and
 distinguisher `D`, if the gates have distinct tweaks, the advantage of `D` between the real and
-the simulated view equals the mixed-modulus CCR advantage of the reduction against `H`. -/
+the simulated view equals the mixed-modulus CCR advantage of the explicit reduction
+`reduction H tw C x D` against `H`, which is legal (`reduction_isLegal`). No assumption is applied
+and nothing is bounded: privacy needs an asymptotic form of mixed-modulus circular correlation
+robustness against efficient adversaries and a PPT certificate for a family version of the
+reduction, which do not exist yet (#6068). -/
 theorem advantage_realGame_simGame [Fintype T] [DecidableEq T] (H : MixedModulusHash T μ ℓ)
     (tw : ℕ → T) (C : MixedModulusCircuit μ (Projection μ) Γ Θ) (x : Env (Residue μ) Γ)
     (D : View ℓ C → ProbComp Bool) (htw : Set.InjOn tw (Set.Iio C.size)) :
@@ -925,21 +937,5 @@ theorem reduction_isLegal [∀ i, NeZero (μ i)] (H : MixedModulusHash T μ ℓ)
   exact ⟨fun q hq => (h₅ q hq).1, h₆⟩
 
 end Legality
-
-/-- Algebraic helper, not a security theorem. If `H` is mixed-modulus CCR with bound `ε` against a
-class `𝒟`, and the caller supplies `hD`, that the reduction built from this distinguisher `D` lies
-in `𝒟`, then `D` has advantage at most `ε` between the real and the simulated view. Legality of
-the reduction is proved (`reduction_isLegal`), but its membership in `𝒟` is a premise, and no cost
-bound for the reduction is proved. The concrete statement is the equality
-`advantage_realGame_simGame`. -/
-theorem advantage_realGame_simGame_le_of_reduction_mem [Fintype T] [DecidableEq T]
-    (H : MixedModulusHash T μ ℓ)
-    (tw : ℕ → T) (C : MixedModulusCircuit μ (Projection μ) Γ Θ) (x : Env (Residue μ) Γ)
-    (D : View ℓ C → ProbComp Bool) (htw : Set.InjOn tw (Set.Iio C.size))
-    {𝒟 : Set (CCRAdversary T μ ℓ)} {ε : NNReal} (hH : MixedModulusCCR H 𝒟 ε)
-    (hD : reduction H tw C x D ∈ 𝒟) :
-    Game.advantage (realGame H tw C x D) (simGame H tw C x D) ≤ ε := by
-  rw [advantage_realGame_simGame H tw C x D htw]
-  exact hH _ hD (reduction_isLegal H tw C x D htw)
 
 end Cslib.Crypto.Garbling.BMR16

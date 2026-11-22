@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Implied
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Round
@@ -159,31 +160,25 @@ theorem roundSetup_exec (s : ℕ) (φ : CNF (Fin n)) {w : ℕ}
     ExecWithin w roundSetup (Data.init (s :: encode φ)) (roundSetupData s φ) 12 ∧
       RoundFrame φ 3 ((s :: encode φ).length + 1) (roundSetupData s φ).mem
         (roundSetupData s φ) := by
-  have hf1 : Fits w 1 := hw.of_le (by omega)
-  have hf2 : Fits w 2 := hw.of_le (by simp [encode]; omega)
-  have hf3 : Fits w 3 := hw.of_le (by simp [encode]; omega)
-  have hf4 : Fits w ((s :: encode φ).length + 1) := hw.of_le (by omega)
-  have hf5 : Fits w ((s :: encode φ).length + 1 + n) := hw.of_le (by omega)
-  have hf6 : Fits w ((s :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
+  have : Fits w 2 := hw.of_le (by simp [encode]; omega)
+  have : Fits w 3 := hw.of_le (by simp [encode]; omega)
+  have : Fits w ((s :: encode φ).length + 1 + n) := hw.of_le (by omega)
+  have : Fits w ((s :: encode φ).length + 1 + n + n) := hw.of_le (by omega)
   have hm0 : (Data.init (s :: encode φ) : Data 32).mem 0 = (s :: encode φ).length := rfl
   have hm1 : (Data.init (s :: encode φ) : Data 32).mem 1 = s := rfl
   have hm2 : (Data.init (s :: encode φ) : Data 32).mem 2 = n := rfl
-  refine ⟨?run, ?frame⟩
-  case run =>
-    ram_eval [roundSetup, roundSetupData, Data.init_regs, hm0, hm1, hm2, hf1, hf2, hf3, hf4, hf5,
-      hf6]
-  case frame =>
-    refine ⟨by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      by simp +decide [roundSetupData], by simp +decide [roundSetupData],
-      by simp +decide [roundSetupData], by simp +decide [roundSetupData], ?_, ?_, fun _ _ => rfl⟩
-    · intro i
-      have hi : i.val < (encodeClauses φ).length := i.isLt
-      change (roundSetupData s φ).mem (3 + i.val) = (encodeClauses φ)[i.val]
-      rw [roundSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
-        show 3 + i.val = (2 + i.val) + 1 by omega, Data.init_mem_succ]
-      simp [encode, show 2 + i.val = (i.val + 1) + 1 by omega]
-    · simp [length_encode]; omega
+  refine ⟨WP.execWithin (by
+      unfold roundSetup roundSetupData; wram_exec [Data.init_regs, hm0, hm1, hm2]; rfl),
+    ⟨by wram_simp [roundSetupData, Data.init_regs], by wram_simp [roundSetupData],
+      by wram_simp [roundSetupData], by wram_simp [roundSetupData], by wram_simp [roundSetupData],
+      by wram_simp [roundSetupData], by wram_simp [roundSetupData], by wram_simp [roundSetupData],
+      ?_, by simp [length_encode]; omega, fun _ _ => rfl⟩⟩
+  intro i
+  have hi : i.val < (encodeClauses φ).length := i.isLt
+  change (roundSetupData s φ).mem (3 + i.val) = (encodeClauses φ)[i.val]
+  rw [roundSetupData_mem, ite_eq_right_iff.mpr (fun h => by simp [length_encode] at h; omega),
+    show 3 + i.val = (2 + i.val) + 1 by omega, Data.init_mem_succ]
+  simp [encode, show 2 + i.val = (i.val + 1) + 1 by omega]
 
 /-- **One round of PPSZ on the randomized word RAM.** On the input `s :: encode φ` of length `L`,
 at any word size `w` with `L + 2 n + 2 s + 3 < 2 ^ w`, the program

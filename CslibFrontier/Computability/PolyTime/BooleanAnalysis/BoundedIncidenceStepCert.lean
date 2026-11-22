@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.PolyTime.BooleanAnalysis.BoundedIncidenceSemantics
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Lists
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Max
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -539,15 +540,8 @@ private theorem exists_computableInO_mapRange {ι γ δ : Type} {encIn : ι ↪ 
   obtain ⟨cs, ds, hSf_le⟩ := hSf.exists_le
   obtain ⟨ce, hce⟩ := hcf.length_le
   let L_el : ι → ℕ := fun x => 2 * (encC (ctx x)).length + 2 * m x + 1
-  have hLel_pb : PolyBounded (fun x => (encIn x).length) L_el :=
-    (((PolyBounded.const 2).mul hctx.polyBounded_length).add
-      ((PolyBounded.const 2).mul hm.polyBounded)).add (.const 1)
   let E_sf : ι → ℕ := fun x => cs * (L_el x + 1) ^ ds
-  have hEsf_pb := NativeCertificate.polyBounded_pow_of_polyBounded hLel_pb cs ds
   let B_out : ι → ℕ := fun x => m x * (2 * (ce * (E_sf x + 1)) + 1)
-  have hBout_pb : PolyBounded (fun x => (encIn x).length) B_out :=
-    hm.polyBounded.mul (((PolyBounded.const 2).mul
-      ((PolyBounded.const ce).mul (hEsf_pb.add (.const 1)))).add (.const 1))
   have hSf_mem : ∀ x i, i ∈ List.range (m x) → Sf (ctx x, i) ≤ E_sf x := fun x i hi => by
     have hi_lt := List.mem_range.mp hi
     have hlen : (encPair encC encUnary (ctx x, i)).length ≤ L_el x := by
@@ -557,9 +551,7 @@ private theorem exists_computableInO_mapRange {ι γ δ : Type} {encIn : ι ↪ 
   let P : ι → ℕ := fun x =>
     (encIn x).length + cPar.time x + cLst.time x + cPar.space x + cLst.space x +
       (encC (ctx x)).length + (encList encUnary (List.range (m x))).length + B_out x + E_sf x
-  have hP_pb : PolyBounded (fun x => (encIn x).length) P :=
-    ((((((((PolyBounded.self.add hcPar.1).add hcLst.1).add hcPar.2).add hcLst.2).add
-      hctx.polyBounded_length).add hrange.polyBounded_length).add hBout_pb).add hEsf_pb)
+  have hP_pb : PolyBounded (fun x => (encIn x).length) P := by growth_poly
   have hlst (x : ι) :
       (encList encB ((List.range (m x)).map fun i => f (ctx x, i))).length ≤ B_out x := by
     have h := length_encList_le encB ((List.range (m x)).map fun i => f (ctx x, i))
@@ -627,9 +619,6 @@ private theorem exists_computableInO_groupMap {ι δ : Type} {encIn : ι ↪ Lis
         (fun x => (m x * (2 ^ D x + 1) + 1) * T x) S := by
   obtain ⟨c, d, hc⟩ := hov.exists_le
   let P : ι → ℕ := fun x => c * (2 * (encIn x).length + 2 * m x + 1 + 1) ^ d
-  have hP := NativeCertificate.polyBounded_pow_of_polyBounded
-    ((((PolyBounded.const 2).mul .self).add ((PolyBounded.const 2).mul hm.polyBounded)).add
-      (.const 1)) c d
   obtain ⟨S, hS, hcomp⟩ := exists_computableInO_mapRange hm id' hSf hcf
     (fun x => if m x = 0 then 0 else (2 ^ D x + 1) * P x) fun x g hg => by
       have hr0 : m x ≠ 0 := by omega
@@ -639,7 +628,7 @@ private theorem exists_computableInO_groupMap {ι δ : Type} {encIn : ι ↪ Lis
         simp only [length_encPair, encUnary_apply, List.length_replicate]; omega
       exact (hTf x g hg).trans (Nat.mul_le_mul_left _ ((hc (x, g)).trans
         (Nat.mul_le_mul_left c (Nat.pow_le_pow_left (Nat.add_le_add_right hlen 1) d))))
-  exact ⟨fun x => 2 * (P x + S x), S, (PolyBounded.const 2).mul (hP.add hS), hS,
+  exact ⟨fun x => 2 * (P x + S x), S, by growth_poly, hS,
     hcomp.mono_le (fun x => mapRange_group_bound _ _ _ _) fun _ => le_rfl⟩
 
 /-- Standalone per-measurement-word two-pass payload: slices `word` across the `r_u` variable
@@ -833,9 +822,8 @@ theorem exists_computableInO_measPayload :
   have hspN := NativeCertificate.ofPolyTime_isPolynomial hnoneWR
   have hspWXJ : HasPolySpace (cIdWX.prod cGrpJets) := hasPolySpace_prod .self hS2_pb
   have hspY : HasPolySpace cYesWR := hasPolySpace_comp (hasPolySpace_comp hspP.2 hspWXJ) hspX.2
-  have hspBr : HasPolySpace cBrWR := ((hspC.2.add hspY).add hspN.2).mono fun p => by
-    dsimp only [cBrWR, cCondWR, cNoWR]; simp only [NativeCertificate.branch_space]
-    split_ifs <;> omega
+  have hspBr : HasPolySpace cBrWR := by
+    dsimp only [HasPolySpace, cBrWR, NativeCertificate.branch]; growth_poly
   have hspWCR : HasPolySpace (cIdWC.prod cPass1) := hasPolySpace_prod .self hS1_pb
   have hcFull_sp : HasPolySpace cFull := hasPolySpace_comp hspBr hspWCR
   have hlenWR_pb := polyBounded_length_of_hasPolySpace hspWCR
@@ -850,17 +838,10 @@ theorem exists_computableInO_measPayload :
   let B_WR : List ℤ × MeasStepCtx → ℕ := fun wc => cWR * ((eWC wc).length + 1) ^ dWR
   let B_WX : List ℤ × MeasStepCtx → ℕ := fun wc => cWX * ((eWC wc).length + 1) ^ dWX
   let B_WXJ : List ℤ × MeasStepCtx → ℕ := fun wc => cWXJ * ((eWC wc).length + 1) ^ dWXJ
-  have hself : PolyBounded (fun wc => (eWC wc).length) (fun wc => (eWC wc).length) := .self
-  have hBWR_pb := NativeCertificate.polyBounded_pow_of_polyBounded hself cWR dWR
-  have hBWX_pb := NativeCertificate.polyBounded_pow_of_polyBounded hself cWX dWX
-  have hBWXJ_pb := NativeCertificate.polyBounded_pow_of_polyBounded hself cWXJ dWXJ
   let P_all : List ℤ × MeasStepCtx → ℕ := fun wc =>
     T1 wc + c2 * (B_WX wc + 1) ^ d2 + (eWC wc).length + cCNX * (B_WR wc + 1) ^ dCNX +
       cP * (B_WXJ wc + 1) ^ dP + cFull.space wc
-  have hPall_pb : PolyBounded (fun wc => (eWC wc).length) P_all :=
-    ((((hT1_pb.add (NativeCertificate.polyBounded_pow_of_polyBounded hBWX_pb c2 d2)).add .self).add
-      (NativeCertificate.polyBounded_pow_of_polyBounded hBWR_pb cCNX dCNX)).add
-      (NativeCertificate.polyBounded_pow_of_polyBounded hBWXJ_pb cP dP)).add hcFull_sp
+  have hPall_pb : PolyBounded (fun wc => (eWC wc).length) P_all := by growth_poly
   refine ⟨P_all, hPall_pb, (cFull.computes.of_enc_eq fun _ => rfl).mono_le (fun wc => ?_)
     fun wc => by dsimp only [P_all]; omega⟩
   let certFn {α β : Type} {f : α → β} {e1 e2} (_ : NativeCertificate f e1 e2) : α → β := f

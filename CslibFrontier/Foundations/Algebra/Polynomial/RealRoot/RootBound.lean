@@ -143,7 +143,7 @@ theorem norm_lt_cauchyBound_of_forall_coeff_le {p : ℚ[X]} (hp : p ≠ 0) {M : 
     exact_mod_cast hM i hi'
   have hsup : (s : ℝ) ≤ (M : ℝ) := hs_le
   have hcb_eq : (pC.cauchyBound : ℝ) = (s : ℝ) / ‖pC.leadingCoeff‖ + 1 := by
-    rw [Polynomial.cauchyBound, NNReal.coe_add, NNReal.coe_div, NNReal.coe_one, coe_nnnorm]
+    rw [Polynomial.cauchyBound, NNReal.coe_add, NNReal.coe_div, NNReal.coe_one, coe_nnNorm]
   rw [hcb_eq, Rat.cast_add, Rat.cast_div, Rat.cast_abs, Rat.cast_one, ← hlead]
   gcongr
 

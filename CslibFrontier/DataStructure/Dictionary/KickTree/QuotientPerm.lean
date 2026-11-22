@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.FeistelQuotient
 public import CslibFrontier.DataStructure.Dictionary.KickTree.RoundSeed
+import CslibFrontier.Foundations.Data.Nat.ChooseLog
 import CslibFrontier.Foundations.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.Power
 import CslibFrontier.Probability.KWiseIndependent.Coupling
@@ -23,6 +24,8 @@ import CslibFrontier.Probability.StatisticalDistance.Coupling
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Universal key-quotienting bijection across arbitrary universes `U ≥ n`
@@ -135,11 +138,11 @@ open scoped BigOperators ENNReal Cslib.Probability.PMF
 /-! ## Section 1: Full-quotient bit-width and information-theoretic space bound -/
 
 /-- Bucket-index bit-width `⌊log₂ n⌋` for full key quotienting at capacity `n`. -/
-@[expose] def bucketIndexBits (n : ℕ) : ℕ :=
+@[expose, wram_arith] def bucketIndexBits (n : ℕ) : ℕ :=
   Nat.log 2 n
 
 /-- Stored quotient bit-width `⌈log₂ U⌉ - ⌊log₂ n⌋` per key at universe `U` and capacity `n`. -/
-@[expose] def fullQuotBits (U n : ℕ) : ℕ :=
+@[expose, wram_arith] def fullQuotBits (U n : ℕ) : ℕ :=
   FeistelQuotient.keyBits U - bucketIndexBits n
 
 /-- Whenever `n ≤ U`, `bucketIndexBits n ≤ FeistelQuotient.keyBits U`. -/
@@ -171,35 +174,19 @@ theorem embedKey_injective (U : ℕ) : Function.Injective (@embedKey U) :=
 `⌈log₂ C(U, n)⌉ + 2 * n` bits. -/
 theorem mul_fullQuotBits_le_clog_choose (U n : ℕ) :
     n * fullQuotBits U n ≤ Nat.clog 2 (U.choose n) + 2 * n := by
-  rcases Nat.eq_zero_or_pos n with rfl | hn
+  rcases Nat.eq_zero_or_pos n with rfl | _
   · simp
   rcases lt_or_ge U n with hUn | hnU
   · have hkey : FeistelQuotient.keyBits U ≤ bucketIndexBits n + 1 :=
       Nat.clog_le_of_le_pow (hUn.le.trans (Nat.lt_pow_succ_log_self (by decide) n).le)
-    have hq : fullQuotBits U n ≤ 1 := by unfold fullQuotBits; omega
+    have hq : fullQuotBits U n ≤ 1 := by wram_omega
     rw [Nat.choose_eq_zero_of_lt hUn, Nat.clog_zero_right, Nat.zero_add]
     nlinarith [Nat.mul_le_mul_left n hq]
-  · have hU : 1 ≤ U := hn.trans_le hnU
-    have hpow_key : 2 ^ FeistelQuotient.keyBits U ≤ 2 * U :=
-      Nat.pow_clog_le_mul Nat.one_lt_two (by omega)
-    have hpow_n : n ≤ 2 ^ (bucketIndexBits n + 1) :=
+  · have hpow_n : n ≤ 2 ^ (bucketIndexBits n + 1) :=
       (Nat.lt_pow_succ_log_self (by decide) n).le
-    have hchoose : U.choose n ≤ 2 ^ Nat.clog 2 (U.choose n) :=
-      Nat.le_pow_clog (by decide) (U.choose n)
-    have hmain : 2 ^ (n * FeistelQuotient.keyBits U) ≤
-        2 ^ (n + n * (bucketIndexBits n + 1) + Nat.clog 2 (U.choose n)) := by
-      calc 2 ^ (n * FeistelQuotient.keyBits U)
-          = (2 ^ FeistelQuotient.keyBits U) ^ n := by rw [Nat.mul_comm, Nat.pow_mul]
-        _ ≤ (2 * U) ^ n := Nat.pow_le_pow_left hpow_key n
-        _ = 2 ^ n * U ^ n := Nat.mul_pow 2 U n
-        _ ≤ 2 ^ n * (n ^ n * U.choose n) :=
-            Nat.mul_le_mul_left (2 ^ n) (FeistelQuotient.pow_le_pow_mul_choose hnU)
-        _ ≤ 2 ^ n * ((2 ^ (bucketIndexBits n + 1)) ^ n * 2 ^ Nat.clog 2 (U.choose n)) :=
-            Nat.mul_le_mul_left (2 ^ n) (Nat.mul_le_mul (Nat.pow_le_pow_left hpow_n n) hchoose)
-        _ = 2 ^ (n + n * (bucketIndexBits n + 1) + Nat.clog 2 (U.choose n)) := by
-            rw [← Nat.pow_mul, Nat.mul_comm (bucketIndexBits n + 1) n, ← Nat.pow_add,
-              ← Nat.pow_add, ← Nat.add_assoc]
-    have hexp := (Nat.pow_le_pow_iff_right (by decide : 1 < 2)).mp hmain
+    have hexp : n * FeistelQuotient.keyBits U ≤
+        n + n * (bucketIndexBits n + 1) + Nat.clog 2 (U.choose n) :=
+      Nat.mul_clog_le_add_clog_choose Nat.one_lt_two hnU hpow_n
     rw [← bucketIndexBits_add_fullQuotBits hnU, Nat.mul_add] at hexp
     linarith
 
@@ -450,10 +437,7 @@ theorem dist_concreteCaseB_shardTuple_le {a m b_aux c n : ℕ}
   obtain ⟨hb_log, h2κ, _, _⟩ := quotientPermInd_le_self_of_threshold hn
   have ha_ub : a ≤ quotientPermChars c * quotientPermCharBits n :=
     le_chars_mul_charBits_of_lt_caseAGap hcaseB hn hm_hi
-  have ha'_lo : 2 * quotientPermCharBits n ≤ suffixBits a m := by
-    unfold bucketIndexBits at hm_lo
-    dsimp only [suffixBits, shardBits]
-    omega
+  have ha'_lo : 2 * quotientPermCharBits n ≤ suffixBits a m := by wram_omega [hm_lo]
   have ha'_ub : suffixBits a m ≤ quotientPermChars c * quotientPermCharBits n :=
     (Nat.sub_le _ _).trans ha_ub
   have hlo_ub : nrHalfLow (suffixBits a m) ≤ quotientPermChars c * quotientPermCharBits n :=
@@ -808,8 +792,7 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
       have : Nonempty (T ↪ Fin (2 ^ suffixBits a m)) := ⟨yEmb⟩
       let Q (u : T) := intraShardSuffixSet hma (B u.1)
       obtain ⟨_, _, _, h2κ2⟩ := quotientPermInd_le_self_of_threshold hn
-      have ha'_b : quotientPermCharBits n ≤ suffixBits a m := by
-        unfold bucketIndexBits at hm_lo; dsimp only [suffixBits, shardBits]; omega
+      have ha'_b : quotientPermCharBits n ≤ suffixBits a m := by wram_omega [hm_lo]
       have hcard2 : 2 * (Fintype.card T) ^ 2 ≤ Fintype.card (Fin (2 ^ suffixBits a m)) := by
         rw [Fintype.card_coe, Fintype.card_fin]
         exact (Nat.mul_le_mul_left 2 (Nat.pow_le_pow_left hT 2)).trans
@@ -874,7 +857,7 @@ theorem prob_concreteQuotientPerm_forall_mem_perKey_le {a m b_aux c n : ℕ}
 
 private theorem bucketIndexBits_le_eight_mul_charBits (n : ℕ) :
     bucketIndexBits n ≤ 8 * quotientPermCharBits n := by
-  rw [quotientPermCharBits_eq]; unfold bucketIndexBits; omega
+  rw [quotientPermCharBits_eq]; wram_omega
 
 /-- **Universal `Fin U` multiplicative tail bound across every `U ≥ n` above
 `quotientPermThreshold c`** (shared intra-shard target bucket set `B` with

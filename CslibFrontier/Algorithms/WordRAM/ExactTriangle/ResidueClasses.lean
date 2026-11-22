@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.Classes
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.Residues
 public import CslibFrontier.Computability.WordRAM.Compile
 public import Mathlib.Data.List.GetD
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Initialized signed weights to native residue classes
@@ -133,8 +134,6 @@ theorem program_fixed : program.size ≤ 160 ∧ ¬program.ReadsWidth := by deci
 
 private theorem reduce_preserves : ∀ i : Fin 32, 24 ≤ i.val → reduce.Preserves i := by decide
 
-private theorem classify_preserves : ∀ i : Fin 32, 24 ≤ i.val → classify.Preserves i := by decide
-
 private theorem input_weight (n p : ℕ) (values : List ℤ) (q : ℕ) :
     (Data.init (input n p values) : Data 32).mem (3 + q) = Signed.encode (values.getD q 0) := by
   rw [show 3 + q = (q + 2) + 1 by omega, Data.init_mem_succ]
@@ -199,7 +198,6 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
     simpa [Signed.encode, two_mul, show ¬(p : ℤ) < 0 by omega] using h
   have hsizeFit : Fits (w + 2) n := hN.of_le
     (by simpa only [N, pow_two] using Nat.le_self_pow two_ne_zero n)
-  have hpFit : Fits (w + 2) p := hmodfit.of_le (by omega)
   let a := initial.set one 1 |>.set 0 header |>.set size n |>.set 0 (header + 1) |>.set modulus p
     |>.set weights base |>.set area N |>.set 11 (N + N) |>.set 11 (N + N + N)
     |>.set 9 base |>.set 10 (base + (N + N + N)) |>.set residues (base + (N + N + N))
@@ -208,8 +206,8 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
   have hsetup : ExecWithin (w + 2) (setupAt header) initial a 15 := by
     dsimp [N, base] at hN h2N h3N hres hcounts hqueries
     ram_eval [setupAt, a, N, base, h1, hhead, hhead1, hbase, hN, h2N, h3N, hres,
-      hcounts, hqueries, hmodfit, hsizeFit, hpFit,
-      one, size, modulus, weights, area, residues, counts, queries,
+      hcounts, hqueries, hmodfit, hsizeFit, one, size, modulus, weights, area, residues,
+      counts, queries,
       temp, weightLen, weightSrc, weightDst, encodedMod, hnHeader, hpHeader, Fin.mk.injEq]
   have ha9 : (a.comap (bank 16 (by decide))).regs Residues.src = base := by
     simp +decide [a, bank, Residues.src, one, size, modulus, weights, area, residues,
@@ -238,10 +236,8 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
       hv.rename (bank_injective 16 (by decide))
   have hvreg (i : Fin 32) (hi : 24 ≤ i.val) : v'.regs i = a.regs i :=
     hv'.regs_eq (reduce_preserves i hi)
-  have hvn : v'.regs size = n := by simpa +decide [a, size, modulus, weights, area,
-    residues, counts, queries, one] using hvreg size (by decide)
-  have hvp : v'.regs modulus = p := by simpa +decide [a, size, modulus, weights, area,
-    residues, counts, queries, one] using hvreg modulus (by decide)
+  have hvn : v'.regs size = n := by regs_frame
+  have hvp : v'.regs modulus = p := by regs_frame
   have hvr : v'.regs residues = base + 3 * N := by
     have h := hvreg residues (by decide)
     simp +decide only [a, Data.set_regs, Function.update_apply, residues, counts, queries,
@@ -291,19 +287,8 @@ theorem exec_at {w : ℕ} (header n p : ℕ) (values : ℕ → ℤ) (initial : D
   let y := z.extend (bank 20 (by decide)) b
   have hz' : ExecWithin (w + 2) classify b y (p * (14 * N + 14) + 6) := by
     simpa only [hb2, hb14, N, classify, y] using hz.rename (bank_injective 20 (by decide))
-  have hyreg (i : Fin 32) (hi : 24 ≤ i.val) : y.regs i = v'.regs i := by
-    have h := hz'.regs_eq (classify_preserves i hi)
-    exact h.trans (by
-      have h0 : i ≠ 0 := by intro heq; subst i; change 24 ≤ 0 at hi; omega
-      have h2 : i ≠ 2 := by intro heq; subst i; change 24 ≤ 2 at hi; omega
-      have h12 : i ≠ 12 := by intro heq; subst i; change 24 ≤ 12 at hi; omega
-      have h13 : i ≠ 13 := by intro heq; subst i; change 24 ≤ 13 at hi; omega
-      have h14 : i ≠ 14 := by intro heq; subst i; change 24 ≤ 14 at hi; omega
-      simp only [b, Data.set_regs, Function.update_of_ne h0, Function.update_of_ne h2,
-        Function.update_of_ne h12, Function.update_of_ne h13, Function.update_of_ne h14])
   simp only [hb2, hb12, hb13, hb14] at hzcounts hzpairs hzframe
-  refine ⟨y, ?_, (hyreg residues (by decide)).trans hvr,
-    (hyreg counts (by decide)).trans hvc, (hyreg queries (by decide)).trans hvq,
+  refine ⟨y, ?_, by regs_frame, by regs_frame, by regs_frame,
     ?_, hzcounts, hzpairs, ?_⟩
   · convert hsetup.seq (hv'.seq (hdeliver.seq hz')) using 1
     · rfl

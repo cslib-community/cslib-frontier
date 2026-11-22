@@ -93,13 +93,37 @@ When running the audit directly with `CI` set, per-file progress is quiet by def
 it locally. Both modes retain all selected checks, failure messages and the final summary;
 the full and quick wrappers explicitly request progress.
 
+## Diagnose a cache-audit signal-control failure
+
+The installed-toolchain Linux tests in `scripts/test_check_cache_restores.py` wait up to
+60 seconds for two distinct live Lean children before sending SIGINT or SIGTERM. The six-second
+cleanup bound starts at the signal, so cold startup does not consume that budget. A readiness
+timeout interrupts only the fixture's owned audit for cleanup and fails explicitly; it does not
+establish a production cleanup regression. The failure includes partial PID-file contents,
+process states, worker timings/results and captured audit output. Use those records to distinguish
+slow startup from a failed worker before changing cleanup code.
+These records describe the state before the fixture's rescue backstop: after assessing the audit,
+it terminates still-live retained launchers and their descendants, then reaps the launchers.
+Rescue does not turn a failing control into a pass, and arbitrary integers from PID files are
+never rescue targets.
+
+From an isolated checkout with the pinned Lean toolchain installed, run both real controls and
+their portable readiness regressions with:
+
+```bash
+python3 -B -m unittest discover -s scripts -p test_check_cache_restores.py
+```
+
+Both real signal controls require Linux process-state inspection; a skipped control is not
+evidence that cleanup passed.
+
 ## Diagnose "failed to read file" on whole-library imports
 
 On Linux hosts and containers with the stock kernel default `vm.max_map_count = 65530`, focused module builds and `lake build CslibFrontier` can succeed while whole-library importers (`CslibFrontierTests/Smoke.lean`, `CslibFrontierTests/Axioms.lean`, `lake lint`, and `lake exe checkInitImports`) fail with bare errors such as `uncaught exception: failed to read file … .olean` or `.olean.private`, even though the named file is intact, readable, has a matching toolchain header, and imports cleanly in isolation ([#5012](https://github.com/cslib-community/cslib-frontier/issues/5012)).
 
 Under the `module` system, importing a compiled module maps up to five files into the `lean` process (`.olean`, `.olean.server`, `.olean.private`, `.ir`, and `.ir.sig`). Importing `CslibFrontierResults` alone creates about 46,400 virtual memory areas (VMAs) across ~9,267 transitive modules, and importing `CslibFrontier` (as `Smoke.lean`, `Axioms.lean`, `lake lint`, and `checkInitImports` do) creates about 70,800 VMAs across ~14,133 transitive modules in one process. When a single `lean` process reaches `/proc/sys/vm/max_map_count`, `mmap` fails with `ENOMEM`; Lean's `src/library/module.cpp` heap-copy fallback then calls `malloc` and passes an unchecked `NULL` buffer to `read` (`EFAULT`), hiding VMA exhaustion behind a file-read exception. Inspecting `/proc/<pid>/maps` on the parent `lake` launcher (~6,000 mappings) misses this limit because the mappings belong to the child `lean`, `runLinter`, or `checkInitImports` executable. Keep this failure mode distinct from host-wide file-handle exhaustion (`fs.file-max`, below) and from `setImportedIREntries` segmentation faults on hosts that already have a large `vm.max_map_count` ([#4122](https://github.com/cslib-community/cslib-frontier/issues/4122)).
 
-Full `scripts/check.sh` and `scripts/full_check.py` run [`scripts/check_vm_map_count.py`](../../scripts/check_vm_map_count.py) before whole-library steps; quick mode (`scripts/check.sh --quick`) does not require this headroom. To check the host limit or measure the live VMA breakdown inside a child `lean` importer process:
+Full `scripts/check.sh` and `scripts/full_check.py` run [`scripts/check_vm_map_count.py`](../../scripts/check_vm_map_count.py) before whole-library steps; ordinary quick mode can also need it because the affected tests include `Smoke` and `Axioms`. For a leaf edit on such a host, `scripts/check.sh --focused` defers those two global tests to CI when they are unedited leaves. Other selected clients still need enough mappings for their own imports. To check the host limit or measure the live VMA breakdown inside a child `lean` importer process:
 
 ```bash
 python3 scripts/check_vm_map_count.py
@@ -107,7 +131,7 @@ python3 scripts/check_vm_map_count.py --measure CslibFrontierResults
 python3 scripts/check_vm_map_count.py --measure CslibFrontier
 ```
 
-When an operator controls the host or VM kernel configuration, raise `vm.max_map_count` to `262144` or higher (for example `sudo sysctl -w vm.max_map_count=262144` or a persistent `/etc/sysctl.d/` setting; GitHub-hosted Ubuntu runners use `2097152`, and unprivileged containers inherit the host kernel's sysctl). Do not silently modify shared-host kernel settings without operator authorization, and do not claim a local full `scripts/check.sh` run passed when whole-library steps were skipped or blocked: validate affected modules with `scripts/check.sh --quick --no-full-fallback` (and targeted `lake build` commands), record the `vm.max_map_count` blocker in the PR or issue, and rely on hosted CI for whole-library validation.
+When an operator controls the host or VM kernel configuration, raise `vm.max_map_count` to `262144` or higher (for example `sudo sysctl -w vm.max_map_count=262144` or a persistent `/etc/sysctl.d/` setting; GitHub-hosted Ubuntu runners use `2097152`, and unprivileged containers inherit the host kernel's sysctl). Do not silently modify shared-host kernel settings without operator authorization, and do not claim a local full `scripts/check.sh` run passed when whole-library steps were skipped or blocked: validate affected modules with `scripts/check.sh --focused` or a targeted `scripts/build.sh` command, record the `vm.max_map_count` blocker in the PR or issue, and rely on hosted CI for whole-library validation.
 
 ## Diagnose "Too many open files in system"
 
@@ -143,5 +167,17 @@ and successful handoffs preserve unchanged archives; source changes still let La
 them. Include Actions restore/save bytes and time and handoff transfer costs when comparing the
 whole cycle. Larger snapshots can evict older caches, and cancellation before the late save loses
 that run's snapshot; a failed check remains failed even when its reusable build outputs are saved.
+
+When a merge-queue build compiles far more modules than its pull requests change, check which
+build it started from. The caches that `main` builds publish lag the queue, so a merge group also
+restores the build handoff of its nearest first-parent ancestor that has one. Its step *Restore
+nearest ancestor merge-group build outputs* logs `Build handoff restored from ancestor <sha> (<n>
+first-parent commits back)`, or a `Build handoff unavailable` warning naming the reason (no
+handoff among the 20 nearest ancestors, a changed toolchain or dependency manifest, a new runner
+image, an expired artifact). A miss never fails the build. The one failure this step causes is an
+`Unconfirmed cache process shutdown` error from the step after it, raised when its history fetch
+could not be confirmed stopped; rerun the job. The
+[cache guide](../../scripts/cache/README.md#later-merge-groups) describes the search and its
+checks.
 
 [complexitylib]: ../sources.md#complexitylib

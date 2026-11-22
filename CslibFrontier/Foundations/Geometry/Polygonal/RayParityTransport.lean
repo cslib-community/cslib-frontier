@@ -7,20 +7,17 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityEven
-import Mathlib.Topology.LocallyConstant.Basic
-import Mathlib.Analysis.Convex.PathConnected
-import Mathlib.Topology.Algebra.Affine
+public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import Mathlib.Analysis.Convex.Basic
 
 /-!
 # Transport of ray parity along isolated segment interiors
 
-The trace of ray parity on the interior of an isolated segment is constant when the
-arrangement has even incidence. Removing the observed segment leaves its endpoint jumps
-unchanged at every interior height. This gives transport without choosing a positive
-distance from all the other endpoint heights. Local cancellation and its even-incidence
-specialization are supplied by `RayParityEven`; this module applies that shared criterion
-to the arrangement with the observed segment removed.
+Removing the observed segment leaves endpoint jumps unchanged at every interior height.
+The straight-observation intersection law then gives transport: isolation makes every
+actual open intersection indicator zero. Both orders of the cut endpoints are admitted;
+no positive clearance from other endpoint heights is required. The elementary self-ray
+exclusion remains in this module for its existing germ consumers.
 -/
 
 public section
@@ -58,53 +55,81 @@ theorem rayParity_lineMap_eq_of_even {ι : Type*} [Fintype ι]
     rayParity a b x (AffineMap.lineMap (a i) (b i) s) =
       rayParity a b x (AffineMap.lineMap (a i) (b i) t) := by
   classical
-  let X := {t : ℝ // t ∈ Set.Ioo (0 : ℝ) 1}
-  let point (t : X) := AffineMap.lineMap (a i) (b i) t.val
-  let color (t : X) := rayParity a b x (point t)
+  by_cases hst : s = t
+  · subst t
+    rfl
+  let point (u : ℝ) := AffineMap.lineMap (a i) (b i) u
   let y (j : ι) : Bool := if j = i then 0 else x j
-  have hremove (t : X) : color t = rayParity a b y (point t) := by
+  have hremove (u : ℝ) : rayParity a b x (point u) = rayParity a b y (point u) := by
     apply Finset.sum_congr rfl
     intro j _
     by_cases hj : j = i
     · subst j
       simp only [point, not_rayCrosses_lineMap (hheight i), ↓reduceIte]
     · simp only [y, hj, ↓reduceIte]
-  have hlocal : IsLocallyConstant color := by
-    apply (IsLocallyConstant.iff_eventually_eq color).mpr
-    intro t
-    have him : (point t).im = (a i).im + t.val * ((b i).im - (a i).im) :=
-      lineMap_im (a i) (b i) t.val
-    have ha : (a i).im ≠ (point t).im := by
+  have hcut (z : ℂ) (hz : z ∈ segment ℝ (point s) (point t)) :
+      ∃ u ∈ Set.Ioo (0 : ℝ) 1, point u = z := by
+    change z ∈ segment ℝ (AffineMap.lineMap (a i) (b i) s)
+      (AffineMap.lineMap (a i) (b i) t) at hz
+    rw [← image_segment ℝ (AffineMap.lineMap (a i) (b i)) s t] at hz
+    obtain ⟨u, hu, huz⟩ := hz
+    exact ⟨u, (convex_Ioo (0 : ℝ) 1).segment_subset hs ht hu, huz⟩
+  have havoid (z : ℂ) (hz : z ∈ segment ℝ (point s) (point t))
+      (j : ι) (hy : y j = true) : z ∉ segment ℝ (a j) (b j) := by
+    have hji : j ≠ i := by
+      intro hj
+      simp only [y, hj, ↓reduceIte, Bool.zero_eq_false, Bool.false_eq_true] at hy
+    obtain ⟨u, hu, rfl⟩ := hcut z hz
+    exact hisolated j hji u hu
+  have hjump (z : ℂ) (hz : z ∈ segment ℝ (point s) (point t)) :
+      (∑ j, y j * (decide ((a j).im = z.im ∧ z.re < (a j).re) +
+        decide ((b j).im = z.im ∧ z.re < (b j).re))) = 0 := by
+    obtain ⟨u, hu, rfl⟩ := hcut z hz
+    have him : (point u).im = (a i).im + u * ((b i).im - (a i).im) :=
+      lineMap_im (a i) (b i) u
+    have ha : (a i).im ≠ (point u).im := by
       rw [him]
-      rcases lt_or_gt_of_ne (hheight i) with h | h <;> nlinarith [t.property.1]
-    have hb : (b i).im ≠ (point t).im := by
+      rcases lt_or_gt_of_ne (hheight i) with h | h <;> nlinarith [hu.1]
+    have hb : (b i).im ≠ (point u).im := by
       rw [him]
-      rcases lt_or_gt_of_ne (hheight i) with h | h <;> nlinarith [t.property.2]
-    have hjump : (∑ j, y j *
-        (decide ((a j).im = (point t).im ∧ (point t).re < (a j).re) +
-          decide ((b j).im = (point t).im ∧ (point t).re < (b j).re))) = 0 := by
-      rw [← sum_rayParity_endpoint_jumps_eq_zero a b x heven (point t)]
-      apply Finset.sum_congr rfl
-      intro j _
-      by_cases hj : j = i
-      · subst j
-        simp only [ha, hb, false_and, decide_false, ← Bool.zero_eq_false, add_zero, mul_zero]
-      · simp only [y, hj, ↓reduceIte]
-    have havoid (j : ι) (hy : y j = true) : point t ∉ segment ℝ (a j) (b j) := by
-      have hj : j ≠ i := by
-        intro h
-        simp only [y, h, ↓reduceIte, Bool.zero_eq_false, Bool.false_eq_true] at hy
-      exact hisolated j hj t.val t.property
-    have h := eventually_rayParity_eq_of_endpoint_jumps_eq_zero a b y hheight
-      (point t) havoid hjump
-    have hline : Continuous (AffineMap.lineMap (a i) (b i) : ℝ → ℂ) :=
-      AffineMap.lineMap_continuous
-    have hcont : Continuous point := hline.comp continuous_subtype_val
-    filter_upwards [hcont.continuousAt.eventually h] with u hu
-    rw [hremove u, hremove t]
-    exact hu
-  let : PreconnectedSpace X := isPreconnected_iff_preconnectedSpace.mp
-    (convex_Ioo (0 : ℝ) 1).isPreconnected
-  exact hlocal.apply_eq_of_preconnectedSpace ⟨s, hs⟩ ⟨t, ht⟩
+      rcases lt_or_gt_of_ne (hheight i) with h | h <;> nlinarith [hu.2]
+    rw [← sum_rayParity_endpoint_jumps_eq_zero a b x heven (point u)]
+    apply Finset.sum_congr rfl
+    intro j _
+    by_cases hj : j = i
+    · subst j
+      simp only [ha, hb, false_and, decide_false, ← Bool.zero_eq_false, add_zero, mul_zero]
+    · simp only [y, hj, ↓reduceIte]
+  have hcd : (point s).im ≠ (point t).im := by
+    rw [show (point s).im = (a i).im + s * ((b i).im - (a i).im) from
+      lineMap_im (a i) (b i) s,
+      show (point t).im = (a i).im + t * ((b i).im - (a i).im) from
+      lineMap_im (a i) (b i) t]
+    intro heq
+    apply hst
+    exact mul_right_cancel₀ (sub_ne_zero.mpr (hheight i).symm) (by linarith)
+  have hno (j : ι) (hy : y j = true) :
+      ¬(openSegment ℝ (a j) (b j) ∩ openSegment ℝ (point s) (point t)).Nonempty := by
+    rintro ⟨z, hz⟩
+    exact havoid z (openSegment_subset_segment ℝ _ _ hz.2) j hy
+      (openSegment_subset_segment ℝ _ _ hz.1)
+  have h := rayParity_endpoints_add_eq_sum_intersections_of_endpoint_jumps_eq_zero
+    a b y (point s) (point t) hheight hcd
+    (fun j hy => havoid _ (left_mem_segment ℝ _ _) j hy)
+    (fun j hy => havoid _ (right_mem_segment ℝ _ _) j hy)
+    (fun j hy hz => havoid _ hz j hy (left_mem_segment ℝ _ _))
+    (fun j hy hz => havoid _ hz j hy (right_mem_segment ℝ _ _))
+    hjump
+  have hzero : (∑ j, y j * decide
+      ((openSegment ℝ (a j) (b j) ∩ openSegment ℝ (point s) (point t)).Nonempty)) = 0 := by
+    apply Finset.sum_eq_zero
+    intro j _
+    by_cases hy : y j = true
+    · simp only [hno j hy, decide_false, Bool.mul_eq_and, Bool.and_false, Bool.zero_eq_false]
+    · have hy' : y j = false := Bool.eq_false_iff.mpr hy
+      simp [hy', Bool.zero_eq_false, Bool.mul_eq_and]
+  rw [hzero] at h
+  rw [hremove s, hremove t]
+  exact ((BooleanRing.add_eq_zero' _ _).mp h).symm
 
 end Cslib.Polygonal

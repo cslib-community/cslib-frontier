@@ -59,7 +59,7 @@ example : ∫ x, normalizedHermite 1 x * normalizedHermite 3 x ∂gaussianReal 0
 `x³`, which is `6`. -/
 example : ∫ x, (X ^ 3 : ℝ[X]).eval x * aeval x (hermite 3) ∂gaussianReal 0 1 = 6 := by
   rw [integral_eval_mul_aeval_hermite]
-  norm_num [Function.iterate_succ_apply, derivative_X_pow]
+  norm_num [Function.iterate_succ_apply', derivative_X_pow]
 
 /-- Proposition 11.31 for `h_2`: `E[h_2 z h_2 z'] = ρ²` for `ρ`-correlated `(z, z')`. -/
 example {ρ : ℝ} (hρ : |ρ| ≤ 1) :

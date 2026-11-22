@@ -15,10 +15,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Op
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 public import CslibFrontier.Tactic.PolyTime.Init
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.EqualityPrimitives
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 
 /-!
 # Captured plain polynomial-time rules
@@ -69,69 +69,21 @@ public theorem listHead?WithInput {α γ : Type} {encA : α ↪ List Bool} {encI
     ComputableInPolyTime (fun a => (list a).head?) encIn (encOption encA) :=
   (head? encA).comp hlist
 
-/-- Read the head of a computed framed list with a computed fallback, inferring the element
-encoding from the list before checking the fallback or composing with an outer projection. -/
-@[fun_prop, program_certificate hlist]
-public theorem listHeadDWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
-    {list : γ → List α} {fallback : γ → α}
-    (hlist : ComputableInPolyTime list encIn (encList encA))
-    (hfallback : ComputableInPolyTime fallback encIn encA) :
-    ComputableInPolyTime (fun a => (list a).headD (fallback a)) encIn encA :=
-  (optionGetDWithInput (listHead?WithInput hlist) hfallback).of_enc_eq fun a => by
-    cases list a <;> rfl
-
-/-- Drop a computed unary number of elements from a computed framed list. -/
+/-- Replace a computed list entry at a unary index. Out-of-range indices preserve the list;
+the replacement and both slices are charged in their original element encoding. -/
 @[fun_prop]
-public theorem listDropWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
-    {list : γ → List α} {count : γ → ℕ}
+public theorem listSetWithInput {γ α : Type} {encIn : γ ↪ List Bool} (encA : α ↪ List Bool)
+    {list : γ → List α} {idx : γ → ℕ} {val : γ → α}
     (hlist : ComputableInPolyTime list encIn (encList encA))
-    (hcount : ComputableInPolyTime count encIn encUnary) :
-    ComputableInPolyTime (fun a => (list a).drop (count a)) encIn (encList encA) :=
-  (dropUnary (encA := encA)).comp (hlist.prod hcount)
-
-/-- Take a computed unary number of elements from a computed framed list. -/
-@[fun_prop]
-public theorem listTakeWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
-    {list : γ → List α} {count : γ → ℕ}
-    (hlist : ComputableInPolyTime list encIn (encList encA))
-    (hcount : ComputableInPolyTime count encIn encUnary) :
-    ComputableInPolyTime (fun a => (list a).take (count a)) encIn (encList encA) :=
-  (listReverseWithInput (listDropWithInput (listReverseWithInput hlist)
-    (unary_sub' ((length_list encA).comp hlist) hcount))).of_enc_eq fun a => by
-    simp only [Function.comp_def, ← List.reverse_take, List.reverse_reverse]
-
-/-- Count occurrences of a computed value in a computed framed list using lawful Boolean equality,
-returning the count in unary. -/
-@[fun_prop, program_certificate hlist]
-public theorem countWithInput {α γ : Type} {encA : α ↪ List Bool} {encIn : γ ↪ List Bool}
-    [BEq α] [LawfulBEq α] {list : γ → List α} {value : γ → α}
-    (hlist : ComputableInPolyTime list encIn (encList encA))
-    (hvalue : ComputableInPolyTime value encIn encA) :
-    ComputableInPolyTime (fun a => (list a).count (value a)) encIn encUnary := by
-  simp only [List.count_eq_countP]
-  exact countPWithInput hlist ((snd encIn encA).beq (hvalue.comp (fst encIn encA)))
-
-/-- Test whether any element of a fixed list satisfies an input-dependent predicate. Only the
-list's members need certificates; the index type may live in any universe and requires no
-encoding. -/
-@[fun_prop, program_certificate]
-public theorem anyConst {γ : Type} {encIn : γ ↪ List Bool} {ι : Type*} (l : List ι)
-    {test : γ → ι → Bool}
-    (htest : ∀ i ∈ l, ComputableInPolyTime (fun a => test a i) encIn encBool) :
-    ComputableInPolyTime (fun a => l.any (test a)) encIn encBool := by
-  induction l with
-  | nil => exact const false
-  | cons i l ih =>
-    exact bool_or.comp ((htest i (List.mem_cons_self ..)).prod
-      (ih fun j hj => htest j (List.mem_cons_of_mem _ hj)))
-
-/-- Remainder of computed binary naturals on `encNat`. Like
-`Turing.MultiTapeTM.ComputableInPolyTime.binary_div'`, this rule is kept out of `fun_prop` and
-`program_certificate` so `HMod.hMod` dispatch on `encUnary` stays unambiguous. -/
-public theorem binary_mod' {α : Type} {input : α ↪ List Bool} {left right : α → ℕ}
-    (hleft : ComputableInPolyTime left input encNat)
-    (hright : ComputableInPolyTime right input encNat) :
-    ComputableInPolyTime (fun a => left a % right a) input encNat :=
-  binary_mod.comp (hleft.prod hright)
+    (hidx : ComputableInPolyTime idx encIn encUnary)
+    (hval : ComputableInPolyTime val encIn encA) :
+    ComputableInPolyTime (fun x => (list x).set (idx x) (val x)) encIn (encList encA) := by
+  simp_rw [List.set_eq_take_append_cons_drop]
+  exact ite_decide
+    (unary_lt' hidx ((length_list encA).comp hlist))
+    (listAppend'
+      (listTakeWithInput hlist hidx)
+      (cons' hval (listDropWithInput hlist (unary_add.comp (hidx.prod (const 1))))))
+    hlist
 
 end Turing.MultiTapeTM.ComputableInPolyTime

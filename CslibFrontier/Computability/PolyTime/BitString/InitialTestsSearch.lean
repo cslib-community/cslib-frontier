@@ -179,7 +179,9 @@ variable {α : Type} {e : α ↪ List Bool} {m B : α → ℕ}
   (hm : ComputableInPolyTime m e encUnary) (hB : ComputableInPolyTime B e encUnary)
 include hm
 private theorem mu_polyTime : ComputableInPolyTime (fun a => Nat.log 2 (m a) + 1) e encUnary :=
-  .unary_add' ((of_tidy ComputableTidilyInPolyTime.unary_log_two).comp hm) (.const 1)
+  .unary_add'
+    ((ComputableInPolyTime.binary_log_two.comp ComputableInPolyTime.unary_to_binary).comp hm)
+    (.const 1)
 include hB
 @[fun_prop] theorem greedyRowListLength_polyTime :
     ComputableInPolyTime (fun a => greedyRowListLength (B a) (m a)) e encUnary :=
@@ -558,7 +560,7 @@ theorem checkSmallBiasShifts_eq_true_iff {ell d maxBiasNum maxBiasDen : ℕ} [Ne
       (b : BitString ell) : shifts.countP (fun row => listDot row (List.ofFn b)) =
         #{j : Fin d | parityOn {i : Fin ell | b i = true} (s j) = true} := by
     nth_rw 1 [list_eq_ofFn_ofList hlen hrows]
-    rw [List.countP_ofFn, ← card_filter]; congr 1; ext j
+    rw [List.countP_ofFn]; congr 1; ext j
     simp only [mem_filter, mem_univ, true_and]; rw [listDot_ofFn, dotProduct_eq_parityOn]
   have hbias_iff (S : Finset (Fin ell)) :
       ((d - 2 * #{j : Fin d | parityOn S (s j) = true}) +

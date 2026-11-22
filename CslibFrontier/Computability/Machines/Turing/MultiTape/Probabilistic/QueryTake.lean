@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.RunsWords
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.SuppCases
 
@@ -73,7 +74,7 @@ theorem computesTidily_coinMachine (x : List Bool) :
     refine congrArg (fun f => (PMF.uniformOfFintype Bool).map f) (funext fun bit => ?_)
     refine Prod.ext ?_ rfl
     rw [Config.step, htapes]
-    exact Cfg.ext_zero_tapes rfl rfl (by simp [Turing.Action.apply, wordsCfg])
+    tm_step
   · rintro ⟨finalCfg, finalState⟩ hfinal op
     supp_cases hfinal
     simp [Config.step, hbuf op]
@@ -132,7 +133,7 @@ def queryTakeCore (op : Operation) : MultiTapePTM 0 Bool QueryTakeState Operatio
 /-- Run `queryTakeCore op` and then rewind the input head to position `1`. -/
 noncomputable def queryTakePTM (op : Operation) :
     MultiTapePTM 0 Bool (QueryTakeState ⊕ RewindState) Operation :=
-  (queryTakeCore op).seq (ofDeterministic (rewindInput Bool))
+  (queryTakeCore op).seq (ofDeterministic (MultiTapeTM.rewindInput Bool))
 
 namespace QueryTakeCore
 
@@ -190,15 +191,8 @@ theorem run_copyReply (x : List Bool)
     dsimp only [runOracleConfigFrom, runConfigFrom, MultiTapeMachine.runConfigFrom]
     simp only [ProbOracleComp.runWith_pure]
     congr 1
-    refine Prod.ext (Config.ext ?_ ?_) rfl
-    · exact Cfg.ext_zero_tapes rfl
-        (by simp [Config.step, config, Turing.Action.apply, hlen])
-        (by simp [Config.step, config, Turing.Action.apply])
-    · funext other
-      by_cases heq : other = op
-      · subst other
-        simp [Config.step, config, hch]
-      · simp [Config.step, config, heq]
+    refine Prod.ext ?_ rfl
+    tm_step [Config.step, config, hch]
   | succ remLimit ih =>
     intro pre h pos answer out ch hch s
     have hlt : pre.length < x.length := by subst h; simp
@@ -241,16 +235,8 @@ theorem run_copyReply (x : List Bool)
       ih (pre ++ [true]) (h.trans hsplit) (pos + 1) answer
         (out ++ (answer[pos]?).toList) ch' (by simp [ch']) s]
     congr 1
-    refine Prod.ext (Config.ext ?_ ?_) rfl
-    · refine Cfg.ext_zero_tapes rfl rfl ?_
-      simp [config, List.append_assoc, getElem?_toList_append_drop_take]
-    · funext other
-      by_cases heq : other = op
-      · subst other
-        simp only [config, List.append_assoc, Nat.cast_add, Nat.cast_one, Function.update_idem,
-          Function.update_self, Channel.mk.injEq, true_and, ch']
-        lia
-      · simp [config, ch', heq]
+    refine Prod.ext ?_ rfl
+    tm_step [config, ch', List.append_assoc, getElem?_toList_append_drop_take]
 
 /-- Scanning `frame rem` in state `.marker` appends `rem` to channel `op`'s query buffer and
 submits the accumulated query in `2 * rem.length + 2` steps, entering `.copyReply`. -/
@@ -398,7 +384,7 @@ theorem computesTidily_queryTakePTM (op : Operation) (q : List Bool) (limit : �
   intro out₀ OracleState oracle s cfg htapes hbuf
   let cfg₀ : Config 0 Bool QueryTakeState Operation x :=
     QueryTakeCore.config x (some .marker) 0 (Nat.zero_le _) out₀ cfg.channels
-  have hcfg : cfg = Sequential.left (ofDeterministic (rewindInput Bool)) cfg₀ := by
+  have hcfg : cfg = Sequential.left (ofDeterministic (MultiTapeTM.rewindInput Bool)) cfg₀ := by
     refine Config.ext ?_ rfl
     rw [htapes]
     exact Cfg.ext_zero_tapes rfl rfl rfl
@@ -431,8 +417,8 @@ theorem computesTidily_queryTakePTM (op : Operation) (q : List Bool) (limit : �
     obtain ⟨⟨answer, s₁⟩, _, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
     rfl
   have hrew (answer : List Bool) :
-      (rewindInput Bool).runFrom
-        (Sequential.start (ofDeterministic (rewindInput Bool) :
+      (MultiTapeTM.rewindInput Bool).runFrom
+        (Sequential.start (ofDeterministic (MultiTapeTM.rewindInput Bool) :
           MultiTapePTM 0 Bool RewindState Operation)
           (QueryTakeCore.config x none x.length le_rfl (out₀ ++ answer.take limit)
             (Function.update cfg.channels op ⟨[], answer, (limit : ℤ)⟩))).tapes tRew =
@@ -441,13 +427,14 @@ theorem computesTidily_queryTakePTM (op : Operation) (q : List Bool) (limit : �
       dsimp only [tRew]
       lia
     rw [htime]
-    exact (runFrom_rewindInput ⟨x.length + 1, by lia⟩ Fin.elim0 Fin.elim0
+    exact (MultiTapeTM.runFrom_rewindInput ⟨x.length + 1, by lia⟩ Fin.elim0 Fin.elim0
       (out₀ ++ answer.take limit)).trans (Cfg.ext_zero_tapes rfl rfl rfl)
   have hhalt₂ : ∀ result ∈ (ProbOracleComp.runWith oracle
       ((queryTakeCore op).runOracleConfigFrom tCore cfg₀) s).support,
       ∀ final ∈ (ProbOracleComp.runWith oracle
-        ((ofDeterministic (rewindInput Bool)).runOracleConfigFrom tRew
-          (Sequential.start (ofDeterministic (rewindInput Bool)) result.1)) result.2).support,
+        ((ofDeterministic (MultiTapeTM.rewindInput Bool)).runOracleConfigFrom tRew
+          (Sequential.start (ofDeterministic (MultiTapeTM.rewindInput Bool)) result.1))
+          result.2).support,
         final.1.tapes.state = none := by
     rintro result hresult ⟨finalCfg, finalState⟩ hfinal
     supp_cases hresult [hcore] with ⟨⟨answer, s₁⟩, -, rfl⟩
@@ -458,7 +445,8 @@ theorem computesTidily_queryTakePTM (op : Operation) (q : List Bool) (limit : �
     lia
   dsimp only [queryTakePTM]
   rw [htotal, hcfg,
-    run_interpret_runOracleConfigFrom_seq (queryTakeCore op) (ofDeterministic (rewindInput Bool))
+    run_interpret_runOracleConfigFrom_seq (queryTakeCore op)
+      (ofDeterministic (MultiTapeTM.rewindInput Bool))
       oracle cfg₀ tCore tRew s hhalt₁ hhalt₂,
     hcore]
   constructor

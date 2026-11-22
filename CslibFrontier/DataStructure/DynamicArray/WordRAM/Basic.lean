@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.WordRAM.Copy
 public import CslibFrontier.Computability.WordRAM.Dynamic
 public import CslibFrontier.DataStructure.StateTransition.Amortized
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Doubling arrays on the word RAM
@@ -195,19 +197,18 @@ theorem grow_exec {w : ℕ} (x : Data 12) (h1 : Fits w 1)
     wram_simp [ha]
   obtain ⟨z, hz, hzm⟩ := copy_exec a h1 (by rw [has, hal]; fits) (by rw [had, hal]; fits)
     (by rw [has, hal, had]; exact hp)
-  have hzd : z.regs dest = x.regs frontier := (hz.regs_eq (by decide)).trans had
-  have hzc : z.regs count = 2 * x.regs cap := (hz.regs_eq (by decide)).trans hac
-  have hzf : z.regs frontier = x.regs frontier + 2 * x.regs cap :=
-    (hz.regs_eq (by decide)).trans haf
+  have hzd : z.regs dest = x.regs frontier := by regs_frame
+  have hzc : z.regs count = 2 * x.regs cap := by regs_frame
+  have hzf : z.regs frontier = x.regs frontier + 2 * x.regs cap := by regs_frame
   wram_exec
   refine WP.of_execWithin hz ?_
   wram_exec [hzd, hzc]
   refine ⟨?_, ?_, ?_, fun i hi => ?_, fun b hb => ?_⟩
   all_goals wram_simp [hzf, hzm]
   · rw [← had, ← has, ArrayCopy.copyPrefix_read (by omega), ham]
-    exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+    exact clear_of_not_owns (by wram_omega)
   · rw [ArrayCopy.copyPrefix_outside (by omega), ham]
-    exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+    exact clear_of_not_owns (by wram_omega)
 
 /-- Appending a word preserves the doubling-array invariant, modifies only cells in
 `[x.regs ptr, y.regs frontier)` (hence only within `[0, y.regs frontier)`), and satisfies the

@@ -236,6 +236,22 @@ theorem input_of_reachable {v : FiniteCfg k Bool State}
   obtain ⟨p, hp⟩ := exists_computationPath_of_viewStep h
   exact hp.input
 
+/-- **Graph reachability is sound once the initial view fits the radix**: every vertex reachable
+in the compact graph is the identifier of a source-reachable view that fits. Edges lead only to
+fitting views, so nothing is assumed about the other source-reachable views. -/
+theorem exists_view_of_reachable (hstart : Fits B (registers (ntm.initView w))) {u : ℕ}
+    (h : Relation.ReflTransGen (Edge ntm B w) (startID ntm B) u) :
+    ∃ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v ∧ u = vertexID B v ∧
+      Fits B (registers v) := by
+  induction h with
+  | refl => exact ⟨_, .refl, (vertexID_init _ _ _).symm, hstart⟩
+  | @tail a b h he ih =>
+    obtain ⟨v, hv, rfl, hf⟩ := ih
+    have hi := input_of_reachable hv
+    rw [← hi] at he
+    obtain ⟨v', hstep, _, hid, hf'⟩ := edge_sound hf he
+    exact ⟨v', hv.tail hstep, hid, hf'⟩
+
 /-- Exact graph reachability, provided all source-reachable views fit the radix. -/
 theorem reachable_iff (hfit : ∀ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v →
       Fits B (registers v)) (u : ℕ) :
@@ -243,14 +259,8 @@ theorem reachable_iff (hfit : ∀ v, Relation.ReflTransGen ntm.ViewStep (ntm.ini
       ∃ v, Relation.ReflTransGen ntm.ViewStep (ntm.initView w) v ∧ u = vertexID B v := by
   constructor
   · intro h
-    induction h with
-    | refl => exact ⟨_, .refl, (vertexID_init _ _ _).symm⟩
-    | @tail a b h he ih =>
-      obtain ⟨v, hv, rfl⟩ := ih
-      have hi := input_of_reachable hv
-      rw [← hi] at he
-      obtain ⟨v', hstep, _, hid, _⟩ := edge_sound (hfit v hv) he
-      exact ⟨v', hv.tail hstep, hid⟩
+    obtain ⟨v, hv, hid, -⟩ := exists_view_of_reachable (hfit _ .refl) h
+    exact ⟨v, hv, hid⟩
   · rintro ⟨v, hv, rfl⟩
     induction hv with
     | refl => rw [vertexID_init]
@@ -273,6 +283,17 @@ theorem bad_vertexID {v : FiniteCfg k Bool State}
   · rintro ⟨hs, ho⟩
     exact ⟨congrArg stateCode hs, ho⟩
 
+/-- **A reachable bad vertex is an accepting computation**, once the initial view fits the radix.
+Unlike `accepts_iff_reachable_bad`, this direction assumes nothing about the other
+source-reachable views: a radix too small for the machine can hide accepting computations but
+cannot create them. -/
+theorem accepts_of_reachable_bad (hstart : Fits B (registers (ntm.initView w))) {u : ℕ}
+    (hu : Relation.ReflTransGen (Edge ntm B w) (startID ntm B) u)
+    (hb : bad (k := k) (State := State) B w.length u = true) : ntm.Accepts w := by
+  obtain ⟨v, hv, rfl, hf⟩ := exists_view_of_reachable hstart hu
+  rw [← input_of_reachable hv] at hb
+  exact accepts_iff_reflTransGen_viewStep.mpr ⟨v, hv, (bad_vertexID hf).mp hb⟩
+
 /-- Native acceptance is exactly reachability of a bad vertex. No totality or time bound on the
 source machine is used; the only assumption is that its reachable registers fit the radix. -/
 theorem accepts_iff_reachable_bad
@@ -280,18 +301,15 @@ theorem accepts_iff_reachable_bad
       Fits B (registers v)) :
     ntm.Accepts w ↔ ∃ u, Relation.ReflTransGen (Edge ntm B w) (startID ntm B) u ∧
       bad (k := k) (State := State) B w.length u = true := by
-  rw [accepts_iff_reflTransGen_viewStep]
   constructor
-  · rintro ⟨v, hv, hs, ho⟩
+  · intro h
+    obtain ⟨v, hv, hs, ho⟩ := accepts_iff_reflTransGen_viewStep.mp h
     refine ⟨vertexID B v, (reachable_iff hfit _).mpr ⟨v, hv, rfl⟩, ?_⟩
     have hi := input_of_reachable hv
     rw [← hi]
     exact (bad_vertexID (hfit v hv)).mpr ⟨hs, ho⟩
   · rintro ⟨u, hu, hb⟩
-    obtain ⟨v, hv, rfl⟩ := (reachable_iff hfit u).mp hu
-    have hi := input_of_reachable hv
-    rw [← hi] at hb
-    exact ⟨v, hv, (bad_vertexID (hfit v hv)).mp hb⟩
+    exact accepts_of_reachable_bad (hfit _ .refl) hu hb
 
 /-- **Overflow means a step leaving the radix**: a represented view overflows exactly when one of
 its source steps reaches a view that does not fit. -/

@@ -138,6 +138,20 @@ theorem card_child_eq_zero {x : α} (hx : 0 < R.len x) (h : (W x).card = 0) (b :
   have := R.card_eq_add hx
   cases b <;> omega
 
+/-- A self-reducible witness set of witness length `ℓ` has at most `2 ^ ℓ` witnesses. -/
+theorem card_le_two_pow_len (x : α) :
+    (W x).card ≤ 2 ^ R.len x := by
+  generalize hℓ : R.len x = ℓ
+  induction ℓ generalizing x with
+  | zero =>
+    simpa using Finset.card_le_card (R.subset_singleton_nil hℓ)
+  | succ k ih =>
+    have hpos : 0 < R.len x := by omega
+    rw [R.card_eq_add hpos, pow_succ']
+    have h0 := ih (R.child x false) (by have := R.len_child x hpos false; omega)
+    have h1 := ih (R.child x true) (by have := R.len_child x hpos true; omega)
+    omega
+
 end SelfReducible
 
 end Cslib.Complexity

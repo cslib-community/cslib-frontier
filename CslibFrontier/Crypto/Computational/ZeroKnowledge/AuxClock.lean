@@ -72,9 +72,10 @@ condition on `S₀`.
 
 * [O. Goldreich, S. Micali, A. Wigderson, *Proofs that Yield Nothing But Their Validity, or All
   Languages in NP Have Zero-Knowledge Proof Systems*][GoldreichMicaliWigderson1991]
-* O. Goldreich, *Foundations of Cryptography*, early Chapter 4 draft (`part4N.pdf`), §4.3.3,
-  Definition 4.3.8, printed pp. 151–153; and [O. Goldreich, *Foundations of Cryptography:
-  Volume 1, Basic Tools*][Goldreich2001], Chapter 4.
+* [O. Goldreich, *Foundations of Cryptography (Fragments of a Book – Version 2.03)*,
+  1998 draft][Goldreich1998Fragments], Section 4.3.3, Definition 4.3.8 and the discussion that
+  follows it, printed pp. 151–153; and [O. Goldreich, *Foundations of Cryptography: Volume 1,
+  Basic Tools*][Goldreich2001], Chapter 4.
 -/
 
 @[expose] public section
@@ -124,7 +125,7 @@ theorem IsOraclePPTWithAux.isOraclePPTOn_triple
     {program : α → β → List Bool → WordOracleComp Operation γ}
     (h : IsOraclePPTWithAux (encPair enc₁ enc₂) output (fun (a, b) z => program a b z)) :
     IsOraclePPTOn (encAuxTriple enc₁ enc₂) output (fun ⟨a, b, z⟩ => program a b z) :=
-  h.isOraclePPTOn.preprocess'
+  h.isOraclePPTOn.preprocess
     (prepare := fun p : α × β × List Bool => ((p.1, p.2.1), p.2.2)) (by fun_prop)
 
 /-- Truncating the auxiliary input of a three-argument `IsPPTOn` program to a polynomial in the
@@ -171,7 +172,26 @@ together with a polynomial prefix bound `c, d` in `(1^n, a)` such that:
    witness families `w : ℕ → List Bool`, and **arbitrary, unbounded** auxiliary-input families
    `z : ℕ → List Bool`, every distinguisher clocked in `((1^n, a), view)` (`IsPPTWithAux`)
    receiving the full untruncated `z n` has negligible distinguishing advantage between the real
-   interaction view and the simulated view. -/
+   interaction view and the simulated view.
+
+This notion is novel to this library. It follows [Goldreich1998Fragments], Definition 4.3.8,
+pp. 151–152, in its treatment of auxiliary input: `z` may have any length, the verifier, simulator
+and distinguisher are clocked in the primary input `(1^n, a)` (and the view), so they read only a
+polynomial prefix of it, and the distinguisher receives the verifier's `z`. It strengthens the
+source by decoupling the security parameter from the instance, as `AuxiliaryInputZeroKnowledge`
+does: the instances are polynomially bounded families indexed by `n`, every party runs in time
+polynomial in `n`, and the gap is negligible in `n`, so on instances much shorter than `n` the
+prover must withstand verifiers and distinguishers that run in time superpolynomial in the
+instance length.
+
+*Relation to standard assumptions.* It implies the library's instance-indexed form of
+Definition 4.3.8, `InstanceAuxiliaryInputZeroKnowledge`
+(`UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge`), and follows from
+`AuxiliaryInputZeroKnowledge` (`AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge`).
+
+*Why it is plausible.* Through `AuxiliaryInputZeroKnowledge`, the library's
+Goldreich–Micali–Wigderson theorem `NonuniformOneWay.exists_zkProof_of_mem_NP` gives a proof system
+with this property for every language in NP from any nonuniformly one-way function. -/
 def UnboundedAuxiliaryInputZeroKnowledge {α : Type} (enc : α ↪ List Bool)
     (prover : ℕ → α → List Bool → Prover Unit)
     (isWitness : α → List Bool → Bool) : Prop :=
@@ -225,7 +245,7 @@ theorem UnboundedAuxiliaryInputZeroKnowledge.computationallyIndistinguishable
         fun _ => adversary p.1.1 p.2) 0 0
   exact hS_zk a w z ha hw hw_sat (fun n _ _ view => adversary n view) htest
 
-/-- **Clock bridge for family auxiliary-input zero knowledge.**
+/-- Clock bridge for family auxiliary-input zero knowledge.
 Every system satisfying `AuxiliaryInputZeroKnowledge` also satisfies
 `UnboundedAuxiliaryInputZeroKnowledge` against verifiers clocked in `(1^n, a)`. -/
 theorem AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge
@@ -362,7 +382,26 @@ such that:
    every valid instance-witness pair `(x, w)` (`isWitness x w = true`,
    `w.length ≤ c_w * (n + 1) ^ d_w`) and every **arbitrary, unbounded** auxiliary input
    `z : List Bool` have distinguishing advantage at most `1 / ((n : ℝ) + 1) ^ k` when interacting
-   with `prover (enc x).length x w`. -/
+   with `prover (enc x).length x w`.
+
+*Source.* This is zero knowledge with respect to auxiliary input, [Goldreich1998Fragments],
+Definition 4.3.8, pp. 151–152, with the clock conventions stated after it (p. 152): the verifier,
+the simulator and the distinguisher are clocked in `|x|` (here `(enc x).length`) alone, the
+auxiliary input `z` may have any length and is also given to the distinguisher, the verifier's
+output is compared with the simulator's, and the gap is measured in `|x|`. It differs from the
+source as follows.
+* The prover's private input ranges over valid witnesses (`isWitness x w`) of length at most
+  `c_w * (|x| + 1) ^ d_w`, for every `c_w` and `d_w`, where the source's ranges over every string
+  with which the prover meets the completeness condition. The prover is the family `prover` run at
+  security parameter `|x|`. This weakens the notion.
+* The simulator must also depend only on a prefix of `z` of length polynomial in `|x|` (item 1). A
+  machine clocked in `|x|`, as the source's simulator is, reads no more of `z` than that.
+* The distinguisher is clocked in the lengths of the instance and the view together, where the
+  source's is clocked in `|x|`. Both views have length polynomial in `|x|`, since the verifier and
+  the simulator are clocked in `|x|`, so the two clocks admit the same distinguishers on them.
+
+It is a property of the prover alone; `ZKProof.InstanceAuxiliaryInputZeroKnowledge` states it for
+the prover of a proof system. -/
 def InstanceAuxiliaryInputZeroKnowledge {α : Type} (enc : α ↪ List Bool)
     (prover : ℕ → α → List Bool → Prover Unit)
     (isWitness : α → List Bool → Bool) : Prop :=
@@ -384,8 +423,8 @@ def InstanceAuxiliaryInputZeroKnowledge {α : Type} (enc : α ↪ List Bool)
               (distinguishingGame (ProbComp.eval (S x z)) (adversary x z)) : ℝ) ≤
               1 / ((n : ℝ) + 1) ^ k
 
-/-- **Indexing bridge from `UnboundedAuxiliaryInputZeroKnowledge` to Goldreich-style `x`-indexed
-auxiliary-input zero knowledge.**
+/-- Indexing bridge from `UnboundedAuxiliaryInputZeroKnowledge` to Goldreich-style `x`-indexed
+auxiliary-input zero knowledge.
 Every system satisfying `UnboundedAuxiliaryInputZeroKnowledge` satisfies
 `InstanceAuxiliaryInputZeroKnowledge`. -/
 theorem UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge
@@ -482,7 +521,7 @@ theorem UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge
     apply hnot_le
     simpa only [Nat.cast_pow, Nat.cast_add, Nat.cast_one] using hn
 
-/-- **Clock and indexing bridge to Goldreich-style `x`-indexed auxiliary-input zero knowledge.**
+/-- Clock and indexing bridge to Goldreich-style `x`-indexed auxiliary-input zero knowledge.
 Every system satisfying `AuxiliaryInputZeroKnowledge` satisfies
 `InstanceAuxiliaryInputZeroKnowledge`. -/
 theorem AuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge
@@ -495,12 +534,23 @@ namespace ZKProof
 
 variable {A : Set α} {soundness : ℕ → ENNReal}
 
-/-- Unbounded-`z` family auxiliary-input zero knowledge for a bundled `ZKProof`. -/
+/-- Unbounded-`z` family auxiliary-input zero knowledge for a bundled `ZKProof`:
+`Cslib.Crypto.UnboundedAuxiliaryInputZeroKnowledge` for the bundled prover and witness predicate.
+
+Like that notion, this one is novel to this library: it strengthens [Goldreich1998Fragments],
+Definition 4.3.8, pp. 151–152, by decoupling the security parameter from the instance. It implies
+`ZKProof.InstanceAuxiliaryInputZeroKnowledge`, which follows the source's indexing
+(`ZKProof.UnboundedAuxiliaryInputZeroKnowledge.instanceAuxiliaryInputZeroKnowledge`). It follows
+from `ZKProof.AuxiliaryInputZeroKnowledge`
+(`ZKProof.AuxiliaryInputZeroKnowledge.unboundedAuxiliaryInputZeroKnowledge`), so it is plausible
+for the same reason: `NonuniformOneWay.exists_zkProof_of_mem_NP` builds systems with that property
+for every language in NP from any nonuniformly one-way function. -/
 def UnboundedAuxiliaryInputZeroKnowledge (zk : ZKProof enc A soundness) : Prop :=
   Cslib.Crypto.UnboundedAuxiliaryInputZeroKnowledge enc zk.prover zk.isWitness
 
 /-- Goldreich-style `x`-indexed auxiliary-input zero knowledge with unbounded `z` for a bundled
-`ZKProof`. -/
+`ZKProof`: `InstanceAuxiliaryInputZeroKnowledge` of its prover and witness relation, which is
+[Goldreich1998Fragments], Definition 4.3.8, pp. 151–152, with the deviations listed there. -/
 def InstanceAuxiliaryInputZeroKnowledge (zk : ZKProof enc A soundness) : Prop :=
   Cslib.Crypto.InstanceAuxiliaryInputZeroKnowledge enc zk.prover zk.isWitness
 

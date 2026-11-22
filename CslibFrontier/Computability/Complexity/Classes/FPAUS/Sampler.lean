@@ -10,9 +10,11 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.FPAUS.Counting
 public import CslibFrontier.Languages.Probabilistic.Retry
 public import CslibFrontier.Languages.Probabilistic.UniformNat
+import CslibFrontier.Probability.Option
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Data.Nat.Size
 import CslibFrontier.Probability.PMF.EventBind
 
@@ -70,8 +72,8 @@ pointwise bounds, and pointwise lower bounds `(1 - ε) / |W x|` suffice for clos
 
 ## Scope
 
-* This file proves the **output-distribution** half of `Cslib.Complexity.IsFPAUS`. The runtime
-  half, and with it `FPRAS ⇒ FPAUS` as a class inclusion, is
+* This file proves validity of every successful output and a total-variation bound. The
+  pointwise JVV guarantee follows by increasing precision by the witness length in
   `Cslib.Complexity.SelfReducible.isFPAUS_of_isFPRAS` in
   `CslibFrontier.Computability.Complexity.Classes.FPAUS.OfFPRAS`. The sampler makes at most
   `1 + 2 ℓ · trials q` counter calls, linear in `q`.
@@ -879,19 +881,10 @@ theorem eval_trial_none_add_sum (R : SelfReducible enc W) (A : α → ℕ → �
     (x : α) (q : ℕ) (e : ℕ × ℕ) :
     ProbComp.eval (R.trial A x q e) none +
       ∑ w ∈ W x, ProbComp.eval (R.trial A x q e) (some w) = 1 := by
-  have h := Probability.PMF.toOuterMeasure_add_compl_ennreal (ProbComp.eval (R.trial A x q e))
-    {none}
-  rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply,
-    tsum_eq_sum (s := (W x).map Function.Embedding.some)] at h
-  · rw [Finset.sum_map] at h
-    refine (congrArg (_ + ·) (Finset.sum_congr rfl fun w _ => ?_)).trans h
-    simp
-  · intro o ho
-    cases o with
-    | none => simp
-    | some w =>
-      have hw : w ∉ W x := fun hw => ho (Finset.mem_map_of_mem _ hw)
-      simp [eval_trial_eq_zero R A x q e hw]
+  have h := (ProbComp.eval (R.trial A x q e)).tsum_coe
+  rw [Probability.tsum_option_eq,
+    tsum_eq_sum (s := W x) (fun _ => R.eval_trial_eq_zero A x q e)] at h
+  exact h
 
 private theorem le_eval_trial_toReal (R : SelfReducible enc W)
     {A : α → ℕ → ℕ → ProbComp (ℕ × ℕ)} {x : α} {q : ℕ}
@@ -940,13 +933,10 @@ theorem eval_trial_none_le (R : SelfReducible enc W) {A : α → ℕ → ℕ →
   have h8 := one_eighth_le (q := q) hN he.1
   have htot : (ProbComp.eval (R.trial A x q e) none).toReal +
       ∑ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal = 1 := by
-    rw [← ENNReal.toReal_sum fun w _ => PMF.apply_ne_top _ _, ← ENNReal.toReal_add
-      (PMF.apply_ne_top _ _) (ENNReal.sum_ne_top.2 fun w _ => PMF.apply_ne_top _ _),
-      eval_trial_none_add_sum, ENNReal.toReal_one]
+    ennreal_to_real using eval_trial_none_add_sum R A x q e
   have hle : (ProbComp.eval (R.trial A x q e) none).toReal ≤ 7 / 8 := by linarith
   calc ProbComp.eval (R.trial A x q e) none
-      ≤ ENNReal.ofReal (7 / 8) := ENNReal.le_ofReal_iff_toReal_le (PMF.apply_ne_top _ _)
-        (by norm_num) |>.2 hle
+      ≤ ENNReal.ofReal (7 / 8) := by ennreal_to_real using hle
     _ = 7 / 8 := by
         rw [ENNReal.ofReal_div_of_pos (by norm_num)]
         norm_num
@@ -1006,9 +996,7 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
     ENNReal.toReal_le_of_le_ofReal hU (hup w)
   have htotr : (ProbComp.eval (R.trial A x q e) none).toReal +
       ∑ w ∈ W x, (ProbComp.eval (R.trial A x q e) (some w)).toReal = 1 := by
-    rw [← ENNReal.toReal_sum fun w _ => PMF.apply_ne_top _ _, ← ENNReal.toReal_add
-      (PMF.apply_ne_top _ _) (ENNReal.sum_ne_top.2 fun w _ => PMF.apply_ne_top _ _),
-      eval_trial_none_add_sum, ENNReal.toReal_one]
+    ennreal_to_real using eval_trial_none_add_sum R A x q e
   have hsl := Finset.card_nsmul_le_sum (W x) (fun w => (ProbComp.eval (R.trial A x q e)
     (some w)).toReal) _ fun w hw => le_eval_trial_toReal R hA he hw
   have hsu := Finset.sum_le_card_nsmul (W x) (fun w => (ProbComp.eval (R.trial A x q e)
@@ -1026,12 +1014,29 @@ theorem le_eval_retry (R : SelfReducible enc W) {A : α → ℕ → ℕ → Prob
   rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
     hfail]
   simp only [Option.isSome_some, ↓reduceIte]
-  rw [ENNReal.ofReal_le_iff_le_toReal (ENNReal.mul_ne_top (PMF.apply_ne_top _ _)
-    (ENNReal.sum_ne_top.2 fun i _ => ENNReal.pow_ne_top (PMF.apply_ne_top _ _))),
-    ENNReal.toReal_mul, ENNReal.toReal_sum fun i _ => ENNReal.pow_ne_top (PMF.apply_ne_top _ _)]
-  simp only [ENNReal.toReal_pow]
+  rw [ENNReal.ofReal_le_iff_le_toReal (by finiteness)]
+  ennreal_to_real
   exact retry_bound hN rfl hκ' (le_eval_trial_toReal R hA he hv) ENNReal.toReal_nonneg
     (by linarith) (by linarith) h8 rfl
+
+/-- Every successful output of the counting-to-sampling algorithm is a witness, even if
+the counter makes an inaccurate estimate. -/
+theorem sampler_eq_zero_of_notMem (R : SelfReducible enc W) (A : α → ℕ → ℕ → ProbComp (ℕ × ℕ))
+    (x : α) (q : ℕ) {v : List Bool} (hv : v ∉ W x) :
+    ProbComp.eval (R.sampler A x q) (some v) = 0 := by
+  rw [sampler, ProbComp.eval_bind]
+  refine Probability.PMF.bind_apply_of_forall _ fun e => ?_
+  rw [ProbComp.eval_map, PMF.map_apply]
+  refine tsum_eq_zero_iff.2 fun o => ?_
+  rcases o with _ | _ | w
+  · simp
+  · simp
+  · by_cases hvw : v = w
+    · subst hvw
+      rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
+        eval_trial_eq_zero R A x q e hv]
+      simp
+    · simp [hvw]
 
 /-- **Approximate counting gives almost uniform sampling** (output law). If `A` estimates the
 number of witnesses within relative error `1 / p` with probability at least `1 - 2 ^ (-t)`, for
@@ -1063,24 +1068,12 @@ theorem closeTo_sampler (R : SelfReducible enc W) {A : α → ℕ → ℕ → Pr
               (nodeEstimate_good R hA' x)) fun e hsupp he => ?_
           rw [PMF.toOuterMeasure_apply_singleton]
           exact le_eval_retry R hA' (fun _ => hsupp) he hv
-  · rw [sampler, ProbComp.eval_bind]
-    refine Probability.PMF.bind_apply_of_forall _ fun e => ?_
-    rw [ProbComp.eval_map, PMF.map_apply]
-    refine tsum_eq_zero_iff.2 fun o => ?_
-    rcases o with _ | _ | w
-    · simp
-    · simp
-    · by_cases hvw : v = w
-      · subst hvw
-        rw [ProbComp.eval_eq_evalWith, OracleComp.evalWith_retry_some, ← ProbComp.eval_eq_evalWith,
-          eval_trial_eq_zero R A x q e (by rw [hW]; exact Finset.notMem_empty v)]
-        simp
-      · simp [hvw]
+  · exact R.sampler_eq_zero_of_notMem A x q (by simp [hW])
 
-/-- **An FPRAS gives the output law of an FPAUS.** The sampler built from a fully polynomial
+/-- **Additive approximation to uniform sampling.** The sampler built from a fully polynomial
 randomized approximation scheme for the number of witnesses has output law within statistical
 distance `2 ^ (-q)` of the uniform law on the witnesses, for every instance and accuracy `q`. This
-is the output-distribution half of `IsFPAUS`; its runtime half is not proved here. -/
+additive estimate gives pointwise relative accuracy at increased precision. -/
 theorem closeTo_sampler_of_isFPRAS (R : SelfReducible enc W) {A : α → ℕ → ℕ → ProbComp (ℕ × ℕ)}
     (hA : IsFPRAS enc (fun x => (W x).card) A) (x : α) (q : ℕ) :
     Probability.CloseTo (ProbComp.eval (R.sampler A x q)) (uniformWitness (W x))

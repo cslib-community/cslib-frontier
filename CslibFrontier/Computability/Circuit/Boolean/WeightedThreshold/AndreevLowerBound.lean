@@ -14,6 +14,7 @@ public import CslibFrontier.Foundations.Analysis.SpecialFunctions.Sqrt
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Algebra.Order.Field.GeomSum
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Depth-two threshold gate and wire lower bounds for Andreev's function
@@ -64,9 +65,8 @@ theorem univ_image_andreevLiveVar_eq_blockLiveSet (b m : ℕ) (σ : Fin b → Fi
 
 /-- Every truth-table coordinate is distinct from every block coordinate. -/
 theorem andreevTableIndex_ne_andreevBlockVar (b m : ℕ) (idx : Fin (2 ^ b))
-    (j : Fin b) (t : Fin m) : andreevTableIndex b m idx ≠ andreevBlockVar b m j t := fun h => by
-  have hval := congrArg Fin.val h
-  simp only [andreevTableIndex, andreevBlockVar, Fin.val_castAdd, Fin.val_natAdd] at hval; omega
+    (j : Fin b) (t : Fin m) : andreevTableIndex b m idx ≠ andreevBlockVar b m j t := by
+  fin_index [andreevTableIndex, andreevBlockVar]
 
 /-- No truth-table coordinate belongs to `univ.image (andreevLiveVar b m σ)`. -/
 theorem andreevTableIndex_notMem_image_andreevLiveVar (b m : ℕ) (σ : Fin b → Fin m)
@@ -552,6 +552,31 @@ theorem size_ge_of_card_eval_eq_andreev_ge {b m : ℕ} (hm : 0 < m)
   sq_le_of_corr_le (by positivity) hpos (hcorr.trans
     (card_eval_eq_andreev_le_of_depth_le_two_size hm hα hβ c hd o))
 
+private theorem scale_bound_of_sq_le {b r : ℕ} {ε A B D : ℝ} (hA : 0 ≤ A)
+    (hε : 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b) ≤ ε)
+    (hAB : A * B = 4 * (r : ℝ) * D)
+    (hsq : ∀ {α β : ℝ}, Real.sqrt ((2 : ℝ) ^ b) / 2 ≤ α → 0 ≤ β →
+      0 ≤ (2 : ℝ) ^ b * (ε - andreevWeightTail b (r + 1) α β) - β →
+      ((2 : ℝ) ^ b * (ε - andreevWeightTail b (r + 1) α β) - β) ^ 2 ≤ α ^ 2 * B) :
+    A * (2 : ℝ) ^ b * ε ^ 2 ≤ 36 * ((b : ℝ) + 2 + Real.log (r + 1)) * (r : ℝ) * D := by
+  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
+  have hex := excess_ge_of_three_mul_div_sqrt_le (b := b) (M := r + 1) (by omega) hε
+  have h := (pow_le_pow_left₀ (by positivity) hex 2).trans
+    (hsq (sqrt_two_pow_div_two_le_andreevWeightScale b (by omega)) (by positivity)
+      ((by positivity : 0 ≤ (2 : ℝ) ^ b * ε / 3).trans hex))
+  rw [andreevWeightScale_sq b (by omega)] at h
+  simp only [Nat.cast_add, Nat.cast_one] at h
+  have hmul := mul_le_mul_of_nonneg_left h hA
+  have h1 : A * ((2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (r + 1)) * B) =
+      (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (r + 1)) * (r : ℝ) * D) := by
+    calc A * ((2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (r + 1)) * B)
+        = (2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (r + 1)) * (A * B) := by ring
+      _ = (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (r + 1)) * (r : ℝ) * D) := by
+        rw [hAB]; ring
+  rw [h1] at hmul
+  apply le_of_mul_le_mul_left (a := (2 : ℝ) ^ b) _ (by positivity)
+  nlinarith
+
 /-- Canonical gate bound: the counting loss is `b + 2 + log (c.size + 1)`.
 For polynomial resources this is linear in `b`, saving one logarithm over unrestricted LTF
   counting. -/
@@ -563,27 +588,9 @@ theorem size_ge_of_card_eval_eq_andreev_ge_of_le_eps {b m : ℕ} (hm : 0 < m)
     (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       36 * ((b : ℝ) + 2 + Real.log (c.size + 1)) * (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m :
         ℕ) : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hex := excess_ge_of_three_mul_div_sqrt_le (b := b) (M := c.size + 1) (by omega) hε
-  have hp : 0 ≤ (2 : ℝ) ^ b * (ε - andreevWeightTail b (c.size + 1)
-      (andreevWeightScale b (c.size + 1)) (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b))) -
-      ((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b) := (by positivity : 0 ≤ (2 : ℝ) ^ b * ε / 3).trans hex
-  have h := (pow_le_pow_left₀ (by positivity) hex 2).trans
-    (size_ge_of_card_eval_eq_andreev_ge hm
-      (sqrt_two_pow_div_two_le_andreevWeightScale b (by omega)) (by positivity) c hd o hp hcorr)
-  rw [andreevWeightScale_sq b (by omega)] at h
-  simp only [Nat.cast_add, Nat.cast_one] at h ⊢
-  have hmpos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have hmne : (m : ℝ) ≠ 0 := hmpos.ne'
-  have hmul := mul_le_mul_of_nonneg_left h hmpos.le
-  have heq : (m : ℝ) * ((2 : ℝ) ^ b * ((b : ℝ) + 2 + Real.log (c.size + 1)) *
-      (4 * (1 / (m : ℝ)) * (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ))) =
-      (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (c.size + 1)) *
-        (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ)) := by field_simp
-  simp only [Nat.cast_add] at heq
-  rw [heq] at hmul
-  apply le_of_mul_le_mul_left (a := (2 : ℝ) ^ b) _ (by positivity)
-  nlinarith
+  have hm0 : (0 : ℝ) < m := Nat.cast_pos.mpr hm
+  exact scale_bound_of_sq_le hm0.le hε (by field_simp)
+    fun hα hβ hp => size_ge_of_card_eval_eq_andreev_ge hm hα hβ c hd o hp hcorr
 
 /-- Wire correlation bound counting only threshold shifts of the circuit's fixed bottom weights. -/
 theorem card_eval_eq_andreev_le_of_depth_le_two_wireCount {b m : ℕ} (hm : 0 < m)
@@ -628,29 +635,14 @@ theorem wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps {b m : ℕ} (hm : 0 < 
       (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w o = andreev b m w} : ℝ)) :
     (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       36 * ((b : ℝ) + 2 + Real.log (c.wireCount + 1)) * (c.wireCount : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hex := excess_ge_of_three_mul_div_sqrt_le (b := b) (M := c.wireCount + 1) (by omega) hε
-  have hp : 0 ≤ (2 : ℝ) ^ b * (ε - andreevWeightTail b (c.wireCount + 1)
-      (andreevWeightScale b (c.wireCount + 1)) (((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b))) -
-      ((b : ℝ) + 2) * Real.sqrt ((2 : ℝ) ^ b) := (by positivity : 0 ≤ (2 : ℝ) ^ b * ε / 3).trans hex
-  have h := (pow_le_pow_left₀ (by positivity) hex 2).trans
-    (wireCount_ge_of_card_eval_eq_andreev_ge hm
-      (sqrt_two_pow_div_two_le_andreevWeightScale b (by omega)) (by positivity) c hd o hp hcorr)
-  rw [andreevWeightScale_sq b (by omega)] at h
-  simp only [Nat.cast_add, Nat.cast_one] at h ⊢
-  have hmpos : (0 : ℝ) < m := Nat.cast_pos.mpr hm
-  have hmne : (m : ℝ) ≠ 0 := hmpos.ne'
-  have hsne : Real.sqrt (m : ℝ) ≠ 0 := (Real.sqrt_pos.mpr hmpos).ne'
-  simp only [one_div, Real.sqrt_inv] at h
-  have hmul := mul_le_mul_of_nonneg_left h (by positivity : 0 ≤ (m : ℝ) * Real.sqrt (m : ℝ))
-  have heq : (m : ℝ) * Real.sqrt (m : ℝ) * ((2 : ℝ) ^ b *
-      ((b : ℝ) + 2 + Real.log (c.wireCount + 1)) *
-      (4 * (c.wireCount : ℝ) * (m : ℝ)⁻¹ * (Real.sqrt (m : ℝ))⁻¹)) =
-      (2 : ℝ) ^ b * (4 * ((b : ℝ) + 2 + Real.log (c.wireCount + 1)) * (c.wireCount : ℝ)) := by
+  have hm0 : (0 : ℝ) < m := Nat.cast_pos.mpr hm
+  have hAB : (m : ℝ) * Real.sqrt m *
+      (4 * (c.wireCount : ℝ) * (1 / (m : ℝ)) * Real.sqrt (1 / (m : ℝ))) =
+      4 * (c.wireCount : ℝ) * 1 := by
+    rw [Real.sqrt_div' _ hm0.le, Real.sqrt_one]
     field_simp
-  rw [heq] at hmul
-  apply le_of_mul_le_mul_left (a := (2 : ℝ) ^ b) _ (by positivity)
-  nlinarith
+  simpa only [mul_one] using scale_bound_of_sq_le (by positivity) hε hAB
+    fun hα hβ hp => wireCount_ge_of_card_eval_eq_andreev_ge hm hα hβ c hd o hp hcorr
 
 private theorem card_eval_eq_andreev_of_computes {b m : ℕ}
     (c : Circuit signature (2 ^ b + b * m) 1)
@@ -683,27 +675,32 @@ theorem wireCount_ge_of_computes_andreev {b m : ℕ} (hm : 0 < m)
     (card_eval_eq_andreev_of_computes c hcomp)
 
 /-- Remove the logarithm of the resource by splitting at `2 ^ (3 * b)`. -/
-private theorem resource_bound_of_log_bound (b r : ℕ) {L D : ℝ} (hD : 0 ≤ D)
-    (hlarge : L ≤ (2 : ℝ) ^ (3 * b) * D)
-    (hsmall : L ≤ 36 * ((b : ℝ) + 2 + Real.log (r + 1)) * r * D) :
-    L ≤ 144 * ((b : ℝ) + 2) * r * D := by
+private theorem resource_bound_of_log_bound (b r : ℕ) {A ε D : ℝ} (_ : 0 ≤ A) (hD : 0 ≤ D)
+    (hA : A ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * D)
+    (hε : 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b) ≤ ε) (hε1 : ε ≤ 1)
+    (hsmall : A * (2 : ℝ) ^ b * ε ^ 2 ≤ 36 * ((b : ℝ) + 2 + Real.log (r + 1)) * r * D) :
+    A * (2 : ℝ) ^ b * ε ^ 2 ≤ 144 * ((b : ℝ) + 2) * r * D := by
   by_cases hr : r < 2 ^ (3 * b)
   · have hlog : Real.log ((r : ℝ) + 1) ≤ 3 * (b : ℝ) := by
-      have hr' : (r : ℝ) + 1 ≤ (2 : ℝ) ^ (3 * b) := by exact_mod_cast (show r + 1 ≤ 2 ^ (3 * b)
-        by omega)
-      have he := Real.two_pow_le_exp (3 * b)
-      have hle := Real.log_le_log (by positivity : (0 : ℝ) < (r : ℝ) + 1) (hr'.trans he)
-      simpa only [Real.log_exp, Nat.cast_mul, Nat.cast_ofNat] using hle
-    refine hsmall.trans ?_
-    exact mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right
+      have hr' : (r : ℝ) + 1 ≤ (2 : ℝ) ^ (3 * b) := by
+        exact_mod_cast (show r + 1 ≤ 2 ^ (3 * b) by omega)
+      simpa only [Real.log_exp, Nat.cast_mul, Nat.cast_ofNat] using
+        Real.log_le_log (by positivity : (0 : ℝ) < (r : ℝ) + 1)
+          (hr'.trans (Real.two_pow_le_exp (3 * b)))
+    exact hsmall.trans (mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right
       (by linarith : 36 * ((b : ℝ) + 2 + Real.log (r + 1)) ≤ 144 * ((b : ℝ) + 2))
-      (Nat.cast_nonneg r)) hD
-  · have hr' : (2 : ℝ) ^ (3 * b) ≤ r := by exact_mod_cast not_lt.mp hr
-    calc L ≤ (2 : ℝ) ^ (3 * b) * D := hlarge
-         _ ≤ (r : ℝ) * D := mul_le_mul_of_nonneg_right hr' hD
-         _ ≤ 144 * ((b : ℝ) + 2) * r * D := by
-           exact mul_le_mul_of_nonneg_right (le_mul_of_one_le_left (Nat.cast_nonneg r)
-             (by linarith [(Nat.cast_nonneg b : (0 : ℝ) ≤ b)])) hD
+      (Nat.cast_nonneg r)) hD)
+  · have hε0 : 0 ≤ ε :=
+      (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
+    have hεsq : ε ^ 2 ≤ 1 := by nlinarith
+    have hr' : (2 : ℝ) ^ (3 * b) ≤ r := by exact_mod_cast not_lt.mp hr
+    calc A * (2 : ℝ) ^ b * ε ^ 2
+        ≤ ((2 : ℝ) ^ b * (2 : ℝ) ^ b * D) * (2 : ℝ) ^ b * 1 := by gcongr
+      _ = (2 : ℝ) ^ (3 * b) * D := by rw [Nat.mul_comm 3 b, pow_mul]; ring
+      _ ≤ (r : ℝ) * D := mul_le_mul_of_nonneg_right hr' hD
+      _ ≤ 144 * ((b : ℝ) + 2) * r * D := mul_le_mul_of_nonneg_right
+          (le_mul_of_one_le_left (Nat.cast_nonneg r)
+            (by linarith [(Nat.cast_nonneg b : (0 : ℝ) ≤ b)])) hD
 
 /-- Explicit gate bound with a linear counting loss in `b`, valid when `m ≤ 2 ^ b`.
 At `b * m = 2 ^ b` this gives `Ω(ε² n^(3/2) / log² n)`. -/
@@ -715,25 +712,16 @@ theorem size_ge_of_card_eval_eq_andreev_ge_of_le_two_pow {b m : ℕ} (hm : 0 < m
       (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w o = andreev b m w} : ℝ)) :
     (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       144 * ((b : ℝ) + 2) * (c.size : ℝ) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hεsq : ε ^ 2 ≤ 1 := by nlinarith
-  have hN1 : (1 : ℝ) ≤ (2 : ℝ) ^ b := one_le_pow₀ (by norm_num)
   have hmN' : (m : ℝ) ≤ (2 : ℝ) ^ b := by exact_mod_cast hmN
-  have hs1 : (1 : ℝ) ≤ Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-    apply Real.one_le_sqrt.mpr
-    exact_mod_cast (show 1 ≤ 2 ^ b + b * m by have := Nat.one_le_two_pow (n := b); omega)
-  apply resource_bound_of_log_bound b c.size (by positivity) _
+  have hN1 : (1 : ℝ) ≤ (2 : ℝ) ^ b := one_le_pow₀ (by norm_num)
+  have hs1 : (1 : ℝ) ≤ Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := Real.one_le_sqrt.mpr
+    (by exact_mod_cast (show 1 ≤ 2 ^ b + b * m by have := Nat.one_le_two_pow (n := b); omega))
+  have hA : (m : ℝ) ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
+    have h1 : 1 ≤ (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) :=
+      one_le_mul_of_one_le_of_one_le hN1 hs1
+    nlinarith [mul_le_mul_of_nonneg_left h1 (by positivity : (0 : ℝ) ≤ (2 : ℝ) ^ b)]
+  exact resource_bound_of_log_bound b c.size (Nat.cast_nonneg m) (by positivity) hA hε hε1
     (size_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)
-  calc (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * 1 := by gcongr
-       _ ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * (2 : ℝ) ^ b *
-           Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-           have hprod : 1 ≤ (2 : ℝ) ^ b * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-             nlinarith [mul_nonneg (sub_nonneg.mpr hN1) (sub_nonneg.mpr hs1)]
-           have hp := mul_le_mul_of_nonneg_left hprod
-             (by positivity : 0 ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b)
-           nlinarith
-       _ = (2 : ℝ) ^ (3 * b) * Real.sqrt ((2 ^ b + b * m : ℕ) : ℝ) := by
-         rw [Nat.mul_comm 3 b, pow_mul]; ring
 
 /-- Explicit active-wire bound with linear counting loss in `b`.
 At `b * m = 2 ^ b` this gives `Ω(ε² n^(5/2) / log^(5/2) n)`. -/
@@ -745,18 +733,16 @@ theorem wireCount_ge_of_card_eval_eq_andreev_ge_of_le_two_pow {b m : ℕ} (hm : 
       (#{w : BitString (2 ^ b + b * m) | c.eval interpretation w o = andreev b m w} : ℝ)) :
     (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤
       144 * ((b : ℝ) + 2) * (c.wireCount : ℝ) := by
-  have hε0 : 0 ≤ ε := (by positivity : 0 ≤ 3 * ((b : ℝ) + 2) / Real.sqrt ((2 : ℝ) ^ b)).trans hε
-  have hεsq : ε ^ 2 ≤ 1 := by nlinarith
-  have hN1 : (1 : ℝ) ≤ (2 : ℝ) ^ b := one_le_pow₀ (by norm_num)
   have hmN' : (m : ℝ) ≤ (2 : ℝ) ^ b := by exact_mod_cast hmN
   have hsN : Real.sqrt (m : ℝ) ≤ (2 : ℝ) ^ b := by
     have hsq := Real.sq_sqrt (Nat.cast_nonneg m : (0 : ℝ) ≤ m)
-    nlinarith [Real.sqrt_nonneg (m : ℝ)]
-  have h := resource_bound_of_log_bound b c.wireCount (D := 1) (by norm_num)
-    (show (m : ℝ) * Real.sqrt (m : ℝ) * (2 : ℝ) ^ b * ε ^ 2 ≤ (2 : ℝ) ^ (3 * b) * 1 by
-      calc _ ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * (2 : ℝ) ^ b * 1 := by gcongr
-           _ = _ := by rw [Nat.mul_comm 3 b, pow_mul]; ring)
-    (by simpa using wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)
-  simpa using h
+    nlinarith [Real.sqrt_nonneg (m : ℝ), one_le_pow₀ (by norm_num : (1 : ℝ) ≤ 2) (n := b)]
+  have hA : (m : ℝ) * Real.sqrt (m : ℝ) ≤ (2 : ℝ) ^ b * (2 : ℝ) ^ b * 1 := by
+    rw [mul_one]
+    exact mul_le_mul hmN' hsN (Real.sqrt_nonneg _) (by positivity)
+  simpa only [mul_one] using resource_bound_of_log_bound b c.wireCount (D := 1)
+    (by positivity) zero_le_one hA hε hε1
+    (by simpa only [mul_one] using
+      wireCount_ge_of_card_eval_eq_andreev_ge_of_le_eps hm hε c hd o hcorr)
 
 end Cslib.Circuits.Boolean.WeightedThreshold

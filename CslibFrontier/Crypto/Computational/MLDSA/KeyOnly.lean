@@ -18,13 +18,13 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.LinearCombination
 
 /-!
-# ML-DSA forgeries, self-target MSIS and Module-LWE: the key-only reduction
+# A finite forgery bound for uncompressed keys and polynomial challenges
 
-The security argument for Dilithium ([DucasEtAl2018]) replaces the public key `t = A s₁ + s₂`
-by a uniform vector, which costs a Module-LWE distinguishing advantage, and then turns a forgery
-against a *uniform* key into a solution of the *self-target* Module-SIS problem for the matrix
-`[I_k | A | -t]`. This module formalizes both steps for key-only attacks (no signing queries,
-fixed hash function), with explicit reductions:
+The model publishes the full matrix and vector `(A, t)` and verifies a response and a challenge
+polynomial `(z, c)` using a fixed hash. Following the algebraic argument of [DucasEtAl2018], the
+proof changes `t = A s₁ + s₂` to a uniform vector at a Module-LWE distinguishing cost, then
+extracts a self-target solution for `[I_k | A | -t]`. The FIPS 204 byte verifier and its
+seeded key-only game are in `CslibFrontier.Crypto.Computational.MLDSA.FIPS204`.
 
 * **Self-target MSIS.** `IsSelfTargetSolution G ζ pk s` says that the candidate
   `s = (M, u, z, c)` (a `SelfTargetCandidate`) is a solution: `‖u‖_∞, ‖z‖_∞ ≤ ζ`, `c ∈ B_τ`, and
@@ -38,22 +38,21 @@ fixed hash function), with explicit reductions:
 * **Experiments.** For a fixed public key, `koaExperiment` and `selfTargetExperiment` are
   `ProbComp Bool` programs. The games `koaGame` and `selfTargetGame` draw the key from a key
   distribution and run the experiment on it.
-* **Key-only unforgeability.** The honest key `(A, A s₁ + s₂)` is a Module-LWE sample with short
+* **Finite key-only bound.** The honest key `(A, A s₁ + s₂)` is a Module-LWE sample with short
   secret `s₁` and error `s₂` (`SecretKey.publicKey_t`), so the forgery game for honest keys
   (`keyLaw`) is the real Module-LWE game of the explicit distinguisher `forgeryDistinguisher`
   (`koaGame_keyLaw`), and for uniform keys (`uniformKeyLaw`) it is the random one
   (`koaGame_uniformKeyLaw`). The success probability of any key-only forger is therefore at most
   the Module-LWE advantage `ModuleLWE.advantage` of `forgeryDistinguisher` for these short laws,
   plus the success probability of the explicit solver `selfTargetReduction` against self-target
-  MSIS for a uniform matrix `[A | t]` (`succProbability_koaGame_le`). The uniform-secret
-  `Cslib.Crypto.DecisionModuleLWE` does not bound that advantage.
+  MSIS for a uniform matrix `[A | t]` (`succProbability_koaGame_le`). That advantage is the
+  quantity of the short-secret assumption `Cslib.Crypto.DecisionModuleLWEWith` for these laws, not
+  of the uniform-secret `Cslib.Crypto.DecisionModuleLWE`. The bound here is for one parameter set,
+  and no efficiency certificate for `forgeryDistinguisher` is proved.
 
-Hardness of self-target MSIS for the hash `H(HighBits(·), ·)` is the assumption, as in
-[DucasEtAl2018]; it is neither proved nor reduced to standard Module-SIS here.
-
-This is the key-only core of the reduction. Chosen-message security additionally simulates the
-signing oracle (zero knowledge of the aborting identification scheme, in the random-oracle
-model); that step, and the asymptotic packaging, are not formalized here.
+The bound leaves the self-target success probability as an explicit term. Applying hardness
+assumptions to efficient reductions and simulating signing queries are further steps in a
+chosen-message security proof.
 
 ## Main definitions
 
@@ -300,7 +299,7 @@ theorem succProbability_koaGame_le_selfTargetGame (hP : P.Valid) (keys : PMF (Pu
   · rw [Bool.not_eq_true] at hv
     simp [hv]
 
-/-- **Key-only unforgeability from Module-LWE and self-target MSIS.** Against honest keys, the
+/-- **Finite key-only bound in the uncompressed, fixed-hash model.** Against its honest keys, the
 success probability of a key-only forger is at most the Module-LWE advantage of
 `forgeryDistinguisher`, with secret and error drawn coefficientwise from `secret`, plus the success
 probability of `selfTargetReduction` against self-target MSIS for a uniform matrix `[A | t]`. -/

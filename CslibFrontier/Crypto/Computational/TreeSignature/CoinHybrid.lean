@@ -7,29 +7,26 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
+import Mathlib.Data.List.GetD
+public import CslibFrontier.Computability.Probabilistic.Oracle.ReplayParameter
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
 public import CslibFrontier.Crypto.Computational.Signature.Bridge
 public import CslibFrontier.Crypto.Computational.TreeSignature
 public import CslibFrontier.Languages.Probabilistic.Iteration
 public import Mathlib.Data.Nat.Pairing
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Search
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
-import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Norm
-import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Tree signatures: from pseudorandom to random coins
@@ -80,7 +77,7 @@ budget together with a polynomial-time bounded-search left inverse (`coinParamIn
   and PRF advantages at `N n`.
 * `Cslib.Crypto.TreeSignature.isOraclePPT_treeCoinAdversary`: the coin adversary is strict oracle
   PPT, built from `isOraclePPTOn_certifyO`, `isOraclePPTOn_signO`, `isOraclePPTOn_simulateTreeGame`,
-  and the output bounds `keyBound` and `sigBound`.
+  and the output bounds `savedCoinBudget` and `sigBound`.
 * `Cslib.Crypto.TreeSignature.exists_negligible_treeGame_le`,
   `Cslib.Crypto.TreeSignature.exists_negligible_treeGame_coinParam_le`: for a pseudorandom function,
   the forging probability with pseudorandom coins exceeds that with random coins by a negligible
@@ -260,8 +257,8 @@ variable (c : List Bool → List Bool)
 
 @[simp] theorem evalDet_sample {α : Type} (program : ProbComp α) :
     evalDet c (ProbOracleComp.sample program) = ProbComp.eval program := by
-  simp only [evalDet, OracleComp.evalWith, ProbOracleComp.interpret_sample]
-  rfl
+  rw [evalDet, OracleComp.evalWith_eq_interpret, ProbOracleComp.interpret_sample]
+  exact (OracleComp.evalWith_eq_interpret ProbComp.unifOracle program).symm
 
 variable {c} (hc : ∀ x L, (c (encPair encBits encUnary (x, L))).length ≤ L)
 
@@ -349,21 +346,32 @@ include hc in
 theorem evalDet_simulateTreeGame (adversary : Forger) (n : ℕ) (k : List Bool) :
     evalDet c (simulateTreeGame S T depth adversary n) =
       ProbComp.eval (treeGameWith S T depth (coinsOf c) k adversary n) := by
-  rw [treeGameWith, treeScheme, Forger.eval_eufCmaExperiment_restrict_toTyped]
+  rw [treeGameWith, Forger.eval_eufCmaExperiment_toTyped]
   simp only [pmf_norm, simulateTreeGame, evalDet_bind, evalDet_pure,
-    evalDet_nodeKeyO hc n k, ProbOracleComp.eval_run_interpret]
-  refine congrArg (fun p => PMF.bind p _) ?_
-  rw [evalDet, OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith
-    (OracleComp.sumHandler ProbComp.unifOracle (fun r : Unit × List Bool => PMF.pure (c r.2))))]
-  refine congrArg (fun h => (OracleComp.interpret (m := StateT (List (List Bool)) PMF) h
-    (adversary n _)).run []) ?_
-  funext q state
-  cases q with
-  | inl m => rfl
-  | inr request =>
-    change OracleComp.evalWith _ ((signHandler S T depth n request).run state) = _
-    simp only [signHandler, StateT.run, OracleComp.evalWith_bind, OracleComp.evalWith_pure]
-    rw [← evalDet, evalDet_signO hc n k]
+    evalDet_nodeKeyO hc n k, ProbOracleComp.eval_run_interpret, treeScheme,
+    Signature.Scheme.restrict_keyGen, Signature.Scheme.restrict_verify]
+  refine congrArg₂ PMF.bind ?_ (funext fun out => ?_)
+  · rw [evalDet, OracleComp.map_run_interpret (OracleComp.isMonadHom_evalWith
+      (OracleComp.sumHandler ProbComp.unifOracle (fun r : Unit × List Bool => PMF.pure (c r.2))))]
+    refine congrArg (fun h => (OracleComp.interpret (m := StateT (List (List Bool)) PMF) h
+      (adversary n _)).run []) ?_
+    funext q state
+    cases q with
+    | inl m => rfl
+    | inr request =>
+      change OracleComp.evalWith _ ((signHandler S T depth n request).run state) = _
+      simp only [signHandler, StateT.run, OracleComp.evalWith_bind, OracleComp.evalWith_pure]
+      rw [← evalDet, evalDet_signO hc n k]
+      -- The tree signer already answers `[]` off the `n`-bit words, as the restricted scheme does.
+      by_cases hmsg : request.2.length = n
+      · simp only [OracleComp.sumHandler, SignatureScheme.signingOracleOf,
+          SignatureScheme.signingOracleOn, Signature.Scheme.restrict, hmsg, beq_self_eq_true,
+          ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
+      · simp only [OracleComp.sumHandler, SignatureScheme.signingOracleOf,
+          SignatureScheme.signingOracleOn, Signature.Scheme.restrict, sign, keyDecoder.decode_enc,
+          hmsg, beq_iff_eq, ↓reduceIte, ProbComp.eval_bind, ProbComp.eval_pure]
+        rfl
+  · cases out.1.1.length == n <;> simp
 
 end Deterministic
 
@@ -410,13 +418,16 @@ theorem treeGameWith_congr (adversary : Forger) (n : ℕ) :
     ProbComp.eval (treeGameWith S T depth coins k adversary n) =
       ProbComp.eval (treeGameWith S T depth coins' k' adversary n) := by
   have horacle :
-      SignatureScheme.signingOracleOf (sign S T coins depth) (encPair encUnary encBits (n, k)) =
-        SignatureScheme.signingOracleOf (sign S T coins' depth)
+      SignatureScheme.signingOracleOf
+          (fun sk m => if (m.length == n) = true then sign S T coins depth sk m else pure default)
+          (encPair encUnary encBits (n, k)) =
+        SignatureScheme.signingOracleOf
+          (fun sk m => if (m.length == n) = true then sign S T coins' depth sk m else pure default)
           (encPair encUnary encBits (n, k')) := by
     funext request queried
-    simp only [SignatureScheme.signingOracleOf, sign_congr h]
-  simp only [treeGameWith, treeScheme, Forger.eval_eufCmaExperiment_restrict_toTyped, pure_bind,
-    nodeKey_congr h, horacle]
+    simp only [SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, sign_congr h]
+  simp only [treeGameWith, treeScheme, Forger.eval_eufCmaExperiment_toTyped,
+    Signature.Scheme.restrict, pure_bind, nodeKey_congr h, horacle]
 
 omit h in
 /-- Since `tableCoins` ignores the secret key, `treeGame` with `tableCoins` has the same law as
@@ -452,7 +463,7 @@ theorem eval_interpret_eq_evalDet (c : List Bool → List Bool) {α : Type}
     ProbComp.eval (OracleComp.interpret
       (OracleComp.sumHandler ProbComp.unifFin (fun request : Unit × List Bool =>
         pure (c request.2))) program) = evalDet c program := by
-  rw [ProbOracleComp.eval_interpret]
+  rw [ProbOracleComp.eval_interpret, evalDet, OracleComp.evalWith_eq_interpret]
   rfl
 
 include hinv in
@@ -521,9 +532,9 @@ theorem succProbability_treeGame_le_prf (adversary : Forger) (n : ℕ) :
     Game.succProbability (ProbComp.eval (treeGame S T depth N (prfCoins family) adversary n)) ≤
       Game.succProbability (ProbComp.eval (treeIdealGame S T depth N adversary n)) +
         Game.advantage
-          (ProbComp.eval (prfRealGame family
+          (ProbComp.eval (prfRealGame id family
             (coinDistinguisher (treeCoinAdversary S T depth N inv adversary)) (N n)))
-          (ProbComp.eval (prfIdealGame
+          (ProbComp.eval (prfIdealGame id id
             (coinDistinguisher (treeCoinAdversary S T depth N inv adversary)) (N n))) := by
   rw [← eval_coinRealGame, ← eval_coinIdealGame]
   exact succProbability_treeGame_le family hinv adversary n
@@ -554,7 +565,7 @@ theorem isOraclePPTOn_coinRequest {γ : Type} {enc : γ ↪ List Bool} {x : γ �
     {L : γ → ℕ} (hx : ComputableInPolyTime x enc encBits)
     (hL : ComputableInPolyTime L enc encUnary) :
     IsOraclePPTOn enc encBits (fun a => coinRequest (x a) (L a)) :=
-  IsOraclePPTOn.query_take' () (hx.prod hL).encoding_comp hL
+  IsOraclePPTOn.query_take () (hx.prod hL).encoding_comp hL
 
 /-- Deriving a node key is strict oracle PPT. -/
 theorem isOraclePPTOn_nodeKeyO {γ : Type} {enc : γ ↪ List Bool} {n : γ → ℕ}
@@ -562,7 +573,7 @@ theorem isOraclePPTOn_nodeKeyO {γ : Type} {enc : γ ↪ List Bool} {n : γ → 
     (hpath : ComputableInPolyTime path enc encBits) :
     IsOraclePPTOn enc (encPair encBits encBits) (fun a => nodeKeyO S T (n a) (path a)) :=
   (isOraclePPTOn_coinRequest (((ComputableInPolyTime.const false).prod hpath).encoding_comp)
-    (T.keyGenBudget_polyTime.comp' hn)).map_with'
+    (T.keyGenBudget_polyTime.comp' hn)).map_with
     (T.keyGenWith_polyTime.comp' ((hn.comp' (.fst _ _)).prod (.snd _ _)))
 
 /-- Deriving a node signature is strict oracle PPT. -/
@@ -573,7 +584,7 @@ theorem isOraclePPTOn_signAtO {γ : Type} {enc : γ ↪ List Bool} {path sk msg 
     IsOraclePPTOn enc encBits (fun a => signAtO S T (path a) (sk a) (u a) (msg a)) :=
   (isOraclePPTOn_coinRequest
     (((ComputableInPolyTime.const true).prod (hpath.prod hu)).encoding_comp)
-    (T.signBudget_polyTime.comp' (hsk.prod (hu.prod hmsg)))).map_with'
+    (T.signBudget_polyTime.comp' (hsk.prod (hu.prod hmsg)))).map_with
     (T.signWith_polyTime.comp' (((hsk.prod (hu.prod hmsg)).comp' (.fst _ _)).prod (.snd _ _)))
 
 /-- A chain state, written out so that the certificate automation sees the product. -/
@@ -617,18 +628,10 @@ variable {ck dk cb db cs ds cB dB : ℕ}
   (hsb : ∀ sk u msg, T.signBudget sk u msg ≤
     cB * ((encPair encBits (encPair encUnary encBits) (sk, u, msg)).length + 1) ^ dB)
 
-/-- A bound on both components of a derived node key at parameter `n`. -/
-@[expose] def keyBound (ck dk cb db n : ℕ) : ℕ := ck * (2 * n + 2 + cb * (n + 1) ^ db) ^ dk
-
 /-- A bound on a derived signature by a node whose secret key has length at most `K`, at an index
 at most `1`, on a message of length at most `L`. -/
 @[expose] def sigBound (cs ds cB dB K L : ℕ) : ℕ :=
   cs * (2 * (2 * K + L + 4) + cB * (2 * K + L + 5) ^ dB + 2) ^ ds
-
-theorem computableInPolyTime_keyBound (ck dk cb db : ℕ) :
-    ComputableInPolyTime (keyBound ck dk cb db) encUnary encUnary := by
-  unfold keyBound
-  fun_prop
 
 theorem computableInPolyTime_sigBound (cs ds cB dB : ℕ) :
     ComputableInPolyTime (fun p : ℕ × ℕ => sigBound cs ds cB dB p.1 p.2)
@@ -649,16 +652,14 @@ theorem length_le_of_mem_support_coinRequest {x : List Bool} {L : ℕ} {coins : 
   exact List.length_take_le _ _
 
 include hkg hkb in
-/-- Both components of a derived node key are bounded by `keyBound`. -/
+/-- Both components of a derived node key are bounded by `savedCoinBudget`. -/
 theorem length_le_of_mem_support_nodeKeyO {n : ℕ} {path : List Bool} {key : List Bool × List Bool}
     (h : key ∈ OracleComp.support (nodeKeyO S T n path)) :
     let (pk, sk) := key
-    pk.length ≤ keyBound ck dk cb db n ∧ sk.length ≤ keyBound ck dk cb db n := by
+    pk.length ≤ savedCoinBudget ck dk cb db n ∧ sk.length ≤ savedCoinBudget ck dk cb db n := by
   obtain ⟨coins, hcoins, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp h
   have hlen := (length_le_of_mem_support_coinRequest hcoins).trans (hkb n)
-  have hbound := (hkg n coins).trans (Nat.mul_le_mul_left ck (Nat.pow_le_pow_left
-    (show (encPair encUnary encBits (n, coins)).length + 1 ≤ 2 * n + 2 + cb * (n + 1) ^ db by
-      simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]; omega) dk))
+  have hbound := (hkg n coins).trans (clock_le_savedCoinBudget ck dk cb db n hlen)
   exact ⟨(length_le_encPair_left encBits encBits _).trans hbound,
     (length_le_encPair_right encBits encBits _).trans hbound⟩
 
@@ -680,9 +681,10 @@ theorem length_le_of_mem_support_signAtO {path sk msg σ : List Bool} {u K L : �
 
 variable (hdepth : ComputableInPolyTime depth encUnary encUnary)
 
-/-- The key bound of a loop input `((n, leaf), root)`: `keyBound n`, covering also the root. -/
+/-- The key bound of a loop input `((n, leaf), root)`: `savedCoinBudget ck dk cb db n`, covering
+also the root. -/
 private def loopKeyBound (ck dk cb db : ℕ) (a : (ℕ × List Bool) × (List Bool × List Bool)) : ℕ :=
-  keyBound ck dk cb db a.1.1 + a.2.1.length + a.2.2.length
+  savedCoinBudget ck dk cb db a.1.1 + a.2.1.length + a.2.2.length
 
 /-- The invariant of the chain loop after `i` steps: the path has `i` bits, the current key and
 every certified key are bounded by the loop's key bound, and every certified signature by the
@@ -703,7 +705,7 @@ private theorem chainInvariant_step (a : (ℕ × List Bool) × (List Bool × Lis
   obtain ⟨hpath, hpk, hsk, hlen, hcerts⟩ := hinv
   supp_cases hnext [certifyStepO] with ⟨child, hchild, σ, hσ, rfl⟩
   have hchild' := length_le_of_mem_support_nodeKeyO hkg hkb hchild
-  have hK : keyBound ck dk cb db a.1.1 ≤ loopKeyBound ck dk cb db a := by
+  have hK : savedCoinBudget ck dk cb db a.1.1 ≤ loopKeyBound ck dk cb db a := by
     simp only [loopKeyBound]; omega
   have hσ' := length_le_of_mem_support_signAtO hsg hsb hsk
     (show (a.1.2.getD state.1.length false).toNat ≤ 1 from Bool.toNat_le _)
@@ -734,7 +736,7 @@ private theorem isOraclePPTOn_chain :
   have hp := ComputableInPolyTime.id' (encIn := encPair encIn encCertState)
   have hd := hdepth.comp' ha.fst'.fst'
   have hK : ComputableInPolyTime K encIn encUnary :=
-    ((((computableInPolyTime_keyBound ck dk cb db).comp' ha.fst'.fst').unary_add'
+    ((((computableInPolyTime_savedCoinBudget ck dk cb db).comp' ha.fst'.fst').unary_add'
       ha.snd'.fst'.length_bits_comp).unary_add' ha.snd'.snd'.length_bits_comp).of_enc_eq
       fun _ => rfl
   have hB : ComputableInPolyTime B encIn encUnary :=
@@ -749,12 +751,12 @@ private theorem isOraclePPTOn_chain :
       (((c2.unary_mul' (h2K1.unary_add' hK)).unary_add' c1).unary_add'
         (hd.unary_mul' ((c2.unary_mul' (h2K1.unary_add' hB)).unary_add' c1)))).of_enc_eq
       fun _ => rfl
-  refine IsOraclePPTOn.iterateWith_spec'
+  refine IsOraclePPTOn.iterateWith_spec
     ((hd.unary_sub' c1).of_enc_eq fun _ => rfl)
     (((ComputableInPolyTime.const []).prod (ha.snd'.prod (.const []))).of_enc_eq fun _ => rfl)
     (Eq.mp (congrArg (IsOraclePPTOn (encPair encIn encCertState) encCertState)
       (funext fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl))
-      (isOraclePPTOn_certifyStepO.preprocess' (hp.fst'.fst'.prod hp.snd')))
+      (isOraclePPTOn_certifyStepO.preprocess (hp.fst'.fst'.prod hp.snd')))
     (chainInvariant ck dk cb db cs ds cB dB)
     (fun a => ⟨rfl, by change a.2.1.length ≤ _; unfold loopKeyBound; omega,
       by change a.2.2.length ≤ _; unfold loopKeyBound; omega, rfl, by rintro _ ⟨⟩⟩)
@@ -766,8 +768,7 @@ private theorem isOraclePPTOn_chain :
     obtain ⟨h1, h2⟩ := hcerts e he; simp only [length_encPair, encBits_apply, K, B]; omega
   have hmul := Nat.mul_le_mul_right (2 * (2 * K a + 1 + B a) + 1) (hi.trans (Nat.sub_le _ _))
   dsimp only at hpath hlen
-  simp only [length_encPair, encBits_apply, hpath, hlen, K, B] at hpk hsk hlist hmul ⊢
-  omega
+  enc_len [hpath, hlen, K, B] at hpk hsk hlist hmul ⊢
 
 omit hkg hkb hsg hsb hdepth in
 /-- `sigBound` is monotone in both bounds. -/
@@ -783,11 +784,11 @@ private theorem isOraclePPTOn_certifyO_aux :
     IsOraclePPTOn (encPair encUnary encBits) encCertState
       (fun p : ℕ × List Bool => certifyO S T depth p.1 p.2) ∧
     ∀ p : ℕ × List Bool, ∀ c ∈ OracleComp.support (certifyO S T depth p.1 p.2),
-      c.1.length = depth p.1 - 1 ∧ c.2.1.2.length ≤ 3 * keyBound ck dk cb db p.1 ∧
+      c.1.length = depth p.1 - 1 ∧ c.2.1.2.length ≤ 3 * savedCoinBudget ck dk cb db p.1 ∧
       c.2.2.length = depth p.1 - 1 ∧
-      ∀ e ∈ c.2.2, e.1.length ≤ 3 * keyBound ck dk cb db p.1 ∧
-        e.2.length ≤ sigBound cs ds cB dB (3 * keyBound ck dk cb db p.1)
-          (3 * keyBound ck dk cb db p.1) := by
+      ∀ e ∈ c.2.2, e.1.length ≤ 3 * savedCoinBudget ck dk cb db p.1 ∧
+        e.2.length ≤ sigBound cs ds cB dB (3 * savedCoinBudget ck dk cb db p.1)
+          (3 * savedCoinBudget ck dk cb db p.1) := by
   obtain ⟨hchain, hchainInv⟩ := isOraclePPTOn_chain hkg hkb hsg hsb hdepth
   refine ⟨(isOraclePPTOn_nodeKeyO (ComputableInPolyTime.fst _ _) (.const [])).bind_with hchain, ?_⟩
   intro p c hc
@@ -795,17 +796,18 @@ private theorem isOraclePPTOn_certifyO_aux :
   obtain ⟨root, hroot, hc⟩ := hc
   have hrootLen := length_le_of_mem_support_nodeKeyO hkg hkb hroot
   obtain ⟨hpath, -, hsk, hlen, hcerts⟩ := hchainInv (p, root) c hc
-  have hK : loopKeyBound ck dk cb db (p, root) ≤ 3 * keyBound ck dk cb db p.1 := by
-    change keyBound ck dk cb db p.1 + root.1.length + root.2.length ≤ _; omega
+  have hK : loopKeyBound ck dk cb db (p, root) ≤ 3 * savedCoinBudget ck dk cb db p.1 := by
+    change savedCoinBudget ck dk cb db p.1 + root.1.length + root.2.length ≤ _; omega
   exact ⟨hpath, hsk.trans hK, hlen, fun e he =>
     ⟨(hcerts e he).1.trans hK, (hcerts e he).2.trans (sigBound_mono hK hK)⟩⟩
 
 /-- A bound on the length of a signature word produced by `signO` at parameter `n` on an `L`-bit
 message. -/
 private def sigWordBound (ck dk cb db cs ds cB dB : ℕ) (depth : ℕ → ℕ) (n L : ℕ) : ℕ :=
-  2 * depth n + 1 + (2 * (depth n * (2 * (2 * (3 * keyBound ck dk cb db n) + 1 +
-    sigBound cs ds cB dB (3 * keyBound ck dk cb db n) (3 * keyBound ck dk cb db n)) + 1)) + 1 +
-    sigBound cs ds cB dB (3 * keyBound ck dk cb db n) L)
+  2 * depth n + 1 + (2 * (depth n * (2 * (2 * (3 * savedCoinBudget ck dk cb db n) + 1 +
+    sigBound cs ds cB dB (3 * savedCoinBudget ck dk cb db n)
+      (3 * savedCoinBudget ck dk cb db n)) + 1)) + 1 +
+    sigBound cs ds cB dB (3 * savedCoinBudget ck dk cb db n) L)
 
 include hdepth in
 private theorem computableInPolyTime_sigWordBound (ck dk cb db cs ds cB dB : ℕ) :
@@ -815,7 +817,7 @@ private theorem computableInPolyTime_sigWordBound (ck dk cb db cs ds cB dB : ℕ
   have hp := ComputableInPolyTime.id' (encIn := E)
   have hd := hdepth.comp' hp.fst'
   have h3K := (ComputableInPolyTime.const 3).unary_mul'
-    ((computableInPolyTime_keyBound ck dk cb db).comp' hp.fst')
+    ((computableInPolyTime_savedCoinBudget ck dk cb db).comp' hp.fst')
   have hB1 := sigBound_funProp cs ds cB dB h3K h3K
   have hB2 := sigBound_funProp cs ds cB dB h3K hp.snd'
   let c2 := ComputableInPolyTime.const (encIn := E) (encOut := encUnary) 2
@@ -842,7 +844,7 @@ private theorem isOraclePPTOn_signO_aux :
     have hp3 := ComputableInPolyTime.id' (encIn := encPair E2 encBits)
     have hleaf := (ComputableInPolyTime.sampleList (hdepth.comp' hp0.fst')).isOraclePPTOn
       (Operation := Unit)
-    have hcert1 := hcert.preprocess' (hp1.fst'.fst'.prod hp1.snd')
+    have hcert1 := hcert.preprocess (hp1.fst'.fst'.prod hp1.snd')
     have hlast2 : ComputableInPolyTime
         (fun q : ((ℕ × List Bool) × List Bool) × CertState => (q.1.2.getLastD false).toNat)
         E2 encUnary :=
@@ -855,7 +857,7 @@ private theorem isOraclePPTOn_signO_aux :
       hp2.snd'.snd'.fst'.snd' hlast2 hp2.fst'.fst'.snd'
     have hret3 := (hp3.fst'.fst'.snd'.prod (hp3.fst'.snd'.snd'.snd'.prod hp3.snd')).encoding_comp
     unfold signO
-    exact IsOraclePPTOn.ite' (condition := fun p : ℕ × List Bool => p.2.length = p.1)
+    exact IsOraclePPTOn.ite (condition := fun p : ℕ × List Bool => p.2.length = p.1)
       ((hp0.snd'.length_bits_comp.decide_eq' hp0.fst').of_enc_eq fun _ => rfl)
       (hleaf.bind_with (hcert1.bind_with (hsign2.bind_with hret3.isOraclePPTOn)))
       (ComputableInPolyTime.isOraclePPTOn (ComputableInPolyTime.const []))
@@ -869,7 +871,7 @@ private theorem isOraclePPTOn_signO_aux :
       obtain ⟨-, hsk, hlen, hcerts⟩ := hcertBound (p.1, leaf) (node, (pk, sk), certs) hc
       have hσ' := length_le_of_mem_support_signAtO hsg hsb hsk (Bool.toNat_le _) le_rfl hσ
       dsimp only at hsk hlen hcerts hσ'
-      let K3 := 3 * keyBound ck dk cb db p.1
+      let K3 := 3 * savedCoinBudget ck dk cb db p.1
       have hlist := length_encList_le (encPair encBits encBits) certs
         (b := 2 * K3 + 1 + sigBound cs ds cB dB K3 K3) fun e he => by
         obtain ⟨h1, h2⟩ := hcerts e he; simp only [length_encPair, encBits_apply, K3]; omega
@@ -894,7 +896,7 @@ private theorem isOraclePPTOn_simulateTreeGame_aux {adversary : Forger}
   have hhandler : IsOraclePPTOn encHandlerIn (encPair encBits (encList encBits))
       (fun pair : (ℕ × (List Bool × List Bool)) × ((Unit × List Bool) × List (List Bool)) =>
         signHandler S T depth pair.1.1 pair.2.1 pair.2.2) :=
-    (hsign.preprocess' ((hp.fst'.fst'.prod hp.snd'.fst'.snd').of_enc_eq fun _ => rfl)).bind_with
+    (hsign.preprocess ((hp.fst'.fst'.prod hp.snd'.fst'.snd').of_enc_eq fun _ => rfl)).bind_with
       ((hq.snd'.prod (.cons' hq.fst'.snd'.fst'.snd' hq.fst'.snd'.snd')).of_enc_eq
         fun _ => rfl).isOraclePPTOn
   have hbound := computableInPolyTime_sigWordBound (depth := depth) hdepth ck dk cb db cs ds cB dB
@@ -908,7 +910,7 @@ private theorem isOraclePPTOn_simulateTreeGame_aux {adversary : Forger}
       ((ComputableInPolyTime.const 2).unary_mul' hlen)).unary_add' (.const 2))).of_enc_eq
       fun _ => rfl
   have hc := ComputableInPolyTime.id' (encIn := encCaller)
-  have hrun := hA.run_interpret_preprocess_open' (External := Unit)
+  have hrun := hA.run_interpret_preprocess_open (External := Unit)
     (handler := fun c : ℕ × (List Bool × List Bool) => signHandler S T depth c.1)
     (prepare := fun c : ℕ × (List Bool × List Bool) =>
       (c.1, encPair encUnary encBits (c.1, c.2.1)))
@@ -1001,9 +1003,9 @@ theorem isOraclePPT_treeCoinAdversary (hdepth : ComputableInPolyTime depth encUn
   have hinv1 := (hinvPoly.comp' hin.fst').of_enc_eq fun _ => rfl
   refine IsOraclePPTOn.isOraclePPT ?_
   unfold treeCoinAdversary
-  exact IsOraclePPTOn.ite' (condition := fun input : ℕ × List Bool => N (inv input.1) = input.1)
+  exact IsOraclePPTOn.ite (condition := fun input : ℕ × List Bool => N (inv input.1) = input.1)
     (((hN.comp' hinv1).decide_eq' hin.fst').of_enc_eq fun _ => rfl)
-    (hsim.preprocess' hinv1)
+    (hsim.preprocess hinv1)
     (ComputableInPolyTime.isOraclePPTOn (ComputableInPolyTime.const false))
 
 end Efficiency
@@ -1046,7 +1048,7 @@ theorem coinParamInv_coinParam (budget : ℕ → ℕ) (n : ℕ) :
 theorem computableInPolyTime_coinParam {budget : ℕ → ℕ}
     (hbudget : ComputableInPolyTime budget encUnary encUnary) :
     ComputableInPolyTime (coinParam budget) encUnary encUnary :=
-  ComputableTidilyInPolyTime.unary_pair.computableInPolyTime.comp
+  ComputableInPolyTime.unary_pair.comp
     (ComputableInPolyTime.id'.prod (hbudget.unary_add' (.const 1)))
 
 theorem computableInPolyTime_coinParamInv {budget : ℕ → ℕ}

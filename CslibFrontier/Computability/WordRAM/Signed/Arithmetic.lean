@@ -260,8 +260,7 @@ private theorem arithmetic_fits {w m : ℕ} (hw : 0 < w) (hm : m ≤ 2 * 2 ^ (w 
     rw [he, pow_add]
     omega
   have := Nat.two_pow_pos (w - 1)
-  unfold Fits
-  omega
+  fits
 
 /-- Memory and registers outside the output and six scratch registers are unchanged. -/
 def Frame (x y : Data (r + 9)) : Prop :=
@@ -486,11 +485,10 @@ theorem exec_divide {w : ℕ} {a b : ℤ} (ha : GenericRAM.Signed.Fits w a)
         hnz, hna, hnb, hrem, hdiv, hmod, hinc, h1]
   have hqmag : q.regs result = divMagnitude a.natAbs b.natAbs sa := by
     dsimp only [q, divPreData, divMagnitude, sa]
-    split_ifs
-    all_goals
-      simp only [Data.set_regs, Function.update_apply, result, magA, signA, Fin.mk.injEq,
-        Nat.reduceEqDiff, ↓reduceIte]
-      try omega
+    split_ifs <;> first
+      | omega
+      | simp only [Data.set_regs, Function.update_apply, result, magA, signA, Fin.mk.injEq,
+          Nat.reduceEqDiff, ↓reduceIte, add_zero]
   have hqsign : q.regs signA = divSign b.natAbs sa sb := by
     dsimp only [q, divPreData, divSign]
     split_ifs <;> simp [result, signA]

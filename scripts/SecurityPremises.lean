@@ -103,6 +103,126 @@ It prints one JSON line per theorem with a flagged premise or conclusion,
 `{"n": theorem, "m": module, "l": line, "h": [{"b": binder, "k": [kinds], "c": [constructed
 constants]}]}`, and finally `{"theorems": scanned, "modules": read, "missing": [modules without
 build outputs]}`.
+
+**Reductions.** With `--reductions` (`lake env lean --run scripts/SecurityPremises.lean
+<lib-dir> --reductions`), for `scripts/check_reduction_witnesses.py`, it reports the explicit
+reductions and their efficiency witnesses instead. Input lines `<dir>\t<module>` are context
+modules as for `--assumptions`.
+
+An *advantage bound* is a claim atom `a ≤ b`, `a < b`, a reversal of these, or `a = b` read as
+`a ≤ b`, in the conclusion of a public scanned theorem, one side of which mentions an advantage.
+A *reduction* is a constructed constant (above) of a scanned module that occurs on the bounding
+side `b` of an advantage bound and not on the bounded side `a`, whose type finally yields a
+*program* (a `ProbComp`, `OracleComp` or other `PFunctor.FreeM` computation, a `PMF`, or a
+structure with such a field, nested at most two deep), and which is there applied to an argument
+that mentions a *program variable* of the theorem that `a` mentions too: a variable whose type is
+a computation with coins or oracles, a function into a computation other than an ensemble
+`ℕ → … → PMF _`, or a structure of programs. So `B` is a reduction in
+`Adv(scheme, A) ≤ Adv(problem, B A)`; `scheme`, `problem`, a key law and an attack applied to no
+adversary are not.
+
+An *efficiency witness* of a constant is a scanned theorem, private ones included, whose
+conclusion has a claim atom headed by an efficiency certificate that mentions the constant: a
+predicate whose last name component starts with `IsPPT`, `IsOraclePPT`, `IsTidyOraclePPT`,
+`ComputableIn`, `ComputableTidilyIn`, `IsPolyTime`, `IsEfficient` or `Efficient`. A query bound
+is not a certificate. A reduction is *certified* `direct`ly by its witnesses; as an `abbrev`
+when it is reducible and every reduction-shaped constant of its body (a constructed constant of
+a scanned module that finally yields a program) is certified; or through a `wrapper`, a
+definition with a witness whose body mentions it, such as the word-level program that runs it.
+
+It prints `{"n": reduction, "m": module, "l": line, "t": [theorems stating a bound with it],
+"tm": [their modules], "k": "direct" | "abbrev" | "wrapper" | "", "w": [the witnesses,
+abbreviated constants or wrappers]}` for each reduction, certified or not, and the same summary
+line.
+
+Known gaps of this mode, which review covers: a reduction written inline in the bound rather than
+as a definition; a bound that mentions no advantage-named constant; a simulator or extractor on
+the bounded side (`Adv(protocol, sim) ≤ …`) or outside any advantage bound; an attack, whose
+bounded side mentions no program variable; a reduction that appears only in premises or proofs
+(the premise scan above covers premises); and a `PMF`-valued distinguisher applied to all its
+arguments when none of them is a structure, which the constructed-constant rule reads as a law
+(first gap above). A witness is recognized by the constants its conclusion mentions, so a
+certificate about a larger program that merely contains the reduction counts. Conversely a
+scheme or protocol built from a component on the bounding side only, such as
+`Adv(A) = Adv(toScheme S, B A)`, is reported as a reduction: the baseline exempts it.
+
+**Reductions run by a certified program.** An input line
+`via\t<reduction>\t<its module>\t<program>\t<certificate>\t<equality>\t<its module>\t<headline>`
+asks this mode to verify a `via_certified_program` baseline entry (`checkVia`), which records a
+reduction `R` that a certified program `X` runs. The program `X`, its certificate `Y` and the
+headline `H` must be public declarations, named as written. `R` and the equality `E` may also be
+private: a private one is looked up, by its name without the private prefix, only in the module the
+request gives for it, and it comes before a public declaration of the same name, so neither a
+private nor a public declaration of the same name in another module is taken for it. The checks are:
+all five declarations exist; `X` is a definition that finally yields a program; `Y` is a theorem
+whose conclusion has a claim atom headed by an efficiency certificate (as for witnesses above) that
+mentions `X`; `E` is a theorem whose conclusion, after its `∀`s and premises, is an equation `a = b`
+between values that are not propositions, one side of which mentions `X` and the other `R` (so a
+bound `≤`/`<`, an `↔` or a simulation predicate is rejected); and `H` is a theorem other than `Y`
+and `E` whose conclusion has a claim atom of the kind `negligible` or `advantage` (`classify`),
+directly or inside Prop-valued definitions unfolded at most five times, and whose statement mentions
+`X` or `Y` or, failing that, whose proof does: the constants of its value and, at most three deep,
+of the auxiliary declarations that Lean generates under its name. It prints `{"v": reduction, "p":
+[problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found], "em":
+module of `E` or "", "missing": [names not found]}` for each request, before the summary line.
+`scripts/check_reduction_witnesses.py` compares `em` with the file the entry records for `E`.
+Mentioning a constant is a syntactic test: the checks do not judge which arguments `E` equates,
+under which hypotheses it holds, or what `Y` assumes. The conditions under which `E` holds are for
+the reviewer to read, and the entry's `why` states them by hand.
+
+**Entries scoped to one instance.** When `E` holds only at the instance of a generic `R` that `H`
+uses, the request ends with `instance` and the entry's pinned consumers, each as `tag:name`
+(`checkVia`). The pass then also computes the *referrers* of `R` (`referrersOf`): the public
+declarations other than `R` whose statement or proof mentions `R` directly, through the
+declarations that Lean generates under a name (a mention by `foo.proof_1` is one by `foo`, and a
+mention of `R.eq_1` is one of `R`), or through private declarations, which are followed to the
+declarations that mention them. A mention through another public declaration does not count, since
+that declaration is a referrer itself. Only `R`'s module and the modules that import it, directly
+or through other modules, can mention `R`, and only they are read. The checks are:
+
+* the pinned consumers are exactly the referrers outside `R`'s module, so a new one fails;
+* a consumer tagged `reduction` is a definition, and one tagged `headline` or `concrete` is a
+  theorem;
+* a `headline` consumer is on `H`'s *proof path*: `H` itself, or a constant of the scanned modules
+  that `H`'s statement and proof use, directly or through other such constants (`proofPath`); `H`
+  is not tagged `concrete`;
+* every referring theorem other than `H`, in `R`'s module or outside it, is *concrete*
+  (`notConcrete`): no premise, instance arguments included, has a claim atom headed by a named
+  assumption (`assumptionHeads`, as for `--assumptions`), and neither a premise nor the conclusion
+  makes a negligibility claim, directly or inside Prop-valued definitions unfolded at most five
+  times (`securityConclusion`, as for `H`); an alias heading the whole statement is unfolded to
+  collect its premises. Another theorem that rests on an assumption would be a second headline,
+  which `E` was not checked against.
+
+The verdict adds `"refs"`, the referrers outside `R`'s module; `"defs"`, the definitions among all
+referrers that have no efficiency witness of their own, with their modules; and `"cdefs"`, the ones
+that have. Unlike a reduction, such a definition is not certified by being mentioned in a certified
+definition's body (`certificate?`'s `wrapper` kind): a generic wrapper of `R` run inside one
+certified program at one instance would otherwise need no entry. `vm` includes the referrers'
+modules. `scripts/check_reduction_witnesses.py` requires each definition in `defs` to have a
+baseline entry of its own, a `gap` or `exempt` entry, which it keeps even when no theorem states a
+bound with the definition; a definition with a witness of its own needs none. So the baseline
+accounts for every definition that uses `R`. That does not establish that every headline downstream
+of such a definition has its own certificate or via entry: a referrer is found by name, and a public
+declaration stops the search, so a theorem that reaches `R` only through another public declaration
+(a theorem that consumes `H`, or one about a definition that wraps `R`) is not a referrer.
+Concreteness is recognized as above, so a premise that assumes a bound without `Negligible` or a
+named assumption, such as `Adv ≤ ε`, or reaches one only after more than five unfoldings, is not
+seen. Whether a `headline` consumer uses `R` at the instance that `E` covers is for the reviewer.
+
+**Named assumptions.** With `--assumptions` (`lake env lean --run scripts/SecurityPremises.lean
+<lib-dir> --assumptions`), for `scripts/check_hardness_assumptions.py`, it reports the named
+assumptions instead. A *named assumption* is a Prop-valued definition or `structure` whose
+definition mentions negligibility, an advantage or indistinguishability (a constant whose last
+name component is `Negligible`, names an advantage as above, or contains `Indistinguishable`),
+directly or through other Prop-valued declarations, at most five deep. No declaration is excluded
+by its name: generic notions such as `Game.Indistinguishable` are reported too, and the inventory
+decides which of them are vocabulary. An input line `<dir>\t<module>` reads a *context* module,
+such as one of CSLib's, from another build directory: its declarations are followed and reported,
+but its theorems are not scanned. It prints
+`{"a": assumption, "m": module, "l": line, "doc": docstring}` for each named assumption,
+`{"t": theorem, "m": module, "l": line, "doc": docstring, "u": [assumptions]}` for each scanned
+theorem whose premises' claim atoms are headed by named assumptions, and the same summary line.
 -/
 open Lean
 
@@ -183,11 +303,15 @@ def dropForall : Nat → Expr → Expr
   | k, .mdata _ b => dropForall k b
   | _, e => e
 
-/-- The environment: every constant of the listed modules, with its module. -/
+/-- The environment: every constant of the listed modules, with its module, and their
+docstrings. -/
 structure Env where
   consts : Std.HashMap Name ConstantInfo := {}
   moduleOf : Std.HashMap Name Name := {}
   skip : NameSet := {}
+  docs : Std.HashMap Name String := {}
+  lines : Std.HashMap Name Nat := {}
+  reducible : NameSet := {}
 
 /-- `type` with type synonyms of the environment at its head unfolded (`fuel` times at most). -/
 partial def unfoldSynonyms (env : Env) (fuel : Nat) (type : Expr) : Expr :=
@@ -440,6 +564,62 @@ def realizations (env : Env) (certified vars : Array FVarId) (premise : Expr) : 
       acc ++ side a.appFn!.appArg! a.appArg! ++ side a.appArg! a.appFn!.appArg!
     else acc
 
+/-! ### Named assumptions, for `scripts/check_hardness_assumptions.py` -/
+
+/-- The constants that a proposition-valued declaration's definition mentions: the body of a
+definition whose type ends in `Prop`, or the fields of an inductive proposition such as a
+`structure … : Prop`. `none` for any other constant. -/
+def propositionConstants? (env : Env) (c : Name) : Option (Array Name) :=
+  match env.consts[c]? with
+  | some (.defnInfo v) =>
+    match stripForall v.type with
+    | .sort .zero => some v.value.getUsedConstants
+    | _ => none
+  | some (.inductInfo v) =>
+    match stripForall v.type with
+    | .sort .zero => some <| v.ctors.foldl (init := #[]) fun acc k =>
+        acc ++ ((env.consts[k]?).map (·.type.getUsedConstants)).getD #[]
+    | _ => none
+  | _ => none
+
+/-- Whether a last name component names a security atom: negligibility, an advantage or
+indistinguishability. This decides only what a definition must reach to be security-shaped. -/
+def securityAtomName (s : String) : Bool :=
+  s == "Negligible" || advantageName s || s.contains "Indistinguishable"
+
+/-- Whether `c` is a proposition-valued declaration that states a security claim: its definition
+mentions a security atom, directly or through proposition-valued declarations of the environment
+at most `fuel` deep. -/
+partial def securityShaped (env : Env) (fuel : Nat) (c : Name) : Bool :=
+  match propositionConstants? env c with
+  | some cs => cs.any fun d =>
+      securityAtomName (last d) || fuel > 0 && d != c && securityShaped env (fuel - 1) d
+  | none => false
+
+/-- Whether `c` is a *named assumption*: a security-shaped proposition-valued declaration that
+Lean does not generate. Its name excludes nothing: a declaration named like a security atom, such
+as `Game.Indistinguishable` or a library-specific `KeysIndistinguishable`, is reported when its
+definition is security-shaped, and the assumptions inventory records which ones are generic
+vocabulary. -/
+def namedAssumption (env : Env) (c : Name) : Bool :=
+  !isGenerated c && !env.skip.contains c && securityShaped env 5 c
+
+/-- The named assumptions that head the claim atoms of a hypothesis type. -/
+def assumptionHeads (env : Env) (ty : Expr) : Array Name :=
+  (atoms ty).foldl (init := #[]) fun acc a =>
+    match a.getAppFn with
+    | .const c _ => if namedAssumption env c && !acc.contains c then acc.push c else acc
+    | _ => acc
+
+unsafe def docEntries (entries : Array (Name × Array EnvExtensionEntry)) :
+    Array (Name × String) := Id.run do
+  let mut out := #[]
+  for (ext, es) in entries do
+    if ext == `Lean.docStringExt then
+      for e in es do
+        out := out.push (unsafeCast e : Name × String)
+  return out
+
 unsafe def declRanges (entries : Array (Name × Array EnvExtensionEntry)) :
     NameMap DeclarationRanges := Id.run do
   let mut ranges : NameMap DeclarationRanges := {}
@@ -465,19 +645,43 @@ unsafe def skipped (entries : Array (Name × Array EnvExtensionEntry)) : NameSet
         if let some n := entry.globalName? then out := out.insert n
   return out
 
-unsafe def run (libDir : System.FilePath) : IO Unit := do
+/-- The `@[reducible]` definitions of a module, `abbrev`s among them. -/
+unsafe def reducibles (entries : Array (Name × Array EnvExtensionEntry)) : Array Name := Id.run do
+  let mut out := #[]
+  for (ext, es) in entries do
+    if ext == `reducibilityCore then
+      for e in es do
+        let (n, status) := (unsafeCast e : Name × ReducibilityStatus)
+        if status matches .reducible then out := out.push n
+  return out
+
+/-- Read the modules listed on standard input, one per line. A line `<dir>\t<module>` reads a
+*context* module from another build directory, such as CSLib's: its constants are in the
+environment, so definitions can be followed into it, but its theorems are not scanned. A line
+that starts with `via\t` is a request of the `--reductions` mode (`checkVia`), not a module.
+Returns the environment, the scanned modules, the compacted regions (to keep reachable while their
+expressions are used), the modules without build outputs and the requests. -/
+unsafe def load (libDir : System.FilePath) :
+    IO (Env × Array (Name × ModuleData) × Array CompactedRegion × Array String ×
+      Array (Array String)) := do
   let stdin ← IO.getStdin
-  let stdout ← IO.getStdout
   let mut regions : Array CompactedRegion := #[]
   let mut missing : Array String := #[]
+  let mut requests : Array (Array String) := #[]
   let mut env : Env := {}
   let mut mods : Array (Name × ModuleData) := #[]
   repeat
     let line ← stdin.getLine
     if line.isEmpty then break
-    let mod := line.trimAscii.toString
-    if mod.isEmpty then continue
-    let base := (libDir / System.FilePath.mk (mod.replace "." "/")).addExtension "olean"
+    let raw := line.trimAscii.toString
+    if raw.isEmpty then continue
+    if let "via" :: fields := raw.splitOn "\t" then
+      requests := requests.push fields.toArray
+      continue
+    let (dir, mod, scan) := match raw.splitOn "\t" with
+      | [dir, mod] => ((dir : System.FilePath), mod, false)
+      | _ => (libDir, raw, true)
+    let base := (dir / System.FilePath.mk (mod.replace "." "/")).addExtension "olean"
     unless ← base.pathExists do
       missing := missing.push mod
       continue
@@ -489,11 +693,23 @@ unsafe def run (libDir : System.FilePath) : IO Unit := do
     let some (data, _) := parts[if split then 2 else 0]? |
       throw <| IO.userError s!"cannot read {base}"
     let m := mod.toName
-    mods := mods.push (m, data)
+    if scan then mods := mods.push (m, data)
     for c in data.constants do
       env := { env with consts := env.consts.insert c.name c,
                         moduleOf := env.moduleOf.insert c.name m }
     env := { env with skip := (skipped data.entries).foldl (·.insert ·) env.skip }
+    for (part, _) in parts do
+      env := { env with reducible := (reducibles part.entries).foldl (·.insert ·) env.reducible }
+    for (part, _) in parts do
+      for (n, doc) in docEntries part.entries do
+        env := { env with docs := env.docs.insert n doc }
+    for (n, r) in declRanges data.entries do
+      env := { env with lines := env.lines.insert n r.selectionRange.pos.line }
+  return (env, mods, regions, missing, requests)
+
+unsafe def run (libDir : System.FilePath) : IO Unit := do
+  let stdout ← IO.getStdout
+  let (env, mods, regions, missing, _) ← load libDir
   let mut scanned := 0
   for (m, data) in mods do
     let ranges := declRanges data.entries
@@ -546,10 +762,580 @@ unsafe def run (libDir : System.FilePath) : IO Unit := do
   -- Keep the regions reachable until every expression has been used.
   if regions.isEmpty then stdout.flush
 
+/-- The `--assumptions` mode (see the module docstring): every named assumption of the
+environment with its module, line and docstring, and every scanned theorem whose premises it
+heads, with the theorem's docstring. -/
+unsafe def runAssumptions (libDir : System.FilePath) : IO Unit := do
+  let stdout ← IO.getStdout
+  let (env, mods, regions, missing, _) ← load libDir
+  let record (key : String) (c : Name) (extra : List (String × Json)) : String :=
+    Json.compress <| Json.mkObj <| [(key, toJson c.toString),
+      ("m", toJson ((env.moduleOf.get? c).getD .anonymous).toString),
+      ("l", toJson ((env.lines.get? c).getD 0)), ("doc", toJson ((env.docs.get? c).getD ""))] ++
+      extra
+  -- Named assumptions of context modules too: a theorem may assume a notion that CSLib defines.
+  for (c, _) in env.consts.toArray.qsort (fun a b => a.1.lt b.1) do
+    if namedAssumption env c then stdout.putStrLn (record "a" c [])
+  let mut scanned := 0
+  for (m, data) in mods do
+    for c in data.constants do
+      let .thmInfo v := c | continue
+      if isPrivateName c.name || isGenerated c.name || env.skip.contains c.name then continue
+      unless inScope m c.name do continue
+      scanned := scanned + 1
+      let mut heads : Array Name := #[]
+      let mut t := v.type
+      repeat
+        match t with
+        | .mdata _ b => t := b
+        | .forallE _ ty b bi =>
+          unless bi.isInstImplicit do
+            heads := (assumptionHeads env ty).foldl (fun acc h =>
+              if acc.contains h then acc else acc.push h) heads
+          t := b
+        | _ => break
+      unless heads.isEmpty do
+        stdout.putStrLn (record "t" c.name [("u", toJson (heads.map (·.toString)))])
+  stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
+    ("modules", toJson mods.size), ("missing", toJson missing)]
+  if regions.isEmpty then stdout.flush
+
+/-! ### Reductions and efficiency witnesses, for `scripts/check_reduction_witnesses.py` -/
+
+/-- Whether a last name component names an efficiency certificate: strict polynomial time for a
+probabilistic or oracle program, or a machine-level time bound. A query or call bound
+(`IsQueryBounded`) is not one. -/
+def witnessName (s : String) : Bool :=
+  efficiencyName s || s.startsWith "IsTidyOraclePPT" || s.startsWith "ComputableIn" ||
+    s.startsWith "ComputableTidilyIn" || s.startsWith "IsPolyTime" || s.startsWith "IsEfficient" ||
+    s.startsWith "Efficient"
+
+/-- Type heads of computations: distributions, and programs with coins or oracles. -/
+def computation : NameSet :=
+  [`PMF, `PFunctor.FreeM].foldl (·.insert ·) {}
+
+/-- The final result of a type, with type synonyms of the environment unfolded at each step. -/
+partial def finalResult (env : Env) (fuel : Nat) (type : Expr) : Expr :=
+  match fuel, (unfoldSynonyms env 8 type).consumeMData with
+  | fuel + 1, t@(.forallE ..) => finalResult env fuel (stripForall t)
+  | _, t => t
+
+/-- Whether `type` is a program type: a computation with coins or oracles, or a function into a
+computation other than an ensemble `ℕ → … → PMF _`. -/
+def programType (env : Env) (type : Expr) : Bool :=
+  match (unfoldSynonyms env 8 type).consumeMData with
+  | u@(.forallE ..) =>
+    match (finalResult env 8 u).getAppFn with
+    | .const h _ =>
+      h == `PFunctor.FreeM ||
+        h == `PMF && !(forallDomains u).all (·.consumeMData.isConstOf `Nat)
+    | _ => false
+  | u => u.getAppFn.isConstOf `PFunctor.FreeM
+
+/-- Whether `type` is a structure with a field of a program type, or (at most `fuel` deep) of
+such a structure: an adversary, a simulator, a scheme. -/
+partial def programStructure (env : Env) (fuel : Nat) (type : Expr) : Bool :=
+  match (unfoldSynonyms env 8 type).consumeMData.getAppFn with
+  | .const c _ =>
+    match env.consts[c]? with
+    | some (.inductInfo v) =>
+      match v.ctors, v.isRec with
+      | [k], false =>
+        match env.consts[k]? with
+        | some info =>
+          (forallDomains (dropForall v.numParams info.type)).any fun d =>
+            programType env d || fuel > 0 && programStructure env (fuel - 1) d
+        | none => false
+      | _, _ => false
+    | _ => false
+  | _ => false
+
+/-- Whether a variable of this type is a program: the input adversary, or a component that runs. -/
+def programVariable (env : Env) (type : Expr) : Bool :=
+  programType env type || programStructure env 2 type
+
+/-- Whether a constant of this type finally yields a program: a computation, a distribution (a
+`PMF`-valued distinguisher or reduction) or a structure of programs. -/
+def programResult (env : Env) (type : Expr) : Bool :=
+  let result := finalResult env 8 type
+  (match result.getAppFn with
+    | .const h _ => computation.contains h
+    | _ => false) || programStructure env 2 result
+
+/-- The constructed constants of `e`, each with the positions in `vars` of the theorem's variables
+that its arguments mention. -/
+partial def constructedArgs (env : Env) (vars : Array FVarId) (e : Expr) :
+    StateM (Std.HashMap Name (Array Nat)) Unit := do
+  let note (c : Name) (args : Array Expr) : StateM (Std.HashMap Name (Array Nat)) Unit :=
+    modify fun found =>
+      let old := found.getD c #[]
+      found.insert c <| old ++ (Array.range vars.size).filter fun i =>
+        !old.contains i && args.any (·.containsFVar vars[i]!)
+  match e with
+  | .app .. =>
+    let f := e.getAppFn
+    let args := e.getAppArgs
+    match f with
+    | .const c _ => if constructedAt env c args.size then note c args
+    | _ => constructedArgs env vars f
+    args.forM (constructedArgs env vars)
+  | .const c _ => if constructedAt env c 0 then note c #[]
+  | .lam _ t b _ | .forallE _ t b _ => constructedArgs env vars t; constructedArgs env vars b
+  | .letE _ t v b _ =>
+    constructedArgs env vars t; constructedArgs env vars v; constructedArgs env vars b
+  | .mdata _ b | .proj _ _ b => constructedArgs env vars b
+  | _ => pure ()
+
+/-- The bounded and the bounding side of an advantage bound: `a ≤ b`, `a < b`, their reversals,
+or `a = b` read as `a ≤ b`, one side of which mentions an advantage. -/
+def boundSides? (e : Expr) : Option (Expr × Expr) :=
+  match e.getAppFn with
+  | .const f _ =>
+    let args := e.getAppArgs
+    let sides : Option (Expr × Expr) :=
+      if (f == ``LE.le || f == ``LT.lt) && args.size == 4 then some (args[2]!, args[3]!)
+      else if (f == ``GE.ge || f == ``GT.gt) && args.size == 4 then some (args[3]!, args[2]!)
+      else if f == ``Eq && args.size == 3 then some (args[1]!, args[2]!)
+      else none
+    sides.filter fun (a, b) => mentionsAdvantage a || mentionsAdvantage b
+  | _ => none
+
+/-- Push `x` onto the array at `key`, once. -/
+def pushOnce (m : Std.HashMap Name (Array Name)) (key x : Name) : Std.HashMap Name (Array Name) :=
+  let old := m.getD key #[]
+  if old.contains x then m else m.insert key (old.push x)
+
+/-- How the reduction `c` is certified, with the certifying declarations, or `none`: `direct` by
+theorems that conclude an efficiency certificate mentioning it, `abbrev` when it is reducible and
+the programs of the scanned modules in its body (`parts`) are all certified, or `wrapper` by
+certified definitions whose bodies mention it. -/
+partial def certificate? (env : Env) (witnesses wrappers : Std.HashMap Name (Array Name))
+    (parts : Name → Array Name) (fuel : Nat) (c : Name) : Option (String × Array Name) :=
+  match witnesses[c]? with
+  | some ws => some ("direct", ws)
+  | none =>
+    let ps := parts c
+    if fuel > 0 && env.reducible.contains c && !ps.isEmpty &&
+        ps.all (certificate? env witnesses wrappers parts (fuel - 1) · |>.isSome) then
+      some ("abbrev", ps)
+    else (wrappers[c]?).map (("wrapper", ·))
+
+/-- The constants of a theorem's proof, with those of the auxiliary declarations that Lean
+generates under its name (`h.proof_1`, `h.match_1`, …), followed at most `fuel` deep. -/
+partial def proofConstants (env : Env) (fuel : Nat) (h : Name) : Array Name :=
+  match (env.consts[h]?).bind (·.value? (allowOpaque := true)) with
+  | none => #[]
+  | some v =>
+    let cs := v.getUsedConstants
+    cs.foldl (init := cs) fun acc c =>
+      if fuel > 0 && c != h && h.isPrefixOf c && isGenerated c then
+        acc ++ proofConstants env (fuel - 1) c
+      else acc
+
+/-- Whether a proposition has a claim atom of one of the `kinds` of `classify`, directly or inside
+Prop-valued definitions of the environment unfolded at most `fuel` times, as `INDCPAOf …` unfolds
+through `Game.Indistinguishable` to a negligibility claim for every admitted adversary. -/
+partial def securityConclusion (env : Env) (kinds : List String) (fuel : Nat) (e : Expr) : Bool :=
+  (atoms e).any fun a =>
+    (classify env a).any (kinds.contains ·.1) ||
+      match fuel, unfoldProp? env a with
+      | fuel + 1, some u => securityConclusion env kinds fuel u
+      | _, _ => false
+
+/-- The declaration that owns `c`: `c` itself, or, for a declaration that Lean generates under
+another's name (`foo.proof_1`, `foo.eq_1`, `foo.match_1`), the nearest prefix of its name that Lean
+does not generate. -/
+partial def ownerOf (c : Name) : Name :=
+  if isGenerated c && !c.getPrefix.isAnonymous then ownerOf c.getPrefix else c
+
+/-- The scanned modules that import `m`, directly or through other modules, and `m` itself: the
+only modules whose declarations can mention a declaration of `m`. -/
+def importersOf (mods : Array (Name × ModuleData)) (m : Name) : NameSet := Id.run do
+  let mut found : NameSet := ({} : NameSet).insert m
+  let mut changed := true
+  while changed do
+    changed := false
+    for (n, data) in mods do
+      if found.contains n then continue
+      if data.imports.any fun i => found.contains i.module then
+        found := found.insert n
+        changed := true
+  return found
+
+/-- The *referrers* of `r`, a declaration of the module `rm`: the public declarations other than
+`r` whose statement or proof mentions `r`, directly, through the declarations that Lean generates
+(`ownerOf`: a mention by `foo.proof_1` is one by `foo`, and a mention of `r.eq_1` or `r.match_1`
+is one of `r`), or through private declarations, which are followed to the declarations that
+mention them. A mention through another public declaration does not count: that declaration is a
+referrer itself. Only `rm` and the modules that import it, directly or through other modules, are
+read. -/
+def referrersOf (mods : Array (Name × ModuleData)) (r : Name) (rm : Name) :
+    NameSet := Id.run do
+  let scope := importersOf mods rm
+  -- The declarations a mention of which is a mention of `r`: `r`, the declarations it owns, and
+  -- private declarations that mention one of these.
+  let mut targets : Array Name := #[r]
+  for (m, data) in mods do
+    if m == rm then
+      for c in data.constants do
+        if c.name != r && ownerOf c.name == r then targets := targets.push c.name
+  let mut seen : NameSet := targets.foldl (·.insert ·) {}
+  let mut found : NameSet := {}
+  let mut changed := true
+  while changed do
+    changed := false
+    for (m, data) in mods do
+      unless scope.contains m do continue
+      for c in data.constants do
+        if seen.contains c.name then continue
+        let used := c.type.getUsedConstants ++
+          ((c.value? (allowOpaque := true)).map (·.getUsedConstants)).getD #[]
+        unless targets.any used.contains do continue
+        seen := seen.insert c.name
+        let owner := ownerOf c.name
+        if owner == r || isPrivateName owner then
+          targets := targets.push c.name
+          changed := true
+        else found := found.insert owner
+  return found
+
+/-- The constants of the scanned modules that the statement and proof of `h` use, directly or
+through other such constants, with `h` itself: `h`'s proof path. -/
+def proofPath (env : Env) (scanned : NameSet) (h : Name) : NameSet := Id.run do
+  let mut seen : NameSet := ({} : NameSet).insert h
+  let mut stack := #[h]
+  while !stack.isEmpty do
+    let c := stack.back!
+    stack := stack.pop
+    let some info := env.consts[c]? | continue
+    let used := info.type.getUsedConstants ++
+      ((info.value? (allowOpaque := true)).map (·.getUsedConstants)).getD #[]
+    for u in used do
+      if seen.contains u then continue
+      unless (env.moduleOf[u]?).any scanned.contains do continue
+      seen := seen.insert u
+      stack := stack.push u
+  return seen
+
+/-- Why a theorem type is not *concrete*, or nothing when it is: a premise whose claim atoms are
+headed by a named assumption (`assumptionHeads`, which sees through the Prop-valued definitions of
+`securityShaped`), or a premise or conclusion that makes a negligibility claim, directly or inside
+Prop-valued definitions unfolded at most five times (`securityConclusion`), as a conclusion
+`IsEUFCMA …` does. Every premise counts, instance arguments included, so a class that packages an
+assumption is seen. A Prop-valued definition heading the type after its leading premises, such as an
+alias `P → Q` for the whole statement, is unfolded (at most five times, and never a claim atom
+that `classify` recognizes) and its own premises are collected too. -/
+def notConcrete (env : Env) (type : Expr) : Array String := Id.run do
+  let mut out : Array String := #[]
+  let mut t := type
+  let mut fuel := 5
+  repeat
+    match t with
+    | .mdata _ b => t := b
+    | .forallE _ ty b _ =>
+      for a in assumptionHeads env ty do
+        let s := s!"a premise rests on the named assumption `{a}`"
+        unless out.contains s do out := out.push s
+      if securityConclusion env ["negligible"] 5 ty then
+        let s := "a premise makes a negligibility claim"
+        unless out.contains s do out := out.push s
+      t := b
+    | _ =>
+      -- A claim atom the checker recognizes, such as `Negligible …`, is not an alias.
+      if (classify env t).isSome then break
+      match fuel, unfoldProp? env t with
+      | k + 1, some u => fuel := k; t := u
+      | _, _ => break
+  if securityConclusion env ["negligible"] 5 t then
+    out := out.push "its conclusion makes a negligibility claim"
+  return out
+
+/-- The tags of a pinned consumer of an instance-scoped `via_certified_program` entry. -/
+def consumerTags : List String := ["headline", "concrete", "reduction"]
+
+/-- Verify a request `#[reduction, its module, program, certificate, equality, the equality's
+module, headline]` for a `via_certified_program` baseline entry (see the module docstring),
+followed, for an entry scoped to one instance, by `instance` and its pinned consumers as
+`tag:name`. `privateNames` holds the names of the private declarations without their prefix, used
+only to explain a failure; `mods` are the scanned modules; `witnessed` says whether a definition
+has an efficiency witness of its own. Being mentioned in a certified definition's body, which
+certifies a reduction as a `wrapper` (`certificate?`), does not count here: a generic wrapper of `R`
+run inside one certified program at one instance would otherwise need no entry, and a headline
+through it at another instance would go unseen. Returns `{"v": reduction, "p":
+[problems], "at": "statement" | "proof" | "", "vm": [modules of the declarations found], "em":
+module of the equality or "", "missing": [names not found], "refs": [referrers of the reduction
+outside its module], "defs": [{"n": definition among the referrers without a witness of its own,
+"m": its module}], "cdefs": [definitions among the referrers with one]}`, the last three for an
+instance-scoped request, where `at` says whether the headline's statement or only its proof mentions
+the program or the certificate. -/
+def checkVia (env : Env) (privateNames : NameSet) (mods : Array (Name × ModuleData))
+    (witnessed : Name → Bool) (fields : Array String) : Json := Id.run do
+  let result (problems : Array String) (at_ em : String) (modules absent : Array String)
+      (refs : Array String := #[]) (defs : Array Json := #[]) (cdefs : Array String := #[]) :
+      Json :=
+    Json.mkObj [("v", toJson (fields[0]?.getD "")), ("p", toJson problems), ("at", toJson at_),
+      ("vm", toJson modules), ("em", toJson em), ("missing", toJson absent),
+      ("refs", toJson refs), ("defs", Json.arr defs), ("cdefs", toJson cdefs)]
+  let malformed := result #[s!"malformed request with {fields.size} fields"] "" "" #[] #[]
+  let #[sr, rmod, sx, sy, se, emod, sh] := fields.extract 0 7 | return malformed
+  -- The pinned consumers of an entry scoped to one instance, as `(tag, name)`.
+  let extra := (fields.extract 7).toList
+  unless extra.isEmpty || extra.head? == some "instance" do return malformed
+  let pinned? : Option (Array (String × String)) := match extra with
+    | "instance" :: cs => some <| cs.toArray.map fun c =>
+        match c.splitOn ":" with
+        | tag :: rest => (tag, ":".intercalate rest)
+        | [] => ("", c)
+    | _ => none
+  -- A public declaration by its name. The reduction and the equality may also be private
+  -- declarations of their recorded modules: a private declaration of that module comes first,
+  -- so a public declaration of the same name in another module is not taken for it.
+  let public? (s : String) : Option Name :=
+    let n := s.toName
+    if env.consts.contains n then some n else none
+  let inModule? (s m : String) : Option Name :=
+    let n := mkPrivateNameCore m.toName s.toName
+    if env.consts.contains n then some n else public? s
+  let requests : Array (String × String × Option Name) := #[
+    ("reduction", sr, inModule? sr rmod), ("program", sx, public? sx),
+    ("certificate", sy, public? sy), ("equality", se, inModule? se emod),
+    ("headline", sh, public? sh)]
+  let mut problems : Array String := #[]
+  let mut absent : Array String := #[]
+  let mut modules : Array String := #[]
+  let mut found : Array Name := #[]
+  for (role, s, resolved) in requests do
+    match resolved with
+    | some n =>
+      found := found.push n
+      if let some m := env.moduleOf[n]? then
+        unless modules.contains m.toString do modules := modules.push m.toString
+    | none =>
+      absent := absent.push s
+      problems := problems.push <|
+        if role == "equality" || role == "reduction" then
+          s!"{role} `{s}` does not exist, publicly or as a private declaration of \
+            {if role == "equality" then emod else rmod}"
+        else if privateNames.contains s.toName then
+          s!"{role} `{s}` is private; the program, its certificate and the headline must be \
+            public"
+        else s!"{role} `{s}` does not exist"
+  let #[r, x, y, e, h] := found | return result problems "" "" modules absent
+  let some xi := env.consts[x]? | return result problems "" "" modules absent
+  let some yi := env.consts[y]? | return result problems "" "" modules absent
+  let some ei := env.consts[e]? | return result problems "" "" modules absent
+  let some hi := env.consts[h]? | return result problems "" "" modules absent
+  let em := ((env.moduleOf[e]?).map (·.toString)).getD ""
+  -- The program: a definition that yields a program.
+  match xi with
+  | .defnInfo _ | .opaqueInfo _ =>
+    unless programResult env xi.type do
+      problems := problems.push s!"program `{sx}` does not yield a program"
+  | _ => problems := problems.push s!"program `{sx}` is not a definition"
+  -- The certificate: a theorem concluding an efficiency certificate that mentions the program.
+  match yi with
+  | .thmInfo _ =>
+    let certifies := (atoms yi.type).any fun a =>
+      match a.getAppFn with
+      | .const f _ => witnessName (last f) && a.getUsedConstants.contains x
+      | _ => false
+    unless certifies do
+      problems := problems.push s!"certificate `{sy}` does not conclude an efficiency \
+        certificate (`IsPPT…`, `IsOraclePPT…`, `ComputableIn…`, …) that mentions `{sx}`"
+  | _ => problems := problems.push s!"certificate `{sy}` is not a theorem"
+  -- The equality: a theorem concluding an equation between a term that mentions the program
+  -- and one that mentions the reduction.
+  match ei with
+  | .thmInfo _ =>
+    let concl := (stripForall ei.type).consumeMData
+    if concl.isAppOfArity ``Eq 3 then
+      let has (side : Expr) (c : Name) : Bool := side.getUsedConstants.contains c
+      let (lhs, rhs) := (concl.appFn!.appArg!, concl.appArg!)
+      if concl.appFn!.appFn!.appArg!.consumeMData.isSort then
+        problems := problems.push s!"equality `{se}` equates propositions"
+      else unless has lhs x && has rhs r || has lhs r && has rhs x do
+        problems := problems.push s!"equality `{se}` does not equate a term that mentions \
+          `{sx}` with one that mentions `{sr}`"
+    else
+      let head := match concl.getAppFn with
+        | .const f _ => s!"`{f}`"
+        | _ => "no constant"
+      problems := problems.push s!"equality `{se}` is not an equation (its conclusion is headed \
+        by {head}); a step linked by a bound or a simulation stays a `gap`"
+  | _ => problems := problems.push s!"equality `{se}` is not a theorem"
+  -- The headline: a theorem other than the certificate and the equality, whose conclusion makes
+  -- a negligibility or advantage claim, and whose statement, or else whose proof, mentions the
+  -- program or the certificate.
+  let mentions (cs : Array Name) : Bool := cs.any fun c => c == x || c == y
+  let at_ := if mentions hi.type.getUsedConstants then "statement"
+    else if mentions (proofConstants env 3 h) then "proof" else ""
+  if h == y || h == e then
+    problems := problems.push s!"headline `{sh}` is the {if h == y then "certificate" else
+      "equality"}; name the theorem that applies the hardness assumption to `{sx}`"
+  else
+    match hi with
+    | .thmInfo _ =>
+      unless securityConclusion env ["negligible", "advantage"] 5 hi.type do
+        problems := problems.push s!"headline `{sh}` does not conclude a negligibility or \
+          advantage claim, directly or through the notions it states"
+      if at_.isEmpty then
+        problems := problems.push s!"headline `{sh}` mentions neither `{sx}` nor `{sy}` in its \
+          statement or proof"
+    | _ => problems := problems.push s!"headline `{sh}` is not a theorem"
+  let some pinned := pinned? | return result problems at_ em modules absent
+  -- An entry scoped to one instance (see the module docstring): the pinned consumers must be
+  -- exactly the referrers of the reduction outside its module, each with a tag that holds; every
+  -- referring theorem other than the headline must be concrete; and the Python checker requires
+  -- every uncertified referring definition to have a baseline entry.
+  let rm := (env.moduleOf[r]?).getD rmod.toName
+  let refs := (referrersOf mods r rm).toArray.qsort Name.lt
+  let outside := refs.filter fun c => (env.moduleOf[c]?).all (· != rm)
+  let scanned : NameSet := mods.foldl (fun s (m, _) => s.insert m) {}
+  let path := proofPath env scanned h
+  let addModule (modules : Array String) (n : Name) : Array String :=
+    match env.moduleOf[n]? with
+    | some m => if modules.contains m.toString then modules else modules.push m.toString
+    | none => modules
+  let pinnedNames := pinned.map (·.2.toName)
+  let mut defs : Array Json := #[]
+  let mut cdefs : Array String := #[]
+  for c in refs do
+    modules := addModule modules c
+    let isOutside := outside.contains c
+    if isOutside && !pinnedNames.contains c then
+      problems := problems.push s!"`{c}` refers to `{sr}` outside its module but is not a pinned \
+        consumer; pin it with its tag (`headline`, `concrete` or `reduction`), or make the \
+        entry a `gap`"
+    match env.consts[c]? with
+    | some (.thmInfo v) =>
+      let reasons := if c == h then #[] else notConcrete env v.type
+      unless reasons.isEmpty do
+        problems := problems.push s!"`{c}` refers to `{sr}`{if isOutside then "" else
+          " in its module"} and is not concrete ({"; ".intercalate reasons.toList}): a second \
+          headline, which the equality was not checked against; make the entry a `gap`"
+    | some (.defnInfo _) | some (.opaqueInfo _) =>
+      if witnessed c then cdefs := cdefs.push c.toString
+      else defs := defs.push <| Json.mkObj [("n", toJson c.toString),
+        ("m", toJson ((env.moduleOf[c]?).getD .anonymous).toString)]
+    | _ =>
+      problems := problems.push s!"`{c}` refers to `{sr}` and is neither a theorem nor a \
+        definition"
+  for (tag, s) in pinned do
+    let n := s.toName
+    let some info := env.consts[n]? |
+      absent := absent.push s
+      problems := problems.push s!"consumer `{s}` does not exist"
+      continue
+    modules := addModule modules n
+    if !consumerTags.contains tag then
+      problems := problems.push s!"consumer `{s}` has the tag `{tag}`, not one of `headline`, \
+        `concrete` or `reduction`"
+    else if !outside.contains n then
+      problems := problems.push s!"consumer `{s}` does not refer to `{sr}` outside `{sr}`'s \
+        module; unpin it"
+    else if tag == "reduction" then
+      unless info matches .defnInfo _ | .opaqueInfo _ do
+        problems := problems.push s!"consumer `{s}` is tagged `reduction` but is not a definition"
+    else if !(info matches .thmInfo _) then
+      problems := problems.push s!"consumer `{s}` is tagged `{tag}` but is not a theorem; a \
+        definition that uses `{sr}` is tagged `reduction`"
+    else if tag == "headline" && !path.contains n then
+      problems := problems.push s!"consumer `{s}` is tagged `headline` but is not on the proof \
+        path of `{sh}`"
+    else if tag == "concrete" && n == h then
+      problems := problems.push s!"consumer `{s}` is the headline but is tagged `concrete`; tag \
+        it `headline`"
+  return result problems at_ em modules absent (outside.map (·.toString)) defs cdefs
+
+/-- The `--reductions` mode (see the module docstring): every reduction that a public theorem
+states an advantage bound with, and how it is certified. -/
+unsafe def runReductions (libDir : System.FilePath) : IO Unit := do
+  let stdout ← IO.getStdout
+  let (env, mods, regions, missing, requests) ← load libDir
+  let scannedModules : NameSet := mods.foldl (fun s (m, _) => s.insert m) {}
+  let mut scanned := 0
+  -- A reduction's stating theorems, and a constant's efficiency theorems.
+  let mut stated : Std.HashMap Name (Array Name) := {}
+  let mut witnesses : Std.HashMap Name (Array Name) := {}
+  for (m, data) in mods do
+    for c in data.constants do
+      let .thmInfo v := c | continue
+      if isGenerated c.name || env.skip.contains c.name then continue
+      unless inScope m c.name do continue
+      scanned := scanned + 1
+      let mut t := v.type
+      let mut index := 0
+      let mut vars : Array FVarId := #[]
+      let mut programs : Array Bool := #[]
+      repeat
+        match t with
+        | .mdata _ b => t := b
+        | .forallE _ ty b _ =>
+          index := index + 1
+          programs := programs.push (programVariable env ty)
+          let x : FVarId := ⟨.num `_binder index⟩
+          vars := vars.push x
+          t := b.instantiate1 (.fvar x)
+        | _ => break
+      for a in atoms t do
+        if let .const f _ := a.getAppFn then
+          if witnessName (last f) then
+            for u in a.getUsedConstants do
+              witnesses := pushOnce witnesses u c.name
+        if isPrivateName c.name then continue
+        let some (lower, upper) := boundSides? a | continue
+        let below := constructedOf env #[lower]
+        for (r, positions) in ((constructedArgs env vars upper).run {}).2.toArray do
+          if below.contains r then continue
+          unless (env.moduleOf[r]?).any scannedModules.contains do continue
+          unless (env.consts[r]?).any (programResult env ·.type) do continue
+          if positions.any fun i => programs[i]! && lower.containsFVar vars[i]! then
+            stated := pushOnce stated r c.name
+  -- Certified definitions, by the reductions that their bodies mention.
+  let mut wrappers : Std.HashMap Name (Array Name) := {}
+  for (u, _) in witnesses.toArray do
+    let some (.defnInfo v) := env.consts[u]? | continue
+    unless (env.moduleOf[u]?).any (inScope · u) do continue
+    for b in v.value.getUsedConstants do
+      if b != u && stated.contains b then wrappers := pushOnce wrappers b u
+  let parts (c : Name) : Array Name :=
+    match env.consts[c]? with
+    | some (.defnInfo v) => (constructedOf env #[v.value]).toArray.filter fun p =>
+        p != c && (env.moduleOf[p]?).any scannedModules.contains &&
+          (env.consts[p]?).any (programResult env ·.type)
+    | _ => #[]
+  let names (ns : Array Name) : Json :=
+    toJson ((ns.map (privateToUserName · |>.toString)).qsort (· < ·))
+  for (r, theorems) in stated.toArray.qsort (fun a b => a.1.lt b.1) do
+    let (kind, by_) := (certificate? env witnesses wrappers parts 4 r).getD ("", #[])
+    let modules := theorems.filterMap fun t => (env.moduleOf.get? t).map (·.toString)
+    stdout.putStrLn <| Json.compress <| Json.mkObj [
+      ("n", toJson (privateToUserName r).toString),
+      ("m", toJson ((env.moduleOf.get? r).getD .anonymous).toString),
+      ("l", toJson ((env.lines.get? r).getD 0)), ("t", names theorems),
+      ("tm", toJson (modules.toList.eraseDups.toArray.qsort (· < ·))),
+      ("k", toJson kind), ("w", names by_)]
+  -- A definition among the referrers of an instance-scoped request counts as certified only by a
+  -- witness of its own (see `checkVia`).
+  let witnessed (c : Name) : Bool := witnesses.contains c
+  -- The names of private declarations without their prefix, to explain a failure.
+  let mut privateNames : NameSet := {}
+  unless requests.isEmpty do
+    for (c, _) in env.consts do
+      if isPrivateName c then privateNames := privateNames.insert (privateToUserName c)
+  for fields in requests do
+    stdout.putStrLn <| Json.compress <| checkVia env privateNames mods witnessed fields
+  stdout.putStrLn <| Json.compress <| Json.mkObj [("theorems", toJson scanned),
+    ("modules", toJson mods.size), ("missing", toJson missing)]
+  if regions.isEmpty then stdout.flush
+
 end CslibFrontierScripts.SecurityPremises
 
 unsafe def main (args : List String) : IO Unit :=
   match args with
   | [] => CslibFrontierScripts.SecurityPremises.run ".lake/build/lib/lean"
   | [libDir] => CslibFrontierScripts.SecurityPremises.run libDir
-  | _ => throw <| IO.userError "usage: SecurityPremises [<lib-dir>] < modules.txt"
+  | [libDir, "--assumptions"] => CslibFrontierScripts.SecurityPremises.runAssumptions libDir
+  | [libDir, "--reductions"] => CslibFrontierScripts.SecurityPremises.runReductions libDir
+  | _ => throw <| IO.userError
+      "usage: SecurityPremises [<lib-dir> [--assumptions | --reductions]] < modules.txt"

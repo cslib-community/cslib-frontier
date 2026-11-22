@@ -29,10 +29,12 @@ Elementary inequalities on powers and products of natural numbers: powers of pol
   `0 < Y → L ≤ p * Y ^ q → (L + 1) ^ k ≤ (p + 1) ^ k * Y ^ (q * k)`.
 * `Nat.le_two_pow_mul`: `1 ≤ k → c ≤ 2 ^ (c * k)`.
 * `Nat.mul_add_one_pow_le`: `(R + 1) * d ≤ M → R * (M + 1) ^ d ≤ (R + 1) * M ^ d`.
+* `Nat.add_two_le_two_pow`: `2 ≤ t → t + 2 ≤ 2 ^ t`.
 * `Nat.two_mul_lt_two_pow`: `3 ≤ w → 2 * w < 2 ^ w`.
 * `Nat.sq_le_two_pow`: `4 ≤ s → s ^ 2 ≤ 2 ^ s`.
 * `Nat.pow_le_two_pow`: `1 ≤ D → 4 * D ^ 2 ≤ b → b ^ D ≤ 2 ^ b`.
 * `Nat.succ_pow_sub_pow_le`: `(c + 1) ^ (j + 1) - c ^ (j + 1) ≤ (j + 1) * (c + 1) ^ j`.
+* `Nat.add_le_two_pow_max_succ`: `l₀ ≤ 2 ^ d₀ → l₁ ≤ 2 ^ d₁ → l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1)`.
 
 ## References
 
@@ -120,6 +122,12 @@ theorem mul_add_one_pow_le {R M d : ℕ} (h : (R + 1) * d ≤ M) :
         nlinarith
     _ = (R + 1) * M ^ d * (M - d) := by ring
 
+/-- For `t ≥ 2`, `t + 2 ≤ 2 ^ t`. -/
+theorem add_two_le_two_pow {t : ℕ} (ht : 2 ≤ t) : t + 2 ≤ 2 ^ t := by
+  induction t, ht using Nat.le_induction with
+  | base => decide
+  | succ n _ ih => rw [pow_succ]; omega
+
 /-- For `w ≥ 3`, `2 * w < 2 ^ w`. -/
 theorem two_mul_lt_two_pow {w : ℕ} (hw : 3 ≤ w) : 2 * w < 2 ^ w := by
   induction w, hw using Nat.le_induction with
@@ -178,5 +186,15 @@ theorem succ_pow_sub_pow_le (c j : ℕ) :
   zify [hle]
   push_cast at h ⊢
   linarith
+
+/-- Inductive step for binary-tree leaf-count bounds: if two subtrees of depths `d₀` and `d₁` have
+at most `2 ^ d₀` and `2 ^ d₁` leaves, then their parent has at most `2 ^ (max d₀ d₁ + 1)`
+leaves. -/
+theorem add_le_two_pow_max_succ {l₀ l₁ d₀ d₁ : ℕ}
+    (h₀ : l₀ ≤ 2 ^ d₀) (h₁ : l₁ ≤ 2 ^ d₁) :
+    l₀ + l₁ ≤ 2 ^ (max d₀ d₁ + 1) := by
+  rw [Nat.pow_succ, Nat.mul_two]
+  exact Nat.add_le_add (h₀.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_left _ _)))
+    (h₁.trans (Nat.pow_le_pow_right Nat.two_pos (le_max_right _ _)))
 
 end Nat
