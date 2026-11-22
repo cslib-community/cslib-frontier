@@ -1218,6 +1218,24 @@ checked this manuscript's §1.1, Theorem 1, p. 2 and §3.3, Theorem 10, p. 29 di
 2026-11-16. Berger's memoir internal locator remains unverified, as recorded under
 [Berger1966](#berger1966). No aperiodicity theorem or co-RE completeness is claimed.
 
+<a id="jeongsaethertelle2015"></a>
+## jeongsaethertelle2015
+
+Jisu Jeong, Sigve Hortemo Sæther, and Jan Arne Telle. "Maximum Matching Width: New
+Characterizations and a Fast Algorithm for Dominating Set." In *10th International Symposium on
+Parameterized and Exact Computation (IPEC 2015)*, LIPIcs 43, 212–223, 2015,
+https://doi.org/10.4230/LIPIcs.IPEC.2015.212 ; arXiv:1507.02384. Extended journal version in
+*Discrete Applied Mathematics* 248, 114–124, 2018, https://doi.org/10.1016/j.dam.2017.09.019 .
+Bibliographic metadata verified via DOI/arXiv summaries on 2026-11-22; the full text was not
+inspected directly in this pass. Cited for the notion of maximum-matching / crossing-vertex-cover
+width across graph bipartitions; the deterministic cutwidth interpolation, finite high-girth cover
+lifting, Gaussian wave comparison, alternating non-backtracking walk bound, Efron–Stein
+concentration, and certified quadrature formalization under
+[CrossingCover](../CslibFrontier/Computability/Circuit/Frontier/Layouts/CrossingCover.lean)
+are authored cleanly from scratch in Lean 4, attributing the crossing-cover Gaussian-wave proof
+architecture to public contest submissions (PRs #843, #858, and #859 on
+`Layr-Labs/circuitbreaker-llm-verifier`).
+
 <a id="jnvwy2020lowindividualdegree"></a>
 ## jnvwy2020lowindividualdegree
 
