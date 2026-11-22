@@ -58,7 +58,11 @@ python3 /path/to/trusted-main/scripts/queue_pr.py <PR> <approved-head> \
 
 The script refuses any other head, a draft, a stacked PR still based on another branch, a conflict and failed checks. It reads every page of check results for that commit before choosing the latest attempt from the required GitHub App; a later page cannot hide a failed or running rerun behind an older success. The reviewer does not queue when human review has been requested in the PR or its issue, or when the approval names a hold. Do not start `--wait` while completing CI will produce unread notices or manual pages; [Approve and queue](../../AGENTS.md#approve-and-queue) gives the rule. Updating `main` does not upgrade an already-running copy; its owner stops an old waiter before replacing it after holds clear.
 
-When another PR is already queued, a reviewer can check the proposed order before enqueueing:
+When another PR is already queued, `queue_pr.py` replays the live queue prefix ahead of the
+approved head just before enqueueing (using the trusted checkout, `GIT_DIR` including a full bare
+repository, or the current full clone) and refuses on a textual conflict or when a non-empty queue
+cannot be replayed locally; wait for an earlier conflicting entry to land (and restack) or leave the
+queue, then rerun. A reviewer can also run the same check standalone before enqueueing:
 
 ```bash
 python3 scripts/queue_status.py prefix <PR> <approved-head>

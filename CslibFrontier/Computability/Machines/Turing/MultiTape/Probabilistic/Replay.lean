@@ -10,6 +10,8 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.CoinTape
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Data.Fin.Tuple.Basic
 
 /-!
@@ -83,26 +85,20 @@ theorem apply_liftAction (cfg : Config k Bool State Empty input)
     (symbol : Empty → Option Bool) (move : Empty → SignType) :
     (liftAction action).apply (config cfg tape position) =
       config (cfg.step action symbol move) tape (position + 1) := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.lastCases <;>
-    simp [config, liftAction, Config.step, Turing.Action.apply]
+  tm_step [config, liftAction, Config.step]
 
 /-- Once the source halts, only the saved-coin head moves. -/
 theorem apply_tick (cfg : Config k Bool State Empty input)
     (tape : ℤ → Option Bool) (position : ℤ) :
     (idle (some cfg.tapes.state) 1).apply (config cfg tape position) =
       config cfg tape (position + 1) := by
-  refine Cfg.ext rfl (by simp [idle, config, Turing.Action.apply]) ?_ ?_
-    (by simp [idle, config, Turing.Action.apply]) <;>
-    funext i <;> induction i using Fin.lastCases <;> simp [idle, config, Turing.Action.apply]
+  tm_step [idle, config]
 
 /-- Halting preserves every tape and head position. -/
 theorem apply_stop (cfg : Config k Bool State Empty input)
     (tape : ℤ → Option Bool) (position : ℤ) :
     (idle none 0).apply (config cfg tape position) = stopped cfg tape position := by
-  refine Cfg.ext rfl (by simp [idle, config, stopped, Turing.Action.apply, Cfg.withState]) ?_ ?_
-    (by simp [idle, config, stopped, Turing.Action.apply, Cfg.withState]) <;>
-    funext i <;> induction i using Fin.lastCases <;>
-    simp [idle, config, stopped, Turing.Action.apply, Cfg.withState]
+  tm_step [idle, stopped]
 
 @[simp] theorem config_inputSymbol (cfg : Config k Bool State Empty input)
     (tape : ℤ → Option Bool) (position : ℤ) :
@@ -180,8 +176,7 @@ theorem runFrom_coins (machine : MultiTapePTM k Bool State) (cfg : Config k Bool
       simpa [Int.natCast_add, add_assoc, add_comm, add_left_comm] using h
     have hend : tape (position + 1 + coins.length) = none := by
       simpa [add_assoc, add_comm, add_left_comm] using hstop
-    rw [List.length_cons, show coins.length + 1 + 1 = 1 + (coins.length + 1) by lia,
-      MultiTapeTM.runFrom_add, MultiTapeTM.runFrom_one,
+    rw [List.length_cons, MultiTapeTM.runFrom_succ_eq_step,
       step_some machine cfg tape position bit hcell, ih _ _ htail hend]
     simp [runClosedConfigFromCoins, add_comm, add_left_comm]
 

@@ -67,8 +67,9 @@ When a declaration claims to formalize a cited result, give the precise source v
 locator and map the source claim to Lean: quantifiers, hypotheses, models, encodings and resource
 conventions. Verify locators and quotations against the source itself; invented or misattributed
 ones block approval. New mathematics needs no source; label it original. Search for an existing
-notion before adding a public definition, and explain any parallel one. Reviewers may ask for a
-checked instance where a definition holds and one where it fails.
+notion before adding a public definition, and explain any parallel one. Include a checked test
+witness on subtle model boundaries (self-loops, asymmetric matrices, repeated or malformed
+queries); reviewers may also ask for instances where a definition holds and where it fails.
 
 ### Faithful headlines
 
@@ -109,7 +110,7 @@ An encoding is part of what a statement claims, so statements show every encodin
 the reader parse the same nested one repeatedly. For new and changed statements:
 
 1. **Name repeated compound encodings.** A nested application of `encPair`, `encList`,
-   `encOption`, `encSum`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
+   `encOption`, `encSum`, `encSigma`, `encFramed`, `encPi` or `encDPi` that occurs in the types of three or
    more public declarations of a module gets a named `abbrev`, used everywhere.
 2. **Document the layout** in the `abbrev`'s docstring: order of parts, framing, tag bits.
 3. **Keep it reducible:** `abbrev`, not `def`, and never a `local notation`.
@@ -121,6 +122,10 @@ the reader parse the same nested one repeatedly. For new and changed statements:
 6. **Show meaning-bearing choices** (unary or binary, graph and matrix representation, framing
    that changes a length bound) in the name or the first docstring line.
 7. **No hidden defaults:** no elaborator or typeclass chooses an encoding (`enc%`, #1830, is parked).
+8. **Keep restricted-class results on the general encoding:** state a restricted language as
+   `{x | x ∈ Problem ∧ Restricted x}` and a promise or conditional algorithm with `Restricted x` as
+   a hypothesis on the general instance type, rather than encoding a caller-supplied witness or
+   decomposition unless the source takes that representation as input.
 
 ### Security theorems
 

@@ -276,13 +276,13 @@ theorem sum_mul_signVal_eq (p : Protocol X Bool) (ν : PMF (∀ i, X i)) (f : (�
     ∑ x, (ν x).toReal * signVal (f x) * signVal (p.run x) =
       1 - 2 * p.distributionalError ν (fun x b => f x = b) := by
   classical
-  rw [distributionalError, PMF.toOuterMeasure_apply_toReal, ← PMF.sum_toReal ν, mul_sum,
+  rw [distributionalError, PMF.errorProb_eq_sum, ← PMF.sum_toReal ν, mul_sum,
     ← sum_sub_distrib]
   refine sum_congr rfl fun x _ => ?_
   rw [mul_assoc, signVal_mul_signVal]
   by_cases h : f x = p.run x
   · simp [h]
-  · simp only [h, ite_false, Set.mem_ofPred_eq, not_false_eq_true, ite_true]
+  · simp only [h, ite_false]
     ring
 
 /-- **The discrepancy bound** for deterministic protocols, generalising
@@ -304,7 +304,7 @@ theorem two_mul_le_two_pow_mul_discrepancy (p : Protocol X Bool) {γ : ℝ}
 theorem one_le_two_pow_mul_discrepancy {p : Protocol X Bool} (hp : p.run = f)
     (ν : PMF (∀ i, X i)) : 1 ≤ 2 ^ p.depth * discrepancy ν f := by
   have herr : p.distributionalError ν (fun x b => f x = b) = 0 := by
-    simp [distributionalError, hp]
+    simp [distributionalError, PMF.errorProb, hp]
   have := p.two_mul_le_two_pow_mul_discrepancy (ν := ν) (f := f) (γ := 1 / 2)
     (by rw [herr]; norm_num)
   linarith
