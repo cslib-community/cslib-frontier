@@ -242,7 +242,8 @@ theorem fits_encode_mkKickRuntimeParams {w base : ℕ} (p : KickTreeParams)
   repeat refine fits_encode_prod ?_ ?_
   all_goals exact fits_encode_nat (by first
     | exact hw_fit | exact hn | exact hm
-    | exact hw_fit.of_le (by omega) | exact hfit.of_le (by omega))
+    | exact hw_fit.of_le hq | exact hw_fit.of_le hv | exact hw_fit.of_le hmb
+    | exact hfit.of_le (by omega))
 
 private theorem fits_one_of_pos {w : ℕ} (hw : 0 < w) : Fits w 1 :=
   Nat.one_lt_two_pow (by omega)
@@ -491,17 +492,15 @@ theorem validHistory_querySlotProg {w base slot q : ℕ} (p : KickTreeParams)
   have hocc := slot_lt_occLen hslot
   unfold querySlotProg querySlotGenProg readPackedGenProg
   dsimp only [mkKickRuntimeParams]
-  valid_prog with [clientState_readPackedProg]
-  · exact validHistory_readPackedProg hw hocc hO
-  · exact validHistory_readPackedProg hw hslot hQ
-  · exact validHistory_readPackedProg hw hslot hV
+  valid_prog [validHistory_readPackedProg hw hocc, validHistory_readPackedProg hw hslot]
+    with [clientState_readPackedProg]
 
 /-- `querySlotProg` issues at most three bit-packed reads (`memoryCost ≤ 6`). -/
 theorem memoryCost_querySlotProg_le (p : KickTreeParams) (base slot q : ℕ) (s : Memory.State) :
     memoryCost (querySlotProg p base slot q) s ≤ 6 := by
   unfold querySlotProg querySlotGenProg readPackedGenProg
   dsimp only [mkKickRuntimeParams]
-  prog_cost [memoryCost_readPackedProg, clientState_readPackedProg]
+  prog_cost [memoryCost_readPackedProg]
 
 /-- Pure array-level specification for `querySlotProg`: preserves memory state and returns
 `some (valAt base p s.mem slot)` iff `occAt base p s.mem slot ≠ 0` and
@@ -876,7 +875,7 @@ theorem memoryCost_kickStepProg_le (p : KickTreeParams) (base pathBase : ℕ)
     memoryCost (kickStepProg p base pathBase st) s ≤ 21 := by
   unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
   dsimp only [mkKickRuntimeParams]
-  prog_cost [memoryCost_readPackedProg, memoryCost_writePackedProg, clientState_readPackedProg]
+  prog_cost [memoryCost_readPackedProg, memoryCost_writePackedProg]
 
 /-- When `st.active = 0`, `kickStepProg` is a no-op returning `st` and preserving `s`. -/
 theorem kickStepProg_inactive_spec (p : KickTreeParams) {base pathBase : ℕ} {st : KickStepState}
@@ -906,14 +905,10 @@ theorem validHistory_kickStepProg {w base pathBase : ℕ} (p : KickTreeParams)
   split_ifs with ha_pos
   · obtain ⟨hp_lt, hslot⟩ := hact ha_pos
     have hocc_lt : s.mem (pathBase + st.stepIdx) < occLen p := slot_lt_occLen hslot
-    valid_prog with [clientState_readPackedProg]
-    all_goals first
-      | exact validHistory_readPackedProg hw hslot ‹_›
-      | exact validHistory_readPackedProg hw hocc_lt ‹_›
-      | exact validHistory_writePackedProg hw hq hslot ‹_› ‹_›
-      | exact validHistory_writePackedProg hw hv hslot ‹_› ‹_›
-      | exact validHistory_writePackedProg hw h1w hslot ‹_› ‹_›
-      | exact validHistory_writePackedProg hw h1w hocc_lt ‹_› ‹_›
+    valid_prog [validHistory_readPackedProg hw hocc_lt, validHistory_readPackedProg hw hslot,
+      validHistory_writePackedProg hw hq hslot, validHistory_writePackedProg hw hv hslot,
+      validHistory_writePackedProg hw h1w hslot, validHistory_writePackedProg hw h1w hocc_lt]
+      with [clientState_readPackedProg]
   · trivial
 
 private theorem writeThreeSlotFields_outside (p : KickTreeParams) (hw : 0 < p.w)
@@ -1300,11 +1295,10 @@ theorem validHistory_clearSlotProg {w base slot : ℕ} (p : KickTreeParams)
   have hocc := slot_lt_occLen hslot
   unfold clearSlotProg clearSlotGenProg writePackedGenProg
   dsimp only [mkKickRuntimeParams]
-  valid_prog
-  · exact validHistory_writePackedProg hw hq hslot ‹_› ‹_›
-  · exact validHistory_writePackedProg hw hv hslot ‹_› ‹_›
-  · exact validHistory_writePackedProg hw h1w hslot ‹_› ‹_›
-  · exact validHistory_writePackedProg hw h1w hocc ‹_› ‹_›
+  valid_prog [validHistory_writePackedProg hw hq hslot,
+    validHistory_writePackedProg hw hv hslot,
+    validHistory_writePackedProg hw h1w hslot,
+    validHistory_writePackedProg hw h1w hocc]
 
 /-- Exact memory charge of `clearSlotProg` (`4` bit-packed writes = `16`). -/
 theorem memoryCost_clearSlotProg (p : KickTreeParams) (base slot : ℕ) (s : Memory.State) :
@@ -1442,16 +1436,11 @@ theorem validHistory_popUnindexedSlotProg {w base slot lastSlot : ℕ} (p : Kick
   have hocc_l := slot_lt_occLen hlast
   unfold popUnindexedSlotProg popUnindexedSlotGenProg readPackedGenProg writePackedGenProg
   dsimp only [mkKickRuntimeParams]
-  valid_prog with [clientState_readPackedProg]
-  all_goals first
-    | exact validHistory_readPackedProg hw hslot ‹_›
-    | exact validHistory_readPackedProg hw hlast ‹_›
-    | exact validHistory_readPackedProg hw hocc_l ‹_›
-    | exact validHistory_writePackedProg hw hq hslot ‹_› ‹_›
-    | exact validHistory_writePackedProg hw hv hslot ‹_› ‹_›
-    | exact validHistory_writePackedProg hw h1w hslot ‹_› ‹_›
-    | exact validHistory_writePackedProg hw h1w hocc_s ‹_› ‹_›
-    | exact validHistory_clearSlotProg p henv' hlast ‹_› ‹_›
+  valid_prog [validHistory_readPackedProg hw hslot, validHistory_readPackedProg hw hlast,
+    validHistory_readPackedProg hw hocc_l, validHistory_writePackedProg hw hq hslot,
+    validHistory_writePackedProg hw hv hslot, validHistory_writePackedProg hw h1w hslot,
+    validHistory_writePackedProg hw h1w hocc_s] with [clientState_readPackedProg]
+  exact validHistory_clearSlotProg p henv' hlast ‹_› ‹_›
 
 /-- Exact memory charge of `popUnindexedSlotProg` (`7` bit-packed reads + `8` bit-packed writes =
 `46`). -/

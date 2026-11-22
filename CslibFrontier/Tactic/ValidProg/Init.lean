@@ -10,23 +10,15 @@ module
 public import CslibFrontier.Init
 
 /-!
-# Scoped rule attributes for `valid_prog` and `prog_frame`
+# Scoped rule attribute for `valid_prog`
 
-Declares lightweight scoped theorem registries used by `CslibFrontier.Tactic.ValidProg`:
-
-* `@[valid_prog]`: registers admissibility lemmas (`ValidHistory` or wrapper `ValidProg`
-  certificates and combinator rules for `pure`, `bind`, `ite`, `dite`).
-* `@[prog_rw]`: registers `clientState` / `clientResult` reduction lemmas applied in continuations
-  when `valid_prog` steps past a `bind`.
-* `@[prog_frame]`: registers `RegionFrame` or read-only `clientState s p = s` lemmas used by
-  `prog_frame`.
-* `prog_cost`: `simp` attribute of `memoryCost` equations used by `prog_cost`.
+Declares the lightweight scoped theorem registry `@[valid_prog]` used by
+`CslibFrontier.Tactic.ValidProg` to register admissibility lemmas (`ValidHistory` or wrapper
+`ValidProg` certificates and combinator rules for `pure`, `bind`, and `ite`).
 
 ## Main definitions
 
-* `Cslib.Tactic.ValidProg.validProgExt`, `Cslib.Tactic.ValidProg.progRwExt`,
-  `Cslib.Tactic.ValidProg.progFrameExt`: scoped rule extensions.
-* `prog_cost`: `simp` attribute for `memoryCost` rules.
+* `Cslib.Tactic.ValidProg.validProgExt`: scoped rule extension for `@[valid_prog]`.
 -/
 
 public meta section
@@ -61,17 +53,4 @@ initialize validProgExt : SimpleScopedEnvExtension Name (Array Name) ←
   registerNameListAttr `Cslib.Tactic.ValidProg.validProgExt `valid_prog
     "Register an admissibility lemma for the `valid_prog` tactic."
 
-/-- Theorems registered with `@[prog_rw]`. -/
-initialize progRwExt : SimpleScopedEnvExtension Name (Array Name) ←
-  registerNameListAttr `Cslib.Tactic.ValidProg.progRwExt `prog_rw
-    "Register a `clientState`/`clientResult` reduction lemma for `valid_prog`."
-
-/-- Theorems registered with `@[prog_frame]`. -/
-initialize progFrameExt : SimpleScopedEnvExtension Name (Array Name) ←
-  registerNameListAttr `Cslib.Tactic.ValidProg.progFrameExt `prog_frame
-    "Register a `RegionFrame` or `clientState` preservation lemma for `prog_frame`."
-
 end Cslib.Tactic.ValidProg
-
-/-- Simp set of `memoryCost` equations for `prog_cost`. -/
-register_simp_attr prog_cost

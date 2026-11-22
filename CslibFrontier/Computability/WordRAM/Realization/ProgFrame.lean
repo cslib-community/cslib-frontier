@@ -12,14 +12,14 @@ public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.Memory.Frame
 
 /-!
-# Framing, admissibility, and loop-invariant combinators for `Memory.Prog`
+# Admissibility and loop-invariant combinators for `Memory.Prog`
 
 This module provides width-independent reasoning principles for `Memory.Prog` clients over
 `Memory.spec`:
 
-1. **`RegionFrame lo hi s s'`**: interval framing asserting that `s'` preserves `s.frontier` and
-   every cell outside `[lo, hi)`. Composes across `pure`, `read`, `write`, `bind`, `ite`, `dite`,
-   `iterate`, and `boundedWhile`, and widens along interval inclusion (`RegionFrame.mono`).
+1. **Primitive `clientState`, `clientResult`, and `memoryCost` equations**: closed-form reductions
+   for `Memory.read`, `Memory.write`, `Memory.alloc`, `Memory.allocDirty`, and conditional
+   branches (`memoryCost_ite`).
 2. **Monotone state invariants and `ValidHistory` rules**: `MonotoneMemInv` (synthesized for
    `Memory.WellFormed`, frontier lower bounds `F ≤ s.frontier` and `F < s.frontier`, and
    conjunctions), `wellFormed_clientState`, and structural `ValidHistory` decomposition rules.
@@ -28,20 +28,20 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 
 ## Main definitions
 
-* `RegionFrame`: frontier-preserving memory frame for `[lo, hi)`.
 * `MonotoneMemInv`: memory-state invariant preserved by any admissible `Memory.Prog` step.
 
 ## Main results
 
-* `RegionFrame.refl`, `RegionFrame.trans`, `RegionFrame.mono`, `RegionFrame.bind`,
-  `RegionFrame.iterate`, `RegionFrame.boundedWhile`: interval-frame combinators.
-* `wellFormed_clientState`, `validHistory_bind_step`, `validHistory_bind_inv`,
-  `validHistory_read_bind`, `validHistory_write_bind`, `validHistory_iterate_inv`,
-  `validHistory_boundedWhile_inv`, `validHistory_iterate_safe`, `validHistory_boundedWhile_safe`:
-  monadic admissibility combinators.
+* `clientState_read`, `clientResult_read`, `memoryCost_read`, `memoryCost_write`,
+  `memoryCost_alloc`, `memoryCost_allocDirty`, `memoryCost_ite`: primitive state, result, and cost
+  equations.
+* `wellFormed_clientState`, `validHistory_pure`, `validHistory_read`, `validHistory_write`,
+  `validHistory_alloc`, `validHistory_allocDirty`, `validHistory_bind_step`,
+  `validHistory_read_bind`, `validHistory_write_bind`, `validHistory_ite`, `validHistory_dite`,
+  `validHistory_iterate_inv`, `validHistory_boundedWhile_inv`: monadic admissibility combinators.
 * `boundedWhile_invariant_of`, `iterate_invariant_of`, `iterationSafe_of_stepInv`,
-  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`,
-  `memoryCost_iterate_eq_of`: generic loop invariant and cost lemmas.
+  `clientState_iterate_eq_of`, `clientState_boundedWhile_eq_of`, `memoryCost_iterate_le_of`:
+  generic loop invariant and cost lemmas.
 -/
 
 public section
@@ -57,13 +57,6 @@ theorem clientState_read (w : ℕ) (s : Memory.State) (a : ℕ) :
 
 theorem clientResult_read (w : ℕ) (s : Memory.State) (a : ℕ) :
     (Memory.spec w).clientResult s (Memory.read a) = s.mem a := rfl
-
-theorem clientState_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    (Memory.spec w).clientState s (Memory.write a v) =
-      ⟨Function.update s.mem a v, s.frontier⟩ := rfl
-
-theorem clientResult_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    (Memory.spec w).clientResult s (Memory.write a v) = () := rfl
 
 @[simp, client_simps] theorem memoryCost_read (a : ℕ) (s : Memory.State) :
     memoryCost (Memory.read a) s = 1 := rfl
@@ -82,139 +75,6 @@ theorem memoryCost_ite {α : Type} (c : Prop) [Decidable c] (p₁ p₂ : Memory.
     (s : Memory.State) :
     memoryCost (if c then p₁ else p₂) s = if c then memoryCost p₁ s else memoryCost p₂ s :=
   apply_ite (fun p => memoryCost p s) c p₁ p₂
-
-/-! ## Interval framing (`RegionFrame`) -/
-
-/-- `RegionFrame lo hi s s'` asserts that `s'` preserves the allocation frontier of `s` and agrees
-with `s.mem` on every address outside the half-open interval `[lo, hi)`. -/
-structure RegionFrame (lo hi : ℕ) (s s' : Memory.State) : Prop where
-  /-- The allocation frontier is preserved. -/
-  frontier : s'.frontier = s.frontier
-  /-- Memory outside `[lo, hi)` is unchanged. -/
-  outside : ∀ a, ¬(lo ≤ a ∧ a < hi) → s'.mem a = s.mem a
-
-namespace RegionFrame
-
-/-- Reflexivity of `RegionFrame`. -/
-theorem refl (lo hi : ℕ) (s : Memory.State) : RegionFrame lo hi s s :=
-  ⟨rfl, fun _ _ => rfl⟩
-
-/-- Any state equality `s' = s` establishes a `RegionFrame`. -/
-theorem of_eq {lo hi : ℕ} {s s' : Memory.State} (h : s' = s) : RegionFrame lo hi s s' :=
-  h ▸ refl lo hi s
-
-/-- Transitivity of `RegionFrame`. -/
-theorem trans {lo hi : ℕ} {s₁ s₂ s₃ : Memory.State}
-    (h₁₂ : RegionFrame lo hi s₁ s₂) (h₂₃ : RegionFrame lo hi s₂ s₃) :
-    RegionFrame lo hi s₁ s₃ :=
-  ⟨h₂₃.frontier.trans h₁₂.frontier, fun a ha => (h₂₃.outside a ha).trans (h₁₂.outside a ha)⟩
-
-/-- Interval widening: if `[lo, hi) ⊆ [lo', hi')`, a frame on `[lo, hi)` is a frame on
-`[lo', hi')`. -/
-theorem mono {lo hi lo' hi' : ℕ} {s s' : Memory.State}
-    (hlo : lo' ≤ lo) (hhi : hi ≤ hi') (h : RegionFrame lo hi s s') :
-    RegionFrame lo' hi' s s' :=
-  ⟨h.frontier, fun a ha => h.outside a fun ⟨h1, h2⟩ => ha ⟨hlo.trans h1, lt_of_lt_of_le h2 hhi⟩⟩
-
-/-- Construct a `RegionFrame` from the disjunctive `a < lo ∨ hi ≤ a` outside condition. -/
-theorem of_or {lo hi : ℕ} {s s' : Memory.State} (hf : s'.frontier = s.frontier)
-    (ho : ∀ a, a < lo ∨ hi ≤ a → s'.mem a = s.mem a) : RegionFrame lo hi s s' :=
-  ⟨hf, fun a ha => ho a (by omega)⟩
-
-/-- Extract the disjunctive `a < lo ∨ hi ≤ a` outside equation. -/
-theorem mem_eq_of_or {lo hi : ℕ} {s s' : Memory.State} (h : RegionFrame lo hi s s')
-    {a : ℕ} (ha : a < lo ∨ hi ≤ a) : s'.mem a = s.mem a :=
-  h.outside a (by omega)
-
-/-- Every address strictly below `lo` is unchanged. -/
-theorem mem_eq_of_lt {lo hi : ℕ} {s s' : Memory.State} (h : RegionFrame lo hi s s')
-    {a : ℕ} (ha : a < lo) : s'.mem a = s.mem a :=
-  h.outside a (by omega)
-
-/-- Every address at or above `hi` is unchanged. -/
-theorem mem_eq_of_le {lo hi : ℕ} {s s' : Memory.State} (h : RegionFrame lo hi s s')
-    {a : ℕ} (ha : hi ≤ a) : s'.mem a = s.mem a :=
-  h.outside a (by omega)
-
-/-- Updating a single address inside `[lo, hi)` preserves everything outside `[lo, hi)`. -/
-theorem update {lo hi a v : ℕ} {s : Memory.State} (hlo : lo ≤ a) (hhi : a < hi) :
-    RegionFrame lo hi s ⟨Function.update s.mem a v, s.frontier⟩ :=
-  ⟨rfl, fun _ hb => Function.update_of_ne (fun h => by subst h; exact hb ⟨hlo, hhi⟩) v s.mem⟩
-
-/-- `pure` preserves every region frame. -/
-theorem pure {α : Type} (lo hi : ℕ) (s : Memory.State) (a : α) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (Pure.pure a)) :=
-  refl lo hi s
-
-/-- `Memory.read` preserves every region frame. -/
-theorem read (lo hi : ℕ) (s : Memory.State) (a : ℕ) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (Memory.read a)) :=
-  refl lo hi s
-
-/-- `Memory.write a v` preserves `[lo, hi)` when `a ∈ [lo, hi)`. -/
-theorem write {lo hi a v : ℕ} (s : Memory.State) (hlo : lo ≤ a) (hhi : a < hi) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (Memory.write a v)) :=
-  update hlo hhi
-
-/-- Sequential composition of `RegionFrame` along `>>=`. -/
-theorem bind {α β : Type} {lo hi : ℕ} {s : Memory.State}
-    {p : Memory.Prog α} {q : α → Memory.Prog β}
-    (hp : RegionFrame lo hi s ((Memory.spec 0).clientState s p))
-    (hq : RegionFrame lo hi ((Memory.spec 0).clientState s p)
-      ((Memory.spec 0).clientState ((Memory.spec 0).clientState s p)
-        (q ((Memory.spec 0).clientResult s p)))) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (p >>= q)) := by
-  rw [StateTransitionSpec.clientState_bind]
-  exact hp.trans hq
-
-/-- Conditional branching for `RegionFrame`. -/
-theorem ite {α : Type} {lo hi : ℕ} {s : Memory.State} {c : Prop} [Decidable c]
-    {p₁ p₂ : Memory.Prog α}
-    (h₁ : c → RegionFrame lo hi s ((Memory.spec 0).clientState s p₁))
-    (h₂ : ¬c → RegionFrame lo hi s ((Memory.spec 0).clientState s p₂)) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (if c then p₁ else p₂)) := by
-  split_ifs with h
-  · exact h₁ h
-  · exact h₂ h
-
-/-- Dependent conditional branching for `RegionFrame`. -/
-theorem dite {α : Type} {lo hi : ℕ} {s : Memory.State} {c : Prop} [Decidable c]
-    {p₁ : c → Memory.Prog α} {p₂ : ¬c → Memory.Prog α}
-    (h₁ : ∀ h : c, RegionFrame lo hi s ((Memory.spec 0).clientState s (p₁ h)))
-    (h₂ : ∀ h : ¬c, RegionFrame lo hi s ((Memory.spec 0).clientState s (p₂ h))) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (if h : c then p₁ h else p₂ h)) := by
-  split_ifs with h
-  · exact h₁ h
-  · exact h₂ h
-
-/-- Bounded iteration preserves `RegionFrame` when every step does. -/
-theorem iterate {δ σ : Type} {lo hi : ℕ} (body : δ × σ → Memory.Prog σ) (d : δ)
-    (hstep : ∀ a t, RegionFrame lo hi t ((Memory.spec 0).clientState t (body (d, a))))
-    (n : ℕ) (a : σ) (s : Memory.State) :
-    RegionFrame lo hi s ((Memory.spec 0).clientState s (Realization.iterate body d n a)) := by
-  induction n generalizing a s with
-  | zero => exact refl lo hi s
-  | succ n ih =>
-    change RegionFrame lo hi s
-      ((Memory.spec 0).clientState s (body (d, a) >>= Realization.iterate body d n))
-    exact bind (hstep a s) (ih _ _)
-
-/-- Guarded while loop preserves `RegionFrame` when every guarded step does. -/
-theorem boundedWhile {δ σ : Type} {lo hi : ℕ}
-    (guard : δ → σ → Prop) [∀ d a, Decidable (guard d a)]
-    (body : δ × σ → Memory.Prog σ) (d : δ)
-    (hstep : ∀ a t, guard d a →
-      RegionFrame lo hi t ((Memory.spec 0).clientState t (body (d, a))))
-    (n : ℕ) (a : σ) (s : Memory.State) :
-    RegionFrame lo hi s
-      ((Memory.spec 0).clientState s (Realization.boundedWhile guard body d n a)) := by
-  induction n generalizing a s with
-  | zero => exact refl lo hi s
-  | succ n ih =>
-    unfold Realization.boundedWhile
-    exact ite (fun hg => bind (hstep a s hg) (ih _ _)) (fun _ => refl lo hi s)
-
-end RegionFrame
 
 /-! ## Monotone memory invariants and `ValidHistory` combinators -/
 
@@ -291,9 +151,7 @@ theorem validHistory_bind_step {α β : Type} {w : ℕ} {s : Memory.State}
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (p >>= q)) :=
   (validHistory_bind' w p q s).mpr ⟨hp, hq⟩
 
-/-- Split `ValidHistory` across `p >>= q`, forwarding a `MonotoneMemInv` invariant to the
-post-state `clientState s p`. -/
-theorem validHistory_bind_inv {α β : Type} {w : ℕ} {Inv : Memory.State → Prop}
+private theorem validHistory_bind_inv {α β : Type} {w : ℕ} {Inv : Memory.State → Prop}
     [MonotoneMemInv w Inv] {s : Memory.State} (hinv : Inv s)
     {p : Memory.Prog α} {q : α → Memory.Prog β}
     (hp : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p))
@@ -370,40 +228,6 @@ theorem validHistory_boundedWhile_inv {δ σ : Type} {w : ℕ} (Inv : Memory.Sta
     exact validHistory_ite
       (fun hg => validHistory_bind_inv hinv (hstep a s hinv hg) fun hinv' => ih _ hinv')
       (fun _ => validHistory_pure w s a)
-
-/-- `ValidHistory` of `iterate` given an `iterationSafe` witness and a `MonotoneMemInv`. -/
-theorem validHistory_iterate_safe {δ σ : Type} {w : ℕ} (Inv : Memory.State → Prop)
-    [MonotoneMemInv w Inv]
-    {body : δ × σ → Memory.Prog σ} {safe : ℕ → δ × σ → Memory.State → Prop}
-    {d : δ} (n : ℕ) (a : σ) {s : Memory.State} (hinv : Inv s)
-    (hbody : ∀ a' s', Inv s' → safe w (d, a') s' →
-      (Memory.spec w).ValidHistory s' ((Memory.spec w).clientHistory s' (body (d, a'))))
-    (hsafe : iterationSafe body safe w d n a s) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (iterate body d n a)) := by
-  induction n generalizing a s with
-  | zero => exact validHistory_pure w s a
-  | succ n ih =>
-    exact validHistory_bind_inv hinv (hbody a s hinv hsafe.1) fun hinv' => ih _ hinv' hsafe.2
-
-/-- `ValidHistory` of `boundedWhile` given a `whileSafe` witness and a `MonotoneMemInv`. -/
-theorem validHistory_boundedWhile_safe {δ σ : Type} {w : ℕ} (Inv : Memory.State → Prop)
-    [MonotoneMemInv w Inv]
-    {guard : δ → σ → Prop} [∀ d a, Decidable (guard d a)]
-    {body : δ × σ → Memory.Prog σ} {safe : ℕ → δ × σ → Memory.State → Prop}
-    {d : δ} (n : ℕ) (a : σ) {s : Memory.State} (hinv : Inv s)
-    (hbody : ∀ a' s', Inv s' → guard d a' → safe w (d, a') s' →
-      (Memory.spec w).ValidHistory s' ((Memory.spec w).clientHistory s' (body (d, a'))))
-    (hsafe : whileSafe guard body safe w d n a s) :
-    (Memory.spec w).ValidHistory s
-      ((Memory.spec w).clientHistory s (boundedWhile guard body d n a)) := by
-  induction n generalizing a s with
-  | zero => exact validHistory_pure w s a
-  | succ n ih =>
-    unfold boundedWhile
-    unfold whileSafe at hsafe
-    split_ifs at hsafe ⊢ with hg
-    · exact validHistory_bind_inv hinv (hbody a s hinv hg hsafe.1) fun hinv' => ih _ hinv' hsafe.2
-    · exact validHistory_pure w s a
 
 /-! ## Generic loop-invariant, read-only, and cost lemmas -/
 
@@ -497,16 +321,5 @@ theorem memoryCost_iterate_le_of {δ σ : Type} (body : δ × σ → Memory.Prog
       ((Memory.spec 0).clientState s (body (d, a)))
     rw [Nat.mul_succ]
     omega
-
-/-- Exact constant `memoryCost` of an `iterate` loop with fixed environment `d`. -/
-theorem memoryCost_iterate_eq_of {δ σ : Type} (body : δ × σ → Memory.Prog σ) (c : ℕ)
-    (d : δ) (hstep : ∀ a s, memoryCost (body (d, a)) s = c)
-    (n : ℕ) (a : σ) (s : Memory.State) :
-    memoryCost (iterate body d n a) s = c * n := by
-  induction n generalizing a s with
-  | zero => simp [iterate]
-  | succ n ih =>
-    change memoryCost (body (d, a) >>= iterate body d n) s = c * (n + 1)
-    rw [memoryCost_bind', hstep, ih, Nat.mul_succ, Nat.add_comm]
 
 end Cslib.WordRAM.Realization

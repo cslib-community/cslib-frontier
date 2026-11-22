@@ -19,11 +19,10 @@ public import CslibFrontier.Tactic.ValidProg
 Covers:
 1. Structural admissibility discharge via `valid_prog` over `Memory.Prog` (`pure`, `bind`,
    `Memory.read`, `Memory.write`, `ite`, `iterate`, `boundedWhile`, and `MonotoneMemInv`).
-2. Disjoint-region framing via `RegionFrame` and `prog_frame`.
-3. Monadic cost calculation/bounds via `prog_cost` (including nested conditionals).
-4. Coordinate-only staging and thin-wrapper unfolding in `realize`.
-5. Structure-aware `callArgument` and projection reduction for `@[word_enc_structure]` types.
-6. Direct `realize` lowering of `DataStructure.link` over `Record.Prog` without `conv` preambles,
+2. Monadic cost calculation/bounds via `prog_cost` (including nested conditionals).
+3. Coordinate-only staging and thin-wrapper unfolding in `realize`.
+4. Structure-aware `callArgument` and projection reduction for `@[word_enc_structure]` types.
+5. Direct `realize` lowering of `DataStructure.link` over `Record.Prog` without `conv` preambles,
    plus `Fin k → ℕ` vector call matching.
 -/
 
@@ -69,17 +68,6 @@ theorem valid_prog_boundedWhile (w base n : ℕ) (s : Memory.State) (hsafe : two
           if x = 0 then pure 0 else pure (d.2 - 1)) base n n)) := by
   valid_prog
   have := ‹twoCellSafe w base _›.2; omega
-
-theorem prog_frame_branch (base : ℕ) (s : Memory.State) (v : ℕ) :
-    RegionFrame base (base + 4) s
-      ((Memory.spec 0).clientState s (do
-        let x ← Memory.read base
-        if x = 0 then Memory.write (base + 1) v
-        else do
-          Memory.write (base + 2) v
-          Memory.write (base + 3) x)) := by
-  prog_frame
-  all_goals omega
 
 theorem prog_cost_nested (base v : ℕ) (s : Memory.State) :
     memoryCost (do

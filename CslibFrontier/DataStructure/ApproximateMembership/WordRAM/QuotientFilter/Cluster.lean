@@ -578,41 +578,6 @@ private theorem clientState_readRem (s : Memory.State) (x : ClusterInput × ℕ)
 
 /-! ## Section 3: Backward and forward cluster-extent discovery (`findClusterProg`) -/
 
-theorem boundedWhile_invariant {δ σ : Type}
-    (guard : δ → σ → Prop) [∀ d a, Decidable (guard d a)]
-    (body : δ × σ → Memory.Prog σ) (d : δ)
-    (I : σ → Memory.State → Prop)
-    (hstep : ∀ a s, I a s → guard d a →
-      I ((Memory.spec 0).clientResult s (body (d, a)))
-        ((Memory.spec 0).clientState s (body (d, a))))
-    (n : ℕ) (a : σ) (s : Memory.State) (hi : I a s) :
-    I ((Memory.spec 0).clientResult s (boundedWhile guard body d n a))
-      ((Memory.spec 0).clientState s (boundedWhile guard body d n a)) :=
-  boundedWhile_invariant_of guard body d I hstep n a s hi
-
-theorem iterationSafe_of_invariant {δ σ : Type}
-    (body : δ × σ → Memory.Prog σ)
-    (safe : ℕ → (δ × σ) → Memory.State → Prop) (w : ℕ) (d : δ)
-    (I : ℕ → σ → Memory.State → Prop)
-    (hstep : ∀ j a s, I (j + 1) a s →
-      safe w (d, a) s ∧
-        I j ((Memory.spec 0).clientResult s (body (d, a)))
-          ((Memory.spec 0).clientState s (body (d, a))))
-    {n : ℕ} {a : σ} {s : Memory.State} (hi : I n a s) :
-    iterationSafe body safe w d n a s :=
-  iterationSafe_of_stepInv body safe w d I hstep hi
-
-theorem iterate_invariant {δ σ : Type}
-    (body : δ × σ → Memory.Prog σ) (d : δ)
-    (I : ℕ → σ → Memory.State → Prop)
-    (hstep : ∀ j a s, I (j + 1) a s →
-      I j ((Memory.spec 0).clientResult s (body (d, a)))
-        ((Memory.spec 0).clientState s (body (d, a))))
-    {n : ℕ} {a : σ} {s : Memory.State} (hi : I n a s) :
-    I 0 ((Memory.spec 0).clientResult s (iterate body d n a))
-      ((Memory.spec 0).clientState s (iterate body d n a)) :=
-  iterate_invariant_of body d I hstep hi
-
 /-- One step of backward cluster scan: reads `isFull` at `(q + 2^b - (cnt + 1)) &&& (2^b - 1)`
 and updates `(cnt, rem)` to `(cnt, 0)` if empty or `(cnt + 1, rem - 1)` if full. -/
 @[expose] def backLenStep (x : ClusterInput × (ℕ × ℕ)) : Memory.Prog (ℕ × ℕ) :=
@@ -663,7 +628,7 @@ private theorem realizes_backLen :
 private theorem clientResult_backLen_fst_le (s : Memory.State) (d : ClusterInput) :
     ((Memory.spec 0).clientResult s (backLenProg d)).1 ≤ d 3 := by
   dsimp only [backLenProg]
-  have h := boundedWhile_invariant (fun _ (st : ℕ × ℕ) => 0 < st.2) backLenStep d
+  have h := boundedWhile_invariant_of (fun _ (st : ℕ × ℕ) => 0 < st.2) backLenStep d
     (fun m _ => m.1 + m.2 ≤ d 3)
     (fun ⟨cnt, rem⟩ t hinv hg => by
       rw [clientResult_backLenStep]
@@ -729,7 +694,7 @@ private theorem realizes_fwdLen :
 private theorem clientResult_fwdLen_fst_le (s : Memory.State) (x : ClusterInput × ℕ) :
     ((Memory.spec 0).clientResult s (fwdLenProg x)).1 ≤ x.1 3 - x.2 := by
   dsimp only [fwdLenProg]
-  have h := boundedWhile_invariant (fun _ (st : ℕ × ℕ) => 0 < st.2) fwdLenStep x.1
+  have h := boundedWhile_invariant_of (fun _ (st : ℕ × ℕ) => 0 < st.2) fwdLenStep x.1
     (fun m _ => m.1 + m.2 ≤ x.1 3 - x.2)
     (fun ⟨cnt, rem⟩ t hinv hg => by
       rw [clientResult_fwdLenStep]
@@ -826,7 +791,7 @@ private theorem realizes_occBefore :
   obtain ⟨hcs, ho, ha⟩ := h
   have h2w := hcs.two_cap_lt
   dsimp only at h2w ho ha
-  refine iterationSafe_of_invariant _ _ w (d0, o, a)
+  refine iterationSafe_of_stepInv _ _ w (d0, o, a)
     (fun j (m : ℕ × ℕ) _ => m.1 + j = a ∧ m.2 ≤ m.1) ?_ ⟨by simp, by simp⟩
   rintro j ⟨m, occ⟩ t ⟨hmj, hocc⟩
   have hb := clientResult_readOcc_le t (d0, o + m)
@@ -839,7 +804,7 @@ private theorem clientResult_occBefore_bounds (s : Memory.State) (x : ClusterInp
     let res := (Memory.spec 0).clientResult s (occBeforeProg x)
     res.1 = x.2.2 ∧ res.2 ≤ x.2.2 := by
   rcases x with ⟨d, o, a⟩
-  have h := iterate_invariant occBeforeStep (d, o)
+  have h := iterate_invariant_of occBeforeStep (d, o)
     (fun j m _ => m.1 + j = a ∧ m.2 ≤ m.1)
     (fun j ⟨m, occ⟩ t ⟨hmj, hocc⟩ => by
       have hb := clientResult_readOcc_le t (d, o + m)
@@ -1148,7 +1113,7 @@ private theorem realizes_scanLoop :
       (fun w env _ => env.Safe w) (fun _ _ => 0) := by
   have hStep := realizes_scanLoopStep
   realize
-  refine iterationSafe_of_invariant _ _ w d
+  refine iterationSafe_of_stepInv _ _ w d
     (fun j (m : ScanState) _ => m.i + j = d.ℓ ∧ m.Bounds d) ?_
     ⟨Nat.zero_add _, le_rfl, le_rfl, le_rfl, le_rfl, le_rfl, Nat.zero_le 1⟩
   rintro j m t ⟨hij, hb⟩
@@ -1161,7 +1126,7 @@ private theorem clientResult_scanLoop_bounds (s : Memory.State) (env : ScanEnv) 
     let res := (Memory.spec 0).clientResult s (scanLoopProg env)
     res.i = env.ℓ ∧ res.Bounds env := by
   dsimp only [scanLoopProg]
-  have h := iterate_invariant scanLoopStep env
+  have h := iterate_invariant_of scanLoopStep env
     (fun j (m : ScanState) _ => m.i + j = env.ℓ ∧ m.Bounds env)
     (fun j m t ⟨hij, hb⟩ => by
       have hi : m.i < env.ℓ := by omega
@@ -1323,7 +1288,7 @@ private theorem realizes_shiftRight :
       (fun _ _ => 0) := by
   have hStep := realizes_shiftRightStep
   realize
-  refine iterationSafe_of_invariant _ _ w d
+  refine iterationSafe_of_stepInv _ _ w d
     (fun j (pos : ℕ) _ => j ≤ pos ∧ pos ≤ d.2.1)
     ?_ ⟨h.2.2.1, le_rfl⟩
   rintro j pos t ⟨hj, hpos⟩
@@ -1490,7 +1455,7 @@ private theorem realizes_shiftLeft :
       (fun _ _ => 0) := by
   have hStep := realizes_shiftLeftStep
   realize
-  refine iterationSafe_of_invariant _ _ w d
+  refine iterationSafe_of_stepInv _ _ w d
     (fun j (pos : ℕ) _ => pos + j ≤ d.1.1 3)
     ?_ h.2.2
   rintro j pos t hpos
@@ -1719,15 +1684,6 @@ private theorem clusterMemSafe_mkClusterInput {base w w₀ n k : ℕ} {s : Memor
 @[simp] theorem pure_bind_prog {α β : Type} (a : α) (f : α → Memory.Prog β) :
     (Pure.pure a : Memory.Prog α) >>= f = f a := rfl
 
-theorem frontier_le_clientState {α : Type} (s : Memory.State) (p : Memory.Prog α) :
-    s.frontier ≤ ((Memory.spec 0).clientState s p).frontier :=
-  Memory.frontier_le_clientState (w := 0) s p
-
-theorem wellFormed_clientState {α : Type} {w : ℕ} {s : Memory.State} (hwf : Memory.WellFormed w s)
-    {p : Memory.Prog α} (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p)) :
-    Memory.WellFormed w ((Memory.spec 0).clientState s p) :=
-  Cslib.WordRAM.Realization.wellFormed_clientState hwf hv
-
 private theorem clusterMemSafe_clientState {α : Type} {w : ℕ} {d : ClusterInput} {s : Memory.State}
     (hms : ClusterMemSafe w d s) {p : Memory.Prog α}
     (hv : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p)) :
@@ -1740,9 +1696,6 @@ private theorem clusterMemSafe_clientState {α : Type} {w : ℕ} {d : ClusterInp
 private instance instMonotoneMemInv_clusterMemSafe (w : ℕ) (d : ClusterInput) :
     MonotoneMemInv w (ClusterMemSafe w d) :=
   ⟨fun hms hv => clusterMemSafe_clientState hms hv⟩
-
-theorem validHistory_pure {α : Type} (w : ℕ) (s : Memory.State) (a : α) :
-    (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (pure a)) := trivial
 
 @[local valid_prog]
 private theorem validHistory_cmpLt (w : ℕ) (s : Memory.State) (x : ℕ × ℕ) :
@@ -1944,12 +1897,6 @@ private theorem validHistory_clusterOp {w : ℕ} {d : ClusterInput} {s : Memory.
 @[simp] private theorem memoryCost_writeRem (x : ClusterInput × (ℕ × ℕ)) (s : Memory.State) :
     memoryCost (writeRemProg x) s = 2 := rfl
 
-theorem memoryCost_iterate_le {δ σ : Type} (body : δ × σ → Memory.Prog σ) (c : ℕ)
-    (hstep : ∀ d a s, memoryCost (body (d, a)) s ≤ c)
-    (d : δ) (n : ℕ) (a : σ) (s : Memory.State) :
-    memoryCost (iterate body d n a) s ≤ c * n :=
-  memoryCost_iterate_le_of body c d (hstep d) n a s
-
 private theorem boundedWhile_snd_zero {δ : Type}
     (body : δ × (ℕ × ℕ) → Memory.Prog (ℕ × ℕ)) (d : δ) (n : ℕ) (cnt : ℕ) :
     boundedWhile (fun _ (st : ℕ × ℕ) => 0 < st.2) body d n (cnt, 0) = pure (cnt, 0) := by
@@ -2019,16 +1966,16 @@ private theorem memoryCost_scanCluster_le (x : ClusterInput × (ℕ × (ℕ × �
   simp only [pure_bind_prog, memoryCost_bind', memoryCost_readOcc, memoryCost_pure]
   rw [clientState_occBefore, clientState_readOcc]
   have hocc : memoryCost (occBeforeProg (d, o, a)) s ≤ 1 * a :=
-    memoryCost_iterate_le occBeforeStep 1
-      (fun _ _ _ => by unfold occBeforeStep; prog_cost [memoryCost_readOcc]) _ _ _ s
+    memoryCost_iterate_le_of occBeforeStep 1 _
+      (fun _ _ => by unfold occBeforeStep; prog_cost [memoryCost_readOcc]) _ _ s
   have hloop : memoryCost (scanLoopProg
       ⟨d, o, a, ℓ, ((Memory.spec 0).clientResult s (occBeforeProg (d, o, a))).2,
         ((Memory.spec 0).clientResult s (occBeforeProg (d, o, a))).2 +
           (Memory.spec 0).clientResult s (readOccProg (d, d 0))⟩) s ≤ 3 * ℓ :=
-    memoryCost_iterate_le scanLoopStep 3 (fun _ _ _ => by
+    memoryCost_iterate_le_of scanLoopStep 3 _ (fun _ _ => by
       unfold scanLoopStep scanStepReadsProg
       prog_cost [memoryCost_readOcc, memoryCost_readRunStart, memoryCost_readRem,
-        memoryCost_scanStepTarget, memoryCost_scanStepStop, memoryCost_scanStepQuery]) _ _ _ s
+        memoryCost_scanStepTarget, memoryCost_scanStepStop, memoryCost_scanStepQuery]) _ _ s
   dsimp only at ha ⊢
   omega
 
@@ -2042,7 +1989,7 @@ private theorem memoryCost_insertAfterScan_le
   have hclear : memoryCost (insertClearOldProg ((d, o), occQ, s₀, s_idx)) s ≤ 2 := by
     unfold insertClearOldProg; prog_cost [memoryCost_writeRunStart]
   have hshift : memoryCost (shiftRightProg ((d, o), ℓ, ℓ - s_idx)) s₁ ≤ 6 * (ℓ - s_idx) :=
-    memoryCost_iterate_le shiftRightStep 6 (fun _ _ _ => (memoryCost_copySlot ..).le) _ _ _ s₁
+    memoryCost_iterate_le_of shiftRightStep 6 _ (fun _ _ => (memoryCost_copySlot ..).le) _ _ s₁
   have hwrite : memoryCost (insertWriteNewProg ((d, o), (s₀, s_idx), ℓ)) s₂ = 8 := by
     unfold insertWriteNewProg
     prog_cost [memoryCost_cmpEq, memoryCost_writeRunStart, memoryCost_writeRem,
@@ -2066,7 +2013,7 @@ private theorem memoryCost_deleteAfterScan_le
       prog_cost [memoryCost_cmpLt, memoryCost_readRunStart, memoryCost_cmpZero]
     have hshift : memoryCost (shiftLeftProg ((d, o), s_idx, e - 1 - s_idx)) s₁ ≤
         6 * (e - 1 - s_idx) :=
-      memoryCost_iterate_le shiftLeftStep 6 (fun _ _ _ => (memoryCost_copySlot ..).le) _ _ _ s₁
+      memoryCost_iterate_le_of shiftLeftStep 6 _ (fun _ _ => (memoryCost_copySlot ..).le) _ _ s₁
     have hupd : memoryCost (deleteUpdateRunProg ((d, o), a, s₀, s_idx)) s₂ ≤ 2 := by
       unfold deleteUpdateRunProg; prog_cost [memoryCost_writeOcc, memoryCost_writeRunStart]
     have hclr : memoryCost (deleteClearEndProg ((d, o), e)) s₃ = 6 := by
@@ -2542,7 +2489,7 @@ private theorem clientResult_occBefore_mk (base w w₀ n k : ℕ)
       (occBeforeProg (mkClusterInput base w w₀ n k q r opTag, (o.val, a))) =
       (a, occBefore (extractFilterState base w w₀ n k s.mem) o a) := by
   dsimp only [occBeforeProg]
-  have h := iterate_invariant occBeforeStep (mkClusterInput base w w₀ n k q r opTag, o.val)
+  have h := iterate_invariant_of occBeforeStep (mkClusterInput base w w₀ n k q r opTag, o.val)
     (fun j (m : ℕ × ℕ) t =>
       t = s ∧ m.1 + j = a ∧ m.2 = occBefore (extractFilterState base w w₀ n k s.mem) o m.1)
     (fun j ⟨m, occ⟩ t ⟨ht, hmj, hocc⟩ => by
@@ -2574,7 +2521,7 @@ private theorem clientResult_scanLoop_mk (base w w₀ n k : ℕ)
   let snap (i : ℕ) : ScanState :=
     ⟨i, runsBefore st o i, occBefore st o i, calcRunStart st o a i, calcTargetSlot st o a i r,
       calcDeleteStopPrefix st o a ℓ i, (queryAnyPrefix st o a i r).toNat⟩
-  have h := iterate_invariant scanLoopStep env
+  have h := iterate_invariant_of scanLoopStep env
     (fun j m t => t = s ∧ j ≤ ℓ ∧ m = snap (ℓ - j))
     (fun j m t ⟨ht, hj, hm⟩ => by
       subst ht hm

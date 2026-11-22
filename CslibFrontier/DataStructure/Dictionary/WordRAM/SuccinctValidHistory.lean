@@ -668,7 +668,7 @@ theorem validProg_lmPrepend {U V w n_max h_space : ℕ}
     writeLMNextGenProg_mk, writeLMHeadGenProg_mk, pure_bind]
   valid_prog [validProg_readLMHead, validProg_writeLMPrev, validProg_writeLMNext,
     validProg_writeLMHead] with [clientState_readLMHeadProg, clientResult_readLMHeadProg]
-  exact validProg_writeLMPrev hw hnU hU hb (by omega)
+  omega
 
 theorem validProg_lmUnlink {U V w n_max h_space : ℕ}
     (hw : 0 < w) (hnU : n_max ≤ U) (hU : U < 2 ^ w)

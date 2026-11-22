@@ -18,24 +18,18 @@ Provides structural tactics over the `Memory.Prog` (`PFunctor.FreeM`) free monad
 
 * `valid_prog`: decomposes memory-history admissibility goals — either raw
   `(Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s p)` or wrapper predicates
-  (such as `ValidProg w F s p`) with registered `pure`/`bind`/`ite`/`dite` combinators — across
-  `pure`, `bind`, `Memory.read`/`write`/`alloc`/`allocDirty`, `ite`/`dite`, `iterate`, and
-  `boundedWhile`. Applies explicit and `@[valid_prog]` lemmas without unfolding opaque subprograms,
-  propagates `MonotoneMemInv` invariants across state updates, rewrites intermediate
-  `clientState`/`clientResult` terms using `@[prog_rw]` and `with [...]`, and leaves only genuine
-  arithmetic or domain obligations.
-* `prog_frame`: proves `RegionFrame lo hi s ((Memory.spec 0).clientState s p)` across monadic
-  syntax using explicit and `@[prog_frame]` lemmas.
-* `prog_cost`: evaluates and bounds `memoryCost p s` using `client_simps` and `@[prog_cost]`.
-* `prog_state`: reduces `(Memory.spec 0).clientState s p` and `(Memory.spec 0).clientResult s p`
-  across `bind`, `pure`, and conditionals.
+  (such as `ValidProg w F s p`) with registered `pure`/`bind`/`ite` combinators — across `pure`,
+  `bind`, `Memory.read`/`write`/`alloc`/`allocDirty`, `ite`/`dite`, `iterate`, and `boundedWhile`.
+  Applies explicit and `@[valid_prog]` lemmas without unfolding opaque subprograms, propagates
+  `MonotoneMemInv` invariants across state updates, rewrites intermediate
+  `clientState`/`clientResult` terms using `with [...]`, and leaves only genuine arithmetic or
+  domain obligations.
+* `prog_cost`: evaluates and bounds `memoryCost p s` across monadic binds and conditionals.
 
 ## Main definitions
 
 * `valid_prog`: admissibility walker tactic.
-* `prog_frame`: `RegionFrame` framing tactic.
 * `prog_cost`: `memoryCost` evaluator/bound tactic.
-* `prog_state`: `clientState`/`clientResult` reducer tactic.
 -/
 
 public meta section
@@ -209,8 +203,10 @@ private partial def tryCloseLeaf (g : MVarId) (hints : Array Expr) (depth : Nat 
         return true
       s.restore
     let tgtHead? := tgt.getAppFn.constName?
+    let revDecls := (← getLCtx).decls.toArray.reverse
     let s ← saveState
-    for decl in ← getLCtx do
+    for d? in revDecls do
+      let some decl := d? | continue
       if decl.isImplementationDetail || decl.isLet then continue
       let declTy := decl.type
       let headMatch := match tgtHead?, declTy.getAppFn.constName? with
@@ -229,7 +225,8 @@ private partial def tryCloseLeaf (g : MVarId) (hints : Array Expr) (depth : Nat 
               return true
     s.restore
     if depth > 0 then
-      for decl in ← getLCtx do
+      for d? in revDecls do
+        let some decl := d? | continue
         if decl.isImplementationDetail then continue
         let ty ← instantiateMVars decl.type
         if ty.isArrow then
@@ -252,6 +249,8 @@ private partial def tryCloseLeaf (g : MVarId) (hints : Array Expr) (depth : Nat 
           if ok then return true
         s1.restore
       catch _ => s1.restore
+    -- Handle `<` whose LHS/RHS reduce via `whnfR` (e.g. tuple projections `(x, 0).2 < 2` that still
+    -- syntactically contain FVars before projection reduction).
     if tgt.isAppOfArity ``LT.lt 4 && (tgt.getArg! 0).isConstOf ``Nat then
       if let some a := (← whnfR (tgt.getArg! 2)).nat? then
         if let some b := (← whnfR (tgt.getArg! 3)).nat? then
@@ -283,7 +282,8 @@ private partial def tryCloseLeaf (g : MVarId) (hints : Array Expr) (depth : Nat 
     if tgt.isAppOfArity ``LT.lt 4 && (tgt.getArg! 0).isConstOf ``Nat then
       if let some 2 := (← whnfR (tgt.getArg! 3)).nat? then
         let lhs := tgt.getArg! 2
-        for decl in ← getLCtx do
+        for d? in revDecls do
+          let some decl := d? | continue
           if decl.isImplementationDetail then continue
           let declTy ← instantiateMVars decl.type
           if declTy.isAppOfArity ``LE.le 4 && (declTy.getArg! 0).isConstOf ``Nat then
@@ -313,12 +313,19 @@ private def tryRewriteTargetWith (g : MVarId) (rwExpr : Expr) (hints : Array Exp
     let eqPf := mkAppN rwExpr mvars
     let some (_, lhs, _) := concl.eq? | do saved.restore; return none
     if lhs.getAppFn.isMVar then saved.restore; return none
+    let target ← instantiateMVars (← g.getType)
     if let some lhsHead := lhs.getAppFn.constName? then
-      let target ← instantiateMVars (← g.getType)
       if !target.containsConst (· == lhsHead) then
         saved.restore
         return none
-    let target ← instantiateMVars (← g.getType)
+      if lhsHead == ``StateTransitionSpec.clientState ||
+          lhsHead == ``StateTransitionSpec.clientResult then
+        let lhsArgs := lhs.getAppArgs
+        if !lhsArgs.isEmpty then
+          if let some progHead := lhsArgs.back!.consumeMData.getAppFn.constName? then
+            if !target.containsConst (· == progHead) then
+              saved.restore
+              return none
     let res ← g.rewrite target eqPf (symm := false)
     let g' ← g.replaceTargetEq res.eNew res.eqProof
     let mut ok := true
@@ -359,12 +366,23 @@ private def applyProgRewrites (g : MVarId) (rwExprs : Array Expr) (hints : Array
 private def mkConstFresh (n : Name) : MetaM Expr :=
   mkConstWithFreshMVarLevels n
 
+/-- Compare two `Memory.State` expressions without unfolding `StateTransitionSpec.clientState`
+(an `abbrev` for `runClient` that would symbolically execute nested programs on mismatch). -/
+private def sameStateExpr (a b : Expr) : MetaM Bool := do
+  let a := a.consumeMData
+  let b := b.consumeMData
+  if a == b then return true
+  if a.isAppOf ``StateTransitionSpec.clientState ||
+      b.isAppOf ``StateTransitionSpec.clientState then
+    return false
+  withReducible (isDefEq a b)
+
 /-- Add inferred `MonotoneMemInv` facts about `nextState` into `gRight`'s local context whenever
 `s` holds the corresponding invariant in the parent context, clearing stale intermediate hypotheses
 when `s` is not a local variable. -/
 private def propagateMemInvs (cache : InvCache) (gRight : MVarId) (w s m nextState : Expr)
     (hpProof : Expr) : MetaM MVarId := gRight.withContext do
-  if s == nextState || (← withReducible (isDefEq nextState s)) then return gRight
+  if ← sameStateExpr s nextState then return gRight
   let dropOld := !s.isFVar
   let mut cur := gRight
   let decls ← cur.withContext do return (← getLCtx).decls.toArray
@@ -374,7 +392,7 @@ private def propagateMemInvs (cache : InvCache) (gRight : MVarId) (w s m nextSta
     let ty ← instantiateMVars decl.type
     -- `Memory.WellFormed w s`
     if ty.isAppOfArity ``Memory.WellFormed 2 then
-      if (ty.getArg! 1 == s) || (← withReducible (isDefEq (ty.getArg! 1) s)) then
+      if ← sameStateExpr (ty.getArg! 1) s then
         if (ty.getArg! 0 == w) || (← withReducible (isDefEq (ty.getArg! 0) w)) then
           let ok ← saveState
           try
@@ -389,7 +407,7 @@ private def propagateMemInvs (cache : InvCache) (gRight : MVarId) (w s m nextSta
     else if ty.isAppOfArity ``LE.le 4 && (ty.getArg! 0).isConstOf ``Nat then
       let rhs := ty.getArg! 3
       if rhs.isAppOfArity ``Memory.State.frontier 1 then
-        if rhs.appArg! == s || (← withReducible (isDefEq rhs.appArg! s)) then
+        if ← sameStateExpr rhs.appArg! s then
           let ok ← saveState
           try
             let lhs := ty.getArg! 2
@@ -405,7 +423,7 @@ private def propagateMemInvs (cache : InvCache) (gRight : MVarId) (w s m nextSta
     else if ty.isAppOfArity ``LT.lt 4 && (ty.getArg! 0).isConstOf ``Nat then
       let rhs := ty.getArg! 3
       if rhs.isAppOfArity ``Memory.State.frontier 1 then
-        if rhs.appArg! == s || (← withReducible (isDefEq rhs.appArg! s)) then
+        if ← sameStateExpr rhs.appArg! s then
           let ok ← saveState
           try
             let lhs := ty.getArg! 2
@@ -423,9 +441,9 @@ private def propagateMemInvs (cache : InvCache) (gRight : MVarId) (w s m nextSta
         !ty.isAppOf ``StateTransitionSpec.ValidHistory then
       let arg := ty.appArg!
       let sameArg ←
-        if arg == s then pure true
+        if arg.consumeMData == s.consumeMData then pure true
         else if (← inferType arg).isConstOf ``Memory.State then
-          withReducible (isDefEq arg s)
+          sameStateExpr arg s
         else pure false
       if sameArg then
         let inv := ty.appFn!
@@ -452,9 +470,9 @@ private def findMonotoneMemInv? (cache : InvCache) (g : MVarId) (w s : Expr) :
           !ty.isAppOf ``LT.lt && !ty.isAppOf ``LE.le then
         let arg := ty.appArg!
         let sameArg ←
-          if arg == s then pure true
+          if arg.consumeMData == s.consumeMData then pure true
           else if (← inferType arg).isConstOf ``Memory.State then
-            withReducible (isDefEq arg s)
+            sameStateExpr arg s
           else pure false
         if sameArg then
           let inv := ty.appFn!
@@ -500,6 +518,31 @@ private def tryApplyRuleFlex (g : MVarId) (rule : Expr) (hints : Array Expr) :
   catch _ =>
     saved.restore
     return none
+
+/-- Apply a matching subprogram rule for `(predName?, ph)`: prefer a candidate that closes all leaf
+side conditions (`rem.isEmpty`), falling back to the first matching candidate if none closes all. -/
+private def applyMatchingRule? (g : MVarId) (rules : Array RuleEntry) (predName? : Option Name)
+    (ph : Name) (hints : Array Expr) : MetaM (Option (List MVarId)) := do
+  let mut hasIncomplete := false
+  for r in rules do
+    if r.predName? == predName? && r.progHead? == some ph then
+      let saved ← saveState
+      let ruleE ← match r.expr.constName? with
+        | some cn => mkConstFresh cn
+        | none => pure r.expr
+      if let some rem ← tryApplyRuleFlex g ruleE hints then
+        if rem.isEmpty then return some []
+        hasIncomplete := true
+      saved.restore
+  if !hasIncomplete then return none
+  for r in rules do
+    if r.predName? == predName? && r.progHead? == some ph then
+      let ruleE ← match r.expr.constName? with
+        | some cn => mkConstFresh cn
+        | none => pure r.expr
+      if let some rem ← tryApplyRuleFlex g ruleE hints then
+        return some rem
+  return none
 
 /-- Build `a < s.frontier` directly without `mkAppM`. -/
 private def mkAddrLtFrontier (addr s : Expr) : Expr :=
@@ -709,15 +752,8 @@ private partial def walkValidProg (cache : InvCache) (g : MVarId) (rules : Array
         return fitGoals
     -- 5. Matching subprogram certificate by head constant name
     if let some ph := headProgConst? p then
-      for r in rules do
-        if r.predName?.isNone && r.progHead? == some ph then
-          let ruleE ← if r.isGlobal then
-            match r.expr.constName? with
-            | some cn => mkConstFresh cn
-            | none => pure r.expr
-          else pure r.expr
-          if let some rem ← tryApplyRuleFlex g ruleE hints then
-            return rem
+      if let some rem ← applyMatchingRule? g rules none ph hints then
+        return rem
     -- 5b. `iterate` / `boundedWhile` via a `MonotoneMemInv` hypothesis in context
     if p.isAppOfArity ``Realization.iterate 6 then
       if let some (inv, inst, hinv) ← findMonotoneMemInv? cache g w s then
@@ -824,13 +860,8 @@ private partial def walkValidProg (cache : InvCache) (g : MVarId) (rules : Array
           saved.restore
         catch _ => saved.restore
     if let some ph := headProgConst? p then
-      for r in rules do
-        if r.predName? == some predName && r.progHead? == some ph then
-          let ruleE ← match r.expr.constName? with
-            | some cn => mkConstFresh cn
-            | none => pure r.expr
-          if let some rem ← tryApplyRuleFlex g ruleE hints then
-            return rem
+      if let some rem ← applyMatchingRule? g rules (some predName) ph hints then
+        return rem
     if ← tryCloseLeaf g hints 2 then return []
     return [g]
 
@@ -844,15 +875,14 @@ private def envExtExprs (ext : SimpleScopedEnvExtension Name (Array Name)) :
 def runValidProg (extraTerms : Array Term) (rwTerms : Array Term) : TacticM Unit :=
   withMainContext do
     let extraExprs ← extraTerms.mapM fun stx => do
-      let e ← elabTerm stx none
-      return (← instantiateMVars e, false)
-    let rwExtra ← rwTerms.mapM fun stx => do
-      let e ← elabTerm stx none
-      instantiateMVars e
+      let e ← instantiateMVars (← elabTerm stx none)
+      let e ← if e.hasExprMVar then pure (← abstractMVars e (levels := false)).expr else pure e
+      return (e, false)
+    let rwExprs ← rwTerms.mapM fun stx => do
+      let e ← instantiateMVars (← elabTerm stx none)
+      if e.hasExprMVar then pure (← abstractMVars e (levels := false)).expr else pure e
     let envValid ← envExtExprs validProgExt
     let (rules, hints) ← indexRules (extraExprs ++ envValid)
-    let envRws ← liftMetaM <| (progRwExt.getState (← getEnv)).mapM mkConstFresh
-    let rwExprs := rwExtra ++ envRws
     let cache ← IO.mkRef #[]
     let g ← getMainGoal
     let rem ← walkValidProg cache g rules hints rwExprs
@@ -860,7 +890,7 @@ def runValidProg (extraTerms : Array Term) (rwTerms : Array Term) : TacticM Unit
 
 /-- Walk a `Memory.Prog` admissibility goal (`ValidHistory` or a custom `ValidProg` predicate)
 across `pure`, `bind`, `ite`, `dite`, and memory operations, applying explicit and `@[valid_prog]`
-certificates and rewriting continuations with `@[prog_rw]` / `with [...]` lemmas. -/
+certificates and rewriting continuations with `with [...]` lemmas. -/
 syntax (name := validProg) "valid_prog" ("[" term,* "]")? (" with " "[" term,* "]")? : tactic
 
 elab_rules : tactic
@@ -869,7 +899,7 @@ elab_rules : tactic
     let rwsArr := rws.map (·.getElems) |>.getD #[]
     runValidProg csArr rwsArr
 
-/-! ## `prog_cost` and `prog_state` lightweight macros -/
+/-! ## `prog_cost` tactic -/
 
 /-- Simplify and close `memoryCost` equality or upper-bound goals across monadic binds,
 conditionals (including nested `if`-branches), and optional user-supplied rewrite lemmas. -/
@@ -879,13 +909,15 @@ elab_rules : tactic
   | `(tactic| prog_cost $[[$extra,*]]?) => do
     let simpStep ← match extra with
       | none => `(tactic|
-          try simp only [client_simps, prog_cost, pure_bind, memoryCost_pure, memoryCost_bind',
+          try simp only [pure_bind, memoryCost_pure, memoryCost_bind, memoryCost_bind',
             memoryCost_ite, memoryCost_read, memoryCost_write, memoryCost_alloc,
-            memoryCost_allocDirty, PFunctor.FreeM.bind_eq_bind])
+            memoryCost_allocDirty, StateTransitionSpec.clientState_pure,
+            StateTransitionSpec.clientResult_pure, PFunctor.FreeM.bind_eq_bind])
       | some ex => `(tactic|
-          try simp only [$ex,*, client_simps, prog_cost, pure_bind, memoryCost_pure,
-            memoryCost_bind', memoryCost_ite, memoryCost_read, memoryCost_write, memoryCost_alloc,
-            memoryCost_allocDirty, PFunctor.FreeM.bind_eq_bind])
+          try simp only [$ex,*, pure_bind, memoryCost_pure, memoryCost_bind, memoryCost_bind',
+            memoryCost_ite, memoryCost_read, memoryCost_write, memoryCost_alloc,
+            memoryCost_allocDirty, StateTransitionSpec.clientState_pure,
+            StateTransitionSpec.clientResult_pure, PFunctor.FreeM.bind_eq_bind])
     evalTactic simpStep
     for _ in [0:8] do
       if (← getGoals).isEmpty then break
@@ -902,127 +934,5 @@ elab_rules : tactic
         if !splitOk || (← getGoals) == before then break
     if !(← getGoals).isEmpty then
       evalTactic (← `(tactic| all_goals try omega))
-
-/-- Reduce a `(Memory.spec 0).clientState` or `(Memory.spec 0).clientResult` goal across `bind`,
-`pure`, and conditionals using `client_simps` plus extra lemmas. -/
-syntax (name := progState) "prog_state" "[" Lean.Parser.Tactic.simpLemma,* "]" : tactic
-
-macro_rules
-  | `(tactic| prog_state [$extra,*]) =>
-    `(tactic| (
-      simp only [$extra,*, pure_bind, StateTransitionSpec.clientState_bind,
-        StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientState_pure,
-        StateTransitionSpec.clientResult_pure, PFunctor.FreeM.bind_eq_bind]
-      try (split_ifs <;> rfl)))
-
-/-! ## `prog_frame`: structural `RegionFrame` walker -/
-
-/-- Recursively decompose a `RegionFrame lo hi s ((Memory.spec 0).clientState s p)` goal across
-`pure`, `read`, `write`, `bind`, `ite`, `dite`, and supplied/registered `@[prog_frame]` lemmas. -/
-private partial def walkFrame (g : MVarId) (frameRules : Array Expr) (hints : Array Expr)
-    (fuel : Nat := 64) : MetaM (List MVarId) := do
-  if fuel == 0 then return [g]
-  if ← g.isAssigned then return []
-  g.withContext do
-    let t ← instantiateMVars (← g.getType)
-    unless t.isAppOfArity ``RegionFrame 4 do
-      if ← tryCloseLeaf g hints 2 then return []
-      return [g]
-    let lo := t.getArg! 0
-    let hi := t.getArg! 1
-    let s := t.getArg! 2
-    let s' := t.getArg! 3
-    if s == s' || (← withReducible (isDefEq s s')) then
-      g.assign (mkApp3 (mkConst ``RegionFrame.refl []) lo hi s)
-      return []
-    if s'.isAppOf ``StateTransitionSpec.clientState then
-      let sArgs := s'.getAppArgs
-      if sArgs.size ≥ 6 then
-        let α := sArgs[sArgs.size - 3]!
-        let p := sArgs[sArgs.size - 1]!.consumeMData
-        if let some a := splitPure? p then
-          if ← withReducible (isDefEq (sArgs[sArgs.size - 2]!) s) then
-            g.assign (mkAppN (mkConst ``RegionFrame.pure []) #[α, lo, hi, s, a])
-            return []
-        if let some (m, k) ← splitBind? p then
-          if ← withReducible (isDefEq (sArgs[sArgs.size - 2]!) s) then
-            if let some a := splitPure? m then
-              let pNew := (k.beta #[a]).headBeta
-              let s'New := mkAppN s'.getAppFn (sArgs.set! (sArgs.size - 1) pNew)
-              let g' ← g.replaceTargetDefEq (mkAppN t.getAppFn (t.getAppArgs.set! 3 s'New))
-              return ← walkFrame g' frameRules hints (fuel - 1)
-            let saved ← saveState
-            try
-              let [gL, gR] ← g.apply (mkConst ``RegionFrame.bind []) | throwError ""
-              return (← walkFrame gL frameRules hints (fuel - 1)) ++
-                (← walkFrame gR frameRules hints (fuel - 1))
-            catch _ => saved.restore
-        if p.isAppOfArity ``ite 5 then
-          let saved ← saveState
-          try
-            let [g1, g2] ← g.apply (mkConst ``RegionFrame.ite []) | throwError ""
-            let (_, g1') ← g1.intro1
-            let (_, g2') ← g2.intro1
-            return (← walkFrame g1' frameRules hints (fuel - 1)) ++
-              (← walkFrame g2' frameRules hints (fuel - 1))
-          catch _ => saved.restore
-        if p.isAppOfArity ``dite 5 then
-          let saved ← saveState
-          try
-            let [g1, g2] ← g.apply (mkConst ``RegionFrame.dite []) | throwError ""
-            let (_, g1') ← g1.intro1
-            let (_, g2') ← g2.intro1
-            return (← walkFrame g1' frameRules hints (fuel - 1)) ++
-              (← walkFrame g2' frameRules hints (fuel - 1))
-          catch _ => saved.restore
-        if let some prim ← matchMemPrimOp? p then
-          match prim with
-          | .read addr =>
-            if ← withReducible (isDefEq (sArgs[sArgs.size - 2]!) s) then
-              g.assign (mkAppN (mkConst ``RegionFrame.read []) #[lo, hi, s, addr])
-              return []
-          | .write addr _ =>
-            let saved ← saveState
-            try
-              return ← g.apply (mkConst ``RegionFrame.write [])
-            catch _ => saved.restore
-            let _ := addr
-          | _ => pure ()
-    for r in frameRules do
-      let saved ← saveState
-      try
-        let rE ← match r.constName? with
-          | some cn => mkConstFresh cn
-          | none => pure r
-        let sub ← g.apply rE
-        let mut rem : List MVarId := []
-        for sg in sub do
-          if !(← tryCloseLeaf sg hints 2) then rem := rem ++ [sg]
-        return rem
-      catch _ => saved.restore
-      let saved2 ← saveState
-      try
-        let [gEq] ← g.apply (mkConst ``RegionFrame.of_eq []) | throwError ""
-        let rE ← match r.constName? with
-          | some cn => mkConstFresh cn
-          | none => pure r
-        let sub ← gEq.apply rE
-        if sub.isEmpty then return []
-        saved2.restore
-      catch _ => saved2.restore
-    return [g]
-
-/-- Structurally prove `RegionFrame lo hi s ((Memory.spec 0).clientState s p)` across `pure`,
-`read`, `write`, `bind`, `ite`, and `dite` using explicit and `@[prog_frame]` lemmas. -/
-syntax (name := progFrame) "prog_frame" ("[" term,* "]")? : tactic
-
-elab_rules : tactic
-  | `(tactic| prog_frame $[[$rs,*]]?) => withMainContext do
-    let rsArr := rs.map (·.getElems) |>.getD #[]
-    let explicit ← rsArr.mapM fun stx => do instantiateMVars (← elabTerm stx none)
-    let envRules ← liftMetaM <| (progFrameExt.getState (← getEnv)).mapM mkConstFresh
-    let g ← getMainGoal
-    let rem ← walkFrame g (explicit ++ envRules) explicit
-    replaceMainGoal rem
 
 end Cslib.Tactic.ValidProg
