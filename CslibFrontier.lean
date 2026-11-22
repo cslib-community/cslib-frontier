@@ -1631,6 +1631,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Median
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiOrder
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.ParametricCut
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Scores
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Support
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
@@ -1669,6 +1670,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
 public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.MultiPass
 public import CslibFrontier.Computability.Circuit.Frontier.Multigraph
+public import CslibFrontier.Computability.Circuit.Frontier.NOFFormula
 public import CslibFrontier.Computability.Circuit.Frontier.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
 public import CslibFrontier.Computability.Circuit.Frontier.PolynomialWitness
@@ -3423,6 +3425,9 @@ public import CslibFrontier.Computability.Distributed.ByzantineGraph.Basic
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 public import CslibFrontier.Computability.Distributed.ByzantineQuorum.PBFT
 public import CslibFrontier.Computability.Distributed.ByzantineQuorum.QuorumSystems
+public import CslibFrontier.Computability.Distributed.CRDT.Basic
+public import CslibFrontier.Computability.Distributed.CRDT.DataTypes
+public import CslibFrontier.Computability.Distributed.CRDT.Monotonicity
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.TotalOrder
 public import CslibFrontier.Computability.Distributed.ChandyLamport.Basic
@@ -3433,6 +3438,9 @@ public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
 public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
 public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctness
+public import CslibFrontier.Computability.Distributed.LocalGraph.Basic
+public import CslibFrontier.Computability.Distributed.LocalGraph.Coloring
+public import CslibFrontier.Computability.Distributed.LocalGraph.LubyMIS
 public import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
 public import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
@@ -3454,9 +3462,15 @@ public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
 public import CslibFrontier.Computability.Distributed.SelfStabilization.Basic
 public import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
+public import CslibFrontier.Computability.Distributed.SetAgreement.AtomicSnapshot
+public import CslibFrontier.Computability.Distributed.SetAgreement.ImmediateSnapshot
+public import CslibFrontier.Computability.Distributed.SetAgreement.Impossibility
 public import CslibFrontier.Computability.Distributed.SharedMemory.Basic
 public import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
 public import CslibFrontier.Computability.Distributed.SharedMemory.Universal
+public import CslibFrontier.Computability.Distributed.VectorClock.Basic
+public import CslibFrontier.Computability.Distributed.VectorClock.Clocks
+public import CslibFrontier.Computability.Distributed.VectorClock.LowerBound
 public import CslibFrontier.Computability.GenericRAM.Algebraic
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.GenericRAM.Native
@@ -5341,6 +5355,7 @@ public import CslibFrontier.Crypto.Computational.ElGamal.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
+public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
 public import CslibFrontier.Crypto.Computational.Encryption.CBCMode
 public import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
