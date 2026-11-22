@@ -39,8 +39,8 @@ The checker agrees with `checkLRAT` on every formula and certificate
 `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff` with `checkLRATFast_eq_checkLRAT` shows that a
 formula has a certificate this checker accepts exactly when it is unsatisfiable.
 
-It is the checker for compiled and interpreted code. The kernel's `Array` wraps a list, so the kernel
-cannot evaluate it efficiently: for kernel reduction, `decide` uses
+It is the checker for compiled and interpreted code. The kernel's `Array` wraps a list, so the
+kernel cannot evaluate it efficiently: for kernel reduction, `decide` uses
 `Cslib.Logic.PL.CNF.checkLRATKernel`, which checks the same certificates with a binary trie and a
 bitmask. Each wins in its own setting. Measured on one machine with the two checkers alternating
 in one process (2026-11; [#7225](https://github.com/cslib-community/cslib-frontier/issues/7225),
