@@ -119,26 +119,22 @@ theorem cost_subList [Zero α] (p q : List α) :
 subtractions under every oracle. -/
 theorem cost_mulFit [Zero α] (n : ℕ) (p q : List α) :
     (mulFit n p q).cost o (weight ca cm) = cm * mulCount n + ca * addCount n := by
-  induction n using Nat.strong_induction_on generalizing p q with
-  | _ n ih =>
-    match n with
-    | 0 => simp [mulFit]
-    | 1 => simp [mulFit, doMul, weight]
-    | n + 2 =>
-      rw [mulFit, mulCount, addCount]
-      simp only [addAt, FreeM.cost_bind, FreeM.cost_pure, cost_addList, cost_subList,
-        length_eval_mulFit, length_eval_subList, List.takeD_length, List.length_drop,
-        List.length_append, List.length_cons]
-      rw [ih _ (by omega), ih _ (by omega), ih _ (by omega)]
-      obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m + 1 := ⟨(n + 2) / 2 - 1, by omega⟩
-      obtain ⟨k, hk⟩ : ∃ k, n + 2 - (m + 1) = k + 1 := ⟨n + 2 - (m + 1) - 1, by omega⟩
-      have hkm : m ≤ k := by omega
-      have hn : n = m + k := by omega
-      rw [hm, hk]
-      subst hn
-      simp (disch := omega) only [Nat.min_eq_left, Nat.min_eq_right, Nat.max_eq_left,
-        show 2 * (m + 1) - 1 = 2 * m + 1 by omega, show 2 * (k + 1) - 1 = 2 * k + 1 by omega]
-      ring
+  fun_induction mulFit n p q with
+  | case1 => simp
+  | case2 => simp [doMul, weight]
+  | case3 n p q m' k' p₀ p₁ q₀ q₁ ih₀ ih₁ _ =>
+    simp only [addAt, FreeM.cost_bind, FreeM.cost_pure, cost_addList, cost_subList, ih₀, ih₁,
+      mulCount, addCount, length_eval_mulFit, length_eval_subList, m', k', p₀, p₁, q₀, q₁,
+      List.takeD_length, List.length_drop, List.length_append, List.length_cons]
+    obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m + 1 := ⟨(n + 2) / 2 - 1, by omega⟩
+    obtain ⟨k, hk⟩ : ∃ k, n + 2 - (m + 1) = k + 1 := ⟨n + 2 - (m + 1) - 1, by omega⟩
+    have hkm : m ≤ k := by omega
+    have hn : n = m + k := by omega
+    rw [hm, hk]
+    subst hn
+    simp (disch := omega) only [Nat.min_eq_left, Nat.min_eq_right, Nat.max_eq_left,
+      show 2 * (m + 1) - 1 = 2 * m + 1 by omega, show 2 * (k + 1) - 1 = 2 * k + 1 by omega]
+    ring
 
 /-! ### Closed forms at powers of two -/
 
