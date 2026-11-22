@@ -93,14 +93,17 @@ universe u v
 @[expose] noncomputable def gateSweepCoefficient (r k₀ : ℕ) : ℝ :=
   (k₀ + 2 : ℝ) / ((r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1)
 
+/-- The gate-sweep denominator `r + 2 ^ k₀ - k₀ - 1` is positive for `1 ≤ r`. -/
+private theorem gateSweep_denom_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
+    (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
+  have h1 := quadFormGateSweep_denom_ge r k₀
+  have h2 : (1 : ℝ) ≤ r := by exact_mod_cast hr
+  linarith
+
 theorem gateSweepCoefficient_pos {r : ℕ} (hr : 1 ≤ r) (k₀ : ℕ) :
     0 < gateSweepCoefficient r k₀ := by
   unfold gateSweepCoefficient
-  have hd : (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
-    have h1 := quadFormGateSweep_denom_ge r k₀
-    have h2 : (1 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
-  exact div_pos (by positivity) hd
+  exact div_pos (by positivity) (gateSweep_denom_pos hr k₀)
 
 /-- Explicit `Ω(log r)` choice of `k₀` for `gateSweepCoefficient`: for every `r ≥ 2`, some `k₀ : ℕ`
 satisfies `log₂ r - log₂ log₂ r - 1 ≤ (r - 1) · gateSweepCoefficient r k₀`. -/
@@ -135,11 +138,7 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
     refine ⟨k₀, ?_⟩
     have hk₀_alg : (k₀ : ℝ) ≤ (r - 1 : ℝ) * gateSweepCoefficient r k₀ := by
       unfold gateSweepCoefficient
-      have hd_pos : (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
-        have h1 := quadFormGateSweep_denom_ge r k₀
-        have h2 : (4 : ℝ) ≤ r := by exact_mod_cast hr4
-        linarith
-      rw [mul_div_assoc', le_div_iff₀ hd_pos]
+      rw [mul_div_assoc', le_div_iff₀ (gateSweep_denom_pos (by omega) k₀)]
       have hk₀_pow_r : (k₀ : ℝ) * (2 : ℝ) ^ k₀ ≤ r := by exact_mod_cast hk₀_pow
       have hr4_r : (4 : ℝ) ≤ r := by exact_mod_cast hr4
       have hk₀_nn : (0 : ℝ) ≤ k₀ := Nat.cast_nonneg k₀
@@ -194,11 +193,8 @@ private theorem sum_straddle_le_of_tangent {σ : Signature.{v}} {n m r : ℕ} (h
   have hG_le : (Nat.card (Compiler.InnerGate c) : ℝ) ≤ c.innerSize := by
     exact_mod_cast Compiler.card_innerGate_le (c := c)
   have hpos2 : (0 : ℝ) < (2 : ℝ) ^ k₀ := by positivity
-  have hDr_nn : (0 : ℝ) ≤ ((r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1) / (2 : ℝ) ^ k₀ := by
-    refine div_nonneg ?_ hpos2.le
-    have h1 := quadFormGateSweep_denom_ge r k₀
-    have h2 : (1 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hDr_nn : (0 : ℝ) ≤ ((r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1) / (2 : ℝ) ^ k₀ :=
+    div_nonneg (gateSweep_denom_pos hr k₀).le hpos2.le
   have hd_nn : (0 : ℝ) ≤ {i : Fin n | ¬ Compiler.Reach c (.input i)}.ncard := Nat.cast_nonneg _
   have hsum_rhs :
       (∑ w : Compiler.ActiveSignal c,
@@ -687,10 +683,7 @@ private theorem eventually_exists_layout_signalWidth_le_gateSweep {U : Type u}
   have hq : (1 : ℝ) < q := by exact_mod_cast Finite.one_lt_card
   have hq2 : (2 : ℝ) ≤ q := by exact_mod_cast (Finite.one_lt_card : 1 < q)
   set D_r : ℝ := (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1
-  have hDr_pos : 0 < D_r := by
-    have h1 := quadFormGateSweep_denom_ge r k₀
-    have h2 : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hDr_pos : 0 < D_r := gateSweep_denom_pos (by omega) k₀
   set L₀ := gateSweepCoefficient r k₀
   have hL₀_pos : 0 < L₀ := gateSweepCoefficient_pos (by omega) k₀
   have hDr_L₀ : (D_r / (2 : ℝ) ^ k₀) * L₀ = (k₀ + 2 : ℝ) / (2 : ℝ) ^ k₀ := by
@@ -788,10 +781,7 @@ theorem eventually_gateSweep_lt_innerSize {r : ℕ} (hr : 2 ≤ r) (k₀ : ℕ)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
         (gateSweepCoefficient r k₀ - ε) * n < c.innerSize := by
   set D_r : ℝ := (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1
-  have hDr_pos : 0 < D_r := by
-    have h1 := quadFormGateSweep_denom_ge r k₀
-    have h2 : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hDr_pos : 0 < D_r := gateSweep_denom_pos (by omega) k₀
   set δ := D_r * ε / (2 : ℝ) ^ k₀
   have hδ : 0 < δ := by positivity
   have hK_pos : ∀ᶠ n in atTop, 1 ≤ K n := hSK.eventually_rectangleFree.mono fun _ h => h.pos
@@ -995,10 +985,7 @@ theorem exists_eventually_agreement_le_gateSweep {r : ℕ} (hr : 2 ≤ r) (k₀ 
           (c.innerSize : ℝ) ≤ (gateSweepCoefficient r k₀ - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b n + Real.exp (-(γ * n)) := by
   set D_r : ℝ := (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1
-  have hDr_pos : 0 < D_r := by
-    have h1 := quadFormGateSweep_denom_ge r k₀
-    have h2 : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hDr_pos : 0 < D_r := gateSweep_denom_pos (by omega) k₀
   set δ := D_r * ε / (2 : ℝ) ^ k₀
   have hδ : 0 < δ := by positivity
   have hμ : 0 < min (δ / 4) (1 / 2) := lt_min (by positivity) (by norm_num)
