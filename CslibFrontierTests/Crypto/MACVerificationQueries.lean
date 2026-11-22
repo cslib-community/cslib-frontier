@@ -36,8 +36,8 @@ witnesses:
   without access to `sk`.
 * **Malformed wrong-length queries:** wrong-length signing queries return `[]` without logging,
   wrong-length verification messages return `[false]` without winning even when raw `verify` returns
-  `true`, and wrong-length tags on `prfMAC` / `vqMacToPrfStep` return `[false]` locally with `0`
-  PRF queries.
+  `true`, and wrong-length tags on `prfMAC` / `vqMacToPrfDistinguisher` are rejected locally with
+  `0` PRF queries.
 * **PRF MAC instantiation:** `PseudorandomFunction.sufCmaVq_prfMAC`,
   `succProbability_sufCmaVqGame_prfMAC_le`, and `MACScheme.sufCmaVq_iff_sufCma`.
 -/
@@ -90,10 +90,7 @@ example :
       (vqForgeExperiment (pure ((), ())) (Signer.ofSign fun () m => pure m)
         (fun () () _ _ => true) finiteSignOnlyAdversary) = 0 := by
   refine succProbability_vqForgeExperiment_zero _ _ _ fun () => ?_
-  unfold IsVerificationQueryBounded finiteSignOnlyAdversary
-  exact ((ProbOracleComp.isCostBounded_query
-    (fun q : Bool ⊕ (Bool × Bool) => if q.isRight then 1 else 0)
-    (Sum.inl false)).bind fun _ => .pure () 0).mono (by simp)
+  exact (IsVerificationQueryBounded.query_sign false).bind fun _ => .pure () 0
 
 /-- Word-level `VqForger` that signs `0^n` and makes `0` verification queries. -/
 private def wordSignOnlyForger : VqForger :=
@@ -105,12 +102,9 @@ example (n : ℕ) :
     Game.succProbability
       (ProbComp.eval (alwaysAcceptMAC.sufCmaVqGame wordSignOnlyForger n)) = 0 := by
   refine alwaysAcceptMAC.succProbability_sufCmaVqGame_zero ?_
-  unfold IsWordVerificationQueryBounded wordSignOnlyForger
-  rw [map_eq_bind_pure_comp]
-  exact (((ProbOracleComp.isCostBounded_query
-    (fun req : Bool × List Bool => if req.1 then 1 else 0)
-    (false, List.replicate n false)).bind fun _ => .pure _ 0).bind
-    fun _ => .pure () 0).mono (by simp)
+  exact ((OracleComp.isCostBounded_map_iff _ _ _).mpr
+    (IsWordVerificationQueryBounded.query_sign (List.replicate n false))).bind
+    fun _ => .pure () 0
 
 /-! ### Boundary 2: Replaying `(m, t) ∈ log` replies `[true]` without winning -/
 
@@ -219,28 +213,14 @@ theorem not_sufCmaVq_twoTagMAC : ¬ twoTagMAC.SUFCMAVq := by
 
 private theorem isWordVerificationQueryBounded_flipSignedTagVqForger (n : ℕ) :
     IsWordVerificationQueryBounded (flipSignedTagVqForger n []) 1 := by
-  unfold IsWordVerificationQueryBounded flipSignedTagVqForger
-  have h1 : OracleComp.IsCostBounded
-      (Sum.elim (fun _ => 0) fun req : Bool × List Bool => if req.1 then 1 else 0)
-      (List.take 1 <$> ProbOracleComp.query (spec := fun _ : Bool × List Bool => List Bool)
-        (false, List.replicate n false)) 0 := by
-    rw [map_eq_bind_pure_comp]
-    exact ((ProbOracleComp.isCostBounded_query
-      (fun req : Bool × List Bool => if req.1 then 1 else 0)
-      (false, List.replicate n false)).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0).mono (by simp)
-  have h2 : ∀ tag : List Bool, OracleComp.IsCostBounded
-      (Sum.elim (fun _ => 0) fun req : Bool × List Bool => if req.1 then 1 else 0)
-      (List.take 0 <$> ProbOracleComp.query (spec := fun _ : Bool × List Bool => List Bool)
-        (true, encPair encBits encBits (List.replicate n false, [!tag.headD false]))) 1 := by
-    intro tag
-    rw [map_eq_bind_pure_comp]
-    exact ((ProbOracleComp.isCostBounded_query
-      (fun req : Bool × List Bool => if req.1 then 1 else 0)
-      (true, encPair encBits encBits (List.replicate n false, [!tag.headD false]))).bind fun _ =>
-      OracleComp.IsCostBounded.pure _ 0).mono (by simp)
-  exact (h1.bind fun tag => (h2 tag).bind fun _ =>
-    OracleComp.IsCostBounded.pure () 0).mono (by simp)
+  unfold flipSignedTagVqForger
+  refine (((OracleComp.isCostBounded_map_iff (List.take 1) _ _).mpr
+      (IsWordVerificationQueryBounded.query_sign (List.replicate n false))).bind
+    fun (tag : List Bool) =>
+      (((OracleComp.isCostBounded_map_iff (List.take 0) _ _).mpr
+        (IsWordVerificationQueryBounded.query_verify
+          (encPair encBits encBits (List.replicate n false, [!tag.headD false])))).bind
+        fun _ => .pure () 0)).mono (by omega)
 
 -- At `Q_v = 1` (`width = 0`), `twoTagMAC.vqToSufForger` wins `sufCmaGame` with probability `1`
 -- without ever accessing `sk`, matching `succProbability_sufCmaVqGame_le_mul`.
@@ -293,16 +273,21 @@ example (n : ℕ) :
   dsimp only [MACScheme.sufCmaVqOracle, StateT.run]
   simp [encPair_apply, encBits_apply, show unframe [false] = [] from rfl]
 
--- Wrong-length tag (`tag.length ≠ n`) on `vqMacToPrfStep` returns `[false]` locally with `0` PRF
--- queries.
-example :
-    (vqMacToPrfStep 2 (true, encPair encBits encBits ([false, true], [false]))
-      ⟨[], false⟩).IsQueryBounded 0 := by
-  dsimp only [vqMacToPrfStep]
-  simp only [↓reduceIte, encPair_apply, encBits_apply, unframe_frame_append,
-    dropFrame_frame_append, List.length_cons, List.length_nil, Nat.reduceAdd, beq_self_eq_true,
-    Nat.reduceBEq, Bool.and_false, Bool.false_eq_true]
-  exact .pure _ 0
+-- Wrong-length tag (`tag.length ≠ n`) on `vqMacToPrfDistinguisher` is rejected locally with `0`
+-- external PRF queries.
+private def wrongTagLenVqForger : VqForger :=
+  fun _ _ => do
+    let _ ← List.take 1 <$>
+      ProbOracleComp.query (true, encPair encBits encBits ([false, true], [false]))
+    return ()
+
+example : (vqMacToPrfDistinguisher wrongTagLenVqForger 2 []).IsQueryBounded 0 := by
+  refine isQueryBounded_vqMacToPrfDistinguisher_of_wellFormed ?_
+  unfold wrongTagLenVqForger
+  exact (((OracleComp.isCostBounded_map_iff (List.take 1) _ _).mpr
+    (ProbOracleComp.isCostBounded_query _
+      (true, encPair encBits encBits ([false, true], [false])))).bind
+    fun _ => .pure () 0).mono (by decide)
 
 /-! ### Asymptotic client instantiations -/
 

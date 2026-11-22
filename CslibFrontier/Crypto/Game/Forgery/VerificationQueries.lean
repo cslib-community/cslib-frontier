@@ -16,8 +16,8 @@ import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.UniformNat.LowerBound
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.DensityBounds
 import CslibFrontier.Probability.PMF.Event
-import CslibFrontier.Probability.PMF.Map
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -122,31 +122,37 @@ abbrev forgeVqSpec (M Sig : Type) : OracleSpec (M ⊕ (M × Sig)) :=
 
 /-- Pathwise budget of at most `Q_s` signing queries (`.inl m`), leaving private coin flips and
 verification queries unconstrained. -/
-@[expose] def IsSigningQueryBounded {M Sig α : Type}
+abbrev IsSigningQueryBounded {M Sig α : Type}
     (program : ProbOracleComp (forgeVqSpec M Sig) α) (Q_s : ℕ) : Prop :=
   OracleComp.IsCostBounded
     (Sum.elim (fun _ => 0) (fun q => if q.isLeft then 1 else 0)) program Q_s
 
 /-- Pathwise budget of at most `Q_v` verification queries (`.inr (m, σ)`), leaving private coin
 flips and signing queries unconstrained. -/
-@[expose] def IsVerificationQueryBounded {M Sig α : Type}
+abbrev IsVerificationQueryBounded {M Sig α : Type}
     (program : ProbOracleComp (forgeVqSpec M Sig) α) (Q_v : ℕ) : Prop :=
   OracleComp.IsCostBounded
     (Sum.elim (fun _ => 0) (fun q => if q.isRight then 1 else 0)) program Q_v
 
-/-- A larger signing-query budget remains a signing-query budget. -/
-theorem IsSigningQueryBounded.mono {M Sig α : Type}
-    {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q_s Q_s' : ℕ}
-    (h : IsSigningQueryBounded program Q_s) (hle : Q_s ≤ Q_s') :
-    IsSigningQueryBounded program Q_s' :=
-  OracleComp.IsCostBounded.mono h hle
+/-- One signing query costs `1` signing query. -/
+theorem IsSigningQueryBounded.query_sign {M Sig : Type} (m : M) :
+    IsSigningQueryBounded (ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inl m)) 1 :=
+  ProbOracleComp.isCostBounded_query _ (Sum.inl m)
 
-/-- A larger verification-query budget remains a verification-query budget. -/
-theorem IsVerificationQueryBounded.mono {M Sig α : Type}
-    {program : ProbOracleComp (forgeVqSpec M Sig) α} {Q_v Q_v' : ℕ}
-    (h : IsVerificationQueryBounded program Q_v) (hle : Q_v ≤ Q_v') :
-    IsVerificationQueryBounded program Q_v' :=
-  OracleComp.IsCostBounded.mono h hle
+/-- One verification query costs `0` signing queries. -/
+theorem IsSigningQueryBounded.query_verify {M Sig : Type} (p : M × Sig) :
+    IsSigningQueryBounded (ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inr p)) 0 :=
+  ProbOracleComp.isCostBounded_query _ (Sum.inr p)
+
+/-- One signing query costs `0` verification queries. -/
+theorem IsVerificationQueryBounded.query_sign {M Sig : Type} (m : M) :
+    IsVerificationQueryBounded (ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inl m)) 0 :=
+  ProbOracleComp.isCostBounded_query _ (Sum.inl m)
+
+/-- One verification query costs `1` verification query. -/
+theorem IsVerificationQueryBounded.query_verify {M Sig : Type} (p : M × Sig) :
+    IsVerificationQueryBounded (ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inr p)) 1 :=
+  ProbOracleComp.isCostBounded_query _ (Sum.inr p)
 
 /-- A total external query budget bounds the number of signing queries. -/
 theorem IsSigningQueryBounded.of_isQueryBounded {M Sig α : Type}
@@ -276,9 +282,8 @@ theorem isSigningQueryBounded_forgerToVq {PK M Sig : Type}
     {A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)} {pk : PK} {Q_s : ℕ}
     (h : (A pk).IsQueryBounded Q_s) :
     IsSigningQueryBounded (forgerToVq A pk) Q_s := by
-  unfold IsSigningQueryBounded forgerToVq
-  have hfirst : OracleComp.IsCostBounded
-      (Sum.elim (fun _ => 0) (fun q : M ⊕ (M × Sig) => if q.isLeft then 1 else 0))
+  unfold forgerToVq
+  have hfirst : IsSigningQueryBounded
       (OracleComp.interpret
         (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
           fun m => ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inl m))
@@ -286,19 +291,16 @@ theorem isSigningQueryBounded_forgerToVq {PK M Sig : Type}
     refine h.interpret fun q => ?_
     cases q with
     | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
-    | inr m => exact ProbOracleComp.isCostBounded_query _ (Sum.inl m)
+    | inr m => exact IsSigningQueryBounded.query_sign m
   exact (hfirst.bind fun cand =>
-    (ProbOracleComp.isCostBounded_query
-      (fun q : M ⊕ (M × Sig) => if q.isLeft then 1 else 0) (Sum.inr cand)).bind
-      fun _ => .pure () 0).mono (by simp)
+    (IsSigningQueryBounded.query_verify cand).bind fun _ => .pure () 0).mono (by simp)
 
 /-- `forgerToVq A` makes at most `1` verification query. -/
 theorem isVerificationQueryBounded_forgerToVq {PK M Sig : Type}
     (A : PK → ProbOracleComp (fun _ : M => Sig) (M × Sig)) (pk : PK) :
     IsVerificationQueryBounded (forgerToVq A pk) 1 := by
-  unfold IsVerificationQueryBounded forgerToVq
-  have hzero : OracleComp.IsCostBounded
-      (Sum.elim (fun _ => 0) (fun q : M ⊕ (M × Sig) => if q.isRight then 1 else 0))
+  unfold forgerToVq
+  have hzero : IsVerificationQueryBounded
       (OracleComp.interpret
         (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
           fun m => ProbOracleComp.query (spec := forgeVqSpec M Sig) (Sum.inl m))
@@ -307,17 +309,13 @@ theorem isVerificationQueryBounded_forgerToVq {PK M Sig : Type}
       fun q => ?_
     cases q with
     | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
-    | inr m => exact ProbOracleComp.isCostBounded_query _ (Sum.inl m)
+    | inr m => exact IsVerificationQueryBounded.query_sign m
   exact (hzero.bind fun cand =>
-    (ProbOracleComp.isCostBounded_query
-      (fun q : M ⊕ (M × Sig) => if q.isRight then 1 else 0) (Sum.inr cand)).bind
-      fun _ => .pure () 0).mono (by simp)
+    (IsVerificationQueryBounded.query_verify cand).bind fun _ => .pure () 0).mono (by simp)
 
 /-! ### Finite Theorem 6.1: planted-query guessing reduction to Attack Game 6.1 -/
 
-/-- An adversary with verification-query budget `0` wins `vqForgeExperiment` with probability
-`0`. -/
-theorem eval_vqForgeExperiment_zero {PK SK M Sig : Type} [Inhabited Sig] [DecidableEq M]
+private theorem eval_vqForgeExperiment_zero {PK SK M Sig : Type} [Inhabited Sig] [DecidableEq M]
     [DecidableEq Sig] (keyGen : ProbComp (PK × SK)) (signer : Signer SK M Sig)
     (verify : PK → SK → M → Sig → Bool)
     {A : PK → ProbOracleComp (forgeVqSpec M Sig) Unit}
@@ -689,9 +687,12 @@ private theorem le_mul_add_of_le_sum {Q : ℕ} {p B c ε : ℝ≥0∞} {idx W : 
   have hε_nonneg : 0 ≤ ε.toReal := ENNReal.toReal_nonneg
   nlinarith
 
-/-- **General index-sampler guessing step for Attack Game 6.2**: suppose every signature produced by
-`signer` verifies (`hsign`), `admit` characterizes when `signer` accepts (`hadmit`), `A pk` makes at
-most `Q_v` verification queries (`hA`), and `index` hits every `j < Q_v` according to
+/-- Finite index-sampler guessing step toward [BonehShoup2023], Section 6.2, Theorem 6.1
+(pp. 221–223), without machine running-time certificates (not the computational result; see
+`Cslib.Crypto.MACScheme.succProbability_sufCmaVqGame_le_mul_add` and
+`Cslib.Crypto.MACScheme.sufCmaVq_iff_sufCma`): suppose every signature produced by `signer` verifies
+(`hsign`), `admit` characterizes when `signer` accepts (`hadmit`), `A pk` makes at most `Q_v`
+verification queries (`hA`), and `index` hits every `j < Q_v` according to
 `1 ≤ c * Pr[index = j] + ε` (`hindex`). Then `vqForgeExperiment` accepts with probability at most
 `c` times that of `forgeExperiment` with `freshPair` on `vqToForgerOn admit index A`, plus `ε`. -/
 theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabited M]
@@ -807,45 +808,16 @@ theorem eval_vqForgeExperiment_le_mul_add_of_index {PK SK M Sig : Type} [Inhabit
       (fun j _ => PMF.apply_ne_top _ _)
       (fun j _ => PMF.apply_ne_top _ _)
       hunion hrhs_ge hindex
-  let g : PK × SK → ℝ≥0∞ := fun keys =>
-    (((ProbComp.eval ((vqToForgerOn admit index A keys.1).runLogWith (signer keys.2))).bind
-      fun x => PMF.pure
-        (verify keys.1 keys.2 x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true)
-  calc ((ProbComp.eval keyGen).bind fun x =>
-        (ProbComp.eval (((A x.1).runState (vqOracle signer verify x.1 x.2)).run ⟨[], false⟩)).bind
-          fun y => PMF.pure y.2.won) true
-      = ∑' keys, ProbComp.eval keyGen keys *
-          (((ProbComp.eval (((A keys.1).runState
-              (vqOracle signer verify keys.1 keys.2)).run ⟨[], false⟩)).bind
-              fun y => PMF.pure y.2.won) true) := PMF.bind_apply _ _ _
-    _ ≤ ∑' keys, (ProbComp.eval keyGen keys * (c * g keys) + ProbComp.eval keyGen keys * ε) := by
-        refine tsum_le_tsum fun keys => ?_
-        by_cases hk : keys ∈ (ProbComp.eval keyGen).support
-        · rw [← mul_add]
-          exact mul_le_mul_of_nonneg_left (hkey keys hk) zero_le
-        · simp [(PMF.apply_eq_zero_iff _ _).mpr hk]
-    _ = ∑' keys, c * (ProbComp.eval keyGen keys * g keys) +
-          ∑' keys, ProbComp.eval keyGen keys * ε := by
-        rw [tsum_add]
-        congr 1
-        exact tsum_congr fun keys => by rw [← mul_assoc, mul_comm (ProbComp.eval keyGen keys) c,
-          mul_assoc]
-    _ = c * (((ProbComp.eval keyGen).bind fun keys =>
-          (ProbComp.eval ((vqToForgerOn admit index A keys.1).runLogWith (signer keys.2))).bind
-            fun x => PMF.pure
-              (verify keys.1 keys.2 x.1.1 x.1.2 && freshPair x.1.1 x.1.2 x.2)) true) + ε := by
-        rw [ENNReal.tsum_mul_left, ENNReal.tsum_mul_right, (ProbComp.eval keyGen).tsum_coe,
-          one_mul, PMF.bind_apply]
+  exact PMF.bind_apply_le_mul_bind_apply_add_on_support (ProbComp.eval keyGen) hkey
 
-/-- **Finite query-bounded step of Theorem 6.1, policy-aware form** ([BonehShoup2023], Section 6.2,
-Theorem 6.1, pp. 221–223): when every signature produced by `signer` verifies and `admit`
-characterizes when `signer` accepts, an adversary making at most `Q_v` verification queries wins
-`vqForgeExperiment` with probability at most `Q_v` times the success probability of
-`vqToForgerOn admit (Fin.val <$> ProbComp.unifFin (Q_v - 1)) A` in `forgeExperiment` with
-`freshPair`. Holds for every `Q_v : ℕ`, including `Q_v = 0`. This finite step bounds query counts
-without a machine running-time certificate; see
+/-- Finite query-bounded step toward [BonehShoup2023], Section 6.2, Theorem 6.1 (pp. 221–223),
+without machine running-time certificates (not the cited computational result; see
 `Cslib.Crypto.MACScheme.succProbability_sufCmaVqGame_le_mul_add` and
-`Cslib.Crypto.MACScheme.sufCmaVq_iff_sufCma` for the full computational theorem. -/
+`Cslib.Crypto.MACScheme.sufCmaVq_iff_sufCma`): when every signature produced by `signer` verifies
+and `admit` characterizes when `signer` accepts, an adversary making at most `Q_v` verification
+queries wins `vqForgeExperiment` with probability at most `Q_v` times the success probability of
+`vqToForgerOn admit (Fin.val <$> ProbComp.unifFin (Q_v - 1)) A` in `forgeExperiment` with
+`freshPair`. Holds for every `Q_v : ℕ`, including `Q_v = 0`. -/
 theorem succProbability_vqForgeExperiment_le_mul {PK SK M Sig : Type} [Inhabited M]
     [Inhabited Sig] [DecidableEq M] [DecidableEq Sig]
     (keyGen : ProbComp (PK × SK)) (signer : Signer SK M Sig)
@@ -887,11 +859,12 @@ theorem succProbability_vqForgeExperiment_le_mul {PK SK M Sig : Type} [Inhabited
   exact ENNReal.toNNReal_mono
     (ENNReal.mul_ne_top (ENNReal.natCast_ne_top _) (PMF.apply_ne_top _ _)) hle
 
-/-- **Finite query-bounded step of Theorem 6.1 for unrestricted signers (`Signer.ofSign`)**
-([BonehShoup2023], Section 6.2, Theorem 6.1, pp. 221–223): when every signature in the support of
-`sign sk m` verifies, `vqForgeExperiment` success probability for any `Q_v`-verification-query
-adversary is at most `Q_v` times the `freshPair` `forgeExperiment` success probability of
-`vqToForger (Fin.val <$> ProbComp.unifFin (Q_v - 1)) A`. -/
+/-- Finite query-bounded step toward [BonehShoup2023], Section 6.2, Theorem 6.1 (pp. 221–223) for
+unrestricted signers (`Signer.ofSign`), without machine running-time certificates (not the cited
+computational result; see `Cslib.Crypto.MACScheme.sufCmaVq_iff_sufCma`): when every signature in the
+support of `sign sk m` verifies, `vqForgeExperiment` success probability for any
+`Q_v`-verification-query adversary is at most `Q_v` times the `freshPair` `forgeExperiment` success
+probability of `vqToForger (Fin.val <$> ProbComp.unifFin (Q_v - 1)) A`. -/
 theorem succProbability_vqForgeExperiment_ofSign_le_mul {PK SK M Sig : Type} [Inhabited M]
     [Inhabited Sig] [DecidableEq M] [DecidableEq Sig]
     (keyGen : ProbComp (PK × SK)) (sign : SK → M → ProbComp Sig)
@@ -912,7 +885,9 @@ theorem succProbability_vqForgeExperiment_ofSign_le_mul {PK SK M Sig : Type} [In
       exact hsign keys hkeys m σ hσ)
     Q_v hA
 
-/-- **Fair-coin `sampleModIndex` form of the finite Theorem 6.1 step**: drawing the planted
+/-- Finite query-bounded fair-coin `sampleModIndex` step toward [BonehShoup2023], Section 6.2,
+Theorem 6.1 (pp. 221–223), without machine running-time certificates (not the cited computational
+result; see `Cslib.Crypto.MACScheme.succProbability_sufCmaVqGame_le_mul_add`): drawing the planted
 verification-query index via `ProbComp.sampleModIndex width Q_v` from `width` fair coins gives the
 factor `Q_v` plus the dyadic bias `Q_v / 2 ^ width`, for every `width` and `Q_v` (including
 `Q_v = 0`). -/
@@ -938,9 +913,11 @@ theorem eval_vqForgeExperiment_le_mul_sampleModIndex_add {PK SK M Sig : Type} [I
   rw [ProbComp.sampleModIndex_eq_sampleModNat width ((Nat.zero_le j).trans_lt hj)]
   exact ProbComp.one_le_mul_eval_sampleModNat_add hj
 
-/-- **Exact dyadic `sampleModIndex` form of the finite Theorem 6.1 step**: when `Q_v = 0` or `Q_v`
-divides `2 ^ width`, `ProbComp.sampleModIndex width Q_v` is exactly uniform below `Q_v`, so the
-additive bias term `Q_v / 2 ^ width` vanishes. -/
+/-- Finite query-bounded exact dyadic `sampleModIndex` step toward [BonehShoup2023], Section 6.2,
+Theorem 6.1 (pp. 221–223), without machine running-time certificates (not the cited computational
+result; see `Cslib.Crypto.MACScheme.succProbability_sufCmaVqGame_le_mul`): when `Q_v = 0` or `Q_v`
+divides `2 ^ width`, `ProbComp.sampleModIndex width Q_v` is unbiased below `Q_v`, so the additive
+bias term `Q_v / 2 ^ width` vanishes. -/
 theorem eval_vqForgeExperiment_le_mul_sampleModIndex_of_dvd {PK SK M Sig : Type} [Inhabited M]
     [Inhabited Sig] [DecidableEq M] [DecidableEq Sig]
     (keyGen : ProbComp (PK × SK)) (signer : Signer SK M Sig)
@@ -963,49 +940,8 @@ theorem eval_vqForgeExperiment_le_mul_sampleModIndex_of_dvd {PK SK M Sig : Type}
   have hle := eval_vqForgeExperiment_le_mul_add_of_index keyGen signer verify admit hadmit hsign
     Q_v (ProbComp.sampleModIndex width Q_v) (c := (Q_v : ℝ≥0∞)) (ε := 0)
     (fun j hj => by
-      have hQv : 0 < Q_v := (Nat.zero_le j).trans_lt hj
-      rw [add_zero, ProbComp.sampleModIndex_eq_sampleModNat width hQv]
-      let q := 2 ^ width / Q_v
-      have hmul : q * Q_v = 2 ^ width := Nat.div_mul_cancel hdvd
-      let emb : Fin q ↪ Fin (2 ^ width) :=
-        ⟨fun r => ⟨r.val * Q_v + j, by
-          have hr : (r.val + 1) * Q_v ≤ q * Q_v := Nat.mul_le_mul_right Q_v r.isLt
-          linarith⟩, fun a b hab => by
-          simp only [Fin.mk.injEq] at hab
-          exact Fin.ext (Nat.mul_right_cancel hQv (by omega))⟩
-      have hcard : q ≤ (Finset.univ.filter (fun x : Fin (2 ^ width) => x.val % Q_v = j)).card := by
-        calc q = (Finset.univ.map emb).card := by simp
-          _ ≤ _ := Finset.card_le_card fun x hx => by
-            obtain ⟨r, -, rfl⟩ := Finset.mem_map.mp hx
-            refine Finset.mem_filter.mpr ⟨Finset.mem_univ _, ?_⟩
-            change (r.val * Q_v + j) % Q_v = j
-            rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
-      have heval : ProbComp.eval (ProbComp.sampleModNat width Q_v) j =
-          ((Finset.univ.filter (fun x : Fin (2 ^ width) => x.val % Q_v = j)).card : ℝ≥0∞) *
-            ((2 : ℝ≥0∞) ^ width)⁻¹ := by
-        rw [ProbComp.eval_sampleModNat, PMF.map_apply, tsum_fintype]
-        simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat]
-        calc ∑ b : Fin (2 ^ width),
-              (if j = b.val % Q_v then ((2 : ℝ≥0∞) ^ width)⁻¹ else 0)
-            = ∑ b : Fin (2 ^ width),
-                (if b.val % Q_v = j then ((2 : ℝ≥0∞) ^ width)⁻¹ else 0) :=
-              Finset.sum_congr rfl fun b _ => by
-                by_cases hb : b.val % Q_v = j
-                · simp [hb]
-                · have hb' : j ≠ b.val % Q_v := Ne.symm hb
-                  simp [hb, hb']
-          _ = _ := by rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
-      rw [heval]
-      calc (1 : ℝ≥0∞)
-          = ((2 : ℝ≥0∞) ^ width) * ((2 : ℝ≥0∞) ^ width)⁻¹ :=
-            (ENNReal.mul_inv_cancel (pow_ne_zero _ two_ne_zero)
-              (ENNReal.pow_ne_top ENNReal.ofNat_ne_top)).symm
-        _ = (Q_v : ℝ≥0∞) * ((q : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ width)⁻¹) := by
-            rw [← mul_assoc, mul_comm (Q_v : ℝ≥0∞) (q : ℝ≥0∞)]
-            exact_mod_cast congrArg (· * ((2 : ℝ≥0∞) ^ width)⁻¹)
-              (by exact_mod_cast hmul.symm)
-        _ ≤ _ := mul_le_mul_of_nonneg_left
-            (mul_le_mul_of_nonneg_right (Nat.cast_le.mpr hcard) zero_le) zero_le)
+      rw [add_zero, ProbComp.sampleModIndex_eq_sampleModNat width ((Nat.zero_le j).trans_lt hj)]
+      exact ProbComp.one_le_mul_eval_sampleModNat_of_dvd hj hdvd)
     hA
   simpa using hle
 
@@ -1354,15 +1290,15 @@ private theorem succProbability_forgeExperiment_uniformFunction_le {D R : Type} 
   exact (ENNReal.toNNReal_mono (ENNReal.inv_ne_top.mpr (by simp [Fintype.card_ne_zero]))
     hbound).trans_eq (by rw [ENNReal.toNNReal_inv, ENNReal.toNNReal_natCast])
 
-/-- **Finite query-bounded step of Exercise 6.2** ([BonehShoup2023], Section 6.14, Exercise 6.2,
-p. 246): for any finite keyed function `F : Key → D → R` and any adversary `A` making at most
-`Q_v` verification queries, the success probability of `A` in `vqForgeExperiment` against the
-deterministic MAC `(k, m) ↦ F k m` is at most
+/-- Finite query-bounded step toward [BonehShoup2023], Section 6.14, Exercise 6.2 (p. 246),
+without machine running-time certificates (not the cited computational result; see
+`Cslib.Crypto.succProbability_sufCmaVqGame_prfMAC_le` and
+`Cslib.Crypto.PseudorandomFunction.sufCmaVq_prfMAC`): for any finite keyed function
+`F : Key → D → R` and any adversary `A` making at most `Q_v` verification queries, the success
+probability of `A` in `vqForgeExperiment` against the deterministic MAC `(k, m) ↦ F k m` is at most
 `PRF.advantage F (vqMacToPrfAdversary A) + Q_v / Fintype.card R` (without a `Q_v` factor on the PRF
 advantage). When `A ()` also makes at most `Q_s` signing queries, `vqMacToPrfAdversary A` makes at
-most `Q_s + Q_v` PRF queries (`isQueryBounded_vqMacToPrfAdversary`). See
-`Cslib.Crypto.succProbability_sufCmaVqGame_prfMAC_le` for the computational theorem with an
-`IsOraclePPT` reduction certificate. -/
+most `Q_s + Q_v` PRF queries (`isQueryBounded_vqMacToPrfAdversary`). -/
 theorem succProbability_vqForgeExperiment_prf_le {Key D R : Type} [Fintype Key] [Nonempty Key]
     [Fintype D] [DecidableEq D] [Fintype R] [DecidableEq R] [Nonempty R]
     (F : Key → D → R) (Q_v : ℕ)

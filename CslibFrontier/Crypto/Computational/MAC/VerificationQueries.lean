@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Crypto.Computational.MAC
-public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 public import CslibFrontier.Crypto.Game.Forgery.VerificationQueries
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -23,6 +22,7 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
@@ -52,9 +52,12 @@ In Attack Game 6.2 (`MACScheme.sufCmaVqGame`), an adversary `VqForger` interacts
 
 ## Main definitions
 
-* `Cslib.Crypto.VqForger`, `Cslib.Crypto.IsWordSigningQueryBounded`,
-  `Cslib.Crypto.IsWordVerificationQueryBounded`: word-level Attack Game 6.2 adversaries and pathwise
-  signing/verification query budgets.
+* `Cslib.Crypto.VqForger`, `Cslib.Crypto.VqForger.toTyped`,
+  `Cslib.Crypto.IsWordSigningQueryBounded`, `Cslib.Crypto.IsWordVerificationQueryBounded`:
+  word-level Attack Game 6.2 adversaries, typed view adapter, and pathwise signing/verification
+  query budgets.
+* `Cslib.Crypto.encVqState`: multi-tape encoding of `VqOracleState (List Bool) (List Bool)` as the
+  framed pair `(log, won)` under `encPair (encList (encPair encBits encBits)) encBool`.
 * `Cslib.Crypto.MACScheme.sufCmaVqOracle`, `Cslib.Crypto.MACScheme.sufCmaVqGame`,
   `Cslib.Crypto.MACScheme.SUFCMAVq`: the Attack Game 6.2 challenger, experiment, and security
   predicate on `MACScheme`.
@@ -108,17 +111,40 @@ abbrev VqForger : Type := ℕ → List Bool → WordOracleComp Bool Unit
 
 /-- Pathwise budget of at most `Q_s` signing queries (`(false, msg)`) on a `Bool`-tagged word
 channel. -/
-@[expose] def IsWordSigningQueryBounded {α : Type} (program : WordOracleComp Bool α)
-    (Q_s : ℕ) : Prop :=
+abbrev IsWordSigningQueryBounded {α : Type} (program : WordOracleComp Bool α) (Q_s : ℕ) : Prop :=
   OracleComp.IsCostBounded
     (Sum.elim (fun _ => 0) (fun req => if req.1 then 0 else 1)) program Q_s
 
 /-- Pathwise budget of at most `Q_v` verification queries (`(true, raw)`) on a `Bool`-tagged word
 channel. -/
-@[expose] def IsWordVerificationQueryBounded {α : Type} (program : WordOracleComp Bool α)
+abbrev IsWordVerificationQueryBounded {α : Type} (program : WordOracleComp Bool α)
     (Q_v : ℕ) : Prop :=
   OracleComp.IsCostBounded
     (Sum.elim (fun _ => 0) (fun req => if req.1 then 1 else 0)) program Q_v
+
+/-- One word-level signing query `(false, msg)` costs `1` signing query. -/
+theorem IsWordSigningQueryBounded.query_sign (msg : List Bool) :
+    IsWordSigningQueryBounded
+      (ProbOracleComp.query (spec := fun _ : Bool × List Bool => List Bool) (false, msg)) 1 :=
+  ProbOracleComp.isCostBounded_query _ (false, msg)
+
+/-- One word-level verification query `(true, raw)` costs `0` signing queries. -/
+theorem IsWordSigningQueryBounded.query_verify (raw : List Bool) :
+    IsWordSigningQueryBounded
+      (ProbOracleComp.query (spec := fun _ : Bool × List Bool => List Bool) (true, raw)) 0 :=
+  ProbOracleComp.isCostBounded_query _ (true, raw)
+
+/-- One word-level signing query `(false, msg)` costs `0` verification queries. -/
+theorem IsWordVerificationQueryBounded.query_sign (msg : List Bool) :
+    IsWordVerificationQueryBounded
+      (ProbOracleComp.query (spec := fun _ : Bool × List Bool => List Bool) (false, msg)) 0 :=
+  ProbOracleComp.isCostBounded_query _ (false, msg)
+
+/-- One word-level verification query `(true, raw)` costs `1` verification query. -/
+theorem IsWordVerificationQueryBounded.query_verify (raw : List Bool) :
+    IsWordVerificationQueryBounded
+      (ProbOracleComp.query (spec := fun _ : Bool × List Bool => List Bool) (true, raw)) 1 :=
+  ProbOracleComp.isCostBounded_query _ (true, raw)
 
 /-- A total external query budget bounds the number of signing queries. -/
 theorem IsWordSigningQueryBounded.of_isQueryBounded {α : Type} {program : WordOracleComp Bool α}
@@ -173,37 +199,33 @@ becomes `Sum.inr (unframe raw, dropFrame raw)` with its `Bool` verdict encoded a
 theorem VqForger.isSigningQueryBounded_toTyped {adversary : VqForger} {n : ℕ} {aux : List Bool}
     {Q_s : ℕ} (h : IsWordSigningQueryBounded (adversary n aux) Q_s) :
     IsSigningQueryBounded (adversary.toTyped n aux) Q_s := by
-  unfold IsSigningQueryBounded VqForger.toTyped
   refine h.interpret fun q => ?_
   cases q with
   | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
   | inr req =>
     rcases req with ⟨b, raw⟩
     cases b
-    · exact ProbOracleComp.isCostBounded_query _ (Sum.inl raw)
-    · simp only [map_eq_bind_pure_comp]
-      exact ((ProbOracleComp.isCostBounded_query
-        (fun q : List Bool ⊕ (List Bool × List Bool) => if q.isLeft then 1 else 0)
-        (Sum.inr (unframe raw, dropFrame raw))).bind fun _ => .pure _ 0).mono (by simp)
+    · exact IsSigningQueryBounded.query_sign raw
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+        (IsSigningQueryBounded.query_verify (unframe raw, dropFrame raw))
 
 /-- `VqForger.toTyped` preserves verification query budgets. -/
 theorem VqForger.isVerificationQueryBounded_toTyped {adversary : VqForger} {n : ℕ}
     {aux : List Bool} {Q_v : ℕ} (h : IsWordVerificationQueryBounded (adversary n aux) Q_v) :
     IsVerificationQueryBounded (adversary.toTyped n aux) Q_v := by
-  unfold IsVerificationQueryBounded VqForger.toTyped
   refine h.interpret fun q => ?_
   cases q with
   | inl k => exact ProbOracleComp.isCostBounded_sample _ (ProbComp.unifFin k)
   | inr req =>
     rcases req with ⟨b, raw⟩
     cases b
-    · exact ProbOracleComp.isCostBounded_query _ (Sum.inl raw)
-    · simp only [map_eq_bind_pure_comp]
-      exact ((ProbOracleComp.isCostBounded_query
-        (fun q : List Bool ⊕ (List Bool × List Bool) => if q.isRight then 1 else 0)
-        (Sum.inr (unframe raw, dropFrame raw))).bind fun _ => .pure _ 0).mono (by simp)
+    · exact IsVerificationQueryBounded.query_sign raw
+    · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+        (IsVerificationQueryBounded.query_verify (unframe raw, dropFrame raw))
 
-/-- Multi-tape encoding of `VqOracleState (List Bool) (List Bool)`. -/
+/-- Multi-tape encoding of `VqOracleState (List Bool) (List Bool)` as the framed pair
+`encPair (encList (encPair encBits encBits)) encBool` of the chronological `(msg, tag)` signing
+`log` and the `won` latch. -/
 enc_structure encVqState : VqOracleState (List Bool) (List Bool) where
   log : (encList (encPair encBits encBits)),
   won : encBool
@@ -334,7 +356,12 @@ theorem isPPT_sufCmaVqGame (M : MACScheme) {adversary : VqForger}
 
 /-- Strong MAC unforgeability under adaptive chosen-message and verification-query attack
 (`SUFCMAVq`) against uniform strict oracle-PPT adversaries ([BonehShoup2023], Section 6.2, Attack
-Game 6.2, p. 221), on `msgLen n`-bit messages. -/
+Game 6.2, p. 221), on `M.msgLen n`-bit messages:
+* signing queries `(false, msg)` with `msg.length ≠ M.msgLen n` return `[]` without signing or
+  recording `msg` in `log`;
+* verification queries `(true, raw)` decode `(msg, tag) := (unframe raw, dropFrame raw)`, return
+  `[false]` without latching `won` when `msg.length ≠ M.msgLen n`, and return `[true]` (by
+  `M.verify_sign`) without latching `won` when `(msg, tag) ∈ log`. -/
 def SUFCMAVq (M : MACScheme) : Prop :=
   Game.Indistinguishable
     (fun adversary n => ProbComp.eval (M.sufCmaVqGame adversary n))
@@ -415,9 +442,7 @@ end MACScheme
 
 /-! ### Direction 1: `SUFCMAVq` implies `SUFCMA` (`sufToVqForger`) -/
 
-/-- Step handler for `sufToVqForger`: forward signing query `request.2` to `(false, request.2)` and
-truncate the reply to `tagCap` bits. -/
-@[expose] def sufToVqStep (tagCap : ℕ) (request : Unit × List Bool) :
+private def sufToVqStep (tagCap : ℕ) (request : Unit × List Bool) :
     StateT Unit (WordOracleComp Bool) (List Bool) :=
   fun u => (·, u) <$> (List.take tagCap <$> ProbOracleComp.query (false, request.2))
 
@@ -425,7 +450,7 @@ truncate the reply to `tagCap` bits. -/
 signing query `((), msg)` to `(false, msg)` (truncating the reply to `tagBound n` bits) and submit
 the final candidate `(msg, tag)` as a single verification query `(true, encPair encBits encBits
 (msg, tag))`. -/
-@[expose] def sufToVqForger (tagBound : ℕ → ℕ) (adversary : Forger) : VqForger :=
+def sufToVqForger (tagBound : ℕ → ℕ) (adversary : Forger) : VqForger :=
   fun n aux => do
     let out ← (OracleComp.interpret
       (OracleComp.sumHandler
@@ -527,21 +552,6 @@ theorem eval_sufCmaVqGame_sufToVqForger (M : MACScheme) {tagBound : ℕ → ℕ}
   cases msg.length == M.msgLen n <;> cases !pairs.contains (msg, tag) <;>
     cases M.verify sk msg tag <;> rfl
 
-/-- Equality witness linking `sufToVqForger` to the typed reduction `forgerToVq`. -/
-theorem eval_sufCmaVqGame_sufToVqForger_eq_forgerToVq (M : MACScheme) {tagBound : ℕ → ℕ} {n : ℕ}
-    (htagBound : ∀ sk ∈ (ProbComp.eval (M.keyGen n)).support,
-      ∀ msg, msg.length = M.msgLen n →
-      ∀ tag ∈ (ProbComp.eval (M.sign sk msg)).support, tag.length ≤ tagBound n)
-    (adversary : Forger) :
-    ProbComp.eval (M.sufCmaVqGame (sufToVqForger tagBound adversary) n) =
-      ProbComp.eval
-        (vqForgeExperiment (((), ·) <$> M.keyGen n)
-          ((Signer.ofSign M.sign).restrict (·.length == M.msgLen n))
-          (fun () sk msg tag => (msg.length == M.msgLen n) && M.verify sk msg tag)
-          (forgerToVq fun () => adversary.toTyped n [])) := by
-  rw [M.eval_sufCmaVqGame_sufToVqForger htagBound adversary, eval_vqForgeExperiment_forgerToVq,
-    M.sufCmaGame_eq_forgeExperiment]
-
 /-- Attack Game 6.2 security (`SUFCMAVq`) implies standard strong unforgeability (`SUFCMA`). -/
 theorem SUFCMAVq.sufCma {M : MACScheme} (h : M.SUFCMAVq) : M.SUFCMA := by
   obtain ⟨tagBound, htagPoly, htagValid⟩ := M.exists_tag_length_bound_of_length_eq
@@ -553,17 +563,7 @@ theorem SUFCMAVq.sufCma {M : MACScheme} (h : M.SUFCMAVq) : M.SUFCMA := by
 
 /-! ### Direction 2: Theorem 6.1 (`SUFCMA` implies `SUFCMAVq`, `vqToSufForger`) -/
 
-/-- Stateful handler of the word-level Theorem 6.1 reduction ([BonehShoup2023], pp. 221–223):
-* once `st.planted.hasCaptured = true`, returns `([false], st)` on `(true, _)` and `([], st)` on
-  `(false, _)` without querying the external signing oracle;
-* while `st.planted.hasCaptured = false`:
-  - on `(false, msg)`, if `msg.length == M.msgLen n`, queries `((), msg)` on the external signing
-    oracle, truncates the reply to `tagBound` bits, prepends `(msg, tag)` to `st.oracleState`, and
-    returns `tag`; otherwise returns `([], st)` locally;
-  - on `(true, raw)`, extracts `(msg, tag) := (unframe raw, dropFrame raw)`, captures `(msg, tag)`
-    with reply `[false]` when `st.planted.rem == 0`, and otherwise answers
-    `[st.oracleState.contains (msg, tag)]` while decrementing `st.planted.rem`. -/
-@[expose] def vqToSufHandler (M : MACScheme) (n tagBound : ℕ) (request : Bool × List Bool) :
+private def vqToSufHandler (M : MACScheme) (n tagBound : ℕ) (request : Bool × List Bool) :
     StateT
       (ProbOracleComp.PlantedOracleState (List Bool × List Bool) (List (List Bool × List Bool)))
       (WordOracleComp Unit) (List Bool) :=
@@ -589,9 +589,9 @@ theorem SUFCMAVq.sufCma {M : MACScheme} (h : M.SUFCMAVq) : M.SUFCMA := by
 
 /-- Uniform Attack Game 6.2 to Attack Game 6.1 reduction ([BonehShoup2023], Section 6.2, Theorem
 6.1, pp. 221–223): sample a target verification-query index `j` via
-`ProbComp.sampleModIndex (width n) (Qv n)`, simulate `adversary n []` via
-`M.vqToSufHandler n (tagBound n)`, and output the captured `(msg, tag)` candidate. -/
-@[expose] noncomputable def vqToSufForger (M : MACScheme) (tagBound width Qv : ℕ → ℕ)
+`ProbComp.sampleModIndex (width n) (Qv n)`, simulate `adversary n []`, and output the captured
+`(msg, tag)` candidate. -/
+noncomputable def vqToSufForger (M : MACScheme) (tagBound width Qv : ℕ → ℕ)
     (adversary : VqForger) : Forger :=
   fun n _ => do
     let j ← ProbOracleComp.sample (ProbComp.sampleModIndex (width n) (Qv n))
@@ -977,16 +977,7 @@ end MACScheme
 
 /-! ### Exercise 6.2: `prfMAC` security with verification queries (`vqMacToPrfDistinguisher`) -/
 
-/-- Stateful handler for `vqMacToPrfDistinguisher` ([BonehShoup2023], Section 6.14, Exercise 6.2,
-p. 246):
-* `(false, msg)`: if `msg.length == n`, queries `((), msg)` on the PRF oracle (truncating the reply
-  to `n` bits), prepends `(msg, tag)` to `st.log`, and returns `tag`; otherwise returns `[]`.
-* `(true, raw)`: decodes `(msg, tag) := (unframe raw, dropFrame raw)`. If `msg.length == n` and
-  `tag.length == n`, returns `[true]` locally when `st.log.contains (msg, tag)`, and otherwise
-  queries `((), msg)` on the PRF oracle (truncating to `n` bits), sets `ok := realTag == tag`,
-  latches `st.won || ok`, and replies `[ok]`; wrong-length pairs return `[false]` locally without
-  querying. -/
-@[expose] def vqMacToPrfStep (n : ℕ) (request : Bool × List Bool) :
+private def vqMacToPrfStep (n : ℕ) (request : Bool × List Bool) :
     StateT (VqOracleState (List Bool) (List Bool)) (WordOracleComp Unit) (List Bool) :=
   fun st =>
     if request.1 then
@@ -1010,9 +1001,11 @@ p. 246):
         pure ([], st)
 
 /-- Direct oracle reduction turning a `VqForger` against `prfMAC family` into a PRF
-`OracleDistinguisher` ([BonehShoup2023], Section 6.14, Exercise 6.2, p. 246): simulate
-`adversary n []` via `vqMacToPrfStep n` and output `st.won`. -/
-@[expose] def vqMacToPrfDistinguisher (adversary : VqForger) : OracleDistinguisher :=
+`OracleDistinguisher` ([BonehShoup2023], Section 6.14, Exercise 6.2, p. 246): forwards `n`-bit
+signing queries `(false, msg)` and fresh `(n, n)`-bit verification queries `(true, raw)` directly to
+the PRF oracle (truncating replies to `n` bits), answers replayed `(msg, tag) ∈ log` pairs with
+`[true]` and wrong-length requests with `[]` / `[false]` locally, and outputs `won`. -/
+def vqMacToPrfDistinguisher (adversary : VqForger) : OracleDistinguisher :=
   fun n _ => do
     let out ← (OracleComp.interpret
       (OracleComp.sumHandler
@@ -1086,20 +1079,25 @@ theorem isOraclePPT_vqMacToPrfDistinguisher {adversary : VqForger}
   unfold vqMacToPrfDistinguisher
   exact (hrun.bind (hpost.isPPTOn.isOraclePPTOn (Operation := Unit))).isOraclePPT
 
-/-- `vqMacToPrfDistinguisher` makes at most `Q_s + Q_v` PRF queries when `adversary n []` makes at
-most `Q_s` signing queries and at most `Q_v` verification queries. -/
-theorem isQueryBounded_vqMacToPrfDistinguisher {adversary : VqForger} {n Q_s Q_v : ℕ}
-    (hs : IsWordSigningQueryBounded (adversary n []) Q_s)
-    (hv : IsWordVerificationQueryBounded (adversary n []) Q_v) :
-    (vqMacToPrfDistinguisher adversary n []).IsQueryBounded (Q_s + Q_v) := by
+/-- `vqMacToPrfDistinguisher` queries the external PRF oracle only on `n`-bit signing messages and
+`(n, n)`-bit verification pairs, so its PRF query count is bounded by any budget `Q` on those
+well-formed requests. -/
+theorem isQueryBounded_vqMacToPrfDistinguisher_of_wellFormed {adversary : VqForger} {n Q : ℕ}
+    (h : OracleComp.IsCostBounded
+      (Sum.elim (fun _ => 0) fun req : Bool × List Bool =>
+        if req.1 then
+          if (unframe req.2).length == n && (dropFrame req.2).length == n then 1 else 0
+        else
+          if req.2.length == n then 1 else 0)
+      (adversary n []) Q) :
+    (vqMacToPrfDistinguisher adversary n []).IsQueryBounded Q := by
   unfold vqMacToPrfDistinguisher
-  have htot := IsQueryBounded.of_word_signing_and_verification hs hv
   have hrun : (((OracleComp.interpret
       (OracleComp.sumHandler
         (fun k => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin k)))
         (vqMacToPrfStep n))
-      (adversary n [])).run ⟨[], false⟩)).IsQueryBounded (Q_s + Q_v) := by
-    refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) htot _
+      (adversary n [])).run ⟨[], false⟩)).IsQueryBounded Q := by
+    refine OracleComp.IsCostBounded.run_interpret (fun q s => ?_) h _
     cases q with
     | inl k =>
       change ((ProbOracleComp.sample (ProbComp.unifFin k) >>= fun a => pure (a, s)) :
@@ -1108,23 +1106,36 @@ theorem isQueryBounded_vqMacToPrfDistinguisher {adversary : VqForger} {n Q_s Q_v
         fun a => .pure (a, s) 0).mono (by omega)
     | inr req =>
       rcases req with ⟨b, raw⟩
-      change ((vqMacToPrfStep n (b, raw)).run s).IsQueryBounded 1
-      dsimp only [vqMacToPrfStep, StateT.run]
+      dsimp only [OracleComp.sumHandler, vqMacToPrfStep, StateT.run, Sum.elim_inr]
       cases b
       · simp only [Bool.false_eq_true, ↓reduceIte]
         split_ifs
-        · simp only [map_eq_bind_pure_comp]
-          exact ((ProbOracleComp.IsQueryBounded.query ((), raw)).bind
-            fun _ => .pure _ 0).mono (by omega)
-        · exact .pure _ 1
+        · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+            ((OracleComp.isCostBounded_map_iff _ _ _).mpr
+              (ProbOracleComp.IsQueryBounded.query ((), raw)))
+        · exact .pure _ 0
       · simp only [↓reduceIte]
         split_ifs
         · exact .pure _ 1
-        · simp only [map_eq_bind_pure_comp]
-          exact ((ProbOracleComp.IsQueryBounded.query ((), unframe raw)).bind
-            fun _ => .pure _ 0).mono (by omega)
-        · exact .pure _ 1
+        · exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
+            ((OracleComp.isCostBounded_map_iff _ _ _).mpr
+              (ProbOracleComp.IsQueryBounded.query ((), unframe raw)))
+        · exact .pure _ 0
   exact (hrun.bind fun _ => .pure _ 0).mono (by omega)
+
+/-- `vqMacToPrfDistinguisher` makes at most `Q_s + Q_v` PRF queries when `adversary n []` makes at
+most `Q_s` signing queries and at most `Q_v` verification queries. -/
+theorem isQueryBounded_vqMacToPrfDistinguisher {adversary : VqForger} {n Q_s Q_v : ℕ}
+    (hs : IsWordSigningQueryBounded (adversary n []) Q_s)
+    (hv : IsWordVerificationQueryBounded (adversary n []) Q_v) :
+    (vqMacToPrfDistinguisher adversary n []).IsQueryBounded (Q_s + Q_v) := by
+  refine isQueryBounded_vqMacToPrfDistinguisher_of_wellFormed
+    ((IsQueryBounded.of_word_signing_and_verification hs hv).of_le fun q => ?_)
+  cases q with
+  | inl _ => simp
+  | inr req =>
+    rcases req with ⟨b, _⟩
+    cases b <;> dsimp only [Sum.elim_inr] <;> split_ifs <;> omega
 
 private def toBitStringVq (n : ℕ) (prog : WordOracleComp Bool Unit) :
     ProbOracleComp (forgeVqSpec (BitString n) (BitString n)) Unit :=
@@ -1544,23 +1555,9 @@ theorem succProbability_sufCmaVqGame_prfMAC_le
             (Signer.ofSign fun k m => pure (PRF.atLevel family n k m))
             (fun _ k m σ => decide (PRF.atLevel family n k m = σ))
             (fun _ => toBitStringVq n (adversary n []))) := by
-    rw [← eval_prfRealGame_vqMacToPrfDistinguisher hpoly hlen adversary n]
-    have hadapt_real :
-        ProbComp.eval (prfRealGame id family (vqMacToPrfDistinguisher adversary) n) =
-          ProbComp.eval (PRF.realExperiment (PRF.atLevel family n)
-            ((OracleCodec.bitString n).adapt (vqMacToPrfDistinguisher adversary n []))) := by
-      simp only [PRF.realExperiment, prfRealGame, id_eq, ProbComp.eval_bind, ProbComp.eval_uniform,
-        BitString.eval_sampleList, BitString.uniformList, PMF.bind_map, OracleCodec.run_adapt,
-        wordOracle_bitString, Function.comp_def]
-      refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
-      congr 2
-      funext req
-      unfold randomFunctionOracle prfOracle PRF.atLevel
-      split_ifs with hq
-      · rw [BitString.ofFn_ofList hq, BitString.ofFn_ofList]
-        rw [hlen _ _ (by rw [List.length_ofFn, hq]), List.length_ofFn]
-      · rfl
-    rw [hadapt_real, ← eval_realExperiment_vqMacToPrfAdversary]
+    rw [← eval_prfRealGame_vqMacToPrfDistinguisher hpoly hlen adversary n,
+      ← PRF.eval_realExperiment_atLevel_adapt hlen (vqMacToPrfDistinguisher adversary) n,
+      ← eval_realExperiment_vqMacToPrfAdversary]
     simp only [PRF.realExperiment, ProbComp.eval_bind]
     refine PMF.bind_congr_on_support _ _ _ fun key _ => ?_
     exact eval_adapt_vqMacToPrfDistinguisher_run_pure adversary n (PRF.atLevel family n key)
