@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordWitness.Spec
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.RegisterFrame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
@@ -26,10 +27,8 @@ namespace Cslib.Algorithms.WordRAM.ExactTriangle.RecordWitness
 open Cslib.WordRAM
 open Cslib.Algorithms.ExactTriangle
 
--- Closed preservation checks enumerate the four-hundred-register caller bank.
-set_option maxRecDepth 4096 in
-private theorem readRecord_preserves : ∀ i : Fin 400, i.val < 320 → readRecord.Preserves i := by
-  decide
+private theorem readRecord_preserves : ∀ i : Fin 400, i.val < 320 → readRecord.Preserves i :=
+  fun _ hi => Code.preserves_of_writeStart (by decide) hi
 
 private theorem sqrtBank_injective : Function.Injective sqrtBank := by
   intro i j h
@@ -118,11 +117,10 @@ theorem exec_squareRoot {W D : ℕ} (x : Data 400)
   · simpa only [squareRoot, hD] using hy
   · simpa only [hD] using hr
 
--- Closed preservation over the finite controller and old product bank.
-set_option maxRecDepth 4096 in
 private theorem finishHeader_preserves : ∀ i : Fin 400,
     i.val < 324 ∨ i = Reg.index ∨ i = Reg.one ∨ i = Reg.piece ∨
-      i = Reg.divisor ∨ 392 ≤ i.val → finishHeader.Preserves i := by decide
+      i = Reg.divisor ∨ 392 ≤ i.val → finishHeader.Preserves i :=
+  Code.preserves_of_preservesAllPred rfl
 
 /-- Compute the actual interval and original signed-array pointers after the real root loop.
 All query/output metadata and success/counter initialization are preserved. -/
