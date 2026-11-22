@@ -371,17 +371,13 @@ private def cycleStart (u : ℂ) (p q : Route) : Fin p.segments ⊕ Fin q.segmen
 private def cycleFinish (u : ℂ) (p q : Route) : Fin p.segments ⊕ Fin q.segments → ℂ :=
   Sum.elim (fun i => u * p.point i.succ) (fun i => u * q.point i.succ)
 
-private noncomputable def routeRay (u : ℂ) (p : Route) (z : ℂ) : Bool :=
-  rayParity (fun i : Fin p.segments => u * p.point i.castSucc)
-    (fun i => u * p.point i.succ) (fun _ => true) (u * z)
-
 private noncomputable def cycleRay (u : ℂ) (p q : Route) (z : ℂ) : Bool :=
   rayParity (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (u * z)
 
 private theorem cycleRay_eq (u : ℂ) (p q : Route) (z : ℂ) :
-    cycleRay u p q z = routeRay u p z + routeRay u q z := by
+    cycleRay u p q z = p.rayParity u z + q.rayParity u z := by
   classical
-  unfold cycleRay routeRay
+  unfold cycleRay Route.rayParity
   dsimp only [cycleStart, cycleFinish, Sum.elim_inl, Sum.elim_inr, rayParity]
   exact Fintype.sum_sum_type _
 

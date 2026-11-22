@@ -8,6 +8,8 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
+import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
 import Mathlib.Logic.Equiv.Fin.Rotate
 import Mathlib.Tactic.FinCases
@@ -526,5 +528,22 @@ example : (openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
     apply Complex.ext <;> simp [AffineMap.lineMap_apply_module']
     ring
   exact ⟨0, hzero 2, hzero 1⟩
+
+private def excursionStem : Route := Route.line ⟨4, 2⟩ 0
+
+private def excursionSquare : Route where
+  bends := 3
+  point i := if i.val = 1 then ⟨2, 0⟩ else if i.val = 2 then ⟨2, 2⟩ else
+    if i.val = 3 then ⟨0, 2⟩ else 0
+
+-- The connector contributes at the interior observation, but its retracing cancels it.
+example :
+    let p := (excursionStem.concat excursionSquare).concat excursionStem.reverse
+    excursionStem.rayParity 1 ⟨1, 1⟩ = true ∧
+      p.rayParity 1 ⟨1, 1⟩ = true ∧ p.rayParity 1 ⟨3, 1⟩ = false := by
+  dsimp only
+  simp only [Route.rayParity_closed_excursion excursionStem excursionSquare rfl rfl]
+  norm_num [Route.rayParity, rayParity, Fin.sum_univ_succ, RayCrosses, horizontalIntercept,
+    excursionStem, excursionSquare, Route.line]
 
 end CslibFrontierTests.PolygonalRayParityIntersections
