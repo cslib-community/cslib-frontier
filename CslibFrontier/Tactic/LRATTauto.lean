@@ -161,7 +161,10 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
 * The solver runs in Lean's interpreter, and its work counts toward `maxHeartbeats`; it takes a
   small fraction of the time of the kernel check, but on the larger formulas enough heartbeats
   that `set_option maxHeartbeats` must be raised. When premises are dropped it runs twice, and the
-  first run includes every propositional hypothesis of the context.
+  first run includes every propositional hypothesis of the context. On the pigeonhole formula for
+  five pigeons in four holes, with twenty irrelevant hypotheses of three connectives each in the
+  context, the tactic took about 1.6 seconds against 1.4 without them, the kernel time being the
+  same, and about 2.1 seconds when every hypothesis was kept.
 * Atoms are compared at reducible transparency only: `h : a ≠ b` is the atom `a ≠ b`, not the
   negation of the atom `a = b`, and `h : b = a` does not prove the atom `a = b`. A hypothesis whose
   type is only definitionally equal to a formula at a higher transparency is an atom.
