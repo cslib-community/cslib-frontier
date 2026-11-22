@@ -77,23 +77,12 @@ theorem exec_countCode {w L m N : ℕ} (x : Data 96)
     hx.masks hx.fixed.one hx.fixed.two (hl.of_le (by
       nlinarith only [Nat.zero_le L, Nat.zero_le N, Nat.zero_le (N * D m),
         Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)]))
-  have hcp : HeaderPost L m N c := headerPost_reframe hx (by
-    intro i hi
-    apply hc.regs_eq
-    have hp : ∀ i ∈ headerRegisters, countMasks.Preserves i := by
-      simp only [countMasks, countBody, populationCode, Code.Preserves, Op.dest, Op.bin]
-      decide
-    exact hp i hi)
+  have hcp : HeaderPost L m N c := by regs_frame
   obtain ⟨r, hr, hroot, hsquare, hrmem, hrframe⟩ := exec_root (K L m) c hcount hcp.fixed.one
     (hl.of_le (by
       nlinarith only [hK, Nat.zero_le L, Nat.zero_le N,
         Nat.zero_le (N * D m), Nat.zero_le (2 ^ L), Nat.zero_le (10 ^ L)]))
-  have hrp : HeaderPost L m N r := headerPost_reframe hcp (by
-    intro i hi
-    have hdisj : ∀ i ∈ headerRegisters,
-        i ≠ root ∧ i ≠ square ∧ i ≠ temporary ∧ i ≠ limit := by decide
-    obtain ⟨h1, h2, h3, h4⟩ := hdisj i hi
-    exact hrframe i h1 h2 h3 h4)
+  have hrp : HeaderPost L m N r := by regs_frame
   have hB : bandSize L m ≤ 7 ^ L := bandSize_le_seven_pow L m
   have h7 : 7 ^ L ≤ 10 ^ L := Nat.pow_le_pow_left (by decide) _
   have hbfit : Fits w (bandSize L m) := hl.of_le (by
@@ -118,13 +107,7 @@ theorem exec_countCode {w L m N : ℕ} (x : Data 96)
     apply (hc.seq (hr.seq hy)).mono
     have hsqrt : Nat.sqrt (K L m) ≤ 2 ^ L := (Nat.sqrt_le_self _).trans hK
     nlinarith
-  have hyp : HeaderPost L m N y := headerPost_reframe hrp (by
-    intro i hi
-    apply hy.regs_eq
-    have hp : ∀ i ∈ headerRegisters, bandCount.Preserves i := by
-      simp only [bandCount, Code.Preserves, Op.dest, Op.bin]
-      decide
-    exact hp i hi)
+  have hyp : HeaderPost L m N y := by regs_frame
   refine ⟨y, he, ⟨hyp, ?_, ?_, ?_⟩, hrmem.trans hcmem⟩
   · simpa [y, temporary, bands, root] using hroot0
   · simpa [y, temporary, bands, square, K0] using hsquare

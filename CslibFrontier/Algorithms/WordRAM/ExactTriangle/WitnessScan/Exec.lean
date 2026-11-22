@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Cell
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.StrideOmega
 
 /-!
 # Complete native original-weight interval verification
@@ -80,14 +81,8 @@ theorem exec {w U : ℕ} (A : Args) (AB BC AC : ℕ → ℕ → ℤ) (x : Data 3
       · intro h; omega
       · rintro ⟨j, hj, -⟩; omega
     · intro h; omega
-  have hrowB : A.b * A.n + A.first ≤ A.n * A.n := by
-    have hstep := Nat.mul_le_mul_right A.n (Nat.succ_le_of_lt hb)
-    rw [Nat.succ_mul] at hstep
-    omega
-  have hrowA : A.a * A.n + A.first ≤ A.n * A.n := by
-    have hstep := Nat.mul_le_mul_right A.n (Nat.succ_le_of_lt ha)
-    rw [Nat.succ_mul] at hstep
-    omega
+  have hrowB : A.b * A.n + A.first ≤ A.n * A.n := by stride_omega
+  have hrowA : A.a * A.n + A.first ≤ A.n * A.n := by stride_omega
   have hbody (y : Data 32) (hy : I y) (hc' : (Cond.lt Reg.index Reg.length).Holds y) :
       ∃ z, ExecWithin (w + 2) step y z 40 ∧ I z ∧
         A.length - z.regs Reg.index < A.length - y.regs Reg.index := by
