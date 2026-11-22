@@ -209,40 +209,34 @@ theorem mulCount_add_addCount_le (n : ℕ) :
 
 /-- At least `3 ^ ⌊log₂ n⌋` multiplications for `n ≠ 0`. -/
 theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCount n := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.lt_or_ge n 2 with h | h
-    · obtain rfl : n = 1 := by omega
-      simp
-    · rw [mulCount_of_two_le h]
-      have h1 := ih (n / 2) (by omega) (by omega)
-      have h2 := ih (n - n / 2) (by omega) (by omega)
-      have hlog : Nat.log 2 n = Nat.log 2 (n / 2) + 1 := by
-        have := Nat.log_pos (b := 2) (by norm_num) h
-        rw [Nat.log_div_base]
-        omega
-      have hmono : 3 ^ Nat.log 2 (n / 2) ≤ 3 ^ Nat.log 2 (n - n / 2) :=
-        Nat.pow_le_pow_right (by norm_num) (Nat.log_mono_right (by omega))
-      rw [hlog, pow_succ]
+  fun_induction mulCount n with
+  | case1 => exact absurd rfl hn
+  | case2 => simp
+  | case3 n ih₁ ih₂ =>
+    have h1 := ih₁ (by omega)
+    have h2 := ih₂ (by omega)
+    have hlog : Nat.log 2 (n + 2) = Nat.log 2 ((n + 2) / 2) + 1 := by
+      have := Nat.log_pos (b := 2) (by norm_num) (by omega : 2 ≤ n + 2)
+      rw [Nat.log_div_base]
       omega
+    have hmono : 3 ^ Nat.log 2 ((n + 2) / 2) ≤ 3 ^ Nat.log 2 (n + 2 - (n + 2) / 2) :=
+      Nat.pow_le_pow_right (by norm_num) (Nat.log_mono_right (by omega))
+    rw [hlog, pow_succ]
+    omega
 
 /-- At most `n ^ 2` multiplications. -/
 theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.lt_or_ge n 2 with h | h
-    · rcases (by omega : n = 0 ∨ n = 1) with rfl | rfl <;> simp
-    · rw [mulCount_of_two_le h]
-      have h1 := ih (n / 2) (by omega)
-      have h2 := ih (n - n / 2) (by omega)
-      obtain ⟨m, hm⟩ : ∃ m, n / 2 = m := ⟨_, rfl⟩
-      obtain ⟨k, hk⟩ : ∃ k, n - n / 2 = k := ⟨_, rfl⟩
-      rw [hk] at h2 ⊢
-      rw [hm] at h1 ⊢
-      have hn : n = m + k := by omega
-      have hkm : k ≤ m + 1 := by omega
-      subst hn
-      nlinarith
+  fun_induction mulCount n with
+  | case1 | case2 => simp
+  | case3 n h1 h2 =>
+    obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m := ⟨_, rfl⟩
+    obtain ⟨k, hk⟩ : ∃ k, n + 2 - m = k := ⟨_, rfl⟩
+    rw [hm, hk] at h2 ⊢
+    rw [hm] at h1
+    have hkm : k ≤ m + 1 := by omega
+    have hm1 : 1 ≤ m := by omega
+    rw [show n.succ.succ = m + k by omega]
+    nlinarith
 
 /-- Fewer than the `n ^ 2` coefficient products of the schoolbook method, for `n ≥ 2`. -/
 theorem mulCount_lt_sq {n : ℕ} (hn : 2 ≤ n) : mulCount n < n ^ 2 := by
