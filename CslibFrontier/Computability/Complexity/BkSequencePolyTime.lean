@@ -21,7 +21,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryLog
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Prime
@@ -132,22 +131,8 @@ theorem computableInPolyTime_dlogFiveModTwoPow :
     have ha_add := binary_add' ha (binary_two_pow.comp hi)
     have hite := (decide_eq' hu htarget).ite_decide ha_add ha
     refine hite.of_enc_eq fun q => ?_
-    congr 1
-    dsimp only [dlogFiveStep, Function.comp_apply]
-    simp only [Nat.powMod_def]
-    by_cases h : ((5 ^ (2 ^ (q.1.1.1 - 2) - q.1.2) % 2 ^ q.1.1.1 * q.1.1.2 % 2 ^ q.1.1.1) ^
-        2 ^ (q.1.1.1 - 3 - q.2) % 2 ^ q.1.1.1) = 2 ^ (q.1.1.1 - 1) + 1
-    · have hb : (((5 ^ (2 ^ (q.1.1.1 - 2) - q.1.2) % 2 ^ q.1.1.1 * q.1.1.2 % 2 ^ q.1.1.1) ^
-          2 ^ (q.1.1.1 - 3 - q.2) % 2 ^ q.1.1.1) == 2 ^ (q.1.1.1 - 1) + 1) = true :=
-        beq_iff_eq.mpr h
-      rw [hb]
-      simp only [↓reduceIte, h]
-    · have hb : (((5 ^ (2 ^ (q.1.1.1 - 2) - q.1.2) % 2 ^ q.1.1.1 * q.1.1.2 % 2 ^ q.1.1.1) ^
-          2 ^ (q.1.1.1 - 3 - q.2) % 2 ^ q.1.1.1) == 2 ^ (q.1.1.1 - 1) + 1) = false :=
-        beq_eq_false_iff_ne.mpr h
-      rw [hb]
-      simp only [Bool.false_eq_true, ↓reduceIte, h]
-  have hfold := foldlWith (encP := encPair encUnary encNat) (encA := encUnary)
+    simp only [dlogFiveStep, Nat.powMod_def, Function.comp_apply]
+  exact foldlWith (encP := encPair encUnary encNat) (encA := encUnary)
     (encL := encList encUnary) (encB := encNat)
     (step := fun (rx : ℕ × ℕ) (a i : ℕ) => dlogFiveStep rx.1 rx.2 a i)
     hpar hlist (.const 0) hstep
@@ -166,19 +151,6 @@ theorem computableInPolyTime_dlogFiveModTwoPow :
         _ ≤ p.1 := hsize
         _ = (encUnary p.1).length := by simp only [encUnary_apply, List.length_replicate]
         _ ≤ (encPair encUnary encNat p).length := length_le_encPair_left encUnary encNat p)
-  refine hfold.of_enc_eq fun p => ?_
-  congr 1
-  dsimp only [dlogFiveModTwoPow, normX]
-  congr 1
-  funext a i
-  congr 1
-  by_cases h : p.2 % 4 = 1
-  · have hb : (p.2 % 4 == 1) = true := beq_iff_eq.mpr h
-    rw [hb]
-    simp only [↓reduceIte, h]
-  · have hb : (p.2 % 4 == 1) = false := beq_eq_false_iff_ne.mpr h
-    rw [hb]
-    simp only [Bool.false_eq_true, ↓reduceIte, h]
 
 /-- Computing Sergeev's modulus exponent `sergeevModulusExp n k` from unary `(n, k)`
 (`encPair encUnary encUnary`) produces a unary exponent (`encUnary`) in polynomial time. -/
