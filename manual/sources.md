@@ -963,6 +963,11 @@ F. C. Hennie. “One-tape, off-line Turing machine computations.” *Information
 
 Christopher Henson and Fabrizio Montesi. *Computer Science as Infrastructure: the Spine of the Lean Computer Science Library (CSLib)*. EPTCS 449 (LSFA 2026), pp. 141–148, 2026. https://doi.org/10.4204/EPTCS.449.9 . Version-of-record metadata verified through https://arxiv.org/abs/2602.15078v2 on 2026-11-02 UTC; DOI resolver was unavailable in this research environment.
 
+<a id="herlihy1991"></a>
+## herlihy1991
+
+Maurice Herlihy. "Wait-Free Synchronization." *ACM Transactions on Programming Languages and Systems* 13(1), 124–149, 1991. https://doi.org/10.1145/114005.102808 . Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full journal text was not inspected in this pass, so no numbered section or theorem locator is asserted. Cited by [SharedMemory/Basic.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Basic.lean), [SharedMemory/Hierarchy.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Hierarchy.lean) and [SharedMemory/Universal.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Universal.lean) for the wait-free consensus hierarchy (`1 < 2 < ∞`: atomic read/write registers, commuting-or-overwriting read-modify-write primitives including `TestAndSet`, `Swap` and `FetchAndAdd`, and `CompareAndSwap`, with wait-free termination modeled as global well-foundedness of active protocol steps) and the unbounded single-use consensus-log universal construction (without Herlihy's bounded-memory `announce`/helping array).
+
 <a id="hhk17"></a>
 ## hhk17
 
@@ -1459,6 +1464,11 @@ Hanjun Li, Tianren Liu. "How to Garble Mixed Circuits that Combine Boolean and A
 ## lll82
 
 Arjen K. Lenstra, Hendrik W. Lenstra Jr. and László Lovász. "Factoring Polynomials with Rational Coefficients." *Mathematische Annalen* 261, 515–534, 1982. https://doi.org/10.1007/BF01457454 . Inspected the author-hosted scan https://www.math.leidenuniv.nl/~hwl/PUBLICATIONS/1982f/art.pdf on 2026-11-08: §1, conditions (1.4)–(1.5) and the remark after (1.5), Proposition (1.6) and the remark after it, Proposition (1.11), the algorithm (1.15)–(1.21), the swap formulas (1.22) and the termination argument (1.23)–(1.26).
+
+<a id="louiabuamara1987"></a>
+## louiabuamara1987
+
+Michael C. Loui and Hosame H. Abu-Amara. "Memory Requirements for Agreement Among Unreliable Asynchronous Processes." *Advances in Computing Research* 4, 163–183, JAI Press, 1987. Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full chapter text was not inspected in this pass, so no numbered theorem locator is asserted. Cited by [SharedMemory/Basic.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Basic.lean) and [SharedMemory/Hierarchy.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Hierarchy.lean) for bivalence, critical configurations, and the impossibility of wait-free binary consensus from atomic multi-reader multi-writer read/write registers for two or more processes (modeled here with global well-foundedness of active protocol steps).
 
 <a id="lovasz1979"></a>
 ## lovasz1979
