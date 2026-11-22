@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabBijection
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # `Memory.Prog` Slab-Stack Metadata Operations (`gmPushSlabProg`, `gmPopSlabProg`)
@@ -204,7 +205,7 @@ theorem gmPushSlabProg_effect {U V w n_max h_space base b : ℕ}
   set p_new := gm 0
   set top_old := gm (gmSlabTopIdx b)
   have hq_idx_lt : 4 + 3 * b < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   have htop_idx_lt : 4 + 3 * b + 2 < globalMetaLen n_max := gmSlabTopIdx_lt hb_pos hb
   have hownB_lt : gmSlabMetaBase n_max + 4 * p_new < globalMetaLen n_max :=
     gmSlabOwnerBIdx_lt hb_pos hp_lt
@@ -289,7 +290,7 @@ private theorem gmPushSlab_bounds {U V w₀ n_max h_space : ℕ} {d : ℕ × ℕ
   rcases h with ⟨hslab, hb, hp_lt, hb_pos⟩
   set gm := gmAt d.1 U V w₀ n_max h_space s.mem
   have hq_idx_lt : 4 + 3 * d.2 < globalMetaLen n_max := gmQIdx_lt hb_pos hb
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   have htop_idx_lt : 4 + 3 * d.2 + 2 < globalMetaLen n_max := gmSlabTopIdx_lt hb_pos hb
   intro e_qb s1 e_pnew s2 e_top
   have heqb : e_qb = gm (gmQIdx d.2) := clientResult_readGMProg s hq_idx_lt
@@ -584,14 +585,10 @@ theorem gmCompactSlab_eq_parts {n_max : ℕ} (gmA : ℕ → ℕ) {p_del : ℕ}
         (gmRelinkMovedSlab n_max gmA p_del (gmA 0 - 1)) p_del (gmA 0 - 1))
       0 (gmA 0 - 1) = gmCompactSlab n_max gmA p_del := by
   rcases gmRelinkMovedSlab_preserves_meta gmA (p_del := p_del) hb_last with ⟨_, hpQ, hpGe⟩
-  have hB : gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max (gmA 0 - 1) := by
-    unfold gmSlabOwnerBIdx; omega
-  have hS : gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max (gmA 0 - 1) := by
-    unfold gmSlabOwnerSIdx; omega
-  have hBel : gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max (gmA 0 - 1) := by
-    unfold gmSlabBelowIdx; omega
-  have hAbv : gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max (gmA 0 - 1) := by
-    unfold gmSlabAboveIdx; omega
+  have hB : gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max (gmA 0 - 1) := by wram_omega
+  have hS : gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max (gmA 0 - 1) := by wram_omega
+  have hBel : gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max (gmA 0 - 1) := by wram_omega
+  have hAbv : gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max (gmA 0 - 1) := by wram_omega
   unfold gmLinkMovedNeighbors gmCompactSlab
   dsimp only
   rw [ite_eq_left hlt, hpGe _ hB, hpGe _ hS, hpGe _ hBel, hpGe _ hAbv, hpQ]
@@ -1080,14 +1077,10 @@ theorem gmMovedSlabInv_after_relink {U V w₀ n_max h_space base p_del p_last : 
   rcases hinv with ⟨hp_del_cap, hp_last_cap, hb_last, hs_le, hbel_cap, habv_cap, _⟩
   rcases gmRelinkMovedSlab_preserves_meta
     (gmAt base U V w₀ n_max h_space s.mem) (p_del := p_del) hb_last with ⟨_, hpQ, hpGe⟩
-  have hB : gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max p_last := by
-    unfold gmSlabOwnerBIdx; omega
-  have hS : gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max p_last := by
-    unfold gmSlabOwnerSIdx; omega
-  have hBel : gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max p_last := by
-    unfold gmSlabBelowIdx; omega
-  have hAbv : gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max p_last := by
-    unfold gmSlabAboveIdx; omega
+  have hB : gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max p_last := by wram_omega
+  have hS : gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max p_last := by wram_omega
+  have hBel : gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max p_last := by wram_omega
+  have hAbv : gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max p_last := by wram_omega
   unfold GmMovedSlabInv
   dsimp only
   rw [hgm, hpGe _ hB, hpGe _ hS, hpGe _ hBel, hpGe _ hAbv, hpQ]
@@ -1118,7 +1111,7 @@ theorem gmCompactSlabProg_effect {U V w n_max h_space base p_del : ℕ}
   rcases hpre with ⟨h0_pos, h0_le, _, hcond⟩
   set gm := gmAt base U V w n_max h_space s.mem
   set p_last := gm 0 - 1
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   have hmax_le : maxFullSlabs n_max ≤ n_max := maxFullSlabs_le n_max
   have hp_last_val_lt : p_last < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (by omega)
@@ -1151,7 +1144,7 @@ theorem realizes_gmCompactSlabGen :
     gmRelinkMovedSlabGenProg_mk, gmLinkMovedNeighborsGenProg_mk] using
     [realizes_readGMGen, realizes_writeGMGen, realizes_gmRelinkMovedSlabGen,
       realizes_gmLinkMovedNeighborsGen]
-  all_goals have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  all_goals have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   · exact h.1
   · exact h0_lt
   · rw [clientResult_readGMProg s h0_lt]; exact h.2.1
@@ -1208,13 +1201,13 @@ theorem gmCompactSlabInv_of_slabBijection {U V w₀ n_max h_space base b : ℕ}
   have hu := gmUnlinkTopSlab_fields gm hb
   rcases hu with ⟨hu0, _, _, huQ, _, huGe, _⟩
   have hB_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabOwnerBIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerBIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hS_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabOwnerSIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerSIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hBel_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabBelowIdx n_max p :=
-    fun _ => by unfold gmSlabBelowIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hAbv_ge : ∀ p, gmSlabDirBase n_max ≤ gmSlabAboveIdx n_max p :=
-    fun _ => by unfold gmSlabAboveIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase; omega
+    fun _ => by wram_omega
   have hp_del_lt : gm (gmSlabTopIdx b) < gm 0 := hslab.top_lt hb hq_pos
   unfold GmCompactSlabInv GmMovedSlabInv
   dsimp only

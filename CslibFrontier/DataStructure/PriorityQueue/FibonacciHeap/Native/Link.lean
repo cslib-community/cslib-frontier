@@ -87,8 +87,7 @@ private theorem realizes_linkAs_history : Realizes .exact
       StateTransitionSpec.stepFn, Memory.read, Memory.write, Memory.step_read,
       Memory.step_write, Memory.valid, Function.update_of_ne, hc, ite_false] at hv
     have hfront := hmem.frontier_fits
-    simp only [Fits] at hv hfront ⊢
-    omega
+    fits
 
 /-- The original child-list source, keeping its native subtraction domain and intrinsic source
 admissibility. Code is selected before every runtime heap and word width. -/

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.PriorityQueue.BinaryHeap.Native.Implementation
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Standalone native certificates for the realized binary heap
@@ -154,7 +155,7 @@ theorem instruction_bound :
     Bound (certificate hS hK).impl DynamicProgram.OperationTrace.instructions
       (fun _ o => operationTime o + 2) := by
   intro s x o a y trace hr hv he
-  have hn : Fits w n := hS.of_le (by unfold space; omega)
+  have hn : Fits w n := hS.of_le (by wram_omega)
   have hrC : (subroutineImpl hS hK).toStandard.rep s x :=
     (projected_rep_iff hS hK s x).mpr ((certificate_rep_iff (hn := hn) hS hK s x).mp hr)
   have heC : ((subroutineImpl hS hK).toStandard.toDynamicProgram
