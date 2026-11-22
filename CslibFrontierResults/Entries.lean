@@ -304,6 +304,7 @@ import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
+import CslibFrontier.Crypto.Primitives.PRG.ModThreeBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
@@ -10011,6 +10012,21 @@ register_result "goldreich-read-once-prg-stretch" where
     s ≥ 1, with error ε < 1/2 has ℓ < 2^k, via the 2ε-bias bound and Exercise 8.37. The \
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
+
+register_result "goldreich-small-bias-not-space-pseudorandom" where
+  title := "An exponentially small-bias distribution that is not (2, 0.666)-pseudorandom"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.39",
+      locator := "March 2007 draft, printed p. 380 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Crypto.PRG.exists_isSmallBias_not_secure]
+  scope := "The distribution on {0,1}^n is the uniform distribution on the words of weight \
+    divisible by three, as the output of a generator whose seeds are those words. Its bias \
+    (Eq. (8.18), the absolute value of IsSmallBias's bias) is at most 4 c^n with c = √3/2 < 1 \
+    for every n, and for every n ≥ 10 a read-once program with 2^2 states per layer \
+    (Definition 8.20, space 2) distinguishes it from uniform with gap above 0.666, so the \
+    ensemble is not (2, 0.666)-pseudorandom."
 
 register_result "goldreich-adaptive-t-wise-independence" where
   title := "Adaptive block tests of t-wise independent generators"

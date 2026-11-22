@@ -132,7 +132,7 @@ theorem modThreeGenerator_apply {n : ℕ} (x : modThreeWords n) : modThreeGenera
   rfl
 
 /-- The test whether the weight of a word is divisible by three. -/
-@[expose] noncomputable def modThreeTest (n : ℕ) : Adversary (Fin n → Bool) :=
+noncomputable def modThreeTest (n : ℕ) : Adversary (Fin n → Bool) :=
   fun x => PMF.pure (decide (weight x % 3 = 0))
 
 /-! ### The roots-of-unity filter -/
