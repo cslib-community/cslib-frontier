@@ -23,14 +23,16 @@ matrix entry is a variable or a scalar, with no outer scalar multiplier on the r
 This is the determinant's formula-simulation property [Valiant, Theorem 1][Valiant1979Algebra;
 Orzel et al., Definition 1 and Lemma 4][OrzelSrinivasanTavenasYehudayoff2025]. Valiant (§1–§2,
 pp. 249–251) works over a field, counts binary ring operations (`+`, `×`), and states dimension
-`|P_i| + 2` (Grenet, Kaltofen, Koiran and Portier, *Symmetric Determinantal Representation of
-Formulas and Weakly Skew Circuits*, 2011, §1.2 and §2.1, noted and corrected a parallel-edge issue
-in Valiant's equal-parity addition step while sharpening the non-symmetric bound to `+ 1`); Orzel
-et al. work over fields of characteristic other than two and permit a nonzero scalar multiplier in
-projections. Neither restriction nor multiplier is needed here: `IsSubstABP` uses a strictly
-upper-triangular specialization matrix with a unit sink-bridge edge for addition (avoiding parallel
-edges) and `-1` along the subdiagonal of `N - 1` to absorb cycle signs over every commutative ring
-`K`.
+`|P_i| + 2`; Grenet, Kaltofen, Koiran and Portier (*Symmetric Determinantal Representation of
+Formulas and Weakly Skew Circuits*, *Contemporary Mathematics* 556, 61–96, 2012, §1.2 and §2.1)
+noted a parallel-edge issue in Valiant's equal-parity addition step and gave a digraph proof of Liu
+and Regan's (2006) `e + 1` bound over fields of characteristic not two for green-size-`e` formulas
+with at least one addition (with scalar multiplications free and the separate monomial case `e + 2`
+in general, `e + 1` for monic products). Orzel et al. work over fields of characteristic other than
+two and permit a nonzero scalar multiplier in projections. Neither restriction nor multiplier is
+needed here: `IsSubstABP` uses a strictly upper-triangular specialization matrix with a unit
+sink-bridge edge for addition (avoiding parallel edges) and `-1` along the subdiagonal of `N - 1`
+to absorb cycle signs over every commutative ring `K`.
 
 Consequently, the formal polynomial of `F` (both `F.eval (arithInterpretationWith K C) X` and
 `F.toCircuit.polynomial 0`) has determinantal complexity at most `F.size + 1` unconditionally over

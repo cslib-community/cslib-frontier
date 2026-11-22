@@ -39,7 +39,9 @@ register_result "determinant-formula-simulation" where
     characteristic or nontriviality hypotheses. Proved via the strictly upper-triangular \
     specialization branching program IsSubstABP and the (N - 1) minor identity (avoiding the \
     parallel-edge issue in Valiant's original addition step noted and corrected in §1.2 and §2.1 \
-    of Grenet–Kaltofen–Koiran–Portier 2011). No uniform machine runtime is claimed."
+    of Grenet–Kaltofen–Koiran–Portier 2012, whose digraph proof recovers Liu and Regan's 2006 \
+    e + 1 bound for green-size-e formulas with at least one addition over char ≠ 2). No uniform \
+    machine runtime is claimed."
 
 register_result "valiant-determinant-projection-universality" where
   title := "Valiant's projection universality: every multivariate polynomial is a projection of \
