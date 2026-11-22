@@ -156,12 +156,19 @@ example {S M : Type} (π : PartialSyncProtocol (Fin 2) Bool S M) :
     ¬ π.SolvesOmissionPartialSync 1 :=
   not_solvesOmissionPartialSync π (by decide) (by decide)
 
--- Direct synchronous `GST = 0` special-case impossibility for uniform round bounds `R`.
+-- Direct synchronous `GST = 0` special-case impossibility for fixed-round `R` agreement, validity,
+-- and termination at `deliver = fun _ _ _ => true`.
 example {S M : Type} (π : PartialSyncProtocol (Fin 3) Bool S M) (R : ℕ)
-    (h : π.SolvesByzantinePartialSync 1)
+    (hag : ∀ F : Finset (Fin 3), F.card ≤ 1 → ∀ adv x,
+      ∀ i ∉ F, ∀ j ∉ F, ∀ v₁ v₂,
+        π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁ →
+        π.byzantineDecision F (fun _ _ _ => true) adv x R j = some v₂ → v₁ = v₂)
+    (hval : ∀ F : Finset (Fin 3), F.card ≤ 1 → ∀ adv x v,
+      (∀ i ∉ F, x i = v) → ∀ i ∉ F, ∀ w,
+        π.byzantineDecision F (fun _ _ _ => true) adv x R i = some w → w = v)
     (hbdd : ∀ F : Finset (Fin 3), F.card ≤ 1 → ∀ adv x,
       ∀ i ∉ F, (π.byzantineDecision F (fun _ _ _ => true) adv x R i).isSome = true) : False :=
-  not_partialSync_of_le_three_t π (by decide) (by decide) h hbdd
+  not_partialSync_of_le_three_t π (by decide) (by decide) hag hval hbdd
 
 -- Sharp `iff` characterizations on concrete finite process sets.
 example : (∃ (S M : Type) (π : PartialSyncProtocol (Fin 3) Bool S M),

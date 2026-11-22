@@ -46,10 +46,10 @@ when deterministic partial-synchrony consensus is solvable
   `Cslib.Distributed.PartialSynchrony.solvesOmissionPartialSync_omissionQuorumProtocol`:
   `omissionQuorumProtocol` terminates by round `gst + 3 * (t + 2)` and solves crash/omission
   partial-synchrony consensus whenever `2 * t < Fintype.card P`.
-* `Cslib.Distributed.PartialSynchrony.PartialSyncProtocol.byzantineState_always_eq_state`,
-  `Cslib.Distributed.PartialSynchrony.not_partialSync_of_le_three_t`: synchronous `GST = 0`
-  reduction from `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement` refuting any
-  uniform post-GST round bound for `2 ≤ Fintype.card P ≤ 3 * t`.
+* `Cslib.Distributed.PartialSynchrony.not_partialSync_of_le_three_t`: synchronous `GST = 0`
+  reduction from `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement` refuting
+  fixed-round `R` agreement, validity, and termination at `deliver = fun _ _ _ => true` for
+  `2 ≤ Fintype.card P ≤ 3 * t`.
 * `Cslib.Distributed.PartialSynchrony.not_solvesOmissionPartialSync`,
   `Cslib.Distributed.PartialSynchrony.not_solvesByzantinePartialSync`: full impossibility of
   eventual partial-synchrony consensus for `2 ≤ Fintype.card P ≤ 2 * t` (crash/omission,
@@ -134,6 +134,13 @@ theorem exists_honest_rotatingLeader {P : Type*} [Fintype P] [DecidableEq P]
   exact ⟨v₀ + k.val, Nat.le_add_right v₀ k.val, by omega, hpF⟩
 
 /-! ### Post-GST bounded termination of `byzQuorumProtocol` (`3 * t < Fintype.card P`) -/
+
+private theorem card_compl_ge_sub {P : Type*} [Fintype P] [DecidableEq P]
+    {F : Finset P} {t : ℕ} (hF : F.card ≤ t) :
+    Fintype.card P - t ≤ (Finset.univ \ F).card := by
+  have hs := Finset.le_card_sdiff F (Finset.univ : Finset P)
+  simp only [Finset.card_univ] at hs
+  omega
 
 section ByzLiveness
 
@@ -777,13 +784,19 @@ theorem PartialSyncProtocol.byzantineState_always_eq_state {P V S M : Type*}
 /-- **Synchronous-special-case impossibility (`not_partialSync_of_le_three_t`):** since `GST = 0`
 with `deliver = fun _ _ _ => true` embeds synchronous `Byzantine.Protocol` directly,
 `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement` rules out any protocol that
-solves unauthenticated Byzantine partial-synchrony consensus and decides within a uniform round `R`
-at `GST = 0` when `2 ≤ Fintype.card P ≤ 3 * t`. -/
+achieves fixed-round `R` agreement, correct-input validity, and termination at
+`deliver = fun _ _ _ => true` when `2 ≤ Fintype.card P ≤ 3 * t`. -/
 theorem not_partialSync_of_le_three_t {P V S M : Type*}
     [Fintype P] [DecidableEq P] [Nontrivial V]
     (π : PartialSyncProtocol P V S M) {t R : ℕ}
     (h2 : 2 ≤ Fintype.card P) (h3 : Fintype.card P ≤ 3 * t)
-    (h : π.SolvesByzantinePartialSync t)
+    (hag : ∀ F : Finset P, F.card ≤ t → ∀ adv x,
+      ∀ i ∉ F, ∀ j ∉ F, ∀ v₁ v₂,
+        π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁ →
+        π.byzantineDecision F (fun _ _ _ => true) adv x R j = some v₂ → v₁ = v₂)
+    (hval : ∀ F : Finset P, F.card ≤ t → ∀ adv x v,
+      (∀ i ∉ F, x i = v) → ∀ i ∉ F, ∀ w,
+        π.byzantineDecision F (fun _ _ _ => true) adv x R i = some w → w = v)
     (hbdd : ∀ F : Finset P, F.card ≤ t → ∀ adv x,
       ∀ i ∉ F, (π.byzantineDecision F (fun _ _ _ => true) adv x R i).isSome = true) :
     False := by
@@ -796,7 +809,7 @@ theorem not_partialSync_of_le_three_t {P V S M : Type*}
     let x := fun k => if b k then v₁ else v₀
     obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv x i hi)
     obtain ⟨wj, hwj⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv x j hj)
-    have heq := h.agreement F hF (fun _ _ _ => true) adv x R R i hi j hj wi wj hwi hwj
+    have heq := hag F hF adv x i hi j hj wi wj hwi hwj
     change decide (π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁) =
       decide (π.byzantineDecision F (fun _ _ _ => true) adv x R j = some v₁)
     rw [hwi, hwj, heq]
@@ -804,17 +817,17 @@ theorem not_partialSync_of_le_three_t {P V S M : Type*}
       ← π.byzantineState_always_eq_state v₀ v₁ F adv b R]
     let x := fun k => if b k then v₁ else v₀
     obtain ⟨wi, hwi⟩ := Option.isSome_iff_exists.1 (hbdd F hF adv x i hi)
-    have hval := h.validity F hF (fun _ _ _ => true) adv x (if bit then v₁ else v₀)
-      (fun k hk => by simp only [x, hbit k hk]) R i hi wi hwi
+    have hval' := hval F hF adv x (if bit then v₁ else v₀)
+      (fun k hk => by simp only [x, hbit k hk]) i hi wi hwi
     change decide (π.byzantineDecision F (fun _ _ _ => true) adv x R i = some v₁) = bit
-    rw [hwi, hval]
+    rw [hwi, hval']
     cases bit
     · simp only [Bool.false_eq_true, ↓reduceIte, Option.some.injEq, decide_eq_false_iff_not]
       exact hne
     · simp only [↓reduceIte, decide_true]
 
 /-- **Unbounded unauthenticated Byzantine impossibility (`not_solvesByzantinePartialSync`,
-[Dwork, Lynch and Stockmeyer, Theorem 4.4, p. 305][DworkLynchStockmeyer1988]):** when
+[Dwork, Lynch and Stockmeyer, Theorem 4.4, p. 306][DworkLynchStockmeyer1988]):** when
 `2 ≤ Fintype.card P ≤ 3 * t` and `V` has at least two values, no deterministic protocol solves
 `SolvesByzantinePartialSync t` (even with run-dependent unbounded termination rounds and infinite
 message spaces). Reuses `Cslib.Distributed.Byzantine.Protocol.state_eq_coverState` at `GST = 0`. -/

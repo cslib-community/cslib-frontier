@@ -317,14 +317,6 @@ theorem quorum_inter_notMem {P : Type*} [Fintype P] [DecidableEq P]
   have hu : (S₁ ∪ S₂).card ≤ Fintype.card P := Finset.card_le_univ _
   exact Finset.exists_mem_notMem_of_card_lt_card (by omega)
 
-/-- When `F.card ≤ t`, at least `Fintype.card P - t` processes lie in `Finset.univ \ F`. -/
-theorem card_compl_ge_sub {P : Type*} [Fintype P] [DecidableEq P]
-    {F : Finset P} {t : ℕ} (hF : F.card ≤ t) :
-    Fintype.card P - t ≤ (Finset.univ \ F).card := by
-  have hs := Finset.le_card_sdiff F (Finset.univ : Finset P)
-  simp only [Finset.card_univ] at hs
-  omega
-
 /-- Counting elements of `procs.dedup` satisfying `p` agrees with `(Finset.univ.filter p).card`
 whenever `procs` enumerates every `P`. -/
 theorem length_filter_dedup_eq_card {P : Type*} [Fintype P] [DecidableEq P]
