@@ -6343,6 +6343,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Layout
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.KickTree.Prog
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.PackedSlice
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Compaction
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.InEpoch
@@ -9151,8 +9152,10 @@ public import CslibFrontier.Tactic.PolyTime.Init
 public import CslibFrontier.Tactic.PositivityLemma
 public import CslibFrontier.Tactic.Realize
 public import CslibFrontier.Tactic.Space
+public import CslibFrontier.Tactic.StrideOmega
 public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
+public import CslibFrontier.Tactic.UpdateSimp
 public import CslibFrontier.Tactic.WramOmega
 public import CslibFrontier.Tactic.WramOmega.Init
