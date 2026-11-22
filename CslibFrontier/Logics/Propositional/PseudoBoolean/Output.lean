@@ -167,7 +167,7 @@ state `s` (§4.2), as CakePB's `check_output` (`npbc_checkScript.sml`, CakeML co
   and the objective of `O` agrees with the final objective.
 * `EQUIENUMERABLE`: as `EQUIOPTIMAL`, or with no objective on either side, the preserved set has
   not been changed (§5.10), and the preserved set of `O` is that of the state, as a set of
-  variables.
+  variables (`Cslib.Logic.PL.VeriPB.sameVars`).
 
 Constraints are compared up to normalization and the order of terms. -/
 def checkOutput (s : State) (O : Instance) : Guarantee → Bool
@@ -181,7 +181,7 @@ def checkOutput (s : State) (O : Instance) : Guarantee → Bool
     s.chk && !s.presChanged && s.boundLe && sameConstrs s.coreConstrs O.constraints &&
       objEquiv s.obj O.objective &&
       match s.pres, O.preserved with
-      | some P, some Q => P.all Q.contains && Q.all P.contains
+      | some P, some Q => sameVars P Q
       | _, _ => false
 
 /-- An output section `output g FILE;` with the output formula `file`, or `output g IMPLICIT;`
@@ -365,9 +365,8 @@ theorem semOutput_of_checkRedOutput {F : List PBConstr} {obj : Option Objective}
       | none => simp [hq] at hpres
       | some Q => exact ⟨Q, rfl⟩
     rw [hPr, hQ] at hpres
-    simp only [Bool.and_eq_true, List.all_eq_true, List.contains_iff_mem] at hpres
     have hpres0 : pres = some Pr := he.pres_eq hpc ▸ hPr
-    refine ⟨Pr, Q, hpres0, hQ, fun x => ⟨hpres.1 x, hpres.2 x⟩, fun v hv => ?_⟩
+    refine ⟨Pr, Q, hpres0, hQ, sameVars_iff.1 hpres, fun v hv => ?_⟩
     ext l
     constructor
     · rintro ⟨σ, ⟨hF, hσv⟩, rfl⟩

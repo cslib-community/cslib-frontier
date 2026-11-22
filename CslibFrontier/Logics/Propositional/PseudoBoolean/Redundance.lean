@@ -95,9 +95,9 @@ CakePB's `check_change_pres`): the variables of `C` are in `P` and are not `x`, 
 `#1`, `x ⇒ C`, and `#2`, `x ⇐ C`, follow from the core set, each trivially or by a `proofgoal`
 block, as the kernel format requires (§6.1). So `x ⇔ C` on every solution of the core set
 (`Cslib.Logic.PL.VeriPB.presChangeCheck_sound`). `epreserved P` checks that the current preserved
-set is `P`, as a set. After a change, `solx` is rejected, as §5.8.3 requires (CakePB accepts it),
-and the witnesses of `red`, `dom` and checked deletion must leave the *current* preserved set
-alone, as in CakePB.
+set is `P`, as a set (`Cslib.Logic.PL.VeriPB.sameVars`). After a change, `solx` is rejected, as
+§5.8.3 requires (CakePB accepts it), and the witnesses of `red`, `dom` and checked deletion must
+leave the *current* preserved set alone, as in CakePB.
 
 The conclusions keep their statements against the preserved set of the *input*: `ENUMERATION`
 counts the projections of the input's solutions to the input's preserved set, which is what §4.3
@@ -310,6 +310,8 @@ without them.
   `Cslib.Logic.PL.VeriPB.presFree`, `Cslib.Logic.PL.VeriPB.projections`: projections to the
   preserved set, the solution-excluding constraint of `solx`, witnesses that leave the preserved
   set alone, and the projected solutions that `ENUMERATION` counts.
+* `Cslib.Logic.PL.VeriPB.sameVars`: two lists name the same set of variables (`epreserved` and
+  `EQUIENUMERABLE`).
 * `Cslib.Logic.PL.VeriPB.presChangeCheck`, `Cslib.Logic.PL.VeriPB.presGoals`: the check of
   `preserved_add` and `preserved_rm`, and its goals.
 
@@ -1460,6 +1462,15 @@ def exclusion (P : List ℕ) (ρ : List (Literal ℕ)) : PBConstr :=
 def presFree (pres : Option (List ℕ)) (ω : Witness) : Bool :=
   pres.all fun P => ω.all fun e => !P.contains e.1
 
+/-- The lists `P` and `Q` name the same set of variables: each contains the other, whatever the
+order and the duplicates (`epreserved`, §5.11.4, and the preserved sets of `EQUIENUMERABLE`). -/
+@[expose]
+def sameVars (P Q : List ℕ) : Bool := P.all Q.contains && Q.all P.contains
+
+theorem sameVars_iff {P Q : List ℕ} : sameVars P Q = true ↔ ∀ x, x ∈ P ↔ x ∈ Q := by
+  simp only [sameVars, Bool.and_eq_true, List.all_eq_true, List.contains_iff_mem]
+  exact ⟨fun h x => ⟨h.1 x, h.2 x⟩, fun h => ⟨fun x => (h x).1, fun x => (h x).2⟩⟩
+
 /-- The redundance check, with a witness that leaves the preserved variables alone. -/
 private def redCheckP (pres : Option (List ℕ)) (obj : Option Objective) (ord : Option LoadedOrder)
     (db₀ gs : List (ℕ × PBConstr)) (n : ℕ) (c : PBConstr) (ω : Witness) (items : List RedItem)
@@ -1832,7 +1843,7 @@ def stepTop (F : List PBConstr) (obj : Option Objective) (s : State) : TopStep �
       | none => none
     | none => none
   | .epreserved vs =>
-    if s.pres.any fun P => vs.all P.contains && P.all vs.contains then some s else none
+    if s.pres.any (sameVars vs) then some s else none
   | .dom c ω sub q =>
     match s.order with
     | some L =>
