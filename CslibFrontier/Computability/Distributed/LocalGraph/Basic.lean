@@ -63,17 +63,24 @@ neighborhood-bijective `GraphCovering` (`PortCovering.toGraphCovering`).
   `BroadcastProtocol.not_isProperColoring_of_graphCovering`: if `¬ G₂.Colorable q`, no
   deterministic anonymous protocol properly `q`-colors a cover `G₁` of `G₂`.
 * `Cslib.Distributed.LocalGraph.bipartiteDoubleCover_colorable_two`,
-  `not_electsUniqueLeader_bipartiteDoubleCover`,
-  `not_isProperColoring_bipartiteDoubleCover`: every bipartite double cover is 2-colorable, yet
-  admits neither anonymous leader election nor anonymous `q`-coloring when `¬ G.Colorable q`.
+  `PortProtocol.not_electsUniqueLeader_bipartiteDoubleCover`,
+  `PortProtocol.not_isProperColoring_bipartiteDoubleCover`: every bipartite double cover is
+  2-colorable, yet under `N.bipartiteDoubleCover` admits neither anonymous leader election nor
+  anonymous `q`-coloring when `¬ G.Colorable q`.
 * `Cslib.Distributed.LocalGraph.cycleGraph_six_colorable_two`,
   `not_cycleGraph_three_colorable_two`,
-  `not_electsUniqueLeader_cycleGraph_six`,
-  `not_twoColoring_cycleGraph_six`: `C₆` is 2-colorable (`χ(C₆) = 2`), `C₃` is not (`χ(C₃) = 3`),
-  and lifting `C₆ → C₃` rules out both anonymous leader election and anonymous 2-coloring on `C₆`.
-* `Cslib.Distributed.LocalGraph.not_electsUniqueLeader_k33`,
-  `not_isProperColoring_k33`: under `k33PortNumbering`, all six vertices of `K₃,₃` share identical
-  states in every round, ruling out anonymous leader election and proper coloring.
+  `BroadcastProtocol.not_electsUniqueLeader_cycleGraph_six`,
+  `BroadcastProtocol.not_twoColoring_cycleGraph_six`,
+  `PortProtocol.not_electsUniqueLeader_cycleGraphPortNumbering_six`,
+  `PortProtocol.not_twoColoring_cycleGraphPortNumbering_six`: `C₆` is 2-colorable (`χ(C₆) = 2`),
+  `C₃` is not (`χ(C₃) = 3`), and lifting `C₆ → C₃` rules out anonymous leader election and
+  anonymous 2-coloring for all `BroadcastProtocol`s and for `PortProtocol`s under
+  `cycleGraphPortNumbering 3`.
+* `Cslib.Distributed.LocalGraph.PortProtocol.state_k33PortNumbering_eq`,
+  `PortProtocol.not_electsUniqueLeader_k33PortNumbering`,
+  `PortProtocol.not_isProperColoring_k33PortNumbering`: under `k33PortNumbering`, all six vertices
+  of `K₃,₃` share identical states in every round, ruling out anonymous leader election and proper
+  coloring.
 
 ## References
 
@@ -744,9 +751,10 @@ theorem portCovering_bipartiteDoubleCover {V : Type*} [Fintype V]
   degree_eq p := (graphCovering_bipartiteDoubleCover G).degree_eq p
   port_val_eq := fun ⟨_, _⟩ ⟨⟨_, _⟩, _, _⟩ => rfl
 
-/-- No deterministic anonymous `PortProtocol` elects a unique leader on `bipartiteDoubleCover G`
-under `N.bipartiteDoubleCover` in any round `r`. -/
-theorem not_electsUniqueLeader_bipartiteDoubleCover {V I S M : Type*} [Fintype V]
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b]): no deterministic
+anonymous `PortProtocol` elects a unique leader on `bipartiteDoubleCover G` under
+`N.bipartiteDoubleCover` in any round `r`. -/
+theorem PortProtocol.not_electsUniqueLeader_bipartiteDoubleCover {V I S M : Type*} [Fintype V]
     {G : SimpleGraph V} [DecidableRel G.Adj] (N : PortNumbering G)
     (P : PortProtocol I S M Bool) (x₀ : I) (r : ℕ) :
     ¬ ElectsUniqueLeader (P.run N.bipartiteDoubleCover (fun _ => x₀) r) :=
@@ -754,10 +762,11 @@ theorem not_electsUniqueLeader_bipartiteDoubleCover {V I S M : Type*} [Fintype V
     (fun v => ⟨(false, v), (true, v), fun h => Bool.false_ne_true (Prod.mk.inj h).1, rfl, rfl⟩)
     x₀ r
 
-/-- Whenever `¬ G.Colorable q`, no deterministic anonymous `PortProtocol` computes a proper
-`Fin q`-coloring of `bipartiteDoubleCover G` under `N.bipartiteDoubleCover` in any round `r` (even
-for `q = 2`, where `bipartiteDoubleCover G` is always 2-colorable). -/
-theorem not_isProperColoring_bipartiteDoubleCover {V I S M : Type*} [Fintype V]
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b]): whenever
+`¬ G.Colorable q`, no deterministic anonymous `PortProtocol` computes a proper `Fin q`-coloring of
+`bipartiteDoubleCover G` under `N.bipartiteDoubleCover` in any round `r` (even for `q = 2`, where
+`bipartiteDoubleCover G` is always 2-colorable). -/
+theorem PortProtocol.not_isProperColoring_bipartiteDoubleCover {V I S M : Type*} [Fintype V]
     {G : SimpleGraph V} [DecidableRel G.Adj] (N : PortNumbering G) {q : ℕ}
     (hq : ¬ G.Colorable q) (P : PortProtocol I S M (Fin q)) (x₀ : I) (r : ℕ) :
     ¬ (bipartiteDoubleCover G).IsProperColoring (P.run N.bipartiteDoubleCover (fun _ => x₀) r) :=
@@ -855,11 +864,34 @@ theorem portCovering_cycleGraph_six_three :
     revert u w hw
     decide
 
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b]): no deterministic
+anonymous `BroadcastProtocol` elects a unique leader on `SimpleGraph.cycleGraph 6` in any round `r`.
+-/
+theorem BroadcastProtocol.not_electsUniqueLeader_cycleGraph_six {I S M : Type*}
+    (P : BroadcastProtocol I S M Bool) (x₀ : I) (r : ℕ) :
+    ¬ ElectsUniqueLeader (P.run (SimpleGraph.cycleGraph 6) (fun _ => x₀) r) :=
+  P.not_electsUniqueLeader_of_graphCovering graphCovering_cycleGraph_six_three
+    (fun y => ⟨⟨y.val, by omega⟩, ⟨y.val + 3, by omega⟩,
+      fun h => by have := congrArg Fin.val h; dsimp at this; omega,
+      Fin.ext (Nat.mod_eq_of_lt y.isLt),
+      Fin.ext (by dsimp [cycleDoubleCoverMap]; omega)⟩)
+    x₀ r
+
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b]): although `C₆` is
+2-colorable (`cycleGraph_six_colorable_two`), no deterministic anonymous `BroadcastProtocol`
+outputs a proper 2-coloring of `SimpleGraph.cycleGraph 6` in any round `r`. -/
+theorem BroadcastProtocol.not_twoColoring_cycleGraph_six {I S M : Type*}
+    (P : BroadcastProtocol I S M (Fin 2)) (x₀ : I) (r : ℕ) :
+    ¬ (SimpleGraph.cycleGraph 6).IsProperColoring
+      (P.run (SimpleGraph.cycleGraph 6) (fun _ => x₀) r) :=
+  P.not_isProperColoring_of_graphCovering graphCovering_cycleGraph_six_three
+    not_cycleGraph_three_colorable_two x₀ r
+
 /-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b] and
-[Hirvonen and Suomela][HirvonenSuomela2020], §7.1): no deterministic `PortProtocol` (and hence no
-`BroadcastProtocol`) with uniform initial input `x₀` elects a unique leader on
-`SimpleGraph.cycleGraph 6` under `cycleGraphPortNumbering 3` in any round `r`. -/
-theorem not_electsUniqueLeader_cycleGraph_six {I S M : Type*}
+[Hirvonen and Suomela][HirvonenSuomela2020], §7.1–7.3): no deterministic `PortProtocol` with uniform
+initial input `x₀` elects a unique leader on `SimpleGraph.cycleGraph 6` under
+`cycleGraphPortNumbering 3` in any round `r`. -/
+theorem PortProtocol.not_electsUniqueLeader_cycleGraphPortNumbering_six {I S M : Type*}
     (P : PortProtocol I S M Bool) (x₀ : I) (r : ℕ) :
     ¬ ElectsUniqueLeader (P.run (cycleGraphPortNumbering 3) (fun _ => x₀) r) :=
   P.not_electsUniqueLeader_of_portCovering portCovering_cycleGraph_six_three
@@ -870,12 +902,12 @@ theorem not_electsUniqueLeader_cycleGraph_six {I S M : Type*}
     x₀ r
 
 /-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b] and
-[Hirvonen and Suomela][HirvonenSuomela2020], §7.2): although `C₆` is 2-colorable
-(`cycleGraph_six_colorable_two`), no deterministic `PortProtocol` (and hence no
-`BroadcastProtocol`) with uniform initial input `x₀` outputs a proper 2-coloring of
-`SimpleGraph.cycleGraph 6` under `cycleGraphPortNumbering 3` in any round `r`, because `C₆`
-double-covers `C₃` (`χ(C₃) = 3`). -/
-theorem not_twoColoring_cycleGraph_six {I S M : Type*}
+[Hirvonen and Suomela][HirvonenSuomela2020], §7.2–7.3): although `C₆` is 2-colorable
+(`cycleGraph_six_colorable_two`), no deterministic `PortProtocol` with uniform initial input `x₀`
+outputs a proper 2-coloring of `SimpleGraph.cycleGraph 6` under `cycleGraphPortNumbering 3` in any
+round `r`, because `(C₆, cycleGraphPortNumbering 3)` double-covers `(C₃, cycleGraphPortNumbering 0)`
+(`χ(C₃) = 3`). -/
+theorem PortProtocol.not_twoColoring_cycleGraphPortNumbering_six {I S M : Type*}
     (P : PortProtocol I S M (Fin 2)) (x₀ : I) (r : ℕ) :
     ¬ (SimpleGraph.cycleGraph 6).IsProperColoring
       (P.run (cycleGraphPortNumbering 3) (fun _ => x₀) r) :=
@@ -884,7 +916,8 @@ theorem not_twoColoring_cycleGraph_six {I S M : Type*}
 
 /-! ### Symmetric `K₃,₃` (`completeBipartiteGraph (Fin 3) (Fin 3)`) client -/
 
-instance instDecidableRelCompleteBipartiteGraphAdj {V W : Type*} :
+/-- Decidability of adjacency in `completeBipartiteGraph V W`. -/
+scoped instance instDecidableRelCompleteBipartiteGraphAdj {V W : Type*} :
     DecidableRel (completeBipartiteGraph V W).Adj :=
   fun v w => inferInstanceAs (Decidable (v.isLeft ∧ w.isRight ∨ v.isRight ∧ w.isLeft))
 
@@ -975,9 +1008,10 @@ private theorem exists_portCovering_k33 (v : Fin 3 ⊕ Fin 3) :
         exact congrArg Fin.val (hsub_fin3 c i' j)
       · exact False.elim (by simp at hw)
 
-/-- Under `k33PortNumbering` and uniform initial input `x₀`, all six vertices of `K₃,₃` share the
-exact same local state in every round `r : ℕ`. -/
-theorem PortProtocol.state_k33_eq {I S M O : Type*} (P : PortProtocol I S M O) (x₀ : I)
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b] and
+[Hirvonen and Suomela][HirvonenSuomela2020], §7.1–7.2): under `k33PortNumbering` and uniform initial
+input `x₀`, all six vertices of `K₃,₃` share the exact same local state in every round `r : ℕ`. -/
+theorem PortProtocol.state_k33PortNumbering_eq {I S M O : Type*} (P : PortProtocol I S M O) (x₀ : I)
     (r : ℕ) (u v : Fin 3 ⊕ Fin 3) :
     P.state k33PortNumbering (fun _ => x₀) r u =
       P.state k33PortNumbering (fun _ => x₀) r v := by
@@ -988,31 +1022,34 @@ theorem PortProtocol.state_k33_eq {I S M O : Type*} (P : PortProtocol I S M O) (
   rw [← hφ0]
   exact P.state_eq_of_portCovering hφ (x₂ := fun _ => x₀) (fun _ => rfl) r (Sum.inl 0)
 
-/-- No deterministic anonymous `PortProtocol` (and hence no `BroadcastProtocol`) elects a unique
-leader on `K₃,₃` under `k33PortNumbering` in any round `r`. -/
-theorem not_electsUniqueLeader_k33 {I S M : Type*} (P : PortProtocol I S M Bool)
-    (x₀ : I) (r : ℕ) :
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b] and
+[Hirvonen and Suomela][HirvonenSuomela2020], §7.1–7.2): no deterministic anonymous `PortProtocol`
+elects a unique leader on `K₃,₃` under `k33PortNumbering` in any round `r`. -/
+theorem PortProtocol.not_electsUniqueLeader_k33PortNumbering {I S M : Type*}
+    (P : PortProtocol I S M Bool) (x₀ : I) (r : ℕ) :
     ¬ ElectsUniqueLeader (P.run k33PortNumbering (fun _ => x₀) r) := by
   rintro ⟨u, hu, huniq⟩
-  have hstate := P.state_k33_eq x₀ r (Sum.inl 0) (Sum.inr 0)
+  have hstate := P.state_k33PortNumbering_eq x₀ r (Sum.inl 0) (Sum.inr 0)
   have hrun : P.run k33PortNumbering (fun _ => x₀) r (Sum.inl 0) =
       P.run k33PortNumbering (fun _ => x₀) r (Sum.inr 0) :=
     congrArg P.output hstate
-  have h0u := P.state_k33_eq x₀ r (Sum.inl 0) u
+  have h0u := P.state_k33PortNumbering_eq x₀ r (Sum.inl 0) u
   have hl0 : P.run k33PortNumbering (fun _ => x₀) r (Sum.inl 0) = true :=
     (congrArg P.output h0u).trans hu
   have hl1 : P.run k33PortNumbering (fun _ => x₀) r (Sum.inr 0) = true := hrun.symm.trans hl0
   exact Sum.inl_ne_inr ((huniq (Sum.inl 0) hl0).trans (huniq (Sum.inr 0) hl1).symm)
 
-/-- Although `K₃,₃` is bipartite (2-colorable), no deterministic anonymous `PortProtocol` computes
-a proper `Fin q`-coloring of `K₃,₃` under `k33PortNumbering` for any `q : ℕ` in any round `r`. -/
-theorem not_isProperColoring_k33 {I S M : Type*} {q : ℕ} (P : PortProtocol I S M (Fin q))
-    (x₀ : I) (r : ℕ) :
+/-- Step towards `#7505` (not the cited endpoint, after [Angluin][Angluin1980b] and
+[Hirvonen and Suomela][HirvonenSuomela2020], §7.1–7.2): although `K₃,₃` is bipartite
+(2-colorable), no deterministic anonymous `PortProtocol` computes a proper `Fin q`-coloring of
+`K₃,₃` under `k33PortNumbering` for any `q : ℕ` in any round `r`. -/
+theorem PortProtocol.not_isProperColoring_k33PortNumbering {I S M : Type*} {q : ℕ}
+    (P : PortProtocol I S M (Fin q)) (x₀ : I) (r : ℕ) :
     ¬ (completeBipartiteGraph (Fin 3) (Fin 3)).IsProperColoring
       (P.run k33PortNumbering (fun _ => x₀) r) := by
   intro hprop
   have hadj : (completeBipartiteGraph (Fin 3) (Fin 3)).Adj (Sum.inl 0) (Sum.inr 0) := by simp
   exact (SimpleGraph.isProperColoring_iff _).1 hprop (Sum.inl 0) (Sum.inr 0) hadj
-    (congrArg P.output (P.state_k33_eq x₀ r (Sum.inl 0) (Sum.inr 0)))
+    (congrArg P.output (P.state_k33PortNumbering_eq x₀ r (Sum.inl 0) (Sum.inr 0)))
 
 end Cslib.Distributed.LocalGraph

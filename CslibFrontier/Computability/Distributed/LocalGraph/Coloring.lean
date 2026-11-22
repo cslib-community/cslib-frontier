@@ -225,7 +225,7 @@ theorem greedyColorReduction_run {V : Type*} [Fintype V]
 /-- Helper step towards `#7505` (not the cited endpoint, after Theorem 5.1 of
 [Kuhn and Wattenhofer][KuhnWattenhofer2006], §5, p. 12): `q + ⌊q / (Δ + 1)⌋ ≥ m` for
 `q = kwBound Δ m`. -/
-theorem le_kwBound_add_div (Δ m : ℕ) :
+private theorem le_kwBound_add_div (Δ m : ℕ) :
     m ≤ kwBound Δ m + kwBound Δ m / (Δ + 1) := by
   set q := kwBound Δ m
   have hdiv := Nat.div_add_mod (m * (Δ + 1) + (Δ + 1)) (Δ + 2)
@@ -701,6 +701,19 @@ private theorem slotColor_after_cv {Δ C : ℕ} {x : V → ℕ} (hx : Function.I
       omega
     · exact lt_of_lt_of_le h (iterate_cvBound_logStar_le C)
 
+private theorem getElem?_eq_some_of_mem_take_succ {α : Type*} {l : List α} {k : ℕ} {a : α}
+    (hmem : a ∈ l.take (k + 1)) (hnot : a ∉ l.take k) : l[k]? = some a := by
+  obtain ⟨i, hi_lt_len, hi_eq⟩ := List.mem_iff_getElem.1 hmem
+  rw [List.length_take] at hi_lt_len
+  rw [List.getElem_take] at hi_eq
+  have hik : i = k := by
+    by_contra hne_k
+    have hilt : i < (l.take k).length := by rw [List.length_take]; omega
+    have hget_k : (l.take k)[i]'hilt = l[i] := List.getElem_take
+    exact hnot (hi_eq ▸ hget_k ▸ List.getElem_mem hilt)
+  subst hik
+  exact List.getElem?_eq_some_iff.2 ⟨by omega, hi_eq⟩
+
 /-- Adding slot `k` turns a proper `(Δ + 1)`-coloring of `partialGraph G x k` into a proper
 `6 (Δ + 1)`-coloring of `partialGraph G x (k + 1)`. -/
 private theorem combined_proper_partialGraph {x : V → ℕ} {k : ℕ} {mc : V → ℕ} {sc : V → ℕ}
@@ -718,37 +731,9 @@ private theorem combined_proper_partialGraph {x : V → ℕ} {k : ℕ} {mc : V �
       fun h => hprev ⟨huv.1, h⟩
     push Not at hnot
     rcases huv.2 with hu | hv
-    · obtain ⟨i, hi_lt_len, hi_eq⟩ := List.mem_iff_getElem.1 hu
-      rw [List.length_take] at hi_lt_len
-      rw [List.getElem_take] at hi_eq
-      have hik : i = k := by
-        by_contra hne_k
-        have hilt : i < ((nbrList G x u).take k).length := by rw [List.length_take]; omega
-        have hget_k : ((nbrList G x u).take k)[i]'hilt = (nbrList G x u)[i] := List.getElem_take
-        have hmem_k : x v ∈ (nbrList G x u).take k := by
-          rw [← hi_eq, ← hget_k]
-          exact List.getElem_mem hilt
-        exact hnot.1 hmem_k
-      subst hik
-      have hget? : (nbrList G x u)[i]? = some (x v) :=
-        List.getElem?_eq_some_iff.2 ⟨by omega, hi_eq⟩
-      have hne := hsc_ne u v huv.1 hget?
+    · have hne := hsc_ne u v huv.1 (getElem?_eq_some_of_mem_take_succ hu hnot.1)
       omega
-    · obtain ⟨i, hi_lt_len, hi_eq⟩ := List.mem_iff_getElem.1 hv
-      rw [List.length_take] at hi_lt_len
-      rw [List.getElem_take] at hi_eq
-      have hik : i = k := by
-        by_contra hne_k
-        have hilt : i < ((nbrList G x v).take k).length := by rw [List.length_take]; omega
-        have hget_k : ((nbrList G x v).take k)[i]'hilt = (nbrList G x v)[i] := List.getElem_take
-        have hmem_k : x u ∈ (nbrList G x v).take k := by
-          rw [← hi_eq, ← hget_k]
-          exact List.getElem_mem hilt
-        exact hnot.2 hmem_k
-      subst hik
-      have hget? : (nbrList G x v)[i]? = some (x u) :=
-        List.getElem?_eq_some_iff.2 ⟨by omega, hi_eq⟩
-      have hne := (hsc_ne v u huv.1.symm hget?).symm
+    · have hne := (hsc_ne v u huv.1.symm (getElem?_eq_some_of_mem_take_succ hv hnot.2)).symm
       omega
 
 private theorem activeMsgs_toFinset_eq {Δ C : ℕ} (x : V → ℕ) {r : ℕ} (hr : 1 ≤ r)

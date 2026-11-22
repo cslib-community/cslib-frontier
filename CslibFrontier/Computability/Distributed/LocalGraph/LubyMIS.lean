@@ -38,29 +38,37 @@ Both variants reuse `Cslib.Algorithms.Lean.LubyMIS.State`, `liveGraph`, `liveEdg
    their neighbors). We prove exact `2 * k`-round state simulation
    (`priorityProtocol_state_two_mul`) and exact `PMF` law equality
    `ProbComp.eval (localPriorityRun G k) = ProbComp.eval (LubyMIS.run G k)`
-   (`eval_localPriorityRun`), transporting unconditional independence, `2 |V|`-round Las Vegas
-   `MIS` termination, single-phase half-edge removal, and `2 ((c + 2) ⌈log₂ n⌉ + 1)`-round
-   `1 - n ^ (-c)` high-probability termination to `LOCAL`.
-2. **Variant B — Degree-weighted coin-flip Luby / Alon–Babai–Itai (`coinPhase`, `coinLubyMIS`,
-   `liveDegreeProtocol`, `coinResolveProtocol`):** following Algorithm 7.6 ("Fast MIS") of
-   [Wattenhofer][Wattenhofer2016], §7.2, pp. 73–76, and Procedure `IN(H)` of
-   [Alon, Babai and Itai][AlonBabaiItai1986], §§3–4, pp. 569–572, each live vertex `v` learns its
+   (`eval_localPriorityRun`) and `ProbComp.eval (localPriorityMIS G k) = ProbComp.eval
+   (LubyMIS.lubyMIS G k)` (`eval_localPriorityMIS`), transporting unconditional independence,
+   `2 |V|`-round Las Vegas `MIS` termination, single-phase half-edge removal, and
+   `2 ((c + 2) ⌈log₂ n⌉ + 1)`-round `1 - n ^ (-c)` high-probability termination to `LOCAL`.
+2. **Variant B — Degree-weighted coin-flip Luby (`liveDegreeProtocol`, `coinResolveProtocol`,
+   `localCoinPhase`, `localCoinRun`, `localCoinLubyMIS`):** following Algorithm 7.6 ("Fast MIS")
+   of [Wattenhofer][Wattenhofer2016], §7.2, pp. 73–76 (presenting the Monte Carlo algorithm of
+   [Luby][Luby1986], with the good-edge orientation argument also in
+   [Alon, Babai and Itai][AlonBabaiItai1986], Lemma 4.4, p. 572), each live vertex `v` learns its
    live degree `d_H(v)` in `1` `LOCAL` round (`liveDegreeProtocol`), independently flips `true` with
-   probability `1 / (2 d_H(v))` when `d_H(v) ≥ 1` and `1` when `d_H(v) = 0` (`sampleMarks`), and
+   probability `1 / (2 d_H(v))` when `d_H(v) ≥ 1` and `1` when `d_H(v) = 0` (`localMarkProb`), and
    resolves conflicts and neighbor deletion in `2` `LOCAL` rounds (`coinResolveProtocol`), breaking
-   degree ties by injective node identifiers. We prove:
+   degree ties by injective node identifiers. (By contrast, Procedure `IN(H)` of
+   `[AlonBabaiItai1986]`, §3, p. 570, marks vertices with probability `1 / d_H(v)` and resolves
+   marked edges via randomized `d_H(u) / (d_H(u) + d_H(v))` erasure.) We prove exact end-to-end
+   program equality `localCoinPhase = coinPhase`, `localCoinRun = coinRun`, and
+   `localCoinLubyMIS = coinLubyMIS`, together with:
    * unconditional `Invariant` preservation (`invariant_coinStep`) and independence on every support
-     trajectory (`isIndepSet_of_mem_support_coinLubyMIS`);
+     trajectory (`isIndepSet_of_mem_support_localCoinLubyMIS`);
    * single-phase positive progress probability `≥ 1 / (2 |V|)` strictly shrinking `s.live` on any
      nonempty live set (`inv_two_mul_card_le_prob_live_lt`);
    * joining probability `≥ 1 / (4 d_H(v))` (after Lemma 7.7 of `[Wattenhofer2016]`), good-vertex
      removal probability `≥ 1 / 36` (after Lemma 7.8), good-edge density `≥ |E(H)| / 2` (after
-     Lemmas 7.9–7.10), single-phase expected edge contraction `≤ (71 / 72) |E(H)|` (after
-     Theorem 7.11, `seventyTwo_mul_expect_liveEdges_coinPhase_le`), and `50 (c + 2) ⌈log₂ n⌉ + 1`
-     phase `1 - n ^ (-c)` high-probability `MIS` convergence
-     (`toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow`).
+     Lemmas 7.9–7.10 and `[AlonBabaiItai1986]` Lemma 4.4), single-phase expected edge contraction
+     `≤ (71 / 72) |E(H)|` (after Theorem 7.11, `seventyTwo_mul_expect_liveEdges_coinPhase_le`), and
+     `50 (c + 2) ⌈log₂ n⌉ + 1`-phase (`3 (50 (c + 2) ⌈log₂ n⌉ + 1)`-round) `1 - n ^ (-c)`
+     high-probability `MIS` convergence
+     (`toOuterMeasure_not_maximal_localCoinLubyMIS_le_inv_pow`).
 
-Pairwise-independent PRAM derandomization (`[Luby1986]`) and expected stopping time (`O(log n)`
+Pairwise-independent PRAM derandomization (`[Luby1986]`), Alon–Babai–Itai's `1 / d_H(v)` +
+randomized edge-erasure variant (`[AlonBabaiItai1986]`), and expected stopping time (`O(log n)`
 expected phases via stopping times) remain open under `#7505` and `#3270`.
 
 ## Main definitions
@@ -69,26 +77,30 @@ expected phases via stopping times) remain open under `#7505` and `#3270`.
   two-round-per-phase synchronous `LOCAL` random-priority Luby protocol and its `ProbComp` runners.
 * `Cslib.Distributed.LocalGraph.higherPriority`, `markProb`, `sampleMarks`, `coinJoiners`,
   `coinStep`, `coinPhase`, `coinRun`, `coinLubyMIS`: degree-weighted coin-flip Luby phase and
-  multi-phase `ProbComp` runners.
-* `Cslib.Distributed.LocalGraph.liveDegreeProtocol`, `coinResolveProtocol`: `1 + 2 = 3`-round
-  synchronous `LOCAL` broadcast protocols executing one degree-weighted Luby phase.
+  multi-phase `ProbComp` specification.
+* `Cslib.Distributed.LocalGraph.liveDegreeProtocol`, `coinResolveProtocol`, `localMarkProb`,
+  `localCoinPhase`, `localCoinRun`, `localCoinLubyMIS`: `1 + 2 = 3`-round synchronous `LOCAL`
+  broadcast protocols and multi-phase `LOCAL` `ProbComp` runners executing degree-weighted Luby.
 
 ## Main results
 
 * `Cslib.Distributed.LocalGraph.priorityProtocol_state_two_mul`, `eval_localPriorityRun`,
-  `isIndepSet_of_mem_support_localPriorityMIS`, `maximal_of_mem_support_localPriorityMIS`,
+  `eval_localPriorityMIS`, `isIndepSet_of_mem_support_localPriorityMIS`,
+  `maximal_of_mem_support_localPriorityMIS`,
   `toOuterMeasure_not_maximal_localPriorityMIS_le_inv_pow`: `LOCAL` simulation and `O(log n)`-round
   w.h.p. `MIS` guarantees for Variant A.
-* `Cslib.Distributed.LocalGraph.liveDegreeProtocol_run`, `coinResolveProtocol_run`: `3`-round
-  `LOCAL` simulation of one degree-weighted coin-flip phase.
+* `Cslib.Distributed.LocalGraph.liveDegreeProtocol_run`, `coinResolveProtocol_run`,
+  `localCoinPhase_eq_coinPhase`, `eval_localCoinRun`, `eval_localCoinLubyMIS`: end-to-end
+  `3`-round-per-phase `LOCAL` simulation of degree-weighted Luby.
 * `Cslib.Distributed.LocalGraph.invariant_coinStep`, `isIndepSet_of_mem_support_coinLubyMIS`,
-  `inv_two_mul_card_le_prob_live_lt`: unconditional independence and positive single-phase progress
-  for Variant B.
+  `isIndepSet_of_mem_support_localCoinLubyMIS`, `inv_two_mul_card_le_prob_live_lt`: unconditional
+  independence and positive single-phase progress for Variant B.
 * `Cslib.Distributed.LocalGraph.one_div_four_deg_le_prob_coinJoiners`,
   `one_div_36_le_prob_removed_of_isGoodVertex`,
   `seventyTwo_mul_expect_liveEdges_coinPhase_le`,
-  `toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow`: expected `(1 / 72) |E|` edge removal and
-  `O(log n)`-phase high-probability `MIS` convergence for Variant B.
+  `toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow`,
+  `toOuterMeasure_not_maximal_localCoinLubyMIS_le_inv_pow`: expected `(1 / 72) |E|` edge removal and
+  `O(log n)`-round high-probability `MIS` convergence for Variant B.
 
 ## References
 
@@ -320,6 +332,12 @@ theorem eval_localPriorityRun (k : ℕ) :
       foldPriorityStep_congr G fun p hp => Function.update_of_ne (Nat.ne_of_lt hp) _ _
     rw [heq, Function.update_self]
 
+/-- Running `priorityProtocol` for `2 * k` synchronous `LOCAL` rounds under fresh per-phase
+rankings has the exact same output `PMF` as `LubyMIS.lubyMIS G k`. -/
+theorem eval_localPriorityMIS (k : ℕ) :
+    ProbComp.eval (localPriorityMIS G k) = ProbComp.eval (LubyMIS.lubyMIS G k) := by
+  rw [localPriorityMIS, ProbComp.eval_map, eval_localPriorityRun, LubyMIS.eval_lubyMIS]
+
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and Lemma 7.14
 of [Wattenhofer][Wattenhofer2016], §7.3, p. 78): after `2 * k` synchronous `LOCAL` rounds of
 `localPriorityRun`, the expected number of live edges is at most `|E(G)| / 2 ^ k`. -/
@@ -329,28 +347,13 @@ theorem two_pow_mul_expect_liveEdges_localPriorityRun_le (k : ℕ) :
   rw [eval_localPriorityRun]
   exact LubyMIS.two_pow_mul_expect_liveEdges_run_le G k
 
-/-- After `2 * k` synchronous `LOCAL` rounds, every support outcome of `localPriorityMIS G k` is an
-independent set of `G`. -/
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and
+[Wattenhofer][Wattenhofer2016], §7.3): after `2 * k` synchronous `LOCAL` rounds, every support
+outcome of `localPriorityMIS G k` is an independent set of `G`. -/
 theorem isIndepSet_of_mem_support_localPriorityMIS {k : ℕ} {S : Finset V}
     (hS : S ∈ (ProbComp.eval (localPriorityMIS G k)).support) :
-    G.IsIndepSet (S : Set V) := by
-  supp_cases hS [localPriorityMIS] with ⟨s, hs, rfl⟩
-  rw [eval_localPriorityRun] at hs
-  exact (LubyMIS.invariant_of_mem_support_run G hs).isIndepSet
-
-private theorem foldPriorityStep_live_card_le (σs : ℕ → LubyMIS.Ranking V) (k : ℕ) :
-    (foldPriorityStep G σs k).live = ∅ ∨
-      (foldPriorityStep G σs k).live.card + k ≤ Fintype.card V := by
-  induction k with
-  | zero => exact Or.inr (by simp [foldPriorityStep, LubyMIS.init])
-  | succ k ih =>
-    simp only [foldPriorityStep]
-    rcases (foldPriorityStep G σs k).live.eq_empty_or_nonempty with he | hne
-    · exact Or.inl (subset_empty.1 (he ▸ LubyMIS.step_live_subset G _ (σs k)))
-    · rcases ih with he | hle
-      · exact absurd he hne.ne_empty
-      · have hlt := LubyMIS.card_step_live_lt G hne (σs k)
-        exact Or.inr (by omega)
+    G.IsIndepSet (S : Set V) :=
+  LubyMIS.isIndepSet_of_mem_support_lubyMIS G (eval_localPriorityMIS G k ▸ hS)
 
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and
 [Wattenhofer][Wattenhofer2016], §7.3): after `2 * k` synchronous `LOCAL` rounds with
@@ -358,23 +361,8 @@ private theorem foldPriorityStep_live_card_le (σs : ℕ → LubyMIS.Ranking V) 
 of `G`. -/
 theorem maximal_of_mem_support_localPriorityMIS {k : ℕ} (hk : Fintype.card V ≤ k) {S : Finset V}
     (hS : S ∈ (ProbComp.eval (localPriorityMIS G k)).support) :
-    Maximal G.IsIndepSet (S : Set V) := by
-  supp_cases hS [localPriorityMIS] with ⟨s, hs, rfl⟩
-  have hs_run : s ∈ (ProbComp.eval (LubyMIS.run G k)).support := by
-    rwa [← eval_localPriorityRun]
-  refine (LubyMIS.invariant_of_mem_support_run G hs_run).maximal_iff.2 ?_
-  supp_cases hs [localPriorityRun] with ⟨σs, _, rfl⟩
-  have hlive_eq : (univ.filter fun u =>
-      (priorityProtocol.state G (fun v q => (σs q v).val) (2 * k) u).live = true) =
-      (foldPriorityStep G σs k).live := by
-    ext u
-    simp only [mem_filter, mem_univ, true_and]
-    exact (priorityProtocol_state_two_mul G σs k u).2
-  dsimp only
-  rw [hlive_eq]
-  rcases foldPriorityStep_live_card_le G σs k with he | hle
-  · exact he
-  · exact card_eq_zero.1 (by omega)
+    Maximal G.IsIndepSet (S : Set V) :=
+  LubyMIS.maximal_of_mem_support_lubyMIS G hk (eval_localPriorityMIS G k ▸ hS)
 
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and
 Corollary 7.18 of [Wattenhofer][Wattenhofer2016], §7.3, p. 79): after
@@ -382,61 +370,13 @@ Corollary 7.18 of [Wattenhofer][Wattenhofer2016], §7.3, p. 79): after
 maximal independent set with probability at most `|V| ^ (-c)`. -/
 theorem toOuterMeasure_not_maximal_localPriorityMIS_le_inv_pow (c : ℕ) :
     (ProbComp.eval (localPriorityMIS G ((c + 2) * Nat.clog 2 (Fintype.card V) + 1))).toOuterMeasure
-        {S | ¬ Maximal G.IsIndepSet (S : Set V)} ≤ ((Fintype.card V : ℝ≥0∞) ^ c)⁻¹ := by
-  set M := (c + 2) * Nat.clog 2 (Fintype.card V)
-  rw [localPriorityMIS, ProbComp.eval_map, eval_localPriorityRun,
-    _root_.PMF.toOuterMeasure_map_apply]
-  have hsub :
-      (LubyMIS.State.chosen ⁻¹' {S : Finset V | ¬ Maximal G.IsIndepSet (S : Set V)}) ∩
-        (ProbComp.eval (LubyMIS.run G (M + 1))).support ⊆ {s | s.live.Nonempty} := by
-    rintro s ⟨hs, hsupp⟩
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq,
-      (LubyMIS.invariant_of_mem_support_run G hsupp).maximal_iff] at hs ⊢
-    exact nonempty_iff_ne_empty.2 hs
-  refine (_root_.PMF.toOuterMeasure_mono _ hsub).trans ?_
-  have h := LubyMIS.two_pow_mul_toOuterMeasure_live_nonempty_le G M
-  have hedges : (G.edgeFinset.card : ℝ≥0∞) ≤ (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) := by
-    have hnat : G.edgeFinset.card ≤ 2 ^ (2 * Nat.clog 2 (Fintype.card V)) :=
-      calc G.edgeFinset.card ≤ (Fintype.card V).choose 2 := G.card_edgeFinset_le_card_choose_two
-        _ ≤ Fintype.card V ^ 2 := Nat.choose_le_pow _ _
-        _ ≤ (2 ^ Nat.clog 2 (Fintype.card V)) ^ 2 :=
-            Nat.pow_le_pow_left (Nat.le_pow_clog one_lt_two _) 2
-        _ = 2 ^ (2 * Nat.clog 2 (Fintype.card V)) := by rw [← pow_mul, mul_comm]
-    exact_mod_cast hnat
-  set P := (ProbComp.eval (LubyMIS.run G (M + 1))).toOuterMeasure {s | s.live.Nonempty}
-  have hM_split : M = 2 * Nat.clog 2 (Fintype.card V) + c * Nat.clog 2 (Fintype.card V) := by
-    dsimp only [M]; ring
-  have h2c_pos : (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) ≠ 0 :=
-    pow_ne_zero _ two_ne_zero
-  have h2c_top : (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) ≠ ⊤ :=
-    ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-  have hP_le : P ≤ ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)))⁻¹ := by
-    have hle1 : (2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) * P ≤ 1 := by
-      have hmul :
-          ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) * P) *
-            (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) ≤
-          1 * (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) := by
-        calc ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) * P) *
-              (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V))
-            = (2 : ℝ≥0∞) ^ M * P := by rw [hM_split, pow_add]; ring
-          _ ≤ G.edgeFinset.card := h
-          _ ≤ 1 * (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) := by rw [one_mul]; exact hedges
-      exact (ENNReal.mul_le_mul_iff_left h2c_pos h2c_top).1 hmul
-    have h2cc_pos : (2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) ≠ 0 :=
-      pow_ne_zero _ two_ne_zero
-    have h2cc_top : (2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) ≠ ⊤ :=
-      ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-    rw [mul_comm, ← ENNReal.le_div_iff_mul_le (Or.inl h2cc_pos) (Or.inl h2cc_top),
-      ENNReal.div_eq_inv_mul, mul_one] at hle1
-    exact hle1
-  refine hP_le.trans (ENNReal.inv_le_inv.2 ?_)
-  rw [mul_comm, pow_mul]
-  gcongr
-  exact_mod_cast Nat.le_pow_clog one_lt_two _
+        {S | ¬ Maximal G.IsIndepSet (S : Set V)} ≤ ((Fintype.card V : ℝ≥0∞) ^ c)⁻¹ :=
+  eval_localPriorityMIS G ((c + 2) * Nat.clog 2 (Fintype.card V) + 1) ▸
+    LubyMIS.toOuterMeasure_not_maximal_lubyMIS_le_inv_pow G c
 
 end VariantA
 
-/-! ### Variant B: Degree-weighted coin-flip Luby / Alon–Babai–Itai (`1 / (2 d(v))` marking) -/
+/-! ### Variant B: Degree-weighted coin-flip Luby (`1 / (2 d(v))` marking) -/
 
 section VariantB
 
@@ -750,6 +690,101 @@ theorem coinResolveProtocol_run (s : LubyMIS.State V) (uid : V → ℕ) (m : V �
       rw [← Bool.not_eq_true, hjoin z]
       exact fun hzj => h z hzj hadj.symm
 
+/-- Local marking probability computed by a node solely from its own `live` bit and its locally
+discovered `liveDeg` (`0` if non-live, `1` if `liveDeg = 0`, and `1 / (2 * liveDeg)` otherwise). -/
+@[expose] def localMarkProb (live : Bool) (liveDeg : ℕ) : ℚ :=
+  if live then
+    if liveDeg = 0 then 1 else 1 / (2 * (liveDeg : ℚ))
+  else 0
+
+/-- One `3`-round synchronous `LOCAL` phase of degree-weighted Luby:
+1. `1` broadcast round (`liveDegreeProtocol`) in which each node learns `liveDeg`;
+2. independent local Bernoulli coin flips with probability `localMarkProb`;
+3. `2` broadcast rounds (`coinResolveProtocol`) updating `(chosen, live)`. -/
+noncomputable def localCoinPhase (uid : V → ℕ) (s : LubyMIS.State V) :
+    ProbComp (LubyMIS.State V) := do
+  let liveDeg := liveDegreeProtocol.run G (fun v => decide (v ∈ s.live)) 1
+  let m ← ProbComp.sampleEach fun v =>
+    ProbComp.bernoulliRat (localMarkProb (decide (v ∈ s.live)) (liveDeg v))
+  let out := coinResolveProtocol.run G
+    (fun v =>
+      { uid := uid v
+        chosen := decide (v ∈ s.chosen)
+        live := decide (v ∈ s.live)
+        liveDeg := liveDeg v
+        marked := m v }) 2
+  return { chosen := univ.filter fun u => (out u).chosen = true
+           live := univ.filter fun u => (out u).live = true }
+
+/-- Iterate `k` synchronous `3`-round `LOCAL` phases (`3 * k` communication rounds in total) of
+degree-weighted Luby from `LubyMIS.init`. -/
+noncomputable def localCoinRun (uid : V → ℕ) (k : ℕ) : ProbComp (LubyMIS.State V) :=
+  OracleComp.iterate k (localCoinPhase G uid) LubyMIS.init
+
+/-- Output independent set chosen after `k` synchronous `3`-round `LOCAL` phases (`3 * k`
+communication rounds) of degree-weighted Luby. -/
+noncomputable def localCoinLubyMIS (uid : V → ℕ) (k : ℕ) : ProbComp (Finset V) :=
+  LubyMIS.State.chosen <$> localCoinRun G uid k
+
+/-- Each `3`-round `LOCAL` phase `localCoinPhase G uid s` equals `coinPhase G uid s` as a
+`ProbComp` program. -/
+theorem localCoinPhase_eq_coinPhase (uid : V → ℕ) (s : LubyMIS.State V) :
+    localCoinPhase G uid s = coinPhase G uid s := by
+  have hprob : (fun v =>
+      ProbComp.bernoulliRat
+        (localMarkProb (decide (v ∈ s.live))
+          (liveDegreeProtocol.run G (fun w => decide (w ∈ s.live)) 1 v))) =
+      fun v => ProbComp.bernoulliRat (markProb G s v) := by
+    funext v
+    congr 1
+    rw [liveDegreeProtocol_run]
+    unfold localMarkProb markProb
+    by_cases hv : v ∈ s.live <;> simp [hv]
+  have hout : ∀ m : V → Bool,
+      ({ chosen := univ.filter fun u =>
+           (coinResolveProtocol.run G
+             (fun v =>
+               { uid := uid v
+                 chosen := decide (v ∈ s.chosen)
+                 live := decide (v ∈ s.live)
+                 liveDeg := liveDegreeProtocol.run G (fun w => decide (w ∈ s.live)) 1 v
+                 marked := m v }) 2 u).chosen = true
+         live := univ.filter fun u =>
+           (coinResolveProtocol.run G
+             (fun v =>
+               { uid := uid v
+                 chosen := decide (v ∈ s.chosen)
+                 live := decide (v ∈ s.live)
+                 liveDeg := liveDegreeProtocol.run G (fun w => decide (w ∈ s.live)) 1 v
+                 marked := m v }) 2 u).live = true } :
+        LubyMIS.State V) = coinStep G s uid m := by
+    intro m
+    cases h : coinStep G s uid m with
+    | mk ch lv =>
+      congr 1 <;> ext u <;> simp only [mem_filter, mem_univ, true_and]
+      · simpa only [h] using (coinResolveProtocol_run G s uid m u).1
+      · simpa only [h] using (coinResolveProtocol_run G s uid m u).2
+  dsimp only [localCoinPhase, coinPhase, sampleMarks]
+  rw [hprob]
+  congr 1 with m : 1
+  rw [hout m]
+
+/-- `k` synchronous `3`-round `LOCAL` phases `localCoinRun G uid k` equal `coinRun G uid k`. -/
+theorem localCoinRun_eq_coinRun (uid : V → ℕ) (k : ℕ) :
+    localCoinRun G uid k = coinRun G uid k := by
+  simp only [localCoinRun, coinRun, funext (localCoinPhase_eq_coinPhase G uid)]
+
+/-- Law equality between `localCoinRun` (`3 * k` synchronous `LOCAL` rounds) and `coinRun`. -/
+theorem eval_localCoinRun (uid : V → ℕ) (k : ℕ) :
+    ProbComp.eval (localCoinRun G uid k) = ProbComp.eval (coinRun G uid k) :=
+  congrArg ProbComp.eval (localCoinRun_eq_coinRun G uid k)
+
+/-- Law equality between `localCoinLubyMIS` (`3 * k` synchronous `LOCAL` rounds) and
+`coinLubyMIS`. -/
+theorem eval_localCoinLubyMIS (uid : V → ℕ) (k : ℕ) :
+    ProbComp.eval (localCoinLubyMIS G uid k) = ProbComp.eval (coinLubyMIS G uid k) := by
+  simp only [localCoinLubyMIS, coinLubyMIS, localCoinRun_eq_coinRun]
+
 /-! #### Unconditional `Invariant` preservation and positive single-phase progress -/
 
 /-- For injective `uid`, `coinStep` preserves `LubyMIS.Invariant G` under every mark vector
@@ -798,13 +833,23 @@ theorem invariant_of_mem_support_coinRun {uid : V → ℕ} (huid : Function.Inje
       supp_cases hnext [eval_coinPhase] with ⟨m, _, rfl⟩
       exact invariant_coinStep G hinv huid m) s hs
 
-/-- After any number of phases `k`, every support outcome of `coinLubyMIS G uid k` is an
-independent set of `G`. -/
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and Algorithm
+7.6 of [Wattenhofer][Wattenhofer2016], §7.2, p. 73): after any number of phases `k`, every support
+outcome of `coinLubyMIS G uid k` is an independent set of `G`. -/
 theorem isIndepSet_of_mem_support_coinLubyMIS {uid : V → ℕ} (huid : Function.Injective uid)
     {k : ℕ} {S : Finset V} (hS : S ∈ (ProbComp.eval (coinLubyMIS G uid k)).support) :
     G.IsIndepSet (S : Set V) := by
   supp_cases hS [coinLubyMIS] with ⟨s, hs, rfl⟩
   exact (invariant_of_mem_support_coinRun G huid hs).isIndepSet
+
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and Algorithm
+7.6 of [Wattenhofer][Wattenhofer2016], §7.2, p. 73): after `k` synchronous `3`-round `LOCAL` phases
+(`3 * k` rounds), every support outcome of `localCoinLubyMIS G uid k` is an independent set of `G`.
+-/
+theorem isIndepSet_of_mem_support_localCoinLubyMIS {uid : V → ℕ} (huid : Function.Injective uid)
+    {k : ℕ} {S : Finset V} (hS : S ∈ (ProbComp.eval (localCoinLubyMIS G uid k)).support) :
+    G.IsIndepSet (S : Set V) :=
+  isIndepSet_of_mem_support_coinLubyMIS G huid (eval_localCoinLubyMIS G uid k ▸ hS)
 
 /-! #### Product-coin independence helpers and single-phase progress -/
 
@@ -887,9 +932,10 @@ private theorem pi_map_and_true_of_update_eq (p : V → _root_.PMF Bool) (v : V)
     rw [hcongr, pi_map_of_update_eq p v (_root_.PMF.pure true) g hg]
   rw [hfalse, htrue, mul_zero, zero_add]
 
-/-- Whenever `s.live` is nonempty, a single phase of `coinPhase G uid s` strictly reduces
-`s.live.card` with probability at least `1 / (2 |V|)` (since the highest-`(d_H, uid)` live vertex
-joins whenever it marks itself). -/
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and Algorithm
+7.6 of [Wattenhofer][Wattenhofer2016], §7.2, p. 73): whenever `s.live` is nonempty, a single phase
+of `coinPhase G uid s` strictly reduces `s.live.card` with probability at least `1 / (2 |V|)`
+(since the highest-`(d_H, uid)` live vertex joins whenever it marks itself). -/
 theorem inv_two_mul_card_le_prob_live_lt {s : LubyMIS.State V} (hs : s.live.Nonempty)
     (uid : V → ℕ) :
     (1 : ℝ) / (2 * Fintype.card V) ≤
@@ -1169,9 +1215,9 @@ private theorem exists_subset_sum_mem_Icc {N : Finset V} {wt : V → ℝ}
   (1 / 6 : ℝ) ≤ ∑ w ∈ H.neighborFinset v, (1 : ℝ) / (2 * H.degree w)
 
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after Lemma 7.8 of
-[Wattenhofer][Wattenhofer2016], §7.2, pp. 74–75, and Lemmas 4.1–4.2 and Corollary 4.3 of
-[Alon, Babai and Itai][AlonBabaiItai1986], pp. 570–571): every good vertex `v` is removed from the
-live set (`v ∉ (coinStep G s uid m).live`) in one phase with probability at least `1 / 36`. -/
+[Wattenhofer][Wattenhofer2016], §7.2, pp. 74–75, presenting [Luby][Luby1986]): every good vertex `v`
+is removed from the live set (`v ∉ (coinStep G s uid m).live`) in one phase with probability at
+least `1 / 36`. -/
 theorem one_div_36_le_prob_removed_of_isGoodVertex {s : LubyMIS.State V} {uid : V → ℕ} {v : V}
     (hgood : isGoodVertex G s v) :
     (1 / 36 : ℝ) ≤
@@ -1452,10 +1498,9 @@ private theorem liveEdges_le_two_mul_sum_good_inNbrs {s : LubyMIS.State V} {uid 
   omega
 
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after Theorem 7.11 of
-[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, and Corollary 4.5 of
-[Alon, Babai and Itai][AlonBabaiItai1986], p. 572): one phase of degree-weighted coin-flip Luby
-with injective identifier tie-breaking leaves at most `71 / 72` of the live edges in expectation
-(`72 · E[liveEdges'] ≤ 71 · liveEdges`). -/
+[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, presenting [Luby][Luby1986]): one phase of
+degree-weighted coin-flip Luby with injective identifier tie-breaking leaves at most `71 / 72` of
+the live edges in expectation (`72 · E[liveEdges'] ≤ 71 · liveEdges`). -/
 theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
     (huid : Function.Injective uid) (s : LubyMIS.State V) :
     72 * ∑' t, ProbComp.eval (coinPhase G uid s) t * (LubyMIS.liveEdges G t : ℝ≥0∞) ≤
@@ -1621,7 +1666,9 @@ theorem coinRun_succ (uid : V → ℕ) (k : ℕ) :
     coinRun G uid (k + 1) = coinRun G uid k >>= coinPhase G uid := by
   simp only [coinRun, OracleComp.iterate_succ]
 
-/-- After `k` phases of `coinRun`, `(72 ^ k) · E[liveEdges_k] ≤ (71 ^ k) · |E(G)|`. -/
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after Theorem 7.11 of
+[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, presenting [Luby][Luby1986]): after `k` phases of
+`coinRun`, `(72 ^ k) · E[liveEdges_k] ≤ (71 ^ k) · |E(G)|`. -/
 theorem seventyTwo_pow_mul_expect_liveEdges_coinRun_le {uid : V → ℕ}
     (huid : Function.Injective uid) (k : ℕ) :
     (72 : ℝ≥0∞) ^ k * ∑' t, ProbComp.eval (coinRun G uid k) t * (LubyMIS.liveEdges G t : ℝ≥0∞) ≤
@@ -1659,7 +1706,7 @@ theorem seventyTwo_pow_mul_expect_liveEdges_coinRun_le {uid : V → ℕ}
 /-- When no live edges remain (`liveEdges G s = 0`), every live vertex has live degree `0`, marks
 itself with probability `1` on every outcome in the support of `sampleMarks G s`, joins
 `coinJoiners`, and leaves `(coinStep G s uid m).live = ∅`. -/
-theorem live_coinStep_eq_empty_of_liveEdges_eq_zero {s : LubyMIS.State V}
+private theorem live_coinStep_eq_empty_of_liveEdges_eq_zero {s : LubyMIS.State V}
     (h0 : LubyMIS.liveEdges G s = 0) (uid : V → ℕ) {m : V → Bool}
     (hm : m ∈ (ProbComp.eval (sampleMarks G s)).support) :
     (coinStep G s uid m).live = ∅ := by
@@ -1703,8 +1750,9 @@ theorem live_coinStep_eq_empty_of_liveEdges_eq_zero {s : LubyMIS.State V}
   exact hnotJ ((mem_coinJoiners G).2
     ⟨hL, hmv_true v hL, fun w hw hadj _ => absurd hadj (hno_adj v hL w hw)⟩)
 
-/-- After `k + 1` phases of `coinRun`, some vertex remains live with probability at most
-`(71 / 72) ^ k · |E(G)|`. -/
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after Theorem 7.11 of
+[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, presenting [Luby][Luby1986]): after `k + 1` phases
+of `coinRun`, some vertex remains live with probability at most `(71 / 72) ^ k · |E(G)|`. -/
 theorem seventyTwo_pow_mul_toOuterMeasure_live_nonempty_coinRun_le {uid : V → ℕ}
     (huid : Function.Injective uid) (k : ℕ) :
     (72 : ℝ≥0∞) ^ k *
@@ -1725,11 +1773,10 @@ theorem seventyTwo_pow_mul_toOuterMeasure_live_nonempty_coinRun_le {uid : V → 
 private theorem two_mul_71_pow_50_le_72_pow_50 : 2 * 71 ^ 50 ≤ 72 ^ 50 := by decide
 
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after Theorem 7.11 of
-[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, and Corollary 4.5 of
-[Alon, Babai and Itai][AlonBabaiItai1986], p. 572): since `2 · 71 ^ 50 ≤ 72 ^ 50`, every `50`
-phases at least halve the expected live edges; after `50 * (c + 2) * ⌈log₂ |V|⌉ + 1` phases
-(`3 * (50 * (c + 2) * ⌈log₂ |V|⌉ + 1)` synchronous `LOCAL` rounds), `coinLubyMIS` fails to output a
-maximal independent set with probability at most `|V| ^ (-c)`. -/
+[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, presenting [Luby][Luby1986]): since
+`2 · 71 ^ 50 ≤ 72 ^ 50`, every `50` phases at least halve the expected live edges; after
+`50 * (c + 2) * ⌈log₂ |V|⌉ + 1` phases, `coinLubyMIS` fails to output a maximal independent set
+with probability at most `|V| ^ (-c)`. -/
 theorem toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow {uid : V → ℕ}
     (huid : Function.Injective uid) (c : ℕ) :
     (ProbComp.eval
@@ -1809,6 +1856,19 @@ theorem toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow {uid : V → ℕ}
   rw [mul_comm, pow_mul]
   gcongr
   exact_mod_cast Nat.le_pow_clog one_lt_two _
+
+/-- Step towards `#7505` and `#3270` (not the cited endpoint, after Theorem 7.11 of
+[Wattenhofer][Wattenhofer2016], §7.2, pp. 75–76, presenting [Luby][Luby1986]): after
+`50 * (c + 2) * ⌈log₂ |V|⌉ + 1` synchronous `3`-round `LOCAL` phases
+(`3 * (50 * (c + 2) * ⌈log₂ |V|⌉ + 1)` communication rounds), `localCoinLubyMIS` fails to output a
+maximal independent set with probability at most `|V| ^ (-c)`. -/
+theorem toOuterMeasure_not_maximal_localCoinLubyMIS_le_inv_pow {uid : V → ℕ}
+    (huid : Function.Injective uid) (c : ℕ) :
+    (ProbComp.eval
+        (localCoinLubyMIS G uid (50 * (c + 2) * Nat.clog 2 (Fintype.card V) + 1))).toOuterMeasure
+        {S | ¬ Maximal G.IsIndepSet (S : Set V)} ≤ ((Fintype.card V : ℝ≥0∞) ^ c)⁻¹ := by
+  rw [eval_localCoinLubyMIS]
+  exact toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow G huid c
 
 end VariantB
 

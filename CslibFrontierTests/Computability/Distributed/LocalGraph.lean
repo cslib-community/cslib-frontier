@@ -130,27 +130,33 @@ example : ¬ GraphCovering (cycleGraph 4) (completeGraph (Fin 2))
   exact absurd h13 (by decide)
 
 -- Checked impossibility instantiations on `C₆`, `bipartiteDoubleCover C₃`, and `K₃,₃`.
+example (B₁ : BroadcastProtocol Unit ℕ ℕ Bool) (B₂ : BroadcastProtocol Unit ℕ ℕ (Fin 2)) (r : ℕ) :
+    ¬ ElectsUniqueLeader (B₁.run (cycleGraph 6) (fun _ => ()) r) ∧
+    ¬ (cycleGraph 6).IsProperColoring (B₂.run (cycleGraph 6) (fun _ => ()) r) :=
+  ⟨B₁.not_electsUniqueLeader_cycleGraph_six () r, B₂.not_twoColoring_cycleGraph_six () r⟩
+
 example (P : PortProtocol Unit ℕ ℕ Bool) (r : ℕ) :
     ¬ ElectsUniqueLeader (P.run (cycleGraphPortNumbering 3) (fun _ => ()) r) :=
-  not_electsUniqueLeader_cycleGraph_six P () r
+  P.not_electsUniqueLeader_cycleGraphPortNumbering_six () r
 
 example (P : PortProtocol Unit ℕ ℕ (Fin 2)) (r : ℕ) :
     ¬ (cycleGraph 6).IsProperColoring (P.run (cycleGraphPortNumbering 3) (fun _ => ()) r) :=
-  not_twoColoring_cycleGraph_six P () r
+  P.not_twoColoring_cycleGraphPortNumbering_six () r
 
 example (P : PortProtocol Unit ℕ ℕ (Fin 2)) (r : ℕ) :
     (bipartiteDoubleCover (cycleGraph 3)).Colorable 2 ∧
     ¬ (bipartiteDoubleCover (cycleGraph 3)).IsProperColoring
       (P.run (cycleGraphPortNumbering 0).bipartiteDoubleCover (fun _ => ()) r) :=
   ⟨bipartiteDoubleCover_colorable_two (cycleGraph 3),
-    not_isProperColoring_bipartiteDoubleCover (cycleGraphPortNumbering 0)
+    PortProtocol.not_isProperColoring_bipartiteDoubleCover (cycleGraphPortNumbering 0)
       not_cycleGraph_three_colorable_two P () r⟩
 
 example (P : PortProtocol Unit ℕ ℕ Bool) (Q : PortProtocol Unit ℕ ℕ (Fin 2)) (r : ℕ) :
     ¬ ElectsUniqueLeader (P.run k33PortNumbering (fun _ => ()) r) ∧
     ¬ (completeBipartiteGraph (Fin 3) (Fin 3)).IsProperColoring
       (Q.run k33PortNumbering (fun _ => ()) r) :=
-  ⟨not_electsUniqueLeader_k33 P () r, not_isProperColoring_k33 Q () r⟩
+  ⟨P.not_electsUniqueLeader_k33PortNumbering () r,
+    Q.not_isProperColoring_k33PortNumbering () r⟩
 
 /-! ### 2. Deterministic `(Δ + 1)`-coloring building blocks and boundary witnesses -/
 
@@ -343,13 +349,13 @@ example :
         (LubyMIS.liveEdges (cycleGraph 3) t : ℝ≥0∞) ≤
       71 * (LubyMIS.liveEdges (cycleGraph 3) LubyMIS.init : ℝ≥0∞) ∧
     (ProbComp.eval
-      (coinLubyMIS (cycleGraph 3) Fin.val
+      (localCoinLubyMIS (cycleGraph 3) Fin.val
         (50 * (1 + 2) * Nat.clog 2 (Fintype.card (Fin 3)) + 1))).toOuterMeasure
       {S | ¬ Maximal (cycleGraph 3).IsIndepSet (S : Set (Fin 3))} ≤
         ((Fintype.card (Fin 3) : ℝ≥0∞) ^ 1)⁻¹ :=
   ⟨one_div_36_le_prob_removed_of_isGoodVertex (cycleGraph 3) c3_zero_isGoodVertex,
     inv_two_mul_card_le_prob_live_lt (cycleGraph 3) (by decide) Fin.val,
     seventyTwo_mul_expect_liveEdges_coinPhase_le (cycleGraph 3) Fin.val_injective LubyMIS.init,
-    toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow (cycleGraph 3) Fin.val_injective 1⟩
+    toOuterMeasure_not_maximal_localCoinLubyMIS_le_inv_pow (cycleGraph 3) Fin.val_injective 1⟩
 
 end CslibFrontierTests.Distributed.LocalGraph
