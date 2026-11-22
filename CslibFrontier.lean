@@ -3540,8 +3540,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeaf
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeafATM
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeafCost
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeafFamily
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeafLayout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySavePath
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveSignedCorrection
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveStream
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveWordSum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Convolution
@@ -3572,6 +3574,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Segment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct.Native
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ResidueInverse
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootEndpointGround
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance
@@ -3607,6 +3610,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SeededChildWitness.Segment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedFork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedWordFork
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SignedOperandRunner
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SourceWordInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StateSimulation
@@ -3751,6 +3755,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleSearchSpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleValidation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ScheduleValidationNative
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.SignedOperandRequest
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputationProgram
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputationTree
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockTrace
@@ -4728,6 +4733,7 @@ public import CslibFrontier.Computability.PolyTime.CommonCountingAccum
 public import CslibFrontier.Computability.PolyTime.ConvolutionOperand
 public import CslibFrontier.Computability.PolyTime.ConvolutionOperand.Path
 public import CslibFrontier.Computability.PolyTime.ConvolutionOperand.Signed
+public import CslibFrontier.Computability.PolyTime.ConvolutionOperand.Signed.Correction
 public import CslibFrontier.Computability.PolyTime.CountingLeaf
 public import CslibFrontier.Computability.PolyTime.CountingLeaf.Native
 public import CslibFrontier.Computability.PolyTime.CountingLeaf.NativeCost
