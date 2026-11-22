@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Privacy.DifferentialPrivacy.Basic
+public import CslibFrontier.Probability.Renyi
 public import Mathlib.Analysis.SpecialFunctions.Pow.NNReal
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Series
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
@@ -15,34 +16,32 @@ import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
 
 /-!
-# Moments of the privacy loss
+# Privacy-loss bounds on Rényi moments and Rényi divergence
 
-For mass functions `p`, `q` on a countable type, `lossMoment t p q = ∑ a, p a · (p a / q a) ^ t`
-is the moment generating function of the privacy loss `ln (p a / q a)` [DworkRoth2014, §2.3].
-Markov's inequality (`Cslib.Probability.tsum_tsub_le_mul_rpow_tsum`) turns a moment bound directly
-into a truncated-excess / hockey-stick bound (`tsum_tsub_le_lossMoment`,
-`hockeyStick_le_lossMoment`). When the likelihood ratio lies in `[e^{-ε}, e^ε]`, convexity of
-`x ↦ x ^ (1 + t)` bounds the moment by `cosh (ε t) + tanh (ε / 2) · sinh (ε t)` per unit of mass
-(`lossMoment_le_of_le_mul`), hence by `exp (tanh (ε / 2) · ε t + (ε t)² / 2)`
-(`lossMoment_le_exp`). The last step is Hoeffding's lemma for the two-point law on `±ε t`
-(`Real.cosh_add_mul_sinh_le_exp`; compare `Cslib.one_sub_mul_exp_add_mul_exp_le`). This is the
-per-round step of the proof of advanced composition; the approximate-DP sub-probability splitting
-lives in `CslibFrontier.Probability.HockeyStick` (`exists_subprob_of_hockeyStick_le`).
-
-## Main definitions
-
-* `Cslib.Privacy.lossMoment`: the moment generating function of the privacy loss.
+For mass functions `p`, `q` on a countable type, the order-`α` Rényi moment
+`Probability.renyiMoment α p q = ∑ r, p r · (p r / q r) ^ (α - 1)` is the moment generating
+function `E_{r ∼ p}[exp ((α - 1) · L(r))]` of the privacy loss `L(r) = ln (p r / q r)`
+[DworkRoth2014, §2.3; Mironov2017, Definition 3]. When the likelihood ratio lies in
+`[e^{-ε}, e^ε]`, convexity of `x ↦ x ^ α` bounds the moment by
+`cosh (ε (α - 1)) + tanh (ε / 2) · sinh (ε (α - 1))` per unit of mass (`renyiMoment_le_of_le_mul`),
+hence by `exp (tanh (ε / 2) · ε (α - 1) + (ε (α - 1))² / 2)` (`renyiMoment_le_exp`). Taking
+logarithms gives the privacy-loss refinement `D_α(p ‖ q) ≤ ε tanh (ε / 2) + (α - 1) ε² / 2`
+(`renyiDiv_le_of_le_mul`), which yields both the quadratic pure-DP to Rényi divergence bound
+`α ε² / 2` of [BunSteinke2016, Proposition 3.3] (cited in [Mironov2017, Section V]) and the
+per-round step of advanced composition.
 
 ## Main results
 
-* `Cslib.Privacy.tsum_tsub_le_lossMoment`, `Cslib.Privacy.hockeyStick_le_lossMoment`: Markov's
-  inequality from the privacy-loss moment to truncated excess and `PMF.hockeyStick`.
-* `Cslib.Privacy.lossMoment_le_of_le_mul`, `Cslib.Privacy.lossMoment_le_exp`: the moment bound
-  for an `ε`-close pair.
+* `Cslib.Privacy.renyiMoment_le_of_le_mul`, `Cslib.Privacy.renyiMoment_le_exp`: the Rényi moment
+  bounds for an `ε`-close pair of mass functions.
+* `Cslib.Privacy.renyiDiv_le_of_le_mul`: the `ε tanh (ε / 2) + (α - 1) ε² / 2` Rényi divergence
+  refinement on `PMF`s.
 
 ## References
 
+* [BunSteinke2016]
 * [DworkRoth2014]
+* [Mironov2017]
 -/
 
 open scoped ENNReal
@@ -53,34 +52,7 @@ namespace Cslib.Privacy
 
 universe u
 
-variable {α : Type u}
-
-section Moment
-
-/-- The privacy-loss moment `∑ a, p a · (p a / q a) ^ t`: for probability mass functions `p`
-and `q`, the moment generating function `E_{a ∼ p}[exp (t · L(a))]` of the privacy loss
-`L(a) = ln (p a / q a)` [DworkRoth2014, §2.3]. The masses may be sub-probabilities. -/
-noncomputable def lossMoment (t : ℝ) (p q : α → ℝ≥0∞) : ℝ≥0∞ :=
-  ∑' a, p a * (p a / q a) ^ t
-
-theorem lossMoment_def (t : ℝ) (p q : α → ℝ≥0∞) :
-    lossMoment t p q = ∑' a, p a * (p a / q a) ^ t := by
-  rw [lossMoment]
-
-/-- Markov's inequality for the privacy loss: for `t ≥ 0` and any mass functions `p, q`,
-`∑' a, (p a - e^{ε'} · q a) ≤ e^{-t ε'} · lossMoment t p q`. -/
-theorem tsum_tsub_le_lossMoment {t : ℝ} (ht : 0 ≤ t) (ε' : ℝ) (p q : α → ℝ≥0∞) :
-    ∑' a, (p a - ENNReal.ofReal (Real.exp ε') * q a) ≤
-      ENNReal.ofReal (Real.exp (-(t * ε'))) * lossMoment t p q :=
-  Probability.tsum_tsub_le_mul_rpow_tsum ht ε' p q
-
-/-- Markov's inequality for `PMF`s: `hockeyStick (e^{ε'}) p q ≤ e^{-t ε'} · lossMoment t p q`. -/
-theorem hockeyStick_le_lossMoment {t : ℝ} (ht : 0 ≤ t) (ε' : ℝ) (p q : PMF α) :
-    Probability.PMF.hockeyStick (ENNReal.ofReal (Real.exp ε')) p q ≤
-      ENNReal.ofReal (Real.exp (-(t * ε'))) * lossMoment t p q :=
-  Probability.PMF.hockeyStick_le_mul_rpow_tsum ht ε' p q
-
-end Moment
+variable {R : Type u}
 
 section Chord
 
@@ -128,31 +100,33 @@ end Chord
 
 section SingleRound
 
-/-- The moment bound for one round: if the likelihood ratio of `p` and `q` lies in
-`[e^{-ε}, e^ε]` and `p` has at most the mass of `q`, then
-`lossMoment t p q ≤ (cosh (ε t) + tanh (ε / 2) · sinh (ε t)) · ∑ p`. The bound comes from the
-chord of the convex function `x ↦ x ^ (1 + t)` between `e^{-ε}` and `e^ε`, and is attained by
+/-- The Rényi moment bound for one round: if the likelihood ratio of `p` and `q` lies in
+`[e^{-ε}, e^ε]` and `p` has at most the mass of `q`, then for `1 ≤ α`,
+`renyiMoment α p q ≤ (cosh (ε (α - 1)) + tanh (ε / 2) · sinh (ε (α - 1))) · ∑ p`. The bound comes
+from the chord of the convex function `x ↦ x ^ α` between `e^{-ε}` and `e^ε`, and is attained by
 two-point distributions whose likelihood ratio takes only the values `e^{±ε}`. -/
-theorem lossMoment_le_of_le_mul {p q : α → ℝ≥0∞} {ε t : ℝ} (hε : 0 ≤ ε) (ht : 0 ≤ t)
-    (hpq : ∀ a, p a ≤ ENNReal.ofReal (Real.exp ε) * q a)
-    (hqp : ∀ a, q a ≤ ENNReal.ofReal (Real.exp ε) * p a)
-    (hsum : ∑' a, p a ≤ ∑' a, q a) (hfin : ∑' a, q a ≠ ⊤) :
-    lossMoment t p q ≤ ENNReal.ofReal (Real.cosh (ε * t) +
-      Real.tanh (ε / 2) * Real.sinh (ε * t)) * ∑' a, p a := by
+theorem renyiMoment_le_of_le_mul {p q : R → ℝ≥0∞} {ε α : ℝ} (hε : 0 ≤ ε) (hα : 1 ≤ α)
+    (hpq : ∀ r, p r ≤ ENNReal.ofReal (Real.exp ε) * q r)
+    (hqp : ∀ r, q r ≤ ENNReal.ofReal (Real.exp ε) * p r)
+    (hsum : ∑' r, p r ≤ ∑' r, q r) (hfin : ∑' r, q r ≠ ⊤) :
+    Probability.renyiMoment α p q ≤ ENNReal.ofReal (Real.cosh (ε * (α - 1)) +
+      Real.tanh (ε / 2) * Real.sinh (ε * (α - 1))) * ∑' r, p r := by
+  set t : ℝ := α - 1
+  have ht : 0 ≤ t := sub_nonneg.mpr hα
   rw [Real.tanh_half_eq_exp_sub_one_div]
-  have hq : ∀ a, q a ≠ ⊤ := ne_top_of_tsum_ne_top hfin
-  have hp : ∀ a, p a ≠ ⊤ := fun a => ne_top_of_le_ne_top
-    (ENNReal.mul_ne_top ENNReal.ofReal_ne_top (hq a)) (hpq a)
+  have hq : ∀ r, q r ≠ ⊤ := ne_top_of_tsum_ne_top hfin
+  have hp : ∀ r, p r ≠ ⊤ := fun r => ne_top_of_le_ne_top
+    (ENNReal.mul_ne_top ENNReal.ofReal_ne_top (hq r)) (hpq r)
   rcases hε.eq_or_lt with rfl | hε
-  · have heq : ∀ a, p a = q a := fun a => le_antisymm
-      (by simpa using hpq a) (by simpa using hqp a)
+  · have heq : ∀ r, p r = q r := fun r => le_antisymm
+      (by simpa using hpq r) (by simpa using hqp r)
     simp only [zero_mul, Real.cosh_zero, Real.sinh_zero, mul_zero, add_zero, ENNReal.ofReal_one,
-      one_mul, lossMoment]
-    refine tsum_le_tsum fun a => ?_
-    rw [heq a]
-    rcases eq_or_ne (q a) 0 with h0 | h0
+      one_mul, Probability.renyiMoment]
+    refine tsum_le_tsum fun r => ?_
+    rw [heq r]
+    rcases eq_or_ne (q r) 0 with h0 | h0
     · simp [h0]
-    · rw [ENNReal.div_self h0 (hq a), ENNReal.one_rpow, mul_one]
+    · rw [ENNReal.div_self h0 (hq r), ENNReal.one_rpow, mul_one]
   set E := Real.exp ε
   have hE : 1 < E := Real.one_lt_exp_iff.mpr hε
   have hEinv : E⁻¹ < E := (inv_lt_one_of_one_lt₀ hE).trans hE
@@ -163,36 +137,38 @@ theorem lossMoment_le_of_le_mul {p q : α → ℝ≥0∞} {ε t : ℝ} (hε : 0 
   have hEF1 : 1 ≤ E * E ^ t := one_le_mul_of_one_le_of_one_le hE.le hF1
   have hY : 0 ≤ Y := div_nonneg (sub_nonneg.mpr ((inv_le_one_of_one_le₀ hF1).trans hF1)) hD.le
   have hA : 0 ≤ A := div_nonneg (sub_nonneg.mpr ((inv_le_one_of_one_le₀ hEF1).trans hEF1)) hD.le
-  have hpt : ∀ a, p a * (p a / q a) ^ t + ENNReal.ofReal Y * q a ≤ ENNReal.ofReal A * p a := by
-    intro a
-    rcases eq_or_ne (q a) 0 with hq0 | hq0
-    · have hp0 : p a = 0 := by simpa [hq0] using hpq a
+  have hpt : ∀ r, p r * (p r / q r) ^ t + ENNReal.ofReal Y * q r ≤ ENNReal.ofReal A * p r := by
+    intro r
+    rcases eq_or_ne (q r) 0 with hq0 | hq0
+    · have hp0 : p r = 0 := by simpa [hq0] using hpq r
       simp [hp0, hq0]
-    rcases eq_or_ne (p a) 0 with hp0 | hp0
-    · have : q a = 0 := by simpa [hp0] using hqp a
+    rcases eq_or_ne (p r) 0 with hp0 | hp0
+    · have : q r = 0 := by simpa [hp0] using hqp r
       exact absurd this hq0
-    have hP : 0 < (p a).toReal := ENNReal.toReal_pos hp0 (hp a)
-    have hQ : 0 < (q a).toReal := ENNReal.toReal_pos hq0 (hq a)
-    have hPQ : (p a).toReal ≤ E * (q a).toReal := by ennreal_to_real using hpq a
-    have hQP : (q a).toReal ≤ E * (p a).toReal := by ennreal_to_real using hqp a
+    have hP : 0 < (p r).toReal := ENNReal.toReal_pos hp0 (hp r)
+    have hQ : 0 < (q r).toReal := ENNReal.toReal_pos hq0 (hq r)
+    have hPQ : (p r).toReal ≤ E * (q r).toReal := by ennreal_to_real using hpq r
+    have hQP : (q r).toReal ≤ E * (p r).toReal := by ennreal_to_real using hqp r
     have hreal := mul_div_rpow_add_le hE ht hP hQ hPQ hQP
-    rw [← ENNReal.ofReal_toReal (hp a), ← ENNReal.ofReal_toReal (hq a),
+    rw [← ENNReal.ofReal_toReal (hp r), ← ENNReal.ofReal_toReal (hq r),
       ← ENNReal.ofReal_div_of_pos hQ, ENNReal.ofReal_rpow_of_nonneg (div_pos hP hQ).le ht,
       ← ENNReal.ofReal_mul hP.le, ← ENNReal.ofReal_mul hY,
       ← ENNReal.ofReal_add (by positivity) (mul_nonneg hY hQ.le),
       ← ENNReal.ofReal_mul hA]
     exact ENNReal.ofReal_le_ofReal (by simpa only [hYdef, hAdef] using hreal)
-  have hsum' : lossMoment t p q + ENNReal.ofReal Y * ∑' a, p a ≤ ENNReal.ofReal A * ∑' a, p a :=
-    calc lossMoment t p q + ENNReal.ofReal Y * ∑' a, p a
-        ≤ lossMoment t p q + ENNReal.ofReal Y * ∑' a, q a := by gcongr
-      _ = ∑' a, (p a * (p a / q a) ^ t + ENNReal.ofReal Y * q a) := by
-          rw [lossMoment, ← ENNReal.tsum_mul_left, ← tsum_add]
-      _ ≤ ∑' a, ENNReal.ofReal A * p a := tsum_le_tsum hpt
-      _ = ENNReal.ofReal A * ∑' a, p a := ENNReal.tsum_mul_left
-  have hfinp : ∑' a, p a ≠ ⊤ := ne_top_of_le_ne_top hfin hsum
-  calc lossMoment t p q ≤ ENNReal.ofReal A * ∑' a, p a - ENNReal.ofReal Y * ∑' a, p a :=
+  have hsum' : Probability.renyiMoment α p q + ENNReal.ofReal Y * ∑' r, p r ≤
+      ENNReal.ofReal A * ∑' r, p r :=
+    calc Probability.renyiMoment α p q + ENNReal.ofReal Y * ∑' r, p r
+        ≤ Probability.renyiMoment α p q + ENNReal.ofReal Y * ∑' r, q r := by gcongr
+      _ = ∑' r, (p r * (p r / q r) ^ t + ENNReal.ofReal Y * q r) := by
+          rw [Probability.renyiMoment, ← ENNReal.tsum_mul_left, ← tsum_add]
+      _ ≤ ∑' r, ENNReal.ofReal A * p r := tsum_le_tsum hpt
+      _ = ENNReal.ofReal A * ∑' r, p r := ENNReal.tsum_mul_left
+  have hfinp : ∑' r, p r ≠ ⊤ := ne_top_of_le_ne_top hfin hsum
+  calc Probability.renyiMoment α p q
+      ≤ ENNReal.ofReal A * ∑' r, p r - ENNReal.ofReal Y * ∑' r, p r :=
         ENNReal.le_sub_of_add_le_right (ENNReal.mul_ne_top ENNReal.ofReal_ne_top hfinp) hsum'
-    _ = ENNReal.ofReal (A - Y) * ∑' a, p a := by
+    _ = ENNReal.ofReal (A - Y) * ∑' r, p r := by
         rw [ENNReal.ofReal_sub _ hY, ENNReal.sub_mul fun _ _ => hfinp]
     _ = _ := by
         congr 2
@@ -202,17 +178,36 @@ theorem lossMoment_le_of_le_mul {p q : α → ℝ≥0∞} {ε t : ℝ} (hε : 0 
         field_simp
         ring
 
-/-- The moment bound in exponential form: with `s = ε t`,
-`lossMoment t p q ≤ exp (tanh (ε / 2) · s + s² / 2) · ∑ p`. -/
-theorem lossMoment_le_exp {p q : α → ℝ≥0∞} {ε t : ℝ} (hε : 0 ≤ ε) (ht : 0 ≤ t)
-    (hpq : ∀ a, p a ≤ ENNReal.ofReal (Real.exp ε) * q a)
-    (hqp : ∀ a, q a ≤ ENNReal.ofReal (Real.exp ε) * p a)
-    (hsum : ∑' a, p a ≤ ∑' a, q a) (hfin : ∑' a, q a ≠ ⊤) :
-    lossMoment t p q ≤
-      ENNReal.ofReal (Real.exp (Real.tanh (ε / 2) * (ε * t) + (ε * t) ^ 2 / 2)) * ∑' a, p a := by
-  refine (lossMoment_le_of_le_mul hε ht hpq hqp hsum hfin).trans (mul_le_mul' ?_ le_rfl)
-  refine ENNReal.ofReal_le_ofReal (Real.cosh_add_mul_sinh_le_exp ?_ (mul_nonneg hε ht))
+/-- The Rényi moment bound in exponential form: with `s = ε (α - 1)`,
+`renyiMoment α p q ≤ exp (tanh (ε / 2) · s + s² / 2) · ∑ p`. -/
+theorem renyiMoment_le_exp {p q : R → ℝ≥0∞} {ε α : ℝ} (hε : 0 ≤ ε) (hα : 1 ≤ α)
+    (hpq : ∀ r, p r ≤ ENNReal.ofReal (Real.exp ε) * q r)
+    (hqp : ∀ r, q r ≤ ENNReal.ofReal (Real.exp ε) * p r)
+    (hsum : ∑' r, p r ≤ ∑' r, q r) (hfin : ∑' r, q r ≠ ⊤) :
+    Probability.renyiMoment α p q ≤
+      ENNReal.ofReal (Real.exp (Real.tanh (ε / 2) * (ε * (α - 1)) +
+        (ε * (α - 1)) ^ 2 / 2)) * ∑' r, p r := by
+  refine (renyiMoment_le_of_le_mul hε hα hpq hqp hsum hfin).trans (mul_le_mul' ?_ le_rfl)
+  refine ENNReal.ofReal_le_ofReal (Real.cosh_add_mul_sinh_le_exp ?_
+    (mul_nonneg hε (sub_nonneg.mpr hα)))
   exact Real.tanh_nonneg_iff.mpr (by linarith)
+
+/-- For `1 < α`, if two discrete distributions `p, q : PMF R` have likelihood ratio in
+`[e^{-ε}, e^ε]`, their order-`α` Rényi divergence is at most
+`ε tanh (ε / 2) + (α - 1) ε² / 2`. -/
+theorem renyiDiv_le_of_le_mul {p q : PMF R} {ε α : ℝ} (hε : 0 ≤ ε) (hα : 1 < α)
+    (hpq : ∀ r, p r ≤ ENNReal.ofReal (Real.exp ε) * q r)
+    (hqp : ∀ r, q r ≤ ENNReal.ofReal (Real.exp ε) * p r) :
+    Probability.PMF.renyiDiv α p q ≤
+      ENNReal.ofReal (ε * Real.tanh (ε / 2) + (α - 1) * ε ^ 2 / 2) := by
+  have ht : 0 ≤ α - 1 := (sub_pos.mpr hα).le
+  have hε_rhs : 0 ≤ ε * Real.tanh (ε / 2) + (α - 1) * ε ^ 2 / 2 :=
+    add_nonneg (mul_nonneg hε (Real.tanh_nonneg_iff.mpr (by linarith))) (by positivity)
+  rw [Probability.PMF.renyiDiv_le_ofReal_iff hα p q hε_rhs]
+  have hmom := renyiMoment_le_exp hε hα.le hpq hqp (by rw [p.tsum_coe, q.tsum_coe])
+    (by rw [q.tsum_coe]; exact ENNReal.one_ne_top)
+  rw [p.tsum_coe, mul_one] at hmom
+  exact hmom.trans_eq (congrArg (ENNReal.ofReal ∘ Real.exp) (by ring))
 
 end SingleRound
 

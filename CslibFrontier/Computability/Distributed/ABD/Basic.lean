@@ -350,23 +350,26 @@ theorem registerValAfter_append {P V : Type*} (v₀ : V) (hist : List (OpRecord 
       registerValAfter (registerValAfter v₀ hist l₁) hist l₂ := by
   simp [registerValAfter, List.foldl_append]
 
-private lemma seqValid_imp_bounds {P V : Type*} {cur : V} {hist : List (OpRecord P V)}
-    {seq : List ℕ} (h : seqValid cur hist seq) : ∀ i ∈ seq, i < hist.length := by
-  induction seq generalizing cur with
-  | nil => intro _ hm; cases hm
-  | cons j rest ih =>
-    obtain ⟨hj, hbody⟩ := h
-    intro i hi
-    rcases List.mem_cons.mp hi with rfl | hmem
-    · exact hj
-    · revert hbody
-      cases hist[j].kind <;> cases hist[j].status
-      · exact False.elim
-      · exact fun ⟨_, h'⟩ => ih h' i hmem
-      · exact False.elim
-      · exact fun h' => ih h' i hmem
-      · exact False.elim
-      · exact fun h' => ih h' i hmem
+private lemma seqValid_cons_iff {P V : Type*} {cur : V} {hist : List (OpRecord P V)}
+    {j : ℕ} {rest : List ℕ} :
+    seqValid cur hist (j :: rest) ↔
+      ∃ hj : j < hist.length,
+        hist[j].isEligible ∧
+        (∀ s r, hist[j].status = .doneRead s r → r = cur) ∧
+        seqValid (match hist[j].kind with | .write v => v | .read => cur) hist rest := by
+  refine ⟨fun ⟨hj, hbody⟩ => ⟨hj, ?_⟩, fun ⟨hj, helig, hrd, hrest⟩ => ⟨hj, ?_⟩⟩
+  · revert hbody
+    cases hk : hist[j].kind <;> cases hs : hist[j].status <;>
+      simp [OpRecord.isEligible, hk, hs]
+  · revert helig hrest
+    cases hk : hist[j].kind <;> cases hs : hist[j].status <;>
+      simp only [OpRecord.isEligible, hk, hs]
+    · exact False.elim
+    · exact fun _ h => ⟨hrd _ _ hs, h⟩
+    · exact False.elim
+    · exact fun _ h => h
+    · exact False.elim
+    · exact fun _ h => h
 
 private lemma seqValid_append {P V : Type*} (cur : V) (hist : List (OpRecord P V))
     (l₁ l₂ : List ℕ) (h₁ : seqValid cur hist l₁)
@@ -375,16 +378,10 @@ private lemma seqValid_append {P V : Type*} (cur : V) (hist : List (OpRecord P V
   induction l₁ generalizing cur with
   | nil => exact h₂
   | cons j rest ih =>
-    obtain ⟨hj, hbody⟩ := h₁
-    refine ⟨hj, ?_⟩
-    cases hk : hist[j].kind <;> cases hs : hist[j].status <;> simp only [hk, hs] at hbody ⊢
-    · obtain ⟨rfl, hrest⟩ := hbody
-      refine ⟨rfl, ih _ hrest ?_⟩
-      simpa [registerValAfter_cons, List.getElem?_eq_getElem hj, hk] using h₂
-    · apply ih _ hbody
-      simpa [registerValAfter_cons, List.getElem?_eq_getElem hj, hk] using h₂
-    · apply ih _ hbody
-      simpa [registerValAfter_cons, List.getElem?_eq_getElem hj, hk] using h₂
+    rw [seqValid_cons_iff] at h₁
+    obtain ⟨hj, helig, hrd, hrest⟩ := h₁
+    exact (List.cons_append .. ▸ seqValid_cons_iff).mpr ⟨hj, helig, hrd,
+      ih _ hrest (by simpa [registerValAfter_cons, List.getElem?_eq_getElem hj] using h₂)⟩
 
 private lemma registerValAfter_append_hist {P V : Type*} (cur : V)
     (hist extra : List (OpRecord P V)) {seq : List ℕ}
@@ -405,18 +402,12 @@ private lemma seqValid_append_hist {P V : Type*} (cur : V)
   induction seq generalizing cur with
   | nil => trivial
   | cons j rest ih =>
-    obtain ⟨hj, hbody⟩ := h
-    have hj' : j < (hist ++ extra).length := lt_of_lt_of_le hj (by simp)
-    refine ⟨hj', ?_⟩
-    simp only [List.getElem_append_left hj]
-    revert hbody
-    cases hist[j].kind <;> cases hist[j].status
-    · exact False.elim
-    · exact fun ⟨hr, hrest⟩ => ⟨hr, ih _ hrest⟩
-    · exact False.elim
-    · exact fun hrest => ih _ hrest
-    · exact False.elim
-    · exact fun hrest => ih _ hrest
+    rw [seqValid_cons_iff] at h ⊢
+    obtain ⟨hj, helig, hrd, hrest⟩ := h
+    refine ⟨lt_of_lt_of_le hj (by simp),
+      by simpa [List.getElem_append_left hj] using helig,
+      by simpa [List.getElem_append_left hj] using hrd,
+      by simpa [List.getElem_append_left hj] using ih _ hrest⟩
 
 /-- **Preceding-write characterization of `seqValid`:** a sequence `seq` satisfies `seqValid v₀ hist
 seq` if and only if every index in `seq` is an in-bounds eligible operation (completed read,
@@ -433,99 +424,26 @@ theorem seqValid_iff_registerValAfter {P V : Type*} (v₀ : V) (hist : List (OpR
   induction seq generalizing v₀ with
   | nil => simp [seqValid]
   | cons j rest ih =>
+    rw [seqValid_cons_iff]
     constructor
-    · rintro ⟨hj, hbody⟩
-      have stepVal : ∀ w : V,
-          (match hist[j]? with
-           | some rec => match rec.kind with | .write v => v | .read => v₀
-           | none => v₀) = w →
-          seqValid w hist rest →
-          hist[j].isEligible →
-          (∀ s r, hist[j].status = .doneRead s r → r = v₀) →
-          (∀ i ∈ j :: rest, ∃ hi : i < hist.length, hist[i].isEligible) ∧
-          (∀ (k : ℕ) (hk : k < (j :: rest).length) (hi : (j :: rest)[k] < hist.length)
-            (s : ℕ) (r : V),
-            hist[(j :: rest)[k]].status = .doneRead s r →
-            r = registerValAfter v₀ hist ((j :: rest).take k)) := by
-        intro w hw hrest helig hread0
-        obtain ⟨helig_rest, hread_rest⟩ := (ih w).mp hrest
-        refine ⟨?_, ?_⟩
-        · intro i hi
-          rcases List.mem_cons.mp hi with rfl | hm
-          · exact ⟨hj, helig⟩
-          · exact helig_rest i hm
-        · intro k hk hi s r hst
-          cases k with
-          | zero => exact hread0 s r hst
-          | succ k' =>
-            have hk' : k' < rest.length := Nat.lt_of_succ_lt_succ hk
-            simp only [List.getElem_cons_succ, List.take_succ_cons, registerValAfter_cons, hw]
-              at hst ⊢
-            exact hread_rest k' hk' hi s r hst
-      revert hbody
-      cases hk : hist[j].kind with
-      | read =>
-        cases hs : hist[j].status with
-        | pending => simp
-        | doneWrite _ => simp
-        | doneRead s₀ r₀ =>
-          rintro ⟨rfl, hrest⟩
-          apply stepVal r₀
-          · simp [List.getElem?_eq_getElem hj, hk]
-          · exact hrest
-          · simp [OpRecord.isEligible, hk, hs]
-          · intro _ r hr; rw [hs] at hr; injection hr with _ hr'; exact hr'.symm
-      | write v =>
-        cases hs : hist[j].status with
-        | doneRead _ _ => simp
-        | pending =>
-          intro hrest
-          apply stepVal v
-          · simp [List.getElem?_eq_getElem hj, hk]
-          · exact hrest
-          · simp [OpRecord.isEligible, hk, hs]
-          · intro _ _ hr; rw [hs] at hr; cases hr
-        | doneWrite _ =>
-          intro hrest
-          apply stepVal v
-          · simp [List.getElem?_eq_getElem hj, hk]
-          · exact hrest
-          · simp [OpRecord.isEligible, hk, hs]
-          · intro _ _ hr; rw [hs] at hr; cases hr
+    · rintro ⟨hj, helig, hrd0, hrest⟩
+      obtain ⟨helig_rest, hrd_rest⟩ := (ih _).mp hrest
+      refine ⟨fun i hi => ?_, fun k hk hi s r hst => ?_⟩
+      · rcases List.mem_cons.mp hi with rfl | hm
+        · exact ⟨hj, helig⟩
+        · exact helig_rest i hm
+      · cases k with
+        | zero => exact hrd0 s r hst
+        | succ k' =>
+          simpa [registerValAfter_cons, List.getElem?_eq_getElem hj] using
+            hrd_rest k' (Nat.lt_of_succ_lt_succ hk) hi s r hst
     · rintro ⟨helig_all, hreads⟩
-      obtain ⟨hj, helig_j⟩ := helig_all j List.mem_cons_self
-      refine ⟨hj, ?_⟩
-      have helig_rest : ∀ i ∈ rest, ∃ hi : i < hist.length, hist[i].isEligible :=
-        fun i hi => helig_all i (List.mem_cons_of_mem j hi)
-      revert helig_j
-      unfold OpRecord.isEligible
-      cases hk : hist[j].kind with
-      | write v =>
-        cases hs : hist[j].status with
-        | doneRead _ _ => simp
-        | pending =>
-          intro _
-          apply (ih v).mpr ⟨helig_rest, ?_⟩
-          intro k hk' hi s r hst
-          have h := hreads (k + 1) (Nat.succ_lt_succ hk') hi s r hst
-          simpa [List.getElem?_eq_getElem hj, hk] using h
-        | doneWrite _ =>
-          intro _
-          apply (ih v).mpr ⟨helig_rest, ?_⟩
-          intro k hk' hi s r hst
-          have h := hreads (k + 1) (Nat.succ_lt_succ hk') hi s r hst
-          simpa [List.getElem?_eq_getElem hj, hk] using h
-      | read =>
-        cases hs : hist[j].status with
-        | pending => simp
-        | doneWrite _ => simp
-        | doneRead s₀ r₀ =>
-          intro _
-          have hr₀ : r₀ = v₀ := hreads 0 (Nat.zero_lt_succ _) hj s₀ r₀ hs
-          refine ⟨hr₀, (ih v₀).mpr ⟨helig_rest, ?_⟩⟩
-          intro k hk' hi s r hst
-          have h := hreads (k + 1) (Nat.succ_lt_succ hk') hi s r hst
-          simpa [List.getElem?_eq_getElem hj, hk] using h
+      obtain ⟨hj, helig⟩ := helig_all j List.mem_cons_self
+      refine ⟨hj, helig, fun s r hst => hreads 0 (Nat.zero_lt_succ _) hj s r hst,
+        (ih _).mpr ⟨fun i hi => helig_all i (List.mem_cons_of_mem j hi),
+          fun k hk hi s r hst => ?_⟩⟩
+      simpa [registerValAfter_cons, List.getElem?_eq_getElem hj] using
+        hreads (k + 1) (Nat.succ_lt_succ hk) hi s r hst
 
 /-- `IsLinearization v₀ hist seq` states that `seq` is a valid linearization of execution history
 `hist` for an atomic read/write register initialized to `v₀`:
@@ -627,7 +545,9 @@ instance instDecidableLinearizable {P V : Type*} [DecidableEq V] (v₀ : V)
     (by
       exact ⟨fun ⟨seq, _, hlin⟩ => ⟨seq, hlin⟩,
         fun ⟨seq, hlin⟩ =>
-          ⟨seq, mem_candidateSeqs hlin.nodup (seqValid_imp_bounds hlin.valid), hlin⟩⟩)
+          ⟨seq, mem_candidateSeqs hlin.nodup
+            (fun i hi => (((seqValid_iff_registerValAfter v₀ hist seq).mp hlin.valid).1 i hi).1),
+            hlin⟩⟩)
 
 /-! ### Asynchronous message-passing protocol and LTS -/
 
@@ -762,74 +682,11 @@ theorem length_deliverHistory {P V : Type*} (hist : List (OpRecord P V))
     | some stDone =>
       cases hist[pend.opId]? <;> simp
 
-private lemma deliverHistory_getElem?_preserves {P V : Type*} (hist : List (OpRecord P V))
-    (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V))
-    {i : ℕ} (hi : i < hist.length) {rec' : OpRecord P V}
-    (hget : (deliverHistory hist resp step pend?)[i]? = some rec') :
-    rec'.caller = hist[i].caller ∧
-    rec'.kind = hist[i].kind ∧
-    rec'.invStep = hist[i].invStep ∧
-    (∀ r, rec'.status.respStep? = some r →
-      hist[i].status.respStep? = some r ∨ r = step) := by
-  have hsame (heq : rec' = hist[i]) :
-      rec'.caller = hist[i].caller ∧
-      rec'.kind = hist[i].kind ∧
-      rec'.invStep = hist[i].invStep ∧
-      (∀ r, rec'.status.respStep? = some r →
-        hist[i].status.respStep? = some r ∨ r = step) :=
-    ⟨congrArg OpRecord.caller heq, congrArg OpRecord.kind heq,
-      congrArg OpRecord.invStep heq, fun r hr => Or.inl (heq ▸ hr)⟩
-  cases pend? with
-  | none =>
-    rw [deliverHistory, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-    exact hsame hget.symm
-  | some pend =>
-    dsimp only [deliverHistory] at hget
-    cases hm_comp : matchCompletion pend.kind resp step with
-    | none =>
-      rw [hm_comp, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-      exact hsame hget.symm
-    | some stDone =>
-      rw [hm_comp] at hget
-      have hst_step : ∀ r, stDone.respStep? = some r → r = step := by
-        intro r hr
-        cases hk : pend.kind <;> cases hsp : resp
-        · simp [hk, hsp, matchCompletion] at hm_comp
-        · rename_i rsp
-          cases rsp with
-          | readRet v =>
-            rw [hk, hsp, matchCompletion, Option.some.injEq] at hm_comp
-            subst hm_comp; symm; simpa [OpStatus.respStep?] using hr
-          | writeAck => simp [hk, hsp, matchCompletion] at hm_comp
-        · simp [hk, hsp, matchCompletion] at hm_comp
-        · rename_i w rsp
-          cases rsp with
-          | readRet v => simp [hk, hsp, matchCompletion] at hm_comp
-          | writeAck =>
-            rw [hk, hsp, matchCompletion, Option.some.injEq] at hm_comp
-            subst hm_comp; symm; simpa [OpStatus.respStep?] using hr
-      cases hrec : hist[pend.opId]? with
-      | none =>
-        rw [hrec, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-        exact hsame hget.symm
-      | some rec =>
-        rw [hrec] at hget
-        have hp_lt : pend.opId < hist.length := by
-          by_contra hge
-          rw [List.getElem?_eq_none (Nat.le_of_not_lt hge)] at hrec
-          cases hrec
-        have hrec_eq : rec = hist[pend.opId] := by
-          rw [List.getElem?_eq_getElem hp_lt, Option.some.injEq] at hrec
-          exact hrec.symm
-        by_cases hip : pend.opId = i
-        · subst hip
-          rw [List.getElem?_set_self hi, Option.some.injEq] at hget
-          have hset : rec' = { hist[pend.opId] with status := stDone } := by
-            rw [← hget, hrec_eq]
-          exact ⟨by simp [hset], by simp [hset], by simp [hset],
-            fun r hr => Or.inr (hst_step r (by simpa [hset] using hr))⟩
-        · rw [List.getElem?_set_ne hip, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-          exact hsame hget.symm
+private lemma respStep?_of_matchCompletion {V : Type*} {kind : OpKind V}
+    {resp : Option (OpResp V)} {step : ℕ} {stDone : OpStatus V}
+    (hm : matchCompletion kind resp step = some stDone) :
+    stDone.respStep? = some step := by
+  rcases kind with _ | _ <;> rcases resp with _ | (_ | _) <;> cases hm <;> rfl
 
 /-- Delivering a response preserves `caller`, `kind`, and `invStep` at every index
 `i < hist.length`, and any response timestamp in `deliverHistory` either was already present in
@@ -842,8 +699,36 @@ theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V)
     (deliverHistory hist resp step pend?)[i].kind = hist[i].kind ∧
     (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
     (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
-      hist[i].status.respStep? = some r ∨ r = step) :=
-  deliverHistory_getElem?_preserves hist resp step pend? hi (List.getElem?_eq_getElem hi')
+      hist[i].status.respStep? = some r ∨ r = step) := by
+  have hsame (h : (deliverHistory hist resp step pend?)[i] = hist[i]) :
+      (deliverHistory hist resp step pend?)[i].caller = hist[i].caller ∧
+      (deliverHistory hist resp step pend?)[i].kind = hist[i].kind ∧
+      (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
+      (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
+        hist[i].status.respStep? = some r ∨ r = step) := by
+    rw [h]; exact ⟨rfl, rfl, rfl, fun _ hr => Or.inl hr⟩
+  rcases pend? with _ | pend
+  · exact hsame rfl
+  · cases hm : matchCompletion pend.kind resp step with
+    | none => exact hsame (by simp only [deliverHistory, hm])
+    | some stDone =>
+      cases hrec : hist[pend.opId]? with
+      | none => exact hsame (by simp only [deliverHistory, hm, hrec])
+      | some rec =>
+        have hp_lt : pend.opId < hist.length :=
+          Nat.lt_of_not_ge fun hge => by rw [List.getElem?_eq_none hge] at hrec; cases hrec
+        have hrec_eq : rec = hist[pend.opId] :=
+          Option.some.inj (hrec.symm.trans (List.getElem?_eq_getElem hp_lt))
+        subst hrec_eq
+        by_cases hip : pend.opId = i
+        · subst hip
+          have hget : (deliverHistory hist resp step (some pend))[pend.opId] =
+              { hist[pend.opId] with status := stDone } := by
+            simp only [deliverHistory, hm, hrec, List.getElem_set_self]
+          rw [hget]
+          refine ⟨rfl, rfl, rfl, fun r hr => Or.inr ?_⟩
+          exact (Option.some.inj ((respStep?_of_matchCompletion hm).symm.trans hr)).symm
+        · exact hsame (by simp only [deliverHistory, hm, hrec, List.getElem_set_ne hip])
 
 private lemma getElem?_deliverHistory_of_ne {P V : Type*} (hist : List (OpRecord P V))
     (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V)) {i : ℕ}
@@ -1391,91 +1276,57 @@ private lemma localInv_tr {P V : Type*} [Fintype P] [DecidableEq P]
     exact ⟨hpend, hcomp, hmono, hvalid, hstate⟩
   | deliver e =>
     obtain ⟨_, rfl⟩ := htr
-    have hhist : deliverHistory s.history
-        ((localRegisterProtocol P V v₀).onRecv e.dest (s.proc e.dest).state e.src e.body).resp
-        s.step (s.proc e.dest).pending = s.history := by
-      rw [hpend e.dest]; rfl
-    refine ⟨?_, ?_, ?_, ?_, ?_⟩
-    · intro p
-      simp only [Protocol.doDeliver, deliverPending, hpend e.dest]
-      by_cases hp : p = e.dest
-      · subst hp; simp
-      · simp [hp, hpend p]
-    · intro i hi
-      simp only [Protocol.doDeliver, hhist] at hi ⊢
-      obtain ⟨hc, hr, hlt⟩ := hcomp i hi
-      exact ⟨hc, hr, Nat.lt_succ_of_lt hlt⟩
-    · intro i j hij hj
-      simp only [Protocol.doDeliver, hhist] at hj ⊢
-      exact hmono i j hij hj
-    · simpa [Protocol.doDeliver, hhist] using hvalid
-    · intro p
-      simp only [Protocol.doDeliver]
-      rw [hhist]
-      simp only [localRegisterProtocol]
-      by_cases hp : p = e.dest
-      · subst hp; simp [hstate e.dest]
-      · simp [hp, hstate p]
+    rw [(localRegisterProtocol P V v₀).doDeliver_of_resp_eq_none rfl]
+    have hproc_eq : Function.update s.proc e.dest
+        ⟨(s.proc e.dest).state, (s.proc e.dest).pending⟩ = s.proc :=
+      Function.update_eq_self e.dest s.proc
+    refine ⟨fun p => hproc_eq.symm ▸ hpend p, fun i hi => ?_, hmono, hvalid,
+      fun p => hproc_eq.symm ▸ hstate p⟩
+    obtain ⟨hc, hr, hlt⟩ := hcomp i hi
+    exact ⟨hc, hr, Nat.lt_succ_of_lt hlt⟩
   | invoke caller kind =>
     obtain ⟨_, rfl⟩ := htr
-    cases kind with
-    | read =>
-      let rec' : OpRecord P V := ⟨caller, .read, s.step, .doneRead s.step (s.proc caller).state⟩
-      obtain ⟨hcomp', hmono'⟩ := localInv_snoc hcomp hmono rec' rfl rfl rfl
-      have hval_eq : registerValAfter v₀ (s.history ++ [rec']) (List.range s.history.length) =
-          registerValAfter v₀ s.history (List.range s.history.length) :=
-        registerValAfter_append_hist v₀ s.history [rec'] fun _ hx => List.mem_range.mp hx
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro p
-        simp only [Protocol.doInvoke, localRegisterProtocol, invokePending, matchCompletion]
-        by_cases hp : p = caller
-        · subst hp; simp
-        · simp [hp, hpend p]
-      · simpa [Protocol.doInvoke, localRegisterProtocol, matchCompletion, rec'] using hcomp'
-      · simpa [Protocol.doInvoke, localRegisterProtocol, matchCompletion, rec'] using hmono'
-      · simp only [Protocol.doInvoke, localRegisterProtocol, matchCompletion,
-          Option.getD_some, List.length_append, List.length_singleton, List.range_succ]
-        apply seqValid_append v₀ (s.history ++ [rec']) (List.range s.history.length)
-          [s.history.length] (seqValid_append_hist v₀ s.history [rec'] hvalid)
-        rw [hval_eq, ← hstate caller]
-        exact ⟨by simp, by simp [rec', seqValid]⟩
-      · intro p
-        have hpc : p = caller := Subsingleton.elim p caller
-        subst hpc
-        simp only [Protocol.doInvoke, localRegisterProtocol, matchCompletion, invokePending,
-          Option.getD_some, Function.update_self, List.length_append, List.length_singleton,
-          List.range_succ, registerValAfter_append]
-        change (s.proc p).state =
-          registerValAfter (registerValAfter v₀ (s.history ++ [rec']) (List.range s.history.length))
-            (s.history ++ [rec']) [s.history.length]
-        rw [hval_eq, ← hstate p]
-        simp [registerValAfter_cons, rec']
-    | write v =>
-      let rec' : OpRecord P V := ⟨caller, .write v, s.step, .doneWrite s.step⟩
-      obtain ⟨hcomp', hmono'⟩ := localInv_snoc hcomp hmono rec' rfl rfl rfl
-      refine ⟨?_, ?_, ?_, ?_, ?_⟩
-      · intro p
-        simp only [Protocol.doInvoke, localRegisterProtocol, invokePending, matchCompletion]
-        by_cases hp : p = caller
-        · subst hp; simp
-        · simp [hp, hpend p]
-      · simpa [Protocol.doInvoke, localRegisterProtocol, matchCompletion, rec'] using hcomp'
-      · simpa [Protocol.doInvoke, localRegisterProtocol, matchCompletion, rec'] using hmono'
-      · simp only [Protocol.doInvoke, localRegisterProtocol, matchCompletion,
-          Option.getD_some, List.length_append, List.length_singleton, List.range_succ]
-        apply seqValid_append v₀ (s.history ++ [rec']) (List.range s.history.length)
-          [s.history.length] (seqValid_append_hist v₀ s.history [rec'] hvalid)
-        exact ⟨by simp, by simp [rec', seqValid]⟩
-      · intro p
-        have hpc : p = caller := Subsingleton.elim p caller
-        subst hpc
-        simp only [Protocol.doInvoke, localRegisterProtocol, matchCompletion, invokePending,
-          Option.getD_some, Function.update_self, List.length_append, List.length_singleton,
-          List.range_succ, registerValAfter_append]
-        change v =
-          registerValAfter (registerValAfter v₀ (s.history ++ [rec']) (List.range s.history.length))
-            (s.history ++ [rec']) [s.history.length]
-        simp [registerValAfter_cons, rec']
+    let nextVal : V := match kind with
+      | .read => (s.proc caller).state
+      | .write v => v
+    let stDone : OpStatus V := match kind with
+      | .read => .doneRead s.step (s.proc caller).state
+      | .write _ => .doneWrite s.step
+    let rec' : OpRecord P V := ⟨caller, kind, s.step, stDone⟩
+    have hhist : ((localRegisterProtocol P V v₀).doInvoke caller kind s).history =
+        s.history ++ [rec'] := by cases kind <;> rfl
+    have hproc : ((localRegisterProtocol P V v₀).doInvoke caller kind s).proc =
+        Function.update s.proc caller ⟨nextVal, none⟩ := by cases kind <;> rfl
+    obtain ⟨hcomp', hmono'⟩ := localInv_snoc hcomp hmono rec'
+      (by cases kind <;> rfl) (by cases kind <;> rfl) rfl
+    have hval_eq : registerValAfter v₀ (s.history ++ [rec']) (List.range s.history.length) =
+        registerValAfter v₀ s.history (List.range s.history.length) :=
+      registerValAfter_append_hist v₀ s.history [rec'] fun _ hx => List.mem_range.mp hx
+    refine ⟨?_, ?_, ?_, ?_, ?_⟩
+    · intro p
+      rw [hproc]
+      by_cases hp : p = caller
+      · subst hp; simp
+      · simp [hp, hpend p]
+    · change ∀ (i : ℕ)
+          (hi : i < ((localRegisterProtocol P V v₀).doInvoke caller kind s).history.length),
+        _ ∧ _ ∧ _ < s.step + 1
+      simpa only [hhist] using hcomp'
+    · simpa only [hhist] using hmono'
+    · rw [hhist]
+      simp only [List.length_append, List.length_singleton, List.range_succ]
+      apply seqValid_append v₀ (s.history ++ [rec']) (List.range s.history.length)
+        [s.history.length] (seqValid_append_hist v₀ s.history [rec'] hvalid)
+      rw [hval_eq, ← hstate caller]
+      refine ⟨by simp, ?_⟩
+      cases kind <;> simp [rec', stDone, seqValid]
+    · intro p
+      have hpc : p = caller := Subsingleton.elim p caller
+      subst hpc
+      rw [hproc, hhist]
+      simp only [Function.update_self, List.length_append, List.length_singleton,
+        List.range_succ, registerValAfter_append, hval_eq, ← hstate p]
+      cases kind <;> simp [registerValAfter_cons, rec', nextVal]
 
 /-- When `Fintype.card P ≤ 1`, `localRegisterProtocol` implements a wait-free linearizable atomic
 register for *any* fault bound `t`. -/

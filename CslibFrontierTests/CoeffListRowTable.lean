@@ -8,11 +8,13 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Foundations.Data.Polynomial.CoeffList.DivMod
+public import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
 public import CslibFrontier.Foundations.Data.Matrix.RowTable
 public import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
 public import CslibFrontier.Computability.PolyTime.LinearAlgebra.RationalElimination
 public meta import CslibFrontier.Foundations.Data.Polynomial.CoeffList.Arith
 public meta import CslibFrontier.Foundations.Data.Polynomial.CoeffList.DivMod
+public meta import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.RatPoly
 public meta import CslibFrontier.Foundations.Data.Matrix.RowTable
 public meta import Mathlib.Data.ZMod.Basic
 import Mathlib.Data.ZMod.Basic
@@ -23,7 +25,8 @@ import Mathlib.Tactic
 
 Computable `#guard` and kernel-checked theorem tests over `ℚ`, `ZMod 2`, and `ZMod 5` exercising:
 1. `Polynomial.CoeffList` trimming, semiring/ring operations, formal derivative, Euclidean
-   `divMod`/`div`/`mod`, divisibility characterization, and `gcd` over `ℚ`, `ZMod 2`, and `ZMod 5`.
+   `divMod`/`div`/`mod`/`negMod`, divisibility characterization, and `gcd` over `ℚ`, `ZMod 2`, and
+   `ZMod 5`, together with `Cslib.RealRoot.sturmSeqList` and `Cslib.RealRoot.sturmVariationsList`.
 2. `Cslib.RowTable` shape invariants, `entry`, `tabulate`, `map`, `toMatrix`, `ofMatrix` round-trip
    identities, and `IntTable`/`RatTable` encoding layout preservation.
 -/
@@ -145,6 +148,32 @@ example (T : IntTable) (M : RatTable) :
       encPair encUnary (encPair encUnary (encList (encList encRat)))
         (M.numRows, M.numCols, M.rows) :=
   ⟨rfl, rfl⟩
+
+/-! ### 4. `CoeffList.negMod` and `RealRoot.sturmSeqList` / `sturmVariationsList` -/
+
+#guard CoeffList.negMod dividendQ [2, -1] == [-mkRat 3 4]
+#guard CoeffList.negMod [(-2 : ℚ), 0, 1] [0, 2] == [2]
+#guard CoeffList.negMod ([(2 : ZMod 5), 0, 1]) [1, 1] == [2]
+#guard RealRoot.sturmSeqList [(-2 : ℚ), 0, 1, 0, 0] == [[-2, 0, 1], [0, 2], [2]]
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-2 : ℚ), 0, 1, 0, 0]) (-2) == 2
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-2 : ℚ), 0, 1, 0, 0]) 0 == 1
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-2 : ℚ), 0, 1, 0, 0]) 2 == 0
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-6 : ℚ), 11, -6, 1]) 0 == 3
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-6 : ℚ), 11, -6, 1]) (mkRat 3 2) == 2
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-6 : ℚ), 11, -6, 1]) (mkRat 5 2) == 1
+#guard RealRoot.sturmVariationsList (RealRoot.sturmSeqList [(-6 : ℚ), 11, -6, 1]) 4 == 0
+
+example (cs : List ℚ) (x : ℚ) :
+    (CoeffList.trim cs).Sublist cs ∧
+      ofCoeffList (CoeffList.negMod cs [1, 1]) = -ofCoeffList cs % ofCoeffList [(1 : ℚ), 1] ∧
+      (RealRoot.sturmSeqList cs).map ofCoeffList =
+        Polynomial.sturmSeq (ofCoeffList cs) (derivative (ofCoeffList cs)) ∧
+      RealRoot.sturmVariationsList (RealRoot.sturmSeqList cs) x =
+        Polynomial.sturmVariations ((ofCoeffList cs).map (algebraMap ℚ ℝ)) (x : ℝ) :=
+  ⟨CoeffList.trim_sublist cs,
+    CoeffList.ofCoeffList_negMod cs [1, 1],
+    RealRoot.sturmSeqList_map_ofCoeffList cs,
+    RealRoot.sturmVariationsList_eq_sturmVariations cs x⟩
 
 public section
 
