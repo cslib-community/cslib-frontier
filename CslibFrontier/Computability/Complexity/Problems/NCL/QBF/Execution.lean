@@ -81,10 +81,8 @@ private theorem reachableOn_of_numRun {a b : List Color} {D : Diagram Gate a b}
   | cons k ks ih =>
     simp only [List.all_cons, List.map_cons, numRun, Bool.and_eq_true, decide_eq_true_eq] at h
     have hrev : reverse (u ∘ D.num) (D.numEquiv.symm k) = reverse u k.val ∘ D.num := by
-      ext e; by_cases he : e = D.numEquiv.symm k
-      · subst he; simp only [Function.comp, reverse, Function.update_self, num_numEquiv_symm]
-      · simp only [Function.comp, reverse, Function.update_of_ne he, Function.update_of_ne
-          fun hk => he (D.num_injective (hk.trans (D.num_numEquiv_symm k).symm))]
+      simpa only [num_numEquiv_symm] using
+        (reverse_comp_of_injective D.num_injective u (D.numEquiv.symm k)).symm
     have hs' : (D.graph Gate.interp).Legal (reverse u k.val ∘ D.num) := by
       cases ks <;> exact legal_of_numVertexList (Bool.and_eq_true _ _ |>.mp h.2.2).1
     exact .head ⟨legal_of_numVertexList h.2.1, hrev ▸ hs', _, h.1.1, hrev.symm⟩
@@ -92,10 +90,14 @@ private theorem reachableOn_of_numRun {a b : List Color} {D : Diagram Gate a b}
 
 namespace ExistsGadget.Execution
 
+local notation "idleList" => ([0, 1, 6] : List ℕ)
+local notation "readyList" v:arg s:arg => (([1, 2, 4, 10, 12] ++
+  (if v then [5, 7, 8] else [6, 9]) ++ if s then [0] else []) : List ℕ)
+
 /-- The initial existential orientation with its incoming try wire activated. -/
 @[expose] def idle : Realization Gate.interp existsGadget [true, true]
     [true, false, false, false] where
-  orient := fun e => [0, 1, 6].contains (existsGadget.num e)
+  orient := fun e => (idleList).contains (existsGadget.num e)
   legal := by decide +kernel
   top_eq := by decide +kernel
   bot_eq := by decide +kernel
@@ -104,8 +106,7 @@ namespace ExistsGadget.Execution
 The satisfied wire passes through with direction `sat`. -/
 @[expose] def ready (value sat : Bool) :
     Realization Gate.interp existsGadget [sat, true] [sat, true, value, !value] where
-  orient := fun e => ([1, 2, 4, 10, 12] ++ (if value then [5, 7, 8] else [6, 9]) ++
-    (if sat then [0] else [])).contains (existsGadget.num e)
+  orient := fun e => (readyList value sat).contains (existsGadget.num e)
   legal := by cases value <;> cases sat <;> decide +kernel
   top_eq := by cases value <;> cases sat <;> decide +kernel
   bot_eq := by cases value <;> cases sat <;> decide +kernel
@@ -124,8 +125,7 @@ theorem ready_sat (value : Bool) : (ready value false).orient =
 /-- Select either value while keeping the incoming controls fixed. -/
 theorem prepare (value : Bool) :
     graph.ReachableOn (fun e => e ≠ sat ∧ e ≠ tryIn) idle.orient (ready value true).orient :=
-  reachableOn_of_numRun ([0, 1, 6].contains ·)
-    (([1, 2, 4, 10, 12] ++ (if value then [5, 7, 8] else [6, 9]) ++ [0]).contains ·)
+  reachableOn_of_numRun ((idleList).contains ·) ((readyList value true).contains ·)
     (if value then [2, 5, 7, 8, 6, 4, 10, 12] else [2, 4, 9, 10, 12])
     (by cases value <;> decide +kernel)
 
@@ -139,10 +139,17 @@ end ExistsGadget.Execution
 
 namespace ForallGadget.Execution
 
+local notation "idleList" => ([0, 1, 2, 4, 7, 11, 26, 30, 31] : List ℕ)
+local notation "readyList" v:arg r:arg s:arg => (([0, 1, 8, 9, 15, 17, 26, 30] ++
+  (if s then [31] else []) ++ (if r then [2, 3, 5, 6] else [2, 4, 7]) ++
+  if v then [10, 12, 13, 18, 22, 23] else [11, 14, 20, 24, 25]) : List ℕ)
+local notation "successList" =>
+  ([1, 2, 3, 5, 6, 8, 9, 10, 12, 13, 15, 17, 18, 22, 23, 27, 28, 30] : List ℕ)
+
 /-- The initial universal orientation with its incoming try wire activated and record clear. -/
 @[expose]
 def idle : Realization Gate.interp forallGadget [true, true] [true, false, false, false] where
-  orient := fun e => [0, 1, 2, 4, 7, 11, 26, 30, 31].contains (forallGadget.num e)
+  orient := fun e => (idleList).contains (forallGadget.num e)
   legal := by decide +kernel
   top_eq := by decide +kernel
   bot_eq := by decide +kernel
@@ -151,10 +158,7 @@ def idle : Realization Gate.interp forallGadget [true, true] [true, false, false
 The outer satisfied wire remains inactive. -/
 @[expose] def ready (value recorded sat : Bool) :
     Realization Gate.interp forallGadget [true, true] [sat, true, value, !value] where
-  orient := fun e => ([0, 1, 8, 9, 15, 17, 26, 30] ++ (if sat then [31] else []) ++
-    (if recorded then [2, 3, 5, 6] else [2, 4, 7]) ++
-    (if value then [10, 12, 13, 18, 22, 23] else [11, 14, 20, 24, 25])).contains
-      (forallGadget.num e)
+  orient := fun e => (readyList value recorded sat).contains (forallGadget.num e)
   legal := by cases value <;> cases recorded <;> cases sat <;> decide +kernel
   top_eq := by cases value <;> cases recorded <;> cases sat <;> decide +kernel
   bot_eq := by cases value <;> cases recorded <;> cases sat <;> decide +kernel
@@ -169,8 +173,7 @@ The outer satisfied wire remains inactive. -/
 /-- The universal gadget returning success with its variable true and record set. -/
 @[expose]
 def success : Realization Gate.interp forallGadget [false, true] [false, true, true, false] where
-  orient := fun e => [1, 2, 3, 5, 6, 8, 9, 10, 12, 13, 15, 17, 18, 22, 23, 27, 28, 30].contains
-    (forallGadget.num e)
+  orient := fun e => (successList).contains (forallGadget.num e)
   legal := by decide +kernel
   top_eq := by decide +kernel
   bot_eq := by decide +kernel
@@ -184,16 +187,11 @@ theorem ready_sat (value recorded : Bool) : (ready value recorded false).orient 
     reverse (ready value recorded true).orient satIn := by
   cases value <;> cases recorded <;> decide +kernel
 
-private abbrev readyList (v r s : Bool) : List ℕ := [0, 1, 8, 9, 15, 17, 26, 30] ++
-  (if s then [31] else []) ++ (if r then [2, 3, 5, 6] else [2, 4, 7]) ++
-  if v then [10, 12, 13, 18, 22, 23] else [11, 14, 20, 24, 25]
-
 /-- Prepare a value without changing the outer controls, suffix response, or clear record. -/
 theorem prepare (value : Bool) :
     graph.ReachableOn (fun e => e ≠ satOut ∧ e ≠ tryIn ∧ e ≠ satIn ∧ e ≠ recMem)
       idle.orient (ready value false true).orient :=
-  reachableOn_of_numRun ([0, 1, 2, 4, 7, 11, 26, 30, 31].contains ·)
-    ((readyList value false true).contains ·)
+  reachableOn_of_numRun ((idleList).contains ·) ((readyList value false true).contains ·)
     (if value then [8, 10, 12, 13, 11, 9, 15, 17, 18, 22, 23] else [8, 9, 14, 15, 17, 20, 24, 25])
     (by cases value <;> decide +kernel)
 
@@ -222,8 +220,8 @@ theorem switch_true :
 /-- Return the true branch's success, keeping try-in and every suffix boundary wire fixed. -/
 theorem finish : graph.ReachableOn (fun e => e ≠ tryIn ∧ ∀ j, e ≠ forallGadget.bottom j)
     (ready true true false).orient success.orient :=
-  reachableOn_of_numRun ((readyList true true false).contains ·) ([1, 2, 3, 5, 6, 8, 9, 10, 12,
-    13, 15, 17, 18, 22, 23, 27, 28, 30].contains ·) [26, 27, 28, 0] (by decide +kernel)
+  reachableOn_of_numRun ((readyList true true false).contains ·) ((successList).contains ·)
+    [26, 27, 28, 0] (by decide +kernel)
 
 end ForallGadget.Execution
 
