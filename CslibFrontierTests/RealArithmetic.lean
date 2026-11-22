@@ -44,6 +44,11 @@ example : ComputableInPolyTime (fun token => Term.evalTokenStep (n := 0) 8 [] to
     (encTermTokenEncoding 0) (encOption (encList encNat)) :=
   Term.evalTokenStep_polyTime (.const 8) (.const []) (.const [3]) .id'
 
+-- The fold certificate charges the entire input token list, even for a composite modulus.
+example : ComputableInPolyTime (fun tokens => Term.evalTokenStack (n := 2) 8 [3] tokens [])
+    (encList (encTermTokenEncoding 2)) (encOption (encList encNat)) :=
+  Term.evalTokenStack_polyTime (.const 8) (fun _ => by decide) (.const [3]) .id'
+
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
 def sentence : Formula 0 :=
   .or (.ltZero (.add (.const (-37)) (.const 12)))

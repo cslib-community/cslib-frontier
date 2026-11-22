@@ -9,20 +9,24 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.ModularEvaluation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 
 /-!
-# Polynomial-time transition for modular term evaluation
+# Polynomial-time modular evaluation of term tokens
 
 Each transition charges the encoded token, binary modulus, coordinate list, and residue stack.
 It retains the unary variable ranks of the term encoding and charges the binary modular
 arithmetic. This certifies one transition of the constructor-stream evaluator, adapting the
 case dispatch of `TermModularFrames` in lean-canny at
 `970f28a5ecefc1327402ade16c068aa4b1b2c183` to the frontier encodings.
+For a positive modulus, a framed token list can be evaluated from an empty stack in
+polynomial time. The number and width of residues bound every intermediate encoding.
 -/
 
 public section
@@ -99,5 +103,70 @@ theorem evalTokenStep_polyTime {γ : Type} {enc : γ ↪ List Bool} {n : ℕ}
   all_goals
     dsimp only [varOrOp, op, add, mul, Sum.elim]
     rcases stack a with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> rfl
+
+/-- Starting with an empty stack, evaluate a framed stream of constructor tokens from right
+to left in polynomial time for a positive binary modulus. The output is an optional framed
+list of binary residues. The bound also applies to streams that fail with underflow. -/
+theorem evalTokenStack_polyTime {γ : Type} {enc : γ ↪ List Bool} {n : ℕ}
+    {modulus : γ → ℕ} {point : γ → List ℕ} {tokens : γ → List (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit)}
+    (hp : ComputableInPolyTime modulus enc encNat) (hpos : ∀ a, 0 < modulus a)
+    (hx : ComputableInPolyTime point enc (encList encNat))
+    (ht : ComputableInPolyTime tokens enc (encList (encTermTokenEncoding n))) :
+    ComputableInPolyTime (fun a => evalTokenStack (modulus a) (point a) (tokens a) [])
+      enc (encOption (encList encNat)) := by
+  let tokenEnc := encTermTokenEncoding n
+  let stackEnc := encOption (encList encNat)
+  let step (a : γ) (state : Option (List ℕ)) (token : ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) :=
+    state.bind (evalTokenStep (modulus a) (point a) token)
+  let stepEnc := encPair (encPair enc stackEnc) tokenEnc
+  have hstate := (snd enc stackEnc).comp (fst (encPair enc stackEnc) tokenEnc)
+  have hkeep := fst stepEnc (encList encNat)
+  have hparam := ((fst enc stackEnc).comp (fst (encPair enc stackEnc) tokenEnc)).comp hkeep
+  have htoken := (snd (encPair enc stackEnc) tokenEnc).comp hkeep
+  have hbody : ComputableInPolyTime
+      (fun a => evalTokenStep (modulus a.1.1.1) (point a.1.1.1) a.1.2 a.2)
+      (encPair stepEnc (encList encNat)) stackEnc :=
+    evalTokenStep_polyTime (hp.comp hparam) (hx.comp hparam) (snd stepEnc (encList encNat)) htoken
+  have hstep : ComputableInPolyTime (fun a => step a.1.1 a.1.2 a.2) stepEnc stackEnc := by
+    have h := optionElimWithInput
+      (body := fun a stack => evalTokenStep (modulus a.1.1) (point a.1.1) a.2 stack)
+      hstate (.const none) hbody
+    apply h.of_enc_eq
+    rintro ⟨⟨a, state⟩, token⟩
+    cases state <;> rfl
+  have hwidth := ((PolyBounded.const 2).mul hp.polyBounded_length).add (.const 1)
+  have hsize := (ht.polyBounded_length.mul hwidth).add (.const 1)
+  have hfold := foldlWith (encA := tokenEnc) (step := step) id'
+    ((listReverse tokenEnc).comp ht) (.const (some [])) hstep hsize ?_
+  · apply hfold.of_enc_eq
+    intro a
+    change stackEnc (evalTokenStack (modulus a) (point a) (tokens a) []) =
+      stackEnc ((tokens a).reverse.foldl (step a) (some []))
+    rw [List.foldl_reverse]
+    rfl
+  intro a i hi
+  let suffix := ((tokens a).reverse.take i).reverse
+  rw [List.foldl_eq_foldr_reverse]
+  change (stackEnc (evalTokenStack (modulus a) (point a) suffix [])).length ≤
+    (encList tokenEnc (tokens a)).length * (2 * (encNat (modulus a)).length + 1) + 1
+  cases h : evalTokenStack (modulus a) (point a) suffix [] with
+  | none => exact Nat.zero_le _
+  | some residues =>
+    obtain ⟨hentries, hresidues⟩ := evalTokenStack_bounds (hpos a) (point a) suffix (by simp) h
+    simp only [List.length_nil, Nat.zero_add] at hentries
+    have hsuffix : suffix.length ≤ (tokens a).length := by
+      change (((tokens a).reverse.take i).reverse).length ≤ (tokens a).length
+      rw [List.length_reverse]
+      exact (List.length_take_le _ _).trans (by simpa only [Function.comp_apply,
+        List.length_reverse] using hi)
+    have hcount : residues.length ≤ (encList tokenEnc (tokens a)).length :=
+      hentries.trans (hsuffix.trans (SizedListEncoding.length_le tokenEnc
+        (encL := encList tokenEnc) (tokens a)))
+    have hbits := length_encList_le encNat residues (b := (encNat (modulus a)).length)
+      fun residue hr => by
+        rw [length_encNat_eq_size, length_encNat_eq_size]
+        exact Nat.size_le_size (hresidues residue hr).le
+    exact Nat.add_le_add_right
+      (hbits.trans (Nat.mul_le_mul_right _ hcount)) 1
 
 end Cslib.Logic.RealArithmetic.Term
