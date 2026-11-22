@@ -125,10 +125,10 @@ private def Xofs.attempt (H : Xofs) (s : Level) (sk : PrivateKey s) (matrix : Pu
     (μ : List Bool) (maskSeed : List Byte) (κ : ℕ) : Option (Option (List Byte)) :=
   H.attemptWithMask s sk matrix μ (ringVectorCoeffs (H.expandMask s maskSeed κ))
 
-@[simp] private theorem id_bind_eq {α β : Type} (x : Id α) (f : α → Id β) : (x >>= f) = f x :=
+private theorem id_bind_eq {α β : Type} (x : Id α) (f : α → Id β) : (x >>= f) = f x :=
   rfl
 
-@[simp] private theorem id_pure_eq {α : Type} (x : α) : (pure x : Id α) = x := rfl
+private theorem id_pure_eq {α : Type} (x : α) : (pure x : Id α) = x := rfl
 
 private def signingRetryLoop {m : Type → Type} [Monad m] {α R : Type} (stride : ℕ)
     (reply : Option α → R) (tryAt : ℕ → m (Option (Option α))) : ℕ → ℕ → m R
@@ -162,9 +162,9 @@ private theorem firstAccepted_eq_terminal (stride : ℕ) (tryAt : ℕ → Option
       lia
     simp only [next]
     cases h : tryAt start with
-    | none => simp [signingRetryLoop, h, terminalReply]
+    | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, h, terminalReply]
     | some r =>
-      cases r <;> simp [signingRetryLoop, h, terminalReply, ih]
+      cases r <;> simp [signingRetryLoop, id_bind_eq, id_pure_eq, h, terminalReply, ih]
 
 /-- Algorithm 7's 814-attempt loop with an explicit mask at each retry counter. The ambient XOF
 supplies the commitment digests and sparse challenges. -/
@@ -454,15 +454,15 @@ private theorem attempt_of_firstAccepted {stride fuel start : ℕ}
     (h : firstAccepted stride f fuel start = some sig) : ∃ κ, f κ = some (some sig) := by
   unfold firstAccepted at h
   induction fuel generalizing start with
-  | zero => simp [signingRetryLoop] at h
+  | zero => simp [signingRetryLoop, id_pure_eq] at h
   | succ fuel ih =>
     cases hf : f start with
-    | none => simp [signingRetryLoop, hf] at h
+    | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, hf] at h
     | some v =>
       cases v with
-      | none => exact ih (by simpa [signingRetryLoop, hf] using h)
+      | none => exact ih (by simpa [signingRetryLoop, id_bind_eq, hf] using h)
       | some bytes =>
-        have he : bytes = sig := by simpa [signingRetryLoop, hf] using h
+        have he : bytes = sig := by simpa [signingRetryLoop, id_bind_eq, id_pure_eq, hf] using h
         exact ⟨start, he ▸ hf⟩
 
 private theorem length_of_firstAccepted_attempt {H : Xofs} {s : Level} {sk : PrivateKey s}

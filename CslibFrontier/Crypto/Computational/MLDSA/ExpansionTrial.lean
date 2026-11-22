@@ -83,10 +83,10 @@ private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option
       lia
     simp only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, next]
     cases h : tryAt start with
-    | none => simp [signingRetryLoop, terminalReply, h]
+    | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
     | some r =>
       cases r with
-      | some sig => simp [signingRetryLoop, terminalReply, h]
+      | some sig => simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
       | none =>
         have eq : start + (pre + 1) * step = start + step + pre * step := by
           rw [Nat.succ_mul]
