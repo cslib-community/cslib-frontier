@@ -279,16 +279,32 @@ It is never built; the hints of the learned clause refute it (`Cslib.Logic.PL.CN
 def Marks.clause (m : Marks) (Cur : Trail) (y : Literal ℕ) : Prop :=
   y ∈ m.out ∨ (m.seen.assigned y.1 = true ∧ y.negate ∈ Trail.lits Cur)
 
+/-- The loop of `Marks.absorb`, with the four parts of the state as arguments, so that compiled
+code builds no state per literal. -/
+def Marks.absorbGo (cur : Assign) (seen : Assign) (out : Clause ℕ) (path : ℕ) (vars : List ℕ) :
+    Clause ℕ → Marks
+  | [] => ⟨seen, out, path, vars⟩
+  | y :: R =>
+    if seen.assigned y.1 then Marks.absorbGo cur seen out path vars R
+    else if cur.isFalse y then
+      Marks.absorbGo cur (seen.set y.1 (some true)) out (path + 1) (y.1 :: vars) R
+    else Marks.absorbGo cur (seen.set y.1 (some true)) (y :: out) path (y.1 :: vars) R
+
 /-- **Adding the literals of a clause** to the analysis: each literal on a variable not yet seen is
-seen; it counts on the path if its negation is on the current level, whose literals `cur` holds,
-and goes to `out` otherwise. -/
-def Marks.absorb (cur : Assign) : Marks → Clause ℕ → Marks
-  | m, [] => m
-  | m, y :: R =>
-    if m.seen.assigned y.1 then Marks.absorb cur m R
-    else if cur.holds y.negate then
-      Marks.absorb cur ⟨m.seen.set y.1 (some true), m.out, m.path + 1, y.1 :: m.vars⟩ R
-    else Marks.absorb cur ⟨m.seen.set y.1 (some true), y :: m.out, m.path, y.1 :: m.vars⟩ R
+seen; it counts on the path if it is false on the current level, whose literals `cur` holds, and
+goes to `out` otherwise. -/
+def Marks.absorb (cur : Assign) (m : Marks) (R : Clause ℕ) : Marks :=
+  Marks.absorbGo cur m.seen m.out m.path m.vars R
+
+theorem Marks.absorb_nil (cur : Assign) (m : Marks) : m.absorb cur [] = m := rfl
+
+theorem Marks.absorb_cons (cur : Assign) (m : Marks) (y : Literal ℕ) (R : Clause ℕ) :
+    m.absorb cur (y :: R) =
+      if m.seen.assigned y.1 then m.absorb cur R
+      else if cur.isFalse y then
+        Marks.absorb cur ⟨m.seen.set y.1 (some true), m.out, m.path + 1, y.1 :: m.vars⟩ R
+      else Marks.absorb cur ⟨m.seen.set y.1 (some true), y :: m.out, m.path, y.1 :: m.vars⟩ R :=
+  rfl
 
 /-- The invariant of the analysis, with the entries `Cur` of the current level still to pass, the
 trail `M₀` below it, and the variables `V` of the formula: the literals of `out` are false below the
@@ -356,7 +372,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
       (m.absorb cur R).Inv Cur M₀ V ∧ (∀ y ∈ R, (m.absorb cur R).seen.assigned y.1 = true) ∧
       (∀ v, m.seen.assigned v = true → (m.absorb cur R).seen.assigned v = true) ∧
       (∀ y ∈ m.out, y ∈ (m.absorb cur R).out)
-  | m, [], hm, _, _ => ⟨hm, by simp, fun _ h => h, fun _ h => h⟩
+  | m, [], hm, _, _ => by rw [Marks.absorb_nil]; exact ⟨hm, by simp, fun _ h => h, fun _ h => h⟩
   | m, y :: R, hm, hV, hR => by
     rw [vars_append] at hnd
     have hdisj := List.disjoint_of_nodup_append hnd
@@ -364,7 +380,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
     have hndC : (Trail.vars Cur).Nodup := hnd.of_append_left
     rw [← vars_append] at hnd
     have hV' : ∀ z ∈ R, z.1 ∈ V := fun z hz => hV z (List.mem_cons_of_mem _ hz)
-    simp only [Marks.absorb]
+    rw [Marks.absorb_cons]
     split
     · rename_i hs
       obtain ⟨h₁, h₂, h₃, h₄⟩ := Marks.absorb_spec hcur hnd m R hm hV'
@@ -410,7 +426,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
         · exact h₂ z hz
       split
       · rename_i hc
-        have hyc : y.negate ∈ Trail.lits Cur := (hcur.holds_iff _).1 hc
+        have hyc : y.negate ∈ Trail.lits Cur := (hcur.isFalse_iff _).1 hc
         have hyv : y.1 ∈ Trail.vars Cur := by
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hyc
         refine hfin _ rfl (fun z hz => hz) ⟨hm.out_below, fun z hz => hmono _ (hm.out_seen z hz),
@@ -426,7 +442,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
           rw [countP_set_seen hs' hndC, ← hm.path_eq, ite_eq_left hyv]
       · rename_i hc
         have hyM : y.negate ∈ Trail.lits M₀ :=
-          hy.resolve_left fun h => hc ((hcur.holds_iff _).2 h)
+          hy.resolve_left fun h => hc ((hcur.isFalse_iff _).2 h)
         have hyv : y.1 ∉ Trail.vars Cur := fun h => hdisj h (by
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hyM)
         refine hfin _ rfl (fun z hz => List.mem_cons_of_mem _ hz) ⟨fun z hz => ?_,

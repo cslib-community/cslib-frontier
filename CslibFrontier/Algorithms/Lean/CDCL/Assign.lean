@@ -332,6 +332,22 @@ theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
   simp only [assigned_eq_isSome, value_mark]
   split <;> simp_all
 
+/-- **Marking the variables of the literals `C`**: `mark` of their variables (`markLits_eq`),
+without listing them. -/
+def markLits (A : Assign) (C : List (Literal ℕ)) : Assign :=
+  C.foldl (fun A y => A.set y.1 (some true)) A
+
+theorem markLits_eq (A : Assign) (C : List (Literal ℕ)) : A.markLits C = A.mark (C.map Prod.fst) :=
+  by rw [markLits, mark, List.foldl_map]
+
+/-- **Unassigning the variables of the literals `C`**: `unassign` of their variables
+(`unassignLits_eq`), without listing them. -/
+def unassignLits (A : Assign) (C : List (Literal ℕ)) : Assign := C.foldl (fun A y => A.clear y.1) A
+
+theorem unassignLits_eq (A : Assign) (C : List (Literal ℕ)) :
+    A.unassignLits C = A.unassign (C.map Prod.fst) := by
+  rw [unassignLits, unassign, List.foldl_map]
+
 /-- An array in which exactly the variables `vs` are assigned. It is sized once for the greatest
 of them, so that marking never grows it. -/
 def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) 0⟩ : Assign).mark vs

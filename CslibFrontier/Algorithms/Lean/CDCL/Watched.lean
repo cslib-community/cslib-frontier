@@ -1295,6 +1295,14 @@ theorem bumpOrderWith_fst (o : Options) (A : Activity) (H : VarOrder) {vs : List
 
 @[simp] theorem XEntry.var_entry (e : XEntry) : e.entry.var = e.lit.1 := by cases e <;> rfl
 
+/-- Whether an entry is a decision, read on the entry. -/
+@[expose] def XEntry.isDecision : XEntry → Bool
+  | .decision _ => true
+  | .implied _ _ => false
+
+@[simp] theorem XEntry.isDecision_eq (e : XEntry) : e.isDecision = e.entry.decision := by
+  cases e <;> rfl
+
 /-- The variables of the entries `M`, as `Trail.vars` of their trail (`XTrail.vars_eq`), mapped in
 one pass. -/
 @[expose] def XTrail.vars (M : XTrail) : List ℕ := M.map fun e => e.lit.1
@@ -1344,7 +1352,12 @@ theorem Phases.saveEntries_eq (P : Phases) (M : XTrail) :
 undone are inserted with the activities `A`, unless they are in the heap, as MiniSat's
 `insertVarOrder` does. -/
 @[expose] def reorderedWith (o : Options) (H : VarOrder) (A : Activity) (U : XTrail) : VarOrder :=
-  if o.vsids then H.addAll A (XTrail.vars U) else H
+  if o.vsids then U.foldl (fun H e => H.insert A e.lit.1) H else H
+
+/-- The variables undone are inserted as `VarOrder.addAll` inserts them, without listing them. -/
+theorem reorderedWith_eq (o : Options) (H : VarOrder) (A : Activity) (U : XTrail) :
+    reorderedWith o H A U = if o.vsids then H.addAll A (XTrail.vars U) else H := by
+  simp only [reorderedWith, VarOrder.addAll, XTrail.vars, List.foldl_map]
 
 /-- The phases `P` after undoing the entries `U`: those of the literals undone are saved, if phase
 saving is on. -/
@@ -1407,7 +1420,7 @@ analysis returned once its level is cleared. -/
 @[expose] def jumpMarks {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
     Assign :=
-  (clearedMarks sp L).1.mark (L.clause.map Prod.fst)
+  (clearedMarks sp L).1.markLits L.clause
 
 /-- Whether a variable is marked for the backjump. It reads one array, built once: the function is
 `Assign.assigned` applied to `jumpMarks sp L`. -/
@@ -1422,8 +1435,10 @@ theorem jumpMarked_iff {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below))
     (v : ℕ) : jumpMarked sp L v = true ↔ v ∈ L.clause.map Prod.fst := by
   by_cases hv : v ∈ L.clause.map Prod.fst
-  · simp [jumpMarked, jumpMarks, Assign.assigned_eq_isSome, Assign.value_mark, hv]
-  · simp only [jumpMarked, jumpMarks, Assign.assigned_eq_isSome, Assign.value_mark, hv, ite_false,
+  · simp [jumpMarked, jumpMarks, Assign.markLits_eq, Assign.assigned_eq_isSome, Assign.value_mark,
+      hv]
+  · simp only [jumpMarked, jumpMarks, Assign.markLits_eq, Assign.assigned_eq_isSome,
+      Assign.value_mark, hv, ite_false,
       (clearedMarks sp L).2 v, Option.isSome_none, Bool.false_eq_true]
 
 theorem jumpMarked_of_mem {log : LRATLog φ} (sp : Split)
@@ -1447,8 +1462,10 @@ cleared again, which leaves no value. -/
 @[expose] def afterJumpMarks {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below))
     (A : Assign) (hA : A = jumpMarks sp L) : {A : Assign // ∀ v, A.value v = none} :=
-  ⟨A.unassign (L.clause.map Prod.fst), Assign.value_unassign_eq_none fun v hv => by
-    rw [hA, jumpMarks, Assign.value_mark, ite_eq_right_iff.2 fun h => absurd h hv]
+  ⟨A.unassignLits L.clause, Assign.unassignLits_eq A L.clause ▸
+    Assign.value_unassign_eq_none fun v hv => by
+    rw [hA, jumpMarks, Assign.markLits_eq, Assign.value_mark,
+      ite_eq_right_iff.2 fun h => absurd h hv]
     exact (clearedMarks sp L).2 v⟩
 
 /-- The state with its marks taken out, replaced by an empty array, so that the marks can be
@@ -1491,8 +1508,8 @@ are built once, read by the backjump and cleared after it. -/
   let assign := backjumpedWith assign U L.lit
   let order := reorderedWith opts p.2 A U
   let phase := savedWith opts phase U
-  let occurs := occurs.mark (L.clause.map Prod.fst)
-  let level := level - U.countP fun x => x.entry.decision
+  let occurs := occurs.markLits L.clause
+  let level := level - U.countP XEntry.isDecision
   let k := L.clause.length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
@@ -1580,7 +1597,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       T.occurs = S.occurs.mark (L.clause.map Prod.fst) → T.OrderInv := by
     intro hv T hTo hTa hTe hTocc
     have hS' := hS.order hv
-    simp only [reorderedWith, bumpOrderWith, hv, ↓reduceIte, XTrail.vars_eq,
+    simp only [reorderedWith_eq, bumpOrderWith, hv, ↓reduceIte, XTrail.vars_eq,
       VarOrder.bumpDistinct_eq _ _ L.seen_nodup] at hTo hTa
     -- bumping keeps the heap and its variables; the variables undone are inserted
     have hk := VarOrder.bump_spec L.seen 19 hS'.wf hS'.pos
@@ -1622,7 +1639,8 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     nlinarith
   unfold WExec.afterConflict
   dsimp only
-  rw [show (jumpMarks sp L).assigned = jumpMarked sp L from rfl, ← hUdef, ← hKdef]
+  rw [show (jumpMarks sp L).assigned = jumpMarked sp L from rfl, ← hUdef, ← hKdef,
+    Assign.markLits_eq]
   split
   · rename_i hlen
     obtain ⟨y, rest, hc⟩ : ∃ y rest, L.clause = L.lit :: y :: rest := by
