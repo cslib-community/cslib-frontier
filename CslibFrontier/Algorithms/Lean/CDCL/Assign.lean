@@ -40,28 +40,50 @@ namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL
 
-/-- **An assignment indexed by variable**: the value of each variable, if it has one. -/
+/-- **An assignment indexed by variable**: the value of each variable, if it has one, stored as a
+small number (`Assign.code`): `0` for none, `1` for `false`, `2` for `true`. Small numbers are
+unboxed at run time, so reading a value touches no reference count. -/
 structure Assign where
-  /-- The values, indexed by variable. -/
-  vals : Array (Option Bool)
+  /-- The codes of the values, indexed by variable. -/
+  vals : Array ℕ
 
 namespace Assign
 
-/-- The value of the variable `v`, `none` past the end of the array. -/
-def value (A : Assign) (v : ℕ) : Option Bool := A.vals.getD v none
+/-- The code of a value: `0` for none, `1` for `false`, `2` for `true`. -/
+def code : Option Bool → ℕ
+  | none => 0
+  | some false => 1
+  | some true => 2
 
-/-- **Whether the literal `l` is true.** (Matching on the value, rather than comparing it with
-`some l.2`, builds no option at run time.) -/
+/-- The value of a code: `0` is none, `1` is `false`, and any other code `true`. Irreducible, so
+that unification does not try to compute the code of an assignment it cannot evaluate; the kernel
+still runs it. -/
+@[irreducible] def decode : ℕ → Option Bool
+  | 0 => none
+  | 1 => some false
+  | _ => some true
+
+@[simp] theorem decode_zero : decode 0 = none := by unfold decode; rfl
+
+@[simp] theorem decode_code (x : Option Bool) : decode (code x) = x := by
+  unfold decode; rcases x with _ | _ | _ <;> rfl
+
+/-- The value of the variable `v`, `none` past the end of the array. -/
+def value (A : Assign) (v : ℕ) : Option Bool := decode (A.vals.getD v 0)
+
+/-- **Whether the literal `l` is true**, read on the code of its variable. -/
 def holds (A : Assign) (l : Literal ℕ) : Bool :=
-  match A.value l.1 with
-  | some b => b == l.2
-  | none => false
+  match A.vals.getD l.1 0 with
+  | 0 => false
+  | 1 => !l.2
+  | _ => l.2
 
 /-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
 def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
-  match A.value l.1 with
-  | some b => b != l.2
-  | none => false
+  match A.vals.getD l.1 0 with
+  | 0 => false
+  | 1 => l.2
+  | _ => !l.2
 
 /-- **Whether two literals are equal**, comparing the variables and the signs directly, without
 the generic calls of the instance on pairs. -/
@@ -72,33 +94,39 @@ theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
 
 private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
     A.holds l = true ↔ A.value l.1 = some l.2 := by
-  unfold holds
-  split <;> simp_all
+  unfold holds value
+  obtain ⟨v, x⟩ := l
+  generalize A.vals.getD v 0 = c
+  rcases c with _ | _ | c <;> cases x <;> simp [decode]
 
 private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
     A.isFalse l = A.holds l.negate := by
   unfold isFalse holds
   obtain ⟨v, x⟩ := l
   simp only [Std.Sat.Literal.negate]
-  generalize A.value v = o
-  rcases o with _ | b
-  · rfl
-  · cases b <;> cases x <;> rfl
+  generalize A.vals.getD v 0 = c
+  rcases c with _ | _ | c <;> cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
-def assigned (A : Assign) (v : ℕ) : Bool := (A.value v).isSome
+def assigned (A : Assign) (v : ℕ) : Bool := A.vals.getD v 0 != 0
+
+/-- A variable is assigned when it has a value. -/
+theorem assigned_eq_isSome (A : Assign) (v : ℕ) : A.assigned v = (A.value v).isSome := by
+  unfold assigned value decode
+  generalize A.vals.getD v 0 = c
+  rcases c with _ | _ | c <;> rfl
 
 /-- Setting the value of `v` to `x`, growing the array if needed. -/
 def set (A : Assign) (v : ℕ) (x : Option Bool) : Assign :=
-  if v < A.vals.size then ⟨A.vals.set! v x⟩
-  else ⟨(A.vals ++ Array.replicate (v - A.vals.size) none).push x⟩
+  if v < A.vals.size then ⟨A.vals.set! v (code x)⟩
+  else ⟨(A.vals ++ Array.replicate (v - A.vals.size) 0).push (code x)⟩
 
 /-- Assigning the literal `l`. -/
 def assign (A : Assign) (l : Literal ℕ) : Assign := A.set l.1 (some l.2)
 
 /-- Unassigning the variable `v`: an update within the array, which is left as it is if `v` is past
 its end, since `v` then has no value. -/
-def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v none⟩
+def clear (A : Assign) (v : ℕ) : Assign := ⟨A.vals.setIfInBounds v 0⟩
 
 /-- Unassigning the variables `vs`. It never grows the array. -/
 def unassign (A : Assign) (vs : List ℕ) : Assign := vs.foldl (fun A v => A.clear v) A
@@ -119,9 +147,9 @@ theorem ofTrail_nil : ofTrail [] = ⟨#[]⟩ := rfl
 theorem ofTrail_cons (e : Entry) (M : Trail) : ofTrail (e :: M) = (ofTrail M).assign e.lit :=
   assignTrail_cons _ e M
 
-theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
-    (A.set v x).value w = if w = v then x else A.value w := by
-  unfold set value
+private theorem getD_set (A : Assign) (v w : ℕ) (x : Option Bool) :
+    (A.set v x).vals.getD w 0 = if w = v then code x else A.vals.getD w 0 := by
+  unfold set
   split
   · rename_i hv
     simp only [Array.set!_eq_setIfInBounds, Array.getD_eq_getD_getElem?,
@@ -141,9 +169,15 @@ theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
       · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : A.vals.size ≤ w)]
         split <;> rfl
 
+theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
+    (A.set v x).value w = if w = v then x else A.value w := by
+  unfold value
+  rw [getD_set]
+  split <;> simp
+
 theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
     (A.set v x).assigned w = if w = v then x.isSome else A.assigned w := by
-  simp only [assigned, value_set]
+  simp only [assigned_eq_isSome, value_set]
   split <;> rfl
 
 theorem value_clear (A : Assign) (v w : ℕ) :
@@ -151,7 +185,7 @@ theorem value_clear (A : Assign) (v w : ℕ) :
   unfold clear value
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
   by_cases hw : w = v
-  · subst hw; simp only [↓reduceIte]; split <;> rfl
+  · subst hw; simp only [↓reduceIte]; split <;> simp
   · simp [hw, Ne.symm hw]
 
 theorem size_clear (A : Assign) (v : ℕ) : (A.clear v).vals.size = A.vals.size := by
@@ -194,7 +228,7 @@ theorem Agrees.isFalse_iff (h : A.Agrees M) (l : Literal ℕ) :
 /-- **A variable is assigned exactly when it is a variable of the trail.** -/
 theorem Agrees.assigned_iff (h : A.Agrees M) (v : ℕ) :
     A.assigned v = true ↔ v ∈ Trail.vars M := by
-  simp only [assigned, Option.isSome_iff_exists]
+  simp only [assigned_eq_isSome, Option.isSome_iff_exists]
   constructor
   · rintro ⟨b, hb⟩
     exact Trail.mem_vars_of_mem_lits ((h v b).1 hb)
@@ -294,16 +328,16 @@ theorem value_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
 
 theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
     (A.mark vs).assigned v = true ↔ v ∈ vs ∨ A.assigned v = true := by
-  simp only [assigned, value_mark]
+  simp only [assigned_eq_isSome, value_mark]
   split <;> simp_all
 
 /-- An array in which exactly the variables `vs` are assigned. It is sized once for the greatest
 of them, so that marking never grows it. -/
-def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) none⟩ : Assign).mark vs
+def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) 0⟩ : Assign).mark vs
 
 theorem assigned_marks (vs : List ℕ) (v : ℕ) : (marks vs).assigned v = true ↔ v ∈ vs := by
   rw [marks, assigned_mark]
-  simp only [assigned, value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  simp only [assigned, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
   split <;> simp
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/

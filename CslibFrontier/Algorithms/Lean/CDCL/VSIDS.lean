@@ -419,6 +419,23 @@ theorem VarOrder.added_addMissing (H : VarOrder) (I : Array Bool) (A : Activity)
         · exact h₂.covers h w hw
     · exact (VarOrder.added_one H I A v).trans (ih _ _)
 
+/-- **Unmarking the variables `vs`**: as MiniSat bumps a variable in its heap only if it is there,
+a variable whose activity grew is unmarked, to be inserted again when it is undone. -/
+def VarOrder.unmark (I : Array Bool) (vs : List ℕ) : Array Bool :=
+  vs.foldl (fun I v => I.setIfInBounds v false) I
+
+/-- A variable still marked after unmarking `vs` is not among them, and was marked before. -/
+theorem VarOrder.marked_unmark {I : Array Bool} {vs : List ℕ} {w : ℕ}
+    (h : VarOrder.marked (VarOrder.unmark I vs) w = true) :
+    w ∉ vs ∧ VarOrder.marked I w = true := by
+  induction vs generalizing I with
+  | nil => exact ⟨List.not_mem_nil, h⟩
+  | cons v vs ih =>
+    obtain ⟨hw, hI⟩ := ih h
+    rcases VarOrder.marked_setIfInBounds hI with ⟨-, hf⟩ | ⟨hne, hI⟩
+    · exact absurd hf (by decide)
+    · exact ⟨fun hm => (List.mem_cons.1 hm).elim hne hw, hI⟩
+
 /-- **All the variables of `V` inserted** in an empty order, with their activities: an order
 satisfying the invariant whatever the trail, with any marks of no variable. -/
 theorem VarOrder.inv_add_empty (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) (n : ℕ) :
