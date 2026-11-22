@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
-import CslibFrontier.Computability.Complexity.Classes.LogSpace.Hoza
 
 /-!
 # Modular counting in logarithmic space
@@ -20,16 +19,14 @@ computation prefix, and transition occurrences counted with multiplicity. The mo
 class parameter, not part of the input. The definition is total in `k`; at `k = 1` it accepts no
 instance.
 
-At `k = 2` the condition is that the count is odd. This is `⊕L`, the languages accepted by an odd
-number of accepting computation paths of a nondeterministic logspace machine, as defined by
-[Reinhardt and Allender][ReinhardtAllender2000] in Section 1, page 3 of the version of March 31,
-1999.
+At `k = 2` the condition is that the count is odd. This is the library's parity-count form of
+`⊕L`. [Reinhardt and Allender][ReinhardtAllender2000] define `⊕L` by an odd number of accepting
+computation paths of a nondeterministic logspace machine (Section 1, page 3 of the version of
+March 31, 1999). The library does not prove that counting transition occurrences of a native
+counting machine gives the same class as counting paths.
 
-An unambiguous count is zero or one, so `UL ⊆ ModL k` for every `k ≥ 2`. Together with
-`Cslib.Complexity.NL_eq_UL` this gives `NL ⊆ ModL k`, and in particular `NL ⊆ ⊕L`. On the same
-page, Reinhardt and Allender attribute `NL/poly ⊆ ⊕L/poly` to Wigderson and describe `NL ⊆ ⊕L` as
-not known to hold. The inclusion below is derived in this library from `NL = UL`; it is not
-presented as the statement of a cited theorem.
+An unambiguous count is zero or one, so `UL ⊆ ModL k` for every `k ≥ 2`. The inclusion of `NL`
+in these classes is `Cslib.Complexity.NL_subset_ModL`, stated beside `NL = UL`.
 
 ## Main definitions
 
@@ -37,13 +34,12 @@ presented as the statement of a cited theorem.
 
 ## Main results
 
-* `Cslib.Complexity.NL_subset_ModL`: `NL ⊆ ModL k` for every `k ≥ 2` and every injective binary
-  input encoding.
+* `Cslib.Complexity.mem_ModL_two`: modulo two, membership is oddness of the count.
+* `Cslib.Complexity.UL_subset_ModL`: `UL ⊆ ModL k` for every `k ≥ 2`.
 
 ## References
 
 * [K. Reinhardt, E. Allender, *Making Nondeterminism Unambiguous*][ReinhardtAllender2000]
-* [W. M. Hoza, *NL = UL*][Hoza2026NLUL]
 -/
 
 public section
@@ -53,12 +49,14 @@ namespace Cslib.Complexity
 variable {α : Type} {enc : α ↪ List Bool} {A : Set α} {k : ℕ}
 
 /-- For a fixed modulus `k`, the languages recognized by a nonzero residue modulo `k` of a `#L`
-count. The standard modular classes have `k ≥ 2`, and `ModL 2` is `⊕L`. -/
+count. The standard modular classes have `k ≥ 2`, and `ModL 2` is the library's parity-count form
+of `⊕L`. -/
 @[expose] def ModL (k : ℕ) (enc : α ↪ List Bool) : Set (Set α) :=
   {A | ∃ f ∈ SharpL enc, ∀ a, a ∈ A ↔ f a % k ≠ 0}
 
-/-- Modulo two, a nonzero residue is an odd count, so `ModL 2` is `⊕L`
-[Reinhardt and Allender, Section 1][ReinhardtAllender2000]. -/
+/-- Modulo two, a nonzero residue is an odd count: the parity-count condition defining `⊕L` in
+[Reinhardt and Allender, Section 1][ReinhardtAllender2000], for the library's occurrence
+counts. -/
 theorem mem_ModL_two : A ∈ ModL 2 enc ↔ ∃ f ∈ SharpL enc, ∀ a, a ∈ A ↔ Odd (f a) := by
   simp only [ModL, Set.mem_ofPred_eq, Nat.odd_iff, Nat.mod_two_ne_zero]
 
@@ -69,11 +67,5 @@ theorem UL_subset_ModL (hk : 2 ≤ k) : UL enc ⊆ ModL k enc := by
   have := hle a
   rw [hA a, Nat.mod_eq_of_lt (by omega)]
   omega
-
-/-- **Nondeterministic logarithmic space is within `Mod_k L`** for every fixed `k ≥ 2`, and in
-particular within `⊕L`. Hoza's `NL = UL` [Hoza2026NLUL] gives each language in `NL` a logspace
-count that is one on members and zero on nonmembers, in the same encoding. -/
-theorem NL_subset_ModL (hk : 2 ≤ k) : NL enc ⊆ ModL k enc :=
-  (NL_eq_UL enc).subset.trans (UL_subset_ModL hk)
 
 end Cslib.Complexity

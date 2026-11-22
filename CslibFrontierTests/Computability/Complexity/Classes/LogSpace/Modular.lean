@@ -8,13 +8,12 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.Modular
-import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 
 /-! # Modular counting in logarithmic space
 
-Apply `NL ⊆ ModL k` through ordinary imports: directed reachability and every deterministic
-logspace language get a parity witness in their original encoding, and a witness for every
-modulus at least two. Modulus one accepts no instance.
+The modular classes are used here through `Classes.LogSpace.Modular` alone, without the
+`NL = UL` development: an unambiguous witness is a witness for every modulus at least two, and
+gives an odd-count witness at modulus two. Modulus one accepts no instance.
 -/
 
 set_option linter.privateModule false
@@ -23,18 +22,15 @@ namespace CslibFrontierTests.LogSpace.Modular
 
 open Cslib.Complexity
 
-/-- Directed reachability on adjacency matrices is decided by the parity of a logspace count. -/
-example : ∃ f ∈ SharpL encSTCON, ∀ I, I ∈ STCON ↔ Odd (f I) :=
-  mem_ModL_two.mp (NL_subset_ModL le_rfl STCON.mem_NL)
-
-/-- A deterministic logspace language has a witness modulo every `k ≥ 2`, in its own encoding. -/
-example {α : Type} {enc : α ↪ List Bool} {A : Set α} {k : ℕ} (hk : 2 ≤ k) (h : A ∈ L enc) :
+/-- An unambiguous witness is a modular witness for every `k ≥ 2`, in its own encoding. -/
+example {α : Type} {enc : α ↪ List Bool} {A : Set α} {k : ℕ} (hk : 2 ≤ k) (h : A ∈ UL enc) :
     A ∈ ModL k enc :=
-  NL_subset_ModL hk (L_subset_NL h)
+  UL_subset_ModL hk h
 
-/-- An unambiguous witness is a modular witness without passing through `NL = UL`. -/
-example {α : Type} {enc : α ↪ List Bool} {A : Set α} (h : A ∈ UL enc) : A ∈ ModL 3 enc :=
-  UL_subset_ModL (by decide) h
+/-- At modulus two the witness is a logspace count that is odd exactly on members. -/
+example {α : Type} {enc : α ↪ List Bool} {A : Set α} (h : A ∈ UL enc) :
+    ∃ f ∈ SharpL enc, ∀ a, a ∈ A ↔ Odd (f a) :=
+  mem_ModL_two.mp (UL_subset_ModL le_rfl h)
 
 /-- Every residue modulo one is zero, so modulus one accepts no instance. -/
 example {α : Type} {enc : α ↪ List Bool} {A : Set α} (h : A ∈ ModL 1 enc) : A = ∅ := by
