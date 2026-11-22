@@ -5006,6 +5006,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.While
 public import CslibFrontier.Computability.WordRAM.Realization.WhileAbsorb
 public import CslibFrontier.Computability.WordRAM.Realization.Witness
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
+public import CslibFrontier.Computability.WordRAM.Record
 public import CslibFrontier.Computability.WordRAM.RegisterCopy
 public import CslibFrontier.Computability.WordRAM.RegisterFrame
 public import CslibFrontier.Computability.WordRAM.Resizable.Basic
@@ -5041,6 +5042,7 @@ public import CslibFrontier.Computability.WordRAM.Turing.ListOutput
 public import CslibFrontier.Computability.WordRAM.Turing.Overhead
 public import CslibFrontier.Computability.WordRAM.Width
 public import CslibFrontier.Computability.WordRAM.Word
+public import CslibFrontier.Computability.WordRAM.WordStack
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Experiment
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Protocol
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Static

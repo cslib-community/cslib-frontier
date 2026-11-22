@@ -13,6 +13,10 @@ import CslibFrontier.Tactic.FinIndex
 /-!
 # Register frames for renamed native programs
 
+## Main definitions
+
+* `offsetBank`: embed a contiguous `r`-register bank at a fixed offset in `Fin s`.
+
 ## Main results
 
 * `Code.preserves_rename_of_forall`: a renamed routine preserves a register when the routine
@@ -20,7 +24,9 @@ import CslibFrontier.Tactic.FinIndex
 * `Code.preserves_rename`: injective renaming retains a register preservation guarantee.
 * `Code.preserves_rename_of_forall_ne`: registers outside an embedded register bank are
   preserved without unfolding the subroutine's instruction graph.
-* `Code.preserves_rename_of_offset`: a contiguous bank preserves registers outside its interval.
+* `Code.preserves_rename_of_offset`, `Code.preserves_offsetBank`: a contiguous bank preserves
+  registers outside its interval.
+* `offsetBank_injective`: `offsetBank` is injective.
 * `Data.extend_regs_of_eq`, `Data.extend_regs_of_notMem`,
   `Data.extend_regs_of_forall_ne`, `Data.extend_castLE_regs_of_le`: read registers inside or
   outside an extended bank.
@@ -99,5 +105,25 @@ theorem Code.preserves_rename_of_offset {B : Basis} {r s offset : ℕ}
     (c.rename f).Preserves i := by
   apply c.preserves_rename_of_forall_ne
   fin_index [hf]
+
+/-- Embed a contiguous `r`-register bank into `Fin s` starting at `offset`. -/
+@[expose] def offsetBank (offset : ℕ) {r s : ℕ} (h : offset + r ≤ s) (i : Fin r) : Fin s :=
+  ⟨offset + i.val, by omega⟩
+
+@[simp]
+theorem offsetBank_val (offset : ℕ) {r s : ℕ} (h : offset + r ≤ s) (i : Fin r) :
+    (offsetBank offset h i).val = offset + i.val := rfl
+
+/-- Embedding a register bank at a fixed offset is injective. -/
+theorem offsetBank_injective (offset : ℕ) {r s : ℕ} (h : offset + r ≤ s) :
+    Function.Injective (offsetBank offset h) := by
+  fin_index [offsetBank]
+
+/-- A subroutine renamed through `offsetBank` preserves every register outside
+`[offset, offset + r)`. -/
+theorem Code.preserves_offsetBank {B : Basis} {r s offset : ℕ} (h : offset + r ≤ s)
+    (c : Code B r) (i : Fin s) (hi : i.val < offset ∨ offset + r ≤ i.val) :
+    (c.rename (offsetBank offset h)).Preserves i :=
+  c.preserves_rename_of_offset (offsetBank offset h) (fun _ => rfl) i hi
 
 end Cslib.WordRAM
