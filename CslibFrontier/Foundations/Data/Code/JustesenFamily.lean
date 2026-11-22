@@ -9,8 +9,10 @@ module
 
 public import CslibFrontier.Foundations.Data.Code.Justesen
 public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryField
+public import CslibFrontier.Foundations.Data.BitString.List.Binary
+public import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
+public import CslibFrontier.Foundations.FieldTheory.Finite.HornerCoordinates
 import CslibFrontier.Foundations.Data.BitString.Binary
-import CslibFrontier.Foundations.FieldTheory.Finite.BinaryFieldArithmetic
 import Mathlib.Data.Nat.Bitwise
 import Mathlib.LinearAlgebra.Lagrange
 
@@ -54,29 +56,38 @@ namespace Cslib.Code.JustesenFamily
 
 open Polynomial
 
-private def bits (s : ℕ) : ℕ := 16 * (s + 1)
-private def dimension (s : ℕ) : ℕ := 2 ^ (bits s - 1)
-private def capacity (s : ℕ) : ℕ := dimension s * bits s
+/-- The binary field degree at scale `s`. -/
+@[expose] def scaleDegree (s : ℕ) : ℕ := 16 * (s + 1)
 
-private theorem bits_ne_zero (s : ℕ) : bits s ≠ 0 := by
-  unfold bits
+/-- The number of field coefficients in a message at scale `s`. -/
+@[expose] def dimension (s : ℕ) : ℕ := 2 ^ (scaleDegree s - 1)
+private def capacity (s : ℕ) : ℕ := dimension s * scaleDegree s
+
+private theorem scaleDegree_ne_zero (s : ℕ) : scaleDegree s ≠ 0 := by
+  unfold scaleDegree
   omega
 
 private theorem le_capacity (s : ℕ) : s ≤ capacity s := by
   have h : 1 ≤ dimension s := Nat.two_pow_pos _
   calc
-    s ≤ bits s := by unfold bits; omega
-    _ = 1 * bits s := (one_mul _).symm
+    s ≤ scaleDegree s := by unfold scaleDegree; omega
+    _ = 1 * scaleDegree s := (one_mul _).symm
     _ ≤ capacity s := Nat.mul_le_mul_right _ h
 
+/-- Moving to the next scale multiplies the message dimension by `2 ^ 16`. -/
+theorem dimension_succ (s : ℕ) : dimension (s + 1) = dimension s * 65536 := by
+  have he : scaleDegree (s + 1) - 1 = scaleDegree s - 1 + 16 := by
+    unfold scaleDegree
+    omega
+  rw [dimension, dimension, he, pow_add]
+  rfl
+
 private theorem capacity_succ_le (s : ℕ) : capacity (s + 1) ≤ 131072 * capacity s := by
-  have he : bits (s + 1) - 1 = bits s - 1 + 16 := by unfold bits; omega
-  have hb : bits (s + 1) ≤ 2 * bits s := by unfold bits; omega
-  unfold capacity dimension
-  rw [he, pow_add]
+  have hb : scaleDegree (s + 1) ≤ 2 * scaleDegree s := by unfold scaleDegree; omega
+  simp only [capacity, dimension_succ]
   calc
-    2 ^ (bits s - 1) * 2 ^ 16 * bits (s + 1) ≤
-        2 ^ (bits s - 1) * 2 ^ 16 * (2 * bits s) := Nat.mul_le_mul_left _ hb
+    dimension s * 65536 * scaleDegree (s + 1) ≤
+        dimension s * 65536 * (2 * scaleDegree s) := Nat.mul_le_mul_left _ hb
     _ = _ := by ring
 
 private def target (w n : ℕ) : ℕ := Nat.log 2 (w * (n + 1)) + 1
@@ -101,33 +112,59 @@ private theorem capacity_le (w n : ℕ) : capacity (scale w n) ≤ 67108864 * ta
       Nat.lt_of_not_ge (Nat.find_min (exists_scale w n) hlt)
     exact (capacity_succ_le s).trans (by omega)
 
-private theorem pow_bits (s : ℕ) : 2 ^ bits s = 2 * dimension s := by
+/-- There are twice as many field elements as coefficients in the message at this scale. -/
+theorem pow_scaleDegree (s : ℕ) : 2 ^ scaleDegree s = 2 * dimension s := by
   unfold dimension
-  rw [← pow_succ', Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 (bits_ne_zero s))]
+  rw [← pow_succ', Nat.sub_add_cancel (Nat.one_le_iff_ne_zero.2 (scaleDegree_ne_zero s))]
 
-private theorem dimension_le (s : ℕ) : dimension s ≤ 2 ^ bits s - 1 := by
+private theorem dimension_le (s : ℕ) : dimension s ≤ 2 ^ scaleDegree s - 1 := by
   have h : 0 < dimension s := Nat.two_pow_pos _
-  rw [pow_bits]
+  rw [pow_scaleDegree]
   omega
 
 /-- Degree of the binary field at the least scale with sufficient message capacity. -/
 def fieldDegree (w n : ℕ) : ℕ :=
-  bits (scale w n)
+  scaleDegree (scale w n)
 
 /-- The selected field has positive degree. -/
 theorem fieldDegree_ne_zero (w n : ℕ) : fieldDegree w n ≠ 0 :=
-  bits_ne_zero _
+  scaleDegree_ne_zero _
+
+/-- The chosen degree is the first `16 * (s + 1)` whose message capacity meets the
+required threshold. The threshold also bounds the number of unsuccessful scales. -/
+theorem fieldDegree_spec (w n : ℕ) :
+    let threshold := 512 * (Nat.log2 (w * (n + 1)) + 1)
+    ∃ s ≤ threshold, fieldDegree w n = scaleDegree s ∧
+      threshold ≤ dimension s * scaleDegree s ∧
+      ∀ j < s, dimension j * scaleDegree j < threshold := by
+  have hle := Nat.find_min' (exists_scale w n) (le_capacity (512 * target w n))
+  have hmin {j : ℕ} (hj : j < scale w n) :
+      capacity j < 512 * target w n :=
+    Nat.lt_of_not_ge (Nat.find_min (exists_scale w n) hj)
+  simpa only [target, ← Nat.log2_eq_log_two, capacity] using
+    (show ∃ s ≤ 512 * target w n, fieldDegree w n = scaleDegree s ∧
+        512 * target w n ≤ capacity s ∧ ∀ j < s, capacity j < 512 * target w n
+      from ⟨scale w n, hle, rfl, target_le_capacity w n, fun _ hj => hmin hj⟩)
+
+/-- Number of coefficient blocks in the outer Reed–Solomon message at the selected scale. -/
+def coefficientCount (w n : ℕ) : ℕ := dimension (scale w n)
+
+/-- The coefficient count is the power of two retained by the capacity loop. -/
+theorem coefficientCount_eq (w n : ℕ) :
+    coefficientCount w n = 2 ^ (fieldDegree w n - 1) := by
+  unfold coefficientCount dimension fieldDegree
+  rfl
 
 /-- Code coordinates are a nonzero evaluation point, a Wozencraft half, and a bit within it. -/
 abbrev Coordinate (w n : ℕ) : Type :=
   (BinaryField (fieldDegree w n))ˣ × (Fin 2 × Fin (fieldDegree w n))
 
-private def coefficientBits {w n : ℕ} (v : Fin w) (i : Fin (dimension (scale w n))) :
+private def coefficientBits {w n : ℕ} (v : Fin w) (i : Fin (coefficientCount w n)) :
     BitString (fieldDegree w n) :=
   fun j => v.val.testBit (finProdFinEquiv (i, j))
 
 private noncomputable def message {w n : ℕ} (v : Fin w) :
-    degreeLT (BinaryField (fieldDegree w n)) (dimension (scale w n)) :=
+    degreeLT (BinaryField (fieldDegree w n)) (coefficientCount w n) :=
   (degreeLTEquiv _ _).symm fun i =>
     (BinaryField.equivBits (fieldDegree_ne_zero w n)).symm (coefficientBits v i)
 
@@ -144,7 +181,7 @@ private theorem message_injective (w n : ℕ) :
   intro j
   by_cases hj : j < capacity (scale w n)
   · obtain ⟨⟨i, k⟩, hik⟩ :=
-      (finProdFinEquiv (m := dimension (scale w n)) (n := fieldDegree w n)).surjective ⟨j, hj⟩
+      (finProdFinEquiv (m := coefficientCount w n) (n := fieldDegree w n)).surjective ⟨j, hj⟩
     have he := (degreeLTEquiv _ _).symm.injective h
     have hi := (BinaryField.equivBits (fieldDegree_ne_zero w n)).symm.injective (congrFun he i)
     simpa only [coefficientBits, congrArg Fin.val hik] using congrFun hi k
@@ -175,7 +212,8 @@ theorem codeword_injective (w n : ℕ) : Function.Injective (codeword (w := w) (
     exact congrFun he u
 
 private theorem card_coordinate (w n : ℕ) :
-    Fintype.card (Coordinate w n) = (2 ^ bits (scale w n) - 1) * (2 * bits (scale w n)) := by
+    Fintype.card (Coordinate w n) =
+      (2 ^ scaleDegree (scale w n) - 1) * (2 * scaleDegree (scale w n)) := by
   rw [Fintype.card_prod, Fintype.card_units, BinaryField.card (fieldDegree_ne_zero w n),
     Fintype.card_prod, Fintype.card_fin, Fintype.card_fin, fieldDegree]
 
@@ -189,12 +227,13 @@ theorem length_bounds (w n : ℕ) :
   constructor
   · refine (target_le_capacity w n).trans ?_
     calc
-      capacity s ≤ (2 ^ bits s - 1) * bits s := Nat.mul_le_mul_right _ (dimension_le s)
-      _ ≤ (2 ^ bits s - 1) * (2 * bits s) := Nat.mul_le_mul_left _ (by omega)
+      capacity s ≤ (2 ^ scaleDegree s - 1) * scaleDegree s :=
+        Nat.mul_le_mul_right _ (dimension_le s)
+      _ ≤ (2 ^ scaleDegree s - 1) * (2 * scaleDegree s) := Nat.mul_le_mul_left _ (by omega)
   · calc
-      (2 ^ bits s - 1) * (2 * bits s) ≤ 2 ^ bits s * (2 * bits s) :=
+      (2 ^ scaleDegree s - 1) * (2 * scaleDegree s) ≤ 2 ^ scaleDegree s * (2 * scaleDegree s) :=
         Nat.mul_le_mul_right _ (Nat.sub_le _ _)
-      _ = 4 * capacity s := by rw [pow_bits, capacity]; ring
+      _ = 4 * capacity s := by rw [pow_scaleDegree, capacity]; ring
       _ ≤ 268435456 * target w n := by
         have h : capacity s ≤ 67108864 * target w n := capacity_le w n
         omega
@@ -220,17 +259,26 @@ theorem log_le_hammingDist {w n : ℕ} {v v' : Fin w} (hne : v ≠ v') :
   have hd := (length_bounds w n).1.trans (length_le_mul_hammingDist (n := n) hne)
   omega
 
-private def hornerBits (b : ℕ) (mul : List Bool → List Bool → List Bool) (x : List Bool)
-    {k : ℕ} (coeff : Fin k → List Bool) : List Bool :=
-  Fin.foldr k (fun i acc => BitString.listXor b [coeff i, mul acc x]) []
+private theorem lowBits_coefficient_eq {w n : ℕ} (v : Fin w)
+    (i : Fin (dimension (scale w n))) :
+    BitString.lowBits (fieldDegree w n) (v.val >>> (fieldDegree w n * i.val)) =
+      List.ofFn (coefficientBits (n := n) v i) := by
+  rw [BitString.lowBits_eq_ofFn]
+  apply congrArg List.ofFn
+  funext j
+  rw [Nat.testBit_shiftRight]
+  change v.val.testBit (fieldDegree w n * i.val + j.val) =
+    v.val.testBit (j.val + fieldDegree w n * i.val)
+  rw [Nat.add_comm]
 
 private def codewordBitWith {w n : ℕ} (mul : List Bool → List Bool → List Bool)
     (v : Fin w) (point : BitString (fieldDegree w n)) (half : Fin 2)
     (j : Fin (fieldDegree w n)) : Bool :=
   let x := List.ofFn point
-  let a := hornerBits (fieldDegree w n) mul x fun i => List.ofFn (coefficientBits (n := n) v i)
-  let block := if half = 0 then a else mul x a
-  block.getD j false
+  let a := BinaryField.hornerBits (fieldDegree w n) mul x
+    fun i : Fin (dimension (scale w n)) =>
+      BitString.lowBits (fieldDegree w n) (v.val >>> (fieldDegree w n * i.val))
+  wozencraftBitWith mul x a half j
 
 open BinaryField in
 /-- Evaluate one coordinate using the power-basis bits of its field point. Half zero returns the
@@ -240,26 +288,6 @@ def codewordBit {w n : ℕ} (v : Fin w) (point : BitString (fieldDegree w n)) (h
   codewordBitWith (fieldMul (fieldTable (fieldDegree w n))) v point half j
 
 open BinaryField in
-private theorem fieldOfBits_hornerBits {b k : ℕ} {hb : b ≠ 0}
-    {mul : List Bool → List Bool → List Bool}
-    (hmul : ∀ a b, fieldOfBits (basis hb) (mul a b) =
-      fieldOfBits (basis hb) a * fieldOfBits (basis hb) b)
-    (x : List Bool) (coeff : Fin k → List Bool) :
-    fieldOfBits (basis hb) (hornerBits b mul x coeff) =
-      ∑ i, fieldOfBits (basis hb) (coeff i) * fieldOfBits (basis hb) x ^ i.val := by
-  induction k with
-  | zero => simp [hornerBits]
-  | succ k ih =>
-    unfold hornerBits
-    simp only [Fin.foldr_succ, fieldOfBits_listXor, List.map_cons, List.map_nil, List.sum_cons,
-      List.sum_nil, add_zero, hmul]
-    rw [show fieldOfBits (basis hb) (Fin.foldr k
-        (fun i acc => BitString.listXor b [coeff i.succ, mul acc x]) []) = _ from
-      ih (fun i => coeff i.succ)]
-    simp only [Fin.sum_univ_succ, Fin.val_zero, pow_zero, mul_one, Fin.val_succ, pow_succ,
-      Finset.sum_mul, mul_assoc]
-
-open BinaryField in
 private theorem fieldOfBits_evalBits {w n : ℕ} {mul : List Bool → List Bool → List Bool}
     (hmul : ∀ a b, fieldOfBits (basis (fieldDegree_ne_zero w n)) (mul a b) =
       fieldOfBits (basis (fieldDegree_ne_zero w n)) a *
@@ -267,12 +295,14 @@ private theorem fieldOfBits_evalBits {w n : ℕ} {mul : List Bool → List Bool 
     (v : Fin w) (point : BitString (fieldDegree w n)) :
     fieldOfBits (basis (fieldDegree_ne_zero w n))
         (hornerBits (fieldDegree w n) mul (List.ofFn point)
-          fun i => List.ofFn (coefficientBits (n := n) v i)) =
+          fun i : Fin (dimension (scale w n)) =>
+            BitString.lowBits (fieldDegree w n) (v.val >>> (fieldDegree w n * i.val))) =
       (message (n := n) v).val.eval ((equivBits (fieldDegree_ne_zero w n)).symm point) := by
-  rw [fieldOfBits_hornerBits hmul,
+  rw [fieldOfBits_hornerBits _ hmul,
     eval_eq_sum_degreeLTEquiv (message (n := n) v).2]
   refine Finset.sum_congr rfl fun i _ => ?_
-  rw [fieldOfBits_ofFn, fieldOfBits_ofFn, message, LinearEquiv.apply_symm_apply]
+  rw [lowBits_coefficient_eq, fieldOfBits_ofFn, fieldOfBits_ofFn, message,
+    LinearEquiv.apply_symm_apply]
 
 open BinaryField in
 private theorem codewordBitWith_eq {w n : ℕ} {mul : List Bool → List Bool → List Bool}
@@ -287,8 +317,9 @@ private theorem codewordBitWith_eq {w n : ℕ} {mul : List Bool → List Bool �
   let point := equivBits hb (u : BinaryField (fieldDegree w n))
   have ha := fieldOfBits_evalBits hmul v point
   rw [AddEquiv.symm_apply_apply] at ha
-  unfold codewordBitWith codeword justesen concat wozencraft
+  unfold codewordBitWith wozencraftBitWith codeword justesen concat wozencraft
   dsimp only
+  simp only [Fin.val_eq_zero_iff]
   split_ifs with h
   · rw [← equivBits_fieldOfBits hb, ha]
   · rw [← equivBits_fieldOfBits hb, hmul,
@@ -305,12 +336,62 @@ theorem codewordBit_eq {w n : ℕ} (v : Fin w) (u : (BinaryField (fieldDegree w 
 @[expose] def codeLength (w n : ℕ) : ℕ :=
   (2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)
 
-private def decodeCoordinate (w n : ℕ) :
-    Fin (codeLength w n) ≃ Fin (2 ^ fieldDegree w n - 1) × (Fin 2 × Fin (fieldDegree w n)) :=
+private def unrankCoordinate (points degree : ℕ) :
+    Fin (points * (2 * degree)) ≃ Fin points × (Fin 2 × Fin degree) :=
   finProdFinEquiv.symm.trans (Equiv.prodCongr (Equiv.refl _) finProdFinEquiv.symm)
 
-private def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
+/-- Unrank an executable codeword index in point, half, then bit order. -/
+def decodeCoordinate (w n : ℕ) :
+    Fin (codeLength w n) ≃ Fin (2 ^ fieldDegree w n - 1) × (Fin 2 × Fin (fieldDegree w n)) :=
+  unrankCoordinate (2 ^ fieldDegree w n - 1) (fieldDegree w n)
+
+/-- The numeric fields of one executable Justesen codeword coordinate. -/
+structure CoordinateNumbers where
+  /-- The positive binary number of the field point. -/
+  point : ℕ
+  /-- The zero-based Wozencraft half. -/
+  half : ℕ
+  /-- The zero-based bit within that half. -/
+  bit : ℕ
+
+/-- Decode a binary index at the supplied degree. The index runs through all bits in a half,
+then both halves at a point, before advancing to the next nonzero point. -/
+@[expose] def decodeIndex (degree index : ℕ) : CoordinateNumbers :=
+  let block := 2 * degree
+  let withinPoint := index % block
+  ⟨index / block + 1, withinPoint / degree, withinPoint % degree⟩
+
+private theorem decodeIndex_eq_unrankCoordinate {points degree : ℕ}
+    (j : Fin (points * (2 * degree))) :
+    decodeIndex degree j.val =
+      let (point, half, bit) := unrankCoordinate points degree j
+      ⟨point.val + 1, half.val, bit.val⟩ := by
+  dsimp only [decodeIndex, unrankCoordinate]
+  simp only [Equiv.trans_apply, finProdFinEquiv_symm_apply, Equiv.prodCongr_apply, Prod.map,
+    Equiv.refl_apply, Fin.coe_divNat, Fin.coe_modNat]
+
+/-- On valid indices the numeric decoder reads the same coordinate as the equivalence used
+by the indexed evaluator. The point field uses the positive numbering of the field words. -/
+theorem decodeIndex_eq_decodeCoordinate {w n : ℕ} (j : Fin (codeLength w n)) :
+    decodeIndex (fieldDegree w n) j.val =
+      let (point, half, bit) := decodeCoordinate w n j
+      ⟨point.val + 1, half.val, bit.val⟩ :=
+  decodeIndex_eq_unrankCoordinate
+    (show Fin ((2 ^ fieldDegree w n - 1) * (2 * fieldDegree w n)) from j)
+
+/-- The power-basis bits of the positively numbered field point at zero-based rank `i`. -/
+def nonzeroPointBits {b : ℕ} (i : Fin (2 ^ b - 1)) : BitString b :=
   (BitString.equivFin b).symm ⟨i.val + 1, by have := i.isLt; omega⟩
+
+/-- On a valid index the little-endian word of the decoded point is the exact power-basis
+word passed to the indexed evaluator. -/
+theorem lowBits_decodeIndex_point {w n : ℕ} (j : Fin (codeLength w n)) :
+    BitString.lowBits (fieldDegree w n) (decodeIndex (fieldDegree w n) j.val).point =
+      List.ofFn (nonzeroPointBits (decodeCoordinate w n j).1) := by
+  rw [decodeIndex_eq_decodeCoordinate j]
+  obtain ⟨point, half, bit⟩ := decodeCoordinate w n j
+  exact BitString.lowBits_eq_ofFn_equivFin_symm (fieldDegree w n)
+    ⟨point.val + 1, by have := point.isLt; omega⟩
 
 /-- The codeword in executable coordinate order. Points are numbered as positive binary
 integers in power-basis coordinates. -/
@@ -326,6 +407,21 @@ def indexedCodewordMod {w n : ℕ} (v : Fin w) : Fin (codeLength w n) → Bool :
   fun j =>
     let (point, half, bit) := decodeCoordinate w n j
     codewordBitWith (fieldMulMod g) v (nonzeroPointBits point) half bit
+
+open BinaryField in
+/-- The table-free indexed bit selects a Wozencraft bit of the Horner evaluation of the binary
+label's fixed-width coefficient blocks. -/
+theorem indexedCodewordMod_eq_hornerBits {w n : ℕ} (v : Fin w) (j : Fin (codeLength w n)) :
+    indexedCodewordMod v j =
+      let (point, half, bit) := decodeCoordinate w n j
+      let mul := fieldMulMod (modulusBitsScan (fieldDegree w n))
+      let x := List.ofFn (nonzeroPointBits point)
+      let y := hornerBits (fieldDegree w n) mul x (fun i : Fin (coefficientCount w n) =>
+        BitString.lowBits (fieldDegree w n) (v.val >>> (fieldDegree w n * i.val)))
+      wozencraftBitWith mul x y half.val bit.val := by
+  unfold indexedCodewordMod
+  obtain ⟨point, half, bit⟩ := decodeCoordinate w n j
+  rfl
 
 private theorem nonzeroPointBits_ne_zero {b : ℕ} (i : Fin (2 ^ b - 1)) :
     nonzeroPointBits i ≠ 0 := by

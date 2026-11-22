@@ -52,6 +52,13 @@ leanOptions = {weak.linter.style.header = false}
 # `requiresModuleSystem`.
 allowNonModules = true
 
+# The verified CDCL solver on DIMACS files (`scripts/Cdcl.lean`); not a default target.
+[[lean_exe]]
+name = "cdcl"
+srcDir = "scripts"
+root = "Cdcl"
+allowNonModules = true
+
 [[lean_exe]]
 name = "mk_all"
 srcDir = "scripts"

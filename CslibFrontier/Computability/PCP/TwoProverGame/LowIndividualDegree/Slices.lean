@@ -41,6 +41,12 @@ def appendPoint (x : F) : Point F m ↪ Point F (m + 1) where
       Fin.snoc (α := fun _ : Fin (m + 1) => F) v x at h
     simpa only [Fin.init_snoc] using congrArg Fin.init h
 
+/-- The slice embedding appends the chosen last coordinate. -/
+theorem appendPoint_apply (x : F) (u : Point F m) :
+    appendPoint x u = Fin.snoc u x := by
+  unfold appendPoint
+  rfl
+
 @[simp] theorem appendPoint_apply_castSucc (x : F) (u : Point F m) (i : Fin m) :
     appendPoint x u i.castSucc = u i := by
   change Fin.snoc (α := fun _ : Fin (m + 1) => F) u x i.castSucc = _
@@ -336,6 +342,19 @@ noncomputable def restrictAnswer (x : F) : Answer F (m + 1) → Answer F m
   | .inl a => .inl a
   | .inr a => .inr (Function.invFun (appendLineAnswer x) a)
 
+omit [Fintype F] [DecidableEq F] in
+@[simp] theorem restrictAnswer_inl (x a : F) :
+    restrictAnswer (m := m) x (.inl a) = .inl a := by
+  unfold restrictAnswer
+  rfl
+
+omit [Fintype F] [DecidableEq F] in
+/-- Line answers remain line answers under restriction. -/
+theorem restrictAnswer_inr_exists (x : F) (a : Σ L : Finset (Point F (m + 1)), L → F) :
+    ∃ b, restrictAnswer (m := m) x (.inr a) = .inr b := by
+  unfold restrictAnswer
+  exact ⟨_, rfl⟩
+
 private theorem restrictAnswer_lineAgrees (x : F) (L : Finset (Point F m)) (u : Point F m)
     (d : ℕ) (g : Σ K : Finset (Point F (m + 1)), K → F) (a : F)
     (h : lineAgrees d (appendLine x L) (appendPoint x u) g a) :
@@ -396,7 +415,7 @@ private theorem branchLoss_eq_sum {n : ℕ} (d D : ℕ) (b : Branch)
       PMF (Answer F (n + 1) × Answer F (n + 1))) :
     1 - (branchGameWithDiagonalCap n d D b).answersWinProb ans =
       ∑ q, (branchQuestions n b q).toReal * lossAt d D ans q := by
-  unfold TwoProverGame.answersWinProb
+  rw [TwoProverGame.answersWinProb_eq]
   let p := (branchGameWithDiagonalCap n d D b).questions.bind fun q =>
     (ans q.1 q.2).map fun a => (q, a)
   let e := {z | (branchGameWithDiagonalCap (F := F) n d D b).AcceptsRound z}
@@ -408,8 +427,8 @@ private theorem branchLoss_eq_sum {n : ℕ} (d D : ℕ) (b : Branch)
   rw [toOuterMeasure_bind_toReal, branchGameWithDiagonalCap_questions]
   refine sum_congr rfl fun q _ => ?_
   rw [PMF.toOuterMeasure_map_apply]
-  unfold e lossAt TwoProverGame.AcceptsRound
-  rw [branchGameWithDiagonalCap_accepts]
+  unfold e lossAt
+  rw [TwoProverGame.acceptsRound_eq, branchGameWithDiagonalCap_accepts]
   rfl
 
 /-- Averaged over the last coordinate, restriction at fixed degree caps does not increase

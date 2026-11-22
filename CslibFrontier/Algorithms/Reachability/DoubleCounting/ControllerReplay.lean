@@ -35,12 +35,9 @@ private abbrev Successful (edge : Fin n → Fin n → Bool) (s v : Fin n) (k : �
 private theorem finite_successful (edge : Fin n → Fin n → Bool) (s v : Fin n) (k : ℕ) :
     Finite (Successful edge s v k) := by
   have : Finite {p : List (Fin n) // p.length ≤ k} := (List.finite_length_le _ _).to_subtype
-  have hlen (b : Successful edge s v k) (u : Fin n) (p : List (Fin n))
-      (h : b.val u = some p) : p.length ≤ k := by
+  have hlen (b : Successful edge s v k) : Scan.Bounded k b.val := by
     obtain ⟨hit, hh⟩ := Option.isSome_iff_exists.mp b.property
-    have hp := (Scan.run_eq_some_iff edge s v k b hit).mp hh |>.1
-    have hb : Scan.transcript s b u = some (s :: p) := by simp [Scan.transcript, h]
-    simpa [guessedLength, hb] using (hp.1 u (s :: p) hb).2
+    exact Scan.bounded_of_passes s k b.val ((Scan.run_eq_some_iff edge s v k b hit).mp hh).1
   let embed (b : Successful edge s v k) (u : Fin n) :
       Option {p : List (Fin n) // p.length ≤ k} :=
     (b.val u).pmap Subtype.mk (fun p hp => hlen b u p (Option.mem_def.mp hp))
@@ -68,20 +65,16 @@ theorem replayMembership_eq_singleton (edge : Fin n → Fin n → Bool) (s v : F
     replayMembership edge s k (expected (fun u w => edge u w = true) s k) v =
       [by classical exact decide (v ∈ round (fun u w => edge u w = true) s k)] := by
   classical
-  obtain ⟨w, hw, huniq⟩ := h
-  let e := Scan.successfulBranches edge s v k
-  let b : Successful edge s v k := e.symm ⟨w, hw⟩
-  have hsub : Subsingleton (Successful edge s v k) := ⟨fun x y => by
-    apply e.injective
-    apply Subtype.ext
-    exact (huniq (e x).val (e x).property).trans (huniq (e y).val (e y).property).symm⟩
+  obtain ⟨branch, hbranch, hunique⟩ := Scan.existsUnique_successful_branch edge s v k h
+  let b : Successful edge s v k := ⟨branch, hbranch⟩
   let _ := finite_successful edge s v k
   let _ := Fintype.ofFinite (Successful edge s v k)
   unfold replayMembership
   rw [ite_eq_left rfl]
   have hU : (Finset.univ : Finset (Successful edge s v k)) = {b} := by
     ext x
-    simp [hsub.elim x b]
+    have hx : x = b := Subtype.ext (hunique x.val x.property)
+    simp [hx]
   rw [hU]
   simp only [Finset.toList_singleton, List.map_singleton, List.cons.injEq, and_true]
   obtain ⟨hit, hhit⟩ := Option.isSome_iff_exists.mp b.property

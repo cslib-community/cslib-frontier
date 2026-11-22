@@ -17,7 +17,9 @@ INPUTS = (
     ".github/actions/cache-guide-deps/key.py",
     ".github/actions/cache-guide-deps/artifact.py",
 )
-MACHINE = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")
+# Exclude ImageVersion so routine GitHub runner-image patch rollouts on the same Ubuntu
+# release share the cached builds instead of recompiling verso/MD4Lean from scratch.
+MACHINE = ("RUNNER_OS", "RUNNER_ARCH", "ImageOS")
 
 
 def cache_key(root, env):

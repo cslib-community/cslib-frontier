@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import Mathlib.Probability.Distributions.Gaussian.Real
+import CslibFrontier.Foundations.MeasureTheory.Integral.CauchySchwarz
 import CslibFrontier.Foundations.Probability.Gaussian.Stein
 import Mathlib.MeasureTheory.Integral.IntegralEqImproper
 import Mathlib.Probability.Moments.MGFAnalytic
@@ -19,10 +20,12 @@ import Mathlib.Probability.Moments.MGFAnalytic
 The moment generating function of the standard Gaussian is `t ↦ exp (t ^ 2 / 2)`
 (`mgf_id_gaussianReal`), and the `n`th moment is its `n`th derivative at `0`
 (`iteratedDeriv_mgf_zero`). Differentiating four times gives `E[z³] = 0` and `E[z⁴] = 3`, the
-moments used by the Invariance Principle [O'Donnell, Section 11.6][ODonnell2014]. The mean of
-`z` on the tail `z > t` is the density there, `E[z · 1{z > t}] = φ(t)`, since `-φ` is an
-antiderivative of `z φ(z)` (`hasDerivAt_gaussianPDFReal`); by symmetry the first absolute moment
-is `E[|z|] = 2 φ(0) = √(2 / π)` [O'Donnell, Section 5.2, equation (5.4)][ODonnell2014].
+moments used by the Invariance Principle [O'Donnell, Section 11.6][ODonnell2014]. By
+Cauchy–Schwarz, the third absolute moment is at most `√3 ≤ 2`; the book's exact value is
+`2 √(2/π)` [O'Donnell, Section 11.5, proof of the Variant Berry–Esseen Theorem][ODonnell2014].
+The mean of `z` on the tail `z > t` is the density there, `E[z · 1{z > t}] = φ(t)`, since `-φ` is
+an antiderivative of `z φ(z)` (`hasDerivAt_gaussianPDFReal`); by symmetry the first absolute
+moment is `E[|z|] = 2 φ(0) = √(2 / π)` [O'Donnell, Section 5.2, equation (5.4)][ODonnell2014].
 
 ## Main results
 
@@ -30,6 +33,7 @@ is `E[|z|] = 2 φ(0) = √(2 / π)` [O'Donnell, Section 5.2, equation (5.4)][ODo
   Gaussian is the `n`th derivative of `exp (t ^ 2 / 2)` at `0`.
 * `ProbabilityTheory.integral_sq_gaussianReal`, `ProbabilityTheory.integral_pow_three_gaussianReal`,
   `ProbabilityTheory.integral_pow_four_gaussianReal`: `E[z²] = 1`, `E[z³] = 0`, `E[z⁴] = 3`.
+* `ProbabilityTheory.integral_abs_pow_three_gaussianReal_le`: `E|z|³ ≤ 2`.
 * `ProbabilityTheory.HasLaw.integral_eq_zero_of_gaussianReal`,
   `ProbabilityTheory.HasLaw.integral_sq_eq_one_of_gaussianReal`,
   `ProbabilityTheory.HasLaw.integral_pow_three_eq_zero_of_gaussianReal`: the moments of a random
@@ -105,6 +109,14 @@ theorem integral_pow_three_gaussianReal : ∫ x, x ^ 3 ∂gaussianReal 0 1 = 0 :
 /-- The fourth moment of the standard Gaussian is `3`. -/
 theorem integral_pow_four_gaussianReal : ∫ x, x ^ 4 ∂gaussianReal 0 1 = 3 := by
   rw [integral_pow_gaussianReal_eq_iteratedDeriv, iteratedDeriv_four_exp_half_sq]; simp
+
+/-- The third absolute moment of the standard Gaussian is at most `2`: by Cauchy–Schwarz,
+`(E|z|³)² ≤ E[z²] E[z⁴] = 3`. (Its exact value is `2 √(2/π)`.) -/
+theorem integral_abs_pow_three_gaussianReal_le : ∫ x, |x| ^ 3 ∂gaussianReal 0 1 ≤ 2 := by
+  have h := sq_integral_abs_pow_three_le (μ := gaussianReal 0 1)
+    (by exact_mod_cast memLp_id_gaussianReal (μ := 0) (v := 1) 4)
+  rw [integral_sq_gaussianReal, integral_pow_four_gaussianReal, one_mul] at h
+  nlinarith [integral_nonneg (μ := gaussianReal 0 1) fun x : ℝ => pow_nonneg (abs_nonneg x) 3]
 
 /-- The mean of the standard Gaussian on the tail `z > t` is its density at `t`:
 `E[z · 1{z > t}] = φ(t)`, since `-φ` is an antiderivative of `z φ(z)` that vanishes at

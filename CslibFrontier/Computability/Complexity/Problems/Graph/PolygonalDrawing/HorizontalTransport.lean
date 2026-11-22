@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Germs
 public import CslibFrontier.Foundations.Geometry.Polygonal.PlateauShear
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import Mathlib.Data.Finset.Max
 import Mathlib.Tactic.Positivity
 
@@ -48,31 +49,9 @@ The route constructor is total at all widths and its endpoint equations are actu
 
 private theorem shear_embedding {G : Graph} {D : PolygonalDrawing G} (hD : D.IsEmbedding)
     (h : ℝ) {r : ℝ} (hr : 0 < r) (d : ℝ) : (D.plateauShear h r d).IsEmbedding := by
-  have hinter {α β t : ℝ} (hα : 0 ≤ α) (hαβ : α < β) (hβ : β ≤ 1)
-      (ht : t ∈ Set.Icc 0 1) : AffineMap.lineMap α β t ∈ Set.Icc (0 : ℝ) 1 := by
-    have hm := lineMap_mem_segment ℝ α β ht
-    rw [segment_eq_Icc hαβ.le] at hm
-    exact ⟨hα.trans hm.1, hm.2.trans hβ⟩
-  refine ⟨?_, ?_, ?_, ?_⟩
-  · intro u hu v hv heq
-    exact hD.vertices_injective hu hv ((Polygonal.plateauShear h r d).injective heq)
-  · intro e
-    exact (hD.simple e).plateauShear h r d
-  · intro e i t ht v hv heq
-    obtain ⟨j, α, β, hα, hαβ, hβ, hparam⟩ := Route.eval_plateauShear hr (D.route e) d i
-    have hdata := hparam t ht
-    have heq' : (D.route e).eval j (AffineMap.lineMap α β t) = D.vertex v :=
-      (Polygonal.plateauShear h r d).injective (hdata.1.symm.trans heq)
-    obtain ⟨b, he, hb⟩ := hD.vertex_contacts e j _ (hinter hα hαβ hβ ht) v hv heq'
-    exact ⟨b, (hdata.2 b).mpr he, hb⟩
-  · intro e f hef i j s t hs ht heq
-    obtain ⟨k, α, β, hα, hαβ, hβ, he⟩ := Route.eval_plateauShear hr (D.route e) d i
-    obtain ⟨l, γ, δ, hγ, hγδ, hδ, hf⟩ := Route.eval_plateauShear hr (D.route f) d j
-    have heq' := (Polygonal.plateauShear h r d).injective
-      ((he s hs).1.symm.trans (heq.trans (hf t ht).1))
-    obtain ⟨b, c, hb, hc, hbc⟩ := hD.edge_contacts e f hef k l _ _
-      (hinter hα hαβ hβ hs) (hinter hγ hγδ hδ ht) heq'
-    exact ⟨b, c, ((he s hs).2 b).mpr hb, ((hf t ht).2 c).mpr hc, hbc⟩
+  refine hD.of_route_map (Polygonal.plateauShear h r d).injective (fun _ => rfl)
+    (fun e => (hD.simple e).plateauShear h r d) ?_
+  exact fun e i => Route.eval_plateauShear hr (D.route e) d i
 
 private theorem declared_dart {G : Graph} (hG : G.incidenceVertices ⊆ G.vertices)
     (d : Dart G) : d.vertex ∈ G.vertices := by

@@ -147,7 +147,8 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
     · subst hlv
       simp [Std.Sat.Literal.negate]
     · simp [hT l (Clause.mem_resolvent.2 (.inr ⟨hl, hlv⟩))]
-  simp only [propagateHints, h₁]
+  rw [propagateHints_cons]
+  simp only [h₁]
   split
   · rfl
   · rename_i l ls hls
@@ -155,7 +156,9 @@ theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : 
     have hall : ls.all (· == l) = true := List.all_eq_true.2 fun l' hl' => by
       simp [hl, hopen l' (hls ▸ List.mem_cons_of_mem _ hl')]
     subst hl
-    simp only [hall, ↓reduceIte, h₂, hclosed]
+    simp only [hall, ↓reduceIte]
+    rw [propagateHints_cons]
+    simp only [h₂, hclosed]
 
 /-- A database that numbers every clause of the formula as `checkLRAT` does, and every other
 entry below `k`. -/
@@ -228,14 +231,18 @@ private theorem find?_zipIdx_idxOf {c : Clause ℕ} :
 
 /-- **The checker accepts the certificate of every tree-like refutation.** -/
 theorem Derivation.checkLRAT_toLRAT (d : φ.Derivation []) : φ.checkLRAT d.toLRAT = true := by
-  have hgood : LRATGood φ (φ.length + 1) ((φ.zipIdx).map fun e => (e.2 + 1, e.1)) := by
-    refine ⟨fun e he => ?_, fun c hc => by simpa using find?_zipIdx_idxOf φ 0 hc⟩
-    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 he
+  have hgood : LRATGood φ (φ.length + 1) φ.lratDB := by
+    refine ⟨fun e he => ?_, fun c hc => by
+      have := find?_zipIdx_idxOf φ 0 hc
+      simp only [Nat.add_zero] at this
+      exact this⟩
+    obtain ⟨p, hp, rfl⟩ := List.mem_map.1 (show e ∈ φ.zipIdx.map fun e => (e.2 + 1, e.1) from he)
     have := List.snd_lt_add_of_mem_zipIdx hp
     simp only at this ⊢
     omega
   obtain ⟨db, hrun, hid, -, -, -, -⟩ := d.checkLRATAux_lratSteps _ _ (by omega) hgood
-  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints, hid]
+  simp only [checkLRAT, toLRAT, List.toList_toArray, hrun, checkLRATAux, propagateHints_cons,
+    hid]
   rfl
 
 end CNF

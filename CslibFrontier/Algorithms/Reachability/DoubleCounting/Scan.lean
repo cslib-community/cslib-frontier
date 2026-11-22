@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.Reachability.DoubleCounting
 import Mathlib.Algebra.BigOperators.Fin
+import CslibFrontier.Foundations.Control.Monad.Clock
 
 /-!
 # Streaming bounded membership scans
@@ -49,13 +50,26 @@ variable {N : ℕ} {m : Type → Type*}
 destinations of its edges in order, without the initial source. -/
 abbrev Branch (N : ℕ) := Transcript (Fin N)
 
+/-- Destination budgets, independent of edge validity and the terminal tally. -/
+@[expose] def Bounded (k : ℕ) (b : Branch N) : Prop :=
+  ∀ v vs, b v = some vs → vs.length ≤ k
+
 /-- Recover the full vertex lists for the transcript contract. -/
 @[expose] def transcript (source : Fin N) (branch : Branch N) : Transcript (Fin N) :=
   fun v => (branch v).map (source :: ·)
 
+/-- Passing typed transcripts already meet the destination budget. -/
+theorem bounded_of_passes (source : Fin N) (k : ℕ) (b : Branch N)
+    {R : Fin N → Fin N → Prop} (h : Passes R source k (transcript source b)) :
+    Bounded k b := by
+  intro v vs hv
+  have hp : transcript source b v = some (source :: vs) := by simp [transcript, hv]
+  have hl := (h.1 v (source :: vs) hp).2
+  simpa [guessedLength, transcript, hv] using hl
+
 /-- Check one walk by reading its next destination or end marker. The read-only edge callback
 is invoked once per attempted edge, provided there is still budget. -/
-def walkM [Monad m] (next : m (Option (Fin N))) (edge : Fin N → Fin N → m Bool)
+@[expose] def walkM [Monad m] (next : m (Option (Fin N))) (edge : Fin N → Fin N → m Bool)
     (target : Fin N) : ℕ → Fin N → m (Option ℕ)
   | fuel, current => do
     match ← next with
@@ -66,7 +80,7 @@ def walkM [Monad m] (next : m (Option (Fin N))) (edge : Fin N → Fin N → m Bo
       | fuel + 1 => if ← edge current v then walkM next edge target fuel v else return none
 
 /-- Replay the next destination from a segment, or its end marker. -/
-def readNext : StateM (List (Fin N)) (Option (Fin N)) := fun
+@[expose] def readNext : StateM (List (Fin N)) (Option (Fin N)) := fun
   | [] => (none, [])
   | v :: vs => (some v, vs)
 
@@ -92,11 +106,14 @@ private theorem walk_next (edge : Fin N → Fin N → Bool) (target current v : 
   simp only [bind, StateT.bind, readNext, pure, StateT.pure]
   split <;> rfl
 
-private theorem walk_eq_some {edge : Fin N → Fin N → Bool} {target current : Fin N}
+/-- A replayed walk returns exactly its unused fuel when the destination list forms a path
+to the target within the original fuel. -/
+theorem walkM_replay_eq_some {edge : Fin N → Fin N → Bool} {target current : Fin N}
     {fuel left : ℕ} {tail : List (Fin N)} :
-    walk edge target fuel current tail = some left ↔
+    (walkM readNext (fun u v => pure (edge u v)) target fuel current tail).1 = some left ↔
       (current :: tail).IsChainFromTo (fun u v => edge u v = true) current target ∧
       left + tail.length = fuel := by
+  change walk edge target fuel current tail = some left ↔ _
   induction tail generalizing fuel current with
   | nil =>
     have hchain : [current].IsChainFromTo (fun u v => edge u v = true) current target ↔
@@ -128,16 +145,28 @@ structure Result where
 private def add (a b : Result) : Result :=
   ⟨⟨a.tally.count + b.tally.count, a.tally.lengthSum + b.tally.lengthSum⟩, a.hit || b.hit⟩
 
-private def zero : Result := ⟨⟨0, 0⟩, false⟩
+/-- The accumulator before the first vertex has been scanned. -/
+@[expose] def Result.zero : Result := ⟨⟨0, 0⟩, false⟩
+
+/-- The contribution of one selected walk, given the initial and remaining budgets. -/
+private def Result.ofWalk (budget remaining : ℕ) (hit : Bool) : Result :=
+  ⟨⟨1, budget - remaining⟩, hit⟩
+
+/-- Record one selected walk in the membership tally. -/
+@[expose] def Result.recordWalk (acc : Result) (budget remaining : ℕ) (hit : Bool) : Result :=
+  ⟨⟨acc.tally.count + 1, acc.tally.lengthSum + (budget - remaining)⟩, acc.hit || hit⟩
+
+private theorem add_ofWalk (acc : Result) (budget remaining : ℕ) (hit : Bool) :
+    add acc (Result.ofWalk budget remaining hit) = acc.recordWalk budget remaining hit := rfl
 
 private def candidateM [Monad m] (select : Fin N → m Bool) (next : m (Option (Fin N)))
     (edge : Fin N → Fin N → m Bool) (source target : Fin N) (k : ℕ) (v : Fin N) :
     m (Option Result) := do
   if ← select v then
     let checked ← walkM next edge v k source
-    return checked.map fun left => ⟨⟨1, k - left⟩, v == target⟩
+    return checked.map fun left => Result.ofWalk k left (v == target)
   else
-    return some zero
+    return some Result.zero
 
 /-- Run the bounded scan using one selection action per vertex and one destination-read action
 per walk step or stop marker. Adjacency is a read-only callback. Rejection stops the fold. -/
@@ -145,7 +174,7 @@ def tallyM [Monad m] (select : Fin N → m Bool) (next : m (Option (Fin N)))
     (edge : Fin N → Fin N → m Bool) (source target : Fin N) (k : ℕ) : m (Option Result) :=
   (Fin.foldlM (m := OptionT m) N (fun acc v => OptionT.mk do
     let checked ← candidateM select next edge source target k v
-    return checked.map (add acc)) zero).run
+    return checked.map (add acc)) Result.zero).run
 
 /-- Replay a selection, loading its segment in the proof-level choice provider. -/
 def readSelection (branch : Branch N) (v : Fin N) : StateM (List (Fin N)) Bool :=
@@ -160,9 +189,9 @@ private theorem candidate_eq (edge : Fin N → Fin N → Bool) (source target : 
     (k : ℕ) (branch : Branch N) (v : Fin N) :
     candidate edge source target k branch v =
       match branch v with
-      | none => some zero
+      | none => some Result.zero
       | some tail =>
-        (walk edge v k source tail).map fun left => ⟨⟨1, k - left⟩, v == target⟩ := by
+        (walk edge v k source tail).map fun left => Result.ofWalk k left (v == target) := by
   cases h : branch v with
   | none =>
     simp [candidateM, candidate, readSelection, h, bind, pure, StateT.bind, StateT.pure]
@@ -177,7 +206,55 @@ one segment at a time. -/
 def tallyPrefix (edge : Fin N → Fin N → Bool) (source target : Fin N) (k : ℕ)
     (branch : Branch N) {n : ℕ} (hn : n ≤ N) : Option Result :=
   Fin.foldlM n (fun acc v =>
-    (candidate edge source target k branch (v.castLE hn)).map (add acc)) zero
+    (candidate edge source target k branch (v.castLE hn)).map (add acc)) Result.zero
+
+/-- The empty prefix has the initial membership accumulator. -/
+theorem tallyPrefix_zero (edge : Fin N → Fin N → Bool) (source target : Fin N)
+    (k : ℕ) (branch : Branch N) :
+    tallyPrefix edge source target k branch (Nat.zero_le N) = some Result.zero := by
+  rw [tallyPrefix, Fin.foldlM_zero]
+  rfl
+
+/-- Extending a verified prefix skips an unselected vertex or adds its checked walk.
+The update consumes only the remaining budget returned by that walk. -/
+theorem tallyPrefix_succ (edge : Fin N → Fin N → Bool) (source target : Fin N)
+    (k : ℕ) (branch : Branch N) {n : ℕ} (hn : n < N) :
+    tallyPrefix edge source target k branch (Nat.succ_le_of_lt hn) =
+      (tallyPrefix edge source target k branch hn.le).bind fun acc =>
+        let v : Fin N := ⟨n, hn⟩
+        match branch v with
+        | none => some acc
+        | some tail =>
+          ((walkM readNext (fun u v => pure (edge u v)) v k source tail).1).map
+            fun left => acc.recordWalk k left (v == target) := by
+  unfold tallyPrefix
+  rw [Fin.foldlM_succ_last]
+  change (_ : Option Result).bind _ = _
+  apply congrArg (fun f => (Fin.foldlM n
+    (fun acc v => (candidate edge source target k branch (v.castLE hn.le)).map (add acc))
+    Result.zero).bind f)
+  funext acc
+  rw [candidate_eq]
+  have hv : (Fin.last n).castLE (Nat.succ_le_of_lt hn) = (⟨n, hn⟩ : Fin N) := rfl
+  rw [hv]
+  dsimp only
+  cases branch (⟨n, hn⟩ : Fin N)
+  · rcases acc with ⟨⟨_, _⟩, _⟩
+    simp [add, Result.zero]
+  · simp only [Option.map_map, Function.comp_def, add_ofWalk, walk]
+
+/-- A partial tally depends only on selections below its cursor. -/
+theorem tallyPrefix_congr (edge : Fin N → Fin N → Bool) (source target : Fin N)
+    (k : ℕ) {n : ℕ} (hn : n ≤ N) {a b : Branch N}
+    (h : ∀ v : Fin N, v.val < n → a v = b v) :
+    tallyPrefix edge source target k a hn = tallyPrefix edge source target k b hn := by
+  induction n with
+  | zero => simp only [tallyPrefix_zero]
+  | succ n ih =>
+    have hn' : n < N := hn
+    rw [tallyPrefix_succ edge source target k a hn',
+      tallyPrefix_succ edge source target k b hn', ih hn'.le (fun v hv => h v (by omega))]
+    simp only [h ⟨n, hn'⟩ (Nat.lt_succ_self n)]
 
 /-- Replay a scan, returning the accumulated tally and target membership if all chosen walks
 check. -/
@@ -219,7 +296,8 @@ theorem tallyM_replay (edge : Fin N → Fin N → Bool) (source target : Fin N)
     source target k v s).1).map (add a) = _
   rfl
 
-private def finish (expected : Tally) (result : Result) : Option Bool :=
+/-- Read the membership bit when both observed totals match the expected tally. -/
+@[expose] def Result.finish (expected : Tally) (result : Result) : Option Bool :=
   if result.tally.matches expected then some result.hit else none
 
 /-- Run the streaming membership scan with the terminal tally check. A successful negative
@@ -228,12 +306,19 @@ def runM [Monad m] (select : Fin N → m Bool) (next : m (Option (Fin N)))
     (edge : Fin N → Fin N → m Bool) (source target : Fin N) (k : ℕ)
     (expected : Tally) : m (Option Bool) := do
   let result ← tallyM select next edge source target k
-  return result.bind (finish expected)
+  return result.bind (Result.finish expected)
 
 /-- Replay with the terminal tally check. -/
 def run (edge : Fin N → Fin N → Bool) (source target : Fin N) (k : ℕ)
     (expected : Tally) (branch : Branch N) : Option Bool :=
-  (tally edge source target k branch).bind (finish expected)
+  (tally edge source target k branch).bind (Result.finish expected)
+
+/-- The terminal scan checks the required totals after processing all candidates. -/
+theorem run_eq_finish (edge : Fin N → Fin N → Bool) (source target : Fin N) (k : ℕ)
+    (expected : Tally) (branch : Branch N) :
+    run edge source target k expected branch =
+      (tallyPrefix edge source target k branch le_rfl).bind (Result.finish expected) := by
+  rw [run, tally]
 
 /-- Feeding the streaming scanner a typed branch implements its replay, including the
 terminal tally test. -/
@@ -250,7 +335,7 @@ theorem runM_replay (edge : Fin N → Fin N → Bool) (source target : Fin N)
   have hr := tallyM_replay edge source target k branch
   rw [h] at hr
   change res = _ at hr
-  change res.bind (finish expected) = _
+  change res.bind (Result.finish expected) = _
   rw [hr]
 
 private def contribution (target : Fin N) (branch : Branch N) (v : Fin N) : Result :=
@@ -266,7 +351,7 @@ private theorem candidate_spec (edge : Fin N → Fin N → Bool) (source target 
       then some (contribution target branch v) else none := by
   classical
   cases hb : branch v with
-  | none => simp [candidate_eq, contribution, transcript, zero, hb]
+  | none => simp [candidate_eq, contribution, transcript, Result.zero, hb]
   | some tail =>
     simp only [candidate_eq, contribution, transcript, guessedLength, hb, Option.map_some,
       Option.some.injEq, forall_eq', Option.getD_some, List.length_cons, Nat.add_sub_cancel]
@@ -275,15 +360,16 @@ private theorem candidate_spec (edge : Fin N → Fin N → Bool) (source target 
       have hn : ¬ ((source :: tail).IsChainFromTo (fun u v => edge u v = true) source v ∧
           tail.length ≤ k) := by
         intro ⟨hc, hl⟩
-        have hs := walk_eq_some.mpr ⟨hc, show k - tail.length + tail.length = k by omega⟩
+        have hs := walkM_replay_eq_some.mpr ⟨hc, show k - tail.length + tail.length = k by omega⟩
+        change walk edge v k source tail = some (k - tail.length) at hs
         rw [hw] at hs
         contradiction
       simp [hn]
     | some left =>
-      obtain ⟨hc, hl⟩ := walk_eq_some.mp hw
+      obtain ⟨hc, hl⟩ := walkM_replay_eq_some.mp hw
       have hle : tail.length ≤ k := by omega
       have heq : k - left = tail.length := by omega
-      simp [hc, hle, heq]
+      simp [Result.ofWalk, hc, hle, heq]
 
 private noncomputable def aggregate (f : Fin N → Result) : Result := by
   classical
@@ -356,10 +442,10 @@ private theorem tally_spec (edge : Fin N → Fin N → Bool) (source target : Fi
     (contribution target branch) (candidate edge source target k branch)
     (fun v => by
       rw [candidate_spec]
-      split <;> rfl) zero
+      split <;> rfl) Result.zero
   rw [hf, contribution_matches source]
   split
-  · simp [add, zero]
+  · simp [add, Result.zero]
   · rfl
 
 /-- With exact round totals, success checks precisely the transcript contract and returns
@@ -436,6 +522,13 @@ noncomputable def successfulBranches (edge : Fin N → Fin N → Bool) (source t
     cases h : b.val v <;> simp [transcript, h]
   right_inv w := Subtype.ext (transcript_tail edge source k w.val w.property)
 
+/-- At the exact round totals, a unique passing transcript gives a unique successful branch,
+including when the branch answers false. -/
+theorem existsUnique_successful_branch (edge : Fin N → Fin N → Bool) (source target : Fin N)
+    (k : ℕ) (h : ∃! w, Passes (fun u v => edge u v = true) source k w) :
+    ∃! b, (run edge source target k (expected (fun u v => edge u v = true) source k) b).isSome :=
+  (successfulBranches edge source target k).existsUnique_subtype_congr.mpr h
+
 private theorem candidate_registers_le (edge : Fin N → Fin N → Bool)
     (source target : Fin N) (k : ℕ) (branch : Branch N) (v : Fin N)
     (r : Result) (hr : candidate edge source target k branch v = some r) :
@@ -444,7 +537,7 @@ private theorem candidate_registers_le (edge : Fin N → Fin N → Bool)
   | none =>
     simp only [candidate_eq, h, Option.some.injEq] at hr
     subst r
-    simp [zero]
+    simp [Result.zero]
   | some tail =>
     cases hw : walk edge v k source tail with
     | none => simp [candidate_eq, h, hw] at hr
@@ -455,32 +548,23 @@ private theorem candidate_registers_le (edge : Fin N → Fin N → Bool)
 
 private theorem foldlM_registers_le (g : Fin N → Option Result) (k : ℕ)
     (hg : ∀ v r, g v = some r → r.tally.count ≤ 1 ∧ r.tally.lengthSum ≤ k)
-    (r : Result) (hr : Fin.foldlM N (fun acc v => (g v).map (add acc)) zero = some r) :
+    (r : Result) (hr : Fin.foldlM N (fun acc v => (g v).map (add acc)) Result.zero = some r) :
     r.tally.count ≤ N ∧ r.tally.lengthSum ≤ N * k := by
   induction N generalizing r with
   | zero =>
     simp only [Fin.foldlM_zero, pure, Option.some.injEq] at hr
     subst r
-    simp [zero]
+    simp [Result.zero]
   | succ N ih =>
     rw [Fin.foldlM_succ_last] at hr
-    change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero).bind
+    change ((Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) Result.zero).bind
       (fun acc => (g (Fin.last N)).map (add acc))) = some r at hr
-    cases hp : Fin.foldlM N (fun acc v => (g v.castSucc).map (add acc)) zero with
-    | none =>
-      rw [hp] at hr
-      contradiction
-    | some partialResult =>
-      have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
-      rw [hp] at hr
-      cases hl : g (Fin.last N) with
-      | none => simp [hl, Option.bind] at hr
-      | some last =>
-        have hlast := hg (Fin.last N) last hl
-        simp only [hl, Option.bind, Option.map_some, Option.some.injEq] at hr
-        subst r
-        exact ⟨Nat.add_le_add hb.1 hlast.1,
-          (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
+    obtain ⟨partialResult, hp, hr⟩ := Option.bind_eq_some_iff.mp hr
+    obtain ⟨last, hl, rfl⟩ := Option.map_eq_some_iff.mp hr
+    have hb := ih (fun v => g v.castSucc) (fun v => hg v.castSucc) partialResult hp
+    have hlast := hg (Fin.last N) last hl
+    exact ⟨Nat.add_le_add hb.1 hlast.1,
+      (Nat.add_le_add hb.2 hlast.2).trans_eq (Nat.succ_mul N k).symm⟩
 
 /-- In any successfully processed prefix, the count is bounded by the number of processed
 vertices, and the length sum by that number times the walk budget. The prefix may be followed
@@ -500,67 +584,22 @@ private theorem walkM_clock {σ : Type} (clock : σ → ℕ)
     clock (walkM next edge target k current s).2 ≤ clock s + (2 * k + 1) := by
   induction k generalizing current s with
   | zero =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      cases v <;> exact h
+    rw [walkM, show 2 * 0 + 1 = 1 + 0 by rfl]
+    apply bind_stateM_clock clock 1 0 _ _ hn
+    intro result t
+    cases result <;> exact le_rfl
   | succ k ih =>
-    rw [walkM]
-    have h := hn s
-    simp only [bind, StateT.bind]
-    cases hnext : next s with
-    | mk v t =>
-      rw [hnext] at h
-      change clock t ≤ clock s + 1 at h
-      cases v with
-      | none =>
-        change clock t ≤ _
-        omega
-      | some v =>
-        change clock ((edge current v >>= fun answer =>
-          if answer then walkM next edge target k v else pure none) t).2 ≤ _
-        have hedge := he current v t
-        simp only [bind, StateT.bind]
-        cases ha : edge current v t with
-        | mk answer t' =>
-          rw [ha] at hedge
-          change clock t' ≤ clock t + 1 at hedge
-          cases answer with
-          | false =>
-            change clock t' ≤ _
-            omega
-          | true =>
-            change clock (walkM next edge target k v t').2 ≤ _
-            have hrest := ih v t'
-            omega
-
-private theorem foldlM_clock {σ R : Type} (clock : σ → ℕ) (cost : ℕ)
-    (f : R → Fin N → OptionT (StateM σ) R)
-    (h : ∀ a v s, clock ((f a v).run s).2 ≤ clock s + cost) (a : R) (s : σ) :
-    clock ((Fin.foldlM N f a).run s).2 ≤ clock s + N * cost := by
-  induction N generalizing a s with
-  | zero => simp [Fin.foldlM_zero, pure, OptionT.pure, OptionT.run, OptionT.mk, StateT.pure]
-  | succ N ih =>
-    simp only [Fin.foldlM_succ, bind, OptionT.bind, OptionT.mk, OptionT.run, StateT.bind]
-    have hfirst := h a 0 s
-    change clock (f a 0 s).2 ≤ clock s + cost at hfirst
-    cases hf : f a 0 s with
-    | mk r t =>
-      rw [hf] at hfirst
-      change clock t ≤ clock s + cost at hfirst
-      cases r with
-      | none =>
-        change clock t ≤ _
-        rw [Nat.succ_mul]
-        omega
-      | some a' =>
-        change clock ((Fin.foldlM N (fun b v => f b v.succ) a').run t).2 ≤ _
-        have hrest := ih _ (fun b v t => h b v.succ t) a' t
-        rw [Nat.succ_mul]
-        omega
+    rw [walkM, show 2 * (k + 1) + 1 = 1 + (1 + (2 * k + 1)) by omega]
+    apply bind_stateM_clock clock 1 (1 + (2 * k + 1)) _ _ hn
+    intro result t
+    cases result with
+    | none => exact Nat.le_add_right (clock t) _
+    | some v =>
+      apply bind_stateM_clock clock 1 (2 * k + 1) _ _ (he current v)
+      intro answer u
+      cases answer with
+      | false => exact Nat.le_add_right (clock u) _
+      | true => exact ih v u
 
 /-- All branches use at most `N * (2 * k + 2)` callback actions when each selection,
 destination read, or adjacency query advances the clock by at most one. This bound includes
@@ -573,7 +612,7 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
     (he : ∀ u v s, clock (edge u v s).2 ≤ clock s + 1) (s : σ) :
     clock (tallyM select next edge source target k s).2 ≤ clock s + N * (2 * k + 2) := by
   unfold tallyM
-  apply foldlM_clock
+  apply foldlM_optionT_clock
   intro acc v state
   have hselect := hs v state
   simp only [OptionT.run, OptionT.mk, candidateM, bind, StateT.bind]
@@ -594,5 +633,20 @@ theorem tallyM_clock {σ : Type} (clock : σ → ℕ)
         change clock u ≤ _ at hwalk
         change clock u ≤ _
         omega
+
+/-- The terminal tally check adds no callback action to `tallyM_clock`. Both a rejected scan
+and a successful false membership answer retain the same callback-action bound. -/
+theorem runM_clock {σ : Type} (clock : σ → ℕ)
+    (select : Fin N → StateM σ Bool) (next : StateM σ (Option (Fin N)))
+    (edge : Fin N → Fin N → StateM σ Bool) (source target : Fin N) (k : ℕ) (expected : Tally)
+    (hs : ∀ v s, clock (select v s).2 ≤ clock s + 1)
+    (hn : ∀ s, clock (next s).2 ≤ clock s + 1)
+    (he : ∀ u v s, clock (edge u v s).2 ≤ clock s + 1) (s : σ) :
+    clock (runM select next edge source target k expected s).2 ≤
+      clock s + N * (2 * k + 2) := by
+  have h := tallyM_clock clock select next edge source target k hs hn he s
+  cases ht : tallyM select next edge source target k s with
+  | mk result state =>
+    simpa only [runM, bind, StateT.bind, pure, StateT.pure, ht] using h
 
 end Cslib.DoubleCounting.Scan
