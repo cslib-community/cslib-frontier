@@ -99,7 +99,13 @@ structure ZeroPair where
   snd : ℕ
   /-- The bias of the second parameter. -/
   sndBias : Bool
-  deriving DecidableEq
+
+/-- Decidable equality on `ZeroPair`. -/
+instance : DecidableEq ZeroPair := fun a b =>
+  if h : a.fst = b.fst ∧ a.fstBias = b.fstBias ∧ a.snd = b.snd ∧ a.sndBias = b.sndBias then
+    isTrue (by cases a; cases b; simp_all)
+  else
+    isFalse (by rintro rfl; exact h ⟨rfl, rfl, rfl, rfl⟩)
 
 namespace ZeroPair
 

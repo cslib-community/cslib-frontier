@@ -12,29 +12,22 @@ public import CslibFrontier.Computability.Circuit.Simulation
 public import Cslib.Computability.Circuit.Full
 public import Mathlib.Data.Fin.VecNotation
 import CslibFrontier.Computability.Circuit.Program
-import CslibFrontier.Computability.Circuit.Topology
 
 /-!
-# The semi-circuit of a circuit
-
-A circuit over the full binary basis with `n` inputs and one output is a fair semi-circuit without
-equations (`SemiCircuit.ofCircuit`): input `i` is the parameter `i`, gate `j` is the gate `n + j`,
-and a constant line becomes a gate with a constant operation. It is well formed
-(`SemiCircuit.wellFormed_ofCircuit`), and the output of a consistent assignment is the output of
-the circuit on the values of the parameters (`SemiCircuit.out_eval_ofCircuit`).
+# The binary-gate semi-circuit of a circuit
 
 Under `SemiCircuit.binaryB2Cost`, which charges `1` only for the ten genuinely two-variable
-operations of `B₂` and `0` for constants and unary projections / negations,
-`SemiCircuit.ofCircuitBinary` folds all cost-`0` lines directly into `Lit`s without creating gates,
-yielding a well-formed semi-circuit (`SemiCircuit.wellFormed_ofCircuitBinary`) of size equal to
-`C.program.cost binaryB2Cost` (`SemiCircuit.size_ofCircuitBinary`) that computes the same output on
-every consistent assignment (`SemiCircuit.out_eval_ofCircuitBinary`).
+operations of `B₂` (`fullSignature 2 Bool`) and `0` for constants and unary projections /
+negations, `SemiCircuit.ofCircuitBinary` folds all cost-`0` lines directly into `Lit`s without
+creating gates. Input `i` becomes parameter `i`, each genuinely binary line `g` becomes gate
+`n + g` with input literal negations absorbed into its operation, and the affine system is empty.
+
+The resulting semi-circuit is well formed (`SemiCircuit.wellFormed_ofCircuitBinary`), has size
+equal to `C.program.cost binaryB2Cost` (`SemiCircuit.size_ofCircuitBinary`), and evaluates to the
+circuit's output on every consistent assignment (`SemiCircuit.out_eval_ofCircuitBinary`).
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.SemiCircuit.wireName`,
-  `Cslib.Circuits.Boolean.SemiCircuit.lineGate`,
-  `Cslib.Circuits.Boolean.SemiCircuit.ofCircuit`: the gate-per-line semi-circuit of a circuit.
 * `Cslib.Circuits.Boolean.SemiCircuit.binaryB2Cost`: cost charging `1` on genuinely binary `B₂`
   gates and `0` on constants and unary operations.
 * `Cslib.Circuits.Boolean.SemiCircuit.ofCircuitBinary`: the binary-gate semi-circuit folding
@@ -42,11 +35,8 @@ every consistent assignment (`SemiCircuit.out_eval_ofCircuitBinary`).
 
 ## Main results
 
-* `Cslib.Circuits.Boolean.SemiCircuit.wellFormed_ofCircuit`,
-  `Cslib.Circuits.Boolean.SemiCircuit.out_eval_ofCircuit`.
 * `Cslib.Circuits.Boolean.SemiCircuit.cost_binaryB2Cost_le_size`,
   `Cslib.Circuits.Boolean.SemiCircuit.size_ofCircuitBinary`,
-  `Cslib.Circuits.Boolean.SemiCircuit.size_ofCircuitBinary_le`,
   `Cslib.Circuits.Boolean.SemiCircuit.wellFormed_ofCircuitBinary`,
   `Cslib.Circuits.Boolean.SemiCircuit.out_eval_ofCircuitBinary`.
 
@@ -56,7 +46,7 @@ every consistent assignment (`SemiCircuit.out_eval_ofCircuitBinary`).
   Boolean Circuits*][MishraSanthanam2026]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Boolean.SemiCircuit
 
@@ -64,141 +54,10 @@ open Cslib.Circuits
 
 variable {n : ℕ}
 
-/-- The name of a wire of a circuit with `n` inputs: input `i` is `i` and gate `j` is `n + j`. -/
-def wireName {g : ℕ} : Wire n g → ℕ
-  | .input i => i
-  | .gate j => n + j
-
-/-- The gate of a line of a circuit over the full binary basis; a constant becomes a gate with
-a constant operation. -/
-def lineGate {g : ℕ} : Line (fullSignature 2 Bool) n g → Gate
-  | ⟨.fn op, w⟩ => ⟨fun a b => op ![a, b], .node (wireName (w ⟨0, by simp [fullSignature]⟩)),
-      .node (wireName (w ⟨1, by simp [fullSignature]⟩))⟩
-  | ⟨.con c, _⟩ => ⟨fun _ _ => c, .const false, .const false⟩
-
-/-- Evaluating `lineGate line` under `val` equals applying `fullInterpretation line.op` to the
-values of `line`'s input wires. -/
-theorem eval_lineGate {g : ℕ} (line : Line (fullSignature 2 Bool) n g) (val : ℕ → Bool) :
-    (lineGate line).eval val =
-      fullInterpretation line.op fun a => val (wireName (line.wires a)) := by
-  obtain ⟨op | c, w⟩ := line
-  · simp only [lineGate, Gate.eval, Arg.eval_node, fullInterpretation]
-    congr 1 with a : 1
-    obtain ⟨_ | _ | k, ha⟩ := a
-    · rfl
-    · rfl
-    · simp at ha
-  · rfl
-
-private theorem reads_lineGate {g : ℕ} {line : Line (fullSignature 2 Bool) n g} {i : ℕ}
-    (h : (lineGate line).Reads i) : ∃ a, wireName (line.wires a) = i := by
-  obtain ⟨op | c, w⟩ := line
-  · rcases h with h | h
-    · exact ⟨_, Arg.node.inj h⟩
-    · exact ⟨_, Arg.node.inj h⟩
-  · rcases h with h | h <;> cases h
-
-/-- The semi-circuit of a circuit over the full binary basis with one output: its inputs are the
-parameters, its lines the gates, and it has no auxiliary variables and no equations. -/
-def ofCircuit (C : Circuit (fullSignature 2 Bool) n 1) : SemiCircuit where
-  params := Finset.range n
-  aux := ∅
-  gates := Finset.Ico n (n + C.size)
-  gate i := if h : n ≤ i ∧ i < n + C.size then lineGate (C.program.lines ⟨i - n, by omega⟩)
-    else ⟨fun _ _ => false, .const false, .const false⟩
-  eqns := ∅
-  eqn _ := ⟨∅, false⟩
-  out := ⟨.node (wireName (C.outputs 0)), false⟩
-
-/-- The parameters of `ofCircuit C` are `Finset.range n`. -/
-@[simp] theorem ofCircuit_params (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuit C).params = Finset.range n := rfl
-
-/-- The semi-circuit `ofCircuit C` has no auxiliary variables. -/
-@[simp] theorem ofCircuit_aux (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuit C).aux = ∅ := rfl
-
-/-- The gate indices of `ofCircuit C` are `Finset.Ico n (n + C.size)`. -/
-@[simp] theorem ofCircuit_gates (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuit C).gates = Finset.Ico n (n + C.size) := rfl
-
-/-- The semi-circuit `ofCircuit C` has no affine equations. -/
-@[simp] theorem ofCircuit_eqns (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuit C).eqns = ∅ := rfl
-
-private theorem ofCircuit_gate (C : Circuit (fullSignature 2 Bool) n 1) (k : Fin C.size) :
-    (ofCircuit C).gate (n + k) = lineGate (C.program.lines k) := by
-  have h : n ≤ n + (k : ℕ) ∧ n + (k : ℕ) < n + C.size := ⟨Nat.le_add_right _ _, by omega⟩
-  simp only [ofCircuit, dite_eq_left h]
-  congr 2
-  exact Fin.ext (by simp)
-
-/-- The node index `wireName w` of any wire `w` of `C` is live in `ofCircuit C`. -/
-theorem wireName_mem_live (C : Circuit (fullSignature 2 Bool) n 1) (w : Wire n C.size) :
-    wireName w ∈ (ofCircuit C).live := by
-  cases w with
-  | input i => simp [live, ofCircuit, wireName]
-  | gate j => simp [live, ofCircuit, wireName]
-
-/-- Every gate index of `ofCircuit C` has the form `n + k` for some `k : Fin C.size`. -/
-theorem exists_eq_add_of_mem_gates {C : Circuit (fullSignature 2 Bool) n 1} {J : ℕ}
-    (hJ : J ∈ (ofCircuit C).gates) : ∃ k : Fin C.size, J = n + k := by
-  simp only [ofCircuit, Finset.mem_Ico] at hJ
-  exact ⟨⟨J - n, by omega⟩, by dsimp only; omega⟩
-
-/-- The semi-circuit of a circuit is well formed. -/
-theorem wellFormed_ofCircuit (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuit C).WellFormed where
-  disjoint_params_aux := Finset.disjoint_empty_right _
-  disjoint_params_gates := by
-    rw [Finset.disjoint_left]
-    intro i hi hg
-    simp only [ofCircuit, Finset.mem_range, Finset.mem_Ico] at hi hg
-    omega
-  disjoint_aux_gates := Finset.disjoint_empty_left _
-  reads_lt J hJ i _ hr := by
-    obtain ⟨k, rfl⟩ := exists_eq_add_of_mem_gates hJ
-    rw [ofCircuit_gate] at hr
-    obtain ⟨a, rfl⟩ := reads_lineGate hr
-    -- `wireName` is the wire numbering `Wire.toNat`, so this is `Circuit.isOrdered_topology`.
-    have hname (w : Wire n C.size) : wireName w = w.toNat := by cases w <;> rfl
-    rw [hname]
-    exact C.isOrdered_topology k a
-  reads_live J hJ i hr := by
-    obtain ⟨k, rfl⟩ := exists_eq_add_of_mem_gates hJ
-    rw [ofCircuit_gate] at hr
-    obtain ⟨a, rfl⟩ := reads_lineGate hr
-    exact wireName_mem_live C _
-  terms_subset e he := by simp [ofCircuit] at he
-  card_terms_le e he := by simp [ofCircuit] at he
-  out_live i hi := by
-    cases hi
-    exact wireName_mem_live C _
-  solvable u := ⟨u, fun _ _ => rfl, fun e he => by simp [ofCircuit] at he⟩
-  unique _ _ _ _ _ v hv := by simp [ofCircuit] at hv
-
-/-- On a consistent assignment, the output of the semi-circuit of a circuit is the output of the
-circuit on the values of the parameters. -/
-theorem out_eval_ofCircuit (C : Circuit (fullSignature 2 Bool) n 1) {val : ℕ → Bool}
-    (hval : (ofCircuit C).Consistent val) :
-    (ofCircuit C).out.eval val = C.eval fullInterpretation (fun i => val i) 0 := by
-  have htrace : (fun w => val (wireName w)) =
-      C.program.trace fullInterpretation (fun i => val i) := by
-    refine Program.eq_trace_of_forall_gate (fun i => rfl) fun k => ?_
-    have hk : n + (k : ℕ) ∈ (ofCircuit C).gates := by
-      simp only [ofCircuit, Finset.mem_Ico]; omega
-    have := hval.2 _ hk
-    rw [ofCircuit_gate, eval_lineGate] at this
-    exact this
-  change (val (wireName (C.outputs 0)) ^^ false) = _
-  rw [Bool.xor_false, Circuit.eval, Function.comp_apply, ← htrace]
-
-/-! ### Binary `B₂` cost and folding unary/constant lines -/
-
 /-- Cost charging `1` for each genuinely two-variable operation of `fullSignature 2 Bool` (the
 eight AND-type operations, XOR, and XNOR) and `0` for constants (`.con c` and constant `.fn`) and
 unary projections / negated projections. -/
-def binaryB2Cost : (fullSignature 2 Bool).Op → ℕ
+@[expose] def binaryB2Cost : (fullSignature 2 Bool).Op → ℕ
   | .con _ => 0
   | .fn op =>
     if (op ![false, false] = op ![false, true] ∧ op ![true, false] = op ![true, true]) ∨
@@ -224,7 +83,7 @@ theorem cost_binaryB2Cost_le_size {m : ℕ} (C : Circuit (fullSignature 2 Bool) 
 
 /-- Binary gate for a `fullSignature 2 Bool` line given the literals carried by earlier wires:
 negations on input literals are absorbed into the gate's operation. -/
-def lineBinaryGate {g : ℕ} (wLit : Wire n g → Lit) :
+private def lineBinaryGate {g : ℕ} (wLit : Wire n g → Lit) :
     Line (fullSignature 2 Bool) n g → Gate
   | ⟨.fn op, w⟩ =>
     let ℓ₀ := wLit (w ⟨0, by simp [fullSignature]⟩)
@@ -234,7 +93,7 @@ def lineBinaryGate {g : ℕ} (wLit : Wire n g → Lit) :
 
 /-- The literal computed by `line` when constant and unary lines fold into `wLit` and genuinely
 binary lines introduce gate `n + g`. -/
-def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
+private def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
     Line (fullSignature 2 Bool) n g → Lit
   | ⟨.con c, _⟩ => Lit.const c
   | ⟨.fn op, w⟩ =>
@@ -249,7 +108,7 @@ def lineBinaryLit {g : ℕ} (wLit : Wire n g → Lit) :
 
 /-- Propagate literals along a `fullSignature 2 Bool` program: constant and unary lines fold into
 a `Lit` of an input or an earlier binary gate, while genuinely binary lines introduce `n + g`. -/
-def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
+private def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g → Lit :=
   match p with
   | .empty => Fin.elim0
   | @Program.gate _ _ _ p line =>
@@ -257,7 +116,7 @@ def programGateLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fin g �
     Fin.lastCases (lineBinaryLit (Wire.elim (fun i => Lit.node i false) prior) line) prior
 
 /-- The literal carried by any wire of `p` when constant and unary lines are folded. -/
-def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Wire n g → Lit :=
+private def programWireLit {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Wire n g → Lit :=
   Wire.elim (fun i => Lit.node i false) (programGateLit p)
 
 private theorem programWireLit_gate_last {g : ℕ} (p : Program (fullSignature 2 Bool) n g)
@@ -271,7 +130,7 @@ private theorem programWireLit_gate_castSucc {g : ℕ} (p : Program (fullSignatu
   simp [programWireLit, programGateLit]
 
 /-- The indices `n + k` of genuinely binary gates in `p`. -/
-def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
+private def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Finset ℕ :=
   match p with
   | .empty => ∅
   | @Program.gate _ _ g p line =>
@@ -279,7 +138,7 @@ def programBinaryGates {g : ℕ} (p : Program (fullSignature 2 Bool) n g) : Fins
     else programBinaryGates p
 
 /-- The gate map of `p` on `programBinaryGates p`. -/
-def programBinaryGate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (i : ℕ) : Gate :=
+private def programBinaryGate {g : ℕ} (p : Program (fullSignature 2 Bool) n g) (i : ℕ) : Gate :=
   match p with
   | .empty => ⟨fun _ _ => false, .const false, .const false⟩
   | @Program.gate _ _ g p line =>
@@ -475,26 +334,21 @@ def ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) : SemiCircuit where
 
 /-- The parameters of `ofCircuitBinary C` are `Finset.range n`. -/
 @[simp] theorem ofCircuitBinary_params (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuitBinary C).params = Finset.range n := rfl
+    (ofCircuitBinary C).params = Finset.range n := by rfl
 
 /-- The semi-circuit `ofCircuitBinary C` has no auxiliary variables. -/
 @[simp] theorem ofCircuitBinary_aux (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuitBinary C).aux = ∅ := rfl
+    (ofCircuitBinary C).aux = ∅ := by rfl
 
 /-- The semi-circuit `ofCircuitBinary C` has no affine equations. -/
 @[simp] theorem ofCircuitBinary_eqns (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuitBinary C).eqns = ∅ := rfl
+    (ofCircuitBinary C).eqns = ∅ := by rfl
 
 /-- The size of `ofCircuitBinary C` equals the binary `B₂` gate cost of `C`. -/
 @[simp] theorem size_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) :
     (ofCircuitBinary C).size = C.program.cost binaryB2Cost := by
   change (programBinaryGates C.program).card + (∅ : Finset ℕ).card = C.program.cost binaryB2Cost
   rw [Finset.card_empty, add_zero, card_programBinaryGates]
-
-/-- The size of `ofCircuitBinary C` is at most `C.program.cost binaryB2Cost`. -/
-theorem size_ofCircuitBinary_le (C : Circuit (fullSignature 2 Bool) n 1) :
-    (ofCircuitBinary C).size ≤ C.program.cost binaryB2Cost :=
-  (size_ofCircuitBinary C).le
 
 /-- The binary-gate semi-circuit `ofCircuitBinary C` is well formed. -/
 theorem wellFormed_ofCircuitBinary (C : Circuit (fullSignature 2 Bool) n 1) :

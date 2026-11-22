@@ -112,4 +112,44 @@ def oppAndOnPairState : State 4 :=
 #guard oppAndOnPairState.s == 3
 #guard (applyStep oppAndOnPairState (.andOnPair 4 0)).s == 0
 
+/-- Circuit `x₀ ∧ x₂` on `4` bits used as the base circuit for testing the terminal `u = G`
+(`findAndOnPair`) branch of `chooseStep?` and `findCounterexample`. -/
+def terminalAndOnPairCircuit : Circuit (fullSignature 2 Bool) 4 1 :=
+  ⟨Program.gate Program.empty
+    ⟨FullOp.fn fun xs => xs 0 && xs 1,
+      fun i => if _ : i.val = 0 then Wire.input ⟨0, by decide⟩ else Wire.input ⟨2, by decide⟩⟩,
+    fun _ => Wire.gate ⟨0, by decide⟩⟩
+
+/-- State where `findD1`–`findPairInSystem` and `findMovable` are all `none`, `findAndOnPair`
+returns `some (6, 0)`, and `S.out.arg = .node 6` (`u = G`), exercising the terminal `u = G`
+branch of `chooseStep?` (`none`) and `findCounterexample` (`some x` with `x₀ = false, x₁ = false`
+and `x₂ = true`). -/
+def terminalAndOnPairState : State 4 :=
+  { params := {0, 1, 2, 3}
+    aux := ∅
+    gates := {4, 5, 6}
+    gate := fun j =>
+      if j = 4 then ⟨(· && ·), .node 1, .node 5⟩
+      else if j = 5 then ⟨(· && ·), .node 4, .node 2⟩
+      else ⟨(· && ·), .node 0, .node 2⟩
+    eqns := ∅
+    eqn := fun _ => ⟨∅, false⟩
+    out := ⟨.node 6, false⟩
+    pairs := {⟨0, false, 1, false⟩}
+    phi := fun val i => val i.val }
+
+#guard (findD1 terminalAndOnPairState).isNone
+#guard (findD2 terminalAndOnPairState).isNone
+#guard (findMovable terminalAndOnPairState).isNone
+#guard (findDegeneratePair terminalAndOnPairState).isNone
+#guard (findPartnersShareChild terminalAndOnPairState).isNone
+#guard (findPairInSystem terminalAndOnPairState).isNone
+#guard findAndOnPair terminalAndOnPairState == some (6, 0)
+#guard (chooseStep? terminalAndOnPairState).isNone
+#guard
+  match findCounterexample terminalAndOnPairCircuit (fun x => x ⟨2, by decide⟩) 1
+      terminalAndOnPairState with
+  | some x => terminalAndOnPairCircuit.eval fullInterpretation x 0 != x ⟨2, by decide⟩
+  | none => false
+
 end CslibFrontierTests.AffineDisperser4nRefuter

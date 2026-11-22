@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
+module
+-- upstream: local-only (test)
+
+public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n
 
 /-!
 # Tests for the `4n - 9d` circuit lower bound
@@ -16,6 +19,10 @@ and unary negations where `binaryB2Cost = 0` strictly beats `size = 8`) against
 non-vacuous `d = 11` witnesses via `exists_isAffineDisperser` (`301 ≤ C.program.cost binaryB2Cost`
 at `n = 100`).
 -/
+
+set_option linter.privateModule false
+
+public section
 
 namespace CslibFrontierTests.AffineDisperser4n
 
@@ -121,7 +128,11 @@ example :
     intro x; ext i; rw [Fin.eq_zero i]; rfl
   have hS : (initialState and2Circuit).Valid and2Fn := initialState_valid hcomp
   have hok : (initialState and2Circuit).AddPairOK ⟨0, false, 1, false⟩ :=
-    ⟨by decide, by decide, by decide⟩
+    ⟨by simp [AffineDisperserCore.State.unpaired, AffineDisperserCore.State.Paired, initialState,
+          ofCircuitBinary_params],
+      by simp [AffineDisperserCore.State.unpaired, AffineDisperserCore.State.Paired, initialState,
+          ofCircuitBinary_params],
+      by decide⟩
   refine ⟨hok, State.Valid.addPair hS hok, ?_⟩
   have hq := AffineDisperserCore.State.addPair_q hok
   have hm : ((initialState and2Circuit).addPair ⟨0, false, 1, false⟩).m =

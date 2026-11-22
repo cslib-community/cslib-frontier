@@ -4,11 +4,18 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner, Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Corollary
+module
+-- upstream: local-only (test)
+
+public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Corollary
 
 /-!
 # Tests for `(5, 3, 9)` / bigraded Farkas optimality and explicit `4N - o(N)` bounds in `P`
 -/
+
+set_option linter.privateModule false
+
+public section
 
 namespace CslibFrontierTests.AffineDisperser4nCorollary
 
@@ -26,17 +33,18 @@ example {α β c : ℚ} (h₁ : α ≤ β + 2) (h₂ : c ≤ 2 * β + 3) (h₃ :
   obtain ⟨_, _, hc, _⟩ := weight_lower_bounds_of_sub_eq_four h₁ h₂ h₃ h₄
   exact ⟨weight_sub_le_four h₁ h₃, hc⟩
 
-/-- Bigraded Farkas optimality check: even with separate equation weight `ce` and bigraded
-`(dg, de)` weights, attaining `c - w_init = 4` forces `ce = 1`, `9 ≤ c`, and `4 ≤ w 1 0`. -/
-example {w : ℕ → ℕ → ℚ} {bp : ℕ → ℕ → ℕ → ℕ → ℚ} {ce c w_init : ℚ}
-    (h_init : w 2 0 ≤ w_init) (h_reroute : w 2 0 ≤ w 1 0 + 1) (h_move : ce ≤ 1)
-    (h_pis : w 2 0 ≤ bp 1 0 1 0 + 1 + ce) (h_pc : c + bp 1 0 1 0 ≤ 2 * w 2 0 + 2)
-    (h_aop : c ≤ 2 * bp 1 0 1 0 + 3) (h_opt : c - w_init = 4) :
-    c - w_init ≤ 4 ∧ ce = 1 ∧ 9 ≤ c ∧ 4 ≤ w 1 0 := by
-  obtain ⟨hce, _, _, _, hc, _⟩ :=
-    stratified_weight_lower_bounds_of_sub_eq_four h_init h_move h_pis h_pc h_aop h_opt
-  exact ⟨stratified_weight_sub_le_four h_init h_move h_pis h_pc, hce, hc,
-    stratified_fanout_one_lower_bound h_init h_reroute h_move h_pis h_pc h_aop h_opt⟩
+/-- Non-vacuous `State`-grounded bigraded Farkas optimality check: `stratifiedStepSound_uniform`
+satisfies `StratifiedStepSound` with `c - w_init = 9 - 5 = 4`, and any `StratifiedStepSound`
+potential attaining `c - w_init = 4` satisfies `ce = 1`, `bp 0 1 1 0 = bp 1 0 1 0`, `5 ≤ w 2 0`,
+and `9 ≤ c`. -/
+example : StratifiedStepSound 1 (fun dg de => (weight (dg + de) : ℚ)) (fun _ _ _ _ => 3) 9 5 :=
+  stratifiedStepSound_uniform
+
+example {ce : ℚ} {w : ℕ → ℕ → ℚ} {bp : ℕ → ℕ → ℕ → ℕ → ℚ} {c w_init : ℚ}
+    (h : StratifiedStepSound ce w bp c w_init) (h_opt : c - w_init = 4) :
+    c - w_init ≤ 4 ∧ ce = 1 ∧ bp 0 1 1 0 = bp 1 0 1 0 ∧ 5 ≤ w 2 0 ∧ 9 ≤ c := by
+  obtain ⟨hce, _, hbp, hw2, _, hc, _⟩ := stratified_weight_lower_bounds_of_sub_eq_four h h_opt
+  exact ⟨stratified_weight_sub_le_four h, hce, hbp, hw2, hc⟩
 
 /-- An explicit language in `P` (`explicitDisperserLanguage`) whose `N`-bit slices eventually
 require at least `3.6 * N` genuinely binary `B₂` gates. -/
@@ -63,6 +71,6 @@ example : ∃ L : Language Bool, L ∈ P Turing.MultiTapeTM.encBits ∧
     ∀ᶠ N in atTop, ∀ (C : Circuit (fullSignature 2 Bool) N 1),
       C.Computes fullInterpretation (single (L.slice N)) →
       4 * (N : ℝ) - 19332 * (N : ℝ) ^ ((4 : ℝ) / 5) ≤ (C.program.cost binaryB2Cost : ℝ) :=
-  exists_mem_P_eventually_four_mul_sub_le_cost_primeDisperser
+  exists_mem_P_eventually_le_cost_primeDisperser
 
 end CslibFrontierTests.AffineDisperser4nCorollary
