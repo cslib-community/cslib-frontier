@@ -1140,6 +1140,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.Sparse
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SparseOrbit
 public import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.Exponent
 public import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.NineQuarters
+public import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.StrassenRank
 public import CslibFrontier.Computability.Circuit.Arithmetic.Noncommutative.ABP
 public import CslibFrontier.Computability.Circuit.Arithmetic.Noncommutative.Circuit
 public import CslibFrontier.Computability.Circuit.Arithmetic.Noncommutative.Nisan
@@ -1583,6 +1584,11 @@ public import CslibFrontier.Computability.Circuit.Frontier.Incidence
 public import CslibFrontier.Computability.Circuit.Frontier.IncidenceComponents
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.BoundedDegree
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.CappedCompression
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.Coefficient
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.Decompositions
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving.OffMedian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Components
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Compression
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
@@ -1713,6 +1719,8 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Truncat
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedResources
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.TruncatedRing
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.VertexDesc
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank
+public import CslibFrontier.Computability.Circuit.Frontier.TensorRank.ThreeWayCut
 public import CslibFrontier.Computability.Circuit.Frontier.TwoSidedWitness
 public import CslibFrontier.Computability.Circuit.Frontier.Unconditional
 public import CslibFrontier.Computability.Circuit.Frontier.Witness
@@ -6815,6 +6823,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposit
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Nice
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Rooted
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Subtree
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeSide
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TutteBerge
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.WeisfeilerLeman
 public import CslibFrontier.Foundations.Combinatorics.SmallSubsets
@@ -7505,6 +7514,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.ReplacementDesign
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Amplify
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Basic
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Degeneration
+public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Indicator
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Polynomial
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Primal
 public import CslibFrontier.Foundations.LinearAlgebra.Tensor.Round
@@ -7590,6 +7600,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Borell
 public import CslibFrontier.Foundations.Probability.Gaussian.CDF
 public import CslibFrontier.Foundations.Probability.Gaussian.CenteredTail
 public import CslibFrontier.Foundations.Probability.Gaussian.CoefficientFiber
+public import CslibFrontier.Foundations.Probability.Gaussian.ConvexCap
 public import CslibFrontier.Foundations.Probability.Gaussian.Convolution
 public import CslibFrontier.Foundations.Probability.Gaussian.Correlated
 public import CslibFrontier.Foundations.Probability.Gaussian.Discrete
@@ -7607,6 +7618,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.NoiseOperator
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSemigroup
 public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSmooth
 public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
+public import CslibFrontier.Foundations.Probability.Gaussian.OffMedian
 public import CslibFrontier.Foundations.Probability.Gaussian.OrnsteinUhlenbeck
 public import CslibFrontier.Foundations.Probability.Gaussian.Periodization
 public import CslibFrontier.Foundations.Probability.Gaussian.Poisson
@@ -7640,6 +7652,7 @@ public import CslibFrontier.Foundations.Probability.SecondMoment
 public import CslibFrontier.Foundations.Probability.SmoothTests
 public import CslibFrontier.Foundations.Probability.SpectralPayment
 public import CslibFrontier.Foundations.Probability.TwoStage
+public import CslibFrontier.Foundations.Probability.WeightedSecondMoment
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
 public import CslibFrontier.Foundations.Quantum.Algebra.Approx
 public import CslibFrontier.Foundations.Quantum.Algebra.BinomialTail

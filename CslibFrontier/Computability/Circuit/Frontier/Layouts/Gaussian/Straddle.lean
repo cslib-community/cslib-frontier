@@ -45,7 +45,8 @@ Hence `v` straddles `t` with probability at most
 ## Main results
 
 * `Cslib.Circuits.Frontier.Gaussian.dependsOn_straddleEvent`: locality of straddling.
-* `Cslib.Circuits.Frontier.Gaussian.measureReal_straddleEvent_le_of_average`,
+* `Cslib.Circuits.Frontier.Gaussian.four_mul_measureReal_straddleEvent_le`,
+  `Cslib.Circuits.Frontier.Gaussian.measureReal_straddleEvent_le_of_average`,
   `Cslib.Circuits.Frontier.Gaussian.measureReal_straddleEvent_le`: the straddling probability.
 
 ## References
@@ -131,7 +132,7 @@ private theorem four_le_card_filter_offDiag {ι : Type*} {s : Finset ι}
 /-- **Counting separated pairs.** If the edges at `v` form a three-element set `s`, then four
 times the probability that `v` straddles `t` is at most the sum, over the ordered pairs of
 distinct edges at `v`, of the probabilities that `t` separates their scores. -/
-private theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Finset E}
+theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Finset E}
     (hs : (s : Set E) = G.incidenceSet v) (hcard : s.card = 3) (t : ℝ) :
     4 * (Measure.pi fun _ : V => gaussianReal 0 1).real (straddleEvent G q R t v) ≤
       ∑ p ∈ s.offDiag, (Measure.pi fun _ : V => gaussianReal 0 1).real
