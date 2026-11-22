@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
 
@@ -23,6 +24,9 @@ This adapts `LeanCanny.ETR.Grammar.recognizeFormula` from lean-canny at
 formula-token decoder handles framing. The recursive-encoding checker verifies that the
 constructor stream describes one tree, and term recognition at modulus one checks the comparison
 payloads. Valid words encode formulas in the dimension given by their length.
+
+The total view adapts `LeanCanny.ETR.FormulaView` at the same revision. It preserves the exact
+bits of valid encodings and gives malformed words the semantics of falsity.
 -/
 
 public section
@@ -189,5 +193,38 @@ theorem validFormulaWord_polyTime :
   have hall := allWith (hvalid.comp (snd encUnit encFormulaToken)) (const ()) id'
   exact optionElimWithInput formulaTokensDecoder.computable (const false)
     ((bool_and' hshape hall).comp (snd encBits encTokens))
+
+/-- Preserve a valid formula word and replace a malformed word with the encoding of falsity. -/
+@[expose] def normalizeFormulaWord (word : List Bool) : List Bool :=
+  if validFormulaWord word then word else encFormula 0 .false
+
+/-- The total formula denoted by a word, using its length for the ambient variable dimension.
+Malformed words denote falsity. -/
+noncomputable def Formula.ofWord (word : List Bool) : Formula word.length :=
+  if h : validFormulaWord word = true then
+    Classical.choose (validFormulaWord_eq_true_iff.mp h)
+  else .false
+
+/-- The formula view of a malformed word is falsity. -/
+theorem Formula.ofWord_of_not_valid {word : List Bool} (h : validFormulaWord word ≠ true) :
+    ofWord word = .false := by
+  rw [ofWord, dite_eq_right h]
+
+/-- The bit-level normalization computes the exact encoding of the total formula view. -/
+theorem encFormula_ofWord (word : List Bool) :
+    encFormula word.length (Formula.ofWord word) = normalizeFormulaWord word := by
+  by_cases h : validFormulaWord word = true
+  · rw [Formula.ofWord, dite_eq_left h, normalizeFormulaWord, ite_eq_left h]
+    exact Classical.choose_spec (validFormulaWord_eq_true_iff.mp h)
+  · rw [Formula.ofWord_of_not_valid h, normalizeFormulaWord, ite_eq_right h]
+    rfl
+
+/-- Re-encoding the total formula view is uniformly polynomial time on raw bit words. -/
+theorem encFormula_ofWord_polyTime :
+    ComputableInPolyTime (fun word => encFormula word.length (Formula.ofWord word))
+      encBits encBits := by
+  have h : ComputableInPolyTime normalizeFormulaWord encBits encBits :=
+    validFormulaWord_polyTime.ite' id' (const (encFormula 0 .false))
+  exact h.of_enc_eq fun word => congrArg encBits (encFormula_ofWord word)
 
 end Cslib.Logic.RealArithmetic
