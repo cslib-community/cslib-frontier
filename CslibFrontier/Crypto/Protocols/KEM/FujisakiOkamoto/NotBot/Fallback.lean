@@ -11,22 +11,22 @@ public import CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.NotBot.Hybrids
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.UntilBad
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Probability.Product.Split
 
 /-!
 # Decoupling the implicit-rejection seed of `FO-notbot`
 
-The first hop of the ROM IND-CCA proof for `FO-notbot` replaces the implicit-rejection keys
-`H(true, s, c)` of `Scheme.eagerIndCcaGame`, derived from the secret seed `s`, by an independent
-table `Hfb c` (`Scheme.eagerFbGame`). This is the first game hop in the proof of the §3.2.2
-IND-CCA theorem for `U-notbot` in [HofheinzHoevelmannsKiltz2017], with the paper's PRF-style
-seed replaced by the domain-separated random-oracle query `H(true, s, c)`.
+In Figure 12 of [HofheinzHoevelmannsKiltz2017], implicit rejection reads `H(s, c)` from the
+ordinary key-derivation oracle at the secret fallback seed `s`. As in the first hop of Theorem 3.4
+(§3.2.2, Figure 13), replace those rejection keys by an independent table `Hfb c`.
 
-For a fixed seed `s`, a random table `H` is the same as the pair `(H, Hfb)` read through
-`H(true, s, c) := Hfb c`. The two games then answer every query identically except a direct query
-`H(b, s, c)` to the seed. The run of `eagerFbGame` does not use `s`, so a run making at most `qH`
-queries to `H` hits the independently sampled seed with probability at most `qH * p`, where `p`
-bounds the point probabilities of `Scheme.sampleMsg`.
+Fix the keys, coin table and challenge ciphertext. Among the entries `H(s, c)`, resample exactly
+those for rejected ciphertexts other than the challenge. Thus real and hybrid decapsulation
+agree for every request, including a ciphertext that decrypts to `s`; the challenge also keeps
+its original key. A direct hash query at the seed can reveal the substitution. The hybrid ignores
+the seed, so at most `qH` queries hit it with probability at most `qH * p` when the largest seed
+probability is `p`.
 
 ## Main results
 
@@ -59,28 +59,30 @@ private theorem map_fst_run_interpret_log {ι σ α : Type} {spec : ι → Type}
     (h : (q : ι) → PMF (spec q)) (upd : ι → σ → σ) (prog : OracleComp spec α) (st : σ) :
     ((OracleComp.interpret (m := StateT σ PMF) (fun q st => (h q).map (·, upd q st))
       prog).run st).map Prod.fst = OracleComp.interpret h prog := by
+  rw [← OracleComp.runWith_eq_run_interpret, ← OracleComp.evalWith_eq_interpret]
   induction prog using OracleComp.induction generalizing st with
   | pure a => simp
   | query_bind q cont ih =>
-    rw [OracleComp.run_interpret_bind, OracleComp.run_interpret_query]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query,
-      Probability.PMF.monad_bind_eq_bind, PMF.map_bind, PMF.bind_map, Function.comp_def]
+    rw [OracleComp.runWith_freeMBind, OracleComp.runWith_query]
+    simp only [OracleComp.evalWith_freeMBind, OracleComp.evalWith_query, PMF.map_bind,
+      PMF.bind_map, Function.comp_def]
     exact congrArg _ (funext fun a => ih a _)
 
 /-! ### Splitting the key-derivation table at the seed -/
 
-/-- The table `H` with the seed row `H(true, s, ·)` replaced by `Hfb`. -/
-private def fbTable [DecidableEq M] (s : M) (H : Bool × M × CT → K) (Hfb : CT → K) :
-    Bool × M × CT → K :=
-  fun x => if x.1 = true ∧ x.2.1 = s then Hfb x.2.2 else H x
+/-- Use the independent table on eligible entries of the seed row. -/
+private def fbTable [DecidableEq M] (eligible : CT → Bool) (s : M) (H : Bool × M × CT → K)
+    (Hfb : CT → K) : Bool × M × CT → K :=
+  fun x => if x.1 = false ∧ x.2.1 = s ∧ eligible x.2.2 then Hfb x.2.2 else H x
 
-/-- A random table is a random table with its seed row replaced by an independent random row. -/
+/-- Resampling any fixed subset of the seed row preserves the product law. -/
 private theorem pi_eq_bind_map_fbTable [DecidableEq M] [Fintype M] [Fintype CT] [Finite K]
-    (κ : PMF K) (s : M) :
+    (κ : PMF K) (eligible : CT → Bool) (s : M) :
     pi (fun _ : Bool × M × CT => κ) =
-      (pi fun _ : Bool × M × CT => κ).bind fun H => (pi fun _ : CT => κ).map (fbTable s H) := by
+      (pi fun _ : Bool × M × CT => κ).bind fun H =>
+        (pi fun _ : CT => κ).map (fbTable eligible s H) := by
   classical
-  let bad : Bool × M × CT → Prop := fun x => x.1 = true ∧ x.2.1 = s
+  let bad : Bool × M × CT → Prop := fun x => x.1 = false ∧ x.2.1 = s ∧ eligible x.2.2
   have hfac : (fun _ : Bool × M × CT => κ) = fun x =>
       (κ.bind fun a => κ.map (a, ·)).map (fun ab => if bad x then ab.2 else ab.1) := by
     funext x
@@ -92,7 +94,7 @@ private theorem pi_eq_bind_map_fbTable [DecidableEq M] [Fintype M] [Fintype CT] 
         PMF.map_const]
       exact (PMF.bind_pure κ).symm
   have hpair := pi_bind_pair (fun _ : Bool × M × CT => κ) (fun _ _ => κ)
-  have hinj : Function.Injective fun c : CT => ((true, s, c) : Bool × M × CT) :=
+  have hinj : Function.Injective fun c : CT => ((false, s, c) : Bool × M × CT) :=
     fun c c' h => by simpa using h
   have hrow := pi_map_comp_injective (fun _ : Bool × M × CT => κ) hinj
   conv_lhs => rw [hfac, pi_map]
@@ -109,9 +111,9 @@ private theorem pi_eq_bind_map_fbTable [DecidableEq M] [Fintype M] [Fintype CT] 
         congr 1 with H₂ : 1
         funext x
         obtain ⟨t, m, c⟩ := x
-        by_cases hx : t = true ∧ m = s
-        · obtain ⟨rfl, rfl⟩ := hx
-          simp [bad, fbTable]
+        by_cases hx : t = false ∧ m = s ∧ eligible c
+        · obtain ⟨rfl, rfl, hc⟩ := hx
+          simp [bad, fbTable, hc]
         · simp [bad, fbTable, hx]
 
 /-! ### The two oracles agree until the seed is queried -/
@@ -129,35 +131,38 @@ private theorem length_logM (q : ROQuery M CT) (l : List M) :
     (logM q l).length ≤ l.length + q.hCost := by
   cases q <;> simp [logM]
 
-private theorem snd_eq_of_mem_support_map {α σ : Type} {μ : PMF α} {t : σ} {x : α × σ}
-    (hx : x ∈ (μ.map (·, t)).support) : x.2 = t := by
-  obtain ⟨a, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-  rfl
-
 variable [DecidableEq CT]
 
 section DecidableMessages
 
 variable [DecidableEq M]
 
-/-- Off the seed row, `eagerHandler` on `fbTable s H Hfb` is `eagerFbHandler` on `H` and `Hfb`. -/
+/-- Only rejected, unpunctured ciphertexts use a fallback key. -/
+private def usesFallback (S : Scheme PK SK M R CT K) (G : M → R) (pk : PK) (sk : SK)
+    (cStar c : CT) : Bool :=
+  decide (c ≠ cStar ∧ decT S.pke G pk sk c = none)
+
+/-- Both handlers agree on decapsulation and on public hash queries away from the seed. -/
 private theorem eagerHandler_fbTable (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (Hfb : CT → K) (pk : PK) (sk : SK) (s : M) (cStar : CT)
     (q : ROQuery M CT) (hq : ∀ x, q = .H x → x.2.1 ≠ s) :
-    S.eagerHandler G (fbTable s H Hfb) ⟨sk, pk, s⟩ cStar q =
+    S.eagerHandler G (fbTable (S.usesFallback G pk sk cStar) s H Hfb) ⟨sk, pk, s⟩ cStar q =
       S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ cStar q := by
   cases q with
   | G m => rfl
   | H x => simp [eagerHandler, eagerFbHandler, fbTable, hq x rfl]
   | decaps c =>
-    simp only [eagerHandler, eagerFbHandler, decapsNotBot]
-    cases decT S.pke G pk sk c <;> simp [fbTable]
+    simp only [eagerHandler, eagerFbHandler, decapsNotBot_eq, ROQuery.dispatch]
+    by_cases hc : c = cStar
+    · simp [hc]
+    · cases hdec : decT S.pke G pk sk c <;> simp [hc, hdec, usesFallback, fbTable]
 
 /-- The logged oracles of the two games are identical until the log contains the seed. -/
 private theorem identicalUntilBad_log (S : Scheme PK SK M R CT K) (G : M → R)
     (H : Bool × M × CT → K) (Hfb : CT → K) (pk : PK) (sk : SK) (s : M) (cStar : CT) :
     OracleComp.IdenticalUntilBad
-      (fun q st => (S.eagerHandler G (fbTable s H Hfb) ⟨sk, pk, s⟩ cStar q).map (·, logM q st))
+      (fun q st => (S.eagerHandler G (fbTable (S.usesFallback G pk sk cStar) s H Hfb)
+        ⟨sk, pk, s⟩ cStar q).map (·, logM q st))
       (fun q st => (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ cStar q).map (·, logM q st))
       (fun st => s ∈ st) where
   agree q st _ a st' hst' := by
@@ -165,30 +170,32 @@ private theorem identicalUntilBad_log (S : Scheme PK SK M R CT K) (G : M → R)
     · obtain ⟨x, rfl, hx⟩ := hbad
       have hz (μ : PMF K) : (μ.map (·, logM (.H x) st)) (a, st') = 0 :=
         (PMF.apply_eq_zero_iff _ _).mpr fun hmem =>
-          hst' (by rw [show st' = _ from snd_eq_of_mem_support_map hmem]; simp [logM, hx])
+          hst' (by rw [show st' = _ from snd_eq_of_mem_support_map_pair hmem]; simp [logM, hx])
       exact (hz _).trans (hz _).symm
     · rw [eagerHandler_fbTable S G H Hfb pk sk s cStar q fun x hq hx => hbad ⟨x, hq, hx⟩]
   absorb_first q st hst x hx := by
-    rw [snd_eq_of_mem_support_map hx]; exact mem_logM q hst
+    rw [snd_eq_of_mem_support_map_pair hx]; exact mem_logM q hst
   absorb_second q st hst x hx := by
-    rw [snd_eq_of_mem_support_map hx]; exact mem_logM q hst
+    rw [snd_eq_of_mem_support_map_pair hx]; exact mem_logM q hst
 
 /-! ### One run of each game -/
 
-/-- The adversary's run in `eagerIndCcaGame` once all randomness is fixed, with the table
-`H` written as `fbTable s H Hfb`. -/
+/-- The adversary's run in `eagerIndCcaGame` once all randomness is fixed, with its
+rejection entries resampled using `Hfb`. -/
 private noncomputable def runReal (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K)
     (b : Bool) (pk : PK) (sk : SK) (s : M) (G : M → R) (H : Bool × M × CT → K) (Hfb : CT → K)
     (m : M) (kRand : K) : PMF Bool :=
-  OracleComp.interpret (S.eagerHandler G (fbTable s H Hfb) ⟨sk, pk, s⟩ (encT S.pke G pk m))
-    (A (pk, encT S.pke G pk m, if b then kRand else H (false, m, encT S.pke G pk m)))
+  let c := encT S.pke G pk m
+  let H' := fbTable (S.usesFallback G pk sk c) s H Hfb
+  OracleComp.interpret (S.eagerHandler G H' ⟨sk, pk, s⟩ c)
+    (A ⟨pk, c, if b then kRand else H (false, m, c)⟩)
 
 /-- The adversary's run in `eagerFbGame` once all randomness is fixed. -/
 private noncomputable def runFb (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K)
     (b : Bool) (pk : PK) (sk : SK) (s : M) (G : M → R) (H : Bool × M × CT → K) (Hfb : CT → K)
     (m : M) (kRand : K) : PMF Bool :=
   OracleComp.interpret (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ (encT S.pke G pk m))
-    (A (pk, encT S.pke G pk m, if b then kRand else H (false, m, encT S.pke G pk m)))
+    (A ⟨pk, encT S.pke G pk m, if b then kRand else H (false, m, encT S.pke G pk m)⟩)
 
 /-- The logged run of `eagerFbGame`; the oracle ignores the fallback seed, set here to `m`. -/
 private noncomputable def logRunFb (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K)
@@ -197,7 +204,7 @@ private noncomputable def logRunFb (S : Scheme PK SK M R CT K) (A : ROAdversary 
   (OracleComp.interpret (m := StateT (List M) PMF)
     (fun q st => (S.eagerFbHandler G H Hfb ⟨sk, pk, m⟩ (encT S.pke G pk m) q).map
       (·, logM q st))
-    (A (pk, encT S.pke G pk m, if b then kRand else H (false, m, encT S.pke G pk m)))).run []
+    (A ⟨pk, encT S.pke G pk m, if b then kRand else H (false, m, encT S.pke G pk m)⟩)).run []
 
 /-- Whether the logged run of `eagerFbGame` queries `H` at the seed `s`. -/
 private noncomputable def hitSeed (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K)
@@ -214,7 +221,7 @@ private theorem runReal_le_and_runFb_le (S : Scheme PK SK M R CT K)
         S.runReal A b pk sk s G H Hfb m kRand true +
           S.hitSeed A b pk sk s G H Hfb m kRand true := by
   set c := encT S.pke G pk m
-  set prog := A (pk, c, if b then kRand else H (false, m, c))
+  set prog := A ⟨pk, c, if b then kRand else H (false, m, c)⟩
   have h := identicalUntilBad_log S G H Hfb pk sk s c
   have e (hd : (q : ROQuery M CT) → PMF (ROResp R K q)) :
       OracleComp.interpret hd prog =
@@ -230,11 +237,12 @@ private theorem runReal_le_and_runFb_le (S : Scheme PK SK M R CT K)
     congr 1
     ext x
     simp
+  let H' := fbTable (S.usesFallback G pk sk c) s H Hfb
   have e₁ : S.runReal A b pk sk s G H Hfb m kRand =
-      OracleComp.interpret (S.eagerHandler G (fbTable s H Hfb) ⟨sk, pk, s⟩ c) prog := rfl
+      OracleComp.interpret (S.eagerHandler G H' ⟨sk, pk, s⟩ c) prog := rfl
   have e₂ : S.runFb A b pk sk s G H Hfb m kRand =
       OracleComp.interpret (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ c) prog := rfl
-  rw [e₁, e₂, hY, e (S.eagerHandler G (fbTable s H Hfb) ⟨sk, pk, s⟩ c),
+  rw [e₁, e₂, hY, e (S.eagerHandler G H' ⟨sk, pk, s⟩ c),
     e (S.eagerFbHandler G H Hfb ⟨sk, pk, s⟩ c)]
   refine ⟨?_, ?_⟩
   · rw [← h.bad_eq]
@@ -251,9 +259,9 @@ private noncomputable def expect (S : Scheme PK SK M R CT K) [Fintype M] [Finite
     PMF Bool :=
   (ProbComp.eval S.pke.keyGen).bind fun ks =>
   (ProbComp.eval S.sampleMsg).bind fun s =>
-  (pi fun _ : M => ProbComp.eval S.pke.sampleCoins).bind fun G =>
-  (pi fun _ : Bool × M × CT => ProbComp.eval S.sampleKey).bind fun H =>
-  (pi fun _ : CT => ProbComp.eval S.sampleKey).bind fun Hfb =>
+  S.coinTable.bind fun G =>
+  (S.keyTable (Bool × M × CT)).bind fun H =>
+  (S.keyTable CT).bind fun Hfb =>
   (ProbComp.eval S.sampleMsg).bind fun m =>
   (ProbComp.eval S.sampleKey).bind fun kRand => F ks.1 ks.2 s G H Hfb m kRand
 
@@ -296,11 +304,11 @@ private theorem expect_hitSeed_le [Fintype M] [Finite R] [Fintype CT] [Finite K]
   rw [PMF.bind_comm (ProbComp.eval S.sampleMsg)]
   refine Probability.PMF.bind_apply_le_on_support _ fun x hx => ?_
   have hlen : x.2.length ≤ qH := by
-    have hcost := (hq (ks.1, encT S.pke G ks.1 m,
-      if b then kRand else H (false, m, encT S.pke G ks.1 m))).2
+    have hcost := (hq ⟨ks.1, encT S.pke G ks.1 m,
+      if b then kRand else H (false, m, encT S.pke G ks.1 m)⟩).2
     simpa using hcost.measure_le _ List.length
       (fun q st res st' hmem => by
-        rw [show st' = logM q st from snd_eq_of_mem_support_map hmem]
+        rw [show st' = logM q st from snd_eq_of_mem_support_map_pair hmem]
         exact length_logM q st)
       (show (x.1, x.2) ∈ _ from hx)
   have hμ : ∀ s, ((ProbComp.eval S.sampleMsg).map id) s ≤ p := fun s => by
@@ -320,28 +328,39 @@ omit [DecidableEq M] in
 private theorem eagerFbGame_eq_expect [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) (b : Bool) :
     S.eagerFbGame A b = S.expect (S.runFb A b) := by
-  simp only [eagerFbGame, expect, keyGenNotBot, encapsNotBot, encapsBot, ProbComp.eval_bind,
-    ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind]
+  simp only [eagerFbGame, expect, coinTable, keyTable, keyGenNotBot, encapsNotBot, encapsBot,
+    ProbComp.eval_bind, ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind, PMF.bind_bind,
+    PMF.pure_bind]
   congr 1 with ⟨pk, sk⟩ : 1
 
 private theorem eagerIndCcaGame_eq_expect [Fintype M] [Finite R] [Fintype CT] [Finite K]
     (S : Scheme PK SK M R CT K) (A : ROAdversary PK M R CT K) (b : Bool) :
     S.eagerIndCcaGame A b = S.expect (S.runReal A b) := by
-  simp only [eagerIndCcaGame, expect, keyGenNotBot, encapsNotBot, encapsBot, ProbComp.eval_bind,
-    ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind, PMF.bind_bind, PMF.pure_bind]
+  simp only [eagerIndCcaGame, expect, coinTable, keyTable, keyGenNotBot, encapsNotBot, encapsBot,
+    ProbComp.eval_bind, ProbComp.eval_pure, Probability.PMF.monad_bind_eq_bind, PMF.bind_bind,
+    PMF.pure_bind]
   congr 1 with ⟨pk, sk⟩ : 1
   congr 1 with s : 1
   congr 1 with G : 1
-  conv_lhs => rw [pi_eq_bind_map_fbTable _ s, PMF.bind_bind]
+  -- Fix the challenge before selecting the table entries used by rejection.
+  conv_lhs => rw [PMF.bind_comm _ (ProbComp.eval S.sampleMsg)]
+  conv_rhs =>
+    enter [2, H]
+    rw [PMF.bind_comm _ (ProbComp.eval S.sampleMsg)]
+  conv_rhs => rw [PMF.bind_comm _ (ProbComp.eval S.sampleMsg)]
+  congr 1 with m : 1
+  conv_lhs => rw [pi_eq_bind_map_fbTable _ (S.usesFallback G pk sk (encT S.pke G pk m)) s,
+    PMF.bind_bind]
   congr 1 with H : 1
   rw [PMF.bind_map]
   congr 1 with Hfb : 1
+  simp [runReal, fbTable, usesFallback]
 
 end DecidableMessages
 
 /-- **Hop 1 of the ROM IND-CCA proof for `FO-notbot`** (the first game hop in the proof of the
 §3.2.2 IND-CCA theorem for `U-notbot` in [HofheinzHoevelmannsKiltz2017]): replacing the
-implicit-rejection keys `H(true, s, c)` by an independent table `Hfb c` changes the output
+implicit-rejection keys `H(s, c)` by an independent table `Hfb c` changes the output
 distribution by at most `qH * p`, where `qH` bounds the adversary's `H`-queries and `p` bounds the
 point probabilities of the seed sampler `S.sampleMsg`. -/
 theorem advantage_eagerIndCcaGame_eagerFbGame_le [Fintype M] [Finite R] [Fintype CT] [Finite K]

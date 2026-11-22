@@ -59,6 +59,8 @@ directly: the search problem `Cslib.Complexity.SAT.searchRel` of assignment cert
   its domain is in `NP`.
 * `Cslib.Complexity.rel_prefixSearchRun`: with a correct decision procedure for the prefix problem,
   the search through prefixes finds a solution of every instance that has one.
+* `Cslib.Complexity.mem_FPSearch_of_prefixSearch_mem_P`: a polynomial-time decider of the prefix
+  problem solves the search problem.
 * `Cslib.Complexity.FNP_subset_FPSearch_of_NP_subset_P`, `Cslib.Complexity.FNP_subset_FPSearch_iff`,
   `Cslib.Complexity.FNP_subset_FPSearch_iff_SAT_mem_P`.
 * `Cslib.Complexity.SAT.searchRel_mem_FNP`, `Cslib.Complexity.SAT.searchDomain_searchRel`,
@@ -209,22 +211,20 @@ private theorem computableInPolyTime_prefixSearchRun {V D : α × List Bool → 
 
 /-! ### `FPSearch = FNP` exactly when `P = NP` -/
 
-/-- **Search reduces to decision**: if the `NP` problems on pairs of instances and words are in
-`P`, every `FNP` relation is in `FPSearch`. The solver decides the prefix problem, searches through
-prefixes, and checks the result. -/
-theorem FNP_subset_FPSearch_of_NP_subset_P
-    (h : NP (encPair enc encBits) ⊆ P (encPair enc encBits)) : FNP enc ⊆ FPSearch enc := by
-  intro R hR
+/-- **Search from a prefix decider.** If the prefix problem of an `FNP` relation is decidable in
+polynomial time, the relation is in `FPSearch`: the solver searches through prefixes and checks
+the result. -/
+theorem mem_FPSearch_of_prefixSearch_mem_P (hR : R ∈ FNP enc)
+    (hP : searchDomain (prefixSearch R) ∈ P (encPair enc encBits)) : R ∈ FPSearch enc := by
   obtain ⟨⟨p, hp⟩, V, hV, hRV⟩ := mem_FNP.mp hR
-  obtain ⟨D, hD, hDR⟩ := mem_P.mp
-    (h (searchDomain_mem_NP (prefixSearch_mem_FNP (mem_FNP.mpr ⟨⟨p, hp⟩, V, hV, hRV⟩))))
+  obtain ⟨D, hD, hDR⟩ := mem_P.mp hP
   let n : α → ℕ := fun a => p.eval (enc a).length
   have hn : ComputableInPolyTime n enc encUnary := (unary_eval p).comp (encoding_length enc)
   have hrun := computableInPolyTime_prefixSearchRun hV hD hn
   refine mem_FPSearch.mpr
-    ⟨mem_FNP.mpr ⟨⟨p, hp⟩, V, hV, hRV⟩, fun a => if V (a, prefixSearchRun V D n a) then
+    ⟨hR, fun a => if V (a, prefixSearchRun V D n a) then
     some (prefixSearchRun V D n a) else none, ?_, fun a => ?_⟩
-  · exact 
+  · exact
       (ite' (encC := encBool) (hV.comp (id'.prod hrun)) ((optionSome encBits).comp hrun)
         (const none))
   · have hcorrect := rel_prefixSearchRun hRV (fun a u => (hDR (a, u)).symm) hp (a := a)
@@ -237,6 +237,14 @@ theorem FNP_subset_FPSearch_of_NP_subset_P
       beta_reduce at hw
       split_ifs at hw with hVa
       exact hVa ((hRV _ _).1 (hcorrect ha))
+
+/-- **Search reduces to decision**: if the `NP` problems on pairs of instances and words are in
+`P`, every `FNP` relation is in `FPSearch`. The solver decides the prefix problem, searches through
+prefixes, and checks the result. -/
+theorem FNP_subset_FPSearch_of_NP_subset_P
+    (h : NP (encPair enc encBits) ⊆ P (encPair enc encBits)) : FNP enc ⊆ FPSearch enc :=
+  fun _ hR =>
+    mem_FPSearch_of_prefixSearch_mem_P hR (h (searchDomain_mem_NP (prefixSearch_mem_FNP hR)))
 
 /-- **`FPSearch = FNP` exactly when `P = NP`**, both for every encoding of instances. -/
 theorem FNP_subset_FPSearch_iff :

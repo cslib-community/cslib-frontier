@@ -75,8 +75,29 @@ private def ctxValue (c : Ctx) (v : ℕ) : Bool :=
 
 private theorem computableInPolyTime_ctxValue : ComputableInPolyTime
     (fun p : Ctx × ℕ => ctxValue p.1 p.2) (encPair encCtx encNat) encBool := by
-  unfold ctxValue Term.force wordAssignment
-  fun_prop
+  have hc := ComputableInPolyTime.fst encCtx encNat
+  have hv := ComputableInPolyTime.snd encCtx encNat
+  have ht := hc.fst'.fst'
+  have hvs := hc.fst'.snd'
+  have hw := hc.snd'
+  have hidx := ComputableInPolyTime.idxOfWithInput hvs hv
+  have hfallback := ComputableInPolyTime.bitsGetDWithInput hw hidx false
+  have hmatch : ComputableInPolyTime
+      (fun p : Ctx × ℕ => p.1.1.1.any (fun l => l.1 == p.2))
+      (encPair encCtx encNat) encBool := by
+    apply ComputableInPolyTime.anyWithInput ht
+    exact ComputableInPolyTime.beq
+      (ComputableInPolyTime.snd _ _).fst'
+      (hv.comp (ComputableInPolyTime.fst _ _))
+  have hpositive : ComputableInPolyTime
+      (fun p : Ctx × ℕ => p.1.1.1.any (fun l => l.1 == p.2 && l.2))
+      (encPair encCtx encNat) encBool := by
+    apply ComputableInPolyTime.anyWithInput ht
+    exact ComputableInPolyTime.bool_and'
+      (ComputableInPolyTime.beq (ComputableInPolyTime.snd _ _).fst'
+        (hv.comp (ComputableInPolyTime.fst _ _)))
+      (ComputableInPolyTime.snd _ _).snd'
+  exact hmatch.ite' hpositive hfallback
 
 attribute [local fun_prop] computableInPolyTime_ctxValue
 
@@ -153,7 +174,17 @@ attribute [local fun_prop] computableInPolyTime_width
 theorem computableInPolyTime_consistent :
     ComputableInPolyTime (Term.consistent (V := ℕ)) encTerm encBool := by
   unfold Term.consistent
-  fun_prop
+  refine ComputableInPolyTime.allWithInput ComputableInPolyTime.id' ?_
+  refine ComputableInPolyTime.allWithInput ((ComputableInPolyTime.fst _ _)) ?_
+  have hl : ComputableInPolyTime
+      (fun p : (Term ℕ × Literal ℕ) × Literal ℕ => p.1.2)
+      (encPair (encPair encTerm (encPair encNat encBool)) (encPair encNat encBool))
+      (encPair encNat encBool) := (ComputableInPolyTime.fst _ _).snd'
+  have hr := ComputableInPolyTime.snd
+    (encPair encTerm (encPair encNat encBool)) (encPair encNat encBool)
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (hl.fst'.beq hr.fst'))
+    (hl.snd'.beq hr.snd')
 
 attribute [local fun_prop] computableInPolyTime_consistent
 
@@ -163,7 +194,12 @@ private def belowWidths (φ : DNF ℕ) (k : ℕ) : Bool :=
 private theorem computableInPolyTime_belowWidths : ComputableInPolyTime
     (fun p : DNF ℕ × ℕ => belowWidths p.1 p.2) (encPair encDNF encUnary) encBool := by
   unfold belowWidths
-  fun_prop
+  refine ComputableInPolyTime.allWithInput (ComputableInPolyTime.fst encDNF encUnary) ?_
+  have hterm := ComputableInPolyTime.snd (encPair encDNF encUnary) encTerm
+  have hbound := (ComputableInPolyTime.fst (encPair encDNF encUnary) encTerm).snd'
+  exact ComputableInPolyTime.bool_or'
+    (ComputableInPolyTime.bool_not.comp (computableInPolyTime_consistent.comp hterm))
+    (ComputableInPolyTime.unary_lt' hbound (computableInPolyTime_width.comp hterm))
 
 attribute [local fun_prop] computableInPolyTime_belowWidths
 
@@ -241,7 +277,7 @@ private theorem isPPTOn_branch : IsPPTOn (encPair encDNF encUnary) encBool (fun 
       (encPair encDNF encUnary) encUnary := by
     have h := CNF.computableInPolyTime_numVars encNat
     fun_prop
-  exact IsPPTOn.ite' (condition := fun q : DNF ℕ × ℕ => q.2 < q.1.length) hcond
+  exact IsPPTOn.ite (condition := fun q : DNF ℕ × ℕ => q.2 < q.1.length) hcond
     (IsPPTOn.of_seeded (f := fun r : (DNF ℕ × ℕ) × List Bool => accepts r.1.1 r.1.2 r.2) hcount
       computableInPolyTime_accepts_pair)
     (ComputableInPolyTime.const false).isPPTOn

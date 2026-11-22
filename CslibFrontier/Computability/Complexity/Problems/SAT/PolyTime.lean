@@ -44,6 +44,8 @@ Together with `Cslib.Complexity.SAT.isVerifier`, this proves membership in `NP`
   `Cslib.Complexity.SAT.computableInPolyTime_vars_length`: literal, clause and
   variable-occurrence counts for natural-number variables, in unary (`fun_prop` versions of the
   generic `Cslib.Logic.PL.CNF` lemmas).
+* `Cslib.Complexity.computableInPolyTime_all_length_le`: checking that every clause has at most
+  `k` literals, the guard of `k`-SAT, is polynomial-time.
 * `Cslib.Complexity.SAT.mem_NP`: satisfiability belongs to NP.
 * `Cslib.Complexity.UNSAT_mem_coNP`: unsatisfiability belongs to coNP.
 
@@ -120,7 +122,11 @@ theorem computableInPolyTime_vars_length {α : Type} {input : α ↪ List Bool}
 theorem computableInPolyTime_assignment :
     ComputableInPolyTime (fun p : (CNF ℕ × List Bool) × ℕ => assignment p.1.1 p.1.2 p.2)
       (encPair (encPair encCNF encBits) encNat) encBool := by
-  fun_prop [assignment]
+  have hvars : ComputableInPolyTime (fun p : (CNF ℕ × List Bool) × ℕ => p.1.1.vars)
+      (encPair (encPair encCNF encBits) encNat) (encList encNat) := by fun_prop
+  have hindex := ComputableInPolyTime.idxOfWithInput hvars
+    (ComputableInPolyTime.snd (encPair encCNF encBits) encNat)
+  exact ComputableInPolyTime.bitsGetDWithInput (by fun_prop) hindex false
 
 /-- Evaluating a literal with the certificate assignment is polynomial-time. -/
 @[fun_prop]
@@ -128,7 +134,13 @@ theorem computableInPolyTime_literal :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × Literal ℕ => Literal.eval (assignment p.1.1 p.1.2) p.2)
       (encPair (encPair encCNF encBits) (encPair encNat encBool)) encBool := by
-  fun_prop [assignment]
+  apply Literal.computableInPolyTime_eval (encV := encNat) (by fun_prop)
+  have hinput : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × Literal ℕ) × ℕ => (p.1.1, p.2))
+      (encPair (encPair (encPair encCNF encBits) (encPair encNat encBool)) encNat)
+      (encPair (encPair encCNF encBits) encNat) := by fun_prop
+  exact computableInPolyTime_assignment.comp
+    (encIn := encPair (encPair (encPair encCNF encBits) (encPair encNat encBool)) encNat) hinput
 
 /-- Evaluating a clause with the certificate assignment is polynomial-time. -/
 @[fun_prop]
@@ -136,7 +148,14 @@ theorem computableInPolyTime_clause :
     ComputableInPolyTime
       (fun p : (CNF ℕ × List Bool) × Clause ℕ => Clause.eval (assignment p.1.1 p.1.2) p.2)
       (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encBool := by
-  fun_prop [assignment]
+  apply Clause.computableInPolyTime_eval (encV := encNat) (by fun_prop)
+  have hinput : ComputableInPolyTime
+      (fun p : ((CNF ℕ × List Bool) × Clause ℕ) × ℕ => (p.1.1, p.2))
+      (encPair (encPair (encPair encCNF encBits) (encList (encPair encNat encBool))) encNat)
+      (encPair (encPair encCNF encBits) encNat) := by fun_prop
+  exact computableInPolyTime_assignment.comp
+    (encIn := encPair (encPair (encPair encCNF encBits)
+      (encList (encPair encNat encBool))) encNat) hinput
 
 /-- The SAT verifier is polynomial-time, including on certificates of arbitrary length. -/
 @[fun_prop]
@@ -149,6 +168,15 @@ theorem mem_NP : SAT ∈ NP encCNF :=
   ⟨Polynomial.X, verifier, computableInPolyTime_verifier, isVerifier⟩
 
 end SAT
+
+open ComputableInPolyTime in
+/-- Checking that every clause has at most `k` literals is polynomial-time. -/
+@[fun_prop]
+theorem computableInPolyTime_all_length_le (k : ℕ) :
+    ComputableInPolyTime (fun φ : CNF ℕ => φ.all fun c => decide (c.length ≤ k)) encCNF
+      encBool := by
+  unfold encCNF
+  fun_prop
 
 /-- Unsatisfiability is in coNP. -/
 theorem UNSAT_mem_coNP : UNSAT ∈ coNP encCNF := by

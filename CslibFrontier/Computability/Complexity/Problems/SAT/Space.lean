@@ -127,7 +127,7 @@ theorem computableInPolySpace_numVars :
   have h : (fun φ : CNF ℕ => acceptCount SAT.distinctVerifier φ φ.numVars) = SharpSAT :=
     funext SAT.acceptCount_distinctVerifier
   rw [← h]
-  exact computableInPolySpace_acceptCount SAT.computableInPolyTime_distinctVerifier
+  exact computableInPolySpace_acceptCount (.of_polyTime SAT.computableInPolyTime_distinctVerifier)
     SAT.computableInPolyTime_numVars
 
 /-- Explicit space certificate for `SharpSAT`: there is a polynomially bounded space bound `S`
@@ -142,8 +142,8 @@ end SharpSAT
 /-- `SAT` lies in `PSPACE encCNF` by deterministic polynomial-space enumeration of all
 `2 ^ φ.numVars` assignments. -/
 theorem SAT.mem_PSPACE_of_enumeration : SAT ∈ PSPACE encCNF := by
-  refine mem_PSPACE_of_computableInPolySpace (f := fun φ : CNF ℕ => decide (0 < SharpSAT φ))
-    ?_ fun φ => by rw [SharpSAT.mem_SAT_iff, decide_eq_true_eq]
+  refine ⟨fun φ => decide (0 < SharpSAT φ), ?_, fun φ => by
+    rw [SharpSAT.mem_SAT_iff, decide_eq_true_eq]⟩
   have hpos : ComputableInPolyTime (fun n : ℕ => decide (0 < n)) encNat encBool := by fun_prop
   exact (ComputableInPolySpace.of_polyTime hpos).comp SharpSAT.computableInPolySpace_numVars
 
@@ -154,10 +154,9 @@ theorem UNSAT.mem_PSPACE_of_enumeration : UNSAT ∈ PSPACE encCNF :=
 /-- `USAT` lies in `PSPACE encCNF` by deterministic polynomial-space enumeration and checking
 `#SAT = 1`. -/
 theorem USAT.mem_PSPACE_of_enumeration : USAT ∈ PSPACE encCNF := by
-  refine mem_PSPACE_of_computableInPolySpace
-    (f := fun φ : CNF ℕ => decide (0 < SharpSAT φ) && decide (SharpSAT φ < 2)) ?_ fun φ => by
+  refine ⟨fun φ => decide (0 < SharpSAT φ) && decide (SharpSAT φ < 2), ?_, fun φ => by
     rw [SharpSAT.mem_USAT_iff, Bool.and_eq_true, decide_eq_true_eq, decide_eq_true_eq]
-    omega
+    omega⟩
   have heq1 : ComputableInPolyTime (fun n : ℕ => decide (0 < n) && decide (n < 2))
       encNat encBool := by fun_prop
   exact (ComputableInPolySpace.of_polyTime heq1).comp SharpSAT.computableInPolySpace_numVars

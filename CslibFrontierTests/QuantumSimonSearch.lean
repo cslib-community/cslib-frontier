@@ -78,9 +78,8 @@ example :
 example :
     3 / 4 < measureProb (run (simonAlg 3 E1 0) (simonInit 0) (simonInput E1 id) ((1 + 2) * 1))
       (simonFound 3 0) := by
-  refine (simonAlg_search_spec E1 0).2 _ _ ?_
-  rw [simonFun_simonInput]
-  exact (simonPromise_zero_iff _).mpr Function.injective_id
+  simp only [(simonAlg_search_spec E1 0).2, simonFun_simonInput,
+    (simonPromise_zero_iff _).mpr Function.injective_id]
 
 example (m : ℕ) :
     1 - 1 / 2 ^ m ≤ measureProb (run (simonAlg m E1 0) (simonInit 0) (simonInput E1 id) (m * 1))
@@ -113,14 +112,14 @@ example {N n : ℕ} (E : Fin N ≃ (Fin n → Bool) × Fin n) :
     ∃ μ : RandomizedDecisionTree (Fin N) (Fin n → Bool),
       ∀ X s, SimonPromise (simonFun E X) s → μ.errorProb (hiddenString E) X ≤ 1 / 3 := by
   obtain ⟨μ, hμ, -⟩ :=
-    exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) (by norm_num) (hiddenString E)
+    exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) (hiddenString E)
   exact ⟨μ, fun X _ _ => hμ X⟩
 
 -- So every such tree has depth at least `2^{n/2}`, and `R_{1/3}` of this total function too.
 example {N n : ℕ} (E : Fin N ≃ (Fin n → Bool) × Fin n) (hn : 1 ≤ n) :
     2 ^ n ≤ randomizedComplexity (1 / 3) (hiddenString E) ^ 2 := by
   obtain ⟨μ, hμ, hd⟩ :=
-    exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) (by norm_num) (hiddenString E)
+    exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) (hiddenString E)
   rw [← hd]
   exact simon_search_two_pow_le_depth_sq E μ _ (hiddenString_spec E) (fun X _ _ => hμ X) hn
 
@@ -151,7 +150,7 @@ example : hiddenStringOrOnes E1 (simonInput E1 id) ≠ 0 := by
 -- The lower bound for the problem with `s ≠ 0` applies to it.
 example {N n : ℕ} (E : Fin N ≃ (Fin n → Bool) × Fin n) (hn : 1 ≤ n) :
     2 ^ n ≤ (randomizedComplexity (1 / 3) (hiddenStringOrOnes E) + 2 * n) ^ 2 := by
-  obtain ⟨μ, hμ, hd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3) (by norm_num)
+  obtain ⟨μ, hμ, hd⟩ := exists_computes_depth_eq_randomizedComplexity (ε := 1 / 3)
     (hiddenStringOrOnes E)
   rw [← hd]
   exact simon_search_ne_zero_two_pow_le_sq E μ _ (hiddenStringOrOnes_spec E)

@@ -4,16 +4,20 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.MerkleDamgard
 import CslibFrontier.Crypto.Computational.MerkleTree.ROMExtract
+import CslibFrontierTests.Crypto.MerkleTestHash
 
 /-!
 # Tests for straight-line Merkle trace extraction in the random-oracle model
 
-Under an injective hash (`idHash`), a trace recording the hash evaluations along all four paths of
-a depth-two Merkle tree is collision-free, and `extractTableFromTrace` recovers all four leaves
-directly from the trace without rewinding. A partial trace recording only the path for position `2`
-recovers leaf `2` while leaving the unqueried sibling subtree as `none`. Under a colliding hash
+Under a sixteen-bit hash with no collisions on the words involved (`idHash`), a trace recording
+the hash evaluations along all four paths of a depth-two Merkle tree is collision-free, and
+`extractTableFromTrace` recovers all four leaves directly from the trace without rewinding. A
+partial trace recording only the path for position `2` recovers leaf `2` while leaving the
+unqueried sibling subtree as `none`. Under a colliding hash
 (`xorHash`), a trace recording both the honest tree and a colliding leaf at position `1` accepts
 both openings; because `extractLeafFromTrace` returns the first-recorded leaf `[false, true]`,
 `extractTraceCollision` on the conflicting opening `[true, true]` deterministically extracts a hash
@@ -21,9 +25,13 @@ collision from the trace. Finally, we check the random-oracle collision probabil
 concrete two-query `OracleComp` program.
 -/
 
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Crypto.ROMMerkleExtract
 
 open Cslib Cslib.Crypto Cslib.Probability OracleComp Turing.MultiTapeTM
+open CslibFrontierTests.Crypto.MerkleTestHash
 open scoped ENNReal
 
 /-- Four leaves in a tree of depth two. -/
@@ -32,8 +40,8 @@ abbrev leaves : List (List Bool) := [[true], [false, true], [true, false], [true
 /-- The key at security parameter `2`. -/
 abbrev key : List Bool := [false, true]
 
-/-- An injective hash returning its input unchanged. -/
-def idHash (_ x : List Bool) : List Bool := x
+/-- A keyed hash with sixteen-bit digests and no collisions among the words below. -/
+def idHash (_ x : List Bool) : List Bool := polyHash x
 
 /-- Record `(q, H k q)` for every hash input along `(leaf, i, path)`. -/
 def pathTrace (H : List Bool → List Bool → List Bool) (k : List Bool) (i : ℕ) (leaf : List Bool)
@@ -51,53 +59,55 @@ def fullTreeTrace (H : List Bool → List Bool → List Bool) (k : List Bool) :
 abbrev rtId : List Bool := merkleRoot idHash key leaves
 abbrev trId : List (List Bool × List Bool) := fullTreeTrace idHash key
 
-example : TraceConsistentWith (idHash key) trId := by decide
+example : TraceConsistentWith (idHash key) trId := by decide +kernel
 
-example : TraceCollisionFree trId := by decide
+example : TraceCollisionFree trId := by decide +kernel
 
 example : ∀ i : Fin 4,
     PathQueriedInTrace idHash key trId i (leaves.getD i [])
-      (merklePath idHash key leaves i) := by decide
+      (merklePath idHash key leaves i) := by decide +kernel
 
 -- Straight-line extraction recovers every leaf and the entire table from the query trace alone.
 example : ∀ i : Fin 4,
-    extractLeafFromTrace trId 2 rtId i = some (leaves.getD i []) := by decide
+    extractLeafFromTrace trId 2 rtId i = some (leaves.getD i []) := by decide +kernel
 
-example : extractTableFromTrace trId 2 rtId [] = leaves := by decide
+example : extractTableFromTrace trId 2 rtId [] = leaves := by decide +kernel
 
 -- Applying `extractLeafFromTrace_eq_some_of_merkleVerify` and
 -- `getD_extractTableFromTrace_eq_of_merkleVerify` to position `2`.
 example : extractLeafFromTrace trId 2 rtId 2 = some [true, false] :=
   extractLeafFromTrace_eq_some_of_merkleVerify (H := idHash) (k := key)
-    (path := merklePath idHash key leaves 2) (by decide) (by decide) (by decide)
+    (path := merklePath idHash key leaves 2) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel)
 
 example : (extractTableFromTrace trId 2 rtId []).getD 2 [] = [true, false] :=
   getD_extractTableFromTrace_eq_of_merkleVerify (H := idHash) (k := key)
-    (path := merklePath idHash key leaves 2) (by decide) (by decide) (by decide)
+    (path := merklePath idHash key leaves 2) (by decide +kernel) (by decide +kernel)
+    (by decide +kernel)
 
 /-! ### Partial trace: only queried paths are extracted -/
 
 abbrev trPartial : List (List Bool × List Bool) :=
   pathTrace idHash key 2 [true, false] (merklePath idHash key leaves 2)
 
-example : TraceCollisionFree trPartial := by decide
+example : TraceCollisionFree trPartial := by decide +kernel
 
 -- Position `2` is recovered because its path is in `trPartial`.
-example : extractLeafFromTrace trPartial 2 rtId 2 = some [true, false] := by decide
+example : extractLeafFromTrace trPartial 2 rtId 2 = some [true, false] := by decide +kernel
 
 -- Position `0` is in the unqueried left subtree (only its root digest appears as a sibling),
 -- so `extractLeafFromTrace` returns `none` and `extractTableFromTrace` falls back to `defaultLeaf`.
-example : extractLeafFromTrace trPartial 2 rtId 0 = none := by decide
+example : extractLeafFromTrace trPartial 2 rtId 0 = none := by decide +kernel
 
 example : (extractTableFromTrace trPartial 2 rtId [false, false]).getD 0 [false, false] =
-    [false, false] := by decide
+    [false, false] := by decide +kernel
 
 /-! ### Dual collision extraction under colliding hashes -/
 
-/-- A toy hash that maps `[true, true]` to `[false, true]` and acts as the identity elsewhere,
+/-- A toy hash that hashes `[true, true]` as `[false, true]` and acts as `idHash` elsewhere,
 creating a single leaf collision between `[false, true]` and `[true, true]`. -/
 def collideLeavesHash (_ x : List Bool) : List Bool :=
-  if x == [true, true] then [false, true] else x
+  polyHash (if x == [true, true] then [false, true] else x)
 
 abbrev rtCollide : List Bool := merkleRoot collideLeavesHash key leaves
 abbrev pathCollide1 : List (List Bool) := merklePath collideLeavesHash key leaves 1
@@ -108,31 +118,37 @@ abbrev trCollide : List (List Bool × List Bool) :=
   pathTrace collideLeavesHash key 1 [false, true] pathCollide1 ++
     pathTrace collideLeavesHash key 1 [true, true] pathCollide1
 
-example : TraceConsistentWith (collideLeavesHash key) trCollide := by decide
+example : TraceConsistentWith (collideLeavesHash key) trCollide := by decide +kernel
 
 -- Because `[false, true]` and `[true, true]` both hash to `[false, true]`, the combined trace is
 -- not collision-free.
-example : ¬ TraceCollisionFree trCollide := by decide
+example : ¬ TraceCollisionFree trCollide := by decide +kernel
 
 -- Both `[false, true]` and `[true, true]` verify at position `1` with all path queries in
 -- `trCollide`.
 example : merkleVerify collideLeavesHash key 2 rtCollide 1 [true, true] pathCollide1 = true := by
-  decide
+  decide +kernel
 
 example : PathQueriedInTrace collideLeavesHash key trCollide 1 [true, true] pathCollide1 := by
-  decide
+  decide +kernel
 
 -- The straight-line extractor returns the first-recorded leaf `[false, true]`, disagreeing with
 -- the second valid opening `[true, true]`.
-example : extractLeafFromTrace trCollide 2 rtCollide 1 = some [false, true] := by decide
+example : extractLeafFromTrace trCollide 2 rtCollide 1 = some [false, true] := by decide +kernel
 
-example : extractLeafFromTrace trCollide 2 rtCollide 1 ≠ some [true, true] := by decide
+example : extractLeafFromTrace trCollide 2 rtCollide 1 ≠ some [true, true] := by decide +kernel
+
+-- Edge case: when the opened leaf agrees with the trace, `extractTraceCollision` returns the
+-- default empty pair `([], [])`.
+example :
+    extractTraceCollision idHash key trId 2 [true, false]
+      (merklePath idHash key leaves 2) = ([], []) := by decide +kernel
 
 -- `extractTraceCollision` deterministically extracts the colliding pair
 -- `([true, true], [false, true])`.
 example :
     extractTraceCollision collideLeavesHash key trCollide 1 [true, true] pathCollide1 =
-      ([true, true], [false, true]) := by decide
+      ([true, true], [false, true]) := by decide +kernel
 
 example :
     let col := extractTraceCollision collideLeavesHash key trCollide 1 [true, true] pathCollide1
@@ -141,7 +157,7 @@ example :
       col.1 ≠ col.2 ∧
       collideLeavesHash key col.1 = collideLeavesHash key col.2 :=
   extractTraceCollision_spec (H := collideLeavesHash) (k := key) (d := 2) (rt := rtCollide)
-    (by decide) (by decide) (by decide) (by decide)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
 /-- A toy keyed hash that XORs the first two `k.length`-bit blocks of its input. -/
 def xorHash (k x : List Bool) : List Bool :=
@@ -181,5 +197,56 @@ example (m : ℕ) :
       twoQueryProg).run []).toOuterMeasure {x | ¬ TraceCollisionFree x.2} ≤
       (2 : ℝ≥0∞) * ((2 : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ m)) :=
   toOuterMeasure_run_memoize_not_traceCollisionFree_le m isQueryBounded_twoQueryProg
+
+/-! ### Polynomial-time certificates for straight-line trace extraction and collision finding -/
+
+/-- A polynomial-time length-regular keyed hash returning its key. -/
+def keyProjectionHash (k _ : List Bool) : List Bool := k
+
+theorem computableInPolyTime_keyProjectionHash :
+    ComputableInPolyTime (fun p : List Bool × List Bool => keyProjectionHash p.1 p.2)
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.fst encBits encBits
+
+example (d : ℕ) :
+    ComputableInPolyTime
+      (fun p : (List (List Bool × List Bool) × List Bool) × ℕ =>
+        extractLeafFromTrace p.1.1 d p.1.2 p.2)
+      (encPair (encPair encMerkleTrace encBits) encUnary) (encOption encBits) := by
+  fun_prop
+
+example (d : ℕ) :
+    ComputableInPolyTime
+      (fun p : (List (List Bool × List Bool) × List Bool) × List Bool =>
+        extractTableFromTrace p.1.1 d p.1.2 p.2)
+      (encPair (encPair encMerkleTrace encBits) encBits) (encList encBits) := by
+  fun_prop
+
+example :
+    ComputableInPolyTime
+      (fun p : ((List Bool × List (List Bool × List Bool)) × ℕ) × (List Bool × List (List Bool)) =>
+        extractTraceCollision keyProjectionHash p.1.1.1 p.1.1.2 p.1.2 p.2.1 p.2.2)
+      (encPair (encPair (encPair encBits encMerkleTrace) encUnary)
+        (encPair encBits (encList encBits)))
+      (encPair encBits encBits) :=
+  computableInPolyTime_extractTraceCollision computableInPolyTime_keyProjectionHash
+    (fun _ _ => rfl) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+
+example :
+    ComputableInPolyTime
+      (fun p : List Bool × List (List Bool × List Bool) =>
+        decide (TraceConsistentWith (keyProjectionHash p.1) p.2))
+      (encPair encBits encMerkleTrace) encBool :=
+  computableInPolyTime_decide_traceConsistentWith computableInPolyTime_keyProjectionHash
+    (by fun_prop) (by fun_prop)
+
+example :
+    ComputableInPolyTime
+      (fun p : ((List Bool × List (List Bool × List Bool)) × ℕ) × (List Bool × List (List Bool)) =>
+        decide (PathQueriedInTrace keyProjectionHash p.1.1.1 p.1.1.2 p.1.2 p.2.1 p.2.2))
+      (encPair (encPair (encPair encBits encMerkleTrace) encUnary)
+        (encPair encBits (encList encBits))) encBool :=
+  computableInPolyTime_decide_pathQueriedInTrace computableInPolyTime_keyProjectionHash
+    (fun _ _ => rfl) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
 
 end CslibFrontierTests.Crypto.ROMMerkleExtract

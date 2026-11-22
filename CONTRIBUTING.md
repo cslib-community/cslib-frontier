@@ -56,6 +56,9 @@ certified efficiency, and security in declaration docstrings.
 For documentation-only changes, check links, claims against source, and Lean examples with the
 imports shown. Record the scope of validation and review accurately.
 
+Prepare the PR using the [writing guidance](AGENTS.md#writing-in-issues-and-prs) and
+[template](.github/pull_request_template.md), adapting the explanation to the reader and change.
+
 ## Library quality standard
 
 The bar is Mathlib's [style guidelines](https://leanprover-community.github.io/contribute/style.html)
@@ -100,11 +103,19 @@ Mathlib's standard linter set already enforces the mechanical part; reviews enfo
    Preserve existing guarantees when rewriting tests: exact bounds or probabilities must not
    become weaker inequalities, and regression cases must not become tautologies.
 
+For changed APIs and reuse refactors, authors and reviewers
+[check the API through its callers](AGENTS.md#check-the-api-through-its-callers): inspect named
+access, semantic matcher/range facts, shared operational definitions, representation bridges and
+the intended public surface. Identify a representative caller that benefits, with evidence
+proportional to the change; a successful build alone does not establish these design properties.
+
 **Structures for domain objects and records**
 ([#4385](https://github.com/cslib-community/cslib-frontier/issues/4385)). Model domain objects,
 problem instances, certificates, configurations, and multi-field algorithm contexts, states or
 records as documented `structure`s with named, documented fields, and declare their field-tuple
 encodings with `enc_structure` ([AGENTS.md](AGENTS.md#structures-for-domain-objects-and-records)).
+A migration keeps the encoded words, with a checked equality; a left-grouped tuple needs nested
+sub-records or `encOfEquiv` ([encoding rule 5](AGENTS.md#encodings-in-statements)).
 Do not introduce tuple type synonyms such as
 `abbrev HittingSetInstance := (List ℕ × List (List ℕ)) × ℕ` or bare-product problem sets such as
 `Set (List (ℕ × ℕ) × ℕ × ℕ)` or `Set (Graph × ℕ)`. Named fields document the mathematical
@@ -147,8 +158,12 @@ Two places keep projections, as standing exceptions:
 `scripts/check_projection_chains.py` counts the chains of depth 2 or more in each module's public
 statements and public definition bodies, leaving out proofs, these two exceptions and named
 accessors. CI fails a pull request when a module it changes has more chains than its entry in
-`scripts/projection_chains_baseline.json`; a new module starts at 0. Fewer chains pass, and
-`--update-baseline` lowers the entry. `--list PREFIX` shows the remaining chains of an area.
+`scripts/projection_chains_baseline.json`, or than it had at the merge base unless the pull request
+raises the entry; a new module starts at 0. Removing chains needs no baseline edit, which keeps
+pull requests from colliding on neighbouring lines of the baseline in the merge queue; a periodic
+`--update-baseline --all` prunes stale entries. Edit the baseline only to raise an entry on
+purpose, as for a moved module (`--update-baseline --allow-increase`). `--list PREFIX` shows the
+remaining chains of an area.
 
 **Readable encodings** ([#1656](https://github.com/cslib-community/cslib-frontier/issues/1656)).
 An encoding is part of what a statement claims, so statements show it; they should not make the
@@ -176,6 +191,112 @@ argument can read `CNF V` on one side and `List (List (V × Bool))` on the other
 Improving an interface never weakens the mathematics: keep the models, encodings, independent
 resource bounds and nonvacuity of the results it touches.
 
+**Security premises** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+A security theorem assumes nothing about an object that its proof constructs, from the adversary
+or not ([AGENTS.md](AGENTS.md#security-theorems)). After a build,
+`python3 scripts/check_security_premises.py` reads the elaborated statements of the public Crypto
+theorems from the `.olean` files. It flags each premise that is `Negligible …`, an advantage
+inequality, a class membership (`… ∈ 𝒟` or `Admissible …`), an `IsPPT…` predicate or an
+indistinguishability predicate about a reduction, distinguisher, simulator, extractor, key
+generator or other program defined in the Crypto tree, or about a distribution or game that such
+a definition builds from an adversary or scheme structure, directly or through a predicate applied
+to it. It also flags an advantage bound that holds only for parameters an `∃` chooses for such a
+program, and a *realization*: an equation saying that a variable which another premise makes
+efficient or admissible computes such a program applied to another variable. That is how a
+theorem takes the reduction from the caller, as the Carter–Wegman theorems that #5347 deleted did
+with `hD : IsOraclePPT encBool D` and
+`hreal : eval (prfRealGame family D n) = … nonceFnDistinguisher … (forger n)`. Games,
+experiments, advantages, ideal laws, encodings and the theorem's own variables never count.
+
+The scan is advisory. It points a reviewer at premises about a constructed object, and a hit is a
+prompt to open the statement, not a debt. On a pull request CI prints, without failing, the hits
+in the changed modules that `scripts/security_premises_baseline.json` does not record and the
+entries there that no longer match; merge groups and pushes print every difference. A baseline
+entry is a note that a hit is known (an algebraic helper whose name and docstring say so, a
+premise that the rule allows but the scan cannot tell apart, or a misformalization tracked under
+#5293). It is not a clearance, and the number of entries does not measure progress.
+`--update-baseline` records the hits of the changed modules, each with a `why`; `--list` shows
+every hit; `--base REF` without `--advisory` enforces the baseline locally.
+
+The scan supplements review: a clean run is not evidence that a security theorem is right. It
+does not judge vacuous or misdefined notions, games and assumptions; a wrong or nonstandard
+assumption, such as an MLWE variant without the short secrets that ML-KEM's security needs;
+anything outside `Cslib.Crypto`; or names and docstrings that overclaim. Its rules are syntactic
+over elaborated terms, so it also misses a premise whose definition builds the constructed object
+in its own body, a distribution applied only to numbers or functions (such as a key law at fixed
+parameters), a bound without an advantage-named constant, a caller-supplied object whose existence
+the theorem should prove, and a realization stated other than as an equation (an inequality, a
+predicate of the library or a bundled program).
+
+**Reduction witnesses** ([#5293](https://github.com/cslib-community/cslib-frontier/issues/5293)).
+Each explicit reduction has an efficiency witness ([AGENTS.md](AGENTS.md#security-theorems)). After
+a build, `python3 scripts/check_reduction_witnesses.py` finds the *reductions*: the Crypto
+definitions that yield a program (a `ProbComp`, `OracleComp` or `PMF`, or a structure of these) and
+that a public theorem uses on the bounding side of an advantage bound, applied to a program variable
+of the bounded side, as `B` in `Adv(scheme, A) ≤ Adv(problem, B A)`. A reduction is certified when a
+theorem concludes an efficiency certificate that mentions it (`IsPPT…`, `IsOraclePPT…`,
+`ComputableIn…` and similar; a query bound does not count), when it is an `abbrev` of certified
+reductions, or when a certified definition such as its word-level program applies it.
+
+The scan is advisory, as the premise scan is: it points a reviewer at reductions with no
+efficiency certificate, and CI prints the differences from
+`scripts/reduction_witnesses_baseline.json` in the changed modules without failing. An uncertified
+reduction is a prompt to look, not a debt. A hardness assumption stated for a fixed efficient
+adversary class cannot be applied to it without a certificate, so what the reviewer checks is the
+theorem that uses it. The baseline notes the known ones, one per line: a `gap` has no witness and
+names the issue that tracks it; an `exempt` entry needs none (an information-theoretic bound, or
+a definition that is not a reduction, such as a scheme built from a component); a
+`via_certified_program` entry names a certified program that runs the reduction, the program's
+witness, an equation between the two laws and the headline that applies the assumption to the
+program, which the Lean pass looks up and `--report` lists. The script's docstring gives the
+fields and what the pass does and does not verify. An entry is not a clearance, and the counts by
+kind do not measure progress: do not open a pull request whose purpose is to move entries between
+kinds. `--list` shows every reduction with its certificate. The scan does not see a reduction
+written inline in a bound, a bound without an advantage-named constant, a simulator or extractor
+on the bounded side, or an attack, and it does not judge whether a witness assumes only the
+adversary's certificate; review covers these.
+
+**Named assumptions** ([#5578](https://github.com/cslib-community/cslib-frontier/issues/5578)). Each
+named assumption that a Crypto theorem takes belongs in the
+[assumptions inventory](manual/programs-crypto-and-probability/assumptions.md) as *standard* (its
+docstring cites the source definition with a checked locator and names every deviation), *novel*
+(its docstring says "novel to this library" and how it relates to standard assumptions) or
+*vocabulary* (a generic notion parameterized by the objects whose security it states, never a
+primitive's own security notion) ([AGENTS.md](AGENTS.md#security-theorems)). After a build,
+`python3 scripts/check_hardness_assumptions.py` finds every premise of a public Crypto theorem
+headed by a Prop-valued declaration whose definition mentions negligibility, an advantage or
+indistinguishability, whatever the declaration's own name, and checks it against the inventory. It
+fails on an unlisted assumption, a malformed or duplicate row, a standard row without a
+`references.bib` key, and a missing nonvacuity test that a row links. It also fails on a standard
+assumption whose docstring cites none of its row's keys, a novel one whose docstring does not say
+"novel to this library", a row of any status whose locator is "not verified", a theorem resting on a
+novel assumption whose name does not mention it or whose docstring presents a cited result (cites a
+key, or says "theorem" or opens with a bold title in its first sentence) without its first sentence
+saying "step" or "helper", and a results-inventory entry that lists such a theorem. The existing
+gaps of these kinds are recorded, each with a justification, in
+`scripts/hardness_assumptions_baseline.json`, which only shrinks: an entry that no longer matches
+fails as well. The check covers the whole library, so pull requests and merge groups both enforce
+it, and a merge group in which two pull requests conflict only in meaning (say, both register the
+same assumption) ejects the later one instead of landing it; pushes to `main` only report. To
+register a new assumption, add its row, cite its source in its docstring, and link a nonvacuity test
+where one is easy; `--list` prints the theorems that rest on each assumption. A row drops "locator
+not verified" only in a pull request whose body records the source check, confirmed by its reviewer.
+The check does not judge whether a definition matches its source, whether a locator is right, or
+whether a theorem that claims a cited result rests on the source's assumption with the source's
+instance; review does. Nor does it see a cited result named without a bibliography key, the word
+"theorem" or a bold title in the docstring's first sentence, or one claimed only by a theorem's
+name. Conversely, an original result on a novel assumption, which the rule allows, is flagged when
+its docstring cites a key, or says "theorem" or opens with a bold title in its first sentence; it
+then passes only through a justified baseline entry. The inventory is not complete, because the
+reader misses two kinds of assumption: a premise written inline (a hypothesis
+`∀ A, Negligible (advantage A)`), and an assumption whose definition reaches no security atom
+through Prop-valued declarations within five levels, such as a bound on a quantity not named like
+an advantage or an advantage behind a helper that is not Prop-valued. A row for one fails, so these
+are not listed. The known cases are `MildlyHardOnAverage` and `MildlyHardOnAverageENat` (the
+Liu–Pass converse), `Pseudoentropy.SamplablePair.HasGap` and `HasGapWithAdvice`, and
+`Circuits.Boolean.IsAverageCaseHard` (Nisan–Wigderson); the inventory page names them in full
+(#5578 finding 9).
+
 ### Algorithms are programs
 
 Probabilistic algorithms, such as key generation, signing, provers, verifiers, simulators,
@@ -198,6 +319,13 @@ generates the equation lemma `f.eq_1`, whose statement is the body, and stores i
 file even when `f` is private (Lean v4.36; `unfold f`, `dsimp only [f]` and `rfl` did not in our
 tests, [#4243](https://github.com/cslib-community/cslib-frontier/issues/4243)). `import all` also
 loads private information, so such edits do reach its clients.
+
+Evidence that a public API is usable must include a representative `module` client with ordinary
+imports of that API, exercising intended operations through exposed bodies or public equations.
+[QuantumOracleModule.lean](CslibFrontierTests/QuantumOracleModule.lean) is an example.
+A test without `module`, or using `import all` for that API, has broader access and cannot
+establish usability for ordinary clients. Intentional internal, metaprogramming and axiom tests
+keep their documented access and supplement this representative evidence.
 
 - **What is a helper.** A helper is proof plumbing: a step meaningful only inside one proof, or a
   fact about a module-local construction, encoding or intermediate quantity. Helpers are `private`
@@ -242,8 +370,8 @@ Tidy computability (`ComputableTidily…`, `ComputesTidily…`, `IsTidy…`) may
 proofs, through `.tidy`, `.of_tidy`, a proof-local `attribute [local fun_prop] … in` or a tidy
 `have`. It never appears in a public statement: a theorem's type, or a definition's type, exposed
 body or fields. Only the raw machine constructions in `scripts/tidy_allowlist.txt` are exempt.
-CI enforces this with `scripts/check_tidy_surface.py`. The existing tidy statements, which #456 is
-restating, are counted per module in `scripts/tidy_surface_baseline.json`, and CI fails when a
+CI enforces this with `scripts/check_tidy_surface.py`. The existing tidy statements, which #862 is
+removing, are counted per module in `scripts/tidy_surface_baseline.json`, and CI fails when a
 module's count differs from its entry. When you remove some, lower the baseline in the same PR
 with `python3 scripts/check_tidy_surface.py --update`, so that they cannot come back. Until your
 PR lands, any other merge that removes tidy statements makes your baseline stale: rebase and
@@ -264,6 +392,14 @@ when focused local checks or hosted CI supply the required evidence. `scripts/bu
 elaboration with `scripts/cache/ensure.sh`; retry for missing outputs or changed dependencies,
 not merely a new commit with warm artifacts. See the
 [cache guide](scripts/cache/README.md#automatic-restoration) for actual retries and opt-out.
+
+For ordinary edits, use editor/MCP diagnostics or a targeted
+`scripts/build.sh <modules and representative clients> --wfail --iofail`. At a local checkpoint,
+use `scripts/check.sh --quick --no-full-fallback`. Status 3 means quick mode cannot plan the
+change: run the relevant focused checks and use hosted CI for full validation. Run a full local
+`scripts/check.sh` only when explicitly requested or hosted coverage is unavailable; do not
+repeat it after successful CI covering the final revision. The restored-source audit belongs to
+the validation helpers and recovers missing warning/info logs; ordinary builds still reuse caches.
 
 The test suite audits the axiom dependencies of every declaration stored in imported `CslibFrontier`
 modules. Named `#print axioms` checks are added only for results meant to depend on fewer axioms
@@ -292,7 +428,8 @@ candidate modules). After a build,
 `python3 scripts/check_changed_files.py` checks the files your branch adds or changes: each name
 listed in a module docstring's "Main …" sections must exist, a new test file must do more
 than restate signatures with `example … := name`, and an `@[expose] … section` header must have a
-definition to expose. CI runs both, and also
+definition to expose; `--source-only` runs the last two without build outputs, as
+`scripts/check.sh --quick` does. CI runs both, and also
 `python3 scripts/check_encoding_readability.py`, the ratchet on repeated compound encodings in
 public statements and check against compound-encoding `local notation`s
 ([#1656](https://github.com/cslib-community/cslib-frontier/issues/1656)). It
@@ -305,9 +442,15 @@ options. On pull requests CI also runs
 public definitions sharing a large anonymized subterm with an existing one, or merely renaming one.
 With `--theorems` it lists new or changed theorems, private ones included, whose statement another
 library theorem or a Lean core, Batteries, Mathlib or cslib theorem already has, up to binder names,
-universe levels, the order of hypotheses and instance arguments, and the notations `≥`, `>`, `≠`;
+universe levels, the order of hypotheses and instance arguments, and the notations `≥`, `>`, `≠`.
+It also handles reversed equalities and built-in list lookup by a `Fin` index versus its natural
+value, ignoring that lookup's bounds proof while retaining the list and index. It does not unfold
+arbitrary definitions or custom indexing instances, or match specializations of a general theorem.
 CI runs that notice too. `--all` examines the whole library: `python3 scripts/parallel_defs.py
 --theorems --all --limit 1000` lists every such group, the candidates of #949 item A.2.
+The reports link project declarations at the checked revision and disclose skipped or incomplete
+comparisons. Reviewers inspect the notices and resolve relevant candidates before approval under
+[the review cycle](AGENTS.md#review-cycle); a successful advisory exit alone is not a clean audit.
 On pull requests CI also runs a third advisory notice, `python3 scripts/proof_copies.py`, which
 reads only the sources. It lists tactic blocks of four or more lines, on lines a change adds or
 modifies, that repeat a block of another proof, or of the same proof, in the same file or
@@ -346,7 +489,8 @@ findings without requiring a duplicate local run.
 
 Keep each fact in one maintained location. The README explains the purpose and points to useful
 entry points; module docstrings explain the mathematics and API; checked Lean examples show usage.
-ROADMAP lists accepted directions only, grouped by area.
+ROADMAP lists accepted directions only: `ROADMAP.md` holds the programs and an index, and each area
+has its own file under `roadmap/`, so that changes in different areas do not conflict.
 Each entry states one direction's scope in a few sentences, one sentence per line, with its issue
 linked inline as `[#N](https://github.com/cslib-community/cslib-frontier/issues/N)`.
 Status and progress live on issues and PRs, so a PR edits ROADMAP only when it opens or closes a
@@ -383,31 +527,35 @@ run the documentation checks and builds.
 
 ### Maintaining the manuals
 
-Every change must assess its effect on both manuals. Changes to a model,
-encoding, theorem hypothesis or bound, public API, import, tactic, dependency, build command or
-development procedure must update the affected instructions and reference material in the same
-change. Changes to agent roles, delegation, review, coordination or human direction must update
-the affected Agent Operator's Manual instructions too. If no edit is needed for one or both
-manuals, give a short, concrete reason in the PR's Manual impact
-section, or in the commit description when there is no PR. This assessment is required; needless
-text changes are not. Update the assessment when the scope changes, and keep its evidence in one
-place.
+The manuals' pages fall into three groups.
 
-Write the Operator's Manual as a user manual in the ordinary sense: a human with basic Lean,
-editor and terminal skills
-should be able to set up the library, complete a first example, choose an appropriate model,
-apply its API, diagnose a failed attempt, validate a change and prepare it for review. Assume no
-agent tools or prior conversation. Each procedure should state its prerequisites and starting
-point, give the necessary commands or code with their context, describe the expected result,
-and explain how to check it and recover from likely failures. Include the model, encoding and
-resource conventions that affect the user's choice, and explain particular proof considerations
-where they teach a reusable method or a model boundary. Agents should be able to consult this
-maintained account without repeating the investigation or relying on earlier conversations.
-Keep the Agent Operator's Manual short and directed at the person driving the agents; put
-participant procedures in the Operator's Manual and historical evidence in its supplement.
-Place a new section where its topic belongs in a chapter rather than at the end: sections that
-concurrent PRs append at the same place conflict in the merge queue. Put a new algorithm endpoint
-on the matching topic page listed under `manual/algorithms-and-memory/index.md`, in topic order.
+- **Registries** are kept current: the
+  [assumptions inventory](manual/programs-crypto-and-probability/assumptions.md), checked by
+  `scripts/check_hardness_assumptions.py`; the
+  [bibliography and pinned revisions](manual/sources.md); and the
+  [results inventory](results/README.md). A PR that changes a fact a registry records updates
+  the registry in the same change.
+- **Procedure pages** are updated only when a procedure or role changes: `manual/workflows/` and
+  `README.md`, `BUILD.md`, `COMMANDS.md`, `MAINTAINING.md` and `AGENT_OPERATORS.md` in `manual/`.
+  A PR that changes a build or validation command, a development or review procedure, or an agent
+  role, delegation or handoff rule updates the page that describes it in the same change.
+- **Reference chapters** are frozen: `manual/index.md`, `manual/model-map.md` and every other page
+  of `manual/design-and-assurance/`, `manual/machines-and-classes/`,
+  `manual/circuits-logic-and-other-models/`, `manual/programs-crypto-and-probability/` and
+  `manual/algorithms-and-memory/`. PRs do not update or review them and nobody keeps them current;
+  the Lean source, its docstrings and the API documentation are authoritative. `manual/history/`
+  is a dated record.
+
+A change explains itself in the docstring's mapping from statement to source and in the PR
+description ([policy/statements.md](policy/statements.md),
+[policy/workflow.md](policy/workflow.md#writing-in-issues-and-prs)), not in the manual.
+
+Write a procedure so that a human with basic Lean, editor and terminal skills can follow it
+without agent tools or prior conversation: state its prerequisites and starting point, give the
+commands or code with their context, describe the expected result, and explain how to check it
+and recover from likely failures. Keep the Agent Operator's Manual short and directed at the
+person driving the agents; put participant procedures in the Operator's Manual. Review of a
+changed procedure page follows it from its documented starting point.
 
 Keep executable Lean examples in `CslibFrontierTests/` or the checked Verso guide and link their
 complete source, including imports and local context. Use checked excerpts rather than a second
@@ -415,24 +563,14 @@ independently maintained copy. Check new or changed examples with Lean; source c
 does not establish that an example elaborates. The live checker and its controls are required
 in CI and in both full and quick `scripts/check.sh` runs. For documentation-only validation, run
 `python3 scripts/check_operator_manual.py` and `python3 scripts/test_operator_manual.py`
-directly; they use only Python and need no generated data or publishing tools. See the manual's
-build instructions for PDF generation; inspect affected rendered pages when changing its content
-or rendering. The **Operator's Manual PDFs** workflow builds both books for pull requests that
-change the manual or its scripts, so rendered pages can be inspected without local TeX tools.
+directly; they use only Python and need no generated data or publishing tools. The checker does
+not check a frozen chapter's links to Lean source or to maintained pages, so no edit elsewhere
+forces a change to one. See the manual's build instructions for PDF generation; inspect rendered
+pages when changing the converter or layout. The **Operator's Manual PDFs** workflow builds both
+books for pull requests that change the manual or its scripts.
 Generated LaTeX, PDFs and research exports stay untracked; retain their scripts and
 maintained source inputs. Keep historical measurements and transcript evidence explicitly dated;
 do not present their frozen counts as current library state.
-
-Impact on both manuals is a mandatory part of independent review before integration, and
-coordinators are responsible for ensuring that this review happens. The reviewer checks
-the assessment against the final revision, including the reason for no edit when applicable.
-For an affected procedure, follow the documented starting point, inspect or run the example and
-its validation as appropriate, and check that a human can understand the outcome and next step.
-Check relevant API names, imports, assumptions, resource bounds, source credit and recovery
-instructions, as well as affected role, delegation and handoff guidance. Record the verdict with
-the existing code review; an additional reviewer is needed
-only for an uncovered question. Compilation, excerpt checks and a completed PR field do not by
-themselves establish that the manual is usable or correct.
 
 ## Upstreaming
 
@@ -499,22 +637,26 @@ not a decision.
   Algolean register models, and with the merged [#401](https://github.com/leanprover/cslib/pull/401).
 * **PAC learning.** `PACLearning/Realizable` is an unchanged copy of
   [#858](https://github.com/leanprover/cslib/pull/858).
-  [#966](https://github.com/leanprover/cslib/pull/966) would make `sampleComplexity` and `vcDim`
-  `ℕ∞`-valued; if it lands, restate the bounds in `FiniteClass`, `VCUpperBound`,
-  `AgnosticFiniteClass` and `GrowthFunction`. Before submission, reconcile names with
-  [`feat/pac-learning-ehkv-headline`](https://github.com/SamuelSchlesinger/cslib/tree/feat/pac-learning-ehkv-headline),
-  which proves the EHKV `Ω(d/ε)` lower bound; do not reprove it locally.
+  `PACLearning/VCDimension` uses the extended VC dimension `evcDim` from
+  [#966](https://github.com/leanprover/cslib/pull/966). When the pin adopts it, remove the local
+  definition and order lemmas, use the upstream finite-dimension bridge, and migrate the natural
+  sample-complexity and dimension arguments in `FiniteClass`, `VCUpperBound`,
+  `AgnosticFiniteClass`, `AgnosticVC` and `GrowthFunction`. `PACLearning/SampleComplexityLower*`
+  vendors the EHKV `Ω(d/ε)` lower bound from
+  [`feat/pac-learning-ehkv-headline`](https://github.com/SamuelSchlesinger/cslib/tree/feat/pac-learning-ehkv-headline);
+  submit or update it through that branch, not as a competing copy, and reconcile `VCLowerBound`
+  and `FundamentalTheorem` with its names before submitting them.
 * **Tree decompositions.** Upstream `SimpleGraph/TreeDecomposition` through Justin Lai's
   [mathlib4#38334](https://github.com/leanprover-community/mathlib4/pull/38334),
   [#39939](https://github.com/leanprover-community/mathlib4/pull/39939) and
   [#39864](https://github.com/leanprover-community/mathlib4/pull/39864), not as a competing
   candidate; the module docstring records the differences. Renaming to match the unmerged PRs is
   not required.
-* **Oracle codes.** Upstream `Foundations/Computability/RecursiveInCode` by reconciling with
+* **Oracle codes.** Upstream `Foundations/Computability/{RecursiveInCode,RecursiveInEvalnPrimrec,KleenePost,KleenePostJump}` by reconciling with
   [mathlib4#38973](https://github.com/leanprover-community/mathlib4/pull/38973) (oracle codes, a
   relativized `evaln` and the jump), not by competing with it; the module docstring records the
-  design differences. The prefix-based `evaln`, the use principle and `KleenePost` are what that PR
-  lacks.
+  design differences. The prefix-based `evaln`, the use principle and `KleenePost` / `KleenePostJump`
+  are what that PR lacks.
 * **Withdrawn submissions.** The redos of
   [#1099](https://github.com/leanprover/cslib/pull/1099)–[#1101](https://github.com/leanprover/cslib/pull/1101)
   (`Circuit/Boolean/{PPoly,MachineSimulation,PolynomialTime}`) should answer the review requests

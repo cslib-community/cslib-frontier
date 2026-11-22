@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.FairCoin.PairedPorts
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.SmallSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
 import CslibFrontier.Foundations.Data.List.OfFnGetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
@@ -36,10 +36,7 @@ from `FairCoin.PairedPorts` on the resulting `O(log L)`-bit summary via
 
 ## Main results
 
-* `Turing.MultiTapeTM.comp_logSpace_of_length_log`: composition of a logarithmic-output-length
-  `ComputableInLogSpace` producer with a linear-space `ComputableInSpace` consumer.
-* `Turing.MultiTapeTM.computableInLogSpace_bitsLength`,
-  `Turing.MultiTapeTM.computableInLogSpace_natBitLength`,
+* `Turing.MultiTapeTM.computableInLogSpace_natBitLength`,
   `Turing.MultiTapeTM.computableInLogSpace_bitsGetElem?`: general logarithmic-space word and
   bit-length queries.
 * `Turing.MultiTapeNTM.ConfigurationGraph.computableInLogSpace_clockedVertexBound`,
@@ -57,85 +54,6 @@ public section
 namespace Turing.MultiTapeTM
 
 open CounterProgram CounterProgram.Instr CounterProgram.Expr ComputableInSpace
-
-/-! ### Composing logspace functions of logarithmic output length with linear-space functions -/
-
-/-- Compose a `ComputableInLogSpace` producer whose encoded output has logarithmic length with a
-`ComputableInSpace` consumer running in space linear in its input length. -/
-theorem comp_logSpace_of_length_log {α β γ : Type}
-    {encIn : α ↪ List Bool} {encMid : β ↪ List Bool} {encOut : γ ↪ List Bool}
-    {f : α → β} {g : β → γ}
-    (hf : ComputableInLogSpace f encIn encMid)
-    (hlen : ∃ C, ∀ a, (encMid (f a)).length ≤ C * (Nat.log2 (encIn a).length + 1))
-    (hg : ComputableInSpace g encMid encOut fun b => (encMid b).length) :
-    ComputableInLogSpace (fun a => g (f a)) encIn encOut := by
-  obtain ⟨C, hC⟩ := hlen
-  obtain ⟨tf, cf, hf⟩ := hf
-  obtain ⟨tg, cg, hg, -⟩ := hg
-  obtain ⟨c, h⟩ := hf.comp_space hg
-  refine ⟨_, c * (cf + cg * (C + 1) + 2 + (C + 1) + 1),
-    h.mono (fun _ => le_rfl) fun a => ?_⟩
-  dsimp only
-  let L := Nat.log2 (encIn a).length + 1
-  have hL : 1 ≤ L := Nat.le_add_left _ _
-  have hCa : (encMid (f a)).length ≤ C * L := hC a
-  have hm_len : (encMid (f a)).length + 1 ≤ (C + 1) * L :=
-    calc (encMid (f a)).length + 1
-        ≤ C * L + L := Nat.add_le_add hCa hL
-      _ = (C + 1) * L := by ring
-  have hm_bits : (encNat ((encMid (f a)).length + 1)).length ≤ (C + 1) * L :=
-    (length_encNat_le_of_lt_two_pow Nat.lt_two_pow_self).trans hm_len
-  have hn_bits : (encNat ((encIn a).length + 1)).length ≤ 2 * L := by
-    have := length_encNat_le_log2_add_two
-      (j := (encIn a).length + 1) (N := (encIn a).length) le_rfl
-    dsimp only [L]
-    omega
-  have hsg : cg * ((encMid (f a)).length + 1) ≤ cg * (C + 1) * L :=
-    calc cg * ((encMid (f a)).length + 1)
-        ≤ cg * ((C + 1) * L) := Nat.mul_le_mul_left cg hm_len
-      _ = cg * (C + 1) * L := by ring
-  rw [Nat.mul_assoc]
-  refine Nat.mul_le_mul_left c ?_
-  calc cf * L + cg * ((encMid (f a)).length + 1) +
-          (encNat ((encIn a).length + 1)).length +
-          (encNat ((encMid (f a)).length + 1)).length + 1
-      ≤ cf * L + cg * (C + 1) * L + 2 * L + (C + 1) * L + L :=
-        Nat.add_le_add
-          (Nat.add_le_add
-            (Nat.add_le_add (Nat.add_le_add le_rfl hsg) hn_bits)
-            hm_bits)
-          hL
-    _ = (cf + cg * (C + 1) + 2 + (C + 1) + 1) * L := by ring
-
-/-- A linear-space `ComputableInSpace` function preserves logarithmic encoded-output length. -/
-theorem length_log_of_inSpace {α β γ : Type}
-    {encIn : α ↪ List Bool} {encMid : β ↪ List Bool} {encOut : γ ↪ List Bool}
-    {f : α → β} {g : β → γ}
-    (hlen : ∃ C, ∀ a, (encMid (f a)).length ≤ C * (Nat.log2 (encIn a).length + 1))
-    (hg : ComputableInSpace g encMid encOut fun b => (encMid b).length) :
-    ∃ C', ∀ a, (encOut (g (f a))).length ≤ C' * (Nat.log2 (encIn a).length + 1) := by
-  obtain ⟨C, hC⟩ := hlen
-  obtain ⟨_, cg, -, hglen⟩ := hg
-  refine ⟨cg * (C + 1), fun a => ?_⟩
-  let L := Nat.log2 (encIn a).length + 1
-  have hL : 1 ≤ L := Nat.le_add_left _ _
-  have hm : (encMid (f a)).length + 1 ≤ (C + 1) * L :=
-    calc (encMid (f a)).length + 1
-        ≤ C * L + L := Nat.add_le_add (hC a) hL
-      _ = (C + 1) * L := by ring
-  calc (encOut (g (f a))).length
-      ≤ cg * ((encMid (f a)).length + 1) := hglen (f a)
-    _ ≤ cg * ((C + 1) * L) := Nat.mul_le_mul_left cg hm
-    _ = cg * (C + 1) * L := by ring
-
-/-! ### Binary word length and binary-indexed bit lookup in logarithmic space -/
-
-/-- Length of a bit word in binary, computed in logarithmic space. -/
-theorem computableInLogSpace_bitsLength :
-    ComputableInLogSpace List.length encBits encNat :=
-  ComputableInLogSpace.unaryToBinary
-    ((ComputableInLogSpace.bitsMap fun _ => true).congr fun w => by
-      rw [encUnary_apply, encBits_apply, List.map_const'])
 
 /-- Number of binary digits of a natural number, computed in logarithmic space. -/
 theorem computableInLogSpace_natBitLength :
@@ -263,19 +181,14 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
             (10, [w.length, i.bits.length, 2 ^ i.bits.length, i]) := by
           refine CounterProgram.Reaches.lt (by rfl) hb ?_
           simpa [hiw] using CounterProgram.Reaches.refl _
-        cases hbit : w[i]
-        · refine ⟨(12, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
-            (h3.trans h9).trans ?_, ?_, hb⟩
-          · refine CounterProgram.Reaches.read (by rfl) hb ?_
+        refine ⟨(if w[i] then 11 else 12, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
+          (h3.trans h9).trans ?_, ?_, hb⟩
+        · refine CounterProgram.Reaches.read (by rfl) hb ?_
+          cases hbit : w[i] <;>
             simpa [(getElem?_frame_append w i.bits hiw).2, hbit, readLabel] using
               CounterProgram.Reaches.refl _
-          · simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
-        · refine ⟨(11, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
-            (h3.trans h9).trans ?_, ?_, hb⟩
-          · refine CounterProgram.Reaches.read (by rfl) hb ?_
-            simpa [(getElem?_frame_append w i.bits hiw).2, hbit, readLabel] using
-              CounterProgram.Reaches.refl _
-          · simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
+        · cases hbit : w[i] <;>
+            simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
       · refine ⟨(13, [w.length, i.bits.length, 2 ^ i.bits.length, i]), h3.trans ?_, ?_, hb⟩
         · refine CounterProgram.Reaches.lt (by rfl) hb ?_
           simpa [hiw] using CounterProgram.Reaches.refl _
@@ -293,13 +206,9 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
         · refine CounterProgram.Reaches.read (by rfl) hb ?_
           simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
             List.getD_cons_succ, getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
-          cases i.bits[j]
-          · dsimp only [readLabel]
-            refine CounterProgram.Reaches.lt (by rfl) hb ?_
-            simpa [hgt] using CounterProgram.Reaches.refl _
-          · dsimp only [readLabel]
-            refine CounterProgram.Reaches.lt (by rfl) hb ?_
-            simpa [hgt] using CounterProgram.Reaches.refl _
+          cases i.bits[j] <;> dsimp only [readLabel] <;>
+            exact CounterProgram.Reaches.lt (by rfl) hb
+              (by simpa [hgt] using CounterProgram.Reaches.refl _)
         · simp [hnone, bitsGetElemProgram, instr]
       · have hpow_le_w : 2 ^ j ≤ w.length := by omega
         have hnext_pow : 2 ^ (j + 1) ≤ 2 * w.length + 1 := by
@@ -366,13 +275,12 @@ open MultiTapeTM ComputableInSpace
 /-- When `u` is at least `clockedVertexBound D d n`, `clockedAccept` returns `false`. -/
 theorem clockedAccept_eq_false_of_ge_bound {k : ℕ} {State : Type} [Fintype State]
     {D d n u : ℕ} (hu : clockedVertexBound (k := k) D d n ≤ u) :
-    clockedAccept (k := k) (State := State) (radix D n) n (2 * (2 * (n + 1)) ^ d) u = false := by
+    clockedAccept (k := k) (State := State) (radix D n) n (polyClock d n) u = false := by
   have hB : 1 ≤ radix D n := Nat.one_le_pow D (n + 2) (by omega)
   have hN : 0 < vertexBound (k := k) (radix D n) := Nat.pow_pos hB
-  have hu' : (2 * (2 * (n + 1)) ^ d + 1) * vertexBound (k := k) (radix D n) ≤ u := hu
-  have hdiv : 2 * (2 * (n + 1)) ^ d + 1 ≤ u / vertexBound (k := k) (radix D n) :=
-    (Nat.le_div_iff_mul_le hN).mpr hu'
-  have hne : u / vertexBound (k := k) (radix D n) ≠ 2 * (2 * (n + 1)) ^ d :=
+  have hdiv : polyClock d n + 1 ≤ u / vertexBound (k := k) (radix D n) :=
+    (Nat.le_div_iff_mul_le hN).mpr hu
+  have hne : u / vertexBound (k := k) (radix D n) ≠ polyClock d n :=
     Nat.ne_of_gt hdiv
   dsimp only [clockedAccept]
   exact ite_eq_right hne
@@ -406,9 +314,8 @@ theorem computableInLogSpace_clockedVertexBound {k : ℕ} (D d : ℕ) :
       encBits encNat :=
   (comp_logSpace_of_length_log
     computableInLogSpace_bitsLength
-    ⟨1, fun w => by simpa using length_encNat_le_log2 (le_rfl : w.length ≤ w.length)⟩
-    (clockedVertexBound_budget (k := k) D d
-      (of_inO (ComputableInO.of_eq fun _ => rfl)) (.refl _))).congr_fun fun _ => rfl
+    length_bitsLength_log
+    (clockedVertexBound_budget (k := k) D d (budget_id (.refl _)) (.refl _))).congr_fun fun _ => rfl
 
 /-- Computing the clock-zero compact start identifier `startID ntm (radix D w.length)` from `w` in
 logarithmic space. -/
@@ -417,13 +324,11 @@ theorem computableInLogSpace_startID {k : ℕ} {State : Type} [Fintype State]
     ComputableInLogSpace
       (fun w : List Bool => startID ntm (radix D w.length))
       encBits encNat := by
-  have hn : ComputableInSpace (fun n : ℕ => n) encNat encNat fun n => (encNat n).length :=
-    of_inO (ComputableInO.of_eq fun _ => rfl)
-  have hB : ComputableInSpace (fun n : ℕ => radix D n) encNat encNat fun n => (encNat n).length :=
-    budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
+  have hn := budget_id (BigOLe.refl fun n => (encNat n).length)
+  have hB := radix_budget D hn (.refl _)
   exact (comp_logSpace_of_length_log
     computableInLogSpace_bitsLength
-    ⟨1, fun w => by simpa using length_encNat_le_log2 (le_rfl : w.length ≤ w.length)⟩
+    length_bitsLength_log
     (startID_budget ntm hB (.refl _))).congr_fun fun _ => rfl
 
 /-- Computing the terminal accepting-ID indicator `clockedAccept` on `(w, u)` in logarithmic
@@ -431,7 +336,7 @@ space. -/
 theorem computableInLogSpace_clockedAccept {k : ℕ} {State : Type} [Fintype State] (D d : ℕ) :
     ComputableInLogSpace
       (fun (w, u) => clockedAccept (k := k) (State := State)
-        (radix D w.length) w.length (2 * (2 * (w.length + 1)) ^ d) u)
+        (radix D w.length) w.length (polyClock d w.length) u)
       (encPair encBits encNat) encBool := by
   let E := D * Fintype.card (Register k) + d + 2
   let encWU := encPair encBits encNat
@@ -503,19 +408,16 @@ theorem computableInLogSpace_clockedAccept {k : ℕ} {State : Type} [Fintype Sta
             _ ≤ (2 * E + 4) * L := Nat.mul_le_mul_right L (by omega)
   have hacc_space : ComputableInSpace
       (fun p : ℕ × ℕ => clockedAccept (k := k) (State := State)
-        (radix D p.1) p.1 (2 * (2 * (p.1 + 1)) ^ d) p.2)
+        (radix D p.1) p.1 (polyClock d p.1) p.2)
       (encPair encNat encNat) encBool fun p => (encPair encNat encNat p).length := by
     have hn := fst encNat encNat
     have hu := snd encNat encNat
-    have htwo : ComputableInSpace (fun _ : ℕ × ℕ => 2) (encPair encNat encNat) encNat
-        fun p => (encPair encNat encNat p).length := budget_const 2 (.refl _)
-    have hB := budget_natPow (budget_natAdd hn htwo) (.refl _) D
-    have hT := budget_natMul htwo
-      (budget_natPow (budget_natMul htwo (budget_natSucc hn)) (.refl _) d)
+    have hB := radix_budget D hn (.refl _)
+    have hT := polyClock_budget d hn (.refl _)
     exact clockedAccept_budget (k := k) (State := State) hB hn hT hu (.refl _)
   let f (x : List Bool × ℕ) : Bool :=
     clockedAccept (k := k) (State := State)
-      (radix D x.1.length) x.1.length (2 * (2 * (x.1.length + 1)) ^ d) x.2
+      (radix D x.1.length) x.1.length (polyClock d x.1.length) x.2
   have htrue : ComputableInLogSpace (f ∘ Subtype.val) encSub encBool :=
     (comp_logSpace_of_length_log hnu_log hnu_len hacc_space).congr_fun fun _ => rfl
   have hfalse : ComputableInLogSpace
@@ -769,7 +671,7 @@ private theorem computableInLogSpace_recipeSymbols (D : ℕ) {k' d P : ℕ}
         (encPair encNat encNat) encNat fun p => (encPair encNat encNat p).length := by
       have hn := fst encNat encNat
       have hv := snd encNat encNat
-      have hB := budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
+      have hB := radix_budget D hn (.refl _)
       exact queryIndex_budget (k := k') hB (evalPredRecipe_budget rec hB hv (.refl _))
     have hhead := computableInLogSpace_queryAt hnv_log hnv_len hidx_space
     have htail := computableInLogSpace_recipeSymbols D hv_log hv_len recs
@@ -821,12 +723,19 @@ private theorem nap_fields_inSpace {α : Type} {enc : α ↪ List Bool} {S : α 
     (budget_comp_linear (fst encNat encNat) hrest).of_enc_eq fun _ => rfl,
     (budget_comp_linear (snd encNat encNat) hrest).of_enc_eq fun _ => rfl⟩
 
-/-- Outgoing port multiplicity `clockedOutCount machine D d w a p` is computable in deterministic
-logarithmic space. -/
-theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool State) (D d : ℕ) :
-    ComputableInLogSpace
-      (fun (w, a, p) => clockedOutCount machine D d w a p)
-      encPortQuery encNat := by
+private abbrev encOutQueryPack : NAP × Option Bool ↪ List Bool :=
+  encPair encNAP (encOption encBool)
+
+private noncomputable def outQueryPack {k D d : ℕ} (s : GuardedSub k D d 2) :
+    NAP × Option Bool :=
+  let z := napOfSub s
+  let B := radix D (napLen z)
+  (z, (wordSub s)[queryIndex (k := k) B (napId z % vertexBound (k := k) B)]?)
+
+private theorem outQueryPack_log (k D d : ℕ) :
+    ComputableInLogSpace outQueryPack (encGuardedSub k D d 2) encOutQueryPack ∧
+    ∃ C, ∀ s : GuardedSub k D d 2, (encOutQueryPack (outQueryPack s)).length ≤
+      C * (Nat.log2 (encGuardedSub k D d 2 s).length + 1) := by
   have hnap_log := computableInLogSpace_napOfSub k D d 2
   have hnap_len := length_napOfSub_log k D d 2
   have hidxOut_space : ComputableInSpace
@@ -835,17 +744,24 @@ theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool Stat
           (napId z % vertexBound (k := k) (radix D (napLen z))))
       encNAP encNat fun z => (encNAP z).length := by
     obtain ⟨hn, ha, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
+    have hB := radix_budget D hn (.refl _)
     have hN := vertexBound_budget (k := k) hB (.refl _)
     exact queryIndex_budget (k := k) hB (budget_natMod ha hN)
   have hsymOut_log := computableInLogSpace_queryAt hnap_log hnap_len hidxOut_space
-  have hpack_log := ComputableInLogSpace.pair hnap_log hsymOut_log
-  have hpack_len := pair_length_log hnap_len (optionBool_length_log hsymOut_log)
-  let encPack := encPair encNAP (encOption encBool)
+  exact ⟨ComputableInLogSpace.pair hnap_log hsymOut_log,
+    pair_length_log hnap_len (optionBool_length_log hsymOut_log)⟩
+
+/-- Outgoing port multiplicity `clockedOutCount machine D d w a p` is computable in deterministic
+logarithmic space. -/
+theorem computableInLogSpace_clockedOutCount (machine : MultiTapePTM k Bool State) (D d : ℕ) :
+    ComputableInLogSpace
+      (fun (w, a, p) => clockedOutCount machine D d w a p)
+      encPortQuery encNat := by
+  obtain ⟨hpack_log, hpack_len⟩ := outQueryPack_log k D d
   have hcnt_space : ComputableInSpace
       (fun z : NAP × Option Bool =>
         clockedOutCountWithSymbol machine D d (napLen z.1) (napId z.1) (napPort z.1) z.2)
-      encPack encNat fun z => (encPack z).length := by
+      encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
     exact clockedOutCountWithSymbol_budget machine D d hn ha hp hsym (.refl _)
@@ -861,29 +777,15 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
     ComputableInLogSpace
       (fun (w, a, p) => clockedOutPort machine D d w a p)
       encPortQuery (encOption (encPair encNat encNat)) := by
-  have hnap_log := computableInLogSpace_napOfSub k D d 2
-  have hnap_len := length_napOfSub_log k D d 2
-  have hidxOut_space : ComputableInSpace
-      (fun z : NAP =>
-        queryIndex (k := k) (radix D (napLen z))
-          (napId z % vertexBound (k := k) (radix D (napLen z))))
-      encNAP encNat fun z => (encNAP z).length := by
-    obtain ⟨hn, ha, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
-    have hN := vertexBound_budget (k := k) hB (.refl _)
-    exact queryIndex_budget (k := k) hB (budget_natMod ha hN)
-  have hsymOut_log := computableInLogSpace_queryAt hnap_log hnap_len hidxOut_space
-  have hpack1_log := ComputableInLogSpace.pair hnap_log hsymOut_log
-  have hpack1_len := pair_length_log hnap_len (optionBool_length_log hsymOut_log)
-  let encPack1 := encPair encNAP (encOption encBool)
+  obtain ⟨hpack1_log, hpack1_len⟩ := outQueryPack_log k D d
   have hvVal_space : ComputableInSpace
       (fun z : NAP × Option Bool =>
         ((coinOutTargetsWithSymbol machine (radix D (napLen z.1)) (napLen z.1)
           (napId z.1 % vertexBound (k := k) (radix D (napLen z.1))) z.2)[napPort z.1]?).getD 0)
-      encPack1 encNat fun z => (encPack1 z).length := by
+      encOutQueryPack encNat fun z => (encOutQueryPack z).length := by
     obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace (fst encNAP (encOption encBool))
     have hsym := snd encNAP (encOption encBool)
-    have hB := budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
+    have hB := radix_budget D hn (.refl _)
     have hN := vertexBound_budget (k := k) hB (.refl _)
     have houtList := coinOutTargetsWithSymbol_budget machine hB hn (budget_natMod ha hN) hsym
       (.refl _)
@@ -896,11 +798,11 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
   have hpack2_log := ComputableInLogSpace.pair hpack1_log hinSyms_log
   have hpack2_len := pair_length_log hpack1_len
     (optionBoolList_length_log (inPortBound machine) hinSyms_log fun _ => List.length_map _)
-  have hp1 := fst encPack1 (encList (encOption encBool))
+  have hp1 := fst encOutQueryPack (encList (encOption encBool))
   obtain ⟨hn, ha, hp⟩ := nap_fields_inSpace
     (budget_comp_linear (fst encNAP (encOption encBool)) hp1)
   have hsymOut := budget_comp_linear (snd encNAP (encOption encBool)) hp1
-  have hinSyms := snd encPack1 (encList (encOption encBool))
+  have hinSyms := snd encOutQueryPack (encList (encOption encBool))
   have hout_space := clockedOutPortWithSymbols_budget machine D d _
     hn ha hp hsymOut (fun i => budget_listGetDOptionBool i.val hinSyms) (.refl _)
   let f : Triple → Option (ℕ × ℕ) := fun (w, a, p) => clockedOutPort machine D d w a p
@@ -908,8 +810,8 @@ theorem computableInLogSpace_clockedOutPort (machine : MultiTapePTM k Bool State
       (encOption (encPair encNat encNat)) := by
     refine (comp_logSpace_of_length_log hpack2_log hpack2_len hout_space).congr_fun
       fun ⟨⟨w, a, p⟩, _⟩ => ?_
-    dsimp only [Function.comp_apply, f, napOfSub, napLen, napId, napPort, wordSub, lenSub, idSub,
-      portSub]
+    dsimp only [Function.comp_apply, f, outQueryPack, napOfSub, napLen, napId, napPort, wordSub,
+      lenSub, idSub, portSub]
     dsimp only [clockedOutPortWithSymbols, clockedOutPort, coinInSources]
     split_ifs with hcond
     · cases hget : (coinOutTargetsWithSymbol machine (radix D w.length) w.length
@@ -943,7 +845,7 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
       (fun z : NAP => napId z % vertexBound (k := k) (radix D (napLen z)))
       encNAP encNat fun z => (encNAP z).length := by
     obtain ⟨hn, hb, -⟩ := nap_fields_inSpace (of_inO (ComputableInO.of_eq fun _ => rfl))
-    have hB := budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
+    have hB := radix_budget D hn (.refl _)
     exact budget_natMod hb (vertexBound_budget (k := k) hB (.refl _))
   have hv_log := comp_logSpace_of_length_log hnap_log hnap_len hv_space
   have hv_len := length_log_of_inSpace hnap_len hv_space
@@ -961,7 +863,7 @@ theorem computableInLogSpace_clockedInPort (machine : MultiTapePTM k Bool State)
       encPack1 encNat fun z => (encPack1 z).length := by
     obtain ⟨hn, hb, hq⟩ := nap_fields_inSpace (fst encNAP (encList (encOption encBool)))
     have hinSyms := snd encNAP (encList (encOption encBool))
-    have hB := budget_natPow (budget_natAdd hn (budget_const 2 (.refl _))) (.refl _) D
+    have hB := radix_budget D hn (.refl _)
     have hN := vertexBound_budget (k := k) hB (.refl _)
     have hinList := coinInSourcesWithSymbols_ofFn_budget machine
       (fun i z => z.2.getD i.val none)

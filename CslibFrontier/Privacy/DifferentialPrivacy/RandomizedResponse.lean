@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Privacy.DifferentialPrivacy.Hamming
 public import CslibFrontier.Languages.Probabilistic.Vector
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Randomized response
@@ -17,7 +18,10 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 Randomized response [DworkRoth2014, §3.2] is a survey protocol for a yes/no question. The
 respondent flips a coin. On tails they answer truthfully; on heads they flip a second coin and
 answer "Yes" on heads and "No" on tails. `randomizedResponse truth` is this protocol as a
-`ProbComp Bool` program over fair coins, with `true` for "Yes" and for a truthful answer.
+`ProbComp Bool` program over fair coins, with `true` for "Yes" and for a truthful answer. The
+privacy statements apply `DifferentiallyPrivate` to its output law
+`ProbComp.eval (randomizedResponse truth)`: the protocol is a finite program, and only its
+semantics is a `PMF`.
 
 The answer agrees with the truth with probability `3/4` (`eval_randomizedResponse_apply`), so
 randomized response is `(ln 3, 0)`-differentially private for a single respondent
@@ -71,9 +75,7 @@ theorem eval_randomizedResponse_apply (truth answer : Bool) :
     rw [← ENNReal.mul_inv (by simp) (by simp)]
     norm_num
   have h3 : (2 : ℝ≥0∞)⁻¹ + 4⁻¹ = 3 / 4 := by
-    rw [← ENNReal.toReal_eq_toReal_iff' (by finiteness) (by finiteness),
-      ENNReal.toReal_add (by finiteness) (by finiteness)]
-    simp only [ENNReal.toReal_inv, ENNReal.toReal_div, ENNReal.toReal_ofNat]
+    ennreal_to_real
     norm_num
   cases truth <;> cases answer <;> simp [h1, h3]
 
@@ -85,9 +87,7 @@ theorem differentiallyPrivate_randomizedResponse :
   refine DifferentiallyPrivate.of_apply_le fun x y _ r => ?_
   rw [Real.exp_log (by norm_num), ENNReal.ofReal_ofNat, eval_randomizedResponse_apply,
     eval_randomizedResponse_apply]
-  rw [← ENNReal.toReal_le_toReal (by split_ifs <;> finiteness) (by split_ifs <;> finiteness)]
-  split_ifs <;> simp only [ENNReal.toReal_mul, ENNReal.toReal_div, ENNReal.toReal_ofNat,
-    ENNReal.toReal_one] <;> norm_num
+  split_ifs <;> ennreal_to_real <;> norm_num
 
 /-- `ln 3` is optimal: randomized response is `(ε, 0)`-differentially private exactly when
 `ln 3 ≤ ε`. -/
@@ -98,9 +98,7 @@ theorem differentiallyPrivate_randomizedResponse_iff {ε : ℝ} :
   have key := DifferentiallyPrivate.iff_apply_le.mp h (x := true) (y := false) trivial true
   rw [eval_randomizedResponse_apply, eval_randomizedResponse_apply] at key
   simp only [ite_true, Bool.true_eq_false, ite_false] at key
-  rw [← ENNReal.toReal_le_toReal (by finiteness) (by finiteness), ENNReal.toReal_mul,
-    ENNReal.toReal_ofReal (Real.exp_pos _).le] at key
-  simp only [ENNReal.toReal_div, ENNReal.toReal_ofNat, ENNReal.toReal_one] at key
+  ennreal_to_real at key
   rw [Real.log_le_iff_le_exp (by norm_num)]
   linarith
 

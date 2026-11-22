@@ -2,6 +2,67 @@
 
 Start with three separate questions: what program is being described, what distribution it denotes, and what machine implements it. `ProbComp α` describes finite-uniform sampling with ordinary `do` notation; `ProbComp.eval` interprets that syntax as a `PMF α`. `ProbOracleComp spec α` adds external requests whose reply types are given by `spec`. The underlying `OracleComp` is a free program over a typed request interface. A PMF supplies mathematical probability semantics; merely writing a PMF does not supply a sampler or a runtime certificate. The [programs and realization reference](../programs-crypto-and-probability/programs-and-realization.md) explains these layers and their sources. [cslib-frontier][complexitylib]
 
+## Witness seedless extraction failure
+
+Import [Extractor/Basic.lean](../../CslibFrontier/Probability/Extractor/Basic.lean).
+For a deterministic `f : BitString n → BitString m` and explicit proofs `hn : 1 ≤ n`
+and `hm : 1 ≤ m`, apply `exists_minEntropy_map_first_eq_pure hn hm f`.
+The resulting source has real min-entropy at least `(n : ℝ) - 1`; its first output
+coordinate (index zero) is a point mass, and its output has statistical distance at
+least `1 / 2` from uniform. `not_isExtractor_bitString` gives the immediate failure
+of extraction with a `Unit` seed and error strictly below `1 / 2`.
+For arbitrary finite nonempty inputs, `exists_minEntropy_map_eq_pure_bool` supplies
+the reusable Boolean-fiber witness, with entropy `log₂ |Input| - 1`.
+
+This formalizes Chapter 16, exercise 7 of the January 8, 2007 Arora–Barak draft,
+printed page 319 (PDF page 335): the source's first coordinate is indexed by one
+in the book. Distance uses the probability convention (half the L1 distance).
+These are information-theoretic distributions; no sampler or runtime is asserted.
+Exercise 12 is covered by the hashing corollary below; broader extractor objectives in issue #895 remain open.
+The [ordinary-import clients](../../CslibFrontierTests/SeedlessExtractor.lean) check
+`n = m = 1`, multibit identity, sharpness of the distance bound and constant output.
+From a configured checkout, run `scripts/build.sh CslibFrontierTests.SeedlessExtractor`.
+
+## Apply the draft leftover hash lemma
+
+Import [Extractor/LeftoverHash.lean](../../CslibFrontier/Probability/Extractor/LeftoverHash.lean).
+For `hash : BitString t → BitString n → BitString k`, prove positive `δ` and
+`IsUniversalHash (PMF.uniformOfFintype (BitString t)) hash
+(ENNReal.ofReal ((1 + δ) / (2 : ℝ) ^ k))`.
+Apply `IsUniversalHash.isStrongExtractor_of_entropy_div` for a strong extractor,
+or `IsUniversalHash.isExtractor_append_of_entropy_div` for the book's output
+`Fin.append (hash s x) s`: digest first, seed last. Both require source min-entropy
+at least `(k : ℝ) / δ` and give error `Real.sqrt (2 * δ)`.
+These are Lemma 16.42 and Exercise 16.12 of the January 2007 draft, for all lengths
+and positive `δ`, including zero digest length. They assert no runtime or short seed.
+The [checked clients](../../CslibFrontierTests/LeftoverHashDraft.lean) use an 8-bit
+uniform source and Boolean matrix hash, and check zero digest, large error and order.
+Run `scripts/build.sh CslibFrontierTests.LeftoverHashDraft` in a configured checkout.
+
+## Hash several independent samples
+
+To hash several independent samples `source : ι → PMF Input` under one shared public seed
+`seed : PMF Seed` into `ι → Output` via
+`seededHash seed (PMF.pi source) (fun s x i => hash s (x i))`, import
+[UniversalHash/MultiSample.lean](../../CslibFrontier/Probability/UniversalHash/MultiSample.lean)
+(`CslibFrontier.Probability.UniversalHash.MultiSample`). Assume `Seed`, `Output`, and `ι` are
+`Fintype`, `Input` is `Finite`, `ι` has `DecidableEq`, and `Output` is `Nonempty`. Apply
+`IsUniversalHash.leftover_hash_pi` (requiring `IsUniversalHash seed hash ε` and `ε ≠ ⊤`) or
+`IsTwoUniversal.leftover_hash_pi` (requiring `IsTwoUniversal seed hash`) to bound the statistical
+distance from `seed.bind (fun s => (PMF.uniformOfFintype (ι → Output)).map (s, ·))` by the sum
+of the single-sample collision-probability bounds. Under a pointwise guessing-probability bound
+`∀ i x, (source i x).toReal ≤ γ` and `0 ≤ 1 + α` for a `(1 + α) / |Output|`-universal family
+([bs23][bs23], §8.10.4, Theorem 8.11, p. 334), apply `IsUniversalHash.leftover_hash_pi_of_mass_le`,
+its uniform-seed specialization `IsUniversalHash.dist_seededHash_pi_uniformOfFintype_le` (which
+also requires `Nonempty Seed` and compares against `PMF.uniformOfFintype (Seed × (ι → Output))`),
+or `IsTwoUniversal.leftover_hash_pi_of_mass_le` (`α = 0`) to obtain the bound
+`|ι| * Real.sqrt (|Output| * γ + α) / 2`. The hypothesis `0 ≤ 1 + α` prevents
+`ENNReal.ofReal ((1 + α) / Fintype.card Output)` from clamping negative collision bounds to zero;
+the [checked instances and counterexamples](../../CslibFrontierTests/UniversalHashMultiSample.lean)
+exercise concrete bounds and show that `0 ≤ 1 + α`, sample independence, seed-sample
+independence, universality, and the guessing-probability bound are each needed
+(`scripts/build.sh CslibFrontierTests.UniversalHashMultiSample`).
+
 ## Transport a distribution bound through a map
 
 Import [TotalVariation/Map.lean](../../CslibFrontier/Foundations/MeasureTheory/Measure/TotalVariation/Map.lean).
@@ -47,6 +108,24 @@ supplies their component bounds. Run `scripts/build.sh CslibFrontierTests.TotalV
 The [Regev joint experiment](https://github.com/cslib-community/cslib-frontier/issues/2767) still
 has to discharge those bounds for its actual Gaussian laws and residue marginal.
 
+## Bound an event count by its first moment
+
+Import [EventCount.lean](../../CslibFrontier/Probability/EventCount.lean) when an algorithm counts
+events indexed by a list. After `open Cslib.Probability`, apply
+`PMF.tsum_mul_countP_le μ E B l hE`: if each event `{ω | E ω x}` for `x ∈ l` has probability at
+most `B`, the expected count is at most `l.length * B`. The list may repeat entries and the
+events may be dependent. The theorem imposes no finiteness or measurable-space requirement on
+the sample type.
+
+For a measure `μ`, use `measurable_and_lintegral_countP_le μ E B l hmeas hE`. Its two conclusions
+give measurability of the count and the same bound on its Lebesgue integral. Supply measurability
+and a measure bound for each event; probability normalization is unnecessary. This is the shared
+first-moment argument used by both discrete and continuous LSH analyses.
+
+The [checked clients](../../CslibFrontierTests/EventCount.lean) cover an empty list on an infinite
+sample space, two identical fair-coin events whose expected count is exactly one, and a measure
+of total mass two. Run `scripts/build.sh CslibFrontierTests.EventCount`.
+
 ## Condition and compare finite PMFs
 
 Import [PMF/Filter.lean](../../CslibFrontier/Probability/PMF/Filter.lean) to rewrite a conditioned
@@ -60,33 +139,107 @@ condition, a relabeling and an almost sure event. For a two-stage law
 `a` and keeps the kernel. When the second draw is independent of the first,
 `filter_bind_pair_prod` conditions both factors on a rectangle `s ×ˢ t`, and
 `map_snd_filter_bind_pair_prod` shows that the condition on `a` does not affect the law of `b`.
+To state that two observables of a PMF are independent, import
+[PMF/Independence.lean](../../CslibFrontier/Probability/PMF/Independence.lean):
+`indepFun_iff_map_pair_eq_bind` identifies Mathlib's `IndepFun f g p.toMeasure` with this
+two-stage form `p.map (f, g) = (p.map f).bind fun a => (p.map g).map (a, ·)`. When `Y` is
+moreover uniform on a finite type, state `IndepUniform ν X Y`, consume it with `.map_pair_eq`,
+and use `indepUniform_iff` to split it into `IndepFun` and `ν.map Y = uniformOfFintype _`.
 
 Import [StatisticalDistance/Event.lean](../../CslibFrontier/Probability/StatisticalDistance/Event.lean)
 to turn a distance bound into event bounds. Here `dist` is cslib's statistical distance on PMFs
 over a finite type, active after `open scoped Cslib.Probability.PMF`. It uses the half-L1
 convention: distinct point masses have distance `1`, half of Mathlib's `tvDist` above.
+[StatisticalDistance/TotalVariation.lean](../../CslibFrontier/Probability/StatisticalDistance/TotalVariation.lean)
+connects the three notions: `dist_eq_tvDist_toMeasure_div_two` converts `dist` to `tvDist`,
+`closeTo_coe_iff_dist_le` states that the all-event `CloseTo μ ν ε` is exactly `dist μ ν ≤ ε`, and
+`closeTo_iff_etvDist_le` states that it is exactly a total variation bound `2 * ε`, also on
+infinite types with measurable singletons. The real-valued form `closeTo_ofReal_iff_tvDist_le`
+needs `0 ≤ ε`: a negative error becomes `0` under `ENNReal.ofReal`.
 `abs_toOuterMeasure_toReal_sub_le_dist p q E` bounds `|Pr_p[E] − Pr_q[E]|` by `dist p q`;
 `abs_bind_apply_toReal_sub_le_dist p q T b` does the same for the probability that a randomized
 distinguisher `T` outputs `b`. `dist_map_of_injective` keeps the distance unchanged under an
 injective relabeling. For a second-moment tail bound on a finite PMF without measure-theoretic side
 conditions, import [PMF/Chebyshev.lean](../../CslibFrontier/Probability/PMF/Chebyshev.lean): by
 `sum_mul_ite_le_sum_mul_sq_div`, the mass where `|f a − m| ≥ c` is at most
-`∑ a, p(a) (f a − m)² / c²`. Import
+`∑ a, p(a) (f a − m)² / c²`. The first-moment form for a function `f` with values in `[0, 1]`
+is `toOuterMeasure_toReal_le_tsum_div` in
+[PMF/Markov.lean](../../CslibFrontier/Probability/PMF/Markov.lean). Import
 [Product/Split.lean](../../CslibFrontier/Probability/Product/Split.lean) to split an independent
 product `pi p` along a predicate `P`: by `pi_map_piEquivPiSubtypeProd`, the coordinates
 satisfying `P` and the remaining coordinates form two independent products. Its corollaries
 `pi_map_restrict` and `pi_map_comp_injective` give the marginal law: restricting `pi p` to the
 coordinates satisfying `P`, or reading it along an injection `e` of index types as
-`fun a k => a (e k)`, gives the independent product of the selected factors. Use these instead of
-counting tuples when the factors are not uniform. `pi_map_curry` in
+`fun a k => a (e k)`, gives the independent product of the selected factors. For a product indexed
+by a sum type `ι ⊕ κ`, `bind_pi_sum` samples the two summands as independent products inside a
+`bind`. Use these instead of counting tuples when the factors are not uniform. `pi_map_curry` in
 [Product/Reindex.lean](../../CslibFrontier/Probability/Product/Reindex.lean) splits a product
 indexed by `ι × κ` into independent blocks, and `toOuterMeasure_pi_forall` in
 [Product/Event.lean](../../CslibFrontier/Probability/Product/Event.lean) is the probability of a
-box `{u | ∀ i, u i ∈ E i}`. For a biased bit, use `coin p` from
+box `{u | ∀ i, u i ∈ E i}`. For `Fin k`-indexed tuples with different factors, `PMF.piFin` in
+[IID.lean](../../CslibFrontier/Probability/IID.lean) generalizes `iid`, and
+[IID/Event.lean](../../CslibFrontier/Probability/IID/Event.lean) gives its box and union bounds
+`toOuterMeasure_piFin_forall` and `toOuterMeasure_toReal_piFin_exists_le`.
+[IID/Marked.lean](../../CslibFrontier/Probability/IID/Marked.lean) applies the box formula to
+independent coins: for `μ : PMF Bool`, a finite set `R` of indices and an index `ν ∉ R`, the
+probability under `iid μ k` that `ν` shows `true` and every index in `R` shows `false` is
+`μ true * μ false ^ R.card` (`toOuterMeasure_iid_marked`). When `(μ true).toReal = a⁻¹` for a
+real `a` with `R.card + 1 ≤ a`, it is at least `exp (-1) / a`
+(`exp_neg_one_div_le_toOuterMeasure_iid_marked`) and hence at least `1 / (2.72 * a)`
+(`one_div_le_toOuterMeasure_iid_marked`); at `a = Q + 1` this is the Claim in the proof of Lemma
+13.6 of [bs23][bs23] (§13.4.1, p. 543).
+[IID/Birthday.lean](../../CslibFrontier/Probability/IID/Birthday.lean) bounds from below the
+probability that `k` samples of `iid μ k` contain two equal values, for any law `μ` on a set of size
+`n`: at least `1 - exp (-k (k - 1) / (2 n))` (`one_sub_exp_neg_le_iid_not_injective`) and at least
+`min (k (k - 1) / (4 n)) 0.63` (`min_le_iid_not_injective`), as in
+[bs23][bs23], Theorem B.1 and Corollary B.2. For uniform samples from a finite nonempty type `M`
+and a function `f : M → β` whose values lie in a finite set `D`,
+[IID/FunctionCollision.lean](../../CslibFrontier/Probability/IID/FunctionCollision.lean) bounds
+from below the probability that `s` samples contain two different points with one value of `f`:
+at least `1 - exp (-s (s - 1) / (2 |D|)) - C(s, 2) / |M|`
+(`one_sub_exp_neg_sub_choose_le_iid_uniformOfFintype_exists_collision`), the probabilistic part of
+[bs23][bs23], Lemma 8.2. The union-bound upper bounds are
+in [IID/Distinct.lean](../../CslibFrontier/Probability/IID/Distinct.lean). To move a finite
+statistic of i.i.d. samples from a measure into this setting, import
+[Product/MapMeasure.lean](../../CslibFrontier/Probability/Product/MapMeasure.lean):
+`map_measurePi_eq_toMeasure_pi` identifies the image of `Measure.pi μ` under coordinatewise
+almost everywhere measurable maps into finite types with
+`(pi fun i => ((μ i).map (g i)).toPMF).toMeasure`. The finite-product bounds then apply:
+Hoeffding's `pi_sum_abs_sub_mean_ge` (and the `[0, 1]`-score forms
+`pi_sum_le_mean_sub_card_mul`, `pi_sum_ge_mean_add_card_mul`, and
+`pi_sum_abs_sub_mean_ge_card_mul` at deviation `card ι * γ` with exponent `-2 card ι γ²`) in
+[Concentration.lean](../../CslibFrontier/Probability/Concentration.lean) and the Chernoff lower
+tail `pi_sum_le_one_sub_mul` in [Chernoff.lean](../../CslibFrontier/Probability/Chernoff.lean). For
+a uniform draw on a finite group, import
+[Uniform.lean](../../CslibFrontier/Probability/Uniform.lean): `uniformOfFintype_map_add_left` and
+`uniformOfFintype_bind_add_left`, with their `_right` forms, remove a fixed mask as in the one-time
+pad, and the `_sub_left` and `_sub_right` forms in
+[Uniform/Translate.lean](../../CslibFrontier/Probability/Uniform/Translate.lean) do the same for
+`c - x` and `x - c`;
+`uniformOfFintype_map_addHom` and `uniformOfFintype_map_monoidHom` push the uniform law
+through a surjective homomorphism; and `uniformOfFintype_map_comp` reads a uniform function
+through an injection. For a dependent function, `uniformOfFintype_map_comp_dep` in
+[Product/Split.lean](../../CslibFrontier/Probability/Product/Split.lean) needs only nonempty
+fibres. On any finite type, `uniformOfFintype_bind_bijective` in
+[PMF/Uniform.lean](../../CslibFrontier/Probability/PMF/Uniform.lean) changes variables in a uniform
+draw along a bijection. For finite types `ι`, `ι'` and `κ`, with decidable equality on `ι` and `ι'`
+and `κ` nonempty, and any map `e : ι' → ι`, `uniformOfFintype_bind_bind_extend` in
+[PMF/UniformExtend.lean](../../CslibFrontier/Probability/PMF/UniformExtend.lean) replaces the values
+of a uniform `f : ι → κ` on the range of `e` by an independent uniform table `t : ι' → κ`
+(`Function.extend e t f`) and shows that the result is again uniform; it replaces part of a random
+function or random oracle by fresh values. For a biased bit, use `coin p` from
 [PMF/Coin.lean](../../CslibFrontier/Probability/PMF/Coin.lean), with `p : unitInterval`; Mathlib's
 `PMF.bernoulli` is deprecated. `toMeasure_coin` identifies `(coin p).toMeasure` with Mathlib's
 `ProbabilityTheory.bernoulliMeasure true false p`, and `entropy_coin` in
-[Entropy/Fano.lean](../../CslibFrontier/Probability/Entropy/Fano.lean) is its entropy `h₂(p)`.
+[Entropy/Fano.lean](../../CslibFrontier/Probability/Entropy/Fano.lean) is its entropy `h₂(p)`. For
+uniform `k`-element subsets `uniformOfFinset (A.powersetCard k) _`, import
+[PMF/UniformPowerset.lean](../../CslibFrontier/Probability/PMF/UniformPowerset.lean) for uniform
+one-element deletion when `1 ≤ k ≤ A.card` (`uniformOfFinset_powersetCard_erase`), hit-or-erase
+invariance when querying an element `p ∈ A` with `1 ≤ k ≤ A.card`—returning `U.erase p` when
+`p ∈ U` and a uniform deletion otherwise, which distributes uniformly over `(k - 1)`-subsets of
+`A.erase p` (`uniformOfFinset_powersetCard_hitOrErase`; an outside query `p ∉ A` instead uses the
+plain erasure law)—and exact miss probability `(A.card - k) / A.card` for `p ∈ A` and
+`k ≤ A.card` (`toOuterMeasure_uniformOfFinset_powersetCard_notMem`, including `k = 0`).
 
 The [checked clients](../../CslibFrontierTests/PMFConditioning.lean) condition two fair bits on
 rectangles, split off one of two fair bits, relabel two point masses injectively, restrict, reindex
@@ -119,12 +272,68 @@ For a Boolean distribution `p : PMF Bool`, import
 `PMF.apply_true_add_apply_false p : p true + p false = 1` rather than rewriting with `tsum_bool`
 and `PMF.tsum_coe` by hand. Its real forms are `PMF.toReal_true_add_toReal_false` and
 `PMF.toReal_false_eq_one_sub`. The same module bounds Boolean events written as `(p.map E) true`:
-`PMF.map_true_mono`, `PMF.map_true_le_add` and `PMF.map_any_range_true_le_sum` (a union bound),
-and `PMF.map_not_true` for complements. To compose an event bound through `PMF.bind`, use the
-`PMF.toOuterMeasure_bind_*` lemmas in
-[PMF/EventBind.lean](../../CslibFrontier/Probability/PMF/EventBind.lean). The
+`PMF.map_true_mono`, `PMF.map_true_le_add`, the union bounds `PMF.map_true_le_sum` (over any
+`s : Finset ι`) and `PMF.map_any_range_true_le_sum`, `PMF.map_apply_true` (the expectation of the
+indicator of `E`), and `PMF.map_not_true` for complements. A two-stage experiment
+`p.bind fun a => PMF.pure (E a)` is `p.map E` by definition, so these lemmas apply to it directly.
+To compose an event bound through `PMF.bind`, use the `PMF.toOuterMeasure_bind_*` lemmas in
+[PMF/EventBind.lean](../../CslibFrontier/Probability/PMF/EventBind.lean). When the bound on the
+continuation depends on whether the first stage landed in a set `pre`, at most `a₁` from supported
+outcomes in `pre` and at most `a₂` from the others,
+[PMF/TotalProbability.lean](../../CslibFrontier/Probability/PMF/TotalProbability.lean) bounds the
+bind by `P(pre) * a₁ + P(preᶜ) * a₂` (`PMF.toOuterMeasure_bind_le_mul_add_mul`, and
+`PMF.toOuterMeasure_bind_toReal_le_mul_add_mul` in `ℝ` for nonnegative `a₁` and `a₂`). The
 [checked examples](../../CslibFrontierTests/PMFBool.lean) recover the mass of `false` from the mass of
-`true`; run `scripts/build.sh CslibFrontierTests.PMFBool`.
+`true` and apply the finite union bound; run `scripts/build.sh CslibFrontierTests.PMFBool`.
+
+To show that a pushforward or a two-stage experiment is deterministic, import
+[PMF/Support.lean](../../CslibFrontier/Probability/PMF/Support.lean): `PMF.map_eq_pure_iff` says
+`p.map f = PMF.pure b` exactly when `f a = b` for every `a ∈ p.support`, and
+`PMF.bind_eq_pure_of_forall_mem_support` gives `p.bind f = PMF.pure b` from `f a = PMF.pure b` on the
+support. Perfect-correctness statements of the form `Pr[correct] = 1` written as
+`(...).map isCorrect = PMF.pure true` reduce to a pointwise check this way, and
+`PMF.ne_of_map_eq_pure` separates two distributions whose pushforwards are different point masses.
+The same module records that pairing with a constant (`snd_eq_of_mem_support_map_pair`) or lifting
+into `StateT` (`snd_eq_of_mem_support_lift`, `toOuterMeasure_lift_eq_zero`) keeps the state fixed on
+the support. The [checked examples](../../CslibFrontierTests/PMFSupport.lean) cover each direction;
+run `scripts/build.sh CslibFrontierTests.PMFSupport`.
+
+Lean's `StateT.run_bind`, `StateT.run_map` and `StateT.run_pure` are stated with `.run`, so they
+do not rewrite a handler applied directly to its state, such as `(x >>= f) s`. Import
+[Foundations/Control/Monad/StateT.lean](../../CslibFrontier/Foundations/Control/Monad/StateT.lean)
+and rewrite with `StateT.bind_apply`, `StateT.map_apply` and `StateT.pure_apply` instead of
+restating the instance with `have … := StateT.run_bind _ _ _`. The decapsulation proofs of
+[Salted/Correctness.lean](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Salted/Correctness.lean)
+use them this way.
+
+For a guessing bound, import
+[PMF/UniformPoint.lean](../../CslibFrontier/Probability/PMF/UniformPoint.lean) instead of summing
+over the uniform law by hand. For an arbitrary decidable predicate `P`,
+`PMF.bind_pure_decide_apply_true p P` equates `(p.bind fun x => PMF.pure (decide (P x))) true`
+with `p.toOuterMeasure {x | P x}`. For any law `μ`, `PMF.bind_pure_decide_eq_apply_true μ a` (and its
+`'` and `map_` forms for the other comparison order and for `μ.map`) says an equality test against
+`a` accepts with probability `μ a`. `PMF.uniformOfFintype_bind_decide_eq_apply_true a` specializes
+it: a uniform draw equals `a` with probability `(Fintype.card α)⁻¹`, and
+`PMF.uniformOfFintype_bind_pure_apply_true_le` gives the upper bound `(Fintype.card α)⁻¹` for any
+test accepting at most one value, such as comparing a fixed point with an injective image of the
+draw. For an event written as a set, `PMF.toOuterMeasure_uniformOfFintype_le_of_subsingleton` gives
+the same bound when the set has at most one member; for the preimage of a point under an injective
+`f`, supply `Set.subsingleton_singleton.preimage hf`. The
+[fixed-group Diffie–Hellman checks](../../CslibFrontierTests/Crypto/DiffieHellmanFinite.lean)
+compute discrete-logarithm advantages `1 / q` with it.
+
+To compare two-stage experiments at one outcome, import
+[PMF/BindCompare.lean](../../CslibFrontier/Probability/PMF/BindCompare.lean) instead of expanding
+`PMF.bind_apply` into sums. `PMF.bind_apply_add_of_forall` and `PMF.bind_apply_add_eq_on_support`
+carry a pointwise sum identity between continuations over to the experiments,
+`PMF.bind_apply_le_add_of_ne` bounds continuations that are close away from one first-stage result,
+and `PMF.bind_apply_eq_of_good` equates stateful experiments that agree until a bad state. The
+one-sided comparisons on the support are in
+[PMF/Bind.lean](../../CslibFrontier/Probability/PMF/Bind.lean); for general `ℝ≥0∞`-valued
+integrands `∑' a, p a * f a`, import
+[PMF/SupportTsum.lean](../../CslibFrontier/Probability/PMF/SupportTsum.lean) for
+`PMF.tsum_mul_congr_support`, `PMF.tsum_mul_mono_support`, `PMF.tsum_mul_add_of_support` and
+`PMF.tsum_mul_le_of_support`.
 
 Moving a bound between `ℝ≥0∞` and `ℝ` or `ℝ≥0` (`ENNReal.toReal_mono`, `ENNReal.toReal_add`,
 `ENNReal.toNNReal_mono`, `ENNReal.toReal_sum`) needs every term to be finite. Import
@@ -138,12 +347,38 @@ the `x < _` case working alongside its sum rule. A factor with no such reason, s
 `x : ℝ≥0∞`, makes it fail, often only after Aesop's rule-application limit; add a hypothesis
 `x ≠ ∞` or prove that factor separately. Each successful call costs roughly 100 to 800 heartbeats
 of Aesop search and positivity, so where the explicit term is
-a single `PMF.apply_ne_top _ _` keep the term. To compare success probabilities, import
+a single `PMF.apply_ne_top _ _` keep the term. When the transfer takes several such steps (a
+bridge lemma, its finiteness facts and a chain of `toReal` rewrites), import
+[Tactic/ENNRealToReal.lean](../../CslibFrontier/Tactic/ENNRealToReal.lean) and call
+`ennreal_to_real` instead: on a goal or, with `at h`, a hypothesis `a R b` in `ℝ≥0∞` it proves the
+sides finite, replaces the statement by `a.toReal R b.toReal` and pushes `toReal` through the
+arithmetic, and `ennreal_to_real using h` closes a real goal from the `ℝ≥0∞` fact `h`. Each call
+runs `finiteness` once per transferred side and once per side condition of a rewrite, up to a few
+tenths of a second of CPU per call, so for a single side condition keep the in-place
+`by finiteness` or the explicit term. Its
+[checked examples](../../CslibFrontierTests/ENNRealToReal.lean) cover the three forms, the
+subterms it leaves in place and its failure messages. To compare success
+probabilities, import
 [Game/Order.lean](../../CslibFrontier/Crypto/Game/Order.lean):
 `apply Game.succProbability_mono` leaves the goal `g₁ true ≤ g₂ true`, without unfolding
 `Game.succProbability`, and `Game.succProbability_le_add_of_advantage_le` turns a bound on
 `Game.advantage g₀ g₁` into `succProbability g₀ ≤ succProbability g₁ + B`. The [checked examples](../../CslibFrontierTests/PMFFiniteness.lean) cover
 each rule and the failure.
+
+## Certify a seeded binary linear hash
+
+Import [Probabilistic/LinearHash.lean](../../CslibFrontier/Computability/Probabilistic/LinearHash.lean).
+`LinearHash.computableInPolyTime_wordHash` takes plain certificates for the unary output count,
+the raw matrix seed and the input word, under any input encoding. Its row parser pads short
+seeds with zero; there is no well-formed-seed hypothesis. The proof composes the plain row parser,
+captured map and constant-state Boolean fold.
+
+`LinearHash.isPPTOn_extract` samples `count * input.length` fair bits and returns the complete
+seed followed by the digest. Supply plain count and input certificates; sampling and copying the
+revealed seed are included in the strict-PPT claim. For a deterministic caller, see the padded
+Naor–Reingold evaluator in
+[NaorReingold/Security.lean](../../CslibFrontier/Crypto/Computational/NaorReingold/Security.lean).
+These certificates assert polynomial time, rather than an exact time or workspace constant.
 
 ## Count the fair coins used by an exact sampler
 
@@ -161,7 +396,7 @@ surely. A tree that fails to halt with positive probability has `expectedFlips =
 
 Import [DDGTree/KnuthYao.lean](../../CslibFrontier/Probability/DDGTree/KnuthYao.lean) for the
 entropy bounds ([Knuth–Yao 1976](../sources.md#knuthyao76);
-[Cover–Thomas §5.11](../sources.md#coverthomas06)), stated for distributions on a finite type:
+[Cover–Thomas](../sources.md#coverthomas06), §5.11), stated for distributions on a finite type:
 
 - `entropy_le_expectedFlips hT : ENNReal.ofReal (PMF.entropy p) ≤ T.expectedFlips` for every
   `hT : T.Generates p`;
@@ -185,6 +420,33 @@ optimal cost is exactly `2`, no generating tree does better, and the entropy is 
 They also cover a non-halting tree that generates nothing and has infinite cost. Run
 `scripts/build.sh CslibFrontierTests.KnuthYao`. The model counts coin flips only; it does not certify
 that `knuthYao p` is computable from an encoding of `p`, or bound its running time.
+
+To run the same trees on a biased coin, import
+[DDGTree/Biased.lean](../../CslibFrontier/Probability/DDGTree/Biased.lean). `T.runWith c n`,
+`T.outputProbWith c`, `T.GeneratesWith c p` and `T.expectedFlipsWith c` replace fair bits by
+independent flips of `c : PMF Bool`; `run_eq_runWith` and its siblings recover the fair-bit API at
+`PMF.uniformOfFintype Bool`. `T.expectedCostWith c w` charges `w n` for flip number `n + 1`, which
+is read exactly when the tree has not stopped after `n` flips, so it is `∑ₙ w n P(T > n)`. Use a
+tree rather than an `OracleComp` program when the sampler loops without a bound: oracle programs
+are finite call trees, so `OracleComp.retry` only expresses the truncated loop, with a visible
+failure outcome. `vonNeumann` reads flips in pairs until they differ
+([Arora–Barak draft Lemma 7.15](../../results/arora-barak-2007.md#chapter-7-randomized-computation)).
+On `PMF.coin ρ` with `0 < ρ < 1`, `vonNeumann_generatesWith_coin` gives an exactly fair bit and
+`expectedFlipsWith_coin_vonNeumann` gives exactly `ENNReal.ofReal (ρ * (1 - ρ))⁻¹` flips.
+`exists_generatesWith_coin_iff` shows that `0 < ρ < 1` is necessary: at bias `0` or `1` the coin is
+deterministic (`runWith_pure`). In the other direction, import
+[DDGTree/Digits.lean](../../CslibFrontier/Probability/DDGTree/Digits.lean) for Lemma 7.14.
+`coinOfDigits d` compares fair bits with a binary expansion `d` of `ρ`, stated as
+`HasSum (fun i => if d i then 2⁻¹ ^ (i + 1) else 0) ρ`. Use the expansion `0.111⋯` for `ρ = 1`.
+It generates `PMF.coin ρ` (`coinOfDigits_generates`) and reads exactly two fair bits in expectation
+(`expectedFlips_coinOfDigits`). Its expected digit cost is `∑ₙ w n 2⁻ⁿ`
+(`expectedCostWith_coinOfDigits`), which is finite for polynomially bounded `w`.
+[Computability/Probabilistic/CoinOfDigits.lean](../../CslibFrontier/Computability/Probabilistic/CoinOfDigits.lean)
+instantiates `w` with the time bound of a multitape machine computing the digits from `encUnary`.
+The comparison loop itself is charged one unit per flip, not compiled to a machine. The
+[checked clients](../../CslibFrontierTests/BiasedCoinSamplers.lean) cover bias `1/3` (`9/2` flips),
+the impossible bias `0`, `ρ = 1` and a constant digit machine; run
+`scripts/build.sh CslibFrontierTests.BiasedCoinSamplers`.
 
 When an exact sampler instead repeats a fixed-width `width`-bit decoder `attempt : List Bool → Option α`,
 import [DDGTree/Rejection.lean](../../CslibFrontier/Probability/DDGTree/Rejection.lean) for
@@ -336,56 +598,56 @@ Run `scripts/build.sh CslibFrontierTests.StatisticalDifference` and
 
 For finite distributions (`PMF α` with `[Finite α]` / `[Fintype α]`), Hellinger distance and
 Pearson `χ²` divergence complement half-`L¹` statistical distance (`dist`) with exact product
-tensorization and comparison inequalities ([Tsybakov, Section 2.4](../sources.md#tsybakov09);
-[Canonne, §3.1 and Appendix B](../sources.md#canonne22)):
+tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09), Section 2.4;
+[Canonne](../sources.md#canonne22), §3.1 and Appendix B):
 
 - **Bhattacharyya coefficient and Hellinger distance.** Import
   [Hellinger.lean](../../CslibFrontier/Probability/Hellinger.lean). The definitions
-  [`bhattacharyya`](../../CslibFrontier/Probability/Hellinger.lean#L134)
+  [`bhattacharyya`](../../CslibFrontier/Probability/Hellinger.lean#L136)
   (`∑' a, √((p a).toReal * (q a).toReal) ∈ [0, 1]`),
-  [`hellingerSq`](../../CslibFrontier/Probability/Hellinger.lean#L138) (`1 - bhattacharyya p q`),
-  and [`hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L142)
+  [`hellingerSq`](../../CslibFrontier/Probability/Hellinger.lean#L140) (`1 - bhattacharyya p q`),
+  and [`hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L144)
   (`√(hellingerSq p q) ∈ [0, 1]`)—along with their symmetry, `[0, 1]` bounds, and definiteness
   (`= 0 ↔ p = q`)—apply to any `PMF α`, while the theorem API below assumes finite types
   `[Finite α]` / `[Fintype α]`. No competing `MetricSpace (PMF α)` instance is registered because
   `Cslib.Probability.PMF` already uses that slot for half-`L¹` `dist`;
-  [`hellingerDist_triangle`](../../CslibFrontier/Probability/Hellinger.lean#L305) supplies the
+  [`hellingerDist_triangle`](../../CslibFrontier/Probability/Hellinger.lean#L307) supplies the
   metric triangle inequality directly.
 - **Total-variation comparison and `n`-fold i.i.d. tensorization (finite types).**
-  [`hellingerSq_le_dist`](../../CslibFrontier/Probability/Hellinger.lean#L346) and
-  [`dist_le_sqrt_two_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L399) give
+  [`hellingerSq_le_dist`](../../CslibFrontier/Probability/Hellinger.lean#L348) and
+  [`dist_le_sqrt_two_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L401) give
   `h²(p, q) ≤ dist p q ≤ √2 * h(p, q)` (with `tvDist` corollaries on `toMeasure`).
-  [`bhattacharyya_pi`](../../CslibFrontier/Probability/Hellinger.lean#L427) and
-  [`bhattacharyya_iid`](../../CslibFrontier/Probability/Hellinger.lean#L445) prove multiplicative
+  [`bhattacharyya_pi`](../../CslibFrontier/Probability/Hellinger.lean#L429) and
+  [`bhattacharyya_iid`](../../CslibFrontier/Probability/Hellinger.lean#L447) prove multiplicative
   tensorization, yielding the sample-complexity acceptance bound
-  [`dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L498):
+  [`dist_iid_le_sqrt_two_mul_nat_mul_hellingerDist`](../../CslibFrontier/Probability/Hellinger.lean#L500):
   `dist (iid p n) (iid q n) ≤ √(2 * n) * hellingerDist p q`. Markov kernel and map data
-  processing are [`hellingerDist_bind_le`](../../CslibFrontier/Probability/Hellinger.lean#L577) and
-  [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L596).
+  processing are [`hellingerDist_bind_le`](../../CslibFrontier/Probability/Hellinger.lean#L611) and
+  [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L630).
 - **Pearson `χ²` divergence and Ingster / Le Cam mixture bounds (finite types).** Import
   [ChiSquare.lean](../../CslibFrontier/Probability/ChiSquare.lean).
-  [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L142) (`ℝ≥0∞`-valued
+  [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L146) (`ℝ≥0∞`-valued
   `∑' a, ENNReal.ofReal (((p a).toReal - (q a).toReal) ^ 2) / q a`, with reference distribution `q`
   as the **second** argument matching `klDiv p.toMeasure q.toMeasure`) and real-valued
-  [`chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L148) (`(echiSquare p q).toReal`)
+  [`chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L152) (`(echiSquare p q).toReal`)
   are defined on any `PMF α`, together with nonnegativity and self-vanishing. All remaining
   theorems require `[Finite α]` / `[Fintype α]` (on countably infinite types, `p.support ⊆ q.support`
   alone does not imply finite divergence):
-  [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L167) equates finiteness
+  [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L171) equates finiteness
   to `p.support ⊆ q.support`, and real-valued theorems state `p.support ⊆ q.support` explicitly so
   `x / 0 = 0` never hides off-support mass. These cover tensorization
-  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L299),
-  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L329)), TV upper bounds
-  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L366),
-  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L384)), data
-  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L401)), the
+  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L303),
+  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L333)), TV upper bounds
+  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L370),
+  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L388)), data
+  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L405)), the
   mixture second-moment identity
-  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L505),
-  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L555)), and the
+  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L509),
+  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L559)), and the
   comparison hierarchy `2 h² ≤ KL ≤ log (1 + χ²) ≤ χ²`
-  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L573),
-  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L614),
-  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L656)).
+  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L607),
+  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L617),
+  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L659)).
 
 The checked clients in [HellingerChiSquare.lean](../../CslibFrontierTests/HellingerChiSquare.lean)
 cover disjoint point masses (`echiSquare = ⊤`), rational Bernoulli pairs, the triangle inequality,
@@ -552,6 +814,67 @@ sample per stage never gives relative error `1 / 2` there. Run
 A goal of the form `t_mix(ε) = k` needs both directions: `mixingTime_le_of_distToStationary_le`
 for `≤`, and `(hπ : P.IsStationary π).mixingTime_le_iff` at `k - 1` for `≥`.
 
+## Bound expected hitting and return times of a finite Markov chain
+
+Import [MarkovChain/HittingTime.lean](../../CslibFrontier/Probability/MarkovChain/HittingTime.lean).
+For `P : MarkovChain V` with `[Fintype V] [DecidableEq V]`, `survival P v t x` is the probability
+`P_x(τ_v > t)` that the chain started at `x` avoids `v` at times `0, …, t`, defined by conditioning
+on the first step. `hittingTime P v x = ∑' t, survival P v t x` is the expected hitting time
+`E_x[τ_v]`, and `returnTime P v` is the expected return time `E_v[τ⁺_v]`. Both take values in
+`ℝ≥0∞`: they are exact expectations, possibly `⊤`, not truncated sums, and need no summability
+side conditions.
+
+Work with them through these lemmas rather than unfolding the tail sums.
+`hittingTime_eq_of_ne` and `returnTime_eq` are the first-step equations, and
+`hittingTime_le_add` is the triangle inequality `E_x[τ_w] ≤ E_x[τ_v] + E_v[τ_w]`.
+`mul_survival_le_hittingTime` is Markov's inequality `(t + 1) P_x(τ_v > t) ≤ E_x[τ_v]`, which
+turns an expectation bound into a bound on the probability that a `t`-step walk misses `v`.
+Kac's formula `mul_returnTime_eq` needs a stationary measure `π : V → ℝ≥0∞`, given as
+`∀ y, ∑ x, π x * P x y = π y`, and finiteness of `∑ x, π x * hittingTime P v x`; it gives
+`π v * returnTime P v = ∑ x, π x`. `IsStationary.mul_returnTime_eq_one` is the version for a
+stationary `PMF`. Finiteness comes from `hittingTime_ne_top`: give a set `S` closed under
+transitions of positive probability from which `v` is reachable along such transitions. Pass
+`Set.univ` for an irreducible chain, or a connected component.
+
+[MarkovChain/RandomWalk.lean](../../CslibFrontier/Probability/MarkovChain/RandomWalk.lean) is the
+worked client. `randomWalk G` is the simple random walk on a finite `SimpleGraph`, and an
+isolated vertex stays put, so it is a chain for every graph. The degrees are stationary
+(`sum_degree_mul_randomWalk`), so Kac's formula gives `degree_mul_returnTime_randomWalk`,
+`deg v * E_v[τ⁺_v] = 2 |E|`, for a connected graph. Then `hittingTime_randomWalk_add_degree_le`
+proves `E_u[τ_v] + deg v ≤ 2 |E|` for every edge (Goldreich, Exercise 6.19), and
+`hittingTime_randomWalk_le_dist_mul` proves `E_u[τ_v] ≤ dist(u, v) · 2 |E|`. The
+[checked clients](../../CslibFrontierTests/RandomWalkHitting.lean) state Exercise 6.19 in the
+source's form, compute `E_0[τ_1] = 1` and `E_0[τ⁺_0] = 2` on a single edge (so the edge bound is
+an equality there), and instantiate it on a triangle. Run
+`scripts/build.sh CslibFrontierTests.RandomWalkHitting`.
+
+For regular multigraphs, import
+[MarkovChain/RotationMap.lean](../../CslibFrontier/Probability/MarkovChain/RotationMap.lean).
+`G.randomWalk` follows a uniformly random edge label of `G : RotationMap V D`, with
+`randomWalk_apply` giving `edgeCount x y / |D|`. Use it when the statement counts label
+sequences, as Arora and Barak's Chapter 7 does: `survival_randomWalk_mul_pow` identifies
+`survival` with the fraction of label sequences `k : Fin T → D` whose `walkAt` avoids the target.
+The uniform law is the unique stationary law on a connected graph
+(`isStationary_randomWalk_iff`), from the maximum principle `eq_of_forall_sum_edgeCount_mul_eq`
+in [Expander/Harmonic.lean](../../CslibFrontier/Foundations/Combinatorics/Expander/Harmonic.lean),
+which needs no Markov-chain import. Also, `returnTime_randomWalk_eq_card` gives the expected return
+time as the size of the component. `hittingTime_randomWalk_le_length_mul` bounds `E_u[τ_v]` by
+`ℓ |D| n` along a path of length `ℓ` in `G.toSimpleGraph`. With `|D| ≤ n`,
+`hittingTime_randomWalk_le_hundred_mul` and `ten_mul_card_filter_walkAt_ne_le` give the
+textbook `100 k n²` and `1000 n³`-step statements.
+[Expander/Visits.lean](../../CslibFrontier/Foundations/Combinatorics/Expander/Visits.lean)
+adds the law of large numbers for visit counts without aperiodicity. It is a graph module and needs
+no Markov-chain import. `eventually_visits_mem_Icc` bounds the fraction of label sequences whose
+`visits u v` fall outside `[(1 - ε) t / n, (1 + ε) t / n]`, and `visits_eq` unfolds `visits` to
+the number of times `1, …, t` at which `walkAt` is at `v`. Its reusable step is `exists_abs_sum_walk_pow_le`, uniform
+Cesàro convergence `∑_{j < N} Pʲ f = o(N)` for `f` of total `0` on a connected graph, which comes
+from Mathlib's mean ergodic theorem applied to `walkEuclidean`. The
+[checked clients](../../CslibFrontierTests/RegularRandomWalk.lean) restate them in source form and
+compute the return time `2` on a single edge; run
+`scripts/build.sh CslibFrontierTests.RegularRandomWalk`. If a proof needs `∑ y, P x y = 1`, use
+`sum_apply`. Do not convert to `ℝ` before the finiteness lemmas are available, since `toReal`
+sends `⊤` to `0`.
+
 ## Test for a perfect matching with a random determinant
 
 Import [Matching/Edmonds.lean](../../CslibFrontier/Algorithms/Matching/Edmonds.lean). A bipartite
@@ -568,12 +891,15 @@ with values `r : V × V → R`. Its error is one-sided: `det_edmondsEval_eq_zero
 elements into a detecting choice of values. The probability is a counting ratio over
 `Fintype.piFinset`, not a `PMF`, and no machine running time is certified for the determinant.
 
-The bound comes from two lemmas in
-[MvPolynomial/SchwartzZippel.lean](../../CslibFrontier/Foundations/Data/MvPolynomial/SchwartzZippel.lean):
-`MvPolynomial.schwartz_zippel_totalDegree_fintype` extends Mathlib's Schwartz–Zippel lemma from
-the variables `Fin n` to any finite type, and `MvPolynomial.totalDegree_det_le` bounds the total
-degree of a determinant of polynomials. Use them for other symbolic-determinant tests. The same
-module has two consequences. `MvPolynomial.exists_eval_ne_zero_of_totalDegree_lt_card` finds a
+The bound combines
+`MvPolynomial.schwartz_zippel_totalDegree_fintype` in
+[MvPolynomial/SchwartzZippel.lean](../../CslibFrontier/Foundations/Data/MvPolynomial/SchwartzZippel.lean),
+which extends Mathlib's Schwartz–Zippel lemma from the variables `Fin n` to any finite type,
+with `MvPolynomial.totalDegree_det_le` in
+[MvPolynomial/Determinant.lean](../../CslibFrontier/Foundations/Data/MvPolynomial/Determinant.lean),
+which bounds the total degree of a polynomial determinant. Use them for other
+symbolic-determinant tests. SchwartzZippel publicly reexports the determinant bound and has two
+probabilistic consequences. `MvPolynomial.exists_eval_ne_zero_of_totalDegree_lt_card` finds a
 nonvanishing point of `S ^ σ` when the total degree is below `|S|`; the `exists_det_…_ne_zero`
 theorems use it. `MvPolynomial.card_filter_eval_eq_zero_mul_card_le` is the counting form over a
 finite domain, `#zeros * q ≤ d * q ^ n`. For one variable under a uniform `PMF`,
@@ -832,7 +1158,9 @@ that `p_m = Pr[W_{C_m}]` satisfies the recursion of `ParallelRepetition.le_rpow_
 recursion accepts any constant up to `21`. The final bound has Holenstein's constant `6000`.
 
 To use the bound for concrete answer types, compute the exponent: rewrite the product of the
-cardinalities as a power of two and apply `Real.logb_rpow`. For CHSH, `|A| |B| = 4` and the
+cardinalities as a power of two and apply `Real.logb_rpow`, or `Real.logb_two_pow` from
+[Logb.lean](../../CslibFrontier/Foundations/Analysis/SpecialFunctions/Logb.lean) when the
+exponent is a natural number. For CHSH, `|A| |B| = 4` and the
 exponent is `n / 2`. [CHSH.lean](../../CslibFrontier/Computability/PCP/TwoProverGame/CHSH.lean)
 proves that CHSH has value `3/4` (`TwoProverGame.value_chsh`), and the [parallel repetition clients](../../CslibFrontierTests/ParallelRepetition.lean)
 derive `(3/4)^n ≤ v(CHSHⁿ) ≤ (1 - (1/4)³ / 6000)^{n / 2}`. They also show that the value of the
@@ -1224,6 +1552,34 @@ The source's mod-one Gaussian sampling law is represented by its actual measure 
 its periodic-density series, the joint LWE sample law in Lemma 3.11, efficient sampling,
 finite precision and the quantum reduction remain separate work.
 
+## State a probability and sample uniformly
+
+Import [Notation.lean](../../CslibFrontier/Languages/Probabilistic/Notation.lean) and
+`open Probability`. Public statements then write probabilities the way the textbooks do:
+
+- A named advantage is `ℝ≥0`, defined through `Experiment.advantage`, `Experiment.succProbability`
+  or the `Game` API, because `Negligible`, `Indistinguishable` and the reductions take `ℝ≥0`. As
+  real numbers they are `|Pr[e₀] - Pr[e₁]|` and `Pr[e]`; rewrite with `Experiment.coe_advantage`
+  and `Experiment.coe_succProbability` (plain `simp` also proves them, so they are not `simp` lemmas).
+- Every other probability is `Pr[e] : ℝ`: one-sided bounds `Pr[e] ≤ 1 / q`, exact values
+  `Pr[e] = 1 / 2`, hop differences and biases. A statement does not write
+  `(ProbComp.eval e true).toReal`, `ProbComp.eval e true ≤ …` in `ℝ≥0∞`,
+  `Game.succProbability (ProbComp.eval e)` or a real-cast `Game.advantage` of two laws.
+- An exact hop that is an equality of distributions stays one (`ProbComp.eval G₁ = ProbComp.eval G₂`,
+  or `G₁ = G₂` by `rfl`): it is stronger than `Pr[G₁] = Pr[G₂]` and works with `rw`.
+- `ℝ≥0∞` masses stay inside `PMF` algebra: private lemmas and `eval_*`/`bind_apply_*` facts whose
+  consumers are other `PMF` proofs.
+
+Sample uniformly with `$ᵗ α`, the textbook `a ←$ α`: a program reads `let a ← $ᵗ ZMod q`. It is
+notation for `ProbComp.uniform α` and adds no constant, so `ProbComp.eval_uniform`, `pmf_norm` and
+every other lemma about `ProbComp.uniform` apply unchanged, and goals print `ProbComp.uniform α` as
+`$ᵗ α`. Its argument is an application at most, so a product type needs parentheses:
+`$ᵗ (ZMod q × Bool)`. The SPDZ MAC-check bounds in
+[SPDZ.lean](../../CslibFrontier/Crypto/Protocols/MPC/SPDZ.lean) use both
+(`probability_macCheckSoundnessGame_le : Pr[macCheckSoundnessGame p T err deltaShift] ≤ 2 / p`), and the
+[checked examples](../../CslibFrontierTests/ProbabilityNotation.lean) cover the elaborated term,
+its printing inside `do` blocks and `simp`.
+
 ## Normalize the law of a program
 
 To compute with `ProbComp.eval` of a `do` block, import
@@ -1235,6 +1591,23 @@ normal form; it does not unfold support membership or probability masses. The ch
 [PMFNorm.lean](../../CslibFrontierTests/PMFNorm.lean) show the normal form of each kind of term.
 To prove that two normal forms differ only in the order of independent samples, use `pmf_swap`
 ([Reorder independent samples](../design-and-assurance/automation.md#reorder-independent-samples)).
+
+## Bind a program inside a distribution
+
+A game that has to stay a `PMF`, for example because its setup law is not sampleable, can bind
+programs directly once it imports
+[Lift.lean](../../CslibFrontier/Languages/Probabilistic/Lift.lean). Write
+`let ((x, y), s) ← A.choose ()` instead of `let ((x, y), s) ← ProbComp.eval (A.choose ())`, and end
+the block with `A.guess s c` instead of `ProbComp.eval (A.guess s c)`. The lift is `ProbComp.eval`,
+so the lifted definition equals the explicit one by `rfl`. `simp only [pmf_norm]` rewrites each lift
+back to `ProbComp.eval`, after which the existing law lemmas apply. Use `ProbComp.liftM_eq_eval`
+for a bare `rw` after `unfold`. With the import, any program passed where a distribution is
+expected is lifted silently: `Game.advantage program μ` elaborates. So public statements keep
+naming `ProbComp.eval`, `Pr[e]` or `Experiment` explicitly, and the lift is for definition bodies.
+`Pr[e]` on a program still elaborates to `(ProbComp.eval e true).toReal`. A computational
+experiment that is a program throughout stays a `ProbComp Bool`. The
+[checked examples](../../CslibFrontierTests/ProbabilisticLift.lean) prove a chooser/guesser game
+equal to its explicit form both ways. Run `scripts/build.sh CslibFrontierTests.ProbabilisticLift`.
 
 ## Invert a support membership
 
@@ -1313,12 +1686,27 @@ example {A : ℕ → List Bool → ProbComp (List Bool)} (hA : IsPPT encBits A) 
       return raw.take n) := by
   apply IsPPTOn.isPPT
   refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
-  exact (hA.preprocess (ComputableInPolyTime.tidy (by fun_prop))
-    (ComputableInPolyTime.tidy (by fun_prop))).bind_with
+  exact (hA.preprocess (by fun_prop) (by fun_prop)).bind_with
     (ComputableInPolyTime.isPPTOn (by fun_prop))
 ```
 
 The inverters in the [InaccessibleEntropy development](../../CslibFrontier/Crypto/Computational/InaccessibleEntropy/OneWay.lean) are certified this way. In November 2026 a `ppt` call there cost about 11,000–14,000 heartbeats even on small goals, against a few hundred for the explicit proof. Without the right definition hints, a call could exhaust Aesop's rule limit.
+
+### Plain certificates for closed adaptive loops
+
+Import [Adaptive.lean](../../CslibFrontier/Computability/Probabilistic/Adaptive.lean).
+`IsPPTOn.iterate_spec'` and `iterateWith_spec'` take plain `ComputableInPolyTime`
+certificates for the unary count and initial state. Use `iterate_of_bounded_growth'`
+for fixed additive encoded-state growth, `iterateWith_of_bounded_growth'` for growth
+polynomially bounded in the captured input, and `iterate_of_length_le'` when the
+step never increases encoded size. The growth premises cover every supported result.
+The unprimed entry points retain their existing tidy premises during #862 migration.
+
+The [layered evaluator](../../CslibFrontier/Crypto/Computational/Homomorphic/Layered/PolyTime.lean)
+passes its existing `hcount` and `hinit` directly to the captured-growth rule. Its bound
+still covers malformed public inputs. The ordinary-import
+[adaptive regression client](../../CslibFrontierTests/AdaptivePPT.lean) applies the plain
+constant-growth rule to a quadratic number of random bit-prepending steps.
 
 ## Bound a centered-binomial sampler tail
 
@@ -1335,6 +1723,254 @@ bound below one. They also certify the actual growing program with `η = 8(l+1)`
 `IsPPTOn encUnary encIntBin` and bound its strict tail above `4(l+1)` by `4 exp(-(l+1))`.
 The native certificate charges unary width and signed binary output; this scalar result
 supplies neither encryption correctness nor a security reduction.
+
+## Compose through the public oracle certificate
+
+Import [Oracle/Composition.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Composition.lean)
+and use `IsOraclePPTOn` with explicit input and output encodings. The composition rules compile
+an internal clean phase as a proof implementation; ordinary clients do not import or construct
+that witness. The [ordinary-module client](../../CslibFrontierTests/OraclePhaseFacade.lean)
+composes plain deterministic preparation, sampled bits, selected branching and a bounded loop.
+It also checks that neither the former public tidy predicate nor the internal phase witness is
+available through the facade. The [internal machine tests](../../CslibFrontierTests/PlainCleanPhase.lean)
+import the compiler explicitly to exercise phase composition.
+
+To send every word of an efficiently computed list to the oracle and keep an efficiently computed
+prefix of each reply, import [Oracle/Traverse.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Traverse.lean)
+and apply `IsOraclePPTOn.mapM_query_take` to the `List.mapM` traversal; no loop or state invariant
+is needed. The word-level ECB distinguisher (`BlockCipher.isOraclePPT_ecbToPrpDistinguisher`), the
+PRF-to-PRG reduction (`isOraclePPT_prgFromPRFReduction`) and the blockwise MAC simulator
+(`isOraclePPTOn_blockwiseBoundedSimulator`) use it.
+
+For a finite-control oracle machine with an efficiently computed unary clock, import
+[Oracle/Normalization.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Normalization.lean)
+and apply `IsOraclePPTOn.runOracle_of_clock`. Normalization preserves adaptive query order and
+the joint output/external-state law. Its reply truncation follows the machine clock and assumes
+no global bound on an external reply. Explicit halting-time, primary-input auxiliary-clock and
+binary-iteration endpoints keep their existing public modules and independent resource contracts;
+their machine assembly lives in the internal compiler rather than a second public calculus.
+
+## Substitute an oracle while preserving private samples
+
+Import [Oracle/Substitution.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Substitution.lean).
+Write a replacement handler as a `ProbOracleComp` program, then use
+`ProbOracleComp.simulate handler adversary`. Only external queries reach `handler`; private
+samples remain sampling requests in the resulting program. The handler can make its own private
+samples and external queries.
+
+Open the [checked client](../../CslibFrontierTests/ProbOracleSubstitution.lean), whose import is
+`CslibFrontier.Languages.Probabilistic.Oracle.Substitution`. This excerpt uses its `open Cslib`:
+
+<!-- excerpt: private-sampling-substitution -->
+```lean
+private noncomputable def adversary : ProbOracleComp (fun _ : Bool => ℕ) (Bool × ℕ) := do
+  let bit ← ProbOracleComp.sample (ProbComp.uniform Bool)
+  let reply ← ProbOracleComp.query bit
+  return (bit, reply)
+
+private noncomputable def maskedQuery (bit : Bool) : ProbOracleComp (fun _ : Bool => ℕ) ℕ := do
+  let mask ← ProbOracleComp.sample (ProbComp.uniform Bool)
+  ProbOracleComp.query (bit ^^ mask)
+
+private noncomputable def reduction : ProbOracleComp (fun _ : Bool => ℕ) (Bool × ℕ) :=
+  ProbOracleComp.simulate maskedQuery adversary
+```
+
+The client proves that `reduction` makes two private draws, in order, followed by one external
+query, and retains the adversary's original bit in its result. Supply the random sampler and
+any oracle state once, in the surrounding `OracleComp.interpret`. The theorem
+`ProbOracleComp.interpret_simulate` composes that interpreter with the replacement handler;
+the reduction proof need not split the private-sampling branch of `sumHandler`.
+
+Run `scripts/build.sh CslibFrontierTests.ProbOracleSubstitution` from the repository root.
+The additional stateful example checks that four adaptive target queries share one counter,
+including across a private draw, and the dependent-reply example checks that query-specific
+response types are preserved. For the cryptographic clients, inspect
+[hybridDEMContinuation](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid/DEMCCA.lean)
+and [hybridKEMCCAContinuation](../../CslibFrontier/Crypto/Computational/Encryption/Hybrid/CompositionCCA.lean):
+each phase names only the oracle simulation it needs.
+
+To bound a substituted program's queries, import
+[Oracle/Substitution/QueryCount.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Substitution/QueryCount.lean).
+`hQ.simulate hhandler` keeps the adversary's budget `hQ` when every handler program makes at
+most one query, `isCostBounded_simulate` does the same for general costs, and
+`ProbOracleComp.queriesSatisfy_simulate` propagates a query predicate from every handler to the
+substituted program. Neither query-count rule needs a case split on the private-sampling branch. The
+forward lift
+[PRP.StrongAdversary.isQueryBounded_ofForward](../../CslibFrontier/Crypto/Primitives/PRP/Finite.lean)
+is a one-line client.
+
+To analyse a substituted program against a stateful oracle, for example in an identical-until-bad
+hop, import
+[Oracle/Substitution/RunWith.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Substitution/RunWith.lean).
+`ProbOracleComp.runWith_simulate` rewrites `runWith oracle (simulate handler A)` to a run of `A`
+whose queries each run `handler q` against `oracle`. The block-mode reduction
+[blockModeReduction](../../CslibFrontier/Crypto/Computational/Encryption/RandomFunctionHybrid.lean)
+uses it for its fresh-sampling hop and in the CTR and OFB collision bounds.
+
+If an existing proof needs generic monadic interpreter laws, note that unfolding
+`ProbOracleComp.simulate` exposes `OracleComp.substitute`, not an interpreter. The public
+`OracleComp.substitute_eq_interpret` bridge rewrites it as `OracleComp.interpret` only when the
+source replies and the program result inhabit the same monad object universe; outside that
+boundary use the heterogeneous substitution laws or the specialized state-run and query-budget
+laws above. Substitution preserves the free program; it does not by itself certify its runtime.
+This separation follows VCVio's treatment of
+[untouched oracle effects](https://github.com/Verified-zkEVM/VCVio/blob/87bc1892fff1982e97cfd8c7303c9d1f2bfdc2f9/VCVio/OracleComp/SimSemantics/Append/Core.lean).
+
+## Run a word adversary against a typed oracle
+
+When a game's adversary sends word requests but the oracle is naturally typed, import
+[Oracle/Codec.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Codec.lean) and describe
+the channel once as an `OracleCodec Op Q spec`: `encodeQuery` writes each query as a request,
+`decodeQuery` recognizes exactly those requests, and `encodeReply` writes each reply. Then
+`c.adapt P` runs the word program `P` against the typed oracle, answering requests that carry no
+query with `[]` and no call. Do not write the decoding handler by hand.
+
+`OracleCodec.run_adapt` and `OracleCodec.runWith_adapt` say that the typed run of `c.adapt P` is
+the word run of `P` against `c.wordOracle O`. So a word game equals the typed game of the adapted
+adversary exactly when its oracle is `c.wordOracle` of the typed one: it answers requests carrying
+no query with `[]`, leaving its state unchanged, and answers the others through the typed oracle.
+Prove that once for the game's oracle, as a pointwise equation, and keep the word channel when it
+fails. `isQueryBounded_adapt` keeps the adversary's budget; `isCostBounded_adapt` keeps a general
+cost budget when each query costs at most its request.
+
+`OracleCodec.bitString n` carries `n`-bit strings on a single channel. `comap` transports a codec
+along an equivalence of queries, and `withOp` puts one copy of a single-channel codec on each
+channel. In [the Luby–Rackoff reduction](../../CslibFrontier/Crypto/Computational/LubyRackoff.lean),
+`pairCodec` and `strongPairCodec` are built this way, and `pairCodec_wordOracle` and
+`strongPairCodec_wordOracle` are the pointwise equations for its random-permutation games. The
+[checked client](../../CslibFrontierTests/OracleCodec.lean) runs a word adversary with one
+malformed and one well-formed request against a stateful typed oracle. Check it with
+`scripts/build.sh --wfail --iofail CslibFrontierTests.OracleCodec`.
+
+## Compare two runs one step at a time
+
+To relate the laws of two loops, prove the relation for one step and lift it. Import
+[Iteration/Chain.lean](../../CslibFrontier/Languages/Probabilistic/Iteration/Chain.lean) to write a
+loop as a chain of distributions: `ProbComp.eval_iterate` for a closed loop and
+`OracleComp.run_interpret_iterate_pmf` for a loop run with a probabilistic stateful handler. When
+only the step laws agree, `ProbComp.eval_iterate_congr` gives equal loop laws directly.
+
+Then import [PMF/Coupling.lean](../../CslibFrontier/Probability/PMF/Coupling.lean).
+`PMF.map_iterate_bind_of_invariant` lifts a state representation that commutes with every step.
+`PMF.iterate_bind_comm_of_invariant` handles the case where the ideal chain first draws a hidden
+sample `k` and then runs on a smaller state. The link between the two chains is the law
+`(exp a).map (·, rep a)`, where `exp a` samples what the real state `a` has not yet fixed, as in
+lazy and eager sampling. The local step equation is needed only on states satisfying an invariant
+indexed by the round. Each lemma returns the lifted equation together with that invariant on the
+reachable states, so you can chain hops. `bind_bind_comm_of_invariant` and `map_bind_of_invariant`
+are the one-step forms for straight-line code, and `iterate_bind_invariant` gives only the
+invariant.
+
+For an adaptive program with a query budget, import
+[Oracle/QueryBoundedSimulation.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/QueryBoundedSimulation.lean).
+`ProbOracleComp.IsQueryBounded.run_interpret_bind_comm_of_invariant` lifts the same link through
+every external query. Its invariant is indexed by the remaining budget, for example room in a
+bounded cache. Without a budget, use `run_interpret_simulation_of_invariant` or
+`run_interpret_map_state_of_invariant` from
+[Simulation.lean](../../CslibFrontier/Languages/Probabilistic/Simulation.lean). The open-round loops
+of [CCA/Interleaved.lean](../../CslibFrontier/Crypto/Computational/Encryption/CCA/Interleaved.lean)
+and the certification and key-expansion hops of
+[TreeSignature/Security.lean](../../CslibFrontier/Crypto/Computational/TreeSignature/Security.lean)
+are worked clients.
+
+## Pass a query adapter through an eager/lazy game hop
+
+Import [Oracle/Substitution.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Substitution.lean)
+and [RandomOracle/Probabilistic.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Probabilistic.lean).
+Write the query conversion as a `ProbOracleComp` handler, then apply the eager/lazy theorem to
+`ProbOracleComp.simulate handler program`. The same adapted program is used on both sides:
+one interpreter samples the random function eagerly, and the other fills its cache on demand.
+
+The [checked adapter](../../CslibFrontierTests/RandomOracleAdapter.lean) accepts one-bit words and
+rejects other words. Its client repeats a query across a private draw and an invalid query.
+The following excerpt uses the test file's `open Cslib Cslib.Probability`:
+
+<!-- excerpt: random-oracle-adapter -->
+```lean
+private def oneBitQuery (word : List Bool) : ProbOracleComp (fun _ : Bool => Bool) (List Bool) :=
+  match word with
+  | [bit] => List.singleton <$> ProbOracleComp.query bit
+  | _ => pure []
+
+private noncomputable def repeated : ProbOracleComp (fun _ : List Bool => List Bool) Bool := do
+  let first ← ProbOracleComp.query [false]
+  let coin ← ProbOracleComp.sample (ProbComp.uniform Bool)
+  let rejected ← ProbOracleComp.query []
+  let second ← ProbOracleComp.query [false]
+  return (first == second) && rejected.isEmpty && coin
+
+private noncomputable def adapted : ProbOracleComp (fun _ : Bool => Bool) Bool :=
+  ProbOracleComp.simulate oneBitQuery repeated
+```
+
+Apply `RandomOracle.interpret_prob_eq_memoize` to `adapted`. When cache keys and sampled values
+have different representations, use `interpret_prob_eq_memoize_map` instead. Then
+`ProbOracleComp.interpret_simulate` composes the surrounding interpreter with the adapter;
+prove the adapter's response equation for each valid or rejected query. Import
+[Oracle/Norm.lean](../../CslibFrontier/Languages/Probabilistic/Oracle/Norm.lean) and use
+`simp only [runWith_norm, pmf_norm]` to normalize closed runs and their state threading.
+
+The test also computes the complete cached run: its result is the fresh private coin, and its
+cache contains exactly the first sampled answer at `false`. Rejection adds no cache entry and
+the repeated query reuses that answer. Check it with
+`scripts/build.sh --wfail --iofail CslibFrontierTests.RandomOracleAdapter`.
+
+In [the PRF game](../../CslibFrontier/Crypto/Computational/PseudorandomFunction/RandomOracle.lean),
+`prfIdealGame_eq_cached` uses this route after converting a valid word to a bit string. In
+[GGM](../../CslibFrontier/Crypto/Computational/GGM/Expansion.lean), `prefix_eager` also converts the
+query to its prefix. The proof of `expansionGame_uniform` then follows three named game hops:
+cached parent expansions become an eager prefix table, `childTableEquiv` reindexes that table
+into child labels, and those labels become the next level's cache. The prefix-length and
+child-table equations remain local mathematical obligations. These eager tables are used to
+prove distributional equalities; the executable reductions retain their existing separate
+runtime and query-bound certificates.
+
+## Replace a game's own caches by complete tables
+
+Use this route when a game keeps its random-oracle caches in its own state, such as association
+lists in a record or several caches for several oracles, rather than running a program through
+`memoize`. Import
+[RandomOracle/Represented.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Represented.lean).
+
+1. Join the oracles into one interface with `⊕ₒ` and write each game query as an oracle program
+   over it. Write the lazy handler and the complete-table handler as `interpret` of the same
+   program, so the game logic is stated once.
+2. Choose `rep : State → RandomOracle.Cache spec`, the cache that the state represents. Build it
+   from one cache per oracle with `RandomOracle.Cache.sum` from
+   [RandomOracle/Sum.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Sum.lean),
+   which `Represented.lean` re-exports, and read list caches with `RandomOracle.ofList`.
+3. Prove the per-call step: each lazy handler call, with its next state mapped by `rep`, is
+   `RandomOracle.answer` on the represented cache. On a joined cache, `answer_sum_inl` and
+   `answer_sum_inr` reduce this to one side, and `RandomOracle.eval_zoom_memoize_map` proves it for
+   a `zoomStateT`/`memoize` cache.
+4. Apply `RandomOracle.eval_run_interpret_eq_complete_bind`, or `run_interpret_eq_complete_bind`
+   for a handler that already returns `PMF`. The run's result law becomes completing `rep s` once
+   and answering every call from the table. `RandomOracle.bind_complete_sum` then splits the
+   completed table into one independent table per oracle.
+
+The checked clients are `Scheme.eval_romIndCcaExperiment_eq_eager` in
+[FujisakiOkamoto/Security.lean](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Security.lean),
+with two caches for `G` and `H` and a decapsulation oracle given as a program over both, which
+proves the step once for the `FO-notbot` and `FO^⊥` games, and
+`Scheme.eval_coupledGame_eq_eagerCoupledGame` in
+[NotBot/Lazy.lean](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NotBot/Lazy.lean),
+with three caches and a key-derivation query that calls two oracles. Check them, and the
+approximate client below, with
+`scripts/build.sh --wfail --iofail CslibFrontier.Crypto.Protocols.KEM.FujisakiOkamoto.Bot`.
+
+This proves an exact equality, so step 3 fails when a handler also inspects its caches directly,
+for example a decapsulation filter that checks whether a message was already queried. Such a hop
+needs an approximate simulation instead. Import
+[Simulation/CloseTo.lean](../../CslibFrontier/Languages/Probabilistic/Simulation/CloseTo.lean) and
+apply `OracleComp.closeTo_run_interpret_simulation_readOnly` with
+`relate s := RandomOracle.complete distribution (rep s)` and a cost function that charges only the
+calls that read the cache. For each call, `RandomOracle.eval_run_interpret_bind_complete` gives the
+joint law of the answer and the completed final cache. On the calls that answer as a lazy oracle
+this is already the eager side, so only the cache-reading calls need a statistical-distance bound.
+The checked client is `closeTo_cachedCoupledBotGame_eagerCoupledBotGame` in
+[FujisakiOkamoto/Bot.lean](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Bot.lean),
+whose `G` and `H` calls are exact and whose decapsulation call costs `2^{-γ}` by spreadness.
 
 ## Certify an adaptive oracle client
 
@@ -1367,15 +2003,17 @@ First specify the operation set and request representation. Then bound the amoun
 
 Next inspect behavior under a concrete handler. The same client defines `counting`, which increments a counter on every call. Its semantic examples establish final count one on the unselected branch and two on the selected branch. This catches interaction differences that equality of output marginals could hide. For the simpler `runWith` interface, open [CslibFrontierTests/OracleSemantics.lean](../../CslibFrontierTests/OracleSemantics.lean).
 
-Use `adaptive_isOraclePPTOn.query_bounds` to obtain polynomial bounds on external call count and request length. A separately proved `IsCostBounded` charges chosen requests along every path; `ProbOracleComp.IsQueryBounded` counts external calls rather than private samples. Neither bound by itself pays for arbitrary Lean callbacks. For an average rather than a worst-case charge, [QueryCount/Expected.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Expected.lean) defines `OracleComp.expectedCost handler cost program`, the expected total cost when the calls are answered by PMF-valued `handler`. `expectedCost_bind` is Wald's identity for sequencing, `expectedCost_interpret` follows a handler substitution, and `expectedCost_le_of_isCostBounded` bounds the expectation by a pathwise `IsCostBounded` budget. The [local-decoding model](../circuits-logic-and-other-models/query-and-communication.md#locally-decodable-codes) measures smoothness this way.
+Use `adaptive_isOraclePPTOn.query_bounds` to obtain polynomial bounds on external call count and request length. A separately proved `IsCostBounded` charges chosen requests along every path; `ProbOracleComp.IsQueryBounded` counts external calls rather than private samples. Neither bound by itself pays for arbitrary Lean callbacks. A call budget `n` becomes a cost budget `n * c` when every call, or every call satisfying a `QueriesSatisfy` predicate, costs at most `c` ([QueryCount/Scale.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Scale.lean)). For an average rather than a worst-case charge, [QueryCount/Expected.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Expected.lean) defines `OracleComp.expectedCost handler cost program`, the expected total cost when the calls are answered by PMF-valued `handler`. `expectedCost_bind` is Wald's identity for sequencing, `expectedCost_interpret` follows a handler substitution, and `expectedCost_le_of_isCostBounded` bounds the expectation by a pathwise `IsCostBounded` budget. The [local-decoding model](../circuits-logic-and-other-models/query-and-communication.md#locally-decodable-codes) measures smoothness this way.
 
 **When it fails:** if `fun_prop` fails on returning an entire oracle reply, check whether the requested conclusion permits unbounded output. The linked client contains explicit failure examples and the bounded-prefix repair.
 
 <!-- /worked-example -->
 
-When replacing the external handler with an implementation, open [Oracle/Substitution.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Substitution.lean). The plain-certificate variant `IsOraclePPTOn.run_interpret_preprocess_open'` requires efficient preparation, initialization and handling, plus an invariant and bounds on reply length and added encoded state. Its `hresources` premise also certifies a uniform unary computation of the resource allowance from the original caller and request; an abstract polynomial bound alone does not supply this certificate. Repeated state doubling explains why “each call is polynomial time” is insufficient.
+When replacing the external handler with an implementation, open [Oracle/Substitution.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Substitution.lean). The canonical `IsOraclePPTOn.run_interpret_preprocess_open` rule takes plain polynomial-time preparation and initialization certificates and a strict oracle-PPT handler, plus an invariant and bounds on reply length and added encoded state. Its `hresources` premise also certifies a uniform unary computation of the resource allowance from the original caller and request; an abstract polynomial bound alone does not supply this certificate. Repeated state doubling explains why “each call is polynomial time” is insufficient. The closed `run_interpret_preprocess` rule and its parameterized wrapper accept the same plain preparation, initial-state and unary-allowance certificates. The former primed spellings have been removed after caller migration. The [ordinary-module client](../../CslibFrontierTests/OraclePlainSubstitution.lean) checks captured-input closed sampling, open memoized queries and the joint external/private-state law, together with zero-query and zero-allowance cases. `run_interpret_withSampleList` likewise consumes plain deterministic preparation and resource certificates; it still returns the final private state and unused samples.
 
-When the allowance is polynomially bounded but not conveniently computed, apply `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` instead (the uniform-clock form is `IsOraclePPT.run_interpret_preprocess_open_of_polyBounded` in [Oracle/Parameter.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Parameter.lean)). Its `hresources` premise is only `PolyBounded` growth of `resources caller request` in the length of the encoded caller–request pair, so no unary computation of the allowance is needed; both certificate variants are derived from it. The other premises are unchanged: the invariant must still hold for every handler result in the support under every external oracle, and the allowance must still bound each reply and the added encoded state. [`isPPTOn_runWithEncryption`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyCPA.lean) is a checked client: it proves the allowance's growth with `growth_poly` from the security parameter and the lengths of the public key and the request.
+When the allowance is polynomially bounded but not conveniently computed, apply `IsOraclePPTOn.run_interpret_preprocess_open_of_polyBounded` instead (the uniform-clock form is `IsOraclePPT.run_interpret_preprocess_open_of_polyBounded` in [Oracle/Parameter.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/Parameter.lean)). Its `hresources` premise is only `PolyBounded` growth of `resources caller request` in the length of the encoded caller–request pair, so no unary computation of the allowance is needed; the computed-allowance rule is derived from it. The other premises are unchanged: the invariant must still hold for every handler result in the support under every external oracle, and the allowance must still bound each reply and the added encoded state. [`isPPTOn_runWithEncryption`](../../CslibFrontier/Crypto/Computational/Encryption/PublicKeyCPA.lean) is a checked client: it proves the allowance's growth with `growth_poly` from the security parameter and the lengths of the public key and the request.
+
+When the run is written with [`runState`](../../CslibFrontier/Languages/Probabilistic/Oracle/RunState.lean) as `((program (prepare a)).runState (oracle a)).run (initial a)`, certify it with `IsOraclePPTOn.isPPTOn_runState`, or `IsOraclePPT.isPPTOn_runState` for a parameterized program, from [Oracle/RunState.lean](../../CslibFrontier/Computability/Probabilistic/Oracle/RunState.lean). They are the canonical closed `run_interpret_preprocess` rules restated on `runState`, with plain polynomial-time preparation, initial state and allowance in both: the oracle certificate applies the stateful oracle to caller, request and state, which `fun_prop` can certify, and the invariant and allowance are unchanged. The [checked client](../../CslibFrontierTests/OracleRunStatePPT.lean) certifies a run against a stateful oracle.
 
 ## Bound stateful identical-until-bad hops and random-oracle collisions
 
@@ -1383,11 +2021,30 @@ When two stateful oracle handlers agree until an internal collision or guessing 
 
 - **Monotone Boolean bad flags (`withBadFlag`, `IdenticalUntilBad.of_flag`).** Given one-step kernels `step₁ step₂ : (q : Query) → State → PMF (spec q × (State × Bool))` returning an answer, next state and per-call bad indicator, `OracleComp.withBadFlag stepᵢ` latches the flag with `||` on `State × Bool` under `FlagBad st := st.2 = true`. `OracleComp.identicalUntilBad_withBadFlag` (and `ProbOracleComp.identicalUntilBad_withBadFlag`) discharges flag absorption automatically and asks only for pointwise agreement on unflagged outcomes `step₁ q s (a, (s', false)) = step₂ q s (a, (s', false))`. When a handler already acts on `State × Bool`, use `IsFlagMonotone` with `IdenticalUntilBad.of_flag`.
 - **Recovering unflagged `ProbOracleComp.runWith` executions.** `ProbOracleComp.IdenticalUntilBad` lifts `OracleComp.IdenticalUntilBad` across `ProbComp.unifOracle` coin draws, providing `run_apply`, `bind_apply_le`, `bad_eq`, `abs_sub_le`, `closeTo_run`, `closeTo_bind` and `ProbOracleComp.IdenticalUntilBad.advantage_le` directly on `ProbOracleComp.runWith`. Apply `ProbOracleComp.runWith_withBadFlag_map_fst` (or `ProbOracleComp.runWith_map_fst`) to project away the Boolean flag whenever each step's `(a, s')` marginal matches the unflagged handler.
-- **Linear vs. triangular (`choose 2`) bad-event union bounds.** Use `ProbOracleComp.toOuterMeasure_bad_le` when each call's bad probability is bounded against a real-valued budget growth. When each call from a good state `s` triggers `bad` with probability proportional to an integer table size (`size s * δ`) and grows `size` by at most `1`, import [UntilBad/ChooseTwo.lean](../../CslibFrontier/Languages/Probabilistic/UntilBad/ChooseTwo.lean) and apply `OracleComp.toOuterMeasure_bad_choose_two_le` or `ProbOracleComp.toOuterMeasure_bad_choose_two_le` for the sharp triangular sum `(n * size s + n.choose 2) * δ`. When active calls (`cost₁`, budget `k₁`) risk `bad` and grow `size` while passive calls (`cost₂`, budget `k₂`) only grow `size`, `OracleComp.toOuterMeasure_bad_choose_two_cost_le` and `ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le` give `(k₁ * size s + k₁ * k₂ + k₁.choose 2) * δ`.
+- **Linear vs. triangular (`choose 2`) bad-event union bounds.** Use `ProbOracleComp.toOuterMeasure_bad_le` when each call's bad probability is bounded against a real-valued budget growth. When each call from a good state `s` triggers `bad` with probability proportional to an integer table size (`size s * δ`) and grows `size` by at most `1`, import [UntilBad/ChooseTwo.lean](../../CslibFrontier/Languages/Probabilistic/UntilBad/ChooseTwo.lean) and apply `OracleComp.toOuterMeasure_bad_choose_two_le` or `ProbOracleComp.toOuterMeasure_bad_choose_two_le` for the sharp triangular sum `(n * size s + n.choose 2) * δ`. When active calls (`cost₁`, budget `k₁`) risk `bad` and grow `size` while passive calls (`cost₂`, budget `k₂`) only grow `size`, `OracleComp.toOuterMeasure_bad_choose_two_cost_le` and `ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le` give `(k₁ * size s + k₁ * k₂ + k₁.choose 2) * δ`. Both two-cost forms and `OracleComp.toOuterMeasure_bad_choose_two_of_isCostBounded` also accept a per-call bound `(cost₁ q * size s + (cost₁ q).choose 2) * δ`, for a call that adds several points and may collide among them, such as one CBC encryption; the conclusion is unchanged.
+- **A lazily sampled function called through a map.** When each query `m : M` of a program is answered by a lazily sampled function on `Y` at `φ m`, import [RandomOracle/Through.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Through.lean). For `φ : M → Y` with decidable equality on `M` and `Y`, one distribution `dist : PMF Z` for every fresh answer, and `program : ProbOracleComp (fun _ : M => Z) α`, `RandomOracle.closeTo_runWith_memoize_simulate_query` bounds the statistical distance between the result of `program` against `memoize fun _ : M => dist` and the result of `ProbOracleComp.simulate (fun m => ProbOracleComp.query (φ m)) program` against `RandomOracle.answer fun _ : Y => dist`, both from an empty cache. The error is the probability that the final cache of the first run holds two distinct queries with the same image (`RandomOracle.HasImageCollision φ`; `RandomOracle.hasImageCollision_iff` restates it on the list of queries). The statement compares results, not final caches. Use it when a collision has no per-call probability, for example when `φ` is a keyed hash and the bound comes from averaging over the key afterwards; when each call has its own bound, use the `choose 2` lemma above. Checked examples, including a constant map for which the error cannot be dropped: [RandomOracleThrough.lean](../../CslibFrontierTests/RandomOracleThrough.lean).
 - **Random-oracle min-entropy programming and birthday collisions.** Import [RandomOracle/Programming.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Programming.lean) (and [CloseTo/RandomOracle.lean](../../CslibFrontier/Crypto/Game/CloseTo/RandomOracle.lean) for `Game.advantage` wrappers):
   - `RandomOracle.toOuterMeasure_exists_mem_fst_eq_le` bounds `μ.toOuterMeasure {a | ∃ e ∈ cache, e.1 = f a}` by `cache.length * δ` whenever `∀ q, (μ.map f) q ≤ δ`, and `RandomOracle.map_comp_apply_le_of_injective` transports that guessing bound through an injective key embedding.
-  - `RandomOracle.lazyProgramHandler` and `RandomOracle.overwriteProgramHandler` (with flagged counterparts `flaggedLazyProgramHandler` and `flaggedOverwriteProgramHandler` used in [FiatShamir.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamir.lean) and [FiatShamirNIZK.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamirNIZK.lean)) model a two-channel experiment (`Req ⊕ Query`) whose active `.inl req` calls sample `ts ← samplePre req` with guessing bound `δ` at `point req ts` and either query `memoize (fun _ => dist)` lazily or overwrite `(point req ts, c)` with a fresh `c ← dist`. `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` and `closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two` (plus `advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_le`) bound the programming-collision error by `(q_S * cache.length + q_S * q_H + q_S.choose 2) * δ`, with rectangular corollaries `q_S * (cache.length + q_S + q_H) * δ`.
+  - `RandomOracle.lazyProgramHandler` and `RandomOracle.overwriteProgramHandler` (used with `closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded` in [FiatShamir.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamir.lean) and [FiatShamirNIZK.lean](../../CslibFrontier/Crypto/Protocols/SigmaProtocol/FiatShamirNIZK.lean), backed by flagged counterparts `flaggedLazyProgramHandler` and `flaggedOverwriteProgramHandler`) model a two-channel experiment (`Req ⊕ Query`) whose active `.inl req` calls sample `ts ← samplePre req` with guessing bound `δ` at `point req ts` and either query `memoize (fun _ => dist)` lazily or overwrite `(point req ts, c)` with a fresh `c ← dist`. `closeTo_run_lazyProgramHandler_overwriteProgramHandler_choose_two` and `closeTo_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two` (plus `advantage_runWith_lazyProgramHandler_overwriteProgramHandler_choose_two_le`) bound the programming-collision error by `(q_S * cache.length + q_S * q_H + q_S.choose 2) * δ` with rectangular corollaries `q_S * (cache.length + q_S + q_H) * δ`, and `closeTo_run_lazyProgramHandler_overwriteProgramHandler_of_isQueryBounded` gives the total-query bound `q_S * (cache.length + Q) * δ` from `IsQueryBounded program Q`.
+  - For native word execution, import
+    [Computability/Probabilistic/RandomOracle/Programming.lean](../../CslibFrontier/Computability/Probabilistic/RandomOracle/Programming.lean).
+    `lazyProgramWordHandler` and `overwriteProgramWordHandler` use one encoded `ProgrammingState`
+    containing the memoized table and caller log. `eval_lazyProgramWordHandler`,
+    `eval_overwriteProgramWordHandler`, `runWith_lazyProgramWordHandler` and
+    `runWith_overwriteProgramWordHandler` identify the complete reply/cache/log law with the
+    semantic handlers above; `isPPTOn_lazyProgramWordHandler` and
+    `isPPTOn_overwriteProgramWordHandler` certify individual calls. The whole-run
+    `isPPTOn_run_lazyProgramWordHandler` and `isPPTOn_run_overwriteProgramWordHandler`
+    additionally require an additive `programmingResources` contract: `ProgrammingInvariant`
+    bounds cached digests and caller logs, `lazyProgramWordHandler_support` preserves it and
+    bounds reply and encoded-state growth, and `computableInPolyTime_programmingResources`
+    certifies the shared unary allowance. The
+    [ordinary-module client](../../CslibFrontierTests/ProgrammableRandomOraclePPT.lean) checks both
+    worlds and an answer-dependent follow-up query. These certificates charge runtime caller data
+    and final state, but not a parameter-dependent installed program or machine description; such
+    a family still needs an `OracleTM`-level description-size argument.
   - `RandomOracle.toOuterMeasure_collision_memoize_uniform_le` and `RandomOracle.toOuterMeasure_hasOutputCollision_memoize_uniform_le` (with `runWith` variants for `ProbOracleComp`) prove the `q`-query random-oracle output-collision birthday bound `q.choose 2 / Fintype.card Digest` starting from `[]`.
+- **Two independent random oracles as two lists.** When a protocol calls two random oracles, such as a Merkle hash and a Fiat–Shamir challenge oracle, import [RandomOracle/Sum.lean](../../CslibFrontier/Languages/Probabilistic/RandomOracle/Sum.lean) and run it under `RandomOracle.memoizeSum dist₁ dist₂`, which keeps one association list per oracle. `RandomOracle.run_interpret_memoizeSum` shows that the two lists implement the lazy random oracle `RandomOracle.answer (sumHandler dist₁ dist₂)` on their joined cache `Cache.sum (ofList tr₁) (ofList tr₂)`, and `map_fst_run_interpret_memoizeSum_nil` gives the output distribution from empty lists. One call unfolds with `memoizeSum_inl`/`_inr` and inverts with `mem_support_memoizeSum_inl`/`_inr`; `run_interpret_memoizeSum_liftLeft`/`_liftRight` reduce a one-sided subprogram to ordinary `memoize`, and `mem_support_run_interpret_memoizeSum` carries per-list invariants (for example `mem_support_memoize_nodup`). Per-oracle query budgets of embedded subprograms come from `IsCostBounded.liftLeft`/`liftRight` and `liftLeft_of_cost_inl_eq_zero`/`liftRight_of_cost_inr_eq_zero` in [QueryCount/Sum.lean](../../CslibFrontier/Languages/Probabilistic/QueryCount/Sum.lean). `micaliMemoize` and `bcsMemoize` are the two instances.
 
 The [checked clients](../../CslibFrontierTests/Crypto/UntilBadROMFramework.lean) verify concrete sharpness of `toOuterMeasure_bad_choose_two_le` and `HasOutputCollision` at `q = 2` on `Bool` (`= 1 / 2`), exercise `ProbOracleComp.IdenticalUntilBad` and `withBadFlag` on a randomized 2-query client, check exact min-entropy list-key collision mass on `Fin 4`, and compare the nontrivial `3 / 4` sharpened programming bound against the vacuous `3 / 2` rectangular bound at `q_S = 2, q_H = 1, δ = 1 / 4`. Run `scripts/build.sh --wfail --iofail CslibFrontierTests.Crypto.UntilBadROMFramework`. These bounds depend only on pathwise query/cost budgets and PMF semantics; native `IsOraclePPTOn` / `IsPPTOn` runtime certificates remain separate obligations.
 
@@ -1439,8 +2096,9 @@ and apply `hybrid_indcca2On`. Supply the existing KEM CCA indistinguishability a
 `F` satisfying `(uniformList (keyLen n)).map (F n) = eval (E.keyGen n)` for every `n`.
 Postprocess every successful decapsulation with `Option.map (F n)` too. The conclusion uses
 `INDCCA2On` with both challenge lengths equal to `n`, not unrestricted `WordINDCCA2`.
-`exists_hybridCCA_reductions` returns native KEM and symmetric adversaries and the exact
-`2 * KEM advantage + symmetric advantage` bound. Reply caps are derived from supported
+`exists_hybridCCA_reductions` returns a `HybridCCAReductions` record: native KEM and symmetric
+adversaries `kem` and `dem` with the exact `2 * KEM advantage + symmetric advantage` bound
+`advantage_le`. Reply caps are derived from supported
 secret-key lengths and the native decryptor; external replies need no assumed length bound.
 
 The [complete composition clients](../../CslibFrontierTests/Crypto/HybridCompositionCCA.lean)
@@ -1452,7 +2110,14 @@ provides it for every seed, while the simple split map needs real keys of length
 The clients also distinguish failed decapsulation from accepted empty keys, detect omitted
 postprocessing on forwarded replies, and exhibit a failed real hop without KEM correctness.
 
-When the KEM instead derandomizes an explicit-coin public-key encryption scheme `encDet : PK → M → R → CT` with a mandatory re-encryption check (`T[PKE, G]`, `FO^⊥`, and domain-separated implicit-rejection `FO-notbot`), import [`FujisakiOkamoto.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto.lean) and [`FujisakiOkamoto/Security.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Security.lean) rather than `KEMFromPKE.lean`. Those modules supply `ExplicitCoinPKE` (`DeltaCorrect`, `GammaSpread`, `indCpaGame`), deterministic recovery and re-encryption rigidity lemmas (`decT_encT_eq_some`, `encT_of_decT_eq_some`, `Scheme.decapsBot_encT_eq_some`, `Scheme.decapsBot_eq_none_of_reencrypt_ne`, `Scheme.decapsNotBot_encT_eq`, `Scheme.decapsNotBot_of_reencrypt_ne`), and the `FO-notbot` ROM IND-CCA games (`Scheme.roIndCcaGame`, `Scheme.eagerIndCcaGame`, `Scheme.eval_roIndCcaGame_eq_eagerIndCcaGame`, `Scheme.indCcaRomAdvantage_eq_eager`) and keyless IND-CPA reduction (`Scheme.simHandler`, `Scheme.romCpaReduction`, `Scheme.indCpaAdvantage_romCpaReduction`, `Scheme.sum_simHitProb_le`, `Scheme.avg_simHitProb_le_indCpaAdvantage_romCpaReduction`; checked clients in [`CslibFrontierTests/Crypto/FujisakiOkamoto.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamoto.lean)); the IND-CCA bound `Scheme.indCcaRomAdvantage_le` from IND-CPA security, `δ`-correctness and `γ`-spreadness is in [`FujisakiOkamoto/NotBot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NotBot.lean), with its hybrid games in `NotBot/Hybrids.lean` and one module per hop.
+For a concrete PKE that needs the generic explicit-coin interface but not an FO transform, import
+[`PKE/ExplicitCoin.lean`](../../CslibFrontier/Crypto/Protocols/PKE/ExplicitCoin.lean) directly.
+It owns `ExplicitCoinPKE`, `DeltaCorrect`, `GammaSpread`, two-stage IND-CPA `cpaAdvantage` (the
+shared `PKE.cpaExperiment` of `toPKE`), and the narrower fixed-message `indCpaGame`; the FO module
+publicly re-exports that API for existing transform clients. State new IND-CPA hypotheses with
+`cpaAdvantage`: a bound for every fixed message pair does not give two-stage security.
+
+When the KEM instead derandomizes an explicit-coin public-key encryption scheme `encDet : PK → M → R → CT` with a mandatory re-encryption check (`T[PKE, G]`, `FO^⊥`, and implicit-rejection `FO-notbot` with a shared key oracle), import [`FujisakiOkamoto.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto.lean) and [`FujisakiOkamoto/Security.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Security.lean) rather than `KEMFromPKE.lean`. Those modules supply `ExplicitCoinPKE` (`DeltaCorrect`, `GammaSpread`, `cpaAdvantage`), deterministic recovery and re-encryption rigidity lemmas (`decT_encT_eq_some`, `encT_of_decT_eq_some`, `Scheme.decapsBot_encT_eq_some`, `Scheme.decapsBot_eq_none_of_reencrypt_ne`, `Scheme.decapsNotBot_encT_eq`, `Scheme.decapsNotBot_of_reencrypt_ne`), and the `FO-notbot` ROM IND-CCA games (`Scheme.roIndCcaGame`, `Scheme.eagerIndCcaGame`, `Scheme.eval_roIndCcaGame_eq_eagerIndCcaGame`, `Scheme.indCcaRomAdvantage_eq_eager`) and keyless two-stage IND-CPA reduction (`Scheme.simHandler`, `Scheme.romCpaReduction`, `Scheme.simFilterOwExperiment`, `Scheme.succProbability_simFilterOwExperiment_le`; checked clients in [`CslibFrontierTests/Crypto/FujisakiOkamoto.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamoto.lean)); the concrete per-instance IND-CCA advantage bound `Scheme.indCcaRomAdvantage_le` for adversaries with explicit coins (`RandomizedROAdversary`), in terms of the two-stage IND-CPA advantage of the one reduction `romCpaReduction A` and `δ`-correctness (no `γ`-spreadness, as in HHK17) is in [`FujisakiOkamoto/NotBot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NotBot.lean), with its hybrid games in `NotBot/Hybrids.lean` and one module per hop, while [`FujisakiOkamoto/Bot.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/Bot.lean) (`Scheme.roIndCcaBotGame`, `Scheme.indCcaBotAdvantage_le`) and [`FujisakiOkamoto/SpreadNecessity.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/SpreadNecessity.lean) (`unspreadPointPKE`, `probeDecapsAdv`, `advantage_eagerIndCcaBotGame_simBotGame_probeDecapsAdv`; checked client in [`CslibFrontierTests/Crypto/FujisakiOkamotoBot.lean`](../../CslibFrontierTests/Crypto/FujisakiOkamotoBot.lean)) prove the corresponding ROM IND-CCA bound for explicit-rejection `FO^⊥ = U^⊥ ∘ T` and the necessity of its `qD · 2^{-γ}` spreadness term, and [`FujisakiOkamoto/NoCheck.lean`](../../CslibFrontier/Crypto/Protocols/KEM/FujisakiOkamoto/NoCheck.lean) (`leakyPKE`, `decapsNotBot_leakyPKE_some`, `Scheme.decapsNoCheck`, `Scheme.eagerNoCheckGame`, `leakAdv`, `advantage_eagerNoCheckGame_leakAdv`) proves that dropping the re-encryption check breaks `FO-notbot` with advantage `≥ 1 - (n + 1) / |K|` for a perfectly correct `P` and uniform keys.
 
 ## Certify a list accumulator
 
@@ -1804,7 +2469,16 @@ two-endpoint counterexample to dropping width.
 
 [ReserveOutput](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/ReserveOutput.lean)
 assembles the actual finite output from explicit lower-child conditional-error-cost fourth
-moments. `actualEstimatedResidual_output_from_cost_reserves` derives common deterministic B
+moments. Its finite geometric, routing and cutoff hypotheses are the documented fields of
+`ReserveOutputContext`; `ReserveOutputChildren` contains the independently supplied raw,
+preparation and maximum families. Their shared
+[OutputContext](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/OutputContext.lean)
+module gives named constructions `amplification`, `tolerance`, `rawSteps`, `prepSteps`,
+`rawWalk`, `prepWalk`, `cost` and `increment`. The records are supplied after the output
+constant is selected: `Cbound` depends on HP, ζ, scale and the positive floor, before P,
+J, the prime instance, horizon, prefix length or child families. These names preserve the
+finite terms and their explicit losses; they do not bundle the output guarantee.
+`actualEstimatedResidual_output_from_cost_reserves` derives common deterministic B
 matrices by finite maxima of the actual first/B1 envelopes divided by `2^dyadicSlack`.
 The first payment uses absolute mean error over `rate kt + G`; the second retains
 `A = P * (|ζ| * (Lh + Lρ) / rate kt)^4`. At horizon m its uniform child-cost reserve is
@@ -1816,8 +2490,9 @@ RAW steps are the maximum of the actual first-noise requirement and the fully am
 by `genuineNormalizedRecipe_eq_request`; capacities are actually `(K+1)*2^(64*slack)`.
 The theorem derives nonnegativity, row mass and zero extension, with finite cover,
 narrower-source horizon, gate/cutoff/cap and routing agreements still explicit.
-The [new regressions](../../CslibFrontierTests/ReserveOutput.lean) evaluate a positive,
-nonconstant full-matrix input with a free spectator, show the once-negative arithmetic,
+The [regressions](../../CslibFrontierTests/ReserveOutput.lean) construct an inhabited shared
+context with two bins and distinct full/usage exponents, evaluate a positive nonconstant
+full-matrix input with a free spectator, show the once-negative arithmetic,
 compute nonzero common B and check the actual completed prefix at index zero.
 The bounded fixture does not assert the canonical routed-bin mean or recursive reserves.
 A separate actual lower-child conditional-cost client proves that the finite reserve is
@@ -1867,8 +2542,10 @@ alone does not provide an absolute residual error.
 For a coarser source, `source_incoming_cost_le` quantifies the generic incoming cost as
 `32 * R * (sourceRate / stageRate)`; the fixed incoming rank is not proved to pay that
 inflated budget. Arbitrary coarser sampling sources, a fully assembled recursive hierarchy,
-lower-child budget induction, native realization and RL=L remain in
-[issue #1721](https://github.com/cslib-community/cslib-frontier/issues/1721).
+lower-child budget induction, native realization and RL=L remain unproved by this API.
+The scope and status of this route are recorded in
+[issue #1721](https://github.com/cslib-community/cslib-frontier/issues/1721); the shared-context
+extraction maintains its existing finite results and does not resume the dropped route.
 
 ## Extract an emitted pseudorandom prefix
 
@@ -1890,10 +2567,12 @@ and seed width zero, but does not yet supply adaptive-message cipher security.
 
 Keep efficiency and security as separate goals. In [Crypto/Computational/Basic.lean](../../CslibFrontier/Crypto/Computational/Basic.lean), computational indistinguishability quantifies over certified strict-PPT distinguishers. It does not require the compared PMF ensembles to be efficiently sampleable or polynomially bounded in length. Check those properties separately when the intended construction needs them.
 
-Specify the experiment, admissible adversaries, success event and assumption; prove the reduction's efficiency using the routines above; then prove the probability or advantage inequality. Semantic rewrites and native certificates discharge different obligations. If a proposed reduction only has a query bound, return to the realization step before calling it a computational security reduction. Use the [security-game reference](../programs-crypto-and-probability/security-games-and-primitives.md) to choose the correct primitive and adversary model.
+Specify the experiment, admissible adversaries, success event and assumption; prove the reduction's efficiency using the routines above; then prove the probability or advantage inequality. Semantic rewrites and native certificates discharge different obligations. If a proposed reduction only has a query bound, return to the realization step before calling it a computational security reduction. Use the [security-game reference](../programs-crypto-and-probability/security-games-and-primitives.md) to choose the correct primitive and adversary model. The final theorem keeps only the premises that [Security theorems and efficiency witnesses](../programs-crypto-and-probability/security-games-and-primitives.md#security-theorems-and-efficiency-witnesses) allows: named hardness assumptions, the adversary's class and properties of components that the cited result takes as given, never a bound on the reduction it builds.
 
+[bs23]: ../sources.md#bs23
 [complexitylib]: ../sources.md#complexitylib
 [holenstein09]: ../sources.md#holenstein09
+[odonnell14]: ../sources.md#odonnell14
 
 The two reserve-output theorems choose their output constant after the fixed hierarchy,
 ζ, scale and positive floor, before the prime, environment width, horizon, prefix length
@@ -2165,7 +2844,13 @@ Most theorems assume `|ρ| ≤ 1`, since `√(1 - ρ²)` is `0` in Lean outside 
   covariance `ρ` equals it by `eq_correlatedGaussian`.
 - For halfspaces through the origin with `a ≠ 0`, `gaussianNoiseStability_ite_pos_dotProduct hρ ha`
   (open, `0 < a ⬝ᵥ z`) and `gaussianNoiseStability_ite_nonneg_dotProduct hρ ha` (closed) both give
-  `1 - 2 / π * arccos ρ`.
+  `1 - 2 / π * arccos ρ`. For a halfspace `a ⬝ᵥ z ≤ b` with any offset `b`, see
+  [Evaluate the Gaussian quadrant probability](#evaluate-the-gaussian-quadrant-probability).
+- `correlatedGaussian_zero`, `correlatedGaussian_one` and `correlatedGaussian_neg_one` give the
+  pair at `ρ = 0, 1, -1`, and `correlatedGaussian_map_neg_snd ρ` says that negating `z'` turns a
+  `ρ`-correlated pair into a `-ρ`-correlated one. For vectors, `correlatedGaussianPi_eq_map_pi`
+  unfolds the product over coordinates, `correlatedGaussianPi_eq_map` writes `z'` as
+  `ρ z + √(1 - ρ²) g`, and `correlatedGaussianPi_one` gives `(z, z)` at `ρ = 1`.
 - For one coordinate, `gaussianNoiseStability_indicator_Iic_eval hρ i` gives
   `1 / 2 - arccos ρ / (2 * π)` for the indicator of `z i ≤ 0`. For any measurable function of a
   projection, `gaussianNoiseStability_comp_dotProduct` reduces stability to an integral against
@@ -2212,8 +2897,9 @@ root to check them.
 Additivity, `gaussianNoiseOp_add`, holds only `γ`-almost everywhere, because the Bochner integral
 is `0` off the integrable functions; scaling by a constant holds everywhere. For multilinear
 polynomials, the semigroup law `U_ρ U_σ = U_ρσ` and continuity at `ρ = 1`, see
-[Compose Gaussian noise operators](#compose-gaussian-noise-operators). Hermite expansions are not
-part of this module.
+[Compose Gaussian noise operators](#compose-gaussian-noise-operators). For `U_ρ` on Hermite
+expansions (Proposition 11.37), see
+[Expand Gaussian functions in the Hermite basis](#expand-gaussian-functions-in-the-hermite-basis).
 
 ## Compose Gaussian noise operators
 
@@ -2247,7 +2933,548 @@ discontinuous halfspace indicator. Run `scripts/build.sh CslibFrontierTests.Gaus
 from the repository root to check them; the monomial clients are in
 `CslibFrontierTests.GaussianNoiseOperator`.
 
-Smoothness of `U_ρ f` for `|ρ| < 1` (Proposition 11.16) is not formalized.
+Smoothness of `U_ρ f` for `|ρ| < 1` (Proposition 11.16) is in
+[Show that Gaussian noise smooths](#show-that-gaussian-noise-smooths).
+For the derivative of `ρ ↦ U_ρ f` in `L²`, see
+[Differentiate Gaussian noise with the Ornstein–Uhlenbeck operator](#differentiate-gaussian-noise-with-the-ornsteinuhlenbeck-operator).
+
+## Show that Gaussian noise smooths
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.NoiseSmooth`](../../CslibFrontier/Foundations/Probability/Gaussian/NoiseSmooth.lean)
+and open the `ProbabilityTheory` namespace, together with `open scoped ContDiff` for the `∞`
+order of smoothness. Write `γ` for `Measure.pi fun _ : ι => gaussianReal 0 1` as before.
+
+- `contDiff_gaussianNoiseOp hρ hf : ContDiff ℝ ∞ (gaussianNoiseOp ρ f)` for `hρ : |ρ| < 1` and
+  `hf : Integrable f γ` (Proposition 11.16). It concerns the pointwise integral
+  `gaussianNoiseOp ρ f` of Definition 11.12, so it holds at every point: for
+  `h := contDiff_gaussianNoiseOp hρ hf`, `h.continuous` gives continuity and
+  `(h.differentiable (by simp)).differentiableAt` differentiability at any `z`
+  (`ContDiff.differentiable` takes the side condition `∞ ≠ 0`). At `ρ = ±1` there is no noise and
+  the conclusion fails for discontinuous `f`.
+- `gaussianNoiseOp_congr_ae_of_abs_lt_one hρ h : gaussianNoiseOp ρ f = gaussianNoiseOp ρ f'` for
+  `hρ : |ρ| < 1` and `h : f =ᵐ[γ] f'`, with no measurability hypothesis. It is an equality of
+  functions, not only `γ`-almost everywhere as `gaussianNoiseOp_congr_ae` gives for `|ρ| ≤ 1`, so
+  `U_ρ f` is a canonical smooth function of the `L¹` class of `f`: changing `f` on a `γ`-null set
+  changes `U_ρ f` nowhere.
+- `gaussianNoiseOp_eq_integral_prod_div_mul hρ hf z` writes `U_ρ f z` as an integral against the
+  Mehler kernel (kernel or density form): for `hρ : |ρ| < 1` and
+  `hf : AEStronglyMeasurable f γ`, `gaussianNoiseOp ρ f z` is the integral against `γ` of
+  `(∏ i, gaussianPDFReal (ρ * z i) (1 - ρ ^ 2).toNNReal (y i) / gaussianPDFReal 0 1 (y i)) * f y`.
+  The one-dimensional density, `gaussianReal_eq_withDensity_div m hv` for `hv : v ≠ 0`, is in
+  [`CslibFrontier.Foundations.Probability.Gaussian.Real`](../../CslibFrontier/Foundations/Probability/Gaussian/Real.lean).
+
+The proof writes `U_ρ f` as a Gaussian in `z` times a Laplace transform
+`z ↦ ∫ y, exp (φ y z) • h y` with all exponential moments. Its smoothness is the general
+`contDiff_integral_exp_smul hφ hg hint : ContDiff ℝ ∞ fun w => ∫ a, rexp (φ a w) • g a ∂μ`, for
+`φ : α → V →L[ℝ] ℝ` with `hφ : AEStronglyMeasurable φ μ`, `g : α → E` with
+`hg : AEStronglyMeasurable g μ` and values in a complete space, and
+`hint : ∀ c, Integrable (fun a => rexp (c * ‖φ a‖) * ‖g a‖) μ`. It and the derivative formula
+`hasFDerivAt_integral_exp_smul`, both in the root namespace, are in
+[`CslibFrontier.Foundations.Analysis.Calculus.ParametricIntegralExp`](../../CslibFrontier/Foundations/Analysis/Calculus/ParametricIntegralExp.lean).
+Products of densities are in
+[`CslibFrontier.Foundations.MeasureTheory.Constructions.PiWithDensity`](../../CslibFrontier/Foundations/MeasureTheory/Constructions/PiWithDensity.lean):
+`MeasureTheory.Measure.pi_withDensity hf` identifies `Measure.pi fun i => (μ i).withDensity (f i)`
+with `(Measure.pi μ).withDensity fun x => ∏ i, f i (x i)` for `[∀ i, SigmaFinite (μ i)]`,
+measurable densities `hf : ∀ i, Measurable (f i)` and
+`[∀ i, SigmaFinite ((μ i).withDensity (f i))]` (the last is needed to form the left-hand side).
+Its proof uses the Tonelli theorem `MeasureTheory.lintegral_fintype_prod_eq_prod hf`,
+`∫⁻ x, ∏ i, f i (x i) ∂Measure.pi μ = ∏ i, ∫⁻ x, f i x ∂μ i` for σ-finite `μ i` and measurable
+`f i`, with its `Fin n` form `MeasureTheory.lintegral_fin_nat_prod_eq_prod`, both in
+[`CslibFrontier.Foundations.MeasureTheory.Integral.Pi`](../../CslibFrontier/Foundations/MeasureTheory/Integral/Pi.lean).
+Its direct Bochner counterpart is Mathlib's `MeasureTheory.integral_fintype_prod_eq_prod`; for a
+product over a subset of the coordinates under product probability measures, use
+`MeasureTheory.integral_finset_prod_pi_eq_prod` from the previous section.
+
+The checked [`GaussianNoiseSmooth.lean` clients](../../CslibFrontierTests/GaussianNoiseSmooth.lean)
+show that `U_{1/2}` of a discontinuous halfspace indicator is smooth and continuous, that
+`U_{-1/2}` of it is differentiable at the jump, that `U_1` of it is not smooth, that the Mehler
+kernel integrates to `1`, and that `U_{1/2}` of the indicator of a point vanishes everywhere. They
+also apply `contDiff_integral_exp_smul` to the moment generating function of a standard Gaussian,
+`lintegral_fintype_prod_eq_prod` to a product of two Gaussian densities, and `pi_withDensity` to
+the standard Gaussian measure on `ℝ²`. Run `scripts/build.sh CslibFrontierTests.GaussianNoiseSmooth`
+from the repository root to check them. Analyticity of `U_ρ f` and bounds on its derivatives are
+not formalized.
+
+## Integrate Hermite polynomials against a Gaussian
+
+Gaussian integration by parts is in
+[`CslibFrontier.Foundations.Probability.Gaussian.Stein`](../../CslibFrontier/Foundations/Probability/Gaussian/Stein.lean),
+the Hermite facts in
+[`CslibFrontier.Foundations.Probability.Gaussian.Hermite`](../../CslibFrontier/Foundations/Probability/Gaussian/Hermite.lean),
+and polynomial identities for Mathlib's probabilists' `Polynomial.hermite` in
+[`CslibFrontier.Foundations.RingTheory.Polynomial.Hermite`](../../CslibFrontier/Foundations/RingTheory/Polynomial/Hermite.lean).
+Open `ProbabilityTheory` and `Polynomial`; `hermite n : ℤ[X]` is evaluated at a real point with
+`aeval x (hermite n)`.
+
+- `integral_sub_mul_gaussianReal hf hfi hxf hf'` is Stein's lemma
+  `∫ (x - μ) * f x ∂gaussianReal μ v = v * ∫ f' x ∂gaussianReal μ v`, for `f` with derivative `f'`
+  everywhere and the three integrability hypotheses. For a polynomial `p`,
+  `integral_sub_mul_eval_gaussianReal p` needs no hypotheses.
+- `derivative_hermite_succ` (`H_{n+1}' = (n + 1) H_n`) and `hermite_succ_succ` (the three-term
+  recurrence) are the polynomial inputs.
+- `integral_eval_mul_aeval_hermite p k` moves derivatives onto `p`:
+  `E[p · H_k] = E[p^{(k)}]` under `gaussianReal 0 1`. `integral_aeval_hermite_mul_aeval_hermite`
+  is O'Donnell's (11.9), `E[H_j H_k] = if j = k then j! else 0`.
+- `normalizedHermite j x = H_j(x) / √(j!)` (Definition 11.29) with `normalizedHermite_def`,
+  `_zero`, `_one`, `_two`; `integral_normalizedHermite_mul_normalizedHermite` is orthonormality.
+  `integral_normalizedHermite_gaussianNoise hρ` gives the eigenvalue identity
+  `E_g[h_n(ρ x + √(1 - ρ²) g)] = ρ ^ n h_n(x)`, and
+  `integral_correlatedGaussian_normalizedHermite hρ j k` is Proposition 11.31.
+- `multiHermite α z = ∏ i, h_{α i}(z i)` (Definition 11.32) with `multiHermite_def`.
+  `gaussianNoiseOp_multiHermite hρ α z` is the pointwise eigenvalue identity
+  `U_ρ h_α = ρ ^ |α| h_α`; `integral_multiHermite_mul_multiHermite` is orthonormality under
+  `Measure.pi fun _ => gaussianReal 0 1`; and `integral_correlatedGaussianPi_multiHermite hρ α β` is
+  Proposition 11.33. `multiHermite_indicator S z` identifies `h_S` with the monomial `∏ i ∈ S, z i`.
+  All `ρ` hypotheses are `|ρ| ≤ 1`.
+
+The checked [`GaussianHermite.lean` clients](../../CslibFrontierTests/GaussianHermite.lean)
+compute `H_2'` and `H_3` from the recurrence, apply Stein's lemma to the identity, check the
+eigenvalue and norm of `h_2`, `E[h_1 h_3] = 0`, `E[H_3²] = 6` and `E[x³ H_3] = 6`, instantiate
+Propositions 11.31 and 11.33 in one and two dimensions, and recover Fact 11.13 from
+`multiHermite_indicator`. Run `scripts/build.sh CslibFrontierTests.GaussianHermite` from the
+repository root to check them.
+
+For completeness of the Hermite basis, Hermite coefficients and Plancherel, see
+[Expand Gaussian functions in the Hermite basis](#expand-gaussian-functions-in-the-hermite-basis);
+for the Hermite differential equation and the Ornstein–Uhlenbeck operator, see
+[Differentiate Gaussian noise with the Ornstein–Uhlenbeck operator](#differentiate-gaussian-noise-with-the-ornsteinuhlenbeck-operator).
+
+## Expand Gaussian functions in the Hermite basis
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.HermiteExpansion`](../../CslibFrontier/Foundations/Probability/Gaussian/HermiteExpansion.lean)
+for the Hermite basis and expansions, and
+[`CslibFrontier.Foundations.Probability.Gaussian.PolynomialDense`](../../CslibFrontier/Foundations/Probability/Gaussian/PolynomialDense.lean)
+for the density of polynomials. Open `MeasureTheory` and `ProbabilityTheory`, and write `γ` for
+`Measure.pi fun _ : ι => gaussianReal 0 1` on `ι → ℝ` with `[Fintype ι]`. Membership in `L²(γ)` is
+`hf : MemLp f 2 γ`, and `hf.toLp f : Lp ℝ 2 γ` is the class of `f`; `memLp_multiHermite α` supplies
+it for `h_α`.
+
+- `topologicalClosure_span_prod_pow_pi_gaussianReal` says the monomials `∏ i, z i ^ k i` span a
+  dense subspace of `Lp ℝ 2 γ` (Theorem 11.22 for `p = 2`). For a single function,
+  `exists_eLpNorm_sub_eval_lt_pi_gaussianReal hf hε` gives a polynomial
+  `p : MvPolynomial ι ℝ` with `eLpNorm (f - fun z => MvPolynomial.eval z p) 2 γ < ε` for
+  `0 < ε`. `ae_eq_zero_of_forall_integral_mul_prod_pow_eq_zero_pi_gaussianReal hf h` is the
+  underlying fact: an `L²` function orthogonal to every monomial is `0` almost everywhere.
+- `hermiteBasis ι : HilbertBasis (ι → ℕ) ℝ (Lp ℝ 2 γ)` is the Hermite basis (Proposition 11.33),
+  with `hermiteBasis_apply α` identifying its vectors with the classes of `h_α`.
+  `orthonormal_multiHermite` and `topologicalClosure_span_multiHermite` are its two halves. In one
+  dimension, `normalizedHermiteBasis : HilbertBasis ℕ ℝ (Lp ℝ 2 (gaussianReal 0 1))` is
+  Proposition 11.30, with `normalizedHermiteBasis_apply j` giving the class of `h_j` (membership
+  `memLp_normalizedHermite j`, in the `Hermite` module).
+- `hermiteCoeff f α = ∫ z, f z * multiHermite α z ∂γ` is `f̂(α)`, unfolded by `hermiteCoeff_def`;
+  `hermiteBasis_repr hf α` says it is the `α`-th coordinate of `hf.toLp f`, and
+  `hermiteCoeff_coeFn v α` says the same for an element `v` of `L²(γ)`. Conversely,
+  `hermiteBasis_repr_tsum_smul hc α` reads off the coordinates of `∑' β, c β • hermiteBasis ι β`
+  for `c ∈ ℓ²`. `hermiteCoeff_zero f`
+  is the mean `∫ z, f z ∂γ`; `hermiteCoeff_add hf hg α` (both in `L²`), `hermiteCoeff_const_mul`
+  and `hermiteCoeff_congr_ae` give linearity and invariance under `=ᵐ[γ]`.
+- `hermiteCoeff_multiHermite α β` is `if α = β then 1 else 0`. For a finite combination,
+  `hermiteCoeff_sum_mul_multiHermite s c β α` gives `∑ j ∈ s, if β j = α then c j else 0`, and
+  `hermiteCoeff_sum_mul_prod s c T` (with `[DecidableEq ι]`) reads off the coefficient
+  `if T ∈ s then c T else 0` of a multilinear polynomial `∑ S ∈ s, c S * ∏ i ∈ S, z i` at the
+  indicator multi-index of `T` (Remark 11.35).
+- `hasSum_hermiteCoeff_smul hf` is the Hermite expansion `f = ∑ α, f̂(α) h_α` in `Lp ℝ 2 γ`
+  (Definition 11.34), and `tendsto_sum_degree_le_hermiteCoeff_smul hf` (with `[DecidableEq ι]`)
+  its partial sums over `∑ i, α i ≤ k`. Uniqueness holds in both forms: any `c` whose
+  degree-ordered partial sums converge to `hf.toLp f`
+  (`hermiteCoeff_eq_of_tendsto_sum_degree_le hf h`, the book's definition), or with
+  `HasSum (fun α => c α • (memLp_multiHermite α).toLp (multiHermite α)) (hf.toLp f)`
+  (`hermiteCoeff_eq_of_hasSum hf h`), equals `hermiteCoeff f`.
+- Plancherel and Parseval (Proposition 11.36) are `hasSum_hermiteCoeff_mul_hermiteCoeff hf hg` and
+  `hasSum_hermiteCoeff_sq hf`, with `tsum` forms
+  `integral_mul_eq_tsum_hermiteCoeff_mul_hermiteCoeff` and `integral_sq_eq_tsum_hermiteCoeff_sq`.
+- For `|ρ| ≤ 1`, `hermiteCoeff_gaussianNoiseOp hρ hf α` is `(U_ρ f)^(α) = ρ ^ |α| f̂(α)`, and
+  `hasSum_hermiteCoeff_gaussianNoiseOp_smul hρ hf` the expansion of `U_ρ f` (Proposition 11.37).
+  `hasSum_gaussianNoiseStability hρ hf` and `gaussianNoiseStability_eq_tsum hρ hf` give
+  `Stab_ρ[f] = ∑ α, ρ ^ |α| f̂(α)²`.
+
+Like `gaussianNoiseStability`, `hermiteCoeff f` is defined for every `f`, and is `0` at `α` when
+`f * h_α` is not integrable; every expansion theorem takes `MemLp f 2 γ`. The inner product of two
+`L²` classes, `⟪hf.toLp f, hg.toLp g⟫ = ∫ conj (f a) * g a ∂μ`, is
+`MeasureTheory.L2.inner_toLp_toLp` in
+[`CslibFrontier.Foundations.MeasureTheory.Function.L2Space`](../../CslibFrontier/Foundations/MeasureTheory/Function/L2Space.lean).
+To prove that another family `v k` of real `L²(μ)` functions spans a dense subspace, use
+`MeasureTheory.L2.topologicalClosure_span_toLp_eq_top hv h` from the same module, where `h` says
+that every `f ∈ L²(μ)` with `∫ a, f a * v k a ∂μ = 0` for all `k` is `0` almost everywhere.
+
+The checked [`GaussianHermiteExpansion.lean` clients](../../CslibFrontierTests/GaussianHermiteExpansion.lean)
+approximate a halfspace indicator by a polynomial, read basis coordinates in both bases, compute
+`E[(z₀ z₁)²] = 1` and `E[x⁴] = 3` by Parseval and `E[x² h₂] = √2` by Plancherel, read off a
+multilinear polynomial's coefficient, compute the mean `f̂(0) = 1 / 2` of a halfspace indicator,
+truncate expansions by degree, recover Proposition 11.37 from uniqueness and compute
+`Stab_ρ[h_α] = ρ ^ |α|` from the series. Run
+`scripts/build.sh CslibFrontierTests.GaussianHermiteExpansion` from the repository root to check
+them.
+
+Theorem 11.22 is formalized only for `p = 2`, where the orthogonal complement of the
+polynomials in the Hilbert space `L²(γ)` is `0`. The duality argument used here would need, for
+`p > 2`, every continuous linear functional on `L^p` to be integration against an `L^q` function,
+which Mathlib does not provide.
+The case `1 ≤ p < 2` follows from `p = 2`, since `‖·‖_p ≤ ‖·‖_2` for a probability measure and
+`L²` is dense in `L^p`, but it is not stated.
+
+## Differentiate Gaussian noise with the Ornstein–Uhlenbeck operator
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.OrnsteinUhlenbeck`](../../CslibFrontier/Foundations/Probability/Gaussian/OrnsteinUhlenbeck.lean)
+and open `MeasureTheory` and `ProbabilityTheory`. Write `γ` for
+`Measure.pi fun _ : ι => gaussianReal 0 1` with `[Fintype ι]`, and `|α|` for the total degree
+`((∑ i, α i : ℕ) : ℝ)`, as the statements do. O'Donnell's Ornstein–Uhlenbeck operator
+`L f = (d/dρ) U_ρ f |_{ρ = 1}` (Definition 11.24) appears in two forms.
+
+- On smooth functions, it is the differential expression `x · ∇f - Δf` (Proposition 11.26).
+  Partial derivatives are derivatives along coordinate lines,
+  `∂ᵢ f z = deriv (fun t => f (Function.update z i t)) (z i)`, and the statements that use them
+  take `[DecidableEq ι]`.
+- On `L²(γ)`, it is `ornsteinUhlenbeck f : Lp ℝ 2 γ`, the Hermite series
+  `∑' α, (|α| * hermiteCoeff f α) • hermiteBasis ι α`, unfolded by `ornsteinUhlenbeck_def`. Its
+  domain is the predicate `MemOrnsteinUhlenbeckDomain f`: `MemLp f 2 γ` and
+  `Summable fun α => |α| ^ 2 * hermiteCoeff f α ^ 2`. Build or split it with
+  `memOrnsteinUhlenbeckDomain_iff`, `.memLp` and `.summable`. Outside the domain,
+  `ornsteinUhlenbeck f` is a junk value; theorems about `L f` assume the domain.
+
+### The differential form
+
+- `Polynomial.X_mul_derivative_hermite_sub n`, in
+  [`CslibFrontier.Foundations.RingTheory.Polynomial.Hermite`](../../CslibFrontier/Foundations/RingTheory/Polynomial/Hermite.lean),
+  is the Hermite differential equation `X * H_n' - H_n'' = n * H_n` in `ℤ[X]` (Exercise 11.10(c)).
+  `mul_deriv_normalizedHermite_sub n x` evaluates it for `h_n`, and
+  `sum_mul_deriv_multiHermite_update_sub α z` is `x · ∇h_α - Δh_α = |α| h_α` (Propositions 11.26
+  and 11.40 on the Hermite basis).
+- `integral_mul_deriv_sub_deriv_deriv_mul_gaussianReal hf hg h₁ h₂ h₃ h₄` is integration by parts
+  `E[(x f' - f'') g] = E[f' g']` under `gaussianReal 0 1` (Proposition 11.28 in one dimension).
+  It needs `Differentiable ℝ (deriv f)`, `Differentiable ℝ g` and integrability of `f' g`,
+  `x f' g`, `f'' g` and `f' g'`; it is Stein's lemma `integral_sub_mul_gaussianReal` applied to
+  `f' g`.
+- `integral_mul_deriv_update_sub_mul_pi_gaussianReal i …` is the same formula for one coordinate
+  under `γ`. `integral_sum_mul_deriv_update_sub_mul_pi_gaussianReal` sums it to
+  `⟨x · ∇f - Δf, g⟩ = ∑ i, ⟨∂ᵢf, ∂ᵢg⟩` (Exercise 11.8). Each of its hypotheses is quantified over
+  `i`, and the differentiability hypotheses also over every line `z`.
+- The reduction to one dimension uses `MeasureTheory.integral_integral_update` and
+  `MeasureTheory.ae_integrable_update` in
+  [`CslibFrontier.Foundations.MeasureTheory.Integral.PiUpdate`](../../CslibFrontier/Foundations/MeasureTheory/Integral/PiUpdate.lean).
+
+### The operator on `L²`
+
+Derivatives of `ρ ↦ U_ρ f` are taken of any family `u : ℝ → Lp ℝ 2 γ` with
+`hu : ∀ ρ, |ρ| ≤ 1 → u ρ =ᵐ[γ] gaussianNoiseOp ρ f`; its values outside `[-1, 1]` do not matter.
+For instance, take
+`u ρ = if hρ : |ρ| ≤ 1 then (hf.gaussianNoiseOp hρ one_le_two).toLp (gaussianNoiseOp ρ f) else 0`,
+where `hu` follows from `MemLp.coeFn_toLp`. The hypothesis on `f` is `MemLp f 2 γ` or
+`MemOrnsteinUhlenbeckDomain f`, as each statement below says.
+
+- **Coordinates.** `hermiteBasis_repr_ornsteinUhlenbeck hf α` and
+  `hermiteCoeff_ornsteinUhlenbeck hf α` give `(L f)^(α) = |α| f̂(α)` for `f` in the domain
+  (Proposition 11.40). `memℓp_two_sum_mul_iff` converts between `Memℓp (fun α => |α| * c α) 2`
+  and `Summable fun α => |α| ^ 2 * c α ^ 2`.
+- **Definition 11.24.** For `f` in the domain,
+  `hasDerivWithinAt_gaussianNoiseOp hf hu` says that `u` has left derivative `L f` at `ρ = 1`
+  (`HasDerivWithinAt u (ornsteinUhlenbeck f) (Set.Iic 1) 1`).
+  `hasDerivWithinAt_gaussianNoiseOp_exp_neg_zero hf hu` is the same in exponential time `ρ = e^{-t}`:
+  `t ↦ u (Real.exp (-t))` has right derivative `-ornsteinUhlenbeck f` at `t = 0`.
+- **Exercise 11.18.** Take `hf : MemLp f 2 γ`.
+  - `eq_ornsteinUhlenbeck_of_hasDerivWithinAt hf hu hg` says that every left derivative `g` at
+    `ρ = 1` equals `ornsteinUhlenbeck f`.
+  - `memOrnsteinUhlenbeckDomain_of_hasDerivWithinAt hf hu hg` says that such a derivative exists
+    only on the domain.
+  - `exists_hasDerivWithinAt_gaussianNoiseOp_iff hf hu` is the resulting equivalence.
+  - `memOrnsteinUhlenbeckDomain_gaussianNoiseOp hf hρ` is part (c): `U_ρ f` is in the domain for
+    every `f ∈ L²` and `|ρ| < 1`.
+  - `MemOrnsteinUhlenbeckDomain.gaussianNoiseOp hf hρ` says that `U_ρ` preserves the domain for
+    `|ρ| ≤ 1`.
+- **Proposition 11.27.** `hasDerivAt_gaussianNoiseOp hf hu hρ` takes `hf : MemLp f 2 γ` and
+  `|ρ| < 1`, including `ρ = 0`. It gives the derivative
+  `∑' α, (|α| * ρ ^ (∑ i, α i - 1) * hermiteCoeff f α) • hermiteBasis ι α`.
+  - `memℓp_mul_pow_mul_hermiteCoeff hf hρ` together with `hermiteBasis_repr_tsum_smul` (in
+    `HermiteExpansion`) reads off its coordinates.
+  - For `ρ ≠ 0`, `hasDerivAt_gaussianNoiseOp_eq_inv_smul_ornsteinUhlenbeck hf hu hρ hρ0` gives
+    `ρ⁻¹ • ornsteinUhlenbeck (gaussianNoiseOp ρ f)` with only `MemLp f 2 γ`.
+  - For `f` in the domain, `hasDerivAt_gaussianNoiseOp_eq_inv_smul_gaussianNoiseOp` gives
+    `ρ⁻¹ U_ρ L f`.
+  - `ornsteinUhlenbeck_gaussianNoiseOp hf hρ` is `L (U_ρ f) = U_ρ (L f)` in `Lp ℝ 2 γ` for
+    `|ρ| ≤ 1`.
+  - `hasDerivAt_gaussianNoiseOp_exp_neg hf hu ht` is `(d/dt) U_{e^{-t}} f = -L U_{e^{-t}} f` for
+    `0 < t`.
+  - On the domain, `hasDerivWithinAt_Icc_gaussianNoiseOp hf hu hρ` gives the series derivative
+    within `Set.Icc (-1) 1` at every `|ρ| ≤ 1`, including the endpoints.
+
+To identify two vectors of `Lp ℝ 2 γ`, compare Hermite coordinates: rewrite with the lemmas above
+and with `hermiteBasis_repr` and `hermiteCoeff_coeFn` from the `HermiteExpansion` module, then
+apply `(hermiteBasis ι).repr.injective`. A derivative is unique, so `HasDerivAt.unique` transfers
+the computed coordinates to any other derivative.
+
+### Checked clients and scope
+
+The checked [`GaussianOrnsteinUhlenbeck.lean` clients](../../CslibFrontierTests/GaussianOrnsteinUhlenbeck.lean)
+cover the following:
+
+- the Hermite equation for `H_2 = X² - 1` and the eigenvalue identity for `h_1`;
+- the value `1` of the integration-by-parts formula for `f = g = id`, for a coordinate on
+  `Unit → ℝ` and for `z₀` on `Fin 2 → ℝ`;
+- for `f = h_β`:
+  - the coordinates of `L h_β`;
+  - `L h_β` as the left derivative at `1`, its uniqueness, and the exponential-time form at
+    `t = 0`;
+  - the derivative at `|ρ| < 1`;
+  - `ρ⁻¹ L U_ρ h_β` and `ρ⁻¹ U_ρ L h_β` at `ρ = 1/2`;
+  - the form for `t > 0`;
+- a function `f = ∑ n, (n + 1)⁻¹ h_n` in `L²` but outside the domain:
+  - `ρ ↦ U_ρ f` has no left derivative at `1`;
+  - `U_{1/2} f` is in the domain;
+  - `ρ ↦ U_ρ f` is still differentiable at `ρ = 1/2`.
+
+Run `scripts/build.sh CslibFrontierTests.GaussianOrnsteinUhlenbeck` from the repository root to
+check them.
+
+Not formalized:
+
+- Proposition 11.26 for general smooth `f`; the identification of `ornsteinUhlenbeck f` with
+  `x · ∇f - Δf` is proved only for Hermite polynomials;
+- the symmetric form `⟨f, L g⟩ = ⟨L f, g⟩` of Proposition 11.28 on `L²`;
+- pointwise, rather than `L²`, derivatives of `U_ρ f`;
+- `L` as a Mathlib unbounded operator (`LinearPMap`). Here it is a function with a separate domain
+  predicate.
+
+The book derives Proposition 11.27 from the semigroup law; here it is read off the Hermite
+expansion of `U_ρ f`.
+
+## Evaluate the Gaussian quadrant probability
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.Quadrant`](../../CslibFrontier/Foundations/Probability/Gaussian/Quadrant.lean)
+and open the `ProbabilityTheory` namespace. Write `Φ` for `cdf (gaussianReal 0 1)`. Then
+`gaussianQuadrant ρ α β` is O'Donnell's `Λ_ρ(α, β)` (Definition 11.77): the probability under
+`correlatedGaussian ρ` that `Φ z ≤ α` and `Φ z' ≤ β`. It avoids `Φ⁻¹`, so it is defined for all
+real `α`, `β`, which act as if clamped to `[0, 1]`. Borell's `Λ_ρ(α)` is
+`gaussianQuadrant ρ α α`. `gaussianQuadrant_cdf_cdf ρ t t'` recovers the book's form
+`Λ_ρ(Φ t, Φ t') = P[z ≤ t, z' ≤ t']`. `gaussianQuadrant_eq_clamp_left` and `_right` replace an
+argument by its clamp `max (min α 1) 0`. The cdf facts it uses are in
+[`Probability/CDF.lean`](../../CslibFrontier/Foundations/Probability/CDF.lean) for any probability
+measure on `ℝ`. That file proves continuity without atoms, strict monotonicity when
+`volume ≪ ν`, and the probability integral transform `measureReal_setOf_cdf_le`
+(`P[F x ≤ α] = α` on `[0, 1]` for a continuous cdf `F`). The Gaussian cases, with
+`Φ (-x) = 1 - Φ x` and `Φ 0 = 1 / 2`, are in
+[`Gaussian/CDF.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/CDF.lean).
+
+- Lipschitz bounds (Exercise 11.19 (e)). `abs_gaussianQuadrant_sub_le hρ α β α' β'` gives
+  `|Λ_ρ(α, β) - Λ_ρ(α', β')| ≤ |α - α'| + |β - β'|` for all real arguments. The one-argument
+  forms are `abs_gaussianQuadrant_sub_le_left` and `abs_gaussianQuadrant_sub_le_right`. The
+  corollary `lipschitzWith_gaussianQuadrant_diag hρ` is
+  `LipschitzWith 2 fun α => gaussianQuadrant ρ α α`.
+- Halfspaces (Exercise 11.19 (a)). For `a ≠ 0`,
+  `gaussianNoiseStability_indicator_setOf_dotProduct_le ρ ha b` writes the stability of the
+  `0`-`1` indicator of `{z | a ⬝ᵥ z ≤ b}` as `Λ_ρ` at its Gaussian volume. Given
+  `hα : (Measure.pi fun _ => gaussianReal 0 1).real {z | a ⬝ᵥ z ≤ b} = α`, the form
+  `gaussianNoiseStability_indicator_setOf_dotProduct_le_of_measureReal_eq ρ ha hα` concludes
+  `= gaussianQuadrant ρ α α`. `measureReal_pi_gaussianReal_setOf_dotProduct_le ha b` computes the
+  volume as `Φ (b / √(a ⬝ᵥ a))`.
+- Special values (Exercise 11.19 (b)), for `α, β ∈ [0, 1]`: `gaussianQuadrant_comm`,
+  `gaussianQuadrant_zero` (`αβ`), `gaussianQuadrant_one` (`min α β`),
+  `gaussianQuadrant_neg_one` (`max (α + β - 1) 0`), and `gaussianQuadrant_zero_left` and `_right`,
+  `gaussianQuadrant_one_left` and `_right`, and the bound `gaussianQuadrant_le_min`. The
+  reflections are `gaussianQuadrant_neg` (`α - Λ_ρ(α, 1 - β)`) and
+  `gaussianQuadrant_neg_eq_sub_one_sub_left` (`β - Λ_ρ(1 - α, β)`). Sheppard's value is
+  `gaussianQuadrant_half_half` (`1 / 2 - arccos ρ / (2 * π)`).
+- Comparison with independence (Exercise 11.19 (c)): `mul_le_gaussianQuadrant` for `ρ ∈ [0, 1]`
+  and `gaussianQuadrant_le_mul` for `ρ ∈ [-1, 0]`.
+- Regularity, for `|ρ| ≤ 1`: `lipschitzWith_gaussianQuadrant hρ` (`2`-Lipschitz on `ℝ × ℝ`),
+  `continuous_gaussianQuadrant hρ` and `measurable_gaussianQuadrant hρ` for the uncurried
+  function, and `Measurable.gaussianQuadrant hρ ha hb` for `x ↦ Λ_ρ(a x, b x)`.
+
+The checked [`GaussianQuadrant.lean` clients](../../CslibFrontierTests/GaussianQuadrant.lean)
+evaluate `Λ_{1/2}(1 / 2) = 1 / 3`, the cases `ρ = 0, 1, -1`, both reflections and a clamped
+argument. They also apply the book's form, the comparison with independence, the Lipschitz
+bounds and the halfspace formula. Run `scripts/build.sh CslibFrontierTests.GaussianQuadrant`
+from the repository root to check them.
+
+The comparison in (c) is non-strict. The derivative formula of Exercise 11.19 (d) is in
+[Differentiate the Gaussian quadrant probability](#differentiate-the-gaussian-quadrant-probability).
+Borell's Isoperimetric Theorem, that halfspaces maximize `Stab_ρ` among sets of volume `α`, is not
+part of this module; for its reduction to one dimension, see
+[Reduce Borell's Isoperimetric Theorem to one dimension](#reduce-borells-isoperimetric-theorem-to-one-dimension).
+
+## Reduce Borell's Isoperimetric Theorem to one dimension
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.Borell`](../../CslibFrontier/Foundations/Probability/Gaussian/Borell.lean)
+and open the `ProbabilityTheory` namespace. Write `Φ` for `cdf (gaussianReal 0 1)`, `γ` for
+`Measure.pi fun _ : ι => gaussianReal 0 1`, `E_γ f` for `∫ z, f z ∂γ` and `(z, z')` for a pair
+drawn from `correlatedGaussianPi ι ρ`. The module formalizes the structural part of the
+Mossel–Neeman proof (O'Donnell, Exercises 11.26 and 11.27); the one-dimensional inequality itself
+stays a hypothesis.
+
+- The two predicates. `TwoFunctionBorellInequality ρ ι` says that for measurable
+  `f, g : (ι → ℝ) → ℝ` with values in `[0, 1]`,
+  `E[gaussianQuadrant ρ (f z) (g z')] ≤ gaussianQuadrant ρ (E_γ f) (E_γ g)`.
+  `TwoSetBorellInequality ρ ι` says that for measurable `A`, `B`,
+  `(correlatedGaussianPi ι ρ).real (A ×ˢ B) ≤ gaussianQuadrant ρ (γ.real A) (γ.real B)`. Unfold
+  them with `twoFunctionBorellInequality_iff` and `twoSetBorellInequality_iff`. Both are meant
+  for `ρ ∈ [0, 1]`; the book states them for `ρ ∈ (0, 1)`, and they fail for `ρ ∈ [-1, 0)`.
+- Tensorization (Exercise 11.27). For `hι : TwoFunctionBorellInequality ρ ι`, `hι.sum hρ hκ`
+  passes from `ι` and `κ` to `ι ⊕ κ`, `h.of_equiv e` relabels the coordinates along `e : ι ≃ κ`,
+  and `twoFunctionBorellInequality_of_isEmpty ρ` covers dimension `0`. Together they give
+  `h.of_fin_one hρ ι`: the case `Fin 1` implies every finite `ι`. `sum` and `of_fin_one` need
+  `hρ : |ρ| ≤ 1`; relabelling and dimension `0` need nothing. The splitting lemmas `pi_gaussianReal_sum` and `correlatedGaussianPi_sum` and the
+  relabelling lemmas `measurePreserving_pi_gaussianReal_comp_symm` and
+  `correlatedGaussianPi_map_comp_symm` are public.
+- From functions to sets and back (Exercise 11.26 (a), (b)). `h.twoSetBorellInequality hρ` turns
+  the two-function form into the two-set form, through `integral_gaussianQuadrant_indicator`.
+  For `0 ≤ ρ ≤ 1`, `h.gaussianNoiseStability_le hρ0 hρ1 hf hf01` is Borell's theorem for
+  `[0, 1]`-valued `f`: `gaussianNoiseStability ρ f ≤ gaussianQuadrant ρ (E_γ f) (E_γ f)`. Its
+  `_of_ae` form takes `AEStronglyMeasurable f γ` and values in `[0, 1]` almost everywhere, and
+  `_of_integral_eq_half` concludes `≤ 1 / 2 - arccos ρ / (2 * π)` when `E_γ f = 1 / 2`.
+  Conversely, `TwoSetBorellInequality.twoFunctionBorellInequality` takes the two-set form in
+  `ι ⊕ Unit` to the two-function form in `ι`.
+- Equality cases (Exercise 11.26 (c)). For `a ≠ 0`,
+  `measureReal_correlatedGaussianPi_setOf_dotProduct_le_prod ρ ha b₁ b₂` shows that the parallel
+  halfspaces `a ⬝ᵥ z ≤ b₁` and `a ⬝ᵥ z ≤ b₂` attain the two-set bound, and
+  `integral_gaussianQuadrant_indicator_setOf_dotProduct_le hρ ha b₁ b₂` restates it for their
+  indicators.
+  `integral_gaussianQuadrant_cdf_dotProduct_add ρ a b₁ b₂` gives equality for
+  `f z = Φ (a ⬝ᵥ z + b₁)` and `g z = Φ (a ⬝ᵥ z + b₂)`, for any `a`.
+- The whole reduction. `h.twoSetBorellInequality_of_fin_one hρ ι` and
+  `h.gaussianNoiseStability_le_of_fin_one hρ0 hρ1 hf hf01` start from
+  `h : TwoFunctionBorellInequality ρ (Fin 1)`. As non-vacuity checks,
+  `twoFunctionBorellInequality_zero ι` and `twoFunctionBorellInequality_one ι` prove the
+  predicate outright at `ρ = 0` and `ρ = 1`.
+
+The checked [`GaussianBorell.lean` clients](../../CslibFrontierTests/GaussianBorell.lean) take a
+hypothetical one-dimensional inequality to `Fin 3`: the two-set bound, Borell's bound for a
+`[0, 1]`-valued `f`, the volume-`1 / 2` bound for a set and, through
+`twoFunctionBorellInequality_iff`, the two-function bound for `f z = Φ (z 0)` and `g = 1 / 2`.
+They apply the converse from `Fin 2 ⊕ Unit` to `Fin 2`, and give the unconditional two-set
+bounds at `ρ = 0` and `ρ = 1`; at `ρ = 1`, through `twoSetBorellInequality_iff`, the bound is
+`≤ min (γ.real A) (γ.real B)`. They check both equality cases, for the halfspaces
+`z₀ + z₁ ≤ 1` and `z₀ + z₁ ≤ -2` and for `Φ (z₀ - 1)` and `Φ (z₀ + 3)`. Finally they prove
+`¬ TwoSetBorellInequality (-(1 / 2)) (Fin 1)`: the half-lines `z ≤ 0` and `z ≥ 0` give
+`1 / 3 > 1 / 6`. Run
+`scripts/build.sh CslibFrontierTests.GaussianBorell` from the repository root to check them.
+
+The one-dimensional two-function inequality is not proved, so Borell's Isoperimetric Theorem
+itself remains a conditional result here. Of its two ingredients, Exercise 11.28, the
+`ρ`-concavity of the smooth function `Λ_ρ`, is proved in
+[Differentiate the Gaussian quadrant probability](#differentiate-the-gaussian-quadrant-probability);
+the heat-flow argument of Exercise 11.29 is not proved. The book's `[-1, 1]`-valued volume-`1 / 2` form, `Stab_ρ[f] ≤ 1 - 2 / π * arccos ρ` for
+`E_γ f = 0`, is not stated; it follows from `_of_integral_eq_half` applied to
+`fun z => (1 + f z) / 2`. Exercise 11.25 (sets suffice) is not needed, since the two-function
+route handles `[0, 1]`-valued `f` directly.
+
+## Differentiate the Gaussian quadrant probability
+
+Import
+[`CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv`](../../CslibFrontier/Foundations/Probability/Gaussian/QuadrantDeriv.lean)
+and open the `ProbabilityTheory` namespace. Write `Φ` for `cdf (gaussianReal 0 1)`, `φ` for
+`gaussianPDFReal 0 1`, `s` for `√(1 - ρ ^ 2)`, `t` for `gaussianQuantile α` and `t'` for
+`gaussianQuantile β`. The results about `Λ_ρ` and the bivariate cdf assume `hρ : |ρ| < 1`, and
+the `α`, `β` forms assume `hα : α ∈ Ioo 0 1` and `hβ : β ∈ Ioo 0 1`; the negativity and
+semidefiniteness results assume `0 < ρ < 1` instead.
+
+- The quantile.
+  [`Gaussian/Quantile.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Quantile.lean)
+  defines `gaussianQuantile`, the inverse `Φ⁻¹` of `Φ : ℝ → (0, 1)`. Its values outside
+  `(0, 1)` are unspecified. `cdf_gaussianQuantile hα` and `gaussianQuantile_cdf x` are the two
+  inverse laws, and `gaussianQuantile_half` is `gaussianQuantile 2⁻¹ = 0`. On `(0, 1)` it is
+  strictly increasing and continuous (`strictMonoOn_gaussianQuantile`,
+  `continuousAt_gaussianQuantile`, `continuousOn_gaussianQuantile`),
+  `hasDerivAt_gaussianQuantile hα` gives the derivative `(φ t)⁻¹`, and
+  `contDiffOn_gaussianQuantile` says it is `C^∞` there. For a Gaussian `gaussianReal μ v` with
+  `hv : v ≠ 0`, `cdf_gaussianReal_eq_integral μ hv x` writes its cdf as
+  `∫ y in Iic x, gaussianPDFReal μ v y`, `hasDerivAt_cdf_gaussianReal μ hv x` says that the cdf
+  has derivative `gaussianPDFReal μ v x`, and `contDiff_cdf_gaussianReal μ hv` that it is `C^∞`.
+  In [`Gaussian/Real.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Real.lean),
+  `continuous_gaussianPDFReal μ v` and `contDiff_gaussianPDFReal μ v` say that the density is
+  continuous and smooth; both are `fun_prop` lemmas. The general
+  `MeasureTheory.hasDerivAt_integral_Iic hint hf`, in
+  [`MeasureTheory/Integral/IntegralEqImproper.lean`](../../CslibFrontier/Foundations/MeasureTheory/Integral/IntegralEqImproper.lean),
+  differentiates `y ↦ ∫ t in Iic y, f t` at `x` for integrable `f` continuous at `x`.
+- The book's coordinates. `measureReal_correlatedGaussian_setOf_le_and_le hρ t t'` writes
+  `P[z ≤ t, z' ≤ t']` as `∫ x in Iic t, φ x * Φ ((t' - ρ * x) / s)`.
+  `hasDerivAt_measureReal_correlatedGaussian_setOf_le_and_le_left` and `_right` give its partial
+  derivatives `φ t * Φ ((t' - ρ * t) / s)` and `φ t' * Φ ((t - ρ * t') / s)`.
+- First derivatives (Exercise 11.19 (d)). `hasDerivAt_gaussianQuadrant_left hρ hα hβ` gives
+  `HasDerivAt (fun α => gaussianQuadrant ρ α β) (Φ ((t' - ρ * t) / s)) α`, and
+  `hasDerivAt_gaussianQuadrant_right` gives `Φ ((t - ρ * t') / s)` in `β`. The `deriv_` forms
+  rewrite `deriv`.
+- Second derivatives (Exercise 11.28 (a), (b)). In `hasDerivAt_gaussianQuadrant_X_Y`, `X` names
+  the inner and `Y` the outer variable, with `left` for `α` and `right` for `β`. Thus
+  `_left_left` is `-(ρ / s) * (φ t)⁻¹ * φ ((t' - ρ * t) / s)`, and `_left_right`, the `β`
+  derivative of `∂Λ_ρ / ∂α`, is `s⁻¹ * (φ t')⁻¹ * φ ((t' - ρ * t) / s)`. The mixed derivatives
+  agree by `gaussianPDFReal_mul_gaussianPDFReal_comm hρ t t'`.
+- Joint smoothness. `hasFDerivAt_gaussianQuadrant hρ hα hβ` gives the Fréchet derivative of
+  `Function.uncurry (gaussianQuadrant ρ)` at `(α, β)`, the sum of
+  `Φ ((t' - ρ * t) / s) • ContinuousLinearMap.fst ℝ ℝ ℝ` and
+  `Φ ((t - ρ * t') / s) • ContinuousLinearMap.snd ℝ ℝ ℝ`.
+  `hasFDerivAt_deriv_gaussianQuadrant_left` and `_right` give the Fréchet derivatives of the
+  first partials `fun p : ℝ × ℝ => deriv (fun α => gaussianQuadrant ρ α p.2) p.1` and its `β`
+  analogue, whose components are the second derivatives below.
+  `contDiffOn_gaussianQuadrant hρ` says that `Function.uncurry (gaussianQuadrant ρ)` is `C^∞` on
+  the open square `(0, 1)²`. These rest on `hasStrictFDerivAt_uncurry_of_hasDerivAt`, in
+  [`Analysis/Calculus/FDeriv/Partial.lean`](../../CslibFrontier/Foundations/Analysis/Calculus/FDeriv/Partial.lean):
+  partial derivatives `f₁`, `f₂` of `f : ℝ → ℝ → ℝ` near `u`, continuous at `u`, give the strict
+  derivative `f₁ u.1 u.2 • fst + f₂ u.1 u.2 • snd` of `fun v => f v.1 v.2`.
+- The `ρ`-Hessian (Exercise 11.28 (c), (d)). `rhoHessian ρ F x y` is the Hessian of
+  `F : ℝ → ℝ → ℝ` built from iterated `deriv`s, with off-diagonal entries multiplied by `ρ`;
+  unfold it with `rhoHessian_def`. `rhoHessian_gaussianQuadrant` evaluates all four entries for
+  `Λ_ρ`, and `det_rhoHessian_gaussianQuadrant` shows the determinant is `0`. For `0 < ρ < 1`,
+  `deriv_gaussianQuadrant_left_left_neg` and `_right_right_neg` give negative diagonal entries,
+  `negSemidef_rhoHessian_gaussianQuadrant` proves that `-rhoHessian ρ (gaussianQuadrant ρ) α β`
+  is `PosSemidef`, and `dotProduct_mulVec_rhoHessian_gaussianQuadrant_nonpos` gives
+  `v ⬝ᵥ (rhoHessian ρ (gaussianQuadrant ρ) α β *ᵥ v) ≤ 0`. The `2 × 2` criterion behind the
+  semidefiniteness is `Matrix.posSemidef_fin_two`, in
+  [`LinearAlgebra/Matrix/PosDef.lean`](../../CslibFrontier/Foundations/LinearAlgebra/Matrix/PosDef.lean).
+
+The checked
+[`GaussianQuadrantDeriv.lean` clients](../../CslibFrontierTests/GaussianQuadrantDeriv.lean)
+exercise the quantile (`(Φ⁻¹)' (1 / 2) = √(2π)`, monotonicity and continuity) and the bivariate
+formula at `ρ = 0`. They evaluate `∂Λ_ρ / ∂α = 1 / 2` and the second and mixed derivatives at
+`α = β = 1 / 2`, check the `ρ = 0` formula against the derivative of `Λ_0(α, β) = αβ`, evaluate
+the Fréchet derivative at `(1 / 2, 1 / 2)`, derive `C²` from `contDiffOn_gaussianQuadrant`, and
+apply the density symmetry, a `ρ`-Hessian entry, the determinant and the semidefiniteness at
+`ρ = 1 / 2`. The test file is a `module` that publicly imports the tested API. Run `scripts/build.sh CslibFrontierTests.GaussianQuadrantDeriv` from the repository
+root to check them.
+
+Together these give the book's `ρ`-concavity of `Λ_ρ` on the open square `(0, 1)²`, for
+`0 < ρ < 1`: `Λ_ρ` is `C^∞` there, so its `ρ`-Hessian is that of a `C²` function, and it is
+negative semidefinite at every point. The Mossel–Neeman argument of Exercise 11.29, which turns
+`ρ`-concavity into the one-dimensional two-function Borell inequality, is not proved; that
+inequality stays the hypothesis of
+[Reduce Borell's Isoperimetric Theorem to one dimension](#reduce-borells-isoperimetric-theorem-to-one-dimension).
+
+## Show that majority maximizes the sum of the degree-one coefficients
+
+Import
+[`CslibFrontier.Foundations.BooleanAnalysis.Majority`](../../CslibFrontier/Foundations/BooleanAnalysis/Majority.lean)
+and open `Cslib` and `Cslib.BitString`. A Boolean function `f : BooleanFunction n` is read as signs
+through `fun x => signVal (f x)`, and `majority n` (in `Data.BitString.Threshold`) breaks ties
+towards `true`, the book's `-1`; for odd `n` it is the book's `Majₙ`
+[O'Donnell][odonnell14], Definition 2.1.
+
+- `sum_fourierCoeff_singleton_eq_expect f`, in
+  [`LevelWeight`](../../CslibFrontier/Foundations/BooleanAnalysis/LevelWeight.lean), is
+  [O'Donnell][odonnell14], equation (2.3): the degree-one coefficients of a real function sum to
+  `𝔼 f(x) (x₁ + ⋯ + xₙ)`, with `xᵢ = signVal (x i)`.
+- `expect_card_agree` is [O'Donnell][odonnell14], Proposition 2.32: the expected number of voters
+  who agree with the outcome of a two-candidate voting rule is `n / 2 + ½ ∑ᵢ F̂(i)`.
+- `sum_fourierCoeff_singleton_signVal_le` bounds `∑ᵢ F̂(i) ≤ 𝔼 |x₁ + ⋯ + xₙ|`, and
+  `sum_fourierCoeff_singleton_signVal_eq_iff` says equality holds exactly for the majority
+  functions, those with `F(x) (x₁ + ⋯ + xₙ) ≥ 0` everywhere
+  [O'Donnell][odonnell14], Theorem 2.33. `signVal_majority_mul_sum_signVal_nonneg` shows
+  `majority n` is one of them, and `sum_fourierCoeff_singleton_le_majority` is the resulting
+  bound. For odd `n`, `sum_fourierCoeff_singleton_eq_majority_iff hn f` says `majority n` is the
+  only maximizer.
+- In `BooleanAnalysis.Monotone`, `totalInfluence_eq_sum_fourierCoeff_singleton_of_monotone` is
+  [O'Donnell][odonnell14], Proposition 2.31: a monotone function has total influence `∑ᵢ F̂(i)`.
+  With `monotone_majority` from `Data.BitString.Threshold`,
+  `totalInfluence_le_majority_of_monotone` says majority has the largest total influence among
+  monotone functions.
+
+The checked
+[`BooleanAnalysisMajority.lean` clients](../../CslibFrontierTests/BooleanAnalysisMajority.lean)
+instantiate these statements on small cubes. Run
+`scripts/build.sh CslibFrontierTests.BooleanAnalysisMajority` from the repository root to check
+them. The asymptotic value of `I[Majₙ]` in Theorem 2.33 is not part of this module.
 
 ## Compare bits with Gaussians by the invariance principle
 
@@ -2288,8 +3515,9 @@ The proof is the replacement method. `MeasureTheory.abs_integral_pi_sub_le_sum` 
 [`PiUpdate`](../../CslibFrontier/Foundations/MeasureTheory/Integral/PiUpdate.lean) telescopes over the
 hybrids `Measure.pi (s.piecewise ν μ)` and applies to any integrand. The Bonami Lemma for these
 variables, `integral_multilinearEval_pow_four_le`, is in
-[`Multilinear/Bonami`](../../CslibFrontier/Foundations/Probability/Multilinear/Bonami.lean). It covers
-only the case `B ≤ 9` with variance `1` of Corollary 9.6. Cauchy–Schwarz for real integrals,
+[`Multilinear/Bonami`](../../CslibFrontier/Foundations/Probability/Multilinear/Bonami.lean). It is
+the case `B = 9`, variance `1`, of `isReasonable_multilinearEval` in the same file (Corollary 9.6),
+and is derived from it. Cauchy–Schwarz for real integrals,
 `MeasureTheory.sq_integral_mul_le`, needs no sign condition. It is in
 [`Integral/CauchySchwarz`](../../CslibFrontier/Foundations/MeasureTheory/Integral/CauchySchwarz.lean)
 with `MeasureTheory.integrable_pow_of_memLp` and `MeasureTheory.integrable_abs_pow_of_memLp`, which
@@ -2301,11 +3529,122 @@ Gaussians for any function of two bits with `ψ = cos` (`C⁴`) and `ψ = sin` (
 that a degree-`0` polynomial has exactly equal expectations. Run
 `scripts/build.sh CslibFrontierTests.MultilinearInvariance` from the repository root to check them.
 
-The test function must be smooth. The following are not formalized: the Lipschitz form
-(Corollary 11.68) and the Lévy-distance form (Corollary 11.70); the forms for functions with small
-high-degree tails, including noise-stable functions (Corollary 11.69), and cdf-closeness through
-the Carbery–Wright theorem (Theorem 11.71); the general Invariance Principle with
-hypercontractive ensembles; and Majority Is Stablest.
+### Lipschitz tests and noise-smoothed functions
+
+For a test function that is only Lipschitz (Corollary 11.68), import
+[`CslibFrontier.Foundations.Probability.Multilinear.InvarianceLipschitz`](../../CslibFrontier/Foundations/Probability/Multilinear/InvarianceLipschitz.lean).
+`abs_integral_comp_multilinearEval_sub_le_of_lipschitzWith μ ν hμ hν hc hvar hε0 hε hψ` takes the
+hypotheses of `abs_integral_comp_multilinearEval_sub_le_of_influence_le` with
+`hψ : LipschitzWith K ψ` (`K : ℝ≥0`) in place of the `C⁴` bound, and bounds the difference by
+`9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ)`. Integrability of `ψ (multilinearEval c ·)` is proved inside.
+The general transfer behind it, `abs_integral_comp_sub_le_of_lipschitzWith hτ h hψ` with
+`hτ : 0 ≤ τ`, applies to any two real random variables `X` and `Y`, on different probability
+spaces if needed. Here `h` must prove, for every `C⁴` `φ` with `|φ''''| ≤ C`, that `φ ∘ X` and
+`φ ∘ Y` are integrable and that their expectations differ by at most `C * τ ^ 4`; measurability of
+`X` and `Y` follows from `h`. The result bounds the difference for `ψ` by `16 * K * τ`.
+`LipschitzWith.abs_integral_comp_sub_le_sqrt hψ hX hY`, next to Cauchy–Schwarz in
+[`Integral/CauchySchwarz`](../../CslibFrontier/Foundations/MeasureTheory/Integral/CauchySchwarz.lean),
+gives `|∫ ψ (X ω) - ∫ ψ (Y ω)| ≤ K * √(∫ (X ω - Y ω) ^ 2)` for `MemLp X 2 P` and `MemLp Y 2 P` on a
+probability space, and `abs_integral_comp_multilinearEval_sub_le_sqrt μ hμ hψ c d` bounds the
+difference for two polynomials `c` and `d` by `K * √(∑ S, (c S - d S) ^ 2)`.
+
+The smoothing is in
+[`LipschitzSmoothing.lean`](../../CslibFrontier/Foundations/Analysis/Calculus/LipschitzSmoothing.lean)
+(namespace `Real`). `Real.movingAverage h φ s = h⁻¹ * ∫ t in 0..h, φ (s + t)`
+(`Real.movingAverage_def`). For continuous `φ`, `Real.hasDerivAt_movingAverage` and
+`Real.contDiff_iterate_movingAverage` show that `(Real.movingAverage h)^[m] φ` is `ContDiff ℝ m`.
+For `hψ : LipschitzWith K ψ` and `0 < h`, `hψ.abs_iterate_movingAverage_sub_le` gives
+`|(movingAverage h)^[m] ψ s - ψ s| ≤ m * K * h`, and
+`hψ.abs_iteratedDeriv_iterate_movingAverage_le` gives `|iteratedDeriv (k + 1) _ s| ≤
+2 ^ k * K / h ^ k` for `k < m`. `hψ.exists_contDiff_smoothing m hη` is a finite-order form of
+Proposition 11.58: a `Cᵐ` function within `K * η` of `ψ` whose `(k + 1)`-th derivative is at most
+`(2 * m) ^ k * K / η ^ k`. O'Donnell smooths with a Gaussian, which gives one `C^∞` function for
+every order. Here the function and the constant `(2 * m) ^ k` depend on the chosen order `m`, but
+the constants are explicit.
+
+On the cube, import
+[`CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise`](../../CslibFrontier/Foundations/BooleanAnalysis/InvarianceNoise.lean)
+(namespace `Cslib.BitString`). Its theorems compare `𝔼 x, ψ (f x)` at uniform bits with
+`∫ y, ψ (multilinearEval (fourierCoeff f) y) ∂Measure.pi μ` for laws with
+`hμ : ∀ i, HasInvarianceMoments (μ i)`, as the cube theorems above do, and take `μ` explicitly.
+
+- `abs_expect_comp_sub_integral_comp_multilinearEval_le_of_lipschitzWith μ hμ hf hvar hε0 hε hψ`
+  is inequality (11.31), Corollary 11.68 on the cube, with the bound
+  `9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ)`.
+- No degree hypothesis is needed in Corollary 11.69. For any `f`, `k : ℕ`, `hvar`, `hε0 : 0 ≤ ε` and
+  `hε : ∀ t, ∑ S with t ∈ S ∧ #S ≤ k, fourierCoeff f S ^ 2 ≤ ε` (the influences of `f^{≤k}`),
+  `abs_expect_comp_sub_integral_comp_multilinearEval_le_add_sqrt μ hμ k hvar hε0 hε hψ` is
+  inequality (11.32): the difference is at most
+  `9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ) + 2 * K * √(∑ S with k < #S, fourierCoeff f S ^ 2)`.
+- A function `h` has no `(ε, δ)`-notable coordinates when
+  `hε : ∀ i, stableInfluence (1 - δ) i h ≤ ε` (O'Donnell's Definition 6.9; `stableInfluence_eq_sum`
+  gives `∑ S with i ∈ S, (1 - δ) ^ (#S - 1) * fourierCoeff h S ^ 2`). With `hvar` for `h` and
+  `0 ≤ δ ≤ 1`,
+  `abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_add_pow μ hμ k hvar hε0 hδ0 hδ1 hε hψ`
+  is inequality (11.33) in its sharper form: for `f = noiseOp (1 - δ) h` the difference is at most
+  `9 * K * 2 ^ k * ε ^ (1 / 4 : ℝ) + 2 * K * (1 - δ) ^ k` for every `k`. The book then bounds
+  `(1 - δ) ^ k ≤ exp (-k δ)`.
+- `abs_expect_comp_noiseOp_sub_integral_comp_multilinearEval_le_of_lipschitzWith μ hμ hvar hε0 hε1
+  hδ0 hδ hε hψ`, for `0 ≤ ε ≤ 1` and `0 ≤ δ ≤ 1 / 20`, is the second statement of Corollary 11.69
+  with the explicit constant `15`: the difference is at most `15 * K * ε ^ (δ / 3)`. The proof
+  takes `k = ⌊-log ε / 3⌋₊` and treats `ε = 0` by letting `k → ∞`.
+- `abs_expect_comp_sub_le_sqrt hψ f g` bounds `|𝔼 x, ψ (f x) - 𝔼 x, ψ (g x)|` by
+  `K * √(∑ S, (fourierCoeff f S - fourierCoeff g S) ^ 2)`.
+
+The noise lemmas these use are `sq_fourierCoeff_noiseOp_le` (`(T_ρ f)^(S) ^ 2 ≤ f̂(S) ^ 2` for
+`|ρ| ≤ 1`) and `expect_sub_expect_sq_noiseOp_le` (`Var[T_ρ f] ≤ Var[f]`) in `Noise.lean`, and `influence_noiseOp_le_stableInfluence`
+(`Inf_i[T_ρ f] ≤ Inf_i^{(ρ)}[f]` for `0 ≤ ρ ≤ 1`), `stableInfluence_noiseOp_le`
+(`Inf_i^{(ρ)}[T_σ f] ≤ Inf_i^{(ρ)}[f]` for `0 ≤ ρ` and `|σ| ≤ 1`) and `stableInfluence_mono`
+(increasing in `ρ ≥ 0`) in `StableInfluence.lean`.
+
+The checked [`InvarianceLipschitz.lean` clients](../../CslibFrontierTests/InvarianceLipschitz.lean)
+smooth `|·|` with explicit bounds, check that its moving average stays `1`-Lipschitz, and apply
+Proposition 11.58 to it. For Corollary 11.68 they use the normalized sum and the clamp `u ↦ min 1 (max 0 u)`: the bound
+is `18 * m⁻¹ ^ (1/4)`, which for `m = 100⁴` is `18 / 100`, below the trivial bound `1`. They also
+instantiate the general and cube (11.31) Lipschitz forms. For Corollary 11.69 they apply (11.32)
+with `k = 1` to `∑ aᵢ xᵢ + θ χ_{[n+2]}` with `∑ aᵢ² + θ² ≤ 1` and `aᵢ² ≤ ε`, giving the bound
+`9 * 2 * ε ^ (1 / 4) + 2 |θ|` with both terms nonzero. They show that a linear form has
+`(1 - δ)`-stable influences `aᵢ²`, compare them across rates and under noise, and conclude that it
+has no `(ε, δ)`-notable coordinates when every `aᵢ² ≤ ε`; for the normalized sum of `m = 100⁶⁰` signs and `δ = 1 / 20` the clamp gives the bound
+`15 * (1 / m) ^ (1 / 60) = 0.15`, below the trivial bound `1`. Run
+`scripts/build.sh CslibFrontierTests.InvarianceLipschitz` from the repository root to check them.
+
+### Reasonable random variables
+
+`IsReasonable B X P`, in
+[`Reasonable.lean`](../../CslibFrontier/Foundations/Probability/Reasonable.lean) (namespace
+`ProbabilityTheory`), bundles `MemLp X 4 P` with `∫ X ^ 4 ≤ B * (∫ X ^ 2) ^ 2` (O'Donnell,
+Definition 9.1). On a finite type, the tail and anticoncentration bounds of
+[`PaleyZygmund.lean`](../../CslibFrontier/Foundations/Data/Finset/PaleyZygmund.lean) take the
+inequality `𝔼 X ^ 4 ≤ B * (𝔼 X ^ 2) ^ 2` directly, and `isReasonable_uniformOn_univ_iff` converts
+between the two. `hasInvarianceMoments_iff`, in
+[`Multilinear/Bonami.lean`](../../CslibFrontier/Foundations/Probability/Multilinear/Bonami.lean),
+states that `HasInvarianceMoments μ` is `IsReasonable 9 id μ` together with the moments `0`, `1`
+and `0`. **The Bonami Lemma** (O'Donnell, Corollary 9.6), `isReasonable_multilinearEval` in
+[`Multilinear/Bonami`](../../CslibFrontier/Foundations/Probability/Multilinear/Bonami.lean), takes
+laws `μ i` with `IsReasonable B id (μ i)`, `∫ z, z ∂μ i = 0` and `∫ z, z ^ 3 ∂μ i = 0`, and a
+polynomial `c` with `c S = 0` whenever `k < #S`, and concludes
+`IsReasonable (max B 9 ^ k) (multilinearEval c) (Measure.pi μ)`. The laws may differ and their
+second moments are not normalized. `IsReasonable.mono`,
+`IsReasonable.const_mul` and `HasLaw.isReasonable_iff` change `B`, rescale and transfer along a
+law. A `±1`-valued variable is
+`1`-reasonable by `isReasonable_one_of_sq_eq_one`, with its moments from
+`integral_sq_eq_one_of_sq_eq_one` and `integral_pow_three_eq_integral_of_sq_eq_one`. For
+`hg : HasLaw g (gaussianReal 0 1) P`, `hg.isReasonable_three_of_gaussianReal` gives
+`3`-reasonableness, and `hg.integral_eq_zero_of_gaussianReal`,
+`hg.integral_sq_eq_one_of_gaussianReal` and `hg.integral_pow_three_eq_zero_of_gaussianReal`
+(in [`Gaussian/Moments.lean`](../../CslibFrontier/Foundations/Probability/Gaussian/Moments.lean))
+give its moments. The checked [`Reasonable.lean` clients](../../CslibFrontierTests/Reasonable.lean)
+cover standard and rescaled Gaussians, uniformly random signs, Hypothesis 11.65 from
+reasonableness, a uniform `0`/`1` bit, which is `2`-reasonable but not `1`-reasonable, and the
+Bonami Lemma for a sparse sign (`±1` with probability `1 / 20` each), which is `10`-reasonable
+but not `9`-reasonable: polynomials in two of them are `100`-reasonable, sharply so for their
+product, and sums of `n` of them are `10`-reasonable. Run
+`scripts/build.sh CslibFrontierTests.Reasonable` from the repository root to check them.
+
+The following are not formalized: the Lévy-distance form
+(Corollary 11.70), cdf-closeness through the Carbery–Wright theorem (Theorem 11.71), the general
+Invariance Principle with hypercontractive ensembles, and Majority Is Stablest.
 
 ## Evaluate a multi-component conditional walk via validated words
 
@@ -2346,6 +3685,26 @@ torus `(ZMod 8)^3`. They check that a one-step word reaches the one-step neighbo
 `scripts/build.sh CslibFrontierTests.ProductValidatedWords` from the repository root to check them.
 This module covers items 1–4 (distributional and combinatorial word identities); explicit machine
 or streaming space realization (the post-item space bound of Lemma 6.3) is separate.
+
+## Bound bad visits along an expander walk
+
+Import [VisitCount.lean](../../CslibFrontier/Foundations/Combinatorics/Expander/VisitCount.lean).
+Let `G : RotationMap V D`, with finite nonempty vertex type `V` and incident-port type `D`.
+Write `L = t + 1` for the number of visited vertices, `m : ℕ` for an integer visit threshold,
+and `q = dens W + G.spectralExpansion ^ 2` for a bad-vertex set `W`.
+For this set, `G.visitCount W p` counts all `t+1` vertices, including the
+initial vertex. Apply `dens_filter_selected_walkAt_mem_le` to arbitrary selected times,
+`expect_choose_visitCount_le` for factorial moments, and `dens_filter_visitCount_gt_le`
+for strict integer tails. `dens_filter_visitCount_half_lt` bounds a strict majority of
+bad samples by `(32 * dens W)^((t+1)/4)` when expansion is below `sqrt(dens W)`.
+The [checked clients](../../CslibFrontierTests/ExpanderVisitCount.lean) cover nonconsecutive
+times excluding zero, computed counts, boundaries, and even/odd majority events.
+Goldreich Exercise 8.44's strict displayed integer bound needs positive `q` and
+`1≤m≤L`; the general non-strict tails include degenerate cases. These are uniform-start
+probabilities on vertices and port sequences, not a sampler or runtime certificate.
+
+From the repository root, run `scripts/build.sh CslibFrontierTests.ExpanderVisitCount`
+to check the examples.
 
 ## Bound adapted Bernoulli counts and hitting times by stochastic domination
 
@@ -2392,6 +3751,28 @@ probabilities satisfy lower or upper bounds.
   `poissonBinomial_stochasticallyDominates_trajMeasure_adaptedCount`), and finite-horizon
   sequential `PMF` processes (`PMF.seqProcess`, `PMF.seqCount`,
   `PMF.seqCount_stochasticallyDominates_poissonBinomial`, `PMF.seqCount_active_toReal_Iio_le`).
+- **Sequential processes with unreachable histories**:
+  [`StochasticDomination/SequentialSupport.lean`](../../CslibFrontier/Probability/StochasticDomination/SequentialSupport.lean)
+  provides `PMF.seqCount_stochasticallyDominates_poissonBinomial_of_support` and
+  `PMF.seqCount_active_toReal_Iio_le_of_support`. Their probability envelopes are required only
+  when `h ∈ (PMF.seqProcess step t).support`; the latter also requires the original count to be
+  below the target. Use these when invariants of actual responses fail on impossible histories.
+  The response type can have unbounded discrete support. `PMF.seqCount_congr_on_support`
+  transfers counts between events agreeing at every reachable prefix. The checked
+  [`SequentialSupport.lean` client](../../CslibFrontierTests/SequentialSupport.lean) uses geometric
+  metadata and fair success bits: actual histories have authenticated tags, while an impossible
+  unauthenticated prefix has zero success probability and violates the older all-prefix premise.
+  For an upper envelope, use
+  [`StochasticDomination/SequentialUpper.lean`](../../CslibFrontier/Probability/StochasticDomination/SequentialUpper.lean):
+  `PMF.poissonBinomial_replicate_stochasticallyDominates_seqCount_of_support` bounds the count
+  by `poissonBinomial (List.replicate n p)` when each reached-prefix event probability is at
+  most `p`. `PMF.seqCount_toReal_Ici_le_of_support` exposes the binomial upper tail directly.
+  The same checked client complements its event: its probability is still one-half on actual
+  histories, but becomes one at the impossible prefix. The proof reuses the lower comparison
+  and [`PoissonBinomial/Reflection.lean`](../../CslibFrontier/Probability/PoissonBinomial/Reflection.lean),
+  which derives count reflection from `BitString.weight_not`; callers need no separate
+  comparison induction or assumptions on impossible histories. These are probability lemmas;
+  they do not by themselves instantiate a stochastic-oracle deadline lower bound.
 - **Infinite-horizon stopping-time means**:
   [`StochasticDomination/Stopping.lean`](../../CslibFrontier/Probability/StochasticDomination/Stopping.lean)
   proves the `WithTop ℕ` tail-sum identity (`lintegral_withTopToENNReal` for measurable `τ`, and

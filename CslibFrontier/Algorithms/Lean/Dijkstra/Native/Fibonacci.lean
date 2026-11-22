@@ -43,7 +43,8 @@ namespace Cslib.Algorithms.Lean.Dijkstra.Native.Fibonacci
 
 open Cslib.WordRAM Cslib.WordRAM.Realization Cslib.DataStructure
 open Cslib.DataStructure.Memory Cslib.DataStructure.PriorityQueue
-open Cslib.Algorithms.WordRAM.Dijkstra (ListInstance encodeDist)
+open Cslib.Algorithms.Dijkstra (ListInstance)
+open Cslib.Algorithms.WordRAM.Dijkstra (encodeDist)
 
 private def insertWord (e : ℕ × ℕ) (v k : ℕ) : Memory.Prog Unit :=
   link ((FibonacciHeap.layout e.1 e.2).methods 0) (FibonacciHeap.insert v k)
@@ -77,9 +78,6 @@ private def targetInput := appendWords
   (appendWords (appendWords (WordEncoding.encode (α := ℕ × ℕ)) blockWords) word)
   (WordEncoding.encode (α := ℕ × ℕ))
 
-private def targetProgram (d : TargetArgs) : Memory.Prog Unit :=
-  relaxTarget (insertWord d.1.1.1) (decreaseWord d.1.1.1) d.1.1.2 d.1.2 d.2.1 d.2.2
-
 private def targetSafe (w : ℕ) (d : TargetArgs) (s : Memory.State) : Prop :=
   ∃ (hv : d.1.2 < d.1.1.1.1) (K : ℕ), Fits w K ∧ Fits w (d.1.1.1.2 + (9 * d.1.1.1.1 + 5)) ∧
     (FibonacciHeap.layout d.1.1.1.1 d.1.1.1.2).Inv s ∧
@@ -95,13 +93,10 @@ private def targetSafe (w : ℕ) (d : TargetArgs) (s : Memory.State) : Prop :=
         (FibonacciHeap.abs d.1.1.1.1 ((FibonacciHeap.layout d.1.1.1.1 d.1.1.1.2).abs s))
         (.decreaseKey ⟨d.1.2, hv⟩ (d.2.1 + d.2.2))
 
-private theorem target_realizes : Realizes .exact targetProgram targetInput
-      (WordEncoding.encode (α := Unit))
-      targetSafe (fun _ _ => 0) := by
-  unfold targetProgram
-  have hInsert := insert_realizes
-  have hDecrease := decrease_realizes
-  realize
+private theorem target_realizes : Realizes .exact (fun d : TargetArgs =>
+    relaxTarget (insertWord d.1.1.1) (decreaseWord d.1.1.1) d.1.1.2 d.1.2 d.2.1 d.2.2)
+    targetInput (WordEncoding.encode (α := Unit)) targetSafe (fun _ _ => 0) := by
+  realize [insert_realizes, decrease_realizes]
   all_goals rcases h with ⟨hv, K, hK, hwindow, halloc, hI, hT, hlen, hd, hsum, hop⟩
   all_goals
     have hvT : d.1.2 < (Block.mk (d.1.1.2.base) (d.1.1.2.length)).length := by
@@ -157,9 +152,13 @@ private theorem targetSafe_of_relax_valid (G : ListInstance) {w base : ℕ} (T :
   refine ⟨v.isLt, G.n * G.maxWeight, hK, hwindow, hf.1.1, hf.1.2,
     hf.2.1.1, hT.length_eq, hd.mono_right Finset.subset_union_left,
     hfit.of_le (by nlinarith), ?_⟩
-  exact relax_valid_queue _ u v du i c hg hv
+  exact relax_valid_queue u v du i c hg hv
 
 private abbrev Env := ((ℕ × ℕ) × Block) × (ℕ × ℕ)
+/-- The input graph layout `Memory.inputGraph e.2.1 e.2.2`, spelled out because `realize` must
+compute its offsets from the live words and does not unfold `Memory.inputGraph`. -/
+private abbrev envGraph (e : Env) : AdjacencyList.Memory.Layout :=
+  ⟨⟨3, e.2.1 + 1⟩, ⟨e.2.1 + 4, 2 * e.2.2⟩⟩
 private def envInput := appendWords
   (appendWords (WordEncoding.encode (α := ℕ × ℕ)) blockWords)
   (WordEncoding.encode (α := ℕ × ℕ))
@@ -181,35 +180,16 @@ private def relaxSafe (w : ℕ) (d : RelaxArgs) (s : Memory.State) : Prop :=
         ((framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s)
         (relaxEdge u d.2.2.1 d.2.2.2))
 
-private def relaxProgram (d : RelaxArgs) : Memory.Prog Unit := do
-  let a ← read (3 + d.2.1)
-  let t ← read (d.1.2.1 + 4 + 2 * (a + d.2.2.2))
-  let c ← read (d.1.2.1 + 4 + (2 * (a + d.2.2.2) + 1))
-  if t < d.1.2.1 then
-    targetProgram ((d.1.1, t), (d.2.2.1, c))
-  else
-    let z ← pure 0
-    targetProgram ((d.1.1, d.2.1), (d.2.2.1, z))
-
 private theorem relax_realizes : Realizes .exact (fun d : RelaxArgs =>
-    relaxWord
-      (insertWord d.1.1.1)
-      (decreaseWord d.1.1.1) d.1.1.2
-      (Memory.inputGraph d.1.2.1 d.1.2.2) d.1.2.1 d.2.1 d.2.2.1 d.2.2.2)
+    relaxWord (insertWord d.1.1.1) (decreaseWord d.1.1.1) d.1.1.2
+      (envGraph d.1) d.1.2.1 d.2.1 d.2.2.1 d.2.2.2)
     relaxInput (WordEncoding.encode (α := Unit)) relaxSafe (fun _ _ => 0) := by
-  suffices h : Realizes .exact relaxProgram relaxInput (WordEncoding.encode (α := Unit))
-      relaxSafe (fun _ _ => 0) from h.congr (fun _ => rfl)
-  have hTarget := target_realizes
-  unfold relaxProgram
-  realize
+  realize [insert_realizes, decrease_realizes, target_realizes]
   all_goals
     rcases d with ⟨⟨⟨e, T⟩, n, m⟩, vcur, du, i⟩
     rcases h with ⟨G, base, hnFit, hK, hT, u, he, hn, hm, hu, hf, hdu, hfit, hwindow, hv⟩
-    dsimp only at he hn hm hu hT hdu hv ⊢
-    subst e
-    subst n
-    subst m
-    subst vcur
+    dsimp only [envGraph] at he hn hm hu hT hdu hv ⊢
+    subst e; subst n; subst m; subst vcur
     have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
     have hi : i < (G.adj u).length := hv.1
     obtain ⟨hoff, hlast, htgt, hwt⟩ := Memory.inputGraph_edge hA u hi
@@ -243,29 +223,15 @@ private def scanSafe (w : ℕ) (d : ScanArgs) (s : Memory.State) : Prop :=
         ((framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s)
         (scan u d.2.2))
 
-private def scanProgram (d : ScanArgs) : Memory.Prog Unit := do
-  let a ← read (3 + d.2.1)
-  let b ← read (3 + (d.2.1 + 1))
-  let degree ← pure (b - a)
-  let _ ← boundedWhile (fun b i : ℕ => i < b) (fun x => do
-    relaxProgram (d.1, d.2.1, d.2.2, x.2)
-    pure (x.2 + 1)) degree degree 0
-  pure ()
-
-private theorem scan_realizes : Realizes .exact scanProgram scanInput
-    (WordEncoding.encode (α := Unit)) scanSafe (fun _ _ => 0) := by
-  have hRelax : Realizes .exact relaxProgram relaxInput (WordEncoding.encode (α := Unit))
-      relaxSafe (fun _ _ => 0) := relax_realizes.congr (fun _ => rfl)
-  unfold scanProgram
-  realize
+private theorem scan_realizes : Realizes .exact (fun d : ScanArgs =>
+    scanWord (insertWord d.1.1.1) (decreaseWord d.1.1.1) d.1.1.2 (envGraph d.1) d.1.2.1 d.2.1 d.2.2)
+    scanInput (WordEncoding.encode (α := Unit)) scanSafe (fun _ _ => 0) := by
+  realize [relax_realizes]
   all_goals
     rcases d with ⟨⟨⟨e, T⟩, n, m⟩, vcur, du⟩
     rcases h with ⟨G, base, hnFit, hK, hT, u, he, hn, hm, hu, hf, hdu, hfit, hwindow, hv⟩
-    dsimp only at he hn hm hu hT hdu hv ⊢
-    subst e
-    subst n
-    subst m
-    subst vcur
+    dsimp only [envGraph] at he hn hm hu hT hdu hv ⊢
+    subst e; subst n; subst m; subst vcur
     have hA : AdjacencyList.Memory.Inv (Memory.inputGraph G.n G.m) G.adj s := hf.2.1.2.1
     obtain ⟨hoff, hnext, hsucc⟩ := Memory.inputGraph_degree hA u
     first
@@ -276,27 +242,17 @@ private theorem scan_realizes : Realizes .exact scanProgram scanInput
       rw [hsucc, Nat.add_sub_cancel_left] at hm ⊢
       have hbfit : Fits w (G.adj u).length := (hmem.mem_fits (3 + (u.val + 1))).of_le (by omega)
       let M := framed hnFit hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-      let p (i : ℕ) := relaxProgram ((((G.n, base), T), G.n, G.m), u.val, du, i)
-      apply Native.scan_while_safe M.toRefinement u du (G.adj u).length p
+      exact Native.scan_while_safe M.toRefinement u du (G.adj u).length _
         (fun w i s => relaxSafe w ((((G.n, base), T), G.n, G.m), u.val, du, i) s)
         (fun i => relaxWord_eq (pqMethods G.n (G.n * G.maxWeight) w base)
           (insertWord (G.n, base)) (decreaseWord (G.n, base))
           (fun v k => (FibonacciHeap.Native.link_width base w (FibonacciHeap.insert v k)).symm)
           (fun v k => (FibonacciHeap.Native.link_width base w
             (FibonacciHeap.decreaseKey G.n v k)).symm)
-          T (Memory.inputGraph G.n G.m) u du i) ?_ s hf hbfit ?_ hm
-      · intro i s hi hinv hvalid
-        exact ⟨G, base, hnFit, hK, hT, u, rfl, rfl, rfl, rfl, hinv,
-          hdu, hfit, hwindow, hvalid⟩
-      · unfold scan at hv
-        dsimp only [degree, StateTransitionSpec.clientHistory, StateTransitionSpec.runClient,
-          PFunctor.FreeM.lift, PFunctor.FreeM.bind, Bind.bind, Pure.pure,
-          PFunctor.FreeM.instBind, PFunctor.FreeM.instPure, StateTransitionSpec.stepFn,
-          productStepFn, AdjacencyList.step] at hv
-        change _ ∧ (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).ValidHistory
-          (M.abs s) ((spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientHistory
-            (M.abs s) ((List.range (G.adj u).length).forM (relaxEdge u du))) at hv
-        simpa only [remainingEdges, Nat.sub_zero, List.range_eq_range'] using hv.2
+          T (Memory.inputGraph G.n G.m) u du i)
+        (fun i s _ hinv hvalid => ⟨G, base, hnFit, hK, hT, u, rfl, rfl, rfl, rfl, hinv,
+          hdu, hfit, hwindow, hvalid⟩)
+        s hf hbfit (scan_valid_remainingEdges u du hv) hm
 
 private def extractWord (e : ℕ × ℕ) : Memory.Prog (Option (ℕ × ℕ)) :=
   link ((FibonacciHeap.layout e.1 e.2).methods 0) (FibonacciHeap.Native.extractRaw e.1)
@@ -317,112 +273,6 @@ private theorem extractWord_eq (n K w base : ℕ) :
 private abbrev StepArgs := Env × ℕ
 private def stepInput := appendWords envInput word
 
-private def stepSafe (w : ℕ) (d : StepArgs) (s : Memory.State) : Prop :=
-  ∃ (G : ListInstance) (base : ℕ) (hn : Fits w G.n)
-    (hK : Fits w (G.n * G.maxWeight))
-    (hT : Dictionary.Memory.Valid d.1.1.2 w G.n (G.n * G.maxWeight + 1)),
-    d.1.1.1 = (G.n, base) ∧ d.1.2.1 = G.n ∧ d.1.2.2 = G.m ∧
-    (framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).inv s ∧
-    (∀ v k, ((framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s).1 v =
-      some k → k ≤ G.n * G.maxWeight) ∧
-    Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2)) ∧
-    Fits w (base + (9 * G.n + 5)) ∧ 0 < d.2 ∧
-    (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).ValidHistory
-      ((framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s)
-      ((spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientHistory
-        ((framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s)
-        (abstractLoopStep d.2))
-
-private def stepProgram (d : StepArgs) : Memory.Prog ℕ := do
-  match ← extractWord d.1.1.1 with
-  | none => pure 0
-  | some (u, du) =>
-    if u < d.1.2.1 then
-      scanProgram (d.1, u, du)
-      pure (d.2 - 1)
-    else pure 0
-
-private theorem step_realizes : Realizes .exact stepProgram stepInput word stepSafe
-    (fun _ _ => 0) := by
-  have hExtract := extract_realizes
-  have hScan := scan_realizes
-  unfold stepProgram
-  realize
-  all_goals
-    rcases d with ⟨⟨⟨e, T⟩, n, m⟩, a⟩
-    rcases h with ⟨G, base, hnFit, hK, hT, he, hn, hm, hf, hb, hfit, hwindow, ha, hv⟩
-    dsimp only at he hn hm hT hb ha hv ⊢
-    subst e
-    subst n
-    subst m
-    first
-    | exact ⟨hwindow, hf.1.1, G.n * G.maxWeight, hK, hf.1.2⟩
-    | omega
-    | let M := framed hnFit hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-      unfold abstractLoopStep at hv
-      rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
-        StateTransitionSpec.run_runClient] at hv
-      obtain ⟨_, hres, hstate, hinv⟩ := M.simulates_client (queue .extractMin) hf hv.1
-      have hql : link M.methods (queue (n := G.n) (K := G.n * G.maxWeight)
-          (V := G.n * G.maxWeight + 1) .extractMin) =
-          pqMethods G.n (G.n * G.maxWeight) w base .extractMin :=
-        PFunctor.FreeM.liftM_lift (P :=
-          (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).signature)
-          M.methods (.inl .extractMin)
-      rw [hql] at hres hstate hinv
-      simp only [pqMethods, FibonacciHeap.methods,
-        FibonacciHeap.Native.link_width] at hres hstate hinv
-      rw [clientResult_width] at hres
-      rw [clientState_width] at hstate hinv
-      have hrmap : (Memory.spec 0).clientResult s (extractWord (G.n, base)) =
-          Option.map (fun p => (p.1.val, p.2))
-            ((spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientResult
-              (M.abs s) (queue .extractMin)) := by
-        rw [extractWord_eq G.n (G.n * G.maxWeight) 0 base,
-          ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientResult,
-          StateTransitionSpec.runClient_bind]
-        simp only [Function.comp_apply, StateTransitionSpec.runClient_pure']
-        exact congrArg (Option.map fun p : Fin G.n × ℕ => (p.1.val, p.2)) hres
-      have hsmap : (Memory.spec 0).clientState s (extractWord (G.n, base)) =
-          (Memory.spec 0).clientState s
-            (link ((FibonacciHeap.layout G.n base).methods 0) (FibonacciHeap.extractMin G.n)) := by
-        rw [extractWord_eq G.n (G.n * G.maxWeight) 0 base,
-          ← PFunctor.FreeM.bind_pure_comp, StateTransitionSpec.clientState,
-          StateTransitionSpec.runClient_bind]
-        rfl
-      rw [hsmap, hrmap]
-      cases hq : (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientResult
-          (M.abs s) (queue .extractMin) with
-      | none =>
-        simp only [hrmap, hq, Option.map_none, optionWordsWith_none, Fin.cases_zero,
-          not_true] at *
-      | some uk =>
-        rcases uk with ⟨u, du⟩
-        simp only [Option.map_some, optionWordsWith_some]
-        have hfind : IndexedMinPQ.findMin (M.abs s).1 = some (u, du) := by
-          have he : (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientResult
-              (M.abs s) (queue .extractMin) = IndexedMinPQ.findMin (M.abs s).1 := by
-            change (IndexedMinPQ.step (M.abs s).1 .extractMin).2 = _
-            cases h : IndexedMinPQ.findMin (M.abs s).1 <;> simp only [IndexedMinPQ.step, h]
-          rw [he] at hq
-          exact hq
-        refine ⟨G, base, hnFit, hK, hT, u, rfl, rfl, rfl, rfl, hinv,
-          hb u du (IndexedMinPQ.findMin_eq_some_state hfind), hfit, hwindow, ?_⟩
-        change (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).ValidHistory
-          (M.abs ((Memory.spec 0).clientState s
-            (link ((FibonacciHeap.layout G.n base).methods 0) (FibonacciHeap.extractMin G.n))))
-          ((spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientHistory
-            (M.abs ((Memory.spec 0).clientState s
-              (link ((FibonacciHeap.layout G.n base).methods 0) (FibonacciHeap.extractMin G.n))))
-            (scan u du))
-        rw [hstate]
-        have htail := hv.2
-        rw [hq] at htail
-        dsimp only at htail
-        rw [StateTransitionSpec.clientHistory_bind, StateTransitionSpec.validHistory_append,
-          StateTransitionSpec.run_runClient] at htail
-        exact htail.1
-
 private def loopSafe (w : ℕ) (d : StepArgs) (s : Memory.State) : Prop :=
   ∃ (G : ListInstance) (base : ℕ) (hn : Fits w G.n)
     (hK : Fits w (G.n * G.maxWeight))
@@ -439,90 +289,42 @@ private def loopSafe (w : ℕ) (d : StepArgs) (s : Memory.State) : Prop :=
         ((framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj).abs s)
         (loop d.2))
 
-private def extendedBody (x : (StepArgs × ℕ) × ℕ) : Memory.Prog ℕ :=
-  stepProgram (x.1.1.1, x.2)
-
-private theorem extendedBody_realizes : Realizes .exact extendedBody
-    (appendWords (appendWords stepInput word) word) word
-    (fun w x s => stepSafe w (x.1.1.1, x.2) s) (fun _ _ => 0) := by
-  apply step_realizes.reindex (fun x => (x.1.1.1, x.2))
-    (appendWords (appendWords stepInput word) word) ![0, 1, 2, 3, 4, 5, 8]
-  intro e i
-  fin_cases i <;> rfl
-
-private theorem nativeWhile_realizes : Realizes .exact (fun x : (StepArgs × ℕ) × ℕ =>
-    boundedWhile (fun e a => e.2 < a) extendedBody x.1 x.1.1.2 x.2)
-    (appendWords (appendWords stepInput word) word) word
-    (fun w x s => whileSafe (fun e a => e.2 < a) extendedBody
-      (fun w x s => stepSafe w (x.1.1.1, x.2) s) w x.1 x.1.1.2 x.2 s)
-    (fun _ _ => 0) := by
-  apply Realizes.while₀ (appendWords stepInput word) word (.lt 7 8)
-    (fun x => x.1.1.2) extendedBody_realizes
-  intro x s
-  exact one_le_memoryCost_liftBind _ _ _
-
-private theorem nativeWhile_valid_realizes : Realizes .exact
-    (fun x : (StepArgs × ℕ) × ℕ =>
-      boundedWhile (fun e a => e.2 < a) extendedBody x.1 x.1.1.2 x.2)
-    (appendWords (appendWords stepInput word) word) word
-    (fun w x s => (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
-      (boundedWhile (fun e a => e.2 < a) extendedBody x.1 x.1.1.2 x.2)) →
-      whileSafe (fun e a => e.2 < a) extendedBody
-        (fun w x s => stepSafe w (x.1.1.1, x.2) s) w x.1 x.1.1.2 x.2 s)
-    (fun _ _ => 0) :=
-  nativeWhile_realizes.consequence_valid (fun _ _ _ _ _ hv h => h hv)
-
-private def loopProgram (d : StepArgs) : Memory.Prog Unit := do
-  let z ← pure 0
-  let a ← pure d.2
-  let _ ← boundedWhile (fun e a => e.2 < a) extendedBody (d, z) d.2 a
-  pure ()
-
-private theorem loop_realizes : Realizes .exact loopProgram stepInput
-    (WordEncoding.encode (α := Unit)) loopSafe (fun _ _ => 0) := by
-  have hW := nativeWhile_valid_realizes
-  unfold loopProgram
-  realize
+private theorem loop_realizes : Realizes .exact (fun d : StepArgs =>
+    loopWord (extractWord d.1.1.1) (insertWord d.1.1.1) (decreaseWord d.1.1.1)
+      d.1.1.2 (envGraph d.1) d.1.2.1 d.2)
+    stepInput (WordEncoding.encode (α := Unit)) loopSafe (fun _ _ => 0) := by
+  realize [scan_realizes, extract_realizes]
   rcases d with ⟨⟨⟨e, T⟩, n, m⟩, a₀⟩
   rcases h with ⟨G, base, hnFit, hK, hT, he, hn, hm, hf, hb, hfit, hwindow, hv⟩
-  dsimp only at he hn hm hT hb hv ⊢
-  subst e
-  subst n
-  subst m
+  dsimp only [envGraph] at he hn hm hT hb hv ⊢
+  subst e; subst n; subst m
   let M := framed hnFit hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
-  let e₀ : StepArgs := ((((G.n, base), T), G.n, G.m), a₀)
-  have heq (a : ℕ) : extendedBody ((e₀, 0), a) = link M.methods (abstractLoopStep a) := by
-    change loopStepWord (extractWord (G.n, base)) (insertWord (G.n, base))
-      (decreaseWord (G.n, base)) T (Memory.inputGraph G.n G.m) G.n ((), a) = _
-    exact (loopStepWord_eq_of_erasure (pqMethods G.n (G.n * G.maxWeight) w base)
-      _ _ _
+  have heq (a : ℕ) : loopStepWord (extractWord (G.n, base)) (insertWord (G.n, base))
+      (decreaseWord (G.n, base)) T (Memory.inputGraph G.n G.m) G.n ((), a) =
+      link M.methods (abstractLoopStep a) :=
+    (loopStepWord_eq_of_erasure (pqMethods G.n (G.n * G.maxWeight) w base) _ _ _
       (fun v k => (FibonacciHeap.Native.link_width base w (FibonacciHeap.insert v k)).symm)
       (fun v k => (FibonacciHeap.Native.link_width base w
         (FibonacciHeap.decreaseKey G.n v k)).symm)
       (extractWord_eq G.n (G.n * G.maxWeight) w base) T (Memory.inputGraph G.n G.m)
       ((), a)).trans (loopStep_eq_link M.methods a)
   intro hm
-  apply loop_while_safe M.toRefinement (e₀, 0) (fun e a => e.2 < a) extendedBody
-    (fun w x s => stepSafe w (x.1.1.1, x.2) s) (fun _ => Iff.rfl) heq ?_ ?_
-    a₀ s hf hb hv hm
-  · intro a s
-    exact loopStepWord_result_le (extractWord (G.n, base)) (insertWord (G.n, base))
-      (decreaseWord (G.n, base)) T (Memory.inputGraph G.n G.m) G.n ((), a) s
-  · intro a s ha hinv hkeys hvalid
-    exact ⟨G, base, hnFit, hK, hT, rfl, rfl, rfl, hinv, hkeys,
-      hfit, hwindow, ha, hvalid⟩
-
-private theorem loopProgram_eq (d : StepArgs) :
-    loopProgram d = loopWord (extractWord d.1.1.1) (insertWord d.1.1.1)
-      (decreaseWord d.1.1.1) d.1.1.2 (Memory.inputGraph d.1.2.1 d.1.2.2) d.1.2.1 d.2 := by
-  simp only [loopProgram, pure_bind]
-  unfold loopWord
-  refine congrArg (fun p : Memory.Prog ℕ => p >>= fun _ => (pure () : Memory.Prog Unit)) ?_
-  exact boundedWhile_congr (fun e a => e.2 < a) (fun (_ : Unit) a => a ≠ 0)
-    (body := extendedBody)
-    (body' := loopStepWord (extractWord d.1.1.1) (insertWord d.1.1.1)
-      (decreaseWord d.1.1.1) d.1.1.2 (Memory.inputGraph d.1.2.1 d.1.2.2) d.1.2.1)
-    (d := (d, 0)) (d' := ()) (fun a => by omega) (fun a => rfl) d.2 d.2
+  apply loop_while_safe M.toRefinement () (fun _ a => a ≠ 0) _ _
+    (fun _ => Nat.pos_iff_ne_zero.symm) heq
+    (fun a s => loopStepWord_result_le _ _ _ T (Memory.inputGraph G.n G.m) G.n ((), a) s)
+    ?_ a₀ s hf hb hv hm
+  intro a s ha hinv hkeys hvalid
+  refine ⟨⟨hwindow, hinv.1.1, G.n * G.maxWeight, hK, hinv.1.2⟩, ?_⟩
+  dsimp only
+  rcases abstractLoopStep_extract M.toRefinement (extractWord (G.n, base))
+    (extractWord_eq G.n (G.n * G.maxWeight) w base) s hinv hkeys hvalid with
+    hnone | ⟨u, du, hsome, hdu, hinv', hscan⟩
+  · simp [hnone]
+  · rw [hsome]
+    change if (1 : ℕ) = 0 then True else if u.val < G.n then _ else True
+    rw [ite_eq_right (by decide), ite_eq_left u.isLt]
+    exact ⟨⟨G, base, hnFit, hK, hT, u, rfl, rfl, rfl, rfl, hinv', hdu, hfit, hwindow,
+      hscan⟩, ha⟩
 
 private theorem initial_loop_safe (G : ListInstance) {w : ℕ}
     (hfit : Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) :
@@ -539,51 +341,17 @@ private theorem initial_loop_safe (G : ListInstance) {w : ℕ}
   have hK : Fits w (G.n * G.maxWeight) := hfit.of_le (by nlinarith)
   have hT : Dictionary.Memory.Valid T w G.n (G.n * G.maxWeight + 1) :=
     ⟨rfl, hfit.of_le (by nlinarith)⟩
-  have hf : f = G.n + 2 * G.m + 4 := Memory.frontier_init G
   have hwindow : Fits w (base + (9 * G.n + 5)) := hfit.of_le (by
-    dsimp only [base]
-    rw [hf]
-    nlinarith)
+    dsimp only [base, f]; rw [Memory.frontier_init G]; nlinarith)
   let M := framed hn hK base hT (A := Memory.inputGraph G.n G.m) ⟨rfl⟩ G.adj
   let s₀ : Memory.State := ⟨(Memory.State.init G.encode).mem, base + (9 * G.n + 5)⟩
   obtain ⟨hi, habs⟩ := inv_input G hn hK hT ⟨rfl⟩ hwindow
-  let p : (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).Client Unit := do
-    setDist G.source 0
-    queue (.insert G.source 0)
-  have hloop := Native.initial_loop_safe G le_rfl (by omega) M.toRefinement s₀ hi habs
-  have hpeq : link M.methods p = (do
-      write (f + G.source.val) 1
-      insertWord (G.n, base) G.source.val 0) := by
-    unfold p link
-    rw [PFunctor.FreeM.liftM_bind]
-    have hset : (setDist (K := G.n * G.maxWeight) (V := G.n * G.maxWeight + 1)
-        G.source 0).liftM M.methods = write (f + G.source.val) 1 :=
-      PFunctor.FreeM.liftM_lift (P :=
-        (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).signature)
-        M.methods (.inr (.inl (.insert G.source 0)))
-    rw [hset]
-    congr 1
-    funext _
-    exact (PFunctor.FreeM.liftM_lift (P :=
-      (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).signature)
-      M.methods (.inl (.insert G.source 0))).trans
-        (FibonacciHeap.Native.link_width base w (FibonacciHeap.insert G.source.val 0))
-  have hs : (Memory.spec w).clientState s₀ (link M.methods p) =
-      (Memory.spec 0).clientState
-        ⟨Function.update (Memory.State.init G.encode).mem (f + G.source.val) 1,
-          base + (9 * G.n + 5)⟩ (insertWord (G.n, base) G.source.val 0) := by
-    rw [hpeq, StateTransitionSpec.clientState_bind]
-    exact clientState_width _ _ _
-  change M.inv ((Memory.spec w).clientState s₀ (link M.methods p)) ∧
-    (∀ v k, (M.abs ((Memory.spec w).clientState s₀ (link M.methods p))).1 v = some k →
-      k ≤ G.n * G.maxWeight) ∧
-    (spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).ValidHistory
-      (M.abs ((Memory.spec w).clientState s₀ (link M.methods p)))
-      ((spec G.n (G.n * G.maxWeight) (G.n * G.maxWeight + 1)).clientHistory
-        (M.abs ((Memory.spec w).clientState s₀ (link M.methods p))) (loop G.n)) at hloop
-  rw [hs] at hloop
-  exact ⟨G, base, hn, hK, hT, rfl, rfl, rfl, hloop.1, hloop.2.1,
-    hfit, hwindow, hloop.2.2⟩
+  obtain ⟨hinv, hkeys, hvalid⟩ :=
+    initial_loop_safe_insert G le_rfl (by omega) M.toRefinement
+      (insertWord (G.n, base) G.source.val 0) rfl
+      (FibonacciHeap.Native.link_width base w (FibonacciHeap.insert G.source.val 0))
+      s₀ hi habs
+  exact ⟨G, base, hn, hK, hT, rfl, rfl, rfl, hinv, hkeys, hfit, hwindow, hvalid⟩
 
 private def allocProgram (n : ℕ) : Memory.Prog (ℕ × ℕ) := do
   let base ← Memory.allocDirty (9 * n + 5)
@@ -602,55 +370,13 @@ private theorem allocProgram_run (n : ℕ) (s : Memory.State) :
       ((n, s.frontier), ⟨s.mem, s.frontier + (9 * n + 5)⟩,
         [.allocDirty (9 * n + 5)]) := rfl
 
-private def runProgram : Memory.Prog Unit := do
-  let n ← read 1
-  let src ← read 2
-  let m ← read (n + 3)
-  let T ← allocBlockDirty n
-  let e ← allocProgram n
-  if src < n then
-    let z ← pure 0
-    write (T.base + src) (z + 1)
-    insertWord e src z
-    loopProgram (((e, T), n, m), n)
-  else pure ()
-
-private theorem runProgram_eq : runProgram = run := by
-  rw [← runWord_eq]
-  unfold runProgram runWord
-  congr 1
-  funext n
-  congr 1
-  funext src
-  congr 1
-  funext m
-  congr 1
-  funext T
-  congr 1
-  funext e
-  by_cases hs : src < n
-  · simp only [ite_eq_left hs, pure_bind]
-    rw [loopProgram_eq]
-    rfl
-  · simp only [ite_eq_right hs]
-
-/-- One native emitter realizes the original Fibonacci-heap Dijkstra memory client. Its
-domain retains the unchanged graph encoding and word envelope. Arithmetic, argument delivery,
-dirty allocation and early-exit loop control are included in the uniform instruction factor. -/
-theorem realizes_run : Realizes .exact (fun _ : Unit => run)
+private theorem word_run_realizes : Realizes .exact
+    (fun _ : Unit => runWord allocProgram extractWord insertWord decreaseWord)
     (WordEncoding.encode (α := Unit)) (WordEncoding.encode (α := Unit))
     (fun w _ s => ∃ G : ListInstance, s = Memory.State.init G.encode ∧
       Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) := by
-  suffices h : Realizes .exact (fun _ : Unit => runProgram)
-      (WordEncoding.encode (α := Unit)) (WordEncoding.encode (α := Unit))
-      (fun w _ s => ∃ G : ListInstance, s = Memory.State.init G.encode ∧
-        Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) from
-    h.congr (fun _ => runProgram_eq)
-  have hAlloc := alloc_realizes
-  have hInsert := insert_realizes
-  have hLoop := loop_realizes
-  unfold runProgram
-  realize
+  unfold runWord Memory.inputGraph
+  realize [alloc_realizes, insert_realizes, decrease_realizes, loop_realizes]
   case hsafe.left =>
     rcases h with ⟨G, rfl, hfit⟩
     exact hfit.of_le (by nlinarith)
@@ -683,23 +409,28 @@ theorem realizes_run : Realizes .exact (fun _ : Unit => run)
   case hsafe.right.right.right.right.isTrue.right.left.right =>
     rcases h with ⟨G, rfl, hfit⟩
     simp only [StateTransitionSpec.clientResult, allocProgram_run]
-    change G.source.val < G.n
     exact G.source.isLt
   case hsafe.right.right.right.right.isTrue.right.right =>
     rcases h with ⟨G, rfl, hfit⟩
     have hn : (Memory.State.init G.encode).mem 1 = G.n := rfl
     have hs : (Memory.State.init G.encode).mem 2 = G.source.val := rfl
-    have hm : (Memory.State.init G.encode).mem (G.n + 3) = G.m := by
-      rw [← G.offset_n]
-      exact G.init_offset (r := 0) le_rfl
     have ht : (Memory.spec 0).runClient (Memory.State.init G.encode)
         (Memory.allocBlockDirty G.n) =
         (⟨(Memory.State.init G.encode).frontier, G.n⟩,
           ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩,
           [.allocDirty G.n]) := rfl
     simp only [StateTransitionSpec.clientResult, StateTransitionSpec.clientState,
-      allocProgram_run, hn, hs, hm, ht]
+      allocProgram_run, hn, hs, Memory.init_mem_edgeCount G, ht]
     exact initial_loop_safe G hfit
+
+/-- One native emitter realizes the original Fibonacci-heap Dijkstra memory client. Its
+domain retains the unchanged graph encoding and word envelope. Arithmetic, argument delivery,
+dirty allocation and early-exit loop control are included in the uniform instruction factor. -/
+theorem realizes_run : Realizes .exact (fun _ : Unit => run)
+    (WordEncoding.encode (α := Unit)) (WordEncoding.encode (α := Unit))
+    (fun w _ s => ∃ G : ListInstance, s = Memory.State.init G.encode ∧
+      Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) :=
+  word_run_realizes.congr fun _ => runWord_eq
 
 /-- One flat exact-basis program, chosen before all graphs and widths, computes every distance
 within the sharper reachable-vertex Fibonacci bound. Its actual prefix, memory client and halt

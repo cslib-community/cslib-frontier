@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.FineGrained
+import CslibFrontier.Computability.Complexity.FineGrained.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OCountedIteration
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
@@ -15,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatPower
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import Mathlib.Data.Nat.Size
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Exhaustive-search reductions
@@ -153,13 +155,12 @@ private theorem exists_search_length_bounds {f : α × ℕ → β} {ν : α → 
       (∀ a k, k ≤ rounds ν a → (encB (f (a, k))).length ≤ nd a) := by
   -- `rounds ν a = 2 ^ ν a` has `ν a + 1` binary digits, which bounds every round counter.
   have hrounds (a : α) : (encNat (rounds ν a)).length = ν a + 1 := by
-    rw [rounds, encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+    rw [rounds, length_encNat_two_pow]
   have hpair (a : α) {k : ℕ} (hk : k ≤ rounds ν a) :
       (encPair encA encNat (a, k)).length ≤ 2 * (encA a).length + ν a + 2 := by
     have := length_encNat_mono hk
     rw [hrounds] at this
-    simp only [length_encPair]
-    omega
+    enc_len
   have hν' : PolyBounded (fun a => (encA a).length) ν := by
     simpa only [encUnary_apply, List.length_replicate] using hν.polyBounded_length
   obtain ⟨cf, df, hf_len⟩ := hf.polyBounded_length.exists_le
@@ -349,9 +350,7 @@ theorem DecidableInSubexpTime.of_exhaustiveSearch {f : α × ℕ → β} {ν : �
   have hδ : 0 < δ := by positivity
   refine ((h δ hδ).of_exhaustiveSearch hf hν hfA hμ hK hδ.le).mono ?_
   have hcδ : (c : ℝ) * δ ≤ ε / 2 := by
-    simp only [δ]
-    rw [mul_div_assoc', div_le_iff₀ (by positivity)]
-    nlinarith
+    simpa only [δ, div_div] using natCast_mul_div_add_one_le (half_pos hε).le c
   linarith
 
 end Cslib.Complexity

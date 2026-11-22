@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Complexity.Classes.P
 public import Mathlib.Algebra.Ring.BooleanRing
 import Mathlib.Tactic.FunProp
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Dense Gaussian elimination over the Boolean ring
@@ -253,68 +254,41 @@ private theorem length_encSystem_map_le (f : Row → Row)
   | nil => rfl
   | cons e F ih =>
     have he := hf e
-    simp only [encSystem, List.map_cons, encList_cons, List.length_append, length_frame,
-      encRow_apply, length_encPair, encBits_apply, encBool_apply, List.length_singleton] at *
-    omega
+    enc_len [encSystem, List.map_cons, encRow_apply, List.length_singleton] at *
 
 /-- The complete encoded state weakly decreases at every iteration; there is no growth hidden
 in repeated substitution or in the framing of rows. -/
 theorem length_step_le (F : System) : (encSystem (step F)).length ≤ (encSystem F).length :=
   length_encSystem_map_le _ (length_clear_le _) F
 
-private theorem row_coeffs_tidy :
-    ComputableTidilyInPolyTime Row.coeffs encRow encBits :=
-  (by fun_prop : ComputableInPolyTime Row.coeffs encRow encBits).tidy
-
-private theorem row_rhs_tidy :
-    ComputableTidilyInPolyTime Row.rhs encRow encBool :=
-  (by fun_prop : ComputableInPolyTime Row.rhs encRow encBool).tidy
-
-private theorem row_mk_tidy {γ : Type} {encIn : γ ↪ List Bool}
-    {c : γ → List Bool} {r : γ → Bool}
-    (hc : ComputableTidilyInPolyTime c encIn encBits)
-    (hr : ComputableTidilyInPolyTime r encIn encBool) :
-    ComputableTidilyInPolyTime (fun x => Row.mk (c x) (r x)) encIn encRow :=
-  (hc.prod hr).of_enc_eq fun _ => rfl
-
-private theorem input_width_tidy :
-    ComputableTidilyInPolyTime Input.width encInput encUnary :=
-  (by fun_prop : ComputableInPolyTime Input.width encInput encUnary).tidy
-
-private theorem input_rows_tidy :
-    ComputableTidilyInPolyTime Input.rows encInput encSystem :=
-  (by fun_prop : ComputableInPolyTime Input.rows encInput encSystem).tidy
-
-attribute [local fun_prop] row_coeffs_tidy row_rhs_tidy row_mk_tidy
-  input_width_tidy input_rows_tidy
-
-private theorem clear_polyTime : ComputableTidilyInPolyTime
+private theorem clear_polyTime : ComputableInPolyTime
     (fun q : Row × Row => clear q.1 q.2) (encPair encRow encRow) encRow := by
   unfold clear
   fun_prop
 
-private theorem step_polyTime : ComputableTidilyInPolyTime step encSystem encSystem := by
-  have hp : ComputableTidilyInPolyTime
+private theorem step_polyTime : ComputableInPolyTime step encSystem encSystem := by
+  have hp : ComputableInPolyTime
       (fun F : System => (F.find? fun e => e.coeffs.headD false).getD ⟨[], false⟩)
       encSystem encRow := by
     fun_prop
-  exact ComputableTidilyInPolyTime.mapWith clear_polyTime hp
-    ComputableTidilyInPolyTime.id'
+  exact ComputableInPolyTime.mapWithInput .id'
+    (clear_polyTime.comp
+      ((hp.comp (ComputableInPolyTime.fst encSystem encRow)).prod
+        (ComputableInPolyTime.snd encSystem encRow)))
 
 /-- The actual Gaussian-elimination decider is computable in polynomial time on native
 multi-tape Turing machines, with unary width and raw binary coefficient words. -/
-theorem decide_polyTime : ComputableInPolyTime decide encInput encBool := by
-  have hloop : ComputableTidilyInPolyTime
+theorem computableInPolyTime_decide : ComputableInPolyTime decide encInput encBool := by
+  have hloop : ComputableInPolyTime
       (fun q : Input => step^[q.width] q.rows) encInput encSystem :=
-    .iterate_of_bounded_growth input_width_tidy input_rows_tidy
+    .iterate_of_bounded_growth (by fun_prop) (by fun_prop)
       step_polyTime (growth := 0) (fun F => by simpa using length_step_le F)
-  apply ComputableInPolyTime.of_tidy
   unfold decide
-  have hwidth : ComputableTidilyInPolyTime
+  have hwidth : ComputableInPolyTime
       (fun q : Input => q.rows.all (fun e => Decidable.decide (e.coeffs.length = q.width)))
       encInput encBool := by
     fun_prop
-  have hend : ComputableTidilyInPolyTime (fun F : System => F.all (fun e => !e.rhs))
+  have hend : ComputableInPolyTime (fun F : System => F.all (fun e => !e.rhs))
       encSystem encBool := by
     fun_prop
   exact hwidth.bool_and' (hend.comp hloop)
@@ -322,6 +296,6 @@ theorem decide_polyTime : ComputableInPolyTime decide encInput encBool := by
 /-- Dense XOR-SAT is in the native Turing-machine class `P`. -/
 theorem satisfiable_mem_P :
     {q : Input | Width q.width q.rows ∧ Satisfiable q.width q.rows} ∈ P encInput :=
-  ⟨decide, decide_polyTime, fun q => (decide_eq_true_iff q).symm⟩
+  ⟨decide, computableInPolyTime_decide, fun q => (decide_eq_true_iff q).symm⟩
 
 end Cslib.Complexity.XORSAT.Dense

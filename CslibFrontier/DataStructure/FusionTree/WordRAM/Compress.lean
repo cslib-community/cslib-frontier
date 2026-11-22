@@ -241,7 +241,8 @@ theorem exec {w L M : ℕ} (hw : 2 ≤ w) (x : Data 21)
     apply (hez.seq (heu.seq het)).regs_eq
     have hp : ∀ i : Fin 21, 16 ≤ i.val ∧ i.val < 20 →
         (Code.seq (B := .standard) Workspace.setup
-          (.seq split ((Schoolbook.fixedProgram 3 3).rename embed))).Preserves i := by decide
+          (.seq split ((Schoolbook.fixedProgram 3 3).rename embed))).Preserves i := by
+      decide +kernel
     exact hp i hi
   let d := t.regs productDigit >>> t.regs offset
   let y := (t.set out d).set out (d &&& t.regs retained)
@@ -265,7 +266,7 @@ theorem exec {w L M : ℕ} (hw : 2 ≤ w) (x : Data 21)
   · intro i hi
     apply (hez.seq (heu.seq (het.seq hey))).regs_eq
     have hp : ∀ i : Fin 21, (7 ≤ i.val ∧ i.val < 10) ∨ (16 ≤ i.val ∧ i.val < 20) →
-        code.Preserves i := by decide
+        code.Preserves i := by decide +kernel
     exact hp i hi
 
 /-- Specialize the actual execution to the arithmetic approximate sketch. The collision-free

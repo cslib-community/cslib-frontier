@@ -10,11 +10,14 @@ module
 public import CslibFrontier.Crypto.Computational.DiffieHellman.MultiDDH
 public import CslibFrontier.Crypto.Game.Hybrid
 public import CslibFrontier.Foundations.Data.BitString.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.Product
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # The Naor–Reingold pseudorandom function from Decisional Diffie–Hellman
@@ -43,12 +46,12 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
    - Fixed-$u$ rerandomization $(u, v, w) \mapsto (u, \sigma \bullet g + \tau \bullet v,
      \sigma \bullet u + \tau \bullet w)$ ([BonehShoup2023], Exercise 10.8, p. 425), its word-level
      counterpart `ddhFixedUWordRerandomize`, and the exact distributional laws
-     `ddhFixedURerandomizeLaw_real` (Exercise 10.8(a)) and `ddhFixedURerandomizeLaw_ideal`
+     `ddhFixedURerandomizeLaw_real` (Exercise 10.8(a)) and `ddhFixedURerandomizeLaw_random`
      (Exercise 10.8(b)).
    - The $n = 1$ (single shared secret $\alpha$, $|\iota|$ pairs) Multi-DDH (I) reduction
      `multiDDHRerandomizeLaw` ([BonehShoup2023], Exercise 10.11, p. 426), whose wrapper samples
      $|\iota|$ rerandomized pairs, proving `multiDDHRerandomizeLaw_real`,
-     `multiDDHRerandomizeLaw_ideal`, and the quantitative bound `advantage_multiDDH_le`
+     `multiDDHRerandomizeLaw_random`, and the quantitative bound `advantage_multiDDH_le`
      ($\le \mathrm{DDHadv}[B] + 1 / q$).
 3. **Naor–Reingold PRF prefix hybrids and distributional security bound (`naorReingoldRealGame`,
    `naorReingoldIdealGame`, `naorReingoldHybridGame`)**:
@@ -57,10 +60,12 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
      identities `naorReingoldHybridGame_zero` and `naorReingoldHybridGame_self`.
    - The distributional single-level DDH distinguisher `naorReingoldLevelDDHDistinguisher`
      (which samples the $2^k$-entry prefix table `BitString k`) and adjacent-hop bound
-     `advantage_naorReingoldHybridGame_succ_le`, the $n$-hybrid sum bound
-     `advantage_naorReingold_le_sum`, and the common-bound corollary `advantage_naorReingold_le_mul`
-     ($\le n \cdot (\varepsilon + 1 / q)$). The efficient lazy-sampling `IsOraclePPT` reduction and
-     `PseudorandomFunction` bridge are proved in `NaorReingold.Security` and `NaorReingold.PRF`.
+     `advantage_naorReingoldHybridGame_succ_le`, and the exact $n$-hybrid sum bound
+     `advantage_naorReingold_le_sum` for arbitrary typed adversaries at one group. These are
+     concrete bounds through PMF distinguishers with no efficiency certificate. Asymptotic security
+     under `F.DDH` (`DDH.negligible_naorReingoldProbGame`) goes through a different, certified
+     lazy-sampling reduction in `NaorReingold.Security`; the `PseudorandomFunction` bridge is in
+     `NaorReingold.PRF`.
 
 ## Main definitions
 
@@ -77,7 +82,7 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
   `Cslib.Crypto.PrimeOrderGroupFamily.ddhFixedURerandomizeLaw`:
   fixed-$u$ DDH rerandomization (Boneh–Shoup Exercise 10.8).
 * `Cslib.Crypto.PrimeOrderGroupFamily.multiDDHRealTupleLaw`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.multiDDHIdealTupleLaw`,
+  `Cslib.Crypto.PrimeOrderGroupFamily.multiDDHRandomTupleLaw`,
   `Cslib.Crypto.PrimeOrderGroupFamily.multiDDHRerandomizeLaw`:
   $n = 1$ Multi-DDH (I) distributions and rerandomization (Boneh–Shoup Exercise 10.11).
 * `Cslib.Crypto.PrimeOrderGroupFamily.naorReingoldRealGame`,
@@ -92,15 +97,14 @@ Following Boneh–Shoup Exercises 10.4, 10.8, 10.11, and 4.18, we formalize:
 * `Cslib.Crypto.PrimeOrderGroupFamily.computableInPolyTime_naorReingoldWordEval`:
   plain polynomial-time certificate for word-level Naor–Reingold evaluation.
 * `Cslib.Crypto.PrimeOrderGroupFamily.ddhFixedURerandomizeLaw_real`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.ddhFixedURerandomizeLaw_ideal`:
+  `Cslib.Crypto.PrimeOrderGroupFamily.ddhFixedURerandomizeLaw_random`:
   fixed-$u$ DDH random self-reduction (Boneh–Shoup Exercise 10.8).
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_multiDDH_le`:
   $n = 1$ Multi-DDH (I) reduction to DDH, sampling $|\iota|$ rerandomized pairs
   (Boneh–Shoup Exercise 10.11).
 * `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingoldHybridGame_succ_le`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingold_le_sum`,
-  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingold_le_mul`:
-  distributional prefix-hybrid security bounds for the Naor–Reingold PRF against the explicit
+  `Cslib.Crypto.PrimeOrderGroupFamily.advantage_naorReingold_le_sum`:
+  distributional prefix-hybrid bounds for the Naor–Reingold PRF against the explicit
   $2^k$-pair PMF distinguisher `naorReingoldLevelDDHDistinguisher` (Boneh–Shoup Exercise 10.4(b);
   Naor–Reingold Theorem 4.1); see `NaorReingold.Security` and `NaorReingold.PRF` for the
   lazy-sampling `IsOraclePPT` reduction and `PseudorandomFunction` bridge.
@@ -310,8 +314,7 @@ theorem computableInPolyTime_naorReingoldProdNat :
   have hval : value.1.size ≤ (encList (encPair encNat encBool) input.2).length := by
     rw [← Nat.size_eq_bits_len, ← encNat_apply]
     have h1 : (encNat value.1).length ≤ (encPair encNat encBool value).length := by
-      simp only [length_encPair]
-      omega
+      enc_len
     exact h1.trans (length_le_encList_of_mem (encPair encNat encBool) hmem)
   rcases value with ⟨v, _ | _⟩
   · simp
@@ -332,27 +335,27 @@ theorem computableInPolyTime_naorReingoldWordSuffix :
       (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.1)
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) encBits := by
     fun_prop
-  have hαs : ComputableTidilyInPolyTime
+  have hαs : ComputableInPolyTime
       (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.2.1)
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits)))
       (encList encNat) := by
     fun_prop
-  have hxs : ComputableTidilyInPolyTime
+  have hxs : ComputableInPolyTime
       (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.2.2)
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits)))
       (encList encBool) :=
-    ComputableTidilyInPolyTime.bitsToList.comp (by fun_prop)
-  have hzip : ComputableTidilyInPolyTime
+    ComputableInPolyTime.bitsToList.comp (by fun_prop)
+  have hzip : ComputableInPolyTime
       (fun input : F.Desc × List Bool × List ℕ × List Bool => input.2.2.1.zip input.2.2.2)
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits)))
       (encList (encPair encNat encBool)) :=
-    (ComputableTidilyInPolyTime.zip encNat encBool).comp (hαs.prod hxs)
+    (ComputableInPolyTime.zip encNat encBool).comp (hαs.prod hxs)
   have hprod : ComputableInPolyTime
       (fun input : F.Desc × List Bool × List ℕ × List Bool =>
         naorReingoldProdNat 1 (input.2.2.1.zip input.2.2.2))
       (encPair F.encDesc (encPair encBits (encPair (encList encNat) encBits))) encNat :=
     computableInPolyTime_naorReingoldProdNat.comp
-      ((ComputableInPolyTime.const 1).prod hzip.computableInPolyTime)
+      ((ComputableInPolyTime.const 1).prod hzip)
   exact F.computableInPolyTime_smul.comp (hd.prod (hprod.prod hu))
 
 /-- `naorReingoldWordEval` is computable in polynomial time. -/
@@ -369,25 +372,25 @@ theorem computableInPolyTime_naorReingoldWordEval :
       (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.1)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encNat := by
     fun_prop
-  have hαs : ComputableTidilyInPolyTime
+  have hαs : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.2.1)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) (encList encNat) := by
     fun_prop
-  have hxs : ComputableTidilyInPolyTime
+  have hxs : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.2.2)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits)))
       (encList encBool) :=
-    ComputableTidilyInPolyTime.bitsToList.comp (by fun_prop)
-  have hzip : ComputableTidilyInPolyTime
+    ComputableInPolyTime.bitsToList.comp (by fun_prop)
+  have hzip : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool => input.2.2.1.zip input.2.2.2)
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits)))
       (encList (encPair encNat encBool)) :=
-    (ComputableTidilyInPolyTime.zip encNat encBool).comp (hαs.prod hxs)
+    (ComputableInPolyTime.zip encNat encBool).comp (hαs.prod hxs)
   have hprod : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool =>
         naorReingoldProdNat input.2.1 (input.2.2.1.zip input.2.2.2))
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encNat :=
-    computableInPolyTime_naorReingoldProdNat.comp (hα₀.prod hzip.computableInPolyTime)
+    computableInPolyTime_naorReingoldProdNat.comp (hα₀.prod hzip)
   have hgen : ComputableInPolyTime
       (fun input : F.Desc × ℕ × List ℕ × List Bool => F.encode input.1 (F.generator input.1))
       (encPair F.encDesc (encPair encNat (encPair (encList encNat) encBits))) encBits :=
@@ -446,9 +449,7 @@ theorem naorReingoldSuffixExp_succ_update (d : F.Desc) {n k : ℕ} (hk : k < n)
   refine Finset.prod_congr rfl fun i _ => ?_
   by_cases h : k + 1 ≤ i.1
   · have hne : i ≠ ⟨k, hk⟩ := by
-      intro heq
-      have hval : i.1 = k := congrArg Fin.val heq
-      omega
+      fin_index
     simp [hne]
   · simp [h]
 
@@ -598,17 +599,17 @@ theorem multiDDHRealTupleLaw_naorReingoldLevelTest (d : F.Desc) {n : ℕ} (k : �
   symm
   exact PMF.bind_uniformOfFintype_update (⟨k, hk⟩ : Fin n) _
 
-/-- Under `multiDDHIdealTupleLaw`, `naorReingoldLevelTest` reproduces `naorReingoldHybridGame` at
+/-- Under `multiDDHRandomTupleLaw`, `naorReingoldLevelTest` reproduces `naorReingoldHybridGame` at
 depth `k + 1`. -/
-theorem multiDDHIdealTupleLaw_naorReingoldLevelTest (d : F.Desc) {n : ℕ} (k : ℕ) (hk : k < n)
+theorem multiDDHRandomTupleLaw_naorReingoldLevelTest (d : F.Desc) {n : ℕ} (k : ℕ) (hk : k < n)
     (adv : OracleComp (fun _ : BitString n => F.Carrier d) Bool) :
     ((PMF.uniformOfFintype (ZMod (F.order d))).bind fun α_k =>
-      (F.multiDDHIdealTupleLaw d (BitString k)).bind
+      (F.multiDDHRandomTupleLaw d (BitString k)).bind
         (F.naorReingoldLevelTest d k hk adv (α_k • F.generator d))) =
       F.naorReingoldHybridGame d n (k + 1) adv := by
   unfold naorReingoldLevelTest
   rw [PMF.bind_const]
-  simp only [multiDDHIdealTupleLaw, naorReingoldHybridGame, PMF.monad_bind_eq_bind, PMF.bind_map,
+  simp only [multiDDHRandomTupleLaw, naorReingoldHybridGame, PMF.monad_bind_eq_bind, PMF.bind_map,
     Function.comp_def]
   rw [← PMF.uniformOfFintype_map_equiv (prefixTableEquiv (ZMod (F.order d)) k), PMF.bind_map]
   congr 1 with B : 1
@@ -634,10 +635,10 @@ theorem advantage_naorReingoldHybridGame_succ_le (d : F.Desc) {n : ℕ} (k : ℕ
       (F.naorReingoldHybridGame d n (k + 1) adv) ≤
     Game.advantage
       ((F.ddhRealTupleLaw d).bind (F.naorReingoldLevelDDHDistinguisher d k hk adv))
-      ((F.ddhIdealTupleLaw d).bind (F.naorReingoldLevelDDHDistinguisher d k hk adv)) +
+      ((F.ddhRandomTupleLaw d).bind (F.naorReingoldLevelDDHDistinguisher d k hk adv)) +
       (F.order d : ℝ≥0)⁻¹ := by
   rw [← F.multiDDHRealTupleLaw_naorReingoldLevelTest d k hk adv,
-    ← F.multiDDHIdealTupleLaw_naorReingoldLevelTest d k hk adv]
+    ← F.multiDDHRandomTupleLaw_naorReingoldLevelTest d k hk adv]
   exact F.advantage_multiDDH_le d (BitString k) (F.naorReingoldLevelTest d k hk adv)
 
 /-- Total- parameterized level DDH distinguisher (returning `PMF.pure false` when `k ≥ n`). -/
@@ -651,14 +652,17 @@ noncomputable def naorReingoldHopDDHDistinguisher (d : F.Desc) (n k : ℕ)
 between `naorReingoldRealGame` and `naorReingoldIdealGame` is bounded by the sum over
 `k ∈ Finset.range n` of the DDH distinguishing advantages of the explicit `2^k`-pair PMF
 distinguisher `naorReingoldLevelDDHDistinguisher` (`naorReingoldHopDDHDistinguisher`) plus
-`n * (F.order d)⁻¹`. -/
+`n * (F.order d)⁻¹`. This is a concrete bound for every typed adversary at one group; the
+distinguishers have no efficiency certificate. Security under `F.DDH` is
+`DDH.negligible_naorReingoldProbGame`, through the certified reduction
+`naorReingoldToDDHDistinguisher`. -/
 theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
     (adv : OracleComp (fun _ : BitString n => F.Carrier d) Bool) :
     Game.advantage (F.naorReingoldRealGame d n adv) (F.naorReingoldIdealGame d n adv) ≤
       (∑ k ∈ Finset.range n,
         Game.advantage
           ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-          ((F.ddhIdealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))) +
+          ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))) +
         n * (F.order d : ℝ≥0)⁻¹ := by
   rw [← F.naorReingoldHybridGame_zero d n adv, ← F.naorReingoldHybridGame_self d n adv]
   refine (Game.advantage_hybrid_le_sum (F.naorReingoldHybridGame d n · adv) n).trans ?_
@@ -666,12 +670,12 @@ theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
       (∑ k ∈ Finset.range n,
         (Game.advantage
           ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-          ((F.ddhIdealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv)) +
+          ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv)) +
           (F.order d : ℝ≥0)⁻¹)) =
       (∑ k ∈ Finset.range n,
         Game.advantage
           ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-          ((F.ddhIdealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))) +
+          ((F.ddhRandomTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))) +
         n * (F.order d : ℝ≥0)⁻¹ := by
     rw [Finset.sum_add_distrib, Finset.sum_const, Finset.card_range, nsmul_eq_mul]
   rw [← hsum]
@@ -683,28 +687,5 @@ theorem advantage_naorReingold_le_sum (d : F.Desc) (n : ℕ)
     simp [naorReingoldHopDDHDistinguisher, hlt]
   rw [heq]
   exact F.advantage_naorReingoldHybridGame_succ_le d k hlt adv
-
-/-- **Common-bound Naor–Reingold PRF distributional prefix-hybrid bound**
-([BonehShoup2023], Exercise 10.4; [NaorReingold2004], Theorem 4.1): if for every `k < n` the
-explicit `2^k`-pair PMF distinguisher `naorReingoldHopDDHDistinguisher d n k adv` has DDH advantage
-at most `ε`, then the Naor–Reingold PRF advantage is at most `n * (ε + (F.order d)⁻¹)`. -/
-theorem advantage_naorReingold_le_mul (d : F.Desc) (n : ℕ)
-    (adv : OracleComp (fun _ : BitString n => F.Carrier d) Bool) (ε : ℝ≥0)
-    (hε : ∀ k < n,
-      Game.advantage
-        ((F.ddhRealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv))
-        ((F.ddhIdealTupleLaw d).bind (F.naorReingoldHopDDHDistinguisher d n k adv)) ≤ ε) :
-    Game.advantage (F.naorReingoldRealGame d n adv) (F.naorReingoldIdealGame d n adv) ≤
-      n * (ε + (F.order d : ℝ≥0)⁻¹) := by
-  rw [← F.naorReingoldHybridGame_zero d n adv, ← F.naorReingoldHybridGame_self d n adv]
-  refine Game.advantage_hybrid_le (F.naorReingoldHybridGame d n · adv) n
-    (ε + (F.order d : ℝ≥0)⁻¹) fun k hk => ?_
-  have heq : F.naorReingoldHopDDHDistinguisher d n k adv =
-      F.naorReingoldLevelDDHDistinguisher d k hk adv := by
-    funext t
-    simp [naorReingoldHopDDHDistinguisher, hk]
-  refine (F.advantage_naorReingoldHybridGame_succ_le d k hk adv).trans ?_
-  rw [← heq]
-  exact add_le_add (hε k hk) le_rfl
 
 end Cslib.Crypto.PrimeOrderGroupFamily

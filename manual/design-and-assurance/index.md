@@ -1,5 +1,7 @@
 # Design and assurance
 
+> **Frozen in November 2026.** This chapter is not kept current. The Lean source, its docstrings and the API documentation are authoritative.
+
 cslib-frontier combines several mathematical models through explicit interpretation and resource theorems. Its characteristic engineering choice is to make ordinary functional or oracle programs the client interface, then discharge their cost through reusable certificates for concrete machines. No single notion of computation subsumes every circuit, probabilistic, logical or memory model in the library. The model sections document those distinctions; this section explains how the interfaces are organized and checked.
 
 - [Architecture and design decisions](architecture.md): semantic layers, encoding, resource accounting, module boundaries, and migration.

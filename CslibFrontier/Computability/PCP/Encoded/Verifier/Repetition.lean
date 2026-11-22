@@ -61,21 +61,6 @@ theorem coins_repeatedEdgeVerifier (width repeats : ℕ) (decode : (Fin width �
     (repeatedEdgeVerifier width repeats decode eval).coins g =
       repeats * Nat.clog 2 g.edges.length := rfl
 
-private theorem listRow_flatten_ofFn {count : ℕ} (width : ℕ)
-    (rows : Fin count → List Bool) (hlen : ∀ i, (rows i).length = width) (i : Fin count) :
-    BitString.listRow width i.val (List.ofFn rows).flatten = rows i := by
-  let bits := fun i => BitString.ofList width (rows i)
-  have hrows : (fun i => List.ofFn (bits i)) = rows := by
-    funext i
-    exact BitString.ofFn_ofList (hlen i)
-  have hpack : (List.ofFn rows).flatten =
-      List.ofFn (BitString.blocksEquiv.symm bits) := by
-    rw [BitString.ofFn_blocksEquiv_symm, hrows]
-  rw [hpack, BitString.listRow_eq_ofFn, BitString.ofList_ofFn]
-  change List.ofFn (BitString.blocksEquiv (BitString.blocksEquiv.symm bits) i) = rows i
-  rw [Equiv.apply_symm_apply]
-  exact BitString.ofFn_ofList (hlen i)
-
 private theorem listRow_flatMap_range {count : ℕ} (width : ℕ)
     (rows : ℕ → List Bool) (hlen : ∀ i < count, (rows i).length = width) (i : Fin count) :
     BitString.listRow width i.val ((List.range count).flatMap rows) = rows i := by
@@ -84,7 +69,7 @@ private theorem listRow_flatMap_range {count : ℕ} (width : ℕ)
   have hflat : ((List.range count).map rows).flatten = (List.range count).flatMap rows := by
     simp [List.flatten_eq_flatMap, List.flatMap_map]
   rw [← hflat, hmap]
-  exact listRow_flatten_ofFn width _ (fun i => hlen i i.isLt) i
+  exact BitString.listRow_flatten_ofFn _ (fun i => hlen i i.isLt) i
 
 /-- Repeated checks retain a fixed answer block even when a selected edge is padding. -/
 @[simp]
@@ -136,26 +121,29 @@ theorem query_repeatedEdgeVerifier_lt (width repeats : ℕ)
 theorem polyTime_repeatedEdgeVerifier (width repeats : ℕ) (decode : (Fin width → Bool) → α)
     {enc : C ↪ List Bool} {alphabet : α ↪ List Bool} {eval : C → α → α → Bool}
     (heval : ComputableInPolyTime (fun p : C × α × α => eval p.1 p.2.1 p.2.2)
-      (encPair enc (encPair alphabet alphabet)) encBool) :
+      (encEvalInput enc alphabet) encBool) :
     (repeatedEdgeVerifier width repeats decode eval).PolyTime (encoding enc) := by
-  obtain ⟨_, hqueries, hverdict⟩ := polyTime_edgeVerifier width decode heval
+  have h := polyTime_edgeVerifier width decode heval
   have hclog : ComputableInPolyTime (fun g : Graph C => (edgeVerifier width decode eval).coins g)
       (encoding enc) encUnary :=
     (ComputableInPolyTime.unary_clog_const 2).comp
       ((ComputableInPolyTime.length_list (Edge.encoding enc)).comp (isPolyTime_edges .id'))
-  refine ⟨?_, ?_, ?_⟩
-  · exact ComputableInPolyTime.unary_to_binary.comp
+  constructor
+  case coins =>
+    exact ComputableInPolyTime.unary_to_binary.comp
       (ComputableInPolyTime.unary_mul.comp ((ComputableInPolyTime.const repeats).prod hclog))
-  · exact ComputableInPolyTime.flatMapWithInput
+  case queries =>
+    exact ComputableInPolyTime.flatMapWithInput
       (.const (encOut := encList encUnary) (List.range repeats))
-      (hqueries.comp
+      (h.queries.comp
         (((ComputableInPolyTime.fst _ _).fst').prod
           (ComputableInPolyTime.bitsRowWithInput
             (hclog.comp ((ComputableInPolyTime.fst _ _).fst'))
             (.snd _ _) ((ComputableInPolyTime.fst _ _).snd'))))
-  · exact ComputableInPolyTime.allWithInput
+  case verdict =>
+    exact ComputableInPolyTime.allWithInput
       (.const (encOut := encList encUnary) (List.range repeats))
-      (hverdict.comp
+      (h.verdict.comp
         ((((ComputableInPolyTime.fst _ _).fst'.fst').prod
           (ComputableInPolyTime.bitsRowWithInput
             (hclog.comp ((ComputableInPolyTime.fst _ _).fst'.fst'))

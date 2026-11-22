@@ -10,13 +10,15 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.ReadOnce
 public import CslibFrontier.Computability.Complexity.FineGrained.PermutationIndependentSet
 public import CslibFrontier.Computability.MCSP.PartialNP
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Foundations.Data.BitString.Binary
+import CslibFrontier.Tactic.EncLen
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # ETH Hardness of Partial-Function MCSP (`PartialMCSP`)
@@ -180,16 +182,10 @@ private theorem xVar_injective : Function.Injective (xVar (n := n)) := by
   exact Fin.mk.inj h
 
 private theorem yVar_injective : Function.Injective (yVar (n := n)) := by
-  intro i j h
-  ext
-  have := Fin.mk.inj h
-  omega
+  fin_index [yVar]
 
 private theorem zVar_injective : Function.Injective (zVar (n := n)) := by
-  intro i j h
-  ext
-  have := Fin.mk.inj h
-  omega
+  fin_index [zVar]
 
 @[simp] private theorem xVar_inj {i j : Fin (2 * n)} : xVar i = xVar j ↔ i = j :=
   xVar_injective.eq_iff
@@ -201,19 +197,13 @@ private theorem zVar_injective : Function.Injective (zVar (n := n)) := by
   zVar_injective.eq_iff
 
 private theorem xVar_ne_yVar (i j : Fin (2 * n)) : xVar i ≠ yVar j := by
-  intro h
-  have := Fin.mk.inj h
-  omega
+  fin_index [xVar, yVar]
 
 private theorem xVar_ne_zVar (i j : Fin (2 * n)) : xVar i ≠ zVar j := by
-  intro h
-  have := Fin.mk.inj h
-  omega
+  fin_index [xVar, zVar]
 
 private theorem yVar_ne_zVar (i j : Fin (2 * n)) : yVar i ≠ zVar j := by
-  intro h
-  have := Fin.mk.inj h
-  omega
+  fin_index [yVar, zVar]
 
 /-- Every coordinate in `Fin (6 * n)` belongs to the `x`, `y`, or `z` block. -/
 private theorem eq_xVar_or_yVar_or_zVar (v : Fin (6 * n)) :
@@ -823,7 +813,7 @@ private def NotZLeaf (S : PosFormula (6 * n)) : Prop :=
     zCount (.var (zVar i) : PosFormula (6 * n)) = 1 := by
   have : ({zVar i} ∩ zSet n : Finset (Fin (6 * n))) = {zVar i} :=
     Finset.inter_eq_left.mpr (Finset.singleton_subset_iff.mpr (zVar_mem_zSet i))
-  simp [zCount, this]
+  simp [zCount]
 
 private theorem zCount_var_of_notZLeaf {v : Fin (6 * n)}
     (h : NotZLeaf (.var v : PosFormula (6 * n))) :
@@ -1763,56 +1753,14 @@ private theorem computableInPolyTime_ilangoRawFromFuel :
     (ite' (by fun_prop) (by fun_prop) (by fun_prop)) ?_
   fun_prop
 
-private theorem foldl_double_replicate (k : ℕ) (acc : ℕ) :
-    (List.replicate k true).foldl (fun n _ => n + n) acc = acc * 2 ^ k := by
-  induction k generalizing acc with
-  | zero => simp
-  | succ k ih =>
-    rw [List.replicate_succ, List.foldl_cons, ih]
-    ring
-
 private theorem computableInO_twoPow :
     ComputableInO (fun m : ℕ => 2 ^ m) encUnary encUnary
       (fun m => 2 ^ (2 * m)) (fun m => 2 ^ (2 * m)) := by
-  have hlist : ComputableInO (fun m : ℕ => List.replicate m true) encUnary encBits
-      (fun m => (encUnary m).length) (fun m => (encUnary m).length) :=
-    ComputableInO.of_eq (encIn := encUnary) (encMid := encBits) fun _ => rfl
-  have hstep : ComputableInO (fun p : ℕ × Bool => p.1 + p.1)
-      (encPair encUnary encBool) encUnary
-      (fun p => (encPair encUnary encBool p).length + (encPair encUnary encBool p).length)
-      (fun p => (encPair encUnary encBool p).length + (encPair encUnary encBool p).length) :=
-    (ComputableInO.fst encUnary encBool).append
-      (ComputableInO.fst encUnary encBool)
-      (fun _ => by simp only [encUnary_apply, List.replicate_add])
-  have hstep_bound (m i : ℕ) (_ : i < (List.replicate m true).length) :
-      (let p := (((List.replicate m true).take i).foldl (fun n _ => n + n) 1,
-        (List.replicate m true)[i]);
-      (encPair encUnary encBool p).length + (encPair encUnary encBool p).length) ≤
-        4 * 2 ^ m + 4 := by
-    have := Nat.pow_le_pow_right two_pos (Nat.min_le_right i m)
-    rw [List.take_replicate, foldl_double_replicate, one_mul]
-    simp only [length_encPair, encUnary_apply, List.length_replicate, encBool_apply,
-      List.length_singleton]
-    omega
-  have hfold := ComputableInO.foldl (encA := encBool) (encL := encBits) (encB := encUnary)
-    (step := fun n _ => n + n) hlist (ComputableInO.const 1) hstep
-    (R := fun m => 4 * 2 ^ m + 4) (Q := fun m => 4 * 2 ^ m + 4) (B := fun m => 2 ^ m)
-    hstep_bound hstep_bound (fun m i _ => by
-      have := Nat.pow_le_pow_right two_pos (Nat.min_le_right i m)
-      rw [List.take_replicate, foldl_double_replicate, one_mul, encUnary_apply,
-        List.length_replicate]
-      omega)
-  refine (hfold.mono 16 (fun m => ?_) (fun m => ?_)).of_enc_eq fun m => ?_
-  · simp only [encUnary_apply, encBits_apply, List.length_replicate]
-    have hm : m < 2 ^ m := Nat.lt_two_pow_self
-    have h1 : 1 ≤ 2 ^ m := Nat.one_le_two_pow
+  refine ComputableInO.unary_two_pow.mono 2 (fun m => ?_) fun m => ?_
+  · have hm : m < 2 ^ m := Nat.lt_two_pow_self
     rw [show 2 ^ (2 * m) = 2 ^ m * 2 ^ m by rw [← pow_add, two_mul]]
-    generalize 2 ^ m = X at hm h1 ⊢; nlinarith
-  · simp only [encUnary_apply, encBits_apply, List.length_replicate]
-    have hm : m < 2 ^ m := Nat.lt_two_pow_self
-    have hle : 2 ^ m ≤ 2 ^ (2 * m) := Nat.pow_le_pow_right two_pos (by omega)
-    omega
-  · simp [foldl_double_replicate]
+    generalize 2 ^ m = X at hm ⊢; nlinarith
+  · exact (Nat.pow_le_pow_right two_pos (by omega : m ≤ 2 * m)).trans (by omega)
 
 private theorem computableInPolyTime_sixMulFst :
     ComputableInPolyTime (fun G : BipartitePermutationGraph => 6 * G.1)

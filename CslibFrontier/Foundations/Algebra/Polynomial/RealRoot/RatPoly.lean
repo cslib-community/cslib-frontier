@@ -15,6 +15,7 @@ public import Mathlib.Data.List.SignVariations
 public import Mathlib.Data.Nat.Log
 
 import Mathlib.Algebra.Polynomial.FieldDivision
+import Mathlib.Data.List.GetD
 import Mathlib.Data.Rat.Cast.Order
 
 /-!
@@ -93,18 +94,13 @@ theorem trim_length_le (as : List ℚ) : (trim as).length ≤ as.length := by
 
 /-- Trimming trailing zeros preserves the polynomial denoted by `ofCoeffList`. -/
 theorem ofCoeffList_trim (as : List ℚ) : ofCoeffList (trim as) = ofCoeffList as := by
-  induction as with
-  | nil => simp only [trim]
-  | cons a as ih =>
-    simp only [trim]
-    by_cases he : (trim as).isEmpty = true
-    · have hnil : trim as = [] := List.isEmpty_iff.mp he
-      have h0 : ofCoeffList as = 0 := by rw [← ih, hnil, ofCoeffList_nil]
-      simp only [he, ↓reduceIte]
-      by_cases ha : a = 0
-      · simp only [ha, ↓reduceIte, ofCoeffList_nil, ofCoeffList_cons, C_0, h0, mul_zero, add_zero]
-      · simp only [ha, ↓reduceIte, ofCoeffList_cons, ofCoeffList_nil, h0]
-    · simp only [he, Bool.false_eq_true, ↓reduceIte, ofCoeffList_cons, ih]
+  fun_induction trim as with
+  | case1 => rfl
+  | case2 as t he ih | case3 a as t he ha ih =>
+    have hnil : trim as = [] := List.isEmpty_iff.mp he
+    have h0 : ofCoeffList as = 0 := by rw [← ih, hnil, ofCoeffList_nil]
+    simp [ofCoeffList_cons, ofCoeffList_nil, h0]
+  | case4 a as t he ih => simp only [ofCoeffList_cons, t, ih]
 
 /-- Every output of `trim` is trimmed (`IsTrimmed`). -/
 theorem isTrimmed_trim (as : List ℚ) : IsTrimmed (trim as) := by
@@ -143,12 +139,9 @@ private theorem coeff_last_of_getLast?_eq {l : List ℚ} {x : ℚ} (hx : l.getLa
     (ofCoeffList l).coeff (l.length - 1) = x := by
   have hl : l ≠ [] := fun h => by simp only [h, List.getLast?_nil, reduceCtorEq] at hx
   have hlt : l.length - 1 < l.length := Nat.sub_lt (List.length_pos_of_ne_nil hl) zero_lt_one
-  rw [coeff_ofCoeffList, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlt]
-  have hlast : some l[l.length - 1] = l.getLast? :=
-    (List.getElem?_eq_getElem hlt).symm.trans List.getLast?_eq_getElem?.symm
-  rw [hx] at hlast
-  cases hlast
-  rfl
+  rw [coeff_ofCoeffList, List.getD_eq_getElem _ _ hlt]
+  exact Option.some.inj ((List.getElem?_eq_getElem hlt).symm.trans
+    (List.getLast?_eq_getElem?.symm.trans hx))
 
 /-- Leading-position coefficient `(ofCoeffList l).coeff (l.length - 1)` is nonzero for nonempty
 trimmed `l`. -/
@@ -199,7 +192,7 @@ theorem IsTrimmed.degree_lt_of_length_lt {u v : List ℚ} (hu : IsTrimmed u) (hv
 /-- Coefficients of `ofCoeffList l` at indices `≥ l.length` are zero. -/
 theorem coeff_ofCoeffList_eq_zero_of_le {R : Type*} [Semiring R] (l : List R) {i : ℕ}
     (hi : l.length ≤ i) : (ofCoeffList l).coeff i = 0 := by
-  rw [coeff_ofCoeffList, List.getD_eq_getElem?_getD, List.getElem?_eq_none hi, Option.getD_none]
+  rw [coeff_ofCoeffList, List.getD_eq_default _ _ hi]
 
 /-- Pointwise addition of rational coefficient lists. -/
 @[expose] def addList : List ℚ → List ℚ → List ℚ
@@ -232,14 +225,11 @@ theorem coeff_ofCoeffList_eq_zero_of_le {R : Type*} [Semiring R] (l : List R) {i
 /-- Pointwise `addList` corresponds to polynomial addition under `ofCoeffList`. -/
 theorem ofCoeffList_addList (as bs : List ℚ) :
     ofCoeffList (addList as bs) = ofCoeffList as + ofCoeffList bs := by
-  induction as generalizing bs with
-  | nil => simp only [addList, ofCoeffList_nil, zero_add]
-  | cons a as ih =>
-    cases bs with
-    | nil => simp only [addList, ofCoeffList_nil, add_zero]
-    | cons b bs =>
-      simp only [addList, ofCoeffList_cons, ih, C_add, mul_add]
-      ring
+  fun_induction addList as bs with
+  | case1 | case2 => simp
+  | case3 a as b bs ih =>
+    simp only [ofCoeffList_cons, ih, C_add, mul_add]
+    ring
 
 /-- Pointwise `subList` corresponds to polynomial subtraction under `ofCoeffList`. -/
 theorem ofCoeffList_subList (as bs : List ℚ) :
@@ -253,9 +243,7 @@ theorem ofCoeffList_shiftZero (k : ℕ) (bs : List ℚ) :
 
 theorem derivAux_length (k : ℕ) (as : List ℚ) :
     (derivAux k as).length = as.length := by
-  induction as generalizing k with
-  | nil => simp only [derivAux, List.length_nil]
-  | cons _ as ih => simp only [derivAux, List.length_cons, ih]
+  fun_induction derivAux k as <;> simp_all
 
 private theorem coeff_ofCoeffList_derivAux (k : ℕ) (as : List ℚ) (i : ℕ) :
     (ofCoeffList (derivAux k as)).coeff i = ((k + i : ℕ) : ℚ) * (ofCoeffList as).coeff i := by
@@ -624,16 +612,14 @@ theorem maxAbsList_nonneg (l : List ℚ) : 0 ≤ maxAbsList l := by
 /-- Every indexed entry `l.getD i 0` has absolute value at most `maxAbsList l`. -/
 theorem abs_getD_le_maxAbsList (l : List ℚ) (i : ℕ) : |l.getD i 0| ≤ maxAbsList l := by
   induction l generalizing i with
-  | nil => simp only [List.getD_eq_getElem?_getD, List.getElem?_nil, Option.getD_none, abs_zero,
-      maxAbsList, le_refl]
+  | nil => simp only [List.getD_nil, abs_zero, maxAbsList, le_refl]
   | cons a l ih =>
     cases i with
     | zero =>
-      simp only [List.getD_eq_getElem?_getD, List.getElem?_cons_zero, Option.getD_some,
-        maxAbsList]
+      simp only [List.getD_cons_zero, maxAbsList]
       exact le_max_left _ _
     | succ i =>
-      simp only [List.getD_eq_getElem?_getD, List.getElem?_cons_succ]
+      simp only [List.getD_cons_succ, maxAbsList]
       exact (ih i).trans (le_max_right _ _)
 
 /-- Computable positive integer upper bound strictly greater than the absolute value of every
@@ -660,9 +646,7 @@ private theorem getD_dropLast_of_lt {α : Type*} (l : List α) (d : α) {i : ℕ
     rw [List.length_dropLast]
     exact hi
   have hi_l : i < l.length := Nat.lt_of_lt_of_le hi (Nat.sub_le _ _)
-  rw [List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD,
-    List.getElem?_eq_getElem hi', List.getElem?_eq_getElem hi_l, Option.getD_some,
-    Option.getD_some, List.getElem_dropLast]
+  rw [List.getD_eq_getElem _ _ hi', List.getD_eq_getElem _ _ hi_l, List.getElem_dropLast]
 
 /-- Every real root `r` of `(ofCoeffList cs).map (algebraMap ℚ ℝ)` (when nonzero) satisfies
 `|r| < cauchyBoundNat cs`. -/
@@ -800,8 +784,7 @@ private theorem foldl_sqNorm (acc : ℕ) (ns : List ℤ) :
   | cons a ns ih =>
     simp only [List.foldl_cons, List.length_cons, ih (acc + Int.natAbs a ^ 2)]
     rw [Finset.sum_range_succ']
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_cons_zero, List.getElem?_cons_succ,
-      Option.getD_some]
+    simp only [List.getD_cons_zero, List.getD_cons_succ]
     omega
 
 /-- `coeffSqNorm (ofCoeffList ns)` is bounded above by `sqNormList ns`. -/

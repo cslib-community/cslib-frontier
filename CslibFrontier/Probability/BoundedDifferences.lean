@@ -12,6 +12,7 @@ public import Mathlib.Algebra.BigOperators.Expect
 public import Mathlib.Probability.Moments.SubGaussian
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
+import CslibFrontier.Probability.Product.Resample
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Probability.ProbabilityMassFunction.Integrals
 
@@ -134,7 +135,7 @@ private theorem sum_mul_exp_sub_mean_le {β : Type*} [Fintype β] (q : PMF β) (
     (measurable_of_countable g).aemeasurable (ae_of_all _ hg)).mgf_le t
   simp only [mgf, PMF.integral_eq_sum, smul_eq_mul] at h
   refine h.trans_eq (congrArg Real.exp ?_)
-  simp only [NNReal.coe_pow, NNReal.coe_div, coe_nnnorm, Real.norm_eq_abs, NNReal.coe_ofNat,
+  simp only [NNReal.coe_pow, NNReal.coe_div, coe_nnNorm, Real.norm_eq_abs, NNReal.coe_ofNat,
     div_pow, sq_abs]
   ring
 
@@ -145,27 +146,6 @@ private theorem piecewise_update_left {s : Finset ι} {i : ι} (hi : i ∉ s) (y
     fun _ _ => rfl
 
 variable [Fintype ι] [∀ i, Fintype (α i)]
-
-omit [∀ i, Fintype (α i)] in
-/-- Fixing a coordinate of an independent product to `v` is the same as overwriting it with `v`
-after sampling. -/
-private theorem pi_update_pure [∀ i, Finite (α i)] (p : ∀ i, PMF (α i)) (i : ι) (v : α i) :
-    pi (Function.update p i (PMF.pure v)) = (pi p).map fun y => Function.update y i v := by
-  let overwrite : ∀ j, α j → α j := Function.update (fun j => id) i fun _ => v
-  have hlaw : (fun j => (p j).map (overwrite j)) = Function.update p i (PMF.pure v) := by
-    funext j
-    by_cases hj : j = i
-    · subst hj
-      simp only [overwrite, Function.update_self]
-      exact PMF.map_const (p j) v
-    · simp [overwrite, hj, PMF.map_id]
-  have hmap : (fun (y : ∀ j, α j) j => overwrite j (y j)) = fun y => Function.update y i v := by
-    funext y j
-    by_cases hj : j = i
-    · subst hj
-      simp [overwrite]
-    · simp [overwrite, hj]
-  rw [← hlaw, pi_map, hmap]
 
 /-- Averaging over a product while overwriting the coordinates in `insert i s` is averaging
 first over coordinate `i` and then over the coordinates in `s`. -/
@@ -269,7 +249,7 @@ theorem hasSubgaussianMGF_pi [∀ i, MeasurableSpace (α i)] [∀ i, MeasurableS
   mgf_le t := by
     rw [mgf, PMF.integral_eq_sum]
     refine (hf.sum_pi_mul_exp_le p t).trans_eq (congrArg Real.exp ?_)
-    simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnnorm,
+    simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnNorm,
       Real.norm_eq_abs, NNReal.coe_ofNat, div_pow, sq_abs, ← Finset.sum_div]
     ring
 
@@ -290,7 +270,7 @@ theorem pi_ge_mean_add (hf : HasBoundedDifferences f c) (p : ∀ i, PMF (α i)) 
   rw [hevent, measureReal_def, PMF.toMeasure_apply_eq_toOuterMeasure_apply _
     ((Set.to_countable _).measurableSet)] at h
   refine h.trans_eq (congrArg Real.exp ?_)
-  simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnnorm, Real.norm_eq_abs,
+  simp only [NNReal.coe_sum, NNReal.coe_pow, NNReal.coe_div, coe_nnNorm, Real.norm_eq_abs,
     NNReal.coe_ofNat, div_pow, sq_abs, ← Finset.sum_div]
   ring
 

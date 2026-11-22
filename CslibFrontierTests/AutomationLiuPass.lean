@@ -22,9 +22,10 @@ import CslibFrontier.Tactic.PolyTime
 /-!
 # Automatic Liu–Pass threshold arithmetic
 
-The first goal retains the original threshold expression, arbitrary constants and automatic
-proof script from `OneWay/LiuPass.lean`, at its original default budget. It does not invoke the
-private named threshold certificate or supply intermediate arithmetic certificates.
+The first goal retains the original threshold expression, arbitrary constants and default
+budget from `OneWay/LiuPass.lean`. Literal let normalization precedes `fun_prop`; it does not
+invoke the private named threshold certificate or supply intermediate arithmetic certificates.
+The exact former script without normalization remains an automation gap tracked in #1155.
 The separate captured-callback controls test that an arbitrary leaf needs its own certificate.
 -/
 
@@ -33,6 +34,9 @@ The separate captured-callback controls test that an arbitrary leaf needs its ow
 namespace Cslib.Crypto.AutomationLiuPassTests
 
 open Cslib.Complexity Probability Probability.PMF BitString Filter Kolmogorov Turing.MultiTapeTM
+
+-- Search compares certificate programs and encodings without unfolding machine witnesses.
+attribute [local irreducible] ComputableInPolyTime
 
 /-- The original threshold arithmetic, reproduced only for its automation regression. -/
 def thresholdValue (γ d c n : ℕ) : ℕ :=
@@ -44,6 +48,7 @@ set_option maxHeartbeats 200000 in
 example (γ d c : ℕ) :
     ComputableInPolyTime (thresholdValue γ d c) encUnary encUnary := by
   unfold thresholdValue
+  dsimp only
   fun_prop
 
 set_option maxHeartbeats 200000 in
@@ -53,9 +58,24 @@ example (γ d c : ℕ) (leaf : ℕ → ℕ)
     ComputableInPolyTime (fun n =>
       let m := n + γ * leaf n - c
       m - (2 * leaf n + 3) - d * (leaf m + 1)) encUnary encUnary := by
+  dsimp only
   fun_prop
 
 -- The complete missing-leaf control still times out under both default and 256-step
 -- search; it remains open in #1155, with its failed source/logs preserved separately.
+
+-- The converse core accepts every clock and input word, including a zero clock and empty word.
+example : ComputableInPolyTime
+    (fun p : ℕ × List Bool => LiuPassConverse.liuPassCore (fun _ => 0) p.1 p.2)
+    (encPair encUnary encBits) encBits :=
+  LiuPassConverse.computableInPolyTime_liuPassCore (ComputableInPolyTime.const 0)
+
+example : ComputableInPolyTime LiuPassConverse.inputSchedule encUnary encUnary :=
+  LiuPassConverse.computableInPolyTime_inputSchedule
+
+-- Retain the public conditional construction and the native converse clock hypothesis.
+example := @OneWay.exists_condEPPRG
+example := @weakOneWay_reindex_liuPassCore
+example := @exists_oneWay_of_exists_mildlyHardOnAverage_timeBoundedNat
 
 end Cslib.Crypto.AutomationLiuPassTests

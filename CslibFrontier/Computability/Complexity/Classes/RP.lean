@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Classes.RepeatedTrials
 public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Computability.Complexity.Classes.SharpP
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Foundations.Data.BitString.WordCount
 import Mathlib.Data.Fintype.BigOperators
 
 /-!
@@ -57,6 +58,8 @@ never accepted. Two runs reject a yes-instance with probability at most `1 / 4`,
 * `Cslib.Complexity.PromiseProblem.SolvesWithOneSidedError.exists_certificate`,
   `Cslib.Complexity.DecidesWithOneSidedError.isVerifier`, `Cslib.Complexity.RP_subset_NP`,
   `Cslib.Complexity.PromiseRP_subset_PromiseNP`, `Cslib.Complexity.coRP_subset_coNP`.
+* `Cslib.Complexity.card_filter_repeatAny_eq_false`: repetition rejects on a power of the
+  rejected strings.
 * `Cslib.Complexity.PromiseProblem.SolvesWithOneSidedError.repeatAny`: repetition reduces the
   error to `2 ^ (-q(n))`.
 * `Cslib.Complexity.mem_PromiseRP_iff_forall_solvesWithOneSidedErrorExponent`,
@@ -88,9 +91,7 @@ random strings are accepted, and for every no-instance none is
 instances outside the promise. -/
 def SolvesWithOneSidedError (enc : α ↪ List Bool) (p : Polynomial ℕ) (V : α × List Bool → Bool)
     (Q : PromiseProblem α) : Prop :=
-  ∀ a, (a ∈ Q.yes → 2 ^ p.eval (enc a).length ≤
-      2 * (Finset.univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
-        V (a, List.ofFn r) = true).card) ∧
+  ∀ a, (a ∈ Q.yes → 2 ^ p.eval (enc a).length ≤ 2 * acceptCount V a (p.eval (enc a).length)) ∧
     (a ∈ Q.no → ∀ r : Fin (p.eval (enc a).length) → Bool, V (a, List.ofFn r) = false)
 
 /-- A one-sided-error solver for a promise problem is a polynomial-time verifier on the promise: a
@@ -102,12 +103,7 @@ theorem SolvesWithOneSidedError.exists_certificate {enc : α ↪ List Bool} {p :
       ∀ a ∈ Q.no, ∀ w : List Bool, w.length = p.eval (enc a).length → V (a, w) = false := by
   refine ⟨fun a ha => ?_, fun a ha w hw => ?_⟩
   · have hpos := Nat.one_le_two_pow (n := p.eval (enc a).length)
-    obtain ⟨r, hr⟩ : (Finset.univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
-        V (a, List.ofFn r) = true).Nonempty := by
-      rw [← Finset.card_pos]
-      have := (h a).1 ha
-      omega
-    exact ⟨List.ofFn r, List.length_ofFn, (Finset.mem_filter.1 hr).2⟩
+    exact acceptCount_pos_iff.1 (by have := (h a).1 ha; omega)
   · have hno := (h a).2 ha fun i => w[i.val]'(by omega)
     rwa [show (List.ofFn fun i : Fin (p.eval (enc a).length) => w[i.val]'(by omega)) = w from
       List.ext_getElem (by simp [hw]) fun i _ _ => by simp] at hno
@@ -196,6 +192,19 @@ theorem coRP_subset_coNP : coRP enc ⊆ coNP enc := fun _ hA => RP_subset_NP hA
 
 /-! ### Error reduction -/
 
+/-- The disjunction of `q(n)` runs of `V` rejects exactly the random strings on which every run
+rejects: their number is the `q(n)`-th power of the number of strings a single run rejects. -/
+theorem card_filter_repeatAny_eq_false {enc : α ↪ List Bool} {q p : Polynomial ℕ}
+    {V : α × List Bool → Bool} (a : α) :
+    (Finset.univ.filter fun x : Fin (q.eval (enc a).length * p.eval (enc a).length) → Bool =>
+        Complexity.repeatAny enc q p V (a, List.ofFn x) = false).card =
+      (Finset.univ.filter fun u : Fin (p.eval (enc a).length) → Bool =>
+        V (a, List.ofFn u) = false).card ^ q.eval (enc a).length := by
+  rw [← BitString.card_filter_forall_block _ _ fun u => V (a, List.ofFn u) = false]
+  refine congrArg Finset.card (Finset.filter_congr fun x _ => ?_)
+  rw [← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff]
+  simp
+
 namespace PromiseProblem
 
 /-- `V` solves the promise problem `Q` with one-sided error at most `2 ^ (-q(n))`, using random
@@ -204,9 +213,7 @@ yes-instance the rejected random strings make up at most a `2 ^ (-q(n))` fractio
 no-instance none is accepted. Nothing is required on instances outside the promise. -/
 def SolvesWithOneSidedErrorExponent (enc : α ↪ List Bool) (q p : Polynomial ℕ)
     (V : α × List Bool → Bool) (Q : PromiseProblem α) : Prop :=
-  ∀ a, (a ∈ Q.yes → 2 ^ q.eval (enc a).length *
-      (Finset.univ.filter fun r : Fin (p.eval (enc a).length) → Bool =>
-        V (a, List.ofFn r) = false).card ≤ 2 ^ p.eval (enc a).length) ∧
+  ∀ a, (a ∈ Q.yes → ErrorExponentAt enc q p V a true) ∧
     (a ∈ Q.no → ∀ r : Fin (p.eval (enc a).length) → Bool, V (a, List.ofFn r) = false)
 
 /-- **Error reduction for one-sided error**: the repetition argument of
@@ -223,31 +230,18 @@ theorem SolvesWithOneSidedError.repeatAny {p : Polynomial ℕ} {V : α × List B
       V (a, List.ofFn u) = false).card ≤ 2 ^ p.eval (enc a).length := by
     have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
     have hhalf := (h a).1 ha
-    rw [← acceptCount] at hhalf
     omega
   have hlen : (q * p).eval (enc a).length = q.eval (enc a).length * p.eval (enc a).length :=
     Polynomial.eval_mul
+  unfold ErrorExponentAt
   rw [hlen]
   set k := q.eval (enc a).length
   set m := p.eval (enc a).length
-  set R := Finset.univ.filter fun u : Fin m → Bool => V (a, List.ofFn u) = false
   constructor
   · -- so all `k` runs reject on at most a `2 ^ (-k)` fraction
     intro ha
-    replace hR := hR ha
-    have hcard : (Finset.univ.filter fun x : BitString (k * m) =>
-        Complexity.repeatAny enc q p V (a, List.ofFn x) = false).card ≤ R.card ^ k := by
-      rw [← Fintype.card_piFinset_const, ← Finset.card_map BitString.blocksEquiv.toEmbedding]
-      refine Finset.card_le_card fun ω hω => ?_
-      obtain ⟨x, hx, rfl⟩ := Finset.mem_map.1 hω
-      rw [Finset.mem_filter, ← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff] at hx
-      simpa [Fintype.mem_piFinset, R] using hx.2
-    calc 2 ^ k * (Finset.univ.filter fun x : BitString (k * m) =>
-          Complexity.repeatAny enc q p V (a, List.ofFn x) = false).card
-        ≤ 2 ^ k * R.card ^ k := Nat.mul_le_mul_left _ hcard
-      _ = (2 * R.card) ^ k := (mul_pow _ _ _).symm
-      _ ≤ (2 ^ m) ^ k := Nat.pow_le_pow_left hR k
-      _ = 2 ^ (k * m) := by rw [← pow_mul, Nat.mul_comm]
+    rw [Bool.not_true, card_filter_repeatAny_eq_false, ← mul_pow, Nat.mul_comm k, pow_mul]
+    exact Nat.pow_le_pow_left (hR ha) k
   · -- on a no-instance, no run accepts
     intro ha x
     rw [← Bool.not_eq_true, repeatAny_ofFn_eq_true_iff]
@@ -261,19 +255,17 @@ variable {q p : Polynomial ℕ} {V : α × List Bool → Bool}
 theorem solvesWithOneSidedError (h : Q.SolvesWithOneSidedErrorExponent enc q p V)
     (hq : ∀ n, 1 ≤ q.eval n) : Q.SolvesWithOneSidedError enc p V := fun a => by
   refine ⟨fun ha => ?_, (h a).2⟩
-  have hsum := acceptCount_add_card_filter_eq_false (V := V) (a := a) (n := p.eval (enc a).length)
+  have hle := acceptCount_le_two_pow (V := V) (a := a) (n := p.eval (enc a).length)
   have h2 : 2 ^ 1 ≤ 2 ^ q.eval (enc a).length := Nat.pow_le_pow_right (by norm_num) (hq _)
-  have := (Nat.mul_le_mul_right _ h2).trans ((h a).1 ha)
-  rw [← acceptCount]
+  have := (Nat.mul_le_mul_right _ h2).trans (errorExponentAt_true_iff.1 ((h a).1 ha))
   omega
 
 /-- One-sided error at most `2 ^ (-q(n))` is error at most `2 ^ (-q(n))`. -/
 theorem solvesWithErrorExponent (h : Q.SolvesWithOneSidedErrorExponent enc q p V) :
     Q.SolvesWithErrorExponent enc q p V := fun a => by
   refine ⟨(h a).1, fun ha => ?_⟩
-  simp only [ErrorExponentAt, Bool.not_false]
-  rw [Finset.filter_false_of_mem fun r _ => by simp [(h a).2 ha r]]
-  simp
+  rw [errorExponentAt_false_iff, acceptCount_eq_zero_iff.2 ((h a).2 ha), mul_zero]
+  exact Nat.zero_le _
 
 end SolvesWithOneSidedErrorExponent
 

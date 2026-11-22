@@ -5,6 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 import CslibFrontier.Crypto.Computational.Pseudoentropy.Learning
+import CslibFrontier.Crypto.Computational.Pseudoentropy.RepeatedExtraction
 import CslibFrontier.Crypto.Computational.Pseudoentropy.Boosting.Training
 import CslibFrontier.Tactic.PPT
 
@@ -106,7 +107,15 @@ example : IsPPTOn (encList encBool)
 example : IsPPTOn encBits (encPair (encList encBits) (encPair encBool encUnary)) (fun word => do
     let samples := [(word, word.length), ([], word.length + 1)]
     extractLabels (ProbComp.uniform Bool)
-      (fun key values => if key then values.length else values.headD 0) samples) := by ppt
+      (fun key values => if key then values.length else values.headD 0) samples) := by
+  have hsamples : ComputableInPolyTime
+      (fun word : List Bool => [(word, word.length), ([], word.length + 1)])
+      encBits (encList (encPair encBits encUnary)) := by fun_prop
+  have hhash : ComputableInPolyTime
+      (fun pair : (List Bool × Bool) × List ℕ =>
+        if pair.1.2 then pair.2.length else pair.2.headD 0)
+      (encPair (encPair encBits encBool) (encList encUnary)) encUnary := by fun_prop
+  ppt
 
 -- A missing validation certificate cannot be hidden by the learner's certificate.
 example (test : List Bool → List Bool → ProbComp Bool)
@@ -136,8 +145,7 @@ example (joint : PMF (Bool × Bool)) :
 example {Observation Label Seed : Type} (source : ProbComp (Observation × Label))
     (seed : ProbComp Seed) (count : ℕ) (test : List Observation × Seed × Unit → Game) :
     Game.advantage
-      ((ProbComp.eval (OracleComp.replicate count source >>=
-        extractLabels seed (fun _ _ => ()))).bind test)
+      ((ProbComp.eval (extractLabelsReal source count seed (fun _ _ => ()))).bind test)
       ((extractLabelsIdeal (Output := Unit) (Prod.fst <$> source) count seed).bind test) = 0 := by
   rw [eval_extractLabels_of_subsingleton, Game.advantage_self]
 

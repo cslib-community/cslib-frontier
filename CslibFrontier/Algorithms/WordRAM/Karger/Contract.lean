@@ -7,13 +7,15 @@ Authors: Renfei Zhou
 module
 -- upstream: candidate
 
-import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Foundations.Data.Nat.Div
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.Lean.Karger.Contraction
 public import CslibFrontier.Computability.WordRAM.Heap
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Workspace-relocatable randomized contraction on the word RAM
@@ -74,6 +76,8 @@ law.
 
 ## Main definitions
 
+* `Cslib.Algorithms.WordRAM.Karger.flattenMatrix`: the row-major `n ^ 2`-word input layout of a
+  weight matrix.
 * `Cslib.Algorithms.WordRAM.Karger.HoldsMatrix`,
   `Cslib.Algorithms.WordRAM.Karger.HoldsWorkspace`,
   `Cslib.Algorithms.WordRAM.Karger.workspaceFootprint`,
@@ -121,6 +125,7 @@ open scoped ENNReal
 open Cslib.WeightedCut
 open Cslib.Probability.PMF
 open Cslib.WordRAM
+open Cslib.Algorithms.Karger
 
 /-! ### Register layout (`r = 16`) -/
 
@@ -160,6 +165,37 @@ abbrev val1 : Fin 16 := 14
 abbrev val2 : Fin 16 := 15
 
 end Reg
+
+/-! ### Row-major input layout of the matrix -/
+
+/-- Row-major `n * n`-element list encoding of `W : Fin n → Fin n → ℕ`. -/
+def flattenMatrix {n : ℕ} (W : Fin n → Fin n → ℕ) : List ℕ :=
+  List.ofFn fun idx : Fin (n * n) =>
+    W ⟨idx.val / n, Nat.div_lt_of_lt_mul idx.isLt⟩
+      ⟨idx.val % n, Nat.mod_lt _
+        (Nat.pos_of_ne_zero fun h0 => Nat.not_lt_zero idx.val (by simpa [h0] using idx.isLt))⟩
+
+@[simp]
+theorem length_flattenMatrix {n : ℕ} (W : Fin n → Fin n → ℕ) :
+    (flattenMatrix W).length = n * n := by
+  simp [flattenMatrix]
+
+theorem getElem_flattenMatrix {n : ℕ} (W : Fin n → Fin n → ℕ) (u v : Fin n) :
+    (flattenMatrix W)[u.val * n + v.val]'(by
+      rw [length_flattenMatrix]
+      nlinarith [u.isLt, v.isLt]) = W u v := by
+  simp only [flattenMatrix, List.getElem_ofFn]
+  have hdiv : (u.val * n + v.val) / n = u.val := Nat.mul_add_div_of_lt _ v.isLt
+  have hmod : (u.val * n + v.val) % n = v.val := Nat.mul_add_mod_of_lt v.isLt
+  congr 1 <;> exact Fin.ext (by assumption)
+
+theorem mem_flattenMatrix_le_totalDoubledWeight {n : ℕ} (W : Fin n → Fin n → ℕ)
+    {x : ℕ} (hx : x ∈ flattenMatrix W) :
+    x ≤ totalDoubledWeight W := by
+  unfold flattenMatrix at hx
+  rw [List.mem_ofFn] at hx
+  rcases hx with ⟨idx, rfl⟩
+  exact entry_le_totalDoubledWeight W _ _
 
 /-! ### Relocatable workspace representation and address geometry -/
 
@@ -299,6 +335,15 @@ theorem workspaceFootprint_mono {wb db str k₁ k₂ : ℕ} (hle : k₁ ≤ k₂
   have hmul : str * k₁ ≤ str * k₂ := Nat.mul_le_mul_left str hle
   omega
 
+/-- A square workspace `workspaceFootprint wb db k k` lies in `[a, b)` whenever `a ≤ wb`,
+`wb + k * k ≤ db` and `db + k ≤ b`. -/
+theorem workspaceFootprint_subset_Ico {a b wb db k : ℕ}
+    (haw : a ≤ wb) (hwd : wb + k * k ≤ db) (hdb : db + k ≤ b) :
+    workspaceFootprint wb db k k ⊆ Finset.Ico a b := by
+  intro x hx
+  simp only [workspaceFootprint, Finset.mem_union, Finset.mem_Ico] at hx ⊢
+  omega
+
 theorem modifies_trans_subset {F F₁ F₂ : Finset ℕ} {m₀ m₁ m₂ : ℕ → ℕ}
     (h₁ : Modifies F₁ m₀ m₁) (h₂ : Modifies F₂ m₁ m₂) (hs₁ : F₁ ⊆ F) (hs₂ : F₂ ⊆ F) :
     Modifies F m₀ m₂ := fun a ha =>
@@ -315,43 +360,86 @@ private theorem modifies_step_update {F : Finset ℕ} {m₁ m₂ : ℕ → ℕ} 
     Modifies F m₁ (Function.update m₂ a v) :=
   modifies_trans_subset h (modifies_update_of_mem ha m₂ v) Finset.Subset.rfl Finset.Subset.rfl
 
-/-! ### Prefix-sum step identities for `degBefore` and `weightBefore` -/
+/-! ### Prefix sums and workspace register frame -/
 
-/-- A prefix sum over `Fin k` splits off its last term. -/
-private theorem sum_val_lt_succ {k j : ℕ} (hj : j < k) (f : Fin k → ℕ) :
-    ∑ b ∈ Finset.univ.filter (fun b : Fin k => b.val < j + 1), f b =
-      ∑ b ∈ Finset.univ.filter (fun b : Fin k => b.val < j), f b + f ⟨j, hj⟩ := by
-  have hsplit : (Finset.univ.filter fun b : Fin k => b.val < j + 1) =
-      insert ⟨j, hj⟩ (Finset.univ.filter fun b : Fin k => b.val < j) := by
-    ext b
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_insert, Fin.ext_iff]
-    omega
-  rw [hsplit, Finset.sum_insert (by simp), add_comm]
+/-- Sum of `f b` over active indices `b : Fin k` with `b.val < j`. -/
+private def prefixSum {k : ℕ} (f : Fin k → ℕ) (j : ℕ) : ℕ :=
+  ∑ b ∈ Finset.univ.filter (fun b : Fin k => b.val < j), f b
 
-private theorem degBefore_zero {k : ℕ} (hk : 0 < k) (W : Fin k → Fin k → ℕ) :
-    degBefore W ⟨0, hk⟩ = 0 := by
-  simp [degBefore, Fin.lt_def]
+/-- `prefixSum` at `0` is `0`. -/
+private theorem prefixSum_zero {k : ℕ} (f : Fin k → ℕ) : prefixSum f 0 = 0 := by
+  simp [prefixSum]
 
-private theorem degBefore_succ {k i : ℕ} (hi : i + 1 < k) (W : Fin k → Fin k → ℕ) :
-    degBefore W ⟨i + 1, hi⟩ = degBefore W ⟨i, by omega⟩ + rowDeg W ⟨i, by omega⟩ :=
-  sum_val_lt_succ (by omega) (rowDeg W)
+/-- `prefixSum` splits off its `j`-th term when `j < k`. -/
+private theorem prefixSum_succ {k j : ℕ} (hj : j < k) (f : Fin k → ℕ) :
+    prefixSum f (j + 1) = prefixSum f j + f ⟨j, hj⟩ := by
+  have hlt : Finset.univ.filter (fun b : Fin k => b.val < j) = Finset.Iio ⟨j, hj⟩ := by
+    simpa [Fin.lt_def] using Finset.filter_gt_eq_Iio (a := (⟨j, hj⟩ : Fin k))
+  have hle : Finset.univ.filter (fun b : Fin k => b.val ≤ j) = Finset.Iic ⟨j, hj⟩ := by
+    simpa [Fin.le_def] using Finset.filter_ge_eq_Iic (a := (⟨j, hj⟩ : Fin k))
+  simp_rw [prefixSum, Nat.lt_succ_iff, hle, hlt, ← Finset.sum_Iio_add_eq_sum_Iic]
 
-private theorem degBefore_full {k : ℕ} (W : Fin k → Fin k → ℕ) :
-    (∑ a ∈ Finset.univ.filter (fun a : Fin k => a.val < k), rowDeg W a) =
-      totalDoubledWeight W := by
-  unfold totalDoubledWeight
+/-- `prefixSum` up to `k` is the full `Finset.univ` sum. -/
+private theorem prefixSum_full {k : ℕ} (f : Fin k → ℕ) :
+    prefixSum f k = ∑ b : Fin k, f b := by
+  unfold prefixSum
   refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext a
+  ext b
   simp
 
-private theorem weightBefore_zero {k : ℕ} (hk : 0 < k) (W : Fin k → Fin k → ℕ) (u : Fin k) :
-    weightBefore W u ⟨0, hk⟩ = 0 := by
-  simp [weightBefore, Fin.lt_def]
+/-- `prefixSum` is monotone in its cutoff `j`. -/
+private theorem prefixSum_mono {k : ℕ} (f : Fin k → ℕ) {i j : ℕ} (hle : i ≤ j) :
+    prefixSum f i ≤ prefixSum f j :=
+  Finset.sum_le_sum_of_subset fun b hb => by
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hb ⊢
+    omega
 
-private theorem weightBefore_succ {k j : ℕ} (hj : j + 1 < k) (W : Fin k → Fin k → ℕ)
-    (u : Fin k) :
-    weightBefore W u ⟨j + 1, hj⟩ = weightBefore W u ⟨j, by omega⟩ + W u ⟨j, by omega⟩ :=
-  sum_val_lt_succ (by omega) (W u)
+/-- Any `prefixSum` is bounded by the full sum over `Fin k`. -/
+private theorem prefixSum_le_sum {k : ℕ} (f : Fin k → ℕ) (j : ℕ) :
+    prefixSum f j ≤ ∑ b : Fin k, f b :=
+  Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
+
+/-- `degBefore W a` as a `prefixSum` of `rowDeg W`. -/
+private theorem degBefore_eq_prefixSum {k : ℕ} (W : Fin k → Fin k → ℕ) (a : Fin k) :
+    degBefore W a = prefixSum (rowDeg W) a.val := by
+  simp only [degBefore, prefixSum, Fin.lt_def]
+
+/-- `weightBefore W u b` as a `prefixSum` of row `W u`. -/
+private theorem weightBefore_eq_prefixSum {k : ℕ} (W : Fin k → Fin k → ℕ) (u b : Fin k) :
+    weightBefore W u b = prefixSum (W u) b.val := by
+  simp only [weightBefore, prefixSum, Fin.lt_def]
+
+/-- Row offset `idx * str` and row pointer `wb + idx * str` both fit word size `w` whenever
+`idx ≤ k` and `wb + str * k` fits. -/
+private theorem rowBase_fits {w wb str k idx : ℕ} (hwEnd : Fits w (wb + str * k))
+    (hle : idx ≤ k) : Fits w (idx * str) ∧ Fits w (wb + idx * str) := by
+  have hmul : idx * str ≤ str * k :=
+    Nat.mul_comm k str ▸ Nat.mul_le_mul_right str hle
+  exact ⟨hwEnd.of_le (by omega), hwEnd.of_le (by omega)⟩
+
+/-- Shared read-only register frame (`zero`, `one`, `wBase`, `dBase`, `stride`, `activeK`,
+`targetT`) preserved across workspace helper phases. -/
+private structure KargerFrame (wb db str k t : ℕ) (y : Data 16) : Prop where
+  zero_eq : y.regs Reg.zero = 0
+  one_eq : y.regs Reg.one = 1
+  wBase_eq : y.regs Reg.wBase = wb
+  dBase_eq : y.regs Reg.dBase = db
+  stride_eq : y.regs Reg.stride = str
+  activeK_eq : y.regs Reg.activeK = k
+  targetT_eq : y.regs Reg.targetT = t
+
+/-- `KargerFrame` survives any state update preserving its seven registers. -/
+private theorem KargerFrame.congr {wb db str k t : ℕ} {y z : Data 16}
+    (hf : KargerFrame wb db str k t y)
+    (hr : ∀ i ∈ ({Reg.zero, Reg.one, Reg.wBase, Reg.dBase, Reg.stride,
+      Reg.activeK, Reg.targetT} : Finset (Fin 16)), z.regs i = y.regs i) :
+    KargerFrame wb db str k t z := by
+  regs_frame
+
+local macro "karger_frame " hf:term : tactic => `(tactic| (
+  refine KargerFrame.congr $hf (fun i hi => ?_)
+  simp only [Finset.mem_insert, Finset.mem_singleton] at hi
+  rcases hi with h | h | h | h | h | h | h <;> (subst h; try wram_simp)))
 
 /-! ### Part 1: Deterministic `O(k ^ 2)` row-degree and total-weight initializer -/
 
@@ -390,48 +478,6 @@ def computeDegreesAndTotal : Code .standard 16 := ram[
   while uReg < activeK do [ ⟪degOuterBody⟫ ]
 ]
 
-private def partialRowSum {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k) (j : ℕ) : ℕ :=
-  ∑ b ∈ Finset.univ.filter (fun b : Fin k => b.val < j), W u b
-
-private theorem partialRowSum_zero {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k) :
-    partialRowSum W u 0 = 0 := by
-  simp [partialRowSum]
-
-private theorem partialRowSum_succ {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k)
-    {j : ℕ} (hj : j < k) :
-    partialRowSum W u (j + 1) = partialRowSum W u j + W u ⟨j, hj⟩ :=
-  sum_val_lt_succ hj (W u)
-
-private theorem partialRowSum_full {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k) :
-    partialRowSum W u k = rowDeg W u := by
-  unfold partialRowSum rowDeg
-  refine Finset.sum_congr ?_ fun _ _ => rfl
-  ext b
-  simp
-
-private theorem partialRowSum_le_rowDeg {k : ℕ} (W : Fin k → Fin k → ℕ) (u : Fin k) (j : ℕ) :
-    partialRowSum W u j ≤ rowDeg W u :=
-  Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
-
-private def partialDegSum {k : ℕ} (W : Fin k → Fin k → ℕ) (i : ℕ) : ℕ :=
-  ∑ a ∈ Finset.univ.filter (fun a : Fin k => a.val < i), rowDeg W a
-
-private theorem partialDegSum_zero {k : ℕ} (W : Fin k → Fin k → ℕ) :
-    partialDegSum W 0 = 0 := by
-  simp [partialDegSum]
-
-private theorem partialDegSum_succ {k : ℕ} (W : Fin k → Fin k → ℕ) {i : ℕ} (hi : i < k) :
-    partialDegSum W (i + 1) = partialDegSum W i + rowDeg W ⟨i, hi⟩ :=
-  sum_val_lt_succ hi (rowDeg W)
-
-private theorem partialDegSum_full {k : ℕ} (W : Fin k → Fin k → ℕ) :
-    partialDegSum W k = totalDoubledWeight W :=
-  degBefore_full W
-
-private theorem partialDegSum_le {k : ℕ} (W : Fin k → Fin k → ℕ) (i : ℕ) :
-    partialDegSum W i ≤ totalDoubledWeight W :=
-  Finset.sum_le_univ_sum_of_nonneg fun _ => Nat.zero_le _
-
 /-- `computeDegreesAndTotal` initializes `D[0..k)` and `totS` in `6 * k ^ 2 + 12 * k + 6`
 instructions while modifying only `Finset.Ico db (db + k)`. -/
 theorem computeDegreesAndTotal_exec {w wb db str k : ℕ} {W : Fin k → Fin k → ℕ} {x : Data 16}
@@ -448,258 +494,122 @@ theorem computeDegreesAndTotal_exec {w wb db str k : ℕ} {W : Fin k → Fin k �
       y.regs activeK = k ∧ y.regs targetT = x.regs targetT ∧
       y.regs totS = totalDoubledWeight W := by
   let OuterInv (y : Data 16) : Prop :=
-    y.regs zero = 0 ∧ y.regs one = 1 ∧
-    y.regs wBase = wb ∧ y.regs dBase = db ∧ y.regs stride = str ∧
-    y.regs activeK = k ∧ y.regs targetT = x.regs targetT ∧
+    KargerFrame wb db str k (x.regs targetT) y ∧
     y.regs uReg ≤ k ∧
-    y.regs totS = partialDegSum W (y.regs uReg) ∧
+    y.regs totS = prefixSum (rowDeg W) (y.regs uReg) ∧
     HoldsMatrix y.mem wb str W ∧
     Modifies (Finset.Ico db (db + k)) x.mem y.mem ∧
     ∀ a : Fin k, a.val < y.regs uReg → y.mem (db + a.val) = rowDeg W a
   have houter_body : ∀ y, OuterInv y → (Cond.lt uReg activeK).Holds y →
       ∃ z, ExecWithin w degOuterBody y z (6 * k + 10) ∧ OuterInv z ∧
         k - z.regs uReg < k - y.regs uReg := by
-    intro y hy hc
-    rcases hy with ⟨hy0, hy1, hywb, hydb, hystr, hyk, hyt, hyu_le, hytot, hymat, hymod, hydeg⟩
-    have hu_lt : y.regs uReg < k := by simpa [hyk] using hc
-    let u : Fin k := ⟨y.regs uReg, hu_lt⟩
-    have hmul_fit : Fits w (u.val * str) :=
-      hwEnd.of_le (by
-        have : u.val * str ≤ k * str := Nat.mul_le_mul_right str (Nat.le_of_lt u.isLt)
-        nlinarith)
-    have hrow_fit : Fits w (wb + u.val * str) :=
-      hwEnd.of_le (by
-        have : u.val * str ≤ k * str := Nat.mul_le_mul_right str (Nat.le_of_lt u.isLt)
-        nlinarith)
-    let y_pre := (((y.set val2 (u.val * str)).set addr1 (wb + u.val * str)).set val1 0).set vReg 0
-    have hpre_exec : ExecWithin w
-        ram[val2 ← uReg * stride; addr1 ← wBase + val2; val1 ← #0; vReg ← #0] y y_pre 4 := by
-      have e1 : ExecWithin w ram[val2 ← uReg * stride] y (y.set val2 (u.val * str)) 1 := by
-        simpa [BinOp.eval, hystr] using
-          ExecWithin.bin (f := .mul) (d := val2) (i := uReg) (j := stride) (x := y)
-            (by simpa [BinOp.eval, hystr] using hmul_fit)
-      have e2 : ExecWithin w ram[addr1 ← wBase + val2] (y.set val2 (u.val * str))
-          ((y.set val2 (u.val * str)).set addr1 (wb + u.val * str)) 1 := by
-        have hwb' : (y.set val2 (u.val * str)).regs wBase = wb := by
-          simpa +decide [Function.update_apply] using hywb
-        simpa [BinOp.eval, hwb'] using
-          ExecWithin.bin (f := .add) (d := addr1) (i := wBase) (j := val2)
-            (x := y.set val2 (u.val * str))
-            (by simpa [BinOp.eval, hwb'] using hrow_fit)
-      have e3 := ExecWithin.const (B := .standard) (d := val1)
-        (x := (y.set val2 (u.val * str)).set addr1 (wb + u.val * str)) (fits_zero w)
-      have e4 := ExecWithin.const (B := .standard) (d := vReg)
-        (x := ((y.set val2 (u.val * str)).set addr1 (wb + u.val * str)).set val1 0) (fits_zero w)
-      exact (e1.seq (e2.seq (e3.seq e4))).mono (by omega)
+    intro y ⟨hyf, hyu_le, hytot, hymat, hymod, hydeg⟩ hc
+    obtain ⟨u_val, hu_eq⟩ : ∃ u_val, y.regs uReg = u_val := ⟨_, rfl⟩
+    have hu_lt : u_val < k := by simpa [Cond.holds_lt, hu_eq, hyf.activeK_eq] using hc
+    let u : Fin k := ⟨u_val, hu_lt⟩
+    obtain ⟨hmul_fit, hrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt hu_lt)
     let InnerInv (q : Data 16) : Prop :=
-      q.regs zero = 0 ∧ q.regs one = 1 ∧
-      q.regs wBase = wb ∧ q.regs dBase = db ∧ q.regs stride = str ∧
-      q.regs activeK = k ∧ q.regs targetT = x.regs targetT ∧
-      q.regs uReg = u.val ∧ q.regs totS = y.regs totS ∧
-      q.regs addr1 = wb + u.val * str ∧
+      KargerFrame wb db str k (x.regs targetT) q ∧
+      q.regs uReg = u_val ∧ q.regs totS = y.regs totS ∧
+      q.regs addr1 = wb + u_val * str ∧
       q.regs vReg ≤ k ∧
-      q.regs val1 = partialRowSum W u (q.regs vReg) ∧
+      q.regs val1 = prefixSum (W u) (q.regs vReg) ∧
       q.mem = y.mem
-    have hinner_init : InnerInv y_pre := by
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, rfl⟩
-      · simpa +decide [y_pre, Function.update_apply] using hy0
-      · simpa +decide [y_pre, Function.update_apply] using hy1
-      · simpa +decide [y_pre, Function.update_apply] using hywb
-      · simpa +decide [y_pre, Function.update_apply] using hydb
-      · simpa +decide [y_pre, Function.update_apply] using hystr
-      · simpa +decide [y_pre, Function.update_apply] using hyk
-      · simpa +decide [y_pre, Function.update_apply] using hyt
-      · simp +decide [y_pre, u]
-      · simp +decide [y_pre]
-      · simp +decide [y_pre]
-      · simp +decide [y_pre]
-      · simp +decide [y_pre, partialRowSum_zero]
     have hinner_body : ∀ q, InnerInv q → (Cond.lt vReg activeK).Holds q →
         ∃ q', ExecWithin w degInnerBody q q' 4 ∧ InnerInv q' ∧
           k - q'.regs vReg < k - q.regs vReg := by
-      intro q hq hvc
-      rcases hq with ⟨hq0, hq1, hqwb, hqdb, hqstr, hqk, hqt, hqu, hqtot, hqa1, hqv_le, hqval1,
-        hqmem⟩
-      have hv_lt : q.regs vReg < k := by simpa [hqk] using hvc
-      let v : Fin k := ⟨q.regs vReg, hv_lt⟩
-      have hcell_fit : Fits w (wb + u.val * str + v.val) :=
+      intro q ⟨hqf, hqu, hqtot, hqa1, hqv_le, hqval1, hqmem⟩ hvc
+      obtain ⟨v_val, hv_eq⟩ : ∃ v_val, q.regs vReg = v_val := ⟨_, rfl⟩
+      have hv_lt : v_val < k := by simpa [Cond.holds_lt, hv_eq, hqf.activeK_eq] using hvc
+      let v : Fin k := ⟨v_val, hv_lt⟩
+      have hcell_fit : Fits w (wb + u_val * str + v_val) :=
         hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr u v))
-      have hsum_eq : partialRowSum W u v.val + W u v = partialRowSum W u (v.val + 1) :=
-        (partialRowSum_succ W u hv_lt).symm
-      have hsum_fit : Fits w (partialRowSum W u (v.val + 1)) :=
-        htot.of_le ((partialRowSum_le_rowDeg W u (v.val + 1)).trans
+      have hsum_fit : Fits w (prefixSum (W u) v_val + W u v) := by
+        rw [← prefixSum_succ hv_lt (W u)]
+        exact htot.of_le ((prefixSum_le_sum (W u) (v_val + 1)).trans
           (rowDeg_le_totalDoubledWeight W u))
-      have hv_inc_fit : Fits w (v.val + 1) := hdEnd.of_le (by omega)
-      have hread_cell : q.mem (wb + u.val * str + v.val) = W u v := by
-        rw [hqmem]
-        exact hymat u v
-      let q₁ := q.set addr2 (wb + u.val * str + v.val)
-      let q₂ := q₁.set val2 (W u v)
-      let q₃ := q₂.set val1 (partialRowSum W u (v.val + 1))
-      let q₄ := q₃.set vReg (v.val + 1)
-      have s1 : ExecWithin w ram[addr2 ← addr1 + vReg] q q₁ 1 := by
-        simpa [q₁, BinOp.eval, hqa1, v] using
-          ExecWithin.bin (f := .add) (d := addr2) (i := addr1) (j := vReg) (x := q)
-            (by simpa [BinOp.eval, hqa1, v] using hcell_fit)
-      have s2 : ExecWithin (B := .standard) w ram[val2 ← *addr2] q₁ q₂ 1 := by
-        have ha2 : q₁.regs addr2 = wb + u.val * str + v.val := by simp [q₁]
-        have hm1 : q₁.mem (wb + u.val * str + v.val) = W u v := hread_cell
-        simpa only [q₂, ha2, hm1] using
-          ExecWithin.load (B := .standard) (w := w) (d := val2) (a := addr2) (x := q₁)
-      have s3 : ExecWithin w ram[val1 ← val1 + val2] q₂ q₃ 1 := by
-        have hv1 : q₂.regs val1 = partialRowSum W u v.val := by
-          simpa +decide [q₂, q₁, Function.update_apply] using hqval1
-        have hv2 : q₂.regs val2 = W u v := by simp [q₂]
-        simpa [q₃, BinOp.eval, hv1, hv2, hsum_eq] using
-          ExecWithin.bin (f := .add) (d := val1) (i := val1) (j := val2) (x := q₂)
-            (by simpa [BinOp.eval, hv1, hv2, hsum_eq] using hsum_fit)
-      have s4 : ExecWithin w ram[vReg ← vReg + one] q₃ q₄ 1 := by
-        have hvr : q₃.regs vReg = v.val := by simp +decide [q₃, q₂, q₁, v]
-        have ho : q₃.regs one = 1 := by
-          simpa +decide [q₃, q₂, q₁, Function.update_apply] using hq1
-        simpa [q₄, BinOp.eval, hvr, ho] using
-          ExecWithin.bin (f := .add) (d := vReg) (i := vReg) (j := one) (x := q₃)
-            (by simpa [BinOp.eval, hvr, ho] using hv_inc_fit)
-      refine ⟨q₄, (s1.seq (s2.seq (s3.seq s4))).mono (by omega), ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hqmem⟩
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hq0
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hq1
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqwb
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqdb
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqstr
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqk
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqt
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqu
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqtot
-        · simpa +decide [q₄, q₃, q₂, q₁, Function.update_apply] using hqa1
-        · simp only [q₄, Data.set_regs, Function.update_self]
-          exact Nat.succ_le_of_lt hv_lt
-        · simp +decide [q₄, q₃]
-      · simp only [q₄, Data.set_regs, Function.update_self]
-        dsimp [v]; omega
-    obtain ⟨q_end, hloop_in, hq_end, hvc_end⟩ :=
+      have hv_inc_fit : Fits w (v_val + 1) := hdEnd.of_le (by omega)
+      have hread_cell : q.mem (wb + u_val * str + v_val) = W u v := hqmem ▸ hymat u v
+      rw [hv_eq] at hqval1
+      unfold degInnerBody
+      wram_exec [hqf.one_eq, hqa1, hv_eq, hread_cell, hqval1, hcell_fit, hsum_fit, hv_inc_fit]
+      refine ⟨⟨by karger_frame hqf, by wram_simp [hqu], by wram_simp [hqtot],
+        by wram_simp [hqa1], by wram_simp; omega, ?_, hqmem⟩, by wram_simp [hv_eq]; omega⟩
+      wram_simp [prefixSum_succ hv_lt (W u)]
+      rfl
+    unfold degOuterBody
+    wram_exec [hyf.stride_eq, hyf.wBase_eq, hu_eq, hmul_fit, hrow_fit]
+    refine WP.name fun y_pre hy_pre => ?_
+    have hinner_init : InnerInv y_pre := by
+      subst hy_pre
+      exact ⟨by karger_frame hyf, by wram_simp [hu_eq], by wram_simp, by wram_simp,
+        by wram_simp; omega, by wram_simp [prefixSum_zero], rfl⟩
+    obtain ⟨q_end, hloop_in, ⟨hqf, hqu, hqtot, _, hqv_le, hqval1, hqmem⟩, hvc_end⟩ :=
       ExecWithin.loop_invariant InnerInv (fun q => k - q.regs vReg) hinner_body hinner_init
-    rcases hq_end with ⟨hq0, hq1, hqwb, hqdb, hqstr, hqk, hqt, hqu, hqtot, _, hqv_le, hqval1,
-      hqmem⟩
     have hv_end : q_end.regs vReg = k := by
-      simp only [Cond.holds_lt, hqk] at hvc_end
-      omega
+      simp only [Cond.holds_lt, hqf.activeK_eq] at hvc_end; omega
     have hval1_deg : q_end.regs val1 = rowDeg W u := by
-      rw [hqval1, hv_end, partialRowSum_full]
-    have hd_addr_fit : Fits w (db + u.val) := hdEnd.of_le (by omega)
-    have htot_next_eq : y.regs totS + rowDeg W u = partialDegSum W (u.val + 1) := by
-      rw [hytot, ← partialDegSum_succ W hu_lt]
-    have htot_next_fit : Fits w (partialDegSum W (u.val + 1)) :=
-      htot.of_le (partialDegSum_le W (u.val + 1))
-    have hu_inc_fit : Fits w (u.val + 1) := hdEnd.of_le (by omega)
-    let z₁ := q_end.set addr2 (db + u.val)
-    let z₂ := z₁.write (db + u.val) (rowDeg W u)
-    let z₃ := z₂.set totS (partialDegSum W (u.val + 1))
-    let z₄ := z₃.set uReg (u.val + 1)
-    have p1 : ExecWithin w ram[addr2 ← dBase + uReg] q_end z₁ 1 := by
-      simpa [z₁, BinOp.eval, hqdb, hqu] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := dBase) (j := uReg) (x := q_end)
-          (by simpa [BinOp.eval, hqdb, hqu] using hd_addr_fit)
-    have p2 : ExecWithin (B := .standard) w ram[*addr2 ← val1] z₁ z₂ 1 := by
-      have ha2 : z₁.regs addr2 = db + u.val := by simp [z₁]
-      have hv1 : z₁.regs val1 = rowDeg W u := by
-        simpa +decide [z₁, Function.update_apply] using hval1_deg
-      simpa [z₂, ha2, hv1] using
-        ExecWithin.store (B := .standard) (w := w) (a := addr2) (s := val1) (x := z₁)
-    have p3 : ExecWithin w ram[totS ← totS + val1] z₂ z₃ 1 := by
-      have hts : z₂.regs totS = y.regs totS := by
-        simpa +decide [z₂, z₁, Function.update_apply] using hqtot
-      have hv1 : z₂.regs val1 = rowDeg W u := by
-        simpa +decide [z₂, z₁, Function.update_apply] using hval1_deg
-      simpa [z₃, BinOp.eval, hts, hv1, htot_next_eq] using
-        ExecWithin.bin (f := .add) (d := totS) (i := totS) (j := val1) (x := z₂)
-          (by simpa [BinOp.eval, hts, hv1, htot_next_eq] using htot_next_fit)
-    have p4 : ExecWithin w ram[uReg ← uReg + one] z₃ z₄ 1 := by
-      have hur : z₃.regs uReg = u.val := by
-        simpa +decide [z₃, z₂, z₁, Function.update_apply] using hqu
-      have ho : z₃.regs one = 1 := by
-        simpa +decide [z₃, z₂, z₁, Function.update_apply] using hq1
-      simpa [z₄, BinOp.eval, hur, ho] using
-        ExecWithin.bin (f := .add) (d := uReg) (i := uReg) (j := one) (x := z₃)
-          (by simpa [BinOp.eval, hur, ho] using hu_inc_fit)
-    have hbody_exec : ExecWithin w degOuterBody y z₄ (6 * k + 10) := by
-      unfold degOuterBody
-      have hpre_v : y_pre.regs vReg = 0 := by simp [y_pre]
-      have hloop_bound : (k - y_pre.regs vReg) * (4 + 2) + 2 ≤ 6 * k + 2 := by
-        rw [hpre_v]
-        omega
-      -- Reassociate `degOuterBody` with `hpre_exec`, `hloop_in`, and `p1..p4`.
-      rcases hpre_exec with ⟨n1, hn1, e_pre⟩
-      rcases e_pre with _ | @⟨_, _, _, y1, _, _, _, e1, e_rest1⟩
-      rcases e_rest1 with _ | @⟨_, _, _, y2, _, _, _, e2, e_rest2⟩
-      rcases e_rest2 with _ | @⟨_, _, _, y3, _, _, _, e3, e4⟩
-      exact ((e1.within).seq ((e2.within).seq ((e3.within).seq ((e4.within).seq
-        ((hloop_in.mono hloop_bound).seq (p1.seq (p2.seq (p3.seq p4)))))))).mono (by omega)
-    refine ⟨z₄, hbody_exec, ?_, ?_⟩
-    · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hq0
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hq1
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hqwb
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hqdb
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hqstr
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hqk
-      · simpa +decide [z₄, z₃, z₂, z₁, Function.update_apply] using hqt
-      · simp +decide [z₄]
-      · simp +decide [z₄, z₃]
-      · intro i j
-        simp only [z₄, z₃, z₂, z₁, Data.set_mem, Data.write_mem, hqmem]
-        rw [Function.update_of_ne (matAddr_ne_degAddr hstr hdisj i j u)]
-        exact hymat i j
-      · simp only [z₄, z₃, z₂, z₁, Data.set_mem, Data.write_mem, hqmem]
-        exact modifies_trans_subset hymod
-          (modifies_update_of_mem (degAddr_mem_Ico u) y.mem (rowDeg W u))
-          Finset.Subset.rfl Finset.Subset.rfl
-      · intro a ha
-        simp only [z₄, z₃, z₂, z₁, Data.set_regs, Data.set_mem, Data.write_mem,
-          Function.update_self, hqmem] at ha ⊢
-        by_cases hau : a = u
-        · subst hau
-          simp
-        · have hne : db + a.val ≠ db + u.val := fun h => hau (Fin.ext (by omega))
-          rw [Function.update_of_ne hne]
-          have hu_val : u.val = y.regs uReg := rfl
-          exact hydeg a (by have := Fin.val_ne_of_ne hau; omega)
-    · simp only [z₄, Data.set_regs, Function.update_self, u]
-      omega
-  let x₀ := (((x.set zero 0).set one 1).set totS 0).set uReg 0
-  have hx₀ : OuterInv x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hmat, Modifies.refl _ _, ?_⟩
-    · simp +decide [x₀]
-    · simp +decide [x₀]
-    · simpa +decide [x₀, Function.update_apply] using hwBase
-    · simpa +decide [x₀, Function.update_apply] using hdBase
-    · simpa +decide [x₀, Function.update_apply] using hstride
-    · simpa +decide [x₀, Function.update_apply] using hactiveK
-    · simp +decide [x₀]
-    · simp +decide [x₀]
-    · simp +decide [x₀, partialDegSum_zero]
+      rw [hqval1, hv_end, prefixSum_full]; rfl
+    have hd_addr_fit : Fits w (db + u_val) := hdEnd.of_le (by omega)
+    have htot_next_fit : Fits w (prefixSum (rowDeg W) u_val + rowDeg W u) := by
+      rw [← prefixSum_succ hu_lt (rowDeg W)]
+      exact htot.of_le (prefixSum_le_sum (rowDeg W) (u_val + 1))
+    have hu_inc_fit : Fits w (u_val + 1) := hdEnd.of_le (by omega)
+    rw [hu_eq] at hytot
+    refine WP.of_execWithin hloop_in ?_
+    wram_exec [hqf.dBase_eq, hqf.one_eq, hqu, hval1_deg, hqtot, hytot,
+      hd_addr_fit, htot_next_fit, hu_inc_fit]
+    refine ⟨⟨by karger_frame hqf, by wram_simp; omega, ?_, ?_, ?_, ?_⟩,
+      by wram_simp [hu_eq]; omega⟩
+    · wram_simp [prefixSum_succ hu_lt (rowDeg W)]
+      rfl
+    · intro i j
+      simp only [Data.set_mem, Data.write_mem, hqmem]
+      rw [show u_val = u.val from rfl, Function.update_of_ne (matAddr_ne_degAddr hstr hdisj i j u)]
+      exact hymat i j
+    · simp only [Data.set_mem, Data.write_mem, hqmem]
+      exact modifies_trans_subset hymod
+        (modifies_update_of_mem (degAddr_mem_Ico (db := db) u) y.mem (rowDeg W u))
+        Finset.Subset.rfl Finset.Subset.rfl
     · intro a ha
-      simp +decide [x₀] at ha
-  obtain ⟨y_end, hloop_out, hy_end, huc_end⟩ :=
+      wram_simp at ha
+      simp only [Data.set_mem, Data.write_mem]
+      by_cases hau : a = u
+      · subst hau
+        exact Function.update_self _ _ _
+      · have hau_val : a.val ≠ u_val := Fin.val_ne_of_ne hau
+        rw [Function.update_of_ne (by omega), hqmem]
+        exact hydeg a (by rw [hu_eq]; omega)
+  unfold computeDegreesAndTotal
+  wram_exec [h1]
+  refine WP.name fun x₀ hx₀_eq => ?_
+  have hx₀ : OuterInv x₀ := by
+    subst hx₀_eq
+    refine ⟨{ zero_eq := by wram_simp
+              one_eq := by wram_simp
+              wBase_eq := by wram_simp [hwBase]
+              dBase_eq := by wram_simp [hdBase]
+              stride_eq := by wram_simp [hstride]
+              activeK_eq := by wram_simp [hactiveK]
+              targetT_eq := by wram_simp },
+      by wram_simp; omega, by wram_simp [prefixSum_zero], hmat, Modifies.refl _ _,
+      fun a ha => by wram_simp at ha⟩
+  have hx₀_u : x₀.regs uReg = 0 := by subst hx₀_eq; wram_simp
+  obtain ⟨y_end, hloop_out, ⟨hyf, hyu_le, hytot, hymat, hymod, hydeg⟩, huc_end⟩ :=
     ExecWithin.loop_invariant OuterInv (fun y => k - y.regs uReg) houter_body hx₀
-  rcases hy_end with ⟨hy0, hy1, hywb, hydb, hystr, hyk, hyt, hyu_le, hytot, hymat, hymod, hydeg⟩
   have hu_end : y_end.regs uReg = k := by
-    simp only [Cond.holds_lt, hyk] at huc_end
+    simp only [Cond.holds_lt, hyf.activeK_eq] at huc_end; omega
+  have htime : (k - x₀.regs uReg) * (6 * k + 10 + 2) + 2 + 1 + 1 + 1 + 1 ≤
+      6 * k ^ 2 + 12 * k + 6 := by
+    have hmul : (k - x₀.regs uReg) * (6 * k + 10 + 2) = 6 * k ^ 2 + 12 * k := by
+      rw [hx₀_u, Nat.sub_zero]; ring
     omega
-  refine ⟨y_end, ?_, ⟨hymat, fun a => hydeg a (hu_end ▸ a.isLt)⟩, hymod,
-    hy0, hy1, hywb, hydb, hystr, hyk, hyt, ?_⟩
-  · unfold computeDegreesAndTotal
-    have s1 := ExecWithin.const (B := .standard) (d := zero) (x := x) (fits_zero w)
-    have s2 := ExecWithin.const (B := .standard) (d := one) (x := x.set zero 0) h1
-    have s3 := ExecWithin.const (B := .standard) (d := totS)
-      (x := (x.set zero 0).set one 1) (fits_zero w)
-    have s4 := ExecWithin.const (B := .standard) (d := uReg)
-      (x := ((x.set zero 0).set one 1).set totS 0) (fits_zero w)
-    have hx₀_u : x₀.regs uReg = 0 := by simp [x₀]
-    refine (s1.seq (s2.seq (s3.seq (s4.seq hloop_out)))).mono ?_
-    rw [hx₀_u, Nat.sub_zero]
-    nlinarith
-  · rw [hytot, hu_end, partialDegSum_full]
+  refine WP.of_execWithin hloop_out ⟨htime,
+    ⟨hymat, fun a => hydeg a (hu_end ▸ a.isLt)⟩, hymod,
+    hyf.zero_eq, hyf.one_eq, hyf.wBase_eq, hyf.dBase_eq, hyf.stride_eq,
+    hyf.activeK_eq, hyf.targetT_eq, ?_⟩
+  rw [hytot, hu_end, prefixSum_full]
+  rfl
 
 end ComputeDegrees
 
@@ -976,6 +886,78 @@ private theorem compactStepMatrix_step_eq_of_eq {m : ℕ} (W₁ : Fin (m + 1) �
 
 /-! #### Deterministic execution of `uScan`, `vScan`, and `postRandStep` -/
 
+/-- Shared execution contract for the prefix-sum threshold scan loop used by both `uScan` and
+`vScan`: starting at index `y.regs idxReg` with remainder `R + 1 - prefixSum f (y.regs idxReg)` and
+loaded entry `f ⟨y.regs idxReg, _⟩` in `val1`, the loop advances `d` steps to `tgt`, leaving memory
+and all registers outside `{rem, idxReg, ptrReg, val1}` unchanged. -/
+private theorem scanThresholdLoop_exec {w k R : ℕ} (base : ℕ)
+    {idxReg ptrReg baseReg : Fin 16}
+    (h_ne : idxReg ≠ rem ∧ idxReg ≠ val1 ∧ idxReg ≠ one ∧ idxReg ≠ ptrReg ∧
+      ptrReg ≠ rem ∧ ptrReg ≠ val1 ∧ ptrReg ≠ one ∧
+      baseReg ≠ rem ∧ baseReg ≠ val1 ∧ baseReg ≠ idxReg ∧ baseReg ≠ ptrReg)
+    {f : Fin k → ℕ} {tgt : Fin k}
+    (hlo : prefixSum f tgt.val ≤ R) (hhi : R < prefixSum f tgt.val + f tgt)
+    (hfit_R1 : Fits w (R + 1)) (hfit_idx : Fits w tgt.val) (hfit_ptr : Fits w (base + tgt.val)) :
+    ∀ (d : ℕ) (y : Data 16),
+      y.regs one = 1 →
+      y.regs baseReg = base →
+      y.regs idxReg + d = tgt.val →
+      y.regs rem = R + 1 - prefixSum f (y.regs idxReg) →
+      y.regs ptrReg = base + y.regs idxReg →
+      (∀ hi : y.regs idxReg < k, y.regs val1 = f ⟨y.regs idxReg, hi⟩) →
+      (∀ a : Fin k, y.mem (base + a.val) = f a) →
+      ∃ z, ExecWithin w
+          (.loop (.lt val1 rem) ram[
+            rem ← rem - val1; idxReg ← idxReg + one;
+            ptrReg ← baseReg + idxReg; val1 ← *ptrReg ])
+          y z (6 * d + 2) ∧
+        z.mem = y.mem ∧
+        z.regs idxReg = tgt.val ∧
+        z.regs ptrReg = base + tgt.val ∧
+        z.regs val1 = f tgt ∧
+        z.regs rem = R + 1 - prefixSum f tgt.val ∧
+        ∀ r : Fin 16, r ≠ rem → r ≠ idxReg → r ≠ ptrReg → r ≠ val1 → z.regs r = y.regs r
+  | 0, y, _, _, hd, hrem, hptr, hval1, _ => by
+    have hidx_eq : y.regs idxReg = tgt.val := by omega
+    have hval1_tgt : y.regs val1 = f tgt := by
+      have h := hval1 (hidx_eq ▸ tgt.isLt)
+      simpa [Fin.ext_iff, hidx_eq] using h
+    have hc : ¬ (Cond.lt val1 rem).Holds y := by
+      simp only [Cond.holds_lt, hval1_tgt, hrem, hidx_eq]
+      omega
+    exact ⟨y, (ExecWithin.loop_exit hc).mono (by omega), rfl, hidx_eq, hidx_eq ▸ hptr,
+      hval1_tgt, hidx_eq ▸ hrem, fun _ _ _ _ _ => rfl⟩
+  | d + 1, y, hone, hbase, hd, hrem, hptr, hval1, hmem => by
+    obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩ := h_ne
+    obtain ⟨i, hi_eq⟩ : ∃ i, y.regs idxReg = i := ⟨_, rfl⟩
+    rw [hi_eq] at hd hrem hptr
+    have hi_lt_tgt : i < tgt.val := by omega
+    have hi_lt_k : i < k := lt_trans hi_lt_tgt tgt.isLt
+    have hi1_lt_k : i + 1 < k := lt_of_le_of_lt hi_lt_tgt tgt.isLt
+    have hval1_i : y.regs val1 = f ⟨i, hi_lt_k⟩ := by
+      have h := hval1 (hi_eq ▸ hi_lt_k)
+      simpa [Fin.ext_iff, hi_eq] using h
+    have hpref_succ : prefixSum f (i + 1) = prefixSum f i + f ⟨i, hi_lt_k⟩ :=
+      prefixSum_succ hi_lt_k f
+    have hpref_le : prefixSum f (i + 1) ≤ prefixSum f tgt.val := prefixSum_mono f hi_lt_tgt
+    have hc : (Cond.lt val1 rem).Holds y := by
+      simp only [Cond.holds_lt, hval1_i, hrem]
+      omega
+    have hsub_fit : Fits w ((R + 1 - prefixSum f i) - f ⟨i, hi_lt_k⟩) := hfit_R1.of_le (by omega)
+    have hidx1_fit : Fits w (i + 1) := hfit_idx.of_le (by omega)
+    have hptr1_fit : Fits w (base + (i + 1)) := hfit_ptr.of_le (by omega)
+    have hmem1 : y.mem (base + (i + 1)) = f ⟨i + 1, hi1_lt_k⟩ := hmem ⟨i + 1, hi1_lt_k⟩
+    refine WP.exists_execWithin (WP.loop_iter hc ?_)
+    wram_exec [hone, hbase, hi_eq, hrem, hval1_i, hmem1, hsub_fit, hidx1_fit, hptr1_fit]
+    wram_call (scanThresholdLoop_exec base ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩
+      hlo hhi hfit_R1 hfit_idx hfit_ptr d _
+      (by wram_simp [hone]) (by wram_simp [hbase]) (by wram_simp; omega)
+      (by wram_simp; omega) (by wram_simp) (fun _ => by wram_simp)
+      (fun a => by wram_simp [hmem a]))
+      with z ⟨hzm, hz_idx, hz_ptr, hz_val1, hz_rem, hz_other⟩
+    refine ⟨by omega, hzm, hz_idx, hz_ptr, hz_val1, hz_rem, fun r hr1 hr2 hr3 hr4 => ?_⟩
+    exact (hz_other r hr1 hr2 hr3 hr4).trans (by wram_simp)
+
 /-- Deterministic execution of `uScan` locating row `u` for a sampled offset `r_val`. -/
 theorem uScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
     {u v : Fin k} {x : Data 16}
@@ -1002,158 +984,29 @@ theorem uScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
     have := degBefore_add_le_totalDoubledWeight W u
     omega
   have hr1_fit : Fits w (r_val + 1) := htot.of_le (by omega)
-  have h1_fit : Fits w 1 := hdEnd.of_le (by omega)
-  let xs (i : ℕ) : Data 16 :=
-    if hi : i ≤ u.val then
-      let a : Fin k := ⟨i, lt_of_le_of_lt hi u.isLt⟩
-      (((x.set rem (r_val + 1 - degBefore W a)).set uReg i).set addr1 (db + i)).set val1
-        (rowDeg W a)
-    else x
-  have hpre : ExecWithin w ram[rem ← rem + one; uReg ← #0; addr1 ← dBase + uReg; val1 ← *addr1]
-      x (xs 0) 4 := by
-    have s1 : ExecWithin w ram[rem ← rem + one] x (x.set rem (r_val + 1)) 1 := by
-      simpa [BinOp.eval, hrem, h1] using
-        ExecWithin.bin (f := .add) (d := rem) (i := rem) (j := one) (x := x)
-          (by simpa [BinOp.eval, hrem, h1] using hr1_fit)
-    have s2 := ExecWithin.const (B := .standard) (d := uReg)
-      (x := x.set rem (r_val + 1)) (fits_zero w)
-    have s3 : ExecWithin w ram[addr1 ← dBase + uReg] ((x.set rem (r_val + 1)).set uReg 0)
-        (((x.set rem (r_val + 1)).set uReg 0).set addr1 (db + 0)) 1 := by
-      have hdb' : ((x.set rem (r_val + 1)).set uReg 0).regs dBase = db := by
-        simpa +decide [Function.update_apply] using hdBase
-      simpa [BinOp.eval, hdb'] using
-        ExecWithin.bin (f := .add) (d := addr1) (i := dBase) (j := uReg)
-          (x := (x.set rem (r_val + 1)).set uReg 0)
-          (by simpa [BinOp.eval, hdb'] using hdEnd.of_le (by omega))
-    have s4 : ExecWithin (B := .standard) w ram[val1 ← *addr1]
-        (((x.set rem (r_val + 1)).set uReg 0).set addr1 (db + 0)) (xs 0) 1 := by
-      have hmem0 : x.mem db = rowDeg W ⟨0, hk_pos⟩ := by simpa using hdeg ⟨0, hk_pos⟩
-      have hd0 : degBefore W ⟨0, hk_pos⟩ = 0 := degBefore_zero hk_pos W
-      simpa [xs, hd0, hmem0] using
-        ExecWithin.load (B := .standard) (w := w) (d := val1) (a := addr1)
-          (x := ((x.set rem (r_val + 1)).set uReg 0).set addr1 (db + 0))
-    exact (s1.seq (s2.seq (s3.seq s4))).mono (by omega)
-  have hc_hold : ∀ i < u.val, (Cond.lt val1 rem).Holds (xs i) := by
-    intro i hi
-    have hi_le : i ≤ u.val := Nat.le_of_lt hi
-    let a : Fin k := ⟨i, lt_trans hi u.isLt⟩
-    have hlt_u : a < u := hi
-    have hdeg_le := degBefore_le_of_lt W hlt_u
-    simp only [xs, hi_le, ↓reduceDIte, Cond.holds_lt]
-    have hv1 : ((((x.set rem (r_val + 1 - degBefore W a)).set uReg i).set addr1 (db + i)).set val1
-        (rowDeg W a)).regs val1 = rowDeg W a := by simp
-    have hrm : ((((x.set rem (r_val + 1 - degBefore W a)).set uReg i).set addr1 (db + i)).set val1
-        (rowDeg W a)).regs rem = r_val + 1 - degBefore W a := by
-      simp +decide
-    dsimp only [a] at hv1 hrm hdeg_le
-    rw [hv1, hrm]
-    omega
-  have hc_exit : ¬ (Cond.lt val1 rem).Holds (xs u.val) := by
-    simp only [xs, le_rfl, ↓reduceDIte, Cond.holds_lt]
-    have hv1 : ((((x.set rem (r_val + 1 - degBefore W u)).set uReg u.val).set addr1
-        (db + u.val)).set val1 (rowDeg W u)).regs val1 = rowDeg W u := by simp
-    have hrm : ((((x.set rem (r_val + 1 - degBefore W u)).set uReg u.val).set addr1
-        (db + u.val)).set val1 (rowDeg W u)).regs rem = r_val + 1 - degBefore W u := by
-      simp +decide
-    rw [hv1, hrm]
-    omega
-  have hbody : ∀ i < u.val, ExecWithin w uScanBody (xs i) (xs (i + 1)) 4 := by
-    intro i hi
-    have hi_le : i ≤ u.val := Nat.le_of_lt hi
-    have hi1_le : i + 1 ≤ u.val := hi
-    let a : Fin k := ⟨i, lt_trans hi u.isLt⟩
-    let a' : Fin k := ⟨i + 1, lt_of_le_of_lt hi1_le u.isLt⟩
-    have hdeg_le := degBefore_le_of_lt W (show a < u from hi)
-    have hsub_eq : (r_val + 1 - degBefore W a) - rowDeg W a = r_val + 1 - degBefore W a' := by
-      have hsucc := degBefore_succ (lt_of_le_of_lt hi1_le u.isLt) W
-      dsimp only [a, a'] at hdeg_le ⊢
-      rw [hsucc]
-      omega
-    have hsub_fit : Fits w (r_val + 1 - degBefore W a') := hr1_fit.of_le (by omega)
-    have hi1_fit : Fits w (i + 1) := hdEnd.of_le (by have := u.isLt; omega)
-    have hdb1_fit : Fits w (db + (i + 1)) := hdEnd.of_le (by have := u.isLt; omega)
-    have hxi : xs i = (((x.set rem (r_val + 1 - degBefore W a)).set uReg i).set addr1
-        (db + i)).set val1 (rowDeg W a) := by simp [xs, hi_le, a]
-    have hxi1 : xs (i + 1) = (((x.set rem (r_val + 1 - degBefore W a')).set uReg (i + 1)).set addr1
-        (db + (i + 1))).set val1 (rowDeg W a') := by simp [xs, hi1_le, a']
-    rw [hxi, hxi1]
-    set s0 := (((x.set rem (r_val + 1 - degBefore W a)).set uReg i).set addr1
-      (db + i)).set val1 (rowDeg W a)
-    have hs0_rem : s0.regs rem = r_val + 1 - degBefore W a := by
-      simp +decide [s0]
-    have hs0_v1 : s0.regs val1 = rowDeg W a := by simp [s0]
-    have hs0_u : s0.regs uReg = i := by simp +decide [s0]
-    have hs0_1 : s0.regs one = 1 := by simpa +decide [s0, Function.update_apply] using h1
-    have hs0_db : s0.regs dBase = db := by simpa +decide [s0, Function.update_apply] using hdBase
-    have b1 : ExecWithin w ram[rem ← rem - val1] s0
-        (s0.set rem (r_val + 1 - degBefore W a')) 1 := by
-      simpa [BinOp.eval, hs0_rem, hs0_v1, hsub_eq] using
-        ExecWithin.bin (f := .sub) (d := rem) (i := rem) (j := val1) (x := s0)
-          (by simpa [BinOp.eval, hs0_rem, hs0_v1, hsub_eq] using hsub_fit)
-    have b2 : ExecWithin w ram[uReg ← uReg + one] (s0.set rem (r_val + 1 - degBefore W a'))
-        ((s0.set rem (r_val + 1 - degBefore W a')).set uReg (i + 1)) 1 := by
-      have hu' : (s0.set rem (r_val + 1 - degBefore W a')).regs uReg = i := by
-        simpa +decide [Function.update_apply] using hs0_u
-      have h1' : (s0.set rem (r_val + 1 - degBefore W a')).regs one = 1 := by
-        simpa +decide [Function.update_apply] using hs0_1
-      simpa [BinOp.eval, hu', h1'] using
-        ExecWithin.bin (f := .add) (d := uReg) (i := uReg) (j := one)
-          (x := s0.set rem (r_val + 1 - degBefore W a'))
-          (by simpa [BinOp.eval, hu', h1'] using hi1_fit)
-    set s2 := (s0.set rem (r_val + 1 - degBefore W a')).set uReg (i + 1)
-    have b3 : ExecWithin w ram[addr1 ← dBase + uReg] s2 (s2.set addr1 (db + (i + 1))) 1 := by
-      have hdb' : s2.regs dBase = db := by
-        simpa +decide [s2, Function.update_apply] using hs0_db
-      have hu' : s2.regs uReg = i + 1 := by simp [s2]
-      simpa [BinOp.eval, hdb', hu'] using
-        ExecWithin.bin (f := .add) (d := addr1) (i := dBase) (j := uReg) (x := s2)
-          (by simpa [BinOp.eval, hdb', hu'] using hdb1_fit)
-    set s3 := s2.set addr1 (db + (i + 1))
-    have b4 : ExecWithin (B := .standard) w ram[val1 ← *addr1] s3
-        (s3.set val1 (rowDeg W a')) 1 := by
-      have ha1' : s3.regs addr1 = db + (i + 1) := by simp [s3]
-      have hm' : s3.mem (db + (i + 1)) = rowDeg W a' := hdeg a'
-      simpa [ha1', hm'] using
-        ExecWithin.load (B := .standard) (w := w) (d := val1) (a := addr1) (x := s3)
-    have hstate_eq : s3.set val1 (rowDeg W a') =
-        (((x.set rem (r_val + 1 - degBefore W a')).set uReg (i + 1)).set addr1
-          (db + (i + 1))).set val1 (rowDeg W a') := by
-      ext r
-      · by_cases hr1 : r = val1
-        · subst hr1; simp [s3]
-        · by_cases hr2 : r = addr1
-          · subst hr2; simp +decide [s3]
-          · by_cases hr3 : r = uReg
-            · subst hr3; simp +decide [s3, s2]
-            · by_cases hr4 : r = rem
-              · subst hr4; simp +decide [s3, s2]
-              · simp only [s3, s2, s0, Data.set_regs,
-                  Function.update_of_ne hr1, Function.update_of_ne hr2,
-                  Function.update_of_ne hr3, Function.update_of_ne hr4]
-      · rfl
-    rw [← hstate_eq]
-    exact (b1.seq (b2.seq (b3.seq b4))).mono (by omega)
-  have hloop := ExecWithin.loop xs u.val 4 hc_hold hc_exit hbody
-  refine ⟨xs u.val, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · unfold uScan
-    rcases hpre with ⟨n1, hn1, e_pre⟩
-    rcases e_pre with _ | @⟨_, _, _, y1, _, _, _, e1, r1⟩
-    rcases r1 with _ | @⟨_, _, _, y2, _, _, _, e2, r2⟩
-    rcases r2 with _ | @⟨_, _, _, y3, _, _, _, e3, e4⟩
-    have hu_lt : u.val < k := u.isLt
-    exact ((e1.within).seq ((e2.within).seq ((e3.within).seq ((e4.within).seq hloop)))).mono
-      (by omega)
-  · simp [xs]
-  · simpa +decide [xs, Function.update_apply] using h0
-  · simpa +decide [xs, Function.update_apply] using h1
-  · simpa +decide [xs, Function.update_apply] using hwBase
-  · simpa +decide [xs, Function.update_apply] using hdBase
-  · simpa +decide [xs, Function.update_apply] using hstride
-  · simpa +decide [xs, Function.update_apply] using hactiveK
-  · simp +decide [xs]
-  · simpa +decide [xs, Function.update_apply] using htotS
-  · simp +decide [xs]
-  · simp +decide [xs]
+  have hdb0_fit : Fits w db := hdEnd.of_le (by omega)
+  have hmem0 : x.mem db = rowDeg W ⟨0, hk_pos⟩ := by simpa using hdeg ⟨0, hk_pos⟩
+  have hlo : prefixSum (rowDeg W) u.val ≤ r_val := by
+    rw [← degBefore_eq_prefixSum]; omega
+  have hhi : r_val < prefixSum (rowDeg W) u.val + rowDeg W u := by
+    rw [← degBefore_eq_prefixSum]; omega
+  unfold uScan
+  wram_exec [hrem, h1, hdBase, hmem0, hr1_fit, hdb0_fit]
+  wram_call (scanThresholdLoop_exec db (tgt := u) (by decide) hlo hhi hr1_fit
+    (hdEnd.of_le (by have := u.isLt; omega)) (hdEnd.of_le (by have := u.isLt; omega))
+    u.val _ (by wram_simp [h1]) (by wram_simp [hdBase]) (by wram_simp)
+    (by wram_simp [prefixSum_zero]) (by wram_simp) (fun _ => by wram_simp)
+    (fun a => by wram_simp [hdeg a]))
+    with y ⟨hym, hy_u, _, _, hy_rem, hy_other⟩
+  have keep (r : Fin 16) (hr : r ≠ rem ∧ r ≠ uReg ∧ r ≠ addr1 ∧ r ≠ val1) :
+      y.regs r = x.regs r :=
+    (hy_other r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2).trans
+      (by have ⟨h_1, h_2, h_3, h_4⟩ := hr; wram_simp)
+  have hu_lt : u.val < k := u.isLt
+  exact ⟨by omega, hym,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    keep targetT (by decide), by regs_frame,
+    hy_u, degBefore_eq_prefixSum W u ▸ hy_rem⟩
 
 /-- Deterministic execution of `vScan` locating column `v` along row `u`. -/
 theorem vScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
@@ -1181,216 +1034,36 @@ theorem vScan_exec {w wb db str k r_val : ℕ} {W : Fin k → Fin k → ℕ}
   unfold edgeOffset at hoff_le hoff_lt
   let rem_u := r_val - degBefore W u
   have hrem_eq : r_val + 1 - degBefore W u = rem_u + 1 := by omega
-  have hrem1_le_tot : rem_u + 1 ≤ totalDoubledWeight W := by
-    have h1 := weightBefore_add_le_rowDeg W u v
-    have h2 := degBefore_add_le_totalDoubledWeight W u
-    omega
-  have hmul_fit : Fits w (u.val * str) :=
-    hwEnd.of_le (by
-      have : u.val * str ≤ k * str := Nat.mul_le_mul_right str (Nat.le_of_lt u.isLt)
-      nlinarith)
-  have hrow_fit : Fits w (wb + u.val * str) :=
-    hwEnd.of_le (by
-      have : u.val * str ≤ k * str := Nat.mul_le_mul_right str (Nat.le_of_lt u.isLt)
-      nlinarith)
-  let x_base := (x.set val2 (u.val * str)).set addr1 (wb + u.val * str)
-  let ys (j : ℕ) : Data 16 :=
-    if hj : j ≤ v.val then
-      let b : Fin k := ⟨j, lt_of_le_of_lt hj v.isLt⟩
-      (((x_base.set rem (rem_u + 1 - weightBefore W u b)).set vReg j).set addr2
-        (wb + u.val * str + j)).set val1 (W u b)
-    else x_base
-  have hpre : ExecWithin w
-      ram[val2 ← uReg * stride; addr1 ← wBase + val2; vReg ← #0; addr2 ← addr1 + vReg;
-        val1 ← *addr2] x (ys 0) 5 := by
-    have s1 : ExecWithin w ram[val2 ← uReg * stride] x (x.set val2 (u.val * str)) 1 := by
-      simpa [BinOp.eval, huReg, hstride] using
-        ExecWithin.bin (f := .mul) (d := val2) (i := uReg) (j := stride) (x := x)
-          (by simpa [BinOp.eval, huReg, hstride] using hmul_fit)
-    have s2 : ExecWithin w ram[addr1 ← wBase + val2] (x.set val2 (u.val * str)) x_base 1 := by
-      have hwb' : (x.set val2 (u.val * str)).regs wBase = wb := by
-        simpa +decide [Function.update_apply] using hwBase
-      simpa [x_base, BinOp.eval, hwb'] using
-        ExecWithin.bin (f := .add) (d := addr1) (i := wBase) (j := val2)
-          (x := x.set val2 (u.val * str))
-          (by simpa [BinOp.eval, hwb'] using hrow_fit)
-    have s3 := ExecWithin.const (B := .standard) (d := vReg) (x := x_base) (fits_zero w)
-    have s4 : ExecWithin w ram[addr2 ← addr1 + vReg] (x_base.set vReg 0)
-        ((x_base.set vReg 0).set addr2 (wb + u.val * str + 0)) 1 := by
-      have ha1' : (x_base.set vReg 0).regs addr1 = wb + u.val * str := by
-        simp +decide [x_base]
-      simpa [BinOp.eval, ha1'] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := addr1) (j := vReg)
-          (x := x_base.set vReg 0)
-          (by simpa [BinOp.eval, ha1'] using hrow_fit)
-    have s5 : ExecWithin (B := .standard) w ram[val1 ← *addr2]
-        ((x_base.set vReg 0).set addr2 (wb + u.val * str + 0)) (ys 0) 1 := by
-      have hm0 : x.mem (wb + u.val * str) = W u ⟨0, hk_pos⟩ := by simpa using hmat u ⟨0, hk_pos⟩
-      have hw0 : weightBefore W u ⟨0, hk_pos⟩ = 0 := weightBefore_zero hk_pos W u
-      have hx_rem : x_base.set rem (rem_u + 1 - weightBefore W u ⟨0, hk_pos⟩) = x_base := by
-        ext r
-        · by_cases hr : r = rem
-          · subst hr
-            simp +decide [x_base, hw0, hrem, hrem_eq]
-          · simp [Function.update_of_ne hr]
-        · rfl
-      have hstate : (((x_base.set vReg 0).set addr2 (wb + u.val * str + 0)).set val1
-          (W u ⟨0, hk_pos⟩)) = ys 0 := by
-        simp only [ys, Nat.zero_le, ↓reduceDIte, hx_rem]
-      rw [← hstate]
-      simpa [x_base, hm0] using
-        ExecWithin.load (B := .standard) (w := w) (d := val1) (a := addr2)
-          (x := (x_base.set vReg 0).set addr2 (wb + u.val * str + 0))
-    exact (s1.seq (s2.seq (s3.seq (s4.seq s5)))).mono (by omega)
-  have hc_hold : ∀ j < v.val, (Cond.lt val1 rem).Holds (ys j) := by
-    intro j hj
-    have hj_le : j ≤ v.val := Nat.le_of_lt hj
-    let b : Fin k := ⟨j, lt_trans hj v.isLt⟩
-    have hwb_le := weightBefore_le_of_lt W u (show b < v from hj)
-    simp only [ys, hj_le, ↓reduceDIte, Cond.holds_lt]
-    have hv1 : ((((x_base.set rem (rem_u + 1 - weightBefore W u b)).set vReg j).set addr2
-        (wb + u.val * str + j)).set val1 (W u b)).regs val1 = W u b := by simp
-    have hrm : ((((x_base.set rem (rem_u + 1 - weightBefore W u b)).set vReg j).set addr2
-        (wb + u.val * str + j)).set val1 (W u b)).regs rem =
-        rem_u + 1 - weightBefore W u b := by simp +decide
-    dsimp only [b] at hv1 hrm hwb_le
-    rw [hv1, hrm]
-    omega
-  have hc_exit : ¬ (Cond.lt val1 rem).Holds (ys v.val) := by
-    simp only [ys, le_rfl, ↓reduceDIte, Cond.holds_lt]
-    have hv1 : ((((x_base.set rem (rem_u + 1 - weightBefore W u v)).set vReg v.val).set addr2
-        (wb + u.val * str + v.val)).set val1 (W u v)).regs val1 = W u v := by simp
-    have hrm : ((((x_base.set rem (rem_u + 1 - weightBefore W u v)).set vReg v.val).set addr2
-        (wb + u.val * str + v.val)).set val1 (W u v)).regs rem =
-        rem_u + 1 - weightBefore W u v := by simp +decide
-    rw [hv1, hrm]
-    omega
-  have hbody : ∀ j < v.val, ExecWithin w vScanBody (ys j) (ys (j + 1)) 4 := by
-    intro j hj
-    have hj_le : j ≤ v.val := Nat.le_of_lt hj
-    have hj1_le : j + 1 ≤ v.val := hj
-    let b : Fin k := ⟨j, lt_trans hj v.isLt⟩
-    let b' : Fin k := ⟨j + 1, lt_of_le_of_lt hj1_le v.isLt⟩
-    have hwb_le := weightBefore_le_of_lt W u (show b < v from hj)
-    have hsub_eq : (rem_u + 1 - weightBefore W u b) - W u b = rem_u + 1 - weightBefore W u b' := by
-      have hsucc := weightBefore_succ (lt_of_le_of_lt hj1_le v.isLt) W u
-      dsimp only [b, b'] at hwb_le ⊢
-      rw [hsucc]
-      omega
-    have hsub_fit : Fits w (rem_u + 1 - weightBefore W u b') := htot.of_le (by omega)
-    have hj1_fit : Fits w (j + 1) := hdEnd.of_le (by have := v.isLt; omega)
-    have hcell_fit : Fits w (wb + u.val * str + (j + 1)) :=
-      hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr u b'))
-    have hyj : ys j = (((x_base.set rem (rem_u + 1 - weightBefore W u b)).set vReg j).set addr2
-        (wb + u.val * str + j)).set val1 (W u b) := by simp [ys, hj_le, b]
-    have hyj1 : ys (j + 1) =
-        (((x_base.set rem (rem_u + 1 - weightBefore W u b')).set vReg (j + 1)).set addr2
-          (wb + u.val * str + (j + 1))).set val1 (W u b') := by simp [ys, hj1_le, b']
-    rw [hyj, hyj1]
-    set s0 := (((x_base.set rem (rem_u + 1 - weightBefore W u b)).set vReg j).set addr2
-      (wb + u.val * str + j)).set val1 (W u b)
-    have hs0_rem : s0.regs rem = rem_u + 1 - weightBefore W u b := by
-      simp +decide [s0]
-    have hs0_v1 : s0.regs val1 = W u b := by simp [s0]
-    have hs0_v : s0.regs vReg = j := by simp +decide [s0]
-    have hs0_1 : s0.regs one = 1 := by
-      simpa +decide [s0, x_base, Function.update_apply] using h1
-    have hs0_a1 : s0.regs addr1 = wb + u.val * str := by
-      simp +decide [s0, x_base]
-    have b1 : ExecWithin w ram[rem ← rem - val1] s0
-        (s0.set rem (rem_u + 1 - weightBefore W u b')) 1 := by
-      simpa [BinOp.eval, hs0_rem, hs0_v1, hsub_eq] using
-        ExecWithin.bin (f := .sub) (d := rem) (i := rem) (j := val1) (x := s0)
-          (by simpa [BinOp.eval, hs0_rem, hs0_v1, hsub_eq] using hsub_fit)
-    have b2 : ExecWithin w ram[vReg ← vReg + one] (s0.set rem (rem_u + 1 - weightBefore W u b'))
-        ((s0.set rem (rem_u + 1 - weightBefore W u b')).set vReg (j + 1)) 1 := by
-      have hv' : (s0.set rem (rem_u + 1 - weightBefore W u b')).regs vReg = j := by
-        simpa +decide [Function.update_apply] using hs0_v
-      have h1' : (s0.set rem (rem_u + 1 - weightBefore W u b')).regs one = 1 := by
-        simpa +decide [Function.update_apply] using hs0_1
-      simpa [BinOp.eval, hv', h1'] using
-        ExecWithin.bin (f := .add) (d := vReg) (i := vReg) (j := one)
-          (x := s0.set rem (rem_u + 1 - weightBefore W u b'))
-          (by simpa [BinOp.eval, hv', h1'] using hj1_fit)
-    set s2 := (s0.set rem (rem_u + 1 - weightBefore W u b')).set vReg (j + 1)
-    have b3 : ExecWithin w ram[addr2 ← addr1 + vReg] s2
-        (s2.set addr2 (wb + u.val * str + (j + 1))) 1 := by
-      have ha1' : s2.regs addr1 = wb + u.val * str := by
-        simpa +decide [s2, Function.update_apply] using hs0_a1
-      have hv' : s2.regs vReg = j + 1 := by simp [s2]
-      simpa [BinOp.eval, ha1', hv'] using
-        ExecWithin.bin (f := .add) (d := addr2) (i := addr1) (j := vReg) (x := s2)
-          (by simpa [BinOp.eval, ha1', hv'] using hcell_fit)
-    set s3 := s2.set addr2 (wb + u.val * str + (j + 1))
-    have b4 : ExecWithin (B := .standard) w ram[val1 ← *addr2] s3 (s3.set val1 (W u b')) 1 := by
-      have ha2' : s3.regs addr2 = wb + u.val * str + (j + 1) := by simp [s3]
-      have hm' : s3.mem (wb + u.val * str + (j + 1)) = W u b' := hmat u b'
-      simpa [ha2', hm'] using
-        ExecWithin.load (B := .standard) (w := w) (d := val1) (a := addr2) (x := s3)
-    have hstate_eq : s3.set val1 (W u b') =
-        (((x_base.set rem (rem_u + 1 - weightBefore W u b')).set vReg (j + 1)).set addr2
-          (wb + u.val * str + (j + 1))).set val1 (W u b') := by
-      ext r
-      · by_cases hr1 : r = val1
-        · subst hr1; simp [s3]
-        · by_cases hr2 : r = addr2
-          · subst hr2; simp +decide [s3]
-          · by_cases hr3 : r = vReg
-            · subst hr3; simp +decide [s3, s2]
-            · by_cases hr4 : r = rem
-              · subst hr4; simp +decide [s3, s2]
-              · simp only [s3, s2, s0, Data.set_regs,
-                  Function.update_of_ne hr1, Function.update_of_ne hr2,
-                  Function.update_of_ne hr3, Function.update_of_ne hr4]
-      · rfl
-    rw [← hstate_eq]
-    exact (b1.seq (b2.seq (b3.seq b4))).mono (by omega)
-  have hloop := ExecWithin.loop ys v.val 4 hc_hold hc_exit hbody
-  refine ⟨ys v.val, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · unfold vScan
-    rcases hpre with ⟨n1, hn1, e_pre⟩
-    rcases e_pre with _ | @⟨_, _, _, y1, _, _, _, e1, r1⟩
-    rcases r1 with _ | @⟨_, _, _, y2, _, _, _, e2, r2⟩
-    rcases r2 with _ | @⟨_, _, _, y3, _, _, _, e3, r3⟩
-    rcases r3 with _ | @⟨_, _, _, y4, _, _, _, e4, e5⟩
-    have hv_lt : v.val < k := v.isLt
-    exact ((e1.within).seq ((e2.within).seq ((e3.within).seq ((e4.within).seq
-      ((e5.within).seq hloop))))).mono (by omega)
-  · simp [ys, x_base]
-  · simpa +decide [ys, x_base, Function.update_apply] using h0
-  · simpa +decide [ys, x_base, Function.update_apply] using h1
-  · simpa +decide [ys, x_base, Function.update_apply] using hwBase
-  · simpa +decide [ys, x_base, Function.update_apply] using hdBase
-  · simpa +decide [ys, x_base, Function.update_apply] using hstride
-  · simpa +decide [ys, x_base, Function.update_apply] using hactiveK
-  · simp +decide [ys, x_base]
-  · simpa +decide [ys, x_base, Function.update_apply] using htotS
-  · simpa +decide [ys, x_base, Function.update_apply] using huReg
-  · simp +decide [ys, x_base]
-  · simp +decide [ys, x_base]
-  · simp +decide [ys, x_base]
+  have hrem1_fit : Fits w (rem_u + 1) := by
+    have h1' := weightBefore_add_le_rowDeg W u v
+    have h2' := degBefore_add_le_totalDoubledWeight W u
+    exact htot.of_le (by omega)
+  obtain ⟨hmul_fit, hrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt u.isLt)
+  have hm0 : x.mem (wb + u.val * str) = W u ⟨0, hk_pos⟩ := by simpa using hmat u ⟨0, hk_pos⟩
+  have hlo : prefixSum (W u) v.val ≤ rem_u := by
+    rw [← weightBefore_eq_prefixSum]; omega
+  have hhi : rem_u < prefixSum (W u) v.val + W u v := by
+    rw [← weightBefore_eq_prefixSum]; omega
+  unfold vScan
+  wram_exec [huReg, hstride, hwBase, hm0, hmul_fit, hrow_fit]
+  wram_call (scanThresholdLoop_exec (wb + u.val * str) (tgt := v) (by decide) hlo hhi hrem1_fit
+    (hdEnd.of_le (by have := v.isLt; omega))
+    (hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr u v)))
+    v.val _ (by wram_simp [h1]) (by wram_simp) (by wram_simp)
+    (by wram_simp [hrem, hrem_eq, prefixSum_zero]) (by wram_simp) (fun _ => by wram_simp)
+    (fun b => by wram_simp [hmat u b]))
+    with y ⟨hym, hy_v, hy_a2, hy_v1, _, hy_other⟩
+  have keep (r : Fin 16)
+      (hr : r ≠ rem ∧ r ≠ vReg ∧ r ≠ addr2 ∧ r ≠ val1 ∧ r ≠ val2 ∧ r ≠ addr1) :
+      y.regs r = x.regs r :=
+    (hy_other r hr.1 hr.2.1 hr.2.2.1 hr.2.2.2.1).trans
+      (by have ⟨h_1, h_2, h_3, h_4, h_5, h_6⟩ := hr; wram_simp)
+  have hv_lt : v.val < k := v.isLt
+  exact ⟨by omega, hym,
+    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame,
+    keep targetT (by decide), by regs_frame, by regs_frame, hy_v, hy_a2, hy_v1⟩
 
 /-! #### Execution of `phaseADegrees`, `phaseAPtrs`, and `mergeLoop` -/
-
-private theorem exec_bin {w : ℕ} {f : BinOp} {d i j : Fin 16} {x : Data 16} {v : ℕ}
-    (heq : BinOp.eval f (x.regs i) (x.regs j) = v) (hfit : Fits w v) :
-    ExecWithin (B := .standard) w (.op (.bin f d i j)) x (x.set d v) 1 := by
-  simpa only [heq] using ExecWithin.bin (f := f) (d := d) (i := i) (j := j)
-    (x := x) (heq.symm ▸ hfit)
-
-private theorem exec_const {w : ℕ} {d : Fin 16} {c : ℕ} {x : Data 16} (hfit : Fits w c) :
-    ExecWithin (B := .standard) w (.op (.const d c)) x (x.set d c) 1 :=
-  ExecWithin.const (B := .standard) (d := d) (x := x) hfit
-
-private theorem exec_load {w : ℕ} {d a : Fin 16} {x : Data 16} {addr val : ℕ}
-    (ha : x.regs a = addr) (hm : x.mem addr = val) :
-    ExecWithin (B := .standard) w (.op (.load d a)) x (x.set d val) 1 := by
-  simpa only [ha, hm] using ExecWithin.load (B := .standard) (d := d) (a := a) (x := x)
-
-private theorem exec_store {w : ℕ} {a s : Fin 16} {x : Data 16} (addr val : ℕ)
-    (ha : x.regs a = addr) (hs : x.regs s = val) :
-    ExecWithin (B := .standard) w (.op (.store a s)) x (x.write addr val) 1 := by
-  simpa only [ha, hs] using ExecWithin.store (B := .standard) (a := a) (s := s) (x := x)
 
 /-- Deterministic execution of `phaseADegrees` updating `totS`, `W[u, v]`, `D[u]`, and `D[v]`. -/
 theorem phaseADegrees_exec {w wb db str m : ℕ}
@@ -1428,126 +1101,54 @@ theorem phaseADegrees_exec {w wb db str m : ℕ}
     htot.of_le ((Nat.sub_le _ _).trans (rowDeg_le_totalDoubledWeight W v))
   have hdu_new_eq : (rowDeg W u - W u v) + (rowDeg W v - W u v) = rowDeg (mergePair W u v) u := by
     rw [rowDeg_mergePair_u hW huv, hW.1 v u]
-  have hdu_new_le : rowDeg (mergePair W u v) u ≤ totalDoubledWeight (contractMatrix W u v) := by
+  have hdu_new_fit : Fits w (rowDeg (mergePair W u v) u) := by
     have hidx : rowDeg (mergePair W u v) u =
         rowDeg (contractMatrix W u v) (compactIdx v u huv) := by
       rw [rowDeg_contractMatrix, embedCompact_compactIdx]
-    rw [hidx]
-    exact rowDeg_le_totalDoubledWeight _ _
-  have hdu_new_fit : Fits w (rowDeg (mergePair W u v) u) :=
-    hS2_fit.of_le hdu_new_le
-  have hread_du : (Function.update x.mem (wb + u.val * str + v.val) 0) (db + u.val) =
-      rowDeg W u := by
-    rw [Function.update_of_ne (matAddr_ne_degAddr hstr hdisj u v u).symm]
-    exact hws.2 u
-  have hread_dv : (Function.update x.mem (wb + u.val * str + v.val) 0) (db + v.val) =
-      rowDeg W v := by
-    rw [Function.update_of_ne (matAddr_ne_degAddr hstr hdisj u v v).symm]
-    exact hws.2 v
-  let s1 := x.set totS (totalDoubledWeight W - W u v)
-  let s2 := s1.set totS (totalDoubledWeight (contractMatrix W u v))
-  let s3 := s2.write (wb + u.val * str + v.val) 0
-  let s4 := s3.set addr2 (db + u.val)
-  let s5 := s4.set val2 (rowDeg W u)
-  let s6 := s5.set val2 (rowDeg W u - W u v)
-  let s7 := s6.set addr1 (db + v.val)
-  let s8 := s7.set rem (rowDeg W v)
-  let s9 := s8.set rem (rowDeg W v - W u v)
-  let s10 := s9.set val2 (rowDeg (mergePair W u v) u)
-  let s11 := s10.write (db + u.val) (rowDeg (mergePair W u v) u)
-  let s12 := s11.write (db + v.val) 0
-  have e1 := exec_bin (f := .sub) (d := totS) (i := totS) (j := val1) (x := x)
-    (by simp [BinOp.eval, htotS, hv1]) hS1_fit
-  have e2 := exec_bin (f := .sub) (d := totS) (i := totS) (j := val1) (x := s1)
-    (by simp +decide [s1, BinOp.eval, hv1, hS2_eq]) hS2_fit
-  have e3 := exec_store (w := w) (a := addr2) (s := zero) (x := s2)
-    (wb + u.val * str + v.val) 0
-    (by simpa +decide [s2, s1, Function.update_apply] using ha2)
-    (by simpa +decide [s2, s1, Function.update_apply] using h0)
-  have e4 := exec_bin (f := .add) (d := addr2) (i := dBase) (j := uReg) (x := s3)
-    (by simp +decide [s3, s2, s1, BinOp.eval, hdBase, huReg]) hdu_addr_fit
-  have e5 := exec_load (w := w) (d := val2) (a := addr2) (x := s4)
-    (by simp [s4]) hread_du
-  have e6 := exec_bin (f := .sub) (d := val2) (i := val2) (j := val1) (x := s5)
-    (by simp +decide [s5, s4, s3, s2, s1, BinOp.eval, hv1]) hdu_sub_fit
-  have e7 := exec_bin (f := .add) (d := addr1) (i := dBase) (j := vReg) (x := s6)
-    (by simp +decide [s6, s5, s4, s3, s2, s1, BinOp.eval, hdBase, hvReg])
-    hdv_addr_fit
-  have e8 := exec_load (w := w) (d := rem) (a := addr1) (x := s7)
-    (by simp [s7]) hread_dv
-  have e9 := exec_bin (f := .sub) (d := rem) (i := rem) (j := val1) (x := s8)
-    (by simp +decide [s8, s7, s6, s5, s4, s3, s2, s1, BinOp.eval, hv1])
-    hdv_sub_fit
-  have e10 := exec_bin (f := .add) (d := val2) (i := val2) (j := rem) (x := s9)
-    (by simp +decide [s9, s8, s7, s6, BinOp.eval, hdu_new_eq]) hdu_new_fit
-  have e11 := exec_store (w := w) (a := addr2) (s := val2) (x := s10)
-    (db + u.val) (rowDeg (mergePair W u v) u)
-    (by simp +decide [s10, s9, s8, s7, s6, s5, s4]) (by simp [s10])
-  have e12 := exec_store (w := w) (a := addr1) (s := zero) (x := s11)
-    (db + v.val) 0
-    (by simp +decide [s11, s10, s9, s8, s7])
-    (by simpa +decide [s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using h0)
-  have hrun : ExecWithin w phaseADegrees x s12 12 := by
-    unfold phaseADegrees
-    exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq
-      (e7.seq (e8.seq (e9.seq (e10.seq (e11.seq e12))))))))))).mono (by omega)
-  refine ⟨s12, hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Data.set_mem, Data.write_mem]
+    exact hS2_fit.of_le (hidx ▸ rowDeg_le_totalDoubledWeight _ _)
+  have hdu_ne : db + u.val ≠ wb + u.val * str + v.val :=
+    (matAddr_ne_degAddr hstr hdisj u v u).symm
+  have hdv_ne : db + v.val ≠ wb + u.val * str + v.val :=
+    (matAddr_ne_degAddr hstr hdisj u v v).symm
+  have hdu_mem : x.mem (db + u.val) = rowDeg W u := hws.2 u
+  have hdv_mem : x.mem (db + v.val) = rowDeg W v := hws.2 v
+  unfold phaseADegrees
+  wram_exec [h0, htotS, hv1, ha2, hdBase, huReg, hvReg, hdu_ne, hdv_ne, hdu_mem, hdv_mem,
+    hS1_fit, hS2_eq, hS2_fit, hdu_addr_fit, hdv_addr_fit, hdu_sub_fit, hdv_sub_fit,
+    hdu_new_eq, hdu_new_fit]
+  refine ⟨?_, ?_, ?_,
+    by wram_simp [h0], by wram_simp [h1], by wram_simp [hwBase], by wram_simp [hdBase],
+    by wram_simp [hstride], by wram_simp [hactiveK], by wram_simp, by wram_simp,
+    by wram_simp [huReg], by wram_simp [hvReg]⟩
+  · simp only [Data.set_mem, Data.write_mem]
     exact modifies_step_update
       (modifies_step_update
         (modifies_update_of_mem (Finset.mem_union_left _ (matAddr_mem_Ico hstr u v)) x.mem 0)
         (Finset.mem_union_right _ (degAddr_mem_Ico u)) (rowDeg (mergePair W u v) u))
       (Finset.mem_union_right _ (degAddr_mem_Ico v)) 0
   · intro i
-    dsimp only [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Data.set_mem, Data.write_mem]
+    simp only [Data.set_mem, Data.write_mem]
     by_cases hiv : i = v
-    · subst hiv
-      simp [rowDeg_mergePair_v]
-    · have hne_iv : db + i.val ≠ db + v.val := fun h => hiv (Fin.ext (by omega))
-      rw [Function.update_of_ne hne_iv]
+    · subst hiv; simp [rowDeg_mergePair_v]
+    · rw [Function.update_of_ne (fun h => hiv (Fin.ext (by omega)))]
       by_cases hiu : i = u
-      · subst hiu
-        simp
-      · have hne_iu : db + i.val ≠ db + u.val := fun h => hiu (Fin.ext (by omega))
-        rw [Function.update_of_ne hne_iu,
+      · subst hiu; simp
+      · rw [Function.update_of_ne (fun h => hiu (Fin.ext (by omega))),
           Function.update_of_ne (matAddr_ne_degAddr hstr hdisj u v i).symm, hws.2 i,
           rowDeg_mergePair_other hW huv hiu hiv]
   · intro i j
-    dsimp only [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Data.set_mem, Data.write_mem]
+    simp only [Data.set_mem, Data.write_mem]
     rw [Function.update_of_ne (matAddr_ne_degAddr hstr hdisj i j v),
       Function.update_of_ne (matAddr_ne_degAddr hstr hdisj i j u)]
     by_cases hij_uv : i = u ∧ j = v
-    · rcases hij_uv with ⟨rfl, rfl⟩
-      simp
-    · have hne_mat : wb + i.val * str + j.val ≠ wb + u.val * str + v.val :=
-        fun h => hij_uv (matAddr_inj hstr h)
-      simp [hij_uv, Function.update_of_ne hne_mat, hws.1 i j]
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using h0
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using h1
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using hwBase
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using hdBase
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using hstride
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using hactiveK
-  · simp +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1]
-  · simp +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2]
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using huReg
-  · simpa +decide [s12, s11, s10, s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply]
-      using hvReg
+    · rcases hij_uv with ⟨rfl, rfl⟩; simp
+    · simp [hij_uv, Function.update_of_ne (fun h => hij_uv (matAddr_inj hstr h)), hws.1 i j]
 
-private theorem phaseAPtrs_exec {w wb db str m : ℕ}
+/-- Deterministic execution of `phaseAPtrs`: compute row pointers for `u` and `v`, zero `W[v, u]`,
+and initialize `idx = 0`. -/
+private theorem phaseAPtrs_exec {w wb db str m t : ℕ}
     {W : Fin (m + 1) → Fin (m + 1) → ℕ} {u v : Fin (m + 1)} {x : Data 16}
-    (hW : IsMultigraph W)
-    (h0 : x.regs zero = 0) (h1 : x.regs one = 1)
-    (hwBase : x.regs wBase = wb) (hdBase : x.regs dBase = db)
-    (hstride : x.regs stride = str) (hactiveK : x.regs activeK = m + 1)
+    (hW : IsMultigraph W) (hf : KargerFrame wb db str (m + 1) t x)
     (huReg : x.regs uReg = u.val) (hvReg : x.regs vReg = v.val)
     (hstr : m + 1 ≤ str) (hdisj : wb + str * (m + 1) ≤ db ∨ db + (m + 1) ≤ wb)
     (hwEnd : Fits w (wb + str * (m + 1)))
@@ -1558,99 +1159,42 @@ private theorem phaseAPtrs_exec {w wb db str m : ℕ}
       Modifies (workspaceFootprint wb db str (m + 1)) x.mem y.mem ∧
       (∀ i : Fin (m + 1), y.mem (db + i.val) = rowDeg (mergePair W u v) i) ∧
       HoldsMatrix y.mem wb str (mergeStepMatrix W u v 0) ∧
-      y.regs zero = 0 ∧ y.regs one = 1 ∧
-      y.regs wBase = wb ∧ y.regs dBase = db ∧ y.regs stride = str ∧
-      y.regs activeK = m + 1 ∧ y.regs targetT = x.regs targetT ∧
+      KargerFrame wb db str (m + 1) t y ∧
       y.regs totS = x.regs totS ∧
       y.regs uReg = u.val ∧ y.regs vReg = v.val ∧
       y.regs addr1 = wb + u.val * str ∧
       y.regs addr2 = wb + v.val * str ∧
       y.regs idx = 0 := by
-  have hmul_u_fit : Fits w (u.val * str) :=
-    hwEnd.of_le (by
-      have hle : u.val * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt u.isLt)
-      omega)
-  have hrow_u_fit : Fits w (wb + u.val * str) :=
-    hwEnd.of_le (by
-      have hle : u.val * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt u.isLt)
-      omega)
-  have hmul_v_fit : Fits w (v.val * str) :=
-    hwEnd.of_le (by
-      have hle : v.val * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt v.isLt)
-      omega)
-  have hrow_v_fit : Fits w (wb + v.val * str) :=
-    hwEnd.of_le (by
-      have hle : v.val * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt v.isLt)
-      omega)
+  obtain ⟨hmul_u_fit, hrow_u_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt u.isLt)
+  obtain ⟨hmul_v_fit, hrow_v_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt v.isLt)
   have hvu_fit : Fits w (wb + v.val * str + u.val) :=
     hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr v u))
-  let p1 := x.set val2 (u.val * str)
-  let p2 := p1.set addr1 (wb + u.val * str)
-  let p3 := p2.set val2 (v.val * str)
-  let p4 := p3.set addr2 (wb + v.val * str)
-  let p5 := p4.set rem (wb + v.val * str + u.val)
-  let p6 := p5.write (wb + v.val * str + u.val) 0
-  let p7 := p6.set idx 0
-  have e1 := exec_bin (f := .mul) (d := val2) (i := uReg) (j := stride) (x := x)
-    (by simp [BinOp.eval, huReg, hstride]) hmul_u_fit
-  have e2 := exec_bin (f := .add) (d := addr1) (i := wBase) (j := val2) (x := p1)
-    (by simp +decide [p1, BinOp.eval, hwBase]) hrow_u_fit
-  have e3 := exec_bin (f := .mul) (d := val2) (i := vReg) (j := stride) (x := p2)
-    (by simp +decide [p2, p1, BinOp.eval, hvReg, hstride]) hmul_v_fit
-  have e4 := exec_bin (f := .add) (d := addr2) (i := wBase) (j := val2) (x := p3)
-    (by simp +decide [p3, p2, p1, BinOp.eval, hwBase]) hrow_v_fit
-  have e5 := exec_bin (f := .add) (d := rem) (i := addr2) (j := uReg) (x := p4)
-    (by simp +decide [p4, p3, p2, p1, BinOp.eval, huReg]) hvu_fit
-  have e6 := exec_store (w := w) (a := rem) (s := zero) (x := p5)
-    (wb + v.val * str + u.val) 0
-    (by simp [p5])
-    (by simpa +decide [p5, p4, p3, p2, p1, Function.update_apply] using h0)
-  have e7 := exec_const (w := w) (d := idx) (c := 0) (x := p6) (fits_zero w)
-  have hrun : ExecWithin w phaseAPtrs x p7 7 := by
-    unfold phaseAPtrs
-    exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq e7)))))).mono (by omega)
-  refine ⟨p7, hrun, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · dsimp only [p7, p6, p5, p4, p3, p2, p1, Data.set_mem, Data.write_mem]
-    exact modifies_update_of_mem
-      (Finset.mem_union_left _ (matAddr_mem_Ico hstr v u)) x.mem 0
+  unfold phaseAPtrs
+  wram_exec [hf.zero_eq, hf.wBase_eq, hf.stride_eq, huReg, hvReg,
+    hmul_u_fit, hrow_u_fit, hmul_v_fit, hrow_v_fit, hvu_fit]
+  refine ⟨?_, ?_, ?_, by karger_frame hf, by wram_simp,
+    by wram_simp [huReg], by wram_simp [hvReg], by wram_simp, by wram_simp, by wram_simp⟩
+  · simp only [Data.set_mem, Data.write_mem]
+    exact modifies_update_of_mem (Finset.mem_union_left _ (matAddr_mem_Ico hstr v u)) x.mem 0
   · intro i
-    dsimp only [p7, p6, p5, p4, p3, p2, p1, Data.set_mem, Data.write_mem]
-    rw [Function.update_of_ne (matAddr_ne_degAddr hstr hdisj v u i).symm]
+    simp only [Data.set_mem, Data.write_mem,
+      Function.update_of_ne (matAddr_ne_degAddr hstr hdisj v u i).symm]
     exact hdeg i
   · intro i j
-    dsimp only [p7, p6, p5, p4, p3, p2, p1, Data.set_mem, Data.write_mem]
+    simp only [Data.set_mem, Data.write_mem]
     rw [mergeStepMatrix_zero hW]
     by_cases hvu : i = v ∧ j = u
     · rcases hvu with ⟨rfl, rfl⟩
       simp
-    · have hne : wb + i.val * str + j.val ≠ wb + v.val * str + u.val :=
-        fun h => hvu (matAddr_inj hstr h)
-      rw [Function.update_of_ne hne, hmat i j]
+    · rw [Function.update_of_ne (fun h => hvu (matAddr_inj hstr h)), hmat i j]
       by_cases huv_ij : i = u ∧ j = v <;> simp [huv_ij, hvu]
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using h0
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using h1
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using hwBase
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using hdBase
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using hstride
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using hactiveK
-  · simp +decide [p7, p6, p5, p4, p3, p2, p1]
-  · simp +decide [p7, p6, p5, p4, p3, p2, p1]
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using huReg
-  · simpa +decide [p7, p6, p5, p4, p3, p2, p1, Function.update_apply] using hvReg
-  · simp +decide [p7, p6, p5, p4, p3, p2]
-  · simp +decide [p7, p6, p5, p4]
-  · simp +decide [p7]
 
-private theorem mergeLoop_exec {w wb db str m : ℕ}
+/-- Deterministic execution of `mergeLoop` sweeping `idx` from `0` to `m + 1` to form
+`mergePair W u v` in place. -/
+private theorem mergeLoop_exec {w wb db str m t : ℕ}
     {W : Fin (m + 1) → Fin (m + 1) → ℕ} {u v : Fin (m + 1)} {x : Data 16}
     (hW : IsMultigraph W) (huv : u ≠ v)
-    (h0 : x.regs zero = 0) (h1 : x.regs one = 1)
-    (hwBase : x.regs wBase = wb) (hdBase : x.regs dBase = db)
-    (hstride : x.regs stride = str) (hactiveK : x.regs activeK = m + 1)
+    (hf : KargerFrame wb db str (m + 1) t x)
     (huReg : x.regs uReg = u.val) (hvReg : x.regs vReg = v.val)
     (ha1 : x.regs addr1 = wb + u.val * str) (ha2 : x.regs addr2 = wb + v.val * str)
     (hidx0 : x.regs idx = 0)
@@ -1662,15 +1206,11 @@ private theorem mergeLoop_exec {w wb db str m : ℕ}
     ∃ y, ExecWithin w ram[while idx < activeK do [ ⟪mergeBody⟫ ]] x y (20 * (m + 1) + 2) ∧
       Modifies (workspaceFootprint wb db str (m + 1)) x.mem y.mem ∧
       HoldsWorkspace y.mem wb db str (mergePair W u v) ∧
-      y.regs zero = 0 ∧ y.regs one = 1 ∧
-      y.regs wBase = wb ∧ y.regs dBase = db ∧ y.regs stride = str ∧
-      y.regs activeK = m + 1 ∧ y.regs targetT = x.regs targetT ∧
+      KargerFrame wb db str (m + 1) t y ∧
       y.regs totS = x.regs totS ∧
       y.regs uReg = u.val ∧ y.regs vReg = v.val := by
   let Inv (y : Data 16) : Prop :=
-    y.regs zero = 0 ∧ y.regs one = 1 ∧
-    y.regs wBase = wb ∧ y.regs dBase = db ∧ y.regs stride = str ∧
-    y.regs activeK = m + 1 ∧ y.regs targetT = x.regs targetT ∧
+    KargerFrame wb db str (m + 1) t y ∧
     y.regs totS = x.regs totS ∧
     y.regs uReg = u.val ∧ y.regs vReg = v.val ∧
     y.regs addr1 = wb + u.val * str ∧ y.regs addr2 = wb + v.val * str ∧
@@ -1681,104 +1221,43 @@ private theorem mergeLoop_exec {w wb db str m : ℕ}
   have hbody : ∀ y, Inv y → (Cond.lt idx activeK).Holds y →
       ∃ z, ExecWithin w mergeBody y z 18 ∧ Inv z ∧
         (m + 1) - z.regs idx < (m + 1) - y.regs idx := by
-    intro y hy hc
-    rcases hy with ⟨hy0, hy1, hywb, hydb, hystr, hyk, hyt, hytot, hyu, hyv, hya1, hya2,
-      hyidx_le, hymod, hydeg, hymat⟩
-    have hc_lt : y.regs idx < m + 1 := by simpa [hyk] using hc
-    let c : Fin (m + 1) := ⟨y.regs idx, hc_lt⟩
-    have hc1_fit : Fits w (c.val + 1) := hdEnd.of_le (by omega)
-    by_cases hcu : c.val = u.val
-    · have hcond_u : (Cond.eq idx uReg).Holds y := by
-        simp only [Cond.holds_eq, hyu]
-        exact hcu
-      have hinc : ExecWithin w ram[idx ← idx + one] y (y.set idx (c.val + 1)) 1 := by
-        simpa [BinOp.eval, c, hy1] using
-          ExecWithin.bin (f := .add) (d := idx) (i := idx) (j := one) (x := y)
-            (by simpa [BinOp.eval, c, hy1] using hc1_fit)
-      refine ⟨y.set idx (c.val + 1), (ExecWithin.branch_pos hcond_u hinc).mono (by omega), ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hymod, hydeg, ?_⟩
-        · simpa +decide [Function.update_apply] using hy0
-        · simpa +decide [Function.update_apply] using hy1
-        · simpa +decide [Function.update_apply] using hywb
-        · simpa +decide [Function.update_apply] using hydb
-        · simpa +decide [Function.update_apply] using hystr
-        · simpa +decide [Function.update_apply] using hyk
-        · simpa +decide [Function.update_apply] using hyt
-        · simpa +decide [Function.update_apply] using hytot
-        · simpa +decide [Function.update_apply] using hyu
-        · simpa +decide [Function.update_apply] using hyv
-        · simpa +decide [Function.update_apply] using hya1
-        · simpa +decide [Function.update_apply] using hya2
-        · simp only [Data.set_regs, Function.update_self]
-          exact Nat.succ_le_of_lt hc_lt
-        · intro i j
-          simp only [Data.set_mem, Data.set_regs, Function.update_self]
-          rw [mergeStepMatrix_step_eq_of_mem W u v (Or.inl hcu)]
-          exact hymat i j
-      · simp only [Data.set_regs, Function.update_self]
-        dsimp [c]; omega
-    · have hcond_nu : ¬ (Cond.eq idx uReg).Holds y := by
-        simp only [Cond.holds_eq, hyu]
-        exact hcu
-      by_cases hcv : c.val = v.val
-      · have hcond_v : (Cond.eq idx vReg).Holds y := by
-          simp only [Cond.holds_eq, hyv]
-          exact hcv
-        have hinc : ExecWithin w ram[idx ← idx + one] y (y.set idx (c.val + 1)) 1 := by
-          simpa [BinOp.eval, c, hy1] using
-            ExecWithin.bin (f := .add) (d := idx) (i := idx) (j := one) (x := y)
-              (by simpa [BinOp.eval, c, hy1] using hc1_fit)
-        have hbr := ExecWithin.branch_neg (pos := ram[idx ← idx + one]) hcond_nu
-          (ExecWithin.branch_pos (neg := ram[⟪mergeUpdate⟫; idx ← idx + one]) hcond_v hinc)
-        refine ⟨y.set idx (c.val + 1), hbr.mono (by omega), ?_, ?_⟩
-        · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hymod, hydeg, ?_⟩
-          · simpa +decide [Function.update_apply] using hy0
-          · simpa +decide [Function.update_apply] using hy1
-          · simpa +decide [Function.update_apply] using hywb
-          · simpa +decide [Function.update_apply] using hydb
-          · simpa +decide [Function.update_apply] using hystr
-          · simpa +decide [Function.update_apply] using hyk
-          · simpa +decide [Function.update_apply] using hyt
-          · simpa +decide [Function.update_apply] using hytot
-          · simpa +decide [Function.update_apply] using hyu
-          · simpa +decide [Function.update_apply] using hyv
-          · simpa +decide [Function.update_apply] using hya1
-          · simpa +decide [Function.update_apply] using hya2
-          · simp only [Data.set_regs, Function.update_self]
-            exact Nat.succ_le_of_lt hc_lt
-          · intro i j
-            simp only [Data.set_mem, Data.set_regs, Function.update_self]
-            rw [mergeStepMatrix_step_eq_of_mem W u v (Or.inr hcv)]
-            exact hymat i j
-        · simp only [Data.set_regs, Function.update_self]
-          dsimp [c]; omega
-      · have hcond_nv : ¬ (Cond.eq idx vReg).Holds y := by
-          simp only [Cond.holds_eq, hyv]
-          exact hcv
-        have hc_ne_u : c ≠ u := fun h => hcu (congrArg Fin.val h)
+    intro y ⟨hyf, hytot, hyu, hyv, hya1, hya2, hyidx_le, hymod, hydeg, hymat⟩ hc
+    obtain ⟨c_val, hidx_eq⟩ : ∃ c_val, y.regs idx = c_val := ⟨_, rfl⟩
+    have hc_lt : c_val < m + 1 := by simpa [Cond.holds_lt, hidx_eq, hyf.activeK_eq] using hc
+    let c : Fin (m + 1) := ⟨c_val, hc_lt⟩
+    have hc1_fit : Fits w (c_val + 1) := hdEnd.of_le (by omega)
+    have hskip (hmem : c_val = u.val ∨ c_val = v.val) :
+        Inv (y.set idx (c_val + 1)) ∧
+          (m + 1) - (y.set idx (c_val + 1)).regs idx < (m + 1) - y.regs idx := by
+      refine ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyu],
+        by wram_simp [hyv], by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
+        hymod, hydeg, fun i j => ?_⟩, by wram_simp [hidx_eq]; omega⟩
+      wram_simp
+      rw [mergeStepMatrix_step_eq_of_mem W u v hmem, ← hidx_eq]
+      exact hymat i j
+    unfold mergeBody
+    by_cases hcu : c_val = u.val
+    · wram_exec [hyf.one_eq, hyu, hidx_eq, hcu, hc1_fit]
+      rw [← hcu]
+      exact hskip (Or.inl hcu)
+    · by_cases hcv : c_val = v.val
+      · wram_exec [hyf.one_eq, hyu, hyv, hidx_eq, hcu, hcv, hc1_fit]
+        rw [← hcv]
+        exact hskip (Or.inr hcv)
+      · have hc_ne_u : c ≠ u := fun h => hcu (congrArg Fin.val h)
         have hc_ne_v : c ≠ v := fun h => hcv (congrArg Fin.val h)
-        have hvc_fit : Fits w (wb + v.val * str + c.val) :=
+        obtain ⟨hcmul_fit, hcrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt c.isLt)
+        have hvc_fit : Fits w (wb + v.val * str + c_val) :=
           hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr v c))
-        have huc_fit : Fits w (wb + u.val * str + c.val) :=
+        have huc_fit : Fits w (wb + u.val * str + c_val) :=
           hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr u c))
-        have hcmul_fit : Fits w (c.val * str) :=
-          hwEnd.of_le (by
-            have hle : c.val * str ≤ str * (m + 1) :=
-              Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt c.isLt)
-            omega)
-        have hcrow_fit : Fits w (wb + c.val * str) :=
-          hwEnd.of_le (by
-            have hle : c.val * str ≤ str * (m + 1) :=
-              Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt c.isLt)
-            omega)
-        have hcv_fit : Fits w (wb + c.val * str + v.val) :=
+        have hcv_fit : Fits w (wb + c_val * str + v.val) :=
           hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr c v))
-        have hcu_fit : Fits w (wb + c.val * str + u.val) :=
+        have hcu_fit : Fits w (wb + c_val * str + u.val) :=
           hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr c u))
         have hsum_fit : Fits w (W u c + W v c) := by
           have hmp : mergePair W u v u c = W u c + W v c := by
-            unfold mergePair
-            simp [hc_ne_u.symm, huv, hc_ne_v]
+            unfold mergePair; simp [hc_ne_u.symm, huv, hc_ne_v]
           have hle1 : mergePair W u v u c ≤ rowDeg (mergePair W u v) u :=
             entry_le_rowDeg (mergePair W u v) u c
           have hle2 : rowDeg (mergePair W u v) u ≤ totalDoubledWeight W := by
@@ -1789,224 +1268,106 @@ private theorem mergeLoop_exec {w wb db str m : ℕ}
             have hle_c := rowDeg_le_totalDoubledWeight (contractMatrix W u v) (compactIdx v u huv)
             omega
           exact htot.of_le (hmp ▸ hle1.trans hle2)
-        have hread_vc : y.mem (wb + v.val * str + c.val) = W v c := by
-          rw [hymat v c]
-          unfold mergeStepMatrix
-          simp [hc_ne_u, hc_ne_v, show y.regs idx ≤ c.val from le_rfl]
-        have hne_uc_vc : wb + u.val * str + c.val ≠ wb + v.val * str + c.val :=
-          fun h => huv (matAddr_inj hstr h).1
-        have hread_uc : (Function.update y.mem (wb + v.val * str + c.val) 0)
-            (wb + u.val * str + c.val) = W u c := by
-          rw [Function.update_of_ne hne_uc_vc, hymat u c]
-          unfold mergeStepMatrix
-          simp [hc_ne_u, hc_ne_v, show y.regs idx ≤ c.val from le_rfl]
-        have hidx_eq : y.regs idx = c.val := rfl
-        have hupd : ∃ z, ExecWithin w ram[⟪mergeUpdate⟫; idx ← idx + one] y z 14 ∧
-            z.mem = Function.update
-              (Function.update
-                (Function.update
-                  (Function.update y.mem (wb + v.val * str + c.val) 0)
-                  (wb + u.val * str + c.val) (W u c + W v c))
-                (wb + c.val * str + v.val) 0)
-              (wb + c.val * str + u.val) (W u c + W v c) ∧
-            z.regs zero = 0 ∧ z.regs one = 1 ∧
-            z.regs wBase = wb ∧ z.regs dBase = db ∧ z.regs stride = str ∧
-            z.regs activeK = m + 1 ∧ z.regs targetT = x.regs targetT ∧
-            z.regs totS = x.regs totS ∧
-            z.regs uReg = u.val ∧ z.regs vReg = v.val ∧
-            z.regs addr1 = wb + u.val * str ∧ z.regs addr2 = wb + v.val * str ∧
-            z.regs idx = c.val + 1 := by
-          let u1 := y.set rem (wb + v.val * str + c.val)
-          let u2 := u1.set val1 (W v c)
-          let u3 := u2.write (wb + v.val * str + c.val) 0
-          let u4 := u3.set rem (wb + u.val * str + c.val)
-          let u5 := u4.set val2 (W u c)
-          let u6 := u5.set val2 (W u c + W v c)
-          let u7 := u6.write (wb + u.val * str + c.val) (W u c + W v c)
-          let u8 := u7.set val1 (c.val * str)
-          let u9 := u8.set val1 (wb + c.val * str)
-          let u10 := u9.set rem (wb + c.val * str + v.val)
-          let u11 := u10.write (wb + c.val * str + v.val) 0
-          let u12 := u11.set rem (wb + c.val * str + u.val)
-          let u13 := u12.write (wb + c.val * str + u.val) (W u c + W v c)
-          let u14 := u13.set idx (c.val + 1)
-          have e1 := exec_bin (f := .add) (d := rem) (i := addr2) (j := idx) (x := y)
-            (by simp [BinOp.eval, hya2, hidx_eq]) hvc_fit
-          have e2 := exec_load (w := w) (d := val1) (a := rem) (x := u1)
-            (by simp [u1]) hread_vc
-          have e3 := exec_store (w := w) (a := rem) (s := zero) (x := u2)
-            (wb + v.val * str + c.val) 0
-            (by simp +decide [u2, u1])
-            (by simpa +decide [u2, u1, Function.update_apply] using hy0)
-          have e4 := exec_bin (f := .add) (d := rem) (i := addr1) (j := idx) (x := u3)
-            (by simp +decide [u3, u2, u1, BinOp.eval, hya1, hidx_eq]) huc_fit
-          have e5 := exec_load (w := w) (d := val2) (a := rem) (x := u4)
-            (by simp [u4]) hread_uc
-          have e6 := exec_bin (f := .add) (d := val2) (i := val2) (j := val1) (x := u5)
-            (by simp +decide [u5, u4, u3, u2, BinOp.eval]) hsum_fit
-          have e7 := exec_store (w := w) (a := rem) (s := val2) (x := u6)
-            (wb + u.val * str + c.val) (W u c + W v c)
-            (by simp +decide [u6, u5, u4]) (by simp [u6])
-          have e8 := exec_bin (f := .mul) (d := val1) (i := idx) (j := stride) (x := u7)
-            (by simp +decide [u7, u6, u5, u4, u3, u2, u1, BinOp.eval, hidx_eq, hystr]) hcmul_fit
-          have e9 := exec_bin (f := .add) (d := val1) (i := wBase) (j := val1) (x := u8)
-            (by simp +decide [u8, u7, u6, u5, u4, u3, u2, u1, BinOp.eval, hywb]) hcrow_fit
-          have e10 := exec_bin (f := .add) (d := rem) (i := val1) (j := vReg) (x := u9)
-            (by simp +decide [u9, u8, u7, u6, u5, u4, u3, u2, u1, BinOp.eval, hyv]) hcv_fit
-          have e11 := exec_store (w := w) (a := rem) (s := zero) (x := u10)
-            (wb + c.val * str + v.val) 0
-            (by simp [u10])
-            (by simpa +decide [u10, u9, u8, u7, u6, u5, u4, u3, u2, u1, Function.update_apply]
-              using hy0)
-          have e12 := exec_bin (f := .add) (d := rem) (i := val1) (j := uReg) (x := u11)
-            (by simp +decide [u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1, BinOp.eval, hyu])
-            hcu_fit
-          have e13 := exec_store (w := w) (a := rem) (s := val2) (x := u12)
-            (wb + c.val * str + u.val) (W u c + W v c)
-            (by simp [u12])
-            (by simp +decide [u12, u11, u10, u9, u8, u7, u6])
-          have e14 := exec_bin (f := .add) (d := idx) (i := idx) (j := one) (x := u13)
-            (by simp +decide [u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              BinOp.eval, hidx_eq, hy1]) hc1_fit
-          have hmu : ExecWithin w mergeUpdate y u13 13 := by
-            unfold mergeUpdate
-            exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq (e7.seq
-              (e8.seq (e9.seq (e10.seq (e11.seq (e12.seq e13)))))))))))).mono (by omega)
-          refine ⟨u14, (hmu.seq e14).mono (by omega), rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-            ?_, ?_, ?_⟩
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hy0
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hy1
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hywb
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hydb
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hystr
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hyk
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hyt
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hytot
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hyu
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hyv
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hya1
-          · simpa +decide [u14, u13, u12, u11, u10, u9, u8, u7, u6, u5, u4, u3, u2, u1,
-              Function.update_apply] using hya2
-          · simp +decide [u14]
-        rcases hupd with ⟨z, hz_exec, hz_mem, hz0, hz1, hzwb, hzdb, hzstr, hzk, hzt, hztot,
-          hzu, hzv, hza1, hza2, hzidx⟩
-        have hbr := ExecWithin.branch_neg (pos := ram[idx ← idx + one]) hcond_nu
-          (ExecWithin.branch_neg (pos := ram[idx ← idx + one]) hcond_nv hz_exec)
-        refine ⟨z, hbr.mono (by omega), ?_, ?_⟩
-        · refine ⟨hz0, hz1, hzwb, hzdb, hzstr, hzk, hzt, hztot, hzu, hzv, hza1, hza2,
-            by omega, ?_, ?_, ?_⟩
-          · rw [hz_mem]
-            exact modifies_step_update
+        have hread_vc : y.mem (wb + v.val * str + c_val) = W v c := by
+          have h := hymat v c
+          rw [hidx_eq] at h
+          unfold mergeStepMatrix at h
+          simpa [c, hc_ne_u, hc_ne_v] using h
+        have hne_uc_vc : wb + u.val * str + c_val ≠ wb + v.val * str + c_val :=
+          fun h => huv (matAddr_inj hstr (i₁ := u) (j₁ := c) (i₂ := v) (j₂ := c) h).1
+        have hread_uc : y.mem (wb + u.val * str + c_val) = W u c := by
+          have h := hymat u c
+          rw [hidx_eq] at h
+          unfold mergeStepMatrix at h
+          simpa [c, hc_ne_u, hc_ne_v] using h
+        unfold mergeUpdate
+        wram_exec [hyf.zero_eq, hyf.one_eq, hyf.wBase_eq, hyf.stride_eq,
+          hyu, hyv, hya1, hya2, hidx_eq, hcu, hcv, hne_uc_vc, hread_vc, hread_uc,
+          hvc_fit, huc_fit, hsum_fit, hcmul_fit, hcrow_fit, hcv_fit, hcu_fit, hc1_fit]
+        refine ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyu],
+          by wram_simp [hyv], by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
+          ?_, ?_, ?_⟩, by wram_simp [hidx_eq]; omega⟩
+        · simp only [Data.set_mem, Data.write_mem]
+          exact modifies_step_update
+            (modifies_step_update
               (modifies_step_update
-                (modifies_step_update
-                  (modifies_step_update hymod
-                    (Finset.mem_union_left _ (matAddr_mem_Ico hstr v c)) 0)
-                  (Finset.mem_union_left _ (matAddr_mem_Ico hstr u c)) (W u c + W v c))
-                (Finset.mem_union_left _ (matAddr_mem_Ico hstr c v)) 0)
-              (Finset.mem_union_left _ (matAddr_mem_Ico hstr c u)) (W u c + W v c)
-          · intro i
-            rw [hz_mem,
-              Function.update_of_ne (matAddr_ne_degAddr hstr hdisj c u i).symm,
-              Function.update_of_ne (matAddr_ne_degAddr hstr hdisj c v i).symm,
-              Function.update_of_ne (matAddr_ne_degAddr hstr hdisj u c i).symm,
-              Function.update_of_ne (matAddr_ne_degAddr hstr hdisj v c i).symm]
-            exact hydeg i
-          · intro i j
-            rw [hz_mem, hzidx]
-            by_cases h_cu : i = c ∧ j = u
-            · rcases h_cu with ⟨hi, hj⟩
+                (modifies_step_update hymod
+                  (Finset.mem_union_left _ (matAddr_mem_Ico hstr v c)) 0)
+                (Finset.mem_union_left _ (matAddr_mem_Ico hstr u c)) (W u c + W v c))
+              (Finset.mem_union_left _ (matAddr_mem_Ico hstr c v)) 0)
+            (Finset.mem_union_left _ (matAddr_mem_Ico hstr c u)) (W u c + W v c)
+        · intro i
+          simp only [Data.set_mem, Data.write_mem]
+          rw [show c_val = c.val from rfl,
+            Function.update_of_ne (matAddr_ne_degAddr hstr hdisj c u i).symm,
+            Function.update_of_ne (matAddr_ne_degAddr hstr hdisj c v i).symm,
+            Function.update_of_ne (matAddr_ne_degAddr hstr hdisj u c i).symm,
+            Function.update_of_ne (matAddr_ne_degAddr hstr hdisj v c i).symm]
+          exact hydeg i
+        · intro i j
+          wram_simp
+          simp only [Data.set_mem, Data.write_mem]
+          rw [show c_val = c.val from rfl]
+          by_cases h_cu : i = c ∧ j = u
+          · rcases h_cu with ⟨hi, hj⟩
+            rw [hi, hj]
+            simp only [Function.update_self]
+            unfold mergeStepMatrix mergePair
+            simp [hc_ne_u, hc_ne_v, huv, show ¬ (c.val + 1 ≤ c.val) by omega, hW.1 c u, hW.1 c v]
+          · rw [Function.update_of_ne (fun h => h_cu (matAddr_inj hstr h))]
+            by_cases h_cv : i = c ∧ j = v
+            · rcases h_cv with ⟨hi, hj⟩
               rw [hi, hj]
               simp only [Function.update_self]
               unfold mergeStepMatrix mergePair
-              have : ¬ (c.val + 1 ≤ c.val) := by omega
-              simp [hc_ne_u, hc_ne_v, huv, this, hW.1 c u, hW.1 c v]
-            · rw [Function.update_of_ne (fun h => h_cu (matAddr_inj hstr h))]
-              by_cases h_cv : i = c ∧ j = v
-              · rcases h_cv with ⟨hi, hj⟩
+              simp [hc_ne_u, hc_ne_v, show ¬ (c.val + 1 ≤ c.val) by omega]
+            · rw [Function.update_of_ne (fun h => h_cv (matAddr_inj hstr h))]
+              by_cases h_uc : i = u ∧ j = c
+              · rcases h_uc with ⟨hi, hj⟩
                 rw [hi, hj]
                 simp only [Function.update_self]
                 unfold mergeStepMatrix mergePair
-                have : ¬ (c.val + 1 ≤ c.val) := by omega
-                simp [hc_ne_u, hc_ne_v, this]
-              · rw [Function.update_of_ne (fun h => h_cv (matAddr_inj hstr h))]
-                by_cases h_uc : i = u ∧ j = c
-                · rcases h_uc with ⟨hi, hj⟩
+                simp [hc_ne_u, hc_ne_u.symm, hc_ne_v, huv, show ¬ (c.val + 1 ≤ c.val) by omega]
+              · rw [Function.update_of_ne (fun h => h_uc (matAddr_inj hstr h))]
+                by_cases h_vc : i = v ∧ j = c
+                · rcases h_vc with ⟨hi, hj⟩
                   rw [hi, hj]
                   simp only [Function.update_self]
                   unfold mergeStepMatrix mergePair
-                  have : ¬ (c.val + 1 ≤ c.val) := by omega
-                  simp [hc_ne_u, hc_ne_u.symm, hc_ne_v, huv, this]
-                · rw [Function.update_of_ne (fun h => h_uc (matAddr_inj hstr h))]
-                  by_cases h_vc : i = v ∧ j = c
-                  · rcases h_vc with ⟨hi, hj⟩
-                    rw [hi, hj]
-                    simp only [Function.update_self]
-                    unfold mergeStepMatrix mergePair
-                    have : ¬ (c.val + 1 ≤ c.val) := by omega
-                    simp [hc_ne_u, hc_ne_v, this]
-                  · rw [Function.update_of_ne (fun h => h_vc (matAddr_inj hstr h)), hymat i j]
-                    unfold mergeStepMatrix
-                    have hiff1 : ((i = u ∨ i = v) ∧ j ≠ u ∧ j ≠ v ∧ y.regs idx ≤ j.val) ↔
-                        ((i = u ∨ i = v) ∧ j ≠ u ∧ j ≠ v ∧ c.val + 1 ≤ j.val) := by
-                      constructor
-                      · rintro ⟨a1, a2, a3, a4⟩
-                        have hjc : j ≠ c := by
-                          rintro rfl
-                          rcases a1 with rfl | rfl
-                          · exact h_uc ⟨rfl, rfl⟩
-                          · exact h_vc ⟨rfl, rfl⟩
-                        have := Fin.val_ne_of_ne hjc
-                        exact ⟨a1, a2, a3, by dsimp [c] at *; omega⟩
-                      · rintro ⟨a1, a2, a3, a4⟩
-                        exact ⟨a1, a2, a3, by dsimp [c] at *; omega⟩
-                    have hiff2 : ((j = u ∨ j = v) ∧ i ≠ u ∧ i ≠ v ∧ y.regs idx ≤ i.val) ↔
-                        ((j = u ∨ j = v) ∧ i ≠ u ∧ i ≠ v ∧ c.val + 1 ≤ i.val) := by
-                      constructor
-                      · rintro ⟨a1, a2, a3, a4⟩
-                        have hic : i ≠ c := by
-                          rintro rfl
-                          rcases a1 with rfl | rfl
-                          · exact h_cu ⟨rfl, rfl⟩
-                          · exact h_cv ⟨rfl, rfl⟩
-                        have := Fin.val_ne_of_ne hic
-                        exact ⟨a1, a2, a3, by dsimp [c] at *; omega⟩
-                      · rintro ⟨a1, a2, a3, a4⟩
-                        exact ⟨a1, a2, a3, by dsimp [c] at *; omega⟩
-                    simp only [hiff1, hiff2]
-        · rw [hzidx]; dsimp [c]; omega
+                  simp [hc_ne_u, hc_ne_v, show ¬ (c.val + 1 ≤ c.val) by omega]
+                · rw [Function.update_of_ne (fun h => h_vc (matAddr_inj hstr h)),
+                    hymat i j, hidx_eq, show c_val = c.val from rfl]
+                  unfold mergeStepMatrix
+                  have hstep {a b : Fin (m + 1)} (hab : ¬ (a = u ∧ b = c) ∧ ¬ (a = v ∧ b = c)) :
+                      ((a = u ∨ a = v) ∧ b ≠ u ∧ b ≠ v ∧ c.val ≤ b.val) ↔
+                        ((a = u ∨ a = v) ∧ b ≠ u ∧ b ≠ v ∧ c.val + 1 ≤ b.val) := by
+                    refine ⟨fun ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, ?_⟩,
+                      fun ⟨h1, h2, h3, h4⟩ => ⟨h1, h2, h3, by omega⟩⟩
+                    have hbc : b ≠ c := by
+                      rintro rfl
+                      exact h1.elim (fun ha => hab.1 ⟨ha, rfl⟩) (fun ha => hab.2 ⟨ha, rfl⟩)
+                    have := Fin.val_ne_of_ne hbc
+                    omega
+                  simp only [hstep ⟨h_uc, h_vc⟩,
+                    hstep ⟨fun ⟨hj, hi⟩ => h_cu ⟨hi, hj⟩, fun ⟨hj, hi⟩ => h_cv ⟨hi, hj⟩⟩]
   have hx_inv : Inv x :=
-    ⟨h0, h1, hwBase, hdBase, hstride, hactiveK, rfl, rfl, huReg, hvReg, ha1, ha2,
-      by omega, Modifies.refl _ _, hdeg, hidx0 ▸ hmat0⟩
-  obtain ⟨y_end, hloop, hy_end, hnc⟩ :=
+    ⟨hf, rfl, huReg, hvReg, ha1, ha2, by omega, Modifies.refl _ _, hdeg, hidx0 ▸ hmat0⟩
+  obtain ⟨y_end, hloop, ⟨hyf, hytot, hyu, hyv, _, _, hyidx_le, hymod, hydeg, hymat⟩, hnc⟩ :=
     ExecWithin.loop_invariant Inv (fun y => (m + 1) - y.regs idx) hbody hx_inv
-  rcases hy_end with ⟨hy0, hy1, hywb, hydb, hystr, hyk, hyt, hytot, hyu, hyv, _, _,
-    hyidx_le, hymod, hydeg, hymat⟩
   have hidx_end : y_end.regs idx = m + 1 := by
-    simp only [Cond.holds_lt, hyk] at hnc
-    omega
-  refine ⟨y_end, hloop.mono (by rw [hidx0]; omega), hymod,
+    simp only [Cond.holds_lt, hyf.activeK_eq] at hnc; omega
+  exact ⟨y_end, hloop.mono (by rw [hidx0]; omega), hymod,
     ⟨fun i j => by simpa [hidx_end, mergeStepMatrix_full] using hymat i j, hydeg⟩,
-    hy0, hy1, hywb, hydb, hystr, hyk, hyt, hytot, hyu, hyv⟩
+    hyf, hytot, hyu, hyv⟩
 
 /-! #### Execution of Phase B (`compactSetup` + `compactLoop`) and `postRandStep` -/
 
-private theorem compactPhase_exec {w wb db str m : ℕ}
+/-- Deterministic execution of Phase B (`compactSetup` followed by `compactLoop`) when `v < m`,
+compacting vertex `Fin.last m` into slot `v` to form `contractMatrix W u v`. -/
+private theorem compactPhase_exec {w wb db str m t : ℕ}
     {W : Fin (m + 1) → Fin (m + 1) → ℕ} {u v : Fin (m + 1)} {x : Data 16}
     (hW : IsMultigraph W) (hv_lt : v.val < m)
-    (h0 : x.regs zero = 0) (h1 : x.regs one = 1)
-    (hwBase : x.regs wBase = wb) (hdBase : x.regs dBase = db)
-    (hstride : x.regs stride = str) (hactiveK : x.regs activeK = m)
+    (hf : KargerFrame wb db str m t x)
     (hvReg : x.regs vReg = v.val)
     (hstr : m + 1 ≤ str) (hdisj : wb + str * (m + 1) ≤ db ∨ db + (m + 1) ≤ wb)
     (hwEnd : Fits w (wb + str * (m + 1))) (hdEnd : Fits w (db + (m + 1)))
@@ -2015,93 +1376,23 @@ private theorem compactPhase_exec {w wb db str m : ℕ}
         x y (13 * m + 11) ∧
       Modifies (workspaceFootprint wb db str (m + 1)) x.mem y.mem ∧
       HoldsWorkspace y.mem wb db str (contractMatrix W u v) ∧
-      y.regs zero = 0 ∧ y.regs one = 1 ∧
-      y.regs wBase = wb ∧ y.regs dBase = db ∧ y.regs stride = str ∧
-      y.regs activeK = m ∧ y.regs targetT = x.regs targetT ∧
+      KargerFrame wb db str m t y ∧
       y.regs totS = x.regs totS := by
   let W₁ := mergePair W u v
   have hW₁ : IsMultigraph W₁ := isMultigraph_mergePair hW u v
   let v_m : Fin m := ⟨v.val, hv_lt⟩
   have hdm_fit : Fits w (db + m) := hdEnd.of_le (by omega)
   have hdv_fit : Fits w (db + v.val) := hdEnd.of_le (by omega)
-  have hmmul_fit : Fits w (m * str) :=
-    hwEnd.of_le (by
-      have hle : m * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_succ m)
-      omega)
-  have hmrow_fit : Fits w (wb + m * str) :=
-    hwEnd.of_le (by
-      have hle : m * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_succ m)
-      omega)
-  have hvmul_fit : Fits w (v.val * str) :=
-    hwEnd.of_le (by
-      have hle : v.val * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt v.isLt)
-      omega)
-  have hvrow_fit : Fits w (wb + v.val * str) :=
-    hwEnd.of_le (by
-      have hle : v.val * str ≤ str * (m + 1) :=
-        Nat.mul_comm (m + 1) str ▸ Nat.mul_le_mul_right str (Nat.le_of_lt v.isLt)
-      omega)
+  obtain ⟨hmmul_fit, hmrow_fit⟩ := rowBase_fits hwEnd (Nat.le_succ m)
+  obtain ⟨hvmul_fit, hvrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt v.isLt)
   have hread_dm : x.mem (db + m) = rowDeg W₁ (Fin.last m) := hws1.2 (Fin.last m)
-  have hsetup : ∃ x₁, ExecWithin w compactSetup x x₁ 9 ∧
-      x₁.mem = Function.update x.mem (db + v.val) (rowDeg W₁ (Fin.last m)) ∧
-      x₁.regs zero = 0 ∧ x₁.regs one = 1 ∧
-      x₁.regs wBase = wb ∧ x₁.regs dBase = db ∧ x₁.regs stride = str ∧
-      x₁.regs activeK = m ∧ x₁.regs targetT = x.regs targetT ∧
-      x₁.regs totS = x.regs totS ∧
-      x₁.regs vReg = v.val ∧
-      x₁.regs addr1 = wb + m * str ∧ x₁.regs addr2 = wb + v.val * str ∧
-      x₁.regs idx = 0 := by
-    let s1 := x.set addr1 (db + m)
-    let s2 := s1.set val1 (rowDeg W₁ (Fin.last m))
-    let s3 := s2.set addr2 (db + v.val)
-    let s4 := s3.write (db + v.val) (rowDeg W₁ (Fin.last m))
-    let s5 := s4.set val1 (m * str)
-    let s6 := s5.set addr1 (wb + m * str)
-    let s7 := s6.set val1 (v.val * str)
-    let s8 := s7.set addr2 (wb + v.val * str)
-    let s9 := s8.set idx 0
-    have e1 := exec_bin (f := .add) (d := addr1) (i := dBase) (j := activeK) (x := x)
-      (by simp [BinOp.eval, hdBase, hactiveK]) hdm_fit
-    have e2 := exec_load (w := w) (d := val1) (a := addr1) (x := s1) (by simp [s1]) hread_dm
-    have e3 := exec_bin (f := .add) (d := addr2) (i := dBase) (j := vReg) (x := s2)
-      (by simp +decide [s2, s1, BinOp.eval, hdBase, hvReg]) hdv_fit
-    have e4 := exec_store (w := w) (a := addr2) (s := val1) (x := s3)
-      (db + v.val) (rowDeg W₁ (Fin.last m))
-      (by simp [s3]) (by simp +decide [s3, s2])
-    have e5 := exec_bin (f := .mul) (d := val1) (i := activeK) (j := stride) (x := s4)
-      (by simp +decide [s4, s3, s2, s1, BinOp.eval, hactiveK, hstride])
-      hmmul_fit
-    have e6 := exec_bin (f := .add) (d := addr1) (i := wBase) (j := val1) (x := s5)
-      (by simp +decide [s5, s4, s3, s2, s1, BinOp.eval, hwBase]) hmrow_fit
-    have e7 := exec_bin (f := .mul) (d := val1) (i := vReg) (j := stride) (x := s6)
-      (by simp +decide [s6, s5, s4, s3, s2, s1, BinOp.eval, hvReg, hstride])
-      hvmul_fit
-    have e8 := exec_bin (f := .add) (d := addr2) (i := wBase) (j := val1) (x := s7)
-      (by simp +decide [s7, s6, s5, s4, s3, s2, s1, BinOp.eval, hwBase])
-      hvrow_fit
-    have e9 := exec_const (d := idx) (c := 0) (x := s8) (fits_zero w)
-    have hcs : ExecWithin w compactSetup x s9 9 := by
-      unfold compactSetup
-      exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq (e7.seq (e8.seq e9)))))))).mono
-        (by omega)
-    refine ⟨s9, hcs, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using h0
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using h1
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using hwBase
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using hdBase
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using hstride
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using hactiveK
-    · simp +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1]
-    · simp +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1]
-    · simpa +decide [s9, s8, s7, s6, s5, s4, s3, s2, s1, Function.update_apply] using hvReg
-    · simp +decide [s9, s8, s7, s6]
-    · simp +decide [s9, s8]
-    · simp +decide [s9]
-  rcases hsetup with ⟨x₁, hx₁_exec, hx₁_mem, hx₁_0, hx₁_1, hx₁_wb, hx₁_db, hx₁_str, hx₁_k,
-    hx₁_t, hx₁_tot, hx₁_v, hx₁_a1, hx₁_a2, hx₁_idx⟩
+  unfold compactSetup
+  wram_exec [hf.wBase_eq, hf.dBase_eq, hf.stride_eq, hf.activeK_eq, hvReg,
+    hread_dm, hdm_fit, hdv_fit, hmmul_fit, hmrow_fit, hvmul_fit, hvrow_fit]
+  refine WP.name fun x₁ hx₁_eq => ?_
+  have hx₁_mem : x₁.mem = Function.update x.mem (db + v.val) (rowDeg W₁ (Fin.last m)) := by
+    subst hx₁_eq; simp only [Data.set_mem, Data.write_mem]
+  have hx₁_idx : x₁.regs idx = 0 := by subst hx₁_eq; wram_simp
   have hx₁_mod : Modifies (workspaceFootprint wb db str (m + 1)) x.mem x₁.mem := by
     rw [hx₁_mem]
     exact modifies_update_of_mem (Finset.mem_union_right _ (degAddr_mem_Ico v)) x.mem _
@@ -2110,12 +1401,10 @@ private theorem compactPhase_exec {w wb db str m : ℕ}
     rw [hx₁_mem, rowDeg_contractMatrix]
     unfold embedCompact
     by_cases hiv : i.val = v.val
-    · rw [hiv]
-      simp [W₁]
-    · have hne : db + i.val ≠ db + v.val := by omega
-      have hread : x.mem (db + i.val) = rowDeg W₁ i.castSucc := hws1.2 i.castSucc
-      rw [Function.update_of_ne hne]
-      simp only [hiv, ↓reduceIte, hread, W₁]
+    · rw [hiv]; simp [W₁]
+    · rw [Function.update_of_ne (by omega)]
+      simp only [hiv, ↓reduceIte]
+      exact hws1.2 i.castSucc
   have hx₁_rowm : ∀ c : Fin m, x₁.mem (wb + m * str + c.val) = W₁ (Fin.last m) c.castSucc := by
     intro c
     have hne : wb + m * str + c.val ≠ db + v.val := by
@@ -2126,14 +1415,11 @@ private theorem compactPhase_exec {w wb db str m : ℕ}
   have hx₁_mat0 : HoldsMatrix x₁.mem wb str (compactStepMatrix W₁ v 0) := by
     intro i j
     have hne : wb + i.val * str + j.val ≠ db + v.val := by
-      simpa only [Fin.val_castSucc] using
-        matAddr_ne_degAddr hstr hdisj i.castSucc j.castSucc v
+      simpa only [Fin.val_castSucc] using matAddr_ne_degAddr hstr hdisj i.castSucc j.castSucc v
     rw [hx₁_mem, Function.update_of_ne hne, compactStepMatrix_zero hW₁]
     exact hws1.1 i.castSucc j.castSucc
   let Inv (y : Data 16) : Prop :=
-    y.regs zero = 0 ∧ y.regs one = 1 ∧
-    y.regs wBase = wb ∧ y.regs dBase = db ∧ y.regs stride = str ∧
-    y.regs activeK = m ∧ y.regs targetT = x.regs targetT ∧
+    KargerFrame wb db str m t y ∧
     y.regs totS = x.regs totS ∧
     y.regs vReg = v.val ∧
     y.regs addr1 = wb + m * str ∧ y.regs addr2 = wb + v.val * str ∧
@@ -2145,219 +1431,105 @@ private theorem compactPhase_exec {w wb db str m : ℕ}
   have hbody : ∀ y, Inv y → (Cond.lt idx activeK).Holds y →
       ∃ z, ExecWithin w compactBody y z 11 ∧ Inv z ∧
         m - z.regs idx < m - y.regs idx := by
-    intro y hy hc
-    rcases hy with ⟨hy0, hy1, hywb, hydb, hystr, hyk, hyt, hytot, hyv, hya1, hya2,
-      hyidx_le, hymod, hydeg, hyrowm, hymat⟩
-    have hc_lt : y.regs idx < m := by simpa [hyk] using hc
-    let c : Fin m := ⟨y.regs idx, hc_lt⟩
-    have hc1_fit : Fits w (c.val + 1) := hdEnd.of_le (by omega)
-    by_cases hcv : c.val = v.val
-    · have hcond_v : (Cond.eq idx vReg).Holds y := by
-        simp only [Cond.holds_eq, hyv]
-        exact hcv
-      have hinc : ExecWithin w ram[idx ← idx + one] y (y.set idx (c.val + 1)) 1 := by
-        simpa [BinOp.eval, c, hy1] using
-          ExecWithin.bin (f := .add) (d := idx) (i := idx) (j := one) (x := y)
-            (by simpa [BinOp.eval, c, hy1] using hc1_fit)
-      refine ⟨y.set idx (c.val + 1), (ExecWithin.branch_pos hcond_v hinc).mono (by omega), ?_, ?_⟩
-      · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, hymod, hydeg, hyrowm, ?_⟩
-        · simpa +decide [Function.update_apply] using hy0
-        · simpa +decide [Function.update_apply] using hy1
-        · simpa +decide [Function.update_apply] using hywb
-        · simpa +decide [Function.update_apply] using hydb
-        · simpa +decide [Function.update_apply] using hystr
-        · simpa +decide [Function.update_apply] using hyk
-        · simpa +decide [Function.update_apply] using hyt
-        · simpa +decide [Function.update_apply] using hytot
-        · simpa +decide [Function.update_apply] using hyv
-        · simpa +decide [Function.update_apply] using hya1
-        · simpa +decide [Function.update_apply] using hya2
-        · simp only [Data.set_regs, Function.update_self]
-          exact Nat.succ_le_of_lt hc_lt
-        · intro i j
-          simp only [Data.set_mem, Data.set_regs, Function.update_self]
-          rw [compactStepMatrix_step_eq_of_eq W₁ v hcv]
-          exact hymat i j
-      · simp only [Data.set_regs, Function.update_self]
-        dsimp [c]; omega
-    · have hcond_nv : ¬ (Cond.eq idx vReg).Holds y := by
-        simp only [Cond.holds_eq, hyv]
-        exact hcv
-      have hmc_fit : Fits w (wb + m * str + c.val) :=
+    intro y ⟨hyf, hytot, hyv, hya1, hya2, hyidx_le, hymod, hydeg, hyrowm, hymat⟩ hc
+    obtain ⟨c_val, hidx_eq⟩ : ∃ c_val, y.regs idx = c_val := ⟨_, rfl⟩
+    have hc_lt : c_val < m := by simpa [Cond.holds_lt, hidx_eq, hyf.activeK_eq] using hc
+    let c : Fin m := ⟨c_val, hc_lt⟩
+    have hc1_fit : Fits w (c_val + 1) := hdEnd.of_le (by omega)
+    unfold compactBody
+    by_cases hcv : c_val = v.val
+    · wram_exec [hyf.one_eq, hyv, hidx_eq, hcv, hc1_fit]
+      refine ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
+        by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
+        hymod, hydeg, hyrowm, fun i j => ?_⟩, by wram_simp [hidx_eq]; omega⟩
+      wram_simp
+      rw [← hcv, compactStepMatrix_step_eq_of_eq W₁ v hcv, ← hidx_eq]
+      exact hymat i j
+    · obtain ⟨hcmul_fit, hcrow_fit⟩ := rowBase_fits hwEnd (Nat.le_of_lt c.castSucc.isLt)
+      have hmc_fit : Fits w (wb + m * str + c_val) :=
         hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr (Fin.last m) c.castSucc))
-      have hvc_fit : Fits w (wb + v.val * str + c.val) :=
+      have hvc_fit : Fits w (wb + v.val * str + c_val) :=
         hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr v c.castSucc))
-      have hcmul_fit : Fits w (c.val * str) :=
-        hwEnd.of_le (by
-          have hle : c.val * str ≤ str * (m + 1) :=
-            Nat.mul_comm (m + 1) str ▸
-              (Fin.val_castSucc c ▸ Nat.mul_le_mul_right str (Nat.le_of_lt c.castSucc.isLt))
-          omega)
-      have hcrow_fit : Fits w (wb + c.val * str) :=
-        hwEnd.of_le (by
-          have hle : c.val * str ≤ str * (m + 1) :=
-            Nat.mul_comm (m + 1) str ▸
-              (Fin.val_castSucc c ▸ Nat.mul_le_mul_right str (Nat.le_of_lt c.castSucc.isLt))
-          omega)
-      have hcv_fit : Fits w (wb + c.val * str + v.val) :=
+      have hcv_fit : Fits w (wb + c_val * str + v.val) :=
         hwEnd.of_le (Nat.le_of_lt (matAddr_lt_end hstr c.castSucc v))
-      have hread_mc : y.mem (wb + m * str + c.val) = W₁ (Fin.last m) c.castSucc := hyrowm c
-      have hidx_eq : y.regs idx = c.val := rfl
-      have hupd : ∃ z, ExecWithin w ram[⟪compactUpdate⟫; idx ← idx + one] y z 9 ∧
-          z.mem = Function.update
-            (Function.update y.mem (wb + v.val * str + c.val) (W₁ (Fin.last m) c.castSucc))
-            (wb + c.val * str + v.val) (W₁ (Fin.last m) c.castSucc) ∧
-          z.regs zero = 0 ∧ z.regs one = 1 ∧
-          z.regs wBase = wb ∧ z.regs dBase = db ∧ z.regs stride = str ∧
-          z.regs activeK = m ∧ z.regs targetT = x.regs targetT ∧
-          z.regs totS = x.regs totS ∧
-          z.regs vReg = v.val ∧
-          z.regs addr1 = wb + m * str ∧ z.regs addr2 = wb + v.val * str ∧
-          z.regs idx = c.val + 1 := by
-        let q1 := y.set rem (wb + m * str + c.val)
-        let q2 := q1.set val1 (W₁ (Fin.last m) c.castSucc)
-        let q3 := q2.set rem (wb + v.val * str + c.val)
-        let q4 := q3.write (wb + v.val * str + c.val) (W₁ (Fin.last m) c.castSucc)
-        let q5 := q4.set val2 (c.val * str)
-        let q6 := q5.set val2 (wb + c.val * str)
-        let q7 := q6.set rem (wb + c.val * str + v.val)
-        let q8 := q7.write (wb + c.val * str + v.val) (W₁ (Fin.last m) c.castSucc)
-        let q9 := q8.set idx (c.val + 1)
-        have e1 := exec_bin (f := .add) (d := rem) (i := addr1) (j := idx) (x := y)
-          (by simp [BinOp.eval, hya1, hidx_eq]) hmc_fit
-        have e2 := exec_load (w := w) (d := val1) (a := rem) (x := q1)
-          (by simp [q1]) hread_mc
-        have e3 := exec_bin (f := .add) (d := rem) (i := addr2) (j := idx) (x := q2)
-          (by simp +decide [q2, q1, BinOp.eval, hya2, hidx_eq]) hvc_fit
-        have e4 := exec_store (w := w) (a := rem) (s := val1) (x := q3)
-          (wb + v.val * str + c.val) (W₁ (Fin.last m) c.castSucc)
-          (by simp [q3]) (by simp +decide [q3, q2])
-        have e5 := exec_bin (f := .mul) (d := val2) (i := idx) (j := stride) (x := q4)
-          (by simp +decide [q4, q3, q2, q1, BinOp.eval, hidx_eq, hystr])
-          hcmul_fit
-        have e6 := exec_bin (f := .add) (d := val2) (i := wBase) (j := val2) (x := q5)
-          (by simp +decide [q5, q4, q3, q2, q1, BinOp.eval, hywb]) hcrow_fit
-        have e7 := exec_bin (f := .add) (d := rem) (i := val2) (j := vReg) (x := q6)
-          (by simp +decide [q6, q5, q4, q3, q2, q1, BinOp.eval, hyv]) hcv_fit
-        have e8 := exec_store (w := w) (a := rem) (s := val1) (x := q7)
-          (wb + c.val * str + v.val) (W₁ (Fin.last m) c.castSucc)
-          (by simp [q7]) (by simp +decide [q7, q6, q5, q4, q3, q2])
-        have e9 := exec_bin (f := .add) (d := idx) (i := idx) (j := one) (x := q8)
-          (by simp +decide [q8, q7, q6, q5, q4, q3, q2, q1,
-            BinOp.eval, hidx_eq, hy1]) hc1_fit
-        have hcu : ExecWithin w compactUpdate y q8 8 := by
-          unfold compactUpdate
-          exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq (e7.seq e8))))))).mono (by omega)
-        refine ⟨q9, (hcu.seq e9).mono (by omega), rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
-          ?_, ?_⟩
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hy0
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hy1
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hywb
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hydb
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hystr
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hyk
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hyt
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hytot
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hyv
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hya1
-        · simpa +decide [q9, q8, q7, q6, q5, q4, q3, q2, q1, Function.update_apply] using hya2
-        · simp +decide [q9]
-      rcases hupd with ⟨z, hz_exec, hz_mem, hz0, hz1, hzwb, hzdb, hzstr, hzk, hzt, hztot,
-        hzv, hza1, hza2, hzidx⟩
-      refine ⟨z, (ExecWithin.branch_neg (pos := ram[idx ← idx + one]) hcond_nv hz_exec).mono
-        (by omega), ?_, ?_⟩
-      · refine ⟨hz0, hz1, hzwb, hzdb, hzstr, hzk, hzt, hztot, hzv, hza1, hza2,
-          by omega, ?_, ?_, ?_, ?_⟩
-        · rw [hz_mem]
-          exact modifies_step_update
-            (modifies_step_update hymod
-              (Finset.mem_union_left _ (matAddr_mem_Ico hstr v c.castSucc))
-              (W₁ (Fin.last m) c.castSucc))
-            (Finset.mem_union_left _ (matAddr_mem_Ico hstr c.castSucc v))
-            (W₁ (Fin.last m) c.castSucc)
-        · intro i
-          have hne_d1 : db + i.val ≠ wb + c.val * str + v.val := by
-            simpa only [Fin.val_castSucc] using
-              (matAddr_ne_degAddr hstr hdisj c.castSucc v i.castSucc).symm
-          have hne_d2 : db + i.val ≠ wb + v.val * str + c.val := by
-            simpa only [Fin.val_castSucc] using
-              (matAddr_ne_degAddr hstr hdisj v c.castSucc i.castSucc).symm
-          rw [hz_mem, Function.update_of_ne hne_d1, Function.update_of_ne hne_d2]
-          exact hydeg i
-        · intro c'
-          rw [hz_mem]
-          have hne1 : wb + m * str + c'.val ≠ wb + c.val * str + v.val := by
-            intro h
-            have h1 := (matAddr_inj hstr (i₁ := Fin.last m) (j₁ := c'.castSucc)
-              (i₂ := c.castSucc) (j₂ := v) h).1
-            exact absurd (congrArg Fin.val h1) (by simp; omega)
-          have hne2 : wb + m * str + c'.val ≠ wb + v.val * str + c.val := by
-            intro h
-            have h1 := (matAddr_inj hstr (i₁ := Fin.last m) (j₁ := c'.castSucc)
-              (i₂ := v) (j₂ := c.castSucc) h).1
-            exact absurd (congrArg Fin.val h1) (by simp; omega)
-          rw [Function.update_of_ne hne1, Function.update_of_ne hne2]
-          exact hyrowm c'
-        · intro i j
-          rw [hz_mem, hzidx]
-          by_cases h_cv : i = c ∧ j = v_m
-          · rcases h_cv with ⟨rfl, rfl⟩
-            simp only [v_m, Function.update_self]
+      have hread_mc : y.mem (wb + m * str + c_val) = W₁ (Fin.last m) c.castSucc := hyrowm c
+      unfold compactUpdate
+      wram_exec [hyf.one_eq, hyf.wBase_eq, hyf.stride_eq, hyv, hya1, hya2, hidx_eq, hcv,
+        hread_mc, hmc_fit, hvc_fit, hcmul_fit, hcrow_fit, hcv_fit, hc1_fit]
+      refine ⟨⟨by karger_frame hyf, by wram_simp [hytot], by wram_simp [hyv],
+        by wram_simp [hya1], by wram_simp [hya2], by wram_simp; omega,
+        ?_, ?_, ?_, ?_⟩, by wram_simp [hidx_eq]; omega⟩
+      · simp only [Data.set_mem, Data.write_mem]
+        exact modifies_step_update
+          (modifies_step_update hymod
+            (Finset.mem_union_left _ (matAddr_mem_Ico hstr v c.castSucc))
+            (W₁ (Fin.last m) c.castSucc))
+          (Finset.mem_union_left _ (matAddr_mem_Ico hstr c.castSucc v))
+          (W₁ (Fin.last m) c.castSucc)
+      · intro i
+        have hne_d1 : db + i.val ≠ wb + c_val * str + v.val := by
+          simpa only [Fin.val_castSucc] using
+            (matAddr_ne_degAddr hstr hdisj c.castSucc v i.castSucc).symm
+        have hne_d2 : db + i.val ≠ wb + v.val * str + c_val := by
+          simpa only [Fin.val_castSucc] using
+            (matAddr_ne_degAddr hstr hdisj v c.castSucc i.castSucc).symm
+        simp only [Data.set_mem, Data.write_mem,
+          Function.update_of_ne hne_d1, Function.update_of_ne hne_d2]
+        exact hydeg i
+      · intro c'
+        have hne1 : wb + m * str + c'.val ≠ wb + c_val * str + v.val := fun h =>
+          absurd (congrArg Fin.val (matAddr_inj hstr (i₁ := Fin.last m) (j₁ := c'.castSucc)
+            (i₂ := c.castSucc) (j₂ := v) h).1) (by simp; omega)
+        have hne2 : wb + m * str + c'.val ≠ wb + v.val * str + c_val := fun h =>
+          absurd (congrArg Fin.val (matAddr_inj hstr (i₁ := Fin.last m) (j₁ := c'.castSucc)
+            (i₂ := v) (j₂ := c.castSucc) h).1) (by simp; omega)
+        simp only [Data.set_mem, Data.write_mem,
+          Function.update_of_ne hne1, Function.update_of_ne hne2]
+        exact hyrowm c'
+      · intro i j
+        wram_simp
+        simp only [Data.set_mem, Data.write_mem]
+        by_cases h_cv : i = c ∧ j = v_m
+        · rcases h_cv with ⟨rfl, rfl⟩
+          dsimp only [c, v_m]
+          simp only [Function.update_self]
+          unfold compactStepMatrix embedCompact
+          simp [hcv, show ¬ (c_val + 1 ≤ c_val) by omega, hW₁.1 ⟨c_val, by omega⟩ (Fin.last m)]
+        · rw [Function.update_of_ne (fun h => h_cv (matAddr_inj (by omega : m ≤ str)
+            (i₁ := i) (j₁ := j) (i₂ := c) (j₂ := v_m) h))]
+          by_cases h_vc : i = v_m ∧ j = c
+          · rcases h_vc with ⟨rfl, rfl⟩
+            dsimp only [c, v_m]
+            simp only [Function.update_self]
             unfold compactStepMatrix embedCompact
-            have : ¬ (c.val + 1 ≤ c.val) := by omega
-            simp [hcv, this, hW₁.1 c.castSucc (Fin.last m)]
-          · have hne_cv : wb + i.val * str + j.val ≠ wb + c.val * str + v.val := by
-              intro h
-              have hinj := matAddr_inj (by omega : m ≤ str) (i₁ := i) (j₁ := j)
-                (i₂ := c) (j₂ := v_m) h
-              exact h_cv hinj
-            rw [Function.update_of_ne hne_cv]
-            by_cases h_vc : i = v_m ∧ j = c
-            · rcases h_vc with ⟨rfl, rfl⟩
-              simp only [v_m, Function.update_self]
-              unfold compactStepMatrix embedCompact
-              have : ¬ (c.val + 1 ≤ c.val) := by omega
-              simp [hcv, this]
-            · have hne_vc : wb + i.val * str + j.val ≠ wb + v.val * str + c.val := by
-                intro h
-                have hinj := matAddr_inj (by omega : m ≤ str) (i₁ := i) (j₁ := j)
-                  (i₂ := v_m) (j₂ := c) h
-                exact h_vc hinj
-              rw [Function.update_of_ne hne_vc, hymat i j]
-              unfold compactStepMatrix
-              have hiff1 : (i.val = v.val ∧ j.val ≠ v.val ∧ y.regs idx ≤ j.val) ↔
-                  (i.val = v.val ∧ j.val ≠ v.val ∧ c.val + 1 ≤ j.val) := by
-                constructor
-                · rintro ⟨a1, a2, a3⟩
-                  have hjc : j ≠ c := fun h => h_vc ⟨Fin.ext a1, h⟩
-                  have := Fin.val_ne_of_ne hjc
-                  exact ⟨a1, a2, by dsimp [c] at *; omega⟩
-                · rintro ⟨a1, a2, a3⟩
-                  exact ⟨a1, a2, by dsimp [c] at *; omega⟩
-              have hiff2 : (j.val = v.val ∧ i.val ≠ v.val ∧ y.regs idx ≤ i.val) ↔
-                  (j.val = v.val ∧ i.val ≠ v.val ∧ c.val + 1 ≤ i.val) := by
-                constructor
-                · rintro ⟨a1, a2, a3⟩
-                  have hic : i ≠ c := fun h => h_cv ⟨h, Fin.ext a1⟩
-                  have := Fin.val_ne_of_ne hic
-                  exact ⟨a1, a2, by dsimp [c] at *; omega⟩
-                · rintro ⟨a1, a2, a3⟩
-                  exact ⟨a1, a2, by dsimp [c] at *; omega⟩
-              simp only [hiff1, hiff2]
-      · rw [hzidx]; dsimp [c]; omega
-  have hx₁_inv : Inv x₁ :=
-    ⟨hx₁_0, hx₁_1, hx₁_wb, hx₁_db, hx₁_str, hx₁_k, hx₁_t, hx₁_tot, hx₁_v, hx₁_a1, hx₁_a2,
-      by omega, hx₁_mod, hx₁_deg, hx₁_rowm, hx₁_idx ▸ hx₁_mat0⟩
-  obtain ⟨y_end, hloop, hy_end, hnc⟩ :=
+            simp [hcv, show ¬ (c_val + 1 ≤ c_val) by omega]
+          · rw [Function.update_of_ne (fun h => h_vc (matAddr_inj (by omega : m ≤ str)
+              (i₁ := i) (j₁ := j) (i₂ := v_m) (j₂ := c) h)),
+              hymat i j, hidx_eq, show c_val = c.val from rfl]
+            unfold compactStepMatrix
+            have hstep {a b : Fin m} (hab : ¬ (a = v_m ∧ b = c)) :
+                (a.val = v.val ∧ b.val ≠ v.val ∧ c.val ≤ b.val) ↔
+                  (a.val = v.val ∧ b.val ≠ v.val ∧ c.val + 1 ≤ b.val) := by
+              refine ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, h2, ?_⟩, fun ⟨h1, h2, h3⟩ => ⟨h1, h2, by omega⟩⟩
+              have hbc : b ≠ c := fun h => hab ⟨Fin.ext h1, h⟩
+              have := Fin.val_ne_of_ne hbc
+              omega
+            simp only [hstep h_vc, hstep (fun ⟨hj, hi⟩ => h_cv ⟨hi, hj⟩)]
+  have hx₁_inv : Inv x₁ := by
+    refine ⟨?_, ?_, ?_, ?_, ?_, by rw [hx₁_idx]; omega, hx₁_mod, hx₁_deg, hx₁_rowm,
+      hx₁_idx ▸ hx₁_mat0⟩
+    · subst hx₁_eq; karger_frame hf
+    · subst hx₁_eq; wram_simp
+    · subst hx₁_eq; wram_simp [hvReg]
+    · subst hx₁_eq; wram_simp
+    · subst hx₁_eq; wram_simp
+  obtain ⟨y_end, hloop, ⟨hyf, hytot, _, _, _, hyidx_le, hymod, hydeg, _, hymat⟩, hnc⟩ :=
     ExecWithin.loop_invariant Inv (fun y => m - y.regs idx) hbody hx₁_inv
-  rcases hy_end with ⟨hy0, hy1, hywb, hydb, hystr, hyk, hyt, hytot, _, _, _,
-    hyidx_le, hymod, hydeg, _, hymat⟩
   have hidx_end : y_end.regs idx = m := by
-    simp only [Cond.holds_lt, hyk] at hnc
-    omega
-  refine ⟨y_end, (hx₁_exec.seq hloop).mono (by rw [hx₁_idx]; omega), hymod,
+    simp only [Cond.holds_lt, hyf.activeK_eq] at hnc; omega
+  exact WP.of_execWithin hloop ⟨by rw [hx₁_idx]; omega, hymod,
     ⟨fun i j => by simpa [hidx_end, W₁, compactStepMatrix_full] using hymat i j, hydeg⟩,
-    hy0, hy1, hywb, hydb, hystr, hyk, hyt, hytot⟩
+    hyf, hytot⟩
 
 /-- Deterministic post-sampling execution: given `x.regs rem = r_val` with
 `IsSampledPair W r_val u v`, `postRandStep` contracts `(u, v)` and swap-compacts `Fin.last m` into
@@ -2378,144 +1550,77 @@ theorem postRandStep_exec {w wb db str m t r_val : ℕ}
       ContractState w wb db str m t (contractMatrix W u v) y ∧
       y.regs zero = 0 ∧ y.regs one = 1 := by
   have huv : u ≠ v := isSampledPair_ne hW hsamp
-  obtain ⟨y1, e1, hm1, h1_0, h1_1, h1_wb, h1_db, h1_str, h1_k, h1_t, h1_tot, h1_u, h1_rem⟩ :=
-    uScan_exec hsamp h0 h1 hwBase hdBase hstride hactiveK htotS hrem hdEnd htot hws.2
-  obtain ⟨y2, e2, hm2, h2_0, h2_1, h2_wb, h2_db, h2_str, h2_k, h2_t, h2_tot, h2_u, h2_v,
-      h2_a2, h2_v1⟩ :=
-    vScan_exec hsamp h1_0 h1_1 h1_wb h1_db h1_str h1_k h1_tot h1_u h1_rem
-      hstr hwEnd hdEnd htot (hm1 ▸ hws.1)
-  obtain ⟨y3, e3, hmod3, h3_deg, h3_mat, h3_0, h3_1, h3_wb, h3_db, h3_str, h3_k, h3_t,
-      h3_tot, h3_u, h3_v⟩ :=
-    phaseADegrees_exec hW huv h2_0 h2_1 h2_wb h2_db h2_str h2_k h2_tot h2_u h2_v h2_a2 h2_v1
-      hstr hdisj hdEnd htot (hm2.trans hm1 ▸ hws)
-  obtain ⟨y4, e4, hmod4, h4_deg, h4_mat0, h4_0, h4_1, h4_wb, h4_db, h4_str, h4_k, h4_t,
-      h4_tot, h4_u, h4_v, h4_a1, h4_a2, h4_idx⟩ :=
-    phaseAPtrs_exec hW h3_0 h3_1 h3_wb h3_db h3_str h3_k h3_u h3_v hstr hdisj hwEnd h3_deg h3_mat
-  obtain ⟨y5, e5, hmod5, h5_ws, h5_0, h5_1, h5_wb, h5_db, h5_str, h5_k, h5_t, h5_tot,
-      h5_u, h5_v⟩ :=
-    mergeLoop_exec hW huv h4_0 h4_1 h4_wb h4_db h4_str h4_k h4_u h4_v h4_a1 h4_a2 h4_idx
-      hstr hdisj hwEnd hdEnd htot h4_deg h4_mat0
   have hm_fit : Fits w m := hdEnd.of_le (by omega)
-  let y6 := y5.set activeK m
-  have e6 : ExecWithin w ram[activeK ← activeK - one] y5 y6 1 := by
-    simpa [y6, BinOp.eval, h5_k, h5_1] using
-      ExecWithin.bin (f := .sub) (d := activeK) (i := activeK) (j := one) (x := y5)
-        (by simpa [BinOp.eval, h5_k, h5_1] using hm_fit)
-  have hmod15 : Modifies (workspaceFootprint wb db str (m + 1)) x.mem y6.mem := by
-    have hmod_x_y3 : Modifies (workspaceFootprint wb db str (m + 1)) x.mem y3.mem := by
-      simpa only [hm2, hm1] using hmod3
-    exact modifies_trans_subset
-      (modifies_trans_subset hmod_x_y3 hmod4 Finset.Subset.rfl Finset.Subset.rfl)
-      hmod5 Finset.Subset.rfl Finset.Subset.rfl
   have htot_c_fit : Fits w (totalDoubledWeight (contractMatrix W u v)) := by
     have := totalDoubledWeight_contractMatrix hW huv
     exact htot.of_le (by omega)
   have hdisj_m : wb + str * m ≤ db ∨ db + m ≤ wb := by
     have : str * m ≤ str * (m + 1) := Nat.mul_le_mul_left str (Nat.le_succ m)
     omega
-  by_cases hv_lt : v.val < m
-  · have hcond : (Cond.lt vReg activeK).Holds y6 := by
-      have hv6 : y6.regs vReg = v.val := by simpa +decide [y6, Function.update_apply] using h5_v
-      simp only [Cond.holds_lt, hv6]
-      exact hv_lt
-    obtain ⟨y7, e7, hmod7, h7_ws, h7_0, h7_1, h7_wb, h7_db, h7_str, h7_k, h7_t, h7_tot⟩ :=
-      compactPhase_exec (x := y6) (u := u) hW hv_lt
-        (by simpa +decide [y6, Function.update_apply] using h5_0)
-        (by simpa +decide [y6, Function.update_apply] using h5_1)
-        (by simpa +decide [y6, Function.update_apply] using h5_wb)
-        (by simpa +decide [y6, Function.update_apply] using h5_db)
-        (by simpa +decide [y6, Function.update_apply] using h5_str)
-        rfl
-        (by simpa +decide [y6, Function.update_apply] using h5_v)
-        hstr hdisj hwEnd hdEnd h5_ws
-    have hbr := ExecWithin.branch_pos (neg := ram[idx ← #0]) hcond e7
-    refine ⟨y7, ?_, modifies_trans_subset hmod15 hmod7 Finset.Subset.rfl Finset.Subset.rfl,
-      ?_, h7_0, h7_1⟩
-    · unfold postRandStep
-      exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq hbr)))))).mono (by omega)
-    · exact {
-        regs_wBase := h7_wb
-        regs_dBase := h7_db
-        regs_stride := h7_str
-        regs_activeK := h7_k
-        regs_targetT := by
-          rw [h7_t]
-          have : y6.regs targetT = y5.regs targetT := by simp +decide [y6]
-          rw [this, h5_t, h4_t, h3_t, h2_t, h1_t, htargetT]
-        regs_totS := by
-          rw [h7_tot]
-          have : y6.regs totS = y5.regs totS := by simp +decide [y6]
-          rw [this, h5_tot, h4_tot, h3_tot]
-        le_stride := by omega
-        disjoint_blocks := hdisj_m
-        fits_wEnd := hwEnd.of_le (by
-          have : str * m ≤ str * (m + 1) := Nat.mul_le_mul_left str (Nat.le_succ m)
-          omega)
-        fits_dEnd := hdEnd.of_le (by omega)
-        fits_totS := htot_c_fit
-        workspace := h7_ws
-      }
-  · have hv_eq_m : v.val = m := by have := v.isLt; omega
-    have hcond : ¬ (Cond.lt vReg activeK).Holds y6 := by
-      have hv6 : y6.regs vReg = v.val := by simpa +decide [y6, Function.update_apply] using h5_v
-      simp only [Cond.holds_lt, hv6]
-      exact hv_lt
-    let y7 := y6.set idx 0
-    have e7 := ExecWithin.branch_neg (pos := ram[⟪compactSetup⟫;
-        while idx < activeK do [ ⟪compactBody⟫ ]]) hcond
-      (ExecWithin.const (B := .standard) (d := idx) (x := y6) (fits_zero w))
-    have hws_m : HoldsWorkspace y7.mem wb db str (contractMatrix W u v) := by
-      constructor
-      · intro i j
-        have hi : embedCompact v i = i.castSucc := by
-          unfold embedCompact
-          have : i.val ≠ v.val := by have := i.isLt; omega
-          simp [this]
-        have hj : embedCompact v j = j.castSucc := by
-          unfold embedCompact
-          have : j.val ≠ v.val := by have := j.isLt; omega
-          simp [this]
+  have hwEnd_m : Fits w (wb + str * m) := hwEnd.of_le (by
+    have : str * m ≤ str * (m + 1) := Nat.mul_le_mul_left str (Nat.le_succ m)
+    omega)
+  have hdEnd_m : Fits w (db + m) := hdEnd.of_le (by omega)
+  unfold postRandStep
+  wram_exec
+  wram_call (uScan_exec hsamp h0 h1 hwBase hdBase hstride hactiveK htotS hrem hdEnd htot hws.2)
+    with y1 ⟨hm1, h1_0, h1_1, h1_wb, h1_db, h1_str, h1_k, h1_t, h1_tot, h1_u, h1_rem⟩
+  refine WP.seq ?_
+  wram_call (vScan_exec hsamp h1_0 h1_1 h1_wb h1_db h1_str h1_k h1_tot h1_u h1_rem
+    hstr hwEnd hdEnd htot (hm1 ▸ hws.1))
+    with y2 ⟨hm2, h2_0, h2_1, h2_wb, h2_db, h2_str, h2_k, h2_t, h2_tot, h2_u, h2_v, h2_a2, h2_v1⟩
+  refine WP.seq ?_
+  wram_call (phaseADegrees_exec hW huv h2_0 h2_1 h2_wb h2_db h2_str h2_k h2_tot h2_u h2_v
+    h2_a2 h2_v1 hstr hdisj hdEnd htot (hm2.trans hm1 ▸ hws))
+    with y3 ⟨hmod3, h3_deg, h3_mat, h3_0, h3_1, h3_wb, h3_db, h3_str, h3_k, h3_t, h3_tot,
+      h3_u, h3_v⟩
+  have hf3 : KargerFrame wb db str (m + 1) t y3 :=
+    ⟨h3_0, h3_1, h3_wb, h3_db, h3_str, h3_k, by rw [h3_t, h2_t, h1_t, htargetT]⟩
+  refine WP.seq ?_
+  wram_call (phaseAPtrs_exec hW hf3 h3_u h3_v hstr hdisj hwEnd h3_deg h3_mat)
+    with y4 ⟨hmod4, h4_deg, h4_mat0, hf4, h4_tot, h4_u, h4_v, h4_a1, h4_a2, h4_idx⟩
+  refine WP.seq ?_
+  wram_call (mergeLoop_exec hW huv hf4 h4_u h4_v h4_a1 h4_a2 h4_idx
+    hstr hdisj hwEnd hdEnd htot h4_deg h4_mat0)
+    with y5 ⟨hmod5, h5_ws, hf5, h5_tot, _, h5_v⟩
+  have hmod15 : Modifies (workspaceFootprint wb db str (m + 1)) x.mem y5.mem := by
+    have hmod_x_y3 : Modifies (workspaceFootprint wb db str (m + 1)) x.mem y3.mem := by
+      simpa only [hm2, hm1] using hmod3
+    exact modifies_trans_subset
+      (modifies_trans_subset hmod_x_y3 hmod4 Finset.Subset.rfl Finset.Subset.rfl)
+      hmod5 Finset.Subset.rfl Finset.Subset.rfl
+  refine WP.seq (WP.bin hf5.activeK_eq hf5.one_eq (Nat.add_sub_cancel m 1) hm_fit ?_)
+  refine WP.branch (fun hc => ?_) (fun hc => ?_)
+  · have hv_lt : v.val < m := by wram_simp [Cond.holds_lt, h5_v] at hc; exact hc
+    wram_call (compactPhase_exec (u := u) (t := t) hW hv_lt
+      ⟨by wram_simp [hf5.zero_eq], by wram_simp [hf5.one_eq], by wram_simp [hf5.wBase_eq],
+        by wram_simp [hf5.dBase_eq], by wram_simp [hf5.stride_eq], by wram_simp,
+        by wram_simp [hf5.targetT_eq]⟩
+      (by wram_simp [h5_v]) hstr hdisj hwEnd hdEnd h5_ws)
+      with y7 ⟨hmod7, h7_ws, hf7, h7_tot⟩
+    exact ⟨by omega, modifies_trans_subset hmod15 hmod7 Finset.Subset.rfl Finset.Subset.rfl,
+      ⟨hf7.wBase_eq, hf7.dBase_eq, hf7.stride_eq, hf7.activeK_eq, hf7.targetT_eq,
+        by wram_simp [h7_tot, h5_tot, h4_tot, h3_tot], by omega, hdisj_m, hwEnd_m, hdEnd_m,
+        htot_c_fit, h7_ws⟩,
+      hf7.zero_eq, hf7.one_eq⟩
+  · have hv_lt : ¬ v.val < m := by wram_simp [Cond.holds_lt, h5_v] at hc; exact hc
+    wram_exec
+    have hembed (i : Fin m) : embedCompact v i = i.castSucc := by
+      unfold embedCompact
+      simp [show i.val ≠ v.val by have := i.isLt; have := v.isLt; omega]
+    have hws_m : HoldsWorkspace y5.mem wb db str (contractMatrix W u v) :=
+      ⟨fun i j => by
         have h1 : y5.mem (wb + i.val * str + j.val) = mergePair W u v i.castSucc j.castSucc :=
           h5_ws.1 i.castSucc j.castSucc
-        change y5.mem (wb + i.val * str + j.val) = _
-        rw [h1]
-        unfold contractMatrix
-        rw [hi, hj]
-      · intro i
-        have hi : embedCompact v i = i.castSucc := by
-          unfold embedCompact
-          have : i.val ≠ v.val := by have := i.isLt; omega
-          simp [this]
-        have h2 : y5.mem (db + i.val) = rowDeg (mergePair W u v) i.castSucc :=
-          h5_ws.2 i.castSucc
-        change y5.mem (db + i.val) = _
-        rw [h2, rowDeg_contractMatrix, hi]
-    refine ⟨y7, ?_, hmod15, ?_,
-      by simpa +decide [y7, y6, Function.update_apply] using h5_0,
-      by simpa +decide [y7, y6, Function.update_apply] using h5_1⟩
-    · unfold postRandStep
-      exact (e1.seq (e2.seq (e3.seq (e4.seq (e5.seq (e6.seq e7)))))).mono (by omega)
-    · exact {
-        regs_wBase := by simpa +decide [y7, y6, Function.update_apply] using h5_wb
-        regs_dBase := by simpa +decide [y7, y6, Function.update_apply] using h5_db
-        regs_stride := by simpa +decide [y7, y6, Function.update_apply] using h5_str
-        regs_activeK := by simp +decide [y7, y6]
-        regs_targetT := by
-          have : y7.regs targetT = y5.regs targetT := by
-            simp +decide [y7, y6]
-          rw [this, h5_t, h4_t, h3_t, h2_t, h1_t, htargetT]
-        regs_totS := by
-          have : y7.regs totS = y5.regs totS := by simp +decide [y7, y6]
-          rw [this, h5_tot, h4_tot, h3_tot]
-        le_stride := by omega
-        disjoint_blocks := hdisj_m
-        fits_wEnd := hwEnd.of_le (by
-          have : str * m ≤ str * (m + 1) := Nat.mul_le_mul_left str (Nat.le_succ m)
-          omega)
-        fits_dEnd := hdEnd.of_le (by omega)
-        fits_totS := htot_c_fit
-        workspace := hws_m
-      }
+        rw [h1]; unfold contractMatrix; rw [hembed, hembed],
+       fun i => by
+        have h2 : y5.mem (db + i.val) = rowDeg (mergePair W u v) i.castSucc := h5_ws.2 i.castSucc
+        rw [h2, rowDeg_contractMatrix, hembed]⟩
+    exact ⟨hmod15,
+      ⟨by wram_simp [hf5.wBase_eq], by wram_simp [hf5.dBase_eq], by wram_simp [hf5.stride_eq],
+        by wram_simp, by wram_simp [hf5.targetT_eq], by wram_simp [h5_tot, h4_tot, h3_tot],
+        by omega, hdisj_m, hwEnd_m, hdEnd_m, htot_c_fit, hws_m⟩,
+      by wram_simp [hf5.zero_eq], by wram_simp [hf5.one_eq]⟩
 
 /-! #### Simulation of the contraction structure and `contractDownTo_spec` -/
 
@@ -2597,58 +1702,41 @@ private theorem contractLoop_law {w wb db str t s : ℕ} {W : Fin (t + s) → Fi
       have hop : (Op.bin .sub activeK activeK one).eval w x = some x_next := by
         simp only [Op.eval_bin, BinOp.eval, hst.regs_activeK, h1, hsub1]
         exact Data.put_of_fits hm_fit
-      have hW_zero : ∀ a b : Fin (t + s + 1), W a b = 0 := fun a b => by
-        have := entry_le_totalDoubledWeight W a b
-        omega
-      have hcm_zero : ∀ i j : Fin (t + s), contractMatrix W 0 (Fin.last (t + s)) i j = 0 :=
-        fun i j => by
-          unfold contractMatrix mergePair
-          simp [hW_zero]
-      have hdeg_cm_zero : ∀ i : Fin (t + s),
-          rowDeg (contractMatrix W 0 (Fin.last (t + s))) i = 0 := fun i => by
-        unfold rowDeg
-        simp [hcm_zero]
+      have hW_zero (a b : Fin (t + s + 1)) : W a b = 0 := by
+        have := entry_le_totalDoubledWeight W a b; omega
+      have hcm_zero (i j : Fin (t + s)) : contractMatrix W 0 (Fin.last (t + s)) i j = 0 := by
+        unfold contractMatrix mergePair; simp [hW_zero]
+      have hdeg_cm_zero (i : Fin (t + s)) :
+          rowDeg (contractMatrix W 0 (Fin.last (t + s))) i = 0 := by
+        unfold rowDeg; simp [hcm_zero]
       have htot_cm_zero : totalDoubledWeight (contractMatrix W 0 (Fin.last (t + s))) = 0 := by
-        unfold totalDoubledWeight
-        simp [hdeg_cm_zero]
+        unfold totalDoubledWeight; simp [hdeg_cm_zero]
       have hws_next :
-          HoldsWorkspace x_next.mem wb db str (contractMatrix W 0 (Fin.last (t + s))) := by
-        refine ⟨fun i j => ?_, fun i => ?_⟩
-        · have hw1 : x.mem (wb + i.val * str + j.val) = W i.castSucc j.castSucc :=
+          HoldsWorkspace x_next.mem wb db str (contractMatrix W 0 (Fin.last (t + s))) :=
+        ⟨fun i j => by
+          have hw1 : x.mem (wb + i.val * str + j.val) = W i.castSucc j.castSucc :=
             hst.workspace.1 i.castSucc j.castSucc
           change x.mem (wb + i.val * str + j.val) = _
-          rw [hw1, hW_zero, hcm_zero]
-        · have hw2 : x.mem (db + i.val) = rowDeg W i.castSucc :=
-            hst.workspace.2 i.castSucc
+          rw [hw1, hW_zero, hcm_zero],
+         fun i => by
+          have hw2 : x.mem (db + i.val) = rowDeg W i.castSucc := hst.workspace.2 i.castSucc
           change x.mem (db + i.val) = _
-          rw [hw2, hdeg_cm_zero]
-          unfold rowDeg
-          simp [hW_zero]
+          rw [hw2, hdeg_cm_zero]; unfold rowDeg; simp [hW_zero]⟩
       have hmul_le : str * (t + s) ≤ str * (t + (s + 1)) := Nat.mul_le_mul_left str (by omega)
       have hst_next :
-          ContractState w wb db str (t + s) t (contractMatrix W 0 (Fin.last (t + s))) x_next := {
-        regs_wBase := by simpa +decide [x_next, Function.update_apply] using hst.regs_wBase
-        regs_dBase := by simpa +decide [x_next, Function.update_apply] using hst.regs_dBase
-        regs_stride := by simpa +decide [x_next, Function.update_apply] using hst.regs_stride
-        regs_activeK := by simp +decide [x_next]
-        regs_targetT := by simpa +decide [x_next, Function.update_apply] using hst.regs_targetT
-        regs_totS := by
-          have : x_next.regs totS = x.regs totS := by
-            simp +decide [x_next]
-          rw [this, hst.regs_totS, hS0, htot_cm_zero]
-        le_stride := by have := hst.le_stride; omega
-        disjoint_blocks := by have := hst.disjoint_blocks; omega
-        fits_wEnd := hst.fits_wEnd.of_le (by omega)
-        fits_dEnd := hst.fits_dEnd.of_le (by omega)
-        fits_totS := by rw [htot_cm_zero]; exact fits_zero w
-        workspace := hws_next
-      }
+          ContractState w wb db str (t + s) t (contractMatrix W 0 (Fin.last (t + s))) x_next :=
+        ⟨by wram_simp [x_next, hst.regs_wBase], by wram_simp [x_next, hst.regs_dBase],
+          by wram_simp [x_next, hst.regs_stride], by wram_simp [x_next],
+          by wram_simp [x_next, hst.regs_targetT],
+          by wram_simp [x_next, hst.regs_totS, hS0, htot_cm_zero],
+          by have := hst.le_stride; omega, by have := hst.disjoint_blocks; omega,
+          hst.fits_wEnd.of_le (by omega), hst.fits_dEnd.of_le (by omega),
+          by rw [htot_cm_zero]; exact fits_zero w, hws_next⟩
       have hb : ExecRandLaw w contractStep x P 2 0 (heldGraph wb str)
           (PMF.pure (heldGraph wb str x_next)) := by
         unfold contractStep
         exact ExecRandLaw.branch_pos hcond_z (ExecRandLaw.of_execWithin (ExecWithin.op hop)
-          ⟨Modifies.refl _ _, by simpa +decide [x_next, Function.update_apply] using h0,
-            by simpa +decide [x_next, Function.update_apply] using h1, _,
+          ⟨Modifies.refl _ _, by wram_simp [x_next, h0], by wram_simp [x_next, h1], _,
             isMultigraph_contractMatrix hW _ _, hst_next⟩)
       refine ((ExecRandLaw.loop_iter hc_loop hb hrest).congr_law ?_).mono (fun _ h => h)
         (le_trans (by omega) hbudget) (by omega)
@@ -2664,29 +1752,22 @@ private theorem contractLoop_law {w wb db str t s : ℕ} {W : Fin (t + s) → Fi
       have hop_sub : (Op.bin .sub val1 totS one).eval w x = some x_sub := by
         simp only [Op.eval_bin, BinOp.eval, hst.regs_totS, h1]
         exact Data.put_of_fits hSm1_fit
-      have hN : x_sub.regs val1 = totalDoubledWeight W - 1 := by simp [x_sub]
+      have hN : x_sub.regs val1 = totalDoubledWeight W - 1 := by wram_simp [x_sub]
       have hpost : ∀ k : Fin (x_sub.regs val1 + 1), ∃ y,
           ExecWithin w postRandStep (x_sub.set rem k.val) y (45 * (t + s + 1) + 22) ∧ P y ∧
             heldGraph wb str y = Lean.Karger.contractGraph ⟨t + s + 1, W⟩
               (Lean.Karger.sampledPair W k).1 (Lean.Karger.sampledPair W k).2 := by
         intro k
         obtain ⟨u, v, hsamp⟩ := exists_isSampledPair W (show k.val < totalDoubledWeight W by
-          have := k.isLt
-          omega)
+          have := k.isLt; omega)
         obtain ⟨y, hy, hmod, hst', hy0, hy1⟩ :=
           postRandStep_exec (x := x_sub.set rem k.val) (m := t + s) (t := t) (by omega) hW hsamp
-            (by simpa +decide [x_sub, Function.update_apply] using h0)
-            (by simpa +decide [x_sub, Function.update_apply] using h1)
-            (by simpa +decide [x_sub, Function.update_apply] using hst.regs_wBase)
-            (by simpa +decide [x_sub, Function.update_apply] using hst.regs_dBase)
-            (by simpa +decide [x_sub, Function.update_apply] using hst.regs_stride)
-            (by
-              have hk_sub : (x_sub.set rem k.val).regs activeK = t + (s + 1) := by
-                simpa +decide [x_sub, Function.update_apply] using hst.regs_activeK
-              omega)
-            (by simpa +decide [x_sub, Function.update_apply] using hst.regs_targetT)
-            (by simpa +decide [x_sub, Function.update_apply] using hst.regs_totS)
-            (by simp +decide)
+            (by wram_simp [x_sub, h0]) (by wram_simp [x_sub, h1])
+            (by wram_simp [x_sub, hst.regs_wBase]) (by wram_simp [x_sub, hst.regs_dBase])
+            (by wram_simp [x_sub, hst.regs_stride])
+            (by wram_simp [x_sub, hst.regs_activeK]; omega)
+            (by wram_simp [x_sub, hst.regs_targetT]) (by wram_simp [x_sub, hst.regs_totS])
+            (by wram_simp)
             hst.le_stride hst.disjoint_blocks hst.fits_wEnd hst.fits_dEnd hst.fits_totS
             hst.workspace
         refine ⟨y, hy, ⟨hmod, hy0, hy1, _, isMultigraph_contractMatrix hW u v, hst'⟩, ?_⟩
@@ -2725,21 +1806,13 @@ theorem contractDownTo_law {w wb db str k t : ℕ} {W : Fin k → Fin k → ℕ}
   rw [Nat.add_sub_cancel_left]
   have h1_fit : Fits w 1 := hst.fits_dEnd.of_le (by omega)
   let x₁ := (x.set zero 0).set one 1
-  have hst₁ : ContractState w wb db str (t + s) t W x₁ := {
-    regs_wBase := by simpa +decide [x₁, Function.update_apply] using hst.regs_wBase
-    regs_dBase := by simpa +decide [x₁, Function.update_apply] using hst.regs_dBase
-    regs_stride := by simpa +decide [x₁, Function.update_apply] using hst.regs_stride
-    regs_activeK := by simpa +decide [x₁, Function.update_apply] using hst.regs_activeK
-    regs_targetT := by simpa +decide [x₁, Function.update_apply] using hst.regs_targetT
-    regs_totS := by simpa +decide [x₁, Function.update_apply] using hst.regs_totS
-    le_stride := hst.le_stride
-    disjoint_blocks := hst.disjoint_blocks
-    fits_wEnd := hst.fits_wEnd
-    fits_dEnd := hst.fits_dEnd
-    fits_totS := hst.fits_totS
-    workspace := hst.workspace
-  }
-  have hloop := contractLoop_law ht hW (by simp +decide [x₁]) (by simp +decide [x₁]) hst₁
+  have hst₁ : ContractState w wb db str (t + s) t W x₁ :=
+    ⟨by wram_simp [x₁, hst.regs_wBase], by wram_simp [x₁, hst.regs_dBase],
+      by wram_simp [x₁, hst.regs_stride], by wram_simp [x₁, hst.regs_activeK],
+      by wram_simp [x₁, hst.regs_targetT], by wram_simp [x₁, hst.regs_totS],
+      hst.le_stride, hst.disjoint_blocks, hst.fits_wEnd, hst.fits_dEnd,
+      hst.fits_totS, hst.workspace⟩
+  have hloop := contractLoop_law ht hW (by wram_simp [x₁]) (by wram_simp [x₁]) hst₁
   unfold contractDownTo
   exact (ExecRandLaw.seq_det (ExecWithin.const (fits_zero w))
     (ExecRandLaw.seq_det (ExecWithin.const h1_fit) hloop)).mono (fun _ h => h) (by omega) le_rfl

@@ -89,7 +89,6 @@ private theorem polygon_sameComponent_incidence_vertex (o p : F.Occurrence) (b c
   · omega
   · omega
   · apply polygon_sameComponent_constraint
-    apply Fin.ext
     omega
 
 private theorem incidence_adj_occurrence {u v : ℕ}
@@ -235,7 +234,7 @@ theorem polygonComponentMap_injective (F : CSP Rel V) :
 /-- Positive scopes ensure that no incidence component consists of a deleted nullary
 constraint vertex. Thus every incidence component contains a polygon vertex. -/
 theorem polygonComponentMap_surjective (F : CSP Rel V)
-    (hPos : ∀ i : Fin F.length, 0 < F[i.val].2.length) :
+    (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) :
     Function.Surjective (polygonComponentMap F) := by
   intro c
   induction c using SimpleGraph.ConnectedComponent.ind with
@@ -261,7 +260,7 @@ theorem polygonComponentMap_surjective (F : CSP Rel V)
 
 /-- Exact component bijection for positive scopes, including disconnected and empty bodies. -/
 noncomputable def polygonComponentEquiv (F : CSP Rel V)
-    (hPos : ∀ i : Fin F.length, 0 < F[i.val].2.length) :
+    (hPos : ∀ i : Fin F.length, 0 < F[i.val].scope.length) :
     (polygonGraph F).induced.ConnectedComponent ≃ (incidenceGraph F).induced.ConnectedComponent :=
   Equiv.ofBijective (polygonComponentMap F)
     ⟨polygonComponentMap_injective F, polygonComponentMap_surjective F hPos⟩

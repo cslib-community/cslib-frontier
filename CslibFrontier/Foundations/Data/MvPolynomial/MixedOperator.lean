@@ -117,7 +117,7 @@ theorem mixedOp_prod_X_of_neg {ι : Type*} (T : Finset ι) (c : ι → σ) (hc :
   induction T using Finset.induction_on with
   | empty => simp
   | insert t T ht ih =>
-    rw [Finset.prod_insert ht, map_mul, Module.End.mul_apply,
+    rw [Finset.prod_insert ht, map_mul, mul_apply_eq_comp,
       ih fun t' h => hc t' (Finset.mem_insert_of_mem h),
       mixedOp_X_of_neg (hc t (Finset.mem_insert_self _ _)), mul_assoc]
 
@@ -135,7 +135,7 @@ theorem mixedOp_prod_X_monomial_of_pos {ι : Type*} (T : Finset ι) (c : ι → 
       rw [Finsupp.finsetSum_apply]
       refine Finset.sum_eq_zero fun t' ht' => Finsupp.single_eq_of_ne' fun h => ht ?_
       rwa [hinj (Finset.mem_insert_self _ _) (Finset.mem_insert_of_mem ht') h.symm]
-    rw [Finset.prod_insert ht, map_mul, Module.End.mul_apply,
+    rw [Finset.prod_insert ht, map_mul, mul_apply_eq_comp,
       ih (fun t' h => hc t' (Finset.mem_insert_of_mem h))
         (hinj.mono (Finset.coe_subset.2 (Finset.subset_insert _ _))),
       mixedOp_X_of_pos (hc t (Finset.mem_insert_self _ _)), pderiv_monomial, Finsupp.tsub_apply,
@@ -153,7 +153,7 @@ theorem mixedOp_map (f : R →+* S) (Q p : MvPolynomial σ R) :
   | C a => simp [smul_eq_C_mul]
   | add Q₁ Q₂ h₁ h₂ => simp [h₁, h₂]
   | mul_X Q i h =>
-    simp only [map_mul, Module.End.mul_apply, map_X, h]
+    simp only [map_mul, mul_apply_eq_comp, map_X, h]
     by_cases hi : s i
     · rw [mixedOp_X_of_pos hi, mixedOp_X_of_pos hi, pderiv_map]
     · rw [mixedOp_X_of_neg hi, mixedOp_X_of_neg hi, map_mul, map_X]

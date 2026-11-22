@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: candidate (additions to `Cslib/Computability/Circuit/Program.lean` and `Basic.lean`)
 public import Cslib.Computability.Circuit.Basic
 public import CslibFrontier.Computability.Circuit.Program
 public import Mathlib.Data.Fin.SuccPred
@@ -16,21 +16,24 @@ public import Mathlib.Logic.Function.DependsOn
 /-!
 # Circuit input support
 
-This file computes the original inputs that can affect each wire and proves
-that circuit evaluation depends only on those inputs. An input on which a function depends
-essentially (`EssentialAt`) therefore reaches an output of every circuit computing it.
+cslib computes the original inputs that can affect each wire
+(`Cslib.Circuits.Program.wireSupport`, `Cslib.Circuits.Circuit.inputSupport`) and proves that
+circuit evaluation depends only on those inputs (`Cslib.Circuits.Circuit.dependsOn_eval`); these
+were upstreamed from this file in cslib#1181. This file keeps the additions cslib does not have:
+the support of a gate and of a designated output, and essential coordinates. An input on which a
+function depends essentially (`EssentialAt`) reaches an output of every circuit computing it.
 
 ## Main definitions
 
 * `Cslib.Circuits.EssentialAt`: coordinates whose change can change a function.
-* `Cslib.Circuits.supportInterpretation`, `Cslib.Circuits.Line.inputSupport`,
-  `Cslib.Circuits.Program.gateSupport`, `Cslib.Circuits.Program.wireSupport`,
-  `Cslib.Circuits.Circuit.outputSupport`, `Cslib.Circuits.Circuit.inputSupport`: the support
-  interpretation and the structural input supports of lines, gates, wires, outputs, and circuits.
+* `Cslib.Circuits.Program.gateSupport`, `Cslib.Circuits.Circuit.outputSupport`: the structural
+  input supports of gates and of designated outputs.
 
 ## Main results
 
-* `Cslib.Circuits.Circuit.dependsOn_eval`: a circuit depends only on its input support.
+* `Cslib.Circuits.EssentialAt.mem_support`: an essential coordinate belongs to every support.
+* `Cslib.Circuits.Circuit.Computes.dependsOn`: a computed function depends only on the circuit's
+  input support.
 -/
 
 @[expose] public section
@@ -57,44 +60,9 @@ theorem essentialAt_iff_not_dependsOn {f : (Fin n → U) → V} {i : Fin n} :
     exists_prop]
 
 
-/-- The support interpretation unions the supports of a gate's argument wires. -/
-def supportInterpretation (σ : Signature) (n : ℕ) : Interpretation σ (Finset (Fin n)) :=
-  fun _ supports => Finset.univ.biUnion supports
-
-
-/-- The original inputs supporting a line, given the support of each wire. -/
-def Line.inputSupport
-    (line : Line σ n g)
-    (wireSupport : Wire n g → Finset (Fin n)) : Finset (Fin n) :=
-  Finset.univ.biUnion fun k => wireSupport (line.wires k)
-
-
-/-- Membership in a line's input support comes from one of its arguments. -/
-@[simp] theorem Line.mem_inputSupport
-    {line : Line σ n g}
-    {wireSupport : Wire n g → Finset (Fin n)}
-    {input : Fin n} :
-    input ∈ line.inputSupport wireSupport ↔
-      ∃ argument, input ∈ wireSupport (line.wires argument) := by
-  simp [Line.inputSupport]
-
-
 /-- The input support of every gate in a program. -/
 def Program.gateSupport (program : Program σ n g) : Fin g → Finset (Fin n) :=
   program.eval (supportInterpretation σ n) (fun i => {i})
-
-
-/-- The input support of every input or gate wire in a program. -/
-def Program.wireSupport
-    (program : Program σ n g) : Wire n g → Finset (Fin n) :=
-  program.trace (supportInterpretation σ n) (fun i => {i})
-
-
-/-- An input wire is supported only by that input. -/
-@[simp] theorem Program.wireSupport_input
-    (program : Program σ n g)
-    (input : Fin n) :
-    program.wireSupport (Wire.input input) = {input} := rfl
 
 
 /-- A gate-output wire has the support of that gate. -/
@@ -103,15 +71,6 @@ def Program.wireSupport
     (gate : Fin g) :
     program.wireSupport (Wire.gate gate) =
       program.gateSupport gate := rfl
-
-
-/-- Adding a gate preserves the support of every earlier wire. -/
-@[simp] theorem Program.wireSupport_gate_castSucc
-    (program : Program σ n g)
-    (line : Line σ n g)
-    (wire : Wire n g) :
-    (program.gate line).wireSupport wire.castSucc = program.wireSupport wire :=
-  program.trace_gate_castSucc line (supportInterpretation σ n) (fun i => {i}) wire
 
 
 /-- The new gate is supported by precisely the inputs supporting the new line. -/
@@ -123,57 +82,10 @@ def Program.wireSupport
   program.eval_gate_last line (supportInterpretation σ n) (fun i => {i})
 
 
-/-- The new wire is supported by precisely the inputs supporting the new line. -/
-theorem Program.wireSupport_gate_last
-    (program : Program σ n g)
-    (line : Line σ n g) :
-    (program.gate line).wireSupport (Wire.gate (Fin.last g)) =
-      line.inputSupport program.wireSupport :=
-  program.gateSupport_gate_last line
-
-
 /-- The input support of every designated output wire in a circuit. -/
 def Circuit.outputSupport
     (c : Circuit σ n m) : Fin m → Finset (Fin n) :=
   c.program.wireSupport ∘ c.outputs
-
-
-/-- The union of the input supports of a circuit's outputs. -/
-def Circuit.inputSupport (c : Circuit σ n m) : Finset (Fin n) :=
-  Finset.univ.biUnion c.outputSupport
-
-
-/-- An input supports a circuit exactly when it supports a designated output wire. -/
-@[simp] theorem Circuit.mem_inputSupport
-    {c : Circuit σ n m}
-    {input : Fin n} :
-    input ∈ c.inputSupport ↔
-      ∃ output, input ∈ c.program.wireSupport (c.outputs output) := by
-  simp [Circuit.inputSupport, Circuit.outputSupport]
-
-
-/-- Program traces agree on any wire whose supporting inputs agree. -/
-theorem Program.trace_congr
-    (program : Program σ n g)
-    (interpretation : Interpretation σ U)
-    (left right : Fin n → U)
-    (wire : Wire n g)
-    (agree : ∀ i ∈ program.wireSupport wire, left i = right i) :
-    program.trace interpretation left wire =
-      program.trace interpretation right wire := by
-  revert agree
-  refine program.wire_induction (P := fun wire =>
-    (∀ i ∈ program.wireSupport wire, left i = right i) →
-      program.trace interpretation left wire = program.trace interpretation right wire)
-    (fun i agree => agree i (Finset.mem_singleton_self i)) (fun k ih agree => ?_) wire
-  rw [program.trace_gate, program.trace_gate]
-  congr 1 with a : 1
-  apply ih a
-  intro i hi
-  apply agree i
-  change i ∈ program.trace (supportInterpretation σ n) (fun i => {i}) (.gate k)
-  rw [program.trace_gate]
-  exact Finset.mem_biUnion.mpr ⟨a, Finset.mem_univ a, hi⟩
 
 
 /-- Program gates agree whenever their supporting inputs agree. -/
@@ -185,18 +97,6 @@ theorem Program.eval_congr
     (agree : ∀ i ∈ program.gateSupport k, left i = right i) :
     program.eval interpretation left k = program.eval interpretation right k :=
   program.trace_congr interpretation left right (.gate k) agree
-
-
-/-- Circuit evaluation depends only on the circuit's structural input support. -/
-theorem Circuit.dependsOn_eval
-    (c : Circuit σ n m)
-    (interpretation : Interpretation σ U) :
-    DependsOn (c.eval interpretation) (c.inputSupport : Set (Fin n)) := by
-  intro left right agree
-  funext output
-  apply c.program.trace_congr interpretation left right (c.outputs output)
-  intro input present
-  exact agree input (Circuit.mem_inputSupport.mpr ⟨output, present⟩)
 
 
 /-- A computed function depends only on the circuit's structural input support. -/

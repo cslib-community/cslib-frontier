@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One cell of the three Convolution-3SUM matrices
@@ -246,14 +247,11 @@ private theorem exec_BC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (
   have hfit : Fits (w + 2) (a + a) := by
     simpa only [encode_nat] using (encode_fits hidx).mono (by omega : w + 1 ≤ w + 2)
   have hmfit : Fits (w + 2) (c * t) := hfit.of_le (by dsimp [a]; omega)
-  have hafit : Fits (w + 2) a := hfit.of_le (by omega)
-  have hdfit : Fits (w + 2) (a - r) := hfit.of_le (by omega)
-  have hddfit : Fits (w + 2) ((a - r) + (a - r)) := hfit.of_le (by omega)
   have h3 : Fits (w + 2) 3 := (show Fits 2 3 from by decide).mono (by omega)
   have hp : ExecWithin (w + 2) setupBC x z 7 := by
     by_cases hh : a < r <;>
-      ram_eval [setupBC, z, z₁, z₀, hcell, hmat, hrow, hcol, ht, hs, hmfit, hafit,
-        hdfit, hddfit, h3, hd, hh, a, cell, matBC, row, col, side, inst, index, dest,
+      ram_eval [setupBC, z, z₁, z₀, hcell, hmat, hrow, hcol, ht, hs, hmfit, h3, hd, hh, a, cell,
+        matBC, row, col, side, inst, index, dest,
         Fin.mk.injEq]
   have hix : GenericRAM.Signed.Fits w ix := by
     dsimp only [ix]
@@ -294,10 +292,9 @@ private theorem exec_AC {w N b d q r c t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (
     simpa only [encode_nat] using (encode_fits hidx).mono (by omega : w + 1 ≤ w + 2)
   have hsum : Fits (w + 2) (r + c) := hfit.of_le (by dsimp [a]; nlinarith)
   have hmul : Fits (w + 2) ((r + c) * t) := hfit.of_le (by dsimp [a]; omega)
-  have hafit : Fits (w + 2) a := hfit.of_le (by omega)
   have hp : ExecWithin (w + 2) setupAC x z 6 := by
     ram_eval [setupAC, z, hcell, hmat, hrow, hcol, ht, hs, hneg,
-      hsum, hmul, hafit, hfit, hd, a, cell, matAC, row, col, side, inst, index, dest,
+      hsum, hmul, hfit, hd, a, cell, matAC, row, col, side, inst, index, dest,
       filler, negFill, Fin.mk.injEq]
   obtain ⟨u, hu, hum, hureg⟩ := exec_weight (d := d + q) (z := (a : ℤ)) true z
     (by
@@ -351,47 +348,25 @@ theorem exec_step {w N b ab bc ac q t s : ℕ} {μ : ℕ → ℤ} {F : ℤ} (x :
     ((encode_fits (hnat k hk)).mono (by omega)).of_le (by rw [encode_nat]; omega)
   obtain ⟨p, hp, hpm, hpr, hpc, hpF, hpnF, hpreg⟩ := exec_prepare x hcell ht hf
     (hfits _ (by nlinarith)) (hfits _ (by nlinarith)) hF
-  have hprg (i : Fin 28) (hi : 9 ≤ i.val ∧ i.val ≤ 21) : p.regs i = x.regs i :=
-    hpreg i (Or.inl hi)
   obtain ⟨a, ha, ham, hareg⟩ := exec_AB p
-    ((hprg cell (by decide)).trans hcell) ((hprg matAB (by decide)).trans hab)
-    ((hprg len (by decide)).trans hlen) ((hprg base (by decide)).trans hbase)
-    ((hprg filler (by decide)).trans hf) (by simpa only [hpm] using hmem)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) (by simpa only [hpm] using hmem)
     (hnat _ (by omega)) hF hμ haddr habfit
   have hamem : ∀ i < N, a.mem (b + i) = encode (μ i) := by
     intro i hi
     rw [ham, Function.update_of_ne (by omega), hpm]
     exact hmem i hi
-  have harg (i : Fin 28) (hi : 10 ≤ i.val) (hne : i.val ≠ 13) : a.regs i = p.regs i :=
-    hareg i hi hne
   obtain ⟨v, hv, hvm, hvreg⟩ := exec_BC a
-    ((harg cell (by decide) (by decide)).trans ((hprg cell (by decide)).trans hcell))
-    ((harg matBC (by decide) (by decide)).trans ((hprg matBC (by decide)).trans hbc))
-    ((harg row (by decide) (by decide)).trans hpr)
-    ((harg col (by decide) (by decide)).trans hpc)
-    ((harg side (by decide) (by decide)).trans ((hprg side (by decide)).trans ht))
-    ((harg inst (by decide) (by decide)).trans ((hprg inst (by decide)).trans hs))
-    ((harg len (by decide) (by decide)).trans ((hprg len (by decide)).trans hlen))
-    ((harg base (by decide) (by decide)).trans ((hprg base (by decide)).trans hbase))
-    ((harg filler (by decide) (by decide)).trans ((hprg filler (by decide)).trans hf))
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) (by regs_frame) (by regs_frame)
     hamem (hnat _ (by nlinarith)) hF hμ haddr hbcfit
   have hvmem : ∀ i < N, v.mem (b + i) = encode (μ i) := by
     intro i hi
     rw [hvm, Function.update_of_ne (by omega)]
     exact hamem i hi
-  have hvrg (i : Fin 28) (hi : 10 ≤ i.val) (hne : i.val ≠ 13) : v.regs i = p.regs i :=
-    (hvreg i hi hne).trans (harg i hi hne)
   obtain ⟨y, hy, hym, hyf, -⟩ := exec_AC v
-    ((hvrg cell (by decide) (by decide)).trans ((hprg cell (by decide)).trans hcell))
-    ((hvrg matAC (by decide) (by decide)).trans ((hprg matAC (by decide)).trans hac))
-    ((hvrg row (by decide) (by decide)).trans hpr)
-    ((hvrg col (by decide) (by decide)).trans hpc)
-    ((hvrg side (by decide) (by decide)).trans ((hprg side (by decide)).trans ht))
-    ((hvrg inst (by decide) (by decide)).trans ((hprg inst (by decide)).trans hs))
-    ((hvrg len (by decide) (by decide)).trans ((hprg len (by decide)).trans hlen))
-    ((hvrg base (by decide) (by decide)).trans ((hprg base (by decide)).trans hbase))
-    ((hvrg saved (by decide) (by decide)).trans hpF)
-    ((hvrg negFill (by decide) (by decide)).trans hpnF)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
+    (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
     hvmem (hnat _ (by nlinarith)) htpos hnF hμ haddr hacfit
   have he : ExecWithin (w + 2) step x y 128 :=
     (hp.seq (ha.seq (hv.seq hy))).mono (by decide : 23 + (30 + (35 + 35)) ≤ 128)

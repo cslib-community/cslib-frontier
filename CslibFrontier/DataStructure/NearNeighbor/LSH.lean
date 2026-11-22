@@ -9,9 +9,11 @@ module
 
 public import CslibFrontier.Probability.LocalitySensitiveHash
 public import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import CslibFrontier.Probability.EventCount
 import CslibFrontier.Probability.IID.Event
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Markov
+import CslibFrontier.Tactic.ENNRealToReal
 
 /-!
 # Approximate near neighbours by locality-sensitive hashing
@@ -187,30 +189,6 @@ end Structure
 
 /-! ### The failure bound -/
 
-/-- A list count of events, each of probability at most `B`, has expectation at most
-`length · B`. -/
-private theorem tsum_mul_countP_le {Ω : Type*} (μ : PMF Ω) (E : Ω → X → Prop)
-    [∀ ω x, Decidable (E ω x)] (B : ℝ≥0∞) :
-    ∀ l : List X, (∀ x ∈ l, μ.toOuterMeasure {ω | E ω x} ≤ B) →
-      ∑' ω, μ ω * ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞) ≤ l.length * B
-  | [], _ => by simp only [List.countP_nil, Nat.cast_zero, mul_zero, tsum_zero, zero_le]
-  | y :: l, hl => by
-    have hy := hl y List.mem_cons_self
-    have ih := tsum_mul_countP_le μ E B l fun x hx => hl x (List.mem_cons_of_mem y hx)
-    have hsplit : ∀ ω, μ ω * ((((y :: l).countP fun x => decide (E ω x)) : ℕ) : ℝ≥0∞) =
-        μ ω * ((l.countP fun x => decide (E ω x) : ℕ) : ℝ≥0∞) + {ω | E ω y}.indicator μ ω := by
-      intro ω
-      rw [List.countP_cons]
-      by_cases hω : E ω y
-      · simp only [hω, decide_true, ite_true, Nat.cast_add, Nat.cast_one, mul_add, mul_one,
-          Set.indicator_of_mem (show ω ∈ {ω | E ω y} from hω)]
-      · simp only [hω, decide_false, Bool.false_eq_true, ite_false, add_zero,
-          Set.indicator_of_notMem (show ω ∉ {ω | E ω y} from hω)]
-    simp only [hsplit]
-    rw [tsum_add, ← PMF.toOuterMeasure_apply, List.length_cons, Nat.cast_add, Nat.cast_one,
-      add_mul, one_mul]
-    exact add_le_add ih hy
-
 /-- **The far candidates are few on average.** If far pairs collide under `g` with probability at
 most `P₂`, the expected number of far candidates over `L` independent tables is at most
 `L |P| P₂`. -/
@@ -225,7 +203,8 @@ theorem tsum_iid_mul_countP_candidates_le [DecidableEq Y] {far : X → X → Pro
         ((P.countP fun x => decide (g (s j) x = g (s j) q ∧ far x q) : ℕ) : ℝ≥0∞)
       ≤ ∑ _j : Fin L, (P.length * ENNReal.ofReal P₂) := by
         refine Finset.sum_le_sum fun j _ => ?_
-        refine tsum_mul_countP_le (PMF.iid ν L) (fun s x => g (s j) x = g (s j) q ∧ far x q) _ P ?_
+        refine PMF.tsum_mul_countP_le (PMF.iid ν L)
+          (fun s x => g (s j) x = g (s j) q ∧ far x q) _ P ?_
         intro x hx
         by_cases hxf : far x q
         · have hset : {s : Fin L → ι | g (s j) x = g (s j) q ∧ far x q} =
@@ -283,11 +262,9 @@ theorem toOuterMeasure_query_eq_none_le [DecidableEq Y] {far : X → X → Prop}
       ν.toOuterMeasure {i | g i x₀ = g i q}ᶜ ^ L + L * (P.length * ENNReal.ofReal P₂) / T :=
     (MeasureTheory.measure_mono hsub).trans
       ((MeasureTheory.measure_union_le A B).trans (by rw [hA]; exact add_le_add le_rfl hB))
-  refine (ENNReal.toReal_le_add hle (ENNReal.pow_ne_top (PMF.toOuterMeasure_ne_top _ _))
-    hBfin).trans ?_
-  rw [ENNReal.toReal_pow, hcompl, ENNReal.toReal_div, ENNReal.toReal_mul, ENNReal.toReal_mul,
-    ENNReal.toReal_natCast, ENNReal.toReal_natCast, ENNReal.toReal_natCast,
-    ENNReal.toReal_ofReal hP₂, ← mul_assoc]
+  ennreal_to_real at hle
+  refine hle.trans ?_
+  rw [hcompl, ← mul_assoc]
   have h1 : 0 ≤ 1 - collisionProb ν g x₀ q := sub_nonneg.2 (collisionProb_le_one _ _ _ _)
   gcongr
 

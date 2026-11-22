@@ -13,7 +13,6 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordReduction
 public import CslibFrontier.Probability.Entropy.BitString
 public import CslibFrontier.Crypto.Computational.GeneratorReindex
 public import CslibFrontier.Foundations.Data.BitString.List.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Probabilistic.LinearHash
 import CslibFrontier.Computability.Probabilistic.UniformNat
@@ -29,6 +28,7 @@ import CslibFrontier.Foundations.Data.Nat.Asymptotics
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.PPT
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Conditional Entropy-Preserving Pseudorandom Generators from One-Way Functions
@@ -38,8 +38,8 @@ This module formalizes conditional entropy-preserving pseudorandom generators
 [Y. Liu and R. Pass, *On One-Way Functions and Kolmogorov Complexity*][LiuPass2020]. All section,
 definition, theorem, lemma, and page locators follow the full version `arXiv:2009.11514v1`
 (and ECCC TR20-052): Section 5 (Definition 5.1, §5.1, p. 11; Lemma 5.1, §5.3, p. 14; Lemma 5.2,
-§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (pp. 21–24). Note that in
-`arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
+§5.3, p. 15; Theorem 5.5, §5.3, p. 15) and Appendix A (printed pp. 21–23, PDF pp. 22–24). Note that
+in `arXiv:2009.11514v1`, `Theorem` and `Definition` share one section counter while `Lemma` and
 `Fact` share a separate section counter.
 
 ## Main definitions
@@ -85,11 +85,18 @@ $(\mu, \gamma)$-condEP-PRG with entropy-loss constant $\alpha$ if:
 2. $G$ stretches every $n$-bit seed $z \in \{0, 1\}^n$ to length
    $n + \gamma \lfloor \log_2 n \rfloor$,
 3. there exists a sequence of nonempty conditioning events $E_n \subseteq \{0, 1\}^n$ such that:
-   - **(Conditional pseudorandomness):** For every strict PPT distinguisher $\mathcal{A}$,
+   - **(Conditional pseudorandomness):** For every uniform strict PPT distinguisher $\mathcal{A}$,
      eventually in $n$, the distinguishing advantage between $G(U_n \mid E_n)$ and
-     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$,
+     $U_{n + \gamma \lfloor \log_2 n \rfloor}$ is at most $\mu(n)$ (`≤ μ n`; note that
+     [LiuPass2020], Definition 2.6, p. 9 writes strict `< μ(n)`),
    - **(Conditional entropy preservation):** Eventually in $n$, the Shannon entropy of
-     $G(U_n \mid E_n)$ is at least $n - \alpha \lfloor \log_2 n \rfloor$. -/
+     $G(U_n \mid E_n)$ (base 2) is at least $n - \alpha \lfloor \log_2 n \rfloor$.
+
+Deviations from Definition 5.1: `γ` and `α` are natural numbers with `Nat.log 2 n` (`⌊log₂ n⌋`) in
+place of real constants and `log n`; `α` is an explicit parameter of `CondEPPRG` rather than
+existentially quantified; `E n` is explicitly required to be nonempty; distinguishers are uniform
+strict PPT (`IsPPT encBool`) rather than general PPT machines clocked only in `1^n`; and the
+distinguishing bound uses `≤ μ n` instead of `< μ(n)`. -/
 def CondEPPRG (G : List Bool → List Bool) (μ : ℕ → ℝ) (γ α : ℕ) : Prop :=
   ComputableInPolyTime G encBits encBits ∧
   (∀ z : List Bool, (G z).length = z.length + γ * Nat.log 2 z.length) ∧
@@ -391,8 +398,8 @@ private theorem trivialInverter_succ_ge {g : List Bool → List Bool} {imgLen : 
         ∑ x' : BitString k, (PMF.uniformOfFintype (BitString k) x').toReal *
           (if f x' = f x then 1 else 0) := by
     rw [Game.coe_succProbability]
-    simp only [pmf_norm, inversionGame, trivialInverter, BitString.eval_sampleList,
-      BitString.uniformList, bind_apply_toReal, PMF.pure_apply, hfeq]
+    simp only [pmf_norm, inversionGame, inversionExperiment, trivialInverter,
+      BitString.eval_sampleList, BitString.uniformList, bind_apply_toReal, PMF.pure_apply, hfeq]
     refine Finset.sum_congr rfl fun x _ => congrArg _ (Finset.sum_congr rfl fun x' _ => ?_)
     by_cases h : f x' = f x <;> simp [h]
   rw [heval]
@@ -561,58 +568,58 @@ private theorem coreSeedLen_ge_succ (imgLen : ℕ → ℕ) (d γ_core k : ℕ) :
   omega
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_regWidth {α : Type} {encode : α ↪ List Bool}
-    {k : α → ℕ} (hk : ComputableTidilyInPolyTime k encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => regWidth (k a)) encode encUnary := by
+private theorem computableInPolyTime_regWidth {α : Type} {encode : α ↪ List Bool}
+    {k : α → ℕ} (hk : ComputableInPolyTime k encode encUnary) :
+    ComputableInPolyTime (fun a => regWidth (k a)) encode encUnary := by
   unfold regWidth
   fun_prop
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_mMax {α : Type} {encode : α ↪ List Bool}
-    (d γ_core : ℕ) {k : α → ℕ} (hk : ComputableTidilyInPolyTime k encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => mMax d γ_core (k a)) encode encUnary := by
+private theorem computableInPolyTime_mMax {α : Type} {encode : α ↪ List Bool}
+    (d γ_core : ℕ) {k : α → ℕ} (hk : ComputableInPolyTime k encode encUnary) :
+    ComputableInPolyTime (fun a => mMax d γ_core (k a)) encode encUnary := by
   unfold mMax
   fun_prop
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_h2Rows {α : Type} {encode : α ↪ List Bool}
-    (d γ_core : ℕ) {k : α → ℕ} (hk : ComputableTidilyInPolyTime k encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => h2Rows d γ_core (k a)) encode encUnary := by
+private theorem computableInPolyTime_h2Rows {α : Type} {encode : α ↪ List Bool}
+    (d γ_core : ℕ) {k : α → ℕ} (hk : ComputableInPolyTime k encode encUnary) :
+    ComputableInPolyTime (fun a => h2Rows d γ_core (k a)) encode encUnary := by
   unfold h2Rows
   fun_prop
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_coreSeedLen {α : Type} {encode : α ↪ List Bool}
-    {imgLen : ℕ → ℕ} (himgLen : ComputableTidilyInPolyTime imgLen encUnary encUnary)
-    (d γ_core : ℕ) {k : α → ℕ} (hk : ComputableTidilyInPolyTime k encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => coreSeedLen imgLen d γ_core (k a)) encode encUnary := by
+private theorem computableInPolyTime_coreSeedLen {α : Type} {encode : α ↪ List Bool}
+    {imgLen : ℕ → ℕ} (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
+    (d γ_core : ℕ) {k : α → ℕ} (hk : ComputableInPolyTime k encode encUnary) :
+    ComputableInPolyTime (fun a => coreSeedLen imgLen d γ_core (k a)) encode encUnary := by
   unfold coreSeedLen
   fun_prop
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_mActual {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_mActual {α : Type} {encode : α ↪ List Bool}
     (d γ : ℕ) {k n : α → ℕ}
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hn : ComputableTidilyInPolyTime n encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => mActual d γ (k a) (n a)) encode encUnary := by
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hn : ComputableInPolyTime n encode encUnary) :
+    ComputableInPolyTime (fun a => mActual d γ (k a) (n a)) encode encUnary := by
   unfold mActual
   fun_prop
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_l2Val {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_l2Val {α : Type} {encode : α ↪ List Bool}
     (d : ℕ) {k r : α → ℕ}
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hr : ComputableTidilyInPolyTime r encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => l2Val d (k a) (r a)) encode encUnary := by
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hr : ComputableInPolyTime r encode encUnary) :
+    ComputableInPolyTime (fun a => l2Val d (k a) (r a)) encode encUnary := by
   unfold l2Val
   fun_prop
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_l1Val {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_l1Val {α : Type} {encode : α ↪ List Bool}
     (d : ℕ) {k r : α → ℕ}
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hr : ComputableTidilyInPolyTime r encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => l1Val d (k a) (r a)) encode encUnary := by
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hr : ComputableInPolyTime r encode encUnary) :
+    ComputableInPolyTime (fun a => l1Val d (k a) (r a)) encode encUnary := by
   unfold l1Val
   fun_prop
 
@@ -634,7 +641,7 @@ private def rawGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_co
     h2 ++ LinearHash.wordHash (l2 + mActual d γ k n) h2 x
 
 /-- Full deterministic conditional entropy-preserving generator `G` ([Liu and Pass, Proof of
-Theorem 5.5, §5.3, p. 15 and Appendix A, pp. 21–24 of arXiv:2009.11514v1][LiuPass2020]),
+Theorem 5.5, §5.3, pp. 15–16 and Appendix A, pp. 21–23 of arXiv:2009.11514v1][LiuPass2020]),
 normalized to output length `z.length + γ * Nat.log 2 z.length` on every input `z`. -/
 private def fullGen (g : List Bool → List Bool) (imgLen : ℕ → ℕ) (d γ_core γ : ℕ)
     (z : List Bool) : List Bool :=
@@ -675,22 +682,11 @@ private theorem fullGen_eq_rawGen {g : List Bool → List Bool} {imgLen : ℕ �
   rw [fullGen, List.take_left' hraw_len]
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_wordHash {α : Type} {encode : α ↪ List Bool}
-    {count : α → ℕ} {seed input : α → List Bool}
-    (hcount : ComputableTidilyInPolyTime count encode encUnary)
-    (hseed : ComputableTidilyInPolyTime seed encode encBits)
-    (hinput : ComputableTidilyInPolyTime input encode encBits) :
-    ComputableTidilyInPolyTime (fun a => LinearHash.wordHash (count a) (seed a) (input a))
-      encode encBits :=
-  (LinearHash.computableInPolyTime_wordHash hcount.computableInPolyTime
-    hseed.computableInPolyTime hinput.computableInPolyTime).tidy
-
-@[local fun_prop]
-private theorem computableTidilyInPolyTime_rawGen {g : List Bool → List Bool} {imgLen : ℕ → ℕ}
-    (hg : ComputableTidilyInPolyTime g encBits encBits)
-    (himgLen : ComputableTidilyInPolyTime imgLen encUnary encUnary)
+private theorem computableInPolyTime_rawGen {g : List Bool → List Bool} {imgLen : ℕ → ℕ}
+    (hg : ComputableInPolyTime g encBits encBits)
+    (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
     (d γ_core γ : ℕ) :
-    ComputableTidilyInPolyTime (rawGen g imgLen d γ_core γ) encBits encBits := by
+    ComputableInPolyTime (rawGen g imgLen d γ_core γ) encBits encBits := by
   let kFn (z : List Bool) := GeneratorReindex.parameter (coreSeedLen imgLen d γ_core) z.length
   let wFn (z : List Bool) := regWidth (kFn z)
   let rFn (z : List Bool) := boundedBinaryValue (kFn z) (z.take (wFn z))
@@ -699,37 +695,55 @@ private theorem computableTidilyInPolyTime_rawGen {g : List Bool → List Bool} 
   let h2Fn (z : List Bool) :=
     (z.drop (wFn z + kFn z + kFn z * imgLen (kFn z))).take (h2Rows d γ_core (kFn z) * kFn z)
   let padFn (z : List Bool) := z.drop (coreSeedLen imgLen d γ_core (kFn z))
-  have hk : ComputableTidilyInPolyTime kFn encBits encUnary :=
-    (GeneratorReindex.isPolyTime_parameter (by fun_prop) (by fun_prop)).tidy
-  have hw : ComputableTidilyInPolyTime wFn encBits encUnary := by unfold wFn; fun_prop
-  have hr : ComputableTidilyInPolyTime rFn encBits encUnary := by unfold rFn; fun_prop
-  have hx : ComputableTidilyInPolyTime xFn encBits encBits := by unfold xFn; fun_prop
-  have hh1 : ComputableTidilyInPolyTime h1Fn encBits encBits := by unfold h1Fn; fun_prop
-  have hh2 : ComputableTidilyInPolyTime h2Fn encBits encBits := by unfold h2Fn; fun_prop
-  have hpad : ComputableTidilyInPolyTime padFn encBits encBits := by unfold padFn; fun_prop
-  have hd1 : ComputableTidilyInPolyTime
-      (fun z => LinearHash.wordHash (l1Val d (kFn z) (rFn z)) (h1Fn z) (g (xFn z)))
-      encBits encBits := by fun_prop
-  have hd2 : ComputableTidilyInPolyTime
-      (fun z => LinearHash.wordHash
-        (l2Val d (kFn z) (rFn z) + mActual d γ (kFn z) z.length) (h2Fn z) (xFn z))
-      encBits encBits := by fun_prop
-  change ComputableTidilyInPolyTime
-    (fun z => padFn z ++ h1Fn z ++
-      LinearHash.wordHash (l1Val d (kFn z) (rFn z)) (h1Fn z) (g (xFn z)) ++
-      h2Fn z ++
-      LinearHash.wordHash
-        (l2Val d (kFn z) (rFn z) + mActual d γ (kFn z) z.length) (h2Fn z) (xFn z))
-    encBits encBits
-  fun_prop
+  have hn := ComputableInPolyTime.length_bits
+  have hid := ComputableInPolyTime.id' (encIn := encBits)
+  have hk : ComputableInPolyTime kFn encBits encUnary :=
+    GeneratorReindex.isPolyTime_parameter
+      (computableInPolyTime_coreSeedLen himgLen d γ_core
+        (ComputableInPolyTime.id' (encIn := encUnary))) hn
+  have hw : ComputableInPolyTime wFn encBits encUnary :=
+    computableInPolyTime_regWidth hk
+  have hr : ComputableInPolyTime rFn encBits encUnary :=
+    ComputableInPolyTime.bitsBoundedBinaryValueWithInput hk
+      (ComputableInPolyTime.bitsTakeWithInput hid hw)
+  have hx : ComputableInPolyTime xFn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid hw) hk
+  have himageLen := himgLen.comp hk
+  have hh1Size := ComputableInPolyTime.unary_mul' hk himageLen
+  have hh1 : ComputableInPolyTime h1Fn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid (ComputableInPolyTime.unary_add' hw hk))
+      hh1Size
+  have hh2 : ComputableInPolyTime h2Fn encBits encBits :=
+    ComputableInPolyTime.bitsTakeWithInput
+      (ComputableInPolyTime.bitsDropWithInput hid
+        (ComputableInPolyTime.unary_add' (ComputableInPolyTime.unary_add' hw hk) hh1Size))
+      (ComputableInPolyTime.unary_mul' (computableInPolyTime_h2Rows d γ_core hk) hk)
+  have hpad : ComputableInPolyTime padFn encBits encBits :=
+    ComputableInPolyTime.bitsDropWithInput hid
+      (computableInPolyTime_coreSeedLen himgLen d γ_core hk)
+  have hd1 := LinearHash.computableInPolyTime_wordHash
+    (computableInPolyTime_l1Val d hk hr) hh1 (hg.comp hx)
+  have hd2 := LinearHash.computableInPolyTime_wordHash
+    (ComputableInPolyTime.unary_add' (computableInPolyTime_l2Val d hk hr)
+      (computableInPolyTime_mActual d γ hk hn)) hh2 hx
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend (ComputableInPolyTime.bitsAppend hpad hh1) hd1) hh2) hd2
 
 private theorem computableInPolyTime_fullGen {g : List Bool → List Bool} {imgLen : ℕ → ℕ}
-    (hg : ComputableTidilyInPolyTime g encBits encBits)
-    (himgLen : ComputableTidilyInPolyTime imgLen encUnary encUnary)
+    (hg : ComputableInPolyTime g encBits encBits)
+    (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
     (d γ_core γ : ℕ) :
     ComputableInPolyTime (fullGen g imgLen d γ_core γ) encBits encBits := by
-  unfold fullGen
-  fun_prop
+  have hn := ComputableInPolyTime.length_bits
+  have htarget := ComputableInPolyTime.unary_add' hn
+    (ComputableInPolyTime.unary_mul' (.const γ)
+      (ComputableInPolyTime.unary_log_two.comp hn))
+  exact ComputableInPolyTime.bitsTakeWithInput
+    (ComputableInPolyTime.bitsAppend (computableInPolyTime_rawGen hg himgLen d γ_core γ)
+      ((ComputableInPolyTime.bitsReplicate false).comp htarget)) htarget
 
 /-! ### Seed packing and conditioning events $E_n$ -/
 
@@ -919,7 +933,7 @@ private theorem fullGen_packSeedWords (g : List Bool → List Bool) (imgLen : �
   rw [hr_dec, htake1, htake2, htake3, hdrop3]
 
 /-- Conditioning event $E_n \subseteq \mathrm{BitString}\; n$ at seed length $n$
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 of arXiv:2009.11514v1][LiuPass2020]). -/
 private noncomputable def condSeedSet (imgLen : ℕ → ℕ) (d γ_core : ℕ)
     (S : ∀ k, Finset (BitString k)) (r : ∀ k, Fin (k + 1)) (n : ℕ) :
     Finset (BitString n) := by
@@ -1057,7 +1071,7 @@ private theorem wordHash_take {a count : ℕ} (h : a ≤ count) (seed input : Li
 private theorem wordHash_succ (a : ℕ) (seed input : List Bool) :
     LinearHash.wordHash (a + 1) seed input =
       LinearHash.wordHash a seed input ++
-        [((listRow input.length a seed).zipWith Bool.and input).foldl Bool.xor false] := by
+        [listDot (listRow input.length a seed) input] := by
   simp [LinearHash.wordHash, listRows, List.range_succ]
 
 /-- On `BitString` inputs, `LinearHash.wordHash m` with `m ≤ count` agrees with
@@ -1112,7 +1126,7 @@ private noncomputable def unifCoreDist (k imgLen_k m1 m2 c2 : ℕ) :
 
 /-- Statistical distance between `coreLHLDist` and `unifCoreDist` is bounded by the sum of the
 fiber leftover-hash error on $x$ and the image leftover-hash error on $f(x)$
-([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 21–22 of
+([Liu and Pass, Lemma 5.1, §5.3, p. 14 and Appendix A, pp. 22–23 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem dist_coreLHLDist_unifCoreDist_le {k imgLen_k m1 m2 c2 : ℕ}
     (f : BitString k → BitString imgLen_k) (r : Fin (k + 1))
@@ -1320,7 +1334,7 @@ private theorem unifCoreDist_bind_packLHL (k imgLen_k m1 m2 c2 padLen m_lhl : �
 /-- Conditional entropy preservation for `fullGen` on `condSeedSet`:
 when `coreLHLDist` is within `1 / (lhlPrefixLen d k n) ^ 2` of `unifCoreDist`, the Shannon
 entropy of `fullGen` on `condSeedSet` is at least `lhlPrefixLen d k n - 2`
-([Liu and Pass, Proof of Theorem 5.5, §5.3, p. 15 and Lemma 2.2, §2.5, p. 9 of
+([Liu and Pass, Proof of Theorem 5.5, §5.3, pp. 15–16 and Lemma 2.2, §2.5, p. 9 of
 arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem entropy_fullGen_condSeedSet_ge (g : List Bool → List Bool) (imgLen : ℕ → ℕ)
     (d γ_core γ : ℕ) (S : ∀ k, Finset (BitString k)) (hS : ∀ k, (S k).Nonempty)
@@ -1441,16 +1455,22 @@ private def spliceMatrixWord (k idx : ℕ) (h2 query : List Bool) : List Bool :=
   h2.take (idx * k) ++ query ++ h2.drop ((idx + 1) * k)
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_spliceMatrixWord {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_spliceMatrixWord {α : Type} {encode : α ↪ List Bool}
     {k idx : α → ℕ} {h2 query : α → List Bool}
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hidx : ComputableTidilyInPolyTime idx encode encUnary)
-    (hh2 : ComputableTidilyInPolyTime h2 encode encBits)
-    (hquery : ComputableTidilyInPolyTime query encode encBits) :
-    ComputableTidilyInPolyTime
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hidx : ComputableInPolyTime idx encode encUnary)
+    (hh2 : ComputableInPolyTime h2 encode encBits)
+    (hquery : ComputableInPolyTime query encode encBits) :
+    ComputableInPolyTime
       (fun a => spliceMatrixWord (k a) (idx a) (h2 a) (query a)) encode encBits := by
   unfold spliceMatrixWord
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsTakeWithInput hh2
+        (ComputableInPolyTime.unary_mul' hidx hk)) hquery)
+    (ComputableInPolyTime.bitsDropWithInput hh2
+      (ComputableInPolyTime.unary_mul'
+        (ComputableInPolyTime.unary_add' hidx (.const 1)) hk))
 
 /-- Assemble the word challenge fed to the PRG distinguisher at hybrid step `idx = m2 + j`. -/
 private def wordChallenge (k m1 idx : ℕ) (pad h1 image h2 digest r_word z_tail query : List Bool) :
@@ -1459,24 +1479,31 @@ private def wordChallenge (k m1 idx : ℕ) (pad h1 image h2 digest r_word z_tail
     spliceMatrixWord k idx h2 query ++ digest ++ r_word ++ z_tail
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_wordChallenge {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_wordChallenge {α : Type} {encode : α ↪ List Bool}
     {k m1 idx : α → ℕ} {pad h1 image h2 digest r_word z_tail query : α → List Bool}
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hm1 : ComputableTidilyInPolyTime m1 encode encUnary)
-    (hidx : ComputableTidilyInPolyTime idx encode encUnary)
-    (hpad : ComputableTidilyInPolyTime pad encode encBits)
-    (hh1 : ComputableTidilyInPolyTime h1 encode encBits)
-    (himage : ComputableTidilyInPolyTime image encode encBits)
-    (hh2 : ComputableTidilyInPolyTime h2 encode encBits)
-    (hdigest : ComputableTidilyInPolyTime digest encode encBits)
-    (hr_word : ComputableTidilyInPolyTime r_word encode encBits)
-    (hz_tail : ComputableTidilyInPolyTime z_tail encode encBits)
-    (hquery : ComputableTidilyInPolyTime query encode encBits) :
-    ComputableTidilyInPolyTime
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hm1 : ComputableInPolyTime m1 encode encUnary)
+    (hidx : ComputableInPolyTime idx encode encUnary)
+    (hpad : ComputableInPolyTime pad encode encBits)
+    (hh1 : ComputableInPolyTime h1 encode encBits)
+    (himage : ComputableInPolyTime image encode encBits)
+    (hh2 : ComputableInPolyTime h2 encode encBits)
+    (hdigest : ComputableInPolyTime digest encode encBits)
+    (hr_word : ComputableInPolyTime r_word encode encBits)
+    (hz_tail : ComputableInPolyTime z_tail encode encBits)
+    (hquery : ComputableInPolyTime query encode encBits) :
+    ComputableInPolyTime
       (fun a => wordChallenge (k a) (m1 a) (idx a) (pad a) (h1 a) (image a)
         (h2 a) (digest a) (r_word a) (z_tail a) (query a)) encode encBits := by
+  have hhash := LinearHash.computableInPolyTime_wordHash hm1 hh1 himage
+  have hsplice := computableInPolyTime_spliceMatrixWord hk hidx hh2 hquery
   unfold wordChallenge
-  fun_prop
+  exact ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsAppend
+      (ComputableInPolyTime.bitsAppend
+        (ComputableInPolyTime.bitsAppend
+          (ComputableInPolyTime.bitsAppend
+            (ComputableInPolyTime.bitsAppend hpad hh1) hhash) hsplice) hdigest) hr_word) hz_tail
 
 /-- Convert the saved-coin distinguisher into a signed parity predictor for row `idx` of `h2`. -/
 private def wordStepPredictor (evaluate : (ℕ × List Bool) → List Bool → Bool)
@@ -1489,42 +1516,42 @@ private def wordStepPredictor (evaluate : (ℕ × List Bool) → List Bool → B
   else !r_bit) ^^ pol
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_wordStepPredictor {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_wordStepPredictor {α : Type} {encode : α ↪ List Bool}
     {evaluate : (ℕ × List Bool) → List Bool → Bool}
     {n k m1 idx : α → ℕ}
     {pad h1 image h2 digest r_word pol_word z_tail coins query : α → List Bool}
-    (hevaluate : ComputableTidilyInPolyTime
+    (hevaluate : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool => evaluate p.1 p.2)
       (encPair (encPair encUnary encBits) encBits) encBool)
-    (hn : ComputableTidilyInPolyTime n encode encUnary)
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hm1 : ComputableTidilyInPolyTime m1 encode encUnary)
-    (hidx : ComputableTidilyInPolyTime idx encode encUnary)
-    (hpad : ComputableTidilyInPolyTime pad encode encBits)
-    (hh1 : ComputableTidilyInPolyTime h1 encode encBits)
-    (himage : ComputableTidilyInPolyTime image encode encBits)
-    (hh2 : ComputableTidilyInPolyTime h2 encode encBits)
-    (hdigest : ComputableTidilyInPolyTime digest encode encBits)
-    (hr_word : ComputableTidilyInPolyTime r_word encode encBits)
-    (hpol_word : ComputableTidilyInPolyTime pol_word encode encBits)
-    (hz_tail : ComputableTidilyInPolyTime z_tail encode encBits)
-    (hcoins : ComputableTidilyInPolyTime coins encode encBits)
-    (hquery : ComputableTidilyInPolyTime query encode encBits) :
-    ComputableTidilyInPolyTime
+    (hn : ComputableInPolyTime n encode encUnary)
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hm1 : ComputableInPolyTime m1 encode encUnary)
+    (hidx : ComputableInPolyTime idx encode encUnary)
+    (hpad : ComputableInPolyTime pad encode encBits)
+    (hh1 : ComputableInPolyTime h1 encode encBits)
+    (himage : ComputableInPolyTime image encode encBits)
+    (hh2 : ComputableInPolyTime h2 encode encBits)
+    (hdigest : ComputableInPolyTime digest encode encBits)
+    (hr_word : ComputableInPolyTime r_word encode encBits)
+    (hpol_word : ComputableInPolyTime pol_word encode encBits)
+    (hz_tail : ComputableInPolyTime z_tail encode encBits)
+    (hcoins : ComputableInPolyTime coins encode encBits)
+    (hquery : ComputableInPolyTime query encode encBits) :
+    ComputableInPolyTime
       (fun a => wordStepPredictor evaluate (n a) (k a) (m1 a) (idx a) (pad a) (h1 a)
         (image a) (h2 a) (digest a) (r_word a) (pol_word a) (z_tail a) (coins a) (query a))
       encode encBool := by
   -- `fun_prop` takes seconds to find this composition through the case split.
-  have heval : ComputableTidilyInPolyTime
+  have heval : ComputableInPolyTime
       (fun a => evaluate (n a, wordChallenge (k a) (m1 a) (idx a) (pad a) (h1 a) (image a) (h2 a)
         (digest a) (r_word a) (z_tail a) (query a)) (coins a)) encode encBool :=
-    hevaluate.comp' ((hn.prod (computableTidilyInPolyTime_wordChallenge hk hm1 hidx hpad hh1
+    hevaluate.comp' ((hn.prod (computableInPolyTime_wordChallenge hk hm1 hidx hpad hh1
       himage hh2 hdigest hr_word hz_tail hquery)).prod hcoins)
-  have hr_bit : ComputableTidilyInPolyTime (fun a => (r_word a).headD false) encode encBool :=
-    (ComputableTidilyInPolyTime.headD false).comp' hr_word
-  exact ComputableTidilyInPolyTime.bool_xor.comp'
-    ((heval.ite' hr_bit (ComputableTidilyInPolyTime.bool_not.comp' hr_bit)).prod
-      ((ComputableTidilyInPolyTime.headD (encA := encBool) false).comp' hpol_word))
+  have hr_bit : ComputableInPolyTime (fun a => (r_word a).headD false) encode encBool :=
+    (ComputableInPolyTime.headD false).comp' hr_word
+  exact ComputableInPolyTime.bool_xor.comp'
+    ((heval.ite hr_bit (ComputableInPolyTime.bool_not.comp' hr_bit)).prod
+      ((ComputableInPolyTime.headD (encA := encBool) false).comp' hpol_word))
 
 /-- Coin budget for the PRG distinguisher on an output of length `n + γ * Nat.log 2 n` at
 security parameter `n`. -/
@@ -1532,10 +1559,10 @@ private def condCoinBudget (c_eval d_eval γ n : ℕ) : ℕ :=
   c_eval * (3 * n + γ * Nat.log 2 n + 2) ^ d_eval
 
 @[local fun_prop]
-private theorem computableTidilyInPolyTime_condCoinBudget {α : Type} {encode : α ↪ List Bool}
+private theorem computableInPolyTime_condCoinBudget {α : Type} {encode : α ↪ List Bool}
     (c_eval d_eval γ : ℕ) {n : α → ℕ}
-    (hn : ComputableTidilyInPolyTime n encode encUnary) :
-    ComputableTidilyInPolyTime (fun a => condCoinBudget c_eval d_eval γ (n a))
+    (hn : ComputableInPolyTime n encode encUnary) :
+    ComputableInPolyTime (fun a => condCoinBudget c_eval d_eval γ (n a))
       encode encUnary := by
   unfold condCoinBudget
   fun_prop
@@ -1560,21 +1587,21 @@ private theorem isPPTOn_innerGuessInverter {α : Type} {encode : α ↪ List Boo
     {g : List Bool → List Bool} {evaluate : (ℕ × List Bool) → List Bool → Bool}
     (d γ_core deg : ℕ)
     {n k r_val j : α → ℕ} {pad h1 image r_word pol_word z_tail coins : α → List Bool}
-    (hg : ComputableTidilyInPolyTime g encBits encBits)
-    (hevaluate : ComputableTidilyInPolyTime
+    (hg : ComputableInPolyTime g encBits encBits)
+    (hevaluate : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool => evaluate p.1 p.2)
       (encPair (encPair encUnary encBits) encBits) encBool)
-    (hn : ComputableTidilyInPolyTime n encode encUnary)
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hr_val : ComputableTidilyInPolyTime r_val encode encUnary)
-    (hj : ComputableTidilyInPolyTime j encode encUnary)
-    (hpad : ComputableTidilyInPolyTime pad encode encBits)
-    (hh1 : ComputableTidilyInPolyTime h1 encode encBits)
-    (himage : ComputableTidilyInPolyTime image encode encBits)
-    (hr_word : ComputableTidilyInPolyTime r_word encode encBits)
-    (hpol_word : ComputableTidilyInPolyTime pol_word encode encBits)
-    (hz_tail : ComputableTidilyInPolyTime z_tail encode encBits)
-    (hcoins : ComputableTidilyInPolyTime coins encode encBits) :
+    (hn : ComputableInPolyTime n encode encUnary)
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hr_val : ComputableInPolyTime r_val encode encUnary)
+    (hj : ComputableInPolyTime j encode encUnary)
+    (hpad : ComputableInPolyTime pad encode encBits)
+    (hh1 : ComputableInPolyTime h1 encode encBits)
+    (himage : ComputableInPolyTime image encode encBits)
+    (hr_word : ComputableInPolyTime r_word encode encBits)
+    (hpol_word : ComputableInPolyTime pol_word encode encBits)
+    (hz_tail : ComputableInPolyTime z_tail encode encBits)
+    (hcoins : ComputableInPolyTime coins encode encBits) :
     IsPPTOn encode encBits (fun a => innerGuessInverter g evaluate d γ_core deg
       (n a) (k a) (r_val a) (j a) (pad a) (h1 a) (image a)
       (r_word a) (pol_word a) (z_tail a) (coins a)) := by
@@ -1604,16 +1631,16 @@ private theorem isPPTOn_stepAuxInverter {α : Type} {encode : α ↪ List Bool}
     {evaluate : (ℕ × List Bool) → List Bool → Bool}
     (d γ_core γ c_eval d_eval deg : ℕ)
     {k r_val n_offset j : α → ℕ} {image : α → List Bool}
-    (hg : ComputableTidilyInPolyTime g encBits encBits)
-    (himgLen : ComputableTidilyInPolyTime imgLen encUnary encUnary)
-    (hevaluate : ComputableTidilyInPolyTime
+    (hg : ComputableInPolyTime g encBits encBits)
+    (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
+    (hevaluate : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool => evaluate p.1 p.2)
       (encPair (encPair encUnary encBits) encBits) encBool)
-    (hk : ComputableTidilyInPolyTime k encode encUnary)
-    (hr_val : ComputableTidilyInPolyTime r_val encode encUnary)
-    (hn_offset : ComputableTidilyInPolyTime n_offset encode encUnary)
-    (hj : ComputableTidilyInPolyTime j encode encUnary)
-    (himage : ComputableTidilyInPolyTime image encode encBits) :
+    (hk : ComputableInPolyTime k encode encUnary)
+    (hr_val : ComputableInPolyTime r_val encode encUnary)
+    (hn_offset : ComputableInPolyTime n_offset encode encUnary)
+    (hj : ComputableInPolyTime j encode encUnary)
+    (himage : ComputableInPolyTime image encode encBits) :
     IsPPTOn encode encBits (fun a => stepAuxInverter g imgLen evaluate d γ_core γ
       c_eval d_eval deg (k a) (r_val a) (n_offset a) (j a) (image a)) := by
   unfold stepAuxInverter
@@ -1632,9 +1659,9 @@ private noncomputable def condInverter (g : List Bool → List Bool) (imgLen : �
 
 private theorem isPPT_condInverter {g : List Bool → List Bool} {imgLen : ℕ → ℕ}
     {evaluate : (ℕ × List Bool) → List Bool → Bool}
-    (hg : ComputableTidilyInPolyTime g encBits encBits)
-    (himgLen : ComputableTidilyInPolyTime imgLen encUnary encUnary)
-    (hevaluate : ComputableTidilyInPolyTime
+    (hg : ComputableInPolyTime g encBits encBits)
+    (himgLen : ComputableInPolyTime imgLen encUnary encUnary)
+    (hevaluate : ComputableInPolyTime
       (fun p : (ℕ × List Bool) × List Bool => evaluate p.1 p.2)
       (encPair (encPair encUnary encBits) encBits) encBool)
     (d γ_core γ c_eval d_eval deg : ℕ) :
@@ -1833,7 +1860,7 @@ private theorem sum_mul_sum_mul_sum_comm {α β γ : Type*} [Fintype α] [Fintyp
 
 /-- Single-step hybrid prediction-to-inversion inequality on the fiber of `x₀` for fixed auxiliary
 words `pad`, `h1`, `z_tail`, `coins` and polarity `pol`
-([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 23–24 of arXiv:2009.11514v1][LiuPass2020]). -/
+([Liu and Pass, Proof of Lemma 5.1, Appendix A, pp. 22–23 of arXiv:2009.11514v1][LiuPass2020]). -/
 private theorem fiber_step_diff_le {k imgLen_k : ℕ}
     (f : BitString k → BitString imgLen_k) (x₀ : BitString k)
     (evaluate : (ℕ × List Bool) → List Bool → Bool) (pol : Bool)
@@ -2390,8 +2417,8 @@ private theorem inversionGame_succProbability_eq (g : List Bool → List Bool) {
         (((ProbComp.eval (adversary k (List.ofFn (f x₀)))).map
           (fun w => decide (g w = List.ofFn (f x₀)))) true).toReal := by
   rw [Game.coe_succProbability]
-  simp only [pmf_norm, inversionGame, BitString.eval_sampleList, BitString.uniformList,
-    PMF.bind_apply_toReal, beq_eq_decide]
+  simp only [pmf_norm, inversionGame, inversionExperiment, BitString.eval_sampleList,
+    BitString.uniformList, PMF.bind_apply_toReal, beq_eq_decide]
   refine Finset.sum_congr rfl fun x₀ _ => ?_
   rw [hf x₀]
   rfl
@@ -2731,8 +2758,7 @@ private theorem length_encPair_le_condCoinBudget (c_eval d_eval γ n : ℕ) {w :
   unfold condCoinBudget
   apply Nat.mul_le_mul_left
   apply Nat.pow_le_pow_left
-  simp only [length_encPair, encUnary_apply, encBits_apply, List.length_replicate, hw]
-  omega
+  enc_len [hw]
 
 /-- Combined conditional PRG distinguishing bound at seed length `n`:
 bounds the advantage of `adversary n` between `fullGen` on `condSeedSet` and `uniformList` by the
@@ -3333,7 +3359,7 @@ theorem OneWay.exists_condEPPRG {f : List Bool → List Bool} (hf : OneWay f) (�
       eventually_coreSeedLen_succ_le_pow himg_le d γ_core] with k hk1 hk2 hk3 hk4
     exact ⟨hk1, by rw [← Nat.mul_assoc]; omega, hk3, hk4⟩
   refine ⟨fullGen g imgLen d γ_core γ, α,
-    computableInPolyTime_fullGen hg.polyTime.tidy himgLen_poly.tidy d γ_core γ,
+    computableInPolyTime_fullGen hg.polyTime himgLen_poly d γ_core γ,
     length_fullGen g imgLen d γ_core γ,
     condSeedSet imgLen d γ_core S r, condSeedSet_nonempty imgLen d γ_core S hS r, ?_, ?_⟩
   · intro adversary hadv
@@ -3341,7 +3367,7 @@ theorem OneWay.exists_condEPPRG {f : List Bool → List Bool} (hf : OneWay f) (�
     let D_inv := (2 * d + γ_core + 2) + 3 + (E + 1) + 2 + 2 + E * δ
     have hinv_ppt : IsPPT encBits
         (condInverter g imgLen evaluate d γ_core γ c_eval d_eval deg) :=
-      isPPT_condInverter hg.polyTime.tidy himgLen_poly.tidy hevaluate.tidy d γ_core γ c_eval d_eval
+      isPPT_condInverter hg.polyTime himgLen_poly hevaluate d γ_core γ c_eval d_eval
         deg
     have hinv_neg :=
       (hg.inversion_negligible _ hinv_ppt).eventually_le_inv_polynomial

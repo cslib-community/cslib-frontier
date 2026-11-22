@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Measure
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
+public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.MeasureTheory.Group.ConvolutionDensity
 
 public import Mathlib.MeasureTheory.Measure.TotalVariation.Basic
@@ -24,6 +25,8 @@ public import Mathlib.MeasureTheory.Measure.TotalVariation.Basic
   nonzero dual masses and the strictly positive input-coset normalizer.
 * `ZLattice.tvDist_conv_discreteGaussian_le_of_dual_mass_le`: the source's `4ε` bound.
 * `ZLattice.tvDist_conv_discreteGaussian_le_of_gap`: a quantitative sufficient width criterion.
+* `ZLattice.tvDist_conv_discreteGaussian_le_of_smoothingParameter_le`: smoothing-parameter
+  conversion of `tvDist_conv_discreteGaussian_le_of_dual_mass_le` via `smoothingParameter_le_iff`.
 
 The convolution uses the actual discrete Gaussian on `L + u`: sample the lattice at center
 `-u`, then add `u`. The continuous Gaussian has density `gaussianWeight s / s ^ dim` with
@@ -34,12 +37,13 @@ The positive combined width `t` satisfies `t² = r² + s²`, equivalently `t = �
 
 [Regev2009], Claim 3.9 and equation (11), printed pages 22–23 of the May 2, 2009 author
 version, with its full-L1 statistical-distance convention from printed page 13 (range `[0, 2]`).
-The minimum smoothing parameter is replaced by the actual nonzero dual mass bound used in
-the source's proof; the final theorem discharges that bound using an explicit dual gap.
-These are analytic probability statements. The actual scalar and mod-one distribution bounds
-of Corollary 3.10 are proved in `Gaussian.Projection`. The periodic-density-series formula,
-the LWE experiment in Lemma 3.11, efficient sampling, finite precision and the quantum reduction
-remain separate.
+The core theorem uses the actual nonzero dual mass bound from the source's proof; the final
+theorems discharge that bound using an explicit dual gap or convert it from
+`ZLattice.smoothingParameter` ([MicciancioRegev2007], Definition 3.1, p. 10 of the December 27,
+2005 author's copy). These are analytic probability statements. The actual scalar and mod-one
+distribution bounds of Corollary 3.10 are proved in `Gaussian.Projection`. The
+periodic-density-series formula, the LWE experiment in Lemma 3.11, efficient sampling, finite
+precision and the quantum reduction remain separate.
 -/
 
 public section
@@ -184,8 +188,8 @@ theorem tvDist_conv_discreteGaussian_le (r s t : ℝ)
       (measure_univ (μ := ν.withDensity f))
   have hfi : Integrable f ν := by
     refine ⟨hf.aestronglyMeasurable, ?_⟩
-    rw [hasFiniteIntegral_iff_enorm]
-    simpa only [enorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
+    rw [hasFiniteIntegral_iff_eNorm]
+    simpa only [eNorm_eq_self, hlin] using (show (1 : ℝ≥0∞) < ∞ by simp)
   have hbound (x : E) : |1 - (f x).toReal| ≤ (δ h + δ r) / A r (-u) := by
     have hnum : 0 < A h ((r / t) ^ 2 • x - u) :=
       mul_pos (div_pos (covolume_pos L volume) (pow_pos hh _)) (gaussianMass_pos L h hh _)
@@ -260,5 +264,21 @@ theorem tvDist_conv_discreteGaussian_le_of_gap (r s t : ℝ)
   tvDist_conv_discreteGaussian_le_of_dual_mass_le L r s t hr hs ht ht2 u ε hε.le hεhalf
     (gaussianMass_dual_sub_one_le_of_gap L (r * s / t) (div_pos (mul_pos hr hs) ht)
       a ha hgap ε hε hnum)
+
+/-- Smoothing-parameter conversion of `tvDist_conv_discreteGaussian_le_of_dual_mass_le`: adding
+continuous Gaussian noise of width `s` to a coset discrete Gaussian of width `r` is within
+full-`L¹` distance `4ε` of the continuous Gaussian of width `t = √(r² + s²)` whenever
+`η_ε(L) ≤ r * s / t` ([Regev2009], Claim 3.9, pp. 22–23). -/
+theorem tvDist_conv_discreteGaussian_le_of_smoothingParameter_le (r s t : ℝ)
+    (hr : 0 < r) (hs : 0 < s) (ht : 0 < t) (ht2 : t ^ 2 = r ^ 2 + s ^ 2) (u : E)
+    (ε : ℝ) (hε : 0 < ε) (hεhalf : ε < 1 / 2)
+    (hη : smoothingParameter L ε ≤ r * s / t) :
+    tvDist
+      (Measure.conv ((discreteGaussian L r hr (-u)).toMeasure.map (fun z : L ↦ (z : E) + u))
+        (volume.withDensity (fun x : E ↦ ENNReal.ofReal (gaussianWeight s x / s ^ finrank ℝ E))))
+      (volume.withDensity (fun x : E ↦ ENNReal.ofReal (gaussianWeight t x / t ^ finrank ℝ E))) ≤
+      4 * ε :=
+  tvDist_conv_discreteGaussian_le_of_dual_mass_le L r s t hr hs ht ht2 u ε hε.le hεhalf
+    ((smoothingParameter_le_iff L (div_pos (mul_pos hr hs) ht) hε).mp hη)
 
 end ZLattice

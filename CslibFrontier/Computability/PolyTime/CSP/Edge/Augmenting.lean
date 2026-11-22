@@ -112,11 +112,17 @@ private def findStart (input : Input) (g : List Bool) : Option Record :=
 private def flipped (input : Input) (w : WalkCode) : List Bool :=
   flip input.labels (w.steps.flatMap fun a => [a.1, a.2])
 
-private def recordAt (F : CSP Table ℕ) (i : ℕ) : Record :=
+/-- Read an actual incidence record at a global position, defaulting to `(0, 0, 0)` when
+that position is outside the finite original occurrence list. -/
+@[expose] def recordAt (F : CSP Table ℕ) (i : ℕ) : Record :=
   (CSP.occurrences F).getD i (0, 0, 0)
 
-private def finish (input : Input) (w : WalkCode) : ℕ :=
-  w.steps.reverse.head?.elim w.start fun a => (recordAt input.body a.2).2.2
+/-- Read the last output port's original variable. An empty walk retains its original start;
+an invalid last position uses the same zero-record default as `recordAt`. -/
+@[expose] def finish (input : Input) (w : WalkCode) : ℕ :=
+  w.steps.reverse.head?.elim w.start fun (_, output) =>
+    let (_, _, vertex) := recordAt input.body output
+    vertex
 
 private def walkPair (input : Input) (g : List Bool) (w : WalkCode) :
     Option (Record × Record) :=
@@ -193,12 +199,11 @@ private theorem poly_repairStep :
 private theorem poly_repair :
     ComputableInPolyTime repair encInput encRepairState := by
   unfold repair
-  apply ComputableInPolyTime.of_tidy
-  apply ComputableTidilyInPolyTime.iterateWithInput_of_bounded_growth
+  apply ComputableInPolyTime.iterateWithInput_of_bounded_growth
     (show ComputableInPolyTime (fun x : Input => distance x.labels x.comparison)
-      encInput encUnary from by fun_prop).tidy
+      encInput encUnary from by fun_prop)
     (show ComputableInPolyTime (fun x : Input => (x.comparison, 0))
-      encInput encRepairState from by fun_prop).tidy poly_repairStep.tidy
+      encInput encRepairState from by fun_prop) poly_repairStep
     (growth := fun _ => 1)
   refine ⟨.const 1, ?_⟩
   intro input state
@@ -226,10 +231,10 @@ private theorem poly_recordAt :
     ComputableInPolyTime (fun p : CSP Table ℕ × ℕ => recordAt p.1 p.2)
       (encPair (encCSP encTable encNat) encUnary) encRecord := by
   unfold recordAt
-  exact .of_tidy (ComputableTidilyInPolyTime.listGetD_binary (0, 0, 0)
-    (poly_records.comp (ComputableInPolyTime.fst (encCSP encTable encNat) encUnary)).tidy
-    (ComputableTidilyInPolyTime.unary_to_binary.comp
-      (ComputableInPolyTime.snd (encCSP encTable encNat) encUnary).tidy))
+  exact (ComputableInPolyTime.listGetD_binary (0, 0, 0)
+    (poly_records.comp (ComputableInPolyTime.fst (encCSP encTable encNat) encUnary))
+    (ComputableInPolyTime.unary_to_binary.comp
+      (ComputableInPolyTime.snd (encCSP encTable encNat) encUnary)))
 
 attribute [local fun_prop] poly_findStart poly_flipped poly_recordAt
 
@@ -289,20 +294,19 @@ private theorem poly_buildWalk :
       (fun p : (Input × List Bool) × ℕ =>
         (walkStep p.1.1 p.1.2)^[distance p.1.1.labels p.1.2] (⟨p.2, []⟩, false))
       (encPair (encPair encInput (encList encBool)) encNat) encWalkState := by
-    apply ComputableInPolyTime.of_tidy
-    apply ComputableTidilyInPolyTime.iterateWith_of_bounded_growth
+    apply ComputableInPolyTime.iterateWith_of_bounded_growth
       (par := fun p : (Input × List Bool) × ℕ => p.1)
       (step := fun p : Input × List Bool => walkStep p.1 p.2)
       (count := fun p : (Input × List Bool) × ℕ => distance p.1.1.labels p.1.2)
       (init := fun p : (Input × List Bool) × ℕ => ((⟨p.2, []⟩ : WalkCode), false))
-      (ComputableInPolyTime.fst (encPair encInput (encList encBool)) encNat).tidy
+      (ComputableInPolyTime.fst (encPair encInput (encList encBool)) encNat)
       (by fun_prop : ComputableInPolyTime
         (fun p : (Input × List Bool) × ℕ => distance p.1.1.labels p.1.2)
-        (encPair (encPair encInput (encList encBool)) encNat) encUnary).tidy
+        (encPair (encPair encInput (encList encBool)) encNat) encUnary)
       (by fun_prop : ComputableInPolyTime
         (fun p : (Input × List Bool) × ℕ => ((⟨p.2, []⟩ : WalkCode), false))
-        (encPair (encPair encInput (encList encBool)) encNat) encWalkState).tidy
-      poly_walkStep.tidy
+        (encPair (encPair encInput (encList encBool)) encNat) encWalkState)
+      poly_walkStep
       (growth := fun p => (CSP.occurrences p.1.1.body).length * 12 + 6)
     · have hr : ComputableInPolyTime
           (fun p : (Input × List Bool) × ℕ => (CSP.occurrences p.1.1.body).length)
@@ -342,7 +346,7 @@ private theorem poly_output : ComputableInPolyTime (fun w : WalkCode => w)
     encWalkCodeWork encWalkCode := by
   have hsteps : ComputableInPolyTime (fun w : WalkCode => w.steps)
       encWalkCodeWork (encList (encPair encNat encNat)) := by
-    have hb := ComputableInPolyTime.of_tidy ComputableTidilyInPolyTime.unary_to_binary
+    have hb := ComputableInPolyTime.unary_to_binary
     have hm := ComputableInPolyTime.map
       ((hb.comp (ComputableInPolyTime.fst encUnary encUnary)).prod
         (hb.comp (ComputableInPolyTime.snd encUnary encUnary)) :
@@ -385,17 +389,6 @@ theorem decode_code {F : CSP Table ℕ} (w : Walk F) : decode F (code w) = some 
     simpa only [List.map_id, Option.pure_def, id_eq] using
       (List.mapM_pure (m := Option) (l := steps) (f := id))
   simp [decode, code, List.mapM_map, Function.comp_def, getElem?_occurrenceIndex, hm]
-
-private theorem buffer_eq {F : CSP Table ℕ} (bits : List Bool)
-    (hlen : bits.length = (incidenceList F).length) :
-    bits = (incidenceList F).map (labeling F bits) := by
-  apply List.ext_getElem
-  · simpa using hlen
-  · intro i hi hj
-    have ho : i < (incidenceList F).length := by omega
-    have he := (incidenceList_nodup F).idxOf_getElem i ho
-    simp only [List.getElem_map, labeling, occurrenceIndex, he,
-      List.getD_eq_getElem _ _ hi]
 
 private theorem distance_eq {F : CSP Table ℕ} (f g : List Bool)
     (hf : f.length = (incidenceList F).length)
@@ -495,7 +488,9 @@ private theorem repair_iter (input : Input) (n : ℕ) (g : List Bool) (k : ℕ)
         EdgeInstance.repair, hs, hl,
         Nat.add_assoc, Nat.add_comm 1] using hi
 
-private theorem recordAt_index {F : CSP Table ℕ} (o : Occurrence F) :
+/-- Looking up the binary position of an actual occurrence recovers its exact positional
+record, including both original local coordinates and its original variable name. -/
+theorem recordAt_index {F : CSP Table ℕ} (o : Occurrence F) :
     recordAt F (occurrenceIndex o) = o.record := by
   have hi := occurrenceIndex_lt o
   simp [recordAt, occurrences_eq_map_incidenceList, List.getD_eq_getElem?_getD,
@@ -510,7 +505,9 @@ private theorem flipped_eq (input : Input) (w : Walk input.body)
   rw [flipped, he, labeling_flip _ _ hlen]
   rfl
 
-private theorem finish_eq (input : Input) (w : Walk input.body) :
+/-- The finite binary-position endpoint of an encoded actual walk is exactly its original
+mathematical endpoint, including the length-zero fallback. -/
+theorem finish_eq (input : Input) (w : Walk input.body) :
     finish input (code w) = w.finish := by
   rcases w with ⟨r, s⟩
   induction s using List.reverseRecOn with

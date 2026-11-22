@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Interactive.Efficient
 public import CslibFrontier.Computability.Interactive.Plain
+public import CslibFrontier.Computability.Interactive.ThreeMove
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Composition
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Efficient
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.Linear
@@ -50,16 +51,6 @@ This module proves that the Sigma-protocol security notions transfer across the 
   is doomed unless two distinct challenges have accepting responses; by 2-special soundness, no
   false statement can reach a non-doomed commitment, and from a doomed commitment at most one
   challenge in `C` has an accepting response.
-* **Straight-line knowledge soundness** (`SpecialSoundness.knowledgeSound_of_extractor`,
-  `SpecialSoundness.knowledgeSound`, `SpecialSoundness.efficientKnowledgeSound`): for a 2-special
-  sound `P`, any straight-line extractor that returns a valid witness on every accepting
-  transcript of a true statement makes `P.toInteractiveVerifier` knowledge sound with error
-  `1 / |C|`. Special soundness is used only to obtain plain soundness on false statements. The
-  classical witness chooser `P.witnessChooser R` ignores the transcript and is such an extractor,
-  so for it `KnowledgeSound` says no more than `SpecialSoundness.sound`.
-  `SpecialSoundness.efficientKnowledgeSound` takes that property and a polynomial-time
-  realization of an extractor family as hypotheses and concludes
-  `Verifier.EfficientKnowledgeSound`.
 * **Honest-verifier zero knowledge** (`SpecialHVZK.hvzk`, `SpecialHVZK.hvzk_zero`,
   `EfficientSpecialHVZK.efficientHVZK`): `P.SpecialHVZK R simulate` and a `ProbComp` simulator
   `simComp` within `ε` of `simulate` give `(P.toInteractiveReduction sampleCommit).HVZK
@@ -69,9 +60,14 @@ This module proves that the Sigma-protocol security notions transfer across the 
 * **Protocol instances**: commitment and simulator realizations for `SigmaProtocol.linear`,
   `SigmaProtocol.schnorr`, `SigmaProtocol.andProof` and `SigmaProtocol.orProof`.
 
+No knowledge-soundness statement is made here: `Interactive.Verifier.KnowledgeSound` asks for a
+straight-line extractor, while the proof-of-knowledge property of Sigma protocols comes from a
+rewinding extractor, built for indexed families in
+`CslibFrontier.Crypto.Protocols.SigmaProtocol.ProofOfKnowledge`.
+
 ## Main definitions
 
-* `SigmaProtocol.sigmaSpec`, `SigmaProtocol.interactiveSpec`: the 3-round public-coin
+* `SigmaProtocol.interactiveSpec`: the 3-round public-coin
   specification `[.prover T (OracleInterface.full T), .verifier C,
   .prover Z (OracleInterface.full Z)]`.
 * `SigmaProtocol.interactiveTranscript`, `SigmaProtocol.transcriptOfConversation`,
@@ -82,8 +78,6 @@ This module proves that the Sigma-protocol security notions transfer across the 
 * `SigmaProtocol.toInteractiveVerifier`, `SigmaProtocol.toInteractiveProver`,
   `SigmaProtocol.toInteractiveReduction`: the interactive verifier, prover and reduction.
 * `SigmaProtocol.rbrState`: the round-by-round state function on prefixes of `P.interactiveSpec`.
-* `SigmaProtocol.witnessChooser`: the classical witness chooser, a noncomputable straight-line
-  extractor that ignores the transcript.
 * `SigmaProtocol.interactiveSim`: the interactive transcript simulator induced by a
   challenge-conditioned simulator.
 * `SigmaProtocol.Encoding.toInteractiveEncoding`: interactive word encodings induced by a
@@ -97,14 +91,6 @@ This module proves that the Sigma-protocol security notions transfer across the 
 * `SigmaProtocol.Complete.toInteractiveReduction`: completeness transfer.
 * `SigmaProtocol.SpecialSoundness.rbrSound`, `SigmaProtocol.SpecialSoundness.sound`:
   round-by-round soundness and plain-model soundness with error `1 / |C|`.
-* `SigmaProtocol.SpecialSoundness.knowledgeSound_of_extractor`,
-  `SigmaProtocol.SpecialSoundness.knowledgeSound`,
-  `SigmaProtocol.SpecialSoundness.efficientKnowledgeSound`: from 2-special soundness,
-  straight-line knowledge soundness with error `1 / |C|` for an extractor that returns a valid
-  witness on every accepting transcript of a true statement. That property is a hypothesis in the
-  first and third and is proved for `P.witnessChooser R` in the second. The third, for an indexed
-  family, also assumes a polynomial-time realization of the extractor and concludes
-  `Verifier.EfficientKnowledgeSound`.
 * `SigmaProtocol.SpecialHVZK.hvzk`, `SigmaProtocol.SpecialHVZK.hvzk_zero`,
   `SigmaProtocol.EfficientSpecialHVZK.efficientHVZK`: HVZK and efficient HVZK transfer.
 -/
@@ -120,13 +106,8 @@ variable {X Y T C Z : Type}
 
 /-! ### Specification and transcripts -/
 
-/-- The three-round public-coin specification of a Sigma protocol with commitments in `T`,
-challenges in `C` and responses in `Z`: prover commitment, verifier challenge, prover response. -/
-@[reducible] def sigmaSpec (T C Z : Type) : Interactive.Spec :=
-  [.prover T (OracleInterface.full T), .verifier C, .prover Z (OracleInterface.full Z)]
-
 /-- The interactive specification of `P`. -/
-abbrev interactiveSpec (_ : SigmaProtocol X Y T C Z) : Interactive.Spec := sigmaSpec T C Z
+abbrev interactiveSpec (_ : SigmaProtocol X Y T C Z) : Interactive.Spec := threeMoveSpec T C Z
 
 /-- Package a commitment `t`, challenge `c` and response `z` as a transcript of
 `P.interactiveSpec`. -/
@@ -365,55 +346,8 @@ theorem SpecialSoundness.sound {W : Type} {R : W → Y → Prop}
     (h : P.SpecialSoundness R extract) (langOut : Set Unit := Set.univ) :
     P.toInteractiveVerifier.Sound World.plain (language (Function.swap R)) langOut
       (1 / (Fintype.card C : ℝ≥0∞)) := by
-  simpa only [PerChallenge.sum, interactiveSpec, sigmaSpec, add_zero] using
+  simpa only [PerChallenge.sum, interactiveSpec, threeMoveSpec, add_zero] using
     (SpecialSoundness.rbrSound h langOut).sound
-
-/-! ### Knowledge soundness and efficient knowledge soundness transfer -/
-
-/-- For a 2-special sound `P`, any straight-line extractor `E` that recovers a valid witness from
-every accepting transcript on statements in `language (Function.swap R)` makes
-`P.toInteractiveVerifier` knowledge sound with error `1 / |C|`. Special soundness is used only for
-plain soundness on statements outside that language. -/
-theorem SpecialSoundness.knowledgeSound_of_extractor {W : Type} {R : W → Y → Prop}
-    {extract : Y → T → C → Z → C → Z → W}
-    (h : P.SpecialSoundness R extract)
-    (E : Y → Transcript P.interactiveSpec → Unit → W)
-    (hE : ∀ y τ, y ∈ language (Function.swap R) →
-      P.Accepts y (P.commitOfTranscript τ) (P.challengeOfTranscript τ)
-        (P.responseOfTranscript τ) →
-      R (E y τ ()) y) :
-    P.toInteractiveVerifier.KnowledgeSound (Function.swap R) Accept E
-      (1 / (Fintype.card C : ℝ≥0∞)) := by
-  intro y strat
-  by_cases hy : y ∈ language (Function.swap R)
-  · refine le_of_eq_of_le ?_ zero_le
-    rw [World.plain_eval_execute, PMF.toOuterMeasure_map_apply,
-      PMF.toOuterMeasure_apply_eq_zero_iff, Set.disjoint_left]
-    rintro ⟨τ, ⟨⟩⟩ _ ⟨⟨⟨⟩, hacc, -⟩, hnot⟩
-    have hacc' := (P.toInteractiveVerifier_outputOn_eq_some_iff y τ ()).mp hacc
-    exact hnot (hE y τ hy hacc')
-  · refine (MeasureTheory.measure_mono ?_).trans (SpecialSoundness.sound h Set.univ y hy Unit strat)
-    rintro r ⟨⟨x', hx', -⟩, -⟩
-    exact ⟨x', Set.mem_univ x', hx'⟩
-
-/-- The classical witness chooser: it ignores the transcript and picks a witness for `y` whenever
-one exists. -/
-noncomputable def witnessChooser (P : SigmaProtocol X Y T C Z) {W : Type} [Nonempty W]
-    (R : W → Y → Prop) :
-    Y → Transcript P.interactiveSpec → Unit → W :=
-  fun y _ _ => Classical.epsilon (fun w => R w y)
-
-/-- **Knowledge soundness transfer**: 2-special soundness of `P` implies straight-line
-`KnowledgeSound` in the plain model with error `1 / |C|` for `P.witnessChooser R`. That extractor
-is noncomputable and ignores the transcript, so this says no more than `SpecialSoundness.sound`:
-nothing is extracted from the prover's messages. -/
-theorem SpecialSoundness.knowledgeSound {W : Type} [Nonempty W] {R : W → Y → Prop}
-    {extract : Y → T → C → Z → C → Z → W}
-    (h : P.SpecialSoundness R extract) :
-    P.toInteractiveVerifier.KnowledgeSound (Function.swap R) Accept (P.witnessChooser R)
-      (1 / (Fintype.card C : ℝ≥0∞)) :=
-  SpecialSoundness.knowledgeSound_of_extractor h (P.witnessChooser R) fun _ _ hy _ =>
-    Classical.epsilon_spec hy
 
 /-! ### Honest-verifier zero knowledge transfer -/
 
@@ -464,7 +398,7 @@ theorem SpecialHVZK.hvzk_zero {R : X → Y → Prop} {simulate : Y → C → PMF
       (P.interactiveSim simComp) 0 :=
   h.hvzk hcommit fun y c => by rw [hsim y c]; exact CloseTo.refl _
 
-/-! ### Indexed families: encodings, efficient knowledge soundness and efficient HVZK -/
+/-! ### Indexed families: encodings and efficient HVZK -/
 
 section Family
 
@@ -494,27 +428,30 @@ theorem Encoding.toInteractiveEncoding_transcript_apply
     challengeOfTranscript, responseOfTranscript, Function.Embedding.coeFn_mk, encPair_apply,
     encBits, Function.Embedding.coe_refl, id_eq]
 
-/-- Combine a word-level challenge sampler `sampleChallengeWord` with a word-level Sigma-protocol
-simulator `program` to sample encoded interactive transcripts `(t, (c, z))`. -/
-def interactiveSimWord
+/-- Combine a challenge sampler `sampleChallenge` with a word-level Sigma-protocol simulator
+`program` to sample encoded interactive transcripts `(t, (c, z))`: the sampled challenge is passed
+to `program` encoded by `enc`. -/
+def interactiveSimWord (enc : Encoding I YF TF CF ZF)
     (program : I × List Bool × List Bool → ProbComp (List Bool × List Bool))
-    (sampleChallengeWord : I → ProbComp (List Bool)) :
+    (sampleChallenge : ∀ i, ProbComp (CF i)) :
     I × List Bool → ProbComp (List Bool) :=
   fun p =>
     encPair encBits (encPair encBits encBits) <$> do
-      let cBits ← sampleChallengeWord p.1
+      let cBits ← enc.challenge p.1 <$> sampleChallenge p.1
       (fun tzBits => (tzBits.1, (cBits, tzBits.2))) <$> program (p.1, p.2, cBits)
 
-/-- If `program` and `sampleChallengeWord` are uniform strict PPT, so is `interactiveSimWord`. -/
+/-- If `program` is uniform strict PPT and one machine samples the encoded challenges of
+`sampleChallenge` from the encoded index, then `interactiveSimWord` is uniform strict PPT. -/
 theorem isPPTOn_interactiveSimWord {enc : Encoding I YF TF CF ZF}
     {program : I × List Bool × List Bool → ProbComp (List Bool × List Bool)}
-    {sampleChallengeWord : I → ProbComp (List Bool)}
-    (hprog : IsPPTOn (encSimulatorInput enc.index) (encPair encBits encBits) program)
-    (hchal : IsPPTOn enc.index encBits sampleChallengeWord) :
+    {sampleChallenge : ∀ i, ProbComp (CF i)}
+    (hprog : IsPPTOn (encSimulatorWordInput enc.index) (encPair encBits encBits) program)
+    (hchal : IsPPTOn enc.index encBits fun i => enc.challenge i <$> sampleChallenge i) :
     IsPPTOn (encPair enc.index encBits) encBits
-      (interactiveSimWord program sampleChallengeWord) := by
+      (interactiveSimWord enc program sampleChallenge) := by
   let encIn := encPair enc.index encBits
-  have h1 : IsPPTOn encIn encBits (fun p : I × List Bool => sampleChallengeWord p.1) :=
+  have h1 : IsPPTOn encIn encBits
+      (fun p : I × List Bool => enc.challenge p.1 <$> sampleChallenge p.1) :=
     hchal.preprocess (by fun_prop)
   let encMid := encPair encIn encBits
   have h2 : IsPPTOn encMid (encPair encBits encBits)
@@ -527,7 +464,7 @@ theorem isPPTOn_interactiveSimWord {enc : Encoding I YF TF CF ZF}
     h2.map_with (by fun_prop)
   have h4 : IsPPTOn encIn (encPair encBits (encPair encBits encBits))
       (fun p : I × List Bool => do
-        let cBits ← sampleChallengeWord p.1
+        let cBits ← enc.challenge p.1 <$> sampleChallenge p.1
         (fun tzBits : List Bool × List Bool => (tzBits.1, (cBits, tzBits.2))) <$>
           program (p.1, p.2, cBits)) :=
     h1.bind_with h3
@@ -535,53 +472,23 @@ theorem isPPTOn_interactiveSimWord {enc : Encoding I YF TF CF ZF}
 
 variable [∀ i, Fintype (CF i)] [∀ i, Nonempty (CF i)]
 
-/-- **Efficient knowledge soundness transfer**: if `PF` is special sound at every index and a
-polynomial-time straight-line extractor family `E` recovers a valid witness on every accepting
-transcript of every true statement, then `fun i => (PF i).toInteractiveVerifier` satisfies
-`Verifier.EfficientKnowledgeSound` with error `fun i => 1 / |CF i|`. Both the correctness of `E`
-(`hE`) and its polynomial-time realization (`hpoly`) are hypotheses; special soundness is used
-only for plain soundness on false statements. -/
-theorem SpecialSoundness.efficientKnowledgeSound
-    {RF : ∀ i, WF i → YF i → Prop}
-    {extract : ∀ i, YF i → TF i → CF i → ZF i → CF i → ZF i → WF i}
-    {enc : Encoding I YF TF CF ZF} {encW : ∀ i, WF i ↪ List Bool}
-    {E : ∀ i, YF i → Transcript (PF i).interactiveSpec → Unit → WF i}
-    (h : ∀ i, (PF i).SpecialSoundness (RF i) (extract i))
-    (hE : ∀ i y τ, y ∈ language (Function.swap (RF i)) →
-      (PF i).Accepts y ((PF i).commitOfTranscript τ) ((PF i).challengeOfTranscript τ)
-        ((PF i).responseOfTranscript τ) →
-      RF i (E i y τ ()) y)
-    (hpoly : ∃ f, ComputableInPolyTime f
-      (encPair enc.index (encPair encBits (encPair encBits encBits))) encBits ∧
-      Interactive.ExtractorRealizedBy (enc.toInteractiveEncoding PF)
-        (fun _ => encUnit) encW E f) :
-    Interactive.Verifier.EfficientKnowledgeSound
-      (fun i => (PF i).toInteractiveVerifier)
-      (fun i => Function.swap (RF i)) (fun _ => Accept)
-      (enc.toInteractiveEncoding PF) (fun _ => encUnit) encW E
-      (fun i => 1 / (Fintype.card (CF i) : ℝ≥0∞)) where
-  knowledgeSound i := SpecialSoundness.knowledgeSound_of_extractor (h i) (E i) (hE i)
-  polyTime := hpoly
-
 /-- `interactiveSimWord` realizes `(PF i).interactiveSim (simComp i)` on encodings up to
-`δC i + δ i`. -/
+`δC i + δ i`, when `program` is within `δ i` of the encoded `simulate i` on every encoded input
+(as `SimulatorRealizedBy.exists_word` provides). -/
 theorem simulatorRealizedBy_interactiveSimWord
     {enc : Encoding I YF TF CF ZF}
     {simulate : ∀ i, YF i → CF i → PMF (TF i × ZF i)}
     {simComp : ∀ i, YF i → CF i → ProbComp (TF i × ZF i)}
     {program : I × List Bool × List Bool → ProbComp (List Bool × List Bool)}
     {sampleChallenge : ∀ i, ProbComp (CF i)}
-    {sampleChallengeWord : I → ProbComp (List Bool)}
     {δ δC : I → ℝ≥0∞}
     (hsim : ∀ i y c, ProbComp.eval (simComp i y c) = simulate i y c)
-    (hreal : SimulatorRealizedBy enc simulate program δ)
+    (hreal : WordSimulatorRealizedBy enc simulate program δ)
     (hchal : ∀ i, CloseTo (PMF.uniformOfFintype (CF i))
-      (ProbComp.eval (sampleChallenge i)) (δC i))
-    (hchalWord : ∀ i, ProbComp.eval (sampleChallengeWord i) =
-      (ProbComp.eval (sampleChallenge i)).map (enc.challenge i)) :
+      (ProbComp.eval (sampleChallenge i)) (δC i)) :
     Interactive.SimulatorRealizedBy (enc.toInteractiveEncoding PF)
       (fun i => (PF i).interactiveSim (simComp i))
-      (interactiveSimWord program sampleChallengeWord)
+      (interactiveSimWord enc program sampleChallenge)
       (fun i => δC i + δ i) := by
   intro i y
   let pack (cBits : List Bool) (tzBits : List Bool × List Bool) : List Bool :=
@@ -597,14 +504,14 @@ theorem simulatorRealizedBy_interactiveSimWord
     rw [hsim i y c, PMF.map_comp, PMF.map_comp]
     rfl
   have hrhs :
-      ProbComp.eval (interactiveSimWord program sampleChallengeWord
+      ProbComp.eval (interactiveSimWord enc program sampleChallenge
           (i, (enc.toInteractiveEncoding PF).statement i y)) =
         (ProbComp.eval (sampleChallenge i)).bind fun c =>
           (ProbComp.eval (program (i, enc.statement i y, enc.challenge i c))).map
             (pack (enc.challenge i c)) := by
-    change ProbComp.eval (interactiveSimWord program sampleChallengeWord
+    change ProbComp.eval (interactiveSimWord enc program sampleChallenge
         (i, enc.statement i y)) = _
-    simp only [pmf_norm, interactiveSimWord, hchalWord i, pack]
+    simp only [pmf_norm, interactiveSimWord, ProbComp.eval_map, pack]
   rw [hlhs, hrhs]
   exact CloseTo.bind (hchal i) fun c _ => (hreal i y c).map (pack (enc.challenge i c))
 
@@ -619,16 +526,13 @@ theorem EfficientSpecialHVZK.efficientHVZK
     {sampleCommit : ∀ i, XF i → YF i → ProbComp (TF i × (PF i).State)}
     {simComp : ∀ i, YF i → CF i → ProbComp (TF i × ZF i)}
     {sampleChallenge : ∀ i, ProbComp (CF i)}
-    {sampleChallengeWord : I → ProbComp (List Bool)}
     {δ δC : I → ℝ≥0∞}
     (h : EfficientSpecialHVZK PF RF enc simulate δ)
     (hcommit : ∀ i, (PF i).CommitRealizedBy (sampleCommit i))
     (hsim : ∀ i y c, ProbComp.eval (simComp i y c) = simulate i y c)
-    (hchalPPT : IsPPTOn enc.index encBits sampleChallengeWord)
+    (hchalPPT : IsPPTOn enc.index encBits fun i => enc.challenge i <$> sampleChallenge i)
     (hchal : ∀ i, CloseTo (PMF.uniformOfFintype (CF i))
-      (ProbComp.eval (sampleChallenge i)) (δC i))
-    (hchalWord : ∀ i, ProbComp.eval (sampleChallengeWord i) =
-      (ProbComp.eval (sampleChallenge i)).map (enc.challenge i)) :
+      (ProbComp.eval (sampleChallenge i)) (δC i)) :
     Interactive.Reduction.EfficientHVZK
       (fun i => (PF i).toInteractiveReduction (sampleCommit i))
       (fun i => Function.swap (RF i))
@@ -637,10 +541,11 @@ theorem EfficientSpecialHVZK.efficientHVZK
       (fun _ => 0) (fun i => δC i + δ i) where
   hvzk i := (h.specialHVZK i).hvzk_zero (hcommit i) (hsim i)
   realized := by
-    obtain ⟨program, hprogPPT, hprogReal⟩ := h.realized
-    exact ⟨interactiveSimWord program sampleChallengeWord,
+    obtain ⟨sim, hsimPPT, hsimReal⟩ := h.realized
+    obtain ⟨program, hprogPPT, hprogReal⟩ := hsimReal.exists_word hsimPPT
+    exact ⟨interactiveSimWord enc program sampleChallenge,
       isPPTOn_interactiveSimWord hprogPPT hchalPPT,
-      simulatorRealizedBy_interactiveSimWord PF hsim hprogReal hchal hchalWord⟩
+      simulatorRealizedBy_interactiveSimWord PF hsim hprogReal hchal⟩
 
 end Family
 
@@ -714,10 +619,8 @@ def andCommit (sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀.State))
 
 /-- `ProbComp` simulator for `P₀.andProof P₁`. -/
 def andSimComp (sim₀ : Y₀ → C → ProbComp (T₀ × Z₀)) (sim₁ : Y₁ → C → ProbComp (T₁ × Z₁))
-    (y : Y₀ × Y₁) (c : C) : ProbComp ((T₀ × T₁) × (Z₀ × Z₁)) := do
-  let a ← sim₀ y.1 c
-  let b ← sim₁ y.2 c
-  return ((a.1, b.1), (a.2, b.2))
+    (y : Y₀ × Y₁) (c : C) : ProbComp ((T₀ × T₁) × (Z₀ × Z₁)) :=
+  andSimulator (I := Unit) (fun _ => sim₀) (fun _ => sim₁) () y c
 
 theorem commitRealizedBy_andProof {sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀.State)}
     {sample₁ : X₁ → Y₁ → ProbComp (T₁ × P₁.State)}
@@ -733,7 +636,7 @@ theorem eval_andSimComp {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)}
     (h₁ : ∀ y c, ProbComp.eval (sim₁ y c) = simulate₁ y c)
     (y : Y₀ × Y₁) (c : C) :
     ProbComp.eval (andSimComp sim₀ sim₁ y c) = andSimulate simulate₀ simulate₁ y c := by
-  simp only [pmf_norm, andSimComp, andSimulate, h₀ y.1 c, h₁ y.2 c]
+  simp only [pmf_norm, andSimComp, andSimulator, andSimulate, h₀ y.1 c, h₁ y.2 c]
 
 variable [AddCommGroup C] [Fintype C] [Nonempty C]
 
@@ -757,11 +660,8 @@ noncomputable def orCommit (sample₀ : X₀ → Y₀ → ProbComp (T₀ × P₀
 /-- `ProbComp` simulator for `orProof P₀ P₁ simulate₀ simulate₁`. -/
 noncomputable def orSimComp (sim₀ : Y₀ → C → ProbComp (T₀ × Z₀))
     (sim₁ : Y₁ → C → ProbComp (T₁ × Z₁)) (y : Y₀ × Y₁) (c : C) :
-    ProbComp ((T₀ × T₁) × C × Z₀ × Z₁) := do
-  let c₀ ← ProbComp.uniform C
-  let a ← sim₀ y.1 c₀
-  let b ← sim₁ y.2 (c - c₀)
-  return ((a.1, b.1), c₀, a.2, b.2)
+    ProbComp ((T₀ × T₁) × C × Z₀ × Z₁) :=
+  orSimulator (I := Unit) (fun _ => ProbComp.uniform C) (fun _ => sim₀) (fun _ => sim₁) () y c
 
 theorem commitRealizedBy_orProof
     {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)} {simulate₁ : Y₁ → C → PMF (T₁ × Z₁)}
@@ -774,8 +674,8 @@ theorem commitRealizedBy_orProof
     (orProof P₀ P₁ simulate₀ simulate₁).CommitRealizedBy
       (orCommit sample₀ sample₁ sim₀ sim₁) := by
   rintro (x | x) y
-  · simp only [pmf_norm, orCommit, orProof, ProbComp.eval_uniform, h₀ x y.1, hs₁]
-  · simp only [pmf_norm, orCommit, orProof, ProbComp.eval_uniform, h₁ x y.2, hs₀]
+  · simp only [pmf_norm, orCommit, orProof, orProofWith, ProbComp.eval_uniform, h₀ x y.1, hs₁]
+  · simp only [pmf_norm, orCommit, orProof, orProofWith, ProbComp.eval_uniform, h₁ x y.2, hs₀]
 
 theorem eval_orSimComp
     {simulate₀ : Y₀ → C → PMF (T₀ × Z₀)} {simulate₁ : Y₁ → C → PMF (T₁ × Z₁)}
@@ -784,7 +684,7 @@ theorem eval_orSimComp
     (hs₁ : ∀ y c, ProbComp.eval (sim₁ y c) = simulate₁ y c)
     (y : Y₀ × Y₁) (c : C) :
     ProbComp.eval (orSimComp sim₀ sim₁ y c) = orSimulate simulate₀ simulate₁ y c := by
-  simp only [pmf_norm, orSimComp, orSimulate, ProbComp.eval_uniform, hs₀, hs₁]
+  simp only [pmf_norm, orSimComp, orSimulator, orSimulate, ProbComp.eval_uniform, hs₀, hs₁]
 
 end Composition
 

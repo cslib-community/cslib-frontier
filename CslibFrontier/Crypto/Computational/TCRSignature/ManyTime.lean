@@ -10,10 +10,12 @@ module
 public import CslibFrontier.Crypto.Computational.TCRSignature
 public import CslibFrontier.Crypto.Computational.WordSignature
 public import CslibFrontier.Languages.Probabilistic.Iteration
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
+import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -30,6 +32,7 @@ import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.Negligible
 import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.EncLen
 
 /-!
 # Many-time fresh-key TCR hash-and-sign on arbitrary-length bit words
@@ -73,11 +76,12 @@ messages**:
   `List Bool` messages via per-signature fresh-key TCR hash-and-sign.
 * `Cslib.Crypto.TCRSignature.manyTimeHandler`, `Cslib.Crypto.TCRSignature.manyTimeForger`: open
   oracle reduction to `SignatureScheme.eufCmaGame`.
-* `Cslib.Crypto.TCRSignature.TraceStep`, `Cslib.Crypto.TCRSignature.replayStep`,
-  `Cslib.Crypto.TCRSignature.replayCfg`, `Cslib.Crypto.TCRSignature.queryOf`,
-  `Cslib.Crypto.TCRSignature.appendTraceStep`, `Cslib.Crypto.TCRSignature.sampleStep`,
-  `Cslib.Crypto.TCRSignature.tcrMultiAdversary`: clocked step-guessing two-stage target-collision
-  reduction across polynomially many signing queries.
+* `Cslib.Crypto.TCRSignature.TraceStep`, `Cslib.Crypto.TCRSignature.TcrSavedState`,
+  `Cslib.Crypto.TCRSignature.replayStep`, `Cslib.Crypto.TCRSignature.replayCfg`,
+  `Cslib.Crypto.TCRSignature.queryOf`, `Cslib.Crypto.TCRSignature.appendTraceStep`,
+  `Cslib.Crypto.TCRSignature.sampleStep`, `Cslib.Crypto.TCRSignature.tcrMultiAdversary`:
+  clocked step-guessing two-stage target-collision reduction across polynomially many signing
+  queries.
 
 ## Main results
 
@@ -93,7 +97,8 @@ messages**:
 * `Cslib.Crypto.WordSignatureScheme.EUFCMA.exists_oneWay`,
   `Cslib.Crypto.OneWay.exists_wordEUFCMA_of_targetCollisionResistant`,
   `Cslib.Crypto.OneWayPermutation.exists_wordEUFCMA`: necessity and sufficiency bridges for
-  unrestricted-message signatures.
+  unrestricted-message signatures (the last two are steps toward [NaorYung1989]: no inspection of
+  the primary source is recorded).
 
 ## References
 
@@ -179,12 +184,12 @@ noncomputable def manyTimeForger (H : KeyedHashFamily) (sigBound : ℕ → ℕ)
     let n := otsParamInv H M
     if otsParam H n = M then do
       let pk := simPkOf n otvk
-      let out ← (OracleComp.interpret
+      let ((msg, sig), _) ← (OracleComp.interpret
         (OracleComp.sumHandler
           (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
           (manyTimeHandler H sigBound n))
         (adversary n pk)).run ()
-      return otsForgeryOf H n out.1.1 out.1.2
+      return otsForgeryOf H n msg sig
     else
       pure ([], [])
 
@@ -223,7 +228,7 @@ private theorem isOraclePPTOn_manyTimeHandler (H : KeyedHashFamily) {sigBound : 
     have hquery : IsOraclePPTOn (Operation := Unit) encMid encBits
         (fun q : Mid => List.take (sigBound q.1.1.1) <$>
           ProbOracleComp.query ((), otsMsg H q.1.1.1 q.2 (H.eval q.1.1.1 q.2 q.1.2.1.2))) :=
-      IsOraclePPTOn.query_take' () (hmOtsReq.of_enc_eq fun _ => rfl)
+      IsOraclePPTOn.query_take () (hmOtsReq.of_enc_eq fun _ => rfl)
         ((hmN.trans hsigBound).of_enc_eq fun _ => rfl)
     have hpack : ComputableInPolyTime
         (fun r : Mid × List Bool => (encPair encBits encBits (r.1.2, r.2), ()))
@@ -265,7 +270,7 @@ private theorem isOraclePPTOn_run_manyTimeHandler (H : KeyedHashFamily) {sigBoun
       (ComputableInPolyTime.fst _ _).fst'
     have htwoK := (ComputableInPolyTime.const 2).unary_mul' (hn.trans H.keyLen_polyTime)
     exact (htwoK.unary_add' (hn.trans hsigBound)).unary_add' (.const 2)
-  apply hadversary.run_interpret_preprocess_open'
+  apply hadversary.run_interpret_preprocess_open
     (handler := fun (caller : Caller) request state =>
       manyTimeHandler H sigBound caller.1 request state)
     (prepare := fun caller : Caller =>
@@ -328,26 +333,36 @@ theorem isOraclePPT_manyTimeForger (H : KeyedHashFamily) {sigBound : ℕ → ℕ
   have hcond : ComputableInPolyTime
       (fun p : In => decide (otsParam H (otsParamInv H p.1) = p.1)) encIn encBool :=
     ComputableInPolyTime.unary_eq' ((computableInPolyTime_otsParam H).comp hnIn) hM
-  have hrunIn := (isOraclePPTOn_run_manyTimeHandler H hsigBound hadversary).preprocess'
+  have hrunIn := (isOraclePPTOn_run_manyTimeHandler H hsigBound hadversary).preprocess
     (hnIn.prod hotvk)
   have hactive := hrunIn.map_pair' (computableInPolyTime_manyTimePost H)
   have hempty : IsOraclePPTOn (Operation := Unit) encIn (encPair encBits encBits)
       (fun _ : In => pure ([], [])) :=
     (ComputableInPolyTime.const (encIn := encIn) (encOut := encPair encBits encBits)
       ([], [])).isOraclePPTOn
-  exact IsOraclePPTOn.ite' hcond hactive hempty
+  exact IsOraclePPTOn.ite hcond hactive hempty
 
 /-! ### Deterministic step replay and bounded-growth trace sampling (`tcrMultiAdversary`) -/
 
 section MultiSimulator
 
-/-- One recorded machine step `(coin, hashKey, ots)`. -/
-abbrev TraceStep := Bool × List Bool × List Bool
+/-- One recorded machine step of the many-query trace sampler. -/
+@[ext]
+structure TraceStep where
+  /-- Fair coin bit supplied to the machine transition at this step. -/
+  coin : Bool
+  /-- Fresh hash key chosen when this step queries the signing oracle. -/
+  hashKey : List Bool
+  /-- Signature from the underlying signature scheme (or `[]` when no query occurs). -/
+  ots : List Bool
+  deriving DecidableEq, Repr, Inhabited
 
 /-- Standard encoding of a `TraceStep`. -/
-@[expose]
-def encTraceStep : TraceStep ↪ List Bool :=
-  encPair encBool (encPair encBits encBits)
+enc_structure encTraceStep : TraceStep where
+  coin : encBool, hashKey : encBits, ots : encBits
+
+attribute [fun_prop] encTraceStep_coin_polyTime encTraceStep_hashKey_polyTime
+  encTraceStep_ots_polyTime encTraceStep_mk_polyTime
 
 /-- Total decoder for raw `Forger` outputs `(msg, sig)`. -/
 @[expose]
@@ -357,10 +372,14 @@ def msgSigDecoder : Decoder (encPair encBits encBits) :=
 /-- Total decoder for `TraceStep`. -/
 @[expose]
 def traceStepDecoder : Decoder encTraceStep :=
-  Decoder.bool.pair (Decoder.bits.pair Decoder.bits)
+  (Decoder.bool.pair (Decoder.bits.pair Decoder.bits)).map
+    (fun (coin, hashKey, ots) => ⟨coin, hashKey, ots⟩)
+    (fun s => (s.coin, s.hashKey, s.ots))
+    (fun _ => rfl)
+    (fun _ => rfl)
 
 /-- Deterministically advance `cfg` by one `TraceStep`, truncating any query reply
-`encPair encBits encBits (k, ots)` to `limit` bits. -/
+`encPair encBits encBits (step.hashKey, step.ots)` to `limit` bits. -/
 def replayStep {k : ℕ} {Control : Type} (machine : MultiTapePTM k Bool Control Unit)
     (limit : ℕ) (cfg : FiniteConfig k Bool Control Unit)
     (step : TraceStep) : FiniteConfig k Bool Control Unit :=
@@ -368,10 +387,10 @@ def replayStep {k : ℕ} {Control : Type} (machine : MultiTapePTM k Bool Control
   | none => cfg
   | some state =>
     match machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-        cfg.answerSymbols step.1 with
+        cfg.answerSymbols step.coin with
     | .step action symbol move => cfg.step action symbol move
     | .query () next =>
-      cfg.receive () next ((encPair encBits encBits (step.2.1, step.2.2)).take limit)
+      cfg.receive () next ((encPair encBits encBits (step.hashKey, step.ots)).take limit)
 
 /-- Replay a full `List TraceStep` from `FiniteConfig.init machine.initial word`. -/
 def replayCfg {k : ℕ} {Control : Type} (machine : MultiTapePTM k Bool Control Unit)
@@ -406,12 +425,17 @@ private theorem computableInPolyTime_replayStep {k : ℕ} {Control : Type} [Fini
     (ComputableInPolyTime.fst _ _).snd'
   have hstep : ComputableInPolyTime (fun q : Q => q.2) encQ encTraceStep :=
     ComputableInPolyTime.snd _ _
-  have hcoin : ComputableInPolyTime (fun q : Q => q.2.1) encQ encBool := hstep.fst'
+  have hcoin : ComputableInPolyTime (fun q : Q => q.2.coin) encQ encBool := by
+    unfold encQ; fun_prop
+  have hhash : ComputableInPolyTime (fun q : Q => q.2.hashKey) encQ encBits := by
+    unfold encQ; fun_prop
+  have hots : ComputableInPolyTime (fun q : Q => q.2.ots) encQ encBits := by
+    unfold encQ; fun_prop
   have henc : ComputableInPolyTime (encPair encBits encBits)
       (encPair encBits encBits) encBits := .of_eq fun _ => rfl
   have hreply : ComputableInPolyTime
-      (fun q : Q => (encPair encBits encBits (q.2.2.1, q.2.2.2)).take q.1.1) encQ encBits :=
-    ComputableInPolyTime.bitsTakeWithInput ((hstep.snd'.trans henc).of_enc_eq fun _ => rfl) hlimit
+      (fun q : Q => (encPair encBits encBits (q.2.hashKey, q.2.ots)).take q.1.1) encQ encBits :=
+    ComputableInPolyTime.bitsTakeWithInput ((hhash.prod hots).trans henc) hlimit
   exact (computableInPolyTime_finiteConfig_cases machine hcfg hcoin hcfg
     (fun action symbol move =>
       (ComputableInPolyTime.finiteConfig_step action symbol move).comp hcfg)
@@ -468,7 +492,7 @@ private theorem computableInPolyTime_replayCfg_raw {k : ℕ} {Control : Type} [F
       | some state =>
         dsimp only
         cases machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-            cfg.answerSymbols item.1 with
+            cfg.answerSymbols item.coin with
         | step action symbol move => exact hinv.step action symbol move
         | query ch next =>
           cases ch
@@ -509,9 +533,9 @@ private theorem computableInPolyTime_queryOf_comp {k : ℕ} {Control α : Type} 
       (ComputableInPolyTime.optionSome encBits).comp
         (computableInPolyTime_finiteConfig_reqWord hcfg))).of_enc_eq fun _ => rfl
 
-/-- Advance `trace` by one step under coin `b` and key `hashKey`, appending `(b, hashKey, [])` when
-step `trace.length` does not query and signing `(hashKey, H.eval n hashKey msg)` to append
-`(b, hashKey, ots)` when it queries `msg`. -/
+/-- Advance `trace` by one step under coin `b` and key `hashKey`, appending
+`⟨b, hashKey, []⟩` when step `trace.length` does not query and signing
+`(hashKey, H.eval n hashKey msg)` to append `⟨b, hashKey, ots⟩` when it queries `msg`. -/
 noncomputable def appendTraceStep {k : ℕ} {Control : Type}
     (S : SignatureScheme) (H : KeyedHashFamily)
     (machine : MultiTapePTM k Bool Control Unit)
@@ -519,13 +543,13 @@ noncomputable def appendTraceStep {k : ℕ} {Control : Type}
     (trace : List TraceStep) (b : Bool) (hashKey : List Bool) :
     ProbComp (List TraceStep) :=
   match queryOf machine (replayCfg machine limit word trace) b with
-  | none => pure (trace ++ [(b, hashKey, [])])
+  | none => pure (trace ++ [⟨b, hashKey, []⟩])
   | some msg => do
     let ots ← S.sign otsk (otsMsg H n hashKey (H.eval n hashKey msg))
-    return trace ++ [(b, hashKey, ots)]
+    return trace ++ [⟨b, hashKey, ots⟩]
 
-/-- Sample one local simulation step on `trace`, appending `(b, k, [])` when step `trace.length`
-does not query and `(b, k, ots)` (with `ots ← S.sign otsk (otsMsg H n k (H.eval n k msg))`) when
+/-- Sample one local simulation step on `trace`, appending `⟨b, k, []⟩` when step `trace.length`
+does not query and `⟨b, k, ots⟩` (with `ots ← S.sign otsk (otsMsg H n k (H.eval n k msg))`) when
 it queries `msg`. -/
 noncomputable def sampleStep {k : ℕ} {Control : Type}
     (S : SignatureScheme) (H : KeyedHashFamily)
@@ -555,24 +579,24 @@ private theorem isPPTOn_appendTraceStep {k : ℕ} {Control α : Type} [Finite Co
   have hcfg := computableInPolyTime_replayCfg_comp machine hlimit hword htrace
   have hqOpt := computableInPolyTime_queryOf_comp machine hcfg hb
   have hnone : IsPPTOn input (encList encTraceStep)
-      (fun a => pure (trace a ++ [(b a, hashKey a, [])])) := by
-    have hitem : ComputableInPolyTime (fun a => (b a, hashKey a, ([] : List Bool)))
-        input encTraceStep :=
-      hb.prod (hhashKey.prod (.const []))
+      (fun a => pure (trace a ++ [⟨b a, hashKey a, []⟩])) := by
+    have hitem : ComputableInPolyTime (fun a => (⟨b a, hashKey a, []⟩ : TraceStep))
+        input encTraceStep := by
+      fun_prop
     exact (htrace.listAppend' (hitem.cons' (.const []))).isPPTOn
   have hmsg := hqOpt.optionGetDWithInput (.const [])
   have hM := computableInPolyTime_otsMsg_eval_comp H hn hhashKey hmsg
   have hsign := S.isPPTOn_sign_comp (hotsk.of_enc_eq fun _ => rfl)
     (hM.of_enc_eq fun _ => rfl)
   have hpostSome : ComputableInPolyTime
-      (fun u : α × List Bool => trace u.1 ++ [(b u.1, hashKey u.1, u.2)])
+      (fun u : α × List Bool => trace u.1 ++ [⟨b u.1, hashKey u.1, u.2⟩])
       (encPair input encBits) (encList encTraceStep) := by
     have huA := ComputableInPolyTime.fst input encBits
     have huOts := ComputableInPolyTime.snd input encBits
     have hitem : ComputableInPolyTime
-        (fun u : α × List Bool => (b u.1, hashKey u.1, u.2))
-        (encPair input encBits) encTraceStep :=
-      (huA.trans hb).prod ((huA.trans hhashKey).prod huOts)
+        (fun u : α × List Bool => (⟨b u.1, hashKey u.1, u.2⟩ : TraceStep))
+        (encPair input encBits) encTraceStep := by
+      fun_prop
     exact (huA.trans htrace).listAppend' (hitem.cons' (.const []))
   have hsome := hsign.map_pair hpostSome
   have hcond : ComputableInPolyTime
@@ -580,7 +604,7 @@ private theorem isPPTOn_appendTraceStep {k : ℕ} {Control α : Type} [Finite Co
         (replayCfg machine (limit a) (word a) (trace a)) (b a)).isSome = true))
       input encBool :=
     hqOpt.optionIsSome.of_enc_eq fun _ => rfl
-  refine (IsPPTOn.ite' hcond hsome hnone).congr fun a => ?_
+  refine (IsPPTOn.ite hcond hsome hnone).congr fun a => ?_
   dsimp only [appendTraceStep]
   cases queryOf machine (replayCfg machine (limit a) (word a) (trace a)) (b a) with
   | none => rfl
@@ -593,7 +617,7 @@ private theorem exists_ots_of_mem_support_appendTraceStep {k : ℕ} {Control : T
     (trace : List TraceStep) (b : Bool) (hashKey : List Bool) {next : List TraceStep}
     (hnext : next ∈ (ProbComp.eval
       (appendTraceStep S H machine n otsk limit word trace b hashKey)).support) :
-    ∃ ots, next = trace ++ [(b, hashKey, ots)] ∧
+    ∃ ots, next = trace ++ [⟨b, hashKey, ots⟩] ∧
       (ots = [] ∨ ∃ msg, ots ∈ (ProbComp.eval
         (S.sign otsk (otsMsg H n hashKey (H.eval n hashKey msg)))).support) := by
   unfold appendTraceStep at hnext
@@ -608,23 +632,6 @@ private theorem exists_ots_of_mem_support_appendTraceStep {k : ℕ} {Control : T
       PMF.mem_support_pure_iff] at hnext
     obtain ⟨ots, hots, rfl⟩ := hnext
     exact ⟨ots, rfl, Or.inr ⟨msg, hots⟩⟩
-
-private theorem isPPTOn_iterateWith_of_bounded_growth' {α State : Type}
-    {input : α ↪ List Bool} {stateEncoding : State ↪ List Bool}
-    {initial : α → State} {count : α → ℕ} {step : α → State → ProbComp State}
-    (hcount : ComputableInPolyTime count input encUnary)
-    (hinitial : ComputableInPolyTime initial input stateEncoding)
-    (hstep : IsPPTOn (encPair input stateEncoding) stateEncoding
-      (fun pair => step pair.1 pair.2))
-    {growth : α → ℕ} (hpoly : PolyBounded (fun a => (input a).length) growth)
-    (hgrowth : ∀ a state next, next ∈ (ProbComp.eval (step a state)).support →
-      (stateEncoding next).length ≤ (stateEncoding state).length + growth a) :
-    IsPPTOn input stateEncoding (fun a => OracleComp.iterate (count a) (step a) (initial a)) := by
-  have hloop := IsOraclePPTOn.iterateWith_of_bounded_growth' hcount hinitial
-    (hstep.isOraclePPTOn (Operation := Empty)) hpoly fun a state next hnext =>
-      hgrowth a state next ((ProbOracleComp.support_sample _).subset hnext)
-  apply IsOraclePPTOn.isPPTOn
-  simpa only [ProbOracleComp.sample, OracleComp.interpret_iterate] using hloop
 
 private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite Control]
     {input : α ↪ List Bool}
@@ -682,7 +689,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
   have hpolyGrowth : PolyBounded (fun a => (input a).length) growth :=
     (((PolyBounded.const 4).mul (H.keyLen_polyTime.comp hn).polyBounded).add
       ((PolyBounded.const 2).mul hpolySig)).add (.const 10)
-  refine isPPTOn_iterateWith_of_bounded_growth' hcount hinit hstep hpolyGrowth ?_
+  refine IsPPTOn.iterateWith_of_bounded_growth hcount hinit hstep hpolyGrowth ?_
   intro a tr next hnext
   simp only [sampleStep, ProbComp.eval_bind, ProbComp.eval_uniform, BitString.eval_sampleList,
     PMF.mem_support_bind_iff] at hnext
@@ -699,10 +706,7 @@ private theorem isPPTOn_iterate_sampleStep {k : ℕ} {Control α : Type} [Finite
           2 * (otsk a).length + otsParam H (n a) + 2 := by omega
       exact hs.trans (Nat.mul_le_mul_left csg (Nat.pow_le_pow_left hle dsg))
   rw [encList_append]
-  simp only [List.length_append, encList_cons, encList_nil, List.append_nil, length_frame,
-    encTraceStep, length_encPair, encBool_apply, encBits_apply, List.length_singleton,
-    hkLen, growth]
-  omega
+  enc_len [List.append_nil, encTraceStep_apply, List.length_singleton, hkLen, growth]
 
 /-- Uniform polynomial upper bound on the machine clock `c * ((wordOf n otvk).length + 1) ^ d`
 across all `otvk` of length at most `ckg * (otsParam H n + 1) ^ dkg`. -/
@@ -713,31 +717,47 @@ def fuelUpper (H : KeyedHashFamily) (ckg dkg c d n : ℕ) : ℕ :=
 theorem computableInPolyTime_fuelUpper (H : KeyedHashFamily) (ckg dkg c d : ℕ) :
     ComputableInPolyTime (fuelUpper H ckg dkg c d) encUnary encUnary := by
   have hM := computableInPolyTime_otsParam H
-  have hkg := (ComputableInPolyTime.const ckg).unary_mul'
-    ((ComputableInPolyTime.unary_pow dkg).comp (hM.unary_add' (.const 1)))
-  have hfourN := (ComputableInPolyTime.const 4).unary_mul' .id'
-  have hinner := (hfourN.unary_add' hkg).unary_add' (.const 3)
-  exact (ComputableInPolyTime.const c).unary_mul'
-    ((ComputableInPolyTime.unary_pow d).comp hinner)
+  unfold fuelUpper
+  fun_prop
 
-/-- Saved state `(active, keys, coinAtSlot, remSteps, preTrace)` passed from
-`tcrMultiAdversary.choose` to `tcrMultiAdversary.find`. -/
-abbrev TcrSavedState :=
-  Bool × (List Bool × List Bool) × Bool × ℕ × List TraceStep
+/-- Saved state passed from `tcrMultiAdversary.choose` to `tcrMultiAdversary.find`. -/
+@[ext]
+structure TcrSavedState where
+  /-- Whether `choose` sampled a step slot strictly before the machine fuel limit. -/
+  active : Bool
+  /-- Verification and signing key pair `(pk, sk)` sampled once for this execution. -/
+  keys : List Bool × List Bool
+  /-- Fair coin bit pre-committed for the target query step. -/
+  coinAtSlot : Bool
+  /-- Remaining simulation steps after the implanted challenge hash key. -/
+  remSteps : ℕ
+  /-- Prefix trace simulated locally before the implanted query step. -/
+  preTrace : List TraceStep
+  deriving DecidableEq, Repr, Inhabited
 
 /-- Standard encoding of `TcrSavedState`. -/
-@[expose]
-def encTcrSavedState : TcrSavedState ↪ List Bool :=
-  encPair encBool
-    (encPair (encPair encBits encBits)
-      (encPair encBool (encPair encUnary (encList encTraceStep))))
+enc_structure encTcrSavedState : TcrSavedState where
+  active : encBool,
+  keys : (encPair encBits encBits),
+  coinAtSlot : encBool,
+  remSteps : encUnary,
+  preTrace : (encList encTraceStep)
+
+attribute [fun_prop] encTcrSavedState_active_polyTime encTcrSavedState_keys_polyTime
+  encTcrSavedState_coinAtSlot_polyTime encTcrSavedState_remSteps_polyTime
+  encTcrSavedState_preTrace_polyTime encTcrSavedState_mk_polyTime
 
 /-- Total decoder for `TcrSavedState`. -/
 @[expose]
 def tcrStateDecoder : Decoder encTcrSavedState :=
-  Decoder.bool.pair
+  (Decoder.bool.pair
     ((Decoder.bits.pair Decoder.bits).pair
-      (Decoder.bool.pair (Decoder.unary.pair (Decoder.list traceStepDecoder))))
+      (Decoder.bool.pair (Decoder.unary.pair (Decoder.list traceStepDecoder))))).map
+    (fun (active, keys, coinAtSlot, remSteps, preTrace) =>
+      ⟨active, keys, coinAtSlot, remSteps, preTrace⟩)
+    (fun s => (s.active, s.keys, s.coinAtSlot, s.remSteps, s.preTrace))
+    (fun _ => rfl)
+    (fun _ => rfl)
 
 /-- Many-query two-stage target-collision adversary against `H` ([BonehShoup2023], proof of
 Theorem 13.2, p. 534): `choose n` samples `keys ← S.keyGen (otsParam H n)` and a uniform dyadic
@@ -760,16 +780,16 @@ noncomputable def tcrMultiAdversary {k : ℕ} {Control : Type}
       let b ← ProbComp.uniform Bool
       let cfg := replayCfg machine fuel word preTrace
       pure ((queryOf machine cfg b).getD [],
-        encTcrSavedState (true, keys, b, fuel - 1 - slot, preTrace))
+        encTcrSavedState ⟨true, keys, b, fuel - 1 - slot, preTrace⟩)
     else
-      pure ([], encTcrSavedState (false, keys, false, 0, []))
+      pure ([], encTcrSavedState ⟨false, keys, false, 0, []⟩)
   find n stateWord hashKey := do
     let saved := tcrStateDecoder.decode stateWord
-    if saved.1 then do
-      let keys := saved.2.1
-      let b := saved.2.2.1
-      let remSteps := saved.2.2.2.1
-      let preTrace := saved.2.2.2.2
+    if saved.active then do
+      let keys := saved.keys
+      let b := saved.coinAtSlot
+      let remSteps := saved.remSteps
+      let preTrace := saved.preTrace
       let word := simWordOf n keys.1
       let fuel := simFuelOf c d n keys.1
       let midTrace ← appendTraceStep S H machine n keys.2 fuel word preTrace b hashKey
@@ -827,7 +847,7 @@ private theorem isPPTOn_tcrMultiAdversary_choose {k : ℕ} {Control : Type} [Fin
         let fuel := simFuelOf c d n keys.1
         let cfg := replayCfg machine fuel word preTrace
         ((queryOf machine cfg b).getD [],
-          encTcrSavedState (true, keys, b, fuel - 1 - slot, preTrace)))
+          encTcrSavedState ⟨true, keys, b, fuel - 1 - slot, preTrace⟩))
       (encPair encLIn encBool) (encPair encBits encBits) := by
     let U := LIn × Bool
     let encU : U ↪ List Bool := encPair encLIn encBool
@@ -844,26 +864,26 @@ private theorem isPPTOn_tcrMultiAdversary_choose {k : ℕ} {Control : Type} [Fin
     have huCfg := computableInPolyTime_replayCfg_comp machine huFuel huWord huTr
     have huQOpt := computableInPolyTime_queryOf_comp machine huCfg huB
     have huTarget := huQOpt.optionGetDWithInput (.const [])
-    have huRem := ComputableInPolyTime.unary_sub.comp
-      ((ComputableInPolyTime.unary_sub.comp (huFuel.prod (.const 1))).prod huSlot)
+    have huRem : ComputableInPolyTime
+        (fun u : U => simFuelOf c d u.1.1.1.1 u.1.1.1.2.1 - 1 - u.1.1.2) encU encUnary :=
+      ComputableInPolyTime.unary_sub.comp
+        ((ComputableInPolyTime.unary_sub.comp (huFuel.prod (.const 1))).prod huSlot)
     have huSaved : ComputableInPolyTime
         (fun u : U =>
-          (true, u.1.1.1.2, u.2, simFuelOf c d u.1.1.1.1 u.1.1.1.2.1 - 1 - u.1.1.2, u.1.2))
+          (⟨true, u.1.1.1.2, u.2, simFuelOf c d u.1.1.1.1 u.1.1.1.2.1 - 1 - u.1.1.2,
+            u.1.2⟩ : TcrSavedState))
         encU encTcrSavedState :=
-      (ComputableInPolyTime.const true).prod
-        (huKeys.prod (huB.prod (huRem.prod huTr)))
+      encTcrSavedState_mk_polyTime (.const true) huKeys huB huRem huTr
     exact (huTarget.prod (huSaved.trans hencState)).of_enc_eq fun _ => rfl
   have hyes := hpreLoop.bind_pair (hlCoin.map_pair hpostActive)
   have hno : IsPPTOn encSIn (encPair encBits encBits)
-      (fun q : SIn => pure ([], encTcrSavedState (false, q.1.2, false, 0, []))) := by
+      (fun q : SIn => pure ([], encTcrSavedState ⟨false, q.1.2, false, 0, []⟩)) := by
     have hsavedFalse : ComputableInPolyTime
-        (fun q : SIn => (false, q.1.2, false, 0, ([] : List TraceStep)))
+        (fun q : SIn => (⟨false, q.1.2, false, 0, []⟩ : TcrSavedState))
         encSIn encTcrSavedState :=
-      (ComputableInPolyTime.const false).prod
-        (hsKeys.prod ((ComputableInPolyTime.const false).prod
-          ((ComputableInPolyTime.const 0).prod (.const []))))
+      encTcrSavedState_mk_polyTime (.const false) hsKeys (.const false) (.const 0) (.const [])
     exact ((ComputableInPolyTime.const []).prod (hsavedFalse.trans hencState)).isPPTOn
-  have hite := IsPPTOn.ite' hsCond hyes hno
+  have hite := IsPPTOn.ite hsCond hyes hno
   exact (hkg.bind_pair (hslot.bind_pair hite)).congr fun _ => rfl
 
 private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finite Control]
@@ -880,14 +900,27 @@ private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finit
     (ComputableInPolyTime.snd _ _).fst'
   have hhashKey : ComputableInPolyTime (fun p : FIn => p.2.2) encFIn encBits :=
     (ComputableInPolyTime.snd _ _).snd'
-  have hsaved := hstateWord.trans tcrStateDecoder.computableInPolyTime
+  have hsaved : ComputableInPolyTime
+      (fun p : FIn => tcrStateDecoder.decode p.2.1) encFIn encTcrSavedState :=
+    hstateWord.trans tcrStateDecoder.computableInPolyTime
+  have hactiveRaw : ComputableInPolyTime
+      (fun p : FIn => (tcrStateDecoder.decode p.2.1).active) encFIn encBool := by
+    fun_prop
   have hactive : ComputableInPolyTime
-      (fun p : FIn => decide ((tcrStateDecoder.decode p.2.1).1 = true)) encFIn encBool :=
-    hsaved.fst'.of_enc_eq fun _ => rfl
-  have hkeys := hsaved.snd'.fst'
-  have hb := hsaved.snd'.snd'.fst'
-  have hrem := hsaved.snd'.snd'.snd'.fst'
-  have hpre := hsaved.snd'.snd'.snd'.snd'
+      (fun p : FIn => decide ((tcrStateDecoder.decode p.2.1).active = true)) encFIn encBool :=
+    hactiveRaw.of_enc_eq fun _ => rfl
+  have hkeys : ComputableInPolyTime
+      (fun p : FIn => (tcrStateDecoder.decode p.2.1).keys) encFIn (encPair encBits encBits) := by
+    fun_prop
+  have hb : ComputableInPolyTime
+      (fun p : FIn => (tcrStateDecoder.decode p.2.1).coinAtSlot) encFIn encBool := by
+    fun_prop
+  have hrem : ComputableInPolyTime
+      (fun p : FIn => (tcrStateDecoder.decode p.2.1).remSteps) encFIn encUnary := by
+    fun_prop
+  have hpre : ComputableInPolyTime
+      (fun p : FIn => (tcrStateDecoder.decode p.2.1).preTrace) encFIn (encList encTraceStep) := by
+    fun_prop
   have hword := computableInPolyTime_wordOf hn hkeys.fst'
   have hfuel := computableInPolyTime_fuelOf c d hn hkeys.fst'
   have hmid := isPPTOn_appendTraceStep S H machine hn hkeys.snd' hfuel hword hpre hb hhashKey
@@ -901,8 +934,8 @@ private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finit
   have hpostOut : ComputableInPolyTime
       (fun r : MIn × List TraceStep =>
         let s := tcrStateDecoder.decode r.1.1.2.1
-        let word := simWordOf r.1.1.1 s.2.1.1
-        let fuel := simFuelOf c d r.1.1.1 s.2.1.1
+        let word := simWordOf r.1.1.1 s.keys.1
+        let fuel := simFuelOf c d r.1.1.1 s.keys.1
         let finalCfg := replayCfg machine fuel word r.2
         (msgSigDecoder.decode finalCfg.tapes.output).1)
       (encPair encMIn (encList encTraceStep)) encBits := by
@@ -916,7 +949,7 @@ private theorem isPPTOn_tcrMultiAdversary_find {k : ℕ} {Control : Type} [Finit
   have hyes := hmid.bind_pair (hpostLoop.map_pair hpostOut)
   have hno : IsPPTOn encFIn encBits (fun _ : FIn => pure []) :=
     (ComputableInPolyTime.const []).isPPTOn
-  exact (IsPPTOn.ite' hactive hyes hno).congr fun _ => rfl
+  exact (IsPPTOn.ite hactive hyes hno).congr fun _ => rfl
 
 /-- Both stages of `tcrMultiAdversary` are uniformly strict PPT. -/
 theorem isPPT_tcrMultiAdversary {k : ℕ} {Control : Type} [Finite Control]
@@ -948,12 +981,12 @@ private def replayPairStep {k : ℕ} {Control : Type}
   | none => acc
   | some state =>
     match machine.tr state acc.1.tapes.inputSymbol acc.1.tapes.workTapeSymbols
-        acc.1.answerSymbols step.1 with
+        acc.1.answerSymbols step.coin with
     | .step action symbol move => (acc.1.step action symbol move, acc.2)
     | .query () next =>
       let msg := (acc.1.channels ()).1
-      (acc.1.receive () next ((encPair encBits encBits (step.2.1, step.2.2)).take limit),
-        (msg, step.2.1) :: acc.2)
+      (acc.1.receive () next ((encPair encBits encBits (step.hashKey, step.ots)).take limit),
+        (msg, step.hashKey) :: acc.2)
 
 private theorem replayPairStep_fst {k : ℕ} {Control : Type}
     (machine : MultiTapePTM k Bool Control Unit) (limit : ℕ)
@@ -973,7 +1006,7 @@ private theorem replayPairStep_fst {k : ℕ} {Control : Type}
       | some state =>
         dsimp only
         cases machine.tr state cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
-            cfg.answerSymbols step.1 with
+            cfg.answerSymbols step.coin with
         | step _ _ _ => rfl
         | query ch _ => cases ch; rfl
     rcases h : replayPairStep machine limit (cfg, pairs) step with ⟨cfg', pairs'⟩
@@ -1070,13 +1103,13 @@ private theorem mem_support_iterate_sampleStep_props {k : ℕ} {Control : Type}
     (h : trace ∈ (ProbComp.eval
       (OracleComp.iterate count (sampleStep S H machine n otsk limit word) init)).support) :
     init <+: trace ∧ trace.length = init.length + count ∧
-      ((∀ item ∈ init, item.2.1.length = H.keyLen n) →
-        ∀ item ∈ trace, item.2.1.length = H.keyLen n) := by
+      ((∀ item ∈ init, item.hashKey.length = H.keyLen n) →
+        ∀ item ∈ trace, item.hashKey.length = H.keyLen n) := by
   refine ProbComp.iterate_invariant count
     (sampleStep S H machine n otsk limit word) init
     (fun i tr => init <+: tr ∧ tr.length = init.length + i ∧
-      ((∀ item ∈ init, item.2.1.length = H.keyLen n) →
-        ∀ item ∈ tr, item.2.1.length = H.keyLen n))
+      ((∀ item ∈ init, item.hashKey.length = H.keyLen n) →
+        ∀ item ∈ tr, item.hashKey.length = H.keyLen n))
     ⟨List.prefix_refl init, Nat.add_zero _, fun h0 => h0⟩
     (fun i _ tr ⟨hpre, hlen, hkeys⟩ next hnext => ?_) trace h
   simp only [sampleStep, ProbComp.eval_bind, ProbComp.eval_uniform, BitString.eval_sampleList,
@@ -1101,9 +1134,9 @@ private theorem exists_slot_of_mem_replayPairs {k : ℕ} {Control : Type}
       (trace.foldl (replayPairStep machine limit)
         (FiniteConfig.init machine.initial word, [])).2) :
     ∃ j < trace.length,
-      let stepJ := trace.getD j (false, [], [])
-      queryOf machine (replayCfg machine limit word (trace.take j)) stepJ.1 = some mJ ∧
-        stepJ.2.1 = kJ := by
+      let stepJ := trace.getD j ⟨false, [], []⟩
+      queryOf machine (replayCfg machine limit word (trace.take j)) stepJ.coin = some mJ ∧
+        stepJ.hashKey = kJ := by
   induction trace using List.reverseRecOn with
   | nil => simp at hmem
   | append_singleton pre item ih =>
@@ -1114,16 +1147,16 @@ private theorem exists_slot_of_mem_replayPairs {k : ℕ} {Control : Type}
       replayPairStep_fst machine limit _ [] pre
     have hOld : (mJ, kJ) ∈ acc.2 →
         ∃ j < (pre ++ [item]).length,
-          let stepJ := (pre ++ [item]).getD j (false, [], [])
-          queryOf machine (replayCfg machine limit word ((pre ++ [item]).take j)) stepJ.1 =
-            some mJ ∧ stepJ.2.1 = kJ := by
+          let stepJ := (pre ++ [item]).getD j ⟨false, [], []⟩
+          queryOf machine (replayCfg machine limit word ((pre ++ [item]).take j))
+            stepJ.coin = some mJ ∧ stepJ.hashKey = kJ := by
       intro hold
       obtain ⟨j, hj, hq, hk⟩ := ih hold
       refine ⟨j, ?_, ?_⟩
       · simp only [List.length_append, List.length_singleton]; omega
       · have htake : (pre ++ [item]).take j = pre.take j :=
           List.take_append_of_le_length hj.le
-        have hget : (pre ++ [item]).getD j (false, [], []) = pre.getD j (false, [], []) := by
+        have hget : (pre ++ [item]).getD j ⟨false, [], []⟩ = pre.getD j ⟨false, [], []⟩ := by
           rw [List.getD_eq_getElem _ _ (by simp; omega), List.getD_eq_getElem _ _ hj,
             List.getElem_append_left hj]
         simpa only [htake, hget] using ⟨hq, hk⟩
@@ -1137,7 +1170,7 @@ private theorem exists_slot_of_mem_replayPairs {k : ℕ} {Control : Type}
       rw [hs] at hmem
       dsimp only at hmem
       cases htr : machine.tr state acc.1.tapes.inputSymbol acc.1.tapes.workTapeSymbols
-          acc.1.answerSymbols item.1 with
+          acc.1.answerSymbols item.coin with
       | step _ _ _ =>
         rw [htr] at hmem
         exact hOld hmem
@@ -1149,18 +1182,11 @@ private theorem exists_slot_of_mem_replayPairs {k : ℕ} {Control : Type}
         · rcases Prod.mk.inj hhead with ⟨rfl, rfl⟩
           refine ⟨pre.length, by simp, ?_⟩
           have htake : (pre ++ [item]).take pre.length = pre := by simp
-          have hget : (pre ++ [item]).getD pre.length (false, [], []) = item := by
+          have hget : (pre ++ [item]).getD pre.length ⟨false, [], []⟩ = item := by
             rw [List.getD_eq_getElem _ _ (by simp)]
             simp
           simp only [htake, hget, ← hcfg, queryOf, hs, htr, and_self]
         · exact hOld htail
-
-private theorem finset_sum_tsum {ι α : Type*} (s : Finset ι) (f : ι → α → ℝ≥0∞) :
-    (∑ i ∈ s, ∑' a, f i a) = ∑' a, ∑ i ∈ s, f i a := by
-  classical
-  refine Finset.induction_on s (by simp) fun i s hi ih => ?_
-  simp only [Finset.sum_insert hi, ih,
-    ← Summable.tsum_add CompleteLattice.summable CompleteLattice.summable]
 
 private theorem succProbability_map_le_add_sum {α ι : Type*} [Fintype ι] (μ : PMF α)
     (f g : α → Bool) (h : ι → α → Bool)
@@ -1169,7 +1195,8 @@ private theorem succProbability_map_le_add_sum {α ι : Type*} [Fintype ι] (μ 
       Game.succProbability (μ.map g) + ∑ i, ((μ.map (h i)) true).toNNReal := by
   have hsum_ennreal : (μ.map f) true ≤ (μ.map g) true + ∑ i, (μ.map (h i)) true := by
     simp only [PMF.map_apply]
-    rw [finset_sum_tsum, ← Summable.tsum_add CompleteLattice.summable CompleteLattice.summable]
+    rw [← Summable.tsum_finsetSum fun _ _ => CompleteLattice.summable,
+      ← Summable.tsum_add CompleteLattice.summable CompleteLattice.summable]
     refine tsum_le_tsum fun sample => ?_
     by_cases hs : sample ∈ μ.support
     · by_cases hw : f sample = true
@@ -1206,14 +1233,14 @@ private def winTcrAt {k : ℕ} {Control : Type}
   let trace := sample.2
   let B := simFuelOf c d n keys.1
   decide (slot < B) &&
-    let stepJ := trace.getD slot (false, [], [])
+    let stepJ := trace.getD slot ⟨false, [], []⟩
     let cfgJ := replayCfg machine B (simWordOf n keys.1) (trace.take slot)
-    match queryOf machine cfgJ stepJ.1 with
+    match queryOf machine cfgJ stepJ.coin with
     | none => false
     | some mJ =>
       let finalCfg := replayCfg machine B (simWordOf n keys.1) trace
       let mOut := (msgSigDecoder.decode finalCfg.tapes.output).1
-      isCollision (H.eval n) (fun _ _ => true) n stepJ.2.1 mJ mOut
+      isCollision (H.eval n) (fun _ _ => true) n stepJ.hashKey mJ mOut
 
 private noncomputable def tcrSlotTrial {k : ℕ} {Control : Type}
     (S : SignatureScheme) (H : KeyedHashFamily)
@@ -1305,14 +1332,17 @@ private theorem succProbability_winTcrAt_le_trial {k : ℕ} {Control : Type}
         (B - 1 - slot) midTrace hfullSupp).1
     obtain ⟨ots, rfl, _⟩ := exists_ots_of_mem_support_appendTraceStep S H machine
       n keys.2 B word preTrace b kStar hmidSupp
-    have hassoc : (preTrace ++ [(b, kStar, ots)]) ++ postTrace =
-        preTrace ++ ((b, kStar, ots) :: postTrace) := by simp
-    have htake : ((preTrace ++ [(b, kStar, ots)]) ++ postTrace).take slot = preTrace := by
+    have hassoc : (preTrace ++ [(⟨b, kStar, ots⟩ : TraceStep)]) ++ postTrace =
+        preTrace ++ ((⟨b, kStar, ots⟩ : TraceStep) :: postTrace) := by simp
+    have htake :
+        ((preTrace ++ [(⟨b, kStar, ots⟩ : TraceStep)]) ++ postTrace).take slot = preTrace := by
       rw [hassoc, List.take_append_of_le_length (by rw [hpreLen]), ← hpreLen, List.take_length]
     have hget :
-        ((preTrace ++ [(b, kStar, ots)]) ++ postTrace).getD slot (false, [], []) =
-          (b, kStar, ots) := by
-      have hltFull : slot < (preTrace ++ ((b, kStar, ots) :: postTrace)).length := by
+        ((preTrace ++ [(⟨b, kStar, ots⟩ : TraceStep)]) ++ postTrace).getD slot
+            (⟨false, [], []⟩ : TraceStep) =
+          (⟨b, kStar, ots⟩ : TraceStep) := by
+      have hltFull :
+          slot < (preTrace ++ ((⟨b, kStar, ots⟩ : TraceStep) :: postTrace)).length := by
         simp [hpreLen]
       rw [hassoc, List.getD_eq_getElem _ _ hltFull,
         List.getElem_append_right (by rw [hpreLen])]
@@ -1380,7 +1410,7 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
             (FiniteConfig.init machine.initial (wordOf keys.1), [])
           (msgSigDecoder.decode res.1.tapes.output, res.2) := by
     intro keys
-    rw [← ProbOracleComp.run_interpret_eq_runWith]
+    rw [ProbOracleComp.runWith_eq_run_interpret]
     have hdecode : adversary n (pkOf keys.1) =
         msgSigDecoder.decode <$> ((encPair encBits encBits) <$> adversary n (pkOf keys.1)) := by
       simp only [Functor.map_map, msgSigDecoder.decode_enc]
@@ -1424,7 +1454,8 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       (represent := List.map Prod.fst)
       (step := by
         intro ⟨⟨⟩, msg⟩ pairs
-        simp only [pairSigningOracle, WordSignatureScheme.signingOracle, wordScheme_sign, sign,
+        simp only [pairSigningOracle, WordSignatureScheme.signingOracle,
+          SignatureScheme.signingOracleOf, SignatureScheme.signingOracleOn, wordScheme_sign, sign,
           pkOf, simPkOf, keyDecoder.decode_enc, ↓reduceIte, BitString.eval_sampleList,
           List.map_cons, _root_.PMF.map, pmf_norm])
       (adversary n (pkOf keys.1)) []
@@ -1442,7 +1473,8 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
     have hsim := ProbOracleComp.runWith_map_state
       (oracle := pairSigningOracle S H n keys.2)
       (oracle' := fun q (state : Unit × List (List Bool)) =>
-        (ProbOracleComp.runWith (fun req s => ProbComp.eval (S.signingOracle keys.2 req s))
+        (ProbOracleComp.runWith
+          (fun req s => ProbComp.eval (S.signingOracle (otsParam H n) keys.2 req s))
           (StateT.run (manyTimeHandler H sigBound n q) state.1) state.2).map
             (fun p => (p.1.1, p.1.2, p.2)))
       (represent := fun pairs : List (List Bool × List Bool) =>
@@ -1450,12 +1482,14 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       (step := by
         intro ⟨⟨⟩, msg⟩ pairs
         change _ = (ProbOracleComp.runWith
-          (fun req s => ProbComp.eval (S.signingOracle keys.2 req s))
+          (fun req s => ProbComp.eval (S.signingOracle (otsParam H n) keys.2 req s))
           (manyTimeHandler H sigBound n ((), msg) ())
           (pairs.map fun p => otsMsg H n p.2 (H.eval n p.2 p.1))).map
             (fun p => (p.1.1, p.1.2, p.2))
-        simp only [manyTimeHandler, SignatureScheme.signingOracle, pairSigningOracle,
-          BitString.eval_sampleList, List.map_cons, _root_.PMF.map, runWith_norm, pmf_norm]
+        simp only [manyTimeHandler, SignatureScheme.signingOracle,
+          SignatureScheme.signingOracleOn, length_otsMsg, beq_self_eq_true, ↓reduceIte,
+          pairSigningOracle, BitString.eval_sampleList, List.map_cons, _root_.PMF.map,
+          runWith_norm, pmf_norm]
         peel_binds hashKey ots
         have htake : ots.take (sigBound n) = ots :=
           List.take_of_length_le
@@ -1482,15 +1516,14 @@ theorem succProbability_wordScheme_eufCmaGame_le_of_machine {k : ℕ} {Control :
       have hwLen : (wordOf keys.1).length + 1 ≤
           4 * n + ckg * (otsParam H n + 1) ^ dkg + 3 := by
         dsimp only [wordOf, pkOf, simWordOf, simPkOf]
-        simp only [length_encPair, encUnary_apply, List.length_replicate, encBits_apply]
-        omega
+        enc_len
       exact Nat.mul_le_mul_left c (Nat.pow_le_pow_left hwLen d)
     have hfuelLtD : fuelOf keys.1 < D :=
       Nat.lt_of_le_of_lt hfuelLe (lt_dyadicSize _)
     have htraceProps := mem_support_iterate_sampleStep_props S H machine n keys.2
       (fuelOf keys.1) (wordOf keys.1) (fuelOf keys.1) [] htrace
     have htraceLen : trace.length = fuelOf keys.1 := by simpa using htraceProps.2.1
-    have htraceKeys : ∀ item ∈ trace, item.2.1.length = H.keyLen n :=
+    have htraceKeys : ∀ item ∈ trace, item.hashKey.length = H.keyLen n :=
       htraceProps.2.2 (by intro _ h; cases h)
     let res := trace.foldl (replayPairStep machine (fuelOf keys.1))
       (FiniteConfig.init machine.initial (wordOf keys.1), [])
@@ -1593,6 +1626,19 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
   have hlossPoly : PolynomiallyBounded (fun n => dyadicSize (fuelUpper H ckg dkg c d n)) :=
     (ComputableInPolyTime.unary_dyadicSize.comp
       (computableInPolyTime_fuelUpper H ckg dkg c d)).polynomiallyBounded
+  have hmachineInterpret : ∀ (input : ℕ × List Bool) (State : Type)
+      (oracle : Unit × List Bool → StateT State PMF (List Bool)) s,
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (encPair encBits encBits <$> adversary input.1 input.2)).run s =
+      (OracleComp.interpret
+        (OracleComp.sumHandler (fun m => StateT.lift (ProbComp.unifOracle m)) oracle)
+          (machine.runOracle
+            (c * ((encPair encUnary encBits input).length + 1) ^ d)
+            (encPair encUnary encBits input))).run s := by
+    intro input State oracle s
+    simpa only [← ProbOracleComp.runWith_eq_run_interpret] using
+      hmachine input State oracle s
   exact ⟨manyTimeForger H sigBound adversary,
     tcrMultiAdversary S H machine ckg dkg c d,
     fun n => dyadicSize (fuelUpper H ckg dkg c d n),
@@ -1601,14 +1647,30 @@ theorem exists_reduction_wordScheme_eufCmaGame_le (S : SignatureScheme) (H : Key
     hlossPoly,
     succProbability_wordScheme_eufCmaGame_le_of_machine S H ckg dkg
       (fun n pk sk h => hpkBoundLe n (pk, sk) h) sigBound
-      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachine⟩
+      (fun n pk sk h => hsigBoundLe n (pk, sk) h) adversary machine c d hmachineInterpret⟩
 
 end TCRSignature
 
-/-- **Boneh–Shoup Theorem 13.2** ([BonehShoup2023], Section 13.2.1, p. 534): if `S` is a stateless
-many-time `EUFCMA`-secure `SignatureScheme` on fixed-length bit strings and `H` is an unrestricted
-target collision-resistant `KeyedHashFamily` on `List Bool`, then `TCRSignature.wordScheme S H` is
-an `EUFCMA`-secure stateless `WordSignatureScheme` on arbitrary-length `List Bool` messages. -/
+/-- **Boneh–Shoup Theorem 13.2** ([BonehShoup2023], Section 13.2.1, p. 534): if `S` is a secure
+signature scheme (`EUFCMA`) and `H` is target collision resistant, then the derived scheme
+`TCRSignature.wordScheme S H` of construction `(13.2)` (p. 533) is a secure signature scheme, here
+on messages of any length.
+
+`S` is a `SignatureScheme`, whose message space at security parameter `p` is the `p`-bit words.
+The source's `S` signs the pairs `(r, h)` of `K_H × T` at the same security parameter. Here, at
+parameter `n`, the derived scheme runs `S` at the parameter `otsParam H n` (injective, computable
+in polynomial time and above `H.keyLen n + H.digestLen n`) on the `otsParam H n`-bit word
+`otsMsg H n r h`: `r`, then `h`, then zero padding. So the premise `S.EUFCMA` is Attack Game 13.1
+for `S` on all `otsParam H n`-bit words, which contain the encoded pairs, and the bound at `n` uses
+the advantage against `S` at `otsParam H n`, which is negligible in `n` since `otsParam H n ≥ n`
+(`TCRSignature.negligible_comp_otsParam`). The keys of the derived scheme also carry `n`; its
+signature is `(r, σ)`, and verification checks that `r` has `H.keyLen n` bits.
+
+`H.TargetCollisionResistant` is Attack Game 8.5 and Definition 8.7 (pp. 337–338) with every word a
+message, and the conclusion is Attack Game 13.1 on every word: security on every message space of
+polynomially bounded word length at once. Adversaries are uniform strict (oracle) PPT machines.
+`TCRSignature.exists_reduction_wordScheme_eufCmaGame_le` gives the certified reductions and the
+bound, with a polynomially bounded loss in place of the source's factor `Q`. -/
 theorem SignatureScheme.EUFCMA.eufCMA_wordScheme
     {S : SignatureScheme} (hS : S.EUFCMA)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1626,11 +1688,14 @@ theorem WordSignatureScheme.EUFCMA.exists_oneWay {S : WordSignatureScheme} (hS :
     ∃ f, OneWay f :=
   hS.toSignatureScheme.exists_oneWay
 
-/-- **Stateless unrestricted-message `EUFCMA` signatures from one-way functions and target
-collision-resistant hash families** ([NaorYung1989], Section 4; [BonehShoup2023], Sections 13.2.1
-and 14.6): any uniform `OneWay` function and any unrestricted target collision-resistant
-`KeyedHashFamily` yield a stateless many-time `WordSignatureScheme` satisfying `EUFCMA` on all
-`List Bool` messages. -/
+/-- Step toward the signatures of [NaorYung1989], Section 4, for messages of any length, not the
+cited result: no inspection of the primary source is recorded (`manual/sources.md` lists the
+authors' manuscript without a check), so this statement has not been checked against it (#5293).
+[BonehShoup2023], Sections 13.2.1 and 14.6, give the route but state no theorem of this form.
+
+Any uniform `OneWay` function and any unrestricted target collision-resistant `KeyedHashFamily`
+yield a stateless many-time `WordSignatureScheme` satisfying `EUFCMA` on all `List Bool`
+messages. -/
 theorem OneWay.exists_wordEUFCMA_of_targetCollisionResistant
     {f : List Bool → List Bool} (hf : OneWay f)
     {H : KeyedHashFamily} (hH : H.TargetCollisionResistant) :
@@ -1638,10 +1703,14 @@ theorem OneWay.exists_wordEUFCMA_of_targetCollisionResistant
   obtain ⟨S, hS⟩ := hf.exists_eufCMA_of_targetCollisionResistant hH
   exact ⟨TCRSignature.wordScheme S H, hS.eufCMA_wordScheme hH⟩
 
-/-- **Unrestricted-message Naor–Yung signature theorem** ([NaorYung1989], Theorem 2 / Section 4;
-[BonehShoup2023], Section 13.2.1, Theorem 13.2): every one-way permutation implies the existence of
-a stateless many-time `EUFCMA`-secure `WordSignatureScheme` on arbitrary-length `List Bool`
-messages. -/
+/-- Step toward the Naor–Yung signature theorem ([NaorYung1989], Theorem 2 / Section 4), for
+messages of any length, not the cited result: no inspection of the primary source is recorded
+(`manual/sources.md` lists the authors' manuscript without a check), so this statement has not been
+checked against it (#5293).
+
+Every one-way permutation implies the existence of a stateless many-time `EUFCMA`-secure
+`WordSignatureScheme` on arbitrary-length `List Bool` messages; the extension to all lengths is
+[BonehShoup2023], Theorem 13.2 (`SignatureScheme.EUFCMA.eufCMA_wordScheme`). -/
 theorem OneWayPermutation.exists_wordEUFCMA
     {f : List Bool → List Bool} (hf : OneWayPermutation f) :
     ∃ W : WordSignatureScheme, W.EUFCMA := by

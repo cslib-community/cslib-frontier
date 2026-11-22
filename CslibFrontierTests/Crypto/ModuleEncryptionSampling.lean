@@ -6,6 +6,7 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Crypto.Computational.SIS.ModuleEncryption.Sampling
 import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.Uniform
 
 /-! Sampling compatibility, small-secret support, native boundaries and a uniform-law failure. -/
 
@@ -72,7 +73,7 @@ example : IsPPTOn encUnary (encList (encList encIntBin))
       (OracleComp.replicate 2 (sampleCenteredBinomial 1))) := by
   have hinput : ComputableInPolyTime (fun k : ℕ => ((k + 1, 2), 1)) encUnary
       (encPair (encPair encUnary encUnary) encUnary) := by fun_prop
-  exact isPPTOn_moduleLWECenteredBinomialRows.preprocess hinput
+  exact (isPPTOn_moduleLWECenteredBinomialRows.preprocess hinput :)
 
 /-- A uniform scalar is exactly the uniform rank-one, degree-one secret used below. -/
 example : (PMF.uniformOfFintype (ZMod 16)).map (fun z => (![![z]] : Fin 1 → Fin 1 → ZMod 16)) =
@@ -110,9 +111,8 @@ private theorem outcome_eq (a s r : ZMod 16) :
 private theorem uniform_outcome (a s : ZMod 16) :
     (PMF.uniformOfFintype (ZMod 16)).map (outcome a s) =
       (PMF.uniformOfFintype (ZMod 16)).map (fun x => decide (4 < x.valMinAbs.natAbs)) := by
-  have hshift := PMF.uniformOfFintype_map_equiv (Equiv.addRight (9 - s))
   calc
-    _ = ((PMF.uniformOfFintype (ZMod 16)).map (Equiv.addRight (9 - s))).map
+    _ = ((PMF.uniformOfFintype (ZMod 16)).map (· + (9 - s))).map
         (fun x => decide (4 < x.valMinAbs.natAbs)) := by
       rw [PMF.map_comp]
       congr 1 with r : 1
@@ -120,7 +120,7 @@ private theorem uniform_outcome (a s : ZMod 16) :
       congr 4
       change 9 + r - s = r + (9 - s)
       ring
-    _ = _ := by rw [hshift]
+    _ = _ := by rw [PMF.uniformOfFintype_map_add_right]
 
 /-- For every public matrix coefficient, uniform secrets and ephemeral values with errors one
 succeed on the true message with probability only 7/16. Each scalar is the sole module/ring
