@@ -10,8 +10,8 @@ module
 import CslibFrontier.Computability.Distributed.Byzantine.PhaseKing
 import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
 
-/-! Phase-King Byzantine agreement and the Turpin–Coan multivalued-to-binary reduction (checked as
-an ordinary `module` client):
+/-! Two-round rotating-king protocol and multivalued-to-binary reduction steps (checked as an
+ordinary `module` client):
 
 * `decide`-checked executions of `phaseKing` on `Fin 5, t = 1` over `Bool` and `Fin 10` (with a
   faulty king in phase 0 and convergence under the honest king of phase 1, plus unanimity

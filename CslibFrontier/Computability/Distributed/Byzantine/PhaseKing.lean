@@ -14,20 +14,22 @@ import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
-# Phase-King Byzantine agreement and the Turpin–Coan multivalued reduction
+# Two-round rotating-king protocol and multivalued-to-binary reduction steps
 
 The recursive oral messages protocol
 (`CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages`) solves synchronous
 Byzantine agreement for `n > 3t` in `t + 1` rounds by relaying full trees of depth `t + 1`, so its
-message size grows exponentially in `t`. This module formalizes two classic
-polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
+message size grows exponentially in `t`. This module lands two polynomial-communication synchronous
+protocol steps toward `#7210` (`#3261`) in `Cslib.Distributed.Byzantine`:
 
-1. **2-round Phase-King** ([Berman and Garay][BermanGaray1989]; extended to 3-round-per-phase
-   `3 * t < n` in [Berman, Garay and Perry][BermanGarayPerry1989]): a `2 * (t + 1)`-round
-   deterministic protocol `phaseKing` over any `[DecidableEq V]` for `4 * t < Fintype.card P` in
-   which **every point-to-point message is a single value of `V`** (`Msg = V`) and each process
-   stores only three `O(1)`-sized fields (`PhaseKingState V`). Given an injective schedule
-   `kings : Fin (t + 1) ↪ P` of `t + 1` phase kings:
+1. **Two-round rotating-king protocol step (`phaseKing`, after
+   [Berman and Garay][BermanGaray1989]):** a `2 * (t + 1)`-round deterministic protocol over any
+   `[DecidableEq V]` for `4 * t < Fintype.card P` in which **every point-to-point message is a
+   single value of `V`** (`Msg = V`) and each process stores three fields (`PhaseKingState V`).
+   Primary-source locator verification against the paywalled `[BermanGaray1989]` proceedings text,
+   inventory registration, and the 3-round-per-phase `3 * t < n` extension of
+   [Berman, Garay and Perry][BermanGarayPerry1989] remain open under `#7210`. Given an injective
+   schedule `kings : Fin (t + 1) ↪ P` of `t + 1` phase kings:
    * In round `2 * k` (universal broadcast), every process broadcasts its current estimate `est`.
      Because `4 * t < n` implies `n < 2 * (n - 2 * t)`, at most one value `x : V` appears at least
      `n - 2 * t` times (and a fortiori at most one appears at least `n - t` times). Each process
@@ -49,15 +51,17 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
    `2`-versus-`2` tie at `n - 2 * t = 2` for an honest king while giving another honest process
    multiplicity `n - t = 3`.
 
-2. **Turpin–Coan multivalued-to-binary reduction** ([Turpin and Coan][TurpinCoan1984]): given any
-   `R₀`-round binary protocol `πBool : Protocol P SBool MBool` solving
-   `SolvesByzantineAgreement t R₀`, `turpinCoan t default πBool` solves multivalued Byzantine
-   agreement over any `[DecidableEq V]` in `R₀ + 2` rounds for **all** `3 * t < Fintype.card P`
-   (`turpinCoan_solvesByzantineAgreement`), sending `V`-values in **round 1 only**
-   (`turpinCoan_valueMessagesSent_eq`):
+2. **Multivalued-to-binary reduction step (`turpinCoan`, after
+   [Turpin and Coan, §§2–3, pp. 74–75][TurpinCoan1984]):** given any `R₀`-round binary protocol
+   `πBool : Protocol P SBool MBool` solving `SolvesByzantineAgreement t R₀`,
+   `turpinCoan t default πBool` solves multivalued Byzantine agreement over any `[DecidableEq V]`
+   in `R₀ + 2` rounds for **all** `3 * t < Fintype.card P` (`turpinCoan_solvesByzantineAgreement`),
+   sending `V`-values in **round 1 only** (`turpinCoan_valueMessagesSent_eq`). Verified against the
+   published IPL text (`§§1–4, pp. 73–75` in `manual/sources.md`); inventory registration remains
+   open under `#7210` pending an outside-fleet source check:
    * In round 1 (`r = 0`), every process broadcasts its initial value `input : V` and marks itself
-     `perplexed` if `2 * #{j | heard j = input} ≤ n + t` (equivalently, at least `(n - t) / 2`
-     received values differ from `input`).
+     `perplexed` if `2 * #{j | heard j = input} ≤ n + t` (the exact integer-multiplied form of
+     `#{j | heard j ≠ input} ≥ (n - t) / 2` in `[TurpinCoan1984]`, §2, p. 74).
    * In round 2 (`r = 1`), every process broadcasts its 1-bit `perplexed : Bool` flag, sets
      `alert := decide (n - 2 * t ≤ #{j | perp j = true})`, records as `candidate` the unique value
      vouched for by more than `t` non-perplexed senders (`uniqueAboveOn ... (t + 1)`), and
@@ -72,11 +76,16 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
   input/output type to `Val` with identical synchronous execution semantics, bridges losslessly to
   `Protocol` at `Val = Bool` (`MultivaluedProtocol.toProtocol`), and inherits the `2 ≤ n ≤ 3t`
   impossibility bound (`MultivaluedProtocol.not_solvesByzantineAgreement`) for `[Nontrivial Val]`.
-* **Exact threshold conventions:** `phaseKing` uses `n - 2 * t` for the king's proposal threshold
-  and `n - t` for the overwhelming-majority lock (`uniqueAboveOn` returns `none` if multiple values
-  tie above threshold, which cannot occur when `4 * t < n`). `turpinCoan` writes the
-  perplexed condition in integer-multiplied form `2 * count(input) ≤ n + t`, avoiding division
-  rounding across even and odd `n - t`.
+* **Exact threshold and self-message conventions:** `phaseKing` uses `n - 2 * t` for the king's
+  proposal threshold and `n - t` for the overwhelming-majority lock (`uniqueAboveOn` returns `none`
+  if multiple values tie above threshold, which cannot occur when `4 * t < n`). In `turpinCoan`,
+  `2 * count(input) ≤ n + t` expresses `[TurpinCoan1984]` §2's rational threshold
+  `count(other) ≥ (n - t) / 2` without division, self-messages in `MultivaluedProtocol` fill local
+  `v(j)` and `p(j)` slots for correct processes (so `turpinCoan_valueMessagesSent_eq` counts all
+  `(n - |F|) * n` round-1 transmissions), and `candidate` is evaluated uniformly via
+  `uniqueAboveOn {j | perp j = false} (t + 1) heard` on both content and perplexed processes
+  (matching §2–§3's majority vote when `alert = false`; §4's optional 1-round `2T + 5` variant for
+  biased binary protocols is not formalized).
 
 ## Main definitions
 
@@ -92,12 +101,12 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
 * `Cslib.Distributed.Byzantine.uniqueAboveOn`: unique value on a finite domain meeting a
   multiplicity threshold `k`.
 * `Cslib.Distributed.Byzantine.PhaseKingState`: three-field local state of `phaseKing`.
-* `Cslib.Distributed.Byzantine.phaseKing`: 2-round-per-phase Berman–Garay Phase-King protocol
-  (`Msg = V`, `4 * t < Fintype.card P`).
+* `Cslib.Distributed.Byzantine.phaseKing`: 2-round-per-phase rotating-king protocol step toward
+  `#7210` (`Msg = V`, `4 * t < Fintype.card P`).
 * `Cslib.Distributed.Byzantine.TurpinCoanMsg`, `Cslib.Distributed.Byzantine.TurpinCoanState`:
   message sum and local state of `turpinCoan`.
-* `Cslib.Distributed.Byzantine.turpinCoan`: `(R₀ + 2)`-round Turpin–Coan multivalued-to-binary
-  reduction.
+* `Cslib.Distributed.Byzantine.turpinCoan`: `(R₀ + 2)`-round multivalued-to-binary reduction step
+  toward `#7210` (after `[TurpinCoan1984]`, §§2–3).
 * `Cslib.Distributed.Byzantine.turpinCoanValueMessagesSent`: count of value-bearing messages
   emitted by correct processes over `R` rounds of `turpinCoan`.
 
@@ -112,14 +121,16 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
   across every 2-round phase whenever `2 * t < Fintype.card P`.
 * `Cslib.Distributed.Byzantine.phaseKing_converges_of_notMem`: a phase with a correct king brings
   all correct processes to the same estimate whenever `4 * t < Fintype.card P`.
-* `Cslib.Distributed.Byzantine.phaseKing_solvesByzantineAgreement`: `phaseKing` solves multivalued
-  Byzantine agreement in `R ≥ 2 * (t + 1)` rounds whenever `4 * t < Fintype.card P`.
-* `Cslib.Distributed.Byzantine.exists_polyMsg_solvesByzantineAgreement`: existence of a
-  `2 * (t + 1)`-round protocol with message alphabet `V` for `4 * t < Fintype.card P`.
+* `Cslib.Distributed.Byzantine.phaseKing_solvesByzantineAgreement`: protocol-correctness step
+  toward `#7210` showing `phaseKing` solves multivalued Byzantine agreement in `R ≥ 2 * (t + 1)`
+  rounds whenever `4 * t < Fintype.card P`.
+* `Cslib.Distributed.Byzantine.exists_polyMsg_solvesByzantineAgreement`: single-value-message
+  protocol existence step toward `#7210` for `4 * t < Fintype.card P` in `R ≥ 2 * (t + 1)` rounds.
 * `Cslib.Distributed.Byzantine.phaseKing_fails_four_one`: 2-round `phaseKing` fails on `Fin 4`
   against `1` fault for every king schedule and round bound `R`.
-* `Cslib.Distributed.Byzantine.turpinCoan_solvesByzantineAgreement`: `turpinCoan` solves
-  multivalued Byzantine agreement in `R₀ + 2` rounds for all `3 * t < Fintype.card P`.
+* `Cslib.Distributed.Byzantine.turpinCoan_solvesByzantineAgreement`: reduction step toward `#7210`
+  showing `turpinCoan` solves multivalued Byzantine agreement in `R₀ + 2` rounds for all
+  `3 * t < Fintype.card P`.
 * `Cslib.Distributed.Byzantine.turpinCoan_valueMessagesSent_eq`: across `R + 1` rounds of
   `turpinCoan`, correct processes transmit `(Fintype.card P - F.card) * Fintype.card P`
   value-bearing messages (round 1 only).
@@ -228,11 +239,10 @@ theorem SolvesByzantineAgreement.mono {π : MultivaluedProtocol P S M V} {t t' R
       validity := fun F hF adv x v hv i hi => by
         simpa only [toProtocol_decision] using h.validity F hF adv x v hv i hi }
 
-/-- **The `3t + 1` node bound for multivalued Byzantine agreement:** over any nontrivial value
-domain `V`, no deterministic synchronous protocol on `2 ≤ Fintype.card P ≤ 3 * t` processes solves
-Byzantine agreement against `t` faults, by embedding two distinct values of `V` as `Bool` and
-applying `Protocol.not_solvesByzantineAgreement`
-([Fischer, Lynch and Merritt, Theorem 1][FischerLynchMerritt1985]). -/
+/-- Over any nontrivial value domain `V`, no deterministic synchronous protocol on
+`2 ≤ Fintype.card P ≤ 3 * t` processes solves multivalued Byzantine agreement against `t` faults:
+embedding two distinct values of `V` as `Bool` reduces to `Protocol.not_solvesByzantineAgreement`
+(after [Fischer, Lynch and Merritt, Theorem 1 and §3.1][FischerLynchMerritt1985]). -/
 theorem not_solvesByzantineAgreement [Fintype P] [Nontrivial V] {t R : ℕ}
     (h2 : 2 ≤ Fintype.card P) (h3 : Fintype.card P ≤ 3 * t) :
     ¬ π.SolvesByzantineAgreement t R := by
@@ -345,7 +355,7 @@ theorem uniqueAboveOn_eq_some_iff_of_lt_two_mul {P V : Type*} [DecidableEq V] {d
   rw [Finset.card_union_of_disjoint hdisj] at hle
   omega
 
-/-! ### Berman–Garay 2-round Phase-King (`4 * t < n`) -/
+/-! ### Two-round rotating-king protocol step (`4 * t < n`) -/
 
 /-- Local state of a process in the 2-round-per-phase `phaseKing` protocol: its current estimate
 `est`, the tie-break value `kingProposal` it would broadcast as phase king in the second round of
@@ -364,8 +374,9 @@ section PhaseKing
 
 variable {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
 
-/-- **2-round-per-phase Phase-King protocol** ([Berman and Garay][BermanGaray1989]; baseline for
-the 3-round-per-phase `3 * t < n` extension of [Berman, Garay and Perry][BermanGarayPerry1989]).
+/-- Two-round-per-phase rotating-king protocol step toward `#7210` (after
+[Berman and Garay][BermanGaray1989]; primary-source locator verification and the 3-round-per-phase
+`3 * t < n` extension of [Berman, Garay and Perry][BermanGarayPerry1989] remain open under `#7210`).
 
 Runs `t + 1` two-round phases indexed by `kings : Fin (t + 1) ↪ P`, with every point-to-point
 message a single element of `V`:
@@ -420,9 +431,10 @@ private theorem phaseKing_step_odd {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : Fi
   have hmod : (2 * k + 1) % 2 ≠ 0 := by omega
   simp only [MultivaluedProtocol.state, phaseKing, hdiv, hk, ↓reduceDIte, hmod, ↓reduceIte]
 
-/-- **Unanimity persistence:** across any phase `k < t + 1` (even when `kings ⟨k, hk⟩ ∈ F`
-equivocates arbitrarily), if `F.card ≤ t`, `2 * t < Fintype.card P`, and all correct processes
-enter phase `k` with `est = v`, then all correct processes finish phase `k` with `est = v`. -/
+/-- Unanimity persistence for `phaseKing`: across any phase `k < t + 1` (even when
+`kings ⟨k, hk⟩ ∈ F` equivocates arbitrarily), if `F.card ≤ t`, `2 * t < Fintype.card P`, and all
+correct processes enter phase `k` with `est = v`, then all correct processes finish phase `k` with
+`est = v`. -/
 theorem phaseKing_persists {t : ℕ} (kings : Fin (t + 1) ↪ P) {F : Finset P} (hF : F.card ≤ t)
     (hn : 2 * t < Fintype.card P) (adv : ℕ → P → P → V) (x : P → V) {k : ℕ} (hk : k < t + 1)
     {v : V} (huniv : ∀ p ∉ F, ((phaseKing t kings).state F adv x (2 * k) p).est = v) :
@@ -444,9 +456,9 @@ theorem phaseKing_persists {t : ℕ} (kings : Fin (t + 1) ↪ P) {F : Finset P} 
     omega
   rw [hover, Option.getD_some]
 
-/-- **Honest-king convergence:** if `F.card ≤ t`, `4 * t < Fintype.card P`, and the king `kings k`
-of phase `k` is correct (`kings k ∉ F`), then all correct processes end phase `k` with the same
-estimate (namely `kings k`'s `kingProposal` from round `2 * k`). -/
+/-- Honest-king convergence for `phaseKing`: if `F.card ≤ t`, `4 * t < Fintype.card P`, and the
+king `kings k` of phase `k` is correct (`kings k ∉ F`), then all correct processes end phase `k`
+with the same estimate (namely `kings k`'s `kingProposal` from round `2 * k`). -/
 theorem phaseKing_converges_of_notMem {t : ℕ} (kings : Fin (t + 1) ↪ P) {F : Finset P}
     (hF : F.card ≤ t) (hn : 4 * t < Fintype.card P) (adv : ℕ → P → P → V) (x : P → V)
     (k : Fin (t + 1)) (hking : kings k ∉ F) :
@@ -526,8 +538,9 @@ theorem phaseKing_state_eq_of_le {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : Fins
     simp only [MultivaluedProtocol.state, phaseKing, hnot, ↓reduceDIte]
     exact congrFun ih i
 
-/-- **2-round Phase-King correctness** ([Berman and Garay][BermanGaray1989]; extended to 3-round
-phases for `3 * t < n` in [Berman, Garay and Perry][BermanGarayPerry1989]): whenever
+/-- Protocol-correctness step toward `#7210` (after [Berman and Garay][BermanGaray1989];
+primary-source check, inventory registration, and the 3-round-per-phase `3 * t < n` extension of
+[Berman, Garay and Perry][BermanGarayPerry1989] remain open under `#7210`): whenever
 `4 * t < Fintype.card P` and `2 * (t + 1) ≤ R`, `phaseKing t kings` solves multivalued Byzantine
 agreement against at most `t` faults in `R` rounds with single-value messages (`Msg = V`). -/
 theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
@@ -563,13 +576,13 @@ theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
 
 end PhaseKing
 
-/-- **Existence of polynomial-message Byzantine agreement for `4 * t < Fintype.card P`**
-([Berman and Garay][BermanGaray1989]; see [Berman, Garay and Perry][BermanGarayPerry1989] for the
-3-round-per-phase `3 * t < n` extension, and `turpinCoan_solvesByzantineAgreement` below for
-`3 * t < n` multivalued reduction): whenever `4 * t < Fintype.card P` and `2 * (t + 1) ≤ R`, there
-exists a synchronous protocol over `V` with constant-field local state `PhaseKingState V` and
-message alphabet `V` itself (`2 * (t + 1) * (|P| - |F|) * |P|` honest point-to-point transmissions
-across the `2 * (t + 1)` active rounds) solving `t`-resilient Byzantine agreement in `R` rounds. -/
+/-- Single-value-message existence step toward `#7210` (after [Berman and Garay][BermanGaray1989];
+primary-source check and the 3-round-per-phase `3 * t < n` extension of
+[Berman, Garay and Perry][BermanGarayPerry1989] remain open under `#7210`): whenever
+`4 * t < Fintype.card P` and `2 * (t + 1) ≤ R`, there exists a synchronous protocol over `V` with
+constant-field local state `PhaseKingState V` and message alphabet `V` itself
+(`2 * (t + 1) * (|P| - |F|) * |P|` honest point-to-point transmissions across the `2 * (t + 1)`
+active rounds) solving `t`-resilient Byzantine agreement in `R` rounds. -/
 theorem exists_polyMsg_solvesByzantineAgreement {P : Type*} [Fintype P] [DecidableEq P]
     (V : Type*) {t R : ℕ} (hn : 4 * t < Fintype.card P) (hR : 2 * (t + 1) ≤ R) :
     ∃ π : MultivaluedProtocol P (PhaseKingState V) V V, π.SolvesByzantineAgreement t R := by
@@ -591,7 +604,7 @@ private def thirdHonest (k₀ k₁ : Fin 4) : Fin 4 :=
   else if k₀ ≠ 1 ∧ k₁ ≠ 1 then 1
   else 2
 
-/-- **Sharpness of `4 * t < n` for 2-round Phase-King:** on `Fin 4` with `t = 1` (`4 * t = n`,
+/-- Sharpness of `4 * t < n` for two-round `phaseKing`: on `Fin 4` with `t = 1` (`4 * t = n`,
 contrasting with `om1` and `om`, which succeed on `Fin 4` using 2-round relay vectors/trees),
 `phaseKing 1 kings` fails to solve 1-fault Byzantine agreement for **every** king schedule
 `kings : Fin 2 ↪ Fin 4` and **every** round bound `R`.
@@ -637,7 +650,7 @@ theorem phaseKing_fails_four_one (kings : Fin 2 ↪ Fin 4) (R : ℕ) :
   rw [hmin (kings 0), hmin p] at hag
   exact hdis hag
 
-/-! ### Turpin–Coan multivalued-to-binary reduction (`3 * t < n`) -/
+/-! ### Multivalued-to-binary reduction step (`3 * t < n`) -/
 
 /-- Messages sent by `turpinCoan`: an initial domain value `val` in round 1, a 1-bit `perplexed`
 flag in round 2, and messages `bin` of the underlying binary protocol in rounds `3` onward. -/
@@ -672,7 +685,9 @@ section TurpinCoan
 
 variable {P V SBool MBool : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
 
-/-- **Turpin–Coan multivalued-to-binary reduction** ([Turpin and Coan][TurpinCoan1984]).
+/-- Two-round multivalued-to-binary preprocessing step toward `#7210` (after
+[Turpin and Coan, §2, p. 74][TurpinCoan1984]; inventory registration remains open under `#7210`
+pending an outside-fleet source check).
 
 Transforms any binary Byzantine agreement protocol `πBool : Protocol P SBool MBool` into a
 multivalued protocol over `V` with fallback `default : V` in two preprocessing rounds:
@@ -885,10 +900,12 @@ private theorem turpinCoan_state_add_two (t : ℕ) (default : V) (πBool : Proto
     · simp only [hj, ↓reduceIte, turpinCoanAdvBool, s]
     · simp only [hj, ↓reduceIte, s, (ih j).2]
 
-/-- **Turpin–Coan multivalued-to-binary reduction correctness** ([Turpin and Coan][TurpinCoan1984]):
-if `3 * t < Fintype.card P` and `πBool : Protocol P SBool MBool` solves binary Byzantine agreement
-against `t` faults in `R₀` rounds, then `turpinCoan t default πBool` solves multivalued Byzantine
-agreement over `V` against `t` faults in `R₀ + 2` rounds. -/
+/-- Multivalued-to-binary reduction step toward `#7210` (after
+[Turpin and Coan, §§2–3, pp. 74–75][TurpinCoan1984]; inventory registration remains open under
+`#7210` pending an outside-fleet source check): if `3 * t < Fintype.card P` and
+`πBool : Protocol P SBool MBool` solves binary Byzantine agreement against `t` faults in `R₀`
+rounds, then `turpinCoan t default πBool` solves multivalued Byzantine agreement over `V` against
+`t` faults in `R₀ + 2` rounds. -/
 theorem turpinCoan_solvesByzantineAgreement {t R₀ : ℕ} (default : V)
     {πBool : Protocol P SBool MBool} (hn : 3 * t < Fintype.card P)
     (hBool : πBool.SolvesByzantineAgreement t R₀) :
