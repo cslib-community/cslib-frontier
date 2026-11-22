@@ -19,12 +19,19 @@ following [Dijkstra][Dijkstra1974] (p. 643, right column).
 Given `lts : LTS State Label` and a target set `Legitimate : Set State` of legitimate
 configurations, `SelfStabilizing lts Legitimate` requires:
 
-1. *Closure* (`closed`): every transition from a legitimate state produces a legitimate state;
+1. *Closure* (`closed`): every transition from a legitimate state produces a legitimate state
+   (requirement (2) on p. 643 of [Dijkstra][Dijkstra1974]);
 2. *Deadlock-freedom* (`no_terminal`): no state is terminal (`∀ s, ¬ lts.IsTerminal s`), so at
-   least one transition is enabled in every configuration;
+   least one transition is enabled in every configuration (implying requirement (1) on p. 643);
 3. *Worst-case finite convergence* (`converges`): `CorruptedStep lts Legitimate` is well-founded,
-   ruling out infinite executions that remain outside `Legitimate` under any adversarial daemon
-   without fairness assumptions.
+   ruling out infinite executions that remain outside `Legitimate` under any adversarial enabled
+   schedule without fairness assumptions.
+
+Source conditions (3) and (4) on p. 643 of [Dijkstra][Dijkstra1974] (mutual reachability among
+legitimate states and absence of illegitimate-looking subcycles within `Legitimate`) are
+requirements of Dijkstra's legitimate-state specification that lie outside the scope of this
+generic `SelfStabilizing` predicate and are stated separately by concrete protocol modules where
+applicable.
 
 From `SelfStabilizing`, every infinite execution `lts.OmegaExecution ss μs` enters `Legitimate` at
 some step `k₀` and remains in `Legitimate` at all steps `k ≥ k₀`

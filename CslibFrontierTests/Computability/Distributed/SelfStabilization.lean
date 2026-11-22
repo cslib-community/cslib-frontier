@@ -11,12 +11,12 @@ import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
 
 /-! Self-stabilizing transition systems and Dijkstra's `K`-state token ring (checked as a `module`
 client with ordinary imports): `decide`-verified convergence from a 4-privilege corrupted
-configuration on `Fin 4` (`K = 4`) under both central and distributed daemons followed by a full
-`4`-step round-robin token circulation, the `n = 4, K = 3` (`(0, 2, 1, 0)`) synchronous
-distributed-daemon 4-privilege cycle contrasted with central-daemon stabilization (Note 1), the
-`n = 4, K = 2` (`8`-step) and `n = 5, K = 3` (`15`-step) central-daemon non-stabilizing cycles,
-sharp `iff` instantiations, and concrete `2`-periodic symmetry persistence and impossibility on the
-composite anonymous ring `Fin (2 * 2)`. -/
+configuration on `Fin 4` (`K = 4`) under both the central daemon and the simultaneous atomic-subset
+model followed by a full `4`-step round-robin token circulation, the `n = 4, K = 3`
+(`(0, 2, 1, 0)`) synchronous atomic-subset 4-privilege cycle contrasted with central-daemon
+stabilization (Note 1), the `n = 4, K = 2` (`8`-step) and `n = 5, K = 3` (`15`-step) central-daemon
+non-stabilizing cycles, sharp `iff` instantiations, and concrete `2`-periodic symmetry persistence
+and enabled-move impossibility steps on the composite anonymous ring `Fin (2 * 2)`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.SelfStabilization
@@ -166,9 +166,10 @@ theorem composite_fin4_coset_sweep_checked :
       (∀ i j : Fin (2 * 2), i.val % 2 = j.val % 2 → u₂ i = u₂ j) := by
   decide
 
-/-- No uniform deterministic ring protocol on `Fin (2 * 2)` self-stabilizes to unique-privilege
-configurations under either a central or a distributed daemon, and synchronous distributed steps
-preserve `2`-periodicity with even privilege count. -/
+/-- Enabled-move composite-ring symmetry steps on `Fin (2 * 2)`: no uniform deterministic ring
+protocol satisfies `SelfStabilizing` to unique-privilege configurations under `π.centralLTS` or
+`π.distLTS`, and synchronous simultaneous steps preserve `2`-periodicity with even privilege
+count. -/
 theorem composite_fin4_impossibility (π : UniformRingProtocol Bool) :
     (¬ SelfStabilizing (π.centralLTS (2 * 2)) (π.UniquePrivilege (2 * 2)) ∧
       ¬ SelfStabilizing (π.distLTS (2 * 2)) (π.UniquePrivilege (2 * 2))) ∧
@@ -176,8 +177,10 @@ theorem composite_fin4_impossibility (π : UniformRingProtocol Bool) :
       2 ∣ (π.privilegedSet s).card ∧
         IsRingPeriodic 2 (fun j => if j ∈ (Finset.univ : Finset (Fin (2 * 2))) then
           π.nextVal s j else s j) :=
-  ⟨⟨not_uniform_selfStabilizing_composite_ring (by decide) (by decide) π Set.Subset.rfl,
-      not_uniform_distSelfStabilizing_composite_ring (by decide) (by decide) π Set.Subset.rfl⟩,
+  ⟨⟨not_uniform_enabledMove_selfStabilizing_composite_ring
+        (by decide) (by decide) π Set.Subset.rfl,
+      not_uniform_distEnabledMove_selfStabilizing_composite_ring
+        (by decide) (by decide) π Set.Subset.rfl⟩,
     fun _ hs =>
       ⟨π.card_privilegedSet_dvd_of_isRingPeriodic (by decide) (by decide) hs,
         π.isRingPeriodic_distStep (by decide) (by decide) hs fun _ _ _ => by simp⟩⟩

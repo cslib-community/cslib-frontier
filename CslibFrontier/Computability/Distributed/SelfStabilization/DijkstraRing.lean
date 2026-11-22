@@ -20,13 +20,15 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Dijkstra's `K`-state self-stabilizing token ring and composite-ring impossibility
+# Dijkstra's `K`-state self-stabilizing token ring and enabled-move composite-ring symmetry step
 
 This module formalizes Dijkstra's first self-stabilizing mutual-exclusion / token-circulation
-protocol on a directed ring of `n` finite-state machines with `K` states per machine
-([Dijkstra][Dijkstra1974], pp. 643–644; manuscript [Dijkstra][Dijkstra1973]), under both central
-and distributed daemons, together with sharp state-count lower bounds and the symmetry
-impossibility theorem for uniform anonymous composite rings.
+protocol on a directed ring of `n` finite-state machines with `K` states per machine under a
+central daemon ([Dijkstra][Dijkstra1974], pp. 643–644; manuscript [Dijkstra][Dijkstra1973]),
+together with an original simultaneous atomic-subset transition model (`dijkstraDistRing`),
+original sharp periodic converse counterexamples for both transition models, and scheduler-scoped
+enabled-move symmetry steps towards the composite-ring impossibility argument of
+[Dijkstra][Dijkstra1973] (`EWD391`).
 
 In [Dijkstra][Dijkstra1974] (p. 644, left column), the ring consists of `N + 1` machines numbered
 `0` through `N`; here `n` denotes the total ring size `N + 1`, indexed by `Fin n`:
@@ -37,6 +39,13 @@ In [Dijkstra][Dijkstra1974] (p. 644, left column), the ring consists of `N + 1` 
 * Legitimate configurations (`DijkstraLegitimate n K`): configurations in which *exactly one*
   machine `i : Fin n` is privileged.
 
+[Dijkstra][Dijkstra1974] (p. 643) explicitly assumes a central daemon (`dijkstraRing n K`) and
+excludes a distributed daemon, while the later section of [Dijkstra][Dijkstra1973] (`EWD391`)
+discusses separate local reads and adjustments rather than atomic simultaneous updates from a
+single pre-step state. Accordingly, `dijkstraDistRing n K` (which fires any nonempty subset `S` of
+privileged machines atomically from the same old state) and its closure, convergence (`2 ≤ n ≤ K`),
+and sharpness (`iff`) theorems are original results for the simultaneous atomic-subset model.
+
 We establish:
 
 1. *Deadlock-freedom* (`exists_dijkstraPrivileged`, `dijkstraRing_not_isTerminal`,
@@ -45,33 +54,42 @@ We establish:
    (`dijkstraPrivilegedSet_eq_singleton_iff`, `dijkstraPrivilegedSet_step_of_eq_singleton`,
    `dijkstraRing_legitimate_closed`, `dijkstraDistRing_legitimate_closed`,
    `dijkstraRing_token_circulates`): legitimate configurations are constant or two-plateau step
-   functions, central and distributed transitions coincide on legitimate states, and the unique
-   privilege advances from `p` to `p + 1` on every step, visiting every machine once per `n` steps.
-3. *Worst-case finite stabilization* (`dijkstraDistRing_mTr_legitimate_of_le`,
-   `dijkstraDistRing_selfStabilizing_of_le`, `dijkstraRing_mTr_legitimate_of_le`,
-   `dijkstraRing_selfStabilizing_of_pred_le`): when `2 ≤ n ≤ K` (`K > N`), every distributed-daemon
-   execution enters `DijkstraLegitimate n K` within `K * (n * (n - 1) / 2) + K` steps without
-   fairness assumptions; under a central daemon, `n - 1 ≤ K` (`K ≥ N`, Note 1 on p. 644) suffices.
-4. *Sharpness and necessary-and-sufficient bounds* (`dijkstraDistRing_not_selfStabilizing_of_lt`,
-   `dijkstraRing_not_selfStabilizing_of_lt_pred`, `dijkstraDistRing_selfStabilizing_iff`,
-   `dijkstraRing_selfStabilizing_iff`): original explicit periodic non-stabilizing executions show
-   that for `2 ≤ n` and `2 ≤ K`, `dijkstraDistRing n K` is self-stabilizing iff `n ≤ K` and
-   `dijkstraRing n K` is self-stabilizing iff `n - 1 ≤ K`.
-5. *Composite anonymous ring impossibility* (`not_uniform_selfStabilizing_composite_ring`,
-   `not_uniform_distSelfStabilizing_composite_ring`): on a composite ring of size `n = a * b`
+   functions, central and simultaneous atomic-subset transitions coincide on legitimate states, and
+   the unique privilege advances from `p` to `p + 1` on every step, visiting every machine once per
+   `n` steps.
+3. *Worst-case finite stabilization* (`dijkstraRing_selfStabilizing_of_pred_le`,
+   `dijkstraRing_mTr_legitimate_of_le`, `dijkstraDistRing_mTr_legitimate_of_le`,
+   `dijkstraDistRing_selfStabilizing_of_le`): under a central daemon, `n - 1 ≤ K` (`K ≥ N` with
+   `2 ≤ n` and `2 ≤ K`, Note 1 on p. 644 of [Dijkstra][Dijkstra1974]) suffices for
+   self-stabilization; in the original simultaneous atomic-subset model `dijkstraDistRing n K`,
+   `2 ≤ n ≤ K` yields stabilization within `K * (n * (n - 1) / 2) + K` steps without fairness
+   assumptions.
+4. *Sharpness and necessary-and-sufficient bounds* (`dijkstraRing_not_selfStabilizing_of_lt_pred`,
+   `dijkstraDistRing_not_selfStabilizing_of_lt`, `dijkstraRing_selfStabilizing_iff`,
+   `dijkstraDistRing_selfStabilizing_iff`): original explicit periodic non-stabilizing executions
+   show that for `2 ≤ n` and `2 ≤ K`, `dijkstraRing n K` is self-stabilizing iff `n - 1 ≤ K` and
+   `dijkstraDistRing n K` is self-stabilizing iff `n ≤ K`.
+5. *Enabled-move composite-ring symmetry steps*
+   (`not_uniform_enabledMove_selfStabilizing_composite_ring`,
+   `not_uniform_distEnabledMove_selfStabilizing_composite_ring`): scheduler-scoped steps towards
+   [Dijkstra][Dijkstra1973] (`EWD391`) showing that on a composite ring of size `n = a * b`
    (`2 ≤ a`, `2 ≤ b`), no uniform deterministic ring protocol self-stabilizes to unique-privilege
-   states even under a central daemon ([Dijkstra][Dijkstra1973]).
+   states under arbitrary enabled-move central (`π.centralLTS`) or simultaneous-subset (`π.distLTS`)
+   schedules; EWD391's fair-command composite-ring endpoint (where every machine receives infinitely
+   many adjustment commands, permitting no-effect commands) remains open (#7291).
 
 ## Main definitions
 
 * `Cslib.Distributed.SelfStabilization.dijkstraPrivileged`,
   `Cslib.Distributed.SelfStabilization.dijkstraNextVal`,
   `Cslib.Distributed.SelfStabilization.dijkstraStep`,
-  `Cslib.Distributed.SelfStabilization.dijkstraDistStep`: local privilege predicate and
-  central/distributed state updates of Dijkstra's `K`-state ring.
+  `Cslib.Distributed.SelfStabilization.dijkstraDistStep`: local privilege predicate, central
+  single-machine update, and original simultaneous atomic-subset update for Dijkstra's `K`-state
+  ring.
 * `Cslib.Distributed.SelfStabilization.dijkstraRing`,
-  `Cslib.Distributed.SelfStabilization.dijkstraDistRing`: central-daemon and distributed-daemon
-  labelled transition systems for Dijkstra's `K`-state ring.
+  `Cslib.Distributed.SelfStabilization.dijkstraDistRing`: central-daemon ([Dijkstra][Dijkstra1974],
+  pp. 643–644) and original simultaneous atomic-subset labelled transition systems for Dijkstra's
+  `K`-state ring.
 * `Cslib.Distributed.SelfStabilization.dijkstraPrivilegedSet`,
   `Cslib.Distributed.SelfStabilization.DijkstraLegitimate`,
   `Cslib.Distributed.SelfStabilization.dijkstraTokenConfig`: privileged set, unique-privilege
@@ -95,27 +113,29 @@ We establish:
   `Cslib.Distributed.SelfStabilization.dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate`,
   `Cslib.Distributed.SelfStabilization.dijkstraDistRing_legitimate_closed`,
   `Cslib.Distributed.SelfStabilization.dijkstraRing_token_circulates`: closure of
-  `DijkstraLegitimate` under both daemons, coincidence of central and distributed transitions on
-  legitimate configurations, and exact round-robin token circulation.
-* `Cslib.Distributed.SelfStabilization.dijkstraDistRing_mTr_legitimate_of_le`,
-  `Cslib.Distributed.SelfStabilization.dijkstraDistRing_selfStabilizing_of_le`,
-  `Cslib.Distributed.SelfStabilization.dijkstraRing_mTr_legitimate_of_le`: worst-case stabilization
-  within `K * (n * (n - 1) / 2) + K` steps when `2 ≤ n ≤ K` under distributed and central daemons.
+  `DijkstraLegitimate` under central and simultaneous atomic-subset transitions, their coincidence
+  on legitimate configurations, and exact `n`-step round-robin token circulation.
 * `Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_of_pred_le`: central-daemon
   self-stabilization for `n - 1 ≤ K` ([Dijkstra][Dijkstra1974], p. 644, Note 1).
+* `Cslib.Distributed.SelfStabilization.dijkstraDistRing_mTr_legitimate_of_le`,
+  `Cslib.Distributed.SelfStabilization.dijkstraDistRing_selfStabilizing_of_le`,
+  `Cslib.Distributed.SelfStabilization.dijkstraRing_mTr_legitimate_of_le`: original explicit
+  `K * (n * (n - 1) / 2) + K` stabilization bounds for `2 ≤ n ≤ K` in the simultaneous
+  atomic-subset and central-daemon models.
 * `Cslib.Distributed.SelfStabilization.dijkstraRing_not_selfStabilizing_of_lt_pred`,
   `Cslib.Distributed.SelfStabilization.dijkstraDistRing_not_selfStabilizing_of_lt`: original
   explicit periodic non-stabilizing executions when `K + 1 < n` (central daemon) and `K < n`
-  (distributed daemon).
+  (simultaneous atomic-subset model).
 * `Cslib.Distributed.SelfStabilization.dijkstraDistRing_selfStabilizing_iff`,
   `Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_iff`: exact `n ≤ K` and
-  `n - 1 ≤ K` characterizations for distributed and central daemons (`2 ≤ n`, `2 ≤ K`).
+  `n - 1 ≤ K` characterizations for the simultaneous atomic-subset and central-daemon models
+  (`2 ≤ n`, `2 ≤ K`).
 * `UniformRingProtocol.card_privilegedSet_dvd_of_isRingPeriodic`,
   `UniformRingProtocol.isRingPeriodic_distStep`,
-  `Cslib.Distributed.SelfStabilization.not_uniform_selfStabilizing_composite_ring`,
-  `Cslib.Distributed.SelfStabilization.not_uniform_distSelfStabilizing_composite_ring`:
-  `b`-divisor privilege count on `a`-periodic configurations and impossibility of anonymous
-  self-stabilizing token rings on composite sizes `n = a * b` (`2 ≤ a`, `2 ≤ b`).
+  `Cslib.Distributed.SelfStabilization.not_uniform_enabledMove_selfStabilizing_composite_ring`,
+  `Cslib.Distributed.SelfStabilization.not_uniform_distEnabledMove_selfStabilizing_composite_ring`:
+  `b`-divisor privilege count on `a`-periodic configurations and scheduler-scoped enabled-move
+  steps towards anonymous composite-ring impossibility on sizes `n = a * b` (`2 ≤ a`, `2 ≤ b`).
 
 ## References
 
@@ -209,8 +229,8 @@ instance {n K : ℕ} [NeZero n] (s : Fin n → Fin K) (i : Fin n) :
     (s : Fin n → Fin K) (i : Fin n) : Fin n → Fin K :=
   Function.update s i (dijkstraNextVal s i)
 
-/-- Simultaneous configuration update when a set `S` of machines moves under a distributed
-daemon. -/
+/-- Original simultaneous atomic-subset configuration update: every machine in `S` evaluates
+`dijkstraNextVal` on the same pre-step configuration `s` and updates simultaneously. -/
 @[expose] def dijkstraDistStep {n K : ℕ} [NeZero n] [NeZero K]
     (s : Fin n → Fin K) (S : Finset (Fin n)) : Fin n → Fin K :=
   fun j => if j ∈ S then dijkstraNextVal s j else s j
@@ -221,8 +241,11 @@ daemon. -/
     LTS (Fin n → Fin K) (Fin n) where
   Tr s i s' := dijkstraPrivileged s i ∧ s' = dijkstraStep s i
 
-/-- Distributed-daemon labelled transition system for Dijkstra's `K`-state ring on `Fin n`: each
-transition selects a nonempty set `S` of privileged machines to move simultaneously. -/
+/-- Original simultaneous atomic-subset labelled transition system for Dijkstra's `K`-state ring on
+`Fin n`: each transition selects a nonempty set `S` of privileged machines and updates them
+atomically from the pre-step configuration `s` (distinct from [Dijkstra][Dijkstra1974], p. 643,
+which excludes a distributed daemon, and from the separate read/adjust discussion in
+[Dijkstra][Dijkstra1973]). -/
 @[expose] def dijkstraDistRing (n K : ℕ) [NeZero n] [NeZero K] :
     LTS (Fin n → Fin K) (Finset (Fin n)) where
   Tr s S s' := S.Nonempty ∧ (∀ i ∈ S, dijkstraPrivileged s i) ∧ s' = dijkstraDistStep s S
@@ -305,7 +328,8 @@ theorem dijkstraRing_not_isTerminal {n K : ℕ} [NeZero n] [NeZero K]
   obtain ⟨i, hi⟩ := exists_dijkstraPrivileged s
   exact hterm i (dijkstraStep s i) ⟨hi, rfl⟩
 
-/-- Dijkstra's `K`-state ring has no terminal configurations under a distributed daemon. -/
+/-- Dijkstra's `K`-state ring has no terminal configurations in the simultaneous atomic-subset
+transition system `dijkstraDistRing n K`. -/
 theorem dijkstraDistRing_not_isTerminal {n K : ℕ} [NeZero n] [NeZero K]
     (s : Fin n → Fin K) : ¬ (dijkstraDistRing n K).IsTerminal s := by
   intro hterm
@@ -519,8 +543,8 @@ theorem dijkstraRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK : 2
   subst hip
   simp [DijkstraLegitimate, dijkstraPrivilegedSet_step_of_eq_singleton hK hp]
 
-/-- On `DijkstraLegitimate n K`, distributed-daemon transitions coincide with central-daemon
-transitions since only one machine is privileged. -/
+/-- On `DijkstraLegitimate n K`, simultaneous atomic-subset transitions (`dijkstraDistRing`)
+coincide with central-daemon transitions (`dijkstraRing`) since only one machine is privileged. -/
 theorem dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate {n K : ℕ} [NeZero n] [NeZero K]
     {s s' : Fin n → Fin K} (hs : s ∈ DijkstraLegitimate n K) (S : Finset (Fin n)) :
     (dijkstraDistRing n K).Tr s S s' ↔ ∃ i, S = {i} ∧ (dijkstraRing n K).Tr s i s' := by
@@ -541,7 +565,8 @@ theorem dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate {n K : ℕ} [NeZero n
   · rintro ⟨i, rfl, htr⟩
     exact (dijkstraRing_tr_iff_distRing_singleton s i s').mp htr
 
-/-- Closure of `DijkstraLegitimate n K` under distributed-daemon transitions (`2 ≤ K`). -/
+/-- Original closure theorem for the simultaneous atomic-subset model: `DijkstraLegitimate n K` is
+closed under `dijkstraDistRing n K` transitions when `2 ≤ K`. -/
 theorem dijkstraDistRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK : 2 ≤ K)
     {s s' : Fin n → Fin K} {S : Finset (Fin n)}
     (hs : s ∈ DijkstraLegitimate n K) (htr : (dijkstraDistRing n K).Tr s S s') :
@@ -1065,10 +1090,9 @@ private theorem mTr_split_first_bottom {n K : ℕ} [NeZero n] [NeZero K]
       rw [show bottomSteps (S :: μs₁) = bottomSteps μs₁ by simp [bottomSteps, h0]]
       exact hb₁
 
-/-- Explicit worst-case convergence bound under a distributed daemon: when `2 ≤ n ≤ K`, every
-distributed-daemon execution of length at least `K * (n * (n - 1) / 2) + K` ends in
-`DijkstraLegitimate n K`, with zero fairness assumptions (quantitative refinement of
-[Dijkstra][Dijkstra1974], p. 644). -/
+/-- Original explicit worst-case convergence bound in the simultaneous atomic-subset model
+`dijkstraDistRing n K`: when `2 ≤ n ≤ K`, every execution of length at least
+`K * (n * (n - 1) / 2) + K` ends in `DijkstraLegitimate n K`, with zero fairness assumptions. -/
 theorem dijkstraDistRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hnK : n ≤ K) {s₀ s' : Fin n → Fin K} {μs : List (Finset (Fin n))}
     (hmtr : (dijkstraDistRing n K).MTr s₀ μs s')
@@ -1100,8 +1124,8 @@ theorem dijkstraDistRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
   have hdist_lt : modDist (s₁ 0) v < K := Nat.mod_lt _ (NeZero.pos K)
   omega
 
-/-- Whenever `2 ≤ n` and `n ≤ K` (`K > N` in [Dijkstra][Dijkstra1974], p. 644), Dijkstra's
-`K`-state token ring is self-stabilizing under a distributed daemon. -/
+/-- Original convergence theorem for the simultaneous atomic-subset model: whenever `2 ≤ n` and
+`n ≤ K`, `dijkstraDistRing n K` is self-stabilizing to `DijkstraLegitimate n K`. -/
 theorem dijkstraDistRing_selfStabilizing_of_le {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hnK : n ≤ K) :
     SelfStabilizing (dijkstraDistRing n K) (DijkstraLegitimate n K) :=
@@ -1110,8 +1134,8 @@ theorem dijkstraDistRing_selfStabilizing_of_le {n K : ℕ} [NeZero n] [NeZero K]
     dijkstraDistRing_not_isTerminal
     (fun _ _ _ hmtr hlen => dijkstraDistRing_mTr_legitimate_of_le hn hnK hmtr hlen)
 
-/-- Explicit worst-case convergence bound under a central daemon when `2 ≤ n ≤ K` (quantitative
-refinement of [Dijkstra][Dijkstra1974], p. 644). -/
+/-- Original explicit worst-case convergence bound under a central daemon when `2 ≤ n ≤ K`
+(quantitative refinement of [Dijkstra][Dijkstra1974], p. 644). -/
 theorem dijkstraRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hnK : n ≤ K) {s₀ s' : Fin n → Fin K} {μs : List (Fin n)}
     (hmtr : (dijkstraRing n K).MTr s₀ μs s')
@@ -1636,11 +1660,10 @@ theorem dijkstraRing_not_selfStabilizing_of_lt_pred {n K : ℕ} [NeZero n] [NeZe
     exact (centralCycleState_step hK hn (Nat.mod_lt t hn_pos)).2
   exact not_selfStabilizing_of_omegaExecution hexec hbad
 
-/-- Original converse counterexample showing sharpness of the `K > N` bound in
-[Dijkstra][Dijkstra1974] (p. 644): when `2 ≤ K` and `K < n` (`K ≤ N`), Dijkstra's `K`-state ring
-is not self-stabilizing under a distributed daemon (at `n = K + 1`, synchronous execution from
-`(0, K - 1, K - 2, …, 1, 0)` cycles through `K` states in each of which all `n ≥ 3` machines are
-privileged). -/
+/-- Original converse counterexample in the simultaneous atomic-subset model `dijkstraDistRing`:
+when `2 ≤ K` and `K < n`, `dijkstraDistRing n K` is not self-stabilizing (at `n = K + 1`,
+synchronous execution from `(0, K - 1, K - 2, …, 1, 0)` cycles through `K` states in each of which
+all `n ≥ 3` machines are privileged). -/
 theorem dijkstraDistRing_not_selfStabilizing_of_lt {n K : ℕ} [NeZero n] [NeZero K]
     (hK : 2 ≤ K) (hKn : K < n) :
     ¬ SelfStabilizing (dijkstraDistRing n K) (DijkstraLegitimate n K) := by
@@ -1721,10 +1744,8 @@ theorem dijkstraDistRing_not_selfStabilizing_of_lt {n K : ℕ} [NeZero n] [NeZer
       omega
     exact not_selfStabilizing_of_omegaExecution hexec hbad
 
-/-- Exact characterization under a distributed daemon (`2 ≤ n`, `2 ≤ K`), combining
-[Dijkstra][Dijkstra1974] (p. 644, `K > N`) with the original converse
-`dijkstraDistRing_not_selfStabilizing_of_lt`: Dijkstra's `K`-state token ring is self-stabilizing
-iff `n ≤ K`. -/
+/-- Original exact characterization in the simultaneous atomic-subset model (`2 ≤ n`, `2 ≤ K`):
+`dijkstraDistRing n K` is self-stabilizing iff `n ≤ K`. -/
 theorem dijkstraDistRing_selfStabilizing_iff {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hK : 2 ≤ K) :
     SelfStabilizing (dijkstraDistRing n K) (DijkstraLegitimate n K) ↔ n ≤ K :=
@@ -1742,11 +1763,11 @@ theorem dijkstraRing_selfStabilizing_iff {n K : ℕ} [NeZero n] [NeZero K]
       dijkstraRing_not_selfStabilizing_of_lt_pred hK (by omega) hss,
     dijkstraRing_selfStabilizing_of_pred_le hn hK⟩
 
-/-! ### Composite anonymous ring symmetry impossibility -/
+/-! ### Enabled-move composite anonymous ring symmetry steps -/
 
 /-- A deterministic *uniform* (anonymous) local ring protocol over state space `State`, in which
 every node executes the identical local privilege predicate and state-transition function on its
-`(left, self, right)` neighbourhood ([Dijkstra][Dijkstra1973]; [Dijkstra][Dijkstra1974],
+`(left, self, right)` neighbourhood (after [Dijkstra][Dijkstra1973]; [Dijkstra][Dijkstra1974],
 pp. 643–644). -/
 structure UniformRingProtocol (State : Type*) where
   /-- Boolean privilege predicate reading `(left, self, right)` neighbour states. -/
@@ -1781,11 +1802,13 @@ variable {State : Type*} (π : UniformRingProtocol State)
 @[expose] def UniquePrivilege (n : ℕ) [NeZero n] : Set (Fin n → State) :=
   { s | (π.privilegedSet s).card = 1 }
 
-/-- Central-daemon labelled transition system of `π` on `Fin n`. -/
+/-- Enabled-move central-daemon labelled transition system of `π` on `Fin n`: transitions permit
+only privileged moves, with no per-machine fairness obligation across residue classes. -/
 @[expose] def centralLTS (n : ℕ) [NeZero n] : LTS (Fin n → State) (Fin n) where
   Tr s i s' := π.isPrivileged s i = true ∧ s' = Function.update s i (π.nextVal s i)
 
-/-- Distributed-daemon labelled transition system of `π` on `Fin n`. -/
+/-- Simultaneous atomic-subset enabled-move labelled transition system of `π` on `Fin n`: each
+transition updates a nonempty set of privileged nodes atomically from the pre-step state. -/
 @[expose] def distLTS (n : ℕ) [NeZero n] : LTS (Fin n → State) (Finset (Fin n)) where
   Tr s S s' :=
     S.Nonempty ∧ (∀ i ∈ S, π.isPrivileged s i = true) ∧
@@ -1902,16 +1925,20 @@ end Ring
 
 end UniformRingProtocol
 
-/-- **Composite anonymous ring impossibility (central daemon)** ([Dijkstra][Dijkstra1973]): on a
+/-- Scheduler-scoped enabled-move step towards the composite-ring symmetry argument of
+[Dijkstra][Dijkstra1973] (`EWD391`), and not `EWD391`'s fair-command impossibility endpoint: on a
 ring of composite size `a * b` (`2 ≤ a`, `2 ≤ b`) over a nonempty state type, no uniform
-deterministic ring protocol self-stabilizes under a central daemon to any set of legitimate states
-having at most one privileged process per state (`Legitimate ⊆ π.UniquePrivilege (a * b)`).
+deterministic ring protocol satisfies `SelfStabilizing (π.centralLTS (a * b)) Legitimate` for any
+`Legitimate ⊆ π.UniquePrivilege (a * b)`.
 
 Because `2 ≤ a` and `2 ≤ b`, the `b` positions in any single modulo-`a` residue class have pairwise
-ring distance at least `2`. Stepping them one by one under the central daemon from any `a`-periodic
-configuration reaches a new `a`-periodic configuration in `b` steps, and closure of `Legitimate`
-prevents any intermediate state along those `b` steps from entering `Legitimate`. -/
-theorem not_uniform_selfStabilizing_composite_ring {State : Type*} [Nonempty State]
+ring distance at least `2`. Stepping an enabled residue class sequentially in `b`-move blocks
+reaches a new `a`-periodic configuration every `b` moves while closure of `Legitimate` rules out
+intermediate visits to `Legitimate`. Note that `π.centralLTS` permits only privileged moves with no
+fairness obligation across residue classes, whereas `EWD391`'s daemon issues infinitely many
+adjustment commands to every machine (permitting no-effect commands); `EWD391`'s fair-command
+composite-ring endpoint remains open (#7291). -/
+theorem not_uniform_enabledMove_selfStabilizing_composite_ring {State : Type*} [Nonempty State]
     {a b : ℕ} (ha : 2 ≤ a) (hb : 2 ≤ b) [NeZero (a * b)]
     (π : UniformRingProtocol State) {Legitimate : Set (Fin (a * b) → State)}
     (hleg : Legitimate ⊆ π.UniquePrivilege (a * b)) :
@@ -2134,10 +2161,12 @@ theorem not_uniform_selfStabilizing_composite_ring {State : Type*} [Nonempty Sta
       (t % b) (Nat.mod_lt t hb_pos)
   exact not_selfStabilizing_of_omegaExecution hexec hbad hss
 
-/-- **Composite anonymous ring impossibility (distributed daemon)**: on a composite ring of size
-`a * b` (`2 ≤ a`, `2 ≤ b`) over a nonempty state type, no uniform deterministic ring protocol
-self-stabilizes under a distributed daemon to any `Legitimate ⊆ π.UniquePrivilege (a * b)`. -/
-theorem not_uniform_distSelfStabilizing_composite_ring {State : Type*} [Nonempty State]
+/-- Scheduler-scoped enabled-move step towards [Dijkstra][Dijkstra1973] (`EWD391`) in the
+simultaneous atomic-subset model `π.distLTS`, and not `EWD391`'s fair-command impossibility
+endpoint: on a composite ring of size `a * b` (`2 ≤ a`, `2 ≤ b`) over a nonempty state type, no
+uniform deterministic ring protocol satisfies `SelfStabilizing (π.distLTS (a * b)) Legitimate` for
+any `Legitimate ⊆ π.UniquePrivilege (a * b)`. -/
+theorem not_uniform_distEnabledMove_selfStabilizing_composite_ring {State : Type*} [Nonempty State]
     {a b : ℕ} (ha : 2 ≤ a) (hb : 2 ≤ b) [NeZero (a * b)]
     (π : UniformRingProtocol State) {Legitimate : Set (Fin (a * b) → State)}
     (hleg : Legitimate ⊆ π.UniquePrivilege (a * b)) :
@@ -2156,7 +2185,7 @@ theorem not_uniform_distSelfStabilizing_composite_ring {State : Type*} [Nonempty
     by_cases hji : j = i
     · subst hji; simp
     · simp [hji]
-  exact not_uniform_selfStabilizing_composite_ring ha hb π hleg
+  exact not_uniform_enabledMove_selfStabilizing_composite_ring ha hb π hleg
     (SelfStabilizing.of_subLTS hss hsub hno_term_central)
 
 end Cslib.Distributed.SelfStabilization
