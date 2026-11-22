@@ -6861,6 +6861,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Choose
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Dimension
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Polynomial
+public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeGranularity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePart
@@ -8895,6 +8896,7 @@ public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Circu
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.GGM
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Inversion
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.NaturalProperty
+public import CslibFrontier.MachineLearning.UniformLearning.ExactLowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.KushilevitzMansour
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegreeClasses
