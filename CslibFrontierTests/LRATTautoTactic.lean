@@ -45,8 +45,11 @@ private def contrapositionCert : Array LRAT.IntAction := #[
 theorem contraposition : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
   lrat_tauto using contrapositionCert
 
-/-- info: 'CslibFrontierTests.LRATTautoTactic.contraposition' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.contraposition' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms contraposition
 
 /-- The atoms may be any propositions, here those of the local context. -/
@@ -79,9 +82,10 @@ example : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
 
 -- A certificate with a wrong hint, 3 for 2 in its first step, is rejected.
 /--
-error: lrat_tauto: the LRAT checker rejected the certificate. It must refute the numbered Plaisted–Greenbaum transformation of the negated goal, which `lrat_tauto?` prints.
+error: lrat_tauto: the LRAT checker rejected the certificate. It must refute the numbered
+Plaisted–Greenbaum transformation of the negated goal, which `lrat_tauto?` prints.
 -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 example : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
   lrat_tauto using contrapositionCert.set! 0 (.addRup 13 #[-9, 10] #[1, 3])
 
@@ -128,8 +132,11 @@ theorem iffGoal : ∀ (n y : ℕ) (f : ℕ → ℕ),
     (n < 3 ↔ f n = y) → ¬f n = y → (3 > n → False) ∧ True ∨ False := by
   lrat_tauto using iffCert
 
-/-- info: 'CslibFrontierTests.LRATTautoTactic.iffGoal' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.iffGoal' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms iffGoal
 
 -- The goal has two atoms, and `¬`, `↔` and `True` are encoded with `imp` and `and`.
@@ -306,8 +313,11 @@ theorem pigeonhole : ∀ p : Fin 4 → Fin 3 → Prop,
 theorem contraposition_solved : ∀ p q : Prop, (p → q) → ¬q → ¬p := by
   lrat_tauto
 
-/-- info: 'CslibFrontierTests.LRATTautoTactic.contraposition_solved' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.contraposition_solved' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
 #print axioms contraposition_solved
 
 /-- The goal of `iffGoal`, with its compound atoms. -/
@@ -351,11 +361,10 @@ example : ∀ p : Fin 5 → Fin 4 → Prop,
 
 -- A goal that is not a tautology is refuted by an assignment to its atoms.
 /--
-error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:
-  p := False
-  q := True
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: p := False q := True
 -/
-#guard_msgs in
+#guard_msgs (whitespace := lax) in
 example : ∀ p q : Prop, (p → q) → q → p := by
   lrat_tauto
 
