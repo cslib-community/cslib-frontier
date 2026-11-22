@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Complexity.Classes.ExistsReal
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
+import CslibFrontier.Logics.RealArithmetic.ModularEvaluation
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
 
@@ -18,6 +19,25 @@ public section
 namespace CslibFrontierTests.RealArithmetic
 
 open Cslib.Logic.RealArithmetic Cslib.Complexity Turing.MultiTapeTM
+
+-- The second coordinate is absent, and the negative constant is reduced modulo a composite.
+example :
+    let t : Term 2 := .mul (.var 0) (.add (.const (-2)) (.var 1))
+    let point : List ℕ := [3]
+    (t.toPolynomial.eval₂ (Int.castRingHom (ZMod 8))
+      (fun i => ((point[i.val]?.getD 0 : ℕ) : ZMod 8))).val = 2 := by
+  intro t point
+  rw [← Term.evalResidue_eq (by decide : 0 < 8) point t]
+  decide +kernel
+
+-- The prefix evaluator leaves the initial stack beneath the result.
+example : Term.evalTokenStack 8 [3] (encTerm_tokens 2
+    (.mul (.var 0) (.add (.const (-2)) (.var 1)))) [5] = some [2, 5] := by
+  decide +kernel
+
+-- An operator with only one operand fails.
+example : Term.evalTokenStack (n := 0) 8 [] [.inr (.inr (.inl ())), .inl 3] [] = none := by
+  decide +kernel
 
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
 def sentence : Formula 0 :=
