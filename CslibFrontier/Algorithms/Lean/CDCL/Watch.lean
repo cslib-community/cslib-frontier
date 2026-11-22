@@ -811,7 +811,7 @@ theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
 
 /-- **Removing repetitions with marks kept between clauses**: `dedupKeyGo litKey`
 (`dedupLitsGo_fst`), also returning the array with the literals kept marked. -/
-def dedupLitsGo : Clause ℕ → Array Bool → Clause ℕ → Clause ℕ × Array Bool
+@[expose] def dedupLitsGo : Clause ℕ → Array Bool → Clause ℕ → Clause ℕ × Array Bool
   | [], m, acc => (acc.reverse, m)
   | x :: xs, m, acc =>
     if m.getD (litKey x) false then dedupLitsGo xs m acc
@@ -869,7 +869,7 @@ theorem dedupLitsGo_snd : ∀ (xs : Clause ℕ) (m : Array Bool) (acc : Clause �
       tauto
 
 /-- Clearing the marks of the literals `L`. -/
-def clearKeys (L : Clause ℕ) (m : Array Bool) : Array Bool :=
+@[expose] def clearKeys (L : Clause ℕ) (m : Array Bool) : Array Bool :=
   L.foldl (fun m x => m.setIfInBounds (litKey x) false) m
 
 /-- Clearing the marks of `L`, which include every literal marked, leaves no mark. -/
@@ -893,7 +893,7 @@ theorem clearKeys_clean : ∀ (L : Clause ℕ) (m : Array Bool),
 /-- **Removing the repetitions of `c`** with the marks `m`, which mark nothing and are cleared
 again: the array is not allocated per clause, as `dedupLits` allocates it. If a literal of `c`
 lies beyond the array, `dedupLits` is used instead. -/
-def dedupWith (m : Array Bool) (c : Clause ℕ) : Clause ℕ × Array Bool :=
+@[expose] def dedupWith (m : Array Bool) (c : Clause ℕ) : Clause ℕ × Array Bool :=
   if c.all fun l => decide (litKey l < m.size) then
     let r := dedupLitsGo c m []
     (r.1, clearKeys r.1 r.2)
