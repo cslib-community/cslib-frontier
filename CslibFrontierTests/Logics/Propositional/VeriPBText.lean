@@ -1843,15 +1843,14 @@ qed : 14;
 qed;
 "
 
--- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set.
--- Removing `x5` and adding it back leaves the core set, the preserved set (as `epreserved`
--- checks) and the output text the same, so only the change itself is rejected. VeriPB and CakePB
--- accept both: they compare only the final preserved sets.
+-- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set,
+-- and after removing `x5` and adding it back, which leaves the core set, the preserved set (as
+-- `epreserved` checks) and the output text the same. All three accept both.
 #guard (checkOPBOutput pres4Rm (presEnumOut "") pres4Rm).isSome
 #guard checkOPB pres4Rm (presProof 6 (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n")) ==
   some .noClaim
 #guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n"))
-  pres4Rm).isNone
+  pres4Rm).isSome
 
 /-! ### The order, dominance and preserved-set API under ordinary imports
 
