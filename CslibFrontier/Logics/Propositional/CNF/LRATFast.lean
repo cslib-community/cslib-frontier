@@ -109,20 +109,13 @@ earlier entry shadows a later one with the same number. -/
 private def dbOfList (l : List (ℕ × Clause ℕ)) : Array (Option (Clause ℕ)) :=
   l.foldr (fun e db => setGrow db e.1 none (some e.2)) #[]
 
-private theorem lookup_cons_ite (n k : ℕ) (c : Clause ℕ) (l : List (ℕ × Clause ℕ)) :
-    ((k, c) :: l).lookup n = if n = k then some c else l.lookup n := by
-  by_cases h : n = k
-  · subst h
-    simp
-  · simp [List.lookup_cons, h, beq_eq_false_iff_ne.mpr h]
-
 private theorem getD_dbOfList (l : List (ℕ × Clause ℕ)) (n : ℕ) :
     (dbOfList l).getD n none = l.lookup n := by
   induction l with
   | nil => simp [dbOfList]
   | cons e l ih =>
     simp only [dbOfList, List.foldr_cons] at ih ⊢
-    rw [getD_setGrow, ih, lookup_cons_ite]
+    rw [getD_setGrow, ih, List.lookup_cons_eq_ite]
 
 /-- Delete the clauses with the given numbers. -/
 private def deleteAll (db : Array (Option (Clause ℕ))) (ids : List ℕ) :
@@ -137,25 +130,6 @@ private theorem getD_deleteAll (db : Array (Option (Clause ℕ))) (ids : List �
     simp only [deleteAll, List.foldl_cons] at ih ⊢
     rw [ih, getD_setIfInBounds_self]
     by_cases h : n = i <;> simp [h]
-
-private theorem lookup_filter_not_contains (l : List (ℕ × Clause ℕ)) (ids : List ℕ) (n : ℕ) :
-    (l.filter fun e => !ids.contains e.1).lookup n =
-      if ids.contains n then none else l.lookup n := by
-  induction l with
-  | nil => simp
-  | cons e l ih =>
-    rcases e with ⟨k, c⟩
-    by_cases hk : k ∈ ids
-    · rw [List.filter_cons_of_neg (by simpa using hk), ih, lookup_cons_ite]
-      by_cases h : n = k
-      · subst h
-        simp [hk]
-      · simp [h]
-    · rw [List.filter_cons_of_pos (by simpa using hk), lookup_cons_ite, lookup_cons_ite, ih]
-      by_cases h : n = k
-      · subst h
-        simp [hk]
-      · simp [h]
 
 /-! ### Assignments -/
 
@@ -304,12 +278,12 @@ private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List
       simp only [checkLRATFastAux, checkLRATAux, hp.1]
       congr 1
       refine ih (fun n => ?_) hp.2
-      rw [getD_setGrow, hdb, lookup_cons_ite]
+      rw [getD_setGrow, hdb, List.lookup_cons_eq_ite]
     | addRat => rfl
     | del ids =>
       simp only [checkLRATFastAux, checkLRATAux]
       refine ih (fun n => ?_) hasg
-      rw [getD_deleteAll, hdb, lookup_filter_not_contains]
+      rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]
 
 /-- **The array-based checker agrees with the reference checker** on every formula and
 certificate. -/
