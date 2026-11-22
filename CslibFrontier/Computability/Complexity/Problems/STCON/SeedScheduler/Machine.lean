@@ -116,6 +116,24 @@ def machine {σ : Type} (setup : SeedSearchSetup) (scan : NondeterministicQueryM
     | .inr _ => true
   accept s := ((reply s).join.map Answer.reachable).getD false
 
+/-- Changing the initial setup changes only the scheduler's entry. -/
+theorem machine_withInit {σ : Type} (setup next : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) :
+    (machine setup scan start verdict).withInit (machine next scan start verdict).init =
+      machine next scan start verdict := by
+  unfold machine NondeterministicQueryMachine.withInit
+  rfl
+
+/-- Changing the initial setup or scan entry leaves query, halt, and acceptance unchanged. -/
+theorem observations_eq {σ : Type} (setup next : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start restart : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) :
+    let M := machine setup scan start verdict
+    let N := machine next scan restart verdict
+    M.query = N.query ∧ M.halted = N.halted ∧ M.accept = N.accept :=
+  ⟨rfl, rfl, rfl⟩
+
 open _root_.Turing.MultiTapeTM.ComputableInSpace in
 /-- Enter a skipped root or an active scan within space linear in the encoded frame. -/
 theorem enter_inSpace {σ : Type} (encScan : σ ↪ List Bool) (start : SeedScanRequest → σ)
