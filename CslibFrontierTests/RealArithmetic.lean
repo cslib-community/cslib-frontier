@@ -183,6 +183,16 @@ set_option linter.hashCommand false in
   formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
     formulaWordGateValues [] termSign == [false]
 
+-- A huge gate index uses the same suffix offsets as a small one. A child at the gate
+-- or beyond the stored suffix reads false even if the suffix starts with true.
+set_option linter.hashCommand false in
+#guard
+  let index := 2 ^ 80
+  formulaGateSuffixValue [true, false, true] index (index + 1) &&
+    formulaGateSuffixValue [true, false, true] index (index + 3) &&
+    !formulaGateSuffixValue [true] index index &&
+    !formulaGateSuffixValue [true] index (2 * index)
+
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
     (formulaWordGateValues [] termSign).getD 0 false = true ↔

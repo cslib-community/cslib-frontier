@@ -8,6 +8,10 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 
 /-!
 # Backward Boolean evaluation of formula words
@@ -25,6 +29,8 @@ public section
 
 namespace Cslib.Logic.RealArithmetic
 
+open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
+
 /-- Evaluate a formula with each comparison interpreted by its term's supplied sign. -/
 @[expose] def Formula.evalTermSigns {n : ℕ} (termSign : Term n → SignType) : Formula n → Bool
   | .false => Bool.false
@@ -34,15 +40,32 @@ namespace Cslib.Logic.RealArithmetic
   | .and p q => p.evalTermSigns termSign && q.evalTermSigns termSign
   | .or p q => p.evalTermSigns termSign || q.evalTermSigns termSign
 
+/-- Read an absolute child index from the computed suffix, whose first bit is at
+`gateIndex + 1`. Indices at or before the gate or past the suffix read `false`. -/
+def formulaGateSuffixValue (suffix : List Bool) (gateIndex childIndex : ℕ) : Bool :=
+  if gateIndex < childIndex then suffix.getD (childIndex - (gateIndex + 1)) false else false
+
+/-- Reading a child from the raw suffix bits is polynomial time in the input, with both
+positions in binary. The underlying lookup caps the offset at the suffix length. -/
+@[fun_prop]
+theorem formulaGateSuffixValue_polyTime {α : Type} {input : α ↪ List Bool}
+    {suffix : α → List Bool} {gateIndex childIndex : α → ℕ}
+    (hsuffix : ComputableInPolyTime suffix input encBits)
+    (hgate : ComputableInPolyTime gateIndex input encNat)
+    (hchild : ComputableInPolyTime childIndex input encNat) :
+    ComputableInPolyTime (fun a => formulaGateSuffixValue (suffix a) (gateIndex a) (childIndex a))
+      input encBool :=
+  ite_decide (binary_lt' hgate hchild)
+    (listGetD_binary false hsuffix (binary_sub' hchild (binary_add' hgate (const 1))))
+    (const false)
+
 private def gateValuesAux (word : List Bool) (termSign : List Bool → SignType)
     (size : ℕ) : ℕ → List Bool
   | 0 => []
   | k + 1 =>
     let index := size - (k + 1)
     let suffix := gateValuesAux word termSign size k
-    formulaWordGateValue word index termSign
-      (fun child => if index < child then suffix.getD (child - (index + 1)) false else false)
-      :: suffix
+    formulaWordGateValue word index termSign (formulaGateSuffixValue suffix index) :: suffix
 
 /-- Evaluate all gates of the total formula view from right to left, returning their Boolean
 values in prefix order. A child is read from the already evaluated suffix. -/
@@ -83,6 +106,7 @@ private theorem formulaWordGateValues_getD_step (word : List Bool)
   rw [formulaWordGateValues, gateValuesAux_getD, hk, gateValuesAux, List.getD_cons_zero, hindex]
   congr 1
   funext child
+  unfold formulaGateSuffixValue
   split
   · rw [gateValuesAux_getD,
       gateValuesAux_getD word termSign _ (formulaWordTokens word).length child]
