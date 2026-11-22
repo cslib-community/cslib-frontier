@@ -98,7 +98,7 @@ theorem rayParity_endpoints_add_eq_sum_intersections {ι : Type*} [Fintype ι]
 
 /-- Ray parity of the actual route segments after multiplication by a common complex
 coordinate factor. Every occurrence contributes, including coincident or retraced pieces. -/
-noncomputable def rayParity (p : Route) (u z : ℂ) : Bool :=
+@[expose] noncomputable def rayParity (p : Route) (u z : ℂ) : Bool :=
   Cslib.Polygonal.rayParity (fun i : Fin p.segments => u * p.point i.castSucc)
     (fun i => u * p.point i.succ) (fun _ => true) (u * z)
 
