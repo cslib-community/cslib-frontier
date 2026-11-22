@@ -154,14 +154,17 @@ example : crExecMsgs (Fin.rev : Fin 5 → Fin 5) crWorstSched5 ≤ 5 * (5 + 1) /
   changRoberts_messages_le Fin.rev_injective
     (crMTr_of_crAllEnabled Fin.rev (crInit Fin.rev) crWorstSched5 (by decide))
 
--- Safety & termination theorems instantiated on injective `uid : Fin 5 → ℕ`.
+-- Safety, termination, and complete-run message theorems on injective `uid : Fin 5 → ℕ`.
 example {uid : Fin 5 → ℕ} (huid : Function.Injective uid) {sched : List (Fin 5)}
     {cfg : CRConfig 5 ℕ} (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
     (∀ i, cfg.isLeader i = true → ∀ j, uid j ≤ uid i) ∧
-    ((crLTS uid).IsTerminal cfg → ∀ i, cfg.isLeader i = true ↔ ∀ j, uid j ≤ uid i) ∧
+    ((crLTS uid).IsTerminal cfg →
+      (∀ i, cfg.isLeader i = true ↔ ∀ j, uid j ≤ uid i) ∧
+      crExecMsgs uid sched = changRobertsTotalMsgs uid) ∧
     (∃ tail cfg', (crLTS uid).MTr cfg tail cfg' ∧ (crLTS uid).IsTerminal cfg') :=
   ⟨fun _ hi j => changRoberts_isLeader_le huid hmtr hi j,
-    fun hterm i => changRoberts_isLeader_iff_max huid hmtr hterm i,
+    fun hterm => ⟨fun i => changRoberts_isLeader_iff_max huid hmtr hterm i,
+      (changRoberts_execMsgs_eq_totalMsgs huid hmtr hterm).1⟩,
     (changRoberts_terminates huid).1 sched cfg hmtr⟩
 
 -- Exact `n H_n` average-case checks on `Fin 3` (`3 * (1 + 1/2 + 1/3) = 11/2`, sum over `S_3` = 33)
@@ -308,11 +311,13 @@ example {sched : List (Fin 8)} {cfg : PetersonConfig 8 ℕ}
 example {sched : List (Fin 8)} {cfg : PetersonConfig 8 ℕ}
     (hmtr : (petersonLTS 8 ℕ).MTr (petersonInit bitRev8) sched cfg)
     (hterm : (petersonLTS 8 ℕ).IsTerminal cfg) :
+    petersonExecMsgs bitRev8 sched = 2 * 8 * petersonPhases bitRev8 + 8 ∧
     ∃! iStar : Fin 8,
       cfg.isLeader iStar = true ∧
       (∃ maxUid, cfg.node iStar = .leader maxUid ∧
         (∀ j, bitRev8 j ≤ maxUid) ∧ ∃ j₀, bitRev8 j₀ = maxUid) ∧
       ∀ j, j ≠ iStar → cfg.node j = .relay :=
-  (peterson_elects_leader bitRev8_injective).2 sched cfg hmtr hterm
+  ⟨peterson_execMsgs_eq bitRev8_injective hmtr hterm,
+    (peterson_elects_leader bitRev8_injective).2 sched cfg hmtr hterm⟩
 
 end CslibFrontierTests.Distributed.RingElection

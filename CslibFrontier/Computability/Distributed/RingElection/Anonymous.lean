@@ -132,7 +132,7 @@ configuration `fun _ => P.init`. -/
 @[simp] theorem stateFrom_zero {n : ℕ} [NeZero n] (s₀ : Fin n → S) (i : Fin n) :
     P.stateFrom s₀ 0 i = s₀ i := rfl
 
-theorem stateFrom_succ {n : ℕ} [NeZero n] (s₀ : Fin n → S) (r : ℕ) (i : Fin n) :
+private theorem stateFrom_succ {n : ℕ} [NeZero n] (s₀ : Fin n → S) (r : ℕ) (i : Fin n) :
     P.stateFrom s₀ (r + 1) i =
       P.recv r (P.stateFrom s₀ r i)
         (P.toSucc r (P.stateFrom s₀ r (i - 1)))
@@ -157,15 +157,12 @@ theorem state_shift_eq (n : ℕ) [NeZero n] (r : ℕ) (i k : Fin n) :
     P.run n r (i + k) = P.run n r i :=
   P.stateFrom_shift_eq (fun _ => P.init) k r i
 
-/-- Every pair of nodes in an anonymous ring occupies the exact same local state after `r`
-synchronous rounds. -/
-theorem run_eq (n : ℕ) [NeZero n] (r : ℕ) (i j : Fin n) :
+private theorem run_eq (n : ℕ) [NeZero n] (r : ℕ) (i j : Fin n) :
     P.run n r i = P.run n r j := by
   have h := P.state_shift_eq n r j (i - j)
   rwa [add_sub_cancel] at h
 
-/-- If any node declares itself leader after `r` rounds, then every node declares itself leader. -/
-theorem isLeader_run_forall_of_exists (n : ℕ) [NeZero n] (r : ℕ)
+private theorem isLeader_run_forall_of_exists (n : ℕ) [NeZero n] (r : ℕ)
     (hex : ∃ i : Fin n, P.isLeader (P.run n r i) = true) :
     ∀ i : Fin n, P.isLeader (P.run n r i) = true := by
   obtain ⟨i₀, hi₀⟩ := hex
@@ -370,10 +367,7 @@ along `i → i + 1` (each reception from `i - 1` produces `nextState` and outgoi
     AnonAsyncConfig n S M :=
   sched.foldl (fun c e => P.step e c) cfg
 
-theorem exec_nil {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) :
-    P.exec cfg [] = cfg := rfl
-
-theorem exec_cons {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) (e : AnonEvent n)
+private theorem exec_cons {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) (e : AnonEvent n)
     (es : List (AnonEvent n)) :
     P.exec cfg (e :: es) = P.exec (P.step e cfg) es := rfl
 
@@ -394,9 +388,7 @@ private theorem update_shift {n : ℕ} {α : Type*} (f : Fin n → α) (a k : Fi
   · have hk : i + k ≠ a + k := fun heq => h (add_right_cancel heq)
     simp only [Function.update_of_ne h, Function.update_of_ne hk]
 
-/-- **Single-step shift equivariance.** Shifting a configuration by `+ k` before `step e` equals
-shifting after `step (e.shift k)`. -/
-theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
+private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
     (cfg : AnonAsyncConfig n S M) :
     P.step e (cfg.shift k) = (P.step (e.shift k) cfg).shift k := by
   obtain ⟨dir, t⟩ := e
@@ -925,35 +917,6 @@ theorem mtr_rotWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     | cons m mp =>
       obtain ⟨hmtr, huni'⟩ := P.mtr_counterWave_uniform huni
       exact ⟨fun _ => hmtr, _, _, _, huni'⟩
-
-/-- Executing any sequence of FIFO waves `rotSchedule n dirs` from `P.initConfig n` leaves the
-global configuration uniform (hence fixed under every cyclic shift `+ k`). -/
-theorem exec_rotSchedule_shift_eq (n : ℕ) [NeZero n] (dirs : List RingDir) (k : Fin n) :
-    (P.exec (P.initConfig n) (rotSchedule n dirs)).shift k =
-      P.exec (P.initConfig n) (rotSchedule n dirs) := by
-  suffices ∀ (ds : List RingDir) (cfg : AnonAsyncConfig n S M),
-      (∃ s cs cp, cfg.IsUniform s cs cp) →
-      ∃ s' cs' cp', (P.exec cfg (rotSchedule n ds)).IsUniform s' cs' cp' by
-    obtain ⟨s', cs', cp', huni⟩ :=
-      this dirs (P.initConfig n) ⟨P.init, P.initToSucc, P.initToPred, fun _ => rfl, fun _ => rfl,
-        fun _ => rfl⟩
-    refine AnonAsyncConfig.ext (funext fun i => ?_) (funext fun i => ?_) (funext fun i => ?_)
-    · exact (huni.1 (i + k)).trans (huni.1 i).symm
-    · exact (huni.2.1 (i + k)).trans (huni.2.1 i).symm
-    · exact (huni.2.2 (i + k)).trans (huni.2.2 i).symm
-  intro ds
-  induction ds with
-  | nil =>
-    intro cfg h
-    exact h
-  | cons d ds ih =>
-    intro cfg ⟨s, cs, cp, huni⟩
-    let w := match d with | .clockwise => clockwiseWave n | .counter => counterWave n
-    have hexec : P.exec cfg (rotSchedule n (d :: ds)) =
-        P.exec (P.exec cfg w) (rotSchedule n ds) := by
-      simp only [rotSchedule, List.flatMap_cons, exec, List.foldl_append, w]
-    rw [hexec]
-    exact ih _ (P.mtr_rotWave_uniform huni d).2
 
 /-- **Angluin's Asynchronous Anonymous Ring Impossibility (`[Angluin1980b]`).**
 From `P.initConfig n` (`n ≥ 2`), for every target wave count `W` there exists an enabled multi-step

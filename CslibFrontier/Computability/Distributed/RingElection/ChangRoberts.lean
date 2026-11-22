@@ -39,8 +39,9 @@ oldest message `m` may be delivered to `target` (`crStep`, `crLTS`):
 * if `m < uid target`, `target` discards `m`;
 * if `m = uid target`, `target` sets `isLeader target := true` without forwarding `m`.
 
-This models the election pass ending when the maximum-identifier node receives its own identifier
-back (omitting an optional `n`-message announcement pass around the ring).
+This models simultaneous initiation by all `n` nodes, with the election pass ending when the
+maximum-identifier node receives its own identifier back (omitting an optional `n`-message
+announcement pass around the ring).
 
 Because each node's forwarding decision compares `m` only against its static identifier
 `uid target`, every token `uid s` traverses a schedule-independent clockwise arc of length
@@ -76,8 +77,9 @@ delivery progress yields:
   as the unique `uid` maximum.
 * `Cslib.Distributed.RingElection.changRoberts_terminates`: bounded termination and unique leader
   election across all asynchronous FIFO schedules.
-* `Cslib.Distributed.RingElection.changRoberts_messages_le`: `≤ n * (n + 1) / 2` message bound for
-  every execution.
+* `Cslib.Distributed.RingElection.changRoberts_execMsgs_eq_totalMsgs`,
+  `Cslib.Distributed.RingElection.changRoberts_messages_le`: schedule-independent exact complete-run
+  message count and `≤ n * (n + 1) / 2` message bound for every execution.
 * `Cslib.Distributed.RingElection.changRoberts_messages_sorted_eq`,
   `Cslib.Distributed.RingElection.changRoberts_messages_id_eq`: exact worst-case `n * (n + 1) / 2`
   and best-case `2 * n - 1` evaluations.
@@ -163,18 +165,12 @@ identifier injections plus all subsequent message forwardings. -/
 
 /-! ### Clockwise arc lengths and per-token hop counts -/
 
-/-- Structural search over `d = n - rem` (`d = 1, 2, …, n`) for the first clockwise offset `d ≥ 1`
-with `a + Fin.ofNat n d ∈ A`. -/
-@[expose] def arcLenFrom {n : ℕ} [NeZero n] (A : Finset (Fin n)) (a : Fin n) : ℕ → ℕ
-  | 0 => 0
-  | rem + 1 =>
-    let d := n - rem
-    if a + Fin.ofNat n d ∈ A then d else arcLenFrom A a rem
-
 /-- Clockwise hop distance `d ∈ {1, …, n}` from `a : Fin n` to the next element of `A` along the
 ring (`a + 1, a + 2, …, a + n = a`). -/
 @[expose] def arcLen {n : ℕ} [NeZero n] (A : Finset (Fin n)) (a : Fin n) : ℕ :=
-  arcLenFrom A a n
+  match (List.range n).find? (fun k => decide (a + Fin.ofNat n (k + 1) ∈ A)) with
+  | some k => k + 1
+  | none => n
 
 /-- Clockwise hop count made by node `s`'s initial message `uid s` in Chang–Roberts before reaching
 the first node `j` with `uid s ≤ uid j` (`1 ≤ crHops uid s ≤ n`). -/
@@ -220,38 +216,44 @@ private theorem fin_add_ofNat_eq_self_iff {n : ℕ} [NeZero n] (a : Fin n) {d : 
   · rintro rfl
     rw [ofNat_self_fin, add_zero]
 
-private theorem arcLenFrom_spec {n : ℕ} [NeZero n] {A : Finset (Fin n)} {a : Fin n} (ha : a ∈ A) :
-    ∀ rem, 1 ≤ rem → rem ≤ n →
-      n + 1 - rem ≤ arcLenFrom A a rem ∧
-      arcLenFrom A a rem ≤ n ∧
-      a + Fin.ofNat n (arcLenFrom A a rem) ∈ A ∧
-      ∀ k, n + 1 - rem ≤ k → k < arcLenFrom A a rem → a + Fin.ofNat n k ∉ A := by
-  intro rem hrem1 hremn
-  induction rem with
-  | zero => omega
-  | succ r ih =>
-    simp only [arcLenFrom]
-    by_cases hhit : a + Fin.ofNat n (n - r) ∈ A
-    · simp only [hhit, ↓reduceIte]
-      exact ⟨by omega, by omega, trivial, fun k hk1 hk2 => by omega⟩
-    · simp only [hhit, ↓reduceIte]
-      rcases eq_or_lt_of_le (Nat.zero_le r) with hr0 | hr_pos
-      · subst hr0
-        exfalso
-        rw [Nat.sub_zero, ofNat_self_fin, add_zero] at hhit
-        exact hhit ha
-      · obtain ⟨hlo, hhi, hmem, hmin⟩ := ih hr_pos (by omega)
-        refine ⟨by omega, hhi, hmem, fun k hk1 hk2 => ?_⟩
-        rcases eq_or_lt_of_le (show n - r ≤ k by omega) with rfl | hgt
-        · exact hhit
-        · exact hmin k (by omega) hk2
-
 theorem arcLen_bounds_and_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {a : Fin n} (ha : a ∈ A) :
     1 ≤ arcLen A a ∧ arcLen A a ≤ n ∧ a + Fin.ofNat n (arcLen A a) ∈ A ∧
       ∀ k, 1 ≤ k → k < arcLen A a → a + Fin.ofNat n k ∉ A := by
-  have hn : 1 ≤ n := Nat.pos_of_ne_zero (NeZero.ne n)
-  have h := arcLenFrom_spec ha n hn le_rfl
-  simpa only [arcLen, Nat.add_sub_cancel_left] using h
+  dsimp only [arcLen]
+  cases hfind : (List.range n).find? (fun k => decide (a + Fin.ofNat n (k + 1) ∈ A)) with
+  | none =>
+    dsimp only
+    have hn : 1 ≤ n := Nat.pos_of_ne_zero (NeZero.ne n)
+    have hnone := List.find?_eq_none.mp hfind
+    refine ⟨hn, le_rfl, ?_, fun d hd1 hdn => ?_⟩
+    · rwa [ofNat_self_fin, add_zero]
+    · have hmem : d - 1 ∈ List.range n := List.mem_range.mpr (by omega)
+      have hfalse := hnone (d - 1) hmem
+      rw [show d - 1 + 1 = d by omega, decide_eq_true_eq] at hfalse
+      exact hfalse
+  | some k =>
+    dsimp only
+    obtain ⟨hhit, as, bs, hsplit, hbefore⟩ := List.find?_eq_some_iff_append.mp hfind
+    have hk_range : k ∈ List.range n := by
+      rw [hsplit]
+      exact List.mem_append_right as List.mem_cons_self
+    have hk_lt : k < n := List.mem_range.mp hk_range
+    refine ⟨by omega, by omega, decide_eq_true_eq.mp hhit, fun d hd1 hdk => ?_⟩
+    let j := d - 1
+    have hj_lt_k : j < k := by omega
+    have hj_range : j ∈ List.range n := List.mem_range.mpr (by omega)
+    rw [hsplit, List.mem_append, List.mem_cons] at hj_range
+    have hj_as : j ∈ as := by
+      rcases hj_range with hjas | hjk | hjbs
+      · exact hjas
+      · omega
+      · exfalso
+        have hpw : (as ++ k :: bs).Pairwise (· < ·) := hsplit ▸ List.pairwise_lt_range
+        have hgt := (List.pairwise_cons.mp (List.pairwise_append.mp hpw).2.1).1 j hjbs
+        omega
+    have hnot := hbefore j hj_as
+    rw [Bool.not_eq_true', decide_eq_false_iff_not, show j + 1 = d by omega] at hnot
+    exact hnot
 
 theorem arcLen_eq_of_isFirst {n : ℕ} [NeZero n] {A : Finset (Fin n)} {a : Fin n} (ha : a ∈ A)
     {d : ℕ} (hd1 : 1 ≤ d) (hmem : a + Fin.ofNat n d ∈ A)
@@ -263,7 +265,7 @@ theorem arcLen_eq_of_isFirst {n : ℕ} [NeZero n] {A : Finset (Fin n)} {a : Fin 
   · exact heq
   · exact absurd hmem (hamin d hd1 hgt)
 
-theorem crHops_spec {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem crHops_spec {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) (s : Fin n) :
     1 ≤ crHops uid s ∧ crHops uid s ≤ n ∧ uid s ≤ uid (s + Fin.ofNat n (crHops uid s)) ∧
       ∀ k, 1 ≤ k → k < crHops uid s → uid (s + Fin.ofNat n k) < uid s := by
@@ -275,7 +277,7 @@ theorem crHops_spec {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, not_le] at hnot
   exact hnot
 
-theorem crHops_eq_n_iff_max {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem crHops_eq_n_iff_max {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) (s : Fin n) :
     crHops uid s = n ↔ ∀ j : Fin n, uid j ≤ uid s := by
   obtain ⟨h1, hn, hle, hlt⟩ := crHops_spec uid s
@@ -340,10 +342,10 @@ private theorem card_filter_eq_sum_ite {α : Type*} (s : Finset α) (P : α → 
     (s.filter P).card = ∑ x ∈ s, if P x then 1 else 0 := by
   rw [Finset.card_eq_sum_ones, Finset.sum_filter]
 
-/-- **Message conservation.** Along every valid execution `(crLTS uid).MTr (crInit uid) sched cfg`,
+/-- Message conservation along every valid execution `(crLTS uid).MTr (crInit uid) sched cfg`:
 total messages transmitted equal messages delivered (`sched.length`) plus messages still in flight
 (`cfg.inFlight`). -/
-theorem crExecMsgs_eq_length_add_inFlight {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem crExecMsgs_eq_length_add_inFlight {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) {sched : List (Fin n)} {cfg : CRConfig n U}
     (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
     crExecMsgs uid sched = sched.length + cfg.inFlight := by
@@ -724,7 +726,7 @@ theorem changRoberts_execMsgs_eq_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [Lin
 
 /-- In any execution `(crLTS uid).MTr (crInit uid) sched cfg` (even partial), both `sched.length`
 and `crExecMsgs uid sched` are bounded by `changRobertsTotalMsgs uid`. -/
-theorem crExecMsgs_le_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem crExecMsgs_le_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
     (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
     sched.length ≤ changRobertsTotalMsgs uid ∧
@@ -805,7 +807,7 @@ theorem changRoberts_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
 /-! ### Tight worst-case and best-case message bounds -/
 
 /-- Combinatorial worst-case bound: `changRobertsTotalMsgs uid ≤ n * (n + 1) / 2`. -/
-theorem changRobertsTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem changRobertsTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) :
     changRobertsTotalMsgs uid ≤ n * (n + 1) / 2 := by
   have hhop_le : ∀ s : Fin n,
@@ -1114,7 +1116,7 @@ private theorem le_swap_iff_le {n : ℕ} {v u : Fin n} (hvu : v ≤ u) (w : Fin 
 
 /-- Exact cleared-denominator per-rank expectation: for the `r`-th largest UID `v`
 (`r = n - v.val`), `r * ∑ σ, crHops (⇑σ) (σ.symm v) = n * n!`. -/
-theorem mul_sum_crHops_perm_eq {n : ℕ} [NeZero n] (v : Fin n) :
+private theorem mul_sum_crHops_perm_eq {n : ℕ} [NeZero n] (v : Fin n) :
     (n - v.val) * (∑ σ : Equiv.Perm (Fin n), crHops (⇑σ) (σ.symm v)) =
       n * Nat.factorial n := by
   let S : Finset (Fin n) := Finset.univ.filter fun u : Fin n => v ≤ u

@@ -22,7 +22,9 @@ import Mathlib.Tactic.Ring
 
 Deterministic `O(n log n)` leader election on an asynchronous FIFO unidirectional ring `Fin n`
 (`n ≥ 1`) with injective identifiers `uid : Fin n → U` from a linear order `U`, following
-[Peterson][Peterson1982].
+[Peterson][Peterson1982]. This module formalizes Peterson's basic two-hop `2 n ⌊log₂ n⌋ + n`
+algorithm with all `n` processors starting active (rather than `[Peterson1982]`'s further
+`1.44 n log₂ n` Fibonacci-threshold refinement).
 
 Active processors hold a current temporary identifier `tid` and execute two-hop comparison phases
 while eliminated processors act as passive FIFO relays (`.relay`):
@@ -203,7 +205,7 @@ initial `.hop1` injections plus all subsequent emissions. -/
     LTS (PetersonConfig n U) (Fin n) where
   Tr cfg target cfg' := cfg.chan (target - 1) ≠ [] ∧ cfg' = petersonStep target cfg
 
-theorem petersonEmittedMsgs_append {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem petersonEmittedMsgs_append {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (cfg : PetersonConfig n U) (s₁ s₂ : List (Fin n)) :
     petersonEmittedMsgs cfg (s₁ ++ s₂) =
       petersonEmittedMsgs cfg s₁ + petersonEmittedMsgs (petersonExec cfg s₁) s₂ := by
@@ -212,7 +214,7 @@ theorem petersonEmittedMsgs_append {n : ℕ} [NeZero n] {U : Type*} [LinearOrder
   | cons a rest ih =>
     simp only [List.cons_append, petersonEmittedMsgs, petersonExec, List.foldl_cons, ih, add_assoc]
 
-theorem petersonExec_of_mtr {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem petersonExec_of_mtr {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {c₀ c₁ : PetersonConfig n U} {tr : List (Fin n)}
     (hmtr : (petersonLTS n U).MTr c₀ tr c₁) :
     petersonExec c₀ tr = c₁ := by
@@ -465,7 +467,8 @@ private theorem mem_neg_image_iff {n : ℕ} (A : Finset (Fin n)) (x : Fin n) :
   simp only [Finset.mem_image]
   exact ⟨fun ⟨y, hy, hneg⟩ => neg_injective hneg ▸ hy, fun hx => ⟨x, hx, rfl⟩⟩
 
-theorem backLen_bounds_and_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n} (hq : q ∈ A) :
+private theorem backLen_bounds_and_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n}
+    (hq : q ∈ A) :
     1 ≤ backLen A q ∧ backLen A q ≤ n ∧ prevActive A q ∈ A ∧
       ∀ k, 1 ≤ k → k < backLen A q → q - Fin.ofNat n k ∉ A := by
   have hnq : -q ∈ A.image (fun y : Fin n => -y) := (mem_neg_image_iff A q).mpr hq
@@ -477,11 +480,11 @@ theorem backLen_bounds_and_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fi
   have hk := hmin k hk1 hk2
   rwa [hneg_sub, mem_neg_image_iff] at hk
 
-theorem nextActive_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n} (hp : p ∈ A) :
+private theorem nextActive_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n} (hp : p ∈ A) :
     nextActive A p ∈ A :=
   (arcLen_bounds_and_mem hp).2.2.1
 
-theorem prevActive_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n} (hq : q ∈ A) :
+private theorem prevActive_mem {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n} (hq : q ∈ A) :
     prevActive A q ∈ A :=
   (backLen_bounds_and_mem hq).2.2.1
 
@@ -491,7 +494,8 @@ private theorem ofNat_sub_add_of_le {n d k : ℕ} [NeZero n] (hk : k ≤ d) :
   change d % n = ((d - k) % n + k % n) % n
   rw [← Nat.add_mod, Nat.sub_add_cancel hk]
 
-theorem backLen_nextActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n} (hp : p ∈ A) :
+private theorem backLen_nextActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n}
+    (hp : p ∈ A) :
     backLen A (nextActive A p) = arcLen A p := by
   obtain ⟨hd1, _, hqA, hmin⟩ := arcLen_bounds_and_mem hp
   let q := nextActive A p
@@ -509,12 +513,13 @@ theorem backLen_nextActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin
     rw [heq, mem_neg_image_iff]
     exact hmin (arcLen A p - k) (by omega) (by omega)
 
-@[simp] theorem prevActive_nextActive {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n}
+private theorem prevActive_nextActive {n : ℕ} [NeZero n] {A : Finset (Fin n)} {p : Fin n}
     (hp : p ∈ A) :
     prevActive A (nextActive A p) = p := by
   rw [prevActive, backLen_nextActive_eq hp, nextActive, add_sub_cancel_right]
 
-theorem arcLen_prevActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n} (hq : q ∈ A) :
+private theorem arcLen_prevActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n}
+    (hq : q ∈ A) :
     arcLen A (prevActive A q) = backLen A q := by
   obtain ⟨hd1, _, hpA, hmin⟩ := backLen_bounds_and_mem hq
   refine arcLen_eq_of_isFirst hpA hd1 ?_ fun k hk1 hk2 => ?_
@@ -525,12 +530,12 @@ theorem arcLen_prevActive_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin 
     rw [heq]
     exact hmin (backLen A q - k) (by omega) (by omega)
 
-@[simp] theorem nextActive_prevActive {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n}
+private theorem nextActive_prevActive {n : ℕ} [NeZero n] {A : Finset (Fin n)} {q : Fin n}
     (hq : q ∈ A) :
     nextActive A (prevActive A q) = q := by
   rw [nextActive, arcLen_prevActive_eq hq, prevActive, sub_add_cancel]
 
-theorem prevActive_ne_self_of_two_le_card {n : ℕ} [NeZero n] {A : Finset (Fin n)}
+private theorem prevActive_ne_self_of_two_le_card {n : ℕ} [NeZero n] {A : Finset (Fin n)}
     (hcard : 2 ≤ A.card) {q : Fin n} (hq : q ∈ A) :
     prevActive A q ≠ q := by
   intro heq
@@ -678,18 +683,11 @@ structure PetersonPhaseState (n : ℕ) (U : Type*) where
       ⟨petersonSurvivors st.active st.tidMap, fun r => st.tidMap (prevActive st.active r)⟩
     else st
 
-/-- Count how many elimination phases (`2 ≤ active.card`) occur within the first `fuel` steps. -/
-@[expose] def petersonPhasesAux {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
-    (uid : Fin n → U) : ℕ → ℕ
-  | 0 => 0
-  | k + 1 =>
-    petersonPhasesAux uid k + if 2 ≤ (petersonPhase uid k).active.card then 1 else 0
-
 /-- Total number of elimination phases (`2 ≤ active.card`) executed by Peterson's algorithm on
 `uid` before `active.card = 1`. -/
 @[expose] def petersonPhases {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) : ℕ :=
-  petersonPhasesAux uid n
+  (List.range n).countP fun k => decide (2 ≤ (petersonPhase uid k).active.card)
 
 /-- **Per-phase halving (`peterson_phase_halving`).** -/
 theorem peterson_phase_halving {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
@@ -761,6 +759,42 @@ private theorem phase_stable_of_lt_two {n : ℕ} [NeZero n] {U : Type*} [LinearO
     rw [← add_assoc, petersonPhase, ih]
     simp only [h1, ↓reduceIte]
 
+private theorem petersonPhases_prefix_spec {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+    (uid : Fin n → U) (m : ℕ) :
+    let cnt := (List.range m).countP fun k => decide (2 ≤ (petersonPhase uid k).active.card)
+    cnt ≤ m ∧
+      (∀ j < cnt, 2 ≤ (petersonPhase uid j).active.card) ∧
+      (cnt < m → ¬ 2 ≤ (petersonPhase uid cnt).active.card) := by
+  induction m with
+  | zero =>
+    dsimp only
+    simp only [List.range_zero, List.countP_nil]
+    exact ⟨le_rfl, fun _ hj => by omega, fun h => by omega⟩
+  | succ m ih =>
+    dsimp only at ih ⊢
+    obtain ⟨hKm, hall, hstop⟩ := ih
+    rw [List.range_succ, List.countP_append, List.countP_singleton]
+    simp only [decide_eq_true_eq]
+    by_cases hm2 : 2 ≤ (petersonPhase uid m).active.card
+    · have hK_eq_m :
+          ((List.range m).countP fun k => decide (2 ≤ (petersonPhase uid k).active.card)) = m := by
+        by_contra hne
+        have hnot := hstop (lt_of_le_of_ne hKm hne)
+        have hst := phase_stable_of_lt_two uid hnot m (by omega)
+        rw [← hst] at hnot
+        exact hnot hm2
+      simp only [hm2, ↓reduceIte]
+      rw [hK_eq_m]
+      refine ⟨le_rfl, fun j hj => ?_, fun h => by omega⟩
+      rcases eq_or_lt_of_le (Nat.le_of_lt_succ hj) with rfl | hlt
+      · exact hm2
+      · exact hall j (hK_eq_m.symm ▸ hlt)
+    · simp only [hm2, ↓reduceIte, add_zero]
+      refine ⟨by omega, hall, fun _ => ?_⟩
+      rcases eq_or_lt_of_le hKm with heq | hlt
+      · rwa [heq]
+      · exact hstop hlt
+
 /-- **Logarithmic phase bound (`peterson_phases_le_log`).**
 For any injective `uid : Fin n → U`, the number of elimination phases satisfies
 `petersonPhases uid ≤ Nat.log 2 n`, and at phase `K = petersonPhases uid` (as well as at
@@ -770,7 +804,6 @@ theorem peterson_phases_le_log {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     petersonPhases uid ≤ Nat.log 2 n ∧
       (petersonPhase uid (petersonPhases uid)).active.card = 1 ∧
       (petersonPhase uid (Nat.log 2 n)).active.card = 1 := by
-  -- First show `¬ 2 ≤ (petersonPhase uid (Nat.log 2 n)).active.card`!
   have hstop_log : ¬ 2 ≤ (petersonPhase uid (Nat.log 2 n)).active.card := by
     intro h2_log
     have hall : ∀ j < Nat.log 2 n + 1, 2 ≤ (petersonPhase uid j).active.card := by
@@ -795,47 +828,19 @@ theorem peterson_phases_le_log {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     have hpow := Nat.pow_log_le_self 2 (NeZero.ne n)
     have hlt_pow : Nat.log 2 n < 2 ^ Nat.log 2 n := Nat.lt_two_pow_self
     omega
-  -- Characterize `petersonPhasesAux uid m` as a prefix of `2 ≤ active.card` steps:
-  have haux_spec : ∀ m : ℕ,
-      petersonPhasesAux uid m ≤ m ∧
-      (∀ j < petersonPhasesAux uid m, 2 ≤ (petersonPhase uid j).active.card) ∧
-      (petersonPhasesAux uid m < m →
-        ¬ 2 ≤ (petersonPhase uid (petersonPhasesAux uid m)).active.card) := by
-    intro m
-    induction m with
-    | zero =>
-      simp only [petersonPhasesAux]
-      exact ⟨le_rfl, fun _ hj => by omega, fun h => by omega⟩
-    | succ m ih =>
-      obtain ⟨hKm, hall, hstop⟩ := ih
-      simp only [petersonPhasesAux]
-      by_cases hm2 : 2 ≤ (petersonPhase uid m).active.card
-      · have hK_eq_m : petersonPhasesAux uid m = m := by
-          by_contra hne
-          have hnot := hstop (lt_of_le_of_ne hKm hne)
-          have hst := phase_stable_of_lt_two uid hnot m (by omega)
-          rw [← hst] at hnot
-          exact hnot hm2
-        simp only [hm2, ↓reduceIte, hK_eq_m]
-        refine ⟨le_rfl, fun j hj => ?_, fun h => by omega⟩
-        rcases eq_or_lt_of_le (Nat.le_of_lt_succ hj) with rfl | hlt
-        · exact hm2
-        · exact hall j (hK_eq_m.symm ▸ hlt)
-      · simp only [hm2, ↓reduceIte, add_zero]
-        refine ⟨by omega, hall, fun _ => ?_⟩
-        rcases eq_or_lt_of_le hKm with heq | hlt
-        · rwa [heq]
-        · exact hstop hlt
-  obtain ⟨hKn, hallK, hstopK⟩ := haux_spec n
-  dsimp only [petersonPhases]
-  have hK_le_log : petersonPhasesAux uid n ≤ Nat.log 2 n := by
+  obtain ⟨hKn, hallK, hstopK⟩ := petersonPhases_prefix_spec uid n
+  change petersonPhases uid ≤ n at hKn
+  change ∀ j < petersonPhases uid, 2 ≤ (petersonPhase uid j).active.card at hallK
+  change petersonPhases uid < n → ¬ 2 ≤ (petersonPhase uid (petersonPhases uid)).active.card
+    at hstopK
+  have hK_le_log : petersonPhases uid ≤ Nat.log 2 n := by
     by_contra hgt
     exact hstop_log (hallK (Nat.log 2 n) (by omega))
-  have hnot2_K : ¬ 2 ≤ (petersonPhase uid (petersonPhasesAux uid n)).active.card :=
+  have hnot2_K : ¬ 2 ≤ (petersonPhase uid (petersonPhases uid)).active.card :=
     hstopK (lt_of_le_of_lt hK_le_log hlog_lt_n)
-  have hcard_K : (petersonPhase uid (petersonPhasesAux uid n)).active.card = 1 := by
-    have hpos : 1 ≤ (petersonPhase uid (petersonPhasesAux uid n)).active.card :=
-      Finset.card_pos.mpr (petersonPhase_inv huid (petersonPhasesAux uid n)).1
+  have hcard_K : (petersonPhase uid (petersonPhases uid)).active.card = 1 := by
+    have hpos : 1 ≤ (petersonPhase uid (petersonPhases uid)).active.card :=
+      Finset.card_pos.mpr (petersonPhase_inv huid (petersonPhases uid)).1
     omega
   have hcard_log : (petersonPhase uid (Nat.log 2 n)).active.card = 1 := by
     rw [phase_stable_of_lt_two uid hnot2_K (Nat.log 2 n) hK_le_log]
@@ -1351,36 +1356,8 @@ private theorem exists_canonical_terminal {n : ℕ} [NeZero n] {U : Type*} [Line
     | succ k ih =>
       obtain ⟨sk, cfg_k, hmtr_k, hstart_k, hmsgs_k⟩ := ih (by omega)
       -- Since `k < K = petersonPhases uid`, `2 ≤ (petersonPhase uid k).active.card`!
-      have hk2 : 2 ≤ (petersonPhase uid k).active.card := by
-        by_contra hnot2
-        have hst := phase_stable_of_lt_two uid hnot2 K (by omega)
-        -- Look at `petersonPhasesAux uid n` when `¬ 2 ≤ card` at `k < K`:
-        have haux_le : ∀ m, k ≤ m → petersonPhasesAux uid m = petersonPhasesAux uid k := by
-          suffices ∀ d, petersonPhasesAux uid (k + d) = petersonPhasesAux uid k by
-            intro m hm
-            obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hm
-            exact this d
-          intro d
-          induction d with
-          | zero => simp only [add_zero]
-          | succ d ih_d =>
-            have hnot_kd : ¬ 2 ≤ (petersonPhase uid (k + d)).active.card := by
-              rw [phase_stable_of_lt_two uid hnot2 (k + d) (by omega)]
-              exact hnot2
-            rw [← add_assoc, petersonPhasesAux, ih_d]
-            simp only [hnot_kd, ↓reduceIte, add_zero]
-        have hK_le_k : K ≤ k := by
-          have hn_ge_k : k ≤ n := by
-            have := Nat.pow_log_le_self 2 (NeZero.ne n)
-            have := Nat.lt_two_pow_self (n := Nat.log 2 n)
-            omega
-          have h1 : K = petersonPhasesAux uid k := haux_le n hn_ge_k
-          have h2_le : ∀ m, petersonPhasesAux uid m ≤ m := by
-            intro m; induction m with
-            | zero => exact le_rfl
-            | succ m ihm => simp only [petersonPhasesAux]; split_ifs <;> omega
-          exact h1 ▸ h2_le k
-        omega
+      have hk2 : 2 ≤ (petersonPhase uid k).active.card :=
+        (petersonPhases_prefix_spec uid n).2.1 k (Nat.lt_of_succ_le hkK)
       have hinj_k : Set.InjOn (petersonPhase uid k).tidMap (petersonPhase uid k).active :=
         (petersonPhase_inv huid k).2.1
       obtain ⟨w, cfg_next, hmtr_w, hmsgs_w, hstart_next⟩ :=
