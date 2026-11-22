@@ -283,16 +283,10 @@ theorem Activity.isGE_compare_iff (A : Activity) (a b : ℕ) :
   rw [this, Activity.isLT_compare, Bool.not_eq_true', ← Bool.not_eq_true, Activity.below_iff]
   omega
 
-/-- Comparisons read the activities of the two variables only. -/
-theorem Activity.compare_congr {A A' : Activity} {a b : ℕ} (ha : A'.get a = A.get a)
-    (hb : A'.get b = A.get b) : @compare ℕ A'.keyOrd a b = @compare ℕ A.keyOrd a b := by
-  change compare (OrderKey.mk (A'.get a) a) _ = compare (OrderKey.mk (A.get a) a) _
-  rw [ha, hb]
-
 /-! #### Positions -/
 
 /-- The value at `v` after setting `x` to `b`: `b` if `x = v` within the array. -/
-theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
+private theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     (p.setIfInBounds x b).getD v 0 = if x = v ∧ v < p.size then b else p.getD v 0 := by
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
   by_cases h : x = v
@@ -302,7 +296,8 @@ theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     · simp [hx]
   · simp [h]
 
-theorem VarOrder.lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) : v < p.size := by
+private theorem VarOrder.lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) :
+    v < p.size := by
   by_contra hv
   simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (Nat.le_of_not_lt hv)] at h
 
@@ -834,12 +829,12 @@ theorem VarOrder.rebuild_spec (A : Activity) (H : VarOrder) (hp : VarOrder.PosOK
 
 /-! #### Bumping -/
 
-theorem Activity.get_modify_ne (A : Activity) {u v : ℕ} (f : ℕ → ℕ) (i : ℕ) (huv : u ≠ v) :
-    (⟨A.score.modify v f, i⟩ : Activity).get u = A.get u := by
+private theorem Activity.get_modify_ne (A : Activity) {u v : ℕ} (f : ℕ → ℕ) (i : ℕ)
+    (huv : u ≠ v) : (⟨A.score.modify v f, i⟩ : Activity).get u = A.get u := by
   simp only [Activity.get, Array.getD_eq_getD_getElem?, Array.getElem?_modify, Ne.symm huv,
     ↓reduceIte]
 
-theorem Activity.le_get_modify (A : Activity) (u v c i : ℕ) :
+private theorem Activity.le_get_modify (A : Activity) (u v c i : ℕ) :
     A.get u ≤ (⟨A.score.modify v (· + c), i⟩ : Activity).get u := by
   simp only [Activity.get, Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   split

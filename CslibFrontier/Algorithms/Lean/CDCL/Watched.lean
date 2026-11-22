@@ -1178,26 +1178,11 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
     (learnedWatched C l).Perm (dedupLits C) :=
   (List.perm_cons_erase ((mem_dedupKey litKey_injective).2 hl)).symm
 
-/-- The activities `A` after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
-@[expose] def bumpedWith (o : Options) (A : Activity) (vs : List ℕ) : Activity :=
-  if o.vsids then A.bump vs else A
-
-/-- The activities after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
-@[expose] def WExec.bumped (S : WExec φ) (vs : List ℕ) : Activity := bumpedWith S.opts S.act vs
-
 /-- The activities `A` and the variable order `H` after a conflict meeting the variables `vs`, with
 VSIDS: the variables are bumped, and those in the heap move up (`VarOrder.bump`). -/
 @[expose] def bumpOrderWith (o : Options) (A : Activity) (H : VarOrder) (vs : List ℕ) :
     Activity × VarOrder :=
   if o.vsids then VarOrder.bump A H vs else (A, H)
-
-/-- The activities bumped with the order are those of `bumpedWith`. -/
-theorem bumpOrderWith_fst (o : Options) (A : Activity) (H : VarOrder) (vs : List ℕ) :
-    (bumpOrderWith o A H vs).1 = bumpedWith o A vs := by
-  unfold bumpOrderWith bumpedWith
-  split
-  · exact VarOrder.bump_fst A H vs 19
-  · rfl
 
 /-- The literal of an entry of the solver's trail. -/
 @[expose] def XEntry.lit : XEntry → Literal ℕ
