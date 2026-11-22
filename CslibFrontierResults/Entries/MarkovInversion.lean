@@ -27,8 +27,10 @@ register_result "markov-inversion-complexity" where
     most k iff decrease target < 2^k. Its existing ecomplexityFrom with identity sources and \
     negationCost equals Nat.clog 2 (decrease target + 1), and the bound is attained. AND, OR \
     and constants have cost zero. The lower argument counts shared NOT gates once; the upper \
-    argument constructs circuits by halving the canonical chain-decrease rank. The source's \
-    arbitrary free monotone gates are realized by native monotone formulas. A decrease is a \
+    argument constructs circuits by halving the canonical chain-decrease rank. The source counts \
+    distinct negative subformulas of a formula system, using the 1957 conventions retained in \
+    1963 §2. The native formulation uses shared circuit gates, and monotone functions are \
+    realized by AND/OR/constant formulas at zero negation cost. A decrease is a \
     transition at which some output changes true to false, and the maximum is formally \
     attained on a nonempty strictly increasing input chain, matching §3. The formal theorem \
     additionally includes zero inputs and zero outputs. No randomness or extra hypotheses \
