@@ -33,7 +33,8 @@ register_result "lokam-matrix-rigidity-upper-bound" where
     https://github.com/cslib-community/cslib-frontier/pull/7534#pullrequestreview-6013716059"
 
 register_result "lokam-random-matrix-rigidity-finite-field" where
-  title := "Random matrices over a finite field have rigidity Ω((n - r)² / log n)"
+  title := "Random n × n matrices over a finite field K have rigidity at least \
+    ⌊(n - r)² / (4 ⌊log_|K| n⌋ + 6)⌋ with probability > 1 - |K|^(-⌊(n - r)² / 2⌋)"
   topic := "algebraic complexity"
   sources := [
     { paper := Lokam2009,
@@ -50,10 +51,11 @@ register_result "lokam-random-matrix-rigidity-finite-field" where
     finite non-asymptotic bound 1 - (|K| : ℝ)⁻¹ ^ ((|n| - r) ^ 2 / 2) < \
     #{A | (|n| - r) ^ 2 / (4 * Nat.log |K| |n| + 6) ≤ A.rigidity r} / Fintype.card (Matrix n n K) \
     with integer floor division and explicit exponential error. The probability tends to 1 \
-    whenever |n| - r → ∞, and the integer floor has Lokam's positive Ω((n - r)² / log n) order \
-    for fixed field size and r ≤ (1 - ε) n (ε > 0), or whenever (|n| - r)² = Ω(log_|K| |n|), \
-    whereas |n| - r → ∞ alone allows regimes such as |K| = 2, |n| = 2^(k^3), r = |n| - k where \
-    the floor rounds to zero. Lokam's Zariski-open infinite-field remark and Open Question 2.1 \
-    are outside this entry; Valiant1977 was cited through Lokam §2.1 and not inspected directly. \
-    Outside-fleet source check (reviewer-codex-edemaine): \
+    whenever |n| - r → ∞, the floor is positive once 4 * Nat.log |K| |n| + 6 ≤ (|n| - r) ^ 2, \
+    and it yields Lokam's positive Ω((n - r)² / log n) order for fixed field size and \
+    r ≤ (1 - ε) n (fixed ε > 0), or whenever (|n| - r)² / (log_|K| |n| + 1) → ∞ (whereas slower \
+    growth such as |K| = 2, |n| = 2^(k²), r = |n| - k leaves ⌊k² / (4k² + 6)⌋ = 0). Lokam's \
+    Zariski-open infinite-field remark and Open Question 2.1 are outside this entry; Valiant1977 \
+    was cited through Lokam §2.1 and not inspected directly. Outside-fleet source check \
+    (reviewer-codex-edemaine): \
     https://github.com/cslib-community/cslib-frontier/pull/7534#pullrequestreview-6013716059"
