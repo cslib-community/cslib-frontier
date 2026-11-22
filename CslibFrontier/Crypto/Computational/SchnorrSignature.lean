@@ -10,12 +10,8 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.SchnorrProtocol
 public import CslibFrontier.Crypto.Protocols.SigmaProtocol.SchnorrSignature
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Probability.PMF
-import CslibFrontier.Tactic.PPT
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.WordsRoundTrip
 
 /-!
@@ -119,6 +115,7 @@ def schnorrSignCoins
 
 /-- **Deterministic bit-level Schnorr signing `schnorrSignCoins` is computable in polynomial
 time**. -/
+@[fun_prop]
 theorem computableInPolyTime_schnorrSignCoins :
     ComputableInPolyTime F.schnorrSignCoins
       (encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits))))
@@ -144,6 +141,7 @@ def schnorrSigVerifyBits
 
 /-- **Bit-level Schnorr signature verification `schnorrSigVerifyBits` is computable in polynomial
 time**. -/
+@[fun_prop]
 theorem computableInPolyTime_schnorrSigVerifyBits :
     ComputableInPolyTime F.schnorrSigVerifyBits
       (encPair F.encDesc

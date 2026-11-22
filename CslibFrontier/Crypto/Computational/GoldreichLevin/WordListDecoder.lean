@@ -887,8 +887,10 @@ theorem isOraclePPTOn_queryBatch :
   obtain ⟨reply, _, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
   simp
 
+/-- `queryBatch` composed with a polynomial-time query-list generator is uniform strict oracle
+PPT. -/
 @[fun_prop]
-private theorem isOraclePPTOn_queryBatch_comp {α : Type} {input : α ↪ List Bool}
+theorem isOraclePPTOn_queryBatch_comp {α : Type} {input : α ↪ List Bool}
     {queries : α → List (List Bool)}
     (hqueries : ComputableInPolyTime queries input (encList encBits)) :
     IsOraclePPTOn input encBits (fun a => queryBatch (queries a)) :=
