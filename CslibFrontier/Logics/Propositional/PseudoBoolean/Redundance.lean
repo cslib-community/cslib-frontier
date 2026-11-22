@@ -1199,12 +1199,12 @@ private def hashAt {α : Type} (l : List α) : ℕ → Option α
 
 /-- The `#` goals of `red C : ω` (§5.4.1): `C|ω`, the order goals `O⪯(z↾ω, z)` of the loaded
 order, if any, and the objective goal `f|ω ≤ f`, if there is an objective. -/
-private def redHashGoals (obj : Option Objective) (ord : Option LoadedOrder) (ω : Witness)
+def redHashGoals (obj : Option Objective) (ord : Option LoadedOrder) (ω : Witness)
     (c : PBConstr) : List PBConstr :=
   Witness.substC ω c :: ((ord.map (·.leGoals ω)).getD [] ++ (obj.map (objGoal · ω)).toList)
 
 /-- The premises of a `proofgoal` block for the goal `G` to prove: its negation. -/
-private def negGoal (G : PBConstr) : List PBConstr := [G.negate]
+def negGoal (G : PBConstr) : List PBConstr := [G.negate]
 
 /-- The premises of the `proofgoal` blocks of `red C : ω`: the negations of `#k` and of `D|ω`,
 with `D` looked up in the database `db₀` of the step. -/
@@ -1322,7 +1322,7 @@ def LoadedOrder.fresh (L : LoadedOrder) (db : List (ℕ × PBConstr)) (obj : Opt
 /-- The premises of the scopes of `red C : ω` (§5.4.1): `scope leq` adds the specification
 `S⪯(z↾ω, z, a)` of the loaded order, normalized, and nothing without an order; there is no
 `scope geq`. -/
-private def redScope (ord : Option LoadedOrder) (ω : Witness) : Bool → Option (List PBConstr)
+def redScope (ord : Option LoadedOrder) (ω : Witness) : Bool → Option (List PBConstr)
   | false => some (((ord.map (·.leSpec ω)).getD []).map normalize)
   | true => none
 
@@ -1400,7 +1400,7 @@ def Objective.geGoal (g h : Objective) : PBConstr :=
 
 /-- The premises of the goals of `obju` from `f` to `f'`: `#1` is `f' ≥ f` and `#2` is
 `f ≥ f'`. -/
-private def objuGoal (f f' : Objective) : GoalId → Option (List PBConstr)
+def objuGoal (f f' : Objective) : GoalId → Option (List PBConstr)
   | .hash k => (hashAt [f'.geGoal f, f.geGoal f'] k).map negGoal
   | .db _ => none
 
@@ -1557,14 +1557,14 @@ end Order
 /-- The premises of the `#` goals of `dom C : ω` (§5.4.2) for the loaded order `L`: the negations
 of the order goals `O⪯(z↾ω, z, a)`, then the constraints `O⪯(z, z↾ω, a)` to refute, normalized,
 then the negation of the objective goal `f|ω ≤ f`, if there is an objective. -/
-private def domHashPremises (obj : Option Objective) (L : LoadedOrder) (ω : Witness) :
+def domHashPremises (obj : Option Objective) (L : LoadedOrder) (ω : Witness) :
     List (List PBConstr) :=
   (L.leGoals ω).map negGoal ++ [(L.geGoals ω).map normalize] ++
     (obj.map fun f => negGoal (objGoal f ω)).toList
 
 /-- The premises of the scopes of `dom C : ω` (§5.4.2): `scope leq` adds `S⪯(z↾ω, z, a)` and
 `scope geq` adds `S⪯(z, z↾ω, a)`, normalized. -/
-private def domScope (L : LoadedOrder) (ω : Witness) : Bool → Option (List PBConstr)
+def domScope (L : LoadedOrder) (ω : Witness) : Bool → Option (List PBConstr)
   | false => some ((L.leSpec ω).map normalize)
   | true => some ((L.geSpec ω).map normalize)
 
@@ -1614,7 +1614,7 @@ private def orLit (l : Literal ℕ) (c : PBConstr) : PBConstr := ⟨(c.degree, l
 /-- **The goals of `preserved_add x : C` and `preserved_rm x : C`** (§5.10): `#1` is `x ⇒ C`, that
 is `¬x ∨ C`, and `#2` is `x ⇐ C`, that is `x ∨ ¬C`, as CakePB's `change_pres_subgoals`; together
 they say `x ⇔ C`. -/
-private def presGoals (x : ℕ) (c : PBConstr) : List PBConstr :=
+def presGoals (x : ℕ) (c : PBConstr) : List PBConstr :=
   [orLit (x, false) c.normalize, orLit (x, true) c.negate]
 
 /-- **The check of `preserved_add x : C` and `preserved_rm x : C`** with the preserved set `P`, as
