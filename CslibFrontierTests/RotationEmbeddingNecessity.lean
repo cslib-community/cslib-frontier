@@ -413,8 +413,8 @@ example :
     (drawing_embedding false).exists_vertex_placement
       (subdivisionGraph_endpoints_declared input_valid) (fun w => referencePoint input (p w)) hq
   have hcenter (v : ℕ) (hv : v ∈ input.graph.vertices) : D.vertex v = referencePoint input v := by
-    have hvlt : v < 2 := by simpa [input] using hv
-    interval_cases v
+    have hv' : v = 0 ∨ v = 1 := by simpa [input] using hv
+    rcases hv' with rfl | rfl
     · exact hpos 0 (by decide +kernel)
     · exact hpos 1 (by decide +kernel)
   have hfreeze (d : Dart input.graph) (hd : (input.orders.getD d.vertex none).isSome) :
