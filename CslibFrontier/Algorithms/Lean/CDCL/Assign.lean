@@ -21,15 +21,17 @@ without repeated variables has an array agreeing with it (`Assign.agrees_ofTrail
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CDCL.Assign`: the value of each variable, if any.
-* `Cslib.Algorithms.Lean.CDCL.Assign.holds`, `Cslib.Algorithms.Lean.CDCL.Assign.falsifies`: whether
-  a literal is true, and whether a clause is false.
+* `Cslib.Algorithms.Lean.CDCL.Assign.holds`, `Cslib.Algorithms.Lean.CDCL.Assign.isFalse`,
+  `Cslib.Algorithms.Lean.CDCL.Assign.falsifies`: whether a literal is true or false, and whether a
+  clause is false.
 * `Cslib.Algorithms.Lean.CDCL.Assign.Agrees`: the array holds the literals of a trail.
 
 ## Main results
 
 * `Cslib.Algorithms.Lean.CDCL.Assign.Agrees.holds_iff`,
+  `Cslib.Algorithms.Lean.CDCL.Assign.Agrees.isFalse_iff`,
   `Cslib.Algorithms.Lean.CDCL.Assign.Agrees.assigned_iff`: a literal holds when it is on the trail,
-  and a variable is assigned when it is a variable of the trail.
+  is false when its negation is, and a variable is assigned when it is a variable of the trail.
 -/
 
 @[expose] public section
@@ -48,8 +50,40 @@ namespace Assign
 /-- The value of the variable `v`, `none` past the end of the array. -/
 def value (A : Assign) (v : ℕ) : Option Bool := A.vals.getD v none
 
-/-- **Whether the literal `l` is true.** -/
-def holds (A : Assign) (l : Literal ℕ) : Bool := A.value l.1 == some l.2
+/-- **Whether the literal `l` is true.** (Matching on the value, rather than comparing it with
+`some l.2`, builds no option at run time.) -/
+def holds (A : Assign) (l : Literal ℕ) : Bool :=
+  match A.value l.1 with
+  | some b => b == l.2
+  | none => false
+
+/-- **Whether the literal `l` is false**: `holds` of its negation, without building the negation. -/
+def isFalse (A : Assign) (l : Literal ℕ) : Bool :=
+  match A.value l.1 with
+  | some b => b != l.2
+  | none => false
+
+/-- **Whether two literals are equal**, comparing the variables and the signs directly, without
+the generic calls of the instance on pairs. -/
+def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
+
+theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
+  obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
+
+private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
+    A.holds l = true ↔ A.value l.1 = some l.2 := by
+  unfold holds
+  split <;> simp_all
+
+private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
+    A.isFalse l = A.holds l.negate := by
+  unfold isFalse holds
+  obtain ⟨v, x⟩ := l
+  simp only [Std.Sat.Literal.negate]
+  generalize A.value v = o
+  rcases o with _ | b
+  · rfl
+  · cases b <;> cases x <;> rfl
 
 /-- **Whether the variable `v` is assigned.** -/
 def assigned (A : Assign) (v : ℕ) : Bool := (A.value v).isSome
@@ -107,6 +141,11 @@ theorem value_set (A : Assign) (v w : ℕ) (x : Option Bool) :
       · simp only [hlt, ↓reduceIte, Array.getElem?_eq_none (by omega : A.vals.size ≤ w)]
         split <;> rfl
 
+theorem assigned_set (A : Assign) (v w : ℕ) (x : Option Bool) :
+    (A.set v x).assigned w = if w = v then x.isSome else A.assigned w := by
+  simp only [assigned, value_set]
+  split <;> rfl
+
 theorem value_clear (A : Assign) (v w : ℕ) :
     (A.clear v).value w = if w = v then none else A.value w := by
   unfold clear value
@@ -144,8 +183,13 @@ variable {A : Assign} {M : Trail}
 /-- **A literal holds exactly when it is on the trail.** -/
 theorem Agrees.holds_iff (h : A.Agrees M) (l : Literal ℕ) :
     A.holds l = true ↔ l ∈ Trail.lits M := by
-  simp only [holds, beq_iff_eq]
+  rw [holds_eq_true]
   exact h l.1 l.2
+
+/-- **A literal is false exactly when its negation is on the trail.** -/
+theorem Agrees.isFalse_iff (h : A.Agrees M) (l : Literal ℕ) :
+    A.isFalse l = true ↔ l.negate ∈ Trail.lits M := by
+  rw [isFalse_eq_holds_negate, h.holds_iff]
 
 /-- **A variable is assigned exactly when it is a variable of the trail.** -/
 theorem Agrees.assigned_iff (h : A.Agrees M) (v : ℕ) :
@@ -210,11 +254,11 @@ theorem Agrees.drop {N M₀ : Trail} (h : A.Agrees (N ++ M₀))
     · exact .inr
 
 /-- **Whether the clause `c` is false**: every literal is false. -/
-def falsifies (A : Assign) (c : Clause ℕ) : Bool := c.all fun l => A.holds l.negate
+def falsifies (A : Assign) (c : Clause ℕ) : Bool := c.all fun l => A.isFalse l
 
 theorem Agrees.falsifies_iff (h : A.Agrees M) (c : Clause ℕ) :
     A.falsifies c = true ↔ Trail.Falsifies M c := by
-  simp only [falsifies, List.all_eq_true, h.holds_iff]
+  simp only [falsifies, List.all_eq_true, h.isFalse_iff]
 
 /-- **Assigning a trail** without repeated variables on top of an empty array, one with no value
 anywhere, gives an array agreeing with the trail. -/
@@ -253,12 +297,14 @@ theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
   simp only [assigned, value_mark]
   split <;> simp_all
 
-/-- An array in which exactly the variables `vs` are assigned. -/
-def marks (vs : List ℕ) : Assign := (⟨#[]⟩ : Assign).mark vs
+/-- An array in which exactly the variables `vs` are assigned. It is sized once for the greatest
+of them, so that marking never grows it. -/
+def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) none⟩ : Assign).mark vs
 
 theorem assigned_marks (vs : List ℕ) (v : ℕ) : (marks vs).assigned v = true ↔ v ∈ vs := by
   rw [marks, assigned_mark]
-  simp [assigned, value]
+  simp only [assigned, value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> simp
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
 theorem agrees_ofTrail (M : Trail) (hM : (Trail.vars M).Nodup) : (ofTrail M).Agrees M :=
@@ -269,7 +315,7 @@ end Assign
 /-! ### Removing repetitions in linear time -/
 
 /-- The elements of `xs` not yet marked in `m` by their keys, in order, after `acc` reversed. -/
-def dedupKeyGo {α : Type} (key : α → ℕ) : List α → Array Bool → List α → List α
+@[specialize] def dedupKeyGo {α : Type} (key : α → ℕ) : List α → Array Bool → List α → List α
   | [], _, acc => acc.reverse
   | x :: xs, m, acc =>
     if m.getD (key x) false then dedupKeyGo key xs m acc
@@ -281,7 +327,7 @@ this takes time and space `O(xs.length + greatest key + 1)`: linear in the list 
 dense, as they are for literals once `solveCompact` has renamed the variables to `0, …, k - 1`, but
 not for sparse keys. With an injective key, the elements are those of `xs` (`mem_dedupKey`), each
 once (`nodup_dedupKey`). -/
-def dedupKey {α : Type} (key : α → ℕ) (xs : List α) : List α :=
+@[specialize] def dedupKey {α : Type} (key : α → ℕ) (xs : List α) : List α :=
   dedupKeyGo key xs (Array.replicate (xs.foldl (fun a x => max a (key x)) 0 + 1) false) []
 
 theorem lt_foldl_max {α : Type} (key : α → ℕ) :
@@ -364,6 +410,13 @@ theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective
 /-- **The index of a literal**: `2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of
 repeated literals (`dedupLits`) and indexes the watch lists. -/
 def litKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
+
+/-- The key of the negation of `l`, computed without building the negation. -/
+def negKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 0 else 1
+
+theorem litKey_negate (l : Literal ℕ) : litKey l.negate = negKey l := by
+  obtain ⟨v, b⟩ := l
+  cases b <;> rfl
 
 theorem litKey_injective : Function.Injective litKey := by
   intro ⟨v, x⟩ ⟨w, y⟩ h
