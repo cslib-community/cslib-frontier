@@ -192,6 +192,7 @@ set_option linter.hashCommand false in
   let word := encFormula 0 (.and (.not (.eqZero term)) (.or .false (.ltZero term)))
   let termSign := fun bits => if bits == encTerm 0 term then (-1 : SignType) else 0
   formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithAnswers word (· != 2) == [true, true, false, true, false, true] &&
     formulaWordGateValues [] termSign == [false]
 
 -- A huge gate index uses the same suffix offsets as a small one. A child at the gate

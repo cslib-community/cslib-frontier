@@ -23,9 +23,11 @@ This adapts the wire scan and its correctness proof from
 `LeanCanny.Computation.BooleanCircuitSpace` and `LeanCanny.ETR.FormulaBooleanCircuitCorrect`
 at lean-canny revision `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 Every operand follows its parent in the prefix token stream, so visiting tokens from right to
-left gives each gate access to its previously computed operands. Arithmetic comparisons use
-a supplied interpretation of term-word signs. Correct signs for the comparison terms appearing
-in the word suffice for the root value to characterize membership in the real solution set.
+left gives each gate access to its previously computed operands. The scan accepts answers
+indexed by gate, as in `LeanCanny.ETR.FormulaBooleanCircuitSource.value_signature` at that same
+revision. Supplying the comparisons of term-word signs recovers the term-sign evaluator.
+Correct signs for the comparison terms in the word suffice for the root value to characterize
+membership in the real solution set.
 The backward scan stays in polynomial space when comparison answers are computed in polynomial
 space, keeping just one bit per processed gate.
 -/
@@ -93,45 +95,78 @@ theorem formulaWordGateUpdate_eq_cons (word : List Bool) (index : ℕ)
       formulaWordGateValue word index termSign (formulaGateSuffixValue suffix index) :: suffix := by
   rw [formulaWordGateUpdate, formulaWordGateValueWithAnswer_eq]
 
-private def gateValuesAux (word : List Bool) (termSign : List Bool → SignType)
+private def gateValuesAux (word : List Bool) (answer : ℕ → Bool)
     (size : ℕ) : ℕ → List Bool
   | 0 => []
   | k + 1 =>
     let index := size - (k + 1)
-    let suffix := gateValuesAux word termSign size k
-    formulaWordGateValue word index termSign (formulaGateSuffixValue suffix index) :: suffix
+    formulaWordGateUpdate word index (answer index) (gateValuesAux word answer size k)
+
+/-- Evaluate the total formula view from right to left, using the supplied answer at each
+comparison gate's index. The result lists gate values in prefix order. -/
+def formulaWordGateValuesWithAnswers (word : List Bool) (answer : ℕ → Bool) : List Bool :=
+  let size := (formulaWordTokens word).length
+  gateValuesAux word answer size size
 
 /-- Evaluate all gates of the total formula view from right to left, returning their Boolean
 values in prefix order. A child is read from the already evaluated suffix. -/
 def formulaWordGateValues (word : List Bool) (termSign : List Bool → SignType) : List Bool :=
-  let size := (formulaWordTokens word).length
-  gateValuesAux word termSign size size
+  formulaWordGateValuesWithAnswers word fun index =>
+    (formulaWordComparisonRequest word index).any fun request =>
+      decide (termSign request.termWord = request.requestedSign)
 
-private theorem gateValuesAux_length (word : List Bool) (termSign : List Bool → SignType)
-    (size count : ℕ) : (gateValuesAux word termSign size count).length = count := by
+private theorem gateValuesAux_length (word : List Bool) (answer : ℕ → Bool)
+    (size count : ℕ) : (gateValuesAux word answer size count).length = count := by
   induction count with
   | zero => rfl
-  | succ count ih => simp only [gateValuesAux, List.length_cons, ih]
+  | succ count ih => simp only [gateValuesAux, formulaWordGateUpdate, List.length_cons, ih]
 
 /-- The scan stores one Boolean value per token. -/
 theorem formulaWordGateValues_length (word : List Bool) (termSign : List Bool → SignType) :
     (formulaWordGateValues word termSign).length = (formulaWordTokens word).length :=
-  gateValuesAux_length word termSign _ _
+  gateValuesAux_length word _ _ _
+
+/-- Gate-indexed answers recover the term-sign scan when they give the requested comparison
+at each comparison gate. -/
+theorem formulaWordGateValuesWithAnswers_eq_of_comparisonAnswers (word : List Bool)
+    (answer : ℕ → Bool) (termSign : List Bool → SignType)
+    (h : ∀ index < (formulaWordTokens word).length, ∀ request,
+      formulaWordComparisonRequest word index = some request →
+      answer index = decide (termSign request.termWord = request.requestedSign)) :
+    formulaWordGateValuesWithAnswers word answer = formulaWordGateValues word termSign := by
+  let size := (formulaWordTokens word).length
+  let signAnswer (index : ℕ) := (formulaWordComparisonRequest word index).any fun request =>
+    decide (termSign request.termWord = request.requestedSign)
+  have agree (k : ℕ) (hk : k ≤ size) :
+      gateValuesAux word answer size k = gateValuesAux word signAnswer size k := by
+    induction k with
+    | zero => rfl
+    | succ k ih =>
+      let index := size - (k + 1)
+      have hi : index < size := by dsimp only [index]; omega
+      have hs := ih (by omega)
+      simp only [gateValuesAux, formulaWordGateUpdate, hs]
+      congr 1
+      apply formulaWordGateValueWithAnswer_congr
+      intro hc
+      change (formulaWordComparisonRequest word index).isSome = true at hc
+      change answer index = signAnswer index
+      cases hreq : formulaWordComparisonRequest word index with
+      | none => simp [hreq] at hc
+      | some request => simpa only [signAnswer, hreq, Option.any_some] using h index hi request hreq
+  exact agree size le_rfl
 
 /-- A polynomial-space comparison-answer computation suffices for the whole backward
 gate scan. Each query receives the original encoded input and a binary gate index, and the
 scan stores a raw suffix bit for each gate it has processed. -/
-theorem formulaWordGateValues_polySpace_of_comparisonAnswers {α : Type} [Inhabited α]
-    {input : α ↪ List Bool} {word : α → List Bool} {termSign : α → List Bool → SignType}
+theorem formulaWordGateValuesWithAnswers_polySpace {α : Type} [Inhabited α]
+    {input : α ↪ List Bool} {word : α → List Bool} {answer : α → ℕ → Bool}
     (hword : ComputableInPolyTime word input encBits)
-    (hanswer : ComputableInPolySpace (fun p : α × ℕ =>
-      (formulaWordComparisonRequest (word p.1) p.2).any fun request =>
-        decide (termSign p.1 request.termWord = request.requestedSign))
+    (hanswer : ComputableInPolySpace (fun p : α × ℕ => answer p.1 p.2)
       (encPair input encNat) encBool) :
-    ComputableInPolySpace (fun a => formulaWordGateValues (word a) (termSign a)) input encBits := by
+    ComputableInPolySpace (fun a => formulaWordGateValuesWithAnswers (word a) (answer a))
+      input encBits := by
   let count (a : α) := (formulaWordTokens (word a)).length
-  let answer (a : α) (index : ℕ) := (formulaWordComparisonRequest (word a) index).any
-    fun request => decide (termSign a request.termWord = request.requestedSign)
   let step (a : α) (k : ℕ) (suffix : List Bool) :=
     let index := count a - (k + 1)
     formulaWordGateUpdate (word a) index (answer a index) suffix
@@ -155,24 +190,36 @@ theorem formulaWordGateValues_polySpace_of_comparisonAnswers {α : Type} [Inhabi
     htokens.polyBounded_length.mono fun a =>
       SizedListEncoding.length_le (encA := encFormulaToken) (encL := encList encFormulaToken) _
   let invariant (a : α) (k : ℕ) (suffix : List Bool) :=
-    suffix = gateValuesAux (word a) (termSign a) (count a) k
+    suffix = gateValuesAux (word a) (answer a) (count a) k
   obtain ⟨hfold, hcorrect⟩ := ComputableInPolySpace.natFold_spec hcount
     (ComputableInPolySpace.of_polyTime (const [])) hstep invariant
     (fun _ => rfl) (fun a k suffix _ hs => by
       change suffix = _ at hs
       change step a k suffix = _
       rw [hs]
-      simp only [step, answer, formulaWordGateUpdate_eq_cons, gateValuesAux])
+      rfl)
     hbound (fun a k suffix hk hs => by
       change suffix = _ at hs
       rw [encBits_apply, hs, gateValuesAux_length]
       exact hk)
   exact hfold.congr fun a => hcorrect a
 
-private theorem gateValuesAux_getD (word : List Bool) (termSign : List Bool → SignType)
+/-- The term-sign scan uses polynomial space if each indexed comparison with the supplied
+term signs is computable in polynomial space. -/
+theorem formulaWordGateValues_polySpace_of_comparisonAnswers {α : Type} [Inhabited α]
+    {input : α ↪ List Bool} {word : α → List Bool} {termSign : α → List Bool → SignType}
+    (hword : ComputableInPolyTime word input encBits)
+    (hanswer : ComputableInPolySpace (fun p : α × ℕ =>
+      (formulaWordComparisonRequest (word p.1) p.2).any fun request =>
+        decide (termSign p.1 request.termWord = request.requestedSign))
+      (encPair input encNat) encBool) :
+    ComputableInPolySpace (fun a => formulaWordGateValues (word a) (termSign a)) input encBits :=
+  formulaWordGateValuesWithAnswers_polySpace hword hanswer
+
+private theorem gateValuesAux_getD (word : List Bool) (answer : ℕ → Bool)
     (size count offset : ℕ) :
-    (gateValuesAux word termSign size count).getD offset false =
-      (gateValuesAux word termSign size (count - offset)).getD 0 false := by
+    (gateValuesAux word answer size count).getD offset false =
+      (gateValuesAux word answer size (count - offset)).getD 0 false := by
   induction offset generalizing count with
   | zero => rw [Nat.sub_zero]
   | succ offset ih =>
@@ -190,13 +237,13 @@ private theorem formulaWordGateValues_getD_step (word : List Bool)
   obtain ⟨k, hk⟩ : ∃ k, (formulaWordTokens word).length - index = k + 1 :=
     ⟨(formulaWordTokens word).length - index - 1, by omega⟩
   have hindex : (formulaWordTokens word).length - (k + 1) = index := by omega
-  rw [formulaWordGateValues, gateValuesAux_getD, hk, gateValuesAux, List.getD_cons_zero, hindex]
+  rw [formulaWordGateValues, formulaWordGateValuesWithAnswers, gateValuesAux_getD, hk,
+    gateValuesAux, formulaWordGateUpdate_eq_cons, List.getD_cons_zero, hindex]
   congr 1
   funext child
   unfold formulaGateSuffixValue
   split
-  · rw [gateValuesAux_getD,
-      gateValuesAux_getD word termSign _ (formulaWordTokens word).length child]
+  · rw [gateValuesAux_getD, gateValuesAux_getD word _ _ (formulaWordTokens word).length child]
     congr 2
     omega
   · rfl
