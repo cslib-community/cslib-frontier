@@ -124,6 +124,11 @@ Alberto Apostolico, Dany Breslauer and Zvi Galil. "Parallel Detection of All Pal
 
 Bengt Aspvall, Michael F. Plass and Robert Endre Tarjan. "A Linear-Time Algorithm for Testing the Truth of Certain Quantified Boolean Formulas." *Information Processing Letters* 8(3), 121–123, 1979. https://doi.org/10.1016/0020-0190(79)90002-4 . Bibliographic metadata as in the library bibliography; the primary text has not been inspected, so no theorem or section numbers are cited. Credited for the implication-graph characterization of 2-SAT and its linear-time strongly-connected-components decision and witness-construction algorithm.
 
+<a id="attiyabarnoydolev1995"></a>
+## attiyabarnoydolev1995
+
+Hagit Attiya, Amotz Bar-Noy and Danny Dolev. "Sharing Memory Robustly in Message-Passing Systems." *Journal of the ACM* 42(1), 124–142, 1995. https://doi.org/10.1145/200836.200869 . Bibliographic metadata checked via secondary indexes on 2026-11-21 UTC; the full journal PDF was not inspected, so no numbered section or theorem locator is asserted. Cited by [ABD/Basic.lean](../CslibFrontier/Computability/Distributed/ABD/Basic.lean), [ABD/Protocol.lean](../CslibFrontier/Computability/Distributed/ABD/Protocol.lean) and [ABD/Impossibility.lean](../CslibFrontier/Computability/Distributed/ABD/Impossibility.lean) for wait-free linearizable atomic register emulation over asynchronous crash-prone message-passing networks (`n > 2t` resilience threshold and matching `2 ≤ n ≤ 2t` partition impossibility; `abdProtocol` formalizes the uniform two-phase multi-writer multi-reader variant with lexicographic `(seq, writer)` tags, recovering single-writer histories when one process writes).
+
 <a id="babai86"></a>
 ## babai86
 
