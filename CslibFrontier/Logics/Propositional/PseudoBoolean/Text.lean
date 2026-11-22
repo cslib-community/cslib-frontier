@@ -147,9 +147,11 @@ namespace Cslib.Logic.PL.VeriPB.Text
 
 /-! ### Tokens -/
 
-/-! The lexer works on the characters of a text by structural recursion, without `String.splitOn`,
-`String.toNat?` and the other `String` operations that the kernel cannot evaluate, so that
-`decide` can check concrete texts. -/
+/-! The lexer works on the characters of a text, without `String.splitOn`, `String.toNat?` and
+the other `String` operations that the kernel cannot evaluate, so that `decide` can check concrete
+texts. It is one tail-recursive pass over the characters (`lexChars`, `linesAux`), linear in the
+text; the structurally recursive specification (`splitChars`, `lexLine`) computes the same tokens
+(`tokens_eq_spec`, `lines_eq_spec`). -/
 
 /-- The pieces of a list of characters between the characters satisfying `p`. -/
 private def splitChars (p : Char → Bool) : List Char → List (List Char)
@@ -160,9 +162,6 @@ private def splitChars (p : Char → Bool) : List Char → List (List Char)
       match splitChars p cs with
       | l :: ls => (c :: l) :: ls
       | [] => [[c]]
-
-/-- The lines of a text. -/
-private def lines (s : String) : List String := (splitChars (· == '\n') s.toList).map String.ofList
 
 /-- The token in progress, its characters reversed, if any. -/
 private def flushToken (cur : List Char) : List String :=
@@ -177,10 +176,141 @@ private def lexLine : List Char → List Char → List String
     else if c == ';' then flushToken cur ++ ";" :: lexLine cs []
     else lexLine cs (c :: cur)
 
+/-- The token in progress `cur`, reversed, if any, onto the tokens `acc`, reversed. -/
+private def flushTo (cur : List Char) (acc : List String) : List String :=
+  if cur.isEmpty then acc else String.ofList cur.reverse :: acc
+
+/-- The tokens of the characters `cs`, in one pass: `cur` is the token in progress, reversed,
+`com` says that the rest of the line is a comment, and `acc` holds the tokens so far, reversed. -/
+private def lexChars : List Char → List Char → Bool → List String → List String
+  | [], cur, _, acc => (flushTo cur acc).reverse
+  | c :: cs, cur, com, acc =>
+    if c == '\n' then lexChars cs [] false (flushTo cur acc)
+    else if com then lexChars cs [] true acc
+    else if c == '%' then lexChars cs [] true (flushTo cur acc)
+    else if c.isWhitespace then lexChars cs [] false (flushTo cur acc)
+    else if c == ';' then lexChars cs [] false (";" :: flushTo cur acc)
+    else lexChars cs (c :: cur) false acc
+
 /-- The tokens of a text: whitespace-separated, with `;` a token of its own and everything after
 `%` on a line a comment. -/
-def tokens (s : String) : List String :=
-  (splitChars (· == '\n') s.toList).flatMap fun line => lexLine (line.takeWhile (· != '%')) []
+def tokens (s : String) : List String := lexChars s.toList [] false []
+
+/-- The lines of the characters `cs`, in one pass: `cur` is the line in progress, reversed, and
+`acc` holds the lines so far, reversed. -/
+private def linesAux : List Char → List Char → List String → List String
+  | [], cur, acc => (String.ofList cur.reverse :: acc).reverse
+  | c :: cs, cur, acc =>
+    if c == '\n' then linesAux cs [] (String.ofList cur.reverse :: acc)
+    else linesAux cs (c :: cur) acc
+
+/-- The lines of a text. -/
+private def lines (s : String) : List String := linesAux s.toList [] []
+
+private theorem splitChars_ne_nil (p : Char → Bool) (cs : List Char) : splitChars p cs ≠ [] := by
+  cases cs with
+  | nil => simp [splitChars]
+  | cons c cs =>
+    unfold splitChars
+    split
+    · simp
+    · split <;> simp
+
+private theorem linesAux_eq (cs cur : List Char) (acc : List String) :
+    linesAux cs cur acc = acc.reverse ++
+      ((splitChars (· == '\n') cs).modifyHead (cur.reverse ++ ·)).map String.ofList := by
+  induction cs generalizing cur acc with
+  | nil => simp [linesAux, splitChars]
+  | cons c cs ih =>
+    unfold linesAux splitChars
+    by_cases hc : c = '\n'
+    · subst hc
+      simp only [beq_self_eq_true, ↓reduceIte, ih, List.reverse_nil, List.nil_append,
+        List.reverse_cons, List.append_assoc, List.cons_append]
+      cases splitChars (· == '\n') cs <;> simp
+    · have hc' : (c == '\n') = false := by simpa using hc
+      simp only [hc', Bool.false_eq_true, ↓reduceIte, ih]
+      have := splitChars_ne_nil (· == '\n') cs
+      rcases h : splitChars (· == '\n') cs with _ | ⟨l, ls⟩
+      · exact absurd h this
+      · simp
+
+private theorem lines_eq_spec (s : String) :
+    lines s = (splitChars (· == '\n') s.toList).map String.ofList := by
+  rw [lines, linesAux_eq]
+  have := splitChars_ne_nil (· == '\n') s.toList
+  rcases h : splitChars (· == '\n') s.toList with _ | ⟨l, ls⟩
+  · exact absurd h this
+  · simp
+
+/-- The tokens of the lines of `ls`, comments removed. -/
+private def lineTokens (ls : List (List Char)) : List String :=
+  ls.flatMap fun line => lexLine (line.takeWhile (· != '%')) []
+
+private theorem reverse_flushTo (cur : List Char) (acc : List String) :
+    (flushTo cur acc).reverse = acc.reverse ++ flushToken cur := by
+  unfold flushTo flushToken
+  split <;> simp
+
+private theorem lexChars_eq (cs cur : List Char) (acc : List String) :
+    lexChars cs cur false acc = acc.reverse ++
+        (match splitChars (· == '\n') cs with
+          | [] => []
+          | l :: ls => lexLine (l.takeWhile (· != '%')) cur ++ lineTokens ls) ∧
+      lexChars cs [] true acc = acc.reverse ++
+        (match splitChars (· == '\n') cs with
+          | [] => []
+          | _ :: ls => lineTokens ls) := by
+  induction cs generalizing cur acc with
+  | nil => simp [lexChars, splitChars, lexLine, reverse_flushTo, lineTokens, flushToken]
+  | cons c cs ih =>
+    have hne := splitChars_ne_nil (· == '\n') cs
+    by_cases hn : c = '\n'
+    · subst hn
+      have h₀ : ∀ acc, lexChars cs [] false acc = acc.reverse ++ lineTokens
+          (splitChars (· == '\n') cs) := fun acc => by
+        rw [(ih [] acc).1]
+        rcases h : splitChars (· == '\n') cs with _ | ⟨l, ls⟩
+        · exact absurd h hne
+        · simp [lineTokens]
+      refine ⟨?_, ?_⟩
+      · simp only [lexChars, splitChars, beq_self_eq_true, ↓reduceIte, h₀, reverse_flushTo,
+          List.takeWhile_nil, lexLine]
+        simp [lineTokens, List.append_assoc]
+      · have := h₀ acc
+        simp only [lexChars, splitChars, beq_self_eq_true, ↓reduceIte, flushTo, List.isEmpty_nil]
+        simpa [lineTokens] using this
+    · have hn' : (c == '\n') = false := by simpa using hn
+      rcases h : splitChars (· == '\n') cs with _ | ⟨l, ls⟩
+      · exact absurd h hne
+      have hsplit : splitChars (· == '\n') (c :: cs) = (c :: l) :: ls := by
+        simp [splitChars, hn', h]
+      rw [hsplit]
+      refine ⟨?_, ?_⟩
+      · simp only [lexChars, hn', Bool.false_eq_true, ↓reduceIte]
+        by_cases hp : c = '%'
+        · subst hp
+          simp [(ih [] _).2, h, reverse_flushTo, lexLine]
+        · have hp' : (c == '%') = false := by simpa using hp
+          have htw : (c :: l).takeWhile (· != '%') = c :: l.takeWhile (· != '%') := by
+            simp [hp]
+          simp only [hp', Bool.false_eq_true, ↓reduceIte, htw, lexLine]
+          by_cases hw : c.isWhitespace
+          · simp [hw, (ih [] _).1, h, reverse_flushTo]
+          · by_cases hs : c = ';'
+            · subst hs
+              simp [hw, (ih [] _).1, h, reverse_flushTo]
+            · have hs' : (c == ';') = false := by simpa using hs
+              simp [hw, hs', (ih _ _).1, h]
+      · simp only [lexChars, hn', Bool.false_eq_true, ↓reduceIte, (ih [] acc).2, h]
+
+private theorem tokens_eq_spec (s : String) :
+    tokens s = lineTokens (splitChars (· == '\n') s.toList) := by
+  rw [tokens, (lexChars_eq _ [] []).1]
+  have := splitChars_ne_nil (· == '\n') s.toList
+  rcases h : splitChars (· == '\n') s.toList with _ | ⟨l, ls⟩
+  · exact absurd h this
+  · simp [lineTokens]
 
 /-- The value of decimal digits after the value `n` of those before them. -/
 private def digits : List Char → ℕ → Option ℕ
