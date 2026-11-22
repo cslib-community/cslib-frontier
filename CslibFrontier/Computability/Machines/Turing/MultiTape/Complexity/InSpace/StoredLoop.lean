@@ -28,8 +28,9 @@ first component: the encoded pair is the framed registers followed by the contex
 
 The main result runs such a function with the context on the input tape and the registers in the
 state of a query machine, repeatedly: `Turing.MultiTapeTM.ComputableInSpace.loopWith` is a loop
-whose body `step : ρ × α → Option ρ` is any function certified in context form, with no
-restriction on how it reads the input. The loop machine simulates the machine of the body, in the
+whose body `step : ρ × α → Option ρ` is any certified function of the pair, in context form or
+within any other budget, with no restriction on how it reads the input. The loop machine
+simulates the machine of the body, in the
 representation of `Turing.VirtualWord.Native.machine`, on a virtual input: a read inside the
 framed registers is served from the state, and a read past them is a read of the real input,
 shifted. The output of the body is collected in the state and becomes the registers of the next
@@ -39,8 +40,9 @@ number of rounds; the constant does not depend on it either. Composition by reco
 a constant for every nested stage.
 
 The trajectory of the registers is a hypothesis: the caller names the registers `r a j` of every
-round, shows that the body maps each to the next and stops at the last, and bounds their encoded
-length. Nothing is inferred about the loop.
+round, shows that the body maps each to the next and stops at the last, and bounds the budget of
+the body on them. Nothing is inferred about the loop, and the budget of the body is not used on
+registers that the loop does not hold.
 
 ## Main results
 
@@ -361,48 +363,61 @@ theorem _root_.Turing.MultiTapeTM.ComputableInLogSpace.inSpace_context {α ρ β
 
 /-- **A loop whose body is any function of stored registers and the input.** The body
 `step : ρ × α → Option ρ` takes the registers and the input, and returns the next registers or
-`none` to stop. Let it be computable within the space of the registers plus `S` on the input,
-where the registers are charged and the input is not, and let the registers of the loop from
-`init a` be `r a 0, …, r a (n a)`, the body stopping at the last, with encodings of length at most
-`B a`. Then the final registers are computable within space `O(S + B + log n)` on inputs of
-length `n`: the body is simulated on the virtual input `encPair encR encA (r, a)`, whose framed
-first component is stored and whose second component is the input itself. -/
+`none` to stop. Let it be computable within any budget `T` of the registers and the input, where
+the registers are charged and the input is not, and let the registers of the loop from `init a` be
+`r a 0, …, r a (n a)`, the body stopping at the last, with `T (r a j, a) ≤ B a` in every round.
+Then the final registers are computable within space `O(S + B + log n)` on inputs of length `n`:
+the body is simulated on the virtual input `encPair encR encA (r, a)`, whose framed first
+component is stored and whose second component is the input itself. The budget of the body is
+only used on the registers of the run, so it may grow with registers that the loop never holds;
+the registers themselves are short because the value of the body is charged to its budget. -/
 theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {encA : α ↪ List Bool}
     {encR : ρ ↪ List Bool} {step : ρ × α → Option ρ} {init : α → ρ} {S B : α → ℕ}
-    (r : α → ℕ → ρ) (n : α → ℕ)
+    {T : ρ × α → ℕ} (r : α → ℕ → ρ) (n : α → ℕ)
     (hinit : ComputableInSpace init encA encR S)
-    (hstep : ComputableInSpace step (encPair encR encA) (encOption encR)
-      fun p => (encR p.1).length + S p.2)
+    (hstep : ComputableInSpace step (encPair encR encA) (encOption encR) T)
     (h0 : ∀ a, r a 0 = init a)
     (hsucc : ∀ a, ∀ j < n a, step (r a j, a) = some (r a (j + 1)))
     (hstop : ∀ a, step (r a (n a), a) = none)
-    (hsize : ∀ a, ∀ j ≤ n a, (encR (r a j)).length ≤ B a) :
+    (hT : ∀ a, ∀ j ≤ n a, T (r a j, a) ≤ B a) :
     ComputableInSpace (fun a => r a (n a)) encA encR
       fun a => S a + B a + Nat.log2 (encA a).length := by
   classical
+  obtain ⟨c₀, hc₀⟩ := hinit.length_le
   obtain ⟨time, c, ⟨k, Q, _, tm, htm⟩, hout⟩ := hstep
   let : Fintype Q := Fintype.ofFinite Q
   let eS : Q ↪ ℕ := (Fintype.equivFin Q).toEmbedding.trans Fin.valEmbedding
+  -- the registers of a round are the start value or a value of the body, which is charged
+  have hsize (a : α) (j : ℕ) (hj : j ≤ n a) :
+      (encR (r a j)).length ≤ c₀ * (S a + 1) + c * (B a + 1) := by
+    rcases j with _ | j
+    · rw [h0]
+      exact (hc₀ a).trans (Nat.le_add_right _ _)
+    · have h := hout (r a j, a)
+      rw [hsucc a j (by omega), encOption_some, List.length_cons] at h
+      have : c * (T (r a j, a) + 1) ≤ c * (B a + 1) :=
+        Nat.mul_le_mul_left c (Nat.succ_le_succ (hT a j (by omega)))
+      omega
   -- the first halt of the body in each round, on its virtual input
-  have hT : ∀ a j, ∃ T, tm.HaltsAt (tm.initCfg (vinput (encR (r a j)) (encA a))) T := fun a j =>
-    let ⟨T, _, h⟩ := exists_haltsAt_of_runsInTime (htm (r a j, a)).2.1
-    ⟨T, h⟩
-  choose T hT using hT
-  have hrun (a : α) (j t : ℕ) (ht : t < T a j) :
+  have hτ : ∀ a j, ∃ τ, tm.HaltsAt (tm.initCfg (vinput (encR (r a j)) (encA a))) τ := fun a j =>
+    let ⟨τ, _, h⟩ := exists_haltsAt_of_runsInTime (htm (r a j, a)).2.1
+    ⟨τ, h⟩
+  choose τ hτ using hτ
+  have hrun (a : α) (j t : ℕ) (ht : t < τ a j) :
       ((VirtualWord.Native.machine (desc eS eBit tm)).run (vinput (encR (r a j)) (encA a))
         t).state.isNone = false :=
     (VirtualWord.Native.halted_native eS tm _ t).trans
-      (Bool.eq_false_iff.mpr (Option.isNone_iff_eq_none.not.mpr ((hT a j).not_halted ht)))
+      (Bool.eq_false_iff.mpr (Option.isNone_iff_eq_none.not.mpr ((hτ a j).not_halted ht)))
   have hhalt (a : α) (j : ℕ) :
       ((VirtualWord.Native.machine (desc eS eBit tm)).run (vinput (encR (r a j)) (encA a))
-        (T a j)).state.isNone = true :=
-    (VirtualWord.Native.halted_native eS tm _ (T a j)).trans
-      (Option.isNone_iff_eq_none.mpr (hT a j).halted)
+        (τ a j)).state.isNone = true :=
+    (VirtualWord.Native.halted_native eS tm _ (τ a j)).trans
+      (Option.isNone_iff_eq_none.mpr (hτ a j).halted)
   have hfinal (a : α) (j : ℕ) :
       (VirtualWord.Native.machine (desc eS eBit tm)).output (vinput (encR (r a j)) (encA a))
-        (T a j) = encOption encR (step (r a j, a)) := by
+        (τ a j) = encOption encR (step (r a j, a)) := by
     rw [VirtualWord.Native.output_native]
-    exact output_haltsAt (htm (r a j, a)).1 (hT a j)
+    exact output_haltsAt (htm (r a j, a)).1 (hτ a j)
   obtain ⟨C, hC⟩ := VirtualWord.Native.budget_le eS tm
   -- the start state
   have hreg : ComputableInSpace (fun a => encR (init a)) encA encBits fun a => S a + B a :=
@@ -415,34 +430,34 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {enc
     (hconst encBits [])
     (hconst eCfg (Universal.init (desc eS eBit tm))) (hconst encBool false)
   have hloop := ComputableInSpace.queryLoop_of_invariant
-    (f := fun a => stopped (desc eS eBit tm) (encA a) (n a) (fun j => encR (r a j)) (T a))
-    (fun a m s => Inv (desc eS eBit tm) (encA a) (n a) (fun j => encR (r a j)) (T a) m s)
+    (f := fun a => stopped (desc eS eBit tm) (encA a) (n a) (fun j => encR (r a j)) (τ a))
+    (fun a m s => Inv (desc eS eBit tm) (encA a) (n a) (fun j => encR (r a j)) (τ a) m s)
     hstart query_inSpace (next_inSpace _) stop_inSpace
     (fun a => by
-      have h := inv_start (desc eS eBit tm) (encA a) (n a) (fun j => encR (r a j)) (T a)
+      have h := inv_start (desc eS eBit tm) (encA a) (n a) (fun j => encR (r a j)) (τ a)
       rwa [h0 a] at h)
     (fun a m s h hs => inv_round (fun j _ t ht => hrun a j t ht) (fun j _ => hhalt a j)
       (fun j hj => by rw [hfinal, hsucc a j hj, encOption_some])
       (by rw [hfinal, hstop a, encOption_none]) h hs)
     (fun a m s h hs => eq_stopped_of_inv h hs)
-    ⟨13 + 2 * c + 2 * (C * (c + 3)), fun a m s h => ?_⟩
+    ⟨7 + 6 * (c₀ + c) + 2 * c + 2 * (C * (c + 2 * (c₀ + c) + 3)), fun a m s h => ?_⟩
   · exact (encState_reg_budget hloop).of_enc_eq fun _ => rfl
   · obtain ⟨j, hj, t, hsreg, hspre, hsacc, hscfg⟩ := exists_of_inv h
-    have hB := hsize a j hj
-    have hlenR : s.reg.length ≤ B a := by rw [hsreg]; exact hB
+    have hR := hsize a j hj
+    have hTj : c * (T (r a j, a) + 1) ≤ c * (B a + 1) :=
+      Nat.mul_le_mul_left c (Nat.succ_le_succ (hT a j hj))
+    have hlenR : s.reg.length = (encR (r a j)).length := by rw [hsreg]
     have hlenP : s.pre.length = 2 * (encR (r a j)).length + 1 := by rw [hspre, length_frame]
-    have hlenA : s.acc.length ≤ c * ((encR (r a j)).length + S a + 1) :=
+    have hlenA : s.acc.length ≤ c * (T (r a j, a) + 1) :=
       hsacc.trans ((congrArg List.length (hfinal a j)).le.trans (hout (r a j, a)))
     have hcfg := VirtualWord.Native.length_native_run_le_of_space eS tm
-      (vinput (encR (r a j)) (encA a)) t (c * ((encR (r a j)).length + S a + 1))
-      (htm (r a j, a)).2.2
-    have hbud := hC (vinput (encR (r a j)) (encA a)).length
-      (c * ((encR (r a j)).length + S a + 1))
+      (vinput (encR (r a j)) (encA a)) t (c * (T (r a j, a) + 1)) (htm (r a j, a)).2.2
+    have hbud := hC (vinput (encR (r a j)) (encA a)).length (c * (T (r a j, a) + 1))
     have hlog := log2_add_le (2 * (encR (r a j)).length + 1) (encA a).length
     rw [List.length_append, length_frame] at hbud hcfg
     rw [← hscfg] at hcfg
-    change (encState s).length ≤
-      (13 + 2 * c + 2 * (C * (c + 3))) * (S a + B a + Nat.log2 (encA a).length + 1)
+    change (encState s).length ≤ (7 + 6 * (c₀ + c) + 2 * c + 2 * (C * (c + 2 * (c₀ + c) + 3))) *
+      (S a + B a + Nat.log2 (encA a).length + 1)
     simp only [encState_apply, encStateFields, length_encPair, encBits_apply, encBool_apply,
       List.length_singleton]
     generalize (encR (r a j)).length = R at *
@@ -450,13 +465,16 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {enc
     generalize Nat.log2 (2 * R + 1 + (encA a).length) = ℓ' at *
     generalize (eCfg s.cfg).length = E at *
     generalize VirtualWord.Native.budget eS tm (2 * R + 1 + (encA a).length)
-      (c * (R + S a + 1)) = G at *
+      (c * (T (r a j, a) + 1)) = G at *
+    generalize c * (T (r a j, a) + 1) = A at *
     generalize hL : S a + B a + ℓ + 1 = L
-    have h₁ : c * (R + S a + 1) ≤ c * L := Nat.mul_le_mul_left c (by omega)
-    have h₂ : E ≤ C * (c * L + 3 * L) :=
+    have h₀ : c₀ * (S a + 1) ≤ c₀ * L := Nat.mul_le_mul_left c₀ (by omega)
+    have h₁ : c * (B a + 1) ≤ c * L := Nat.mul_le_mul_left c (by omega)
+    have h₂ : E ≤ C * (c * L + 2 * (c₀ * L + c * L) + 3 * L) :=
       (hcfg.trans hbud).trans (Nat.mul_le_mul_left C (by omega))
-    have h₃ : (13 + 2 * c + 2 * (C * (c + 3))) * L =
-        13 * L + 2 * (c * L) + 2 * (C * (c * L + 3 * L)) := by ring
+    have h₃ : (7 + 6 * (c₀ + c) + 2 * c + 2 * (C * (c + 2 * (c₀ + c) + 3))) * L =
+        7 * L + 6 * (c₀ * L + c * L) + 2 * (c * L) +
+          2 * (C * (c * L + 2 * (c₀ * L + c * L) + 3 * L)) := by ring
     rw [h₃]
     omega
 

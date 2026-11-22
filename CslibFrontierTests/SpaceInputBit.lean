@@ -72,7 +72,7 @@ theorem count_inSpace : ComputableInSpace (fun w : List Bool => w.count true) en
     fun w => Nat.log2 w.length := by
   have hloop := ComputableInSpace.loopWith (encA := encBits) (encR := encReg) (step := step)
     (init := fun _ => (0, 0)) (S := fun w => Nat.log2 (encBits w).length)
-    (B := fun w => 3 * Nat.log2 w.length + 4)
+    (B := fun w => 4 * Nat.log2 w.length + 4)
     (fun w j => (j, (w.take j).count true)) (fun w => w.length)
     ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _) step_inSpace
     (fun _ => rfl)
@@ -84,9 +84,9 @@ theorem count_inSpace : ComputableInSpace (fun w : List Bool => w.count true) en
       have h₁ := length_encNat_le_log2 hj
       have h₂ := length_encNat_le_log2 (((List.take_sublist j w).count_le true).trans
         List.count_le_length)
-      simp only [length_encPair]
+      simp only [budget, length_encPair, encBits_apply]
       omega)
   exact (hloop.snd'.of_enc_eq fun w => by simp).weaken
-    ⟨5, fun w => by simp only [encBits_apply]; omega⟩
+    ⟨6, fun w => by simp only [encBits_apply]; omega⟩
 
 end SpaceInputBitTest
