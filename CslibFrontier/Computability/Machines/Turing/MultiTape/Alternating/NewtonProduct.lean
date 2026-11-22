@@ -8,8 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct.Native
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct.Input
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.NewtonProductRequest
+import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueInverse
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
 
 /-!
 # The native product branch of Newton inversion
@@ -20,8 +22,10 @@ passes that request to the supplied recursive machine. The signed product compil
 seven arithmetic ports. The predecessor stage is strictly smaller, and the recursive time is
 added once. The opaque enclosing context remains outside every polynomial arithmetic budget.
 
-`exists_evaluator` starts on the prepared product layout and implements just the product branch;
-the residue and correction branches and the common recursive controller remain part of #4728.
+`exists_evaluator` starts with one encoded request on a work tape and constructs every internal
+product field. Its clock is linear in the enclosing payload and polynomial in the binary stage
+and product metadata, plus one recursive call. The residue and correction branches and the
+common recursive controller remain part of #4728.
 -/
 
 public section
@@ -84,34 +88,64 @@ private theorem exists_router {N : ℕ} {S : Type} [Finite S] (src : Fin N)
   · intro ha
     exact (hs.2.mpr ha).mono hclock
 
-/-- The actual finite product branch for Newton's shared iterates. The recursive child receives
-the selected predecessor stage and coefficient-bit claim on its designated work tape. It is
-required only at the two smaller predecessor stages. All routing and copying is charged, and
-the supplied recursive clock occurs once in the final bound. -/
+private theorem clock_bound (A D Cr dr : ℕ) :
+    ∃ C E, ∀ (payload : List Bool) (stage : ℕ) (a : ReducedProductRequest.Metadata),
+      A * ((encContext ⟨payload, stage⟩).length +
+        ((ReducedProductRequest.encMetadata a).length + 1) ^ D + 1) +
+        Cr * (payload.length +
+          (stage.size + (2 * 3 ^ modulusExp a.scale).size + a.precision.size + 1) ^ dr + 1) ≤
+      C * (payload.length +
+        (stage.size + (ReducedProductRequest.encMetadata a).length + 1) ^ E + 1) := by
+  let size (v : ℕ × ReducedProductRequest.Metadata) :=
+    v.1.size + (ReducedProductRequest.encMetadata v.2).length + 1
+  have hmeta : PolyBounded size
+      (fun v : ℕ × ReducedProductRequest.Metadata =>
+        (ReducedProductRequest.encMetadata v.2).length) :=
+    PolyBounded.self.mono (fun _ => by dsimp [size]; omega)
+  have hstage : PolyBounded size (fun v : ℕ × ReducedProductRequest.Metadata => v.1.size) :=
+    PolyBounded.self.mono (fun _ => by dsimp [size]; omega)
+  have hh := (ResidueInverse.half_polyTime.comp
+    ReducedProductRequest.encMetadata_scale_deg.computableInPolyTime).polyBounded_length.comp hmeta
+  have hhalf : PolyBounded size
+      (fun v : ℕ × ReducedProductRequest.Metadata => 3 ^ modulusExp v.2.scale) := by
+    simpa only [encUnary_apply, List.length_replicate, Function.comp_apply] using hh
+  have hp : PolyBounded size
+      (fun v : ℕ × ReducedProductRequest.Metadata => v.2.precision.size) := by
+    simpa only [encNat_apply, Nat.size_eq_bits_len] using
+      ReducedProductRequest.encMetadata_precision_deg.computableInPolyTime.polyBounded_length.comp
+        hmeta
+  have hroute := (((hstage.add ((PolyBounded.const 2).mul hhalf |>.mono
+    (fun _ => Nat.size_le_self _))).add hp).add (.const 1)).pow dr
+  let extra (v : ℕ × ReducedProductRequest.Metadata) :=
+    A * (v.1.size + ((ReducedProductRequest.encMetadata v.2).length + 1) ^ D + 2) +
+      Cr * ((v.1.size + (2 * 3 ^ modulusExp v.2.scale).size + v.2.precision.size + 1) ^ dr + 1)
+  have he : PolyBounded size extra :=
+    ((PolyBounded.const A).mul
+      ((hstage.add ((hmeta.add (.const 1)).pow D)).add (.const 2))).add
+        ((PolyBounded.const Cr).mul (hroute.add (.const 1)))
+  have he' := he.comp (g := fun v : List Bool × ℕ × ReducedProductRequest.Metadata => v.2)
+    PolyBounded.self
+  obtain ⟨C, E, hbound⟩ := he'.exists_le_linear_add_pow
+    (fun v => v.1.length) (2 * A + Cr) (fun _ => by dsimp [size]; omega)
+  refine ⟨C, E, fun payload stage a => ?_⟩
+  have h := hbound (payload, stage, a)
+  simp only [encContext_apply, encContextFields, length_encPair, encBits_apply,
+    encNat_apply, Nat.size_eq_bits_len]
+  dsimp only [size, extra] at h
+  nlinarith
+
+/-- The actual finite product branch for Newton's shared iterates, from one encoded request.
+The compiler derives the physical product layout itself. The recursive child receives only the
+selected smaller predecessor and coefficient-bit claim. All routing and copying is charged;
+the payload remains outside the polynomial and the recursive clock is added once. -/
 theorem exists_evaluator {N : ℕ} {S : Type} [Finite S] (src : Fin N)
     (child : MultiTapeATM N Bool S) :
-    ∃ (k r z : ℕ) (Q : Type) (_ : Finite Q)
-      (atm : MultiTapeATM (CarryLookaheadCountingLayout.size k r z) Bool Q)
-      (c e Cc dc Cr dr : ℕ) (Co dO : Bool → ℕ),
+    ∃ (K : ℕ) (source : Fin K) (Q : Type) (_ : Finite Q)
+      (atm : MultiTapeATM K Bool Q) (C D : ℕ),
       ∀ (input payload : List Bool) (m p t : ℕ) (x : List ℕ) (node : NewtonQuery.Node)
         (_ : NewtonQuery.operation node = 2) (i : Fin (modulus m).length),
-        let q := 3 ^ modulusExp m
-        let L := Nat.clog 2 (2 * q) + Nat.clog 2 p + 2
-        let n := 2 ^ L
-        let count := encNat n
-        let width := encNat p
-        let B := CarrySaveCountingRoot.sizeBudget n p
-        let payload' := encContext ⟨payload, NewtonQuery.address node⟩
-        let ctx : SignedOperandRequest.Context := ⟨payload', q, i.val⟩
-        let size := q.size + i.val.size + count.length + width.length + B + 1
-        let routeSize := (NewtonQuery.address node).size + (2 * q).size + p.size + 1
-        let leafTime :=
-          Cc * ((SignedOperandRequest.encContext ctx).length + count.length + width.length +
-            (B + 2) ^ dc + 1) +
-          Co false * (payload'.length + size ^ dO false + 1) +
-          Co true * (payload'.length + size ^ dO true + 1) +
-          (Cr * (payload.length + routeSize ^ dr + 1) + t)
-        (∀ (right : Bool) (coefficient : Fin (2 * q)) (bit : Fin p) (claim : Bool),
+        (∀ (right : Bool) (coefficient : Fin (2 * 3 ^ modulusExp m))
+          (bit : Fin p) (claim : Bool),
           let req : Query := ⟨payload, NewtonQuery.address (NewtonQuery.child node right),
             coefficient.val, bit.val, claim⟩
           let target := SharedWordFork.start src child input (encQuery req) 0
@@ -119,21 +153,24 @@ theorem exists_evaluator {N : ℕ} {S : Type} [Finite S] (src : Fin N)
             ((representative m p (NewtonQuery.value m p x (NewtonQuery.child node right))).coeff
               coefficient.val).val.testBit bit.val = claim)) →
         ∀ (bit : Fin p) (claim : Bool),
-          let cfg := (CarryLookaheadCounting.initial k r z input
-            (SignedOperandRequest.encContext ctx) n p bit.val claim).withState
-              (some atm.toPTM.initial)
-          let clock := CarryLookaheadCounting.clockOfRoot c e p
-            (40 * L + 2 * L.size + 2 * p.size + (leafTime + 10) + 1)
-          atm.HaltsWithin clock cfg ∧ (atm.AcceptsWithin clock cfg ↔
+          let a : ReducedProductRequest.Input :=
+            ⟨encContext ⟨payload, NewtonQuery.address node⟩, ⟨m, p, i.val, bit.val, claim⟩⟩
+          let start := SharedWordFork.start source atm input (ReducedProductRequest.encInput a) 0
+          let time := C * (payload.length + ((NewtonQuery.address node).size +
+            (ReducedProductRequest.encMetadata a.metadata).length + 1) ^ D + 1) + t
+          atm.HaltsWithin time start ∧ (atm.AcceptsWithin time start ↔
             ((representative m p (NewtonQuery.value m p x node)).coeff i.val).val.testBit bit.val =
               claim) := by
   obtain ⟨u, R, hR, router, Cr, dr, hr⟩ := exists_router src child
   let := hR
-  obtain ⟨k, r, z, Q, hQ, atm, c, e, Cc, dc, Co, dO, h⟩ :=
-    ReducedProduct.Native.exists_evaluator (Fin.natAdd u 0) router
-  refine ⟨k, r, z, Q, hQ, atm, c, e, Cc, dc, Cr, dr, Co, dO, ?_⟩
-  intro input payload m p t x node hnode i q L n count width B payload' ctx size routeSize
-    leafTime hchild bit claim
+  obtain ⟨K, source, Q, hQ, atm, A, D, h⟩ :=
+    ReducedProduct.Input.exists_evaluator (Fin.natAdd u 0) router
+  obtain ⟨C, E, hclock⟩ := clock_bound A D Cr dr
+  refine ⟨K, source, Q, hQ, atm, C, E, ?_⟩
+  intro input payload m p t x node hnode i hchild bit claim a start time
+  let q := 3 ^ modulusExp m
+  let payload' := encContext ⟨payload, NewtonQuery.address node⟩
+  let routeSize := (NewtonQuery.address node).size + (2 * q).size + p.size + 1
   let routeTime := Cr * (payload.length + routeSize ^ dr + 1) + t
   have hc (req : SignedOperandRequest.Request) (hpayload : req.payload = payload')
       (hcoeff : req.coefficient < 2 * q) (hbit : req.bit < p) :
@@ -185,6 +222,13 @@ theorem exists_evaluator {N : ℕ} {S : Type} [Finite S] (src : Fin N)
   have hs := h input payload' m p routeTime
     (NewtonQuery.value m p x (NewtonQuery.child node false))
     (NewtonQuery.value m p x (NewtonQuery.child node true)) i hc bit claim
-  exact ⟨hs.1, hs.2.trans (by rw [← value_product m p x node hnode])⟩
+  have hb := Nat.add_le_add_right (hclock payload (NewtonQuery.address node) a.metadata) t
+  have htime : A * (payload'.length +
+      ((ReducedProductRequest.encMetadata a.metadata).length + 1) ^ D + 1) + routeTime ≤ time := by
+    dsimp only [routeTime, routeSize, q, time, a, payload'] at ⊢ hb
+    omega
+  have ha := hs.2.trans (by rw [← value_product m p x node hnode])
+  exact ⟨hs.1.mono htime, ⟨fun h => ha.mp (h.of_halted_stepCoins hs.1),
+    fun h => (ha.mpr h).mono htime⟩⟩
 
 end Turing.MultiTapeATM.NewtonProduct

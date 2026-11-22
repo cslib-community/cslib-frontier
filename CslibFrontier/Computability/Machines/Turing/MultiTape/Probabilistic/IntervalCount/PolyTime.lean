@@ -8,12 +8,14 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pi
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Tape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Words
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalSimulation.InputWindow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
@@ -49,6 +51,9 @@ their stored cells (`Turing.MultiTapeTM.encBiTape`), and the head positions in b
 * **The interval condition** compares the state, the output track, the head coordinates and the
   window cells after the replay, all from the encoded storage.
 * **The interval count** counts the coin strings of `Cslib.BitString.enumList b` satisfying it.
+* **A prepared input window** keeps at most `2 * b + 1` source symbols, a binary source origin
+  and a unary relative head position. Its witness check adds the origin only when comparing the
+  final input coordinate, so it does not expand an absolute input position into unary.
 
 ## Main definitions
 
@@ -56,6 +61,8 @@ their stored cells (`Turing.MultiTapeTM.encBiTape`), and the head positions in b
 * `Turing.MultiTapePTM.IntervalData`, `Turing.MultiTapePTM.encIntervalData`,
   `Turing.MultiTapePTM.encControlData`, `Turing.MultiTapePTM.IntervalData.count`: the arguments of
   an interval count, their encoding, and their count.
+* `Turing.MultiTapePTM.IntervalData.InputWindow`, `Turing.MultiTapePTM.encInputWindow`: a source
+  substring together with the original interval metadata, binary origin and relative position.
 
 ## Main results
 
@@ -66,6 +73,10 @@ their stored cells (`Turing.MultiTapeTM.encBiTape`), and the head positions in b
   `Turing.MultiTapePTM.ControlData.computableInPolyTime_mk`: assembling the arguments.
 * `Turing.MultiTapePTM.computableInPolyTime_localIntervalCount`: interval counts are
   polynomial-time when the `2 ^ b` coin strings are polynomially many in the input.
+* `Turing.MultiTapePTM.IntervalData.InputWindow.test_prepare`: the prepared substring checks
+  exactly the original interval witness for every coin string of length at most the block width.
+* `Turing.MultiTapePTM.IntervalData.InputWindow.computableInPolyTime_test`: the localized witness
+  check is polynomial-time in the prepared record and coins.
 -/
 
 public section
@@ -500,7 +511,7 @@ private theorem localCfg_windowCellsAt {b : α → ℕ} {j : α → ℤ} {l : α
     (biTape_read ((pi_apply _ h).comp (localCfg_workTapes.comp (hl.comp hfst))) hoff)
 
 /-- The stored input position of a coordinate. -/
-private theorem val_inputPosOfCoord (x : List Bool) (p : ℤ) :
+theorem val_inputPosOfCoord (x : List Bool) (p : ℤ) :
     (inputPosOfCoord x p).val = if !decide (p + 1 < 0) && decide (p + 1 - (x.length + 2) < 0)
       then min (x.length + 1) (p + 1).toNat else 0 := by
   unfold inputPosOfCoord
@@ -596,6 +607,33 @@ theorem encIntervalData_apply (d : IntervalData k State) : encIntervalData d =
         (encPair (encPi (encList (encOption encBool))) (encPair encControlData
           (encPi (encList (encOption encBool))))))))) (IntervalData.equivProd d) := by rfl
 
+/-- An interval with its source substring and the origin needed to recover absolute input
+coordinates. The stored position is relative to that substring; the other interval fields retain
+the original work-tape and endpoint data. -/
+structure IntervalData.InputWindow (k : ℕ) (State : Type) where
+  /-- The original interval fields, with the source input replaced by its short substring. -/
+  interval : IntervalData k State
+  /-- Number of source symbols omitted before the substring. -/
+  origin : ℕ
+  /-- Initial input-head position relative to the substring, including its blank end cells. -/
+  position : ℕ
+
+noncomputable section
+
+/-- The interval and binary origin are framed; the relative position is unary and last. -/
+enc_structure encInputWindow : IntervalData.InputWindow k State where
+  interval : (encIntervalData (k := k) (State := State)), origin : encNat, position : encUnary
+
+end
+
+/-- Extract one input substring for every coin string of an interval. An invalid initial
+coordinate uses the existing `inputPosOfCoord` fallback to the source's left end cell. -/
+@[expose] def IntervalData.InputWindow.prepare (d : IntervalData k State) : InputWindow k State :=
+  let (_, offsets, _) := d.cIn
+  let p := (inputPosOfCoord d.input (d.b * d.J none + offsets none)).val
+  let a := p - (d.b + 1)
+  ⟨{ d with input := (d.input.drop a).take (2 * d.b + 1) }, a, p - a⟩
+
 /-- The interval count of its arguments. -/
 @[expose] def IntervalData.count [DecidableEq State] (machine : MultiTapePTM k Bool State)
     (d : IntervalData k State) : ℕ :=
@@ -672,13 +710,15 @@ private theorem localStartData' {d : α → IntervalData k State}
     (pi fun h => biTape_ofCells ((pi_apply _ h).comp hw) (unary_add' hb (hoff (some h))))
     (pi fun h => hcoord (some h)) hc.snd'.snd'
 
-/-- The interval condition after the replay, as a Boolean test of the arguments and the
-storage. -/
-private def stepTest (d : IntervalData k State) (l : LocalCfg k State) [DecidableEq State] :
-    Bool :=
-  decide (l.state = d.cOut.1) && decide (l.track = d.cOut.2.2) &&
-    (none :: (List.finRange k).map some).all (fun head => decide (d.cOut.2.1 head < d.b) &&
-      decide (l.headCoord head = d.b * (d.J head + d.δ head) + d.cOut.2.1 head)) &&
+/-- The interval condition after the replay. Only the input head uses the binary source origin;
+the other coordinates remain absolute throughout the replay. -/
+private def stepTest (d : IntervalData k State) (l : LocalCfg k State) (origin : ℕ)
+    [DecidableEq State] : Bool :=
+  let (outState, outOffsets, outTrack) := d.cOut
+  decide (l.state = outState) && decide (l.track = outTrack) &&
+    (none :: (List.finRange k).map some).all (fun head => decide (outOffsets head < d.b) &&
+      decide (l.headCoord head + (if head.isNone then (origin : ℤ) else 0) =
+        d.b * (d.J head + d.δ head) + outOffsets head)) &&
     (List.finRange k).all fun h => decide (l.windowCellsAt d.b (d.J (some h)) h = d.wOut h)
 
 omit [Finite State] in
@@ -686,7 +726,7 @@ private theorem stepTest_eq [DecidableEq State] (machine : MultiTapePTM k Bool S
     (d : IntervalData k State) (coins : List Bool) :
     decide (machine.LocalIntervalStepData d.b d.input d.J d.δ d.cIn d.wIn d.cOut d.wOut coins) =
       stepTest d (machine.localRun d.input coins
-        (localStartData d.b d.input d.J d.cIn d.wIn)) := by
+        (localStartData d.b d.input d.J d.cIn d.wIn)) 0 := by
   have hall : ∀ P : Option (Fin k) → Prop, (∀ head, P head) ↔
       ∀ head ∈ none :: (List.finRange k).map some, P head := by
     intro P
@@ -697,45 +737,102 @@ private theorem stepTest_eq [DecidableEq State] (machine : MultiTapePTM k Bool S
       | none => exact h none (by simp)
       | some i => exact h (some i) (by simp)
   rw [Bool.eq_iff_iff]
-  simp only [stepTest, LocalIntervalStepData, decide_eq_true_eq, Bool.and_eq_true,
-    List.all_eq_true, List.mem_finRange, true_implies, ← hall]
+  simp only [stepTest, LocalIntervalStepData, Nat.cast_zero, ite_self, add_zero,
+    decide_eq_true_eq, Bool.and_eq_true, List.all_eq_true, List.mem_finRange, true_implies, ← hall]
   tauto
 
-/-- **The interval condition after the replay is polynomial-time.** -/
-private theorem computableInPolyTime_stepTest [DecidableEq State] :
-    ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => stepTest p.1 p.2)
-      (encPair encIntervalData encLocalCfg) encBool := by
-  have hd := fst (encIntervalData (k := k) (State := State)) (encLocalCfg (k := k) (State := State))
-  have hl := snd (encIntervalData (k := k) (State := State)) (encLocalCfg (k := k) (State := State))
+/-- Checking a computed replay uses binary arithmetic on its source origin; it never expands
+the origin to a unary absolute input position. -/
+private theorem computableInPolyTime_stepTest [DecidableEq State]
+    {d : α → IntervalData k State} {l : α → LocalCfg k State} {origin : α → ℕ}
+    (hd : ComputableInPolyTime d input encIntervalData)
+    (hl : ComputableInPolyTime l input encLocalCfg)
+    (ho : ComputableInPolyTime origin input encNat) :
+    ComputableInPolyTime (fun a => stepTest (d a) (l a) (origin a)) input encBool := by
   have hp := intervalData_parts.comp hd
-  have hb : ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.b)
-      (encPair encIntervalData encLocalCfg) encUnary := hp.snd'.fst'
-  have hJ : ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.J)
-      (encPair encIntervalData encLocalCfg) (encPi encIntBin) := hp.snd'.snd'.fst'
-  have hδ : ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.δ)
-      (encPair encIntervalData encLocalCfg) (encFinite _) := hp.snd'.snd'.snd'.fst'
+  have hb : ComputableInPolyTime (fun a => (d a).b) input encUnary := hp.snd'.fst'
+  have hJ : ComputableInPolyTime (fun a => (d a).J) input (encPi encIntBin) := hp.snd'.snd'.fst'
+  have hδ : ComputableInPolyTime (fun a => (d a).δ) input (encFinite _) := hp.snd'.snd'.snd'.fst'
   have hc := controlData_parts.comp (hp.snd'.snd'.snd'.snd'.snd'.snd'.fst' :
-    ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.cOut)
-      (encPair encIntervalData encLocalCfg) encControlData)
-  have hw : ComputableInPolyTime (fun p : IntervalData k State × LocalCfg k State => p.1.wOut)
-      (encPair encIntervalData encLocalCfg) (encPi (encList (encOption encBool))) :=
-    hp.snd'.snd'.snd'.snd'.snd'.snd'.snd'
-  have hbZ : ComputableInPolyTime
-      (fun p : IntervalData k State × LocalCfg k State => (p.1.b : ℤ))
-      (encPair encIntervalData encLocalCfg) encIntBin :=
+    ComputableInPolyTime (fun a => (d a).cOut) input encControlData)
+  have hw : ComputableInPolyTime (fun a => (d a).wOut) input
+      (encPi (encList (encOption encBool))) := hp.snd'.snd'.snd'.snd'.snd'.snd'.snd'
+  have hbZ : ComputableInPolyTime (fun a => ((d a).b : ℤ)) input encIntBin :=
     intBin_natCast.comp (unary_to_binary.comp hb)
   refine bool_and' (bool_and' (bool_and' (decide_eq' (localCfg_state.comp hl) hc.fst')
     (decide_eq' (localCfg_track.comp hl) hc.snd'.snd')) ?_) ?_
-  · refine allConst _ fun head _ => bool_and' (unary_lt' ((pi_apply _ head).comp hc.snd'.fst') hb)
-      (decide_eq' (localCfg_headCoord hl head) ?_)
-    have hδZ : ComputableInPolyTime
-        (fun p : IntervalData k State × LocalCfg k State => ((p.1.δ head : SignType) : ℤ))
-        (encPair encIntervalData encLocalCfg) encIntBin :=
+  · have hcoord (head : Option (Fin k)) : ComputableInPolyTime
+        (fun a => (l a).headCoord head + (if head.isNone then (origin a : ℤ) else 0))
+        input encIntBin := by
+      apply intBin_add' (localCfg_headCoord hl head)
+      cases head with
+      | none => exact intBin_natCast.comp ho
+      | some _ => exact const 0
+    refine allConst _ fun head _ => bool_and' (unary_lt' ((pi_apply _ head).comp hc.snd'.fst') hb)
+      (decide_eq' (hcoord head) ?_)
+    have hδZ : ComputableInPolyTime (fun a => ((d a).δ head : ℤ)) input encIntBin :=
       (of_finite fun δ : Option (Fin k) → SignType => ((δ head : SignType) : ℤ)).comp hδ
     exact intBin_add' (intBin_mul' hbZ (intBin_add' ((pi_apply _ head).comp hJ) hδZ))
       (intBin_natCast.comp (unary_to_binary.comp ((pi_apply _ head).comp hc.snd'.fst')))
   · exact allConst _ fun h _ => decide_eq'
       (localCfg_windowCellsAt hb ((pi_apply _ (some h)).comp hJ) hl h) ((pi_apply _ h).comp hw)
+
+/-- Replay one coin string on a prepared source substring, then check the original control,
+work windows and absolute head coordinates. The source origin is added in binary. -/
+def IntervalData.InputWindow.test [DecidableEq State] (machine : MultiTapePTM k Bool State)
+    (d : InputWindow k State) (coins : List Bool) : Bool :=
+  let i := d.interval
+  let start := { localStartData i.b i.input i.J i.cIn i.wIn with inputPos := d.position }
+  stepTest i (machine.localRun i.input coins start) d.origin
+
+omit [Finite State] in
+/-- The prepared substring checks precisely the original interval witness. The same prepared
+record works for every coin string of length at most the original block width. -/
+theorem IntervalData.InputWindow.test_prepare [DecidableEq State]
+    (machine : MultiTapePTM k Bool State) (d : IntervalData k State) (coins : List Bool)
+    (hcoins : coins.length ≤ d.b) :
+    (prepare d).test machine coins =
+      decide (machine.LocalIntervalStepData d.b d.input d.J d.δ d.cIn d.wIn d.cOut d.wOut
+        coins) := by
+  let l := localStartData d.b d.input d.J d.cIn d.wIn
+  let a := l.inputPos - (d.b + 1)
+  have hp : l.inputPos ≤ d.input.length + 1 :=
+    Nat.le_of_lt_succ (inputPosOfCoord _ _).isLt
+  have hr := localRun_inputWindow machine d.input coins l d.b hp hcoins
+  rw [stepTest_eq]
+  unfold test prepare
+  change stepTest { d with input := (d.input.drop a).take (2 * d.b + 1) }
+    (machine.localRun ((d.input.drop a).take (2 * d.b + 1)) coins
+      { l with inputPos := l.inputPos - a }) a =
+    stepTest d (machine.localRun d.input coins l) 0
+  rw [← hr]
+  let r := machine.localRun ((d.input.drop a).take (2 * d.b + 1)) coins
+    { l with inputPos := l.inputPos - a }
+  have hcoord (head : Option (Fin k)) :
+      r.headCoord head + (if head.isNone then (a : ℤ) else 0) =
+        ({ r with inputPos := r.inputPos + a } : LocalCfg k State).headCoord head := by
+    cases head <;> simp [LocalCfg.headCoord, Nat.cast_add]; ring
+  simp only [stepTest, Nat.cast_zero, ite_self, add_zero]
+  congr 2
+  apply List.all_congr rfl
+  intro head
+  rw [hcoord]
+
+/-- One witness on a computed source substring is polynomial-time in the prepared record and
+coins. Its binary origin is never encoded as a unary absolute input position. -/
+theorem IntervalData.InputWindow.computableInPolyTime_test [DecidableEq State]
+    (machine : MultiTapePTM k Bool State) {d : α → InputWindow k State}
+    (hd : ComputableInPolyTime d input encInputWindow) {coins : α → List Bool}
+    (hc : ComputableInPolyTime coins input encBits) :
+    ComputableInPolyTime (fun a => (d a).test machine (coins a)) input encBool := by
+  have hi := encInputWindow_interval_polyTime hd
+  have hword : ComputableInPolyTime (fun a => (d a).interval.input) input encBits :=
+    (intervalData_parts.comp hi).fst'
+  have hstart := localStartData' hi
+  have hs := localCfg_mk (localCfg_state.comp hstart) (encInputWindow_position_polyTime hd)
+    (localCfg_workTapes.comp hstart) (localCfg_workTapePos.comp hstart) (localCfg_track.comp hstart)
+  have hrun := computableInPolyTime_localRun machine hword hc hs
+  exact computableInPolyTime_stepTest hi hrun (encInputWindow_origin_polyTime hd)
 
 /-- Check one interval witness by replaying only its supplied coin string and testing the
 resulting control, head coordinates and work windows. No bound on `2 ^ b` is required. -/
@@ -750,7 +847,7 @@ theorem computableInPolyTime_localIntervalStepData [DecidableEq State]
     (intervalData_parts.comp hd).fst'
   have hrun := computableInPolyTime_localRun machine hword hc (localStartData' hd)
   simp only [stepTest_eq]
-  simpa only [Function.comp_def] using computableInPolyTime_stepTest.comp (hd.prod hrun)
+  exact computableInPolyTime_stepTest hd hrun (const 0)
 
 /-- **Interval counts are polynomial-time** in their computed arguments, provided that the `2 ^ b`
 coin strings, with their encodings, are polynomially many in the input: the count enumerates them

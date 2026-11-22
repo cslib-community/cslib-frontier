@@ -117,7 +117,9 @@ public theorem native_interval_count : ∃ (u : ℕ) (src : Fin u) (Q : Type) (_
     ∀ (host : List Bool) (empty claim : Bool),
       let a : IntervalCount.Request 1 Bool := ⟨interval empty, 0, claim⟩
       let cfg := SharedWordFork.start src atm host (IntervalCount.encRequest a) 0
-      let time := C * ((IntervalCount.encRequest a).length + 1) ^ E
+      let time := C * ((interval empty).input.length +
+        ((IntervalCount.encRequest { a with interval := { a.interval with input := [] } }).length +
+          1) ^ E + 1)
       atm.HaltsWithin time cfg ∧ (atm.AcceptsWithin time cfg ↔ (!empty) = claim) := by
   obtain ⟨u, src, Q, hQ, atm, C, E, h⟩ := IntervalCount.exists_evaluator walk
   refine ⟨u, src, Q, hQ, atm, C, E, ?_⟩

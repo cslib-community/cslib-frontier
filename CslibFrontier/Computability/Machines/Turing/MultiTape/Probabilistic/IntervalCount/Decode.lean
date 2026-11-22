@@ -21,8 +21,9 @@ import CslibFrontier.Foundations.Data.List.Lookup
 
 `IntervalData.decoder` parses the existing interval encoding, retaining its source word, unary
 block width and offsets, binary head positions, and finite tables. It is total on arbitrary
-words and inverts every encoded interval record. The alternating interval counter uses it when
-replaying the coin string selected by its count tree.
+words and inverts every encoded interval record. `InputWindow.decoder` additionally parses the
+binary source origin and unary relative position. The alternating interval counter uses that
+short prepared record when replaying the coin string selected by its count tree.
 -/
 
 public section
@@ -79,5 +80,15 @@ noncomputable def decoder {k : ℕ} {State : Type} [Finite State] :
         (piDecoder (Decoder.list (Decoder.option Decoder.bool)))))))))).map
     IntervalData.equivProd.symm IntervalData.equivProd (fun _ => rfl)
       (fun a => encIntervalData_apply (IntervalData.equivProd.symm a))
+
+/-- Parse the cropped interval, binary source origin and unary relative input position.
+Every prepared record round-trips; malformed words still have a total polynomial-time decode. -/
+noncomputable def InputWindow.decoder {k : ℕ} {State : Type} [Finite State] :
+    Decoder (encInputWindow (k := k) (State := State)) :=
+  (IntervalData.decoder.pair (Decoder.nat.pair Decoder.unary)).map
+    (fun (interval, origin, position) => (⟨interval, origin, position⟩ : InputWindow k State))
+    (fun d => (d.interval, d.origin, d.position)) (fun _ => rfl)
+    (fun (interval, origin, position) =>
+      encInputWindow_apply (⟨interval, origin, position⟩ : InputWindow k State))
 
 end Turing.MultiTapePTM.IntervalData

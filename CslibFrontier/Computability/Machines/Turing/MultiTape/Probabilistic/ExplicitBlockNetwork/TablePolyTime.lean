@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.Table
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.ExplicitBlockNetwork.GraphPolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.PolyTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -18,6 +19,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Div
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Fin
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryDivision
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeBinaryPrimitives
@@ -31,7 +34,13 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOp
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimePiPrimitives
 
 /-!
-# The tables of an explicit block-counting network in polynomial time
+# Compiling entries and constructing explicit block-counting tables
+
+A single table entry compiles to one interval record or a Boolean constant
+(`Turing.MultiTapePTM.tableEntryPlan`). The compiler computes and validates the letter codes at
+the selected vertex from its binary local assignment, without listing coin strings or table
+entries. `tableEntryPlan_spec` identifies the result with the existing numeric tensor entry.
+The native alternating entry evaluator consumes this program directly.
 
 The explicit block-counting network on numbers (`Turing.MultiTapePTM.explicitNetworkNum`) is
 computable in polynomial time from the input, the block length and the number of intervals in
@@ -44,8 +53,11 @@ number. Its tables have `2 ^ (number of ports)` entries, at most `(2 ^ b) ^ (2 (
 
 * `Turing.MultiTapePTM.computableInPolyTime_decodeControlData`,
   `Turing.MultiTapePTM.computableInPolyTime_contentsCellNum`: decoding letters.
+* `Turing.MultiTapePTM.tableEntryPlan_spec`,
+  `Turing.MultiTapePTM.computableInPolyTime_tableEntryPlan`: one entry compiled to an interval
+  count or a Boolean constant, without an exponential enumeration budget.
 * `Turing.MultiTapePTM.computableInPolyTime_intervalEntryNum`: the tensor of an interval on
-  numbers.
+  numbers, under the deterministic enumeration budget.
 * `Turing.MultiTapePTM.computableInPolyTime_explicitNetworkNum`: the explicit network on numbers,
   as its number of edges in unary and its vertices, with ports and table entries in binary.
 -/
@@ -260,6 +272,62 @@ theorem computableInPolyTime_outCellsNum (h : ℕ) {i : α → ℕ}
   exact unary_add' (hq.comp ha) (unary_add' (unary_add' (unary_div.comp (hc.prod (hb.comp ha)))
     (const _)) (unary_mul' (const _) (hi.comp ha)))
 
+/-- The interval record decoded from the adjacent letter numbers. -/
+private def intervalDataNum (b : ℕ) (input : List Bool) (q σ : ℕ) (L : ℕ → ℕ) (i : ℕ) :
+    IntervalData k State :=
+  ⟨input, b, blockIndexNum k σ i, blockMoveNum k σ i,
+    inControlNum e b machine.initial L i, fun h => inCellsNum k q s b σ L i h,
+    decodeControlData e b (L i), fun h => outCellsNum k q s b L i h⟩
+
+omit [DecidableEq State] in
+private theorem intervalDataNum_polyTime {i : α → ℕ}
+    (hx : ComputableInPolyTime x inp encBits) (hb : ComputableInPolyTime b inp encUnary)
+    (hb0 : ∀ a, 0 < b a) (hq : ComputableInPolyTime q inp encUnary)
+    (hσ : ComputableInPolyTime σ inp encNat)
+    (hL : ComputableInPolyTime (fun p : α × ℕ => L p.1 p.2) (encPair inp encUnary) encNat)
+    (hi : ComputableInPolyTime i inp encUnary) :
+    ComputableInPolyTime
+      (fun a => intervalDataNum e machine (b a) (x a) (q a) (σ a) (L a) (i a))
+      inp encIntervalData := by
+  have hcIn : ComputableInPolyTime
+      (fun a => (inControlNum e (b a) machine.initial (L a) (i a) : ControlData k State)) inp
+      encControlData := by
+    unfold inControlNum
+    exact ite_decide (decide_eq' hi (const 0)) (const _)
+      (computableInPolyTime_controlDataOfNum e hb hb0
+        (letter_comp hL id' (unary_sub' hi (const 1))))
+  exact IntervalData.computableInPolyTime_mk hx hb
+    (computableInPolyTime_blockIndexNum hσ hi) (computableInPolyTime_blockMoveNum hσ hi) hcIn
+    (pi fun h : Fin k => computableInPolyTime_inCellsNum (k := k) (s := s) h.val hb hq hσ hL hi)
+    (computableInPolyTime_decodeControlData e hb hb0 (letter_comp hL id' hi))
+    (pi fun h : Fin k => computableInPolyTime_outCellsNum (k := k) (s := s) h.val hb hq hL hi)
+
+private def intervalTypedNum (b q : ℕ) (L : ℕ → ℕ) (i : ℕ) : Bool :=
+  decide (L i < controlCount k s b ∧ ∀ h : Fin k, ∀ δ : Fin 3,
+    ¬ L (q + (δ + 3 * h + k * 3 * i)) < controlCount k s b)
+
+private theorem intervalTypedNum_polyTime {i : α → ℕ}
+    (hb : ComputableInPolyTime b inp encUnary) (hq : ComputableInPolyTime q inp encUnary)
+    (hL : ComputableInPolyTime (fun p : α × ℕ => L p.1 p.2) (encPair inp encUnary) encNat)
+    (hi : ComputableInPolyTime i inp encUnary) :
+    ComputableInPolyTime (fun a => intervalTypedNum (k := k) (s := s) (b a) (q a) (L a) (i a))
+      inp encBool := by
+  have hC := controlCount' (k := k) (s := s) hb
+  have hLat : ∀ {n : α → ℕ}, ComputableInPolyTime n inp encUnary →
+      ComputableInPolyTime (fun a => L a (n a)) inp encNat := fun hn => letter_comp hL id' hn
+  have hcond : ∀ a, intervalTypedNum (k := k) (s := s) (b a) (q a) (L a) (i a) =
+      (decide (L a (i a) < controlCount k s (b a)) && (List.finRange k).all fun h =>
+        (List.finRange 3).all fun δ =>
+          !decide (L a (q a + (δ + 3 * h + k * 3 * i a)) < controlCount k s (b a))) := by
+    intro a
+    rw [Bool.eq_iff_iff]
+    simp [intervalTypedNum, List.all_eq_true]
+  have hc := bool_and' (binary_lt' (hLat hi) hC) (allConst (List.finRange k) fun h _ =>
+    allConst (List.finRange 3) fun δ _ => bool_not.comp
+      (binary_lt' (hLat (unary_add' hq (unary_add' (const (δ.val + 3 * h.val))
+        (unary_mul' (const (k * 3)) hi)))) hC))
+  exact hc.of_enc_eq fun a => congrArg encBool (hcond a)
+
 /-- **The tensor of an interval on numbers is polynomial-time**, from the letter numbers of the
 edges, when `2 ^ b` is bounded by a computed unary number. -/
 theorem computableInPolyTime_intervalEntryNum {i : α → ℕ}
@@ -272,36 +340,13 @@ theorem computableInPolyTime_intervalEntryNum {i : α → ℕ}
     ComputableInPolyTime (fun a => intervalEntryNum e (b a) machine (x a) (q a) (σ a) (L a) (i a))
       inp encUnary := by
   obtain ⟨size, hsize, hbudget⟩ := budget_of_cap hcap h2b
-  have hC := controlCount' (k := k) (s := s) hb
-  have hLat : ∀ {n : α → ℕ}, ComputableInPolyTime n inp encUnary →
-      ComputableInPolyTime (fun a => L a (n a)) inp encNat := fun hn => letter_comp hL id' hn
-  have hcond : ∀ a, decide (L a (i a) < controlCount k s (b a) ∧ ∀ h : Fin k, ∀ δ : Fin 3,
-      ¬ L a (q a + (δ + 3 * h + k * 3 * i a)) < controlCount k s (b a)) =
-      (decide (L a (i a) < controlCount k s (b a)) && (List.finRange k).all fun h =>
-        (List.finRange 3).all fun δ =>
-          !decide (L a (q a + (δ + 3 * h + k * 3 * i a)) < controlCount k s (b a))) := by
-    intro a
-    rw [Bool.eq_iff_iff]
-    simp [List.all_eq_true]
-  have hcIn : ComputableInPolyTime
-      (fun a => (inControlNum e (b a) machine.initial (L a) (i a) : ControlData k State)) inp
-      encControlData := by
-    unfold inControlNum
-    exact ite_decide (decide_eq' hi (const 0)) (const _)
-      (computableInPolyTime_controlDataOfNum e hb hb0 (hLat (unary_sub' hi (const 1))))
-  unfold intervalEntryNum
-  refine ite_decide ?_ ?_ (const 0)
-  · simp only [hcond]
-    refine bool_and' (binary_lt' (hLat hi) hC) (allConst _ fun h _ => allConst _ fun δ _ => ?_)
-    exact bool_not.comp (binary_lt' (hLat (unary_add' hq (unary_add' (const _)
-      (unary_mul' (const _) hi)))) hC)
-  · have hd := IntervalData.computableInPolyTime_mk hx hb
-      (computableInPolyTime_blockIndexNum hσ hi) (computableInPolyTime_blockMoveNum hσ hi) hcIn
-      (pi fun h : Fin k => computableInPolyTime_inCellsNum (k := k) (s := s) h.val hb hq hσ hL hi)
-      (computableInPolyTime_decodeControlData e hb hb0 (hLat hi))
-      (pi fun h : Fin k => computableInPolyTime_outCellsNum (k := k) (s := s) h.val hb hq hL hi)
-    have hcount := computableInPolyTime_localIntervalCount machine hd hsize hbudget
-    simpa only [IntervalData.count] using hcount
+  have hd := intervalDataNum_polyTime e machine hx hb hb0 hq hσ hL hi
+  have hcount := computableInPolyTime_localIntervalCount machine hd hsize hbudget
+  have h := ite (intervalTypedNum_polyTime (k := k) (s := s) hb hq hL hi) hcount (const 0)
+  exact h.of_enc_eq fun a => by
+    simp only [intervalTypedNum, decide_eq_true_eq, intervalDataNum, IntervalData.count,
+      intervalEntryNum]
+
 
 end Interval
 
@@ -310,12 +355,12 @@ end Interval
 /-- **Letter numbers read from table indices are polynomial-time.** -/
 theorem computableInPolyTime_readNum {m j base : α → ℕ} {P : α → List ℕ}
     (hm : ComputableInPolyTime m inp encUnary) (hP : ComputableInPolyTime P inp (encList encNat))
-    (hj : ComputableInPolyTime j inp encUnary) (hbase : ComputableInPolyTime base inp encUnary) :
+    (hj : ComputableInPolyTime j inp encNat) (hbase : ComputableInPolyTime base inp encUnary) :
     ComputableInPolyTime (fun a => readNum (m a) (P a) (j a) (base a)) inp encNat := by
   have hlist : ComputableInPolyTime
       (fun a => (List.range (m a)).map fun r => (j a).testBit ((P a).idxOf (base a + r))) inp
       (encList encBool) :=
-    mapWithInput (range.comp hm) (unary_testBit' (hj.comp (fst _ _))
+    mapWithInput (range.comp hm) (binary_testBit (hj.comp (fst _ _))
       (idxOfWithInput (hP.comp (fst _ _))
         (unary_to_binary.comp (unary_add' (hbase.comp (fst _ _)) (snd _ _)))))
   have hbits := (bits_encList_polyTime encBool).2.comp hlist
@@ -331,7 +376,7 @@ private theorem blockSrcNum' {q n : α → ℕ} (hq : ComputableInPolyTime q inp
 /-- The letter numbers read at an old vertex are polynomial-time, at a computed edge number. -/
 theorem computableInPolyTime_lettersAt {q m v j : α → ℕ} {P : α → List ℕ}
     (hq : ComputableInPolyTime q inp encUnary) (hm : ComputableInPolyTime m inp encUnary)
-    (hP : ComputableInPolyTime P inp (encList encNat)) (hj : ComputableInPolyTime j inp encUnary)
+    (hP : ComputableInPolyTime P inp (encList encNat)) (hj : ComputableInPolyTime j inp encNat)
     (hv : ComputableInPolyTime v inp encUnary) :
     ComputableInPolyTime (fun p : α × ℕ => lettersAt k (q p.1) (m p.1) (P p.1) (j p.1) (v p.1) p.2)
       (encPair inp encUnary) encNat := by
@@ -345,23 +390,76 @@ theorem computableInPolyTime_lettersAt {q m v j : α → ℕ} {P : α → List �
   exact unary_add' (unary_mul' (unary_mul' (hq.comp ha) (const _)) (hm.comp ha))
     (unary_mul' (hm.comp ha) hn)
 
+private theorem validNum_polyTime {b q σ v j : α → ℕ} {P : α → List ℕ}
+    (hb : ComputableInPolyTime b inp encUnary) (hq : ComputableInPolyTime q inp encUnary)
+    (hσ : ComputableInPolyTime σ inp encNat) (hv : ComputableInPolyTime v inp encUnary)
+    (hP : ComputableInPolyTime P inp (encList encNat)) (hj : ComputableInPolyTime j inp encNat) :
+    ComputableInPolyTime (fun a => validNum k (q a) s (b a) (σ a) (P a) (j a) (v a))
+      inp encBool := by
+  have hm : ComputableInPolyTime (fun a => letterBits k s (b a)) inp encUnary :=
+    unary_mul' (const _) hb
+  have hL := computableInPolyTime_lettersAt (k := k) hq hm hP hj hv
+  have hE : ComputableInPolyTime (fun a => q a * (3 * k + 1)) inp encUnary :=
+    unary_mul' hq (const _)
+  unfold validNum
+  have ha : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair inp encUnary) inp := fst _ _
+  have hn : ComputableInPolyTime (fun p : α × ℕ => p.2) (encPair inp encUnary) encUnary :=
+    snd _ _
+  refine allWithInput (range.comp hE) (bool_or.comp ((bool_not.comp ?_).prod ?_))
+  · exact decide_or (decide_eq' (blockSrcNum' (hq.comp ha) hn) (hv.comp ha))
+      (decide_eq' (computableInPolyTime_edgeTargetNum (hq.comp ha) (hσ.comp ha) hn) (hv.comp ha))
+  · exact binary_lt' hL ((letterCount' hb).comp ha)
+
 section Tables
 
 variable [DecidableEq State] (e : State ≃ Fin s) (machine : MultiTapePTM k Bool State)
   {x : α → List Bool} {b q σ cap : α → ℕ}
 
-/-- **Table entries on numbers are polynomial-time.** -/
-theorem computableInPolyTime_tableEntryNum {v j : α → ℕ} {P : α → List ℕ}
+/-- A local table-entry program either requests one interval count or returns a Boolean
+constant. This program contains no table and does not enumerate coin strings. -/
+def tableEntryPlan (b : ℕ) (input : List Bool) (q σ v : ℕ) (P : List ℕ) (j : ℕ) :
+    IntervalData k State ⊕ Bool :=
+  if v < q * (3 * k + 2) then
+    if validNum k q s b σ P j v then
+      let L := lettersAt k q (letterBits k s b) P j v
+      if v < q then
+        if intervalTypedNum (k := k) (s := s) b q L v then
+          .inl (intervalDataNum e machine b input q σ L v)
+        else .inr false
+      else .inr (if v - q + 1 = q then decide (acceptNum k s b (L (v - q)) = 1) else true)
+    else .inr false
+  else .inr (decide (j.testBit (P.idxOf (v - q * (3 * k + 2))) =
+    j.testBit (P.idxOf (q * (3 * k + 1) * letterBits k s b + (v - q * (3 * k + 2))))))
+
+/-- The left tag contains the existing framed interval record; the right tag a single Boolean. -/
+noncomputable abbrev encTableEntryPlan : (IntervalData k State ⊕ Bool) ↪ List Bool :=
+  encSum encIntervalData encBool
+
+omit [Finite State] in
+/-- The compiler's selected interval has the original width and count; its constant branch is
+exactly the table value. The assignment index is the existing binary bit assignment to ports. -/
+theorem tableEntryPlan_spec (b : ℕ) (input : List Bool) (q σ v : ℕ) (P : List ℕ) (j : ℕ) :
+    match tableEntryPlan e machine b input q σ v P j with
+    | .inl d => d.b = b ∧ d.count machine = tableEntryNum e b machine input q σ v P j
+    | .inr value => value.toNat = tableEntryNum e b machine input q σ v P j := by
+  simp only [tableEntryPlan, tableEntryNum, oldEntryNum, intervalEntryNum, intervalTypedNum,
+    decide_eq_true_eq]
+  split_ifs <;> simp_all [intervalDataNum, IntervalData.count, acceptNum]
+  split_ifs <;> simp_all
+
+omit [DecidableEq State] in
+/-- Compile a single table entry from binary assignments, unary width, interval and vertex
+counts, and a binary schedule. Unlike full table construction, no `2 ^ b` budget is needed. -/
+theorem computableInPolyTime_tableEntryPlan {v j : α → ℕ} {P : α → List ℕ}
     (hx : ComputableInPolyTime x inp encBits) (hb : ComputableInPolyTime b inp encUnary)
     (hb0 : ∀ a, 0 < b a) (hq : ComputableInPolyTime q inp encUnary)
-    (hσ : ComputableInPolyTime σ inp encNat) (hcap : ComputableInPolyTime cap inp encUnary)
-    (h2b : ∀ a, 2 ^ b a ≤ cap a) (hv : ComputableInPolyTime v inp encUnary)
-    (hP : ComputableInPolyTime P inp (encList encNat)) (hj : ComputableInPolyTime j inp encUnary) :
+    (hσ : ComputableInPolyTime σ inp encNat) (hv : ComputableInPolyTime v inp encUnary)
+    (hP : ComputableInPolyTime P inp (encList encNat)) (hj : ComputableInPolyTime j inp encNat) :
     ComputableInPolyTime
-      (fun a => tableEntryNum e (b a) machine (x a) (q a) (σ a) (v a) (P a) (j a)) inp encNat := by
-  have hm : ComputableInPolyTime (fun a => letterBits k s (b a)) inp encUnary := by
-    unfold letterBits
-    exact unary_mul' (const _) hb
+      (fun a => tableEntryPlan e machine (b a) (x a) (q a) (σ a) (v a) (P a) (j a))
+      inp encTableEntryPlan := by
+  have hm : ComputableInPolyTime (fun a => letterBits k s (b a)) inp encUnary :=
+    unary_mul' (const _) hb
   have hL := computableInPolyTime_lettersAt (k := k) hq hm hP hj hv
   have hR : ComputableInPolyTime (fun a => q a * (3 * k + 2)) inp encUnary :=
     unary_mul' hq (const _)
@@ -370,37 +468,81 @@ theorem computableInPolyTime_tableEntryNum {v j : α → ℕ} {P : α → List �
   have hC := controlCount' (k := k) (s := s) hb
   have hD : ComputableInPolyTime (fun a => b a ^ (k + 1) * 3) inp encNat :=
     binary_mul' (binary_pow' (unary_to_binary.comp hb) (const _)) (const 3)
-  -- Validity of the letters at an old vertex.
-  have hvalid : ComputableInPolyTime (fun a => validNum k (q a) s (b a) (σ a) (P a) (j a) (v a))
-      inp encBool := by
-    unfold validNum
-    have ha : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair inp encUnary) inp := fst _ _
-    have hn : ComputableInPolyTime (fun p : α × ℕ => p.2) (encPair inp encUnary) encUnary :=
-      snd _ _
-    refine allWithInput (range.comp hE) (bool_or.comp ((bool_not.comp ?_).prod ?_))
-    · exact decide_or (decide_eq' (blockSrcNum' (hq.comp ha) hn) (hv.comp ha))
-        (decide_eq' (computableInPolyTime_edgeTargetNum (hq.comp ha) (hσ.comp ha) hn) (hv.comp ha))
-    · exact binary_lt' hL ((letterCount' hb).comp ha)
-  -- The tensor of an old vertex.
-  have hold : ComputableInPolyTime (fun a => oldEntryNum e (b a) machine (x a) (q a) (σ a)
-      (lettersAt k (q a) (letterBits k s (b a)) (P a) (j a) (v a)) (v a)) inp encNat := by
-    unfold oldEntryNum
-    refine ite_decide (unary_lt' hv hq) (unary_to_binary.comp
-      (computableInPolyTime_intervalEntryNum e machine hx hb hb0 hq hσ hcap h2b hL hv))
-      (ite_decide (decide_eq' (unary_add' (unary_sub' hv hq) (const 1)) hq) ?_ (const 1))
-    unfold acceptNum
-    have hn := letter_comp
-      (L := fun a => lettersAt k (q a) (letterBits k s (b a)) (P a) (j a) (v a)) hL id'
-      (unary_sub' hv hq)
-    exact ite_decide (decide_and (binary_lt' hn hC) (decide_eq' (binary_mod.comp
-      ((binary_mod.comp (hn.prod hD)).prod (const 3))) (const 1))) (const 1) (const 0)
-  unfold tableEntryNum
-  refine ite_decide (unary_lt' hv hR) (ite hvalid hold (const 0)) ?_
+  have hconst : ∀ {f : α → Bool}, ComputableInPolyTime f inp encBool →
+      ComputableInPolyTime (fun a => (Sum.inr (f a) : IntervalData k State ⊕ Bool))
+        inp encTableEntryPlan := fun hf => (sumInr encIntervalData encBool).comp hf
+  have hn := letter_comp
+    (L := fun a => lettersAt k (q a) (letterBits k s (b a)) (P a) (j a) (v a))
+    hL id' (unary_sub' hv hq)
+  have hsink := decide_and (binary_lt' hn hC) (decide_eq' (binary_mod.comp
+    ((binary_mod.comp (hn.prod hD)).prod (const 3))) (const 1))
+  have hsink' : ComputableInPolyTime
+      (fun a => decide (acceptNum k s (b a)
+        (lettersAt k (q a) (letterBits k s (b a)) (P a) (j a) (v a) (v a - q a)) = 1))
+      inp encBool := hsink.of_enc_eq fun a => by simp [acceptNum]
   have hc : ComputableInPolyTime (fun a => v a - q a * (3 * k + 2)) inp encUnary :=
     unary_sub' hv hR
-  refine ite_decide (decide_eq' (unary_testBit' hj (idxOfWithInput hP (unary_to_binary.comp hc)))
-    (unary_testBit' hj (idxOfWithInput hP (unary_to_binary.comp (unary_add'
-      (unary_mul' hE hm) hc))))) (const 1) (const 0)
+  unfold tableEntryPlan
+  refine ite_decide (unary_lt' hv hR)
+    (ite (validNum_polyTime (k := k) (s := s) hb hq hσ hv hP hj) ?_ (hconst (const false)))
+    (hconst (decide_eq' (binary_testBit hj (idxOfWithInput hP (unary_to_binary.comp hc)))
+      (binary_testBit hj (idxOfWithInput hP (unary_to_binary.comp
+        (unary_add' (unary_mul' hE hm) hc))))))
+  refine ite_decide (unary_lt' hv hq)
+    (ite (intervalTypedNum_polyTime (k := k) (s := s) hb hq hL hv)
+      ((sumInl encIntervalData encBool).comp
+        (intervalDataNum_polyTime e machine hx hb hb0 hq hσ hL hv))
+      (hconst (const false)))
+    (hconst (ite_decide (decide_eq' (unary_add' (unary_sub' hv hq) (const 1)) hq)
+      hsink' (const true)))
+
+/-- **Table entries on numbers are polynomial-time.** -/
+theorem computableInPolyTime_tableEntryNum {v j : α → ℕ} {P : α → List ℕ}
+    (hx : ComputableInPolyTime x inp encBits) (hb : ComputableInPolyTime b inp encUnary)
+    (hb0 : ∀ a, 0 < b a) (hq : ComputableInPolyTime q inp encUnary)
+    (hσ : ComputableInPolyTime σ inp encNat) (hcap : ComputableInPolyTime cap inp encUnary)
+    (h2b : ∀ a, 2 ^ b a ≤ cap a) (hv : ComputableInPolyTime v inp encUnary)
+    (hP : ComputableInPolyTime P inp (encList encNat)) (hj : ComputableInPolyTime j inp encNat) :
+    ComputableInPolyTime
+      (fun a => tableEntryNum e (b a) machine (x a) (q a) (σ a) (v a) (P a) (j a)) inp encNat := by
+  have hm : ComputableInPolyTime (fun a => letterBits k s (b a)) inp encUnary :=
+    unary_mul' (const _) hb
+  have hL := computableInPolyTime_lettersAt (k := k) hq hm hP hj hv
+  have hp := computableInPolyTime_tableEntryPlan e machine hx hb hb0 hq hσ hv hP hj
+  have hl := (ComputableInO.getLeft?_deg encIntervalData encBool).computableInPolyTime.comp hp
+  have hd := optionGetDWithInput hl
+    (intervalDataNum_polyTime (L := fun a =>
+      lettersAt k (q a) (letterBits k s (b a)) (P a) (j a) (v a))
+      e machine hx hb hb0 hq hσ hL hv)
+  have hr := optionGetDWithInput
+    ((ComputableInO.getRight?_deg encIntervalData encBool).computableInPolyTime.comp hp)
+    (const false)
+  obtain ⟨size, hsize, hbudget⟩ := budget_of_cap hcap h2b
+  have hw a : ((tableEntryPlan e machine (b a) (x a) (q a) (σ a) (v a) (P a) (j a)).getLeft?.getD
+      (intervalDataNum e machine (b a) (x a) (q a) (σ a)
+        (lettersAt k (q a) (letterBits k s (b a)) (P a) (j a) (v a)) (v a))).b = b a := by
+    have hs := tableEntryPlan_spec e machine (b a) (x a) (q a) (σ a) (v a) (P a) (j a)
+    cases hplan : tableEntryPlan e machine (b a) (x a) (q a) (σ a) (v a) (P a) (j a) with
+    | inl d =>
+      simp only [hplan] at hs
+      exact hs.1
+    | inr value => rfl
+  have hcount := computableInPolyTime_localIntervalCount machine hd hsize
+    (fun a => by simpa only [Function.comp_def, hw] using hbudget a)
+  have h := ite ((ComputableInO.isLeft_deg encIntervalData encBool).computableInPolyTime.comp hp)
+    (unary_to_binary.comp hcount)
+    ((of_finite (encIn := encBool) (encOut := encNat) Bool.toNat).comp hr)
+  exact h.of_enc_eq fun a => by
+    have hs := tableEntryPlan_spec e machine (b a) (x a) (q a) (σ a) (v a) (P a) (j a)
+    cases hplan : tableEntryPlan e machine (b a) (x a) (q a) (σ a) (v a) (P a) (j a) with
+    | inl d =>
+      simp only [hplan] at hs
+      simpa only [Function.comp_def, hplan, Sum.isLeft_inl, Sum.getLeft?_inl,
+        Option.getD_some, ↓reduceIte] using congrArg encNat hs.2.symm
+    | inr value =>
+      simp only [hplan] at hs
+      simpa only [Function.comp_def, hplan, Sum.isLeft_inr, Sum.getRight?_inr,
+        Option.getD_some, Bool.false_eq_true, ↓reduceIte] using congrArg encNat hs.symm
 
 /-- **Tables on numbers are polynomial-time.** -/
 theorem computableInPolyTime_explicitTableNum {v : α → ℕ}
@@ -432,9 +574,15 @@ theorem computableInPolyTime_explicitTableNum {v : α → ℕ}
   have ha : ComputableInPolyTime (fun p : α × ℕ => p.1) (encPair inp encUnary) inp := fst _ _
   exact mapWithInput (range.comp hlen) (computableInPolyTime_tableEntryNum e machine
     (hx.comp ha) (hb.comp ha) (fun p => hb0 p.1) (hq.comp ha) (hσ.comp ha) (hcap.comp ha)
-    (fun p => h2b p.1) (hv.comp ha) (hP.comp ha) (snd _ _))
+    (fun p => h2b p.1) (hv.comp ha) (hP.comp ha) (unary_to_binary.comp (snd _ _)))
 
-/-- **The explicit block-counting network on numbers is polynomial-time**, as its number of edges
+/-- **A single table entry compiles to one interval record or a Boolean constant
+(`Turing.MultiTapePTM.tableEntryPlan`). The compiler computes and validates the letter codes at
+the selected vertex from its binary local assignment, without listing coin strings or table
+entries. `tableEntryPlan_spec` identifies the result with the existing numeric tensor entry.
+The native alternating entry evaluator consumes this program directly.
+
+The explicit block-counting network on numbers is polynomial-time**, as its number of edges
 in unary and its list of vertices, each the pair of its ports and its table as lists of binary
 numbers. -/
 theorem computableInPolyTime_explicitNetworkNum

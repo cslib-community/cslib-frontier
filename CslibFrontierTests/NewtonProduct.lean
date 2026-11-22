@@ -87,41 +87,31 @@ private theorem exists_one_child (D : ℕ) :
     fun h => (hh.1.mpr (by simpa using h)).mono hb⟩⟩
 
 -- At positive precision the actual product branch checks 1 times its residue inverse.
--- The finite child and its common clock are constructed above; no child contract is assumed.
-public theorem exists_one_product : ∃ (k r z : ℕ) (Q : Type) (_ : Finite Q)
-    (atm : MultiTapeATM (CarryLookaheadCountingLayout.size k r z) Bool Q) (clock : ℕ),
-    ∀ (input : List Bool) (claim : Bool),
-      let q := 3 ^ modulusExp 0
-      let n := 2 ^ (Nat.clog 2 (2 * q) + Nat.clog 2 1 + 2)
-      let payload := encContext ⟨[], NewtonQuery.address (.product 0)⟩
-      let ctx : SignedOperandRequest.Context := ⟨payload, q, 0⟩
-      let cfg := (CarryLookaheadCounting.initial k r z input
-        (SignedOperandRequest.encContext ctx) n 1 0 claim).withState (some atm.toPTM.initial)
-      atm.HaltsWithin clock cfg ∧ (atm.AcceptsWithin clock cfg ↔ true = claim) := by
+-- It builds its own internal layout from a request; the finite child is constructed above.
+public theorem exists_one_product : ∃ (K : ℕ) (source : Fin K) (Q : Type) (_ : Finite Q)
+    (atm : MultiTapeATM K Bool Q) (clock : ℕ),
+    ∀ (input : List Bool) (coefficient : Fin 2) (claim : Bool),
+      let a : ReducedProductRequest.Input :=
+        ⟨encContext ⟨[], NewtonQuery.address (.product 0)⟩, ⟨0, 1, coefficient.val, 0, claim⟩⟩
+      let cfg := SharedWordFork.start source atm input (ReducedProductRequest.encInput a) 0
+      atm.HaltsWithin clock cfg ∧ (atm.AcceptsWithin clock cfg ↔
+        decide (coefficient.val = 0) = claim) := by
   let q := 3 ^ modulusExp 0
   obtain ⟨a, S, hS, child, t, hc⟩ := exists_one_child (2 * q)
   let := hS
-  obtain ⟨k, r, z, Q, hQ, atm, c, e, Cc, dc, Cr, dr, Co, dO, h⟩ :=
+  obtain ⟨K, source, Q, hQ, atm, C, D, h⟩ :=
     NewtonProduct.exists_evaluator (Fin.natAdd a 0) child
-  let i : Fin (modulus 0).length := ⟨0, by rw [length_modulus]; positivity⟩
-  let L := Nat.clog 2 (2 * q) + Nat.clog 2 1 + 2
-  let n := 2 ^ L
-  let count := encNat n
-  let width := encNat 1
-  let B := CarrySaveCountingRoot.sizeBudget n 1
-  let payload := encContext ⟨[], NewtonQuery.address (.product 0)⟩
-  let ctx : SignedOperandRequest.Context := ⟨payload, q, 0⟩
-  let size := q.size + (0 : ℕ).size + count.length + width.length + B + 1
-  let routeSize := (NewtonQuery.address (.product 0)).size + (2 * q).size + (1 : ℕ).size + 1
-  let leafTime :=
-    Cc * ((SignedOperandRequest.encContext ctx).length + count.length + width.length +
-      (B + 2) ^ dc + 1) +
-    Co false * (payload.length + size ^ dO false + 1) +
-    Co true * (payload.length + size ^ dO true + 1) + (Cr * (0 + routeSize ^ dr + 1) + t)
-  let clock := CarryLookaheadCounting.clockOfRoot c e 1
-    (40 * L + 2 * L.size + 2 * (1 : ℕ).size + (leafTime + 10) + 1)
-  refine ⟨k, r, z, Q, hQ, atm, clock, ?_⟩
-  intro input claim q' n' payload' ctx' cfg
+  let cost (v : Fin 2 × Bool) := C * (0 + ((NewtonQuery.address (.product 0)).size +
+    (ReducedProductRequest.encMetadata ⟨0, 1, v.1.val, 0, v.2⟩).length + 1) ^ D + 1) + t
+  let clock := Finset.univ.sup cost
+  refine ⟨K, source, Q, hQ, atm, clock, ?_⟩
+  intro input coefficient claim req cfg
+  have hi : coefficient.val < (modulus 0).length := by
+    rw [length_modulus]
+    have hb : 0 < 3 ^ modulusExp 0 := by positivity
+    have := coefficient.isLt
+    omega
+  let i : Fin (modulus 0).length := ⟨coefficient.val, hi⟩
   have hs := h input [] 0 1 t [1] (.product 0) rfl i (by
     intro right coefficient bit answer
     have hstage : NewtonQuery.address (NewtonQuery.child (.product 0) right) < 2 := by
@@ -132,16 +122,17 @@ public theorem exists_one_product : ∃ (k r z : ℕ) (Q : Type) (_ : Finite Q)
     have hr := hc input ⟨_, hstage⟩ coefficient answer
     simpa only [hb, value_child_one, coefficient_one 0 ⟨coefficient.val, hcoef⟩] using hr)
     (0 : Fin 1) claim
-  refine ⟨hs.1, hs.2.trans ?_⟩
   have hv : NewtonQuery.value 0 1 [1] (.product 0) = 1 := by
     simp only [NewtonQuery.value]
     have hz := value_child_one 0 true
     simpa only [NewtonQuery.child, ↓reduceIte, NewtonQuery.value, val_singleton,
       Nat.cast_one, one_mul] using hz
-  rw [hv]
-  change ((representative 0 1 (1 : Ring 1 (modulus 0))).coeff i.val).val.testBit 0 = claim ↔
-    true = claim
-  rw [coefficient_one 0 i]
-  rfl
+  have ha := hs.2
+  simp only [Fin.val_zero] at ha
+  rw [hv, coefficient_one 0 i] at ha
+  have hb := Finset.le_sup (s := (Finset.univ : Finset (Fin 2 × Bool)))
+    (f := cost) (b := (coefficient, claim)) (Finset.mem_univ _)
+  exact ⟨hs.1.mono hb, ⟨fun h => ha.mp (h.of_halted_stepCoins hs.1),
+    fun h => (ha.mpr h).mono hb⟩⟩
 
 end CslibFrontierTests.NewtonProduct

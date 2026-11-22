@@ -3518,6 +3518,7 @@ public import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Nativ
 public import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Runtime
 public import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Simulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.BlockTableEntry
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCounting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingClockBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingContext
@@ -4328,8 +4329,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.InputFromTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.Decode
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.InputWindow
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalSimulation
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalSimulation.InputWindow
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IterateWhile
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Loop
