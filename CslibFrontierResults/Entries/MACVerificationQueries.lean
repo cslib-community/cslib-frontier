@@ -40,9 +40,11 @@ register_result "boneh-shoup-mac-verification-queries" where
     signing-query preservation (M.isQueryBounded_vqToSufForger). Sampling the planted \
     verification-query index from fair coins via ProbComp.sampleModIndex (width n) (Qv n) gives \
     the general modular-sampling bias upper bound + Qv n / 2 ^ width n \
-    (succProbability_sufCmaVqGame_le_mul_add); when Qv n = 0 or Qv n ∣ 2 ^ width n, \
-    sampleModIndex is exact uniform below Qv n and succProbability_sufCmaVqGame_le_mul proves \
-    the bound with no additive error term."
+    (succProbability_sufCmaVqGame_le_mul_add). Separately, succProbability_sufCmaVqGame_le_mul \
+    proves the bound with no additive error term when Qv n = 0 (where the interval below 0 is \
+    empty and 0 verification queries give winning probability 0 via \
+    succProbability_sufCmaVqGame_zero) or when Qv n ∣ 2 ^ width n (where 0 < Qv n and \
+    sampleModIndex is uniform below Qv n)."
 
 register_result "boneh-shoup-prf-mac-verification-queries" where
   title := "A pseudorandom function yields a MAC secure under verification queries without Q_v \

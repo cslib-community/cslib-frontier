@@ -906,9 +906,11 @@ theorem succProbability_sufCmaVqGame_le_mul_add (M : MACScheme)
   exact hle
 
 /-- **Theorem 6.1, exact dyadic loss bound** ([BonehShoup2023], Section 6.2, Theorem 6.1,
-pp. 221–223): when `Qv n = 0` or `Qv n` divides `2 ^ width n` (for instance when `Qv n` is a power
-of two at most `2 ^ width n`), `ProbComp.sampleModIndex (width n) (Qv n)` is unbiased, giving the
-exact textbook bound `≤ Qv n * succProbability (M.sufCmaGame ...)`. -/
+pp. 221–223): proves the textbook bound `≤ Qv n * succProbability (M.sufCmaGame ...)` with no
+additive error term when `Qv n = 0` (where `0` verification queries give winning probability `0`
+via `M.succProbability_sufCmaVqGame_zero`) or when `Qv n` divides `2 ^ width n` (for instance a
+power of two at most `2 ^ width n`, where `0 < Qv n` and
+`ProbComp.sampleModIndex (width n) (Qv n)` is uniform below `Qv n`). -/
 theorem succProbability_sufCmaVqGame_le_mul (M : MACScheme)
     {tagBound : ℕ → ℕ} (width Qv : ℕ → ℕ) {adversary : VqForger} {n : ℕ}
     (htagBound : ∀ sk ∈ (ProbComp.eval (M.keyGen n)).support,
