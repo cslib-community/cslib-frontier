@@ -406,7 +406,7 @@ example (f : ℕ → ℕ) (h : ∀ x, f x = 0) (h₁ : f 1 = 0 → f 2 = 0) (h�
   lrat_tauto
 
 /-- Hypotheses whose types depend on other hypotheses and on variables of the context. -/
-example (p : Prop) (f : p → ℕ) (hp : p) (h : f hp = 0 ∨ f hp = 1) (h₀ : ¬f hp = 0) :
+example (p : Prop) (f : p → ℕ) (hp : p) (h : f hp = 0 ∨ f hp = 1) (h₀ : f hp ≠ 0) :
     f hp = 1 := by
   lrat_tauto
 
@@ -490,6 +490,34 @@ example (s : Set ℕ) (h : 3 ∈ s) : (3 ∈ s → False) → 4 ∈ s := by
 
 /-- An atom whose negation is a hypothesis. -/
 example (x y : ℕ) (h : ¬x < y) : x < y → x = 7 := by
+  lrat_tauto
+
+/-! ### `≠` -/
+
+/-- `a ≠ b` is read as `¬a = b`, so the hypothesis fixes the atom `a = b`. -/
+example (a b : ℕ) (h : a ≠ b) : ¬a = b := by
+  lrat_tauto
+
+/-- `≠` and `=` over the same sides share their atom. -/
+example (a b : ℕ) : a ≠ b ∨ a = b := by
+  lrat_tauto
+
+-- Equations are atoms: `a ≠ b → b = c → a ≠ c` needs `b = c` to be used as a rewrite, so it is
+-- not propositional over the atoms `a = b`, `b = c` and `a = c`.
+/--
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: a = b := False b = c := True a = c := True
+-/
+#guard_msgs (whitespace := lax) in
+example (a b c : ℕ) : a ≠ b → b = c → a ≠ c := by
+  lrat_tauto
+
+/-- `a ≠ a` is `¬a = a`, and `rfl` proves the atom `a = a`. -/
+example (p : Prop) (a : ℕ) : a ≠ a → p := by
+  lrat_tauto
+
+/-- The same from a hypothesis. -/
+example (p : Prop) (a : ℕ) (h : a ≠ a) : p := by
   lrat_tauto
 
 end CslibFrontierTests.LRATTautoTactic

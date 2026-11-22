@@ -45,10 +45,13 @@ in the context (see "Hypotheses and leaves"); the trusted step is the same, on a
   `imp`. `Proposition` has no other constructors, so the other connectives are encoded:
   `¬P` as `imp P falsum`, `True` as `imp falsum falsum`, and `P ↔ Q` as
   `and (imp P Q) (imp Q P)`.
+* `a ≠ b` is read as `¬a = b`, which it unfolds to at reducible transparency, so a hypothesis
+  `h : a ≠ b` fixes the atom `a = b`.
 * Every other subterm is an atom: an equation `f x = y`, an order fact `n < 3`, a dependent `∀`
-  or `∃`, a definition such as `a ≠ b` that unfolds to a connective. Atoms are numbered from `0`
-  in order of first occurrence, left to right, in the goal and then in the premises, and two atoms
-  are the same when they are definitionally equal at reducible transparency.
+  or `∃`, a definition other than `≠` that unfolds to connectives, such as `Xor' p q`. Atoms are
+  numbered from `0` in order of first occurrence, left to right, in the goal and then in the
+  premises, and two atoms are the same when they are definitionally equal at reducible
+  transparency.
 
 ## Hypotheses and leaves
 
@@ -60,9 +63,11 @@ premises are:
   details, in the order of the context. A hypothesis that is not a propositional formula, such as
   `h : ∀ x, f x = 0`, is an atom, as such subterms of the goal are; its type may mention other
   hypotheses and variables. `lrat_tauto -hyps` leaves them out.
-* the atoms that reflexivity proves at reducible transparency, `a = b` by `Eq.refl` and
-  `HEq a b` by `HEq.refl` when `a` and `b` are definitionally equal at that transparency, with
-  that proof, as the leaves `tauto` closes by `rfl`. An `↔` is a connective, never an atom. No
+* the atoms that reflexivity proves, `a = b` by `Eq.refl` and `HEq a b` by `HEq.refl` when `a`
+  and `b` are definitionally equal at instance transparency (unfolding reducible definitions and
+  instances, as `simp` does when it rewrites with `eq_self_iff_true`), with that proof, as the
+  leaves `tauto` closes by `rfl`. This covers `a = a` under `≠`: `a ≠ a` is read as `¬a = a`, and
+  the atom `a = a` is proved. An `↔` is a connective, never an atom. No
   other tactic runs on the atoms. The leaves `tauto` closes by `assumption` are covered by the
   hypotheses: an atom that is a hypothesis `h : a`, or whose negation is one, `h : ¬a`, is fixed
   by that premise.
@@ -105,8 +110,8 @@ follow propositionally from the premises, and the error shows an assignment of t
 atoms, read as independent propositions, under which the goal's propositional structure is false
 and the premises are true; when the context has propositional hypotheses, it names them. It need
 not be a countermodel of the goal itself, since the atoms may not be able to take those values:
-for `∀ n : ℕ, 0 + n = n`, the one atom `0 + n = n`, which `rfl` at reducible transparency does not
-prove, is assigned `False`. Otherwise the solver
+for `∀ n : ℕ, 0 + n = n`, the one atom `0 + n = n`, which the reflexivity check does not prove,
+is assigned `False`. Otherwise the solver
 returns a certificate, which is proved correct (`Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`)
 but is not trusted here: the kernel checks it as it checks a supplied one. The certificate is first
 trimmed to the steps that the empty clause depends on, without the deletions, and the clauses it
@@ -165,9 +170,10 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
   five pigeons in four holes, with twenty irrelevant hypotheses of three connectives each in the
   context, the tactic took about 1.6 seconds against 1.4 without them, the kernel time being the
   same, and about 2.1 seconds when every hypothesis was kept.
-* Atoms are compared at reducible transparency only: `h : a ≠ b` is the atom `a ≠ b`, not the
-  negation of the atom `a = b`, and `h : b = a` does not prove the atom `a = b`. A hypothesis whose
-  type is only definitionally equal to a formula at a higher transparency is an atom.
+* Atoms are compared at reducible transparency only, and equations are not oriented:
+  `h : b = a` does not prove the atom `a = b`, and `a ≠ b → b = c → a ≠ c` is not proved, since
+  its atoms are independent. A hypothesis whose type is only definitionally equal to a formula at
+  a higher transparency is an atom.
 -/
 
 public section
@@ -184,12 +190,12 @@ elaboration time, or supplied as `lrat_tauto using cert` with `cert : Array LRAT
 the goal does not follow propositionally from the hypotheses, the error shows an assignment to the
 atoms, read as independent propositions, under which it is false and they are true. The kernel
 checks the certificate by evaluating `Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over
-non-propositions, such as `∀ p q : Prop`, are introduced first. The atoms are the maximal subterms
-that are not connectives, compared at reducible transparency.
+non-propositions, such as `∀ p q : Prop`, are introduced first. `a ≠ b` is read as `¬a = b`. The
+atoms are the maximal subterms that are not connectives, compared at reducible transparency.
 
-Without `using`, the propositional hypotheses of the context are premises, with the atoms that
-`rfl` proves at reducible transparency; the premises that the certificate does not need are
-dropped before the kernel check. `lrat_tauto -hyps` does not use the hypotheses.
+Without `using`, the propositional hypotheses of the context are premises, with the equations
+and `HEq`s that `rfl` proves at instance transparency; the premises that the certificate does
+not need are dropped before the kernel check. `lrat_tauto -hyps` does not use the hypotheses.
 
 A supplied certificate refutes the formula of the goal alone, without premises. It is a closed
 term the kernel can evaluate: a literal, or a definition whose body it can unfold. A certificate
@@ -226,7 +232,8 @@ private inductive Shape where
 /-- `partial` definitions returning formulas need a default one. -/
 private instance : Inhabited Shape := ⟨.falsum⟩
 
-/-- Reads a proposition as a formula over its atoms. -/
+/-- Reads a proposition as a formula over its atoms. `a ≠ b` is read as `¬a = b`, which it
+unfolds to at reducible transparency. -/
 private partial def reify (e : Expr) : AtomM Shape := do
   let e := e.consumeMData
   match e.getAppFnArgs with
@@ -235,6 +242,8 @@ private partial def reify (e : Expr) : AtomM Shape := do
   | (``And, #[a, b]) => return .and (← reify a) (← reify b)
   | (``Or, #[a, b]) => return .or (← reify a) (← reify b)
   | (``Not, #[a]) => return .not (← reify a)
+  | (``Ne, #[α, a, b]) =>
+    return .not (← reify (mkApp3 (mkConst ``Eq e.getAppFn.constLevels!) α a b))
   | (``Iff, #[a, b]) => return .iff (← reify a) (← reify b)
   | _ =>
     if let .forallE _ a b _ := e then
@@ -339,9 +348,11 @@ private def contextPremises : MetaM (Array Premise) := do
       ps := ps.push { type := ty, proof := d.toExpr, isHyp := true }
   return ps
 
-/-- A proof of an atom by reflexivity at reducible transparency, if it is an equation `a = b` or
-`HEq a b` whose sides are definitionally equal at that transparency. An `↔` is never an atom. -/
-private def rflProof (e : Expr) : MetaM (Option Expr) := withReducible <| withNewMCtxDepth do
+/-- A proof of an atom by reflexivity, if it is an equation `a = b` or `HEq a b` whose sides are
+definitionally equal at instance transparency: reducible definitions and instances are unfolded,
+as when `simp` rewrites with `eq_self_iff_true`. An `↔` is never an atom. -/
+private def rflProof (e : Expr) : MetaM (Option Expr) :=
+  withTransparency .instances <| withNewMCtxDepth do
   match e.getAppFnArgs with
   | (``Eq, #[_, a, b]) =>
     if ← isDefEq a b then return some (← mkEqRefl a)
