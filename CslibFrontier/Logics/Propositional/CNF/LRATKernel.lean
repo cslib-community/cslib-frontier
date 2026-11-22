@@ -30,8 +30,8 @@ reduces quickly:
   `0`, so no literal is ever unset.
 
 The checker uses structural recursion only, and no `Array`. Looking up and deleting recurse on
-the trie. Adding a clause may build the path to its number, so it recurses on a bound on the
-number's length instead: the number itself.
+the trie, and deleting stops at the first missing subtrie. Adding a clause may build the path to
+its number, so it recurses on a bound on the number's length instead: the number itself.
 
 As in `checkLRATFast`, the trail is indexed by literal rather than by variable: the reference
 checker's trail holds both polarities of a variable when the added clause contains both, which
@@ -50,7 +50,8 @@ It agrees with `checkLRAT` on every formula and certificate
 
 ## Main results
 
-* `Cslib.Logic.PL.CNF.ClauseTrie.get_insert`: reading the trie after adding or deleting a clause.
+* `Cslib.Logic.PL.CNF.ClauseTrie.get_insert`, `Cslib.Logic.PL.CNF.ClauseTrie.get_erase`: reading
+  the trie after storing or deleting a clause.
 * `Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`: the checker agrees with `checkLRAT`.
 
 ## References
@@ -183,9 +184,32 @@ private theorem get_ofList (l : List (ℕ × Clause ℕ)) (n : ℕ) : (ofList l)
     simp only [ofList, List.foldr_cons] at ih ⊢
     rw [get_insert, ih, List.lookup_cons_eq_ite]
 
+/-- Delete the clause numbered `n`, following the path of `insert`. The recursion is on the trie,
+and stops at a `leaf`, which holds no clause. -/
+def erase : ClauseTrie → ℕ → ClauseTrie
+  | leaf, _ => leaf
+  | node _ z o, 0 => node none z o
+  | node v z o, n + 1 =>
+    if n % 2 = 0 then node v (z.erase (n / 2)) o else node v z (o.erase (n / 2))
+
+/-- **Reading a trie after deleting the clause numbered `n`.** -/
+theorem get_erase (t : ClauseTrie) (n m : ℕ) :
+    (t.erase n).get m = if m = n then none else t.get m := by
+  induction t generalizing n m with
+  | leaf => simp only [erase, get, ite_self]
+  | node v z o ihz iho =>
+    rcases n with _ | n <;> rcases m with _ | m
+    · rfl
+    · rfl
+    · simp only [erase, Nat.zero_ne_add_one, ↓reduceIte]
+      split_ifs <;> rfl
+    · simp only [erase, Nat.add_right_cancel_iff]
+      split_ifs <;> simp only [get, ihz, iho] <;> split_ifs <;>
+        first | rfl | (exfalso; omega)
+
 /-- Delete the clauses with the given numbers. -/
 def eraseAll (t : ClauseTrie) (ids : List ℕ) : ClauseTrie :=
-  ids.foldl (fun t i => t.insert i none) t
+  ids.foldl erase t
 
 private theorem get_eraseAll (t : ClauseTrie) (ids : List ℕ) (n : ℕ) :
     (t.eraseAll ids).get n = if ids.contains n then none else t.get n := by
@@ -193,7 +217,7 @@ private theorem get_eraseAll (t : ClauseTrie) (ids : List ℕ) (n : ℕ) :
   | nil => simp [eraseAll]
   | cons i ids ih =>
     simp only [eraseAll, List.foldl_cons] at ih ⊢
-    rw [ih, get_insert]
+    rw [ih, get_erase]
     by_cases h : n = i <;> simp [h]
 
 end ClauseTrie
