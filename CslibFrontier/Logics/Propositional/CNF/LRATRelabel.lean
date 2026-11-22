@@ -112,7 +112,7 @@ theorem CNF.propagateHints_relabel (hg : Function.Injective g) (db : List (ℕ �
             (Prod.map g id) := by
         simp only [Clause.relabel, List.filter_map, Function.comp_def, Literal.negate_prodMap,
           contains_map_prodMap hg]
-      simp only [hfilter]
+      simp only [Clause.residual, hfilter]
       cases e.2.filter fun l => !trail.contains (Std.Sat.Literal.negate l) with
       | nil => rfl
       | cons l ls =>
@@ -123,9 +123,9 @@ theorem CNF.propagateHints_relabel (hg : Function.Injective g) (db : List (ℕ �
           funext a
           exact Bool.eq_iff_iff.2 (by simp [hinj.eq_iff])
         rw [hall]
-        split
-        · exact ih (l :: trail)
+        cases ls.all (· == l)
         · rfl
+        · exact ih (l :: trail)
 
 theorem CNF.checkLRATAux_relabel (hg : Function.Injective g) (db : List (ℕ × Clause ℕ))
     (cert : List LRAT.IntAction) :

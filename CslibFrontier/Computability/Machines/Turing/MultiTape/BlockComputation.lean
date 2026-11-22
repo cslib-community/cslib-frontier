@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.BlockNetwork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Deterministic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
 
 /-!
 # Functional computation on HPV time blocks
@@ -70,9 +71,7 @@ theorem stepCoins_ofDeterministic (M : MultiTapeTM k Bool State) (coins : List B
           MultiTapeMachine.toTM, MultiTapeTM.tr_ofTr]
         rfl
     rw [hstep]
-    change M.runFrom (M.step c) coins.length = M.runFrom c (coins.length + 1)
-    rw [show coins.length + 1 = 1 + coins.length by omega, M.runFrom_add]
-    rfl
+    exact (M.runFrom_succ_eq_step c coins.length).symm
 
 end Turing.MultiTapeTM
 

@@ -18,6 +18,7 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 public import Mathlib.Analysis.SpecialFunctions.Sqrt
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Probability.Renyi
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Analysis.Convex.Jensen
 import Mathlib.Analysis.Convex.SpecificFunctions.Basic
@@ -393,90 +394,25 @@ theorem tvDist_le_sqrt_chiSquare [Finite α] [MeasurableSpace α] [MeasurableSin
   rw [dist_eq_tvDist_toMeasure_div_two] at hd
   linarith
 
-private lemma support_bind_subset {μ ν : PMF α} (h : μ.support ⊆ ν.support)
-    (kernel : α → PMF β) :
-    (μ.bind kernel).support ⊆ (ν.bind kernel).support := by
-  intro b hb
-  rw [PMF.support_bind, Set.mem_iUnion₂] at hb ⊢
-  rcases hb with ⟨a, ha, hba⟩
-  exact ⟨a, h ha, hba⟩
+private lemma one_add_echiSquare_eq_renyiMoment {γ : Type*} [Finite γ] (μ ν : PMF γ) :
+    1 + echiSquare μ ν = renyiMoment 2 μ ν := by
+  rw [one_add_echiSquare_eq_tsum, renyiMoment, show (2 : ℝ) - 1 = 1 by norm_num]
+  refine tsum_congr fun c => ?_
+  simp only [ENNReal.rpow_one, div_eq_mul_inv, sq, mul_assoc]
+
+/-- Unconditional data processing inequality for extended `χ²` divergence under a Markov kernel,
+specialized from `renyiMoment_bind_le` at order `α = 2` (`1 + χ²(p ‖ q) = renyiMoment 2 p q`). -/
+theorem echiSquare_bind_le [Finite α] [Finite β] (p q : PMF α) (kernel : α → PMF β) :
+    echiSquare (p.bind kernel) (q.bind kernel) ≤ echiSquare p q := by
+  have hle := renyiMoment_bind_le (by norm_num : (1 : ℝ) ≤ 2) p q kernel
+  rw [← one_add_echiSquare_eq_renyiMoment, ← one_add_echiSquare_eq_renyiMoment] at hle
+  exact (ENNReal.add_le_add_iff_left ENNReal.one_ne_top).mp hle
 
 /-- Data processing inequality for `χ²` divergence under a Markov kernel (real-valued). -/
 theorem chiSquare_bind_le [Finite α] [Finite β] {p q : PMF α} (h : p.support ⊆ q.support)
     (kernel : α → PMF β) :
-    chiSquare (p.bind kernel) (q.bind kernel) ≤ chiSquare p q := by
-  let := Fintype.ofFinite α
-  let := Fintype.ofFinite β
-  have hbind : (p.bind kernel).support ⊆ (q.bind kernel).support :=
-    support_bind_subset h kernel
-  suffices hsum : 1 + chiSquare (p.bind kernel) (q.bind kernel) ≤ 1 + chiSquare p q by linarith
-  rw [one_add_chiSquare_eq_sum hbind, one_add_chiSquare_eq_sum h]
-  have hpt (b : β) :
-      ((p.bind kernel b).toReal) ^ 2 / (q.bind kernel b).toReal ≤
-        ∑ a, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal := by
-    by_cases hqb : q.bind kernel b = 0
-    · have hpb : p.bind kernel b = 0 := (PMF.apply_eq_zero_iff (p.bind kernel) b).mpr
-        (fun hmem => (PMF.apply_eq_zero_iff (q.bind kernel) b).mp hqb (hbind hmem))
-      rw [hqb, hpb]
-      simp only [ENNReal.toReal_zero, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow,
-        zero_div]
-      exact Finset.sum_nonneg fun a _ =>
-        mul_nonneg (div_nonneg (sq_nonneg _) ENNReal.toReal_nonneg) ENNReal.toReal_nonneg
-    · have hqb_pos : 0 < (q.bind kernel b).toReal :=
-        ENNReal.toReal_pos hqb ((q.bind kernel).apply_ne_top b)
-      have hrewrite : (p.bind kernel b).toReal =
-          ∑ a, ((p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal) *
-            Real.sqrt ((q a).toReal * (kernel a b).toReal) := by
-        rw [bind_apply_toReal]
-        refine Finset.sum_congr rfl fun a _ => ?_
-        by_cases hqa : q a = 0
-        · have hpa : p a = 0 := (PMF.apply_eq_zero_iff p a).mpr
-            (fun hap => (PMF.apply_eq_zero_iff q a).mp hqa (h hap))
-          simp [hqa, hpa]
-        · have hqapos : 0 < Real.sqrt (q a).toReal :=
-            Real.sqrt_pos.mpr (ENNReal.toReal_pos hqa (q.apply_ne_top a))
-          calc (p a).toReal * ((kernel a b).toReal)
-            _ = (p a).toReal * (Real.sqrt (kernel a b).toReal * Real.sqrt (kernel a b).toReal) *
-                  (Real.sqrt (q a).toReal / Real.sqrt (q a).toReal) := by
-                rw [Real.mul_self_sqrt ENNReal.toReal_nonneg, div_self hqapos.ne', mul_one]
-            _ = (p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal *
-                  Real.sqrt ((q a).toReal * (kernel a b).toReal) := by
-                rw [Real.sqrt_mul ENNReal.toReal_nonneg]
-                ring
-      have hcs := Finset.sum_mul_sq_le_sq_mul_sq (Finset.univ : Finset α)
-        (fun a => (p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal)
-        (fun a => Real.sqrt ((q a).toReal * (kernel a b).toReal))
-      rw [← hrewrite] at hcs
-      have hleft :
-          ∑ a, ((p a).toReal * Real.sqrt (kernel a b).toReal / Real.sqrt (q a).toReal) ^ 2 =
-          ∑ a, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal := by
-        refine Finset.sum_congr rfl fun a _ => ?_
-        rw [div_pow, mul_pow, Real.sq_sqrt ENNReal.toReal_nonneg,
-          Real.sq_sqrt ENNReal.toReal_nonneg]
-        ring
-      have hright : ∑ a, Real.sqrt ((q a).toReal * (kernel a b).toReal) ^ 2 =
-          (q.bind kernel b).toReal := by
-        rw [bind_apply_toReal]
-        exact Finset.sum_congr rfl fun a _ =>
-          Real.sq_sqrt (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg)
-      rw [hleft, hright] at hcs
-      exact (div_le_iff₀ hqb_pos).mpr hcs
-  calc ∑ b, ((p.bind kernel b).toReal) ^ 2 / (q.bind kernel b).toReal
-    _ ≤ ∑ b, ∑ a, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal :=
-        Finset.sum_le_sum fun b _ => hpt b
-    _ = ∑ a, ∑ b, (p a).toReal ^ 2 / (q a).toReal * (kernel a b).toReal := Finset.sum_comm
-    _ = ∑ a, (p a).toReal ^ 2 / (q a).toReal := by
-        refine Finset.sum_congr rfl fun a _ => ?_
-        rw [← Finset.mul_sum, sum_toReal, mul_one]
-
-/-- Unconditional data processing inequality for extended `χ²` divergence under a Markov kernel. -/
-theorem echiSquare_bind_le [Finite α] [Finite β] (p q : PMF α) (kernel : α → PMF β) :
-    echiSquare (p.bind kernel) (q.bind kernel) ≤ echiSquare p q := by
-  by_cases h : p.support ⊆ q.support
-  · rw [echiSquare_eq_ofReal (support_bind_subset h kernel), echiSquare_eq_ofReal h]
-    exact ENNReal.ofReal_le_ofReal (chiSquare_bind_le h kernel)
-  · rw [echiSquare_eq_top_iff.mpr h]
-    exact le_top
+    chiSquare (p.bind kernel) (q.bind kernel) ≤ chiSquare p q :=
+  ENNReal.toReal_mono (echiSquare_ne_top_iff.mpr h) (echiSquare_bind_le p q kernel)
 
 /-- Data processing inequality for `χ²` divergence under a deterministic map. -/
 theorem chiSquare_map_le [Finite α] [Finite β] {p q : PMF α} (h : p.support ⊆ q.support)

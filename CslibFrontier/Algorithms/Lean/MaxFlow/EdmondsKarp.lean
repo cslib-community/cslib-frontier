@@ -119,33 +119,27 @@ variable {V : Type*} [Fintype V] (N : Network V)
 theorem card_symArcs_le_two_mul_posArcs [DecidableEq V] :
     N.symArcs.card ≤ 2 * N.posArcs.card := by
   have hsub : N.symArcs ⊆ N.posArcs ∪ N.posArcs.image Prod.swap := by
-    intro ⟨u, v⟩ he
+    rintro ⟨u, v⟩ he
     simp only [symArcs, Finset.mem_filter, Finset.mem_univ, true_and] at he
-    rcases he with ⟨hne, hpos⟩
-    rw [Finset.mem_union]
     by_cases huv : 0 < N.cap u v
-    · left
-      simp [posArcs, hne, huv]
-    · right
-      have hvu : 0 < N.cap v u := by omega
-      rw [Finset.mem_image]
-      exact ⟨(v, u), by simp [posArcs, hne.symm, hvu], rfl⟩
-  calc
-    N.symArcs.card ≤ (N.posArcs ∪ N.posArcs.image Prod.swap).card :=
-      Finset.card_le_card hsub
-    _ ≤ N.posArcs.card + (N.posArcs.image Prod.swap).card :=
-      Finset.card_union_le _ _
-    _ ≤ N.posArcs.card + N.posArcs.card :=
-      Nat.add_le_add_left Finset.card_image_le _
-    _ = 2 * N.posArcs.card := by omega
+    · exact Finset.mem_union_left _ (by simp [posArcs, he.1, huv])
+    · exact Finset.mem_union_right _
+        (Finset.mem_image.mpr ⟨(v, u), by simp [posArcs, he.1.symm]; omega, rfl⟩)
+  have := (Finset.card_le_card hsub).trans
+    ((Finset.card_union_le _ _).trans (Nat.add_le_add_left Finset.card_image_le _))
+  omega
+
+private theorem card_symArcs_mul_half_le [DecidableEq V] (m : ℕ) :
+    N.symArcs.card * (m / 2) ≤ m * N.posArcs.card :=
+  calc N.symArcs.card * (m / 2)
+      ≤ 2 * N.posArcs.card * (m / 2) := Nat.mul_le_mul_right _ N.card_symArcs_le_two_mul_posArcs
+    _ = N.posArcs.card * (2 * (m / 2)) := by rw [Nat.mul_comm 2, Nat.mul_assoc]
+    _ ≤ N.posArcs.card * m := Nat.mul_le_mul_left _ (Nat.mul_div_le m 2)
+    _ = m * N.posArcs.card := Nat.mul_comm _ _
 
 theorem card_symArcs_le_card_sq [DecidableEq V] :
-    N.symArcs.card ≤ Fintype.card V * Fintype.card V := by
-  calc
-    N.symArcs.card ≤ (Finset.univ : Finset (V × V)).card :=
-      Finset.card_le_card (Finset.subset_univ _)
-    _ = Fintype.card (V × V) := Finset.card_univ
-    _ = Fintype.card V * Fintype.card V := Fintype.card_prod V V
+    N.symArcs.card ≤ Fintype.card V * Fintype.card V :=
+  (Finset.card_le_univ _).trans_eq (Fintype.card_prod V V)
 
 namespace Flow
 
@@ -187,32 +181,11 @@ theorem hasResWalkOfLen_of_walk (f : N.Flow) {p : List V} {v : V}
 
 theorem exists_hasResWalkOfLen_lt_card_of_resReachable (f : N.Flow) {v : V}
     (h : f.ResReachable N.s v) : ∃ k < Fintype.card V, f.HasResWalkOfLen v k := by
-  classical
-  have hwalk_ex : ∃ p : List V, p.head? = some N.s ∧ p.getLast? = some v ∧
-      ∀ e ∈ pathArcs p, 0 < f.resCap e.1 e.2 := by
-    induction h with
-    | refl => exact ⟨[N.s], rfl, rfl, by simp⟩
-    | @tail b c _ hstep ih =>
-      obtain ⟨p, hhead, hlast, harcs⟩ := ih
-      have hp_ne : p ≠ [] := by intro hnil; rw [hnil] at hhead; simp at hhead
-      refine ⟨p ++ [c], ?_, by simp, ?_⟩
-      · rw [List.head?_append_of_ne_nil p hp_ne]; exact hhead
-      · intro e he
-        rw [pathArcs_append_singleton hp_ne hlast, List.mem_append, List.mem_singleton] at he
-        rcases he with he' | rfl
-        · exact harcs e he'
-        · exact hstep
-  obtain ⟨p, hs, ht, harcs⟩ := hwalk_ex
-  let q := loopErase p
-  have hnodup : q.Nodup := nodup_loopErase p
-  have hqs : q.head? = some N.s := (head?_loopErase p).trans hs
-  have hqt : q.getLast? = some v := (getLast?_loopErase p).trans ht
-  have hqarcs : ∀ e ∈ pathArcs q, 0 < f.resCap e.1 e.2 :=
-    fun e he => harcs e (mem_pathArcs_loopErase he)
-  have hq_ne : q ≠ [] := by intro hnil; rw [hnil] at hqs; simp at hqs
-  have hlen_le : q.length ≤ Fintype.card V := hnodup.length_le_card
-  have harc_len := length_pathArcs_add_one hq_ne
-  refine ⟨(pathArcs q).length, by omega, f.hasResWalkOfLen_of_walk hqs hqt hqarcs⟩
+  obtain ⟨q, hnodup, hqs, hqt, hqarcs⟩ := exists_nodup_list_of_reflTransGen h
+  have hq_ne : q ≠ [] := by rintro rfl; simp at hqs
+  have := hnodup.length_le_card
+  have := length_pathArcs_add_one hq_ne
+  exact ⟨(pathArcs q).length, by omega, f.hasResWalkOfLen_of_walk hqs hqt hqarcs⟩
 
 /-- Residual shortest-path distance from `N.s` to `v`, capped at `Fintype.card V` when `v` is
 unreachable. -/
@@ -224,24 +197,17 @@ theorem resDist_le_card (f : N.Flow) (v : V) : f.resDist v ≤ Fintype.card V :=
   classical
   unfold resDist
   split_ifs with h
-  · exact Nat.le_of_lt (Nat.find_spec h).1
+  · exact (Nat.find_spec h).1.le
   · exact le_rfl
 
 theorem resDist_lt_card_iff_resReachable (f : N.Flow) (v : V) :
     f.resDist v < Fintype.card V ↔ f.ResReachable N.s v := by
   classical
-  constructor
-  · intro hlt
-    unfold resDist at hlt
-    split_ifs at hlt with h
-    · exact (Nat.find_spec h).2.resReachable
-    · exact absurd hlt (Nat.lt_irrefl _)
-  · intro hreach
-    obtain ⟨k, hk, hwalk⟩ := f.exists_hasResWalkOfLen_lt_card_of_resReachable hreach
-    have hex : ∃ m, m < Fintype.card V ∧ f.HasResWalkOfLen v m := ⟨k, hk, hwalk⟩
-    unfold resDist
-    simp only [hex, ↓reduceDIte]
-    exact (Nat.find_spec hex).1
+  unfold resDist
+  split_ifs with h
+  · exact ⟨fun _ => (Nat.find_spec h).2.resReachable, fun _ => (Nat.find_spec h).1⟩
+  · exact ⟨fun hlt => absurd hlt (Nat.lt_irrefl _), fun hreach =>
+      False.elim (h (f.exists_hasResWalkOfLen_lt_card_of_resReachable hreach))⟩
 
 theorem hasResWalkOfLen_resDist (f : N.Flow) {v : V} (hlt : f.resDist v < Fintype.card V) :
     f.HasResWalkOfLen v (f.resDist v) := by
@@ -249,28 +215,25 @@ theorem hasResWalkOfLen_resDist (f : N.Flow) {v : V} (hlt : f.resDist v < Fintyp
   unfold resDist at hlt ⊢
   split_ifs at hlt ⊢ with h
   · exact (Nat.find_spec h).2
-  · exact absurd hlt (Nat.lt_irrefl _)
+  · omega
 
 theorem resDist_le_of_hasResWalkOfLen (f : N.Flow) {v : V} {k : ℕ}
     (hwalk : f.HasResWalkOfLen v k) : f.resDist v ≤ k := by
   classical
   by_cases hk : k < Fintype.card V
-  · have hex : ∃ m, m < Fintype.card V ∧ f.HasResWalkOfLen v m := ⟨k, hk, hwalk⟩
-    unfold resDist
-    simp only [hex, ↓reduceDIte]
-    exact Nat.find_min' hex ⟨hk, hwalk⟩
-  · exact le_trans (f.resDist_le_card v) (Nat.le_of_not_lt hk)
+  · simpa [resDist, show ∃ m, m < Fintype.card V ∧ f.HasResWalkOfLen v m from ⟨k, hk, hwalk⟩]
+      using Nat.find_min' (⟨k, hk, hwalk⟩ : ∃ m, m < Fintype.card V ∧ f.HasResWalkOfLen v m)
+        ⟨hk, hwalk⟩
+  · exact (f.resDist_le_card v).trans (Nat.le_of_not_lt hk)
 
 @[simp]
 theorem resDist_source (f : N.Flow) : f.resDist N.s = 0 :=
   Nat.eq_zero_of_le_zero (f.resDist_le_of_hasResWalkOfLen .zero)
 
 theorem eq_source_of_resDist_eq_zero (f : N.Flow) {v : V} (hv : f.resDist v = 0) : v = N.s := by
-  have hcard : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
+  have : 0 < Fintype.card V := Fintype.card_pos_iff.mpr ⟨N.s⟩
   have hwalk := f.hasResWalkOfLen_resDist (v := v) (by omega)
-  rw [hv] at hwalk
-  cases hwalk
-  rfl
+  cases hv ▸ hwalk; rfl
 
 /-- Residual shortest-path triangle inequality: positive residual capacity on `(u, v)` gives
 `f.resDist v ≤ f.resDist u + 1` unconditionally (including when `u` is unreachable). -/
@@ -278,65 +241,47 @@ theorem resDist_le_add_one_of_pos_resCap (f : N.Flow) {u v : V} (hpos : 0 < f.re
     f.resDist v ≤ f.resDist u + 1 := by
   by_cases hlt : f.resDist u < Fintype.card V
   · exact f.resDist_le_of_hasResWalkOfLen ((f.hasResWalkOfLen_resDist hlt).succ hpos)
-  · have hle := f.resDist_le_card v
-    omega
+  · exact (f.resDist_le_card v).trans (by omega)
 
 theorem exists_pred_of_resDist_eq_succ (f : N.Flow) {v : V} {k : ℕ}
     (hk : k + 1 < Fintype.card V) (hv : f.resDist v = k + 1) :
     ∃ u : V, f.resDist u = k ∧ 0 < f.resCap u v := by
-  have hwalk := f.hasResWalkOfLen_resDist (v := v) (by omega)
-  rw [hv] at hwalk
+  have hwalk := hv ▸ f.hasResWalkOfLen_resDist (v := v) (by omega)
   cases hwalk with
   | succ hprev hpos =>
-    rename_i u
-    have hle₁ : f.resDist u ≤ k := f.resDist_le_of_hasResWalkOfLen hprev
-    have hle₂ : f.resDist v ≤ f.resDist u + 1 := f.resDist_le_add_one_of_pos_resCap hpos
-    exact ⟨u, by omega, hpos⟩
+    have := f.resDist_le_of_hasResWalkOfLen hprev
+    have := f.resDist_le_add_one_of_pos_resCap hpos
+    exact ⟨_, by omega, hpos⟩
 
 theorem resDist_le_add_length_pathArcs (f : N.Flow) {q : List V} {u w : V}
     (hu : q.head? = some u) (hw : q.getLast? = some w)
     (hq : ∀ e ∈ pathArcs q, 0 < f.resCap e.1 e.2) :
     f.resDist w ≤ f.resDist u + (pathArcs q).length := by
-  induction q generalizing u with
-  | nil => simp at hu
-  | cons x rest ih =>
-    simp only [List.head?_cons, Option.some.injEq] at hu
-    subst hu
-    rcases rest with _ | ⟨y, rest'⟩
-    · simp only [List.getLast?_singleton, Option.some.injEq] at hw
-      subst hw
-      simp
-    · have hstep : f.resDist y ≤ f.resDist x + 1 :=
-        f.resDist_le_add_one_of_pos_resCap (hq (x, y) List.mem_cons_self)
-      have hrec := ih (u := y) rfl (by simpa using hw)
-        (fun e he => hq e (List.mem_cons_of_mem _ he))
-      simp only [pathArcs_cons_cons, List.length_cons]
-      omega
+  by_cases hlt : f.resDist u < Fintype.card V
+  · exact f.resDist_le_of_hasResWalkOfLen
+      (hasResWalkOfLen_add f q (f.hasResWalkOfLen_resDist hlt) hu hw hq)
+  · have := f.resDist_le_card w; omega
 
 /-- Every vertex on a positive-residual-capacity walk starting at `N.s` has `resDist` bounded by
 the walk's arc length. -/
 theorem resDist_mem_le_length_pathArcs (f : N.Flow) {p : List V}
     (hs : p.head? = some N.s) (harcs : ∀ e ∈ pathArcs p, 0 < f.resCap e.1 e.2)
     {x : V} (hx : x ∈ p) : f.resDist x ≤ (pathArcs p).length := by
-  have hgen : ∀ q : List V, ∀ u : V,
-      q.head? = some u → (∀ e ∈ pathArcs q, 0 < f.resCap e.1 e.2) →
-      x ∈ q → f.resDist x ≤ f.resDist u + (pathArcs q).length := by
-    intro q
-    induction q with
-    | nil => intro _ _ _ hmem; simp at hmem
+  have hgen (q : List V) (u : V) (hu : q.head? = some u)
+      (hq : ∀ e ∈ pathArcs q, 0 < f.resCap e.1 e.2) (hx : x ∈ q) :
+      f.resDist x ≤ f.resDist u + (pathArcs q).length := by
+    induction q generalizing u with
+    | nil => simp at hx
     | cons a rest ih =>
-      intro u hu hq hmem
-      simp only [List.head?_cons, Option.some.injEq] at hu
-      subst a
-      rcases List.mem_cons.mp hmem with rfl | hmem'
-      · omega
+      obtain rfl : a = u := by simpa using hu
+      rcases List.mem_cons.mp hx with rfl | hmem'
+      · exact Nat.le_add_right _ _
       · rcases rest with _ | ⟨b, rest'⟩
         · simp at hmem'
-        · have hstep : f.resDist b ≤ f.resDist u + 1 :=
-            f.resDist_le_add_one_of_pos_resCap (hq (u, b) List.mem_cons_self)
+        · have hstep : f.resDist b ≤ f.resDist a + 1 :=
+            f.resDist_le_add_one_of_pos_resCap (hq (a, b) List.mem_cons_self)
           have hrec := ih b rfl (fun e he => hq e (List.mem_cons_of_mem _ he)) hmem'
-          simp only [pathArcs_cons_cons, List.length_cons]
-          omega
+          simp only [pathArcs_cons_cons, List.length_cons]; omega
   simpa using hgen p N.s hs harcs hx
 
 /-- A shortest augmenting path: a simple `s`-`t` augmenting path of minimum residual arc length
@@ -355,37 +300,29 @@ satisfies `f.resDist v ≤ f.resDist N.t`. -/
 theorem resDist_arc_of_isShortestAugmentingPath (f : N.Flow) {p : List V}
     (hp : f.IsShortestAugmentingPath p) {u v : V} (he : (u, v) ∈ pathArcs p) :
     f.resDist v = f.resDist u + 1 ∧ f.resDist v ≤ f.resDist N.t := by
-  have haug := hp.isAugmentingPath
-  have hlen := hp.length_eq
-  have hgen : ∀ q : List V, ∀ x : V,
-      q.head? = some x → q.getLast? = some N.t →
-      (∀ a ∈ pathArcs q, 0 < f.resCap a.1 a.2) →
-      f.resDist N.t = f.resDist x + (pathArcs q).length →
-      (u, v) ∈ pathArcs q →
+  have hgen (q : List V) (x : V) (hx : q.head? = some x) (hqt : q.getLast? = some N.t)
+      (hq : ∀ a ∈ pathArcs q, 0 < f.resCap a.1 a.2)
+      (hdists : f.resDist N.t = f.resDist x + (pathArcs q).length)
+      (hmem : (u, v) ∈ pathArcs q) :
       f.resDist v = f.resDist u + 1 ∧ f.resDist v ≤ f.resDist N.t := by
-    intro q
-    induction q with
-    | nil => intro _ _ _ _ _ hmem; simp at hmem
+    induction q generalizing x with
+    | nil => simp at hmem
     | cons a rest ih =>
-      intro x hx hqt hq hdists hmem
-      simp only [List.head?_cons, Option.some.injEq] at hx
-      subst hx
+      obtain rfl : a = x := by simpa using hx
       rcases rest with _ | ⟨b, rest'⟩
       · simp at hmem
-      · have hpos_ab : 0 < f.resCap a b := hq (a, b) List.mem_cons_self
-        have hab_le : f.resDist b ≤ f.resDist a + 1 :=
-          f.resDist_le_add_one_of_pos_resCap hpos_ab
-        have htail_ar := fun e he => hq e (List.mem_cons_of_mem _ he)
-        have hbt_le : f.resDist N.t ≤ f.resDist b + (pathArcs (b :: rest')).length :=
-          f.resDist_le_add_length_pathArcs rfl (by simpa using hqt) htail_ar
+      · have htail := fun e he => hq e (List.mem_cons_of_mem _ he)
+        have hstep : f.resDist b ≤ f.resDist a + 1 :=
+          f.resDist_le_add_one_of_pos_resCap (hq (a, b) List.mem_cons_self)
+        have := f.resDist_le_add_length_pathArcs rfl (by simpa using hqt) htail
         simp only [pathArcs_cons_cons, List.length_cons] at hdists
-        have hab_eq : f.resDist b = f.resDist a + 1 := by omega
-        have hbt_eq : f.resDist N.t = f.resDist b + (pathArcs (b :: rest')).length := by omega
-        simp only [pathArcs_cons_cons, List.mem_cons, Prod.mk.injEq] at hmem
-        rcases hmem with ⟨rfl, rfl⟩ | hmem'
-        · exact ⟨hab_eq, by omega⟩
-        · exact ih b rfl (by simpa using hqt) htail_ar hbt_eq hmem'
-  exact hgen p N.s haug.head? haug.getLast? (fun e he => haug.pos_resCap he) (by simp [hlen]) he
+        rcases List.mem_cons.mp (show (u, v) ∈ (a, b) :: pathArcs (b :: rest') from hmem)
+          with hEq | hmem'
+        · rcases Prod.mk.inj hEq with ⟨rfl, rfl⟩; exact ⟨by omega, by omega⟩
+        · exact ih b rfl (by simpa using hqt) htail (by omega) hmem'
+  have haug := hp.isAugmentingPath
+  exact hgen p N.s haug.head? haug.getLast? (fun _ h => haug.pos_resCap h)
+    (by simp [hp.length_eq]) he
 
 /-- **Edmonds–Karp shortest-path distance monotonicity** ([EdmondsKarp1972], Section 1, p. 251;
 [CLRS2009], Lemma 26.7, pp. 727–728): augmenting `f` along a shortest augmenting path `p` never
@@ -402,29 +339,23 @@ private theorem resCap_augmentByBottleneck [DecidableEq V] (f : N.Flow) {p : Lis
 theorem resDist_le_augmentByBottleneck [DecidableEq V] (f : N.Flow) {p : List V}
     (hp : f.IsShortestAugmentingPath p) (v : V) :
     f.resDist v ≤ (f.augmentByBottleneck p hp.isAugmentingPath).resDist v := by
-  have haug := hp.isAugmentingPath
-  let f' := f.augmentByBottleneck p haug
+  let f' := f.augmentByBottleneck p hp.isAugmentingPath
   by_cases hlt : f'.resDist v < Fintype.card V
-  · have hind : ∀ k < Fintype.card V, ∀ w : V, f'.resDist w = k → f.resDist w ≤ k := by
-      intro k
+  · have hind (k : ℕ) : k < Fintype.card V → ∀ w : V, f'.resDist w = k → f.resDist w ≤ k := by
       induction k with
-      | zero =>
-        intro _ w hw
-        obtain rfl := f'.eq_source_of_resDist_eq_zero hw
-        simp
+      | zero => intro _ w hw; rw [f'.eq_source_of_resDist_eq_zero hw]; simp
       | succ k ih =>
         intro hk1 w hw
         obtain ⟨u, hu_dist, hpos'⟩ := f'.exists_pred_of_resDist_eq_succ hk1 hw
-        have hu_le : f.resDist u ≤ k := ih (by omega) u hu_dist
+        have := ih (by omega) u hu_dist
         by_cases hpos : 0 < f.resCap u w
-        · have := f.resDist_le_add_one_of_pos_resCap hpos
-          omega
-        · have hres' := f.resCap_augmentByBottleneck haug u w
-          have hwu : (w, u) ∈ pathArcs p := by grind
-          have := (f.resDist_arc_of_isShortestAugmentingPath hp hwu).1
-          omega
+        · have := f.resDist_le_add_one_of_pos_resCap hpos; omega
+        · have hres' : f'.resCap u w = _ := f.resCap_augmentByBottleneck hp.isAugmentingPath u w
+          have hwu : (w, u) ∈ pathArcs p := by
+            by_contra h; split_ifs at hres' <;> omega
+          have := (f.resDist_arc_of_isShortestAugmentingPath hp hwu).1; omega
     exact hind (f'.resDist v) hlt v rfl
-  · exact le_trans (f.resDist_le_card v) (Nat.le_of_not_lt hlt)
+  · exact (f.resDist_le_card v).trans (Nat.le_of_not_lt hlt)
 
 end Flow
 
@@ -439,31 +370,21 @@ private theorem resDist_mono_of_seq [DecidableEq V] {T : ℕ} {flows : ℕ → N
     {paths : ℕ → List V} (hseq : N.IsShortestAugmentingSeq T flows paths)
     {i j : ℕ} (hij : i ≤ j) (hj : j ≤ T) (v : V) :
     (flows i).resDist v ≤ (flows j).resDist v := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hij
-  induction d with
-  | zero => exact le_rfl
-  | succ d ih =>
-    have hprev := ih (Nat.le_add_right i d) (by omega)
-    obtain ⟨hp, hnext⟩ := hseq (i + d) (by omega)
-    have hstep := (flows (i + d)).resDist_le_augmentByBottleneck hp v
-    rw [← hnext] at hstep
-    exact le_trans hprev hstep
+  induction j, hij using Nat.le_induction with
+  | base => exact le_rfl
+  | succ k _ ih =>
+    obtain ⟨hp, hnext⟩ := hseq k (by omega)
+    exact (ih (by omega)).trans (hnext ▸ (flows k).resDist_le_augmentByBottleneck hp v)
 
 private theorem exists_zero_to_pos_step {g : ℕ → ℕ} {a b : ℕ} (hab : a ≤ b)
     (ha : g a = 0) (hb : 0 < g b) :
     ∃ r, a ≤ r ∧ r < b ∧ g r < g (r + 1) := by
-  obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hab
-  induction d with
-  | zero =>
-    rw [Nat.add_zero] at hb
-    omega
-  | succ d ih =>
-    by_cases hpos : 0 < g (a + d)
-    · obtain ⟨r, hr₁, hr₂, hlt⟩ := ih (Nat.le_add_right a d) hpos
-      exact ⟨r, hr₁, by omega, hlt⟩
-    · refine ⟨a + d, Nat.le_add_right a d, by omega, ?_⟩
-      rw [← Nat.add_assoc] at hb
-      omega
+  induction b, hab using Nat.le_induction with
+  | base => omega
+  | succ k hle ih =>
+    by_cases hpos : 0 < g k
+    · obtain ⟨r, hr₁, hr₂, hlt⟩ := ih hpos; exact ⟨r, hr₁, by omega, hlt⟩
+    · exact ⟨k, hle, Nat.lt_succ_self k, by omega⟩
 
 /-- **Edmonds–Karp polynomial augmentation bound** ([EdmondsKarp1972], Section 1, Theorem 1,
 p. 251; [CLRS2009], Theorem 26.8, p. 729): when `N.s ≠ N.t`, every sequence of shortest-path
@@ -472,81 +393,57 @@ theorem shortestAugmentingSeq_length_le [DecidableEq V] (hst : N.s ≠ N.t) {T :
     {flows : ℕ → N.Flow} {paths : ℕ → List V}
     (hseq : N.IsShortestAugmentingSeq T flows paths) :
     T ≤ N.symArcs.card * (Fintype.card V / 2) := by
-  let isCrit (t : Fin T) (e : V × V) : Bool :=
-    decide (e ∈ pathArcs (paths t.1) ∧
-      (flows t.1).resCap e.1 e.2 = (flows t.1).bottleneck (paths t.1))
-  have hcover : ∀ t : Fin T, ∃ e ∈ N.symArcs, isCrit t e = true := by
-    intro t
+  let isCrit (e : V × V) : Finset (Fin T) :=
+    Finset.univ.filter fun t =>
+      e ∈ pathArcs (paths t.1) ∧ (flows t.1).resCap e.1 e.2 = (flows t.1).bottleneck (paths t.1)
+  have hcrit_card : ∀ e ∈ N.symArcs, (isCrit e).card ≤ Fintype.card V / 2 := by
+    rintro ⟨u, v⟩ _
+    have hmaps : ∀ t ∈ isCrit (u, v),
+        (flows t.1).resDist u / 2 ∈ Finset.range (Fintype.card V / 2) := fun t ht => by
+      obtain ⟨hp, _⟩ := hseq t.1 t.2
+      have := (flows t.1).resDist_arc_of_isShortestAugmentingPath hp (Finset.mem_filter.mp ht).2.1
+      have := ((flows t.1).resDist_lt_card_iff_resReachable N.t).mpr
+        ((flows t.1).exists_augmentingPath_iff_resReachable.mp ⟨paths t.1, hp.isAugmentingPath⟩)
+      rw [Finset.mem_range]; omega
+    have hgap {t₁ t₂ : Fin T} (ht₁ : t₁ ∈ isCrit (u, v)) (ht₂ : t₂ ∈ isCrit (u, v))
+        (hlt : t₁.1 < t₂.1) : (flows t₁.1).resDist u + 2 ≤ (flows t₂.1).resDist u := by
+      obtain ⟨he₁, hbot₁⟩ := (Finset.mem_filter.mp ht₁).2
+      obtain ⟨he₂, _⟩ := (Finset.mem_filter.mp ht₂).2
+      obtain ⟨hp₁, hnext₁⟩ := hseq t₁.1 t₁.2
+      obtain ⟨hp₂, _⟩ := hseq t₂.1 t₂.2
+      have hzero₁ : (flows (t₁.1 + 1)).resCap u v = 0 := by
+        rw [hnext₁, Flow.resCap_augmentByBottleneck]; simp [he₁, hbot₁]
+      obtain ⟨r, hr₁, hr₂, hinc⟩ := exists_zero_to_pos_step (g := fun k => (flows k).resCap u v)
+        (by omega) hzero₁ (hp₂.isAugmentingPath.pos_resCap he₂)
+      obtain ⟨hpr, hnextr⟩ := hseq r (by omega)
+      have hvu_r : (v, u) ∈ pathArcs (paths r) := by
+        rw [hnextr, Flow.resCap_augmentByBottleneck] at hinc
+        by_contra h; split_ifs at hinc <;> omega
+      have := ((flows t₁.1).resDist_arc_of_isShortestAugmentingPath hp₁ he₁).1
+      have := ((flows r).resDist_arc_of_isShortestAugmentingPath hpr hvu_r).1
+      have := N.resDist_mono_of_seq hseq (i := t₁.1) (j := r) (by omega) (by omega) v
+      have := N.resDist_mono_of_seq hseq (i := r) (j := t₂.1) (by omega) (by omega) u
+      omega
+    have hinj : Set.InjOn (fun t : Fin T => (flows t.1).resDist u / 2) (isCrit (u, v)) :=
+      fun t₁ ht₁ t₂ ht₂ heq => by
+        dsimp only at heq
+        rcases lt_trichotomy t₁.1 t₂.1 with hlt | heq' | hgt
+        · have := hgap ht₁ ht₂ hlt; omega
+        · exact Fin.ext heq'
+        · have := hgap ht₂ ht₁ hgt; omega
+    exact (Finset.card_le_card_of_injOn _ hmaps hinj).trans_eq (Finset.card_range _)
+  have hcover : (Finset.univ : Finset (Fin T)) ⊆ N.symArcs.biUnion isCrit := fun t _ => by
     obtain ⟨hp, _⟩ := hseq t.1 t.2
     have haug := hp.isAugmentingPath
     obtain ⟨e, he, hbot⟩ := (flows t.1).exists_mem_pathArcs_resCap_eq_bottleneck
       (pathArcs_ne_nil_of_head?_ne_getLast? hst haug.head? haug.getLast?)
-    have hpos_res := haug.pos_resCap he
-    have hcap_le := (flows t.1).resCap_le_cap_add_cap e.1 e.2
-    refine ⟨e, Finset.mem_filter.mpr ⟨Finset.mem_univ _,
-      ne_of_mem_pathArcs haug.nodup he, by omega⟩, decide_eq_true ⟨he, hbot⟩⟩
-  have hcrit_card : ∀ e ∈ N.symArcs,
-      (Finset.univ.filter fun t : Fin T => isCrit t e = true).card ≤ Fintype.card V / 2 := by
-    rintro ⟨u, v⟩ _
-    let S := Finset.univ.filter fun t : Fin T => isCrit t (u, v) = true
-    have hmaps : ∀ t ∈ S, (flows t.1).resDist u / 2 ∈ Finset.range (Fintype.card V / 2) := by
-      intro t ht
-      obtain ⟨he, _⟩ := of_decide_eq_true (Finset.mem_filter.mp ht).2
-      obtain ⟨hp, _⟩ := hseq t.1 t.2
-      have := (flows t.1).resDist_arc_of_isShortestAugmentingPath hp he
-      have hlt_t := ((flows t.1).resDist_lt_card_iff_resReachable N.t).mpr
-        (((flows t.1).exists_augmentingPath_iff_resReachable).mp ⟨paths t.1, hp.isAugmentingPath⟩)
-      rw [Finset.mem_range]
-      omega
-    have hgap : ∀ t₁ ∈ S, ∀ t₂ ∈ S, t₁.1 < t₂.1 →
-        (flows t₁.1).resDist u + 2 ≤ (flows t₂.1).resDist u := by
-      intro t₁ ht₁ t₂ ht₂ hlt12
-      obtain ⟨he₁, hbot₁⟩ := of_decide_eq_true (Finset.mem_filter.mp ht₁).2
-      obtain ⟨he₂, _⟩ := of_decide_eq_true (Finset.mem_filter.mp ht₂).2
-      obtain ⟨hp₁, hnext₁⟩ := hseq t₁.1 t₁.2
-      obtain ⟨hp₂, _⟩ := hseq t₂.1 t₂.2
-      have hdist₁ := ((flows t₁.1).resDist_arc_of_isShortestAugmentingPath hp₁ he₁).1
-      have hzero₁ : (flows (t₁.1 + 1)).resCap u v = 0 := by
-        rw [hnext₁, Flow.resCap_augmentByBottleneck]
-        simp [he₁, hbot₁]
-      have hpos₂ : 0 < (flows t₂.1).resCap u v := hp₂.isAugmentingPath.pos_resCap he₂
-      obtain ⟨r, hr₁, hr₂, hinc⟩ :=
-        exists_zero_to_pos_step (g := fun k => (flows k).resCap u v) (by omega) hzero₁ hpos₂
-      obtain ⟨hpr, hnextr⟩ := hseq r (by omega)
-      have hvu_r : (v, u) ∈ pathArcs (paths r) := by
-        rw [hnextr, Flow.resCap_augmentByBottleneck] at hinc
-        by_contra hnot
-        split_ifs at hinc <;> omega
-      have hdistr := ((flows r).resDist_arc_of_isShortestAugmentingPath hpr hvu_r).1
-      have hmono₁ := N.resDist_mono_of_seq hseq (i := t₁.1) (j := r) (by omega) (by omega) v
-      have hmono₂ := N.resDist_mono_of_seq hseq (i := r) (j := t₂.1) (by omega) (by omega) u
-      omega
-    have hinj : Set.InjOn (fun t : Fin T => (flows t.1).resDist u / 2) S := by
-      intro t₁ ht₁ t₂ ht₂ heq
-      dsimp only at heq
-      rcases lt_trichotomy t₁.1 t₂.1 with hlt | heq' | hgt
-      · have := hgap t₁ ht₁ t₂ ht₂ hlt; omega
-      · exact Fin.ext heq'
-      · have := hgap t₂ ht₂ t₁ ht₁ hgt; omega
-    calc
-      S.card ≤ (Finset.range (Fintype.card V / 2)).card :=
-        Finset.card_le_card_of_injOn _ hmaps hinj
-      _ = Fintype.card V / 2 := Finset.card_range _
-  have huniv_sub : (Finset.univ : Finset (Fin T)) ⊆
-      N.symArcs.biUnion (fun e => Finset.univ.filter fun t : Fin T => isCrit t e = true) := by
-    intro t _
-    obtain ⟨e, he, hcrit⟩ := hcover t
-    exact Finset.mem_biUnion.mpr ⟨e, he, by simp [hcrit]⟩
-  calc
-    T = (Finset.univ : Finset (Fin T)).card := by simp [Fintype.card_fin]
-    _ ≤ (N.symArcs.biUnion
-          (fun e => Finset.univ.filter fun t : Fin T => isCrit t e = true)).card :=
-      Finset.card_le_card huniv_sub
-    _ ≤ ∑ e ∈ N.symArcs, (Finset.univ.filter fun t : Fin T => isCrit t e = true).card :=
-      Finset.card_biUnion_le
-    _ ≤ ∑ _e ∈ N.symArcs, (Fintype.card V / 2) :=
-      Finset.sum_le_sum hcrit_card
-    _ = N.symArcs.card * (Fintype.card V / 2) := by simp
+    have := haug.pos_resCap he
+    have := (flows t.1).resCap_le_cap_add_cap e.1 e.2
+    exact Finset.mem_biUnion.mpr ⟨e,
+      Finset.mem_filter.mpr ⟨Finset.mem_univ _, ne_of_mem_pathArcs haug.nodup he, by omega⟩,
+      Finset.mem_filter.mpr ⟨Finset.mem_univ _, he, hbot⟩⟩
+  simpa [Fintype.card_fin] using (Finset.card_le_card hcover).trans
+    (Finset.card_biUnion_le.trans (Finset.sum_le_sum hcrit_card))
 
 /-- Sparse `|V| * |E|` corollary of `shortestAugmentingSeq_length_le` ([CLRS2009], Theorem 26.8,
 p. 729): every shortest-path augmentation sequence has length at most
@@ -554,17 +451,8 @@ p. 729): every shortest-path augmentation sequence has length at most
 theorem shortestAugmentingSeq_length_le_card_mul_posArcs [DecidableEq V] (hst : N.s ≠ N.t)
     {T : ℕ} {flows : ℕ → N.Flow} {paths : ℕ → List V}
     (hseq : N.IsShortestAugmentingSeq T flows paths) :
-    T ≤ Fintype.card V * N.posArcs.card := by
-  have h1 := N.shortestAugmentingSeq_length_le hst hseq
-  have h2 := N.card_symArcs_le_two_mul_posArcs
-  have hdiv : 2 * (Fintype.card V / 2) ≤ Fintype.card V := Nat.mul_div_le (Fintype.card V) 2
-  calc
-    T ≤ N.symArcs.card * (Fintype.card V / 2) := h1
-    _ ≤ (2 * N.posArcs.card) * (Fintype.card V / 2) := Nat.mul_le_mul_right _ h2
-    _ = N.posArcs.card * (2 * (Fintype.card V / 2)) := by
-      rw [Nat.mul_comm 2 N.posArcs.card, Nat.mul_assoc]
-    _ ≤ N.posArcs.card * Fintype.card V := Nat.mul_le_mul_left _ hdiv
-    _ = Fintype.card V * N.posArcs.card := Nat.mul_comm _ _
+    T ≤ Fintype.card V * N.posArcs.card :=
+  (N.shortestAugmentingSeq_length_le hst hseq).trans (N.card_symArcs_mul_half_le (Fintype.card V))
 
 end DistanceAndCriticalArcs
 
@@ -778,51 +666,17 @@ theorem adjValid_defaultAdj {n : ℕ} (N : Network (Fin n)) : AdjValid N (defaul
 theorem adjSteps_defaultAdj (n : ℕ) : adjSteps (defaultAdj n) = n * n := by
   simp [adjSteps, defaultAdj, Fintype.card_fin]
 
-private theorem finset_card_le_list_length {α : Type*} {s : Finset α} {l : List α}
-    (h : ∀ x ∈ s, x ∈ l) : s.card ≤ l.length := by
-  classical
-  induction l generalizing s with
-  | nil =>
-    have hempty : s = ∅ := Finset.eq_empty_of_forall_notMem fun x hx => List.not_mem_nil (h x hx)
-    simp [hempty]
-  | cons a l' ih =>
-    have herase : ∀ x ∈ s.erase a, x ∈ l' := by
-      intro x hx
-      obtain ⟨hne, hmem⟩ := Finset.mem_erase.mp hx
-      rcases List.mem_cons.mp (h x hmem) with rfl | hx'
-      · exact absurd rfl hne
-      · exact hx'
-    have hrec := ih herase
-    by_cases ha : a ∈ s
-    · have hadd := Finset.card_erase_add_one ha
-      simp only [List.length_cons]
-      omega
-    · rw [Finset.erase_eq_of_notMem ha] at hrec
-      simp only [List.length_cons]
-      omega
-
 /-- Under `AdjValid N adj`, every active residual pair `(u, v) ∈ N.symArcs` appears in `adj u`, so
 `N.symArcs.card ≤ adjSteps adj`. -/
 theorem card_symArcs_le_adjSteps {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) : N.symArcs.card ≤ adjSteps adj := by
-  let S (u : Fin n) : Finset (Fin n) := Finset.univ.filter fun v => (u, v) ∈ N.symArcs
-  have hcard_eq : N.symArcs.card = ∑ u : Fin n, (S u).card := by
-    calc
-      N.symArcs.card = ∑ _e ∈ N.symArcs, 1 := by simp
-      _ = ∑ e : Fin n × Fin n, if e ∈ N.symArcs then 1 else 0 := by
-        have hflt : Finset.univ.filter (fun e : Fin n × Fin n => e ∈ N.symArcs) = N.symArcs := by
-          ext e; simp
-        rw [← Finset.sum_filter, hflt]
-      _ = ∑ u : Fin n, ∑ v : Fin n, if (u, v) ∈ N.symArcs then 1 else 0 := by
-        rw [← Finset.univ_product_univ, Finset.sum_product]
-      _ = ∑ u : Fin n, (S u).card := by
-        refine Finset.sum_congr rfl fun u _ => ?_
-        rw [← Finset.sum_filter]
-        simp [S]
-  rw [hcard_eq]
-  refine Finset.sum_le_sum fun u _ => finset_card_le_list_length fun v hv => ?_
-  simp only [S, Finset.mem_filter, Finset.mem_univ, true_and, Network.symArcs] at hv
-  exact hadj u v hv.1 hv.2
+  have hsub : N.symArcs ⊆ Finset.univ.biUnion fun u : Fin n =>
+      (adj u).toFinset.image (Prod.mk u) := fun ⟨u, v⟩ he => by
+    simp only [Network.symArcs, Finset.mem_filter, Finset.mem_univ, true_and] at he
+    exact Finset.mem_biUnion.mpr ⟨u, Finset.mem_univ _,
+      Finset.mem_image.mpr ⟨v, List.mem_toFinset.mpr (hadj u v he.1 he.2), rfl⟩⟩
+  exact (Finset.card_le_card hsub).trans (Finset.card_biUnion_le.trans
+    (Finset.sum_le_sum fun u _ => Finset.card_image_le.trans (List.toFinset_card_le _)))
 
 /-- Count elements of `xs`, charging `1` tick per element. -/
 @[expose] def countListM {α : Type*} : List α → ℕ → TimeM ℕ ℕ
@@ -921,25 +775,15 @@ theorem tblValid_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (hbase : baseTbl = Vector.replicate n none) :
     TblValid f (vset baseTbl N.s (some [N.s])) := by
   subst hbase
-  refine ⟨?_, ?_⟩
-  · intro v rp hget
-    by_cases hvs : v = N.s
-    · subst hvs
-      simp only [vget_vset_self, Option.some.injEq] at hget
-      subst hget
-      exact ⟨List.nodup_singleton N.s, rfl, rfl, by simp⟩
-    · have hsv : N.s ≠ v := Ne.symm hvs
-      simp [vget_vset_ne _ _ hsv] at hget
-  · intro v rp hget x hx
-    by_cases hvs : v = N.s
-    · subst hvs
-      simp only [vget_vset_self, Option.some.injEq] at hget
-      subst hget
-      simp only [List.reverse_singleton, List.mem_singleton] at hx
-      subst hx
-      simp
-    · have hsv : N.s ≠ v := Ne.symm hvs
-      simp [vget_vset_ne _ _ hsv] at hget
+  have hget_eq {v : Fin n} {rp : List (Fin n)}
+      (h : vget (vset (Vector.replicate n none) N.s (some [N.s])) v = some rp) :
+      v = N.s ∧ rp = [N.s] := by
+    rcases eq_or_ne v N.s with rfl | hne
+    · simp_all
+    · simp [vget_vset_ne _ _ hne.symm] at h
+  refine ⟨fun v rp h => ?_, fun v rp h x hx => ?_⟩
+  · obtain ⟨rfl, rfl⟩ := hget_eq h; exact ⟨List.nodup_singleton _, rfl, rfl, by simp⟩
+  · obtain ⟨rfl, rfl⟩ := hget_eq h; simp_all
 
 theorem tblValid_insert {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     {tbl : Vector (Option (List (Fin n))) n} (htbl : TblValid f tbl)
@@ -949,43 +793,35 @@ theorem tblValid_insert {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     (hpos : 0 < f.resCap u v) (hnone : (vget tbl v).isNone = true) :
     TblValid f (vset tbl v (some (v :: rp_u))) ∧
       (∀ x ∈ rp_u.reverse, (vget (vset tbl v (some (v :: rp_u))) x).isSome = true) := by
-  have hnone_eq : vget tbl v = none := Option.isNone_iff_eq_none.mp hnone
-  have hpu_ne : rp_u.reverse ≠ [] := by
-    intro hnil; have := hu_walk.head?; simp [hnil] at this
+  have hpu_ne : rp_u.reverse ≠ [] := by intro h; simpa [h] using hu_walk.head?
   have hv_walk : IsRevWalkTo f v (v :: rp_u) := by
-    refine ⟨?_, ?_, ?_, ?_⟩
+    have hv_notin : v ∉ rp_u.reverse := fun hv => by
+      have := hu_mem v hv; rw [Option.isNone_iff_eq_none.mp hnone] at this; simp at this
+    refine ⟨?_, by simpa [List.reverse_cons, List.head?_append_of_ne_nil _ hpu_ne] using
+        hu_walk.head?, by simp [List.reverse_cons], fun e he => ?_⟩
     · rw [List.reverse_cons, List.nodup_append]
-      have hv_notin : v ∉ rp_u.reverse := by grind
       exact ⟨hu_walk.nodup, List.nodup_singleton v, fun a ha b hb hab => by
         subst hab; rw [List.mem_singleton.mp hb] at ha; exact hv_notin ha⟩
-    · simpa [List.reverse_cons, List.head?_append_of_ne_nil _ hpu_ne] using hu_walk.head?
-    · simp [List.reverse_cons]
-    · intro e he
-      rw [List.reverse_cons, pathArcs_append_singleton hpu_ne hu_walk.getLast?,
+    · rw [List.reverse_cons, pathArcs_append_singleton hpu_ne hu_walk.getLast?,
         List.mem_append, List.mem_singleton] at he
-      rcases he with he' | rfl
-      · exact hu_walk.pos_resCap e he'
+      rcases he with h | rfl
+      · exact hu_walk.pos_resCap e h
       · exact hpos
-  have hisSome_mono : ∀ x, (vget tbl x).isSome = true →
+  have hisSome_mono (x : Fin n) (hx : (vget tbl x).isSome = true) :
       (vget (vset tbl v (some (v :: rp_u))) x).isSome = true := by
-    intro x hx
     rcases eq_or_ne v x with rfl | hvx
     · simp
     · simp [vget_vset_ne _ _ hvx, hx]
-  refine ⟨⟨?_, ?_⟩, fun x hx => hisSome_mono x (hu_mem x hx)⟩
-  · intro w rp hget
-    rcases eq_or_ne v w with rfl | hvw
-    · simp only [vget_vset_self, Option.some.injEq] at hget
-      exact hget ▸ hv_walk
+  refine ⟨⟨fun w rp hget => ?_, fun w rp hget x hx => ?_⟩, fun x hx => hisSome_mono x (hu_mem x hx)⟩
+  · rcases eq_or_ne v w with rfl | hvw
+    · obtain rfl : v :: rp_u = rp := by simpa using hget
+      exact hv_walk
     · exact htbl.walk w rp (by simpa [vget_vset_ne _ _ hvw] using hget)
-  · intro w rp hget x hx
-    rcases eq_or_ne v w with rfl | hvw
-    · simp only [vget_vset_self, Option.some.injEq] at hget
-      subst hget
-      rw [List.reverse_cons, List.mem_append, List.mem_singleton] at hx
-      rcases hx with hx_u | rfl
+  · rcases eq_or_ne v w with rfl | hvw
+    · obtain rfl : v :: rp_u = rp := by simpa using hget
+      rcases List.mem_append.mp (List.reverse_cons ▸ hx) with hx_u | hx_v
       · exact hisSome_mono x (hu_mem x hx_u)
-      · simp
+      · rw [List.mem_singleton.mp hx_v]; simp
     · exact hisSome_mono x
         (htbl.mem_isSome w rp (by simpa [vget_vset_ne _ _ hvw] using hget) x hx)
 
@@ -1094,18 +930,13 @@ private theorem expandLayerM_time_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow
   induction us generalizing st with
   | nil => simp [expandLayerM]
   | cons u us' ih =>
-    simp only [List.map_cons, List.sum_cons]
-    rw [expandLayerM, TimeM.time_bind, TimeM.time_tick]
-    dsimp only
+    simp only [expandLayerM, TimeM.time_bind, TimeM.time_tick, List.map_cons, List.sum_cons]
     split
-    · simp only [TimeM.time_bind, TimeM.ret_pure, TimeM.time_pure]
-      have hrec := ih st
-      omega
+    · have := ih st; simp only [TimeM.time_bind, TimeM.ret_pure, TimeM.time_pure]; omega
     · rename_i rp_u hget
-      simp only [TimeM.time_bind, scanNeighborsM_time]
-      have hrec := ih (scanNeighborsM f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
+      have := ih (scanNeighborsM f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
         (st.tblValid.mem_isSome u rp_u hget)).ret
-      omega
+      simp only [TimeM.time_bind, scanNeighborsM_time]; omega
 
 private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow} {d : ℕ}
     {baseTbl : Vector (Option (List (Fin n))) n}
@@ -1130,73 +961,54 @@ private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.
       have hpos : 0 < f.resCap u v := of_decide_eq_true hpos'
       have hnone_st : vget st.revPath v = none := Option.isNone_iff_eq_none.mp hnone
       have hnone_base : vget baseTbl v = none := by
-        rcases hb : vget baseTbl v with _ | rp
-        · rfl
-        · have := hst.mono_base v rp hb; simp [hnone_st] at this
-      have hv_not_front : v ∉ st.frontier := fun h => by
-        have := (hst.mem_frontier v).mp h; simp [hnone_st] at this
+        cases hb : vget baseTbl v with
+        | none => rfl
+        | some rp => exact absurd (hst.mono_base v rp hb) (by simp [hnone_st])
       have hv_lt : f.resDist v < n := by
-        have hu_reach := (f.resDist_lt_card_iff_resReachable u).mp
-          (by simpa [Fintype.card_fin] using hu_lt)
-        simpa [Fintype.card_fin] using
-          (f.resDist_lt_card_iff_resReachable v).mpr (hu_reach.tail hpos)
-      have hv_gt_d : ¬ f.resDist v ≤ d := fun hle => by
-        have := (hbase v).mpr ⟨hv_lt, hle⟩; simp [hnone_base] at this
+        have hu_r := (f.resDist_lt_card_iff_resReachable u).mp (by simpa [Fintype.card_fin])
+        simpa [Fintype.card_fin] using (f.resDist_lt_card_iff_resReachable v).mpr (hu_r.tail hpos)
+      have hv_not_le : ¬ f.resDist v ≤ d := fun h => by
+        have := (hbase v).mpr ⟨hv_lt, h⟩; simp [hnone_base] at this
       have := f.resDist_le_add_one_of_pos_resCap hpos
-      have hv_dist : f.resDist v = d + 1 := by omega
       let hins := tblValid_insert st.tblValid hu_walk hu_mem hpos hnone
-      let st' : BfsState f :=
-        { revPath := vset st.revPath v (some (v :: rp_u))
-          frontier := v :: st.frontier
-          tblValid := hins.1 }
-      have hv_valid : ValidRevPath f v (v :: rp_u) := by
-        have hpu_ne : rp_u.reverse ≠ [] := by
-          intro hnil; have := hu_valid.head?; simp [hnil] at this
-        have hlen_eq : (pathArcs (v :: rp_u).reverse).length = f.resDist v := by
-          rw [List.reverse_cons, pathArcs_append_singleton hpu_ne hu_valid.getLast?,
-            List.length_append, List.length_singleton, hu_valid.length_eq]
-          omega
-        exact ⟨hins.1.walk v (v :: rp_u) (by simp), hlen_eq⟩
-      have hst' : StepInv f d baseTbl st' := by
-        refine ⟨List.nodup_cons.mpr ⟨hv_not_front, hst.frontier_nodup⟩, ?_, ?_, ?_⟩
-        · intro w rp hbw
-          have hvw : v ≠ w := by rintro rfl; simp [hnone_base] at hbw
-          simp only [st', vget_vset_ne _ _ hvw]
-          exact hst.mono_base w rp hbw
-        · intro w
-          rcases eq_or_ne w v with rfl | hwv
-          · simp [st', hnone_base]
-          · simp only [st', List.mem_cons, hwv, false_or, vget_vset_ne _ _ hwv.symm]
-            exact hst.mem_frontier w
-        · intro w rp hw
-          rcases eq_or_ne w v with rfl | hwv
-          · simp only [st', vget_vset_self, Option.some.injEq] at hw
-            subst hw
-            exact ⟨hv_valid, hv_lt, by omega⟩
-          · simp only [st', vget_vset_ne _ _ hwv.symm] at hw
-            exact hst.valid_entry w rp hw
+      let st' : BfsState f := ⟨vset st.revPath v (some (v :: rp_u)), v :: st.frontier, hins.1⟩
+      have hpu_ne : rp_u.reverse ≠ [] := by intro h; simpa [h] using hu_valid.head?
+      have hv_valid : ValidRevPath f v (v :: rp_u) := ⟨hins.1.walk v (v :: rp_u) (by simp), by
+        rw [List.reverse_cons, pathArcs_append_singleton hpu_ne hu_valid.getLast?,
+          List.length_append, List.length_singleton, hu_valid.length_eq]; omega⟩
+      have hst' : StepInv f d baseTbl st' :=
+        ⟨List.nodup_cons.mpr ⟨fun h => by
+            have := (hst.mem_frontier v).mp h; simp [hnone_st] at this,
+            hst.frontier_nodup⟩,
+          fun w rp hbw => by
+            have hvw : v ≠ w := by rintro rfl; simp [hnone_base] at hbw
+            exact (vget_vset_ne _ _ hvw).trans (hst.mono_base w rp hbw),
+          fun w => by
+            rcases eq_or_ne w v with rfl | hwv
+            · simp [st', hnone_base]
+            · simp only [st', List.mem_cons, hwv, false_or, vget_vset_ne _ _ hwv.symm]
+              exact hst.mem_frontier w,
+          fun w rp hw => by
+            rcases eq_or_ne w v with rfl | hwv
+            · simp only [st', vget_vset_self, Option.some.injEq] at hw
+              exact hw ▸ ⟨hv_valid, hv_lt, by omega⟩
+            · exact hst.valid_entry w rp (by simpa [st', vget_vset_ne _ _ hwv.symm] using hw)⟩
       obtain ⟨hfin, hmono', hcov'⟩ := ih hins.2 hst'
-      refine ⟨hfin, ?_, ?_⟩
-      · intro w rp hsw
-        have hvw : v ≠ w := by rintro rfl; simp [hnone_st] at hsw
-        exact hmono' w rp (by simpa [st', vget_vset_ne _ _ hvw] using hsw)
-      · intro w hw hres_w
-        rcases List.mem_cons.mp hw with hEq | hw'
-        · have hv_some := hmono' v (v :: rp_u) (by simp [st'])
-          rw [hEq, hv_some]
-          rfl
+      refine ⟨hfin, fun w rp hsw => hmono' w rp ?_, fun w hw hres_w => ?_⟩
+      · have hvw : v ≠ w := by rintro rfl; simp [hnone_st] at hsw
+        simpa [st', vget_vset_ne _ _ hvw] using hsw
+      · rcases List.mem_cons.mp hw with hEq | hw'
+        · rw [hEq, hmono' v (v :: rp_u) (by simp [st'])]; rfl
         · exact hcov' w hw' hres_w
     · simp only [hcond]
       obtain ⟨hfin, hmono', hcov'⟩ := ih hu_mem hst
       refine ⟨hfin, hmono', fun w hw hres_w => ?_⟩
       rcases List.mem_cons.mp hw with rfl | hw'
-      · have hnot_none : ¬ (vget st.revPath w).isNone = true := fun h => by
-          have : (0 < f.resCap u w && (vget st.revPath w).isNone) = true :=
-            Bool.and_eq_true_iff.mpr ⟨decide_eq_true hres_w, h⟩
-          simp [hcond] at this
-        have hsome : (vget st.revPath w).isSome = true := by
-          cases h : vget st.revPath w <;> simp_all
-        obtain ⟨rp_w, hrp_w⟩ := Option.isSome_iff_exists.mp hsome
+      · obtain ⟨rp_w, hrp_w⟩ : ∃ rp, vget st.revPath w = some rp := by
+          cases h : vget st.revPath w with
+          | none =>
+            exact absurd (Bool.and_eq_true_iff.mpr ⟨decide_eq_true hres_w, by simp [h]⟩) hcond
+          | some rp => exact ⟨rp, rfl⟩
         simp [hmono' w rp_w hrp_w]
       · exact hcov' w hw' hres_w
 
@@ -1213,33 +1025,25 @@ private theorem expandLayerM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Fl
   induction us generalizing st with
   | nil => exact ⟨hst, fun _ _ h => h, by simp⟩
   | cons u us' ih =>
-    have hu_front : u ∈ baseSt.frontier := hus u List.mem_cons_self
-    have hus' : ∀ x ∈ us', x ∈ baseSt.frontier := fun x hx => hus x (List.mem_cons_of_mem u hx)
-    obtain ⟨hu_lt, hu_dist⟩ := (hinv.mem_frontier u).mp hu_front
-    have hu_some_base : (vget baseSt.revPath u).isSome = true :=
-      (hinv.isSome_iff u).mpr ⟨hu_lt, Nat.le_of_eq hu_dist⟩
-    obtain ⟨rp_u, hrp_base⟩ := Option.isSome_iff_exists.mp hu_some_base
-    have hrp_st : vget st.revPath u = some rp_u := hst.mono_base u rp_u hrp_base
-    have hu_valid : ValidRevPath f u rp_u := hinv.valid_revPath u rp_u hrp_base
+    obtain ⟨hu_lt, hu_dist⟩ := (hinv.mem_frontier u).mp (hus u List.mem_cons_self)
+    obtain ⟨rp_u, hrp_base⟩ := Option.isSome_iff_exists.mp
+      ((hinv.isSome_iff u).mpr ⟨hu_lt, hu_dist.le⟩)
+    have hrp_st := hst.mono_base u rp_u hrp_base
     simp only [expandLayerM, TimeM.ret_bind]
     split
-    · rename_i hget_none
-      rw [hrp_st] at hget_none
-      simp at hget_none
+    · simp_all
     · rename_i rp_u' hget
-      have hrp_eq : rp_u' = rp_u := Option.some.inj (hget.symm.trans hrp_st)
-      subst rp_u'
+      obtain rfl : rp_u' = rp_u := Option.some.inj (hget.symm.trans hrp_st)
       obtain ⟨hst_mid, hmono_mid, hcov_u⟩ :=
-        scanNeighborsM_preserves hinv.isSome_iff (st.tblValid.walk u rp_u hget) hu_valid
-          hu_lt hu_dist (adj u) (st.tblValid.mem_isSome u rp_u hget) hst
-      obtain ⟨hst_end, hmono_end, hcov_us⟩ := ih hus' hst_mid
-      refine ⟨hst_end, fun w rp hw => hmono_end w rp (hmono_mid w rp hw), ?_⟩
-      intro x hx v hv hpos
+        scanNeighborsM_preserves hinv.isSome_iff (st.tblValid.walk u rp_u' hget)
+          (hinv.valid_revPath u rp_u' hrp_base) hu_lt hu_dist (adj u)
+          (st.tblValid.mem_isSome u rp_u' hget) hst
+      obtain ⟨hst_end, hmono_end, hcov_us⟩ :=
+        ih (fun x hx => hus x (List.mem_cons_of_mem u hx)) hst_mid
+      refine ⟨hst_end, fun w rp hw => hmono_end w rp (hmono_mid w rp hw), fun x hx v hv hpos => ?_⟩
       rcases List.mem_cons.mp hx with rfl | hx'
       · obtain ⟨rp_v, hrpv⟩ := Option.isSome_iff_exists.mp (hcov_u v hv hpos)
-        simp only [TimeM.ret_bind]
-        rw [hmono_end v rp_v hrpv]
-        rfl
+        simp [hmono_end v rp_v hrpv]
       · exact hcov_us x hx' v hv hpos
 
 private theorem layerInv_step {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
@@ -1248,41 +1052,32 @@ private theorem layerInv_step {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     let st := (expandLayerM f adj baseSt.frontier
       { revPath := baseSt.revPath, frontier := [], tblValid := baseSt.tblValid }).ret
     LayerInv f (d + 1) st := by
-  let st0 : BfsState f :=
-    { revPath := baseSt.revPath, frontier := [], tblValid := baseSt.tblValid }
-  have hst0 : StepInv f d baseSt.revPath st0 := by
-    refine ⟨List.nodup_nil, fun _ _ h => h, fun w => by cases vget baseSt.revPath w <;> simp [st0],
-      fun w rp hw => ?_⟩
-    obtain ⟨hlt, _⟩ := (hinv.isSome_iff w).mp (by simp [st0] at hw; simp [hw])
-    exact ⟨hinv.valid_revPath w rp hw, hlt, by omega⟩
+  let st0 : BfsState f := ⟨baseSt.revPath, [], baseSt.tblValid⟩
+  have hst0 : StepInv f d baseSt.revPath st0 :=
+    ⟨List.nodup_nil, fun _ _ h => h, fun w => by cases vget baseSt.revPath w <;> simp [st0],
+      fun w rp hw =>
+        let ⟨hlt, _⟩ := (hinv.isSome_iff w).mp (by simp [st0] at hw; simp [hw])
+        ⟨hinv.valid_revPath w rp hw, hlt, by omega⟩⟩
   obtain ⟨hst, -, hcov⟩ := expandLayerM_preserves hinv baseSt.frontier (fun _ h => h) hst0
-  dsimp only
-  have hsome_iff : ∀ v : Fin n,
-      (vget (expandLayerM f adj baseSt.frontier st0).ret.revPath v).isSome
-        ↔ f.resDist v < n ∧ f.resDist v ≤ d + 1 := by
-    intro v
-    constructor
-    · intro hs
-      obtain ⟨rp, hrp⟩ := Option.isSome_iff_exists.mp hs
-      obtain ⟨_, hlt, hle⟩ := hst.valid_entry v rp hrp
-      exact ⟨hlt, hle⟩
-    · rintro ⟨hlt, hle⟩
-      by_cases hle_d : f.resDist v ≤ d
-      · obtain ⟨rp, hrp⟩ := Option.isSome_iff_exists.mp ((hinv.isSome_iff v).mpr ⟨hlt, hle_d⟩)
-        simp [hst.mono_base v rp hrp]
-      · have hlt_card : d + 1 < Fintype.card (Fin n) := by grind [Fintype.card_fin]
-        have heq_succ : f.resDist v = d + 1 := by omega
-        obtain ⟨u, hu_dist, hpos⟩ := f.exists_pred_of_resDist_eq_succ hlt_card heq_succ
-        have hu_front : u ∈ baseSt.frontier := (hinv.mem_frontier u).mpr ⟨by omega, hu_dist⟩
-        have hcap_le := f.resCap_le_cap_add_cap u v
-        exact hcov u hu_front v (hadj u v (by intro rfl; omega) (by omega)) hpos
+  have hsome_iff (v : Fin n) :
+      (vget (expandLayerM f adj baseSt.frontier st0).ret.revPath v).isSome ↔
+        f.resDist v < n ∧ f.resDist v ≤ d + 1 := by
+    refine ⟨fun hs => let ⟨rp, hrp⟩ := Option.isSome_iff_exists.mp hs
+        let ⟨_, hlt, hle⟩ := hst.valid_entry v rp hrp; ⟨hlt, hle⟩,
+      fun ⟨hlt, hle⟩ => ?_⟩
+    by_cases hle_d : f.resDist v ≤ d
+    · obtain ⟨rp, hrp⟩ := Option.isSome_iff_exists.mp ((hinv.isSome_iff v).mpr ⟨hlt, hle_d⟩)
+      simp [hst.mono_base v rp hrp]
+    · obtain ⟨u, hu_dist, hpos⟩ := f.exists_pred_of_resDist_eq_succ
+        (by rw [Fintype.card_fin]; omega) (by omega : f.resDist v = d + 1)
+      have := f.resCap_le_cap_add_cap u v
+      exact hcov u ((hinv.mem_frontier u).mpr ⟨by omega, hu_dist⟩) v
+        (hadj u v (by rintro rfl; omega) (by omega)) hpos
   refine ⟨hst.frontier_nodup, fun v => ?_, hsome_iff, fun v rp hrp => (hst.valid_entry v rp hrp).1⟩
   rw [hst.mem_frontier v, hsome_iff v]
-  have hbase : (vget baseSt.revPath v).isNone = true ↔ ¬ (f.resDist v < n ∧ f.resDist v ≤ d) := by
-    rw [← hinv.isSome_iff v]
-    cases vget baseSt.revPath v <;> simp
-  rw [hbase]
-  omega
+  have : (vget baseSt.revPath v).isNone = true ↔ ¬ (f.resDist v < n ∧ f.resDist v ≤ d) := by
+    rw [← hinv.isSome_iff v]; cases vget baseSt.revPath v <;> simp
+  rw [this]; omega
 
 private theorem layerInv_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (baseTbl : Vector (Option (List (Fin n))) n)
@@ -1294,56 +1089,18 @@ private theorem layerInv_init {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
         tblValid := htbl } := by
   subst hbase
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
-  refine ⟨List.nodup_singleton N.s, ?_, ?_, ?_⟩
-  · intro v
-    simp only [List.mem_singleton]
-    constructor
-    · rintro rfl
-      exact ⟨by simp [hn], f.resDist_source⟩
-    · rintro ⟨_, h0⟩
-      exact f.eq_source_of_resDist_eq_zero h0
-  · intro v
-    by_cases hvs : v = N.s
-    · subst hvs
-      simp [hn]
-    · have hsv : N.s ≠ v := Ne.symm hvs
-      simp only [vget_vset_ne _ _ hsv, vget_replicate, Option.isSome_none, Bool.false_eq_true,
-        false_iff, not_and]
-      intro _ hle
-      exact hvs (f.eq_source_of_resDist_eq_zero (Nat.eq_zero_of_le_zero hle))
-  · intro v rp hget
-    by_cases hvs : v = N.s
-    · subst hvs
-      simp only [vget_vset_self, Option.some.injEq] at hget
-      subst hget
-      exact ⟨⟨List.nodup_singleton N.s, rfl, rfl, by simp⟩, by simp⟩
-    · have hsv : N.s ≠ v := Ne.symm hvs
-      simp [vget_vset_ne _ _ hsv] at hget
-
-private theorem sum_map_le_filter_of_nodup {n : ℕ} (g : Fin n → ℕ) {l : List (Fin n)}
-    (hl : l.Nodup) {P : Fin n → Prop} [DecidablePred P] (hP : ∀ u ∈ l, P u) :
-    (l.map g).sum ≤ ∑ u ∈ Finset.univ.filter P, g u := by
-  induction l generalizing P with
-  | nil => simp
-  | cons a l' ih =>
-    obtain ⟨ha_not, hl'⟩ := List.nodup_cons.mp hl
-    let P' : Fin n → Prop := fun u => P u ∧ u ≠ a
-    have hP' : ∀ u ∈ l', P' u := by
-      intro u hu
-      exact ⟨hP u (List.mem_cons_of_mem a hu), fun h => ha_not (h ▸ hu)⟩
-    have hrec := ih hl' hP'
-    have ha_mem : a ∈ Finset.univ.filter P :=
-      Finset.mem_filter.mpr ⟨Finset.mem_univ a, hP a List.mem_cons_self⟩
-    have hsub : Finset.univ.filter P' ⊆ (Finset.univ.filter P).erase a := by
-      intro u hu
-      simp only [P', Finset.mem_filter, Finset.mem_univ, true_and] at hu
-      exact Finset.mem_erase.mpr ⟨hu.2, Finset.mem_filter.mpr ⟨Finset.mem_univ u, hu.1⟩⟩
-    have hle_erase : ∑ u ∈ Finset.univ.filter P', g u ≤
-        ∑ u ∈ (Finset.univ.filter P).erase a, g u :=
-      Finset.sum_le_sum_of_subset hsub
-    have hadd := Finset.add_sum_erase (Finset.univ.filter P) g ha_mem
-    simp only [List.map_cons, List.sum_cons]
-    omega
+  refine ⟨List.nodup_singleton N.s,
+    fun v => ⟨by rintro h; rw [List.mem_singleton.mp h]; exact ⟨by simp [hn], f.resDist_source⟩,
+      fun ⟨_, h0⟩ => List.mem_singleton.mpr (f.eq_source_of_resDist_eq_zero h0)⟩,
+    fun v => ?_, fun v rp hget => ?_⟩
+  · rcases eq_or_ne v N.s with rfl | hne
+    · simp [hn]
+    · simpa [vget_vset_ne _ _ hne.symm] using
+        fun _ h => hne (f.eq_source_of_resDist_eq_zero (Nat.eq_zero_of_le_zero h))
+  · rcases eq_or_ne v N.s with rfl | hne
+    · obtain rfl : [N.s] = rp := by simpa using hget
+      exact ⟨⟨List.nodup_singleton _, rfl, rfl, by simp⟩, by simp⟩
+    · simp [vget_vset_ne _ _ hne.symm] at hget
 
 private theorem bfsLoopM_spec {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) :
@@ -1353,9 +1110,8 @@ private theorem bfsLoopM_spec {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
   | 0, _, st, hinv => by simpa [bfsLoopM] using hinv
   | k + 1, d, st, hinv => by
     simp only [bfsLoopM, TimeM.ret_bind]
-    have hstep := layerInv_step hadj hinv
-    have hfin := bfsLoopM_spec hadj k (d + 1) _ hstep
-    simpa [Nat.add_right_comm, Nat.add_assoc] using hfin
+    simpa [Nat.add_right_comm, Nat.add_assoc] using
+      bfsLoopM_spec hadj k (d + 1) _ (layerInv_step hadj hinv)
 
 private theorem bfsLoopM_time_le_sum {n : ℕ} {N : Network (Fin n)} {f : N.Flow}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) :
@@ -1370,20 +1126,19 @@ private theorem bfsLoopM_time_le_sum {n : ℕ} {N : Network (Fin n)} {f : N.Flow
     simp only [bfsLoopM, TimeM.time_bind]
     have hexp := expandLayerM_time_le f adj st.frontier
       { revPath := st.revPath, frontier := [], tblValid := st.tblValid }
-    have hfront_sum :
-        (st.frontier.map fun u => 1 + (adj u).length).sum ≤
-          ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d), (1 + (adj u).length) :=
-      sum_map_le_filter_of_nodup (fun u => 1 + (adj u).length) hinv.frontier_nodup
-        (fun u hu => ((hinv.mem_frontier u).mp hu).2)
-    have hstep := layerInv_step hadj hinv
-    have hrec := bfsLoopM_time_le_sum hadj k (d + 1) _ hstep
+    have hfront : (st.frontier.map fun u => 1 + (adj u).length).sum ≤
+        ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d), (1 + (adj u).length) := by
+      rw [← List.sum_toFinset _ hinv.frontier_nodup]
+      exact Finset.sum_le_sum_of_subset fun u hu => Finset.mem_filter.mpr
+        ⟨Finset.mem_univ _, ((hinv.mem_frontier u).mp (List.mem_toFinset.mp hu)).2⟩
+    have hrec := bfsLoopM_time_le_sum hadj k (d + 1) _ (layerInv_step hadj hinv)
     rw [Finset.sum_range_succ']
     have hshift :
-        (∑ x ∈ Finset.range k,
-            ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d + (x + 1)),
+        (∑ i ∈ Finset.range k,
+            ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d + (i + 1)),
               (1 + (adj u).length)) =
           ∑ i ∈ Finset.range k,
-            ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = (d + 1) + i),
+            ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = d + 1 + i),
               (1 + (adj u).length) :=
       Finset.sum_congr rfl fun i _ => by simp only [Nat.add_assoc, Nat.add_comm i 1]
     rw [hshift]
@@ -1395,21 +1150,9 @@ private theorem sum_range_filter_resDist_le {n : ℕ} {N : Network (Fin n)} (f :
     (∑ i ∈ Finset.range k,
         ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = i), g u) ≤
       ∑ u : Fin n, g u := by
-  have h1 :
-      (∑ i ∈ Finset.range k,
-          ∑ u ∈ Finset.univ.filter (fun u : Fin n => f.resDist u = i), g u) =
-        ∑ i ∈ Finset.range k, ∑ u : Fin n, if f.resDist u = i then g u else 0 :=
-    Finset.sum_congr rfl fun i _ => Finset.sum_filter _ _
-  rw [h1, Finset.sum_comm]
-  refine Finset.sum_le_sum fun u _ => ?_
-  by_cases hmem : f.resDist u ∈ Finset.range k
-  · rw [Finset.sum_eq_single (f.resDist u) (fun i _ hne => by simp [hne.symm])
-      (fun h => absurd hmem h)]
-    simp
-  · rw [Finset.sum_eq_zero (fun i hi => by
-      have hne : f.resDist u ≠ i := fun heq => hmem (heq ▸ hi)
-      simp [hne])]
-    omega
+  rw [← Finset.sum_biUnion fun i _ j _ hne => Finset.disjoint_left.mpr fun u hi hj =>
+    hne ((Finset.mem_filter.mp hi).2.symm.trans (Finset.mem_filter.mp hj).2)]
+  exact Finset.sum_le_sum_of_subset (Finset.subset_univ _)
 
 private theorem bfsM_loop_inv {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) (f : N.Flow) :
@@ -1422,15 +1165,12 @@ private theorem bfsM_loop_inv {n : ℕ} {N : Network (Fin n)} {adj : Fin n → L
       (bfsLoopM f adj (n - 1) initSt).time ≤ n + adjSteps adj := by
   intro baseTbl initSt
   have hinit := layerInv_init f baseTbl (replicateM_ret n none) initSt.tblValid
-  have hinv := bfsLoopM_spec hadj (n - 1) 0 initSt hinit
-  rw [Nat.zero_add] at hinv
-  refine ⟨hinv, ?_⟩
+  refine ⟨by simpa using bfsLoopM_spec hadj (n - 1) 0 initSt hinit, ?_⟩
   have hsum := bfsLoopM_time_le_sum hadj (n - 1) 0 initSt hinit
   simp only [Nat.zero_add] at hsum
   have hub := sum_range_filter_resDist_le f (fun u => 1 + (adj u).length) (n - 1)
   have htot : (∑ u : Fin n, (1 + (adj u).length)) = n + adjSteps adj := by
-    rw [Finset.sum_add_distrib]
-    simp [adjSteps, Fintype.card_fin]
+    simp [Finset.sum_add_distrib, adjSteps]
   omega
 
 /-- Specification of `bfsM`: when `augPath = some p`, `p` is a shortest residual `s`-`t`
@@ -1450,26 +1190,22 @@ theorem bfsM_spec {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
   · rename_i rp_t hget
     simp only [TimeM.ret_bind, reverseM_ret, TimeM.ret_pure, Option.some.injEq,
       reduceCtorEq, false_implies, and_true]
-    intro p hp
-    subst hp
+    rintro p rfl
     have hv := hinv.valid_revPath N.t rp_t hget
     exact ⟨⟨hv.toIsRevWalkTo.isAugmentingPath, hv.length_eq⟩,
       by simpa [Fintype.card_fin] using hv.nodup.length_le_card⟩
   · rename_i hget
     simp only [TimeM.ret_bind, extractFinsetM_ret, TimeM.ret_pure, reduceCtorEq, false_implies,
       implies_true, true_and]
-    intro _
-    refine ⟨?_, ?_⟩
-    · rw [f.exists_augmentingPath_iff_resReachable, ← f.resDist_lt_card_iff_resReachable,
-        Fintype.card_fin]
-      intro hlt
-      have hsome := (hinv.isSome_iff N.t).mpr ⟨hlt, by omega⟩
-      rw [hget] at hsome
-      simp at hsome
+    refine fun _ => ⟨fun hex => ?_, ?_⟩
+    · have hlt : f.resDist N.t < n := by
+        simpa [Fintype.card_fin] using (f.resDist_lt_card_iff_resReachable N.t).mpr
+          (f.exists_augmentingPath_iff_resReachable.mp hex)
+      have hs := (hinv.isSome_iff N.t).mpr ⟨hlt, by omega⟩
+      rw [hget] at hs; simp at hs
     · ext v
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, f.mem_reachableCut_iff,
-        ← f.resDist_lt_card_iff_resReachable, Fintype.card_fin]
-      rw [hinv.isSome_iff v]
+        ← f.resDist_lt_card_iff_resReachable, Fintype.card_fin, hinv.isSome_iff v]
       omega
 
 /-- Every `bfsM` call charges at least `n` ticks (table initialization). -/
@@ -1569,46 +1305,39 @@ private theorem fget_updateArcsMatM_ret {n : ℕ} (δ : ℕ) {es : List (Fin n �
   | nil => simp [updateArcsMatM]
   | cons e es' ih =>
     rcases e with ⟨a, b⟩
-    obtain ⟨hab_not_es, hnodup'⟩ := List.nodup_cons.mp hnodup
-    have hab_ne : a ≠ b := hloopless (a, b) List.mem_cons_self
-    have hba_not_es : (b, a) ∉ es' := fun h =>
-      hnoswap a b List.mem_cons_self (List.mem_cons_of_mem (a, b) h)
+    obtain ⟨hab_not, hnodup'⟩ := List.nodup_cons.mp hnodup
+    have hba_not : (b, a) ∉ es' :=
+      fun h => hnoswap a b List.mem_cons_self (List.mem_cons_of_mem _ h)
     let cancel := min δ (fget mat b a)
     let mat₁ := fset mat b a (fget mat b a - cancel)
     let mat₂ := fset mat₁ a b (fget mat a b + (δ - cancel))
-    have hstep_fget : ∀ x y : Fin n,
-        fget mat₂ x y =
-          if (x, y) = (a, b) then fget mat x y + (δ - min δ (fget mat y x))
-          else if (y, x) = (a, b) then fget mat x y - min δ (fget mat x y)
-          else fget mat x y := by
-      intro x y
-      by_cases hxy : (x, y) = (a, b)
-      · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hxy
-        simp [mat₂, cancel]
-      · have hab_xy : (a, b) ≠ (x, y) := Ne.symm hxy
-        by_cases hyx : (y, x) = (a, b)
-        · obtain ⟨rfl, rfl⟩ := Prod.mk.inj hyx
-          simp [hxy, mat₂, mat₁, cancel, fget_fset_ne _ _ hab_xy]
-        · have hba_xy : (b, a) ≠ (x, y) := fun h => by
-            obtain ⟨rfl, rfl⟩ := Prod.mk.inj h
-            exact hyx rfl
-          simp [hxy, hyx, mat₂, mat₁, fget_fset_ne _ _ hab_xy, fget_fset_ne _ _ hba_xy]
+    have hstep (x y : Fin n) : fget mat₂ x y =
+        if (x, y) = (a, b) then fget mat x y + (δ - min δ (fget mat y x))
+        else if (y, x) = (a, b) then fget mat x y - min δ (fget mat x y)
+        else fget mat x y := by
+      rcases eq_or_ne (x, y) (a, b) with hxy | hxy
+      · rcases Prod.mk.inj hxy with ⟨rfl, rfl⟩; simp [mat₂, cancel]
+      · rcases eq_or_ne (y, x) (a, b) with hyx | hyx
+        · rcases Prod.mk.inj hyx with ⟨rfl, rfl⟩
+          simp [hxy, mat₂, mat₁, cancel, fget_fset_ne _ _ hxy.symm]
+        · have hba : (b, a) ≠ (x, y) := fun h => by
+            rcases Prod.mk.inj h with ⟨rfl, rfl⟩; exact hyx rfl
+          simp [hxy, hyx, mat₂, mat₁, fget_fset_ne _ _ hxy.symm, fget_fset_ne _ _ hba]
     simp only [updateArcsMatM, TimeM.ret_bind]
-    rw [ih hnodup' (fun e' he' => hloopless e' (List.mem_cons_of_mem _ he'))
-      (fun x y hxy hyx =>
-        hnoswap x y (List.mem_cons_of_mem _ hxy) (List.mem_cons_of_mem _ hyx)) mat₂]
-    by_cases huv_es : (u, v) ∈ es'
-    · have huv_ne : (u, v) ≠ (a, b) := fun h => hab_not_es (h ▸ huv_es)
-      have hvu_ne : (v, u) ≠ (a, b) := fun h =>
-        hba_not_es (by rcases Prod.mk.inj h with ⟨rfl, rfl⟩; exact huv_es)
-      simp only [huv_es, List.mem_cons_of_mem _ huv_es, ↓reduceIte, hstep_fget, huv_ne, hvu_ne]
-    · by_cases hvu_es : (v, u) ∈ es'
-      · have hvu_ne : (v, u) ≠ (a, b) := fun h => hab_not_es (h ▸ hvu_es)
-        have huv_ne : (u, v) ≠ (a, b) := fun h =>
-          hba_not_es (by rcases Prod.mk.inj h with ⟨rfl, rfl⟩; exact hvu_es)
-        simp only [huv_es, hvu_es, List.mem_cons, huv_ne, false_or,
-          List.mem_cons_of_mem _ hvu_es, ↓reduceIte, hstep_fget, hvu_ne]
-      · simp only [huv_es, hvu_es, ↓reduceIte, hstep_fget, List.mem_cons, or_false]
+    rw [ih hnodup' (fun _ h => hloopless _ (List.mem_cons_of_mem _ h))
+      (fun x y h₁ h₂ => hnoswap x y (List.mem_cons_of_mem _ h₁) (List.mem_cons_of_mem _ h₂)) mat₂]
+    by_cases huv : (u, v) ∈ es'
+    · have h₁ : (u, v) ≠ (a, b) := fun h => hab_not (h ▸ huv)
+      have h₂ : (v, u) ≠ (a, b) := fun h =>
+        hba_not (by rcases Prod.mk.inj h with ⟨rfl, rfl⟩; exact huv)
+      simp only [huv, List.mem_cons_of_mem _ huv, ↓reduceIte, hstep, h₁, h₂]
+    · by_cases hvu : (v, u) ∈ es'
+      · have h₁ : (v, u) ≠ (a, b) := fun h => hab_not (h ▸ hvu)
+        have h₂ : (u, v) ≠ (a, b) := fun h =>
+          hba_not (by rcases Prod.mk.inj h with ⟨rfl, rfl⟩; exact hvu)
+        simp only [huv, hvu, List.mem_cons, h₂, false_or, List.mem_cons_of_mem _ hvu,
+          ↓reduceIte, hstep, h₁]
+      · simp only [huv, hvu, ↓reduceIte, hstep, List.mem_cons, or_false]
 
 /-- Compute `δ ← bottleneckM M.toFlow p` (`(pathArcs p).length` ticks) and update `M` arc-by-arc
 along `pathArcs p` using `δ` (`(pathArcs p).length` ticks). -/
@@ -1700,19 +1429,11 @@ private theorem isShortestAugmentingSeq_snoc {V : Type*} [Fintype V] [DecidableE
     {p : List V} (hp : (flows k).IsShortestAugmentingPath p) :
     N.IsShortestAugmentingSeq (k + 1)
       (fun t => if t ≤ k then flows t else (flows k).augmentByBottleneck p hp.isAugmentingPath)
-      (fun t => if t < k then paths t else p) := by
-  intro t ht
+      (fun t => if t < k then paths t else p) := fun t ht => by
   by_cases hlt : t < k
-  · have hle : t ≤ k := Nat.le_of_lt hlt
-    have hsucc : t + 1 ≤ k := hlt
-    obtain ⟨hpt, hnext⟩ := hseq t hlt
-    simp only [hle, hlt, hsucc, ↓reduceIte]
-    exact ⟨hpt, hnext⟩
-  · have heq : t = k := by omega
-    subst heq
-    have hnot_le : ¬ t + 1 ≤ t := by omega
-    have hnot_lt : ¬ t < t := Nat.lt_irrefl t
-    simp only [le_rfl, hnot_lt, hnot_le, ↓reduceIte]
+  · simpa [hlt, hlt.le, show t + 1 ≤ k from hlt] using hseq t hlt
+  · obtain rfl : t = k := by omega
+    simp only [le_rfl, lt_self_iff_false, show ¬ t + 1 ≤ t by omega, ↓reduceIte]
     exact ⟨hp, trivial⟩
 
 private theorem edmondsKarpLoopM_stop {n : ℕ} {N : Network (Fin n)}
@@ -1725,20 +1446,13 @@ private theorem edmondsKarpLoopM_stop {n : ℕ} {N : Network (Fin n)}
       k ≤ maxAugmentations N ∧
       k ≤ n * N.posArcs.card ∧
       (bfsM N adj M.toFlow).time ≤ (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n) := by
-  have hbfs := bfsM_spec hadj M.toFlow
-  have hbfs_t := bfsM_time_le hadj M.toFlow
-  obtain ⟨hno, hcut⟩ := hbfs.2 hnone
-  have hk_sym : k ≤ maxAugmentations N := by
-    simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst hseq
-  have hk_pos : k ≤ n * N.posArcs.card := by
-    simpa [Fintype.card_fin] using N.shortestAugmentingSeq_length_le_card_mul_posArcs hst hseq
-  have ht_bound : (bfsM N adj M.toFlow).time ≤
-      (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n) :=
-    calc
-      (bfsM N adj M.toFlow).time ≤ adjSteps adj + 3 * n := hbfs_t
-      _ ≤ 1 * (adjSteps adj + 5 * n) := by omega
-      _ ≤ (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n) := Nat.mul_le_mul_right _ (by omega)
-  exact ⟨hno, hcut, hk_sym, hk_pos, ht_bound⟩
+  obtain ⟨hno, hcut⟩ := (bfsM_spec hadj M.toFlow).2 hnone
+  refine ⟨hno, hcut,
+    by simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst hseq,
+    by simpa [Fintype.card_fin] using N.shortestAugmentingSeq_length_le_card_mul_posArcs hst hseq,
+    (bfsM_time_le hadj M.toFlow).trans
+      ((by omega : adjSteps adj + 3 * n ≤ 1 * (adjSteps adj + 5 * n)).trans
+        (Nat.mul_le_mul_right _ (by omega)))⟩
 
 private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
     {adj : Fin n → List (Fin n)} (hadj : AdjValid N adj) (hst : N.s ≠ N.t) :
@@ -1756,46 +1470,39 @@ private theorem edmondsKarpLoopM_spec {n : ℕ} {N : Network (Fin n)}
     simp only [edmondsKarpLoopM, time_simps]
     rcases haug : (bfsM N adj M.toFlow).ret.augPath with _ | p
     · simpa using edmondsKarpLoopM_stop hadj hst hseq haug
-    · obtain ⟨hshort, _⟩ := (bfsM_spec hadj M.toFlow).1 p haug
-      have hseq' := isShortestAugmentingSeq_snoc hseq (hfk ▸ hshort)
-      have hlen' : k + 1 ≤ maxAugmentations N := by
-        simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst hseq'
+    · have hlen' : k + 1 ≤ maxAugmentations N := by
+        simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst
+          (isShortestAugmentingSeq_snoc hseq (hfk ▸ ((bfsM_spec hadj M.toFlow).1 p haug).1))
       omega
   | fuel + 1, k, M, flows, paths, hfuel, hseq, hfk => by
-    have hbfs := bfsM_spec hadj M.toFlow
-    have hbfs_t := bfsM_time_le hadj M.toFlow
     simp only [edmondsKarpLoopM, time_simps]
     split
     · rename_i haug
-      simpa [TimeM.ret_pure, TimeM.time_pure] using
-        edmondsKarpLoopM_stop hadj hst hseq haug
+      simpa [TimeM.ret_pure, TimeM.time_pure] using edmondsKarpLoopM_stop hadj hst hseq haug
     · rename_i p haug
       simp only [time_simps]
-      obtain ⟨hshort, hplen⟩ := hbfs.1 p haug
-      have hp : M.toFlow.IsAugmentingPath p := (bfsM N adj M.toFlow).ret.augPath_valid p haug
-      have hshort' : (flows k).IsShortestAugmentingPath p := hfk ▸ hshort
-      have hseq' := isShortestAugmentingSeq_snoc hseq hshort'
+      obtain ⟨hshort, hplen⟩ := (bfsM_spec hadj M.toFlow).1 p haug
+      have hbfs_t := bfsM_time_le hadj M.toFlow
+      have hp := (bfsM N adj M.toFlow).ret.augPath_valid p haug
+      have hseq' := isShortestAugmentingSeq_snoc hseq (hfk ▸ hshort)
       have hlen' : k + 1 ≤ maxAugmentations N := by
         simpa [maxAugmentations, Fintype.card_fin] using N.shortestAugmentingSeq_length_le hst hseq'
-      let M' := (augmentFlowMatrixM M p hp).ret
       have hfk' :
           (if k + 1 ≤ k then flows (k + 1)
-           else (flows k).augmentByBottleneck p hshort'.isAugmentingPath) = M'.toFlow := by
-        have hnot : ¬ k + 1 ≤ k := by omega
-        simp only [hnot, ↓reduceIte, M', augmentFlowMatrixM_toFlow]
+           else (flows k).augmentByBottleneck p (hfk ▸ hshort).isAugmentingPath) =
+            (augmentFlowMatrixM M p hp).ret.toFlow := by
+        simp only [show ¬ k + 1 ≤ k by omega, ↓reduceIte, augmentFlowMatrixM_toFlow]
         ext u v
         change (flows k).augmentFun p ((flows k).bottleneck p) u v =
           M.toFlow.augmentFun p (M.toFlow.bottleneck p) u v
         rw [hfk]
       obtain ⟨hno, hcut, hk_sym, hk_pos, hrec_t⟩ :=
-        edmondsKarpLoopM_spec hadj hst fuel (k + 1) M' _ _ (by omega) hseq' hfk'
-      dsimp only [M', hp] at hrec_t
-      have hp_ne : p ≠ [] := by intro hnil; have := hp.head?; simp [hnil] at this
-      have harc_len : (pathArcs p).length ≤ n := by have := length_pathArcs_add_one hp_ne; omega
-      have hrem : maxAugmentations N - k + 1 = 1 + (maxAugmentations N - (k + 1) + 1) := by omega
+        edmondsKarpLoopM_spec hadj hst fuel (k + 1) _ _ _ (by omega) hseq' hfk'
+      have harc_len := length_pathArcs_add_one (show p ≠ [] by intro h; simpa [h] using hp.head?)
       have hmul : (maxAugmentations N - k + 1) * (adjSteps adj + 5 * n) =
           (adjSteps adj + 5 * n) + (maxAugmentations N - (k + 1) + 1) * (adjSteps adj + 5 * n) := by
-        rw [hrem, Nat.add_mul, Nat.one_mul]
+        rw [show maxAugmentations N - k + 1 = 1 + (maxAugmentations N - (k + 1) + 1) by omega,
+          Nat.add_mul, Nat.one_mul]
       exact ⟨hno, hcut, hk_sym, hk_pos, by omega⟩
 
 /-- `edmondsKarpLoopM_spec` for the call made by `edmondsKarpM`: zero flow, no augmentations yet
@@ -1828,19 +1535,13 @@ theorem edmondsKarpM_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
       out.cut = out.flow.reachableCut ∧
       out.augmentations ≤ N.symArcs.card * (n / 2) ∧
       out.augmentations ≤ n * N.posArcs.card := by
-  unfold edmondsKarpM
-  simp only [TimeM.ret_bind, hst, ↓reduceIte, countAdjM_ret]
+  simp only [edmondsKarpM, TimeM.ret_bind, hst, ↓reduceIte, countAdjM_ret]
   obtain ⟨hno, hcut_eq, haug_sym, haug_pos, _⟩ := edmondsKarpLoopM_spec_init hadj hst
-  let out := (edmondsKarpLoopM N adj (adjSteps adj * (n / 2)) (initFlowMatrixM N).ret 0).ret
-  change out.flow.IsMaxFlow ∧ N.IsMinCut out.cut ∧ out.flow.value = (N.cutCapacity out.cut : ℤ) ∧
-    out.cut = out.flow.reachableCut ∧ out.augmentations ≤ N.symArcs.card * (n / 2) ∧
-    out.augmentations ≤ n * N.posArcs.card
-  have hmax : out.flow.IsMaxFlow := (out.flow.isMaxFlow_iff_not_exists_augmentingPath hst).mpr hno
-  have his_cut := out.flow.reachableCut_isCut hno
-  have hval := out.flow.value_eq_cutCapacity_reachableCut hno
-  have hmin := out.flow.isMinCut_of_value_eq_cutCapacity his_cut hval
-  rw [← hcut_eq] at hmin hval
-  exact ⟨hmax, hmin, hval, hcut_eq, haug_sym, haug_pos⟩
+  have hval := Network.Flow.value_eq_cutCapacity_reachableCut _ hno
+  have hmin := Network.Flow.isMinCut_of_value_eq_cutCapacity _
+    (Network.Flow.reachableCut_isCut _ hno) hval
+  exact ⟨(Network.Flow.isMaxFlow_iff_not_exists_augmentingPath _ hst).mpr hno,
+    hcut_eq ▸ hmin, hcut_eq ▸ hval, hcut_eq, haug_sym, haug_pos⟩
 
 /-- **Edmonds–Karp `TimeM` complexity bound** ([EdmondsKarp1972], Theorem 1, p. 251; [CLRS2009],
 Theorem 26.8, p. 729): `edmondsKarpM N adj` terminates in at most
@@ -1854,37 +1555,26 @@ theorem edmondsKarpM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
     (hadj : AdjValid N adj) :
     (edmondsKarpM N adj).time ≤ (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) := by
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
-  unfold edmondsKarpM
-  simp only [time_simps]
+  simp only [edmondsKarpM, time_simps]
   by_cases hst : N.s = N.t
   · simp only [hst, ↓reduceIte, TimeM.time_pure]
-    have hbase : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n) := by omega
-    exact le_trans hbase (Nat.mul_le_mul_right _ (by omega))
+    exact (by omega : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n)).trans
+      (Nat.mul_le_mul_right _ (by omega))
   · simp only [hst, ↓reduceIte, TimeM.time_bind, countAdjM_time, countAdjM_ret]
     obtain ⟨_, _, _, _, hloop_t⟩ := edmondsKarpLoopM_spec_init hadj hst
-    simp only [maxAugmentations] at hloop_t
     have hmul : (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) =
         (adjSteps adj + 5 * n) + (N.symArcs.card * (n / 2) + 1) * (adjSteps adj + 5 * n) := by
       rw [show N.symArcs.card * (n / 2) + 2 = 1 + (N.symArcs.card * (n / 2) + 1) by omega,
         Nat.add_mul, Nat.one_mul]
-    omega
+    simp only [maxAugmentations] at hloop_t; omega
 
 /-- Sparse `posArcs` corollary of `edmondsKarpM_time_le`: `edmondsKarpM N adj` takes at most
 `(n * N.posArcs.card + 2) * (adjSteps adj + 5 * n)` charged ticks. -/
 theorem edmondsKarpM_time_le_posArcs {n : ℕ} {N : Network (Fin n)} {adj : Fin n → List (Fin n)}
     (hadj : AdjValid N adj) :
-    (edmondsKarpM N adj).time ≤ (n * N.posArcs.card + 2) * (adjSteps adj + 5 * n) := by
-  have h1 := edmondsKarpM_time_le hadj
-  have h2 := N.card_symArcs_le_two_mul_posArcs
-  have hdiv : 2 * (n / 2) ≤ n := Nat.mul_div_le n 2
-  have hsym : N.symArcs.card * (n / 2) ≤ n * N.posArcs.card := by
-    calc
-      N.symArcs.card * (n / 2) ≤ (2 * N.posArcs.card) * (n / 2) := Nat.mul_le_mul_right _ h2
-      _ = N.posArcs.card * (2 * (n / 2)) := by
-        rw [Nat.mul_comm 2 N.posArcs.card, Nat.mul_assoc]
-      _ ≤ N.posArcs.card * n := Nat.mul_le_mul_left _ hdiv
-      _ = n * N.posArcs.card := Nat.mul_comm _ _
-  exact le_trans h1 (Nat.mul_le_mul_right _ (by omega))
+    (edmondsKarpM N adj).time ≤ (n * N.posArcs.card + 2) * (adjSteps adj + 5 * n) :=
+  (edmondsKarpM_time_le hadj).trans
+    (Nat.mul_le_mul_right _ (Nat.add_le_add_right (N.card_symArcs_mul_half_le n) 2))
 
 /-- Correctness of `edmondsKarpDenseM` without external adjacency obligations. -/
 theorem edmondsKarpDenseM_correct {n : ℕ} {N : Network (Fin n)} (hst : N.s ≠ N.t) :
@@ -1903,10 +1593,8 @@ theorem edmondsKarpDenseM_time_le {n : ℕ} (N : Network (Fin n)) :
     (edmondsKarpDenseM N).time ≤ (n * n * (n / 2) + 2) * (n * n + 5 * n) := by
   have h1 := edmondsKarpM_time_le (adjValid_defaultAdj N)
   rw [adjSteps_defaultAdj] at h1
-  have hsq : N.symArcs.card ≤ n * n := by
-    simpa [Fintype.card_fin] using N.card_symArcs_le_card_sq
-  have hmul : N.symArcs.card * (n / 2) ≤ n * n * (n / 2) := Nat.mul_le_mul_right _ hsq
-  exact le_trans h1 (Nat.mul_le_mul_right _ (by omega))
+  have hsq : N.symArcs.card ≤ n * n := by simpa [Fintype.card_fin] using N.card_symArcs_le_card_sq
+  exact h1.trans (Nat.mul_le_mul_right _ (Nat.add_le_add_right (Nat.mul_le_mul_right _ hsq) 2))
 
 end ExecutableFin
 

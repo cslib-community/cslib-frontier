@@ -476,6 +476,17 @@ theorem branchCount_eq_encard_firstHalting (a : α) {fuel : ℕ}
     refine ⟨i, Subtype.ext ?_⟩
     exact congrArg Prod.fst (Option.some.inj ((hreplay i).symm.trans hr))
 
+/-- At a sufficient native clock, the accepting occurrence count is the cardinality of
+the accepting first-halting selector traces. -/
+theorem acceptCount_eq_encard_firstHalting (a : α) {fuel : ℕ}
+    (hclock : R.machine.RunsInTime (enc a) fuel) :
+    ((Native.countingMachine R.I R.P R.F R.C).acceptCount fuel
+      (R.machine.initCfg (enc a)) : ℕ∞) =
+      {bits : List Bool | M.FirstHalting (enc a) bits (start a) ∧
+        M.accept (M.replay (enc a) bits (start a)) = true}.encard := by
+  simpa only [MultiTapeCTM.acceptCount, beq_iff_eq, List.cons.injEq, and_true] using
+    R.branchCount_eq_encard_firstHalting a hclock (· == [true])
+
 /-- At a sufficient native clock, exactly one abstract accepting first halt gives exactly
 one accepting native branch, and conversely. -/
 theorem acceptCount_eq_one_iff (a : α) {fuel : ℕ}
@@ -483,10 +494,8 @@ theorem acceptCount_eq_one_iff (a : α) {fuel : ℕ}
     (Native.countingMachine R.I R.P R.F R.C).acceptCount fuel (R.machine.initCfg (enc a)) = 1 ↔
       ∃! bits, M.FirstHalting (enc a) bits (start a) ∧
         M.accept (M.replay (enc a) bits (start a)) = true := by
-  unfold MultiTapeCTM.acceptCount
-  rw [← Nat.cast_inj (R := ℕ∞), Nat.cast_one, R.branchCount_eq_encard_firstHalting a hclock,
+  rw [← Nat.cast_inj (R := ℕ∞), Nat.cast_one, R.acceptCount_eq_encard_firstHalting a hclock,
     Set.encard_eq_one]
-  simp only [Set.eq_singleton_iff_unique_mem, Set.mem_ofPred_eq, beq_iff_eq, List.cons.injEq,
-    and_true, ExistsUnique]
+  simp only [Set.eq_singleton_iff_unique_mem, Set.mem_ofPred_eq, ExistsUnique]
 
 end Turing.NondeterministicQueryMachine.Routines

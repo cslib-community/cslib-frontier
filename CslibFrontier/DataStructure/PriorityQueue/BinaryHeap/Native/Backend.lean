@@ -73,22 +73,13 @@ open Cslib.DataStructure.Memory Cslib.DataStructure.PriorityQueue.BinaryHeap
 private theorem layout_fits {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K)
     {s : Memory.State} (hs : Memory.Inv L s) (hw : Memory.WellFormed w s) :
     ∀ i, Fits w (layoutWords ⟨n, L⟩ i) := by
-  intro i
-  fin_cases i
-  · exact hL.n_fits
-  · exact hw.fits_of_lt_frontier (hs.size_lt hL)
-  · change Fits w L.size.length
-    rw [hL.size_length]
-    apply hw.frontier_fits.of_le
-    have ha := hs.size_allocated
-    change L.size.base + L.size.length ≤ s.frontier at ha
-    rw [hL.size_length] at ha
-    omega
-  · change Fits w L.base
-    apply hw.frontier_fits.of_le
-    have ha := hs.arrays_allocated
-    change L.base + (3 * n + 1) ≤ s.frontier at ha
-    omega
+  have hsize : L.size.base + L.size.length ≤ s.frontier := hs.size_allocated
+  have harrays : L.base + (3 * n + 1) ≤ s.frontier := hs.arrays_allocated
+  exact fits_sigmaWords wordWords (fun _ => layoutBodyWords) (fun _ => hL.n_fits)
+    (layoutBodyWords_fits (a := L)
+      (blockWords_fits (hw.fits_of_lt_frontier (hs.size_lt hL))
+        (hw.frontier_fits.of_le (by rw [hL.size_length] at hsize ⊢; omega)))
+      (hw.frontier_fits.of_le (by omega)))
 
 /-- Each method preserves its exact source run and meets the native certificate entry domain. -/
 theorem implements {w n K : ℕ} (L : Memory.Layout n) (hL : L.Valid w K) :

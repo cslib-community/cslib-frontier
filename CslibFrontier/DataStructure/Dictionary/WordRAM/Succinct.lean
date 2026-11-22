@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctDispatch
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fixed-Capacity Succinct Dynamic Dictionary with Deletions on the Word-RAM
@@ -189,8 +190,7 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
         Modifies (Block.mk base (space U V w n_max)).footprint x₁.mem p.2.mem := by
   have hfit_hash : Fits w (base + hashSpace U w n_max) := by
     refine hfit.of_le ?_
-    unfold space totalSpace offGM offLM offVal offQuot
-    omega
+    wram_omega
   have hc_le : 2 * reducedChunkBits
       (reducedTrinomialStep (qBits U n_max) (hashB n_max) (totalMicroBits n_max)) ≤ w :=
     le_of_lt (two_mul_reducedChunkBits_hash_lt hwf.2.1 (le_of_lt hwf.2.2.1) hfit)
@@ -298,8 +298,7 @@ theorem setup_exec_succinct {U V w n_max base : ℕ}
         simp only [Block.mem_footprint, Block.Owns]
         intro ⟨h1, h2⟩
         apply ha ⟨h1, lt_of_lt_of_le h2 ?_⟩
-        unfold space totalSpace offGM offLM offVal offQuot
-        omega
+        wram_omega
       have h1 : z.mem a = x₂.mem a := hq_mod a ha_not_hash
       have h2 : x₂.mem a = x₁.mem a := by
         apply hy_mod a
@@ -644,8 +643,7 @@ theorem initTime_impl_le {U V w n_max base : ℕ}
   refine ⟨?_, by have := initSteps_le U n_max; omega⟩
   dsimp only [impl, Randomized.StateTransitionImpl.ofFn, Randomized.StateTransitionImpl.initTime]
   norm_cast
-  unfold initSteps
-  omega
+  wram_omega
 
 theorem totalCost_charge_eq (U V n_max : ℕ) (s₀ : Dictionary.State U)
     (ops : List (Dynamic.Op U)) :

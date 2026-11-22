@@ -180,6 +180,12 @@ variable (initial : Registers κ)
 
 local notation "M" => machine initial round roundStart roundReply member memberStart memberReply
 
+/-- The loop accepts exactly terminal states that carry a verdict, including a negative
+reachability verdict. -/
+theorem machine_accept_iff (s : State κ ρ μ) :
+    (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
+  rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+
 private def roundState (r : Registers κ) (s : ρ) : State κ ρ μ := .inl (.inl (r, s))
 
 private def memberState (r : Registers κ) (s : μ) : State κ ρ μ := .inl (.inr (r, s))
@@ -463,18 +469,10 @@ theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P
                   omega
                 exact ih _ hlt (r.advance a.tally) hnext suffix suffix' v v' rfl hleft hright
   intro left hl right hr
-  have accepted (bits : List Bool)
-      (h : (M).accept ((M).run input bits) = true) :
-      ∃ v, (M).run input bits = .inr (some v) := by
-    change (reply ((M).run input bits)).isSome = true at h
-    cases he : (M).run input bits with
-    | inl => rw [he] at h; cases h
-    | inr verdict =>
-      cases verdict with
-      | none => rw [he] at h; cases h
-      | some v => exact ⟨v, rfl⟩
-  obtain ⟨v, hv⟩ := accepted left hl.2
-  obtain ⟨v', hv'⟩ := accepted right hr.2
+  have haccept := machine_accept_iff initial round roundStart roundReply
+    member memberStart memberReply
+  obtain ⟨v, hv⟩ := (haccept _).mp hl.2
+  obtain ⟨v', hv'⟩ := (haccept _).mp hr.2
   exact aux initial hp left right v v'
     ((firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
       memberReply input left v).mp ⟨hl.1, hv⟩)
@@ -559,10 +557,7 @@ concern successful replies at exact totals and a unique current round. -/
 theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdict}
     (h : replayRounds round roundStart roundReply member memberStart memberReply input
       (start context n) bits = some (some verdict, rest)) :
-    match verdict with
-    | .bad k => (∀ j < k, ∃! w, Passes r source j w) ∧ ¬ (∃! w, Passes r source k w)
-    | .decided hit =>
-      (∀ k, ∃! w, Passes r source k w) ∧ (hit = true ↔ ReflTransGen r source target) := by
+    verdict.Correct r source target := by
   classical
   let edge (u v : Fin n) : Id Bool := decide (r u v)
   let membership : MembershipScan Id n :=
@@ -579,7 +574,7 @@ theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdic
   rw [hzero, ← runController, href] at hrun
   have heq := Option.some.inj hrun
   subst reference
-  cases verdict <;> exact hspec
+  exact hspec
 
 end Verdict
 
@@ -941,6 +936,39 @@ theorem next_inSpace
       simp [machine, memberState, hh, ha]
   · rfl
 
+/-- Compose the callback certificates for query, transition, halt and optional verdict
+decoding in workspace linear in the encoded arguments. -/
+theorem parts_inSpace
+    (hroundStart : ComputableInSpace roundStart R encRound (fun r => (R r).length))
+    (hmemberStart : ComputableInSpace memberStart R encMember (fun r => (R r).length))
+    (hroundReply : ComputableInSpace roundReply encRound (encOption encRoundUpdate)
+      (fun s => (encRound s).length))
+    (hmemberReply : ComputableInSpace memberReply encMember (encOption encBool)
+      (fun s => (encMember s).length))
+    (hroundQuery : ComputableInSpace round.query encRound encNat (fun s => (encRound s).length))
+    (hmemberQuery : ComputableInSpace member.query encMember encNat (fun s => (encMember s).length))
+    (hroundHalt : ComputableInSpace round.halted encRound encBool (fun s => (encRound s).length))
+    (hmemberHalt : ComputableInSpace member.halted encMember encBool
+      (fun s => (encMember s).length))
+    (hroundNext : ComputableInSpace round.next (encPair encRound encReadChoice) encRound
+      (fun p => (encPair encRound encReadChoice p).length))
+    (hmemberNext : ComputableInSpace member.next (encPair encMember encReadChoice) encMember
+      (fun p => (encPair encMember encReadChoice p).length)) :
+    let encStep := encPair E encReadChoice
+    ComputableInSpace (M).query E encNat (fun s => (E s).length) ∧
+      ComputableInSpace (M).next encStep E (fun p => (encStep p).length) ∧
+      ComputableInSpace (M).halted E encBool (fun s => (E s).length) ∧
+      ComputableInSpace reply E (encOption encVerdict) (fun s => (E s).length) := by
+  intro encStep
+  have hq := query_inSpace encContext encRound encMember initial round roundStart roundReply
+    member memberStart memberReply hroundQuery hmemberQuery
+  have hn := next_inSpace encContext encRound encMember initial round roundStart roundReply
+    member memberStart memberReply hroundStart hmemberStart hroundReply hmemberReply
+    hroundHalt hmemberHalt hroundNext hmemberNext
+  have hh := halted_inSpace encContext encRound encMember initial round roundStart roundReply
+    member memberStart memberReply
+  exact ⟨hq, hn, hh, reply_inSpace encContext encRound encMember⟩
+
 open NondeterministicQueryMachine in
 /-- Compile the source loop from native callbacks and an input-dependent register initializer.
 The caller supplies a common encoded-state budget for the complete runs. -/
@@ -966,15 +994,12 @@ theorem exists_routines {α : Type} (enc : α ↪ List Bool) (S : α → ℕ)
     (hstates : ∃ c, ∀ a bits, (E ((machine (registers a) round roundStart roundReply
       member memberStart memberReply).run (enc a) bits)).length ≤ c * S a) :
     Nonempty (Routines (M) (fun a => enterRound roundStart (registers a)) enc S) := by
-  have hq := query_inSpace encContext encRound encMember initial round roundStart roundReply
-    member memberStart memberReply hroundQuery hmemberQuery
-  have hn := next_inSpace encContext encRound encMember initial round roundStart roundReply
-    member memberStart memberReply hroundStart hmemberStart hroundReply hmemberReply
-    hroundHalt hmemberHalt hroundNext hmemberNext
-  have hh := halted_inSpace encContext encRound encMember initial round roundStart roundReply
-    member memberStart memberReply
+  obtain ⟨hq, hn, hh, hreply⟩ := parts_inSpace encContext encRound encMember
+    initial round roundStart roundReply member memberStart memberReply hroundStart
+    hmemberStart hroundReply hmemberReply hroundQuery hmemberQuery hroundHalt
+    hmemberHalt hroundNext hmemberNext
   have ha : ComputableInSpace (M).accept E encBool (fun s => (E s).length) :=
-    budget_optionIsSome (reply_inSpace encContext encRound encMember)
+    budget_optionIsSome hreply
   have hinit := budget_comp_linear
     (enterRound_inSpace encContext encRound encMember roundStart hroundStart) hregisters
   obtain ⟨c, hstates⟩ := hstates
@@ -1009,9 +1034,8 @@ theorem native_firstHalting_accept_iff {α : Type} {enc : α ↪ List Bool} {S :
       member memberStart memberReply (enc a) bits verdict
     rw [← hinit, init_withInit, firstHalting_withInit, run_withInit] at h
     exact h
-  have haccept (s : State κ ρ μ) :
-      (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
-    rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+  have haccept := machine_accept_iff initial round roundStart roundReply
+    member memberStart memberReply
   rw [routines.existsUnique_accepting_replay_iff]
   constructor
   · rintro ⟨hfirst, htrue⟩
