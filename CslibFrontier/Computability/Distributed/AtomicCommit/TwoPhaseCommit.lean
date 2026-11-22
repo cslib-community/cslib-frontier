@@ -13,41 +13,42 @@ public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Multiset.Basic
 
 /-!
-# Distributed Atomic Commitment and Gray's Two-Phase Commit Protocol
+# Distributed Atomic Commitment and Fail-Stop Two-Phase Commit Step
 
 This module specifies the distributed **Atomic Commitment** problem (`AC1` Uniform Agreement across
 all deciding processes including crashed ones, `AC2` Abort Validity on any `no` vote, and `AC3`
-failure-free Commit Nontriviality) and formalizes **Gray's centralized Two-Phase Commit (`2PC`)
-protocol** ([Gray1978], §5.8.3.3.2, pp. 466–469; [Skeen1981], §§2–3, Figure 2, pp. 135–137;
-[SkeenStonebraker1983], §§II–III, Figures 1 and 3, pp. 220–221) as an operational `Cslib.LTS`
-subject to arbitrary fail-stop site crashes and network message omissions.
+failure-free Commit Nontriviality) and proves an intermediate **fail-stop register-state Two-Phase
+Commit (`2PC`) step** toward [Gray1978], §5.8.3.3.2 (pp. 466–469), [Skeen1981], §§1–3
+(pp. 134–137), and [SkeenStonebraker1983], §§II–IV (pp. 220–223), not the cited crash-recovery
+log-replay endpoint (#7289).
 
-In centralized `2PC`, a designated coordinator `coord : P` sends vote requests to all cohort sites
-`r ≠ coord` in Phase 1. Each cohort casts its initial `Vote` (`yes` moving to `.uncertain`, or `no`
-unilaterally deciding `.aborted`) and replies to `coord`. In Phase 2, `coord` decides `.committed`
-and broadcasts `.commit` only if `votes coord = .yes` and every cohort replied `.yes`; if
-`votes coord = .no`, any cohort replied `.no`, or a site crashed (timeout), `coord` decides
+In this fail-stop `2PC` step, a designated coordinator `coord : P` sends vote requests to all cohort
+sites `r ≠ coord` in Phase 1. Each cohort casts its initial `Vote` (`yes` moving to `.uncertain`, or
+`no` unilaterally deciding `.aborted`) and replies to `coord`. In Phase 2, `coord` decides
+`.committed` and broadcasts `.commit` only if `votes coord = .yes` and every cohort replied `.yes`;
+if `votes coord = .no`, any cohort replied `.no`, or a site crashed (timeout), `coord` decides
 `.aborted` and broadcasts `.abort`. Stable undo/redo log forces ([Gray1978], §5.8.3.3.2, p. 468)
-are modeled as persistent per-site `TwoPCLocalState` registers retained across fail-stop crashes
-(rather than modeling crash-recovery log-replay restarts).
+are abstracted as persistent per-site `TwoPCLocalState` registers retained across permanent
+fail-stop crashes rather than crash-recovery log-replay restarts (#7289).
 
-We prove two complementary properties of `2PC`:
+Within this fail-stop model we prove two complementary step families:
 
-1. **Unconditional safety and failure-free liveness:** Across arbitrary crashes and message
-   omissions, decisions are write-once (`twoPC_decision_stable`) and every reachable configuration
-   satisfies `UniformAgreement` (`twoPC_agreement`, `AC1`) and `AbortValidity`
-   (`twoPC_abort_of_vote_no`, `AC2`). When no faults occur and all processes vote `yes`, `2PC`
-   reaches unanimous `.commit` (`twoPC_failureFree_commit`, `AC3`); when any process votes `no`, a
-   fault-free run reaches unanimous `.abort` (`twoPC_failureFree_abort`).
-2. **Inherent blocking on coordinator crash (`2 ≤ Fintype.card P`):** Whenever at least two
+1. **Fail-stop safety and fault-free completion:** Across arbitrary fail-stop crashes and message
+   omissions, decisions are write-once (`twoPC_decision_stable_failStop`) and every reachable
+   configuration satisfies `UniformAgreement` (`twoPC_agreement_failStop`, `AC1`) and
+   `AbortValidity` (`twoPC_abort_of_vote_no_failStop`, `AC2`). When no faults occur and all
+   processes vote `yes`, `2PC` reaches unanimous `.commit` (`twoPC_failureFree_commit_failStop`,
+   `AC3`); when any process votes `no`, a fault-free run reaches unanimous `.abort`
+   (`twoPC_failureFree_abort_failStop`).
+2. **Survivor uncertainty on coordinator crash (`2 ≤ Fintype.card P`):** Whenever at least two
    processes participate, there exist two reachable crash/omission configurations `sAbort` and
    `sCommit` with the same surviving operational cohort `{q}` (`q ≠ coord`, `votes q = .yes`,
    local state `.uncertain`, empty survivor inbox) such that `coord` voted `.no` and already
    decided `.abort` in `sAbort` whereas `coord` already decided `.commit` in `sCommit`
-   (`twoPC_uncertain_bivalent_on_crash`; on three or more sites, cohort-vote ambiguity with
+   (`twoPC_uncertain_bivalent_failStop`; on three or more sites, cohort-vote ambiguity with
    `votes coord = .yes` also arises). Consequently, no termination rule depending only on the
    surviving processes' states, votes, and inbox can safely decide for `q` without violating
-   `UniformAgreement` (`twoPC_no_safe_survivor_termination`).
+   `UniformAgreement` (`twoPC_no_safe_survivor_termination_failStop`).
 
 ## Main definitions
 
@@ -59,44 +60,37 @@ We prove two complementary properties of `2PC`:
   (`(∃ p, votes p = .no) → ∀ q, dec q ≠ some .commit`).
 * `Cslib.Distributed.AtomicCommit.AllDecided`,
   `Cslib.Distributed.AtomicCommit.OperationalDecided`: unanimous decision predicates.
-* `Cslib.Distributed.AtomicCommit.ltsOfStep?`,
-  `Cslib.Distributed.AtomicCommit.execValid`,
-  `Cslib.Distributed.AtomicCommit.execState`: partial-step-function `Cslib.LTS` runner shared by
-  `2PC` and `3PC`.
 * `Cslib.Distributed.AtomicCommit.TwoPCLocalState`,
   `Cslib.Distributed.AtomicCommit.TwoPCMsg`,
   `Cslib.Distributed.AtomicCommit.TwoPCState`,
   `Cslib.Distributed.AtomicCommit.TwoPCAction`: local states, network messages, global
-  configurations, and transition labels of centralized `2PC`.
+  configurations, and transition labels of the fail-stop `2PC` step.
 * `Cslib.Distributed.AtomicCommit.twoPCStep?`,
   `Cslib.Distributed.AtomicCommit.twoPCLts`,
-  `Cslib.Distributed.AtomicCommit.TwoPCReachable`: operational `Cslib.LTS` semantics of `2PC` with
-  crashes and message omissions.
+  `Cslib.Distributed.AtomicCommit.TwoPCReachable`: operational `Cslib.LTS` semantics of the
+  fail-stop `2PC` step with crashes and message omissions.
 * `Cslib.Distributed.AtomicCommit.TwoPCSurvivorView`: projection of a `2PC` global state visible to
   the surviving operational sites.
 
 ## Main results
 
-* `Cslib.Distributed.AtomicCommit.mTr_execState_of_execValid`,
-  `Cslib.Distributed.AtomicCommit.canReach_execState_of_execValid`,
-  `Cslib.Distributed.AtomicCommit.canReach_trans`: trace-runner soundness and `LTS.CanReach`
-  transitivity.
-* `Cslib.Distributed.AtomicCommit.twoPC_decision_stable`: local `2PC` decisions are irreversible
-  along reachable executions.
-* `Cslib.Distributed.AtomicCommit.twoPC_agreement`: `2PC` satisfies `UniformAgreement` (`AC1`) in
-  every reachable state across arbitrary crashes and message omissions.
-* `Cslib.Distributed.AtomicCommit.twoPC_abort_of_vote_no`: `2PC` satisfies `AbortValidity` (`AC2`)
-  in every reachable state.
-* `Cslib.Distributed.AtomicCommit.twoPC_failureFree_commit`: fault-free all-`yes` execution of
-  `2PC` reaches `AllDecided _ .commit` (`AC3`).
-* `Cslib.Distributed.AtomicCommit.twoPC_failureFree_abort`: fault-free execution of `2PC` with at
-  least one `no` vote reaches `AllDecided _ .abort`.
-* `Cslib.Distributed.AtomicCommit.twoPC_uncertain_bivalent_on_crash`: for `2 ≤ Fintype.card P`,
+* `Cslib.Distributed.AtomicCommit.twoPC_decision_stable_failStop`: local `2PC` decisions are
+  irreversible along reachable executions in the fail-stop register-state step.
+* `Cslib.Distributed.AtomicCommit.twoPC_agreement_failStop`: fail-stop `2PC` step toward
+  `UniformAgreement` (`AC1`) across arbitrary fail-stop crashes and message omissions.
+* `Cslib.Distributed.AtomicCommit.twoPC_abort_of_vote_no_failStop`: fail-stop `2PC` step toward
+  `AbortValidity` (`AC2`) in every reachable state.
+* `Cslib.Distributed.AtomicCommit.twoPC_failureFree_commit_failStop`: fault-free all-`yes`
+  execution of the fail-stop `2PC` model reaches `AllDecided _ .commit` (`AC3`).
+* `Cslib.Distributed.AtomicCommit.twoPC_failureFree_abort_failStop`: fault-free execution of the
+  fail-stop `2PC` model with at least one `no` vote reaches `AllDecided _ .abort`.
+* `Cslib.Distributed.AtomicCommit.twoPC_uncertain_bivalent_failStop`: for `2 ≤ Fintype.card P`,
   exhibits reachable `sAbort` and `sCommit` with identical `TwoPCSurvivorView` on a surviving
-  `.uncertain` cohort `q` (`votes q = .yes`) where `coord` has already decided `.abort` (with
-  `votesAbort coord = .no`) vs `.commit`.
-* `Cslib.Distributed.AtomicCommit.twoPC_no_safe_survivor_termination`: for `2 ≤ Fintype.card P`, no
-  survivor-only termination rule for `2PC` preserves `UniformAgreement`.
+  `.uncertain` cohort `q` (`votes q = .yes`) where `coord` has already decided `.abort` vs
+  `.commit`.
+* `Cslib.Distributed.AtomicCommit.twoPC_no_safe_survivor_termination_failStop`: for
+  `2 ≤ Fintype.card P`, no survivor-only termination rule for the fail-stop `2PC` model preserves
+  `UniformAgreement`.
 
 ## References
 
@@ -112,7 +106,7 @@ namespace Cslib.Distributed.AtomicCommit
 
 open Cslib
 
-/-! ### Atomic commitment vocabulary and shared LTS trace runner -/
+/-! ### Atomic commitment specification -/
 
 /-- Initial vote of a site on whether it is prepared to commit or unilaterally aborts. -/
 inductive Vote where
@@ -181,60 +175,7 @@ theorem AbortValidity.eq_abort_of_eq_some {P : Type*} {votes : P → Vote}
   | abort => rfl
   | commit => exact False.elim (hval hno q hq)
 
-/-- Turn a partial transition function `step? : State → Label → Option State` into a deterministic
-`Cslib.LTS`. -/
-@[expose] def ltsOfStep? {State Label : Type*} (step? : State → Label → Option State) :
-    LTS State Label where
-  Tr s a s' := step? s a = some s'
-
-/-- Check whether every label in `tr` is enabled from `s` under `step?`. -/
-@[expose] def execValid {State Label : Type*} (step? : State → Label → Option State) :
-    State → List Label → Bool
-  | _, [] => true
-  | s, a :: as =>
-    match step? s a with
-    | some s' => execValid step? s' as
-    | none => false
-
-/-- Fold a trace of partial steps, keeping the last state if an invalid label is encountered. -/
-@[expose] def execState {State Label : Type*} (step? : State → Label → Option State) :
-    State → List Label → State
-  | s, [] => s
-  | s, a :: as =>
-    match step? s a with
-    | some s' => execState step? s' as
-    | none => s
-
-/-- A trace validated by `execValid` realizes a genuine `Cslib.LTS.MTr` execution to
-`execState`. -/
-theorem mTr_execState_of_execValid {State Label : Type*} {step? : State → Label → Option State}
-    {s : State} {tr : List Label} (hv : execValid step? s tr = true) :
-    (ltsOfStep? step?).MTr s tr (execState step? s tr) := by
-  induction tr generalizing s with
-  | nil => exact .refl
-  | cons a as ih =>
-    simp only [execValid, execState] at hv ⊢
-    cases hstep : step? s a with
-    | none => simp [hstep] at hv
-    | some s' =>
-      simp only [hstep] at hv
-      exact .stepL hstep (ih hv)
-
-/-- Reachability witness for `execState` from `execValid = true`. -/
-theorem canReach_execState_of_execValid {State Label : Type*}
-    {step? : State → Label → Option State} {s : State} {tr : List Label}
-    (hv : execValid step? s tr = true) :
-    (ltsOfStep? step?).CanReach s (execState step? s tr) :=
-  ⟨tr, mTr_execState_of_execValid hv⟩
-
-/-- Transitivity of `LTS.CanReach`. -/
-protected theorem canReach_trans {State Label : Type*} {lts : LTS State Label} {s₁ s₂ s₃ : State}
-    (h₁ : lts.CanReach s₁ s₂) (h₂ : lts.CanReach s₂ s₃) : lts.CanReach s₁ s₃ := by
-  rcases h₁ with ⟨tr₁, hm₁⟩
-  rcases h₂ with ⟨tr₂, hm₂⟩
-  exact ⟨tr₁ ++ tr₂, hm₁.comp lts hm₂⟩
-
-/-! ### Gray's centralized Two-Phase Commit (`2PC`) -/
+/-! ### Fail-stop register-state Two-Phase Commit (`2PC`) step -/
 
 /-- Local automaton states of centralized Two-Phase Commit ([Skeen1981], Figure 2, p. 135;
 [Gray1978], §5.8.3.3.2, p. 468). -/
@@ -414,21 +355,30 @@ vote profile `votes`. -/
       some { s with msgs := s.msgs.erase m }
     else none
 
-/-- Operational `Cslib.LTS` of Gray's centralized `2PC` with crashes and message omissions. -/
+/-- Operational `Cslib.LTS` of the fail-stop register-state `2PC` step with crashes and message
+omissions (after [Gray1978], §5.8.3.3.2, pp. 466–469). -/
 @[expose] def twoPCLts {P : Type*} [DecidableEq P] [Fintype P] (coord : P) (votes : P → Vote) :
-    LTS (TwoPCState P) (TwoPCAction P) :=
-  ltsOfStep? (twoPCStep? coord votes)
+    LTS (TwoPCState P) (TwoPCAction P) where
+  Tr s a s' := twoPCStep? coord votes s a = some s'
 
-/-- Reachability of a `2PC` configuration from `twoPCStart P`. -/
+/-- Reachability of a `2PC` configuration from `twoPCStart P` in the fail-stop register-state
+step. -/
 @[expose] def TwoPCReachable {P : Type*} [DecidableEq P] [Fintype P] (coord : P) (votes : P → Vote)
     (s : TwoPCState P) : Prop :=
   (twoPCLts coord votes).CanReach (twoPCStart P) s
 
-/-! ### Unconditional safety (`AC1` and `AC2`) and decision stability of `2PC` -/
+/-! ### Fail-stop safety (`AC1` and `AC2`) and decision stability of `2PC` -/
 
 section Safety
 
 variable {P : Type*} [DecidableEq P] [Fintype P] {coord : P} {votes : P → Vote}
+
+private theorem twoPC_canReach_trans {s₁ s₂ s₃ : TwoPCState P}
+    (h₁ : (twoPCLts coord votes).CanReach s₁ s₂) (h₂ : (twoPCLts coord votes).CanReach s₂ s₃) :
+    (twoPCLts coord votes).CanReach s₁ s₃ := by
+  rcases h₁ with ⟨tr₁, hm₁⟩
+  rcases h₂ with ⟨tr₂, hm₂⟩
+  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
 
 private theorem step_decision_stable {s s' : TwoPCState P} {act : TwoPCAction P}
     (hstep : twoPCStep? coord votes s act = some s') {p : P} {d : Decision}
@@ -462,9 +412,11 @@ private theorem step_decision_stable {s s' : TwoPCState P} {act : TwoPCAction P}
   · exact hd
   · exact hd
 
-/-- Once a site decides `.commit` or `.abort` in `2PC`, its decision is preserved along all
-subsequent transitions (including crashes and message drops). -/
-theorem twoPC_decision_stable {s s' : TwoPCState P}
+/-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 468), not the cited
+crash-recovery log-replay result (#7289): once a site decides `.commit` or `.abort` in `twoPCLts`,
+its decision is preserved along all subsequent transitions (including fail-stop crashes and message
+drops). -/
+theorem twoPC_decision_stable_failStop {s s' : TwoPCState P}
     (hreach : (twoPCLts coord votes).CanReach s s') {p : P} {d : Decision}
     (hd : s.decision p = some d) : s'.decision p = some d := by
   rcases hreach with ⟨tr, hmtr⟩
@@ -701,11 +653,11 @@ private theorem TwoPCInvariant.not_commit_and_abort {s : TwoPCState P}
   · exact absurd (hinv.coord_committed_all_yes hc q) (by rw [hno]; decide)
   · rw [hc] at hca; cases hca
 
-/-- **Unconditional Uniform Agreement (`AC1` for `2PC`):** in every reachable configuration of
-Gray's `2PC` (across arbitrary site crashes and message omissions), all decided sites—operational
-or crashed—agree on the same `Decision` ([Gray1978], §5.8.3.3.2, p. 469; [Skeen1981], §2,
-p. 136). -/
-theorem twoPC_agreement {s : TwoPCState P} (hreach : TwoPCReachable coord votes s) :
+/-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 469) and [Skeen1981], §2
+(p. 136), not the cited crash-recovery log-replay result (#7289): in every reachable configuration
+of `twoPCLts` (across arbitrary fail-stop site crashes and message omissions), all decided
+sites—operational or crashed—satisfy `UniformAgreement` (`AC1`). -/
+theorem twoPC_agreement_failStop {s : TwoPCState P} (hreach : TwoPCReachable coord votes s) :
     UniformAgreement s.decision := by
   have hinv := twoPCInvariant_of_reachable hreach
   intro p q d₁ d₂ hp hq
@@ -715,9 +667,11 @@ theorem twoPC_agreement {s : TwoPCState P} (hreach : TwoPCReachable coord votes 
   · exact False.elim (hinv.not_commit_and_abort hq hp)
   · rfl
 
-/-- **Unconditional Abort Validity (`AC2` for `2PC`):** if any site voted `.no`, no site ever
-decides `.commit` in any reachable configuration of `2PC`. -/
-theorem twoPC_abort_of_vote_no {s : TwoPCState P} (hreach : TwoPCReachable coord votes s) :
+/-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 468) and [Skeen1981], §2
+(p. 136), not the cited crash-recovery log-replay result (#7289): if any site voted `.no`, no site
+decides `.commit` in any reachable configuration of `twoPCLts` (`AC2`). -/
+theorem twoPC_abort_of_vote_no_failStop {s : TwoPCState P}
+    (hreach : TwoPCReachable coord votes s) :
     AbortValidity votes s.decision := by
   have hinv := twoPCInvariant_of_reachable hreach
   intro ⟨p, hp⟩ q hq
@@ -935,7 +889,8 @@ private theorem twoPCStep?_sendRequests_start (coord : P) (votes : P → Vote) :
   simp [twoPCStep?, twoPCStart, twoPCAfterRequests]
 
 /-- Shared all-`.yes` execution prefix from `twoPCStart P` through Phase 1 vote collection and
-`coordCommit`, used by both `twoPC_failureFree_commit` and `twoPC_uncertain_bivalent_on_crash`. -/
+`coordCommit`, used by both `twoPC_failureFree_commit_failStop` and
+`twoPC_uncertain_bivalent_failStop`. -/
 private theorem faultFree_to_coordCommit (coord : P) (hyes : ∀ p, votes p = .yes) :
     ∃ s₃ : TwoPCState P,
       FaultFreeMTr coord votes (twoPCStart P) s₃ ∧
@@ -973,10 +928,11 @@ private theorem faultFree_to_coordCommit (coord : P) (hyes : ∀ p, votes p = .y
   · have hpC : p ∈ C := Finset.mem_erase.mpr ⟨hpc, Finset.mem_univ p⟩
     simp [s₃, Function.update, hpc, hloc₂, hpC]
 
-/-- **Failure-Free Commit Nontriviality (`AC3` for `2PC`):** when all sites vote `.yes`, Gray's
-`2PC` admits a crash-free, omission-free execution from `twoPCStart P` reaching unanimous
-`.commit` with all sites operational and an empty network. -/
-theorem twoPC_failureFree_commit (coord : P) (hyes : ∀ p, votes p = .yes) :
+/-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (pp. 467–468), not the cited
+crash-recovery log-replay result (#7289): when all sites vote `.yes`, `twoPCLts` admits a
+crash-free, omission-free execution from `twoPCStart P` reaching `AllDecided s.decision .commit`
+with all sites operational and an empty network (`AC3`). -/
+theorem twoPC_failureFree_commit_failStop (coord : P) (hyes : ∀ p, votes p = .yes) :
     ∃ tr s, (∀ a ∈ tr, a.isFaultFree = true) ∧
       (twoPCLts coord votes).MTr (twoPCStart P) tr s ∧
       AllDecided s.decision .commit ∧ s.alive = Finset.univ ∧ s.msgs = 0 := by
@@ -1006,9 +962,10 @@ theorem twoPC_failureFree_commit (coord : P) (hyes : ∀ p, votes p = .yes) :
   · have hpC : p ∈ C := Finset.mem_erase.mpr ⟨hpc, Finset.mem_univ p⟩
     simp [TwoPCState.decision, hloc₄, hpC]
 
-/-- **Failure-Free Abort Completion for `2PC`:** when at least one site votes `.no`, Gray's `2PC`
-admits a crash-free, omission-free execution from `twoPCStart P` reaching unanimous `.abort`. -/
-theorem twoPC_failureFree_abort (coord : P) (hno : ∃ p, votes p = .no) :
+/-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (pp. 467–468), not the cited
+crash-recovery log-replay result (#7289): when at least one site votes `.no`, `twoPCLts` admits a
+crash-free, omission-free execution from `twoPCStart P` reaching `AllDecided s.decision .abort`. -/
+theorem twoPC_failureFree_abort_failStop (coord : P) (hno : ∃ p, votes p = .no) :
     ∃ tr s, (∀ a ∈ tr, a.isFaultFree = true) ∧
       (twoPCLts coord votes).MTr (twoPCStart P) tr s ∧
       AllDecided s.decision .abort ∧ s.alive = Finset.univ := by
@@ -1169,7 +1126,7 @@ private theorem canReach_drop_all_msgs (s : TwoPCState P) :
     have hstep : twoPCStep? coord votes ⟨st, yv, sn, al, m ::ₘ ms⟩ (.dropMsg m) =
         some ⟨st, yv, sn, al, ms⟩ := by
       simp [twoPCStep?]
-    exact AtomicCommit.canReach_trans ⟨[TwoPCAction.dropMsg m], LTS.MTr.single _ hstep⟩ ih
+    exact twoPC_canReach_trans ⟨[TwoPCAction.dropMsg m], LTS.MTr.single _ hstep⟩ ih
 
 private theorem canReach_crash_set :
     ∀ (dead : Finset P) (s : TwoPCState P), dead ⊆ s.alive →
@@ -1192,21 +1149,21 @@ private theorem canReach_crash_set :
     have heq : s₁.alive \ dead = s.alive \ insert p dead := by
       ext r; simp [s₁, and_assoc, and_comm, and_left_comm]
     have hreach : (twoPCLts coord votes).CanReach s { s with alive := s₁.alive \ dead } :=
-      AtomicCommit.canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩ (ih s₁ hsub₁)
+      twoPC_canReach_trans ⟨[TwoPCAction.crash p], LTS.MTr.single _ hstep⟩ (ih s₁ hsub₁)
     rw [heq] at hreach
     exact hreach
 
-/-- **Coordinator-Crash Uncertainty / Bivalence of `2PC` (`2 ≤ Fintype.card P`):**
-for any coordinator `coord : P` on at least two processes, there exist a surviving cohort
-`q ≠ coord`, two initial vote profiles `votesAbort` (with `votesAbort coord = .no` and
-`votesAbort q = .yes`) and `votesCommit` (`fun _ => .yes`), and reachable configurations `sAbort`
+/-- Fail-stop register-state step toward [Skeen1981], §1 (p. 134) and [SkeenStonebraker1983],
+§IV-C, Lemma 1 (p. 223), not the cited crash-recovery result (#7289): for `2 ≤ Fintype.card P` and
+any coordinator `coord : P`, there exist a surviving cohort `q ≠ coord`, vote profile `votesAbort`
+(`votesAbort coord = .no`, `votesAbort q = .yes`), and `twoPCLts`-reachable configurations `sAbort`
 and `sCommit` such that:
 1. in both configurations `q` is the sole operational survivor (`alive = {q}`), is `.uncertain`,
    and has an empty network (`msgs = 0`),
-2. `sAbort` and `sCommit` induce the **exact same** `TwoPCSurvivorView`,
+2. `sAbort` and `sCommit` induce the exact same `TwoPCSurvivorView`,
 3. `coord` has already decided `.abort` in `sAbort` whereas `coord` has already decided `.commit`
-   in `sCommit` ([Skeen1981], §1, p. 134; [SkeenStonebraker1983], §IV-C, Lemma 1, p. 223). -/
-theorem twoPC_uncertain_bivalent_on_crash (hcard : 2 ≤ Fintype.card P) (coord : P) :
+   in `sCommit`. -/
+theorem twoPC_uncertain_bivalent_failStop (hcard : 2 ≤ Fintype.card P) (coord : P) :
     ∃ (q : P) (votesAbort : P → Vote) (sAbort sCommit : TwoPCState P),
       q ≠ coord ∧
       votesAbort coord = .no ∧
@@ -1269,10 +1226,10 @@ theorem twoPC_uncertain_bivalent_on_crash (hcard : 2 ≤ Fintype.card P) (coord 
   let sa₄ : TwoPCState P := { sa₃ with msgs := 0 }
   let sAbort : TwoPCState P := { sa₄ with alive := Finset.univ \ (Finset.univ.erase q) }
   have hreach_abort : TwoPCReachable coord votesAbort sAbort :=
-    AtomicCommit.canReach_trans ⟨[.sendRequests], LTS.MTr.single _ hsa_step₁⟩
-      (AtomicCommit.canReach_trans ⟨[.recvRequest q], LTS.MTr.single _ hsa_step₂⟩
-        (AtomicCommit.canReach_trans ⟨[.coordAbort], LTS.MTr.single _ hsa_step₃⟩
-          (AtomicCommit.canReach_trans (canReach_drop_all_msgs sa₃)
+    twoPC_canReach_trans ⟨[.sendRequests], LTS.MTr.single _ hsa_step₁⟩
+      (twoPC_canReach_trans ⟨[.recvRequest q], LTS.MTr.single _ hsa_step₂⟩
+        (twoPC_canReach_trans ⟨[.coordAbort], LTS.MTr.single _ hsa_step₃⟩
+          (twoPC_canReach_trans (canReach_drop_all_msgs sa₃)
             (canReach_crash_set (Finset.univ.erase q) sa₄ (Finset.subset_univ _)))))
   -- 2. Construct `sCommit` under `votesCommit`: reuse `faultFree_to_coordCommit`, then drop all
   --    msgs and crash `univ.erase q`.
@@ -1283,8 +1240,8 @@ theorem twoPC_uncertain_bivalent_on_crash (hcard : 2 ≤ Fintype.card P) (coord 
   have hsub_c : Finset.univ.erase q ⊆ sc₄.alive := by
     dsimp only [sc₄]; rw [halive_sc₃]; exact Finset.subset_univ _
   have hreach_commit : TwoPCReachable coord votesCommit sCommit :=
-    AtomicCommit.canReach_trans ⟨tr_c, hmtr_c⟩
-      (AtomicCommit.canReach_trans (canReach_drop_all_msgs sc₃)
+    twoPC_canReach_trans ⟨tr_c, hmtr_c⟩
+      (twoPC_canReach_trans (canReach_drop_all_msgs sc₃)
         (canReach_crash_set (Finset.univ.erase q) sc₄ hsub_c))
   have halive_q : Finset.univ \ (Finset.univ.erase q) = ({q} : Finset P) := by
     ext r; simp
@@ -1317,10 +1274,12 @@ theorem twoPC_uncertain_bivalent_on_crash (hcard : 2 ≤ Fintype.card P) (coord 
       · subst hrq; simp [votesAbort, hqc]
       · simp [hrq]
 
-/-- **Inherent Blocking of `2PC` (`2 ≤ Fintype.card P`):** no termination rule `term` depending
-only on the surviving processes' `TwoPCSurvivorView` can assign decisions to undecided survivors in
-a way that preserves `UniformAgreement` across all reachable configurations of `2PC`. -/
-theorem twoPC_no_safe_survivor_termination (hcard : 2 ≤ Fintype.card P) (coord : P)
+/-- Fail-stop register-state step toward [Gray1978], §5.8.3.3.2 (p. 469), [Skeen1981], §1
+(p. 134), and [SkeenStonebraker1983], §IV-C, Lemma 1 (p. 223), not the cited crash-recovery result
+(#7289): for `2 ≤ Fintype.card P`, no termination rule `term` depending only on the surviving
+processes' `TwoPCSurvivorView` can assign decisions to undecided survivors in a way that preserves
+`UniformAgreement` across all reachable configurations of `twoPCLts`. -/
+theorem twoPC_no_safe_survivor_termination_failStop (hcard : 2 ≤ Fintype.card P) (coord : P)
     (term : TwoPCSurvivorView P → Decision) :
     ∃ (votes : P → Vote) (s : TwoPCState P),
       TwoPCReachable coord votes s ∧ s.alive.Nonempty ∧
@@ -1329,7 +1288,7 @@ theorem twoPC_no_safe_survivor_termination (hcard : 2 ≤ Fintype.card P) (coord
         | some d => some d
         | none => if p ∈ s.alive then some (term (s.survivorView coord votes)) else none) := by
   obtain ⟨q, votesAbort, sAbort, sCommit, _, _, _, hrA, hrC, haliveA, hlocA, _, hdecA, hdecC,
-    hview⟩ := twoPC_uncertain_bivalent_on_crash hcard coord
+    hview⟩ := twoPC_uncertain_bivalent_failStop hcard coord
   have hview_eq : term (sAbort.survivorView coord votesAbort) =
       term (sCommit.survivorView coord (fun _ => .yes)) := congrArg term hview
   cases hd : term (sAbort.survivorView coord votesAbort) with

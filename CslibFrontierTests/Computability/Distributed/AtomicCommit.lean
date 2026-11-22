@@ -9,29 +9,69 @@ module
 
 import CslibFrontier.Computability.Distributed.AtomicCommit.ThreePhaseCommit
 
-/-! Distributed atomic commitment (`2PC`, `3PC`, and Skeen–Stonebraker partition impossibility),
-checked as a `module` client with ordinary imports:
-1. `decide`-checked `2PC` executions on `Fin 3` (all-`yes` commit, unilateral cohort-`no` abort,
-   and Skeen's 3-site coordinator-plus-cohort crash blocking witness with identical
-   `TwoPCSurvivorView` on surviving `.uncertain` site `2`), plus instantiations of
-   `twoPC_uncertain_bivalent_on_crash` and `twoPC_no_safe_survivor_termination`.
-2. `decide`-checked `3PC` executions on `Fin 3` (fault-free 3-phase commit, backup failover to
-   `.abort` when primary `0` crashes in `.preCommitted` leaving `{1, 2}` in `.uncertain`, backup
-   failover to `.commit` via the 2-step `PreCommit → Commit` round on mixed
+/-! Distributed atomic commitment step modules (`TwoPhaseCommit` and `ThreePhaseCommit`), checked
+as a `module` client with ordinary imports:
+1. `decide`-checked fail-stop `2PC` executions on `Fin 3` (all-`yes` commit, unilateral cohort-`no`
+   abort, and 3-site coordinator-plus-cohort crash blocking witness with identical
+   `TwoPCSurvivorView` on surviving `.uncertain` site `2`), plus an instantiation of
+   `twoPC_no_safe_survivor_termination_failStop`.
+2. `decide`-checked global-phase `3PC` executions on `Fin 3` (fault-free 3-phase commit, backup
+   failover to `.abort` when primary `0` crashes in `.preCommitted` leaving `{1, 2}` in
+   `.uncertain`, backup failover to `.commit` via the 2-step `PreCommit → Commit` round on mixed
    `.preCommitted`/`.uncertain` survivors, and recursive backup coordinator crash mid-failover),
-   plus instantiations of `threePC_no_uncertain_and_committed`, `threePCTerminate_mTr`, and
-   `threePC_nonblocking_termination`.
-3. Concrete `Fin 3` split-brain failure of `3PC` when backup termination is falsely triggered by an
-   asynchronous network partition `({0, 1}, {2})` instead of true fail-stop crashes, plus
-   instantiations of `not_nonblocking_atomicCommit_of_partition` and
-   `not_exists_partitionResilient_atomicCommit`. -/
+   plus instantiations of `threePC_no_uncertain_and_committed_globalPhase`,
+   `threePC_agreement_globalPhase`, and `threePC_nonblocking_termination_globalPhase`.
+3. Concrete `Fin 3` split-brain failure when `3PC`'s fail-stop termination rule is invoked on two
+   separate `.crash` branches modeling a false partition `({0, 1}, {2})`, plus instantiations of
+   `IsPartitionCutResilient.symm`, `not_nonblocking_atomicCommit_of_partitionCut`, and
+   `not_exists_partitionCutResilient_atomicCommit`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.AtomicCommit
 
 open Cslib Cslib.Distributed.AtomicCommit
 
-/-! ### 1. Gray's Two-Phase Commit (`2PC`) on `Fin 3` -/
+/-! ### Local partial-step trace helpers for `decide` checks -/
+
+private def execValid {State Label : Type*} (step? : State → Label → Option State) :
+    State → List Label → Bool
+  | _, [] => true
+  | s, a :: as =>
+    match step? s a with
+    | some s' => execValid step? s' as
+    | none => false
+
+private def execState {State Label : Type*} (step? : State → Label → Option State) :
+    State → List Label → State
+  | s, [] => s
+  | s, a :: as =>
+    match step? s a with
+    | some s' => execState step? s' as
+    | none => s
+
+private theorem mTr_execState_of_execValid {State Label : Type*}
+    {step? : State → Label → Option State} {s : State} {tr : List Label}
+    (hv : execValid step? s tr = true) :
+    ({ Tr := fun s a s' => step? s a = some s' } : LTS State Label).MTr s tr
+      (execState step? s tr) := by
+  induction tr generalizing s with
+  | nil => exact .refl
+  | cons a as ih =>
+    simp only [execValid, execState] at hv ⊢
+    cases hstep : step? s a with
+    | none => simp [hstep] at hv
+    | some s' =>
+      simp only [hstep] at hv
+      exact .stepL hstep (ih hv)
+
+private theorem canReach_execState_of_execValid {State Label : Type*}
+    {step? : State → Label → Option State} {s : State} {tr : List Label}
+    (hv : execValid step? s tr = true) :
+    ({ Tr := fun s a s' => step? s a = some s' } : LTS State Label).CanReach s
+      (execState step? s tr) :=
+  ⟨tr, mTr_execState_of_execValid hv⟩
+
+/-! ### 1. Fail-stop Two-Phase Commit (`2PC`) step on `Fin 3` -/
 
 private def allYes3 : Fin 3 → Vote := fun _ => .yes
 
@@ -59,7 +99,7 @@ example :
   have hv : execValid (twoPCStep? (0 : Fin 3) allYes3) (twoPCStart (Fin 3)) tr2PCCommit = true := by
     decide
   have hreach : TwoPCReachable (0 : Fin 3) allYes3 s := canReach_execState_of_execValid hv
-  exact ⟨hv, by decide, hreach, by decide, by decide, by decide, twoPC_agreement hreach⟩
+  exact ⟨hv, by decide, hreach, by decide, by decide, by decide, twoPC_agreement_failStop hreach⟩
 
 private def tr2PCAbort : List (TwoPCAction (Fin 3)) :=
   [ .sendRequests,
@@ -79,12 +119,12 @@ example :
       execValid (twoPCStep? (0 : Fin 3) cohort1No) (twoPCStart (Fin 3)) tr2PCAbort = true := by
     decide
   have hreach : TwoPCReachable (0 : Fin 3) cohort1No s := canReach_execState_of_execValid hv
-  exact ⟨hv, hreach, by decide, twoPC_abort_of_vote_no hreach⟩
+  exact ⟨hv, hreach, by decide, twoPC_abort_of_vote_no_failStop hreach⟩
 
--- Skeen's 3-site `2PC` blocking witness ([Skeen1981], §1, p. 134): coordinator `0` votes `.yes` in
--- both runs; cohort `2` votes `.yes` and survives alone in `.uncertain` with an empty network; in
--- `tr2PCBlockCohortNo` crashed cohort `1` voted `.no` and unilaterally aborted, whereas in
--- `tr2PCBlockCommit` crashed sites `0` and `1` both already decided `.commit`.
+-- 3-site fail-stop `2PC` blocking witness (after [Skeen1981], §1, p. 134): coordinator `0` votes
+-- `.yes` in both runs; cohort `2` votes `.yes` and survives alone in `.uncertain` with an empty
+-- network; in `tr2PCBlockCohortNo` crashed cohort `1` voted `.no` and unilaterally aborted, whereas
+-- in `tr2PCBlockCommit` crashed sites `0` and `1` both already decided `.commit`.
 private def tr2PCBlockCohortNo : List (TwoPCAction (Fin 3)) :=
   [ .sendRequests,
     .recvRequest 1, .recvRequest 2,
@@ -130,9 +170,9 @@ example (term : TwoPCSurvivorView (Fin 3) → Decision) :
         match s.decision p with
         | some d => some d
         | none => if p ∈ s.alive then some (term (s.survivorView 0 votes)) else none) :=
-  twoPC_no_safe_survivor_termination (by decide) 0 term
+  twoPC_no_safe_survivor_termination_failStop (by decide) 0 term
 
-/-! ### 2. Skeen's Non-Blocking Three-Phase Commit (`3PC`) on `Fin 3` -/
+/-! ### 2. Global-phase Three-Phase Commit (`3PC`) step on `Fin 3` -/
 
 private def tr3PCCommit : List (ThreePCAction (Fin 3)) :=
   [ .castVote 0, .castVote 1, .castVote 2,
@@ -181,9 +221,9 @@ example :
   have hrCrash : ThreePCReachable 0 allYes3 sCrash := canReach_execState_of_execValid hvCrash
   have hrDone : ThreePCReachable 0 allYes3 sDone := canReach_execState_of_execValid hvDone
   have hnoCom : ∀ q, sCrash.decision q ≠ some .commit :=
-    threePC_no_uncertain_and_committed hrCrash ⟨1, by decide, Or.inr (by decide)⟩
+    threePC_no_uncertain_and_committed_globalPhase hrCrash ⟨1, by decide, Or.inr (by decide)⟩
   exact ⟨hvDone, by decide, by decide, by decide, by decide, hnoCom, by decide,
-    by decide, by decide, threePC_agreement hrDone, by decide⟩
+    by decide, by decide, threePC_agreement_globalPhase hrDone, by decide⟩
 
 -- Failover Case B: Primary `0` delivers `PreCommit` to `1` and crashes while `2` is still
 -- `.uncertain`. Backup `2` polls `{1, 2}`, sees `1` is `.preCommitted`, and runs the 2-step
@@ -207,11 +247,13 @@ example :
   have hvDone : execValid (threePCStep? allYes3) (threePCStart (Fin 3) 0)
       tr3PCFailoverCommit = true := by decide
   have hrDone : ThreePCReachable 0 allYes3 sDone := canReach_execState_of_execValid hvDone
-  exact ⟨hvDone, by decide, by decide, by decide, by decide, threePC_agreement hrDone, by decide⟩
+  exact ⟨hvDone, by decide, by decide, by decide, by decide,
+    threePC_agreement_globalPhase hrDone, by decide⟩
 
 -- Failover Case C: Recursive backup coordinator crash mid-failover (`0` crashes, backup `1`
 -- advances `2` to `.preCommitted` and crashes before `finishPreCommit`, then sole survivor `2`
--- elects itself backup and completes `.commit`), plus general `threePC_nonblocking_termination`.
+-- elects itself backup and completes `.commit`), plus
+-- `threePC_nonblocking_termination_globalPhase`.
 private def tr3PCRecursiveBackupCrash : List (ThreePCAction (Fin 3)) :=
   tr3PCCrashMixed ++ [ .electBackup 1, .stepPreCommit 2, .crash 1, .electBackup 2,
     .finishPreCommit ]
@@ -235,15 +277,15 @@ example :
       tr3PCRecursiveBackupCrash = true := by decide
   have hrMid : ThreePCReachable 0 allYes3 sMid := canReach_execState_of_execValid hvMid
   have hrFinal : ThreePCReachable 0 allYes3 sFinal := canReach_execState_of_execValid hvFinal
-  exact ⟨hvFinal, by decide, by decide, threePC_agreement hrFinal,
-    threePC_nonblocking_termination hrMid ⟨2, by decide⟩⟩
+  exact ⟨hvFinal, by decide, by decide, threePC_agreement_globalPhase hrFinal,
+    threePC_nonblocking_termination_globalPhase hrMid ⟨2, by decide⟩⟩
 
-/-! ### 3. Network-Partition Failure of `3PC` and Skeen–Stonebraker Impossibility -/
+/-! ### 3. False-partition split-brain witness and partition-cut impossibility step -/
 
--- Concrete split-brain failure when `3PC`'s fail-stop termination rule is falsely invoked across an
--- asynchronous network partition `G₁ = {0, 1}`, `G₂ = {2}` from reachable state `sPre` (`0` and `1`
--- in `.preCommitted`, `2` in `.uncertain`): `{0, 1}` treats `2` as crashed and commits, while `{2}`
--- treats `{0, 1}` as crashed and runs `threePCTerminate 2` to abort!
+-- Concrete split-brain failure when `3PC`'s fail-stop termination rule is invoked on two separate
+-- `.crash` branches modeling a false partition `G₁ = {0, 1}`, `G₂ = {2}` from reachable state
+-- `sPre` (`0` and `1` in `.preCommitted`, `2` in `.uncertain`): `{0, 1}` treats `2` as crashed and
+-- commits, while `{2}` treats `{0, 1}` as crashed and runs `threePCTerminate 2` to abort.
 private def tr3PCPrePartition : List (ThreePCAction (Fin 3)) :=
   [ .castVote 0, .castVote 1, .castVote 2, .startPreCommit, .stepPreCommit 1 ]
 
@@ -267,23 +309,23 @@ theorem threePC_split_brain_under_false_partition :
   intro sSide1 sSide2 combinedDec
   exact ⟨by decide, by decide, by decide, by decide, by decide, by decide⟩
 
--- Symmetry of `cutCfg` and `IsPartitionResilient`, plus general Skeen–Stonebraker impossibility on
+-- Symmetry of `cutCfg` and `IsPartitionCutResilient`, plus partition-cut impossibility on
 -- `Fin 3` (`G₁ = {0, 1}`, `G₂ = {2}`) and `Fin 2`.
 example {S M : Type*} (G₁ G₂ : Finset (Fin 3)) (cfg : CommitConfig (Fin 3) S M) :
     cutCfg G₁ G₂ cfg = cutCfg G₂ G₁ cfg :=
   cutCfg_comm G₁ G₂ cfg
 
 example {S M : Type*} [DecidableEq M] {π : CommitProtocol (Fin 3) S M}
-    (h : π.IsPartitionResilient {0, 1} {2}) : π.IsPartitionResilient {2} {0, 1} :=
+    (h : π.IsPartitionCutResilient {0, 1} {2}) : π.IsPartitionCutResilient {2} {0, 1} :=
   h.symm
 
 example {S M : Type*} [DecidableEq M] (π : CommitProtocol (Fin 3) S M) :
-    ¬ π.IsPartitionResilient {0, 1} {2} :=
-  not_nonblocking_atomicCommit_of_partition ⟨0, by decide⟩ ⟨2, by decide⟩ (by decide) π
+    ¬ π.IsPartitionCutResilient {0, 1} {2} :=
+  not_nonblocking_atomicCommit_of_partitionCut ⟨0, by decide⟩ ⟨2, by decide⟩ (by decide) π
 
 example {S M : Type*} [DecidableEq M] (π : CommitProtocol (Fin 2) S M) :
     ¬ (∀ G₁ G₂ : Finset (Fin 2), G₁.Nonempty → G₂.Nonempty → Disjoint G₁ G₂ →
-        G₁ ∪ G₂ = Finset.univ → π.IsPartitionResilient G₁ G₂) :=
-  not_exists_partitionResilient_atomicCommit (by decide) π
+        G₁ ∪ G₂ = Finset.univ → π.IsPartitionCutResilient G₁ G₂) :=
+  not_exists_partitionCutResilient_atomicCommit (by decide) π
 
 end CslibFrontierTests.Distributed.AtomicCommit

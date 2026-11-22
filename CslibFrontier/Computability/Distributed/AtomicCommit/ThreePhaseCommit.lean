@@ -11,102 +11,98 @@ public import CslibFrontier.Computability.Distributed.AtomicCommit.TwoPhaseCommi
 import Mathlib.Data.Multiset.Filter
 
 /-!
-# Skeen's Non-Blocking Three-Phase Commit and Network-Partition Impossibility
+# Global-Phase Three-Phase Commit and Partition-Cut Impossibility Steps
 
-This module establishes the sharp boundary between non-blocking crash recovery under accurate
-fail-stop crash detection and the impossibility of non-blocking atomic commitment across network
-partitions ([Skeen1981]; [SkeenStonebraker1983]):
+This module proves two intermediate steps toward non-blocking crash recovery and network-partition
+impossibility (after [Skeen1981] and [SkeenStonebraker1983]), not the cited message-passing `3PC`
+and crash-recovery endpoints (#7289):
 
-1. **Skeen's Three-Phase Commit (`3PC`) in the fail-stop accurate-timeout model ([Skeen1981]):**
+1. **Global-phase FSA and survivor-polling Three-Phase Commit (`3PC`) step (after [Skeen1981],
+   §§2–5, pp. 135–141):**
    Inserting the committable buffer state `.preCommitted` (`p_i`) between `.uncertain` (`w_i`) and
-   `.committed` (`c_i`) ([Skeen1981], §4, Figure 6, p. 139; §5, Figure 7, p. 140) eliminates the
-   coordinator-crash uncertainty of `2PC`. Unlike `TwoPCState` and `CommitProtocol`, `ThreePCState`
-   and `threePCStep?` model centralized `3PC` at the FSA global-state level of [Skeen1981], §§2–4
-   via coordinator-directed phase-guarded single-site state updates (without an explicit in-flight
-   message multiset) together with fail-stop crashes at arbitrary points and recursive backup
-   coordinator failovers (`electBackup`, `backupPhase`, `threePCTerminate`, [Skeen1981],
-   pp. 140–141). Here `backupPhase` polls all operational survivors `alive` (entering
-   `.preCommitting` whenever any survivor is `.preCommitted`), whereas [Skeen1981]'s Central Site
-   Termination Protocol on p. 141 branches on the elected backup's own local state and broadcasts
-   that state in Phase 1 (both variants rely on Skeen's Fundamental Nonblocking Theorem and reach
-   consistent non-blocking decisions; decentralized quorum-based `3PC` and crash-recovery restarts
-   are outside scope). We prove:
-   * **Fundamental Non-Blocking State Invariant (`threePC_no_uncertain_and_committed`):** in every
-     reachable configuration, if any operational site is `.init` or `.uncertain`, then no site
-     (operational or crashed) has decided `.commit`; equivalently, if any site has decided
-     `.commit`, every operational site is committable (`.preCommitted` or `.committed`,
-     `threePC_alive_committable_of_committed`, [Skeen1981], §4, Theorem 1, p. 138).
-   * **Unconditional safety and failure-free commit:** `threePC_decision_stable`,
-     `threePC_agreement` (`AC1`), `threePC_abort_of_vote_no` (`AC2`), and
-     `threePC_failureFree_commit` (`AC3`).
-   * **Non-blocking termination across recursive crashes (`threePCTerminate_mTr`,
-     `threePC_nonblocking_termination`):** from *every* reachable configuration with at least one
-     operational survivor (`s.alive.Nonempty`), the survivors reach a unanimous decision via
-     crash-free survivor-only `3PC` steps without waiting for any crashed site to recover.
+   `.committed` (`c_i`) ([Skeen1981], §4, Figure 6, p. 139; §5, Figure 7, p. 140) separates
+   `.uncertain` operational sites from `.committed` sites. Unlike `TwoPCState` and `CommitProtocol`,
+   `ThreePCState` and `threePCStep?` model centralized `3PC` at the global-phase FSA level via
+   coordinator-directed phase-guarded single-site state updates (omitting in-flight message
+   buffers), computes `backupPhase` by polling all operational survivors `alive` in one
+   `electBackup` step (whereas [Skeen1981]'s Central Site Termination Protocol on p. 141 branches on
+   the elected backup's own local state over messages), and is not yet instantiated as a
+   `CommitProtocol` or extended with crash-recovery restarts or decentralized quorum `3PC` (#7289).
+   Within this global-phase model we prove:
+   * **Non-blocking state invariant step (`threePC_no_uncertain_and_committed_globalPhase`):** in
+     every reachable configuration of `threePCLts`, if any operational site is `.init` or
+     `.uncertain`, then no site (operational or crashed) has decided `.commit`.
+   * **Safety and fault-free commit steps:** `threePC_decision_stable_globalPhase`,
+     `threePC_agreement_globalPhase` (`AC1`), `threePC_abort_of_vote_no_globalPhase` (`AC2`), and
+     `threePC_failureFree_commit_globalPhase` (`AC3`).
+   * **Survivor termination steps (`threePCTerminate_mTr_globalPhase`,
+     `threePC_nonblocking_termination_globalPhase`):** from every reachable configuration with
+     `s.alive.Nonempty`, the operational survivors reach a unanimous decision via crash-free
+     `threePCLts` steps without reviving any crashed site.
 
-2. **Network-Partition Non-Blocking Impossibility ([SkeenStonebraker1983], §V-A, Theorem 4):**
-   For asynchronous point-to-point message-passing commit protocols (`CommitProtocol`, allowing
-   arbitrary state spaces, message alphabets, nondeterministic transitions, and partition-timeout
-   transitions, with cross-partition in-flight messages lost upon partitioning), no protocol can
-   simultaneously satisfy `UniformAgreement` (`AC1`), `AbortValidity` (`AC2`), failure-free
-   all-`yes` commit (`AC3`), and independent non-blocking termination across both sides of a
-   two-group network partition `(G₁, G₂)` with `G₁.Nonempty`, `G₂.Nonempty`, and `Disjoint G₁ G₂`
-   (`not_nonblocking_atomicCommit_of_partition`; undeliverable-message notification of Theorem 5 is
-   outside scope). When `2 ≤ Fintype.card P`, such a simple bipartition (`G₁ ∪ G₂ = Finset.univ`)
-   always exists, ruling out partition-resilient non-blocking atomic commitment on two or more sites
-   (`not_exists_partitionResilient_atomicCommit`).
+2. **Partition-cut impossibility step over `CommitProtocol` (after [SkeenStonebraker1983], §V-A,
+   Theorem 4, p. 225, and Appendix Proof of Theorem 4, p. 227):**
+   For asynchronous point-to-point message-passing protocols (`CommitProtocol` with `NormalStep`
+   and group-informed `TimeoutStep`, without crash-recovery states, undeliverable-message
+   notification, or a `3PC` instantiation; #7289) subject to cross-group message erasure `cutCfg`,
+   no protocol satisfies `CommitProtocol.IsPartitionCutResilient G₁ G₂` for any nonempty disjoint
+   groups `(G₁, G₂)` (`not_nonblocking_atomicCommit_of_partitionCut`). When `2 ≤ Fintype.card P`,
+   such a simple bipartition (`G₁ ∪ G₂ = Finset.univ`) always exists
+   (`not_exists_partitionCutResilient_atomicCommit`).
 
 ## Main definitions
 
 * `Cslib.Distributed.AtomicCommit.ThreePCLocalState`: local states of `3PC` (`init`, `uncertain`,
   `preCommitted`, `committed`, `aborted`).
-* `Cslib.Distributed.AtomicCommit.ThreePCLocalState.isCommittable`: Skeen's committability
-  predicate (`preCommitted` or `committed`).
+* `Cslib.Distributed.AtomicCommit.ThreePCLocalState.isCommittable`: committability predicate
+  (`preCommitted` or `committed`).
 * `Cslib.Distributed.AtomicCommit.ThreePCPhase`,
   `Cslib.Distributed.AtomicCommit.ThreePCState`,
   `Cslib.Distributed.AtomicCommit.ThreePCAction`: coordinator phases, global configurations, and
-  transition labels of `3PC`.
+  transition labels of the global-phase `3PC` step.
 * `Cslib.Distributed.AtomicCommit.backupPhase`,
-  `Cslib.Distributed.AtomicCommit.threePCTerminate`: Skeen's backup coordinator phase-selection
-  rule and survivor termination map.
+  `Cslib.Distributed.AtomicCommit.threePCTerminate`: survivor-polling backup coordinator phase rule
+  and termination map for the global-phase `3PC` step.
 * `Cslib.Distributed.AtomicCommit.threePCStep?`,
   `Cslib.Distributed.AtomicCommit.threePCLts`,
-  `Cslib.Distributed.AtomicCommit.ThreePCReachable`: operational `Cslib.LTS` semantics of `3PC`.
+  `Cslib.Distributed.AtomicCommit.ThreePCReachable`: operational `Cslib.LTS` semantics of the
+  global-phase `3PC` step.
 * `Cslib.Distributed.AtomicCommit.CommitEnvelope`,
   `Cslib.Distributed.AtomicCommit.CommitConfig`,
-  `Cslib.Distributed.AtomicCommit.CommitProtocol`: general asynchronous point-to-point commit
-  protocol with partition-timeout steps.
+  `Cslib.Distributed.AtomicCommit.CommitProtocol`: asynchronous point-to-point commit protocol with
+  group-informed partition-timeout steps.
 * `Cslib.Distributed.AtomicCommit.PartitionState`,
   `Cslib.Distributed.AtomicCommit.PartitionAction`,
   `Cslib.Distributed.AtomicCommit.CommitProtocol.lts`,
-  `Cslib.Distributed.AtomicCommit.CommitProtocol.IsPartitionResilient`: operational partition `LTS`
-  and resilience specification.
+  `Cslib.Distributed.AtomicCommit.CommitProtocol.IsPartitionCutResilient`: operational `cutCfg`
+  partition `LTS` and partition-cut resilience predicate.
 
 ## Main results
 
-* `Cslib.Distributed.AtomicCommit.threePC_decision_stable`: local `3PC` decisions are irreversible.
-* `Cslib.Distributed.AtomicCommit.threePC_no_uncertain_and_committed`,
-  `Cslib.Distributed.AtomicCommit.threePC_alive_committable_of_committed`: Skeen's Fundamental
-  Non-Blocking State Invariant across normal and backup-recovery steps.
-* `Cslib.Distributed.AtomicCommit.threePC_agreement`: `3PC` satisfies `UniformAgreement` (`AC1`)
-  across all operational and crashed sites.
-* `Cslib.Distributed.AtomicCommit.threePC_abort_of_vote_no`: `3PC` satisfies `AbortValidity`
-  (`AC2`).
-* `Cslib.Distributed.AtomicCommit.threePC_failureFree_commit`: fault-free all-`yes` execution of
-  `3PC` reaches `AllDecided _ .commit` (`AC3`).
-* `Cslib.Distributed.AtomicCommit.threePCTerminate_mTr`: when `s.coord ∉ s.alive` and
+* `Cslib.Distributed.AtomicCommit.threePC_decision_stable_globalPhase`: local decisions are
+  irreversible in the global-phase `3PC` step.
+* `Cslib.Distributed.AtomicCommit.threePC_no_uncertain_and_committed_globalPhase`: global-phase
+  `3PC` step toward Skeen's non-blocking state invariant across normal and backup-recovery steps.
+* `Cslib.Distributed.AtomicCommit.threePC_agreement_globalPhase`: global-phase `3PC` step toward
+  `UniformAgreement` (`AC1`) across operational and crashed sites.
+* `Cslib.Distributed.AtomicCommit.threePC_abort_of_vote_no_globalPhase`: global-phase `3PC` step
+  toward `AbortValidity` (`AC2`).
+* `Cslib.Distributed.AtomicCommit.threePC_failureFree_commit_globalPhase`: crash-free all-`yes`
+  execution of the global-phase `3PC` model reaches `AllDecided _ .commit` (`AC3`).
+* `Cslib.Distributed.AtomicCommit.threePCTerminate_mTr_globalPhase`: when `s.coord ∉ s.alive` and
   `b ∈ s.alive`, `threePCTerminate b s` is reached by a crash-free `threePCLts` execution and
-  decides unanimously across `s.alive` in agreement with all crashed sites.
-* `Cslib.Distributed.AtomicCommit.threePC_nonblocking_termination`: every reachable `3PC` state
-  with `s.alive.Nonempty` terminates non-blockingly among `s.alive` across arbitrary recursive
-  coordinator crashes.
+  decides unanimously across `s.alive` in agreement with crashed sites.
+* `Cslib.Distributed.AtomicCommit.threePC_nonblocking_termination_globalPhase`: every reachable
+  `ThreePCState` with `s.alive.Nonempty` terminates among `s.alive` across recursive coordinator
+  crashes in the global-phase `3PC` model.
 * `Cslib.Distributed.AtomicCommit.cutCfg_comm`,
-  `Cslib.Distributed.AtomicCommit.CommitProtocol.IsPartitionResilient.symm`: symmetry of
-  cross-partition message erasure and `IsPartitionResilient` in `(G₁, G₂)`.
-* `Cslib.Distributed.AtomicCommit.not_nonblocking_atomicCommit_of_partition`: Skeen–Stonebraker
-  impossibility of non-blocking atomic commitment under any nonempty disjoint partition `(G₁, G₂)`.
-* `Cslib.Distributed.AtomicCommit.not_exists_partitionResilient_atomicCommit`: for
-  `2 ≤ Fintype.card P`, no `CommitProtocol` is resilient to all simple two-way network partitions.
+  `Cslib.Distributed.AtomicCommit.CommitProtocol.IsPartitionCutResilient.symm`: symmetry of
+  `cutCfg` and `IsPartitionCutResilient` in `(G₁, G₂)`.
+* `Cslib.Distributed.AtomicCommit.not_nonblocking_atomicCommit_of_partitionCut`: partition-cut
+  impossibility step over `CommitProtocol` for any nonempty disjoint `(G₁, G₂)`.
+* `Cslib.Distributed.AtomicCommit.not_exists_partitionCutResilient_atomicCommit`: for
+  `2 ≤ Fintype.card P`, no `CommitProtocol` satisfies `IsPartitionCutResilient` across all simple
+  two-way partitions.
 
 ## References
 
@@ -121,7 +117,7 @@ namespace Cslib.Distributed.AtomicCommit
 
 open Cslib
 
-/-! ### Part I: Skeen's Non-Blocking Three-Phase Commit (`3PC`) -/
+/-! ### Part I: Global-phase Three-Phase Commit (`3PC`) step -/
 
 /-- Local automaton states of Skeen's Three-Phase Commit ([Skeen1981], §4, Figure 6, p. 139;
 §5, Figure 7, p. 140). -/
@@ -212,19 +208,18 @@ structure ThreePCState (P : Type*) where
   alive := Finset.univ
   localState := fun _ => .init
 
-/-- **Survivor-Polling Backup Coordinator Phase Rule** (cf. [Skeen1981], pp. 140–141): poll the
-operational survivors `alive`:
+/-- Survivor-polling backup coordinator phase rule for the global-phase `3PC` step (after
+[Skeen1981], pp. 140–141, not the message-passing Central Site Termination Protocol; #7289): poll
+the operational survivors `alive`:
 * if any survivor is `.aborted`, enter `.aborting`;
 * else if any survivor is `.committed`, enter `.committing`;
 * else if any survivor is `.preCommitted`, enter `.preCommitting` (running the 2-step
   `PreCommit → Commit` round across `alive` before committing);
 * otherwise all survivors are `.init` or `.uncertain`, so enter `.aborting`.
 
-Note: [Skeen1981]'s Central Site Termination Protocol on p. 141 instead branches on the elected
-backup coordinator's own local state and broadcasts that state in Phase 1; polling all survivors
-in `alive` applies the same Fundamental Nonblocking Theorem invariant across `alive` and reaches
-consistent non-blocking decisions even when an `.uncertain` cohort takes over alongside a
-`.preCommitted` peer. -/
+Unlike [Skeen1981]'s Central Site Termination Protocol on p. 141, which branches on the elected
+backup coordinator's own local state and broadcasts that state over messages in Phase 1, this step
+polls all survivors in `alive` directly (#7289). -/
 @[expose] def backupPhase {P : Type*} (alive : Finset P) (st : P → ThreePCLocalState) :
     ThreePCPhase :=
   if ∃ p ∈ alive, st p = .aborted then .aborting
@@ -335,21 +330,30 @@ failover. -/
         phase := backupPhase s.alive s.localState }
     else none
 
-/-- Operational `Cslib.LTS` of Skeen's `3PC` under fail-stop crashes and accurate timeouts. -/
+/-- Operational `Cslib.LTS` of the global-phase `3PC` step under fail-stop crashes and survivor
+polling (after [Skeen1981], §§2–5, pp. 135–141; #7289). -/
 @[expose] def threePCLts {P : Type*} [DecidableEq P] [Fintype P] (votes : P → Vote) :
-    LTS (ThreePCState P) (ThreePCAction P) :=
-  ltsOfStep? (threePCStep? votes)
+    LTS (ThreePCState P) (ThreePCAction P) where
+  Tr s a s' := threePCStep? votes s a = some s'
 
-/-- Reachability of a `3PC` configuration from `threePCStart P coord₀`. -/
+/-- Reachability of a `3PC` configuration from `threePCStart P coord₀` in the global-phase `3PC`
+step. -/
 @[expose] def ThreePCReachable {P : Type*} [DecidableEq P] [Fintype P] (coord₀ : P)
     (votes : P → Vote) (s : ThreePCState P) : Prop :=
   (threePCLts votes).CanReach (threePCStart P coord₀) s
 
-/-! ### Fundamental Non-Blocking State Invariant, safety, and backup termination of `3PC` -/
+/-! ### Global-phase state invariant, safety, and survivor termination steps -/
 
 section ThreePCSafety
 
 variable {P : Type*} [DecidableEq P] [Fintype P] {coord₀ : P} {votes : P → Vote}
+
+private theorem threePC_canReach_trans {s₁ s₂ s₃ : ThreePCState P}
+    (h₁ : (threePCLts votes).CanReach s₁ s₂) (h₂ : (threePCLts votes).CanReach s₂ s₃) :
+    (threePCLts votes).CanReach s₁ s₃ := by
+  rcases h₁ with ⟨tr₁, hm₁⟩
+  rcases h₂ with ⟨tr₂, hm₂⟩
+  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
 
 private theorem step_threePC_decision_stable {s s' : ThreePCState P} {act : ThreePCAction P}
     (hstep : threePCStep? votes s act = some s') {p : P} {d : Decision}
@@ -401,9 +405,10 @@ private theorem step_threePC_decision_stable {s s' : ThreePCState P} {act : Thre
   · exact hd
   · exact hd
 
-/-- Local `3PC` decisions are irreversible along all reachable transitions (normal steps, crashes,
-and backup coordinator failovers). -/
-theorem threePC_decision_stable {s s' : ThreePCState P}
+/-- Global-phase FSA step toward [Skeen1981], §5 (pp. 140–141), not the cited message-passing `3PC`
+result (#7289): local decisions are irreversible along all reachable transitions of `threePCLts`
+(normal phase steps, crashes, and backup coordinator failovers). -/
+theorem threePC_decision_stable_globalPhase {s s' : ThreePCState P}
     (hreach : (threePCLts votes).CanReach s s') {p : P} {d : Decision}
     (hd : s.decision p = some d) : s'.decision p = some d := by
   rcases hreach with ⟨tr, hmtr⟩
@@ -720,11 +725,11 @@ private theorem threePCInvariant_of_reachable {s : ThreePCState P}
     (fun _ _ _ hstep hinv => threePCInvariant_step hinv hstep) _ _ _ hmtr
     (threePCInvariant_start coord₀)
 
-/-- **Skeen's Fundamental Non-Blocking State Invariant (`3PC`):** in every reachable configuration
-of `3PC` (including after arbitrary crashes and recursive backup coordinator failovers), if any
-operational site is `.init` or `.uncertain`, then no site—operational or crashed—has decided
-`.commit` ([Skeen1981], §4, Theorem 1, p. 138). -/
-theorem threePC_no_uncertain_and_committed {s : ThreePCState P}
+/-- Global-phase FSA step toward [Skeen1981], §4, Theorem 1 (p. 138), not the cited message-passing
+`3PC` result (#7289): in every reachable configuration of `threePCLts` (across single-site phase
+steps, fail-stop crashes, and survivor-polling backup failovers), if any operational site is
+`.init` or `.uncertain`, then no site—operational or crashed—has decided `.commit`. -/
+theorem threePC_no_uncertain_and_committed_globalPhase {s : ThreePCState P}
     (hreach : ThreePCReachable coord₀ votes s)
     (hunc : ∃ q ∈ s.alive, s.localState q = .init ∨ s.localState q = .uncertain) :
     ∀ p, s.decision p ≠ some .commit := by
@@ -737,20 +742,11 @@ theorem threePC_no_uncertain_and_committed {s : ThreePCState P}
   · simp [hinit, ThreePCLocalState.isCommittable] at hcomm
   · simp [hw, ThreePCLocalState.isCommittable] at hcomm
 
-/-- Contrapositive committability form of Skeen's Fundamental Non-Blocking Invariant: whenever any
-site (operational or crashed) has decided `.commit`, every operational site is committable
-(`.preCommitted` or `.committed`). -/
-theorem threePC_alive_committable_of_committed {s : ThreePCState P}
-    (hreach : ThreePCReachable coord₀ votes s)
-    (hcom : ∃ p, s.decision p = some .commit) :
-    ∀ q ∈ s.alive, (s.localState q).isCommittable = true := by
-  rcases hcom with ⟨p, hp⟩
-  exact (threePCInvariant_of_reachable hreach).committed_imp_alive_committable
-    ⟨p, ThreePCLocalState.decision_eq_some_commit_iff.mp hp⟩
-
-/-- **Uniform Agreement (`AC1` for `3PC`):** in every reachable configuration of Skeen's `3PC`, all
-decided sites (operational or crashed) agree on the same `Decision`. -/
-theorem threePC_agreement {s : ThreePCState P} (hreach : ThreePCReachable coord₀ votes s) :
+/-- Global-phase FSA step toward [Skeen1981], §§4–5 (pp. 138–141), not the cited message-passing
+`3PC` result (#7289): in every reachable configuration of `threePCLts`, all decided sites
+(operational or crashed) satisfy `UniformAgreement` (`AC1`). -/
+theorem threePC_agreement_globalPhase {s : ThreePCState P}
+    (hreach : ThreePCReachable coord₀ votes s) :
     UniformAgreement s.decision := by
   have hinv := threePCInvariant_of_reachable hreach
   intro p q d₁ d₂ hp hq
@@ -764,9 +760,11 @@ theorem threePC_agreement {s : ThreePCState P} (hreach : ThreePCReachable coord�
       (ThreePCLocalState.decision_eq_some_abort_iff.mp hp))
   · rfl
 
-/-- **Abort Validity (`AC2` for `3PC`):** if any site voted `.no`, no site ever decides `.commit`
-(nor even enters `.preCommitted`) in any reachable configuration of `3PC`. -/
-theorem threePC_abort_of_vote_no {s : ThreePCState P} (hreach : ThreePCReachable coord₀ votes s) :
+/-- Global-phase FSA step toward [Skeen1981], §§4–5 (pp. 138–141), not the cited message-passing
+`3PC` result (#7289): if any site voted `.no`, no site decides `.commit` in any reachable
+configuration of `threePCLts` (`AC2`). -/
+theorem threePC_abort_of_vote_no_globalPhase {s : ThreePCState P}
+    (hreach : ThreePCReachable coord₀ votes s) :
     AbortValidity votes s.decision := by
   have hinv := threePCInvariant_of_reachable hreach
   intro ⟨p, hp⟩ q hq
@@ -1002,10 +1000,11 @@ private theorem crashFree_finish_from_preCommitting {s : ThreePCState P}
   rw [hfinal_eq] at hcf₂
   exact hcf₁.trans (CrashFreeMTr.step rfl hstep_fin hcf₂)
 
-/-- **Failure-Free Commit Nontriviality (`AC3` for `3PC`):** when all sites vote `.yes`, Skeen's
-`3PC` admits a crash-free execution from `threePCStart P coord₀` reaching unanimous `.commit` with
-`s.alive = Finset.univ`. -/
-theorem threePC_failureFree_commit (coord₀ : P) (hyes : ∀ p, votes p = .yes) :
+/-- Global-phase FSA step toward [Skeen1981], §5, Figure 7 (p. 140), not the cited message-passing
+`3PC` result (#7289): when all sites vote `.yes`, `threePCLts` admits a crash-free execution from
+`threePCStart P coord₀` reaching `AllDecided s.decision .commit` with `s.alive = Finset.univ`
+(`AC3`). -/
+theorem threePC_failureFree_commit_globalPhase (coord₀ : P) (hyes : ∀ p, votes p = .yes) :
     ∃ tr s, (∀ a ∈ tr, a.isCrashFree = true) ∧
       (threePCLts votes).MTr (threePCStart P coord₀) tr s ∧
       AllDecided s.decision .commit ∧ s.alive = Finset.univ := by
@@ -1029,7 +1028,7 @@ theorem threePC_failureFree_commit (coord₀ : P) (hyes : ∀ p, votes p = .yes)
     rw [threePCStep?, ite_eq_left hg]
   have hreach₂ : ThreePCReachable coord₀ votes s₂ := by
     rcases hcf₁ with ⟨tr₁, _, hm₁⟩
-    exact AtomicCommit.canReach_trans ⟨tr₁, hm₁⟩ ⟨[.startPreCommit], LTS.MTr.single _ hstep_pre⟩
+    exact threePC_canReach_trans ⟨tr₁, hm₁⟩ ⟨[.startPreCommit], LTS.MTr.single _ hstep_pre⟩
   have hinv₂ := threePCInvariant_of_reachable hreach₂
   have hcf₂ := crashFree_finish_from_preCommitting hinv₂ (Finset.mem_univ coord₀) rfl
   have htot := hcf₁.trans (CrashFreeMTr.step rfl hstep_pre hcf₂)
@@ -1038,13 +1037,12 @@ theorem threePC_failureFree_commit (coord₀ : P) (hyes : ∀ p, votes p = .yes)
   intro p
   simp [ThreePCState.decision, s₂]
 
-/-- **Skeen's Backup Coordinator Termination Theorem (`threePCTerminate_mTr`):**
-from any reachable configuration `s` in which the coordinator has crashed (`s.coord ∉ s.alive`) and
-`b ∈ s.alive` is a surviving site, electing `b` and executing Skeen's backup termination protocol
-reaches `threePCTerminate b s` via a crash-free `threePCLts` trace, deciding unanimously across
-`s.alive` while preserving `UniformAgreement` (including with all previously crashed sites) and
-`AbortValidity` ([Skeen1981], pp. 140–141). -/
-theorem threePCTerminate_mTr {s : ThreePCState P}
+/-- Global-phase FSA and survivor-polling step toward [Skeen1981], pp. 140–141, not the cited
+message-passing Central Site Termination Protocol result (#7289): from any reachable configuration
+`s` with `s.coord ∉ s.alive` and `b ∈ s.alive`, electing `b` via `backupPhase` and sweeping
+`s.alive` reaches `threePCTerminate b s` along a crash-free `threePCLts` trace, deciding
+unanimously across `s.alive` while preserving `UniformAgreement` and `AbortValidity`. -/
+theorem threePCTerminate_mTr_globalPhase {s : ThreePCState P}
     (hreach : ThreePCReachable coord₀ votes s) (hcrashed : s.coord ∉ s.alive) {b : P}
     (hb : b ∈ s.alive) :
     ∃ tr d, (∀ a ∈ tr, a.isCrashFree = true) ∧
@@ -1058,7 +1056,7 @@ theorem threePCTerminate_mTr {s : ThreePCState P}
     have hg : s.coord ∉ s.alive ∧ b ∈ s.alive := ⟨hcrashed, hb⟩
     rw [threePCStep?, ite_eq_left hg]
   have hreachB : ThreePCReachable coord₀ votes sB :=
-    AtomicCommit.canReach_trans hreach ⟨[.electBackup b], LTS.MTr.single _ hstep_el⟩
+    threePC_canReach_trans hreach ⟨[.electBackup b], LTS.MTr.single _ hstep_el⟩
   have hinvB := threePCInvariant_of_reachable hreachB
   have hcf_tail : CrashFreeMTr votes sB (threePCTerminate b s) := by
     dsimp only [threePCTerminate]
@@ -1080,7 +1078,7 @@ theorem threePCTerminate_mTr {s : ThreePCState P}
   have htot := CrashFreeMTr.step rfl hstep_el hcf_tail
   rcases htot with ⟨tr, hcf, hmtr⟩
   have hreach_fin : ThreePCReachable coord₀ votes (threePCTerminate b s) :=
-    AtomicCommit.canReach_trans hreach ⟨tr, hmtr⟩
+    threePC_canReach_trans hreach ⟨tr, hmtr⟩
   have hd_exists : ∃ d, OperationalDecided s.alive (threePCTerminate b s).decision d := by
     dsimp only [threePCTerminate]
     cases backupPhase s.alive s.localState with
@@ -1089,16 +1087,15 @@ theorem threePCTerminate_mTr {s : ThreePCState P}
     | collectingVotes | aborting =>
       exact ⟨.abort, fun p hp => by simp [ThreePCState.decision, hp]⟩
   rcases hd_exists with ⟨d, hdec⟩
-  exact ⟨tr, d, hcf, hmtr, hdec, threePC_agreement hreach_fin,
-    threePC_abort_of_vote_no hreach_fin⟩
+  exact ⟨tr, d, hcf, hmtr, hdec, threePC_agreement_globalPhase hreach_fin,
+    threePC_abort_of_vote_no_globalPhase hreach_fin⟩
 
-/-- **Non-Blocking Termination of `3PC` Across Arbitrary Recursive Crashes:**
-from *every* reachable configuration `s` of Skeen's `3PC` (regardless of how many primary and
-backup coordinators have crashed at arbitrary intermediate points) with at least one surviving
-operational process (`s.alive.Nonempty`), there is a crash-free `threePCLts` execution among the
-survivors `s.alive` (never reviving any crashed site) reaching unanimous survivor termination
+/-- Global-phase FSA and survivor-polling step toward [Skeen1981], §§4–5 (pp. 138–141), not the
+cited message-passing `3PC` result (#7289): from every reachable configuration `s` of `threePCLts`
+(after arbitrary recursive primary and backup coordinator crashes) with `s.alive.Nonempty`, there
+is a crash-free `threePCLts` execution among `s.alive` reaching unanimous survivor termination
 satisfying `UniformAgreement` and `AbortValidity`. -/
-theorem threePC_nonblocking_termination {s : ThreePCState P}
+theorem threePC_nonblocking_termination_globalPhase {s : ThreePCState P}
     (hreach : ThreePCReachable coord₀ votes s) (halive : s.alive.Nonempty) :
     ∃ tr s' d, (∀ a ∈ tr, a.isCrashFree = true) ∧
       (threePCLts votes).MTr s tr s' ∧
@@ -1111,22 +1108,22 @@ theorem threePC_nonblocking_termination {s : ThreePCState P}
     cases hph : s.phase with
     | preCommitting =>
       rcases crashFree_finish_from_preCommitting hinv hc hph with ⟨tr, hcf, hmtr⟩
-      have hreach' := AtomicCommit.canReach_trans hreach ⟨tr, hmtr⟩
+      have hreach' := threePC_canReach_trans hreach ⟨tr, hmtr⟩
       exact ⟨tr, _, .commit, hcf, hmtr, rfl,
         fun p hp => by simp [ThreePCState.decision, hp],
-        threePC_agreement hreach', threePC_abort_of_vote_no hreach'⟩
+        threePC_agreement_globalPhase hreach', threePC_abort_of_vote_no_globalPhase hreach'⟩
     | committing =>
       rcases crashFree_finish_from_committing hinv hc hph with ⟨tr, hcf, hmtr⟩
-      have hreach' := AtomicCommit.canReach_trans hreach ⟨tr, hmtr⟩
+      have hreach' := threePC_canReach_trans hreach ⟨tr, hmtr⟩
       exact ⟨tr, _, .commit, hcf, hmtr, rfl,
         fun p hp => by simp [ThreePCState.decision, hp],
-        threePC_agreement hreach', threePC_abort_of_vote_no hreach'⟩
+        threePC_agreement_globalPhase hreach', threePC_abort_of_vote_no_globalPhase hreach'⟩
     | aborting =>
       rcases crashFree_finish_from_aborting hinv hc hph with ⟨tr, hcf, hmtr⟩
-      have hreach' := AtomicCommit.canReach_trans hreach ⟨tr, hmtr⟩
+      have hreach' := threePC_canReach_trans hreach ⟨tr, hmtr⟩
       exact ⟨tr, _, .abort, hcf, hmtr, rfl,
         fun p hp => by simp [ThreePCState.decision, hp],
-        threePC_agreement hreach', threePC_abort_of_vote_no hreach'⟩
+        threePC_agreement_globalPhase hreach', threePC_abort_of_vote_no_globalPhase hreach'⟩
     | collectingVotes =>
       let R₀ := s.alive.filter (fun p => s.localState p = .init)
       have hsub₀ : R₀ ⊆ s.alive := Finset.filter_subset _ _
@@ -1141,7 +1138,7 @@ theorem threePC_nonblocking_termination {s : ThreePCState P}
         { coord := s.coord, phase := .collectingVotes, alive := s.alive, localState := st₁ }
       have hreach₁ : ThreePCReachable coord₀ votes s₁ := by
         rcases hcf₀ with ⟨tr₀, _, hm₀⟩
-        exact AtomicCommit.canReach_trans hreach ⟨tr₀, hm₀⟩
+        exact threePC_canReach_trans hreach ⟨tr₀, hm₀⟩
       have hinv₁ := threePCInvariant_of_reachable hreach₁
       by_cases hall_ok : s.alive = Finset.univ ∧ ∀ q ∈ s.alive, st₁ q = .uncertain
       · let s₂ : ThreePCState P :=
@@ -1153,15 +1150,15 @@ theorem threePC_nonblocking_termination {s : ThreePCState P}
             ⟨hc, rfl, hall_ok.1, hall_ok.2⟩
           rw [threePCStep?, ite_eq_left hg]
         have hreach₂ :=
-          AtomicCommit.canReach_trans hreach₁ ⟨[.startPreCommit], LTS.MTr.single _ hstep_pre⟩
+          threePC_canReach_trans hreach₁ ⟨[.startPreCommit], LTS.MTr.single _ hstep_pre⟩
         have hcf₂ := crashFree_finish_from_preCommitting (threePCInvariant_of_reachable hreach₂)
           hc rfl
         have htot := hcf₀.trans (CrashFreeMTr.step rfl hstep_pre hcf₂)
         rcases htot with ⟨tr, hcf, hmtr⟩
-        have hreach' := AtomicCommit.canReach_trans hreach ⟨tr, hmtr⟩
+        have hreach' := threePC_canReach_trans hreach ⟨tr, hmtr⟩
         exact ⟨tr, _, .commit, hcf, hmtr, rfl,
           fun p hp => by simp [ThreePCState.decision, s₂, hp],
-          threePC_agreement hreach', threePC_abort_of_vote_no hreach'⟩
+          threePC_agreement_globalPhase hreach', threePC_abort_of_vote_no_globalPhase hreach'⟩
       · have hab_guard : s.alive ≠ Finset.univ ∨ ∃ q, st₁ q = .aborted := by
           by_cases hal_u : s.alive = Finset.univ
           · right
@@ -1196,16 +1193,16 @@ theorem threePC_nonblocking_termination {s : ThreePCState P}
             ⟨hc, rfl, hc_nc, hab_guard⟩
           rw [threePCStep?, ite_eq_left hg]
         have hreach₂ :=
-          AtomicCommit.canReach_trans hreach₁ ⟨[.primaryAbort], LTS.MTr.single _ hstep_ab⟩
+          threePC_canReach_trans hreach₁ ⟨[.primaryAbort], LTS.MTr.single _ hstep_ab⟩
         have hcf₂ := crashFree_finish_from_aborting (threePCInvariant_of_reachable hreach₂) hc rfl
         have htot := hcf₀.trans (CrashFreeMTr.step rfl hstep_ab hcf₂)
         rcases htot with ⟨tr, hcf, hmtr⟩
-        have hreach' := AtomicCommit.canReach_trans hreach ⟨tr, hmtr⟩
+        have hreach' := threePC_canReach_trans hreach ⟨tr, hmtr⟩
         exact ⟨tr, _, .abort, hcf, hmtr, rfl,
           fun p hp => by simp [ThreePCState.decision, s₂, hp],
-          threePC_agreement hreach', threePC_abort_of_vote_no hreach'⟩
+          threePC_agreement_globalPhase hreach', threePC_abort_of_vote_no_globalPhase hreach'⟩
   · obtain ⟨b, hb⟩ := halive
-    obtain ⟨tr, d, hcf, hmtr, hdec, hagr, hval⟩ := threePCTerminate_mTr hreach hc hb
+    obtain ⟨tr, d, hcf, hmtr, hdec, hagr, hval⟩ := threePCTerminate_mTr_globalPhase hreach hc hb
     have halive_eq : (threePCTerminate b s).alive = s.alive := by
       dsimp only [threePCTerminate]
       cases backupPhase s.alive s.localState <;> rfl
@@ -1213,7 +1210,7 @@ theorem threePC_nonblocking_termination {s : ThreePCState P}
 
 end ThreePCSafety
 
-/-! ### Part II: Network-Partition Non-Blocking Impossibility ([SkeenStonebraker1983]) -/
+/-! ### Part II: Partition-cut impossibility step over `CommitProtocol` -/
 
 /-- Point-to-point network message envelope from `src` to `dest` carrying `payload`. -/
 @[ext]
@@ -1375,15 +1372,16 @@ inductive GroupSteps (π : CommitProtocol P S M) (G : Finset P) :
       s.partitioned = true ∧ s'.partitioned = true ∧
       π.GroupStepOn (if side then G₂ else G₁) p recv s.cfg s'.cfg
 
-/-- **Partition Resilience Specification ([SkeenStonebraker1983], §V-A, pp. 224–225):**
-protocol `π` is non-blocking and atomic under network partition `(G₁, G₂)` if:
+/-- Partition-cut resilience predicate for `CommitProtocol` under cross-group message erasure
+`cutCfg` (step after [SkeenStonebraker1983], §V-A, pp. 224–225, without crash-recovery states or a
+`3PC` instantiation; #7289): protocol `π` satisfies partition-cut resilience on `(G₁, G₂)` if:
 1. (`AC1`) every reachable state of `π.lts G₁ G₂` satisfies `UniformAgreement`,
 2. (`AC2`) every reachable state of `π.lts G₁ G₂` satisfies `AbortValidity`,
 3. (`AC3`) on all-`.yes` votes, a partition-free execution reaches `AllDecided _ .commit`,
-4. (**Independent Partition Termination**) from every partition-free reachable state `cfg`, if the
-   partition `(G₁, G₂)` occurs (`cutCfg G₁ G₂ cfg`), both `G₁` and `G₂` can independently reach
-   decisions on all of their respective sites via isolated `GroupSteps`. -/
-structure IsPartitionResilient (π : CommitProtocol P S M) (G₁ G₂ : Finset P) : Prop where
+4. (isolated termination) from every partition-free reachable state `cfg`, after `cutCfg G₁ G₂ cfg`
+   erases cross-group messages, both `G₁` and `G₂` can independently reach decisions on all of
+   their respective sites via isolated `GroupSteps`. -/
+structure IsPartitionCutResilient (π : CommitProtocol P S M) (G₁ G₂ : Finset P) : Prop where
   /-- `AC1` Uniform Agreement across all reachable pre- and post-partition states. -/
   agreement : ∀ votes s, (π.lts G₁ G₂).CanReach (π.start votes) s →
     UniformAgreement (π.configDecision s.cfg)
@@ -1400,7 +1398,15 @@ structure IsPartitionResilient (π : CommitProtocol P S M) (G₁ G₂ : Finset P
     (∃ cfg₂, π.GroupSteps G₂ (cutCfg G₁ G₂ cfg) cfg₂ ∧
       ∀ q ∈ G₂, (π.decision q (cfg₂.localState q)).isSome = true)
 
-/-! #### Indistinguishability, commutation, and discrete-continuity proof of Theorem 4 -/
+/-! #### Indistinguishability, commutation, and discrete-continuity crossing proof -/
+
+private theorem partition_canReach_trans {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
+    {s₁ s₂ s₃ : PartitionState P S M}
+    (h₁ : (π.lts G₁ G₂).CanReach s₁ s₂) (h₂ : (π.lts G₁ G₂).CanReach s₂ s₃) :
+    (π.lts G₁ G₂).CanReach s₁ s₃ := by
+  rcases h₁ with ⟨tr₁, hm₁⟩
+  rcases h₂ with ⟨tr₂, hm₂⟩
+  exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
 
 private def GroupViewEq (G : Finset P) (c₁ c₂ : CommitConfig P S M) : Prop :=
   (∀ p ∈ G, c₁.localState p = c₂.localState p) ∧ intraMsgs G c₁.msgs = intraMsgs G c₂.msgs
@@ -1579,7 +1585,7 @@ private theorem canReach_of_normalSteps {π : CommitProtocol P S M} {G₁ G₂ :
   | @tail c_mid c_end p recv _ hstep ih =>
     have htr : (π.lts G₁ G₂).Tr ⟨false, c_mid⟩ (.normal p recv) ⟨false, c_end⟩ :=
       ⟨rfl, rfl, hstep⟩
-    exact AtomicCommit.canReach_trans ih ⟨[.normal p recv], LTS.MTr.single _ htr⟩
+    exact partition_canReach_trans ih ⟨[.normal p recv], LTS.MTr.single _ htr⟩
 
 private theorem canReach_of_groupSteps {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (side : Bool) {c₁ c₂ : CommitConfig P S M}
@@ -1590,7 +1596,7 @@ private theorem canReach_of_groupSteps {π : CommitProtocol P S M} {G₁ G₂ : 
   | @stepL c_start c_mid _ p recv hstep _ ih =>
     have htr : (π.lts G₁ G₂).Tr ⟨true, c_start⟩ (.groupStep side p recv) ⟨true, c_mid⟩ :=
       ⟨rfl, rfl, hstep⟩
-    exact AtomicCommit.canReach_trans ⟨[.groupStep side p recv], LTS.MTr.single _ htr⟩ ih
+    exact partition_canReach_trans ⟨[.groupStep side p recv], LTS.MTr.single _ htr⟩ ih
 
 private theorem groupSteps_preserve_outside {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
     (hdisj : Disjoint G₁ G₂) {c₁ c₂ : CommitConfig P S M} (h : π.GroupSteps G₁ c₁ c₂) :
@@ -1636,11 +1642,11 @@ private theorem canReach_swapGroups {π : CommitProtocol P S M} {G₁ G₂ : Fin
         rw [cutCfg_comm G₂ G₁]
         exact htr
       | groupStep side p recv => cases side <;> exact htr
-    exact AtomicCommit.canReach_trans ⟨[swapPartitionSide act], LTS.MTr.single _ htr'⟩ ih
+    exact partition_canReach_trans ⟨[swapPartitionSide act], LTS.MTr.single _ htr'⟩ ih
 
-/-- `IsPartitionResilient` is symmetric in the two isolated groups `(G₁, G₂)`. -/
-theorem IsPartitionResilient.symm {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
-    (h : π.IsPartitionResilient G₁ G₂) : π.IsPartitionResilient G₂ G₁ where
+/-- `IsPartitionCutResilient` is symmetric in the two isolated groups `(G₁, G₂)`. -/
+theorem IsPartitionCutResilient.symm {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
+    (h : π.IsPartitionCutResilient G₁ G₂) : π.IsPartitionCutResilient G₂ G₁ where
   agreement votes s hr := h.agreement votes s (canReach_swapGroups hr)
   abortValidity votes s hr := h.abortValidity votes s (canReach_swapGroups hr)
   failureFreeCommit := h.failureFreeCommit
@@ -1649,7 +1655,7 @@ theorem IsPartitionResilient.symm {π : CommitProtocol P S M} {G₁ G₂ : Finse
     exact (h.nonblockingPartition votes cfg hn).symm
 
 private theorem not_canGroupCommit_init_left {π : CommitProtocol P S M} {G₁ G₂ : Finset P}
-    (hG₂ : G₂.Nonempty) (hdisj : Disjoint G₁ G₂) (hres : π.IsPartitionResilient G₁ G₂) :
+    (hG₂ : G₂.Nonempty) (hdisj : Disjoint G₁ G₂) (hres : π.IsPartitionCutResilient G₁ G₂) :
     ¬ CanGroupCommit π G₁ (cutCfg G₁ G₂ (π.initConfig (fun _ => .yes))) := by
   rintro ⟨cfg₁, hsteps₁, p₁, hp₁, hdec₁⟩
   let votes₁ : P → Vote := fun r => if r ∈ G₁ then .yes else .no
@@ -1664,7 +1670,7 @@ private theorem not_canGroupCommit_init_left {π : CommitProtocol P S M} {G₁ G
   have hcut_tr : (π.lts G₁ G₂).Tr (π.start votes₁) .cutPartition
       ⟨true, cutCfg G₁ G₂ (π.initConfig votes₁)⟩ := ⟨rfl, rfl⟩
   have hreach : (π.lts G₁ G₂).CanReach (π.start votes₁) ⟨true, cfg₁'⟩ :=
-    AtomicCommit.canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
+    partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
       (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) false hsteps₁')
   have hdec₁' : π.configDecision cfg₁' p₁ = some .commit := by
     simpa [configDecision, ← heq'.1 p₁ hp₁] using hdec₁
@@ -1675,7 +1681,7 @@ when `pStar ∉ G₂`: `G₂` sees the same view at `c_next` as at `c_prev` and 
 while `G₁` can reach `.commit`, contradicting `UniformAgreement` (`AC1`). -/
 private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S M}
     {G₁ G₂ : Finset P} (hG₂ : G₂.Nonempty) (hdisj : Disjoint G₁ G₂)
-    (hres : π.IsPartitionResilient G₁ G₂)
+    (hres : π.IsPartitionCutResilient G₁ G₂)
     {c_prev c_next : CommitConfig P S M} {pStar : P} {recv : Option (CommitEnvelope P M)}
     (hnext_steps : π.NormalSteps (π.initConfig (fun _ => .yes)) c_next)
     (hstep_star : π.ConfigNormalStep pStar recv c_prev c_next)
@@ -1711,9 +1717,9 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
   have hcut_tr : (π.lts G₁ G₂).Tr ⟨false, c_next⟩ .cutPartition
       ⟨true, cutCfg G₁ G₂ c_next⟩ := ⟨rfl, rfl⟩
   have hreach₁₂ : (π.lts G₁ G₂).CanReach (π.start allYes) ⟨true, cfg₁₂⟩ :=
-    AtomicCommit.canReach_trans (canReach_of_normalSteps hnext_steps)
-      (AtomicCommit.canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
-        (AtomicCommit.canReach_trans
+    partition_canReach_trans (canReach_of_normalSteps hnext_steps)
+      (partition_canReach_trans ⟨[.cutPartition], LTS.MTr.single _ hcut_tr⟩
+        (partition_canReach_trans
           (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) false hsteps₁)
           (canReach_of_groupSteps (G₁ := G₁) (G₂ := G₂) true hsteps₂')))
   have hdec_u₁ : π.configDecision cfg₁₂ u₁ = some .commit := by
@@ -1725,16 +1731,14 @@ private theorem contradiction_of_crossing_outside_right {π : CommitProtocol P S
 
 end CommitProtocol
 
-/-- **Skeen–Stonebraker Network-Partition Non-Blocking Impossibility**
-([SkeenStonebraker1983], §V-A, Theorem 4, p. 225, and Appendix Proof of Theorem 4, p. 227):
-in an asynchronous message-passing network subject to a two-group partition `(G₁, G₂)` with
-`G₁.Nonempty`, `G₂.Nonempty`, and `Disjoint G₁ G₂`, no `CommitProtocol` can simultaneously satisfy
-`UniformAgreement` (`AC1`), `AbortValidity` (`AC2`), failure-free all-`yes` commit (`AC3`), and
-independent non-blocking termination on both isolated groups. -/
-theorem not_nonblocking_atomicCommit_of_partition {P S M : Type*} [DecidableEq P] [DecidableEq M]
+/-- Partition-cut step after [SkeenStonebraker1983], §V-A, Theorem 4 (p. 225) and Appendix Proof
+of Theorem 4 (p. 227), not the cited crash-recovery endpoint (#7289): for any nonempty disjoint
+groups `(G₁, G₂)`, no `CommitProtocol` (with cross-group message erasure `cutCfg` and without
+crash-recovery states) satisfies `CommitProtocol.IsPartitionCutResilient G₁ G₂`. -/
+theorem not_nonblocking_atomicCommit_of_partitionCut {P S M : Type*} [DecidableEq P] [DecidableEq M]
     {G₁ G₂ : Finset P} (hG₁ : G₁.Nonempty) (hG₂ : G₂.Nonempty) (hdisj : Disjoint G₁ G₂)
     (π : CommitProtocol P S M) :
-    ¬ π.IsPartitionResilient G₁ G₂ := by
+    ¬ π.IsPartitionCutResilient G₁ G₂ := by
   intro hres
   let allYes : P → Vote := fun _ => .yes
   -- Step 1: At `initConfig allYes`, neither `G₁` nor `G₂` can reach `.commit` in isolation, by
@@ -1790,14 +1794,15 @@ theorem not_nonblocking_atomicCommit_of_partition {P S M : Type*} [DecidableEq P
   · exact CommitProtocol.contradiction_of_crossing_outside_right hG₂ hdisj hres
       hnext_steps hstep_star hp₂ hn₂ hnext_can
 
-/-- **Corollary (`2 ≤ Fintype.card P`):** on any process set of size at least `2`, there exists a
+/-- Partition-cut step after [SkeenStonebraker1983], §V-A, Theorem 4 (p. 225), not the cited
+crash-recovery endpoint (#7289): on any process set with `2 ≤ Fintype.card P`, there exists a
 simple two-way partition `(G₁, G₂)` (`G₁.Nonempty`, `G₂.Nonempty`, `Disjoint G₁ G₂`,
-`G₁ ∪ G₂ = Finset.univ`), so no `CommitProtocol` is resilient to all simple two-way network
-partitions ([SkeenStonebraker1983], §V-A, Theorem 4, p. 225). -/
-theorem not_exists_partitionResilient_atomicCommit {P S M : Type*} [DecidableEq P] [DecidableEq M]
-    [Fintype P] (hcard : 2 ≤ Fintype.card P) (π : CommitProtocol P S M) :
+`G₁ ∪ G₂ = Finset.univ`), so no `CommitProtocol` satisfies `CommitProtocol.IsPartitionCutResilient`
+across all simple two-way partitions. -/
+theorem not_exists_partitionCutResilient_atomicCommit {P S M : Type*} [DecidableEq P]
+    [DecidableEq M] [Fintype P] (hcard : 2 ≤ Fintype.card P) (π : CommitProtocol P S M) :
     ¬ (∀ G₁ G₂ : Finset P, G₁.Nonempty → G₂.Nonempty → Disjoint G₁ G₂ →
-        G₁ ∪ G₂ = Finset.univ → π.IsPartitionResilient G₁ G₂) := by
+        G₁ ∪ G₂ = Finset.univ → π.IsPartitionCutResilient G₁ G₂) := by
   intro hall
   have hnt : Nontrivial P := Fintype.one_lt_card_iff_nontrivial.mp (by omega)
   obtain ⟨p, q, hpq⟩ := hnt
@@ -1808,7 +1813,7 @@ theorem not_exists_partitionResilient_atomicCommit {P S M : Type*} [DecidableEq 
   have hdisj : Disjoint G₁ G₂ := Finset.disjoint_singleton_left.mpr (Finset.notMem_erase p _)
   have hunion : G₁ ∪ G₂ = Finset.univ := by
     ext r; by_cases hrp : r = p <;> simp [G₁, G₂, hrp]
-  exact not_nonblocking_atomicCommit_of_partition hG₁ hG₂ hdisj π
+  exact not_nonblocking_atomicCommit_of_partitionCut hG₁ hG₂ hdisj π
     (hall G₁ G₂ hG₁ hG₂ hdisj hunion)
 
 end Cslib.Distributed.AtomicCommit
