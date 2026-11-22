@@ -323,7 +323,7 @@ public lemma key_injective :
     (Option.map_injective eY.injective).comp_left (List.ofFn_injective h.2.2)]
 
 /-- The description of `tm` holds the transitions of the renamed machine on renamed keys. -/
-lemma holds_desc (tm : MultiTapeTM k Symbol State) (q : State) (inp : Option Symbol)
+public lemma holds_desc (tm : MultiTapeTM k Symbol State) (q : State) (inp : Option Symbol)
     (work : Fin k → Option Symbol) :
     (desc eS eY tm).Holds (tm.map eS eY) (eS q) (inp.map eY) (Option.map eY ∘ work) := by
   have hmem : (key (eS q) (inp.map eY) (Option.map eY ∘ work),
