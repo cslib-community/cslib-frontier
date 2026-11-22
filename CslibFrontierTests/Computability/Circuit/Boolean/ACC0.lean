@@ -45,6 +45,23 @@ theorem modGate_mem_SIZEMod (q : ℕ) {c : ℕ} (hc : 1 ≤ c) (k : ℕ) :
     exact Nat.one_le_iff_ne_zero.2
       (Nat.mul_ne_zero (by omega) (pow_ne_zero _ (Nat.succ_ne_zero n)))
 
+/-! ### Symmetric functions with fan-in two -/
+
+-- The fan-in-two circuit for "the weight is 2 modulo 3" on five bits, evaluated through its
+-- public specification, with its size and depth bounds at `k = 5`.
+example : (symmetricDeMorganCircuit 5 fun c => c % 3 == 2).eval Boolean.interpretation
+    ![true, false, false, false, true] 0 = true := by
+  rw [computes_symmetricDeMorganCircuit]
+  decide
+example : (symmetricDeMorganCircuit 5 fun c => c % 3 == 2).eval Boolean.interpretation
+    ![true, false, true, true, true] 0 = false := by
+  rw [computes_symmetricDeMorganCircuit]
+  decide
+example : (symmetricDeMorganCircuit 5 fun c => c % 3 == 2).size ≤ 2520 ∧
+    (symmetricDeMorganCircuit 5 fun c => c % 3 == 2).depth ≤ 65 :=
+  ⟨size_symmetricDeMorganCircuit_le 5 _,
+    (depth_symmetricDeMorganCircuit_le 5 _).trans (by decide)⟩
+
 /-! ### Concrete class inclusions and strict separations -/
 
 example : AC0 ⊂ AC0Mod 6 :=
@@ -68,20 +85,20 @@ example : AC0Mod 3 ⊂ TC0 :=
   have : Fact (Nat.Prime 3) := ⟨by decide⟩
   AC0Mod_ssubset_ACC0.trans_subset ACC0_subset_TC0
 
-example : AC0Mod 5 ⊂ NC 2 :=
+example : AC0Mod 5 ⊂ NC 1 :=
   have : Fact (Nat.Prime 5) := ⟨by decide⟩
-  AC0Mod_ssubset_ACC0.trans_subset ACC0_subset_NC_two
+  AC0Mod_ssubset_ACC0.trans_subset ACC0_subset_NC_one
 
 example : Language.ofSlices (modGate 2) ⊓ Language.ofSlices (modGate 3) ∈ ACC0 :=
   ACC0.inf (modGate_mem_ACC0 2) (modGate_mem_ACC0 3)
 
 example : Language.ofSlices (modGate 6) ∈ TC0 ∧
     Language.ofSlices (modGate 6) ∈ AC 1 ∧
-    Language.ofSlices (modGate 6) ∈ NC 2 ∧
+    Language.ofSlices (modGate 6) ∈ NC 1 ∧
     Language.ofSlices (modGate 6) ∈ PPoly :=
   ⟨ACC0_subset_TC0 (modGate_mem_ACC0 6),
     ACC0_subset_AC_one (modGate_mem_ACC0 6),
-    ACC0_subset_NC_two (modGate_mem_ACC0 6),
+    ACC0_subset_NC_one (modGate_mem_ACC0 6),
     ACC0_subset_PPoly (modGate_mem_ACC0 6)⟩
 
 example : ∃ L : Language Bool, (L : Set (List Bool)) ∈ SigmaP 2 encBits ∧

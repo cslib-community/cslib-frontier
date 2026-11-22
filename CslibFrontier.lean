@@ -1476,6 +1476,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Collapse
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Evaluate
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Mobius
 public import CslibFrontier.Computability.Circuit.Boolean.SymAnd.Restrict
+public import CslibFrontier.Computability.Circuit.Boolean.SymmetricNC1
 public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
 public import CslibFrontier.Computability.Circuit.Boolean.TC0
 public import CslibFrontier.Computability.Circuit.Boolean.Tableau.Basic

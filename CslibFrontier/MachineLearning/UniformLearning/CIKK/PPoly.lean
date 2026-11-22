@@ -69,17 +69,17 @@ namespace Cslib.MachineLearning.UniformLearning
 
 open Finset Cslib.Circuits Cslib.Circuits.Boolean Cslib.Crypto.PRG Cslib.Crypto.PRG.NisanWigderson
 
-/-- The De Morgan circuit size `(2100 · 8)² (ℓ + k s + 6 (k n + k)² + 3 + 1) ^ 8`, with
+/-- The De Morgan circuit size `280 (ℓ + k s + 6 (k n + k)² + 3 + 1) ^ 3`, with
 `k = cikkK e g`, that bounds every function of the CIKK generator on `ℓ` bits for a target on `n`
 bits of De Morgan circuit complexity at most `s`
 (`Cslib.Crypto.PRG.NisanWigderson.complexity_generator_glAmp_le`). -/
 def cikkPPolyBound (n ℓ e g s : ℕ) : ℕ :=
-  (2100 * 8) ^ 2 * (ℓ + (cikkK e g * s + 6 * (cikkK e g * n + cikkK e g) ^ 2 + 3) + 1) ^ 8
+  280 * (ℓ + (cikkK e g * s + 6 * (cikkK e g * n + cikkK e g) ^ 2 + 3) + 1) ^ 3
 
 /-- `cikkPPolyBound` unfolded. -/
 theorem cikkPPolyBound_def (n ℓ e g s : ℕ) :
     cikkPPolyBound n ℓ e g s =
-      (2100 * 8) ^ 2 * (ℓ + (cikkK e g * s + 6 * (cikkK e g * n + cikkK e g) ^ 2 + 3) + 1) ^ 8 := by
+      280 * (ℓ + (cikkK e g * s + 6 * (cikkK e g * n + cikkK e g) ^ 2 + 3) + 1) ^ 3 := by
   rw [cikkPPolyBound]
 
 /-- **Learning from a test that rejects small circuits** [Carmosino et al., Theorem 5.1,

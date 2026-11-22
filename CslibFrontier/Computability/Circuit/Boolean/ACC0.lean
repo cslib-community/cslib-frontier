@@ -29,9 +29,10 @@ re-exported here:
   `ACC0 ⊆ TC0`, and the strict inclusions `AC0 ⊂ ACC0` and `AC0Mod p ⊂ ACC0` (for every prime
   `p`) obtained from Håstad's and Razborov–Smolensky's lower bounds for parity and `MOD_3`.
 * `CslibFrontier.Computability.Circuit.Boolean.ACC0.Simulation`: logarithmic-depth simulation of
-  `MOD_q` gates by unbounded fan-in circuits, giving `ACMod q i ⊆ AC (i + 1)` and
-  `ACC0 ⊆ AC 1 ⊆ NC 2 ⊆ PPoly`, and the polynomial-size simulation of unbounded-depth `MOD_q`
-  circuits (`SIZEMod q`) by fan-in-two De Morgan circuits (`SIZEMod_subset_SIZE`).
+  `MOD_q` gates by fan-in-two De Morgan circuits and by unbounded fan-in circuits, giving
+  `ACMod q i ⊆ NC (i + 1)`, `ACC0 ⊆ NC 1`, `ACMod q i ⊆ AC (i + 1)` and `ACC0 ⊆ AC 1 ⊆ PPoly`,
+  and the polynomial-size simulation of unbounded-depth `MOD_q` circuits (`SIZEMod q`) by
+  fan-in-two De Morgan circuits (`SIZEMod_subset_SIZE`).
 
 This module adds the resulting separations:
 
@@ -44,7 +45,7 @@ This module adds the resulting separations:
   composite) and every exponent `k`, combining `SIZEMod_subset_SIZE` with Kannan's theorem gives a
   language in `Σ₂` with no `MOD_q` circuits of size `O(n ^ k)` of any depth
   (`exists_mem_SigmaP_two_notMem_SIZEMod`) [Kannan1982]. Kannan's language
-  `Kannan.language (8 * (k + 1))`, which is in `Σ₃`, has no such circuits either
+  `Kannan.language (3 * (k + 1))`, which is in `Σ₃`, has no such circuits either
   (`Kannan.language_notMem_SIZEMod`).
 
 ## Main results
@@ -54,7 +55,7 @@ This module adds the resulting separations:
   `Cslib.Circuits.Boolean.exists_mem_P_notMem_AC0Mod`: `P ⊄ AC⁰` and `P ⊄ AC⁰[p]` for every prime
   `p`.
 * `Cslib.Circuits.Boolean.Kannan.language_notMem_SIZEMod`: Kannan's language
-  `Kannan.language (8 * (k + 1))`, which is in `Σ₃`, has no `MOD_q` circuits of size `O(n ^ k)`,
+  `Kannan.language (3 * (k + 1))`, which is in `Σ₃`, has no `MOD_q` circuits of size `O(n ^ k)`,
   for every modulus `q`.
 * `Cslib.Circuits.Boolean.exists_mem_SigmaP_two_notMem_SIZEMod`: fixed-exponent `MOD_q` circuit
   lower bounds in `Σ₂` for every modulus `q`.
@@ -102,12 +103,12 @@ theorem exists_mem_P_notMem_AC0Mod {p : ℕ} [Fact p.Prime] :
   · exact ⟨Language.ofSlices parity, parity_mem_P, Smolensky.parity_notMem_AC0Mod hp2⟩
 
 /-- **Kannan's language escapes `SIZEMod q`**: for every `q, k, c : ℕ`,
-`Kannan.language (8 * (k + 1))` has no circuits over the `AC⁰[q]` basis of size
+`Kannan.language (3 * (k + 1))` has no circuits over the `AC⁰[q]` basis of size
 `c * (n + 1) ^ k` [Kannan1982]. -/
 theorem Kannan.language_notMem_SIZEMod (q k c : ℕ) :
-    Kannan.language (8 * (k + 1)) ∉ SIZEMod q fun n => c * (n + 1) ^ k :=
-  fun hc => Kannan.language_notMem_SIZE (8 * (k + 1))
-    ((2100 * (max q 1) ^ 3) ^ 2 * (c + 1) ^ 8) (SIZEMod_subset_SIZE q c k hc)
+    Kannan.language (3 * (k + 1)) ∉ SIZEMod q fun n => c * (n + 1) ^ k :=
+  fun hc => Kannan.language_notMem_SIZE (3 * (k + 1))
+    (70 * (max q 1) ^ 2 * (c + 1) ^ 3) (SIZEMod_subset_SIZE q c k hc)
 
 /-- **Unconditional fixed-exponent `MOD_q` circuit lower bound in `Σ₂`** (for every modulus `q`,
 prime or composite): for every `q, k : ℕ`, some language in `Σ₂` has no circuits over the `AC⁰[q]`
@@ -116,8 +117,8 @@ Kannan's theorem [Kannan1982]. -/
 theorem exists_mem_SigmaP_two_notMem_SIZEMod (q k : ℕ) :
     ∃ L : Language Bool, (L : Set (List Bool)) ∈ SigmaP 2 encBits ∧
       ∀ c, L ∉ SIZEMod q fun n => c * (n + 1) ^ k := by
-  obtain ⟨L, hL₂, hLnot⟩ := exists_mem_SigmaP_two_notMem_SIZE (8 * (k + 1))
+  obtain ⟨L, hL₂, hLnot⟩ := exists_mem_SigmaP_two_notMem_SIZE (3 * (k + 1))
   refine ⟨L, hL₂, fun c hc => ?_⟩
-  exact hLnot ((2100 * (max q 1) ^ 3) ^ 2 * (c + 1) ^ 8) (SIZEMod_subset_SIZE q c k hc)
+  exact hLnot (70 * (max q 1) ^ 2 * (c + 1) ^ 3) (SIZEMod_subset_SIZE q c k hc)
 
 end Cslib.Circuits.Boolean

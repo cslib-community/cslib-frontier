@@ -37,6 +37,9 @@ arguments (`Unbounded.modMultCircuit`). Replacing every gate of a polynomial-siz
 
 ## Main results
 
+* `Cslib.Circuits.Boolean.Unbounded.exists_simulation_modGate`: replacing every gate of a circuit
+  with `MOD_q` gates by circuits over another basis, with size and depth bounds monotone in the
+  fan-in.
 * `Cslib.Circuits.Boolean.Unbounded.exists_majority_simulation_modGate`: a circuit with `MOD_q`
   gates of `n` inputs, `s` gates and depth `d` has an equivalent circuit with majority gates of at
   most `s (9 + 8 max q 1 · (n + s))` gates and depth at most `5 d`.
@@ -164,27 +167,45 @@ theorem depth_modMultCircuit_le (q : ℕ) (op : MultOp) : (modMultCircuit q op).
   | ac op => simp [modMultCircuit]
   | gate N mult => circuit_bound [modMultCircuit]
 
+/-- **Gate-by-gate simulation of `MOD_q` circuits**: suppose every operation of the basis with
+`MOD_q` gates and multiplicities that reads `a` wires has a circuit over `τ` computing it with at
+most `S a` gates and depth at most `D a`, for monotone `S` and `D`. Then a circuit with `MOD_q`
+gates of `n` inputs, `s` gates and depth `d` has an equivalent circuit over `τ` with at most
+`s · S (n + s)` gates and depth at most `D (n + s) · d`. Its gates are first made to read their
+distinct wires with multiplicities (`multCircuit`), and then replaced. -/
+theorem exists_simulation_modGate {τ : Signature} {J : Interpretation τ Bool} (q : ℕ)
+    (impl : ∀ op : MultOp, Circuit τ (multSignature.Arity op) 1)
+    (himpl : ∀ op, (impl op).Computes J (single (multInterpretation (modCount q) op)))
+    {S D : ℕ → ℕ} (hS : Monotone S) (hD : Monotone D)
+    (hs : ∀ op, (impl op).size ≤ S (multSignature.Arity op))
+    (hd : ∀ op, (impl op).depth ≤ D (multSignature.Arity op)) {n m : ℕ}
+    (C : Circuit extSignature n m) :
+    ∃ E : Circuit τ n m, E.eval J = C.eval (extInterpretation (modGate q)) ∧
+      E.size ≤ C.size * S (n + C.size) ∧ E.depth ≤ D (n + C.size) * C.depth := by
+  refine ⟨(multCircuit C).simulate impl, ?_, ?_, ?_⟩
+  · rw [Circuit.eval_simulate _ _ himpl,
+      eval_multCircuit (G := modCount q) (modGate_eq_modCount q)]
+  · rw [Circuit.size_simulate, Program.cost_eq_sum]
+    refine (Finset.sum_le_card_nsmul _ _ (S (n + C.size)) fun (k : Fin (multCircuit C).size) _ =>
+      (hs _).trans (hS (arity_lines_multCircuit_le C k))).trans_eq ?_
+    rw [Finset.card_univ, Fintype.card_fin, smul_eq_mul, size_multCircuit]
+  · exact (Circuit.depth_simulate_le _ _).trans
+      (((multCircuit C).depthWith_le_mul_depth fun k =>
+        (hd _).trans (hD (arity_lines_multCircuit_le C k))).trans
+        (Nat.mul_le_mul_left _ (depth_multCircuit_le C)))
+
 /-- **Majority gates simulate `MOD_q` gates** [Vollmer, Chapter 4][Vollmer1999]: a circuit with
 `MOD_q` gates of `n` inputs, `s` gates and depth `d` has an equivalent circuit with majority gates
-of at most `s (9 + 8 max q 1 · (n + s))` gates and depth at most `5 d`. Its gates are first made to
-read their distinct wires with multiplicities (`multCircuit`), and then replaced by
-`modMultCircuit`. -/
+of at most `s (9 + 8 max q 1 · (n + s))` gates and depth at most `5 d`, replacing the gates of
+`multCircuit C` by `modMultCircuit`. -/
 theorem exists_majority_simulation_modGate {n m : ℕ} (q : ℕ) (C : Circuit extSignature n m) :
     ∃ D : Circuit extSignature n m,
       D.eval (extInterpretation majority) = C.eval (extInterpretation (modGate q)) ∧
       D.size ≤ C.size * (9 + 8 * max q 1 * (n + C.size)) ∧
-      D.depth ≤ 5 * C.depth := by
-  refine ⟨(multCircuit C).simulate (modMultCircuit q), ?_, ?_, ?_⟩
-  · rw [Circuit.eval_simulate _ _ (computes_modMultCircuit q),
-      eval_multCircuit (G := modCount q) (modGate_eq_modCount q)]
-  · rw [Circuit.size_simulate, Program.cost_eq_sum]
-    refine (Finset.sum_le_sum (g := fun _ => 9 + 8 * max q 1 * (n + C.size)) fun k _ =>
-      (size_modMultCircuit_le q _).trans ?_).trans_eq
-      (by rw [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul, size_multCircuit])
-    exact Nat.add_le_add_left (Nat.mul_le_mul_left _ (arity_lines_multCircuit_le C k)) _
-  · exact (Circuit.depth_simulate_le _ _).trans
-      (((multCircuit C).depthWith_le_mul_depth fun k => depth_modMultCircuit_le q _).trans
-        (Nat.mul_le_mul_left 5 (depth_multCircuit_le C)))
+      D.depth ≤ 5 * C.depth :=
+  exists_simulation_modGate q (modMultCircuit q) (computes_modMultCircuit q)
+    (S := fun a => 9 + 8 * max q 1 * a) (D := fun _ => 5) (fun _ _ h => by dsimp only; gcongr)
+    monotone_const (size_modMultCircuit_le q) (depth_modMultCircuit_le q) C
 
 end Unbounded
 
