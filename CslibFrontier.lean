@@ -1103,6 +1103,8 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.WordSum.L
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.WordSum.Runs
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthThree
 public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
+public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Formula
+public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant.Projection
 public import CslibFrontier.Computability.Circuit.Arithmetic.DeterminantalComplexity
 public import CslibFrontier.Computability.Circuit.Arithmetic.Encoding
 public import CslibFrontier.Computability.Circuit.Arithmetic.Encoding.Check
@@ -1166,6 +1168,7 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearGadge
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearLowerBound
 public import CslibFrontier.Computability.Circuit.Arithmetic.SetMultilinearize
 public import CslibFrontier.Computability.Circuit.Arithmetic.SigmaPi
+public import CslibFrontier.Computability.Circuit.Arithmetic.SubstMatrix
 public import CslibFrontier.Computability.Circuit.Arithmetic.SumFlatten
 public import CslibFrontier.Computability.Circuit.Arithmetic.Synthesis
 public import CslibFrontier.Computability.Circuit.Arithmetic.VNP
@@ -5213,6 +5216,7 @@ public import CslibFrontier.Computability.WordRAM.PointerMachine.Scalar
 public import CslibFrontier.Computability.WordRAM.PointerMachine.Simulation
 public import CslibFrontier.Computability.WordRAM.Power
 public import CslibFrontier.Computability.WordRAM.Power.Rename
+public import CslibFrontier.Computability.WordRAM.PreservesMask
 public import CslibFrontier.Computability.WordRAM.RAM
 public import CslibFrontier.Computability.WordRAM.RAMInput
 public import CslibFrontier.Computability.WordRAM.Randomized.Defs
@@ -5241,6 +5245,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.Computability.WordRAM.Realization.MemoryBackend
 public import CslibFrontier.Computability.WordRAM.Realization.Module
 public import CslibFrontier.Computability.WordRAM.Realization.Primitive
+public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 public import CslibFrontier.Computability.WordRAM.Realization.Random
@@ -5281,6 +5286,8 @@ public import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.Init
 public import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
+public import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+public import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Computability.WordRAM.Trace
 public import CslibFrontier.Computability.WordRAM.Turing
@@ -7540,6 +7547,7 @@ public import CslibFrontier.Foundations.Data.Nat.SqrtLog.Shifted
 public import CslibFrontier.Foundations.Data.Nat.SqrtRatio
 public import CslibFrontier.Foundations.Data.Nat.Subexponential
 public import CslibFrontier.Foundations.Data.Nat.SummationByParts
+public import CslibFrontier.Foundations.Data.Nat.ToDigits
 public import CslibFrontier.Foundations.Data.Nat.Totient
 public import CslibFrontier.Foundations.Data.Nat.TwoAdicInterval
 public import CslibFrontier.Foundations.Data.Option
@@ -8452,6 +8460,7 @@ public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent
 public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent.Trinomial
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.CNF.LRATFast
+public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
 public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 public import CslibFrontier.Logics.Propositional.CNF.LocalLemma
 public import CslibFrontier.Logics.Propositional.CNF.Majority
@@ -8685,6 +8694,7 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 public import CslibFrontier.Logics.Propositional.PseudoBoolean
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
@@ -9205,5 +9215,7 @@ public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
 public import CslibFrontier.Tactic.UpdateSimp
+public import CslibFrontier.Tactic.ValidProg
+public import CslibFrontier.Tactic.ValidProg.Init
 public import CslibFrontier.Tactic.WramOmega
 public import CslibFrontier.Tactic.WramOmega.Init

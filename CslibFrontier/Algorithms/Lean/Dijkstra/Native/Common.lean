@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.Lean.Dijkstra.Native.Domain
 public import CslibFrontier.Computability.WordRAM.Realization.Structure
 import CslibFrontier.Algorithms.WordRAM.Dijkstra.ListEncode
+import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 import CslibFrontier.Tactic.Realize
 
 /-!
@@ -231,6 +232,27 @@ private theorem bindRight {α β γ : Type} {m l n : ℕ}
     (appendWords (appendWords env input) answer) (assocIx k m l)
     (assocIx_spec env input answer))
 
+private theorem branchRight {α β : Type} {m l : ℕ}
+    {input : α ↪ (Fin m → ℕ)} {output : β ↪ (Fin l → ℕ)}
+    (cond : Cond (k + m)) (P : α → Prop) [DecidablePred P]
+    (hc : ∀ d : ε × α, test cond (appendWords env input d) ↔ P d.2)
+    {pos neg : ε × α → Memory.Prog β}
+    {safePos safeNeg : ℕ → ε × α → Memory.State → Prop}
+    (hp : Realizes .exact pos (appendWords env input) output safePos (fun _ _ => 0))
+    (hn : Realizes .exact neg (appendWords env input) output safeNeg (fun _ _ => 0)) :
+    Realizes .exact
+      (fun d : ε × α => if P d.2 then pos d else neg d)
+      (appendWords env input) output
+      (fun w d s => if P d.2 then safePos w d s else safeNeg w d s)
+      (fun _ _ => 0) := by
+  refine ((Realizes.branch₀ cond hp hn).congr
+    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence ?_
+    (fun _ _ => le_rfl)
+  intro w d s _ _ h
+  by_cases hcond : P d.2
+  · rw [ite_eq_left ((hc d).mpr hcond)]; simpa only [ite_eq_left hcond] using h
+  · rw [ite_eq_right (mt (hc d).mp hcond)]; simpa only [ite_eq_right hcond] using h
+
 private theorem branchRightEq {α β : Type} {m l : ℕ}
     {input : α ↪ (Fin m → ℕ)} {output : β ↪ (Fin l → ℕ)} (i j : Fin m)
     {pos neg : ε × α → Memory.Prog β}
@@ -241,18 +263,10 @@ private theorem branchRightEq {α β : Type} {m l : ℕ}
       (fun d : ε × α => if input d.2 i = input d.2 j then pos d else neg d)
       (appendWords env input) output
       (fun w d s => if input d.2 i = input d.2 j then safePos w d s else safeNeg w d s)
-      (fun _ _ => 0) := by
-  have hc (d : ε × α) :
-      test (Cond.eq (Fin.natAdd k i) (Fin.natAdd k j)) (appendWords env input d) ↔
-        input d.2 i = input d.2 j := by
-    simp only [test, Cond.Holds, appendWords_natAdd]
-  refine ((Realizes.branch₀ (Cond.eq (Fin.natAdd k i) (Fin.natAdd k j)) hp hn).congr
-    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence ?_
-    (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  by_cases hcond : input d.2 i = input d.2 j
-  · rw [ite_eq_left ((hc d).mpr hcond)]; simpa only [ite_eq_left hcond] using h
-  · rw [ite_eq_right (mt (hc d).mp hcond)]; simpa only [ite_eq_right hcond] using h
+      (fun _ _ => 0) :=
+  branchRight env (Cond.eq (Fin.natAdd k i) (Fin.natAdd k j))
+    (fun a => input a i = input a j)
+    (fun _ => by simp only [test, Cond.Holds, appendWords_natAdd]) hp hn
 
 private theorem branchRightLt {α β : Type} {m l : ℕ}
     {input : α ↪ (Fin m → ℕ)} {output : β ↪ (Fin l → ℕ)} (i j : Fin m)
@@ -264,18 +278,10 @@ private theorem branchRightLt {α β : Type} {m l : ℕ}
       (fun d : ε × α => if input d.2 i < input d.2 j then pos d else neg d)
       (appendWords env input) output
       (fun w d s => if input d.2 i < input d.2 j then safePos w d s else safeNeg w d s)
-      (fun _ _ => 0) := by
-  have hc (d : ε × α) :
-      test (Cond.lt (Fin.natAdd k i) (Fin.natAdd k j)) (appendWords env input d) ↔
-        input d.2 i < input d.2 j := by
-    simp only [test, Cond.Holds, appendWords_natAdd]
-  refine ((Realizes.branch₀ (Cond.lt (Fin.natAdd k i) (Fin.natAdd k j)) hp hn).congr
-    fun d => if_ctx_congr (hc d) (fun _ => rfl) (fun _ => rfl)).consequence ?_
-    (fun _ _ => le_rfl)
-  intro w d s _ _ h
-  by_cases hcond : input d.2 i < input d.2 j
-  · rw [ite_eq_left ((hc d).mpr hcond)]; simpa only [ite_eq_left hcond] using h
-  · rw [ite_eq_right (mt (hc d).mp hcond)]; simpa only [ite_eq_right hcond] using h
+      (fun _ _ => 0) :=
+  branchRight env (Cond.lt (Fin.natAdd k i) (Fin.natAdd k j))
+    (fun a => input a i < input a j)
+    (fun _ => by simp only [test, Cond.Holds, appendWords_natAdd]) hp hn
 
 private theorem whileRightLt {α : Type} {m : ℕ}
     {input : α ↪ (Fin m → ℕ)} (i j : Fin (m + 1))
@@ -818,18 +824,14 @@ theorem scan_realizes : Realizes .exact
           relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
             G.n u.val du x.2
           pure (x.2 + 1)) (G.adj u).length (G.adj u).length 0)) := by
-      unfold scanWord Memory.inputGraph at hvHist
-      rw [← PFunctor.FreeM.bind_eq_bind, validHistory_bind] at hvHist
-      replace hvHist := hvHist.2
-      have hr1 : (Memory.spec w).clientResult s (read (3 + u.val)) = s.mem (3 + u.val) := rfl
-      have hs1 : (Memory.spec w).clientState s (read (3 + u.val)) = s := rfl
-      rw [hr1, hs1, ← PFunctor.FreeM.bind_eq_bind, validHistory_bind] at hvHist
-      replace hvHist := hvHist.2
-      have hr2 : (Memory.spec w).clientResult s (read (3 + (u.val + 1))) =
-          s.mem (3 + (u.val + 1)) := rfl
-      have hs2 : (Memory.spec w).clientState s (read (3 + (u.val + 1))) = s := rfl
-      rw [hr2, hs2, hdegEq, PFunctor.FreeM.pure_bind, validHistory_bind] at hvHist
-      exact hvHist.1
+      let deg0 := s.mem (3 + (u.val + 1)) - s.mem (3 + u.val)
+      have hv2 : (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s
+          (boundedWhile (fun b i : ℕ => i < b) (fun x => do
+            relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
+              G.n u.val du x.2
+            pure (x.2 + 1)) deg0 deg0 0 >>= fun _ => pure ())) := hvHist.2.2
+      rw [show deg0 = (G.adj u).length from hdegEq] at hv2
+      exact ((validHistory_bind' ..).mp hv2).1
     have hws := Native.scan_while_safe D.toRefinement u du (G.adj u).length
       (fun idx => relaxWord (M.insert e) (M.decreaseKey e) T (Memory.inputGraph G.n G.m)
         G.n u.val du idx)
@@ -994,8 +996,7 @@ theorem loop_realizes : Realizes .exact
             (loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e)
               T (Memory.inputGraph G.n G.m) G.n) () a0 a0)) := by
       unfold loopWord at hvHist
-      rw [← PFunctor.FreeM.bind_eq_bind, validHistory_bind] at hvHist
-      exact hvHist.1
+      exact ((validHistory_bind' ..).mp hvHist).1
     have hws := loop_while_safe D.toRefinement () (fun _ a => a ≠ 0)
       (loopStepWord (M.extractMin e) (M.insert e) (M.decreaseKey e)
         T (Memory.inputGraph G.n G.m) G.n)
@@ -1158,35 +1159,13 @@ theorem realizes_runWord : Realizes .exact
     have hm3 : (Memory.State.init G.encode).mem (G.n + 3) = G.m := Memory.init_mem_edgeCount G
     refine ⟨⟨hfit.of_le (by nlinarith), hfit.of_le (by nlinarith),
       by rw [hn1]; exact hfit.of_le (by nlinarith)⟩, ?_⟩
-    have hHdrRun : (Memory.spec 0).runClient (Memory.State.init G.encode) (readGraphHeader ()) =
-        (⟨G.n, G.source.val, G.m, ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩,
-          ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩,
-          [.read 1, .read 2, .read (G.n + 3), .allocDirty G.n]) := by
-      simp only [readGraphHeader, Memory.allocBlockDirty, ← PFunctor.FreeM.bind_eq_bind,
-        StateTransitionSpec.runClient_bind]
-      have hr1 : (Memory.spec 0).runClient (Memory.State.init G.encode) (read 1) =
-          (G.n, Memory.State.init G.encode, [.read 1]) := rfl
-      have hr2 : (Memory.spec 0).runClient (Memory.State.init G.encode) (read 2) =
-          (G.source.val, Memory.State.init G.encode, [.read 2]) := rfl
-      have hr3 : (Memory.spec 0).runClient (Memory.State.init G.encode) (read (G.n + 3)) =
-          (G.m, Memory.State.init G.encode, [.read (G.n + 3)]) := by
-        change ((Memory.State.init G.encode).mem (G.n + 3),
-          Memory.State.init G.encode, [Memory.Op.read (G.n + 3)]) = _
-        rw [hm3]
-      have ha : (Memory.spec 0).runClient (Memory.State.init G.encode) (allocDirty G.n) =
-          ((Memory.State.init G.encode).frontier,
-            ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩,
-            [.allocDirty G.n]) := rfl
-      rw [hr1, hr2, hr3, ha]
-      rfl
     have hHdrRes : (Memory.spec 0).clientResult (Memory.State.init G.encode)
         (readGraphHeader ()) =
-        ⟨G.n, G.source.val, G.m, ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩ :=
-      congrArg Prod.fst hHdrRun
+        ⟨G.n, G.source.val, G.m, ⟨(Memory.State.init G.encode).frontier, G.n⟩⟩ := by
+      rw [← hm3]; rfl
     have hHdrSt : (Memory.spec 0).clientState (Memory.State.init G.encode)
         (readGraphHeader ()) =
-        ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩ :=
-      congrArg (Prod.fst ∘ Prod.snd) hHdrRun
+        ⟨(Memory.State.init G.encode).mem, (Memory.State.init G.encode).frontier + G.n⟩ := rfl
     rw [hHdrRes, hHdrSt]
     refine ⟨A.fits_alloc G hfit, ?_⟩
     obtain ⟨hAllocRes, hAllocSt⟩ := A.run_alloc G.n

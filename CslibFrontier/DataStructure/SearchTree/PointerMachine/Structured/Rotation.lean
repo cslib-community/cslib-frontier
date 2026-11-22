@@ -87,4 +87,18 @@ theorem rotate_represents (right : Bool) (s : State M (layout extra regs))
   rw [heap]
   exact rewire_frame _ _ _ _ _ _ _ _ zx zy zb
 
+/-! Frames of `rotate`, for the programs that call it. -/
+
+@[simp] theorem rotate_keepsSize (right : Bool) :
+    (rotate right : Code M (layout extra regs)).KeepsSize := by
+  pm_frame
+
+@[simp] theorem rotate_dataDests (right : Bool) :
+    (rotate right : Code M (layout extra regs)).dataDests = [] :=
+  rfl
+
+@[simp] theorem rotate_fieldDests (right : Bool) :
+    (rotate right : Code M (layout extra regs)).fieldDests = [] :=
+  rfl
+
 end Cslib.DataStructure.SearchTree.PointerMachine.Structured
