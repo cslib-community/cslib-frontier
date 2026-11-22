@@ -17,13 +17,17 @@ import Mathlib.Data.Multiset.Filter
 
 This module models deterministic asynchronous point-to-point message passing with crash faults and
 client `read` / `write` invocations, together with the linearizability (atomicity) and wait-free
-termination specifications for emulating a shared atomic register ([AttiyaBarNoyDolev1995]).
+termination specifications for emulating a shared multi-writer multi-reader atomic register
+([AttiyaBarNoyDolev1995]; [LynchShvartsman1997]).
 
 Following `Cslib.FLP`, processes in a finite set `P` communicate over an unordered multiset of
 in-flight point-to-point envelopes (`Envelope P M`), and crash faults are modeled through the
 fairness condition (`Protocol.Fair F`): every envelope addressed to a non-faulty process `dest ∉ F`
 is eventually delivered, while faulty processes `p ∈ F` may stop receiving messages or taking steps
-at any point in an execution (including initially or mid-broadcast).
+at any point in an execution (including initially or mid-broadcast). Unlike the per-edge ping-pong
+channels and message/time accounting of [AttiyaBarNoyDolev1995] (§§2.1, 3–4) or the conditional
+delay bounds of [LynchShvartsman1997] (§4.3), `Protocol` tracks pure asynchronous reachability and
+eventual delivery outside `F`.
 
 Each idle process `p : P` may invoke `OpKind.read` or `OpKind.write v` via `Action.invoke p kind`.
 Every invocation appends an `OpRecord P V` to the global execution `history` recording its caller,
@@ -98,6 +102,8 @@ concrete protocol traces.
 
 * [H. Attiya, A. Bar-Noy, D. Dolev, *Sharing memory robustly in message-passing
   systems*][AttiyaBarNoyDolev1995]
+* [N. A. Lynch, A. A. Shvartsman, *Robust emulation of shared memory using dynamic
+  quorum-acknowledged broadcasts*][LynchShvartsman1997]
 -/
 
 public section

@@ -14,18 +14,22 @@ import Mathlib.Data.Finset.Max
 import Mathlib.Data.Finset.SDiff
 
 /-!
-# Attiya–Bar-Noy–Dolev linearizable atomic register protocol
+# Two-phase quorum multi-writer atomic register emulation
 
-This module formalizes the two-phase quorum-based atomic register emulation protocol of Attiya,
-Bar-Noy, and Dolev ([AttiyaBarNoyDolev1995]) over an asynchronous crash-fault message-passing
-network `P`, proving both linearizability (atomicity) and wait-free termination whenever
-`2 * t < Fintype.card P`.
+This module formalizes a direct two-phase fixed-quorum multi-writer multi-reader (MWMR) atomic
+register emulation protocol over an asynchronous crash-fault message-passing network `P`, proving
+both linearizability (atomicity) and wait-free termination whenever `2 * t < Fintype.card P`.
 
-We formalize the uniform two-phase multi-writer multi-reader (MWMR) variant using lexicographic
-tags `Tag P := ℕ ×ₗ WithBot P` (`(seq, writer)`), which specializes immediately to single-writer
-multi-reader (SWMR) histories when all `write` invocations originate from a single writer (whereas
-[AttiyaBarNoyDolev1995] constructs SWMR atomic registers directly and builds MWMR registers by
-composition):
+The protocol combines the majority quorum-intersection and Phase-2 read write-back discipline of
+Attiya, Bar-Noy, and Dolev ([AttiyaBarNoyDolev1995], §4, Theorem 4.9, p. 134) with the uniform
+two-phase fixed-quorum MWMR construction of Lynch and Shvartsman ([LynchShvartsman1997], §4.1 and
+Theorem 4.5 in the December 2, 1996 manuscript). Whereas [AttiyaBarNoyDolev1995] (§4, Theorem 4.9)
+emulates an unbounded single-writer multi-reader (SWMR) register using **one** communication phase
+for writes and **two** phases (query + write-back) for reads with `O(n)` message and `O(1)` time
+bounds—obtaining MWMR registers in §7 by composition—`abdProtocol` follows [LynchShvartsman1997]
+(§4.1) in running two fixed `(n - t)`-quorum phases for both writes and reads with lexicographic
+writer tags `Tag P := ℕ ×ₗ WithBot P` (`(seq, writer)`), over unordered envelopes with eventual
+delivery outside `F` and without formalizing either paper's message or time complexity bounds:
 
 * Each replica `p : P` stores `(repTag, repVal)` initialized to `(initTag P, v₀)` where
   `initTag P = toLex (0, ⊥)`, and updates its pair upon receiving `ABDMsg.store reqId inTag inVal`
@@ -55,7 +59,8 @@ linearization (`abd_linearizable`). Against any static faulty set `F` of size at
 * `Cslib.Distributed.ABD.ABDMsg`, `Cslib.Distributed.ABD.ClientPhase`,
   `Cslib.Distributed.ABD.ABDState`: ABD messages and per-process replica/client state.
 * `Cslib.Distributed.ABD.abdOnInvoke`, `Cslib.Distributed.ABD.abdOnRecv`,
-  `Cslib.Distributed.ABD.abdProtocol`: two-phase MWMR ABD register emulation protocol.
+  `Cslib.Distributed.ABD.abdProtocol`: two-phase fixed-`(n - t)`-quorum MWMR register emulation
+  protocol.
 
 ## Main results
 
@@ -74,6 +79,8 @@ linearization (`abd_linearizable`). Against any static faulty set `F` of size at
 
 * [H. Attiya, A. Bar-Noy, D. Dolev, *Sharing memory robustly in message-passing
   systems*][AttiyaBarNoyDolev1995]
+* [N. A. Lynch, A. A. Shvartsman, *Robust emulation of shared memory using dynamic
+  quorum-acknowledged broadcasts*][LynchShvartsman1997]
 -/
 
 public section
@@ -271,8 +278,10 @@ quorum threshold `Fintype.card P - t`. -/
         ⟨st, 0, none⟩
     | _ => ⟨st, 0, none⟩
 
-/-- Two-phase multi-writer multi-reader Attiya–Bar-Noy–Dolev register emulation protocol
-([AttiyaBarNoyDolev1995]). -/
+/-- Uniform two-phase fixed-`(n - t)`-quorum multi-writer multi-reader atomic register emulation
+protocol with lexicographic `(seq, writer)` tags and Phase-2 read write-back
+([LynchShvartsman1997], §4.1; extending the majority write-back scheme of
+[AttiyaBarNoyDolev1995], §4). -/
 @[expose] def abdProtocol (P V : Type*) [Fintype P] [DecidableEq P] [LinearOrder P]
     (v₀ : V) (t : ℕ) : Protocol P (ABDState P V) (ABDMsg P V) V where
   init _ := abdInit P v₀
@@ -1874,8 +1883,10 @@ private lemma registerValAfter_reads {P V : Type*} {cur : V} {hist : List (OpRec
     simp only [registerValAfter_cons, List.getElem?_eq_getElem hx, hkx]
     exact ih fun y hy => hreads y (List.mem_cons_of_mem x hy)
 
-/-- **ABD linearizability (`abd_linearizable`):** when `2 * t < Fintype.card P`, every global state
-reachable under `abdProtocol P V v₀ t` has a linearizable execution history. -/
+/-- **Two-phase quorum MWMR linearizability (`abd_linearizable`):** when `2 * t < Fintype.card P`,
+every global state reachable under `abdProtocol P V v₀ t` has a linearizable execution history
+([LynchShvartsman1997], Theorem 4.5, specialized to `(n - t)`-quorums; cf.
+[AttiyaBarNoyDolev1995], §4, Theorem 4.9 for the single-writer emulator). -/
 theorem abd_linearizable {P V : Type*} [Fintype P] [DecidableEq P] [LinearOrder P] [DecidableEq V]
     {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
     {s : State P (ABDState P V) (ABDMsg P V) V}
@@ -2127,9 +2138,9 @@ private lemma not_forall_stay_of_fair {t : ℕ} (h2t : 2 * t < Fintype.card P)
     hlive_card.trans (Finset.card_le_card hsub)
   exact Nat.lt_irrefl _ (lt_of_le_of_lt hcard_ge (hcoll_lt M hM_ge))
 
-/-- **ABD wait-free termination (`abd_terminates`):** when `2 * t < Fintype.card P` and
-`F.card ≤ t`, every operation invoked by a non-faulty process (`caller ∉ F`) eventually completes
-in every fair execution of `abdProtocol P V v₀ t`. -/
+/-- **Two-phase quorum MWMR wait-free termination (`abd_terminates`):** when
+`2 * t < Fintype.card P` and `F.card ≤ t`, every operation invoked by a non-faulty process
+(`caller ∉ F`) eventually completes in every fair execution of `abdProtocol P V v₀ t`. -/
 theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
     {F : Finset P} (hF : F.card ≤ t)
     {ss : ωSequence (State P (ABDState P V) (ABDMsg P V) V)}
@@ -2506,9 +2517,11 @@ theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
 
 end Liveness
 
-/-- **Main ABD Theorem (`implementsAtomicRegister_abd`):** when `2 * t < Fintype.card P`,
-`abdProtocol P V v₀ t` implements a wait-free linearizable multi-writer multi-reader atomic
-register initialized to `v₀` tolerating up to `t` crash faults ([AttiyaBarNoyDolev1995]). -/
+/-- **Two-phase quorum MWMR atomic register emulation (`implementsAtomicRegister_abd`):** when
+`2 * t < Fintype.card P`, `abdProtocol P V v₀ t` implements a wait-free linearizable multi-writer
+multi-reader atomic register initialized to `v₀` tolerating up to `t` crash faults under eventual
+delivery outside `F` ([LynchShvartsman1997], §4.1 and Theorem 4.5, specialized to fixed `n - t`
+quorums without cost bounds; cf. [AttiyaBarNoyDolev1995], §4, Theorem 4.9 and §7). -/
 theorem implementsAtomicRegister_abd {P V : Type*} [Fintype P] [DecidableEq P] [LinearOrder P]
     [DecidableEq V] {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V) :
     (abdProtocol P V v₀ t).ImplementsAtomicRegister v₀ t where

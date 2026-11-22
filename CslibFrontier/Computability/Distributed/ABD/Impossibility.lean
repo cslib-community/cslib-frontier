@@ -12,14 +12,19 @@ import CslibFrontier.Computability.Distributed.ABD.Protocol
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
-# The `2t + 1` impossibility bound and sharp threshold for asynchronous atomic registers
+# The `2t + 1` resilience threshold for asynchronous linearizable atomic registers
 
-This module proves the matching partition-indistinguishability impossibility theorem of Attiya,
-Bar-Noy, and Dolev ([AttiyaBarNoyDolev1995]): for `2 ≤ Fintype.card P ≤ 2 * t` and any nontrivial
-value domain `[Nontrivial V]`, **no** deterministic asynchronous message-passing protocol implements
-a wait-free linearizable atomic register tolerating `t` crash faults. Combining this lower bound
-with `implementsAtomicRegister_local_of_card_le_one` (`Fintype.card P ≤ 1`) and
-`implementsAtomicRegister_abd` (`2 * t < Fintype.card P`) yields the sharp resilience threshold
+This module formalizes the partition-indistinguishability lower bound and sharp process-count
+characterization for wait-free linearizable atomic registers over deterministic asynchronous
+message passing. Attiya, Bar-Noy, and Dolev ([AttiyaBarNoyDolev1995], §1, p. 127) motivate
+majority resilience (`⌊(n - 1)/2⌋` faults) by observing that suspending messages between two
+groups of fewer than a majority lets the groups operate separately and perform contradicting
+operations. Here we prove the quantified converse for `2 ≤ Fintype.card P ≤ 2 * t` over any
+nontrivial value domain `[Nontrivial V]` (`not_implementsAtomicRegister_of_partition` and
+`not_implementsAtomicRegister`), and combine it with the single-process zero-message disjunct
+`implementsAtomicRegister_local_of_card_le_one` (`Fintype.card P ≤ 1`) and the two-phase quorum
+construction `implementsAtomicRegister_abd` (`2 * t < Fintype.card P`, following
+[LynchShvartsman1997] and [AttiyaBarNoyDolev1995]) into Lean's resilience characterization
 `exists_linearizableRegister_iff`.
 
 ## Partition replay argument
@@ -58,6 +63,8 @@ Partition `P` into two disjoint nonempty subsets `A, B : Finset P` with `A.card 
 
 * [H. Attiya, A. Bar-Noy, D. Dolev, *Sharing memory robustly in message-passing
   systems*][AttiyaBarNoyDolev1995]
+* [N. A. Lynch, A. A. Shvartsman, *Robust emulation of shared memory using dynamic
+  quorum-acknowledged broadcasts*][LynchShvartsman1997]
 -/
 
 public section
@@ -405,9 +412,10 @@ private lemma exists_completed_drain_of_invoke {t : ℕ} {v₀ : V}
     by simpa [hss1, s_init] using ha.2.1.extract_mTr hk_ge,
     extract_isDrainAction F xs hdrain, hk_comp⟩
 
-/-- **Partition impossibility for asynchronous linearizable registers** ([AttiyaBarNoyDolev1995]):
-if `P` can be partitioned into two disjoint subsets `A, B` each of size at most `t`, with `a₀ ∈ A`
-and `b₀ ∈ B`, and there exists `v₁ ≠ v₀`, then `π` cannot implement a `t`-resilient wait-free
+/-- **Partition impossibility for asynchronous linearizable registers** (formalizing the
+two-group message-suspension obstruction noted in [AttiyaBarNoyDolev1995], §1, p. 127): if `P`
+can be partitioned into two disjoint subsets `A, B` each of size at most `t`, with `a₀ ∈ A` and
+`b₀ ∈ B`, and there exists `v₁ ≠ v₀`, then `π` cannot implement a `t`-resilient wait-free
 linearizable atomic register initialized to `v₀`. -/
 theorem not_implementsAtomicRegister_of_partition {t : ℕ}
     (A B : Finset P) (hAB : Disjoint A B) (hcover : ∀ p : P, p ∈ A ∨ p ∈ B)
@@ -537,10 +545,10 @@ private lemma exists_two_partition {P : Type*} [Fintype P] {t : ℕ}
   · exact ⟨e.symm ⟨0, by omega⟩, by simp [grp]⟩
   · exact ⟨e.symm ⟨1, by omega⟩, by simp [grp]⟩
 
-/-- **No asynchronous wait-free linearizable register for `2 ≤ n ≤ 2t`** ([AttiyaBarNoyDolev1995]):
-over any nontrivial value domain `[Nontrivial V]`, no deterministic asynchronous protocol on `P`
-with `2 ≤ Fintype.card P ≤ 2 * t` implements a `t`-resilient wait-free linearizable atomic
-register. -/
+/-- **No asynchronous wait-free linearizable register for `2 ≤ n ≤ 2t`**: over any nontrivial
+value domain `[Nontrivial V]`, no deterministic asynchronous protocol on `P` with
+`2 ≤ Fintype.card P ≤ 2 * t` implements a `t`-resilient wait-free linearizable atomic register
+(quantified converse to majority resilience, motivated by [AttiyaBarNoyDolev1995], §1, p. 127). -/
 theorem not_implementsAtomicRegister [Nontrivial V] {t : ℕ}
     (h2 : 2 ≤ Fintype.card P) (hle : Fintype.card P ≤ 2 * t) (v₀ : V) :
     ¬ π.ImplementsAtomicRegister v₀ t := by
@@ -628,15 +636,17 @@ private lemma implementsAtomicRegister_uliftState.{w} {P S M V : Type*}
        fun e hd n hm => hfair e hd n hm⟩
     exact h.terminates F hF ss' xs ha' k i hi hc
 
-/-- **Sharp resilience characterization for asynchronous linearizable atomic registers**: over a
-finite process set `P` and nontrivial value domain `V`, a deterministic asynchronous message-passing
-protocol implementing a `t`-fault wait-free linearizable atomic register initialized to `v₀` exists
-if and only if `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`:
+/-- **Resilience characterization for asynchronous linearizable atomic registers**: over a finite
+process set `P` and nontrivial value domain `V`, a deterministic asynchronous message-passing
+protocol implementing a `t`-fault wait-free linearizable atomic register initialized to `v₀`
+exists if and only if `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`:
 
 * for `Fintype.card P ≤ 1`, `localRegisterProtocol` executes locally in zero messages;
-* for `2 * t < Fintype.card P`, `abdProtocol` provides sufficiency ([AttiyaBarNoyDolev1995]);
+* for `2 * t < Fintype.card P`, `abdProtocol` provides sufficiency via two-phase `(n - t)`-quorums
+  ([LynchShvartsman1997], §4.1 and Theorem 4.5; cf. [AttiyaBarNoyDolev1995], §4, Theorem 4.9 and
+  §7);
 * for `2 ≤ Fintype.card P ≤ 2 * t`, `Protocol.not_implementsAtomicRegister` proves impossibility
-  ([AttiyaBarNoyDolev1995]). -/
+  by two-group partition replay (motivated by [AttiyaBarNoyDolev1995], §1, p. 127). -/
 theorem exists_linearizableRegister_iff.{u, v} (P : Type u) (V : Type v) [Fintype P] [DecidableEq P]
     [Nontrivial V] (v₀ : V) (t : ℕ) :
     (∃ (S M : Type (max u v)) (_ : DecidableEq M) (π : Protocol P S M V),

@@ -10,17 +10,17 @@ module
 import CslibFrontier.Computability.Distributed.ABD.Protocol
 import CslibFrontier.Computability.Distributed.ABD.Impossibility
 
-/-! Attiya–Bar-Noy–Dolev linearizable atomic register emulation (checked as a `module` client with
-ordinary imports): executable LTS trace stepper (`execTrace`), concrete `decide`-checked traces on
-`Fin 3, t = 1` showing (a) why omitting the Phase-2 read write-back allows a "new-old inversion"
-violating `Linearizable` under a slow/pending write and two sequential reads, (b) how ABD's Phase-2
-read write-back prevents the inversion on the same quorum schedule (linearizing the pending write
-before both reads via `IsLinearization`), and (c) concurrent multi-writer tie-breaking via
-lexicographic `(seq, writer)` tags; plus instantiations of `prec_irrefl`, `prec_trans`,
-`quorum_inter_notMem`, `mTr_repTag_mono`, `implementsAtomicRegister_local_of_card_le_one`,
-`implementsAtomicRegister_abd` (on `Bool` and infinite `ℕ`), `not_implementsAtomicRegister`, and
-the universe-polymorphic `exists_linearizableRegister_iff` threshold across `Fin 1`, `Fin 2`,
-`Fin 3`, and `Fin 4`. -/
+/-! Two-phase quorum multi-writer atomic register emulation and `n > 2t` resilience threshold
+(checked as a `module` client with ordinary imports): executable LTS trace stepper (`execTrace`),
+concrete `decide`-checked traces on `Fin 3, t = 1` showing (a) why omitting the Phase-2 read
+write-back allows a "new-old inversion" violating `Linearizable` under a slow/pending write and two
+sequential reads, (b) how `abdProtocol`'s Phase-2 read write-back prevents the inversion on the
+same quorum schedule (linearizing the pending write before both reads via `IsLinearization`), and
+(c) concurrent multi-writer tie-breaking via lexicographic `(seq, writer)` tags; plus instantiations
+of `prec_irrefl`, `prec_trans`, `quorum_inter_notMem`, `mTr_repTag_mono`,
+`implementsAtomicRegister_local_of_card_le_one`, `implementsAtomicRegister_abd` (on `Bool` and
+infinite `ℕ`), `not_implementsAtomicRegister`, and the universe-polymorphic
+`exists_linearizableRegister_iff` characterization across `Fin 1`, `Fin 2`, `Fin 3`, and `Fin 4`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.ABD
