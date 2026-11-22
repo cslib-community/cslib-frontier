@@ -18,10 +18,11 @@ import Mathlib.Data.List.Pairwise
 /-!
 # Immediate snapshot schedules, the Borowsky–Gafni characterization, and `IIS` views
 
-This module formalizes one-shot Immediate Snapshot (`IS`) schedules and `R`-round Iterated
-Immediate Snapshot (`IIS`) full-information executions over an active process set `U : Finset V`,
-following [BorowskyGafni1997] (§§3.4–3.6, pp. 5–6; see also [BorowskyGafni1993] and
-[HerlihyShavit1999], §5.2).
+As a step toward `#7504` (leaving the asynchronous read/write and atomic-snapshot to `IIS`
+simulation open in `#7504`), this module formalizes one-shot Immediate Snapshot (`IS`) schedules and
+`R`-round Iterated Immediate Snapshot (`IIS`) full-information executions over an active process set
+`U : Finset V`, following [BorowskyGafni1997] (§§3.4–3.6, PS pp. 5–6; see also [BorowskyGafni1993]
+and [HerlihyShavit1999], §5.2).
 
 * **One-shot `IS` schedules (`ISSchedule U`):** ordered partitions `(B₁, …, Bₖ)` of a finite
   participating process set `U : Finset V` into nonempty pairwise-disjoint blocks. All processes
@@ -207,18 +208,6 @@ theorem blocksSnapshot_append_of_mem_left {bs₁ bs₂ : List (Finset V)} {p : V
         simp only [unionBlocks_append, mem_union, hp₁, true_or]
       rw [List.cons_append, blocksSnapshot_cons_of_notMem hpB hp₁₂,
         blocksSnapshot_cons_of_notMem hpB hp₁, ih hp₁]
-
-theorem blocksSnapshot_append_of_notMem_left {bs₁ bs₂ : List (Finset V)} {p : V}
-    (hp₁ : p ∉ unionBlocks bs₁) (hp₂ : p ∈ unionBlocks bs₂) :
-    blocksSnapshot (bs₁ ++ bs₂) p = unionBlocks bs₁ ∪ blocksSnapshot bs₂ p := by
-  induction bs₁ with
-  | nil => simp only [List.nil_append, unionBlocks_nil, empty_union]
-  | cons B bs₁ ih =>
-    simp only [unionBlocks_cons, mem_union, not_or] at hp₁
-    have hp₁₂ : p ∈ unionBlocks (bs₁ ++ bs₂) := by
-      simp only [unionBlocks_append, mem_union, hp₂, or_true]
-    rw [List.cons_append, blocksSnapshot_cons_of_notMem hp₁.1 hp₁₂, ih hp₁.2,
-      unionBlocks_cons, union_assoc]
 
 theorem self_mem_blocksSnapshot {bs : List (Finset V)} {p : V} (hp : p ∈ unionBlocks bs) :
     p ∈ blocksSnapshot bs p := by

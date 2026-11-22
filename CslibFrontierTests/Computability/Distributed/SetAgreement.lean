@@ -158,10 +158,10 @@ theorem regOps_bounds_fin3 :
   constructor
   · obtain ⟨s₁, hs₁⟩ : ∃ s₁,
         stepSnapshot ordFin3 0 (SnapshotState.init 0) (.invokeScan 1) = some s₁ := ⟨_, rfl⟩
-    exact ⟨s₁, hs₁, remainingRegOps_scan_le ordFin3 0 hs₁⟩
+    exact ⟨s₁, hs₁, remainingRegOps_invokeScan ordFin3 0 hs₁⟩
   · obtain ⟨s₂, hs₂⟩ : ∃ s₂,
         stepSnapshot ordFin3 0 (SnapshotState.init 0) (.invokeUpdate 0 42) = some s₂ := ⟨_, rfl⟩
-    exact ⟨s₂, hs₂, remainingRegOps_update_le ordFin3 0 hs₂⟩
+    exact ⟨s₂, hs₂, remainingRegOps_invokeUpdate ordFin3 0 hs₂⟩
 
 /-- Negative `SnapshotLinearizable` test: if `update_0(10)` runs across `[0, 1]` and `scan_1` is
 invoked strictly later (`invStep = 2 ≥ 1 = respStep`) yet returns stale `(0, 0, 0)`, the history is

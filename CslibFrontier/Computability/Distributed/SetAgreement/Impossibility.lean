@@ -18,11 +18,12 @@ import Mathlib.Data.ZMod.Basic
 /-!
 # Combinatorial Sperner Parity and Wait-Free `k`-Set Agreement Impossibility in `IIS`
 
-This module proves the impossibility of wait-free `k`-set agreement in the `R`-round Iterated
-Immediate Snapshot (`IIS`) model ([BorowskyGafni1993]; [HerlihyShavit1999], §3.3, Lemma 3.2 and
-Theorem 3.3, pp. 880–881; [SaksZaharoglou2000]; [BorowskyGafni1997], §3.5), via a purely
-combinatorial interior-facet involution paired with the single-simplex door-counting lemma
-`Cslib.Sperner.odd_card_doors_iff_surjective`.
+As an `R`-round Iterated Immediate Snapshot (`IIS`) step toward `#7504` (leaving the general
+asynchronous read/write shared-memory to `IIS` simulation open in `#7504`), this module proves the
+impossibility of wait-free `k`-set agreement for `R`-round deterministic `IIS` protocols
+(after [HerlihyShavit1999], §3.3, Lemma 3.2 and Theorem 3.3, pp. 880–881; [BorowskyGafni1993];
+[SaksZaharoglou2000]; [BorowskyGafni1997], §3.5), via a purely combinatorial interior-facet
+involution paired with `Cslib.Sperner.odd_card_doors_iff_surjective`.
 
 * **One-shot `IS` split/merge involution (`flipBlocks`, `ISSchedule.flip`):** for an active
   process `q ∈ U`, an ordered partition `π : ISSchedule U` lies on the `q`-boundary
@@ -190,14 +191,9 @@ private theorem flipBlocks_spec (q : V) :
       simp only [hBs, ↓reduceIte]
       have her_ne : (B.erase q).Nonempty := erase_nonempty_of_mem_of_ne_singleton hqB hBs
       have hdisj_er : Disjoint ({q} : Finset V) (B.erase q) :=
-        Finset.disjoint_left.mpr fun x hx hxer => by
-          rw [mem_singleton.mp hx] at hxer
-          exact notMem_erase q B hxer
+        Finset.disjoint_singleton_left.mpr (notMem_erase q B)
       have hu_eq : ({q} : Finset V) ∪ B.erase q = B := by
-        ext x
-        simp only [mem_union, mem_singleton, mem_erase]
-        exact ⟨fun h => h.elim (fun hx => hx ▸ hqB) And.right,
-          fun hx => if hxq : x = q then Or.inl hxq else Or.inr ⟨hxq, hx⟩⟩
+        rw [singleton_union, insert_erase hqB]
       refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
       · intro X hX
         rcases List.mem_cons.mp hX with rfl | hX
@@ -305,14 +301,9 @@ private theorem flipBlocks_spec (q : V) :
         simp only [flipBlocks, hqB, hBs, ↓reduceIte]
         have her_ne : (B.erase q).Nonempty := erase_nonempty_of_mem_of_ne_singleton hqB hBs
         have hdisj_q_er : Disjoint ({q} : Finset V) (B.erase q) :=
-          Finset.disjoint_left.mpr fun x hx hxer => by
-            rw [mem_singleton.mp hx] at hxer
-            exact notMem_erase q B hxer
+          Finset.disjoint_singleton_left.mpr (notMem_erase q B)
         have hu_B : ({q} : Finset V) ∪ B.erase q = B := by
-          ext x
-          simp only [mem_union, mem_singleton, mem_erase]
-          exact ⟨fun h => h.elim (fun hx => hx ▸ hqB) And.right,
-            fun hx => if hxq : x = q then Or.inl hxq else Or.inr ⟨hxq, hx⟩⟩
+          rw [singleton_union, insert_erase hqB]
         refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
         · intro X hX
           rcases List.mem_cons.mp hX with rfl | hX
@@ -744,13 +735,12 @@ def IsCarrierColoring {R : ℕ} (c : IISView V Input R → V) : Prop :=
 /-- Subface-relativized carrier-validity on `U : Finset V` at input `inp`: for every active subset
 `U' ⊆ U` and every `R`-round `IIS` execution on `U'`, each process `p ∈ U'` is colored by a member
 of `(iisRun inp E p).carrier`. -/
-@[expose]
-def IsCarrierColoringOn (U : Finset V) (inp : V → Input) {R : ℕ}
+private def IsCarrierColoringOn (U : Finset V) (inp : V → Input) {R : ℕ}
     (c : IISView V Input R → V) : Prop :=
   ∀ U' ⊆ U, ∀ (E : Fin R → ISSchedule U') (p : V),
     p ∈ U' → c (iisRun inp E p) ∈ (iisRun inp E p).carrier
 
-theorem IsCarrierColoring.on {R : ℕ} {c : IISView V Input R → V} (hc : IsCarrierColoring c)
+private theorem IsCarrierColoring.on {R : ℕ} {c : IISView V Input R → V} (hc : IsCarrierColoring c)
     (U : Finset V) (inp : V → Input) : IsCarrierColoringOn U inp c :=
   fun _ _ E p _ => hc (iisRun inp E p)
 
@@ -765,24 +755,6 @@ instance instDecidableIsPanchromaticIIS (U : Finset V) (inp : V → Input) {R : 
     (c : IISView V Input R → V) (E : Fin R → ISSchedule U) :
     Decidable (IsPanchromaticIIS U inp c E) :=
   inferInstanceAs (Decidable (∀ b ∈ U, ∃ p ∈ U, c (iisRun inp E p) = b))
-
-/-- Under carrier-validity, `IsPanchromaticIIS U inp c E` is equivalent to
-`U.image (fun p => c (iisRun inp E p)) = U`. -/
-theorem isPanchromaticIIS_iff_image_eq {U : Finset V} {inp : V → Input} {R : ℕ}
-    {c : IISView V Input R → V} (hc : IsCarrierColoringOn U inp c)
-    (E : Fin R → ISSchedule U) :
-    IsPanchromaticIIS U inp c E ↔ U.image (fun p => c (iisRun inp E p)) = U := by
-  constructor
-  · intro hpanch
-    apply Subset.antisymm
-    · refine image_subset_iff.mpr fun p hp => ?_
-      exact carrier_iisRun_subset inp E hp (hc U Subset.rfl E p hp)
-    · intro b hb
-      obtain ⟨p, hp, rfl⟩ := hpanch b hb
-      exact mem_image_of_mem _ hp
-  · intro himg b hb
-    rw [← himg] at hb
-    exact mem_image.mp hb
 
 /-- Door predicate for `E : Fin R → ISSchedule U` at facet `k ∈ U` avoiding color `q₀`: every
 color `b ∈ U \ {q₀}` appears at some vertex `j ∈ U \ {k}`. -/
@@ -835,11 +807,9 @@ private theorem odd_card_iisDoors_iff_panchromatic {U : Finset V} {inp : V → I
       exact ⟨⟨p, hpU⟩, Subtype.ext hp⟩
   rw [← hcard_eq, hsperner, hsurj_iff]
 
-/-- **Odd Panchromatic `IIS` Execution Parity (relativized to `U`):** for every finite active set
-`U : Finset V`, input `inp : V → Input`, round count `R : ℕ`, and `c : IISView V Input R → V`
-satisfying `IsCarrierColoringOn U inp c`, the number of panchromatic `R`-round `IIS` executions on
-`U` is **odd**. -/
-theorem odd_card_panchromatic_iis_of_on (U : Finset V) (inp : V → Input) {R : ℕ}
+/-- Subface-relativized induction helper proving odd panchromatic execution parity on `U` under
+`IsCarrierColoringOn U inp c`. -/
+private theorem odd_card_panchromatic_iis_of_on (U : Finset V) (inp : V → Input) {R : ℕ}
     {c : IISView V Input R → V} (hc : IsCarrierColoringOn U inp c) :
     Odd #{E : Fin R → ISSchedule U | IsPanchromaticIIS U inp c E} := by
   induction hn : #U generalizing U with
