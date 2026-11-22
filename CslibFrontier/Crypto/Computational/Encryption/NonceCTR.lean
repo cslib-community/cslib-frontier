@@ -560,9 +560,6 @@ theorem isOraclePPT_nonceCTRToPRF {nonceLen : ℕ → ℕ} {adversary : OracleDi
 
 /-! ### Real and ideal PRF worlds and Theorem 5.6 -/
 
-private theorem pmf_bind_pure {α β : Type} (p : PMF α) (f : α → β) :
-    (p.bind fun a => PMF.pure (f a)) = p.map f := rfl
-
 private theorem runWith_unitPure_map_fst {α : Type} (f : Unit × List Bool → List Bool)
     (p : WordOracleComp Unit α) :
     (ProbOracleComp.runWith (fun req (u : Unit) => (PMF.pure (f req)).map (·, u)) p ()).map
@@ -641,9 +638,9 @@ private theorem eval_prfRealGame_nonceCTRSimView {family : List Bool → List Bo
           dsimp only [Functor.map, StateT.map]
           simp [hnot, NonceCipher.unitCPACodec, ProbComp.eval_pure])
     (adversary n []) ((true, []), ())
-  rw [pmf_bind_pure]
   have hmap := congrArg (PMF.map fun (guess, ok, _) => ok && guess) hsim
-  simpa only [PMF.map_comp, Function.comp_def] using hmap
+  exact (PMF.bind_pure_comp _ _).trans (by
+    simpa only [PMF.map_comp, Function.comp_def] using hmap)
 
 private noncomputable def nonceCTRIdealOracle (nonceLen : ℕ → ℕ) (n : ℕ)
     (request : Unit × List Bool) : StateT (Bool × List (List Bool)) PMF (List Bool)
@@ -693,23 +690,6 @@ private theorem lazyRandomFunctionOracle_of_none {n : ℕ} {query : List Bool} (
     ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
     RandomOracle.answer_of_none _ _ _ hnone, PMF.map_comp]
   rfl
-
-private theorem runWith_ctrKeystreamStep_lazy {n s : ℕ} (hs : s ≤ n)
-    {nonce : List Bool} (hnonce : nonce.length = s) {k : ℕ} (hkPow : k < 2 ^ (n - s))
-    (stream : List Bool)
-    {cache : RandomOracle.Cache (fun _ : BitString n => BitString n)}
-    (hnone : cache (BitString.ofList n (nonceCTRCounter n s nonce k)) = none) :
-    ProbOracleComp.runWith (fun req => lazyRandomFunctionOracle n n req.2)
-        (ctrKeystreamStep n (nonceCTRCounter n s nonce 0) (k, stream)) cache =
-      (PMF.uniformOfFintype (BitString n)).map fun y =>
-        ((k + 1, stream ++ List.ofFn y),
-          Function.update cache (BitString.ofList n (nonceCTRCounter n s nonce k)) (some y)) := by
-  simp only [ctrKeystreamStep, ctrWordCounter_nonceCTRCounter_zero hs hnonce hkPow,
-    ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
-    lazyRandomFunctionOracle_of_none (length_nonceCTRCounter hs hnonce k) hnone,
-    PMF.map_comp, Function.comp_def]
-  refine congrArg ((PMF.uniformOfFintype (BitString n)).map ·) (funext fun y => ?_)
-  simp [Prod.map, List.take_of_length_le (List.length_ofFn (f := y)).le]
 
 private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
     {nonce : List Bool} (hnonce : nonce.length = s) {seen : List (List Bool)}
@@ -769,7 +749,12 @@ private theorem runWith_ctrKeystreamQueries_lazy {n s : ℕ} (hs : s ≤ n)
         rcases mid with ⟨⟨idx, stream⟩, cacheMid⟩
         dsimp only at hidx hnone ⊢
         subst idx
-        exact runWith_ctrKeystreamStep_lazy hs hnonce hkPow stream hnone
+        simp only [ctrKeystreamStep, iv, ctrWordCounter_nonceCTRCounter_zero hs hnonce hkPow,
+          ProbOracleComp.runWith_map, ProbOracleComp.runWith_query,
+          lazyRandomFunctionOracle_of_none (length_nonceCTRCounter hs hnonce k) hnone,
+          PMF.map_comp, Function.comp_def]
+        refine congrArg ((PMF.uniformOfFintype (BitString n)).map ·) (funext fun y => ?_)
+        simp [xk, Prod.map, List.take_of_length_le (List.length_ofFn (f := y)).le]
       dsimp only
       rw [OracleComp.iterate_succ, ProbOracleComp.runWith_bind]
       refine ⟨fun res hres => ?_, ?_⟩
@@ -892,9 +877,9 @@ private theorem eval_prfIdealGame_nonceCTRSimView {nonceLen : ℕ → ℕ} {n : 
     (fun q s hs a s' hmem => (hstep_inv_and_law q s hs).1 a s' hmem)
     (fun q s hs => (hstep_inv_and_law q s hs).2)
     (adversary n []) ((true, []), fun _ => none) (fun _ hx => (hx rfl).elim)
-  rw [pmf_bind_pure]
   have hmap := congrArg (PMF.map fun (guess, ok, _) => ok && guess) hsim
-  simpa only [PMF.map_comp, Function.comp_def, jointOracle] using hmap
+  exact (PMF.bind_pure_comp _ _).trans (by
+    simpa only [PMF.map_comp, Function.comp_def, jointOracle] using hmap)
 
 private theorem eval_prfGame_nonceCTRToPRF_eq_bind {nonceLen : ℕ → ℕ}
     (adversary : OracleDistinguisher) (n : ℕ) {α : Type} (setup : ProbComp α)
