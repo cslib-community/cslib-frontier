@@ -21,11 +21,10 @@ computing Andreev's function `andreev b m` on all `n = 2 ^ b + b m` inputs, in t
 `α = ⌊(m - 1) / 2⌋` it has exactly
 `N (N - 1) / 2 + b N (m + α) / 2 + 2 (N - 1) + 2 α b + 3 b m + ⌈b m / 2⌉`
 bottom gates and one top gate, improving the `(3/4) n ^ 2` circuit of `WeightedThreshold.Andreev`.
-The mathematics is original, AI-assisted work under
-[#4640](https://github.com/cslib-community/cslib-frontier/issues/4640). Statement numbers and
-labels ("preprint, Theorem 5", proof in Appendix A) refer to the author's unpublished draft
-(C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function*), which is not publicly
-accessible; the correspondence with it is not verifiable by third parties.
+The mathematics is original. Statement numbers and labels ("preprint, Theorem 5", proof in
+Appendix A) refer to C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function*
+(unpublished draft, not publicly accessible; the correspondence with it is not verifiable by third
+parties).
 
 The top gate tests the sign of the score `P` of `AndreevSharpScore`. Its non-affine terms are
 realized by six families of bottom gates (`AndreevSharpIndex`):
@@ -69,9 +68,10 @@ and the top weights on inputs at most `(2 n ^ 3 + 54 n (n + 1)) / 27`; only the 
 
 ## References
 
-* [cslib-frontier#4640](https://github.com/cslib-community/cslib-frontier/issues/4640):
-  original AI-assisted work, following C. Reitwiessner, *Depth-Two Threshold Circuits for
-  Andreev's Function* (unpublished draft, not publicly accessible), Theorem 5 and Appendix A.
+* [A. E. Andreev, *On a method for obtaining more than quadratic effective lower bounds for the
+  complexity of π-schemes*][Andreev1987]
+* C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function* (unpublished draft, not
+  publicly accessible), Theorem 5 and Appendix A.
 -/
 
 @[expose] public section
@@ -448,22 +448,26 @@ theorem sum_topWeight_ridge (x : BitString b → Bool) (s : Fin b → ℕ) (hs :
   push_cast
   ring
 
+private theorem sum_neg_two_pow_mul_square_steps {u L : ℕ} (b : ℕ) (h : u ≤ L) :
+    ∑ j : Fin L, (-(2 ^ (b - 1) * (2 * (j : ℤ) + 1)) : ℝ) *
+      (decide ((j : ℤ) + 1 ≤ u)).toNat = -(2 ^ (b - 1) * (u : ℝ) ^ 2) := by
+  have h' := congrArg (fun z : ℤ => -(2 ^ (b - 1) * (z : ℝ))) (sum_square_steps h)
+  simp only [Int.cast_sum, Int.cast_mul, Int.cast_add, Int.cast_ofNat, Int.cast_natCast,
+    Int.cast_one, Int.cast_pow, mul_sum, ← sum_neg_distrib] at h'
+  rw [← h']
+  exact sum_congr rfl fun j _ => by push_cast; ring
+
 /-- The load family sums to `-2 ^ (b - 1) w ^ 2`. -/
 theorem sum_topWeight_load (x : BitString b → Bool) (s : Fin b → ℕ) (hs : ∀ i, s i ≤ m) :
     ∑ θ : Fin (andreevSharpRange b m),
       (andreevSharpTopWeight b m (.inr (.inl θ)) : ℝ) *
         (andreevSharpGate (.inr (.inl θ)) x s).toNat =
       -(2 ^ (b - 1) * (andreevSharpLoad b m x s : ℝ) ^ 2) := by
-  have h := sum_square_steps (andreevSharpLoad_le x s hs)
-  have h' := congrArg (fun z : ℤ => -(2 ^ (b - 1) * (z : ℝ))) h
-  simp only [Int.cast_sum, Int.cast_mul, Int.cast_add, Int.cast_ofNat, Int.cast_natCast,
-    Int.cast_one, Int.cast_pow, mul_sum, ← sum_neg_distrib] at h'
-  rw [← h']
+  rw [← sum_neg_two_pow_mul_square_steps b (andreevSharpLoad_le x s hs)]
   refine sum_congr rfl fun θ _ => ?_
   simp only [andreevSharpTopWeight, andreevSharpGate, andreevSharpThreshold,
     andreevSharpForm_load]
-  push_cast
-  ring
+  push_cast; ring
 
 /-- The square family sums to `-2 ^ (b - 1) ∑_i s_i ^ 2`. -/
 theorem sum_topWeight_square (x : BitString b → Bool) (s : Fin b → ℕ) (hs : ∀ i, s i ≤ m) :
@@ -473,16 +477,11 @@ theorem sum_topWeight_square (x : BitString b → Bool) (s : Fin b → ℕ) (hs 
       -(2 ^ (b - 1) * ∑ i, (s i : ℝ) ^ 2) := by
   rw [Fintype.sum_prod_type, mul_sum, ← sum_neg_distrib]
   refine sum_congr rfl fun i _ => ?_
-  have h := sum_square_steps (hs i)
-  have h' := congrArg (fun z : ℤ => -(2 ^ (b - 1) * (z : ℝ))) h
-  simp only [Int.cast_sum, Int.cast_mul, Int.cast_add, Int.cast_ofNat, Int.cast_natCast,
-    Int.cast_one, Int.cast_pow, mul_sum, ← sum_neg_distrib] at h'
-  rw [← h']
+  rw [← sum_neg_two_pow_mul_square_steps b (hs i)]
   refine sum_congr rfl fun ℓ _ => ?_
   simp only [andreevSharpTopWeight, andreevSharpGate, andreevSharpThreshold,
     andreevSharpForm_square]
-  push_cast
-  ring
+  push_cast; ring
 
 private theorem big_gt (s : Fin b → ℕ) (hs : ∀ i, s i ≤ m) (S : Finset (Fin b)) :
     ∑ i ∈ S, (s i : ℤ) < andreevSharpBig b m := by
