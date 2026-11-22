@@ -78,8 +78,6 @@ namespace Cslib.Complexity
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
-attribute [local irreducible] ComputableInPolyTime
-
 variable {α : Type}
 
 /-! ### The combined instance -/

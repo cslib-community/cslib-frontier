@@ -53,8 +53,6 @@ namespace Cslib.Complexity.SAT
 
 open Cslib.Logic.PL Turing.MultiTapeTM
 
-attribute [local irreducible] ComputableInPolyTime
-
 /-- The NP relation of `SAT`: certificates as long as the encoded formula, checked by
 `Cslib.Complexity.SAT.verifier`. -/
 @[expose]

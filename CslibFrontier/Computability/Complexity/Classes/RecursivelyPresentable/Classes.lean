@@ -88,8 +88,6 @@ public section
 
 namespace Cslib.Complexity
 
-attribute [local irreducible] ComputableInPolyTime
-
 /-! ### Closure under finite variations -/
 
 /-- **Each level `Σₖᵖ` is closed under finite variations.** -/

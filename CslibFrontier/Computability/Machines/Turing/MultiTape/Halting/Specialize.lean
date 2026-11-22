@@ -197,6 +197,6 @@ theorem computableInPolyTime_specialize :
   unfold specialize
   exact computableInPolyTime_hardwire.comp
     ((ComputableInPolyTime.fst eDesc eDesc).prod
-      ((ComputableInPolyTime.frame.comp (ComputableInPolyTime.snd eDesc eDesc))))
+      (ComputableInPolyTime.frame.comp (ComputableInPolyTime.snd eDesc eDesc).encoding_comp))
 
 end Turing.MultiTapeTM.Universal
