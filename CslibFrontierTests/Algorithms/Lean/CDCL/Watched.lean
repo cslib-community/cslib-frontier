@@ -247,13 +247,13 @@ example :
   decide +kernel
 
 /-- With reduction on, a conflict learning a clause of two or more literals numbered `2` in a
-formula of two clauses leaves the counter of learned clauses as it is, and one numbered `3` adds
-one. -/
-example (S : CDCL.WExec two) (sp : CDCL.Split) (L : S.exec.LearnedAt sp) (k₀ : ℕ)
+formula of two clauses, at the newest decision at position `p` of the trail, leaves the counter
+of learned clauses as it is, and one numbered `3` adds one. -/
+example (S : CDCL.WExec two) (p : ℕ) (L : S.exec.LearnedAt (S.exec.tr.splitAt p)) (k₀ : ℕ)
     (hred : S.opts.reduce = true) (hk : 2 ≤ (CDCL.dedupLits L.clause).length) :
-    (L.id = 2 → (S.afterConflict sp L k₀).red.learnts = S.red.learnts) ∧
-    (L.id = 3 → (S.afterConflict sp L k₀).red.learnts = S.red.learnts + 1) := by
-  rw [S.afterConflict_learnts sp L k₀ hred hk]
+    (L.id = 2 → (S.afterConflict p L k₀).red.learnts = S.red.learnts) ∧
+    (L.id = 3 → (S.afterConflict p L k₀).red.learnts = S.red.learnts + 1) := by
+  rw [S.afterConflict_learnts p L k₀ hred hk]
   exact ⟨fun h => by simp [h, CDCL.isLearntId], fun h => by simp [h, CDCL.isLearntId]⟩
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.Watched

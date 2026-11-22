@@ -222,10 +222,29 @@ def toX (T : ATrail) : XTrail := T.seg 0 T.size
 @[inline] def push (T : ATrail) (c r : ℕ) : ATrail :=
   ⟨T.lits.push c, T.rsns.push r, by simp [T.size_eq]⟩
 
+/-- Popping `k` elements, in place if the array is not shared. Unlike `Array.shrink`, whose body is
+not exposed, the kernel can unfold it, so that `decide +kernel` runs the solver. -/
+def popN {α : Type} : ℕ → Array α → Array α
+  | 0, a => a
+  | k + 1, a => popN k a.pop
+
+theorem size_popN {α : Type} : ∀ (k : ℕ) (a : Array α), (popN k a).size = a.size - k
+  | 0, _ => rfl
+  | k + 1, a => by rw [popN, size_popN k, Array.size_pop]; omega
+
+theorem getD_popN : ∀ (k : ℕ) (a : Array ℕ) {i : ℕ}, i < a.size - k →
+    (popN k a).getD i 0 = a.getD i 0
+  | 0, _, _, _ => rfl
+  | k + 1, a, i, h => by
+    rw [popN, getD_popN k a.pop (by rw [Array.size_pop]; omega), Array.getD_eq_getD_getElem?,
+      Array.getD_eq_getD_getElem?, Array.getElem?_pop]
+    simp only [show i < a.size - 1 by omega, ↓reduceIte]
+
 /-- Keeping the first `q` entries, by popping the others, in place if the arrays are not
 shared. -/
 @[inline] def shrink (T : ATrail) (q : ℕ) : ATrail :=
-  ⟨T.lits.shrink q, T.rsns.shrink q, by simp [T.size_eq]⟩
+  ⟨popN (T.lits.size - q) T.lits, popN (T.lits.size - q) T.rsns, by
+    simp only [size_popN, T.size_eq]⟩
 
 /-- **A loop down the positions** `lo + k - 1` to `lo`, newest first, reading the codes of each
 entry: the fold of the entries `T.seg lo k` (`ATrail.foldDown_eq`). -/
@@ -354,16 +373,20 @@ theorem toX_push (T : ATrail) (e : XEntry) :
   exact congrArg _ (seg_congr fun i _ h => T.entry_push_lt (by omega))
 
 @[simp] theorem size_shrink (T : ATrail) (q : ℕ) : (T.shrink q).size = min q T.size := by
-  simp [shrink, size]
+  simp only [shrink, size, size_popN]; omega
 
 theorem entry_shrink (T : ATrail) {q i : ℕ} (h : i < q) : (T.shrink q).entry i = T.entry i := by
-  have key : ∀ a : Array ℕ, (a.shrink q).getD i 0 = a.getD i 0 := fun a => by
-    simp only [Array.shrink_eq_take, Array.take_eq_extract, Array.getD_eq_getD_getElem?,
-      Array.getElem?_extract, Nat.zero_add, Nat.sub_zero]
-    split
-    · rfl
-    · rw [Array.getElem?_eq_none (by omega)]
-  exact entry_congr (key _) (key _)
+  by_cases hi : i < T.size
+  · have h₁ : i < T.lits.size - (T.lits.size - q) := by simp only [size] at hi; omega
+    have h₂ : i < T.rsns.size - (T.lits.size - q) := by rw [← T.size_eq]; exact h₁
+    exact entry_congr (getD_popN _ _ h₁) (getD_popN _ _ h₂)
+  · have hn : ∀ (a : Array ℕ), T.lits.size ≤ a.size → a.size ≤ i →
+        (popN (T.lits.size - q) a).getD i 0 = a.getD i 0 := fun a h₁ h₂ => by
+      rw [Array.getD_eq_getD_getElem?, Array.getD_eq_getD_getElem?,
+        Array.getElem?_eq_none (by rw [size_popN]; omega), Array.getElem?_eq_none (by omega)]
+    simp only [size] at hi
+    exact entry_congr (hn _ le_rfl (by omega))
+      (hn _ (T.size_eq ▸ le_rfl) (by rw [← T.size_eq]; omega))
 
 /-- **Popping down to `q` entries** keeps the oldest `q`. -/
 theorem toX_shrink (T : ATrail) {q : ℕ} (h : q ≤ T.size) : (T.shrink q).toX = T.seg 0 q := by

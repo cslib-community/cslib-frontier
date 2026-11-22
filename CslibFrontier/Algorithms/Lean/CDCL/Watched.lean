@@ -2237,22 +2237,29 @@ so that simplification provably happens at the root (`WExec.maybeSimplify_root`)
 cache holds. -/
 @[expose] def WExec.maybeSimplify (S : WExec φ) : WExec φ :=
   if S.level == 0 && S.simpAssigns != S.exec.tr.size &&
-      S.exec.tr.rsns.all (· != 0) then S.simplify else S
+      S.exec.tr.foldDown (fun b _ r => b && r != 0) 0 S.exec.tr.size true then S.simplify else S
 
 /-- **Simplification happens at the root**: either nothing happens, or the trail has no
 decision. -/
+private theorem foldl_and_eq {α : Type} (p : α → Bool) :
+    ∀ (l : List α) (b : Bool), l.foldl (fun b e => b && p e) b = (b && l.all p)
+  | [], b => by simp
+  | e :: l, b => by rw [List.foldl_cons, foldl_and_eq p l, List.all_cons, Bool.and_assoc]
+
 theorem WExec.maybeSimplify_root (S : WExec φ) :
     S.maybeSimplify = S ∨ ∀ x ∈ S.exec.trail, x.entry.decision = false := by
   unfold WExec.maybeSimplify
   split
   · rename_i h
-    simp only [Bool.and_eq_true, Array.all_eq_true, bne_iff_ne, ne_eq] at h
+    simp only [Bool.and_eq_true] at h
+    have hall := h.2
+    rw [ATrail.foldDown_eq, foldl_and_eq] at hall
+    simp only [Bool.true_and, List.all_eq_true, bne_iff_ne, ne_eq] at hall
     refine .inr fun x hx => ?_
-    obtain ⟨i, hi, rfl⟩ := ATrail.mem_toX.1 hx
-    have hi' : i < S.exec.tr.rsns.size := S.exec.tr.size_eq ▸ hi
-    rw [← XEntry.isDecision_eq, ATrail.isDecision_entry, Array.getD_eq_getD_getElem?,
-      Array.getElem?_eq_getElem hi']
-    simpa using h.2 i hi'
+    have := hall x hx
+    cases x
+    · exact absurd rfl this
+    · rfl
   · exact .inl rfl
 
 theorem WExec.Inv.maybeSimplify {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
