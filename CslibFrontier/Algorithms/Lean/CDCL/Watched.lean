@@ -1049,25 +1049,19 @@ theorem reverse_take_succ {ws : Array Watcher} {n : ℕ} (hn : n < ws.size) :
   rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hn)]
   simp
 
-/-- A watcher put in the place of one taken out of an array. -/
-@[expose] def Watcher.dummy : Watcher := ⟨0, (0, false)⟩
-
-/-- Writing at position `n` of an array leaves its first `n` elements. -/
-theorem take_toList_set {α : Type} (ws : Array α) {n : ℕ} (hn : n < ws.size) (x : α) :
-    (ws.set n x hn).toList.take n = ws.toList.take n := by
-  simp [List.take_set_of_le (Nat.le_refl n)]
-
 /-- The state `S` with `kept` as the watch list of `t.negate`. During the visit of that list, the
 watchers kept are pushed on `kept`, an argument of the loop, and written into the store once, at the
 end: the invariant of the visit is stated on `S.withKept t kept`. -/
 @[expose] def WExec.withKept (S : WExec φ) (t : Literal ℕ) (kept : Array Watcher) : WExec φ :=
   { S with store := { S.store with watches := setWatch S.store.watches (negKey t) kept } }
 
-theorem WExec.withKept_putBack (S : WExec φ) (t : Literal ℕ) (kept : Array Watcher)
+-- The facts of the loop on `withKept` are private: the exposed `processFrom` names them only in
+-- tactic proofs, which may use private declarations.
+private theorem WExec.withKept_putBack (S : WExec φ) (t : Literal ℕ) (kept : Array Watcher)
     (x : Watcher) : (S.withKept t kept).putBack t x = S.withKept t (kept.push x) := by
   simp only [WExec.withKept, WExec.putBack, addWatch_setWatch]
 
-theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array Watcher) {k j : ℕ}
+private theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array Watcher) {k j : ℕ}
     {o x : Literal ℕ} (hx : x ≠ t.negate) :
     ({ S.withKept t kept with store := (S.withKept t kept).store.moveTo k j o x t.negate } :
       WExec φ) =
@@ -1098,9 +1092,11 @@ def WExec.processFrom (t : Literal ℕ) (u : Literal ℕ) (hu : u = t.negate)
     let w := ws[n]
     have h : (S.withKept t kept).ProcInv t (w :: (ws.toList.take n).reverse) :=
       (reverse_take_succ (ws := ws) (n := n) (by omega)) ▸ h
-    let ws' := ws.set n Watcher.dummy (by omega)
+    -- a placeholder in the slot of `w`, which the loop never reads again
+    let ws' := ws.set n ⟨0, (0, false)⟩ (by omega)
     have hn' : n ≤ ws'.size := by simp [ws']; omega
-    have hws' : ws'.toList.take n = ws.toList.take n := take_toList_set ws (by omega) _
+    have hws' : ws'.toList.take n = ws.toList.take n := by
+      simp [ws', List.take_set_of_le (Nat.le_refl n)]
     have h : (S.withKept t kept).ProcInv t (w :: (ws'.toList.take n).reverse) := hws' ▸ h
     have hA : S.assign.Agrees (S.withKept t kept).M := h.assign
     match hv : S.store.visit S.assign u w with
@@ -1108,12 +1104,12 @@ def WExec.processFrom (t : Literal ℕ) (u : Literal ℕ) (hu : u = t.negate)
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate w .skip :=
         hu ▸ hv ▸ S.store.visit_spec hA u w
       WExec.processFrom t u hu m c n ws' (kept.push w) S hn'
-        (S.withKept_putBack t kept w ▸ h.skip hs) hm hc
+        (by exact S.withKept_putBack t kept w ▸ h.skip hs) hm hc
     | .keep b =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate w (.keep b) :=
         hu ▸ hv ▸ S.store.visit_spec hA u w
       WExec.processFrom t u hu m c n ws' (kept.push ⟨w.clause, b⟩) S hn'
-        (S.withKept_putBack t kept _ ▸ h.keep hs) hm hc
+        (by exact S.withKept_putBack t kept _ ▸ h.keep hs) hm hc
     | .move j x b =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate w
           (.move j x b) :=
@@ -1133,8 +1129,8 @@ def WExec.processFrom (t : Literal ℕ) (u : Literal ℕ) (hu : u = t.negate)
         hu ▸ hv ▸ S.store.visit_spec hA u w
       have hun := h.unit hs
       have heq : ((S.withKept t kept).propagateUnit l id).putBack t ⟨w.clause, l⟩ =
-          (S.propagateUnit l id).withKept t (kept.push ⟨w.clause, l⟩) :=
-        (S.propagateUnit l id).withKept_putBack t kept _
+          (S.propagateUnit l id).withKept t (kept.push ⟨w.clause, l⟩) := by
+        exact (S.propagateUnit l id).withKept_putBack t kept _
       have hlt : (S.propagateUnit l id).measure < S.measure := by
         have h2 := hun.2
         rw [heq] at h2
