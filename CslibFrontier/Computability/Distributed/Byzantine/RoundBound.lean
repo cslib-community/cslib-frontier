@@ -47,9 +47,11 @@ distinguish all-`false` from all-`true` in the fault-free (`F = ∅`) run:
   Boolean protocol satisfying both hypotheses (`R + 2 ≤ t + 2 ≤ Fintype.card P`), proving Theorem 5
   of [Fischer and Lynch][FischerLynch1982]. (The bound `t + 2 ≤ Fintype.card P` cannot be dropped to
   `2 ≤ Fintype.card P`: on `Fin 2` with `t = 1`, interactive consistency is solvable in `R = 1`
-  round because any non-empty fault set leaves at most one nonfaulty process, whereas for `n ≥ 3`
-  and `t ≥ 1` with `n ≤ 3t`—such as `n = 3, t = 2`—even a single fault precludes interactive
-  consistency in any number of rounds by [Fischer and Lynch][FischerLynch1982], §5, Theorem 3.)
+  round because any non-empty fault set leaves at most one nonfaulty process. By contrast, for
+  `3 ≤ n ≤ 3t` and `t ≥ 1`, Theorem 3 of [Fischer and Lynch][FischerLynch1982] (§5, p. 185) rules
+  out tolerating `t` faults in any number of rounds—at `n = 3`, such as `n = 3, t = 2`, even one
+  fault is already impossible, whereas at `n = 4, t = 2` Theorem 4 permits tolerating one fault
+  while Theorem 3 rules out tolerating `t = 2` faults.)
 * For Boolean Byzantine agreement (`2 ≤ Fintype.card P`, `R ≤ t`), fault-threshold monotonicity
   (`Protocol.SolvesByzantineAgreement.mono`) handles `R + 2 ≤ Fintype.card P`, while
   `Protocol.not_solvesByzantineAgreement` (`NodeBound`) covers `2 ≤ Fintype.card P < R + 2 ≤ 3 * t`.
@@ -608,9 +610,10 @@ consistency against `t` faults in `R ≤ t` rounds.
 The bound `t + 2 ≤ Fintype.card P` ensures at least two nonfaulty processes remain outside a
 `t`-fault set (Fischer and Lynch invoke the `n ≥ 3t + 1` bound of Pease, Shostak and Lamport for
 `t ≥ 1`, §5 Theorem 3, which implies `n ≥ t + 2`, and treat `t = 0` implicitly assuming `n ≥ 2`).
-On `Fin 2` with `t = 1` (`n = 2 < t + 2`), interactive consistency is solvable in `R = 1` round
-(whereas for `n ≥ 3` and `t ≥ 1` with `n ≤ 3t`, such as `n = 3, t = 2`, even one fault already
-precludes interactive consistency in any number of rounds by §5 Theorem 3). -/
+On `Fin 2` with `t = 1` (`n = 2 < t + 2`), interactive consistency is solvable in `R = 1` round;
+for `3 ≤ n ≤ 3t` and `t ≥ 1`, §5 Theorem 3 instead rules out tolerating `t` faults in any number of
+rounds (at `n = 3`, such as `n = 3, t = 2`, even one fault is impossible, whereas at `n = 4, t = 2`
+§5 Theorem 4 permits one fault while §5 Theorem 3 rules out `t = 2` faults). -/
 theorem not_solvesInteractiveConsistency_of_rounds_le [Fintype P] [Nontrivial V] {t R : ℕ}
     (hn : t + 2 ≤ Fintype.card P) (hR : R ≤ t) :
     ¬ π.SolvesInteractiveConsistency t R := by
