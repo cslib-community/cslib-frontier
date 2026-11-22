@@ -191,6 +191,22 @@ example (x y : ℝ) :
   simp only [Term.eval, coordinates, map_add, map_pow, Polynomial.aevalAeval_X,
     Polynomial.aevalAeval_Y]
 
+example :
+    let word := encFormula 1 (.eqZero (.var 0))
+    let coordinates : Fin word.length → Polynomial (Polynomial ℤ) :=
+      fun _ => Polynomial.C Polynomial.X + Polynomial.X ^ 2
+    (formulaWordGatePolynomial word 0 coordinates).bivariateCoeffNorm1 ≤
+      4 ^ max word.length (encTerm 0 (.const 0)).length := by
+  intro word coordinates
+  refine formulaWordGatePolynomial_bivariateCoeffNorm1_le word 0 coordinates (M := 2)
+    (by decide) fun _ => ?_
+  refine (Polynomial.bivariateCoeffNorm1_add_le _ _).trans ?_
+  rw [Polynomial.bivariateCoeffNorm1_C, ← mul_one (Polynomial.X : Polynomial ℤ),
+    Polynomial.coeffNorm1_X_mul, Polynomial.coeffNorm1_one]
+  have h := Polynomial.bivariateCoeffNorm1_mul_X_pow_le 1 2
+  simp only [one_mul, Polynomial.bivariateCoeffNorm1_one] at h
+  exact Nat.add_le_add_left h 1
+
 -- The same comparison slots evaluate modulo a composite, with missing coordinates set to zero.
 set_option linter.hashCommand false in
 #guard
