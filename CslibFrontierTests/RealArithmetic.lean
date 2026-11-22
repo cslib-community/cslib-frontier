@@ -12,7 +12,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
-import CslibFrontier.Logics.RealArithmetic.TermTokenDecoding
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
 
@@ -32,22 +31,22 @@ example :
   decide +kernel
 
 -- The prefix evaluator leaves the initial stack beneath the result.
-example : Term.evalTokenStack 8 [3] (encTerm_tokens 2
-    (.mul (.var 0) (.add (.const (-2)) (.var 1)))) [5] = some [2, 5] := by
+example : Term.evalTokenStack 8 [3] ((encTerm_tokens 2
+    (.mul (.var 0) (.add (.const (-2)) (.var 1)))).map TermToken.ofFin) [5] = some [2, 5] := by
   decide +kernel
 
 -- An operator with only one operand fails.
-example : Term.evalTokenStack (n := 0) 8 [] [.inr (.inr (.inl ())), .inl 3] [] = none := by
+example : Term.evalTokenStack 8 [] [.inr (.inr (.inl ())), .inl 3] [] = none := by
   decide +kernel
 
--- The certificate also handles dimension zero, where the variable summand is empty.
-example : ComputableInPolyTime (fun token => Term.evalTokenStep (n := 0) 8 [] token [3])
-    (encTermTokenEncoding 0) (encOption (encList encNat)) :=
+-- The step certificate takes a natural-rank token at runtime.
+example : ComputableInPolyTime (fun token => Term.evalTokenStep 8 [] token [3])
+    encTermToken (encOption (encList encNat)) :=
   Term.evalTokenStep_polyTime (.const 8) (.const []) (.const [3]) .id'
 
 -- The fold certificate charges the entire input token list, even for a composite modulus.
-example : ComputableInPolyTime (fun tokens => Term.evalTokenStack (n := 2) 8 [3] tokens [])
-    (encList (encTermTokenEncoding 2)) (encOption (encList encNat)) :=
+example : ComputableInPolyTime (fun tokens => Term.evalTokenStack 8 [3] tokens [])
+    (encList encTermToken) (encOption (encList encNat)) :=
   Term.evalTokenStack_polyTime (.const 8) (fun _ => by decide) (.const [3]) .id'
 
 -- Decoding the word needs no ambient dimension to recover the variable rank.
@@ -58,6 +57,16 @@ example : termTokensDecoder.decode (encTerm 2 (.add (.var 1) (.const (-2)))) =
 
 -- A complete frame with an empty payload is missing its constructor tag.
 example : termTokensDecoder.decode (frame []) = none := by
+  decide +kernel
+
+-- Uniform evaluation reads the word directly and zero-pads the missing second coordinate.
+example : Term.evalTermWord 8 [3]
+    (encTerm 2 (.mul (.var 0) (.add (.const (-2)) (.var 1)))) = some 2 := by
+  rw [Term.evalTermWord_encTerm]
+  decide +kernel
+
+-- Two complete leaf tokens leave two residues and do not form a single term.
+example : Term.evalTermWord 8 [] (encList encTermToken [.inl 0, .inl 1]) = none := by
   decide +kernel
 
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
