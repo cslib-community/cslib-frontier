@@ -8384,6 +8384,7 @@ public import CslibFrontier.Logics.Propositional.DNF.Encoding
 public import CslibFrontier.Logics.Propositional.DNF.ModelCount
 public import CslibFrontier.Logics.Propositional.Frege
 public import CslibFrontier.Logics.Propositional.Frege.Resolution
+public import CslibFrontier.Logics.Propositional.LineProof
 public import CslibFrontier.Logics.Propositional.Parity
 public import CslibFrontier.Logics.Propositional.Parity.DepthThree
 public import CslibFrontier.Logics.Propositional.ParitySystem
@@ -8412,6 +8413,7 @@ public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.PolyTi
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLog
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLowerBound
+public import CslibFrontier.Logics.Propositional.Resolution.LineProof
 public import CslibFrontier.Logics.Propositional.Resolution.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Resolution.PigeonholeSpace
 public import CslibFrontier.Logics.Propositional.Resolution.Proof
