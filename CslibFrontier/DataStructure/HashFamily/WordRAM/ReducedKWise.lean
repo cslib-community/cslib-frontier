@@ -14,6 +14,7 @@ import CslibFrontier.Computability.WordRAM.RegisterFrame
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.WramOmega
+import Mathlib.Data.Nat.Bitwise
 
 /-!
 # Universe-Reduced `k`-Wise Independent Hashing with Bit-Packed Tables
@@ -131,12 +132,9 @@ private theorem fits_mask_of_le {w n : ℕ} (h : n ≤ w) : Fits w (2 ^ n - 1) :
 private theorem fits_and_mask {w a n : ℕ} (h : n ≤ w) : Fits w (a &&& (2 ^ n - 1)) :=
   (and_two_pow_sub_one_lt a n).trans_le (Nat.pow_le_pow_right two_pos h)
 
-private theorem shiftLeft_lt_pow {a k m : ℕ} (hk : k ≤ m) (ha : a < 2 ^ (m - k)) :
-    a <<< k < 2 ^ m := by
-  rw [Nat.shiftLeft_eq, ← Nat.sub_add_cancel hk, pow_add]
-  exact Nat.mul_lt_mul_of_pos_right ha (Nat.two_pow_pos k)
-
-private theorem packSlot_sh_lt {t w idx : ℕ} (h2c : 2 * reducedChunkBits t ≤ w) :
+/-- Bit offset `(idx &&& (2 ^ reducedPackShift t w - 1)) * (2 * reducedChunkBits t)` of a packed
+carryless-multiplication table slot fits below the word width `w`. -/
+theorem packSlot_sh_lt {t w idx : ℕ} (h2c : 2 * reducedChunkBits t ≤ w) :
     (idx &&& (2 ^ reducedPackShift t w - 1)) * (2 * reducedChunkBits t) < w :=
   (Nat.mul_lt_mul_of_pos_right (and_two_pow_sub_one_lt idx (reducedPackShift t w))
     (by have := reducedChunkBits_pos t; omega)).trans_le (two_pow_reducedPackShift_mul_le h2c)
@@ -390,7 +388,7 @@ multiplication table. -/
 /-- Modifying the bit-packed slice `(idx >>> p, idx &&& (2 ^ p - 1))` by clearing all bits at or
 above `sh = (idx &&& (2 ^ p - 1)) * (2 * c)` and XORing in `val <<< sh` (`val < 2 ^ (2 * c)`)
 preserves `getLimb (2 * c)` at every strictly earlier entry `j < idx`. -/
-private theorem clmulTab_getLimb_update_lt {p c tBase idx j val : ℕ} {mem : ℕ → ℕ}
+theorem clmulTab_getLimb_update_lt {p c tBase idx j val : ℕ} {mem : ℕ → ℕ}
     (hj : j < idx) (hval : val < 2 ^ (2 * c)) :
     let wIdx := idx >>> p
     let sh := (idx &&& (2 ^ p - 1)) * (2 * c)
@@ -406,7 +404,9 @@ private theorem clmulTab_getLimb_update_lt {p c tBase idx j val : ℕ} {mem : �
       (getLimb_xor_shiftLeft_of_ne hval hlt.ne).trans (getLimb_and_low hlt)
   · rw [Function.update_of_ne (by omega)]
 
-private theorem update_word_lt {tBase wIdx newW B : ℕ} {mem : ℕ → ℕ}
+/-- Updating word `tBase + wIdx` to a value below `B` preserves the `< B` bound on every word
+`tBase + w'` with `w' ≤ wIdx`, assuming all strictly earlier words already satisfy `< B`. -/
+theorem update_word_lt {tBase wIdx newW B : ℕ} {mem : ℕ → ℕ}
     (hnew : newW < B) (hold : ∀ w' < wIdx, mem (tBase + w') < B)
     {w' : ℕ} (hw' : w' ≤ wIdx) :
     Function.update mem (tBase + wIdx) newW (tBase + w') < B := by
@@ -414,7 +414,11 @@ private theorem update_word_lt {tBase wIdx newW B : ℕ} {mem : ℕ → ℕ}
   · rwa [Function.update_self]
   · rw [Function.update_of_ne (by omega)]; exact hold w' hlt
 
-private theorem clmulTab_prev_limb {t w tBase idx : ℕ} {mem : ℕ → ℕ}
+/-- After masking bits at or above slot `(idx &&& (2 ^ p - 1)) * (2 * c)` of word
+`tBase + (idx >>> p)`, reading the packed limb at `prevIdx = ((idx >>> c) <<< c) + (v >>> 1)`
+returns `clmul (idx >>> c) ((idx &&& (2 ^ c - 1)) >>> 1)` whenever all strictly earlier entries
+`< idx` hold their carryless products. -/
+theorem clmulTab_prev_limb {t w tBase idx : ℕ} {mem : ℕ → ℕ}
     (hidx : idx < 2 ^ (2 * reducedChunkBits t))
     (hentry : ∀ i < idx,
       getLimb (2 * reducedChunkBits t)
@@ -547,9 +551,8 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
     have hbit_le : (v &&& 1) * u ≤ u := by
       simpa only [one_mul] using Nat.mul_le_mul_right u (Nat.and_le_right (n := v) (m := 1))
     have hcl_sh1_lt : clmul u (v >>> 1) <<< 1 < 2 ^ (2 * c) :=
-      shiftLeft_lt_pow (by omega) <| by
-        have hlt := clmul_lt_two_pow hu_lt (shiftRight_lt_pow_sub hc_pos hv_lt)
-        rwa [show c + (c - 1) = 2 * c - 1 by omega] at hlt
+      (Nat.shiftLeft_lt (clmul_lt_two_pow hu_lt (shiftRight_lt_pow_sub hc_pos hv_lt))).trans_eq
+        (congrArg (2 ^ ·) (by omega))
     have h1sh_lt : Fits w (1 <<< sh) := by
       rw [Fits, Nat.shiftLeft_eq, one_mul]; exact Nat.pow_lt_pow_right one_lt_two hsh_lt
     have hfit_masked : Fits w maskedWord :=
@@ -570,8 +573,8 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
       | exact fits_and_mask (by omega)
       | exact hsh_lt.trans Nat.lt_two_pow_self
       | exact hprevSh_lt.trans Nat.lt_two_pow_self
-      | exact (shiftLeft_lt_pow (by rw [Nat.succ_mul]; omega)
-          (by rwa [show (subIdx + 1) * (2 * c) - sh = 2 * c by rw [Nat.succ_mul]; omega])).trans_le
+      | exact ((Nat.shiftLeft_lt hval_lt).trans_eq
+          (congrArg (2 ^ ·) (by rw [add_comm, ← Nat.succ_mul]))).trans_le
           (hpow_sub1.trans hpow_pack)
       | exact ((Nat.shiftRight_le _ _).trans_lt (update_word_lt
           (hmasked_lt.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ hsub_lt.le)))
@@ -711,14 +714,6 @@ private theorem resampleSetup2Code_exec {w base w₀ b b' k : ℕ} {x : Data 240
   unfold resampleSetup2Code resampleSetup2Data
   wram_exec [h4]
 
-private theorem execRand_seq_det_left {B : Basis} {r w t₁ : ℕ} {c₁ c₂ : Code B r}
-    {x y : Data r} {m₂ : ProbComp (Data r × ℕ)}
-    (h₁ : Exec w c₁ x y t₁) (h₂ : ExecRand w c₂ y m₂) :
-    ExecRand w (.seq c₁ c₂) x (do let z ← m₂; pure (z.1, t₁ + z.2)) := by
-  simpa only [pure_bind] using
-    ExecRand.seq (m₂ := fun _ => m₂) h₁.execRand fun _ hz => by
-      cases OracleComp.eq_of_mem_supportWith_pure hz; exact h₂
-
 private theorem randFill_rename_execRand {w bits arrBase len : ℕ} {x : Data 240}
     (hptr : x.regs 3 = arrBase) (hend : x.regs 4 = arrBase + len)
     (hmask : x.regs 5 = 2 ^ bits - 1) (hone : x.regs 6 = 1)
@@ -764,12 +759,12 @@ theorem resampleCode_execRand {w base w₀ b b' k : ℕ} {x : Data 240}
         rw [Data.extend_regs_of_eq injective_fillMap240 _ _ Tabulation.regOne 6 rfl, hone1]
         change (resampleSetup1Data base w₀ x).regs 6 = 1; wram_simp [resampleSetup1Data]
       simpa only [bind_assoc, pure_bind, map_eq_bind_pure_comp, Function.comp_def] using
-        execRand_seq_det_left (resampleSetup2Code_exec hy4 hfit_end hfit_mc) <|
+        (resampleSetup2Code_exec hy4 hfit_end hfit_mc).seqRand <|
           randFill_rename_execRand (by wram_simp [resampleSetup2Data])
             (by wram_simp [resampleSetup2Data, L, t]) (by wram_simp [resampleSetup2Data, c, t])
             (by wram_simp [resampleSetup2Data, hy6]) hfit_end hfit_mc
   simpa only [resampleCode, resampleComp, bind_assoc, pure_bind, map_eq_bind_pure_comp,
-    Function.comp_def] using execRand_seq_det_left h1 hseq12
+    Function.comp_def] using h1.seqRand hseq12
 
 /-- Pathwise postcondition of `resampleComp`: executes in `resampleSteps w₀ b b' k` instructions,
 preserves `reg 0 = base` and `TableRep`, establishes `SeedRep`, and modifies only
