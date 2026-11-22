@@ -9538,6 +9538,7 @@ public import CslibFrontier.Tactic.FirstOrder.Simp
 public import CslibFrontier.Tactic.Fits
 public import CslibFrontier.Tactic.GameHop
 public import CslibFrontier.Tactic.LRATTauto
+public import CslibFrontier.Tactic.LinarithCast
 public import CslibFrontier.Tactic.LogSpace
 public import CslibFrontier.Tactic.LogSpace.Init
 public import CslibFrontier.Tactic.Negligible
