@@ -100,21 +100,27 @@ the element `a`. It leaves four goals:
 
 Here `y` is the entry data `x` with the registers the body writes replaced by `v` and memory by
 `m`. In the last three goals the reads of `y` are simplified with `wram_simp`: a register the
-body does not write is read in `x`, and the others are `v i`. -/
-syntax (name := wramFold) "wram_fold " term:max " over " term:max " cost " term:max : tactic
+body does not write is read in `x`, and the others are `v i`. Those of the three that this
+closes are not left. The goals after the loop's goal are not touched and stay after these. -/
+syntax (name := wramFold) "wram_fold " term:max &" over " term:max &" cost " term:max : tactic
 
 open Lean Meta Elab Tactic in
 elab_rules : tactic
   | `(tactic| wram_fold $I over $l cost $T) => withMainContext do
+    let tail := (← getGoals).tail
     let (g, _, _) ← WP.Exec.toWP (← getMainGoal)
-    replaceMainGoal [g]
-    evalTactic (← `(tactic| (
-      refine Cslib.WordRAM.WP.loop_list (I := $I) (T := $T) $l ?init ?exit ?step ?post
-      rotate_left
-      iterate 3 (
-        try wram_simp [Cslib.WordRAM.Cond.holds_lt, Cslib.WordRAM.Cond.holds_eq,
-          List.length_nil, List.length_cons]
-        rotate_left))))
+    setGoals [g]
+    evalTactic (← `(tactic|
+      refine Cslib.WordRAM.WP.loop_list (I := $I) (T := $T) $l ?init ?exit ?step ?post))
+    let reads ← `(tactic|
+      try wram_simp [Cslib.WordRAM.Cond.holds_lt, Cslib.WordRAM.Cond.holds_eq,
+        List.length_nil, List.length_cons])
+    let goals ← (← getGoals).mapM fun g => do
+      if [`exit, `step, `post].contains (← g.getTag).eraseMacroScopes then
+        evalTacticAt reads g
+      else
+        return [g]
+    setGoals (goals.flatten ++ tail)
 
 end Cslib.WordRAM
 

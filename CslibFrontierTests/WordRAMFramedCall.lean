@@ -4,9 +4,11 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
-import CslibFrontier.Computability.WordRAM.ListArray
-import CslibFrontier.Computability.WordRAM.Notation
+module
+
+public import CslibFrontier.Computability.WordRAM.SymbolicExec.ListLoop
+public import CslibFrontier.Computability.WordRAM.ListArray
+public import CslibFrontier.Computability.WordRAM.Notation
 
 /-!
 # Framed calls and list loops in symbolic execution
@@ -14,28 +16,32 @@ import CslibFrontier.Computability.WordRAM.Notation
 A loop sums the cells of an array (`wram_fold`), and a caller adds a register the loop never
 writes to the sum. The loop's contract says nothing about that register: the framed call keeps
 it, because the loop's code does not write it. The call leaves out the contract's hypotheses; a
-hypothesis that is not among the caller's facts follows the continuation as a goal.
+hypothesis that is not among the caller's facts follows the continuation as a goal. `wram_fold`
+leaves the goals after the loop's alone, and the words `framed`, `over` and `cost` remain
+identifiers.
 -/
+
+@[expose] public section
 
 namespace CslibFrontierTests.WordRAMFramedCall
 
 open Cslib.WordRAM Cslib.WordRAM.Block
 
-private abbrev acc : Fin 6 := 0
-private abbrev ptr : Fin 6 := 1
-private abbrev stop : Fin 6 := 2
-private abbrev one : Fin 6 := 3
-private abbrev tmp : Fin 6 := 4
-private abbrev keep : Fin 6 := 5
+abbrev acc : Fin 6 := 0
+abbrev ptr : Fin 6 := 1
+abbrev stop : Fin 6 := 2
+abbrev one : Fin 6 := 3
+abbrev tmp : Fin 6 := 4
+abbrev keep : Fin 6 := 5
 
 /-- Add the cell at `ptr` to `acc`, and move `ptr` to the next cell. -/
-private def addCell : Code .standard 6 := ram[ tmp ← *ptr; acc ← acc + tmp; ptr ← ptr + one ]
+def addCell : Code .standard 6 := ram[ tmp ← *ptr; acc ← acc + tmp; ptr ← ptr + one ]
 
 /-- Add the cells in `[ptr, stop)` to `acc`. -/
-private def sumLoop : Code .standard 6 := .loop (.lt ptr stop) addCell
+def sumLoop : Code .standard 6 := .loop (.lt ptr stop) addCell
 
 /-- Add the cells, then the register `keep`. -/
-private def sumPlus : Code .standard 6 := ram[ ⟪sumLoop⟫; acc ← acc + keep ]
+def sumPlus : Code .standard 6 := ram[ ⟪sumLoop⟫; acc ← acc + keep ]
 
 /-- The loop adds the list at `ptr`. Its invariant states the registers the body writes; the
 constant `one` and the bound `stop` are read in the entry data `x`. -/
@@ -91,4 +97,23 @@ example {w : ℕ} (x : Data 6) (Q : Data 6 → ℕ → Prop) (h : WP w addCell x
   fail_if_success wram_call (sumLoop_spec (w := w) [] x ..) framed with v m ⟨hm, -⟩
   exact h
 
+set_option linter.style.multiGoal false in
+/-- `wram_fold` works on the first goal only: `init`, `exit`, `step` and `post` come in this order,
+and then the goal that followed the loop's, which is not simplified (that would close it). -/
+example {w : ℕ} (x : Data 6) (hstop : ¬x.regs ptr < x.regs stop) :
+    WP w sumLoop x (fun _ _ => True) ∧ x.regs keep = x.regs keep := by
+  refine ⟨?_, ?_⟩
+  wram_fold (fun rest y => rest = [] ∧ ¬y.regs ptr < x.regs stop) over ([] : List Unit)
+    cost (fun _ => 0)
+  · exact ⟨rfl, hstop⟩
+  · exact fun _ _ h => h
+  · rintro a as v m ⟨⟨⟩, -⟩
+  · exact fun _ _ _ => trivial
+  · rfl
+
+/-- The words `framed`, `over` and `cost` of the two tactics remain identifiers for importers. -/
+example (framed over cost : ℕ) : framed + over + cost = cost + over + framed := by omega
+
 end CslibFrontierTests.WordRAMFramedCall
+
+end

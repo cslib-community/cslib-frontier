@@ -339,7 +339,7 @@ theorem clauseEnd_spec (π : List (Literal ℕ)) (r : LitRegs) (s : ScanRegs) (x
       wram_exec [hcnt, hsat, hzero, hone, hk0, hk1] <;>
       wram_simp [endClause, hconf, halls, huf, hunit, hopf, hov, hb0, hb1] <;> simp
 
-theorem sum_scan_cost (ψ : CNF ℕ) :
+private theorem sum_scan_cost (ψ : CNF ℕ) :
     (ψ.map fun c => 17 * c.length + 21 + 2).sum ≤ 23 * (ψ.flatMap encodeClause).length := by
   induction ψ with
   | nil => simp
