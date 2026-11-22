@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
+public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
 public import CslibFrontier.Crypto.Primitives.UHF.Computational
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
@@ -116,7 +117,7 @@ theorem isOraclePPT_hashThenPRFWordReduction {keyLen outLen : ℕ → ℕ}
     (houtLen : ComputableInPolyTime outLen encUnary encUnary)
     (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
     (hH : ComputableInPolyTime (fun p => H p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) encBits)
+      (encKeyedInput encBits) encBits)
     {A : OracleDistinguisher} (hA : IsOraclePPT encBool A) :
     IsOraclePPT encBool (hashThenPRFWordReduction keyLen outLen valid H A) := by
   let E := encPair encUnary encBits
@@ -167,7 +168,7 @@ framed pair of word keys and the message. -/
 theorem computableInPolyTime_hashThenPRFWord
     {H : ℕ → List Bool → List Bool → List Bool} {F : List Bool → List Bool → List Bool}
     (hH : ComputableInPolyTime (fun p => H p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) encBits)
+      (encKeyedInput encBits) encBits)
     (hF : ComputableInPolyTime (fun p => F p.1 p.2) (encPair encBits encBits) encBits) :
     ComputableInPolyTime (fun (n, keys, msg) => hashThenPRF (H n) F keys msg)
       (encPair encUnary (encPair (encPair encBits encBits) encBits)) encBits := by
@@ -495,7 +496,7 @@ theorem hashThenPRFWord_indistinguishable {keyLen inLen outLen : ℕ → ℕ}
     (hinLen : ComputableInPolyTime inLen encUnary encUnary)
     (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
     (hH : ComputableInPolyTime (fun p => H p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encBits)) encBits)
+      (encKeyedInput encBits) encBits)
     (hwidth : ∀ n key msg, key.length = keyLen n → valid n msg = true →
       (H n key msg).length = inLen n)
     (hUHF : UHF.IsComputationalUHF encUnary encBits (fun k => pure k) (fun k _ => valid k)
