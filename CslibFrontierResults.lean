@@ -1,3 +1,4 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Registry
