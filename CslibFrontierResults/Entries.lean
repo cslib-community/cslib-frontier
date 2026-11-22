@@ -82,6 +82,7 @@ import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
@@ -10944,6 +10945,24 @@ register_result "computational-universal-hash-single-to-multi-query" where
     accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
+
+register_result "xor-hash-computational-universality" where
+  title := "XOR-hash from a secure PRF is computationally universal"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.6",
+      locator := "v0.6, Section 7.2.3, printed pp. 260–262; Figure 7.2 and equation (7.12)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.isComputationalUHF_xorHashWordFamily,
+    Cslib.Crypto.UHF.succProbability_xorHashWordFamily_le
+  ]
+  scope := "Uniform strict PPT adversaries in the single-pair game, with the security parameter \
+    as deterministic public setup and a private uniform n-bit PRF key. Messages have a \
+    polynomial-time computable cap and fixed-width blocks. The word PRF is defined on the full \
+    request width, and its table is restricted to blocks with a padded unary position prefix. \
+    The reciprocal of the digest-space cardinality is negligible. The explicit wrapper \
+    preserves the real collision law and has ideal success at most that reciprocal."
 
 register_result "computational-difference-unpredictability-implies-universal-hashing" where
   title := "Computational difference unpredictability implies computational universal hashing"
