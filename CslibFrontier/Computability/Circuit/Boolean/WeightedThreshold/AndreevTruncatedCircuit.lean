@@ -15,10 +15,10 @@ import Mathlib.Analysis.Complex.ExponentialBounds
 # Truncated depth-two circuits for Andreev's function
 
 This module builds the circuits of Theorem 7 of C. Reitwiessner, *Depth-Two Threshold Circuits
-for Andreev's Function* (preprint, November 2026), issue
-[#4640](https://github.com/cslib-community/cslib-frontier/issues/4640), Milestone 2. The error
-analysis is in `AndreevOddErrors.lean`; here the truncated vote `andreevTruncatedVote b m r R`
-becomes a depth-two threshold circuit, and the parameters are chosen.
+for Andreev's Function* (preprint, November 2026) for Andreev's function [Andreev1987]. Based on
+the truncated-vote error analysis of `AndreevOddErrors`, the truncated vote
+`andreevTruncatedVote b m r R` becomes a depth-two threshold circuit, and the parameters are
+chosen.
 
 `f_R` is a staircase of `2 R + 2` steps (`altLinearTrunc_eq_sum`, in `DepthTwo.lean`), so the
 truncated score `P_R` is `2 X_∅` plus a weighted sum of the indicators `[θ_k ≤ X_S ± D_S]` over
@@ -60,6 +60,8 @@ The output gate, built with `depthTwoInputs`, also reads the table bits for the 
 
 ## References
 
+* [A. E. Andreev, *On a method for obtaining more than quadratic effective lower bounds for the
+  complexity of π-schemes*][Andreev1987]
 * C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function*, preprint (November
   2026), Theorem 7 (`thm:avgupper`).
 -/

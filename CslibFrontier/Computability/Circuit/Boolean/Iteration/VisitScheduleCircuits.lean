@@ -71,7 +71,7 @@ variable {n : ℕ}
 theorem minimal_period_circuit (c : Circuit signature n n) (L : ℕ)
     (hL : 0 < L) (hLN : L ≤ 2 ^ n) :
     ∃ out : Circuit signature n (n + 1),
-      (∀ x, (word (out.eval interpretation x)).toNat =
+      (∀ x, (BitString.equivBitVec (out.eval interpretation x)).toNat =
         Function.minimalPeriod (c.eval interpretation) x) ∧
       out.size ≤ 110000 * powerBudget n c.size (2 ^ n) L := by
   let f := c.eval interpretation
@@ -87,7 +87,7 @@ theorem minimal_period_circuit (c : Circuit signature n n) (L : ℕ)
   let ell : BitString n → BitVec (n + 3) := fun x => labelLength (labels.eval interpretation x)
   have he : wordWires ell ⊆ s1 := by
     rintro _ ⟨bit, rfl⟩
-    simp only [ell, labelLength, getLsbD_word]
+    simp only [ell, labelLength, BitString.getLsbD_equivBitVec]
     exact Or.inr (Or.inl ⟨_, rfl⟩)
   have hw := wordWires_setWidth_subset (v := n + 1) (s := s1) he (Or.inl (Or.inr rfl))
   have hmux := Synthesis.word_mux (s := s1) (fun x => (ell x).setWidth (n + 1))
@@ -97,7 +97,7 @@ theorem minimal_period_circuit (c : Circuit signature n n) (L : ℕ)
   obtain ⟨out, ho, hs⟩ := ((Synthesis.const (s := inputs n) false).trans
     ((hlabels.union hcyclic).trans hmux)).exists_circuit_outputs
   refine ⟨out, fun x => ?_, hs.trans ?_⟩
-  · rw [ho x, word_getLsbD]
+  · rw [ho x, BitString.equivBitVec_getLsbD]
     by_cases hy : x ∈ Function.periodicPts f
     · have htrue := (hc x).mpr hy
       simp only [htrue, ite_true]
@@ -128,11 +128,11 @@ abbrev visitScheduleWidth (n : ℕ) := (1 + (n + 1)) + (n + 1)
 
 /-- The `(n + 1)`-bit first hitting time field of a visit-schedule record. -/
 def visitScheduleFirst (v : BitString (visitScheduleWidth n)) : BitVec (n + 1) :=
-  word fun i => v (Fin.castAdd (n + 1) (Fin.natAdd 1 i))
+  BitString.equivBitVec fun i => v (Fin.castAdd (n + 1) (Fin.natAdd 1 i))
 
 /-- The `(n + 1)`-bit return period field of a visit-schedule record. -/
 def visitSchedulePeriod (v : BitString (visitScheduleWidth n)) : BitVec (n + 1) :=
-  word fun i => v (Fin.natAdd (1 + (n + 1)) i)
+  BitString.equivBitVec fun i => v (Fin.natAdd (1 + (n + 1)) i)
 
 /-- Whether time `t` belongs to the arithmetic progression encoded by `v`. -/
 def visitScheduleContains (v : BitString (visitScheduleWidth n)) (t : ℕ) : Prop :=

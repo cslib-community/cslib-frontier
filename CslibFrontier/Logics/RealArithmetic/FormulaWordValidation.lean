@@ -181,15 +181,6 @@ theorem validFormulaWord_eq_true_iff {word : List Bool} :
   · rintro ⟨p, hp⟩
     exact (congrArg validFormulaWord hp).symm.trans (validFormulaWord_encFormula p)
 
-private theorem sumCases_polyTime {α β γ : Type}
-    {ea : α ↪ List Bool} {eb : β ↪ List Bool} {ec : γ ↪ List Bool}
-    {left : α → γ} {right : β → γ} (fallback : γ)
-    (hl : ComputableInPolyTime left ea ec) (hr : ComputableInPolyTime right eb ec) :
-    ComputableInPolyTime (Sum.elim left right) (encSum ea eb) ec :=
-  (sumElimSnd (left := fun _ : Unit => left) (right := fun _ : Unit => right)
-    fallback (hl.comp (snd encUnit ea)) (hr.comp (snd encUnit eb))).comp
-    ((const ()).prod id')
-
 private theorem inspectToken_polyTime :
     ComputableInPolyTime inspectToken encFormulaToken (encPair encUnary encBool) := by
   have hterm : ComputableInPolyTime validTermWord encBits encBool :=
@@ -197,11 +188,11 @@ private theorem inspectToken_polyTime :
   have hcompare : ComputableInPolyTime (fun word => (0, validTermWord word))
       encBits (encPair encUnary encBool) :=
     (const 0).prod hterm
-  exact sumCases_polyTime (0, false) (const (0, true))
-    (sumCases_polyTime (0, false) hcompare
-      (sumCases_polyTime (0, false) hcompare
-        (sumCases_polyTime (0, false) (const (1, true))
-          (sumCases_polyTime (0, false) (const (2, true)) (const (2, true))))))
+  exact sumElim (const (0, true))
+    (sumElim hcompare
+      (sumElim hcompare
+        (sumElim (const (1, true))
+          (sumElim (const (2, true)) (const (2, true))))))
 
 private theorem inspectToken_arity_le (token : FormulaToken) : (inspectToken token).1 ≤ 2 := by
   rcases token with _ | (_ | (_ | (_ | (_ | _)))) <;>
