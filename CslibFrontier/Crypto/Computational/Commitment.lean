@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 public import CslibFrontier.Foundations.Data.BitString.List.Operations
 public import CslibFrontier.Crypto.Computational.Commitment.Basic
+public import CslibFrontier.Crypto.Computational.Nonuniform.Basic
 public import CslibFrontier.Crypto.Computational.OneWayToPRG
 public import CslibFrontier.Crypto.Computational.Stretch
 public import CslibFrontier.Crypto.Computational.Hybrid.Sequence
@@ -32,7 +33,9 @@ length `n` using a pseudorandom generator `generator`:
 `naorCommit generator r b seed` outputs `generator seed` when `b = false`, and
 `BitString.listXor (generator seed).length [generator seed, r]` when `b = true`.
 
-The general public-parameter interface is in `Commitment/Basic`.
+The general public-parameter interface is in `Commitment/Basic`. For the uniform single-bit
+guessing and binding theorem and the auxiliary-input prediction comparison, see
+`Commitment/Guessing`.
 
 ## Main definitions
 
@@ -42,17 +45,22 @@ The general public-parameter interface is in `Commitment/Basic`.
 * `Cslib.Crypto.CommitmentReceiver`, `Cslib.Crypto.CommitmentReceiver.IsPPT`: a two-stage
   randomized stateful PPT receiver that outputs `((r, (b₀, b₁)), state)` in the first stage and
   distinguishes `(state, c)` in the second stage.
-* `Cslib.Crypto.commitmentHidingGame`, `Cslib.Crypto.StatefulHiding`: the two-stage commitment
-  hiding game and computational hiding against randomized stateful PPT receivers.
-* `Cslib.Crypto.naorReceiverDistinguisher`: PRG distinguisher induced by a stateful commitment
-  receiver.
+* `Cslib.Crypto.commitmentHidingGame`, `Cslib.Crypto.GenerableStatefulHiding`,
+  `Cslib.Crypto.StatefulHiding`: the two-stage commitment hiding game and computational hiding
+  against randomized stateful PPT receivers, separating deterministic polynomial-time auxiliary
+  input (`GenerableStatefulHiding`) from arbitrary polynomially bounded auxiliary input
+  (`StatefulHiding`).
+* `Cslib.Crypto.naorReceiverDistinguisher`: advised PRG distinguisher induced by a stateful
+  commitment receiver.
 * `Cslib.Crypto.NaorBinding`: statistical binding at seed length `n` for receiver string `r`,
   requiring that no two seeds of length `n` open to `false` and `true` with the same commitment.
 * `Cslib.Crypto.naorBindingProb`, `Cslib.Crypto.naorBindingError`: the probability over a uniform
   receiver string `r` of length `length n` that `NaorBinding generator n r` fails.
 * `Cslib.Crypto.encBitOpening`: the encoding of a bit-commitment opening `(b, seed)`.
-* `Cslib.Crypto.BitCommitmentScheme`: a two-message statistically binding, computationally hiding
-  bit commitment scheme.
+* `Cslib.Crypto.GenerableBitCommitmentScheme`, `Cslib.Crypto.BitCommitmentScheme`: two-message
+  statistically binding, computationally hiding bit commitment schemes with poly-time-generable
+  (`GenerableStatefulHiding`) or arbitrary polynomially bounded (`StatefulHiding`) auxiliary-input
+  hiding.
 
 ## Main results
 
@@ -65,21 +73,36 @@ The general public-parameter interface is in `Commitment/Basic`.
   `Cslib.Crypto.PseudorandomGenerator.naorCommit_hiding`: computational hiding of Naor commitments
   for deterministic polynomial-time families of receiver strings `r : ℕ → List Bool` and bit
   families `b₀ b₁ : ℕ → Bool`.
+* `Cslib.Crypto.StatefulHiding.generable`: arbitrary polynomially bounded auxiliary-input hiding
+  implies hiding for polynomial-time-generable auxiliary input.
 * `Cslib.Crypto.advantage_commitmentHidingGame_naorCommit_le`,
-  `Cslib.Crypto.PseudorandomGenerator.naorStatefulHiding`: computational hiding of Naor commitments
-  against randomized stateful PPT receivers, and `Cslib.Crypto.StatefulHiding.computational_hiding`
-  connecting stateful-receiver hiding to the deterministic-family interface.
-* `Cslib.Crypto.naorBindingProb_le`, `Cslib.Crypto.naorBindingProb_le_of_three_mul_add_one`,
+  `Cslib.Crypto.PseudorandomGenerator.naorGenerableStatefulHiding`,
+  `Cslib.Crypto.NonuniformPRG.naorStatefulHiding`: quantitative and asymptotic hiding of Naor
+  commitments against randomized stateful PPT receivers (uniform/generable from a uniform PRG,
+  and full auxiliary-input hiding from a `NonuniformPRG`), together with
+  `Cslib.Crypto.GenerableStatefulHiding.computational_hiding` and
+  `Cslib.Crypto.StatefulHiding.computational_hiding`.
+* `Cslib.Crypto.naorBindingProb_lt_of_three_mul`,
+  `Cslib.Crypto.naorBindingProb_le_of_three_mul_add_one`,
   `Cslib.Crypto.negligible_naorBindingError`: statistical binding when `3 * n ≤ length n`.
-* `Cslib.Crypto.PseudorandomGenerator.naorBitCommitment`,
-  `Cslib.Crypto.OneWay.exists_bitCommitmentScheme`: packaged Naor bit commitment scheme from a
-  pseudorandom generator or one-way function.
+* `Cslib.Crypto.PseudorandomGenerator.naorGenerableBitCommitment`,
+  `Cslib.Crypto.OneWay.exists_generableBitCommitmentScheme`: packaged Naor scheme with
+  `GenerableStatefulHiding` from a uniform pseudorandom generator or one-way function.
+* `Cslib.Crypto.NonuniformPRG.naorBitCommitment`,
+  `Cslib.Crypto.NonuniformOneWay.exists_bitCommitmentScheme`: packaged Naor `BitCommitmentScheme`
+  with full `StatefulHiding` from a nonuniform pseudorandom generator or one-way function.
 
 ## References
 
 * [M. Naor, *Bit Commitment Using Pseudorandomness*][Naor1991]
+* [J. Håstad, R. Impagliazzo, L. Levin, M. Luby,
+  *A Pseudorandom Generator from Any One-Way Function*][HILL1999]
 * [O. Goldreich, *Foundations of Cryptography: Volume 1, Basic Tools*][Goldreich2001],
   Section 4.4.1.
+* [O. Goldreich, *Foundations of Cryptography (Fragments of a Book – Version 2.03)*,
+  1998 draft][Goldreich1998Fragments], Section 1.3.3 (pp. 18–20, non-uniform advice vs.
+  polynomial-size circuits) and Section 4.3.3, Definition 4.3.8 (printed pp. 151–152, unbounded
+  auxiliary input and clocks).
 -/
 
 @[expose] public section
@@ -186,8 +209,8 @@ theorem PseudorandomGenerator.naorCommit_indistinguishable_uniform
 Commitments to any two deterministic polynomial-time bit families `b₀` and `b₁` under any
 deterministic polynomial-time receiver string family `r : ℕ → List Bool` are computationally
 indistinguishable against uniform strict PPT distinguishers. See
-`PseudorandomGenerator.naorStatefulHiding` below for hiding against a randomized stateful PPT
-receiver. -/
+`PseudorandomGenerator.naorGenerableStatefulHiding` and `NonuniformPRG.naorStatefulHiding` below
+for hiding against a randomized stateful PPT receiver. -/
 theorem PseudorandomGenerator.naorCommit_hiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
@@ -297,25 +320,80 @@ theorem isPPTOn_commitmentHidingGame_aux {commit : List Bool → Bool → List B
   IsPPTOn.preprocess (isPPT_commitmentHidingGame hcommit hR bit)
     (ComputableInPolyTime.id'.prod haux)
 
-/-- Computational hiding against a randomized stateful PPT receiver: for every polynomial-time
-auxiliary family `aux : ℕ → List Bool`, no strict PPT `CommitmentReceiver` can distinguish
+/-- Uniform stateful-receiver computational hiding with deterministic polynomial-time-generable
+auxiliary input: for every deterministic polynomial-time auxiliary family `aux : ℕ → List Bool`
+(`ComputableInPolyTime aux encUnary encBits`), no strict PPT `CommitmentReceiver` can distinguish
 commitments to its first chosen bit (`bit = false`) from commitments to its second chosen bit
 (`bit = true`) with non-negligible advantage.
 
-This is the secrecy condition of [Naor1991], Section 2, pp. 3–4, for a commitment whose commit
-stage is the receiver's string `r` followed by `commit r b seed` on a uniform `n`-bit seed, in the
-form the source states for commitments to many bits, with one bit: the receiver chooses both
-values, and after the commit stage it cannot tell which was committed. A distinguishing advantage
-replaces the source's guessing probability `1/2 + 1/p(n)`; the two differ by a factor of two. The
-auxiliary input ranges over families computable from `1^n` in deterministic polynomial time,
-which a uniform receiver could compute itself, while the source also allows an arbitrary one. -/
-def StatefulHiding (commit : List Bool → Bool → List Bool → List Bool) : Prop :=
+This is the uniform restriction of the secrecy condition of [Naor1991], Section 2, pp. 3–4 (of the
+author's copy), for a commitment whose commit stage is the receiver's string `r` followed by
+`commit r b seed` on a uniform `n`-bit seed, specialized from commitments to many bits to one bit.
+A distinguishing advantage replaces the source's guessing probability `1/2 + 1/p(n)`; the two
+differ by a factor of two. Because `aux` is restricted to deterministic polynomial-time-computable
+families (which a uniform receiver could compute from `1^n` itself), this notion is weaker than
+`StatefulHiding`, which quantifies over arbitrary polynomially bounded auxiliary inputs as in
+the source's auxiliary-input remark (`StatefulHiding.generable`). As in `StatefulHiding`, `commit`
+is arbitrary here with no `ComputableInPolyTime` bound bundled, so `CommitmentReceiver.IsPPT.guess`
+is clocked polynomial in `n + state.length + c.length` (`GenerableBitCommitmentScheme` bounds
+`c.length` polynomially via `polyTime_commit`). -/
+def GenerableStatefulHiding (commit : List Bool → Bool → List Bool → List Bool) : Prop :=
   ∀ (aux : ℕ → List Bool),
     ComputableInPolyTime aux encUnary encBits →
     Game.Indistinguishable
       (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver (aux n) false n))
       (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver (aux n) true n))
       CommitmentReceiver.IsPPT
+
+/-- Computational hiding against a randomized stateful PPT receiver with arbitrary polynomially
+bounded auxiliary input: for every family `aux : ℕ → List Bool` with
+`PolynomiallyBounded (fun n => (aux n).length)` (not required to be computable), no strict PPT
+`CommitmentReceiver` can distinguish commitments to its first chosen bit (`bit = false`) from
+commitments to its second chosen bit (`bit = true`) with non-negligible advantage.
+
+This specializes the receiver-chosen pair in [Naor1991], Section 2, pp. 3–4 of the author's copy,
+to two bits. The receiver sends `r` and receives `commit r b seed` on a uniform `n`-bit seed.
+The distinguishing gap is twice the excess success probability of a uniform-bit guesser.
+Both worlds use the same `aux n`. For the source's comparison with a predictor given only prior
+information correlated with the bit, see `StatefulHiding.exists_priorPredictor` in
+`Commitment/Guessing`.
+
+*Clock convention.* `CommitmentReceiver.IsPPT` clocks `receiver.choose` polynomial in the length
+of its full encoded input `(1^n, aux n)`, i.e., `poly(n + (aux n).length)`, and clocks
+`receiver.guess` polynomial in `n + state.length + c.length` (`commit` is arbitrary here, with no
+`ComputableInPolyTime` bound bundled; `BitCommitmentScheme` bounds `c.length` polynomially via
+`polyTime_commit`). Restricting `aux` to polynomially bounded length matches the uniform PPT
+with polynomial advice class corresponding to polynomial-size circuit families
+([Goldreich1998Fragments], Section 1.3.3, pp. 18–20) and ensures the receiver's first stage runs
+in time polynomial in `n` (without it, an exponentially long `aux n` would grant exponential time
+to brute-force every `n`-bit seed). By contrast, an adversary clocked in `poly(n)` alone with an
+unbounded auxiliary input can inspect only a `poly(n)`-bit prefix ([Goldreich1998Fragments],
+Section 4.3.3, Definition 4.3.8, printed pp. 151–152); unlike
+`CslibFrontier.Crypto.Computational.ZeroKnowledge.AuxClock` (`IsPPTWithAux`), this module does not
+formalize a prefix-clock unbounded-auxiliary-input bridge. -/
+def StatefulHiding (commit : List Bool → Bool → List Bool → List Bool) : Prop :=
+  ∀ (aux : ℕ → List Bool),
+    PolynomiallyBounded (fun n => (aux n).length) →
+    Game.Indistinguishable
+      (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver (aux n) false n))
+      (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver (aux n) true n))
+      CommitmentReceiver.IsPPT
+
+/-- Auxiliary-input `StatefulHiding` implies the restricted uniform notion
+`GenerableStatefulHiding`: every deterministic polynomial-time-computable auxiliary family has
+polynomially bounded length. -/
+theorem StatefulHiding.generable {commit : List Bool → Bool → List Bool → List Bool}
+    (h : StatefulHiding commit) : GenerableStatefulHiding commit :=
+  fun aux haux => h aux haux.length_bits_comp.polynomiallyBounded
+
+/-- Specialization of `GenerableStatefulHiding` to the empty auxiliary string `[]`. -/
+theorem GenerableStatefulHiding.empty {commit : List Bool → Bool → List Bool → List Bool}
+    (h : GenerableStatefulHiding commit) :
+    Game.Indistinguishable
+      (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver [] false n))
+      (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver [] true n))
+      CommitmentReceiver.IsPPT :=
+  h (fun _ => []) (.const [])
 
 /-- Specialization of `StatefulHiding` to the empty auxiliary string `[]`. -/
 theorem StatefulHiding.empty {commit : List Bool → Bool → List Bool → List Bool}
@@ -324,7 +402,7 @@ theorem StatefulHiding.empty {commit : List Bool → Bool → List Bool → List
       (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver [] false n))
       (fun receiver n => ProbComp.eval (commitmentHidingGame commit receiver [] true n))
       CommitmentReceiver.IsPPT :=
-  h (fun _ => []) (.const [])
+  h.generable.empty
 
 /-- Package deterministic families `(r, b₀, b₁)` and a distinguisher `D` as a stateless
 `CommitmentReceiver`. -/
@@ -358,11 +436,12 @@ theorem CommitmentReceiver.isPPT_ofDeterministic {r : ℕ → List Bool} {b₀ b
   simp only [pmf_norm, commitmentHidingGame, CommitmentReceiver.ofDeterministic,
     distinguishingGame_eq_bind, BitString.eval_sampleList]
 
-/-- Stateful-receiver hiding implies the deterministic-family hiding interface: any commitment
-function satisfying `StatefulHiding` hides commitments for all deterministic polynomial-time
-families `r : ℕ → List Bool` and `b₀ b₁ : ℕ → Bool`. -/
-theorem StatefulHiding.computational_hiding {commit : List Bool → Bool → List Bool → List Bool}
-    (h : StatefulHiding commit)
+/-- Uniform stateful-receiver hiding implies the deterministic-family hiding interface: any
+commitment function satisfying `GenerableStatefulHiding` hides commitments for all deterministic
+polynomial-time families `r : ℕ → List Bool` and `b₀ b₁ : ℕ → Bool`. -/
+theorem GenerableStatefulHiding.computational_hiding
+    {commit : List Bool → Bool → List Bool → List Bool}
+    (h : GenerableStatefulHiding commit)
     {r : ℕ → List Bool} {b₀ b₁ : ℕ → Bool}
     (hr : ComputableInPolyTime r encUnary encBits)
     (hb₀ : ComputableInPolyTime b₀ encUnary encBool)
@@ -375,58 +454,79 @@ theorem StatefulHiding.computational_hiding {commit : List Bool → Bool → Lis
     h.empty (CommitmentReceiver.ofDeterministic r b₀ b₁ D)
       (CommitmentReceiver.isPPT_ofDeterministic hr hb₀ hb₁ hD)
 
-/-- PRG distinguisher induced by a stateful commitment receiver `receiver`, auxiliary input family
-`aux`, and hidden bit selector `bit`. On security parameter `n` and candidate pad `pad`, it runs
-`choice ← receiver.choose n (aux n)`, forms the commitment `naorCommit id r b_bit pad`, and runs
-`receiver.guess n choice.2 c`. -/
-noncomputable def naorReceiverDistinguisher (receiver : CommitmentReceiver)
-    (aux : ℕ → List Bool) (bit : Bool) : Distinguisher :=
-  fun n pad => do
-    let choice ← receiver.choose n (aux n)
+/-- Stateful-receiver hiding implies the deterministic-family hiding interface: any commitment
+function satisfying `StatefulHiding` hides commitments for all deterministic polynomial-time
+families `r : ℕ → List Bool` and `b₀ b₁ : ℕ → Bool`. -/
+theorem StatefulHiding.computational_hiding {commit : List Bool → Bool → List Bool → List Bool}
+    (h : StatefulHiding commit)
+    {r : ℕ → List Bool} {b₀ b₁ : ℕ → Bool}
+    (hr : ComputableInPolyTime r encUnary encBits)
+    (hb₀ : ComputableInPolyTime b₀ encUnary encBool)
+    (hb₁ : ComputableInPolyTime b₁ encUnary encBool) :
+    ComputationallyIndistinguishable
+      (fun n => (BitString.uniformList n).map (commit (r n) (b₀ n)))
+      (fun n => (BitString.uniformList n).map (commit (r n) (b₁ n))) :=
+  h.generable.computational_hiding hr hb₀ hb₁
+
+/-- Advised PRG distinguisher induced by a stateful commitment receiver `receiver` and hidden bit
+selector `bit`. On input `((n, aux), pad)`, it runs `choice ← receiver.choose n aux`, forms the
+commitment `naorCommit id r b_bit pad`, and runs `receiver.guess n state c`. -/
+noncomputable def naorReceiverDistinguisher (receiver : CommitmentReceiver) (bit : Bool) :
+    (ℕ × List Bool) × List Bool → ProbComp Bool :=
+  fun ⟨⟨n, aux⟩, pad⟩ => do
+    let choice ← receiver.choose n aux
     let ((r, b₀, b₁), state) := choice
     receiver.guess n state
       (naorCommit id r (if bit then b₁ else b₀) pad)
 
-/-- `naorReceiverDistinguisher receiver aux bit` is a strict PPT distinguisher whenever `receiver`
-is strict PPT and `aux` is computable in plain polynomial time. -/
-theorem isPPT_naorReceiverDistinguisher {receiver : CommitmentReceiver}
-    {aux : ℕ → List Bool} (hR : receiver.IsPPT)
-    (haux : ComputableInPolyTime aux encUnary encBits) (bit : Bool) :
-    IsPPT encBool (naorReceiverDistinguisher receiver aux bit) := by
-  let E0 := encPair encUnary encBits
+/-- `naorReceiverDistinguisher receiver bit` is a uniform strict PPT advised distinguisher on
+`encAdvisedInput` whenever `receiver` is strict PPT. -/
+theorem isPPTOn_naorReceiverDistinguisher {receiver : CommitmentReceiver}
+    (hR : receiver.IsPPT) (bit : Bool) :
+    IsPPTOn encAdvisedInput encBool (naorReceiverDistinguisher receiver bit) := by
   let EChoice := encPair (encPair encBits (encPair encBool encBool)) encBits
-  let hn0 := ComputableInPolyTime.fst encUnary encBits
-  let hp1 := ComputableInPolyTime.fst E0 EChoice
-  let hchoice1 := ComputableInPolyTime.snd E0 EChoice
-  have harg := hp1.fst'.prod (hchoice1.snd'.prod
+  let hp1 := ComputableInPolyTime.fst encAdvisedInput EChoice
+  let hchoice1 := ComputableInPolyTime.snd encAdvisedInput EChoice
+  have harg := hp1.fst'.fst'.prod (hchoice1.snd'.prod
     (computableInPolyTime_naorCommit .id' hchoice1.fst'.fst'
       ((ComputableInPolyTime.const (encOut := encBool) bit).ite
         hchoice1.fst'.snd'.snd' hchoice1.fst'.snd'.fst')
       hp1.snd'))
-  exact (IsPPTOn.preprocess hR.choose (hn0.prod (haux.comp' hn0))).bind_with
+  exact (IsPPTOn.preprocess hR.choose
+      (ComputableInPolyTime.fst (encPair encUnary encBits) encBits)).bind_with
     (IsPPTOn.preprocess hR.guess harg)
 
+/-- Specializing `naorReceiverDistinguisher receiver bit` to a deterministic polynomial-time
+auxiliary input family `aux` yields a strict PPT uniform distinguisher. -/
+theorem isPPT_naorReceiverDistinguisher {receiver : CommitmentReceiver}
+    {aux : ℕ → List Bool} (hR : receiver.IsPPT)
+    (haux : ComputableInPolyTime aux encUnary encBits) (bit : Bool) :
+    IsPPT encBool (fun n pad => naorReceiverDistinguisher receiver bit ((n, aux n), pad)) :=
+  let hn := ComputableInPolyTime.fst encUnary encBits
+  let hpad := ComputableInPolyTime.snd encUnary encBits
+  (isPPTOn_naorReceiverDistinguisher hR bit).preprocess ((hn.prod (haux.comp' hn)).prod hpad)
+
 /-- Running `commitmentHidingGame (naorCommit generator)` against `receiver` coincides with running
-`naorReceiverDistinguisher receiver aux bit` against the PRG output `generatorEnsemble generator n`.
+`naorReceiverDistinguisher receiver bit` against the PRG output `generatorEnsemble generator n`.
 -/
 theorem eval_commitmentHidingGame_naorCommit (generator : List Bool → List Bool)
-    (receiver : CommitmentReceiver) (aux : ℕ → List Bool) (bit : Bool) (n : ℕ) :
-    ProbComp.eval (commitmentHidingGame (naorCommit generator) receiver (aux n) bit n) =
+    (receiver : CommitmentReceiver) (aux : List Bool) (bit : Bool) (n : ℕ) :
+    ProbComp.eval (commitmentHidingGame (naorCommit generator) receiver aux bit n) =
       distinguishingGame (generatorEnsemble generator n)
-        (naorReceiverDistinguisher receiver aux bit n) := by
+        (fun pad => naorReceiverDistinguisher receiver bit ((n, aux), pad)) := by
   rw [distinguishingGame_eq_bind]
   unfold commitmentHidingGame generatorEnsemble naorReceiverDistinguisher
   simp only [pmf_norm, BitString.eval_sampleList]
   exact PMF.bind_comm _ _ _
 
-/-- On a truly uniform `m`-bit pad, `naorReceiverDistinguisher receiver aux bit n` presents an
-independent uniform `m`-bit commitment to `receiver.guess` regardless of the receiver's chosen
+/-- On a truly uniform `m`-bit pad, `naorReceiverDistinguisher receiver bit ((n, aux), ·)` presents
+an independent uniform `m`-bit commitment to `receiver.guess` regardless of the receiver's chosen
 challenge string `r` and bit selector `bit`. -/
 theorem distinguishingGame_uniformList_naorReceiverDistinguisher (m : ℕ)
-    (receiver : CommitmentReceiver) (aux : ℕ → List Bool) (bit : Bool) (n : ℕ) :
+    (receiver : CommitmentReceiver) (aux : List Bool) (bit : Bool) (n : ℕ) :
     distinguishingGame (BitString.uniformList m)
-        (naorReceiverDistinguisher receiver aux bit n) =
-      (ProbComp.eval (receiver.choose n (aux n))).bind fun choice =>
+        (fun pad => naorReceiverDistinguisher receiver bit ((n, aux), pad)) =
+      (ProbComp.eval (receiver.choose n aux)).bind fun choice =>
         (BitString.uniformList m).bind fun c =>
           ProbComp.eval (receiver.guess n choice.2 c) := by
   rw [distinguishingGame_eq_bind]
@@ -441,57 +541,80 @@ theorem distinguishingGame_uniformList_naorReceiverDistinguisher (m : ℕ)
 /-- Under a truly uniform `m`-bit pad, the `false` and `true` commitment-hiding experiments are
 identically distributed for every stateful receiver `receiver`. -/
 theorem distinguishingGame_uniformList_naorReceiverDistinguisher_false_eq_true (m : ℕ)
-    (receiver : CommitmentReceiver) (aux : ℕ → List Bool) (n : ℕ) :
+    (receiver : CommitmentReceiver) (aux : List Bool) (n : ℕ) :
     distinguishingGame (BitString.uniformList m)
-        (naorReceiverDistinguisher receiver aux false n) =
+        (fun pad => naorReceiverDistinguisher receiver false ((n, aux), pad)) =
       distinguishingGame (BitString.uniformList m)
-        (naorReceiverDistinguisher receiver aux true n) := by
+        (fun pad => naorReceiverDistinguisher receiver true ((n, aux), pad)) := by
   rw [distinguishingGame_uniformList_naorReceiverDistinguisher,
     distinguishingGame_uniformList_naorReceiverDistinguisher]
 
 /-- **Quantitative stateful-receiver hiding bound for Naor's bit commitment scheme**: the
-commitment-hiding advantage of any stateful receiver `receiver` at security parameter `n` is bounded
-by the sum of the PRG distinguishing advantages of `naorReceiverDistinguisher receiver aux false`
-and `naorReceiverDistinguisher receiver aux true` against `BitString.uniformList m`. -/
+commitment-hiding advantage of any stateful receiver `receiver` with auxiliary word `aux` at
+security parameter `n` is bounded by the sum of the PRG distinguishing advantages of
+`naorReceiverDistinguisher receiver false` and `naorReceiverDistinguisher receiver true` against
+`BitString.uniformList m`. -/
 theorem advantage_commitmentHidingGame_naorCommit_le
     (generator : List Bool → List Bool) (m : ℕ)
-    (receiver : CommitmentReceiver) (aux : ℕ → List Bool) (n : ℕ) :
+    (receiver : CommitmentReceiver) (aux : List Bool) (n : ℕ) :
     Game.advantage
       (ProbComp.eval
-        (commitmentHidingGame (naorCommit generator) receiver (aux n) false n))
+        (commitmentHidingGame (naorCommit generator) receiver aux false n))
       (ProbComp.eval
-        (commitmentHidingGame (naorCommit generator) receiver (aux n) true n)) ≤
+        (commitmentHidingGame (naorCommit generator) receiver aux true n)) ≤
       Game.advantage
         (distinguishingGame (generatorEnsemble generator n)
-          (naorReceiverDistinguisher receiver aux false n))
+          (fun pad => naorReceiverDistinguisher receiver false ((n, aux), pad)))
         (distinguishingGame (BitString.uniformList m)
-          (naorReceiverDistinguisher receiver aux false n)) +
+          (fun pad => naorReceiverDistinguisher receiver false ((n, aux), pad))) +
       Game.advantage
         (distinguishingGame (generatorEnsemble generator n)
-          (naorReceiverDistinguisher receiver aux true n))
+          (fun pad => naorReceiverDistinguisher receiver true ((n, aux), pad)))
         (distinguishingGame (BitString.uniformList m)
-          (naorReceiverDistinguisher receiver aux true n)) := by
+          (fun pad => naorReceiverDistinguisher receiver true ((n, aux), pad))) := by
   rw [eval_commitmentHidingGame_naorCommit, eval_commitmentHidingGame_naorCommit]
   refine (Game.advantage_triangle _
     (distinguishingGame (BitString.uniformList m)
-      (naorReceiverDistinguisher receiver aux false n)) _).trans ?_
+      (fun pad => naorReceiverDistinguisher receiver false ((n, aux), pad))) _).trans ?_
   rw [distinguishingGame_uniformList_naorReceiverDistinguisher_false_eq_true,
     Game.advantage_comm (distinguishingGame (BitString.uniformList m) _)]
 
-/-- **Stateful-receiver computational hiding of Naor bit commitment** [Naor1991]: for any
-pseudorandom generator `generator`, `naorCommit generator` satisfies `StatefulHiding` against all
-randomized stateful PPT receivers. -/
-theorem PseudorandomGenerator.naorStatefulHiding
+/-- Uniform stateful-receiver computational hiding of Naor bit commitment with
+poly-time-generable auxiliary input (`GenerableStatefulHiding` only; weaker than the arbitrary
+auxiliary-input notion of [Naor1991], Section 2, pp. 3–4): for any uniform pseudorandom generator
+`generator`, `naorCommit generator` satisfies `GenerableStatefulHiding`. See
+`NonuniformPRG.naorStatefulHiding` for arbitrary polynomially bounded auxiliary input. -/
+theorem PseudorandomGenerator.naorGenerableStatefulHiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length) :
-    StatefulHiding (naorCommit generator) := by
+    GenerableStatefulHiding (naorCommit generator) := by
   intro aux haux receiver hR
-  have hfalse := hG.indistinguishable (naorReceiverDistinguisher receiver aux false)
+  have hfalse := hG.indistinguishable
+    (fun n pad => naorReceiverDistinguisher receiver false ((n, aux n), pad))
     (isPPT_naorReceiverDistinguisher hR haux false)
-  have htrue := hG.indistinguishable (naorReceiverDistinguisher receiver aux true)
+  have htrue := hG.indistinguishable
+    (fun n pad => naorReceiverDistinguisher receiver true ((n, aux n), pad))
     (isPPT_naorReceiverDistinguisher hR haux true)
   exact negligible_of_le (hfalse.add htrue) fun n =>
-    advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver aux n
+    advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver (aux n) n
+
+/-- Step toward Naor's PRG-based bit commitment secrecy proof (after [Naor1991]), not the cited
+result: for any nonuniform pseudorandom generator (`NonuniformPRG`), `naorCommit generator`
+satisfies `StatefulHiding` against randomized stateful PPT receivers given any polynomially bounded
+auxiliary input family `aux : ℕ → List Bool`. Both games use the same advice.
+For Section 2's comparison of prediction before and after commitment with a joint law on the
+bit and prior information, apply `StatefulHiding.exists_priorPredictor` in `Commitment/Guessing`. -/
+theorem NonuniformPRG.naorStatefulHiding
+    {generator : List Bool → List Bool} {length : ℕ → ℕ}
+    (hG : NonuniformPRG generator length) :
+    StatefulHiding (naorCommit generator) := by
+  intro aux haux receiver hR
+  have hfalse := hG.secure aux haux (naorReceiverDistinguisher receiver false)
+    (isPPTOn_naorReceiverDistinguisher hR false)
+  have htrue := hG.secure aux haux (naorReceiverDistinguisher receiver true)
+    (isPPTOn_naorReceiverDistinguisher hR true)
+  exact negligible_of_le (hfalse.add htrue) fun n =>
+    advantage_commitmentHidingGame_naorCommit_le generator (length n) receiver (aux n) n
 
 /-! ### Statistical binding -/
 
@@ -559,26 +682,23 @@ theorem mem_image_naorBadShift_of_not_naorBinding {generator : List Bool → Lis
   change y₀ + y₁ = r'
   rw [hbit, add_right_comm, BitString.add_self, zero_add]
 
+private theorem card_not_naorBinding_le_image {generator : List Bool → List Bool} {length : ℕ → ℕ}
+    (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
+    (Finset.univ.filter (fun r : BitString (length n) =>
+      ¬ NaorBinding generator n (List.ofFn r))).card ≤
+      (Finset.univ.image (naorBadShift generator (length n) n)).card := by
+  apply Finset.card_le_card
+  intro r hr
+  simpa only [BitString.ofList_ofFn] using
+    mem_image_naorBadShift_of_not_naorBinding hlen (Finset.mem_filter.mp hr).2
+
 /-- At most `2 ^ (2 * n)` receiver strings of length `length n` violate `NaorBinding`. -/
 theorem card_not_naorBinding_le {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
     (Finset.univ.filter (fun r : BitString (length n) =>
       ¬ NaorBinding generator n (List.ofFn r))).card ≤ 2 ^ (2 * n) := by
-  have hsub : Finset.univ.filter (fun r : BitString (length n) =>
-      ¬ NaorBinding generator n (List.ofFn r)) ⊆
-        Finset.univ.image (naorBadShift generator (length n) n) := by
-    intro r hr
-    rw [Finset.mem_filter] at hr
-    simpa only [BitString.ofList_ofFn] using mem_image_naorBadShift_of_not_naorBinding hlen hr.2
-  calc
-    (Finset.univ.filter (fun r : BitString (length n) =>
-        ¬ NaorBinding generator n (List.ofFn r))).card
-      ≤ (Finset.univ.image (naorBadShift generator (length n) n)).card :=
-        Finset.card_le_card hsub
-    _ ≤ (Finset.univ : Finset (BitString n × BitString n)).card := Finset.card_image_le
-    _ = 2 ^ (2 * n) := by
-        simp only [Finset.card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fin,
-          Fintype.card_bool, ← pow_add, two_mul]
+  simpa [← pow_add, two_mul] using
+    (card_not_naorBinding_le_image hlen n).trans Finset.card_image_le
 
 /-- The `ENNReal` probability that a uniform receiver string of length `length n` fails to be
 binding for `n`-bit seeds. -/
@@ -592,15 +712,20 @@ noncomputable def naorBindingError (generator : List Bool → List Bool) (length
     (n : ℕ) : ℝ≥0 :=
   (naorBindingProb generator length n).toNNReal
 
+private theorem naorBindingProb_eq_card_div (generator : List Bool → List Bool) (length : ℕ → ℕ)
+    (n : ℕ) : naorBindingProb generator length n =
+      ((Finset.univ.filter (fun r : BitString (length n) =>
+        ¬ NaorBinding generator n (List.ofFn r))).card : ℝ≥0∞) / 2 ^ length n := by
+  classical
+  rw [naorBindingProb, BitString.uniformList, PMF.toOuterMeasure_map_apply,
+    Probability.PMF.toOuterMeasure_uniformOfFintype]
+  simp [Set.preimage, Set.mem_ofPred_eq, div_eq_mul_inv]
+
 /-- The binding failure probability is at most `2 ^ (2 * n) / 2 ^ (length n)`. -/
 theorem naorBindingProb_le {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) :
     naorBindingProb generator length n ≤ (2 ^ (2 * n) : ℝ≥0∞) / 2 ^ (length n) := by
-  classical
-  rw [naorBindingProb, BitString.uniformList, PMF.toOuterMeasure_map_apply,
-    Probability.PMF.toOuterMeasure_uniformOfFintype]
-  simp only [Set.preimage, Set.mem_ofPred_eq, Fintype.card_fun, Fintype.card_fin,
-    Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat, div_eq_mul_inv]
+  rw [naorBindingProb_eq_card_div]
   gcongr
   exact_mod_cast card_not_naorBinding_le hlen n
 
@@ -619,6 +744,28 @@ theorem naorBindingProb_le_of_three_mul {generator : List Bool → List Bool} {l
     (hlen : ∀ s, (generator s).length = length s.length) (n : ℕ) (hstretch : 3 * n ≤ length n) :
     naorBindingProb generator length n ≤ (1 / 2 : ℝ≥0∞) ^ n :=
   (naorBindingProb_le hlen n).trans (two_pow_div_two_pow_le (by lia))
+
+/-- Strict binding bound for positive seed length, the single-bit binding step of
+[Naor1991], Section 3, Theorem 3.1(2), p. 6 of the author's copy. Each pair of equal seeds
+produces the same zero shift, so the count in Claim 3.1 strictly overestimates the number
+of bad challenges. The single-bit protocol combines this bound with uniform guessing security
+in `PseudorandomGenerator.naorCommit_guessing_and_binding` in `Commitment/Guessing`. -/
+theorem naorBindingProb_lt_of_three_mul {generator : List Bool → List Bool} {length : ℕ → ℕ}
+    (hlen : ∀ s, (generator s).length = length s.length) {n : ℕ} (hn : 0 < n)
+    (hstretch : 3 * n ≤ length n) : naorBindingProb generator length n < (1 / 2 : ℝ≥0∞) ^ n := by
+  have hlt : (Finset.univ.image (naorBadShift generator (length n) n)).card <
+      (Finset.univ : Finset (BitString n × BitString n)).card := by
+    refine lt_of_le_of_ne Finset.card_image_le fun heq => ?_
+    let x : BitString n := fun _ => false
+    let y : BitString n := fun _ => true
+    have h := Finset.card_image_iff.mp heq (Finset.mem_univ (x, x)) (Finset.mem_univ (y, y))
+      (by simp [naorBadShift])
+    exact Bool.false_ne_true (congrArg (fun p : BitString n × BitString n => p.1 ⟨0, hn⟩) h)
+  have hcount := (card_not_naorBinding_le_image hlen n).trans_lt hlt
+  rw [naorBindingProb_eq_card_div]
+  refine lt_of_lt_of_le ?_ (two_pow_div_two_pow_le (a := 2 * n) (b := length n) (by lia))
+  apply (ENNReal.div_lt_div_iff_left (by positivity) (by finiteness)).2
+  exact_mod_cast (show _ < 2 ^ (2 * n) by simpa [← pow_add, two_mul] using hcount)
 
 /-- When `3 * n + 1 ≤ length n`, the binding failure probability is at most `(1 / 2) ^ (n + 1)`. -/
 theorem naorBindingProb_le_of_three_mul_add_one {generator : List Bool → List Bool}
@@ -1071,13 +1218,13 @@ theorem eq_naorCommit_of_naorVerify {generator : List Bool → List Bool} {n : �
     seed.length = n ∧ c = naorCommit generator r b seed := by
   simpa only [naorVerify, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] using h
 
-/-- A two-message statistically binding, computationally hiding bit commitment scheme [Naor1991].
-At security parameter `n`, the receiver sends a uniform challenge string `r` of length
-`challengeLength n`, the committer commits to `b : Bool` using a uniform seed `seed` of length `n`
-via `commit r b seed` of length `commitLength n`, and openings are verified by
-`verify n r c b seed`. Hiding (`stateful_hiding`) holds against any two-stage randomized stateful
-PPT receiver (`CommitmentReceiver`). -/
-structure BitCommitmentScheme where
+/-- A two-message statistically binding bit commitment scheme with uniform,
+poly-time-generable stateful hiding (`GenerableStatefulHiding` only; for arbitrary polynomially
+bounded auxiliary input [Naor1991], see `BitCommitmentScheme`). At security parameter `n`, the
+receiver sends a uniform challenge string `r` of length `challengeLength n`, the committer commits
+to `b : Bool` using a uniform seed `seed` of length `n` via `commit r b seed` of length
+`commitLength n`, and openings are verified by `verify n r c b seed`. -/
+structure GenerableBitCommitmentScheme where
   /-- Length of the receiver's first-round challenge at security parameter `n`. -/
   challengeLength : ℕ → ℕ
   /-- Length of the commitment string at security parameter `n`. -/
@@ -1117,18 +1264,18 @@ structure BitCommitmentScheme where
       ((BitString.uniformList (challengeLength n)).toOuterMeasure
         {r | ¬ ∀ s₀ s₁ : List Bool, s₀.length = n → s₁.length = n →
           commit r false s₀ ≠ commit r true s₁}).toNNReal)
-  /-- Computational hiding against a randomized stateful PPT receiver: for every polynomial-time
+  /-- Uniform stateful-receiver computational hiding: for every deterministic polynomial-time
   auxiliary family `aux : ℕ → List Bool`, no strict PPT `CommitmentReceiver` can distinguish
   commitments to its first chosen bit (`bit = false`) from commitments to its second chosen bit
   (`bit = true`) with non-negligible advantage. -/
-  stateful_hiding : StatefulHiding commit
+  generable_hiding : GenerableStatefulHiding commit
 
-/-- Deterministic-family computational hiding derived from `BitCommitmentScheme.stateful_hiding`:
-for every deterministic polynomial-time family of receiver strings `r : ℕ → List Bool` and any two
-deterministic polynomial-time families of committed bits `b₀ b₁ : ℕ → Bool`, the commitment
-ensembles for `b₀` and `b₁` are computationally indistinguishable against uniform strict PPT
-distinguishers. -/
-theorem BitCommitmentScheme.computational_hiding (h : BitCommitmentScheme) :
+/-- Deterministic-family computational hiding derived from
+`GenerableBitCommitmentScheme.generable_hiding`: for every deterministic polynomial-time family of
+receiver strings `r : ℕ → List Bool` and any two deterministic polynomial-time families of
+committed bits `b₀ b₁ : ℕ → Bool`, the commitment ensembles for `b₀` and `b₁` are computationally
+indistinguishable against uniform strict PPT distinguishers. -/
+theorem GenerableBitCommitmentScheme.computational_hiding (h : GenerableBitCommitmentScheme) :
     ∀ (r : ℕ → List Bool) (b₀ b₁ : ℕ → Bool),
       ComputableInPolyTime r encUnary encBits →
       ComputableInPolyTime b₀ encUnary encBool →
@@ -1136,15 +1283,25 @@ theorem BitCommitmentScheme.computational_hiding (h : BitCommitmentScheme) :
       ComputationallyIndistinguishable
         (fun n => (BitString.uniformList n).map (h.commit (r n) (b₀ n)))
         (fun n => (BitString.uniformList n).map (h.commit (r n) (b₁ n))) :=
-  fun _ _ _ hr hb₀ hb₁ => h.stateful_hiding.computational_hiding hr hb₀ hb₁
+  fun _ _ _ hr hb₀ hb₁ => h.generable_hiding.computational_hiding hr hb₀ hb₁
 
-/-- **Naor's bit commitment scheme** built from any pseudorandom generator with stretch at least
-`3 * n` [Naor1991]. -/
-def PseudorandomGenerator.naorBitCommitment
+/-- A two-message statistically binding, computationally hiding bit commitment scheme [Naor1991].
+Extends `GenerableBitCommitmentScheme` with auxiliary-input computational hiding (`StatefulHiding`)
+against any two-stage randomized stateful PPT receiver (`CommitmentReceiver`) given any
+polynomially bounded auxiliary input family `aux : ℕ → List Bool`. -/
+structure BitCommitmentScheme extends GenerableBitCommitmentScheme where
+  /-- Computational hiding against a randomized stateful PPT receiver given any polynomially
+  bounded auxiliary input family `aux : ℕ → List Bool`. -/
+  stateful_hiding : StatefulHiding commit
+
+/-- Naor's bit commitment scheme with uniform (`GenerableStatefulHiding`) hiding, built from any
+uniform pseudorandom generator with stretch at least `3 * n` (weaker than the arbitrary
+auxiliary-input `BitCommitmentScheme` of [Naor1991]; see `NonuniformPRG.naorBitCommitment`). -/
+def PseudorandomGenerator.naorGenerableBitCommitment
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : PseudorandomGenerator generator length)
     (hstretch : ∀ n, 3 * n ≤ length n) :
-    BitCommitmentScheme where
+    GenerableBitCommitmentScheme where
   challengeLength := length
   commitLength := length
   commit := naorCommit generator
@@ -1167,14 +1324,43 @@ def PseudorandomGenerator.naorBitCommitment
   verify_commit _ r b _ hseed := naorVerify_naorCommit r b hseed
   eq_commit_of_verify h := eq_naorCommit_of_naorVerify h
   statistical_binding := negligible_naorBindingError hG.length_eq hstretch
+  generable_hiding := hG.naorGenerableStatefulHiding
+
+/-- Existence of a statistically binding bit commitment scheme with uniform
+(`GenerableStatefulHiding`) hiding from any uniform one-way function, composing the OWF-to-PRG
+step (`OneWay.exists_pseudorandomGenerator_three_mul`, [HILL1999]) with
+`PseudorandomGenerator.naorGenerableBitCommitment` (weaker than the arbitrary auxiliary-input
+condition of [Naor1991], Section 2, pp. 3–4; see `NonuniformOneWay.exists_bitCommitmentScheme`).
+-/
+theorem OneWay.exists_generableBitCommitmentScheme {f : List Bool → List Bool} (hf : OneWay f) :
+    Nonempty GenerableBitCommitmentScheme := by
+  obtain ⟨generator, hG⟩ := hf.exists_pseudorandomGenerator_three_mul
+  exact ⟨hG.naorGenerableBitCommitment (fun n => Nat.le_succ (3 * n))⟩
+
+/-- Step toward Naor's PRG-based bit commitment construction (after [Naor1991]), not the cited
+result: packages `naorCommit generator` from any nonuniform pseudorandom generator (`NonuniformPRG`)
+with stretch at least `3 * n` into a `BitCommitmentScheme` providing `StatefulHiding` against
+randomized stateful PPT receivers given arbitrary polynomially bounded auxiliary input.
+`naorBindingProb_lt_of_three_mul` gives the strict probability bound for the binding clause.
+The hiding game uses advice fixed across its two worlds. -/
+def NonuniformPRG.naorBitCommitment
+    {generator : List Bool → List Bool} {length : ℕ → ℕ}
+    (hG : NonuniformPRG generator length)
+    (hstretch : ∀ n, 3 * n ≤ length n) :
+    BitCommitmentScheme where
+  toGenerableBitCommitmentScheme := hG.toPRG.naorGenerableBitCommitment hstretch
   stateful_hiding := hG.naorStatefulHiding
 
-/-- **Existence of bit commitments from one-way functions** [Naor1991]: if a one-way function
-exists, then there exists a statistically binding, computationally hiding bit commitment scheme
-(with hiding against randomized stateful PPT receivers, `BitCommitmentScheme.stateful_hiding`). -/
-theorem OneWay.exists_bitCommitmentScheme {f : List Bool → List Bool} (hf : OneWay f) :
+/-- Step toward bit commitments from nonuniform one-way functions (after [Naor1991]), not the cited
+result: proves `Nonempty BitCommitmentScheme` (with `StatefulHiding` against randomized stateful PPT
+receivers given arbitrary polynomially bounded auxiliary input) from any nonuniform one-way function
+(`NonuniformOneWay`), composing the nonuniform OWF-to-PRG step
+(`NonuniformOneWay.exists_nonuniformPRG_three_mul`, [HILL1999]) with
+`NonuniformPRG.naorBitCommitment`. The latter carries the fixed-advice hiding guarantee. -/
+theorem NonuniformOneWay.exists_bitCommitmentScheme {f : List Bool → List Bool}
+    (hf : NonuniformOneWay f) :
     Nonempty BitCommitmentScheme := by
-  obtain ⟨generator, hG⟩ := hf.exists_pseudorandomGenerator_three_mul
+  obtain ⟨generator, hG⟩ := hf.exists_nonuniformPRG_three_mul
   exact ⟨hG.naorBitCommitment (fun n => Nat.le_succ (3 * n))⟩
 
 end Cslib.Crypto

@@ -152,6 +152,21 @@ jobs:
           BASE=${BASE:-$RECORDED_BASE}
           git fetch --no-tags --depth=1 origin "$BASE"
           python3 -B scripts/proof_copies.py --base "$BASE" --github
+      # Advisory only: reports existing library modules modified by the pull request that have
+      # high transitive fan-in (>= 500 importers across `CslibFrontier` and `CslibFrontierTests`),
+      # reminding authors and reviewers when new helper lemmas may belong in a smaller topic module
+      # (AGENTS.md, "Placement and reuse"). Sources only; never fails the job.
+      - name: "High-fan-in module impact (advisory)"
+        if: github.event_name == 'pull_request'
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/check_hub_impact.py --base "$BASE" --github
       # The API documentation (docbuild/) and the guide (guide/) are separate Lake projects that
       # share the library's toolchain and `.lake/packages`, so their lockfiles must follow the root
       # pins. Checking here makes a root cslib or Mathlib bump without matching lockfile updates
@@ -163,11 +178,11 @@ jobs:
   lean-checks:
     needs: select-checks
     if: needs.select-checks.outputs.lean == 'true'
-    # Pushes to `main` run on the runner named by the repository variable MAIN_BUILD_RUNNER, when
-    # it is set; larger runners are billed even in public repositories. Every other event, and
-    # `main` while the variable is unset, uses the standard runner. Delete the variable to return
-    # `main` to the standard runner without a commit (scripts/cache/README.md).
-    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.MAIN_BUILD_RUNNER || 'ubuntu-24.04' }}
+    # Pushes to `main` run on the runner named by MAIN_BUILD_RUNNER when set, and merge groups run
+    # on MERGE_GROUP_RUNNER when set; larger runners are billed even in public repositories. Pull
+    # requests, manual runs, and events whose variable is unset always use the standard runner.
+    # Delete either variable to return to `ubuntu-24.04` without a commit (scripts/cache/README.md).
+    runs-on: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.MAIN_BUILD_RUNNER || github.event_name == 'merge_group' && vars.MERGE_GROUP_RUNNER || 'ubuntu-24.04' }}
     outputs:
       publication: ${{ steps.upload-publication.outputs.artifact-id }}
     permissions:
@@ -308,7 +323,22 @@ jobs:
         run: lake build --wfail --iofail @cslib-frontier @/mk_all @/checkInitImports @mathlib/lint-style
       - name: "lake test"
         run: lake test --wfail --iofail
+      # On pull requests, lint only the affected library modules and their local importing clients
+      # (#5163), falling back to whole-library `lake lint` on deletions/renames, config/linter edits,
+      # ambiguous imports, or wide changes above quick_check.py's thresholds. Merge groups, pushes to
+      # `main`, and manual runs always run whole-library `lake lint`.
+      - name: "lake lint (affected modules)"
+        if: github.event_name == 'pull_request'
+        env:
+          RECORDED_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -e
+          BASE=$(git cat-file -p HEAD | sed -n 's/^parent //p' | head -n 1)
+          BASE=${BASE:-$RECORDED_BASE}
+          git fetch --no-tags --depth=1 origin "$BASE"
+          python3 -B scripts/quick_check.py --lint-only --base "$BASE"
       - name: "lake lint"
+        if: github.event_name != 'pull_request'
         run: lake lint
       # Source hygiene that needs the build outputs: each module's count of public statements that
       # mention tidy computability (#862) must equal its baseline; proofs may use it. See

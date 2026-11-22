@@ -1,6 +1,7 @@
 """Dashboard collectors: measured traffic, privacy and non-mutating snapshots."""
 
 from datetime import datetime, timezone
+import hashlib
 import importlib.util
 import json
 import os
@@ -313,8 +314,53 @@ class StoreTests(unittest.TestCase):
         with patch.object(collector, "MAX_ENTRIES", 2), self.assertRaises(collector.SnapshotUnavailable):
             collector.storage_snapshot(self.root, NOW, {})
         self.assertEqual(path.read_bytes(), before)
-        with patch.object(collector, "MAX_MAPPING_TOTAL", 1), self.assertRaises(collector.SnapshotUnavailable):
+        with patch.object(collector, "MAX_MAPPING_BYTES", 1), self.assertRaises(collector.SnapshotUnavailable):
             collector.storage_snapshot(self.root, NOW, {})
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual(self.lock.stat().st_ino, self.old_inode)
+
+    def test_streamed_mappings_can_exceed_former_aggregate_byte_limit(self):
+        self.artifact(1, b"one")
+        directory = self.public_directory("r0", collector.SCOPE, "tc", "lean-toolchain")
+        before = {}
+        for number in range(16):
+            path = directory / f"{number:040x}.jsonl"
+            digest = hashlib.sha256()
+            with path.open("wb") as stream:
+                header = b'"2026-03-17"\n'
+                stream.write(header)
+                digest.update(header)
+                for row in range(100000):
+                    line = f'["{row:016x}", "0000000000000001.ltar"]\n'.encode()
+                    stream.write(line)
+                    digest.update(line)
+            path.chmod(0o444)
+            os.utime(path, (NOW - number, NOW - number))
+            self.assertLess(path.stat().st_size, collector.MAX_MAPPING_BYTES)
+            before[path] = (collector.file_identity(path.stat()), digest.digest())
+        total = sum(path.stat().st_size for path in before)
+        self.assertGreater(total, 64 << 20)
+        # Only this large synthetic fixture gets a generous hardware-independent budget.
+        with patch.object(collector, "STORE_SECONDS", 180):
+            snapshot = collector.storage_snapshot(self.root, NOW, {})
+        storage = snapshot["storage"]
+        self.assertEqual((storage["mapping_count"], storage["artifact_count"]), (16, 1))
+        self.assertEqual(storage["mapping_bytes"], total)
+        self.assertEqual(storage["missing_artifacts"], 0)
+        self.assertEqual(storage["artifact_bytes"], 3)
+        self.assertEqual(storage["logical_retained_bytes"], 48)
+        self.assertEqual(storage["saved_bytes"], 45)
+        self.assertEqual(storage["dedup_ratio"], 16)
+        self.assertEqual(snapshot["latest"]["revision"], "0" * 40)
+        self.assertEqual(snapshot["latest"]["module_count"], 100000)
+        for path, (identity, expected_digest) in before.items():
+            self.assertEqual(collector.file_identity(path.stat()), identity)
+            digest = hashlib.sha256()
+            with path.open("rb") as stream:
+                while chunk := stream.read(65536):
+                    digest.update(chunk)
+            self.assertEqual(digest.digest(), expected_digest)
+        self.assertEqual((self.root / "public" / ART[1:]).read_bytes(), b"one")
         self.assertEqual(self.lock.stat().st_ino, self.old_inode)
 
     def test_output_is_atomic_private_parent_and_public_file_only(self):

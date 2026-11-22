@@ -15,8 +15,14 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Op
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
+public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
+public import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Foundations.Data.List.GetD
 
@@ -341,5 +347,125 @@ enc_structure encPrvView : PrvView where
 /-- The encoding of a query `(f, x)`: `f` by `encFn`, framed, then `x`. -/
 enc_structure encQuery (Fn : Type) (encFn : Fn ↪ List Bool) : Query Fn where
   fn : encFn, input : encBits
+
+/-- Library construction (no cited definition): the state after a `prv.sim` adversary's choice
+stage: `((1^k, aux), (query, state))`. -/
+abbrev encPrvChosen {Fn σ : Type} (encFn : Fn ↪ List Bool) (encσ : σ ↪ List Bool) :
+    ((ℕ × List Bool) × (Query Fn × σ)) ↪ List Bool :=
+  encPair (encPair encUnary encBits) (encPair (encQuery Fn encFn) encσ)
+
+/-- Library infrastructure (no cited result): uniform strict PPT combinator for a two-stage
+`prv.sim` reduction that runs `B.choose ()`, branches on a polynomial-time guard `guard`, delegates
+to `cont` when `guard` holds, and runs `B.guess` on `⊥` otherwise. -/
+theorem isOraclePPT_prvSimReduction_of_guard
+    {Fn σ : Type} {encFn : Fn ↪ List Bool} {encσ : σ ↪ List Bool}
+    {B : ℕ → PrvSimAdversary Fn σ}
+    (hB : TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool encσ B)
+    (guard : ℕ → Query Fn → Prop) [∀ k q, Decidable (guard k q)]
+    (hguard : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query Fn × σ) =>
+      decide (guard p.1.1 p.2.1)) (encPrvChosen encFn encσ) encBool)
+    (cont : ℕ → Query Fn → σ → Probability.WordOracleComp Unit Bool)
+    (hcont : Probability.IsOraclePPTOn (encPrvChosen encFn encσ) encBool
+      (fun p => cont p.1.1 p.2.1 p.2.2)) :
+    Probability.IsOraclePPT encBool (fun k _ => do
+      let (query, state) ← ProbOracleComp.sample ((B k).choose ())
+      if guard k query then cont k query state
+      else ProbOracleComp.sample ((B k).guess state none)) := by
+  have hnone := (hB.guess.preprocess
+    (((ComputableInPolyTime.fst (encPair encUnary encBits)
+      (encPair (encQuery Fn encFn) encσ)).fst').prod
+      (((ComputableInPolyTime.snd _ _).snd').prod
+        (ComputableInPolyTime.const (encIn := encPrvChosen encFn encσ)
+          (encOut := encOption encPrvView) none)))).isOraclePPTOn (Operation := Unit)
+  have hchoose := (hB.choose.preprocess (prepare := fun a : ℕ × List Bool => (a.1, ()))
+    ((ComputableInPolyTime.fst encUnary encBits).prod
+      (ComputableInPolyTime.const ()))).isOraclePPTOn (Operation := Unit)
+  exact hchoose.bind_with (Probability.IsOraclePPTOn.ite hguard hcont hnone)
+
+/-- Library infrastructure (no cited result): uniform strict PPT combinator for a two-stage
+`prv.sim` reduction that checks `query.input.length = n query.fn ∧ mult * q query.fn ≤ 2 ^ k`,
+samples `coinLen k query.fn` uniform coin bits and delegates to `cont`, or runs `B.guess` on `⊥`.
+-/
+theorem isOraclePPT_prvSimReduction_of_bounded
+    {Fn σ : Type} {encFn : Fn ↪ List Bool} {encσ : σ ↪ List Bool}
+    {B : ℕ → PrvSimAdversary Fn σ}
+    (hB : TwoStage.IsPPT encUnit (encQuery Fn encFn) (encOption encPrvView) encBool encσ B)
+    {n q : Fn → ℕ} (mult : ℕ) {coinLen : ℕ × Fn → ℕ}
+    (hn : ComputableInPolyTime n encFn encUnary)
+    (hq : ComputableInPolyTime q encFn encUnary)
+    (hlen : ComputableInPolyTime coinLen (encPair encUnary encFn) encUnary)
+    (cont : ℕ → Query Fn → σ → List Bool → Probability.WordOracleComp Unit Bool)
+    (hcont : Probability.IsOraclePPTOn (encPair (encPrvChosen encFn encσ) encBits) encBool
+      (fun p => cont p.1.1.1 p.1.2.1 p.1.2.2 p.2)) :
+    Probability.IsOraclePPT encBool (fun k _ => do
+      let (query, state) ← ProbOracleComp.sample ((B k).choose ())
+      if query.input.length = n query.fn ∧ mult * q query.fn ≤ 2 ^ k then do
+        let coins ← ProbOracleComp.sample (BitString.sampleList (coinLen (k, query.fn)))
+        cont k query state coins
+      else ProbOracleComp.sample ((B k).guess state none)) := by
+  let E := encPrvChosen encFn encσ
+  have hk : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query Fn × σ) => p.1.1) E
+      encUnary := (ComputableInPolyTime.fst _ _).fst'
+  have hquery : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query Fn × σ) => p.2.1) E
+      (encQuery Fn encFn) := (ComputableInPolyTime.snd _ _).fst'
+  have hfn := encQuery_fn_polyTime Fn encFn hquery
+  have hx := encQuery_input_polyTime Fn encFn hquery
+  have hcond : ComputableInPolyTime (fun p : (ℕ × List Bool) × (Query Fn × σ) =>
+      decide (p.2.1.input.length = n p.2.1.fn ∧ mult * q p.2.1.fn ≤ 2 ^ p.1.1)) E encBool :=
+    ComputableInPolyTime.decide_and
+      (ComputableInPolyTime.decide_eq' (ComputableInPolyTime.length_bits_comp hx) (hn.comp hfn))
+      (ComputableInPolyTime.binary_le'
+        (ComputableInPolyTime.unary_to_binary.comp
+          (ComputableInPolyTime.unary_mul.comp
+            ((ComputableInPolyTime.const mult).prod (hq.comp hfn))))
+        (ComputableInPolyTime.binary_two_pow.comp hk))
+  have hcoins := (Probability.isPPTOn_sampleList.preprocess
+    (hlen.comp (hk.prod hfn))).isOraclePPTOn (Operation := Unit)
+  exact isOraclePPT_prvSimReduction_of_guard hB
+    (fun k query => query.input.length = n query.fn ∧ mult * q query.fn ≤ 2 ^ k)
+    hcond (fun k query state => do
+      let coins ← ProbOracleComp.sample (BitString.sampleList (coinLen (k, query.fn)))
+      cont k query state coins) (hcoins.bind_with hcont)
+
+/-- Library construction (no cited definition): one word-oracle step querying `req` and appending
+the reply truncated to `len` bits. -/
+@[expose] noncomputable def replyStepWord (len : ℕ) (req : List Bool) (rs : List (List Bool)) :
+    Probability.WordOracleComp Unit (List (List Bool)) :=
+  (fun reply => rs ++ [reply]) <$> (List.take len <$> ProbOracleComp.query
+    (spec := fun _ : Unit × List Bool => List Bool) ((), req))
+
+/-- Library infrastructure (no cited result): one `replyStepWord` step is uniform strict oracle
+PPT whenever the request and length bound are computed in polynomial time. -/
+theorem isOraclePPTOn_replyStepWord {γ : Type} {encIn : γ ↪ List Bool}
+    {len : γ → ℕ} {req : γ × List (List Bool) → List Bool}
+    (hlen : ComputableInPolyTime len encIn encUnary)
+    (hreq : ComputableInPolyTime req (encPair encIn (encList encBits)) encBits) :
+    Probability.IsOraclePPTOn (encPair encIn (encList encBits)) (encList encBits)
+      (fun p : γ × List (List Bool) => replyStepWord (len p.1) (req p) p.2) := by
+  let E := encPair encIn (encList encBits)
+  have hfst := ComputableInPolyTime.fst encIn (encList encBits)
+  have hrs := ComputableInPolyTime.snd encIn (encList encBits)
+  have hnil : ComputableInPolyTime (fun _ : (γ × List (List Bool)) × List Bool =>
+      ([] : List (List Bool))) (encPair E encBits) (encList encBits) := ComputableInPolyTime.const _
+  have hpost : ComputableInPolyTime (fun p : (γ × List (List Bool)) × List Bool =>
+      p.1.2 ++ [p.2]) (encPair E encBits) (encList encBits) :=
+    ComputableInPolyTime.listAppend' (hrs.comp (ComputableInPolyTime.fst E encBits))
+      (ComputableInPolyTime.cons' (ComputableInPolyTime.snd E encBits) hnil)
+  unfold replyStepWord
+  exact Probability.IsOraclePPTOn.map_with
+    (Probability.IsOraclePPTOn.query_take () hreq (hlen.comp hfst)) hpost
+
+/-- Library infrastructure (no cited result): a `replyStepWord len` step increases the encoded
+reply-list length by at most `2 * len + 2`. -/
+theorem length_le_of_mem_support_replyStepWord {len : ℕ} {req : List Bool}
+    {rs next : List (List Bool)}
+    (hnext : next ∈ OracleComp.support (replyStepWord len req rs)) :
+    (encList encBits next).length ≤ (encList encBits rs).length + (2 * len + 2) := by
+  unfold replyStepWord at hnext
+  obtain ⟨reply, hreply, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+  obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hreply
+  simp only [length_encList, List.map_append, List.sum_append, List.map_cons, List.map_nil,
+    List.sum_cons, List.sum_nil, encBits_apply, List.length_take]
+  omega
 
 end Cslib.Crypto.Garbling

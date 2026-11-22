@@ -147,34 +147,31 @@ noncomputable def ecomplexity (R : (∀ i, X i) → Z → Prop) (A : Set (∀ i,
   ⨅ p : {p : Protocol X Z // p.Solves R A}, (p.1.depth : ℕ∞)
 
 theorem ecomplexity_le_depth (hp : p.Solves R A) : ecomplexity R A ≤ p.depth :=
-  iInf_le (fun p : {p : Protocol X Z // p.Solves R A} => (p.1.depth : ℕ∞)) ⟨p, hp⟩
+  ENat.iInf_subtype_natCast_le hp
 
-theorem ecomplexity_ne_top_iff : ecomplexity R A ≠ ⊤ ↔ ∃ p : Protocol X Z, p.Solves R A := by
-  rw [ecomplexity, ENat.iInf_natCast_ne_top, nonempty_subtype]
+theorem ecomplexity_ne_top_iff : ecomplexity R A ≠ ⊤ ↔ ∃ p : Protocol X Z, p.Solves R A :=
+  ENat.iInf_subtype_natCast_ne_top_iff
 
 /-- When some protocol solves `R`, the least depth is attained. -/
 theorem exists_solves_depth_eq_ecomplexity (h : ∃ p : Protocol X Z, p.Solves R A) :
-    ∃ p : Protocol X Z, p.Solves R A ∧ (p.depth : ℕ∞) = ecomplexity R A := by
-  have : Nonempty {p : Protocol X Z // p.Solves R A} := nonempty_subtype.mpr h
-  obtain ⟨⟨p, hp⟩, hmin⟩ :=
-    ENat.exists_eq_iInf (fun p : {p : Protocol X Z // p.Solves R A} => (p.1.depth : ℕ∞))
-  exact ⟨p, hp, hmin⟩
+    ∃ p : Protocol X Z, p.Solves R A ∧ (p.depth : ℕ∞) = ecomplexity R A :=
+  ENat.exists_eq_iInf_subtype_natCast h
 
 /-- Upper bounds on communication complexity: `R` has communication complexity at most `k` on `A`
 exactly when some protocol of depth at most `k` solves it. -/
 theorem ecomplexity_le_iff {k : ℕ} :
-    ecomplexity R A ≤ k ↔ ∃ p : Protocol X Z, p.Solves R A ∧ p.depth ≤ k := by
-  simp only [ecomplexity, ENat.iInf_natCast_le_natCast_iff, Subtype.exists, exists_prop]
+    ecomplexity R A ≤ k ↔ ∃ p : Protocol X Z, p.Solves R A ∧ p.depth ≤ k :=
+  ENat.iInf_subtype_natCast_le_natCast_iff
 
 /-- Lower bounds on communication complexity are lower bounds on the depth of every protocol
 solving the relation, including when there is none. -/
 theorem le_ecomplexity_iff {k : ℕ∞} :
-    k ≤ ecomplexity R A ↔ ∀ p : Protocol X Z, p.Solves R A → k ≤ p.depth := by
-  simp only [ecomplexity, le_iInf_iff, Subtype.forall]
+    k ≤ ecomplexity R A ↔ ∀ p : Protocol X Z, p.Solves R A → k ≤ p.depth :=
+  ENat.le_iInf_subtype_natCast_iff
 
 /-- Solving a relation on a larger set is harder. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) : ecomplexity R A' ≤ ecomplexity R A :=
-  le_iInf fun p => iInf_le_of_le ⟨p.1, p.2.mono hA⟩ le_rfl
+  ENat.iInf_subtype_natCast_mono fun _ hp => hp.mono hA
 
 /-- The communication complexity of computing `f` on all inputs: `ecomplexity` of the relation
 `f x = z` on all inputs. -/
@@ -188,19 +185,19 @@ theorem solves_univ_iff : p.Solves (fun x z => f x = z) Set.univ ↔ p.run = f :
   ⟨fun h => funext fun x => (h x trivial).symm, fun h x _ => by rw [h]⟩
 
 theorem ecomplexityFun_le_depth (hp : p.run = f) : ecomplexityFun f ≤ p.depth :=
-  ecomplexity_le_depth (solves_univ_iff.mpr hp)
+  ENat.iInf_subtype_natCast_le_of_iff (fun _ => solves_univ_iff) hp
 
 /-- Computing `f` has communication complexity at most `k` exactly when some protocol of depth at
 most `k` computes `f`. -/
 theorem ecomplexityFun_le_iff {k : ℕ} :
-    ecomplexityFun f ≤ k ↔ ∃ p : Protocol X Z, p.run = f ∧ p.depth ≤ k := by
-  simp only [ecomplexityFun, ecomplexity_le_iff, solves_univ_iff]
+    ecomplexityFun f ≤ k ↔ ∃ p : Protocol X Z, p.run = f ∧ p.depth ≤ k :=
+  ENat.iInf_subtype_natCast_le_natCast_iff_of_iff fun _ => solves_univ_iff
 
 /-- Lower bounds on the communication complexity of `f` are lower bounds on the depth of every
 protocol computing `f`, including when there is none. -/
 theorem le_ecomplexityFun_iff {k : ℕ∞} :
-    k ≤ ecomplexityFun f ↔ ∀ p : Protocol X Z, p.run = f → k ≤ p.depth := by
-  simp only [ecomplexityFun, le_ecomplexity_iff, solves_univ_iff]
+    k ≤ ecomplexityFun f ↔ ∀ p : Protocol X Z, p.run = f → k ≤ p.depth :=
+  ENat.le_iInf_subtype_natCast_iff_of_iff fun _ => solves_univ_iff
 
 /-! ### Writing a bit string -/
 
