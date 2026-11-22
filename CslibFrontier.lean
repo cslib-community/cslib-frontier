@@ -1558,6 +1558,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.WordConstant.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.XorLemma
 public import CslibFrontier.Computability.Circuit.Boolean.XorPowerListSize
 public import CslibFrontier.Computability.Circuit.Boolean.Yablonskii
+public import CslibFrontier.Computability.Circuit.Boolean.Zhegalkin
 public import CslibFrontier.Computability.Circuit.Clique
 public import CslibFrontier.Computability.Circuit.Complexity
 public import CslibFrontier.Computability.Circuit.Complexity.Composition

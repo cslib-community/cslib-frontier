@@ -6,4 +6,5 @@ import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.RandomOracleKDF
+import CslibFrontierResults.Entries.SergeevAdditiveMultiplicative
 import CslibFrontierResults.Registry
