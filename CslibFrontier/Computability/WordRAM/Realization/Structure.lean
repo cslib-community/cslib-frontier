@@ -31,21 +31,16 @@ word encodings `eᵢ : Fᵢ ↪ (Fin kᵢ → ℕ)` (or explicit `WordEncoding F
 Applied structure types with implicit `variable` parameters (`word_enc_structure eL : Layout n`),
 explicit command parameters `(p : T)` before `:`, flattened parent structures, and dependent fields
 `f : w using hw` (encoding `f` as the scalar word `w f` for an injective `w` reading earlier
-fields by name) follow the same conventions as `enc_structure`.
+fields by name) follow the same conventions as `enc_structure`. Supporting `@[simp]` coordinate
+and slice equations (`blockWords_zero`, `blockWords_one`, `appendWords_castAdd`,
+`appendWords_natAdd`, `appendWords_addNat`, `sigmaWords_castAdd`, `sigmaWords_natAdd`,
+`sigmaWords_addNat`) and word-fit helpers (`blockWords_fits`, `fits_sigmaWords`) normalize encoded
+slices and compose `Fits` bounds across `Block`, `appendWords` and `sigmaWords`.
 
 ## Main definitions
 
 * `wordWords`: the one-word scalar encoding `ℕ ↪ (Fin 1 → ℕ)`.
 * `sigmaWords`: fixed-fiber-width dependent-pair word encoding `(Σ a, β a) ↪ (Fin (k + l) → ℕ)`.
-
-## Main results
-
-* `blockWords_zero`, `blockWords_one`, `blockWords_fits`: coordinate `@[simp]` rules and word-fit
-  composition for `blockWords`.
-* `appendWords_castAdd`, `appendWords_natAdd`, `appendWords_addNat`: slice `@[simp]` equations for
-  `appendWords`.
-* `sigmaWords_castAdd`, `sigmaWords_natAdd`, `sigmaWords_addNat`, `fits_sigmaWords`: slice
-  `@[simp]` equations and word-fit composition for `sigmaWords`.
 -/
 
 public section

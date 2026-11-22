@@ -138,26 +138,26 @@ register encoding. -/
         exact ⟨hwin, halloc, K, hK, hI⟩)
       (fun _ _ => le_rfl)
 
-/-- Allocate an empty Fibonacci-heap layout of capacity `n` in dirty memory. -/
-@[expose] def allocHeapLayout (n : ℕ) : Memory.Prog HeapLayout := do
+private def allocHeapLayout (n : ℕ) : Memory.Prog HeapLayout := do
   let base ← Memory.allocDirty (9 * n + 5)
   pure ⟨n, base⟩
 
-/-- Uniform native realization of `allocHeapLayout`. -/
-theorem allocHeapLayout_realizes : Realizes .exact allocHeapLayout wordWords layoutWords
+private theorem allocHeapLayout_realizes : Realizes .exact allocHeapLayout wordWords layoutWords
     (fun w n s => Fits w (s.frontier + (9 * n + 5))) (fun _ _ => 0) := by
   have _ := FibonacciHeap.Native.Initialize.realizes_reserve
   unfold allocHeapLayout
   realize
   exact h
 
-/-- Dirty-reservation adapter connecting `allocHeapLayout` to `nativeMethods`. -/
+/-- Dirty-reservation adapter connecting `Memory.allocDirty (9 * n + 5)` to `nativeMethods`. -/
 @[expose] def nativeAllocator : NativeAllocator nativeMethods where
-  alloc := allocHeapLayout
+  alloc n := do
+    let base ← Memory.allocDirty (9 * n + 5)
+    pure ⟨n, base⟩
   span n := 9 * n + 5
   allocated n b := ⟨n, b⟩
   run_alloc _ _ := ⟨rfl, rfl⟩
-  realizes_alloc := allocHeapLayout_realizes
+  realizes_alloc := by exact allocHeapLayout_realizes
   fits_alloc G {_} hfit := by
     rw [Memory.frontier_init G]
     exact hfit.of_le (by nlinarith)
@@ -186,7 +186,7 @@ theorem realizes_run : Realizes .exact (fun _ : Unit => run)
       Fits w (8 * (G.n + G.m + 2) * (G.maxWeight + 2))) (fun _ _ => 0) := by
   refine nativeAllocator.realizes_runWord.congr fun _ => ?_
   refine Eq.trans ?_ runWord_eq
-  unfold runWord nativeAllocator allocHeapLayout nativeMethods
+  unfold runWord nativeAllocator nativeMethods
   simp only [bind_assoc, pure_bind]
 
 /-- One flat exact-basis program, chosen before all graphs and widths, computes every distance
