@@ -1155,6 +1155,21 @@ theorem Assign.unassignEntries_eq (A : Assign) (M : XTrail) :
     rw [ih]
     simp [Assign.unassign, Trail.vars, XTrail.trail, XEntry.var_entry]
 
+/-- **Assigning a level** of the trail on top of `A`: the decision `d`, then the entries `M`
+above it, oldest first, without listing their trail: what `Assign.assignTrail` does on
+`XTrail.trail M ++ [⟨d, true⟩]` (`Assign.assignLevel_eq`). -/
+@[expose] def Assign.assignLevel (A : Assign) (d : Literal ℕ) : XTrail → Assign
+  | [] => A.assign d
+  | e :: M => (Assign.assignLevel A d M).assign e.lit
+
+theorem Assign.assignLevel_eq (A : Assign) (d : Literal ℕ) (M : XTrail) :
+    A.assignLevel d M = A.assignTrail (XTrail.trail M ++ [⟨d, true⟩]) := by
+  induction M with
+  | nil => simp [Assign.assignLevel, Assign.assignTrail]
+  | cons e M ih =>
+    rw [Assign.assignLevel, ih, XTrail.trail_cons, List.cons_append, Assign.assignTrail_cons,
+      XEntry.lit_entry]
+
 /-- **Saving the phases of the literals of the entries `M`**, folding over them in order: what
 `Phases.save` does on their trail (`Phases.saveEntries_eq`), without listing them. -/
 @[expose] def Phases.saveEntries (P : Phases) (M : XTrail) : Phases :=
@@ -1170,20 +1185,21 @@ those undone are inserted if they are not marked, as MiniSat's `insertVarOrder` 
 its heap; all of them are then marked. The order keeps stale entries; past eight entries per
 variable it is rebuilt from the variables of `φ`. -/
 @[expose] def reorderedWith (φ : CNF ℕ) (o : Options) (H : VarOrder) (I : Array Bool)
-    (A : Activity) (vs : List ℕ) (U : XTrail) : VarOrder × Array Bool :=
+    (A : Activity) (vs : List ℕ) (U : XTrail) (asg : Assign) : VarOrder × Array Bool :=
   if o.vsids then
     if 8 * A.score.size < H.size then
       VarOrder.add Batteries.BinaryHeap.emptyF (Array.replicate I.size false) A (dedupVars φ.vars)
     else
-      let p := VarOrder.add H I A vs
+      let I := VarOrder.unmark I vs
+      let p := VarOrder.addMissing H I A (vs.filter fun v => !asg.assigned v)
       VarOrder.addMissing p.1 p.2 A (XTrail.vars U)
   else (H, I)
 
 /-- The variable order and its marks after a conflict meeting the variables `vs` and undoing the
 entries `U` (`reorderedWith`). -/
-@[expose] def WExec.reordered (S : WExec φ) (A : Activity) (vs : List ℕ) (U : XTrail) :
-    VarOrder × Array Bool :=
-  reorderedWith φ S.opts S.order S.inOrder A vs U
+@[expose] def WExec.reordered (S : WExec φ) (A : Activity) (vs : List ℕ) (U : XTrail)
+    (asg : Assign) : VarOrder × Array Bool :=
+  reorderedWith φ S.opts S.order S.inOrder A vs U asg
 
 /-- The phases `P` after undoing the entries `U`: those of the literals undone are saved, if phase
 saving is on. -/
@@ -1261,8 +1277,8 @@ theorem jumpMarked_iff {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below))
     (v : ℕ) : jumpMarked sp L v = true ↔ v ∈ L.clause.map Prod.fst := by
   by_cases hv : v ∈ L.clause.map Prod.fst
-  · simp [jumpMarked, jumpMarks, Assign.assigned, Assign.value_mark, hv]
-  · simp only [jumpMarked, jumpMarks, Assign.assigned, Assign.value_mark, hv, ite_false,
+  · simp [jumpMarked, jumpMarks, Assign.assigned_eq_isSome, Assign.value_mark, hv]
+  · simp only [jumpMarked, jumpMarks, Assign.assigned_eq_isSome, Assign.value_mark, hv, ite_false,
       (clearedMarks sp L).2 v, Option.isSome_none, Bool.false_eq_true]
 
 theorem jumpMarked_of_mem {log : LRATLog φ} (sp : Split)
@@ -1327,15 +1343,17 @@ are built once, read by the backjump and cleared after it. -/
   let j := exec.jump sp marks.assigned
   let U := j.1
   let A := bumpedWith opts act L.seen
-  let order := reorderedWith φ opts order inOrder A (dedupVars L.seen) U
-  let phase := savedWith opts phase U
   let assign := backjumpedWith assign U L.lit
+  let order := reorderedWith φ opts order inOrder A (dedupVars L.seen) U assign
+  let phase := savedWith opts phase U
   let occurs := occurs.mark (L.clause.map Prod.fst)
   let level := level - U.countP fun x => x.entry.decision
   let k := (dedupLits L.clause).length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
-    let red := reducedWith opts red L.used L.id (L.id + 1) (isLearntId φ.length L.id)
+    -- a learned clause's number is the log's next one, beyond the clauses of `φ`
+    -- (`Learned.isLearntId_id`): it counts as learned, with no test of `φ.length`
+    let red := reducedWith opts red L.used L.id (L.id + 1) true
     let store := store.addClause L.id (learnedWatched L.clause L.lit)
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order.1, order.2,
       phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
@@ -1399,9 +1417,19 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       exact Trail.mem_vars_of_mem_lits (lits_below hxM₀)
   -- the variables met and undone are put back in the order; the others keep their entries, and
   -- bumping did not raise their activities
+  -- the assignment undoes the literals above the decision, then asserts the learned literal
+  have hassign : (S.backjumped U L.lit).Agrees (⟨L.lit, false⟩ :: XTrail.trail K) := by
+    rw [WExec.backjumped, backjumpedWith, Assign.unassignEntries_eq]
+    have hA := hS.assign
+    have hnd := hS.exec.run.nodup
+    rw [hMUK] at hA
+    change (Trail.vars S.M).Nodup at hnd
+    rw [hMUK, vars_append] at hnd
+    exact (hA.drop fun v hv => List.disjoint_of_nodup_append hnd hv).cons
+      (List.nodup_cons.1 hnodup').1 false
   have horder : S.opts.vsids = true → ∀ T : WExec φ,
-      T.order = (S.reordered (S.bumped L.seen) (dedupVars L.seen) U).1 →
-      T.inOrder = (S.reordered (S.bumped L.seen) (dedupVars L.seen) U).2 →
+      T.order = (S.reordered (S.bumped L.seen) (dedupVars L.seen) U (S.backjumped U L.lit)).1 →
+      T.inOrder = (S.reordered (S.bumped L.seen) (dedupVars L.seen) U (S.backjumped U L.lit)).2 →
       T.act = S.bumped L.seen →
       T.exec = S.exec.afterConflict sp L (jumpMarked sp L) →
       T.occurs = S.occurs.mark (L.clause.map Prod.fst) → T.OrderInv := by
@@ -1418,39 +1446,41 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     rename_i hbig
     simp only [hbig, ↓reduceIte] at hTI
     rw [WExec.OrderInv, hTo, hTI, hTa]
-    -- the variables met are inserted again, with their bumped activities; the others' activities
-    -- did not grow, so their marks stay sound
+    -- the variables met are unmarked, as their activities grew, and inserted with them if the
+    -- backjump leaves them unassigned; the others' activities did not grow, so their marks stay
+    -- sound
     set A' := S.act.bump L.seen with hA'
     have hlow : ∀ v, v ∉ dedupVars L.seen → A'.get v ≤ S.act.get v := fun v hv =>
       Activity.get_bump_le fun h => hv ((mem_dedupKey Function.injective_id).2 h)
-    have h₁ := VarOrder.added_add S.order S.inOrder A' (dedupVars L.seen)
-    obtain ⟨hcov₁, hmk₁⟩ := VarOrder.add_spec S.order S.inOrder A' (dedupVars L.seen)
-    have hmarked₁ : VarOrder.Marked (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).1 A'
-        (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).2 := fun v hv => by
-      by_cases hvs : v ∈ dedupVars L.seen
-      · exact hcov₁ v hvs
-      · rcases hmk₁ v hv with h | h
-        · exact absurd h hvs
-        · obtain ⟨k, hk, hmem⟩ := hS'.marked v h
-          exact ⟨k, (hlow v hvs).trans hk, h₁.mem_old _ hmem⟩
-    have h₂ := VarOrder.added_addMissing (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).1
-      (VarOrder.add S.order S.inOrder A' (dedupVars L.seen)).2 A' (Trail.vars (XTrail.trail U))
+    set I₀ := VarOrder.unmark S.inOrder (dedupVars L.seen) with hI₀
+    have hm₀ : VarOrder.Marked S.order A' I₀ := fun v hv => by
+      obtain ⟨hvs, hv'⟩ := VarOrder.marked_unmark hv
+      obtain ⟨k, hk, hmem⟩ := hS'.marked v hv'
+      exact ⟨k, (hlow v hvs).trans hk, hmem⟩
+    set vs₁ := (dedupVars L.seen).filter fun v => !(S.backjumped U L.lit).assigned v with hvs₁
+    have h₁ := VarOrder.added_addMissing S.order I₀ A' vs₁
+    have h₂ := VarOrder.added_addMissing (VarOrder.addMissing S.order I₀ A' vs₁).1
+      (VarOrder.addMissing S.order I₀ A' vs₁).2 A' (Trail.vars (XTrail.trail U))
     have hTM : T.M = ⟨L.lit, false⟩ :: XTrail.trail K := by
       change XTrail.trail T.exec.trail = _; rw [hTe]; rfl
-    refine ⟨h₂.wf (h₁.wf hS'.wf), fun e he => ?_, fun v hv hvM hvo => ?_, h₂.marked hmarked₁⟩
+    refine ⟨h₂.wf (h₁.wf hS'.wf), fun e he => ?_, fun v hv hvM hvo => ?_,
+      h₂.marked (h₁.marked hm₀)⟩
     · rcases h₂.mem_new e he with he | ⟨v, hv, rfl⟩
       · rcases h₁.mem_new e he with he | ⟨v, hv, rfl⟩
         · exact hS'.vars e he
-        · exact L.seen_mem v ((mem_dedupKey Function.injective_id).1 hv)
+        · exact L.seen_mem v ((mem_dedupKey Function.injective_id).1 (List.mem_filter.1 hv).1)
       · refine hS.exec.run.subset v ?_
         change v ∈ Trail.vars S.M
         rw [hMUK, vars_append]
         exact List.mem_append_left _ hv
     · by_cases hvs : v ∈ dedupVars L.seen
-      · obtain ⟨k, hk, hmem⟩ := hcov₁ v hvs
+      · -- unassigned after the backjump, so among the variables inserted
+        have hva : (S.backjumped U L.lit).assigned v = false :=
+          hassign.not_assigned (hTM ▸ hvM)
+        obtain ⟨k, hk, hmem⟩ := h₁.covers hm₀ v (List.mem_filter.2 ⟨hvs, by simp [hva]⟩)
         exact ⟨k, hk, h₂.mem_old _ hmem⟩
       by_cases hvU : v ∈ Trail.vars (XTrail.trail U)
-      · exact h₂.covers hmarked₁ v hvU
+      · exact h₂.covers (h₁.marked hm₀) v hvU
       have hvM' : v ∉ Trail.vars S.M := by
         rw [hMUK, vars_append, List.mem_append, not_or]
         refine ⟨hvU, fun h => hvM ?_⟩
@@ -1473,16 +1503,6 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       v ∈ (S.exec.afterConflictWith L K).clauses.vars := fun v => by
     rw [Assign.assigned_mark, hS.occurs v]
     simp [Exec.afterConflictWith, Exec.clauses, CNF.vars]
-  -- the assignment undoes the literals above the decision, then asserts the learned literal
-  have hassign : (S.backjumped U L.lit).Agrees (⟨L.lit, false⟩ :: XTrail.trail K) := by
-    rw [WExec.backjumped, backjumpedWith, Assign.unassignEntries_eq]
-    have hA := hS.assign
-    have hnd := hS.exec.run.nodup
-    rw [hMUK] at hA
-    change (Trail.vars S.M).Nodup at hnd
-    rw [hMUK, vars_append] at hnd
-    exact (hA.drop fun v hv => List.disjoint_of_nodup_append hnd hv).cons
-      (List.nodup_cons.1 hnodup').1 false
   have hmeasure : rank φ.vars (S.exec.afterConflictWith L K).state * (nvars φ + 2) + 1 <
       S.measure := by
     have := hspec.2
@@ -2020,6 +2040,13 @@ theorem WExec.maybeReduce_conflicts (S : WExec φ) :
   · split <;> rfl
   · rfl
 
+/-- The number of a learned clause is a learned number: the log's next number, beyond the clauses
+of `φ`. -/
+theorem Learned.isLearntId_id {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
+    isLearntId φ.length L.id = true := by
+  simp only [isLearntId, Learned.id]
+  exact decide_eq_true log.next_gt
+
 /-- **The count of learned clauses at insertion**: with reduction on, a conflict whose learned
 clause goes to the watch store (two or more literals) counts it exactly when its number is a
 learned one (`isLearntId`), the rule by which `WatchStore.learntCount` counts the store
@@ -2030,7 +2057,7 @@ theorem WExec.afterConflict_learnts (S : WExec φ) (sp : Split) (L : S.exec.Lear
       if isLearntId φ.length L.id then S.red.learnts + 1 else S.red.learnts := by
   unfold WExec.afterConflict
   dsimp only
-  rw [ite_eq_left hk]
+  rw [ite_eq_left hk, L.isLearntId_id]
   simp only [reducedWith, hred, ite_true, Reduction.learn]
   split <;> rfl
 
@@ -2108,8 +2135,10 @@ a restarted state has fewer conflicts than that. -/
       have hT₁ : T₁.Inv := hT.dropMarks
       let L₀ := analyze T₁.exec.log sp.decision sp.below
         (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
-        (marks.1.assignTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
-        (Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
+        (marks.1.assignLevel sp.decision sp.above)
+        (by
+          rw [Assign.assignLevel_eq]
+          exact Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
         (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
         (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
         (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)

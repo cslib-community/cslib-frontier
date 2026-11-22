@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Computational.CompositeResiduosity
 import CslibFrontier.Crypto.Computational.RabinFactoring
 import Mathlib.Tactic.NormNum.Prime
@@ -12,13 +14,21 @@ import Mathlib.Tactic.NormNum.Prime
 # Tests for Rabin squaring and factoring equivalence
 -/
 
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Crypto.RabinFactoring
 
 open Cslib Cslib.Crypto
 
 /-- Smallest Blum integer `N = 3 * 7 = 21` (`3 ≡ 3 [MOD 4]`, `7 ≡ 3 [MOD 4]`). -/
-def blum21 : BlumDesc :=
-  ⟨(3, 7), ⟨⟨by norm_num, by decide⟩, ⟨by norm_num, by decide⟩, by decide⟩⟩
+def blum21 : BlumDesc where
+  p := 3
+  q := 7
+  hp := by norm_num
+  hq := by norm_num
+  hpq := by decide
+  hp3 := by decide
+  hq3 := by decide
 
 example : blum21.modulus = 21 := rfl
 

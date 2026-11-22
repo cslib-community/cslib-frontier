@@ -143,6 +143,8 @@ import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPo
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 
+import CslibFrontier.Foundations.BooleanAnalysis.LevelOneInequality
+
 import CslibFrontier.Foundations.BooleanAnalysis.SmallSetExpansion
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
@@ -306,6 +308,7 @@ import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
+import CslibFrontier.Crypto.Primitives.PRG.ModThreeBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
@@ -10014,6 +10017,21 @@ register_result "goldreich-read-once-prg-stretch" where
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
 
+register_result "goldreich-small-bias-not-space-pseudorandom" where
+  title := "An exponentially small-bias distribution that is not (2, 0.666)-pseudorandom"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.39",
+      locator := "March 2007 draft, printed p. 380 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Crypto.PRG.exists_isSmallBias_not_secure]
+  scope := "The distribution on {0,1}^n is the uniform distribution on the words of weight \
+    divisible by three, as the output of a generator whose seeds are those words. Its bias \
+    (Eq. (8.18), the absolute value of IsSmallBias's bias) is at most 4 c^n with c = √3/2 < 1 \
+    for every n, and for every n ≥ 10 a read-once program with 2^2 states per layer \
+    (Definition 8.20, space 2) distinguishes it from uniform with gap above 0.666, so the \
+    ensemble is not (2, 0.666)-pseudorandom."
+
 register_result "goldreich-adaptive-t-wise-independence" where
   title := "Adaptive block tests of t-wise independent generators"
   topic := "pseudorandomness"
@@ -12787,3 +12805,21 @@ register_result "odonnell-unbiased-noise-stability-dictators" where
     the closed interval containing the book's 0 < ρ < 1; and for 0 < ρ < 1, Stab_ρ[f] = ρ if \
     and only if f x = b ⊕ x i for some coordinate i and bit b, the book's ±χ_i. The equality \
     case fails at both endpoints."
+
+register_result "odonnell-level-one-inequality" where
+  title := "Level-1 Inequality with the explicit constant 16"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Level-1 Inequality",
+      locator := "arXiv:2105.10386v1, §5.4, printed p. 126; proof for [−1, 1]-valued functions \
+        on printed p. 128" }
+  ]
+  theorems := [
+    Cslib.BitString.levelWeight_one_le_of_abs_le_one,
+    Cslib.BitString.levelWeight_one_bitVal_le
+  ]
+  scope := "Uniform cube on any finite coordinate type. The source's O(α² log(1/α)) is stated \
+    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α) whenever \
+    α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
+    for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
+    is not covered."
