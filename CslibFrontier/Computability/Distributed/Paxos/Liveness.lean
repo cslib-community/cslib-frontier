@@ -27,9 +27,9 @@ with the necessity of quorum intersection ([Lamport1998]; [Lamport2001]):
    explicit crash-free, drop-free, stutter-free infinite execution alternates `Phase1a` prepares so
    each proposer's `Phase2a` accept request is preempted before `Phase2b` can fire, preventing any
    acceptor from voting and any learner from deciding ([Lamport2001] §2.4; cf. [Lamport1998] §2.4).
-2. **Conditional Single-Distinguished-Leader Liveness (`paxos_liveness_of_sole_leader`):** Formalizes
-   the conditional single-distinguished-proposer 4-phase progress step ([Lamport2001] §2.4; cf.
-   [Lamport1998] §2.1 Theorem 2 and §2.4): from any reachable Synod state, assuming an
+2. **Conditional Single-Distinguished-Leader Liveness (`paxos_liveness_of_sole_leader`):**
+   Formalizes the conditional single-distinguished-proposer 4-phase progress step ([Lamport2001]
+   §2.4; cf. [Lamport1998] §2.1 Theorem 2 and §2.4): from any reachable Synod state, assuming an
    already-selected live leader `p` prepares a ballot `b = ⟨r, p⟩` strictly exceeding all previously
    seen or promised ballots (`BallotsBelow`), no ballot strictly greater than `b` is subsequently
    prepared, and ballot-`b` packets among `p`, one live quorum `Q ∈ qs.quorums`, and a live learner
