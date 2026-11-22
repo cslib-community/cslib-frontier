@@ -79,7 +79,7 @@ then the position of the clause (`litOfKey`). A number left over at the end is n
 
 /-- The watchers of an array of numbers read backwards: pushing a watcher, its clause then its
 blocker, adds it in front. -/
-@[simp] theorem unpackWatchers_push (a : Array ℕ) (k b : ℕ) :
+theorem unpackWatchers_push (a : Array ℕ) (k b : ℕ) :
     unpackWatchers ((a.push k).push b).toList.reverse = ⟨k, litOfKey b⟩ ::
       unpackWatchers a.toList.reverse := by
   simp
