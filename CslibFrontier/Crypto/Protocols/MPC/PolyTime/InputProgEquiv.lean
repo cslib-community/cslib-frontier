@@ -13,19 +13,9 @@ public import CslibFrontier.Crypto.Protocols.MPC.PolyTime.Runner
 -- `encOTSubCoins`, `otMulCompose`).
 import all CslibFrontier.Crypto.Protocols.MPC.PolyTime.Encoding
 import all CslibFrontier.Crypto.Protocols.MPC.PolyTime.Runner
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Pi
-import CslibFrontier.Computability.Probabilistic.Fold
-import CslibFrontier.Computability.Probabilistic.Finite
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Tactic.PMFSwap
-import CslibFrontier.Tactic.PolyTime
-import CslibFrontier.Tactic.PPT
 
 /-!
 # Equivalence of the Word-Level GMW Runners: Input Sharing and Gates
@@ -99,15 +89,13 @@ private def joinReceived2 {m : ℕ} :
     encOTSubCoins (sc₁ ++ sc₂) i (joinSubCoins2 sc₁ sc₂ i c₁ c₂) =
       encOTSubCoins sc₁ i c₁ ++ encOTSubCoins sc₂ i c₂ := by
   induction sc₁ with
-  | nil =>
-    cases c₁
-    rfl
+  | nil => cases c₁; rfl
   | cons r sc₁ ih =>
     cases r with
     | message _ _ _ => exact ih c₁
-    | oracle op parties =>
+    | oracle op _ =>
       cases op
-      rcases c₁ with ⟨c_head, c_tail⟩
+      rcases c₁ with ⟨_, c_tail⟩
       dsimp only [List.cons_append, joinSubCoins2, encOTSubCoins]
       rw [ih c_tail, List.append_assoc]
 
@@ -118,17 +106,13 @@ private def joinReceived2 {m : ℕ} :
     encOTOracleAnswers (sc₁ ++ sc₂) i (joinReceived2 sc₁ sc₂ i r₁ r₂) =
       encOTOracleAnswers sc₁ i r₁ ++ encOTOracleAnswers sc₂ i r₂ := by
   induction sc₁ with
-  | nil =>
-    cases r₁
-    rfl
+  | nil => cases r₁; rfl
   | cons r sc₁ ih =>
     cases r with
-    | message _ _ _ =>
-      rcases r₁ with ⟨r_head, r_tail⟩
-      exact ih r_tail
-    | oracle op parties =>
+    | message _ _ _ => rcases r₁ with ⟨_, r_tail⟩; exact ih r_tail
+    | oracle op _ =>
       cases op
-      rcases r₁ with ⟨r_head, r_tail⟩
+      rcases r₁ with ⟨_, r_tail⟩
       dsimp only [List.cons_append, joinReceived2, encOTOracleAnswers]
       rw [ih r_tail, List.append_assoc]
 
@@ -175,7 +159,7 @@ private theorem splitPairsOTReceived_joinPairsOTReceived {m : ℕ} {α : Type}
   induction L with
   | nil => exact hk r b
   | cons _ L ih =>
-    rcases r with ⟨r_head, r_tail⟩
+    rcases r with ⟨_, r_tail⟩
     dsimp only [pairsSchedule, pairRound, List.map, List.append, Round.embed,
       splitPairsOTReceived, joinPairsOTReceived] at ih ⊢
     rw [ih r_tail]
@@ -185,13 +169,11 @@ private theorem splitPairsOTReceived_joinPairsOTReceived {m : ℕ} {α : Type}
     (r_a : (otMulCompose a).Received i) (r_b : (otMulCompose b).Received i) :
     splitOTMulCompose a b i (joinOTMulCompose a b i r_a r_b) = (r_a, r_b) := by
   induction a generalizing r_b with
-  | nil =>
-    cases r_a
-    rfl
+  | nil => cases r_a; rfl
   | cons r a ih =>
     cases r with
     | message _ _ _ =>
-      rcases r_a with ⟨r_head, r_tail⟩
+      rcases r_a with ⟨_, r_tail⟩
       dsimp only [List.cons_append, splitOTMulCompose, joinOTMulCompose]
       rw [ih r_tail r_b]
     | oracle op parties =>
@@ -213,11 +195,9 @@ private theorem joinPairsOTReceived_joinReceived2 {m : ℕ} {α : Type}
     joinReceived2 ((pairsSchedule L).map (Round.embed parties)) rest₂ i r₁
       (k_join r_rest b) := by
   induction L with
-  | nil =>
-    cases r₁
-    rfl
+  | nil => cases r₁; rfl
   | cons _ L ih =>
-    rcases r₁ with ⟨r_head, r_tail⟩
+    rcases r₁ with ⟨_, r_tail⟩
     dsimp only [pairsSchedule, pairRound, List.map, List.append, Round.embed,
       joinPairsOTReceived, joinReceived2] at ih ⊢
     rw [ih r_tail]
@@ -239,7 +219,7 @@ private theorem encOTOracleAnswers_joinPairsOTReceived {m : ℕ} {α : Type}
   induction L with
   | nil => exact hk r b
   | cons _ L ih =>
-    rcases r with ⟨r_head, r_tail⟩
+    rcases r with ⟨_, r_tail⟩
     dsimp only [pairsSchedule, pairRound, List.map, Round.embed,
       joinPairsOTReceived, encOTOracleAnswers] at ih ⊢
     simp [encOTOracleAnswers, ih r_tail, List.append_assoc]
@@ -252,14 +232,10 @@ private theorem encOTOracleAnswers_joinPairsOTReceived {m : ℕ} {α : Type}
     encOTOracleAnswers (Schedule.compose (fun _ => multiPartyMulSchedule m) a) i r_a ++
       encOTOracleAnswers (Schedule.compose (fun _ => multiPartyMulSchedule m) b) i r_b := by
   induction a generalizing r_b with
-  | nil =>
-    cases r_a
-    rfl
+  | nil => cases r_a; rfl
   | cons r a ih =>
     cases r with
-    | message _ _ _ =>
-      rcases r_a with ⟨r_head, r_tail⟩
-      exact ih r_tail r_b
+    | message _ _ _ => rcases r_a with ⟨_, r_tail⟩; exact ih r_tail r_b
     | oracle op parties =>
       cases op
       exact encOTOracleAnswers_joinPairsOTReceived parties i (orderedPairs m)
@@ -324,7 +300,7 @@ private theorem encOTSubCoins_joinPairsOTSubCoins {m : ℕ} {α : Type}
   induction L with
   | nil => exact hk c b
   | cons _ L ih =>
-    rcases c with ⟨c_head, c_tail⟩
+    rcases c with ⟨_, c_tail⟩
     dsimp only [pairsSchedule, pairRound, List.map, Round.embed,
       joinPairsOTSubCoins, encOTSubCoins] at ih ⊢
     simp [encOTSubCoins, ih c_tail, List.append_assoc]
@@ -342,9 +318,7 @@ private theorem encOTSubCoins_joinPairsOTSubCoins {m : ℕ} {α : Type}
     encOTSubCoins (Schedule.compose (fun _ => multiPartyMulSchedule m) a) i c_a ++
       encOTSubCoins (Schedule.compose (fun _ => multiPartyMulSchedule m) b) i c_b := by
   induction a generalizing c_b with
-  | nil =>
-    cases c_a
-    rfl
+  | nil => cases c_a; rfl
   | cons r a ih =>
     cases r with
     | message _ _ _ => exact ih c_a c_b
@@ -412,14 +386,14 @@ private theorem runOTSteps_append {m : ℕ} {State Mid Out : Fin m → Type}
         fun i => joinReceived2 sc₁ sc₂ i (res₁.2.1 i) (res₂.2.1 i),
         res₂.2.2)) := by
   induction steps₁ with
-  | done output =>
+  | done =>
     dsimp only [Steps.append, runOTSteps, joinSubCoins2, joinReceived2]
-    simp [runOTSteps_mapState]
-  | message send next ih =>
+    simp only [runOTSteps_mapState, pure_bind, Prod.mk.eta, bind_pure]
+  | message _ _ ih =>
     dsimp only [Steps.append, List.append_eq, List.cons_append, runOTSteps,
       joinSubCoins2, joinReceived2] at ih ⊢
     simp only [bind_assoc, pure_bind, ih]
-  | @oracle _ _ op _ _ query next ih =>
+  | @oracle _ _ op _ _ _ _ ih =>
     cases op
     dsimp only [Steps.append, List.append_eq, List.cons_append, runOTSteps,
       joinSubCoins2, joinReceived2] at ih ⊢
@@ -476,7 +450,7 @@ private theorem runWith_sample_runEncoded_compose_twoPartyMul {m : ℕ} {OState 
             (st i, c_ot i) (recv i))) s =
     ProbOracleComp.runWith oracle (runOTSteps steps₂ st) s := by
   induction steps₂ generalizing s with
-  | done output =>
+  | done =>
     have hpi :
         ProbComp.eval (OracleComp.pi
           (Composition.sampleSubCoins (fun _ : Unit => twoPartyMulProtocol)
@@ -485,35 +459,19 @@ private theorem runWith_sample_runEncoded_compose_twoPartyMul {m : ℕ} {OState 
       simp [Composition.sampleSubCoins, eval_pi_pure]
     rw [ProbOracleComp.runWith_sample_bind_congr oracle hpi]
     simp [Composition.Steps.compose, Steps.runEncoded, Steps.outputAt, runOTSteps]
-  | @message _ Out' s₀ r₀ Msg rest send next ih =>
-    let f : ((i : Fin m) →
-          Schedule.SubCoins (spec₁ := sharedMulSpec 2)
-            (fun _ : Unit => Fin.cases Bool (fun _ => Unit)) rest i) ×
-        ((i : Fin m) → (Schedule.compose (fun _ => twoPartyMulSchedule) rest).Received i) ×
-        ((i : Fin m) → Out' i) →
-        ((i : Fin m) →
-          Schedule.SubCoins (spec₁ := sharedMulSpec 2)
-            (fun _ : Unit => Fin.cases Bool (fun _ => Unit))
-            (.message s₀ r₀ Msg :: rest) i) ×
-        ((i : Fin m) →
-          (Schedule.compose (fun _ => twoPartyMulSchedule)
-            (.message s₀ r₀ Msg :: rest)).Received i) ×
-        ((i : Fin m) → Out' i) :=
-      fun res =>
-        (res.1,
-         fun i =>
-           (Round.deliverMessage (spec := ot14Spec) (sender := s₀) (receiver := r₀)
-              (send (st s₀)) i,
-            res.2.1 i),
-         res.2.2)
-    have hih := congrArg (PMF.map (Prod.map f id))
+  | @message _ _ s₀ r₀ _ _ send next ih =>
+    have hih := congrArg (PMF.map (Prod.map (fun res =>
+      (res.1,
+       fun i => (Round.deliverMessage (spec := ot14Spec) (sender := s₀) (receiver := r₀)
+         (send (st s₀)) i, res.2.1 i),
+       res.2.2)) id))
       (ih (fun i => (st i, Round.deliverMessage (send (st s₀)) i)) s)
     rw [← ProbOracleComp.runWith_map, ← ProbOracleComp.runWith_map] at hih
-    simp only [f, Composition.Steps.compose, Composition.sampleSubCoins, Steps.runEncoded,
+    simp only [Composition.Steps.compose, Composition.sampleSubCoins, Steps.runEncoded,
       Steps.runEncoded_mapState, Steps.outputAt, Steps.outputAt_mapState, runOTSteps,
       map_bind, Functor.map_map, bind_pure_comp] at hih ⊢
     exact hih
-  | @oracle _ Out' op parties rest query next ih =>
+  | @oracle _ _ op parties rest query next ih =>
     cases op
     let q : Fin 2 → Bool × Bool := fun t => query t (st (parties t))
     have hpi :
@@ -533,22 +491,14 @@ private theorem runWith_sample_runEncoded_compose_twoPartyMul {m : ℕ} {OState 
     simp only [ProbOracleComp.sample_map, bind_map_left, runOTSteps]
     rw [ProbOracleComp.runWith_bind, ProbOracleComp.runWith_bind]
     refine congrArg (Bind.bind (ProbOracleComp.runWith oracle
-        (ProbOracleComp.sample (ProbComp.uniform Bool)) s)) (funext fun ⟨c₀, s₁⟩ => ?_)
-    have hslot (i : Fin m) (t : Fin 2) (ht : parties t = i) :
-        (query t (ht.symm ▸ st i), Composition.pushTuple parties (twoPartyMulCoins c₀) i t ht) =
-          (q t, twoPartyMulCoins c₀ t) := by
-      subst ht
-      rfl
+      (ProbOracleComp.sample (ProbComp.uniform Bool)) s)) (funext fun ⟨c₀, s₁⟩ => ?_)
     have hst_k_i (c_tail : (i : Fin m) →
         Schedule.SubCoins (spec₁ := sharedMulSpec 2)
           (fun _ : Unit => Fin.cases Bool (fun _ => Unit)) rest i) (i : Fin m) :
-        ((st i, c_tail i),
-          fun (t : Fin 2) (ht : parties t = i) =>
-            (query t (ht.symm ▸ st i),
-              Composition.pushTuple parties (twoPartyMulCoins c₀) i t ht)) =
-        ((st i, c_tail i),
-          fun (t : Fin 2) (_ : parties t = i) => (q t, twoPartyMulCoins c₀ t)) :=
-      Prod.ext rfl (funext fun t => funext fun ht => hslot i t ht)
+        ((st i, c_tail i), fun t (ht : parties t = i) =>
+          (query t (ht.symm ▸ st i), Composition.pushTuple parties (twoPartyMulCoins c₀) i t ht)) =
+        ((st i, c_tail i), fun t _ => (q t, twoPartyMulCoins c₀ t)) :=
+      Prod.ext rfl (funext fun t => funext fun ht => by subst ht; rfl)
     simp only [Composition.Steps.compose, Steps.runEncoded_append, Steps.runEncoded_mapState,
       hst_k_i, Steps.runEncoded_embed, runEncoded_twoPartyMulSteps,
       Steps.outputAt_append, Steps.outputAt_mapState, outputAt_embed_twoPartyMul,
@@ -556,34 +506,16 @@ private theorem runWith_sample_runEncoded_compose_twoPartyMul {m : ℕ} {OState 
     rw [ProbOracleComp.runWith_sample_bind_comm, ProbOracleComp.runWith_bind,
       ProbOracleComp.runWith_bind]
     refine congrArg (PMF.bind _) (funext fun ⟨rep, s₂⟩ => ?_)
-    let g : ((i : Fin m) →
-          Schedule.SubCoins (spec₁ := sharedMulSpec 2)
-            (fun _ : Unit => Fin.cases Bool (fun _ => Unit)) rest i) ×
-        ((i : Fin m) → (Schedule.compose (fun _ => twoPartyMulSchedule) rest).Received i) ×
-        ((i : Fin m) → Out' i) →
-        ((i : Fin m) →
-          Schedule.SubCoins (spec₁ := sharedMulSpec 2)
-            (fun _ : Unit => Fin.cases Bool (fun _ => Unit))
-            (.oracle () parties :: rest) i) ×
-        ((i : Fin m) →
-          (Schedule.compose (fun _ => twoPartyMulSchedule)
-            (.oracle () parties :: rest)).Received i) ×
-        ((i : Fin m) → Out' i) :=
-      fun res =>
-        (fun i => (Composition.pushTuple parties (twoPartyMulCoins c₀) i, res.1 i),
-         fun i =>
-           (Round.deliverOracle (spec := ot14Spec) (op := ())
-              ((Function.Embedding.refl (Fin 2)).trans parties)
-              (decodeOT14Reply (List.take 1 rep)) i,
-            res.2.1 i),
-         res.2.2)
-    have hih := congrArg (PMF.map (Prod.map g id))
-      (ih (fun i =>
-        (st i,
-          Round.deliverOracle (spec := sharedMulSpec 2) (op := ()) parties
-            (Fin.cases c₀ (fun _ => (List.take 1 rep).headD false)) i)) s₂)
+    have hih := congrArg (PMF.map (Prod.map (fun res =>
+      (fun i => (Composition.pushTuple parties (twoPartyMulCoins c₀) i, res.1 i),
+       fun i => (Round.deliverOracle (spec := ot14Spec) (op := ())
+         ((Function.Embedding.refl (Fin 2)).trans parties)
+         (decodeOT14Reply (List.take 1 rep)) i, res.2.1 i),
+       res.2.2)) id))
+      (ih (fun i => (st i, Round.deliverOracle (spec := sharedMulSpec 2) (op := ()) parties
+        (Fin.cases c₀ (fun _ => (List.take 1 rep).headD false)) i)) s₂)
     rw [← ProbOracleComp.runWith_map, ← ProbOracleComp.runWith_map] at hih
-    simp only [g, map_bind, bind_pure_comp, Functor.map_map] at hih
+    simp only [map_bind, bind_pure_comp, Functor.map_map] at hih
     exact hih
 
 private theorem joinPairsOTSubCoins_joinSubCoins2 {m : ℕ} {α : Type}
@@ -604,11 +536,9 @@ private theorem joinPairsOTSubCoins_joinSubCoins2 {m : ℕ} {α : Type}
     joinSubCoins2 ((pairsSchedule L).map (Round.embed parties)) rest₂ i c₁
       (k_join c_rest b) := by
   induction L with
-  | nil =>
-    cases c₁
-    rfl
+  | nil => cases c₁; rfl
   | cons _ L ih =>
-    rcases c₁ with ⟨c_head, c_tail⟩
+    rcases c₁ with ⟨_, c_tail⟩
     dsimp only [pairsSchedule, pairRound, List.map, List.append, Round.embed,
       joinPairsOTSubCoins, joinSubCoins2] at ih ⊢
     rw [ih c_tail]
@@ -633,23 +563,18 @@ private theorem eval_sampleSubCoins_multiPartyMul {m : ℕ}
     | message _ _ _ => exact ih
     | oracle op parties =>
       cases op
+      have hcongr (s : Fin m) :
+          ProbComp.eval (if h : parties s = i then
+            (fun (c : Unit) (_ : parties s = i) => c) <$> (multiPartyMulProtocol m).sampleCoins s
+            else pure fun h' => (h h').elim) =
+          ProbComp.eval (pure fun _ : parties s = i => ()) := by
+        by_cases h : parties s = i <;> simp [h, multiPartyMulProtocol]
       have hslot :
           ProbComp.eval
             (Composition.sampleSlotCoins parties (multiPartyMulProtocol m).sampleCoins i) =
-          ProbComp.eval (pure (fun _ _ => ())) := by
-        unfold Composition.sampleSlotCoins
-        have hcongr :
-            ∀ s : Fin m,
-              ProbComp.eval
-                (if h : parties s = i then
-                  (fun (c : Unit) (_ : parties s = i) => c) <$>
-                    (multiPartyMulProtocol m).sampleCoins s
-                else
-                  pure (fun h' : parties s = i => (h h').elim)) =
-              ProbComp.eval (pure (fun _ : parties s = i => ())) := by
-          intro s
-          by_cases h : parties s = i <;> simp [h, multiPartyMulProtocol]
-        rw [ProbComp.eval_pi_congr hcongr, eval_pi_pure, ProbComp.eval_pure]
+            ProbComp.eval (pure fun _ _ => ()) := by
+        rw [Composition.sampleSlotCoins, ProbComp.eval_pi_congr hcongr, eval_pi_pure,
+          ProbComp.eval_pure]
       simp [Composition.sampleSubCoins, hslot, ih, unitSubCoins]
 
 private theorem eval_pi_sampleSubCoins_multiPartyMul {m : ℕ}
@@ -720,11 +645,8 @@ private theorem runOTSteps_embed {k m : ℕ} (parties : Fin k ↪ Fin m)
             (query s (f (parties s) (hs.symm ▸ st i)), ()))) =
         fun i : Fin m =>
           ((), fun (s : Fin m) (hs : parties s = i) =>
-            (query s (hs.symm ▸ f i (st i)), ())) := by
-      funext i
-      refine Prod.ext rfl (funext fun s => funext fun hs => ?_)
-      subst hs
-      rfl
+            (query s (hs.symm ▸ f i (st i)), ())) :=
+      funext fun i => Prod.ext rfl (funext fun s => funext fun hs => by subst hs; rfl)
     simp only [runSharedMulSteps, Steps.mapState, Composition.Steps.compose,
       unitSubCoins, runOTSteps_append, runOTSteps_mapState]
     conv_lhs => arg 1; rw [runOTSteps_embed]
@@ -747,19 +669,19 @@ private theorem runSharedMulSteps_append {m : ℕ} {State Mid Out : Fin m → Ty
         fun i => joinOTMulCompose sc₁ sc₂ i (res₁.2.1 i) (res₂.2.1 i),
         res₂.2.2)) := by
   induction steps₁ with
-  | done output =>
+  | done =>
     rw [Steps.append, runSharedMulSteps_mapState]
     dsimp only [runSharedMulSteps, Composition.Steps.compose, unitSubCoins, runOTSteps,
       joinOTSubCoins, joinOTMulCompose]
-    simp
+    simp only [List.nil_append, pure_bind, Prod.mk.eta, bind_pure]
   | message send next ih =>
     dsimp only [Steps.append, List.append_eq, List.cons_append, runSharedMulSteps,
       Composition.Steps.compose, unitSubCoins, runOTSteps,
       joinOTSubCoins, joinOTMulCompose] at ih ⊢
     simp only [runOTSteps_mapState, bind_assoc, pure_bind] at ih ⊢
     rw [ih]
-    simp
-  | @oracle _ _ op parties rest query next ih =>
+    simp only [bind_assoc, pure_bind]
+  | @oracle _ _ op _ _ _ _ ih =>
     cases op
     dsimp only [Steps.append, List.append_eq, List.cons_append, runSharedMulSteps,
       Composition.Steps.compose, unitSubCoins, joinOTSubCoins, joinOTMulCompose] at ih ⊢
@@ -768,8 +690,7 @@ private theorem runSharedMulSteps_append {m : ℕ} {State Mid Out : Fin m → Ty
     conv_rhs => arg 1; rw [runOTSteps_embed]
     simp only [bind_map_left]
     refine congrArg (Bind.bind _) (funext fun res_embed => ?_)
-    have hih := ih steps₂ (fun i => (st i, (res_embed.2.2 i).2))
-    rw [hih]
+    rw [ih steps₂ (fun i => (st i, (res_embed.2.2 i).2))]
     simp only [bind_assoc, pure_bind,
       joinPairsOTSubCoins_joinSubCoins2, joinPairsOTReceived_joinReceived2]
 
@@ -823,26 +744,14 @@ private theorem detExpandOTSim_append {m : ℕ} (I : Finset (Fin m))
        joinReceived2 sc₁ sc₂ i.1 (detExpandOTSim I sc₁ r₁ i).2 (detExpandOTSim I sc₂ r₂ i).2) := by
   induction sc₁ with
   | nil =>
-    have hr : (fun j : I => Schedule.Received.append (r₁ j) (r₂ j)) = r₂ := by
-      funext j
-      cases r₁ j
-      rfl
-    rw [hr]
+    rw [show (fun j : I => Schedule.Received.append (r₁ j) (r₂ j)) = r₂ from
+      funext fun j => by cases r₁ j; rfl]
     rfl
   | cons r sc₁ ih =>
-    have hih := ih (fun j => (r₁ j).2)
-    cases r with
-    | message _ _ _ =>
-      dsimp only [List.cons_append, detExpandOTSim, Schedule.Received.append,
-        joinSubCoins2, joinReceived2]
-      rw [Prod.mk.injEq] at hih
-      rw [hih.1, hih.2]
-    | oracle op parties =>
-      cases op
-      dsimp only [List.cons_append, detExpandOTSim, Schedule.Received.append,
-        joinSubCoins2, joinReceived2]
-      rw [Prod.mk.injEq] at hih
-      rw [hih.1, hih.2]
+    have hih := (Prod.mk.injEq _ _ _ _).mp (ih (fun j => (r₁ j).2))
+    rcases r with _ | ⟨⟨⟩, _⟩ <;>
+      (dsimp only [List.cons_append, detExpandOTSim, Schedule.Received.append,
+        joinSubCoins2, joinReceived2]; rw [hih.1, hih.2])
 
 /-- Simulated subcoins and `ot14Spec` received transcripts along `steps : Steps State Out sc`
 for coalition `I`. -/
@@ -955,26 +864,25 @@ private theorem simSharedMulSteps_append {m : ℕ} [NeZero m] {State Mid Out : F
         (joinOTSubCoins sc₁ sc₂ i.1 (res₁ i).1 (res₂ i).1,
          joinOTMulCompose sc₁ sc₂ i.1 (res₁ i).2 (res₂ i).2)) := by
   induction steps₁ with
-  | done output =>
-    have hr : (fun i : I => Schedule.Received.append (r₁ i) (r₂ i)) = r₂ := by
-      funext i
-      cases r₁ i
-      rfl
-    rw [Steps.append, hr, simSharedMulSteps_mapState, simSharedMulSteps_done]
+  | done =>
+    rw [show (fun i : I => Schedule.Received.append (r₁ i) (r₂ i)) = r₂ from
+      funext fun i => by cases r₁ i; rfl]
+    rw [Steps.append, simSharedMulSteps_mapState, simSharedMulSteps_done]
     dsimp only [Steps.outputAt, joinOTSubCoins, joinOTMulCompose]
-    simp
-  | message send next ih =>
+    simp only [pure_bind, Prod.mk.eta]
+    exact (bind_pure _).symm
+  | message _ _ ih =>
     dsimp only [Steps.append, List.append_eq, List.cons_append, Schedule.Received.append,
       Steps.outputAt, joinOTSubCoins, joinOTMulCompose]
-    simp only [simSharedMulSteps_message, ih,
-      map_bind, bind_map_left, Functor.map_map, bind_pure_comp]
-  | @oracle _ _ op parties rest query next ih =>
+    simp only [simSharedMulSteps_message, ih, map_bind, bind_map_left, Functor.map_map,
+      bind_pure_comp]
+  | @oracle _ _ op _ _ _ _ ih =>
     cases op
     dsimp only [Steps.append, List.append_eq, List.cons_append, Schedule.Received.append,
       Steps.outputAt, joinOTSubCoins, joinOTMulCompose]
-    simp only [simSharedMulSteps_oracle, ih,
-      bind_assoc, map_bind, bind_map_left, Functor.map_map, bind_pure_comp,
-      joinPairsOTSubCoins_joinSubCoins2, joinPairsOTReceived_joinReceived2]
+    simp only [simSharedMulSteps_oracle, ih, bind_assoc, map_bind, bind_map_left,
+      Functor.map_map, bind_pure_comp, joinPairsOTSubCoins_joinSubCoins2,
+      joinPairsOTReceived_joinReceived2]
 
 /-! ### Sub-part 4C.2: One `sharedMulSpec m` Round & Step 1 Input Sharing -/
 
@@ -1053,69 +961,42 @@ private theorem runOTSteps_embed_pairsSteps {m : ℕ}
       List.map_nil, List.sum_nil, add_zero, List.flatten_nil, map_pure]
     rfl
   | cons p L ih =>
-    rw [List.nodup_cons] at hL
-    obtain ⟨hp, hL⟩ := hL
+    obtain ⟨hp, hL⟩ := List.nodup_cons.mp hL
     let acc' (c₀ ans_v : Bool) (s : Fin m) : Bool :=
       acc s + (if p.1.1 = s then c₀ else if p.1.2 = s then ans_v else 0)
-    have hih (c₀ ans_v : Bool) := ih hL (acc' c₀ ans_v)
     dsimp only [pairsSteps, pairsSchedule, pairRound, List.map, Round.embed,
       Composition.Steps.embed]
     simp only [runOTSteps, runOTSteps_mapState, runOTSteps_embed_mapState,
       realPairsCalls, realPairCall,
       map_bind, bind_map_left, Functor.map_map, bind_pure_comp, bind_assoc]
-    refine congrArg (Bind.bind _) (funext fun c₀ => ?_)
-    refine congrArg (Bind.bind _) (funext fun rep => ?_)
-    have hst :
+    refine congrArg (Bind.bind _) (funext fun c₀ => congrArg (Bind.bind _) (funext fun rep => ?_))
+    rw [show
         (fun i : Fin m =>
           ((), fun (s : Fin m) (hs : (Function.Embedding.refl (Fin m)) s = i) =>
             (x s,
-             acc s +
-              extractPairShare p s
-                (Composition.pullRoundReceived (Function.Embedding.refl (Fin m)) (pairRound p) hs
-                  (Round.deliverOracle (spec := sharedMulSpec 2) (op := ())
-                    ((pairEmbedding p).trans (Function.Embedding.refl (Fin m)))
-                    (Fin.cases c₀ (fun _ => (List.take 1 rep).headD false)) i))))) =
-        fun i : Fin m =>
-          ((), fun (s : Fin m) (_ : (Function.Embedding.refl (Fin m)) s = i) =>
-            (x s, acc' c₀ ((List.take 1 rep).headD false) s)) := by
-      funext i
-      refine Prod.ext rfl (funext fun s => funext fun hs => Prod.ext rfl ?_)
-      exact congrArg (acc s + ·) (extractPairShare_pullRoundReceived_deliverOracle p c₀
-        ((List.take 1 rep).headD false) s i hs)
-    rw [hst]
-    have hih' := hih c₀ ((List.take 1 rep).headD false)
-    have hhead_c (i : Fin m) :
-        (if h : ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))) 0 = i then
-          [Composition.pushTuple ((pairEmbedding p).trans (Function.Embedding.refl (Fin m)))
-            (twoPartyMulCoins c₀) i 0 h]
-        else []) =
-        (if p.1.1 = i then [c₀] else []) := by
-      change (if h : p.1.1 = i then [c₀] else []) = (if p.1.1 = i then [c₀] else [])
-      split_ifs <;> rfl
-    have hhead_a (i : Fin m) :
-        (if h : ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))) 1 = i then
-          [Round.deliverOracle (spec := ot14Spec) (op := ())
-            ((Function.Embedding.refl (Fin 2)).trans
-              ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))))
-            (decodeOT14Reply (List.take 1 rep)) i 1 h]
-        else []) =
-        (if p.1.2 = i then [(List.take 1 rep).headD false] else []) := by
-      change (if h : p.1.2 = i then [(List.take 1 rep).headD false] else []) =
-        (if p.1.2 = i then [(List.take 1 rep).headD false] else [])
-      split_ifs <;> rfl
-    let post (c₀ ans_v : Bool)
-        (t : (Fin m → Bool) × (Fin m → List Bool) × (Fin m → List Bool)) :
-        (Fin m → Bool) × (Fin m → List Bool) × (Fin m → List Bool) :=
+             acc s + extractPairShare p s
+               (Composition.pullRoundReceived (Function.Embedding.refl (Fin m)) (pairRound p) hs
+                 (Round.deliverOracle (spec := sharedMulSpec 2) (op := ())
+                   ((pairEmbedding p).trans (Function.Embedding.refl (Fin m)))
+                   (Fin.cases c₀ (fun _ => (List.take 1 rep).headD false)) i))))) =
+        fun i : Fin m => ((), fun s _ => (x s, acc' c₀ ((List.take 1 rep).headD false) s)) from
+      funext fun i => Prod.ext rfl (funext fun s => funext fun hs =>
+        Prod.ext rfl (congrArg (acc s + ·)
+          (extractPairShare_pullRoundReceived_deliverOracle p c₀
+            ((List.take 1 rep).headD false) s i hs)))]
+    let post (t : (Fin m → Bool) × (Fin m → List Bool) × (Fin m → List Bool)) :=
       (t.1,
        fun i => (if p.1.1 = i then [c₀] else []) ++ t.2.1 i,
-       fun i => (if p.1.2 = i then [ans_v] else []) ++ t.2.2 i)
-    have hcongr := congrArg (post c₀ ((List.take 1 rep).headD false) <$> ·) hih'
+       fun i => (if p.1.2 = i then [(List.take 1 rep).headD false] else []) ++ t.2.2 i)
+    have hcongr := congrArg (post <$> ·) (ih hL (acc' c₀ ((List.take 1 rep).headD false)))
     simp only [Functor.map_map] at hcongr
     refine Eq.trans ?_ (Eq.trans hcongr ?_)
-    · refine congrArg (· <$> _) (funext fun res => ?_)
-      refine Prod.ext rfl (Prod.ext (funext fun i => ?_) (funext fun i => ?_))
-      · exact congrArg (· ++ _) (hhead_c i)
-      · exact congrArg (· ++ _) (hhead_a i)
+    · refine congrArg (· <$> _) (funext fun res =>
+        Prod.ext rfl (Prod.ext (funext fun i => congrArg (· ++ _) ?_)
+          (funext fun i => congrArg (· ++ _) ?_)))
+      · change (if h : p.1.1 = i then [c₀] else []) = _; split_ifs <;> rfl
+      · change (if h : p.1.2 = i then [(List.take 1 rep).headD false] else []) = _
+        split_ifs <;> rfl
     · refine congrArg (· <$> _) (funext fun tr => ?_)
       refine Prod.ext (funext fun i => ?_) (Prod.ext (funext fun i => ?_) (funext fun i => ?_))
       · dsimp only [post, acc', List.map_cons, List.sum_cons]
@@ -1159,43 +1040,21 @@ private theorem runSharedMulSteps_oracle_done {m : ℕ} {S β : Type} {Out : Fin
   let x : Fin m → Bool × Bool := fun s => query s (st s)
   simp only [runSharedMulSteps, Composition.Steps.compose, unitSubCoins,
     runOTSteps_append, runOTSteps_mapState, multiPartyMulProtocol]
-  conv_lhs => arg 2; arg 1; rw [runOTSteps_embed]
-  simp only [runOTSteps_embed_mapState, runOTSteps,
-    map_pure, bind_pure_comp, Functor.map_map]
-  have hrun :
-      runOTSteps
-        (Composition.Steps.embed (Function.Embedding.refl (Fin m)) (fun _ => Unit)
-          (pairsSteps (orderedPairs m)))
-        (fun i : Fin m =>
-          ((), fun (s : Fin m) (hs : (Function.Embedding.refl (Fin m)) s = i) =>
-            (query s (Eq.rec (motive := fun _ _ => S) (st i) hs.symm),
-              m • ((query s (Eq.rec (motive := fun _ _ => S) (st i) hs.symm)).1 *
-                (query s (Eq.rec (motive := fun _ _ => S) (st i) hs.symm)).2)))) =
-      runOTSteps
-        (Composition.Steps.embed (Function.Embedding.refl (Fin m)) (fun _ => Unit)
-          (pairsSteps (orderedPairs m)))
-        (fun i : Fin m =>
-          ((), fun (s : Fin m) (_ : (Function.Embedding.refl (Fin m)) s = i) =>
-            (x s, m • ((x s).1 * (x s).2)))) := by
-    refine congrArg (runOTSteps _) (funext fun i => ?_)
-    refine Prod.ext rfl (funext fun s => funext fun hs => ?_)
-    change s = i at hs
-    subst hs
-    rfl
-  have hpairs := runOTSteps_embed_pairsSteps x (MultiPartyMul.nodup_orderedPairs m)
-    (fun s => m • ((x s).1 * (x s).2))
+  rw [runOTSteps_embed]
+  simp only [runOTSteps_embed_mapState, runOTSteps, map_pure, bind_pure_comp, Functor.map_map]
+  rw [show
+      (fun i : Fin m =>
+        ((), fun (s : Fin m) (hs : (Function.Embedding.refl (Fin m)) s = i) =>
+          (query s (Eq.rec (motive := fun _ _ => S) (st i) hs.symm),
+            m • ((query s (Eq.rec (motive := fun _ _ => S) (st i) hs.symm)).1 *
+              (query s (Eq.rec (motive := fun _ _ => S) (st i) hs.symm)).2)))) =
+      (fun i : Fin m => ((), fun s _ => (x s, m • ((x s).1 * (x s).2)))) from
+    funext fun i => Prod.ext rfl (funext fun s => funext fun (hs : s = i) => by subst hs; rfl)]
   let post (t : (Fin m → Bool) × (Fin m → List Bool) × (Fin m → List Bool)) : β :=
     g (fun i => finish i (st i) (t.1 i)) t.2.1 t.2.2
-  have hcongr := (congrArg (fun d => post <$> ((fun res =>
-      (fun i => (res.2.2 i).2 i rfl,
-       fun i =>
-        encOTSubCoins
-          ((pairsSchedule (orderedPairs m)).map (Round.embed (Function.Embedding.refl (Fin m))))
-          i (res.1 i),
-       fun i =>
-        encOTOracleAnswers
-          ((pairsSchedule (orderedPairs m)).map (Round.embed (Function.Embedding.refl (Fin m))))
-          i (res.2.1 i))) <$> d)) hrun).trans (congrArg (post <$> ·) hpairs)
+  have hcongr := congrArg (post <$> ·)
+    (runOTSteps_embed_pairsSteps x (MultiPartyMul.nodup_orderedPairs m)
+      (fun s => m • ((x s).1 * (x s).2)))
   simp only [Functor.map_map] at hcongr
   refine Eq.trans ?_ hcongr
   refine congrArg (Functor.map (f := WordOracleComp Unit) · _) (funext fun res => ?_)
@@ -1217,44 +1076,15 @@ private theorem encOT_detExpandOTSim_pairsSchedule {m : ℕ} (I : Finset (Fin m)
   induction L with
   | nil => rfl
   | cons p L ih =>
-    have hhead_c :
-        (if h : ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))) 0 = i.1 then
-          [Composition.pushTupleRestrict
-            ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))) I
-            (fun s =>
-              twoPartyMulCoins
-                (MultiPartyMul.receivedPairOfRow p (pairEmbedding p s.1)
-                  (row (pairEmbedding p s.1)) s.1 rfl) s.1)
-            i 0 h]
-        else []) =
-        (if p.1.1 = i.1 then [row i.1 p.1.2] else []) := by
-      change (if h : p.1.1 = i.1 then [row p.1.1 p.1.2] else []) =
-        (if p.1.1 = i.1 then [row i.1 p.1.2] else [])
-      by_cases h : p.1.1 = i.1 <;> simp [h]
-    have hhead_a :
-        (if h : ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))) 1 = i.1 then
-          [Composition.pushRoundReceivedRestrict
-            ((pairEmbedding p).trans (Function.Embedding.refl (Fin m))) I
-            (.oracle (spec := ot14Spec) () (Function.Embedding.refl (Fin 2)))
-            (fun s =>
-              twoPartyMulReceived s.1
-                (MultiPartyMul.receivedPairOfRow p (pairEmbedding p s.1)
-                  (row (pairEmbedding p s.1)) s.1 rfl))
-            i 1 h]
-        else []) =
-        (if p.1.2 = i.1 then [row i.1 p.1.1] else []) := by
-      change (if h : p.1.2 = i.1 then [row p.1.2 p.1.1] else []) =
-        (if p.1.2 = i.1 then [row i.1 p.1.1] else [])
-      by_cases h : p.1.2 = i.1 <;> simp [h]
     dsimp only [pairsSchedule, pairRound, List.map, Round.embed,
       MultiPartyMul.receivedScheduleOfRow, Composition.pushScheduleReceivedRestrict,
       detExpandOTSim, encOTSubCoins, encOTOracleAnswers, List.flatten_cons] at ih ⊢
     rw [Prod.mk.injEq] at ih
-    refine Prod.ext ?_ ?_
-    · rw [← ih.1]
-      exact congrArg (· ++ _) hhead_c
-    · rw [← ih.2]
-      exact congrArg (· ++ _) hhead_a
+    refine Prod.ext (congrArg₂ (· ++ ·) ?_ ih.1) (congrArg₂ (· ++ ·) ?_ ih.2)
+    · change (if h : p.1.1 = i.1 then [row p.1.1 p.1.2] else []) = _
+      by_cases h : p.1.1 = i.1 <;> simp [h]
+    · change (if h : p.1.2 = i.1 then [row p.1.2 p.1.1] else []) = _
+      by_cases h : p.1.2 = i.1 <;> simp [h]
 
 @[simp] private theorem subCoalition_refl {m : ℕ} (I : Finset (Fin m)) :
     Composition.subCoalition (Function.Embedding.refl (Fin m)) I = I := by
@@ -1300,34 +1130,30 @@ private theorem simSharedMulSteps_oracle_done {m : ℕ} [NeZero m] {S β : Type}
          (simSharedMulPure m I x ans r).2 i.1))) <$>
       ProbComp.uniform (OrderedPair m → Bool) := by
   let J := Composition.subCoalition (Function.Embedding.refl (Fin m)) I
-  have hJ : J = I := subCoalition_refl I
+  have hmem {j : Fin m} : j ∈ J ↔ j ∈ I := Composition.mem_subCoalition
   have hx₀ :
       MultiPartyMul.extendIn J
         (fun s : J =>
           query s.1
             (stI ⟨(Function.Embedding.refl (Fin m)) s.1, Composition.mem_subCoalition.1 s.2⟩)) =
-      MultiPartyMul.extendIn I (I.restrict x) := by
-    funext j
-    by_cases hj : j ∈ I
-    · have hjJ : j ∈ J := Composition.mem_subCoalition.2 hj
-      simp [MultiPartyMul.extendIn, hj, hjJ, hx ⟨j, hj⟩]
-    · have hjJ : j ∉ J := fun h => hj (Composition.mem_subCoalition.1 h)
-      simp [MultiPartyMul.extendIn, hj, hjJ]
+      MultiPartyMul.extendIn I (I.restrict x) :=
+    funext fun j => by
+      by_cases hj : j ∈ I
+      · simp [MultiPartyMul.extendIn, hj, hmem.2 hj, hx ⟨j, hj⟩]
+      · simp [MultiPartyMul.extendIn, hj, mt hmem.1 hj]
   have hy₀ :
       MultiPartyMul.extendOut J
         (fun s : J =>
           Round.deliverOracle (spec := sharedMulSpec m) (op := ())
             (Function.Embedding.refl (Fin m)) ans
             ((Function.Embedding.refl (Fin m)) s.1) s.1 rfl) =
-      MultiPartyMul.extendOut I (I.restrict ans) := by
-    funext j
-    by_cases hj : j ∈ I
-    · have hjJ : j ∈ J := Composition.mem_subCoalition.2 hj
-      simp [MultiPartyMul.extendOut, hj, hjJ, Round.deliverOracle]
-    · have hjJ : j ∉ J := fun h => hj (Composition.mem_subCoalition.1 h)
-      simp [MultiPartyMul.extendOut, hj, hjJ]
+      MultiPartyMul.extendOut I (I.restrict ans) :=
+    funext fun j => by
+      by_cases hj : j ∈ I
+      · simp [MultiPartyMul.extendOut, hj, hmem.2 hj, Round.deliverOracle]
+      · simp [MultiPartyMul.extendOut, hj, mt hmem.1 hj]
   have hpivot : MultiPartyMul.pivotParty J = MultiPartyMul.pivotParty I :=
-    congrArg MultiPartyMul.pivotParty hJ
+    congrArg MultiPartyMul.pivotParty (subCoalition_refl I)
   rw [simSharedMulSteps_oracle]
   simp only [simSharedMulSteps_done, multiPartyMulSim, freeM_map_eq_map,
     bind_pure_comp, map_pure, Functor.map_map]
@@ -1535,14 +1361,7 @@ private theorem encPairsMsgReceived_allPairs {m N : ℕ} (i : Fin m)
     induction S with
     | nil => rfl
     | cons s S ih =>
-      change encPairsMsgReceived i
-          (((List.finRange m).map fun r => (s, r)) ++
-            (S.flatMap fun s => (List.finRange m).map fun r => (s, r)))
-          (receivedOTMsgScheduleOfInbox i inbox_i
-            (((List.finRange m).map fun r => (s, r)) ++
-              (S.flatMap fun s => (List.finRange m).map fun r => (s, r)))) =
-        List.ofFn (inbox_i s) ++ (S.map fun s => List.ofFn (inbox_i s)).flatten
-      rw [encPairsMsgReceived_append_receivedOTMsgScheduleOfInbox, ih,
+      rw [List.flatMap_cons, encPairsMsgReceived_append_receivedOTMsgScheduleOfInbox, ih,
         encPairsMsgReceived_map_pair,
         flatten_map_ite_eq i (List.ofFn (inbox_i s)) (List.nodup_finRange m)]
       simp [List.mem_finRange]
@@ -1553,19 +1372,17 @@ private theorem step1SenderShare_ofFn {m N : ℕ} (xr_s : BitString N)
     step1SenderShare m N (List.ofFn xr_s)
       (List.ofFn ((Cslib.BitString.blocksEquiv (α := Bool) (m := N) (k := m - 1)).symm c_s)) i =
     List.ofFn (GMWCircuit.shareInputBits m N xr_s c_s i) := by
-  refine List.ext_getElem (by simp [step1SenderShare]) fun j hj₁ hj₂ => ?_
+  refine List.ext_getElem (by simp [step1SenderShare]) fun j hj₁ _ => ?_
   have hjN : j < N := by simpa [step1SenderShare] using hj₁
   let jFin : Fin N := ⟨j, hjN⟩
   have hbit : (List.ofFn xr_s).getD j false = xr_s jFin := by
-    rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by simpa using hjN),
-      Option.getD_some, List.getElem_ofFn]
+    simp [List.getD_eq_getElem?_getD, hjN, jFin]
   have hrow :
       Cslib.BitString.ofList (m - 1)
         (Cslib.BitString.listRow (m - 1) j
           (List.ofFn ((Cslib.BitString.blocksEquiv (α := Bool) (m := N) (k := m - 1)).symm c_s))) =
       c_s jFin := by
-    have hj_eq : j = jFin.val := rfl
-    rw [hj_eq, Cslib.BitString.listRow_eq_ofFn (m - 1) jFin]
+    rw [show j = jFin.val from rfl, Cslib.BitString.listRow_eq_ofFn (m - 1) jFin]
     simp
   simp only [step1SenderShare, List.getElem_map, List.getElem_range, List.getElem_ofFn,
     GMWCircuit.shareInputBits_apply, hbit, hrow]
@@ -1704,9 +1521,8 @@ private theorem runSharedMulSteps_lineSteps {m n g : ℕ} [NeZero m]
       (fun out c a => (fun i => wireToList (out i), fun i => c₁ i ++ c i, fun i => a₁ i ++ a i))
       (fun _ (w_s : Wire n g → Bool) => (w_s (wires 0), w_s (wires 1)))
       (fun _ w_i bit => GMWCircuit.extendWire bit w_i) w).trans ?_
-    rw [realGateStep, extractGateCoreInput_and, realGateCore, Functor.map_map]
-    refine congrArg (Functor.map (f := WordOracleComp Unit) · _) (funext fun tr => ?_)
-    simp [finishMulGate, appendStep2Acc]
+    simp [realGateStep, extractGateCoreInput_and, realGateCore, Functor.map_map,
+      finishMulGate, appendStep2Acc]
   | or =>
     dsimp only [GMWCircuit.lineSteps, GMWCircuit.lineSchedule]
     refine (runSharedMulSteps_oracle_done
@@ -1714,9 +1530,8 @@ private theorem runSharedMulSteps_lineSteps {m n g : ℕ} [NeZero m]
       (fun _ (w_s : Wire n g → Bool) => (w_s (wires 0), w_s (wires 1)))
       (fun _ w_i bit => GMWCircuit.extendWire (w_i (wires 0) + w_i (wires 1) + bit) w_i)
       w).trans ?_
-    rw [realGateStep, extractGateCoreInput_or, realGateCore, Functor.map_map]
-    refine congrArg (Functor.map (f := WordOracleComp Unit) · _) (funext fun tr => ?_)
-    simp [finishMulGate, appendStep2Acc]
+    simp [realGateStep, extractGateCoreInput_or, realGateCore, Functor.map_map,
+      finishMulGate, appendStep2Acc]
 
 private theorem runSharedMulSteps_progSteps {m n g : ℕ} [NeZero m]
     (prog : Program Boolean.signature n g)

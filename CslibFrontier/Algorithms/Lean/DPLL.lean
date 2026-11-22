@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
 public import CslibFrontier.Logics.Propositional.CNF.UnitPropagation
+public import CslibFrontier.Foundations.Data.List.EraseDups
 
 /-! # A DPLL solver with LRAT certificates
 
@@ -240,10 +241,11 @@ def search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)) → (vs :
               else .unsat c₁ d₁ fun l hl =>
                 Literal.negate_mem_of_mem_cons (h₁ l hl) (by rintro rfl; exact hc₁ hl)
 
-/-- The search from the empty partial assignment, with the variables of the formula open. -/
+/-- The search from the empty partial assignment, with the variables of the formula open, in the
+order of their first occurrences. -/
 def dpll (φ : CNF ℕ) : Outcome φ [] :=
-  search φ φ.vars.dedup.length [] φ.vars.dedup
-    ⟨fun _ hx => .inl (List.mem_dedup.2 hx), by simp, List.nodup_dedup _⟩ le_rfl
+  search φ φ.vars.eraseDups.length [] φ.vars.eraseDups
+    ⟨fun _ hx => .inl (List.mem_eraseDups.2 hx), by simp, List.nodup_eraseDups _⟩ le_rfl
 
 /-! ### The solver -/
 

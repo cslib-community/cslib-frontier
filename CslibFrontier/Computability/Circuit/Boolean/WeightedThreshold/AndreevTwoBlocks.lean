@@ -46,8 +46,10 @@ The draft checks the finite case analysis numerically for `m ≤ 40`; here it is
 
 ## References
 
-* [cslib-frontier#4640](https://github.com/cslib-community/cslib-frontier/issues/4640):
-  original AI-assisted work, milestone M4.
+* [A. E. Andreev, *On a method for obtaining more than quadratic effective lower bounds for the
+  complexity of π-schemes*][Andreev1987]
+* C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function* (unpublished draft, not
+  publicly accessible), Remark "Two address blocks" (`prop:k2`).
 -/
 
 @[expose] public section
@@ -172,25 +174,18 @@ theorem thirteen_le_andreevTwoBlocksTopSum_iff (x : BitString 2 → Bool) (s : F
   have h3 := Bool.toNat_le (x fun _ => true)
   rcases Nat.mod_two_eq_zero_or_one (s 0) with p0 | p0 <;>
     rcases Nat.mod_two_eq_zero_or_one (s 1) with p1 | p1
-  · have : blockParities 2 s = 0 := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]
-    rw [this]
-    cases x 0 <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> simp <;> omega
-  · have : blockParities 2 s = Pi.single 1 true := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]
-    rw [this]
-    cases x (Pi.single 1 true) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      simp <;> omega
-  · have : blockParities 2 s = Pi.single 0 true := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]
-    rw [this]
-    cases x (Pi.single 0 true) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      simp <;> omega
-  · have : blockParities 2 s = fun _ => true := by
-      funext l; fin_cases l <;> simp [blockParities, p0, p1]
-    rw [this]
-    cases x (fun _ => true) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;>
-      simp <;> omega
+  · rw [show blockParities 2 s = 0 by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]]
+    cases x 0 <;> simp <;> omega
+  · rw [show blockParities 2 s = Pi.single 1 true by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]]
+    cases x (Pi.single 1 true) <;> simp <;> omega
+  · rw [show blockParities 2 s = Pi.single 0 true by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1, Bool.zero_eq_false]]
+    cases x (Pi.single 0 true) <;> simp <;> omega
+  · rw [show blockParities 2 s = fun _ => true by
+      funext l; fin_cases l <;> simp [blockParities, p0, p1]]
+    cases x (fun _ => true) <;> simp <;> omega
 
 end TopSum
 
