@@ -358,4 +358,39 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   exact ⟨answer, bits, hreach.trans (configurationInstance_mem_iff ntm c hspace),
     hfirst, hreply, hunique⟩
 
+/-- The original word produces the full retained entry within the compiler's budget. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ComputableInSpace (configurationJustesenSeedSchedulerEntry ntm c)
+      encBits encJustesenSeedSchedulerState (fun w => Nat.log2 w.length + 1) :=
+  configurationJustesenSeedSchedulerEntry_inSpace ntm c
+
+open NondeterministicQueryMachine ComputableInSpace in
+/-- A transition composes with separate producers for the retained state and read/selector input. -/
+example {k : ℕ} {State α : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) {enc : α ↪ List Bool} {S : α → ℕ} {state : α → JustesenSeedSchedulerState}
+    {input : α → Option Bool × Bool}
+    (hs : ComputableInSpace state enc encJustesenSeedSchedulerState S)
+    (hi : ComputableInSpace input enc encReadChoice S) :
+    ComputableInSpace (fun a => (justesenSeedScheduler ntm c).next (state a, input a))
+      enc encJustesenSeedSchedulerState S :=
+  budget_comp_linear (justesenSeedScheduler_next_inSpace ntm c) (budget_prod hs hi)
+
+open Classical Cslib.Complexity NondeterministicQueryMachine in
+/-- One compiled scheduler meets the native resource bounds, preserves acceptance,
+and has exactly one accepting occurrence on each accepted input. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    let M := justesenSeedScheduler ntm c
+    let entry := configurationJustesenSeedSchedulerEntry ntm c
+    ∃ R : Routines M entry encBits (fun w => Nat.log2 w.length + 1), ∃ L d, ∀ w,
+      R.machine.RunsInSpace w (L * (Nat.log2 w.length + 1)) ∧
+      R.machine.RunsInTime w (polyClock d w.length) ∧
+      (R.machine.Accepts w ↔ (M.withInit (entry w)).Accepts w) ∧
+      (ntm.RunsInSpace w (c * (Nat.log2 w.length + 1)) →
+        (Native.countingMachine R.I R.P R.F R.C).acceptCount (polyClock d w.length)
+          (R.machine.initCfg w) = if ntm.Accepts w then 1 else 0) := by
+  obtain ⟨R, L, d, h⟩ := configurationJustesenSeedScheduler_exists_routines ntm c
+  refine ⟨R, L, d, fun w => ⟨(h w).1, (h w).2, R.accepts_iff w, fun hspace => ?_⟩⟩
+  simpa only [configurationInstance_mem_iff ntm c hspace] using
+    configurationJustesenSeedScheduler_acceptCount ntm c R w (h w).2
+
 end CslibFrontierTests.STCONSeedScheduler

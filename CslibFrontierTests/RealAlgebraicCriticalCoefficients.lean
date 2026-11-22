@@ -7,8 +7,12 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ShiftedCriticalObjectiveEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
@@ -54,6 +58,49 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- The determinant certificate accepts a binary shift and a plain zero-source evaluator.
+example : (fun e : ℕ => criticalLabelDeterminantResidue 101 1 1 0 e [] (fun _ => 0)) ∈
+    CountingFunction 21 encNat encNat :=
+  criticalLabelDeterminantResidue_mem (a := 0) Decoder.nat
+    (p := fun _ => 101) (n := fun _ => 1) (d := fun _ => 1) (b := fun _ => 0)
+    (e := id) (data := fun _ => []) (value := fun _ => 0)
+    (.const 101) (.const 1) (.const 1) (.const 0) (by fun_prop)
+    (.const []) (CountingFunction.of_polyTime (.const 0))
+
+-- The one-variable zero source supports an input-dependent shift and grid point at level 13.
+example : (fun w : ℕ × List ℕ =>
+    criticalShiftedObjectiveResidue 101 1 1 0 w.1 w.2 [⟨0, 1⟩] (fun _ => 0)) ∈
+    CountingFunction 13 (encPair encNat (encList encNat)) encNat :=
+  criticalShiftedObjectiveResidue_mem (a := 0) (Decoder.pair Decoder.nat (Decoder.list Decoder.nat))
+    (p := fun _ => 101) (n := fun _ => 1) (d := fun _ => 1) (b := fun _ => 0)
+    (e := Prod.fst) (z := Prod.snd) (data := fun _ => [⟨0, 1⟩]) (value := fun _ => 0)
+    (.const 101) (.const 1) (.const 1) (.const 0) (by fun_prop) (by fun_prop)
+    (.const _) (CountingFunction.of_polyTime (.const 0))
+
+-- The zero source in one variable supplies the full label certificate at every binary address.
+example : (fun z : ℕ => criticalRootLabelResidue 101 1 1 0 z [] (fun _ => 0)) ∈
+    CountingFunction 13 encNat encNat :=
+  criticalRootLabelResidue_mem (a := 0) Decoder.nat
+    (p := fun _ => 101) (n := fun _ => 1) (d := fun _ => 1) (b := fun _ => 0)
+    (z := id) (data := fun _ => []) (value := fun _ => 0)
+    (.const 101) (.const 1) (.const 1) (.const 0) (by fun_prop)
+    (.const []) (CountingFunction.of_polyTime (.const 0))
+
+-- A negative second-derivative test follows the positive qualifying slot and precedes padding.
+example (i : Fin 3) :
+    let L : List (Fin 2 × SignType) := [(1, -1)]
+    rootLabelCodeOrders 2 2 (encodeRootLabel L) = [2] ∧
+      (rootLabelCodeTarget 101 (encodeRootLabel L) i.val : ZMod 101) = ![1, -1, 0] i := by
+  intro L
+  have hL : decodeRootLabel (by decide) 2 (encodeRootLabel L) = L :=
+    decodeRootLabel_encodeRootLabel (by decide) L (by decide)
+  constructor
+  · rw [rootLabelCodeOrders_eq (by decide), hL]
+    rfl
+  · rw [rootLabelCodeTarget_cast (D := 2) (N := 2) (by decide) (by decide)
+      (encodeRootLabel L) 0 0 i, hL]
+    fin_cases i <;> rfl
 
 -- The qualifying constant and the requested derivative of X are both positive unit tests.
 example : (sparseRootLabelResidue 101 1 1 0 0 1 (fun j => if j = 1 then 1 else 0)

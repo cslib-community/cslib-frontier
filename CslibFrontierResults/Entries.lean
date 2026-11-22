@@ -285,6 +285,7 @@ import CslibFrontier.Crypto.Computational.Encryption.ECB
 import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+import CslibFrontier.Crypto.Computational.Encryption.RealIdealAE
 import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
@@ -10835,6 +10836,23 @@ register_result "pke-as-functional-encryption" where
     eval_ssExperiment_toFE_ofTwoStage, in the same module, matches Attack Game 15.9 for E.toFE \
     against adversaries that make no key query with the chosen-plaintext experiment of E under \
     equal len; it checks the two games against each other and is not a claim of the book."
+
+register_result "fixed-length-real-ideal-ae" where
+  title := "For fixed n-bit messages, real/ideal AE is equivalent to adaptive left-or-right \
+    CCA security and fresh-plaintext unforgeability"
+  topic := "cryptography"
+  sources := [
+    { paper := KatzLindell2020, theorem := "Theorem 5.5 (fixed-length, left-or-right variant)",
+      locator := "Section 5.2.1, Definitions 5.2–5.4 and Theorem 5.5, pp. 151–153" }
+  ]
+  theorems := [Cslib.Crypto.SymmetricCipher.realIdealAE_iff_indcca_and_encForge]
+  scope := "At security parameter n, encryption queries admit exactly n-bit messages. For uniform \
+    strict oracle-PPT adversaries, the CCA game allows adaptive left-or-right queries under a \
+    common bit and rejects decryption of every ciphertext they return. Definition 5.1 gives a \
+    single challenge with ordinary encryption and decryption oracles. A forgery must decrypt to \
+    a plaintext never queried for encryption. Both real/ideal worlds publicly reject decryption \
+    of earlier encryption replies, which Definition 5.4 forbids querying. Two-world advantage \
+    equals twice the absolute deviation of the hidden-bit guessing probability from one half."
 
 register_result "partial-tag-encrypt-then-mac" where
   title := "Encrypt-then-MAC over a one-block PRF cipher with an unauthenticated IV loses \
