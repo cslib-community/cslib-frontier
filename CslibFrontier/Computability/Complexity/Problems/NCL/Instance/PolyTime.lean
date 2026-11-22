@@ -38,12 +38,12 @@ open _root_.Turing.MultiTapeTM
 /-- Checking the opposite weighted pair at a computed edge is polynomial-time. -/
 @[fun_prop]
 theorem computableInPolyTime_checkEdge {α : Type} {input : α ↪ List Bool}
-    {ps : α → List (Port ℕ × ℕ)} {edge : α → ℕ}
+    {ps : α → List (WeightedPort ℕ)} {edge : α → ℕ}
     (hp : ComputableInPolyTime ps input (encWeightedPorts encNat))
     (he : ComputableInPolyTime edge input encNat) :
     ComputableInPolyTime (fun x => checkEdge (ps x) (edge x)) input encBool := by
   have hq : ComputableInPolyTime
-      (fun x => (ps x).filter (fun p => decide (p.1.edge = edge x)))
+      (fun x => (ps x).filter (fun p => decide (p.port.edge = edge x)))
       input (encWeightedPorts encNat) := by
     fun_prop
   unfold checkEdge

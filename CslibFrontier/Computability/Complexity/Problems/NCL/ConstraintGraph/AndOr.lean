@@ -22,8 +22,6 @@ retained as witnesses for `Vertex.IsAndOr`. Mapping edge names preserves the pro
 
 ## Main results
 
-* `Cslib.Complexity.NCL.Vertex.isAndOr_of_check`: a successful check gives the standard
-  permutation-based vertex predicate.
 * `Cslib.Complexity.NCL.Vertex.checkAndOr_eq_true_iff`: every permitted permutation is accepted.
 * `Cslib.Complexity.NCL.Vertex.IsAndOr.map`: renaming edges preserves the vertex kind.
 
@@ -43,17 +41,16 @@ variable {E E' : Type*}
 @[expose] def checkAndOr (v : Vertex E) : Bool :=
   v.minInflow == 2 &&
     ([[1, 1, 2], [1, 2, 1], [2, 1, 1], [2, 2, 2]] : List (List ℕ)).contains
-      (v.ports.map Prod.snd)
+      (v.ports.map WeightedPort.weight)
 
-private theorem ports_of_map_weights {ps : List (Port E × ℕ)} {x y z : ℕ}
-    (h : ps.map Prod.snd = [x, y, z]) : ∃ a b c, ps = [(a, x), (b, y), (c, z)] := by
+private theorem ports_of_map_weights {ps : List (WeightedPort E)} {x y z : ℕ}
+    (h : ps.map WeightedPort.weight = [x, y, z]) : ∃ a b c, ps = [⟨a, x⟩, ⟨b, y⟩, ⟨c, z⟩] := by
   simp only [List.map_eq_cons_iff, List.map_eq_nil_iff] at h
   rcases h with ⟨⟨a, _⟩, _, rfl, rfl, ⟨⟨b, _⟩, _, rfl, rfl,
     ⟨⟨c, _⟩, _, rfl, rfl, rfl⟩⟩⟩
   exact ⟨a, b, c, rfl⟩
 
-/-- Accepted port-weight orders provide explicit AND/OR port witnesses. -/
-theorem isAndOr_of_check {v : Vertex E} (h : v.checkAndOr = true) : v.IsAndOr := by
+private theorem isAndOr_of_check {v : Vertex E} (h : v.checkAndOr = true) : v.IsAndOr := by
   simp only [checkAndOr, Bool.and_eq_true, beq_iff_eq, List.contains_iff_mem, List.mem_cons,
     List.not_mem_nil, or_false] at h
   rcases h with ⟨hm, hp | hp | hp | hp⟩
@@ -65,7 +62,7 @@ theorem isAndOr_of_check {v : Vertex E} (h : v.checkAndOr = true) : v.IsAndOr :=
   · exact .inr ⟨a, b, c, hm, hp ▸ List.Perm.refl _⟩
 
 private theorem check_of_isAndOr {v : Vertex E} (h : v.IsAndOr) : v.checkAndOr = true := by
-  have hperm : ∀ x y z : Port E × ℕ, [x, y, z].permutations =
+  have hperm : ∀ x y z : WeightedPort E, [x, y, z].permutations =
       [[x, y, z], [y, x, z], [z, y, x], [y, z, x], [z, x, y], [x, z, y]] := by
     intro x y z
     cbv
@@ -91,8 +88,8 @@ theorem checkAndOr_map (v : Vertex E) (f : E → E') :
 theorem IsAndOr.map {v : Vertex E} (h : v.IsAndOr) (f : E → E') : (v.map f).IsAndOr := by
   rcases h with ⟨a, b, c, hm, hp⟩ | ⟨a, b, c, hm, hp⟩
   · exact .inl ⟨a.map f, b.map f, c.map f, hm,
-      hp.map (fun p : Port E × ℕ => (p.1.map f, p.2))⟩
+      hp.map (WeightedPort.map f)⟩
   · exact .inr ⟨a.map f, b.map f, c.map f, hm,
-      hp.map (fun p : Port E × ℕ => (p.1.map f, p.2))⟩
+      hp.map (WeightedPort.map f)⟩
 
 end Cslib.Complexity.NCL.Vertex

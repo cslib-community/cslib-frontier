@@ -16,8 +16,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 /-!
 # Polynomial-time local configuration checks
 
-Use binary lookup for port indices and scan only the supplied bit lists. List construction
-uses framed Boolean lists, with explicit conversions to and from raw bit strings.
+Compute inflow using binary lookup at port indices and binary summation of the inward weights.
+The reversal test scans only the supplied bit lists.
 
 ## Main results
 
@@ -32,39 +32,31 @@ namespace Cslib.Complexity.NCL
 
 open _root_.Turing.MultiTapeTM
 
-/-- AND/OR inflow testing uses polynomial-time lookup at the binary port indices. -/
+/-- Inflow testing uses polynomial-time binary lookup, summation and comparison. -/
 @[fun_prop]
 theorem Vertex.computableInPolyTime_checkSat {α : Type} {input : α ↪ List Bool}
     {v : α → Vertex ℕ} {s : α → List Bool}
     (hv : ComputableInPolyTime v input (encVertex encNat))
     (hs : ComputableInPolyTime s input encBits) :
     ComputableInPolyTime (fun x => (v x).checkSat (s x)) input encBool := by
+  have hm : ComputableInPolyTime (fun x => (v x).minInflow) input encNat := by fun_prop
   have hp : ComputableInPolyTime (fun x => (v x).ports) input (encWeightedPorts encNat) := by
     fun_prop
-  have hl : ComputableInPolyTime (fun p : α × (Port ℕ × ℕ) => s p.1)
-      (encPair input (encPair (encPort encNat) encNat)) encBits := by fun_prop
-  have hi : ComputableInPolyTime (fun p : α × (Port ℕ × ℕ) => p.2.1.edge)
-      (encPair input (encPair (encPort encNat) encNat)) encNat := by fun_prop
+  have hl : ComputableInPolyTime (fun p : α × WeightedPort ℕ => s p.1)
+      (encPair input (encWeightedPort encNat)) encBits := by fun_prop
+  have hi : ComputableInPolyTime (fun p : α × WeightedPort ℕ => p.2.port.edge)
+      (encPair input (encWeightedPort encNat)) encNat := by fun_prop
   have hr := ComputableInPolyTime.listGetD_binary (encA := encBool) false hl hi
-  have hd : ComputableInPolyTime (fun p : α × (Port ℕ × ℕ) => p.2.1.dir)
-      (encPair input (encPair (encPort encNat) encNat)) encBool := by fun_prop
-  have ha : ComputableInPolyTime (fun p : α × (Port ℕ × ℕ) =>
-      (s p.1).getD p.2.1.edge false == p.2.1.dir)
-      (encPair input (encPair (encPort encNat) encNat)) encBool :=
-    ComputableInPolyTime.beq hr hd
-  have hw : ComputableInPolyTime (fun p : α × (Port ℕ × ℕ) => p.2.2)
-      (encPair input (encPair (encPort encNat) encNat)) encNat := by fun_prop
-  have hred := hw.beq (ComputableInPolyTime.const 1)
-  have hblue := hw.beq (ComputableInPolyTime.const 2)
-  have hid : ComputableInPolyTime (fun x : α => x) input input := by fun_prop
-  have hcond := ComputableInPolyTime.anyWithEncoding hred hid hp
-  have hblueIn := ComputableInPolyTime.anyWithEncoding
-    (ComputableInPolyTime.bool_and' hblue ha) hid hp
-  have hredIn := ComputableInPolyTime.allWithEncoding
-    (ComputableInPolyTime.bool_or' (ComputableInPolyTime.bool_not.comp hred) ha) hid hp
-  have hany := ComputableInPolyTime.anyWithEncoding ha hid hp
-  unfold Vertex.checkSat
-  exact ComputableInPolyTime.ite hcond (ComputableInPolyTime.bool_or' hblueIn hredIn) hany
+  have hd : ComputableInPolyTime (fun p : α × WeightedPort ℕ => p.2.port.dir)
+      (encPair input (encWeightedPort encNat)) encBool := by fun_prop
+  have hw : ComputableInPolyTime (fun p : α × WeightedPort ℕ => p.2.weight)
+      (encPair input (encWeightedPort encNat)) encNat := by fun_prop
+  have hin := ComputableInPolyTime.mapWithInput
+    (f := fun x p => if (s x).getD p.port.edge false == p.port.dir then p.weight else 0) hp
+    (ComputableInPolyTime.ite (ComputableInPolyTime.beq hr hd) hw (ComputableInPolyTime.const 0))
+  convert ComputableInPolyTime.binary_le' hm (ComputableInPolyTime.binary_sum.comp hin) using 1
+  funext x
+  simp [Vertex.checkSat, Vertex.Sat, Vertex.inflow, Port.In]
 
 private theorem modify_not_eq_zip (s : List Bool) (i : ℕ) :
     s.modify i Bool.not =

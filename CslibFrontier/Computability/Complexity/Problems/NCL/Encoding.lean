@@ -30,7 +30,7 @@ and Boolean encodings. Constructors and projections preserve polynomial-time com
 ## Main results
 
 * `Cslib.Complexity.NCL.AndOrGraph.computableInPolyTime_checkVertices` recognizes the vertex
-  shapes and loop freedom in polynomial time.
+  shapes in polynomial time.
 -/
 
 public section
@@ -45,9 +45,13 @@ variable {E : Type}
 enc_structure encPort (encE : E ↪ List Bool) : Port E where
   edge : encE, dir : encBool
 
-/-- Encode a list of weighted ports. Each pair frames the port before its binary weight. -/
-abbrev encWeightedPorts (encE : E ↪ List Bool) : List (Port E × ℕ) ↪ List Bool :=
-  encList (encPair (encPort encE) encNat)
+/-- Encode a weighted incidence by framing its port and appending its binary weight. -/
+enc_structure encWeightedPort (encE : E ↪ List Bool) : WeightedPort E where
+  port : (encPort encE), weight : encNat
+
+/-- Encode the list of weighted incidences by framing each encoded incidence. -/
+abbrev encWeightedPorts (encE : E ↪ List Bool) : List (WeightedPort E) ↪ List Bool :=
+  encList (encWeightedPort encE)
 
 /-- Encode the framed list of weighted ports followed by the binary minimum inflow. -/
 enc_structure encVertex (encE : E ↪ List Bool) : Vertex E where
@@ -80,22 +84,13 @@ theorem AndOrGraph.computableInPolyTime_checkBounded :
 @[fun_prop]
 theorem Vertex.computableInPolyTime_checkAndOr (encE : E ↪ List Bool) :
     ComputableInPolyTime Vertex.checkAndOr (encVertex encE) encBool := by
-  have hw : ComputableInPolyTime (fun v : Vertex E => v.ports.map Prod.snd)
+  have hw : ComputableInPolyTime (fun v : Vertex E => v.ports.map WeightedPort.weight)
       (encVertex encE) (encList encNat) := by fun_prop
   unfold Vertex.checkAndOr
   simp only [List.contains_eq_any_beq, List.any_cons, List.any_nil, Bool.or_false]
   fun_prop
 
-/-- Detecting a repeated edge at a vertex is polynomial-time in its structural encoding. -/
-@[fun_prop]
-theorem Vertex.computableInPolyTime_checkLoopFree [DecidableEq E] (encE : E ↪ List Bool) :
-    ComputableInPolyTime Vertex.checkLoopFree (encVertex encE) encBool := by
-  have he : ComputableInPolyTime (fun v : Vertex E => v.ports.map (fun p => p.1.edge))
-      (encVertex encE) (encList encE) := by fun_prop
-  rw [funext (Vertex.checkLoopFree_eq_scan (E := E))]
-  fun_prop
-
-/-- The local AND/OR and loop checks on all vertex records run in polynomial time. -/
+/-- The AND/OR checks on all vertex records run in polynomial time. -/
 @[fun_prop]
 theorem AndOrGraph.computableInPolyTime_checkVertices :
     ComputableInPolyTime AndOrGraph.checkVertices encAndOrGraph encBool := by

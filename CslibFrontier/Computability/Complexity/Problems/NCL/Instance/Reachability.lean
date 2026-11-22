@@ -33,7 +33,7 @@ public section
 namespace Cslib.Complexity.NCL.AndOrGraph
 
 /-- Savitch's procedure at depth equal to the edge count decides configuration reachability. -/
-theorem savitch_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) (ha : g.graph.IsAndOr)
+theorem savitch_eq_true_iff (g : AndOrGraph) (hb : g.Bounded)
     (s t : List Bool) (hs : s.length = g.edgeCount) (ht : t.length = g.edgeCount) :
     Cslib.Reachability.savitch g.checkStep g.edgeCount g.edgeCount s t = true ↔
       g.graph.Reachable (g.config s) (g.config t) := by
@@ -41,7 +41,7 @@ theorem savitch_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) (ha : g.graph.IsAn
   constructor
   · intro h
     exact Relation.ReflTransGen.lift g.config (fun a b hab =>
-      ((checkStep_eq_true_iff g hb ha a b).1 hab.2.2).2.2) _ _ h.reflTransGen
+      ((checkStep_eq_true_iff g hb a b).1 hab.2.2).2.2) _ _ h.reflTransGen
   · intro h
     have hc : Nat.card (Fin g.edgeCount → Bool) ≤ 2 ^ g.edgeCount + 1 := by
       simp [Nat.card_eq_fintype_card]
@@ -50,7 +50,7 @@ theorem savitch_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) (ha : g.graph.IsAn
       (r' := fun a b => a.length = g.edgeCount ∧ b.length = g.edgeCount ∧ g.checkStep a b = true)
       (fun q : Fin g.edgeCount → Bool => List.ofFn q) (fun a b hab => by
       refine ⟨List.length_ofFn, List.length_ofFn, ?_⟩
-      apply (checkStep_eq_true_iff g hb ha _ _).2
+      apply (checkStep_eq_true_iff g hb _ _).2
       refine ⟨List.length_ofFn, List.length_ofFn, ?_⟩
       simpa only [config_ofFn] using hab)
     simpa only [ofFn_config g s hs, ofFn_config g t ht] using hh

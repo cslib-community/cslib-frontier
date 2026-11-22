@@ -17,7 +17,8 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpac
 
 A target bit list witnesses reversal of the requested edge. Its width is the supplied initial
 list's length, so polynomially bounded existential quantification applies to the existing
-configuration reachability decider. This gives the upper bound of [HearnDemaine2005, Theorem 5].
+configuration reachability decider. This gives the AND/OR case of the upper bound in
+[HearnDemaine2005, Theorem 5].
 
 ## Main results
 
@@ -107,7 +108,8 @@ private theorem witness_mem_PSPACE : witness ∈ PSPACE witnessEncoding := by
     ⟨_, .of_polyTime computableInPolyTime_changed, fun _ => Iff.rfl⟩
   exact inter_mem_PSPACE (hred.mem_PSPACE AndOrNCL_mem_PSPACE) hgoal
 
-/-- Configuration-to-edge AND/OR NCL is decidable in polynomial space. -/
+/-- Configuration-to-edge reachability on AND/OR multigraphs is in PSPACE,
+including graphs with loops. -/
 theorem AndOrNCLEdge_mem_PSPACE : AndOrNCLEdge ∈ PSPACE encAndOrNCLEdge := by
   have hlen : ComputableInPolyTime (fun x : EdgeInput => x.initial.length)
       encAndOrNCLEdge encUnary := by

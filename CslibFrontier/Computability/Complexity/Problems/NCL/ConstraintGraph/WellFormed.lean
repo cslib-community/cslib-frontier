@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Basic
 public import Mathlib.Data.Multiset.Basic
 public import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.Algebra.Order.Group.Multiset
 
 /-!
 # Consistent edge incidences
@@ -38,40 +39,21 @@ namespace Cslib.Complexity.NCL
 
 variable {V E E' : Type*}
 
-/-- Rename the edges of a multiset of weighted ports. -/
-@[expose] def Port.mapMultiset (f : E → E') : Multiset (Port E × ℕ) →+ Multiset (Port E' × ℕ) where
-  toFun := Multiset.map (fun p => (p.1.map f, p.2))
-  map_zero' := Multiset.map_zero _
-  map_add' := Multiset.map_add _
-
-/-- Rename a singleton weighted port. -/
-@[simp] theorem Port.mapMultiset_singleton (f : E → E') (p : Port E) (weight : ℕ) :
-    Port.mapMultiset f {(p, weight)} = {(p.map f, weight)} := by
-  simp [Port.mapMultiset]
-
-/-- Injective edge renaming preserves exact weighted-port multiplicities. -/
-theorem Port.mapMultiset_injective {f : E → E'} (hf : Function.Injective f) :
-    Function.Injective (Port.mapMultiset f) := by
-  apply Multiset.map_injective
-  rintro ⟨⟨e, d⟩, w⟩ ⟨⟨e', d'⟩, w'⟩ h
-  simp only [Port.map, Prod.mk.injEq, Port.mk.injEq] at h
-  exact Prod.ext (congrArg₂ Port.mk (hf h.1.1) h.1.2) h.2
-
 namespace ConstraintGraph
 
 /-- All weighted ports, counted with their multiplicities. -/
-@[expose] def portMultiset [Fintype V] (G : ConstraintGraph V E) : Multiset (Port E × ℕ) :=
-  ∑ v, (↑(G v).ports : Multiset (Port E × ℕ))
+@[expose] def portMultiset [Fintype V] (G : ConstraintGraph V E) : Multiset (WeightedPort E) :=
+  ∑ v, (↑(G v).ports : Multiset (WeightedPort E))
 
 /-- Every edge has exactly one endpoint of each direction, both carrying the same weight. -/
 @[expose] def WellFormed [Fintype V] [Fintype E] (G : ConstraintGraph V E) : Prop :=
   ∃ weight : E → ℕ, G.portMultiset =
-    ∑ e, ({(⟨e, false⟩, weight e)} + {(⟨e, true⟩, weight e)})
+    ∑ e, ({⟨⟨e, false⟩, weight e⟩} + {⟨⟨e, true⟩, weight e⟩})
 
 /-- Collecting ports commutes with edge renaming. -/
 theorem portMultiset_map [Fintype V] (G : ConstraintGraph V E) (f : E → E') :
-    (G.map f).portMultiset = Port.mapMultiset f G.portMultiset := by
-  rw [portMultiset, portMultiset, map_sum]
+    (G.map f).portMultiset = Multiset.map (WeightedPort.map f) G.portMultiset := by
+  rw [← Multiset.coe_mapAddMonoidHom, portMultiset, portMultiset, map_sum]
   rfl
 
 /-- A vertex list interpreted on its positions has the same multiset of ports. -/
@@ -84,8 +66,8 @@ theorem portMultiset_get (vs : List (Vertex E)) :
       List.flatMap_cons, ← Multiset.coe_add]
     congr 1
 
-private theorem sum_filter_edge [Fintype E] [DecidableEq E] (ps : Multiset (Port E × ℕ)) :
-    (∑ e, ps.filter (fun p => p.1.edge = e)) = ps := by
+private theorem sum_filter_edge [Fintype E] [DecidableEq E] (ps : Multiset (WeightedPort E)) :
+    (∑ e, ps.filter (fun p => p.port.edge = e)) = ps := by
   induction ps using Multiset.induction_on with
   | empty => simp
   | @cons p ps ih =>
@@ -96,13 +78,13 @@ private theorem sum_filter_edge [Fintype E] [DecidableEq E] (ps : Multiset (Port
 /-- Consistent incidences can be checked independently at each edge. -/
 theorem wellFormed_iff_filter [Fintype V] [Fintype E] [DecidableEq E]
     (G : ConstraintGraph V E) : G.WellFormed ↔
-      ∀ e, ∃ w, G.portMultiset.filter (fun p => p.1.edge = e) =
-        {(⟨e, false⟩, w)} + {(⟨e, true⟩, w)} := by
+      ∀ e, ∃ w, G.portMultiset.filter (fun p => p.port.edge = e) =
+        {⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩} := by
   constructor
   · rintro ⟨weight, hw⟩ e
     refine ⟨weight e, ?_⟩
-    let F : Multiset (Port E × ℕ) →+ Multiset (Port E × ℕ) :=
-      { toFun := Multiset.filter (fun p => p.1.edge = e)
+    let F : Multiset (WeightedPort E) →+ Multiset (WeightedPort E) :=
+      { toFun := Multiset.filter (fun p => p.port.edge = e)
         map_zero' := Multiset.filter_zero _
         map_add' := Multiset.filter_add _ }
     have hh := congrArg F hw
@@ -114,7 +96,7 @@ theorem wellFormed_iff_filter [Fintype V] [Fintype E] [DecidableEq E]
     choose weight hw using h
     refine ⟨weight, ?_⟩
     calc
-      _ = ∑ e, G.portMultiset.filter (fun p => p.1.edge = e) := (sum_filter_edge _).symm
+      _ = ∑ e, G.portMultiset.filter (fun p => p.port.edge = e) := (sum_filter_edge _).symm
       _ = _ := Finset.sum_congr rfl (fun e _ => hw e)
 
 /-- A well-formed graph has two ports per edge, counted with multiplicity. -/
@@ -122,13 +104,8 @@ theorem WellFormed.card_portMultiset [Fintype V] [Fintype E]
     {G : ConstraintGraph V E} (h : G.WellFormed) :
     G.portMultiset.card = 2 * Fintype.card E := by
   obtain ⟨weight, hw⟩ := h
-  let C : Multiset (Port E × ℕ) →+ ℕ :=
-    { toFun := Multiset.card
-      map_zero' := Multiset.card_zero
-      map_add' := Multiset.card_add }
-  have hh := congrArg C hw
-  rw [map_sum] at hh
-  simpa [C, Nat.mul_comm] using hh
+  rw [hw]
+  simp [Nat.mul_comm]
 
 end ConstraintGraph
 

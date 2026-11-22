@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.AndOr
-public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.LoopFree
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.WellFormed
 public import Mathlib.Data.List.OfFn
 import Mathlib.Data.List.GetD
@@ -18,8 +17,9 @@ import Mathlib.Data.List.Basic
 # Finite data for AND/OR constraint graphs
 
 Store a vertex list with natural edge names and an edge count. Its graph uses finite intervals
-for both vertices and edges. Valid data have bounded port names, AND/OR vertices, consistent
-opposite endpoints, and no self-loops.
+for both vertices and edges. Valid data have bounded port names, AND/OR vertices and consistent
+opposite endpoints. Both ports of a self-loop occur at the same vertex. Exactly one contributes
+to its inflow in each orientation.
 
 ## Main definitions
 
@@ -29,8 +29,7 @@ opposite endpoints, and no self-loops.
 
 ## Main results
 
-* `Cslib.Complexity.NCL.AndOrGraph.checkVertices_eq_true_iff` checks vertex shapes and
-  loop freedom on bounded data.
+* `Cslib.Complexity.NCL.AndOrGraph.checkVertices_eq_true_iff` checks vertex shapes on bounded data.
 -/
 
 public section
@@ -49,11 +48,11 @@ namespace AndOrGraph
 
 /-- Every port names an edge in the declared interval. -/
 @[expose]
-def Bounded (g : AndOrGraph) : Prop := ∀ v ∈ g.vertices, ∀ p ∈ v.ports, p.1.edge < g.edgeCount
+def Bounded (g : AndOrGraph) : Prop := ∀ v ∈ g.vertices, ∀ p ∈ v.ports, p.port.edge < g.edgeCount
 
 /-- Check all listed edge names against the declared edge count. -/
 @[expose] def checkBounded (g : AndOrGraph) : Bool :=
-  g.vertices.all (fun v => v.ports.all (fun p => decide (p.1.edge < g.edgeCount)))
+  g.vertices.all (fun v => v.ports.all (fun p => decide (p.port.edge < g.edgeCount)))
 
 /-- The finite check recognizes bounded port data. -/
 theorem checkBounded_eq_true_iff (g : AndOrGraph) : g.checkBounded = true ↔ g.Bounded := by
@@ -64,8 +63,8 @@ theorem checkBounded_eq_true_iff (g : AndOrGraph) : g.checkBounded = true ↔ g.
 def graph (g : AndOrGraph) : ConstraintGraph (Fin g.vertices.length) (Fin g.edgeCount) := fun i =>
   let v := g.vertices.get i
   { ports := v.ports.filterMap fun p =>
-      if h : p.1.edge < g.edgeCount then
-        some ((⟨⟨p.1.edge, h⟩, p.1.dir⟩ : Port (Fin g.edgeCount)), p.2)
+      if h : p.port.edge < g.edgeCount then
+        some (⟨⟨⟨p.port.edge, h⟩, p.port.dir⟩, p.weight⟩ : WeightedPort (Fin g.edgeCount))
       else none
     minInflow := v.minInflow }
 
@@ -74,13 +73,13 @@ theorem graph_map_val (g : AndOrGraph) (h : g.Bounded) :
     g.graph.map Fin.val = fun i => g.vertices.get i := by
   funext i
   let v := g.vertices.get i
-  have hv : ∀ p ∈ v.ports, p.1.edge < g.edgeCount := h _ (List.get_mem _ i)
+  have hv : ∀ p ∈ v.ports, p.port.edge < g.edgeCount := h _ (List.get_mem _ i)
   unfold ConstraintGraph.map graph
   simp only [Vertex.map, List.map_filterMap]
   have hp : v.ports.filterMap (fun p =>
-      (if h : p.1.edge < g.edgeCount then
-        some ((⟨⟨p.1.edge, h⟩, p.1.dir⟩ : Port (Fin g.edgeCount)), p.2) else none).map
-          (fun q => (q.1.map Fin.val, q.2))) = v.ports.map id :=
+      (if h : p.port.edge < g.edgeCount then
+        some (⟨⟨⟨p.port.edge, h⟩, p.port.dir⟩, p.weight⟩ : WeightedPort (Fin g.edgeCount))
+       else none).map (WeightedPort.map Fin.val)) = v.ports.map id :=
     List.filterMap_eq_map_iff_forall_eq_some.2 (by
       intro p hp
       rw [dite_eq_left (hv p hp)]
@@ -91,30 +90,26 @@ theorem graph_map_val (g : AndOrGraph) (h : g.Bounded) :
 
 /-- The serialized port multiset agrees with the finite semantics after erasing edge bounds. -/
 theorem graph_portMultiset (g : AndOrGraph) (hb : g.Bounded) :
-    Port.mapMultiset Fin.val g.graph.portMultiset = ↑(g.vertices.flatMap Vertex.ports) := by
+    Multiset.map (WeightedPort.map Fin.val) g.graph.portMultiset =
+      ↑(g.vertices.flatMap Vertex.ports) := by
   rw [← ConstraintGraph.portMultiset_map, graph_map_val g hb, ConstraintGraph.portMultiset_get]
 
-/-- Check every vertex for AND/OR shape and distinct incident edge names. -/
+/-- Check that every listed vertex has AND/OR shape. -/
 @[expose] def checkVertices (g : AndOrGraph) : Bool :=
-  g.vertices.all (fun v => v.checkAndOr && v.checkLoopFree)
+  g.vertices.all Vertex.checkAndOr
 
-/-- On bounded data, the local checks recognize exactly AND/OR vertices without self-loops. -/
+/-- On bounded data, the local checks recognize exactly AND/OR vertices. -/
 theorem checkVertices_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) :
-    g.checkVertices = true ↔ g.graph.IsAndOr ∧ g.graph.LoopFree := by
-  rw [checkVertices, List.all_eq_true, List.forall_mem_iff_get]
-  have hlocal (i : Fin g.vertices.length) :
-      ((g.vertices.get i).checkAndOr && (g.vertices.get i).checkLoopFree) = true ↔
-        (g.graph i).IsAndOr ∧ ((g.graph i).ports.map (fun p => p.1.edge)).Nodup := by
-    rw [← congrFun (graph_map_val g hb) i]
-    simp only [ConstraintGraph.map, Vertex.checkAndOr_map,
-      Vertex.checkLoopFree_map _ Fin.val_injective, Bool.and_eq_true,
-      Vertex.checkAndOr_eq_true_iff, Vertex.checkLoopFree_eq_true_iff]
-  simpa only [forall_and, ConstraintGraph.IsAndOr, ConstraintGraph.LoopFree] using
-    (forall_congr' hlocal)
+    g.checkVertices = true ↔ g.graph.IsAndOr := by
+  rw [checkVertices, List.all_eq_true, List.forall_mem_iff_get, ConstraintGraph.IsAndOr]
+  apply forall_congr'
+  intro i
+  rw [← congrFun (graph_map_val g hb) i]
+  simp only [ConstraintGraph.map, Vertex.checkAndOr_map, Vertex.checkAndOr_eq_true_iff]
 
-/-- The graph has bounded edge names and is a loop-free, well-formed AND/OR graph. -/
+/-- The graph has bounded edge names and is a well-formed AND/OR multigraph. -/
 @[expose] def Valid (g : AndOrGraph) : Prop :=
-  g.Bounded ∧ g.graph.IsAndOr ∧ g.graph.WellFormed ∧ g.graph.LoopFree
+  g.Bounded ∧ g.graph.IsAndOr ∧ g.graph.WellFormed
 
 /-- Read a list of orientation bits on the graph's finite edge interval. -/
 @[expose]

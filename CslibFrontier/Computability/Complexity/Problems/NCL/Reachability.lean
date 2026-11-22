@@ -12,10 +12,10 @@ public import CslibFrontier.Computability.Complexity.Problems.NCL.Instance
 /-!
 # AND/OR NCL decision problems
 
-The three questions use explicit finite graph data. Configuration inputs contain one bit per
-edge, and their initial configuration must be legal. Edge-to-edge reachability quantifies a
-legal start with the prescribed direction and a reachable end with the other prescribed
-direction.
+The three questions use explicit finite AND/OR multigraphs with loops and parallel edges.
+Configuration inputs contain one bit per edge, and their initial configuration must be legal.
+Edge-to-edge reachability quantifies a legal start with the first prescribed direction and
+a reachable end with the second.
 
 ## Main definitions
 
@@ -25,7 +25,8 @@ direction.
 
 ## References
 
-* These are the three problems of [Hearn and Demaine][HearnDemaine2005, Section 2.1].
+* The AND/OR instances of the three problems defined in
+  [Hearn and Demaine][HearnDemaine2005, Sections 2.1–2.2 and footnote 2].
 -/
 
 public section

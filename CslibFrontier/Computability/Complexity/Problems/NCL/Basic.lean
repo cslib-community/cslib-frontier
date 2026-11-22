@@ -66,11 +66,31 @@ instance (p : Port E) (s : E → Bool) : Decidable (p.In s) :=
 
 end Port
 
+/-- A port together with the edge weight it contributes to inflow when directed inward. -/
+structure WeightedPort (E : Type*) where
+  /-- The incident edge and the direction in which it points into the vertex. -/
+  port : Port E
+  /-- The edge weight. -/
+  weight : ℕ
+  deriving @[expose] DecidableEq
+
+/-- Rename the edge of a weighted port, preserving its direction and weight. -/
+@[expose] def WeightedPort.map (f : E → E') (p : WeightedPort E) : WeightedPort E' :=
+  ⟨p.port.map f, p.weight⟩
+
+/-- Injective edge renaming is injective on weighted ports. -/
+theorem WeightedPort.map_injective {f : E → E'} (hf : Function.Injective f) :
+    Function.Injective (WeightedPort.map f) := by
+  rintro ⟨⟨e, d⟩, w⟩ ⟨⟨e', d'⟩, w'⟩ h
+  simp only [WeightedPort.map, Port.map, WeightedPort.mk.injEq, Port.mk.injEq] at h
+  obtain ⟨⟨hedge, rfl⟩, rfl⟩ := h
+  rw [hf hedge]
+
 /-- A vertex of a constraint graph [HearnDemaine2005, Section 2.1]: its incident edges, as ports
 with weights, and its minimum in-flow. -/
 structure Vertex (E : Type*) where
   /-- The incident edges, as ports, each with its weight. -/
-  ports : List (Port E × ℕ)
+  ports : List (WeightedPort E)
   /-- The minimum in-flow. -/
   minInflow : ℕ
 
@@ -78,7 +98,7 @@ namespace Vertex
 
 /-- The total weight of the incident edges that point in. -/
 @[expose] def inflow (v : Vertex E) (s : E → Bool) : ℕ :=
-  (v.ports.map fun p => if p.1.In s then p.2 else 0).sum
+  (v.ports.map fun p => if p.port.In s then p.weight else 0).sum
 
 /-- The in-flow constraint of the vertex holds. -/
 @[expose] def Sat (v : Vertex E) (s : E → Bool) : Prop := v.minInflow ≤ v.inflow s
@@ -88,7 +108,7 @@ instance (v : Vertex E) (s : E → Bool) : Decidable (v.Sat s) :=
 
 /-- Rename the edges of a vertex. -/
 @[expose] def map (f : E → E') (v : Vertex E) : Vertex E' :=
-  ⟨v.ports.map fun p => (p.1.map f, p.2), v.minInflow⟩
+  ⟨v.ports.map (WeightedPort.map f), v.minInflow⟩
 
 @[simp] theorem sat_map (f : E → E') (v : Vertex E) (s : E' → Bool) :
     (v.map f).Sat s ↔ v.Sat (s ∘ f) := by
@@ -97,11 +117,11 @@ instance (v : Vertex E) (s : E → Bool) : Decidable (v.Sat s) :=
 
 /-- An AND vertex [HearnDemaine2005, Section 2.2]: red edges `a`, `b` of weight one, a blue
 edge `c` of weight two, and minimum in-flow two. -/
-@[expose] def and (a b c : Port E) : Vertex E := ⟨[(a, 1), (b, 1), (c, 2)], 2⟩
+@[expose] def and (a b c : Port E) : Vertex E := ⟨[⟨a, 1⟩, ⟨b, 1⟩, ⟨c, 2⟩], 2⟩
 
 /-- An OR vertex [HearnDemaine2005, Section 2.2]: three blue edges of weight two, and minimum
 in-flow two. -/
-@[expose] def or (a b c : Port E) : Vertex E := ⟨[(a, 2), (b, 2), (c, 2)], 2⟩
+@[expose] def or (a b c : Port E) : Vertex E := ⟨[⟨a, 2⟩, ⟨b, 2⟩, ⟨c, 2⟩], 2⟩
 
 /-- The blue edge of an AND vertex may point out exactly when both red edges point in. -/
 @[simp] theorem sat_and (a b c : Port E) (s : E → Bool) :
@@ -170,7 +190,8 @@ instance [Fintype V] (s : E → Bool) : Decidable (G.Legal s) :=
 @[expose]
 def Step [DecidableEq E] (s t : E → Bool) : Prop := G.Legal s ∧ G.Legal t ∧ ∃ e, t = reverse s e
 
-/-- Reachability by a sequence of moves. -/
+/-- Reflexive-transitive closure of legal moves on orientations. The empty sequence relates
+each orientation to itself. The decision problems require legality of the initial orientation. -/
 abbrev Reachable [DecidableEq E] : (E → Bool) → (E → Bool) → Prop := Relation.ReflTransGen G.Step
 
 /-- From the configuration `s`, the edge `e` can eventually be reversed: the

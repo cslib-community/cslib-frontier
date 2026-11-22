@@ -12,7 +12,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
-import Mathlib.Data.List.Intervals
 
 /-!
 # Directional edge-to-edge NCL is in PSPACE
@@ -23,7 +22,8 @@ reachability supplies the requested reversal.
 
 The witness encodes one bit per edge of a valid graph. Its width is bounded by the number
 of explicitly listed ports on every input, including a malformed binary edge count. This
-proves the directional edge-to-edge upper bound of [HearnDemaine2005, Corollary 6].
+proves the AND/OR case of the directional edge-to-edge upper bound in
+[HearnDemaine2005, Corollary 6].
 
 ## Main results
 
@@ -44,30 +44,18 @@ private abbrev EdgeInput := AndOrNCLEdgeToEdge.Instance
 private abbrev WitnessInput := EdgeInput × List Bool
 private abbrev witnessEncoding := encPair encAndOrNCLEdgeToEdge encBits
 private def boundedWidth (g : AndOrGraph) : ℕ :=
-  ((List.range (g.vertices.flatMap Vertex.ports).length).filter
-    (fun e => decide (e < g.edgeCount))).length
+  min (g.vertices.flatMap Vertex.ports).length g.edgeCount
 
 private theorem boundedWidth_eq (g : AndOrGraph) (hv : g.Valid) : boundedWidth g = g.edgeCount := by
-  have hp := AndOrGraph.portCount_eq_two_mul g hv.1 hv.2.2.1
-  have hb : g.edgeCount ≤ (g.vertices.flatMap Vertex.ports).length := by omega
-  rw [boundedWidth, ← List.Ico.zero_bot, List.Ico.filter_lt, List.Ico.length,
-    Nat.sub_zero, Nat.min_eq_right hb]
+  rw [boundedWidth, AndOrGraph.portCount_eq_two_mul g hv.1 hv.2.2]
+  exact Nat.min_eq_right (by omega)
 
 private theorem computableInPolyTime_boundedWidth :
     ComputableInPolyTime boundedWidth encAndOrGraph encUnary := by
   have hp : ComputableInPolyTime (fun g : AndOrGraph => g.vertices.flatMap Vertex.ports)
       encAndOrGraph (encWeightedPorts encNat) := by fun_prop
-  have hi : ComputableInPolyTime (fun p : AndOrGraph × ℕ => p.2)
-      (encPair encAndOrGraph encUnary) encUnary := by fun_prop
-  have hi' := ComputableInPolyTime.unary_to_binary.comp hi
-  have hw : ComputableInPolyTime (fun p : AndOrGraph × ℕ => p.1.edgeCount)
-      (encPair encAndOrGraph encUnary) encNat := by fun_prop
-  have htest := ComputableInPolyTime.binary_lt' hi' hw
-  have hrange : ComputableInPolyTime
-      (fun g : AndOrGraph => List.range (g.vertices.flatMap Vertex.ports).length)
-      encAndOrGraph (encList encUnary) := by fun_prop
-  unfold boundedWidth
-  fun_prop
+  exact ComputableInPolyTime.binary_min_unary' ((ComputableInPolyTime.length_list _).comp hp)
+    (by fun_prop)
 
 private def toEdge (q : WitnessInput) : AndOrNCLEdge.Instance :=
   ⟨q.1.graph, q.2, q.1.second.edge⟩
@@ -113,7 +101,7 @@ private theorem edgeToEdge_witness_iff (x : EdgeInput) : x ∈ AndOrNCLEdgeToEdg
     · simp only [common, Bool.and_eq_true, decide_eq_true_eq]
       refine ⟨(AndOrGraph.checkValid_eq_true_iff _).2 hv,
         ⟨List.length_ofFn, ?_⟩, hA, hB, ?_⟩
-      · apply (AndOrGraph.checkLegal_eq_true_iff _ hv.1 hv.2.1 _).2
+      · apply (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).2
         simpa only [bits, AndOrGraph.config_ofFn] using hl
       · rw [show bits.getD x.first.edge false = s eA from hread eA]
         exact hAeq
@@ -133,7 +121,7 @@ private theorem edgeToEdge_witness_iff (x : EdgeInput) : x ∈ AndOrNCLEdgeToEdg
     simp only [common, Bool.and_eq_true, decide_eq_true_eq] at hc
     obtain ⟨hv, ⟨hs, hl⟩, hA, hB, hAdir⟩ := hc
     have hv := (AndOrGraph.checkValid_eq_true_iff _).1 hv
-    have hl := (AndOrGraph.checkLegal_eq_true_iff _ hv.1 hv.2.1 _).1 hl
+    have hl := (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).1 hl
     rcases hd with hd | hd
     · exact ⟨hA, hB, hv, x.graph.config s, x.graph.config s, hl, hAdir,
         of_decide_eq_true hd, .refl⟩
@@ -212,7 +200,8 @@ private theorem witness_mem_PSPACE : witness ∈ PSPACE witnessEncoding := by
     ⟨_, .of_polyTime computableInPolyTime_desired, fun _ => Iff.rfl⟩
   exact inter_mem_PSPACE hc (union_mem_PSPACE hd (hred.mem_PSPACE AndOrNCLEdge_mem_PSPACE))
 
-/-- Directional edge-to-edge AND/OR NCL is decidable in polynomial space. -/
+/-- Directional edge-to-edge reachability on AND/OR multigraphs is in PSPACE,
+including graphs with loops. -/
 theorem AndOrNCLEdgeToEdge_mem_PSPACE : AndOrNCLEdgeToEdge ∈ PSPACE encAndOrNCLEdgeToEdge := by
   have hg : ComputableInPolyTime (fun x : EdgeInput => x.graph)
       encAndOrNCLEdgeToEdge encAndOrGraph := by

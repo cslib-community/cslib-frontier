@@ -24,10 +24,10 @@ Check the structural and endpoint conditions, then run Savitch's procedure on co
 bit strings. Its width and depth are the supplied initial list's length. The target is fitted
 to that length so the space certificate applies to every input.
 
-For a loop-free AND/OR multigraph with `m` edges, each legal orientation is an `m`-bit state.
-The finite graph checker rejects malformed port lists. The algorithm checks both configuration
-widths and legality of the start, including the case of a path of length zero. This proves the
-configuration-to-configuration upper bound of [HearnDemaine2005, Corollary 6] for the explicit
+For an AND/OR multigraph with `m` edges, each legal orientation is an `m`-bit state, with
+one bit for each loop as well. The algorithm checks graph validity, both configuration widths
+and legality of the start, including for a path of length zero. This proves the AND/OR case of
+the configuration-to-configuration upper bound in [HearnDemaine2005, Corollary 6] for the explicit
 graph and bit-list encoding `encAndOrNCL`.
 
 ## Main results
@@ -146,18 +146,19 @@ private theorem decideConfig_eq_true_iff (x : Input) : decideConfig x = true ↔
   constructor
   · rintro ⟨⟨hv, ⟨hs, ht⟩, hl⟩, hr⟩
     have hv := (AndOrGraph.checkValid_eq_true_iff x.graph).1 hv
-    refine ⟨hv, hs, ht, (AndOrGraph.checkLegal_eq_true_iff _ hv.1 hv.2.1 _).1 hl, ?_⟩
+    refine ⟨hv, hs, ht, (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).1 hl, ?_⟩
     unfold search at hr
     rw [fit_eq _ _ (ht.trans hs.symm), hs] at hr
-    exact (AndOrGraph.savitch_eq_true_iff _ hv.1 hv.2.1 _ _ hs ht).1 hr
+    exact (AndOrGraph.savitch_eq_true_iff _ hv.1 _ _ hs ht).1 hr
   · rintro ⟨hv, hs, ht, hl, hr⟩
     refine ⟨⟨(AndOrGraph.checkValid_eq_true_iff _).2 hv, ⟨hs, ht⟩,
-      (AndOrGraph.checkLegal_eq_true_iff _ hv.1 hv.2.1 _).2 hl⟩, ?_⟩
+      (AndOrGraph.checkLegal_eq_true_iff _ hv.1 _).2 hl⟩, ?_⟩
     unfold search
     rw [fit_eq _ _ (ht.trans hs.symm), hs]
-    exact (AndOrGraph.savitch_eq_true_iff _ hv.1 hv.2.1 _ _ hs ht).2 hr
+    exact (AndOrGraph.savitch_eq_true_iff _ hv.1 _ _ hs ht).2 hr
 
-/-- Configuration-to-configuration AND/OR NCL is decidable in polynomial space. -/
+/-- Configuration-to-configuration reachability on AND/OR multigraphs is in PSPACE,
+including graphs with loops. -/
 theorem AndOrNCL_mem_PSPACE : AndOrNCL ∈ PSPACE encAndOrNCL := by
   have hand : ComputableInPolyTime (fun p : Bool × Bool => p.1 && p.2)
       (encPair encBool encBool) encBool := by fun_prop

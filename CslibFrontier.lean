@@ -2903,7 +2903,6 @@ public import CslibFrontier.Computability.Complexity.Problems.MonotoneCircuitVal
 public import CslibFrontier.Computability.Complexity.Problems.NAEThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Basic
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.AndOr
-public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.LoopFree
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.WellFormed
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Encoding
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Instance

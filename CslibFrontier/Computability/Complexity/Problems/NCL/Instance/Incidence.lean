@@ -35,45 +35,43 @@ public section
 namespace Cslib.Complexity.NCL.AndOrGraph
 
 /-- Check that an edge's listed ports are one opposite pair with a common weight. -/
-@[expose] def checkEdge (ps : List (Port ℕ × ℕ)) (e : ℕ) : Bool :=
-  let qs := ps.filter (fun p => decide (p.1.edge = e))
+@[expose] def checkEdge (ps : List (WeightedPort ℕ)) (e : ℕ) : Bool :=
+  let qs := ps.filter (fun p => decide (p.port.edge = e))
   qs.any fun p =>
-    decide (qs = [(⟨e, false⟩, p.2), (⟨e, true⟩, p.2)]) ||
-      decide (qs = [(⟨e, true⟩, p.2), (⟨e, false⟩, p.2)])
+    decide (qs = [⟨⟨e, false⟩, p.weight⟩, ⟨⟨e, true⟩, p.weight⟩]) ||
+      decide (qs = [⟨⟨e, true⟩, p.weight⟩, ⟨⟨e, false⟩, p.weight⟩])
 
-private theorem checkEdge_perm_iff (ps : List (Port ℕ × ℕ)) (e : ℕ) :
-    checkEdge ps e = true ↔ ∃ w, (ps.filter (fun p => decide (p.1.edge = e))).Perm
-      [(⟨e, false⟩, w), (⟨e, true⟩, w)] := by
+private theorem checkEdge_perm_iff (ps : List (WeightedPort ℕ)) (e : ℕ) :
+    checkEdge ps e = true ↔ ∃ w, (ps.filter (fun p => decide (p.port.edge = e))).Perm
+      [⟨⟨e, false⟩, w⟩, ⟨⟨e, true⟩, w⟩] := by
   unfold checkEdge
   constructor
   · intro h
     obtain ⟨p, _, hp⟩ := List.any_eq_true.1 h
     simp only [Bool.or_eq_true, decide_eq_true_eq] at hp
-    exact ⟨p.2, List.perm_pair.2 hp⟩
+    exact ⟨p.weight, List.perm_pair.2 hp⟩
   · rintro ⟨w, hw⟩
-    have hp : (⟨e, false⟩, w) ∈ ps.filter (fun p => decide (p.1.edge = e)) :=
+    have hp : ⟨⟨e, false⟩, w⟩ ∈ ps.filter (fun p => decide (p.port.edge = e)) :=
       hw.mem_iff.2 (by simp)
-    refine List.any_eq_true.2 ⟨(⟨e, false⟩, w), hp, ?_⟩
+    refine List.any_eq_true.2 ⟨⟨⟨e, false⟩, w⟩, hp, ?_⟩
     rcases List.perm_pair.1 hw with hw | hw <;> simp [hw]
 
 /-- The local check is equivalent to exactly two opposite ports of equal weight. -/
-theorem checkEdge_eq_true_iff (ps : List (Port ℕ × ℕ)) (e : ℕ) :
+theorem checkEdge_eq_true_iff (ps : List (WeightedPort ℕ)) (e : ℕ) :
     checkEdge ps e = true ↔ ∃ w,
-      (↑ps : Multiset (Port ℕ × ℕ)).filter (fun p => p.1.edge = e) =
-        {(⟨e, false⟩, w)} + {(⟨e, true⟩, w)} := by
+      (↑ps : Multiset (WeightedPort ℕ)).filter (fun p => p.port.edge = e) =
+        {⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩} := by
   rw [checkEdge_perm_iff]
   apply exists_congr
   intro w
   exact Multiset.coe_eq_coe.symm
 
 private theorem map_filter_graph (g : AndOrGraph) (hb : g.Bounded) (e : Fin g.edgeCount) :
-    Port.mapMultiset Fin.val (g.graph.portMultiset.filter (fun p => p.1.edge = e)) =
-      (↑(g.vertices.flatMap Vertex.ports) : Multiset (Port ℕ × ℕ)).filter
-        (fun p => p.1.edge = e.val) := by
-  rw [← graph_portMultiset g hb]
-  change Multiset.map (fun p : Port (Fin g.edgeCount) × ℕ => (p.1.map Fin.val, p.2)) _ =
-    (Multiset.map (fun p : Port (Fin g.edgeCount) × ℕ => (p.1.map Fin.val, p.2)) _).filter _
-  rw [Multiset.filter_map]
+    Multiset.map (WeightedPort.map Fin.val)
+        (g.graph.portMultiset.filter (fun p => p.port.edge = e)) =
+      (↑(g.vertices.flatMap Vertex.ports) : Multiset (WeightedPort ℕ)).filter
+        (fun p => p.port.edge = e.val) := by
+  rw [← graph_portMultiset g hb, Multiset.filter_map]
   congr 1
 
 /-- The raw port records check the same per-edge incidences as the finite semantics. -/
@@ -86,27 +84,23 @@ theorem wellFormed_iff_checkEdge (g : AndOrGraph) (hb : g.Bounded) :
   rw [checkEdge_eq_true_iff]
   apply exists_congr
   intro w
-  have hp : Port.mapMultiset Fin.val
-      ({(⟨e, false⟩, w)} + {(⟨e, true⟩, w)}) =
-        {(⟨e.val, false⟩, w)} + {(⟨e.val, true⟩, w)} := by
-    simp [Port.mapMultiset, Port.map]
+  have hp : Multiset.map (WeightedPort.map Fin.val)
+      ({⟨⟨e, false⟩, w⟩} + {⟨⟨e, true⟩, w⟩}) =
+        {⟨⟨e.val, false⟩, w⟩} + {⟨⟨e.val, true⟩, w⟩} := by
+    simp [WeightedPort.map, Port.map]
   constructor
   · intro h
-    have hh := congrArg (Port.mapMultiset Fin.val) h
+    have hh := congrArg (Multiset.map (WeightedPort.map Fin.val)) h
     rwa [map_filter_graph g hb e, hp] at hh
   · intro h
-    apply Port.mapMultiset_injective Fin.val_injective
+    apply Multiset.map_injective (WeightedPort.map_injective Fin.val_injective)
     rw [map_filter_graph g hb e, hp]
     exact h
 
 /-- Bounded well-formed data have exactly two listed ports per declared edge. -/
 theorem portCount_eq_two_mul (g : AndOrGraph) (hb : g.Bounded) (hw : g.graph.WellFormed) :
     (g.vertices.flatMap Vertex.ports).length = 2 * g.edgeCount := by
-  have hh := congrArg Multiset.card (graph_portMultiset g hb)
-  change (Multiset.map (fun p : Port (Fin g.edgeCount) × ℕ => (p.1.map Fin.val, p.2))
-    g.graph.portMultiset).card = (g.vertices.flatMap Vertex.ports).length at hh
-  rw [Multiset.card_map] at hh
-  rw [← hh]
+  rw [← Multiset.coe_card, ← graph_portMultiset g hb, Multiset.card_map]
   simpa only [Fintype.card_fin] using hw.card_portMultiset
 
 /-- Check every declared edge, scanning only as many indices as there are listed ports. -/
@@ -132,20 +126,14 @@ theorem checkIncidences_eq_true_iff (g : AndOrGraph) (hb : g.Bounded) :
     · exact (wellFormed_iff_checkEdge g hb).1 hw ⟨e, he⟩
     · rfl
 
-/-- Check bounded names, AND/OR vertices, self-loops, and consistent opposite endpoints. -/
+/-- Check bounded names, AND/OR vertices and consistent opposite endpoints. -/
 @[expose] def checkValid (g : AndOrGraph) : Bool :=
   g.checkBounded && (g.checkVertices && g.checkIncidences)
 
 /-- The finite data checker recognizes exactly the graph predicate used by all NCL languages. -/
 theorem checkValid_eq_true_iff (g : AndOrGraph) : g.checkValid = true ↔ g.Valid := by
-  simp only [checkValid, Bool.and_eq_true]
-  constructor
-  · rintro ⟨hb, hv, hi⟩
-    have hb := (checkBounded_eq_true_iff g).1 hb
-    have hv := (checkVertices_eq_true_iff g hb).1 hv
-    exact ⟨hb, hv.1, (checkIncidences_eq_true_iff g hb).1 hi, hv.2⟩
-  · rintro ⟨hb, ha, hw, hl⟩
-    exact ⟨(checkBounded_eq_true_iff g).2 hb, (checkVertices_eq_true_iff g hb).2 ⟨ha, hl⟩,
-      (checkIncidences_eq_true_iff g hb).2 hw⟩
+  simp only [checkValid, Bool.and_eq_true, checkBounded_eq_true_iff, Valid]
+  exact and_congr_right fun hb =>
+    and_congr (checkVertices_eq_true_iff g hb) (checkIncidences_eq_true_iff g hb)
 
 end Cslib.Complexity.NCL.AndOrGraph
