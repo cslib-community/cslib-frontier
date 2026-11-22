@@ -25,7 +25,7 @@ Closing `F` with a closed resource machine `R κ C : Machine OracleSpec.empty G`
 ## Model and scope
 
 * **Library construction (no cited definition).** In the interactive Turing machine model of
-  [Canetti2020], Section 3.1.2 (p. 28:23; ePrint p. 24), the external-write instruction lets an ITI
+  [Canetti2020], Section 3.1.2 (JACM p. 28:23), the external-write instruction lets an ITI
   write to a tape of another ITI, subject to the control function, which determines which
   external-write instructions are allowed; `HybridFunctionality` restricts outgoing calls to
   call-and-return oracle invocations (`ProbOracleComp G`).
@@ -69,7 +69,7 @@ Closing `F` with a closed resource machine `R κ C : Machine OracleSpec.empty G`
 ## References
 
 * [R. Canetti, *Universally Composable Security*][Canetti2020], J. ACM 67(5), Article 28, 2020,
-  Section 3.1.2 (p. 28:23; ePrint p. 24): the general external-write mechanism that motivates
+  Section 3.1.2 (JACM p. 28:23): the general external-write mechanism that motivates
   functionalities invoking subroutines (restricted here to call-and-return with a private resource).
 * [C. Brzuska, A. Delignat-Lavaud, C. Fournet, K. Kohbrok, M. Kohlweiss, *State Separation for
   Code-Based Game-Playing Proofs*][BrzuskaDFKK2018]: the package-algebra reduction behind
@@ -85,7 +85,7 @@ open scoped NNReal
 /-- Library construction (no cited definition): an `n`-party ideal functionality with a private
 outgoing call port `G` in this library's call-and-return reading, where `onInput` and `onBackdoor`
 may call `G` and wait for the answer. The general mechanism in [Canetti2020], Section 3.1.2
-(p. 28:23; ePrint p. 24), is the external-write instruction, restricted here to call-and-return. -/
+(JACM p. 28:23), is the external-write instruction, restricted here to call-and-return. -/
 structure HybridFunctionality (n : ℕ) (In Out BackQ BackR : Type) {ιG : Type} (G : ιG → Type) :
     Type 1 where
   /-- The private state. -/
