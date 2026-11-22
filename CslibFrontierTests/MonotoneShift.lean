@@ -13,9 +13,10 @@ import CslibFrontier.Computability.Circuit.Monotone.Shift
 
 Exercises the public API of `CslibFrontier.Computability.Circuit.Monotone.Shift` under ordinary
 `module` imports: concrete evaluations of `oneHotShiftCircuit` and `dualRailShiftCircuit` at
-`n = 4, q = 2`, boundary checks (`q = 0`, non-antichain comparable codewords, and duplicate
-singleton-antichain codewords at `n = 2, q = 1`), and concrete instantiations of Theorem 1 and
-Theorem 3 + Permutation Corollary at `n = 8, q = 2`.
+`n = 4, q = 2`, a concrete positive `ComputesMonotonePerm` circuit witness at `n = 2, q = 1`,
+boundary checks (`q = 0`, non-antichain comparable codewords, and duplicate singleton-antichain
+codewords at `n = 2, q = 1`), and concrete instantiations of Theorem 1 and Theorem 3 + Permutation
+Corollary at `n = 8, q = 2`.
 -/
 
 set_option linter.privateModule false
@@ -70,6 +71,54 @@ example :
 example : (oneHotShiftCircuit 4 0).program.cost binaryCost = 0 := by
   have h := cost_oneHotShiftCircuit_le 4 0
   omega
+
+/-- Encoding the `2! = 2` permutations of `Fin 2` via `π ↦ dualRailShiftCode 2 1 (π.symm 0)`. -/
+private def permTwoCode (π : Equiv.Perm (Fin 2)) : Fin 2 → Bool :=
+  dualRailShiftCode 2 1 (π.symm 0)
+
+-- Concrete positive witness for `ComputesMonotonePerm` at `n = 2, q = 1`: every permutation of
+-- `Fin 2` is a cyclic shift (`cyclicShiftPerm (π.symm 0) = π`), exercising `ComputesMonotonePerm`,
+-- `ComputesMonotonePerm.injective_and_isAntichain`, and
+-- `mul_sum_clog_le_cost_of_computesMonotonePerm`.
+example :
+    ComputesMonotonePerm (dualRailShiftCircuit 2 1 1 (by decide)) permTwoCode ∧
+    Function.Injective permTwoCode ∧
+    IsAntichain (· ≤ ·) (Set.range permTwoCode) ∧
+    1 ≤ (dualRailShiftCircuit 2 1 1 (by decide)).program.cost binaryCost ∧
+    (dualRailShiftCircuit 2 1 1 (by decide)).program.cost binaryCost = 6 := by
+  have fin2 : ∀ u : Fin 2, u = 0 ∨ u = 1 := fun ⟨v, hv⟩ => by
+    rcases v with _ | _ | _
+    · exact Or.inl rfl
+    · exact Or.inr rfl
+    · omega
+  have hπ_all : ∀ π : Equiv.Perm (Fin 2), cyclicShiftPerm (π.symm 0) = π := by
+    intro π
+    have h0 : π (π.symm 0) = 0 := π.apply_symm_apply 0
+    have hne : π 0 ≠ π 1 := π.injective.ne (by decide)
+    ext j
+    rcases fin2 (π.symm 0) with hk | hk <;> rw [hk] at h0 ⊢ <;> rcases fin2 j with rfl | rfl
+    · rw [h0]; decide
+    · rcases fin2 (π 1) with hp | hp
+      · exact absurd (h0.trans hp.symm) hne
+      · rw [hp]; decide
+    · rcases fin2 (π 0) with hp | hp
+      · exact absurd (hp.trans h0.symm) hne
+      · rw [hp]; decide
+    · rw [h0]; decide
+  have hperm : ComputesMonotonePerm (dualRailShiftCircuit 2 1 1 (by decide)) permTwoCode := by
+    intro X π
+    have hshift := computesMonotoneShift_dualRailShiftCircuit 2 1 1 (by decide) X (π.symm 0)
+    change (dualRailShiftCircuit 2 1 1 (by decide)).eval interpretation
+        (Fin.append X (permTwoCode π)) = cyclicShiftVec X (π.symm 0) at hshift
+    rw [hshift, cyclicShiftVec, hπ_all π]
+  have hanti := hperm.injective_and_isAntichain (by decide)
+  have hlb : 1 ≤ (dualRailShiftCircuit 2 1 1 (by decide)).program.cost binaryCost :=
+    calc 1 = 1 * (∑ t ∈ Icc 1 2, Nat.clog 2 t) := by decide
+      _ ≤ (dualRailShiftCircuit 2 1 1 (by decide)).program.cost binaryCost :=
+        mul_sum_clog_le_cost_of_computesMonotonePerm hperm
+  refine ⟨hperm, hanti.1, hanti.2, hlb, ?_⟩
+  rw [cost_dualRailShiftCircuit]
+  decide
 
 /-- Comparable distinct codewords `![false, true] < ![true, true]` at `n = 2, q = 1`. -/
 private def comparableCode : Fin 2 → Fin 2 → Bool

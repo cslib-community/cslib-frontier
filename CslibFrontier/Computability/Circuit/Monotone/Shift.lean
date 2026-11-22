@@ -57,7 +57,8 @@ antichain `oneHotShiftAntichain` (`L(A₁) = 0`), `oneHotShiftCircuit` uses at m
 `4 * q * n * Nat.clog 2 n` gates; on the dual-rail binary code `dualRailShiftCode n b` (`b ≥
 Nat.clog 2 n`, covering both minimal width `dualRailShiftAntichain n` and Sergeev's
 `b = Nat.log 2 n + 1`), `dualRailShiftCircuit` reads the bit rails directly with zero indicator
-gates and exact cost `3 * q * n * Nat.clog 2 n`.
+gates and exact cost `3 * q * n * Nat.clog 2 n`. Sergeev's Theorem 2 (sorting-network upper
+bounds for `P_{q, Π}` via AKS) is not included in this module.
 
 On the lower-bound side (**Theorem 3** and **Corollary**, [Sergeev2020MonotoneShift], pp. 4–6,
 adapting Chashkin [Chashkin2006] and Lamagna–Savage [LamagnaSavage1974]), monotone projection
@@ -505,6 +506,19 @@ private theorem cost_barrelShiftCircuit (n q L : ℕ) :
   rw [barrelShiftCircuit, Circuit.cost_program_comp, cost_barrelStages,
     Circuit.cost_program_wiring, Nat.add_zero]
 
+private theorem eval_barrelShiftCircuit (n q : ℕ) (X : Fin (n * q) → Bool) (k : Fin n)
+    (R : Fin (2 * Nat.clog 2 n) → Bool)
+    (hpos : ∀ i (hi : i < Nat.clog 2 n), R ⟨i, by omega⟩ = k.val.testBit i)
+    (hneg : ∀ i (hi : i < Nat.clog 2 n),
+      R ⟨Nat.clog 2 n + i, by omega⟩ = !k.val.testBit i) :
+    (barrelShiftCircuit n q (Nat.clog 2 n)).eval interpretation (Fin.append X R) =
+      cyclicShiftVec X k := by
+  rw [barrelShiftCircuit, Circuit.eval_comp,
+    eval_barrelStages n q (Nat.clog 2 n) k.val X R hpos hneg (Nat.clog 2 n) le_rfl,
+    Circuit.eval_wiring, Fin.append_comp_castAdd]
+  have hk_lt : k.val < 2 ^ Nat.clog 2 n := k.isLt.trans_le (Nat.le_pow_clog Nat.one_lt_two n)
+  rw [Nat.mod_eq_of_lt hk_lt, shiftByNat_coe]
+
 private def orInputList (n : ℕ) : List (Fin n) → Circuit signature n 1
   | [] => Circuit.oneGate (σ := signature) (Op.const false) Fin.elim0
   | [r] => Circuit.wiring signature fun _ : Fin 1 => r
@@ -560,16 +574,6 @@ private theorem eval_railBitsOfOneHot_oneHot (n L : ℕ) (k : Fin n) (t : Fin (2
   simp only [railBitsOfOneHot, Circuit.eval_pi]
   split_ifs with ht <;> rw [eval_orInputList, hany]
 
-private theorem filter_length_add_not {α : Type*} (P : α → Bool) :
-    ∀ l : List α, (l.filter P).length + (l.filter fun x => !P x).length = l.length
-  | [] => rfl
-  | a :: xs => by
-    have ih := filter_length_add_not P xs
-    cases hPa : P a <;>
-      simp only [List.filter_cons, hPa, Bool.not_true, Bool.not_false, Bool.false_eq_true,
-        ↓reduceIte, List.length_cons] <;>
-      omega
-
 private theorem cost_railBitsOfOneHot_le (n L : ℕ) :
     (railBitsOfOneHot n L).program.cost binaryCost ≤ n * L := by
   rw [railBitsOfOneHot, Circuit.cost_program_pi]
@@ -600,7 +604,7 @@ private theorem cost_railBitsOfOneHot_le (n L : ℕ) :
             ≤ ((List.finRange n).filter fun r => r.val.testBit i.val).length +
               ((List.finRange n).filter fun r => !r.val.testBit i.val).length :=
               Nat.add_le_add (cost_orInputList_le _ _) (cost_orInputList_le _ _)
-          _ = (List.finRange n).length := filter_length_add_not _ _
+          _ = (List.finRange n).length := (List.length_eq_length_filter_add _).symm
           _ = n := List.length_finRange
     _ = n * L := by rw [sum_const, card_univ, Fintype.card_fin, smul_eq_mul, Nat.mul_comm]
 
@@ -641,11 +645,7 @@ private theorem computesMonotoneShift_monotoneShiftCircuit_of_oneHot {n q m : �
       intro i hi
       have hnot : ¬ (L + i < L) := by omega
       simpa [R, hnot] using eval_railBitsOfOneHot_oneHot n L k ⟨L + i, by omega⟩
-    rw [barrelShiftCircuit, Circuit.eval_comp,
-      eval_barrelStages n (q' + 1) L k.val X R hpos hneg L le_rfl,
-      Circuit.eval_wiring, Fin.append_comp_castAdd]
-    have hk_lt : k.val < 2 ^ L := k.isLt.trans_le (Nat.le_pow_clog Nat.one_lt_two n)
-    rw [Nat.mod_eq_of_lt hk_lt, shiftByNat_coe]
+    exact eval_barrelShiftCircuit n (q' + 1) X k R hpos hneg
 
 /-- **Theorem 1 (correctness)** ([Sergeev2020MonotoneShift], pp. 3–4): if `α` injectively indexes
 an antichain in `Fin m → Bool` and `cA` computes the antichain monomials
@@ -747,11 +747,7 @@ theorem computesMonotoneShift_dualRailShiftCircuit (n q b : ℕ) (hb : Nat.clog 
     have hnotL : ¬ (L + i < L) := by omega
     have hnotb : ¬ (b + i < b) := by omega
     simp [R, dualRailShiftCode, hnotL, hnotb]
-  rw [barrelShiftCircuit, Circuit.eval_comp,
-    eval_barrelStages n q L k.val X R hpos hneg L le_rfl,
-    Circuit.eval_wiring, Fin.append_comp_castAdd]
-  have hk_lt : k.val < 2 ^ L := k.isLt.trans_le (Nat.le_pow_clog Nat.one_lt_two n)
-  rw [Nat.mod_eq_of_lt hk_lt, shiftByNat_coe]
+  exact eval_barrelShiftCircuit n q X k R hpos hneg
 
 /-- `dualRailShiftCircuit n q b hb` uses **exact** binary monotone gate cost
 `3 * q * n * Nat.clog 2 n`. -/
