@@ -54,7 +54,7 @@ theorem formulaWordGatePolynomial_degree_bounds (word : List Bool) (index : ℕ)
     (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {outer inner : ℕ}
     (houter : ∀ i, (coordinates i).natDegree ≤ outer)
     (hinner : ∀ i, (Polynomial.Bivariate.swap (coordinates i)).natDegree ≤ inner) :
-    let budget := max word.length (encTerm 0 (.const 0)).length
+    let budget := formulaWordGateTermBudget word
     let p := formulaWordGatePolynomial word index coordinates
     p.natDegree ≤ budget * outer ∧ (Polynomial.Bivariate.swap p).natDegree ≤ budget * inner := by
   have hterm := (formulaWordGateTerm_toPolynomial_bounds word index).1
@@ -70,7 +70,7 @@ over gate indices. Each coordinate must have bivariate coefficient norm at most 
 theorem formulaWordGatePolynomial_bivariateCoeffNorm1_le (word : List Bool) (index : ℕ)
     (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {M : ℕ} (hM : 1 ≤ M)
     (hcoordinates : ∀ i, (coordinates i).bivariateCoeffNorm1 ≤ M) :
-    let budget := max word.length (encTerm 0 (.const 0)).length
+    let budget := formulaWordGateTermBudget word
     (formulaWordGatePolynomial word index coordinates).bivariateCoeffNorm1 ≤ (2 * M) ^ budget := by
   intro budget
   obtain ⟨hdegree, hnorm⟩ := formulaWordGateTerm_toPolynomial_bounds word index
@@ -85,7 +85,7 @@ and outer index `j`, for `i < radix`. This is the polynomial identity used by
 theorem coeff_aeval_kronecker_formulaWordGateTerm (word : List Bool) (index : ℕ)
     (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {inner radix : ℕ}
     (hinner : ∀ k, (Polynomial.Bivariate.swap (coordinates k)).natDegree ≤ inner)
-    (hradix : max word.length (encTerm 0 (.const 0)).length * inner < radix)
+    (hradix : formulaWordGateTermBudget word * inner < radix)
     (i j : ℕ) (hi : i < radix) :
     (MvPolynomial.aeval (fun k => (coordinates k).eval (Polynomial.X ^ radix))
       (formulaWordGateTerm word index).toPolynomial).coeff (i + radix * j) =

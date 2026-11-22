@@ -52,6 +52,18 @@ theorem coeff_eval_X_pow {R : Type*} [CommSemiring R] (p : R[X][Y]) {radix : ℕ
       omega
     rw [coeff_eq_zero_of_natDegree_lt h, zero_mul, coeff_zero]
 
+/-- The packed degree is at most the inner degree plus the radix times the outer degree. -/
+theorem natDegree_eval_X_pow_le {R : Type*} [CommSemiring R] (p : R[X][Y]) (radix : ℕ) :
+    (p.eval (X ^ radix)).natDegree ≤ (swap p).natDegree + radix * p.natDegree := by
+  have hcoeff (k : ℕ) : (p.coeff k).natDegree ≤ (swap p).natDegree := by
+    refine natDegree_le_iff_coeff_eq_zero.mpr fun l hl => ?_
+    rw [← coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt hl, coeff_zero]
+  rw [eval_eq_sum_range]
+  simp only [← pow_mul]
+  refine natDegree_sum_le_of_forall_le _ _ fun k hk => natDegree_mul_le.trans ?_
+  exact Nat.add_le_add (hcoeff k) ((natDegree_X_pow_le _).trans
+    (Nat.mul_le_mul_left radix (Nat.le_of_lt_succ (Finset.mem_range.mp hk))))
+
 /-- Evaluating the packed polynomial at `z` evaluates the bivariate polynomial
 at `z` and `z ^ radix`. -/
 theorem aeval_eval_X_pow {R A : Type*} [CommSemiring R] [CommSemiring A] [Algebra R A]

@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientEvaluation
 import Mathlib.Tactic.FinCases
 
 /-! Extraction covers zero variables, absent coefficients, mixed terms and actual certificates. -/
@@ -25,6 +26,19 @@ example : multivariateCoefficientResidue 5 0 [] (fun _ => 3) = 3 := by rfl
 -- The unary extractor recovers an ordinary nonzero coefficient and an index above the degree.
 example : coefficientResidue 5 1 (fun z => (2 * z + 3) % 5) = 2 := by rfl
 example : coefficientResidue 5 3 (fun z => (2 * z + 3) % 5) = 0 := by rfl
+
+-- Zero coordinate degrees allow radix one and the smallest prime.
+open Cslib.Logic.RealArithmetic in
+example (i j : ℕ) :
+    formulaWordGateCoefficientResidue [] 0 2 (formulaWordGateKroneckerRadix [] 0)
+      i j (fun _ => []) =
+    ((((formulaWordGatePolynomial [] 0 (fun _ => 0)).coeff j).coeff i : ℤ) : ZMod 2).val := by
+  let : Fact (Nat.Prime 2) := ⟨by decide⟩
+  obtain ⟨hradix, hdegree⟩ := formulaWordGateCoefficientPrimeCutoff_bounds [] 0 (fun _ => 0)
+    (inner := 0) (outer := 0) (p := 2) (fun k => Fin.elim0 k) (fun k => Fin.elim0 k)
+    (by decide)
+  exact formulaWordGateCoefficientResidue_eq_val [] 0 (fun _ => 0) i j (fun _ => [])
+    hradix hdegree (fun _ _ k => Fin.elim0 k)
 
 -- Defaulting absent exponent entries to zero selects the constant term.
 example : multivariateCoefficientResidue 5 1 [] (fun z =>

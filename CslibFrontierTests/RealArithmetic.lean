@@ -196,7 +196,7 @@ example :
     let coordinates : Fin word.length → Polynomial (Polynomial ℤ) :=
       fun _ => Polynomial.C Polynomial.X + Polynomial.X ^ 2
     (formulaWordGatePolynomial word 0 coordinates).bivariateCoeffNorm1 ≤
-      4 ^ max word.length (encTerm 0 (.const 0)).length := by
+      4 ^ formulaWordGateTermBudget word := by
   intro word coordinates
   refine formulaWordGatePolynomial_bivariateCoeffNorm1_le word 0 coordinates (M := 2)
     (by decide) fun _ => ?_

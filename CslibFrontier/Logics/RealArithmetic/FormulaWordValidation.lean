@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import Mathlib.Basic.Sign.Defs
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryOrder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
@@ -560,11 +561,21 @@ theorem encTerm_formulaWordGateTerm_polyTime :
     (hterm.comp (snd (encPair encBits encNat) encFormulaComparisonRequest))
   exact h.of_enc_eq fun p => congrArg encBits (encTerm_formulaWordGateTerm p.1 p.2)
 
-/-- The term word at any gate fits within the formula word length or the constant zero
-encoding length, whichever is larger. -/
+/-- The common length budget for gate terms, including the encoded constant zero in unused
+slots. -/
+@[expose] def formulaWordGateTermBudget (word : List Bool) : ℕ :=
+  max word.length (encTerm 0 (.const 0)).length
+
+/-- Compute the gate-term budget in binary from the raw formula word. -/
+theorem formulaWordGateTermBudget_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} (hword : ComputableInPolyTime word input encBits) :
+    ComputableInPolyTime (fun a => formulaWordGateTermBudget (word a)) input encNat :=
+  binary_max' (unary_to_binary.comp (length_bits.comp hword)) (const _)
+
+/-- The term word at every gate fits within the common length budget. -/
 theorem formulaWordGateTermWord_length_le (word : List Bool) (index : ℕ) :
-    (formulaWordGateTermWord word index).length ≤
-      max word.length (encTerm 0 (.const 0)).length := by
+    (formulaWordGateTermWord word index).length ≤ formulaWordGateTermBudget word := by
+  unfold formulaWordGateTermBudget
   cases h : formulaWordComparisonRequest word index with
   | none =>
     simpa only [formulaWordGateTermWord, h, Option.elim_none] using le_max_right
@@ -576,7 +587,7 @@ theorem formulaWordGateTermWord_length_le (word : List Bool) (index : ℕ) :
 /-- The formula word gives a single degree and coefficient norm budget for all of its gate
 polynomials, including the zero padding at unused slots. -/
 theorem formulaWordGateTerm_toPolynomial_bounds (word : List Bool) (index : ℕ) :
-    let budget := max word.length (encTerm 0 (.const 0)).length
+    let budget := formulaWordGateTermBudget word
     (formulaWordGateTerm word index).toPolynomial.totalDegree ≤ budget ∧
       (formulaWordGateTerm word index).toPolynomial.coeffNorm1 ≤ 2 ^ budget := by
   have hsize := formulaWordGateTermWord_length_le word index

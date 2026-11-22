@@ -23,6 +23,8 @@ This adapts `LeanCanny.ETR.BivariateTermReader.coefficient_eq` at
 lean-canny `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 A polynomial-time source of the coordinate values yields a certificate at one
 counting-function level. The source for the critical-point family remains separate.
+The word length and coordinate degree bounds give a uniform binary radix and
+prime cutoff for all gates.
 -/
 
 public section
@@ -30,6 +32,59 @@ public section
 namespace Cslib.Complexity.RealAlgebraic
 
 open Cslib Cslib.Logic.RealArithmetic Turing.MultiTapeTM
+
+/-- Choose a radix one larger than the uniform inner degree bound after substitution.
+This adapts `LeanCanny.ETR.BivariateTermReader.radix` at the revision above. -/
+@[expose] def formulaWordGateKroneckerRadix (word : List Bool) (inner : ℕ) : ℕ :=
+  formulaWordGateTermBudget word * inner + 1
+
+/-- A prime strictly above this cutoff has enough evaluation points to interpolate
+every packed gate polynomial. Both coordinate degree bounds are given in binary. -/
+@[expose] def formulaWordGateCoefficientPrimeCutoff (word : List Bool) (inner outer : ℕ) : ℕ :=
+  formulaWordGateKroneckerRadix word inner * (formulaWordGateTermBudget word * outer + 1)
+
+/-- The uniform radix is computable in polynomial time from the formula and inner bound. -/
+theorem formulaWordGateKroneckerRadix_polyTime {α : Type} {enc : α ↪ List Bool}
+    {word : α → List Bool} {inner : α → ℕ}
+    (hword : ComputableInPolyTime word enc encBits)
+    (hinner : ComputableInPolyTime inner enc encNat) :
+    ComputableInPolyTime (fun w => formulaWordGateKroneckerRadix (word w) (inner w)) enc encNat :=
+  .binary_add' (.binary_mul' (formulaWordGateTermBudget_polyTime hword) hinner) (.const 1)
+
+/-- The uniform prime cutoff is computable in polynomial time from the formula and both bounds. -/
+theorem formulaWordGateCoefficientPrimeCutoff_polyTime {α : Type} {enc : α ↪ List Bool}
+    {word : α → List Bool} {inner outer : α → ℕ}
+    (hword : ComputableInPolyTime word enc encBits)
+    (hinner : ComputableInPolyTime inner enc encNat)
+    (houter : ComputableInPolyTime outer enc encNat) :
+    ComputableInPolyTime
+      (fun w => formulaWordGateCoefficientPrimeCutoff (word w) (inner w) (outer w)) enc encNat :=
+  .binary_mul' (formulaWordGateKroneckerRadix_polyTime hword hinner)
+    (.binary_add' (.binary_mul' (formulaWordGateTermBudget_polyTime hword) houter) (.const 1))
+
+/-- For any gate, the chosen radix and any modulus above the cutoff meet both degree
+hypotheses of prime-field coefficient extraction. -/
+theorem formulaWordGateCoefficientPrimeCutoff_bounds (word : List Bool) (gate : ℕ)
+    (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {inner outer p : ℕ}
+    (hinner : ∀ k, (Polynomial.Bivariate.swap (coordinates k)).natDegree ≤ inner)
+    (houter : ∀ k, (coordinates k).natDegree ≤ outer)
+    (hp : formulaWordGateCoefficientPrimeCutoff word inner outer < p) :
+    let radix := formulaWordGateKroneckerRadix word inner
+    let P := formulaWordGatePolynomial word gate coordinates
+    (Polynomial.Bivariate.swap P).natDegree < radix ∧
+      (P.eval (Polynomial.X ^ radix)).natDegree < p - 1 := by
+  intro radix P
+  obtain ⟨hPouter, hPinner⟩ :=
+    formulaWordGatePolynomial_degree_bounds word gate coordinates houter hinner
+  have hr : (Polynomial.Bivariate.swap P).natDegree < radix :=
+    Nat.lt_succ_of_le hPinner
+  refine ⟨hr, (Polynomial.Bivariate.natDegree_eval_X_pow_le P radix).trans_lt ?_⟩
+  have hcutoff : (Polynomial.Bivariate.swap P).natDegree + radix * P.natDegree <
+      formulaWordGateCoefficientPrimeCutoff word inner outer := by
+    change _ < radix * (formulaWordGateTermBudget word * outer + 1)
+    rw [Nat.mul_succ, Nat.add_comm (radix * _) radix]
+    exact Nat.add_lt_add_of_lt_of_le hr (Nat.mul_le_mul_left radix hPouter)
+  exact hcutoff.trans_le (by omega)
 
 /-- The coefficient sum for one gate at inner index `i` and outer index `j`.
 The callback supplies coordinate residues at the packed evaluation point.
