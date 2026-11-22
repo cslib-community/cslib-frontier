@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.HardnessEncoding.NatCodec
+public import CslibFrontier.Computability.Complexity.NatCodec
 public import CslibFrontier.Computability.Complexity.Problems.SAT
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF

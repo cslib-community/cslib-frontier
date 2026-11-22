@@ -18,7 +18,7 @@ import CslibFrontier.Probability.PMF.Expect
 import CslibFrontier.Probability.PMF.ToReal
 
 /-!
-# Public-coin randomized cost, Yao's minimax principle, and error amplification
+# Model-generic public-coin randomized cost, minimax duality, and amplification
 
 Many concrete models of randomized computation — two-party communication protocols,
 number-on-forehead multiparty protocols, randomized decision trees, and coin-fixed cell-probe
@@ -26,24 +26,24 @@ schemes — share the same relationship between deterministic strategies, public
 input distributions, and repetition. A deterministic model is given by an evaluation map
 `eval : M → X → Z` and a worst-case natural-number cost `cost : M → ℕ` (`Cslib.RandomizedCost`).
 
-This module develops that model-independent kernel once:
+This module provides that model-independent library infrastructure once (background:
+[Yao1977, vonNeumann1928]):
 
 * **Public-coin and distributional complexity (`PMF`):** drawing a strategy from `μ : PMF M` gives
   worst-case support cost `PMF.maxCost C.cost μ`, per-input failure probability `C.errorProb`,
   promise correctness `C.Solves`, and least cost `C.ecomplexity` in `ℕ∞`, paired with deterministic
-  `C.detComplexity` and distributional `C.distributionalComplexity`. The averaging argument gives
-  the easy direction of Yao's principle on arbitrary promise sets
-  (`Solves.exists_distributionalError_le`, `distributionalComplexity_le_ecomplexity`), and von
-  Neumann's minimax theorem gives the hard direction on finite promise sets
-  (`ecomplexity_le_of_forall_distributionalComplexity_le`,
-  `ecomplexity_eq_iSup_distributionalComplexity`) [Yao1977, vonNeumann1928].
+  `C.detComplexity` and distributional `C.distributionalComplexity`. Averaging gives the easy
+  direction on arbitrary promise sets (`Solves.exists_distributionalError_le`,
+  `distributionalComplexity_le_ecomplexity`), and finite-game minimax duality gives the converse on
+  finite promise sets (`ecomplexity_le_of_forall_distributionalComplexity_le`,
+  `ecomplexity_eq_iSup_distributionalComplexity`).
 * **Majority error amplification:** when strategies for a Boolean function can be sequenced via
   `runAll` with additive cost, taking the strict majority of `2 r` independent draws reduces error
   `ε ≤ 1 / 2` to `(4 ε (1 - ε)) ^ r` at `2 r` times the cost (`Solves.amplify`,
   `ecomplexity_le_two_mul_mul`).
 * **Finitely supported mixtures (`StdSimplex`):** `C.simplexComplexity` and
   `C.simplexDistributionalComplexity` package `ℕ`-valued worst-case complexity over
-  `Convexity.StdSimplex` together with attainment and Yao's minimax equality
+  `Convexity.StdSimplex` together with attainment and minimax equality
   (`simplexComplexity_eq_iSup_simplexDistributionalComplexity`,
   `exists_simplexDistributionalComplexity_eq_simplexComplexity`).
 * **Zero-error coin-fixing expectation:** when a randomized execution on input `x` decomposes as
@@ -72,21 +72,21 @@ This module develops that model-independent kernel once:
 * `Cslib.RandomizedCost.ecomplexity_le_detComplexity`,
   `Cslib.RandomizedCost.ecomplexity_comap_le`: deterministic embedding and simulation monotonicity.
 * `Cslib.RandomizedCost.Solves.exists_distributionalError_le`,
-  `Cslib.RandomizedCost.distributionalComplexity_le_ecomplexity`: easy direction of Yao's principle.
+  `Cslib.RandomizedCost.distributionalComplexity_le_ecomplexity`: averaging lower-bound direction.
 * `Cslib.RandomizedCost.ecomplexity_le_of_forall_distributionalComplexity_le`,
   `Cslib.RandomizedCost.ecomplexity_eq_iSup_distributionalComplexity`,
-  `Cslib.RandomizedCost.ecomplexityFun_eq_iSup_distributionalComplexity`: hard direction and Yao's
-  minimax principle on `PMF`.
+  `Cslib.RandomizedCost.ecomplexityFun_eq_iSup_distributionalComplexity`: minimax converse and
+  supremum equality on `PMF`.
 * `Cslib.RandomizedCost.Solves.amplify`, `Cslib.RandomizedCost.ecomplexity_le_two_mul_mul`,
   `Cslib.RandomizedCost.ecomplexityFun_le_two_mul_mul_one_third`: majority error amplification.
 * `Cslib.RandomizedCost.simplexDistributionalComplexity_le_simplexComplexity`,
   `Cslib.RandomizedCost.simplexComplexity_eq_iSup_simplexDistributionalComplexity`,
-  `Cslib.RandomizedCost.exists_simplexDistributionalComplexity_eq_simplexComplexity`: Yao's minimax
-  principle on `Convexity.StdSimplex`.
+  `Cslib.RandomizedCost.exists_simplexDistributionalComplexity_eq_simplexComplexity`: minimax
+  duality on `Convexity.StdSimplex`.
 * `Cslib.RandomizedCost.tsum_snd_eq_of_bind_pure`,
   `Cslib.RandomizedCost.exists_mem_support_of_coinFixing`,
   `Cslib.RandomizedCost.exists_mem_support_tsum_mul_le_of_coinFixing`: coin-fixed expected cost and
-  zero-error Yao averaging.
+  zero-error averaging.
 
 ## References
 
@@ -236,25 +236,24 @@ theorem ecomplexity_comap_le {M' : Type*} {X' : Type*} {C' : RandomizedCost M' X
       simpa only [errorProb, PMF.errorProb, Set.preimage_ofPred_eq, heval] using hμ (g x) (hg hx))
     fun μ _ => PMF.maxCost_map_le C.cost C'.cost φ μ fun m' _ => hcost m'
 
-/-- **The averaging argument**, the easy direction of Yao's principle [Yao1977]: if `μ` solves `R`
-on `A` with error `ε`, then for every input distribution `ν` supported on `A` some strategy in
-`μ.support` has distributional error at most `ε` under `ν`. -/
+/-- Averaging lower-bound step: if `μ` solves `R` on `A` with error `ε`, then for every input
+distribution `ν` supported on `A` some strategy in `μ.support` has distributional error at most `ε`
+under `ν`. -/
 theorem Solves.exists_distributionalError_le (h : C.Solves μ ε R A) (ν : PMF X)
     (hν : ∀ x ∈ ν.support, x ∈ A) : ∃ m ∈ μ.support, C.distributionalError m ν R ≤ ε :=
   PMF.exists_errorProb_le ν fun x hx => h x (hν x hx)
 
-/-- **Yao's principle, the easy direction**: under every input distribution `ν` supported on `A`,
-distributional complexity is at most public-coin complexity on `A`. -/
+/-- Under every input distribution `ν` supported on `A`, distributional complexity is at most
+public-coin complexity on `A`. -/
 theorem distributionalComplexity_le_ecomplexity (hν : ∀ x ∈ ν.support, x ∈ A) :
     C.distributionalComplexity ε R ν ≤ C.ecomplexity ε R A :=
   le_ecomplexity_iff.mpr fun _ hμ => by
     obtain ⟨m, hm, herr⟩ := hμ.exists_distributionalError_le ν hν
     exact (distributionalComplexity_le_cost herr).trans (PMF.le_maxCost hm)
 
-/-- **Yao's principle, the hard direction** [Yao1977, vonNeumann1928]: on a finite promise set `A`,
-if at least one strategy has cost at most `c` and every input distribution supported on `A` admits
-a deterministic strategy of cost at most `c` and error at most `ε`, then `C.ecomplexity ε R A ≤ c`.
--/
+/-- Minimax converse on a finite promise set `A`: if at least one strategy has cost at most `c` and
+every input distribution supported on `A` admits a deterministic strategy of cost at most `c` and
+error at most `ε`, then `C.ecomplexity ε R A ≤ c`. -/
 theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] {c : ℕ}
     (hc : ∃ m : M, C.cost m ≤ c)
     (h : ∀ ν : PMF X, (∀ x ∈ ν.support, x ∈ A) → C.distributionalComplexity ε R ν ≤ c) :
@@ -267,9 +266,9 @@ theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] {c : ℕ
       exact ⟨m, hm, herr⟩
   exact ecomplexity_le_iff.mpr ⟨μ, hμ, hmax⟩
 
-/-- **Yao's principle** at budget `c`: on a finite promise set `A` with a strategy of cost at most
-`c`, public-coin complexity is at most `c` iff distributional complexity is at most `c` under every
-distribution supported on `A`. -/
+/-- Budget-`c` minimax equivalence on a finite promise set `A`: when a strategy of cost at most `c`
+exists, public-coin complexity is at most `c` iff distributional complexity is at most `c` under
+every distribution supported on `A`. -/
 theorem ecomplexity_le_iff_forall_distributionalComplexity_le [Finite A] {c : ℕ}
     (hc : ∃ m : M, C.cost m ≤ c) :
     C.ecomplexity ε R A ≤ c ↔
@@ -277,9 +276,9 @@ theorem ecomplexity_le_iff_forall_distributionalComplexity_le [Finite A] {c : �
   ⟨fun h _ hν => (distributionalComplexity_le_ecomplexity hν).trans h,
     ecomplexity_le_of_forall_distributionalComplexity_le hc⟩
 
-/-- **Yao's minimax principle** [Yao1977]: on a finite promise set `A`, when a zero-cost strategy
-exists, public-coin complexity equals the supremum of distributional complexities over input
-distributions supported on `A`. -/
+/-- Minimax supremum characterization on a finite promise set `A`: when a zero-cost strategy exists,
+public-coin complexity equals the supremum of distributional complexities over input distributions
+supported on `A`. -/
 theorem ecomplexity_eq_iSup_distributionalComplexity [Finite A] (h0 : ∃ m : M, C.cost m = 0) :
     C.ecomplexity ε R A =
       ⨆ (ν : PMF X) (_ : ∀ x ∈ ν.support, x ∈ A), C.distributionalComplexity ε R ν :=
@@ -287,8 +286,8 @@ theorem ecomplexity_eq_iSup_distributionalComplexity [Finite A] (h0 : ∃ m : M,
   ENat.eq_iSup₂_of_le_natCast_iff fun c =>
     ecomplexity_le_iff_forall_distributionalComplexity_le ⟨m₀, hm₀.le.trans (Nat.zero_le c)⟩
 
-/-- **Yao's minimax principle** for computing a total function `f : X → Z` on a finite input type.
--/
+/-- Minimax supremum characterization for computing a total function `f : X → Z` on a finite input
+type. -/
 theorem ecomplexityFun_eq_iSup_distributionalComplexity [Finite X] (h0 : ∃ m : M, C.cost m = 0)
     (f : X → Z) :
     C.ecomplexityFun ε f = ⨆ ν : PMF X, C.distributionalComplexity ε (fun x z => f x = z) ν := by
@@ -335,8 +334,8 @@ theorem maxCost_amplify_le
     exact_mod_cast (PMF.le_maxCost ((PMF.mem_support_iid_iff _ _).mp hms i)).trans hμ
   exact_mod_cast hcost hd
 
-/-- **Majority amplification**: if `μ` computes `f` on `A` with error `ε ≤ 1 / 2`, then the strict
-majority of `2 r` independent runs computes `f` on `A` with error `(4 ε (1 - ε)) ^ r`. -/
+/-- Strict-majority error reduction: if `μ` computes `f` on `A` with error `ε ≤ 1 / 2`, then the
+strict majority of `2 r` independent runs computes `f` on `A` with error `(4 ε (1 - ε)) ^ r`. -/
 theorem Solves.amplify
     (heval : ∀ {k : ℕ} (ms : Fin k → M) (g : (Fin k → Bool) → Bool) (x : X),
       C.eval (runAll ms g) x = g fun i => C.eval (ms i) x)
@@ -360,7 +359,7 @@ theorem Solves.amplify
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, heval] at hms ⊢
   simpa [e] using le_card_filter_ne_of_strictMajorityOn_ne (Ne.symm hms)
 
-/-- **Majority amplification** for public-coin complexity on `A`: reducing error `ε ≤ 1 / 2` to
+/-- Public-coin cost bound under majority repetition on `A`: reducing error `ε ≤ 1 / 2` to
 `(4 ε (1 - ε)) ^ r` multiplies complexity by at most `2 r`. -/
 theorem ecomplexity_le_two_mul_mul
     (heval : ∀ {k : ℕ} (ms : Fin k → M) (g : (Fin k → Bool) → Bool) (x : X),
@@ -383,7 +382,7 @@ theorem ecomplexity_le_two_mul_mul
     obtain ⟨μ, hμ, hc⟩ := ecomplexity_le_iff.mp h.le
     exact (ecomplexity_le_maxCost (hμ.amplify heval hε r)).trans (maxCost_amplify_le hcost hc r)
 
-/-- **Majority amplification** for computing a total Boolean function `f : X → Bool`. -/
+/-- Public-coin cost bound under majority repetition for a total Boolean function `f : X → Bool`. -/
 theorem ecomplexityFun_le_two_mul_mul
     (heval : ∀ {k : ℕ} (ms : Fin k → M) (g : (Fin k → Bool) → Bool) (x : X),
       C.eval (runAll ms g) x = g fun i => C.eval (ms i) x)
@@ -393,7 +392,8 @@ theorem ecomplexityFun_le_two_mul_mul
     C.ecomplexityFun ((4 * ε * (1 - ε)) ^ r) f ≤ 2 * r * C.ecomplexityFun ε f :=
   ecomplexity_le_two_mul_mul heval hcost h0 hε r
 
-/-- **Majority amplification** from error `1 / 3` to `(8 / 9) ^ r` in `2 r` runs. -/
+/-- Specialization of `ecomplexityFun_le_two_mul_mul` from error `1 / 3` to `(8 / 9) ^ r` in `2 r`
+runs. -/
 theorem ecomplexityFun_le_two_mul_mul_one_third
     (heval : ∀ {k : ℕ} (ms : Fin k → M) (g : (Fin k → Bool) → Bool) (x : X),
       C.eval (runAll ms g) x = g fun i => C.eval (ms i) x)
@@ -459,8 +459,8 @@ theorem exists_simplexDistributionalComplexity_eq (ν : StdSimplex ℝ X)
   exact Nat.exists_eq_sInf_of_exists C.cost
     ⟨m₀, (StdSimplex.errorProb_eq_zero_iff.mpr fun x _ => hm₀ x).trans_le ε.coe_nonneg⟩
 
-/-- **Yao's principle, the easy direction** on `StdSimplex`: distributional complexity under any
-`ν` is at most randomized complexity. -/
+/-- Averaging lower bound on `StdSimplex`: distributional complexity under any `ν` is at most
+randomized complexity. -/
 theorem simplexDistributionalComplexity_le_simplexComplexity (ν : StdSimplex ℝ X)
     (hex : ∃ m : M, ∀ x, R x (C.eval m x)) :
     C.simplexDistributionalComplexity ε ν R ≤ C.simplexComplexity ε R := by
@@ -469,7 +469,7 @@ theorem simplexDistributionalComplexity_le_simplexComplexity (ν : StdSimplex �
   exact (simplexDistributionalComplexity_le_cost herr).trans
     ((StdSimplex.le_maxCost hm).trans_eq hd)
 
-/-- **Yao's principle** at budget `d` on `StdSimplex` over a finite nonempty input space. -/
+/-- Budget-`d` minimax equivalence on `StdSimplex` over a finite nonempty input space. -/
 theorem simplexComplexity_le_iff_forall_simplexDistributionalComplexity_le [Finite X] [Nonempty X]
     (hex : ∃ m : M, ∀ x, R x (C.eval m x)) :
     C.simplexComplexity ε R ≤ d ↔
@@ -483,8 +483,8 @@ theorem simplexComplexity_le_iff_forall_simplexDistributionalComplexity_le [Fini
       ⟨m, hm.trans_le (h ν), herr⟩
   exact (simplexComplexity_le_maxCost hμ).trans hd
 
-/-- **Yao's minimax principle** on `StdSimplex` [Yao1977]: randomized complexity equals the
-supremum of distributional complexities over input distributions. -/
+/-- Minimax supremum characterization on `StdSimplex`: randomized complexity equals the supremum of
+distributional complexities over input distributions. -/
 theorem simplexComplexity_eq_iSup_simplexDistributionalComplexity [Finite X] [Nonempty X]
     (hex : ∃ m : M, ∀ x, R x (C.eval m x)) :
     C.simplexComplexity ε R =
@@ -492,7 +492,7 @@ theorem simplexComplexity_eq_iSup_simplexDistributionalComplexity [Finite X] [No
   Nat.eq_ciSup_of_le_iff fun _ =>
     simplexComplexity_le_iff_forall_simplexDistributionalComplexity_le hex
 
-/-- **Yao's minimax principle** with a hardest input distribution on `StdSimplex`. -/
+/-- Attainment of a hardest input distribution on `StdSimplex`. -/
 theorem exists_simplexDistributionalComplexity_eq_simplexComplexity [Finite X] [Nonempty X]
     (hex : ∃ m : M, ∀ x, R x (C.eval m x)) :
     ∃ ν : StdSimplex ℝ X,
@@ -541,7 +541,7 @@ theorem good_of_mem_support_coinFixing {μ : PMF M} {run : X → PMF (Y × ℕ)}
   rw [hmap, PMF.mem_support_map_iff]
   exact ⟨m, hm, rfl⟩
 
-/-- **Zero-error coin-fixing Yao averaging** [Yao1977]: if `run x` decomposes through a coin law
+/-- Coin-fixing averaging for zero-error computations: if `run x` decomposes through a coin law
 `μ` on `A` and on `ν.support`, and every supported output on `A` satisfies `Good x`, then some
 deterministic `m ∈ μ.support` satisfies `Good x (evalOut m x)` for all `x ∈ A` and has `ν`-expected
 cost at most the `ν`-expected cost of `run`. -/

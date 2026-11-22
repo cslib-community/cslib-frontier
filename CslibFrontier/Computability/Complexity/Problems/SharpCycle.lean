@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.HardnessEncoding.NatCodec
+public import CslibFrontier.Computability.Complexity.NatCodec
 public import CslibFrontier.Computability.Complexity.Problems.Hamiltonian
 public import Mathlib.Data.Set.Card
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Directed

@@ -26,18 +26,21 @@ choices (`NOF.PublicCoin.depth`), and the public-coin communication complexity i
 (`NOF.PublicCoin.ecomplexity`, `NOF.PublicCoin.ecomplexityFun`). Deterministic protocols are
 public-coin protocols (`NOF.PublicCoin.ecomplexity_le_protocol`).
 
-*Yao's minimax principle* [Yao1977, vonNeumann1928] equates public-coin NOF complexity on a finite
-promise set `A` with the supremum of distributional complexities
-(`NOF.Protocol.distributionalComplexity`) under input distributions supported on `A`: the averaging
-argument gives the easy direction on arbitrary promise sets
+Instantiating `Cslib.RandomizedCost` on `NOF.Protocol.randomizedCost` extends the two-party
+public-coin minimax and amplification developments (after
+[Kushilevitz and Nisan, Chapters 3 and 6][KushilevitzNisan1997] and [Yao1977, vonNeumann1928]) to
+multiparty NOF protocols: on a finite promise set `A` with nonempty output type `Z`, public-coin NOF
+complexity equals the supremum of distributional complexities
+(`NOF.Protocol.distributionalComplexity`) over input distributions supported on `A`, combining the
+averaging lower bound on arbitrary promise sets
 (`NOF.PublicCoin.Solves.exists_distributionalError_le`,
-`NOF.PublicCoin.distributionalComplexity_le_ecomplexity`), and minimax duality gives the hard
-direction when `A` is finite and `Z` is nonempty
+`NOF.PublicCoin.distributionalComplexity_le_ecomplexity`) with the minimax converse
 (`NOF.PublicCoin.ecomplexity_le_of_forall_distributionalComplexity_le`,
 `NOF.PublicCoin.ecomplexity_eq_iSup_distributionalComplexity`).
 
 For Boolean functions, taking the strict majority of `2 r` independent runs
-(`NOF.PublicCoin.amplify`, sequenced via `NOF.Protocol.runAll`) amplifies error `ε ≤ 1 / 2` down to
+(`NOF.PublicCoin.amplify`, sequenced via `NOF.Protocol.runAll`, after
+[Kushilevitz and Nisan, Chapter 3][KushilevitzNisan1997]) amplifies error `ε ≤ 1 / 2` down to
 `(4 ε (1 - ε)) ^ r` at `2 r` times the communication cost (`NOF.PublicCoin.Solves.amplify`,
 `NOF.PublicCoin.ecomplexity_le_two_mul_mul`).
 
@@ -56,12 +59,12 @@ For Boolean functions, taking the strict majority of `2 r` independent runs
 
 * `Cslib.Communication.NOF.PublicCoin.ecomplexity_le_protocol`: randomness does not hurt.
 * `Cslib.Communication.NOF.PublicCoin.Solves.exists_distributionalError_le`,
-  `Cslib.Communication.NOF.PublicCoin.distributionalComplexity_le_ecomplexity`: easy direction of
-  Yao's principle.
+  `Cslib.Communication.NOF.PublicCoin.distributionalComplexity_le_ecomplexity`: averaging lower
+  bound for public-coin NOF protocols.
 * `Cslib.Communication.NOF.PublicCoin.ecomplexity_le_of_forall_distributionalComplexity_le`,
   `Cslib.Communication.NOF.PublicCoin.ecomplexity_eq_iSup_distributionalComplexity`,
-  `Cslib.Communication.NOF.PublicCoin.ecomplexityFun_eq_iSup_distributionalComplexity`: hard
-  direction and Yao's minimax principle for NOF protocols.
+  `Cslib.Communication.NOF.PublicCoin.ecomplexityFun_eq_iSup_distributionalComplexity`: multiparty
+  NOF minimax characterization instantiating `Cslib.RandomizedCost`.
 * `Cslib.Communication.NOF.PublicCoin.Solves.amplify`,
   `Cslib.Communication.NOF.PublicCoin.ecomplexity_le_two_mul_mul`,
   `Cslib.Communication.NOF.PublicCoin.ecomplexityFun_le_two_mul_mul_one_third`: majority error
@@ -226,18 +229,23 @@ theorem ecomplexityFun_le_protocol {f : (∀ i, X i) → Z} (hε : 0 ≤ ε) :
     ecomplexityFun ε f ≤ Protocol.ecomplexityFun f :=
   ecomplexity_le_protocol hε
 
-/-! ### Yao's minimax principle for NOF protocols -/
+/-! ### Distributional lower bounds and minimax duality for NOF protocols -/
 
-/-- **Yao's principle, the easy direction**: under every distribution `ν` supported on `A`,
-distributional NOF complexity is at most public-coin NOF complexity on `A`. -/
+/-- Multiparty NOF instantiation of `RandomizedCost.distributionalComplexity_le_ecomplexity` (the
+averaging direction, after [Yao1977] and [Kushilevitz and Nisan, Chapter 3][KushilevitzNisan1997]):
+under every distribution `ν` supported on `A`, distributional NOF complexity is at most public-coin
+NOF complexity on `A`. -/
 theorem distributionalComplexity_le_ecomplexity {ν : PMF (∀ i, X i)}
     (hν : ∀ x ∈ ν.support, x ∈ A) :
     Protocol.distributionalComplexity ε R ν ≤ ecomplexity ε R A :=
   RandomizedCost.distributionalComplexity_le_ecomplexity hν
 
-/-- **Yao's principle, the hard direction** [Yao1977, vonNeumann1928]: on a finite promise set `A`
-with nonempty output type `Z`, if under every distribution supported on `A` some deterministic NOF
-protocol of depth at most `c` errs with probability at most `ε`, then `ecomplexity ε R A ≤ c`. -/
+/-- Multiparty NOF instantiation of
+`RandomizedCost.ecomplexity_le_of_forall_distributionalComplexity_le` (the minimax converse, after
+[Kushilevitz and Nisan, Theorem 3.20 and Chapter 6][KushilevitzNisan1997] and
+[Yao1977, vonNeumann1928]): on a finite promise set `A` with nonempty output type `Z`, if under
+every distribution supported on `A` some deterministic NOF protocol of depth at most `c` errs with
+probability at most `ε`, then `ecomplexity ε R A ≤ c`. -/
 theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] [Nonempty Z] {c : ℕ}
     (h : ∀ ν : PMF (∀ i, X i), (∀ x ∈ ν.support, x ∈ A) →
       Protocol.distributionalComplexity ε R ν ≤ c) :
@@ -245,9 +253,10 @@ theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite A] [Nonempt
   RandomizedCost.ecomplexity_le_of_forall_distributionalComplexity_le
     ⟨.output (Classical.arbitrary Z), Nat.zero_le c⟩ h
 
-/-- **Yao's principle**: on a finite promise set `A` with nonempty output type `Z`, public-coin NOF
-complexity on `A` is at most `c` iff distributional complexity is at most `c` under every
-distribution supported on `A`. -/
+/-- Multiparty NOF instantiation of
+`RandomizedCost.ecomplexity_le_iff_forall_distributionalComplexity_le`: on a finite promise set `A`
+with nonempty output type `Z`, public-coin NOF complexity on `A` is at most `c` iff distributional
+complexity is at most `c` under every distribution supported on `A`. -/
 theorem ecomplexity_le_iff_forall_distributionalComplexity_le [Finite A] [Nonempty Z] {c : ℕ} :
     ecomplexity ε R A ≤ c ↔
       ∀ ν : PMF (∀ i, X i), (∀ x ∈ ν.support, x ∈ A) →
@@ -255,9 +264,10 @@ theorem ecomplexity_le_iff_forall_distributionalComplexity_le [Finite A] [Nonemp
   RandomizedCost.ecomplexity_le_iff_forall_distributionalComplexity_le
     ⟨.output (Classical.arbitrary Z), Nat.zero_le c⟩
 
-/-- **Yao's minimax principle** for NOF protocols [Yao1977]: on a finite promise set `A` with
-nonempty output type `Z`, public-coin NOF complexity equals the supremum of distributional
-complexities over distributions supported on `A`. -/
+/-- Multiparty NOF instantiation of `RandomizedCost.ecomplexity_eq_iSup_distributionalComplexity`
+(after [Kushilevitz and Nisan, Theorem 3.20 and Chapter 6][KushilevitzNisan1997] and [Yao1977]): on
+a finite promise set `A` with nonempty output type `Z`, public-coin NOF complexity equals the
+supremum of distributional complexities over distributions supported on `A`. -/
 theorem ecomplexity_eq_iSup_distributionalComplexity [Finite A] [Nonempty Z] :
     ecomplexity ε R A =
       ⨆ (ν : PMF (∀ i, X i)) (_ : ∀ x ∈ ν.support, x ∈ A),
@@ -265,8 +275,8 @@ theorem ecomplexity_eq_iSup_distributionalComplexity [Finite A] [Nonempty Z] :
   RandomizedCost.ecomplexity_eq_iSup_distributionalComplexity
     ⟨.output (Classical.arbitrary Z), rfl⟩
 
-/-- **Yao's minimax principle** for computing a function in the NOF model over finitely many players
-with finite input types. -/
+/-- Multiparty NOF instantiation of `RandomizedCost.ecomplexityFun_eq_iSup_distributionalComplexity`
+for computing a total function over finitely many players with finite input types. -/
 theorem ecomplexityFun_eq_iSup_distributionalComplexity [Finite ι] [∀ i, Finite (X i)] [Nonempty Z]
     (f : (∀ i, X i) → Z) :
     ecomplexityFun ε f =
@@ -289,27 +299,31 @@ theorem depth_amplify_le {c : ℕ} (hμ : μ.depth ≤ c) (r : ℕ) :
     (μ.amplify r).depth ≤ 2 * r * c :=
   (Protocol.randomizedCost X Bool).maxCost_amplify_le Protocol.depth_runAll_le hμ r
 
-/-- **Amplification**: if `μ` computes `f` on `A` with error `ε ≤ 1 / 2`, then the strict majority
-of `2 r` independent runs computes `f` on `A` with error `(4 ε (1 - ε)) ^ r`. -/
+/-- Multiparty NOF instantiation of `RandomizedCost.Solves.amplify` (after
+[Kushilevitz and Nisan, Chapter 3][KushilevitzNisan1997]): if `μ` computes `f` on `A` with error
+`ε ≤ 1 / 2`, then the strict majority of `2 r` independent runs computes `f` on `A` with error
+`(4 ε (1 - ε)) ^ r`. -/
 theorem Solves.amplify (hμ : μ.Solves ε (fun x b => f x = b) A) (hε : ε ≤ 1 / 2) (r : ℕ) :
     (μ.amplify r).Solves ((4 * ε * (1 - ε)) ^ r) (fun x b => f x = b) A :=
   RandomizedCost.Solves.amplify (C := Protocol.randomizedCost X Bool) Protocol.run_runAll hμ hε r
 
-/-- **Amplification** of public-coin NOF protocols on `A`: reducing error `ε ≤ 1 / 2` to
-`(4 ε (1 - ε)) ^ r` multiplies complexity by at most `2 r`. -/
+/-- Multiparty NOF instantiation of `RandomizedCost.ecomplexity_le_two_mul_mul` on `A`: reducing
+error `ε ≤ 1 / 2` to `(4 ε (1 - ε)) ^ r` multiplies complexity by at most `2 r`. -/
 theorem ecomplexity_le_two_mul_mul (hε : ε ≤ 1 / 2) (r : ℕ) :
     ecomplexity ((4 * ε * (1 - ε)) ^ r) (fun x b => f x = b) A ≤
       2 * r * ecomplexity ε (fun x b => f x = b) A :=
   RandomizedCost.ecomplexity_le_two_mul_mul Protocol.run_runAll Protocol.depth_runAll_le
     ⟨.output true, rfl⟩ hε r
 
-/-- **Amplification** of public-coin NOF protocols for total Boolean functions. -/
+/-- Multiparty NOF instantiation of `RandomizedCost.ecomplexityFun_le_two_mul_mul` for total
+Boolean functions. -/
 theorem ecomplexityFun_le_two_mul_mul (hε : ε ≤ 1 / 2) (r : ℕ) :
     ecomplexityFun ((4 * ε * (1 - ε)) ^ r) f ≤ 2 * r * ecomplexityFun ε f :=
   RandomizedCost.ecomplexityFun_le_two_mul_mul Protocol.run_runAll Protocol.depth_runAll_le
     ⟨.output true, rfl⟩ hε r
 
-/-- **Amplification** from error `1 / 3`: `2 r` NOF runs reduce the error to `(8 / 9) ^ r`. -/
+/-- Specialization of `ecomplexityFun_le_two_mul_mul` from error `1 / 3`: `2 r` NOF runs reduce the
+error to `(8 / 9) ^ r`. -/
 theorem ecomplexityFun_le_two_mul_mul_one_third (r : ℕ) :
     ecomplexityFun ((8 / 9) ^ r) f ≤ 2 * r * ecomplexityFun (1 / 3) f :=
   RandomizedCost.ecomplexityFun_le_two_mul_mul_one_third Protocol.run_runAll

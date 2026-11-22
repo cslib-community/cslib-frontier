@@ -11,10 +11,6 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.P
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 public import Mathlib.Data.Nat.Pairing
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.PolyTime
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Finite
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeOptionPrimitives
 
 /-!
 # Composable natural-number index codecs for hardness reductions
@@ -37,9 +33,8 @@ build compound namespaces without ad-hoc parity or `Nat.unpair` arithmetic:
 * `NatCodec.pair`: combine two namespaces through Cantor-style pairing `Nat.pair`, doubling
   worst-case binary bit-length (`Nat.size_pair_le`, `NatCodec.size_pair_le`).
 
-All combinators carry `@[fun_prop]` `ComputableInPolyTime` rules into `encNat`, backed by a
-`Decoder`- and `Inhabited`-free tagged-sum eliminator
-(`Turing.MultiTapeTM.ComputableInPolyTime.sumElim`).
+All combinators carry `@[fun_prop]` `ComputableInPolyTime` rules into `encNat`, using
+`Turing.MultiTapeTM.ComputableInPolyTime.sumElim` from `PolyTime.Sum`.
 
 ## Main definitions
 
@@ -60,12 +55,10 @@ All combinators carry `@[fun_prop]` `ComputableInPolyTime` rules into `encNat`, 
 * `Nat.size_pair_le`, `Cslib.Complexity.NatCodec.size_finSum_le`,
   `Cslib.Complexity.NatCodec.size_sum_le`, `Cslib.Complexity.NatCodec.size_pair_le`: binary
   bit-length bounds (`Nat.size` and `(encNat ·).length`).
-* `Turing.MultiTapeTM.ComputableInPolyTime.sumElim`,
-  `Turing.MultiTapeTM.ComputableInPolyTime.fin_val`,
-  `Cslib.Complexity.NatCodec.computableInPolyTime_finSum`,
+* `Cslib.Complexity.NatCodec.computableInPolyTime_finSum`,
   `Cslib.Complexity.NatCodec.computableInPolyTime_sum`,
-  `Cslib.Complexity.NatCodec.computableInPolyTime_pair`: polynomial-time certificates under
-  `encNat`.
+  `Cslib.Complexity.NatCodec.computableInPolyTime_pair`: `@[fun_prop]` polynomial-time certificates
+  under `encNat` (including `encUnary` leaves via `computableInPolyTime_nat_unary`).
 -/
 
 public section
@@ -83,61 +76,12 @@ theorem size_pair_le (a b : ℕ) : (Nat.pair a b).size ≤ 2 * max a.size b.size
     (Nat.lt_size_self b).trans_le (Nat.pow_le_pow_right two_pos (le_max_right _ _))
   refine Nat.size_le.2 ?_
   rw [Nat.two_mul, Nat.pow_add, Nat.pair]
-  split_ifs with hab
+  split
   · exact lt_of_lt_of_le (show b * b + a < (b + 1) * (b + 1) by nlinarith) (Nat.mul_le_mul hb hb)
   · exact lt_of_lt_of_le (show a * a + a + b < (a + 1) * (a + 1) by nlinarith)
       (Nat.mul_le_mul ha ha)
 
 end Nat
-
-/-! ### Polynomial-time `Sum.elim` without `Decoder` or `Inhabited` -/
-
-namespace Turing.MultiTapeTM.ComputableInPolyTime
-
-/-- Eliminate a tagged sum in polynomial time on arbitrary summand and output encodings, without
-requiring `Inhabited`, `Finite`, or `Decoder` on any type. -/
-@[fun_prop]
-theorem sumElim {α β γ : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
-    {encC : γ ↪ List Bool} {f : α → γ} {g : β → γ}
-    (hf : ComputableInPolyTime f encA encC) (hg : ComputableInPolyTime g encB encC) :
-    ComputableInPolyTime (Sum.elim f g) (encSum encA encB) encC := by
-  rcases isEmpty_or_nonempty γ with hγ | ⟨⟨d⟩⟩
-  · have : IsEmpty α := ⟨fun a => isEmptyElim (f a)⟩
-    have : IsEmpty β := ⟨fun b => isEmptyElim (g b)⟩
-    exact of_finite (Sum.elim f g)
-  · have hleft : ComputableInPolyTime (Sum.getLeft? (α := α) (β := β))
-        (encSum encA encB) (encOption encA) :=
-      (ComputableInO.getLeft?_deg encA encB).computableInPolyTime
-    have hright : ComputableInPolyTime (Sum.getRight? (α := α) (β := β))
-        (encSum encA encB) (encOption encB) :=
-      (ComputableInO.getRight?_deg encA encB).computableInPolyTime
-    have hd : ComputableInPolyTime (fun _ : α ⊕ β => d) (encSum encA encB) encC :=
-      (ComputableInDegree.const (encIn := encSum encA encB) (encMid := encC) d).computableInPolyTime
-    have hr := hright.optionElimWithInput (body := fun _ b => g b)
-      hd (hg.comp (snd (encSum encA encB) encB))
-    have hl := hleft.optionElimWithInput (body := fun _ a => f a) hr
-      (hf.comp (snd (encSum encA encB) encA))
-    convert hl using 1
-    funext s
-    cases s <;> rfl
-
-/-- Composition rule for `Sum.elim` on a computed tagged sum. -/
-@[fun_prop]
-theorem sumElim' {δ α β γ : Type} {encD : δ ↪ List Bool} {encA : α ↪ List Bool}
-    {encB : β ↪ List Bool} {encC : γ ↪ List Bool} {s : δ → α ⊕ β}
-    {f : α → γ} {g : β → γ}
-    (hs : ComputableInPolyTime s encD (encSum encA encB))
-    (hf : ComputableInPolyTime f encA encC) (hg : ComputableInPolyTime g encB encC) :
-    ComputableInPolyTime (fun x => Sum.elim f g (s x)) encD encC :=
-  (sumElim hf hg).comp hs
-
-/-- Convert a bounded finite index `Fin k` to its binary natural representation `encNat`. -/
-@[fun_prop]
-theorem fin_val (k : ℕ) {enc : Fin k ↪ List Bool} :
-    ComputableInPolyTime (Fin.val : Fin k → ℕ) enc encNat :=
-  of_finite Fin.val
-
-end Turing.MultiTapeTM.ComputableInPolyTime
 
 /-! ### `NatCodec` and its combinators -/
 
@@ -226,8 +170,9 @@ def fin (k : ℕ) : NatCodec (Fin k) where
   decode? n := if h : n < k then some ⟨n, h⟩ else none
   decode?_encode i := by simp [i.2]
   encode_of_decode? {n _} h := by
-    split_ifs at h with hn
-    exact congrArg Fin.val (Option.some.inj h).symm
+    split at h
+    · exact congrArg Fin.val (Option.some.inj h).symm
+    · cases h
 
 @[simp]
 theorem fin_apply (k : ℕ) (i : Fin k) : fin k i = i.1 :=
@@ -245,9 +190,10 @@ def shift {α : Type*} (k : ℕ) (c : NatCodec α) : NatCodec α where
     simp only [Nat.le_add_left, ↓reduceIte, Nat.add_sub_cancel]
     exact c.decode?_encode a
   encode_of_decode? {n a} h := by
-    split_ifs at h with hk
-    have ha := c.encode_of_decode? h
-    omega
+    split at h
+    · have ha := c.encode_of_decode? h
+      omega
+    · cases h
 
 @[simp]
 theorem shift_apply {α : Type*} (k : ℕ) (c : NatCodec α) (a : α) : c.shift k a = c a + k :=
@@ -268,7 +214,7 @@ def finSum {β : Type*} (k : ℕ) (c : NatCodec β) : NatCodec (Fin k ⊕ β) wh
       simp only [Sum.elim_inr, shift_apply, hlt, ↓reduceDIte, Option.map_eq_some_iff]
       exact ⟨b, (c.shift k).decode?_encode b, rfl⟩
   encode_of_decode? {n x} h := by
-    split_ifs at h with hn
+    split at h
     · obtain rfl := Option.some.inj h
       rfl
     · obtain ⟨b, hb, rfl⟩ := Option.map_eq_some_iff.mp h
@@ -312,7 +258,7 @@ def sum {α β : Type*} (c₁ : NatCodec α) (c₂ : NatCodec β) : NatCodec (α
       have hdiv : (2 * c₂.encode b + 1) / 2 = c₂.encode b := by omega
       simp [hmod, hdiv, c₂.decode?_encode b]
   encode_of_decode? {n x} h := by
-    split_ifs at h with hmod
+    split at h
     · obtain ⟨a, ha, rfl⟩ := Option.map_eq_some_iff.mp h
       have hca := c₁.encode_of_decode? ha
       simp only [Sum.elim_inl]
@@ -434,7 +380,7 @@ theorem computableInPolyTime_nat_unary : ComputableInPolyTime (fun n => nat n) e
 @[fun_prop]
 theorem computableInPolyTime_fin (k : ℕ) {enc : Fin k ↪ List Bool} :
     ComputableInPolyTime (fun i => fin k i) enc encNat :=
-  fin_val k
+  of_finite _
 
 @[fun_prop]
 theorem computableInPolyTime_shift {α : Type} {encA : α ↪ List Bool} {c : NatCodec α} (k : ℕ)

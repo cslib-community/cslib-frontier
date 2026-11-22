@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.QueryComplexity.Randomized
-public import CslibFrontier.Computability.RandomizedCost
 
 /-!
 # Yao's minimax principle for decision trees
@@ -27,8 +26,6 @@ the `StdSimplex` layer of `Cslib.RandomizedCost`.
 
 ## Main definitions
 
-* `Cslib.DecisionTree.randomizedCost`: deterministic decision trees as a `Cslib.RandomizedCost`
-  model.
 * `Cslib.QueryComplexity.distributionalComplexity`: the distributional complexity `D^ν_ε(f)`.
 
 ## Main results
@@ -54,12 +51,6 @@ open scoped NNReal
 namespace Cslib
 
 open Convexity RandomizedDecisionTree
-
-/-- Deterministic decision trees as a `RandomizedCost` model with evaluation `DecisionTree.eval`
-and worst-case cost `DecisionTree.depth`. -/
-def DecisionTree.randomizedCost (ι β : Type*) :
-    RandomizedCost (DecisionTree ι β) (ι → Bool) β :=
-  ⟨DecisionTree.eval, DecisionTree.depth⟩
 
 namespace QueryComplexity
 

@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.Communication.NOF.Randomized
 import CslibFrontier.Computability.CellProbe.Randomized
-import CslibFrontier.Computability.Complexity.HardnessEncoding.NatCodec
+import CslibFrontier.Computability.Complexity.NatCodec
 import CslibFrontier.Computability.Complexity.Problems.DominatingSet
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
 import CslibFrontier.Computability.QueryComplexity.Yao

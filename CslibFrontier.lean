@@ -2612,7 +2612,6 @@ public import CslibFrontier.Computability.Complexity.FineGrained.WideClauseCount
 public import CslibFrontier.Computability.Complexity.FineGrained.WordRAM
 public import CslibFrontier.Computability.Complexity.Gradel
 public import CslibFrontier.Computability.Complexity.Gradel.Tableau
-public import CslibFrontier.Computability.Complexity.HardnessEncoding.NatCodec
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.PolyTime
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.Program
 public import CslibFrontier.Computability.Complexity.ImmermanVardi
@@ -2623,6 +2622,7 @@ public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Corre
 public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Definability
 public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.FixedPoint
 public import CslibFrontier.Computability.Complexity.ImmermanVardi.Tableau.Step
+public import CslibFrontier.Computability.Complexity.NatCodec
 public import CslibFrontier.Computability.Complexity.Parameterized
 public import CslibFrontier.Computability.Complexity.Parameterized.Clique
 public import CslibFrontier.Computability.Complexity.Parameterized.ColorCoding
@@ -4540,7 +4540,6 @@ public import CslibFrontier.Computability.PolyTime.CSP.Edge.Forest.Spec
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Agreement
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Ancestry
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.AncestryPolyTime
-public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Contraction
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Driver
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Endpoint
