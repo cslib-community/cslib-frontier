@@ -7,8 +7,8 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
 public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterministic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Space
 
 /-!
 # Unambiguous space classes
@@ -18,11 +18,11 @@ public import CslibFrontier.Computability.Complexity.Classes.Space.Nondeterminis
 and none on nonmembers, on instances whose encoding under `enc` has length `n`. As for
 `Cslib.Complexity.NSPACE`, the bound `c₁ * s n + c₂` holds along every computation prefix,
 including rejecting branches, every branch halts, the input tape is read-only and the output tape
-write-only. As for `Cslib.Complexity.UL`, branches are transition-occurrence traces, so two equal
+write-only. Branches are transition-occurrence traces of the counting machine, so two equal
 transitions at one configuration count twice.
 
-Forgetting transition multiplicity gives `USPACE(s) ⊆ NSPACE(s)` for every bound `s`, and
-`UL` is `USPACE(log₂ n)`.
+Forgetting transition multiplicity gives `USPACE(s) ⊆ NSPACE(s)` for every bound `s`. The
+logarithmic case is `Cslib.Complexity.UL`, by `Cslib.Complexity.UL_eq_USPACE`.
 
 ## Main definitions
 
@@ -31,7 +31,6 @@ Forgetting transition multiplicity gives `USPACE(s) ⊆ NSPACE(s)` for every bou
 ## Main results
 
 * `Cslib.Complexity.USPACE_subset_NSPACE`: an unambiguous decider is a nondeterministic one.
-* `Cslib.Complexity.UL_eq_USPACE`: `UL = USPACE(log₂ n)`.
 -/
 
 public section
@@ -57,16 +56,5 @@ same space. -/
 theorem USPACE_subset_NSPACE : USPACE enc s ⊆ NSPACE enc s := by
   rintro A ⟨k, State, hfinite, M, c₁, c₂, f, hM, -, hA⟩
   exact ⟨k, State, hfinite, M.toNTM, c₁, c₂, hM.decidesInSpace hA⟩
-
-/-- **`UL` is `USPACE(log₂ n)`**: the bounds `c * (log₂ n + 1)` and `c₁ * log₂ n + c₂` give the
-same problems. -/
-theorem UL_eq_USPACE : UL enc = USPACE enc Nat.log2 := by
-  ext A
-  constructor
-  · rintro ⟨f, ⟨k, State, hfinite, M, c, hM⟩, hle, hA⟩
-    exact ⟨k, State, hfinite, M, c, c, f,
-      hM.mono fun a => by rw [Nat.mul_add, Nat.mul_one], hle, hA⟩
-  · rintro ⟨k, State, hfinite, M, c₁, c₂, f, hM, hle, hA⟩
-    exact ⟨f, ⟨k, State, hfinite, M, c₁ + c₂, hM.mono fun a => by nlinarith⟩, hle, hA⟩
 
 end Cslib.Complexity

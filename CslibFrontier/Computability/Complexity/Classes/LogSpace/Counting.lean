@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Space
+public import CslibFrontier.Computability.Complexity.Classes.Space.Unambiguous
 
 /-!
 # Counting and unambiguous logarithmic space
@@ -31,13 +31,14 @@ giving the inclusion in `NL`.
 ## Main results
 
 * `Cslib.Complexity.UL_subset_NL`: forgetting accepting branch multiplicity gives an NL decider.
+* `Cslib.Complexity.UL_eq_USPACE`: `UL` is unambiguous space `USPACE(log₂ n)`.
 -/
 
 public section
 
 namespace Cslib.Complexity
 
-open Turing
+open _root_.Turing
 
 variable {α : Type}
 
@@ -62,5 +63,16 @@ multiplicity. Its accepting count is positive exactly when the resulting machine
 theorem UL_subset_NL {enc : α ↪ List Bool} : UL enc ⊆ NL enc := by
   rintro A ⟨f, ⟨k, State, hfinite, machine, c, hmachine⟩, -, hA⟩
   exact ⟨k, State, hfinite, machine.toNTM, c, hmachine.decidesInSpace hA⟩
+
+/-- **`UL` is `USPACE(log₂ n)`**: the bounds `c * (log₂ n + 1)` and `c₁ * log₂ n + c₂` give the
+same problems. -/
+theorem UL_eq_USPACE {enc : α ↪ List Bool} : UL enc = USPACE enc Nat.log2 := by
+  ext A
+  constructor
+  · rintro ⟨f, ⟨k, State, hfinite, M, c, hM⟩, hle, hA⟩
+    exact ⟨k, State, hfinite, M, c, c, f,
+      hM.mono fun a => by rw [Nat.mul_add, Nat.mul_one], hle, hA⟩
+  · rintro ⟨k, State, hfinite, M, c₁, c₂, f, hM, hle, hA⟩
+    exact ⟨f, ⟨k, State, hfinite, M, c₁ + c₂, hM.mono fun a => by nlinarith⟩, hle, hA⟩
 
 end Cslib.Complexity
