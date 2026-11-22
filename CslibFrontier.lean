@@ -9129,3 +9129,4 @@ public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
 public import CslibFrontier.Tactic.WramOmega
 public import CslibFrontier.Tactic.WramOmega.Init
+public import CslibFrontier.Tactic.WramOmega.Prove

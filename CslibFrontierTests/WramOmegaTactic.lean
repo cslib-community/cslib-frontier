@@ -169,6 +169,11 @@ example {w₀ : ℕ} (hfit : Fits w₀ n) (hw : w₀ < w) : Fits w (2 * n + 1) :
 example {w₀ : ℕ} (h : ¬Fits w a) (hw : w₀ ≤ w) : ¬Fits w₀ a := by
   wram_omega
 
+example {e₁ e₂ e₃ e₄ e₅ e₆ e₇ e₈ e₉ : ℕ} :
+    9 ≤ tableSize e₁ + tableSize e₂ + tableSize e₃ + tableSize e₄ +
+      tableSize e₅ + tableSize e₆ + tableSize e₇ + tableSize e₈ + tableSize e₉ := by
+  wram_omega
+
 /-! When nothing was unfolded, `omega` proves the goal and the linter asks for it. -/
 
 /--

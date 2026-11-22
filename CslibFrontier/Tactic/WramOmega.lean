@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Tactic.WramOmega.Init
+public meta import CslibFrontier.Tactic.WramOmega.Prove
 public meta import Lean.Elab.Tactic.Omega
 
 /-!
@@ -104,8 +105,10 @@ private structure State where
   /-- Whether a local definition was unfolded, a field of a constructor was read or a `let` was
   reduced: `omega` alone does none of these inside a term. -/
   reduced : Bool := false
-  /-- The powers of two met, in the order met. -/
-  powers : Array Expr := #[]
+  /-- The powers of two met, deduplicated by hash for `0 < 2 ^ k` positivity facts. -/
+  powers : ExprSet := {}
+  /-- Up to `maxPowerExps` distinct powers of two, in the order met, for pairwise monotonicity. -/
+  monoPowers : Array Expr := #[]
 
 /-- Unfolds terms, with the active `@[wram_arith]` definitions. -/
 private abbrev UnfoldM := ReaderT Context <| StateRefT State MetaM
@@ -191,20 +194,7 @@ private def maxMonoHeartbeats : ℕ := 20000
 
 /-- A proof of `lhs ≤ rhs` by `omega` from `hyps`, or `none`. -/
 private def proveLe? (hyps : List Expr) (lhs rhs : Expr) : MetaM (Option Expr) := do
-  let saved ← saveState
-  let restore : MetaM (Option Expr) := do saved.restore; return none
-  let budget (x : MetaM (Option Expr)) : MetaM (Option Expr) :=
-    withCurrHeartbeats <| withTheReader Core.Context
-      (fun ctx => { ctx with maxHeartbeats := maxMonoHeartbeats * 1000 }) x
-  let attempt : MetaM (Option Expr) := do
-    let goalType ← mkAppM ``LE.le #[lhs, rhs]
-    let g ← mkFreshExprSyntheticOpaqueMVar goalType
-    let some g' ← g.mvarId!.falseOrByContra | return none
-    g'.withContext do
-      let some neg := (← getLCtx).lastDecl | failure
-      Omega.omega (neg.toExpr :: hyps) g'
-    return some (← instantiateMVars g)
-  tryCatchRuntimeEx (try budget attempt catch _ => restore) fun _ => restore
+  proveOmega? maxMonoHeartbeats hyps (← mkAppM ``LE.le #[lhs, rhs])
 
 /-- Proofs of monotonicity between distinct powers of two `(2 ^ e₁, 2 ^ e₂)` in `powers` when
 `omega` proves `e₁ < e₂` (`2 * 2 ^ e₁ ≤ 2 ^ e₂`) or `e₁ ≤ e₂` (`2 ^ e₁ ≤ 2 ^ e₂`) from `hyps`.
@@ -258,11 +248,15 @@ private def powerMonoFacts (powers : Array Expr) (initCount : ℕ) (hyps : List 
 private def recordPowers (e : Expr) : UnfoldM Unit :=
   e.forEachWhere isPowerOfTwo fun t => do
     unless t.hasLooseBVars || (← get).powers.contains t do
-      modify fun s => { s with powers := s.powers.push t }
+      modify fun s =>
+        { s with
+          powers := s.powers.insert t
+          monoPowers :=
+            if s.monoPowers.size < maxPowerExps then s.monoPowers.push t else s.monoPowers }
 
 /-- The facts `0 < 2 ^ k` for the powers of two met so far. -/
 private def powerFacts : UnfoldM (Array Expr) :=
-  return (← get).powers.map fun t => mkApp (mkConst ``Nat.two_pow_pos) t.appArg!
+  return (← get).powers.toArray.map fun t => mkApp (mkConst ``Nat.two_pow_pos) t.appArg!
 
 /-- Whether `omega` reads a hypothesis of type `type`, up to unfolding reducible definitions. -/
 private def readByOmega (type : Expr) : UnfoldM Bool := do
@@ -355,10 +349,11 @@ elab_rules : tactic
             Linter.logLintIf linter.unnecessaryWramOmega tk m!"`wram_omega` unfolded no \
               `@[wram_arith]` definition here: `omega` proves this goal."
           return
-        if (← get).powers.size ≥ 2 then
+        let mono₁Candidates := (← get).monoPowers
+        if mono₁Candidates.size ≥ 2 then
           let savedMono₁ ← Meta.saveState
           let hyps₁ ← (← getLocalHyps).filterM fun h => do readByOmega (← inferType h)
-          let mono₁ ← powerMonoFacts (← get).powers (← get).powers.size
+          let mono₁ ← powerMonoFacts mono₁Candidates mono₁Candidates.size
             (hyps₁ ++ facts ++ pos₁).toList
           if !mono₁.isEmpty then
             if (← omegaWith g {} (facts ++ pos₁ ++ mono₁)).isNone then
@@ -369,7 +364,7 @@ elab_rules : tactic
         withReader ({ · with locals := allLocals }) do
           let ctx ← read
           let (g, facts) ← unfoldGoal g
-          let initPowers := (← get).powers.size
+          let initPowers := (← get).monoPowers.size
           let mut facts := facts
           let mut plainArith : Array Expr := #[]
           let mut replaced : FVarIdSet := {}
@@ -387,9 +382,10 @@ elab_rules : tactic
               plainArith := plainArith.push d.toExpr
           let posFacts ← powerFacts
           let mut err? ← omegaWith g replaced (facts ++ posFacts)
-          if err?.isSome && (← get).powers.size ≥ 2 then
+          let monoCandidates := (← get).monoPowers
+          if err?.isSome && monoCandidates.size ≥ 2 then
             let savedMono ← Meta.saveState
-            let monoFacts ← powerMonoFacts (← get).powers initPowers
+            let monoFacts ← powerMonoFacts monoCandidates initPowers
               (plainArith ++ facts ++ posFacts).toList
             unless monoFacts.isEmpty do
               err? ← omegaWith g replaced (facts ++ posFacts ++ monoFacts)
