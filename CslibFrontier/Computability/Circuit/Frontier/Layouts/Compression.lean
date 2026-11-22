@@ -13,7 +13,6 @@ import Mathlib.Order.Prod.Lex.Basic
 import Mathlib.SetTheory.Cardinal.NatCard
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
-import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Compressions of multigraphs
@@ -176,7 +175,7 @@ theorem ncard_internal_add_join_le [DecidableEq V] [Finite E] {B B' : List V}
       have := hd (G.tgt e)
       simp only [mem_edgeCut, mem_ofPred_eq] at h₁ h₂
       simp only [List.mem_append]
-      lrat_tauto
+      tauto
   have hdisj : Disjoint {e | ∃ D ∈ c.blocks, G.src e ∈ D ∧ G.tgt e ∈ D}
       (G.edgeCut {v | v ∈ B} ∩ G.edgeCut {v | v ∈ B'}) := by
     refine disjoint_left.2 ?_
