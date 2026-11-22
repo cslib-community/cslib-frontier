@@ -868,14 +868,13 @@ def checkOPBOutput (opb pbp : String) (out : Option String := none) :
     (proofIn I.constraints.length N (tokens pbp)).bind fun (P, sec) =>
       match sec, out with
       | none, _ =>
-        if checkRedFast I.constraints I.objective P I.preserved then some (P.conclusion, none)
-        else none
+        if checkRed I.constraints I.objective P I.preserved then some (P.conclusion, none) else none
       | some (g, true), some t =>
         (parseOPB t N).bind fun O =>
-          (checkRedOutputFast I.constraints I.objective P I.preserved ⟨g, some O⟩).map
+          (checkRedOutput I.constraints I.objective P I.preserved ⟨g, some O⟩).map
             fun o => (P.conclusion, some o)
       | some (g, false), none =>
-        (checkRedOutputFast I.constraints I.objective P I.preserved ⟨g, none⟩).map
+        (checkRedOutput I.constraints I.objective P I.preserved ⟨g, none⟩).map
           fun o => (P.conclusion, some o)
       | some _, _ => none
 
@@ -889,7 +888,7 @@ the proof is accepted. -/
 def checkDIMACS (cnf pbp : String) : Option Conclusion :=
   (parseDIMACS cnf).bind fun φ =>
     (parseProof φ.length (numVars (φ.map Clause.toPB) none) pbp).bind fun P =>
-      if checkRedFast (φ.map Clause.toPB) none P then some P.conclusion else none
+      if checkRed (φ.map Clause.toPB) none P then some P.conclusion else none
 
 /-- What an accepted proof with an output section gives: the parsed instance, and a proof of it,
 accepted by the checker with the returned conclusion and with the returned output, if any. -/
@@ -900,8 +899,7 @@ private theorem of_checkOPBOutput {opb pbp : String} {out : Option String} {c : 
         ⟨g, O⟩ = some o' ∧ ∀ t ∈ out, ∃ O', O = some O' ∧
           parseOPB t (Names.ofTokens (numVars I.constraints I.objective I.preserved)
             (tokens pbp ++ tokens t)) = some O' := by
-  simp only [checkOPBOutput, checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput,
-    Option.bind_eq_some_iff] at h
+  simp only [checkOPBOutput, Option.bind_eq_some_iff] at h
   obtain ⟨I, hI, ⟨P, sec⟩, -, h⟩ := h
   split at h
   · split at h
@@ -1069,7 +1067,7 @@ and is unsatisfiable. -/
 theorem not_satisfiable_of_checkDIMACS {cnf pbp : String} {q : ℕ}
     (h : checkDIMACS cnf pbp = some (.unsat q)) :
     ∃ φ, parseDIMACS cnf = some φ ∧ ¬ φ.Satisfiable := by
-  simp only [checkDIMACS, checkRedFast_eq_checkRed, Option.bind_eq_some_iff] at h
+  simp only [checkDIMACS, Option.bind_eq_some_iff] at h
   obtain ⟨φ, hφ, P, -, h⟩ := h
   split at h
   · exact ⟨φ, hφ, not_satisfiable_cnf_of_checkRed ‹_› (Option.some.inj h)⟩
@@ -1080,7 +1078,7 @@ is satisfiable. -/
 theorem satisfiable_of_checkDIMACS {cnf pbp : String} {asg : Option (List (Literal ℕ))}
     (h : checkDIMACS cnf pbp = some (.sat asg)) :
     ∃ φ, parseDIMACS cnf = some φ ∧ φ.Satisfiable := by
-  simp only [checkDIMACS, checkRedFast_eq_checkRed, Option.bind_eq_some_iff] at h
+  simp only [checkDIMACS, Option.bind_eq_some_iff] at h
   obtain ⟨φ, hφ, P, -, h⟩ := h
   split at h
   · obtain ⟨σ, hσ⟩ := exists_satisfies_of_checkRed ‹_› (Option.some.inj h)

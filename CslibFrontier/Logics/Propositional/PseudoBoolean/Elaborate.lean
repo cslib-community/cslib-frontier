@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Elaborate.Core
-public import CslibFrontier.Logics.Propositional.PseudoBoolean.Fast
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-!
@@ -66,9 +65,9 @@ open Text
 preserved set `pres`: its conclusion if accepted, with the output section `NONE` or `IMPLICIT`. -/
 def checkResult (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ)) :
     Except String Result → Option Conclusion
-  | .ok ⟨P, none, _⟩ => if checkRedFast F obj P pres then some P.conclusion else none
+  | .ok ⟨P, none, _⟩ => if checkRed F obj P pres then some P.conclusion else none
   | .ok ⟨P, some (g, false), _⟩ =>
-    (checkRedOutputFast F obj P pres ⟨g, none⟩).map fun _ => P.conclusion
+    (checkRedOutput F obj P pres ⟨g, none⟩).map fun _ => P.conclusion
   | _ => none
 
 /-- **Check an augmented proof for an OPB instance**: parse the instance, elaborate the proof and
@@ -91,7 +90,6 @@ theorem exists_checkRed_of_checkResult {F : List PBConstr} {obj : Option Objecti
     (h : checkResult F obj pres r = some c) :
     ∃ P, checkRed F obj P pres = true ∧ P.conclusion = c := by
   unfold checkResult at h
-  simp only [checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput] at h
   split at h
   · split at h
     · exact ⟨_, ‹_›, Option.some.inj h⟩

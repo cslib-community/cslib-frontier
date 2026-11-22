@@ -19,9 +19,8 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 `decision_output` and `optimization_output_opposing_lits_objective` fixtures of the VeriPB
 repository, of the PHP(3, 2) proof with symmetry breaking by `dom`, and of the optimality proof
 by `dom` under the order `notAux` with an auxiliary variable, and of a projected enumeration that
-changes the preserved set, is checked by `decide +kernel` on the reference checker `checkRed`
-(the text checkers run its compiled twin `checkRedFast`, rewritten back by
-`checkRedFast_eq_checkRed`), and the soundness theorems are applied to it. -/
+changes the preserved set, is checked by `decide +kernel`, and the soundness theorems are applied
+to it. -/
 
 set_option linter.privateModule false
 
@@ -35,7 +34,6 @@ theorem amo3_accepted : ∃ o : Output, checkOPBOutput amo3 amo3Proof amo3Out =
   have h : (checkOPBOutput amo3 amo3Proof amo3Out).map
       (fun r => (r.1, r.2.map fun o => (o.guarantee, o.bound))) =
       some (.noClaim, some (.equisatisfiable, none)) := by
-    simp only [checkOPBOutput, checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput]
     decide +kernel
   rcases hc : checkOPBOutput amo3 amo3Proof amo3Out with _ | ⟨c, _ | o⟩ <;>
     simp only [hc, Option.map_some, Option.map_none, reduceCtorEq, Option.some.injEq,
@@ -56,7 +54,6 @@ example : ∃ I O, parseOPB amo3 = some I ∧ (I.Satisfiable ↔ O.Satisfiable) 
 `BOUNDS 2 : 14 2`. -/
 theorem amo3Opt_accepted : (checkOPBOutput amo3Opt amo3OptProof amo3OptOut).map (·.1) =
     some (.bounds (some 2) 14 (some 2) none) := by
-  simp only [checkOPBOutput, checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput]
   decide +kernel
 
 -- So the optimum of `amo3Opt` is `2`.
@@ -72,7 +69,6 @@ example : ∃ I f, parseOPB amo3Opt = some I ∧ I.objective = some f ∧
 /-- The PHP(3, 2) proof with symmetry breaking by `dom` under the order `lex4` is accepted with
 `UNSAT : 16`. -/
 theorem domPhp32_accepted : (checkOPBOutput php32 domPhp32).map (·.1) = some (.unsat 16) := by
-  simp only [checkOPBOutput, checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput]
   decide +kernel
 
 -- So PHP(3, 2) has no solution.
@@ -83,7 +79,6 @@ example : ∃ I, parseOPB php32 = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈
 `scope geq`, is accepted with `BOUNDS 1 : 9 1`. -/
 theorem domAuxObj_accepted : (checkOPBOutput sym2Aux domAuxObjProof).map (·.1) =
     some (.bounds (some 1) 9 (some 1) none) := by
-  simp only [checkOPBOutput, checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput]
   decide +kernel
 
 -- So the optimum of `x1 + x2` subject to `x1 + x2 >= 1` is `1`.
@@ -100,7 +95,6 @@ example : ∃ I f, parseOPB sym2Aux = some I ∧ I.objective = some f ∧
 `preserved_rm` is accepted with `ENUMERATION_PARTIAL 1`. -/
 theorem enumAfterRm_accepted :
     (checkOPBOutput pres4Rm enumAfterRm).map (·.1) = some (.enumPartial 1) := by
-  simp only [checkOPBOutput, checkRedFast_eq_checkRed, checkRedOutputFast_eq_checkRedOutput]
   decide +kernel
 
 -- So the input formula has a solution, counted against its own preserved set `x1 x3 x5`.

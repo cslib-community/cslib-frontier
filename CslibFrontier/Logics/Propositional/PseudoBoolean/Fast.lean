@@ -45,8 +45,13 @@ applies to it unchanged.
 The proof is by a representation invariant (`Cslib.Logic.PL.VeriPB.FState.WF`), preserved by
 each step (`Cslib.Logic.PL.VeriPB.stepTopFast_spec`), as for
 `Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`. The structures are updated in place when
-uniquely referenced. That speed is measured, not proved. The kernel cannot evaluate the compiled
-checker efficiently, and `decide` keeps using `checkRed`.
+uniquely referenced. That speed is measured, not proved.
+
+**Compiled callers run it automatically**: `Cslib.Logic.PL.VeriPB.checkRed_eq_checkRedFast` is a
+`@[csimp]` lemma, so the compiler replaces `checkRed` by `checkRedFast` (and `checkRedOutput` by
+`checkRedOutputFast`) in compiled code, justified by the equality theorems. The kernel and
+`decide` keep reducing the reference definitions, so the text front end, the augmented pipeline
+and their `decide +kernel` clients are unchanged.
 
 ## Main definitions
 
@@ -59,6 +64,8 @@ checker efficiently, and `decide` keeps using `checkRed`.
   `Cslib.Logic.PL.VeriPB.checkRedOutputFast_eq_checkRedOutput`: they agree with the reference
   checkers.
 * `Cslib.Logic.PL.VeriPB.stepTopFast_spec`: one compiled step computes the reference step.
+* `Cslib.Logic.PL.VeriPB.checkRed_eq_checkRedFast`,
+  `Cslib.Logic.PL.VeriPB.checkRedOutput_eq_checkRedOutputFast`: the `@[csimp]` lemmas.
 -/
 
 public section
@@ -780,6 +787,19 @@ theorem checkRedOutputFast_eq_checkRedOutput (F : List PBConstr) (obj : Option O
   unfold checkRedOutputFast checkRedOutput
   cases hf : runTopFast F obj (.ofState (State.init F obj pres)) P.steps <;>
     rw [hf] at h <;> simp only [Option.map_none, Option.map_some] at h <;> rw [← h]
+
+/-- **The compiled code of `checkRed` is `checkRedFast`.** The kernel and `decide` keep reducing
+the reference definition; compiled callers run the compiled checker, justified by
+`Cslib.Logic.PL.VeriPB.checkRedFast_eq_checkRed`. -/
+@[csimp] theorem checkRed_eq_checkRedFast : @checkRed = @checkRedFast := by
+  funext F obj P pres
+  exact (checkRedFast_eq_checkRed F obj P pres).symm
+
+/-- The compiled code of `checkRedOutput` is `checkRedOutputFast`. -/
+@[csimp] theorem checkRedOutput_eq_checkRedOutputFast :
+    @checkRedOutput = @checkRedOutputFast := by
+  funext F obj P pres sec
+  exact (checkRedOutputFast_eq_checkRedOutput F obj P pres sec).symm
 
 end VeriPB
 
