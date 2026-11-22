@@ -3246,6 +3246,8 @@ public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
 public import CslibFrontier.Computability.Distributed.Byzantine.PhaseKing
 public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
+public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
+public import CslibFrontier.Computability.Distributed.CausalBroadcast.TotalOrder
 public import CslibFrontier.Computability.Distributed.ClockSync.Basic
 public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
 public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
