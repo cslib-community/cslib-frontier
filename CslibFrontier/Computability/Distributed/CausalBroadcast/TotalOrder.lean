@@ -14,67 +14,63 @@ import Mathlib.Data.Finset.Max
 import Mathlib.Data.List.Dedup
 
 /-!
-# Total-Order (Atomic) Broadcast, Consensus Equivalence, and `Cslib.FLP` Impossibility
+# One-Shot and Slot-Trace Total-Order Broadcast Steps and `Cslib.FLP` Reduction
 
-This module formalizes **Total-Order (Atomic) Broadcast** in asynchronous crash-prone
-message-passing systems and establishes its bidirectional equivalence with **Consensus** together
-with the sharp fault-tolerance dichotomy against **Causal Broadcast**, following Hadzilacos and
-Toueg [HadzilacosToueg1994] (§§3.1, 3.4, 3.8, 7.1–7.2) and Chandra and Toueg [ChandraToueg1996]
-(§4, §7, §7.1).
+This module formalizes one-shot initial-broadcast and discrete-time slot-trace steps toward #7297
+for asynchronous crash-fault Total-Order (Atomic) Broadcast, its reductions to and from Consensus,
+and its fault-tolerance contrast against single-group Causal Broadcast (after Hadzilacos and Toueg
+[HadzilacosToueg1994], §§3.1, 3.4, 3.8–3.9, 7.1–7.2, and Chandra and Toueg [ChandraToueg1996], §§4,
+7, 7.1).
 
-1. **Asynchronous Crash-Fault Total-Order Broadcast (`TotalOrderBroadcastAlg`):**
-   We model deterministic event-driven asynchronous broadcast algorithms over process set `P` whose
-   labelled transition system (`TotalOrderBroadcastAlg.lts`), schedule fairness (`BcastProcFair`,
-   `BcastFairRun`), and crash count (`bcastNumProcFaulty`) align directly with
-   `Cslib.FLP.Algorithm` without stuttering or fairness mismatches. We formalize `Validity`,
-   `Integrity`, `Agreement`, `SolvesReliableBroadcast`, non-uniform `TotalOrder`
-   ([HadzilacosToueg1994], §3.4, p. 13; [ChandraToueg1996], §7, p. 248), `UniformTotalOrder`
-   ([HadzilacosToueg1994], §3.8, p. 16), and `SolvesTotalOrderBroadcast`.
+1. **One-Shot Asynchronous Crash-Fault Broadcast Model (`TotalOrderBroadcastAlg`):**
+   Models deterministic event-driven asynchronous broadcast algorithms over process set `P` in
+   which each process receives one initial broadcast input `inp p : V` at `start`, with labelled
+   transition system (`TotalOrderBroadcastAlg.lts`), schedule fairness (`BcastProcFair`,
+   `BcastFairRun`), and crash count (`bcastNumProcFaulty`) aligned directly with
+   `Cslib.FLP.Algorithm`. Defines one-shot `Validity`, `Integrity`, `Agreement`,
+   `SolvesReliableBroadcast`, non-uniform `TotalOrder` ([HadzilacosToueg1994], §3.4, p. 13;
+   [ChandraToueg1996], §7, p. 248), `UniformTotalOrder` ([HadzilacosToueg1994], §3.8, p. 15), and
+   `SolvesTotalOrderBroadcast`.
 
-2. **Reduction 1 — Total-Order Broadcast → Binary Consensus (`consensusOfTotalOrderBroadcast`) and
-   `Cslib.FLP` 1-Crash Impossibility (`not_exists_totalOrderBroadcast_ge_one`):**
-   Following [HadzilacosToueg1994], §7.2.1, Figure 13 & Theorem 13 (p. 58) and [ChandraToueg1996],
-   §7 (p. 249), each process `p` proposes its input bit `inp p` by broadcasting `⟨p, inp p⟩` upon
-   initialization and decides the bit carried by the **first** message delivered in its local
-   delivery log. `consensusOfTotalOrderBroadcast` constructs a genuine `Cslib.FLP.Algorithm P M S`
-   solving `f`-resilient consensus (`consensusOfTotalOrderBroadcast_consensus`). Invoking
-   `Cslib.FLP.Consensus.ge_one_not_exists` directly proves that deterministic asynchronous
-   Total-Order Broadcast is **impossible** against `f ≥ 1` crash faults whenever
-   `2 ≤ Fintype.card P` and `[Nontrivial V]` (`not_exists_totalOrderBroadcast_ge_one`,
-   `not_exists_totalOrderBroadcast_one_crash`; [HadzilacosToueg1994], §7.2.1, Corollary 2, p. 58).
-   Conversely, a deterministic sequencer protocol (`zeroFaultTotalOrderAlg`) solves `f = 0`,
-   characterizing solvability as `t = 0` (`exists_totalOrderBroadcast_iff_eq_zero`).
+2. **One-Shot Reduction to `Cslib.FLP` Consensus (`consensusOfTotalOrderBroadcast`) and
+   `f ≥ 1` Impossibility Step (`not_exists_oneShotTotalOrderBroadcast_ge_one`):**
+   Adapts any `f`-resilient one-shot `TotalOrderBroadcastAlg P M S Bool` into an `f`-resilient
+   `Cslib.FLP.Algorithm P M S` (`consensusOfTotalOrderBroadcast_consensus`, after
+   [HadzilacosToueg1994], §7.2.1, Figure 13 & Theorem 13, p. 58; [ChandraToueg1996], §7, p. 249) by
+   deciding the payload of the first delivered message, and invokes
+   `Cslib.FLP.Consensus.ge_one_not_exists` to rule out `f ≥ 1` crash-resilient `TotalOrderBroadcastAlg`
+   for `2 ≤ Fintype.card P` and `[Nontrivial V]` (`not_exists_oneShotTotalOrderBroadcast_ge_one`).
+   Paired with the `0`-fault deterministic sequencer `zeroFaultTotalOrderAlg`
+   (`zeroFaultTotalOrderAlg_solves`), `exists_oneShotTotalOrderBroadcast_iff_eq_zero` characterizes
+   one-shot solvability as `t = 0`.
 
-3. **Reduction 2 — Reliable Broadcast + Sequential Consensus Slots → Total-Order Broadcast
-   (`ConsensusSlotExec`, `totalOrderBroadcastOfConsensus`):**
-   Conversely, following [ChandraToueg1996], §7.1, Figure 7, Lemmas 7.1.2–7.1.5 & Theorem 7.1.6
-   (pp. 249–252) and [HadzilacosToueg1994], §7.2.2, Figure 14 & Theorem 14 (pp. 60–63), given
-   underlying Reliable Broadcast and sequential Consensus slots `k = 0, 1, …` deciding nonempty
-   finite batches of undelivered messages delivered in canonical `[LinearOrder Msg]` order
-   (`canonicalBatch`, `runConsensusSlots`), we prove Uniform Integrity, Uniform No Duplicates,
-   Uniform Total Order, Agreement, and Validity (via the finite-faulty-proposer argument of
-   [ChandraToueg1996], Lemma 7.1.4).
+3. **Abstract Slot-Trace Reduction Step from Consensus + Reliable Broadcast
+   (`ConsensusSlotExec`, `totalOrderBroadcast_of_consensusSlotExec`):**
+   Models the batch-delivery reduction of [ChandraToueg1996], §7.1 (Figure 7, Lemmas 7.1.2–7.1.5 &
+   Theorem 7.1.6, pp. 249–252) and [HadzilacosToueg1994], §7.2.2 (Figure 14 & Theorem 14,
+   pp. 60–63) over `[LinearOrder Msg]` (`canonicalBatch`, `runConsensusSlots`) at the abstract
+   discrete-time (`t : ℕ`) subprotocol-execution level (`ConsensusSlotExec`), proving duplicate
+   freedom, uniform integrity, uniform total order, agreement, and validity.
 
-4. **Headline Asynchronous Fault-Tolerance Dichotomy (`causal_vs_totalOrder_dichotomy`):**
-   On any process set `P` with `2 ≤ Fintype.card P` and nontrivial payload type `V`, Causal
-   Broadcast (`bssLTS`) is deterministically solvable for **all** `t < Fintype.card P`, whereas
-   Total-Order Broadcast (`TotalOrderBroadcastAlg`) is deterministically solvable **iff `t = 0`**.
+4. **Single-Group Causal vs. One-Shot Total-Order Fault-Tolerance Dichotomy Step
+   (`causal_vs_oneShotTotalOrder_dichotomy`):**
+   Contrasts `∀ t < Fintype.card P` solvability of `BSSSolvesAtomicMulticastCausalBroadcast` against
+   `t = 0`-only solvability of one-shot `TotalOrderBroadcastAlg` for `2 ≤ Fintype.card P` and
+   `[Nontrivial V]`.
 
 ## Model scope relative to primary sources
 
 1. **Single initial broadcast per process in `TotalOrderBroadcastAlg`:** Following
    `Cslib.FLP.Algorithm`, each process `p : P` receives one initial broadcast input `inp p : V` at
-   initialization (`TotalOrderBroadcastAlg.start`), which suffices for both the `Cslib.FLP`
-   impossibility reduction ([HadzilacosToueg1994], §7.2.1, Figure 13, p. 58) and the `0`-fault
-   sequencer protocol (`zeroFaultTotalOrderAlg`).
-2. **Discrete-time modular subprotocol interface in `ConsensusSlotExec`:** Reduction 2
-   (`ConsensusSlotExec`, `totalOrderBroadcastOfConsensus`) works over an arbitrary multi-shot
-   message type `Msg` with `[LinearOrder Msg]` and arbitrary broadcast sets `correctBcast ⊆ bcast :
-   Set Msg`, modeling [ChandraToueg1996], §7.1 (Figure 7) and [HadzilacosToueg1994], §7.2.2
-   (Figure 14) at the discrete-time (`t : ℕ`) modular execution-trace level by axiomatizing the
-   specification properties of the underlying Reliable Broadcast and per-slot Consensus subprotocols
-   (rather than instantiating a failure-detector packet subprotocol; failure-detector classes `𝒟`,
-   `𝒮`, `⋄𝒲`, `⋄𝒮` remain out of scope).
+   initialization (`TotalOrderBroadcastAlg.start`) rather than dynamic multi-shot `broadcast(m)`
+   invocations; dynamic multi-shot `TotalOrderBroadcastAlg` remains open under #7297.
+2. **Discrete-time modular subprotocol interface in `ConsensusSlotExec`:**
+   `ConsensusSlotExec` and `totalOrderBroadcast_of_consensusSlotExec` work over an arbitrary
+   multi-shot message type `Msg` with `[LinearOrder Msg]` and broadcast sets
+   `correctBcast ⊆ bcast : Set Msg`, axiomatizing subprotocol execution traces (`rDelivered`,
+   `decidedBatches`, `Proposed`, `faulty_eventually_halted`) rather than transforming executable
+   network `Algorithm`s (and leaving failure-detector classes of [ChandraToueg1996] §§3, 5–6 out of
+   scope).
 
 ## Main definitions
 
@@ -83,45 +79,44 @@ Toueg [HadzilacosToueg1994] (§§3.1, 3.4, 3.8, 7.1–7.2) and Chandra and Toueg
   `Cslib.Distributed.CausalBroadcast.BcastEvent`,
   `Cslib.Distributed.CausalBroadcast.BcastProcState`,
   `Cslib.Distributed.CausalBroadcast.BcastState`: message, envelope, event, and state structures for
-  asynchronous crash-fault broadcast algorithms.
-* `Cslib.Distributed.CausalBroadcast.TotalOrderBroadcastAlg`: deterministic asynchronous broadcast
-  algorithm and its `lts`, `AdmissibleRun`, `Validity`, `Integrity`, `Agreement`, `TotalOrder`,
-  `UniformTotalOrder`, `SolvesReliableBroadcast`, and `SolvesTotalOrderBroadcast` predicates.
-* `Cslib.Distributed.CausalBroadcast.consensusOfTotalOrderBroadcast` and
-  `Cslib.Distributed.CausalBroadcast.comapBoolPayload`: `Cslib.FLP.Algorithm P M S` adapter reducing
-  binary consensus to Total-Order Broadcast and two-value payload restriction.
-* `Cslib.Distributed.CausalBroadcast.zeroFaultTotalOrderAlg`: deterministic sequencer algorithm
-  solving `0`-fault Total-Order Broadcast.
+  one-shot asynchronous crash-fault broadcast algorithms.
+* `Cslib.Distributed.CausalBroadcast.TotalOrderBroadcastAlg`: deterministic one-shot asynchronous
+  broadcast algorithm and its `lts`, `AdmissibleRun`, `Validity`, `Integrity`, `Agreement`,
+  `TotalOrder`, `UniformTotalOrder`, `SolvesReliableBroadcast`, and `SolvesTotalOrderBroadcast`
+  predicates.
+* `Cslib.Distributed.CausalBroadcast.consensusOfTotalOrderBroadcast`: `Cslib.FLP.Algorithm P M S`
+  adapter reducing binary consensus to one-shot `TotalOrderBroadcastAlg`.
+* `Cslib.Distributed.CausalBroadcast.zeroFaultTotalOrderAlg`: deterministic fixed-sequencer
+  one-shot algorithm solving `0`-fault `SolvesTotalOrderBroadcast`.
 * `Cslib.Distributed.CausalBroadcast.insertSorted`,
   `Cslib.Distributed.CausalBroadcast.canonicalBatch`,
   `Cslib.Distributed.CausalBroadcast.runConsensusSlots`: executable canonical `[LinearOrder Msg]`
   batch-delivery engine for sequential consensus slots.
-* `Cslib.Distributed.CausalBroadcast.ConsensusSlotExec`: execution specification of the
-  Chandra–Toueg Figure 7 / Hadzilacos–Toueg Figure 14 transformation from Reliable Broadcast +
-  sequential Consensus slots to Total-Order Broadcast.
+* `Cslib.Distributed.CausalBroadcast.ConsensusSlotExec`: abstract discrete-time (`t : ℕ`) execution
+  specification of sequential Consensus slots over Reliable Broadcast.
 
 ## Main results
 
 * `Cslib.Distributed.CausalBroadcast.consensusOfTotalOrderBroadcast_consensus`: any `f`-resilient
-  Total-Order Broadcast algorithm yields an `f`-resilient `Cslib.FLP.Algorithm`.
-* `Cslib.Distributed.CausalBroadcast.uniformTotalOrder_of_solvesTotalOrderBroadcast`: in purely
-  asynchronous crash-stop message passing, non-uniform `SolvesTotalOrderBroadcast f` implies
-  `UniformTotalOrder` across all reachable configurations.
-* `Cslib.Distributed.CausalBroadcast.not_exists_totalOrderBroadcast_ge_one` and
-  `Cslib.Distributed.CausalBroadcast.not_exists_totalOrderBroadcast_one_crash`: impossibility of
-  deterministic asynchronous Total-Order Broadcast for `f ≥ 1` (`f = 1`) and `2 ≤ Fintype.card P`
-  via `Cslib.FLP.Consensus.ge_one_not_exists`.
+  one-shot `TotalOrderBroadcastAlg` over `Bool` yields an `f`-resilient `Cslib.FLP.Algorithm`.
+* `Cslib.Distributed.CausalBroadcast.uniformTotalOrder_of_solvesTotalOrderBroadcast`: for one-shot
+  `TotalOrderBroadcastAlg`, non-uniform `SolvesTotalOrderBroadcast f` implies `UniformTotalOrder`
+  across all reachable configurations.
+* `Cslib.Distributed.CausalBroadcast.not_exists_oneShotTotalOrderBroadcast_ge_one`: impossibility
+  step for `f ≥ 1` crash-resilient one-shot `TotalOrderBroadcastAlg` when `2 ≤ Fintype.card P` and
+  `[Nontrivial V]`, proved via `Cslib.FLP.Consensus.ge_one_not_exists`.
 * `Cslib.Distributed.CausalBroadcast.zeroFaultTotalOrderAlg_solves` and
-  `Cslib.Distributed.CausalBroadcast.exists_totalOrderBroadcast_iff_eq_zero`: `0`-fault sequencer
-  solvability and exact `t = 0` characterization for `2 ≤ Fintype.card P`.
+  `Cslib.Distributed.CausalBroadcast.exists_oneShotTotalOrderBroadcast_iff_eq_zero`: `0`-fault
+  one-shot sequencer solvability and exact `t = 0` characterization for `2 ≤ Fintype.card P`.
 * `Cslib.Distributed.CausalBroadcast.canonicalBatch_ext` and
   `Cslib.Distributed.CausalBroadcast.runConsensusSlots_nodup`: canonical set-to-sequence batch
   uniqueness and duplicate-free multi-slot execution.
-* `Cslib.Distributed.CausalBroadcast.totalOrderBroadcastOfConsensus`: sequential consensus slots
-  over Reliable Broadcast satisfy Uniform Integrity, Uniform No Duplicates, Uniform Total Order,
-  Agreement, and Validity ([ChandraToueg1996], Theorem 7.1.6; [HadzilacosToueg1994], Theorem 14).
-* `Cslib.Distributed.CausalBroadcast.causal_vs_totalOrder_dichotomy`: headline asynchronous
-  fault-tolerance dichotomy (`∀ t < |P|` Causal Broadcast vs. `t = 0` Total-Order Broadcast).
+* `Cslib.Distributed.CausalBroadcast.totalOrderBroadcast_of_consensusSlotExec`: abstract slot-trace
+  reduction step proving duplicate freedom, uniform integrity, uniform total order, agreement, and
+  validity for any `ConsensusSlotExec`.
+* `Cslib.Distributed.CausalBroadcast.causal_vs_oneShotTotalOrder_dichotomy`: fault-tolerance
+  dichotomy step contrasting `∀ t < Fintype.card P` single-group atomic-multicast causal broadcast
+  against `t = 0`-only one-shot total-order broadcast.
 
 ## References
 
@@ -287,18 +282,19 @@ def AdmissibleRun [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
   ss 0 = π.start inp ∧ π.lts.OmegaExecution ss xs ∧
     BcastFairRun ss xs ∧ bcastNumProcFaulty ss xs ≤ f
 
-/-- **Validity** ([HadzilacosToueg1994], §3.1, p. 10; [ChandraToueg1996], §4, p. 238): in every
-`f`-admissible run, every correct (`BcastProcFair`) process `p` eventually delivers its own
-broadcast `⟨p, inp p⟩`. -/
+/-- One-shot broadcast validity on `TotalOrderBroadcastAlg` (after [HadzilacosToueg1994], §3.1,
+p. 10; [ChandraToueg1996], §4, p. 238): in every `f`-admissible run, every correct (`BcastProcFair`)
+process `p` eventually delivers its own initial broadcast `⟨p, inp p⟩`. -/
 @[expose]
 def Validity [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) (f : ℕ) : Prop :=
   ∀ inp ss xs, π.AdmissibleRun inp f ss xs →
     ∀ p, BcastProcFair p ss xs → ∃ k, ⟨p, inp p⟩ ∈ ((ss k).proc p).delivered
 
-/-- **Integrity** ([HadzilacosToueg1994], §3.1, p. 10; [ChandraToueg1996], §4, p. 238): in every
-`f`-admissible run, every correct process delivers each message at most once (`Nodup`), and every
-delivered message `m` equals the broadcast `⟨m.sender, inp m.sender⟩` of its sender. -/
+/-- One-shot broadcast integrity on `TotalOrderBroadcastAlg` (after [HadzilacosToueg1994], §3.1,
+p. 10; [ChandraToueg1996], §4, p. 238): in every `f`-admissible run, every correct process delivers
+each message at most once (`Nodup`), and every delivered message `m` equals the initial broadcast
+`⟨m.sender, inp m.sender⟩` of its sender. -/
 @[expose]
 def Integrity [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) (f : ℕ) : Prop :=
@@ -307,9 +303,9 @@ def Integrity [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
       ((ss k).proc p).delivered.Nodup ∧
         ∀ m ∈ ((ss k).proc p).delivered, m = ⟨m.sender, inp m.sender⟩
 
-/-- **Agreement** ([HadzilacosToueg1994], §3.1, p. 10; [ChandraToueg1996], §4, p. 238): in every
-`f`-admissible run, if a correct process `p` delivers `m`, then every correct process `q`
-eventually delivers `m`. -/
+/-- One-shot broadcast agreement on `TotalOrderBroadcastAlg` (after [HadzilacosToueg1994], §3.1,
+p. 10; [ChandraToueg1996], §4, p. 238): in every `f`-admissible run, if a correct process `p`
+delivers `m`, then every correct process `q` eventually delivers `m`. -/
 @[expose]
 def Agreement [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) (f : ℕ) : Prop :=
@@ -317,9 +313,10 @@ def Agreement [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     ∀ p q, BcastProcFair p ss xs → BcastProcFair q ss xs →
       ∀ m k, m ∈ ((ss k).proc p).delivered → ∃ k', m ∈ ((ss k').proc q).delivered
 
-/-- **Non-Uniform Total Order** ([HadzilacosToueg1994], §3.4, p. 13; [ChandraToueg1996], §7,
-p. 248): in every `f`-admissible run, if two correct processes `p` and `q` both deliver `m₁` and
-`m₂`, then `p` delivers `m₁` before `m₂` iff `q` delivers `m₁` before `m₂`. -/
+/-- Non-uniform total-order delivery on one-shot `TotalOrderBroadcastAlg` (after
+[HadzilacosToueg1994], §3.4, p. 13; [ChandraToueg1996], §7, p. 248): in every `f`-admissible run, if
+two correct processes `p` and `q` both deliver `m₁` and `m₂`, then `p` delivers `m₁` before `m₂` iff
+`q` delivers `m₁` before `m₂`. -/
 @[expose]
 def TotalOrder [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) (f : ℕ) : Prop :=
@@ -331,9 +328,10 @@ def TotalOrder [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
         (((ss k₁).proc p).delivered.idxOf m₁ < ((ss k₁).proc p).delivered.idxOf m₂ ↔
           ((ss k₂).proc q).delivered.idxOf m₁ < ((ss k₂).proc q).delivered.idxOf m₂)
 
-/-- **Uniform Total Order** ([HadzilacosToueg1994], §3.8, p. 16): in every reachable global
-configuration `s`, for **any** two processes `p` and `q` (faulty or correct!) that have both
-delivered `m₁` and `m₂`, `p` delivered `m₁` before `m₂` iff `q` delivered `m₁` before `m₂`. -/
+/-- Uniform total-order delivery on one-shot `TotalOrderBroadcastAlg` (after [HadzilacosToueg1994],
+§3.8, p. 15): in every reachable global configuration `s`, for any two processes `p` and `q`
+(faulty or correct) that have both delivered `m₁` and `m₂`, `p` delivered `m₁` before `m₂` iff `q`
+delivered `m₁` before `m₂`. -/
 @[expose]
 def UniformTotalOrder [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) : Prop :=
@@ -344,14 +342,15 @@ def UniformTotalOrder [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V
       ((s.proc p).delivered.idxOf m₁ < (s.proc p).delivered.idxOf m₂ ↔
         (s.proc q).delivered.idxOf m₁ < (s.proc q).delivered.idxOf m₂)
 
-/-- `π` solves `f`-resilient **Reliable Broadcast** ([HadzilacosToueg1994], §3.1). -/
+/-- One-shot `f`-resilient reliable broadcast specification on `TotalOrderBroadcastAlg` (after
+[HadzilacosToueg1994], §3.1). -/
 @[expose]
 def SolvesReliableBroadcast [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) (f : ℕ) : Prop :=
   π.Validity f ∧ π.Integrity f ∧ π.Agreement f
 
-/-- `π` solves `f`-resilient **Total-Order (Atomic) Broadcast** ([HadzilacosToueg1994], §3.4;
-[ChandraToueg1996], §7). -/
+/-- One-shot `f`-resilient total-order (atomic) broadcast specification on `TotalOrderBroadcastAlg`
+(after [HadzilacosToueg1994], §3.4; [ChandraToueg1996], §7). -/
 @[expose]
 def SolvesTotalOrderBroadcast [Fintype P] [DecidableEq P] [DecidableEq M] [DecidableEq V]
     (π : TotalOrderBroadcastAlg P M S V) (f : ℕ) : Prop :=
@@ -390,14 +389,8 @@ section FLPReduction
 
 variable {P M S : Type*}
 
-/-- Convert a `Cslib.FLP.Message P M` into the isomorphic `BcastEvent P M Bool`. -/
-@[expose]
-def flpToBcastEvent (m : Cslib.FLP.Message P M) : BcastEvent P M Bool :=
-  ⟨m.dest, m.msg⟩
-
 /-- Convert a `BcastEvent P M Bool` into the isomorphic `Cslib.FLP.Message P M`. -/
-@[expose]
-def bcastEventToFLP (e : BcastEvent P M Bool) : Cslib.FLP.Message P M :=
+private def bcastEventToFLP (e : BcastEvent P M Bool) : Cslib.FLP.Message P M :=
   ⟨e.dest, e.evt⟩
 
 private theorem bcastEventToFLP_injective : Function.Injective (@bcastEventToFLP P M) := by
@@ -406,21 +399,19 @@ private theorem bcastEventToFLP_injective : Function.Injective (@bcastEventToFLP
   cases h
   rfl
 
-/-- **Reduction 1: Total-Order Broadcast → Binary Consensus** ([HadzilacosToueg1994], §7.2.1,
-Figure 13 & Theorem 13, p. 58; [ChandraToueg1996], §7, p. 249).
-
-Given a deterministic asynchronous Total-Order Broadcast algorithm `π` over `Bool` payloads, each
-process `p` proposes its initial boolean input `inp p` by broadcasting `⟨p, inp p⟩` upon receiving
-`⟨p, Sum.inl (inp p)⟩` and decides the payload of the **first** message delivered in its local
-total order (latched write-once by `Cslib.FLP.Algorithm.recvMsg`). -/
+/-- One-shot initial-broadcast reduction adapter from `TotalOrderBroadcastAlg P M S Bool` to
+`Cslib.FLP.Algorithm P M S` (toward #7297, after [HadzilacosToueg1994], §7.2.1, Figure 13, p. 58
+and [ChandraToueg1996], §7, p. 249): each process `p` broadcasts its initial boolean input `inp p`
+upon receiving `⟨p, Sum.inl (inp p)⟩` and decides the payload of the first message delivered in its
+local delivery log (latched write-once by `Cslib.FLP.Algorithm.recvMsg`). -/
 @[expose]
 def consensusOfTotalOrderBroadcast (π : TotalOrderBroadcastAlg P M S Bool) :
     Cslib.FLP.Algorithm P M S where
   init := π.init
-  next m ps := π.next (flpToBcastEvent m) ps.state
+  next m ps := π.next ⟨m.dest, m.msg⟩ ps.state
   send m ps :=
-    (π.send (flpToBcastEvent m) ps.state).map (fun env => ⟨env.dest, Sum.inr env.body⟩)
-  out m ps := ((π.deliver (flpToBcastEvent m) ps.state).head?).map BcastMsg.payload
+    (π.send ⟨m.dest, m.msg⟩ ps.state).map (fun env => ⟨env.dest, Sum.inr env.body⟩)
+  out m ps := ((π.deliver ⟨m.dest, m.msg⟩ ps.state).head?).map BcastMsg.payload
 
 private def projFLPState (s : BcastState P M S Bool) : Cslib.FLP.State P M S where
   msgs := s.msgs.map bcastEventToFLP
@@ -442,7 +433,7 @@ private theorem projFLPState_recvEvent [DecidableEq P] [DecidableEq M]
     Multiset.map_erase bcastEventToFLP bcastEventToFLP_injective e s.msgs
   rcases e with ⟨ed, eev⟩
   simp only [projFLPState, TotalOrderBroadcastAlg.recvEvent, Cslib.FLP.Algorithm.recvMsg,
-    consensusOfTotalOrderBroadcast, bcastEventToFLP, flpToBcastEvent, Multiset.map_add,
+    consensusOfTotalOrderBroadcast, bcastEventToFLP, Multiset.map_add,
     Multiset.map_map, Function.comp_def, herase]
   congr 1
   funext q
@@ -469,7 +460,8 @@ private def liftBcastStates [DecidableEq P] [DecidableEq M]
     (s₀ : BcastState P M S Bool) (xs : ωSequence (Cslib.FLP.Action P M)) :
     ℕ → BcastState P M S Bool
   | 0 => s₀
-  | k + 1 => bcastStepOpt π (liftBcastStates π s₀ xs k) ((xs k).map flpToBcastEvent)
+  | k + 1 =>
+    bcastStepOpt π (liftBcastStates π s₀ xs k) ((xs k).map fun m => ⟨m.dest, m.msg⟩)
 
 private theorem liftBcastStates_sim [DecidableEq P] [DecidableEq M]
     (π : TotalOrderBroadcastAlg P M S Bool)
@@ -478,7 +470,7 @@ private theorem liftBcastStates_sim [DecidableEq P] [DecidableEq M]
     (h0 : ss 0 = projFLPState s₀)
     (he : (consensusOfTotalOrderBroadcast π).lts.OmegaExecution ss xs) :
     let ss_b : ωSequence (BcastState P M S Bool) := ωSequence.mk (liftBcastStates π s₀ xs)
-    let xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map flpToBcastEvent)
+    let xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map fun m => ⟨m.dest, m.msg⟩)
     (∀ k, ss k = projFLPState (ss_b k)) ∧ π.lts.OmegaExecution ss_b xs_b := by
   intro ss_b xs_b
   have hproj : ∀ k, ss k = projFLPState (ss_b k) := by
@@ -495,10 +487,10 @@ private theorem liftBcastStates_sim [DecidableEq P] [DecidableEq M]
       | some m =>
         rw [hact] at htr
         rcases htr with ⟨_, hstep⟩
-        have hm_b : bcastEventToFLP (flpToBcastEvent m) = m := by cases m; rfl
+        have hm_b : bcastEventToFLP ⟨m.dest, m.msg⟩ = m := by cases m; rfl
         rw [hstep, ih]
         simpa [ss_b, liftBcastStates, bcastStepOpt, hact, hm_b] using
-          (projFLPState_recvEvent π (flpToBcastEvent m) (ss_b k)).symm
+          (projFLPState_recvEvent π ⟨m.dest, m.msg⟩ (ss_b k)).symm
   refine ⟨hproj, fun k => ?_⟩
   have htr := he k
   cases hact : xs k with
@@ -511,10 +503,10 @@ private theorem liftBcastStates_sim [DecidableEq P] [DecidableEq M]
     rw [hproj k] at hmem
     simp only [projFLPState, Multiset.mem_map] at hmem
     obtain ⟨e, he_mem, he_eq⟩ := hmem
-    have he_m : e = flpToBcastEvent m := by
+    have he_m : e = ⟨m.dest, m.msg⟩ := by
       rw [← he_eq]; cases e; rfl
     subst he_m
-    have hxs_k : xs_b k = some (flpToBcastEvent m) := by simp [xs_b, ωSequence.get_map, hact]
+    have hxs_k : xs_b k = some ⟨m.dest, m.msg⟩ := by simp [xs_b, ωSequence.get_map, hact]
     rw [hxs_k]
     exact ⟨he_mem, by simp [ss_b, liftBcastStates, bcastStepOpt, hact]⟩
 
@@ -523,7 +515,8 @@ private theorem procFaulty_iff_bcastProcFaulty
     {ss_b : ωSequence (BcastState P M S Bool)}
     (hproj : ∀ k, ss k = projFLPState (ss_b k)) (p : P) :
     Cslib.FLP.ProcFaulty p ss xs ↔
-      TotalOrderBroadcastAlg.BcastProcFaulty p ss_b (xs.map (Option.map flpToBcastEvent)) := by
+      TotalOrderBroadcastAlg.BcastProcFaulty p ss_b
+        (xs.map (Option.map fun m => ⟨m.dest, m.msg⟩)) := by
   constructor
   · rintro ⟨k, ⟨m, hm_mem, hm_dest⟩, hstop⟩
     rw [hproj k] at hm_mem
@@ -541,23 +534,27 @@ private theorem procFaulty_iff_bcastProcFaulty
     refine ⟨k, ⟨bcastEventToFLP e, ?_, he_dest⟩, fun j hkj m' hxj => ?_⟩
     · rw [hproj k]
       exact Multiset.mem_map_of_mem bcastEventToFLP he_mem
-    · have hxs : (xs.map (Option.map flpToBcastEvent)) j = some (flpToBcastEvent m') := by
+    · have hxs : (xs.map (Option.map fun m => (⟨m.dest, m.msg⟩ : BcastEvent P M Bool))) j =
+          some ⟨m'.dest, m'.msg⟩ := by
         simp [ωSequence.get_map, hxj]
-      exact hstop j hkj (flpToBcastEvent m') hxs
+      exact hstop j hkj ⟨m'.dest, m'.msg⟩ hxs
 
 private theorem procFair_iff_bcastProcFair
     {ss : ωSequence (Cslib.FLP.State P M S)} {xs : ωSequence (Cslib.FLP.Action P M)}
     {ss_b : ωSequence (BcastState P M S Bool)}
     (hproj : ∀ k, ss k = projFLPState (ss_b k)) (p : P) :
     Cslib.FLP.ProcFair p ss xs ↔
-      TotalOrderBroadcastAlg.BcastProcFair p ss_b (xs.map (Option.map flpToBcastEvent)) := by
+      TotalOrderBroadcastAlg.BcastProcFair p ss_b
+        (xs.map (Option.map fun m => ⟨m.dest, m.msg⟩)) := by
   constructor
   · intro hfair e he_dest k he_mem
     have hm_mem : bcastEventToFLP e ∈ (ss k).msgs := by
       rw [hproj k]
       exact Multiset.mem_map_of_mem bcastEventToFLP he_mem
     obtain ⟨j, hkj, hxj⟩ := hfair (bcastEventToFLP e) he_dest k hm_mem
-    have he_inv : flpToBcastEvent (bcastEventToFLP e) = e := by cases e; rfl
+    have he_inv : (⟨(bcastEventToFLP e).dest, (bcastEventToFLP e).msg⟩ : BcastEvent P M Bool) =
+        e := by
+      cases e; rfl
     exact ⟨j, hkj, by simp [ωSequence.get_map, hxj, he_inv]⟩
   · intro hfair m hm_dest k hm_mem
     rw [hproj k] at hm_mem
@@ -604,7 +601,7 @@ private theorem liftAdmissibleRun [Fintype P] [DecidableEq P] [DecidableEq M]
     (hadm : (consensusOfTotalOrderBroadcast π).AdmissibleRun inp f ss xs) :
     let ss_b : ωSequence (BcastState P M S Bool) :=
       ωSequence.mk (liftBcastStates π (π.start inp) xs)
-    let xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map flpToBcastEvent)
+    let xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map fun m => ⟨m.dest, m.msg⟩)
     (∀ k, ss k = projFLPState (ss_b k)) ∧ π.AdmissibleRun inp f ss_b xs_b := by
   intro ss_b xs_b
   rcases hadm with ⟨hs0, he, hfair_run, hnum⟩
@@ -619,10 +616,11 @@ private theorem liftAdmissibleRun [Fintype P] [DecidableEq P] [DecidableEq M]
       ext q; exact (procFaulty_iff_bcastProcFaulty hproj q).symm
     simpa [TotalOrderBroadcastAlg.bcastNumProcFaulty, Cslib.FLP.numProcFaulty, hfault_eq] using hnum
 
-/-- **Theorem 13 of [HadzilacosToueg1994]** (§7.2.1, Figure 13, p. 58; [ChandraToueg1996], §7,
-p. 249): for every fault bound `f : ℕ`, if `π` solves `f`-resilient Total-Order Broadcast over
-`Bool`, then `consensusOfTotalOrderBroadcast π` solves `f`-resilient binary Consensus in
-`Cslib.FLP`. -/
+/-- One-shot initial-broadcast reduction step from `TotalOrderBroadcastAlg` to binary Consensus in
+`Cslib.FLP` (toward #7297, after [HadzilacosToueg1994], §7.2.1, Figure 13 & Theorem 13, p. 58 and
+[ChandraToueg1996], §7, p. 249): for every fault bound `f : ℕ`, if `π` solves `f`-resilient
+one-shot `SolvesTotalOrderBroadcast` over `Bool`, then `consensusOfTotalOrderBroadcast π` solves
+`f`-resilient `Cslib.FLP.Algorithm.Consensus`. -/
 theorem consensusOfTotalOrderBroadcast_consensus [Fintype P] [DecidableEq P] [DecidableEq M]
     {π : TotalOrderBroadcastAlg P M S Bool} {f : ℕ}
     (hπ : π.SolvesTotalOrderBroadcast f) :
@@ -637,7 +635,7 @@ theorem consensusOfTotalOrderBroadcast_consensus [Fintype P] [DecidableEq P] [De
     obtain ⟨hproj, hadm_b⟩ := liftAdmissibleRun π hadmf
     set ss_b : ωSequence (BcastState P M S Bool) :=
       ωSequence.mk (liftBcastStates π (π.start inp) xs)
-    set xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map flpToBcastEvent)
+    set xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map fun m => ⟨m.dest, m.msg⟩)
     have he_b : π.lts.OmegaExecution ss_b xs_b := hadm_b.2.1
     have hfair_b : ∀ p, TotalOrderBroadcastAlg.BcastProcFair p ss_b xs_b := fun p =>
       (procFair_iff_bcastProcFair hproj p).mp (hfair_all p)
@@ -719,7 +717,7 @@ theorem consensusOfTotalOrderBroadcast_consensus [Fintype P] [DecidableEq P] [De
       obtain ⟨hproj, hadm_b⟩ := liftAdmissibleRun π hadm
       set ss_b : ωSequence (BcastState P M S Bool) :=
         ωSequence.mk (liftBcastStates π (π.start inp) xs)
-      set xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map flpToBcastEvent)
+      set xs_b : ωSequence (BcastAction P M Bool) := xs.map (Option.map fun m => ⟨m.dest, m.msg⟩)
       have hfair_p : TotalOrderBroadcastAlg.BcastProcFair p ss_b xs_b :=
         (procFair_iff_bcastProcFair hproj p).mp hfair
       obtain ⟨k, hk_mem⟩ := hval inp ss_b xs_b hadm_b p hfair_p
@@ -733,8 +731,7 @@ theorem consensusOfTotalOrderBroadcast_consensus [Fintype P] [DecidableEq P] [De
 
 /-- Restrict a `TotalOrderBroadcastAlg P M S V` along two distinct values `v₀ ≠ v₁ : V` to obtain a
 boolean `TotalOrderBroadcastAlg P M S Bool`. -/
-@[expose]
-def comapBoolPayload {V : Type*} [DecidableEq V] (v₀ v₁ : V)
+private def comapBoolPayload {V : Type*} [DecidableEq V] (v₀ v₁ : V)
     (π : TotalOrderBroadcastAlg P M S V) : TotalOrderBroadcastAlg P M S Bool where
   init := π.init
   next e st := π.next ⟨e.dest, e.evt.map (fun b => if b then v₁ else v₀) id⟩ st
@@ -963,15 +960,15 @@ private theorem solvesTotalOrderBroadcast_comapBoolPayload [Fintype P]
       hidx_map _ hintQV u₁ hu₁Q, hidx_map _ hintQV u₂ hu₂Q]
     exact htot (enc ∘ inp) ssV xsV hadmV p q hfairPV hfairQV u₁ u₂ k₁ k₂ hu₁P hu₂P hu₁Q hu₂Q
 
-/-- **Impossibility of Deterministic Asynchronous Total-Order Broadcast (`f ≥ 1` Crash Faults)**
-([HadzilacosToueg1994], §7.2.1, Corollary 2, p. 58; [ChandraToueg1996], §7, observation (1),
+/-- One-shot initial-broadcast impossibility step for `f ≥ 1` crash faults (toward #7297, after
+[HadzilacosToueg1994], §7.2.1, Corollary 2, p. 58 and [ChandraToueg1996], §7, observation (1),
 p. 249): for any finite process set `P` with `2 ≤ Fintype.card P`, any nontrivial payload type `V`,
-and any fault bound `1 ≤ f`, there is no deterministic asynchronous `f`-resilient Total-Order
-Broadcast algorithm.
+and any fault bound `1 ≤ f`, there is no deterministic asynchronous `f`-resilient one-shot
+`TotalOrderBroadcastAlg`.
 
-Proved by reducing binary Consensus to Total-Order Broadcast via `consensusOfTotalOrderBroadcast`
-and applying `Cslib.FLP.Consensus.ge_one_not_exists` directly. -/
-theorem not_exists_totalOrderBroadcast_ge_one [Fintype P] [DecidableEq P] [DecidableEq M]
+Proved by reducing binary Consensus to one-shot `TotalOrderBroadcastAlg` via
+`consensusOfTotalOrderBroadcast` and applying `Cslib.FLP.Consensus.ge_one_not_exists` directly. -/
+theorem not_exists_oneShotTotalOrderBroadcast_ge_one [Fintype P] [DecidableEq P] [DecidableEq M]
     {V : Type*} [DecidableEq V] [Nontrivial V]
     (hc : 2 ≤ Fintype.card P) {f : ℕ} (hf : 1 ≤ f) :
     ¬ ∃ π : TotalOrderBroadcastAlg P M S V, π.SolvesTotalOrderBroadcast f := by
@@ -981,18 +978,11 @@ theorem not_exists_totalOrderBroadcast_ge_one [Fintype P] [DecidableEq P] [Decid
   have hcons := consensusOfTotalOrderBroadcast_consensus hbool
   exact Cslib.FLP.Consensus.ge_one_not_exists (P := P) (M := M) (S := S) hc hf ⟨_, hcons⟩
 
-/-- **1-Crash FLP Impossibility of Total-Order Broadcast**: specialization of
-`not_exists_totalOrderBroadcast_ge_one` to a single crash fault (`f = 1`). -/
-theorem not_exists_totalOrderBroadcast_one_crash [Fintype P] [DecidableEq P] [DecidableEq M]
-    {V : Type*} [DecidableEq V] [Nontrivial V]
-    (hc : 2 ≤ Fintype.card P) :
-    ¬ ∃ π : TotalOrderBroadcastAlg P M S V, π.SolvesTotalOrderBroadcast 1 :=
-  not_exists_totalOrderBroadcast_ge_one hc (le_refl 1)
-
-/-- In purely asynchronous crash-stop message passing, non-uniform `SolvesTotalOrderBroadcast f`
-automatically implies `UniformTotalOrder` on all reachable configurations, because any finite
-reachable prefix extends via `Cslib.FLP.FairScheduler` to a `0`-fault admissible run in which
-every process is `BcastProcFair`. -/
+/-- One-shot initial-broadcast uniformity step via `Cslib.FLP.FairScheduler` (toward #7297): in
+purely asynchronous crash-stop message passing, non-uniform `SolvesTotalOrderBroadcast f` on a
+one-shot `TotalOrderBroadcastAlg` implies `UniformTotalOrder` on all reachable configurations,
+because any finite reachable prefix extends to a `0`-fault admissible run in which every process is
+`BcastProcFair`. -/
 theorem uniformTotalOrder_of_solvesTotalOrderBroadcast [Fintype P] [DecidableEq P] [DecidableEq M]
     {V : Type*} [DecidableEq V] {π : TotalOrderBroadcastAlg P M S V} {f : ℕ}
     (hπ : π.SolvesTotalOrderBroadcast f) :
@@ -1218,7 +1208,8 @@ def drainConsecutive {P V : Type*} : ℕ → ℕ → List (SlotEntry P V) → Dr
       let res := drainConsecutive (k + 1) fuel buf
       ⟨res.nextDeliver, item :: res.delivered⟩
 
-/-- Deterministic `0`-fault Total-Order Broadcast algorithm with fixed sequencer `leader : P`:
+/-- One-shot deterministic `0`-fault fixed-sequencer algorithm (`leader : P`) on
+`TotalOrderBroadcastAlg` (toward #7297):
 1. Upon receiving initial input `Sum.inl v` at `p`, `p` sends `SeqMsg.propose ⟨p, v⟩` to `leader`.
 2. Upon receiving `SeqMsg.propose item` at `leader`, `leader` assigns `slot := st.nextSlot`,
    increments `nextSlot`, and sends `SeqMsg.ordered slot item` to every `q : P`.
@@ -1353,8 +1344,8 @@ private theorem lookupSlot_isSome_of_mem {P V : Type*} {slot : ℕ} {item : Bcas
       · exact absurd rfl hs
       · exact ih htl
 
-/-- `zeroFaultTotalOrderAlg leader` solves `0`-fault deterministic asynchronous Total-Order
-Broadcast on any finite process set `P`. -/
+/-- One-shot `0`-fault solvability step (toward #7297): `zeroFaultTotalOrderAlg leader` satisfies
+`SolvesTotalOrderBroadcast 0` on any finite process set `P`. -/
 theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
     (leader : P) :
     (zeroFaultTotalOrderAlg (V := V) leader).SolvesTotalOrderBroadcast 0 := by
@@ -1913,10 +1904,11 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
       rw [← htq, List.idxOf_append_of_mem hm₂q]
     rw [← hp₁, ← hp₂, ← hq₁, ← hq₂]
 
-/-- **Exact Crash-Fault Characterization of Asynchronous Total-Order Broadcast**: on any finite
-process set `P` with `2 ≤ Fintype.card P` and any nontrivial payload type `V`, a deterministic
-asynchronous `t`-resilient Total-Order Broadcast algorithm exists if and only if `t = 0`. -/
-theorem exists_totalOrderBroadcast_iff_eq_zero {P : Type u} {V : Type v}
+/-- Exact `t = 0` crash-fault solvability characterization step for one-shot
+`TotalOrderBroadcastAlg` (toward #7297): on any finite process set `P` with `2 ≤ Fintype.card P` and
+any nontrivial payload type `V`, a deterministic asynchronous `t`-resilient one-shot
+`TotalOrderBroadcastAlg` exists if and only if `t = 0`. -/
+theorem exists_oneShotTotalOrderBroadcast_iff_eq_zero {P : Type u} {V : Type v}
     [Fintype P] [DecidableEq P] [DecidableEq V] [Nontrivial V]
     (hc : 2 ≤ Fintype.card P) (t : ℕ) :
     (∃ (M S : Type (max u v)) (_ : DecidableEq M) (π : TotalOrderBroadcastAlg P M S V),
@@ -1924,7 +1916,7 @@ theorem exists_totalOrderBroadcast_iff_eq_zero {P : Type u} {V : Type v}
   constructor
   · rintro ⟨M, S, hdecM, π, hπ⟩
     by_contra ht0
-    exact not_exists_totalOrderBroadcast_ge_one (M := M) (S := S) hc
+    exact not_exists_oneShotTotalOrderBroadcast_ge_one (M := M) (S := S) hc
       (Nat.pos_of_ne_zero ht0) ⟨π, hπ⟩
   · rintro rfl
     have hne : Nonempty P := Fintype.card_pos_iff.mp (by omega)
@@ -2030,9 +2022,10 @@ private theorem canonicalBatch_pairwise_lt {Msg : Type*} [LinearOrder Msg]
     · exact ih
     · exact insertSorted_pairwise_lt hd ih
 
-/-- **Canonical Batch Extensionality**: two raw Consensus-decided batches with the same undelivered
-elements produce the **identical** canonical sequence `canonicalBatch deliv raw₁ =
-canonicalBatch deliv raw₂`, regardless of duplicates or internal list ordering. -/
+/-- Extensionality of `canonicalBatch` on undelivered elements: two raw Consensus-decided batches
+with the same undelivered elements produce the identical canonical sequence
+`canonicalBatch deliv raw₁ = canonicalBatch deliv raw₂`, regardless of duplicates or internal list
+ordering. -/
 theorem canonicalBatch_ext {Msg : Type*} [LinearOrder Msg] {deliv raw₁ raw₂ : List Msg}
     (hext : ∀ m, (m ∈ raw₁ ∧ m ∉ deliv) ↔ (m ∈ raw₂ ∧ m ∉ deliv)) :
     canonicalBatch deliv raw₁ = canonicalBatch deliv raw₂ := by
@@ -2095,12 +2088,11 @@ private theorem runConsensusSlots_prefix_of_prefix {Msg : Type*} [LinearOrder Ms
     simp only [List.foldl_cons]
     exact (List.prefix_append acc _).trans (ih _)
 
-/-- Discrete-time (`t : ℕ`) modular execution record of the **Chandra–Toueg Figure 7 /
-Hadzilacos–Toueg Figure 14** transformation from **Reliable Broadcast** and **Sequential Consensus
-Slots** (`k = 0, 1, …`) to **Total-Order Broadcast** over finite process set `P`, static crash-fault
-set `F : Set P`, and message type `Msg` equipped with `[LinearOrder Msg]` ([ChandraToueg1996],
-§7.1, pp. 249–252; [HadzilacosToueg1994], §7.2.2, pp. 60–63), axiomatizing the specification
-properties of the underlying Reliable Broadcast and per-slot Consensus subprotocols.
+/-- Abstract discrete-time (`t : ℕ`) slot-execution specification step toward #7297 (after
+[ChandraToueg1996], §7.1, Figure 7, pp. 249–252; [HadzilacosToueg1994], §7.2.2, Figure 14,
+pp. 60–63) over finite process set `P`, static crash-fault set `F : Set P`, and message type `Msg`
+equipped with `[LinearOrder Msg]`, axiomatizing the execution traces of an underlying Reliable
+Broadcast and sequential per-slot Consensus instances (`k = 0, 1, …`).
 
 Each process `p` maintains:
 * `rDelivered p t : Finset Msg` — messages R-delivered by the underlying Reliable Broadcast up to
@@ -2268,20 +2260,21 @@ private theorem ct_lemma_7_1_2 (E : ConsensusSlotExec P Msg F) :
 
 end ConsensusSlotExec
 
-/-- **Reduction 2: Sequential Consensus Slots + Reliable Broadcast → Total-Order Broadcast**
-([ChandraToueg1996], §7.1, Figure 7 & Theorem 7.1.6, pp. 249–252; [HadzilacosToueg1994], §7.2.2,
-Figure 14 & Theorem 14, pp. 60–63):
+/-- Abstract discrete-time (`t : ℕ`) slot-trace reduction step from Reliable Broadcast and
+sequential Consensus slot specifications (`ConsensusSlotExec`) to Total-Order Broadcast properties
+(toward #7297, after [ChandraToueg1996], §7.1, Figure 7 & Theorem 7.1.6, pp. 249–252 and
+[HadzilacosToueg1994], §7.2.2, Figure 14 & Theorem 14, pp. 60–63):
 
 For any finite process set `P`, any crash-fault set `F : Set P`, and any `[LinearOrder Msg]`, every
-execution `E : ConsensusSlotExec P Msg F` satisfies:
+abstract slot execution `E : ConsensusSlotExec P Msg F` satisfies:
 1. **Uniform No Duplicates:** `(E.aDelivered p t).Nodup` for all `p : P` (faulty or correct);
 2. **Uniform Integrity:** `m ∈ E.aDelivered p t → m ∈ E.bcast` for all `p : P`;
-3. **Uniform Total Order:** for **all** `p, q : P` (faulty or correct!) and `t₁, t₂ : ℕ`, if
-   `m₁, m₂` have been A-delivered at both `(p, t₁)` and `(q, t₂)`, then `p` delivered `m₁` before
-   `m₂` iff `q` delivered `m₁` before `m₂`;
+3. **Uniform Total Order:** for all `p, q : P` (faulty or correct) and `t₁, t₂ : ℕ`, if `m₁, m₂`
+   have been A-delivered at both `(p, t₁)` and `(q, t₂)`, then `p` delivered `m₁` before `m₂` iff
+   `q` delivered `m₁` before `m₂`;
 4. **Agreement:** if `p ∉ F` A-delivers `m` at `t₁`, then every `q ∉ F` eventually A-delivers `m`;
 5. **Validity:** for every `m ∈ E.correctBcast` and every `p ∉ F`, `p` eventually A-delivers `m`. -/
-theorem totalOrderBroadcastOfConsensus {P Msg : Type*} [Finite P] [LinearOrder Msg]
+theorem totalOrderBroadcast_of_consensusSlotExec {P Msg : Type*} [Finite P] [LinearOrder Msg]
     {F : Set P} (E : ConsensusSlotExec P Msg F) :
     (∀ p t, (E.aDelivered p t).Nodup) ∧
     (∀ p t m, m ∈ E.aDelivered p t → m ∈ E.bcast) ∧
@@ -2403,28 +2396,28 @@ theorem totalOrderBroadcastOfConsensus {P Msg : Type*} [Finite P] [LinearOrder M
 
 end ConsensusToTotalOrder
 
-/-! ### Part 5: Headline Asynchronous Broadcast Fault-Tolerance Dichotomy -/
+/-! ### Part 5: Single-Group Causal vs. One-Shot Total-Order Fault-Tolerance Dichotomy Step -/
 
-/-- **Headline Asynchronous Fault-Tolerance Dichotomy** ([BirmanSchiperStephenson1991], §5.1;
+/-- Fault-tolerance dichotomy step between single-group atomic-multicast `CBCAST` and one-shot
+`TotalOrderBroadcastAlg` (toward #7297, after [BirmanSchiperStephenson1991], §5.1;
 [HadzilacosToueg1994], §3.3, §3.4 & Corollary 2; [ChandraToueg1996], §7):
 
 Over any finite process set `P` with `2 ≤ Fintype.card P` and any nontrivial payload type `V`, for
 every crash-fault threshold `t < Fintype.card P`:
-1. **Causal Broadcast (`bssLTS`) is deterministically solvable for ALL `t < Fintype.card P`:** for
-   every fault set `F : Set P` with `F.ncard ≤ t`, non-faulty processes exist (`∃ q, q ∉ F`) and
-   `bssLTS F` satisfies `BSSSolvesCausalBroadcast P V F`;
-2. **Total-Order Broadcast (`TotalOrderBroadcastAlg`) is deterministically solvable iff `t = 0`:**
-   even a single crash fault (`t ≥ 1`) makes deterministic asynchronous Total-Order Broadcast
-   impossible by reduction to `Cslib.FLP`. -/
-theorem causal_vs_totalOrder_dichotomy {P : Type u} {V : Type v}
+1. Single-group atomic-multicast causal broadcast (`bssLTS`) is deterministically solvable for all
+   `t < Fintype.card P`: for every fault set `F : Set P` with `F.ncard ≤ t`, non-faulty processes
+   exist (`∃ q, q ∉ F`) and `bssLTS F` satisfies `BSSSolvesAtomicMulticastCausalBroadcast P V F`;
+2. One-shot total-order broadcast (`TotalOrderBroadcastAlg`) is deterministically solvable iff
+   `t = 0` (impossible for `t ≥ 1` by reduction to `Cslib.FLP`). -/
+theorem causal_vs_oneShotTotalOrder_dichotomy {P : Type u} {V : Type v}
     [Fintype P] [DecidableEq P] [DecidableEq V] [Nontrivial V]
     (hc : 2 ≤ Fintype.card P) {t : ℕ} (ht : t < Fintype.card P) :
     (∀ F : Set P, F.ncard ≤ t →
-      (∃ q : P, q ∉ F) ∧ BSSSolvesCausalBroadcast P V F) ∧
+      (∃ q : P, q ∉ F) ∧ BSSSolvesAtomicMulticastCausalBroadcast P V F) ∧
     ((∃ (M S : Type (max u v)) (_ : DecidableEq M) (π : TotalOrderBroadcastAlg P M S V),
         π.SolvesTotalOrderBroadcast t) ↔ t = 0) := by
-  refine ⟨fun F hF => ⟨?_, bss_solves_causalBroadcast F⟩,
-    exists_totalOrderBroadcast_iff_eq_zero hc t⟩
+  refine ⟨fun F hF => ⟨?_, bss_solves_atomicMulticast_causalBroadcast F⟩,
+    exists_oneShotTotalOrderBroadcast_iff_eq_zero hc t⟩
   by_contra hall_in
   push Not at hall_in
   have hF_univ : F = Set.univ := Set.eq_univ_of_forall hall_in

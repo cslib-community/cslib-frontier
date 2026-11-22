@@ -23,10 +23,10 @@ client with ordinary imports):
 3. `decide`-checked multi-slot `canonicalBatch` / `runConsensusSlots` execution over overlapping,
    duplicate-containing batches in opposite orders, plus a concrete non-vacuous
    `ConsensusSlotExec (Fin 3) ℕ {2}` with a crashing proposer verified via
-   `totalOrderBroadcastOfConsensus`;
+   `totalOrderBroadcast_of_consensusSlotExec`;
 4. `decide`-checked out-of-order `zeroFaultTotalOrderAlg` sequencer reorder-buffer trace, `t = 0`
-   solvability, `Cslib.FLP` `t ≥ 1` impossibility on `Fin 2` and `Fin 3`, and the headline
-   `causal_vs_totalOrder_dichotomy`. -/
+   solvability, `Cslib.FLP` `t ≥ 1` impossibility on `Fin 2` and `Fin 3`, and the
+   `causal_vs_oneShotTotalOrder_dichotomy` step. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.CausalBroadcast
@@ -391,7 +391,7 @@ def concreteSlotExec : ConsensusSlotExec (Fin 3) ℕ ({2} : Set (Fin 3)) where
     · obtain ⟨t₀, b₀, hp₀⟩ := hall 0 (by decide)
       rcases hp₀ with ⟨_, hk0, _⟩ | ⟨_, hk0, _⟩ | ⟨_, hk1, _⟩ <;> omega
 
-/-- Verify both executable `aDelivered` logs and `totalOrderBroadcastOfConsensus` on
+/-- Verify both executable `aDelivered` logs and `totalOrderBroadcast_of_consensusSlotExec` on
 `concreteSlotExec`. -/
 example :
     concreteSlotExec.aDelivered 0 2 = [10, 30, 20] ∧
@@ -400,7 +400,7 @@ example :
     (∀ p t, (concreteSlotExec.aDelivered p t).Nodup) ∧
     (∀ m ∈ concreteSlotExec.correctBcast, ∀ p ∉ ({2} : Set (Fin 3)),
       ∃ t, m ∈ concreteSlotExec.aDelivered p t) := by
-  have htot := totalOrderBroadcastOfConsensus concreteSlotExec
+  have htot := totalOrderBroadcast_of_consensusSlotExec concreteSlotExec
   exact ⟨by decide, by decide, by decide, htot.1, htot.2.2.2.2⟩
 
 /-! ### 4. Sequencer Reorder Trace (`t = 0`), `Cslib.FLP` Impossibility (`t ≥ 1`), & Dichotomy -/
@@ -438,32 +438,32 @@ example :
   ⟨consensusOfTotalOrderBroadcast_consensus (zeroFaultTotalOrderAlg_solves 0),
    uniformTotalOrder_of_solvesTotalOrderBroadcast (zeroFaultTotalOrderAlg_solves 0)⟩
 
-/-- 1-crash FLP impossibility of Total-Order Broadcast on `Fin 2` (`Bool`) and `Fin 3` (`Bool` and
-`ℕ`). -/
+/-- 1-crash and 2-crash FLP impossibility of one-shot `TotalOrderBroadcastAlg` on `Fin 2` and
+`Fin 3`. -/
 example {M S : Type} [DecidableEq M] :
     ¬ ∃ π : TotalOrderBroadcastAlg (Fin 2) M S Bool, π.SolvesTotalOrderBroadcast 1 :=
-  not_exists_totalOrderBroadcast_one_crash (by decide)
+  not_exists_oneShotTotalOrderBroadcast_ge_one (by decide) (le_refl 1)
 
 example {M S : Type} [DecidableEq M] :
     ¬ ∃ π : TotalOrderBroadcastAlg (Fin 3) M S Bool, π.SolvesTotalOrderBroadcast 1 :=
-  not_exists_totalOrderBroadcast_one_crash (by decide)
+  not_exists_oneShotTotalOrderBroadcast_ge_one (by decide) (le_refl 1)
 
 example {M S : Type} [DecidableEq M] :
     ¬ ∃ π : TotalOrderBroadcastAlg (Fin 3) M S ℕ, π.SolvesTotalOrderBroadcast 2 :=
-  not_exists_totalOrderBroadcast_ge_one (by decide) (by decide)
+  not_exists_oneShotTotalOrderBroadcast_ge_one (by decide) (by decide)
 
-/-- Exact `t = 0` solvability equivalence and Headline Fault-Tolerance Dichotomy on `Fin 2` and
+/-- Exact `t = 0` solvability equivalence and fault-tolerance dichotomy step on `Fin 2` and
 `Fin 3`. -/
 example (t : ℕ) :
     (∃ (M S : Type) (_ : DecidableEq M) (π : TotalOrderBroadcastAlg (Fin 2) M S Bool),
       π.SolvesTotalOrderBroadcast t) ↔ t = 0 :=
-  exists_totalOrderBroadcast_iff_eq_zero (by decide) t
+  exists_oneShotTotalOrderBroadcast_iff_eq_zero (by decide) t
 
 example :
     (∀ F : Set (Fin 3), F.ncard ≤ 2 →
-      (∃ q : Fin 3, q ∉ F) ∧ BSSSolvesCausalBroadcast (Fin 3) Bool F) ∧
+      (∃ q : Fin 3, q ∉ F) ∧ BSSSolvesAtomicMulticastCausalBroadcast (Fin 3) Bool F) ∧
     ((∃ (M S : Type) (_ : DecidableEq M) (π : TotalOrderBroadcastAlg (Fin 3) M S Bool),
         π.SolvesTotalOrderBroadcast 2) ↔ 2 = 0) :=
-  causal_vs_totalOrder_dichotomy (P := Fin 3) (V := Bool) (by decide) (t := 2) (by decide)
+  causal_vs_oneShotTotalOrder_dichotomy (P := Fin 3) (V := Bool) (by decide) (t := 2) (by decide)
 
 end CslibFrontierTests.Distributed.CausalBroadcast

@@ -15,14 +15,14 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.List.Nodup
 
 /-!
-# Birman–Schiper–Stephenson Vector-Clock Asynchronous Causal Broadcast
+# Single-Group Vector-Clock Asynchronous Causal Broadcast Step
 
-This module formalizes the single-group vector-clock causal broadcast (`CBCAST`) protocol of
-Birman, Schiper, and Stephenson [BirmanSchiperStephenson1991] (§§4.2–4.3, §5.1) over an
-asynchronous message-passing labelled transition system (`Cslib.LTS`) with arbitrary message
-reordering and arbitrary static crash-fault sets `F : Set P` (requiring no `2t < n` majority or
-quorum assumption), following the modular broadcast specifications of Hadzilacos and Toueg
-[HadzilacosToueg1994] (§§3.1, 3.3, 3.8).
+This module formalizes a static single-group, single-hop vector-clock causal broadcast (`CBCAST`)
+protocol step toward #7297 (after Birman, Schiper, and Stephenson [BirmanSchiperStephenson1991],
+§§4.2–4.3, §5.1, and the broadcast specifications of Hadzilacos and Toueg [HadzilacosToueg1994],
+§§3.1, 3.3, 3.8–3.9) over an asynchronous message-passing labelled transition system (`Cslib.LTS`)
+with arbitrary message reordering and arbitrary static crash-fault sets `F : Set P` (requiring no
+`2t < n` majority or quorum assumption).
 
 Each process `p : P` maintains a vector timestamp `vt : P → ℕ` (initially `0`), a multiset buffer
 `pending` of received but not yet deliverable packets, and its chronological delivery log
@@ -43,10 +43,11 @@ Each process `p : P` maintains a vector timestamp `vt : P → ℕ` (initially `0
 [BirmanSchiperStephenson1991] additionally studies dynamic group membership views (§4.1, §5.5),
 token-holder view-synchronous `ABCAST` (§5.2), multicast stability and vector compression
 (§§5.3–5.4), and overlapping process groups (§6). Here we formalize the static single-group
-(`dests(m) = P`) `CBCAST` protocol of §§4.2–4.3 and §5.1. Because raw point-to-point multicast can
-be interrupted mid-send if a faulty sender crashes (`BSSAction.crashBroadcast`), liveness at
-`q ∉ F` (`bss_live`) is proved under the exact causal-cone transmission hypothesis `PacketSentTo q`
-(specializing in `bss_live_of_atomic_multicast` to unconditional liveness for all broadcasts when
+(`dests(m) = P`), single-hop `CBCAST` step of §§4.2–4.3 and §5.1 without diffusion or view-flush
+forwarding. Because raw point-to-point multicast can be interrupted mid-send if a faulty sender
+crashes (`BSSAction.crashBroadcast`), liveness at `q ∉ F` (`bss_live_of_packetSentTo`) is proved
+under the causal-ancestor transmission hypothesis `PacketSentTo q` (specializing in
+`bss_live_of_atomic_multicast` and `BSSSolvesAtomicMulticastCausalBroadcast` to liveness when
 crashes occur between atomic multicast steps).
 
 ## Main definitions
@@ -71,31 +72,31 @@ crashes occur between atomic multicast steps).
   broadcast causal precedence relation `b₁ ≺_bcast b₂`.
 * `Cslib.Distributed.CausalBroadcast.BSSFair`,
   `Cslib.Distributed.CausalBroadcast.PacketSentTo`,
-  `Cslib.Distributed.CausalBroadcast.BSSSolvesCausalBroadcast`: weak eventual-delivery fairness for
-  non-crashed processes `q ∉ F`, packet transmission to `q`, and bundled safety/liveness summary
-  predicate.
+  `Cslib.Distributed.CausalBroadcast.BSSSolvesAtomicMulticastCausalBroadcast`: weak
+  eventual-delivery fairness for non-crashed processes `q ∉ F`, packet transmission to `q`, and
+  bundled single-group safety and atomic-multicast liveness predicate.
 
 ## Main results
 
 * `Cslib.Distributed.CausalBroadcast.sup_ts_eq_update_of_deliverable`: under `Deliverable vt pkt`,
   `vt ⊔ pkt.ts = Function.update vt pkt.sender (vt pkt.sender + 1)`.
-* `Cslib.Distributed.CausalBroadcast.bssLTS_mTr_iff`: equivalence between `LTS.MTr` on `bssLTS F`
-  and executable `bssValidTrace` + `bssRun`.
-* `Cslib.Distributed.CausalBroadcast.bss_integrity`: uniform integrity — every packet delivered at
-  any process (faulty or correct) was previously broadcast by `pkt.sender`.
+* `Cslib.Distributed.CausalBroadcast.bss_integrity`: single-group uniform integrity — every packet
+  delivered at any process (faulty or correct) was previously broadcast by `pkt.sender`.
 * `Cslib.Distributed.CausalBroadcast.bss_no_duplicates`: duplicate-free delivery (`delivered.Nodup`)
   at every process (faulty or correct).
 * `Cslib.Distributed.CausalBroadcast.bss_causalPrec_iff_ts_lt`: exact vector-clock characterization
-  `CausalPrec xl b₁ b₂ ↔ b₁.ts < b₂.ts` for broadcast packets.
-* `Cslib.Distributed.CausalBroadcast.bss_causal_delivery`: uniform prefix-closed causal delivery
-  order — at *every* process `q` (crashed or correct) that delivers `b₂`, any `b₁` with
+  `CausalPrec xl b₁ b₂ ↔ b₁.ts < b₂.ts` for broadcast packets in `bssLTS F`.
+* `Cslib.Distributed.CausalBroadcast.bss_causal_delivery`: single-group uniform causal delivery
+  order — at every process `q` (crashed or correct) that delivers `b₂`, any `b₁` with
   `CausalPrec xl b₁ b₂` was already delivered strictly earlier (`idxOf b₁ < idxOf b₂`).
 * `Cslib.Distributed.CausalBroadcast.deliverable_stable_until_delivered`: once buffered and
   `Deliverable`, a packet remains buffered and `Deliverable` until delivered.
-* `Cslib.Distributed.CausalBroadcast.bss_live`,
+* `Cslib.Distributed.CausalBroadcast.bss_live_of_packetSentTo`,
   `Cslib.Distributed.CausalBroadcast.bss_live_of_atomic_multicast`, and
-  `Cslib.Distributed.CausalBroadcast.bss_solves_causalBroadcast`: crash-tolerant liveness and full
-  safety/liveness summary for any fault set `F : Set P` via strong induction on `vtWeight b.ts`.
+  `Cslib.Distributed.CausalBroadcast.bss_solves_atomicMulticast_causalBroadcast`: single-group
+  crash-tolerant liveness under causal-ancestor packet transmission (`PacketSentTo`) or atomic
+  multicast steps (`IsAtomicMulticastAction`) for any fault set `F : Set P` via strong induction on
+  `vtWeight b.ts`.
 
 ## References
 
@@ -1054,7 +1055,8 @@ private theorem eq_of_sender_eq_of_ts_sender_eq {F : Set P} {xl : List (BSSActio
     exact Option.some.inj hbj
   · exact absurd hts.symm (ne_of_lt (hinv.same_sender_lt j i hj hi b₂ b₁ hji hbj hbi hsend.symm).2)
 
-/-- **Uniform Integrity** ([BirmanSchiperStephenson1991], §5.1; [HadzilacosToueg1994], §3.1, §3.8):
+/-- Single-group single-hop `CBCAST` uniform-integrity step (toward #7297, after
+[BirmanSchiperStephenson1991], §5.1, p. 281 and [HadzilacosToueg1994], §3.1, p. 10 & §3.8, p. 14):
 in any execution of `bssLTS F` (for arbitrary `F : Set P`), every packet delivered at any process
 `q` (faulty or correct) was broadcast earlier in the trace by `pkt.sender`. -/
 theorem bss_integrity {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
@@ -1064,9 +1066,10 @@ theorem bss_integrity {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
   obtain ⟨hv, rfl⟩ := (bssLTS_mTr_iff F (bssInit P V) xl s).mp hmtr
   exact (bssInv_of_validTrace hv).delivered_mem q pkt hdeliv
 
-/-- **Uniform No Duplicates** ([BirmanSchiperStephenson1991], §5.1; [HadzilacosToueg1994], §3.1,
-§3.8): in any reachable state of `bssLTS F` (for arbitrary `F : Set P`), every process `q`'s
-delivery log `(s.proc q).delivered` contains no duplicate packets. -/
+/-- Single-group single-hop `CBCAST` duplicate-freedom step (toward #7297, after
+[BirmanSchiperStephenson1991], §5.1, p. 281 and [HadzilacosToueg1994], §3.1, p. 10 & §3.8, p. 14):
+in any reachable state of `bssLTS F` (for arbitrary `F : Set P`), every process `q`'s delivery log
+`(s.proc q).delivered` contains no duplicate packets. -/
 theorem bss_no_duplicates {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
     (hmtr : (bssLTS F).MTr (bssInit P V) xl s) (q : P) :
     (s.proc q).delivered.Nodup := by
@@ -1104,9 +1107,10 @@ private theorem causalStep_ts_lt {F : Set P} {xl : List (BSSAction P V)}
       · simp [bssNextTimestamp]
     exact lt_of_le_of_lt hle hlt
 
-/-- **Exact Vector-Clock Characterization of Broadcast Causal Precedence**
-([BirmanSchiperStephenson1991], §4.3, p. 280): along any execution of `bssLTS F`, for any two
-broadcast packets `b₁, b₂ ∈ BroadcastIn xl`, `b₁` causally precedes `b₂` iff `b₁.ts < b₂.ts`. -/
+/-- Vector-clock causal-precedence characterization for single-group single-hop `CBCAST` (toward
+#7297, after [BirmanSchiperStephenson1991], §4.3, p. 280): along any execution of `bssLTS F`, for
+any two broadcast packets `b₁, b₂ ∈ BroadcastIn xl`, `b₁` causally precedes `b₂` iff
+`b₁.ts < b₂.ts`. -/
 theorem bss_causalPrec_iff_ts_lt {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
     (hmtr : (bssLTS F).MTr (bssInit P V) xl s)
     {b₁ b₂ : Packet P V} (hb₁ : b₁ ∈ BroadcastIn xl) (hb₂ : b₂ ∈ BroadcastIn xl) :
@@ -1182,11 +1186,11 @@ private theorem local_bcast_ts_le_vt {F : Set P} {xl : List (BSSAction P V)}
       (le_of_lt hts_lt) b₁.sender
     simpa [bssBroadcastPacket, bssNextTimestamp, Function.update_of_ne hsend] using hle_coord
 
-/-- **Uniform Causal Delivery Order** ([BirmanSchiperStephenson1991], §5.1, Safety, p. 282;
-[HadzilacosToueg1994], §3.3 & §3.8, pp. 11, 16): in any execution of `bssLTS F` (for arbitrary
-`F : Set P`), if `b₁` causally precedes `b₂` (`CausalPrec xl b₁ b₂`), then at **every** process
-`q : P` (faulty or correct!) that has delivered `b₂`, `b₁` has already been delivered at `q`
-strictly prior to `b₂`. -/
+/-- Single-group single-hop `CBCAST` uniform causal-delivery step (toward #7297, after
+[BirmanSchiperStephenson1991], §5.1, Safety, p. 282 and [HadzilacosToueg1994], §3.3 & §3.8, pp. 11,
+15): in any execution of `bssLTS F` (for arbitrary `F : Set P`), if `b₁` causally precedes `b₂`
+(`CausalPrec xl b₁ b₂`), then at every process `q : P` (faulty or correct) that has delivered `b₂`,
+`b₁` has already been delivered at `q` strictly prior to `b₂`. -/
 theorem bss_causal_delivery {F : Set P} {xl : List (BSSAction P V)} {s : BSSState P V}
     (hmtr : (bssLTS F).MTr (bssInit P V) xl s)
     {b₁ b₂ : Packet P V} (hb₁ : b₁ ∈ BroadcastIn xl) (hb₂ : b₂ ∈ BroadcastIn xl)
@@ -1551,14 +1555,15 @@ private theorem causalPrec_extract_mono {F : Set P} {ss : ωSequence (BSSState P
     (broadcastIn_extract_mono xs hMN hb₁)
     (broadcastIn_extract_mono xs hMN hb₂)).mpr hlt
 
-/-- **Unconditional Crash-Tolerant Liveness** ([BirmanSchiperStephenson1991], §5.1, Liveness,
-p. 283): for **any** crash-fault set `F : Set P` (without any quorum or majority bound), in
-any fair infinite execution `(ss, xs)` starting from `bssInit P V`, if `q ∉ F` and `b` (along with
-every causal predecessor `b' ≺_bcast b`) was transmitted to `q` (`PacketSentTo q ss xs`), then `q`
-eventually delivers `b`.
+/-- Single-group single-hop `CBCAST` liveness step under causal-ancestor packet transmission (toward
+#7297, after [BirmanSchiperStephenson1991], §5.1, Liveness, p. 283): for any crash-fault set
+`F : Set P` (without any quorum or majority bound), in any fair infinite execution `(ss, xs)`
+starting from `bssInit P V`, if `q ∉ F` and `b` (along with every causal predecessor `b' ≺_bcast b`)
+was transmitted to `q` (`PacketSentTo q ss xs`), then `q` eventually delivers `b`.
 
 Proved by strong induction on total vector-timestamp weight `vtWeight b.ts = ∑ r, b.ts r`. -/
-theorem bss_live {F : Set P} {ss : ωSequence (BSSState P V)} {xs : ωSequence (BSSAction P V)}
+theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
+    {xs : ωSequence (BSSAction P V)}
     (hinit : ss 0 = bssInit P V) (he : (bssLTS F).OmegaExecution ss xs)
     (hfair : BSSFair F ss xs) {q : P} (hq : q ∉ F) {b : Packet P V}
     (hsent_b : PacketSentTo q ss xs b)
@@ -1714,9 +1719,10 @@ def IsAtomicMulticastAction {P V : Type*} : BSSAction P V → Prop
   | .crashBroadcast _ _ _ => False
   | _ => True
 
-/-- In any fair execution where crashes occur between atomic multicast steps (no torn
-`crashBroadcast`), **every** broadcast packet `b` is eventually delivered by **every** non-faulty
-process `q ∉ F`, for arbitrary `F : Set P`. -/
+/-- Single-group `CBCAST` liveness step under atomic multicast steps without mid-send crashes
+(toward #7297, after [BirmanSchiperStephenson1991], §5.1, p. 283): in any fair execution where
+`IsAtomicMulticastAction` holds at every step (no torn `crashBroadcast`), every broadcast packet `b`
+is eventually delivered by every non-faulty process `q ∉ F`, for arbitrary `F : Set P`. -/
 theorem bss_live_of_atomic_multicast {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)}
     (hinit : ss 0 = bssInit P V) (he : (bssLTS F).OmegaExecution ss xs)
@@ -1747,7 +1753,7 @@ theorem bss_live_of_atomic_multicast {F : Set P} {ss : ωSequence (BSSState P V)
         cases hfalse
       | recv _ | deliver _ _ | crash _ | stutter =>
         rw [hact] at hem'; simp [emittedPacket] at hem'
-  refine bss_live hinit he hfair hq (hsent_all k₀ b hem) ?_
+  refine bss_live_of_packetSentTo hinit he hfair hq (hsent_all k₀ b hem) ?_
   intro b' ⟨N, ⟨i, hi, hbi⟩, _, _⟩
   have hiN : i < N := by simp only [ωSequence.length_extract, Nat.sub_zero] at hi; exact hi
   have hmtr_i := omega_mTr_prefix hinit he i
@@ -1760,12 +1766,13 @@ theorem bss_live_of_atomic_multicast {F : Set P} {ss : ωSequence (BSSState P V)
     simpa [bssStateAt, htake, ← hrun_i, hget] using hbi
   exact hsent_all i b' hem_i
 
-/-- Bundled safety and liveness specification satisfied by `bssLTS F` for an arbitrary crash-fault
-set `F : Set P`: Uniform Integrity, Uniform No Duplicates, Uniform Causal Delivery Order, and fair
-Atomic-Multicast Liveness at every `q ∉ F`. -/
+/-- Bundled single-group `CBCAST` safety and atomic-multicast liveness specification (toward #7297)
+satisfied by `bssLTS F` for an arbitrary crash-fault set `F : Set P`: uniform integrity, duplicate
+freedom, uniform causal delivery order, and fair liveness at `q ∉ F` under
+`IsAtomicMulticastAction`. -/
 @[expose]
-def BSSSolvesCausalBroadcast (P V : Type*) [Fintype P] [DecidableEq P] [DecidableEq V]
-    (F : Set P) : Prop :=
+def BSSSolvesAtomicMulticastCausalBroadcast (P V : Type*)
+    [Fintype P] [DecidableEq P] [DecidableEq V] (F : Set P) : Prop :=
   (∀ xl s, (bssLTS (P := P) (V := V) F).MTr (bssInit P V) xl s →
     (∀ q pkt, pkt ∈ (s.proc q).delivered → pkt ∈ BroadcastIn xl) ∧
     (∀ q, (s.proc q).delivered.Nodup) ∧
@@ -1778,11 +1785,12 @@ def BSSSolvesCausalBroadcast (P V : Type*) [Fintype P] [DecidableEq P] [Decidabl
     ∀ q ∉ F, ∀ k₀ b, emittedPacket (ss k₀) (xs k₀) = some b →
       ∃ k, b ∈ ((ss k).proc q).delivered)
 
-/-- For **every** static crash-fault set `F : Set P` (without any quorum or majority restriction),
-the Birman–Schiper–Stephenson vector-clock protocol `bssLTS F` satisfies
-`BSSSolvesCausalBroadcast P V F`. -/
-theorem bss_solves_causalBroadcast (F : Set P) :
-    BSSSolvesCausalBroadcast P V F :=
+/-- Single-group single-hop `CBCAST` safety and atomic-multicast liveness step (toward #7297, after
+[BirmanSchiperStephenson1991], §5.1): for every static crash-fault set `F : Set P` (without any
+quorum or majority restriction), `bssLTS F` satisfies
+`BSSSolvesAtomicMulticastCausalBroadcast P V F`. -/
+theorem bss_solves_atomicMulticast_causalBroadcast (F : Set P) :
+    BSSSolvesAtomicMulticastCausalBroadcast P V F :=
   ⟨fun _ _ hmtr =>
     ⟨bss_integrity hmtr,
      bss_no_duplicates hmtr,
