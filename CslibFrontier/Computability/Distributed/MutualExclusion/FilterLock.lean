@@ -40,14 +40,14 @@ registers, complementing the unbounded-ticket safe-register Bakery algorithm in 
    (`not_deadlockFreeMutex_of_single_register`, 1-register base step toward [BurnsLynch1993],
    Theorem 5.1, p. 177):**
    Formalizes deterministic asynchronous multi-writer atomic read/write register protocols
-   (`MutexProtocol P Reg Val State`) where `MutexProtocol.DeadlockFree` requires eventual
-   `CriticalSection` entry under `MutexProtocol.WeakFair` and `MutexProtocol.CSEventuallyExits`
-   (without a separate exit region, whereas [BurnsLynch1993], §§2–3, pp. 173–175 includes an exit
-   region `Eᵢ` and defines global progress as some process changing regions in every nonnull fair
-   history). Proves the `Fintype.card Reg ≤ 1` (`2 ≤ Fintype.card P`) step via one blind write
-   overwriting another process's writes (specializing Lemma 5.2's indistinguishability replay and
-   Lemma 5.4's covering-write argument, pp. 177, 180); the full `Fintype.card P ≤ Fintype.card Reg`
-   bound stays open under #7296.
+   (`MutexProtocol P Reg Val State`, with `.remainder`, `.trying`, `.cs`, and `.exit` regions in
+   `MutexSection`). Here `MutexProtocol.DeadlockFree` asks for some process to reach `.cs` from an
+   initially trying state under `MutexProtocol.WeakFair` (scheduling `.trying` and `.exit`) and
+   `MutexProtocol.CSEventuallyExits`, whereas [BurnsLynch1993] (§§2–3, pp. 173–175) asks for a
+   region change in each nonnull fair history. Proves the `Fintype.card Reg ≤ 1`
+   (`2 ≤ Fintype.card P`) step via one blind write overwriting another process's writes
+   (specializing Lemma 5.2's indistinguishability replay and Lemma 5.4's covering-write argument,
+   pp. 177, 180); the full `Fintype.card P ≤ Fintype.card Reg` bound stays open under #7296.
 
 ## Main definitions
 
@@ -1186,9 +1186,10 @@ process is trying (`∃ p, s.isTrying p`), there exists **an** enabled finite ex
 trying processes (never waking `.remainder` processes or exiting `.cs`) that reaches a state with a
 process in `CriticalSection`.
 
-This provides an existential finite execution witness (obstruction-free reachability), rather than
-progress across all fair infinite executions (`OmegaExecution`), which requires sequencing the
-waiting-room scan (#7296). -/
+This provides an existential finite execution witness (which may schedule several trying
+processes, can be empty if some process is already in `.cs`, and only promises that some process is
+in `.cs` at the end), rather than progress across all fair infinite executions (`OmegaExecution`),
+which requires sequencing the waiting-room scan (#7296). -/
 theorem filterLock_exists_cs_execution {n : ℕ} {s : FilterState n} (hr : s.Reachable)
     (htry : ∃ p, s.isTrying p) :
     ∃ μs s', (filterLock n).MTr s μs s' ∧
@@ -1483,9 +1484,15 @@ def CSEventuallyExits (π : MutexProtocol P Reg Val State)
     (ss : ωSequence (MutexConfig P Reg Val State)) (μs : ωSequence (MutexAction P)) : Prop :=
   ∀ p i, (ss i).inCS π p → ∃ k ≥ i, μs k = .exit p
 
-/-- **Deadlock Freedom** (global progress under weak fairness, [BurnsLynch1993]): in every weakly
-fair infinite execution from a reachable configuration with at least one trying process (assuming
-critical sections terminate), some process eventually enters `.cs`. -/
+/-- **Deadlock Freedom** (critical-section entry from an initially trying state): in every infinite
+execution from a reachable configuration with at least one trying process, assuming `WeakFair`
+(scheduling active processes in `.trying` or `.exit`) and `CSEventuallyExits`, some process
+eventually reaches `.cs` (`∃ k q, (ss k).inCS π q`).
+
+Whereas [BurnsLynch1993] (§3, pp. 174–175) defines global progress as some process changing regions
+in each nonnull fair history (stepping every process outside `.remainder`), this predicate asks for
+some process to reach `.cs` from an initially trying state under `WeakFair` and
+`CSEventuallyExits`. -/
 @[expose]
 def DeadlockFree [DecidableEq P] [DecidableEq Reg] (π : MutexProtocol P Reg Val State) : Prop :=
   ∀ ss μs, π.Reachable (ss 0) → π.lts.OmegaExecution ss μs →
@@ -1744,13 +1751,13 @@ space lower bound of [BurnsLynch1993] (Theorem 5.1, p. 177; tracked in #7296): f
 no deterministic asynchronous `MutexProtocol` satisfies `DeadlockFreeMutex` (`MutuallyExclusive` and
 `DeadlockFree`).
 
-Here `MutexProtocol.DeadlockFree` asks for eventual `CriticalSection` entry under
-`MutexProtocol.WeakFair` and `MutexProtocol.CSEventuallyExits` (without a separate exit-region
-state), whereas [BurnsLynch1993] (§§2–3, pp. 173–175) includes an explicit exit region `Eᵢ` and
-defines global progress as some process changing regions in every nonnull history that steps active
-processes infinitely often. The proof uses one poised blind write to erase the second process's
-writes, specializing the indistinguishability and covering-write arguments of [BurnsLynch1993],
-Lemmas 5.2 and 5.4 (pp. 177, 180). -/
+Here `MutexProtocol` includes `.remainder`, `.trying`, `.cs`, and `.exit` (`MutexSection`), and
+`MutexProtocol.DeadlockFree` asks for some process to reach `.cs` from an initially trying state
+under `MutexProtocol.WeakFair` (scheduling `.trying` and `.exit`) and
+`MutexProtocol.CSEventuallyExits`, whereas [BurnsLynch1993] (§§2–3, pp. 173–175) asks for a region
+change in each nonnull fair history. The proof uses one poised blind write to erase the second
+process's writes, specializing the indistinguishability and covering-write arguments of
+[BurnsLynch1993], Lemmas 5.2 and 5.4 (pp. 177, 180). -/
 theorem not_deadlockFreeMutex_of_single_register
     {P Reg Val State : Type*} [Fintype P] [Fintype Reg] [DecidableEq P] [DecidableEq Reg]
     (hP : 2 ≤ Fintype.card P) (hReg : Fintype.card Reg ≤ 1)
