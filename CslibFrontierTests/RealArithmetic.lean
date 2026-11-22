@@ -11,7 +11,7 @@ import CslibFrontier.Computability.Complexity.Classes.ExistsReal
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
-import CslibFrontier.Logics.RealArithmetic.ModularEvaluation
+import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
 
@@ -38,6 +38,11 @@ example : Term.evalTokenStack 8 [3] (encTerm_tokens 2
 -- An operator with only one operand fails.
 example : Term.evalTokenStack (n := 0) 8 [] [.inr (.inr (.inl ())), .inl 3] [] = none := by
   decide +kernel
+
+-- The certificate also handles dimension zero, where the variable summand is empty.
+example : ComputableInPolyTime (fun token => Term.evalTokenStep (n := 0) 8 [] token [3])
+    (encTermTokenEncoding 0) (encOption (encList encNat)) :=
+  Term.evalTokenStep_polyTime (.const 8) (.const []) (.const [3]) .id'
 
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
 def sentence : Formula 0 :=
