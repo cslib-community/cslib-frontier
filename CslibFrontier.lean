@@ -1591,11 +1591,13 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.EdgeScores
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Sample
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Straddle
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Kernel
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Local
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Median
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiOrder
