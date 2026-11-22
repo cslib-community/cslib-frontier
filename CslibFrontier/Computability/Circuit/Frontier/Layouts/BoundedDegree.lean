@@ -107,7 +107,7 @@ end Gaussian
 /-- In a saturated compression of budget `d ≥ 3` of a connected multigraph into at least two blocks,
 the quotient has at most `3 d / (2 d - 3) β₁` external edges. -/
 theorem Multigraph.Compression.Saturated.card_external_le_div_mul_cycleRank
-    {V E : Type*} [Finite V] [Finite E] {G : Multigraph V E} {d : ℕ} (hd : 3 ≤ d)
+    {V E : Type*} [Finite E] {G : Multigraph V E} {d : ℕ} (hd : 3 ≤ d)
     {Q : G.Compression d} (hQ : Q.Saturated) (hG : G.toSimpleGraph.Connected)
     (two : 1 < Nat.card Q.blocks) :
     (Nat.card Q.external : ℝ) ≤ 3 * d / (2 * d - 3) * G.cycleRank := by
@@ -120,7 +120,7 @@ theorem Multigraph.Compression.Saturated.card_external_le_div_mul_cycleRank
 /-- Since `3 d / (2 d - 3) ≤ 3` for `d ≥ 3`, a saturated quotient has at most `3 β₁` external edges
 and at most `3 β₁` blocks. -/
 theorem Multigraph.Compression.Saturated.card_external_and_blocks_le_three_mul_cycleRank
-    {V E : Type*} [Finite V] [Finite E] {G : Multigraph V E} {d : ℕ} (hd : 3 ≤ d)
+    {V E : Type*} [Finite E] {G : Multigraph V E} {d : ℕ} (hd : 3 ≤ d)
     {Q : G.Compression d} (hQ : Q.Saturated) (hG : G.toSimpleGraph.Connected)
     (two : 1 < Nat.card Q.blocks) :
     (Nat.card Q.external : ℝ) ≤ 3 * G.cycleRank ∧
