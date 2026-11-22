@@ -35,6 +35,8 @@ namespace Cslib.Complexity.CSP.EdgeSolver.Program
 
 open Cslib.Logic.PL Cslib.Logic.PL.CSP Turing.MultiTapeTM
 
+attribute [local irreducible] ComputableInPolyTime
+
 /-- Current original occurrence bits are framed, followed by the stopped flag. -/
 abbrev encOptimizeState := encPair (encList encBool) encBool
 

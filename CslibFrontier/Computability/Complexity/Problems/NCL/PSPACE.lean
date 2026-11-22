@@ -46,6 +46,8 @@ namespace Cslib.Complexity.NCL
 
 open _root_.Turing.MultiTapeTM
 
+attribute [local irreducible] ComputableInPolyTime
+
 private abbrev Input := AndOrNCL.Instance
 
 private def fit (n : ℕ) (t : List Bool) : List Bool :=

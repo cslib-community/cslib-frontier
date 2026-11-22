@@ -33,6 +33,8 @@ namespace Cslib.Complexity.STCON
 open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
 open Reachability.Hoza Cslib.Code.JustesenFamily
 
+attribute [local irreducible] ComputableInSpace ComputableInLogSpace
+
 /-- Compact parameters for the original graph and its seed search. -/
 structure SeedSearchParameters where
   /-- Parameters shared by the original layered adjacency queries. -/

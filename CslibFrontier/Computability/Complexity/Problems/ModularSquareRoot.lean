@@ -273,6 +273,8 @@ end Correctness
 
 section RunningTime
 
+attribute [local irreducible] ComputableInPolyTime
+
 private theorem computableInPolyTime_descentStep :
     ComputableInPolyTime (fun p : (ℕ × ℕ × ℕ) × (ℕ × ℕ) => descentStep p.1.1 p.1.2.1 p.1.2.2 p.2)
       (encPair (encPair encNat (encPair encNat encNat)) (encPair encNat encNat))

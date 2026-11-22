@@ -129,7 +129,7 @@ theorem le_countViolated_amplify {k : ℕ} (hk : 0 < k) {F : QuadSystem ℕ} {a 
         parityOn S (BitString.ofList _ ((BitString.poweringMasks F.length k).getD j [])) =
           true} := by
     rw [amplify, QuadSystem.countViolated, List.countP_map, List.countP_eq_card_filter_getElem]
-    congr 1
+    apply congrArg Finset.card
     ext j
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Function.comp_apply,
       decide_eq_true_iff, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem j.isLt,
@@ -140,6 +140,8 @@ theorem le_countViolated_amplify {k : ℕ} (hk : 0 < k) {F : QuadSystem ℕ} {a 
     exact_mod_cast Nat.pos_of_ne_zero (NeZero.ne _)
   rw [hcount, amplify, List.length_map, le_div_iff₀ hN]
   exact hb
+
+attribute [local irreducible] ComputableInPolyTime
 
 /-- The linear combination of the equations a mask selects is computable in polynomial time. -/
 theorem computableInPolyTime_linearCombination :
