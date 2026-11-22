@@ -374,14 +374,11 @@ theorem fourierCoeff_signVal_eq_zero_iff_eq_const_or_exists_eq_xor (f : (ι → 
   · rintro (⟨b, rfl⟩ | ⟨i, b, rfl⟩) S hS
     · have hne : S ≠ ∅ := nonempty_iff_ne_empty.1 (card_pos.1 (by omega))
       exact (fourierCoeff_const (signVal b) S).trans (ite_eq_right hne)
-    · have hF : F = fun x => signVal b * chi ℝ {i} x := by
-        funext x
-        simp [F, chi_singleton]
-      have hne : {i} ≠ S := fun h => by
+    · have hne : {i} ≠ S := fun h => by
         have := congrArg card h
         rw [card_singleton] at this
         omega
-      rw [hF, fourierCoeff_const_mul, fourierCoeff_chi, ite_eq_right hne, mul_zero]
+      exact (fourierCoeff_signVal_xor b i S).trans (ite_eq_right hne)
 
 omit [Fintype ι] [DecidableEq ι] in
 /-- **Boolean functions of degree at most one are constants or literals**: `signVal ∘ f` has degree

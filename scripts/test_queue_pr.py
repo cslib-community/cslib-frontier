@@ -4,11 +4,15 @@ from __future__ import annotations
 
 import contextlib
 import copy
+import importlib.util
 import io
 import json
+import os
 import pathlib
+import stat
 import subprocess
 import sys
+import tempfile
 import unittest
 from unittest.mock import call, patch
 
@@ -16,6 +20,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import queue_pr  # noqa: E402
 
 SHA = "a" * 40
+BASE_SHA = "d" * 40
 COMMIT_ID = "COMMIT_1"
 
 
@@ -36,7 +41,8 @@ def pr(*checks: dict, committed: str = "2026-11-07T09:00:00Z", retargeted: str |
     commit = {"id": COMMIT_ID, "oid": SHA, "committedDate": committed,
               "statusCheckRollup": {"contexts": connection(*checks)}}
     return {"id": "PR_1", "state": "OPEN", "isDraft": False, "baseRefName": "main",
-            "headRefOid": SHA, "mergeable": "MERGEABLE", "mergeQueueEntry": None,
+            "baseRefOid": BASE_SHA, "headRefOid": SHA, "mergeable": "MERGEABLE",
+            "mergeQueueEntry": None,
             "timelineItems": {"nodes": [{"createdAt": retargeted}] if retargeted else []},
             "commits": {"nodes": [{"commit": commit}]}, **fields}
 
@@ -102,6 +108,8 @@ class AssessTests(unittest.TestCase):
         status, reasons = queue_pr.assess(pr(check_run(), retargeted="2026-11-07T09:30:00Z"), SHA)
         self.assertEqual(status, "refused")
         self.assertIn("base changed", reasons[0])
+        already_merged = pr(check_run(), retargeted="2026-11-07T09:30:00Z", baseIsAncestor=True)
+        self.assertEqual(queue_pr.assess(already_merged, SHA), ("ready", []))
         later = pr(check_run(), retargeted="2026-11-07T08:00:00Z")
         self.assertEqual(queue_pr.assess(later, SHA)[0], "ready")
 
@@ -126,6 +134,7 @@ class PaginationTests(unittest.TestCase):
         out = io.StringIO()
         with patch.object(queue_pr, "gh_graphql", side_effect=responses) as graphql, \
              patch.object(queue_pr, "fetch_discussion", return_value=("unchanged",)), \
+             patch.object(queue_pr, "check_queue_prefix", return_value=None), \
              patch.object(queue_pr.time, "sleep"), contextlib.redirect_stdout(out), \
              contextlib.redirect_stderr(out):
             status = queue_pr.main(["12", SHA, "--wait", wait])
@@ -402,6 +411,7 @@ class WaitingDiscussionTests(unittest.TestCase):
         snapshots = iter(discussions)
         with patch.object(queue_pr, "fetch_pr", side_effect=prs), \
              patch.object(queue_pr, "fetch_discussion", side_effect=snapshot) as discussion, \
+             patch.object(queue_pr, "check_queue_prefix", return_value=None), \
              patch.object(queue_pr.time, "sleep", side_effect=lambda _: events.append("sleep")), \
              patch.object(queue_pr, "gh_graphql", return_value={
                  "enqueuePullRequest": {"mergeQueueEntry": {"position": 1}}}) as api, \
@@ -469,6 +479,309 @@ class WaitingDiscussionTests(unittest.TestCase):
                 self.assertEqual(result, 1, out)
                 self.assertEqual(events.count("discussion"), 1)
                 api.assert_not_called()
+
+
+class RetargetAncestorTests(unittest.TestCase):
+    def compare_result(self, payload: dict | str, returncode: int = 0) -> subprocess.CompletedProcess:
+        text = payload if isinstance(payload, str) else json.dumps(payload)
+        return subprocess.CompletedProcess([], returncode, text, "")
+
+    def test_retarget_after_commit_allows_head_already_containing_main(self) -> None:
+        entry = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 1, "state": "QUEUED"}}}
+        for status in ("ahead", "identical"):
+            with self.subTest(status=status):
+                page = {"repository": {"pullRequest": pr(
+                    check_run(), retargeted="2026-11-07T09:30:00Z")}}
+                compare = self.compare_result({
+                    "status": status,
+                    "behind_by": 0,
+                    "merge_base_commit": {"sha": BASE_SHA},
+                })
+                out = io.StringIO()
+                with patch.object(queue_pr, "gh_graphql", side_effect=[page, entry]) as graphql, \
+                     patch.object(queue_pr, "check_queue_prefix", return_value=None), \
+                     patch.object(queue_pr.subprocess, "run", return_value=compare) as run, \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                    rc = queue_pr.main(["7108", SHA])
+                self.assertEqual(rc, 0, out.getvalue())
+                run.assert_called_once_with(
+                    ["gh", "api", f"repos/{queue_pr.REPO}/compare/{BASE_SHA}...{SHA}"],
+                    capture_output=True, text=True)
+                self.assertEqual(graphql.call_args_list[-1],
+                                 call(queue_pr.ENQUEUE, id="PR_1", sha=SHA))
+
+    def test_retarget_after_commit_refuses_when_main_not_ancestor_or_compare_fails(self) -> None:
+        cases = (
+            self.compare_result({"status": "diverged", "behind_by": 2,
+                                 "merge_base_commit": {"sha": "e" * 40}}),
+            self.compare_result({"status": "behind", "behind_by": 1,
+                                 "merge_base_commit": {"sha": SHA}}),
+            self.compare_result({"status": "ahead", "behind_by": 0,
+                                 "merge_base_commit": {"sha": "e" * 40}}),
+            self.compare_result({"status": "ahead", "behind_by": 1,
+                                 "merge_base_commit": {"sha": BASE_SHA}}),
+            self.compare_result("not json"),
+            self.compare_result({}, returncode=1),
+        )
+        for compare in cases:
+            with self.subTest(compare=compare):
+                page = {"repository": {"pullRequest": pr(
+                    check_run(), retargeted="2026-11-07T09:30:00Z")}}
+                out = io.StringIO()
+                with patch.object(queue_pr, "gh_graphql", return_value=page) as graphql, \
+                     patch.object(queue_pr.subprocess, "run", return_value=compare), \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                    rc = queue_pr.main(["7108", SHA])
+                self.assertEqual(rc, 1, out.getvalue())
+                self.assertIn("its base changed after the approved head was committed",
+                              out.getvalue())
+                self.assertEqual(len(graphql.call_args_list), 1)
+
+    def test_compare_is_skipped_when_retarget_did_not_follow_commit(self) -> None:
+        for candidate in (
+                pr(check_run()),
+                pr(check_run(), retargeted="2026-11-07T08:00:00Z"),
+                pr(check_run(), retargeted="2026-11-07T09:30:00Z", baseRefName="feat/lower"),
+                pr(check_run(), retargeted="2026-11-07T09:30:00Z",
+                   mergeQueueEntry={"position": 1, "state": "QUEUED"})):
+            with self.subTest(candidate=candidate), \
+                 patch.object(queue_pr, "gh_graphql",
+                              return_value={"repository": {"pullRequest": candidate}}), \
+                 patch.object(queue_pr.subprocess, "run") as run:
+                queue_pr.fetch_pr("cslib-community", "cslib-frontier", 12)
+                run.assert_not_called()
+
+    def test_retargeted_head_without_rollup_yet_waits_for_checks_when_main_is_ancestor(self) -> None:
+        raw = pr(retargeted="2026-11-07T09:30:00Z")
+        raw["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = None
+        compare = self.compare_result({
+            "status": "ahead",
+            "behind_by": 0,
+            "merge_base_commit": {"sha": BASE_SHA},
+        })
+        with patch.object(queue_pr, "gh_graphql", return_value={"repository": {"pullRequest": raw}}), \
+             patch.object(queue_pr.subprocess, "run", return_value=compare):
+            fetched = queue_pr.fetch_pr("cslib-community", "cslib-frontier", 7108)
+        self.assertEqual(queue_pr.assess(fetched, SHA),
+                         ("pending", ["required checks are still running at the approved head"]))
+
+
+class QueuePrefixTests(unittest.TestCase):
+    OTHER_SHA = "c" * 40
+
+    def test_empty_queue_skips_object_fetch_even_without_local_repo(self) -> None:
+        import queue_status
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(queue_status, "prefix", return_value=(BASE_SHA, [])) as pref, \
+             patch.object(queue_status, "fetch_objects") as fetch:
+            self.assertIsNone(
+                queue_pr.check_queue_prefix("o", "r", 12, SHA, root=pathlib.Path(tmp)))
+            pref.assert_called_once_with("o", "r", 12, SHA, graphql=queue_pr.gh_graphql)
+            fetch.assert_not_called()
+
+    def test_nonempty_queue_without_repo_or_helper_refuses_instead_of_skipping(self) -> None:
+        import queue_status
+
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(queue_status, "prefix", return_value=(BASE_SHA, [(10, self.OTHER_SHA)])):
+            reason = queue_pr.check_queue_prefix("o", "r", 12, SHA, root=pathlib.Path(tmp))
+            self.assertIsNotNone(reason)
+            assert reason is not None
+            self.assertIn("merge queue has entries ahead (#10)", reason)
+
+        with patch.dict(sys.modules, {"queue_status": None}), \
+             patch.object(queue_pr, "snapshot_queue_prefix",
+                          return_value=(BASE_SHA, [(10, self.OTHER_SHA)])):
+            reason_no_helper = queue_pr.check_queue_prefix("o", "r", 12, SHA)
+            self.assertIsNotNone(reason_no_helper)
+            assert reason_no_helper is not None
+            self.assertIn("merge queue has entries ahead (#10)", reason_no_helper)
+
+    def test_conflicting_queue_prefix_and_bare_git_dir_from_scratch(self) -> None:
+        import queue_status
+
+        env = {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1",
+               "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.test",
+               "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.test"}
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(os.environ, env):
+            base_dir = pathlib.Path(tmp)
+            root = base_dir / "work"
+            bare = base_dir / "bare.git"
+            scratch = base_dir / "scratch"
+            root.mkdir()
+            scratch.mkdir()
+
+            def git(*args: str) -> str:
+                return subprocess.check_output(["git", *args], cwd=root, text=True).strip()
+
+            def commit(path: str, content: str) -> str:
+                (root / path).write_text(content)
+                git("add", ".")
+                git("commit", "-qm", path)
+                return git("rev-parse", "HEAD")
+
+            git("init", "-q", "-b", "main")
+            base = commit("rows", "old\n")
+            non_conflicting = commit("other", "first PR\n")
+            git("branch", "non-conflicting")
+            git("switch", "-q", "--detach", base)
+            conflicting = commit("rows", "queued PR\n")
+            git("branch", "conflicting")
+            git("switch", "-q", "--detach", base)
+            candidate = commit("rows", "candidate PR\n")
+            git("branch", "candidate")
+            subprocess.run(["git", "clone", "-q", "--bare", str(root), str(bare)], check=True)
+
+            old_cwd = pathlib.Path.cwd()
+            try:
+                os.chdir(scratch)
+                with patch.dict(os.environ, {"GIT_DIR": ".." + os.sep + "bare.git"}), \
+                     patch.object(queue_status, "prefix",
+                                  return_value=(base, [(10, non_conflicting)])), \
+                     patch.object(queue_status, "fetch_objects"):
+                    self.assertIsNone(queue_pr.check_queue_prefix("o", "r", 12, candidate))
+
+                with patch.dict(os.environ, {"GIT_DIR": str(bare)}), \
+                     patch.object(queue_status, "prefix",
+                                  return_value=(base, [(10, non_conflicting), (11, conflicting)])), \
+                     patch.object(queue_status, "fetch_objects"):
+                    reason = queue_pr.check_queue_prefix("o", "r", 12, candidate)
+                    self.assertIsNotNone(reason)
+                    assert reason is not None
+                    self.assertIn("'rows' first conflicts at #11", reason)
+            finally:
+                os.chdir(old_cwd)
+
+            ready_pr = pr(check_run(), headRefOid=candidate)
+            ready_pr["commits"]["nodes"][0]["commit"]["oid"] = candidate
+            out = io.StringIO()
+            with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+                 patch.object(queue_pr, "check_queue_prefix", return_value=reason), \
+                 patch.object(queue_pr, "gh_graphql") as api, \
+                 contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                rc = queue_pr.main(["12", candidate])
+            self.assertEqual(rc, 1, out.getvalue())
+            self.assertIn("#12 not queued:", out.getvalue())
+            api.assert_not_called()
+
+    def test_hold_introduced_during_prefix_replay_stops_enqueue(self) -> None:
+        import queue_status
+
+        ready_pr = pr(check_run())
+        state = {"discussion": ("before_replay",)}
+
+        def fake_check_prefix(_root: pathlib.Path, _base: str,
+                              _entries: list[tuple[int, str]], _sha: str) -> int:
+            state["discussion"] = ("hold_comment_added_during_replay",)
+            return 0
+
+        out = io.StringIO()
+        with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+             patch.object(queue_pr, "fetch_discussion",
+                          side_effect=lambda _id: state["discussion"]) as disc, \
+             patch.object(queue_status, "prefix",
+                          return_value=(BASE_SHA, [(10, self.OTHER_SHA)])), \
+             patch.object(queue_status, "fetch_objects"), \
+             patch.object(queue_status, "check_prefix", side_effect=fake_check_prefix), \
+             patch.object(queue_pr, "replay_repository", return_value=queue_pr.ROOT), \
+             patch.object(queue_pr, "gh_graphql") as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = queue_pr.main(["12", SHA])
+        self.assertEqual(rc, 1, out.getvalue())
+        self.assertEqual(disc.call_count, 2)
+        self.assertIn("its review discussion changed while waiting", out.getvalue())
+        api.assert_not_called()
+
+    def test_changed_queue_prefix_during_replay_stops_enqueue(self) -> None:
+        import queue_status
+
+        ready_pr = pr(check_run())
+        third_sha = "d" * 40
+        prefixes = iter([
+            (BASE_SHA, [(10, self.OTHER_SHA)]),
+            (BASE_SHA, [(10, self.OTHER_SHA), (11, third_sha)]),
+        ])
+        out = io.StringIO()
+        with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+             patch.object(queue_pr, "fetch_discussion", return_value=("unchanged",)), \
+             patch.object(queue_status, "prefix", side_effect=lambda *a, **kw: next(prefixes)), \
+             patch.object(queue_status, "fetch_objects"), \
+             patch.object(queue_status, "check_prefix", return_value=0), \
+             patch.object(queue_pr, "replay_repository", return_value=queue_pr.ROOT), \
+             patch.object(queue_pr, "gh_graphql") as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+            rc = queue_pr.main(["12", SHA])
+        self.assertEqual(rc, 1, out.getvalue())
+        self.assertIn("the merge queue changed during prefix replay", out.getvalue())
+        api.assert_not_called()
+
+    def test_cli_and_separately_loaded_entrypoint_catch_prefix_gh_error(self) -> None:
+        import queue_status
+
+        spec = importlib.util.spec_from_file_location("cli_queue_pr", queue_pr.__file__)
+        assert spec is not None and spec.loader is not None
+        cli_mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cli_mod)
+        self.assertIsNot(cli_mod.GhError, queue_pr.GhError)
+        ready_pr = pr(check_run())
+        out = io.StringIO()
+        err = io.StringIO()
+        with patch.object(cli_mod, "fetch_pr", return_value=ready_pr), \
+             patch.object(queue_status, "prefix",
+                          side_effect=queue_pr.GhError("prefix API failed")), \
+             patch.object(cli_mod, "gh_graphql") as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = cli_mod.main(["12", SHA])
+        self.assertEqual(rc, 2)
+        self.assertIn("queue_pr: prefix API failed", err.getvalue())
+        api.assert_not_called()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            bin_dir = pathlib.Path(tmp)
+            calls_log = bin_dir / "calls.log"
+            pr_payload = json.dumps({"data": {"repository": {"pullRequest": ready_pr}}})
+            fake_gh = bin_dir / "gh"
+            fake_gh.write_text(
+                f"#!{sys.executable}\n"
+                "import pathlib, sys\n"
+                f"log = pathlib.Path({str(calls_log)!r})\n"
+                "joined = ' '.join(sys.argv[1:])\n"
+                "with log.open('a', encoding='utf-8') as fh:\n"
+                "    fh.write(joined + '\\n')\n"
+                "if 'enqueuePullRequest' in joined:\n"
+                "    sys.exit(99)\n"
+                "if 'mergeQueue { entries' in joined:\n"
+                "    sys.stderr.write('HTTP 502 from GitHub\\n')\n"
+                "    sys.exit(1)\n"
+                f"sys.stdout.write({pr_payload!r})\n",
+                encoding="utf-8",
+            )
+            fake_gh.chmod(fake_gh.stat().st_mode | stat.S_IXUSR)
+            env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}"}
+            proc = subprocess.run(
+                [sys.executable, str(pathlib.Path(queue_pr.__file__).resolve()), "12", SHA],
+                capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(proc.returncode, 2, proc.stdout + proc.stderr)
+            self.assertIn("queue_pr:", proc.stderr)
+            self.assertIn("HTTP 502 from GitHub", proc.stderr)
+            self.assertNotIn("enqueuePullRequest", calls_log.read_text(encoding="utf-8"))
+
+    def test_inconsistent_queue_listing_fails_closed_without_enqueuing(self) -> None:
+        import queue_status
+
+        ready_pr = pr(check_run())
+        out = io.StringIO()
+        err = io.StringIO()
+        with patch.object(queue_pr, "fetch_pr", return_value=ready_pr), \
+             patch.object(queue_status, "prefix", side_effect=ValueError("queue changed")), \
+             patch.object(queue_pr, "gh_graphql") as api, \
+             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            rc = queue_pr.main(["12", SHA])
+        self.assertEqual(rc, 2, err.getvalue())
+        self.assertIn("merge-queue prefix check failed", err.getvalue())
+        api.assert_not_called()
 
 
 if __name__ == "__main__":

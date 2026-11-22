@@ -78,11 +78,11 @@ def labelRepresentative (r : BitString (n + (w + w))) : BitString n :=
 
 /-- The first word of a label: the cycle length. -/
 def labelLength (r : BitString (n + (w + w))) : BitVec w :=
-  word fun i => r (Fin.natAdd n (Fin.castAdd w i))
+  BitString.equivBitVec fun i => r (Fin.natAdd n (Fin.castAdd w i))
 
 /-- The second word of a label: the phase. -/
 def labelPhase (r : BitString (n + (w + w))) : BitVec w :=
-  word fun i => r (Fin.natAdd n (Fin.natAdd w i))
+  BitString.equivBitVec fun i => r (Fin.natAdd n (Fin.natAdd w i))
 
 /-- Unpacking the representative from `labelBits c ell phi` recovers `c`. -/
 @[simp] theorem labelRepresentative_labelBits (c : BitString n) (ell phi : BitVec w) :
@@ -93,12 +93,13 @@ def labelPhase (r : BitString (n + (w + w))) : BitVec w :=
 /-- Unpacking the cycle-length word from `labelBits c ell phi` recovers `ell`. -/
 @[simp] theorem labelLength_labelBits (c : BitString n) (ell phi : BitVec w) :
     labelLength (labelBits c ell phi) = ell := by
-  simp only [labelLength, labelBits, Fin.append_left, Fin.append_right, word_getLsbD]
+  simp only [labelLength, labelBits, Fin.append_left, Fin.append_right,
+    BitString.equivBitVec_getLsbD]
 
 /-- Unpacking the phase word from `labelBits c ell phi` recovers `phi`. -/
 @[simp] theorem labelPhase_labelBits (c : BitString n) (ell phi : BitVec w) :
     labelPhase (labelBits c ell phi) = phi := by
-  simp only [labelPhase, labelBits, Fin.append_right, word_getLsbD]
+  simp only [labelPhase, labelBits, Fin.append_right, BitString.equivBitVec_getLsbD]
 
 /-- The width of a canonical label: a state, then two words of `n + 3` bits. -/
 abbrev labelWidth (n : ℕ) : ℕ := n + ((n + 3) + (n + 3))
@@ -175,10 +176,11 @@ theorem synthesis_correctLabel (s : Set (BooleanFunction a))
     Synthesis interpretation s (wires fun x => correctLabel (r x) j) (50 * (w + 1) ^ 2) := by
   have hlen : wordWires (fun x => labelLength (r x)) ⊆ s := by
     rintro _ ⟨i, rfl⟩
-    simpa only [labelLength, getLsbD_word] using hr ⟨_, rfl⟩
+    simpa only [labelLength, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩
   have hp := synthesis_subMod s (fun x => labelPhase (r x)) (fun _ => BitVec.ofNat w j)
     (fun x => labelLength (r x))
-    (fun i => by simpa only [labelPhase, getLsbD_word] using hr ⟨_, rfl⟩) (fun _ => hc _)
+    (fun i => by simpa only [labelPhase, BitString.getLsbD_equivBitVec] using hr ⟨_, rfl⟩)
+    (fun _ => hc _)
     (fun i => hlen ⟨i, rfl⟩) (hc false)
   refine (hp.trans (Synthesis.of_subset (labelBits_wires_subset _ _ _ _ ?_ ?_ ?_))).mono
     Set.Subset.rfl Set.Subset.rfl (by omega)

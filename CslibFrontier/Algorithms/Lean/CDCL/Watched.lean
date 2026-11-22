@@ -1125,9 +1125,12 @@ inductive ProcResult (φ : CNF ℕ) (m c : ℕ) (t : Literal ℕ) : Type
   | conflict (S : WExec φ) (h : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
       (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ m) (hc : S.stats.conflicts = c)
 
+-- The facts used only by the loop are private: the exposed `processFrom` names them only in tactic
+-- proofs, which may use private declarations.
+
 /-- The watchers of the first `n + 2` numbers of a watch list, read backwards: the one at `n`, then
 those of the first `n`. -/
-theorem unpackWatchers_take_add_two {ws : Array ℕ} {n : ℕ} (hn : n + 2 ≤ ws.size) :
+private theorem unpackWatchers_take_add_two {ws : Array ℕ} {n : ℕ} (hn : n + 2 ≤ ws.size) :
     unpackWatchers (ws.toList.take (n + 2)).reverse =
       ⟨ws[n], litOfKey ws[n + 1]⟩ :: unpackWatchers (ws.toList.take n).reverse := by
   rw [List.take_add_one, List.take_add_one, List.getElem?_eq_getElem (by simp; omega),
@@ -1136,7 +1139,7 @@ theorem unpackWatchers_take_add_two {ws : Array ℕ} {n : ℕ} (hn : n + 2 ≤ w
 
 /-- The first `m` numbers of a watch list but the first, when `m` is odd, have the same watchers,
 read backwards, as the first `m`: the number left over is not read. -/
-theorem unpackWatchers_extract (ws : Array ℕ) {m : ℕ} (hm : m ≤ ws.size) :
+private theorem unpackWatchers_extract (ws : Array ℕ) {m : ℕ} (hm : m ≤ ws.size) :
     unpackWatchers (ws.extract (m % 2) m).toList.reverse =
       unpackWatchers (ws.toList.take m).reverse := by
   have hT : (ws.toList.take m).length = m := by simp; omega
@@ -1148,7 +1151,7 @@ theorem unpackWatchers_extract (ws : Array ℕ) {m : ℕ} (hm : m ≤ ws.size) :
     List.append_nil, hd]
 
 /-- The numbers taken from a watch list at a conflict are pairs. -/
-theorem size_extract_mod_two (ws : Array ℕ) {m : ℕ} (hm : m ≤ ws.size) :
+private theorem size_extract_mod_two (ws : Array ℕ) {m : ℕ} (hm : m ≤ ws.size) :
     (ws.extract (m % 2) m).size % 2 = 0 := by
   simp; omega
 
@@ -1158,7 +1161,7 @@ end: the invariant of the visit is stated on `S.withKept t kept`. -/
 @[expose] def WExec.withKept (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) : WExec φ :=
   { S with store := { S.store with watches := setWatch S.store.watches (negKey t) kept } }
 
-theorem WExec.withKept_putBack (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) (k b : ℕ) :
+private theorem WExec.withKept_putBack (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) (k b : ℕ) :
     (S.withKept t kept).putBack t k b = S.withKept t ((kept.push k).push b) := by
   simp only [WExec.withKept, WExec.putBack, addWatch_setWatch]
 
@@ -1195,7 +1198,7 @@ theorem WExec.ProcInv.restore_inv {S : WExec φ} {t : Literal ℕ} {kept rest : 
       · exact h.blocker_mem _ y hy
     · exact h.blocker_mem i y hy
 
-theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) {k j o x u : ℕ}
+private theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) {k j o x u : ℕ}
     (hx : x ≠ negKey t) :
     ({ S.withKept t kept with store := (S.withKept t kept).store.moveTo k j o x u } :
       WExec φ) =
@@ -1204,7 +1207,7 @@ theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ
 
 /-- What a visit finds, by the key `u` of `t.negate`, meets its specification, read back on the
 literals. -/
-theorem WExec.visitSpec_of {S : WExec φ} {t : Literal ℕ} {u k b : ℕ} {v : KeyVisit}
+private theorem WExec.visitSpec_of {S : WExec φ} {t : Literal ℕ} {u k b : ℕ} {v : KeyVisit}
     (hu : u = litKey t.negate) (hA : S.assign.Agrees S.M) (hv : S.store.visit S.assign u k b = v) :
     VisitSpec S.store S.M t.negate ⟨k, litOfKey b⟩ v.lits := by
   subst hu; rw [← hv]; exact S.store.visit_spec hA t.negate k b
@@ -1234,20 +1237,20 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
     let b := ws[n + 1]
     have h : (S.withKept t kept).ProcInv t
         (⟨k, litOfKey b⟩ :: unpackWatchers (ws.toList.take n).reverse) :=
-      unpackWatchers_take_add_two hn ▸ h₀
+      by exact unpackWatchers_take_add_two hn ▸ h₀
     have hn' : n ≤ ws.size := by omega
     have hA : (S.withKept t kept).assign.Agrees (S.withKept t kept).M := h.assign
     match hv : S.store.visit S.assign u k b with
     | .skip =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ .skip :=
-        WExec.visitSpec_of hu hA hv
+        by exact WExec.visitSpec_of hu hA hv
       WExec.processFrom t u hu m c n ws ((kept.push k).push b) S hn'
-        (S.withKept_putBack t kept k b ▸ h.skip hs) hm hc
+        (by exact S.withKept_putBack t kept k b ▸ h.skip hs) hm hc
     | .keep b' =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ (.keep (litOfKey b')) :=
-        WExec.visitSpec_of hu hA hv
+        by exact WExec.visitSpec_of hu hA hv
       WExec.processFrom t u hu m c n ws ((kept.push k).push b') S hn'
         (by
           have h' := h.keep hs
@@ -1256,7 +1259,7 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
     | .move j x b' =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ (.move j (litOfKey x) (litOfKey b')) :=
-        WExec.visitSpec_of hu hA hv
+        by exact WExec.visitSpec_of hu hA hv
       have hx : x ≠ negKey t := by
         obtain ⟨-, -, -, -, -, -, -, -, -, hxf, -⟩ := hs
         intro hxt
@@ -1272,7 +1275,7 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
     | .unit l id =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ (.unit (litOfKey l) id) :=
-        WExec.visitSpec_of hu hA hv
+        by exact WExec.visitSpec_of hu hA hv
       have hun := h.unit hs
       have heq : ((S.withKept t kept).propagateUnit (litOfKey l) id).putBack t k
             (litKey (litOfKey l)) =
@@ -1287,7 +1290,7 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
     | .conflict id =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ (.conflict id) :=
-        WExec.visitSpec_of hu hA hv
+        by exact WExec.visitSpec_of hu hA hv
       match hcl₀ : S.exec.log.clause? id with
       | some cl =>
         have hcl : (S.withKept t kept).exec.log.clause? id = some cl := hcl₀
@@ -1295,7 +1298,7 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
         -- the watchers still to be visited, the current one included, as pairs of numbers
         let rest := ws.extract ((n + 2) % 2) (n + 2)
         have hr := WExec.ProcInv.restore_inv (rest := rest)
-          (by rw [unpackWatchers_extract ws hn]; exact h₀) (size_extract_mod_two ws hn)
+          (by rw [unpackWatchers_extract ws hn]; exact h₀) (by exact size_extract_mod_two ws hn)
         .conflict (S.withKept t (kept ++ rest)) hr.1 (id, cl)
           (by obtain ⟨c', hc', hlog, -⟩ := hcc; rw [hlog] at hcl; cases hcl; exact hc')
           (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hcl; cases hcl; exact hf)
@@ -1306,7 +1309,7 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
     | .drop =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ .drop :=
-        WExec.visitSpec_of hu hA hv
+        by exact WExec.visitSpec_of hu hA hv
       WExec.processFrom t u hu m c n ws kept S hn' (h.drop hs) hm hc
 
 /-! ### Moves at the top level -/
@@ -1316,31 +1319,10 @@ theorem lits_below {N M₀ : Trail} {d : Literal ℕ} {x : Literal ℕ}
     (hx : x ∈ Trail.lits M₀) : x ∈ Trail.lits (N ++ ⟨d, true⟩ :: M₀) := by
   rw [lits_append]; exact List.mem_append_right _ (List.mem_cons_of_mem _ hx)
 
-/-- The learned clause without repetitions, its asserting literal first. -/
-@[expose] def learnedWatched (C : Clause ℕ) (l : Literal ℕ) : Clause ℕ := l :: (dedupLits C).erase l
-
-theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
-    (learnedWatched C l).Perm (dedupLits C) :=
-  (List.perm_cons_erase ((mem_dedupKey litKey_injective).2 hl)).symm
-
 /-- A learned clause has no repetitions. -/
 theorem Learned.dedupLits_clause {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
     dedupLits L.clause = L.clause :=
   dedupKey_of_nodup litKey_injective L.nodup
-
-/-- A learned clause has no repetitions and its asserting literal first, so it is already the
-clause to watch. -/
-theorem Learned.learnedWatched_eq {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
-    learnedWatched L.clause L.lit = L.clause := by
-  rw [learnedWatched, L.dedupLits_clause]
-  have hh := L.head
-  revert hh
-  generalize L.clause = C
-  rcases C with _ | ⟨a, rest⟩
-  · simp
-  · intro hh
-    cases Option.some.inj hh
-    rw [List.erase_cons_head]
 
 /-- The activities `A` after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
 @[expose] def bumpedWith (o : Options) (A : Activity) (vs : List ℕ) : Activity :=

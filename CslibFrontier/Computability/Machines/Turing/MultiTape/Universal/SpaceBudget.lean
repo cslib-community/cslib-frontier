@@ -111,7 +111,8 @@ public lemma take_two_append_take_two (o e : List ℕ) :
   congr 2
   omega
 
-lemma stepOut_iterate_succ (j : ℕ) :
+/-- One more step of `stepOut` appends the optional output symbol of `step`. -/
+public lemma stepOut_iterate_succ (j : ℕ) :
     (stepOut d x)^[j + 1] (init d, []) =
       (run d x (j + 1), ((stepOut d x)^[j] (init d, [])).2 ++
         (step d x (run d x j)).2.toList) := by

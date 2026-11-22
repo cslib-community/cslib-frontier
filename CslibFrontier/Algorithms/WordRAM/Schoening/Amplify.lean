@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.MemoryView
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Trial
@@ -355,24 +355,22 @@ private theorem SetupState.mulAdd {φ : CNF (Fin n)} {k c A w a cy Bd : ℕ} {ds
     (haB : a ≤ Bd)
     (hcB : cy ≤ Bd) (hf : Fits w (2 * Bd)) (hfit : Fits w (A + n + (mulAddDigits a cy ds).length)) :
     ∃ y, ExecWithin w mulAdd x y (10 * (mulAddDigits a cy ds).length + 5) ∧
-      SetupState φ k c A (mulAddDigits a cy ds) y ∧ y.regs outer = x.regs outer := by
+      SetupState φ k c A (mulAddDigits a cy ds) y := by
   obtain ⟨y, hy, hh, hl, hm⟩ := mulAdd_spec h.frame.zero_eq h.frame.one_eq ha hcy h.bLen_eq
     (by rw [h.bBase_eq]; exact h.digits) h.binary haB hcB hf (by rw [h.bBase_eq]; exact hfit)
   rw [h.bBase_eq] at hh hm
-  exact ⟨y, hy, h.of_exec (by decide) hy hm hl hh (mulAddDigits_digit_le a cy ds),
-    hy.regs_eq (by decide)⟩
+  exact ⟨y, hy, h.of_exec (by decide) hy hm hl hh (mulAddDigits_digit_le a cy ds)⟩
 
 /-- A division during the setup. -/
 private theorem SetupState.divFloor {φ : CNF (Fin n)} {k c A w d : ℕ} {ds : List ℕ} {x : Data 24}
     (h : SetupState φ k c A ds x) (hd : 0 < d) (hdv : x.regs dvs = d) (hfd : Fits w (2 * d))
     (hfit : Fits w (A + n + ds.length)) :
     ∃ y, ExecWithin w divFloor x y (10 * ds.length + 4) ∧
-      SetupState φ k c A (divDigits d 0 ds).1 y ∧ y.regs outer = x.regs outer := by
+      SetupState φ k c A (divDigits d 0 ds).1 y := by
   obtain ⟨y, hy, hh, hm⟩ := divFloor_spec hd hfd h.frame.zero_eq h.frame.one_eq hdv h.bLen_eq
     (by rw [h.bBase_eq]; exact h.digits) h.binary (by rw [h.bBase_eq]; exact hfit)
   rw [h.bBase_eq] at hh hm
-  refine ⟨y, hy, h.of_exec (by decide) hy hm ?_ hh (divDigits_digit_le hd hd h.binary),
-    hy.regs_eq (by decide)⟩
+  refine ⟨y, hy, h.of_exec (by decide) hy hm ?_ hh (divDigits_digit_le hd hd h.binary)⟩
   rw [hy.regs_eq (by decide), h.bLen_eq, length_divDigits]
 
 /-- **A counted loop** of the setup: `j` runs of a body taking the counter digits `ds` to
@@ -422,9 +420,7 @@ private theorem SetupState.numStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   refine WP.exists_execWithin ?_
   wram_exec [h.kReg_eq, h.frame.one_eq, h.frame.zero_eq]
   wram_call ((((h.set (by decide) _).set (by decide) _).set (by decide) _).mulAdd
-    (a := 2 * (k - 1)) (cy := 0) (Bd := 2 * (k - 1))
-    (by wram_simp; omega) (by wram_simp) le_rfl (Nat.zero_le _) (hf.of_le (by omega)) hfit)
-    with y ⟨hyS, -⟩
+    (a := 2 * (k - 1)) (cy := 0) (Bd := 2 * (k - 1)) ..) framed with v m hyS
   exact ⟨by omega, hyS⟩
 
 /-- Multiplication by `k` during the setup. -/
@@ -437,9 +433,8 @@ private theorem SetupState.numStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   unfold Schoening.numStep₂
   refine WP.exists_execWithin ?_
   wram_exec [h.kReg_eq, h.frame.zero_eq]
-  wram_call (((h.set (by decide) _).set (by decide) _).mulAdd (a := k) (cy := 0) (Bd := k)
-    (by wram_simp) (by wram_simp) le_rfl (Nat.zero_le _) hf hfit)
-    with y ⟨hyS, -⟩
+  wram_call (((h.set (by decide) _).set (by decide) _).mulAdd (a := k) (cy := 0) (Bd := k) ..)
+    framed with v m hyS
   exact ⟨by omega, hyS⟩
 
 /-- Division by `k`, rounding up, during the setup. -/
@@ -456,11 +451,9 @@ private theorem SetupState.denStep₁ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   unfold Schoening.denStep₁
   wram_exec [h.frame.one_eq, h.kReg_eq]
   wram_call (((h.set (by decide) _).set (by decide) _).mulAdd (a := 1) (cy := k - 1) (Bd := k)
-    (by wram_simp) (by wram_simp) (by omega) (by omega) hf hfit)
-    with y ⟨hyS, -⟩
+    ..) framed with v m hyS
   wram_exec [hyS.kReg_eq]
-  wram_call ((hyS.set (by decide) _).divFloor (d := k) (by omega) (by wram_simp) hf hfit)
-    with z ⟨hzS, -⟩
+  wram_call ((hyS.set (by decide) _).divFloor (d := k) ..) framed with v' m' hzS
   exact ⟨by omega, hzS⟩
 
 /-- Division by `k - 1`, rounding up, during the setup. -/
@@ -478,13 +471,9 @@ private theorem SetupState.denStep₂ {φ : CNF (Fin n)} {k c A w : ℕ} {ds : L
   unfold Schoening.denStep₂
   wram_exec [h.frame.one_eq, h.kReg_eq]
   wram_call ((((h.set (by decide) _).set (by decide) _).set (by decide) _).mulAdd
-    (a := 1) (cy := k - 1 - 1) (Bd := k)
-    (by wram_simp) (by wram_simp) (by omega) (by omega) hf hfit)
-    with y ⟨hyS, -⟩
+    (a := 1) (cy := k - 1 - 1) (Bd := k) ..) framed with v m hyS
   wram_exec [hyS.kReg_eq, hyS.frame.one_eq]
-  wram_call ((hyS.set (by decide) _).divFloor (d := k - 1) (by omega) (by wram_simp)
-    (hf.of_le (by omega)) hfit)
-    with z ⟨hzS, -⟩
+  wram_call ((hyS.set (by decide) _).divFloor (d := k - 1) ..) framed with v' m' hzS
   exact ⟨by omega, hzS⟩
 
 /-- **Computing the trial count.** From an empty counter, the setup leaves the digits
@@ -507,9 +496,7 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
   -- the counter starts at `3 n + 1`
   wram_exec [h.frame.zero_eq, h.frame.one_eq, h.frame.nReg_eq]
   wram_call (((((h.set (by decide) _).set (by decide) _).set (by decide) _).set
-    (by decide) _).mulAdd (a := 0) (cy := 3 * n + 1) (Bd := 3 * n + 1)
-    (by wram_simp) (by wram_simp; omega) (Nat.zero_le _) le_rfl (hfm.of_le (by omega)) (hfl hL₀))
-    with y₀ ⟨hS₀, -⟩
+    (by decide) _).mulAdd (a := 0) (cy := 3 * n + 1) (Bd := 3 * n + 1) ..) framed with v₀ m₀ hS₀
   -- multiply by `2 (k - 1)`, `n` times
   refine WP.seq ?_
   wram_call (hS₀.repeatCode (lim := nReg) (body := numStep₁) (j := n) (Tb := 10 * ℓ + 8)
@@ -553,13 +540,12 @@ theorem countSetup_exec {φ : CNF (Fin n)} {k c A w : ℕ} {x : Data 24} (hk : 3
     with y₄ hS₄
   -- multiply by `c`
   wram_exec [hS₄.cReg_eq, hS₄.frame.zero_eq]
-  wram_call (((hS₄.set (by decide) _).set (by decide) _).mulAdd (a := c) (cy := 0) (Bd := c)
-    (by wram_simp) (by wram_simp) le_rfl (Nat.zero_le _) (hfm.of_le (by omega)) (hfl hlast))
-    with y₅ ⟨hS₅, -⟩
-  refine ⟨?_, hS₅⟩
-  simp only [setupTime, ← hℓ]
   have hlast' : (mulAddDigits c 0 ((ceilStep (k - 1))^[k - 3]
       ((ceilStep k)^[n] (numeratorDigits k n)))).length ≤ ℓ := hlast
+  wram_call (((hS₄.set (by decide) _).set (by decide) _).mulAdd (a := c) (cy := 0) (Bd := c) ..)
+    framed with v₅ m₅ hS₅
+  refine ⟨?_, hS₅⟩
+  simp only [setupTime, ← hℓ]
   have hkn : k - 3 ≤ k := Nat.sub_le k 3
   nlinarith
 

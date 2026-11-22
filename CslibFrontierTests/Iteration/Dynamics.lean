@@ -69,13 +69,13 @@ example : ∃ out : Circuit signature 1 (labelWidth 1),
   simpa [flip] using cycle_label_circuit flip 1 one_pos (by decide)
 
 example : ∃ out : Circuit signature 1 (1 + 2),
-    (∀ x, word (out.eval interpretation x) =
+    (∀ x, BitString.equivBitVec (out.eval interpretation x) =
       BitVec.ofNat 3 (transientDepth (flip.eval interpretation) x)) ∧
       out.size ≤ 50000 * powerBudget 1 1 2 1 := by
   simpa [flip] using checkpoint_depth_circuit flip 1 one_pos (by decide)
 
 example (c : Circuit signature 2 2) : ∃ out : Circuit signature 2 (2 + 2),
-    (∀ x, word (out.eval interpretation x) =
+    (∀ x, BitString.equivBitVec (out.eval interpretation x) =
       BitVec.ofNat 4 (transientDepth (c.eval interpretation) x)) ∧
       (out.size : ℝ) ≤ 600000 * (2 + 1 : ℝ) ^ 2 * optimizedBudget 2 c.size 4 := by
   simpa using depth_circuit_optimized c
@@ -86,7 +86,8 @@ example : ∃ out : Circuit signature 1 (1 + (1 + 2)),
       ∃ t, (Circuit.id signature 1).eval interpretation ((flip.eval interpretation)^[t] x) 0 =
         true) ∧
     (∀ x, out.eval interpretation x 0 = true →
-      let t := (word fun i : Fin (1 + 2) => out.eval interpretation x (Fin.natAdd 1 i)).toNat
+      let t := (BitString.equivBitVec fun i : Fin (1 + 2) =>
+        out.eval interpretation x (Fin.natAdd 1 i)).toNat
       (Circuit.id signature 1).eval interpretation ((flip.eval interpretation)^[t] x) 0 = true ∧
         (∀ j < t, (Circuit.id signature 1).eval interpretation
           ((flip.eval interpretation)^[j] x) 0 ≠ true) ∧ t < 2 ^ 1) ∧
@@ -96,7 +97,7 @@ example : ∃ out : Circuit signature 1 (1 + (1 + 2)),
 
 -- The constant circuit fixes its only halting state, and every orbit halts.
 example : ∃ out : Circuit signature 1 (1 + 2),
-    (∀ x ∈ Set.univ, let t := (word (out.eval interpretation x)).toNat
+    (∀ x ∈ Set.univ, let t := (BitString.equivBitVec (out.eval interpretation x)).toNat
       (zero.eval interpretation)^[t] x = (fun _ => false) ∧
         (∀ j < t, ¬(zero.eval interpretation)^[j] x = (fun _ => false)) ∧ t < 2 ^ 1) ∧
     (out.size : ℝ) ≤ 150000 * optimizedBudget 1 zero.size (2 ^ 1) :=
@@ -178,10 +179,10 @@ example (T : ℕ) : ∃ out : Circuit signature 1 1,
 
 -- Remainders of a three-bit number modulo a two-bit modulus.
 example : ∃ out : Circuit signature (3 + 2) 2,
-    (∀ x, 0 < (word fun i : Fin 2 => x (Fin.natAdd 3 i)).toNat →
-      (word (out.eval interpretation x)).toNat =
-        (word fun i : Fin 3 => x (Fin.castAdd 2 i)).toNat %
-          (word fun i : Fin 2 => x (Fin.natAdd 3 i)).toNat) ∧
+    (∀ x, 0 < (BitString.equivBitVec fun i : Fin 2 => x (Fin.natAdd 3 i)).toNat →
+      (BitString.equivBitVec (out.eval interpretation x)).toNat =
+        (BitString.equivBitVec fun i : Fin 3 => x (Fin.castAdd 2 i)).toNat %
+          (BitString.equivBitVec fun i : Fin 2 => x (Fin.natAdd 3 i)).toNat) ∧
     out.size ≤ 1 + 3 * (22 * (2 + 1) + 3) :=
   bounded_modulus_remainder 3 2
 

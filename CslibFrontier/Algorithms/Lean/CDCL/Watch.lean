@@ -17,12 +17,15 @@ by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position o
 *blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is skipped
 without reading its clause.
 
-The store holds numbers only, so that the solver follows no pointer to read a literal and
-allocates nothing to move a watch or keep a watcher. A literal is its key `2 * v + b` (`litKey`,
-the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a bijection
-between literals and numbers. A clause is an array of numbers: the keys of its literals, then its
-number (`WatchStore.codes`). A watch list is an array of numbers, two per watcher: the position of
-the clause and the key of the blocker.
+The store holds numbers only, so that the solver follows no pointer to read a literal, and moving a
+watch or keeping a watcher makes no object for the watcher or the literal. This holds for numbers
+in the scalar range of Lean's runtime: a larger number is boxed. The arrays are written in place
+when they are not shared and have room; otherwise `Array.push` grows or copies them, and adding a
+watch may also grow the array of watch lists (`addWatch`). A literal is its key `2 * v + b`
+(`litKey`, the word code `Cslib.Algorithms.WordRAM.ClauseCode.litCode`), decoded by `litOfKey`, a
+bijection between literals and numbers. A clause is an array of numbers: the keys of its literals,
+then its number (`WatchStore.codes`). A watch list is an array of numbers, two per watcher: the
+position of the clause and the key of the blocker.
 
 The invariants are stated on the store read back (the representation): its clauses, numbered
 arrays of literals (`WatchStore.clauses`, by `decodeClause`), and the watchers of a watch list,
@@ -74,8 +77,10 @@ structure Watcher where
 abbrev clauseIds (L : List Watcher) : List ℕ := L.map Watcher.clause
 
 /-- **The watch lists**: for each index (`litKey`), an array of numbers, two for each watcher: the
-position of its clause, then the key of its blocker (`litKey`). Small numbers are unboxed at run
-time, so a watch list holds no pointers, and keeping or adding a watcher allocates nothing. -/
+position of its clause, then the key of its blocker (`litKey`). Numbers in the scalar range are
+unboxed at run time, so a watch list of them holds no pointers, and keeping or adding a watcher
+makes no object of its own. Pushing writes in place only when the array is not shared and has
+room, and otherwise grows or copies it. -/
 abbrev Watches : Type := Array (Array ℕ)
 
 /-- **The watchers of a watch list read backwards**: two numbers each, the key of the blocker and
@@ -497,7 +502,12 @@ def WatchStore.visit (S : WatchStore) (A : Assign) (u k b : ℕ) : KeyVisit :=
 key `x` at position `j`, with the other watched literal, of key `o`, as blocker: as MiniSat does,
 the clause becomes `o`, `x`, then the others with `u` in place of `x`, written into its array in
 place, and the watch list of `x` gets the watcher. The arrays are taken out of the store first, so
-that they are updated in place when the store is not shared. -/
+that they are updated in place when the store is not shared.
+
+The position `j` must be one of the clause's literals but the watched ones: `1 < j` and
+`j + 1 < a.size` for the array `a` of the clause at `k`, as `WatchStore.visit` finds it and
+`WatchStore.clauses_moveTo` assumes. The last number of `a` is the clause's number, which
+`j = a.size - 1` would overwrite; nothing here checks the bound. -/
 @[expose] def WatchStore.moveTo (S : WatchStore) (k j o x u : ℕ) : WatchStore :=
   let codes := S.codes
   let watches := S.watches
@@ -809,65 +819,6 @@ theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
 
 /-! #### Removing repetitions with a shared array -/
 
-/-- **Removing repetitions with marks kept between clauses**: `dedupKeyGo litKey`
-(`dedupLitsGo_fst`), also returning the array with the literals kept marked. -/
-@[expose] def dedupLitsGo : Clause ℕ → Array Bool → Clause ℕ → Clause ℕ × Array Bool
-  | [], m, acc => (acc.reverse, m)
-  | x :: xs, m, acc =>
-    if m.getD (litKey x) false then dedupLitsGo xs m acc
-    else dedupLitsGo xs (m.setIfInBounds (litKey x) true) (x :: acc)
-
-theorem dedupLitsGo_fst : ∀ (xs : Clause ℕ) (m : Array Bool) (acc : Clause ℕ),
-    (dedupLitsGo xs m acc).1 = dedupKeyGo litKey xs m acc
-  | [], _, _ => rfl
-  | x :: xs, m, acc => by
-    rw [dedupLitsGo, dedupKeyGo]
-    split
-    · exact dedupLitsGo_fst xs m acc
-    · exact dedupLitsGo_fst xs _ (x :: acc)
-
-/-- The array returned marks the literals seen, those of `acc` and of `xs`. -/
-theorem dedupLitsGo_snd : ∀ (xs : Clause ℕ) (m : Array Bool) (acc : Clause ℕ),
-    (∀ x ∈ xs, litKey x < m.size) → (∀ y, m.getD (litKey y) false = true ↔ y ∈ acc) →
-    ∀ y, (dedupLitsGo xs m acc).2.getD (litKey y) false = true ↔ y ∈ acc ∨ y ∈ xs
-  | [], m, acc, _, hm => fun y => by simpa [dedupLitsGo] using hm y
-  | x :: xs, m, acc, hsize, hm => by
-    have hx : litKey x < m.size := hsize x List.mem_cons_self
-    have hsize' : ∀ y ∈ xs, litKey y < m.size := fun y hy => hsize y (List.mem_cons_of_mem _ hy)
-    rw [dedupLitsGo]
-    by_cases hmark : m.getD (litKey x) false = true
-    · rw [ite_eq_left hmark]
-      have h₁ := dedupLitsGo_snd xs m acc hsize' hm
-      have hxa : x ∈ acc := (hm x).1 hmark
-      intro y
-      rw [h₁, List.mem_cons]
-      constructor
-      · rintro (h | h)
-        · exact .inl h
-        · exact .inr (.inr h)
-      · rintro (h | rfl | h)
-        · exact .inl h
-        · exact .inl hxa
-        · exact .inr h
-    · rw [ite_eq_right hmark]
-      have hm' : ∀ y, (m.setIfInBounds (litKey x) true).getD (litKey y) false = true ↔
-          y ∈ x :: acc := fun y => by
-        simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.mem_cons]
-        by_cases hyx : litKey x = litKey y
-        · have := litKey_injective hyx
-          subst this
-          simp [hx]
-        · rw [ite_eq_right hyx]
-          have := hm y
-          simp only [Array.getD_eq_getD_getElem?] at this
-          rw [this]
-          exact ⟨.inr, fun h => h.resolve_left fun h' => hyx (h' ▸ rfl)⟩
-      have h₁ := dedupLitsGo_snd xs _ (x :: acc) (fun y hy => by simpa using hsize' y hy) hm'
-      intro y
-      rw [h₁]
-      simp only [List.mem_cons]
-      tauto
-
 /-- Clearing the marks of the literals `L`. -/
 @[expose] def clearKeys (L : Clause ℕ) (m : Array Bool) : Array Bool :=
   L.foldl (fun m x => m.setIfInBounds (litKey x) false) m
@@ -895,7 +846,7 @@ again: the array is not allocated per clause, as `dedupLits` allocates it. If a 
 lies beyond the array, `dedupLits` is used instead. -/
 @[expose] def dedupWith (m : Array Bool) (c : Clause ℕ) : Clause ℕ × Array Bool :=
   if c.all fun l => decide (litKey l < m.size) then
-    let r := dedupLitsGo c m []
+    let r := dedupKeyGo litKey c m []
     (r.1, clearKeys r.1 r.2)
   else (dedupLits c, m)
 
@@ -906,14 +857,9 @@ theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ) (hm : ∀ y, m.getD (li
   · rename_i hall
     have hsize : ∀ x ∈ c, litKey x < m.size := by simpa using hall
     have hm0 : ∀ y, m.getD (litKey y) false = true ↔ y ∈ ([] : Clause ℕ) := by simp [hm]
-    obtain ⟨h₁, h₂⟩ := dedupKeyGo_spec litKey_injective c m [] hsize hm0 List.nodup_nil
-    have h₃ := dedupLitsGo_snd c m [] hsize hm0
-    dsimp only
-    rw [dedupLitsGo_fst]
-    refine ⟨(List.perm_ext_iff_of_nodup h₂ (List.nodup_dedup c)).2 fun l => by
-      rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => ?_⟩
-    rw [h₁]
-    exact (h₃ y).1 hy
+    obtain ⟨h₁, h₂, h₃⟩ := dedupKeyGo_spec litKey_injective c m [] hsize hm0 List.nodup_nil
+    exact ⟨(List.perm_ext_iff_of_nodup h₂ (List.nodup_dedup c)).2 fun l => by
+      rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => (h₃ y).1 hy⟩
   · exact ⟨dedupLits_perm c, hm⟩
 
 /-- The watch store of `F`, as `WatchStore.build`, removing repetitions with the marks `m`, which

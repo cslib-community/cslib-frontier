@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.NodeSeeds
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Subconstant-Redundancy Pure Storage Nodes and Metadata Separation
@@ -886,8 +887,7 @@ theorem rootKeys_le_rootValPoolCap {rootKeys totalActive : ℕ}
     (hcap : totalActive ≤ P.cap) :
     rootKeys ≤ P.rootValPoolCap := by
   rw [P.leaf_add_inner_slots_eq] at hpart
-  dsimp only [rootValPoolCap]
-  omega
+  wram_omega
 
 end TreeSchedule
 

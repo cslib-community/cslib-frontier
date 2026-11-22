@@ -7,8 +7,9 @@ Authors: Erik Demaine, OpenAI
 module
 -- upstream: candidate
 
-public import CslibFrontier.Foundations.Geometry.Polygonal.Route
+public import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -16,9 +17,9 @@ import Mathlib.Algebra.BigOperators.Fin
 
 `Route.sum_segment_endpoint_incidence` keeps both ends and every internal bend occurrence.
 `Route.rayParity_endpoints_add_eq_sum_intersections` applies the straight observation law
-on every actual segment, with explicit reciprocal closed endpoint exclusions. It is a
-component theorem, not a drawing perturbation or recognition theorem. The positioned
-embedding necessity construction and full #3091 remain separate obligations.
+on every actual segment, with explicit reciprocal closed endpoint exclusions. Route ray
+parity also adds under concatenation and is invariant under reversal, so a closed excursion
+retains the loop's parity when the connector is retraced.
 -/
 
 public section
@@ -94,5 +95,54 @@ theorem rayParity_endpoints_add_eq_sum_intersections {ι : Type*} [Fintype ι]
   simp only [hterm, hpiece, f, dite_eq_left (by omega : p.segments < p.segments + 1),
     dite_eq_left (by omega : 0 < p.segments + 1), sub_eq_add_neg, BooleanRing.neg_eq] at hsum
   exact hsum.symm
+
+/-- Ray parity of the actual route segments after multiplication by a common complex
+coordinate factor. Every occurrence contributes, including coincident or retraced pieces. -/
+@[expose] noncomputable def rayParity (p : Route) (u z : ℂ) : Bool :=
+  Cslib.Polygonal.rayParity (fun i : Fin p.segments => u * p.point i.castSucc)
+    (fun i => u * p.point i.succ) (fun _ => true) (u * z)
+
+/-- When the ends match, each piece of a concatenation contributes its original bit. -/
+theorem rayParity_concat (p q : Route) (h : p.finish = q.start) (u z : ℂ) :
+    (p.concat q).rayParity u z = p.rayParity u z + q.rayParity u z := by
+  classical
+  unfold Route.rayParity Cslib.Polygonal.rayParity
+  exact sum_segments_concat p q h (fun a b =>
+    if RayCrosses (u * a) (u * b) (u * z) then true else 0)
+
+/-- Reversing a route leaves its ray parity unchanged at every point. -/
+theorem rayParity_reverse (p : Route) (u z : ℂ) :
+    p.reverse.rayParity u z = p.rayParity u z := by
+  classical
+  unfold Route.rayParity Cslib.Polygonal.rayParity
+  let e : Fin p.segments ≃ Fin p.segments := ⟨Fin.rev, Fin.rev, Fin.rev_rev, Fin.rev_rev⟩
+  change (∑ i : Fin p.segments,
+    if RayCrosses (u * p.point i.castSucc.rev) (u * p.point i.succ.rev) (u * z)
+      then (true : Bool) else 0) = _
+  calc
+    _ = ∑ i : Fin p.segments,
+        if RayCrosses (u * p.point i.rev.castSucc) (u * p.point i.rev.succ) (u * z)
+          then (true : Bool) else 0 := by
+      apply Finset.sum_congr rfl
+      intro i _
+      rw [Fin.rev_castSucc, Fin.rev_succ,
+        rayCrosses_reverse (u * p.point i.rev.castSucc) (u * p.point i.rev.succ) (u * z)]
+    _ = _ := Equiv.sum_comp e (fun i =>
+      if RayCrosses (u * p.point i.castSucc) (u * p.point i.succ) (u * z) then true else 0)
+
+/-- Following a connector to a closed route and retracing the connector contributes
+exactly the parity of the closed route. -/
+theorem rayParity_closed_excursion (c p : Route) (hjoin : c.finish = p.start)
+    (hclosed : p.finish = p.start) (u z : ℂ) :
+    ((c.concat p).concat c.reverse).rayParity u z = p.rayParity u z := by
+  have hreturn : (c.concat p).finish = c.reverse.start := by
+    change (c.concat p).endpoint true = c.reverse.endpoint false
+    rw [endpoint_concat c p hjoin, endpoint_reverse]
+    simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
+  rw [rayParity_concat (c.concat p) c.reverse hreturn, rayParity_concat c p hjoin,
+    rayParity_reverse]
+  calc
+    _ = (c.rayParity u z + c.rayParity u z) + p.rayParity u z := by ac_rfl
+    _ = _ := by rw [BooleanRing.add_self, zero_add]
 
 end Cslib.Polygonal.Route
