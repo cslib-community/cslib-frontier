@@ -22,11 +22,12 @@ Byzantine agreement for `n > 3t` in `t + 1` rounds by relaying full trees of dep
 message size grows exponentially in `t`. This module formalizes two classic
 polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
 
-1. **Berman–Garay–Perry Phase-King** ([Berman, Garay and Perry][BermanGarayPerry1989]): a
-   `2 * (t + 1)`-round deterministic protocol `phaseKing` over any `[DecidableEq V]` for
-   `4 * t < Fintype.card P` in which **every point-to-point message is a single value of `V`**
-   (`Msg = V`) and each process stores only three `O(1)`-sized fields (`PhaseKingState V`).
-   Given an injective schedule `kings : Fin (t + 1) ↪ P` of `t + 1` phase kings:
+1. **2-round Phase-King** ([Berman and Garay][BermanGaray1989]; extended to 3-round-per-phase
+   `3 * t < n` in [Berman, Garay and Perry][BermanGarayPerry1989]): a `2 * (t + 1)`-round
+   deterministic protocol `phaseKing` over any `[DecidableEq V]` for `4 * t < Fintype.card P` in
+   which **every point-to-point message is a single value of `V`** (`Msg = V`) and each process
+   stores only three `O(1)`-sized fields (`PhaseKingState V`). Given an injective schedule
+   `kings : Fin (t + 1) ↪ P` of `t + 1` phase kings:
    * In round `2 * k` (universal broadcast), every process broadcasts its current estimate `est`.
      Because `4 * t < n` implies `n < 2 * (n - 2 * t)`, at most one value `x : V` appears at least
      `n - 2 * t` times (and a fortiori at most one appears at least `n - t` times). Each process
@@ -91,8 +92,8 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
 * `Cslib.Distributed.Byzantine.uniqueAboveOn`: unique value on a finite domain meeting a
   multiplicity threshold `k`.
 * `Cslib.Distributed.Byzantine.PhaseKingState`: three-field local state of `phaseKing`.
-* `Cslib.Distributed.Byzantine.phaseKing`: 2-round-per-phase Berman–Garay–Perry Phase-King
-  protocol (`Msg = V`).
+* `Cslib.Distributed.Byzantine.phaseKing`: 2-round-per-phase Berman–Garay Phase-King protocol
+  (`Msg = V`, `4 * t < Fintype.card P`).
 * `Cslib.Distributed.Byzantine.TurpinCoanMsg`, `Cslib.Distributed.Byzantine.TurpinCoanState`:
   message sum and local state of `turpinCoan`.
 * `Cslib.Distributed.Byzantine.turpinCoan`: `(R₀ + 2)`-round Turpin–Coan multivalued-to-binary
@@ -102,8 +103,6 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
 
 ## Main results
 
-* `Cslib.Distributed.Byzantine.MultivaluedProtocol.SolvesByzantineAgreement.mono`: tolerating `t`
-  faults implies tolerating `t' ≤ t` faults.
 * `Cslib.Distributed.Byzantine.MultivaluedProtocol.not_solvesByzantineAgreement`: no protocol over
   a nontrivial value domain tolerates `t` faults when `2 ≤ Fintype.card P ≤ 3 * t`.
 * `Cslib.Distributed.Byzantine.uniqueAboveOn_eq_some_iff`,
@@ -113,8 +112,6 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
   across every 2-round phase whenever `2 * t < Fintype.card P`.
 * `Cslib.Distributed.Byzantine.phaseKing_converges_of_notMem`: a phase with a correct king brings
   all correct processes to the same estimate whenever `4 * t < Fintype.card P`.
-* `Cslib.Distributed.Byzantine.phaseKing_state_eq_of_le`: `phaseKing` freezes its local state after
-  round `2 * (t + 1)`.
 * `Cslib.Distributed.Byzantine.phaseKing_solvesByzantineAgreement`: `phaseKing` solves multivalued
   Byzantine agreement in `R ≥ 2 * (t + 1)` rounds whenever `4 * t < Fintype.card P`.
 * `Cslib.Distributed.Byzantine.exists_polyMsg_solvesByzantineAgreement`: existence of a
@@ -129,8 +126,12 @@ polynomial-communication constructions in `Cslib.Distributed.Byzantine`:
 
 ## References
 
+* [P. Berman, J. A. Garay, *Asymptotically optimal distributed consensus (extended
+  abstract)*][BermanGaray1989]
 * [P. Berman, J. A. Garay, K. J. Perry, *Towards optimal distributed
   consensus*][BermanGarayPerry1989]
+* [M. J. Fischer, N. A. Lynch, M. Merritt, *Easy impossibility proofs for distributed consensus
+  problems*][FischerLynchMerritt1985]
 * [R. Turpin, B. A. Coan, *Extending binary Byzantine agreement to multivalued Byzantine
   agreement*][TurpinCoan1984]
 -/
@@ -344,7 +345,7 @@ theorem uniqueAboveOn_eq_some_iff_of_lt_two_mul {P V : Type*} [DecidableEq V] {d
   rw [Finset.card_union_of_disjoint hdisj] at hle
   omega
 
-/-! ### Berman–Garay–Perry Phase-King (`4 * t < n`) -/
+/-! ### Berman–Garay 2-round Phase-King (`4 * t < n`) -/
 
 /-- Local state of a process in the 2-round-per-phase `phaseKing` protocol: its current estimate
 `est`, the tie-break value `kingProposal` it would broadcast as phase king in the second round of
@@ -363,7 +364,8 @@ section PhaseKing
 
 variable {P V : Type*} [Fintype P] [DecidableEq P] [DecidableEq V]
 
-/-- **Berman–Garay–Perry Phase-King protocol** ([Berman, Garay and Perry][BermanGarayPerry1989]).
+/-- **2-round-per-phase Phase-King protocol** ([Berman and Garay][BermanGaray1989]; baseline for
+the 3-round-per-phase `3 * t < n` extension of [Berman, Garay and Perry][BermanGarayPerry1989]).
 
 Runs `t + 1` two-round phases indexed by `kings : Fin (t + 1) ↪ P`, with every point-to-point
 message a single element of `V`:
@@ -524,10 +526,10 @@ theorem phaseKing_state_eq_of_le {t : ℕ} (kings : Fin (t + 1) ↪ P) (F : Fins
     simp only [MultivaluedProtocol.state, phaseKing, hnot, ↓reduceDIte]
     exact congrFun ih i
 
-/-- **Berman–Garay–Perry Phase-King correctness**
-([Berman, Garay and Perry][BermanGarayPerry1989]): whenever `4 * t < Fintype.card P` and
-`2 * (t + 1) ≤ R`, `phaseKing t kings` solves multivalued Byzantine agreement against at most `t`
-faults in `R` rounds with single-value messages (`Msg = V`). -/
+/-- **2-round Phase-King correctness** ([Berman and Garay][BermanGaray1989]; extended to 3-round
+phases for `3 * t < n` in [Berman, Garay and Perry][BermanGarayPerry1989]): whenever
+`4 * t < Fintype.card P` and `2 * (t + 1) ≤ R`, `phaseKing t kings` solves multivalued Byzantine
+agreement against at most `t` faults in `R` rounds with single-value messages (`Msg = V`). -/
 theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
     (hn : 4 * t < Fintype.card P) {R : ℕ} (hR : 2 * (t + 1) ≤ R) :
     (phaseKing t kings (V := V)).SolvesByzantineAgreement t R where
@@ -562,11 +564,12 @@ theorem phaseKing_solvesByzantineAgreement {t : ℕ} (kings : Fin (t + 1) ↪ P)
 end PhaseKing
 
 /-- **Existence of polynomial-message Byzantine agreement for `4 * t < Fintype.card P`**
-([Berman, Garay and Perry][BermanGarayPerry1989]): whenever `4 * t < Fintype.card P` and
-`2 * (t + 1) ≤ R`, there exists a synchronous protocol over `V` with constant-field local state
-`PhaseKingState V` and message alphabet `V` itself (`2 * (t + 1) * (|P| - |F|) * |P|` honest
-point-to-point transmissions across the `2 * (t + 1)` active rounds) solving `t`-resilient
-Byzantine agreement in `R` rounds. -/
+([Berman and Garay][BermanGaray1989]; see [Berman, Garay and Perry][BermanGarayPerry1989] for the
+3-round-per-phase `3 * t < n` extension, and `turpinCoan_solvesByzantineAgreement` below for
+`3 * t < n` multivalued reduction): whenever `4 * t < Fintype.card P` and `2 * (t + 1) ≤ R`, there
+exists a synchronous protocol over `V` with constant-field local state `PhaseKingState V` and
+message alphabet `V` itself (`2 * (t + 1) * (|P| - |F|) * |P|` honest point-to-point transmissions
+across the `2 * (t + 1)` active rounds) solving `t`-resilient Byzantine agreement in `R` rounds. -/
 theorem exists_polyMsg_solvesByzantineAgreement {P : Type*} [Fintype P] [DecidableEq P]
     (V : Type*) {t R : ℕ} (hn : 4 * t < Fintype.card P) (hR : 2 * (t + 1) ≤ R) :
     ∃ π : MultivaluedProtocol P (PhaseKingState V) V V, π.SolvesByzantineAgreement t R := by

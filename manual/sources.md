@@ -247,10 +247,15 @@ deposit. The book's full text was inaccessible in this pass: internal locator no
 The formalization uses the later Robinson–Ollinger route described under
 [Jeandel–Vanier](#jeandelvanier2020), ported from the pinned lean-wang revision there.
 
+<a id="bermangaray1989"></a>
+## bermangaray1989
+
+Piotr Berman and Juan A. Garay. "Asymptotically Optimal Distributed Consensus (Extended Abstract)." *Automata, Languages and Programming (ICALP 1989)*, Lecture Notes in Computer Science 372, 80–94, Springer, 1989. https://doi.org/10.1007/BFb0035753 . Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full proceedings PDF was not inspected, so no numbered section or theorem locator is asserted. Cited by [Byzantine/PhaseKing.lean](../CslibFrontier/Computability/Distributed/Byzantine/PhaseKing.lean) as the source of the 2-round-per-phase `phaseKing` protocol (`4 * t < Fintype.card P`, `2 * (t + 1)` rounds, `Msg = V`): in round `2 * k` the phase king selects the unique value with multiplicity at least `n - 2 * t` (defaulting to its own estimate `est`), and in round `2 * k + 1` each process locks onto any value that achieved multiplicity at least `n - t` in round `2 * k` and adopts the phase king's broadcast otherwise.
+
 <a id="bermangarayperry1989"></a>
 ## bermangarayperry1989
 
-Piotr Berman, Juan A. Garay and Kenneth J. Perry. "Towards Optimal Distributed Consensus." *30th Annual Symposium on Foundations of Computer Science (FOCS 1989)*, 410–415, 1989. https://doi.org/10.1109/SFCS.1989.63511 . Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full proceedings PDF was not inspected, so no numbered section or theorem locator is asserted. Cited by [Byzantine/PhaseKing.lean](../CslibFrontier/Computability/Distributed/Byzantine/PhaseKing.lean) for the 2-round-per-phase `phaseKing` protocol (`4 * t < Fintype.card P`, `2 * (t + 1)` rounds, `Msg = V`): in round `2 * k` the phase king selects the unique value with multiplicity at least `n - 2 * t` (defaulting to its own estimate `est`), and in round `2 * k + 1` each process locks onto any value that achieved multiplicity at least `n - t` in round `2 * k` and adopts the phase king's broadcast otherwise.
+Piotr Berman, Juan A. Garay and Kenneth J. Perry. "Towards Optimal Distributed Consensus." *30th Annual Symposium on Foundations of Computer Science (FOCS 1989)*, 410–415, 1989. https://doi.org/10.1109/SFCS.1989.63511 . Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full proceedings PDF was not inspected, so no numbered section or theorem locator is asserted. Cited in [Byzantine/PhaseKing.lean](../CslibFrontier/Computability/Distributed/Byzantine/PhaseKing.lean) for the Phase-King framework and its 3-round-per-phase extension of [Berman and Garay](#bermangaray1989) from `4 * t < n` to optimal `3 * t < n` resilience; `PhaseKing.lean` formalizes the 2-round-per-phase `4 * t < n` Phase-King baseline (`phaseKing`) together with its `Fin 4, t = 1` sharpness counterexample (`phaseKing_fails_four_one`), and reaches `3 * t < n` multivalued resilience with single-round `V` broadcast via the [Turpin–Coan](#turpincoan1984) reduction (`turpinCoan`).
 
 <a id="bermanhartmanis75"></a>
 ## bermanhartmanis75
