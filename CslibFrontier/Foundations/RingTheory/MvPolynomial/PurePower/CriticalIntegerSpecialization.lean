@@ -34,6 +34,44 @@ coefficient-norm bound of `2 ^ b`. -/
 @[expose] def criticalParameterExponent (n ell b : ℕ) : ℕ :=
   Polynomial.parameterExclusionExponent (ell ^ n) (parametricValueCoeffNormExponent n ell b)
 
+/-- At parameter `2 ^ s`, the specialized lower relations and deformed objective share
+the symbolic coefficient norm allowance plus `s` bits. This is the specialization step
+of `FiniteCriticalMassBounds` in the pinned lean-canny revision above. -/
+theorem criticalSystem_coeffNorm1_at_pow_two_le {n ell b : ℕ} (hell : 1 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
+    (s : ℕ) :
+    let a : Fin n → ℤ := fun i => separatedCenters ell i
+    let u : ℤ := 2 ^ s
+    let bound := 2 ^ (criticalSystemCoeffNormExponent n ell b + s)
+    (∀ i, (criticalLower ell a u F i).coeffNorm1 ≤ bound) ∧
+      (deformedPolynomial ell a u F).coeffNorm1 ≤ bound := by
+  intro a u bound
+  let R := criticalSystemCoeffNormExponent n ell b
+  have hu : u.natAbs = 2 ^ s := by
+    change ((2 : ℤ) ^ s).natAbs = _
+    rw [Int.natAbs_pow]
+    rfl
+  have hcomp : (Polynomial.evalRingHom u).comp Polynomial.C = RingHom.id ℤ := by
+    ext z
+    simp
+  have specialize (p : MvPolynomial (Fin n) (Polynomial ℤ))
+      (hp : HasParameterDegree p 1) (hn : ParameterCoeffNorm.norm p ≤ 2 ^ R) :
+      (p.map (Polynomial.evalRingHom u)).coeffNorm1 ≤ bound := by
+    have h := ParameterCoeffNorm.coeffNorm1_map_evalRingHom_le p u
+      (hu.symm ▸ Nat.one_le_two_pow) hp
+    rw [hu, pow_one] at h
+    exact h.trans ((Nat.mul_le_mul_right _ hn).trans_eq (pow_add 2 _ _).symm)
+  obtain ⟨hrdeg, hvdeg⟩ := criticalSystem_hasParameterDegree ell F
+  obtain ⟨hrnorm, hvnorm⟩ := criticalSystem_norm_le hell F hF hb
+  constructor
+  · intro i
+    simpa only [criticalLower_map, Polynomial.coe_evalRingHom, Polynomial.eval_C,
+      Polynomial.eval_X, MvPolynomial.map_map, hcomp, MvPolynomial.map_id, a] using
+      specialize _ (hrdeg i) (hrnorm i)
+  · simpa only [deformedPolynomial_map, Polynomial.coe_evalRingHom, Polynomial.eval_C,
+      Polynomial.eval_X, MvPolynomial.map_map, hcomp, MvPolynomial.map_id, a] using
+      specialize _ hvdeg hvnorm
+
 /-- Bound the integer characteristic polynomial's coefficient norm at parameter `2 ^ s`.
 The exponent includes the symbolic norm allowance and `s` times the parameter-degree bound. -/
 theorem coeffNorm1_valuePolynomial_at_pow_two_le {n ell b : ℕ} (hell : 2 ≤ ell)

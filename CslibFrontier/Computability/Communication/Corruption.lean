@@ -79,8 +79,8 @@ private theorem toReal_eq_le_add_distributionalError [Fintype X] [Fintype Y]
       (∑ q : X × Y, if p.run q.1 q.2 = z ∧ f q.1 q.2 = z then (ν q).toReal else 0) +
         p.distributionalError ν (fun x y b => f x y = b) := by
   classical
-  simp only [Protocol.distributionalError, PMF.toOuterMeasure_apply_toReal, Set.mem_ofPred_eq,
-    ← sum_add_distrib]
+  simp only [Protocol.distributionalError, PMF.errorProb_eq_sum, PMF.toOuterMeasure_apply_toReal,
+    Set.mem_ofPred_eq, ← sum_add_distrib]
   refine sum_le_sum fun q _ => ?_
   split_ifs <;> simp_all
 
@@ -111,10 +111,8 @@ theorem mul_sub_distributionalError_le (h : Corrupted ν f z α δ) (hα : 0 ≤
     · exact_mod_cast (card_le_univ _).trans (by simpa using p.leafCount_le_two_pow_depth)
   -- The masses involved, as sums over all pairs of inputs.
   set E := p.distributionalError ν (fun x y b => f x y = b)
-  have hE : E = ∑ q : X × Y, if f q.1 q.2 = p.run q.1 q.2 then 0 else (ν q).toReal := by
-    simp only [E, Protocol.distributionalError, PMF.toOuterMeasure_apply_toReal,
-      Set.mem_ofPred_eq]
-    exact sum_congr rfl fun q _ => by split_ifs <;> simp_all
+  have hE : E = ∑ q : X × Y, if f q.1 q.2 = p.run q.1 q.2 then 0 else (ν q).toReal :=
+    PMF.errorProb_eq_sum _ ν p
   have hw : ∑ q : X × Y with p.run q.1 q.2 = z, w q.1 q.2 =
       α * (∑ q : X × Y, if p.run q.1 q.2 = z ∧ f q.1 q.2 = z then (ν q).toReal else 0) -
         ∑ q : X × Y, if p.run q.1 q.2 = z ∧ f q.1 q.2 ≠ z then (ν q).toReal else 0 := by

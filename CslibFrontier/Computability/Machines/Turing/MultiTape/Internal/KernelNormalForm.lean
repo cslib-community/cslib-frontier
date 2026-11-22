@@ -18,6 +18,7 @@ public import Cslib.Foundations.Data.Fin.Tuple
 public import Mathlib.Basic.Finite.Sum
 public import Mathlib.Data.Fin.Tuple.Embedding
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Data.Fintype.Option
@@ -113,8 +114,7 @@ def clearedCfg (l : List (Fin k)) (C : Cfg (k + k) Symbol σ input) :
 omit [DecidableEq Symbol] in
 @[simp] theorem clearedCfg_nil (C : Cfg (k + k) Symbol σ input) :
     clearedCfg (σ' := σ') [] C = C.withState none := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext j <;>
-    simp only [clearedCfg, List.not_mem_nil, ↓reduceIte, Cfg.withState]
+  tm_step
 
 omit [DecidableEq Symbol] in
 theorem clearedCfg_cons {σ₁ : Type*} (i : Fin k) (l : List (Fin k))
@@ -157,11 +157,7 @@ theorem runFrom_clearShadowed_pairEmb (hm : m₀ ≠ m₁) {C : Cfg (k + k) Symb
     · exact h.pos_natAdd
   rw [runFrom_extendTapes, hview, runFrom_clearShadowed hm h.insert_eq h.blank]
   have hne : i.addNat k ≠ Fin.castAdd k i := by grind
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext j <;>
-    simp only [embed, partialInv_pairEmb, clearedCfg, List.mem_singleton, Cfg.withState,
-      pairIdx_eq_iff] <;>
-    by_cases h₀ : j = Fin.castAdd k i <;> by_cases h₁ : j = i.addNat k <;>
-    simp [h₀, h₁, hne]
+  tm_step [embed, partialInv_pairEmb, clearedCfg, pairIdx_eq_iff]
 
 /-- The control states of `clearList` for a list of length `n`. -/
 def ClearListState : ℕ → Type
@@ -356,9 +352,7 @@ private theorem exists_runPath_tidy_with_rewind
   change pB.length ≤ Tc at htB
   refine ⟨p, hh.trans (by rw [hhAB]; rfl), hl.trans ?_, ?_, ?_⟩
   · rw [MultiTapeNTM.RunPath.last_ofDeterministic, hR]
-    refine Cfg.ext rfl rfl ?_ rfl rfl
-    funext i
-    exact tapeOfList_nil.symm
+    tm_step [tapeOfList_nil]
   · change p.length ≤ pAB.length + (C₁.inputPos.val - 1 + 2) at ht
     change pAB.length ≤ u + 1 + pB.length at htAB
     change p.length ≤ _

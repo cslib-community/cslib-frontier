@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # The guess-then-verify alternating machine
@@ -301,8 +302,7 @@ def cfg {State : Type} (B : Fin k) (q : Option State) (w : List Bool) (pos : ℕ
 theorem cfg_zero {State : Type} (B : Fin k) (q : Option State) (w : List Bool) :
     cfg (input := input) B q w 0 =
       wordsCfg input q (Function.update (fun _ => []) B w) [] := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> by_cases hi : i = B <;>
-    simp [cfg, wordsCfg, hi]
+  tm_step [cfg]
 
 variable (B : Fin k) (b : Bool) {w : List Bool} {pos : ℕ} (u : Bool)
 
@@ -313,8 +313,7 @@ theorem step_guess_tag (h : w[pos]? = some true) :
   rw [MultiTapeTM.step_of_state rfl]
   simp only [guess, MultiTapeTM.tr_ofTr, Cfg.workTapeSymbols, cfg, Function.update_self,
     tapeOfList_ofNat, h]
-  refine Cfg.ext rfl (by simp [moveInputPos_zero]) ?_ ?_ (by simp) <;> funext i <;>
-    by_cases hi : i = B <;> simp [hi]
+  tm_step
 
 /-- At the cell of a move, the guessing machine writes its move, moves right, and the other player
 is to move. -/
@@ -323,8 +322,7 @@ theorem step_guess_move (h : pos < w.length) :
       cfg B (some (.tag !u)) (w.set pos b) (pos + 1) := by
   rw [MultiTapeTM.step_of_state rfl]
   simp only [guess, MultiTapeTM.tr_ofTr, cfg]
-  refine Cfg.ext rfl (by simp [moveInputPos_zero]) ?_ ?_ (by simp) <;> funext i <;>
-    by_cases hi : i = B <;> simp [hi, tapeOfList_set w h]
+  tm_step [tapeOfList_set w h]
 
 /-- At any other cell, the guessing machine halts. -/
 theorem step_guess_halt (h : w[pos]? ≠ some true) :
@@ -336,10 +334,8 @@ theorem step_guess_halt (h : w[pos]? ≠ some true) :
     simp [Cfg.workTapeSymbols, cfg]
   simp only [guess, MultiTapeTM.tr_ofTr, hread]
   rcases hw : w[pos]? with _ | _ | _
-  · refine Cfg.ext rfl (by simp [cfg, moveInputPos_zero]) ?_ ?_ (by simp [cfg]) <;>
-      funext i <;> simp [cfg]
-  · refine Cfg.ext rfl (by simp [cfg, moveInputPos_zero]) ?_ ?_ (by simp [cfg]) <;>
-      funext i <;> simp [cfg]
+  · tm_step [cfg]
+  · tm_step [cfg]
   · exact absurd hw h
 
 end Guess
@@ -506,7 +502,7 @@ theorem runFrom_rewindWork_cfg {w : List Bool} {pos : ℕ} (hpos : pos ≤ w.len
         ⟨some (MultiTapeTM.rewindWork Bool).q₀, 1,
         fun _ => tapeOfList w, fun _ => (pos : ℤ), []⟩ by simp [oneTapeCfg, cfg],
     MultiTapeTM.runFrom_rewindWork_none _ _ _ rfl hpos, embed_tapeEmb]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> by_cases hi : i = B <;> simp [cfg, hi]
+  tm_step [cfg]
 
 /-- After the guessing phase, the machine rewinds tape `B` and runs `verify`. -/
 theorem runFrom_lift_none {w : List Bool} {pos t : ℕ} (hpos : pos ≤ w.length)

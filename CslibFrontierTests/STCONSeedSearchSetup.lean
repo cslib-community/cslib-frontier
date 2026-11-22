@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
+import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Correct
 
 /-! Ordinary-import checks for the original-input initializer and its scan sources. -/
 
@@ -56,5 +56,22 @@ example (w : List Bool) :
     ∀ {position : ℕ}, position < s.parameters.search.subdivision.originalCount →
       s.originalSourceID position < s.parameters.search.subdivision.vertexCount :=
   configurationSeedSearchSetup_originalSourceID_lt_vertexCount ntm c w
+
+open Cslib.Complexity Cslib.DoubleCounting Cslib.Code.JustesenFamily in
+-- Exact scanner outcomes give one scheduler outcome, including for a rejecting input.
+example (input : List Bool)
+    (hspace : ntm.RunsInSpace input (c * (Nat.log2 input.length + 1))) :
+    let setup := configurationSeedSearchSetup ntm c input
+    let hs := (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c input).1
+    let hr := fun _ hp =>
+      configurationSeedSearchSetup_originalSourceID_lt_vertexCount ntm c input hp
+    ∃ (scan : SeedScanRequest → List (Option ControllerVerdict)), ∃ result,
+      runSeedSchedulerFor setup hs hr (fun frame => scan frame.request) = [some result] ∧
+      (result.reachable = true ↔ ntm.Accepts input) := by
+  intro setup hs hr
+  let scan (r : SeedScanRequest) := [configurationSeedSchedulerReferenceScan ntm c input r]
+  obtain ⟨result, hresult, _, _, hreach⟩ :=
+    configurationSeedSchedulerReference_correct ntm c input
+  exact ⟨scan, result, hresult, hreach.trans (configurationInstance_mem_iff ntm c hspace)⟩
 
 end CslibFrontierTests.STCONSeedSearchSetup

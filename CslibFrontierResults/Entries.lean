@@ -77,6 +77,8 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashFamily.Transport
+import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
@@ -116,6 +118,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SparseOrbit
 import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.NineQuarters
 import CslibFrontier.Computability.Circuit.Boolean.ArithmeticRing
 import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
@@ -138,6 +141,7 @@ import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
+import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -212,6 +216,7 @@ import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
+import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
@@ -282,6 +287,7 @@ import CslibFrontier.Crypto.Computational.Encryption.ECB
 import CslibFrontier.Crypto.Computational.Encryption.Hybrid
 import CslibFrontier.Crypto.Computational.Encryption.OFBMode.Uniform
 import CslibFrontier.Crypto.Computational.Encryption.Authenticated
+import CslibFrontier.Crypto.Computational.Encryption.RealIdealAE
 import CslibFrontier.Crypto.Computational.Encryption.Nested
 import CslibFrontier.Crypto.Computational.Encryption.RepeatingCiphertexts
 import CslibFrontier.Crypto.Computational.Encryption.CCA.Malleability
@@ -294,6 +300,7 @@ import CslibFrontier.Crypto.Computational.Encryption.Functional
 import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
 import CslibFrontier.Crypto.Computational.GenericGroup.RecursiveDlog
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
+import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -304,6 +311,7 @@ import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 import CslibFrontier.Crypto.Computational.MerkleTree.Binding
+import CslibFrontier.Crypto.Computational.Commitment.Guessing
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
@@ -320,6 +328,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.SchnorrProtocol
@@ -363,6 +372,7 @@ import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
+import CslibFrontier.DataStructure.BTree.Comparisons.LowerBound
 import CslibFrontier.DataStructure.Dictionary.UniformProbing
 import CslibFrontier.DataStructure.NearNeighbor.Angular
 import CslibFrontier.DataStructure.NearNeighbor.PStable
@@ -490,6 +500,9 @@ import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 import CslibFrontier.Probability.Minimax.Dantzig
+import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
+import CslibFrontier.Foundations.Probability.InvarianceSums
+import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
 
 /-!
 # Collected results
@@ -1853,6 +1866,22 @@ register_result "cryptography-prf" where
     uniform adaptive oracle PPT adversaries with full stateful oracle semantics (negligible \
     advantage); via the one-way-to-PRG theorem and the GGM construction. Asymptotic security."
 
+register_result "boolean-prf-circuit-lower-bound" where
+  title := "Boolean pseudorandom function families require at least 2n − 2 gates"
+  topic := "cryptography"
+  sources := [
+    { paper := FanLiYang2022, theorem := "Theorem 7.5",
+      locator := "ECCC TR21-125, rev. 1, §7.1, p. 41. Family complexity is Definition 4.9, p. 28." }
+  ]
+  theorems := [
+    Cslib.Crypto.BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity
+  ]
+  scope := "For every Boolean function ensemble indistinguishable from a random function by \
+    uniform strict oracle-PPT adversaries, every sufficiently large n admits a function in its \
+    support of minimum B₂ circuit size at least 2n − 2. This witness belongs to the source's \
+    collection Fₙ supporting the distribution, so its maximum meets the bound. Each gate costs \
+    one, including constants, and wiring is free. Sampling and evaluation may be inefficient."
+
 register_result "goldreich-levin-hard-core" where
   title := "Goldreich–Levin: every one-way function has a hard-core predicate, and one-way \
     permutations yield pseudorandom generators"
@@ -1875,6 +1904,32 @@ register_result "goldreich-levin-hard-core" where
     to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
+
+register_result "goldreich-levin-simultaneous-list-decoding" where
+  title := "Goldreich–Levin: simultaneous oracle-PPT list decoding for arbitrary Boolean oracles"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2008, theorem := "Theorem 7.8", locator := "printed p. 254" }
+  ]
+  theorems := [
+    Cslib.Crypto.GoldreichLevin.oracleListDecode_bitStringOracle_simultaneous_success_ge_half,
+    Cslib.Crypto.GoldreichLevin.isOraclePPTOn_oracleListDecode,
+    Cslib.Crypto.GoldreichLevin.oracleListDecodePruned_bitStringOracle_simultaneous_success_ge_half,
+    Cslib.Crypto.GoldreichLevin.isOraclePPTOn_oracleListDecodePruned
+  ]
+  scope := "On unary reciprocal-precision input p : ListDecodeParams encoding \
+    (p.dimension, p.precision) in unary under encListDecodeParams (with ε = 1 / p.precision and \
+    0 < p.precision), and for any Boolean oracle B : BitString p.dimension → Bool without \
+    efficiency assumptions, both uniform strict oracle-PPT decoders (certified by \
+    isOraclePPTOn_oracleListDecode and isOraclePPTOn_oracleListDecodePruned) succeed with \
+    probability at least 1 / 2 against bitStringOracle B: oracleListDecode outputs a \
+    duplicate-free list of length at most 16 · p.dimension · p.precision⁴ + 2 containing \
+    List.ofFn x for every x with 1 / 2 + 1 / p.precision ≤ agreement B x, and \
+    oracleListDecodePruned outputs a duplicate-free list of length at most p.precision² \
+    containing every such x and only List.ofFn x with 1 / 2 + 1 / (2 · p.precision) ≤ \
+    agreement B x. Statement correspondence checked in Goldreich (2008), Theorem 7.8, printed \
+    p. 254 (outside-fleet source check on PR #5617); live re-retrieval of the March 2007 draft \
+    r4.pdf from the author server was unavailable."
 
 register_result "goldreich-stretch-amplification-last-bits" where
   title := "Stretch amplification of a one-bit pseudorandom generator by emitted last bits"
@@ -2003,6 +2058,21 @@ register_result "random-functions-average-case-hard" where
     1/2 + 1/S fraction of the inputs (strict, as in the draft). Outside-fleet source check: \
     PR #6269, pullrequestreview-5947274913."
 
+register_result "naor-single-bit-commitment" where
+  title := "Guessing and binding in Naor's single-bit commitment from a uniform PRG"
+  topic := "cryptography"
+  sources := [
+    { paper := Naor1991, theorem := "Theorem 3.1",
+      locator := "Section 3, p. 6 of the author's February 25, 2001 copy. Protocol on p. 5, \
+        generator convention in Section 2, p. 4." }
+  ]
+  theorems := [Cslib.Crypto.PseudorandomGenerator.naorCommit_guessing_and_binding]
+  scope := "The uniform pseudorandom generator supplies the protocol's 3n-bit prefix for n > 0 \
+    and emits one bit at zero for strict expansion. Every randomized uniform strict-PPT receiver \
+    chooses its own challenge and saved state and has negligible advantage over one half in \
+    guessing the fair committed bit. For every n > 0, an honest uniform 3n-bit challenge permits \
+    two accepted openings of the same commitment to opposite bits with probability below 2⁻ⁿ."
+
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
   topic := "cryptography"
@@ -2059,8 +2129,12 @@ register_result "rompel-uowhf" where
     AdversaryInaccessibleEntropyFamily), and hence every uniform one-way function on bit strings, \
     gives a target collision-resistant keyed hash family on all bit strings against uniform \
     strict PPT adversaries that commit to a target before seeing the key. `rompelHash` is secure \
-    for every shrinking collision grid. Each one-bit step takes a fresh subkey, so keys are \
-    polynomial but not as compact as the source's O(|y| log t) bound. Asymptotic security."
+    for every shrinking collision grid; amplification yields `(Nat.log 2 n + 1)`-bit shrinkage, \
+    `rompelCompression` uses Shoup's XOR-masking cascade with one shared `O(|y| log t)` key \
+    across candidates (`rompelCompression_keyLen_le`), and `rompelHash` wraps `rompelCompression` \
+    in the `(n + 1)`-level `KeyedCompressionFamily.treeHash`. Qualitative asymptotic polynomial \
+    scope: dense two-universal matrices in `EntropyReduction` rather than Theorem 5.1's Toeplitz \
+    degree."
 
 register_result "resolution" where
   title := "Haken: pigeonhole formulas require long resolution proofs"
@@ -8791,8 +8865,8 @@ register_result "merkle-damgard-collision-resistance" where
     part of this entry."
 
 register_result "davies-meyer-ideal-cipher-collision-resistance" where
-  title := "Davies–Meyer is collision resistant in the ideal cipher model: a deterministic \
-    adaptive finder making Q queries finds a collision with probability at most \
+  title := "Davies–Meyer is collision resistant in the ideal cipher model: an adaptive \
+    finder making Q queries finds a collision with probability at most \
     (Q + 1)(Q + 2)/|X|"
   topic := "cryptography"
   sources := [
@@ -8804,22 +8878,22 @@ register_result "davies-meyer-ideal-cipher-collision-resistance" where
     Cslib.IdealCipher.daviesMeyer_collisionGame_le
   ]
   scope := "The ideal cipher is a family of independent uniform permutations Π_k of a finite \
-    nonempty block set X, one for each key of a finite key set K. A CollisionFinder is an \
-    oracle program (OracleComp) over the cipher's forward replies Π_k(a) and inverse replies \
-    Π_k⁻¹(b) that outputs two inputs. It is adaptive but has no private sampling operation, so \
-    the declarations quantify over deterministic adaptive finders; IsQueryBounded A Q bounds \
-    its queries of both kinds by Q on every path, with no bound on running time. The book's \
-    adversary may be randomized; averaging the bound over its coins would extend it, but no \
-    private-coin version is proved. collisionGame samples the cipher, runs the finder, and \
-    evaluates the compression function on its two outputs directly with the sampled \
+    nonempty block set X, one for each key of a finite key set K. A CollisionFinder is a \
+    randomized adaptive oracle program (ProbOracleComp) with private uniform finite coin \
+    draws (ProbComp.unifOracle) and forward/inverse ideal-cipher queries Π_k(a), Π_k⁻¹(b) \
+    that outputs two candidate inputs; ProbOracleComp.IsQueryBounded A Q bounds its external \
+    ideal-cipher queries of both kinds by Q on every path regardless of coin choices, with no \
+    bound on local running time. collisionGame samples the cipher, runs the randomized finder, \
+    and evaluates the compression function on its two outputs directly with the sampled \
     permutations, accepting distinct inputs with equal digests; these two digest evaluations \
-    are not queries of the finder. The proof's program daviesMeyerCollisionProgram instead \
-    appends two forward queries on the outputs, which gives Q + 2 queries (the book's \
-    'reasonable' adversary with q′ = q + 2). daviesMeyer Π (k, x) = Π_k(x) + x is the book's \
-    h_DM(x, y) = E(y, x) ⊕ x with its arguments swapped, which is a bijection of the input \
-    space, for any group structure + on X: XOR on {0,1}^n, and also modular addition as in \
-    SHA256 (p. 304). daviesMeyer_collisionGame_mul_le is the book's bound (Q + 2)(Q + 1)/|X|, \
-    and daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|."
+    are not queries of the finder. Fixing private coins via ProbOracleComp.coinLaw reduces \
+    each coin-fixed execution to daviesMeyerCollisionProgram, which appends two forward \
+    queries on the outputs to give Q + 2 queries (the book's 'reasonable' adversary with \
+    q′ = q + 2). daviesMeyer Π (k, x) = Π_k(x) + x is the book's h_DM(x, y) = E(y, x) ⊕ x \
+    with its arguments swapped, which is a bijection of the input space, for any group \
+    structure + on X: XOR on {0,1}^n, and also modular addition as in SHA256 (p. 304). \
+    daviesMeyer_collisionGame_mul_le is the book's bound (Q + 2)(Q + 1)/|X|, and \
+    daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|."
 
 register_result "davies-meyer-insecure-variants" where
   title := "The Davies–Meyer variants h₄ and h₅ have two-query collision finders that always \
@@ -10781,6 +10855,23 @@ register_result "pke-as-functional-encryption" where
     against adversaries that make no key query with the chosen-plaintext experiment of E under \
     equal len; it checks the two games against each other and is not a claim of the book."
 
+register_result "fixed-length-real-ideal-ae" where
+  title := "For fixed n-bit messages, real/ideal AE is equivalent to adaptive left-or-right \
+    CCA security and fresh-plaintext unforgeability"
+  topic := "cryptography"
+  sources := [
+    { paper := KatzLindell2020, theorem := "Theorem 5.5 (fixed-length, left-or-right variant)",
+      locator := "Section 5.2.1, Definitions 5.2–5.4 and Theorem 5.5, pp. 151–153" }
+  ]
+  theorems := [Cslib.Crypto.SymmetricCipher.realIdealAE_iff_indcca_and_encForge]
+  scope := "At security parameter n, encryption queries admit exactly n-bit messages. For uniform \
+    strict oracle-PPT adversaries, the CCA game allows adaptive left-or-right queries under a \
+    common bit and rejects decryption of every ciphertext they return. Definition 5.1 gives a \
+    single challenge with ordinary encryption and decryption oracles. A forgery must decrypt to \
+    a plaintext never queried for encryption. Both real/ideal worlds publicly reject decryption \
+    of earlier encryption replies, which Definition 5.4 forbids querying. Two-world advantage \
+    equals twice the absolute deviation of the hidden-bit guessing probability from one half."
+
 register_result "partial-tag-encrypt-then-mac" where
   title := "Encrypt-then-MAC over a one-block PRF cipher with an unauthenticated IV loses \
     ciphertext integrity (an analogue of the randomized-CBC example)"
@@ -10835,6 +10926,37 @@ register_result "single-pair-hash-game-bounds" where
     to the pairwise bounds for distinct messages. Given a complete message enumeration, the \
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
+
+register_result "computational-universal-hash-single-to-multi-query" where
+  title := "Computational universal hashing implies multi-query security"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 7.1",
+      locator := "v0.6, Section 7.1.1, printed pp. 254–255; equation (7.2)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsComputationalUHF.isMultiQueryUHF,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_le_collisionPairReduction
+  ]
+  scope := "A strict PPT public setup and uniform private key in its finite key space. The \
+    uniform strict PPT adversary receives the unary parameter and public setup. Only distinct \
+    valid messages count toward a collision. Bounded fair-bit sampling of ordered positions \
+    accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
+    query bound from the setup and adversary certificates. The predicates express security for an \
+    existing family and leave the hash algorithm's own efficiency requirements to the caller."
+
+register_result "computational-difference-unpredictability-implies-universal-hashing" where
+  title := "Computational difference unpredictability implies computational universal hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Zero-difference reduction (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269, after Remark 7.3" }
+  ]
+  theorems := [Cslib.Crypto.UHF.IsComputationalDUF.isComputationalUHF_zmod]
+  scope := "Asymptotic form of the zero-prediction reduction. The setup chooses a digest modulus. \
+    One uniform strict PPT machine copies the collision guess and appends the canonical binary \
+    encoding of zero, which has the same word at every modulus. The games have equal success \
+    probability and keep the uniform hash key private."
 
 register_result "pairwise-unpredictability-implies-universal-hashing" where
   title := "Pairwise unpredictability implies universality and difference universality"
@@ -12380,3 +12502,256 @@ register_result "mpda-hole-bounded-witness" where
     (reviewer-codex-edemaine) on PR #6997 at cf522d35ed, against arXiv:2002.05950v2, printed \
     pp. 11-12 and 24-25: \
     https://github.com/cslib-community/cslib-frontier/pull/6997#pullrequestreview-6007294100."
+
+register_result "odonnell-invariance-principle-sums" where
+  title := "Invariance Principle for Sums of Random Variables"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Invariance Principle for Sums of Random Variables",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 354 (proof pp. 354–355)" }
+  ]
+  theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le]
+  scope := "Product laws Measure.pi μ and Measure.pi ν over any finite index type ι, for \
+    coordinate probability measures μ i, ν i on ℝ in L³ (MemLp id 3) with equal first and \
+    second moments (∫ s, s ∂μ i = ∫ s, s ∂ν i and ∫ s, s ^ 2 ∂μ i = ∫ s, s ^ 2 ∂ν i): for \
+    every C³ test ψ : ℝ → ℝ (ContDiff ℝ 3 ψ) with ∀ y, |iteratedDeriv 3 ψ y| ≤ C, \
+    |∫ z, ψ (∑ i, z i) ∂Measure.pi μ − ∫ z, ψ (∑ i, z i) ∂Measure.pi ν| ≤ C / 6 · ∑ i, \
+    (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i). The two families need not live on a common \
+    probability space. Source check: outside-fleet agent review (jetski-rev-5600) on PR #5600 \
+    at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-lipschitz" where
+  title := "Invariance Principle for Sums of Random Variables for Lipschitz test functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.59",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 356; moving-average smoothing cf. \
+        §11.8, Exercise 11.40, printed p. 380" }
+  ]
+  theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le_of_lipschitzWith]
+  scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
+    moments: for every K-Lipschitz ψ : ℝ → ℝ (K : ℝ≥0), \
+    |∫ z, ψ (∑ i, z i) ∂Measure.pi μ − ∫ z, ψ (∑ i, z i) ∂Measure.pi ν| ≤ 6 K · γ_XY^(1/3) \
+    where γ_XY = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i). Proved with the explicit \
+    constant 6 (for the book's O(c · γ_XY^(1/3))) by smoothing ψ with a three-fold moving \
+    average (ProbabilityTheory.abs_integral_comp_sub_le_of_lipschitzWith at m = 3, cf. \
+    Exercise 11.40) instead of the book's C^∞ Gaussian smoothing of Proposition 11.58. Source \
+    check: outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-levy-distance" where
+  title := "Lévy-distance invariance for sums of independent random variables"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.61",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; proof method in §11.8, Exercise \
+        11.42, printed p. 381" }
+  ]
+  theorems := [
+    ProbabilityTheory.measureReal_sum_le_le_add,
+    ProbabilityTheory.measureReal_sum_le_sub_le
+  ]
+  scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
+    moments: for every u : ℝ, (Measure.pi μ).real {z | ∑ i, z i ≤ u} ≤ \
+    (Measure.pi ν).real {z | ∑ i, z i ≤ u + ε} + ε and \
+    (Measure.pi ν).real {z | ∑ i, z i ≤ u − ε} − ε ≤ (Measure.pi μ).real {z | ∑ i, z i ≤ u} \
+    with ε = 3 γ_XY^(1/4) and γ_XY = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i), bounding \
+    the Lévy distance between ∑ Xᵢ and ∑ Yᵢ by 3 γ_XY^(1/4) (for the book's O(γ_XY^(1/4))). \
+    Proved via the explicit-shift step measureReal_sum_le_le_add_div_pow (128 / 3 · γ_XY / η³ \
+    for η > 0, Exercise 11.42) using the one-sided C³ ramp smoothing Real.stepSmoothing 3 (cf. \
+    Exercise 11.41(b), whose smoothed step is monotone, two-sided and C^∞) and \
+    right-continuity at γ_XY = 0. Source check: outside-fleet agent review (jetski-rev-5600) \
+    on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-berry-esseen-fourth-root" where
+  title := "Fourth-root Berry–Esseen bound from the Invariance Principle for sums"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.62",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; Berry–Esseen setting on printed \
+        p. 350 and eq. (11.28) on printed p. 355" }
+  ]
+  theorems := [ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le]
+  scope := "Product law Measure.pi μ over any finite index type ι, for coordinate probability \
+    measures μ i on ℝ in L³ with ∫ s, s ∂μ i = 0 for all i and ∑ i, ∫ s, s ^ 2 ∂μ i = 1 (the \
+    X-only Berry–Esseen setting of §11.5, p. 350): for every u : ℝ, \
+    |(Measure.pi μ).real {z | ∑ i, z i ≤ u} − cdf (gaussianReal 0 1) u| ≤ \
+    6 (∑ i, ∫ s, |s| ^ 3 ∂μ i)^(1/4). Proved with the explicit constant 6 for the book's \
+    O(γ^(1/4)) by comparing X internally against independent Yᵢ ∼ N(0, Var[Xᵢ]) via \
+    abs_measureReal_sum_le_sub_cdf_le_of_hasLaw and bounding E|Yᵢ|³ ≤ 2 E|Xᵢ|³ (via \
+    integral_abs_pow_three_gaussianReal_le and Lyapunov's inequality \
+    sqrt_integral_sq_pow_three_le) in place of the book's 2 √(2/π) E|Xᵢ|³ in (11.28). Not \
+    covered: the classical Berry–Esseen Theorem with error O(∑ E|Xᵢ|³) and the Variant \
+    Berry–Esseen Theorem of §11.5 (tracked in roadmap/pseudorandomness.md). Source check: \
+    outside-fleet agent reviews (jetski-rev-5600 and inventory_rank_property) on PR #5600 at \
+    8de640fb945c and 701d0603fe51: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015 \
+    and \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5909369687."
+
+register_result "odonnell-invariance-multilinear-levy-distance" where
+  title := "Lévy-distance Basic Invariance Principle for low-degree multilinear polynomials"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Corollary 11.70, first statement, and Exercise 11.44",
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
+        p. 381" }
+  ]
+  theorems := [
+    ProbabilityTheory.measureReal_multilinearEval_le_le_add,
+    ProbabilityTheory.measureReal_multilinearEval_le_sub_le
+  ]
+  scope := "Product laws Measure.pi μ and Measure.pi ν over any finite coordinate type ι \
+    whose coordinate probability measures satisfy Hypothesis 11.65 (HasInvarianceMoments: in \
+    L⁴ with mean 0, variance 1, third moment 0, and fourth moment at most 9), and formal \
+    multilinear coefficients c : Finset ι → ℝ of degree at most k (∀ S, k < #S → c S = 0), \
+    variance ∑_{S ≠ ∅} c S ^ 2 ≤ 1, and coordinate influences multilinearInfluence c t ≤ ε \
+    (ε ≥ 0): for every u : ℝ, (Measure.pi μ).real {z | multilinearEval c z ≤ u} ≤ \
+    (Measure.pi ν).real {z | multilinearEval c z ≤ u + δ} + δ and \
+    (Measure.pi ν).real {z | multilinearEval c z ≤ u − δ} − δ ≤ \
+    (Measure.pi μ).real {z | multilinearEval c z ≤ u} with δ = 4 · 2ᵏ · ε^(1/5) (explicit \
+    constant 4 for the book's O(2ᵏ ε^(1/5))), proved from Corollary 11.67 via the C⁴ step \
+    smoothing Real.stepSmoothing 4. Only the first statement of Corollary 11.70 is formalized; \
+    its second statement, the bound (1/ρ)^O(k) ε^(1/8) for (2, 3, ρ)-hypercontractive \
+    ensembles in the setting of Remark 11.66, is open and tracked in \
+    roadmap/pseudorandomness.md. Source check: outside-fleet agent review (jetski-rev-5600) on \
+    PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-boolean-cube-levy-distance" where
+  title := "Lévy-distance Basic Invariance Principle for functions on the Boolean cube"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Corollary 11.70, first statement (Boolean-cube form), and Exercise 11.44",
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
+        p. 381" }
+  ]
+  theorems := [
+    Cslib.BitString.dens_le_le_measureReal_multilinearEval_le_add,
+    Cslib.BitString.measureReal_multilinearEval_le_sub_le_dens
+  ]
+  scope := "Uniform cube on any finite coordinate type ι: for f : (ι → Bool) → ℝ with \
+    totalDegree f ≤ k, variance 𝔼 x, (f x − 𝔼 y, f y) ^ 2 ≤ 1, and influence i f ≤ ε (ε ≥ 0) \
+    for every i, and independent comparison coordinates y under Measure.pi μ with each μ i \
+    satisfying Hypothesis 11.65 (HasInvarianceMoments: in L⁴ with mean 0, variance 1, third \
+    moment 0, and fourth moment at most 9), (dens {x | f x ≤ u} : ℝ) ≤ \
+    (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u + δ} + δ and \
+    (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u − δ} − δ ≤ \
+    (dens {x | f x ≤ u} : ℝ) for every u : ℝ, with δ = 4 · 2ᵏ · ε^(1/5). Specializes \
+    odonnell-invariance-multilinear-levy-distance to uniform signs on the first side via \
+    measureReal_pi_rademacher_multilinearEval_le. The second statement of Corollary 11.70 \
+    (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
+    outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "btree-rank-comparison-lower-bound" where
+  title := "Comparison lower bound for B-tree rank search"
+  topic := "algorithms"
+  sources := [
+    { paper := Knuth1998, theorem := unverified, locator := "Section 6.2.1" }
+  ]
+  theorems := [
+    Cslib.DataStructure.BTree.IsRank.lowerBound_infinite,
+    Cslib.DataStructure.BTree.IsRank.lowerBound_wfInput_infinite,
+    Cslib.DataStructure.BTree.rank_lowerBound_infinite
+  ]
+  scope := "Proves the ⌈log₂(n + 1)⌉ comparison lower bound for comparison-based rank programs \
+    (IsRank, satisfied by both rankQ and rankBinQ) on B-trees over an infinite key type in the \
+    FreeM (LEQuery α) query model: on any duplicate-free tree (rank_lowerBound_infinite), over \
+    general (BTree α β × α) inputs (IsRank.lowerBound_infinite), and over well-formed B-trees \
+    WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
+    comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
+    comparison lower bound for lookup remains open under #3674."
+
+register_result "nexp-bounded-acceptance-complete" where
+  title := "Bounded nondeterministic acceptance is NEXP-complete, and its EXP membership \
+    collapses NEXP to EXP"
+  topic := "time complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 2, Exercise 9",
+      locator := "Web draft 2007-01-08, printed p. 62; PDF p. 78" }
+  ]
+  theorems := [
+    Cslib.Complexity.NEXPBoundedAcceptance.polyTimeComplete_NEXP,
+    Cslib.Complexity.NEXPBoundedAcceptance.NEXP_eq_EXP_of_mem_EXP,
+    Cslib.Complexity.NEXPBoundedAcceptance.NEXP_eq_EXP_iff
+  ]
+  scope := "Instances ⟨machine, input, steps⟩ as NEXPBoundedAcceptanceInstance under \
+    encNEXPBoundedAcceptanceInstance, with native multi-tape machine descriptions, raw input \
+    bits, and binary step/certificate-length bound steps (encNat), instantiating the exercise's \
+    unspecified NEXP-complete language. Acceptance requires some bit certificate c with \
+    |c| ≤ steps for which the universal interpreter halts with output [true] within steps steps \
+    on encPair encBits encBits (input, c). Hardness and the NEXP = EXP collapse quantify over \
+    every source type and injective bit-string encoding under total native polynomial-time \
+    many-one reductions. Source check: outside-fleet agent check (reviewer-codex-edemaine) on \
+    PR #5591 at 929cb9c76428: \
+    https://github.com/cslib-community/cslib-frontier/pull/5591#issuecomment-7071385084."
+
+register_result "gaspers-cubic-switched-cutwidth" where
+  title := "Cutwidth and bisection bounds for cubic graphs via median-switched Gaussian sweeps"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Gaspers2026,
+      theorem := "Corollary 1.2 (adapted; pathwidth proof via Theorems 1.1(a) and 8.1)",
+      locator := "arXiv:2611.05146v1, §1.1, p. 1 (PDF p. 3) and §8, p. 45 (PDF p. 47); \
+        Zenodo companion v1, doi:10.5281/zenodo.23883489" }
+  ]
+  theorems := [
+    Cslib.Circuits.Frontier.Switched.exists_width_le_switchedCoefficient,
+    Cslib.Circuits.Frontier.Switched.cubicLayoutBound_switched,
+    Cslib.Circuits.Frontier.Switched.exists_ncard_edgeCut_le,
+    Cslib.Circuits.Frontier.layoutBound_switched
+  ]
+  scope := "Adapts Corollary 1.2 of Gaspers (2026), whose underlying pathwidth proof comes \
+    from Theorems 1.1(a) and 8.1. Formalizes two existential (non-constructive) endpoints \
+    with constant c₃ = (3 / (4π)) arccos(5 / 6) ≈ 0.139822: (1) the direct per-vertex \
+    cutwidth and bisection bounds for finite loopless 3-regular multigraphs (parallel edges \
+    allowed; exists_width_le_switchedCoefficient, exists_ncard_edgeCut_le, and the \
+    simple-graph specialization cubicLayoutBound_switched), and (2) the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) (layoutBound_switched), obtained via saturated \
+    compression (LayoutBound.of_cubic). Adapts the certificate-free CubicPathwidth.C3 \
+    geometry, bipartite connector lemma, and switched interval-bag layout from Zenodo release \
+    v1 (MIT license, Serge Gaspers). Differs from Gaspers (2026) in that only the per-vertex \
+    cutwidth and bisection bounds for 3-regular multigraphs and the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) are formalized (not Corollary 1.2's full subcubic \
+    per-vertex statement, the deterministic n^(2+o(1)) algorithm, or higher-degree Δ ≥ 4 / \
+    mixed-degree / exact exponential algorithm results). The direct multigraph \
+    interval-to-cutwidth bridge (including parallel edges), rational lower bounds in \
+    Switched/Coefficient.lean, concentration proof via unitKernelRow, and downstream \
+    fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
+    are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
+    (main.tex) and compiled PDF on 2026-11-22."
+
+register_result "odonnell-degree-one-weight-one-literals" where
+  title := "Boolean functions with all Fourier weight on degree one are the literals"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 1.19(a)",
+      locator := "arXiv:2105.10386v1, §1.7, printed p. 37" }
+  ]
+  theorems := [Cslib.BitString.levelWeight_one_signVal_eq_one_iff]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), W¹[f] = 1 if and only if f x = b ⊕ x i for some coordinate i \
+    and bit b; these literals are the book's ±χ_S with |S| = 1. The book asks only for the \
+    forward direction; the converse is included. Parts (b) and (c) of the exercise are not \
+    covered by this entry."
+
+register_result "odonnell-unbiased-noise-stability-dictators" where
+  title := "Dictators maximize the noise stability of unbiased Boolean functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 2.50",
+      locator := "arXiv:2105.10386v1, §2.4, printed p. 56" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_signVal_le_of_expect_eq_zero,
+    Cslib.BitString.noiseStability_signVal_eq_iff_of_expect_eq_zero]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), with 𝔼 x, signVal (f x) = 0: Stab_ρ[f] ≤ ρ for 0 ≤ ρ ≤ 1, \
+    the closed interval containing the book's 0 < ρ < 1; and for 0 < ρ < 1, Stab_ρ[f] = ρ if \
+    and only if f x = b ⊕ x i for some coordinate i and bit b, the book's ±χ_i. The equality \
+    case fails at both endpoints."

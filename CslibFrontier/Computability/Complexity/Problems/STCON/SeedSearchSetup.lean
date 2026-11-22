@@ -215,6 +215,26 @@ theorem encSeedSearchSetup_subdivision_length_le (s : SeedSearchSetup) :
     ((encSeedSearchParameters_search_length_le s.parameters).trans
       (encSeedSearchSetup_parameters_length_le s))
 
+/-- The initialized subdivision has polynomially many vertices in the original input length. -/
+theorem configurationSubdivisionVertexCount_polyBounded
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    PolyBounded List.length (fun w =>
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount) :=
+  (configurationSeedSearchParameters_polyBounded ntm c).2.2.mono fun w => by
+    simp only [(configurationSeedSearchSetup_endpoints ntm c w).1, le_refl]
+
+/-- The subdivision vertex count has logarithmic binary length in the original word. -/
+theorem length_configurationSubdivisionVertexCount_le_log
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+      (encNat size.vertexCount).length ≤ C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hsetup⟩ := length_configurationSeedSearchSetup_le_log ntm c
+  refine ⟨C, fun w => ?_⟩
+  let s := configurationSeedSearchSetup ntm c w
+  exact (encSubdivisionSize_vertexCount_length_le s.parameters.search.subdivision).trans
+    ((encSeedSearchSetup_subdivision_length_le s).trans (hsetup w))
+
 /-- All valid requests to the initialized scan have logarithmic overhead over their explicitly
 charged context. The same bound covers the decoded requests passed into the callback. -/
 theorem length_configurationSubdivisionRequest_le {Context : Type}

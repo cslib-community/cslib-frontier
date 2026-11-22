@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Probability.StatisticalDistance
+public import CslibFrontier.Crypto.Primitives.ByteString.Uniform
 import all CslibFrontier.Crypto.Computational.MLDSA.RandomXofMatrix
 import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
@@ -87,7 +88,7 @@ theorem uniform_transcriptWithHedges (C : QuantumSigningForger) (H : Xofs) (s : 
     · rfl
     · rfl
     · simp only [isSigningCall, Sum.elim_inr, hedgeCommand, signingCommand, Xofs.signAndLog,
-        online, commands, OracleComp.sumHandler,
+        online, commands, statefulSigningCommands, OracleComp.sumHandler,
         Xofs.signingOracle, U, PMF.map_comp, Function.comp_def, ↓reduceIte]
       rfl
   have joint := OracleComp.IsCostBounded.run_interpret_presample_when isSigningCall
@@ -98,15 +99,11 @@ theorem uniform_transcriptWithHedges (C : QuantumSigningForger) (H : Xofs) (s : 
   simpa only [transcriptWithHedges, transcript, PMF.bind_map, PMF.map_bind, PMF.map_comp,
     Function.comp_def, ProbOracleComp.runWith_eq_run_interpret, online] using logLaw
 
-private theorem card_hedge : Fintype.card (FixedBytes 32) = 2 ^ 256 := by
-  change Fintype.card (Fin 32 → Fin 256) = _
-  rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
-  decide
-
 /-- The 256-bit hedge space supplies a distinct hedge for each of at most `2^256` slots. -/
 theorem hedgeEmbedding_nonempty {n : ℕ} (hn : n ≤ 2 ^ 256) :
     Nonempty (Fin n ↪ FixedBytes 32) :=
-  Function.Embedding.nonempty_of_card_le (by simpa only [Fintype.card_fin, card_hedge] using hn)
+  Function.Embedding.nonempty_of_card_le (by
+    simpa only [Fintype.card_fin, FixedBytes.card] using hn)
 
 private noncomputable def withTrialSetup {α κ : Type} (H : Xofs) (s : Level)
     (publicKey : κ → List Byte) (keys : Option κ)
@@ -181,13 +178,13 @@ theorem dist_matrixTrial_distinctHedges (C : QuantumSigningForger) (s : Level)
       (C.distinctHedgeGame s base a b hn hsize score) ≤ ((n * (n - 1) : ℕ) : ℝ) / 2 ^ 257 := by
   classical
   have hcard : Fintype.card (Fin n) ≤ Fintype.card (FixedBytes 32) := by
-    simpa only [Fintype.card_fin, card_hedge] using hsize
+    simpa only [Fintype.card_fin, FixedBytes.card] using hsize
   let _ := Function.Embedding.nonempty_of_card_le hcard
   rw [← C.uniform_fixedHedgeGame s base ha hb hn score, dist_comm]
   have d := dist_uniform_embedding_to_fun hcard
   have h := (PMF.dist_bind_le _ _
     (fun t => C.fixedHedgeGame s base a b score (List.ofFn t))).trans d
-  simpa only [distinctHedgeGame, PMF.bind_map, Function.comp_def, Fintype.card_fin, card_hedge,
+  simpa only [distinctHedgeGame, PMF.bind_map, Function.comp_def, Fintype.card_fin, FixedBytes.card,
     Nat.cast_pow, Nat.cast_ofNat, ← pow_succ'] using h
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger

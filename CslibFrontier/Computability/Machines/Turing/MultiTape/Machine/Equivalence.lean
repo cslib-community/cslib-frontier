@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine
 public import Cslib.Computability.Machines.Turing.MultiTape.Deterministic
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.RewindInput
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Effect-free specializations of the common machine
@@ -148,10 +149,7 @@ private theorem step_eq {cfg : Cfg 0 Symbol MultiTapeTM.RewindState input}
       ⟨action.state, moveInputPos cfg.inputPos action.inputTape, cfg.workTapes,
         cfg.workTapePos, cfg.output⟩ := by
   rw [MultiTapeTM.step_of_state hstate]
-  refine Cfg.ext rfl rfl (Subsingleton.elim _ _) (Subsingleton.elim _ _) ?_
-  simp only [toTM, rewindInput, ofTr, MultiTapeTM.tr_ofTr, Action.emptyOracleEquiv,
-    Turing.Action.apply_output]
-  split <;> simp
+  tm_step [toTM, rewindInput, ofTr]
 
 private theorem runFrom_walk (position : Fin (input.length + 2))
     (hposition : position.val ≤ input.length) :

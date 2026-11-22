@@ -53,10 +53,10 @@ since `(x, true) + (R, true) = (x + R, false)`. Against every fixed full-label o
 reduction runs the typed reduction `FreeXOR.reduction` of
 `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR` on `toCircuit f` (`eval_run_prvSimReduction`).
 Thus, by `FreeXOR.realGame_reduction` and `FreeXOR.idealGame_reduction`, its CCR advantage equals
-(`prvSimAdvantage_simWord_eq`). The reduction asks every tweak at most once on every execution path
-(`isTweakUnique_prvSimReduction`), issues `8` requests per non-XOR gate on valid bounded inputs
-(`exists_of_mem_support_runWith_prvSimReduction`), and is uniform strict oracle PPT
-(`isOraclePPT_prvSimReduction`).
+the `prv.sim` advantage (`prvSimAdvantage_simWord_eq`). The reduction asks every tweak at most once
+on every execution path (`isTweakUnique_prvSimReduction`), issues `8` requests per non-XOR gate on
+valid bounded inputs (`exists_of_mem_support_runWith_prvSimReduction`), and is uniform strict oracle
+PPT (`isOraclePPT_prvSimReduction`).
 
 ## Main definitions
 

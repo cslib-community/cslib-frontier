@@ -25,7 +25,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
 /-- The lexicographic order on two bits, `(u1, u2) ⪯ (v1, v2)` when `2 u1 + u2 ≤ 2 v1 + v2`:
 the constraint `-2 u1 - u2 + 2 v1 + v2 >= 0`, with `u1, u2, v1, v2` the variables `10`–`13`. -/
 def lex2 : Order :=
-  ⟨[10, 11], [12, 13],
+  ⟨[10, 11], [12, 13], [], [],
     [⟨[(2, (10, false)), (1, (11, false)), (2, (12, true)), (1, (13, true))], 3⟩]⟩
 
 /-- Transitivity, with the fresh right variables `14`, `15`: the premises `O⪯(u, v)` and

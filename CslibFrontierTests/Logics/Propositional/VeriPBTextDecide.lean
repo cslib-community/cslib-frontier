@@ -6,8 +6,10 @@ Authors: Matthew Doty
 
 module
 
+import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
 -- `import all`: the kernel evaluates the parsers and checkers of `Text` and the step `stepTop` of
 -- `Redundance`, whose bodies are not exposed, to decide the acceptance of the fixtures.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
@@ -15,8 +17,10 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! Decided text clients of the VeriPB output and conclusion theorems: the acceptance of the
 `decision_output` and `optimization_output_opposing_lits_objective` fixtures of the VeriPB
-repository, and of the PHP(3, 2) proof with symmetry breaking by `dom`, is checked by
-`decide +kernel`, and the soundness theorems are applied to it. -/
+repository, of the PHP(3, 2) proof with symmetry breaking by `dom`, and of the optimality proof
+by `dom` under the order `notAux` with an auxiliary variable, and of a projected enumeration that
+changes the preserved set, is checked by `decide +kernel`, and the soundness theorems are applied
+to it. -/
 
 set_option linter.privateModule false
 
@@ -70,5 +74,32 @@ theorem domPhp32_accepted : (checkOPBOutput php32 domPhp32).map (·.1) = some (.
 -- So PHP(3, 2) has no solution.
 example : ∃ I, parseOPB php32 = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ :=
   not_satisfiable_of_checkOPB domPhp32_accepted
+
+/-- The optimality proof by `dom` under the order `notAux`, whose negated order is refuted in
+`scope geq`, is accepted with `BOUNDS 1 : 9 1`. -/
+theorem domAuxObj_accepted : (checkOPBOutput sym2Aux domAuxObjProof).map (·.1) =
+    some (.bounds (some 1) 9 (some 1) none) := by
+  decide +kernel
+
+-- So the optimum of `x1 + x2` subject to `x1 + x2 >= 1` is `1`.
+example : ∃ I f, parseOPB sym2Aux = some I ∧ I.objective = some f ∧
+    (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → 1 ≤ f.eval σ) ∧
+    ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ 1 := by
+  obtain ⟨I, f, hI, hf, hlb, hub⟩ := bounds_of_checkOPB domAuxObj_accepted
+  refine ⟨I, f, hI, hf, fun σ hσ => ?_, hub 1 rfl⟩
+  obtain ⟨l, hl, hle⟩ := hlb σ hσ
+  cases hl
+  exact hle
+
+/-- The enumeration that logs a solution and then removes `x5` from the preserved set by
+`preserved_rm` is accepted with `ENUMERATION_PARTIAL 1`. -/
+theorem enumAfterRm_accepted :
+    (checkOPBOutput pres4Rm enumAfterRm).map (·.1) = some (.enumPartial 1) := by
+  decide +kernel
+
+-- So the input formula has a solution, counted against its own preserved set `x1 x3 x5`.
+example : ∃ I P, parseOPB pres4Rm = some I ∧ I.preserved = some P ∧
+    (1 : ℕ∞) ≤ (projections I.constraints P).encard :=
+  le_encard_of_checkOPB_enumPartial enumAfterRm_accepted
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText
