@@ -31,6 +31,7 @@ import CslibFrontier.Crypto.Game.Hybrid
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Foundations.Data.BitString.List.Rows
 import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
@@ -128,53 +129,34 @@ private theorem shoup_fact1 {A B : ℕ} (hA : 1 ≤ A) (hAB : A < B)
   obtain ⟨hB_eq, hb_odd⟩ := pow_mul_div_padicValNat_odd (by omega) hv.symm
   set a := A / 2 ^ v
   set b := B / 2 ^ v
-  change 2 ^ v * a = A at hA_eq
-  change 2 ^ v * b = B at hB_eq
-  have hpow_pos : 0 < 2 ^ v := Nat.pow_pos (by decide)
-  have hab : a < b := by
-    by_contra hge
-    have := Nat.mul_le_mul_left (2 ^ v) (Nat.le_of_not_lt hge)
-    omega
-  have ha1 : a + 1 < b := by omega
-  refine ⟨2 ^ v * (a + 1), ?_, ?_, ?_⟩
-  · rw [← hA_eq]; exact Nat.mul_lt_mul_of_pos_left (Nat.lt_succ_self a) hpow_pos
-  · rw [← hB_eq]; exact Nat.mul_lt_mul_of_pos_left ha1 hpow_pos
-  · have h2dvd : 2 ∣ a + 1 := by omega
-    have hpow_dvd : 2 ^ (v + 1) ∣ 2 ^ v * (a + 1) := by
-      rw [pow_succ]; exact mul_dvd_mul_left (2 ^ v) h2dvd
-    have hC_ne : 2 ^ v * (a + 1) ≠ 0 := by positivity
-    rw [Nat.padicValNat_def]
-    exact (multiplicity_dvd_iff_le hC_ne).mp hpow_dvd
+  have hpow : 0 < 2 ^ v := Nat.two_pow_pos v
+  have hab : a < b := Nat.lt_of_mul_lt_mul_left (by rw [hA_eq, hB_eq]; exact hAB)
+  refine ⟨2 ^ v * (a + 1),
+    by rw [← hA_eq]; exact Nat.mul_lt_mul_of_pos_left (Nat.lt_succ_self _) hpow,
+    by rw [← hB_eq]; exact Nat.mul_lt_mul_of_pos_left (by omega) hpow, ?_⟩
+  rw [Nat.padicValNat_def]
+  exact (multiplicity_dvd_iff_le (by positivity)).mp
+    (pow_succ 2 v ▸ mul_dvd_mul_left (2 ^ v) (show 2 ∣ a + 1 by omega))
 
 private theorem shoup_fact2 {A B ν : ℕ} (_hA : 1 ≤ A) (hAB : A < B)
     (hν : ν < min (padicValNat 2 A) (padicValNat 2 B)) :
     ∃ C, A < C ∧ C < B ∧ padicValNat 2 C = ν := by
   have := two_prime_fact
-  have hνA : ν + 1 ≤ multiplicity 2 A := by
-    rw [← Nat.padicValNat_def]; exact (Nat.lt_min.mp hν).1
-  have hνB : ν + 1 ≤ multiplicity 2 B := by
-    rw [← Nat.padicValNat_def]; exact (Nat.lt_min.mp hν).2
-  have hdvdA : 2 ^ (ν + 1) ∣ A := (multiplicity_dvd_iff_le (by omega)).mpr hνA
-  have hdvdB : 2 ^ (ν + 1) ∣ B := (multiplicity_dvd_iff_le (by omega)).mpr hνB
-  obtain ⟨qa, hqa⟩ := hdvdA
-  obtain ⟨qb, hqb⟩ := hdvdB
-  have hq : qa < qb := by
-    by_contra hle
-    have := Nat.mul_le_mul_left (2 ^ (ν + 1)) (Nat.le_of_not_lt hle)
-    omega
-  have hpow_pos : 0 < 2 ^ ν := Nat.pow_pos (by decide)
+  obtain ⟨qa, hqa⟩ := (multiplicity_dvd_iff_le (by omega)).mpr
+    (Nat.padicValNat_def (p := 2) ▸ (Nat.lt_min.mp hν).1)
+  obtain ⟨qb, hqb⟩ := (multiplicity_dvd_iff_le (by omega)).mpr
+    (Nat.padicValNat_def (p := 2) ▸ (Nat.lt_min.mp hν).2)
+  have hq : qa < qb := Nat.lt_of_mul_lt_mul_left (hqa.symm ▸ hqb.symm ▸ hAB)
   have hstep : A + 2 ^ (ν + 1) ≤ B := by
     calc A + 2 ^ (ν + 1) = 2 ^ (ν + 1) * (qa + 1) := by rw [hqa, mul_add, mul_one]
       _ ≤ 2 ^ (ν + 1) * qb := Nat.mul_le_mul_left _ hq
       _ = B := hqb.symm
-  have h2pow : 2 ^ (ν + 1) = 2 * 2 ^ ν := by rw [pow_succ']
+  have hpow : 0 < 2 ^ ν := Nat.two_pow_pos ν
+  have h2pow : 2 ^ (ν + 1) = 2 * 2 ^ ν := pow_succ' 2 ν
   refine ⟨A + 2 ^ ν, by omega, by omega, ?_⟩
-  have hC_eq : A + 2 ^ ν = 2 ^ ν * (2 * qa + 1) := by
-    rw [hqa, pow_succ]; ring
-  rw [Nat.padicValNat_def, hC_eq, Nat.multiplicity_mul (by positivity) (by omega)]
-  have hodd : multiplicity 2 (2 * qa + 1) = 0 :=
-    multiplicity_eq_zero_of_not_dvd (by omega)
-  rw [Nat.multiplicity_prime_pow, hodd, add_zero]
+  rw [show A + 2 ^ ν = 2 ^ ν * (2 * qa + 1) by rw [hqa, pow_succ]; ring,
+    Nat.padicValNat_def, Nat.multiplicity_mul hpow.ne' (by omega),
+    Nat.multiplicity_prime_pow, multiplicity_eq_zero_of_not_dvd (by omega), add_zero]
 
 private def shoupIsLastOcc (iStar k : ℕ) : Bool :=
   decide (1 ≤ k ∧ k ≤ iStar ∧ iStar < k + 2 ^ (padicValNat 2 k + 1))
@@ -186,43 +168,29 @@ private def shoupLastOcc (iStar j : ℕ) : ℕ :=
 private theorem shoupIsLastOcc_self {iStar : ℕ} (hi : 1 ≤ iStar) :
     shoupIsLastOcc iStar iStar = true := by
   simp only [shoupIsLastOcc, decide_eq_true_eq]
-  exact ⟨hi, le_rfl, Nat.lt_add_of_pos_right (Nat.pow_pos (by decide))⟩
+  exact ⟨hi, le_rfl, Nat.lt_add_of_pos_right (Nat.two_pow_pos _)⟩
 
 private theorem shoupIsLastOcc_unique {iStar k m : ℕ} (hk : shoupIsLastOcc iStar k = true)
     (hkm : k ≤ m) (hmi : m ≤ iStar) (hv : padicValNat 2 m = padicValNat 2 k) : m = k := by
   simp only [shoupIsLastOcc, decide_eq_true_eq] at hk
-  rcases hk with ⟨hk1, _, hk_lt⟩
   set v := padicValNat 2 k
-  obtain ⟨hk_eq, ha_odd⟩ := pow_mul_div_padicValNat_odd hk1 (rfl : padicValNat 2 k = v)
+  obtain ⟨hk_eq, ha_odd⟩ := pow_mul_div_padicValNat_odd hk.1 (rfl : padicValNat 2 k = v)
   obtain ⟨hm_eq, hb_odd⟩ := pow_mul_div_padicValNat_odd (by omega) hv
-  set a := k / 2 ^ v
-  set b := m / 2 ^ v
-  change 2 ^ v * a = k at hk_eq
-  change 2 ^ v * b = m at hm_eq
-  have hpow_pos : 0 < 2 ^ v := Nat.pow_pos (by decide)
-  have hbound : 2 ^ v * b < 2 ^ v * (a + 2) := by
-    calc 2 ^ v * b = m := hm_eq
-      _ ≤ iStar := hmi
-      _ < k + 2 ^ (v + 1) := hk_lt
-      _ = 2 ^ v * (a + 2) := by rw [← hk_eq, pow_succ]; ring
-  have hba : a ≤ b := by
-    by_contra hlt
-    have := Nat.mul_lt_mul_of_pos_left (Nat.lt_of_not_le hlt) hpow_pos
-    omega
-  have hlt2 : b < a + 2 := Nat.lt_of_mul_lt_mul_left hbound
-  have hab : b = a := by omega
-  rw [← hm_eq, ← hk_eq, hab]
+  set a := k / 2 ^ v; set b := m / 2 ^ v
+  have hle : a ≤ b := Nat.le_of_mul_le_mul_left
+    (by change 2 ^ v * a ≤ 2 ^ v * b; rw [hk_eq, hm_eq]; exact hkm) (Nat.two_pow_pos v)
+  have hlt : b < a + 2 := Nat.lt_of_mul_lt_mul_left (a := 2 ^ v) <| by
+    have : k + 2 ^ (v + 1) = 2 ^ v * (a + 2) := by rw [← hk_eq, pow_succ]; ring
+    change 2 ^ v * b < _; rw [hm_eq]; omega
+  rw [← hm_eq, ← hk_eq, show b = a by omega]
 
 private theorem shoupLastOcc_ge {iStar k : ℕ} (hk : 1 ≤ k) (hki : k ≤ iStar) :
     k ≤ shoupLastOcc iStar (padicValNat 2 k) := by
   obtain ⟨hk_eq, hka_odd⟩ := pow_mul_div_padicValNat_odd hk rfl
-  set v := padicValNat 2 k
-  set q := iStar / 2 ^ v
-  have hkq : k / 2 ^ v ≤ q := Nat.div_le_div_right hki
-  have hq_odd_or : k / 2 ^ v ≤ if q % 2 = 1 then q else q - 1 := by
-    split_ifs <;> omega
-  calc k = 2 ^ v * (k / 2 ^ v) := hk_eq.symm
-    _ ≤ 2 ^ v * (if q % 2 = 1 then q else q - 1) := Nat.mul_le_mul_left _ hq_odd_or
+  have hkq : k / 2 ^ padicValNat 2 k ≤ iStar / 2 ^ padicValNat 2 k := Nat.div_le_div_right hki
+  unfold shoupLastOcc
+  calc k = 2 ^ padicValNat 2 k * (k / 2 ^ padicValNat 2 k) := hk_eq.symm
+    _ ≤ _ := Nat.mul_le_mul_left _ (by split_ifs <;> omega)
 
 private theorem shoupLastOcc_le {iStar j : ℕ} : shoupLastOcc iStar j ≤ iStar := by
   dsimp only [shoupLastOcc]
@@ -235,137 +203,84 @@ private theorem shoupLastOcc_oddPart {iStar j : ℕ} (hi : 1 ≤ iStar)
     let q := iStar / 2 ^ j
     let oddQ := if q % 2 = 1 then q else q - 1
     0 < 2 ^ j ∧ 1 ≤ oddQ ∧ oddQ % 2 = 1 := by
-  have hpow_pos : 0 < 2 ^ j := Nat.pow_pos (by decide)
-  have hpow_le : 2 ^ j ≤ iStar :=
-    (Nat.pow_le_pow_right (by decide) hj).trans (Nat.pow_log_le_self 2 (by omega))
-  have hq_pos : 1 ≤ iStar / 2 ^ j := Nat.div_pos hpow_le hpow_pos
-  exact ⟨hpow_pos, by split_ifs <;> omega, by split_ifs <;> omega⟩
+  have hpow : 0 < 2 ^ j := Nat.two_pow_pos j
+  have hq : 1 ≤ iStar / 2 ^ j := Nat.div_pos
+    ((Nat.pow_le_pow_right (by decide) hj).trans (Nat.pow_log_le_self 2 (by omega))) hpow
+  exact ⟨hpow, by split_ifs <;> omega, by split_ifs <;> omega⟩
 
 private theorem padicValNat_two_shoupLastOcc {iStar j : ℕ} (hi : 1 ≤ iStar)
     (hj : j ≤ Nat.log 2 iStar) : padicValNat 2 (shoupLastOcc iStar j) = j := by
   have := two_prime_fact
-  obtain ⟨hpow_pos, hodd_pos, hodd_mod⟩ := shoupLastOcc_oddPart hi hj
-  have hodd_not_dvd :
-      ¬ 2 ∣ (if (iStar / 2 ^ j) % 2 = 1 then iStar / 2 ^ j else iStar / 2 ^ j - 1) :=
-    Nat.dvd_iff_mod_eq_zero.not.mpr (by omega)
+  obtain ⟨hpow, hodd_pos, hodd_mod⟩ := shoupLastOcc_oddPart hi hj
   dsimp only [shoupLastOcc]
-  rw [Nat.padicValNat_def, Nat.multiplicity_mul hpow_pos.ne' (Nat.ne_of_gt hodd_pos),
-    Nat.multiplicity_prime_pow, multiplicity_eq_zero_of_not_dvd hodd_not_dvd, add_zero]
+  rw [Nat.padicValNat_def, Nat.multiplicity_mul hpow.ne' (by omega),
+    Nat.multiplicity_prime_pow, multiplicity_eq_zero_of_not_dvd (by omega), add_zero]
 
 private theorem shoupIsLastOcc_shoupLastOcc {iStar j : ℕ} (hi : 1 ≤ iStar)
     (hj : j ≤ Nat.log 2 iStar) : shoupIsLastOcc iStar (shoupLastOcc iStar j) = true := by
-  obtain ⟨hpow_pos, hodd_pos, _⟩ := shoupLastOcc_oddPart hi hj
-  set q := iStar / 2 ^ j
-  let oddQ := if q % 2 = 1 then q else q - 1
-  have hp_pos : 1 ≤ shoupLastOcc iStar j := Nat.mul_pos hpow_pos hodd_pos
-  have hv : padicValNat 2 (shoupLastOcc iStar j) = j := padicValNat_two_shoupLastOcc hi hj
-  have hi_lt : iStar < shoupLastOcc iStar j + 2 ^ (j + 1) := by
-    have hdiv : iStar < 2 ^ j * (q + 1) := by
-      rw [Nat.mul_add, Nat.mul_one]
-      have hdm := Nat.div_add_mod iStar (2 ^ j)
-      have hml := Nat.mod_lt iStar hpow_pos
-      dsimp only [q]
-      linarith
-    have hq_le : q + 1 ≤ oddQ + 2 := by dsimp only [oddQ]; split_ifs <;> omega
-    calc iStar < 2 ^ j * (q + 1) := hdiv
-      _ ≤ 2 ^ j * (oddQ + 2) := Nat.mul_le_mul_left _ hq_le
-      _ = shoupLastOcc iStar j + 2 ^ (j + 1) := by
-        dsimp only [shoupLastOcc, oddQ]; rw [pow_succ]; ring
-  simp only [shoupIsLastOcc, decide_eq_true_eq, hv]
-  exact ⟨hp_pos, shoupLastOcc_le, hi_lt⟩
+  obtain ⟨hpow, hodd_pos, _⟩ := shoupLastOcc_oddPart hi hj
+  simp only [shoupIsLastOcc, decide_eq_true_eq, padicValNat_two_shoupLastOcc hi hj]
+  refine ⟨Nat.mul_pos hpow hodd_pos, shoupLastOcc_le, ?_⟩
+  have hdm := Nat.div_add_mod iStar (2 ^ j)
+  have hml := Nat.mod_lt iStar hpow
+  have hle : iStar / 2 ^ j + 1 ≤
+      (if (iStar / 2 ^ j) % 2 = 1 then iStar / 2 ^ j else iStar / 2 ^ j - 1) + 2 := by
+    split_ifs <;> omega
+  calc iStar < 2 ^ j * (iStar / 2 ^ j + 1) := by rw [mul_add, mul_one]; omega
+    _ ≤ 2 ^ j * _ := Nat.mul_le_mul_left _ hle
+    _ = shoupLastOcc iStar j + 2 ^ (j + 1) := by dsimp only [shoupLastOcc]; rw [pow_succ]; ring
 
 private theorem shoupLastOcc_padicValNat_eq {iStar k : ℕ} (hk : shoupIsLastOcc iStar k = true) :
     shoupLastOcc iStar (padicValNat 2 k) = k := by
-  have hk' := hk
-  simp only [shoupIsLastOcc, decide_eq_true_eq] at hk'
-  have hi : 1 ≤ iStar := by omega
-  have hj : padicValNat 2 k ≤ Nat.log 2 iStar := by
-    rw [Nat.padicValNat_def]
-    exact (multiplicity_le_nat_log k).trans (Nat.log_mono_right hk'.2.1)
-  exact shoupIsLastOcc_unique hk
-    (shoupLastOcc_ge hk'.1 hk'.2.1) shoupLastOcc_le
-    (padicValNat_two_shoupLastOcc hi hj)
+  have hk' := (decide_eq_true_eq.mp hk)
+  exact shoupIsLastOcc_unique hk (shoupLastOcc_ge hk'.1 hk'.2.1) shoupLastOcc_le
+    (padicValNat_two_shoupLastOcc (by omega)
+      (Nat.padicValNat_def ▸ (multiplicity_le_nat_log k).trans (Nat.log_mono_right hk'.2.1)))
 
 private theorem shoupLastOcc_gt_between {iStar lo hi i : ℕ}
     (hhi_last : shoupIsLastOcc iStar hi = true)
     (hbetween : ∀ m, lo < m → m < hi → shoupIsLastOcc iStar m = false)
     (h1 : 1 ≤ i) (hlo : lo < i) (hhi : i < hi) :
     hi < shoupLastOcc iStar (padicValNat 2 i) := by
-  have hhi_info := hhi_last
-  simp only [shoupIsLastOcc, decide_eq_true_eq] at hhi_info
-  have hi_le : i ≤ iStar := hhi.le.trans hhi_info.2.1
-  have hv_i_log : padicValNat 2 i ≤ Nat.log 2 iStar := by
-    rw [Nat.padicValNat_def]
-    exact (multiplicity_le_nat_log i).trans (Nat.log_mono_right hi_le)
-  let p' := shoupLastOcc iStar (padicValNat 2 i)
-  have hp'_last : shoupIsLastOcc iStar p' = true :=
-    shoupIsLastOcc_shoupLastOcc (by omega) hv_i_log
-  have hp'_ge : i ≤ p' := shoupLastOcc_ge h1 hi_le
-  have hp'_ne : p' ≠ i := by
-    intro heq
-    have hf := hbetween i hlo hhi
-    rw [← heq, hp'_last] at hf
-    exact Bool.false_ne_true hf.symm
-  have hp'_gt : i < p' := lt_of_le_of_ne hp'_ge hp'_ne.symm
-  have hp'_not_lt : ¬ p' < hi := by
-    intro hlt
-    have hf := hbetween p' (hlo.trans hp'_gt) hlt
-    rw [hp'_last] at hf
-    exact Bool.false_ne_true hf.symm
-  rcases eq_or_lt_of_le (not_lt.mp hp'_not_lt) with hpeq | hpgt
-  · exfalso
-    have hv_iB : padicValNat 2 i = padicValNat 2 hi := by
-      have hp_val := padicValNat_two_shoupLastOcc (by omega : 1 ≤ iStar) hv_i_log
-      change padicValNat 2 p' = _ at hp_val
-      rw [← hp_val, hpeq]
-    obtain ⟨C₀, hC₀_lt1, hC₀_lt2, hC₀_val⟩ := shoup_fact1 h1 hhi hv_iB
-    let S := (Finset.Ioo i hi).filter fun c => padicValNat 2 i < padicValNat 2 c
-    have hS_ne : S.Nonempty :=
-      ⟨C₀, Finset.mem_filter.mpr ⟨Finset.mem_Ioo.mpr ⟨hC₀_lt1, hC₀_lt2⟩, hC₀_val⟩⟩
-    obtain ⟨C, hC_mem, hC_max⟩ := S.exists_max_image (fun c => padicValNat 2 c) hS_ne
-    have hC_lt : i < C ∧ C < hi := Finset.mem_Ioo.mp (Finset.mem_filter.mp hC_mem).1
-    have hC_val_gt : padicValNat 2 i < padicValNat 2 C := (Finset.mem_filter.mp hC_mem).2
-    have hC_not_last : shoupIsLastOcc iStar C = false :=
-      hbetween C (hlo.trans hC_lt.1) hC_lt.2
-    have hv_C_log : padicValNat 2 C ≤ Nat.log 2 iStar := by
-      rw [Nat.padicValNat_def]
-      exact (multiplicity_le_nat_log C).trans (Nat.log_mono_right (hC_lt.2.le.trans hhi_info.2.1))
-    let D := shoupLastOcc iStar (padicValNat 2 C)
-    have hD_last : shoupIsLastOcc iStar D = true :=
-      shoupIsLastOcc_shoupLastOcc (by omega) hv_C_log
-    have hD_val : padicValNat 2 D = padicValNat 2 C :=
-      padicValNat_two_shoupLastOcc (by omega) hv_C_log
-    have hD_ge : C ≤ D := shoupLastOcc_ge (by omega) (hC_lt.2.le.trans hhi_info.2.1)
-    have hD_neC : D ≠ C := fun h => by
-      rw [h, hC_not_last] at hD_last
-      exact Bool.false_ne_true hD_last
-    have hCD : C < D := lt_of_le_of_ne hD_ge hD_neC.symm
-    have hBD : hi < D := by
-      by_contra hle
-      rcases eq_or_lt_of_le (not_lt.mp hle) with hDeq | hDlt
-      · rw [hDeq, ← hv_iB] at hD_val
-        omega
-      · have hf := hbetween D (hlo.trans (hC_lt.1.trans hCD)) hDlt
-        rw [hD_last] at hf
-        exact Bool.false_ne_true hf.symm
-    obtain ⟨E, hCE, hED, hE_val⟩ := shoup_fact1 (by omega) hCD hD_val.symm
-    have hBE : hi < E := by
-      by_contra hle
-      rcases eq_or_lt_of_le (not_lt.mp hle) with hEeq | hElt
-      · rw [hEeq, ← hv_iB] at hE_val
-        omega
-      · have hE_inS : E ∈ S := Finset.mem_filter.mpr
-          ⟨Finset.mem_Ioo.mpr ⟨hC_lt.1.trans hCE, hElt⟩, hC_val_gt.trans hE_val⟩
-        have hmaxE := hC_max E hE_inS
-        omega
-    have hmin_gt : padicValNat 2 hi < min (padicValNat 2 E) (padicValNat 2 D) :=
-      lt_min (hv_iB ▸ hC_val_gt.trans hE_val) (hv_iB ▸ hD_val ▸ hC_val_gt)
-    obtain ⟨F, hEF, hFD, hF_val⟩ := shoup_fact2 (by omega) hED hmin_gt
-    have hBF : hi < F := hBE.trans hEF
-    have hF_le : F ≤ iStar := hFD.le.trans shoupLastOcc_le
-    have hFeq : F = hi := shoupIsLastOcc_unique hhi_last hBF.le hF_le hF_val
-    omega
-  · exact hpgt
+  have hhi_info := decide_eq_true_eq.mp hhi_last
+  have lastOcc_ge_hi : ∀ m, 1 ≤ m → lo < m → m < hi →
+      let q := shoupLastOcc iStar (padicValNat 2 m)
+      hi ≤ q ∧ padicValNat 2 q = padicValNat 2 m := by
+    intro m hm1 hmlo hmhi
+    have hlog : padicValNat 2 m ≤ Nat.log 2 iStar :=
+      Nat.padicValNat_def ▸
+        (multiplicity_le_nat_log m).trans (Nat.log_mono_right (hmhi.le.trans hhi_info.2.1))
+    have hql := shoupIsLastOcc_shoupLastOcc (by omega) hlog
+    refine ⟨not_lt.mp fun hlt => ?_, padicValNat_two_shoupLastOcc (by omega) hlog⟩
+    have hge : m ≤ shoupLastOcc iStar (padicValNat 2 m) :=
+      shoupLastOcc_ge hm1 (hmhi.le.trans hhi_info.2.1)
+    have hf := hbetween _ (lt_of_lt_of_le hmlo hge) hlt
+    rw [hql] at hf; exact Bool.false_ne_true hf.symm
+  obtain ⟨hp_ge, hp_val⟩ := lastOcc_ge_hi i h1 hlo hhi
+  refine lt_of_le_of_ne hp_ge fun hpeq => ?_
+  have hv_iB : padicValNat 2 i = padicValNat 2 hi := by rw [← hp_val, ← hpeq]
+  obtain ⟨C₀, hC₀1, hC₀2, hC₀v⟩ := shoup_fact1 h1 hhi hv_iB
+  let S := (Finset.Ioo i hi).filter fun c => padicValNat 2 i < padicValNat 2 c
+  obtain ⟨C, hCm, hCmax⟩ := S.exists_max_image (padicValNat 2)
+    ⟨C₀, Finset.mem_filter.mpr ⟨Finset.mem_Ioo.mpr ⟨hC₀1, hC₀2⟩, hC₀v⟩⟩
+  have ⟨hClt, hCv⟩ := (Finset.mem_filter.mp hCm)
+  have ⟨hiC, Chi⟩ := Finset.mem_Ioo.mp hClt
+  set D := shoupLastOcc iStar (padicValNat 2 C)
+  obtain ⟨hD_ge, hD_val⟩ := lastOcc_ge_hi C (by omega) (hlo.trans hiC) Chi
+  have hBD : hi < D := lt_of_le_of_ne hD_ge fun h => by
+    change padicValNat 2 D = _ at hD_val
+    rw [← h, ← hv_iB] at hD_val; omega
+  obtain ⟨E, hCE, hED, hEv⟩ := shoup_fact1 (by omega) (Chi.trans hBD) hD_val.symm
+  have hBE : hi < E := not_le.mp fun hle => (eq_or_lt_of_le hle).elim
+    (fun h => by rw [h, ← hv_iB] at hEv; omega)
+    (fun hlt => by
+      have := hCmax E (Finset.mem_filter.mpr ⟨Finset.mem_Ioo.mpr ⟨hiC.trans hCE, hlt⟩,
+        hCv.trans hEv⟩)
+      omega)
+  obtain ⟨F, hEF, hFD, hFv⟩ := shoup_fact2 (by omega) hED
+    (lt_min (hv_iB ▸ hCv.trans hEv) (hv_iB ▸ hD_val ▸ hCv))
+  have := shoupIsLastOcc_unique hhi_last (hBE.trans hEF).le (hFD.le.trans shoupLastOcc_le) hFv
+  omega
 
 @[fun_prop]
 private theorem computableInPolyTime_shoupIsLastOcc {γ : Type} {encIn : γ ↪ List Bool}
@@ -373,27 +288,15 @@ private theorem computableInPolyTime_shoupIsLastOcc {γ : Type} {encIn : γ ↪ 
     (hi : ComputableInPolyTime iStar encIn encUnary)
     (hk : ComputableInPolyTime k encIn encUnary) :
     ComputableInPolyTime (fun a => shoupIsLastOcc (iStar a) (k a)) encIn encBool := by
-  have heq (a : γ) :
-      shoupIsLastOcc (iStar a) (k a) =
-        (decide (1 ≤ k a) && decide (k a ≤ iStar a) &&
-          decide (iStar a < k a + 2 ^ (padicValNat 2 (k a) + 1))) := by
-    simp [shoupIsLastOcc, Bool.and_assoc]
-  have hpow : ComputableInPolyTime (fun a => 2 ^ (padicValNat 2 (k a) + 1)) encIn encNat :=
-    ComputableInPolyTime.binary_two_pow.comp (by fun_prop)
-  have hk_bin : ComputableInPolyTime k encIn encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hk
-  have hi_bin : ComputableInPolyTime iStar encIn encNat :=
-    ComputableInPolyTime.unary_to_binary.comp hi
   have hlt : ComputableInPolyTime (fun a => decide (iStar a < k a + 2 ^ (padicValNat 2 (k a) + 1)))
       encIn encBool :=
-    ComputableInPolyTime.binary_lt' hi_bin (ComputableInPolyTime.binary_add' hk_bin hpow)
-  have h1 : ComputableInPolyTime (fun a => decide (1 ≤ k a)) encIn encBool := by fun_prop
-  have h2 : ComputableInPolyTime (fun a => decide (k a ≤ iStar a)) encIn encBool := by fun_prop
-  have hall : ComputableInPolyTime
-      (fun a => decide (1 ≤ k a) && decide (k a ≤ iStar a) &&
-        decide (iStar a < k a + 2 ^ (padicValNat 2 (k a) + 1))) encIn encBool := by
-    fun_prop
-  exact funext heq ▸ hall
+    ComputableInPolyTime.binary_lt' (ComputableInPolyTime.unary_to_binary.comp hi)
+      (ComputableInPolyTime.binary_add' (ComputableInPolyTime.unary_to_binary.comp hk)
+        (ComputableInPolyTime.binary_two_pow.comp (by fun_prop)))
+  refine (by fun_prop : ComputableInPolyTime (fun a =>
+    decide (1 ≤ k a) && decide (k a ≤ iStar a) &&
+      decide (iStar a < k a + 2 ^ (padicValNat 2 (k a) + 1))) encIn encBool).of_enc_eq fun a => ?_
+  exact congrArg encBool (by simp [shoupIsLastOcc, Bool.and_assoc])
 
 /-! ### Mask-count schedule and XOR-masked cascade (`[Shoup2000]`; `[HHRVW2020]` Lemma 5.7) -/
 
@@ -492,6 +395,22 @@ private def shoupAdvance (b s : ℕ) (step : List Bool → List Bool)
     (masks x : List Bool) (lo hi : ℕ) (initH : List Bool) : List Bool :=
   ((shoupIterStep b s step masks x)^[hi - lo] (lo, initH)).2
 
+private theorem fst_iterate_shoupIterStep (b s : ℕ) (step : List Bool → List Bool)
+    (masks x : List Bool) (lo : ℕ) (initH : List Bool) (d : ℕ) :
+    ((shoupIterStep b s step masks x)^[d] (lo, initH)).1 = lo + d := by
+  induction d with
+  | zero => rfl
+  | succ d ih => simp only [Function.iterate_succ_apply', shoupIterStep, ih]; omega
+
+private theorem shoupAdvance_succ (b s : ℕ) (step : List Bool → List Bool)
+    (masks x : List Bool) {lo hi : ℕ} (hlo : lo < hi) (initH : List Bool) :
+    shoupAdvance b s step masks x lo hi initH =
+      step (shoupStepInput b s masks x hi (shoupAdvance b s step masks x lo (hi - 1) initH)) := by
+  dsimp only [shoupAdvance]
+  rw [show hi - lo = (hi - 1 - lo) + 1 by omega, Function.iterate_succ_apply']
+  dsimp only [shoupIterStep]
+  rw [fst_iterate_shoupIterStep, show lo + (hi - 1 - lo) + 1 = hi by omega]
+
 private theorem iterate_shoupIterStep_from (b s : ℕ) (step : List Bool → List Bool)
     (masks x : List Bool) (lo d : ℕ) :
     (shoupIterStep b s step masks x)^[d] (lo, shoupState b s step masks x lo) =
@@ -512,23 +431,17 @@ private theorem shoupAdvance_congr {b s : ℕ} (step : List Bool → List Bool)
     (hagree : ∀ i, lo < i → i ≤ hi →
       BitString.listRow b (padicValNat 2 i) m₁ = BitString.listRow b (padicValNat 2 i) m₂) :
     shoupAdvance b s step m₁ x lo hi initH = shoupAdvance b s step m₂ x lo hi initH := by
-  have hd : ∀ d ≤ hi - lo,
+  suffices h : ∀ d ≤ hi - lo,
       (shoupIterStep b s step m₁ x)^[d] (lo, initH) =
-        (shoupIterStep b s step m₂ x)^[d] (lo, initH) := by
-    intro d hd_le
-    induction d with
-    | zero => rfl
-    | succ d ih =>
-      have ih' := ih (Nat.le_of_succ_le hd_le)
-      have hf2 : ((shoupIterStep b s step m₂ x)^[d] (lo, initH)).1 = lo + d := by
-        clear hagree ih ih' hd_le
-        induction d with
-        | zero => rfl
-        | succ d ihd => simp [Function.iterate_succ_apply', shoupIterStep, ihd]; omega
-      rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih']
-      dsimp only [shoupIterStep, shoupStepInput]
-      rw [hf2, hagree _ (by omega) (by omega)]
-  exact congrArg Prod.snd (hd (hi - lo) le_rfl)
+        (shoupIterStep b s step m₂ x)^[d] (lo, initH) from
+    congrArg Prod.snd (h (hi - lo) le_rfl)
+  intro d hd
+  induction d with
+  | zero => rfl
+  | succ d ih =>
+    rw [Function.iterate_succ_apply', Function.iterate_succ_apply', ih (Nat.le_of_succ_le hd)]
+    dsimp only [shoupIterStep, shoupStepInput]
+    rw [fst_iterate_shoupIterStep, hagree _ (by omega) (by omega)]
 
 @[fun_prop]
 private theorem computableInPolyTime_shoupAdvance {γ : Type} {encIn : γ ↪ List Bool}
@@ -629,80 +542,41 @@ theorem exists_shoupCascade_step_collision {b s t L : ℕ}
         step (shoupStepInput b s masks x₁ i (shoupState b s step masks x₁ (i - 1))) := by
   by_contra hno
   push Not at hno
-  have hback : ∀ d k, t - k = d → k ≤ t →
-      shoupState b s step masks x₀ k = shoupState b s step masks x₁ k ∧
-      ∀ i, k < i → i ≤ t →
-        shoupChunk b s i x₀ = shoupChunk b s i x₁ := by
+  have hback : ∀ d ≤ t,
+      shoupState b s step masks x₀ (t - d) = shoupState b s step masks x₁ (t - d) ∧
+      ∀ i, t - d < i → i ≤ t → shoupChunk b s i x₀ = shoupChunk b s i x₁ := by
     intro d
-    induction d using Nat.strong_induction_on with
-    | ind d ih =>
-      intro k hdk hk
-      cases Nat.eq_or_lt_of_le hk with
-      | inl hkt =>
-        subst hkt
-        exact ⟨hcoll, fun i hi1 hi2 => by omega⟩
-      | inr hk_lt =>
-        have hk1 : k + 1 ≤ t := hk_lt
-        obtain ⟨hnext_state, hnext_chunks⟩ := ih (t - (k + 1)) (by omega) (k + 1) rfl hk1
-        have hcoll_step :
-            step (shoupStepInput b s masks x₀ (k + 1) (shoupState b s step masks x₀ k)) =
-              step (shoupStepInput b s masks x₁ (k + 1) (shoupState b s step masks x₁ k)) :=
-          hnext_state
-        have hinp_eq :
-            shoupStepInput b s masks x₀ (k + 1) (shoupState b s step masks x₀ k) =
-              shoupStepInput b s masks x₁ (k + 1) (shoupState b s step masks x₁ k) := by
-          have := hno (k + 1) (by omega) hk1
-          exact not_ne_iff.mp fun hne_in => hcoll_step |> this hne_in
-        have hlen_xor₀ : (BitString.listXor b
-            [shoupState b s step masks x₀ k,
-              BitString.listRow b (padicValNat 2 (k + 1)) masks]).length = b :=
-          BitString.length_listXor _ _
-        have hlen_xor₁ : (BitString.listXor b
-            [shoupState b s step masks x₁ k,
-              BitString.listRow b (padicValNat 2 (k + 1)) masks]).length = b :=
-          BitString.length_listXor _ _
-        have hsplit := List.append_inj hinp_eq (by rw [hlen_xor₀, hlen_xor₁])
-        have hxor_eq := hsplit.1
-        have hchunk_eq := hsplit.2
-        have hstate_len₀ : (shoupState b s step masks x₀ k).length = b :=
-          length_shoupState b s step hstep masks x₀ k
-        have hstate_len₁ : (shoupState b s step masks x₁ k).length = b :=
-          length_shoupState b s step hstep masks x₁ k
-        have hstate_eq : shoupState b s step masks x₀ k = shoupState b s step masks x₁ k :=
-          (BitString.listXor_pair_left_inj hstate_len₀ hstate_len₁
-            (BitString.listRow b (padicValNat 2 (k + 1)) masks)).mp hxor_eq
-        refine ⟨hstate_eq, fun i hi1 hi2 => ?_⟩
-        rcases eq_or_lt_of_le (Nat.succ_le_of_lt hi1) with rfl | hi_gt
-        · exact hchunk_eq
-        · exact hnext_chunks i hi_gt hi2
-  obtain ⟨h0, hchunks⟩ := hback (t - 0) 0 rfl (Nat.zero_le t)
+    induction d with
+    | zero => intro _; exact ⟨hcoll, fun i h1 h2 => by omega⟩
+    | succ d ih =>
+      intro hd
+      set k := t - (d + 1)
+      obtain ⟨hnext, hchunks⟩ := ih (Nat.le_of_succ_le hd)
+      rw [show t - d = k + 1 by omega] at hnext hchunks
+      have hinp : shoupStepInput b s masks x₀ (k + 1) (shoupState b s step masks x₀ k) =
+          shoupStepInput b s masks x₁ (k + 1) (shoupState b s step masks x₁ k) :=
+        not_ne_iff.mp fun hne_in => hno (k + 1) (by omega) (by omega) hne_in hnext
+      obtain ⟨hxor, hchunk⟩ := List.append_inj hinp (by simp only [BitString.length_listXor])
+      refine ⟨(BitString.listXor_pair_left_inj (length_shoupState b s step hstep masks x₀ k)
+        (length_shoupState b s step hstep masks x₁ k) _).mp hxor, fun i hi1 hi2 => ?_⟩
+      exact (eq_or_lt_of_le (Nat.succ_le_of_lt hi1)).elim (· ▸ hchunk) (hchunks i · hi2)
+  obtain ⟨h0, hchunks⟩ := hback t le_rfl
+  rw [Nat.sub_self] at h0 hchunks
+  have listRow_zero_take (x : List Bool) (hx : x.length = L) :
+      BitString.listRow b 0 x = x.take b := by
+    rw [BitString.listRow_zero, BitString.ofFn_ofList_eq_take,
+      List.take_append_of_le_length (by omega)]
   have htake : x₀.take b = x₁.take b := by
-    have htake0 : BitString.listRow b 0 x₀ = x₀.take b := by
-      rw [BitString.listRow_zero, BitString.ofFn_ofList_eq_take,
-        List.take_append_of_le_length (by omega)]
-    have htake1 : BitString.listRow b 0 x₁ = x₁.take b := by
-      rw [BitString.listRow_zero, BitString.ofFn_ofList_eq_take,
-        List.take_append_of_le_length (by omega)]
-    change BitString.listRow b 0 x₀ = BitString.listRow b 0 x₁ at h0
-    rw [← htake0, ← htake1, h0]
-  have hdrop : x₀.drop b = x₁.drop b := by
-    apply List.ext_getElem (by simp [hx₀, hx₁])
-    intro j hj₀ hj₁
-    have hj_len : j < L - b := by rw [List.length_drop, hx₀] at hj₀; exact hj₀
-    have hj_lt : j < t * s := by omega
+    rw [← listRow_zero_take x₀ hx₀, ← listRow_zero_take x₁ hx₁]; exact h0
+  have hdrop : x₀.drop b = x₁.drop b := List.ext_getElem (by simp [hx₀, hx₁]) fun j hj₀ hj₁ => by
+    have hj_lt : j < t * s := by rw [List.length_drop, hx₀] at hj₀; omega
     have hq_lt : j / s < t := Nat.div_lt_of_lt_mul (by rwa [mul_comm])
     have hr_lt : j % s < s := Nat.mod_lt j hs_pos
-    have hc := hchunks (j / s + 1) (Nat.succ_pos (j / s)) (Nat.succ_le_of_lt hq_lt)
-    have hidx := congrArg (fun l => l.getD (j % s) false) hc
-    have hget (x : List Bool) (hx : x.length = L) :
-        (shoupChunk b s (j / s + 1) x).getD (j % s) false =
-          (x.drop b)[j]'(by simp [hx]; omega) := by
-      have hlen_drop : j < (x.drop b).length := by simp [hx]; omega
-      dsimp only [shoupChunk]
-      rw [Nat.add_sub_cancel, BitString.getD_listRow hr_lt]
-      have hmul : j / s * s + j % s = j := Nat.div_add_mod' j s
-      rw [hmul, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hlen_drop, Option.getD_some]
-    rw [hget x₀ hx₀, hget x₁ hx₁] at hidx
+    have hidx := congrArg (fun l => l.getD (j % s) false)
+      (hchunks (j / s + 1) (Nat.succ_pos _) hq_lt)
+    simp only [shoupChunk, Nat.add_sub_cancel, BitString.getD_listRow hr_lt,
+      Nat.div_add_mod' j s, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hj₀, List.getElem?_eq_getElem hj₁, Option.getD_some] at hidx
     exact hidx
   exact hne (by rw [← List.take_append_drop b x₀, htake, hdrop, List.take_append_drop])
 
@@ -750,16 +624,14 @@ def shoupPackMasks (b s t iStar : ℕ) (step : List Bool → List Bool)
 theorem length_shoupPackMasks (b s t iStar : ℕ) (step : List Bool → List Bool)
     (x T : List Bool) :
     (shoupPackMasks b s t iStar step x T).length = shoupMasksLen b t := by
-  have hinit : (BitString.listRow (shoupMasksLen b t) 0 T).length = shoupMasksLen b t :=
-    BitString.length_listRow _ _ _
-  suffices h : ∀ m (acc : ShoupPackAcc), acc.masks.length = shoupMasksLen b t →
+  suffices ∀ m (acc : ShoupPackAcc), acc.masks.length = shoupMasksLen b t →
       ((shoupPackStep b s t iStar step x
         (BitString.listRow (shoupMasksLen b t) 0 T))^[m] acc).masks.length =
         shoupMasksLen b t from
-    h iStar _ hinit
+    this iStar _ (BitString.length_listRow _ _ _)
   intro m
   induction m with
-  | zero => intro _ h; exact h
+  | zero => exact fun _ h => h
   | succ m ih =>
     intro acc h
     rw [Function.iterate_succ_apply]
@@ -767,12 +639,218 @@ theorem length_shoupPackMasks (b s t iStar : ℕ) (step : List Bool → List Boo
     dsimp only [shoupPackStep]
     by_cases htrig : (decide (acc.rem - 1 = 0) || shoupIsLastOcc iStar (acc.rem - 1)) = true
     · simp only [htrig, ↓reduceIte]
-      dsimp only [shoupMasksLen]
       exact BitString.length_replaceRow (BitString.length_listXor _ _) _
-    · have htrig_f : (decide (acc.rem - 1 = 0) || shoupIsLastOcc iStar (acc.rem - 1)) = false :=
-        Bool.eq_false_iff.mpr htrig
-      simp only [htrig_f, Bool.false_eq_true, ↓reduceIte]
+    · simp only [Bool.eq_false_iff.mpr htrig, Bool.false_eq_true, ↓reduceIte]
       exact h
+
+private theorem padicValNat_two_lt_maskCount {a t : ℕ} (h : a ≤ t) :
+    padicValNat 2 a < shoupMaskCount t :=
+  Nat.lt_succ_of_le <|
+    Nat.padicValNat_def ▸ (multiplicity_le_nat_log a).trans (Nat.log_mono_right h)
+
+private def shoupSegStart (b s : ℕ) (step : List Bool → List Bool) (x T0 : List Bool)
+    (lo : ℕ) : List Bool :=
+  if lo = 0 then BitString.listRow b 0 x
+  else step (BitString.listRow b (padicValNat 2 lo) T0 ++ shoupChunk b s lo x)
+
+private def ShoupSeg (iStar lo p bound : ℕ) : Prop :=
+  bound ≤ lo ∧ lo < p ∧ p ≤ iStar ∧
+  (lo = 0 ∨ shoupIsLastOcc iStar lo = true) ∧
+  shoupIsLastOcc iStar p = true ∧
+  ∀ m, lo < m → m < p → shoupIsLastOcc iStar m = false
+
+private theorem shoupAdvance_replaceRow_congr {b s t iStar own lo p : ℕ}
+    (step : List Bool → List Bool) (masks newMask x initH : List Bool)
+    (hlen : newMask.length = b) (hit : iStar ≤ t) (hp_le : p ≤ iStar) (hlo : lo < p)
+    (hown_le : own ≤ p) (hown_last : shoupIsLastOcc iStar own = true)
+    (hp_last : shoupIsLastOcc iStar p = true)
+    (hbtw : ∀ m, lo < m → m < p → shoupIsLastOcc iStar m = false) :
+    shoupAdvance b s step
+        (BitString.replaceRow b (shoupMaskCount t) (padicValNat 2 own) newMask masks) x
+        lo (p - 1) initH =
+      shoupAdvance b s step masks x lo (p - 1) initH := by
+  refine shoupAdvance_congr step _ masks x (by omega) initH fun i hi1 hi2 => ?_
+  have hj_lt : padicValNat 2 i < shoupMaskCount t :=
+    padicValNat_two_lt_maskCount ((hi2.trans ((Nat.sub_le _ _).trans hp_le)).trans hit)
+  rw [BitString.listRow_replaceRow hlen masks hj_lt]
+  have hgt : p < shoupLastOcc iStar (padicValNat 2 i) :=
+    shoupLastOcc_gt_between hp_last hbtw (by omega) hi1 (by omega)
+  have hne : padicValNat 2 i ≠ padicValNat 2 own := fun hjeq => by
+    have := shoupLastOcc_padicValNat_eq hown_last
+    rw [hjeq, this] at hgt; omega
+  simp only [hne, ↓reduceIte]
+
+private def shoupPackInv (b s t iStar : ℕ) (step : List Bool → List Bool) (x T0 : List Bool)
+    (m : ℕ) (st : ShoupPackAcc) : Prop :=
+  st.rem = iStar - m ∧
+  (∀ j, Nat.log 2 iStar < j → j < shoupMaskCount t →
+    BitString.listRow b j st.masks = BitString.listRow b j T0) ∧
+  (if m < iStar then
+    st.rem ≤ st.activeOwner ∧ st.activeOwner ≤ iStar ∧
+    shoupIsLastOcc iStar st.activeOwner = true ∧
+    (∀ i', st.rem ≤ i' → i' < st.activeOwner → shoupIsLastOcc iStar i' = false) ∧
+    st.activeS = BitString.listRow b (padicValNat 2 st.activeOwner) T0
+  else st.activeOwner = 0) ∧
+  (∀ lo p, ShoupSeg iStar lo p (if m < iStar then st.activeOwner else 0) →
+    BitString.listRow b (padicValNat 2 p) st.masks =
+      BitString.listXor b
+        [shoupAdvance b s step st.masks x lo (p - 1) (shoupSegStart b s step x T0 lo),
+         BitString.listRow b (padicValNat 2 p) T0])
+
+private theorem shoupPackStep_preserves_inv {b s t iStar : ℕ} (step : List Bool → List Bool)
+    (hit : iStar ≤ t) (x T0 : List Bool) {m : ℕ} (hm : m < iStar) {st : ShoupPackAcc}
+    (hinv : shoupPackInv b s t iStar step x T0 m st) :
+    shoupPackInv b s t iStar step x T0 (m + 1) (shoupPackStep b s t iStar step x T0 st) := by
+  obtain ⟨hrem, hhi_j, hbranch, hsegs⟩ := hinv
+  simp only [hm, ↓reduceIte] at hbranch hsegs
+  obtain ⟨h_lt_own, h_own_le, h_own_last, h_no_btw, hs_eq⟩ := hbranch
+  set k := st.rem - 1
+  have hstep_if : shoupPackStep b s t iStar step x T0 st =
+      if (decide (k = 0) || shoupIsLastOcc iStar k) = true then
+        ⟨k, k, BitString.listRow b (padicValNat 2 k) T0,
+          BitString.replaceRow b (shoupMaskCount t) (padicValNat 2 st.activeOwner)
+            (BitString.listXor b
+              [shoupAdvance b s step st.masks x k (st.activeOwner - 1)
+                (if decide (k = 0) then BitString.listRow b 0 x
+                  else step (BitString.listRow b (padicValNat 2 k) T0 ++ shoupChunk b s k x)),
+                st.activeS])
+            st.masks⟩
+      else ⟨k, st.activeOwner, st.activeS, st.masks⟩ := rfl
+  rw [hstep_if]
+  by_cases htrig : (decide (k = 0) || shoupIsLastOcc iStar k) = true
+  · simp only [htrig, ↓reduceIte]
+    have htrig' : k = 0 ∨ shoupIsLastOcc iStar k = true := by
+      simpa only [Bool.or_eq_true, decide_eq_true_eq] using htrig
+    have hown_log : padicValNat 2 st.activeOwner ≤ Nat.log 2 iStar :=
+      Nat.lt_succ_iff.mp (padicValNat_two_lt_maskCount h_own_le)
+    have hown_lt : padicValNat 2 st.activeOwner < shoupMaskCount t :=
+      padicValNat_two_lt_maskCount (h_own_le.trans hit)
+    set newMask := BitString.listXor b
+      [shoupAdvance b s step st.masks x k (st.activeOwner - 1)
+        (if decide (k = 0) then BitString.listRow b 0 x
+          else step (BitString.listRow b (padicValNat 2 k) T0 ++ shoupChunk b s k x)),
+        st.activeS]
+    set newMasks := BitString.replaceRow b (shoupMaskCount t)
+      (padicValNat 2 st.activeOwner) newMask st.masks
+    have hmlen : newMask.length = b := BitString.length_listXor _ _
+    have hrow_ne {j : ℕ} (hne : j ≠ padicValNat 2 st.activeOwner) (hj : j < shoupMaskCount t) :
+        BitString.listRow b j newMasks = BitString.listRow b j st.masks := by
+      simp only [newMasks, BitString.listRow_replaceRow hmlen st.masks hj, hne, ↓reduceIte]
+    refine ⟨by dsimp only [k]; omega, fun j hj1 hj2 => by
+      rw [hrow_ne (by omega) hj2, hhi_j j hj1 hj2], ?_, ?_⟩
+    · by_cases hm1 : m + 1 < iStar
+      · simp only [hm1, ↓reduceIte]
+        exact ⟨le_rfl, by dsimp only [k]; omega, htrig'.resolve_left (by dsimp only [k]; omega),
+          fun _ h1 h2 => by omega, trivial⟩
+      · simp only [hm1, ↓reduceIte]; dsimp only [k]; omega
+    · intro lo p hseg
+      have hb_eq : (if m + 1 < iStar then k else 0) = k := by
+        split_ifs
+        · rfl
+        · dsimp only [k]; omega
+      rw [hb_eq] at hseg
+      rcases hseg with ⟨h_k_lo, h_lo_p, h_p_le, h_lo_cond, h_p_last, h_btw⟩
+      rcases eq_or_lt_of_le h_k_lo with hkeq | hlo_gt
+      · have hp_eq : p = st.activeOwner := by
+          by_contra hne
+          rcases lt_or_gt_of_ne hne with hlt | hgt
+          · have h := h_no_btw p (by omega) hlt; rw [h_p_last] at h; exact Bool.false_ne_true h.symm
+          · have h := h_btw _ (by omega) hgt; rw [h_own_last] at h; exact Bool.false_ne_true h.symm
+        subst hp_eq
+        have hseg_eq : (if decide (k = 0) then BitString.listRow b 0 x
+            else step (BitString.listRow b (padicValNat 2 k) T0 ++ shoupChunk b s k x)) =
+            shoupSegStart b s step x T0 k := by
+          dsimp only [shoupSegStart]; by_cases h0 : k = 0 <;> simp [h0]
+        rw [← hkeq, BitString.listRow_replaceRow hmlen st.masks hown_lt]
+        simp only [↓reduceIte]
+        rw [shoupAdvance_replaceRow_congr step st.masks newMask x _ hmlen hit h_own_le
+            (hkeq ▸ h_lo_p) le_rfl h_own_last h_own_last (hkeq ▸ h_btw)]
+        dsimp only [newMask]; rw [hseg_eq, hs_eq]
+      · have hown_lo : st.activeOwner ≤ lo := not_lt.mp fun hlt =>
+          h_lo_cond.elim (by omega) fun hl => by
+            have h := h_no_btw lo (by omega) hlt; rw [hl] at h; exact Bool.false_ne_true h.symm
+        have hp_ne : padicValNat 2 p ≠ padicValNat 2 st.activeOwner := fun heq => by
+          have h1 := shoupLastOcc_padicValNat_eq h_p_last
+          rw [heq, shoupLastOcc_padicValNat_eq h_own_last] at h1; omega
+        rw [hrow_ne hp_ne (padicValNat_two_lt_maskCount (h_p_le.trans hit)),
+          hsegs lo p ⟨hown_lo, h_lo_p, h_p_le, h_lo_cond, h_p_last, h_btw⟩,
+          shoupAdvance_replaceRow_congr step st.masks newMask x _ hmlen hit h_p_le h_lo_p
+            (hown_lo.trans h_lo_p.le) h_own_last h_p_last h_btw]
+  · simp only [Bool.eq_false_iff.mpr htrig, Bool.false_eq_true, ↓reduceIte]
+    have hk_ne0 : k ≠ 0 := fun h0 => htrig (by simp [h0])
+    have hk_f : shoupIsLastOcc iStar k = false :=
+      Bool.eq_false_iff.mpr fun hs => htrig (by simp [hs])
+    have hk_def : k = iStar - (m + 1) := by dsimp only [k]; omega
+    have hm1 : m + 1 < iStar := by omega
+    refine ⟨hk_def, hhi_j, ?_, fun lo p hseg => by
+      simp only [hm1, ↓reduceIte] at hseg; exact hsegs lo p hseg⟩
+    simp only [hm1, ↓reduceIte]
+    exact ⟨by dsimp only [k]; omega, h_own_le, h_own_last, fun i' hi1 hi2 =>
+      (eq_or_lt_of_le hi1).elim (· ▸ hk_f) (fun hg => h_no_btw i' (by omega) hi2),
+      hs_eq⟩
+
+private theorem shoupPack_prevBreak {iStar k : ℕ} (hk : 0 < k) :
+    ∃ lo < k, (lo = 0 ∨ shoupIsLastOcc iStar lo = true) ∧
+      ∀ m, lo < m → m < k → shoupIsLastOcc iStar m = false := by
+  let S := (Finset.range k).filter fun m => decide (m = 0 ∨ shoupIsLastOcc iStar m = true)
+  have hS : S.Nonempty := ⟨0, Finset.mem_filter.mpr ⟨Finset.mem_range.mpr hk, by simp⟩⟩
+  have hmem := Finset.max'_mem S hS
+  rw [Finset.mem_filter, Finset.mem_range, decide_eq_true_eq] at hmem
+  refine ⟨S.max' hS, hmem.1, hmem.2, fun m h1 h2 => by_contra fun hf => ?_⟩
+  have := Finset.le_max' S m (Finset.mem_filter.mpr
+    ⟨Finset.mem_range.mpr h2, decide_eq_true_eq.mpr (Or.inr (Bool.eq_true_of_not_eq_false hf))⟩)
+  omega
+
+private theorem shoupPack_breakUniq {iStar lo₁ lo₂ u v : ℕ} (h1u : lo₁ < u) (h2v : lo₂ ≤ v)
+    (huv : u = v + 1) (h1c : lo₁ = 0 ∨ shoupIsLastOcc iStar lo₁ = true)
+    (h2c : lo₂ = 0 ∨ shoupIsLastOcc iStar lo₂ = true)
+    (h1b : ∀ m, lo₁ < m → m < u → shoupIsLastOcc iStar m = false)
+    (h2b : ∀ m, lo₂ < m → m ≤ v → shoupIsLastOcc iStar m = false) : lo₂ = lo₁ := by
+  by_contra hne
+  rcases lt_or_gt_of_ne hne with hlt | hgt
+  · rcases h1c with rfl | hl
+    · omega
+    · have h := h2b lo₁ hlt (by omega); rw [hl] at h; exact Bool.false_ne_true h.symm
+  · rcases h2c with rfl | hl
+    · omega
+    · have h := h1b lo₂ hgt (by omega); rw [hl] at h; exact Bool.false_ne_true h.symm
+
+private theorem shoupState_eq_shoupAdvance {b s iStar : ℕ} (step : List Bool → List Bool)
+    (masks x T0 : List Bool)
+    (hsegs : ∀ lo p, ShoupSeg iStar lo p 0 →
+      BitString.listRow b (padicValNat 2 p) masks =
+        BitString.listXor b
+          [shoupAdvance b s step masks x lo (p - 1) (shoupSegStart b s step x T0 lo),
+           BitString.listRow b (padicValNat 2 p) T0]) :
+    ∀ k ≤ iStar, ∃ lo ≤ k, (lo = 0 ∨ shoupIsLastOcc iStar lo = true) ∧
+      (∀ m, lo < m → m ≤ k → shoupIsLastOcc iStar m = false) ∧
+      shoupState b s step masks x k =
+        shoupAdvance b s step masks x lo k (shoupSegStart b s step x T0 lo) := by
+  intro k
+  induction k with
+  | zero =>
+    intro _
+    exact ⟨0, le_rfl, Or.inl rfl, fun _ h1 h2 => by omega, by
+      simp only [shoupState, shoupAdvance, shoupSegStart, Nat.sub_self, Function.iterate_zero,
+        id_eq, ↓reduceIte]⟩
+  | succ k ih =>
+    intro hk_le
+    obtain ⟨lo, hlo_lt, hlo_c, hbtw⟩ := shoupPack_prevBreak (iStar := iStar) (Nat.succ_pos k)
+    obtain ⟨lo', hlo'_le, hlo'_c, hbtw', hst'⟩ := ih (Nat.le_of_succ_le hk_le)
+    have hlo_eq : lo' = lo := shoupPack_breakUniq hlo_lt hlo'_le rfl hlo_c hlo'_c hbtw hbtw'
+    rw [hlo_eq] at hbtw' hst'
+    by_cases hlast : shoupIsLastOcc iStar (k + 1) = true
+    · refine ⟨k + 1, le_rfl, Or.inr hlast, fun _ h1 h2 => by omega, ?_⟩
+      have hrow := hsegs lo (k + 1) ⟨Nat.zero_le _, hlo_lt, hk_le, hlo_c, hlast, hbtw⟩
+      dsimp only [shoupState, shoupStepInput, shoupAdvance, shoupSegStart]
+      rw [Nat.sub_self, Function.iterate_zero, id_eq]
+      simp only [Nat.succ_ne_zero, ↓reduceIte]
+      rw [hst', hrow, Nat.add_sub_cancel,
+        BitString.listXor_pair_self_left_of_length _ (BitString.length_listRow _ _ _)]
+    · have hf : shoupIsLastOcc iStar (k + 1) = false := Bool.eq_false_of_not_eq_true hlast
+      refine ⟨lo, hlo_lt.le, hlo_c, fun m h1 h2 =>
+        (eq_or_lt_of_le h2).elim (· ▸ hf) (fun h => hbtw' m h1 (by omega)), ?_⟩
+      rw [shoupAdvance_succ b s step masks x hlo_lt, Nat.succ_sub_one, ← hst']; rfl
 
 private theorem shoupPackMasks_spec (b s t iStar : ℕ) (step : List Bool → List Bool)
     (hstep : ∀ w, w.length = b + s → (step w).length = b)
@@ -785,360 +863,56 @@ private theorem shoupPackMasks_spec (b s t iStar : ℕ) (step : List Bool → Li
       shoupState b s step masks x (p - 1) =
         BitString.listXor b [BitString.listRow b j masks, BitString.listRow b j T]) := by
   let T0 := BitString.listRow (shoupMasksLen b t) 0 T
-  have hT0_row (j : ℕ) (hj : j < shoupMaskCount t) :
-      BitString.listRow b j T0 = BitString.listRow b j T := by
-    apply List.ext_getElem (by simp)
-    intro col hc1 hc2
-    simp only [BitString.length_listRow] at hc1
-    have hcol_bound : j * b + col < shoupMasksLen b t := by
-      unfold shoupMasksLen
-      calc j * b + col < j * b + b := by omega
-        _ = (j + 1) * b := by ring
-        _ ≤ shoupMaskCount t * b := Nat.mul_le_mul_right b hj
-    have hT0_elem : T0.getD (j * b + col) false = T0[j * b + col]'(by dsimp only [T0]; simpa) := by
-      rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem (by dsimp only [T0]; simpa),
-        Option.getD_some]
-    rw [BitString.getElem_listRow hc1, BitString.getElem_listRow hc1, hT0_elem,
-      show T0[j * b + col]'_ = (BitString.listRow (shoupMasksLen b t) 0 T)[j * b + col]'
-        (by simpa using hcol_bound) from rfl,
-      BitString.getElem_listRow hcol_bound, Nat.zero_mul, Nat.zero_add]
-  let init : ShoupPackAcc := ⟨iStar, iStar, BitString.listRow b (padicValNat 2 iStar) T0, T0⟩
-  let segStart (lo : ℕ) : List Bool :=
-    if lo = 0 then BitString.listRow b 0 x
-    else step (BitString.listRow b (padicValNat 2 lo) T0 ++ shoupChunk b s lo x)
-  let IsSeg (lo p bound : ℕ) : Prop :=
-    bound ≤ lo ∧ lo < p ∧ p ≤ iStar ∧
-    (lo = 0 ∨ shoupIsLastOcc iStar lo = true) ∧
-    shoupIsLastOcc iStar p = true ∧
-    ∀ m, lo < m → m < p → shoupIsLastOcc iStar m = false
-  have hinv (m : ℕ) (hm : m ≤ iStar) :
-      let st := (shoupPackStep b s t iStar step x T0)^[m] init
-      st.rem = iStar - m ∧
-      (∀ j, Nat.log 2 iStar < j → j < shoupMaskCount t →
-        BitString.listRow b j st.masks = BitString.listRow b j T0) ∧
-      (if m < iStar then
-        st.rem ≤ st.activeOwner ∧ st.activeOwner ≤ iStar ∧
-        shoupIsLastOcc iStar st.activeOwner = true ∧
-        (∀ i', st.rem ≤ i' → i' < st.activeOwner → shoupIsLastOcc iStar i' = false) ∧
-        st.activeS = BitString.listRow b (padicValNat 2 st.activeOwner) T0 ∧
-        (∀ j, shoupLastOcc iStar j ≤ st.activeOwner → j < shoupMaskCount t →
-          BitString.listRow b j st.masks = BitString.listRow b j T0)
-      else st.activeOwner = 0) ∧
-      (∀ lo p, IsSeg lo p (if m < iStar then st.activeOwner else 0) →
-        BitString.listRow b (padicValNat 2 p) st.masks =
-          BitString.listXor b
-            [shoupAdvance b s step st.masks x lo (p - 1) (segStart lo),
-             BitString.listRow b (padicValNat 2 p) T0]) := by
-    induction m with
+  have hinv : ∀ m ≤ iStar, shoupPackInv b s t iStar step x T0 m
+      ((shoupPackStep b s t iStar step x T0)^[m]
+        ⟨iStar, iStar, BitString.listRow b (padicValNat 2 iStar) T0, T0⟩) := by
+    intro m; induction m with
     | zero =>
-      dsimp only [Function.iterate_zero, id_eq, init]
-      have hi0 : 0 < iStar := hi_pos
-      refine ⟨by omega, fun _ _ _ => rfl, ?_, ?_⟩
-      · simp only [hi0, ↓reduceIte]
-        exact ⟨le_rfl, le_rfl, shoupIsLastOcc_self hi_pos,
-          fun _ h1 h2 => by omega, trivial, fun _ _ _ => trivial⟩
-      · intro lo p hseg
-        simp only [hi0, ↓reduceIte] at hseg
-        rcases hseg with ⟨h1, h2, h3, _⟩
-        omega
+      intro _
+      dsimp only [Function.iterate_zero, id_eq]
+      have hpos : 0 < iStar := hi_pos
+      refine ⟨by simp, fun _ _ _ => rfl, ?_, fun _ _ hseg => by
+        simp only [hpos, ↓reduceIte] at hseg; rcases hseg with ⟨h1, h2, h3, _⟩; omega⟩
+      simp only [hpos, ↓reduceIte]
+      exact ⟨le_rfl, le_rfl, shoupIsLastOcc_self hi_pos, fun _ h1 h2 => by omega, trivial⟩
     | succ m ih =>
-      have hm_le : m ≤ iStar := Nat.le_of_succ_le hm
-      obtain ⟨hrem, hhi_j, hbranch, hsegs⟩ := ih hm_le
-      have hm_lt : m < iStar := Nat.lt_of_succ_le hm
-      simp only [hm_lt, ↓reduceIte] at hbranch hsegs
-      obtain ⟨h_lt_own, h_own_le, h_own_last, h_no_between, hs_eq, h_untouched⟩ := hbranch
-      rw [Function.iterate_succ_apply']
-      set st := (shoupPackStep b s t iStar step x T0)^[m] init
-      set k := st.rem - 1
-      have hk_eq : k = iStar - (m + 1) := by dsimp only [k]; omega
-      have hrem_pos : 1 ≤ st.rem := by omega
-      by_cases htrig : (decide (k = 0) || shoupIsLastOcc iStar k) = true
-      · have hk_trig : k = 0 ∨ shoupIsLastOcc iStar k = true := by
-          simpa only [Bool.or_eq_true, decide_eq_true_eq] using htrig
-        have hj0_le : padicValNat 2 st.activeOwner ≤ Nat.log 2 iStar := by
-          rw [Nat.padicValNat_def]
-          exact (multiplicity_le_nat_log st.activeOwner).trans (Nat.log_mono_right h_own_le)
-        have hj0_lt : padicValNat 2 st.activeOwner < shoupMaskCount t :=
-          lt_of_le_of_lt (hj0_le.trans (Nat.log_mono_right hit)) (Nat.lt_succ_self _)
-        set hk := if decide (k = 0) then BitString.listRow b 0 x
-          else step (BitString.listRow b (padicValNat 2 k) T0 ++ shoupChunk b s k x)
-        have h_hk_eq : hk = segStart k := by
-          dsimp only [hk, segStart]
-          by_cases hk0 : k = 0 <;> simp [hk0]
-        set hEnd := shoupAdvance b s step st.masks x k (st.activeOwner - 1) hk
-        set newMask := BitString.listXor b [hEnd, st.activeS]
-        set newMasks := BitString.replaceRow b (shoupMaskCount t)
-          (padicValNat 2 st.activeOwner) newMask st.masks
-        have hstep_pos :
-            shoupPackStep b s t iStar step x T0 st =
-              ⟨k, k, BitString.listRow b (padicValNat 2 k) T0, newMasks⟩ := by
-          dsimp only [shoupPackStep]
-          change (if (decide (k = 0) || shoupIsLastOcc iStar k) = true then _ else _) = _
-          rw [ite_eq_left_iff.mpr (fun h => absurd htrig h)]
-        rw [hstep_pos]
-        have hnewMask_len : newMask.length = b := BitString.length_listXor _ _
-        have hrow_newMasks {j : ℕ} (hj : j < shoupMaskCount t) :
-            BitString.listRow b j newMasks =
-              if j = padicValNat 2 st.activeOwner then newMask
-              else BitString.listRow b j st.masks :=
-          BitString.listRow_replaceRow hnewMask_len st.masks hj
-        have h_row_lt_agree : ∀ j, j ≠ padicValNat 2 st.activeOwner → j < shoupMaskCount t →
-            BitString.listRow b j newMasks = BitString.listRow b j st.masks := by
-          intro j hjne hjlt
-          rw [hrow_newMasks hjlt]
-          split_ifs with hjeq
-          · exact False.elim (hjne hjeq)
-          · rfl
-        refine ⟨hk_eq, ?_, ?_, ?_⟩
-        · intro j hj_gt hj_lt
-          have hjne : j ≠ padicValNat 2 st.activeOwner := fun h => by omega
-          rw [h_row_lt_agree j hjne hj_lt]
-          exact hhi_j j hj_gt hj_lt
-        · by_cases hm1_lt : m + 1 < iStar
-          · simp only [hm1_lt, ↓reduceIte]
-            have hk_last : shoupIsLastOcc iStar k = true := hk_trig.resolve_left (by omega)
-            refine ⟨le_rfl, by omega, hk_last,
-              fun _ h1 h2 => by omega, trivial, ?_⟩
-            intro j hlast_le hj_lt
-            have hne_own : j ≠ padicValNat 2 st.activeOwner := by
-              intro hjeq
-              have hown_eq := shoupLastOcc_padicValNat_eq h_own_last
-              rw [hjeq, hown_eq] at hlast_le
-              omega
-            rw [h_row_lt_agree j hne_own hj_lt]
-            exact h_untouched j (hlast_le.trans (by omega)) hj_lt
-          · simp only [hm1_lt, ↓reduceIte]
-            omega
-        · intro lo p hseg
-          have hbound_eq : (if m + 1 < iStar then k else 0) = k := by
-            by_cases hlt : m + 1 < iStar
-            · simp [hlt]
-            · simp [hlt]; omega
-          change IsSeg lo p (if m + 1 < iStar then k else 0) at hseg
-          rw [hbound_eq] at hseg
-          dsimp only
-          rcases hseg with ⟨h_k_lo, h_lo_p, h_p_le, h_lo_cond, h_p_last, h_btw⟩
-          rcases eq_or_lt_of_le h_k_lo with hlo_eq | hlo_gt
-          · subst hlo_eq
-            have hp_eq : p = st.activeOwner := by
-              by_contra hne
-              rcases lt_or_gt_of_ne hne with hplt | hpgt
-              · have := h_no_between p (by omega) hplt
-                rw [h_p_last] at this; exact Bool.false_ne_true this.symm
-              · have := h_btw st.activeOwner (by omega) hpgt
-                rw [h_own_last] at this; exact Bool.false_ne_true this.symm
-            subst hp_eq
-            rw [hrow_newMasks hj0_lt]
-            simp only [↓reduceIte]
-            dsimp only [newMask]
-            have h_adv_eq :
-                shoupAdvance b s step newMasks x k (st.activeOwner - 1) hk =
-                  shoupAdvance b s step st.masks x k (st.activeOwner - 1) hk := by
-              apply shoupAdvance_congr step newMasks st.masks x (by omega) hk
-              intro i hi1 hi2
-              have hv_i_le : padicValNat 2 i ≤ Nat.log 2 iStar := by
-                rw [Nat.padicValNat_def]
-                exact (multiplicity_le_nat_log i).trans
-                  (Nat.log_mono_right (hi2.trans ((Nat.sub_le _ _).trans h_own_le)))
-              have hv_i_lt : padicValNat 2 i < shoupMaskCount t :=
-                lt_of_le_of_lt (hv_i_le.trans (Nat.log_mono_right hit)) (Nat.lt_succ_self _)
-              have hlast_gt : st.activeOwner < shoupLastOcc iStar (padicValNat 2 i) :=
-                shoupLastOcc_gt_between h_own_last
-                  (fun m' h1 h2 => h_no_between m' (by omega) h2) (by omega) hi1 (by omega)
-              have hjne : padicValNat 2 i ≠ padicValNat 2 st.activeOwner := by
-                intro hjeq
-                have := shoupLastOcc_padicValNat_eq h_own_last
-                rw [hjeq, this] at hlast_gt
-                omega
-              exact h_row_lt_agree _ hjne hv_i_lt
-            dsimp only [hEnd]
-            rw [← h_adv_eq, h_hk_eq, hs_eq]
-          · have h_own_le_lo : st.activeOwner ≤ lo := by
-              by_contra hlt
-              have hlo_lt_own : lo < st.activeOwner := Nat.lt_of_not_le hlt
-              rcases h_lo_cond with rfl | hlo_last
-              · omega
-              · have := h_no_between lo (by omega) hlo_lt_own
-                rw [hlo_last] at this; exact Bool.false_ne_true this.symm
-            have h_p_gt : st.activeOwner < p := lt_of_le_of_lt h_own_le_lo h_lo_p
-            have h_p_ne : padicValNat 2 p ≠ padicValNat 2 st.activeOwner := by
-              intro hjeq
-              have h1 := shoupLastOcc_padicValNat_eq h_p_last
-              have h2 := shoupLastOcc_padicValNat_eq h_own_last
-              rw [hjeq, h2] at h1
-              omega
-            have h_p_lt_cnt : padicValNat 2 p < shoupMaskCount t := by
-              have hv_p_le : padicValNat 2 p ≤ Nat.log 2 t := by
-                rw [Nat.padicValNat_def]
-                exact (multiplicity_le_nat_log p).trans (Nat.log_mono_right (h_p_le.trans hit))
-              exact lt_of_le_of_lt hv_p_le (Nat.lt_succ_self _)
-            rw [h_row_lt_agree _ h_p_ne h_p_lt_cnt]
-            have h_prev := hsegs lo p ⟨h_own_le_lo, h_lo_p, h_p_le, h_lo_cond, h_p_last, h_btw⟩
-            rw [h_prev]
-            have h_adv_eq :
-                shoupAdvance b s step st.masks x lo (p - 1) (segStart lo) =
-                  shoupAdvance b s step newMasks x lo (p - 1) (segStart lo) := by
-              apply shoupAdvance_congr step st.masks newMasks x (by omega) (segStart lo)
-              intro i hi1 hi2
-              have hv_i_lt : padicValNat 2 i < shoupMaskCount t := by
-                have hv_i_le : padicValNat 2 i ≤ Nat.log 2 t := by
-                  rw [Nat.padicValNat_def]
-                  exact (multiplicity_le_nat_log i).trans (Nat.log_mono_right
-                    ((hi2.trans ((Nat.sub_le _ _).trans h_p_le)).trans hit))
-                exact lt_of_le_of_lt hv_i_le (Nat.lt_succ_self _)
-              have hlast_gt : p < shoupLastOcc iStar (padicValNat 2 i) :=
-                shoupLastOcc_gt_between h_p_last h_btw (by omega) hi1 (by omega)
-              have hjne : padicValNat 2 i ≠ padicValNat 2 st.activeOwner := by
-                intro hjeq
-                have := shoupLastOcc_padicValNat_eq h_own_last
-                rw [hjeq, this] at hlast_gt
-                omega
-              exact (h_row_lt_agree _ hjne hv_i_lt).symm
-            rw [h_adv_eq]
-      · have hstep_neg :
-            shoupPackStep b s t iStar step x T0 st =
-              ⟨k, st.activeOwner, st.activeS, st.masks⟩ := by
-          dsimp only [shoupPackStep]
-          change (if (decide (k = 0) || shoupIsLastOcc iStar k) = true then _ else _) = _
-          rw [ite_eq_right_iff.mpr (fun h => absurd h htrig)]
-        rw [hstep_neg]
-        have hk_not0 : k ≠ 0 := fun h0 => htrig (by simp [h0])
-        have hm1_lt : m + 1 < iStar := by omega
-        have hk_not_last : shoupIsLastOcc iStar k = false :=
-          Bool.eq_false_iff.mpr fun hs => htrig (by simp [hs])
-        refine ⟨hk_eq, hhi_j, ?_, ?_⟩
-        · simp only [hm1_lt, ↓reduceIte]
-          refine ⟨by omega, h_own_le, h_own_last, fun i' hi1 hi2 => ?_, hs_eq, h_untouched⟩
-          rcases eq_or_lt_of_le hi1 with rfl | hi_gt
-          · exact hk_not_last
-          · exact h_no_between i' (by omega) hi2
-        · intro lo p hseg
-          simp only [hm1_lt, ↓reduceIte] at hseg
-          exact hsegs lo p hseg
-  obtain ⟨_, hhi_j, _, hsegs⟩ := hinv iStar le_rfl
-  set masks := shoupPackMasks b s t iStar step x T
-  have hhi_masks : ∀ j, Nat.log 2 iStar < j → j < shoupMaskCount t →
-      BitString.listRow b j masks = BitString.listRow b j T := by
-    intro j hj1 hj2
-    dsimp only [masks, shoupPackMasks]
-    rw [hhi_j j hj1 hj2, hT0_row j hj2]
+      intro hm; rw [Function.iterate_succ_apply']
+      exact shoupPackStep_preserves_inv step hit x T0 hm (ih (Nat.le_of_succ_le hm))
+  obtain ⟨_, hhi, _, hsegs⟩ := hinv iStar le_rfl
   simp only [lt_irrefl, ↓reduceIte] at hsegs
-  have hseg_masks : ∀ lo p, IsSeg lo p 0 →
-      BitString.listRow b (padicValNat 2 p) masks =
-        BitString.listXor b
-          [shoupAdvance b s step masks x lo (p - 1) (segStart lo),
-           BitString.listRow b (padicValNat 2 p) T0] :=
-    hsegs
-  have prevBreak : ∀ k, 0 < k →
-      ∃ lo < k, (lo = 0 ∨ shoupIsLastOcc iStar lo = true) ∧
-        (∀ m, lo < m → m < k → shoupIsLastOcc iStar m = false) := by
-    intro k hk_pos
-    let S := (Finset.range k).filter fun m => decide (m = 0 ∨ shoupIsLastOcc iStar m = true)
-    have hS_ne : S.Nonempty := ⟨0, Finset.mem_filter.mpr ⟨Finset.mem_range.mpr hk_pos, by simp⟩⟩
-    let lo := S.max' hS_ne
-    have hlo_mem := Finset.max'_mem S hS_ne
-    change lo ∈ S at hlo_mem
-    dsimp only [S] at hlo_mem
-    rw [Finset.mem_filter, Finset.mem_range, decide_eq_true_eq] at hlo_mem
-    refine ⟨lo, hlo_mem.1, hlo_mem.2, fun m h1 h2 => ?_⟩
-    by_contra hlast
-    have hm_true : shoupIsLastOcc iStar m = true := Bool.eq_true_of_not_eq_false hlast
-    have hm_mem : m ∈ S :=
-      Finset.mem_filter.mpr ⟨Finset.mem_range.mpr h2, decide_eq_true_eq.mpr (Or.inr hm_true)⟩
-    have hm_le : m ≤ lo := Finset.le_max' S m hm_mem
-    omega
-  have breakUniq : ∀ {lo₁ lo₂ u v}, lo₁ < u → lo₂ ≤ v → u = v + 1 →
-      (lo₁ = 0 ∨ shoupIsLastOcc iStar lo₁ = true) →
-      (lo₂ = 0 ∨ shoupIsLastOcc iStar lo₂ = true) →
-      (∀ m, lo₁ < m → m < u → shoupIsLastOcc iStar m = false) →
-      (∀ m, lo₂ < m → m ≤ v → shoupIsLastOcc iStar m = false) → lo₂ = lo₁ := by
-    intro lo₁ lo₂ u v h1u h2v huv h1c h2c h1b h2b
-    by_contra hne
-    rcases lt_or_gt_of_ne hne with hlt | hgt
-    · have := h2b lo₁ hlt (by omega)
-      rcases h1c with h0 | hl
-      · omega
-      · rw [hl] at this; exact Bool.false_ne_true this.symm
-    · have := h1b lo₂ hgt (by omega)
-      rcases h2c with h0 | hl
-      · omega
-      · rw [hl] at this; exact Bool.false_ne_true this.symm
-  have hmatch : ∀ k ≤ iStar,
-      ∃ lo ≤ k, (lo = 0 ∨ shoupIsLastOcc iStar lo = true) ∧
-        (∀ m, lo < m → m ≤ k → shoupIsLastOcc iStar m = false) ∧
-        shoupState b s step masks x k = shoupAdvance b s step masks x lo k (segStart lo) := by
-    intro k hk_le
-    induction k using Nat.strong_induction_on with
-    | ind k ih =>
-      rcases eq_or_lt_of_le (Nat.zero_le k) with rfl | hk_pos
-      · refine ⟨0, le_rfl, Or.inl rfl, fun _ h1 h2 => by omega, ?_⟩
-        dsimp only [shoupState, shoupAdvance, segStart]
-        simp
-      · obtain ⟨lo, hlo_lt, hlo_cond, hbtw⟩ := prevBreak k hk_pos
-        obtain ⟨lo', hlo'_le, hlo'_cond, hbtw', hst'⟩ := ih (k - 1) (by omega) (by omega)
-        have hlo_eq : lo' = lo := breakUniq hlo_lt hlo'_le (by omega) hlo_cond hlo'_cond hbtw hbtw'
-        rw [hlo_eq] at hbtw' hst'
-        by_cases hk_last : shoupIsLastOcc iStar k = true
-        · have hseg_k : IsSeg lo k 0 := ⟨Nat.zero_le _, hlo_lt, hk_le, hlo_cond, hk_last, hbtw⟩
-          have h_row_k := hseg_masks lo k hseg_k
-          have h_xor_cancel :
-              BitString.listXor b
-                [shoupState b s step masks x (k - 1),
-                 BitString.listRow b (padicValNat 2 k) masks] =
-                BitString.listRow b (padicValNat 2 k) T0 := by
-            rw [hst', h_row_k]
-            exact BitString.listXor_pair_self_left_of_length _ (BitString.length_listRow _ _ _)
-          refine ⟨k, le_rfl, Or.inr hk_last, fun _ h1 h2 => by omega, ?_⟩
-          have hk_succ : k = (k - 1) + 1 := by omega
-          conv_lhs => rw [hk_succ, shoupState]
-          dsimp only [shoupStepInput, shoupAdvance]
-          rw [← hk_succ, h_xor_cancel]
-          simp [segStart, show k ≠ 0 by omega]
-        · have hk_false : shoupIsLastOcc iStar k = false :=
-            Bool.eq_false_of_not_eq_true hk_last
-          refine ⟨lo, hlo_lt.le, hlo_cond, fun m h1 h2 => ?_, ?_⟩
-          · rcases eq_or_lt_of_le h2 with rfl | hlt
-            · exact hk_false
-            · exact hbtw' m h1 (by omega)
-          · have hk_succ : k = (k - 1) + 1 := by omega
-            conv_lhs => rw [hk_succ, shoupState]
-            rw [hst']
-            dsimp only [shoupAdvance]
-            have hsub : k - lo = (k - 1 - lo) + 1 := by omega
-            rw [hsub, Function.iterate_succ_apply']
-            have hfst : ((shoupIterStep b s step masks x)^[k - 1 - lo]
-                (lo, segStart lo)).1 = k - 1 := by
-              have hc : ∀ d, ((shoupIterStep b s step masks x)^[d] (lo, segStart lo)).1 =
-                  lo + d := by
-                intro d; induction d with
-                | zero => rfl
-                | succ d ihd => simp [Function.iterate_succ_apply', shoupIterStep, ihd]; omega
-              rw [hc]; omega
-            dsimp only [shoupIterStep]
-            rw [hfst, ← hk_succ]
-  refine ⟨hhi_masks, fun j hj => ?_⟩
-  let p := shoupLastOcc iStar j
+  set masks := shoupPackMasks b s t iStar step x T
+  have hT0 (j : ℕ) (hj : j < shoupMaskCount t) :
+      BitString.listRow b j T0 = BitString.listRow b j T :=
+    List.ext_getElem (by simp) fun col hc _ => by
+      rw [BitString.length_listRow] at hc
+      have hlt : j * b + col < shoupMaskCount t * b := by
+        have := Nat.mul_le_mul_right b hj; rw [Nat.succ_mul] at this; omega
+      have hget := BitString.getD_listRow_zero (shoupMasksLen b t) T (j * b + col) hlt
+      rw [BitString.getElem_listRow hc, BitString.getElem_listRow hc, hget]
+  refine ⟨fun j h1 h2 => (hhi j h1 h2).trans (hT0 j h2), fun j hj => ?_⟩
+  set p := shoupLastOcc iStar j
   have hp_last : shoupIsLastOcc iStar p = true := shoupIsLastOcc_shoupLastOcc hi_pos hj
-  have hp_info := hp_last
-  simp only [shoupIsLastOcc, decide_eq_true_eq] at hp_info
+  have hp_info := decide_eq_true_eq.mp hp_last
   have hv_p : padicValNat 2 p = j := padicValNat_two_shoupLastOcc hi_pos hj
-  have hj_lt : j < shoupMaskCount t :=
-    lt_of_le_of_lt (hj.trans (Nat.log_mono_right hit)) (Nat.lt_succ_self _)
-  obtain ⟨lo, hlo_lt, hlo_cond, hbtw⟩ := prevBreak p hp_info.1
-  have hseg_p : IsSeg lo p 0 := ⟨Nat.zero_le _, hlo_lt, hp_info.2.1, hlo_cond, hp_last, hbtw⟩
-  have h_row_p := hseg_masks lo p hseg_p
-  have h_pm1_eq : shoupState b s step masks x (p - 1) =
-      shoupAdvance b s step masks x lo (p - 1) (segStart lo) := by
-    obtain ⟨lo', hlo'_le, hlo'_cond, hbtw', hst'⟩ := hmatch (p - 1) (by omega)
-    have hlo_eq : lo' = lo := breakUniq hlo_lt hlo'_le (by omega) hlo_cond hlo'_cond hbtw hbtw'
-    rw [hst', hlo_eq]
+  obtain ⟨lo, hlo_lt, hlo_c, hbtw⟩ := shoupPack_prevBreak (iStar := iStar) hp_info.1
+  obtain ⟨lo', hlo'_le, hlo'_c, hbtw', hst'⟩ := shoupState_eq_shoupAdvance step masks x T0 hsegs
+    (p - 1) (by omega)
+  have hlo_eq : lo' = lo := shoupPack_breakUniq hlo_lt hlo'_le (by omega) hlo_c hlo'_c hbtw hbtw'
+  rw [hlo_eq] at hst'
+  have hrow : BitString.listRow b j masks = BitString.listXor b
+      [shoupAdvance b s step masks x lo (p - 1) (shoupSegStart b s step x T0 lo),
+       BitString.listRow b j T] := by
+    have h := hsegs lo p ⟨Nat.zero_le _, hlo_lt, hp_info.2.1, hlo_c, hp_last, hbtw⟩
+    rw [hv_p, hT0 j (Nat.lt_succ_of_le (hj.trans (Nat.log_mono_right hit)))] at h
+    exact h
+  have hlen_st : (shoupAdvance b s step masks x lo (p - 1)
+      (shoupSegStart b s step x T0 lo)).length = b :=
+    hst' ▸ length_shoupState b s step hstep masks x (p - 1)
   change shoupState b s step masks x (p - 1) =
     BitString.listXor b [BitString.listRow b j masks, BitString.listRow b j T]
-  rw [h_pm1_eq, ← hv_p, h_row_p, hv_p, hT0_row j hj_lt]
-  have h_adv_len : (shoupAdvance b s step masks x lo (p - 1) (segStart lo)).length = b := by
-    rw [← h_pm1_eq]; exact length_shoupState b s step hstep masks x (p - 1)
-  rw [BitString.listXor_pair, BitString.ofList_listXor_pair, BitString.add_cancel_right,
-    BitString.ofFn_ofList h_adv_len]
+  rw [hst', hrow, BitString.listXor_pair_comm b (BitString.listXor b _),
+    BitString.listXor_pair_comm b (shoupAdvance _ _ _ _ _ _ _ _),
+    BitString.listXor_pair_self_left_of_length _ hlen_st]
 
 theorem shoupStepInput_shoupPackMasks {b s t iStar : ℕ}
     (step : List Bool → List Bool) (hstep : ∀ w, w.length = b + s → (step w).length = b)
@@ -1147,20 +921,12 @@ theorem shoupStepInput_shoupPackMasks {b s t iStar : ℕ}
     shoupStepInput b s masks x iStar (shoupState b s step masks x (iStar - 1)) =
       BitString.listRow b (padicValNat 2 iStar) T ++ shoupChunk b s iStar x := by
   intro masks
-  obtain ⟨_, hplanted⟩ := shoupPackMasks_spec b s t iStar step hstep hi_pos hit x T
-  have hj_le : padicValNat 2 iStar ≤ Nat.log 2 iStar := by
-    rw [Nat.padicValNat_def]
-    exact multiplicity_le_nat_log iStar
-  have hp := hplanted (padicValNat 2 iStar) hj_le
+  have hp := (shoupPackMasks_spec b s t iStar step hstep hi_pos hit x T).2
+    (padicValNat 2 iStar) (Nat.lt_succ_iff.mp (padicValNat_two_lt_maskCount le_rfl))
   rw [shoupLastOcc_padicValNat_eq (shoupIsLastOcc_self hi_pos)] at hp
   dsimp only [shoupStepInput]
-  rw [hp]
-  have h2 : (BitString.listRow b (padicValNat 2 iStar) T).length = b :=
-    BitString.length_listRow _ _ _
-  rw [BitString.listXor_pair, BitString.ofList_listXor_pair,
-    add_comm (BitString.ofList b (BitString.listRow b (padicValNat 2 iStar) masks))
-      (BitString.ofList b (BitString.listRow b (padicValNat 2 iStar) T)),
-    BitString.add_cancel_right, BitString.ofFn_ofList h2]
+  rw [hp, BitString.listXor_pair_comm b (BitString.listXor b _),
+    BitString.listXor_pair_self_left_of_length _ (BitString.length_listRow _ _ _)]
 
 private def shoupUnpackMasks (b s t iStar : ℕ) (step : List Bool → List Bool)
     (x masks : List Bool) : List Bool :=
@@ -1181,12 +947,10 @@ private theorem length_shoupUnpackMasks (b s t iStar : ℕ) (step : List Bool �
       (if decide (j ≤ Nat.log 2 iStar) then
         BitString.listXor b
           [shoupState b s step masks x (shoupLastOcc iStar j - 1), BitString.listRow b j masks]
-      else BitString.listRow b j masks).length) =
-      List.replicate (shoupMaskCount t) b := by
-    apply List.ext_getElem (by simp)
-    intro i hi _
-    simp only [List.getElem_map, List.getElem_range, List.getElem_replicate]
-    split_ifs <;> simp
+      else BitString.listRow b j masks).length) = List.replicate (shoupMaskCount t) b :=
+    List.ext_getElem (by simp) fun i hi _ => by
+      simp only [List.getElem_map, List.getElem_range, List.getElem_replicate]
+      split_ifs <;> simp
   rw [hsum, List.sum_replicate, smul_eq_mul]
 
 private theorem shoupUnpack_shoupPack {b s t iStar : ℕ}
@@ -1199,45 +963,27 @@ private theorem shoupUnpack_shoupPack {b s t iStar : ℕ}
   have hrow_eq (j : ℕ) (hj : j < shoupMaskCount t) :
       BitString.listRow b j (shoupUnpackMasks b s t iStar step x masks) =
         BitString.listRow b j T := by
-    have hrow_unp := BitString.listRow_flatMap_append
-      (width := b)
-      (fun k =>
-        if decide (k ≤ Nat.log 2 iStar) then
-          BitString.listXor b
-            [shoupState b s step masks x (shoupLastOcc iStar k - 1), BitString.listRow b k masks]
-        else BitString.listRow b k masks)
-      (List.range (shoupMaskCount t))
-      (fun k _ => by split_ifs <;> simp) [] j (by simpa using hj)
-    simp only [List.append_nil, List.getElem_range] at hrow_unp
-    change BitString.listRow b j (shoupUnpackMasks b s t iStar step x masks) = _ at hrow_unp
-    rw [hrow_unp]
-    by_cases hle : j ≤ Nat.log 2 iStar
-    · simp only [decide_eq_true hle, ↓reduceIte]
-      rw [hlo_m j hle]
-      have h2 : (BitString.listRow b j T).length = b := BitString.length_listRow _ _ _
-      rw [BitString.listXor_pair, BitString.ofList_listXor_pair,
-        add_comm (BitString.ofList b (BitString.listRow b j masks)),
-        BitString.add_cancel_right, BitString.ofFn_ofList h2]
-    · simp only [hle, decide_false, Bool.false_eq_true, ↓reduceIte]
-      exact hhi_m j (Nat.lt_of_not_ge hle) hj
-  have hlen_unp : (shoupUnpackMasks b s t iStar step x masks).length = shoupMasksLen b t :=
-    length_shoupUnpackMasks b s t iStar step x masks
-  apply List.ext_getElem (hlen_unp.trans hT.symm)
-  intro idx hidx_unp hidx_T
-  rcases Nat.eq_zero_or_pos b with rfl | hb_pos
-  · rw [hT, shoupMasksLen, mul_zero] at hidx_T
-    exact absurd hidx_T (Nat.not_lt_zero idx)
-  · have hj : idx / b < shoupMaskCount t := by
-      have hidx_mul : idx < shoupMaskCount t * b := by
-        rw [← shoupMasksLen, ← hT]
-        exact hidx_T
-      exact Nat.div_lt_of_lt_mul (by rwa [mul_comm])
-    have hr : idx % b < b := Nat.mod_lt idx hb_pos
-    have hdm : idx / b * b + idx % b = idx := Nat.div_add_mod' idx b
-    have hidx_get := congrArg (fun l : List Bool => l.getD (idx % b) false) (hrow_eq (idx / b) hj)
-    rw [BitString.getD_listRow hr, BitString.getD_listRow hr] at hidx_get
-    simpa only [hdm, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hidx_unp,
-      List.getElem?_eq_getElem hidx_T, Option.getD_some] using hidx_get
+    have hrow := BitString.listRow_flatMap_append (width := b)
+      (fun k => if decide (k ≤ Nat.log 2 iStar) then
+        BitString.listXor b
+          [shoupState b s step masks x (shoupLastOcc iStar k - 1), BitString.listRow b k masks]
+      else BitString.listRow b k masks)
+      (List.range (shoupMaskCount t)) (fun k _ => by split_ifs <;> simp) [] j (by simpa using hj)
+    simp only [List.append_nil, List.getElem_range] at hrow
+    change BitString.listRow b j (shoupUnpackMasks b s t iStar step x masks) = _ at hrow
+    rw [hrow]
+    split_ifs with hle
+    · rw [decide_eq_true_eq] at hle
+      rw [hlo_m j hle, BitString.listXor_pair_comm b (BitString.listXor b _),
+        BitString.listXor_pair_self_left_of_length _ (BitString.length_listRow _ _ _)]
+    · exact hhi_m j (Nat.lt_of_not_ge (fun h => hle (decide_eq_true h))) hj
+  rw [← BitString.flatten_listRows_of_length (length_shoupUnpackMasks b s t iStar step x masks),
+    ← BitString.flatten_listRows_of_length hT]
+  congr 1
+  refine List.ext_getElem (by simp) fun j hj _ => ?_
+  have hj' : j < shoupMaskCount t := by simpa using hj
+  simp only [BitString.listRows_eq_ofFn, List.getElem_ofFn, ← BitString.listRow_eq_ofFn]
+  exact hrow_eq j hj'
 
 /-- Shoup's mask-reconstruction map preserves `BitString.uniformList (shoupMasksLen b t)`
 whenever `1 ≤ iStar ≤ t`. -/
@@ -1248,32 +994,17 @@ theorem uniformList_map_shoupPackMasks (b s t iStar : ℕ) (step : List Bool →
       BitString.uniformList (shoupMasksLen b t) := by
   let fFin : BitString (shoupMasksLen b t) → BitString (shoupMasksLen b t) :=
     fun T => BitString.ofList (shoupMasksLen b t) (shoupPackMasks b s t iStar step x (List.ofFn T))
-  have hinj : Function.Injective fFin := by
-    intro T₁ T₂ heq
-    have hf1 := congrArg List.ofFn heq
-    dsimp only [fFin] at hf1
-    rw [BitString.ofFn_ofList (length_shoupPackMasks _ _ _ _ _ _ _),
-      BitString.ofFn_ofList (length_shoupPackMasks _ _ _ _ _ _ _)] at hf1
-    have hu := congrArg (shoupUnpackMasks b s t iStar step x) hf1
-    rw [shoupUnpack_shoupPack step hstep hi_pos hit x _ List.length_ofFn,
-      shoupUnpack_shoupPack step hstep hi_pos hit x _ List.length_ofFn] at hu
-    exact List.ofFn_injective hu
-  let e : BitString (shoupMasksLen b t) ≃ BitString (shoupMasksLen b t) :=
-    Equiv.ofBijective fFin (Finite.injective_iff_bijective.mp hinj)
-  have hcomp : shoupPackMasks b s t iStar step x ∘ List.ofFn = List.ofFn ∘ e := by
-    funext T
-    dsimp only [Function.comp_def, e, Equiv.ofBijective, fFin]
-    exact (BitString.ofFn_ofList (length_shoupPackMasks _ _ _ _ _ _ _)).symm
-  calc
-    (BitString.uniformList (shoupMasksLen b t)).map (shoupPackMasks b s t iStar step x)
-      = (PMF.uniformOfFintype (BitString (shoupMasksLen b t))).map
-          (shoupPackMasks b s t iStar step x ∘ List.ofFn) := by
-        rw [BitString.uniformList, PMF.map_comp]
-    _ = (PMF.uniformOfFintype (BitString (shoupMasksLen b t))).map (List.ofFn ∘ e) := by rw [hcomp]
-    _ = ((PMF.uniformOfFintype (BitString (shoupMasksLen b t))).map e).map List.ofFn := by
-        rw [← PMF.map_comp]
-    _ = BitString.uniformList (shoupMasksLen b t) := by
-        rw [PMF.uniformOfFintype_map_equiv e, BitString.uniformList]
+  have hinj : Function.Injective fFin := fun T₁ T₂ heq => by
+    have hf := congrArg (shoupUnpackMasks b s t iStar step x ∘ List.ofFn) heq
+    simp only [Function.comp_apply, fFin,
+      BitString.ofFn_ofList (length_shoupPackMasks _ _ _ _ _ _ _),
+      shoupUnpack_shoupPack step hstep hi_pos hit x _ List.length_ofFn] at hf
+    exact List.ofFn_injective hf
+  let e := Equiv.ofBijective fFin (Finite.injective_iff_bijective.mp hinj)
+  have hcomp : shoupPackMasks b s t iStar step x ∘ List.ofFn = List.ofFn ∘ e := funext fun T =>
+    (BitString.ofFn_ofList (length_shoupPackMasks _ _ _ _ _ _ _)).symm
+  rw [BitString.uniformList, PMF.map_comp, hcomp, ← PMF.map_comp,
+    PMF.uniformOfFintype_map_equiv e]
 
 @[fun_prop]
 theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Bool}
@@ -1290,158 +1021,98 @@ theorem computableInPolyTime_shoupPackMasks {γ : Type} {encIn : γ ↪ List Boo
     ComputableInPolyTime
       (fun a => shoupPackMasks (b a) (s a) (t a) (iStar a) (step a) (x a) (T a))
       encIn encBits := by
-  let T0 (a : γ) : List Bool := BitString.listRow (shoupMasksLen (b a) (t a)) 0 (T a)
-  have hT0 : ComputableInPolyTime T0 encIn encBits := by
-    dsimp only [T0]; fun_prop
-  let par (a : γ) := (a, iStar a, x a, T0 a)
+  let T0 (a : γ) := BitString.listRow (shoupMasksLen (b a) (t a)) 0 (T a)
   let encPar := encPair encIn (encPair encUnary (encPair encBits encBits))
-  have hpar : ComputableInPolyTime par encIn encPar := by fun_prop
+  let encQ := encPair encPar encShoupPackAcc
+  have hpar_rest := (ComputableInPolyTime.snd encIn _).comp (.fst encPar encShoupPackAcc)
+  have hbits_pair := (ComputableInPolyTime.snd encUnary _).comp hpar_rest
+  have hq_a := (ComputableInPolyTime.fst encIn _).comp (.fst encPar encShoupPackAcc)
+  have hq_b := hb.comp hq_a
+  have hq_s := hs.comp hq_a
+  have hq_t := ht.comp hq_a
+  have hq_i := (ComputableInPolyTime.fst encUnary _).comp hpar_rest
+  have hq_x := (ComputableInPolyTime.fst encBits encBits).comp hbits_pair
+  have hq_T := (ComputableInPolyTime.snd encBits encBits).comp hbits_pair
+  have hq_acc := ComputableInPolyTime.snd encPar encShoupPackAcc
+  have hrem := (encShoupPackAcc_rem_polyTime hq_acc).unary_sub' (.const 1)
+  have hown := encShoupPackAcc_activeOwner_polyTime hq_acc
+  have hactS := encShoupPackAcc_activeS_polyTime hq_acc
+  have hmsk := encShoupPackAcc_masks_polyTime hq_acc
+  have hnextS := ComputableInPolyTime.bitsRowWithInput hq_b
+    (ComputableInPolyTime.unary_padicValNat_two.comp hrem) hq_T
+  let hhk (q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc) : List Bool :=
+    if decide (q.2.rem - 1 = 0) then BitString.listRow (b q.1.1) 0 q.1.2.2.1
+    else step q.1.1
+      (BitString.listRow (b q.1.1) (padicValNat 2 (q.2.rem - 1)) q.1.2.2.2 ++
+        shoupChunk (b q.1.1) (s q.1.1) (q.2.rem - 1) q.1.2.2.1)
+  have hhk_poly : ComputableInPolyTime hhk encQ encBits :=
+    ComputableInPolyTime.ite_decide
+      (ComputableInPolyTime.unary_eq' hrem (.const 0))
+      (ComputableInPolyTime.bitsRowWithInput hq_b (.const 0) hq_x)
+      (hstep.comp (hq_a.prod (ComputableInPolyTime.bitsAppend hnextS
+        (ComputableInPolyTime.bitsRowWithInput hq_s (hrem.unary_sub' (.const 1))
+          (ComputableInPolyTime.bitsDropWithInput hq_x hq_b)))))
+  have hadv := computableInPolyTime_shoupAdvance hq_b hq_s
+    (hstep.comp ((hq_a.comp (.fst encQ encBits)).prod (.snd encQ encBits)))
+    (fun q w hw => hstep_len q.1.1 w hw) hmsk hq_x hrem
+    (hown.unary_sub' (.const 1)) hhk_poly fun q => by
+      dsimp only [hhk]; split_ifs
+      · exact BitString.length_listRow _ _ _
+      · exact hstep_len _ _ (by simp only [shoupChunk, List.length_append,
+          BitString.length_listRow])
+  have hrep := ComputableInPolyTime.bitsReplaceRowWithInput hq_b
+    (computableInPolyTime_shoupMaskCount hq_t)
+    (ComputableInPolyTime.unary_padicValNat_two.comp hown)
+    (ComputableInPolyTime.bitsXorWithInput hq_b
+      (ComputableInPolyTime.cons' hadv (ComputableInPolyTime.cons' hactS (.const []))))
+    hmsk
+  have hcond : ComputableInPolyTime
+      (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc =>
+        decide (q.2.rem - 1 = 0) || shoupIsLastOcc q.1.2.1 (q.2.rem - 1)) encQ encBool :=
+    (ComputableInPolyTime.ite' (ComputableInPolyTime.unary_eq' hrem (.const 0)) (.const true)
+      (computableInPolyTime_shoupIsLastOcc hq_i hrem)).of_enc_eq fun q =>
+        congrArg encBool (by cases decide (q.2.rem - 1 = 0) <;> rfl)
   let iterF : (γ × ℕ × List Bool × List Bool) → ShoupPackAcc → ShoupPackAcc :=
     fun p acc => shoupPackStep (b p.1) (s p.1) (t p.1) p.2.1 (step p.1) p.2.2.1 p.2.2.2 acc
   have hiter_step : ComputableInPolyTime
       (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => iterF q.1 q.2)
-      (encPair encPar encShoupPackAcc) encShoupPackAcc := by
-    let encQ := encPair encPar encShoupPackAcc
-    have hq_a : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.1.1) encQ encIn := by
-      fun_prop
-    have hb' : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => b q.1.1) encQ encUnary :=
-      hb.comp hq_a
-    have hs' : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => s q.1.1) encQ encUnary :=
-      hs.comp hq_a
-    have ht' : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => t q.1.1) encQ encUnary :=
-      ht.comp hq_a
-    have hi' : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.1.2.1) encQ encUnary := by
-      fun_prop
-    have hx' : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.1.2.2.1) encQ encBits := by
-      fun_prop
-    have hT' : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.1.2.2.2) encQ encBits := by
-      fun_prop
-    have hk_idx : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.2.rem - 1) encQ encUnary := by
-      fun_prop
-    have hown : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.2.activeOwner)
-        encQ encUnary := by
-      fun_prop
-    have hactS : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.2.activeS) encQ encBits := by
-      fun_prop
-    have hmasks : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => q.2.masks) encQ encBits := by
-      fun_prop
-    let hstep' : ComputableInPolyTime
-        (fun p : ((γ × ℕ × List Bool × List Bool) × ShoupPackAcc) × List Bool => step p.1.1.1 p.2)
-        (encPair encQ encBits) encBits :=
-      hstep.comp (show ComputableInPolyTime
-        (fun p : ((γ × ℕ × List Bool × List Bool) × ShoupPackAcc) × List Bool => (p.1.1.1, p.2))
-        (encPair encQ encBits) (encPair encIn encBits) from by fun_prop)
-    let hstep'_len : ∀ (q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc) w,
-        w.length = b q.1.1 + s q.1.1 → (step q.1.1 w).length = b q.1.1 :=
-      fun q w hw => hstep_len q.1.1 w hw
-    let hhk (q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc) : List Bool :=
-      if decide (q.2.rem - 1 = 0) then BitString.listRow (b q.1.1) 0 q.1.2.2.1
-      else step q.1.1
-        (BitString.listRow (b q.1.1) (padicValNat 2 (q.2.rem - 1)) q.1.2.2.2 ++
-          shoupChunk (b q.1.1) (s q.1.1) (q.2.rem - 1) q.1.2.2.1)
-    have hhk_poly : ComputableInPolyTime hhk encQ encBits := by
-      have hrow_k := ComputableInPolyTime.bitsRowWithInput hb'
-        (ComputableInPolyTime.unary_padicValNat_two.comp hk_idx) hT'
-      have hchunk_k := ComputableInPolyTime.bitsRowWithInput hs' (hk_idx.unary_sub' (.const 1))
-        (ComputableInPolyTime.bitsDropWithInput hx' hb')
-      exact ComputableInPolyTime.ite_decide
-        (ComputableInPolyTime.unary_eq' hk_idx (.const 0))
-        (ComputableInPolyTime.bitsRowWithInput hb' (.const 0) hx')
-        (hstep.comp (hq_a.prod (ComputableInPolyTime.bitsAppend hrow_k hchunk_k)))
-    have hhk_len : ∀ q, (hhk q).length = b q.1.1 := by
-      intro q
-      dsimp only [hhk]
-      split_ifs
-      · simp
-      · exact hstep_len q.1.1 _ (by simp only [shoupChunk, List.length_append,
-          BitString.length_listRow])
-    have hadv : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc =>
-          shoupAdvance (b q.1.1) (s q.1.1) (step q.1.1) q.2.masks q.1.2.2.1
-            (q.2.rem - 1) (q.2.activeOwner - 1) (hhk q))
-        encQ encBits :=
-      computableInPolyTime_shoupAdvance hb' hs' hstep' hstep'_len hmasks hx'
-        hk_idx (by fun_prop) hhk_poly hhk_len
-    let hnewMask (q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc) :=
-      BitString.listXor (b q.1.1)
-        [shoupAdvance (b q.1.1) (s q.1.1) (step q.1.1) q.2.masks q.1.2.2.1
-          (q.2.rem - 1) (q.2.activeOwner - 1) (hhk q), q.2.activeS]
-    have hnewMask_poly : ComputableInPolyTime hnewMask encQ encBits := by
-      dsimp only [hnewMask]
-      exact ComputableInPolyTime.bitsXorWithInput hb'
-        (ComputableInPolyTime.cons' hadv
-          (ComputableInPolyTime.cons' hactS (.const [])))
-    have hrep_poly : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc =>
-          BitString.replaceRow (b q.1.1) (shoupMaskCount (t q.1.1))
-            (padicValNat 2 q.2.activeOwner) (hnewMask q) q.2.masks)
-        encQ encBits :=
-      ComputableInPolyTime.bitsReplaceRowWithInput hb' (computableInPolyTime_shoupMaskCount ht')
-        (by fun_prop) hnewMask_poly hmasks
-    have hnextS : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc =>
-          BitString.listRow (b q.1.1) (padicValNat 2 (q.2.rem - 1)) q.1.2.2.2)
-        encQ encBits := by fun_prop
-    have hbranch := encShoupPackAcc_mk_polyTime hk_idx hk_idx hnextS hrep_poly
-    have helse := encShoupPackAcc_mk_polyTime hk_idx hown hactS hmasks
-    have hcond : ComputableInPolyTime
-        (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc =>
-          decide (q.2.rem - 1 = 0) || shoupIsLastOcc q.1.2.1 (q.2.rem - 1))
-        encQ encBool := by fun_prop
-    have h_ite := ComputableInPolyTime.ite' hcond hbranch helse
-    have hfun : (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => iterF q.1 q.2) =
-        fun q =>
-          if (decide (q.2.rem - 1 = 0) || shoupIsLastOcc q.1.2.1 (q.2.rem - 1)) = true then
-            ShoupPackAcc.mk (q.2.rem - 1) (q.2.rem - 1)
-              (BitString.listRow (b q.1.1) (padicValNat 2 (q.2.rem - 1)) q.1.2.2.2)
-              (BitString.replaceRow (b q.1.1) (shoupMaskCount (t q.1.1))
-                (padicValNat 2 q.2.activeOwner) (hnewMask q) q.2.masks)
-          else ShoupPackAcc.mk (q.2.rem - 1) q.2.activeOwner q.2.activeS q.2.masks := by
-      funext q
-      rfl
-    exact hfun ▸ h_ite
-  have hinit_acc : ComputableInPolyTime
-      (fun a : γ => ShoupPackAcc.mk (iStar a) (iStar a)
-        (BitString.listRow (b a) (padicValNat 2 (iStar a)) (T0 a)) (T0 a))
-      encIn encShoupPackAcc :=
-    encShoupPackAcc_mk_polyTime hi hi (by fun_prop) hT0
-  obtain ⟨heff, _⟩ := ComputableInPolyTime.iterateWith_spec hpar hi hinit_acc hiter_step
+      encQ encShoupPackAcc := by
+    have h_ite := ComputableInPolyTime.ite' hcond
+      (encShoupPackAcc_mk_polyTime hrem hrem hnextS hrep)
+      (encShoupPackAcc_mk_polyTime hrem hown hactS hmsk)
+    exact (show _ = (fun q : (γ × ℕ × List Bool × List Bool) × ShoupPackAcc => iterF q.1 q.2) from
+      funext fun _ => rfl) ▸ h_ite
+  have hT0 : ComputableInPolyTime T0 encIn encBits :=
+    ComputableInPolyTime.bitsRowWithInput
+      (computableInPolyTime_shoupMasksLen hb ht) (.const 0) hT
+  have hpar : ComputableInPolyTime (fun a : γ => (a, iStar a, x a, T0 a)) encIn encPar :=
+    (by fun_prop : ComputableInPolyTime (fun a : γ => a) encIn encIn).prod
+      (hi.prod (hx.prod hT0))
+  obtain ⟨heff, _⟩ := ComputableInPolyTime.iterateWith_spec hpar hi
+    (encShoupPackAcc_mk_polyTime hi hi
+      (ComputableInPolyTime.bitsRowWithInput hb
+        (ComputableInPolyTime.unary_padicValNat_two.comp hi) hT0) hT0)
+    hiter_step
     (fun a _ acc => acc.rem ≤ iStar a ∧ acc.activeOwner ≤ iStar a ∧
       acc.activeS.length = b a ∧ acc.masks.length = shoupMasksLen (b a) (t a))
     (fun _ => ⟨le_rfl, le_rfl, BitString.length_listRow _ _ _, BitString.length_listRow _ _ _⟩)
     (fun a _ acc _ ⟨h1, h2, h3, h4⟩ => by
-      dsimp only [iterF, shoupPackStep, par]
+      dsimp only [iterF, shoupPackStep]
       by_cases htrig : (decide (acc.rem - 1 = 0) || shoupIsLastOcc (iStar a) (acc.rem - 1)) = true
       · simp only [htrig, ↓reduceIte]
-        refine ⟨by omega, by omega, BitString.length_listRow _ _ _, ?_⟩
-        dsimp only [shoupMasksLen]
-        exact BitString.length_replaceRow (BitString.length_listXor _ _) _
+        exact ⟨by omega, by omega, BitString.length_listRow _ _ _,
+          BitString.length_replaceRow (BitString.length_listXor _ _) _⟩
       · simp only [htrig, Bool.false_eq_true, ↓reduceIte]
         exact ⟨by omega, h2, h3, h4⟩)
     (size := fun a => 8 * (iStar a + b a + shoupMasksLen (b a) (t a)) + 20)
     (ComputableInPolyTime.polyBounded (show ComputableInPolyTime
       (fun a => 8 * (iStar a + b a + shoupMasksLen (b a) (t a)) + 20) encIn encUnary from
       by fun_prop))
-    (fun a _ acc _ ⟨h1, h2, h3, h4⟩ => by
+    fun a _ acc _ ⟨h1, h2, h3, h4⟩ => by
       simp only [encShoupPackAcc_apply, length_encPair, encUnary_apply, encBits_apply,
-        List.length_replicate, h3, h4]
-      omega)
-  have hres (a : γ) :
-      ((iterF (par a))^[iStar a]
-        ⟨iStar a, iStar a, BitString.listRow (b a) (padicValNat 2 (iStar a)) (T0 a), T0 a⟩).masks =
-        shoupPackMasks (b a) (s a) (t a) (iStar a) (step a) (x a) (T a) := rfl
-  exact funext hres ▸ encShoupPackAcc_masks_polyTime heff
+        List.length_replicate, h3, h4]; omega
+  exact (show _ = (fun a => shoupPackMasks (b a) (s a) (t a) (iStar a) (step a) (x a) (T a)) from
+    funext fun _ => rfl) ▸ encShoupPackAcc_masks_polyTime heff
 
 /-! ### Standalone Shoup composition (`[Shoup2000]`, `[HHRVW2020]` Lemma 5.7) -/
 
@@ -1580,68 +1251,32 @@ theorem isPPTOn_shoupComposeChoose {outLen s t : ℕ → ℕ} {adversary : Targe
     (ht : ComputableInPolyTime t encUnary encUnary)
     (hchoose : IsPPTOn encUnary (encPair encBits encBits) adversary.choose) :
     IsPPTOn encUnary (encPair encBits encBits) (shoupComposeChoose outLen s t adversary) := by
-  have hn_q := ComputableInPolyTime.fst encUnary encUnary
-  have hraw := ComputableInPolyTime.snd encUnary encUnary
-  have hmin_poly : ComputableInPolyTime
-      (fun q : ℕ × ℕ => min (q.2 + 1) (t q.1))
-      (encPair encUnary encUnary) encUnary := by
-    have htq := ht.comp hn_q
-    have hr1 : ComputableInPolyTime (fun q : ℕ × ℕ => q.2 + 1)
-        (encPair encUnary encUnary) encUnary :=
-      ComputableInPolyTime.unary_add.comp (hraw.prod (.const 1))
-    fun_prop
-  have hmLen : ComputableInPolyTime
-      (fun q : (ℕ × ℕ) × (List Bool × List Bool) =>
-        shoupMasksLen (outLen q.1.1) (t q.1.1))
-      (encPair (encPair encUnary encUnary) (encPair encBits encBits)) encUnary := by
-    have hn2 := (ComputableInPolyTime.fst _ _).comp (ComputableInPolyTime.fst
-      (encPair encUnary encUnary) (encPair encBits encBits))
-    have ho2 := hout.comp hn2
-    have ht2 := ht.comp hn2
-    fun_prop
-  let encFin := encPair
-    (encPair (encPair encUnary encUnary) (encPair encBits encBits)) encBits
-  have hfin : ComputableInPolyTime
+  let encMid := encPair (encPair encUnary encUnary) (encPair encBits encBits)
+  let encFin := encPair encMid encBits
+  have hmidN := (ComputableInPolyTime.fst encUnary encUnary).comp
+    (ComputableInPolyTime.fst (encPair encUnary encUnary) (encPair encBits encBits))
+  have hfn := hmidN.comp (.fst encMid encBits)
+  have hchoice := (ComputableInPolyTime.snd (encPair encUnary encUnary)
+    (encPair encBits encBits)).comp (.fst encMid encBits)
+  have hiS : ComputableInPolyTime
       (fun q : ((ℕ × ℕ) × (List Bool × List Bool)) × List Bool =>
-        let iStar := min (q.1.1.2 + 1) (t q.1.1.1)
-        (BitString.listRow (outLen q.1.1.1) (padicValNat 2 iStar) q.2 ++
-          shoupChunk (outLen q.1.1.1) (s q.1.1.1) iStar q.1.2.1,
-         encShoupState ⟨iStar, q.1.2.1, q.1.2.2, q.2⟩))
-      encFin (encPair encBits encBits) := by
-    have hp0 := ComputableInPolyTime.fst
-      (encPair (encPair encUnary encUnary) (encPair encBits encBits)) encBits
-    have hq1 := (ComputableInPolyTime.fst (encPair encUnary encUnary)
-      (encPair encBits encBits)).comp hp0
-    have hqch := (ComputableInPolyTime.snd (encPair encUnary encUnary)
-      (encPair encBits encBits)).comp hp0
-    have hn3 := (ComputableInPolyTime.fst encUnary encUnary).comp hq1
-    have hiS := hmin_poly.comp hq1
-    have hx0 := (ComputableInPolyTime.fst encBits encBits).comp hqch
-    have hst := (ComputableInPolyTime.snd encBits encBits).comp hqch
-    have hT := ComputableInPolyTime.snd
-      (encPair (encPair encUnary encUnary) (encPair encBits encBits)) encBits
-    have ho3 := hout.comp hn3
-    have hs3 := hs.comp hn3
-    have hw0 : ComputableInPolyTime
-        (fun q : ((ℕ × ℕ) × (List Bool × List Bool)) × List Bool =>
-          BitString.listRow (outLen q.1.1.1) (padicValNat 2 (min (q.1.1.2 + 1) (t q.1.1.1)))
-            q.2 ++
-          shoupChunk (outLen q.1.1.1) (s q.1.1.1) (min (q.1.1.2 + 1) (t q.1.1.1)) q.1.2.1)
-        encFin encBits := by
-      dsimp only [shoupChunk]
-      fun_prop
-    have hsE : ComputableInPolyTime
-        (fun q : ((ℕ × ℕ) × (List Bool × List Bool)) × List Bool =>
-          encShoupState ⟨min (q.1.1.2 + 1) (t q.1.1.1), q.1.2.1, q.1.2.2, q.2⟩)
-        encFin encBits :=
-      (by fun_prop : ComputableInPolyTime
-        (fun q : ((ℕ × ℕ) × (List Bool × List Bool)) × List Bool =>
-          ShoupSavedState.mk (min (q.1.1.2 + 1) (t q.1.1.1)) q.1.2.1 q.1.2.2 q.2)
-        encFin encShoupState).of_enc_eq fun _ => rfl
-    exact hw0.prod hsE
+        min (q.1.1.2 + 1) (t q.1.1.1)) encFin encUnary := by fun_prop
+  have hx0 := (ComputableInPolyTime.fst encBits encBits).comp hchoice
+  have hst := (ComputableInPolyTime.snd encBits encBits).comp hchoice
+  have hT := ComputableInPolyTime.snd encMid encBits
+  have hw0 := ComputableInPolyTime.bitsAppend
+    (ComputableInPolyTime.bitsRowWithInput (hout.comp hfn)
+      (ComputableInPolyTime.unary_padicValNat_two.comp hiS) hT)
+    (ComputableInPolyTime.bitsRowWithInput (hs.comp hfn) (hiS.unary_sub' (.const 1))
+      (ComputableInPolyTime.bitsDropWithInput hx0 (hout.comp hfn)))
+  have hsE : ComputableInPolyTime
+      (fun q : ((ℕ × ℕ) × (List Bool × List Bool)) × List Bool =>
+        encShoupState ⟨min (q.1.1.2 + 1) (t q.1.1.1), q.1.2.1, q.1.2.2, q.2⟩) encFin encBits :=
+    (encShoupState_mk_polyTime hiS hx0 hst hT).of_enc_eq fun _ => rfl
   exact (isPPTOn_sampleDyadicIndex ht).bind_with
-    ((hchoose.preprocess hn_q).bind_with
-      (hmLen.sampleList.bind_with hfin.isPPTOn))
+    ((hchoose.preprocess (ComputableInPolyTime.fst encUnary encUnary)).bind_with
+      ((computableInPolyTime_shoupMasksLen (hout.comp hmidN) (ht.comp hmidN)).sampleList.bind_with
+        (hw0.prod hsE).isPPTOn))
 
 /-- Post-key collision-extraction stage of Shoup's Lemma 5.7 reduction (`[Shoup2000]`;
 `[HHRVW2020]`, Section 5.1.4, Lemma 5.7, p. 30): decodes `savedState`, normalizes `k` to
@@ -1665,8 +1300,8 @@ theorem length_of_mem_support_shoupComposeFindWith {baseKeyLen outLen s t : ℕ}
     (hw₁ : w₁ ∈ (ProbComp.eval
       (shoupComposeFindWith baseKeyLen outLen s t stepOfKey adversary n savedState k)).support) :
     w₁.length = outLen + s := by
-  simp only [shoupComposeFindWith, ProbComp.eval_bind, ProbComp.eval_pure,
-    PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hw₁
+  simp only [shoupComposeFindWith, pmf_norm, PMF.mem_support_bind_iff,
+    PMF.mem_support_pure_iff] at hw₁
   obtain ⟨_, _, rfl⟩ := hw₁
   exact length_shoupStepInput _ _ _ _ _ _
 
@@ -1693,78 +1328,61 @@ theorem isPPTOn_shoupComposeFindWith
     IsPPTOn encIn encBits fun a =>
       shoupComposeFindWith (baseKeyLen a) (outLen a) (s a) (t a) (stepOfKey a) adversary
         (n a) (savedState a) (k a) := by
-  have hst : ComputableInPolyTime (fun a : γ => shoupStateDecoder.decode (savedState a))
+  have _ : ComputableInPolyTime (fun a : γ => shoupStateDecoder.decode (savedState a))
       encIn encShoupState := shoupStateDecoder.computableInPolyTime.comp hsaved
-  have hiStar : ComputableInPolyTime (fun a : γ => (shoupStateDecoder.decode (savedState a)).iStar)
-      encIn encUnary := by fun_prop
-  have hx₀ : ComputableInPolyTime (fun a : γ => (shoupStateDecoder.decode (savedState a)).x₀)
-      encIn encBits := by fun_prop
-  have hadv : ComputableInPolyTime (fun a : γ => (shoupStateDecoder.decode (savedState a)).advState)
-      encIn encBits := by fun_prop
-  have hT : ComputableInPolyTime (fun a : γ => (shoupStateDecoder.decode (savedState a)).T)
-      encIn encBits := by fun_prop
-  have hkey : ComputableInPolyTime (fun a : γ => BitString.listRow (baseKeyLen a) 0 (k a))
-      encIn encBits :=
-    ComputableInPolyTime.bitsRowWithInput hbase (.const 0) hk
   have hstep : ComputableInPolyTime
       (fun q : γ × List Bool => stepOfKey q.1 (BitString.listRow (baseKeyLen q.1) 0 (k q.1)) q.2)
-      (encPair encIn encBits) encBits := by
-    let qid := ComputableInPolyTime.id' (encIn := encPair encIn encBits)
-    exact hstep_key.comp (qid.fst'.prod ((hkey.comp qid.fst').prod qid.snd'))
-  have hstep_len : ∀ a : γ, ∀ w,
-      w.length = outLen a + s a →
-      (stepOfKey a (BitString.listRow (baseKeyLen a) 0 (k a)) w).length = outLen a :=
-    fun a w hw => h_len a _ w (BitString.length_listRow _ _ _) hw
+      (encPair encIn encBits) encBits :=
+    hstep_key.comp (by fun_prop : ComputableInPolyTime
+      (fun q : γ × List Bool => (q.1, BitString.listRow (baseKeyLen q.1) 0 (k q.1), q.2))
+      (encPair encIn encBits) (encPair encIn (encPair encBits encBits)))
   have hmasks : ComputableInPolyTime
       (fun a : γ =>
         let st := shoupStateDecoder.decode (savedState a)
-        let step := stepOfKey a (BitString.listRow (baseKeyLen a) 0 (k a))
-        shoupPackMasks (outLen a) (s a) (t a) st.iStar step st.x₀ st.T)
-      encIn encBits :=
-    computableInPolyTime_shoupPackMasks hout hs ht hiStar hstep hstep_len hx₀ hT
-  have harg : ComputableInPolyTime
-      (fun a : γ =>
-        let st := shoupStateDecoder.decode (savedState a)
-        let key := BitString.listRow (baseKeyLen a) 0 (k a)
-        let masks := shoupPackMasks (outLen a) (s a) (t a) st.iStar (stepOfKey a key) st.x₀ st.T
-        (n a, st.advState, key ++ masks))
-      encIn (encKeyedInput encBits) :=
-    hn.prod (hadv.prod (ComputableInPolyTime.bitsAppend hkey hmasks))
+        shoupPackMasks (outLen a) (s a) (t a) st.iStar
+          (stepOfKey a (BitString.listRow (baseKeyLen a) 0 (k a))) st.x₀ st.T) encIn encBits :=
+    computableInPolyTime_shoupPackMasks hout hs ht (by fun_prop) hstep
+      (fun a w hw => h_len a _ w (BitString.length_listRow _ _ _) hw) (by fun_prop) (by fun_prop)
   let encQ := encPair encIn encBits
-  have hq := ComputableInPolyTime.id' (encIn := encQ)
-  have hqp := hq.fst'
-  have hqx₁ := hq.snd'
   have hqstep : ComputableInPolyTime
       (fun r : (γ × List Bool) × List Bool =>
         stepOfKey r.1.1 (BitString.listRow (baseKeyLen r.1.1) 0 (k r.1.1)) r.2)
-      (encPair encQ encBits) encBits := by
-    let rid := ComputableInPolyTime.id' (encIn := encPair encQ encBits)
-    exact hstep_key.comp ((hqp.comp rid.fst').prod ((hkey.comp (hqp.comp rid.fst')).prod rid.snd'))
-  have hqstep_len : ∀ r : γ × List Bool, ∀ w,
-      w.length = outLen r.1 + s r.1 →
-      (stepOfKey r.1 (BitString.listRow (baseKeyLen r.1) 0 (k r.1)) w).length = outLen r.1 :=
-    fun r w hw => h_len r.1 _ w (BitString.length_listRow _ _ _) hw
-  have hqst_prev : ComputableInPolyTime
+      (encPair encQ encBits) encBits :=
+    hstep.comp (by fun_prop : ComputableInPolyTime
+      (fun r : (γ × List Bool) × List Bool => (r.1.1, r.2))
+      (encPair encQ encBits) (encPair encIn encBits))
+  have hqmasks := hmasks.comp (ComputableInPolyTime.fst encIn encBits)
+  have hqprev : ComputableInPolyTime
       (fun r : γ × List Bool =>
         let st := shoupStateDecoder.decode (savedState r.1)
         let key := BitString.listRow (baseKeyLen r.1) 0 (k r.1)
         let step := stepOfKey r.1 key
-        let masks := shoupPackMasks (outLen r.1) (s r.1) (t r.1) st.iStar step st.x₀ st.T
-        shoupState (outLen r.1) (s r.1) step masks r.2 (st.iStar - 1))
-      encQ encBits :=
-    computableInPolyTime_shoupState (hout.comp hqp) (hs.comp hqp)
-      ((hiStar.comp hqp).unary_sub' (.const 1)) hqstep hqstep_len (hmasks.comp hqp) hqx₁
+        shoupState (outLen r.1) (s r.1) step
+          (shoupPackMasks (outLen r.1) (s r.1) (t r.1) st.iStar step st.x₀ st.T)
+          r.2 (st.iStar - 1)) encQ encBits :=
+    computableInPolyTime_shoupState (by fun_prop) (by fun_prop) (by fun_prop) hqstep
+      (fun r w hw => h_len r.1 _ w (BitString.length_listRow _ _ _) hw) hqmasks (by fun_prop)
   have hret : ComputableInPolyTime
       (fun r : γ × List Bool =>
         let st := shoupStateDecoder.decode (savedState r.1)
         let key := BitString.listRow (baseKeyLen r.1) 0 (k r.1)
         let step := stepOfKey r.1 key
         let masks := shoupPackMasks (outLen r.1) (s r.1) (t r.1) st.iStar step st.x₀ st.T
-        let prev := shoupState (outLen r.1) (s r.1) step masks r.2 (st.iStar - 1)
-        shoupStepInput (outLen r.1) (s r.1) masks r.2 st.iStar prev)
-      encQ encBits :=
-    computableInPolyTime_shoupStepInput (hout.comp hqp) (hs.comp hqp) (hmasks.comp hqp) hqx₁
-      (hiStar.comp hqp) hqst_prev
+        shoupStepInput (outLen r.1) (s r.1) masks r.2 st.iStar
+          (shoupState (outLen r.1) (s r.1) step masks r.2 (st.iStar - 1))) encQ encBits :=
+    computableInPolyTime_shoupStepInput (by fun_prop) (by fun_prop) hqmasks (by fun_prop)
+      (by fun_prop) hqprev
+  have harg : ComputableInPolyTime (fun a : γ =>
+      (n a, (shoupStateDecoder.decode (savedState a)).advState,
+        BitString.listRow (baseKeyLen a) 0 (k a) ++
+          shoupPackMasks (outLen a) (s a) (t a) (shoupStateDecoder.decode (savedState a)).iStar
+            (stepOfKey a (BitString.listRow (baseKeyLen a) 0 (k a)))
+            (shoupStateDecoder.decode (savedState a)).x₀
+            (shoupStateDecoder.decode (savedState a)).T))
+      encIn (encKeyedInput encBits) :=
+    hn.prod ((by fun_prop : ComputableInPolyTime
+      (fun a : γ => (shoupStateDecoder.decode (savedState a)).advState) encIn encBits).prod
+      (ComputableInPolyTime.bitsAppend (by fun_prop) hmasks))
   exact (hfind.preprocess harg).bind_with hret.isPPTOn
 
 /-- Reduction adversary turning a target collision finder on `shoupComposeEval` into a target
@@ -1797,15 +1415,18 @@ theorem isPPT_shoupComposeAdversary
     (shoupComposeAdversary baseKeyLen outLen s t h adversary).IsPPT := by
   refine ⟨isPPTOn_shoupComposeChoose hout hs ht ha.choose, ?_⟩
   let encP := encKeyedInput encBits
-  have hp := ComputableInPolyTime.id' (encIn := encP)
-  have hn := hp.fst'
   have hstep_key : ComputableInPolyTime
       (fun q : (ℕ × List Bool × List Bool) × List Bool × List Bool => h q.1.1 q.2.1 q.2.2)
-      (encPair encP (encPair encBits encBits)) encBits := by
-    let qid := ComputableInPolyTime.id' (encIn := encPair encP (encPair encBits encBits))
-    exact hh.comp ((hn.comp qid.fst').prod qid.snd')
-  have hres := isPPTOn_shoupComposeFindWith (hbase.comp hn) (hout.comp hn) (hs.comp hn)
-    (ht.comp hn) hn hstep_key (fun p => h_len p.1) hp.snd'.fst' hp.snd'.snd' ha.find
+      (encPair encP (encPair encBits encBits)) encBits :=
+    hh.comp (by fun_prop : ComputableInPolyTime
+      (fun q : (ℕ × List Bool × List Bool) × List Bool × List Bool => (q.1.1, q.2))
+      (encPair encP (encPair encBits encBits)) encP)
+  have hres := isPPTOn_shoupComposeFindWith (encIn := encP)
+    (baseKeyLen := fun p : ℕ × List Bool × List Bool => baseKeyLen p.1)
+    (outLen := fun p => outLen p.1) (s := fun p => s p.1) (t := fun p => t p.1) (n := fun p => p.1)
+    (savedState := fun p => p.2.1) (k := fun p => p.2.2)
+    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
+    hstep_key (fun p => h_len p.1) (by fun_prop) (by fun_prop) ha.find
   have heq : (fun p : ℕ × List Bool × List Bool =>
       shoupComposeFindWith (baseKeyLen p.1) (outLen p.1) (s p.1) (t p.1) (h p.1) adversary
         p.1 p.2.1 p.2.2) =
@@ -1820,6 +1441,94 @@ private noncomputable def shoupTargetDist (baseKeyLen outLen t : ℕ → ℕ)
   let choice ← ProbComp.eval (adversary.choose n)
   let K ← BitString.uniformList (shoupComposeKeyLen baseKeyLen outLen t n)
   (ProbComp.eval (adversary.find n choice.2 K)).map fun x₁ => (choice, K, x₁)
+
+private noncomputable def shoupSlotTrial (baseKeyLen outLen s t : ℕ → ℕ)
+    (h : ℕ → List Bool → List Bool → List Bool) (adversary : TargetCollisionFinder)
+    (n rawSlot : ℕ) : Game := do
+  let iStar := min (rawSlot + 1) (t n)
+  let choice ← ProbComp.eval (adversary.choose n)
+  let T ← BitString.uniformList (shoupMasksLen (outLen n) (t n))
+  let k ← BitString.uniformList (baseKeyLen n)
+  let step := h n (BitString.listRow (baseKeyLen n) 0 k)
+  let masks := shoupPackMasks (outLen n) (s n) (t n) iStar step choice.1 T
+  let x₁ ← ProbComp.eval (adversary.find n choice.2 (BitString.listRow (baseKeyLen n) 0 k ++ masks))
+  let w₀ := BitString.listRow (outLen n) (padicValNat 2 iStar) T ++
+    shoupChunk (outLen n) (s n) iStar choice.1
+  let w₁ := shoupStepInput (outLen n) (s n) masks x₁ iStar
+    (shoupState (outLen n) (s n) step masks x₁ (iStar - 1))
+  PMF.pure (isCollision (h n) (fun m w => w.length == outLen m + s m) n k w₀ w₁)
+
+private def shoupSlotWin (baseKeyLen outLen s t : ℕ → ℕ)
+    (h : ℕ → List Bool → List Bool → List Bool) (n rawSlot : ℕ)
+    (tup : (List Bool × List Bool) × List Bool × List Bool) : Bool :=
+  if rawSlot < t n then
+    let iStar := rawSlot + 1
+    let k := BitString.listRow (baseKeyLen n) 0 tup.2.1
+    let masks := tup.2.1.drop (baseKeyLen n)
+    isCollision (h n) (fun m w => w.length == outLen m + s m) n k
+      (shoupStepInput (outLen n) (s n) masks tup.1.1 iStar
+        (shoupState (outLen n) (s n) (h n k) masks tup.1.1 (iStar - 1)))
+      (shoupStepInput (outLen n) (s n) masks tup.2.2 iStar
+        (shoupState (outLen n) (s n) (h n k) masks tup.2.2 (iStar - 1)))
+  else false
+
+private theorem shoupSlotTrial_eq_map {baseKeyLen outLen s t : ℕ → ℕ}
+    {h : ℕ → List Bool → List Bool → List Bool} (adversary : TargetCollisionFinder)
+    {n rawSlot : ℕ} (hraw : rawSlot < t n)
+    (h_len : ∀ k w, k.length = baseKeyLen n → w.length = outLen n + s n →
+      (h n k w).length = outLen n) :
+    shoupSlotTrial baseKeyLen outLen s t h adversary n rawSlot =
+      (shoupTargetDist baseKeyLen outLen t adversary n).map
+        (shoupSlotWin baseKeyLen outLen s t h n rawSlot) := by
+  set iStar := rawSlot + 1
+  simp only [shoupSlotTrial, shoupTargetDist, Nat.min_eq_left (Nat.succ_le_of_lt hraw), pmf_norm]
+  refine PMF.bind_congr_on_support _ _ _ fun choice _ => ?_
+  rw [PMF.bind_comm (BitString.uniformList (shoupMasksLen (outLen n) (t n)))
+    (BitString.uniformList (baseKeyLen n))]
+  have hsplit : (BitString.uniformList (shoupComposeKeyLen baseKeyLen outLen t n)).bind
+      (fun K => (ProbComp.eval (adversary.find n choice.2 K)).map fun x₁ =>
+        shoupSlotWin baseKeyLen outLen s t h n rawSlot (choice, K, x₁)) =
+      (BitString.uniformList (baseKeyLen n)).bind fun k =>
+        (BitString.uniformList (shoupMasksLen (outLen n) (t n))).bind fun masks =>
+          (ProbComp.eval (adversary.find n choice.2 (k ++ masks))).map fun x₁ =>
+            shoupSlotWin baseKeyLen outLen s t h n rawSlot (choice, k ++ masks, x₁) := by
+    rw [show shoupComposeKeyLen baseKeyLen outLen t n =
+      baseKeyLen n + shoupMasksLen (outLen n) (t n) from rfl]
+    refine (PMF.bind_congr_on_support _ _ _ fun K _ => ?_).trans
+      (BitString.uniformList_bind_split (baseKeyLen n) (shoupMasksLen (outLen n) (t n))
+        fun k masks => (ProbComp.eval (adversary.find n choice.2 (k ++ masks))).map fun x₁ =>
+          shoupSlotWin baseKeyLen outLen s t h n rawSlot (choice, k ++ masks, x₁))
+    conv_rhs => rw [List.take_append_drop]
+  simp only [PMF.map] at hsplit ⊢
+  rw [hsplit]
+  refine PMF.bind_congr_on_support _ _ _ fun k hk_supp => ?_
+  have hk_len : k.length = baseKeyLen n := BitString.length_of_mem_support_uniformList hk_supp
+  have hrow_k : BitString.listRow (baseKeyLen n) 0 k = k := by
+    rw [BitString.listRow_zero, BitString.ofFn_ofList hk_len]
+  have hpack := uniformList_map_shoupPackMasks (outLen n) (s n) (t n) iStar (h n k)
+    (fun w hw => h_len k w hk_len hw) (Nat.succ_pos _) hraw choice.1
+  calc _ = ((BitString.uniformList (shoupMasksLen (outLen n) (t n))).map
+          (shoupPackMasks (outLen n) (s n) (t n) iStar (h n k) choice.1)).bind fun masks =>
+          (ProbComp.eval (adversary.find n choice.2 (k ++ masks))).bind fun x₁ =>
+            PMF.pure (isCollision (h n) (fun m w => w.length == outLen m + s m) n k
+              (shoupStepInput (outLen n) (s n) masks choice.1 iStar
+                (shoupState (outLen n) (s n) (h n k) masks choice.1 (iStar - 1)))
+              (shoupStepInput (outLen n) (s n) masks x₁ iStar
+                (shoupState (outLen n) (s n) (h n k) masks x₁ (iStar - 1)))) := by
+        rw [PMF.bind_map]
+        refine PMF.bind_congr_on_support _ _ _ fun T _ => by
+          dsimp only [Function.comp_apply]
+          simp only [hrow_k]
+          rw [← shoupStepInput_shoupPackMasks (h n k) (fun w hw => h_len k w hk_len hw)
+            (Nat.succ_pos _) hraw choice.1 T]
+      _ = _ := by
+        rw [hpack]
+        refine PMF.bind_congr_on_support _ _ _ fun masks _ => ?_
+        have hkm : BitString.listRow (baseKeyLen n) 0 (k ++ masks) = k := by
+          rw [BitString.listRow_zero, BitString.ofFn_ofList_eq_take,
+            List.take_append_of_le_length (by simp [hk_len]), List.take_left' hk_len]
+        simp only [shoupSlotWin, hraw, ↓reduceIte, List.drop_left' hk_len, hkm]
+        rfl
 
 /-- **Concrete `[Shoup2000]` / `[HHRVW2020]` Lemma 5.7 reduction**: the target-collision
 advantage of `adversary` against `shoupComposeEval` on `L n`-bit inputs (`outLen n ≤ L n ≤
@@ -1844,221 +1553,64 @@ theorem succProbability_targetCollisionGame_shoupCompose_le
             (targetCollisionGame baseKeyLen h
               (fun m w => w.length == outLen m + s m)
               (shoupComposeAdversary baseKeyLen outLen s t h adversary) n)) := by
-  let K₀ := baseKeyLen n
-  let B := outLen n
-  let S := s n
-  let Tlen := t n
-  let D := dyadicSize Tlen
-  let validBase (m : ℕ) (w : List Bool) : Bool := w.length == outLen m + s m
-  let validLong (m : ℕ) (x : List Bool) : Bool := x.length == L m
-  let μ := shoupTargetDist baseKeyLen outLen t adversary n
+  set D := dyadicSize (t n)
+  set μ := shoupTargetDist baseKeyLen outLen t adversary n
   let winComp (tup : (List Bool × List Bool) × List Bool × List Bool) : Bool :=
-    isCollision (shoupComposeEval baseKeyLen outLen s t h n) validLong n
+    isCollision (shoupComposeEval baseKeyLen outLen s t h n) (fun m x => x.length == L m) n
       tup.2.1 tup.1.1 tup.2.2
-  have hcomp_eq :
-      ProbComp.eval
-        (targetCollisionGame (shoupComposeKeyLen baseKeyLen outLen t)
-          (shoupComposeEval baseKeyLen outLen s t h) validLong adversary n) =
-        μ.map winComp := by
-    simp only [targetCollisionGame, μ, shoupTargetDist, winComp, ProbComp.eval_bind,
-      ProbComp.eval_pure, BitString.eval_sampleList, PMF.monad_bind_eq_bind, PMF.map,
-      PMF.bind_bind, PMF.pure_bind, Function.comp_def]
-  let slotTrial (rawSlot : ℕ) : Game := do
-    let iStar := min (rawSlot + 1) Tlen
-    let choice ← ProbComp.eval (adversary.choose n)
-    let T ← BitString.uniformList (shoupMasksLen B Tlen)
-    let k ← BitString.uniformList K₀
-    let step := h n (BitString.listRow K₀ 0 k)
-    let masks := shoupPackMasks B S Tlen iStar step choice.1 T
-    let x₁ ← ProbComp.eval (adversary.find n choice.2 (BitString.listRow K₀ 0 k ++ masks))
-    let w₀ := BitString.listRow B (padicValNat 2 iStar) T ++ shoupChunk B S iStar choice.1
-    let w₁ := shoupStepInput B S masks x₁ iStar (shoupState B S step masks x₁ (iStar - 1))
-    PMF.pure (isCollision (h n) validBase n k w₀ w₁)
-  have hred_eq :
-      ProbComp.eval
-        (targetCollisionGame baseKeyLen h validBase
-          (shoupComposeAdversary baseKeyLen outLen s t h adversary) n) =
-        (PMF.uniformOfFintype (Fin D)).bind fun a => slotTrial a.val := by
-    dsimp only [targetCollisionGame, shoupComposeAdversary, shoupComposeChoose,
-      shoupComposeFindWith, slotTrial, K₀, B, S, Tlen, D]
-    simp only [ProbComp.eval_bind, ProbComp.eval_pure, eval_sampleDyadicIndex,
-      BitString.eval_sampleList, shoupStateDecoder.decode_enc, PMF.monad_bind_eq_bind,
-      PMF.bind_bind, PMF.pure_bind, PMF.bind_map, Function.comp_def]
-  let Wi (rawSlot : ℕ) (tup : (List Bool × List Bool) × List Bool × List Bool) : Bool :=
-    if rawSlot < Tlen then
-      let iStar := rawSlot + 1
-      let k := BitString.listRow K₀ 0 tup.2.1
-      let masks := tup.2.1.drop K₀
-      isCollision (h n) validBase n k
-        (shoupStepInput B S masks tup.1.1 iStar
-          (shoupState B S (h n k) masks tup.1.1 (iStar - 1)))
-        (shoupStepInput B S masks tup.2.2 iStar
-          (shoupState B S (h n k) masks tup.2.2 (iStar - 1)))
-    else false
-  have hslot_eq (rawSlot : ℕ) (hraw : rawSlot < Tlen) :
-      slotTrial rawSlot = μ.map (Wi rawSlot) := by
-    let iStar := rawSlot + 1
-    have hi_pos : 1 ≤ iStar := Nat.succ_pos rawSlot
-    have hi_le : iStar ≤ Tlen := hraw
-    have hmin : min (rawSlot + 1) Tlen = iStar := Nat.min_eq_left hi_le
-    dsimp only [slotTrial]
-    simp only [hmin, PMF.monad_bind_eq_bind]
-    have hrhs :
-        PMF.map (Wi rawSlot) μ =
-          (ProbComp.eval (adversary.choose n)).bind fun choice =>
-            (BitString.uniformList (shoupComposeKeyLen baseKeyLen outLen t n)).bind fun K =>
-              (ProbComp.eval (adversary.find n choice.2 K)).map fun x₁ =>
-                Wi rawSlot (choice, K, x₁) := by
-      simp only [μ, shoupTargetDist, PMF.map, PMF.monad_bind_eq_bind, PMF.bind_bind,
-        PMF.pure_bind, Function.comp_def]
-    rw [PMF.bind_congr_on_support _ _ _ fun choice _ =>
-      PMF.bind_comm (BitString.uniformList (shoupMasksLen B Tlen)) (BitString.uniformList K₀) _,
-      hrhs]
-    refine PMF.bind_congr_on_support _ _ _ fun choice _ => ?_
-    have hinner :
-        (BitString.uniformList K₀).bind (fun k =>
-          (BitString.uniformList (shoupMasksLen B Tlen)).bind fun T =>
-            let step := h n (BitString.listRow K₀ 0 k)
-            let masks := shoupPackMasks B S Tlen iStar step choice.1 T
-            (ProbComp.eval (adversary.find n choice.2 (BitString.listRow K₀ 0 k ++ masks))).bind
-              fun x₁ =>
-              let w₀ := BitString.listRow B (padicValNat 2 iStar) T ++
-                shoupChunk B S iStar choice.1
-              let w₁ := shoupStepInput B S masks x₁ iStar (shoupState B S step masks x₁ (iStar - 1))
-              PMF.pure (isCollision (h n) validBase n k w₀ w₁)) =
-        (BitString.uniformList (shoupComposeKeyLen baseKeyLen outLen t n)).bind fun K =>
-          (ProbComp.eval (adversary.find n choice.2 K)).map fun x₁ =>
-            Wi rawSlot (choice, K, x₁) := by
-      have h_k : ∀ k ∈ (BitString.uniformList K₀).support,
-          ((BitString.uniformList (shoupMasksLen B Tlen)).bind fun T =>
-            let step := h n (BitString.listRow K₀ 0 k)
-            let masks := shoupPackMasks B S Tlen iStar step choice.1 T
-            (ProbComp.eval (adversary.find n choice.2 (BitString.listRow K₀ 0 k ++ masks))).bind
-              fun x₁ =>
-              let w₀ := BitString.listRow B (padicValNat 2 iStar) T ++
-                shoupChunk B S iStar choice.1
-              let w₁ := shoupStepInput B S masks x₁ iStar (shoupState B S step masks x₁ (iStar - 1))
-              PMF.pure (isCollision (h n) validBase n k w₀ w₁)) =
-          (BitString.uniformList (shoupMasksLen B Tlen)).bind fun masks =>
-            (ProbComp.eval (adversary.find n choice.2 (k ++ masks))).map fun x₁ =>
-              isCollision (h n) validBase n k
-                (shoupStepInput B S masks choice.1 iStar
-                  (shoupState B S (h n k) masks choice.1 (iStar - 1)))
-                (shoupStepInput B S masks x₁ iStar
-                  (shoupState B S (h n k) masks x₁ (iStar - 1))) := by
-        intro k hk_supp
-        have hk_len : k.length = K₀ := BitString.length_of_mem_support_uniformList hk_supp
-        have hrow_k : BitString.listRow K₀ 0 k = k := by
-          rw [BitString.listRow_zero, BitString.ofFn_ofList hk_len]
-        have hstep_len_k : ∀ w, w.length = B + S → (h n k w).length = B :=
-          fun w hw => h_len k w hk_len hw
-        have hstep_eq :
-            (BitString.uniformList (shoupMasksLen B Tlen)).bind (fun T =>
-              (ProbComp.eval (adversary.find n choice.2
-                (k ++ shoupPackMasks B S Tlen iStar (h n k) choice.1 T))).bind fun x₁ =>
-                PMF.pure (isCollision (h n) validBase n k
-                  (shoupStepInput B S (shoupPackMasks B S Tlen iStar (h n k) choice.1 T)
-                    choice.1 iStar
-                    (shoupState B S (h n k) (shoupPackMasks B S Tlen iStar (h n k) choice.1 T)
-                      choice.1 (iStar - 1)))
-                  (shoupStepInput B S (shoupPackMasks B S Tlen iStar (h n k) choice.1 T) x₁ iStar
-                    (shoupState B S (h n k) (shoupPackMasks B S Tlen iStar (h n k) choice.1 T) x₁
-                      (iStar - 1))))) =
-            ((BitString.uniformList (shoupMasksLen B Tlen)).map
-              (shoupPackMasks B S Tlen iStar (h n k) choice.1)).bind fun masks =>
-              (ProbComp.eval (adversary.find n choice.2 (k ++ masks))).map fun x₁ =>
-                isCollision (h n) validBase n k
-                  (shoupStepInput B S masks choice.1 iStar
-                    (shoupState B S (h n k) masks choice.1 (iStar - 1)))
-                  (shoupStepInput B S masks x₁ iStar
-                    (shoupState B S (h n k) masks x₁ (iStar - 1))) := by
-          rw [PMF.bind_map]
-          rfl
-        refine (PMF.bind_congr_on_support _ _ _ fun T _ => ?_).trans
-          (hstep_eq.trans ?_)
-        · simp only [hrow_k]
-          rw [shoupStepInput_shoupPackMasks (h n k) hstep_len_k hi_pos hi_le choice.1 T]
-        · rw [uniformList_map_shoupPackMasks B S Tlen iStar (h n k) hstep_len_k hi_pos hi_le
-            choice.1]
-      refine (PMF.bind_congr_on_support _ _ _ h_k).trans ?_
-      symm
-      rw [show shoupComposeKeyLen baseKeyLen outLen t n = K₀ + shoupMasksLen B Tlen from rfl]
-      have hK_split :
-          ((BitString.uniformList (K₀ + shoupMasksLen B Tlen)).bind fun K =>
-            (ProbComp.eval (adversary.find n choice.2 K)).map fun x₁ =>
-              Wi rawSlot (choice, K, x₁)) =
-            (BitString.uniformList (K₀ + shoupMasksLen B Tlen)).bind fun K =>
-              (ProbComp.eval (adversary.find n choice.2 (K.take K₀ ++ K.drop K₀))).map
-                fun x₁ => Wi rawSlot (choice, K.take K₀ ++ K.drop K₀, x₁) := by
-        refine PMF.bind_congr_on_support _ _ _ fun K _ => ?_
-        rw [List.take_append_drop]
-      rw [hK_split, BitString.uniformList_bind_split K₀ (shoupMasksLen B Tlen)
-        (fun k masks =>
-          (ProbComp.eval (adversary.find n choice.2 (k ++ masks))).map fun x₁ =>
-            Wi rawSlot (choice, k ++ masks, x₁))]
-      refine PMF.bind_congr_on_support _ _ _ fun k hk_supp =>
-        PMF.bind_congr_on_support _ _ _ fun masks _ => ?_
-      have hk_len : k.length = K₀ := BitString.length_of_mem_support_uniformList hk_supp
-      have hrow_km : BitString.listRow K₀ 0 (k ++ masks) = (k ++ masks).take K₀ := by
-        rw [BitString.listRow_zero, BitString.ofFn_ofList_eq_take,
-          List.take_append_of_le_length (by simp [hk_len])]
-      simp only [Wi, hraw, ↓reduceIte, List.drop_left' hk_len, hrow_km, List.take_left' hk_len]
-      rfl
-    exact hinner
-  have hcover : ∀ tup ∈ μ.support, winComp tup = true → ∃ s : Fin D, Wi s.val tup = true := by
-    intro tup htup hW
-    simp only [μ, shoupTargetDist, PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff,
-      PMF.mem_support_map_iff] at htup
-    obtain ⟨choice, _, K, hK, ⟨x₁, _, rfl⟩⟩ := htup
-    obtain ⟨hx₀_v, hx₁_v, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
-    have hx₀_len : choice.1.length = L n := by simpa only [validLong, beq_iff_eq] using hx₀_v
-    have hx₁_len : x₁.length = L n := by simpa only [validLong, beq_iff_eq] using hx₁_v
-    dsimp only [shoupComposeEval] at hcol
-    obtain ⟨i, hi_pos, hi_le, hw_ne, hw_col⟩ :=
-      exists_shoupCascade_step_collision hs_pos hb_le hL_le
-        (h n (BitString.listRow K₀ 0 K))
-        (fun w => h_len _ w (BitString.length_listRow K₀ 0 K))
-        (K.drop K₀) choice.1 x₁ hx₀_len hx₁_len hne hcol
-    let rawSlot := i - 1
-    have hraw_lt : rawSlot < Tlen := by dsimp only [rawSlot]; omega
-    have hi_eq : rawSlot + 1 = i := by dsimp only [rawSlot]; omega
-    refine ⟨⟨rawSlot, hraw_lt.trans (lt_dyadicSize Tlen)⟩, ?_⟩
-    simp only [Wi, hraw_lt, ↓reduceIte, hi_eq, isCollision_eq_true_iff, validBase, beq_iff_eq,
-      length_shoupStepInput, B, S, true_and]
+  have hcomp_eq : ProbComp.eval (targetCollisionGame (shoupComposeKeyLen baseKeyLen outLen t)
+      (shoupComposeEval baseKeyLen outLen s t h) (fun m x => x.length == L m) adversary n) =
+      μ.map winComp := by
+    simp only [targetCollisionGame, μ, shoupTargetDist, winComp, BitString.eval_sampleList,
+      pmf_norm, PMF.map]
+  have hred_eq : ProbComp.eval (targetCollisionGame baseKeyLen h
+      (fun m w => w.length == outLen m + s m)
+      (shoupComposeAdversary baseKeyLen outLen s t h adversary) n) =
+      (PMF.uniformOfFintype (Fin D)).bind fun a =>
+        shoupSlotTrial baseKeyLen outLen s t h adversary n a.val := by
+    simp only [targetCollisionGame, shoupComposeAdversary, shoupComposeChoose,
+      shoupComposeFindWith, shoupSlotTrial, eval_sampleDyadicIndex, BitString.eval_sampleList,
+      shoupStateDecoder.decode_enc, pmf_norm, PMF.map, Function.comp_def]
+    rfl
+  have hcover : ∀ tup ∈ μ.support, winComp tup = true →
+      (List.range D).any (fun r => shoupSlotWin baseKeyLen outLen s t h n r tup) = true := by
+    rintro ⟨choice, K, x₁⟩ _ hW
+    obtain ⟨hx₀, hx₁, hne, hcol⟩ := isCollision_eq_true_iff.mp hW
+    obtain ⟨i, hi_pos, hi_le, hw_ne, hw_col⟩ := exists_shoupCascade_step_collision
+      hs_pos hb_le hL_le (h n (BitString.listRow (baseKeyLen n) 0 K))
+      (fun w => h_len _ w (BitString.length_listRow _ 0 K)) (K.drop (baseKeyLen n))
+      choice.1 x₁ (by simpa only [beq_iff_eq] using hx₀) (by simpa only [beq_iff_eq] using hx₁)
+      hne hcol
+    refine List.any_eq_true.mpr ⟨i - 1, List.mem_range.mpr ((by omega : i - 1 < t n).trans
+      (lt_dyadicSize (t n))), ?_⟩
+    simp only [shoupSlotWin, show i - 1 < t n by omega, ↓reduceIte,
+      show i - 1 + 1 = i by omega, isCollision_eq_true_iff, beq_iff_eq,
+      length_shoupStepInput, true_and]
     exact ⟨hw_ne, hw_col⟩
-  obtain ⟨val, hval⟩ : ∃ val : ℕ → ℝ≥0∞, ∀ r, (slotTrial r) true = val r :=
-    ⟨_, fun _ => rfl⟩
-  have hsum_s : (μ.map winComp) true ≤ ∑ r : Fin D, val r.val := by
-    have hmono :
-        (μ.map winComp) true ≤
-          (μ.map (fun tup => (List.range D).any (fun r => Wi r tup))) true := by
-      refine PMF.map_true_mono μ fun tup htup hW => ?_
-      obtain ⟨⟨r, hr⟩, hs⟩ := hcover tup htup hW
-      exact List.any_eq_true.mpr ⟨r, List.mem_range.mpr hr, hs⟩
-    refine (hmono.trans (PMF.map_any_range_true_le_sum μ D Wi)).trans ?_
+  have hsum : (μ.map winComp) true ≤
+      ∑ r : Fin D, (shoupSlotTrial baseKeyLen outLen s t h adversary n r.val) true := by
+    refine ((PMF.map_true_mono μ hcover).trans
+      (PMF.map_any_range_true_le_sum μ D (shoupSlotWin baseKeyLen outLen s t h n))).trans ?_
     rw [Finset.sum_fin_eq_sum_range]
     refine Finset.sum_le_sum fun r hr => ?_
-    simp only [Finset.mem_range.mp hr, ↓reduceDIte, ← hval]
-    by_cases hraw : r < Tlen
-    · rw [hslot_eq r hraw]
-    · have hWi : Wi r = fun _ => false := funext fun tup => by simp only [Wi, hraw, ↓reduceIte]
-      rw [hWi]
-      simp
-  have : Nonempty (Fin D) := ⟨⟨0, dyadicSize_pos Tlen⟩⟩
-  have hcard : (Fintype.card (Fin D) : ℝ≥0) = (D : ℝ≥0) := by
-    simp only [Fintype.card_fin]
-  have hpos : (0 : ℝ≥0) < D := by exact_mod_cast dyadicSize_pos Tlen
-  rw [hcomp_eq, hred_eq, Game.succProbability_uniform, hcard, mul_div_cancel₀ _ hpos.ne']
-  have hsum_val_eq :
-      (∑ r : Fin D, Game.succProbability (slotTrial r.val)) =
-        (∑ r : Fin D, val r.val).toNNReal := by
-    rw [ENNReal.toNNReal_sum fun r _ => by rw [← hval]; exact PMF.apply_ne_top _ _]
-    refine Finset.sum_congr rfl fun r _ => ?_
-    rw [Game.succProbability, hval]
-  rw [hsum_val_eq]
-  have hsum_ne_top : (∑ r : Fin D, val r.val) ≠ ⊤ :=
-    ne_of_lt (ENNReal.sum_lt_top.mpr fun r _ => by rw [← hval]; exact (PMF.apply_ne_top _ _).lt_top)
-  exact ENNReal.toNNReal_mono hsum_ne_top hsum_s
+    simp only [Finset.mem_range.mp hr, ↓reduceDIte]
+    by_cases hraw : r < t n
+    · rw [shoupSlotTrial_eq_map adversary hraw h_len]
+    · have hWi : (μ.map (shoupSlotWin baseKeyLen outLen s t h n r)) true = 0 :=
+        (PMF.apply_eq_zero_iff _ _).mpr fun hm => by
+          obtain ⟨_, -, h⟩ := (PMF.mem_support_map_iff _ _ _).mp hm
+          simp only [shoupSlotWin, hraw, ↓reduceIte, Bool.false_eq_true] at h
+      rw [hWi]; exact zero_le
+  have : Nonempty (Fin D) := ⟨⟨0, dyadicSize_pos (t n)⟩⟩
+  have hpos : (D : ℝ≥0) ≠ 0 := by exact_mod_cast (dyadicSize_pos (t n)).ne'
+  rw [hcomp_eq, hred_eq, Game.succProbability_uniform, Fintype.card_fin, mul_div_cancel₀ _ hpos]
+  calc Game.succProbability (μ.map winComp)
+      ≤ (∑ r : Fin D, (shoupSlotTrial baseKeyLen outLen s t h adversary n r.val) true).toNNReal :=
+        ENNReal.toNNReal_mono (ENNReal.sum_lt_top.mpr fun r _ =>
+          (PMF.apply_ne_top _ _).lt_top).ne hsum
+    _ = ∑ r : Fin D,
+          Game.succProbability (shoupSlotTrial baseKeyLen outLen s t h adversary n r.val) :=
+        ENNReal.toNNReal_sum fun r _ => PMF.apply_ne_top _ _
 
 /-- **Asymptotic `[Shoup2000]` / `[HHRVW2020]` Lemma 5.7**: if `h` is target collision
 resistant on `(outLen n + s n)`-bit inputs with `1 ≤ s n` and `outLen n ≤ L n ≤

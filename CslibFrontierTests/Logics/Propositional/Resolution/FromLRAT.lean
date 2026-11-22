@@ -23,8 +23,8 @@ The certificate of the LRAT checker's test for the four clauses over two variabl
 `a`, but resolution, which has no weakening, derives `a ∨ a`: a line with a repeated literal.
 
 The CDCL solver's certificate for PHP(3, 2) translates to a refutation of 19 lines, within the
-bound of `Cslib.Logic.PL.CNF.isProof_lratToProof` (9 clauses, and the smaller of 21 hints and
-12 steps times 6 variables). A Boolean resolution-proof checker written here, independent of the
+bound of `Cslib.Logic.PL.CNF.isProof_lratToProof` (9 clauses, and the smaller of 12 hints and
+2 steps times 6 variables). A Boolean resolution-proof checker written here, independent of the
 translation, accepts it, by `decide +kernel`. At runtime it also accepts the 377-line
 translation of CaDiCaL's certificate for PHP(5, 4).
 -/
@@ -68,7 +68,7 @@ private abbrev php : CNF ℕ := (CNF.pigeonhole 3 2).relabel fun x => 2 * x.1.va
 example : (match CDCL.solve php with
     | .unsat c => match php.lratToProof c with
       | some ls => checkProof php ls && ls.contains [] && ls.length == 19 &&
-          (php.length, CNF.lratHintCount c.toList, c.size) == (9, 21, 12)
+          (php.length, CNF.lratHintCount c.toList, c.size) == (9, 12, 2)
       | none => false
     | .sat _ => false) = true := by
   decide +kernel
