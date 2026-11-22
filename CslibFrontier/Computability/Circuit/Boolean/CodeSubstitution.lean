@@ -201,17 +201,7 @@ open Turing.MultiTapeTM ComputableInPolyTime
     (hn : ComputableInPolyTime n encIn encNat)
     (hcode : ComputableInPolyTime code encIn encCode) :
     ComputableInPolyTime (fun a => prefixCode (r a) (n a) (code a)) encIn encCode := by
-  have hwire : ComputableInPolyTime
-      (fun p : α × ℕ => prefixWire (r p.1) (n p.1) p.2)
-      (encPair encIn encNat) encNat := by fun_prop
-  have hgate : ComputableInPolyTime
-      (fun p : α × (Op × List ℕ) =>
-        (p.2.1, p.2.2.map (prefixWire (r p.1) (n p.1))))
-      (encPair encIn encGate) encGate :=
-    ((snd encIn encGate).fst').prod
-      (mapWithInput (snd encIn encGate).snd' (hwire.comp ((fst _ _).fst'.prod (snd _ _))))
-  exact (listAppend' (const [(Op.const false, []), (Op.const true, [])])
-    (mapWithInput hcode.fst' hgate)).prod (mapWithInput hcode.snd' hwire)
+  fun_prop [prefixCode]
 
 end Boolean
 end Cslib.Circuits

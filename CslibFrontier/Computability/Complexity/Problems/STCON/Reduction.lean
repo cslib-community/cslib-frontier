@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.L
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.ReadSymbol
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.Correctness
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.CounterBounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.ConfigurationGraph.RadixRounds
 
 /-!
 # The configuration graph as an instance of directed connectivity
@@ -43,6 +44,8 @@ a polynomial in the length of the input even when the instance is encoded by the
 
 ## Main results
 
+* `Cslib.Complexity.STCON.accepts_of_configurationInstance_mem`: a path to the sink is an
+  accepting computation, for every `c` and with no space bound on the machine.
 * `Cslib.Complexity.STCON.configurationInstance_mem_iff`: the instance is in `STCON` exactly when
   the machine accepts.
 * `Cslib.Complexity.STCON.computableInLogSpace_configurationInstance`: the instance is computed in
@@ -66,23 +69,8 @@ variable {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Sta
 /-- The start vertex is a vertex of the ambient graph. -/
 theorem startID_lt_vertexBound (n : ℕ) :
     startID ntm (radix (radixExponent State c) n) <
-      vertexBound (k := k) (radix (radixExponent State c) n) := by
-  have hcard : Fintype.card (Option State) < radix (radixExponent State c) n :=
-    calc Fintype.card (Option State) < 2 ^ Fintype.card (Option State) := Nat.lt_two_pow_self
-      _ ≤ (n + 2) ^ Fintype.card (Option State) := Nat.pow_le_pow_left (by omega) _
-      _ ≤ radix (radixExponent State c) n :=
-        Nat.pow_le_pow_right (by omega) (by simp only [radixExponent]; omega)
-  apply Cslib.Radix.pack_lt (radix_pos _ _)
-  intro i
-  cases i with
-  | inputPos =>
-    change 1 < _
-    have := Fintype.card_pos (α := Option State)
-    omega
-  | control =>
-    change stateCode (some ntm.q₀) < _
-    exact (Fintype.equivFin (Option State) _).isLt.trans hcard
-  | _ => exact radix_pos _ _
+      vertexBound (k := k) (radix (radixExponent State c) n) :=
+  startID_lt (card_succ_lt_radix c n)
 
 /-- The arcs of the configuration graph on `w`, with a sink at `vertexBound`: an arc of the
 compact configuration graph between identifiers below `vertexBound`, and an arc from each
@@ -140,6 +128,15 @@ private theorem exists_bad_of_mem_configurationInstance {w : List Bool}
         exact ⟨fun h => absurd h hz, fun _ => ⟨y, ih.1 hy, hyz⟩⟩
   exact (key I.t h).2 rfl
 
+/-- **A path to the sink is an accepting computation**, for every `c` and with no space bound on
+the machine. The instance contains only configurations that fit its radix, and its arcs are steps
+of the machine, so a radix too small for the machine can lose accepting computations but cannot
+add any. The converse is `configurationInstance_mem_iff`, which needs the space bound. -/
+theorem accepts_of_configurationInstance_mem {w : List Bool}
+    (h : configurationInstance ntm c w ∈ STCON) : ntm.Accepts w := by
+  obtain ⟨u, hu, hbad⟩ := exists_bad_of_mem_configurationInstance ntm c h
+  exact accepts_of_reachable_bad (fits_init (card_succ_lt_radix c w.length)) hu hbad
+
 /-- **The instance is in `STCON` exactly when the machine accepts**, for a machine within space
 `c * (Nat.log2 n + 1)` on the input. -/
 theorem configurationInstance_mem_iff {w : List Bool}
@@ -147,10 +144,9 @@ theorem configurationInstance_mem_iff {w : List Bool}
     configurationInstance ntm c w ∈ STCON ↔ ntm.Accepts w := by
   set D := radixExponent State c
   set I := configurationInstance ntm c w
-  rw [accepts_iff_reachable_bad_of_runsInSpace c hs]
-  refine ⟨exists_bad_of_mem_configurationInstance ntm c, ?_⟩
+  refine ⟨accepts_of_configurationInstance_mem ntm c, fun h => ?_⟩
   -- a path to an accepting vertex continues to the sink
-  rintro ⟨u, hu, hbad⟩
+  obtain ⟨u, hu, hbad⟩ := (accepts_iff_reachable_bad_of_runsInSpace c hs).mp h
   rw [mem_STCON]
   have hlift : ∀ x, Relation.ReflTransGen (Edge ntm (radix D w.length) w)
       (startID ntm (radix D w.length)) x →

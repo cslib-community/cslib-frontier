@@ -70,7 +70,7 @@ theorem encConstraint_rel_polyTime {g : γ → Constraint Rel V}
     (h : ComputableInPolyTime g encIn (encConstraint encRel encV)) :
     ComputableInPolyTime (fun a => (g a).rel) encIn encRel :=
   (ComputableInPolyTime.fst encRel (encList encV)).comp
-    ((ComputableInPolyTime.of_eq fun _ => rfl).comp h)
+    (h.of_enc_eq (g := Constraint.equivProd ∘ g) fun _ => rfl)
 
 /-- Reading the scope of a polynomial-time constraint is polynomial-time. -/
 @[fun_prop]
@@ -78,7 +78,7 @@ theorem encConstraint_scope_polyTime {g : γ → Constraint Rel V}
     (h : ComputableInPolyTime g encIn (encConstraint encRel encV)) :
     ComputableInPolyTime (fun a => (g a).scope) encIn (encList encV) :=
   (ComputableInPolyTime.snd encRel (encList encV)).comp
-    ((ComputableInPolyTime.of_eq fun _ => rfl).comp h)
+    (h.of_enc_eq (g := Constraint.equivProd ∘ g) fun _ => rfl)
 
 /-- Building a constraint from a polynomial-time relation symbol and scope is polynomial-time. -/
 @[fun_prop]

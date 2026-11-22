@@ -7,11 +7,20 @@ everything it needs.
 module built in one checkout (a worktree, an agent sandbox, a second clone) is reused by every
 other checkout on the same machine with the same inputs. Outputs are hard-linked back into
 `.lake/build`. `lake cache clean` empties it; it lives in the Lean toolchain's directory under
-`~/.elan` unless `LAKE_CACHE_DIR` says otherwise. A restored module's warnings are not replayed,
-so `--wfail` can pass locally where CI fails. Full `scripts/check.sh` re-elaborates built
+`~/.elan` unless `LAKE_CACHE_DIR` says otherwise. Individual-artifact restores can lose diagnostic
+logs, so `--wfail` can pass locally where CI fails. Full `scripts/check.sh` re-elaborates built
 root-package sources restored this way; quick mode checks affected sources, including unchanged
 clients, built import aggregates and executable helpers
 ([troubleshooting](../../manual/workflows/troubleshooting.md#diagnose-warnings-that-only-ci-reports)).
+
+This audit recovers warning/info diagnostics; it is not an ordinary build or a proof-trust check.
+Both check modes show its source count, current file and elapsed time while retaining failure
+logs. A clean audit does not currently update the restored traces, so repeating it can repeat
+the work. During ordinary edits, use MCP diagnostics or
+`scripts/build.sh <affected modules and representative clients> --wfail --iofail`. At a local
+checkpoint, use `scripts/check.sh --quick --no-full-fallback`; status 3 calls for focused checks
+and hosted full validation. Run a full local check only when explicitly requested or hosted
+coverage is unavailable, and do not repeat successful CI covering the final revision.
 
 **Remote cache.** CI uploads the build outputs of every commit on `main`; `scripts/cache/get.sh`
 downloads them for the nearest cached ancestor of your `HEAD`:
@@ -41,15 +50,40 @@ enable publication. GCS remains the preferred origin. MIT fallback is enabled so
 shutdown does not force an otherwise cacheable build to compile from source.
 
 `COMPLEXITYLIB_CACHE_ORIGIN_TIMEOUT` bounds each Complexitylib origin attempt (default 180
-seconds; accepted range 0.1–600). Mapping lookups made by the missing-only helper also have
-five-second connection and twenty-second request limits, within that origin's overall budget.
-These limits cover lookup and transfer work together, including a stalled server.
+seconds; accepted range 0.1–600). Both `scripts/cache/get.sh` and `scripts/cache/get-missing.sh`
+resolve candidate ancestors through `scripts/cache/restore.py`, deepening shallow clones up to
+100 commits when possible and searching up to 100 commits in topological breadth-first order
+across all parents of `HEAD` (with a small fallback for stalled merge bases). After a branch
+merges `main`, newer published ancestors on the merged parent are tried strictly before the
+branch's older base regardless of commit timestamps or side-branch length. Mapping lookups have
+five-second connection and twenty-second request limits within that origin's overall budget,
+advancing to the next candidate on HTTP 404 or HTTP 403 and failing fast to the next configured
+origin on transport errors, timeouts or 5xx responses. (On November 17, 2026 the public GCS
+bucket answered 404 for a missing mapping; it answers 403 for every object while the kill switch
+has removed public read.) The wrapper checks the published mapping's version and module rows,
+including uniqueness of input hashes, before passing it to `lake cache get` for ingestion and
+artifact downloads. An unusable HTTP 200 response, such as a maintenance page, sends restoration
+to the next origin even when Lake would exit successfully after a warning. Missing-only
+restoration checks the original mapping before omitting current outputs, which can leave a valid
+header with no rows to download.
 
-Each origin reports its elapsed time and whether the native request completed, failed or timed
-out. Completion means that request succeeded, not that the checkout is fully built or that all
-artifacts were downloaded anew. Missing-only lookups retain the revision/module counts and
-report the final HTTP/curl status when no usable mapping was found; a denied lookup is not
-evidence that no uploaded artifacts exist.
+Candidates whose `lake-manifest.json` pins a different Mathlib commit than the checkout's are
+skipped before any lookup. A module's input hash covers the outputs of its imports, so outputs
+built against another Mathlib match nothing: across the three Mathlib bumps on `main` up to
+November 17, 2026, at most one of the 3,880 to 10,469 published modules was reusable afterwards.
+Before this rule, each restore after such a bump downloaded a complete set and then compiled
+everything; on November 17 those downloads sent 25 GB from GCS in an hour, which fired the kill
+switch, and drew HTTP 429 from MIT. Only Mathlib's pin is compared: bumps of cslib alone kept
+52% to 99.8% of outputs reusable and other `lakefile.toml` changes 96% to 100%, and the toolchain
+is already part of the mapping's path. A candidate whose manifest cannot be read is kept. When
+no candidate remains, the first origin attempt reports `skipped`, no other origin is tried and
+the build compiles from source, as it would have after the download.
+
+Each origin reports its elapsed time and whether the request completed, failed or timed out.
+Completion means that request succeeded, not that the checkout is fully built or that all
+artifacts were downloaded anew. Both helpers print the matched revision and module counts
+(plus uncached module count for `get-missing.sh`) and report the final HTTP/curl status when no
+usable mapping was found; a denied lookup is not evidence that no uploaded artifacts exist.
 
 CI reads the cache too. After restoring `.lake` from the GitHub Actions cache, Lean CI runs
 `scripts/cache/get-missing.sh`, which downloads the same outputs except those of modules whose
@@ -73,7 +107,7 @@ timeouts remain optional. The helpers never remove Git locks; forced termination
 leave one behind.
 
 Lean CI and API docs call this helper with `--lean-action`, preserving the Mathlib URL
-handling that lean-action had (API docs still run lean-action, with its own Mathlib fetch disabled): unset `MATHLIB_CACHE_GET_URL` selects
+handling that lean-action had: unset `MATHLIB_CACHE_GET_URL` selects
 `https://cache.mathlib.org/mathlib4`, an empty value selects the Mathlib client's default, and an
 explicit URL is retained. Local `get.sh` and the Guide workflow use the same retries while retaining
 their existing client-default/environment behavior. API docs also use the existing missing-only
@@ -82,20 +116,81 @@ the Actions cache and then uses the same missing-only restore. Cache failures re
 installation and validation failures remain strict.
 
 The Lean workflows also restore elan and the toolchain named in `lean-toolchain` (`~/.elan`,
-about 600 MB) from the Actions cache, so that no run depends on a GitHub release download. Lean CI
-and the guide no longer run `leanprover/lean-action`: with every feature off it only
+about 600 MB) from the Actions cache, so that no run depends on a GitHub release download. Lean CI,
+the guide and API docs no longer run `leanprover/lean-action`: with every feature off it only
 reinstalled elan from GitHub releases, without retries, so a release outage failed every run. On a
 miss, `.github/actions/install-lean` installs them with bounded
 retries and saves the entry before any Lake command runs, so it never contains the local artifact
 cache above.
 
+## Guide dependency cache
+
+Hosted Guide jobs separately restore the build directories of Verso, SubVerso, MD4Lean and
+Illuminate. They initialize the locked package checkouts before restoring those directories.
+The entry contains neither Guide chapter/generator outputs nor root/shared-library outputs or
+Lake's global artifact store, so the normal example, build and render commands still run.
+
+Only successful API documentation runs on `main` save this entry, after the Guide and generated
+links have passed, and only when the exact entry was absent. PRs and other branches only read.
+The key includes the OS, architecture, and base runner image family (`RUNNER_OS`, `RUNNER_ARCH`,
+`ImageOS` — excluding patch `ImageVersion` rollouts so routine Ubuntu image patches do not bust
+the cache), Lean toolchain, root and Guide lockfiles/configuration, and the cache action/helper
+itself. It has no commit or run ID
+and no less-specific fallback: a new compatible configuration gets one immutable entry, rather
+than a new copy for every PR. `CACHE_RECOVERY_GENERATION` invalidates these entries too, and
+`DISABLE_CACHE_RESTORE=true` or `1` disables both their restore and save. An unavailable cache
+leaves the normal build to compile dependencies; a failed restore discards its partial dependency
+outputs. Cache helpers and writes are optional, while Guide validation remains strict.
+
+The [controlled eight-core profile](https://github.com/cslib-community/cslib-frontier/actions/runs/43532737369)
+measured 2m35s to check examples with cold dependencies and 20s with them retained. Their build
+directories compressed to 98 MiB. This identifies the reusable work; the one-machine comparison
+did not include a cross-job cache transfer. Shared/root native object compilation is separate
+and is not included in this cache.
+
+The nightly docs run also retains a seven-day Actions artifact of those exact four build
+directories. When the Actions cache evicts its entry, Guide PRs can recover it from a successful
+scheduled docs run on `main` with the same compatibility key. Artifact names also include the
+producer run ID and attempt, so a successful rerun whose optional backup failed cannot reuse
+an earlier attempt's artifact. The runner reports that identity. Set `DISABLE_GUIDE_ARTIFACT=1`
+to turn off this backup independently.
+
 ## Hosted-runner disk space
 
-Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to remove the unused
-Android and .NET SDKs and report available disk space. It runs only on GitHub-hosted Linux
-runners; local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python,
-Node actions, repository and caches are retained. Cleanup is optional; all validation still runs
-if it fails.
+Before restoring `.lake`, Lean CI runs `scripts/ci/prepare-runner.sh` to report available disk
+space. On GitHub-hosted Linux runners it removes the unused Android and .NET SDKs only when less
+than the configured threshold (100 GiB by default) is available, or the free-space measurement is
+unavailable. This conservative headroom policy retains cleanup on constrained runners while avoiding several minutes of SDK
+deletion on larger runners that already have ample space; it is not an exact build-size estimate.
+Local and self-hosted invocations skip cleanup. The Lean toolchain, compiler, Python, Node
+actions, repository and caches are retained. Cleanup is optional; all validation still runs if
+it fails.
+
+Lean job summaries report initial space after setup, the lowest available space sampled every
+five seconds and the largest decrease. Compare warm PRs, cold pin builds, merge groups and main
+publication before setting the repository variable `SDK_CLEANUP_MIN_GIB`. Keep margin for short
+peaks between samples. Unset the variable to restore the default.
+
+## Runner for `main` and merge-group builds
+
+The `lean-checks` job of a push to `main` runs on the runner named by the repository variable
+`MAIN_BUILD_RUNNER` (`gh variable set MAIN_BUILD_RUNNER --body cslib-ubuntu-24.04-8core`), and a
+`merge_group` run optionally runs on the runner named by `MERGE_GROUP_RUNNER` when set. Pull
+requests and manual runs always use the standard `ubuntu-24.04` runner, as do `main` and merge
+groups while their respective variable is unset. The `main` run saves the `.lake` snapshot and
+stages the remote-cache publication, so a faster one publishes caches for more landed commits;
+setting `MERGE_GROUP_RUNNER` likewise drains queued merge batches sooner when queue wait rises.
+The cache keys depend on the operating system, architecture and base image family (`ImageOS`), not
+the runner size or image patch version, so standard and larger runners share both `.lake`
+snapshots and merge-group handoffs.
+
+Larger runners are billed per minute even in public repositories. If the organization's Actions
+budget is exhausted or the runner is unavailable, the job fails before a runner is allocated:
+`main` shows a failed run and publishes no cache, while merging continues. Delete either variable
+(`gh variable delete MAIN_BUILD_RUNNER` / `gh variable delete MERGE_GROUP_RUNNER`) to return that
+event to the standard runner without a commit. A pull request from a branch of this repository
+runs its own copy of the workflow, so this expression does not stop a branch from naming a billed
+runner; restrict the runner group in the organization's settings for that.
 
 ## Merge-queue handoff
 
@@ -108,30 +203,101 @@ The handoff accepts only the latest run's current successful attempt of `lean_ac
 this repository, triggered by `merge_group` for the exact landed commit. It checks the source,
 run and attempt, toolchain, Lake configuration, dependency manifest and runner platform before
 installing outputs. Native validation tools are included, so unlike the public per-module cache,
-this handoff requires a matching runner OS, architecture and image version. A missing artifact, a rerun
+this handoff requires a matching runner OS, architecture and base image family (`ImageOS`,
+excluding `ImageVersion` patch builds so standard and larger `ubuntu-24.04` runners share
+handoffs across concurrent minor image rollouts). The artifact name
+includes a hash of the expected source, configuration, platform and recovery generation. Readers
+select a compatible artifact before downloading it and independently check the downloaded
+metadata and archive. Artifacts produced before this naming change miss until they expire.
+A missing artifact, a rerun
 still in progress, a changed commit or incompatible metadata leaves the normal build in place.
 It never waits for another run to finish and does not reuse artifacts from pull-request runs.
 
-`scripts/cache_handoff.py` creates a compressed archive with its digest and provenance, validates
+`scripts/cache_handoff.py` writes and unpacks a gzip-compressed tar archive through `pigz` (up to
+8 workers matching `os.cpu_count()`) when available, falling back to Python gzip/tarfile
+otherwise. It records the archive digest and provenance, validates
 the complete archive before restoration, and swaps the root build directory without modifying
 existing hard-linked cache objects. Merge groups do not publish to GCS: the normal successful
 `main` run remains the only public-cache writer. This makes its outputs available sooner to
 following builds while preserving the public cache's authorization boundary.
 
+### Pull requests targeting main
+
+Before the remote-cache restore, Lean CI reads the main parent directly from GitHub's synthetic
+PR merge commit. If the restored Actions snapshot already matches that parent, it keeps the
+snapshot. Otherwise it looks up the compatible handoff of that exact parent and checks the
+producer just as a main push does. A miss leaves the snapshot in place. The PR build retains
+all validation and compiles its changes. Stacked PRs targeting another branch skip this step.
+Set the repository variable `DISABLE_PR_BUILD_HANDOFF=1` to disable only this consumer.
+
+### Later merge groups
+
+A merge-group build also restores a handoff: that of its **nearest first-parent ancestor with a
+compatible artifact** (`scripts/cache_handoff.py restore --ancestor`, step *Restore nearest ancestor merge-group
+build outputs*). The step runs after the Actions `.lake` snapshot is restored and before the
+remote cache. It replaces `.lake/build` as a unit, so in this order `scripts/cache/get-missing.sh`
+compares its mapping with the installed build's traces and downloads only what that build still
+lacks, instead of outputs the handoff would replace; after a miss the remote cache and the build
+run as before. The other caches are published only when a build of `main` completes, one at a time,
+so they lag the queue; two merge groups inspected on November 14, 2026 started 20 and 32 commits
+behind and recompiled 908 and 2,292 modules. Every commit that lands through the queue has a
+handoff from its own merge-group run, so the nearest one is normally the tip of `main` when the
+group was formed, or a queue entry ahead of it whose run has already succeeded.
+
+- **Search.** The script reads the first-parent chain of the checked-out commit, deepening the
+  depth-1 checkout only when it holds fewer commits than it needs, and considers at most 20
+  ancestors (`ANCESTOR_LIMIT`), nearest first. The fetch runs under the cache scripts' process
+  supervisor (`scripts/cache/bounded.py`) with a 60-second limit: a timeout or failure, once the
+  fetch's processes are confirmed stopped, only leaves fewer ancestors to consider. An
+  unconfirmed shutdown is the one case in which this optional step fails the build: the script
+  exits 125 before anything is downloaded, the step records that status, and the next step
+  (*Stop after an unconfirmed ancestor-handoff shutdown*) fails the job, so that neither the
+  remote cache nor `lake build` runs beside a fetch that may still be writing. Rerun the job. An ancestor
+  with no merge-group run, a failed, cancelled or unfinished latest run, or a missing, expired
+  or incompatible artifact is skipped without downloading a payload. The bound of 20 and the cost of a miss are
+  operational assumptions, not guarantees: a listing usually returns in about a second, each is
+  limited to 60 seconds, and only the step's 10-minute timeout bounds the whole search; a usable
+  build more than 20 commits back is not found, on the expectation, not yet measured, that the
+  `.lake` snapshot and the remote cache are then about as good.
+- **Validation.** Each candidate is checked exactly as the `main` restoration checks its own
+  commit, with the ancestor's SHA in place of the current one: the run must be the latest
+  successful `merge_group` attempt of `lean_action_ci.yml` in this repository for that ancestor,
+  on a `gh-readonly-queue/main/` branch, and the artifact and its metadata must name that run,
+  attempt and ancestor. The toolchain, dependency manifest and `lakefile.toml` digests, runner
+  platform and recovery generation recorded in the artifact must equal those of the *current*
+  checkout and runner, so a toolchain or dependency bump in between is a miss.
+- **Scope.** Only `merge_group` events may use this path; the script refuses any other event and
+  the step does not run on pull requests, whose code is unreviewed. The ancestors are commits the
+  current group contains, so the group reuses only builds of sources it already includes. It
+  reads a GitHub artifact with the job's read-only token and obtains no cloud credential.
+- **Outcome.** Restoration replaces the root `.lake/build` as a unit, like the `main`
+  restoration; Lake's artifact cache and `.lake/packages` are untouched, and Lake then recompiles
+  whatever the newer commits and the group changed. The log line is `Build handoff restored from
+  ancestor <sha> (<n> first-parent commits back), run …`. Any miss is a `Build handoff
+  unavailable` workflow warning with exit status 0, and the ordinary build runs. A failure after the ancestor is
+  chosen (download, archive, metadata, a rerun in progress) is a miss; the script does not then
+  try an older build, since the step has one download budget.
+- **Limits.** If the nearest ancestor's pack or upload failed, the build restored can be older than
+  the snapshot already in `.lake`, and replaces it; the remote cache then fills what it can, and
+  Lake's artifact cache, which is outside `.lake/build`, is not replaced. After two days without a
+  landed commit every handoff has expired and the step is a miss.
+
 - **Payload.** The archive keeps compiled outputs (including private/server OLeans, IR and native
   code), hashes and traces. It omits only `ir/**/*.setup.json` and `ir/**/*.irsetup.json`: Lake's
   transient compiler setup inputs. Lake writes these inside a compilation action and does not
   require them to reuse completed modules. Other JSON files are retained. File-type/link checks
-  still cover omitted entries. The payload limits are 300,000 files, 12 GiB unpacked and 4 GiB
-  compressed; a full build measured 101,848 files, 4.64 GB and 1.67 GB on November 8, 2026. The
-  earlier 100,000-file, 4 GiB and 1 GiB limits had been outgrown, which silently disabled the
-  handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit miss or any
+  still cover omitted entries. The payload limits are 500,000 files, 20 GiB unpacked and 8 GiB
+  compressed (`480`s download timeout); a full build measured 172,812 files, 7.53 GB unpacked and
+  2.64 GB compressed on November 21, 2026 (up from 101,848 files, 4.64 GB and 1.67 GB on
+  November 8, 2026). The earlier limits had been outgrown or approached, which could silently
+  disable the handoff. Packing reports retained and omitted counts/sizes, and in Actions a limit
+  miss or any
   other unavailable handoff is a workflow warning on the run summary.
 - **Kill switch.** Setting the repository variable `DISABLE_BUILD_HANDOFF` to `1` or `true`
-  (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables both merge-group staging and `main`
-  restoration without a commit; `scripts/cache_handoff.py` also honors `DISABLE_BUILD_HANDOFF` in
-  its environment (treating any value other than empty, `0`, `false`, or `no` as disabled) as a
-  defence in depth.
+  (`gh variable set DISABLE_BUILD_HANDOFF --body 1`) disables merge-group staging and all handoff
+  restorations without a commit; `scripts/cache_handoff.py`
+  also honors `DISABLE_BUILD_HANDOFF` in its environment (treating any value other than empty,
+  `0`, `false`, or `no` as disabled) as a defence in depth.
 - **Trace and warning retention.** The handoff archive preserves `.trace` files, which record both
   the input hashes and each module's build log. Lake replays a saved log when it treats a restored
   module as up to date, so `main` still shows the merge-group warnings and `lake build --wfail`
@@ -153,10 +319,6 @@ following builds while preserving the public cache's authorization boundary.
   successful run for the landed commit. Run the script without `--apply` for a dry-run list.
 
 ## Automatic restoration
-
-Temporary controlled measurement is specified in [MEASUREMENT.md](MEASUREMENT.md) (#1728).
-Its hooks are disabled without an explicit plan and expire on 2026-11-15. Installing them does
-not authorize study activation or complete #1197's net-benefit requirement.
 
 `scripts/build.sh` runs `scripts/cache/ensure.sh`, then forwards its arguments and exit status to
 `lake build`. `scripts/check.sh` uses the same bootstrap before full or quick validation; a quick
@@ -211,8 +373,21 @@ isolates dependency `.git` directories and
 or `index`, and dereferences any package symlink whose target is absolute or escapes the package
 directory. Pass `--copy-cslib` or `--copy-packages` when package sources must change.
 
-When the primary checkout's outputs are changing or use different pins, create a worktree without
-copying its initial `.lake` contents:
+Before copying, the helper compares both checkouts’ toolchains, manifests and root Lake
+configuration files and verifies the primary dependency checkouts against the requested Git
+revisions. If the destination already has a packages directory, every required dependency there
+must also be clean and at its requested revision before root build/config outputs are copied;
+missing packages or an absent manifest prevent that copy. Existing destination sources and
+caches are preserved. Only packages listed in the
+destination root manifest are seeded, even if the primary checkout also contains Guide or API
+documentation dependencies. The helper checks for staged, unstaged
+and nonignored untracked changes outside each dependency's `.lake`. When a pin or toolchain
+differs, it seeds only the matching clean packages' sources and private Git controls. Lake
+bootstraps the missing packages and build outputs. An unreadable destination manifest skips the
+entire seed. With matching inputs, APFS and GNU `cp` use copy-on-write clones of build outputs where supported and copy
+bytes on other filesystems. Each worker can rewrite its own outputs independently.
+
+When the primary checkout's outputs are changing, create a worktree without copying them:
 
 ```bash
 scripts/worktree.sh create feature/example example origin/main --source-only
@@ -226,7 +401,7 @@ unless `COMPLEXITYLIB_WORKTREE_SKIP_CACHE_BOOTSTRAP=1` or the usual cache opt-ou
 populate the new checkout with independently materialized dependencies and restored outputs.
 Lake can reuse its immutable artifact cache, but expect dependency downloads and disk use for
 independent package checkouts, and compilation when outputs are unavailable. This option cannot
-be combined with `--copy-cslib` or `--copy-packages`; the default seeded behavior is unchanged.
+be combined with `--copy-cslib` or `--copy-packages`.
 
 ## Trust and privacy
 
@@ -287,9 +462,14 @@ separate decision; the real MIT cold restore and recovery exercise remain tracke
 After all required Lean checks, `publish.py stage` records the exact clean producer revision
 and SHA-256 inventory once. GCS and the separate MIT publisher job consume those same staged bytes.
 The MIT job verifies this run's artifact ID and producer revision before obtaining its upload
-password for the final step. It packs the inventory and files into an uncompressed USTAR package
-and sends `PUT /publish/<commit>` over HTTPS. curl retries transient failures; credentials travel
-through its stdin configuration rather than URLs or command-line arguments.
+password for the final step. It sends the complete SHA-256 inventory and mapping in a small
+USTAR probe to `PUT /publish/<commit>` over HTTPS, then uploads only missing archive payloads
+alongside that same complete metadata. The server rechecks every omitted retained object under
+its publication/GC lock before making the mapping visible. An old server's 415 triggers a full
+upload; a GC race's 412 triggers one full retry. See the
+[protocol and compatibility contract](../../tools/cache-origin/README.md#publication-contract).
+curl retries transient failures; credentials travel through its stdin configuration rather
+than URLs or command-line arguments.
 
 The handler validates the whole package before publishing anything, installs artifacts before
 the mapping and rejects conflicting existing keys even when the client omits conditional headers.
@@ -347,6 +527,13 @@ open under [#2503](https://github.com/cslib-community/cslib-frontier/issues/2503
 [milestone scope](../../tools/cache-origin/SECURITY.md#scope-of-2506-and-remaining-2503-work) separates
 the source/host checks from remaining cold-restore, recovery and preferred-reader decisions.
 
+The HTTP publisher reports `CACHE_HTTP_PUBLICATION`: `mode` is `incremental`, `legacy-full`
+(old server), or `race-full` (GC removed an omitted object). `archives_sent` counts payloads in
+the final package; `request_body_bytes` lists every protocol package, including the probe and
+any full fallback. It excludes curl's automatic retransmissions and HTTP/TLS overhead. This
+measures transfer reduction, not archive preparation: the complete local staging directory
+and its digest verification are still required. A 409 remains a hard conflict, not a cache miss.
+
 ## Profile cache publication
 
 Publication reports separate wall times for the mapping/archive build, archive staging and
@@ -379,34 +566,26 @@ a long mapping build to recompilation. The real-Lake publication test checks mis
 retained archives with fixed tiny sources and verifies that OLean hashes and mtimes stay unchanged.
 It establishes that mechanism, not a speedup estimate for a full CI build.
 
-By default, CI saves its Actions `.lake` snapshot before publication staging, so newly packed
-archives can be absent from that snapshot. The repository variable
-`RETAIN_PUBLICATION_ARCHIVES=true` enables a reversible experiment: the ordinary save is skipped
-and the same `.lake` path and key are saved after staging and the publisher handoff. Actions string
-comparisons are case-insensitive, so any capitalization of `true` enables the experiment; an absent
-variable or every other value disables it. Retention is best-effort because the pinned cache-save
-action reports ordinary save failures as warnings.
+CI saves its Actions `.lake` snapshot after publication staging and before uploading the staged
+package. This keeps newly packed archives for later builds. Ordinary merge-group builds and
+handoffs preserve archives that Lake has not invalidated; no additional archive-preparation step
+runs on the merge queue, and no old archive is attached to a new output by filename.
 
-Use adjacent, representative `main` pushes with the same toolchain, thread settings, recovery
-generation and comparable source changes:
+The save remains best-effort: it runs for a successful library build even when later checks or
+staging fail, but neither a saved cache nor a failed stage authorizes publication. Cancellation
+before the late save forfeits that run's snapshot. Cache-recovery controls still disable saving,
+an exact existing cache key is not overwritten, and ordinary save failures are warnings. Retained
+archives increase snapshot size and can evict older entries. The retired
+`RETAIN_PUBLICATION_ARCHIVES` variable no longer changes the ordering.
 
-1. With the variable absent or unequal to `true` under the case-insensitive comparison, record the
-   source SHA, Actions restore/save duration and bytes, and `CACHE_STAGING_METRICS` archive counts
-   and mapping-build time.
-2. Set the variable to `true` in any capitalization for one `main` push. Record its late save
-   duration and bytes as well as the staging metrics; this run creates the snapshot that can retain
-   new archives.
-3. Keep it at `true` for the next representative `main` push. Compare restore duration and bytes,
-   `archives_before`, and mapping-build wall time with the baseline. Actions cache keys include the
-   commit SHA, so rerunning the first activated SHA cannot replace its already-created key.
-4. Roll back by deleting the variable or setting it to a value other than `true`, ignoring case.
-   The ordinary pre-publication save resumes immediately. A retained snapshot may still be restored
-   until a newer matching snapshot displaces or evicts it; rollback does not delete Actions cache
-   entries.
-
-This protocol tests the ordering change; it does not establish a speedup. Both remote publishers
-consume the same staged files, so the mapping/archive phase still delays fresh outputs on both
-origins.
+Compare representative runs with the same toolchain, thread settings, recovery generation and
+comparable source changes. Record source SHA, restored cache key, archive counts, and Actions
+restore/save time and bytes. Include the merge group's build and handoff pack/upload and `main`'s
+handoff download/unpack and publication staging. Confirm `Build handoff restored` rather than a
+platform/configuration miss. A shorter `main` stage alone does not establish a faster complete
+cycle; unchanged archives, source invalidations and a cold cache can have very different costs.
+Both remote publishers still consume the same staged files, so their upload improvements do not
+remove archive preparation cost.
 
 ## Maintainer runbook
 

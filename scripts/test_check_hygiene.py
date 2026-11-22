@@ -654,8 +654,12 @@ class RoadmapTests(unittest.TestCase):
             self.assertEqual(self.errors(text), [], text[:30])
 
     def test_repository_roadmap_passes(self) -> None:
-        text = (check_hygiene.ROOT / "ROADMAP.md").read_text(encoding="utf-8")
-        self.assertEqual(check_hygiene.check_roadmap(text), [])
+        files = check_hygiene.roadmap_files()
+        self.assertGreater(len(files), 1, "expected ROADMAP.md and per-area files under roadmap/")
+        for path in files:
+            rel = path.relative_to(check_hygiene.ROOT).as_posix()
+            text = path.read_text(encoding="utf-8")
+            self.assertEqual(check_hygiene.check_roadmap(text, rel), [], rel)
 
 
 class CitationTests(unittest.TestCase):
@@ -778,6 +782,26 @@ class CheckHygieneCLITests(unittest.TestCase):
         self.assertEqual(result.stdout, "")
         self.assertIn(f"ERROR: {cited}:1: docstring cites `BussHay1991`", result.stderr)
         self.assertNotIn("Sipser2013", result.stderr)
+
+    def test_parallel_and_sequential_jobs_produce_identical_errors(self) -> None:
+        files = []
+        for idx in range(260):
+            p = self.root / "CslibFrontier" / f"M{idx:03d}.lean"
+            p.parent.mkdir(parents=True, exist_ok=True)
+            if idx == 12:
+                p.write_text("module\n-- upstream: candidate\ntheorem a : True := by sorry\n",
+                             encoding="utf-8")
+            elif idx == 200:
+                p.write_text("module\n-- upstream: candidate\n/-! [bad](Missing.html) -/\n",
+                             encoding="utf-8")
+            else:
+                p.write_text("module\n-- upstream: candidate\ntheorem ok : True := trivial\n",
+                             encoding="utf-8")
+            files.append(p)
+        seq = check_hygiene.check_paths(files, check_simp=True, root=self.root, jobs=1)
+        par = check_hygiene.check_paths(files, check_simp=True, root=self.root, jobs=2)
+        self.assertEqual(par, seq)
+        self.assertEqual(len(seq), 2)
 
 
 if __name__ == "__main__":

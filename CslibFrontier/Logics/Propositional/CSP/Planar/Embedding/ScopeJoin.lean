@@ -11,6 +11,7 @@ public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.Disjoint
 public import CslibFrontier.Logics.Propositional.CSP.Planar.Embedding.ConstraintJoin
 import CslibFrontier.Foundations.Logic.Function.UpdateKernel
 import CslibFrontier.Foundations.GroupTheory.Perm.Fin
+import CslibFrontier.Tactic.FinIndex
 
 /-!
 # Joining the two structural probe centers
@@ -188,7 +189,8 @@ theorem constraint_scopeJoinOccurrenceEquiv (F H : CSP Rel V) (r : Rel)
     try { have := a.1.isLt; have := b.1.isLt; omega } <;>
     try { have := a.1.isLt; omega } <;> try { have := b.1.isLt; omega } <;> omega
 
-private theorem argumentSuccessor_source (F H : CSP Rel V) (r : Rel)
+/-- The source body/probe coordinates retain each original directed argument successor. -/
+theorem argumentSuccessor_scopeJoinSourceEquiv (F H : CSP Rel V) (r : Rel)
     (x : Fin m → V) (y : Fin n → V)
     (a : (F.Occurrence ⊕ Fin m) ⊕ (H.Occurrence ⊕ Fin n)) :
     argumentSuccessor (scopeJoinSourceEquiv F H r x y a) =
@@ -234,20 +236,12 @@ private theorem argumentSuccessor_target_splice (F H : CSP Rel V) (r : Rel)
       simp only [Sum.map_inr, finRotate_last]
       rw [target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_right]
       apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      apply Fin.ext
-      rw [val_finRotate]
-      simp only [Fin.val_natAdd, Fin.val_last, Fin.val_castAdd, Fin.val_zero]
-      split_ifs <;> omega
+      fin_index [val_finRotate]
     · rw [Equiv.swap_apply_of_ne_of_ne (by simpa using hi) (by simp)]
       simp only [Sum.map_inl, Sum.map_inr]
       rw [target_probe_left, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_left]
       apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      apply Fin.ext
-      have hib := i.isLt
-      have hin : i.val ≠ m := fun he => hi (Fin.ext he)
-      rw [val_finRotate]
-      simp only [Fin.val_natAdd, val_finRotate]
-      split_ifs <;> omega
+      fin_index [val_finRotate]
   · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simp)]
     rw [target_body_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inl,
       argumentSuccessor_appendOccurrenceEquiv]
@@ -258,20 +252,12 @@ private theorem argumentSuccessor_target_splice (F H : CSP Rel V) (r : Rel)
       simp only [Sum.map_inl, Sum.map_inr, finRotate_last]
       rw [target_probe_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_left]
       apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      apply Fin.ext
-      rw [val_finRotate]
-      simp only [Fin.val_natAdd, Fin.val_last, Fin.val_castAdd, Fin.val_zero]
-      split_ifs <;> omega
+      fin_index [val_finRotate]
     · rw [Equiv.swap_apply_of_ne_of_ne (by simp) (by simpa using hi)]
       simp only [Sum.map_inr]
       rw [target_probe_right, argumentSuccessor_appendOfFnOccurrenceEquiv_inr, target_probe_right]
       apply congrArg (fun j => appendOfFnOccurrenceEquiv _ r (Fin.addCases y x) (Sum.inr j))
-      apply Fin.ext
-      have hib := i.isLt
-      have hin : i.val ≠ n := fun he => hi (Fin.ext he)
-      rw [val_finRotate]
-      simp only [Fin.val_castAdd, val_finRotate]
-      split_ifs <;> omega
+      fin_index [val_finRotate]
 
 /-- Joining the last outgoing corner at each probe center gives exactly the target positive
 argument cycles, with no reflected scope or arbitrary all-port conjunction principle. -/
@@ -286,7 +272,7 @@ theorem argumentSuccessor_scopeJoinOccurrenceEquiv (F H : CSP Rel V) (r : Rel)
   classical
   obtain ⟨a, rfl⟩ := (scopeJoinSourceEquiv F H r x y).surjective o
   rw [← (scopeJoinSourceEquiv F H r x y).injective.map_swap]
-  rw [argumentSuccessor_source]
+  rw [argumentSuccessor_scopeJoinSourceEquiv]
   simp only [scopeJoinOccurrenceEquiv, Equiv.trans_apply, Equiv.symm_apply_apply]
   exact (argumentSuccessor_target_splice F H r x y a).symm
 

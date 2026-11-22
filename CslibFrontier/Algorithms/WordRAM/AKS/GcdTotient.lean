@@ -8,11 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.NatGcd
-public import CslibFrontier.Computability.WordRAM.RegisterFrame
 public import Mathlib.Data.Nat.Totient
-import Mathlib.Tactic.FinCases
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Step 3 of the AKS algorithm and Euler's totient on the word RAM
@@ -86,24 +85,6 @@ def program : Code .standard 11 :=
 /-- The instruction bound of `program`. -/
 def time (r : ℕ) : ℕ := (r + 1) * (10 * r + 21) + 7
 
-/-- The gcd changes only `ga`, `gb` and its scratch registers. -/
-private theorem gcd_regs {w T : ℕ} {x y : Data 11} (h : ExecWithin w gcd x y T) (j : Fin 11)
-    (hj : j.val < 7) : y.regs j = x.regs j := by
-  exact h.regs_eq (Code.preserves_rename_of_offset _ _
-    (by intro i; fin_cases i <;> rfl) j (Or.inl hj))
-
-private theorem gcd_exec {w : ℕ} (x : Data 11) {u v : ℕ} (hu : x.regs ga = u) (hv : x.regs gb = v)
-    (hfu : Fits w u) (hfv : Fits w v) :
-    ∃ y, ExecWithin w gcd x y (5 * v + 3) ∧ y.regs ga = Nat.gcd u v ∧
-      ∀ j : Fin 11, j.val < 7 → y.regs j = x.regs j := by
-  obtain ⟨y, hy, hg, -⟩ := NatGcd.exec_rename gcdMap gcdMap_injective x
-    (by rw [show gcdMap NatGcd.a = ga from rfl, hu]; exact hfu)
-    (by rw [show gcdMap NatGcd.b = gb from rfl, hv]; exact hfv)
-  refine ⟨y, ?_, ?_, fun j hj => gcd_regs hy j hj⟩
-  · rw [show gcdMap NatGcd.b = gb from rfl, hv] at hy; exact hy
-  · rw [show ga = gcdMap NatGcd.a from rfl, hg, show gcdMap NatGcd.a = ga from rfl,
-      show gcdMap NatGcd.b = gb from rfl, hu, hv]
-
 /-- Counting the residues coprime to `r ≥ 2` up to `r` inclusive gives `φ(r)`. -/
 private theorem card_filter_coprime_range_succ {R : ℕ} (hR : 2 ≤ R) :
     ((Finset.range (R + 1)).filter R.Coprime).card = Nat.totient R := by
@@ -117,103 +98,91 @@ private def Inv (N R j : ℕ) (y : Data 11) : Prop :=
     y.regs phi = ((Finset.range j).filter R.Coprime).card
 
 private theorem body_step {w N R : ℕ} (hfN : Fits w N) (hfR : Fits w (R + 1)) (y : Data 11)
-    (hy : Inv N R (y.regs a) y) (hc : y.regs a < R + 1) :
+    (hy : Inv N R (y.regs a) y) (hlt : y.regs a < R + 1) :
     ∃ z, ExecWithin w body y z (10 * R + 19) ∧
       Inv N R (y.regs a + 1) z ∧ z.regs a = y.regs a + 1 := by
   classical
   obtain ⟨hyn, hyr, hy1, hyl, hyok, hyiff, hyphi⟩ := hy
   obtain ⟨A, hA⟩ : ∃ A, y.regs a = A := ⟨_, rfl⟩
-  have hAR : A ≤ R := by rw [hA] at hc; omega
+  have hAR : A ≤ R := by rw [hA] at hlt; omega
   rw [hA] at hyiff hyphi
-  have hfA : Fits w A := hfR.of_le (by omega)
-  have h1f : Fits w 1 := hfR.of_le (by omega)
-  -- `gcd(n, a)`.
-  let y₁ := (y.set ga N).set gb A
-  have hrun₁ : ExecWithin (B := .standard) w (ram[ ga ← n; gb ← a ]) y y₁ 2 := by
-    ram_eval [y₁, hyn, hA]
-  have hy₁ (j : Fin 11) (hj : j.val < 7) : y₁.regs j = y.regs j := by
-    have h9 : j ≠ ga ∧ j ≠ gb := by constructor <;> (intro h; subst h; simp at hj)
-    simp [y₁, h9.1, h9.2]
-  obtain ⟨y₂, hrun₂, hg₂, hy₂⟩ := gcd_exec (w := w) y₁ (u := N) (v := A) (by simp +decide [y₁])
-    (by simp +decide [y₁]) hfN hfA
-  have hy₂' (j : Fin 11) (hj : j.val < 7) : y₂.regs j = y.regs j := by rw [hy₂ j hj, hy₁ j hj]
-  -- Record step 3.
+  have hkeep : ∀ j ∈ [n, r, a, lim, ok, phi, one], (∀ i, gcdMap i ≠ j) ∧ j ≠ ga ∧ j ≠ gb := by
+    decide
+  unfold body gcd
+  wram_exec [hyn, hA]
+  refine WP.name fun y₁ hy₁ => ?_
+  have hy₁a : y₁.regs ga = N := by subst hy₁; wram_simp
+  have hy₁b : y₁.regs gb = A := by subst hy₁; wram_simp
+  wram_call (NatGcd.exec (y₁.comap gcdMap)
+    (by change Fits w (y₁.regs ga); exact hy₁a ▸ hfN)
+    (by change Fits w (y₁.regs gb); exact hy₁b ▸ hfR.of_le (by omega)))
+    renamed gcdMap_injective with y₂ ⟨⟨hg₂, -⟩, hout₂⟩
+  have hg₂' : y₂.regs ga = Nat.gcd N A := by
+    change y₂.regs ga = (y₁.regs ga).gcd (y₁.regs gb) at hg₂
+    rwa [hy₁a, hy₁b] at hg₂
+  have hy₂ {j : Fin 11} (hj : j ∈ [n, r, a, lim, ok, phi, one]) : y₂.regs j = y.regs j := by
+    obtain ⟨h1, h2, h3⟩ := hkeep j hj
+    rw [hout₂ j h1]; subst hy₁; wram_simp [h2, h3]
+  have hy₂n : y₂.regs n = N := (hy₂ (by simp)).trans hyn
+  have hy₂r : y₂.regs r = R := (hy₂ (by simp)).trans hyr
+  have hy₂a : y₂.regs a = A := (hy₂ (by simp)).trans hA
+  have hy₂l : y₂.regs lim = R + 1 := (hy₂ (by simp)).trans hyl
+  have hy₂ok : y₂.regs ok = y.regs ok := hy₂ (by simp)
+  have hy₂p : y₂.regs phi = ((Finset.range A).filter R.Coprime).card :=
+    (hy₂ (by simp)).trans hyphi
+  have hy₂1 : y₂.regs one = 1 := (hy₂ (by simp)).trans hy1
   let o := if Nat.gcd N A = 1 ∨ Nat.gcd N A = N then y.regs ok else 0
-  let y₃ := ((y₂.set ok o).set ga R).set gb A
-  have hy₂ok : y₂.regs ok = y.regs ok := hy₂' ok (by simp)
-  have hy₂n : y₂.regs n = N := by rw [hy₂' n (by simp), hyn]
-  have hy₂1 : y₂.regs one = 1 := by rw [hy₂' one (by simp), hy1]
-  have hy₂r : y₂.regs r = R := by rw [hy₂' r (by simp), hyr]
-  have hy₂a : y₂.regs a = A := by rw [hy₂' a (by simp), hA]
-  have hrun₃ : ExecWithin (B := .standard) w
-      (ram[ if ga = one then [ ok ← ok ] else [ if ga = n then [ ok ← ok ] else [ ok ← #0 ] ];
-        ga ← r; gb ← a ]) y₂ y₃ 7 := by
-    by_cases hg1 : Nat.gcd N A = 1
-    · refine ExecWithin.mono (T := 4) ?_ (by omega)
-      ram_eval [y₃, o, hg₂, hg1, hy₂1, hy₂ok, hy₂r, hy₂a]
-    · by_cases hgN : Nat.gcd N A = N
-      · have hN1 : ¬ N = 1 := fun h => hg1 (hgN.trans h)
-        refine ExecWithin.mono (T := 6) ?_ (by omega)
-        ram_eval [y₃, o, hg₂, hg1, hgN, hN1, hy₂1, hy₂n, hy₂ok, hy₂r, hy₂a]
-      · ram_eval [y₃, o, hg₂, hg1, hgN, hy₂1, hy₂n, hy₂r, hy₂a]
-  -- `gcd(r, a)`.
-  obtain ⟨y₄, hrun₄, hg₄, hy₄⟩ := gcd_exec (w := w) y₃ (u := R) (v := A) (by simp +decide [y₃])
-    (by simp +decide [y₃]) (hfR.of_le (by omega)) hfA
-  have hy₄' (j : Fin 11) (hj : j.val < 7) (hjo : j ≠ ok) : y₄.regs j = y.regs j := by
-    rw [hy₄ j hj]
-    have h9 : j ≠ ga ∧ j ≠ gb := by constructor <;> (intro h; subst h; simp at hj)
-    simp only [y₃, Data.set_regs, Function.update_of_ne h9.1, Function.update_of_ne h9.2,
-      Function.update_of_ne hjo]
-    exact hy₂' j hj
-  have hy₄ok : y₄.regs ok = o := by rw [hy₄ ok (by simp)]; simp +decide [y₃]
-  have hy₄1 : y₄.regs one = 1 := by rw [hy₄' one (by simp) (by decide), hy1]
-  have hy₄phi : y₄.regs phi = y.regs phi := hy₄' phi (by simp) (by decide)
-  have hy₄a : y₄.regs a = A := by rw [hy₄' a (by simp) (by decide), hA]
-  -- Count and advance.
-  have hphiA : ((Finset.range A).filter R.Coprime).card ≤ A :=
-    (Finset.card_filter_le _ _).trans (Finset.card_range A).le
-  let ph := if Nat.gcd R A = 1 then y.regs phi + 1 else y.regs phi
-  let z := (y₄.set phi ph).set a (A + 1)
-  have hfph : Fits w (y.regs phi + 1) := hfR.of_le (by omega)
-  have hfA1 : Fits w (A + 1) := hfR.of_le (by omega)
-  have hrun₅ : ExecWithin (B := .standard) w
-      (ram[ if ga = one then [ phi ← phi + one ] else [ phi ← phi ]; a ← a + one ]) y₄ z 4 := by
-    by_cases hg1 : Nat.gcd R A = 1
-    · refine ExecWithin.mono (T := 3) ?_ (by omega)
-      ram_eval [z, ph, hg₄, hg1, hy₄1, hy₄phi, hy₄a, hfph, hfA1]
-    · ram_eval [z, ph, hg₄, hg1, hy₄1, hy₄phi, hy₄a, hfA1]
-  have hza : z.regs a = A + 1 := by simp [z]
-  refine ⟨z, (hrun₁.seq (hrun₂.seq (hrun₃.seq (hrun₄.seq hrun₅)))).mono (by omega), ?_, ?_⟩
-  · refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte]
-      rw [hy₄' n (by simp) (by decide), hyn]
-    · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte]
-      rw [hy₄' r (by simp) (by decide), hyr]
-    · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte]; exact hy₄1
-    · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte]
-      rw [hy₄' lim (by simp) (by decide), hyl]
-    · simp +decide only [z, Data.set_regs, Function.update_apply, ↓reduceIte]
-      rw [hy₄ok]; simp only [o]; split_ifs <;> omega
-    · have hzo : z.regs ok = o := by simp +decide [z, hy₄ok]
-      rw [hzo, hA]
-      simp only [o]
+  refine WP.seq ?_
+  refine WP.cut (fun y₃ T₃ => T₃ ≤ 7 ∧ y₃.regs ga = R ∧
+      y₃.regs gb = A ∧ y₃.regs n = N ∧ y₃.regs r = R ∧ y₃.regs a = A ∧
+      y₃.regs lim = R + 1 ∧ y₃.regs ok = o ∧
+      y₃.regs phi = ((Finset.range A).filter R.Coprime).card ∧ y₃.regs one = 1) ?_ ?_
+  · wram_exec [hg₂', hy₂1, hy₂n, hy₂ok, hy₂r, hy₂a] <;>
+      { wram_simp [hy₂n, hy₂r, hy₂a, hy₂l, hy₂ok, hy₂p, hy₂1]; dsimp [o]; simp_all }
+  · rintro y₃ T₃ ⟨hT₃, hy₃ga, hy₃gb, hy₃n, hy₃r, hy₃a, hy₃l, hy₃ok, hy₃p, hy₃1⟩
+    wram_exec
+    wram_call (NatGcd.exec (y₃.comap gcdMap)
+      (by change Fits w (y₃.regs ga); exact hy₃ga ▸ hfR.of_le (by omega))
+      (by change Fits w (y₃.regs gb); exact hy₃gb ▸ hfR.of_le (by omega)))
+      renamed gcdMap_injective with y₄ ⟨⟨hg₄, -⟩, hout₄⟩
+    have hg₄' : y₄.regs ga = Nat.gcd R A := by
+      change y₄.regs ga = (y₃.regs ga).gcd (y₃.regs gb) at hg₄
+      rwa [hy₃ga, hy₃gb] at hg₄
+    have hy₄n : y₄.regs n = N := (hout₄ n (by decide)).trans hy₃n
+    have hy₄r : y₄.regs r = R := (hout₄ r (by decide)).trans hy₃r
+    have hy₄a : y₄.regs a = A := (hout₄ a (by decide)).trans hy₃a
+    have hy₄l : y₄.regs lim = R + 1 := (hout₄ lim (by decide)).trans hy₃l
+    have hy₄ok : y₄.regs ok = o := (hout₄ ok (by decide)).trans hy₃ok
+    have hy₄p : y₄.regs phi = ((Finset.range A).filter R.Coprime).card :=
+      (hout₄ phi (by decide)).trans hy₃p
+    have hy₄1 : y₄.regs one = 1 := (hout₄ one (by decide)).trans hy₃1
+    have hphiA : ((Finset.range A).filter R.Coprime).card ≤ A :=
+      (Finset.card_filter_le _ _).trans (Finset.card_range A).le
+    have ho_le : o ≤ 1 := by dsimp [o]; split_ifs <;> omega
+    have ho_iff : o = 1 ↔ ∀ b < A + 1, Nat.gcd N b = 1 ∨ Nat.gcd N b = N := by
+      dsimp [o]
       constructor
       · intro h b hb
-        split_ifs at h with hc
-        · rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hb | rfl
-          · exact hyiff.mp h b hb
-          · exact hc
+        split_ifs at h with hc'
+        rcases Nat.lt_succ_iff_lt_or_eq.mp hb with hb | rfl
+        · exact hyiff.mp h b hb
+        · exact hc'
       · intro h
-        have hc : Nat.gcd N A = 1 ∨ Nat.gcd N A = N := h A (by omega)
-        simp only [hc, ↓reduceIte]
+        simp only [h A (by omega), ↓reduceIte]
         exact hyiff.mpr fun b hb => h b (by omega)
-    · have hzp : z.regs phi = ph := by simp +decide [z]
-      rw [hzp, hA, Finset.range_add_one, Finset.filter_insert]
-      simp only [ph, hyphi, Nat.Coprime]
-      split_ifs with hg
-      · rw [Finset.card_insert_of_notMem (by simp)]
-      · rfl
-  · simp only [hza, hA]
+    wram_exec [hg₄', hy₄1, hy₄p, hy₄a]
+    · have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
+          ((Finset.range A).filter R.Coprime).card + 1 := by
+        rw [Finset.range_add_one, Finset.filter_insert]
+        simp [Nat.Coprime, hc]
+      wram_simp [Inv, hy₄n, hy₄r, hy₄1, hy₄l, hy₄ok, hy₄p, hA, hcard, ho_le, ho_iff]
+      rw [show gcdMap NatGcd.b = gb from rfl, hy₁b, hy₃gb]; omega
+    · have hcard : ((Finset.range (A + 1)).filter R.Coprime).card =
+          ((Finset.range A).filter R.Coprime).card := by
+        rw [Finset.range_add_one, Finset.filter_insert]
+        simp [Nat.Coprime, hc]
+      wram_simp [Inv, hy₄n, hy₄r, hy₄1, hy₄l, hy₄ok, hy₄p, hA, hcard, ho_le, ho_iff]
+      rw [show gcdMap NatGcd.b = gb from rfl, hy₁b, hy₃gb]; omega
 
 /-- **Step 3 and the totient.** For `r ≥ 2`, with the word size holding `n` and `r + 1`, within
 `time r` instructions the flag `ok` is `1` exactly when every `1 ≤ a ≤ r` has `gcd(a, n) = 1` or
@@ -224,19 +193,17 @@ theorem exec {w : ℕ} (x : Data 11) {N R : ℕ} (hn : x.regs n = N) (hr : x.reg
     ∃ y, ExecWithin w program x y (time R) ∧ y.regs ok ≤ 1 ∧
       (y.regs ok = 1 ↔ ∀ b, 1 ≤ b → b ≤ R → b.gcd N = 1 ∨ b.gcd N = N) ∧
       y.regs phi = Nat.totient R ∧ y.regs n = N ∧ y.regs r = R := by
-  have h1f : Fits w 1 := hfR.of_le (by omega)
-  let x₀ := ((((x.set one 1).set lim (R + 1)).set a 0).set ok 1).set phi 0
-  have hrun₀ : ExecWithin (B := .standard) w
-      (ram[ one ← #1; lim ← r + one; a ← #0; ok ← #1; phi ← #0 ]) x x₀ 5 := by
-    ram_eval [x₀, hr, h1f, hfR]
-  have hx₀ : Inv N R (x₀.regs a) x₀ := by
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> simp +decide [x₀, hn, hr]
+  unfold program
+  wram_exec [hr]
+  refine WP.name fun x₀ hx₀ => ?_
+  have ha₀ : x₀.regs a = 0 := by subst hx₀; wram_simp
+  have hx₀I : Inv N R (x₀.regs a) x₀ := by
+    subst hx₀; simp only [Inv]; wram_simp [hn, hr]; simp
   obtain ⟨y, hrun, ⟨hyn, hyr, _, _, hyok, hyiff, hyphi⟩, _⟩ :=
     ExecWithin.loop_count (Inv N R) (fun _ ⟨_, _, _, hlim, _⟩ => hlim)
-      (body_step hfN hfR) (by simp +decide [x₀, a, phi, ok]) hx₀
-  refine ⟨y, (hrun₀.seq hrun).mono ?_, hyok, ?_, ?_, hyn, hyr⟩
-  · have : x₀.regs a = 0 := by simp +decide [x₀]
-    rw [this, Nat.sub_zero, show 10 * R + 19 + 2 = 10 * R + 21 by ring]
+      (body_step hfN hfR) (by omega) hx₀I
+  refine WP.of_execWithin hrun ⟨?_, hyok, ?_, ?_, hyn, hyr⟩
+  · rw [ha₀, Nat.sub_zero, show 10 * R + 19 + 2 = 10 * R + 21 by ring]
     unfold time
     omega
   · rw [hyiff]

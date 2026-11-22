@@ -14,12 +14,13 @@ public import CslibFrontier.Foundations.Data.BitString.List.Dot
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Log
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Foundations.Data.BitString.Support.Equiv
 
 /-!
 # Polynomial-time word algorithms for Goldreich–Levin decoding
 
 The decoder is ordinary functional code: maps, filtering, folds and first-match search.
-Its deterministic certificates use the shared tidy TM calculus. A fixed precision degree keeps
+Its deterministic certificates compose the shared plain TM rules. A fixed precision degree keeps
 both the number of guesses and their complete encoded size polynomially bounded. Exact
 representation laws preserve candidate order, duplicates, the fallback and every mask tape.
 
@@ -76,31 +77,26 @@ theorem polyTime_maskCount {α : Type} {input : α ↪ List Bool} {dimension pre
 def nonzeroSelectors (count : ℕ) : List (List Bool) :=
   (enumList count).filter (fun word => word.any id)
 
-private def selectorEquiv (count : ℕ) : BitString count ≃ Finset (Fin count) where
-  toFun guess := Finset.univ.filter (fun i => guess i)
-  invFun subset i := decide (i ∈ subset)
-  left_inv guess := by funext i; simp
-  right_inv subset := by ext; simp
-
 /-- The word selectors enumerate exactly the finite decoder's voting subsets, once each. -/
 theorem listStrictMajority_nonzeroSelectors (count : ℕ) (vote : List Bool → Bool) :
     listStrictMajority ((nonzeroSelectors count).map vote) =
       strictMajorityOn (nonemptySubsets count)
         (fun s => vote (List.ofFn (fun i => decide (i ∈ s)))) := by
+  let sel : BitString count ≃ Finset (Fin count) := BitString.supportEquiv
   let indices :=
-    ((BitString.enum count).map (selectorEquiv count)).filter (fun s => decide s.Nonempty)
+    ((BitString.enum count).map sel).filter (fun s => decide s.Nonempty)
   have hnodup : indices.Nodup :=
-    ((BitString.nodup_enum count).map (selectorEquiv count).injective).filter _
-  have hall : ∀ s, s ∈ (BitString.enum count).map (selectorEquiv count) := by
+    ((BitString.nodup_enum count).map sel.injective).filter _
+  have hall : ∀ s, s ∈ (BitString.enum count).map sel := by
     intro s
-    exact List.mem_map.mpr ⟨(selectorEquiv count).symm s, BitString.mem_enum _ _, by simp⟩
+    exact List.mem_map.mpr ⟨sel.symm s, BitString.mem_enum _ _, by simp⟩
   have hset : indices.toFinset = nonemptySubsets count := by
     ext s
     simp [indices, hall]
   have heq : nonzeroSelectors count =
       indices.map (fun s => List.ofFn (fun i => decide (i ∈ s))) := by
-    simp only [nonzeroSelectors, enumList, indices, List.filter_map, List.map_map,
-      Function.comp_def, selectorEquiv, Equiv.coe_fn_mk, Finset.mem_filter,
+    simp only [nonzeroSelectors, enumList, indices, sel, List.filter_map, List.map_map,
+      Function.comp_def, BitString.supportEquiv_apply, Finset.mem_filter,
       Finset.mem_univ, true_and, Bool.decide_coe]
     congr 2 with guess : 1
     apply Bool.eq_iff_iff.mpr
@@ -117,7 +113,6 @@ theorem enumList_size_polynomial (degree : ℕ) :
   have := maskCount_polynomial degree
   fun_prop
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- Enumerating at a fixed precision degree includes the cost of computing the mask count. -/
 @[fun_prop]
 theorem polyTime_enumList_maskCount {α : Type} {input : α ↪ List Bool} {parameter : α → ℕ}
@@ -125,11 +120,9 @@ theorem polyTime_enumList_maskCount {α : Type} {input : α ↪ List Bool} {para
     ComputableInPolyTime
       (fun a => enumList (maskCount (parameter a) (precision degree (parameter a))))
       input (encList encBits) := by
-  have hparameter := hparameter.tidy
-  refine .of_tidy ?_
-  have h : ComputableTidilyInPolyTime (fun n => enumList (maskCount n (precision degree n)))
+  have h : ComputableInPolyTime (fun n : ℕ => enumList (maskCount n (precision degree n)))
       encUnary (encList encBits) := by
-    refine ComputableTidilyInPolyTime.bitsEnumList (by fun_prop)
+    refine ComputableInPolyTime.bitsEnumList (by fun_prop)
       (enumList_size_polynomial degree) ?_
     intro n
     simp only [encUnary_apply, List.length_replicate,
@@ -156,12 +149,6 @@ theorem polyTime_wordCandidate {α : Type} {input : α ↪ List Bool}
     (hguess : ComputableInPolyTime guess input encBits) :
     ComputableInPolyTime (fun a => wordCandidate (predictor a) (dimension a)
       (rows a) (selectors a) (guess a)) input encBits := by
-  have hpredictor := hpredictor.tidy
-  have hdimension := hdimension.tidy
-  have hrows := hrows.tidy
-  have hselectors := hselectors.tidy
-  have hguess := hguess.tidy
-  refine .of_tidy ?_
   unfold wordCandidate listDot
   fun_prop
 
@@ -188,7 +175,6 @@ def wordCandidates (predictor : List Bool → Bool) (dimension : ℕ)
     (rows guesses : List (List Bool)) : List (List Bool) :=
   guesses.map (wordCandidate predictor dimension rows (guesses.filter (fun word => word.any id)))
 
-attribute [local fun_prop] ComputableInPolyTime.tidy in
 /-- The guess-list certificate accounts for the number and size of candidate words. -/
 @[fun_prop]
 theorem polyTime_wordCandidates {α : Type} {input : α ↪ List Bool}
@@ -200,15 +186,9 @@ theorem polyTime_wordCandidates {α : Type} {input : α ↪ List Bool}
     (hguesses : ComputableInPolyTime guesses input (encList encBits)) :
     ComputableInPolyTime (fun a => wordCandidates (predictor a) (dimension a)
       (rows a) (guesses a)) input (encList encBits) := by
-  have hpredictor := hpredictor.tidy
-  have hdimension := hdimension.tidy
-  have hrows := hrows.tidy
-  have hguesses := hguesses.tidy
-  refine .of_tidy ?_
   unfold wordCandidates
-  apply ComputableTidilyInPolyTime.mapWithInput hguesses
-  apply ComputableInPolyTime.tidy
-  apply polyTime_wordCandidate <;> exact .of_tidy (by fun_prop)
+  apply ComputableInPolyTime.mapWithInput hguesses
+  apply polyTime_wordCandidate <;> fun_prop
 
 /-- Candidate generation preserves the finite decoder's order and duplicates. -/
 theorem wordCandidates_eq_map {n k : ℕ} (predictor : List Bool → Bool)

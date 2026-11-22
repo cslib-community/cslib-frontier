@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public import CslibFrontier.Computability.Probabilistic.Parameter
+public import CslibFrontier.Crypto.Computational.Lattice.QaryKernel
 public import CslibFrontier.Crypto.Game
 public import Mathlib.Data.Matrix.Mul
 public import Mathlib.Data.ZMod.ValMinAbs
@@ -80,7 +81,7 @@ namespace SIS
 `[-β, β]`, and `A z ≡ 0 (mod q)`. -/
 def IsSolution {q : ℕ} {ρ ι : Type*} [Fintype ι] (A : Matrix ρ ι (ZMod q)) (β : ℕ)
     (z : ι → ℤ) : Prop :=
-  z ≠ 0 ∧ (∀ i, |z i| ≤ β) ∧ A *ᵥ (Int.cast ∘ z) = 0
+  z ≠ 0 ∧ (∀ i, |z i| ≤ β) ∧ InKernelLattice A z
 
 instance {q : ℕ} {ρ ι : Type*} [Fintype ρ] [Fintype ι] (A : Matrix ρ ι (ZMod q)) (β : ℕ)
     (z : ι → ℤ) : Decidable (IsSolution A β z) :=
@@ -133,8 +134,8 @@ integer solution. -/
 theorem isResidueSolution_iff_isSolution {q : ℕ} {ρ ι : Type*} [Fintype ι]
     (A : Matrix ρ ι (ZMod q)) (β : ℕ) (z : ι → ZMod q) :
     IsResidueSolution A β z ↔ IsSolution A β (liftCentered z) := by
-  simp only [IsResidueSolution, IsSolution, inInfNormBound, liftCentered_ne_zero_iff,
-    intCast_comp_liftCentered]
+  simp only [IsResidueSolution, IsSolution, InKernelLattice, inInfNormBound,
+    liftCentered_ne_zero_iff, intCast_comp_liftCentered]
   rfl
 
 /-! ### Encodings -/
@@ -195,7 +196,8 @@ structure SISParams where
   m : ℕ → ℕ
   /-- Modulus at each security parameter. -/
   q : ℕ → ℕ
-  /-- Infinity-norm bound on solution coordinates. -/
+  /-- Norm bound on solution vectors, interpreted according to the norm-specific SIS game (`ℓ_∞` in
+  `SIS`, Euclidean `ℓ₂` in Euclidean-norm variants). -/
   β : ℕ → ℕ
   /-- Every modulus is nonzero. -/
   hq : ∀ security, NeZero (q security)
@@ -239,6 +241,13 @@ theorem encInput_apply (x : P.Input) :
     P.encInput x = frame (encUnary x.secParam) ++ SIS.encodeMatrix x.matrix := by
   simp [encInput, Input.words, encPair, encBits]
 
+variable {P} in
+/-- The security parameter of a SIS input is computable in polynomial time from its encoding. -/
+theorem computableInPolyTime_secParam :
+    ComputableInPolyTime (fun x : P.Input => x.secParam) P.encInput encUnary :=
+  (ComputableInPolyTime.fst encUnary encBits).comp
+    (ComputableInPolyTime.of_eq (f := Input.words) fun _ => rfl)
+
 /-- A SIS solver for the family `P`: given the security parameter `κ` and a matrix of the
 dimensions and modulus of `P` at `κ`, it returns an integer vector. `Solver.IsPPT` states its
 efficiency on encodings. -/
@@ -255,7 +264,24 @@ end SISParams
 
 /-- The SIS hardness hypothesis for a parameter family `P`: every PPT solver has negligible
 advantage in `sisExperiment` at the parameters `P` assigns to each security parameter. This is a
-hypothesis against classical adversaries, not a theorem of hardness. -/
+hypothesis against classical adversaries, not a theorem of hardness.
+
+*Source.* This is the problem of [Ajtai1996] (ECCC report TR96-007), "The definition of the random
+class", p. 4: given vectors `u₁, …, u_m ∈ ℤⁿ`, here the columns of `A`, find a short vector in the
+lattice `Λ(ν, q)` of integer sequences `h` with `∑ hᵢ uᵢ ≡ 0 (mod q)`. [Lyubashevsky2012],
+Definition 3.1, p. 6 (ePrint full version 2011/537), states it for arbitrary parameters as
+`ℓ₂-SIS_{q,n,m,β}`: given a uniform `A ∈ ℤ_q^{n×m}`, find `v ∈ ℤ^m \ {0}` with `A v = 0` and
+`‖v‖ ≤ β`. This definition differs from these in four ways.
+* The bound `β` is on the `ℓ_∞` norm, where both sources bound the Euclidean norm (Ajtai's
+  Theorem 1, p. 6, by `n`). A vector of Euclidean norm at most `β` meets it, and one that meets it
+  has Euclidean norm at most `β √m`.
+* The matrix is uniform, which is Ajtai's idealized distribution `λ'` (p. 4). His random class `λ`
+  (p. 5) fixes the last column so that a short vector is planted, and he shows that its
+  distribution is exponentially close to uniform.
+* The family `P` is arbitrary, where Ajtai takes `m = ⌊c₁ n log n⌋` and `q = ⌊n^{c₂}⌋`.
+* Solvers are uniform classical strict PPT programs, whose success probability must be negligible
+  in `κ`. Ajtai's Theorem 1 assumes an algorithm polynomial in `n` that succeeds with probability
+  at least `1/2`, or `n^{-c}` (Remark 1, p. 6). -/
 def SIS (P : SISParams) : Prop :=
   ∀ S : P.Solver, S.IsPPT → Negligible fun κ => sisAdvantage (P.q κ) (P.β κ) (S κ)
 

@@ -1,7 +1,7 @@
 /-
 Copyright (c) 2026 Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth
+Authors: Karn Seth, Mayank Rathee
 -/
 
 module
@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.Basic
 public import CslibFrontier.Crypto.Primitives.Garbling.CircularCorrelationRobust
 public import CslibFrontier.Languages.Probabilistic.Oracle.Tabulate
 import CslibFrontier.Computability.Circuit.Program
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.Uniform
 
 /-!
@@ -47,6 +48,8 @@ free (`card_garbledRow`).
 ## Main results
 
 * `Cslib.Crypto.Garbling.FreeXOR.Garbled.run_garbleWith`: correctness.
+* `Cslib.Crypto.Garbling.FreeXOR.isTweakUnique_reduction`: when distinct slots have distinct
+  tweaks, the reduction asks every tweak at most once (`CCR.IsTweakUnique`).
 * `Cslib.Crypto.Garbling.FreeXOR.advantage_realGame_simGame`: privacy. The advantage of every
   distinguisher between the real and the simulated view equals the circular correlation
   robustness advantage of the reduction, which asks one query per slot of the garbled table
@@ -146,12 +149,12 @@ private theorem bool_add_eq_true_of_ne {a b : Bool} (h : a ≠ b) : a + b = true
 
 /-- The colour flips of a row against a labelling: slot `k` flips when the row's colour differs
 from the colour of the label of its argument. -/
-private def flipped {τ : Circuit.Topology n m s} {free : Fin s → Bool} (A : Wire n s → K × Bool)
+@[expose] def flipped {τ : Circuit.Topology n m s} {free : Fin s → Bool} (A : Wire n s → K × Bool)
     (r : GarbledRow τ free) (k : Fin (τ.arity r.gate)) : Bool :=
   r.2 k + (A (τ.wires r.gate k)).2
 
 /-- Slot `k` is the first one where `e` is set. -/
-private def isFirst {a : ℕ} (e : Fin a → Bool) (k : Fin a) : Bool :=
+@[expose] def isFirst {a : ℕ} (e : Fin a → Bool) (k : Fin a) : Bool :=
   e k && decide (∀ j < k, e j = false)
 
 private theorem isFirst_eq_true_iff {a : ℕ} {e : Fin a → Bool} {k₀ : Fin a}
@@ -213,7 +216,7 @@ private theorem trace_gate_of_free
 
 /-- The output bit of a row against a labelling `A` on input `x`: whether the row's plaintext is
 the label of `A` or the other label of its gate. -/
-private def rowBit (A : Wire n C.size → K × Bool) (r : GarbledRow C.topology free) : Bool :=
+@[expose] def rowBit (A : Wire n C.size → K × Bool) (r : GarbledRow C.topology free) : Bool :=
   C.program.trace I x (.gate r.gate) + I (C.program.lines r.gate).op
     fun k : Fin (C.topology.arity r.gate) =>
       flipped A r k + C.program.trace I x (C.topology.wires r.gate k)
@@ -221,7 +224,7 @@ private def rowBit (A : Wire n C.size → K × Bool) (r : GarbledRow C.topology 
 /-- The query of the reduction for a slot: the key of the slot's argument under the labelling
 `A`, the slot's tweak, and a bit that is set only on the first flipped slot of a row whose output
 bit is set. -/
-def reductionQuery (A : Wire n C.size → K × Bool) (p : GarbledSlot C.topology free) :
+@[expose] def reductionQuery (A : Wire n C.size → K × Bool) (p : GarbledSlot C.topology free) :
     CCR.Query K T :=
   ⟨(A (C.topology.wires p.1.gate p.2)).1, tw p, isFirst (flipped A p.1) p.2 && rowBit C I x A p.1⟩
 
@@ -245,9 +248,9 @@ variable [AddCommGroup K]
 
 /-! ### Labels -/
 
-/-- The label for the bit `b` of a wire with zero label `W`: `W`, or `W + (δ, true)`. -/
+/-- The label for the bit `b` of a wire with zero label `W`: `W + bitOffset (δ, true) b`. -/
 @[expose] def label (δ : K) (W : K × Bool) (b : Bool) : K × Bool :=
-  if b then W + (δ, true) else W
+  W + bitOffset (δ, true) b
 
 /-- The colour of the label for `b` is the colour of the zero label plus `b`. -/
 theorem label_snd (δ : K) (W : K × Bool) (b : Bool) : (label δ W b).2 = W.2 + b := by
@@ -261,43 +264,34 @@ private theorem offset_add_offset (hK : ∀ k : K, k + k = 0) (δ : K) :
 /-- Labels add like their bits: this is what makes XOR gates free. -/
 theorem label_add_label (hK : ∀ k : K, k + k = 0) (δ : K) (W W' : K × Bool) (b b' : Bool) :
     label δ W b + label δ W' b' = label δ (W + W') (b + b') := by
-  cases b <;> cases b'
-  · rfl
-  · exact (add_assoc W W' _).symm
-  · exact add_right_comm W _ W'
-  · change W + (δ, true) + (W' + (δ, true)) = W + W'
-    rw [add_add_add_comm, offset_add_offset hK, add_zero]
+  simp only [label, bitOffset_add_of_add_self (offset_add_offset hK δ), add_add_add_comm]
 
 theorem sum_label {ι : Type*} (hK : ∀ k : K, k + k = 0) (δ : K) (S : Finset ι)
     (W : ι → K × Bool) (b : ι → Bool) :
     ∑ i ∈ S, label δ (W i) (b i) = label δ (∑ i ∈ S, W i) (∑ i ∈ S, b i) := by
   classical
   induction S using Finset.induction_on with
-  | empty => simp only [Finset.sum_empty]; rfl
+  | empty => exact (add_zero 0).symm
   | insert a S ha ih =>
     rw [Finset.sum_insert ha, Finset.sum_insert ha, Finset.sum_insert ha, ih,
       label_add_label hK]
 
 theorem label_label (hK : ∀ k : K, k + k = 0) (δ : K) (W : K × Bool) (b b' : Bool) :
     label δ (label δ W b) b' = label δ W (b + b') := by
-  cases b <;> cases b' <;> try rfl
-  change W + (δ, true) + (δ, true) = W
-  rw [add_assoc, offset_add_offset hK, add_zero]
+  simp only [label, add_assoc, ← bitOffset_add_of_add_self (offset_add_offset hK δ)]
 
 theorem label_label_self (hK : ∀ k : K, k + k = 0) (δ : K) (W : K × Bool) (b : Bool) :
     label δ (label δ W b) b = W := by
   rw [label_label hK, BooleanRing.add_self]
-  rfl
+  exact add_zero W
 
 private theorem label_add (δ : K) (W Y : K × Bool) (b : Bool) :
-    label δ W b + Y = label δ (W + Y) b := by
-  cases b
-  exacts [rfl, add_right_comm W _ Y]
+    label δ W b + Y = label δ (W + Y) b :=
+  add_right_comm W (bitOffset (δ, true) b) Y
 
 private theorem add_label (δ : K) (Y W : K × Bool) (b : Bool) :
-    Y + label δ W b = label δ (Y + W) b := by
-  cases b
-  exacts [rfl, (add_assoc Y W _).symm]
+    Y + label δ W b = label δ (Y + W) b :=
+  (add_assoc Y W (bitOffset (δ, true) b)).symm
 
 /-! ### Zero labels -/
 
@@ -371,7 +365,7 @@ labels. -/
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (x : Fin n → Bool) : Fin m → Bool :=
   decode G.decoding (evaluate τ free H tw G.table (encode G.encoding x))
 
-private theorem isLocal_evalStep {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
+theorem isLocal_evalStep {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
     (free : Fin s → Bool) (H : K → T → K × Bool) (tw : GarbledSlot τ free → T)
     (table : GarbledRow τ free → K × Bool) (X : Fin n → K × Bool) :
     IsLocal (evalStep τ free H tw table X) := by
@@ -412,11 +406,11 @@ gate for the bit that the colours encode, masked by the hash of the matching arg
   decoding o := (propagate C.topology free base (C.outputs o)).2
 
 /-- The label of each wire that the evaluator holds on input `x`. -/
-private def activeLabel (free : Fin C.size → Bool) (δ : K) (base : Wire n C.size → K × Bool)
+def activeLabel (free : Fin C.size → Bool) (δ : K) (base : Wire n C.size → K × Bool)
     (w : Wire n C.size) : K × Bool :=
   label δ (propagate C.topology free base w) (C.program.trace I x w)
 
-private theorem evalStep_activeLabel
+theorem evalStep_activeLabel
     (hfree : ∀ g, free g = true → ∀ v, I (C.program.lines g).op v = ∑ k, v k)
     (hK : ∀ k : K, k + k = 0) (δ : K) (base : Wire n C.size → K × Bool) (w : Wire n C.size) :
     evalStep C.topology free H tw (garbleWith C I H tw δ base).table
@@ -466,7 +460,7 @@ theorem Garbled.run_garbleWith
 /-- The simulated view for the output `y`, the active labels `A` and the filler rows `R`: the row
 named by the active colours holds the gate's active label under its mask, and every other row is
 filler. -/
-def simulateWith (τ : Circuit.Topology n m s) (free : Fin s → Bool) (H : K → T → K × Bool)
+@[expose] def simulateWith (τ : Circuit.Topology n m s) (free : Fin s → Bool) (H : K → T → K × Bool)
     (tw : GarbledSlot τ free → T) (y : Fin m → Bool) (A : Wire n s → K × Bool)
     (R : GarbledRow τ free → K × Bool) : View τ free K where
   table r := if r.2 = (fun k => (A (τ.wires r.gate k)).2) then
@@ -475,25 +469,31 @@ def simulateWith (τ : Circuit.Topology n m s) (free : Fin s → Bool) (H : K �
   input i := A (.input i)
   decoding o := (A (τ.outputs o)).2 + y o
 
+/-- The propagated labels are fixed by one evaluation round of the simulated view. -/
+theorem evalStep_simulateWith {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
+    (free : Fin s → Bool) (H : K → T → K × Bool) (tw : GarbledSlot τ free → T)
+    (y : Fin m → Bool) (base : Wire n s → K × Bool) (R : GarbledRow τ free → K × Bool)
+    (w : Wire n s) :
+    evalStep τ free H tw (simulateWith τ free H tw y (propagate τ free base) R).table
+        (simulateWith τ free H tw y (propagate τ free base) R).input (propagate τ free base) w =
+      propagate τ free base w := by
+  cases w with
+  | input i => rfl
+  | gate g =>
+    by_cases hg : free g = false
+    · simp only [evalStep, dite_eq_left hg, simulateWith, ite_true]
+      exact add_sub_cancel_right _ _
+    · simp only [evalStep, dite_eq_right hg]
+      exact (propagate_gate_of_free hτ base (by simpa using hg)).symm
+
 /-- Simulated views decode to the output, when the active labels are propagated. -/
 theorem View.run_simulateWith {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
     (free : Fin s → Bool) (H : K → T → K × Bool) (tw : GarbledSlot τ free → T)
     (y : Fin m → Bool) (base : Wire n s → K × Bool) (R : GarbledRow τ free → K × Bool) :
     (simulateWith τ free H tw y (propagate τ free base) R).run H tw = y := by
-  have hA : ∀ w, evalStep τ free H tw (simulateWith τ free H tw y (propagate τ free base) R).table
-      (simulateWith τ free H tw y (propagate τ free base) R).input (propagate τ free base) w =
-        propagate τ free base w := by
-    intro w
-    cases w with
-    | input i => rfl
-    | gate g =>
-      by_cases hg : free g = false
-      · simp only [evalStep, dite_eq_left hg, simulateWith, ite_true]
-        exact add_sub_cancel_right _ _
-      · simp only [evalStep, dite_eq_right hg]
-        exact (propagate_gate_of_free hτ base (by simpa using hg)).symm
   funext o
-  rw [View.run, evaluate_eq_of_evalStep hτ free H tw _ _ _ hA]
+  rw [View.run, evaluate_eq_of_evalStep hτ free H tw _ _ _
+    (evalStep_simulateWith hτ free H tw y base R)]
   simp only [decode, Function.comp_apply, simulateWith]
   rw [← add_assoc, BooleanRing.add_self, zero_add]
 
@@ -501,25 +501,19 @@ theorem View.run_simulateWith {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
 
 /-- The table built by the reduction from oracle answers `O`: in each row, the slots whose colour
 flips against `A` read the oracle, and the others hash their label under `A`. -/
-private def reductionTable {τ : Circuit.Topology n m s} {free : Fin s → Bool}
+@[expose] def reductionTable {τ : Circuit.Topology n m s} {free : Fin s → Bool}
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (A : Wire n s → K × Bool)
     (O : GarbledSlot τ free → K × Bool) (r : GarbledRow τ free) : K × Bool :=
   A (.gate r.gate) + ∑ k, if flipped A r k = true then O ⟨r, k⟩ else
     H (A (τ.wires r.gate k)).1 (tw ⟨r, k⟩)
 
 /-- The view built by the reduction. -/
-private def reductionView (τ : Circuit.Topology n m s) {free : Fin s → Bool}
+@[expose] def reductionView (τ : Circuit.Topology n m s) {free : Fin s → Bool}
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (y : Fin m → Bool)
     (A : Wire n s → K × Bool) (O : GarbledSlot τ free → K × Bool) : View τ free K where
   table := reductionTable H tw A O
   input i := A (.input i)
   decoding o := (A (τ.outputs o)).2 + y o
-
-private theorem oracle_eq_label (H : K → T → K × Bool) (δ y : K) (t : T) (b : Bool) :
-    CCR.oracle H δ (δ, true) ⟨y, t, b⟩ = label δ (H (y + δ) t) b := by
-  rw [CCR.oracle_apply]
-  cases b
-  exacts [add_zero _, rfl]
 
 /-- Shift labels by the offset on the wires where `t` is set. -/
 private def shiftEquiv (hK : ∀ k : K, k + k = 0) (δ : K) {W : Type} (t : W → Bool) :
@@ -563,10 +557,8 @@ private theorem reductionTable_circular (hK : ∀ k : K, k + k = 0) (δ : K)
         (isFirst (flipped A r) k && rowBit C I x A r) := fun k => by
     cases hf : flipped A r k
     · have h0 : isFirst (flipped A r) k = false := by simp [isFirst, hf]
-      rw [ite_eq_right Bool.false_ne_true, h0]
-      rfl
-    · rw [ite_eq_left rfl, reductionQuery, oracle_eq_label]
-      rfl
+      simp [h0, label]
+    · rfl
   simp only [reductionTable, hterm]
   rw [sum_label hK, sum_isFirst_and _ _ (exists_flipped_of_rowBit C I x A r), add_label]
   simp only [garbleTable, hb, label_label hK, bool_add_add_cancel, label_add, rowBit]
@@ -662,7 +654,7 @@ variable [Fintype K] [Nonempty K] (D : View C.topology free K → ProbComp Bool)
 
 /-- The simulator: uniform base labels, propagated to every wire, and uniform filler rows. It sees
 only the topology, the free gates, the hash, the tweaks and the output. -/
-noncomputable def simulate (τ : Circuit.Topology n m s) (free : Fin s → Bool)
+@[expose] noncomputable def simulate (τ : Circuit.Topology n m s) (free : Fin s → Bool)
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (y : Fin m → Bool) :
     ProbComp (View τ free K) := do
   let base ← ProbComp.uniform (Wire n s → K × Bool)
@@ -685,7 +677,8 @@ noncomputable def simulate (τ : Circuit.Topology n m s) (free : Fin s → Bool)
 /-- The adversary against circular correlation robustness: sample base labels, propagate them,
 query the oracle once for each slot of the garbled table, build the view from the answers, and
 run `D` on it. -/
-noncomputable def reduction : ProbOracleComp (fun _ : CCR.Query K T => K × Bool) Bool := do
+@[expose] noncomputable def reduction :
+    ProbOracleComp (fun _ : CCR.Query K T => K × Bool) Bool := do
   let base ← ProbOracleComp.sample (ProbComp.uniform (Wire n C.size → K × Bool))
   let O ← ProbOracleComp.tabulate (reductionQuery C I tw x (propagate C.topology free base))
     (Finset.univ : Finset (GarbledSlot C.topology free)).toList
@@ -706,19 +699,36 @@ theorem isQueryBounded_reduction :
   simp only [Nat.zero_add, Nat.add_zero] at h
   exact h
 
-private theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
+/-- When distinct slots have distinct tweaks, the reduction makes at most one query with each
+tweak. -/
+theorem isTweakUnique_reduction [DecidableEq T] (htw : Function.Injective tw) :
+    CCR.IsTweakUnique (reduction C I H tw x D) := fun t => by
+  have h := (ProbOracleComp.isCostBounded_sample _
+    (ProbComp.uniform (Wire n C.size → K × Bool))).bind fun base =>
+    (ProbOracleComp.isCostBounded_tabulate_le_one (R := K × Bool) CCR.Query.tweak
+      (reductionQuery C I tw x (propagate C.topology free base))
+      (Finset.univ : Finset (GarbledSlot C.topology free)).nodup_toList
+      (by simpa [Function.comp_def, reductionQuery_tweak] using htw) t).bind fun O =>
+    ProbOracleComp.isCostBounded_sample _
+      (D (reductionView C.topology H tw (C.eval I x)
+        (propagate C.topology free base) O))
+  simpa only [reduction, Nat.zero_add, Nat.add_zero] using h
+
+/-- Library infrastructure (no cited result): evaluation of `reduction` against a fixed oracle
+`f` samples uniform base labels and applies `D` to `reductionView` on the resulting answers. -/
+theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
     ProbComp.eval ((reduction C I H tw x D).run fun q => pure (f q)) =
       (PMF.uniformOfFintype (Wire n C.size → K × Bool)).bind fun base =>
         ProbComp.eval (D (reductionView C.topology H tw (C.eval I x)
           (propagate C.topology free base)
           fun p => f (reductionQuery C I tw x (propagate C.topology free base) p))) := by
-  simp only [ProbOracleComp.run, reduction, OracleComp.interpret_bind,
-    ProbOracleComp.interpret_sample, ProbComp.interpret_unifFin, ProbOracleComp.interpret_tabulate,
+  simp only [ProbOracleComp.run, reduction, interp_norm, ProbOracleComp.interpret_tabulate,
     pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform, Finset.mem_toList, Finset.mem_univ,
     ite_true]
 
-/-- With the circular oracle, the reduction plays the real experiment. -/
-private theorem realGame_reduction
+/-- Library infrastructure (no cited result): with the circular oracle, the reduction plays the
+real experiment. -/
+theorem realGame_reduction
     (hfree : ∀ g, free g = true → ∀ v, I (C.program.lines g).op v = ∑ k, v k)
     (hK : ∀ k : K, k + k = 0) :
     ProbComp.eval (PRF.realExperiment (CCR.keyed H id (·, true)) (reduction C I H tw x D)) =
@@ -732,9 +742,9 @@ private theorem realGame_reduction
   rw [PMF.bind_map]
   rfl
 
-/-- With a uniform random function, the reduction plays the simulated experiment, when distinct
-slots have distinct tweaks. -/
-private theorem idealGame_reduction [DecidableEq K] [Fintype T] [DecidableEq T]
+/-- Library infrastructure (no cited result): with a uniform random function, the reduction plays
+the simulated experiment, when distinct slots have distinct tweaks. -/
+theorem idealGame_reduction [DecidableEq K] [Fintype T] [DecidableEq T]
     (htw : Function.Injective tw) :
     ProbComp.eval (PRF.idealExperiment (reduction C I H tw x D)) = simGame C I H tw x D := by
   simp only [PRF.idealExperiment, simGame, simulate, ProbComp.eval_bind, ProbComp.eval_uniform,

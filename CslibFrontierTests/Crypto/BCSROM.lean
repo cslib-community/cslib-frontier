@@ -4,9 +4,13 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Crypto.Protocols.BCS.ROM
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Probability.PMF.UniformBound
+import CslibFrontierTests.Crypto.MerkleTestHash
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 
 /-!
 # Tests for BCS ROM soundness and straight-line knowledge soundness
@@ -18,7 +22,8 @@ two-channel BCS random-oracle transform (`CslibFrontier.Crypto.Protocols.BCS.ROM
    deterministic channels, verifies agreement with `bcsProve` / `bcsVerify` under `chainedFS`, and
    instantiates `bcsHonestROMGame_eq_pure_true`.
 2. **Straight-line multi-round extraction, extension invariance, and dual collision extraction.**
-   On a full prover Merkle trace `trProver` under an injective hash `idTreeHash`,
+   On a full prover Merkle trace `trProver` under a sixteen-bit hash `idTreeHash` with no
+   collisions on the words involved,
    `bcsExtractWitness` recovers the committed witness `(true, true)` straight-line with
    `defaultSym = false` (whereas an empty trace falls back to `(false, false)`),
    `iopVerify_bcsExtractOracles_of_bcsVerify` certifies acceptance of the extracted tables, and
@@ -37,10 +42,14 @@ two-channel BCS random-oracle transform (`CslibFrontier.Crypto.Protocols.BCS.ROM
    soundness and knowledge-soundness error strictly `< 1 / 3 < 1`.
 -/
 
+-- This regression module checks ordinary imports and exports no test fixtures.
+set_option linter.privateModule false
+
 namespace CslibFrontierTests.Crypto.BCSROM
 
 open Cslib Cslib.Crypto Cslib.Crypto.Protocols.BCS Cslib.Probability Cslib.OracleComp
 open Turing.MultiTapeTM
+open CslibFrontierTests.Crypto.MerkleTestHash
 open scoped NNReal ENNReal
 
 /-! ### Protocol Setup: Concrete 2-Round, Depth-1 Public-Coin IOP -/
@@ -91,8 +100,8 @@ theorem romIOP_complete : IOPCompleteness romIOP romRel := by
 
 /-! ### Part 1: Transcript-Chained Fiat–Shamir Bridge, Pure Simulation & ROM Completeness -/
 
-/-- Injective deterministic Merkle hash on bitstrings. -/
-def idTreeHash (msg : List Bool) : List Bool := msg
+/-- A deterministic Merkle hash with sixteen-bit digests and no collisions among the words below. -/
+abbrev idTreeHash : List Bool → List Bool := polyHash
 
 /-- Deterministic transcript-chained Fiat–Shamir oracle inspecting statement, root count, and
 previous challenge history. -/
@@ -110,7 +119,8 @@ example :
       (bcsProveROM romIOP encSym (true, true) (true, true))).openings =
     (bcsProve romIOP (fun _ => idTreeHash) [] encSym (chainedFS xorChainedFS)
       (true, true) (true, true)).openings :=
-  rfl
+  congrArg BCSProof.openings
+    (evalPure_bcsProveROM idTreeHash xorChainedFS romIOP encSym (true, true) (true, true))
 
 example :
     OracleComp.evalPure (bcsOracle idTreeHash xorChainedFS)
@@ -122,7 +132,8 @@ example :
 example :
     OracleComp.evalPure (bcsOracle idTreeHash xorChainedFS)
       (bcsHonestROMProg romIOP encSym (true, true) (true, true)) = true :=
-  rfl
+  bcsVerifyROM_bcsProveROM_eq_true romIOP_complete idTreeHash length_polyHash xorChainedFS encSym
+    ⟨rfl, rfl, rfl⟩
 
 -- Perfect completeness in the lazy two-channel random-oracle model for every digest length `σ`.
 example (σ : ℕ) :
@@ -152,13 +163,13 @@ def fullTableTrace (hTree : List Bool → List Bool) (b₀ b₁ : Bool) :
 abbrev trProver : List (List Bool × List Bool) :=
   (fullTableTrace idTreeHash true true ++ fullTableTrace idTreeHash false false).eraseDups
 
-example : TraceConsistentWith idTreeHash trProver := by decide
+example : TraceConsistentWith idTreeHash trProver := by decide +kernel
 
-example : TraceCollisionFree trProver := by decide
+example : TraceCollisionFree trProver := by decide +kernel
 
 example : BCSOpeningsQueriedInTrace (fun _ => idTreeHash) [] romIOP encSym trProver (true, true)
     (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots) honestProof := by
-  decide
+  decide +kernel
 
 -- Boundary case: on the empty trace `[]`, straight-line extraction falls back to
 -- `defaultSym = false`.
@@ -171,7 +182,7 @@ example :
 example :
     bcsExtractWitness romExtract decSym false trProver (true, true) honestProof.roots =
       (true, true) := by
-  decide
+  decide +kernel
 
 -- Fixed-trace consistency: `iopVerify` accepts `bcsExtractOracles` on `trProver`.
 example :
@@ -179,7 +190,7 @@ example :
       (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots)
       (bcsExtractOracles decSym false trProver 1 honestProof.roots) = true :=
   iopVerify_bcsExtractOracles_of_bcsVerify (H := fun _ => idTreeHash) (k := []) decSym_encSym false
-    (by decide) (by decide) (by decide)
+    (by decide +kernel) (by decide +kernel) (by decide +kernel)
 
 -- Trace-extension invariance: prepending a Merkle query whose digest avoids existing roots and
 -- child digests leaves `bcsExtractOracles` unchanged across both rounds.
@@ -188,11 +199,11 @@ example :
       1 honestProof.roots =
     bcsExtractOracles decSym false trProver 1 honestProof.roots :=
   bcsExtractOracles_cons_of_ne decSym false trProver [true, true, false]
-    (by intro j; fin_cases j <;> decide) (by decide)
+    (by intro j; fin_cases j <;> decide +kernel) (by decide +kernel)
 
-/-- Leaf-colliding hash mapping `[true]` to `[false]` and acting as identity elsewhere. -/
+/-- Leaf-colliding hash hashing `[true]` as `[false]` and acting as `idTreeHash` elsewhere. -/
 def collideLeafHash (msg : List Bool) : List Bool :=
-  if msg == [true] then [false] else msg
+  polyHash (if msg == [true] then [false] else msg)
 
 /-- Forged BCS proof for `(true, true)` committed to the rejected `(false, false)` round-`0` table
 under `collideLeafHash`, but opening round `0` as `true`. -/
@@ -215,20 +226,21 @@ abbrev trCollide : List (List Bool × List Bool) :=
 
 example : bcsVerify romIOP (fun _ => collideLeafHash) [] encSym (chainedFS xorChainedFS)
     (true, true) forgedROMProof = true := by
-  decide
+  decide +kernel
 
 example :
     iopVerify romIOP (true, true)
       (bcsChallenge (chainedFS xorChainedFS) (true, true) forgedROMProof.roots)
       (bcsExtractOracles decSym false trCollide 1 forgedROMProof.roots) = false := by
-  decide
+  decide +kernel
 
 -- Dual collision extraction witnesses a concrete hash collision in `trCollide`.
 example : ∃ q₁ ∈ trCollide.map Prod.fst, ∃ q₂ ∈ trCollide.map Prod.fst,
     q₁ ≠ q₂ ∧ collideLeafHash q₁ = collideLeafHash q₂ :=
   exists_collision_of_bcsVerify_of_iopVerify_eq_false (H := fun _ => collideLeafHash) (k := [])
     (iop := romIOP) (hFS := chainedFS xorChainedFS) (tr_MT := trCollide) (x := (true, true))
-    (prf := forgedROMProof) decSym_encSym false (by decide) (by decide) (by decide) (by decide)
+    (prf := forgedROMProof) decSym_encSym false (by decide +kernel) (by decide +kernel)
+    (by decide +kernel) (by decide +kernel)
 
 /-! ### Part 3: Adaptive Cheating Prover & Two-Channel ROM Soundness / Knowledge Soundness -/
 
@@ -302,11 +314,11 @@ example :
     romRel (true, true) (romExtract (true, true) oracles) := by
   intro oracles
   refine romIOP_rbrKS.rel_iopExtract_of_goodSteps (true, true) oracles
-    (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots) ?_ (by decide)
+    (bcsChallenge (chainedFS xorChainedFS) (true, true) honestProof.roots) ?_ (by decide +kernel)
   intro j
   fin_cases j
   · intro _
-    exact Or.inl ⟨rfl, by decide, by decide⟩
+    exact Or.inl ⟨rfl, by decide +kernel, by decide +kernel⟩
   · intro hnil
     nomatch hnil
 
@@ -576,5 +588,208 @@ example :
       decSym_encSym false 16 isCostBounded_MT_largeChalCheater isCostBounded_FS_largeChalCheater
       isCostBounded_MT_verifier_largeChalCheater)
     largeChal_bound_lt_one_third
+
+/-! ### Part 5: Poly-time trace extraction and standard-model `CollisionResistant` reduction -/
+
+/-- A polynomial-time length-regular keyed hash returning its key. -/
+def keyProjHash (k _ : List Bool) : List Bool := k
+
+/-- Constant Fiat–Shamir oracle used to exercise uniform polynomial-time reductions. -/
+def constTraceFS (_ : Bool) (_ : List (List Bool)) : Bool := false
+
+/-- Single-round, depth-one IOP querying entry `0` of round `0` and checking equality with `x`. -/
+def traceKSIOP : PublicCoinIOP 1 1 Bool Bool Bool Bool where
+  proveRound _ _ w _ := fun _ => w
+  queries _ _ := [(⟨0, by decide⟩, ⟨0, by decide⟩)]
+  decide x _ answers := answers == [x]
+
+/-- Straight-line knowledge extractor for `traceKSIOP` reading entry `0` of round `0`. -/
+def traceKSExtract (_ : Bool) (oracles : Fin 1 → OracleTable 1 Bool) : Bool :=
+  oracles ⟨0, by decide⟩ ⟨0, by decide⟩
+
+theorem computableInPolyTime_decSym : ComputableInPolyTime decSym encBits encBool :=
+  ComputableInPolyTime.headD false
+
+theorem computableInPolyTime_traceKSExtract :
+    ComputableInPolyTime (fun p : Bool × (Fin 1 → OracleTable 1 Bool) => traceKSExtract p.1 p.2)
+      (encPair encBool (encFinFn 1 (encOracleTable 1 encBool))) encBool :=
+  ComputableInPolyTime.of_finite _
+
+theorem computableInPolyTime_keyProjHash :
+    ComputableInPolyTime (fun p : List Bool × List Bool => keyProjHash p.1 p.2)
+      (encPair encBits encBits) encBits :=
+  ComputableInPolyTime.fst encBits encBits
+
+theorem computableInPolyTime_traceKSIOP_queries :
+    ComputableInPolyTime (fun p : Bool × (Fin 1 → Bool) => traceKSIOP.queries p.1 p.2)
+      (encPair encBool (encFinFn 1 encBool))
+      (encList (encPair (encFinEnum (Fin 1)) (encFinEnum (Fin 2)))) :=
+  ComputableInPolyTime.const _
+
+theorem computableInPolyTime_constTraceFS :
+    ComputableInPolyTime (fun p : Bool × List (List Bool) => constTraceFS p.1 p.2)
+      (encPair encBool (encList encBits)) encBool :=
+  ComputableInPolyTime.const false
+
+/-- Input-dependent conflicting trace-recording output for `traceKSIOP` under `keyProjHash`:
+records the internal-node query `(encPair encBits encBits (k, k), k)` before the leaf query
+`([false], k)`, claims statement `false`, and opens position `0` to `false` with sibling path `[k]`.
+For any nonempty key `k`, `encPair encBits encBits (k, k)` starts with `true`, so
+`bcsExtractOracles` extracts `true` at `(0, 0)` while `bcsVerify` accepts the opening `false`. -/
+def cheatingTraceOutput (k : List Bool) : BCSTraceOutput 1 Bool Bool where
+  trace := [(encPair encBits encBits (k, k), k), ([false], k)]
+  stmt := false
+  proof := { roots := fun _ => k, openings := [⟨false, [k]⟩] }
+
+/-- Input-dependent strict-PPT trace-recording BCS adversary returning `cheatingTraceOutput k`. -/
+def cheatingTraceAdversary : BCSTraceAdversary 1 Bool Bool :=
+  fun _ k => pure (cheatingTraceOutput k)
+
+theorem computableInPolyTime_cheatingTraceOutput :
+    ComputableInPolyTime cheatingTraceOutput encBits
+      (encBCSTraceOutput 1 Bool Bool encBool encBool) := by
+  have hdup :
+      ComputableInPolyTime (fun k : List Bool => (k, k)) encBits (encPair encBits encBits) :=
+    ComputableInPolyTime.id'.pair ComputableInPolyTime.id'
+  have hpair :
+      ComputableInPolyTime (fun k : List Bool => encPair encBits encBits (k, k)) encBits encBits :=
+    hdup.of_enc_eq (fun _ => rfl)
+  exact encBCSTraceOutput_mk_polyTime 1 Bool Bool encBool encBool
+    ((hpair.pair ComputableInPolyTime.id').cons'
+      (((ComputableInPolyTime.const (encOut := encBits) [false]).pair
+        ComputableInPolyTime.id').cons'
+        (ComputableInPolyTime.const [])))
+    (ComputableInPolyTime.const false)
+    (encBCSProof_mk_polyTime 1 Bool encBool
+      (ComputableInPolyTime.finFn fun _ => ComputableInPolyTime.id')
+      ((encMerkleOpeningOf_mk_polyTime Bool encBool
+        (ComputableInPolyTime.const false)
+        ((ComputableInPolyTime.id').cons' (ComputableInPolyTime.const []))).cons'
+        (ComputableInPolyTime.const [])))
+
+theorem isPPTOn_cheatingTraceAdversary :
+    IsPPTOn (encPair encUnary encBits) (encBCSTraceOutput 1 Bool Bool encBool encBool)
+      (fun ⟨n, k⟩ => cheatingTraceAdversary n k) :=
+  (computableInPolyTime_cheatingTraceOutput.comp
+    (ComputableInPolyTime.snd encUnary encBits)).isPPTOn
+
+-- Edge case: on `trProver` under `idTreeHash`, `honestProof` agrees with `bcsExtractOracles`, so
+-- `bcsExtractTraceCollision` returns the default empty pair `([], [])`.
+example :
+    bcsExtractTraceCollision romIOP (fun _ => idTreeHash) [] encSym
+      (chainedFS xorChainedFS) trProver (true, true) honestProof = ([], []) := by
+  decide +kernel
+
+-- On `cheatingTraceOutput [false, true]`, `bcsBreaksTraceBinding` holds under `keyProjHash`,
+-- `bcsExtractWitness` fails to satisfy `Eq`, and `bcsExtractTraceCollision` extracts a valid
+-- collision from the nonempty `keyProjHash [false, true]`-consistent trace.
+example :
+    let out := cheatingTraceOutput [false, true]
+    bcsBreaksTraceBinding traceKSIOP keyProjHash [false, true] (fun b => encBool b) decSym false
+        constTraceFS out = true ∧
+      decide (¬ Eq out.stmt
+        (bcsExtractWitness traceKSExtract decSym false out.trace out.stmt out.proof.roots)) =
+        true ∧
+      let col := bcsExtractTraceCollision traceKSIOP keyProjHash [false, true] (fun b => encBool b)
+        constTraceFS out.trace out.stmt out.proof
+      isCollision keyProjHash (fun _ _ => true) 2 [false, true] col.1 col.2 = true := by
+  decide
+
+-- Polynomial-time certificates for `bcsExtractTable`, `bcsExtractOracles`, `bcsExtractWitness`,
+-- and `bcsExtractTraceCollision`.
+example :
+    ComputableInPolyTime
+      (fun p : List (List Bool × List Bool) × List Bool =>
+        bcsExtractTable decSym false p.1 1 p.2)
+      (encPair encMerkleTrace encBits) (encOracleTable 1 encBool) :=
+  computableInPolyTime_bcsExtractTable 1 false computableInPolyTime_decSym
+    (ComputableInPolyTime.fst encMerkleTrace encBits)
+    (ComputableInPolyTime.snd encMerkleTrace encBits)
+
+example :
+    ComputableInPolyTime
+      (fun p : List (List Bool × List Bool) × (Fin 1 → List Bool) =>
+        bcsExtractOracles decSym false p.1 1 p.2)
+      (encPair encMerkleTrace (encFinFn 1 encBits)) (encFinFn 1 (encOracleTable 1 encBool)) :=
+  computableInPolyTime_bcsExtractOracles 1 1 false computableInPolyTime_decSym
+    (ComputableInPolyTime.fst encMerkleTrace _)
+    (ComputableInPolyTime.snd encMerkleTrace _)
+
+example :
+    ComputableInPolyTime
+      (fun p : (List (List Bool × List Bool) × Bool) × (Fin 1 → List Bool) =>
+        bcsExtractWitness traceKSExtract decSym false p.1.1 p.1.2 p.2)
+      (encPair (encPair encMerkleTrace encBool) (encFinFn 1 encBits)) encBool :=
+  computableInPolyTime_bcsExtractWitness 1 1 false computableInPolyTime_traceKSExtract
+    computableInPolyTime_decSym
+    ((ComputableInPolyTime.fst encMerkleTrace encBool).comp
+      (ComputableInPolyTime.fst (encPair encMerkleTrace encBool) (encFinFn 1 encBits)))
+    ((ComputableInPolyTime.snd encMerkleTrace encBool).comp
+      (ComputableInPolyTime.fst (encPair encMerkleTrace encBool) (encFinFn 1 encBits)))
+    (ComputableInPolyTime.snd (encPair encMerkleTrace encBool) (encFinFn 1 encBits))
+
+example :
+    ComputableInPolyTime
+      (fun p : List Bool × BCSTraceOutput 1 Bool Bool =>
+        bcsExtractTraceCollision traceKSIOP keyProjHash p.1 (fun b => encBool b)
+          constTraceFS p.2.trace p.2.stmt p.2.proof)
+      (encPair encBits (encBCSTraceOutput 1 Bool Bool encBool encBool))
+      (encPair encBits encBits) :=
+  computableInPolyTime_bcsExtractTraceCollision computableInPolyTime_keyProjHash
+    (fun _ _ => rfl) computableInPolyTime_traceKSIOP_queries computableInPolyTime_constTraceFS
+    (ComputableInPolyTime.fst encBits _)
+    (encBCSTraceOutput_trace_polyTime 1 Bool Bool encBool encBool
+      (ComputableInPolyTime.snd encBits _))
+    (encBCSTraceOutput_stmt_polyTime 1 Bool Bool encBool encBool
+      (ComputableInPolyTime.snd encBits _))
+    (encBCSTraceOutput_proof_polyTime 1 Bool Bool encBool encBool
+      (ComputableInPolyTime.snd encBits _))
+
+example :
+    IsPPT (encPair encBits encBits)
+      (bcsTraceCollisionFinder traceKSIOP keyProjHash (fun b => encBool b) constTraceFS
+        cheatingTraceAdversary) :=
+  isPPT_bcsTraceCollisionFinder computableInPolyTime_keyProjHash (fun _ _ => rfl)
+    computableInPolyTime_traceKSIOP_queries computableInPolyTime_constTraceFS
+    isPPTOn_cheatingTraceAdversary
+
+-- Concrete probability reduction under the colliding toy hash `keyProjHash` (without assuming
+-- `CollisionResistant keyProjHash`).
+example (n : ℕ) :
+    Game.succProbability (ProbComp.eval
+      (bcsTraceBindingGame traceKSIOP keyProjHash (fun b => encBool b) decSym false constTraceFS
+        cheatingTraceAdversary n)) ≤
+    Game.succProbability (ProbComp.eval
+      (collisionGame keyProjHash (fun _ _ => true)
+        (bcsTraceCollisionFinder traceKSIOP keyProjHash (fun b => encBool b) constTraceFS
+          cheatingTraceAdversary) n)) :=
+  succProbability_bcsTraceBindingGame_le traceKSIOP keyProjHash decSym_encSym false constTraceFS
+    cheatingTraceAdversary n
+
+-- Standard-model reductions from trace-extraction BCS binding to `CollisionResistant H` and
+-- `HashFamily H` for any efficient length-preserving keyed hash `H` and uniform strict-PPT
+-- `adversary`.
+example (H : List Bool → List Bool → List Bool) (hCR : CollisionResistant H)
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    (adversary : BCSTraceAdversary 1 Bool Bool)
+    (hadv : IsPPTOn (encPair encUnary encBits) (encBCSTraceOutput 1 Bool Bool encBool encBool)
+      (fun ⟨n, k⟩ => adversary n k)) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      (bcsTraceBindingGame traceKSIOP H (fun b => encBool b) decSym false constTraceFS
+        adversary n))) :=
+  CollisionResistant.bcsTraceBinding_negligible decSym_encSym false hCR hH hlen
+    computableInPolyTime_traceKSIOP_queries computableInPolyTime_constTraceFS hadv
+
+example (H : List Bool → List Bool → List Bool) (hf : HashFamily H)
+    (adversary : BCSTraceAdversary 1 Bool Bool)
+    (hadv : IsPPTOn (encPair encUnary encBits) (encBCSTraceOutput 1 Bool Bool encBool encBool)
+      (fun ⟨n, k⟩ => adversary n k)) :
+    Negligible (fun n => Game.succProbability (ProbComp.eval
+      (bcsTraceBindingGame traceKSIOP H (fun b => encBool b) decSym false constTraceFS
+        adversary n))) :=
+  HashFamily.bcsTraceBinding_negligible decSym_encSym false hf
+    computableInPolyTime_traceKSIOP_queries computableInPolyTime_constTraceFS hadv
 
 end CslibFrontierTests.Crypto.BCSROM

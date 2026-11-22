@@ -41,6 +41,7 @@ distances behind Gaifman-locality proofs that transitive closure and reachabilit
 ## Main definitions
 
 * `SimpleGraph.IsBallPath`: a path parametrization of a ball.
+* `SimpleGraph.Hom.sumFold`: the fold homomorphism from `G ⊕g G` onto `G`.
 
 ## Main results
 
@@ -49,6 +50,7 @@ distances behind Gaifman-locality proofs that transitive closure and reachabilit
 * `SimpleGraph.exists_isBallPath_cycleGraph`: balls in cycle graphs.
 * `SimpleGraph.exists_isBallPath_pathGraph`: balls in path graphs.
 * `SimpleGraph.edist_pathGraph`: distances in path graphs.
+* `SimpleGraph.edist_sum_inl`: distances between left-copy vertices in `G ⊕g H`.
 -/
 
 public section
@@ -313,5 +315,39 @@ theorem edist_pathGraph {N : ℕ} (i j : Fin N) :
     exact_mod_cast pathGraph_length_walk p
 
 end Path
+
+section Sum
+
+/-- The fold homomorphism from `G ⊕g G` onto `G`, identifying the two copies. -/
+def Hom.sumFold (G : SimpleGraph V) : G ⊕g G →g G where
+  toFun := Sum.elim id id
+  map_rel' {x y} h := by cases x <;> cases y <;> simp_all
+
+/-- Evaluating `SimpleGraph.Hom.sumFold` at a vertex. -/
+@[simp]
+theorem Hom.sumFold_apply (G : SimpleGraph V) (x : V ⊕ V) :
+    Hom.sumFold G x = Sum.elim id id x := by
+  unfold Hom.sumFold
+  rfl
+
+private theorem walk_sum_inl {x : V} :
+    ∀ {z : V ⊕ W} (p : (G ⊕g H).Walk (.inl x) z),
+      ∃ (y : V) (q : G.Walk x y), z = .inl y ∧ q.length = p.length
+  | _, .nil => ⟨x, .nil, rfl, rfl⟩
+  | _, @Walk.cons _ _ _ (.inl _) _ h p => by
+    obtain ⟨y, q, rfl, hlen⟩ := walk_sum_inl p
+    exact ⟨y, .cons (sum_adj_inl.1 h) q, rfl, congrArg (· + 1) hlen⟩
+  | _, @Walk.cons _ _ _ (.inr _) _ h _ => absurd h (not_adj_sum_inl_inr _ _)
+
+/-- Extended distances in `G ⊕g H` between vertices of the left copy agree with distances in
+`G`. -/
+theorem edist_sum_inl (G : SimpleGraph V) (H : SimpleGraph W) (x y : V) :
+    (G ⊕g H).edist (.inl x) (.inl y) = G.edist x y := by
+  refine le_antisymm (Embedding.sumInl.toHom.edist_le x y) (le_iInf fun p => ?_)
+  obtain ⟨y', q, hy, hlen⟩ := walk_sum_inl p
+  cases Sum.inl.inj hy
+  exact hlen ▸ edist_le q
+
+end Sum
 
 end SimpleGraph

@@ -87,7 +87,7 @@ theorem reachability_hitting_time (c : Circuit signature n n) :
       (∀ z, out.eval interpretation z 0 = true ↔
         ∃ t, (c.eval interpretation)^[t] (inputLeft z) = inputRight z) ∧
       (∀ z, out.eval interpretation z 0 = true →
-        let t := (word fun i : Fin (n + 1) =>
+        let t := (BitString.equivBitVec fun i : Fin (n + 1) =>
           out.eval interpretation z (Fin.natAdd 1 i)).toNat
         (c.eval interpretation)^[t] (inputLeft z) = inputRight z ∧
           (∀ j < t, (c.eval interpretation)^[j] (inputLeft z) ≠ inputRight z) ∧

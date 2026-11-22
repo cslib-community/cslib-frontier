@@ -449,14 +449,11 @@ private theorem computableInPolyTime_verifier (k : ℕ) :
     MCSP.computableInPolyTime_tableValue.comp
       (hT.prod (bitsTakeWithInput (fst _ _) hm))
   unfold verifier
-  have hnotVerifier := bool_not.comp (MCSP.computableInPolyTime_tableVerifier.comp
+  have hnotVerifier := bool_not.comp' (MCSP.computableInPolyTime_tableVerifier.comp'
     ((hT.prod hs).prod hc))
-  have hlt := bool_not.comp (binary_lt.comp ((bitsBinaryValue.comp hT').prod
-    (bitsBinaryValue.comp hT)))
-  have hverifier' := MCSP.computableInPolyTime_tableVerifier.comp ((hT'.prod hs).prod hc')
-  have hor := bool_or.comp (hlt.prod hverifier')
-  have h := bool_and.comp ((bool_and.comp (hnotVerifier.prod hor)).prod hval)
-  exact h
+  have hlt := bool_not.comp' (binary_lt' (bitsBinaryValue.comp' hT') (bitsBinaryValue.comp' hT))
+  have hverifier' := MCSP.computableInPolyTime_tableVerifier.comp' ((hT'.prod hs).prod hc')
+  exact bool_and' (bool_and' hnotVerifier (bool_or' hlt hverifier')) hval
 
 /-- **Kannan's language is in `Σ₃`.** -/
 theorem language_mem_SigmaP_three (k : ℕ) :

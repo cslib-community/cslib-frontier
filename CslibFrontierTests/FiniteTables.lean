@@ -42,7 +42,7 @@ example : ComputableInPolyTime
 -- Aesop normalizes the tuple spelling to replication, including a symbolic fixed tuple length.
 example (count : ℕ) : ComputableInPolyTime
     (fun bits : List Bool => List.ofFn (fun _ : Fin count => bits.reverse))
-    encBits (encList encBits) := .of_tidy (by polytime)
+    encBits (encList encBits) := by polytime
 
 example (count : ℕ) : ComputableInPolyTime
     (fun bits : List Bool => List.replicate count bits.reverse)
@@ -51,7 +51,7 @@ example (count : ℕ) : ComputableInPolyTime
 -- Runtime replication computes its count in unary and charges every copy of an unbounded value.
 example : ComputableInPolyTime
     (fun pair : ℕ × List Bool => List.replicate pair.1 pair.2)
-    (encPair encUnary encBits) (encList encBits) := .of_tidy (by polytime)
+    (encPair encUnary encBits) (encList encBits) := by polytime
 
 private def encEmpty : Empty ↪ List Bool := ⟨Empty.elim, fun value => value.elim⟩
 
@@ -72,7 +72,7 @@ example {Index Value : Type} [Fintype Index] [DecidableEq Index]
 
 -- Unary ranks are bounded for each fixed finite type; no efficient growing enumeration is claimed.
 example (tag : Fin 7) : (encFinEnum (Fin 7) tag).length < 7 := by
-  simpa using length_encFinEnum_lt tag
+  simpa only [Nat.card_fin] using length_encFinEnum_lt tag
 example (tag : Fin 7) : (encFinite (Fin 7) tag).length < 7 := by
   simpa using length_encFinite_lt tag
 

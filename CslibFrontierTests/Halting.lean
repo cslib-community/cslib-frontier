@@ -4,9 +4,14 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Complexity.Reduction
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Rice
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import CslibFrontier.Computability.Complexity.Reduction
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Rice
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.SMNBounds
 
 /-! Concrete machines that halt and loop, their descriptions inside and outside the halting and
 acceptance problems, the machines diverging on a verdict, the diagonal machine against candidate
@@ -14,9 +19,19 @@ deciders, a nontrivial property of self-applied behavior for Rice's theorem, dec
 reductions, input prefixes built into descriptions, the recursion theorem, and Rice's theorem for
 a nontrivial property of behavior. -/
 
+public section
+
 namespace CslibFrontierTests.Halting
 
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.Universal
+
+/-- Rice's native clean-machine premises remain behind its proof-only kernel dependency. -/
+example : True := by
+  fail_if_success
+    have hidden := @Turing.MultiTapeTM.Universal.Desc.computes_dispatch
+  fail_if_success
+    have hidden := @Turing.MultiTapeTM.Universal.Dispatch.exists_run_of_computesTidily
+  trivial
 
 /-! ### A machine that halts and a machine that loops -/
 
@@ -136,18 +151,45 @@ example :
     MappingReducible encBits (encPair encBits encBits) selfHaltingProblem haltingProblem ∧
     MappingReducible encBits encBits selfHaltingProblem selfHaltingProblem :=
   ⟨isDecidable_iff.mpr ⟨List.isEmpty,
-     (ComputableTidilyInDegree.isEmpty (enc₁ := encBool) (enc := encBits)).isComputable,
+     (ListEncoding.isEmpty (enc₁ := encBool) (enc := encBits)).isComputable,
      fun _ => Iff.rfl⟩,
-   isDecidable_iff.mpr ⟨fun _ => false, (ComputableTidilyInDegree.const false).isComputable,
+   isDecidable_iff.mpr ⟨fun _ => false, (ComputableInPolyTime.const false).isComputable,
      fun _ => by simp⟩,
    by rw [isDecidable_compl_iff]; exact not_isDecidable_haltingProblem,
    not_isDecidable_acceptanceProblem,
    selfHaltingProblem_mappingReducible.compl,
    (MappingReducible.refl encBits _).trans selfHaltingProblem_mappingReducible,
    let ⟨f, hf, hself⟩ := Cslib.Complexity.PolyTimeReducible.refl encBits selfHaltingProblem
-   ⟨f, hf.tidy.isComputable, hself⟩⟩
+   ⟨f, hf.isComputable, hself⟩⟩
 
 /-! ### Input prefixes built into descriptions -/
+
+/-- A description with no transitions, used to check generated program size. -/
+def emptyDescription : Desc := ⟨0, 0, []⟩
+
+/-- A one-transition description, used with a longer prefix to check generated program size. -/
+def oneTransitionDescription : Desc :=
+  ⟨0, 0, [(⟨0, none, []⟩, ⟨.zero, [], none, none⟩)]⟩
+
+/-- For concrete program-size accounting, `descLen` is definitionally the charged unary
+`eDesc` length. Distinct source descriptions and prefixes give distinct generated sizes, and both
+instances satisfy the general construction-derived bound. -/
+example :
+    (eDesc (hardwire emptyDescription [])).length = descLen (hardwire emptyDescription []) ∧
+    (eDesc (hardwire oneTransitionDescription [true, false])).length =
+      descLen (hardwire oneTransitionDescription [true, false]) ∧
+    descLen (hardwire emptyDescription []) <
+      descLen (hardwire oneTransitionDescription [true, false]) ∧
+    descLen (hardwire emptyDescription []) ≤
+      2500 * ((encPair eDesc encBits (emptyDescription, [])).length) ^ 2 ∧
+    descLen (hardwire oneTransitionDescription [true, false]) ≤
+      2500 * ((encPair eDesc encBits
+        (oneTransitionDescription, [true, false])).length) ^ 2 := by
+  refine ⟨rfl, rfl, ?_, Hardwire.descLen_hardwire_le _ _, ?_⟩
+  · -- The concrete comparison unfolds nested framed structure and list encodings.
+    set_option maxRecDepth 10000 in
+      decide
+  · exact Hardwire.descLen_hardwire_le _ _
 
 /-- Halt at once if the input starts with `true`, and stay in place forever otherwise. -/
 def firstBit : MultiTapeTM 0 Bool Unit :=
@@ -205,7 +247,7 @@ theorem not_behavior_spin (x : List Bool) (o : List ℕ) :
 example : ∃ e : List Bool, ∀ (x : List Bool) (o : List ℕ),
     (decodeDesc e).Computes (x.map eBit) o ↔
       (desc unitNum eBit (answer true)).Computes (x.map eBit) o :=
-  exists_behavior_eq (f := fun _ => true) (ComputableTidilyInDegree.const true).isComputable
+  exists_behavior_eq (f := fun _ => true) (ComputableInPolyTime.const true).isComputable
     fun _ => desc unitNum eBit (answer true)
 
 /-- **Rice's theorem** for the nontrivial property of halting on the empty input: the description
@@ -227,3 +269,15 @@ example : ¬IsDecidable {w | (decodeDesc w).Halts (([] : List Bool).map eBit)} e
   not_isDecidable_halts []
 
 end CslibFrontierTests.Halting
+
+-- General description lookup remains available through the public Rice facade.
+namespace Turing.MultiTapeTM.Universal
+
+example {k : ℕ} {S Y : Type} [Fintype S] [Fintype Y] (eS : S ↪ ℕ) (eY : Y ↪ ℕ)
+    (tm : MultiTapeTM k Y S) (q : S) (inp : Option Y) (work : Fin k → Option Y) :
+    (desc eS eY tm).table.find? (·.1 = key (eS q) (inp.map eY) (Option.map eY ∘ work)) =
+      some (key (eS q) (inp.map eY) (Option.map eY ∘ work),
+        .ofAction ((tm.tr q inp work).map eS eY)) :=
+  find?_desc eS eY tm q inp work
+
+end Turing.MultiTapeTM.Universal

@@ -42,6 +42,17 @@ complete example.
 
 ## Randomized and oblivious interfaces
 
+For seed-coupled native sequence certificates, import
+[StateTransition/ExpectedAmortized.lean](../../CslibFrontier/DataStructure/StateTransition/ExpectedAmortized.lean).
+`expectedAmortizedSequence` performs the list induction with an invariant indexed by the
+remaining operations and an explicit native execution relation. Each step must preserve the
+tail invariant, bound cost plus expected potential, and extend a native tail execution.
+The fixed-space and resizable WordRAM `steps_expected_amortized` proofs use this rule.
+Their step adapters still supply native instruction-cost evidence; the resizable invariant
+additionally retains conditional state-dependent seed laws and trajectory-relative peak fits.
+This composition rule does not turn a memory marginal into a joint returned-observation law;
+the CellProbe transcript lift remains a separate model obligation.
+
 [RandomizedSpec](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/DataStructure/StateTransition/Randomized.lean#L98) supplies a PMF stateful handler. Support induces the relational specification, while `withCoins` allows clients their own samples. `RandomizedRefinement` requires the exact output/state law, not just a relation between possible outcomes. `run_link` transports this law through adaptive clients. `ExpectedAmortized.client` and `.comp` telescope expected lower-level costs plus potential and compose refinement layers. Until-bad rules transport explicit error bounds when exact equality is unavailable.
 
 [CslibFrontier/DataStructure/ObliviousSequence.lean](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/DataStructure/ObliviousSequence.lean) instead accepts a fixed finite operation list and constrains its joint typed transcript law. It is deliberately state-free at the interface and nonadaptive. A theorem over all lists chosen before the random seed does not allow a client to choose the next query after observing random outputs. The hash-family and hash-table headline theorems use this boundary explicitly.
@@ -77,7 +88,11 @@ For data structures whose live prefix `[0, s.frontier)` grows and shrinks by who
 
 ## Dynamic calling conventions and native controllers
 
-[DynamicProgram](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/WordRAM/Dynamic.lean#L84) packages one structured operation program and output register with an input-register mask, operation encoding and result decoder. Delivering arguments preserves maintained memory; the operation code is fixed across calls. This layer leaves encoding/argument delivery/decoding uncharged, while actual operation instructions and halt are counted. Initialization is a separate hypothesis. A failed interpreter/decoder is distinct from a successful operation whose result is `Option.none`.
+[`DynamicProgram`](../../CslibFrontier/Computability/WordRAM/Dynamic.lean) packages one structured operation program and output register with an input-register mask, operation encoding and fixed result-register bank. Its closed `ResultType` formats read natural payloads unchanged and check Boolean/option tags and bounded indices. A format presents the requested type by equality; there is no arbitrary semantic output function or value isomorphism. The bank is independent of the requested operation, so selecting an output register cannot compute an answer for free.
+
+Delivering arguments preserves maintained memory; the operation code is fixed across calls. Encoding and external argument delivery remain explicit conventions. Initialization is a separate hypothesis. A failed interpreter or malformed result is distinct from a successful operation whose result is `Option.none`.
+
+Generic `SubroutineBase` and inline state-transition certificates retain representation-relative observations. To project one to native typed calls, supply a `NativeResultRecoding`: a fixed machine suffix, canonical bank and formats, a uniform instruction budget, and proofs that execution produces the observation while preserving represented state, potential and memory. Any runtime precondition must follow from the source body's execution. `StateTransitionImpl.toCertificate` checks this suffix, and its native bounds charge `charge + recoding.time + 1`, including conversion and halt. Randomized inline certificates use direct argument preparation rather than a deterministic native output wrapper; their bounds retain the stated representation-relative convention.
 
 `DynamicCertificate` supplies representation, fitting bounds and successful-run certificates, exporting a reusable state-transition implementation and an instruction bound. A native caller can close the remaining convention: [Refines](https://github.com/cslib-community/cslib-frontier/blob/13e6a31951bf1c89a1a6258c44f9444aecbbefd8/Complexity/Computability/WordRAM/Controller.lean#L61) relates an admissible abstract client to actual structured RAM execution. Binding requires one continuation code that handles all answers, and `call` charges native argument preparation. This stops arbitrary Lean continuation computation from becoming free machine computation.
 

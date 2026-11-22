@@ -38,10 +38,8 @@ theorem bounded_reachable_original {W m n g p A k : ℕ} (values : List ℤ)
       (State.init (PreparationInput.input n (D m) g p values)) s k) :
     (∀ i, s.data.regs i < wordBound n (D m) g p A) ∧
       (∀ a, s.data.mem a < wordBound n (D m) g p A) ∧
-      ∀ a, wordBound n (D m) g p A ≤ a → s.data.mem a = 0 := by
-  obtain ⟨hi, a, idx, ha, hidx, hord, y, t, ht, hpref, he, hy, yr, hv', hf, hreg, hQ⟩ :=
-    runs_input values hlen hD hg hp hN hv le_rfl
-  exact hr.prefix_bounds_init entryProgram_fixed.2 hW hi he le_rfl
+      ∀ a, wordBound n (D m) g p A ≤ a → s.data.mem a = 0 :=
+  backend.bounded_reachable_original values hlen hD hg hp hN hv hW hr
 
 /-- Complete producer preparation plus one actual record product, including the final halt.
 The per-record sparsity is supplied by its actual native chunk, not an aggregate solver oracle. -/

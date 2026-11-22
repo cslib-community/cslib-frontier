@@ -68,7 +68,11 @@ theorem mod_two_pow_min_size (n P : ℕ) : n % 2 ^ min (Nat.size n) P = n % 2 ^ 
 theorem computableInPolyTime_mod_two_pow :
     ComputableInPolyTime (fun p : ℕ × ℕ => p.2 % 2 ^ p.1) (encPair encNat encNat) encNat := by
   have h : ComputableInPolyTime (fun p : ℕ × ℕ => p.2 % 2 ^ min (Nat.size p.2) p.1)
-      (encPair encNat encNat) encNat := by fun_prop
+      (encPair encNat encNat) encNat := by
+    exact ComputableInPolyTime.binary_mod' (.snd _ _)
+      (ComputableInPolyTime.binary_two_pow.comp
+        (ComputableInPolyTime.binary_min_unary'
+          (ComputableInPolyTime.binary_size.comp (.snd _ _)) (.fst _ _)))
   simpa only [mod_two_pow_min_size] using h
 
 /-- The contraction interface for networks that are their own values, all admissible: a

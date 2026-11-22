@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.VOLE.AdaptiveMulCheck
 public import CslibFrontier.Languages.Probabilistic.Repeat
+import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Probability.Product
 
 /-!
@@ -170,7 +171,7 @@ def Receiver.strategy {Message Index : Type} (receiver : Receiver F I First Stat
     (n : ℕ) (encodeFirst : Message → First) (index : Index → ℕ) (input : I) :
     ProbOracleComp (voleReceiverSpec F (n + 1))
       (VerifierStrategy (ProbOracleComp (voleReceiverSpec F (n + 1)))
-        (Cslib.Crypto.Protocols.SigmaProtocol.sigmaSpec Message (Index → F) (F × F)) Result) := do
+        (threeMoveSpec Message (Index → F) (F × F)) Result) := do
   let share ← ProbOracleComp.query ()
   let state ← ProbOracleComp.sample (receiver.init input ⟨share.1, List.ofFn share.2⟩)
   return fun message => do
@@ -262,13 +263,10 @@ theorem eval_simulate {n m : ℕ} (left right output : Fin m → Fin n)
         ((receiver.mapFirst first).strategy n List.ofFn (Fin.val (n := m))) input)).map
           viewToLists := by
   simp only [simulate, hlayout, maskedMulCheckReceiverSimulate, Receiver.strategy,
-    Receiver.mapFirst, OracleComp.interpret_bind, OracleComp.interpret_pure, ProbOracleComp.query,
-    OracleComp.interpret_query, OracleComp.sumHandler, ProbOracleComp.interpret_sample,
-    OracleComp.interpret_query_eq_self, pure_bind, bind_assoc, ProbComp.eval_bind,
-    ProbComp.eval_pure,
-    ProbComp.eval_uniform, hsample, eval_replicate_sample sample hsample,
-    PMF.bind_map, PMF.map_bind, PMF.pure_map, inputOfMaps, List.length_ofFn]
-  simp only [Function.comp_def, weights_eq_ofFn, viewToLists]
+    Receiver.mapFirst, interp_norm, pmf_norm, ProbOracleComp.query,
+    OracleComp.interpret_query_eq_self, pure_bind, bind_assoc, ProbComp.eval_uniform, hsample,
+    eval_replicate_sample sample hsample, inputOfMaps, List.length_ofFn]
+  simp only [weights_eq_ofFn, viewToLists]
   have hv (delta : F) (q : Fin (n + 1) → F) (d : Fin n → F) (r : Fin m → F) :=
     checkValue_ofFn left right output delta q d r
   simp only [inputOfMaps] at hv

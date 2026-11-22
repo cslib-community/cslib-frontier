@@ -71,12 +71,12 @@ theorem IsOraclePPTOn.foldlM_of_bounded_growth
   have htail : ComputableInPolyTime
       (fun state : List Item × Acc => state.1.tail)
       (encPair (encList element) output) (encList element) :=
-    .of_tidy ((ComputableTidilyInPolyTime.listTail element).comp
-      (ComputableTidilyInPolyTime.fst _ _))
+    ((ComputableInPolyTime.tail (encA := element) (encL := encList element)).comp
+      (ComputableInPolyTime.fst _ _))
   have hloopStep : IsOraclePPTOn (encPair (encList element) output)
       (encPair (encList element) output) (foldStep fallback step) :=
-    (hstep.preprocess' hprepare).pair' htail
-  have hloop := IsOraclePPTOn.iterate_of_bounded_growth' hcount (hlist.prod hinitial) hloopStep
+    (hstep.preprocess hprepare).pair' htail
+  have hloop := IsOraclePPTOn.iterate_of_bounded_growth hcount (hlist.prod hinitial) hloopStep
     (growth := growth) fun ⟨items, acc⟩ next hnext => by
       obtain ⟨nextAcc, hnextAcc, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
       have htail : (encList element items.tail).length ≤ (encList element items).length :=
@@ -85,7 +85,7 @@ theorem IsOraclePPTOn.foldlM_of_bounded_growth
       simp only [encPair_apply, List.length_append, length_frame]
       omega
   simpa only [iterate_foldStep_eq_foldlM] using
-    hloop.map' (ComputableInPolyTime.snd (encList element) output)
+    hloop.map (ComputableInPolyTime.snd (encList element) output)
 
 /-- Fold a strict PPT step over an efficiently computed list, with a constant bound on the
 encoded accumulator's growth on every supported execution. -/

@@ -1,32 +1,43 @@
 /-
-Copyright (c) 2026 Karn Seth. All rights reserved.
+Copyright (c) 2026 Karn Seth, Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Karn Seth
+Authors: Karn Seth, Samuel Schlesinger
 -/
 
 module
 -- upstream: candidate
 
-public import CslibFrontier.Init
-public import Mathlib.Data.ZMod.ValMinAbs
+public import CslibFrontier.Foundations.Data.ZMod.ValMinAbs
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# The ML-DSA high-order/low-order decomposition
+# ML-DSA high-order and low-order rounding
 
-ML-DSA (CRYSTALS-Dilithium, [DucasEtAl2018], standardized as [NISTFIPS204]) rounds each
-coefficient `r ∈ ℤ_q` of a commitment to its *high bits* and keeps the *low bits* as a small
-remainder. For an even rounding range `α = 2 γ₂` dividing `q - 1`, the `Decompose` algorithm of
-[NISTFIPS204] takes the canonical representative `r⁺ ∈ [0, q)` of `r`, the centered remainder
-`r₀ = r⁺ mod± α ∈ (-γ₂, γ₂]`, and returns `(r₁, r₀) = ((r⁺ - r₀) / α, r₀)`, except in the one
-*wrap-around* case `r⁺ - r₀ = q - 1`, where it returns `(0, r₀ - 1)`. `HighBits` and `LowBits` are
-the two components.
+ML-DSA (CRYSTALS-Dilithium, [DucasEtAl2018], standardized as [NISTFIPS204]) uses two
+coefficient decompositions. `Power2Round` compresses the public key by writing
+`r = r₁ 2^d + r₀` with a centered low part. `Decompose` rounds commitments with the range
+`α = 2 γ₂`, using a special wrap-around rule needed by the hint mechanism.
+
+`power2Round` is Algorithm 35 of [NISTFIPS204], p. 40. It takes the canonical representative
+`r⁺ ∈ [0, q)` and its centered remainder `r₀ = r⁺ mod± 2^d`, and returns
+`((r⁺ - r₀) / 2^d, r₀)`. The coefficientwise `power2RoundVec` is the operation used on the
+uncompressed public-key vector `t`; reconstruction and the bound `|t₀| ≤ 2^(d-1)` are the facts
+used in the self-target MSIS calculation of [BaiEtAl2021Dilithium], Section 6.2.1, Eq. (10).
+
+For `Decompose`, the centered remainder is `r₀ = r⁺ mod± α ∈ (-γ₂, γ₂]`. The algorithm returns
+`(r₁, r₀) = ((r⁺ - r₀) / α, r₀)`, except in the one *wrap-around* case
+`r⁺ - r₀ = q - 1`, where it returns `(0, r₀ - 1)`. `HighBits` and `LowBits` are the two
+components.
 
 This module defines the decomposition on `ZMod q` and proves the facts that the scheme and its
 security reduction use:
 
-* the decomposition reconstructs its input: `r = r₁ · α + r₀` in `ℤ_q`
+* `Power2Round` reconstructs its input and its low part has magnitude at most `2^(d-1)`
+  (`intCast_power2Round_high_mul_add_low`, `abs_power2Round_low_le`);
+* the coefficientwise public-key decomposition reconstructs every coefficient and satisfies the
+  same low-part bound (`power2RoundVec_reconstruct`, `abs_power2RoundVec_low_le`);
+* the commitment decomposition reconstructs its input: `r = r₁ · α + r₀` in `ℤ_q`
   (`intCast_highBits_mul_add_lowBits`);
 * the low bits are short, `|r₀| ≤ γ₂` (`abs_lowBits_le`), and the high bits lie in
   `[0, (q - 1) / α)` (`highBits_nonneg`, `highBits_lt`);
@@ -43,12 +54,18 @@ security reduction use:
 
 ## Main definitions
 
+* `Cslib.Crypto.MLDSA.power2Round`, `Cslib.Crypto.MLDSA.power2RoundVec`: the scalar and
+  coefficientwise `Power2Round` algorithm of [NISTFIPS204].
 * `Cslib.Crypto.MLDSA.decompose`, `Cslib.Crypto.MLDSA.highBits`, `Cslib.Crypto.MLDSA.lowBits`:
-  the `Decompose`, `HighBits` and `LowBits` algorithms of [NISTFIPS204].
+  the `Decompose`, `HighBits` and `LowBits` algorithms.
 
 ## Main results
 
-* `Cslib.Crypto.MLDSA.intCast_highBits_mul_add_lowBits`: reconstruction.
+* `Cslib.Crypto.MLDSA.intCast_power2Round_high_mul_add_low`,
+  `Cslib.Crypto.MLDSA.abs_power2Round_low_le`: `Power2Round` reconstruction and range.
+* `Cslib.Crypto.MLDSA.power2RoundVec_reconstruct`,
+  `Cslib.Crypto.MLDSA.abs_power2RoundVec_low_le`: coefficientwise compression facts.
+* `Cslib.Crypto.MLDSA.intCast_highBits_mul_add_lowBits`: commitment reconstruction.
 * `Cslib.Crypto.MLDSA.abs_lowBits_le`, `Cslib.Crypto.MLDSA.highBits_nonneg`,
   `Cslib.Crypto.MLDSA.highBits_lt`: ranges of the two components.
 * `Cslib.Crypto.MLDSA.decompose_intCast_mul_add`: uniqueness of the decomposition.
@@ -58,15 +75,92 @@ security reduction use:
 
 ## References
 
+* [S. Bai et al., *CRYSTALS-Dilithium: Algorithm Specifications and Supporting
+  Documentation*, Version 3.1][BaiEtAl2021Dilithium]
 * [L. Ducas et al., *CRYSTALS-Dilithium: A Lattice-Based Digital Signature
   Scheme*][DucasEtAl2018]
 * [National Institute of Standards and Technology, *Module-Lattice-Based Digital Signature
   Standard*][NISTFIPS204]
 -/
 
-public section
+@[expose] public section
 
 namespace Cslib.Crypto.MLDSA
+
+/-! ### Public-key power-of-two rounding -/
+
+/-- The `Power2Round` algorithm of [NISTFIPS204], Algorithm 35, p. 40. From the canonical
+representative `r⁺ = r.val` and the centered remainder `r₀ = r⁺ mod± 2^d`, return
+`((r⁺ - r₀) / 2^d, r₀)`. -/
+def power2Round (q d : ℕ) (r : ZMod q) : ℤ × ℤ :=
+  let r₀ : ℤ := ((r.val : ℤ) : ZMod (2 ^ d)).valMinAbs
+  (((r.val : ℤ) - r₀) / (2 ^ d : ℕ), r₀)
+
+/-- `Power2Round` applied coefficientwise to a vector of ring polynomials. -/
+def power2RoundVec {k n : ℕ} (q d : ℕ) (t : Fin k → Fin n → ZMod q) :
+    (Fin k → Fin n → ℤ) × (Fin k → Fin n → ℤ) :=
+  (fun i j => (power2Round q d (t i j)).1, fun i j => (power2Round q d (t i j)).2)
+
+variable {q d : ℕ}
+
+/-- The centered power-of-two remainder used by `power2Round`. -/
+private abbrev power2Rem (q d : ℕ) (r : ZMod q) : ℤ :=
+  ((r.val : ℤ) : ZMod (2 ^ d)).valMinAbs
+
+private theorem dvd_sub_power2Rem (r : ZMod q) :
+    (((2 ^ d : ℕ) : ℤ) ∣ (r.val : ℤ) - power2Rem q d r) :=
+  (ZMod.intCast_eq_intCast_iff_dvd_sub _ _ _).mp (ZMod.coe_valMinAbs _)
+
+/-- The integer outputs of power-of-two rounding reconstruct the canonical representative. -/
+theorem power2Round_high_mul_add_low (r : ZMod q) :
+    (power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 = (r.val : ℤ) := by
+  rw [power2Round, Int.ediv_mul_cancel (dvd_sub_power2Rem r), sub_add_cancel]
+
+/-- **Power2Round reconstruction.** The two outputs reconstruct the input modulo `q`. -/
+theorem intCast_power2Round_high_mul_add_low [NeZero q] (r : ZMod q) :
+    ((((power2Round q d r).1 * (2 ^ d : ℕ) + (power2Round q d r).2 : ℤ)) : ZMod q) = r := by
+  rw [power2Round_high_mul_add_low]
+  simp
+
+/-- For `d > 0`, the low output of `Power2Round` lies in
+`(-2^(d-1), 2^(d-1)]`. -/
+theorem power2Round_low_mem_Ioc (hd : 0 < d) (r : ZMod q) :
+    (power2Round q d r).2 ∈ Set.Ioc (-(2 ^ (d - 1) : ℤ)) (2 ^ (d - 1) : ℤ) := by
+  have : NeZero (2 ^ d) := ⟨by positivity⟩
+  have h := ZMod.valMinAbs_mem_Ioc (((r.val : ℤ) : ZMod (2 ^ d)))
+  have hpow : (2 : ℕ) ^ d = 2 * 2 ^ (d - 1) := by
+    conv_lhs => rw [← Nat.succ_pred_eq_of_pos hd]
+    rw [pow_succ]
+    rw [Nat.pred_eq_sub_one, Nat.mul_comm]
+  change power2Rem q d r * 2 ∈ Set.Ioc (-((2 ^ d : ℕ) : ℤ)) ((2 ^ d : ℕ) : ℤ) at h
+  change power2Rem q d r ∈ Set.Ioc (-(2 ^ (d - 1) : ℤ)) (2 ^ (d - 1) : ℤ)
+  simp only [Set.mem_Ioc] at h ⊢
+  rw [hpow] at h
+  push_cast at h
+  omega
+
+/-- The low output of `Power2Round` has magnitude at most `2^(d-1)`. -/
+theorem abs_power2Round_low_le (hd : 0 < d) (r : ZMod q) :
+    |(power2Round q d r).2| ≤ (2 ^ (d - 1) : ℕ) := by
+  have h := power2Round_low_mem_Ioc hd r
+  simp only [Set.mem_Ioc] at h
+  rw [abs_le]
+  exact ⟨h.1.le, h.2⟩
+
+/-- Coefficientwise `Power2Round` reconstructs the public-key vector. -/
+theorem power2RoundVec_reconstruct [NeZero q] {k n : ℕ} (t : Fin k → Fin n → ZMod q) :
+    (fun i j => (((power2RoundVec q d t).1 i j * (2 ^ d : ℕ) +
+      (power2RoundVec q d t).2 i j : ℤ) : ZMod q)) = t := by
+  funext i j
+  exact intCast_power2Round_high_mul_add_low (t i j)
+
+/-- Every low coefficient of a coefficientwise `Power2Round` is at most `2^(d-1)` in magnitude. -/
+theorem abs_power2RoundVec_low_le (hd : 0 < d) {k n : ℕ} (t : Fin k → Fin n → ZMod q)
+    (i : Fin k) (j : Fin n) :
+    |(power2RoundVec q d t).2 i j| ≤ (2 ^ (d - 1) : ℕ) :=
+  abs_power2Round_low_le hd (t i j)
+
+/-! ### Commitment rounding -/
 
 /-- The `Decompose` algorithm of [NISTFIPS204] with rounding range `2 γ₂`: from the canonical
 representative `r⁺ = r.val ∈ [0, q)` and the centered remainder `r₀ = r⁺ mod± 2 γ₂`, return
@@ -138,8 +232,9 @@ theorem intCast_highBits_mul_add_lowBits [NeZero q] (r : ZMod q) :
       sub_add_cancel]
     simp
 
-/-- In a valid ML-DSA modulus, `q = (q - 1) / (2 γ₂) · 2 γ₂ + 1`. -/
-private theorem q_eq (hdvd : 2 * γ₂ ∣ q - 1) [NeZero q] :
+/-- In a valid ML-DSA modulus (`2 * γ₂ ∣ q - 1` and `q ≠ 0`), `q` decomposes in `ℤ` as
+`((q - 1) / (2 * γ₂)) * (2 * γ₂) + 1`. -/
+theorem natCast_eq_bucketCount_mul_add_one (hdvd : 2 * γ₂ ∣ q - 1) [NeZero q] :
     (q : ℤ) = (((q - 1) / (2 * γ₂) : ℕ) : ℤ) * (2 * γ₂ : ℕ) + 1 := by
   have hq : 1 ≤ q := Nat.one_le_iff_ne_zero.mpr (NeZero.ne q)
   have hmul : (q - 1) / (2 * γ₂) * (2 * γ₂) = q - 1 := Nat.div_mul_cancel hdvd
@@ -168,7 +263,7 @@ theorem highBits_lt (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1) (hq : 1 < q) 
     highBits q γ₂ r < ((q - 1) / (2 * γ₂) : ℕ) := by
   have : NeZero q := ⟨by omega⟩
   set m : ℕ := (q - 1) / (2 * γ₂) with hm
-  have hqm := q_eq (q := q) (γ₂ := γ₂) hdvd
+  have hqm := natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
   rw [← hm] at hqm
   have hrv : (r.val : ℤ) < q := by exact_mod_cast ZMod.val_lt r
   obtain ⟨h₁, h₂⟩ := centeredRem_bounds (q := q) hγ r
@@ -220,7 +315,7 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
     decompose q γ₂ ((a * (2 * γ₂ : ℕ) + b : ℤ) : ZMod q) = (a, b) := by
   set m : ℕ := (q - 1) / (2 * γ₂) with hm
   have hqm : (q : ℤ) = m * (2 * γ₂) + 1 := by
-    have := q_eq (q := q) (γ₂ := γ₂) hdvd
+    have := natCast_eq_bucketCount_mul_add_one (q := q) (γ₂ := γ₂) hdvd
     rw [← hm] at this
     push_cast at this
     exact this

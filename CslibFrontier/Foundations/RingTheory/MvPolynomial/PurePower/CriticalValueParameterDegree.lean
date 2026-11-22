@@ -1,0 +1,170 @@
+/-
+Copyright (c) 2026 lean-canny contributors, Erik Demaine. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: lean-canny contributors, Erik Demaine
+-/
+module
+-- upstream: candidate (Mathlib, pure-power polynomial quotients)
+
+public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterDegree
+public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.ParameterDegree
+import Mathlib.Algebra.Polynomial.BigOperators
+import Mathlib.Algebra.Polynomial.Degree.Lemmas
+
+/-!
+# Parameter degrees in the critical-value characteristic polynomial
+
+The degrees in the coefficient parameter are bounded using the finite residue formula for
+the power traces. Only residue indices whose sum is at most the spatial degree of the
+numerator can contribute. For a positive power trace, the Jacobian's fixed degree cost can
+be absorbed into a bound linear in the power. Newton's identity then gives a linear bound
+in the reversed characteristic coefficient index.
+
+Adapted from `QuotientParameterDegree`, `SeparatedPotentialDegree`, and
+`ParametricCriticalBounds` in lean-canny at
+`970f28a5ecefc1327402ade16c068aa4b1b2c183`.
+-/
+
+public section
+
+namespace MvPolynomial.PurePower
+
+open scoped BigOperators
+
+variable {n : ℕ}
+
+private theorem natDegree_residue_le {ell B H K : ℕ} (hell : 1 ≤ ell)
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (hr : ∀ i, (r i).totalDegree < ell) (hparam : ∀ i, HasParameterDegree (r i) H)
+    (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hv : HasParameterDegree v K)
+    (hB : v.totalDegree ≤ B) : (residue ell r v).natDegree ≤ K + B * H := by
+  classical
+  rw [residue_eq_truncated hell r hr v hB]
+  change (∑ j ∈ indices n B, term ell r v j).natDegree ≤ _
+  apply Polynomial.natDegree_sum_le_of_forall_le
+  intro j _
+  by_cases hj : (∑ i, j i) ≤ B
+  · have hprod := HasParameterDegree.prod Finset.univ (fun i => r i ^ j i)
+      (fun i => j i * H) (fun i _ => (hparam i).pow (j i))
+    refine ((hv.mul hprod) (target ell j)).trans ?_
+    rw [← Finset.sum_mul]
+    exact Nat.add_le_add_left (Nat.mul_le_mul_right H hj) K
+  · rw [term_eq_zero_of_degree_lt hell r hr v j (by omega), Polynomial.natDegree_zero]
+    exact Nat.zero_le _
+
+private theorem jacobian_hasParameterDegree {ell H : ℕ}
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (hr : ∀ i, HasParameterDegree (r i) H) :
+    HasParameterDegree (jacobian ell r) (n * H) := by
+  classical
+  have he (i j : Fin n) :
+      HasParameterDegree (pderiv j (X i ^ ell - r i)) H := by
+    have hx := ((HasParameterDegree.X (R := ℤ) i).pow ell).mono
+      (show ell * 0 ≤ H by simp)
+    simpa only [max_self] using (hx.sub (hr i)).pderiv j
+  unfold jacobian
+  rw [Matrix.det_apply]
+  apply HasParameterDegree.sum
+  intro σ _
+  have hp := HasParameterDegree.prod Finset.univ
+    (fun i => pderiv i (X (σ i) ^ ell - r (σ i))) (fun _ => H)
+    (fun i _ => he (σ i) i)
+  have hp' : HasParameterDegree (∏ i, pderiv i (X (σ i) ^ ell - r (σ i))) (n * H) := by
+    simpa only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, nsmul_eq_mul, Nat.cast_id]
+      using hp
+  rcases Int.units_eq_one_or (Equiv.Perm.sign σ) with hs | hs
+  · simpa only [Matrix.of_apply, hs, one_smul] using hp'
+  · simpa only [Matrix.of_apply, hs, Units.neg_smul, one_smul] using hp'.neg
+
+/-- Each characteristic coefficient of a pure-power quotient multiplication operator has
+parameter degree at most its reversed index times a bound from the lower relations and
+the multiplier. The input bounds `H` and `K` refer to degrees in the parameter, while
+`d` and `Ω` bound spatial total degrees. -/
+theorem natDegree_multiplicationMatrix_charpoly_coeff_le {d Ω H K : ℕ} (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ)) (hr : ∀ i, (r i).totalDegree ≤ d)
+    (hparam : ∀ i, HasParameterDegree (r i) H) (v : MvPolynomial (Fin n) (Polynomial ℤ))
+    (hdeg : v.totalDegree ≤ Ω) (hv : HasParameterDegree v K) (k : ℕ) :
+    ((multiplicationMatrix (by omega : 1 ≤ d + 1) r
+        (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).charpoly.coeff k).natDegree ≤
+      ((d + 1) ^ n - k) * (K + (Ω + n * (d + 1)) * H) := by
+  classical
+  let M := multiplicationMatrix (by omega : 1 ≤ d + 1) r
+    (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v
+  let A := K + (Ω + n * (d + 1)) * H
+  have ht (j : ℕ) (hj : 1 ≤ j) : ((M ^ j).trace).natDegree ≤ j * A := by
+    rw [multiplicationMatrix_trace_pow d hd r hr v j]
+    have hnum : (v ^ j * jacobian (d + 1) r).totalDegree ≤ j * Ω + n * d :=
+      (totalDegree_mul _ _).trans (Nat.add_le_add ((totalDegree_pow _ _).trans
+        (Nat.mul_le_mul_left j hdeg)) (totalDegree_jacobian_le d r hr))
+    refine (natDegree_residue_le (by omega) r (fun i => (hr i).trans_lt (Nat.lt_succ_self d))
+      hparam _ ((hv.pow j).mul (jacobian_hasParameterDegree r hparam)) hnum).trans ?_
+    calc
+      j * K + n * H + (j * Ω + n * d) * H = j * (K + Ω * H) + n * (d + 1) * H := by ring
+      _ ≤ j * (K + Ω * H) + j * (n * (d + 1) * H) :=
+        Nat.add_le_add_left (Nat.le_mul_of_pos_left _ hj) _
+      _ = j * A := by dsimp only [A]; ring
+  simpa [NormalIndex, A] using Matrix.natDegree_charpoly_coeff_le_of_trace_pow M A
+    (fun j hj _ => ht j hj) k
+
+end MvPolynomial.PurePower
+
+namespace MvPolynomial.CriticalSystem
+
+open PurePower
+
+/-- The symbolic critical relations and objective are affine in the coefficient parameter. -/
+theorem criticalSystem_hasParameterDegree {n : ℕ} (ell : ℕ)
+    (F : MvPolynomial (Fin n) ℤ) :
+    let a (i : Fin n) := Polynomial.C (separatedCenters ell i : ℤ)
+    let G := F.map Polynomial.C
+    (∀ i, HasParameterDegree (criticalLower ell a Polynomial.X G i) 1) ∧
+      HasParameterDegree (deformedPolynomial ell a Polynomial.X G) 1 := by
+  intro a G
+  have hFparam : HasParameterDegree G 0 := HasParameterDegree.map_C F
+  constructor
+  · intro i
+    have hc := HasParameterDegree.C (ι := Fin n) (a i ^ ell) (h := 0) (by
+      change (Polynomial.C (separatedCenters ell i : ℤ) ^ ell).natDegree ≤ 0
+      rw [← map_pow, Polynomial.natDegree_C])
+    have hx := HasParameterDegree.C (ι := Fin n) (Polynomial.X : Polynomial ℤ)
+      (h := 1) Polynomial.natDegree_X.le
+    simpa only [criticalLower, Nat.add_zero, Nat.zero_max] using
+      hc.sub (hx.mul (hFparam.pderiv i))
+  · have hp := HasParameterDegree.map_C
+      (potentialPolynomial ell (fun i : Fin n => (separatedCenters ell i : ℤ)))
+    rw [potentialPolynomial_map] at hp
+    have hx := HasParameterDegree.C (ι := Fin n)
+      (((ell + 1 : ℕ) : Polynomial ℤ) * Polynomial.X) (h := 1) (by
+        rw [← Polynomial.C_eq_natCast]
+        exact (Polynomial.natDegree_C_mul_le _ _).trans Polynomial.natDegree_X.le)
+    simpa only [deformedPolynomial, Nat.add_zero, Nat.zero_max] using hp.add (hx.mul hFparam)
+
+/-- A symbolic critical-value coefficient has parameter degree at most
+`(ell ^ n - k) * (ell + 2 + n * ell)`. This bounds the powers of the parameter needed
+to evaluate that coefficient. -/
+theorem natDegree_parametricValuePolynomial_coeff_le {n ell : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (k : ℕ) :
+    ((parametricValuePolynomial (by omega : 1 ≤ ell) F hF).coeff k).natDegree ≤
+      (ell ^ n - k) * (ell + 2 + n * ell) := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : ell ≠ 0)
+  let a (i : Fin n) := Polynomial.C (separatedCenters (d + 1) i : ℤ)
+  let G := F.map Polynomial.C
+  let r := criticalLower (d + 1) a Polynomial.X G
+  let v := deformedPolynomial (d + 1) a Polynomial.X G
+  have hG : G.totalDegree ≤ d + 1 := (totalDegree_map_le Polynomial.C F).trans hF
+  have hr (i : Fin n) : (r i).totalDegree ≤ d :=
+    Nat.le_of_lt_succ (criticalLower_degree _ (by omega) a Polynomial.X G hG i)
+  obtain ⟨hrparam, hvparam⟩ := criticalSystem_hasParameterDegree (d + 1) F
+  calc
+    _ ≤ ((d + 1) ^ n - k) * (1 + ((d + 1 + 1) + n * (d + 1)) * 1) :=
+      natDegree_multiplicationMatrix_charpoly_coeff_le (by omega) r hr hrparam v
+        (totalDegree_deformedPolynomial_le _ a Polynomial.X G (hG.trans (Nat.le_succ _)))
+        hvparam k
+    _ = _ := by
+      congr 1
+      change 1 + ((d + 1 + 1) + n * (d + 1)) * 1 = (d + 1) + 2 + n * (d + 1)
+      ring
+
+end MvPolynomial.CriticalSystem

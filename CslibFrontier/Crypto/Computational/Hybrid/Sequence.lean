@@ -241,7 +241,7 @@ theorem isPPTOn_sequenceTest {Param : Type} {input : Param ↪ List Bool} {sampl
   have hcond := ComputableInPolyTime.unary_lt' hi (hcount.comp ha)
   have hfalse : IsPPTOn (encPair input encUnary) encBool (fun _ => pure false) :=
     (ComputableInPolyTime.const false).isPPTOn
-  have hbranch := IsPPTOn.ite hcond.tidy hsplice hfalse
+  have hbranch := IsPPTOn.ite hcond hsplice hfalse
   simpa only [sequenceTest, Function.comp_def] using hfirst.bind_with hbranch
 
 attribute [program_certificate] isPPTOn_sequenceTest
@@ -259,7 +259,6 @@ theorem ComputationallyIndistinguishable.replicate_bind {orig repl : ℕ → Pro
     ComputationallyIndistinguishable
       (fun n => ProbComp.eval (OracleComp.replicate (count n) (orig n) >>= process n))
       (fun n => ProbComp.eval (OracleComp.replicate (count n) (repl n) >>= process n)) := by
-  have hcount := hcount.tidy
   intro adversary hadversary
   let test (n : ℕ) (xs : List (List Bool)) : ProbComp Bool := process n xs >>= adversary n
   have htest : IsPPTOn (encPair encUnary (encList encBits)) encBool

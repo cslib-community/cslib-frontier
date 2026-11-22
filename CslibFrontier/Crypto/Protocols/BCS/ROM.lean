@@ -13,8 +13,14 @@ public import CslibFrontier.Crypto.Computational.MerkleTree.Prog
 public import CslibFrontier.Crypto.Computational.MerkleTree.ROMExtract
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Sum
 public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Crypto.Game.Order
+import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Foundations.Data.List.Counting
 import CslibFrontier.Foundations.Data.List.Lookup
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
 import CslibFrontier.Languages.Probabilistic.QueryCount.Support
 import CslibFrontier.Probability.PMF.Bind
@@ -22,6 +28,9 @@ import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Map
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformBound
+import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Tactic.PPT
+import CslibFrontier.Tactic.SuppCases
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.OfFn
 
@@ -31,11 +40,14 @@ import Mathlib.Data.List.OfFn
 This module lifts the multi-round Ben-Sasson–Chiesa–Spooner (BCS) transformation
 (`CslibFrontier/Crypto/Protocols/BCS/Basic.lean`) to an explicit two-channel random-oracle model
 ([BenSassonChiesaSpooner2016]; compare [ChiesaYogev2024], Construction 25.1.1, Remark 25.1.3, and
-Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–289,
+Theorem 25.2.1, printed pp. 274–278, Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–291,
 Chapter 31, Definitions 31.1.1–31.1.2, Definition 31.1.6, Construction 31.1.8, Theorem 31.2.1, and
 Theorem 31.3.1, composed with Merkle trace extraction from Chapter 18, Construction 18.5.3 and
-Lemma 18.5.7, printed pp. 199 and 207) and proves unconditional adaptive soundness and straight-line
-knowledge soundness bounds:
+Lemma 18.5.7, printed pp. 199 and 204–207), proving adaptive round-by-round ROM soundness and
+straight-line knowledge-soundness bounds (`bcsROMSoundness_bound`,
+`bcsROMKnowledgeSoundness_bound`; state-restoration BCS knowledge soundness as in
+[ChiesaYogev2024], Theorem 26.1.1, is open in #6042) alongside standard-model Merkle trace-binding
+reductions:
 
 1. **Straight-line multi-round oracle-table reconstruction (`bcsExtractTable`, `bcsExtractOracles`,
    `bcsExtractWitness`).** Given a symbol decoder `decSym : List Bool → Sym` with
@@ -115,20 +127,29 @@ knowledge soundness bounds:
   oracle calls, including malformed opening paths; the separate-budget corollaries
   (`bcsROMSoundness_bound_of_prover_verifier`, `bcsROMKnowledgeSoundness_bound_of_prover_verifier`)
   bound verifier Merkle cost only on outputs in `P.support`.
-* *Straight-line trace extraction and absent runtime certificate:* `bcsKnowledgeSoundnessGame`
+* *Straight-line trace extraction and polynomial-time certificates:* `bcsKnowledgeSoundnessGame`
   reconstructs `bcsExtractWitness iopExtract decSym defaultSym tr_P x prf.roots` directly from the
   prover's pre-verifier Merkle query trace `tr_P` with zero rewinding (compare [ChiesaYogev2024],
-  Construction 26.1.3). These theorems establish exact `OracleComp` probability/query-budget laws;
-  machine-level (`IsPPT` / native Turing-machine) runtime certificates for the verifier and
-  multi-extractor (compare [ChiesaYogev2024], Remark 18.5.8), digest truncation accounting,
-  polynomial-time NP-witness-to-IOP encoding, and zero-knowledge simulation remain outside scope.
+  Construction 26.1.3). Part 5 provides machine-level `ComputableInPolyTime` certificates for
+  `bcsExtractTable`, `bcsExtractOracles`, `bcsExtractWitness`, and `bcsExtractTraceCollision`
+  together with a tight standard-model `CollisionResistant H` reduction (`bcsTraceCollisionFinder`,
+  `isPPT_bcsTraceCollisionFinder`); digest truncation accounting, polynomial-time
+  NP-witness-to-IOP encoding, and zero-knowledge simulation remain outside scope.
 
 ## Main definitions
 
 * `Cslib.Crypto.Protocols.BCS.bcsExtractTable`, `Cslib.Crypto.Protocols.BCS.bcsExtractOracles`,
   `Cslib.Crypto.Protocols.BCS.bcsExtractWitness`,
-  `Cslib.Crypto.Protocols.BCS.BCSOpeningsQueriedInTrace`: straight-line oracle-table and witness
-  extraction from a Merkle trace and path-coverage predicate for BCS openings.
+  `Cslib.Crypto.Protocols.BCS.BCSOpeningsQueriedInTrace`,
+  `Cslib.Crypto.Protocols.BCS.bcsFindTraceConflict`,
+  `Cslib.Crypto.Protocols.BCS.bcsExtractTraceCollision`: straight-line oracle-table, witness, and
+  collision extraction from a Merkle trace and path-coverage predicate for BCS openings.
+* `Cslib.Crypto.Protocols.BCS.BCSTraceOutput`, `Cslib.Crypto.Protocols.BCS.encBCSTraceOutput`,
+  `Cslib.Crypto.Protocols.BCS.BCSTraceAdversary`,
+  `Cslib.Crypto.Protocols.BCS.bcsTraceCollisionFinder`,
+  `Cslib.Crypto.Protocols.BCS.bcsBreaksTraceBinding`,
+  `Cslib.Crypto.Protocols.BCS.bcsTraceBindingGame`: standard-model trace-extraction collision
+  reduction and binding experiment.
 * `Cslib.Crypto.Protocols.BCS.BCSFSQuery`, `Cslib.Crypto.Protocols.BCS.BCSFSSpec`,
   `Cslib.Crypto.Protocols.BCS.BCSROMSpec`, `Cslib.Crypto.Protocols.BCS.bcsOracle`,
   `Cslib.Crypto.Protocols.BCS.chainedFSChallenges`, `Cslib.Crypto.Protocols.BCS.chainedFS`:
@@ -185,6 +206,20 @@ knowledge soundness bounds:
   `Cslib.Crypto.Protocols.BCS.bcsROMKnowledgeSoundness_bound`,
   `Cslib.Crypto.Protocols.BCS.bcsROMKnowledgeSoundness_bound_of_prover_verifier`: adaptive
   straight-line ROM knowledge soundness bounds without rewinding.
+* `Cslib.Crypto.Protocols.BCS.bcs_trace_sound_or_collision`,
+  `Cslib.Crypto.Protocols.BCS.isCollision_bcsExtractTraceCollision`: deterministic trace-extraction
+  binding and collision extraction.
+* `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractTable`,
+  `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractOracles`,
+  `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractWitness`,
+  `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsFindTraceConflict`,
+  `Cslib.Crypto.Protocols.BCS.computableInPolyTime_bcsExtractTraceCollision`,
+  `Cslib.Crypto.Protocols.BCS.isPPT_bcsTraceCollisionFinder`,
+  `Cslib.Crypto.Protocols.BCS.succProbability_bcsTraceBindingGame_le`,
+  `Cslib.Crypto.Protocols.BCS.CollisionResistant.bcsTraceBinding_negligible`,
+  `Cslib.Crypto.Protocols.BCS.HashFamily.bcsTraceBinding_negligible`: polynomial-time certificates
+  for straight-line trace extraction and standard-model trace-binding reductions to
+  `CollisionResistant H`.
 
 ## References
 
@@ -283,12 +318,10 @@ theorem iopVerify_bcsExtractOracles_of_bcsVerify {H : List Bool → List Bool �
     (hpaths : BCSOpeningsQueriedInTrace H k iop encSym tr_MT x (bcsChallenge hFS x prf.roots) prf)
     (hver : bcsVerify iop H k encSym hFS x prf = true) :
     iopVerify iop x (bcsChallenge hFS x prf.roots)
-      (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = true := by
-  refine iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_
-  have hmv : merkleVerify H k d (prf.roots j) idx.val (encSym val) path = true :=
-    verify_of_bcsVerify hver hmem
-  exact (bcsExtractTable_eq_of_merkleVerify hdec defaultSym hfree
-    (hpaths j idx val path hmem) hmv).symm
+      (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = true :=
+  iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem =>
+    (bcsExtractTable_eq_of_merkleVerify hdec defaultSym hfree
+      (hpaths j idx val path hmem) (verify_of_bcsVerify hver hmem)).symm
 
 /-- **Dual collision extraction for `bcsExtractOracles`**: if `tr_MT` is consistent with `H k` and
 records all opened paths of a proof accepted by `bcsVerify`, yet `iopVerify` rejects
@@ -306,22 +339,93 @@ theorem exists_collision_of_bcsVerify_of_iopVerify_eq_false
     (hrej : iopVerify iop x (bcsChallenge hFS x prf.roots)
       (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = false) :
     ∃ q₁ ∈ tr_MT.map Prod.fst, ∃ q₂ ∈ tr_MT.map Prod.fst, q₁ ≠ q₂ ∧ H k q₁ = H k q₂ := by
-  set chals := bcsChallenge hFS x prf.roots
-  have hnot_all : ¬ ∀ p ∈ (iop.queries x chals).zip prf.openings,
-      extractLeafFromTrace tr_MT d (prf.roots p.1.1) p.1.2.val = some (encSym p.2.leaf) := by
-    intro hall
-    have hacc : iopVerify iop x chals
-        (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = true := by
-      refine iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_
-      have hleaf := hall ((j, idx), ⟨val, path⟩) hmem
-      simp only [bcsExtractOracles, bcsExtractTable, hleaf, hdec val]
-    rw [hacc] at hrej
-    cases hrej
-  push Not at hnot_all
-  obtain ⟨⟨⟨j, idx⟩, ⟨val, path⟩⟩, hmem, hne⟩ := hnot_all
-  have hmv : merkleVerify H k d (prf.roots j) idx.val (encSym val) path = true :=
-    verify_of_bcsVerify hver hmem
-  exact exists_collision_of_extractLeafFromTrace_ne hcons (hpaths j idx val path hmem) hmv hne
+  by_contra! hno
+  have hacc : iopVerify iop x (bcsChallenge hFS x prf.roots)
+      (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = true := by
+    refine iopVerify_eq_true_of_bcsVerify_of_openings_eq hver fun j idx val path hmem => ?_
+    by_contra hne
+    have hleaf : extractLeafFromTrace tr_MT d (prf.roots j) idx.val ≠ some (encSym val) :=
+      fun h => hne (by simp [bcsExtractOracles, bcsExtractTable, h, hdec val])
+    obtain ⟨q₁, hq₁, q₂, hq₂, hneq, heq⟩ := exists_collision_of_extractLeafFromTrace_ne hcons
+      (hpaths j idx val path hmem) (verify_of_bcsVerify hver hmem) hleaf
+    exact hno q₁ hq₁ q₂ hq₂ hneq heq
+  exact Bool.false_ne_true (hrej.symm.trans hacc)
+
+/-- Find the first query-opening pair `((j, idx), ⟨val, path⟩)` in a BCS proof where straight-line
+Merkle leaf extraction `extractLeafFromTrace` disagrees with `some (encSym val)`. -/
+@[expose] def bcsFindTraceConflict (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (encSym : Sym → List Bool) (hFS : Stmt → List (List Bool) → Chal)
+    (tr_MT : List (List Bool × List Bool)) (x : Stmt) (prf : BCSProof r Sym) :
+    Option ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) :=
+  let chals := bcsChallenge hFS x prf.roots
+  ((iop.queries x chals).zip prf.openings).find? fun ((j, idx), ⟨val, _⟩) =>
+    extractLeafFromTrace tr_MT d (prf.roots j) idx.val != some (encSym val)
+
+/-- **Deterministic trace collision extractor for the BCS transform**: find the first query
+position where `prf` opens a symbol that disagrees with `extractLeafFromTrace tr_MT` and run
+`extractTraceCollision` on that opening. -/
+@[expose] def bcsExtractTraceCollision (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
+    (hFS : Stmt → List (List Bool) → Chal) (tr_MT : List (List Bool × List Bool))
+    (x : Stmt) (prf : BCSProof r Sym) : List Bool × List Bool :=
+  match bcsFindTraceConflict iop encSym hFS tr_MT x prf with
+  | none => ([], [])
+  | some ((_, idx), ⟨val, path⟩) =>
+    extractTraceCollision H k tr_MT idx.val (encSym val) path
+
+/-- **Trace-extraction binding (`bcs_trace_sound_or_collision`)**: if `tr_MT` is consistent with
+`H k` and records all opened authentication paths of an accepted BCS proof `prf`, then either the
+IOP verifier accepts `bcsExtractOracles` at `bcsChallenge hFS x prf.roots`, or
+`bcsExtractTraceCollision` deterministically extracts a hash collision for `H k`. -/
+theorem bcs_trace_sound_or_collision
+    {H : List Bool → List Bool → List Bool} {k : List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
+    {encSym : Sym → List Bool} {decSym : List Bool → Sym}
+    (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
+    {hFS : Stmt → List (List Bool) → Chal} {tr_MT : List (List Bool × List Bool)}
+    {x : Stmt} {prf : BCSProof r Sym}
+    (hcons : TraceConsistentWith (H k) tr_MT)
+    (hpaths : BCSOpeningsQueriedInTrace H k iop encSym tr_MT x (bcsChallenge hFS x prf.roots) prf)
+    (hver : bcsVerify iop H k encSym hFS x prf = true) (n : ℕ) :
+    iopVerify iop x (bcsChallenge hFS x prf.roots)
+        (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = true ∨
+      let col := bcsExtractTraceCollision iop H k encSym hFS tr_MT x prf
+      isCollision H (fun _ _ => true) n k col.1 col.2 = true := by
+  cases hfind : bcsFindTraceConflict iop encSym hFS tr_MT x prf with
+  | some p =>
+    rcases p with ⟨⟨j, idx⟩, ⟨val, path⟩⟩
+    right
+    have hmem := List.mem_of_find?_eq_some hfind
+    have hne := by simpa only [bne_iff_ne, ne_eq] using List.find?_some hfind
+    simpa only [bcsExtractTraceCollision, hfind] using
+      isCollision_extractTraceCollision hcons (hpaths j idx val path hmem)
+        (verify_of_bcsVerify hver hmem) hne n
+  | none =>
+    refine Or.inl <| iopVerify_eq_true_of_bcsVerify_of_openings_eq hver
+      fun j idx val path hmem => ?_
+    have hleaf := List.find?_eq_none.mp hfind ((j, idx), ⟨val, path⟩) hmem
+    simp only [bne_iff_ne, ne_eq, not_not] at hleaf
+    simp only [bcsExtractOracles, bcsExtractTable, hleaf, hdec val]
+
+/-- If the IOP verifier rejects `bcsExtractOracles` on a consistent trace `tr_MT` covering all
+opened paths of an accepted BCS proof `prf`, then `bcsExtractTraceCollision` deterministically
+outputs a hash collision for `H k`. -/
+theorem isCollision_bcsExtractTraceCollision
+    {H : List Bool → List Bool → List Bool} {k : List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
+    {encSym : Sym → List Bool} {decSym : List Bool → Sym}
+    (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
+    {hFS : Stmt → List (List Bool) → Chal} {tr_MT : List (List Bool × List Bool)}
+    {x : Stmt} {prf : BCSProof r Sym}
+    (hcons : TraceConsistentWith (H k) tr_MT)
+    (hpaths : BCSOpeningsQueriedInTrace H k iop encSym tr_MT x (bcsChallenge hFS x prf.roots) prf)
+    (hver : bcsVerify iop H k encSym hFS x prf = true)
+    (hrej : iopVerify iop x (bcsChallenge hFS x prf.roots)
+      (bcsExtractOracles decSym defaultSym tr_MT d prf.roots) = false) (n : ℕ) :
+    let col := bcsExtractTraceCollision iop H k encSym hFS tr_MT x prf
+    isCollision H (fun _ _ => true) n k col.1 col.2 = true :=
+  (bcs_trace_sound_or_collision hdec defaultSym hcons hpaths hver n).resolve_left
+    (by simp [hrej])
 
 /-- Prepending `(q, ans)` to `tr_MT` leaves `bcsExtractTable` at `rt` unchanged whenever `ans ≠ rt`
 and `ans` does not equal `unframe p.1` or `dropFrame p.1` for any `p ∈ tr_MT`. -/
@@ -407,17 +511,9 @@ theorem chainedFSChallenges_concat {Stmt Chal : Type} (f : BCSFSQuery Stmt Chal 
       chainedFSChallenges f x rts ++ [chainedFS f x (rts ++ [rt])] := by
   unfold chainedFSChallenges chainedFS
   rw [List.foldl_concat, List.dropLast_concat]
-  set p := rts.foldl (fun (accRts, accChals) rt =>
-    let rts' := accRts ++ [rt]
-    (rts', accChals ++ [f (x, rts', accChals)])) ([], [])
-  have hp₁ : p.1 = rts := by
-    simpa only [List.nil_append] using fst_foldl_chainedFSChallenges f x rts [] []
-  have hp₂ : p.2 = chainedFSChallenges f x rts := rfl
-  rcases hp : p with ⟨accRts, accChals⟩
-  rw [hp] at hp₁ hp₂
-  dsimp only at hp₁ hp₂ ⊢
-  subst hp₁
-  rw [← hp₂]
+  have h1 := fst_foldl_chainedFSChallenges f x rts [] []
+  rw [List.nil_append] at h1
+  exact congrArg (fun a => _ ++ [f (x, a ++ [rt], _)]) h1
 
 private theorem rootPrefix_eq_take_append {r : ℕ} (roots : Fin r → List Bool) {m : ℕ}
     (hm : m + 1 ≤ r) :
@@ -443,6 +539,25 @@ def bcsChallengesProg {r : ℕ} {Stmt Chal : Type} (x : Stmt)
     (roots : Fin r → List Bool) : OracleComp (BCSFSSpec Stmt Chal) (Fin r → Chal) :=
   bcsChallengesAuxProg x roots r le_rfl
 
+private theorem snoc_eq_restrict {r m : ℕ} {α : Type} {f : Fin m → α} {a : α} {g : Fin r → α}
+    (hm : m + 1 ≤ r)
+    (hprev : ∀ i : Fin m, f i = g ⟨i.val, Nat.lt_of_lt_of_le i.isLt (Nat.le_of_succ_le hm)⟩)
+    (hlast : a = g ⟨m, hm⟩) (i : Fin (m + 1)) :
+    Fin.snoc (α := fun _ => α) f a i = g ⟨i.val, Nat.lt_of_lt_of_le i.isLt hm⟩ := by
+  induction i using Fin.lastCases with
+  | last => simpa using hlast
+  | cast i => simpa using hprev i
+
+private theorem ofFn_snoc_chainedFS {r m : ℕ} {Stmt Chal : Type} (hm : m + 1 ≤ r)
+    (f : BCSFSQuery Stmt Chal → Chal) (x : Stmt) (roots : Fin r → List Bool)
+    {prev : Fin m → Chal} {c : Chal}
+    (hprev : List.ofFn prev = chainedFSChallenges f x ((List.ofFn roots).take m))
+    (hc : c = bcsChallenge (chainedFS f) x roots ⟨m, hm⟩) :
+    List.ofFn (Fin.snoc prev c) = chainedFSChallenges f x ((List.ofFn roots).take (m + 1)) := by
+  simp only [List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last, hprev, hc, bcsChallenge]
+  rw [rootPrefix_eq_take_append roots hm, ← chainedFSChallenges_concat,
+    ← rootPrefix_eq_take_append roots hm, rootPrefix_eq_take_ofFn]
+
 private theorem evalPure_bcsChallengesAuxProg {r : ℕ} {Stmt Chal : Type}
     (f : BCSFSQuery Stmt Chal → Chal) (x : Stmt) (roots : Fin r → List Bool) :
     ∀ (m : ℕ) (hm : m ≤ r),
@@ -460,14 +575,7 @@ private theorem evalPure_bcsChallengesAuxProg {r : ℕ} {Stmt Chal : Type}
         List.ofFn (OracleComp.evalPure f (bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)))) =
         bcsChallenge (chainedFS f) x roots ⟨m, hm⟩ := by
       rw [hlist, bcsChallenge, chainedFS, rootPrefix_eq_take_append roots hm, List.dropLast_concat]
-    refine ⟨?_, fun i => ?_⟩
-    · simp only [List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last]
-      rw [hc, hlist, bcsChallenge, rootPrefix_eq_take_append roots hm,
-        ← chainedFSChallenges_concat, ← rootPrefix_eq_take_append roots hm,
-        rootPrefix_eq_take_ofFn]
-    · induction i using Fin.lastCases with
-      | last => rw [Fin.snoc_last]; exact hc
-      | cast i => rw [Fin.snoc_castSucc]; exact hidx i
+    exact ⟨ofFn_snoc_chainedFS hm f x roots hlist hc, snoc_eq_restrict hm hidx hc⟩
 
 @[simp]
 theorem evalPure_bcsChallengesProg {r : ℕ} {Stmt Chal : Type}
@@ -559,30 +667,25 @@ private theorem evalPure_bcsProveRoundsProg (hTree : List Bool → List Bool)
       (bcsProveRoundsProg iop encSym x w m (Nat.le_of_succ_le hm)) with ⟨tables, roots, chals⟩
     rw [hp] at htab hrt hch hchList
     dsimp only at htab hrt hch hchList ⊢
-    have hch_eq : chals = prefixChallenges
-        (bcsHonestChallenges iop (fun _ => hTree) [] encSym (chainedFS f) x w) ⟨m, hm⟩ :=
-      funext hch
     have hπ : iop.proveRound ⟨m, hm⟩ x w chals =
         bcsHonestTables iop (fun _ => hTree) [] encSym (chainedFS f) x w ⟨m, hm⟩ := by
       have hon := congrFun (bcsHonestTables_eq_iopProverOracles iop (fun _ => hTree) [] encSym
         (chainedFS f) x w) ⟨m, hm⟩
-      dsimp only [iopProverOracles] at hon
-      rw [hch_eq, ← hon]
+      rw [show chals = prefixChallenges (bcsHonestChallenges iop (fun _ => hTree) [] encSym
+        (chainedFS f) x w) ⟨m, hm⟩ from funext hch]
+      exact hon.symm
     have hrt_m : merkleRoot (fun _ => hTree) []
         (oracleLeaves encSym d (iop.proveRound ⟨m, hm⟩ x w chals)) =
         bcsHonestRoots iop (fun _ => hTree) [] encSym (chainedFS f) x w ⟨m, hm⟩ := by
-      rw [hπ]
-      rfl
+      rw [hπ]; rfl
     have hroots'_list :
         List.ofFn (Fin.snoc roots (merkleRoot (fun _ => hTree) []
           (oracleLeaves encSym d (iop.proveRound ⟨m, hm⟩ x w chals))) : Fin (m + 1) → List Bool) =
         rootPrefix (bcsHonestRoots iop (fun _ => hTree) [] encSym (chainedFS f) x w) ⟨m, hm⟩ := by
-      simp only [List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last]
-      rw [hrt_m, rootPrefix_eq_take_append _ hm]
-      congr 1
-      refine List.ext_getElem (by simp [Nat.le_of_succ_le hm]) fun k hk₁ hk₂ => ?_
-      simp only [List.length_ofFn] at hk₁
-      simp [hrt ⟨k, hk₁⟩]
+      rw [List.ofFn_succ_last, hrt_m, rootPrefix_eq_take_append _ hm]
+      simp only [Fin.snoc_castSucc, Fin.snoc_last]
+      exact congrArg (· ++ _) (List.ext_getElem (by simp [Nat.le_of_succ_le hm]) fun k hk₁ _ => by
+        simp [hrt ⟨k, by simpa using hk₁⟩])
     have hc_m : f (x, List.ofFn (Fin.snoc roots (merkleRoot (fun _ => hTree) []
           (oracleLeaves encSym d (iop.proveRound ⟨m, hm⟩ x w chals))) : Fin (m + 1) → List Bool),
         List.ofFn chals) =
@@ -592,21 +695,8 @@ private theorem evalPure_bcsProveRoundsProg (hTree : List Bool → List Bool)
     simp only [bcsProveRoundsProg, OracleComp.evalPure_bind, hp, OracleComp.evalPure_liftLeft,
       evalPure_merkleRootProg, OracleComp.evalPure_liftRight, OracleComp.evalPure_query,
       OracleComp.evalPure_pure]
-    refine ⟨fun i => ?_, fun i => ?_, fun i => ?_, ?_⟩
-    · induction i using Fin.lastCases with
-      | last => rw [Fin.snoc_last]; exact hπ
-      | cast i => rw [Fin.snoc_castSucc]; exact htab i
-    · induction i using Fin.lastCases with
-      | last => rw [Fin.snoc_last]; exact hrt_m
-      | cast i => rw [Fin.snoc_castSucc]; exact hrt i
-    · induction i using Fin.lastCases with
-      | last => rw [Fin.snoc_last]; exact hc_m
-      | cast i => rw [Fin.snoc_castSucc]; exact hch i
-    · rw [hc_m]
-      simp only [List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last]
-      rw [hchList, bcsHonestChallenges, bcsChallenge,
-        rootPrefix_eq_take_append _ hm, ← chainedFSChallenges_concat,
-        ← rootPrefix_eq_take_append _ hm, rootPrefix_eq_take_ofFn]
+    exact ⟨snoc_eq_restrict hm htab hπ, snoc_eq_restrict hm hrt hrt_m,
+      snoc_eq_restrict hm hch hc_m, ofFn_snoc_chainedFS hm f x _ hchList hc_m⟩
 
 @[simp]
 theorem evalPure_bcsProveROM (hTree : List Bool → List Bool)
@@ -619,15 +709,15 @@ theorem evalPure_bcsProveROM (hTree : List Bool → List Bool)
   rcases hout : OracleComp.evalPure (bcsOracle hTree f)
     (bcsProveRoundsProg iop encSym x w r le_rfl) with ⟨tables, roots, chals⟩
   rw [hout] at htab hrt hch
-  have htab_eq : tables = bcsHonestTables iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
+  obtain rfl : tables = bcsHonestTables iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
     funext htab
-  have hrt_eq : roots = bcsHonestRoots iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
+  obtain rfl : roots = bcsHonestRoots iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
     funext hrt
-  have hch_eq : chals = bcsHonestChallenges iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
+  obtain rfl : chals = bcsHonestChallenges iop (fun _ => hTree) [] encSym (chainedFS f) x w :=
     funext hch
   simp only [bcsProveROM, OracleComp.evalPure_bind, hout, OracleComp.evalPure_liftLeft,
-    OracleComp.evalPure_mapM, evalPure_merklePathProg, OracleComp.evalPure_pure,
-    htab_eq, hrt_eq, hch_eq, bcsProve, bcsHonestOpenings]
+    OracleComp.evalPure_mapM, evalPure_merklePathProg, OracleComp.evalPure_pure, bcsProve,
+    bcsHonestOpenings]
 
 @[simp]
 theorem evalPure_bcsVerifyOpeningsProg (hTree : List Bool → List Bool)
@@ -654,16 +744,18 @@ theorem evalPure_bcsVerifyROM (hTree : List Bool → List Bool)
   simp [bcsVerifyROM, bcsVerify]
 
 /-- **Perfect completeness of the BCS ROM programs (`OracleComp` simulation form)**: under any
-deterministic Merkle hash `hTree` and transcript-chained Fiat–Shamir function `f`, `bcsVerifyROM`
-accepts `bcsProveROM` on every `(x, w)` satisfying `rel x w`. -/
+deterministic Merkle hash `hTree` whose digests all have one length and any transcript-chained
+Fiat–Shamir function `f`, `bcsVerifyROM` accepts `bcsProveROM` on every `(x, w)` satisfying
+`rel x w`. -/
 theorem bcsVerifyROM_bcsProveROM_eq_true {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
     {rel : Stmt → Wit → Prop} (hcomp : IOPCompleteness iop rel)
-    (hTree : List Bool → List Bool) (f : BCSFSQuery Stmt Chal → Chal)
+    (hTree : List Bool → List Bool) {ℓ : ℕ} (hlen : ∀ y, (hTree y).length = ℓ)
+    (f : BCSFSQuery Stmt Chal → Chal)
     (encSym : Sym → List Bool) {x : Stmt} {w : Wit} (hrel : rel x w) :
     OracleComp.evalPure (bcsOracle hTree f) (do
       let prf ← bcsProveROM iop encSym x w
       bcsVerifyROM iop encSym x prf) = true := by
-  simp [bcsVerify_bcsProve_eq_true hcomp (fun _ => hTree) [] encSym (chainedFS f) hrel]
+  simp [bcsVerify_bcsProve_eq_true hcomp (fun _ => hTree) [] hlen encSym (chainedFS f) hrel]
 
 /-- Per-query distribution of the two-channel BCS random oracle with `σ`-bit Merkle digests and
 uniform challenges over `Chal`: Merkle hash queries (`Sum.inl`) sample `BitString.uniformList σ`,
@@ -699,14 +791,12 @@ theorem bcsHonestROMGame_eq_pure_true [DecidableEq Stmt] [DecidableEq Chal]
     {rel : Stmt → Wit → Prop} (hcomp : IOPCompleteness iop rel)
     (encSym : Sym → List Bool) {x : Stmt} {w : Wit} (hrel : rel x w) (σ : ℕ) :
     bcsHonestROMGame iop encSym x w σ = PMF.pure true := by
-  unfold bcsHonestROMGame
   refine OracleComp.map_fst_runWith_answer_eq_pure (bcsOracleDist Stmt Chal σ)
-    (bcsHonestROMProg iop encSym x w) true fun h _ => ?_
-  have hsplit : h = bcsOracle (fun msg => h (.inl msg)) (fun fsq => h (.inr fsq)) := by
-    funext q
-    cases q <;> rfl
-  rw [hsplit]
-  exact bcsVerifyROM_bcsProveROM_eq_true hcomp _ _ encSym hrel
+    (bcsHonestROMProg iop encSym x w) true fun h hh => ?_
+  rw [show h = bcsOracle (fun msg => h (.inl msg)) (fun fsq => h (.inr fsq)) from
+    funext fun | .inl _ => rfl | .inr _ => rfl]
+  exact bcsVerifyROM_bcsProveROM_eq_true hcomp _
+    (fun y => BitString.length_of_mem_support_uniformList (hh (.inl y))) _ encSym hrel
 
 end ROMProtocol
 
@@ -842,13 +932,10 @@ theorem bcsExtractTranscript_cons_of_ne {Sym Chal : Type} (decSym : List Bool �
     (hrts : ∀ rt ∈ rts, ans ≠ rt)
     (hchildren : ∀ p ∈ tr_MT, ans ≠ unframe p.1 ∧ ans ≠ dropFrame p.1) :
     bcsExtractTranscript decSym defaultSym d ((q, ans) :: tr_MT) rts chals =
-      bcsExtractTranscript decSym defaultSym d tr_MT rts chals := by
-  unfold bcsExtractTranscript
-  refine List.map_congr_left ?_
-  rintro ⟨rt, c⟩ hmem
-  dsimp only
-  have hrt : rt ∈ rts := (List.of_mem_zip hmem).1
-  rw [bcsExtractTable_cons_of_ne decSym defaultSym tr_MT q (hrts rt hrt) hchildren]
+      bcsExtractTranscript decSym defaultSym d tr_MT rts chals :=
+  List.map_congr_left fun ⟨rt, _⟩ hmem =>
+    congrArg (·, _) (bcsExtractTable_cons_of_ne decSym defaultSym tr_MT q
+      (hrts rt (List.of_mem_zip hmem).1) hchildren)
 
 /-- Every valid recorded Fiat–Shamir chain `(rts, chals)` of length `≤ r` for a statement `x ∈ S`
 maps under `bcsExtractTranscript` to a doomed IOP transcript prefix. -/
@@ -895,14 +982,25 @@ length independent of adversarial Fiat–Shamir root-list sizes. -/
 theorem length_bcsForbiddenDigests_le (r : ℕ) {Stmt Chal : Type}
     (st : BCSTraceState Stmt Chal) :
     (bcsForbiddenDigests r st).length ≤ 3 * st.1.length + r * st.2.length := by
+  have hfs : (st.2.flatMap (fun ((_, rts, _), _) => rts.take r)).length ≤ r * st.2.length := by
+    simpa only [Nat.mul_comm] using List.length_flatMap_le (l := st.2)
+      (f := fun ((_, rts, _), _) => rts.take r) (k := r)
+      fun ⟨⟨_, rts, _⟩, _⟩ _ => List.length_take_le r rts
   unfold bcsForbiddenDigests
   rw [List.length_append, List.length_append, List.length_append,
     List.length_map, List.length_map, List.length_map]
-  have hfs : (st.2.flatMap (fun ((_, rts, _), _) => rts.take r)).length ≤ r * st.2.length := by
-    simpa only [Nat.mul_comm] using
-      List.length_flatMap_le (l := st.2) (f := fun ((_, rts, _), _) => rts.take r) (k := r)
-        fun ⟨⟨_, rts, _⟩, _⟩ _ => List.length_take_le r rts
   omega
+
+private theorem mem_bcsForbiddenDigests_not_elim {r : ℕ} {Stmt Chal : Type}
+    {tr_MT : List (List Bool × List Bool)} {tr_FS : List (BCSFSQuery Stmt Chal × Chal)}
+    {ans : List Bool} (hnot : ans ∉ bcsForbiddenDigests r (tr_MT, tr_FS)) :
+    (∀ p ∈ tr_MT, p.2 ≠ ans) ∧
+      (∀ p ∈ tr_MT, ans ≠ unframe p.1 ∧ ans ≠ dropFrame p.1) ∧
+      (ans ∉ tr_FS.flatMap (fun ((_, rts, _), _) => rts.take r)) := by
+  simp only [bcsForbiddenDigests, List.mem_append, List.mem_map, not_or, not_exists,
+    not_and] at hnot
+  rcases hnot with ⟨⟨⟨h1, h2⟩, h3⟩, h4⟩
+  exact ⟨h1, fun ⟨q, d'⟩ hp => ⟨fun h => h2 (q, d') hp h.symm, fun h => h3 (q, d') hp h.symm⟩, h4⟩
 
 /-- If `BCSGoodState` holds on `st` and prepending `(msg, ans)` to `st.1` violates `BCSGoodState`,
 then `ans` belongs to `bcsForbiddenDigests r st`. -/
@@ -914,38 +1012,21 @@ theorem mem_bcsForbiddenDigests_of_not_bcsGoodState_cons {r d : ℕ} {Stmt Sym C
     (hbad : ¬ BCSGoodState r d S doomed decSym defaultSym ((msg, ans) :: st.1, st.2)) :
     ans ∈ bcsForbiddenDigests r st := by
   rcases st with ⟨tr_MT, tr_FS⟩
-  obtain ⟨hfree, hdoomed⟩ := hgood
   by_contra hnot_mem
-  simp only [bcsForbiddenDigests, List.mem_append, List.mem_map, List.mem_flatMap, not_or,
-    not_exists, not_and] at hnot_mem
-  obtain ⟨⟨⟨hnot_snd, hnot_left⟩, hnot_right⟩, hnot_fs⟩ := hnot_mem
-  apply hbad
-  refine ⟨?_, ?_⟩
-  · rw [traceCollisionFree_cons_iff]
-    exact ⟨hfree, fun p hp heq => False.elim (hnot_snd p hp heq)⟩
-  · intro x hx rts chals hr hchain
-    have hchildren : ∀ p ∈ tr_MT, ans ≠ unframe p.1 ∧ ans ≠ dropFrame p.1 :=
-      fun ⟨q, d'⟩ hp =>
-        ⟨fun heq => hnot_left (q, d') hp heq.symm, fun heq => hnot_right (q, d') hp heq.symm⟩
-    rcases rts with _ | ⟨rt₀, rest⟩
-    · rw [bcsExtractTranscript_nil_left]
-      exact hdoomed x hx [] chals hr hchain
-    · set rts := rt₀ :: rest
-      have hpos : 0 < rts.length := Nat.zero_lt_succ _
-      obtain ⟨hlen, hsteps⟩ := hchain
-      have hi : rts.length - 1 < rts.length := Nat.sub_lt hpos Nat.one_pos
-      have htake : rts.take (rts.length - 1 + 1) = rts := by
-        rw [Nat.sub_add_cancel hpos, List.take_length]
-      have hlast_mem : ((x, rts, chals.take (rts.length - 1)),
-          chals[rts.length - 1]'(hlen ▸ hi)) ∈ tr_FS := by
-        simpa only [htake] using hsteps (rts.length - 1) hi
-      have hrts : ∀ rt ∈ rts, ans ≠ rt := by
-        intro rt hrt heq
-        subst heq
-        exact hnot_fs ((x, rts, chals.take (rts.length - 1)),
-          chals[rts.length - 1]'(hlen ▸ hi)) hlast_mem (by rwa [List.take_of_length_le hr])
-      rw [bcsExtractTranscript_cons_of_ne decSym defaultSym d tr_MT msg chals hrts hchildren]
-      exact hdoomed x hx rts chals hr ⟨hlen, hsteps⟩
+  obtain ⟨hsnd, hchildren, hfs⟩ := mem_bcsForbiddenDigests_not_elim hnot_mem
+  refine hbad ⟨traceCollisionFree_cons_iff.mpr ⟨hgood.1, fun p hp heq => (hsnd p hp heq).elim⟩,
+    fun x hx rts chals hr hchain => ?_⟩
+  rcases rts with _ | ⟨rt₀, rest⟩
+  · exact hgood.2 x hx [] chals hr hchain
+  · obtain ⟨hlen, hsteps⟩ := hchain
+    have hlast_mem : ((x, rt₀ :: rest, chals.take rest.length),
+        chals[rest.length]'(by simpa using hlen ▸ Nat.lt_succ_self rest.length)) ∈ tr_FS := by
+      simpa [List.take_length] using hsteps rest.length (Nat.lt_succ_self rest.length)
+    have hrts : ∀ rt ∈ rt₀ :: rest, ans ≠ rt := fun rt hrt heq =>
+      hfs <| List.mem_flatMap.mpr
+        ⟨_, hlast_mem, by dsimp only; rwa [List.take_of_length_le hr, heq]⟩
+    rw [bcsExtractTranscript_cons_of_ne decSym defaultSym d tr_MT msg chals hrts hchildren]
+    exact hgood.2 x hx (rt₀ :: rest) chals hr ⟨hlen, hsteps⟩
 
 /-- Candidate challenges at challenge-list index `idx` already anticipated by existing Fiat–Shamir
 trace entries (used to bound out-of-order Fiat–Shamir chain guessing). -/
@@ -984,94 +1065,56 @@ private theorem bad_fs_step_cases {r d : ℕ} {Stmt Sym Chal : Type} {S : Set St
   have hex_new : ∃ (i₀ : ℕ) (hi₀ : i₀ < rts.length),
       ((x, rts.take (i₀ + 1), chals.take i₀), chals[i₀]'(hlen ▸ hi₀)) =
         ((x₀, rts₀, prev₀), c) := by
-    by_contra hall_old
-    push Not at hall_old
-    have hold_chain : ValidFSChain tr_FS x rts chals := ⟨hlen, fun i hi => by
-      rcases List.mem_cons.mp (hsteps i hi) with heq | hmem
-      · exact False.elim (hall_old i hi heq)
-      · exact hmem⟩
-    exact hnot_doomed (hdoomed x hx rts chals hr hold_chain)
+    by_contra! hall_old
+    exact hnot_doomed <| hdoomed x hx rts chals hr ⟨hlen, fun i hi =>
+      (List.mem_cons.mp (hsteps i hi)).resolve_left (hall_old i hi)⟩
   obtain ⟨i₀, hi₀, heq₀⟩ := hex_new
-  rw [Prod.mk.injEq, Prod.mk.injEq, Prod.mk.injEq] at heq₀
-  obtain ⟨⟨hx_eq, ⟨hrts₀_eq, hprev₀_eq⟩⟩, hc_eq⟩ := heq₀
-  subst hx_eq
+  simp only [Prod.mk.injEq] at heq₀
+  obtain ⟨⟨rfl, hrts₀_eq, hprev₀_eq⟩, hc_eq⟩ := heq₀
   have hrts₀_len : rts₀.length = i₀ + 1 := by
-    rw [← hrts₀_eq, List.length_take_of_le (Nat.succ_le_of_lt hi₀)]
+    rw [← hrts₀_eq, List.length_take_of_le hi₀]
   have hi₀_eq : rts₀.length - 1 = i₀ := by omega
+  have hmem_of_ne (j : ℕ) (hj : j < rts.length) (hne : j ≠ i₀) :
+      ((x, rts.take (j + 1), chals.take j), chals[j]'(hlen ▸ hj)) ∈ tr_FS :=
+    (List.mem_cons.mp (hsteps j hj)).resolve_left fun hsame => by
+      have hlen_eq := congrArg (fun e : BCSFSQuery Stmt Chal × Chal => e.1.2.1.length) hsame
+      rw [show _ = j + 1 from List.length_take_of_le (Nat.succ_le_of_lt hj), hrts₀_len] at hlen_eq
+      exact hne (by omega)
   refine ⟨hx, ?_⟩
   by_cases hmore : i₀ + 1 < rts.length
   · right
-    have hstep_next := hsteps (i₀ + 1) hmore
-    have hne_next : ((x, rts.take (i₀ + 2), chals.take (i₀ + 1)),
-        chals[i₀ + 1]'(hlen ▸ hmore)) ≠ ((x, rts₀, prev₀), c) := by
-      intro hsame
-      have hlen_eq := congrArg (fun e : BCSFSQuery Stmt Chal × Chal => e.1.2.1.length) hsame
-      dsimp only at hlen_eq
-      rw [List.length_take_of_le (Nat.succ_le_of_lt hmore), hrts₀_len] at hlen_eq
-      omega
-    have hmem_next : ((x, rts.take (i₀ + 2), chals.take (i₀ + 1)),
-        chals[i₀ + 1]'(hlen ▸ hmore)) ∈ tr_FS :=
-      (List.mem_cons.mp hstep_next).resolve_left hne_next
-    rw [hi₀_eq, fsOutOfOrderTargets, List.mem_filterMap]
-    refine ⟨((x, rts.take (i₀ + 2), chals.take (i₀ + 1)), chals[i₀ + 1]'(hlen ▸ hmore)),
-      hmem_next, ?_⟩
-    have hi₀_ch : i₀ < (chals.take (i₀ + 1)).length := by
-      rw [List.length_take_of_le (by omega)]
-      omega
-    dsimp only
-    rw [List.getElem?_eq_getElem hi₀_ch, List.getElem_take, hc_eq]
+    refine hi₀_eq ▸ List.mem_filterMap.mpr ⟨_, hmem_of_ne (i₀ + 1) hmore (by omega), ?_⟩
+    simp [List.getElem?_eq_getElem (by rw [List.length_take_of_le (by omega)]; omega :
+      i₀ < (chals.take (i₀ + 1)).length), hc_eq]
   · left
     have hlast : i₀ + 1 = rts.length := by omega
-    have hrts_eq : rts = rts₀ := by
-      rw [← hrts₀_eq, hlast, List.take_length]
+    have hrts_eq : rts = rts₀ := by rw [← hrts₀_eq, hlast, List.take_length]
     have hparent : ValidFSChain tr_FS x (rts₀.take i₀) prev₀ := by
       subst hrts_eq hprev₀_eq
-      refine ⟨by simp [List.length_take_of_le (Nat.le_of_lt hi₀),
-          List.length_take_of_le (hlen ▸ Nat.le_of_lt hi₀)], fun j hj => ?_⟩
-      rw [List.length_take_of_le (Nat.le_of_lt hi₀)] at hj
-      have hj_rts : j < rts.length := Nat.lt_trans hj hi₀
-      have htake_rts : (rts.take i₀).take (j + 1) = rts.take (j + 1) := by
-        rw [List.take_take, Nat.min_eq_left (Nat.succ_le_of_lt hj)]
-      have htake_ch : (chals.take i₀).take j = chals.take j := by
-        rw [List.take_take, Nat.min_eq_left (Nat.le_of_lt hj)]
-      have hget_ch : (chals.take i₀)[j]'(by
-          rw [List.length_take_of_le (hlen ▸ Nat.le_of_lt hi₀)]; exact hj) =
-          chals[j]'(hlen ▸ hj_rts) := List.getElem_take
-      rw [htake_rts, htake_ch, hget_ch]
-      have hstep_j := hsteps j hj_rts
-      refine (List.mem_cons.mp hstep_j).resolve_left ?_
-      intro hsame
-      have hlen_eq := congrArg (fun e : BCSFSQuery Stmt Chal × Chal => e.1.2.1.length) hsame
-      dsimp only at hlen_eq
-      rw [List.length_take_of_le (Nat.succ_le_of_lt hj_rts), hrts₀_len] at hlen_eq
-      omega
-    have hparent_doomed : doomed x
-        (bcsExtractTranscript decSym defaultSym d tr_MT (rts₀.take (rts₀.length - 1)) prev₀) := by
-      rw [hi₀_eq]
-      exact hdoomed x hx (rts₀.take i₀) prev₀
-        ((List.length_take_le i₀ rts₀).trans (by omega)) hparent
+      refine ⟨by simp [List.length_take_of_le hi₀.le,
+        List.length_take_of_le (hlen ▸ hi₀.le)], fun j hj => ?_⟩
+      rw [List.length_take_of_le hi₀.le] at hj
+      simpa [List.take_take, Nat.min_eq_left (Nat.succ_le_of_lt hj),
+        Nat.min_eq_left hj.le] using hmem_of_ne j (hj.trans hi₀) hj.ne
+    have hparent_doomed := hi₀_eq ▸ hdoomed x hx (rts₀.take i₀) prev₀
+      ((List.length_take_le i₀ rts₀).trans (by omega)) hparent
     refine ⟨hparent_doomed, fun hgood_c => hnot_doomed ?_⟩
     have hrts_split : rts =
         rts₀.take (rts₀.length - 1) ++ [(rts₀[rts₀.length - 1]?).getD []] := by
       subst hrts_eq
-      rw [hi₀_eq]
       have h1 := List.take_succ_eq_append_getElem hi₀
       rw [hlast, List.take_length] at h1
-      have hlastD : (rts[i₀]?).getD [] = rts[i₀] := by
-        rw [List.getElem?_eq_getElem hi₀, Option.getD_some]
-      rw [hlastD]
-      exact h1
+      simpa [hi₀_eq, List.getElem?_eq_getElem hi₀] using h1
     have hchals_split : chals = prev₀ ++ [c] := by
-      rw [← hprev₀_eq, ← hc_eq]
       have hi₀_ch : i₀ < chals.length := hlen ▸ hi₀
       have h1 := List.take_succ_eq_append_getElem hi₀_ch
-      rw [hlast, hlen, List.take_length] at h1
-      exact h1
-    have hlen_parent : (rts₀.take (rts₀.length - 1)).length = prev₀.length := by
-      rw [hi₀_eq, ← hprev₀_eq, List.length_take_of_le (by omega),
-        List.length_take_of_le (by omega)]
+      rw [show i₀ + 1 = chals.length from by omega, List.take_length] at h1
+      simpa [← hprev₀_eq, ← hc_eq] using h1
+    have hlen_p : (rts₀.take (rts₀.length - 1)).length = prev₀.length := by
+      simp [hi₀_eq, ← hprev₀_eq, Nat.min_eq_left (by omega : i₀ ≤ rts₀.length),
+        Nat.min_eq_left (by omega : i₀ ≤ chals.length)]
     rw [hrts_split, hchals_split,
-      bcsExtractTranscript_append_singleton decSym defaultSym d tr_MT hlen_parent]
+      bcsExtractTranscript_append_singleton decSym defaultSym d tr_MT hlen_p]
     exact hstep x hx _ _ c hparent_doomed hgood_c
 
 /-- **Single-step Fiat–Shamir bad-event bound**: from a state `(tr_MT, tr_FS)` satisfying
@@ -1100,8 +1143,7 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
   | none =>
     rw [memoize_of_none _ _ _ hlookup]
     change ((PMF.uniformOfFintype Chal).map
-      (fun c => (c, ((x₀, rts₀, prev₀), c) :: tr_FS))).toOuterMeasure
-      {out | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT out.2} ≤ _
+      (fun c => (c, ((x₀, rts₀, prev₀), c) :: tr_FS))).toOuterMeasure _ ≤ _
     rw [PMF.toOuterMeasure_map_apply]
     by_cases hx₀ : x₀ ∈ S
     · set pref₀ := bcsExtractTranscript decSym defaultSym d tr_MT
@@ -1109,39 +1151,21 @@ theorem toOuterMeasure_memoize_not_bcsChainDoomed_step {r d : ℕ} {Stmt Sym Cha
       set π₀ := bcsExtractTable decSym defaultSym tr_MT d ((rts₀[rts₀.length - 1]?).getD [])
       set E₁ : Set Chal := {c | doomed x₀ pref₀ ∧ ¬ goodStep x₀ pref₀ π₀ c}
       set E₂ : Set Chal := {c | c ∈ fsOutOfOrderTargets (rts₀.length - 1) tr_FS}
-      calc (PMF.uniformOfFintype Chal).toOuterMeasure
-            {c | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT
-              (((x₀, rts₀, prev₀), c) :: tr_FS)}
-          ≤ (PMF.uniformOfFintype Chal).toOuterMeasure (E₁ ∪ E₂) := by
-            refine (PMF.uniformOfFintype Chal).toOuterMeasure.mono fun c hc => ?_
-            exact (bad_fs_step_cases hstep hdoomed hc).2
-        _ ≤ (PMF.uniformOfFintype Chal).toOuterMeasure E₁ +
-              (PMF.uniformOfFintype Chal).toOuterMeasure E₂ :=
-            MeasureTheory.measure_union_le E₁ E₂
-        _ ≤ ε_rbr + (tr_FS.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal) := by
-            refine add_le_add ?_ ?_
-            · by_cases hd₀ : doomed x₀ pref₀
-              · calc (PMF.uniformOfFintype Chal).toOuterMeasure E₁
-                    ≤ (PMF.uniformOfFintype Chal).toOuterMeasure {c | ¬ goodStep x₀ pref₀ π₀ c} :=
-                      (PMF.uniformOfFintype Chal).toOuterMeasure.mono fun _ hc => hc.2
-                  _ ≤ ε_rbr := hescape x₀ hx₀ pref₀ π₀ hd₀
-              · have hempty : E₁ = ∅ := by
-                  ext c
-                  simp [E₁, hd₀]
-                simp [hempty]
-            · calc (PMF.uniformOfFintype Chal).toOuterMeasure E₂
-                  ≤ ((fsOutOfOrderTargets (rts₀.length - 1) tr_FS).length : ℝ≥0∞) *
-                      ((1 : ℝ≥0∞) / Fintype.card Chal) :=
-                    PMF.toOuterMeasure_uniformOfFintype_mem_list_le _
-                _ ≤ (tr_FS.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal) := by
-                    gcongr
-                    exact_mod_cast length_fsOutOfOrderTargets_le _ tr_FS
+      refine ((PMF.uniformOfFintype Chal).toOuterMeasure.mono (s₂ := E₁ ∪ E₂) fun _ hc =>
+          (bad_fs_step_cases hstep hdoomed hc).2).trans
+        (((MeasureTheory.measure_union_le (μ := (PMF.uniformOfFintype Chal).toOuterMeasure)
+          E₁ E₂)).trans (add_le_add ?_ ?_))
+      · by_cases hd₀ : doomed x₀ pref₀
+        · exact ((PMF.uniformOfFintype Chal).toOuterMeasure.mono (s₁ := E₁)
+            fun _ hc => hc.2).trans (hescape x₀ hx₀ pref₀ π₀ hd₀)
+        · simp [show E₁ = ∅ from Set.eq_empty_iff_forall_notMem.mpr fun _ h => hd₀ h.1]
+      · refine (PMF.toOuterMeasure_uniformOfFintype_mem_list_le _).trans ?_
+        gcongr
+        exact length_fsOutOfOrderTargets_le _ tr_FS
     · have hempty : {c : Chal | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT
-          (((x₀, rts₀, prev₀), c) :: tr_FS)} = ∅ := by
-        ext c
-        simp only [Set.mem_empty_iff_false, iff_false]
-        intro hbad
-        exact hx₀ (bad_fs_step_cases hstep hdoomed hbad).1
+          (((x₀, rts₀, prev₀), c) :: tr_FS)} = ∅ :=
+        Set.eq_empty_iff_forall_notMem.mpr fun _ hbad =>
+          hx₀ (bad_fs_step_cases hstep hdoomed hbad).1
       simp [hempty]
 
 /-! #### Two-channel query costs and accumulated bad-state bound -/
@@ -1187,6 +1211,36 @@ private noncomputable def bcsStickyMemoize (r d : ℕ) {Stmt Sym Chal : Type}
     (bcsMemoize σ q st).map fun (ans, st') =>
       (ans, (st', badFlag || decide (BCSStepBad r d S doomed decSym defaultSym st st')))
 
+open Classical in
+private theorem bcsStickyMemoize_inl (r d : ℕ) {Stmt Sym Chal : Type}
+    [BEq Stmt] [BEq Chal] [Fintype Chal] [Nonempty Chal]
+    (S : Set Stmt) (doomed : Stmt → List (OracleTable d Sym × Chal) → Prop)
+    (decSym : List Bool → Sym) (defaultSym : Sym) (σ : ℕ)
+    (msg : List Bool) (tr_MT : List (List Bool × List Bool))
+    (tr_FS : List (BCSFSQuery Stmt Chal × Chal)) (flag : Bool) :
+    bcsStickyMemoize r d S doomed decSym defaultSym σ (.inl msg) ((tr_MT, tr_FS), flag) =
+      (memoize (fun _ => BitString.uniformList σ) msg tr_MT).map fun (ans, tr_MT') =>
+        (ans, ((tr_MT', tr_FS),
+          flag || decide (BCSStepBad r d S doomed decSym defaultSym
+            (tr_MT, tr_FS) (tr_MT', tr_FS)))) := by
+  simp only [bcsStickyMemoize, bcsMemoize, RandomOracle.memoizeSum_inl, PMF.map_comp,
+    Function.comp_def]
+
+open Classical in
+private theorem bcsStickyMemoize_inr (r d : ℕ) {Stmt Sym Chal : Type}
+    [BEq Stmt] [BEq Chal] [Fintype Chal] [Nonempty Chal]
+    (S : Set Stmt) (doomed : Stmt → List (OracleTable d Sym × Chal) → Prop)
+    (decSym : List Bool → Sym) (defaultSym : Sym) (σ : ℕ)
+    (fsq : BCSFSQuery Stmt Chal) (tr_MT : List (List Bool × List Bool))
+    (tr_FS : List (BCSFSQuery Stmt Chal × Chal)) (flag : Bool) :
+    bcsStickyMemoize r d S doomed decSym defaultSym σ (.inr fsq) ((tr_MT, tr_FS), flag) =
+      (memoize (fun _ => PMF.uniformOfFintype Chal) fsq tr_FS).map fun (c, tr_FS') =>
+        (c, ((tr_MT, tr_FS'),
+          flag || decide (BCSStepBad r d S doomed decSym defaultSym
+            (tr_MT, tr_FS) (tr_MT, tr_FS')))) := by
+  simp only [bcsStickyMemoize, bcsMemoize, RandomOracle.memoizeSum_inr, PMF.map_comp,
+    Function.comp_def]
+
 private def BCSStickyBad (r d : ℕ) {Stmt Sym Chal : Type} (S : Set Stmt)
     (doomed : Stmt → List (OracleTable d Sym × Chal) → Prop)
     (decSym : List Bool → Sym) (defaultSym : Sym)
@@ -1228,69 +1282,46 @@ private theorem toOuterMeasure_bcsStickyMemoize_step [BEq Stmt] [BEq Chal]
         (ε_rbr + (p.1.2.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) := by
   classical
   rcases p with ⟨⟨tr_MT, tr_FS⟩, badFlag⟩
-  unfold BCSStickyBad at hp
-  push Not at hp
-  obtain ⟨hflag, hst⟩ := hp
-  have hflag_false : badFlag = false := Bool.eq_false_iff.mpr hflag
-  subst hflag_false
+  have ⟨hflag, hst⟩ : badFlag ≠ true ∧ BCSGoodState r d S doomed decSym defaultSym (tr_MT, tr_FS) :=
+    by simpa [BCSStickyBad] using hp
+  obtain rfl : badFlag = false := Bool.eq_false_iff.mpr hflag
   cases q with
   | inl msg =>
     simp only [bcsMTCost, bcsFSCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul, add_zero,
-      bcsStickyMemoize, RandomOracle.memoizeSum_inl, PMF.map_comp, Function.comp_def,
-      PMF.toOuterMeasure_map_apply]
+      bcsStickyMemoize_inl, PMF.toOuterMeasure_map_apply]
     cases hlookup : tr_MT.lookup msg with
     | some ans =>
-      rw [memoize_of_some _ _ _ _ hlookup, PMF.monad_pure_eq_pure, PMF.toOuterMeasure_pure_apply]
-      simp [BCSStickyBad, BCSStepBad, hst]
+      simp [memoize_of_some _ _ _ _ hlookup, BCSStickyBad, BCSStepBad, hst]
     | none =>
       rw [memoize_of_none _ _ _ hlookup]
       change ((BitString.uniformList σ).map (fun ans => (ans, (msg, ans) :: tr_MT))).toOuterMeasure
         _ ≤ _
       rw [PMF.toOuterMeasure_map_apply]
-      calc (BitString.uniformList σ).toOuterMeasure _
-          ≤ (BitString.uniformList σ).toOuterMeasure
-            {ans | ans ∈ bcsForbiddenDigests r (tr_MT, tr_FS)} := by
-            refine (BitString.uniformList σ).toOuterMeasure.mono fun ans hbad => ?_
-            rcases hbad with hflag_eq | hnot_good
-            · dsimp only at hflag_eq
-              rw [Bool.false_or] at hflag_eq
-              rcases of_decide_eq_true hflag_eq with hnot_good | ⟨msg', ans', hcons, hmem_forb⟩
-              · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hnot_good
-              · rw [List.cons.injEq, Prod.mk.injEq] at hcons
-                rcases hcons with ⟨⟨_, rfl⟩, _⟩
-                exact hmem_forb
-            · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hnot_good
-        _ ≤ ((bcsForbiddenDigests r (tr_MT, tr_FS)).length : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) :=
-            toOuterMeasure_uniformList_mem_list_le σ (bcsForbiddenDigests r (tr_MT, tr_FS))
-        _ ≤ ((3 * tr_MT.length + r * tr_FS.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) := by
-            gcongr
-            exact_mod_cast length_bcsForbiddenDigests_le r (tr_MT, tr_FS)
+      refine ((BitString.uniformList σ).toOuterMeasure.mono
+          (s₂ := {ans | ans ∈ bcsForbiddenDigests r (tr_MT, tr_FS)}) fun ans hbad => by
+        rcases hbad with hflag | hng
+        · dsimp only at hflag; rw [Bool.false_or] at hflag
+          rcases of_decide_eq_true hflag with hng | ⟨_, _, hcons, hmem⟩
+          · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng
+          · exact (Prod.mk.inj (List.cons.inj hcons).1).2 ▸ hmem
+        · exact mem_bcsForbiddenDigests_of_not_bcsGoodState_cons hst hng).trans
+        ((toOuterMeasure_uniformList_mem_list_le σ (bcsForbiddenDigests r (tr_MT, tr_FS))).trans
+          (by gcongr; exact length_bcsForbiddenDigests_le r (tr_MT, tr_FS)))
   | inr fsq =>
     simp only [bcsMTCost, bcsFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, zero_add,
-      bcsStickyMemoize, RandomOracle.memoizeSum_inr, PMF.map_comp, Function.comp_def,
-      PMF.toOuterMeasure_map_apply]
-    have hno_cons : ¬ ∃ msg' ans', tr_MT = (msg', ans') :: tr_MT ∧
-        ans' ∈ bcsForbiddenDigests r (tr_MT, tr_FS) := by
-      rintro ⟨msg', ans', heq, -⟩
-      have hlen := congrArg List.length heq
-      simp at hlen
-    calc (memoize (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
-            fsq tr_FS).toOuterMeasure _
-        ≤ (memoize (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
-            fsq tr_FS).toOuterMeasure
-          {x | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT x.2} := by
-          refine (memoize (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
-            fsq tr_FS).toOuterMeasure.mono fun x hbad hfs => ?_
-          rcases hbad with hflag_eq | hnot_good
-          · dsimp only at hflag_eq
-            rw [Bool.false_or] at hflag_eq
-            rcases of_decide_eq_true hflag_eq with hnot_good | hcons
-            · exact hnot_good ⟨hst.1, hfs⟩
-            · exact hno_cons hcons
-          · exact hnot_good ⟨hst.1, hfs⟩
-      _ ≤ ε_rbr + (tr_FS.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal) :=
-          toOuterMeasure_memoize_not_bcsChainDoomed_step hstep hescape decSym defaultSym tr_MT fsq
-            hst.2
+      bcsStickyMemoize_inr, PMF.toOuterMeasure_map_apply]
+    refine ((memoize (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
+        fsq tr_FS).toOuterMeasure.mono
+          (s₂ := {x | ¬ BCSChainDoomed r d S doomed decSym defaultSym tr_MT x.2})
+          fun x hbad hfs => by
+        rcases hbad with hflag | hng
+        · dsimp only at hflag; rw [Bool.false_or] at hflag
+          rcases of_decide_eq_true hflag with hng | ⟨_, _, heq, -⟩
+          · exact hng ⟨hst.1, hfs⟩
+          · exact absurd (congrArg List.length heq) (by simp)
+        · exact hng ⟨hst.1, hfs⟩).trans
+      (toOuterMeasure_memoize_not_bcsChainDoomed_step hstep hescape decSym defaultSym tr_MT fsq
+        hst.2)
 
 private theorem toOuterMeasure_run_bcsStickyMemoize_bad_le {γ : Type}
     [BEq Stmt] [BEq Chal] [Fintype Chal] [Nonempty Chal]
@@ -1310,72 +1341,43 @@ private theorem toOuterMeasure_run_bcsStickyMemoize_bad_le {γ : Type}
       {out | BCSStickyBad r d S doomed decSym defaultSym out.2} ≤
       (Q_FS : ℝ≥0∞) * (ε_rbr + (Q_FS : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
         (Q_MT : ℝ≥0∞) * (((3 * Q_MT + r * Q_FS : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
-  have h := OracleComp.toOuterMeasure_bad_le_two_budgets
+  refine (OracleComp.toOuterMeasure_bad_le_two_budgets
     (handler := bcsStickyMemoize r d S doomed decSym defaultSym σ)
     (bad := BCSStickyBad r d S doomed decSym defaultSym)
     bcsMTCost bcsFSCost
     (fun p => ((3 * p.1.1.length + r * p.1.2.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ))
     (fun p => ε_rbr + (p.1.2.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal))
-    (3 * ((1 : ℝ≥0∞) / 2 ^ σ))
-    ((r : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ))
-    0
+    (3 * ((1 : ℝ≥0∞) / 2 ^ σ)) ((r : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) 0
     ((1 : ℝ≥0∞) / Fintype.card Chal)
     (fun q p hp => toOuterMeasure_bcsStickyMemoize_step hstep hescape decSym defaultSym σ q hp)
-    (fun q p _ x hx _ => by
-      rcases p with ⟨⟨tr_MT, tr_FS⟩, badFlag⟩
+    (fun q ⟨⟨tr_MT, tr_FS⟩, _⟩ _ x hx _ => by
       cases q with
       | inl msg =>
-        obtain ⟨⟨ans, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_MT', hmem, rfl⟩ := RandomOracle.mem_support_memoizeSum_inl.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inl] with ⟨⟨_, tr_MT'⟩, hmem, rfl⟩
         have hlen := length_le_of_mem_support_memoize _ msg tr_MT hmem
         simp only [bcsMTCost, bcsFSCost, Nat.cast_one, Nat.cast_zero, one_mul, zero_mul, add_zero]
-        calc ((3 * tr_MT'.length + r * tr_FS.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)
-            ≤ ((3 * (tr_MT.length + 1) + r * tr_FS.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) := by
-              gcongr
-          _ = ((3 * tr_MT.length + r * tr_FS.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) +
-                3 * ((1 : ℝ≥0∞) / 2 ^ σ) := by
-              push_cast
-              ring
+        exact (by gcongr : ((3 * tr_MT'.length + r * tr_FS.length : ℕ) : ℝ≥0∞) * _ ≤
+          ((3 * (tr_MT.length + 1) + r * tr_FS.length : ℕ) : ℝ≥0∞) * _).trans_eq
+          (by push_cast; ring)
       | inr fsq =>
-        obtain ⟨⟨c, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_FS', hmem, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inr] with ⟨⟨_, tr_FS'⟩, hmem, rfl⟩
         have hlen := length_le_of_mem_support_memoize _ fsq tr_FS hmem
         simp only [bcsMTCost, bcsFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, add_zero]
-        calc ((3 * tr_MT.length + r * tr_FS'.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)
-            ≤ ((3 * tr_MT.length + r * (tr_FS.length + 1) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) := by
-              gcongr
-          _ = ((3 * tr_MT.length + r * tr_FS.length : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) +
-                (r : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ) := by
-              push_cast
-              ring)
-    (fun q p _ x hx _ => by
-      rcases p with ⟨⟨tr_MT, tr_FS⟩, badFlag⟩
+        exact (by gcongr : ((3 * tr_MT.length + r * tr_FS'.length : ℕ) : ℝ≥0∞) * _ ≤
+          ((3 * tr_MT.length + r * (tr_FS.length + 1) : ℕ) : ℝ≥0∞) * _).trans_eq
+          (by push_cast; ring))
+    (fun q ⟨⟨tr_MT, tr_FS⟩, _⟩ _ x hx _ => by
       cases q with
-      | inl msg =>
-        obtain ⟨⟨ans, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_MT', -, rfl⟩ := RandomOracle.mem_support_memoizeSum_inl.mp hmemo
-        simp [bcsMTCost, bcsFSCost]
+      | inl msg => supp_cases hx [bcsStickyMemoize_inl]; simp [bcsMTCost, bcsFSCost]
       | inr fsq =>
-        obtain ⟨⟨c, st'⟩, hmemo, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hx
-        obtain ⟨tr_FS', hmem, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hmemo
+        supp_cases hx [bcsStickyMemoize_inr] with ⟨⟨_, tr_FS'⟩, hmem, rfl⟩
         have hlen := length_le_of_mem_support_memoize _ fsq tr_FS hmem
         simp only [bcsMTCost, bcsFSCost, Nat.cast_zero, Nat.cast_one, zero_mul, one_mul, add_zero]
-        calc ε_rbr + (tr_FS'.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)
-            ≤ ε_rbr + ((tr_FS.length + 1 : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal) := by
-              gcongr
-          _ = ε_rbr + (tr_FS.length : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal) +
-                ((1 : ℝ≥0∞) / Fintype.card Chal) := by
-              push_cast
-              ring)
+        exact (by gcongr : ε_rbr + (tr_FS'.length : ℝ≥0∞) * _ ≤
+          ε_rbr + ((tr_FS.length + 1 : ℕ) : ℝ≥0∞) * _).trans_eq (by push_cast; ring))
     hMT hFS (s := (([], []), false))
-    (by
-      rintro (hflag | hbad)
-      · cases hflag
-      · exact hbad (bcsGoodState_nil r d hinit decSym defaultSym))
-  refine h.trans (le_of_eq ?_)
-  simp only [List.length_nil, mul_zero, add_zero]
-  push_cast
-  ring
+    (fun h => h.elim Bool.false_ne_true (· (bcsGoodState_nil r d hinit decSym defaultSym)))
+    ).trans_eq (by simp only [List.length_nil, mul_zero, add_zero]; push_cast; ring)
 
 end StickyBad
 
@@ -1447,15 +1449,8 @@ private theorem isQueryBounded_bcsChallengesAuxProg (x : Stmt) (roots : Fin r �
   | 0, _ => .pure Fin.elim0 0
   | m + 1, hm => by
     unfold bcsChallengesAuxProg
-    have hprev := isQueryBounded_bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)
-    have hq : IsQueryBounded
-        (bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm) >>= fun prev =>
-          OracleComp.query (spec := BCSFSSpec Stmt Chal)
-            (x, rootPrefix roots ⟨m, hm⟩, List.ofFn prev)) (m + 1) :=
-      hprev.bind fun prev =>
-        IsCostBounded.query (cost := fun _ => 1) (x, rootPrefix roots ⟨m, hm⟩, List.ofFn prev)
     simpa only [Nat.add_zero, bind_assoc] using
-      hprev.bind fun prev =>
+      (isQueryBounded_bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)).bind fun prev =>
         (IsCostBounded.query (cost := fun _ => 1)
           (x, rootPrefix roots ⟨m, hm⟩, List.ofFn prev)).bind fun c =>
             IsCostBounded.pure (Fin.snoc prev c : Fin (m + 1) → Chal) 0
@@ -1487,30 +1482,24 @@ private theorem isQueryBounded_zip_mapM_merkleVerifyProg (encSym : Sym → List 
     IsQueryBounded
       ((qs.zip ops).mapM fun ((j, idx), ⟨val, path⟩) =>
         merkleVerifyProg d (roots j) idx.val (encSym val) path)
-      (bcsOpeningsMerkleQueries ops) := by
+      (((qs.zip ops).map fun (_, o) => o.path.length + 1).sum) := by
   induction qs generalizing ops with
-  | nil => exact .pure [] _
+  | nil => exact .pure [] 0
   | cons q qs' ih =>
     cases ops with
     | nil => exact .pure [] 0
     | cons op ops' =>
-      rcases q with ⟨j, idx⟩
-      rcases op with ⟨val, path⟩
-      have hsum : bcsOpeningsMerkleQueries (⟨val, path⟩ :: ops') =
-          (path.length + 1) + bcsOpeningsMerkleQueries ops' := by
-        simp [bcsOpeningsMerkleQueries]
-      rw [List.zip_cons_cons, List.mapM_cons, hsum]
-      have hhd := isQueryBounded_merkleVerifyProg d (roots j) idx.val (encSym val) path
-      have htl := ih ops'
-      simpa only [Nat.add_zero] using
-        hhd.bind fun c => htl.bind fun cs => IsCostBounded.pure (c :: cs) 0
+      simpa only [List.zip_cons_cons, List.mapM_cons, List.map_cons, List.sum_cons,
+        Nat.add_zero] using
+        (isQueryBounded_merkleVerifyProg d (roots q.1) q.2.val (encSym op.leaf) op.path).bind
+          fun c => (ih ops').bind fun cs => IsCostBounded.pure (c :: cs) 0
 
-/-- `bcsVerifyROM iop encSym x prf` makes at most `bcsOpeningsMerkleQueries prf.openings` Merkle
-hash queries, independently of the random Fiat–Shamir challenges. -/
-theorem isCostBounded_bcsMTCost_bcsVerifyROM (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
-    (encSym : Sym → List Bool) (x : Stmt) (prf : BCSProof r Sym) :
-    IsCostBounded bcsMTCost (bcsVerifyROM iop encSym x prf)
-      (bcsOpeningsMerkleQueries prf.openings) := by
+private theorem isCostBounded_bcsMTCost_bcsVerifyROM_of_le
+    (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (encSym : Sym → List Bool) (x : Stmt) (prf : BCSProof r Sym) {B : ℕ}
+    (hB : ∀ chals,
+      (((iop.queries x chals).zip prf.openings).map fun (_, o) => o.path.length + 1).sum ≤ B) :
+    IsCostBounded bcsMTCost (bcsVerifyROM iop encSym x prf) B := by
   unfold bcsVerifyROM
   simpa only [Nat.zero_add] using
     (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl)
@@ -1519,41 +1508,28 @@ theorem isCostBounded_bcsMTCost_bcsVerifyROM (iop : PublicCoinIOP r d Stmt Wit S
         (program := bcsVerifyOpeningsProg iop encSym x prf chals) (by
           unfold bcsVerifyOpeningsProg
           simpa only [Nat.add_zero] using
-            (isQueryBounded_zip_mapM_merkleVerifyProg encSym prf.roots (iop.queries x chals)
-              prf.openings).bind fun checks => IsCostBounded.pure _ 0) fun _ => le_rfl
+            ((isQueryBounded_zip_mapM_merkleVerifyProg encSym prf.roots (iop.queries x chals)
+              prf.openings).mono (hB chals)).bind fun _ => IsCostBounded.pure _ 0)
+        fun _ => le_rfl
 
-private theorem isQueryBounded_zip_mapM_merkleVerifyProg_of_le (encSym : Sym → List Bool)
-    (roots : Fin r → List Bool) (qs : List (Fin r × Fin (2 ^ d)))
-    (ops : List (MerkleOpening Sym)) {q_iop L_path : ℕ}
-    (hqs : qs.length ≤ q_iop) (hops : ∀ op ∈ ops, op.path.length ≤ L_path) :
-    IsQueryBounded
-      ((qs.zip ops).mapM fun ((j, idx), ⟨val, path⟩) =>
-        merkleVerifyProg d (roots j) idx.val (encSym val) path)
-      (q_iop * (L_path + 1)) := by
-  induction qs generalizing ops q_iop with
-  | nil => exact .pure [] _
-  | cons q qs' ih =>
-    cases q_iop with
-    | zero =>
-      simp only [List.length_cons] at hqs
-      omega
-    | succ q_iop' =>
-      cases ops with
-      | nil => exact .pure [] _
-      | cons op ops' =>
-        rcases q with ⟨j, idx⟩
-        rcases op with ⟨val, path⟩
-        simp only [List.zip_cons_cons, List.mapM_cons]
-        have hpath_le : path.length + 1 ≤ L_path + 1 :=
-          Nat.add_le_add_right (hops ⟨val, path⟩ List.mem_cons_self) 1
-        have hhd := (isQueryBounded_merkleVerifyProg d (roots j) idx.val (encSym val) path).mono
-          hpath_le
-        have htl := ih ops' (Nat.le_of_succ_le_succ hqs)
-          (fun op' hop' => hops op' (List.mem_cons_of_mem _ hop'))
-        have hsum : (L_path + 1) + q_iop' * (L_path + 1) = (q_iop' + 1) * (L_path + 1) := by ring
-        rw [← hsum]
-        simpa only [Nat.add_zero] using
-          hhd.bind fun c => htl.bind fun cs => IsCostBounded.pure (c :: cs) 0
+/-- `bcsVerifyROM iop encSym x prf` makes at most `bcsOpeningsMerkleQueries prf.openings` Merkle
+hash queries, independently of the random Fiat–Shamir challenges. -/
+theorem isCostBounded_bcsMTCost_bcsVerifyROM (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (encSym : Sym → List Bool) (x : Stmt) (prf : BCSProof r Sym) :
+    IsCostBounded bcsMTCost (bcsVerifyROM iop encSym x prf)
+      (bcsOpeningsMerkleQueries prf.openings) := by
+  refine isCostBounded_bcsMTCost_bcsVerifyROM_of_le iop encSym x prf fun chals => ?_
+  have htake : ∀ (qs : List (Fin r × Fin (2 ^ d))) (ops : List (MerkleOpening Sym)),
+      ((qs.zip ops).map fun (_, o) => o.path.length + 1).sum ≤ bcsOpeningsMerkleQueries ops := by
+    intro qs
+    induction qs with
+    | nil => intro _; exact Nat.zero_le _
+    | cons _ _ ih =>
+      intro ops; cases ops with
+      | nil => exact le_rfl
+      | cons op _ =>
+        exact Nat.add_le_add_left (ih _) (op.path.length + 1)
+  exact htake _ _
 
 /-- If `iop.queries x chals` makes at most `q_iop` oracle queries for every `chals` and every
 authentication path in `prf.openings` has length at most `L_path`, then
@@ -1564,17 +1540,16 @@ theorem isCostBounded_bcsMTCost_bcsVerifyROM_of_queries_le
     (hqs : ∀ chals, (iop.queries x chals).length ≤ q_iop)
     (hops : ∀ op ∈ prf.openings, op.path.length ≤ L_path) :
     IsCostBounded bcsMTCost (bcsVerifyROM iop encSym x prf) (q_iop * (L_path + 1)) := by
-  unfold bcsVerifyROM
-  simpa only [Nat.zero_add] using
-    (IsCostBounded.liftRight_of_cost_inr_eq_zero (fun _ => rfl)
-      (bcsChallengesProg x prf.roots)).bind fun chals =>
-      IsCostBounded.liftLeft (cost₁ := fun _ => 1)
-        (program := bcsVerifyOpeningsProg iop encSym x prf chals) (by
-          unfold bcsVerifyOpeningsProg
-          simpa only [Nat.add_zero] using
-            (isQueryBounded_zip_mapM_merkleVerifyProg_of_le encSym prf.roots
-              (iop.queries x chals) prf.openings (hqs chals) hops).bind fun checks =>
-                IsCostBounded.pure _ 0) fun _ => le_rfl
+  refine isCostBounded_bcsMTCost_bcsVerifyROM_of_le iop encSym x prf fun chals => ?_
+  calc (((iop.queries x chals).zip prf.openings).map fun (_, o) => o.path.length + 1).sum
+      ≤ ((iop.queries x chals).zip prf.openings).length * (L_path + 1) := by
+        simpa [List.length_map] using List.sum_le_length_nsmul
+          (((iop.queries x chals).zip prf.openings).map fun (_, o) => o.path.length + 1)
+          (L_path + 1) fun x hx => by
+            rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩
+            exact Nat.add_le_add_right (hops p.2 (List.of_mem_zip hp).2) 1
+    _ ≤ q_iop * (L_path + 1) :=
+        Nat.mul_le_mul_right _ (by rw [List.length_zip]; exact (Nat.min_le_left _ _).trans (hqs _))
 
 end CostBounds
 
@@ -1596,63 +1571,35 @@ private theorem validFSChain_of_mem_support_bcsChallengesAuxProg
           (bcsChallengesAuxProg x roots m hm)).run tr_FS).support →
       ValidFSChain tr_FS' x ((List.ofFn roots).take m) (List.ofFn chals)
   | 0, _, tr_FS, tr_FS', chals, _, _, hmem => by
-    simp only [bcsChallengesAuxProg, run_interpret_pure, PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨rfl, rfl⟩
+    supp_cases hmem [bcsChallengesAuxProg, run_interpret_pure]
     exact ⟨by simp, fun _ hi => by simp at hi⟩
   | m + 1, hm, tr_FS, tr_FS', chals, hnodup, hsupp, hmem => by
-    simp only [bcsChallengesAuxProg, run_interpret_bind, run_interpret_query, run_interpret_pure,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hmem
-    rcases hmem with ⟨⟨prev, tr_FS₁⟩, hprev, ⟨c, tr_FS₂⟩, hc, hpair⟩
-    dsimp only at hpair
-    rw [Prod.mk.injEq] at hpair
-    rcases hpair with ⟨rfl, rfl⟩
+    supp_cases hmem [bcsChallengesAuxProg, run_interpret_bind, run_interpret_query,
+      run_interpret_pure] with ⟨⟨prev, tr_FS₁⟩, hprev, ⟨c, tr_FS₂⟩, hc, rfl, rfl⟩
     obtain ⟨-, hnodup₁, hsupp₁, -⟩ :=
       mem_support_run_memoize_invariant
         (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
         (bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)) hnodup hsupp hprev
-    have ih := validFSChain_of_mem_support_bcsChallengesAuxProg x roots m (Nat.le_of_succ_le hm)
-      hnodup hsupp hprev
-    obtain ⟨hc_mem, hsub₂, -, -⟩ :=
-      mem_support_memoize_nodup
-        (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
-        (x, rootPrefix roots ⟨m, hm⟩, List.ofFn prev) hnodup₁ hsupp₁ hc
-    obtain ⟨_, hsteps_prev⟩ := ih
+    obtain ⟨_, hsteps_prev⟩ := validFSChain_of_mem_support_bcsChallengesAuxProg x roots m
+      (Nat.le_of_succ_le hm) hnodup hsupp hprev
+    obtain ⟨hc_mem, hsub₂, -, -⟩ := mem_support_memoize_nodup
+      (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
+      (x, rootPrefix roots ⟨m, hm⟩, List.ofFn prev) hnodup₁ hsupp₁ hc
     refine ⟨by simp [hm], fun i hi => ?_⟩
-    have hi_le : i < m + 1 := by
-      rw [List.length_take_of_le (by simpa using hm)] at hi
-      exact hi
+    rw [List.length_take_of_le (by simpa using hm)] at hi
     by_cases him : i < m
-    · have htake_rts :
-          (((List.ofFn roots).take (m + 1)).take (i + 1)) =
-            (((List.ofFn roots).take m).take (i + 1)) := by
-        rw [List.take_take, List.take_take, Nat.min_eq_left (by omega),
-          Nat.min_eq_left (Nat.succ_le_of_lt him)]
-      have htake_ch :
-          (List.ofFn (Fin.snoc prev c : Fin (m + 1) → Chal)).take i = (List.ofFn prev).take i := by
-        simp only [List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last]
-        exact List.take_append_of_le_length (by simp [Nat.le_of_lt him])
-      have hget_ch : (List.ofFn (Fin.snoc prev c : Fin (m + 1) → Chal))[i]'(by simp [hi_le]) =
-          (List.ofFn prev)[i]'(by simp [him]) := by
-        rw [List.getElem_ofFn, List.getElem_ofFn]
-        exact Fin.snoc_castSucc (α := fun _ => Chal) c prev ⟨i, him⟩
-      rw [htake_rts, htake_ch, hget_ch]
-      exact hsub₂ _ (hsteps_prev i (by simpa [Nat.le_of_succ_le hm] using him))
-    · have hieq : i = m := by omega
-      subst hieq
-      have htake_rts :
-          ((List.ofFn roots).take (i + 1)).take (i + 1) = rootPrefix roots ⟨i, hm⟩ := by
-        rw [List.take_take, Nat.min_self, rootPrefix_eq_take_ofFn]
-      have htake_ch :
-          (List.ofFn (Fin.snoc prev c : Fin (i + 1) → Chal)).take i = List.ofFn prev := by
-        simp only [List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last]
-        exact List.take_left' (by simp)
-      have hget_ch : (List.ofFn (Fin.snoc prev c : Fin (i + 1) → Chal))[i]'(by simp) = c := by
-        rw [List.getElem_ofFn]
-        exact Fin.snoc_last (α := fun _ => Chal) c prev
-      rw [htake_rts, htake_ch, hget_ch]
-      exact hc_mem
+    · simpa only [List.take_take, Nat.min_eq_left (by omega : i + 1 ≤ m + 1),
+        Nat.min_eq_left (Nat.succ_le_of_lt him), List.ofFn_succ_last, Fin.snoc_castSucc,
+        Fin.snoc_last,
+        List.take_append_of_le_length (by simp [him.le] : i ≤ (List.ofFn prev).length),
+        List.getElem_append_left (by simpa using him : i < (List.ofFn prev).length)] using
+          hsub₂ _ (hsteps_prev i (by simpa [Nat.le_of_succ_le hm] using him))
+    · obtain rfl : i = m := by omega
+      simpa only [List.take_take, Nat.min_self, rootPrefix_eq_take_ofFn,
+        List.ofFn_succ_last, Fin.snoc_castSucc, Fin.snoc_last,
+        List.take_left' (by simp : (List.ofFn prev).length = i),
+        List.getElem_append_right (by simp : (List.ofFn prev).length ≤ i),
+        List.length_ofFn, Nat.sub_self, List.getElem_singleton] using hc_mem
 
 private theorem validFSChain_of_mem_support_bcsChallengesProg
     [DecidableEq Stmt] [DecidableEq Chal] [Fintype Chal] [Nonempty Chal]
@@ -1693,55 +1640,36 @@ private theorem exists_validFSChain_and_iopVerify_of_mem_support_bcsVerifyROM
     ∃ chals : Fin r → Chal,
       ValidFSChain tr_FS₂ x (List.ofFn prf.roots) (List.ofFn chals) ∧
       iopVerify iop x chals (bcsExtractOracles decSym defaultSym tr_MT₃ d prf.roots) = true := by
-  simp only [bcsVerifyROM, run_interpret_bind, PMF.monad_bind_eq_bind,
-    PMF.mem_support_bind_iff] at hmem
-  rcases hmem with ⟨⟨chals, st₂⟩, hFS_call, hMT_call⟩
-  rw [RandomOracle.run_interpret_memoizeSum_liftRight, PMF.mem_support_map_iff] at hFS_call
-  obtain ⟨⟨chals', tr_FS₂'⟩, hch_mem, hpair⟩ := hFS_call
-  dsimp only at hpair
-  rw [Prod.mk.injEq] at hpair
-  rcases hpair with ⟨rfl, rfl⟩
-  obtain ⟨-, hnodup_FS₂, -, heval_FS⟩ :=
-    mem_support_run_memoize_invariant
-      (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
-      (bcsChallengesProg x prf.roots) hnodup_FS₁ hsupp_FS₁ hch_mem
-  have hchain : ValidFSChain tr_FS₂' x (List.ofFn prf.roots) (List.ofFn chals') :=
-    validFSChain_of_mem_support_bcsChallengesProg x prf.roots hnodup_FS₁ hsupp_FS₁ hch_mem
-  rw [RandomOracle.run_interpret_memoizeSum_liftLeft, PMF.mem_support_map_iff] at hMT_call
-  obtain ⟨⟨ok', tr_MT₃'⟩, hmt_mem, hpair'⟩ := hMT_call
-  dsimp only at hpair'
-  rw [Prod.mk.injEq, Prod.mk.injEq] at hpair'
-  rcases hpair' with ⟨rfl, rfl, rfl⟩
-  obtain ⟨-, hnodup_MT₃, -, heval_MT⟩ :=
-    mem_support_run_memoize_invariant (fun _ : List Bool => BitString.uniformList σ)
-      (bcsVerifyOpeningsProg iop encSym x prf chals') hnodup_MT₁ hsupp_MT₁ hmt_mem
+  supp_cases hmem [bcsVerifyROM, run_interpret_bind,
+    RandomOracle.run_interpret_memoizeSum_liftRight] with
+    ⟨_, ⟨⟨chals', tr_FS₂'⟩, hch_mem, rfl⟩, hMT_call⟩
+  supp_cases hMT_call [RandomOracle.run_interpret_memoizeSum_liftLeft] with
+    ⟨⟨_, tr_MT₃'⟩, hmt_mem, rfl, rfl, rfl⟩
+  obtain ⟨-, hnodup_FS₂, -, heval_FS⟩ := mem_support_run_memoize_invariant
+    (fun _ : BCSFSQuery Stmt Chal => PMF.uniformOfFintype Chal)
+    (bcsChallengesProg x prf.roots) hnodup_FS₁ hsupp_FS₁ hch_mem
+  obtain ⟨-, hnodup_MT₃, -, heval_MT⟩ := mem_support_run_memoize_invariant
+    (fun _ : List Bool => BitString.uniformList σ)
+    (bcsVerifyOpeningsProg iop encSym x prf chals') hnodup_MT₁ hsupp_MT₁ hmt_mem
   set hTree : List Bool → List Bool := fun q => (tr_MT₃'.lookup q).getD []
-  have hcons_MT : TraceConsistentWith hTree tr_MT₃' :=
-    traceConsistentWith_lookup_of_nodup tr_MT₃' [] hnodup_MT₃
-  let defaultChal : Chal := Classical.choice ‹Nonempty Chal›
-  set f : BCSFSQuery Stmt Chal → Chal := fun fsq => (tr_FS₂'.lookup fsq).getD defaultChal
-  have hcons_FS : TraceConsistentWith f tr_FS₂' :=
-    traceConsistentWith_lookup_of_nodup tr_FS₂' defaultChal hnodup_FS₂
+  have hcons_MT := traceConsistentWith_lookup_of_nodup tr_MT₃' [] hnodup_MT₃
+  let dChal : Chal := Classical.choice ‹Nonempty Chal›
+  set f : BCSFSQuery Stmt Chal → Chal := fun fsq => (tr_FS₂'.lookup fsq).getD dChal
   have hchals_eq : chals' = bcsChallenge (chainedFS f) x prf.roots := by
-    simpa only [evalPure_bcsChallengesProg] using heval_FS f hcons_FS
-  have hpaths : BCSOpeningsQueriedInTrace (fun _ => hTree) [] iop encSym tr_MT₃' x chals' prf := by
-    simp only [bcsVerifyOpeningsProg, run_interpret_bind, run_interpret_pure,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
-      PMF.mem_support_pure_iff] at hmt_mem
-    rcases hmt_mem with ⟨⟨checks, tr_MT_mid⟩, hchecks, hpair_mid⟩
-    obtain ⟨_, rfl⟩ := Prod.mk.inj hpair_mid
-    intro j idx val path hq
-    exact pathQueriedInTrace_of_mem_support_mapM_merkleVerifyProg hnodup_MT₁ hsupp_MT₁ hchecks d
+    simpa only [evalPure_bcsChallengesProg] using
+      heval_FS f (traceConsistentWith_lookup_of_nodup tr_FS₂' dChal hnodup_FS₂)
+  refine ⟨chals',
+    validFSChain_of_mem_support_bcsChallengesProg x prf.roots hnodup_FS₁ hsupp_FS₁ hch_mem, ?_⟩
+  supp_cases hmt_mem [bcsVerifyOpeningsProg, run_interpret_bind, run_interpret_pure] with
+    ⟨⟨_, _⟩, hchecks, -, rfl⟩
+  rw [hchals_eq]
+  refine iopVerify_bcsExtractOracles_of_bcsVerify hdec defaultSym hfree (fun j idx val path hq =>
+    pathQueriedInTrace_of_mem_support_mapM_merkleVerifyProg hnodup_MT₁ hsupp_MT₁ hchecks d
       (fun ((j, _), _) => prf.roots j) (fun ((_, idx), _) => idx.val)
       (fun (_, o) => encSym o.leaf) (fun (_, o) => o.path) (fun ⟨⟨_, _⟩, ⟨_, _⟩⟩ => rfl)
-      hcons_MT _ hq
-  have hver : bcsVerify iop (fun _ => hTree) [] encSym (chainedFS f) x prf = true := by
-    have heq := (heval_MT hTree hcons_MT).symm
-    rw [evalPure_bcsVerifyOpeningsProg, hchals_eq] at heq
-    exact heq
-  refine ⟨chals', hchain, ?_⟩
-  rw [hchals_eq] at hpaths ⊢
-  exact iopVerify_bcsExtractOracles_of_bcsVerify hdec defaultSym hfree hpaths hver
+      hcons_MT _ (hchals_eq ▸ hq)) ?_
+  simpa only [bcsVerify, evalPure_bcsVerifyOpeningsProg, hchals_eq] using
+    (heval_MT hTree hcons_MT).symm
 
 /-- An accepting verification that ends in a good state yields a doomed accepted IOP transcript:
 if a prover run from `([], [])` reaches `st₁`, `bcsVerifyROM iop encSym x prf` accepts from `st₁`
@@ -1847,12 +1775,10 @@ theorem bcsSoundnessGame_eq_run_bcsMemoize [DecidableEq Stmt] [DecidableEq Chal]
     bcsSoundnessGame iop encSym lang P σ =
       ((OracleComp.interpret (bcsMemoize σ) (bcsSoundnessProg iop encSym lang P)).run ([], [])).map
         Prod.fst := by
-  have hdist : bcsOracleDist Stmt Chal σ =
+  rw [bcsSoundnessGame, show bcsOracleDist Stmt Chal σ =
       sumHandler (spec₁ := MerkleHashSpec) (spec₂ := BCSFSSpec Stmt Chal)
-        (fun _ => BitString.uniformList σ) (fun _ => PMF.uniformOfFintype Chal) := by
-    funext q
-    cases q <;> rfl
-  rw [bcsSoundnessGame, hdist]
+        (fun _ => BitString.uniformList σ) (fun _ => PMF.uniformOfFintype Chal) from
+    funext fun | .inl _ => rfl | .inr _ => rfl]
   exact (RandomOracle.map_fst_run_interpret_memoizeSum_nil _ _ _).symm
 
 /-- Any outcome `(true, st')` in the support of `bcsSoundnessProg` under `bcsMemoize` violates
@@ -1871,15 +1797,9 @@ private theorem not_bcsGoodState_of_mem_support_bcsSoundnessProg
       ((OracleComp.interpret (bcsMemoize σ) (bcsSoundnessProg iop encSym lang P)).run
         ([], [])).support) :
     ¬ BCSGoodState r d langᶜ doomed decSym defaultSym st' := by
-  simp only [bcsSoundnessProg, run_interpret_bind, run_interpret_pure, PMF.monad_bind_eq_bind,
-    PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-  rcases hmem with ⟨⟨⟨x, prf⟩, ⟨tr_MT₁, tr_FS₁⟩⟩, hP, ⟨ok, ⟨tr_MT₃, tr_FS₂⟩⟩, hV, hwin⟩
-  dsimp only at hwin
-  rw [Prod.mk.injEq] at hwin
-  rcases hwin with ⟨hwin, rfl⟩
-  symm at hwin
-  simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin
-  obtain ⟨hx_not_lang, rfl⟩ := hwin
+  supp_cases hmem [bcsSoundnessProg, run_interpret_bind, run_interpret_pure,
+    eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] with
+    ⟨⟨⟨x, prf⟩, st₁⟩, hP, ⟨_, st₃⟩, hV, ⟨hx_not_lang, rfl⟩, rfl⟩
   intro hgood
   obtain ⟨chals, -, hdoomed, hiop_acc⟩ :=
     exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP hV hgood
@@ -1917,19 +1837,13 @@ theorem bcsROMSoundness_bound [DecidableEq Stmt] [DecidableEq Chal] [Fintype Cha
     PMF.toOuterMeasure_map_apply]
   set run := (OracleComp.interpret (bcsMemoize σ) (bcsSoundnessProg iop encSym lang P)).run ([], [])
   rw [← PMF.toOuterMeasure_apply_inter_support]
-  calc run.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ run.support)
-      ≤ run.toOuterMeasure {out | ¬ BCSGoodState r d langᶜ doomed decSym defaultSym out.2} := by
-        refine run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_
-        simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
-        subst hres
-        exact not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P hmem
-    _ ≤ ((t_FS + r : ℕ) : ℝ≥0∞) *
-            (ε_rbr + ((t_FS + r : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
-          (Q_MT : ℝ≥0∞) *
-            (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
-        toOuterMeasure_run_bcsMemoize_not_goodState_le
-          hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT
-          (isCostBounded_bcsFSCost_bcsSoundnessProg iop encSym lang hFS)
+  refine (run.toOuterMeasure.mono fun ⟨res, st'⟩ ⟨hres, hmem⟩ => ?_).trans
+    (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := langᶜ)
+      hrbr.init_doomed (fun x _ => hrbr.step_doomed x) hescape decSym defaultSym σ hMT
+      (isCostBounded_bcsFSCost_bcsSoundnessProg iop encSym lang hFS))
+  simp only [Set.mem_preimage, Set.mem_singleton_iff] at hres
+  subst hres
+  exact not_bcsGoodState_of_mem_support_bcsSoundnessProg hrbr hdec defaultSym σ P hmem
 
 /-- **Adaptive two-channel BCS ROM soundness (separate prover/verifier Merkle budgets on
 `P.support`)**: if `P` makes at most `t_MT` Merkle hash queries and `t_FS` Fiat–Shamir queries, and
@@ -2035,10 +1949,7 @@ private theorem bcsKnowledgeSoundnessGame_eq_bind [BEq Stmt] [BEq Chal]
         ((OracleComp.interpret (bcsMemoize σ) (bcsVerifyROM iop encSym x prf)).run
           (tr_P, tr_FS)).map fun (ok, _) => ok && decide (¬ rel x w) := by
   simp only [bcsKnowledgeSoundnessGame, StateT.run'_eq, StateT.run_bind, StateT.run_get,
-    StateT.run_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.monad_map_eq_map,
-    PMF.map_bind, PMF.pure_bind]
-  refine congrArg (PMF.bind _) (funext fun ⟨⟨x, prf⟩, ⟨tr_P, tr_FS⟩⟩ => ?_)
-  simp only [PMF.map, PMF.pure_bind, Function.comp_def]
+    StateT.run_pure, pmf_norm, PMF.monad_map_eq_map, PMF.map]
 
 /-- **Straight-line extraction failure** on an output `(((x, prf), ok), (tr_MT, tr_FS))` of
 `bcsExecROM` under `bcsMemoize σ`: the verifier accepts (`ok = true`), but the witness
@@ -2079,32 +1990,20 @@ theorem bcsROMKnowledgeSoundness_trace_bound [DecidableEq Stmt] [DecidableEq Cha
           (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   set run := (OracleComp.interpret (bcsMemoize σ) (bcsExecROM iop encSym P)).run ([], [])
   rw [← PMF.toOuterMeasure_apply_inter_support]
-  calc run.toOuterMeasure
-        ({out | BCSExtractionFails rel iopExtract decSym defaultSym out} ∩ run.support)
-      ≤ run.toOuterMeasure {out | ¬ BCSGoodState r d Set.univ doomed decSym defaultSym out.2} := by
-        refine run.toOuterMeasure.mono
-          fun ⟨⟨⟨x, prf⟩, ok⟩, ⟨tr_MT₃, tr_FS₂⟩⟩ ⟨hfails, hmem⟩ => ?_
-        obtain ⟨hok, hnot_rel⟩ := hfails
-        subst hok
-        simp only [run, bcsExecROM, run_interpret_bind, run_interpret_pure, PMF.monad_bind_eq_bind,
-          PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at hmem
-        rcases hmem with ⟨⟨⟨x₁, prf₁⟩, ⟨tr_MT₁, tr_FS₁⟩⟩, hP, ⟨ok₁, st₃⟩, hV, hpair⟩
-        dsimp only at hpair
-        rw [Prod.mk.injEq, Prod.mk.injEq, Prod.mk.injEq] at hpair
-        rcases hpair with ⟨⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩
-        intro hgood
-        obtain ⟨chals, -, hdoomed, hiop_acc⟩ :=
-          exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP hV
-            hgood (Set.mem_univ x)
-        exact hnot_rel (hks.extract_of_doomed x _ chals hdoomed hiop_acc)
-    _ ≤ ((t_FS + r : ℕ) : ℝ≥0∞) *
-            (ε_rbr + ((t_FS + r : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
-          (Q_MT : ℝ≥0∞) *
-            (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
-        toOuterMeasure_run_bcsMemoize_not_goodState_le
-          (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
-          (fun x _ => hescape x) decSym defaultSym σ hMT
-          (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS)
+  refine (run.toOuterMeasure.mono
+    fun ⟨⟨⟨x, prf⟩, ok⟩, st₃⟩ ⟨⟨hok, hnot_rel⟩, hmem⟩ => ?_).trans
+    (toOuterMeasure_run_bcsMemoize_not_goodState_le (S := Set.univ)
+      (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
+      (fun x _ => hescape x) decSym defaultSym σ hMT
+      (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS))
+  subst hok
+  supp_cases hmem [run, bcsExecROM, run_interpret_bind, run_interpret_pure] with
+    ⟨⟨⟨x, prf⟩, st₁⟩, hP, ⟨_, _⟩, hV, ⟨⟨rfl, rfl⟩, rfl⟩, rfl⟩
+  intro hgood
+  obtain ⟨chals, -, hdoomed, hiop_acc⟩ :=
+    exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP hV
+      hgood (Set.mem_univ x)
+  exact hnot_rel (hks.extract_of_doomed x _ chals hdoomed hiop_acc)
 
 /-- Along a `liftRight` program run under `bcsStickyMemoize`, the Merkle trace `tr_MT` is unchanged.
 -/
@@ -2120,18 +2019,15 @@ private theorem fst_eq_of_mem_support_bcsStickyMemoize_liftRight {γ : Type}
     p'.1.1 = p.1.1 := by
   induction prog using OracleComp.induction generalizing p with
   | pure a =>
-    simp only [liftRight_pure, run_interpret_pure, PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨rfl, rfl⟩
+    supp_cases hmem [liftRight_pure, run_interpret_pure]
     rfl
   | query_bind q cont ih =>
-    simp only [liftRight_bind, liftRight_query, run_interpret_bind, run_interpret_query,
-      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
-    rcases hmem with ⟨⟨c, p₁⟩, hc, hcont⟩
     rcases p with ⟨⟨tr_MT, tr_FS⟩, flag⟩
-    obtain ⟨⟨c₂, st⟩, hc, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hc
-    obtain ⟨tr_FS₁, -, rfl⟩ := RandomOracle.mem_support_memoizeSum_inr.mp hc
-    rcases Prod.mk.inj hpair with ⟨rfl, rfl⟩
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    supp_cases hmem [liftRight_freeMBind, liftRight_query, OracleComp.runWith_freeMBind,
+      OracleComp.runWith_query, bcsStickyMemoize_inr] with
+      ⟨_, ⟨⟨c₂, tr_FS₁⟩, -, rfl⟩, hcont⟩
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
     exact (ih c₂ hcont :)
 
 /-- Along a `liftLeft` program run under `bcsStickyMemoize`, if the final sticky flag `p'.2` is
@@ -2153,41 +2049,27 @@ private theorem extractTable_eq_of_mem_support_bcsStickyMemoize_liftLeft {γ : T
           bcsExtractTable decSym defaultSym p.1.1 d rt := by
   induction prog using OracleComp.induction generalizing p with
   | pure a =>
-    simp only [liftLeft_pure, run_interpret_pure, PMF.monad_pure_eq_pure,
-      PMF.mem_support_pure_iff, Prod.mk.injEq] at hmem
-    rcases hmem with ⟨rfl, rfl⟩
+    supp_cases hmem [liftLeft_pure, run_interpret_pure]
     exact ⟨hflag', rfl, fun _ _ => rfl⟩
   | query_bind msg cont ih =>
-    simp only [liftLeft_bind, liftLeft_query, run_interpret_bind, run_interpret_query,
-      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at hmem
-    rcases hmem with ⟨⟨ans, p₁⟩, hans, hcont⟩
-    obtain ⟨hflag₁, hfs_eq, hextract_tail⟩ := ih ans hcont
     rcases p with ⟨⟨tr_MT, tr_FS⟩, flag⟩
-    obtain ⟨⟨ans₂, st⟩, hans, hpair⟩ := (PMF.mem_support_map_iff _ _ _).mp hans
-    obtain ⟨tr_MT₁, hmt, rfl⟩ := RandomOracle.mem_support_memoizeSum_inl.mp hans
-    rcases Prod.mk.inj hpair with ⟨rfl, rfl⟩
+    rw [← OracleComp.runWith_eq_run_interpret] at hmem
+    supp_cases hmem [liftLeft_freeMBind, liftLeft_query, OracleComp.runWith_freeMBind,
+      OracleComp.runWith_query, bcsStickyMemoize_inl] with
+      ⟨_, ⟨⟨ans₂, tr_MT₁⟩, hmt, rfl⟩, hcont⟩
+    rw [OracleComp.runWith_eq_run_interpret] at hcont
+    obtain ⟨hflag₁, hfs_eq, hextract_tail⟩ := ih ans₂ hcont
     dsimp only at hflag₁ hfs_eq hextract_tail
     simp only [Bool.or_eq_false_iff, decide_eq_false_iff_not] at hflag₁
     obtain ⟨rfl, hnot_step⟩ := hflag₁
     refine ⟨rfl, hfs_eq, fun rt hrt => ?_⟩
     rw [hextract_tail rt hrt]
-    rcases (RandomOracle.mem_support_memoize_iff _ msg tr_MT (ans₂, tr_MT₁)).mp hmt with
-      ⟨_, htr_eq⟩ | ⟨_, _, htr_eq⟩
-    · change tr_MT₁ = tr_MT at htr_eq
-      rw [htr_eq]
-    · change tr_MT₁ = (msg, ans₂) :: tr_MT at htr_eq
-      subst htr_eq
-      have hnot_forb : ans₂ ∉ bcsForbiddenDigests r (tr_MT, tr_FS) := by
-        intro hforb
-        exact hnot_step (Or.inr ⟨msg, ans₂, rfl, hforb⟩)
-      simp only [bcsForbiddenDigests, List.mem_append, List.mem_map, not_or, not_exists,
-        not_and] at hnot_forb
-      obtain ⟨⟨⟨_, hnot_left⟩, hnot_right⟩, hnot_fs⟩ := hnot_forb
-      have hne_rt : ans₂ ≠ rt := fun heq => hnot_fs (heq ▸ hrt)
-      have hchildren : ∀ e ∈ tr_MT, ans₂ ≠ unframe e.1 ∧ ans₂ ≠ dropFrame e.1 :=
-        fun ⟨q, d'⟩ he =>
-          ⟨fun heq => hnot_left (q, d') he heq.symm, fun heq => hnot_right (q, d') he heq.symm⟩
-      exact bcsExtractTable_cons_of_ne decSym defaultSym tr_MT msg hne_rt hchildren
+    supp_cases hmt [RandomOracle.mem_support_memoize_iff]
+    · rfl
+    · obtain ⟨_, hchildren, hnot_fs⟩ := mem_bcsForbiddenDigests_not_elim
+        fun hforb => hnot_step (Or.inr ⟨msg, ans₂, rfl, hforb⟩)
+      exact bcsExtractTable_cons_of_ne decSym defaultSym tr_MT msg
+        (fun heq => hnot_fs (heq ▸ hrt)) hchildren
 
 /-- Rewriting `bcsKnowledgeSoundnessGame` as an event over the sticky-bad execution of
 `bcsExecROM iop encSym P`: forgetting the sticky flag in both `P` and `bcsVerifyROM` reproduces
@@ -2218,7 +2100,7 @@ private theorem bcsKnowledgeSoundnessGame_eq_sticky [BEq Stmt] [BEq Chal]
 
 /-- **Adaptive straight-line BCS ROM knowledge soundness theorem** (compare state-restoration
 knowledge soundness and direct extraction in [BenSassonChiesaSpooner2016] and [ChiesaYogev2024],
-Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–289, and the round-by-round reduction in
+Theorem 26.1.1 and Construction 26.1.3, printed pp. 288–291, and the round-by-round reduction in
 [ChiesaYogev2024], Chapter 31, Definition 31.1.6 and Theorem 31.3.1): under
 `IOPRoundByRoundKnowledgeSoundness iop rel iopExtract doomed goodStep` with per-round challenge
 escape probability `≤ ε_rbr`, for any adaptive cheating prover `P` making at most `t_FS`
@@ -2250,119 +2132,74 @@ theorem bcsROMKnowledgeSoundness_bound [DecidableEq Stmt] [DecidableEq Chal]
           (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) := by
   classical
   set handler := bcsStickyMemoize r d (Set.univ : Set Stmt) doomed decSym defaultSym σ
-  have hgame_eq : bcsKnowledgeSoundnessGame iop rel iopExtract encSym decSym defaultSym P σ =
-      (((OracleComp.interpret handler P).run (([], []), false)).bind fun ((x, prf), p₁) =>
-        ((OracleComp.interpret handler (bcsVerifyROM iop encSym x prf)).run p₁).map
-          fun (ok, p₃) =>
-            (ok && decide (¬ rel x
-              (bcsExtractWitness iopExtract decSym defaultSym p₁.1.1 x prf.roots)), p₃)).map
-        Prod.fst := by
-    rw [bcsKnowledgeSoundnessGame_eq_sticky iop rel iopExtract doomed encSym decSym defaultSym P σ,
-      PMF.map_bind]
-    refine congrArg (PMF.bind _) (funext fun ⟨⟨x, prf⟩, p₁⟩ => ?_)
-    simp only [handler, PMF.map_comp, Function.comp_def]
   set combined : PMF (Bool × (BCSTraceState Stmt Chal × Bool)) :=
     ((OracleComp.interpret handler P).run (([], []), false)).bind fun ((x, prf), p₁) =>
       ((OracleComp.interpret handler (bcsVerifyROM iop encSym x prf)).run p₁).map
         fun (ok, p₃) =>
           (ok && decide (¬ rel x
             (bcsExtractWitness iopExtract decSym defaultSym p₁.1.1 x prf.roots)), p₃)
+  have hgame_eq : bcsKnowledgeSoundnessGame iop rel iopExtract encSym decSym defaultSym P σ =
+      combined.map Prod.fst := by
+    simp only [bcsKnowledgeSoundnessGame_eq_sticky iop rel iopExtract doomed encSym decSym
+      defaultSym P σ, combined, handler, pmf_norm, PMF.map]
   have hrun_snd : combined.map Prod.snd =
       ((OracleComp.interpret handler (bcsExecROM iop encSym P)).run (([], []), false)).map
         Prod.snd := by
-    simp only [combined, bcsExecROM, run_interpret_bind, run_interpret_pure,
-      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind]
-    refine congrArg (PMF.bind _) (funext fun ⟨⟨x, prf⟩, p₁⟩ => ?_)
-    simp only [Function.comp_def, PMF.map, PMF.bind_bind, PMF.pure_bind]
+    simp only [combined, bcsExecROM, run_interpret_bind, run_interpret_pure, pmf_norm, PMF.map]
+  have hmem_proj {γ : Type} (prog : OracleComp (BCSROMSpec Stmt Chal) γ) {res : γ}
+      {p p' : BCSTraceState Stmt Chal × Bool}
+      (h : (res, p') ∈ ((OracleComp.interpret handler prog).run p).support) :
+      (res, p'.1) ∈ ((OracleComp.interpret (bcsMemoize σ) prog).run p.1).support :=
+    run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ prog p.1 p.2 ▸
+      (PMF.mem_support_map_iff _ _ _).mpr ⟨(res, p'), h, rfl⟩
   rw [hgame_eq, ← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
     ← PMF.toOuterMeasure_apply_inter_support]
-  calc combined.toOuterMeasure ((Prod.fst ⁻¹' {true}) ∩ combined.support)
-      ≤ combined.toOuterMeasure
-          {out | BCSStickyBad r d Set.univ doomed decSym defaultSym out.2} := by
-        refine combined.toOuterMeasure.mono fun ⟨win, p₃⟩ ⟨hwin, hmem⟩ => ?_
-        simp only [Set.mem_preimage, Set.mem_singleton_iff] at hwin
-        subst hwin
-        simp only [combined, PMF.mem_support_bind_iff, PMF.mem_support_map_iff] at hmem
-        rcases hmem with ⟨⟨⟨x, prf⟩, p₁⟩, hP_sticky, ⟨ok, p₃'⟩, hV_sticky, hpair⟩
-        rw [Prod.mk.injEq] at hpair
-        rcases hpair with ⟨hwin_eq, rfl⟩
-        dsimp only at hwin_eq
-        simp only [Bool.and_eq_true, decide_eq_true_eq] at hwin_eq
-        obtain ⟨rfl, hnot_rel_P⟩ := hwin_eq
-        by_contra hnot_bad
-        change ¬ BCSStickyBad r d Set.univ doomed decSym defaultSym p₃' at hnot_bad
-        unfold BCSStickyBad at hnot_bad
-        push Not at hnot_bad
-        obtain ⟨hflag₃_ne, hgood₃⟩ := hnot_bad
-        have hflag₃ : p₃'.2 = false := Bool.eq_false_iff.mpr hflag₃_ne
-        -- Extract intermediate state between `bcsChallengesProg` and `bcsVerifyOpeningsProg`.
-        have hV_split := hV_sticky
-        simp only [bcsVerifyROM, run_interpret_bind, PMF.monad_bind_eq_bind,
-          PMF.mem_support_bind_iff] at hV_split
-        rcases hV_split with ⟨⟨chals_mid, p₂⟩, hchal_sticky, hopen_sticky⟩
-        have htr_P_eq : p₂.1.1 = p₁.1.1 :=
-          fst_eq_of_mem_support_bcsStickyMemoize_liftRight Set.univ doomed decSym defaultSym σ
-            (bcsChallengesProg x prf.roots) hchal_sticky
-        obtain ⟨_, hfs₂_eq, hextract_eq⟩ :=
-          extractTable_eq_of_mem_support_bcsStickyMemoize_liftLeft Set.univ doomed decSym
-            defaultSym σ (bcsVerifyOpeningsProg iop encSym x prf chals_mid) hopen_sticky hflag₃
-        -- Project sticky support memberships to `bcsMemoize` for `ValidFSChain` & `iopVerify`.
-        have hP_mem : ((x, prf), p₁.1) ∈
-            ((OracleComp.interpret (bcsMemoize σ) P).run ([], [])).support := by
-          rw [← run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ P
-            ([], []) false, PMF.mem_support_map_iff]
-          exact ⟨((x, prf), p₁), hP_sticky, rfl⟩
-        have hV_mem : (true, p₃'.1) ∈
-            ((OracleComp.interpret (bcsMemoize σ) (bcsVerifyROM iop encSym x prf)).run
-              p₁.1).support := by
-          rcases hp₁ : p₁ with ⟨st₁, flag₁⟩
-          rw [← run_interpret_bcsStickyMemoize_map Set.univ doomed decSym defaultSym σ
-            (bcsVerifyROM iop encSym x prf) st₁ flag₁, PMF.mem_support_map_iff]
-          exact ⟨(true, p₃'), hp₁ ▸ hV_sticky, rfl⟩
-        obtain ⟨chals, hchain, hdoomed, hiop_acc⟩ :=
-          exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ hP_mem
-            hV_mem hgood₃ (Set.mem_univ x)
-        have horacles_eq :
-            bcsExtractOracles decSym defaultSym p₁.1.1 d prf.roots =
-              bcsExtractOracles decSym defaultSym p₃'.1.1 d prf.roots := by
-          funext j
-          obtain ⟨hlen_ch, hsteps_ch⟩ := hchain
-          have hj_lt : j.val < (List.ofFn prf.roots).length := by simp [j.isLt]
-          have hstep_j := hsteps_ch j.val hj_lt
-          have hmem_forb_j : prf.roots j ∈
-              p₂.1.2.flatMap (fun ((_, rts, _), _) => rts.take r) := by
-            rw [← hfs₂_eq, List.mem_flatMap]
-            refine ⟨((x, (List.ofFn prf.roots).take (j.val + 1), (List.ofFn chals).take j.val),
-              (List.ofFn chals)[j.val]'(hlen_ch ▸ hj_lt)), hstep_j, ?_⟩
-            have htake_le : ((List.ofFn prf.roots).take (j.val + 1)).length ≤ r := by
-              simp [Nat.succ_le_of_lt j.isLt]
-            dsimp only
-            rw [List.take_of_length_le htake_le, ← rootPrefix_eq_take_ofFn]
-            exact List.mem_ofFn.mpr ⟨Fin.last j.val, by simp⟩
-          have htab := hextract_eq (prf.roots j) hmem_forb_j
-          rw [htr_P_eq] at htab
-          exact htab.symm
-        have hrel_final := hks.extract_of_doomed x _ chals hdoomed hiop_acc
-        exact hnot_rel_P (by simpa only [bcsExtractWitness, horacles_eq] using hrel_final)
-    _ = ((OracleComp.interpret handler (bcsExecROM iop encSym P)).run
-          (([], []), false)).toOuterMeasure
-          {out | BCSStickyBad r d Set.univ doomed decSym defaultSym out.2} := by
-        have h1 : combined.toOuterMeasure
-            {out | BCSStickyBad r d Set.univ doomed decSym defaultSym out.2} =
-            (combined.map Prod.snd).toOuterMeasure
-              {p | BCSStickyBad r d Set.univ doomed decSym defaultSym p} :=
-          (PMF.toOuterMeasure_map_apply Prod.snd combined
-            {p | BCSStickyBad r d Set.univ doomed decSym defaultSym p}).symm
-        rw [h1, hrun_snd, PMF.toOuterMeasure_map_apply]
-        rfl
-    _ ≤ ((t_FS + r : ℕ) : ℝ≥0∞) *
-            (ε_rbr + ((t_FS + r : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / Fintype.card Chal)) +
-          (Q_MT : ℝ≥0∞) *
-            (((3 * Q_MT + r * (t_FS + r) : ℕ) : ℝ≥0∞) * ((1 : ℝ≥0∞) / 2 ^ σ)) :=
-        toOuterMeasure_run_bcsStickyMemoize_bad_le
-          (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
-          (fun x _ => hescape x) decSym defaultSym σ hMT
-          (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS)
+  refine (combined.toOuterMeasure.mono
+      (s₂ := {out | BCSStickyBad r d Set.univ doomed decSym defaultSym out.2})
+      fun ⟨win, p₃⟩ ⟨hwin, hmem⟩ => ?_).trans <|
+    le_trans (le_of_eq <| by
+      change (combined.toOuterMeasure
+        (Prod.snd ⁻¹' {p | BCSStickyBad r d Set.univ doomed decSym defaultSym p})) = _
+      rw [← PMF.toOuterMeasure_map_apply Prod.snd combined, hrun_snd,
+        PMF.toOuterMeasure_map_apply]
+      rfl)
+    (toOuterMeasure_run_bcsStickyMemoize_bad_le
+      (fun x _ => hks.init_doomed x) (fun x _ => hks.step_doomed x)
+      (fun x _ => hescape x) decSym defaultSym σ hMT
+      (isCostBounded_bcsFSCost_bcsExecROM iop encSym hFS))
+  obtain rfl : win = true := by simpa using hwin
+  supp_cases hmem [combined, eq_comm (a := true), Bool.and_eq_true, decide_eq_true_eq] with
+    ⟨⟨⟨x, prf⟩, p₁⟩, hP_sticky, ⟨_, p₃'⟩, hV_sticky, ⟨rfl, hnot_rel_P⟩, rfl⟩
+  by_contra hnot_bad
+  have ⟨hflag₃, hgood₃⟩ :
+      p₃'.2 = false ∧ BCSGoodState r d Set.univ doomed decSym defaultSym p₃'.1 := by
+    have h : p₃'.2 ≠ true ∧ BCSGoodState r d Set.univ doomed decSym defaultSym p₃'.1 := by
+      simpa [BCSStickyBad] using hnot_bad
+    exact ⟨Bool.eq_false_iff.mpr h.1, h.2⟩
+  have hV_split := hV_sticky
+  supp_cases hV_split [bcsVerifyROM, run_interpret_bind] with
+    ⟨⟨chals_mid, p₂⟩, hchal_sticky, hopen_sticky⟩
+  have htr_P_eq := fst_eq_of_mem_support_bcsStickyMemoize_liftRight Set.univ doomed decSym
+    defaultSym σ (bcsChallengesProg x prf.roots) hchal_sticky
+  obtain ⟨_, hfs₂_eq, hextract_eq⟩ := extractTable_eq_of_mem_support_bcsStickyMemoize_liftLeft
+    Set.univ doomed decSym defaultSym σ (bcsVerifyOpeningsProg iop encSym x prf chals_mid)
+    hopen_sticky hflag₃
+  obtain ⟨chals, ⟨hlen_ch, hsteps_ch⟩, hdoomed, hiop_acc⟩ :=
+    exists_doomed_and_iopVerify_of_mem_support_bcsVerifyROM iop hdec defaultSym σ
+      (hmem_proj P hP_sticky) (hmem_proj (bcsVerifyROM iop encSym x prf) hV_sticky)
+      hgood₃ (Set.mem_univ x)
+  have horacles_eq :
+      bcsExtractOracles decSym defaultSym p₁.1.1 d prf.roots =
+        bcsExtractOracles decSym defaultSym p₃'.1.1 d prf.roots := funext fun j => by
+    have hmem_forb : prf.roots j ∈ p₂.1.2.flatMap (fun ((_, rts, _), _) => rts.take r) := by
+      rw [← hfs₂_eq, List.mem_flatMap]
+      refine ⟨_, hsteps_ch j.val (by simp [j.isLt]), ?_⟩
+      dsimp only
+      rw [List.take_of_length_le (by simp [Nat.succ_le_of_lt j.isLt]), ← rootPrefix_eq_take_ofFn]
+      exact List.mem_ofFn.mpr ⟨Fin.last j.val, by simp⟩
+    exact (htr_P_eq ▸ hextract_eq (prf.roots j) hmem_forb).symm
+  exact hnot_rel_P (by simpa only [bcsExtractWitness, horacles_eq] using
+    hks.extract_of_doomed x _ chals hdoomed hiop_acc)
 
 /-- **Adaptive straight-line BCS ROM knowledge soundness (separate prover/verifier Merkle budgets on
 `P.support`)**: if `P` makes at most `t_MT` Merkle hash queries and `t_FS` Fiat–Shamir queries, and
@@ -2397,5 +2234,313 @@ theorem bcsROMKnowledgeSoundness_bound_of_prover_verifier
     (isCostBounded_bcsMTCost_bcsExecROM iop encSym hMT hV)
 
 end ROMKnowledgeSoundness
+
+/-! ### Part 5: Polynomial-time certificates and standard-model collision reduction -/
+
+section PolyTimeAndReduction
+
+variable {r d : ℕ} {Stmt Wit Sym Chal γ : Type}
+
+/-- Straight-line extraction of a depth-`d` oracle table from a Merkle trace (`bcsExtractTable`)
+runs in polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_bcsExtractTable (d : ℕ)
+    {encSym : Sym ↪ List Bool} {encIn : γ ↪ List Bool}
+    {decSym : List Bool → Sym} (defaultSym : Sym)
+    (hdec : ComputableInPolyTime decSym encBits encSym)
+    {tr_MT : γ → List (List Bool × List Bool)} {rt : γ → List Bool}
+    (htr : ComputableInPolyTime tr_MT encIn encMerkleTrace)
+    (hrt : ComputableInPolyTime rt encIn encBits) :
+    ComputableInPolyTime
+      (fun a => bcsExtractTable decSym defaultSym (tr_MT a) d (rt a))
+      encIn (encOracleTable d encSym) := by
+  refine ComputableInPolyTime.finFn fun idx => ?_
+  have hleaf := computableInPolyTime_extractLeafFromTrace d htr hrt
+    (ComputableInPolyTime.const idx.val)
+  convert hleaf.optionElimWithInput (body := fun _ bits => decSym bits)
+    (ComputableInPolyTime.const defaultSym)
+    (hdec.comp (ComputableInPolyTime.snd encIn encBits)) using 1
+  funext a
+  simp only [bcsExtractTable]
+  cases extractLeafFromTrace (tr_MT a) d (rt a) idx.val <;> rfl
+
+/-- Straight-line extraction of all `r` committed round oracle tables from a Merkle trace
+(`bcsExtractOracles`) runs in polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_bcsExtractOracles (r d : ℕ)
+    {encSym : Sym ↪ List Bool} {encIn : γ ↪ List Bool}
+    {decSym : List Bool → Sym} (defaultSym : Sym)
+    (hdec : ComputableInPolyTime decSym encBits encSym)
+    {tr_MT : γ → List (List Bool × List Bool)} {roots : γ → Fin r → List Bool}
+    (htr : ComputableInPolyTime tr_MT encIn encMerkleTrace)
+    (hroots : ComputableInPolyTime roots encIn (encFinFn r encBits)) :
+    ComputableInPolyTime
+      (fun a => bcsExtractOracles decSym defaultSym (tr_MT a) d (roots a))
+      encIn (encFinFn r (encOracleTable d encSym)) :=
+  ComputableInPolyTime.finFn fun j =>
+    computableInPolyTime_bcsExtractTable d defaultSym hdec htr
+      ((ComputableInPolyTime.finFn_apply encBits j).comp hroots)
+
+/-- Straight-line BCS witness extraction (`bcsExtractWitness`) runs in polynomial time when the
+underlying straight-line IOP extractor `iopExtract` and symbol decoder `decSym` run in polynomial
+time. -/
+@[program_certificate]
+theorem computableInPolyTime_bcsExtractWitness (r d : ℕ)
+    {encStmt : Stmt ↪ List Bool} {encWit : Wit ↪ List Bool}
+    {encSym : Sym ↪ List Bool} {encIn : γ ↪ List Bool}
+    {iopExtract : Stmt → (Fin r → OracleTable d Sym) → Wit}
+    {decSym : List Bool → Sym} (defaultSym : Sym)
+    (hiopExtract : ComputableInPolyTime
+      (fun p : Stmt × (Fin r → OracleTable d Sym) => iopExtract p.1 p.2)
+      (encPair encStmt (encFinFn r (encOracleTable d encSym))) encWit)
+    (hdec : ComputableInPolyTime decSym encBits encSym)
+    {tr_MT : γ → List (List Bool × List Bool)} {x : γ → Stmt}
+    {roots : γ → Fin r → List Bool}
+    (htr : ComputableInPolyTime tr_MT encIn encMerkleTrace)
+    (hx : ComputableInPolyTime x encIn encStmt)
+    (hroots : ComputableInPolyTime roots encIn (encFinFn r encBits)) :
+    ComputableInPolyTime
+      (fun a => bcsExtractWitness iopExtract decSym defaultSym (tr_MT a) (x a) (roots a))
+      encIn encWit :=
+  hiopExtract.comp
+    (hx.prod (computableInPolyTime_bcsExtractOracles r d defaultSym hdec htr hroots))
+
+/-- Finding the first opening in a BCS proof that disagrees with straight-line trace extraction
+(`bcsFindTraceConflict`) runs in polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_bcsFindTraceConflict
+    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
+    {encIn : γ ↪ List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {hFS : Stmt → List (List Bool) → Chal}
+    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
+      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
+    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
+      (encFSTranscript encStmt) encChal)
+    {tr_MT : γ → List (List Bool × List Bool)} {x : γ → Stmt} {prf : γ → BCSProof r Sym}
+    (htr : ComputableInPolyTime tr_MT encIn encMerkleTrace)
+    (hx : ComputableInPolyTime x encIn encStmt)
+    (hprf : ComputableInPolyTime prf encIn (encBCSProof r Sym encSym)) :
+    ComputableInPolyTime
+      (fun a => bcsFindTraceConflict iop encSym hFS (tr_MT a) (x a) (prf a))
+      encIn
+      (encOption (encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym))) :=
+  ComputableInPolyTime.findWithInput
+    ((ComputableInPolyTime.zip (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)).comp
+      ((hqueries.comp (hx.prod (computableInPolyTime_bcsChallenge hhFS hx
+        (encBCSProof_roots_polyTime r Sym encSym hprf)))).prod
+        (encBCSProof_openings_polyTime r Sym encSym hprf)))
+    (ComputableInPolyTime.bne (encB := encOption encBits)
+      (computableInPolyTime_extractLeafFromTrace d (htr.comp (.fst _ _))
+        (ComputableInPolyTime.finFn_apply'
+          ((encBCSProof_roots_polyTime r Sym encSym hprf).comp (.fst _ _)) (by fun_prop))
+        (by fun_prop))
+      (by fun_prop))
+
+/-- Deterministic trace collision extraction for the BCS transform (`bcsExtractTraceCollision`)
+runs in polynomial time. -/
+@[program_certificate]
+theorem computableInPolyTime_bcsExtractTraceCollision
+    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
+    {encIn : γ ↪ List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {H : List Bool → List Bool → List Bool}
+    {hFS : Stmt → List (List Bool) → Chal}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
+      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
+    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
+      (encFSTranscript encStmt) encChal)
+    {k : γ → List Bool} {tr_MT : γ → List (List Bool × List Bool)}
+    {x : γ → Stmt} {prf : γ → BCSProof r Sym}
+    (hk : ComputableInPolyTime k encIn encBits)
+    (htr : ComputableInPolyTime tr_MT encIn encMerkleTrace)
+    (hx : ComputableInPolyTime x encIn encStmt)
+    (hprf : ComputableInPolyTime prf encIn (encBCSProof r Sym encSym)) :
+    ComputableInPolyTime
+      (fun a => bcsExtractTraceCollision iop H (k a) encSym hFS (tr_MT a) (x a) (prf a))
+      encIn (encPair encBits encBits) := by
+  let encElem : ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) ↪ List Bool :=
+    encPair (encIOPQuery r d) (encMerkleOpeningOf Sym encSym)
+  have hfind := computableInPolyTime_bcsFindTraceConflict hqueries hhFS htr hx hprf
+  have hfst := ComputableInPolyTime.fst encIn encElem
+  have hcol : ComputableInPolyTime
+      (fun p : γ × ((Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
+        extractTraceCollision H (k p.1) (tr_MT p.1) p.2.1.2.val (encSym p.2.2.leaf) p.2.2.path)
+      (encPair encIn encElem) (encPair encBits encBits) :=
+    computableInPolyTime_extractTraceCollision hH hlen
+      (hk.comp hfst) (htr.comp hfst) (by fun_prop) (by fun_prop) (by fun_prop)
+  convert hfind.optionElimWithInput
+    (body := fun a (e : (Fin r × Fin (2 ^ d)) × MerkleOpening Sym) =>
+      extractTraceCollision H (k a) (tr_MT a) e.1.2.val (encSym e.2.leaf) e.2.path)
+    (ComputableInPolyTime.const ([], [])) hcol using 1
+  funext a
+  unfold bcsExtractTraceCollision
+  cases bcsFindTraceConflict iop encSym hFS (tr_MT a) (x a) (prf a) <;> rfl
+
+end PolyTimeAndReduction
+
+/-- Output of a trace-recording BCS adversary: a Merkle query-answer trace `trace`, a statement
+`stmt`, and a non-interactive BCS proof `proof`. -/
+structure BCSTraceOutput (r : ℕ) (Stmt Sym : Type) where
+  /-- The recorded Merkle query-answer trace. -/
+  trace : List (List Bool × List Bool)
+  /-- The statement chosen by the adversary. -/
+  stmt : Stmt
+  /-- The BCS proof. -/
+  proof : BCSProof r Sym
+
+/-- Encoding of `BCSTraceOutput r Stmt Sym`. -/
+enc_structure encBCSTraceOutput (r : ℕ) (Stmt : Type) (Sym : Type)
+    (encStmt : Stmt ↪ List Bool) (encSym : Sym ↪ List Bool) :
+    BCSTraceOutput r Stmt Sym where
+  trace : encMerkleTrace,
+  stmt : encStmt,
+  proof : (encBCSProof r Sym encSym)
+
+/-- A trace-recording BCS adversary receives the unary security parameter `n` and the Merkle hash
+key `k`, and outputs a Merkle query-answer trace, a statement, and a BCS proof. -/
+abbrev BCSTraceAdversary (r : ℕ) (Stmt Sym : Type) :=
+  ℕ → List Bool → ProbComp (BCSTraceOutput r Stmt Sym)
+
+section TraceReduction
+
+variable {r d : ℕ} {Stmt Wit Sym Chal : Type}
+
+/-- The collision finder built from a trace-recording BCS adversary: run the adversary and extract
+a Merkle collision from its trace with `bcsExtractTraceCollision`. -/
+@[expose] def bcsTraceCollisionFinder (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (H : List Bool → List Bool → List Bool) (encSym : Sym → List Bool)
+    (hFS : Stmt → List (List Bool) → Chal)
+    (adversary : BCSTraceAdversary r Stmt Sym) : CollisionFinder := fun n k => do
+  let out ← adversary n k
+  return bcsExtractTraceCollision iop H k encSym hFS out.trace out.stmt out.proof
+
+/-- Boolean predicate recording that `out` breaks trace-extraction BCS binding under `k`: the trace
+is consistent with `H k` and covers all opened authentication paths of `out.proof`, `bcsVerify`
+accepts `out.proof`, and `iopVerify` rejects the straight-line extracted tables
+`bcsExtractOracles`. -/
+@[expose] def bcsBreaksTraceBinding (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (H : List Bool → List Bool → List Bool) (k : List Bool) (encSym : Sym → List Bool)
+    (decSym : List Bool → Sym) (defaultSym : Sym)
+    (hFS : Stmt → List (List Bool) → Chal) (out : BCSTraceOutput r Stmt Sym) : Bool :=
+  decide (TraceConsistentWith (H k) out.trace) &&
+    decide (BCSOpeningsQueriedInTrace H k iop encSym out.trace out.stmt
+      (bcsChallenge hFS out.stmt out.proof.roots) out.proof) &&
+    bcsVerify iop H k encSym hFS out.stmt out.proof &&
+    !iopVerify iop out.stmt (bcsChallenge hFS out.stmt out.proof.roots)
+      (bcsExtractOracles decSym defaultSym out.trace d out.proof.roots)
+
+/-- The trace-extraction BCS binding experiment at security parameter `n`: sample a uniform `n`-bit
+hash key `k`, run `adversary n k`, and accept when `bcsBreaksTraceBinding` holds. -/
+noncomputable def bcsTraceBindingGame (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (H : List Bool → List Bool → List Bool) (encSym : Sym → List Bool)
+    (decSym : List Bool → Sym) (defaultSym : Sym)
+    (hFS : Stmt → List (List Bool) → Chal)
+    (adversary : BCSTraceAdversary r Stmt Sym) (n : ℕ) : ProbComp Bool := do
+  let k ← BitString.sampleList n
+  let out ← adversary n k
+  return bcsBreaksTraceBinding iop H k encSym decSym defaultSym hFS out
+
+/-- **A trace-extraction BCS binding break yields a hash collision**: if `bcsBreaksTraceBinding`
+holds and `Function.LeftInverse decSym encSym`, then `bcsExtractTraceCollision` outputs a valid
+collision for `H k`. -/
+theorem isCollision_of_bcsBreaksTraceBinding {iop : PublicCoinIOP r d Stmt Wit Sym Chal}
+    {H : List Bool → List Bool → List Bool} {k : List Bool} {encSym : Sym → List Bool}
+    {decSym : List Bool → Sym} (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
+    {hFS : Stmt → List (List Bool) → Chal} {out : BCSTraceOutput r Stmt Sym}
+    (hbreak : bcsBreaksTraceBinding iop H k encSym decSym defaultSym hFS out = true) (n : ℕ) :
+    let col := bcsExtractTraceCollision iop H k encSym hFS out.trace out.stmt out.proof
+    isCollision H (fun _ _ => true) n k col.1 col.2 = true := by
+  simp only [bcsBreaksTraceBinding, Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true']
+    at hbreak
+  obtain ⟨⟨⟨hcons, hpaths⟩, hver⟩, hrej⟩ := hbreak
+  exact isCollision_bcsExtractTraceCollision hdec defaultSym
+    hcons hpaths hver hrej n
+
+/-- **Tight reduction from trace-extraction BCS binding to collision finding**: at every security
+parameter `n`, a trace-recording BCS adversary succeeds at most as often as its collision finder
+`bcsTraceCollisionFinder`. -/
+theorem succProbability_bcsTraceBindingGame_le (iop : PublicCoinIOP r d Stmt Wit Sym Chal)
+    (H : List Bool → List Bool → List Bool) {encSym : Sym → List Bool}
+    {decSym : List Bool → Sym} (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
+    (hFS : Stmt → List (List Bool) → Chal)
+    (adversary : BCSTraceAdversary r Stmt Sym) (n : ℕ) :
+    Game.succProbability
+        (ProbComp.eval (bcsTraceBindingGame iop H encSym decSym defaultSym hFS adversary n)) ≤
+      Game.succProbability (ProbComp.eval
+        (collisionGame H (fun _ _ => true)
+          (bcsTraceCollisionFinder iop H encSym hFS adversary) n)) := by
+  refine Game.succProbability_mono ?_
+  simp only [pmf_norm, bcsTraceBindingGame, collisionGame, bcsTraceCollisionFinder]
+  refine PMF.bind_apply_mono_on_support _ _ fun k _ =>
+    PMF.bind_apply_mono_on_support _ _ fun out _ => ?_
+  cases hbreak : bcsBreaksTraceBinding iop H k encSym decSym defaultSym hFS out
+  · simp
+  · rw [isCollision_of_bcsBreaksTraceBinding hdec defaultSym hbreak n]
+
+/-- **Efficiency of `bcsTraceCollisionFinder`**: for a polynomial-time hash `H` with `k.length`-bit
+digests, polynomial-time `iop.queries`, and polynomial-time `hFS`, the collision finder of any
+uniform strict PPT trace-recording BCS adversary is uniform strict PPT. -/
+theorem isPPT_bcsTraceCollisionFinder {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool}
+    {encChal : Chal ↪ List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {H : List Bool → List Bool → List Bool}
+    {hFS : Stmt → List (List Bool) → Chal}
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
+      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
+    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
+      (encFSTranscript encStmt) encChal)
+    {adversary : BCSTraceAdversary r Stmt Sym}
+    (hadversary : IsPPT (encBCSTraceOutput r Stmt Sym encStmt encSym) adversary) :
+    IsPPT (encPair encBits encBits) (bcsTraceCollisionFinder iop H encSym hFS adversary) :=
+  hadversary.bind_with (computableInPolyTime_bcsExtractTraceCollision hH hlen hqueries hhFS
+    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
+
+/-- **Standard-model trace-extraction BCS binding from collision resistance**: if `H` is
+collision-resistant (`CollisionResistant H`), every uniform strict PPT trace-recording BCS adversary
+breaks binding with negligible probability. -/
+theorem CollisionResistant.bcsTraceBinding_negligible
+    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {H : List Bool → List Bool → List Bool}
+    {decSym : List Bool → Sym} (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
+    {hFS : Stmt → List (List Bool) → Chal}
+    (hcr : CollisionResistant H)
+    (hH : ComputableInPolyTime (fun p : List Bool × List Bool => H p.1 p.2)
+      (encPair encBits encBits) encBits)
+    (hlen : ∀ k x, (H k x).length = k.length)
+    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
+      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
+    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
+      (encFSTranscript encStmt) encChal)
+    {adversary : BCSTraceAdversary r Stmt Sym}
+    (hadversary : IsPPT (encBCSTraceOutput r Stmt Sym encStmt encSym) adversary) :
+    Negligible fun n => Game.succProbability
+      (ProbComp.eval (bcsTraceBindingGame iop H encSym decSym defaultSym hFS adversary n)) :=
+  negligible_of_le
+    (hcr.negligible _ (isPPT_bcsTraceCollisionFinder hH hlen hqueries hhFS hadversary))
+    (succProbability_bcsTraceBindingGame_le iop H hdec defaultSym hFS adversary)
+
+/-- **Collision-resistant `HashFamily` corollary for trace-extraction BCS binding**. -/
+theorem HashFamily.bcsTraceBinding_negligible
+    {encStmt : Stmt ↪ List Bool} {encSym : Sym ↪ List Bool} {encChal : Chal ↪ List Bool}
+    {iop : PublicCoinIOP r d Stmt Wit Sym Chal} {H : List Bool → List Bool → List Bool}
+    {decSym : List Bool → Sym} (hdec : Function.LeftInverse decSym encSym) (defaultSym : Sym)
+    {hFS : Stmt → List (List Bool) → Chal}
+    (hH : HashFamily H)
+    (hqueries : ComputableInPolyTime (fun p : Stmt × (Fin r → Chal) => iop.queries p.1 p.2)
+      (encIOPTranscript r encStmt encChal) (encIOPQueryList r d))
+    (hhFS : ComputableInPolyTime (fun p : Stmt × List (List Bool) => hFS p.1 p.2)
+      (encFSTranscript encStmt) encChal)
+    {adversary : BCSTraceAdversary r Stmt Sym}
+    (hadversary : IsPPT (encBCSTraceOutput r Stmt Sym encStmt encSym) adversary) :
+    Negligible fun n => Game.succProbability
+      (ProbComp.eval (bcsTraceBindingGame iop H encSym decSym defaultSym hFS adversary n)) :=
+  CollisionResistant.bcsTraceBinding_negligible hdec defaultSym hH.collisionResistant hH.polyTime
+    (fun k x => hH.length_eq k x) hqueries hhFS hadversary
+
+end TraceReduction
 
 end Cslib.Crypto.Protocols.BCS

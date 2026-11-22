@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.DecisionTree.Basic
 public import CslibFrontier.Foundations.Data.BitString.Weight
 public import Mathlib.Data.Nat.Choose.Sum
+import CslibFrontier.Foundations.Data.Nat.Power
 
 /-!
 # Leaves, rank, decision lists, and energy of decision trees
@@ -31,6 +32,7 @@ of native weighted-threshold circuits.
 
 * `Cslib.DecisionTree.leafCount`: the number of structural leaves.
 * `Cslib.DecisionTree.nodeCount`: the number of internal query nodes.
+* `Cslib.DecisionTree.allQueries`: the variables at the internal nodes.
 * `Cslib.DecisionTree.path`: the answers along the path taken by an input.
 * `Cslib.DecisionTree.rank`: the Ehrenfeucht–Haussler rank of a binary decision tree.
 * `Cslib.DecisionTree.IsDecisionList`: trees in which every internal node has a leaf child.
@@ -45,6 +47,11 @@ of native weighted-threshold circuits.
 * `Cslib.DecisionTree.leafCount_eq_nodeCount_add_one`: a binary tree has one more leaf than
   internal nodes.
 * `Cslib.DecisionTree.leafCount_le_two_pow_depth`: a tree of depth `d` has at most `2 ^ d` leaves.
+* `Cslib.DecisionTree.queries_subset_allQueries`,
+  `Cslib.DecisionTree.card_allQueries_le_nodeCount`: every input's queries are among the variables
+  at the internal nodes, of which there are at most `nodeCount`.
+* `Cslib.DecisionTree.card_biUnion_allQueries_le`: a family of `2 ^ r` trees of depth at most `q`
+  queries at most `2 ^ (q + r)` variables in all (Goldreich, Exercise 9.15).
 * `Cslib.DecisionTree.leafCount_le_sum_choose_rank`: a tree of depth `d` and rank `r` has at most
   `∑ j ≤ r, d.choose j` leaves.
 * `Cslib.DecisionTree.two_pow_rank_le_leafCount`: a tree of rank `r` has at least `2 ^ r` leaves.
@@ -56,6 +63,8 @@ of native weighted-threshold circuits.
 
 ## References
 
+* [O. Goldreich, *Computational Complexity: A Conceptual Perspective*, draft of April 2007,
+  Exercise 9.15][Goldreich2007DraftR5]
 * [*Threshold Circuits as Decision Trees and Finite-State Programs*, Section 2.2 and the
   ordered-tree construction in the proof of Theorem 4.1][ThresholdCircuitRepresentations2026]
 -/
@@ -86,10 +95,7 @@ theorem leafCount_pos (t : DecisionTree ι β) : 0 < t.leafCount := by
 theorem leafCount_le_two_pow_depth (t : DecisionTree ι β) : t.leafCount ≤ 2 ^ t.depth := by
   induction t with
   | leaf => exact le_refl 1
-  | node i t₀ t₁ ih₀ ih₁ =>
-    rw [leafCount, depth_node, Nat.pow_succ, Nat.mul_two]
-    exact Nat.add_le_add (ih₀.trans (Nat.pow_le_pow_right Nat.two_pos (Nat.le_max_left _ _)))
-      (ih₁.trans (Nat.pow_le_pow_right Nat.two_pos (Nat.le_max_right _ _)))
+  | node _ _ _ ih₀ ih₁ => exact Nat.add_le_two_pow_max_succ ih₀ ih₁
 
 /-- Inputs following the same path reach the same leaf label. -/
 theorem eval_eq_of_path_eq (t : DecisionTree ι β) {x y : ι → Bool}
@@ -184,6 +190,60 @@ theorem nodeCount_mapQueries {κ : Type*} (f : ι → κ) (t : DecisionTree ι �
   induction t with
   | leaf => rfl
   | node i left right ihl ihr => simp [mapQueries, nodeCount, ihl, ihr]
+
+section AllQueries
+
+variable [DecidableEq ι]
+
+/-- The variables at the internal nodes of a decision tree: every variable it queries along some
+branch, including unreachable branches. -/
+def allQueries : DecisionTree ι β → Finset ι
+  | .leaf _ => ∅
+  | .node i left right => insert i (left.allQueries ∪ right.allQueries)
+
+/-- The variables queried on any input are among the variables at the internal nodes. -/
+theorem queries_subset_allQueries (t : DecisionTree ι β) (x : ι → Bool) :
+    t.queries x ⊆ t.allQueries := by
+  induction t with
+  | leaf => simp [queries]
+  | node i left right ihl ihr =>
+    refine Finset.insert_subset_insert i ?_
+    cases x i
+    · exact ihl.trans Finset.subset_union_left
+    · exact ihr.trans Finset.subset_union_right
+
+/-- A decision tree queries at most as many variables as it has internal nodes. -/
+theorem card_allQueries_le_nodeCount (t : DecisionTree ι β) :
+    t.allQueries.card ≤ t.nodeCount := by
+  induction t with
+  | leaf => simp [allQueries]
+  | node i left right ihl ihr =>
+    simp only [allQueries, nodeCount_node]
+    exact (Finset.card_insert_le _ _).trans
+      (Nat.add_le_add_right ((Finset.card_union_le _ _).trans (Nat.add_le_add ihl ihr)) 1)
+
+/-- **The effective length of adaptive PCP proofs**
+[Goldreich, Exercise 9.15][Goldreich2007DraftR5]: an oracle machine with `r` coins that makes at
+most `q` queries examines, over all its coin sequences and all answers it may receive, at most
+`2 ^ (q + r)` locations of its oracle. On coins `ρ` the machine is the decision tree `T ρ`, of
+depth at most `q`, over the oracle's locations; the locations it may examine are the variables at
+its internal nodes. -/
+theorem card_biUnion_allQueries_le {r q : ℕ}
+    (T : BitString r → DecisionTree ι β) (hT : ∀ ρ, (T ρ).depth ≤ q) :
+    (Finset.univ.biUnion fun ρ => (T ρ).allQueries).card ≤ 2 ^ (q + r) := by
+  have hnode (ρ : BitString r) : (T ρ).allQueries.card ≤ 2 ^ q := by
+    -- a tree has one leaf more than internal nodes, and at most `2 ^ depth` leaves
+    have hleaf := (T ρ).leafCount_le_two_pow_depth
+    rw [leafCount_eq_nodeCount_add_one] at hleaf
+    have := Nat.pow_le_pow_right Nat.two_pos (hT ρ)
+    have := (T ρ).card_allQueries_le_nodeCount
+    omega
+  calc (Finset.univ.biUnion fun ρ => (T ρ).allQueries).card
+      ≤ ∑ ρ : BitString r, (T ρ).allQueries.card := Finset.card_biUnion_le
+    _ ≤ ∑ _ρ : BitString r, 2 ^ q := Finset.sum_le_sum fun ρ _ => hnode ρ
+    _ = 2 ^ (q + r) := by simp [pow_add, mul_comm]
+
+end AllQueries
 
 private theorem sum_choose_succ_add (r d : ℕ) :
     (∑ j ∈ Finset.range (r + 1 + 1), d.choose j) + (∑ j ∈ Finset.range (r + 1), d.choose j) =

@@ -341,6 +341,22 @@ private lemma halfEdgeIndex_swap {m n : ℕ} (A₁ : Matrix κ ι₁ K) (A₂ : 
       exact hbij (hcomp' ▸ h.comp (Equiv.sumComm (Fin n) (Fin m)).symm.bijective)
     rw [halfEdgeIndex, dite_eq_right hbij', halfEdgeIndex, dite_eq_right hbij]
 
+omit [DecidableEq κ] [IsStrictOrderedRing K] in
+private lemma det_tight_submatrix_ne_zero {k : ℕ} {ι : Type*} [Fintype ι]
+    {A : Matrix κ ι K} {b : κ → K} {z : ι → K} (hz : IsVertex A b z) (e : Fin k ≃ ι)
+    (hT : (tightRows A b z).card = k) :
+    (A.submatrix (fun i => ((tightRows A b z).orderIsoOfFin hT i : κ)) e).det ≠ 0 := by
+  classical
+  have hsub : A.submatrix (fun i => ((tightRows A b z).orderIsoOfFin hT i : κ)) e =
+      (A.submatrix (fun i => ((tightRows A b z).orderIsoOfFin hT (e.symm i) : κ)) id).submatrix
+        e e := by
+    ext i j; simp
+  rw [hsub, Matrix.det_submatrix_equiv_self]
+  exact hz.det_submatrix_ne_zero (e.symm.trans ((tightRows A b z).orderIsoOfFin hT).toEquiv)
+
+private lemma units_coe_sign (u : ℤˣ) : (u : ℤ).sign = (u : ℤ) := by
+  rcases Int.units_eq_one_or u with h | h <;> simp [h]
+
 omit [IsStrictOrderedRing K] in
 /-- Every active half-edge of a `LemkeHowson.Node` has nonzero (`±1`) orientation index. -/
 theorem halfEdgeIndex_ne_zero {m n : ℕ}
@@ -355,28 +371,10 @@ theorem halfEdgeIndex_ne_zero {m n : ℕ}
   have hbij := halfEdgeFun_bijective_of_acl hcard hT₁ hT₂ p.almostCompletelyLabeled hact
   rw [halfEdgeIndex, dite_eq_left hbij]
   dsimp only
-  have hdet₁ : (A₁.submatrix (fun i => (tightRows A₁ b₁ p.x |>.orderIsoOfFin hT₁ i : κ)) e₁).det
-      ≠ 0 := by
-    have hsub : A₁.submatrix (fun i => (tightRows A₁ b₁ p.x |>.orderIsoOfFin hT₁ i : κ)) e₁ =
-        (A₁.submatrix
-          (fun i => (tightRows A₁ b₁ p.x |>.orderIsoOfFin hT₁ (e₁.symm i) : κ)) id).submatrix
-          e₁ e₁ := by
-      ext i j; simp
-    rw [hsub, Matrix.det_submatrix_equiv_self]
-    exact p.isVertex_x.det_submatrix_ne_zero
-      (e₁.symm.trans (tightRows A₁ b₁ p.x |>.orderIsoOfFin hT₁).toEquiv)
-  have hdet₂ : (A₂.submatrix (fun j => (tightRows A₂ b₂ p.y |>.orderIsoOfFin hT₂ j : κ)) e₂).det
-      ≠ 0 := by
-    have hsub : A₂.submatrix (fun j => (tightRows A₂ b₂ p.y |>.orderIsoOfFin hT₂ j : κ)) e₂ =
-        (A₂.submatrix
-          (fun j => (tightRows A₂ b₂ p.y |>.orderIsoOfFin hT₂ (e₂.symm j) : κ)) id).submatrix
-          e₂ e₂ := by
-      ext i j; simp
-    rw [hsub, Matrix.det_submatrix_equiv_self]
-    exact p.isVertex_y.det_submatrix_ne_zero
-      (e₂.symm.trans (tightRows A₂ b₂ p.y |>.orderIsoOfFin hT₂).toEquiv)
-  exact mul_ne_zero (mul_ne_zero (by simp [Units.ne_zero]) (signOfK_ne_zero hdet₁))
-    (signOfK_ne_zero hdet₂)
+  exact mul_ne_zero
+    (mul_ne_zero (by simp [Units.ne_zero])
+      (signOfK_ne_zero (det_tight_submatrix_ne_zero p.isVertex_x e₁ hT₁)))
+    (signOfK_ne_zero (det_tight_submatrix_ne_zero p.isVertex_y e₂ hT₂))
 
 omit [IsStrictOrderedRing K] in
 /-- At a non-completely-labelled node (degree `2`), the two incident half-edges carry opposite
@@ -670,32 +668,21 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
       dsimp [signOfK]
       rw [sign_neg hdet_lt]
       rfl
-    rw [signOfK_mul, signOfK_mul, signOfK_intCast] at hneg1
-    have hσ_sign : (Equiv.Perm.sign σ₁ : ℤ).sign = (Equiv.Perm.sign σ₁ : ℤ) := by
-      rcases Int.units_eq_one_or (Equiv.Perm.sign σ₁) with h | h <;> simp [h]
-    simpa only [hσ_sign] using hneg1
-  have hM₂_ne : M₂.det ≠ 0 := by
-    have hsub : M₂ = (A₂.submatrix
-        (fun j => (T₂p.orderIsoOfFin hT₂p (e₂.symm j) : κ)) id).submatrix e₂ e₂ := by
-      ext i j; simp [M₂]
-    rw [hsub, Matrix.det_submatrix_equiv_self]
-    exact p.isVertex_y.det_submatrix_ne_zero (e₂.symm.trans (T₂p.orderIsoOfFin hT₂p).toEquiv)
+    rw [signOfK_mul, signOfK_mul, signOfK_intCast, units_coe_sign] at hneg1
+    exact hneg1
+  have hM₂_ne : M₂.det ≠ 0 := det_tight_submatrix_ne_zero p.isVertex_y e₂ hT₂p
   have hM₁q_ne : M₁q.det ≠ 0 := by
     rw [← hM₁q_det]
     exact q.isVertex_x.det_submatrix_ne_zero e₂'
   set idx_p : ℤ := (Equiv.Perm.sign π_p : ℤ) * signOfK M₁p.det * signOfK M₂.det
   set idx_q : ℤ := (Equiv.Perm.sign π_q : ℤ) * signOfK M₁q.det * signOfK M₂.det
   have hidx_q_sq : idx_q * idx_q = 1 := by
-    have hπ_sq : (Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ) = 1 := by
-      rcases Int.units_eq_one_or (Equiv.Perm.sign π_q) with h | h <;> simp [h]
     calc idx_q * idx_q
         = ((Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ)) *
             (signOfK M₁q.det * signOfK M₁q.det) * (signOfK M₂.det * signOfK M₂.det) := by ring
-      _ = 1 * 1 * 1 := by rw [hπ_sq, signOfK_sq hM₁q_ne, signOfK_sq hM₂_ne]
+      _ = 1 * 1 * 1 := by rw [Int.units_coe_mul_self, signOfK_sq hM₁q_ne, signOfK_sq hM₂_ne]
       _ = 1 := by ring
   have hprod : idx_p * idx_q = -1 := by
-    have hπ_sq : (Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ) = 1 := by
-      rcases Int.units_eq_one_or (Equiv.Perm.sign π_q) with h | h <;> simp [h]
     calc idx_p * idx_q
         = ((Equiv.Perm.sign π_q : ℤ) * (Equiv.Perm.sign π_q : ℤ)) *
             ((Equiv.Perm.sign σ₁ : ℤ) * (signOfK M₁p.det * signOfK M₁q.det)) *
@@ -703,7 +690,7 @@ theorem halfEdgeIndex_pivot_left_eq_neg {m n : ℕ}
           dsimp only [idx_p, idx_q]
           rw [hsign_pi]
           ring
-      _ = 1 * (-1) * 1 := by rw [hπ_sq, hsign_det, signOfK_sq hM₂_ne]
+      _ = 1 * (-1) * 1 := by rw [Int.units_coe_mul_self, hsign_det, signOfK_sq hM₂_ne]
       _ = -1 := by ring
   change idx_q = -idx_p
   calc idx_q = -(idx_p * idx_q) * idx_q := by rw [hprod]; ring
@@ -742,6 +729,33 @@ theorem halfEdgeIndex_pivot_right_eq_neg {m n : ℕ}
     (by omega) (p := p') (q := q') (hT₁p := hT₂p) (hT₁q := hT₂q) (hT₂p := hT₁p) (hT₂q := hT₁q)
     hpx hne hadj'
 
+omit [Fintype κ] [Fintype ι₁] [Fintype ι₂] in
+private lemma exists_perm_signOfK_neg_one_submatrix {k : ℕ} {ι : Type*}
+    (A : Matrix κ ι K) (e : Fin k ≃ ι) {f : Fin k → κ} (hf : Function.Injective f)
+    {T : Finset κ} (hT : T.card = k) (hT_eq : T = Finset.univ.image f)
+    (hA : A.submatrix f e = -1) :
+    ∃ σ : Equiv.Perm (Fin k),
+      (∀ i : Fin k, ((T.orderIsoOfFin hT).toEquiv i : κ) = f (σ i)) ∧
+        signOfK (A.submatrix (fun i => (T.orderIsoOfFin hT i : κ)) e).det =
+          (Equiv.Perm.sign σ : ℤ) * (-1 : ℤ) ^ k := by
+  classical
+  let eT : Fin k ≃ T := Equiv.ofBijective
+    (fun i => ⟨f i, hT_eq ▸ Finset.mem_image_of_mem _ (Finset.mem_univ i)⟩)
+    ((Fintype.bijective_iff_injective_and_card _).2
+      ⟨fun _ _ h => hf (congrArg Subtype.val h), by simp [Fintype.card_coe, hT]⟩)
+  let σ : Equiv.Perm (Fin k) := (T.orderIsoOfFin hT).toEquiv.trans eT.symm
+  have hσ_val : ∀ i : Fin k, ((T.orderIsoOfFin hT).toEquiv i : κ) = f (σ i) := fun i =>
+    (congrArg Subtype.val (eT.apply_symm_apply ((T.orderIsoOfFin hT).toEquiv i))).symm
+  have hM : A.submatrix (fun i => (T.orderIsoOfFin hT i : κ)) e =
+      (-1 : Matrix (Fin k) (Fin k) K).submatrix σ id := by
+    ext i j
+    change A ((T.orderIsoOfFin hT).toEquiv i : κ) (e j) = (-1 : Matrix (Fin k) (Fin k) K) (σ i) j
+    rw [hσ_val i, ← hA]
+    rfl
+  refine ⟨σ, hσ_val, ?_⟩
+  rw [hM, Matrix.det_permute, Matrix.det_neg, Matrix.det_one, Fintype.card_fin, mul_one,
+    signOfK_mul, signOfK_intCast, units_coe_sign, signOfK_neg_one_pow]
+
 omit [Fintype ι₁] [Fintype ι₂] in
 /-- When `T₁` and `T₂` select the `Sum.inl` and `Sum.inr` blocks of `ref`, and the corresponding
 basis submatrices are `-1`, the orientation index equals `(-1) ^ (m + n)` for every `k₀` and
@@ -765,31 +779,17 @@ theorem halfEdgeIndex_zero_zero {m n : ℕ}
     · exact .inl ⟨i, by rw [← hx, Equiv.apply_symm_apply]⟩
     · exact .inr ⟨j, by rw [← hx, Equiv.apply_symm_apply]⟩
   have hleave : leaveLabel T₁ T₂ k₀ = k₀ := by simp [leaveLabel, huniv]
-  let ord₁ := (T₁.orderIsoOfFin hT₁).toEquiv
-  let ord₂ := (T₂.orderIsoOfFin hT₂).toEquiv
-  let eL : Fin m ≃ T₁ := Equiv.ofBijective
-    (fun i => ⟨ref (.inl i), hT₁_eq ▸ Finset.mem_image_of_mem _ (Finset.mem_univ i)⟩)
-    ((Fintype.bijective_iff_injective_and_card _).2
-      ⟨fun _ _ h => Sum.inl.inj (ref.injective (congrArg Subtype.val h)),
-        by simp [Fintype.card_coe, hT₁]⟩)
-  let eR : Fin n ≃ T₂ := Equiv.ofBijective
-    (fun j => ⟨ref (.inr j), hT₂_eq ▸ Finset.mem_image_of_mem _ (Finset.mem_univ j)⟩)
-    ((Fintype.bijective_iff_injective_and_card _).2
-      ⟨fun _ _ h => Sum.inr.inj (ref.injective (congrArg Subtype.val h)),
-        by simp [Fintype.card_coe, hT₂]⟩)
-  set σ₁ : Equiv.Perm (Fin m) := ord₁.trans eL.symm
-  set σ₂ : Equiv.Perm (Fin n) := ord₂.trans eR.symm
-  have hσ₁_val : ∀ i : Fin m, (ord₁ i : κ) = ref (.inl (σ₁ i)) := fun i =>
-    (congrArg Subtype.val (eL.apply_symm_apply (ord₁ i))).symm
-  have hσ₂_val : ∀ j : Fin n, (ord₂ j : κ) = ref (.inr (σ₂ j)) := fun j =>
-    (congrArg Subtype.val (eR.apply_symm_apply (ord₂ j))).symm
+  obtain ⟨σ₁, hσ₁_val, hs₁⟩ := exists_perm_signOfK_neg_one_submatrix A₁ e₁
+    (ref.injective.comp Sum.inl_injective) hT₁ hT₁_eq hA₁
+  obtain ⟨σ₂, hσ₂_val, hs₂⟩ := exists_perm_signOfK_neg_one_submatrix A₂ e₂
+    (ref.injective.comp Sum.inr_injective) hT₂ hT₂_eq hA₂
   have hcomp : halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side = ref ∘ Equiv.sumCongr σ₁ σ₂ := by
     funext x
     cases side <;> rcases x with i | j
     · dsimp only [halfEdgeFun, Function.comp_apply, Equiv.sumCongr_apply, Sum.map_inl]
       rw [hleave]
       dsimp only [Sum.elim_inl]
-      by_cases h : (ord₁ i : κ) = k₀
+      by_cases h : ((T₁.orderIsoOfFin hT₁).toEquiv i : κ) = k₀
       · rw [ite_eq_left h]; exact h.symm.trans (hσ₁_val i)
       · rw [ite_eq_right h]; exact hσ₁_val i
     · exact hσ₂_val j
@@ -797,7 +797,7 @@ theorem halfEdgeIndex_zero_zero {m n : ℕ}
     · dsimp only [halfEdgeFun, Function.comp_apply, Equiv.sumCongr_apply, Sum.map_inr]
       rw [hleave]
       dsimp only [Sum.elim_inr]
-      by_cases h : (ord₂ j : κ) = k₀
+      by_cases h : ((T₂.orderIsoOfFin hT₂).toEquiv j : κ) = k₀
       · rw [ite_eq_left h]; exact h.symm.trans (hσ₂_val j)
       · rw [ite_eq_right h]; exact hσ₂_val j
   have hbij : Function.Bijective (halfEdgeFun T₁ T₂ hT₁ hT₂ k₀ side) := by
@@ -813,38 +813,6 @@ theorem halfEdgeIndex_zero_zero {m n : ℕ}
   have hsign_pi : (Equiv.Perm.sign π : ℤ) =
       (Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ) := by
     rw [hπ, Equiv.Perm.sign_sumCongr, Units.val_mul]
-  have hM₁ : A₁.submatrix (fun i => (T₁.orderIsoOfFin hT₁ i : κ)) e₁ =
-      (-1 : Matrix (Fin m) (Fin m) K).submatrix σ₁ id := by
-    ext i j
-    have hi : (T₁.orderIsoOfFin hT₁ i : κ) = ref (.inl (σ₁ i)) := hσ₁_val i
-    change A₁ (T₁.orderIsoOfFin hT₁ i : κ) (e₁ j) = (-1 : Matrix (Fin m) (Fin m) K) (σ₁ i) j
-    rw [hi, ← hA₁]
-    rfl
-  have hM₂ : A₂.submatrix (fun j => (T₂.orderIsoOfFin hT₂ j : κ)) e₂ =
-      (-1 : Matrix (Fin n) (Fin n) K).submatrix σ₂ id := by
-    ext i j
-    have hi : (T₂.orderIsoOfFin hT₂ i : κ) = ref (.inr (σ₂ i)) := hσ₂_val i
-    change A₂ (T₂.orderIsoOfFin hT₂ i : κ) (e₂ j) = (-1 : Matrix (Fin n) (Fin n) K) (σ₂ i) j
-    rw [hi, ← hA₂]
-    rfl
-  have hdet₁ : (A₁.submatrix (fun i => (T₁.orderIsoOfFin hT₁ i : κ)) e₁).det =
-      ((Equiv.Perm.sign σ₁ : ℤ) : K) * (-1 : K) ^ m := by
-    rw [hM₁, Matrix.det_permute, Matrix.det_neg, Matrix.det_one, Fintype.card_fin, mul_one]
-  have hdet₂ : (A₂.submatrix (fun j => (T₂.orderIsoOfFin hT₂ j : κ)) e₂).det =
-      ((Equiv.Perm.sign σ₂ : ℤ) : K) * (-1 : K) ^ n := by
-    rw [hM₂, Matrix.det_permute, Matrix.det_neg, Matrix.det_one, Fintype.card_fin, mul_one]
-  have hsign_int : ∀ (k : ℕ) (τ : Equiv.Perm (Fin k)),
-      (Equiv.Perm.sign τ : ℤ).sign = (Equiv.Perm.sign τ : ℤ) := fun k τ => by
-    rcases Int.units_eq_one_or (Equiv.Perm.sign τ) with h | h <;> simp [h]
-  have hs₁ : signOfK (A₁.submatrix (fun i => (T₁.orderIsoOfFin hT₁ i : κ)) e₁).det =
-      (Equiv.Perm.sign σ₁ : ℤ) * (-1 : ℤ) ^ m := by
-    rw [hdet₁, signOfK_mul, signOfK_intCast, hsign_int m σ₁, signOfK_neg_one_pow]
-  have hs₂ : signOfK (A₂.submatrix (fun j => (T₂.orderIsoOfFin hT₂ j : κ)) e₂).det =
-      (Equiv.Perm.sign σ₂ : ℤ) * (-1 : ℤ) ^ n := by
-    rw [hdet₂, signOfK_mul, signOfK_intCast, hsign_int n σ₂, signOfK_neg_one_pow]
-  have hsq : ∀ (k : ℕ) (τ : Equiv.Perm (Fin k)),
-      (Equiv.Perm.sign τ : ℤ) * (Equiv.Perm.sign τ : ℤ) = 1 := fun k τ => by
-    rcases Int.units_eq_one_or (Equiv.Perm.sign τ) with h | h <;> simp [h]
   rw [hsign_pi, hs₁, hs₂]
   calc ((Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ)) *
         ((Equiv.Perm.sign σ₁ : ℤ) * (-1 : ℤ) ^ m) *
@@ -852,7 +820,8 @@ theorem halfEdgeIndex_zero_zero {m n : ℕ}
       = ((Equiv.Perm.sign σ₁ : ℤ) * (Equiv.Perm.sign σ₁ : ℤ)) *
           ((Equiv.Perm.sign σ₂ : ℤ) * (Equiv.Perm.sign σ₂ : ℤ)) *
           ((-1 : ℤ) ^ m * (-1 : ℤ) ^ n) := by ring
-    _ = 1 * 1 * (-1 : ℤ) ^ (m + n) := by rw [hsq m σ₁, hsq n σ₂, pow_add]
+    _ = 1 * 1 * (-1 : ℤ) ^ (m + n) := by
+        rw [Int.units_coe_mul_self, Int.units_coe_mul_self, pow_add]
     _ = (-1 : ℤ) ^ (m + n) := by ring
 
 end Orientation

@@ -31,7 +31,8 @@ jointly close to uniform by the leftover hash lemma for `x ↦ xᵀ A`
 left-or-right adversary making `Q` encryption queries by `Q * sqrt(2 ^ ((n + 1) * w) / 2 ^ m)`.
 Replacing the generated public key by a uniform matrix costs the advantage of two explicit
 decision-LWE distinguishers, one for each challenge bit. Native runtime certificates and the
-asymptotic single-challenge theorem are in `LWE.Regev.Security`.
+asymptotic single-challenge and adaptive `Q`-query left-or-right theorems are in
+`LWE.Regev.Security`.
 
 ## Main definitions
 
@@ -417,24 +418,24 @@ advantage is at most the decision-LWE advantages of `lorDistinguisher Q adversar
 arbitrary. -/
 theorem lorGame_advantage_le (errorLaw : PMF (ZMod (2 ^ w))) (Q : ℕ)
     (adversary : LoRAdversary n m w State) :
-    (Game.advantage (lorGame (LWE.publicMatrixLaw n m w errorLaw) Q adversary false)
-        (lorGame (LWE.publicMatrixLaw n m w errorLaw) Q adversary true) : ℝ) ≤
+    (Game.advantage (lorGame (LWE.publicMatrixLaw n m errorLaw) Q adversary false)
+        (lorGame (LWE.publicMatrixLaw n m errorLaw) Q adversary true) : ℝ) ≤
       Game.advantage
-          ((LWE.publicMatrixLaw n m w errorLaw).bind (lorDistinguisher Q adversary false))
+          ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary false))
           ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary false)) +
         Game.advantage
-          ((LWE.publicMatrixLaw n m w errorLaw).bind (lorDistinguisher Q adversary true))
+          ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true))
           ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true)) +
         Q * Real.sqrt ((2 : ℝ) ^ ((n + 1) * w) / (2 : ℝ) ^ m) := by
   have huniform := lorGame_uniform_advantage_le Q adversary
   simp only [Game.advantage_eq_nndist, coe_nndist, lorGame_eq_bind_lorDistinguisher] at huniform ⊢
   have h := dist_triangle4
-    ((LWE.publicMatrixLaw n m w errorLaw).bind (lorDistinguisher Q adversary false))
+    ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary false))
     ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary false))
     ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true))
-    ((LWE.publicMatrixLaw n m w errorLaw).bind (lorDistinguisher Q adversary true))
+    ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true))
   rw [dist_comm ((PMF.uniformOfFintype (PublicKey n m w)).bind (lorDistinguisher Q adversary true))
-    ((LWE.publicMatrixLaw n m w errorLaw).bind (lorDistinguisher Q adversary true))] at h
+    ((LWE.publicMatrixLaw n m errorLaw).bind (lorDistinguisher Q adversary true))] at h
   linarith
 
 end Cslib.Crypto.Regev

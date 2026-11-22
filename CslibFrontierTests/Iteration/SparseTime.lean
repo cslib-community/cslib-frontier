@@ -38,10 +38,10 @@ example (f : Equiv.Perm (BitVec 2)) : ∃ out : Circuit signature (2 + 0) 2,
   obtain ⟨out, hout, hs⟩ := sparse_counter_variable_time f 0
   refine ⟨out, ?_, by simpa using hs⟩
   intro z
-  have ht : (word (fun j : Fin 0 => z (Fin.natAdd 2 j))).toNat = 0 := by
-    have := (word (fun j : Fin 0 => z (Fin.natAdd 2 j))).isLt
+  have ht : (BitString.equivBitVec (fun j : Fin 0 => z (Fin.natAdd 2 j))).toNat = 0 := by
+    have := (BitString.equivBitVec (fun j : Fin 0 => z (Fin.natAdd 2 j))).isLt
     simpa using this
-  simpa only [ht, Function.iterate_zero_apply, getLsbD_word] using hout z
+  simpa only [ht, Function.iterate_zero_apply, BitString.getLsbD_equivBitVec] using hout z
 
 example (m : ℕ) : ∃ out : Circuit signature (0 + m) 0,
     out.Computes interpretation (fun _ => Fin.elim0) ∧ out.size ≤ 3000 * (m + 1) := by
@@ -59,8 +59,8 @@ example : (streamRemainder (4 : BitVec 4)
 
 example (m : ℕ) : ∃ out : Circuit signature (2 + m) 2,
     out.Computes interpretation (fun z i =>
-      (((fun x : BitVec 2 => x + 1)^[(word fun j => z (Fin.natAdd 2 j)).toNat])
-        (word fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
+      (((fun x : BitVec 2 => x + 1)^[(BitString.equivBitVec fun j => z (Fin.natAdd 2 j)).toNat])
+        (BitString.equivBitVec fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
     out.size ≤ 5000 * (m + 1) := by
   have h := sparse_counter_variable_time (Equiv.addRight (1 : BitVec 2)) m
   have he : disagreement (Equiv.addRight (1 : BitVec 2)) (fun x => x + 1) = ∅ := by
@@ -101,8 +101,8 @@ example (x : BitVec 2) :
 
 example (m : ℕ) : ∃ out : Circuit signature (2 + m) 2,
     out.Computes interpretation (fun z i =>
-      ((twoCycles : BitVec 2 → BitVec 2)^[(word fun j => z (Fin.natAdd 2 j)).toNat]
-        (word fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
+      ((twoCycles : BitVec 2 → BitVec 2)^[(BitString.equivBitVec fun j => z (Fin.natAdd 2 j)).toNat]
+        (BitString.equivBitVec fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
     out.size ≤ 5000 * (m + 3) := by
   have h := sparse_counter_variable_time twoCycles m
   rw [twoCycles_disagreement] at h
@@ -110,14 +110,14 @@ example (m : ℕ) : ∃ out : Circuit signature (2 + m) 2,
 
 example (m : ℕ) : ∃ out : Circuit signature (2 + m) 2,
     out.Computes interpretation (fun z i =>
-      ((twoCycles : BitVec 2 → BitVec 2)^[(word fun j => z (Fin.natAdd 2 j)).toNat]
-        (word fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
+      ((twoCycles : BitVec 2 → BitVec 2)^[(BitString.equivBitVec fun j => z (Fin.natAdd 2 j)).toNat]
+        (BitString.equivBitVec fun j => z (Fin.castAdd m j))).getLsbD i.val) ∧
     out.size ≤ 5000 * (m + 3) := by
   have hid : (Circuit.id signature 2).Computes interpretation
-      (fun x i => ((Equiv.refl (BitVec 2)) (word x)).getLsbD i.val) := by
+      (fun x i => ((Equiv.refl (BitVec 2)) (BitString.equivBitVec x)).getLsbD i.val) := by
     intro x
     funext i
-    exact (getLsbD_word x i).symm
+    exact (BitString.getLsbD_equivBitVec x i).symm
   have h := sparse_coordinate_variable_time twoCycles (Equiv.addRight 1) (Equiv.refl _)
     (fun _ => rfl) (Circuit.id signature 2) (Circuit.id signature 2) hid hid m
   have he : disagreement twoCycles (Equiv.addRight (1 : BitVec 2)) = {1, 3} :=
@@ -150,11 +150,13 @@ example (t : ℕ) :
 
 -- Sparse-counter visit schedule and hitting time on `twoCycles`.
 example : ∃ out : Circuit signature (2 + 2) (visitScheduleWidth 2),
-    (∀ z t, (twoCycles : BitVec 2 → BitVec 2)^[t] (word (inputLeft z)) = word (inputRight z) ↔
+    (∀ z t, (twoCycles : BitVec 2 → BitVec 2)^[t] (BitString.equivBitVec (inputLeft z)) =
+        BitString.equivBitVec (inputRight z) ↔
       visitScheduleContains (out.eval interpretation z) t) ∧
     (∀ z T, Set.ncard {t : ℕ | t ≤ T ∧
-      (twoCycles : BitVec 2 → BitVec 2)^[t] (word (inputLeft z)) = word (inputRight z)} =
-        visitScheduleCount (out.eval interpretation z) T) ∧
+      (twoCycles : BitVec 2 → BitVec 2)^[t] (BitString.equivBitVec (inputLeft z)) =
+        BitString.equivBitVec (inputRight z)} =
+          visitScheduleCount (out.eval interpretation z) T) ∧
     out.size ≤ 18000 := by
   have h := sparse_counter_visit_schedule twoCycles
   rw [twoCycles_disagreement] at h
@@ -162,30 +164,35 @@ example : ∃ out : Circuit signature (2 + 2) (visitScheduleWidth 2),
 
 example : ∃ out : Circuit signature (2 + 2) (1 + (2 + 1)),
     (∀ z, out.eval interpretation z 0 = true ↔
-      ∃ t, (twoCycles : BitVec 2 → BitVec 2)^[t] (word (inputLeft z)) = word (inputRight z)) ∧
+      ∃ t, (twoCycles : BitVec 2 → BitVec 2)^[t] (BitString.equivBitVec (inputLeft z)) =
+        BitString.equivBitVec (inputRight z)) ∧
     (∀ z, out.eval interpretation z 0 = true →
-      let t := (word fun i : Fin (2 + 1) =>
+      let t := (BitString.equivBitVec fun i : Fin (2 + 1) =>
         out.eval interpretation z (Fin.natAdd 1 i)).toNat
-      (twoCycles : BitVec 2 → BitVec 2)^[t] (word (inputLeft z)) = word (inputRight z) ∧
+      (twoCycles : BitVec 2 → BitVec 2)^[t] (BitString.equivBitVec (inputLeft z)) =
+          BitString.equivBitVec (inputRight z) ∧
         (∀ j < t, (twoCycles : BitVec 2 → BitVec 2)^[j]
-          (word (inputLeft z)) ≠ word (inputRight z)) ∧ t < 2 ^ 2) ∧
+          (BitString.equivBitVec (inputLeft z)) ≠ BitString.equivBitVec (inputRight z)) ∧
+        t < 2 ^ 2) ∧
     out.size ≤ 18000 := by
   have h := sparse_counter_hitting_time twoCycles
   rw [twoCycles_disagreement] at h
   simpa using h
 
 example : ∃ out : Circuit signature (2 + 2) (visitScheduleWidth 2),
-    (∀ z t, (twoCycles : BitVec 2 → BitVec 2)^[t] (word (inputLeft z)) = word (inputRight z) ↔
+    (∀ z t, (twoCycles : BitVec 2 → BitVec 2)^[t] (BitString.equivBitVec (inputLeft z)) =
+        BitString.equivBitVec (inputRight z) ↔
       visitScheduleContains (out.eval interpretation z) t) ∧
     (∀ z T, Set.ncard {t : ℕ | t ≤ T ∧
-      (twoCycles : BitVec 2 → BitVec 2)^[t] (word (inputLeft z)) = word (inputRight z)} =
-        visitScheduleCount (out.eval interpretation z) T) ∧
+      (twoCycles : BitVec 2 → BitVec 2)^[t] (BitString.equivBitVec (inputLeft z)) =
+        BitString.equivBitVec (inputRight z)} =
+          visitScheduleCount (out.eval interpretation z) T) ∧
     out.size ≤ 18000 := by
   have hid : (Circuit.id signature 2).Computes interpretation
-      (fun x i => ((Equiv.refl (BitVec 2)) (word x)).getLsbD i.val) := by
+      (fun x i => ((Equiv.refl (BitVec 2)) (BitString.equivBitVec x)).getLsbD i.val) := by
     intro x
     funext i
-    exact (getLsbD_word x i).symm
+    exact (BitString.getLsbD_equivBitVec x i).symm
   have h := sparse_coordinate_visit_schedule twoCycles (Equiv.addRight 1) (Equiv.refl _)
     (fun _ => rfl) (Circuit.id signature 2) hid
   have he : disagreement twoCycles (Equiv.addRight (1 : BitVec 2)) = {1, 3} :=

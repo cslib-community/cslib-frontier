@@ -10,20 +10,19 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.Circuit.Boolean.Synthesis
 public import CslibFrontier.Computability.Circuit.Iteration
-public import CslibFrontier.Foundations.Data.BitString.Basic
+public import CslibFrontier.Foundations.Data.BitString.BitVec
 public import Init.Data.BitVec.Bitblast
-public import Mathlib.Data.List.OfFn
 
 /-!
 # Word arithmetic over the De Morgan basis
 
-Words are Lean's `BitVec`s, stored least significant bit first. A word-valued function of the
-inputs is available when each of its coordinate functions is (`Boolean.wordWires`). This module
-bounds the gates needed to make words available from available words: addition, subtraction,
-unsigned comparison, comparison with a constant, complementation, constants, multiplexing, and
-selection of one of several words by a binary index. Equality of available bit strings is
-`Formula.equalBits` inserted by `Synthesis.circuit`. Their semantics are the
-`BitVec` operations, through the bit-blasting identities of the core library; no decision
+Words are Lean's `BitVec`s, stored least significant bit first (`Cslib.BitString.equivBitVec`). A
+word-valued function of the inputs is available when each of its coordinate functions is
+(`Boolean.wordWires`). This module bounds the gates needed to make words available from available
+words: addition, subtraction, unsigned comparison, comparison with a constant, complementation,
+constants, multiplexing, and selection of one of several words by a binary index. Equality of
+available bit strings is `Formula.equalBits` inserted by `Synthesis.circuit`. Their semantics are
+the `BitVec` operations, through the bit-blasting identities of the core library; no decision
 procedure or native evaluation is used.
 
 Addition is a ripple-carry adder: every carry is computed once and shared by the sum bits, for
@@ -32,7 +31,6 @@ gate, including constants and negations.
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.word`: the word with given bits.
 * `Cslib.Circuits.Boolean.wordWires`: the coordinate functions of a word-valued function.
 * `Cslib.Circuits.Boolean.selectBits`: select one of several bit strings by a binary index.
 
@@ -52,7 +50,7 @@ gate, including constants and negations.
   where each sum bit recomputes its carry chain.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits
 
@@ -60,55 +58,8 @@ namespace Boolean
 
 variable {n k w R : ℕ}
 
-/-- The word with the given bits, least significant first. -/
-def word (bits : BitString w) : BitVec w :=
-  (BitVec.ofBoolListLE (List.ofFn bits)).cast (by simp)
-
-/-- Bit `i` (least significant first) of `word bits` is `bits i`. -/
-theorem getLsbD_word (bits : BitString w) (i : Fin w) :
-    (word bits).getLsbD i.val = bits i := by
-  rw [word, BitVec.getLsbD_cast, BitVec.getLsbD_ofBoolListLE, List.getD_eq_getElem?_getD]
-  simp
-
-/-- Indexing `word bits` at `i < w` returns `bits ⟨i, hi⟩`. -/
-@[simp] theorem getElem_word (bits : BitString w) (i : ℕ) (hi : i < w) :
-    (word bits)[i] = bits ⟨i, hi⟩ := getLsbD_word bits ⟨i, hi⟩
-
-/-- Rebuilding a `word` from the bits `a.getLsbD i` recovers `a`. -/
-theorem word_getLsbD (a : BitVec w) : word (fun i : Fin w => a.getLsbD i.val) = a :=
-  BitVec.eq_of_getLsbD_eq fun i hi => getLsbD_word _ ⟨i, hi⟩
-
-/-- The word representation and the bit-string numbering use the same unsigned value. -/
-theorem toNat_word_eq_equivFin {w : ℕ} (x : BitString w) :
-    (word x).toNat = (BitString.equivFin w x : ℕ) := by
-  induction w with
-  | zero =>
-    have h := (BitString.equivFin 0 x).isLt
-    simp only [pow_zero, Nat.lt_one_iff] at h
-    have hx := (word x).isLt
-    simp only [pow_zero, Nat.lt_one_iff] at hx
-    exact hx.trans h.symm
-  | succ w ih =>
-    have heq : x = Fin.cons (x 0) (fun i => x i.succ) := by
-      funext i
-      induction i using Fin.cases <;> rfl
-    rw [heq, BitString.val_equivFin_cons]
-    have hw : word (Fin.cons (x 0) (fun i => x i.succ)) =
-        (word (fun i => x i.succ)).concat (x 0) := by
-      apply BitVec.eq_of_getLsbD_eq
-      intro i hi
-      rw [getLsbD_word _ ⟨i, hi⟩, BitVec.getLsbD_concat]
-      cases i with
-      | zero => simp
-      | succ i =>
-        simp only [Nat.add_eq_zero_iff, Nat.one_ne_zero, and_false, ite_false,
-          Nat.add_sub_cancel]
-        exact (getLsbD_word (fun i => x i.succ) ⟨i, by omega⟩).symm
-    rw [hw, BitVec.toNat_concat, ih]
-    omega
-
 /-- The coordinate functions of a word-valued function. -/
-def wordWires (a : BitString n → BitVec w) : Set (BooleanFunction n) :=
+@[expose] def wordWires (a : BitString n → BitVec w) : Set (BooleanFunction n) :=
   Set.range fun i : Fin w => fun x => (a x).getLsbD i.val
 
 /-- Zero extension and truncation only rewire available bits and the false constant. -/
@@ -123,7 +74,7 @@ theorem wordWires_setWidth_subset {v : ℕ} {s : Set (BooleanFunction n)}
 
 /-- The bit string at the position given by the value of a binary index, or all-false if the
 value is not a position. Positions beyond `2 ^ k` are never selected. -/
-def selectBits (index : BitVec k) (values : Fin R → BitString w) : BitString w :=
+@[expose] def selectBits (index : BitVec k) (values : Fin R → BitString w) : BitString w :=
   fun bit => decide (∃ j : Fin R, index.toNat = j.val ∧ values j bit = true)
 
 /-- An index whose value is a position selects exactly that bit string. -/
