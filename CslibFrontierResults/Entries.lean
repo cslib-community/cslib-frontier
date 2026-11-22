@@ -55,6 +55,7 @@ import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
 import CslibFrontier.Computability.Complexity.Problems.NCL.Hardness
+import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Hardness
 import CslibFrontier.Computability.Complexity.Classes.Sparse.Envelope
 import CslibFrontier.Computability.Complexity.Classes.Advice.OneBit
 import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
@@ -522,12 +523,12 @@ import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
 import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
-import CslibFrontier.Computability.Distributed.VectorClock.Basic
-import CslibFrontier.Computability.Distributed.VectorClock.Clocks
 import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
 import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
 import CslibFrontier.Probability.Azuma
 import CslibFrontier.Probability.Renyi
+import CslibFrontier.Foundations.BooleanAnalysis.Subcube
+import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 
 /-!
 # Collected results
@@ -971,6 +972,26 @@ register_result "ncl-and-or-pspace-complete" where
     or two configurations. The reductions from alternating prenex CNF emit loop-free graphs. \
     The upper bound uses deterministic Savitch search. \
     Source check: https://github.com/cslib-community/cslib-frontier/pull/7455#issuecomment-7078246392."
+
+register_result "ncl-planar-and-or-pspace-complete" where
+  title := "Hearn–Demaine: planar AND/OR constraint-logic reachability is PSPACE-complete"
+  topic := "space complexity"
+  sources := [
+    { paper := HearnDemaine2005, theorem := "Theorem 9",
+      locator := "Authors’ version, §3.2, p. 9" }
+  ]
+  theorems := [
+    Cslib.Complexity.NCL.PlanarAndOrNCL_pspaceComplete,
+    Cslib.Complexity.NCL.PlanarAndOrNCLEdge_pspaceComplete,
+    Cslib.Complexity.NCL.PlanarAndOrNCLEdgeToEdge_pspaceComplete
+  ]
+  scope := "Configuration-to-configuration, configuration-to-edge and directional edge-to-edge \
+    reachability on finite AND/OR multigraphs whose incidence graph has a continuous polygonal \
+    embedding. The problems use the general binary graph encodings, admit self-loops and \
+    parallel edges, and require no drawing in the input. Planarity is in NP via bounded rotation \
+    certificates, and the three reachability problems are in PSPACE. Deterministic polynomial-time \
+    reductions from alternating prenex CNF compile PlaneWordAndOrNCL instances into loop-free \
+    graphs with continuous planar orthogonal grid drawings."
 
 register_result "alternation-apspace-exp" where
   title := "Chandra–Kozen–Stockmeyer: APSPACE equals EXP"
@@ -13618,103 +13639,36 @@ register_result "mironov-randomized-response-rdp" where
     Source check: arXiv:1702.07476v3 and outside-fleet agent check (reviewer-codex-edemaine) on \
     PR #7481 at 94e42f6e1a9d."
 
-register_result "lamport-scalar-logical-clocks" where
-  title := "Lamport scalar logical clocks satisfy the Clock Condition and extend happens-before \
-    to a strict total order"
-  topic := "distributed computing"
+register_result "odonnell-subcube-density" where
+  title := "A subcube of codimension k has density 2^(-k)"
+  topic := "analysis of Boolean functions"
   sources := [
-    { paper := Lamport1978,
-      theorem := "Clock Condition (rules IR1–IR2) and tie-breaking total ordering ⇒",
-      locator := "\"The Partial Ordering\", \"Logical Clocks\", and \"Ordering the Events \
-        Totally\", printed pp. 558–561" }
+    { paper := ODonnell2014, theorem := "Proposition 5.24, E[f] = 2^(-k)",
+      locator := "arXiv:2105.10386v1, §5.4, printed p. 125" }
   ]
-  theorems := [
-    Cslib.Distributed.VectorClock.Execution.lamportClock_strictMono,
-    Cslib.Distributed.VectorClock.Execution.happensBefore_imp_lamportTotalOrder
-  ]
-  scope := "Operational finite causally well-formed unicast message-passing executions \
-    Execution P over any process type P (Step.internal, Step.send, Step.recv with earlier send \
-    index recv_valid and at-most-once delivery recv_injective; Footnote 2's multi-recipient \
-    single-event sends are not combined into one Step). Instantiates rules IR1 and IR2(a),(b) \
-    with unit increments (L p + 1 on internal/send steps and max (L p) L_msg + 1 on receive \
-    steps, starting from 0), proving StrictMono E.lamportClock with respect to HappensBefore \
-    (and Monotone with respect to HappensBeforeLe) over [DecidableEq P], together with \
-    IsStrictTotalOrder E.Event E.lamportTotalOrder and linear extension of HappensBefore over \
-    [LinearOrder P]. Companion not_exists_1d_characterization is an original two-process \
-    communication-free counterexample witnessing p. 560's remark that the converse of the Clock \
-    Condition fails across concurrent events; the distributed mutual exclusion protocol \
-    (pp. 561–562) and physical clock synchronization bound (pp. 562–565) are not formalized \
-    here."
+  theorems := [Cslib.BitString.expect_ite_forall_mem_eq]
+  scope := "For a finite coordinate type ι, a set K of coordinates and any word b : ι → Bool, \
+    the uniform expectation over x : ι → Bool of the real 0/1 indicator of \
+    ∀ i ∈ K, x i = b i (the subcube of codimension k = #K, written inline) is 2⁻¹ ^ #K, for \
+    any decidability instance of the condition. The book takes k ≥ 1; the statement also \
+    covers K = ∅, the whole cube. The degree-one half of the proposition is \
+    odonnell-subcube-degree-one-weight; the book leaves the proof as Exercise 5.29 (§5.6, \
+    printed p. 137)."
 
-register_result "mattern-consistent-cut-sublattice" where
-  title := "Consistent cuts of distributed executions are closed under union and intersection \
-    and exclude orphan receives"
-  topic := "distributed computing"
+register_result "odonnell-subcube-degree-one-weight" where
+  title := "A subcube of codimension k has degree-one weight k 2^(-2k)"
+  topic := "analysis of Boolean functions"
   sources := [
-    { paper := Mattern1989,
-      theorem := "Definition 3 and Theorem 2",
-      locator := "§3 (\"Consistent cuts\", Definition 3 and Theorem 2), author-edited reprint \
-        p. 123 (North-Holland book pp. 215–226)" }
+    { paper := ODonnell2014, theorem := "Proposition 5.24, W¹[f] = k 2^(-2k)",
+      locator := "arXiv:2105.10386v1, §5.4, printed p. 125" }
   ]
-  theorems := [
-    Cslib.Distributed.VectorClock.Execution.IsConsistentCut.union,
-    Cslib.Distributed.VectorClock.Execution.IsConsistentCut.inter,
-    Cslib.Distributed.VectorClock.Execution.IsConsistentCut.send_mem_of_recv_mem
-  ]
-  scope := "Downward-closed finite event subsets IsConsistentCut E (C : Finset E.Event) over \
-    finite causally well-formed unicast executions Execution P on any process type P (without \
-    DecidableEq P), proving closure under Finset union and intersection (alongside ∅ and \
-    Finset.univ) and that every receive event in C has its matching earlier send event in C. \
-    Checked against Mattern's author-edited reprint PDF (SHA-256 \
-    64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae); the North-Holland book \
-    pagination (pp. 215–226) was not separately inspected."
-
-register_result "mattern-vector-clocks-causality" where
-  title := "Vector clocks induce an order-isomorphism with happens-before and admit an O(1) \
-    single-coordinate causality test"
-  topic := "distributed computing"
-  sources := [
-    { paper := Mattern1989,
-      theorem := "Theorem 10 and Theorem 11",
-      locator := "§7 (\"Vector time\"), pp. 126–127, and §8 (\"The structure of vector time\", \
-        Theorems 10–11), pp. 127–128 (author-edited reprint PDF)" }
-  ]
-  theorems := [
-    Cslib.Distributed.VectorClock.Execution.happensBeforeLe_iff_vc_le,
-    Cslib.Distributed.VectorClock.Execution.happensBefore_iff_vc_lt,
-    Cslib.Distributed.VectorClock.Execution.happensBeforeLe_iff_coord_le,
-    Cslib.Distributed.VectorClock.Execution.happensBefore_iff_coord_le,
-    Cslib.Distributed.VectorClock.Execution.concurrent_iff_vc_incomparable
-  ]
-  scope := "Operational finite causally well-formed unicast executions Execution P over any \
-    [DecidableEq P], where Execution.vc updates VectorClock P := P → ℕ by componentwise sup \
-    with the received message timestamp (if any) and + 1 on the executing process's coordinate \
-    (yielding the identical vector on every valid execution as ticking before sup by Theorem 5, \
-    p. 127, and contrasting with Fidge 1988 Rule RA4's sender-entry increment). Proves exact \
-    product-order characterization of HappensBeforeLe and HappensBefore (Theorem 10), \
-    single-coordinate characterization at e₁.actor for e₁ ≠ e₂ (Theorem 11), and equivalence of \
-    irreflexive event concurrency Execution.Concurrent with vector coordinatewise \
-    incomparability (agreeing on distinct events with Definition 4's reflexive vector \
-    concurrency by vc_injective). Checked against Mattern's author-edited reprint PDF (SHA-256 \
-    64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae)."
-
-register_result "mattern-consistent-cut-frontier-criterion" where
-  title := "Consistent-cut characterization via owner-maximized frontier vector timestamps"
-  topic := "distributed computing"
-  sources := [
-    { paper := Mattern1989,
-      theorem := "Definition 5 and Theorem 6",
-      locator := "§7 (\"Vector time\", Definition 5 and Theorem 6), author-edited reprint p. 127 \
-        (North-Holland book pp. 215–226)" }
-  ]
-  theorems := [
-    Cslib.Distributed.VectorClock.Execution.isConsistentCut_cutOfFrontier_iff
-  ]
-  scope := "For any finite causally well-formed unicast execution E : Execution P over \
-    [DecidableEq P] and per-process frontier frontier : P → E.Event satisfying \
-    ∀ p, (frontier p).actor = p (realizing Definition 5's assumption that each process has at \
-    least one event in the cut), proves that E.cutOfFrontier frontier is a consistent cut iff \
-    ∀ p q : P, E.vc (frontier q) p ≤ E.vc (frontier p) p (equivalent to \
-    sup_q C(c_q)[p] = C(c_p)[p] for every p). Checked against Mattern's author-edited reprint \
-    PDF (SHA-256 64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae); the \
-    non-FIFO snapshot algorithm (§11, pp. 129–131) is not formalized here."
+  theorems := [Cslib.BitString.levelWeight_one_ite_forall_mem_eq]
+  scope := "For a finite coordinate type ι, a set K of coordinates and any word b : ι → Bool, \
+    the real 0/1 indicator f of ∀ i ∈ K, x i = b i (the subcube of codimension k = #K, \
+    written inline) has levelWeight 1 f = #K / 4 ^ #K, for any decidability instance of the \
+    condition. levelWeight 1 f is the book's W¹[f] = ∑_{|S| = 1} f̂(S)² (Definition 1.19), \
+    equal to ∑ i, f̂({i})² by levelWeight_one; characters \
+    are χ_S(x) = ∏_{i ∈ S} (−1)^(x i) with false ↦ 1, the book's 𝔽₂ convention. The book \
+    takes k ≥ 1; the statement also covers K = ∅. The density half of the proposition is \
+    odonnell-subcube-density; the book leaves the proof as Exercise 5.29 (§5.6, printed \
+    p. 137)."
