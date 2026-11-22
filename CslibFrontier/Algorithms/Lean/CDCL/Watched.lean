@@ -1125,6 +1125,45 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
 /-- The activities after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
 @[expose] def WExec.bumped (S : WExec φ) (vs : List ℕ) : Activity := bumpedWith S.opts S.act vs
 
+/-- The literal of an entry of the solver's trail. -/
+@[expose] def XEntry.lit : XEntry → Literal ℕ
+  | .decision l => l
+  | .implied l _ => l
+
+@[simp] theorem XEntry.lit_entry (e : XEntry) : e.entry.lit = e.lit := by cases e <;> rfl
+
+@[simp] theorem XEntry.var_entry (e : XEntry) : e.entry.var = e.lit.1 := by cases e <;> rfl
+
+/-- The variables of the entries `M`, as `Trail.vars` of their trail (`XTrail.vars_eq`), mapped in
+one pass. -/
+@[expose] def XTrail.vars (M : XTrail) : List ℕ := M.map fun e => e.lit.1
+
+@[simp] theorem XTrail.vars_eq (M : XTrail) : XTrail.vars M = Trail.vars (XTrail.trail M) := by
+  simp [XTrail.vars, XTrail.trail, Trail.vars, Function.comp_def, XEntry.var_entry]
+
+/-- **Unassigning the variables of the entries `M`**, folding over them, without listing them:
+`Assign.unassign` of their variables (`Assign.unassignEntries_eq`). -/
+@[expose] def Assign.unassignEntries (A : Assign) (M : XTrail) : Assign :=
+  M.foldl (fun A e => A.clear e.lit.1) A
+
+theorem Assign.unassignEntries_eq (A : Assign) (M : XTrail) :
+    A.unassignEntries M = A.unassign (Trail.vars (XTrail.trail M)) := by
+  induction M generalizing A with
+  | nil => rfl
+  | cons e M ih =>
+    simp only [Assign.unassignEntries, List.foldl_cons] at ih ⊢
+    rw [ih]
+    simp [Assign.unassign, Trail.vars, XTrail.trail, XEntry.var_entry]
+
+/-- **Saving the phases of the literals of the entries `M`**, folding over them in order: what
+`Phases.save` does on their trail (`Phases.saveEntries_eq`), without listing them. -/
+@[expose] def Phases.saveEntries (P : Phases) (M : XTrail) : Phases :=
+  M.foldl (fun P e => P.set e.lit.1 e.lit.2) P
+
+theorem Phases.saveEntries_eq (P : Phases) (M : XTrail) :
+    P.saveEntries M = P.save (XTrail.trail M) := by
+  simp [Phases.saveEntries, Phases.save, XTrail.trail, Trail.lits, List.foldl_map]
+
 /-- The variable order `H` and its marks `I` after a conflict meeting the variables `vs` and undoing
 the entries `U`, with VSIDS: the variables met, whose activities `A` grew, are inserted again, and
 those undone are inserted if they are not marked, as MiniSat's `insertVarOrder` skips a variable in
@@ -1137,7 +1176,7 @@ variable it is rebuilt from the variables of `φ`. -/
       VarOrder.add Batteries.BinaryHeap.emptyF (Array.replicate I.size false) A (dedupVars φ.vars)
     else
       let p := VarOrder.add H I A vs
-      VarOrder.addMissing p.1 p.2 A (Trail.vars (XTrail.trail U))
+      VarOrder.addMissing p.1 p.2 A (XTrail.vars U)
   else (H, I)
 
 /-- The variable order and its marks after a conflict meeting the variables `vs` and undoing the
@@ -1149,7 +1188,7 @@ entries `U` (`reorderedWith`). -/
 /-- The phases `P` after undoing the entries `U`: those of the literals undone are saved, if phase
 saving is on. -/
 @[expose] def savedWith (o : Options) (P : Phases) (U : XTrail) : Phases :=
-  if o.phaseSaving then P.save (XTrail.trail U) else P
+  if o.phaseSaving then P.saveEntries U else P
 
 /-- The phases after undoing the entries `U`: those of the literals undone are saved, if phase
 saving is on. -/
@@ -1158,7 +1197,7 @@ saving is on. -/
 /-- The assignment `A` after undoing the entries `U` and asserting `l`: the variables undone are
 unassigned, then `l` is assigned. -/
 @[expose] def backjumpedWith (A : Assign) (U : XTrail) (l : Literal ℕ) : Assign :=
-  (A.unassign (Trail.vars (XTrail.trail U))).assign l
+  (A.unassignEntries U).assign l
 
 /-- The assignment after undoing the entries `U` and asserting `l`: the variables undone are
 unassigned, then `l` is assigned. -/
@@ -1190,8 +1229,17 @@ current level cleared, which leaves no value. -/
 @[expose] def clearedMarks {log : LRATLog φ} (sp : Split)
     (L : Learned log (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) (XTrail.trail sp.below)) :
     {A : Assign // ∀ v, A.value v = none} :=
-  ⟨L.marks.unassign (Trail.vars (XTrail.trail sp.above ++ [⟨sp.decision, true⟩])),
-    Assign.value_unassign_eq_none L.marks_none⟩
+  ⟨(L.marks.unassignEntries sp.above).clear sp.decision.1, fun v => by
+    rw [Assign.value_clear, Assign.unassignEntries_eq, Assign.value_unassign]
+    split
+    · rfl
+    split
+    · rfl
+    rename_i h₁ h₂
+    exact L.marks_none v (by
+      simp only [Trail.vars, List.map_append, List.mem_append, List.map_cons, List.map_nil,
+        List.mem_singleton] at h₂ ⊢
+      exact fun h => h.elim h₂ h₁)⟩
 
 /-- The marks for the backjump: the variables of the learned clause, marked in the array the
 analysis returned once its level is cleared. -/
@@ -1359,7 +1407,8 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       T.occurs = S.occurs.mark (L.clause.map Prod.fst) → T.OrderInv := by
     intro hv T hTo hTI hTa hTe hTocc
     have hS' := hS.order hv
-    simp only [WExec.reordered, reorderedWith, WExec.bumped, bumpedWith, hv, ↓reduceIte]
+    simp only [WExec.reordered, reorderedWith, WExec.bumped, bumpedWith, hv, ↓reduceIte,
+      XTrail.vars_eq]
       at hTo hTI hTa
     split at hTo
     · rename_i hbig
@@ -1426,6 +1475,7 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     simp [Exec.afterConflictWith, Exec.clauses, CNF.vars]
   -- the assignment undoes the literals above the decision, then asserts the learned literal
   have hassign : (S.backjumped U L.lit).Agrees (⟨L.lit, false⟩ :: XTrail.trail K) := by
+    rw [WExec.backjumped, backjumpedWith, Assign.unassignEntries_eq]
     have hA := hS.assign
     have hnd := hS.exec.run.nodup
     rw [hMUK] at hA
