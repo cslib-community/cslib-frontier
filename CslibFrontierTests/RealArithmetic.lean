@@ -137,6 +137,17 @@ set_option linter.hashCommand false in
 #guard formulaWordTokenAt (encFormula 0 (.eqZero (.const 0))) (2 ^ 80) == .inl () &&
   formulaWordTokenAt (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) 0 == .inl ()
 
+-- The left subtree stops at the right child of the conjunction.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 0 (.and (.not (.eqZero (.const 0))) (.or .false (.ltZero (.const (-1)))))
+  formulaSubtreeSizeAt word 0 == some 6 && formulaSubtreeSizeAt word 1 == some 2 &&
+    formulaSubtreeSizeAt word 3 == some 3 && (formulaSubtreeSizeAt word (2 ^ 80)).isNone
+
+-- The total view of the empty word is one falsity token.
+set_option linter.hashCommand false in
+#guard formulaSubtreeSizeAt [] 0 == some 1 && (formulaSubtreeSizeAt [] 1).isNone
+
 -- The total view preserves the existential semantics of a satisfiable formula.
 example :
     (Formula.ofWord (encFormula 0 (.eqZero (.const 0)))).solutionSet.Nonempty := by
