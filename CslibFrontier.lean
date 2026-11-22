@@ -3144,8 +3144,10 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantSign
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalNumericEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
@@ -5788,6 +5790,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 public import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
@@ -5993,6 +5996,7 @@ public import CslibFrontier.Crypto.Protocols.VOLE.BatchMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Circuit
 public import CslibFrontier.Crypto.Protocols.VOLE.CircuitPrivacy
 public import CslibFrontier.Crypto.Protocols.VOLE.CircuitSound
+public import CslibFrontier.Crypto.Protocols.VOLE.KOSExtractor
 public import CslibFrontier.Crypto.Protocols.VOLE.MaskedMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Native
