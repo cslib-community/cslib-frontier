@@ -8,7 +8,8 @@ import CslibFrontier.Algorithms.WordRAM.LRAT.Checker
 
 /-! The LRAT checker on the word RAM: the encoding of a small formula and certificate, runs of the
 compiled program that accept a certificate and reject others, the quantities of the coarser bound
-of `program_spec_dbWidth`, and the hypothesis of both bounds at word size `64`. -/
+of `program_spec_dbWidth`, and the hypothesis of both bounds at word size `64`, also on a
+certificate of width `0`. -/
 
 set_option linter.hashCommand false
 
@@ -43,12 +44,14 @@ def runChecker (ψ : CNF ℕ) (c : Array LRAT.IntAction) : Option (ℕ × ℕ) :
 
 example : certWork φ cert = 9 := by decide
 
--- The quantities of `program_spec_dbWidth`: the longest clause of the database has length `2`, and
--- the certificate has `5` hints and is encoded by `12` words, so `certWork φ cert = 9 ≤ 5 · 2` and
--- the coarser bound is `60 · (25 + 12 · 2) + 60 = 3000`.
+-- The quantities of `program_spec_dbWidth`: the longest clause of the database has length `2`, the
+-- formula is encoded by `12` words, and the certificate has `5` hints and is encoded by `12` words,
+-- so `certWork φ cert = 9 ≤ 5 · 2` and the coarser bound is `80 · (12 + 12 · 2) + 81 = 2961`.
 example : dbWidth φ cert = 2 := by decide
 
-example : hintCount cert = 5 := by decide
+example : CNF.lratHintCount cert.toList = 5 := by decide
+
+example : (φ.flatMap Cslib.Algorithms.WordRAM.ClauseCode.encodeClause).length = 12 := by decide
 
 example : (stepWords cert.toList).length = 12 := by decide
 
@@ -80,8 +83,24 @@ example : ∃ n ≤ 60 * (encode φ cert).length + 20 * certWork φ cert + 21,
   program_spec φ cert (w := 64) (by decide)
 
 -- The coarser bound at word size `64`.
-example : ∃ n ≤ 3000, Executes 64 program (State.init (encode φ cert)) 1 n := by
+example : ∃ n ≤ 2961, Executes 64 program (State.init (encode φ cert)) 1 n := by
   obtain ⟨n, hn, he⟩ := program_spec_dbWidth φ cert (w := 64) (by decide)
   exact ⟨n, hn.trans_eq (by decide), he⟩
+
+/-- A certificate of width `0`: `100` deletions over the empty formula, encoded by `300` words. -/
+def dels : Array LRAT.IntAction := Array.replicate 100 (.del #[1])
+
+example : dbWidth [] dels = 0 := by decide +kernel
+
+example : (stepWords dels.toList).length = 300 := by decide +kernel
+
+-- The checker reads every deletion before rejecting the certificate, which never reaches an
+-- empty-clause step: the run grows with the certificate although no clause is ever read.
+#guard runChecker [] dels == some (0, 2118)
+
+-- The coarser bound still charges every step at width `0`: `80 · (0 + 300 · max 1 0) + 81 = 24081`.
+example : ∃ n ≤ 24081, Executes 64 program (State.init (encode [] dels)) 0 n := by
+  obtain ⟨n, hn, he⟩ := program_spec_dbWidth [] dels (w := 64) (by decide +kernel)
+  exact ⟨n, hn.trans_eq (by decide +kernel), he⟩
 
 end CslibFrontierTests.WordRAMLRAT

@@ -20,24 +20,26 @@ exactly when `Cslib.Logic.PL.CNF.checkLRAT φ cert = true`, and otherwise with `
 `60 L + 20 W + 21` instructions, where `L` is the length of the input and `W` is the total length
 of the clauses that the hints of the certificate name (`Cslib.Algorithms.WordRAM.LRAT.certWork`).
 Since each hint names a clause of the database, `W` is at most the number of hints times the length
-of the longest clause of the database, so the run also takes at most `60 (L + C w) + 60`
-instructions, where `C` is the number of words encoding the certificate and `w` is that width.
+of the longest clause of the database, so the run also takes at most `80 (F + C · max 1 w) + 81`
+instructions, where `F` and `C` are the numbers of words encoding the formula and the
+certificate, and `w` is that width. The certificate is measured in encoded words: a RAT step,
+which the checker rejects, is encoded by its tag alone, however large its contents.
 
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.LRAT.certWork`: the total length of the hinted clauses.
 * `Cslib.Algorithms.WordRAM.LRAT.dbWidth`: the length of the longest clause of the formula or of a
   RUP step, which bounds every clause of the database.
-* `Cslib.Algorithms.WordRAM.LRAT.hintCount`: the number of hints of the certificate.
 
 ## Main results
 
 * `Cslib.Algorithms.WordRAM.LRAT.program_spec`: correctness and the instruction bound.
 * `Cslib.Algorithms.WordRAM.LRAT.program_spec_dbWidth`: correctness and the coarser bound
-  `60 (L + C w) + 60`.
-* `Cslib.Algorithms.WordRAM.LRAT.certWork_le`, `Cslib.Algorithms.WordRAM.LRAT.hintCount_le`: the
-  hinted clauses have total length at most `hintCount · dbWidth`, and there are at most as many
-  hints as words encoding the certificate.
+  `80 (F + C · max 1 w) + 81`.
+* `Cslib.Algorithms.WordRAM.LRAT.certWork_le`,
+  `Cslib.Algorithms.WordRAM.LRAT.lratHintCount_le_length_stepWords`: the hinted clauses have total
+  length at most `lratHintCount · dbWidth`, and there are at most as many hints as words encoding
+  the certificate.
 -/
 
 @[expose] public section
@@ -338,30 +340,22 @@ def dbWidth (φ : CNF ℕ) (cert : Array LRAT.IntAction) : ℕ :=
     | .addRup _ c _ => some (Clause.ofDIMACS c.toList)
     | _ => none).map List.length).foldr max 0
 
-/-- The number of hints of the empty-clause and RUP steps of `cert`. The checker rejects RAT steps
-without reading their hints. -/
-def hintCount (cert : Array LRAT.IntAction) : ℕ :=
-  (cert.toList.map fun
-    | .addEmpty _ hints | .addRup _ _ hints => hints.size
-    | _ => 0).sum
-
+/-- **Each hint costs at most the width**: hints naming clauses of length at most `W` name
+clauses of total length at most `W` per hint. -/
 private theorem hintsWork_le {db : List (ℕ × Clause ℕ)} {W : ℕ} (hdb : ∀ e ∈ db, e.2.length ≤ W)
     (hs : List ℕ) : hintsWork db hs ≤ hs.length * W := by
-  induction hs with
-  | nil => simp [hintsWork]
-  | cons h hs ih =>
-    have hh : hintLen db h ≤ W := by
-      unfold hintLen
-      cases he : db.find? (·.1 == h) with
-      | none => simp
-      | some e => simpa using hdb e (List.mem_of_find?_eq_some he)
-    simp only [hintsWork, List.map_cons, List.sum_cons, List.length_cons, Nat.succ_mul] at ih ⊢
-    omega
+  have hh : ∀ h, hintLen db h ≤ W := fun h => by
+    unfold hintLen
+    cases he : db.find? (·.1 == h) with
+    | none => simp
+    | some e => simpa using hdb e (List.mem_of_find?_eq_some he)
+  simpa [hintsWork] using List.sum_le_length_nsmul (hs.map (hintLen db)) W
+    (List.forall_mem_map.2 fun h _ => hh h)
 
-/-- **Each hint costs at most the width**: the hinted clauses have total length at most the
-number of hints times `dbWidth φ cert`. -/
+/-- **The hinted clauses are bounded by the hints and the width**: they have total length at most
+the number of hints (`Cslib.Logic.PL.CNF.lratHintCount`) times `dbWidth φ cert`. -/
 theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
-    certWork φ cert ≤ hintCount cert * dbWidth φ cert := by
+    certWork φ cert ≤ CNF.lratHintCount cert.toList * dbWidth φ cert := by
   set W := dbWidth φ cert
   have hφ : ∀ c ∈ φ, c.length ≤ W := fun c hc =>
     List.le_max_of_le' 0 (List.mem_map_of_mem (List.mem_append_left _ hc)) le_rfl
@@ -374,18 +368,17 @@ theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
   suffices ∀ (db : List (ℕ × Clause ℕ)) (l' : List LRAT.IntAction), (∀ e ∈ db, e.2.length ≤ W) →
       (∀ i c hints, (.addRup i c hints : LRAT.IntAction) ∈ l' →
         (Clause.ofDIMACS c.toList).length ≤ W) →
-      stepsWork db l' ≤ hintCount ⟨l'⟩ * W from
+      stepsWork db l' ≤ CNF.lratHintCount l' * W from
     this _ l (fun e he => hφ _ (snd_mem_of_mem_numbered (zipIdx_map_eq_numbered φ ▸ he))) hadd
   intro db l' hdb hl'
   induction l' generalizing db with
-  | nil => simp [stepsWork]
+  | nil => simp [stepsWork, CNF.lratHintCount]
   | cons a rest ih =>
     have ih' := fun db hdb => ih db hdb fun i c hints h => hl' i c hints (List.mem_cons_of_mem _ h)
-    simp only [hintCount, List.map_cons, List.sum_cons, Nat.add_mul] at ih' ⊢
     cases a with
     | addEmpty _ hints =>
       have := hintsWork_le hdb hints.toList
-      simp only [stepsWork, Array.length_toList] at this ⊢
+      simp only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] at this ⊢
       omega
     | addRup i c hints =>
       have h1 := hintsWork_le hdb hints.toList
@@ -393,42 +386,50 @@ theorem certWork_le (φ : CNF ℕ) (cert : Array LRAT.IntAction) :
         rcases List.mem_cons.mp he with rfl | he
         · exact hl' i c hints List.mem_cons_self
         · exact hdb e he
-      simp only [stepsWork, Array.length_toList] at h1 ⊢
+      simp only [stepsWork, CNF.lratHintCount, Array.length_toList, Nat.add_mul] at h1 ⊢
       omega
     | addRat => simp [stepsWork]
     | del ids =>
       have := ih' (db.filter fun e => !ids.toList.contains e.1) fun e he =>
         hdb e (List.mem_filter.mp he).1
-      simp only [stepsWork]
-      omega
+      simpa [stepsWork, CNF.lratHintCount] using this
 
 /-- **The hints are part of the certificate**: there are at most as many as the words encoding
 `cert`. -/
-theorem hintCount_le (cert : Array LRAT.IntAction) :
-    hintCount cert ≤ (stepWords cert.toList).length := by
-  rcases cert with ⟨l⟩
-  simp only [hintCount, stepWords]
-  induction l with
-  | nil => simp
+theorem lratHintCount_le_length_stepWords (cert : List LRAT.IntAction) :
+    CNF.lratHintCount cert ≤ (stepWords cert).length := by
+  induction cert with
+  | nil => simp [CNF.lratHintCount]
   | cons a rest ih =>
-    simp only [List.map_cons, List.sum_cons, List.flatMap_cons, List.length_append]
+    simp only [stepWords, List.flatMap_cons, List.length_append] at ih ⊢
     cases a <;>
-      simp only [encodeAction, encodeNums, List.length_cons, List.length_append,
+      simp only [CNF.lratHintCount, encodeAction, encodeNums, List.length_cons, List.length_append,
         Array.length_toList] <;> omega
 
-/-- **The LRAT checker on the word RAM, in terms of the certificate size and the clause width.**
-At any word size `w` that fits `wordBound φ cert`, the program run on the input `encode φ cert`
-of length `L` halts with output `1` when `checkLRAT φ cert = true` and `0` otherwise, after at
-most `60 (L + C W) + 60` instructions, where `C` is the number of words encoding `cert` and
-`W = dbWidth φ cert` bounds the length of every clause in the database. -/
+/-- **The LRAT checker on the word RAM, in terms of the formula, the certificate and the clause
+width.** At any word size `w` that fits `wordBound φ cert`, the program run on the input
+`encode φ cert` halts with output `1` when `checkLRAT φ cert = true` and `0` otherwise, after at
+most `80 (F + C · max 1 W) + 81` instructions, where `F` and `C` are the numbers of words encoding
+`φ` and `cert`, and `W = dbWidth φ cert` bounds the length of every clause in the database. The
+`max 1` keeps the certificate term when `W = 0`: every step is read even when no clause is. -/
 theorem program_spec_dbWidth (φ : CNF ℕ) (cert : Array LRAT.IntAction) {w : ℕ}
     (hw : Fits w (wordBound φ cert)) :
-    ∃ n ≤ 60 * ((encode φ cert).length + (stepWords cert.toList).length * dbWidth φ cert) + 60,
+    ∃ n ≤ 80 * ((φ.flatMap encodeClause).length +
+        (stepWords cert.toList).length * max 1 (dbWidth φ cert)) + 81,
       Executes w program (State.init (encode φ cert)) (CNF.checkLRAT φ cert).toNat n := by
   obtain ⟨n, hn, he⟩ := program_spec φ cert hw
-  have hle := (certWork_le φ cert).trans (Nat.mul_le_mul_right (dbWidth φ cert) (hintCount_le cert))
   refine ⟨n, ?_, he⟩
-  generalize (stepWords cert.toList).length * dbWidth φ cert = k at hle ⊢
+  have hL : (encode φ cert).length =
+      1 + (φ.flatMap encodeClause).length + (stepWords cert.toList).length := by
+    simp [encode, stepWords]
+    omega
+  have hW := (certWork_le φ cert).trans <| Nat.mul_le_mul
+    (lratHintCount_le_length_stepWords cert.toList) (le_max_right 1 (dbWidth φ cert))
+  have hC : (stepWords cert.toList).length ≤
+      (stepWords cert.toList).length * max 1 (dbWidth φ cert) :=
+    Nat.le_mul_of_pos_right _ (lt_of_lt_of_le Nat.one_pos (le_max_left _ _))
+  rw [hL] at hn
+  generalize (stepWords cert.toList).length * max 1 (dbWidth φ cert) = k at hW hC ⊢
   omega
 
 end Cslib.Algorithms.WordRAM.LRAT
