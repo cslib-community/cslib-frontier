@@ -25,7 +25,7 @@ Restarts happen when allowed, minimization, recursive or basic, shortens the lea
 PHP(4, 3), simplification deletes clauses of PHP(4, 3) satisfied at the root, and the kernel
 refutes PHP(4, 3) through a reduction of the learned clauses. At runtime, Lean core's checker
 accepts the certificates for PHP(5, 4) and PHP(6, 5), whose learned clauses are minimized, some of
-them forgotten, and whose intermediate resolvents are deleted.
+them forgotten.
 -/
 
 set_option linter.privateModule false
@@ -162,7 +162,7 @@ example : (CDCL.solveWith { restartFirst := 1, learntsDivisor := 1000 } php43).1
 example : (CDCL.solve []).isSat = true := by decide +kernel
 
 -- PHP(5, 4) and PHP(6, 5): Lean core's checker accepts the watched solver's certificates, which
--- delete the intermediate resolvents and, for PHP(6, 5), forgotten learned clauses.
+-- learn each clause in one RUP step and, for PHP(6, 5), delete forgotten learned clauses.
 /-- info: (true, true, true) -/
 #guard_msgs in
 #eval

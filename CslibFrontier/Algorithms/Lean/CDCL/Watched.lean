@@ -1119,7 +1119,7 @@ def reducedWith (o : Options) (R : Reduction) (used : List ℕ) (id next : ℕ) 
 /-- The reduction after a conflict learning `L`, stored if `stored`: updated, if reduction is on. -/
 @[expose] def WExec.reduced (S : WExec φ) {sp : Split} (L : S.exec.LearnedAt sp) (stored : Bool) :
     Reduction :=
-  reducedWith S.opts S.red L.used L.id L.log.next stored
+  reducedWith S.opts S.red L.used L.id (L.id + 1) stored
 
 /-- One more conflict, learning a clause of `k` different literals, `k₀` before minimization. -/
 @[expose] def Stats.learn (s : Stats) (k₀ k : ℕ) : Stats :=
@@ -1227,12 +1227,12 @@ are built once, read by the backjump and cleared after it. -/
   let k := (dedupLits L.clause).length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
-    let red := reducedWith opts red L.used L.id L.log.next (isLearntId φ.length L.id)
+    let red := reducedWith opts red L.used L.id (L.id + 1) (isLearntId φ.length L.id)
     let store := store.addClause L.id (learnedWatched L.clause L.lit)
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order, phase, red,
       level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
   else
-    let red := reducedWith opts red L.used L.id L.log.next false
+    let red := reducedWith opts red L.used L.id (L.id + 1) false
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], (L.id, L.clause) :: short, A,
       order, phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
 
@@ -1620,16 +1620,13 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   let chosen := (sorted.take half).filter (2 < ·.2.length) ++
     (sorted.drop half).filter fun e => 2 < e.2.length && act.get e.1 * sorted.length < act.inc
   let locked := XTrail.reasonIds S.exec.trail
-  -- a number may be listed twice (a learned clause can be one of the database), and LRAT checkers
-  -- such as drat-trim's `lrat-check` reject a number deleted twice
+  -- LRAT checkers such as drat-trim's `lrat-check` reject a number deleted twice
   dedupVars <| (chosen.map Prod.fst).filter fun i =>
     isLearntId φ.length i && !locked.contains i && !S.short.any (·.1 == i)
 
 /-- The number of learned clauses in the store, those numbered above `n` (`isLearntId`). Reduction
-and simplification set the count of learned clauses from the rebuilt store: a clause can be stored
-twice under one number (when the clause learned is the conflict clause), and its number is deleted
-once, so subtracting the numbers deleted would let the count drift above the store and trigger
-reduction at every decision. -/
+and simplification set the count of learned clauses from the rebuilt store, instead of subtracting
+the numbers deleted. -/
 @[expose] def WatchStore.learntCount (S : WatchStore) (n : ℕ) : ℕ :=
   S.clauses.foldl (fun k e => if isLearntId n e.1 then k + 1 else k) 0
 
@@ -1927,7 +1924,7 @@ most `bound` conflicts. -/
       | none =>
         let r := refute T.exec.trail T.exec.log e.1 e.2 (hT.exec.db_log e he) hT.exec.reasons
           (XTrail.split_eq_none hsp) hconf
-        .done (.unsat r.cert (LRATLog.checkLRAT_finish r.clause?_eq), T.stats.conflict)
+        .done (.unsat r.cert (LRATLog.checkLRAT_finish r.rup), T.stats.conflict)
       | some sp =>
         -- the marks are taken out of `T` first, so that marking the level updates them in place
         let marks := T.marks
@@ -1936,14 +1933,19 @@ most `bound` conflicts. -/
         let L₀ := analyze T₁.exec.log sp.decision sp.below
           (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
           (marks.1.assignTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
-          (Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) T₁.exec.log
-          (LRATLog.Extends.refl _) e.1 e.2 (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
+          (Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
+          (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
           (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
           (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)
+        have hbelow : Reasons T₁.exec.log sp.below := (hT.exec.split_reasons hsp).append_right.tail
+        have hnd : (Trail.vars (XTrail.trail sp.below)).Nodup := by
+          have := hT.exec.split_nodup hsp
+          rw [trail_level, vars_append] at this
+          exact this.of_append_right
         let L := match T₁.opts.ccminMode with
           | .none => L₀
-          | .basic => L₀.minimize sp.below (recursive := false)
-          | .recursive => L₀.minimize sp.below (recursive := true)
+          | .basic => L₀.minimize hbelow hnd (recursive := false)
+          | .recursive => L₀.minimize hbelow hnd (recursive := true)
         let k₀ := (dedupLits L₀.clause).length
         have hspec := WExec.afterConflict_spec hT₁ he hconf hsp L k₀
         loop φ limit bound fuel (T₁.afterConflict sp L k₀) hspec.1 (by
