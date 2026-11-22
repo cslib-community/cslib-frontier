@@ -243,7 +243,7 @@ theorem half_le_cutRank_hardMatrix (n : ℕ) {U : Set (Fin n)} (hU : U.ncard = n
     (by rw [Nat.card_eq_fintype_card, Fintype.card_fin]; omega) hU
 
 /-- The deficiency `2 (2 ⌊√⌊n/2⌋⌋ + 1) + 1` of the chosen family is sublinear. -/
-private theorem isLittleO_hardDeficiency :
+theorem isLittleO_hardDeficiency :
     (fun n : ℕ => ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
   rw [isLittleO_iff]
   intro ε hε
@@ -271,7 +271,7 @@ private theorem isLittleO_hardDeficiency :
   linarith
 
 /-- The bisection hypothesis for the chosen family, in the form used by the asymptotic bounds. -/
-private theorem half_le_cutRank_hardMatrix_add (n : ℕ) (U : Set (Fin n)) (hU : U.ncard = n / 2) :
+theorem half_le_cutRank_hardMatrix_add (n : ℕ) (U : Set (Fin n)) (hU : U.ncard = n / 2) :
     ((n / 2 : ℕ) : ℝ) ≤ (hardMatrix n + (hardMatrix n)ᵀ).cutRank U +
       ((2 * (2 * Nat.sqrt (n / 2) + 1) + 1 : ℕ) : ℝ) := by
   exact_mod_cast half_le_cutRank_hardMatrix n hU

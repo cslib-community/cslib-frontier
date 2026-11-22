@@ -1568,6 +1568,8 @@ public import CslibFrontier.Computability.Circuit.FanIn
 public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Circuit.Formula.NodeCount
 public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
+public import CslibFrontier.Computability.Circuit.Frontier.Basis.PairAtlas
+public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2
 public import CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn
 public import CslibFrontier.Computability.Circuit.Frontier.BranchingProgram
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler
@@ -1576,6 +1578,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Circuit
+public import CslibFrontier.Computability.Circuit.Frontier.Correlation.RealRank
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Rectangle
 public import CslibFrontier.Computability.Circuit.Frontier.Demand
 public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
@@ -1590,6 +1593,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Cubic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.CostLambda
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.EdgeScores
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Sample
