@@ -63,6 +63,8 @@ coefficient on the circle, so the name is meant to be used qualified.
 
 * `Cslib.BitString.expect_chi_mul_chi`, `Cslib.BitString.fourierCoeff_chi`: the characters are
   orthonormal.
+* `Cslib.BitString.fourierCoeff_ite_eq`, `Cslib.BitString.fourierCoeff_signVal_decide_eq`: the
+  Fourier coefficients of the indicator of a point.
 * `Cslib.BitString.chi_add`, `Cslib.BitString.chi_mul_chi`: the characters are multiplicative,
   in the input and in the set.
 * `Cslib.BitString.sum_fourierCoeff_mul_chi`: the Fourier expansion.
@@ -296,6 +298,23 @@ theorem fourierCoeff_chi_mul (T : Finset ι) (f : (ι → Bool) → ℝ) (S : Fi
 theorem fourierCoeff_const (c : ℝ) (S : Finset ι) :
     fourierCoeff (fun _ => c) S = if S = ∅ then c else 0 := by
   simp only [fourierCoeff, ← mul_expect, expect_chi, mul_ite, mul_one, mul_zero]
+
+/-- The indicator of a point `a` has Fourier coefficients `χ_S(a) / 2ⁿ`. -/
+theorem fourierCoeff_ite_eq (a : ι → Bool) (S : Finset ι) :
+    fourierCoeff (fun x => if x = a then (1 : ℝ) else 0) S = chi ℝ S a / 2 ^ Fintype.card ι := by
+  rw [fourierCoeff_eq_sum]
+  simp only [ite_mul, one_mul, zero_mul, sum_ite_eq', mem_univ, ite_true]
+
+/-- The Boolean indicator of a point `a`, read as signs, has Fourier coefficients
+`[S = ∅] - 2 χ_S(a) / 2ⁿ`. -/
+theorem fourierCoeff_signVal_decide_eq (a : ι → Bool) (S : Finset ι) :
+    fourierCoeff (fun x => signVal (decide (x = a))) S =
+      (if S = ∅ then 1 else 0) - 2 * (chi ℝ S a / 2 ^ Fintype.card ι) := by
+  have h : (fun x => signVal (decide (x = a))) =
+      fun x => (1 : ℝ) - 2 * (if x = a then 1 else 0) := by
+    funext x
+    by_cases hx : x = a <;> norm_num [hx]
+  rw [h, fourierCoeff_sub, fourierCoeff_const_mul, fourierCoeff_const, fourierCoeff_ite_eq]
 
 /-- The Fourier coefficients of a character are `1` at its own set and `0` elsewhere. -/
 @[simp]
