@@ -8,6 +8,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Certificate
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
 import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
@@ -829,6 +830,20 @@ register_result "fagin" where
     existential second-order definable iff it is isomorphism-closed and its query language is \
     in NP under the explicit structure encoding encStructure. No further hypotheses: empty \
     universes and nullary relations are included."
+
+register_result "hoza-min-isolating-weight-generator" where
+  title := "Hoza: a native log-space min-isolating weight generator"
+  topic := "space complexity"
+  sources := [
+    { paper := Hoza2026NLUL, theorem := "Theorem 1.3",
+      locator := "ECCC TR26-323, §1.2, printed and PDF p. 2" }
+  ]
+  theorems := [Cslib.Reachability.Hoza.generatedWeight_certified]
+  scope := "Rectangular layered digraphs on Fin (n + 1) × Fin w with edges advancing one layer. \
+    Path weights sum internal vertices. The seed has logarithmic length and gives polynomially \
+    bounded natural weights. Some seed min-isolates all reachable pairs in each graph. One finite \
+    deterministic multitape machine evaluates every canonical binary dimension, coordinate and \
+    seed request within logarithmic visited-cell workspace."
 
 register_result "hoza-nl-eq-ul" where
   title := "Hoza: NL equals UL"
