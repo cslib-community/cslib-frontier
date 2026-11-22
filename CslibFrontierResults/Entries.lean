@@ -503,6 +503,7 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.ChandyLamport.Correctness
 import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
 import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
@@ -11676,6 +11677,47 @@ register_result "fischer-lynch-merritt-vertex-separator-impossibility" where
     https://github.com/cslib-community/cslib-frontier/pull/7157#pullrequestreview-6009403669 \
     and \
     https://github.com/cslib-community/cslib-frontier/pull/7157#pullrequestreview-6010628288."
+
+register_result "chandy-lamport-consistent-global-snapshot" where
+  title := "Chandy–Lamport marker snapshots record a causally consistent reachable global state"
+  topic := "distributed computing"
+  sources := [
+    { paper := ChandyLamport1985,
+      theorem := "Theorem 1",
+      locator := "§4, p. 72 (proof pp. 72–73)" }
+  ]
+  theorems := [
+    Cslib.Distributed.ChandyLamport.System.chandyLamport_perm_mTr,
+    Cslib.Distributed.ChandyLamport.System.chandyLamport_consistent_cut
+  ]
+  scope := "For any process type P with DecidableEq P, local state type S, message type M, \
+    asynchronous point-to-point FIFO message-passing system sys : System P S M with \
+    DecidableRel sys.graph.Adj (no finiteness or decidable state/message equality assumption), \
+    well-formed pre-snapshot state S_init (sys.IsPreSnapshot S_init, allowing existing in-flight \
+    application traffic on edges of sys.graph), and finite marker-augmented execution \
+    sys.snapLts.MTr S_init xl S_final reaching a completed snapshot S_final \
+    (IsSnapshotComplete S_final): chandyLamport_perm_mTr proves \
+    sys.lts.MTr (project S_init) (sys.tracePreEvents S_init xl) (extractSnapshot S_final), \
+    sys.lts.MTr (extractSnapshot S_final) (sys.tracePostEvents S_init xl) (project S_final), \
+    and (sys.tracePreEvents S_init xl ++ sys.tracePostEvents S_init xl).Perm (eraseTrace xl), \
+    and chandyLamport_consistent_cut derives \
+    sys.lts.CanReach (project S_init) (extractSnapshot S_final) ∧ \
+    sys.lts.CanReach (extractSnapshot S_final) (project S_final). Unchanged prefix and suffix \
+    traces outside the [ι, φ) snapshot segment compose at the preserved boundary states \
+    project S_init and project S_final via LTS.MTr.comp. Quantifies over all admitted \
+    nondeterministic FIFO schedules with no timing or probabilistic premise; transitions are \
+    deterministic in a supplied trace. Model differences vs. §§2 and 3.2–3.3 (pp. 65–71): \
+    sys.graph : Digraph P admits at most one channel per ordered pair (including self-loops) \
+    rather than separately labeled parallel channels, each Event may emit a list \
+    sent : List (P × M) of outgoing messages atomically rather than a single-channel 5-tuple \
+    step, initiateSnapshot and the first recvMarker record local state and append outgoing \
+    markers atomically, and extractSnapshot assembles the global record directly without \
+    collector dissemination. The §5 stability-detection corollary (System.stablePred_transfer) \
+    and the §3.3 completion theorem under Finite P, StronglyConnected sys.graph, a recorded \
+    initiator, and weak FIFO head-delivery fairness FairChannels (System.snapshot_liveness) \
+    are proved separately in the same module. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7162 at 3b169cc66a55: \
+    https://github.com/cslib-community/cslib-frontier/pull/7162#pullrequestreview-6010522397."
 
 register_result "low-individual-degree-projective-self-improvement" where
   title := "Projective self-improvement for symmetric low-individual-degree strategies"

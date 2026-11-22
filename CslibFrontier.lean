@@ -3252,6 +3252,9 @@ public import CslibFrontier.Computability.Distributed.ByzantineGraph.Basic
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.TotalOrder
+public import CslibFrontier.Computability.Distributed.ChandyLamport.Basic
+public import CslibFrontier.Computability.Distributed.ChandyLamport.Correctness
+public import CslibFrontier.Computability.Distributed.ChandyLamport.Snapshot
 public import CslibFrontier.Computability.Distributed.ClockSync.Basic
 public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
 public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
