@@ -37,7 +37,10 @@ applies to it unchanged.
 * **The cutting-planes rules** normalize in linear time: `Cslib.Logic.PL.PBConstr.toLinearFast`
   merges the terms on a variable through a hash map of positions instead of
   `Cslib.Logic.PL.PBConstr.insertCoeff`'s scan, and produces the same list
-  (`Cslib.Logic.PL.PBConstr.toLinearFast_eq`).
+  (`Cslib.Logic.PL.PBConstr.toLinearFast_eq`). Saturation, division and weakening renormalize
+  a constraint already in normal form, whose variables are distinct
+  (`Cslib.Logic.PL.PBConstr.nodup_termVar_normalize`): there no terms merge, and
+  `Cslib.Logic.PL.PBConstr.normalizeDistinct` skips the hash map.
 * **Unit propagation** keeps its trail in a hash set and computes the slack once per
   constraint (`Cslib.Logic.PL.VeriPB.rupFast_eq`). Distinct deletion numbers are checked with a
   hash set (`Cslib.Logic.PL.VeriPB.nodupFast_eq`).
@@ -94,7 +97,8 @@ def linStep (t : ℕ × Literal ℕ) (acc : LinAcc) : LinAcc :=
 /-- `Cslib.Logic.PL.PBConstr.toLinear` with the positions of the variables hashed: linear time
 instead of quadratic. -/
 def toLinearFast (ts : List (ℕ × Literal ℕ)) : List (ℕ × ℤ) :=
-  (ts.foldr linStep ⟨∅, #[]⟩).entries.toList
+  (ts.foldr linStep
+    ⟨Std.HashMap.emptyWithCapacity ts.length, Array.emptyWithCapacity ts.length⟩).entries.toList
 
 private theorem insertCoeff_of_findIdx?_eq_some {v : ℕ} {a : ℤ} :
     ∀ {L : List (ℕ × ℤ)} {i : ℕ}, L.findIdx? (·.1 == v) = some i →
@@ -153,11 +157,87 @@ private theorem LinAcc.Rep.linStep {acc : LinAcc} {L : List (ℕ × ℤ)} (h : a
     · simp [hw]
 
 theorem toLinearFast_eq (ts : List (ℕ × Literal ℕ)) : toLinearFast ts = toLinear ts := by
-  have : (ts.foldr PBConstr.linStep ⟨∅, #[]⟩).Rep (toLinear ts) := by
+  have key : ∀ (ts : List (ℕ × Literal ℕ)) (init : LinAcc), init.Rep [] →
+      (ts.foldr PBConstr.linStep init).Rep (toLinear ts) := by
+    intro ts init h
     induction ts with
-    | nil => exact ⟨rfl, fun v => by simp [toLinear]⟩
+    | nil => simpa [toLinear] using h
     | cons t ts ih => exact ih.linStep t
-  exact this.1
+  exact (key ts _ ⟨by simp [Array.emptyWithCapacity], fun v => by
+    simp⟩).1
+
+private theorem mem_insertCoeff {v : ℕ} {a : ℤ} :
+    ∀ {L : List (ℕ × ℤ)} {e : ℕ × ℤ}, e ∈ insertCoeff v a L → e.1 = v ∨ e.1 ∈ L.map (·.1)
+  | [], e, h => by simp [insertCoeff] at h; simp [h]
+  | (u, b) :: L, e, h => by
+    unfold insertCoeff at h
+    split at h
+    · rename_i huv
+      rcases List.mem_cons.1 h with rfl | h
+      · simp [huv]
+      · exact .inr (List.mem_cons_of_mem _ (List.mem_map_of_mem h))
+    · rcases List.mem_cons.1 h with rfl | h
+      · simp
+      · rcases mem_insertCoeff h with h | h
+        · exact .inl h
+        · exact .inr (by simp only [List.map_cons, List.mem_cons] at h ⊢; exact .inr h)
+
+private theorem map_modify_fst {f : ℕ × ℤ → ℕ × ℤ} (hf : ∀ e, (f e).1 = e.1) :
+    ∀ (L : List (ℕ × ℤ)) (i : ℕ), (L.modify i f).map (·.1) = L.map (·.1)
+  | [], _ => by simp
+  | e :: L, 0 => by simp [hf]
+  | e :: L, i + 1 => by simp [map_modify_fst hf L i]
+
+private theorem fst_mem_toLinear {ts : List (ℕ × Literal ℕ)} {e : ℕ × ℤ}
+    (h : e ∈ toLinear ts) : e.1 ∈ ts.map termVar := by
+  induction ts generalizing e with
+  | nil => simp [toLinear] at h
+  | cons t ts ih =>
+    rcases mem_insertCoeff (L := toLinear ts) h with h | h
+    · simp [h]
+    · obtain ⟨e', he', heq⟩ := List.mem_map.1 h
+      exact List.mem_cons_of_mem _ (heq ▸ ih he')
+
+/-- The linear form of terms on distinct variables lists them in reverse order. -/
+private theorem toLinear_of_nodup :
+    ∀ {ts : List (ℕ × Literal ℕ)}, (ts.map termVar).Nodup →
+      toLinear ts = (ts.map fun t => (termVar t, termCoeff t)).reverse
+  | [], _ => rfl
+  | t :: ts, h => by
+    rw [List.map_cons, List.nodup_cons] at h
+    have hn : (toLinear ts).findIdx? (·.1 == termVar t) = none := by
+      rw [List.findIdx?_eq_none_iff]
+      intro e he
+      have := fst_mem_toLinear he
+      simp only [beq_eq_false_iff_ne]
+      intro heq
+      exact h.1 (heq ▸ this)
+    change insertCoeff (termVar t) (termCoeff t) (toLinear ts) = _
+    rw [insertCoeff_of_findIdx?_eq_none hn, toLinear_of_nodup h.2]
+    simp
+
+private theorem nodup_toLinear :
+    ∀ ts : List (ℕ × Literal ℕ), ((toLinear ts).map (·.1)).Nodup
+  | [] => by simp [toLinear]
+  | t :: ts => by
+    have ih := nodup_toLinear ts
+    change ((insertCoeff (termVar t) (termCoeff t) (toLinear ts)).map (·.1)).Nodup
+    rcases h : (toLinear ts).findIdx? (·.1 == termVar t) with _ | i
+    · rw [insertCoeff_of_findIdx?_eq_none h, List.map_append, List.nodup_append]
+      refine ⟨ih, by simp, ?_⟩
+      simp only [List.map_cons, List.map_nil, List.mem_singleton]
+      rintro a ha b rfl rfl
+      obtain ⟨e, he, heq⟩ := List.mem_map.1 ha
+      rw [List.findIdx?_eq_none_iff] at h
+      have := h e he
+      simp only [beq_eq_false_iff_ne] at this
+      exact this heq
+    · rw [insertCoeff_of_findIdx?_eq_some h]
+      have : ((toLinear ts).modify i fun e => (e.1, e.2 + termCoeff t)).map (·.1) =
+          (toLinear ts).map (·.1) := by
+        exact map_modify_fst (f := fun e => (e.1, e.2 + termCoeff t)) (fun _ => rfl) _ i
+      rw [this]
+      exact ih
 
 /-- `Cslib.Logic.PL.PBConstr.normalize` in linear time. -/
 def normalizeFast (c : PBConstr) : PBConstr :=
@@ -165,6 +245,32 @@ def normalizeFast (c : PBConstr) : PBConstr :=
 
 @[simp] theorem normalizeFast_eq (c : PBConstr) : c.normalizeFast = c.normalize := by
   simp [normalizeFast, normalize, toLinearFast_eq]
+
+/-- The variables of a normalized constraint are distinct. -/
+theorem nodup_termVar_normalize (c : PBConstr) : (c.normalize.terms.map termVar).Nodup := by
+  have hsub : ∀ L : List (ℕ × ℤ), ((L.filterMap entryTerm).map termVar).Sublist (L.map (·.1)) := by
+    intro L
+    induction L with
+    | nil => simp
+    | cons e L ih =>
+      rw [List.filterMap_cons]
+      cases h : entryTerm e with
+      | none => exact ih.cons _
+      | some t =>
+        have : termVar t = e.1 := by
+          unfold entryTerm at h
+          split_ifs at h <;> cases h <;> rfl
+        simpa [this] using ih.cons_cons e.1
+  exact (nodup_toLinear c.terms).sublist (hsub _)
+
+/-- `Cslib.Logic.PL.PBConstr.normalize` of terms on distinct variables, without merging. -/
+def normalizeDistinct (c : PBConstr) : PBConstr :=
+  fromLinear (c.terms.map fun t => (termVar t, termCoeff t)).reverse
+    ((c.degree : ℤ) - negSum c.terms)
+
+theorem normalizeDistinct_eq {c : PBConstr} (h : (c.terms.map termVar).Nodup) :
+    c.normalizeDistinct = c.normalize := by
+  simp [normalizeDistinct, normalize, toLinear_of_nodup h]
 
 /-- `Cslib.Logic.PL.PBConstr.add` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
 def addFast (c d : PBConstr) : PBConstr := normalizeFast ⟨c.terms ++ d.terms, c.degree + d.degree⟩
@@ -176,17 +282,17 @@ def mulFast (k : ℕ) (c : PBConstr) : PBConstr :=
 /-- `Cslib.Logic.PL.PBConstr.div` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
 def divFast (k : ℕ) (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
-  normalizeFast ⟨n.terms.map fun t => (ceilDiv t.1 k, t.2), ceilDiv n.degree k⟩
+  normalizeDistinct ⟨n.terms.map fun t => (ceilDiv t.1 k, t.2), ceilDiv n.degree k⟩
 
 /-- `Cslib.Logic.PL.PBConstr.saturate` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
 def saturateFast (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
-  normalizeFast ⟨n.terms.map fun t => (min t.1 n.degree, t.2), n.degree⟩
+  normalizeDistinct ⟨n.terms.map fun t => (min t.1 n.degree, t.2), n.degree⟩
 
 /-- `Cslib.Logic.PL.PBConstr.weaken` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
 def weakenFast (v : ℕ) (c : PBConstr) : PBConstr :=
   let n := c.normalizeFast
-  normalizeFast ⟨n.terms.filter (termVar · != v),
+  normalizeDistinct ⟨n.terms.filter (termVar · != v),
     n.degree - coeffSum (n.terms.filter (termVar · == v))⟩
 
 /-- `Cslib.Logic.PL.PBConstr.negate` through `Cslib.Logic.PL.PBConstr.normalizeFast`. -/
@@ -199,14 +305,23 @@ def negateFast (c : PBConstr) : PBConstr :=
 @[simp] theorem mulFast_eq (k : ℕ) (c : PBConstr) : c.mulFast k = c.mul k := by
   simp [mulFast, mul]
 
+private theorem termVar_mk_snd (a : ℕ) (t : ℕ × Literal ℕ) : termVar (a, t.2) = termVar t := rfl
+
+private theorem nodup_map_snd (f : ℕ × Literal ℕ → ℕ) (c : PBConstr) :
+    ((c.normalize.terms.map fun t => (f t, t.2)).map termVar).Nodup := by
+  simpa [List.map_map, Function.comp_def, termVar_mk_snd] using nodup_termVar_normalize c
+
 @[simp] theorem divFast_eq (k : ℕ) (c : PBConstr) : c.divFast k = c.div k := by
-  simp [divFast, div]
+  simp only [divFast, div, normalizeFast_eq]
+  exact normalizeDistinct_eq (nodup_map_snd _ c)
 
 @[simp] theorem saturateFast_eq (c : PBConstr) : c.saturateFast = c.saturate := by
-  simp [saturateFast, saturate]
+  simp only [saturateFast, saturate, normalizeFast_eq]
+  exact normalizeDistinct_eq (nodup_map_snd _ c)
 
 @[simp] theorem weakenFast_eq (v : ℕ) (c : PBConstr) : c.weakenFast v = c.weaken v := by
-  simp [weakenFast, weaken]
+  simp only [weakenFast, weaken, normalizeFast_eq]
+  exact normalizeDistinct_eq ((nodup_termVar_normalize c).sublist ((List.filter_sublist).map _))
 
 @[simp] theorem negateFast_eq (c : PBConstr) : c.negateFast = c.negate := by
   simp [negateFast, negate]
