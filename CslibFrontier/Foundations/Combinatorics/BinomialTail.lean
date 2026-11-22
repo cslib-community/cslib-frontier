@@ -12,8 +12,8 @@ public import Mathlib.Algebra.BigOperators.Group.Finset.Defs
 public import Mathlib.Analysis.SpecialFunctions.Exp
 public import Mathlib.Data.Nat.Choose.Basic
 import CslibFrontier.Probability.Concentration
+import CslibFrontier.Probability.HoeffdingStep
 import CslibFrontier.Probability.PoissonBinomial
-import Mathlib.Probability.Moments.SubGaussian
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Nat.Choose.Sum
@@ -66,34 +66,22 @@ public section
 namespace Cslib
 
 open Finset Real
-open MeasureTheory
 
 /-- **Hoeffding's lemma for a biased Bernoulli trial** `[Hoeffding1963]`: for `p ∈ [0, 1]` and
 `s : ℝ`, the centered moment generating function `(1 - p) exp (-s p) + p exp (s (1 - p))` is at
-most `exp (s² / 8)`. This specializes Mathlib's bounded-variable sub-Gaussian estimate. -/
+most `exp (s² / 8)`. This specializes `Cslib.Probability.PMF.sum_mul_exp_sub_mean_le` to
+`PMF.coin`. -/
 theorem one_sub_mul_exp_add_mul_exp_le {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1) (s : ℝ) :
     (1 - p) * exp (-s * p) + p * exp (s * (1 - p)) ≤ exp (s ^ 2 / 8) := by
   let q : unitInterval := ⟨p, hp₀, hp₁⟩
-  let μ := ProbabilityTheory.bernoulliMeasure true false q
-  let X : Bool → ℝ := fun b => if b then 1 else 0
-  have hmean : ∫ b, X b ∂μ = p := by
-    rw [ProbabilityTheory.integral_bernoulliMeasure]
-    simp [X, q]
-  have h := ProbabilityTheory.hasSubgaussianMGF_of_mem_Icc (μ := μ)
-    (X := X) (a := 0) (b := 1) (by fun_prop)
-    (MeasureTheory.ae_of_all _ fun b => by cases b <;> norm_num [X])
-  have hmgf := h.mgf_le s
-  rw [ProbabilityTheory.mgf, ProbabilityTheory.integral_bernoulliMeasure] at hmgf
-  simp only [hmean, X, ↓reduceIte, smul_eq_mul, sub_zero, nnNorm_one,
-    NNReal.coe_pow, NNReal.coe_div, NNReal.coe_one, NNReal.coe_ofNat] at hmgf
-  change p * exp (s * (1 - p)) + (1 - p) * exp (s * (0 - p)) ≤
-    exp (((1 : ℝ) / 2) ^ 2 * s ^ 2 / 2) at hmgf
-  have hexp : s * (0 - p) = -s * p := by ring
-  rw [hexp] at hmgf
-  convert hmgf using 1
-  · ring
-  · congr 1
-    ring
+  have h := Probability.PMF.sum_mul_exp_sub_mean_le (Probability.PMF.coin q)
+    (fun b => if b then (1 : ℝ) else 0) (a := 0) (b := 1)
+    (fun b _ => by cases b <;> norm_num) s
+  simp only [Fintype.sum_bool, Probability.PMF.coin_apply_toReal, q, ↓reduceIte,
+    Bool.false_eq_true, sub_zero, one_pow, mul_one, mul_zero, add_zero] at h
+  convert h using 1
+  rw [show s * (0 - p) = -s * p by ring]
+  ring
 
 /-- The binomial weights `C(Q, k) p^k (1 - p)^(Q - k)` sum to `1`. -/
 theorem sum_choose_mul_pow_eq_one (Q : ℕ) (p : ℝ) :
@@ -159,6 +147,41 @@ private theorem poissonBinomial_event_toReal (Q : ℕ) (p : unitInterval) (P : �
   · intro k _
     split_ifs <;> simp [_root_.PMF.apply_ne_top]
 
+/-- Bridge a filtered binomial sum directly to the `pi`-of-coins event probability used by
+`Probability.Concentration`. -/
+private theorem sum_filter_choose_mul_pow_eq_pi_toOuterMeasure (Q : ℕ) {p : ℝ}
+    (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1) (P : ℝ → Prop) [DecidablePred P] :
+    (∑ k ∈ range (Q + 1) with P ((k : ℕ) : ℝ),
+      (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k)) =
+    ((Probability.PMF.pi fun i : Fin (List.replicate Q (⟨p, hp₀, hp₁⟩ : unitInterval)).length =>
+      Probability.PMF.coin (List.replicate Q (⟨p, hp₀, hp₁⟩ : unitInterval))[i]).toOuterMeasure
+        {f | P (∑ i, if f i then (1 : ℝ) else 0)}).toReal := by
+  let q : unitInterval := ⟨p, hp₀, hp₁⟩
+  let ps := List.replicate Q q
+  let count : (Fin ps.length → Bool) → ℕ := fun f => ∑ i, if f i then 1 else 0
+  have hevent : {f : Fin ps.length → Bool | P (∑ i, if f i then (1 : ℝ) else 0)} =
+      count ⁻¹' {k | P ((k : ℕ) : ℝ)} := by
+    ext f
+    change P (∑ i, if f i then (1 : ℝ) else 0) ↔ P (((∑ i, if f i then 1 else 0 : ℕ) : ℝ))
+    simp
+  rw [hevent, ← _root_.PMF.toOuterMeasure_map_apply,
+    ← Probability.PMF.poissonBinomial_eq_map_pi ps,
+    poissonBinomial_event_toReal Q q (fun k => P ((k : ℕ) : ℝ))]
+
+private noncomputable abbrev coinFamily (Q : ℕ) {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1)
+    (i : Fin (List.replicate Q (⟨p, hp₀, hp₁⟩ : unitInterval)).length) : PMF Bool :=
+  Probability.PMF.coin (List.replicate Q (⟨p, hp₀, hp₁⟩ : unitInterval))[i]
+
+private theorem indicator_mem_Icc {ι : Type*} {P : ι → Bool → Prop} (i : ι) (b : Bool)
+    (_ : P i b) :
+    (if b then (1 : ℝ) else 0) ∈ Set.Icc (0 : ℝ) 1 := by
+  cases b <;> norm_num
+
+private theorem sum_pi_coin_mean (Q : ℕ) {p : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1) :
+    (∑ i : Fin (List.replicate Q (⟨p, hp₀, hp₁⟩ : unitInterval)).length, ∑ b : Bool,
+      (coinFamily Q hp₀ hp₁ i b).toReal * (if b then (1 : ℝ) else 0)) = Q * p := by
+  simp [coinFamily, Probability.PMF.coin_apply_toReal]
+
 /-- **Upper-tail Hoeffding inequality for `Bin(Q, p)`**: for `p ∈ [0, 1]` and `0 ≤ t`, the
 binomial probability mass on `k - Q p ≥ t` is at most `exp (-2 t² / Q)`. At `Q = 0` the right-hand
 side is `exp 0 = 1`. -/
@@ -168,80 +191,48 @@ theorem sum_filter_le_sub_choose_mul_pow_le (Q : ℕ) {p t : ℝ} (hp₀ : 0 ≤
       (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) ≤
     exp (-2 * t ^ 2 / Q) := by
   classical
-  let q : unitInterval := ⟨p, hp₀, hp₁⟩
-  let ps := List.replicate Q q
-  let trials := Probability.PMF.pi fun i : Fin ps.length => Probability.PMF.coin ps[i]
-  let count : (Fin ps.length → Bool) → ℕ := fun f => ∑ i, if f i then 1 else 0
-  have hmean : (∑ i : Fin ps.length, ∑ b : Bool,
-      (Probability.PMF.coin ps[i] b).toReal * (if b then (1 : ℝ) else 0)) = Q * p := by
-    simp [ps, q, Probability.PMF.coin_apply_toReal]
-  have hcount (f : Fin ps.length → Bool) :
-      (count f : ℝ) = ∑ i, if f i then (1 : ℝ) else 0 := by
-    simp [count]
-  have h := Probability.PMF.pi_sum_ge_mean_add
-    (fun i : Fin ps.length => Probability.PMF.coin ps[i])
-    (fun _ b => if b then (1 : ℝ) else 0) (bound := 1) (by norm_num)
-    (fun _ b _ => by cases b <;> norm_num) ht
-  rw [hmean] at h
-  simp only [Fintype.card_fin, ps, List.length_replicate, one_pow, mul_one] at h
-  have hevent : {f : Fin ps.length → Bool | Q * p + t ≤ ∑ i, if f i then (1 : ℝ) else 0} =
-      count ⁻¹' {k | t ≤ (k : ℝ) - Q * p} := by
-    ext f
-    simp only [Set.mem_ofPred_eq, Set.mem_preimage, hcount]
-    constructor <;> intro h <;> linarith
-  rw [hevent, ← _root_.PMF.toOuterMeasure_map_apply] at h
-  have hlaw : trials.map count = Probability.PMF.poissonBinomial ps :=
-    (Probability.PMF.poissonBinomial_eq_map_pi ps).symm
-  change ((trials.map count).toOuterMeasure _).toReal ≤ _ at h
-  rw [hlaw, poissonBinomial_event_toReal Q q] at h
-  exact h
+  rw [sum_filter_choose_mul_pow_eq_pi_toOuterMeasure Q hp₀ hp₁ (fun x => t ≤ x - Q * p)]
+  have h := Probability.PMF.pi_sum_ge_mean_add (coinFamily Q hp₀ hp₁)
+    (fun _ b => if b then (1 : ℝ) else 0) zero_le_one indicator_mem_Icc ht
+  rw [sum_pi_coin_mean Q hp₀ hp₁] at h
+  simpa only [Fintype.card_fin, List.length_replicate, one_pow, mul_one, ← le_sub_iff_add_le']
+    using h
 
 /-- **Lower-tail Hoeffding inequality for `Bin(Q, p)`**: for `p ∈ [0, 1]` and `0 ≤ t`, the
-binomial probability mass on `Q p - k ≥ t` is at most `exp (-2 t² / Q)`. The reflection
-`k ↦ Q - k` turns it into the upper tail of `Bin(Q, 1 - p)`. -/
+binomial probability mass on `Q p - k ≥ t` is at most `exp (-2 t² / Q)`. Derived directly from
+`Cslib.Probability.PMF.pi_sum_le_mean_sub`. -/
 theorem sum_filter_le_mul_sub_choose_mul_pow_le (Q : ℕ) {p t : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1)
     (ht : 0 ≤ t) :
     ∑ k ∈ range (Q + 1) with t ≤ Q * p - ((k : ℕ) : ℝ),
       (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) ≤
     exp (-2 * t ^ 2 / Q) := by
-  refine le_of_eq_of_le ?_
-    (sum_filter_le_sub_choose_mul_pow_le Q (sub_nonneg.2 hp₁) (sub_le_self 1 hp₀) ht)
-  rw [sum_filter, sum_filter, ← sum_range_reflect]
-  refine sum_congr rfl fun j hj => ?_
-  have hjQ : j ≤ Q := Nat.lt_succ_iff.1 (mem_range.1 hj)
-  rw [add_tsub_cancel_right, Nat.cast_sub hjQ, Nat.choose_symm hjQ, Nat.sub_sub_self hjQ,
-    sub_sub_cancel, show (Q : ℝ) * p - (Q - j) = j - Q * (1 - p) by ring, mul_right_comm]
+  classical
+  rw [sum_filter_choose_mul_pow_eq_pi_toOuterMeasure Q hp₀ hp₁ (fun x => t ≤ Q * p - x)]
+  have h := Probability.PMF.pi_sum_le_mean_sub (coinFamily Q hp₀ hp₁)
+    (fun _ b => if b then (1 : ℝ) else 0) zero_le_one indicator_mem_Icc ht
+  rw [sum_pi_coin_mean Q hp₀ hp₁] at h
+  simp only [Fintype.card_fin, List.length_replicate, one_pow, mul_one] at h
+  have hev : {f : Fin (List.replicate Q (⟨p, hp₀, hp₁⟩ : unitInterval)).length → Bool |
+      t ≤ Q * p - ∑ i, if f i then (1 : ℝ) else 0} =
+      {f | (∑ i, if f i then (1 : ℝ) else 0) ≤ Q * p - t} := by
+    ext f
+    simp only [Set.mem_ofPred_eq, le_sub_comm]
+  rwa [hev]
 
 /-- **Two-sided Hoeffding inequality for `Bin(Q, p)`** `[Hoeffding1963]`: for `p ∈ [0, 1]` and
-`0 ≤ t`, the binomial probability mass on `|k - Q p| ≥ t` is at most `2 exp (-2 t² / Q)`. -/
+`0 ≤ t`, the binomial probability mass on `|k - Q p| ≥ t` is at most `2 exp (-2 t² / Q)`. Derived
+directly from `Cslib.Probability.PMF.pi_sum_abs_sub_mean_ge`. -/
 theorem sum_filter_le_abs_sub_choose_mul_pow_le (Q : ℕ) {p t : ℝ} (hp₀ : 0 ≤ p) (hp₁ : p ≤ 1)
     (ht : 0 ≤ t) :
     ∑ k ∈ range (Q + 1) with t ≤ |((k : ℕ) : ℝ) - Q * p|,
       (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k) ≤
     2 * exp (-2 * t ^ 2 / Q) := by
-  let w : ℕ → ℝ := fun k => (Q.choose k : ℝ) * p ^ k * (1 - p) ^ (Q - k)
-  let A : Finset ℕ := (range (Q + 1)).filter fun k : ℕ => t ≤ (k : ℝ) - Q * p
-  let B : Finset ℕ := (range (Q + 1)).filter fun k : ℕ => t ≤ Q * p - (k : ℝ)
-  let C : Finset ℕ := (range (Q + 1)).filter fun k : ℕ => t ≤ |(k : ℝ) - Q * p|
-  have hsub : C ⊆ A ∪ B := by
-    intro k hk
-    simp only [C, A, B, mem_filter, mem_union] at hk ⊢
-    rcases le_abs.mp hk.2 with h | h
-    · exact Or.inl ⟨hk.1, h⟩
-    · exact Or.inr ⟨hk.1, by linarith⟩
-  have hunion : ∑ k ∈ A ∪ B, w k ≤ ∑ k ∈ A, w k + ∑ k ∈ B, w k := by
-    have h := sum_union_inter (s₁ := A) (s₂ := B) (f := w)
-    have hinter : 0 ≤ ∑ k ∈ A ∩ B, w k :=
-      sum_nonneg fun k _ => choose_mul_pow_nonneg Q k hp₀ hp₁
-    linarith
-  calc ∑ k ∈ C, w k
-      ≤ ∑ k ∈ A ∪ B, w k :=
-        sum_le_sum_of_subset_of_nonneg hsub fun k _ _ => choose_mul_pow_nonneg Q k hp₀ hp₁
-    _ ≤ ∑ k ∈ A, w k + ∑ k ∈ B, w k := hunion
-    _ ≤ exp (-2 * t ^ 2 / Q) + exp (-2 * t ^ 2 / Q) :=
-        add_le_add (sum_filter_le_sub_choose_mul_pow_le Q hp₀ hp₁ ht)
-          (sum_filter_le_mul_sub_choose_mul_pow_le Q hp₀ hp₁ ht)
-    _ = 2 * exp (-2 * t ^ 2 / Q) := by ring
+  classical
+  rw [sum_filter_choose_mul_pow_eq_pi_toOuterMeasure Q hp₀ hp₁ (fun x => t ≤ |x - Q * p|)]
+  have h := Probability.PMF.pi_sum_abs_sub_mean_ge (coinFamily Q hp₀ hp₁)
+    (fun _ b => if b then (1 : ℝ) else 0) zero_le_one indicator_mem_Icc ht
+  rw [sum_pi_coin_mean Q hp₀ hp₁] at h
+  simpa only [Fintype.card_fin, List.length_replicate, one_pow, mul_one] using h
 
 /-- **Interval-complement Hoeffding bound for `Bin(Q, p)`**: if `I` contains every integer
 `0 ≤ k ≤ Q` within `t` of the mean `Q p`, then the binomial mass outside `I` is at most

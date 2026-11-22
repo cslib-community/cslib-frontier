@@ -3,16 +3,19 @@ Copyright (c) 2026 Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
+
 module
 
-public import CslibFrontier.Crypto.Primitives.PRF.Invertible
-public import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko
+import CslibFrontier.Crypto.Primitives.PRF.Invertible
+import CslibFrontier.Crypto.Protocols.PIR.Preprocessing.Plinko
 
-@[expose] public section
+-- This test module intentionally exports no declarations.
+set_option linter.privateModule false
 
 /-! # Tests for Invertible PRFs and the Plinko Preprocessing PIR Scheme
 
-Concrete smoke tests exercising:
+Module-encapsulated client tests exercising the public API of `InvertiblePRF` and `Plinko` via
+ordinary `import`:
 1. `idealInvertiblePRF`, `isCorrect_idealInvertiblePRF`, `InvertiblePRF.composePerm`,
    `InvertiblePRF.isCorrect_composePerm`, and an iPRF that is not inversion-correct.
 2. Single-pass database streaming (`streamEntry`, `foldr_streamEntry_univ`) and
@@ -25,15 +28,16 @@ Concrete smoke tests exercising:
 4. The query map on a conditioned uniform hint (`eval_buildQuery_conditioned_eq_plinkoSim`) and
    perfect privacy of the idealized stand-in `plinkoHybridScheme`
    (`isPerfectlyPrivateWith_plinkoHybridScheme`, `privacyAdvantage_plinkoHybridScheme_eq_zero`,
-   `eval_queryTranscript_plinkoHybridScheme`); neither is privacy of `plinkoScheme`.
+   `eval_queryTranscript_plinkoHybridScheme`); neither is privacy of `plinkoScheme` (#5736).
 5. Database and hint updates (`updateDB`, `updateHint`, `updateState`, `applyUpdates`,
-   `PlinkoState.valid_updateHint`, `PlinkoState.valid_updateState`).
+   `PlinkoState.valid_updateHint`, `PlinkoState.valid_updateState`), including post-promotion cache
+   and promoted-hint parity updates followed by online reconstruction of updated bits.
 6. A non-degenerate instance (`c = 4`, `w = 2`, `nReg = 3`, `nBackup = 2`), where regular hints
    are proper `3`-block subsets: a query sequence that consumes a regular hint, then consumes the
-   promoted backup hint it created, then hits the cache; every preprocessed state satisfies the
-   correctness hypotheses (`PlinkoState.valid_of_mem_support_preprocess`); and the query map and the
-   idealized stand-in at `c = 4`, `w = 3`, against a server whose queries depend on the messages it
-   has seen.
+   promoted backup hint it created, then hits the cache; post-query database updates on a cached
+   promoted entry; every preprocessed state satisfies the correctness hypotheses
+   (`PlinkoState.valid_of_mem_support_preprocess`); and the query map and idealized stand-in at
+   `c = 4`, `w = 3`, against an adaptive server whose queries depend on seen messages.
 -/
 
 namespace Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.Tests
@@ -164,7 +168,7 @@ example :
     (fun α => isCorrectKey_idealInvertiblePRF (exampleState.keys α))
     exampleState_canAnswerSeq_00_00).1
 
-/-! ### 4. Single-query and multi-query privacy tests -/
+/-! ### 4. Single-query map and idealized stand-in privacy tests -/
 
 instance : Fact (Even 2) := ⟨⟨1, rfl⟩⟩
 
@@ -218,12 +222,6 @@ example (updates : List (UpdateSummary 2 2)) :
       exampleIPRF (applyUpdates updates exampleDB) :=
   PlinkoState.valid_updateState updates exampleState_valid
     (fun α => isCorrectKey_idealInvertiblePRF (exampleState.keys α))
-
-/--
-info: 'Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.applyUpdates_nil' does not depend on any axioms
--/
-#guard_msgs in
-#print axioms applyUpdates_nil
 
 /-! ### 6. A non-degenerate instance: `c = 4` blocks, `w = 2` offsets, `3 + 2` hint slots -/
 
@@ -298,6 +296,42 @@ example :
     (fun α => isCorrectKey_idealInvertiblePRF (exampleState4.keys α))
     exampleState4_canAnswerSeq).1
 
+/-- Post-promotion update check: after querying `(0, 0)` (which populates `cache (0, 0)` and
+promotes backup slot `3` for entry `(0, 0)`), flipping `(0, 0)` from `true` to `false` via
+`updateDB` and `updateHint` updates both `cache (0, 0)` and the promoted hint in slot `3`, and
+subsequent queries `[(3, 0), (0, 0)]` reconstruct the updated bits `[false, false]`. -/
+noncomputable abbrev postPromotedUpdatedState4 : PlinkoState 4 2 3 2 (Fin 5 → Fin 2) :=
+  updateHint exampleIPRF4 (updateDB exampleDB4 (0, 0) false).1
+    (exampleState4.nextState exampleIPRF4 exampleDB4 (0, 0))
+
+theorem postPromotedUpdatedState4_valid :
+    postPromotedUpdatedState4.Valid exampleIPRF4 (updateDB exampleDB4 (0, 0) false).2 :=
+  PlinkoState.valid_updateHint (0, 0) false
+    (PlinkoState.valid_nextState exampleState4_valid (isCorrectKey_idealInvertiblePRF _)
+      exampleState4_canAnswerSeq.1)
+    (by simp [isCorrectKey_idealInvertiblePRF])
+
+example : postPromotedUpdatedState4.cache (0, 0) = some (false, 3) := by
+  dsimp only [postPromotedUpdatedState4, PlinkoState.nextState, updateDB]
+  simp only [getHint_exampleIPRF4]
+  decide
+
+theorem postPromotedUpdatedState4_canAnswerSeq :
+    postPromotedUpdatedState4.CanAnswerSeq exampleIPRF4 (updateDB exampleDB4 (0, 0) false).2
+      [(3, 0), (0, 0)] := by
+  refine ⟨(PlinkoState.canAnswer_updateHint_iff _ _ _ _).mpr exampleState4_canAnswerSeq.2.1,
+    Or.inl ?_, trivial⟩
+  dsimp only [postPromotedUpdatedState4, PlinkoState.nextState, updateDB]
+  simp only [getHint_exampleIPRF4]
+  decide
+
+example :
+    (plinkoScheme 4 2 3 2 exampleIPRF4).IsCorrectFrom (updateDB exampleDB4 (0, 0) false).2
+      postPromotedUpdatedState4 [(3, 0), (0, 0)] :=
+  (PlinkoState.isCorrectFrom_plinkoScheme_of_canAnswerSeq postPromotedUpdatedState4_valid
+    (fun _ => isCorrectKey_idealInvertiblePRF _)
+    postPromotedUpdatedState4_canAnswerSeq).1
+
 /-- Every state that `plinkoScheme` preprocesses with the ideal iPRF is `Valid` and has
 inversion-correct keys. -/
 example (db : Fin 4 × Fin 2 → Bool) (st : PlinkoState 4 2 3 2 (Fin 5 → Fin 2))
@@ -338,5 +372,3 @@ example (db : Fin 4 × Fin 3 → Bool) :
   privacyAdvantage_plinkoHybridScheme_eq_zero plinkoAdaptiveServer4 _ db 3 []
 
 end Cslib.Crypto.Protocols.PIR.Preprocessing.Plinko.Tests
-
-end

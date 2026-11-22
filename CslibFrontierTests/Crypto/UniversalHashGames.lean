@@ -9,10 +9,12 @@ module
 
 import Cslib.Foundations.Data.BitString
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
@@ -203,6 +205,27 @@ example :
 /-- No reply is needed to produce the initial zero digest for an empty message. -/
 example :
     (xorHashWordQueries 2 2 []).run (fun _ => pure []) = pure [false, false] := rfl
+
+/-- A constant table produces a collision for distinct valid one-bit messages. -/
+example :
+    (xorHashWordCollisionReduction (fun _ => 2) (fun _ => 1) (fun _ => 1)
+        (fun _ => pure ⟨[[true]], [[false]]⟩) 0 []).run (fun _ => pure [true]) =
+      pure true := rfl
+
+/-- A malformed block loses even when the constant table would give equal digests. -/
+example :
+    (xorHashWordCollisionReduction (fun _ => 2) (fun _ => 1) (fun _ => 1)
+        (fun _ => pure ⟨[[true, false]], [[false]]⟩) 0 []).run (fun _ => pure [true]) =
+      pure false := rfl
+
+open Turing.MultiTapeTM in
+/-- A two-block cap and `n`-bit blocks and digests instantiate the security result. -/
+example {family : List Bool → List Bool → List Bool}
+    (hPRF : PseudorandomFunctionOver (fun n => 2 + n) id family) :
+    IsComputationalUHF encUnary (encList encBits) (fun n => pure n)
+      (fun _ n => xorHashWordValid 2 n)
+      (fun _ => xorHashWordFamily (fun _ => 2) id id family) :=
+  isComputationalUHF_xorHashWordFamily hPRF (.const 2) .id' negligible_inv_two_pow
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.PCP.Approximation.IndependentSet
 import CslibFrontier.Computability.Complexity.Classes.Space.GeneralizedGeography
 
@@ -17,6 +19,8 @@ vacuous. Small instances of Generalized Geography won and lost by the first play
 undeclared targets and revisits; members and non-members of `TQBFCNF`, including a formula with a
 free variable, and their images under the reduction to Generalized Geography.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.GapGraphsGeography
 
@@ -132,28 +136,39 @@ example :
   rw [Graph.geographyWins_iff]
   simp
 
+-- `encPrenexCNF` preserves the exact encoded words of the former pair encoding.
+example (ps : List (ℕ × ℕ)) (ψ : CNF ℕ) :
+    encPrenexCNF ⟨ps, ψ⟩ = encPair (encList (encPair encNat encNat)) encCNF (ps, ψ) :=
+  rfl
+
+-- `encPrenexCNF` exposes scoped `fun_prop` rules for projections and constructor.
+example :
+    ComputableInPolyTime (fun x : PrenexCNF => (⟨x.rounds, x.matrix⟩ : PrenexCNF))
+      encPrenexCNF encPrenexCNF := by
+  fun_prop
+
 /-- `∃ x₀, ∀ x₁, x₀` is true. -/
 private theorem mem_TQBFCNF_ex :
-    (([(0, 1)], [[(0, true)]]) : List (ℕ × ℕ) × CNF ℕ) ∈ TQBFCNF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, mem_TQBF]
+    (⟨[(0, 1)], [[(0, true)]]⟩ : PrenexCNF) ∈ TQBFCNF := by
+  rw [mk_mem_TQBFCNF, mem_TQBF]
   decide
 
 /-- `∃ x₀, ∀ x₁, x₁` is false. -/
 private theorem notMem_TQBFCNF_all :
-    (([(0, 1)], [[(1, true)]]) : List (ℕ × ℕ) × CNF ℕ) ∉ TQBFCNF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, mem_TQBF]
+    (⟨[(0, 1)], [[(1, true)]]⟩ : PrenexCNF) ∉ TQBFCNF := by
+  rw [mk_mem_TQBFCNF, mem_TQBF]
   decide
 
 /-- `∃ x₀, ∀ x₁, x₂` has a free variable. -/
 private theorem notMem_TQBFCNF_free :
-    (([(0, 1)], [[(2, false)]]) : List (ℕ × ℕ) × CNF ℕ) ∉ TQBFCNF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, mem_TQBF]
+    (⟨[(0, 1)], [[(2, false)]]⟩ : PrenexCNF) ∉ TQBFCNF := by
+  rw [mk_mem_TQBFCNF, mem_TQBF]
   decide
 
 example :
-    GeneralizedGeography.reduce ([(0, 1)], [[(0, true)]]) ∈ GeneralizedGeography ∧
-    GeneralizedGeography.reduce ([(0, 1)], [[(1, true)]]) ∉ GeneralizedGeography ∧
-    GeneralizedGeography.reduce ([(0, 1)], [[(2, false)]]) ∉ GeneralizedGeography :=
+    GeneralizedGeography.reduce ⟨[(0, 1)], [[(0, true)]]⟩ ∈ GeneralizedGeography ∧
+    GeneralizedGeography.reduce ⟨[(0, 1)], [[(1, true)]]⟩ ∉ GeneralizedGeography ∧
+    GeneralizedGeography.reduce ⟨[(0, 1)], [[(2, false)]]⟩ ∉ GeneralizedGeography :=
   ⟨(GeneralizedGeography.reduce_mem_iff _).2 mem_TQBFCNF_ex,
     fun h => notMem_TQBFCNF_all ((GeneralizedGeography.reduce_mem_iff _).1 h),
     fun h => notMem_TQBFCNF_free ((GeneralizedGeography.reduce_mem_iff _).1 h)⟩
