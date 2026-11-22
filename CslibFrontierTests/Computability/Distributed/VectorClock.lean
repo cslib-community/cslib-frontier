@@ -169,8 +169,7 @@ example : ¬ ∃ f : (crownFin 4 (by decide)).Event → (Fin 3 → ℚ),
 example : ¬ ∀ E : Execution (Fin 3), ∃ f : E.Event → (Fin 2 → ℚ),
     ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ := by
   intro h
-  have hle := unicast_clock_dim_lower_bound h
-  omega
+  exact absurd (unicast_clock_dim_lower_bound h) (by decide)
 
 example : ∀ E : Execution (Fin 0), ∃ f : E.Event → (Fin 0 → ℕ),
     ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ :=
