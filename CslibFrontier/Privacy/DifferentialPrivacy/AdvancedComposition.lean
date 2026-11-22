@@ -24,14 +24,14 @@ The source proves the theorem through the KL divergence bound `ε (e^ε - 1)` an
 inequality. Here the proof bounds the moment generating function of the privacy loss in each
 round (`lossMoment_le_exp`), multiplies the bounds along the transcript
 (`lossMoment_transcriptWeight_le`) and applies Markov's inequality
-(`tsum_indicator_le_lossMoment`). The per-round bound gives the sharper linear term
+(`tsum_tsub_le_lossMoment`). The per-round bound gives the sharper linear term
 `k ε tanh (ε / 2) = k ε (e^ε - 1) / (e^ε + 1)` in place of `k ε (e^ε - 1)`
 (`DifferentiallyPrivate.advancedComposition_sqrt`), the third bound of
 [KairouzOhViswanath2017, Theorem 3.4]. Their proof also bounds a moment generating function, after
 reducing to an extremal pair of four-point distributions.
 For `δ > 0`, each round is replaced by `ε`-close sub-probability kernels that keep all but `δ` of
-the mass (`exists_le_of_tsum_tsub_le`); `k` rounds then lose at most `k δ` of the mass
-(`one_le_tsum_transcriptWeight_add`).
+the mass (`Cslib.Probability.PMF.exists_subprob_of_hockeyStick_le`); `k` rounds then lose at most
+`k δ` of the mass (`one_le_tsum_transcriptWeight_add`).
 
 The adaptive adversary of the source's composition experiment [DworkRoth2014, Definition 3.7],
 which chooses in every round two adjacent inputs and a private mechanism from its coins and the
@@ -234,32 +234,26 @@ variable {R : Type u} {D : Type v}
 
 /-- The core of advanced composition, for sub-probability kernels whose likelihood ratio lies in
 `[e^{-ε}, e^ε]` in every round and whose first kernel has at most the mass of the second: for every
-`a ≥ 0` and every event `S` of transcripts after `k` rounds,
-`W_K(S) ≤ exp (k ε tanh (ε / 2) + a ε) · W_L(S) + exp (-a² / (2k))`. The moment bound of each round
-(`lossMoment_le_exp` at `t = a / (k ε)`) multiplies along the transcript, and Markov's inequality
-(`tsum_indicator_le_lossMoment`) converts the product into the event bound. -/
-theorem tsum_indicator_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {ε : ℝ} (hε : 0 ≤ ε)
+`a ≥ 0`, the truncated excess of `transcriptWeight K k` over
+`exp (k ε tanh (ε / 2) + a ε) · transcriptWeight L k` is at most `exp (-a² / (2k))`. -/
+theorem tsum_tsub_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {ε : ℝ} (hε : 0 ≤ ε)
     (hKL : ∀ h r, K h r ≤ ENNReal.ofReal (Real.exp ε) * L h r)
     (hLK : ∀ h r, L h r ≤ ENNReal.ofReal (Real.exp ε) * K h r)
     (hsum : ∀ h, ∑' r, K h r ≤ ∑' r, L h r) (hL1 : ∀ h, ∑' r, L h r ≤ 1)
-    (k : ℕ) {a : ℝ} (ha : 0 ≤ a) (S : Set (List R)) :
-    ∑' l, S.indicator (transcriptWeight K k) l ≤
-      ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε)) *
-        ∑' l, S.indicator (transcriptWeight L k) l +
+    (k : ℕ) {a : ℝ} (ha : 0 ≤ a) :
+    ∑' l, (transcriptWeight K k l -
+        ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε)) *
+          transcriptWeight L k l) ≤
       ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) := by
   have hK1 : ∀ h, ∑' r, K h r ≤ 1 := fun h => (hsum h).trans (hL1 h)
   rcases hε.eq_or_lt with rfl | hε
   · have hKL' : K = L := funext fun h => funext fun r =>
       le_antisymm (by simpa using hKL h r) (by simpa using hLK h r)
     rw [hKL']
-    simp only [mul_zero, zero_mul, add_zero, Real.exp_zero, ENNReal.ofReal_one, one_mul]
-    exact le_self_add
+    simp [tsub_self]
   rcases Nat.eq_zero_or_pos k with rfl | hk
   · rw [Nat.cast_zero, mul_zero, div_zero, neg_zero, Real.exp_zero, ENNReal.ofReal_one]
-    refine le_add_left ?_
-    calc ∑' l, S.indicator (transcriptWeight K 0) l ≤ ∑' l, transcriptWeight K 0 l :=
-          tsum_le_tsum fun l => Set.indicator_le_self _ _ l
-      _ = 1 := tsum_transcriptWeight_zero K
+    exact (tsum_le_tsum fun _ => tsub_le_self).trans (tsum_transcriptWeight_zero K).le
   have hLfin : ∀ h r, L h r ≠ ⊤ := fun h r =>
     ne_top_of_le_ne_top ENNReal.one_ne_top ((le_tsum (L h) r).trans (hL1 h))
   have hk' : (0 : ℝ) < k := Nat.cast_pos.mpr hk
@@ -272,7 +266,7 @@ theorem tsum_indicator_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {
     rw [hst] at this
     exact this.trans ((mul_le_mul' le_rfl (hK1 h)).trans (mul_one _).le)
   have hmom := lossMoment_transcriptWeight_le hLfin ht hround k
-  refine (tsum_indicator_le_lossMoment ht _ _ _ S).trans (add_le_add le_rfl ?_)
+  refine (tsum_tsub_le_lossMoment ht _ _ _).trans ?_
   refine (mul_le_mul' le_rfl hmom).trans ?_
   rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← ENNReal.ofReal_mul (Real.exp_pos _).le,
     ← Real.exp_nat_mul, ← Real.exp_add]
@@ -280,67 +274,79 @@ theorem tsum_indicator_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {
   field_simp
   ring
 
+/-- Hockey-stick form of advanced composition for one pair of inputs: if in every round `M h x`
+and `M h y` have hockey-stick divergence at most `δ` at factor `e^ε` in both directions, then the
+`k`-round transcripts have hockey-stick divergence at most `exp (-a² / (2k)) + k δ` at factor
+`exp (k ε tanh (ε / 2) + a ε)`. -/
+theorem hockeyStick_adaptiveComposition_le {M : List R → D → PMF R} {x y : D} {ε : ℝ}
+    {δ : ℝ≥0∞} (hε : 0 ≤ ε)
+    (hxy : ∀ h, Probability.PMF.hockeyStick (ENNReal.ofReal (Real.exp ε)) (M h x) (M h y) ≤ δ)
+    (hyx : ∀ h, Probability.PMF.hockeyStick (ENNReal.ofReal (Real.exp ε)) (M h y) (M h x) ≤ δ)
+    (k : ℕ) {a : ℝ} (ha : 0 ≤ a) :
+    Probability.PMF.hockeyStick
+      (ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε)))
+      (adaptiveComposition M k x) (adaptiveComposition M k y) ≤
+      ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ := by
+  have hc : 1 ≤ ENNReal.ofReal (Real.exp ε) := ENNReal.one_le_ofReal.mpr (Real.one_le_exp hε)
+  choose K L hKP hLQ hKL hLK hsum hmass using
+    fun h => Probability.PMF.exists_subprob_of_hockeyStick_le (M h x) (M h y) hc (hxy h) (hyx h)
+  have hL1 : ∀ h, ∑' r, L h r ≤ 1 := fun h =>
+    (tsum_le_tsum (hLQ h)).trans (M h y).tsum_coe.le
+  have hK1 : ∀ h, ∑' r, K h r ≤ 1 := fun h => (hsum h).trans (hL1 h)
+  have hWK : ∀ l, transcriptWeight K k l ≤ adaptiveComposition M k x l := fun l =>
+    (transcriptWeight_mono hKP k l).trans_eq (adaptiveComposition_apply M k x l).symm
+  have hWL : ∀ l, transcriptWeight L k l ≤ adaptiveComposition M k y l := fun l =>
+    (transcriptWeight_mono hLQ k l).trans_eq (adaptiveComposition_apply M k y l).symm
+  have hdef : ∑' l, (adaptiveComposition M k x l - transcriptWeight K k l) ≤ k * δ := by
+    have h1 := one_le_tsum_transcriptWeight_add hK1 hmass k
+    have h2 : ∑' l, (adaptiveComposition M k x l - transcriptWeight K k l) +
+        ∑' l, transcriptWeight K k l = 1 := by
+      rw [← tsum_add, ← (adaptiveComposition M k x).tsum_coe]
+      exact tsum_congr fun l => tsub_add_cancel_of_le (hWK l)
+    have hfin : ∑' l, transcriptWeight K k l ≠ ⊤ :=
+      ne_top_of_le_ne_top ENNReal.one_ne_top (tsum_transcriptWeight_le_one hK1 k)
+    rw [← h2, add_comm (∑' l, transcriptWeight K k l) (k * δ)] at h1
+    exact (ENNReal.add_le_add_iff_right hfin).mp h1
+  set E := ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε))
+  calc Probability.PMF.hockeyStick E (adaptiveComposition M k x) (adaptiveComposition M k y)
+      ≤ ∑' l, ((transcriptWeight K k l - E * transcriptWeight L k l) +
+          (adaptiveComposition M k x l - transcriptWeight K k l)) := by
+        refine tsum_le_tsum fun l => ?_
+        rw [tsub_le_iff_left]
+        calc adaptiveComposition M k x l
+            ≤ transcriptWeight K k l +
+                (adaptiveComposition M k x l - transcriptWeight K k l) := le_add_tsub
+          _ ≤ (E * transcriptWeight L k l +
+                (transcriptWeight K k l - E * transcriptWeight L k l)) +
+                (adaptiveComposition M k x l - transcriptWeight K k l) := by
+              gcongr; exact le_add_tsub
+          _ ≤ (E * adaptiveComposition M k y l +
+                (transcriptWeight K k l - E * transcriptWeight L k l)) +
+                (adaptiveComposition M k x l - transcriptWeight K k l) := by
+              gcongr; exact hWL l
+          _ = E * adaptiveComposition M k y l +
+                ((transcriptWeight K k l - E * transcriptWeight L k l) +
+                  (adaptiveComposition M k x l - transcriptWeight K k l)) := by ring
+    _ = ∑' l, (transcriptWeight K k l - E * transcriptWeight L k l) +
+          ∑' l, (adaptiveComposition M k x l - transcriptWeight K k l) := tsum_add
+    _ ≤ ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ :=
+        add_le_add (tsum_tsub_transcriptWeight_le hε hKL hLK hsum hL1 k ha) hdef
+
 /-- Advanced composition for one pair of inputs. If, after every history, the round
 distributions on `x` and on `y` have hockey-stick divergence at most `δ` at factor `e^ε` in both
 directions, then for every `a ≥ 0` the transcripts of `k` rounds satisfy
 `Pr_x[S] ≤ exp (k ε tanh (ε / 2) + a ε) · Pr_y[S] + exp (-a² / (2k)) + k δ`. -/
 theorem adaptiveComposition_toOuterMeasure_le {M : List R → D → PMF R} {x y : D} {ε : ℝ}
     {δ : ℝ≥0∞} (hε : 0 ≤ ε)
-    (hxy : ∀ h, ∑' r, (M h x r - ENNReal.ofReal (Real.exp ε) * M h y r) ≤ δ)
-    (hyx : ∀ h, ∑' r, (M h y r - ENNReal.ofReal (Real.exp ε) * M h x r) ≤ δ)
+    (hxy : ∀ h, Probability.PMF.hockeyStick (ENNReal.ofReal (Real.exp ε)) (M h x) (M h y) ≤ δ)
+    (hyx : ∀ h, Probability.PMF.hockeyStick (ENNReal.ofReal (Real.exp ε)) (M h y) (M h x) ≤ δ)
     (k : ℕ) {a : ℝ} (ha : 0 ≤ a) (S : Set (List R)) :
     (adaptiveComposition M k x).toOuterMeasure S ≤
       ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε)) *
         (adaptiveComposition M k y).toOuterMeasure S +
-      (ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ) := by
-  have hc : 1 ≤ ENNReal.ofReal (Real.exp ε) := ENNReal.one_le_ofReal.mpr (Real.one_le_exp hε)
-  choose K L hKP hLQ hKL hLK hsum hmass using fun h => exists_le_of_tsum_tsub_le (M h x) (M h y) hc
-    (hxy h) (hyx h)
-  have hL1 : ∀ h, ∑' r, L h r ≤ 1 := fun h =>
-    (tsum_le_tsum (hLQ h)).trans (M h y).tsum_coe.le
-  have hK1 : ∀ h, ∑' r, K h r ≤ 1 := fun h => (hsum h).trans (hL1 h)
-  have hfun (z : D) : ⇑(adaptiveComposition M k z) = transcriptWeight (fun h => M h z) k :=
-    funext (adaptiveComposition_apply M k z)
-  rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, hfun x, hfun y]
-  have hWK : ∀ l, transcriptWeight K k l ≤ transcriptWeight (fun h => M h x) k l :=
-    transcriptWeight_mono hKP k
-  have hWL : ∀ l, transcriptWeight L k l ≤ transcriptWeight (fun h => M h y) k l :=
-    transcriptWeight_mono hLQ k
-  have hone : ∑' l, transcriptWeight (fun h => M h x) k l = 1 := by
-    rw [← hfun x]
-    exact (adaptiveComposition M k x).tsum_coe
-  -- the mass removed from the first experiment is at most `k δ`
-  have hdef : ∑' l, (transcriptWeight (fun h => M h x) k l - transcriptWeight K k l) ≤ k * δ := by
-    have h1 := one_le_tsum_transcriptWeight_add hK1 hmass k
-    have h2 : ∑' l, (transcriptWeight (fun h => M h x) k l - transcriptWeight K k l) +
-        ∑' l, transcriptWeight K k l = 1 := by
-      rw [← tsum_add, ← hone]
-      exact tsum_congr fun l => tsub_add_cancel_of_le (hWK l)
-    have hfin : ∑' l, transcriptWeight K k l ≠ ⊤ :=
-      ne_top_of_le_ne_top ENNReal.one_ne_top (tsum_transcriptWeight_le_one hK1 k)
-    rw [← h2, add_comm (∑' l, transcriptWeight K k l) (k * δ)] at h1
-    exact (ENNReal.add_le_add_iff_right hfin).mp h1
-  calc ∑' l, S.indicator (transcriptWeight (fun h => M h x) k) l
-      ≤ ∑' l, (S.indicator (transcriptWeight K k) l +
-          (transcriptWeight (fun h => M h x) k l - transcriptWeight K k l)) := by
-        refine tsum_le_tsum fun l => ?_
-        by_cases hl : l ∈ S
-        · simp only [Set.indicator_of_mem hl]
-          exact le_add_tsub
-        · simp only [Set.indicator_of_notMem hl, zero_add]
-          exact zero_le
-    _ = ∑' l, S.indicator (transcriptWeight K k) l +
-          ∑' l, (transcriptWeight (fun h => M h x) k l - transcriptWeight K k l) := tsum_add
-    _ ≤ (ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε)) *
-          ∑' l, S.indicator (transcriptWeight L k) l +
-          ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k))))) + k * δ :=
-        add_le_add (tsum_indicator_transcriptWeight_le hε hKL hLK hsum hL1 k ha S) hdef
-    _ ≤ ENNReal.ofReal (Real.exp (k * ε * Real.tanh (ε / 2) + a * ε)) *
-          ∑' l, S.indicator (transcriptWeight (fun h => M h y) k) l +
-          (ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ) := by
-        rw [add_assoc]
-        gcongr with l
-        exact hWL l
+      (ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ) :=
+  (Probability.PMF.toOuterMeasure_le_mul_add_hockeyStick _ _ _ S).trans
+    (add_le_add le_rfl (hockeyStick_adaptiveComposition_le hε hxy hyx k ha))
 
 /-- Advanced composition with the slack parameter `a`: if every round is `(ε, δ)`-private for a
 symmetric adjacency relation, `k` adaptive rounds are
@@ -352,9 +358,10 @@ theorem DifferentiallyPrivate.advancedComposition_tanh {Adj : D → D → Prop}
     DifferentiallyPrivate Adj (Privacy.adaptiveComposition M k)
       (k * ε * Real.tanh (ε / 2) + a * ε)
       (ENNReal.ofReal (Real.exp (-(a ^ 2 / (2 * k)))) + k * δ) :=
-  fun _ _ hxy S => adaptiveComposition_toOuterMeasure_le hε
-    (fun hist => DifferentiallyPrivate.iff_tsum_tsub_le.mp (h hist) hxy)
-    (fun hist => DifferentiallyPrivate.iff_tsum_tsub_le.mp (h hist) (hAdj hxy)) k ha S
+  DifferentiallyPrivate.iff_hockeyStick_le.mpr fun _ _ hxy =>
+    hockeyStick_adaptiveComposition_le hε
+      (fun hist => DifferentiallyPrivate.iff_hockeyStick_le.mp (h hist) hxy)
+      (fun hist => DifferentiallyPrivate.iff_hockeyStick_le.mp (h hist) (hAdj hxy)) k ha
 
 /-- Advanced composition with `tanh`: `k` adaptive rounds of `(ε, δ)`-private mechanisms are
 `(√(2k ln (1/δ')) ε + k ε tanh (ε / 2), k δ + δ')`-private for every `δ' > 0`. This is the third

@@ -2470,7 +2470,9 @@ two-endpoint counterexample to dropping width.
 [ReserveOutput](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/ReserveOutput.lean)
 assembles the actual finite output from explicit lower-child conditional-error-cost fourth
 moments. Its finite geometric, routing and cutoff hypotheses are the documented fields of
-`ReserveOutputContext`; `ReserveOutputChildren` contains the independently supplied raw,
+`ReserveOutputContext` (extending `ResidualStage`, `CutoffProfile`, and `BinSchedule` from
+[StageContext](../../CslibFrontier/Computability/LogSpaceDerandomization/StageContext.lean));
+`ReserveOutputChildren` contains the independently supplied raw,
 preparation and maximum families. Their shared
 [OutputContext](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/OutputContext.lean)
 module gives named constructions `amplification`, `tolerance`, `rawSteps`, `prepSteps`,

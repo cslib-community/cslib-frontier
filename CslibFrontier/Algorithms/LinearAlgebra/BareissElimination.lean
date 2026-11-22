@@ -8,15 +8,17 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.PolyTime.Int.Table
+public import CslibFrontier.Foundations.Data.Matrix.RowTable
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Bareiss
 public import CslibFrontier.Foundations.Data.Nat.BinarySize
 public import CslibFrontier.Foundations.Data.Rat.Basic
 import CslibFrontier.Foundations.Data.List.Lookup
+import Mathlib.Algebra.Order.BigOperators.GroupWithZero.List
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.NodupEquivFin
 import Mathlib.LinearAlgebra.Matrix.Diagonal
 import Mathlib.Logic.Equiv.Fintype
+import Mathlib.Tactic.LinearCombination
 
 /-!
 # Executable Bareiss–Jordan elimination over `ℚ` and coefficient bit-length bounds
@@ -73,24 +75,10 @@ open scoped Matrix BigOperators
 /-! ### Explicit table and elimination record types -/
 
 /-- Explicit row-major integer matrix. -/
-structure IntTable where
-  /-- Number of rows. -/
-  numRows : ℕ
-  /-- Number of columns. -/
-  numCols : ℕ
-  /-- Row-major integer entries. -/
-  rows : List (List ℤ)
-  deriving Repr
+abbrev IntTable := Cslib.RowTable ℤ
 
 /-- Explicit row-major rational matrix. -/
-structure RatTable where
-  /-- Number of rows. -/
-  numRows : ℕ
-  /-- Number of columns. -/
-  numCols : ℕ
-  /-- Row-major rational entries. -/
-  rows : List (List ℚ)
-  deriving Repr
+abbrev RatTable := Cslib.RowTable ℚ
 
 /-- Intermediate state of column-by-column Bareiss–Jordan integer elimination. -/
 structure BareissState where
@@ -138,42 +126,8 @@ structure LinearSolveResult where
   pivotCols : List ℕ
   deriving Repr
 
-deriving instance DecidableEq for IntTable, RatTable, BareissState, RationalElimResult,
-  LinearSystemInput, LinearSolveResult
-
-/-! ### Table indexing, well-formedness, and `Matrix` bridges -/
-
-/-- Entry `(i, j)` of an `IntTable`, defaulting to `0` out of bounds. -/
-@[expose] def IntTable.entry (T : IntTable) (i j : ℕ) : ℤ :=
-  Cslib.rowEntry T.rows i j
-
-/-- Entry `(i, j)` of a `RatTable`, defaulting to `0` out of bounds. -/
-@[expose] def RatTable.entry (M : RatTable) (i j : ℕ) : ℚ :=
-  (M.rows.getD i []).getD j 0
-
-/-- Rectangular shape invariant for `IntTable`. -/
-@[expose] def IntTable.WellFormed (T : IntTable) : Prop :=
-  Cslib.IsTableShape T.numRows T.numCols T.rows
-
-/-- Rectangular shape invariant for `RatTable`. -/
-@[expose] def RatTable.WellFormed (M : RatTable) : Prop :=
-  M.rows.length = M.numRows ∧ ∀ r ∈ M.rows, r.length = M.numCols
-
-/-- Interpret an `IntTable` as a `Matrix (Fin T.numRows) (Fin T.numCols) ℤ`. -/
-@[expose] def IntTable.toMatrix (T : IntTable) : Matrix (Fin T.numRows) (Fin T.numCols) ℤ :=
-  Matrix.of fun i j => T.entry i.val j.val
-
-/-- Interpret a `RatTable` as a `Matrix (Fin M.numRows) (Fin M.numCols) ℚ`. -/
-@[expose] def RatTable.toMatrix (M : RatTable) : Matrix (Fin M.numRows) (Fin M.numCols) ℚ :=
-  Matrix.of fun i j => M.entry i.val j.val
-
-@[simp]
-theorem IntTable.toMatrix_apply (T : IntTable) (i : Fin T.numRows) (j : Fin T.numCols) :
-    T.toMatrix i j = T.entry i.val j.val := rfl
-
-@[simp]
-theorem RatTable.toMatrix_apply (M : RatTable) (i : Fin M.numRows) (j : Fin M.numCols) :
-    M.toMatrix i j = M.entry i.val j.val := rfl
+deriving instance DecidableEq for BareissState, RationalElimResult, LinearSystemInput,
+  LinearSolveResult
 
 /-! ### Row denominator clearing -/
 
@@ -231,8 +185,7 @@ theorem rowMultiplier_pos (M : RatTable) (i : Fin M.numRows) : 0 < rowMultiplier
 private theorem clearDenoms_entry_eq (M : RatTable) (i : Fin M.numRows) (j : Fin M.numCols) :
     (clearDenoms M).toMatrix i j =
       (M.toMatrix i j).num * Int.ofNat (rowMultiplier M i / (M.toMatrix i j).den) := by
-  simp only [IntTable.toMatrix_apply, RatTable.toMatrix_apply, IntTable.entry, Cslib.rowEntry,
-    clearDenoms]
+  simp only [Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry, clearDenoms]
   rw [List.getD_map_range _ [] i.isLt]
   simp only [clearRow, normalizedRatRow, List.map_map, Function.comp_def]
   exact List.getD_map_range _ 0 j.isLt
@@ -280,12 +233,12 @@ theorem clearDenoms_abs_le (M : RatTable) {b : ℕ}
     let prevDet := st.pivotDet
     let m := st.table.numRows
     let n := st.table.numCols
-    let nextRows : List (List ℤ) :=
-      Cslib.tabulateTable m n fun i j =>
+    let nextTable : IntTable :=
+      Cslib.RowTable.tabulate m n fun i j =>
         if i = p then st.table.entry p j
         else
           (pivVal * st.table.entry i j - st.table.entry i c * st.table.entry p j) / prevDet
-    { table := ⟨m, n, nextRows⟩
+    { table := nextTable
       pivotDet := pivVal
       pivotRows := st.pivotRows ++ [p]
       pivotCols := st.pivotCols ++ [c] }
@@ -467,7 +420,7 @@ private theorem bareissInv_step_some {T : IntTable} {c p : ℕ} (hc : c < T.numC
         · exact hinv.echelon_zero a j hja
   simp only [bareissStep, hfind]
   refine BareissInv.of_sel (k := st.pivotRows.length + 1) (hk := by simp)
-    (wellFormed := Cslib.isTableShape_tabulateTable _ _ _) (dims := hinv.dims)
+    (wellFormed := Cslib.RowTable.wellFormed_tabulate _ _ _) (dims := hinv.dims)
     (len_eq := by simp [hinv.len_eq])
     (row_lt := List.forall_mem_append.2 ⟨hinv.row_lt, by simpa using hp_m⟩)
     (col_lt := List.forall_mem_append.2
@@ -483,7 +436,7 @@ private theorem bareissInv_step_some {T : IntTable} {c p : ℕ} (hc : c < T.numC
     (table_eq := fun i j => ?_) (term_cols := fun i hi j hj => ?_)
     (echelon_zero := fun a j => ?_)
   · -- the new table: row `p` is kept, the other rows are the exact Bareiss quotients
-    rw [IntTable.entry, Cslib.rowEntry_tabulateTable_of_lt _ (hinv.dims.1.symm ▸ i.isLt)
+    rw [Cslib.RowTable.entry_tabulate_of_lt _ (hinv.dims.1.symm ▸ i.isLt)
       (hinv.dims.2.symm ▸ j.isLt)]
     by_cases hip : i.val = p
     · obtain rfl : i = ⟨p, hp_m⟩ := Fin.ext hip
@@ -767,7 +720,7 @@ private theorem rationalElim_rref_entry (M : RatTable) {i j : ℕ} (hi : i < M.n
       else 0 := by
   have hn : (bareissElim (clearDenoms M)).table.numCols = M.numCols :=
     (bareissElim_inv (clearDenoms_wellFormed M)).dims.2
-  simp only [RatTable.entry, rationalElim]
+  simp only [Cslib.RowTable.entry, rationalElim]
   split_ifs with h
   · rw [List.getD_append _ _ _ _ (by simpa using h), List.getD_eq_getElem _ [] (by simpa using h),
       List.getElem_map]
@@ -924,7 +877,7 @@ theorem augmentRatTable_toMatrix_apply (A : RatTable) (b : List ℚ)
     (augmentRatTable A b).toMatrix i j =
       if hj : j.val < A.numCols then A.toMatrix ⟨i.val, i.isLt⟩ ⟨j.val, hj⟩
       else b.getD i.val 0 := by
-  rw [RatTable.toMatrix_apply, RatTable.entry]
+  rw [Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry]
   dsimp only [augmentRatTable]
   rw [List.getD_map_range (n := A.numRows) _ [] i.isLt]
   have hlen : (normalizedRatRow A i.val).length = A.numCols := by simp [normalizedRatRow]

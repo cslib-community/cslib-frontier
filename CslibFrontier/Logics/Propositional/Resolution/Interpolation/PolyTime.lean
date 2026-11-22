@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Logics.Propositional.CNF.Encoding
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.Extraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.MonotoneExtraction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
@@ -80,16 +81,10 @@ variable {encY : Y ↪ List Bool} {encZ : Z ↪ List Bool}
 
 /-! ### Variables and step search -/
 
-/-- Embedding the `A`-variables into the joint variables, by option elimination. -/
-private theorem sumMap_inl_eq (v : ℕ ⊕ Y) :
-    (Sum.map id Sum.inl v : ℕ ⊕ (Y ⊕ Z)) =
-      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun y => .inr (.inl y)) fun i => .inl i := by
-  rcases v with _ | _ <;> rfl
-
-/-- Embedding the `B`-variables into the joint variables, by option elimination. -/
-private theorem sumMap_inr_eq (v : ℕ ⊕ Z) :
-    (Sum.map id Sum.inr v : ℕ ⊕ (Y ⊕ Z)) =
-      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun z => .inr (.inr z)) fun i => .inl i := by
+/-- Embedding private variables into joint variables, by option elimination. -/
+private theorem sumMap_id_eq {α β : Type} (f : α → β) (v : ℕ ⊕ α) :
+    (Sum.map id f v : ℕ ⊕ β) =
+      v.getLeft?.elim (v.getRight?.elim (.inl 0) fun a => .inr (f a)) fun i => .inl i := by
   rcases v with _ | _ <;> rfl
 
 private theorem getLeft? {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ List Bool) :
@@ -104,25 +99,28 @@ private theorem isLeft {α β : Type} (encA : α ↪ List Bool) (encB : β ↪ L
     ComputableInPolyTime (Sum.isLeft (α := α) (β := β)) (encSum encA encB) encBool :=
   (ComputableInO.isLeft_deg encA encB).computableInPolyTime
 
+/-- Mapping the right summand while fixing `ℕ` on the left is polynomial-time. -/
+private theorem sumMap_id {α β : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool} {f : α → β}
+    (hf : ComputableInPolyTime f encA encB) :
+    ComputableInPolyTime (Sum.map id f : ℕ ⊕ α → ℕ ⊕ β) (encSum encNat encA)
+      (encSum encNat encB) := by
+  simp only [funext (sumMap_id_eq f)]
+  exact optionElimWithInput (getLeft? _ _)
+    (optionElimWithInput (getRight? _ _) (const _)
+      ((sumInr _ _).comp (hf.comp (snd _ _))))
+    ((sumInl _ _).comp (snd _ _))
+
 /-- The embedding of the `A`-variables is polynomial-time. -/
 private theorem sumMap_inl :
     ComputableInPolyTime (Sum.map id Sum.inl : ℕ ⊕ Y → ℕ ⊕ (Y ⊕ Z)) (encSum encNat encY)
-      (encSum encNat (encSum encY encZ)) := by
-  simp only [funext sumMap_inl_eq]
-  exact optionElimWithInput (getLeft? _ _)
-    (optionElimWithInput (getRight? _ _) (const _)
-      ((sumInr _ _).comp ((sumInl _ _).comp (snd _ _))))
-    ((sumInl _ _).comp (snd _ _))
+      (encSum encNat (encSum encY encZ)) :=
+  sumMap_id (sumInl _ _)
 
 /-- The embedding of the `B`-variables is polynomial-time. -/
 private theorem sumMap_inr :
     ComputableInPolyTime (Sum.map id Sum.inr : ℕ ⊕ Z → ℕ ⊕ (Y ⊕ Z)) (encSum encNat encZ)
-      (encSum encNat (encSum encY encZ)) := by
-  simp only [funext sumMap_inr_eq]
-  exact optionElimWithInput (getLeft? _ _)
-    (optionElimWithInput (getRight? _ _) (const _)
-      ((sumInr _ _).comp ((sumInr _ _).comp (snd _ _))))
-    ((sumInl _ _).comp (snd _ _))
+      (encSum encNat (encSum encY encZ)) :=
+  sumMap_id (sumInr _ _)
 
 /-- `k` constant gates before a binary gate on computed wires. -/
 private theorem replicate_snoc_binary {Op γ : Type} {encOp : Op ↪ List Bool}
@@ -136,15 +134,14 @@ private theorem replicate_snoc_binary {Op γ : Type} {encOp : Op ↪ List Bool}
 
 /-- A candidate step is encoded as the tuple of its fields, with unary positions. -/
 private enc_structure encStep (V : Type) (encV : V ↪ List Bool) : Step V where
-  left : (encList (encPair encV encBool)), leftIndex : encUnary,
-  right : (encList (encPair encV encBool)), rightIndex : encUnary, pivot : encV
+  left : (encClause encV), leftIndex : encUnary,
+  right : (encClause encV), rightIndex : encUnary, pivot : encV
 
 /-- Candidate resolution steps are listed in polynomial time. -/
 private theorem candidates_polyTime {V : Type} {encV : V ↪ List Bool} :
-    ComputableInPolyTime (candidates (V := V)) (encList (encList (encPair encV encBool)))
+    ComputableInPolyTime (candidates (V := V)) (encList (encClause encV))
       (encList (encStep V encV)) := by
-  have hzip :=
-    (ComputableInPolyTime.zipIdx (encList (encPair encV encBool)))
+  have hzip := (ComputableInPolyTime.zipIdx (encClause encV))
   unfold candidates
   refine flatMapWithInput hzip (flatMapWithInput (hzip.comp (fst _ _))
     (mapWithInput (fst _ _).snd'.fst' ?_))
@@ -159,13 +156,13 @@ variable [DecidableEq Y] [DecidableEq Z]
 private theorem resolvent_polyTime :
     ComputableInPolyTime (fun q : (Clause (ℕ ⊕ (Y ⊕ Z)) × Clause (ℕ ⊕ (Y ⊕ Z))) × (ℕ ⊕ (Y ⊕ Z)) =>
         q.1.1.resolvent q.1.2 q.2)
-      (encPair (encPair (encList (encPair (encSum encNat (encSum encY encZ)) encBool))
-        (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+      (encPair (encPair (encClause (encSum encNat (encSum encY encZ)))
+        (encClause (encSum encNat (encSum encY encZ))))
         (encSum encNat (encSum encY encZ)))
-      (encList (encPair (encSum encNat (encSum encY encZ)) encBool)) := by
+      (encClause (encSum encNat (encSum encY encZ))) := by
   unfold Clause.resolvent
-  have hq := id' (encIn := encPair (encPair (encList (encPair (encSum encNat (encSum encY encZ))
-    encBool)) (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+  have hq := id' (encIn := encPair (encPair (encClause (encSum encNat (encSum encY encZ)))
+    (encClause (encSum encNat (encSum encY encZ))))
     (encSum encNat (encSum encY encZ)))
   exact listAppend' (filterWithInput hq.fst'.fst'
       (decide_not (decide_eq' (snd _ _) ((fst _ _).snd'.prod (const true)))))
@@ -180,22 +177,21 @@ private theorem lineGatesOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
     (hstep : ComputableInPolyTime
       (fun r : (CNF (ℕ ⊕ Y) × ℕ × ℕ × ℕ) × (ℕ ⊕ (Y ⊕ Z)) =>
         step r.1.1 r.1.2.1 r.1.2.2.1 r.1.2.2.2 r.2)
-      (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+      (encPair (encPair (encCNFOver (encSum encNat encY))
         (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
       (encList (Circuit.encGate encOp))) :
     ComputableInPolyTime (fun q : (ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z))) ×
         (List (Clause (ℕ ⊕ (Y ⊕ Z))) × Clause (ℕ ⊕ (Y ⊕ Z))) =>
           lineGatesOf s constOp (step q.1.2.1) q.1.1 q.1.2.1 q.1.2.2 q.2.1 q.2.2)
-      (encPair (encPair encUnary (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-          (encList (encList (encPair (encSum encNat encZ) encBool)))))
-        (encPair (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
-          (encList (encPair (encSum encNat (encSum encY encZ)) encBool))))
+      (encPair (encPair encUnary (encPair (encCNFOver (encSum encNat encY))
+          (encCNFOver (encSum encNat encZ))))
+        (encPair (encList (encClause (encSum encNat (encSum encY encZ))))
+          (encClause (encSum encNat (encSum encY encZ)))))
       (encList (Circuit.encGate encOp)) := by
   have hq := id' (encIn := encPair (encPair encUnary
-    (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-      (encList (encList (encPair (encSum encNat encZ) encBool)))))
-    (encPair (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
-      (encList (encPair (encSum encNat (encSum encY encZ)) encBool))))
+    (encPair (encCNFOver (encSum encNat encY)) (encCNFOver (encSum encNat encZ))))
+    (encPair (encList (encClause (encSum encNat (encSum encY encZ))))
+      (encClause (encSum encNat (encSum encY encZ)))))
   have hc := hq.snd'.snd'
   have hE := hq.snd'.fst'
   have hmemA := decide_mem ((CNF.computableInPolyTime_relabel (sumMap_inl (encZ := encZ))).comp
@@ -204,10 +200,9 @@ private theorem lineGatesOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
     hq.fst'.snd'.snd') hc
   have hbin := ComputableInPolyTime.unary_to_binary
   have hp := id' (encIn := encPair (encPair (encPair encUnary
-    (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-      (encList (encList (encPair (encSum encNat encZ) encBool)))))
-    (encPair (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
-      (encList (encPair (encSum encNat (encSum encY encZ)) encBool))))
+    (encPair (encCNFOver (encSum encNat encY)) (encCNFOver (encSum encNat encZ))))
+    (encPair (encList (encClause (encSum encNat (encSum encY encZ))))
+      (encClause (encSum encNat (encSum encY encZ)))))
     (encStep (ℕ ⊕ (Y ⊕ Z)) (encSum encNat (encSum encY encZ))))
   have ht := hp.snd'
   have hc₁ := encStep_left_polyTime _ _ ht
@@ -254,27 +249,26 @@ private theorem codeOf_polyTime {Op : Type} {encOp : Op ↪ List Bool}
     (hstep : ComputableInPolyTime
       (fun r : (CNF (ℕ ⊕ Y) × ℕ × ℕ × ℕ) × (ℕ ⊕ (Y ⊕ Z)) =>
         step r.1.1 r.1.2.1 r.1.2.2.1 r.1.2.2.2 r.2)
-      (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+      (encPair (encPair (encCNFOver (encSum encNat encY))
         (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
       (encList (Circuit.encGate encOp))) :
     ComputableInPolyTime (fun p : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
         List (Clause (ℕ ⊕ (Y ⊕ Z))) =>
           (gatesOf s constOp (step p.2.1.1) p.1 p.2.1.1 p.2.1.2 p.2.2.reverse,
             [outputWireOf s p.1 p.2.2.reverse]))
-      (encPair encUnary (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-        (encList (encList (encPair (encSum encNat encZ) encBool))))
-        (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))))
+      (encPair encUnary (encPair (encPair (encCNFOver (encSum encNat encY))
+        (encCNFOver (encSum encNat encZ)))
+        (encList (encClause (encSum encNat (encSum encY encZ))))))
       (Circuit.encCode encOp) := by
   have hp := id' (encIn := encPair encUnary (encPair (encPair
-    (encList (encList (encPair (encSum encNat encY) encBool)))
-    (encList (encList (encPair (encSum encNat encZ) encBool))))
-    (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))))
+    (encCNFOver (encSum encNat encY)) (encCNFOver (encSum encNat encZ)))
+    (encList (encClause (encSum encNat (encSum encY encZ))))))
   have hrev := (ComputableInPolyTime.listReverse
-    (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+    (encClause (encSum encNat (encSum encY encZ))))
   have hzip := (ComputableInPolyTime.zipIdx
-    (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+    (encClause (encSum encNat (encSum encY encZ))))
   have htake := (ComputableInPolyTime.takeUnary
-    (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))
+    (encClause (encSum encNat (encSum encY encZ))))
   have hbin := ComputableInPolyTime.unary_to_binary
   have hlines := hrev.comp hp.snd'.snd'
   have hgates := flatMapWithInput (f := fun (p : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
@@ -313,12 +307,11 @@ binary, and the variable. -/
 private theorem resolventGates_polyTime :
     ComputableInPolyTime (fun r : (CNF (ℕ ⊕ Y) × ℕ × ℕ × ℕ) × (ℕ ⊕ (Y ⊕ Z)) =>
         resolventGates r.1.2.1 r.1.2.2.1 r.1.2.2.2 r.2)
-      (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+      (encPair (encPair (encCNFOver (encSum encNat encY))
         (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
       (encList encGate) := by
   simp only [resolventGates_eq]
-  have hr := id' (encIn := encPair (encPair
-    (encList (encList (encPair (encSum encNat encY) encBool)))
+  have hr := id' (encIn := encPair (encPair (encCNFOver (encSum encNat encY))
     (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
   have hv := hr.snd'
   have hw₁ := hr.fst'.snd'.snd'.fst'
@@ -329,9 +322,9 @@ private theorem resolventGates_polyTime :
       ((isLeft _ _).comp (snd _ _)))
       (replicate_snoc_binary 3 (Op.const false) Op.or hw₁ hw₂)
       (replicate_snoc_binary 3 (Op.const false) Op.and hw₁ hw₂)) ?_
-  have hq := fst (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+  have hq := fst (encPair (encPair (encCNFOver (encSum encNat encY))
     (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
-  have hi := snd (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+  have hi := snd (encPair (encPair (encCNFOver (encSum encNat encY))
     (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
   have hb := hq.fst'.snd'.fst'
   exact cons' ((const _).prod (cons' hi (const [])))
@@ -352,11 +345,11 @@ in the binary encoding `Cslib.Circuits.Boolean.encCode`. On a refutation whose s
 are below the number of inputs, the code is that of a circuit computing an interpolant
 (`Cslib.Logic.PL.CNF.IsProof.ofCode_interpolantCode`). -/
 theorem CNF.computableInPolyTime_interpolantCode (encY : Y ↪ List Bool) (encZ : Z ↪ List Bool) :
-    ComputableInPolyTime (fun p : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
-        List (Clause (ℕ ⊕ (Y ⊕ Z))) => CNF.interpolantCode p.1 p.2.1.1 p.2.1.2 p.2.2)
-      (encPair encUnary (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-        (encList (encList (encPair (encSum encNat encZ) encBool))))
-        (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))))
+    ComputableInPolyTime (fun ((n, (A, B), ls) : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
+        List (Clause (ℕ ⊕ (Y ⊕ Z)))) => CNF.interpolantCode n A B ls)
+      (encPair encUnary (encPair (encPair (encCNFOver (encSum encNat encY))
+        (encCNFOver (encSum encNat encZ)))
+        (encList (encClause (encSum encNat (encSum encY encZ))))))
       encCode := by
   unfold CNF.interpolantCode Interpolant.gates Interpolant.outputWire
   exact Interpolant.codeOf_polyTime 4 Op.const
@@ -394,11 +387,11 @@ omit [DecidableEq Y] [DecidableEq Z] in
 /-- The polarity test is polynomial-time. -/
 private theorem positive_polyTime :
     ComputableInPolyTime (positive (X := ℕ) (Y := Y))
-      (encList (encList (encPair (encSum encNat encY) encBool))) encBool := by
+      (encCNFOver (encSum encNat encY)) encBool := by
   have hlit : ComputableInPolyTime
       (fun p : (CNF (ℕ ⊕ Y) × Clause (ℕ ⊕ Y)) × Literal (ℕ ⊕ Y) => p.2.1.isRight || p.2.2)
-      (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-        (encList (encPair (encSum encNat encY) encBool))) (encPair (encSum encNat encY) encBool))
+      (encPair (encPair (encCNFOver (encSum encNat encY))
+        (encClause (encSum encNat encY))) (encPair (encSum encNat encY) encBool))
       encBool :=
     ComputableInPolyTime.bool_or.comp
       (((ComputableInO.isRight_deg encNat encY).computableInPolyTime.comp (snd _ _).fst').prod
@@ -412,12 +405,11 @@ the wires in binary, and the variable. -/
 private theorem resolventGates_polyTime :
     ComputableInPolyTime (fun r : (CNF (ℕ ⊕ Y) × ℕ × ℕ × ℕ) × (ℕ ⊕ (Y ⊕ Z)) =>
         resolventGates (positive r.1.1) r.1.2.1 r.1.2.2.1 r.1.2.2.2 r.2)
-      (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+      (encPair (encPair (encCNFOver (encSum encNat encY))
         (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
       (encList Monotone.encGate) := by
   simp only [resolventGates_eq]
-  have hr := id' (encIn := encPair (encPair
-    (encList (encList (encPair (encSum encNat encY) encBool)))
+  have hr := id' (encIn := encPair (encPair (encCNFOver (encSum encNat encY))
     (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ)))
   have hv := hr.snd'
   have hw₁ := hr.fst'.snd'.snd'.fst'
@@ -427,9 +419,9 @@ private theorem resolventGates_polyTime :
       ((Interpolant.isLeft _ _).comp (snd _ _)))
       (Interpolant.replicate_snoc_binary 1 (Monotone.Op.const false) Monotone.Op.or hw₁ hw₂)
       (Interpolant.replicate_snoc_binary 1 (Monotone.Op.const false) Monotone.Op.and hw₁ hw₂)) ?_
-  have hq := fst (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+  have hq := fst (encPair (encPair (encCNFOver (encSum encNat encY))
     (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
-  have hi := snd (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
+  have hi := snd (encPair (encPair (encCNFOver (encSum encNat encY))
     (encPair encNat (encPair encNat encNat))) (encSum encNat (encSum encY encZ))) encNat
   have hbase := hq.fst'.snd'.fst'
   exact ite (positive_polyTime.comp hq.fst'.fst')
@@ -450,9 +442,9 @@ theorem CNF.computableInPolyTime_monotoneInterpolantCode (encY : Y ↪ List Bool
     (encZ : Z ↪ List Bool) :
     ComputableInPolyTime (fun ((n, (A, B), ls) : ℕ × (CNF (ℕ ⊕ Y) × CNF (ℕ ⊕ Z)) ×
         List (Clause (ℕ ⊕ (Y ⊕ Z)))) => CNF.monotoneInterpolantCode n A B ls)
-      (encPair encUnary (encPair (encPair (encList (encList (encPair (encSum encNat encY) encBool)))
-        (encList (encList (encPair (encSum encNat encZ) encBool))))
-        (encList (encList (encPair (encSum encNat (encSum encY encZ)) encBool)))))
+      (encPair encUnary (encPair (encPair (encCNFOver (encSum encNat encY))
+        (encCNFOver (encSum encNat encZ)))
+        (encList (encClause (encSum encNat (encSum encY encZ))))))
       Monotone.encCode := by
   unfold CNF.monotoneInterpolantCode MonotoneInterpolant.gates MonotoneInterpolant.outputWire
   exact Interpolant.codeOf_polyTime 2 Monotone.Op.const

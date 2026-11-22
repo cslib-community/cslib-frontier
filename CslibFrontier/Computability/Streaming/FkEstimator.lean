@@ -72,7 +72,8 @@ from all positions have one `b`-bit encoding once
 
 * `Cslib.Streaming.suffixCount`: occurrences of the item at a position from that position on.
 * `Cslib.Streaming.fkBasicEstimate`: the basic estimator `m (r ^ k - (r - 1) ^ k)`.
-* `Cslib.Streaming.fkSketch`: the `F_k` sketch with given sampled positions.
+* `Cslib.Streaming.FkState`, `Cslib.Streaming.fkSketch`: the memory record and `F_k` sketch with
+  given sampled positions.
 * `Cslib.Streaming.fkEstimator`: the randomized `F_k` sketch with uniform positions.
 
 ## Main results
@@ -309,10 +310,16 @@ theorem pow_mul_pow_sub_one_le_of_mul_rpow_le {k K n : ℕ} {η : ℝ}
 /-! ### The sketch -/
 
 /-- The memory of the `F_k` sketch with `2 r` groups of `K` copies on streams of `m` items: the
-sampled positions, a step counter, and for each copy an item (none before its position is read)
-and a count. -/
-abbrev FkState (α : Type*) (m r K : ℕ) : Type _ :=
-  (Fin (2 * r) → Fin K → Fin m) × ℕ × (Fin (2 * r) → Fin K → Option α × ℕ)
+sampled positions, a step counter, and for each copy an item (`none` before its position is read)
+and a suffix count. -/
+@[ext]
+structure FkState (α : Type*) (m r K : ℕ) where
+  /-- Sampled stream positions for each of the `2 r` groups and `K` copies. -/
+  positions : Fin (2 * r) → Fin K → Fin m
+  /-- Number of stream items processed so far. -/
+  step : ℕ
+  /-- Per-copy sampled item (`none` before the sampled position arrives) and suffix count. -/
+  cells : Fin (2 * r) → Fin K → Option α × ℕ
 
 /-- The update of one copy with sampled position `p` on reading the item `a` at step `t`: at its
 position it stores `a` with count one, and afterwards it counts the occurrences of its item. -/
@@ -326,9 +333,11 @@ the group. The positions are written in the initial memory and read back by the 
 not otherwise depend on `ω` (`Cslib.Streaming.update_fkSketch`). -/
 noncomputable def fkSketch (k m r K : ℕ) (ω : Fin (2 * r) → Fin K → Fin m) :
     Algorithm (FkState α m r K) α ℝ where
-  init := (ω, 0, fun _ _ => (none, 0))
-  update q a := (q.1, q.2.1 + 1, fun i l => fkCell q.2.1 a (q.1 i l) (q.2.2 i l))
-  output q := median fun i => 𝔼 l, (m : ℝ) * ((q.2.2 i l).2 ^ k - ((q.2.2 i l).2 - 1) ^ k : ℕ)
+  init := ⟨ω, 0, fun _ _ => (none, 0)⟩
+  update q a := ⟨q.positions, q.step + 1,
+    fun i l => fkCell q.step a (q.positions i l) (q.cells i l)⟩
+  output q := median fun i =>
+    𝔼 l, (m : ℝ) * ((q.cells i l).2 ^ k - ((q.cells i l).2 - 1) ^ k : ℕ)
 
 /-- The randomized **AMS `F_k` sketch**: the sketch with independent uniform positions. -/
 noncomputable def fkEstimator (α : Type*) [DecidableEq α] (k m r K : ℕ) [NeZero m] :
@@ -339,20 +348,20 @@ variable {k m r K : ℕ}
 
 /-- The `F_k` sketch starts with its positions, step zero and empty copies. -/
 theorem init_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) :
-    (fkSketch (α := α) k m r K ω).init = (ω, 0, fun _ _ => (none, 0)) := by
+    (fkSketch (α := α) k m r K ω).init = ⟨ω, 0, fun _ _ => (none, 0)⟩ := by
   simp only [fkSketch]
 
 /-- The update of the `F_k` sketch reads the positions from the memory: it does not depend on
 `ω`. -/
 theorem update_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (q : FkState α m r K) (a : α) :
     (fkSketch k m r K ω).update q a =
-      (q.1, q.2.1 + 1, fun i l => fkCell q.2.1 a (q.1 i l) (q.2.2 i l)) := by
+      ⟨q.positions, q.step + 1, fun i l => fkCell q.step a (q.positions i l) (q.cells i l)⟩ := by
   simp only [fkSketch]
 
 /-- The output of the `F_k` sketch does not depend on its positions. -/
 theorem output_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (q : FkState α m r K) :
     (fkSketch k m r K ω).output q =
-      median fun i => 𝔼 l, (m : ℝ) * ((q.2.2 i l).2 ^ k - ((q.2.2 i l).2 - 1) ^ k : ℕ) := by
+      median fun i => 𝔼 l, (m : ℝ) * ((q.cells i l).2 ^ k - ((q.cells i l).2 - 1) ^ k : ℕ) := by
   simp only [fkSketch]
 
 private theorem fkCell_eq (s : List α) (a : α) (p : ℕ) :
@@ -381,7 +390,7 @@ private theorem fkCell_eq (s : List α) (a : α) (p : ℕ) :
 holds the item at position `p` (if any) and `suffixCount s p`. -/
 theorem state_fkSketch (ω : Fin (2 * r) → Fin K → Fin m) (s : List α) :
     (fkSketch k m r K ω).state s =
-      (ω, s.length, fun i l => (s[(ω i l : ℕ)]?, suffixCount s (ω i l))) := by
+      ⟨ω, s.length, fun i l => (s[(ω i l : ℕ)]?, suffixCount s (ω i l))⟩ := by
   induction s using List.reverseRecOn with
   | nil => simp [Algorithm.state, fkSketch, suffixCount]
   | append_singleton s a ih =>
@@ -483,28 +492,45 @@ theorem solves_fkEstimator_of_rpow [Fintype α] [NeZero m] (hk : k ≠ 0) {η δ
 
 /-! ### Memory -/
 
-/-- The states of the `F_k` sketch on streams of at most `M` items lie in a product of the
-positions, the counter values `[0, M]` and, for each copy, an item value and a count in `[0, M]`. -/
-private theorem state_fkSketch_mem [Fintype α] {M : ℕ} (ω : Fin (2 * r) → Fin K → Fin m)
+private def FkState.equivTuple (α : Type*) (m r K : ℕ) :
+    FkState α m r K ≃
+      (Fin (2 * r) → Fin K → Fin m) × ℕ × (Fin (2 * r) → Fin K → Option α × ℕ) where
+  toFun q := (q.positions, q.step, q.cells)
+  invFun := fun ⟨ω, t, c⟩ => ⟨ω, t, c⟩
+  left_inv _ := rfl
+  right_inv _ := rfl
+
+open Classical in
+/-- Bounded-memory state set of `fkSketch` over position tables `T` and streams of length `≤ M`. -/
+private noncomputable def fkStateFinset [Fintype α] (M : ℕ)
+    (T : Finset (Fin (2 * r) → Fin K → Fin m)) : Finset (FkState α m r K) :=
+  (T ×ˢ range (M + 1) ×ˢ
+    Fintype.piFinset fun _ : Fin (2 * r) => Fintype.piFinset fun _ : Fin K =>
+      (univ : Finset (Option α)) ×ˢ range (M + 1)).map
+    (FkState.equivTuple α m r K).symm.toEmbedding
+
+/-- The states of the `F_k` sketch on streams of at most `M` items lie in `fkStateFinset M T`
+whenever `ω ∈ T`. -/
+private theorem state_fkSketch_mem [Fintype α] {M : ℕ}
+    {T : Finset (Fin (2 * r) → Fin K → Fin m)} {ω : Fin (2 * r) → Fin K → Fin m} (hω : ω ∈ T)
     {s : List α} (hs : s.length ≤ M) :
-    (fkSketch k m r K ω).state s ∈ (({ω} : Finset _) ×ˢ range (M + 1) ×ˢ
-      Fintype.piFinset fun _ : Fin (2 * r) => Fintype.piFinset fun _ : Fin K =>
-        (univ : Finset (Option α)) ×ˢ range (M + 1)) := by
-  rw [state_fkSketch, mem_product, mem_product, Fintype.mem_piFinset]
-  refine ⟨mem_singleton_self _, mem_range.2 (Nat.lt_succ_of_le hs),
-    fun i => Fintype.mem_piFinset.2 fun l => ?_⟩
+    (fkSketch k m r K ω).state s ∈ fkStateFinset M T := by
+  classical
+  rw [state_fkSketch, fkStateFinset, mem_map]
+  refine ⟨(ω, s.length, fun i l => (s[(ω i l : ℕ)]?, suffixCount s (ω i l))), ?_, rfl⟩
+  rw [mem_product, mem_product, Fintype.mem_piFinset]
+  refine ⟨hω, mem_range.2 (Nat.lt_succ_of_le hs), fun i => Fintype.mem_piFinset.2 fun l => ?_⟩
   exact mem_product.2 ⟨mem_univ _,
     mem_range.2 (Nat.lt_succ_of_le ((suffixCount_le_length s _).trans hs))⟩
 
 omit [DecidableEq α] in
-private theorem card_fkState_finset [Fintype α] {M : ℕ}
+private theorem card_fkStateFinset [Fintype α] (M : ℕ)
     (T : Finset (Fin (2 * r) → Fin K → Fin m)) :
-    (T ×ˢ range (M + 1) ×ˢ
-      Fintype.piFinset fun _ : Fin (2 * r) => Fintype.piFinset fun _ : Fin K =>
-        (univ : Finset (Option α)) ×ˢ range (M + 1)).card =
+    (fkStateFinset (α := α) M T).card =
       T.card * ((M + 1) * ((Fintype.card α + 1) * (M + 1)) ^ (2 * r * K)) := by
-  simp only [card_product, card_range, Fintype.card_piFinset, card_univ, Fintype.card_option,
-    prod_const, Fintype.card_fin]
+  classical
+  simp only [fkStateFinset, card_map, card_product, card_range, Fintype.card_piFinset, card_univ,
+    Fintype.card_option, prod_const, Fintype.card_fin]
   rw [← pow_mul, mul_comm K]
 
 /-- **The memory of the randomized `F_k` sketch** [AlonMatiasSzegedy1999, Theorem 2.1]: for items
@@ -519,12 +545,10 @@ theorem spaceLE_fkEstimator [Fintype α] [NeZero m] {M b : ℕ}
   intro A hA
   rw [fkEstimator, PMF.support_map] at hA
   obtain ⟨ω, -, rfl⟩ := hA
-  refine Algorithm.spaceLE_of_subset_finset ?_ (?_ : (({ω} : Finset _) ×ˢ range (M + 1) ×ˢ
-      Fintype.piFinset fun _ : Fin (2 * r) => Fintype.piFinset fun _ : Fin K =>
-        (univ : Finset (Option α)) ×ˢ range (M + 1)).card ≤ 2 ^ b)
+  refine Algorithm.spaceLE_of_subset_finset (T := fkStateFinset M {ω}) ?_ ?_
   · rintro _ ⟨s, hs, rfl⟩
-    exact state_fkSketch_mem ω hs
-  · rwa [card_fkState_finset, card_singleton, one_mul]
+    exact state_fkSketch_mem (mem_singleton_self ω) hs
+  · rwa [card_fkStateFinset, card_singleton, one_mul]
 
 /-- **The memory of the `F_k` sketch with its positions stored** [AlonMatiasSzegedy1999,
 Theorem 2.1]: on streams of at most `M` items, the states reachable from all sampled positions
@@ -537,17 +561,10 @@ theorem exists_injOn_iUnion_reachable_fkSketch [Fintype α] {M b : ℕ}
       2 ^ b) :
     ∃ enc : FkState α m r K → BitString b,
       Set.InjOn enc (⋃ ω, (fkSketch k m r K ω).reachable M) := by
-  classical
-  refine Algorithm.exists_injOn_of_subset_finset
-    (T := (univ : Finset (Fin (2 * r) → Fin K → Fin m)) ×ˢ range (M + 1) ×ˢ
-      Fintype.piFinset fun _ : Fin (2 * r) => Fintype.piFinset fun _ : Fin K =>
-        (univ : Finset (Option α)) ×ˢ range (M + 1)) ?_ ?_
+  refine Algorithm.exists_injOn_of_subset_finset (T := fkStateFinset M univ) ?_ ?_
   · rintro _ ⟨_, ⟨ω, rfl⟩, s, hs, rfl⟩
-    have := state_fkSketch_mem (k := k) ω hs
-    rw [mem_coe]
-    rw [mem_product] at this ⊢
-    exact ⟨mem_univ _, this.2⟩
-  · rw [card_fkState_finset, card_univ, Fintype.card_pi, prod_const, card_univ, Fintype.card_fin,
+    exact state_fkSketch_mem (mem_univ ω) hs
+  · rw [card_fkStateFinset, card_univ, Fintype.card_pi, prod_const, card_univ, Fintype.card_fin,
       Fintype.card_pi, prod_const, card_univ, Fintype.card_fin, Fintype.card_fin, ← pow_mul,
       mul_comm K]
     exact hb
