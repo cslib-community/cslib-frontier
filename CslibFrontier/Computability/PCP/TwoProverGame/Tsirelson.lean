@@ -13,6 +13,7 @@ public import CslibFrontier.Foundations.Quantum.Bell
 public import CslibFrontier.Foundations.Quantum.Pauli
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Basic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Trigonometric.Basic
+import CslibFrontier.Foundations.Quantum.Algebra.Involution
 
 /-!
 # Tsirelson's bound for the CHSH game
@@ -175,20 +176,10 @@ theorem isHermitian_chshBobObservable (y : Bool) : (chshBobObservable y).IsHermi
   · exact (pauliZ_isHermitian.add pauliX_isHermitian).smul hc
   · exact (pauliZ_isHermitian.sub pauliX_isHermitian).smul hc
 
-private theorem sqrt_two_div_two_mul_self :
-    ((√2 / 2 : ℝ) : ℂ) * ((√2 / 2 : ℝ) : ℂ) = 2⁻¹ := by
-  rw [← Complex.ofReal_mul, div_mul_div_comm, Real.mul_self_sqrt zero_le_two]
-  norm_num
-
 theorem chshBobObservable_mul_self (y : Bool) :
-    chshBobObservable y * chshBobObservable y = 1 := by
-  cases y
-  · rw [chshBobObservable, Bool.cond_false, smul_mul_smul_comm, add_mul, mul_add, mul_add,
-      pauliZ_mul_self, pauliX_mul_self, pauliZ_mul_pauliX, sqrt_two_div_two_mul_self]
-    module
-  · rw [chshBobObservable, Bool.cond_true, smul_mul_smul_comm, sub_mul, mul_sub, mul_sub,
-      pauliZ_mul_self, pauliX_mul_self, pauliZ_mul_pauliX, sqrt_two_div_two_mul_self]
-    module
+    chshBobObservable y * chshBobObservable y = 1 :=
+  normalized_add_sub_mul_self_of_anticommute pauliZ_mul_self pauliX_mul_self
+    (by rw [pauliZ_mul_pauliX, neg_neg]) y
 
 /-- The **optimal CHSH strategy** [Cleve, Høyer, Toner, Watrous, §3.1][CleveHoyerTonerWatrous2004]:
 the EPR pair `(|00⟩ + |11⟩)/√2` (`Cslib.Quantum.bell`), with Alice measuring `Z` or `X` and Bob

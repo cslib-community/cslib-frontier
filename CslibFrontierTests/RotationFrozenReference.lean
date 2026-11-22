@@ -8,7 +8,12 @@ module
 -- upstream: local-only (ordinary clients of actual frozen-reference geometry)
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
+import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
+import CslibFrontier.Foundations.Geometry.PuncturedPaths
+import Mathlib.LinearAlgebra.Complex.FiniteDimensional
 import Mathlib.Tactic.NormNum
 
 /-! Ordinary clients keep both loop ends, parallel occurrences, unused fresh leaves, a fixed
@@ -120,6 +125,100 @@ example {s t : ℝ} (hs : s ∈ Set.Icc 0 1) (ht : t ∈ Set.Icc 0 1) :
     norm_num [Dart.vertex, Cslib.Complexity.Graph.edgeEndpoint, subdivisionGraph, subdivide,
       bothFixed, input] at hv
 
+-- The reference spoke on the left stays a positive horizontal distance from the right one.
+example (z w : ℂ)
+    (hz : z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support)
+    (hw : w ∈ ((referenceDrawing bothFixed).route ⟨5, by decide⟩).support) :
+    z.re + 1 / 4 < w.re := by
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  let b : Dart bothFixed.graph := (⟨1, by decide⟩, true)
+  obtain ⟨right, _, hsep, hstrip⟩ := exists_frozen_reference_strips valid_bothFixed
+  have ha := hstrip a (by decide +kernel) z hz
+  have hb := hstrip b (by decide +kernel) w hw
+  have hgap := hsep a.vertex (by decide +kernel) b.vertex (by decide +kernel) (by decide +kernel)
+  linarith only [ha.2, hb.1, hgap]
+
+-- One map fixes both centers while halving both complete, oppositely oriented spokes.
+example :
+    ∃ F : ℂ → ℂ, Function.Injective F ∧
+      F (referencePoint bothFixed 0) = referencePoint bothFixed 0 ∧
+      F (referencePoint bothFixed 1) = referencePoint bothFixed 1 ∧
+      (∀ z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support,
+        F z = referencePoint bothFixed 0 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 0)) ∧
+      ∀ z ∈ ((referenceDrawing bothFixed).route ⟨5, by decide⟩).support,
+        F z = referencePoint bothFixed 1 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 1) := by
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  let b : Dart bothFixed.graph := (⟨1, by decide⟩, true)
+  obtain ⟨F, _, hcenter, hspoke, _⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  have ha : a.vertex = 0 := by decide +kernel
+  have hb : b.vertex = 1 := by decide +kernel
+  have hFa := hspoke a (by decide +kernel)
+  have hFb := hspoke b (by decide +kernel)
+  rw [ha] at hFa
+  rw [hb] at hFb
+  exact ⟨F, F.injective, hcenter 0 (by decide +kernel), hcenter 1 (by decide +kernel), hFa, hFb⟩
+
+-- A vertical segment in the compressed plane needs no subdivision, even on a cut line.
+example (z w : ℂ) (h : z.re = w.re) (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
+    ∃ F : ℂ ≃ₜ ℂ, F (referencePoint bothFixed 0) = referencePoint bothFixed 0 ∧
+      F.symm (AffineMap.lineMap z w t) = AffineMap.lineMap (F.symm z) (F.symm w) t := by
+  obtain ⟨F, _, hcenter, _, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  refine ⟨F, hcenter 0 (by decide +kernel), hline z w ?_ t ht⟩
+  intro x _
+  rw [h, min_self, max_self]
+  exact fun hx => (not_lt_of_ge hx.1.le) hx.2
+
+-- Each actual indexed piece in the compressed plane is transported by straight interpolation.
+example (a b : ℂ) :
+    ∃ (F : ℂ ≃ₜ ℂ) (cuts : Finset ℝ),
+      let times := segmentCuts cuts a.re b.re
+      ∀ (k : ℕ) (hk : k + 1 < times.length) (t : ℝ), t ∈ Set.Icc 0 1 →
+        F.symm (AffineMap.lineMap a b (AffineMap.lineMap times[k] times[k + 1] t)) =
+          AffineMap.lineMap (F.symm (AffineMap.lineMap a b times[k]))
+            (F.symm (AffineMap.lineMap a b times[k + 1])) t := by
+  obtain ⟨F, cuts, _, _, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  refine ⟨F, cuts, fun k hk t ht => ?_⟩
+  exact segmentCuts_map_lineMap cuts Complex.reCLM.toLinearMap.toAffineMap F.symm
+    hline a b hk ht
+
+-- The inverse transports complete simple routes, with all support points and both tagged ends.
+example (p : Route) (hp : p.IsSimple) :
+    ∃ (F : ℂ ≃ₜ ℂ) (q : Route),
+      (∀ z ∈ ((referenceDrawing bothFixed).route ⟨0, by decide⟩).support,
+        F z = referencePoint bothFixed 0 + (1 / 2 : ℝ) • (z - referencePoint bothFixed 0)) ∧
+      q.IsSimple ∧ q.support = F.symm '' p.support ∧
+        ∀ b : Bool, q.endpoint b = F.symm (p.endpoint b) := by
+  obtain ⟨F, cuts, _, hspoke, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  let coordinate : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let q := p.mapAtCuts cuts coordinate F.symm
+  let a : Dart bothFixed.graph := (⟨0, by decide⟩, false)
+  have ha : a.vertex = 0 := by decide +kernel
+  have hFa := hspoke a (by decide +kernel)
+  rw [ha] at hFa
+  refine ⟨F, q, hFa, ?_, ?_, ?_⟩
+  · exact Route.IsSimple.mapAtCuts (c := coordinate) hline hp F.symm.injective
+  · exact Route.support_mapAtCuts (c := coordinate) hline p
+  · exact Route.endpoint_mapAtCuts (c := coordinate) hline p
+
+-- The same inverse map transports the entire frozen reference graph, including isolated vertices.
+example :
+    let D := frozenReferenceDrawing bothFixed
+    ∃ (F : ℂ ≃ₜ ℂ) (E : PolygonalDrawing (frozenGraph bothFixed)),
+      E.IsEmbedding ∧ (∀ v, E.vertex v = F.symm (D.vertex v)) ∧
+        ∀ e, (E.route e).support = F.symm '' (D.route e).support := by
+  obtain ⟨F, cuts, _, _, hline⟩ :=
+    exists_frozen_reference_compression valid_bothFixed (s := 1 / 2) (by constructor <;> norm_num)
+  let c : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let D := frozenReferenceDrawing bothFixed
+  refine ⟨F, D.mapAtCuts (c := c) hline, ?_, fun _ => rfl, ?_⟩
+  · exact (frozenReferenceDrawing_isEmbedding valid_bothFixed).mapAtCuts
+      (c := c) hline F.symm.injective
+  · exact fun e => Route.support_mapAtCuts (c := c) hline (D.route e)
+
 /-- Removing every edge keeps the entire frame as distinct isolated points. -/
 theorem all_free_frame :
     let J : FixedRotationInput := ⟨⟨[0, 1, 2], [(0, 1)]⟩, [none, none, none]⟩
@@ -139,5 +238,49 @@ example :
   dsimp only
   exact ⟨frozenReferenceDrawing_isEmbedding (validate_eq_true_iff _ |>.mp (by decide +kernel)),
     by decide +kernel, by decide +kernel⟩
+
+-- The same protected set contains the fixed isolate and the whole reverse-oriented loop spoke.
+example :
+    IsCompact (frozenReferenceObstacle bothFixed) ∧
+      IsPathConnected (frozenReferenceObstacle bothFixed)ᶜ ∧
+      referencePoint bothFixed 2 ∈ frozenReferenceObstacle bothFixed := by
+  exact ⟨frozenReferenceObstacle_isCompact bothFixed,
+    frozenReferenceObstacle_compl_isPathConnected valid_bothFixed,
+    (mem_frozenReferenceObstacle_iff valid_bothFixed).mpr (Or.inl ⟨2, by decide +kernel, rfl⟩)⟩
+
+example :
+    ((referenceDrawing bothFixed).route (subdivisionDart bothFixed loopLast).1).support ⊆
+      frozenReferenceObstacle bothFixed := by
+  intro z hz
+  exact (mem_frozenReferenceObstacle_iff valid_bothFixed).mpr
+    (Or.inr ⟨loopLast, by decide +kernel, hz⟩)
+
+-- Additional occupied points can be excluded without disconnecting the frozen complement.
+example :
+    IsPathConnected ((frozenReferenceObstacle bothFixed)ᶜ \ ({-1, -2} : Set ℂ)) := by
+  apply Cslib.isPathConnected_sdiff_finite_of_isOpen
+  · rw [Complex.rank_real_complex]
+    exact Nat.one_lt_ofNat
+  · exact (frozenReferenceObstacle_isCompact bothFixed).isClosed.isOpen_compl
+  · exact frozenReferenceObstacle_compl_isPathConnected valid_bothFixed
+  · exact (Set.finite_singleton _).insert _
+
+-- A reverse frozen spoke's leaf is protected. A leaf at a free rotation is off the obstacle.
+example :
+    referencePoint input (input.graph.vertices.length + loopLast.index) ∈
+      frozenReferenceObstacle input := by
+  apply (referencePoint_mem_frozenReferenceObstacle_iff valid_input
+    (v := input.graph.vertices.length + loopLast.index) (by decide +kernel)).mpr
+  exact Or.inr ⟨loopLast, by decide +kernel, rfl⟩
+
+example : referencePoint input 6 ∉ frozenReferenceObstacle input := by
+  intro h
+  have hv := (referencePoint_mem_frozenReferenceObstacle_iff valid_input
+    (by decide +kernel : 6 ∈ (subdivisionGraph input).vertices)).mp h
+  rcases hv with hv | ⟨d, hd, heq⟩
+  · exact (by decide +kernel : 6 ∉ input.graph.vertices) hv
+  · have hfree : ∀ d : Dart input.graph, 6 = input.graph.vertices.length + d.index →
+        (input.orders.getD d.vertex none).isSome = false := by decide +kernel
+    simp only [hfree d heq, Bool.false_eq_true] at hd
 
 end Cslib.Tests.RotationFrozenReference

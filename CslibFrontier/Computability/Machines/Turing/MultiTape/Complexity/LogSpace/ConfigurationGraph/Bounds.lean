@@ -70,6 +70,16 @@ theorem fits_of_runsInSpace_of_le {S B : ℕ} (hs : ntm.RunsInSpace w S)
 def radixExponent (State : Type) [Fintype State] (c : ℕ) : ℕ :=
   16 * c + Fintype.card (Option State) + 4
 
+/-- **The fixed radix exceeds the control tags by more than one**, for every `c` and every input
+length. So the initial view fits it, with no assumption on the machine. -/
+theorem card_succ_lt_radix (c n : ℕ) :
+    Fintype.card (Option State) + 1 < radix (radixExponent State c) n :=
+  calc Fintype.card (Option State) + 1 < 2 ^ (Fintype.card (Option State) + 1) :=
+        Nat.lt_two_pow_self
+    _ ≤ (n + 2) ^ (Fintype.card (Option State) + 1) := Nat.pow_le_pow_left (by omega) _
+    _ ≤ radix (radixExponent State c) n :=
+      Nat.pow_le_pow_right (by omega) (by simp only [radixExponent]; omega)
+
 /-- The ambient vertex count is exactly a fixed natural power of `n+2`. -/
 theorem vertexBound_eq_pow (D n : ℕ) :
     vertexBound (k := k) (radix D n) = (n + 2) ^ (D * Fintype.card (Register k)) :=
@@ -109,13 +119,8 @@ theorem fits_of_runsInSpace (c : ℕ) (hs : ntm.RunsInSpace w (c * (Nat.log2 w.l
     have he := Nat.pow_le_pow_right (show 1 ≤ w.length + 2 by omega) hD
     change 3 < (w.length + 2) ^ radixExponent State c
     omega
-  have hcard : Fintype.card (Option State) < radix (radixExponent State c) w.length := by
-    have hp := (Nat.lt_two_pow_self :
-      Fintype.card (Option State) < 2 ^ Fintype.card (Option State))
-    have he : 2 ^ Fintype.card (Option State) ≤ radix (radixExponent State c) w.length :=
-      (Nat.pow_le_pow_left (by omega : 2 ≤ w.length + 2) _).trans
-        (Nat.pow_le_pow_right (by omega) (by simp only [radixExponent]; omega))
-    exact hp.trans_le he
+  have hcard : Fintype.card (Option State) < radix (radixExponent State c) w.length :=
+    Nat.lt_of_succ_lt (card_succ_lt_radix c w.length)
   exact fits_of_runsInSpace_of_le hs hbase hcard hthree (stack_bound c w.length) hv
 
 /-- Every reachable ID is strictly below a natural polynomial in input length. -/
