@@ -499,7 +499,7 @@ theorem litKey_injective : Function.Injective litKey :=
 /-- **The literal of a key**: the variable is the key divided by two, and the literal is positive
 when the key is odd. It inverts `litKey` (`litOfKey_litKey`, `litKey_litOfKey`), so every number is
 the key of exactly one literal. -/
-def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
+@[inline] def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
 
 @[simp] theorem litOfKey_litKey (l : Literal ℕ) : litOfKey (litKey l) = l := by
   obtain ⟨v, b⟩ := l
