@@ -113,43 +113,25 @@ private theorem continuous_rotF (hR : sj ^ 2 = 1 - J ^ 2) :
     filter_upwards [hae] with y hy
     have hcont : Continuous fun ψ => vjVal (J := J) (sj := sj) ψ y := by unfold vjVal; fun_prop
     apply tendsto_const_nhds.congr'
-    rcases lt_or_gt_of_ne hy with hlt | hgt
-    · filter_upwards [(hcont.tendsto ψ₀).eventually (gt_mem_nhds hlt)] with ψ hψ
-      have hlo : ∀ ψ', vjVal (J := J) (sj := sj) ψ' y < h →
-          ((⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ' ↔
-            (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ₀) := by
-        intro ψ' h'
-        simp only [lowSet, Set.mem_ofPred_eq]
-        unfold vjVal at h' hlt
-        constructor <;> rintro ⟨a, -, c⟩ <;> exact ⟨a, by linarith, c⟩
-      have hhi : ∀ ψ', vjVal (J := J) (sj := sj) ψ' y < h →
-          (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∉ highSet I J si sj h ψ' := by
-        intro ψ' h' hm
-        simp only [highSet, Set.mem_ofPred_eq] at hm
-        unfold vjVal at h'
-        linarith [hm.2.1]
-      simp only [ite_eq_right (hhi ψ hψ), ite_eq_right (hhi ψ₀ hlt)]
-      by_cases hl : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ₀
-      · rw [ite_eq_left hl, ite_eq_left ((hlo ψ hψ).mpr hl)]
-      · rw [ite_eq_right hl, ite_eq_right (fun h' => hl ((hlo ψ hψ).mp h'))]
-    · filter_upwards [(hcont.tendsto ψ₀).eventually (lt_mem_nhds hgt)] with ψ hψ
-      have hhi : ∀ ψ', h < vjVal (J := J) (sj := sj) ψ' y →
-          ((⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ' ↔
-            (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ₀) := by
-        intro ψ' h'
-        simp only [highSet, Set.mem_ofPred_eq]
-        unfold vjVal at h' hgt
-        constructor <;> rintro ⟨a, -, c⟩ <;> exact ⟨a, by linarith, c⟩
-      have hlo : ∀ ψ', h < vjVal (J := J) (sj := sj) ψ' y →
-          (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∉ lowSet I J si sj h ψ' := by
-        intro ψ' h' hm
-        simp only [lowSet, Set.mem_ofPred_eq] at hm
-        unfold vjVal at h'
-        linarith [hm.2.1]
-      simp only [ite_eq_right (hlo ψ hψ), ite_eq_right (hlo ψ₀ hgt)]
-      by_cases hl : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ₀
-      · rw [ite_eq_left hl, ite_eq_left ((hhi ψ hψ).mpr hl)]
-      · rw [ite_eq_right hl, ite_eq_right (fun h' => hl ((hhi ψ hψ).mp h'))]
+    have hev : ∀ᶠ ψ in 𝓝 ψ₀, vjVal (J := J) (sj := sj) ψ y < h ↔
+        vjVal (J := J) (sj := sj) ψ₀ y < h := by
+      rcases lt_or_gt_of_ne hy with hlt | hgt
+      · filter_upwards [(hcont.tendsto ψ₀).eventually (gt_mem_nhds hlt)] with ψ hψ
+        exact iff_of_true hψ hlt
+      · filter_upwards [(hcont.tendsto ψ₀).eventually (lt_mem_nhds hgt)] with ψ hψ
+        exact iff_of_false hψ.not_gt hgt.not_gt
+    filter_upwards [hev] with ψ hψ
+    have hlo : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ ↔
+        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ₀ := by
+      simp only [lowSet, Set.mem_ofPred_eq]
+      exact and_congr_right fun _ => and_congr_left fun _ => hψ
+    have hhi : (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ ↔
+        (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ₀ := by
+      simp only [highSet, Set.mem_ofPred_eq]
+      have hle : h ≤ vjVal (J := J) (sj := sj) ψ y ↔ h ≤ vjVal (J := J) (sj := sj) ψ₀ y := by
+        simpa only [not_lt] using hψ.not
+      exact and_congr_right fun _ => and_congr_left fun _ => hle
+    simp only [hlo, hhi]
 
 /-- **ROT on the closed interval.** -/
 theorem rot_mono {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
