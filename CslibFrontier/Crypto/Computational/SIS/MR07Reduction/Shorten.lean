@@ -269,14 +269,18 @@ theorem computableInPolyTime_intTableColSqNorm :
       (hnr.prod (computableInPolyTime_intTableCol.prod computableInPolyTime_intTableCol))
   exact intBin_natAbs.comp hdot
 
+private theorem length_intTableEnc_eq (T : IntTable) :
+    (IntTable.enc T).length =
+      2 * T.numRows + 1 + (2 * T.numCols + 1 + (encList (encList encIntBin) T.rows).length) := by
+  rw [IntTable.enc_apply, length_encPair, length_encPair, encUnary_apply, List.length_replicate,
+    encUnary_apply, List.length_replicate]
+
 private theorem natAbs_entry_lt_two_pow_enc (T : IntTable) (i j : ℕ) :
     (T.entry i j).natAbs < 2 ^ (IntTable.enc T).length := by
   set L := (IntTable.enc T).length
   have hL_eq : L =
-      2 * T.numRows + 1 + (2 * T.numCols + 1 + (encList (encList encIntBin) T.rows).length) := by
-    change (IntTable.enc T).length = _
-    rw [IntTable.enc_apply, length_encPair, length_encPair, encUnary_apply, List.length_replicate,
-      encUnary_apply, List.length_replicate]
+      2 * T.numRows + 1 + (2 * T.numCols + 1 + (encList (encList encIntBin) T.rows).length) :=
+    length_intTableEnc_eq T
   have hrows_le : (encList (encList encIntBin) T.rows).length ≤ L := by omega
   unfold RowTable.entry
   by_cases hi : i < T.rows.length
@@ -310,10 +314,8 @@ private theorem intTableColSqNorm_lt_two_pow (T : IntTable) (j : ℕ) :
     intTableColSqNorm T j < 2 ^ (3 * (IntTable.enc T).length + 1) := by
   set L := (IntTable.enc T).length
   have hL_eq : L =
-      2 * T.numRows + 1 + (2 * T.numCols + 1 + (encList (encList encIntBin) T.rows).length) := by
-    change (IntTable.enc T).length = _
-    rw [IntTable.enc_apply, length_encPair, length_encPair, encUnary_apply, List.length_replicate,
-      encUnary_apply, List.length_replicate]
+      2 * T.numRows + 1 + (2 * T.numCols + 1 + (encList (encList encIntBin) T.rows).length) :=
+    length_intTableEnc_eq T
   have hnr_le : T.numRows ≤ L := by omega
   have h1 := intTableColSqNorm_le_numRows_mul_two_pow T j
   have hnr_lt : T.numRows < 2 ^ (L + 1) :=
@@ -325,6 +327,26 @@ private theorem intTableColSqNorm_lt_two_pow (T : IntTable) (j : ℕ) :
     rw [← pow_add]; congr 1; omega
   exact h1.trans_lt (hpow ▸ hmul)
 
+private theorem computableInPolyTime_intTableColsFoldl {β : Type} {encB : β ↪ List Bool}
+    (init : β) (step : IntTable → β → ℕ → β) (B : IntTable → ℕ)
+    (hstep : ComputableInPolyTime (fun q : (IntTable × β) × ℕ => step q.1.1 q.1.2 q.2)
+      (encPair (encPair IntTable.enc encB) encUnary) encB)
+    (hB : PolyBounded (fun T : IntTable => (IntTable.enc T).length) B)
+    (hbound : ∀ T i, i ≤ (List.range T.numCols).length →
+      (encB (((List.range T.numCols).take i).foldl (step T) init)).length ≤ B T) :
+    ComputableInPolyTime (fun T : IntTable => (List.range T.numCols).foldl (step T) init)
+      IntTable.enc encB :=
+  ComputableInPolyTime.foldlWith (encA := encUnary) (encB := encB) (encL := encList encUnary)
+    (encP := IntTable.enc) (par := id) (list := fun T => List.range T.numCols)
+    (init := fun _ => init) (step := step) (by fun_prop) (by fun_prop) (.const init)
+    hstep hB hbound
+
+private theorem computableInPolyTime_intTableStepColSqNorm {β : Type} (encB : β ↪ List Bool) :
+    ComputableInPolyTime (fun q : (IntTable × β) × ℕ => intTableColSqNorm q.1.1 q.2)
+      (encPair (encPair IntTable.enc encB) encUnary) encNat :=
+  computableInPolyTime_intTableColSqNorm.comp
+    (((fst IntTable.enc encB).comp (fst _ _)).prod (snd _ _))
+
 /-- Polynomial-time certificate for `intTableMaxColSqNorm`. -/
 theorem computableInPolyTime_intTableMaxColSqNorm :
     ComputableInPolyTime intTableMaxColSqNorm IntTable.enc encNat := by
@@ -333,35 +355,27 @@ theorem computableInPolyTime_intTableMaxColSqNorm :
       (encPair (encPair IntTable.enc encNat) encUnary) encNat := by
     have hacc : ComputableInPolyTime (fun q : (IntTable × ℕ) × ℕ => q.1.2)
         (encPair (encPair IntTable.enc encNat) encUnary) encNat := by fun_prop
-    have hcol : ComputableInPolyTime (fun q : (IntTable × ℕ) × ℕ => intTableColSqNorm q.1.1 q.2)
-        (encPair (encPair IntTable.enc encNat) encUnary) encNat :=
-      computableInPolyTime_intTableColSqNorm.comp
-        (((fst IntTable.enc encNat).comp (fst _ _)).prod (snd _ _))
+    have hcol := computableInPolyTime_intTableStepColSqNorm encNat
     exact cpt_eq ((binary_lt' hacc hcol).ite_decide hcol hacc) fun q => by
       by_cases h : q.1.2 < intTableColSqNorm q.1.1 q.2
       · simp [h, max_eq_right h.le]
       · simp [h, max_eq_left (Nat.le_of_not_lt h)]
-  have hB : PolyBounded (fun T : IntTable => (IntTable.enc T).length)
-      (fun T => 3 * (IntTable.enc T).length + 1) :=
-    PolyBounded.of_forall_le 3 1 fun T => by simp
-  exact ComputableInPolyTime.foldlWith (encA := encUnary) (encB := encNat)
-    (encL := encList encUnary) (encP := IntTable.enc)
-    (par := id) (list := fun T => List.range T.numCols) (init := fun _ => 0)
-    (step := fun T acc j => max acc (intTableColSqNorm T j))
-    (by fun_prop) (by fun_prop) (.const 0) hstep (B := fun T => 3 * (IntTable.enc T).length + 1) hB
-    fun T i _ => by
-      have hlt_fold : ∀ (l : List ℕ) (a : ℕ), a < 2 ^ (3 * (IntTable.enc T).length + 1) →
-          l.foldl (fun acc j => max acc (intTableColSqNorm T j)) a <
-            2 ^ (3 * (IntTable.enc T).length + 1) := by
-        intro l
-        induction l with
-        | nil => intro a ha; exact ha
-        | cons x xs ih =>
-          intro a ha
-          simp only [List.foldl_cons]
-          exact ih _ (max_lt ha (intTableColSqNorm_lt_two_pow T x))
-      exact length_encNat_le_of_lt_two_pow
-        (hlt_fold ((List.range T.numCols).take i) 0 (Nat.pow_pos (by decide : 0 < 2)))
+  refine computableInPolyTime_intTableColsFoldl (encB := encNat) 0
+    (fun T acc j => max acc (intTableColSqNorm T j))
+    (fun T => 3 * (IntTable.enc T).length + 1) hstep
+    (PolyBounded.of_forall_le 3 1 fun T => by simp) fun T i _ => ?_
+  have hlt_fold : ∀ (l : List ℕ) (a : ℕ), a < 2 ^ (3 * (IntTable.enc T).length + 1) →
+      l.foldl (fun acc j => max acc (intTableColSqNorm T j)) a <
+        2 ^ (3 * (IntTable.enc T).length + 1) := by
+    intro l
+    induction l with
+    | nil => intro a ha; exact ha
+    | cons x xs ih =>
+      intro a ha
+      simp only [List.foldl_cons]
+      exact ih _ (max_lt ha (intTableColSqNorm_lt_two_pow T x))
+  exact length_encNat_le_of_lt_two_pow
+    (hlt_fold ((List.range T.numCols).take i) 0 (Nat.pow_pos (by decide : 0 < 2)))
 
 /-- Polynomial-time certificate for `intTableMaxSqNormIdx`. -/
 theorem computableInPolyTime_intTableMaxSqNormIdx :
@@ -373,43 +387,33 @@ theorem computableInPolyTime_intTableMaxSqNormIdx :
     have hbest : ComputableInPolyTime (fun q : (IntTable × ℕ) × ℕ => intTableColSqNorm q.1.1 q.1.2)
         (encPair (encPair IntTable.enc encUnary) encUnary) encNat :=
       computableInPolyTime_intTableColSqNorm.comp (fst _ _)
-    have hj : ComputableInPolyTime (fun q : (IntTable × ℕ) × ℕ => intTableColSqNorm q.1.1 q.2)
-        (encPair (encPair IntTable.enc encUnary) encUnary) encNat :=
-      computableInPolyTime_intTableColSqNorm.comp
-        (((fst IntTable.enc encUnary).comp (fst _ _)).prod (snd _ _))
+    have hj := computableInPolyTime_intTableStepColSqNorm encUnary
     exact (binary_lt' hbest hj).ite_decide (snd _ _) ((snd IntTable.enc encUnary).comp (fst _ _))
-  have hB : PolyBounded (fun T : IntTable => (IntTable.enc T).length)
-      (fun T => (IntTable.enc T).length) :=
-    PolyBounded.of_forall_le 1 1 fun T => by simp
-  exact ComputableInPolyTime.foldlWith (encA := encUnary) (encB := encUnary)
-    (encL := encList encUnary) (encP := IntTable.enc)
-    (par := id) (list := fun T => List.range T.numCols) (init := fun _ => 0)
-    (step := fun T best j => if intTableColSqNorm T best < intTableColSqNorm T j then j else best)
-    (by fun_prop) (by fun_prop) (.const 0) hstep (B := fun T => (IntTable.enc T).length) hB
-    fun T i _ => by
-      have hle_fold : ∀ (l : List ℕ) (a : ℕ), a ≤ T.numCols → (∀ x ∈ l, x ≤ T.numCols) →
-          l.foldl
-            (fun best j => if intTableColSqNorm T best < intTableColSqNorm T j then j else best)
-            a ≤ T.numCols := by
-        intro l
-        induction l with
-        | nil => intro a ha _; exact ha
-        | cons x xs ih =>
-          intro a ha hall
-          simp only [List.foldl_cons]
-          refine ih _ ?_ fun y hy => hall y (List.mem_cons_of_mem x hy)
-          split_ifs
-          · exact hall x List.mem_cons_self
-          · exact ha
-      have hres_le : ((List.range T.numCols).take i).foldl
-          (fun best j => if intTableColSqNorm T best < intTableColSqNorm T j then j else best) 0 ≤
-          T.numCols :=
-        hle_fold _ 0 (Nat.zero_le _) fun x hx => (List.mem_range.mp (List.mem_of_mem_take hx)).le
-      have hnc_le : T.numCols ≤ (IntTable.enc T).length := by
-        rw [IntTable.enc_apply, length_encPair, length_encPair, encUnary_apply,
-          List.length_replicate, encUnary_apply, List.length_replicate]
-        dsimp only; omega
-      simpa [encUnary_apply] using hres_le.trans hnc_le
+  refine computableInPolyTime_intTableColsFoldl (encB := encUnary) 0
+    (fun T best j => if intTableColSqNorm T best < intTableColSqNorm T j then j else best)
+    (fun T => (IntTable.enc T).length) hstep
+    (PolyBounded.of_forall_le 1 1 fun T => by simp) fun T i _ => ?_
+  have hle_fold : ∀ (l : List ℕ) (a : ℕ), a ≤ T.numCols → (∀ x ∈ l, x ≤ T.numCols) →
+      l.foldl
+        (fun best j => if intTableColSqNorm T best < intTableColSqNorm T j then j else best)
+        a ≤ T.numCols := by
+    intro l
+    induction l with
+    | nil => intro a ha _; exact ha
+    | cons x xs ih =>
+      intro a ha hall
+      simp only [List.foldl_cons]
+      refine ih _ ?_ fun y hy => hall y (List.mem_cons_of_mem x hy)
+      split_ifs
+      · exact hall x List.mem_cons_self
+      · exact ha
+  have hres_le : ((List.range T.numCols).take i).foldl
+      (fun best j => if intTableColSqNorm T best < intTableColSqNorm T j then j else best) 0 ≤
+      T.numCols :=
+    hle_fold _ 0 (Nat.zero_le _) fun x hx => (List.mem_range.mp (List.mem_of_mem_take hx)).le
+  have hnc_le : T.numCols ≤ (IntTable.enc T).length := by
+    have hL := length_intTableEnc_eq T; omega
+  simpa [encUnary_apply] using hres_le.trans hnc_le
 
 /-- Exact cast equality between `intTableColSqNorm T j` and `MR07Shorten.sqNormRat`. -/
 theorem intTableColSqNorm_cast_eq_sqNormRat {m : ℕ} (T : IntTable)

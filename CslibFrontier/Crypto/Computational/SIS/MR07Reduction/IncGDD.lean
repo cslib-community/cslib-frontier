@@ -173,6 +173,10 @@ open scoped IncGDDInput
 @[expose] noncomputable def listToEuclidean (n : ℕ) (v : List ℤ) : EuclideanSpace ℝ (Fin n) :=
   WithLp.toLp 2 fun i : Fin n => (v.getD i.val 0 : ℝ)
 
+private theorem listToEuclidean_replicate_zero (n : ℕ) :
+    listToEuclidean n (List.replicate n 0) = 0 := by
+  ext r; simp [listToEuclidean, List.getD_eq_getElem?_getD]
+
 /-- Convert a list of rationals to `EuclideanSpace ℝ (Fin n)` (zero-padded). -/
 @[expose] noncomputable def ratListToEuclidean (n : ℕ) (t : List ℚ) : EuclideanSpace ℝ (Fin n) :=
   WithLp.toLp 2 fun i : Fin n => (t.getD i.val 0 : ℝ)
@@ -680,6 +684,22 @@ private def combineMatrixRowsInt (n m : ℕ) (cols : List (List ℤ × List ℕ)
   (List.range n).map fun r =>
     (List.range m).map fun c => (cols.getD c ([], [])).2.getD r 0
 
+private theorem computableInPolyTime_colEntry {α : Type} {eα : α ↪ List Bool}
+    {colsFn : α → List (List ℤ × List ℕ)}
+    (hcols : ComputableInPolyTime colsFn eα
+      (encList (encPair (encList encIntBin) (encList encNat)))) :
+    ComputableInPolyTime
+      (fun t : (α × ℕ) × ℕ => ((colsFn t.1.1).getD t.2 ([], [])).2.getD t.1.2 0)
+      (encPair (encPair eα encUnary) encUnary) encNat := by
+  let encQ := encPair eα encUnary
+  have hcol : ComputableInPolyTime
+      (fun t : (α × ℕ) × ℕ => ((colsFn t.1.1).getD t.2 ([], [])).2)
+      (encPair encQ encUnary) (encList encNat) :=
+    (snd (encList encIntBin) (encList encNat)).comp
+      (listGetDWithInput (hcols.comp ((fst eα encUnary).comp (fst encQ encUnary)))
+        (snd encQ encUnary) ([], []))
+  exact listGetDWithInput hcol ((snd eα encUnary).comp (fst encQ encUnary)) 0
+
 private theorem computableInPolyTime_combineMatrixRowsInt :
     ComputableInPolyTime (fun p : CombineRowsArg => combineMatrixRowsInt p.n p.m p.cols)
       CombineRowsArg.enc (encList (encList encNat)) := by
@@ -690,19 +710,9 @@ private theorem computableInPolyTime_combineMatrixRowsInt :
   have hrow : ComputableInPolyTime
       (fun q : CombineRowsArg × ℕ =>
         (List.range q.1.m).map fun c => (q.1.cols.getD c ([], [])).2.getD q.2 0)
-      (encPair CombineRowsArg.enc encUnary) (encList encNat) := by
-    let encQ := encPair CombineRowsArg.enc encUnary
-    have hcol : ComputableInPolyTime
-        (fun t : (CombineRowsArg × ℕ) × ℕ => (t.1.1.cols.getD t.2 ([], [])).2)
-        (encPair encQ encUnary) (encList encNat) :=
-      (snd (encList encIntBin) (encList encNat)).comp
-        (listGetDWithInput (hcols.comp ((fst CombineRowsArg.enc encUnary).comp (fst encQ encUnary)))
-          (snd encQ encUnary) ([], []))
-    have hent : ComputableInPolyTime
-        (fun t : (CombineRowsArg × ℕ) × ℕ => (t.1.1.cols.getD t.2 ([], [])).2.getD t.1.2 0)
-        (encPair encQ encUnary) encNat :=
-      listGetDWithInput hcol ((snd CombineRowsArg.enc encUnary).comp (fst encQ encUnary)) 0
-    exact mapWithInput (unary_range' (hm.comp (fst CombineRowsArg.enc encUnary))) hent
+      (encPair CombineRowsArg.enc encUnary) (encList encNat) :=
+    mapWithInput (unary_range' (hm.comp (fst CombineRowsArg.enc encUnary)))
+      (computableInPolyTime_colEntry hcols)
   exact mapWithInput (unary_range' hn) hrow
 
 private structure CombineOutArg where
@@ -774,15 +784,10 @@ private theorem computableInPolyTime_combineOutputInt :
     have hsum : ComputableInPolyTime
         (fun q : CombineOutArg × ℕ => ((List.range q.1.m).map fun c =>
           (((q.1.cols.getD c ([], [])).2.getD q.2 0 : ℕ) : ℤ) * q.1.z.getD c 0).sum)
-        encQ encIntBin := by
-      have hcol : ComputableInPolyTime
-          (fun t : (CombineOutArg × ℕ) × ℕ => (t.1.1.cols.getD t.2 ([], [])).2)
-          (encPair encQ encUnary) (encList encNat) :=
-        (snd (encList encIntBin) (encList encNat)).comp
-          (listGetDWithInput (hcols.comp hp1) hc ([], []))
-      have ha_rc := intBin_natCast.comp (listGetDWithInput hcol hr 0)
-      exact (mapWithInput (unary_range' (hm.comp (fst CombineOutArg.enc encUnary)))
-        (intBin_mul' ha_rc hz_c)).trans intBin_sum
+        encQ encIntBin :=
+      (mapWithInput (unary_range' (hm.comp (fst CombineOutArg.enc encUnary)))
+        (intBin_mul' (intBin_natCast.comp (computableInPolyTime_colEntry hcols)) hz_c)).trans
+        intBin_sum
     have hqZ := intBin_natCast.comp (hq.comp (fst CombineOutArg.enc encUnary))
     exact mapWithInput hrngN (rat_floor.comp (rat_divInt' hsum hqZ))
   have hsAz := computableInPolyTime_intTableMulVec.comp (hS.prod hazDivQ)
@@ -999,27 +1004,18 @@ private theorem isPPTOn_stageSampleLattices {P : SISParams} (hP : MR07ParamPolyT
       have hcond := decide_eq' (unary_to_binary.comp hq2) (hj.comp hq1)
       have hn' := hn.comp hq1
       have hq' := hq.comp hq1
-      have hB' : ComputableInPolyTime (fun q : IncGDDState1 × ℕ => q.1.inp.basisB)
-          (encPair IncGDDState1.enc encUnary) IntTable.enc :=
-        (by fun_prop : ComputableInPolyTime IncGDDInput.basisB IncGDDInput.enc IntTable.enc).comp
-          hinp'
+      have hB : ComputableInPolyTime IncGDDInput.basisB IncGDDInput.enc IntTable.enc := by fun_prop
+      have htail : ComputableInPolyTime IncGDDInput.tail IncGDDInput.enc encUnary := by fun_prop
+      have hprec : ComputableInPolyTime IncGDDInput.prec IncGDDInput.enc encUnary := by fun_prop
+      have hmaxT : ComputableInPolyTime IncGDDInput.maxTrials IncGDDInput.enc encUnary := by
+        fun_prop
       have hrep : ComputableInPolyTime
           (fun q : IncGDDState1 × ℕ => List.replicate (P.n q.1.inp.secParam) (0 : ℚ))
           (encPair IncGDDState1.enc encUnary) (encList encRat) :=
         ComputableInPolyTime.replicate hn' (.const (0 : ℚ))
       have htarget := ite_decide hcond (hscaled.comp hq1) hrep
-      have hsSq' := hsSq.comp hq1
-      have htail' : ComputableInPolyTime (fun q : IncGDDState1 × ℕ => q.1.inp.tail)
-          (encPair IncGDDState1.enc encUnary) encUnary :=
-        (by fun_prop : ComputableInPolyTime IncGDDInput.tail IncGDDInput.enc encUnary).comp hinp'
-      have hprec' : ComputableInPolyTime (fun q : IncGDDState1 × ℕ => q.1.inp.prec)
-          (encPair IncGDDState1.enc encUnary) encUnary :=
-        (by fun_prop : ComputableInPolyTime IncGDDInput.prec IncGDDInput.enc encUnary).comp hinp'
-      have hmaxT' : ComputableInPolyTime (fun q : IncGDDState1 × ℕ => q.1.inp.maxTrials)
-          (encPair IncGDDState1.enc encUnary) encUnary :=
-        (by fun_prop : ComputableInPolyTime IncGDDInput.maxTrials IncGDDInput.enc encUnary).comp
-          hinp'
-      exact GridSampleInput.enc_mk_polyTime hn' hq' hB' hsSq' htarget htail' hprec' hmaxT'
+      exact GridSampleInput.enc_mk_polyTime hn' hq' (hB.comp hinp') (hsSq.comp hq1) htarget
+        (htail.comp hinp') (hprec.comp hinp') (hmaxT.comp hinp')
     exact IsPPTOn.mapMWith (isPPTOn_sampleGridGaussian.preprocess hgridInp) (unary_range' hm)
   let encCY := encList (encPair (encList encIntBin) (encList encIntBin))
   have hvs : IsPPTOn (encPair IncGDDState1.enc encCY) (encList (encList encIntBin))
@@ -1085,6 +1081,15 @@ private theorem isPPTOn_stageSolveAndCombine {P : SISParams} (hP : MR07ParamPoly
   have hn := hP.hn.comp hκ
   have hm := hP.hm.comp hκ
   have hq := hP.hq.comp hκ
+  have hinp2 : ComputableInPolyTime IncGDDState2.inp IncGDDState2.enc IncGDDInput.enc := by
+    fun_prop
+  have hS2 : ComputableInPolyTime (fun st : IncGDDState2 => st.inp.basisS)
+      IncGDDState2.enc IntTable.enc :=
+    (by fun_prop : ComputableInPolyTime IncGDDInput.basisS IncGDDInput.enc IntTable.enc).comp hinp2
+  have hvs2 : ComputableInPolyTime IncGDDState2.vs IncGDDState2.enc
+      (encList (encList encIntBin)) := by fun_prop
+  have hcys2 : ComputableInPolyTime IncGDDState2.cys IncGDDState2.enc
+      (encList (encPair (encList encIntBin) (encList encIntBin))) := by fun_prop
   have hcols : ComputableInPolyTime (stageCols P)
       IncGDDState2.enc (encList (encPair (encList encIntBin) (encList encNat))) := by
     unfold stageCols
@@ -1095,20 +1100,10 @@ private theorem isPPTOn_stageSolveAndCombine {P : SISParams} (hP : MR07ParamPoly
         (encPair IncGDDState2.enc encUnary) CombineColArg.enc := by
       have hq1 := fst IncGDDState2.enc encUnary
       have hq2 := snd IncGDDState2.enc encUnary
-      have hinp2 : ComputableInPolyTime IncGDDState2.inp IncGDDState2.enc IncGDDInput.enc := by
-        fun_prop
-      have hS' : ComputableInPolyTime (fun q : IncGDDState2 × ℕ => q.1.inp.basisS)
-          (encPair IncGDDState2.enc encUnary) IntTable.enc :=
-        (by fun_prop : ComputableInPolyTime IncGDDInput.basisS IncGDDInput.enc IntTable.enc).comp
-          (hinp2.comp hq1)
-      have hvs2 : ComputableInPolyTime IncGDDState2.vs IncGDDState2.enc
-          (encList (encList encIntBin)) := by fun_prop
-      have hcys2 : ComputableInPolyTime IncGDDState2.cys IncGDDState2.enc
-          (encList (encPair (encList encIntBin) (encList encIntBin))) := by fun_prop
       have hvs' := listGetDWithInput (hvs2.comp hq1) hq2 []
       have hu' := (fst (encList encIntBin) (encList encIntBin)).comp
         (listGetDWithInput (hcys2.comp hq1) hq2 ([], []))
-      exact CombineColArg.enc_mk_polyTime (hn.comp hq1) (hq.comp hq1) hS' hvs' hu'
+      exact CombineColArg.enc_mk_polyTime (hn.comp hq1) (hq.comp hq1) (hS2.comp hq1) hvs' hu'
     exact mapWithInput (unary_range' hm) (computableInPolyTime_combineColInt.comp harg)
   have hrows : ComputableInPolyTime
       (fun st : IncGDDState2 =>
@@ -1126,19 +1121,9 @@ private theorem isPPTOn_stageSolveAndCombine {P : SISParams} (hP : MR07ParamPoly
           p.1.inp.basisS (stageCols P p.1) p.1.vs (p.1.cys.map Prod.snd) p.2)
       (encPair IncGDDState2.enc (encList encIntBin)) CombineOutArg.enc := by
     have hp1 := fst IncGDDState2.enc (encList encIntBin)
-    have hinp2 : ComputableInPolyTime IncGDDState2.inp IncGDDState2.enc IncGDDInput.enc := by
-      fun_prop
-    have hS' : ComputableInPolyTime (fun p : IncGDDState2 × List ℤ => p.1.inp.basisS)
-        (encPair IncGDDState2.enc (encList encIntBin)) IntTable.enc :=
-      (by fun_prop : ComputableInPolyTime IncGDDInput.basisS IncGDDInput.enc IntTable.enc).comp
-        (hinp2.comp hp1)
-    have hvs2 : ComputableInPolyTime IncGDDState2.vs IncGDDState2.enc
-        (encList (encList encIntBin)) := by fun_prop
-    have hcys2 : ComputableInPolyTime IncGDDState2.cys IncGDDState2.enc
-        (encList (encPair (encList encIntBin) (encList encIntBin))) := by fun_prop
     have hys' := (ComputableInPolyTime.map (snd (encList encIntBin) (encList encIntBin))).comp
       (hcys2.comp hp1)
-    exact CombineOutArg.enc_mk_polyTime (hn.comp hp1) (hm.comp hp1) (hq.comp hp1) hS'
+    exact CombineOutArg.enc_mk_polyTime (hn.comp hp1) (hm.comp hp1) (hq.comp hp1) (hS2.comp hp1)
       (hcols.comp hp1) (hvs2.comp hp1) hys' (snd IncGDDState2.enc (encList encIntBin))
   have hout := computableInPolyTime_combineOutputInt.comp harg
   have h := hz.keep_input.map hout
@@ -1687,11 +1672,7 @@ theorem mem_support_singleIncGDDCall_mem_intLattice
   split_ifs at hv with hzero
   · rw [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hv
     subst hv
-    refine ⟨by simp, ?_⟩
-    have h0 : listToEuclidean (P.n inp.secParam) (List.replicate (P.n inp.secParam) 0) = 0 := by
-      ext r; simp [listToEuclidean, List.getD_eq_getElem?_getD]
-    rw [h0]
-    exact (intLattice B).zero_mem
+    exact ⟨by simp, by rw [listToEuclidean_replicate_zero]; exact (intLattice B).zero_mem⟩
   · simp only [ProbComp.eval_bind, ProbComp.eval_pure, PMF.mem_support_bind_iff,
       PMF.mem_support_pure_iff] at hv
     obtain ⟨j, _, sgn, _, idx, _, cys, hcys, vs, hvs, zL, hzL, rfl⟩ := hv
@@ -1761,6 +1742,72 @@ theorem mem_support_singleIncGDDCall_mem_intLattice
       (combineOutput_mem_intLattice B S hS hSB (P.q inp.secParam) hq V (fun c => (CY c).1) z)
       (Submodule.sum_mem _ fun c _ => Submodule.smul_mem _ (z c) (CY c).2.2)
 
+private theorem mr07_rej_base_nonneg (tail : ℕ) :
+    0 ≤ 1 - 1 / (16 * (2 * (tail : ℝ) + 6)) := by
+  have hden : (1 : ℝ) ≤ 16 * (2 * (tail : ℝ) + 6) := by
+    linarith [Nat.cast_nonneg (α := ℝ) tail]
+  have hinv : 1 / (16 * (2 * (tail : ℝ) + 6)) ≤ 1 := div_le_one_of_le₀ hden (by positivity)
+  linarith
+
+private theorem mr07_grid_err_nonneg (n tail prec maxTrials : ℕ) {ε : ℝ}
+    (hε0 : 0 ≤ ε) (hε_half : ε ≤ 1 / 2) :
+    0 ≤ (n : ℝ) *
+      ((1 - 1 / (16 * (2 * (tail : ℝ) + 6))) ^ maxTrials
+        + (8 * (tail : ℝ) + 24) / (2 : ℝ) ^ prec
+        + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (tail : ℝ) ^ 2))) := by
+  have h1me : 0 < 1 - ε := by linarith
+  have hbase_nn := mr07_rej_base_nonneg tail
+  positivity
+
+private noncomputable def realCombineCont (P : SISParams) (F : P.Solver) (inp : IncGDDInput)
+    (cys : List (List ℤ × List ℤ)) (vs : List (List ℤ)) :
+    PMF (EuclideanSpace ℝ (Fin (P.n inp.secParam))) :=
+  let κ := inp.secParam
+  let n := P.n κ
+  let m := P.m κ
+  let q := P.q κ
+  let cols := (List.range m).map fun c =>
+    combineColInt n q inp.basisS (vs.getD c []) (cys.getD c ([], [])).1
+  let rows := combineMatrixRowsInt n m cols
+  (ProbComp.eval (callSISSolver P F κ rows)).map fun z =>
+    listToEuclidean n (combineOutputInt n m q inp.basisS cols vs (cys.map Prod.snd) z)
+
+private noncomputable def realInnerBody (P : SISParams) (F : P.Solver) (inp : IncGDDInput)
+    (sSq : ℚ) (j : ℕ) (sgn : Bool) (idx : ℕ) :
+    PMF (EuclideanSpace ℝ (Fin (P.n inp.secParam))) :=
+  let κ := inp.secParam
+  let n := P.n κ
+  let m := P.m κ
+  let q := P.q κ
+  let α : ℤ := if sgn then (idx + 1 : ℤ) else -((idx + 1 : ℤ))
+  let scaledTarget : List ℚ := inp.target.map fun x => Rat.divInt (-1) α * x
+  (ProbComp.eval ((List.range m).mapM fun i =>
+    sampleGridGaussian
+      ⟨n, q, inp.basisB, sSq,
+        if i = j then scaledTarget else List.replicate n 0,
+        inp.tail, inp.prec, inp.maxTrials⟩)).bind fun cys =>
+    (ProbComp.eval ((List.range m).mapM fun _ =>
+      sampleQuotientModS ⟨n, inp.basisB, inp.basisS, inp.extraBits⟩)).bind
+      (realCombineCont P F inp cys)
+
+private noncomputable def idealInnerBody (P : SISParams) (F : P.Solver) (inp : IncGDDInput)
+    (B S : Matrix (Fin (P.n inp.secParam)) (Fin (P.n inp.secParam)) ℤ) (hB : B.det ≠ 0)
+    (s : ℝ) (hs_pos : 0 < s) (j : ℕ) (sgn : Bool) (idx : ℕ) :
+    PMF (EuclideanSpace ℝ (Fin (P.n inp.secParam))) :=
+  let κ := inp.secParam
+  let n := P.n κ
+  let m := P.m κ
+  let q := P.q κ
+  let hq : 0 < q := NeZero.pos q
+  let α : ℤ := if sgn then (idx + 1 : ℤ) else -((idx + 1 : ℤ))
+  (PMF.piFin fun i : Fin m =>
+    idealGridSample B hB q hq s hs_pos
+      (if i.val = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind fun CY =>
+    (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
+      (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
+        combineOutput B S q V (fun i => (CY i).1) z -
+          ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n))
+
 private lemma closeTo_eval_singleIncGDDCall_inner
     (P : SISParams) (F : P.Solver) (inp : IncGDDInput)
     (B S : Matrix (Fin (P.n inp.secParam)) (Fin (P.n inp.secParam)) ℤ)
@@ -1777,44 +1824,21 @@ private lemma closeTo_eval_singleIncGDDCall_inner
     let κ := inp.secParam
     let n := P.n κ
     let m := P.m κ
-    let q := P.q κ
-    let hq : 0 < q := NeZero.pos q
-    let α : ℤ := if sgn then (idx.val + 1 : ℤ) else -((idx.val + 1 : ℤ))
-    let scaledTarget : List ℚ := inp.target.map fun x => Rat.divInt (-1) α * x
     let δg : ℝ := (n : ℝ) *
       ((1 - 1 / (16 * (2 * (inp.tail : ℝ) + 6))) ^ inp.maxTrials
         + (8 * (inp.tail : ℝ) + 24) / (2 : ℝ) ^ inp.prec
         + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (inp.tail : ℝ) ^ 2)))
     let δq : ℝ := (n : ℝ) / (2 : ℝ) ^ inp.extraBits
     CloseTo
-      ((ProbComp.eval ((List.range m).mapM fun i =>
-        sampleGridGaussian
-          ⟨n, q, inp.basisB, sSq,
-            if i = j.val then scaledTarget else List.replicate n 0,
-            inp.tail, inp.prec, inp.maxTrials⟩)).bind fun cys =>
-        (ProbComp.eval ((List.range m).mapM fun _ =>
-          sampleQuotientModS ⟨n, inp.basisB, inp.basisS, inp.extraBits⟩)).bind fun vs =>
-          let cols := (List.range m).map fun c =>
-            combineColInt n q inp.basisS (vs.getD c []) (cys.getD c ([], [])).1
-          let rows := combineMatrixRowsInt n m cols
-          (ProbComp.eval (callSISSolver P F κ rows)).map fun z =>
-            listToEuclidean n (combineOutputInt n m q inp.basisS cols vs (cys.map Prod.snd) z))
-      ((PMF.piFin fun i : Fin m =>
-        idealGridSample B hB q hq s hs_pos
-          (if i = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind fun CY =>
-        (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
-          (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
-            combineOutput B S q V (fun i => (CY i).1) z -
-              ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n)))
+      (realInnerBody P F inp sSq j.val sgn idx.val)
+      (idealInnerBody P F inp B S hB s hs_pos j.val sgn idx.val)
       (ENNReal.ofReal ((m : ℝ) * δg + (m : ℝ) * δq)) := by
-  intro κ n m q hq α scaledTarget δg δq
-  have h1me : 0 < 1 - ε := by linarith
-  have hbase_nn : 0 ≤ 1 - 1 / (16 * (2 * (inp.tail : ℝ) + 6)) := by
-    have hden : (1 : ℝ) ≤ 16 * (2 * (inp.tail : ℝ) + 6) := by
-      linarith [Nat.cast_nonneg (α := ℝ) inp.tail]
-    have hinv : 1 / (16 * (2 * (inp.tail : ℝ) + 6)) ≤ 1 := div_le_one_of_le₀ hden (by positivity)
-    linarith
-  have hδg0 : 0 ≤ δg := by dsimp only [δg]; positivity
+  intro κ n m δg δq
+  let q := P.q κ
+  let hq : 0 < q := NeZero.pos q
+  let α : ℤ := if sgn then (idx.val + 1 : ℤ) else -((idx.val + 1 : ℤ))
+  let scaledTarget : List ℚ := inp.target.map fun x => Rat.divInt (-1) α * x
+  have hδg0 : 0 ≤ δg := mr07_grid_err_nonneg n inp.tail inp.prec inp.maxTrials hε0 hε_half
   have hδq0 : 0 ≤ δq := by dsimp only [δq]; positivity
   have htarget_eq : ∀ i : Fin m,
       ratListToEuclidean n (if i.val = j.val then scaledTarget else List.replicate n 0) =
@@ -1930,13 +1954,7 @@ private lemma closeTo_eval_singleIncGDDCall_inner
     have herr : (m : ℝ≥0∞) * ENNReal.ofReal δq = ENNReal.ofReal ((m : ℝ) * δq) := by
       rw [ENNReal.ofReal_mul (Nat.cast_nonneg m), ENNReal.ofReal_natCast]
     simpa only [herr, Function.comp_def] using hpi
-  let cont : List (List ℤ × List ℤ) → List (List ℤ) → PMF (EuclideanSpace ℝ (Fin n)) :=
-    fun cys vs =>
-      let cols := (List.range m).map fun c =>
-        combineColInt n q inp.basisS (vs.getD c []) (cys.getD c ([], [])).1
-      let rows := combineMatrixRowsInt n m cols
-      (ProbComp.eval (callSISSolver P F κ rows)).map fun z =>
-        listToEuclidean n (combineOutputInt n m q inp.basisS cols vs (cys.map Prod.snd) z)
+  let cont := realCombineCont P F inp
   have hbind1 :
       CloseTo
         ((ProbComp.eval ((List.range m).mapM fun i =>
@@ -1961,13 +1979,9 @@ private lemma closeTo_eval_singleIncGDDCall_inner
           fun CY => List.ofFn fun i => gridPairToLists (CY i)).bind fun cys =>
         ((PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).map
           fun V => List.ofFn fun i => sublatticeQuotToList (V i)).bind (cont cys)) =
-      ((PMF.piFin fun i : Fin m =>
-        idealGridSample B hB q hq s hs_pos
-          (if i = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind fun CY =>
-        (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
-          (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
-            combineOutput B S q V (fun i => (CY i).1) z -
-              ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n))) := by
+      idealInnerBody P F inp B S hB s hs_pos j.val sgn idx.val := by
+    dsimp only [idealInnerBody]
+    simp_rw [Fin.ext_iff.symm]
     rw [PMF.bind_map]
     congr 1; funext CY
     dsimp only [Function.comp_apply]
@@ -2095,28 +2109,16 @@ theorem closeTo_eval_singleIncGDDCall_idealIncGDDStep
       p.bind (PMF.pure ∘ fun a => listToEuclidean n (g a))
     simp only [PMF.pure_bind, Function.comp_apply]
     rfl
+  let realBody := realInnerBody P F inp sSq
+  let idealBody := idealInnerBody P F inp B S hB s hs_pos
   have hreal_unfold :
       (ProbComp.eval (singleIncGDDCall P F inp)).map (listToEuclidean n) =
       (ProbComp.eval (sampleModNat (Nat.clog 2 m + inp.extraBits) m)).bind fun j =>
         (PMF.uniformOfFintype Bool).bind fun sgn =>
           (ProbComp.eval (sampleModNat (Nat.clog 2 β + inp.extraBits) β)).bind fun idx =>
-            let α : ℤ := if sgn then (idx + 1 : ℤ) else -((idx + 1 : ℤ))
-            let scaledTarget : List ℚ := inp.target.map fun x => Rat.divInt (-1) α * x
-            (ProbComp.eval ((List.range m).mapM fun i =>
-              sampleGridGaussian
-                ⟨n, q, inp.basisB, sSq,
-                  if i = j then scaledTarget else List.replicate n 0,
-                  inp.tail, inp.prec, inp.maxTrials⟩)).bind fun cys =>
-              (ProbComp.eval ((List.range m).mapM fun _ =>
-                sampleQuotientModS ⟨n, inp.basisB, inp.basisS, inp.extraBits⟩)).bind fun vs =>
-                let cols := (List.range m).map fun c =>
-                  combineColInt n q inp.basisS (vs.getD c []) (cys.getD c ([], [])).1
-                let rows := combineMatrixRowsInt n m cols
-                (ProbComp.eval (callSISSolver P F κ rows)).map fun z =>
-                  listToEuclidean n
-                    (combineOutputInt n m q inp.basisS cols vs (cys.map Prod.snd) z) := by
+            realBody j sgn idx := by
     unfold singleIncGDDCall
-    dsimp only [κ, n, m, q, β, sSq]
+    dsimp only [κ, n, m, q, β, sSq, realBody, realInnerBody, realCombineCont]
     rw [ite_eq_right hnotzero]
     rw [ProbComp.eval_bind, PMF.map_bind]
     congr 1; funext j
@@ -2138,33 +2140,14 @@ theorem closeTo_eval_singleIncGDDCall_idealIncGDDStep
       (PMF.uniformOfFintype (Fin m)).bind fun j =>
         (PMF.uniformOfFintype Bool).bind fun sgn =>
           (PMF.uniformOfFintype (Fin β)).bind fun idx =>
-            let α : ℤ := if sgn then (idx.val + 1 : ℤ) else -((idx.val + 1 : ℤ))
-            (PMF.piFin fun i : Fin m =>
-              idealGridSample B hB q hq s hs_pos
-                (if i = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind
-              fun CY =>
-              (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
-                (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
-                  combineOutput B S q V (fun i => (CY i).1) z -
-                    ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n)) := by
+            idealBody j.val sgn idx.val := by
     unfold idealIncGDDStep
     have hnm : 1 ≤ n ∧ 1 ≤ m := ⟨hn, hm⟩
     rw [dite_eq_left hnm]
     have : Nonempty (Fin m) := ⟨⟨0, hm⟩⟩
     have : Nonempty (Fin β) := ⟨⟨0, hβ⟩⟩
     have : Nonempty (Fin (Nat.floor (β : ℝ))) := ⟨⟨0, Nat.floor_pos.mpr hβR⟩⟩
-    change (PMF.uniformOfFintype (Fin m × Bool × Fin ⌊(β : ℝ)⌋₊)).bind (fun x =>
-      match x with
-      | (j, sgn, idx) =>
-        let α : ℤ := if sgn then (idx.val + 1 : ℤ) else -((idx.val + 1 : ℤ))
-        (PMF.piFin fun i : Fin m =>
-          idealGridSample B hB q hq s hs_pos
-            (if i = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind
-          fun CY =>
-          (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
-            (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
-              combineOutput B S q V (fun i => (CY i).1) z -
-                ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n))) = _
+    change (PMF.uniformOfFintype (Fin m × Bool × Fin ⌊(β : ℝ)⌋₊)).bind _ = _
     rw [← PMF.uniformOfFintype_map_equiv eGuess, PMF.bind_map]
     rw [← PMF.uniformOfFintype_prod, PMF.bind_bind]
     refine congrArg (PMF.bind _) (funext fun j => ?_)
@@ -2174,7 +2157,8 @@ theorem closeTo_eval_singleIncGDDCall_idealIncGDDStep
     refine congrArg (PMF.bind _) (funext fun idx => ?_)
     have hidx_val : (finCongr hfloor.symm idx).val = idx.val := rfl
     simp only [eGuess, Equiv.prodCongr_apply, Equiv.refl_apply, Prod.map_apply, hidx_val,
-      Function.comp_apply]
+      Function.comp_apply, idealBody, idealInnerBody, Fin.ext_iff]
+    rfl
   rw [hreal_unfold, hideal_unfold]
   let δg : ℝ := (n : ℝ) *
     ((1 - 1 / (16 * (2 * (inp.tail : ℝ) + 6))) ^ inp.maxTrials
@@ -2182,45 +2166,14 @@ theorem closeTo_eval_singleIncGDDCall_idealIncGDDStep
       + (1 + ε) / (1 - ε) * (2 * Real.exp (-Real.pi * (inp.tail : ℝ) ^ 2)))
   let δq : ℝ := (n : ℝ) / (2 : ℝ) ^ inp.extraBits
   let δm : ℝ := (2 : ℝ) ^ (-(inp.extraBits : ℤ))
-  have h1me : 0 < 1 - ε := by linarith
-  have hbase_nn : 0 ≤ 1 - 1 / (16 * (2 * (inp.tail : ℝ) + 6)) := by
-    have hden : (1 : ℝ) ≤ 16 * (2 * (inp.tail : ℝ) + 6) := by
-      linarith [Nat.cast_nonneg (α := ℝ) inp.tail]
-    have hinv : 1 / (16 * (2 * (inp.tail : ℝ) + 6)) ≤ 1 := div_le_one_of_le₀ hden (by positivity)
-    linarith
-  have hδg0 : 0 ≤ δg := by dsimp only [δg]; positivity
+  have hδg0 : 0 ≤ δg := mr07_grid_err_nonneg n inp.tail inp.prec inp.maxTrials hε0 hε_half
   have hδq0 : 0 ≤ δq := by dsimp only [δq]; positivity
   have hδm0 : 0 ≤ δm := by positivity
-  let realBody : ℕ → Bool → ℕ → PMF (EuclideanSpace ℝ (Fin n)) := fun j sgn idx =>
-    let α : ℤ := if sgn then (idx + 1 : ℤ) else -((idx + 1 : ℤ))
-    let scaledTarget : List ℚ := inp.target.map fun x => Rat.divInt (-1) α * x
-    (ProbComp.eval ((List.range m).mapM fun i =>
-      sampleGridGaussian
-        ⟨n, q, inp.basisB, sSq,
-          if i = j then scaledTarget else List.replicate n 0,
-          inp.tail, inp.prec, inp.maxTrials⟩)).bind fun cys =>
-      (ProbComp.eval ((List.range m).mapM fun _ =>
-        sampleQuotientModS ⟨n, inp.basisB, inp.basisS, inp.extraBits⟩)).bind fun vs =>
-        let cols := (List.range m).map fun c =>
-          combineColInt n q inp.basisS (vs.getD c []) (cys.getD c ([], [])).1
-        let rows := combineMatrixRowsInt n m cols
-        (ProbComp.eval (callSISSolver P F κ rows)).map fun z =>
-          listToEuclidean n (combineOutputInt n m q inp.basisS cols vs (cys.map Prod.snd) z)
-  let idealBody : ℕ → Bool → ℕ → PMF (EuclideanSpace ℝ (Fin n)) := fun j sgn idx =>
-    let α : ℤ := if sgn then (idx + 1 : ℤ) else -((idx + 1 : ℤ))
-    (PMF.piFin fun i : Fin m =>
-      idealGridSample B hB q hq s hs_pos
-        (if i.val = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind fun CY =>
-      (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
-        (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
-          combineOutput B S q V (fun i => (CY i).1) z -
-            ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n))
   have hinner : ∀ (j : Fin m) (sgn : Bool) (idx : Fin β),
       CloseTo (realBody j.val sgn idx.val) (idealBody j.val sgn idx.val)
-        (ENNReal.ofReal ((m : ℝ) * δg + (m : ℝ) * δq)) := fun j sgn idx => by
-    have h := closeTo_eval_singleIncGDDCall_inner P F inp B S hB hS hSB hB_eq hS_eq
+        (ENNReal.ofReal ((m : ℝ) * δg + (m : ℝ) * δq)) := fun j sgn idx =>
+    closeTo_eval_singleIncGDDCall_inner P F inp B S hB hS hSB hB_eq hS_eq
       hsSq_pos hs_pos hs_eq hqs1 htail hprec hε0 hε_half hdual_int j sgn idx
-    simpa only [realBody, idealBody, Fin.ext_iff] using h
   have hj_close := closeTo_eval_sampleModNat_clog_add inp.extraBits m
   have hidx_close := closeTo_eval_sampleModNat_clog_add inp.extraBits β
   have hstep_j :
@@ -2258,22 +2211,13 @@ theorem closeTo_eval_singleIncGDDCall_idealIncGDDStep
       ((PMF.uniformOfFintype (Fin m)).bind fun j =>
         (PMF.uniformOfFintype Bool).bind fun sgn =>
           (PMF.uniformOfFintype (Fin β)).bind fun idx =>
-            let α : ℤ := if sgn then (idx.val + 1 : ℤ) else -((idx.val + 1 : ℤ))
-            (PMF.piFin fun i : Fin m =>
-              idealGridSample B hB q hq s hs_pos
-                (if i = j then (-((α : ℝ)⁻¹)) • ratListToEuclidean n inp.target else 0)).bind
-              fun CY =>
-              (PMF.uniformOfFintype (Fin m → SublatticeQuot B S)).bind fun V =>
-                (ProbComp.eval (F κ (combineMatrix B S q V (fun i => (CY i).1)))).map fun z =>
-                  combineOutput B S q V (fun i => (CY i).1) z -
-                    ∑ i : Fin m, z i • ((CY i).2 : EuclideanSpace ℝ (Fin n))) := by
+            idealBody j.val sgn idx.val) := by
     rw [PMF.bind_map]
     refine congrArg (PMF.bind _) (funext fun j => ?_)
     dsimp only [Function.comp_apply]
     refine congrArg (PMF.bind _) (funext fun sgn => ?_)
     rw [PMF.bind_map]
-    refine congrArg (PMF.bind _) (funext fun idx => ?_)
-    simp only [Function.comp_apply, idealBody, Fin.ext_iff]
+    rfl
   rw [hrhs_fin, herr_sum] at hstep_j
   exact hstep_j
 
@@ -2296,26 +2240,30 @@ private def closestRatCand (n : ℕ) (t : List ℚ) (cands : List (List ℤ)) : 
       if scaledSqDist n D tNum v < scaledSqDist n D tNum best then v else best)
     (List.replicate n 0)
 
+private theorem dotProduct_self_natAbs_cast_eq_sum_fin (n : ℕ) (w : List ℤ) :
+    (((ListMatrix.dotProduct n w w).natAbs : ℕ) : ℝ) =
+      ∑ i : Fin n, ((w.getD i.1 0 : ℤ) : ℝ) * ((w.getD i.1 0 : ℤ) : ℝ) := by
+  rw [ListMatrix.dotProduct_eq_sum_map_range]
+  have hnn : 0 ≤ ((List.range n).map fun i => w.getD i 0 * w.getD i 0).sum :=
+    List.sum_nonneg fun x hx => by
+      obtain ⟨i, _, rfl⟩ := List.mem_map.mp hx
+      exact mul_self_nonneg _
+  rw [← Int.cast_natCast, Int.natAbs_of_nonneg hnn]
+  have hfin : ((List.range n).map fun i => w.getD i 0 * w.getD i 0).sum =
+      ∑ i : Fin n, w.getD i.1 0 * w.getD i.1 0 := by
+    rw [Fin.sum_univ_def]
+    congr 1
+    exact List.ext_getElem (by simp) fun i h₁ h₂ => by simp
+  rw [hfin, Int.cast_sum]
+  exact Finset.sum_congr rfl fun i _ => Int.cast_mul _ _
+
 private theorem scaledSqDist_cast_eq (n : ℕ) (t : List ℚ) (v : List ℤ) :
     ((scaledSqDist n (rowDenomProd t) (clearRow t) v : ℕ) : ℝ) =
       ((rowDenomProd t : ℝ) ^ 2) * ‖listToEuclidean n v - ratListToEuclidean n t‖ ^ 2 := by
   set D := rowDenomProd t
-  dsimp only [scaledSqDist]
-  rw [ListMatrix.dotProduct_eq_sum_map_range, EuclideanSpace.norm_sq_eq, Finset.mul_sum]
   let diff := (List.range n).map fun i => (D : ℤ) * v.getD i 0 - (clearRow t).getD i 0
-  have hnn : 0 ≤ ((List.range n).map fun i => diff.getD i 0 * diff.getD i 0).sum :=
-    List.sum_nonneg fun x hx => by
-      obtain ⟨i, _, rfl⟩ := List.mem_map.mp hx
-      exact mul_self_nonneg _
-  have hcast : ((((List.range n).map fun i => diff.getD i 0 * diff.getD i 0).sum).natAbs : ℝ) =
-      ((((List.range n).map fun i => diff.getD i 0 * diff.getD i 0).sum : ℤ) : ℝ) := by
-    rw [← Int.cast_natCast, Int.natAbs_of_nonneg hnn]
-  have hsum_fin : ((List.range n).map fun i => diff.getD i 0 * diff.getD i 0).sum =
-      ∑ i : Fin n, diff.getD i.1 0 * diff.getD i.1 0 := by
-    rw [Fin.sum_univ_def]
-    congr 1
-    exact List.ext_getElem (by simp) fun i h₁ h₂ => by simp
-  rw [hcast, hsum_fin, Int.cast_sum]
+  change (((ListMatrix.dotProduct n diff diff).natAbs : ℕ) : ℝ) = _
+  rw [dotProduct_self_natAbs_cast_eq_sum_fin, EuclideanSpace.norm_sq_eq, Finset.mul_sum]
   refine Finset.sum_congr rfl fun i _ => ?_
   have hdi : diff.getD i.1 0 = (D : ℤ) * v.getD i.1 0 - (clearRow t).getD i.1 0 := by
     simp [diff, List.getD_eq_getElem?_getD, i.isLt]
@@ -2528,11 +2476,7 @@ theorem mem_support_mr07IncGDDReduction_mem_intLattice
   rw [ProbComp.mem_support_replicate_iff] at hcands
   rcases closestRatCand_mem_or_zero (P.n inp.secParam) inp.target cands with heq | hmem
   · rw [heq]
-    refine ⟨by simp, ?_⟩
-    have h0 : listToEuclidean (P.n inp.secParam) (List.replicate (P.n inp.secParam) 0) = 0 := by
-      ext r; simp [listToEuclidean, List.getD_eq_getElem?_getD]
-    rw [h0]
-    exact (intLattice B).zero_mem
+    exact ⟨by simp, by rw [listToEuclidean_replicate_zero]; exact (intLattice B).zero_mem⟩
   · exact mem_support_singleIncGDDCall_mem_intLattice P F inp B S hB hS hSB hB_eq hS_eq
       (hcands.2 _ hmem)
 
@@ -2581,11 +2525,7 @@ theorem mr07IncGDDReduction_succProb_ge
       hε.trans (div_le_div_of_nonneg_left (by norm_num) (by norm_num) (by linarith))
     linarith
   have h1me : 0 < 1 - ε := by linarith
-  have hbase_nn : 0 ≤ 1 - 1 / (16 * (2 * (inp.tail : ℝ) + 6)) := by
-    have hden : (1 : ℝ) ≤ 16 * (2 * (inp.tail : ℝ) + 6) := by
-      linarith [Nat.cast_nonneg (α := ℝ) inp.tail]
-    have hinv : 1 / (16 * (2 * (inp.tail : ℝ) + 6)) ≤ 1 := div_le_one_of_le₀ hden (by positivity)
-    linarith
+  have hbase_nn := mr07_rej_base_nonneg inp.tail
   have hη0 : 0 ≤ mr07SingleCallErr n m inp.tail inp.prec inp.maxTrials inp.extraBits ε := by
     dsimp only [mr07SingleCallErr]; positivity
   have hβR : (1 : ℝ) ≤ (β : ℝ) := by exact_mod_cast hβ
