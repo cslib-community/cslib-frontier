@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+public import Mathlib.Basic.Sign.Defs
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
@@ -33,6 +34,9 @@ Its indexed token reader adapts the constructor and term-word access of
 `LeanCanny.ETR.FormulaBooleanCircuitSource` to the frontier prefix token list.
 Subtree spans locate the second operand with the native splitter for framed prefix tokens.
 The child-index query returns the operands in their syntactic order.
+The indexed gate operation adapts the local wire evaluation of
+`LeanCanny.ETR.FormulaBooleanCircuitCorrect` at the same revision. It reads comparison signs
+from a supplied term-word interpretation and connective operands from supplied wire values.
 -/
 
 public section
@@ -283,6 +287,13 @@ theorem formulaWordTokenAt_polyTime :
   listGetD_binary (encA := encFormulaToken) (.inl ())
     (formulaWordTokens_polyTime.comp (fst encBits encNat)) (snd encBits encNat)
 
+private theorem formulaWordTokenAt_append {word : List Bool} {before rest : List FormulaToken}
+    {token : FormulaToken} (h : formulaWordTokens word = before ++ token :: rest) :
+    formulaWordTokenAt word before.length = token := by
+  rw [formulaWordTokenAt, h, List.getD_eq_getElem?_getD, List.getElem?_append_right le_rfl,
+    Nat.sub_self]
+  rfl
+
 /-- The number of prefix tokens in the subtree beginning at this index of the total formula
 view. A position outside the token stream has no subtree. -/
 def formulaSubtreeSizeAt (word : List Bool) (index : ℕ) : Option ℕ :=
@@ -348,12 +359,6 @@ theorem formulaWordChildIndices_of_prefix {n : ℕ} {word : List Bool} (p : Form
       | .and left _ | .or left _ => [before.length + 1,
           before.length + 1 + (encFormula_tokens n left).length]
       | _ => [] := by
-  have readHead {token : FormulaToken} {rest : List FormulaToken}
-      (htokens : formulaWordTokens word = before ++ token :: rest) :
-      formulaWordTokenAt word before.length = token := by
-    rw [formulaWordTokenAt, htokens, List.getD_eq_getElem?_getD, List.getElem?_append_right le_rfl,
-      Nat.sub_self]
-    rfl
   have binary (left right : Formula n) {token : FormulaToken}
       (htokens : formulaWordTokens word = before ++ token ::
         ((encFormula_tokens n left).map FormulaToken.encodeTerms ++
@@ -365,10 +370,10 @@ theorem formulaWordChildIndices_of_prefix {n : ℕ} {word : List Bool} (p : Form
       ((encFormula_tokens n right).map FormulaToken.encodeTerms ++ after)
       (by simpa only [List.append_assoc, List.singleton_append] using htokens)
     simp only [List.length_append, List.length_singleton] at hspan
-    simp [formulaWordChildIndices, readHead htokens, harity, hspan]
+    simp [formulaWordChildIndices, formulaWordTokenAt_append htokens, harity, hspan]
   cases p
   case false | eqZero | ltZero | not =>
-    rw [formulaWordChildIndices, readHead h]
+    rw [formulaWordChildIndices, formulaWordTokenAt_append h]
     rfl
   case and left right | or left right =>
     simp only [encFormula_tokens, List.map_cons, List.map_append, List.append_nil,
@@ -392,5 +397,38 @@ theorem formulaWordChildIndices_polyTime :
     (const []) (cons' hleft (cons' hright (const [])))
   exact ite_decide (unary_eq' harity (const 1)) (cons' hfirst (const []))
     (ite_decide (unary_eq' harity (const 2)) hchildren (const []))
+
+/-- Evaluate one Boolean gate of the total formula view. Comparison gates ask for the sign
+of their encoded term. Connectives read the supplied values at their child indices.
+Falsity and positions outside the token stream return `false`. -/
+def formulaWordGateValue (word : List Bool) (index : ℕ)
+    (termSign : List Bool → SignType) (value : ℕ → Bool) : Bool :=
+  match formulaWordTokenAt word index, formulaWordChildIndices word index with
+  | .inr (.inl term), _ => decide (termSign term = 0)
+  | .inr (.inr (.inl term)), _ => decide (termSign term = -1)
+  | .inr (.inr (.inr (.inl _))), [child] => !(value child)
+  | .inr (.inr (.inr (.inr (.inl _)))), [left, right] => value left && value right
+  | .inr (.inr (.inr (.inr (.inr _)))), [left, right] => value left || value right
+  | _, _ => false
+
+/-- A gate at the start of an encoded subformula reads the exact term payload for a
+comparison, or combines the values at the starts of its immediate operands. -/
+theorem formulaWordGateValue_of_prefix {n : ℕ} {word : List Bool} (p : Formula n)
+    (before after : List FormulaToken)
+    (h : formulaWordTokens word =
+      before ++ ((encFormula_tokens n p).map FormulaToken.encodeTerms ++ after))
+    (termSign : List Bool → SignType) (value : ℕ → Bool) :
+    formulaWordGateValue word before.length termSign value =
+      match p with
+      | .false => false
+      | .eqZero t => decide (termSign (encTerm n t) = 0)
+      | .ltZero t => decide (termSign (encTerm n t) = -1)
+      | .not _ => !(value (before.length + 1))
+      | .and left _ => value (before.length + 1) &&
+          value (before.length + 1 + (encFormula_tokens n left).length)
+      | .or left _ => value (before.length + 1) ||
+          value (before.length + 1 + (encFormula_tokens n left).length) := by
+  rw [formulaWordGateValue, formulaWordChildIndices_of_prefix p before after h]
+  cases p <;> rw [formulaWordTokenAt_append h] <;> rfl
 
 end Cslib.Logic.RealArithmetic
