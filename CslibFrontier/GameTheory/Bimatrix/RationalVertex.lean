@@ -92,87 +92,78 @@ private lemma factorial_le_two_pow_sq (k : ℕ) : k.factorial ≤ 2 ^ (k ^ 2) :=
   (Nat.factorial_le_pow k).trans <| (Nat.pow_le_pow_left Nat.lt_two_pow_self.le k).trans_eq <|
     by rw [← pow_mul, sq]
 
-private lemma factorial_le_two_pow_sum_sq {a s : ℕ} (ha : a ≤ s) :
-    a.factorial ≤ 2 ^ (s ^ 2) :=
-  (factorial_le_two_pow_sq a).trans <| Nat.pow_le_pow_right (by omega) (Nat.pow_le_pow_left ha 2)
-
-private lemma kernelVecBound_mul_lt_two_pow_aux {a b H : ℕ} (ha : 0 < a) (hb : 0 < b) :
-    Matrix.kernelVecBound a H * (b + 1) < 2 ^ bitBound a b H := by
+/-- Strict bit bound dominating `kernelVecBound m H * (n + 1)`. -/
+theorem kernelVecBound_mul_lt_two_pow_bitBound {m n H : ℕ} (hm : 0 < m) (hn : 0 < n) :
+    Matrix.kernelVecBound m H * (n + 1) < 2 ^ bitBound m n H := by
   set L := Nat.log 2 H + 1
-  set s := a + b
+  set s := m + n
   have hHL : H ≤ 2 ^ L := (Nat.lt_pow_succ_log_self (by decide) H).le
-  have hprod : (a + 1) * H ≤ 2 ^ (s + L + 1) :=
-    (Nat.mul_le_mul ((by omega : a + 1 ≤ s + 1).trans Nat.lt_two_pow_self.le) hHL).trans_eq <| by
+  have hprod : (m + 1) * H ≤ 2 ^ (s + L + 1) :=
+    (Nat.mul_le_mul ((by omega : m + 1 ≤ s + 1).trans Nat.lt_two_pow_self.le) hHL).trans_eq <| by
       rw [← pow_add, show s + 1 + L = s + L + 1 by omega]
-  have hbase : a * ((a + 1) * H) ^ 2 + 1 ≤ 2 ^ (3 * s + 2 * L + 3) := calc
-    a * ((a + 1) * H) ^ 2 + 1
+  have hbase : m * ((m + 1) * H) ^ 2 + 1 ≤ 2 ^ (3 * s + 2 * L + 3) := calc
+    m * ((m + 1) * H) ^ 2 + 1
         ≤ 2 ^ s * (2 ^ (s + L + 1)) ^ 2 + 1 := by
-          gcongr; exact (Nat.le_add_right a b).trans Nat.lt_two_pow_self.le
+          gcongr; exact (Nat.le_add_right m n).trans Nat.lt_two_pow_self.le
     _ = 2 ^ (3 * s + 2 * L + 2) + 1 := by
           rw [← pow_mul, ← pow_add]; congr 2; ring
     _ ≤ 2 ^ (3 * s + 2 * L + 2) + 2 ^ (3 * s + 2 * L + 2) :=
           Nat.add_le_add_left Nat.one_le_two_pow _
     _ = 2 ^ (3 * s + 2 * L + 3) := by rw [pow_succ]; ring
-  have hpow : (a * ((a + 1) * H) ^ 2 + 1) ^ a ≤ 2 ^ (s * (3 * s + 2 * L + 3)) :=
-    (Nat.pow_le_pow_left hbase a).trans <| by
-      rw [← pow_mul, mul_comm _ a]
-      exact Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (Nat.le_add_right a b))
-  have hexp : s ^ 2 + s * (3 * s + 2 * L + 3) + s < bitBound a b H := by
-    have : bitBound a b H = 4 * s * (s + L + 2) := by
+  have hpow : (m * ((m + 1) * H) ^ 2 + 1) ^ m ≤ 2 ^ (s * (3 * s + 2 * L + 3)) :=
+    (Nat.pow_le_pow_left hbase m).trans <| by
+      rw [← pow_mul, mul_comm _ m]
+      exact Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right _ (Nat.le_add_right m n))
+  have hexp : s ^ 2 + s * (3 * s + 2 * L + 3) + s < bitBound m n H := by
+    have : bitBound m n H = 4 * s * (s + L + 2) := by
       simp only [bitBound, s, L]; ring
     nlinarith [show 1 ≤ L by omega, show 2 ≤ s by omega]
-  calc Matrix.kernelVecBound a H * (b + 1)
+  calc Matrix.kernelVecBound m H * (n + 1)
       ≤ 2 ^ (s ^ 2) * 2 ^ (s * (3 * s + 2 * L + 3)) * 2 ^ s := by
-        refine Nat.mul_le_mul (Nat.mul_le_mul (factorial_le_two_pow_sum_sq (Nat.le_add_right a b))
-          hpow) ((by omega : b + 1 ≤ s).trans Nat.lt_two_pow_self.le)
+        refine Nat.mul_le_mul (Nat.mul_le_mul
+          ((Nat.factorial_le (Nat.le_add_right m n)).trans (factorial_le_two_pow_sq s)) hpow)
+          ((by omega : n + 1 ≤ s).trans Nat.lt_two_pow_self.le)
     _ = 2 ^ (s ^ 2 + s * (3 * s + 2 * L + 3) + s) := by rw [← pow_add, ← pow_add]
-    _ < 2 ^ bitBound a b H := Nat.pow_lt_pow_right (by decide) hexp
-
-/-- Strict bit bound dominating `kernelVecBound m H * (n + 1)`. -/
-theorem kernelVecBound_mul_lt_two_pow_bitBound {m n H : ℕ} (hm : 0 < m) (hn : 0 < n) :
-    Matrix.kernelVecBound m H * (n + 1) < 2 ^ bitBound m n H :=
-  kernelVecBound_mul_lt_two_pow_aux hm hn
+    _ < 2 ^ bitBound m n H := Nat.pow_lt_pow_right (by decide) hexp
 
 /-- Symmetric strict bit bound dominating `kernelVecBound n H * (m + 1)`. -/
 theorem kernelVecBound_mul_lt_two_pow_bitBound_symm {m n H : ℕ} (hm : 0 < m) (hn : 0 < n) :
     Matrix.kernelVecBound n H * (m + 1) < 2 ^ bitBound m n H := by
-  simpa only [bitBound, Nat.add_comm n m] using kernelVecBound_mul_lt_two_pow_aux (H := H) hn hm
+  simpa only [bitBound, Nat.add_comm n m] using
+    kernelVecBound_mul_lt_two_pow_bitBound (H := H) hn hm
 
-private lemma cramerScale_lt_two_pow_aux {a b H : ℕ} (ha : 0 < a) (hb : 0 < b) :
-    (a.factorial * H ^ a) * (1 + a * a.factorial * H ^ (a + 1)) < 2 ^ bitBound a b H := by
+/-- Strict Cramer rounding bound for player 1 (`m`) under `K = 2 ^ bitBound m n H`. -/
+theorem cramerScale_lt_two_pow_bitBound {m n H : ℕ} (hm : 0 < m) (hn : 0 < n) :
+    (m.factorial * H ^ m) * (1 + m * m.factorial * H ^ (m + 1)) < 2 ^ bitBound m n H := by
   set L := Nat.log 2 H + 1
-  set s := a + b
+  set s := m + n
   have hHL : H ≤ 2 ^ L := (Nat.lt_pow_succ_log_self (by decide) H).le
-  have hfac := factorial_le_two_pow_sum_sq (Nat.le_add_right a b)
+  have hfac : m.factorial ≤ 2 ^ (s ^ 2) :=
+    (Nat.factorial_le (Nat.le_add_right m n)).trans (factorial_le_two_pow_sq s)
   have hpowH (k t : ℕ) (hk : k ≤ t) : H ^ k ≤ 2 ^ (t * L) :=
     (Nat.pow_le_pow_left hHL k).trans <| by
       rw [← pow_mul, mul_comm L k]
       exact Nat.pow_le_pow_right (by decide) (Nat.mul_le_mul_right L hk)
-  have hright : 1 + a * a.factorial * H ^ (a + 1) ≤ 2 ^ (s + s ^ 2 + (s + 1) * L + 1) := by
-    have hm : a * a.factorial * H ^ (a + 1) ≤ 2 ^ (s + s ^ 2 + (s + 1) * L) :=
-      (Nat.mul_le_mul (Nat.mul_le_mul ((Nat.le_add_right a b).trans Nat.lt_two_pow_self.le) hfac)
-        (hpowH (a + 1) (s + 1) (by omega))).trans_eq (by rw [← pow_add, ← pow_add])
-    exact (Nat.add_le_add (Nat.one_le_two_pow (n := s + s ^ 2 + (s + 1) * L)) hm).trans_eq
+  have hright : 1 + m * m.factorial * H ^ (m + 1) ≤ 2 ^ (s + s ^ 2 + (s + 1) * L + 1) := by
+    have hm' : m * m.factorial * H ^ (m + 1) ≤ 2 ^ (s + s ^ 2 + (s + 1) * L) :=
+      (Nat.mul_le_mul (Nat.mul_le_mul ((Nat.le_add_right m n).trans Nat.lt_two_pow_self.le) hfac)
+        (hpowH (m + 1) (s + 1) (by omega))).trans_eq (by rw [← pow_add, ← pow_add])
+    exact (Nat.add_le_add (Nat.one_le_two_pow (n := s + s ^ 2 + (s + 1) * L)) hm').trans_eq
       (by rw [← two_mul, ← pow_succ'])
-  have hexp : s ^ 2 + s * L + (s + s ^ 2 + (s + 1) * L + 1) < bitBound a b H := by
-    have : bitBound a b H = 4 * s * (s + L + 2) := by
+  have hexp : s ^ 2 + s * L + (s + s ^ 2 + (s + 1) * L + 1) < bitBound m n H := by
+    have : bitBound m n H = 4 * s * (s + L + 2) := by
       simp only [bitBound, s, L]; ring
     nlinarith [show 1 ≤ L by omega, show 2 ≤ s by omega]
-  calc (a.factorial * H ^ a) * (1 + a * a.factorial * H ^ (a + 1))
+  calc (m.factorial * H ^ m) * (1 + m * m.factorial * H ^ (m + 1))
       ≤ (2 ^ (s ^ 2) * 2 ^ (s * L)) * 2 ^ (s + s ^ 2 + (s + 1) * L + 1) :=
-        Nat.mul_le_mul (Nat.mul_le_mul hfac (hpowH a s (Nat.le_add_right a b))) hright
+        Nat.mul_le_mul (Nat.mul_le_mul hfac (hpowH m s (Nat.le_add_right m n))) hright
     _ = 2 ^ (s ^ 2 + s * L + (s + s ^ 2 + (s + 1) * L + 1)) := by rw [← pow_add, ← pow_add]
-    _ < 2 ^ bitBound a b H := Nat.pow_lt_pow_right (by decide) hexp
-
-/-- Strict Cramer rounding bound for player 1 (`m`) under `K = 2 ^ bitBound m n H`. -/
-theorem cramerScale_lt_two_pow_bitBound {m n H : ℕ} (hm : 0 < m) (hn : 0 < n) :
-    (m.factorial * H ^ m) * (1 + m * m.factorial * H ^ (m + 1)) < 2 ^ bitBound m n H :=
-  cramerScale_lt_two_pow_aux hm hn
+    _ < 2 ^ bitBound m n H := Nat.pow_lt_pow_right (by decide) hexp
 
 /-- Symmetric strict Cramer rounding bound for player 2 (`n`) under `K = 2 ^ bitBound m n H`. -/
 theorem cramerScale_lt_two_pow_bitBound_symm {m n H : ℕ} (hm : 0 < m) (hn : 0 < n) :
     (n.factorial * H ^ n) * (1 + n * n.factorial * H ^ (n + 1)) < 2 ^ bitBound m n H := by
-  simpa only [bitBound, Nat.add_comm n m] using cramerScale_lt_two_pow_aux (H := H) hn hm
+  simpa only [bitBound, Nat.add_comm n m] using cramerScale_lt_two_pow_bitBound (H := H) hn hm
 
 end BitBound
 
@@ -270,10 +261,6 @@ private lemma intRhsQ_comp_sumComm (m n : ℕ) :
   funext r
   cases r <;> rfl
 
-private lemma submatrix_id_mulVec {κ₁ κ₂ ι K : Type*} [Fintype ι]
-    [NonUnitalNonAssocSemiring K] (M : Matrix κ₁ ι K) (e : κ₂ → κ₁) (v : ι → K) (r : κ₂) :
-    (M.submatrix e id *ᵥ v) r = (M *ᵥ v) (e r) := rfl
-
 private lemma intMatQ_map_submatrix_sumComm {m n : ℕ} (A : Matrix (Fin m) (Fin n) ℤ)
     {K : Type*} [IntCast K] :
     ((intMatQ A).map (Int.cast : ℤ → K)).submatrix (Equiv.sumComm (Fin n) (Fin m)) id =
@@ -286,33 +273,6 @@ private lemma pertRhsQInt_cast_comp_sumComm (m n : ℕ) (K_B : ℤ) {K : Type*} 
       fun r => (pertRhsPInt n m K_B r : K) := by
   funext r
   exact congrArg (Int.cast : ℤ → K) (congrFun (pertRhsQInt_comp_sumComm m n K_B) r)
-
-private lemma mem_tightRows_submatrix_id {κ₁ κ₂ ι K : Type*} [Fintype κ₁] [Fintype κ₂]
-    [Fintype ι] [Field K] [LinearOrder K]
-    (M : Matrix κ₁ ι K) (b : κ₁ → K) (e : κ₂ ≃ κ₁) (x : ι → K) (r : κ₂) :
-    r ∈ tightRows (M.submatrix e id) (b ∘ e) x ↔ e r ∈ tightRows M b x := by
-  simp only [mem_tightRows, Function.comp_apply, submatrix_id_mulVec]
-
-private lemma isVertex_of_submatrix_equiv {κ₁ κ₂ ι K : Type*} [Fintype κ₁] [Fintype κ₂]
-    [Fintype ι] [Field K] [LinearOrder K]
-    {M : Matrix κ₁ ι K} {b : κ₁ → K} (e : κ₂ ≃ κ₁) {x : ι → K}
-    (hx : IsVertex (M.submatrix e id) (b ∘ e) x) :
-    IsVertex M b x := by
-  rw [isVertex_iff] at hx ⊢
-  refine ⟨fun r => ?_, fun v hv => hx.2 v fun r hr => ?_⟩
-  · simpa only [submatrix_id_mulVec, Function.comp_apply, Equiv.apply_symm_apply] using
-      hx.1 (e.symm r)
-  · exact hv (e r) ((mem_tightRows_submatrix_id M b e x r).1 hr)
-
-private lemma isNondegenerateSystem_of_submatrix_equiv {κ₁ κ₂ ι K : Type*} [Fintype κ₁]
-    [Fintype κ₂] [Fintype ι] [Field K] [LinearOrder K]
-    {M : Matrix κ₁ ι K} {b : κ₁ → K} (e : κ₂ ≃ κ₁)
-    (hnd : IsNondegenerateSystem (M.submatrix e id) (b ∘ e)) :
-    IsNondegenerateSystem M b := by
-  rw [isNondegenerateSystem_iff] at hnd ⊢
-  intro x hx
-  rw [← Finset.card_equiv e (fun r => mem_tightRows_submatrix_id M b e x r)]
-  exact hnd x (fun r => hx (e r))
 
 /-- Boundedness (zero recession cone) of `intMatP B` over any ordered field `K` when `1 ≤ B`. -/
 theorem recession_intMatP {m n : ℕ} {B : Matrix (Fin m) (Fin n) ℤ} (hn : 0 < n)
@@ -336,7 +296,7 @@ theorem recession_intMatQ {m n : ℕ} {A : Matrix (Fin m) (Fin n) ℤ} (hm : 0 <
     {K : Type*} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     (v : Fin n → K) (hv : (intMatQ A).map Int.cast *ᵥ v ≤ 0) : v = 0 :=
   recession_intMatP (B := Aᵀ) hm (fun j i => hA i j) v fun r => by
-    rw [← intMatQ_map_submatrix_sumComm A, submatrix_id_mulVec]; exact hv _
+    rw [← intMatQ_map_submatrix_sumComm A]; exact hv _
 
 /-- `0` is a vertex of `P_ε` with tight rows `Finset.univ.image Sum.inl` when `0 < K_B`. -/
 theorem isVertex_zero_pertP {m n : ℕ} (B : Matrix (Fin m) (Fin n) ℤ) {K_B : ℤ} (hK : 0 < K_B)
@@ -367,11 +327,10 @@ theorem isVertex_zero_pertQ {m n : ℕ} (A : Matrix (Fin m) (Fin n) ℤ) {K_B : 
   let e := Equiv.sumComm (Fin n) (Fin m)
   obtain ⟨hv, ht⟩ := isVertex_zero_pertP Aᵀ hK (K := K)
   rw [← intMatQ_map_submatrix_sumComm A (K := K), ← pertRhsQInt_cast_comp_sumComm m n K_B] at hv ht
-  refine ⟨isVertex_of_submatrix_equiv e hv, Finset.ext fun r => ?_⟩
-  have hm := mem_tightRows_submatrix_id ((intMatQ A).map Int.cast)
-    (fun r => (pertRhsQInt m n K_B r : K)) e (0 : Fin n → K) (e.symm r)
-  rw [e.apply_symm_apply, ht] at hm
-  cases r <;> simpa [e] using hm.symm
+  rw [tightRows_submatrix_equiv e] at ht
+  refine ⟨(isVertex_submatrix_equiv e).1 hv, Finset.ext fun r => ?_⟩
+  have h := congrArg (e.symm r ∈ ·) ht
+  cases r <;> simpa [e] using h
 
 /-- `(0, 0)` is a completely labelled vertex pair of `(P_ε, Q_ε)`. -/
 theorem completelyLabeled_zero_zero_pert {m n : ℕ} (A B : Matrix (Fin m) (Fin n) ℤ)
@@ -511,7 +470,7 @@ theorem isNondegenerateSystem_pertQ {m n H : ℕ} {A : Matrix (Fin m) (Fin n) �
       (fun r => (pertRhsQInt m n K_B r : K)) := by
   have hnd := isNondegenerateSystem_pertP (B := Aᵀ) hH (fun j i => hA i j) hK (K := K)
   rw [← intMatQ_map_submatrix_sumComm A (K := K), ← pertRhsQInt_cast_comp_sumComm m n K_B] at hnd
-  exact isNondegenerateSystem_of_submatrix_equiv (Equiv.sumComm (Fin n) (Fin m)) hnd
+  exact (isNondegenerateSystem_submatrix_equiv (Equiv.sumComm (Fin n) (Fin m))).1 hnd
 
 end Nondegeneracy
 
