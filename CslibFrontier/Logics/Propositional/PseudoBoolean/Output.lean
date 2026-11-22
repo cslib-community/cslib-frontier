@@ -43,8 +43,8 @@ and the output's preserved set to be the final one, as a set of variables, also 
 under an objective, a `DERIVABLE` output that omits a core constraint, and `EQUIENUMERABLE` after
 any logged solution, and it accepts `DERIVABLE` and `EQUISATISFIABLE` after a logged solution.
 Without a `preserved:` line, VeriPB 3.0.2 treats every variable as preserved, so it rejects
-`EQUIENUMERABLE` after a witness on any variable; CakePB and this checker reject `EQUIENUMERABLE` without a preserved set
-in any case.
+`EQUIENUMERABLE` after a witness on any variable; CakePB and this checker reject
+`EQUIENUMERABLE` without a preserved set in any case.
 
 **Soundness** (`Cslib.Logic.PL.VeriPB.semOutput_of_checkRedOutput`) is CakePB's
 `check_csteps_check_output` against its semantics `sem_output` (`npbcScript.sml`). It rests on

@@ -106,8 +106,8 @@ counts the projections of the input's solutions to the input's preserved set, wh
 claims about the input. An output section compares the input with an output formula preserving
 the *final* set, and its guarantee is a bijection between the projections to the two sets
 (CakePB's `sem_output`). The counting injections below carry the projections across each change:
-on the solutions of the core set `x ⇔ C`, with `C` over variables of both sets, so the projections
-to the old and to the new set determine each other
+`x ⇔ C` holds on the solutions of the core set, with `C` over variables of both sets, so the
+projections to the old and to the new set determine each other
 (`Cslib.Logic.PL.VeriPB.proj_eq_iff_of_presChangeCheck`). After a change, `solx` adds no
 projection, so the logged projections, all taken before it, stay counted against the input's set,
 and a final contradiction still shows every input projection logged. The order invariant follows
