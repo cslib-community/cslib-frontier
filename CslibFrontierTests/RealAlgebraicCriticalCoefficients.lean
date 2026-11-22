@@ -13,13 +13,20 @@ import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.AlgebraicValueBounds
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.BranchCutoff
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ConjugateProduct
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ShiftedLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLabel
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.ThomSign
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
+import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
+import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalDeterminantFeasibility
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalMinimumValue
 import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalRootFeasibility
 import CslibFrontier.Foundations.Analysis.SignLabelScore
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.EvalDeterminant
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalIntegerSpecialization
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValueParameterDegree
@@ -367,23 +374,30 @@ example : ¬ ∃ B : ℝ, ∀ u : ℝ, 0 ≤ u → u ≤ B := by
     (monotone_id.monotoneOn _) continuous_id.continuousOn (fun u _ => hroot u) hR hU
   exact fun hb => (by norm_num : ¬ (4 : ℝ) < ((2 : ℤ) : ℝ)) (hcut.mp hb)
 
--- The square input gives a root below the cutoff in the chosen integer characteristic polynomial.
+-- A square with a real zero gives a root below the cutoff and a bounded negative determinant.
 example :
     let F : MvPolynomial (Fin 1) ℤ := X 0 ^ 2
     let H := parametricValueCoeffNormExponent 1 3 0
     let hF : F.totalDegree ≤ 3 := by simp [F, totalDegree_X_pow]
     let q := valuePolynomial (by decide : 1 ≤ 3) (fun i => (separatedCenters 3 i : ℤ))
       (2 ^ criticalParameterExponent 1 3 0) F hF
-    ∃ η : ℝ, η < 2 ^ (H + 1) ∧ (q.map (Int.castRingHom ℝ)).IsRoot η := by
+    (∃ η : ℝ, η < 2 ^ (H + 1) ∧ (q.map (Int.castRingHom ℝ)).IsRoot η) ∧
+      ∃ L : List (Fin (3 ^ 1) × SignType), L.length ≤ 1 * (3 : ℕ).size ∧
+        ∃ e : ℕ, e ≤ 3 ^ 1 ∧
+          let det := criticalLabelDeterminant (by decide) 0 F hF L e
+          det < 0 ∧ det.natAbs ≤ 2 ^ criticalLabelDeterminantExponent 1 3 0 := by
   intro F H hF q
   have hFn (x : Fin 1 → ℝ) : 0 ≤ eval x (F.map (Int.castRingHom ℝ)) := by
     simpa only [F, map_pow, map_X, eval_X] using sq_nonneg (x 0)
   have hb : F.coeffNorm1 ≤ 2 ^ 0 := by
     simpa only [F, MvPolynomial.coeffNorm1_X, one_pow, pow_zero] using
       MvPolynomial.coeffNorm1_pow_le (X (0 : Fin 1) : MvPolynomial (Fin 1) ℤ) 2
-  apply (exists_zero_iff_exists_root_lt_at_integerParameterExclusion
-    (by decide) (by decide) F hF hb hFn).mp
-  exact ⟨0, by simp [F]⟩
+  have hz : ∃ x, eval x (F.map (Int.castRingHom ℝ)) = 0 := ⟨0, by simp [F]⟩
+  refine ⟨(exists_zero_iff_exists_root_lt_at_integerParameterExclusion
+    (by decide) (by decide) F hF hb hFn).mp hz, ?_⟩
+  obtain ⟨L, hL, e, he, hneg⟩ :=
+    (exists_zero_iff_exists_neg_criticalLabelDeterminant (by decide) (by decide) F hF hb hFn).mp hz
+  exact ⟨L, hL, e, he, hneg, natAbs_criticalLabelDeterminant_le (by decide) F hF hb L he⟩
 
 -- In the quotient by X₀ = 2, the simple real root of multiplication by X₀ is realized.
 example : ∃ x : Fin 1 → ℝ, x 0 = 2 ∧ aeval x (X 0 : MvPolynomial (Fin 1) ℝ) = 2 := by
@@ -620,5 +634,159 @@ example :
     have hx₀ : x = 0 := by linarith
     simp [hx₀] at hx₂
   exact ⟨L, hL, x, hx₂, hpos, hneg (-x) (by simp [p, hx₂]) hne⟩
+
+-- The conjugate pair contributes one, leaving the negative real factor.
+open scoped ComplexConjugate in
+example :
+    let S : Finset ℂ := {Complex.I, -Complex.I, -1}
+    (∏ z ∈ S, z) = -1 := by
+  classical
+  intro S
+  have hS : ∀ z ∈ S, conj z ∈ S := by
+    intro z hz
+    simp only [S, Finset.mem_insert, Finset.mem_singleton] at hz
+    rcases hz with rfl | rfl | rfl <;> simp [S]
+  calc
+    _ = (((∏ z ∈ S.filter (fun z => z.im = 0), z.re) *
+        ∏ z ∈ S.filter (fun z => 0 < z.im), Complex.normSq z : ℝ) : ℂ) :=
+      Complex.prod_eq_ofReal_mul_prod_normSq S id hS (fun _ _ => rfl)
+    _ = -1 := by
+      norm_num [S, Finset.filter_insert, Finset.filter_singleton, Complex.normSq_I]
+
+-- A double real root contributes once to the product over distinct roots.
+example :
+    let p : Polynomial ℝ := (Polynomial.X - Polynomial.C (-1)) ^ 2
+    (∏ z ∈ (p.aroots ℂ).toFinset, Polynomial.aeval z (Polynomial.X : Polynomial ℝ)) = -1 := by
+  classical
+  intro p
+  have hp : p ≠ 0 := pow_ne_zero _ (Polynomial.X_sub_C_ne_zero _)
+  have hreal : p.roots.toFinset = {-1} := by
+    ext x
+    rw [Multiset.mem_toFinset, Polynomial.mem_roots hp, Polynomial.IsRoot.def]
+    simp [p, add_eq_zero_iff_eq_neg]
+  have hcomplex : (p.aroots ℂ).toFinset = {-1} := by
+    ext z
+    rw [Multiset.mem_toFinset, Polynomial.mem_aroots, and_iff_right hp]
+    simp [p, add_eq_zero_iff_eq_neg]
+  rw [Polynomial.prod_aeval_aroots_toFinset_eq, hreal, hcomplex]
+  norm_num [Finset.filter_singleton]
+
+-- The integer label X vanishes at the source root, so a nonzero shift is needed.
+example : ∃ e : ℕ, e ≤ 1 ∧
+    Polynomial.aeval (0 : ℂ) (Polynomial.shiftedRootLabel 1 e (Polynomial.X : Polynomial ℤ)) ≠
+      0 := by
+  obtain ⟨e, he, h⟩ := Polynomial.exists_aeval_shiftedRootLabel_ne_zero (A := ℂ)
+    (Polynomial.X : Polynomial ℤ) Polynomial.X Polynomial.natDegree_X_le
+  exact ⟨e, he, h 0 (by simp [Polynomial.aroots_X])⟩
+
+-- Every allowed shift reverses the positive sign of the constant label one.
+example (e : ℕ) (he : e ≤ 1) :
+    SignType.sign ((Polynomial.shiftedRootLabel 1 e (1 : Polynomial ℝ)).eval 0) = -1 := by
+  simpa only [Polynomial.eval_one, sign_pos (by norm_num : (0 : ℝ) < 1)] using
+    Polynomial.sign_eval_shiftedRootLabel (g := 1) (x := 0) (by decide : 0 < (1 : ℕ)) he
+      (Or.inl (by norm_num))
+
+-- The only root of X needs no derivative tests, and a constant test decides qualification.
+example (a : ℤ) (ha : a.natAbs ≤ 1) :
+    let p : Polynomial ℤ := Polynomial.X
+    let q := Polynomial.C a
+    (∃ e : ℕ, e ≤ 1 ∧
+      (∏ z ∈ (p.aroots ℂ).toFinset,
+        Polynomial.aeval z (Polynomial.shiftedRootLabel 1 e
+          (Polynomial.sparseIntegerRootLabel p q 0 0 ([] : List (Fin 1 × SignType))))).re < 0) ↔
+      0 < a := by
+  intro p q
+  have hp : p.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [p, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
+      (Polynomial.coeffNorm1_X_mul 1).le
+  have hq : q.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [q, Polynomial.coeffNorm1_C, pow_zero] using ha
+  have h := Polynomial.exists_eval₂_pos_at_root_iff_neg_shiftedRootLabel_prod
+    (D := 1) (N := 0) Polynomial.X_ne_zero (by decide) Polynomial.natDegree_X_le
+    (by decide) (by simp [q]) hp hq
+  constructor
+  · rintro ⟨e, he, hneg⟩
+    obtain ⟨x, _, hx⟩ := h.mpr ⟨[], Nat.zero_le _, e, he, hneg⟩
+    have hx' : (0 : ℝ) < (a : ℝ) := by
+      simpa only [q, Polynomial.eval₂_C, Int.coe_castRingHom] using hx
+    exact_mod_cast hx'
+  · intro ha₀
+    have ha₀' : (0 : ℝ) < (a : ℝ) := by exact_mod_cast ha₀
+    obtain ⟨L, hL, e, he, hneg⟩ := h.mp
+      ⟨0, by simp, by simpa only [q, Polynomial.eval₂_C, Int.coe_castRingHom] using ha₀'⟩
+    have hnil := List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hL)
+    exact ⟨e, he, hnil ▸ hneg⟩
+
+-- Evaluating X − 1 at the matrix with eigenvalues 2 and 3 gives determinant 1 · 2.
+example :
+    let M : Matrix (Fin 2) (Fin 2) ℚ := Matrix.diagonal ![2, 3]
+    (Polynomial.aeval M ((Polynomial.X : Polynomial ℚ) - Polynomial.C 1)).det = 2 := by
+  intro M
+  have hM : M.charpoly = (Polynomial.X - Polynomial.C 2) * (Polynomial.X - Polynomial.C 3) := by
+    simp [M, Matrix.charpoly_diagonal, Fin.prod_univ_two]
+  have hs : M.charpoly.Splits := by
+    rw [hM]
+    exact (Polynomial.Splits.X_sub_C _).mul (Polynomial.Splits.X_sub_C _)
+  rw [Matrix.det_aeval_eq_prod_charpoly_roots M _ (Polynomial.Splits.X_sub_C 1) hs, hM,
+    Polynomial.roots_mul
+      (mul_ne_zero (Polynomial.X_sub_C_ne_zero _) (Polynomial.X_sub_C_ne_zero _)),
+    Polynomial.roots_X_sub_C, Polynomial.roots_X_sub_C, Multiset.map_add, Multiset.prod_add]
+  norm_num
+
+-- The determinant in the zero-variable quotient comes from its one characteristic root.
+example :
+    let r : Fin 0 → MvPolynomial (Fin 0) ℤ := 0
+    let μ := multiplicationMatrix (ell := 1) (by decide) r (fun i => i.elim0)
+    let g : Polynomial ℤ := Polynomial.X - Polynomial.C 1
+    (μ (Polynomial.aeval (MvPolynomial.C (2 : ℤ)) g)).det = 1 := by
+  intro r μ g
+  let M := μ (MvPolynomial.C (2 : ℤ))
+  have hM : M = Matrix.diagonal (fun _ => (2 : ℤ)) := by
+    change μ (MvPolynomial.C (2 : ℤ)) = _
+    rw [← MvPolynomial.algebraMap_eq, μ.commutes, Matrix.algebraMap_eq_diagonal]
+    rfl
+  have hchar : M.charpoly = Polynomial.X - Polynomial.C 2 := by
+    rw [hM, Matrix.charpoly_diagonal, Fintype.prod_unique]
+  have hcharMap : M.charpoly.map (algebraMap ℤ ℚ) = Polynomial.X - Polynomial.C 2 := by
+    rw [hchar, Polynomial.map_sub, Polynomial.map_X, Polynomial.map_C, map_ofNat]
+  have hg : (g.map (algebraMap ℤ ℚ)).Splits := by
+    simpa [g] using Polynomial.Splits.X_sub_C (1 : ℚ)
+  have h := Matrix.algebraMap_det_aeval_eq_prod_aroots_toFinset (K := ℚ) M g hg
+    (hcharMap ▸ Polynomial.Splits.X_sub_C (2 : ℚ))
+    (hcharMap ▸ Polynomial.separable_X_sub_C (x := (2 : ℚ)))
+  rw [hchar, Polynomial.aroots_X_sub_C] at h
+  have hval : Polynomial.aeval (algebraMap ℤ ℚ 2) g = 1 := by
+    norm_num [g, Polynomial.aeval_def, algebraMap_int_eq]
+  rw [Multiset.toFinset_singleton, Finset.prod_singleton, hval] at h
+  have hcast : ((Polynomial.aeval M g).det : ℚ) = 1 := by
+    simpa only [algebraMap_int_eq, Int.coe_castRingHom] using h
+  have hsrc : (Polynomial.aeval M g).det = 1 := by exact_mod_cast hcast
+  simpa only [M, Polynomial.aeval_algHom_apply] using hsrc
+
+-- The actual rank-one quotient determinant detects the root of its characteristic polynomial.
+example :
+    let r : Fin 0 → MvPolynomial (Fin 0) ℤ := 0
+    let μ := multiplicationMatrix (ell := 1) (by decide) r (fun i => i.elim0)
+    let p := (μ 0).charpoly
+    ∃ e : ℕ, e ≤ 1 ∧
+      (μ (Polynomial.aeval (0 : MvPolynomial (Fin 0) ℤ) (Polynomial.shiftedRootLabel 1 e
+        (Polynomial.sparseIntegerRootLabel p 1 0 0 ([] : List (Fin 1 × SignType)))))).det < 0 := by
+  intro r μ p
+  let M := μ 0
+  have hcard : Fintype.card (NormalIndex 0 1) = 1 := Fintype.card_unique
+  have hchar : M.charpoly = Polynomial.X := by
+    simp only [M, map_zero, Matrix.charpoly_zero, hcard, pow_one]
+  have hMb : M.charpoly.coeffNorm1 ≤ 2 ^ 0 := by
+    simpa only [hchar, mul_one, Polynomial.coeffNorm1_one, pow_zero] using
+      (Polynomial.coeffNorm1_X_mul 1).le
+  have hsep : (M.charpoly.map (algebraMap ℤ ℂ)).Separable := by
+    rw [hchar, Polynomial.map_X]
+    exact Polynomial.separable_X
+  have h := Matrix.exists_eval₂_pos_at_charpoly_root_iff_neg_shiftedRootLabel_det M
+    (q := 1) (N := 0) (by decide) hcard.le (by decide) (by simp) hMb (by simp) hsep
+  obtain ⟨L, hL, e, he, hneg⟩ := h.mp ⟨0, by simp [hchar], by simp⟩
+  have hnil := List.length_eq_zero_iff.mp (Nat.eq_zero_of_le_zero hL)
+  subst L
+  exact ⟨e, he, by simpa only [p, M, Polynomial.aeval_algHom_apply] using hneg⟩
 
 end CslibFrontierTests.RealAlgebraicCriticalCoefficients

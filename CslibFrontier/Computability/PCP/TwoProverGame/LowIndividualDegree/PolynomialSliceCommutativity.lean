@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SliceCommutativity
 import CslibFrontier.Foundations.Data.Finset.Expect
-import CslibFrontier.Foundations.Data.MvPolynomial.SchwartzZippel
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.PolynomialEvaluationCollision
 import CslibFrontier.Foundations.Quantum.Algebra.OutcomeCommutator
 
 /-!
@@ -35,16 +35,6 @@ open scoped BigOperators Real
 
 variable {F A : Type*} {m d : ℕ} [Field F] [Fintype F] [DecidableEq F]
   [CStarAlgebra A] [PartialOrder A] [StarOrderedRing A]
-
-private theorem expect_evaluation_collision_le
-    (g h : BoundedPolynomial F m d) (hne : g ≠ h) :
-    (𝔼 u : Point F m, if eval u h.val = eval u g.val then (1 : ℝ) else 0) ≤
-      (m : ℝ) * d / Fintype.card F := by
-  have hcard := card_filter_eval_eq_mul_card_le (fun h' => hne.symm (Subtype.ext h')) h.prop g.prop
-  rw [Fintype.expect_eq_sum_div_card, sum_boole, Fintype.card_fun, Fintype.card_fin, Nat.cast_pow]
-  refine (div_le_div_iff₀ (pow_pos (by exact_mod_cast Fintype.card_pos) _)
-    (by exact_mod_cast Fintype.card_pos)).mpr ?_
-  exact_mod_cast hcard
 
 /-- Recover commutation before evaluation from the averaged evaluated commutators.
 A copy of each original slice on a commuting side pays for the comparison. -/
@@ -107,6 +97,36 @@ theorem successfulPairDefect_le_evaluatedSlices (φ : AlgState A)
 
 /-- The original successful polynomial effects approximately commute under the
 point agreement, copy agreement and failure bounds of the slice construction. -/
+theorem polynomialSlice_successfulPairDefect_le_atDegrees
+    (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
+      (Answer F (m + 1)) (Answer F (m + 1)) A)
+    (hPoint : ∀ u, (S.alice (.point u)).IsProjective)
+    (hLine : ∀ L, (S.bob (.diagonal L)).IsProjective) (degree D : ℕ)
+    (M N : F → Measurement (Option (BoundedPolynomial F m d)) A)
+    (hM : ∀ x, (M x).IsProjective) (hN : ∀ x, (N x).IsProjective)
+    (hMN : ∀ x y a b, Commute ((M x).effect a) ((N y).effect b))
+    (Z : F → A) (hZ : ∀ x, 0 ≤ Z x)
+    (hbound : ∀ x (g : BoundedPolynomial F m d),
+      averagePolynomialPointEffect (fun u => decodedPoint S.alice (Fin.snoc u x)) g ≤ Z x)
+    (hMP : ∀ x w g a, Commute ((M x).effect g) ((decodedPoint S.alice w).effect a))
+    (hMZ : ∀ x y g, Commute ((M x).effect g) (Z y))
+    {η ζ ξ : ℝ}
+    (hcopy : (𝔼 x, Measurement.successfulCopyDefect S.state (M x) (N x)) ≤ ξ)
+    (hfail : (𝔼 x : F, (S.state ((M x).effect none * Z x)).re) ≤ ζ)
+    (hpoint : (𝔼 w : Point F (m + 1), Measurement.successfulMismatch S.state
+      (evaluatePolynomialMeasurement (M (w (Fin.last m))) (Fin.init w))
+      (decodedPoint S.alice w)) ≤ η) :
+    (𝔼 x, 𝔼 y, Measurement.successfulPairDefect S.state (M x) (M y)) ≤
+      32 * (4 * √(2 * η) + 2 * √(64 * (m + 1 : ℝ) *
+        (1 - (branchGameWithDiagonalCap (F := F) m degree D .diagonal).commutingWinProb S)) +
+        2 * √ζ + 2 * √ξ) + 30 * ξ + 20 * ((m : ℝ) * d / Fintype.card F) := by
+  have he := evaluatedSlice_successfulPairDefect_le_atDegrees S hPoint hLine degree D M hM Z hZ
+    hbound hMP hMZ N hN hMN hcopy hfail hpoint
+  exact (successfulPairDefect_le_evaluatedSlices S.state M N hM hN hMN).trans
+    (by linarith only [he, hcopy])
+
+/-- The original successful polynomial effects approximately commute under the
+point agreement, copy agreement and failure bounds of the slice construction. -/
 theorem polynomialSlice_successfulPairDefect_le
     (S : CommutingStrategy (Question F (m + 1)) (Question F (m + 1))
       (Answer F (m + 1)) (Answer F (m + 1)) A)
@@ -130,9 +150,8 @@ theorem polynomialSlice_successfulPairDefect_le
       32 * (4 * √(2 * η) + 2 * √(64 * (m + 1 : ℝ) *
         (1 - (branchGame (F := F) m degree .diagonal).commutingWinProb S)) +
         2 * √ζ + 2 * √ξ) + 30 * ξ + 20 * ((m : ℝ) * d / Fintype.card F) := by
-  have he := evaluatedSlice_successfulPairDefect_le S hPoint hLine degree M hM Z hZ hbound hMP hMZ
-    N hN hMN hcopy hfail hpoint
-  exact (successfulPairDefect_le_evaluatedSlices S.state M N hM hN hMN).trans
-    (by linarith only [he, hcopy])
+  rw [branchGame_eq_withDiagonalCap]
+  exact polynomialSlice_successfulPairDefect_le_atDegrees S hPoint hLine degree ((m + 1) * degree)
+    M N hM hN hMN Z hZ hbound hMP hMZ hcopy hfail hpoint
 
 end Cslib.PCP.LowIndividualDegree

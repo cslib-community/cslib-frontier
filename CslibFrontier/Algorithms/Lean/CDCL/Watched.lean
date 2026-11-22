@@ -1142,7 +1142,7 @@ def reducedWith (o : Options) (R : Reduction) (used : List ℕ) (id next : ℕ) 
 /-- The reduction after a conflict learning `L`, stored if `stored`: updated, if reduction is on. -/
 @[expose] def WExec.reduced (S : WExec φ) {sp : Split} (L : S.exec.LearnedAt sp) (stored : Bool) :
     Reduction :=
-  reducedWith S.opts S.red L.used L.id L.log.next stored
+  reducedWith S.opts S.red L.used L.id (L.id + 1) stored
 
 /-- One more conflict, learning a clause of `k` different literals, `k₀` before minimization. -/
 @[expose] def Stats.learn (s : Stats) (k₀ k : ℕ) : Stats :=
@@ -1251,12 +1251,12 @@ are built once, read by the backjump and cleared after it. -/
   let k := (dedupLits L.clause).length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
-    let red := reducedWith opts red L.used L.id L.log.next (isLearntId φ.length L.id)
+    let red := reducedWith opts red L.used L.id (L.id + 1) (isLearntId φ.length L.id)
     let store := store.addClause L.id (learnedWatched L.clause L.lit)
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order.1, order.2,
       phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
   else
-    let red := reducedWith opts red L.used L.id L.log.next false
+    let red := reducedWith opts red L.used L.id (L.id + 1) false
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], (L.id, L.clause) :: short, A,
       order.1, order.2, phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
 

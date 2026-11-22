@@ -349,7 +349,8 @@ open scoped Cslib.Probability.PMF in
 pp. 152–153][Holenstein2009]. Two parties reading the same shared seed with their own
 distributions `P` and `Q` output different elements with probability at most `2δ`, where `δ` is
 the statistical distance between `P` and `Q`. Conditioning the first point under the graph of
-`max P Q` gives Holenstein's ratio `2δ / (1 + δ)`, which is then weakened to `2δ`. A disagreement
+`max P Q` gives the disagreement bound `2δ / (1 + δ)`, the complement of Holenstein's agreement
+ratio `(1 - δ) / (1 + δ)` (p. 153), which is then weakened to `2δ`. A disagreement
 in which only one party finds no point under its graph is included in the bounded event. -/
 theorem seedSample_disagree_le (P Q : PMF S) :
     (seed S).real {ω | seedSample P ω ≠ seedSample Q ω} ≤ 2 * dist P Q := by

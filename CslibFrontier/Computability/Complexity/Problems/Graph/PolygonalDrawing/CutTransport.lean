@@ -21,6 +21,8 @@ was embedded.
 
 The contact argument uses the source segment and parameter of each evaluation. In particular,
 it preserves the two endpoint tags of a loop and the identities of parallel edge occurrences.
+Repeated refinement at affine zero sets, including nonparallel lines, leaves the drawing's
+vertex positions and route supports fixed.
 -/
 
 public section
@@ -93,5 +95,116 @@ protected theorem IsEmbedding.mapAtCuts {G : Graph} {D : PolygonalDrawing G}
   exact ⟨j, a, b, ha, hab, hb, h⟩
 
 end Interpolation
+
+private theorem subsegment_avoids_wall (p : Route) (i : Fin p.segments) (f : ℂ →ᵃ[ℝ] ℝ)
+    {a b : ℝ} (ha : a ∈ Set.Icc 0 1) (hb : b ∈ Set.Icc 0 1)
+    (hwall : 0 ∉ Set.Ioo (min (f (p.point i.castSucc)) (f (p.point i.succ)))
+      (max (f (p.point i.castSucc)) (f (p.point i.succ)))) :
+    0 ∉ Set.Ioo (min (f (p.eval i a)) (f (p.eval i b)))
+      (max (f (p.eval i a)) (f (p.eval i b))) := by
+  have hwithin (t : ℝ) (ht : t ∈ Set.Icc 0 1) :
+      f (p.eval i t) ∈ Set.uIcc (f (p.point i.castSucc)) (f (p.point i.succ)) := by
+    rw [Route.eval, AffineMap.apply_lineMap, ← segment_eq_uIcc]
+    exact lineMap_mem_segment ℝ _ _ ht
+  have hleft := hwithin a ha
+  have hright := hwithin b hb
+  intro h
+  exact hwall ⟨(le_min hleft.1 hright.1).trans_lt h.1, h.2.trans_le (max_le hleft.2 hright.2)⟩
+
+/-- Refine an embedding at finitely many affine zero sets. All vertex positions and route
+supports are preserved. No zero set of the given family strictly separates the endpoints of
+an output segment, even when the lines are nonparallel or pass through existing nodes. -/
+theorem IsEmbedding.exists_wall_refinement {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (walls : List (ℂ →ᵃ[ℝ] ℝ)) :
+    ∃ E : PolygonalDrawing G, E.IsEmbedding ∧ E.vertex = D.vertex ∧
+      (∀ e, (E.route e).support = (D.route e).support) ∧
+      ∀ e (i : Fin (E.route e).segments) f, f ∈ walls →
+        0 ∉ Set.Ioo (min (f ((E.route e).point i.castSucc)) (f ((E.route e).point i.succ)))
+          (max (f ((E.route e).point i.castSucc)) (f ((E.route e).point i.succ))) := by
+  induction walls with
+  | nil =>
+    exact ⟨D, hD, rfl, fun _ => rfl, fun _ _ _ hf => (List.not_mem_nil hf).elim⟩
+  | cons f walls ih =>
+    obtain ⟨P, hP, hpoints, hsupport, hwall⟩ := ih
+    have hline (z w : ℂ)
+        (_ : ∀ y ∈ ({0} : Finset ℝ), y ∉ Set.Ioo (min (f z) (f w)) (max (f z) (f w)))
+        (t : ℝ) (_ : t ∈ Set.Icc 0 1) :
+        id (AffineMap.lineMap z w t) = AffineMap.lineMap (id z) (id w) t := rfl
+    let E := P.mapAtCuts (S := {0}) (c := f) (F := id) hline
+    refine ⟨E, hP.mapAtCuts (c := f) hline Function.injective_id, hpoints, ?_, ?_⟩
+    · intro e
+      have h := Route.support_mapAtCuts (c := f) hline (P.route e)
+      change (E.route e).support = id '' (P.route e).support at h
+      simpa only [Set.image_id, hsupport e] using h
+    · intro e
+      let q := (P.route e).mapAtCuts {0} f id
+      change ∀ (i : Fin q.segments) g, g ∈ f :: walls →
+        0 ∉ Set.Ioo (min (g (q.point i.castSucc)) (g (q.point i.succ)))
+          (max (g (q.point i.castSucc)) (g (q.point i.succ)))
+      intro i g hg
+      obtain ⟨j, a, b, ha, hab, hb, hcut, h⟩ :=
+        Route.eval_mapAtCuts (S := {0}) (c := f) (F := id) hline (P.route e) i
+      have hleft : q.point i.castSucc = (P.route e).eval j a := calc
+        _ = q.eval i 0 := (AffineMap.lineMap_apply_zero _ _).symm
+        _ = (P.route e).eval j (AffineMap.lineMap a b 0) := (h 0 ⟨le_rfl, zero_le_one⟩).1
+        _ = _ := congrArg ((P.route e).eval j) (AffineMap.lineMap_apply_zero a b)
+      have hright : q.point i.succ = (P.route e).eval j b := calc
+        _ = q.eval i 1 := (AffineMap.lineMap_apply_one _ _).symm
+        _ = (P.route e).eval j (AffineMap.lineMap a b 1) := (h 1 ⟨zero_le_one, le_rfl⟩).1
+        _ = _ := congrArg ((P.route e).eval j) (AffineMap.lineMap_apply_one a b)
+      rw [hleft, hright]
+      rcases List.mem_cons.mp hg with rfl | hg
+      · exact hcut 0 (Finset.mem_singleton_self 0)
+      · exact subsegment_avoids_wall (P.route e) j g ⟨ha, hab.le.trans hb⟩
+          ⟨ha.trans hab.le, hb⟩ (hwall e j g hg)
+
+/-- An injective plane map that preserves straight interpolation between a finite family of
+affine zero sets takes an embedded polygonal drawing to another one. In the output, each
+vertex is the mapped source vertex and each route support is the image of its source support. -/
+theorem IsEmbedding.exists_image_across_walls {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (walls : List (ℂ →ᵃ[ℝ] ℝ)) {F : ℂ → ℂ}
+    (hinj : Function.Injective F)
+    (hline : ∀ a b : ℂ, (∀ f ∈ walls, 0 ∉ Set.Ioo (min (f a) (f b)) (max (f a) (f b))) →
+      ∀ t ∈ Set.Icc (0 : ℝ) 1,
+        F (AffineMap.lineMap a b t) = AffineMap.lineMap (F a) (F b) t) :
+    ∃ E : PolygonalDrawing G, E.IsEmbedding ∧ E.vertex = F ∘ D.vertex ∧
+      ∀ e, (E.route e).support = F '' (D.route e).support := by
+  obtain ⟨P, hP, hvertex, hsupport, hcuts⟩ := hD.exists_wall_refinement walls
+  let routes (e : Fin G.edges.length) : Route :=
+    ⟨(P.route e).bends, F ∘ (P.route e).point⟩
+  have hend (e : Fin G.edges.length) (side : Bool) :
+      (routes e).endpoint side = F ((P.route e).endpoint side) := by
+    cases side <;> rfl
+  let E : PolygonalDrawing G :=
+    { vertex := F ∘ P.vertex
+      route := routes
+      endpoint_eq := fun e side => (hend e side).trans (congrArg F (P.endpoint_eq e side)) }
+  have heval (e : Fin G.edges.length) (i : Fin (P.route e).segments)
+      (t : ℝ) (ht : t ∈ Set.Icc 0 1) : (E.route e).eval i t = F ((P.route e).eval i t) :=
+    (hline _ _ (hcuts e i) t ht).symm
+  have hsimple (e : Fin G.edges.length) : (E.route e).IsSimple := by
+    intro i j s t hs ht he
+    exact hP.simple e i j s t hs ht
+      (hinj ((heval e i s hs).symm.trans (he.trans (heval e j t ht))))
+  refine ⟨E, hP.of_route_map hinj (fun _ => rfl) hsimple ?_, ?_, ?_⟩
+  · intro e i
+    refine ⟨i, 0, 1, le_rfl, zero_lt_one, le_rfl, ?_⟩
+    intro t ht
+    have htime : AffineMap.lineMap (0 : ℝ) 1 t = t := by
+      simp only [AffineMap.lineMap_apply_ring, mul_zero, mul_one, zero_add]
+    rw [htime]
+    exact ⟨heval e i t ht, fun _ => Iff.rfl⟩
+  · exact congrArg (fun p => F ∘ p) hvertex
+  · intro e
+    rw [← hsupport e]
+    ext z
+    constructor
+    · intro hz
+      obtain ⟨i, t, ht, h⟩ := ((E.route e).mem_support_iff z).mp hz
+      exact ⟨_, (P.route e).at_mem_support i ht, (heval e i t ht).symm.trans h⟩
+    · rintro ⟨w, hw, rfl⟩
+      obtain ⟨i, t, ht, h⟩ := ((P.route e).mem_support_iff w).mp hw
+      exact ((E.route e).mem_support_iff _).mpr
+        ⟨i, t, ht, (heval e i t ht).trans (congrArg F h)⟩
 
 end Cslib.Complexity.Graph.PolygonalDrawing

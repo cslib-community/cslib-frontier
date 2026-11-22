@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Foundations.Quantum.Algebra.AlgState
-public import Mathlib.Algebra.Order.Chebyshev
+public import CslibFrontier.Foundations.Quantum.Algebra.Expect
 public import Mathlib.LinearAlgebra.Matrix.Permutation
 import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
 
@@ -22,26 +22,28 @@ adjusting the dimension, in normalized Schatten norms
 pp. 32–33); de la Salle's averaged version for unitarily invariant seminorms also bounds the
 defect of the isometry, `‖P - w w*‖ ≤ 4ε`
 [de la Salle, §1.5, Theorem 1.4][delaSalle2025] (arXiv:2204.07084v2, pp. 5–6). This file proves
-the first step of both proofs, the compression of the regular representation, in the vector-state
-form used for rigidity of nonlocal games; it follows the first paragraph of the proof of
-[de la Salle, §1.5, Lemma 1.6][delaSalle2025] (p. 6). The dimension or isometry-defect control of
-the full stability theorem is not formalized here.
+the first step of both proofs, the compression of the regular representation, in the
+state-dependent form used for rigidity of nonlocal games; it follows the first paragraph of the
+proof of [de la Salle, §1.5, Lemma 1.6][delaSalle2025] (p. 6). The dimension or isometry-defect
+control of the full stability theorem is not formalized here; it is tracked in
+[#6149](https://github.com/cslib-community/cslib-frontier/issues/6149) (milestone M2).
 
-Let `f : G → U(ℂ^ι)` be unitaries and `ψ` a vector. The right regular representation `g` on the
+Let `f : G → U(ℂ^ι)` be unitaries and `φ` a state. The right regular representation `g` on the
 second factor of `ℂ^ι ⊗ ℂ^G` (`Cslib.Quantum.regularRep`, the permutation matrices of
 `(i, z) ↦ (i, z y)`) and the isometry `V ψ = |G|^{-1/2} ∑_x f(x) ψ ⊗ |x⟩`
 (`Cslib.Quantum.regularIsometry`) satisfy
 
-`E_y ‖(f(y) - Vᴴ g(y) V) ψ‖² ≤ E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`
+`E_y ‖f(y) - Vᴴ g(y) V‖²_φ ≤ E_{x,y} ‖f(x) f(y) - f(xy)‖²_φ`
 
-(`Cslib.Quantum.sum_norm_sub_compress_le`, and `Cslib.Quantum.sum_vector_norm_sub_compress_le` in
-the state-dependent norm of the vector state). The proof needs no representation theory:
+in every state (`Cslib.Quantum.expect_norm_sub_compress_sq_le`; with sums, in a vector state,
+`Cslib.Quantum.sum_vector_norm_sub_compress_le`). The proof needs no representation theory:
 `Vᴴ g(y) V = E_z f(z)ᴴ f(zy)` (`Cslib.Quantum.regularIsometry_compress`), so
-`(f(y) - Vᴴ g(y) V) ψ = E_z f(z)ᴴ (f(z) f(y) - f(zy)) ψ`, and the bound follows from the convexity
-of `‖·‖²`. Before compressing, `V` intertwines `f` and `g` up to exactly the same error, for any
-matrices `f(x)`: `E_y ‖(V f(y) - g(y) V) ψ‖² = E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`
-(`Cslib.Quantum.sum_norm_regularIsometry_mul_sub_eq`). Unitaries that multiply exactly on `ψ` are
-recovered exactly (`Cslib.Quantum.mulVec_eq_compress_of_mul`).
+`f(y) - Vᴴ g(y) V = E_z f(z)ᴴ (f(z) f(y) - f(zy))`, and the bound is Jensen's inequality with
+contractions for the state norm (`Cslib.Quantum.AlgState.norm_expect_mul_sq_le`). Before
+compressing, `V` intertwines `f` and `g` up to exactly the same error, for any matrices `f(x)` and
+vectors `ψ`: `E_y ‖(V f(y) - g(y) V) ψ‖² = E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`
+(`Cslib.Quantum.sum_norm_regularIsometry_mul_sub_eq`). Exact representations are recovered exactly,
+`Vᴴ g(y) V = f(y)` (`Cslib.Quantum.compress_eq_of_mul`).
 
 ## Main definitions
 
@@ -53,10 +55,11 @@ recovered exactly (`Cslib.Quantum.mulVec_eq_compress_of_mul`).
 * `Cslib.Quantum.regularRep_mul`, `Cslib.Quantum.regularRep_one`,
   `Cslib.Quantum.conjTranspose_regularRep_mul`: `g` is a unitary representation.
 * `Cslib.Quantum.conjTranspose_regularIsometry_mul`: `V` is an isometry.
-* `Cslib.Quantum.sum_norm_regularIsometry_mul_sub_eq`: `V` intertwines `f` and `g` approximately.
-* `Cslib.Quantum.sum_norm_sub_compress_le`, `Cslib.Quantum.sum_vector_norm_sub_compress_le`: the
-  compression bound.
-* `Cslib.Quantum.mulVec_eq_compress_of_mul`: exact representations are recovered exactly.
+* `Cslib.Quantum.regularIsometry_mul_sub_gram`: the exact Gram matrix of the intertwining error.
+* `Cslib.Quantum.sum_norm_regularIsometry_mul_sub_eq`: the intertwining error in a vector.
+* `Cslib.Quantum.expect_norm_sub_compress_sq_le`: the compression bound, in every state.
+* `Cslib.Quantum.sum_vector_norm_sub_compress_le`: the compression bound in a vector state.
+* `Cslib.Quantum.compress_eq_of_mul`: exact representations are recovered exactly.
 
 ## References
 
@@ -70,6 +73,7 @@ recovered exactly (`Cslib.Quantum.mulVec_eq_compress_of_mul`).
 namespace Cslib.Quantum
 
 open Matrix Finset
+open scoped BigOperators
 
 variable {G ι : Type*} [Group G] [Fintype G] [DecidableEq G] [Fintype ι] [DecidableEq ι]
 
@@ -145,19 +149,23 @@ private theorem regularScale_sq :
   push_cast
   rfl
 
-/-- `Vᴴ g(y) V = E_z f(z)ᴴ f(zy)`. -/
+/-- **Compression of the regular representation**: `Vᴴ g(y) V = E_z f(z)ᴴ f(zy)`. -/
 theorem regularIsometry_compress (y : G) :
-    (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
+    (regularIsometry f)ᴴ * regularRep y * regularIsometry f = 𝔼 z, (f z)ᴴ * f (z * y) := by
+  have h : (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
       ((Fintype.card G : ℂ))⁻¹ • ∑ z, (f z)ᴴ * f (z * y) := by
-  ext j j'
-  rw [Matrix.mul_assoc, Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply,
-    Matrix.sum_apply, smul_eq_mul, mul_sum]
-  refine sum_congr rfl fun z _ => ?_
-  rw [Matrix.mul_apply, mul_sum]
-  refine sum_congr rfl fun i _ => ?_
-  rw [regularRep_mul_apply, conjTranspose_apply, regularIsometry_apply, regularIsometry_apply,
-    conjTranspose_apply, star_mul', Complex.star_def, Complex.conj_ofReal, ← regularScale_sq]
-  ring
+    ext j j'
+    rw [Matrix.mul_assoc, Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply,
+      Matrix.sum_apply, smul_eq_mul, mul_sum]
+    refine sum_congr rfl fun z _ => ?_
+    rw [Matrix.mul_apply, mul_sum]
+    refine sum_congr rfl fun i _ => ?_
+    rw [regularRep_mul_apply, conjTranspose_apply, regularIsometry_apply, regularIsometry_apply,
+      conjTranspose_apply, star_mul', Complex.star_def, Complex.conj_ofReal, ← regularScale_sq]
+    ring
+  rw [h, expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
+  push_cast
+  rfl
 
 omit [DecidableEq G] in
 /-- The averaging isometry is an isometry when the `f(x)` are unitary. -/
@@ -165,9 +173,8 @@ theorem conjTranspose_regularIsometry_mul (hf : ∀ x, (f x)ᴴ * f x = 1) :
     (regularIsometry f)ᴴ * regularIsometry f = 1 := by
   classical
   have h := regularIsometry_compress f 1
-  simp only [regularRep_one, Matrix.mul_one, mul_one, hf, sum_const, card_univ] at h
-  rw [h, ← Nat.cast_smul_eq_nsmul ℂ, smul_smul, inv_mul_cancel₀ (by exact_mod_cast
-    Fintype.card_ne_zero), one_smul]
+  simp only [regularRep_one, Matrix.mul_one, mul_one, hf, Fintype.expect_const] at h
+  exact h
 
 /-- The rows of `V f(y) - g(y) V` are the multiplicative defects: row `(i, z)` is
 `|G|^{-1/2} (f(z) f(y) - f(zy))_i`. -/
@@ -178,6 +185,28 @@ private theorem regularIsometry_mul_sub_apply (y : G) (i : ι) (z : G) (j : ι) 
     Matrix.mul_apply, mul_sum]
   simp only [regularIsometry_apply, mul_assoc]
 
+/-- The squared error of the averaging isometry at a group element is the average
+of the Gram matrices of the right multiplication defects at that element. -/
+theorem regularIsometry_mul_sub_gram (y : G) :
+    let D := regularIsometry f * f y - regularRep y * regularIsometry f
+    Dᴴ * D = 𝔼 z, (f z * f y - f (z * y))ᴴ * (f z * f y - f (z * y)) := by
+  intro D
+  have h : Dᴴ * D = ((Fintype.card G : ℂ))⁻¹ •
+      ∑ z, (f z * f y - f (z * y))ᴴ * (f z * f y - f (z * y)) := by
+    ext j k
+    rw [Matrix.mul_apply, Fintype.sum_prod_type, sum_comm, Matrix.smul_apply, Matrix.sum_apply,
+      smul_eq_mul, mul_sum]
+    refine sum_congr rfl fun z _ => ?_
+    rw [Matrix.mul_apply, mul_sum]
+    refine sum_congr rfl fun i _ => ?_
+    simp only [D, conjTranspose_apply, regularIsometry_mul_sub_apply, star_mul',
+      Complex.star_def, Complex.conj_ofReal]
+    rw [← regularScale_sq]
+    ring
+  rw [h, expect_univ, ← NNRat.cast_smul_eq_nnqsmul ℂ]
+  push_cast
+  rfl
+
 /-- **The averaging isometry intertwines approximately**, for any matrices `f(x)`:
 `E_y ‖(V f(y) - g(y) V) ψ‖² = E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`. -/
 theorem sum_norm_regularIsometry_mul_sub_eq (ψ : EuclideanSpace ℂ ι) :
@@ -186,117 +215,57 @@ theorem sum_norm_regularIsometry_mul_sub_eq (ψ : EuclideanSpace ℂ ι) :
     (∑ x, ∑ y, ‖(WithLp.toLp 2 ((f x * f y - f (x * y)) *ᵥ ψ.ofLp) :
       EuclideanSpace ℂ ι)‖ ^ 2) / (Fintype.card G) ^ 2 := by
   have hc : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  have hcsq : ((√(Fintype.card G))⁻¹ : ℝ) ^ 2 = ((Fintype.card G : ℝ))⁻¹ := by
-    rw [inv_pow, Real.sq_sqrt hc.le]
-  have hrow : ∀ y, ‖(WithLp.toLp 2 ((regularIsometry f * f y - regularRep y * regularIsometry f) *ᵥ
-      ψ.ofLp) : EuclideanSpace ℂ (ι × G))‖ ^ 2 = ((Fintype.card G : ℝ))⁻¹ *
+  have hrow (y : G) :
+      ‖(WithLp.toLp 2 ((regularIsometry f * f y - regularRep y * regularIsometry f) *ᵥ
+        ψ.ofLp) : EuclideanSpace ℂ (ι × G))‖ ^ 2 = ((Fintype.card G : ℝ))⁻¹ *
       ∑ z, ‖(WithLp.toLp 2 ((f z * f y - f (z * y)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)‖ ^ 2 := by
-    intro y
-    simp only [EuclideanSpace.norm_sq_eq, Fintype.sum_prod_type]
-    rw [sum_comm, mul_sum]
-    refine sum_congr rfl fun z _ => ?_
-    rw [mul_sum]
-    refine sum_congr rfl fun i _ => ?_
-    have : ((regularIsometry f * f y - regularRep y * regularIsometry f) *ᵥ ψ.ofLp) (i, z) =
-        (((√(Fintype.card G))⁻¹ : ℝ) : ℂ) * (((f z * f y - f (z * y)) *ᵥ ψ.ofLp) i) := by
-      simp only [mulVec, dotProduct, regularIsometry_mul_sub_apply, mul_sum, mul_assoc]
-    simp only [this, norm_mul, Complex.norm_real, Real.norm_eq_abs,
-      mul_pow, sq_abs, hcsq]
+    rw [Matrix.norm_toLp_mulVec_sq_eq, regularIsometry_mul_sub_gram]
+    simp only [Finset.expect, ← NNRat.cast_smul_eq_nnqsmul ℂ, smul_mulVec, dotProduct_smul,
+      sum_mulVec, dotProduct_sum, smul_eq_mul, NNRat.cast_inv, NNRat.cast_natCast, card_univ]
+    rw [← Complex.ofReal_natCast, ← Complex.ofReal_inv, Complex.re_ofReal_mul, Complex.re_sum]
+    simp only [Matrix.norm_toLp_mulVec_sq_eq]
   simp only [hrow, ← mul_sum]
   rw [sum_comm]
   field_simp
 
-omit [DecidableEq G] [DecidableEq ι] in
-/-- `‖(∑_x w_x)/|G|‖² ≤ (∑_x ‖w_x‖²)/|G|`. -/
-private theorem norm_avg_sq_le (w : G → EuclideanSpace ℂ ι) :
-    ‖((Fintype.card G : ℂ))⁻¹ • ∑ x, w x‖ ^ 2 ≤ ((Fintype.card G : ℝ))⁻¹ * ∑ x, ‖w x‖ ^ 2 := by
-  have hc : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  have h₁ : ‖((Fintype.card G : ℂ))⁻¹ • ∑ x, w x‖ ≤ ((Fintype.card G : ℝ))⁻¹ * ∑ x, ‖w x‖ := by
-    rw [norm_smul, norm_inv, Complex.norm_natCast]
-    exact mul_le_mul_of_nonneg_left (norm_sum_le _ _) (by positivity)
-  have h₂ := sq_sum_le_card_mul_sum_sq (s := univ) (f := fun x => ‖w x‖)
-  rw [card_univ] at h₂
-  calc ‖((Fintype.card G : ℂ))⁻¹ • ∑ x, w x‖ ^ 2
-      ≤ (((Fintype.card G : ℝ))⁻¹ * ∑ x, ‖w x‖) ^ 2 :=
-        pow_le_pow_left₀ (norm_nonneg _) h₁ 2
-    _ = ((Fintype.card G : ℝ))⁻¹ ^ 2 * (∑ x, ‖w x‖) ^ 2 := by ring
-    _ ≤ ((Fintype.card G : ℝ))⁻¹ ^ 2 * (Fintype.card G * ∑ x, ‖w x‖ ^ 2) :=
-        mul_le_mul_of_nonneg_left h₂ (by positivity)
-    _ = ((Fintype.card G : ℝ))⁻¹ * ∑ x, ‖w x‖ ^ 2 := by field_simp
-
+open scoped MatrixOrder in
 /-- **Compression of the regular representation**, a step toward the Gowers–Hatami theorem
 (the first paragraph of the proof of [de la Salle, §1.5, Lemma 1.6][delaSalle2025]): for unitaries
-`f(x)` and a vector `ψ`, the exact representation `g` (`regularRep`) and the isometry `V`
-(`regularIsometry`) satisfy `E_y ‖(f(y) - Vᴴ g(y) V) ψ‖² ≤ E_{x,y} ‖(f(x) f(y) - f(xy)) ψ‖²`. -/
-theorem sum_norm_sub_compress_le (hf : ∀ x, (f x)ᴴ * f x = 1) (ψ : EuclideanSpace ℂ ι) :
-    (∑ y, ‖(WithLp.toLp 2 ((f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) *ᵥ
-      ψ.ofLp) :
-      EuclideanSpace ℂ ι)‖ ^ 2) / Fintype.card G ≤
-    (∑ x, ∑ y, ‖(WithLp.toLp 2 ((f x * f y - f (x * y)) *ᵥ ψ.ofLp) :
-      EuclideanSpace ℂ ι)‖ ^ 2) / (Fintype.card G) ^ 2 := by
-  have hc : (Fintype.card G : ℂ) ≠ 0 := by exact_mod_cast Fintype.card_ne_zero
-  have hf' : ∀ x, ((f x)ᴴ)ᴴ * (f x)ᴴ = 1 := fun x => by
-    rw [conjTranspose_conjTranspose]; exact mul_eq_one_comm.mp (hf x)
-  -- `f(y) - Vᴴ g(y) V = E_x f(x)ᴴ (f(x) f(y) - f(xy))`.
-  have hdiff : ∀ y, f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
-      ((Fintype.card G : ℂ))⁻¹ • ∑ x, (f x)ᴴ * (f x * f y - f (x * y)) := fun y => by
-    rw [regularIsometry_compress]
-    simp only [Matrix.mul_sub, ← Matrix.mul_assoc, hf, Matrix.one_mul, sum_sub_distrib, sum_const,
-      card_univ, smul_sub, ← Nat.cast_smul_eq_nsmul ℂ, smul_smul, inv_mul_cancel₀ hc, one_smul]
-  have key : ∀ y, ‖(WithLp.toLp 2 ((f y - (regularIsometry f)ᴴ * regularRep y *
-      regularIsometry f) *ᵥ
-      ψ.ofLp) : EuclideanSpace ℂ ι)‖ ^ 2 ≤ ((Fintype.card G : ℝ))⁻¹ *
-      ∑ x, ‖(WithLp.toLp 2 ((f x * f y - f (x * y)) *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)‖ ^ 2 := by
-    intro y
-    have hw : (WithLp.toLp 2 ((f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) *ᵥ
-        ψ.ofLp) :
-        EuclideanSpace ℂ ι) = ((Fintype.card G : ℂ))⁻¹ • ∑ x, (WithLp.toLp 2
-          ((f x)ᴴ *ᵥ ((f x * f y - f (x * y)) *ᵥ ψ.ofLp)) : EuclideanSpace ℂ ι) := by
-      rw [hdiff, smul_mulVec, sum_mulVec, WithLp.toLp_smul, WithLp.toLp_sum]
-      simp only [mulVec_mulVec]
-    rw [hw]
-    refine (norm_avg_sq_le _).trans (le_of_eq ?_)
-    congr 1
-    refine sum_congr rfl fun x _ => ?_
-    have := Matrix.norm_toLp_mulVec_of_conjTranspose_mul_self (hf' x)
-      (WithLp.toLp 2 ((f x * f y - f (x * y)) *ᵥ ψ.ofLp))
-    rw [WithLp.ofLp_toLp] at this
-    rw [this]
-  have hcR : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  calc (∑ y, ‖(WithLp.toLp 2 ((f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) *ᵥ
-        ψ.ofLp) : EuclideanSpace ℂ ι)‖ ^ 2) / Fintype.card G
-      ≤ (∑ y, ((Fintype.card G : ℝ))⁻¹ * ∑ x, ‖(WithLp.toLp 2 ((f x * f y - f (x * y)) *ᵥ
-          ψ.ofLp) : EuclideanSpace ℂ ι)‖ ^ 2) / Fintype.card G :=
-        div_le_div_of_nonneg_right (sum_le_sum fun y _ => key y) hcR.le
-    _ = _ := by
-      rw [← mul_sum, sum_comm]
-      field_simp
+`f(x)`, the exact representation `g` (`regularRep`) and the isometry `V` (`regularIsometry`)
+satisfy, in every state `φ`,
+`E_y ‖f(y) - Vᴴ g(y) V‖²_φ ≤ E_{x,y} ‖f(x) f(y) - f(xy)‖²_φ`. -/
+theorem expect_norm_sub_compress_sq_le (φ : AlgState (Matrix ι ι ℂ))
+    (hf : ∀ x, (f x)ᴴ * f x = 1) :
+    𝔼 y, φ.norm (f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) ^ 2 ≤
+      𝔼 x, 𝔼 y, φ.norm (f x * f y - f (x * y)) ^ 2 := by
+  rw [expect_comm]
+  refine expect_le_expect fun y _ => ?_
+  have hdiff : f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f =
+      𝔼 x, (f x)ᴴ * (f x * f y - f (x * y)) := by
+    simp only [regularIsometry_compress, Matrix.mul_sub, ← Matrix.mul_assoc, hf,
+      Matrix.one_mul, expect_sub_distrib, expect_const univ_nonempty]
+  rw [hdiff]
+  exact φ.norm_expect_mul_sq_le _ fun x _ => by
+    rw [star_eq_conjTranspose, conjTranspose_conjTranspose, mul_eq_one_comm.mp (hf x)]
 
 open scoped MatrixOrder in
-/-- **Compression of the regular representation in the state calculus**: for the vector state
-of a unit vector `ψ`, `E_y ‖f(y) - Vᴴ g(y) V‖²_ψ ≤ E_{x,y} ‖f(x) f(y) - f(xy)‖²_ψ`. -/
+/-- The compression bound in a vector state, with sums: for a unit vector `ψ`,
+`E_y ‖f(y) - Vᴴ g(y) V‖²_ψ ≤ E_{x,y} ‖f(x) f(y) - f(xy)‖²_ψ`. -/
 theorem sum_vector_norm_sub_compress_le (hf : ∀ x, (f x)ᴴ * f x = 1) (ψ : EuclideanSpace ℂ ι)
     (hψ : ‖ψ‖ = 1) :
     (∑ y, (AlgState.vector ψ hψ).norm
         (f y - (regularIsometry f)ᴴ * regularRep y * regularIsometry f) ^ 2) / Fintype.card G ≤
       (∑ x, ∑ y, (AlgState.vector ψ hψ).norm (f x * f y - f (x * y)) ^ 2) /
         (Fintype.card G) ^ 2 := by
-  simp only [AlgState.norm_vector]
-  exact sum_norm_sub_compress_le f hf ψ
+  have h := expect_norm_sub_compress_sq_le f (AlgState.vector ψ hψ) hf
+  simp only [Fintype.expect_eq_sum_div_card, ← sum_div] at h
+  rwa [div_div, ← sq] at h
 
-/-- **Exact representations are recovered exactly**: if the unitaries `f(x)` multiply like `G` on
-the vector `ψ`, then `f(y) ψ = Vᴴ g(y) V ψ` for every `y`. -/
-theorem mulVec_eq_compress_of_mul (hf : ∀ x, (f x)ᴴ * f x = 1) (ψ : EuclideanSpace ℂ ι)
-    (hrep : ∀ x y, (f x * f y) *ᵥ ψ.ofLp = f (x * y) *ᵥ ψ.ofLp) (y : G) :
-    f y *ᵥ ψ.ofLp = ((regularIsometry f)ᴴ * regularRep y * regularIsometry f) *ᵥ ψ.ofLp := by
-  have h := sum_norm_sub_compress_le f hf ψ
-  simp only [sub_mulVec, hrep, sub_self, WithLp.toLp_zero, _root_.norm_zero, ne_eq,
-    OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, sum_const_zero, zero_div] at h
-  have hc : (0 : ℝ) < Fintype.card G := by exact_mod_cast Fintype.card_pos
-  rw [div_le_iff₀ hc, zero_mul] at h
-  have hsum := (sum_eq_zero_iff_of_nonneg fun _ _ => by positivity).mp
-    (le_antisymm h (by positivity)) y (mem_univ y)
-  rw [pow_eq_zero_iff two_ne_zero, norm_eq_zero, WithLp.toLp_eq_zero] at hsum
-  exact sub_eq_zero.mp hsum
+/-- **Exact representations are recovered exactly**: if the unitaries `f(x)` multiply like `G`,
+then `Vᴴ g(y) V = f(y)` for every `y`. -/
+theorem compress_eq_of_mul (hf : ∀ x, (f x)ᴴ * f x = 1) (hrep : ∀ x y, f x * f y = f (x * y))
+    (y : G) : (regularIsometry f)ᴴ * regularRep y * regularIsometry f = f y := by
+  simp only [regularIsometry_compress, ← hrep, ← Matrix.mul_assoc, hf, Matrix.one_mul,
+    expect_const univ_nonempty]
 
 end Cslib.Quantum
