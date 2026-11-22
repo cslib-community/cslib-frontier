@@ -123,10 +123,7 @@ lemma getD_applyTapes (ts : List Tape) (as : List TapeAct) {i : ℕ} (hi : i < t
       · simp [applyTapes]
       · simpa [applyTapes] using ih as (by simpa using hi)
 
--- vendored: `length_step_workTapes`, `step_tape` and `head_apply` are public for visited-space
--- excursion tracking (`Universal/PolySpace.lean`)
-/-- A simulation step preserves the number of work tapes. -/
-public lemma length_step_workTapes (d : Desc) (x : List ℕ) (c : SCfg) :
+lemma length_step_workTapes (d : Desc) (x : List ℕ) (c : SCfg) :
     (step d x c).1.workTapes.length = c.workTapes.length := by
   rw [step_eq_stepWith, stepWith]
   repeat' split
@@ -143,7 +140,8 @@ public lemma Act.apply_tape (a : Act) (x : List ℕ) (c : SCfg) (i : ℕ) :
     rw [Tape.apply_none_zero, List.getD_eq_default _ _ hi, List.getD_eq_default _ _
       (by simpa [Act.apply, length_applyTapes_eq] using hi)]
 
--- vendored: derived from `Act.apply_tape` (review of #4180)
+-- vendored: derived from `Act.apply_tape` (review of #4180); `step_tape` and `head_apply` are
+-- public for visited-space excursion tracking (`Universal/PolySpace.lean`)
 /-- A step applies an action to every work tape. -/
 public lemma step_tape (d : Desc) (x : List ℕ) (c : SCfg) (i : ℕ) :
     ∃ a, (step d x c).1.workTapes.getD i .blank = (c.workTapes.getD i .blank).apply a := by
