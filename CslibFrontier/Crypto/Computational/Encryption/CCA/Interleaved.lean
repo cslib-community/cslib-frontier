@@ -22,7 +22,6 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Automation
 import CslibFrontier.Computability.Probabilistic.Adaptive
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
-import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Computational.Encryption.DecryptionBound
@@ -962,7 +961,7 @@ noncomputable def interleavedToSingle {Msg : Type} [Inhabited Msg]
   guess n state ct :=
     (interleavedToSingleAt valid encrypt decBound adversary 0).guess n state ct
 
-private theorem isOraclePPTOn_run_multiPhase2FilterHandler {α β : Type}
+private theorem isOraclePPTOn_filterInterleaved {α β : Type}
     {Eα : α ↪ List Bool} {EOut : β ↪ List Bool}
     {decBound : ℕ → List Bool → ℕ} {nOf : α → ℕ}
     {prog : α × InterleavedLoopState → WordOracleComp Unit β}
@@ -976,22 +975,12 @@ private theorem isOraclePPTOn_run_multiPhase2FilterHandler {α β : Type}
           (OracleComp.sumHandler
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (multiPhase2FilterHandler (decBound (nOf a.1)) a.2.2.2))
-          (prog a)).run ()) := by
-  refine (hprog.run_interpret_preprocess_open (operationEncoding := encFinEnum Unit)
-    (stateEncoding := encFinEnum Unit)
-    (prepare := id) (initial := fun _ => ()) (resources := fun a req => decBound (nOf a.1) req)
-    ComputableInPolyTime.id'
-    (by
-      dsimp only [multiPhase2FilterHandler, encInterleavedLoopState]
-      exact IsOraclePPTOn.cond (by fun_prop) (by fun_prop)
-        ((IsOraclePPTOn.query_take (Operation := Unit) () (by fun_prop) (by fun_prop)).map_with
-          (by fun_prop)))
-    (by fun_prop) (fun _ _ => True) (fun _ => trivial) (by fun_prop)
-    fun _ _ _ _ _ hresult => ?_).map (ComputableInPolyTime.fst _ _)
-  dsimp only [multiPhase2FilterHandler] at hresult
-  split_ifs at hresult
-  · supp_cases hresult; exact ⟨trivial, Nat.zero_le _, Nat.le_add_right _ _⟩
-  · supp_cases hresult; exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩
+          (prog a)).run ()) :=
+  (isOraclePPTOn_run_multiPhase2FilterHandler
+    (ECaller := encPair Eα encInterleavedLoopState) (EOut := EOut)
+    (cap := fun a req => decBound (nOf a.1) req) (cts := fun a => a.2.2.2)
+    (by fun_prop) (by dsimp only [encInterleavedLoopState]; fun_prop) hprog).map
+    (ComputableInPolyTime.fst _ _)
 
 private theorem mem_support_of_mem_support_run_interpret {α : Type}
     (handler : Unit × List Bool → StateT Unit (WordOracleComp Unit) (List Bool))
@@ -1054,7 +1043,7 @@ private theorem isOraclePPTOn_interleavedOpenRoundStep {Msg : Type} [Inhabited M
       encInterleavedLoopState
       (fun p : (ℕ × List Bool) × InterleavedLoopState =>
         interleavedOpenRoundStep valid encrypt decBound adversary roundBit p.1.1 p.1.2 p.2) :=
-  isOraclePPTOn_run_multiPhase2FilterHandler (nOf := Prod.fst) (by fun_prop) hdecBound
+  isOraclePPTOn_filterInterleaved (nOf := Prod.fst) (by fun_prop) hdecBound
     (isOraclePPTOn_interleavedInnerRound hvalid hencrypt hdecBound hA roundBit)
 
 /-- Input encoding for the round-iteration tuple `(count, (n, pk), initSt)`. -/
@@ -1256,7 +1245,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_choose {Msg : Type} [Inhabit
             (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
             (multiPhase2FilterHandler (decBound p.1.1.1) p.2.2.2))
           (adversary.step p.1.1.1 p.1.1.2 p.2.1 p.2.2.1)).run ()) :=
-    isOraclePPTOn_run_multiPhase2FilterHandler (Eα := ECaller) (nOf := fun c => c.1.1)
+    isOraclePPTOn_filterInterleaved (Eα := ECaller) (nOf := fun c => c.1.1)
       (by dsimp only [ECaller]; fun_prop) hdecBound
       (hA.step.preprocess
         (prepare := fun p : ((ℕ × List Bool) × ℕ) × InterleavedLoopState =>
@@ -1316,7 +1305,7 @@ private theorem isOraclePPTOn_interleavedToSingleAt_guess {Msg : Type} [Inhabite
           (adversary.finish q.1.1
             (interleavedSingleStateDecoder.decode q.1.2.1).2.1
             q.2.1 q.2.2.1)).run ()) :=
-    isOraclePPTOn_run_multiPhase2FilterHandler (nOf := Prod.fst) (by fun_prop) hdecBound
+    isOraclePPTOn_filterInterleaved (nOf := Prod.fst) (by fun_prop) hdecBound
       (hA.finish.preprocess
         (prepare := fun q : (ℕ × List Bool × List Bool) × InterleavedLoopState =>
           (q.1.1, (interleavedSingleStateDecoder.decode q.1.2.1).2.1, q.2.1, q.2.2.1))

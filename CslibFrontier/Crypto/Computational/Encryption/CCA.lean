@@ -1404,6 +1404,45 @@ theorem isQueryBounded_multiPhase2FilterHandler (decBound : List Bool → ℕ)
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr
       (ProbOracleComp.IsQueryBounded.query ((), request.2))
 
+/-- Running a strict oracle PPT program through `multiPhase2FilterHandler` is uniformly strict
+oracle PPT whenever the reply-length cap and forbidden ciphertext list are computable in polynomial
+time from the caller's input. -/
+theorem isOraclePPTOn_run_multiPhase2FilterHandler {Caller β : Type}
+    {ECaller : Caller ↪ List Bool} {EOut : β ↪ List Bool}
+    {cap : Caller → List Bool → ℕ} {cts : Caller → List (List Bool)}
+    {prog : Caller → WordOracleComp Unit β}
+    (hcap : ComputableInPolyTime (fun p : Caller × List Bool => cap p.1 p.2)
+      (encPair ECaller encBits) encUnary)
+    (hcts : ComputableInPolyTime cts ECaller (encList encBits))
+    (hprog : IsOraclePPTOn (Operation := Unit) ECaller EOut prog) :
+    IsOraclePPTOn (Operation := Unit) ECaller (encPair EOut (encFinEnum Unit))
+      (fun a =>
+        (OracleComp.interpret
+          (OracleComp.sumHandler
+            (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
+            (multiPhase2FilterHandler (cap a) (cts a)))
+          (prog a)).run ()) := by
+  refine hprog.run_interpret_preprocess_open (operationEncoding := encFinEnum Unit)
+    (stateEncoding := encFinEnum Unit)
+    (prepare := id) (initial := fun _ => ()) (resources := cap)
+    ComputableInPolyTime.id'
+    (by
+      have hlim : ComputableInPolyTime
+          (fun x : Caller × (Unit × List Bool) × Unit => cap x.1 x.2.1.2)
+          (encHandlerCall ECaller (encFinEnum Unit) (encFinEnum Unit)) encUnary :=
+        hcap.comp (show ComputableInPolyTime (fun x => (x.1, x.2.1.2))
+          (encHandlerCall ECaller (encFinEnum Unit) (encFinEnum Unit)) _ by fun_prop)
+      dsimp only [multiPhase2FilterHandler]
+      exact IsOraclePPTOn.cond (by fun_prop) (by fun_prop)
+        ((IsOraclePPTOn.query_take (Operation := Unit) () (by fun_prop) hlim).map_with
+          (by fun_prop)))
+    (by fun_prop) (fun _ _ => True) (fun _ => trivial) hcap
+    fun _ _ _ _ _ hresult => ?_
+  dsimp only [multiPhase2FilterHandler] at hresult
+  split_ifs at hresult
+  · supp_cases hresult; exact ⟨trivial, Nat.zero_le _, Nat.le_add_right _ _⟩
+  · supp_cases hresult; exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩
+
 /-- Interpreting `multiPhase2FilterHandler` against `cca2Phase2Oracle` on `ct ∈ cts` has the exact
 same output distribution as running directly against `cca2MultiPhase2Oracle` on `cts`, whenever
 `decBound` upper-bounds every encoded decryption output length. -/
@@ -1618,42 +1657,20 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_guess {Msg : Type} [Inhabited Msg]
       (fun p =>
         (cca2MultiToSingleAt valid encrypt decBound adversary split).guess
           p.1 p.2.1 p.2.2) := by
-  have : ∀ {γ : Type} {enc : γ ↪ List Bool} {n : γ → ℕ} {req : γ → List Bool}
-      (hn : ComputableInPolyTime n enc encUnary) (hreq : ComputableInPolyTime req enc encBits),
-      ComputableInPolyTime (fun a => decBound (n a) (req a)) enc encUnary :=
-    fun hn hreq => hdecBound.comp (hn.prod hreq)
-  have hrun : IsOraclePPTOn (Operation := Unit) encGuessInput (encPair encBool (encFinEnum Unit))
-      (fun p : ℕ × List Bool × List Bool =>
-        (OracleComp.interpret
-          (OracleComp.sumHandler
-            (fun m => StateT.lift (ProbOracleComp.sample (ProbComp.unifFin m)))
-            (multiPhase2FilterHandler (decBound p.1)
-              ((multiCCA2StateDecoder.decode p.2.1).ctsFront ++
-                p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack)))
-          (adversary.guess p.1 (multiCCA2StateDecoder.decode p.2.1).stateA
-            ((multiCCA2StateDecoder.decode p.2.1).ctsFront ++
-              p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack))).run ()) :=
-    hA.guess.run_interpret_preprocess_open (operationEncoding := encFinEnum Unit)
+  have hrun := isOraclePPTOn_run_multiPhase2FilterHandler
+    (ECaller := encGuessInput) (EOut := encBool)
+    (cap := fun p req => decBound p.1 req)
+    (cts := fun p => (multiCCA2StateDecoder.decode p.2.1).ctsFront ++
+      p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack)
+    (hdecBound.comp (show ComputableInPolyTime (fun q => (q.1.1, q.2))
+      (encPair encGuessInput encBits) _ by fun_prop))
+    (by fun_prop)
+    (hA.guess.preprocess
       (prepare := fun p : ℕ × List Bool × List Bool =>
         (p.1, (multiCCA2StateDecoder.decode p.2.1).stateA,
           (multiCCA2StateDecoder.decode p.2.1).ctsFront ++
             p.2.2 :: (multiCCA2StateDecoder.decode p.2.1).ctsBack))
-      (initial := fun _ => ())
-      (resources := fun p req => decBound p.1 req)
-      (by fun_prop)
-      (by
-        dsimp only [multiPhase2FilterHandler]
-        exact IsOraclePPTOn.cond (by fun_prop) (by fun_prop)
-          ((IsOraclePPTOn.query_take (Operation := Unit) () (by fun_prop) (this (by fun_prop)
-            (by fun_prop))).map_with (by fun_prop)))
-      (by fun_prop) (fun _ _ => True) (fun _ => trivial) (this (by fun_prop) (by fun_prop))
-      (fun _ _ _ _ _ hresult => by
-        dsimp only [multiPhase2FilterHandler] at hresult
-        split_ifs at hresult
-        · supp_cases hresult
-          exact ⟨trivial, Nat.zero_le _, Nat.le_add_right _ _⟩
-        · supp_cases hresult
-          exact ⟨trivial, List.length_take_le _ _, Nat.le_add_right _ _⟩)
+      (by fun_prop))
   dsimp only [cca2MultiToSingleAt]
   fun_prop
 
