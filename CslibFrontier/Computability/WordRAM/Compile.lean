@@ -7,6 +7,7 @@ Authors: Erik Demaine, Samuel Schlesinger
 module
 -- upstream: candidate (based on edemaine/lean-trominoes @6d5b36c1)
 
+public import CslibFrontier.Computability.Program.Assemble
 public import CslibFrontier.Computability.WordRAM.Structured
 public import CslibFrontier.Computability.WordRAM.Time
 
@@ -20,6 +21,10 @@ absolute instruction indices:
 * `branch c pos neg` at `pc` becomes a branch on `c` to `pos`, then `neg`, then a jump past `pos`;
 * `loop c body` at `pc` becomes a branch on `c` to `body`, a jump past the loop, `body`, and a
   jump back to the branch.
+
+`Code.toGeneric` translates the syntax to `Cslib.Program.Code`. Ordinary operations and random
+draws are primitive operations of the generic instruction set, with `rand` faulting in its
+deterministic interpretation. The translation emits the same flat instructions at every label.
 
 Every structured execution is a run of the assembled program with exactly the same number of
 instructions (`Cslib.WordRAM.Exec.runs`). A complete program ends with a `halt`
@@ -85,9 +90,66 @@ theorem Code.length_assemble (c : Code B r) (pc : ℕ) : (c.assemble pc).length 
 /-- The complete program: the assembled structured program followed by `halt out`. -/
 def Code.program (c : Code B r) (out : Fin r) : Program B r := c.assemble 0 ++ [.halt out]
 
+/-- Primitive WordRAM instructions in the shared syntax, including random draws. -/
+abbrev GenericOp (B : Basis) (r : ℕ) := Op B r ⊕ (Fin r × Fin r)
+
+/-- The generic deterministic instruction set at a fixed word width. A random draw faults
+in deterministic execution. -/
+abbrev instructionSet (w : ℕ) (B : Basis) (r : ℕ) : Cslib.Program.InstructionSet where
+  Data := Data r
+  Op := GenericOp B r
+  Test := Cond r
+  eval
+    | .inl op, x => op.eval w x
+    | .inr _, _ => none
+  Holds := Cond.Holds
+
+/-- WordRAM instructions and deterministic step laws for generic assembly. -/
+abbrev flatMachine (w : ℕ) (B : Basis) (r : ℕ) :
+    Cslib.Program.FlatMachine (instructionSet w B r) where
+  Instr := Instr B r
+  op
+    | .inl op => .op op
+    | .inr (dst, src) => .rand dst src
+  goto := .jump
+  jumpIf := .branch
+  Step p s t := Next w p ⟨s.1, s.2⟩ ⟨t.1, t.2⟩
+  step_op := by
+    intro p pc op x y hp h
+    cases op with
+    | inl op => exact step_op (s := ⟨pc, x⟩) hp h
+    | inr regs => cases h
+  step_goto hp := step_jump hp
+  step_jumpIf_pos := by
+    intro p pc target cond x hp h
+    change cond.Holds x at h
+    simpa only [Next, h, ↓reduceIte] using step_branch (w := w) (s := ⟨pc, x⟩) hp
+  step_jumpIf_neg := by
+    intro p pc target cond x hp h
+    change ¬cond.Holds x at h
+    simpa only [Next, h, ↓reduceIte] using step_branch (w := w) (s := ⟨pc, x⟩) hp
+
+/-- Translate structured WordRAM syntax, including random draws, for generic assembly. -/
+def Code.toGeneric : Code B r → Cslib.Program.Code (GenericOp B r) (Cond r)
+  | .op o => .op (.inl o)
+  | .rand dst src => .op (.inr (dst, src))
+  | .seq c₁ c₂ => .seq c₁.toGeneric c₂.toGeneric
+  | .branch test pos neg => .branch test pos.toGeneric neg.toGeneric
+  | .loop test body => .loop test body.toGeneric
+
+/-- The generic translation preserves compiled code length. -/
+@[simp] theorem Code.size_toGeneric (c : Code B r) : c.toGeneric.size = c.size := by
+  induction c <;> simp_all [Code.toGeneric, Code.size]
+
+/-- The generic assembler emits exactly the existing WordRAM instructions. -/
+@[simp] theorem Code.assemble_toGeneric {w : ℕ} (c : Code B r) (pc : ℕ) :
+    c.toGeneric.assemble (flatMachine w B r) pc = c.assemble pc := by
+  induction c generalizing pc <;>
+    simp_all [Code.toGeneric, Code.assemble, Cslib.Program.Code.assemble, flatMachine]
+
 /-- `p` contains the program `q` starting at instruction index `base`. -/
 def Program.Contains (p : Program B r) (base : ℕ) (q : Program B r) : Prop :=
-  ∃ pre post, p = pre ++ q ++ post ∧ pre.length = base
+  Cslib.Program.Contains p base q
 
 namespace Program.Contains
 
@@ -98,17 +160,15 @@ theorem self (p : Program B r) : p.Contains 0 p := ⟨[], [], by simp, rfl⟩
 
 /-- If `p` contains `q₁ ++ q₂` at `base`, then `p` contains `q₁` at `base`. -/
 theorem append_left (h : p.Contains base (q₁ ++ q₂)) : p.Contains base q₁ :=
-  let ⟨pre, post, hp, hl⟩ := h
-  ⟨pre, q₂ ++ post, by simp [hp], hl⟩
+  Cslib.Program.Contains.append_left h
 
 /-- If `p` contains `q₁ ++ q₂` at `base`, then `p` contains `q₂` at `base + q₁.length`. -/
 theorem append_right (h : p.Contains base (q₁ ++ q₂)) : p.Contains (base + q₁.length) q₂ :=
-  let ⟨pre, post, hp, hl⟩ := h
-  ⟨pre ++ q₁, post, by simp [hp], by simp [hl]⟩
+  Cslib.Program.Contains.append_right h
 
 /-- If `p` contains `i :: q` at `base`, then `p` contains `q` at `base + 1`. -/
 theorem cons_tail {i : Instr B r} (h : p.Contains base (i :: q)) : p.Contains (base + 1) q :=
-  append_right (q₁ := [i]) h
+  Cslib.Program.Contains.cons_tail h
 
 /-- Indexing into `p` at `base + k` for `k < q.length` agrees with indexing into `q` at `k`. -/
 theorem getElem? (h : p.Contains base q) {k : ℕ} (hk : k < q.length) :
@@ -118,8 +178,8 @@ theorem getElem? (h : p.Contains base q) {k : ℕ} (hk : k < q.length) :
     List.getElem?_append_left hk]
 
 /-- If `p` contains `i :: q` at `base`, then instruction `base` of `p` is `i`. -/
-theorem head {i : Instr B r} (h : p.Contains base (i :: q)) : p[base]? = some i := by
-  simpa using h.getElem? (k := 0) (by simp)
+theorem head {i : Instr B r} (h : p.Contains base (i :: q)) : p[base]? = some i :=
+  Cslib.Program.Contains.head h
 
 end Program.Contains
 
@@ -129,56 +189,27 @@ section Runs
 
 variable {w : ℕ} {p : Program B r} {x : Data r} {pc : ℕ}
 
-private theorem next_jump {t : ℕ} (h : p[pc]? = some (.jump t)) :
-    Next w p ⟨pc, x⟩ ⟨t, x⟩ := step_jump h
-
-private theorem next_branch_pos {c : Cond r} {t : ℕ} (h : p[pc]? = some (.branch c t))
-    (hc : c.Holds x) : Next w p ⟨pc, x⟩ ⟨t, x⟩ := by
-  simpa [Next, hc] using step_branch (w := w) (s := ⟨pc, x⟩) h
-
-private theorem next_branch_neg {c : Cond r} {t : ℕ} (h : p[pc]? = some (.branch c t))
-    (hc : ¬c.Holds x) : Next w p ⟨pc, x⟩ ⟨pc + 1, x⟩ := by
-  simpa [Next, hc] using step_branch (w := w) (s := ⟨pc, x⟩) h
+private theorem Exec.toGeneric {c : Code B r} {y : Data r} {n : ℕ}
+    (h : Exec w c x y n) :
+    Cslib.Program.Exec (instructionSet w B r) c.toGeneric x y n := by
+  induction h with
+  | op h => exact .op h
+  | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
+  | branch_pos h _ ih => exact .branch_pos h ih
+  | branch_neg h _ ih => exact .branch_neg h ih
+  | loop_exit h => exact .loop_exit h
+  | loop_iter h _ _ ihb ihl => exact .loop_iter h ihb ihl
 
 /-- **Assembly is correct.** A structured execution is a run of any program containing the
 assembled structured program, from its first instruction to the instruction after it, with
 exactly the same number of instructions. -/
 theorem Exec.runs {c : Code B r} {y : Data r} {n : ℕ} (h : Exec w c x y n)
     (hp : p.Contains pc (c.assemble pc)) : Runs w p ⟨pc, x⟩ ⟨pc + c.size, y⟩ n := by
-  induction h generalizing pc with
-  | op ho =>
-    exact .single (step_op (s := ⟨pc, _⟩) hp.head ho)
-  | @seq c₁ c₂ x y z m n _ _ ih₁ ih₂ =>
-    have h₁ := ih₁ hp.append_left
-    have h₂ := ih₂ (pc := pc + c₁.size) (by simpa using hp.append_right)
-    simpa [Code.size, Nat.add_assoc] using h₁.trans h₂
-  | @branch_pos c pos neg x y n hc _ ih =>
-    have hb := next_branch_pos (w := w) hp.head hc
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
-    have hpos := ih hc'
-    have := Relation.RelatesInSteps.head _ _ _ _ hb hpos
-    simpa [Code.size, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using this
-  | @branch_neg c pos neg x y n hc _ ih =>
-    have hb := next_branch_neg (w := w) hp.head hc
-    have hneg := ih (pc := pc + 1) hp.cons_tail.append_left
-    have hj : Next w p ⟨pc + 1 + neg.size, y⟩ ⟨pc + neg.size + pos.size + 2, y⟩ :=
-      next_jump (by simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head)
-    have := (Relation.RelatesInSteps.head _ _ _ _ hb hneg).tail _ _ _ _ hj
-    simpa [Code.size, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using this
-  | @loop_exit c body x hc =>
-    have hb := next_branch_neg (w := w) hp.head hc
-    have hj : Next w p ⟨pc + 1, x⟩ ⟨pc + body.size + 3, x⟩ := next_jump hp.cons_tail.head
-    simpa [Code.size, Nat.add_assoc] using (Relation.RelatesInSteps.single hb).tail _ _ _ _ hj
-  | @loop_iter c body x y z m n hc _ _ ihb ihl =>
-    have hb := next_branch_pos (w := w) hp.head hc
-    have hbody := ihb (pc := pc + 2) (by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left)
-    have hj : Next w p ⟨pc + 2 + body.size, y⟩ ⟨pc, y⟩ :=
-      next_jump (by simpa using hp.cons_tail.cons_tail.append_right.head)
-    have hrest := ihl hp
-    have := ((Relation.RelatesInSteps.head _ _ _ _ hb hbody).tail _ _ _ _ hj).trans hrest
-    simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using this
+  obtain ⟨pre, post, rfl, rfl⟩ := hp
+  have run := h.toGeneric.runs (flatMachine w B r) pre post
+  rw [Code.assemble_toGeneric, Code.size_toGeneric] at run
+  exact run.map (r' := Next w (pre ++ c.assemble pre.length ++ post))
+    (fun s : ℕ × Data r => (⟨s.1, s.2⟩ : State r)) (fun _ _ hstep => hstep)
 
 /-- A structured execution followed by `halt out` is a halting run of the complete program, with
 one more instruction. -/

@@ -7,56 +7,51 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Arithmetic.Permanent.Projection
+public import CslibFrontier.Computability.Circuit.Arithmetic.Determinant
 public import CslibFrontier.Computability.Circuit.Formula
-import all CslibFrontier.Computability.Circuit.Arithmetic.Permanent.Projection
+import CslibFrontier.Computability.Circuit.Arithmetic.Permanent.Projection
 import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 
 /-!
 # Arithmetic formulas are projections of the permanent
 
-Every existing arithmetic formula `F : Formula (arithSignature K) n` computes a formal
-polynomial that is a projection of the generic permanent of dimension `F.size + 1`. Here `K`
-is any commutative semiring and size counts every operation node, including constants, with
-input leaves free. Substitution uses the existing `IsProjection`: each matrix entry is a
-variable or a scalar, without an extra scalar multiplier on the result.
+Every arithmetic formula `F : Formula (arithSignature K) n` computes a formal polynomial that
+is a projection of the generic permanent of dimension `F.size + 1`. Here `K` is any commutative
+semiring and `size` counts every operation node, including constants, with input leaves free.
+Substitution uses `IsProjection`: each matrix entry is a variable or a scalar, without an extra
+scalar multiplier on the result.
 
-This is the permanent's formula-simulation property
-[Orzel et al., Definition 1 and Lemma 4][OrzelSrinivasanTavenasYehudayoff2025]. The explicit
-linear bound and semiring generality are proved directly. That source uses fields of
-characteristic other than two and permits a nonzero scalar multiplier in projections. No
-characteristic restriction or multiplier is needed for formula simulation. Valiant's full
-VNP-hardness reduction and uniform construction runtime are separate, unproved obligations.
+This is the permanent's formula-simulation property [Valiant][Valiant1979Algebra;
+Orzel et al., Definition 1 and Lemma 4][OrzelSrinivasanTavenasYehudayoff2025].
+The explicit linear bound and semiring generality are proved directly. Orzel et al. work over
+fields of characteristic other than two and permit a nonzero scalar multiplier in projections;
+neither restriction nor multiplier is needed for formula simulation. Valiant's full
+`VNP`-hardness reduction and uniform construction runtime are not formalized here.
 
-The private invariant represents a polynomial by a permanent with one distinguished root,
-whose internal block has permanent `1`. Addition and multiplication combine two such matrices
-with one additional internal vertex. No new formula or complexity-class model is introduced.
+Each subformula is represented by a specialization matrix (`IsSubstMatrix`) on `Unit ⊕ α` with
+one distinguished root whose internal block on `α` has permanent `1`. Addition and multiplication
+combine two rooted matrices by adjoining one internal `Unit` vertex, and the final matrix is
+padded to dimension `F.size + 1` via `IsSubstMatrix.isProjection_permanent` and
+`isProjection_permanent_mono`.
 
 ## Main results
 
-* `Cslib.Circuits.Formula.isProjection_permanent`: dimension `F.size + 1` suffices.
-* `Cslib.Circuits.Formula.isProjection_permanent_toCircuit`: the existing formula compiler
-  computes the same polynomial.
-
-The closure of permanent projections under products and padding, with the private matrix
-description it rests on, is in
-`CslibFrontier.Computability.Circuit.Arithmetic.Permanent.Projection`. This module reads that
-description (`IsSubstMatrix`, `IsSubstEntry`) through `import all`, since it is proof plumbing
-rather than API.
+* `Cslib.Circuits.Formula.isProjection_permanent`: dimension `F.size + 1` suffices;
+  `Cslib.Circuits.Formula.isProjection_permanent_toCircuit` states the same bound for
+  `F.toCircuit.polynomial 0`.
 
 ## References
 
-* [I. Orzel et al.][OrzelSrinivasanTavenasYehudayoff2025], *The Algebraic Cost of a Boolean Sum*,
+* [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra]
+* [I. Orzel et al., *The Algebraic Cost of a Boolean Sum*][OrzelSrinivasanTavenasYehudayoff2025],
   Definition 1 (p. 47:3), Lemma 4 (p. 47:4) and projection conventions (p. 47:5)
-
-The rooted construction and proof adapt saved Complexitylib source at revision `5b8acca7`.
 -/
 
-@[expose] public section
+public section
 
 namespace Matrix
 
-open Equiv Equiv.Perm Finset Fintype
+open Equiv Equiv.Perm
 
 variable {m n : Type*} [Fintype m] [DecidableEq m] [Fintype n] [DecidableEq n]
 variable {R : Type*} [CommSemiring R]
@@ -64,19 +59,14 @@ variable {R : Type*} [CommSemiring R]
 /-- Involution on `(Unit ⊕ m) ⊕ (Unit ⊕ n)` swapping the two root elements `inl (inl ())` and
 `inr (inl ())`. -/
 private def swapRootEquiv (m n : Type*) :
-    ((Unit ⊕ m) ⊕ (Unit ⊕ n)) ≃ ((Unit ⊕ m) ⊕ (Unit ⊕ n)) where
-  toFun
+    ((Unit ⊕ m) ⊕ (Unit ⊕ n)) ≃ ((Unit ⊕ m) ⊕ (Unit ⊕ n)) :=
+  let f : (Unit ⊕ m) ⊕ (Unit ⊕ n) → (Unit ⊕ m) ⊕ (Unit ⊕ n)
     | .inl (.inl u) => .inr (.inl u)
     | .inl (.inr i) => .inl (.inr i)
     | .inr (.inl u) => .inl (.inl u)
     | .inr (.inr j) => .inr (.inr j)
-  invFun
-    | .inl (.inl u) => .inr (.inl u)
-    | .inl (.inr i) => .inl (.inr i)
-    | .inr (.inl u) => .inl (.inl u)
-    | .inr (.inr j) => .inr (.inr j)
-  left_inv x := by rcases x with (⟨⟨⟩⟩ | i) | (⟨⟨⟩⟩ | j) <;> rfl
-  right_inv x := by rcases x with (⟨⟨⟩⟩ | i) | (⟨⟨⟩⟩ | j) <;> rfl
+  have hf : Function.Involutive f := by rintro ((⟨⟨⟩⟩ | _) | (⟨⟨⟩⟩ | _)) <;> rfl
+  hf.toPerm
 
 /-- Rooted permanent multiplication block matrix on `Unit ⊕ (m ⊕ (Unit ⊕ n))`. -/
 private def rootedMul (M₁ : Matrix (Unit ⊕ m) (Unit ⊕ m) R) (M₂ : Matrix (Unit ⊕ n) (Unit ⊕ n) R) :
@@ -135,6 +125,7 @@ private theorem permanent_rootedAdd (M₁ : Matrix (Unit ⊕ m) (Unit ⊕ m) R)
     (h₁ : M₁.toBlocks₂₂.permanent = 1) (h₂ : M₂.toBlocks₂₂.permanent = 1) :
     (rootedAdd M₁ M₂).permanent = M₁.permanent + M₂.permanent := by
   rw [rootedAdd, permanent_submatrix_equiv]
+  let r : (Unit ⊕ m) ⊕ (Unit ⊕ n) := .inr (.inl ())
   let B₁ : Matrix ((Unit ⊕ m) ⊕ (Unit ⊕ n)) ((Unit ⊕ m) ⊕ (Unit ⊕ n)) R :=
     fromBlocks M₁ (fromBlocks M₂.toBlocks₁₁ M₂.toBlocks₁₂ 0 0) 0
       (fromBlocks (1 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂)
@@ -142,20 +133,13 @@ private theorem permanent_rootedAdd (M₁ : Matrix (Unit ⊕ m) (Unit ⊕ m) R)
     fromBlocks M₁ (fromBlocks M₂.toBlocks₁₁ M₂.toBlocks₁₂ 0 0)
       (fromBlocks (1 : Matrix Unit Unit R) 0 0 0)
       (fromBlocks (0 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂)
-  rw [permanent_add_of_row_eq _ B₁ B₂ (Sum.inr (Sum.inl ()))
-    (fun j => by rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> simp [B₁, B₂])
-    (fun i hi j => by
-      rcases i with (⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)
-      · rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> rfl
-      · rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> rfl
-      · exact (hi rfl).elim
-      · rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> rfl)
-    (fun i hi j => by
-      rcases i with (⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)
-      · rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> rfl
-      · rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> rfl
-      · exact (hi rfl).elim
-      · rcases j with (⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂) <;> rfl)]
+  have hsplit : fromBlocks M₁ (fromBlocks M₂.toBlocks₁₁ M₂.toBlocks₁₂ 0 0)
+        (fromBlocks (1 : Matrix Unit Unit R) 0 0 0)
+        (fromBlocks (1 : Matrix Unit Unit R) 0 M₂.toBlocks₂₁ M₂.toBlocks₂₂) =
+      B₁.updateRow r (B₁ r + B₂ r) := by
+    ext ((⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)) ((⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂)) <;> simp [B₁, B₂, r]
+  have hupd : B₁.updateRow r (B₂ r) = B₂ := by
+    ext ((⟨⟨⟩⟩ | i₁) | (⟨⟨⟩⟩ | i₂)) ((⟨⟨⟩⟩ | j₁) | (⟨⟨⟩⟩ | j₂)) <;> simp [B₁, B₂, r]
   have hB₁ : B₁.permanent = M₁.permanent := by
     rw [permanent_fromBlocks_zero₂₁, permanent_fromBlocks_zero₁₂, permanent_one, h₂, mul_one,
       mul_one]
@@ -167,17 +151,17 @@ private theorem permanent_rootedAdd (M₁ : Matrix (Unit ⊕ m) (Unit ⊕ m) R)
     rw [← permanent_submatrix_equiv_equiv (swapRootEquiv m n) (Equiv.refl _), hB₂_swap,
       permanent_fromBlocks_zero₁₂, permanent_fromBlocks_zero₁₂, permanent_one, h₁, mul_one,
       one_mul]
-  rw [hB₁, hB₂]
+  rw [hsplit, permanent_updateRow_add, updateRow_eq_self, hupd, hB₁, hB₂]
 
 end Matrix
 
 namespace Cslib.Circuits.Arithmetic
 
-open MvPolynomial Finset
+open MvPolynomial
 
 universe u
 
-variable {K : Type u} [CommSemiring K] {n m : ℕ} {σ : Type*}
+variable {K : Type u} [CommSemiring K] {n : ℕ} {σ : Type*}
 
 namespace IsSubstMatrix
 
@@ -193,125 +177,85 @@ private theorem rootedAdd {α β : Type*}
     {M₂ : Matrix (Unit ⊕ β) (Unit ⊕ β) (MvPolynomial σ K)}
     (h₁ : IsSubstMatrix M₁) (h₂ : IsSubstMatrix M₂) :
     IsSubstMatrix (Matrix.rootedAdd M₁ M₂) :=
-  (h₁.fromBlocks (h₂.toBlocks₁₁.fromBlocks h₂.toBlocks₁₂ .zero .zero)
+  (h₁.fromBlocks
+    ((h₂.submatrix Sum.inl Sum.inl).fromBlocks (h₂.submatrix Sum.inl Sum.inr) .zero .zero)
     (IsSubstMatrix.one.fromBlocks .zero .zero .zero)
-    (IsSubstMatrix.one.fromBlocks .zero h₂.toBlocks₂₁ h₂.toBlocks₂₂)).submatrix _ _
+    (IsSubstMatrix.one.fromBlocks .zero (h₂.submatrix Sum.inr Sum.inl)
+      (h₂.submatrix Sum.inr Sum.inr))).submatrix _ _
 
 end IsSubstMatrix
 
-/-- A polynomial `P` has a *rooted permanent representation* of internal dimension `m` if it is
-the permanent of a `(1 + m) × (1 + m)` specialization matrix `M` on `Unit ⊕ Fin m` whose internal
-block `M.toBlocks₂₂` has permanent `1`. -/
-private def IsRootedPermProjection (m : ℕ) (P : MvPolynomial σ K) : Prop :=
-  ∃ M : Matrix (Unit ⊕ Fin m) (Unit ⊕ Fin m) (MvPolynomial σ K),
+/-- A polynomial `P` has a *rooted permanent representation* on internal vertices `α` if it is the
+permanent of a specialization matrix `M` on `Unit ⊕ α` whose internal block `M.toBlocks₂₂` has
+permanent `1`. -/
+private def IsRootedPerm (α : Type) [Fintype α] [DecidableEq α] (P : MvPolynomial σ K) : Prop :=
+  ∃ M : Matrix (Unit ⊕ α) (Unit ⊕ α) (MvPolynomial σ K),
     IsSubstMatrix M ∧ M.toBlocks₂₂.permanent = 1 ∧ M.permanent = P
 
-namespace IsRootedPermProjection
-
-/-- A rooted permanent representation of internal dimension `m` gives a projection of the
-`(m + 1) × (m + 1)` generic permanent. -/
-private theorem to_isProjection_permanent {m : ℕ} {P : MvPolynomial σ K}
-    (h : IsRootedPermProjection m P) :
-    IsProjection P (genericMatrix K (m + 1)).permanent := by
-  obtain ⟨M, hM, -, rfl⟩ := h
-  have e : Fin (m + 1) ≃ Unit ⊕ Fin m :=
-    (finCongr (Nat.add_comm m 1)).trans
-      (finSumFinEquiv.symm.trans (Equiv.sumCongr finOneEquiv (Equiv.refl _)))
-  exact hM.isProjection_permanent e
+namespace IsRootedPerm
 
 /-- Every single-entry substitution `P` (a variable or constant) has a rooted permanent
-representation of internal dimension `0`. -/
+representation with empty internal block. -/
 private theorem of_isSubstEntry {P : MvPolynomial σ K} (hP : IsSubstEntry P) :
-    IsRootedPermProjection 0 P := by
+    IsRootedPerm Empty P := by
   refine ⟨Matrix.fromBlocks (Matrix.of fun _ _ => P) 0 0 0,
     IsSubstMatrix.fromBlocks (fun _ _ => hP) .zero .zero .zero,
     Matrix.permanent_isEmpty, ?_⟩
   rw [Matrix.permanent_fromBlocks_zero, Matrix.permanent_unique, Matrix.permanent_isEmpty, mul_one]
   rfl
 
-/-- Every constant `C c` has a rooted permanent representation of internal dimension `0`. -/
-private theorem C (c : K) : IsRootedPermProjection 0 (MvPolynomial.C c : MvPolynomial σ K) :=
-  .of_isSubstEntry (.C c)
-
-/-- Every variable `X i` has a rooted permanent representation of internal dimension `0`. -/
-private theorem X (i : σ) : IsRootedPermProjection 0 (MvPolynomial.X i : MvPolynomial σ K) :=
-  .of_isSubstEntry (.X i)
-
-/-- Equivalence `Fin (m₁ + 1 + m₂) ≃ Fin m₁ ⊕ (Unit ⊕ Fin m₂)` used to flatten internal blocks of
-rooted permanent representations. -/
-private def innerEquiv (m₁ m₂ : ℕ) : Fin (m₁ + 1 + m₂) ≃ Fin m₁ ⊕ (Unit ⊕ Fin m₂) :=
-  (finCongr (Nat.add_assoc m₁ 1 m₂)).trans
-    (finSumFinEquiv.symm.trans
-      (Equiv.sumCongr (Equiv.refl _)
-        (finSumFinEquiv.symm.trans (Equiv.sumCongr finOneEquiv (Equiv.refl _)))))
-
-/-- Equivalence `Unit ⊕ Fin (m₁ + 1 + m₂) ≃ Unit ⊕ (Fin m₁ ⊕ (Unit ⊕ Fin m₂))`. -/
-private def outerEquiv (m₁ m₂ : ℕ) :
-    Unit ⊕ Fin (m₁ + 1 + m₂) ≃ Unit ⊕ (Fin m₁ ⊕ (Unit ⊕ Fin m₂)) :=
-  Equiv.sumCongr (Equiv.refl Unit) (innerEquiv m₁ m₂)
-
-/-- **Additive closure of rooted permanent representations**: if `P` and `Q` have rooted permanent
-representations of internal dimensions `m₁` and `m₂`, then `P + Q` has one of internal dimension
-`m₁ + 1 + m₂`. -/
-private theorem add {m₁ m₂ : ℕ} {P Q : MvPolynomial σ K}
-    (hP : IsRootedPermProjection m₁ P) (hQ : IsRootedPermProjection m₂ Q) :
-    IsRootedPermProjection (m₁ + 1 + m₂) (P + Q) := by
+/-- Additive closure of rooted permanent representations, adjoining one internal vertex. -/
+private theorem add {α β : Type} [Fintype α] [DecidableEq α] [Fintype β] [DecidableEq β]
+    {P Q : MvPolynomial σ K} (hP : IsRootedPerm α P) (hQ : IsRootedPerm β Q) :
+    IsRootedPerm (α ⊕ (Unit ⊕ β)) (P + Q) := by
   obtain ⟨M₁, hM₁, hU₁, rfl⟩ := hP
   obtain ⟨M₂, hM₂, hU₂, rfl⟩ := hQ
-  refine ⟨(Matrix.rootedAdd M₁ M₂).submatrix (outerEquiv m₁ m₂) (outerEquiv m₁ m₂),
-    (hM₁.rootedAdd hM₂).submatrix _ _, ?_, ?_⟩
-  · have hblk : ((Matrix.rootedAdd M₁ M₂).submatrix
-        (outerEquiv m₁ m₂) (outerEquiv m₁ m₂)).toBlocks₂₂ =
-        (Matrix.rootedAdd M₁ M₂).toBlocks₂₂.submatrix (innerEquiv m₁ m₂) (innerEquiv m₁ m₂) := rfl
-    rw [hblk, Matrix.permanent_submatrix_equiv, Matrix.permanent_toBlocks₂₂_rootedAdd M₁ M₂ hU₁ hU₂]
-  · rw [Matrix.permanent_submatrix_equiv, Matrix.permanent_rootedAdd M₁ M₂ hU₁ hU₂]
+  exact ⟨Matrix.rootedAdd M₁ M₂, hM₁.rootedAdd hM₂,
+    Matrix.permanent_toBlocks₂₂_rootedAdd M₁ M₂ hU₁ hU₂,
+    Matrix.permanent_rootedAdd M₁ M₂ hU₁ hU₂⟩
 
-/-- **Multiplicative closure of rooted permanent representations**: if `P` and `Q` have rooted
-permanent representations of internal dimensions `m₁` and `m₂`, then `P * Q` has one of internal
-dimension `m₁ + 1 + m₂`. -/
-private theorem mul {m₁ m₂ : ℕ} {P Q : MvPolynomial σ K}
-    (hP : IsRootedPermProjection m₁ P) (hQ : IsRootedPermProjection m₂ Q) :
-    IsRootedPermProjection (m₁ + 1 + m₂) (P * Q) := by
+/-- Multiplicative closure of rooted permanent representations, adjoining one internal vertex. -/
+private theorem mul {α β : Type} [Fintype α] [DecidableEq α] [Fintype β] [DecidableEq β]
+    {P Q : MvPolynomial σ K} (hP : IsRootedPerm α P) (hQ : IsRootedPerm β Q) :
+    IsRootedPerm (α ⊕ (Unit ⊕ β)) (P * Q) := by
   obtain ⟨M₁, hM₁, hU₁, rfl⟩ := hP
   obtain ⟨M₂, hM₂, hU₂, rfl⟩ := hQ
-  refine ⟨(Matrix.rootedMul M₁ M₂).submatrix (outerEquiv m₁ m₂) (outerEquiv m₁ m₂),
-    (hM₁.rootedMul hM₂).submatrix _ _, ?_, ?_⟩
-  · have hblk : ((Matrix.rootedMul M₁ M₂).submatrix
-        (outerEquiv m₁ m₂) (outerEquiv m₁ m₂)).toBlocks₂₂ =
-        (Matrix.rootedMul M₁ M₂).toBlocks₂₂.submatrix (innerEquiv m₁ m₂) (innerEquiv m₁ m₂) := rfl
-    rw [hblk, Matrix.permanent_submatrix_equiv, Matrix.permanent_toBlocks₂₂_rootedMul M₁ M₂ hU₁ hU₂]
-  · rw [Matrix.permanent_submatrix_equiv, Matrix.permanent_rootedMul M₁ M₂]
+  exact ⟨Matrix.rootedMul M₁ M₂, hM₁.rootedMul hM₂,
+    Matrix.permanent_toBlocks₂₂_rootedMul M₁ M₂ hU₁ hU₂,
+    Matrix.permanent_rootedMul M₁ M₂⟩
 
-end IsRootedPermProjection
+end IsRootedPerm
 
-/-- Every arithmetic formula `F` computes a polynomial with a rooted permanent representation of
-internal dimension at most `F.size`. -/
-private theorem _root_.Cslib.Circuits.Formula.exists_isRootedPermProjection
+omit [CommSemiring K] in
+private theorem card_sum_unit_le_size {α₀ α₁ : Type} [Fintype α₀] [Fintype α₁]
+    (args : Fin 2 → Formula (arithSignature K) n)
+    (h₀ : Fintype.card α₀ ≤ (args 0).size) (h₁ : Fintype.card α₁ ≤ (args 1).size) :
+    Fintype.card (α₀ ⊕ (Unit ⊕ α₁)) ≤ (∑ j : Fin 2, (args j).size) + 1 := by
+  simp only [Fintype.card_sum, Fintype.card_unique, Fin.sum_univ_two]
+  omega
+
+/-- Every arithmetic formula `F` computes a polynomial with a rooted permanent representation on
+at most `F.size` internal vertices. -/
+private theorem _root_.Cslib.Circuits.Formula.exists_isRootedPerm
     (F : Formula (arithSignature K) n) :
-    ∃ m ≤ F.size, IsRootedPermProjection m (F.eval (arithInterpretationWith K C) X) := by
+    ∃ (α : Type) (_ : Fintype α) (_ : DecidableEq α),
+      Fintype.card α ≤ F.size ∧
+      IsRootedPerm α (F.eval (arithInterpretationWith K C) X) := by
   induction F with
   | input i =>
-    exact ⟨0, le_rfl, .X i⟩
+    exact ⟨Empty, inferInstance, inferInstance, le_rfl, .of_isSubstEntry (.X i)⟩
   | gate op args ih =>
     cases op with
     | const c =>
-      exact ⟨0, Nat.zero_le _, .C c⟩
+      exact ⟨Empty, inferInstance, inferInstance, Nat.zero_le _, .of_isSubstEntry (.C c)⟩
     | add =>
-      obtain ⟨m₀, hm₀, h₀⟩ := ih 0
-      obtain ⟨m₁, hm₁, h₁⟩ := ih 1
-      refine ⟨m₀ + 1 + m₁, ?_, h₀.add h₁⟩
-      rw [Formula.size_gate]
-      change m₀ + 1 + m₁ ≤ (∑ j : Fin 2, (args j).size) + 1
-      rw [Fin.sum_univ_two]
-      omega
+      obtain ⟨α₀, _, _, h₀, hM₀⟩ := ih 0
+      obtain ⟨α₁, _, _, h₁, hM₁⟩ := ih 1
+      exact ⟨_, inferInstance, inferInstance, card_sum_unit_le_size args h₀ h₁, hM₀.add hM₁⟩
     | mul =>
-      obtain ⟨m₀, hm₀, h₀⟩ := ih 0
-      obtain ⟨m₁, hm₁, h₁⟩ := ih 1
-      refine ⟨m₀ + 1 + m₁, ?_, h₀.mul h₁⟩
-      rw [Formula.size_gate]
-      change m₀ + 1 + m₁ ≤ (∑ j : Fin 2, (args j).size) + 1
-      rw [Fin.sum_univ_two]
-      omega
+      obtain ⟨α₀, _, _, h₀, hM₀⟩ := ih 0
+      obtain ⟨α₁, _, _, h₁, hM₁⟩ := ih 1
+      exact ⟨_, inferInstance, inferInstance, card_sum_unit_le_size args h₀ h₁, hM₀.mul hM₁⟩
 
 /-- **Formula universality for the permanent**: the formal polynomial computed by an
 arithmetic formula `F` is a projection of the `(F.size + 1) × (F.size + 1)` generic permanent.
@@ -322,8 +266,11 @@ theorem _root_.Cslib.Circuits.Formula.isProjection_permanent
     (F : Formula (arithSignature K) n) :
     IsProjection (F.eval (arithInterpretationWith K C) X)
       (genericMatrix K (F.size + 1)).permanent := by
-  obtain ⟨m, hm, hroot⟩ := F.exists_isRootedPermProjection
-  exact isProjection_permanent_mono (Nat.add_le_add_right hm 1) hroot.to_isProjection_permanent
+  obtain ⟨α, _, _, hα, M, hM, -, hperm⟩ := F.exists_isRootedPerm
+  rw [← hperm]
+  refine isProjection_permanent_mono ?_ hM.isProjection_permanent
+  simp only [Fintype.card_sum, Fintype.card_unique]
+  omega
 
 /-- The formal polynomial `(F.toCircuit).polynomial 0` of any arithmetic formula `F` is a
 projection of `(genericMatrix K (F.size + 1)).permanent`. -/
