@@ -48,6 +48,8 @@ registers that the loop does not hold.
 
 * `Turing.MultiTapeTM.ComputableInSpace.loopWith`: a loop whose body is any function of stored
   registers and the input, within the space of the body and of the registers.
+* `Turing.MultiTapeTM.ComputableInSpace.loopWith_of_invariant`: the same from an invariant with a
+  decreasing variant, which gives termination, the bound on the body and the result.
 * `Turing.MultiTapeTM.ComputableInSpace.comp_logSpace_context`: a budgeted function after a
   logspace rearrangement of registers and context, in context form.
 * `Turing.MultiTapeTM.ComputableInLogSpace.inSpace_context`: a logspace function of registers and
@@ -322,6 +324,14 @@ private theorem log2_add_le (u v : ℕ) : Nat.log2 (u + v) ≤ u + Nat.log2 v + 
           (Nat.pow_le_pow_right (by norm_num) (by omega))
       _ = 2 ^ (u + Nat.log2 v + 1 + 1) := by rw [pow_succ]; ring
 
+/-- The logarithm of the length of an encoded pair is within the length of its first component
+plus the logarithm of the length of the second. -/
+theorem _root_.Turing.MultiTapeTM.log2_length_encPair_le {α ρ : Type} (encR : ρ ↪ List Bool)
+    (encA : α ↪ List Bool) (p : ρ × α) : Nat.log2 (encPair encR encA p).length ≤
+      2 * (encR p.1).length + Nat.log2 (encA p.2).length + 2 := by
+  rw [length_encPair]
+  exact (log2_add_le _ _).trans (by omega)
+
 /-- **A budgeted function after a logspace rearrangement of registers and context.** If `g` is
 computable within the budget `Sg`, `f` is a logspace function of stored registers and a context,
 and the budget of `g` at `f p` is within the registers plus a budget `S` of the context that is at
@@ -340,10 +350,9 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.comp_logSpace_context
     ComputableInSpace (fun p => g (f p)) (encPair encR encA) encC
       fun p => (encR p.1).length + S p.2 :=
   (hg.comp_logSpace hf).weaken (.add hS ⟨3, fun p => by
-    have h := log2_add_le (2 * (encR p.1).length + 1) (encA p.2).length
+    have h := log2_length_encPair_le encR encA p
     have := hlog p.2
     dsimp only
-    rw [length_encPair]
     omega⟩)
 
 /-- **A logspace function of stored registers and the input, with a short value, in context
@@ -477,5 +486,60 @@ theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith {α ρ : Type} {enc
           2 * (C * (c * L + 2 * (c₀ * L + c * L) + 3 * L)) := by ring
     rw [h₃]
     omega
+
+/-- **A loop over stored registers and the input, from an invariant with a variant.** As
+`Turing.MultiTapeTM.ComputableInSpace.loopWith`, with the registers of every round replaced by an
+invariant `Inv a m r` of the registers `r` on the input `a`, indexed by a variant `m`: it holds
+at the start, a round keeps it with a smaller variant, it bounds the budget of the body, and
+where the body stops it determines the registers as `f a`. Then `f` is computable within space
+`O(S + B + log n)`. -/
+theorem _root_.Turing.MultiTapeTM.ComputableInSpace.loopWith_of_invariant {α ρ : Type}
+    {encA : α ↪ List Bool} {encR : ρ ↪ List Bool} {step : ρ × α → Option ρ} {init f : α → ρ}
+    {S B : α → ℕ} {T : ρ × α → ℕ} (Inv : α → ℕ → ρ → Prop)
+    (hinit : ComputableInSpace init encA encR S)
+    (hstep : ComputableInSpace step (encPair encR encA) (encOption encR) T)
+    (h0 : ∀ a, ∃ m, Inv a m (init a))
+    (hround : ∀ a m r r', Inv a m r → step (r, a) = some r' → ∃ m' < m, Inv a m' r')
+    (hstop : ∀ a m r, Inv a m r → step (r, a) = none → r = f a)
+    (hT : ∀ a m r, Inv a m r → T (r, a) ≤ B a) :
+    ComputableInSpace f encA encR fun a => S a + B a + Nat.log2 (encA a).length := by
+  classical
+  -- a round that stays at the registers where the body stops
+  let G (a : α) (r : ρ) : ρ := (step (r, a)).getD r
+  have hex (a : α) : ∀ m r, Inv a m r → ∃ N, step ((G a)^[N] r, a) = none ∧
+      (∀ j < N, (step ((G a)^[j] r, a)).isSome) ∧ ∀ j ≤ N, ∃ m', Inv a m' ((G a)^[j] r) := by
+    intro m
+    induction m using Nat.strong_induction_on with
+    | _ m ih =>
+      intro r hr
+      cases hs : step (r, a) with
+      | none =>
+        exact ⟨0, hs, fun j hj => absurd hj (Nat.not_lt_zero _), fun j hj => by
+          obtain rfl : j = 0 := Nat.le_zero.mp hj
+          exact ⟨m, hr⟩⟩
+      | some r' =>
+        obtain ⟨m', hm', hr'⟩ := hround a m r r' hr hs
+        obtain ⟨N, hN, hlt, hinv⟩ := ih m' hm' r' hr'
+        have hG : G a r = r' := by simp only [G, hs, Option.getD_some]
+        refine ⟨N + 1, by rwa [Function.iterate_succ_apply, hG], fun j hj => ?_, fun j hj => ?_⟩
+        · rcases j with _ | j
+          · simp only [Function.iterate_zero, id_eq, hs, Option.isSome_some]
+          · rw [Function.iterate_succ_apply, hG]
+            exact hlt j (by omega)
+        · rcases j with _ | j
+          · exact ⟨m, hr⟩
+          · rw [Function.iterate_succ_apply, hG]
+            exact hinv j (by omega)
+  choose m₀ hm₀ using h0
+  choose N hN hlt hinv using fun a => hex a (m₀ a) (init a) (hm₀ a)
+  refine (ComputableInSpace.loopWith (fun a j => (G a)^[j] (init a)) N hinit hstep
+    (fun _ => rfl) (fun a j hj => ?_) hN fun a j hj => ?_).of_enc_eq fun a => ?_
+  · obtain ⟨r', hr'⟩ := Option.isSome_iff_exists.mp (hlt a j hj)
+    rw [Function.iterate_succ_apply', hr']
+    simp only [G, hr', Option.getD_some]
+  · obtain ⟨m', hm'⟩ := hinv a j hj
+    exact hT a m' _ hm'
+  · obtain ⟨m', hm'⟩ := hinv a (N a) le_rfl
+    rw [hstop a m' _ hm' (hN a)]
 
 end Turing.MultiTapeTM.StoredLoop
