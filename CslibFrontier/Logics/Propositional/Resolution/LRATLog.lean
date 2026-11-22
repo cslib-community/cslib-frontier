@@ -198,72 +198,42 @@ theorem chunkGet_chunkIndexOf {α : Type} : ∀ (db : List (ℕ × α)) (i : ℕ
 
 /-! ### Hints built by resolution -/
 
-/-- A hinted clause whose literals other than `l` are false propagates `l`. -/
+/-- A hinted clause whose literals other than `l` are false propagates `l`: the shared rule
+`Cslib.Logic.PL.CNF.propagateHints_cons_of_forall_ne`, with propagation from `l` succeeding. -/
 theorem propagateHints_cons_unit {db : List (ℕ × Clause ℕ)} {t : List (Literal ℕ)} {r : ℕ}
     {hs : List ℕ} {R : Clause ℕ} {l : Literal ℕ} (hR : db.find? (·.1 == r) = some (r, R))
     (hfalse : ∀ y ∈ R, y ≠ l → y.negate ∈ t) (h : propagateHints db (l :: t) hs = true) :
-    propagateHints db t (r :: hs) = true := by
-  rw [propagateHints_cons, hR]
-  dsimp only
-  have hopen : ∀ y ∈ R.filter (fun y => !t.contains y.negate), y = l := fun y hy => by
-    obtain ⟨hy, hyt⟩ := List.mem_filter.1 hy
-    by_contra hne
-    exact absurd (hfalse y hy hne) (by simpa using hyt)
-  split
-  · rfl
-  · rename_i a as has
-    obtain rfl : a = l := hopen a (has ▸ List.mem_cons_self)
-    rw [ite_eq_left (List.all_eq_true.2 fun y hy => by
-      simpa using hopen y (has ▸ List.mem_cons_of_mem _ hy))]
-    exact h
+    propagateHints db t (r :: hs) = true :=
+  propagateHints_cons_of_forall_ne hR hfalse fun _ _ => h
 
-/-- **Unit propagation along hints succeeds from more literals.** -/
+/-- **Unit propagation along hints succeeds from more literals.** A clause with no open literal
+from `t` has none from `t'`, and one with the single open literal `l` from `t` has its other
+literals false under `t'`, so the shared rule applies. -/
 theorem propagateHints_mono {db : List (ℕ × Clause ℕ)} :
     ∀ {t t' : List (Literal ℕ)} {hs : List ℕ}, (∀ l ∈ t, l ∈ t') →
       propagateHints db t hs = true → propagateHints db t' hs = true
   | _, _, [], _, h => by simp [propagateHints_nil] at h
   | t, t', i :: hs, ht, h => by
-    rw [propagateHints_cons] at h ⊢
+    rw [propagateHints_cons] at h
     cases hf : db.find? (·.1 == i) with
     | none => simp [hf] at h
     | some e =>
-      simp only [hf] at h ⊢
-      -- the literals left open from `t'` are left open from `t`
-      have hsub : ∀ y ∈ e.2.filter (fun y => !t'.contains y.negate),
-          y ∈ e.2.filter (fun y => !t.contains y.negate) := fun y hy => by
-        obtain ⟨hy, hyt⟩ := List.mem_filter.1 hy
-        refine List.mem_filter.2 ⟨hy, ?_⟩
-        cases hc : t.contains y.negate
-        · rfl
-        · exact absurd (ht _ (List.contains_iff_mem.1 hc)) (by simpa using hyt)
-      split at h
-      · rename_i hnil
-        have : e.2.filter (fun y => !t'.contains y.negate) = [] :=
-          List.eq_nil_iff_forall_not_mem.2 fun y hy => by
-            have := hsub y hy
-            rw [hnil] at this
-            exact absurd this List.not_mem_nil
-        rw [this]
-      · rename_i l ls hls
-        split at h
-        · rename_i hall
-          have hl : ∀ y ∈ e.2.filter (fun y => !t'.contains y.negate), y = l := fun y hy => by
-            have := hsub y hy
-            rw [hls] at this
-            rcases List.mem_cons.1 this with rfl | h'
-            · rfl
-            · simpa using List.all_eq_true.1 hall y h'
-          split
-          · rfl
-          · rename_i a as has
-            obtain rfl : a = l := hl a (has ▸ List.mem_cons_self)
-            rw [ite_eq_left (List.all_eq_true.2 fun y hy => by
-              simpa using hl y (has ▸ List.mem_cons_of_mem _ hy))]
-            exact propagateHints_mono (fun x hx => by
-              rcases List.mem_cons.1 hx with rfl | hx
-              · exact List.mem_cons_self
-              · exact List.mem_cons_of_mem _ (ht x hx)) h
-        · simp at h
+      simp only [hf] at h
+      cases hr : e.2.residual t with
+      | empty =>
+        have hall := Clause.residual_eq_empty_iff.1 hr
+        exact propagateHints_cons_of_forall_ne (l := (0, true)) hf
+          (fun m hm _ => ht _ (hall m hm)) fun hl hn => absurd (ht _ (hall _ hl)) hn
+      | unit l =>
+        obtain ⟨-, -, hothers⟩ := Clause.residual_eq_unit_iff.1 hr
+        rw [hr] at h
+        exact propagateHints_cons_of_forall_ne hf (fun m hm hne => ht _ (hothers m hm hne))
+          fun _ _ => propagateHints_mono (fun x hx => by
+            rcases List.mem_cons.1 hx with rfl | hx
+            · exact List.mem_cons_self
+            · exact List.mem_cons_of_mem _ (ht x hx)) h
+      | other => simp [hr] at h
+
 /-- **Hints refuting the clauses containing `C`**: from the negation of any clause containing the
 literals `C`, unit propagation along `hints` in `db` reaches a conflict. -/
 def RupHints (db : List (ℕ × Clause ℕ)) (C : Literal ℕ → Prop) (hints : List ℕ) : Prop :=
@@ -275,10 +245,9 @@ variable {db : List (ℕ × Clause ℕ)} {C C' : Literal ℕ → Prop} {hints : 
 
 /-- A clause of the database hints its own refutation. -/
 theorem single {i : ℕ} {c : Clause ℕ} (hc : db.find? (·.1 == i) = some (i, c)) (hC : ∀ y ∈ c, C y) :
-    RupHints db C [i] := fun t ht => by
-  rw [propagateHints_cons, hc]
-  dsimp only
-  rw [List.filter_eq_nil_iff.2 fun y hy => by simpa using ht y (hC y hy)]
+    RupHints db C [i] := fun _ ht =>
+  propagateHints_cons_of_forall_ne (l := (0, true)) hc (fun m hm _ => ht m (hC m hm))
+    fun hl hn => absurd (ht _ (hC _ hl)) hn
 
 /-- Hints refuting the clauses containing `C` refute those containing more. -/
 theorem mono (h : RupHints db C hints) (hC : ∀ y, C y → C' y) : RupHints db C' hints :=
