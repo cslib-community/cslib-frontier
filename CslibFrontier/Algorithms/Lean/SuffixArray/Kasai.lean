@@ -201,7 +201,7 @@ theorem extendM_time_add_le_of_size_le (w : Array α) (j i h : ℕ)
 theorem ret_extendM (w : Array α) (j i h : ℕ) :
     (extendM w j i h).ret = h + List.lcpLen (w.toList.drop (j + h)) (w.toList.drop (i + h)) := by
   fun_induction extendM w j i h with
-  | case1 h hlt ih =>
+  | case1 h hlt ih => -- both positions in range: compare
     split_ifs with heq
     · simp only [TimeM.ret_bind]
       rw [ih, List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
@@ -215,7 +215,7 @@ theorem ret_extendM (w : Array α) (j i h : ℕ) :
         Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]
       simp only [heq, ↓reduceIte]
       omega
-  | case2 h hlt =>
+  | case2 h hlt => -- a position out of range: stop
     simp only [TimeM.ret_pure]
     have h1 := List.lcpLen_le_length_left (w.toList.drop (j + h)) (w.toList.drop (i + h))
     have h2 := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
@@ -235,14 +235,14 @@ private theorem kasaiLoopM_time_add_le (w : Array α) (sa rk : Array ℕ) (i h :
     (lcp : Array ℕ) :
     (kasaiLoopM w sa rk i h lcp).time + min h (w.size - i) ≤ 2 * (w.size - i) := by
   fun_induction kasaiLoopM w sa rk i h lcp with
-  | case1 => omega
-  | case2 i h lcp hi hr ih =>
+  | case1 => omega -- rank 0: skip
+  | case2 i h lcp hi hr ih => -- extend from h
     simp only [TimeM.time_bind]
     have h1 := extendM_time_add_le w sa[rk[i]! - 1]! i h
     have h2 := ret_extendM_le w sa[rk[i]! - 1]! i h
     have := ih (extendM w sa[rk[i]! - 1]! i h).ret
     omega
-  | case3 => simp only [TimeM.time_pure]; omega
+  | case3 => simp only [TimeM.time_pure]; omega -- i ≥ w.size: done
 
 /-- **Kasai et al.'s linear bound.** `kasaiM w sa` performs at most `2 * |w|` character
 comparisons, for every input (including inputs where `sa` is not a suffix array). -/
@@ -281,7 +281,7 @@ private theorem kasaiLoopM_spec {w : Array α} {sa rk : Array ℕ}
     have := hsa.getElem_lt (r := r) (by simpa using hr)
     simpa only [Array.getElem_toList, Array.length_toList] using this
   fun_induction kasaiLoopM w sa rk i h lcp
-  case case3 i h lcp hiw =>
+  case case3 i h lcp hiw => -- i ≥ w.size: done
     simp only [TimeM.ret_pure]
     apply List.ext_getElem (by simp only [Array.length_toList, length_lcpArray]; omega)
     intro r h1 h2
@@ -294,7 +294,7 @@ private theorem kasaiLoopM_spec {w : Array α} {sa rk : Array ℕ}
     simp only [Array.length_toList, Array.getElem_toList] at hr hri
     have hrki : rk[i]! = r := hri ▸ hrk r hr
     simp only [hrki] at hr0 ih ⊢
-  case case1 =>
+  case case1 => -- rank 0: skip
     subst hr0
     refine ih (by omega) hsize (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
     · have h0 := hh 0 hr hri
@@ -305,7 +305,7 @@ private theorem kasaiLoopM_spec {w : Array α} {sa rk : Array ℕ}
       · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
         · exact hdone r' hr' (Or.inr hlt)
         · exact hdone r' hr' (Or.inl (hinj r' 0 hr' hr (heq.trans hri.symm)))
-  case case2 =>
+  case case2 => -- extend from h
     simp only [TimeM.ret_bind]
     have hr1 : r - 1 < sa.size := by omega
     rw [getElem!_pos sa (r - 1) hr1]

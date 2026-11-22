@@ -57,7 +57,7 @@ theorem lowerBoundM_spec (t : ℕ → TimeM ℕ Bool) {lo hi : ℕ}
       (∀ m, lo ≤ m → m < (lowerBoundM t lo hi).ret → (t m).ret = true) ∧
       (∀ m, (lowerBoundM t lo hi).ret ≤ m → m < hi → (t m).ret = false) := by
   fun_induction lowerBoundM t lo hi with
-  | case1 lo hi hlt ihR ihL =>
+  | case1 lo hi hlt ihR ihL => -- lo < hi: probe the midpoint
     simp only [TimeM.ret_bind]
     set mid := (lo + hi) / 2 with hmid
     have hlm : lo ≤ mid := by omega
@@ -81,7 +81,7 @@ theorem lowerBoundM_spec (t : ℕ → TimeM ℕ Bool) {lo hi : ℕ}
       rcases Nat.lt_or_ge m (mid + 1) with hlt' | hge
       · exact hmono m mid hm (by omega) hmh hb
       · exact h3 m hge hmk
-  | case2 =>
+  | case2 => -- hi ≤ lo: empty range
     simp only [TimeM.ret_pure]
     refine ⟨le_refl _, le_max_left _ _, fun m hm hm' => by omega, fun m hm hm' => by omega⟩
 
@@ -111,7 +111,7 @@ theorem lowerBoundM_time_le (t : ℕ → TimeM ℕ Bool) {c : ℕ} (hc : ∀ m, 
         at h
       exact h
   fun_induction lowerBoundM t lo hi with
-  | case1 lo hi hlt ihR ihL =>
+  | case1 lo hi hlt ihR ihL => -- lo < hi: probe the midpoint
     simp only [TimeM.time_bind]
     set mid := (lo + hi) / 2 with hmid
     generalize hk : hi - lo = k
@@ -136,6 +136,6 @@ theorem lowerBoundM_time_le (t : ℕ → TimeM ℕ Bool) {c : ℕ} (hc : ∀ m, 
     · simp only [↓reduceIte]
       have := hstep (hi - (mid + 1)) (by omega)
       omega
-  | case2 => simp only [TimeM.time_pure, Nat.zero_le]
+  | case2 => simp only [TimeM.time_pure, Nat.zero_le] -- hi ≤ lo: empty range
 
 end Cslib.Algorithms.Lean

@@ -513,15 +513,15 @@ theorem treeOfCodebook_spec {α β : Type*} [AddCommMonoid β] [PartialOrder β]
     · exact (hinc.1 p₂.2 List.mem_cons_self).1 (hnil ▸ List.nil_prefix)
     · exact (hinc.1 p.2 (List.mem_map.mpr ⟨p, htail, rfl⟩)).2 (hnil ▸ List.nil_prefix)
   fun_induction treeOfCodebook pairs with
-  | case1 => exact absurd rfl hne
-  | case2 a c =>
+  | case1 => exact absurd rfl hne -- []
+  | case2 a c => -- [(a, c)]: single leaf
     refine ⟨.leaf a, rfl, List.Perm.refl _, ?_⟩
     simp only [CodeTree.weightedPathLength_leaf, List.map_singleton, List.sum_singleton]
     exact nsmul_nonneg (hw (a, c) List.mem_cons_self) c.length
-  | case3 p₁ p₂ rest hL hR =>
+  | case3 p₁ p₂ rest hL hR => -- no children
     have hlen := (partition_children_of_ne_nil w (hno_nil hinc)).1.length_eq
     rw [hL, hR] at hlen; simp at hlen
-  | case4 p₁ p₂ rest l₁ ls hL hR _ ih =>
+  | case4 p₁ p₂ rest l₁ ls hL hR _ ih => -- left children only
     obtain ⟨tl, htl, hpermL, hwplL⟩ := ih (List.cons_ne_nil _ _)
       (hL ▸ leftChildren_eq_filterMap _ ▸ pairwise_filterMap_children false hinc)
       fun p hp => hw (p.1, false :: p.2)
@@ -532,7 +532,7 @@ theorem treeOfCodebook_spec {α β : Type*} [AddCommMonoid β] [PartialOrder β]
     rw [hcost, hL, hR, List.map_nil, List.sum_nil, add_zero]
     exact le_add_of_le_of_nonneg hwplL (List.sum_nonneg fun x hx => by
       rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩; exact hw p hp)
-  | case5 p₁ p₂ rest r₁ rs hL hR _ ih =>
+  | case5 p₁ p₂ rest r₁ rs hL hR _ ih => -- right children only
     obtain ⟨tr, htr, hpermR, hwplR⟩ := ih (List.cons_ne_nil _ _)
       (hR ▸ rightChildren_eq_filterMap _ ▸ pairwise_filterMap_children true hinc)
       fun p hp => hw (p.1, true :: p.2)
@@ -543,7 +543,7 @@ theorem treeOfCodebook_spec {α β : Type*} [AddCommMonoid β] [PartialOrder β]
     rw [hcost, hL, hR, List.map_nil, List.sum_nil, zero_add]
     exact le_add_of_le_of_nonneg hwplR (List.sum_nonneg fun x hx => by
       rcases List.mem_map.mp hx with ⟨p, hp, rfl⟩; exact hw p hp)
-  | case6 p₁ p₂ rest l₁ ls r₁ rs hL hR _ _ ihL ihR =>
+  | case6 p₁ p₂ rest l₁ ls r₁ rs hL hR _ _ ihL ihR => -- children on both sides
     obtain ⟨tl, htl, hpermL, hwplL⟩ := ihL (List.cons_ne_nil _ _)
       (hL ▸ leftChildren_eq_filterMap _ ▸ pairwise_filterMap_children false hinc)
       fun p hp => hw (p.1, false :: p.2)

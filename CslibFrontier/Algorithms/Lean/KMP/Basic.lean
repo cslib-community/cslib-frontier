@@ -509,19 +509,19 @@ theorem maxPrefixSuffixUpTo_append_singleton {α : Type*} [DecidableEq α]
     · exact ⟨by omega, (hiff_pos j (by omega)).mpr ⟨by omega, hsuf⟩⟩
   intro m hm
   fun_induction nextLen p m c with
-  | case1 m hm hmatch =>
+  | case1 m hm hmatch => -- p[m] = c: extend the match
     apply eq_maxPrefixSuffixUpTo_iff.mpr
     refine ⟨Nat.le_refl _, by omega, ?_, fun s hslt hs_le _ _ => by omega⟩
     rw [take_succ_isSuffix_append_iff hm]
     exact ⟨List.suffix_rfl, hmatch⟩
-  | case2 hm hmatch =>
+  | case2 hm hmatch => -- mismatch at m = 0
     apply eq_maxPrefixSuffixUpTo_iff.mpr
     refine ⟨Nat.zero_le _, Nat.zero_le _, List.nil_suffix, fun s hslt hs_le hsp hssuf => ?_⟩
     have hs1 : s = 1 := by omega
     subst hs1
     rw [take_succ_isSuffix_append_iff hm] at hssuf
     exact hmatch hssuf.2
-  | case3 m hm hmatch hm0 ih =>
+  | case3 m hm hmatch hm0 ih => -- mismatch: fall back to the border
     have hp : p ≠ [] := by rintro rfl; simp only [List.length_nil] at hm; omega
     have hblt : borderLen p m < m := borderLen_lt (by omega) hp
     rw [ih (by omega)]
@@ -543,7 +543,7 @@ theorem maxPrefixSuffixUpTo_append_singleton {α : Type*} [DecidableEq α]
         hb_eq ▸ le_maxPrefixSuffixUpTo (B := m - 1) (by omega) (by omega) hjsuf
       exact ⟨by omega, List.suffix_of_suffix_length_le hjsuf hbsuf
         (by simp only [List.length_take]; omega), hjc⟩
-  | case4 m hm' => exact absurd hm hm'
+  | case4 m hm' => exact absurd hm hm' -- m ≥ p.length
 
 /-- Recurrence for the KMP prefix function (`[CLRS2009]`, Lemma 32.6 and Corollary 32.7): for
 `1 ≤ q < p.length`, `borderLen p (q + 1) = nextLen p (borderLen p q) p[q]`. -/

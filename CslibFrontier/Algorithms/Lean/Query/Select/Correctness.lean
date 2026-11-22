@@ -108,7 +108,7 @@ theorem le_countP_of_rel_eval_groupMedian (r : α → α → Prop) [DecidableRel
 @[simp] theorem length_eval_medians (oracle : {ι : Type} → LEQuery α ι → ι) (xs : List α) :
     ((medians xs).eval oracle).length = (xs.length + 4) / 5 := by
   fun_induction medians xs with
-  | case1 => simp
+  | case1 => simp -- []
   | case2 x xs ih =>
     simp only [FreeM.eval_bind, FreeM.eval_pure, List.length_cons, ih, List.length_drop]
     omega
@@ -117,7 +117,7 @@ theorem le_countP_of_rel_eval_groupMedian (r : α → α → Prop) [DecidableRel
 theorem mem_of_mem_eval_medians (oracle : {ι : Type} → LEQuery α ι → ι) {xs : List α} {m : α}
     (hm : m ∈ (medians xs).eval oracle) : m ∈ xs := by
   fun_induction medians xs with
-  | case1 => simp at hm
+  | case1 => simp at hm -- []
   | case2 x xs ih =>
     simp only [FreeM.eval_bind, FreeM.eval_pure, List.mem_cons] at hm
     rcases hm with rfl | hm
@@ -134,7 +134,7 @@ private theorem three_mul_countP_eval_medians_le (oracle : {ι : Type} → LEQue
     (xs : List α) :
     3 * ((medians xs).eval oracle).countP (fun y => P y) ≤ xs.countP (fun y => P y) + 2 := by
   fun_induction medians xs with
-  | case1 => simp
+  | case1 => simp -- []
   | case2 x xs ih =>
     simp only [FreeM.eval_bind, FreeM.eval_pure]
     have hsplit : (x :: xs).countP (fun y => P y) =
@@ -188,10 +188,9 @@ theorem three_mul_countP_eval_medians_rel_le' (r : α → α → Prop) [Decidabl
       (xs.filter (fun x => oracle (.le x p) && !oracle (.le p x)),
         xs.filter (fun x => oracle (.le x p) && oracle (.le p x)),
         xs.filter (fun x => !oracle (.le x p))) := by
-  induction xs with
-  | nil => simp [partition3]
-  | cons x xs ih =>
-    rw [partition3]
+  fun_induction partition3 p xs with
+  | case1 => simp -- []
+  | case2 x xs ih =>
     simp only [FreeM.eval_bind, ih]
     by_cases h1 : oracle (.le x p) <;> by_cases h2 : oracle (.le p x) <;>
       simp [h1, h2]

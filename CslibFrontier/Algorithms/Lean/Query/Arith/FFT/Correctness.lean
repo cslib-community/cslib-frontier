@@ -67,8 +67,8 @@ theorem eval_butterfly (w e o : α) : (butterfly w e o).eval honest = (e + w * o
 theorem length_eval_powersFrom {β : Type} (oracle : {ι : Type} → ArithQuery β ι → ι) (ω : β)
     (r : ℕ) (c : β) : ((powersFrom ω r c).eval oracle).length = r := by
   fun_induction powersFrom ω r c with
-  | case1 | case2 => rfl
-  | case3 r c ih =>
+  | case1 | case2 => rfl -- 0, 1
+  | case3 r c ih => -- r + 2
     simp only [FreeM.eval_bind, FreeM.eval_pure, List.length_cons, ih]
 
 /-- Entry `i` of `powersFrom ω r c` is `c * ω ^ i` under the honest oracle. -/
@@ -76,12 +76,12 @@ theorem getElem_eval_powersFrom (ω : α) (r : ℕ) (c : α) (i : ℕ)
     (hi : i < ((powersFrom ω r c).eval honest).length) :
     ((powersFrom ω r c).eval honest)[i] = c * ω ^ i := by
   fun_induction powersFrom ω r c generalizing i with
-  | case1 => simp at hi
-  | case2 c =>
+  | case1 => simp at hi -- 0
+  | case2 c => -- 1
     simp only [FreeM.eval_pure, List.length_singleton, Nat.lt_one_iff] at hi ⊢
     subst hi
     simp
-  | case3 r c ih =>
+  | case3 r c ih => -- r + 2
     simp only [FreeM.eval_bind, FreeM.eval_pure, doMul, FreeM.eval_lift] at hi ⊢
     rcases i with _ | i
     · simp

@@ -57,10 +57,9 @@ variable {α : Type}
 /-- The three-way partition makes at most two comparisons per element. -/
 theorem partition3_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (p : α)
     (xs : List α) : (partition3 p xs).countQueries oracle ≤ 2 * xs.length := by
-  induction xs with
-  | nil => simp [partition3]
-  | cons x xs ih =>
-    rw [partition3]
+  fun_induction partition3 p xs with
+  | case1 => simp -- []
+  | case2 x xs ih =>
     rcases hpart : (partition3 p xs).eval oracle with ⟨L, E, G⟩
     simp only [FreeM.countQueries_bind, hpart, LEQuery.ask, FreeM.countQueries_lift,
       FreeM.eval_lift, List.length_cons]
@@ -88,7 +87,7 @@ private theorem five_mul_mergeSortCountBound_le {j : ℕ} (hj : j ≤ 4) :
 theorem medians_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (xs : List α) :
     5 * (medians xs).countQueries oracle ≤ 8 * xs.length := by
   fun_induction medians xs with
-  | case1 => simp
+  | case1 => simp -- []
   | case2 x xs ih =>
     simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
     have hg := groupMedian_countQueries_le oracle x (xs.take 4)
@@ -114,11 +113,11 @@ private theorem mergeSort_countQueries_le_of_le_selectCutoff
 theorem select_countQueries_le (oracle : {ι : Type} → LEQuery α ι → ι) (k : ℕ) (xs : List α) :
     (select k xs).countQueries oracle ≤ 37 * xs.length := by
   fun_induction select k xs with
-  | case1 k xs hsmall =>
+  | case1 k xs hsmall => -- short list: sort it
     simp only [FreeM.countQueries_bind, FreeM.countQueries_pure, Nat.add_zero]
     have := mergeSort_countQueries_le_of_le_selectCutoff oracle hsmall
     omega
-  | case2 k xs hsmall ihM ihL ihG =>
+  | case2 k xs hsmall ihM ihL ihG => -- median of medians
     have hmed := medians_countQueries_le oracle xs
     have hMlen : ((medians xs).eval oracle).length = (xs.length + 4) / 5 :=
       length_eval_medians oracle xs

@@ -128,10 +128,10 @@ private theorem zLoopM_time_add_le (s : Array α) (i l r : ℕ) (z : Array ℕ) 
     (zLoopM s i l r z).time + max r i + (if max r i < s.size then 1 else 0) ≤
       (s.size - i) + s.size := by
   fun_induction zLoopM s i l r z with
-  | case1 i l r z his hcopy ih =>
+  | case1 i l r z his hcopy ih => -- inside the box: copy z[i - l]
     have := ih (by omega) hr
     split_ifs at this ⊢ <;> omega
-  | case2 i l r z his hcopy ih =>
+  | case2 i l r z his hncopy ih => -- extend the common prefix
     simp only [TimeM.time_bind]
     have h1 := extendM_time_add_le s 0 i (r - i)
     have h2 := ret_extendM_le s 0 i (r - i)
@@ -141,7 +141,7 @@ private theorem zLoopM_time_add_le (s : Array α) (i l r : ℕ) (z : Array ℕ) 
     · have h3 := h3 hend
       split_ifs at this ⊢ <;> omega
     · split_ifs at this ⊢ <;> omega
-  | case3 =>
+  | case3 => -- i ≥ s.size: done
     simp only [TimeM.time_pure]
     split_ifs <;> omega
 
@@ -166,7 +166,7 @@ private theorem zLoopM_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 
     (hrl : r ≤ l + List.lcpLen s.toList (s.toList.drop l)) (hr : r ≤ s.size) :
     (zLoopM s i l r z).ret.toList = zFunction s.toList := by
   fun_induction zLoopM s i l r z
-  case case3 i l r z his =>
+  case case3 i l r z his => -- i ≥ s.size: done
     simp only [TimeM.ret_pure]
     apply List.ext_getElem (by simp only [Array.length_toList, length_zFunction]; omega)
     intro j h1 h2
@@ -188,7 +188,7 @@ private theorem zLoopM_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 
       intro hir
       rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem (by omega), Option.getD_some]
       exact hzs (i - l) (by omega)
-  case case1 =>
+  case case1 => -- inside the box: copy z[i - l]
     have hir : i < r := by omega
     have hmin := hbox hir
     have hval : z.getD (i - l) 0 = List.lcpLen s.toList (s.toList.drop i) := by grind
@@ -199,7 +199,7 @@ private theorem zLoopM_spec (s : Array α) (i l r : ℕ) (z : Array ℕ) (hi1 : 
     · exact hzs j (by omega)
     · rw [show j = i by omega]
       exact hval
-  case case2 =>
+  case case2 => -- extend the common prefix
     simp only [TimeM.ret_bind]
     have hh : r - i ≤ List.lcpLen s.toList (s.toList.drop i) := by grind
     have hext : (extendM s 0 i (r - i)).ret = List.lcpLen s.toList (s.toList.drop i) := by

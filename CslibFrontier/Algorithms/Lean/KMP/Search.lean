@@ -272,12 +272,12 @@ private theorem computePrefixLoopM_time_le {α : Type*} [DecidableEq α]
     (p : Array α) (q k : ℕ) (pi : Array ℕ) :
     (computePrefixLoopM p q k pi).time ≤ k + 2 * (p.size - q) := by
   fun_induction computePrefixLoopM p q k pi with
-  | case1 q k pi hq ih =>
+  | case1 q k pi hq ih => -- q < p.size: advance
     simp only [TimeM.time_bind]
     have hadv := advanceM_time_add_ret_le p pi k (p[q]'hq)
     have hsub := ih (advanceM p pi k (p[q]'hq)).ret
     omega
-  | case2 => simp only [TimeM.time_pure]; omega
+  | case2 => simp only [TimeM.time_pure]; omega -- q ≥ p.size: done
 
 /-- `computePrefixM p` performs at most `2 * (p.size - 1)` character comparisons
 (`[KnuthMorrisPratt1977]`, Section 2; `[CLRS2009]`, Section 32.4). -/
@@ -296,8 +296,8 @@ private theorem computePrefixLoopM_spec {α : Type*} [DecidableEq α]
     (computePrefixLoopM p q k pi).ret.size = p.size ∧
       IsPrefixTableFor p (computePrefixLoopM p q k pi).ret := by
   fun_induction computePrefixLoopM p q k pi with
-  | case2 q k pi hq => exact ⟨hsize.trans (by omega), htab⟩
-  | case1 q k pi hqlt ih =>
+  | case2 q k pi hq => exact ⟨hsize.trans (by omega), htab⟩ -- q ≥ p.size: done
+  | case1 q k pi hqlt ih => -- q < p.size: advance
     have hqlist : q < p.toList.length := by simpa only [Array.length_toList] using hqlt
     have hpne : p.toList ≠ [] := by
       intro hnil
@@ -414,7 +414,7 @@ private theorem kmpSearchLoopM_time_le {α : Type*} [DecidableEq α]
     (p : Array α) {pi : Array ℕ} (hdec : IsDecreasingTable pi) (t : Array α) (i k : ℕ) :
     (kmpSearchLoopM p pi t i k).time ≤ k + 2 * (t.size - i) := by
   fun_induction kmpSearchLoopM p pi t i k with
-  | case1 i k hi ihFull ih =>
+  | case1 i k hi ihFull ih => -- i < t.size: advance
     simp only [TimeM.time_bind]
     have hadv := advanceM_time_add_ret_le p pi k (t[i]'hi)
     set k' := (advanceM p pi k (t[i]'hi)).ret
@@ -425,7 +425,7 @@ private theorem kmpSearchLoopM_time_le {α : Type*} [DecidableEq α]
       omega
     · have hsub := ih k'
       omega
-  | case2 => simp only [TimeM.time_pure]; omega
+  | case2 => simp only [TimeM.time_pure]; omega -- i ≥ t.size: done
 
 /-- With any decreasing failure table `pi` (such as `computePrefix p`), `kmpSearchWithPrefixM`
 performs at most `2 * t.size` character comparisons. -/
@@ -457,11 +457,11 @@ private theorem kmpSearchLoopM_spec {α : Type*} [DecidableEq α]
     (∀ s, s ∈ (kmpSearchLoopM p pi t i k).ret ↔ i + 1 ≤ s + p.size ∧ IsMatchAt p t s) ∧
       (kmpSearchLoopM p pi t i k).ret.Pairwise (· < ·) := by
   fun_induction kmpSearchLoopM p pi t i k with
-  | case2 i k hi =>
+  | case2 i k hi => -- i ≥ t.size: done
     simp only [TimeM.ret_pure, List.not_mem_nil, false_iff, List.Pairwise.nil, and_true]
     rintro s ⟨hge, hs_le, _⟩
     omega
-  | case1 i k hilt ihFull ih =>
+  | case1 i k hilt ihFull ih => -- i < t.size: advance
     have hilt_list : i < t.toList.length := by simpa only [Array.length_toList] using hilt
     have hplist : 0 < p.toList.length := by simpa only [Array.length_toList] using hp
     have hkp : k < p.size := by

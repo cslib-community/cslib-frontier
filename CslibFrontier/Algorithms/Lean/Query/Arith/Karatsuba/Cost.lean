@@ -120,9 +120,9 @@ subtractions under every oracle. -/
 theorem cost_mulFit [Zero α] (n : ℕ) (p q : List α) :
     (mulFit n p q).cost o (weight ca cm) = cm * mulCount n + ca * addCount n := by
   fun_induction mulFit n p q with
-  | case1 => simp
-  | case2 => simp [doMul, weight]
-  | case3 n p q m' k' p₀ p₁ q₀ q₁ ih₀ ih₁ _ =>
+  | case1 => simp -- 0
+  | case2 => simp [doMul, weight] -- 1
+  | case3 n p q m' k' p₀ p₁ q₀ q₁ ih₀ ih₁ _ => -- n + 2: three half-size products
     simp only [addAt, FreeM.cost_bind, FreeM.cost_pure, cost_addList, cost_subList, ih₀, ih₁,
       mulCount, addCount, length_eval_mulFit, length_eval_subList, m', k', p₀, p₁, q₀, q₁,
       List.takeD_length, List.length_drop, List.length_append, List.length_cons]
@@ -210,9 +210,9 @@ theorem mulCount_add_addCount_le (n : ℕ) :
 /-- At least `3 ^ ⌊log₂ n⌋` multiplications for `n ≠ 0`. -/
 theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCount n := by
   fun_induction mulCount n with
-  | case1 => exact absurd rfl hn
-  | case2 => simp
-  | case3 n ih₁ ih₂ =>
+  | case1 => exact absurd rfl hn -- 0
+  | case2 => simp -- 1
+  | case3 n ih₁ ih₂ => -- n + 2
     have h1 := ih₁ (by omega)
     have h2 := ih₂ (by omega)
     have hlog : Nat.log 2 (n + 2) = Nat.log 2 ((n + 2) / 2) + 1 := by
@@ -227,12 +227,12 @@ theorem pow_log_le_mulCount {n : ℕ} (hn : n ≠ 0) : 3 ^ Nat.log 2 n ≤ mulCo
 /-- At most `n ^ 2` multiplications. -/
 theorem mulCount_le_sq (n : ℕ) : mulCount n ≤ n ^ 2 := by
   fun_induction mulCount n with
-  | case1 | case2 => simp
-  | case3 n h1 h2 =>
+  | case1 | case2 => simp -- 0, 1
+  | case3 n ih₁ ih₂ => -- n + 2
     obtain ⟨m, hm⟩ : ∃ m, (n + 2) / 2 = m := ⟨_, rfl⟩
     obtain ⟨k, hk⟩ : ∃ k, n + 2 - m = k := ⟨_, rfl⟩
-    rw [hm, hk] at h2 ⊢
-    rw [hm] at h1
+    rw [hm, hk] at ih₂ ⊢
+    rw [hm] at ih₁
     have hkm : k ≤ m + 1 := by omega
     have hm1 : 1 ≤ m := by omega
     rw [show n.succ.succ = m + k by omega]

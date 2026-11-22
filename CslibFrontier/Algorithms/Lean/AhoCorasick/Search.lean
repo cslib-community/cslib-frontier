@@ -140,16 +140,17 @@ theorem ret_stepM {P : List (List α)} {f : List α → List α} {u : List α} (
     (hf : ∀ v, IsNode P v → v.length ≤ u.length → f v = failure P v) (hu : IsNode P u) :
     (stepM P f u a).ret = nextMove P u a := by
   fun_induction stepM P f u a with
-  | case1 u hnode =>
+  | case1 u hnode => -- goto transition
     rw [nextMove_of_isNode hnode]
     rfl
-  | case2 hnode =>
+  | case2 hnode => -- no goto from the start state
     rw [nextMove_of_not_isNode_of_eq_nil hnode rfl]
     rfl
-  | case3 u hnode hnil hlt ih =>
+  | case3 u hnode hnil hlt ih => -- failure transition
     have hfu : f u = failure P u := hf u hu (Nat.le_refl _)
     rw [nextMove_of_not_isNode hnode hnil, ← hfu]
     exact ih (fun v hv hvl => hf v hv (by omega)) (hfu ▸ isNode_failure P u)
+  -- failure state not shorter: stop
   | case4 u hnode hnil hlt => exact absurd (hf u hu (Nat.le_refl _) ▸ length_failure_lt P hnil) hlt
 
 /-- Amortized cost of one operating cycle with potential the depth of the state. -/

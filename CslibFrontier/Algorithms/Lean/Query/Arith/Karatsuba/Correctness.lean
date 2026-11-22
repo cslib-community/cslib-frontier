@@ -83,9 +83,9 @@ theorem ofCoeffList_eval_mulFit (n : ℕ) (p q : List α) :
     ofCoeffList ((mulFit n p q).eval honest) =
       ofCoeffList (p.takeD n 0) * ofCoeffList (q.takeD n 0) := by
   fun_induction mulFit n p q with
-  | case1 => simp
-  | case2 => simp [doMul, honest, ofCoeffList_cons, List.headD_eq_head?_getD]
-  | case3 n p q m k p₀ p₁ q₀ q₁ ih₀ ih₁ _ =>
+  | case1 => simp -- 0
+  | case2 => simp [doMul, honest, ofCoeffList_cons, List.headD_eq_head?_getD] -- 1
+  | case3 n p q m k p₀ p₁ q₀ q₁ ih₀ ih₁ _ => -- n + 2: three half-size products
     simp only [FreeM.eval_bind]
     rw [show n.succ.succ = m + k by simp only [m, k]; omega, ofCoeffList_takeD_add p,
       ofCoeffList_takeD_add q]
