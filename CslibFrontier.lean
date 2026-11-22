@@ -3190,6 +3190,8 @@ public import CslibFrontier.Computability.DecisionTree.Symmetric
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Basic
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Bracha
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Impossibility
+public import CslibFrontier.Computability.Distributed.AtomicCommit.ThreePhaseCommit
+public import CslibFrontier.Computability.Distributed.AtomicCommit.TwoPhaseCommit
 public import CslibFrontier.Computability.Distributed.Byzantine.Basic
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
