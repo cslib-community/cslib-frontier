@@ -397,6 +397,11 @@ Dan Boneh and Victor Shoup. *A Graduate Course in Applied Cryptography*, version
 
 Andrej Bogdanov and Luca Trevisan. *Average-Case Complexity*. Foundations and Trends in Theoretical Computer Science 2(1), 1–106, 2006. https://doi.org/10.1561/0400000004 ; arXiv:cs/0606037. Definition, lemma and theorem numbers (Definitions 1, 2, 6, 8–11 and 17, Proposition 7, Lemma 18, Theorem 19, Claim 20) were checked against the arXiv text on 2026-11-07.
 
+<a id="burnslynch1993"></a>
+## burnslynch1993
+
+James E. Burns and Nancy A. Lynch. "Bounds on Shared Memory for Mutual Exclusion." *Information and Computation* 107(2), 171–184, December 1993. https://doi.org/10.1006/inco.1993.1065 . Bibliographic metadata verified via CrossRef on 2026-11-22 UTC; the publisher PDF is paywalled and was not inspected, so no theorem, lemma or page locators within the paper are claimed. Cited as paper-level context for `not_deadlockFreeMutex_of_single_register` in `CslibFrontier/Computability/Distributed/MutualExclusion/FilterLock.lean`, which proves the `Fintype.card Reg ≤ 1` (`2 ≤ Fintype.card P`) covering-write base step toward the general `Fintype.card P ≤ Fintype.card Reg` space lower bound (#7296).
+
 <a id="burrowswheeler94"></a>
 ## burrowswheeler94
 
@@ -1370,6 +1375,11 @@ Vladimir Kolesnikov, Thomas Schneider. "Improved Garbled Circuit: Free XOR Gates
 
 Roberto Avanzi, Joppe Bos, Léo Ducas, Eike Kiltz, Tancrède Lepoint, Vadim Lyubashevsky, John M. Schanck, Peter Schwabe, Gregor Seiler, Damien Stehlé. *CRYSTALS-Kyber: Algorithm Specifications and Supporting Documentation (version 3.02)*, NIST Post-Quantum Cryptography Standardization third-round submission, 4 August 2021. https://pq-crystals.org/kyber/data/kyber-specification-round3-20210804.pdf . Checked on 2026-11-14 against that PDF (SHA-256 `1c54ad57022e00b77ff7acd40e9b38a962e7fbbd02bea73b183349c53a8f8aee`): the Module-LWE advantage `Adv^mlwe_{m,k,η}` with `(s, e) ← β_η^k × β_η^m` (§4.3, p. 19); Theorem 1, the IND-CPA bound for Kyber.CPAPKE (§4.3.1, p. 20); and the Module-LWER problem with the two-term replacement eq. (6) (§4.4 and footnote 3, pp. 21–22). Checked again on 2026-11-15 against the same PDF: the pseudorandom function `PRF : B^32 × B → B^*` (p. 5); `CBD_η : B^{64η} → R_q` (Algorithm 2, p. 7); the noise `CBD_η(PRF(σ, N))` of key generation and `CBD_η(PRF(r, N))` of encryption (Algorithms 4 and 5, pp. 8–9); in Algorithm 4 (p. 8), `(ρ, σ) := G(d)`, `Â[i][j] := Parse(XOF(ρ, j, i))` and `pk := (Encode_12(t̂ mod q) ‖ ρ)`; in Algorithm 5 (p. 9), `ρ` read from `pk` and `Â^T[i][j] := Parse(XOF(ρ, i, j))`; the instantiation of `PRF(s, b)` by SHAKE-256(s‖b) (p. 11); and Theorem 1's opening "Suppose XOF and G are random oracles" (p. 20). Cited for `MLKEM.cpaAdvantage_le`, whose model differences (a uniform matrix in the public key in place of `ρ`, no `XOF` or `G` oracles, sampled coins, uncompressed ciphertext hop, no running time) are recorded in the Lean module; for its asymptotic form with ideal coin expansion and the matrix in the public key, `MLKEM.indCPA_kpkeIdealCoins_of_decisionModuleLWEWith`, a step towards Theorem 1 without its `Adv^prf` term or its random oracles `XOF` and `G`, whose module records the same differences and its parameter family; and for `MLKEM.indCPA_kpkePRF_of_decisionModuleLWEWith`, IND-CPA of K-PKE with seed expansion (`MLKEM.kpkePRF`) and the matrix in the public key, a step towards Theorem 1 with its `Adv^prf` term but without its random oracles `XOF` and `G`, whose module records its deviations.
 
+<a id="lamport1974"></a>
+## lamport1974
+
+Leslie Lamport. "A New Solution of Dijkstra's Concurrent Programming Problem." *Communications of the ACM* 17(8), 453–455, August 1974. https://doi.org/10.1145/361082.361093 ; author-hosted copy of the typeset article: https://lamport.azurewebsites.net/pubs/bakery.pdf . Checked against that copy on 2026-11-22 UTC (SHA-256 `afdae206fc85f872846f3eafedf4e76fbc14cbfb25ff65fefea59bb244a2b6a5`, 3 pages, printed pp. 453–455): "The Algorithm" (p. 454: Algol-like `choosing[1:N]` and `number[1:N]` protocol, `maximum` scan in arbitrary order, safe overlapping reads returning arbitrary values while a write is in progress, and processor failure from any unbounded non-critical state halting and resetting `choosing[i]` and `number[i]` to zero) and "Proof of Correctness" (pp. 454–455: definitions of "in the doorway" and "in the bakery", Assertion 1 on p. 454, Assertion 2 on pp. 454–455, mutual exclusion and first-come-first-served on p. 455, and Assertion 3 with starvation freedom under bounded failures on p. 455).
+
 <a id="lamportshostakpease1982"></a>
 ## lamportshostakpease1982
 
@@ -1751,6 +1761,11 @@ Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifia
 ## peikert2016
 
 Chris Peikert. *A Decade of Lattice Cryptography*. Foundations and Trends in Theoretical Computer Science 10(4), 283–424, 2016. https://doi.org/10.1561/0400000074 ; author PDF dated February 17, 2016 at https://web.eecs.umich.edu/~cpeikert/pubs/lattice-survey.pdf . Consulted in the February 17, 2016 author PDF: Section 4.2.1, unnumbered "Normal form" paragraph, printed p. 23, for the sample transformation from `(n + m)`-sample uniform-secret LWE to `m`-sample error-secret (normal-form) LWE by inverting the top `n × n` block, losing the singular-block probability (`NormalForm.lean` formalizes these finite probability steps on framed-integer `ProbComp` callers toward the hardness reductions in #3673, without certifying polynomial-time inversion).
+
+<a id="peterson1981"></a>
+## peterson1981
+
+Gary L. Peterson. "Myths About the Mutual Exclusion Problem." *Information Processing Letters* 12(3), 115–116, June 1981. https://doi.org/10.1016/0020-0190(81)90106-X . Bibliographic metadata verified via CrossRef on 2026-11-22 UTC; the publisher PDF is paywalled and was not inspected, so no theorem, section or page locators within the paper are claimed. Cited at paper level for the bounded-state `(n - 1)`-level `n`-process filter lock (`filterLock`, `card_at_level_le`, `filterLock_mutualExclusion`, `filterLock_deadlockFree`) in `CslibFrontier/Computability/Distributed/MutualExclusion/FilterLock.lean`.
 
 <a id="pighizzini2009"></a>
 ## pighizzini2009
