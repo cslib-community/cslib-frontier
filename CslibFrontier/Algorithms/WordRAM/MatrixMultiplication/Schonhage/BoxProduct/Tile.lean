@@ -26,8 +26,6 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct
 
 open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-set_option maxRecDepth 4096 in
--- The fixed caller frame check unfolds the existing 32-member 160-register protocol.
 /-- One actual tile builds retained values, answers its real grouped span and delivers all
 signed matrix-product answers, retaining the one shared geometry and producer arrays. -/
 theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t ≤ m)
@@ -169,7 +167,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let u := z.extend boxBank arg
   have hu := hz.rename boxBank_injective
   have ur (i : Fin 160) (hi : 64 ≤ i.val) : u.regs i = arg.regs i := boxBank_extend_high z arg i hi
-  have up : QueriedProduct.Parameters L m N qs.length u := arp.reframe (fun i hi => ur i (by omega))
+  have up : QueriedProduct.Parameters L m N qs.length u := by regs_frame
   have ub : Parameters L m t N qs.length u := arb.extend z
   have ulow (i : Fin 64) (hi : ¬BoxTable.TileLocal i) :
       (u.comap boxBank).regs i = (arg.comap boxBank).regs i := by
@@ -221,7 +219,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let v := q.extend boxBank u
   have hv := hq.rename boxBank_injective
   have vr (i : Fin 160) (hi : 64 ≤ i.val) : v.regs i = u.regs i := boxBank_extend_high q u i hi
-  have vp : QueriedProduct.Parameters L m N qs.length v := up.reframe (fun i hi => vr i (by omega))
+  have vp : QueriedProduct.Parameters L m N qs.length v := by regs_frame
   have vb : Parameters L m t N qs.length v := ub.extend q
   have vd : v.regs QueriedProduct.Reg.destination =
       QueriedProduct.groupedBase L m N qs.length + a := by regs_frame
@@ -230,8 +228,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have hc : ExecWithin (B := .standard) (w + 2)
       (ram[QueriedProduct.Reg.source ← Reg.results]) v c 1 := by
     ram_eval [c, vb.results, O]
-  have cp : QueriedProduct.Parameters L m N qs.length c :=
-    vp.set_work _ (by decide) _
+  have cp : QueriedProduct.Parameters L m N qs.length c := by regs_frame
   have cs : c.regs QueriedProduct.Reg.source = O := by simp [c]
   have cd : c.regs QueriedProduct.Reg.destination =
       QueriedProduct.groupedBase L m N qs.length + a := by regs_frame
@@ -241,7 +238,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
     (by rw [cs, cl]; apply allocated_fits hfit; dsimp only [O]; unfold memoryEnd; omega)
     (by rw [cd, cl]; apply allocated_fits hfit; unfold memoryEnd; dsimp only [O] at *; omega)
     (by rw [cs, cd, cl]; exact Or.inr (Or.inl (by omega)))
-  have dp : QueriedProduct.Parameters L m N qs.length d := cp.reframe (fun i hi => dr i (by omega))
+  have dp : QueriedProduct.Parameters L m N qs.length d := by regs_frame
   have di : d.regs QueriedProduct.Reg.index = j := by regs_frame
   have fnext : Fits (w + 2) (j + 1) := index_fits hfit hj
   let y := d.set QueriedProduct.Reg.index (j + 1)
@@ -249,7 +246,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
       (ram[QueriedProduct.Reg.index ← QueriedProduct.Reg.index + QueriedProduct.Reg.one])
       d y 1 := by
     ram_eval [y, di, dp.one, fnext]
-  have yp : QueriedProduct.Parameters L m N qs.length y := dp.set_work _ (by decide) _
+  have yp : QueriedProduct.Parameters L m N qs.length y := by regs_frame
   have native : ExecWithin (w + 2) tileStep x y
       (328 * K + (b - a) * (batchUnit L m t + 7) + 63) := by
     apply (har.seq (hu.seq (hv.seq ((hc.seq hd).seq hy)))).mono
