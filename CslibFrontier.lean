@@ -1828,6 +1828,7 @@ public import CslibFrontier.Computability.Circuit.Monotone.Encoding
 public import CslibFrontier.Computability.Circuit.Monotone.Formula
 public import CslibFrontier.Computability.Circuit.Monotone.KarchmerWigderson
 public import CslibFrontier.Computability.Circuit.Monotone.Set
+public import CslibFrontier.Computability.Circuit.Monotone.Shift
 public import CslibFrontier.Computability.Circuit.Monotone.Synthesis
 public import CslibFrontier.Computability.Circuit.NNF.Basic
 public import CslibFrontier.Computability.Circuit.NNF.Disjunction
