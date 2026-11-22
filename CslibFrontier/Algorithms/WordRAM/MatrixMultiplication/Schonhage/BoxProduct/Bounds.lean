@@ -9,7 +9,11 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.FrontProgram
 public import Mathlib.Data.Nat.Log
+import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandFlat
+import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxBatch.Program
+import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.Width
 import CslibFrontier.Computability.WordRAM.Admission
+import CslibFrontier.Computability.WordRAM.Width
 import CslibFrontier.Foundations.Data.Nat.PowClog
 
 /-!
@@ -63,16 +67,60 @@ theorem pow_admissionWidth_lt_wordBound (L m t N Q A : ℕ) :
   rw [pow_add]
   omega
 
-set_option maxRecDepth 8192 in
--- This closed structural check traverses both fixed producer/router/box program trees.
 /-- Complete native code, including halt, has constant size independently of all inputs. -/
 theorem program_size_le (bits : Bool) : (program bits).size + 1 ≤ 32768 := by
-  cases bits <;> decide +kernel
+  have hw := Wanted.program_length_le
+  have hb := BandPreparation.program_length_le
+  simp only [Code.program, List.length_append, Code.length_assemble,
+    List.length_singleton] at hw hb
+  have hqb := BoxBatch.queryProgram_size_le
+  have hload : loadThreshold.size ≤ 512 := by decide +kernel
+  have hpre :
+      (Code.seq QueriedProduct.parameters (.seq QueriedProduct.layout
+        (.seq QueriedProduct.saveInput QueriedProduct.prepareQueries))).size ≤ 1024 := by
+    decide +kernel
+  have hsave : QueriedProduct.saveGroups.size ≤ 256 := by decide +kernel
+  have hmat : (QueriedProduct.prepareMatrices bits).size ≤ 128 := by
+    cases bits <;> decide +kernel
+  have hgeom : prepareGeometry.size ≤ 1024 := by decide +kernel
+  have harg : tileArguments.size ≤ 128 := by decide +kernel
+  have htile : BoxTable.tile.size ≤ 1024 := by decide +kernel
+  have hcopy :
+      (Code.seq copyResults
+        (ram[ QueriedProduct.Reg.index ←
+          QueriedProduct.Reg.index + QueriedProduct.Reg.one ])).size ≤ 64 := by
+    decide +kernel
+  have htail : (Code.seq QueriedProduct.reconstruct restoreInput).size ≤ 128 := by
+    decide +kernel
+  simp only [program, front, QueriedProduct.prepareRouting, evaluateTiles, tileStep,
+    Code.size, Code.size_rename] at hpre hcopy htail ⊢
+  omega
 
-set_option maxRecDepth 8192 in
--- This is a finite syntactic check of the actual renamed kernels in the fixed program.
 /-- Neither input mode reads physical width. -/
 theorem not_readsWidth (bits : Bool) : ¬(program bits).ReadsWidth := by
-  cases bits <;> decide +kernel
+  have hw := Wanted.not_readsWidth
+  have hb := BandPreparation.not_readsWidth
+  have hqb := BoxBatch.not_readsWidth
+  have hload : ¬loadThreshold.ReadsWidth := by decide +kernel
+  have hpre :
+      ¬(Code.seq QueriedProduct.parameters (.seq QueriedProduct.layout
+        (.seq QueriedProduct.saveInput QueriedProduct.prepareQueries))).ReadsWidth := by
+    decide +kernel
+  have hsave : ¬QueriedProduct.saveGroups.ReadsWidth := by decide +kernel
+  have hmat : ¬(QueriedProduct.prepareMatrices bits).ReadsWidth := by
+    cases bits <;> decide +kernel
+  have hgeom : ¬prepareGeometry.ReadsWidth := by decide +kernel
+  have harg : ¬tileArguments.ReadsWidth := by decide +kernel
+  have htile : ¬BoxTable.tile.ReadsWidth := by decide +kernel
+  have hcopy :
+      ¬(Code.seq copyResults
+        (ram[ QueriedProduct.Reg.index ←
+          QueriedProduct.Reg.index + QueriedProduct.Reg.one ])).ReadsWidth := by
+    decide +kernel
+  have htail : ¬(Code.seq QueriedProduct.reconstruct restoreInput).ReadsWidth := by
+    decide +kernel
+  simp only [program, front, QueriedProduct.prepareRouting, evaluateTiles, tileStep,
+    Code.ReadsWidth, Code.readsWidth_rename] at hpre hcopy htail ⊢
+  tauto
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct
