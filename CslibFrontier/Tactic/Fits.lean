@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Defs
+public import CslibFrontier.Tactic.WramOmega.Init
 public meta import Lean.Elab.Tactic.Omega
 
 /-!
@@ -28,6 +29,12 @@ The tactic fails on a goal that is not a word-size bound, naming the plain `omeg
 right call, and when `omega` cannot close the unfolded goal, showing that goal and saying whether
 any hypothesis `Fits w v` was found.
 
+`fits` unfolds `Fits` and nothing else. A word-size bound that follows only once definitions of
+addresses and sizes are unfolded, such as `Fits w (keysBase base n + i)` from
+`Fits w (base + space n)`, is for `wram_omega` of `CslibFrontier.Tactic.WramOmega`, which unfolds
+the definitions tagged `@[wram_arith]`, `Fits` among them; so is a goal of another shape that
+follows from hypotheses `Fits w v`.
+
 The simplification procedure `Cslib.WordRAM.reduceFits` rewrites `Fits w v` to `True` when `omega`
 proves it from the hypotheses that mention `Fits` alone, so that a `simp` call deciding whether
 written values fit a word, as in `ram_eval`, needs no named `Fits` facts. It leaves the other
@@ -44,6 +51,7 @@ public meta section
 namespace Cslib.Tactic.Fits
 
 open Lean Meta Elab Tactic
+open Cslib.Tactic.WramOmega (isPowerOfTwo)
 
 /-- `e` with `Cslib.WordRAM.Fits` unfolded everywhere. -/
 private def unfoldFits (e : Expr) : CoreM Expr :=
@@ -52,12 +60,6 @@ private def unfoldFits (e : Expr) : CoreM Expr :=
 /-- Whether `e` mentions `Cslib.WordRAM.Fits`. -/
 private def mentionsFits (e : Expr) : Bool :=
   (e.find? (·.isConstOf ``Cslib.WordRAM.Fits)).isSome
-
-/-- Whether `e` is a power of two `2 ^ k` on natural numbers. -/
-private def isPowerOfTwo (e : Expr) : Bool :=
-  match_expr e with
-  | HPow.hPow α β _ _ b _ => α.isConstOf ``Nat && β.isConstOf ``Nat && b.nat? == some 2
-  | _ => false
 
 /-- Whether `e` is a word-size bound: it mentions `Fits`, or it is `v < 2 ^ k`. -/
 private def isWordBound (e : Expr) : Bool :=
@@ -145,7 +147,11 @@ by their statements, whatever their names.
 * `fits [h₁, h₂]` also uses the statements of the terms `h₁` and `h₂`, unfolded likewise, for
   facts `omega` cannot derive, such as bounds on products.
 
-It fails on a goal that is not a word-size bound, for which plain `omega` is the right call. -/
+It fails on a goal that is not a word-size bound, for which plain `omega` is the right call.
+
+`fits` unfolds `Fits` only. Use `wram_omega` for a word-size bound that needs definitions tagged
+`@[wram_arith]` unfolded, such as `Fits w (keysBase base n + i)` from `Fits w (base + space n)`,
+and for a goal of another shape that follows from hypotheses `Fits w v`. -/
 syntax (name := fits) "fits" (" [" term,* "]")? : tactic
 
 elab_rules : tactic

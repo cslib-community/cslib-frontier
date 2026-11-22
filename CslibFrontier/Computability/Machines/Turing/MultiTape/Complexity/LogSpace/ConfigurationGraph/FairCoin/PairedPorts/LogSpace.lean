@@ -181,19 +181,14 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
             (10, [w.length, i.bits.length, 2 ^ i.bits.length, i]) := by
           refine CounterProgram.Reaches.lt (by rfl) hb ?_
           simpa [hiw] using CounterProgram.Reaches.refl _
-        cases hbit : w[i]
-        · refine ⟨(12, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
-            (h3.trans h9).trans ?_, ?_, hb⟩
-          · refine CounterProgram.Reaches.read (by rfl) hb ?_
+        refine ⟨(if w[i] then 11 else 12, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
+          (h3.trans h9).trans ?_, ?_, hb⟩
+        · refine CounterProgram.Reaches.read (by rfl) hb ?_
+          cases hbit : w[i] <;>
             simpa [(getElem?_frame_append w i.bits hiw).2, hbit, readLabel] using
               CounterProgram.Reaches.refl _
-          · simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
-        · refine ⟨(11, [w.length, i.bits.length, 2 ^ i.bits.length, i]),
-            (h3.trans h9).trans ?_, ?_, hb⟩
-          · refine CounterProgram.Reaches.read (by rfl) hb ?_
-            simpa [(getElem?_frame_append w i.bits hiw).2, hbit, readLabel] using
-              CounterProgram.Reaches.refl _
-          · simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
+        · cases hbit : w[i] <;>
+            simp [List.getElem?_eq_getElem hiw, hbit, bitsGetElemProgram, instr]
       · refine ⟨(13, [w.length, i.bits.length, 2 ^ i.bits.length, i]), h3.trans ?_, ?_, hb⟩
         · refine CounterProgram.Reaches.lt (by rfl) hb ?_
           simpa [hiw] using CounterProgram.Reaches.refl _
@@ -211,13 +206,9 @@ private theorem bitsGetElem_run (w : List Bool) (i : ℕ) {B : ℕ}
         · refine CounterProgram.Reaches.read (by rfl) hb ?_
           simp only [eval_add, eval_mul, eval_const, eval_reg, List.getD_cons_zero,
             List.getD_cons_succ, getElem?_frame_append_boundary, List.getElem?_eq_getElem hj_lt]
-          cases i.bits[j]
-          · dsimp only [readLabel]
-            refine CounterProgram.Reaches.lt (by rfl) hb ?_
-            simpa [hgt] using CounterProgram.Reaches.refl _
-          · dsimp only [readLabel]
-            refine CounterProgram.Reaches.lt (by rfl) hb ?_
-            simpa [hgt] using CounterProgram.Reaches.refl _
+          cases i.bits[j] <;> dsimp only [readLabel] <;>
+            exact CounterProgram.Reaches.lt (by rfl) hb
+              (by simpa [hgt] using CounterProgram.Reaches.refl _)
         · simp [hnone, bitsGetElemProgram, instr]
       · have hpow_le_w : 2 ^ j ≤ w.length := by omega
         have hnext_pow : 2 ^ (j + 1) ≤ 2 * w.length + 1 := by

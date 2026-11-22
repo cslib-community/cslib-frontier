@@ -353,7 +353,7 @@ noncomputable def stateSolution
             exact AlgState.approx_self _ _
           · simpa using (S.effect_approx_zero_of_not_satisfies L hne h hs).smul
               ((signVal (parityOn (L.support e) a) : ℂ) - signVal (L.parity e))
-      rw [AlgState.Approx] at hsum ⊢
+      rw [AlgState.approx_iff] at hsum ⊢
       convert hsum using 2
       rw [sub_zero, ← (S.alice e).sum_effect, smul_sum, ← sum_sub_distrib]
       simp only [sub_smul]

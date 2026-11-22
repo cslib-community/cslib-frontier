@@ -32,9 +32,9 @@ and
    * `booleanPRF_uniform` verifies that `fun n => PMF.uniformOfFintype (BooleanFunction n)`
      satisfies `BooleanPRF` unconditionally, giving the `2 * n - 2` gate lower bound for random
      Boolean functions with no cryptographic assumption;
-   * composing `OneWay.exists_pseudorandomFunction` with Theorem 7.5 yields a
-     `PseudorandomFunction` family whose keys achieve `B₂`-complexity at least `2 * n - 2` with
-     overwhelming probability under any uniform one-way function.
+   * composing `OneWay.exists_pseudorandomFunction` with the keyed corollaries gives a word-valued
+     PRF with negligible probability of a key whose full function has fewer than `2 * n - 2` gates,
+     and an eventual key witness for the first output bit.
 -/
 
 namespace CslibFrontierTests.Crypto.PRFCircuitLowerBound
@@ -175,8 +175,8 @@ theorem booleanPRF_uniform : BooleanPRF (fun n => PMF.uniformOfFintype (BooleanF
   simp only [booleanPRFRealGame, booleanPRFIdealGame, Game.advantage_self]
   exact negligible_zero
 
-/-- Unconditional consequence of Theorem 7.5 on `booleanPRF_uniform`: a uniformly random `n`-bit
-Boolean function has `B₂`-circuit complexity below `2 * n - 2` with negligible probability. -/
+/-- The distributional bound applies to `booleanPRF_uniform`: a uniformly random Boolean function
+on `n` bits has `B₂`-circuit complexity below `2 * n - 2` with negligible probability. -/
 theorem negligible_uniform_complexity_lt_two_mul_sub_two :
     Negligible (fun n =>
       ((PMF.uniformOfFintype (BooleanFunction n)).map (fun f =>
@@ -184,8 +184,8 @@ theorem negligible_uniform_complexity_lt_two_mul_sub_two :
         true).toNNReal) :=
   booleanPRF_uniform.negligible_complexity_lt_two_mul_sub_two
 
-/-- Any uniform `OneWay` function yields a `PseudorandomFunction` family satisfying both forms of
-Fan–Li–Yang Theorem 7.5. -/
+/-- A uniform one-way function yields a word-valued PRF satisfying the distributional circuit
+lower bound and the eventual first-output-bit key-witness bound. -/
 theorem exists_prf_with_two_mul_sub_two_lower_bound_of_oneWay {f : List Bool → List Bool}
     (hf : OneWay f) :
     ∃ family : List Bool → List Bool → List Bool,

@@ -165,7 +165,7 @@ example : (computingMachine ctx reader start answer).output
 example : (computingMachine ctx reader start answer).output
     [true, true, true] 12 = encCountResult none := by rfl
 
-private theorem reader_state_bound (w : List Bool) (p : State) (hp : p.context = ctx)
+private theorem reader_state_bound (w : List Bool) (p : State) (hp : p.context.size = 3)
     (hlive : halted p = false) (T : ℕ)
     (hpre : ∀ i < T, reader.halted (reader.runFrom w (start p) i) = false)
     (hhalt : reader.halted (reader.runFrom w (start p) T) = true)
@@ -174,7 +174,7 @@ private theorem reader_state_bound (w : List Bool) (p : State) (hp : p.context =
   subst T
   have hcur : p.cursor < 3 := by
     have h := (Bool.or_eq_false_iff.mp hlive).2
-    simpa [hp, ctx] using h
+    simpa [hp] using h
   have hindex : 2 * p.cursor + (if p.memberPhase then 1 else 0) ≤ 5 := by
     cases p.memberPhase <;> simp <;> omega
   have hbits := length_encNat_le_log2 hindex
@@ -218,7 +218,7 @@ public theorem reader_native_certificate : ∃ time c, ComputableInTimeAndSpace
     subst i
     rfl
   · intro w p hp _ hlive T hpre hhalt i hi
-    exact reader_state_bound w p hp hlive T hpre hhalt i hi
+    exact reader_state_bound w p (by rw [hp]; rfl) hlive T hpre hhalt i hi
   · intro w p _ _ T hpre hhalt
     exact reader_reply w p T hpre hhalt
   · intro w
@@ -280,7 +280,8 @@ example (w : List Bool) (q : State) (hq : Returns ctx reader start answer w q) :
       2 * (Nat.log2 (2 * (encContext ctx).length + 1) + 1) + 1 +
         (4 * (encContext ctx).length + 8 * (Nat.log2 ctx.size + 1) + 13 + 16) := by
   obtain ⟨T, hr, hb⟩ := hq.exists_run_encoding_le encRead 13
-    (fun p hp _ hlive T hpre hhalt i hi => reader_state_bound w p hp hlive T hpre hhalt i hi)
+    (fun p hp _ hlive T hpre hhalt i hi =>
+      reader_state_bound w p (by rw [hp]; rfl) hlive T hpre hhalt i hi)
   have hd := QueryMachine.withOffset_runFrom_encoding_le
     (computingMachine ⟨0, 0, 0, 0, ⟨0, 0⟩⟩ reader start answer) (encMachineState encRead)
     (Runtime.encInput ⟨ctx, w⟩) (Runtime.load ⟨ctx, w⟩).offset (.inl (initial ctx)) _ T
@@ -297,5 +298,46 @@ example (w : List Bool) (q : State) (hq : Returns ctx reader start answer w q) :
       (show 2 * (encNat (2 * (encContext ctx).length + 1)).length + 1 +
           (4 * (encContext ctx).length + 8 * (Nat.log2 ctx.size + 1) + 13 + 16) ≤ _ from
         by omega))
+
+private abbrev FramedReaderInput := {x : Runtime.Input // x.context.size = 3}
+
+private def framedReaderCount (x : FramedReaderInput) : Option ℕ :=
+  countPredecessors (fun u _ : Fin 3 => x.val.payload[2 * u.val]?)
+    (fun u => x.val.payload[2 * u.val + 1]?) 2
+
+private def encFramedReaderInput : FramedReaderInput ↪ List Bool :=
+  (Function.Embedding.subtype _).trans Runtime.encInput
+
+-- The same native witness consumes runtime contexts and keeps a truncated payload rejecting.
+example : ∃ time c, ComputableInTimeAndSpace framedReaderCount encFramedReaderInput
+    encCountResult time (fun x => c * (Nat.log2 (encFramedReaderInput x).length + 1 +
+      (2 * (encNat (Runtime.load x.val).offset).length + 1 +
+        (4 * (encContext x.val.context).length + 8 * (Nat.log2 x.val.context.size + 1) + 13 +
+          16)))) := by
+  refine Runtime.compute_of_callees encFramedReaderInput Subtype.val (fun _ => rfl)
+    encRead reader start answer _ _ (fun _ => (2 : Fin 3)) Subtype.property
+    (encRead_index_budget (of_inO (ComputableInDegree.id' (enc := encRead)).inO_one))
+    reader_next_space
+    (encRead_finished_budget (of_inO (ComputableInDegree.id' (enc := encRead)).inO_one))
+    start_space (encRead_reply_budget (of_inO (ComputableInDegree.id' (enc := encRead)).inO_one))
+    (fun _ => 13) _ ?_ ?_ ?_ (fun _ => Nat.le_add_right _ _) (fun _ => Nat.le_add_left _ _)
+  · intro x p _ _ _
+    refine ⟨1, ?_, rfl⟩
+    intro i hi
+    have : i = 0 := by omega
+    subst i
+    rfl
+  · intro x p hp _ hlive T hpre hhalt i hi
+    exact reader_state_bound x.val.payload p (hp ▸ x.property) hlive T hpre hhalt i hi
+  · intro x p _ _ T hpre hhalt
+    exact reader_reply x.val.payload p T hpre hhalt
+
+example :
+    let x : Runtime.Input := ⟨⟨3, 1, 2, 3, ⟨1, 2⟩⟩, [true, true, true]⟩
+    (Runtime.executor reader start answer).finish ((Runtime.executor reader start answer).runFrom
+      (Runtime.encInput x) (Runtime.entry ReadState x) 12) = encCountResult none := by
+  dsimp only
+  rw [Runtime.executor_runFrom]
+  rfl
 
 end Turing.DoubleCounting.Predecessor.Tests

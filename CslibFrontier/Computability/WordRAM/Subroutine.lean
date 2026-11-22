@@ -13,6 +13,8 @@ public import CslibFrontier.Computability.WordRAM.MapOp
 public import CslibFrontier.Computability.WordRAM.RegisterFrame
 
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Composable Word-RAM subroutine infrastructure
@@ -395,6 +397,7 @@ variable {B B' : Basis} {r_ds r_caller k_init w base : ℕ}
   {Result : O → Type z} {valid : State → O → Prop} {params : Fin k_init → ℕ} {s₀ : State}
 
 /-- Total instruction bound for `P.initFresh`. -/
+@[wram_arith]
 def initTime (C : SubroutineBase P Result valid w base params s₀) : ℕ :=
   C.spanTime + C.setupTime
 
@@ -501,7 +504,7 @@ theorem initClear_exec (C : SubroutineBase P Result valid w base params s₀) {x
   rw [hm₁] at hmod₂
   have hmod : Modifies (Block.mk base C.space).footprint x.mem y.mem := by
     simpa only [Finset.union_idempotent] using hmod₂.trans hmod₃
-  exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by unfold initTime; omega), hfr₃, hrep, hpot, hmod⟩
+  exact ⟨y, (he₁.seq (he₂.seq he₃)).mono (by wram_omega), hfr₃, hrep, hpot, hmod⟩
 
 /-- Relocated dirty-memory initialization along any injective register embedding `f`, in
 `C.initTime + 4 * C.space + 6` instructions. -/

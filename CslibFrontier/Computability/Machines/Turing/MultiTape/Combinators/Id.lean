@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Equivalence
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # The copy machine, public
@@ -70,11 +71,7 @@ lemma step_scan {n : ℕ} (hn : n < input.length) :
   rw [step_of_state rfl, hsym]
   simp only [copyInput, MultiTapeMachine.copyInput, MultiTapeMachine.toTM,
     MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
-  apply Cfg.ext_zero_tapes (by rfl)
-  · simp [cfg, moveInputPos]
-    grind
-  · simp only [cfg, Action.apply, Option.toList_some]
-    grind [List.take_add_one]
+  tm_step [cfg]
 
 /-- On the blank at the right end of the input, the copy machine halts in place. -/
 lemma step_halt :
@@ -84,7 +81,7 @@ lemma step_halt :
   rw [step_of_state rfl, hsym]
   simp only [copyInput, MultiTapeMachine.copyInput, MultiTapeMachine.toTM,
     MultiTapeMachine.ofTr, tr_ofTr, MultiTapeMachine.Action.emptyOracleEquiv_step]
-  apply Cfg.ext_zero_tapes <;> simp [cfg, Action.apply]
+  tm_step [cfg]
 
 /-- After `n ≤ input.length` steps, the copy machine has copied the first `n` input symbols. -/
 lemma runFrom_scan (n : ℕ) (hn : n ≤ input.length) :

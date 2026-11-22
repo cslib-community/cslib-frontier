@@ -71,7 +71,7 @@ private theorem setup_inSpace :
   exact h
 
 /-- Convert a row-major original-source position to its offset-zero subdivision ID. -/
-def SeedSearchSetup.originalSourceID (s : SeedSearchSetup) (position : ℕ) : ℕ :=
+@[expose] def SeedSearchSetup.originalSourceID (s : SeedSearchSetup) (position : ℕ) : ℕ :=
   rootID position s.parameters.search.subdivision.chainBound
 
 /-- Lookup uses linear native workspace in the encoded setup and binary source position. -/
@@ -208,6 +208,33 @@ theorem length_configurationSeedSearchSetup_le_log (ntm : MultiTapeNTM k Bool St
   length_log_of_inSpace (encIn := encBits) (f := configurationSeedSearchParameters ntm c)
     (g := setup) (length_configurationSeedSearchParameters_le_log ntm c) setup_inSpace
 
+/-- The retained subdivision parameters fit within the encoded seed-search setup. -/
+theorem encSeedSearchSetup_subdivision_length_le (s : SeedSearchSetup) :
+    (encSubdivisionSize s.parameters.search.subdivision).length ≤ (encSeedSearchSetup s).length :=
+  (encSeedSearchSize_subdivision_length_le s.parameters.search).trans
+    ((encSeedSearchParameters_search_length_le s.parameters).trans
+      (encSeedSearchSetup_parameters_length_le s))
+
+/-- The initialized subdivision has polynomially many vertices in the original input length. -/
+theorem configurationSubdivisionVertexCount_polyBounded
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    PolyBounded List.length (fun w =>
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount) :=
+  (configurationSeedSearchParameters_polyBounded ntm c).2.2.mono fun w => by
+    simp only [(configurationSeedSearchSetup_endpoints ntm c w).1, le_refl]
+
+/-- The subdivision vertex count has logarithmic binary length in the original word. -/
+theorem length_configurationSubdivisionVertexCount_le_log
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+      (encNat size.vertexCount).length ≤ C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hsetup⟩ := length_configurationSeedSearchSetup_le_log ntm c
+  refine ⟨C, fun w => ?_⟩
+  let s := configurationSeedSearchSetup ntm c w
+  exact (encSubdivisionSize_vertexCount_length_le s.parameters.search.subdivision).trans
+    ((encSeedSearchSetup_subdivision_length_le s).trans (hsetup w))
+
 /-- All valid requests to the initialized scan have logarithmic overhead over their explicitly
 charged context. The same bound covers the decoded requests passed into the callback. -/
 theorem length_configurationSubdivisionRequest_le {Context : Type}
@@ -226,10 +253,7 @@ theorem length_configurationSubdivisionRequest_le {Context : Type}
   let size := s.parameters.search.subdivision
   let q : FlatQuery Context := ⟨ctx, size.chainBound, u, v⟩
   let budget := (encContext ctx).length + (Nat.log2 w.length + 1)
-  have hsize : (encSubdivisionSize size).length ≤ (encSeedSearchSetup s).length :=
-    (encSeedSearchSize_subdivision_length_le s.parameters.search).trans
-      ((encSeedSearchParameters_search_length_le s.parameters).trans
-        (encSeedSearchSetup_parameters_length_le s))
+  have hsize := encSeedSearchSetup_subdivision_length_le s
   have hb := (encSubdivisionSize_chainBound_length_le size).trans hsize
   have hvertex := (encSubdivisionSize_vertexCount_length_le size).trans hsize
   have hs := hK w

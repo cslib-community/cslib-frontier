@@ -35,6 +35,7 @@ writes the experiment's law as an event of the logged run.
   `Signer.ofSign`, `Signer.restrict`, `Signer.oneTime`, `Signer.indexed` and `Signer.counter`.
 * `Cslib.Crypto.forgeExperiment`: the forgery experiment for a key generator, signing policy,
   verifier and freshness test.
+* `Cslib.Crypto.oneTimeForgeExperiment`: the fresh-pair game with one signing response.
 * `Cslib.Crypto.freshMessage`, `Cslib.Crypto.freshPair`: the existential and strong freshness
   tests.
 
@@ -133,6 +134,19 @@ def freshMessage [DecidableEq M] (m : M) (_ : Sig) (log : List (M × Sig)) : Boo
 def freshPair [DecidableEq M] [DecidableEq Sig] (m : M) (σ : Sig) (log : List (M × Sig)) :
     Bool :=
   decide ((m, σ) ∉ log)
+
+/-- The fresh-pair MAC experiment with one signing response ([BonehShoup2023], Attack Game
+6.1 restricted as in Section 7.6). The forger chooses its query and saves private state, then
+receives the tag before producing its candidate. This works for probabilistic programs and their
+distribution semantics. -/
+def oneTimeForgeExperiment {P : Type → Type} [Monad P] [DecidableEq M] [DecidableEq Sig]
+    {σ : Type} (keyGen : P SK) (sign : SK → M → P Sig) (verify : SK → M → Sig → Bool)
+    (choose : P (M × σ)) (guess : σ → Sig → P (M × Sig)) : P Bool := do
+  let sk ← keyGen
+  let (m, state) ← choose
+  let t ← sign sk m
+  let (m', t') ← guess state t
+  return freshPair m' t' [(m, t)] && verify sk m' t'
 
 /-- A message that was never signed is not part of any answered pair. -/
 theorem freshPair_of_freshMessage [DecidableEq M] [DecidableEq Sig] {m : M} {σ : Sig}

@@ -77,7 +77,7 @@ private theorem solves_eqPublicCoin (n : ℕ) :
       Set.univ := by
   classical
   intro x _ y _
-  rw [PublicCoin.errorProb, eqPublicCoin, PMF.toOuterMeasure_map_apply,
+  rw [PublicCoin.errorProb, Probability.PMF.errorProb, eqPublicCoin, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_apply_toReal, ← sum_filter]
   simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
     BitString.card, Set.mem_preimage, Set.mem_ofPred_eq, run_eqProtocol, equality]
@@ -136,7 +136,7 @@ private theorem solves_eqPublicCoin₂ (n : ℕ) :
       Set.univ := by
   classical
   intro x _ y _
-  rw [PublicCoin.errorProb, eqPublicCoin₂, PMF.toOuterMeasure_map_apply,
+  rw [PublicCoin.errorProb, Probability.PMF.errorProb, eqPublicCoin₂, PMF.toOuterMeasure_map_apply,
     Probability.PMF.toOuterMeasure_apply_toReal, ← sum_filter]
   simp only [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast,
     Fintype.card_prod, BitString.card, Set.mem_preimage, Set.mem_ofPred_eq, run_eqProtocol₂,

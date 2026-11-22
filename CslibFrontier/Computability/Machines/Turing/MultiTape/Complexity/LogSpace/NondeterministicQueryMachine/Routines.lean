@@ -43,6 +43,9 @@ namespace Turing.NondeterministicQueryMachine
 
 open MultiTapeTM QueryMachine.Simulation
 
+/-- Encode the framed optional read bit followed by the unframed binary selector. -/
+abbrev encReadChoice := encPair (encOption encBool) encBool
+
 private theorem le_of_add_le8 {a₁ a₂ a₃ a₄ a₅ a₆ a₇ : ℕ} {m : ℕ}
     (h : a₁ + a₂ + a₃ + a₄ + a₅ + a₆ + a₇ ≤ m) :
     a₁ ≤ m ∧ a₂ ≤ m ∧ a₃ ≤ m ∧ a₄ ≤ m ∧ a₅ ≤ m ∧ a₆ ≤ m ∧ a₇ ≤ m := by
@@ -117,8 +120,8 @@ theorem exists_routines {α σ : Type} {enc : α ↪ List Bool} {encS : σ ↪ L
     (M : NondeterministicQueryMachine σ)
     (hquery : ComputableInSpace M.query encS encNat fun s => (encS s).length)
     (hnext : ComputableInSpace M.next
-      (encPair encS (encPair (encOption encBool) encBool)) encS
-      fun p => (encPair encS (encPair (encOption encBool) encBool) p).length)
+      (encPair encS encReadChoice) encS
+      fun p => (encPair encS encReadChoice p).length)
     (hhalted : ComputableInSpace M.halted encS encBool fun s => (encS s).length)
     (haccept : ComputableInSpace M.accept encS encBool fun s => (encS s).length)
     (start : α → σ) (S : α → ℕ) (hlog : ∀ a, Nat.log2 (enc a).length + 1 ≤ S a)

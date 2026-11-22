@@ -197,17 +197,47 @@ inductive ControllerVerdict where
   | decided (reachable : Bool)
   deriving DecidableEq, Repr
 
-/-- Fuel-bounded round loop used by `runController`. -/
-@[expose] def runRounds {m : Type → Type} [Monad m] {n : ℕ}
-    (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
+/-- A verdict identifies the first nonunique round or decides reachability
+when all rounds have unique passing transcripts. -/
+abbrev ControllerVerdict.Correct {n : ℕ} (r : Fin n → Fin n → Prop) (s target : Fin n) :
+    ControllerVerdict → Prop
+  | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
+  | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target)
+
+/-- Two verdicts satisfying the exact controller specification agree. -/
+theorem ControllerVerdict.Correct.eq {n : ℕ} {r : Fin n → Fin n → Prop} {s target : Fin n}
+    {a b : ControllerVerdict} (ha : a.Correct r s target) (hb : b.Correct r s target) : a = b := by
+  cases a with
+  | bad i =>
+    cases b with
+    | bad j =>
+      congr 1
+      exact le_antisymm (le_of_not_gt fun h => hb.2 (ha.1 j h))
+        (le_of_not_gt fun h => ha.2 (hb.1 i h))
+    | decided hit => exact (ha.2 (hb.1 i)).elim
+  | decided hit =>
+    cases b with
+    | bad j => exact (hb.2 (ha.1 j)).elim
+    | decided answer =>
+      exact congrArg ControllerVerdict.decided (Bool.eq_iff_iff.mpr (ha.2.trans hb.2.symm))
+
+/-- Run the fuel-bounded controller with a supplied round and final membership action. -/
+@[expose] def runRoundsWith {m : Type → Type} [Monad m]
+    (nextRound : ℕ → ℕ → Tally → m RoundUpdate) (member : ℕ → ℕ → Tally → m Bool) :
     ℕ → ℕ → Tally → m (Option ControllerVerdict)
   | 0, _, _ => pure none
   | fuel + 1, k, t => do
-    let a ← scanNextRound edge member k t
+    let a ← nextRound (fuel + 1) k t
     if a.bad then return some (.bad (k + 1))
     if a.tally.count == t.count then
-      return some (.decided (← member k t target))
-    runRounds edge member target fuel (k + 1) a.tally
+      return some (.decided (← member (fuel + 1) k t))
+    runRoundsWith nextRound member fuel (k + 1) a.tally
+
+/-- Fuel-bounded round loop used by `runController`. -/
+@[expose] def runRounds {m : Type → Type} [Monad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
+    ℕ → ℕ → Tally → m (Option ControllerVerdict) :=
+  runRoundsWith (fun _ => scanNextRound edge member) (fun _ k t => member k t target)
 
 /-- Run at most one update per vertex, starting with the source alone. The correctness
 theorem excludes fuel exhaustion when the callback contract holds. -/
@@ -235,6 +265,13 @@ private theorem round_stable_of_size_le {n : ℕ} {r : Fin n → Fin n → Prop}
   · simpa using h
   · simpa using h.trans (Nat.le_succ (k + 1))
 
+/-- A change in the expected count means the next radius is below the vertex count. -/
+theorem radius_succ_lt_of_expected_count_ne {n : ℕ} {r : Fin n → Fin n → Prop}
+    {s : Fin n} {k : ℕ} (h : (expected r s (k + 1)).count ≠ (expected r s k).count) :
+    k + 1 < n := by
+  by_contra! hsize
+  exact h (by simp [expected, round_stable_of_size_le hsize])
+
 private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n : ℕ}
     {r : Fin n → Fin n → Prop} {s target : Fin n}
     {edge : Fin n → Fin n → m Bool} {member : MembershipScan m n}
@@ -244,9 +281,7 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     (fuel k : ℕ) (hbound : n ≤ k + fuel) (hpos : 0 < fuel)
     (hgood : ∀ j ≤ k, ∃! w, Passes r s j w) :
     ∃ verdict, runRounds edge member target fuel k (expected r s k) = pure (some verdict) ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
-      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target) := by
+      verdict.Correct r s target := by
   classical
   induction fuel generalizing k with
   | zero => omega
@@ -255,28 +290,28 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     obtain ⟨a, ha, ht, hb⟩ := scanNextRound_correct he (hm k hk) hk
     cases hbad : a.bad with
     | true =>
-      refine ⟨.bad (k + 1), by simp [runRounds, ha, hbad], fun i hi => hgood i (by omega), ?_⟩
+      refine ⟨.bad (k + 1), by simp [runRounds, runRoundsWith, ha, hbad],
+        fun i hi => hgood i (by omega), ?_⟩
       exact fun h => by simpa [hbad] using hb.mpr h
     | false =>
       by_cases hs : (expected r s (k + 1)).count = (expected r s k).count
       · have hstable := stable_of_count_eq hs
         refine ⟨.decided (decide (target ∈ round r s k)), ?_, ?_, ?_⟩
-        · simp [runRounds, ha, hbad, ht, hs, hm k hk]
+        · simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hm k hk]
         · intro j
           rw [existsUnique_passes_iff]
           intro v hv
           have hr := reachableWithin_subset_setOf_reflTransGen (mem_round.mp hv)
           exact (existsUnique_passes_iff.mp hk) v (mem_round.mpr (hstable ▸ hr))
         · simp only [decide_eq_true_eq, mem_round, hstable, Set.mem_ofPred_eq]
-      · have hsize : k + 1 < n := by
-          by_contra! h
-          exact hs (by simp [expected, round_stable_of_size_le h])
+      · have hsize := radius_succ_lt_of_expected_count_ne hs
         have hgood' (j : ℕ) (hj : j ≤ k + 1) : ∃! w, Passes r s j w := by
           rcases Nat.eq_or_lt_of_le hj with rfl | hj
           · exact hb.mp hbad
           · exact hgood j (by omega)
         obtain ⟨verdict, hv, hspec⟩ := ih (k + 1) (by omega) (by omega) hgood'
-        exact ⟨verdict, by simp [runRounds, ha, hbad, ht, hs, hv], hspec⟩
+        simp only [runRounds] at hv
+        exact ⟨verdict, by simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hv], hspec⟩
 
 /-- Under the adjacency and unique membership-replay contracts, the controller returns the
 first nonunique round, or the reachability answer when all rounds are unique. Fuel suffices
@@ -288,9 +323,7 @@ theorem runController_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n :
     (hm : ∀ k, (∃! w, Passes r s k w) → ∀ v,
       member k (expected r s k) v = pure (by classical exact decide (v ∈ round r s k))) :
     ∃ verdict, runController edge member target = pure (some verdict) ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
-      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target) := by
+      verdict.Correct r s target := by
   have hgood (j : ℕ) (hj : j ≤ 0) : ∃! w, Passes r s j w :=
     (Nat.eq_zero_of_le_zero hj).symm ▸ existsUnique_passes_zero r s
   rw [runController, ← expected_zero r s]

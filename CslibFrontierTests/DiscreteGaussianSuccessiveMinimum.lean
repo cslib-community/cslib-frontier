@@ -5,23 +5,28 @@ Authors: Mayank Rathee
 -/
 
 module
+-- upstream: local-only (tests)
 
-public import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
-public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
-public import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
+import CslibFrontier.Foundations.MeasureTheory.Group.FundamentalDomain
+import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.Real.Pi.Bounds
 
 /-!
 Clients of `ZLattice.exists_linearIndependent_norm_le_successiveMinimum`,
-`ZLattice.gaussianMass_le_gaussianMass_zero`, and
-`ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum` under module encapsulation.
+`ZLattice.gaussianMass_le_gaussianMass_zero`,
+`ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum`, and
+`ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum` under module encapsulation.
 
 Covers dimension 0, the 1-D lattice `2ℤ`, the non-isotropic 2-D lattice `ℤ × 3ℤ` (with
-`λ₁ = 1 < λ₂ = 3`, discharging `ZLattice.tvDist_gaussian_quotient_le`), and the lower-rank
+`λ₁ = 1 < λ₂ = 3`, discharging both `ZLattice.tvDist_gaussian_quotient_le` and
+`ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le`), and the lower-rank
 discrete lattice `ℤ × {0} ⊂ ℝ²` with an off-span center.
 -/
+
+set_option linter.privateModule false
 
 open Module ProbabilityTheory MeasureTheory
 open scoped ENNReal RealInnerProductSpace
@@ -39,17 +44,20 @@ private abbrev pointDual := LinearMap.BilinForm.dualSubmodule (innerₗ Point) p
 
 /-- `ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum` holds in dimension zero for
 every positive `ε` and `s`, using only ordinary module imports. -/
-public theorem gaussianMass_dual_dim0_le (ε : ℝ) (hε : 0 < ε) (s : ℝ) (hs : 0 < s) :
-    ZLattice.gaussianMass
-      (LinearMap.BilinForm.dualSubmodule (innerₗ (EuclideanSpace ℝ (Fin 0)))
-        (Submodule.span ℤ (Set.range (EuclideanSpace.basisFun (Fin 0) ℝ).toBasis)))
-      (1 / s) 0 - 1 ≤ ε := by
+example (ε : ℝ) (hε : 0 < ε) (s : ℝ) (hs : 0 < s) :
+    ZLattice.gaussianMass pointDual (1 / s) 0 - 1 ≤ ε := by
   apply ZLattice.gaussianMass_dual_sub_one_le_of_successiveMinimum _ ε hε s hs
   simp [hs.le]
 
 example (s : ℝ) (hs : 0 < s) (c : Point) :
     ZLattice.gaussianMass pointLattice s c ≤ ZLattice.gaussianMass pointLattice s 0 :=
   ZLattice.gaussianMass_le_gaussianMass_zero pointLattice s hs c
+
+/-- MR07 Lemma 3.3 (`smoothingParameter_le_sqrt_log_mul_successiveMinimum`) holds in dimension
+zero (`η_ε(pointLattice) ≤ 0`). -/
+example (ε : ℝ) (hε : 0 < ε) : ZLattice.smoothingParameter pointLattice ε ≤ 0 := by
+  have h := ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum pointLattice ε hε
+  simpa [Point] using h
 
 /-! ### Dimension 1: `2ℤ ⊂ ℝ` -/
 
@@ -136,6 +144,26 @@ example : ZLattice.gaussianMass L1 3 1 ∈
   simpa only [finrank_self, pow_one] using
     ZLattice.gaussianMass_mem_Icc_of_dual_mass_le L1 3 (by norm_num) (1 / 2)
       L1_dual_small_at_three 1
+
+/-- MR07 Lemma 3.3 (`smoothingParameter_le_sqrt_log_mul_successiveMinimum`) on `2ℤ`:
+`η_{1/2}(2ℤ) ≤ 2 * √(ln 6 / π) ≤ 3`, discharging `gaussianMass_mem_Icc_of_smoothingParameter_le`. -/
+private theorem L1_eta_half_le_three : ZLattice.smoothingParameter L1 (1 / 2) ≤ 3 := by
+  have h := ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum L1 (1 / 2) (by norm_num)
+  simp only [finrank_self, Nat.cast_one, L1_successiveMinimum] at h
+  have harg : (2 : ℝ) * 1 * (1 + 1 / (1 / 2 : ℝ)) = 6 := by norm_num
+  rw [harg] at h
+  have hsqrt : Real.sqrt (Real.log 6 / Real.pi) ≤ 3 / 2 := by
+    calc
+      Real.sqrt (Real.log 6 / Real.pi) ≤ Real.sqrt ((3 / 2 : ℝ) ^ 2) :=
+        Real.sqrt_le_sqrt log_six_div_pi_le
+      _ = 3 / 2 := Real.sqrt_sq (by norm_num)
+  linarith
+
+example : ZLattice.gaussianMass L1 3 1 ∈
+    Set.Icc (3 / ZLattice.covolume L1 * (1 - 1 / 2)) (3 / ZLattice.covolume L1 * (1 + 1 / 2)) := by
+  simpa only [finrank_self, pow_one] using
+    ZLattice.gaussianMass_mem_Icc_of_smoothingParameter_le L1 3 (by norm_num) (1 / 2) (by norm_num)
+      L1_eta_half_le_three 1
 
 /-! ### Dimension 2 non-isotropic: `ℤ × 3ℤ ⊂ EuclideanSpace ℝ (Fin 2)` (`λ₁ = 1 < λ₂ = 3`) -/
 
@@ -289,6 +317,35 @@ example :
   have hF : IsAddFundamentalDomain L2.toAddSubgroup.op (ZSpan.fundamentalDomain rectBasis) volume :=
     isAddFundamentalDomain_op_iff.mpr (ZSpan.isAddFundamentalDomain' rectBasis volume)
   exact (ZLattice.tvDist_gaussian_quotient_le L2 3 (by norm_num) hF).trans L2_dual_small_at_three
+
+/-- MR07 Lemma 3.3 (`smoothingParameter_le_sqrt_log_mul_successiveMinimum`) on `ℤ × 3ℤ`:
+`η_{1/2}(L2) ≤ 3`, chaining into `tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le` at
+an off-lattice center. -/
+private theorem L2_eta_half_le_three : ZLattice.smoothingParameter L2 (1 / 2) ≤ 3 := by
+  have h := ZLattice.smoothingParameter_le_sqrt_log_mul_successiveMinimum L2 (1 / 2) (by norm_num)
+  rw [finrank_euclideanSpace_fin, L2_successiveMinimum_two] at h
+  have harg : (2 : ℝ) * (2 : ℕ) * (1 + 1 / (1 / 2 : ℝ)) = 12 := by norm_num
+  rw [harg] at h
+  have hsqrt : Real.sqrt (Real.log 12 / Real.pi) ≤ 1 := by
+    calc
+      Real.sqrt (Real.log 12 / Real.pi) ≤ Real.sqrt 1 :=
+        Real.sqrt_le_sqrt log_twelve_div_pi_le_one
+      _ = 1 := Real.sqrt_one
+  linarith
+
+example :
+    tvDist
+      (Measure.map (QuotientAddGroup.mk : Plane → Plane ⧸ L2.toAddSubgroup)
+        (volume.withDensity (fun x : Plane ↦
+          ENNReal.ofReal
+            (gaussianWeight 3 (x - !₂[(1 / 2 : ℝ), 1]) / 3 ^ finrank ℝ Plane))))
+      ((ENNReal.ofReal (ZLattice.covolume L2))⁻¹ •
+        Measure.map (QuotientAddGroup.mk : Plane → Plane ⧸ L2.toAddSubgroup)
+          (volume.restrict (ZSpan.fundamentalDomain rectBasis))) ≤ 1 / 2 := by
+  have hF : IsAddFundamentalDomain L2.toAddSubgroup.op (ZSpan.fundamentalDomain rectBasis) volume :=
+    isAddFundamentalDomain_op_iff.mpr (ZSpan.isAddFundamentalDomain' rectBasis volume)
+  exact ZLattice.tvDist_gaussian_shift_quotient_le_of_smoothingParameter_le L2 3 (by norm_num)
+    !₂[(1 / 2 : ℝ), 1] hF (1 / 2) (by norm_num) L2_eta_half_le_three
 
 /-! ### Lower-rank discrete lattice `ℤ × {0} ⊂ ℝ²` with off-span center -/
 
