@@ -203,6 +203,16 @@ set_option linter.hashCommand false in
     !formulaGateSuffixValue [true] index index &&
     !formulaGateSuffixValue [true] index (2 * index)
 
+-- Only comparison gates use the prepared answer. Each step preserves the computed suffix.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 0 (.or (.not (.eqZero (.const 0))) (.ltZero (.const (-1))))
+  formulaWordGateUpdate word 0 false [false, true, true] == [true, false, true, true] &&
+    formulaWordGateUpdate word 1 false [false, true] == [true, false, true] &&
+    formulaWordGateUpdate word 3 true [] == [true] &&
+    formulaWordGateUpdate word 3 false [] == [false] &&
+    formulaWordGateUpdate [] (2 ^ 80) true [] == [false]
+
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
     (formulaWordGateValues [] termSign).getD 0 false = true ↔
