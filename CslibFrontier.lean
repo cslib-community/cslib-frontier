@@ -2901,6 +2901,7 @@ public import CslibFrontier.Computability.Complexity.Problems.ModularSquareRoot
 public import CslibFrontier.Computability.Complexity.Problems.MonotoneCircuitValue
 public import CslibFrontier.Computability.Complexity.Problems.MonotoneCircuitValue.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.NAEThreeSAT
+public import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.OneInThreeSAT.Signed
@@ -3009,6 +3010,7 @@ public import CslibFrontier.Computability.Complexity.Problems.SAT.Relation
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Space
 public import CslibFrontier.Computability.Complexity.Problems.SAT.Units
 public import CslibFrontier.Computability.Complexity.Problems.SATUNSAT
+public import CslibFrontier.Computability.Complexity.Problems.SPACETM
 public import CslibFrontier.Computability.Complexity.Problems.STCON
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Completeness
 public import CslibFrontier.Computability.Complexity.Problems.STCON.Header
@@ -4172,6 +4174,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Ma
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Nondeterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.NondeterministicBudget
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Oracle
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolySpace
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.ResourceBound
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.Space

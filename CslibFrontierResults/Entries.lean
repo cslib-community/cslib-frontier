@@ -214,6 +214,7 @@ import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
 import CslibFrontier.Computability.Complexity.Problems.HornSAT
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.Exact
 import CslibFrontier.Computability.Complexity.Problems.IndependentSet.ExactCompleteness
+import CslibFrontier.Computability.Complexity.Problems.NEXPBoundedAcceptance
 import CslibFrontier.Computability.Complexity.Problems.QUADEQ
 import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 import CslibFrontier.Computability.Complexity.Problems.Primes
@@ -12582,3 +12583,27 @@ register_result "btree-rank-comparison-lower-bound" where
     WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
     comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
     comparison lower bound for lookup remains open under #3674."
+
+register_result "nexp-bounded-acceptance-complete" where
+  title := "Bounded nondeterministic acceptance is NEXP-complete, and its EXP membership \
+    collapses NEXP to EXP"
+  topic := "time complexity"
+  sources := [
+    { paper := AroraBarak07, theorem := "Chapter 2, Exercise 9",
+      locator := "Web draft 2007-01-08, printed p. 62; PDF p. 78" }
+  ]
+  theorems := [
+    Cslib.Complexity.NEXPBoundedAcceptance.polyTimeComplete_NEXP,
+    Cslib.Complexity.NEXPBoundedAcceptance.NEXP_eq_EXP_of_mem_EXP,
+    Cslib.Complexity.NEXPBoundedAcceptance.NEXP_eq_EXP_iff
+  ]
+  scope := "Instances ⟨machine, input, steps⟩ as NEXPBoundedAcceptanceInstance under \
+    encNEXPBoundedAcceptanceInstance, with native multi-tape machine descriptions, raw input \
+    bits, and binary step/certificate-length bound steps (encNat), instantiating the exercise's \
+    unspecified NEXP-complete language. Acceptance requires some bit certificate c with \
+    |c| ≤ steps for which the universal interpreter halts with output [true] within steps steps \
+    on encPair encBits encBits (input, c). Hardness and the NEXP = EXP collapse quantify over \
+    every source type and injective bit-string encoding under total native polynomial-time \
+    many-one reductions. Source check: outside-fleet agent check (reviewer-codex-edemaine) on \
+    PR #5591 at 929cb9c76428: \
+    https://github.com/cslib-community/cslib-frontier/pull/5591#issuecomment-7071385084."
