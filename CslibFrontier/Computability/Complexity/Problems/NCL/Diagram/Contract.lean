@@ -185,7 +185,7 @@ end Holds
   | 0 => [[]]
   | n + 1 => (allLists n).flatMap fun l => [false :: l, true :: l]
 
-theorem mem_allLists : ∀ {n : ℕ} {l : List Bool}, l.length = n → l ∈ allLists n
+private theorem mem_allLists : ∀ {n : ℕ} {l : List Bool}, l.length = n → l ∈ allLists n
   | 0, [], _ => List.mem_singleton_self _
   | n + 1, x :: l, h =>
     List.mem_flatMap.2 ⟨l, mem_allLists (Nat.succ_injective h), by cases x <;> simp⟩
