@@ -30,6 +30,15 @@ example :
   rw [← Term.evalResidue_eq (by decide : 0 < 8) point t]
   decide +kernel
 
+-- The prefix evaluator leaves the initial stack beneath the result.
+example : Term.evalTokenStack 8 [3] (encTerm_tokens 2
+    (.mul (.var 0) (.add (.const (-2)) (.var 1)))) [5] = some [2, 5] := by
+  decide +kernel
+
+-- An operator with only one operand fails.
+example : Term.evalTokenStack (n := 0) 8 [] [.inr (.inr (.inl ())), .inl 3] [] = none := by
+  decide +kernel
+
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
 def sentence : Formula 0 :=
   .or (.ltZero (.add (.const (-37)) (.const 12)))
