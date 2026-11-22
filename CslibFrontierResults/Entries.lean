@@ -55,6 +55,7 @@ import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Collapse
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT.Tautology
 import CslibFrontier.Computability.Complexity.Problems.NCL.Hardness
+import CslibFrontier.Computability.Complexity.Problems.NCL.Planar.Hardness
 import CslibFrontier.Computability.Complexity.Classes.Sparse.Envelope
 import CslibFrontier.Computability.Complexity.Classes.Advice.OneBit
 import CslibFrontier.Computability.Complexity.Classes.Advice.LengthComparison
@@ -526,6 +527,10 @@ import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
 import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
 import CslibFrontier.Probability.Azuma
 import CslibFrontier.Probability.Renyi
+import CslibFrontier.Foundations.BooleanAnalysis.Subcube
+import CslibFrontier.Foundations.Data.BitString.AgreeExpect
+
+import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 
 /-!
 # Collected results
@@ -969,6 +974,26 @@ register_result "ncl-and-or-pspace-complete" where
     or two configurations. The reductions from alternating prenex CNF emit loop-free graphs. \
     The upper bound uses deterministic Savitch search. \
     Source check: https://github.com/cslib-community/cslib-frontier/pull/7455#issuecomment-7078246392."
+
+register_result "ncl-planar-and-or-pspace-complete" where
+  title := "Hearn–Demaine: planar AND/OR constraint-logic reachability is PSPACE-complete"
+  topic := "space complexity"
+  sources := [
+    { paper := HearnDemaine2005, theorem := "Theorem 9",
+      locator := "Authors’ version, §3.2, p. 9" }
+  ]
+  theorems := [
+    Cslib.Complexity.NCL.PlanarAndOrNCL_pspaceComplete,
+    Cslib.Complexity.NCL.PlanarAndOrNCLEdge_pspaceComplete,
+    Cslib.Complexity.NCL.PlanarAndOrNCLEdgeToEdge_pspaceComplete
+  ]
+  scope := "Configuration-to-configuration, configuration-to-edge and directional edge-to-edge \
+    reachability on finite AND/OR multigraphs whose incidence graph has a continuous polygonal \
+    embedding. The problems use the general binary graph encodings, admit self-loops and \
+    parallel edges, and require no drawing in the input. Planarity is in NP via bounded rotation \
+    certificates, and the three reachability problems are in PSPACE. Deterministic polynomial-time \
+    reductions from alternating prenex CNF compile PlaneWordAndOrNCL instances into loop-free \
+    graphs with continuous planar orthogonal grid drawings."
 
 register_result "alternation-apspace-exp" where
   title := "Chandra–Kozen–Stockmeyer: APSPACE equals EXP"
@@ -12603,6 +12628,38 @@ register_result "odonnell-edge-isoperimetric-inequality" where
     Real.logb 2, the book's log. The book's optimality remark for α a power of 1/2 is checked \
     only for the conjunction of two bits. Source check: outside-fleet review on PR #5817."
 
+register_result "odonnell-kkl-edge-isoperimetric-theorem" where
+  title := "KKL Edge-Isoperimetric Theorem"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "KKL Edge-Isoperimetric Theorem (unnumbered), general-variance case of \
+        Exercise 9.29",
+      locator := "arXiv:2105.10386v1, §9.6, printed p. 267; Exercise 9.29 in §9.7, printed p. 276" }
+  ]
+  theorems := [Cslib.BitString.exists_nine_div_sq_mul_one_ninth_rpow_le_influence]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal, whose variance 𝔼 x, (F x - 𝔼 y, F y) ^ 2 is positive (the book's \
+    nonconstant f), some coordinate i has (9 / Ĩ²) · (1/9) ^ Ĩ ≤ influence i F, where \
+    Ĩ = totalInfluence F / variance is a real exponent; this is the book's MaxInf bound. The \
+    book's remark Ĩ ≥ 1 is not a hypothesis. Covers the general-variance case asked for in \
+    Exercise 9.29, which contains the book's unbiased case."
+
+register_result "odonnell-kkl-theorem" where
+  title := "Kahn–Kalai–Linial Theorem with constant 1/4"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Kahn–Kalai–Linial (KKL) Theorem (unnumbered)",
+      locator := "arXiv:2105.10386v1, §9.6, printed p. 265; derived from the Edge-Isoperimetric \
+        version on printed p. 267" }
+  ]
+  theorems := [Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence]
+  scope := "For every f : (ι → Bool) → Bool over a nonempty finite coordinate type ι with \
+    n = card ι, read as signs F through signVal, some coordinate i has \
+    Var[F] · log n / (4 n) ≤ influence i F, with Var[F] = 𝔼 x, (F x - 𝔼 y, F y) ^ 2 and the \
+    natural logarithm. The book states the theorem with an unspecified constant Ω(·); this \
+    fixes it to 1/4 for every n ≥ 1, not the asymptotic 1/2 of Exercise 9.30(c)."
+
 register_result "mpda-hole-bounded-incomparable-phase-bounded" where
   title := "Hole-bounded and phase-bounded visibly MPDA languages are incomparable"
   topic := "automata theory"
@@ -13615,3 +13672,37 @@ register_result "mironov-randomized-response-rdp" where
     with the n-respondent product survey randomizedResponseSurvey under HammingAdjacent. \
     Source check: arXiv:1702.07476v3 and outside-fleet agent check (reviewer-codex-edemaine) on \
     PR #7481 at 94e42f6e1a9d."
+
+register_result "odonnell-subcube-density" where
+  title := "A subcube of codimension k has density 2^(-k)"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 5.24, E[f] = 2^(-k)",
+      locator := "arXiv:2105.10386v1, §5.4, printed p. 125" }
+  ]
+  theorems := [Cslib.BitString.expect_ite_forall_mem_eq]
+  scope := "For a finite coordinate type ι, a set K of coordinates and any word b : ι → Bool, \
+    the uniform expectation over x : ι → Bool of the real 0/1 indicator of \
+    ∀ i ∈ K, x i = b i (the subcube of codimension k = #K, written inline) is 2⁻¹ ^ #K, for \
+    any decidability instance of the condition. The book takes k ≥ 1; the statement also \
+    covers K = ∅, the whole cube. The degree-one half of the proposition is \
+    odonnell-subcube-degree-one-weight; the book leaves the proof as Exercise 5.29 (§5.6, \
+    printed p. 137)."
+
+register_result "odonnell-subcube-degree-one-weight" where
+  title := "A subcube of codimension k has degree-one weight k 2^(-2k)"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 5.24, W¹[f] = k 2^(-2k)",
+      locator := "arXiv:2105.10386v1, §5.4, printed p. 125" }
+  ]
+  theorems := [Cslib.BitString.levelWeight_one_ite_forall_mem_eq]
+  scope := "For a finite coordinate type ι, a set K of coordinates and any word b : ι → Bool, \
+    the real 0/1 indicator f of ∀ i ∈ K, x i = b i (the subcube of codimension k = #K, \
+    written inline) has levelWeight 1 f = #K / 4 ^ #K, for any decidability instance of the \
+    condition. levelWeight 1 f is the book's W¹[f] = ∑_{|S| = 1} f̂(S)² (Definition 1.19), \
+    equal to ∑ i, f̂({i})² by levelWeight_one; characters \
+    are χ_S(x) = ∏_{i ∈ S} (−1)^(x i) with false ↦ 1, the book's 𝔽₂ convention. The book \
+    takes k ≥ 1; the statement also covers K = ∅. The density half of the proposition is \
+    odonnell-subcube-density; the book leaves the proof as Exercise 5.29 (§5.6, printed \
+    p. 137)."
