@@ -219,13 +219,6 @@ message counters are zero. -/
 
 /-! ### Symmetry-preserving cut helpers and BFS `Change-root` hop counter -/
 
-/-- Symmetry-preserving Boolean membership check on `Sym2 V`. -/
-@[expose] def memSym2 {V : Type*} [DecidableEq V] (x : V) (e : Sym2 V) : Bool :=
-  Sym2.lift
-    ⟨fun u v => decide (x = u) || decide (x = v),
-      fun u v => by dsimp only; cases decide (x = u) <;> cases decide (x = v) <;> rfl⟩
-    e
-
 /-- Computable Boolean check testing whether both endpoints of `e` belong to `S`. -/
 @[expose] def bothIn {V : Type*} [DecidableEq V] (S : Finset V) (e : Sym2 V) : Bool :=
   Sym2.lift
@@ -337,16 +330,16 @@ private theorem bfsDist_le {V : Type*} [DecidableEq V] (B : Finset (Sym2 V))
 in `F.verts` ([GallagerHumbletSpira1983], §3, p. 72). -/
 @[expose] def changeRootHops {V : Type*} [DecidableEq V] (s : FragState V) (F : Fragment V)
     (e : Sym2 V) : ℕ :=
-  let coreEnds := F.verts.filter fun x => F.core.elim false (memSym2 x) = true
-  let moeEnds := F.verts.filter fun x => memSym2 x e = true
+  let coreEnds := F.verts.filter fun x => F.core.elim false (fun c => decide (x ∈ c)) = true
+  let moeEnds := F.verts.filter fun x => x ∈ e
   bfsDist s.branchEdges F.verts moeEnds (F.verts.card - 1) coreEnds
 
 private theorem changeRootHops_add_one_le_card {V : Type*} [DecidableEq V] (s : FragState V)
     (F : Fragment V) (e : Sym2 V) (hne : F.verts.Nonempty) :
     changeRootHops s F e + 1 ≤ F.verts.card := by
   have hpos : 1 ≤ F.verts.card := Finset.card_pos.mpr hne
-  have hle := bfsDist_le s.branchEdges F.verts (F.verts.filter fun x => memSym2 x e = true)
-    (F.verts.card - 1) (F.verts.filter fun x => F.core.elim false (memSym2 x) = true)
+  have hle := bfsDist_le s.branchEdges F.verts (F.verts.filter fun x => x ∈ e)
+    (F.verts.card - 1) (F.verts.filter fun x => F.core.elim false (fun c => decide (x ∈ c)) = true)
   dsimp only [changeRootHops]
   omega
 
