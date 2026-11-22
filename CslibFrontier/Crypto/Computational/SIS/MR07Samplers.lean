@@ -137,7 +137,8 @@ private theorem computableInPolyTime_intTableToRatTable :
   have hrow : ComputableInPolyTime (fun row : List ℤ => row.map (Int.cast : ℤ → ℚ))
       (encList encIntBin) (encList encRat) :=
     mapWithInput (f := fun _ (z : ℤ) => (z : ℚ)) (id' (encIn := encList encIntBin)) hcast
-  have hBrows : ComputableInPolyTime IntTable.rows IntTable.enc (encList (encList encIntBin)) := by
+  have hBrows : ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc
+      (encList (encList encIntBin)) := by
     fun_prop
   have hrows : ComputableInPolyTime
       (fun B : IntTable => B.rows.map fun row => row.map (Int.cast : ℤ → ℚ))
@@ -147,7 +148,8 @@ private theorem computableInPolyTime_intTableToRatTable :
       (snd IntTable.enc (encList encIntBin)).trans hrow
     exact mapWithInput (f := fun _ (row : List ℤ) => row.map (Int.cast : ℤ → ℚ)) hBrows hstep
   have heq : intTableToRatTable = fun B =>
-      RatTable.mk B.numRows B.numCols (B.rows.map fun row => row.map (Int.cast : ℤ → ℚ)) := rfl
+      Cslib.RowTable.mk (α := ℚ) B.numRows B.numCols
+        (B.rows.map fun row => row.map (Int.cast : ℤ → ℚ)) := rfl
   rw [heq]
   fun_prop
 
@@ -536,8 +538,9 @@ def quotientIndex (B S : IntTable) : ℕ :=
     (Cslib.Circuits.Rational.detRows B.rows).natAbs
 
 private theorem computableInPolyTime_intTableRows :
-    ComputableInPolyTime IntTable.rows IntTable.enc Cslib.encIntTable := by
-  change ComputableInPolyTime IntTable.rows IntTable.enc (encList (encList encIntBin))
+    ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc Cslib.encIntTable := by
+  change ComputableInPolyTime (Cslib.RowTable.rows : IntTable → _) IntTable.enc
+    (encList (encList encIntBin))
   fun_prop
 
 private theorem computableInPolyTime_quotientIndex :
@@ -748,7 +751,7 @@ theorem mem_support_sampleQuotientModS (inp : QuotientSampleInput) {v : List ℤ
 
 private theorem intTableToRatTable_entry (T : IntTable) (i j : ℕ) :
     (intTableToRatTable T).entry i j = (T.entry i j : ℚ) := by
-  unfold intTableToRatTable RatTable.entry IntTable.entry Cslib.rowEntry
+  unfold intTableToRatTable Cslib.RowTable.entry
   simp only [List.getD_eq_getElem?_getD, List.getElem?_map]
   cases hrow : T.rows[i]? with
   | none => simp
@@ -799,7 +802,7 @@ theorem solveFloorMul_spec {n : ℕ} (T : IntTable) (B : Matrix (Fin n) (Fin n) 
     let BR : Matrix (Fin n) (Fin n) ℝ := B.map Int.cast
     have hM_eq : M.toMatrix = BQ := by
       ext r j
-      rw [RatTable.toMatrix_apply, intTableToRatTable_entry]
+      rw [Cslib.RowTable.toMatrix_apply, intTableToRatTable_entry]
       exact congrArg (Int.cast : ℤ → ℚ) (hmat r j)
     have hBQ_det : BQ.det ≠ 0 := by
       have hdet : BQ.det = (B.det : ℚ) := by
