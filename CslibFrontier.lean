@@ -3446,6 +3446,7 @@ public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctne
 public import CslibFrontier.Computability.Distributed.LocalGraph.Basic
 public import CslibFrontier.Computability.Distributed.LocalGraph.Coloring
 public import CslibFrontier.Computability.Distributed.LocalGraph.LubyMIS
+public import CslibFrontier.Computability.Distributed.MinimumSpanningTree.GHS
 public import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
 public import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
@@ -7068,6 +7069,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Ne
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Realization
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Subdivision
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MetricGraph.Tree
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MotzkinStraus
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OddCycleTransversal
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.OrientedIncidence
