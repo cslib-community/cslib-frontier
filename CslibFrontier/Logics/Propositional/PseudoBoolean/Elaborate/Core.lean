@@ -1301,20 +1301,23 @@ def trim (steps : Array (TopStep × Option ℕ)) (concl : Conclusion) (next : �
   return (out, conclRenum f concl)
 
 /-- The result of elaboration: the kernel proof, its output section (`none` for `NONE`, else the
-guarantee and `FILE` (`true`) or `IMPLICIT`), and the non-standard variable names, the `i`-th
-being the variable `nameBase + i`. -/
+guarantee and `FILE` (`true`) or `IMPLICIT`), and the non-standard variable names. -/
 structure Result where
   /-- The kernel proof. -/
   proof : RedProof
   /-- The output section. -/
   output : Option (Guarantee × Bool)
   /-- The non-standard variable names. -/
-  names : Array String
+  names : AuxNames
 
 /-- Run the elaborator. -/
 private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres : Option (List ℕ))
     (pbp : String) : EM σ Result := do
-  let L ← (Lexer.new pbp : ST σ (Lexer σ))
+  -- The non-standard names are numbered above the variables of the instance.
+  let floor := F.foldl (fun m c => max m (freshVar c)) 0
+  let floor := obj.elim floor fun f => f.lin.foldl (fun m e => max m (e.1 + 1)) floor
+  let floor := pres.elim floor fun P => P.foldl (fun m v => max m (v + 1)) floor
+  let L ← (Lexer.new pbp floor : ST σ (Lexer σ))
   let eng ← (Engine.new : ST σ (Engine σ))
   let S : St σ := ⟨L, eng, ← ST.mkRef #[default], ← ST.mkRef (F.length + 1), ← ST.mkRef {},
     ← ST.mkRef {}, ← ST.mkRef {}, ← ST.mkRef none, ← ST.mkRef obj, ← ST.mkRef pres,
@@ -1354,7 +1357,7 @@ private def run {σ : Type} (F : List PBConstr) (obj : Option Objective) (pres :
   let c ← S.conclusion concl
   let next ← S.kerNext.get
   let (steps, c) := if trimmable && sec.isNone then trim out c next else (out.map (·.1), c)
-  return ⟨⟨steps.toList, c⟩, sec, ← L.others.get⟩
+  return ⟨⟨steps.toList, c⟩, sec, ⟨L.base, ← L.others.get⟩⟩
 
 /-- **The elaborator**: the kernel proof of the augmented proof text `pbp` for the formula `F`,
 the objective `obj` and the preserved set `pres`, or an error message. Untrusted: the result is
