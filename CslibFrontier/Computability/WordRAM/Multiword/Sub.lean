@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Workspace
+import CslibFrontier.Tactic.Fits
 
 /-!
 # Checked multiword subtraction
@@ -87,13 +88,11 @@ theorem exec_cell {w : ℕ} (hw : 2 ≤ w) (x : Data (r + 4))
     unfold Fits
     dsimp only [β] at *
     nlinarith
-  have hs₁ := hsum.of_le (Nat.sub_le (β + x.regs d) (x.regs b))
-  have hs₂ := hs₁.of_le
-    (Nat.sub_le (β + x.regs d - x.regs b) (x.regs borrow))
+  have hs₁ : Fits w (β + x.regs d - x.regs b) := by fits
+  have hs₂ : Fits w t := by dsimp only [t]; fits
   have hm := hs₂.of_le (Nat.mod_le t β)
   have hq := hs₂.of_le (Nat.div_le_self t β)
-  have ho : Fits w (1 - t / β) := (fits_one (by omega : w ≠ 0)).of_le
-    (Nat.sub_le 1 _)
+  have ho : Fits w (1 - t / β) := (fits_one (by omega : w ≠ 0)).of_le (Nat.sub_le 1 _)
   have ht : t < 2 * β := by dsimp only [t]; omega
   have hquot : t / β ≤ 1 := by
     have := (Nat.div_lt_iff_lt_mul (by omega : 0 < β)).mpr ht
@@ -169,55 +168,31 @@ theorem exec_digits {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))
     | cons d ds =>
       have hlen' : bs.length = ds.length := by simpa using hlen
       have hd0 := hds d (by simp)
+      have hbs' : ∀ i ∈ bs, IsDigit i := fun i hi => hbs i (by simp [hi])
+      have hds' : ∀ i ∈ ds, IsDigit i := fun i hi => hds i (by simp [hi])
+      have hdnot : d ∉ ds := (List.nodup_cons.mp hnd).1
+      have hdis_b : ∀ i ∈ bs, i ∉ [d] := fun _ hi hm =>
+        List.disjoint_left.mp hdis (List.mem_cons_of_mem b hi)
+          (List.mem_singleton.mp hm ▸ List.mem_cons_self)
+      have hdis_d : ∀ i ∈ ds, i ∉ [d] := fun _ hi hm => hdnot (List.mem_singleton.mp hm ▸ hi)
       obtain ⟨he, hzd, hzc, hzeq, hzf⟩ := exec_cell hw x b d
         (hbs b (by simp)) hd0 hbase hone (hb b (by simp)) (hd d (by simp)) hc
-      let z := cellResult x b d
-      have hzbs (i : Fin (r + 4)) (hi : i ∈ bs) : z.regs i = x.regs i :=
-        hzf.2 i (by
-          simp only [List.mem_singleton]
-          rintro rfl
-          exact List.disjoint_left.mp hdis (List.mem_cons_of_mem b hi) (List.mem_cons_self))
-          (digit_ne (hbs i (by simp [hi]))).1
-          (digit_ne (hbs i (by simp [hi]))).2.1
-      have hzds (i : Fin (r + 4)) (hi : i ∈ ds) : z.regs i = x.regs i :=
-        hzf.2 i (by
-          simp only [List.mem_singleton]
-          rintro rfl
-          exact (List.nodup_cons.mp hnd).1 hi)
-          (digit_ne (hds i (by simp [hi]))).1
-          (digit_ne (hds i (by simp [hi]))).2.1
-      have hzb : z.regs base = radix w := by
-        rw [hzf.2 base (by simp [Ne.symm (digit_ne hd0).2.2.1])
-          (by simp [base, total]) (by simp [base])]
-        exact hbase
-      have hzo : z.regs one = 1 := by
-        rw [hzf.2 one (by simp [Ne.symm (digit_ne hd0).2.2.2])
-          (by simp [one, total]) (by simp [one])]
-        exact hone
-      obtain ⟨y, hey, hyd, hyc, hyeq, hyf⟩ := ih ds hlen'
-        (fun i hi => hbs i (by simp [hi])) (fun i hi => hds i (by simp [hi]))
-        (List.nodup_cons.mp hnd).2
+      obtain ⟨y, hey, hyd, hyc, hyeq, hyf⟩ := ih ds hlen' hbs' hds' (List.nodup_cons.mp hnd).2
         (List.disjoint_left.mpr fun i hi hj =>
           List.disjoint_left.mp hdis (List.mem_cons_of_mem b hi) (List.mem_cons_of_mem d hj))
-        z hzb hzo
-        (fun i hi => by rw [hzbs i hi]; exact hb i (by simp [hi]))
-        (fun i hi => by rw [hzds i hi]; exact hd i (by simp [hi])) hzc
-      have hyd0 : y.regs d = z.regs d :=
-        hyf.2 d (List.nodup_cons.mp hnd).1 (digit_ne hd0).1 (digit_ne hd0).2.1
-      have hvalbs : value (radix w) z bs = value (radix w) x bs := value_congr hzbs
-      have hvalds : value (radix w) z ds = value (radix w) x ds := value_congr hzds
-      refine ⟨y, ?_, ?_, hyc, ?_, ?_⟩
-      · have hseq := he.seq hey
-        simpa only [digits, List.length_cons, Nat.mul_add, Nat.mul_one,
-          Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using hseq
-      · intro i hi
-        rcases List.mem_cons.mp hi with rfl | hi
-        · rw [hyd0]; exact hzd
-        · exact hyd i hi
+        (cellResult x b d)
+        ((hzf.base_regs (by simpa using hd0)).trans hbase)
+        ((hzf.zero_regs (by simpa using hd0)).trans hone)
+        (hzf.bounded_of_digits hbs' hdis_b fun i hi => hb i (by simp [hi]))
+        (hzf.bounded_of_digits hds' hdis_d fun i hi => hd i (by simp [hi])) hzc
+      obtain ⟨hyd0, hvalds, hyb, hyframe⟩ := hzf.cons_step hyf hd0 hds' hdnot hzd hyd
+      have hvalbs := hzf.value_eq_of_digits (β := radix w) hbs' hdis_b
+      refine ⟨y, ?_, hyb, hyc, ?_, hyframe⟩
+      · simpa only [digits, List.length_cons, Nat.mul_add, Nat.mul_one,
+          Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using he.seq hey
       · rw [value_cons, value_cons, value_cons, hyd0, List.length_cons, pow_succ]
         rw [hvalbs, hvalds] at hyeq
         nlinarith
-      · exact frame_trans (frame_mono hzf (by simp)) (frame_mono hyf (by simp))
 
 /-- Width-only constants, followed by a zero incoming borrow and the unrolled cells. -/
 def program (w : ℕ) (bs ds : List (Fin (r + 4))) : Code .standard (r + 4) :=
@@ -298,7 +273,7 @@ theorem exec {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (r + 4)))
   · simp only [hzero, Nat.mul_zero, Nat.add_zero] at hyeq
     omega
   · intro i hi
-    exact (hyf.2 i (fun him => List.disjoint_left.mp hdis hi him)
-      (digit_ne (hbs i hi)).1 (digit_ne (hbs i hi)).2.1).trans (hz i (hbs i hi))
+    exact (hyf.digit_regs (hbs i hi) fun him => List.disjoint_left.mp hdis hi him).trans
+      (hz i (hbs i hi))
 
 end Cslib.WordRAM.Multiword.Difference
