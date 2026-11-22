@@ -50,7 +50,7 @@ first reply is `1`-Lipschitz.
   Section 6][BrownCohenIrvingPiliouras2024]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.ProbOracleComp
 
@@ -68,17 +68,18 @@ The condition is relative to the one oracle `oracle`, as in
 [BrownCohenIrvingPiliouras2024, Definition 6.1], and quantifies over the tolerance `ε` in place of
 the supremum distance between oracles. The source writes a strict inequality, which no machine
 satisfies (take `oracle' = oracle`); the bound here is non-strict, as in the Lean formalization
-accompanying the source (google-deepmind/debate, `Oracle.lipschitz`). -/
-def LipschitzAt (K : ℝ≥0∞) (oracle : (q : Query) → PMF (spec q))
+accompanying the source (google-deepmind/debate, `Oracle.lipschitz`). The source takes `K > 0`;
+`K = 0` is admitted here and says that the output law does not depend on the oracle. -/
+@[expose] def LipschitzAt (K : ℝ≥0) (oracle : (q : Query) → PMF (spec q))
     (program : ProbOracleComp spec α) : Prop :=
   ∀ (oracle' : (q : Query) → PMF (spec q)) (ε : ℝ≥0∞),
     (∀ q, CloseTo (oracle q) (oracle' q) ε) →
       CloseTo (OracleComp.evalWith (sumHandler ProbComp.unifOracle oracle) program)
-        (OracleComp.evalWith (sumHandler ProbComp.unifOracle oracle') program) (K * ε)
+        (OracleComp.evalWith (sumHandler ProbComp.unifOracle oracle') program) ((K : ℝ≥0∞) * ε)
 
 namespace LipschitzAt
 
-variable {K K₁ K₂ : ℝ≥0∞} {oracle : (q : Query) → PMF (spec q)}
+variable {K K₁ K₂ : ℝ≥0} {oracle : (q : Query) → PMF (spec q)}
 
 /-- A larger constant is still a Lipschitz constant. -/
 theorem mono {program : ProbOracleComp spec α} (h : LipschitzAt K₁ oracle program)
@@ -90,7 +91,7 @@ theorem mono {program : ProbOracleComp spec α} (h : LipschitzAt K₁ oracle pro
 at most `ε` per query, and private samples are answered identically on both sides. -/
 theorem of_isQueryBounded {program : ProbOracleComp spec α} {n : ℕ}
     (h : program.IsQueryBounded n) (oracle : (q : Query) → PMF (spec q)) :
-    LipschitzAt n oracle program := by
+    LipschitzAt (n : ℝ≥0) oracle program := by
   intro oracle' ε hε
   have key := OracleComp.closeTo_run_interpret_simulation_readOnly (State := Unit)
     (State' := Unit) (Sum.elim (fun _ => 0) (fun _ => 1))
@@ -99,7 +100,7 @@ theorem of_isQueryBounded {program : ProbOracleComp spec α} {n : ℕ}
   · rw [OracleComp.run_interpret_stateless] at key
     simp only [PMF.monad_map_eq_map, PMF.map_comp, PMF.pure_bind] at key
     rw [show (Prod.fst ∘ fun a : α => (a, ())) = id from rfl, PMF.map_id] at key
-    rwa [OracleComp.evalWith_eq_interpret, OracleComp.evalWith_eq_interpret]
+    rwa [OracleComp.evalWith_eq_interpret, OracleComp.evalWith_eq_interpret, ENNReal.coe_natCast]
   · rintro (n | q) s
     · simp only [PMF.monad_map_eq_map, PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def]
       exact (CloseTo.refl _).mono zero_le
@@ -115,7 +116,7 @@ theorem bind {program : ProbOracleComp spec α} {next : α → ProbOracleComp sp
   intro oracle' ε hε
   simp only [OracleComp.evalWith_bind]
   exact ((h oracle' ε hε).bind fun a _ => hnext a oracle' ε hε).mono
-    (le_of_eq (add_mul K₁ K₂ ε).symm)
+    (by rw [ENNReal.coe_add, add_mul])
 
 /-- Deterministic postprocessing keeps the constant. -/
 theorem map (f : α → β) {program : ProbOracleComp spec α} (h : LipschitzAt K oracle program) :
