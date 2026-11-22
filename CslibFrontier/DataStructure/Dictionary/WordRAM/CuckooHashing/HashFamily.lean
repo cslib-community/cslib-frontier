@@ -17,7 +17,9 @@ public import CslibFrontier.Probability.PMF.Map
 public import CslibFrontier.Probability.PMF.UniformSubset
 public import CslibFrontier.Probability.Uniform
 public import Mathlib.Order.ConditionallyCompleteLattice.Basic
+import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Regime-switched Word-RAM cuckoo hash family
@@ -729,14 +731,6 @@ theorem unshiftFromHash2BaseCode_exec {w hashBase c_exp n_max : ℕ} {x : Data 1
   wram_exec [h0, show hash2Base hashBase c_exp n_max - singleHashSpace c_exp n_max =
     hashBase by dsimp only [hash2Base]; omega]
 
-private theorem ExecRand.seqDet {w : ℕ} {c₁ c₂ : Code .exact 19} {x : Data 19}
-    {m₁ : ProbComp (Data 19 × ℕ)} {f : Data 19 → Data 19} {n₂ : ℕ}
-    (h₁ : ExecRand w c₁ x m₁)
-    (h₂ : ∀ z ∈ m₁.support, Exec w c₂ z.1 (f z.1) n₂) :
-    ExecRand w (.seq c₁ c₂) x ((fun z => (f z.1, z.2 + n₂)) <$> m₁) := by
-  have hseq := ExecRand.seq h₁ (m₂ := fun y => pure (f y, n₂)) fun z hz => (h₂ z hz).execRand
-  simpa only [pure_bind, ← bind_pure_comp] using hseq
-
 /-- Program resampling a single regime-switched hash block at `reg 0 = base`. -/
 @[expose]
 def resampleSingleCode (c_exp n_max M : ℕ) : Code .exact 19 :=
@@ -844,7 +838,7 @@ theorem mem_support_resampleSingleComp {base c_exp n_max U M : ℕ} {x : Data 19
     (∀ a, (a < base ∨ base + singleHashSpace c_exp n_max ≤ a) → z.1.mem a = x.mem a) := by
   unfold resampleSingleComp at hz
   split_ifs at hz with hlt
-  · obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  · supp_cases hz with ⟨z₀, hz₀, rfl⟩
     have htab_kw : KWise.TableRep base (KWise.chunkBits n_max) U M (cuckooK n_max) x.mem := by
       unfold SingleTableRep at htab
       rwa [decide_eq_true hlt] at htab
@@ -860,7 +854,7 @@ theorem mem_support_resampleSingleComp {base c_exp n_max U M : ℕ} {x : Data 19
       revert hseed'
       rw [decide_eq_true hlt]
       exact id
-  · obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  · supp_cases hz with ⟨z₀, hz₀, rfl⟩
     obtain ⟨hz0, hseed', hout, hsteps⟩ :=
       DoubleTabulation.mem_support_resampleComp hbase hz₀
     refine ⟨by simp [resampleSingleSteps, hlt, hsteps], by wram_simp [hz0], ?_, ?_,
@@ -880,18 +874,17 @@ theorem resampleSecondBlockCode_execRand {w hashBase c_exp n_max U M : ℕ} {x :
     (hfit_q : Fits w (2 ^ Probability.trinomialDeg U M)) :
     ExecRand w (resampleSecondBlockCode c_exp n_max M) x
       (resampleSecondBlockComp hashBase c_exp n_max U M x) := by
-  have esh := shiftToHash2BaseCode_exec h0 hfit_space
   set d0 := shiftToHash2BaseData hashBase c_exp n_max x
   have hd0_0 : d0.regs 0 = hash2Base hashBase c_exp n_max := by
     simp +decide [d0, shiftToHash2BaseData]
   obtain ⟨_, _, _, _, hfit_h2⟩ := hashPairSpace_fits hfit_space
-  have hres := resampleSingleCode_execRand (x := d0) htab2 hd0_0 hfit_h2 hfit_q
-  have hdet := ExecRand.seqDet hres (f := unshiftFromHash2BaseData hashBase c_exp n_max) (n₂ := 2)
-    fun z hz => by
-      obtain ⟨-, hz0, -, -, -⟩ := mem_support_resampleSingleComp (x := d0) htab2 hd0_0 hz
-      exact unshiftFromHash2BaseCode_exec hz0 hfit_space
-  simpa only [resampleSecondBlockCode, resampleSecondBlockComp, d0, Functor.map_map] using
-    esh.seqRand hdet
+  unfold resampleSecondBlockCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (shiftToHash2BaseCode_exec h0 hfit_space)
+  wram_rand_call (ExecRand.seq_det (resampleSingleCode_execRand (x := d0) htab2 hd0_0 hfit_h2
+    hfit_q) fun y n hz => unshiftFromHash2BaseCode_exec
+      (mem_support_resampleSingleComp (x := d0) htab2 hd0_0 hz).2.1 hfit_space)
+  simp only [resampleSecondBlockComp, d0, Functor.map_map]
 
 theorem mem_support_resampleSecondBlockComp {hashBase c_exp n_max U M : ℕ} {x : Data 19}
     {z : Data 19 × ℕ}
@@ -905,7 +898,7 @@ theorem mem_support_resampleSecondBlockComp {hashBase c_exp n_max U M : ℕ} {x 
     (∀ a, (a < hash2Base hashBase c_exp n_max ∨
       hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max ≤ a) → z.1.mem a = x.mem a) := by
   dsimp only [resampleSecondBlockComp] at hz
-  obtain ⟨z₀, hz₀, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hz
+  supp_cases hz with ⟨z₀, hz₀, rfl⟩
   set d0 := shiftToHash2BaseData hashBase c_exp n_max x
   have hd0_0 : d0.regs 0 = hash2Base hashBase c_exp n_max := by
     simp +decide [d0, shiftToHash2BaseData]
@@ -921,13 +914,15 @@ theorem resampleHashPairCode_execRand {w hashBase c_exp n_max U M : ℕ} {x : Da
     ExecRand w (resampleHashPairCode c_exp n_max M) x
       (resampleHashPairComp hashBase c_exp n_max U M x) := by
   obtain ⟨_, _, _, hfit_h1, _⟩ := hashPairSpace_fits hfit_space
-  have h1 := resampleSingleCode_execRand htab.1 h0 hfit_h1 hfit_q
-  refine h1.seq fun z1 hz1 => ?_
-  obtain ⟨-, hz1_0, -, -, hz1_frame⟩ := mem_support_resampleSingleComp htab.1 h0 hz1
-  have htab2_z1 : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M z1.1.mem :=
-    htab.2.congr_of_footprint (fun a ha1 _ =>
-      hz1_frame a (Or.inr (by dsimp only [hash2Base] at ha1; omega)))
-  exact resampleSecondBlockCode_execRand htab2_z1 hz1_0 hfit_space hfit_q
+  unfold resampleHashPairCode
+  refine WP.Rand.execRand ?_
+  wram_rand_call (resampleSingleCode_execRand htab.1 h0 hfit_h1 hfit_q) with y1 n1 hz1
+  · obtain ⟨-, hz1_0, -, -, hz1_frame⟩ := mem_support_resampleSingleComp htab.1 h0 hz1
+    have htab2_z1 : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M y1.mem :=
+      htab.2.congr_of_footprint (fun a ha1 _ =>
+        hz1_frame a (Or.inr (by dsimp only [hash2Base] at ha1; omega)))
+    wram_rand_call (resampleSecondBlockCode_execRand htab2_z1 hz1_0 hfit_space hfit_q)
+  · rfl
 
 theorem mem_support_resampleHashPairComp {hashBase c_exp n_max U M : ℕ} {x : Data 19}
     {z : Data 19 × ℕ}
@@ -938,9 +933,7 @@ theorem mem_support_resampleHashPairComp {hashBase c_exp n_max U M : ℕ} {x : D
     HashPairRep hashBase c_exp n_max U M (extractSeed hashBase c_exp n_max U M z.1.mem) z.1.mem ∧
     (∀ a, (a < hashBase ∨ hashBase + hashPairSpace c_exp n_max ≤ a) → z.1.mem a = x.mem a) := by
   dsimp only [resampleHashPairComp] at hz
-  obtain ⟨z1, hz1, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp hz
-  obtain ⟨z2, hz2, hpure⟩ := OracleComp.mem_supportWith_bind_iff.mp hrest
-  cases OracleComp.eq_of_mem_supportWith_pure hpure
+  supp_cases hz with ⟨z1, hz1, z2, hz2, rfl⟩
   obtain ⟨ht1, -, htab1_z1, hseed1_z1, hframe1⟩ :=
     mem_support_resampleSingleComp htab.1 h0 hz1
   have htab2_z1 : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M z1.1.mem :=
