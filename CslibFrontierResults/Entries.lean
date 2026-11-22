@@ -503,6 +503,7 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
 
 /-!
 # Collected results
@@ -11523,6 +11524,49 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     on the closed algebra of left GNS operators. The reverse construction uses commuting GNS \
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
+
+register_result "dijkstra-k-state-self-stabilizing-token-ring" where
+  title := "Dijkstra's K-state self-stabilizing token ring under a central daemon"
+  topic := "distributed computing"
+  sources := [
+    { paper := Dijkstra1974,
+      theorem := "Solution with K-state Machines and Note 1 (K ≥ N, central daemon)",
+      locator := "CACM 17(11), pp. 643–644 (left column, 'Solution with K-state Machines \
+        (K > N)', and right column, Note 1); author manuscript EWD426, pp. 0–4" },
+    { paper := Dijkstra1973,
+      theorem := "Solution with K-state machines (K ≥ N, central daemon)",
+      locator := "UT Austin EWD391 transcription, pp. EWD391 - 1 to EWD391 - 2 (before the \
+        second '* * *' break)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SelfStabilization.exists_dijkstraPrivileged,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_legitimate_closed,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_token_circulates,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_of_pred_le
+  ]
+  scope := "Models Dijkstra's first K-state token-ring protocol under a central daemon on Fin n \
+    (corresponding to Dijkstra's N + 1 machines numbered 0 .. N, so N = n - 1) over \
+    configurations Fin n → Fin K: bottom machine 0 is privileged iff s 0 = s (0 - 1) and steps \
+    to s 0 + 1, normal machine i > 0 is privileged iff s i ≠ s (i - 1) and steps to s (i - 1), \
+    legitimate states (DijkstraLegitimate n K) are those with (dijkstraPrivilegedSet s).card = 1, \
+    and dijkstraRing n K fires one privileged machine per transition. SelfStabilizing lts \
+    Legitimate requires forward closure (requirement (2) on p. 643), absence of terminal states \
+    (implying requirement (1)), and WellFounded (CorruptedStep lts Legitimate) (finite-step \
+    convergence from every initial state under arbitrary enabled moves; source conditions (3), \
+    that each privilege occurs in some legitimate state, and (4), mutual reachability of all \
+    legitimate states, on p. 643 are requirements of Dijkstra's legitimate-state specification \
+    that lie outside the generic SelfStabilizing predicate's scope, while n-step clockwise \
+    privilege circulation is proved in dijkstraRing_token_circulates). Proves Note 1 on p. 644 \
+    for 2 ≤ n, 2 ≤ K, and n - 1 ≤ K (K ≥ N). CACM p. 643 excludes a distributed daemon and \
+    EWD391's later section considers separate reads and adjustments, so the simultaneous \
+    atomic-subset model dijkstraDistRing and its closure/convergence/iff theorems, together with \
+    the explicit K * (n * (n - 1) / 2) + K bound (dijkstraRing_mTr_legitimate_of_le) and \
+    periodic converse (dijkstraRing_not_selfStabilizing_of_lt_pred, \
+    dijkstraRing_selfStabilizing_iff), are original to this formalization; p. 644's 4-state and \
+    3-state bidirectional rings and EWD391's fair-command composite-ring endpoint remain open \
+    under #7291. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7337 \
+    at 6c70b685b657: \
+    https://github.com/cslib-community/cslib-frontier/pull/7337#pullrequestreview-6011167278."
 
 register_result "low-individual-degree-projective-self-improvement" where
   title := "Projective self-improvement for symmetric low-individual-degree strategies"
