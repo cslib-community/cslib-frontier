@@ -178,31 +178,27 @@ private theorem labelCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
     simpa only [pow_one] using Nat.pow_le_pow_right (show 0 < n + 1 by omega) (by decide : 1 ≤ 3)
   have hn2 : (n + 1) ^ 2 ≤ P := Nat.pow_le_pow_right (by omega) (by decide)
   have hdict : 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (labelWidth n + 1) + 1) ≤
-      13824 * P * (L + N / L + 1) := by
-    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 := by
-      have := Nat.pow_le_pow_left (show d + 1 ≤ 3 * (n + 1) by omega) 2
-      nlinarith
+      13824 * (P * (L + N / L + 1)) := by
+    have h1 : (d + 1) ^ 2 ≤ 9 * (n + 1) ^ 2 :=
+      (Nat.pow_le_pow_left (show d + 1 ≤ 3 * (n + 1) by omega) 2).trans_eq (by ring)
     have h2 : n + (labelWidth n + 1) + 1 ≤ 8 * (n + 1) := by unfold labelWidth; omega
     have h3 : (2 * L + 1) + M + 1 ≤ 4 * (L + N / L + 1) := by omega
     calc 48 * ((2 * L + 1) + M + 1) * (d + 1) ^ 2 * (n + (labelWidth n + 1) + 1)
         ≤ 48 * (4 * (L + N / L + 1)) * (9 * (n + 1) ^ 2) * (8 * (n + 1)) := by gcongr
-      _ = 13824 * P * (L + N / L + 1) := by simp only [P]; ring
-  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 := by
-    have := Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2
-    nlinarith
+      _ = 13824 * (P * (L + N / L + 1)) := by simp only [P]; ring
+  have hfour : (n + 4) ^ 2 ≤ 16 * (n + 1) ^ 2 :=
+    (Nat.pow_le_pow_left (show n + 4 ≤ 4 * (n + 1) by omega) 2).trans_eq (by ring)
   have hrest : (2 * L + 1) * (50 * (n + 4) ^ 2) + ((2 * L + 1) * (30 * n + 27) +
       50 * (n + 4) ^ 2) + (2 * L + 1) * (4 * labelWidth n) + 2 ≤ 6000 * (P * (L + N / L + 1)) := by
     have h3L : 2 * L + 1 ≤ 3 * L := by omega
     have hw : 4 * labelWidth n ≤ 24 * (n + 1) := by unfold labelWidth; omega
-    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 3 * L * (800 * P) :=
-      Nat.mul_le_mul h3L (by nlinarith)
+    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 3 * L * (800 * P) := Nat.mul_le_mul h3L (by omega)
     have e2 : (2 * L + 1) * (30 * n + 27) ≤ 3 * L * (57 * P) := Nat.mul_le_mul h3L (by omega)
     have e3 : (2 * L + 1) * (4 * labelWidth n) ≤ 3 * L * (24 * P) :=
       Nat.mul_le_mul h3L (hw.trans (by omega))
-    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P := by nlinarith
-    have hLP : L * P ≤ P * (L + N / L + 1) := by nlinarith
-    nlinarith
-  nlinarith [Nat.zero_le (L * s)]
+    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P := by omega
+    nlinarith only [e1, e2, e3, e4, hL, Nat.mul_le_mul_left P (show L ≤ L + N / L + 1 by omega)]
+  nlinarith only [hdict, hrest, Nat.zero_le (L * s)]
 
 /-- **Labels of periodic states.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
 `20000 * powerBudget n c.size (2 ^ n) L` computes the canonical label of every periodic state. -/
