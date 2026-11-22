@@ -89,11 +89,7 @@ theorem runController_replay_correct (edge : Fin n → Fin n → Bool) (s v : Fi
     ∃ verdict,
       runController (m := List) (fun u w => pure (edge u w)) (replayMembership edge s) v =
         [some verdict] ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes (fun u w => edge u w = true) s i w) ∧
-          ¬(∃! w, Passes (fun u w => edge u w = true) s j w)
-      | .decided b => (∀ j, ∃! w, Passes (fun u w => edge u w = true) s j w) ∧
-          (b = true ↔ ReflTransGen (fun u w => edge u w = true) s v) := by
+      verdict.Correct (fun u w => edge u w = true) s v := by
   apply runController_correct (r := fun u w => edge u w = true)
   · intro u w
     cases edge u w <;> simp

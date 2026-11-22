@@ -13,6 +13,8 @@ public import CslibFrontier.DataStructure.HashFamily.WordRAM.KWise
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.LinearProbing.FiveWise
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Open-Addressed Linear Probing on the Randomized Word RAM
@@ -165,20 +167,20 @@ theorem isKWiseIndependentHash_hashFn (U n_max : ℕ) :
     (le_trinomialDeg U (tableLog n_max))
 
 /-- Base address of the occupancy array `used[0 .. 2^M - 1]`. -/
-@[expose] def usedBase (base n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def usedBase (base n_max : ℕ) : ℕ :=
   base + KWise.space n_max 5
 
 /-- Base address of the key array `key[0 .. 2^M - 1]`. -/
-@[expose] def keyBase (base n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def keyBase (base n_max : ℕ) : ℕ :=
   usedBase base n_max + tableSize n_max
 
 /-- Base address of the value array `val[0 .. 2^M - 1]`. -/
-@[expose] def valBase (base n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def valBase (base n_max : ℕ) : ℕ :=
   keyBase base n_max + tableSize n_max
 
 /-- Total contiguous memory footprint of the linear-probing dictionary (in words):
 `KWise.space n_max 5 + 3 * tableSize n_max = O(n_max)`. -/
-@[expose] def space (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def space (n_max : ℕ) : ℕ :=
   KWise.space n_max 5 + 3 * tableSize n_max
 
 /-- `space n_max` is $O(n_{\max})$: specifically `space n_max ≤ 49 * max n_max 4 + 13`. -/
@@ -1220,9 +1222,7 @@ private theorem fits_max_n_max_of_space {w base n_max : ℕ}
   have h1 : max n_max 2 ≤ max (8 * n_max) 8 := by omega
   have h2a := eight_mul_le_tableSize n_max
   have h2b := eight_le_tableSize n_max
-  have h3 : tableSize n_max ≤ base + space n_max := by
-    dsimp only [space]
-    omega
+  have h3 : tableSize n_max ≤ base + space n_max := by wram_omega
   exact hfit.of_le (by omega)
 
 /-- `allocSpan n_max` executes in `3` steps, copying `frontierReg` (`18`) to `baseReg` (`0`) and
@@ -1258,7 +1258,7 @@ theorem initSetup_exec {U V n_max w base : ℕ} {x₁ : Data rLP}
         0 ≤ 0 ∧
         Modifies (Block.mk base (space n_max)).footprint x₁.mem p.2.mem := by
   have hfit_kwise : Fits w (base + KWise.space n_max 5) :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_n : Fits w (max n_max 2) := fits_max_n_max_of_space hfit_space
   have hfit_U1 : Fits w (max U 2 + 1) := fits_max_U_add_one_of_hw hw
   have hfit_M : Fits w (tableLog n_max) := fits_tableLog_of_hw hw
@@ -1348,7 +1348,7 @@ theorem initSetup_exec {U V n_max w base : ℕ} {x₁ : Data rLP}
       intro j
       have hj := j.isLt
       change z.1.mem (usedBase base n_max + j.val) = 0
-      rw [hmem_above (usedBase base n_max + j.val) (by dsimp only [usedBase]; omega)]
+      rw [hmem_above (usedBase base n_max + j.val) (by wram_omega)]
       apply hz
       rw [Block.mem_footprint, Block.Owns]
       dsimp only [usedAt, usedBase, space, tableSize]
@@ -1362,9 +1362,7 @@ theorem initSetup_exec {U V n_max w base : ℕ} {x₁ : Data rLP}
       intro a ha
       rw [Block.mem_footprint, Block.Owns, not_and_or, not_le, not_lt] at ha
       change z.1.mem a = x₁.mem a
-      have ha_k : a < base ∨ base + KWise.space n_max 5 ≤ a := by
-        dsimp only [space] at ha
-        omega
+      have ha_k : a < base ∨ base + KWise.space n_max 5 ≤ a := by wram_omega [ha]
       have ha_s : a < base + 8 ∨ base + 8 + 5 ≤ a := by omega
       rw [hz_out a ha_s, hdTab_out a ha_k]
       rfl
@@ -1402,9 +1400,9 @@ theorem probeCheckCode_execWithin {U w base n_max : ℕ} (u : Fin U)
       y.regs 23 = x.regs 23 := by
   have hpos_lt : pos.val < tableSize n_max := pos.isLt
   have hfit_uaddr : Fits w (usedBase base n_max + pos.val) :=
-    hfit_space.of_le (by dsimp only [usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_kaddr : Fits w (keyBase base n_max + pos.val) :=
-    hfit_space.of_le (by dsimp only [keyBase, usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_1 : Fits w 1 :=
     hfit_space.of_le (by dsimp only [space]; have := tableSize_pos n_max; omega)
   have hused : x.mem (usedBase base n_max + pos.val) = usedAt base n_max x.mem pos := rfl
@@ -1440,19 +1438,19 @@ theorem probeSetupCode_execWithin {U w base n_max : ℕ} (u : Fin U)
       y.regs 23 = x.regs 23 := by
   have hts_pos : 0 < tableSize n_max := tableSize_pos n_max
   have hfit_mask : Fits w (tableSize n_max - 1) :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_ksp : Fits w (KWise.space n_max 5) :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_ub : Fits w (usedBase base n_max) :=
-    hfit_space.of_le (by dsimp only [usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_ts : Fits w (tableSize n_max) :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_kb : Fits w (keyBase base n_max) :=
-    hfit_space.of_le (by dsimp only [keyBase, usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_vb : Fits w (valBase base n_max) :=
-    hfit_space.of_le (by dsimp only [valBase, keyBase, usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_1 : Fits w 1 :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hub : base + KWise.space n_max 5 = usedBase base n_max := rfl
   have hkb : usedBase base n_max + tableSize n_max = keyBase base n_max := rfl
   have hvb : keyBase base n_max + tableSize n_max = valBase base n_max := rfl
@@ -1500,9 +1498,9 @@ theorem probeBody_execWithin {U w base n_max : ℕ} (u : Fin U)
   have hpos_lt : pos.val < tableSize n_max := pos.isLt
   have hpos'_lt : pos'.val < tableSize n_max := pos'.isLt
   have hfit_p1 : Fits w (pos.val + 1) :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_pos' : Fits w pos'.val :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hand_eq : (pos.val + 1) &&& (tableSize n_max - 1) = pos'.val := by
     dsimp only [tableSize, pos', probeSlot, cyclicSlotMod]
     exact Nat.and_two_pow_sub_one_eq_mod (pos.val + 1) (tableLog n_max)
@@ -1648,11 +1646,11 @@ theorem insertFinishCode_execWithin {U w base n_max : ℕ} (u : Fin U) (v : ℕ)
       y.regs 2 = 0 := by
   have hp_lt : p.val < tableSize n_max := p.isLt
   have hfit_uaddr : Fits w (usedBase base n_max + p.val) :=
-    hfit_space.of_le (by dsimp only [usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_kaddr : Fits w (keyBase base n_max + p.val) :=
-    hfit_space.of_le (by dsimp only [keyBase, usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hfit_vaddr : Fits w (valBase base n_max + p.val) :=
-    hfit_space.of_le (by dsimp only [valBase, keyBase, usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   refine WP.exists_execWithin ?_
   unfold insertFinishCode
   wram_exec [h1, h2, h4, h5, h6, h10, h23, hfit_uaddr, hfit_kaddr, hfit_vaddr]
@@ -1685,7 +1683,7 @@ theorem queryFinishCode_execWithin {U V w base n_max : ℕ} {θ : Seed U n_max}
   set p := probeSlot (tableLog n_max) (hashFn U n_max θ u) (hinv.probeLen u (hashFn U n_max θ u))
   have hp_lt : p.val < tableSize n_max := p.isLt
   have hfit_vaddr : Fits w (valBase base n_max + p.val) :=
-    hfit_space.of_le (by dsimp only [valBase, keyBase, usedBase, space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hval : x.mem (valBase base n_max + p.val) = valAt base n_max x.mem p := rfl
   refine WP.exists_execWithin ?_
   unfold queryFinishCode
@@ -1732,7 +1730,7 @@ theorem opCode_execWithin {U V w base n_max : ℕ} {θ : Seed U n_max}
   set t := hrep.table_inv.probeLen u b
   set p := probeSlot (tableLog n_max) b t
   have hfit_kwise : Fits w (base + KWise.space n_max 5) :=
-    hfit_space.of_le (by dsimp only [space]; omega)
+    hfit_space.of_le (by wram_omega)
   have hx1_key : x.regs 1 = u.val := by
     cases o with
     | query u₀ => exact harg.1

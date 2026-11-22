@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctProg
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Tail Pool Allocation and Compaction Operations
@@ -264,8 +265,7 @@ theorem tailBijection_gmAppendTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
           omega
         · exact hr'
       have hlt := htail.ptr_lt b' hb' r' hr'_old
-      unfold gmTailPtrIdx at hlt
-      omega
+      wram_omega [hlt]
   · intro b' hb' r' hr'
     rw [hr_fn b' hb'] at hr'
     have hr'_cap : r' < tailCapPerBucket n_max := by
@@ -490,8 +490,7 @@ theorem tailBijection_gmRemoveTail {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
         intro hteq
         apply hdeq
         rw [← htail.owner_ptr b' hb' r' hr'_old, hteq]
-      unfold gmTailPtrIdx at ht'_lt ht'_ne_last
-      omega
+      wram_omega [ht'_lt, ht'_ne_last]
   · intro b' hb' r' hr'
     rw [hr_fn b' hb'] at hr'
     have hr'_old : r' < gm (gmRIdx b') := by
@@ -761,7 +760,7 @@ theorem appendTailItemProg_effect {U V w n_max h_space base b : ℕ}
   intro s'
   set gm := gmAt base U V w n_max h_space s.mem
   have hr_idx_lt : 4 + 3 * b + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
-  have h1_lt : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h1_lt : 1 < globalMetaLen n_max := by wram_omega
   have hptr_idx_lt : gmTailPtrBase n_max + (b * tailCapPerBucket n_max + gm (gmRIdx b)) <
       globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_lt
   have ht_cap : gm 1 < maxTailItems n_max :=
@@ -772,11 +771,9 @@ theorem appendTailItemProg_effect {U V w n_max h_space base b : ℕ}
   have ht_val_lt : gm 1 < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   have hd_val_lt : b * tailCapPerBucket n_max + gm (gmRIdx b) < 2 ^ globalPtrBits n_max :=
-    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos
-      (by unfold gmTailPtrBase at hptr_idx_lt; omega)
+    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_idx_lt])
   have hr1_val_lt : gm (gmRIdx b) + 1 < 2 ^ globalPtrBits n_max :=
-    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos
-      (by unfold gmTailPtrBase gmSlabDirBase at hptr_idx_lt; omega)
+    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_idx_lt])
   have ht1_val_lt : gm 1 + 1 < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   simp only [appendTailItemProg, appendTailItemGenProg, readGMGenProg_mk, writeGMGenProg_mk,
@@ -877,7 +874,7 @@ private theorem appendTailItem_bounds {U V w₀ n_max h_space : ℕ} {d : ℕ ×
     t_new + 1 ≤ max n_max 1 := by
   rcases h with ⟨htail, hb, hr_lt, hb_pos⟩
   have hr_idx : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
-  have h1_idx : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h1_idx : 1 < globalMetaLen n_max := by wram_omega
   have hrb_eq : (Memory.spec 0).clientResult s
       (readGMProg U V w₀ n_max h_space (d.1, 4 + 3 * d.2 + 1)) =
       gmAt d.1 U V w₀ n_max h_space s.mem (gmRIdx d.2) :=
@@ -1009,7 +1006,7 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
   have hr_idx_lt : 4 + 3 * b + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
   have hptr_del_lt : gmTailPtrBase n_max + (b * tailCapPerBucket n_max + r_del) <
       globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_del_cap
-  have h1_lt : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h1_lt : 1 < globalMetaLen n_max := by wram_omega
   have ht_last_cap : t_last < maxTailItems n_max := lt_of_lt_of_le ht_last_lt htail.ntails_le
   have hown_last_lt : gmTailOwnerBase n_max + t_last < globalMetaLen n_max :=
     gmTailOwnerIdx_lt hb_pos ht_last_cap
@@ -1027,11 +1024,9 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
   have ht_del_val_lt : t_del < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   have hd_last_val_lt : d_last < 2 ^ globalPtrBits n_max :=
-    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos
-      (by unfold gmTailPtrBase at hptr_last_lt; omega)
+    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_last_lt])
   have hr_del_val_lt : r_del < 2 ^ globalPtrBits n_max :=
-    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos
-      (by unfold gmTailPtrBase gmSlabDirBase at hptr_del_lt; omega)
+    lt_two_pow_globalPtrBits_of_le_globalMetaLen hb_pos (by wram_omega [hptr_del_lt])
   have ht_last_val_lt : t_last < 2 ^ globalPtrBits n_max :=
     lt_two_pow_globalPtrBits_of_le_n_max (by omega)
   let s₁ := (Memory.spec 0).clientState s
@@ -1091,12 +1086,12 @@ theorem removeLastTailItemProg_effect {U V w n_max h_space base b : ℕ}
     by rw [hl6, hl5, hl4, hl3, hl2, hl1],
     by rw [hg6, hg5, hg4, hg3, hg2, hg1]; rfl⟩
   intro a ha
-  rw [hout6 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout5 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout4 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout3 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout2 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout1 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)]
+  rw [hout6 a (by wram_omega [ha]),
+    hout5 a (by wram_omega [ha]),
+    hout4 a (by wram_omega [ha]),
+    hout3 a (by wram_omega [ha]),
+    hout2 a (by wram_omega [ha]),
+    hout1 a (by wram_omega [ha])]
 
 /-- Precondition for `removeLastTailItemProg`. -/
 @[expose]
@@ -1182,7 +1177,7 @@ private theorem removeLastTailItem_bounds {U V w₀ n_max h_space : ℕ} {d : �
   have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
   have hptr_del_lt : gmTailPtrBase n_max + (d.2 * tailCapPerBucket n_max + r_del) <
       globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_del_cap
-  have h1_lt : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h1_lt : 1 < globalMetaLen n_max := by wram_omega
   have ht_last_cap : t_last < maxTailItems n_max := lt_of_lt_of_le ht_last_lt htail.ntails_le
   have hown_last_lt : gmTailOwnerBase n_max + t_last < globalMetaLen n_max :=
     gmTailOwnerIdx_lt hb_pos ht_last_cap

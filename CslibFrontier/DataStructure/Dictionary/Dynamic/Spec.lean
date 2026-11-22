@@ -14,6 +14,7 @@ public import Mathlib.Data.Nat.Choose.Basic
 public import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
 
 /-!
 # Dynamic dictionary specification with deletions and succinct space bounds
@@ -258,7 +259,7 @@ for representing `n` keys in `Fin U` with values in `Fin V`. When `0 < V` and `n
 the exact minimum `⌈log₂ (C(U, n) * V^n)⌉` when `V` is a power of two and exceeds it by at most `n`
 bits otherwise. When `n > U`, `U.choose n = 0`; when `V = 0`, there are no valued non-empty
 dictionaries. -/
-@[expose]
+@[expose, wram_arith]
 def optBits (U V n : ℕ) : ℕ :=
   Nat.clog 2 (U.choose n) + n * Nat.clog 2 V
 
@@ -269,7 +270,7 @@ def logLogFactor (n : ℕ) : ℕ :=
 
 /-- Succinct space bound `⌈(OPT(U, V, n_max) + C * n_max * ⌈log₂ ⌈log₂ (max n_max 4)⌉⌉) / w⌉ + C₀`
 in `w`-bit machine words. -/
-@[expose]
+@[expose, wram_arith]
 def succinctWords (C C₀ U V w n_max : ℕ) : ℕ :=
   (optBits U V n_max + C * n_max * logLogFactor n_max + w - 1) / w + C₀
 

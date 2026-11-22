@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.WordRAM.Multiword.Digits
+public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Tactic.FinIndex
 
 /-!
@@ -52,6 +53,7 @@ abbrev base : Fin (r + 4) := ⟨2, by omega⟩
 abbrev zero : Fin (r + 4) := ⟨3, by omega⟩
 
 /-- Registers outside the four reserved workspace registers. -/
+@[wram_arith]
 def IsDigit (i : Fin (r + 4)) : Prop := 4 ≤ i.val
 
 /-- Digit registers are disjoint from the four reserved workspace registers. -/

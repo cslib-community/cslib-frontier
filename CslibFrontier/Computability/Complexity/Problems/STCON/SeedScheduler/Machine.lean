@@ -11,6 +11,8 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSchedule
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CallReplay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Subdivision.HozaSize
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 
 /-!
 # Same-input seed scheduler
@@ -40,14 +42,16 @@ skipped designated root.
 * `SeedSchedulerMachine.step_liveScan`: a live scan takes the callback's step on the same input.
 * `SeedSchedulerMachine.firstHalting_scan_iff`: split a successful scan and the resumed trace.
 * `SeedSchedulerMachine.firstHalting_skip_iff`: split a skipped root's false selector and suffix.
+* `SeedSchedulerMachine.exists_successful_firstHalting`: assemble successful scan traces.
 * `SeedSchedulerMachine.haltsWithin`: one clock for all branches given the scanner clock.
+* `SeedSchedulerMachine.length_run_le`: bound the state size on every selector prefix.
 -/
 
 public section
 
 namespace Cslib.Complexity.STCON.SeedSchedulerMachine
 
-open Cslib.DoubleCounting
+open Cslib.DoubleCounting Cslib.Reachability.Hoza
 open _root_.Turing _root_.Turing.MultiTapeTM
 
 /-- A selected binary seed and its designated reachability answer. -/
@@ -77,7 +81,7 @@ def encState {σ : Type} (encScan : σ ↪ List Bool) : State σ ↪ List Bool :
   if frame.needsScan then .inl (.inr (frame, start frame.request)) else .inl (.inl frame)
 
 /-- Apply the local scheduler transition and enter its next frame or terminal state. -/
-def resume {σ : Type} (start : SeedScanRequest → σ) (frame : SeedSchedulerFrame)
+@[expose] def resume {σ : Type} (start : SeedScanRequest → σ) (frame : SeedSchedulerFrame)
     (verdict : Option ControllerVerdict) : State σ :=
   match seedSchedulerStep frame verdict with
   | none => .inr none
@@ -422,6 +426,18 @@ theorem firstHalting_scan_iff {σ : Type} (setup : SeedSearchSetup)
   | none => simp [resume, seedSchedulerStep_noReply_of_needsScan frame hscan]
   | some v => rfl
 
+/-- The initial state enters the zero seed candidate when it exists. -/
+theorem machine_init {σ : Type} (setup : SeedSearchSetup) (scan : NondeterministicQueryMachine σ)
+    (start : SeedScanRequest → σ) (verdict : σ → Option ControllerVerdict) :
+    (machine setup scan start verdict).init =
+      (seedSchedulerCandidate setup 0).elim (.inr (some none)) (enter start) := by simp [machine]
+
+/-- The scheduler halts precisely in the terminal phase, including rejection and exhaustion. -/
+theorem machine_halted {σ : Type} (setup : SeedSearchSetup) (scan : NondeterministicQueryMachine σ)
+    (start : SeedScanRequest → σ) (verdict : σ → Option ControllerVerdict) (state : State σ) :
+    (machine setup scan start verdict).halted state = state.isRight := by
+  cases state <;> rfl
+
 /-- A successful first halt from a skipped root consumes exactly one false selector
 before continuing the search. -/
 theorem firstHalting_skip_iff {σ : Type} (setup : SeedSearchSetup)
@@ -462,13 +478,8 @@ private theorem offset_lt {f : SeedSchedulerFrame} (hf : f.Valid) :
     simp [offset, h]
     omega
 
-private theorem seed_lt {f : SeedSchedulerFrame} (hf : f.Valid) :
-    f.request.seed < f.request.setup.parameters.search.seedLimit := by
-  unfold SeedSchedulerFrame.Valid at hf
-  exact hf.1
-
 private theorem remaining_pos {f : SeedSchedulerFrame} (hf : f.Valid) : 0 < remaining f := by
-  have hs := seed_lt hf
+  have hs := hf.seed_lt
   have ho := offset_lt hf
   have hmul := Nat.mul_le_mul_right
     (f.request.setup.parameters.search.subdivision.originalCount + 1)
@@ -480,8 +491,8 @@ private theorem remaining_lt {f g : SeedSchedulerFrame} {reply : Option Controll
     (hf : f.Valid) (h : seedSchedulerStep f reply = some (.inl g)) :
     remaining g < remaining f := by
   obtain ⟨hg, hsetup, hprogress⟩ := seedSchedulerStep_progress hf h
-  have hs := seed_lt hf
-  have hgseed := seed_lt hg
+  have hs := hf.seed_lt
+  have hgseed := hg.seed_lt
   rw [hsetup] at hgseed
   have ho := offset_lt hf
   have hpositive := remaining_pos hg
@@ -581,8 +592,8 @@ theorem haltsWithin {σ : Type} (setup : SeedSearchSetup) (scan : Nondeterminist
           simp only [List.length_cons] at hlen
           exact afterStep selector none rest (by omega)
   intro bits hlen
-  change M.halted (M.replay input bits
-    ((seedSchedulerCandidate setup 0).elim (.inr (some none)) (enter start))) = true
+  change M.halted (M.replay input bits M.init) = true
+  rw [machine_init]
   cases hentry : seedSchedulerCandidate setup 0 with
   | none => exact terminal (some none) bits
   | some f =>
@@ -591,5 +602,196 @@ theorem haltsWithin {σ : Type} (setup : SeedSearchSetup) (scan : Nondeterminist
     simp only [remaining, hs, hz, Nat.sub_zero]
     rw [hlen, Nat.add_comm 1, ← Nat.mul_assoc]
     exact Nat.mul_le_mul_right _ (Nat.sub_le _ _)
+private def PrefixState {σ : Type} (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (w : List Bool) : State σ → Prop
+  | .inl (.inl f) => f.Valid ∧ f.request.setup = setup
+  | .inl (.inr (f, state)) =>
+    f.Valid ∧ f.request.setup = setup ∧ f.needsScan = true ∧
+      ∃ bits, scan.replay w bits (start f.request) = state
+  | .inr (some (some a)) => a.seed < setup.parameters.search.seedLimit
+  | .inr none | .inr (some none) => True
+
+private theorem prefixState_enter {σ : Type} {setup : SeedSearchSetup}
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (w : List Bool) {f : SeedSchedulerFrame} (hf : f.Valid) (hs : f.request.setup = setup) :
+    PrefixState setup scan start w (enter start f) := by
+  unfold enter
+  split
+  · exact ⟨hf, hs, ‹f.needsScan = true›, [], rfl⟩
+  · exact ⟨hf, hs⟩
+
+private theorem prefixState_resume {σ : Type} {setup : SeedSearchSetup}
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (w : List Bool) {f : SeedSchedulerFrame} (hf : f.Valid) (hs : f.request.setup = setup)
+    (result : Option ControllerVerdict) :
+    PrefixState setup scan start w (resume start f result) := by
+  unfold resume
+  split
+  · trivial
+  · rename_i next hnext
+    obtain ⟨hv, he, _⟩ := seedSchedulerStep_progress hf hnext
+    exact prefixState_enter scan start w hv (he.trans hs)
+  · rename_i answer _
+    cases answer
+    · trivial
+    · exact hs ▸ hf.seed_lt
+
+private theorem prefixState_step {σ : Type} {setup : SeedSearchSetup}
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) (w : List Bool)
+    {state : State σ} (h : PrefixState setup scan start w state) (bit : Bool) :
+    PrefixState setup scan start w ((machine setup scan start verdict).step w state bit) := by
+  cases state with
+  | inr result =>
+    rw [NondeterministicQueryMachine.step_of_halted _ _ (by rfl)]
+    exact h
+  | inl frame =>
+    cases frame with
+    | inl f =>
+      obtain ⟨hf, hs⟩ := h
+      cases bit
+      · exact prefixState_resume scan start w hf hs none
+      · trivial
+    | inr active =>
+      obtain ⟨f, s⟩ := active
+      obtain ⟨hf, hs, hscan, bits, rfl⟩ := h
+      cases hh : scan.halted (scan.replay w bits (start f.request))
+      · rw [step_liveScan _ _ _ _ _ _ _ _ hh]
+        exact ⟨hf, hs, hscan, bits ++ [bit], scan.replay_append w bits [bit] _⟩
+      · rw [step_haltedScan _ _ _ _ _ _ _ _ hh]
+        cases bit
+        · exact prefixState_resume scan start w hf hs
+            (verdict (scan.replay w bits (start f.request)))
+        · trivial
+
+/-- Every selector prefix of the same-input scheduler, including rejecting branches,
+uses at most the uniform scanner state bound plus a linear allowance for the retained
+setup and frame. The scanner bound applies to valid frames that request a scan on the
+original input. -/
+theorem length_run_le {σ : Type} (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) (encScan : σ ↪ List Bool)
+    (w : List Bool) (scanBound : ℕ)
+    (hsource : setup.sourceID < setup.parameters.search.subdivision.vertexCount)
+    (hroot : ∀ j < setup.parameters.search.subdivision.originalCount,
+      setup.originalSourceID j < setup.parameters.search.subdivision.vertexCount)
+    (hscan : ∀ f : SeedSchedulerFrame, f.request.setup = setup → f.Valid →
+      f.needsScan = true → ∀ bits,
+        (encScan (scan.replay w bits (start f.request))).length ≤ scanBound)
+    (bits : List Bool) :
+    (encState encScan ((machine setup scan start verdict).run w bits)).length ≤
+      24 * (encSeedSearchSetup setup).length + scanBound + 21 := by
+  let M := machine setup scan start verdict
+  have hinit : PrefixState setup scan start w M.init := by
+    change PrefixState setup scan start w
+      ((seedSchedulerCandidate setup 0).elim (.inr (some none)) (enter start))
+    cases hc : seedSchedulerCandidate setup 0 with
+    | none => trivial
+    | some f =>
+      obtain ⟨hf, hs, _⟩ := seedSchedulerCandidate_valid hc
+      exact prefixState_enter scan start w hf hs
+  have hrun : PrefixState setup scan start w (M.run w bits) := by
+    induction bits using List.reverseRecOn with
+    | nil => exact hinit
+    | append_singleton bits bit ih =>
+      rw [M.run_append]
+      exact prefixState_step scan start verdict w ih bit
+  have frameLength {f : SeedSchedulerFrame} (hf : f.Valid) (hs : f.request.setup = setup) :
+      (encSeedSchedulerFrame f).length ≤ 12 * (encSeedSearchSetup setup).length + 9 :=
+    hs ▸ hf.length_le (hs.symm ▸ hsource) (hs.symm ▸ hroot)
+  change (encState encScan (M.run w bits)).length ≤ _
+  generalize M.run w bits = state at hrun ⊢
+  cases state with
+  | inl live =>
+    cases live with
+    | inl f =>
+      obtain ⟨hf, hs⟩ := hrun
+      have hframe := frameLength hf hs
+      simp only [encState, encSum_inl, List.length_cons]
+      omega
+    | inr active =>
+      obtain ⟨f, s⟩ := active
+      obtain ⟨hf, hs, hneeds, choices, rfl⟩ := hrun
+      have hframe := frameLength hf hs
+      have hcallback := hscan f hs hf hneeds choices
+      simp only [encState, encSum_inl, encSum_inr, List.length_cons, length_encPair]
+      omega
+  | inr result =>
+    rcases result with _ | (_ | answer)
+    · simp [encState]
+    · simp [encState]
+    · have hseed : answer.seed < setup.parameters.search.seedLimit := hrun
+      have hlength := (length_encNat_mono hseed.le).trans
+        ((encSeedSearchSize_seedLimit_length_le setup.parameters.search).trans
+          ((encSeedSearchParameters_search_length_le setup.parameters).trans
+            (encSeedSearchSetup_parameters_length_le setup)))
+      simp only [encState, encSum_inr, encOption_some, encAnswer_apply, length_encPair,
+        encBool_apply, List.length_cons, List.length_nil]
+      omega
+
+/-- If each requested scan from a valid frame has a first-halting replay with a verdict,
+the initialized scheduler has a first-halting replay with a result. The result can be a
+selected seed with either decision, or exhaustion. -/
+theorem exists_successful_firstHalting {σ : Type} (setup : SeedSearchSetup)
+    (scan : NondeterministicQueryMachine σ) (start : SeedScanRequest → σ)
+    (verdict : σ → Option ControllerVerdict) (input : List Bool)
+    (hscan : ∀ f : SeedSchedulerFrame,
+      f.request.setup = setup → f.Valid → f.needsScan = true →
+      ∃ bits, scan.FirstHalting input bits (start f.request) ∧
+        (verdict (scan.replay input bits (start f.request))).isSome) :
+    let M := machine setup scan start verdict
+    ∃ bits, M.FirstHalting input bits M.init ∧ (reply (M.run input bits)).isSome := by
+  let M := machine setup scan start verdict
+  have terminal (answer : Option Answer) :
+      M.FirstHalting input [] (.inr (some answer)) ∧
+        M.replay input [] (.inr (some answer)) = .inr (some answer) :=
+    ⟨(M.firstHalting_iff_nil_of_halted input [] _ (by rfl)).mpr rfl,
+      M.replay_nil input _⟩
+  have fromFrame (f : SeedSchedulerFrame) (hsetup : f.request.setup = setup) (hf : f.Valid) :
+      ∃ bits answer, M.FirstHalting input bits (enter start f) ∧
+        M.replay input bits (enter start f) = .inr (some answer) := by
+    induction hr : remaining f using Nat.strongRecOn generalizing f with
+    | ind fuel ih =>
+      have afterStep (returned : Option ControllerVerdict)
+          (hreturned : f.needsScan = true → returned.isSome) :
+          ∃ rest answer, M.FirstHalting input rest (resume start f returned) ∧
+            M.replay input rest (resume start f returned) = .inr (some answer) := by
+        obtain ⟨result, hstep⟩ :=
+          Option.isSome_iff_exists.mp (seedSchedulerStep_isSome f returned hreturned)
+        rw [resume, hstep]
+        cases result with
+        | inr answer => exact ⟨[], _, terminal _⟩
+        | inl next =>
+          obtain ⟨hvalid, hsame, _⟩ := seedSchedulerStep_progress hf hstep
+          exact ih (remaining next) (hr ▸ remaining_lt hf hstep) next
+            (hsame.trans hsetup) hvalid rfl
+      by_cases hneeds : f.needsScan = true
+      · obtain ⟨prefixBits, hfirst, hpresent⟩ := hscan f hsetup hf hneeds
+        obtain ⟨value, hvalue⟩ := Option.isSome_iff_exists.mp hpresent
+        obtain ⟨rest, answer, hsuffix⟩ := afterStep (some value) (fun _ => rfl)
+        refine ⟨prefixBits ++ false :: rest, answer, ?_⟩
+        rw [enter, ite_eq_left hneeds]
+        exact (firstHalting_scan_iff setup scan start verdict input f (start f.request)
+          _ answer hneeds).mpr ⟨value, rest, (scan.readReply_iff verdict input _ _ _ _).mpr
+            ⟨prefixBits, rfl, hfirst, hvalue⟩, hsuffix⟩
+      · obtain ⟨rest, answer, hsuffix⟩ := afterStep none (fun h => (hneeds h).elim)
+        refine ⟨false :: rest, answer, ?_⟩
+        rw [enter, ite_eq_right hneeds]
+        exact (firstHalting_skip_iff setup scan start verdict input f _ answer).mpr
+          ⟨rest, rfl, hsuffix⟩
+  suffices ∃ bits answer, M.FirstHalting input bits M.init ∧
+      M.replay input bits M.init = .inr (some answer) by
+    obtain ⟨bits, answer, hfirst, hreply⟩ := this
+    refine ⟨bits, hfirst, ?_⟩
+    change (reply (M.replay input bits M.init)).isSome
+    rw [hreply]
+    rfl
+  rw [machine_init]
+  cases hentry : seedSchedulerCandidate setup 0 with
+  | none => exact ⟨[], none, terminal none⟩
+  | some frame =>
+    obtain ⟨hvalid, hsetup, _⟩ := seedSchedulerCandidate_valid hentry
+    exact fromFrame frame hsetup hvalid
 
 end Cslib.Complexity.STCON.SeedSchedulerMachine

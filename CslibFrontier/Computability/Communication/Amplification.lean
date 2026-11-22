@@ -93,7 +93,7 @@ theorem Solves.amplify (hμ : μ.Solves ε (fun x y b => f x y = b) A B) (hε : 
   set e : Protocol X Y Bool → Bool := fun p => decide (p.run x y ≠ f x y)
   have he : ((μ.map e) true).toReal ≤ ε := by
     have h := hμ x hx y hy
-    rw [errorProb] at h
+    rw [errorProb, PMF.errorProb] at h
     rwa [← PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_map_apply,
       show e ⁻¹' {true} = {p | ¬f x y = p.run x y} by
         ext p
@@ -101,7 +101,7 @@ theorem Solves.amplify (hμ : μ.Solves ε (fun x y b => f x y = b) A B) (hε : 
           Set.mem_ofPred_eq]
         exact ne_comm]
   refine le_trans ?_ (PMF.iid_card_ge_le he hε r)
-  rw [errorProb, PublicCoin.amplify, PMF.toOuterMeasure_map_apply, PMF.iid_map,
+  rw [errorProb, PMF.errorProb, PublicCoin.amplify, PMF.toOuterMeasure_map_apply, PMF.iid_map,
     PMF.toOuterMeasure_map_apply]
   refine PMF.toOuterMeasure_toReal_mono _ fun ps hps => ?_
   simp only [Set.mem_preimage, Set.mem_ofPred_eq, Protocol.run_runAll] at hps ⊢

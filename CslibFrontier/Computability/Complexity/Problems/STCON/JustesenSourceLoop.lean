@@ -324,13 +324,7 @@ theorem configurationJustesenSourceLoop_correct
       let M := justesenSourceLoop ntm c context n
       ∀ (bits : List Bool) (verdict : ControllerVerdict), M.FirstHalting w bits M.init →
         M.run w bits = .inr (some verdict) →
-        match verdict with
-        | .bad radius =>
-          (∀ j < radius, ∃! transcript, Passes edge source j transcript) ∧
-            ¬ (∃! transcript, Passes edge source radius transcript)
-        | .decided hit =>
-          (∀ radius, ∃! transcript, Passes edge source radius transcript) ∧
-            (hit = true ↔ Relation.ReflTransGen edge source target) := by
+        verdict.Correct edge source target := by
   intro I n seed source target edge context M bits verdict hfirst hresult
   let initial := SourceRoundLoop.start context n
   let round := justesenRetainedSourceRound ntm c initial
@@ -358,7 +352,7 @@ theorem configurationJustesenSourceLoop_correct
       exact (justesenSourceMembership_readReply_correct ntm c w seed source target
         fuel radius selectors hit rest hreply).trans mem_round.symm)
     hscan
-  cases verdict <;> exact hspec
+  exact hspec
 
 /-- Every valid full-fuel source scan has exactly one first-halting selector list
 that returns a verdict. -/

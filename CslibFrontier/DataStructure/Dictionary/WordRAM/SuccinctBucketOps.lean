@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctChainOps
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bucket-Level Dictionary Lookup and Insertion (`query`, `insert`) in `Memory.Prog`
@@ -473,7 +474,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     refine ⟨by rw [hs', eff.1],
       fun a ha => by
         rw [hs', eff.2.1 a
-          (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)],
+          (by wram_omega [ha])],
       ⟨L, ?_⟩,
       by rw [hgm_eq, ite_eq_left hsome],
       by rw [hgm_eq]; omega⟩
@@ -558,7 +559,6 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     have hj_not : ∀ m' < numMicroPerBucket n_max, j_new ∉ L b m' := by
       intro m' hm' hj_in
       have hlt := ((hinv.hchain_mem b hb m' hm' j_new).mp hj_in).1
-      dsimp only [j_new] at hlt
       omega
     have eff_pr := prependIfIndexedProg_allChainsValid (U := U) (V := V) (w := w₀)
       (n_max := n_max) (h_space := h_space) (base := base) (b := b) (m := m) (j_new := j_new)
@@ -594,7 +594,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
     refine ⟨by rw [hs', hf_pr, hf_pb],
       fun a ha => by
         rw [hs',
-          hout_pr a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
+          hout_pr a (by wram_omega [ha]),
           hout_pb a ha],
       ⟨L', ?_⟩,
       by rw [hgm'_eq, htot_s₁, ite_eq_right hnot_some],
@@ -620,7 +620,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
           constructor
           · rintro (h_in | ⟨_, rfl, _, hcap'⟩)
             · exact False.elim (hnot_in h_in)
-            · exact ⟨by dsimp only [j_new]; omega, hcap', rfl⟩
+            · exact ⟨by omega, hcap', rfl⟩
           · rintro ⟨_, hcap', rfl⟩
             exact Or.inr ⟨rfl, rfl, rfl, hcap'⟩
         · rw [hinv.hchain_mem b' hb' m' hm' j]
@@ -630,8 +630,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
               exact ⟨by omega, hj_cap, hm_j⟩
             · exact False.elim (hjeq h_eq)
           · rintro ⟨hj_lt1, hj_cap, hm_j⟩
-            have hj_lt : j < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-              dsimp only [j_new] at hjeq; omega
+            have hj_lt : j < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
             rw [(hold_s₁ b' hb' j hj_lt).1] at hm_j
             exact Or.inl ⟨hj_lt, hj_cap, hm_j⟩
       · rw [hbc_other_s₁ b' hb' hbeq, hinv.hchain_mem b' hb' m' hm' j]
@@ -651,19 +650,15 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
         by_cases hj1 : j₁ = j_new <;> by_cases hj2 : j₂ = j_new
         · rw [hj1, hj2]
         · subst hj1
-          have hj2_lt : j₂ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-            dsimp only [j_new] at hj2; omega
+          have hj2_lt : j₂ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
           rw [hq_new_s₁, (hold_s₁ b' hb' j₂ hj2_lt).1] at hq_eq
           exact False.elim (hex ⟨j₂, hj2_lt, hq_eq.symm⟩)
         · subst hj2
-          have hj1_lt : j₁ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-            dsimp only [j_new] at hj1; omega
+          have hj1_lt : j₁ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
           rw [hq_new_s₁, (hold_s₁ b' hb' j₁ hj1_lt).1] at hq_eq
           exact False.elim (hex ⟨j₁, hj1_lt, hq_eq⟩)
-        · have hj1_lt : j₁ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-            dsimp only [j_new] at hj1; omega
-          have hj2_lt : j₂ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-            dsimp only [j_new] at hj2; omega
+        · have hj1_lt : j₁ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
+          have hj2_lt : j₂ < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
           rw [(hold_s₁ b' hb' j₁ hj1_lt).1, (hold_s₁ b' hb' j₂ hj2_lt).1] at hq_eq
           exact hinv.hnodup_q b' hb' j₁ hj1_lt j₂ hj2_lt hq_eq
       · rw [hbc_other_s₁ b' hb' hbeq] at hj₁ hj₂
@@ -679,8 +674,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
         by_cases hjeq : j = j_new
         · subst hjeq
           rw [hq_new_s₁, hv_new_s₁, Function.update_self]
-        · have hj_lt : j < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-            dsimp only [j_new] at hjeq; omega
+        · have hj_lt : j < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
           rw [(hold_s₁ b' hb' j hj_lt).1, (hold_s₁ b' hb' j hj_lt).2]
           have hq_ne :
               quotAt base U w₀ n_max h_space s.mem
@@ -700,7 +694,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
         by_cases hqeq : q = q_target
         · subst hqeq
           rw [Function.update_self]
-          exact ⟨fun _ => ⟨j_new, by dsimp only [j_new]; omega, hq_new_s₁⟩, fun _ => rfl⟩
+          exact ⟨fun _ => ⟨j_new, by omega, hq_new_s₁⟩, fun _ => rfl⟩
         · rw [Function.update_of_ne hqeq, hinv.hmap_dom b' hb' q]
           constructor
           · rintro ⟨j, hj_lt, hq_j⟩
@@ -712,8 +706,7 @@ theorem insertBodyProg_bucket_spec {U V w₀ n_max h_space w base b q_target v_n
             · subst hjeq
               rw [hq_new_s₁] at hq_j
               exact False.elim (hqeq hq_j.symm)
-            · have hj_lt : j < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by
-                dsimp only [j_new] at hjeq; omega
+            · have hj_lt : j < bCount n_max (gmAt base U V w₀ n_max h_space s.mem) b' := by omega
               rw [(hold_s₁ b' hb' j hj_lt).1] at hq_j
               exact ⟨j, hj_lt, hq_j⟩
       · rw [Function.update_of_ne hbeq, hbc_other_s₁ b' hb' hbeq, hinv.hmap_dom b' hb' q]

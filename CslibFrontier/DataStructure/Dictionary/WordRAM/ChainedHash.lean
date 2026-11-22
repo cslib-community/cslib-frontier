@@ -14,7 +14,9 @@ public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Probability.PMF.Expect
 import Mathlib.Data.Nat.Log
+public import CslibFrontier.Tactic.WramOmega.Init
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Chained Hash Table on the Randomized Word RAM
@@ -121,6 +123,7 @@ open scoped ENNReal
 /-! ## 1. Table dimension parameters and arithmetic bounds -/
 
 /-- Logarithmic bucket bit-width `M = ⌈log₂(max n_max 2)⌉`. -/
+@[wram_arith]
 def bucketBits (n_max : ℕ) : ℕ :=
   Nat.clog 2 (max n_max 2)
 
@@ -133,6 +136,7 @@ def hashBits (U n_max : ℕ) : ℕ :=
   max (bucketBits n_max) (Nat.clog 2 (max U 2))
 
 /-- Total contiguous memory footprint `4 + 2 ^ M + 3 * n_max` words. -/
+@[wram_arith]
 def space (n_max : ℕ) : ℕ :=
   4 + numBuckets n_max + 3 * n_max
 
@@ -140,8 +144,7 @@ theorem bucketBits_pos (n_max : ℕ) : 0 < bucketBits n_max := by
   have h1 : 1 = Nat.clog 2 2 := by decide
   have h2 : Nat.clog 2 2 ≤ Nat.clog 2 (max n_max 2) :=
     Nat.clog_mono_right 2 (le_max_right n_max 2)
-  unfold bucketBits
-  omega
+  wram_omega
 
 theorem bucketBits_le_hashBits (U n_max : ℕ) : bucketBits n_max ≤ hashBits U n_max :=
   le_max_left _ _
@@ -284,18 +287,22 @@ def inputMask (i : Fin rHash) : Bool :=
   decide (i ≠ baseReg)
 
 /-- Memory address of the bucket head array `head[0 .. numBuckets n_max - 1]`. -/
+@[wram_arith]
 def headBase (base : ℕ) : ℕ :=
   base + 4
 
 /-- Memory address of the node key array `key[0 .. n_max - 1]`. -/
+@[wram_arith]
 def keyBase (base n_max : ℕ) : ℕ :=
   base + 4 + numBuckets n_max
 
 /-- Memory address of the node value array `val[0 .. n_max - 1]`. -/
+@[wram_arith]
 def valBase (base n_max : ℕ) : ℕ :=
   base + 4 + numBuckets n_max + n_max
 
 /-- Memory address of the node next-pointer array `next[0 .. n_max - 1]`. -/
+@[wram_arith]
 def nextBase (base n_max : ℕ) : ℕ :=
   base + 4 + numBuckets n_max + 2 * n_max
 
@@ -465,7 +472,7 @@ theorem arguments_fit {U V n_max w base : ℕ}
     (hv : (Dictionary.spec U V n_max).valid s o) (i : Fin rHash) :
     Fits w (encode o i) := by
   have h0 : Fits w 0 := fits_zero w
-  have hsp : 4 ≤ space n_max := by unfold space; omega
+  have hsp : 4 ≤ space n_max := by wram_omega
   have hu_fit : ∀ u : Fin U, Fits w u.val := fun u => by
     rw [fits_iff]
     have hpow : 2 ^ hashBits U n_max ≤ 2 ^ w :=
@@ -572,29 +579,25 @@ theorem BucketInv.congr_mem {U n_max base : ℕ} {b : Fin (2 ^ (hashBits U n_max
   have hhead : mem' (headBase base + bk) = mem (headBase base + bk) := by
     apply hmem
     rw [Block.mem_footprint]
-    dsimp only [Block.Owns, headBase, space]
-    omega
+    wram_omega
   have hkey : ∀ idx ∈ L, mem' (keyBase base n_max + idx) = mem (keyBase base n_max + idx) := by
     intro idx hidx
     have hlt := hb.chain.lt_sz idx hidx
     apply hmem
     rw [Block.mem_footprint]
-    dsimp only [Block.Owns, keyBase, space]
-    omega
+    wram_omega
   have hval : ∀ idx ∈ L, mem' (valBase base n_max + idx) = mem (valBase base n_max + idx) := by
     intro idx hidx
     have hlt := hb.chain.lt_sz idx hidx
     apply hmem
     rw [Block.mem_footprint]
-    dsimp only [Block.Owns, valBase, space]
-    omega
+    wram_omega
   have hnext : ∀ idx ∈ L, mem' (nextBase base n_max + idx) = mem (nextBase base n_max + idx) := by
     intro idx hidx
     have hlt := hb.chain.lt_sz idx hidx
     apply hmem
     rw [Block.mem_footprint]
-    dsimp only [Block.Owns, nextBase, space]
-    omega
+    wram_omega
   have hmap : (L.map fun idx => mem' (keyBase base n_max + idx)) =
       (L.map fun idx => mem (keyBase base n_max + idx)) :=
     List.map_congr_left hkey
@@ -736,13 +739,13 @@ theorem Rep.supported {U V n_max w base : ℕ} {b : Fin (2 ^ (hashBits U n_max -
     (hmem : ∀ a ∈ (Block.mk base (space n_max)).footprint, x'.mem a = x.mem a)
     (hbx' : x'.Bounded w) (hr : Rep U V n_max w base b s x) :
     Rep U V n_max w base b s x' := by
-  have hsp : 4 ≤ space n_max := by unfold space; omega
+  have hsp : 4 ≤ space n_max := by wram_omega
   have hm0 : x'.mem base = x.mem base :=
-    hmem base (by rw [Block.mem_footprint]; dsimp [Block.Owns]; omega)
+    hmem base (by rw [Block.mem_footprint]; wram_omega)
   have hm1 : x'.mem (base + 1) = x.mem (base + 1) :=
-    hmem (base + 1) (by rw [Block.mem_footprint]; dsimp [Block.Owns]; omega)
+    hmem (base + 1) (by rw [Block.mem_footprint]; wram_omega)
   have hm2 : x'.mem (base + 2) = x.mem (base + 2) :=
-    hmem (base + 2) (by rw [Block.mem_footprint]; dsimp [Block.Owns]; omega)
+    hmem (base + 2) (by rw [Block.mem_footprint]; wram_omega)
   have hm3 : x'.mem (base + 3) = x.mem (base + 3) :=
     hmem (base + 3) (by rw [Block.mem_footprint]; dsimp [Block.Owns]; omega)
   refine ⟨hbx', by regs_frame,
@@ -783,7 +786,7 @@ private theorem storeHeader_spec {U V n_max w base : ℕ}
       y.regs frontierReg = base + space n_max ∧
       Rep U V n_max w base b (Dictionary.empty U) y ∧
       Modifies (Block.mk base (space n_max)).footprint x.mem y.mem := by
-  have hsp : 4 ≤ space n_max := by unfold space; omega
+  have hsp : 4 ≤ space n_max := by wram_omega
   have fb3 : Fits w (base + 1 + 1 + 1) := hS.of_le (by omega)
   have fM : Fits w (bucketBits n_max) := fits_bucketBits hw
   have fw0 : Fits w (hashBits U n_max) := fits_hashBits hw
@@ -805,7 +808,7 @@ private theorem storeHeader_spec {U V n_max w base : ℕ}
       Dictionary.valuesBounded_empty U V, fun bk hbk => ⟨[], ?_⟩⟩
     have hhead0 : y.mem (headBase base + bk) = 0 := by
       wram_simp [hym, headBase]
-      exact hz (base + 4 + bk) (by rw [Block.mem_footprint]; dsimp [Block.Owns, space]; omega)
+      exact hz (base + 4 + bk) (by rw [Block.mem_footprint]; wram_omega)
     refine ⟨hhead0 ▸ IsChain.nil, List.nodup_nil, ?_, ?_⟩
     · intro _ h; cases h
     · intro u v _ h; simp [Dictionary.empty] at h
@@ -1091,8 +1094,8 @@ private theorem findInChainBody_spec {U n_max w base : ℕ} (hS : Fits w (base +
         x₁.regs cur = ptr' ∧ x₁.regs found = x.regs found) := by
   have hsp : 4 + numBuckets n_max + 3 * n_max = space n_max := rfl
   have fidx : Fits w idx₀ := hS.of_le (by omega)
-  have fkaddr : Fits w (keyBase base n_max + idx₀) := hS.of_le (by unfold keyBase; omega)
-  have fnaddr : Fits w (nextBase base n_max + idx₀) := hS.of_le (by unfold nextBase; omega)
+  have fkaddr : Fits w (keyBase base n_max + idx₀) := hS.of_le (by wram_omega)
+  have fnaddr : Fits w (nextBase base n_max + idx₀) := hS.of_le (by wram_omega)
   by_cases hhit : x.mem (keyBase base n_max + idx₀) = u.val
   · refine ⟨?_, ?e1, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_,
       fun _ => ⟨?_, ?_, ?_⟩, fun h => absurd hhit h⟩
@@ -1218,7 +1221,7 @@ private theorem finishQuery_spec {U V n_max w base : ℕ}
     subst hu'_eq
     let v := x.mem (valBase base n_max + i)
     have hv_lt : v < V := hr.vals_lt u v hsu'
-    have fvaddr : Fits w (valBase base n_max + i) := hS.of_le (by unfold valBase; omega)
+    have fvaddr : Fits w (valBase base n_max + i) := hS.of_le (by wram_omega)
     have fv1 : Fits w (y.mem (valBase base n_max + i) + 1) := by
       rw [hmy]
       exact hV.of_le (by omega)
@@ -1284,7 +1287,7 @@ private theorem finishInsertHit_spec {U V n_max w base : ℕ}
   have hisSome : (s u).isSome := by simp [hsu₀]
   have hcard_eq : (Dictionary.dom s').card = sz :=
     Dictionary.card_dom_insert_eq_of_isSome hisSome v
-  have fvaddr : Fits w (valBase base n_max + i) := hS.of_le (by unfold valBase; omega)
+  have fvaddr : Fits w (valBase base n_max + i) := hS.of_le (by wram_omega)
   obtain ⟨z, he, hmz, hbasez⟩ :
       ∃ z, Exec w finishOp y z 5 ∧
         z.mem = Function.update y.mem (valBase base n_max + i) v ∧
@@ -1300,13 +1303,13 @@ private theorem finishInsertHit_spec {U V n_max w base : ℕ}
   have hne_val : ∀ a, a < valBase base n_max ∨ valBase base n_max + n_max ≤ a →
       z.mem a = x.mem a := by
     intro a ha
-    rw [hmz, Function.update_of_ne (by unfold valBase at *; omega)]
+    rw [hmz, Function.update_of_ne (by wram_omega)]
   refine ⟨z, he.within.mono (by omega), ?_, ?_⟩
   · refine ⟨hz_bdd, hbasez,
-      (hne_val base (Or.inl (by unfold valBase; omega))).trans hr.mem_seed,
-      (hne_val (base + 1) (Or.inl (by unfold valBase; omega))).trans hr.mem_M,
-      (hne_val (base + 2) (Or.inl (by unfold valBase; omega))).trans hr.mem_w0,
-      (hne_val (base + 3) (Or.inl (by unfold valBase; omega))).trans
+      (hne_val base (Or.inl (by wram_omega))).trans hr.mem_seed,
+      (hne_val (base + 1) (Or.inl (by wram_omega))).trans hr.mem_M,
+      (hne_val (base + 2) (Or.inl (by wram_omega))).trans hr.mem_w0,
+      (hne_val (base + 3) (Or.inl (by wram_omega))).trans
         (hr.mem_sz.trans hcard_eq.symm),
       hcard_eq ▸ hsz_le,
       Dictionary.valuesBounded_step_of_valid hr.vals_lt hv,
@@ -1314,16 +1317,16 @@ private theorem finishInsertHit_spec {U V n_max w base : ℕ}
     obtain ⟨L', hbL'⟩ := hr.buckets bk' hbk'
     refine ⟨L', ?_⟩
     have hhead_eq : z.mem (headBase base + bk') = x.mem (headBase base + bk') :=
-      hne_val _ (Or.inl (by unfold headBase valBase; omega))
+      hne_val _ (Or.inl (by wram_omega))
     have hc_z : IsChain z.mem (nextBase base n_max) (Dictionary.dom s').card
         (z.mem (headBase base + bk')) L' := by
       rw [hcard_eq, hhead_eq]
       exact hbL'.chain.congr_mem (fun j hj =>
-        hne_val _ (Or.inr (by unfold nextBase valBase; omega)))
+        hne_val _ (Or.inr (by wram_omega)))
     have hkey_eq : ∀ j ∈ L', z.mem (keyBase base n_max + j) = x.mem (keyBase base n_max + j) := by
       intro j hj
       have hj_lt : j < sz := hbL'.chain.lt_sz j hj
-      exact hne_val _ (Or.inl (by unfold keyBase valBase; omega))
+      exact hne_val _ (Or.inl (by wram_omega))
     have hnodup_z : (L'.map fun idx => z.mem (keyBase base n_max + idx)).Nodup := by
       rw [List.map_congr_left hkey_eq]
       exact hbL'.nodup
@@ -1355,7 +1358,7 @@ private theorem finishInsertHit_spec {U V n_max w base : ℕ}
   · rw [Modifies.block_iff]
     intro a ha
     dsimp only [Block.Owns] at ha
-    rw [hmz, Function.update_of_ne (by unfold valBase space at *; omega)]
+    rw [hmz, Function.update_of_ne (by wram_omega)]
 
 private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
     (hS : Fits w (base + space n_max))
@@ -1399,16 +1402,16 @@ private theorem finishInsertMiss_spec {U V n_max w base : ℕ}
   have hmsz : y.mem (base + 3) = sz := hmy ▸ hr.mem_sz
   have fb3 : Fits w (base + 3) := hS.of_le (by omega)
   have fsz1 : Fits w (sz + 1) := hS.of_le (by omega)
-  have fkaddr : Fits w (keyBase base n_max + sz) := hS.of_le (by unfold keyBase; omega)
-  have fvaddr : Fits w (valBase base n_max + sz) := hS.of_le (by unfold valBase; omega)
-  have fhaddr : Fits w (headBase base + bk) := hS.of_le (by unfold headBase; omega)
-  have fnaddr : Fits w (nextBase base n_max + sz) := hS.of_le (by unfold nextBase; omega)
+  have fkaddr : Fits w (keyBase base n_max + sz) := hS.of_le (by wram_omega)
+  have fvaddr : Fits w (valBase base n_max + sz) := hS.of_le (by wram_omega)
+  have fhaddr : Fits w (headBase base + bk) := hS.of_le (by wram_omega)
+  have fnaddr : Fits w (nextBase base n_max + sz) := hS.of_le (by wram_omega)
   let z' := ((((y.write (base + 3) (sz + 1)).write (keyBase base n_max + sz) u.val).write
     (valBase base n_max + sz) v).write (nextBase base n_max + sz)
     (y.mem (headBase base + bk))).write (headBase base + bk) (sz + 1)
-  have hne1 : headBase base + bk ≠ valBase base n_max + sz := by unfold headBase valBase; omega
-  have hne2 : headBase base + bk ≠ keyBase base n_max + sz := by unfold headBase keyBase; omega
-  have hne3 : headBase base + bk ≠ base + 3 := by unfold headBase; omega
+  have hne1 : headBase base + bk ≠ valBase base n_max + sz := by wram_omega
+  have hne2 : headBase base + bk ≠ keyBase base n_max + sz := by wram_omega
+  have hne3 : headBase base + bk ≠ base + 3 := by wram_omega
   obtain ⟨z, he, hmz, hbasez⟩ :
       ∃ z, Exec w finishOp y z 19 ∧ z.mem = z'.mem ∧ z.regs baseReg = base := by
     refine ⟨?_, ?e, ?_, ?_⟩

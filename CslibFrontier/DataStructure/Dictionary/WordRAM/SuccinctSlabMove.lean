@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabPool
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Slab Promotion Loop in `Memory.Prog`
@@ -244,21 +245,21 @@ theorem promoteStepProg_effect {U V w n_max h_space base b k : ℕ}
   have hTcap : tailCapPerBucket n_max = 2 * slabSize n_max := by
     unfold tailCapPerBucket; rw [ite_eq_right hb0]
   have hr_le_nt : gm (gmRIdx b) ≤ gm 1 := r_le_ntails_of_tailBijection htail hb
-  have hu_lt_r : u < gm (gmRIdx b) := by dsimp only [u]; omega
-  have hr_top_eq : r_top = gm (gmRIdx b) - 1 := by dsimp only [r_top, u]; omega
-  have hr_top_lt_r : r_top < gm (gmRIdx b) := by dsimp only [r_top, u]; omega
-  have hu_cap : u < tailCapPerBucket n_max := by dsimp only [u]; omega
-  have hr_top_cap : r_top < tailCapPerBucket n_max := by dsimp only [r_top, u]; omega
+  have hu_lt_r : u < gm (gmRIdx b) := by omega
+  have hr_top_eq : r_top = gm (gmRIdx b) - 1 := by omega
+  have hr_top_lt_r : r_top < gm (gmRIdx b) := by omega
+  have hu_cap : u < tailCapPerBucket n_max := by omega
+  have hr_top_cap : r_top < tailCapPerBucket n_max := by omega
   have hptr_u_lt : gmTailPtrBase n_max + (b * tailCapPerBucket n_max + u) <
       globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hu_cap
   have hptr_top_lt : gmTailPtrBase n_max + (b * tailCapPerBucket n_max + r_top) <
       globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_top_cap
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   have htu_lt_gm1 : gm (gmTailPtrIdx n_max b u) < gm 1 := htail.ptr_lt b hb u hu_lt_r
   have httop_lt_gm1 : gm (gmTailPtrIdx n_max b r_top) < gm 1 := htail.ptr_lt b hb r_top hr_top_lt_r
-  have hgu_lt : g_u < n_max := by dsimp only [g_u]; omega
-  have hgtop_lt : g_top < n_max := by dsimp only [g_top]; omega
-  have hgslab_lt : g_slab < n_max := by dsimp only [g_slab]; omega
+  have hgu_lt : g_u < n_max := by omega
+  have hgtop_lt : g_top < n_max := by omega
+  have hgslab_lt : g_slab < n_max := by omega
   have hqu_lt : qA g_u < 2 ^ quotientBits U n_max := quotAt_lt _ _ _ _ _ _ _
   have hvu_lt : vA g_u < 2 ^ valBits V := valAt_lt _ _ _ _ _ _ _ _
   have hqtop_lt : qA g_top < 2 ^ quotientBits U n_max := quotAt_lt _ _ _ _ _ _ _
@@ -333,11 +334,11 @@ theorem promoteStepProg_effect {U V w n_max h_space base b k : ℕ}
     by rw [hl5, hl4, hl3, hl2, hl1],
     by rw [hg5, hg4, hg3, hgm2]⟩
   intro a ha
-  rw [hout5 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout4 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
+  rw [hout5 a (by wram_omega [ha]),
+    hout4 a (by wram_omega [ha]),
     hout3 a ha,
-    hout2 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    hout1 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)]
+    hout2 a (by wram_omega [ha]),
+    hout1 a (by wram_omega [ha])]
 
 /-- Bounds for the reads and writes of `promoteStepProg`, stated on the results of its reads,
 together with the precondition of its `removeLastTailItemProg` call; shared by
@@ -393,13 +394,13 @@ private theorem promoteStep_bounds {U V w₀ n_max h_space base b k : ℕ}
   change gm (gmRIdx b) = 2 * slabSize n_max - k at hrb_eq
   change gm 0 * slabSize n_max + k + gm 1 ≤ n_max at htot
   have hr_le_nt : gm (gmRIdx b) ≤ gm 1 := r_le_ntails_of_tailBijection htail hb
-  have hu_lt_r : u < gm (gmRIdx b) := by dsimp only [u]; omega
-  have hr_top_lt_r : r_top < gm (gmRIdx b) := by dsimp only [r_top, u]; omega
-  have hu_cap : u < tailCapPerBucket n_max := by dsimp only [u]; omega
-  have hr_top_cap : r_top < tailCapPerBucket n_max := by dsimp only [r_top, u]; omega
+  have hu_lt_r : u < gm (gmRIdx b) := by omega
+  have hr_top_lt_r : r_top < gm (gmRIdx b) := by omega
+  have hu_cap : u < tailCapPerBucket n_max := by omega
+  have hr_top_cap : r_top < tailCapPerBucket n_max := by omega
   have hptr_u_lt : ptr_u_idx < globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hu_cap
   have hptr_top_lt : ptr_top_idx < globalMetaLen n_max := gmTailPtrIdx_lt hb_pos hb hr_top_cap
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   have htu_eq : t_u = gm (gmTailPtrIdx n_max b u) := clientResult_readGMProg s hptr_u_lt
   have httop_eq : t_top = gm (gmTailPtrIdx n_max b r_top) :=
     clientResult_readGMProg s hptr_top_lt
@@ -408,8 +409,8 @@ private theorem promoteStep_bounds {U V w₀ n_max h_space base b k : ℕ}
   have httop_lt_gm1 : gm (gmTailPtrIdx n_max b r_top) < gm 1 := htail.ptr_lt b hb r_top hr_top_lt_r
   have htu_le : t_u ≤ n_max - 1 := by rw [htu_eq]; omega
   have httop_le : t_top ≤ n_max - 1 := by rw [httop_eq]; omega
-  have hgu_lt : g_u < n_max := by dsimp only [g_u]; omega
-  have hgtop_lt : g_top < n_max := by dsimp only [g_top]; omega
+  have hgu_lt : g_u < n_max := by omega
+  have hgtop_lt : g_top < n_max := by omega
   have hgslab_lt : g_slab < n_max := by dsimp only [g_slab]; rw [hpnew_eq]; omega
   have hqtop_eq : q_top = quotAt base U w₀ n_max h_space s.mem g_top :=
     clientResult_readQuotProg s hgtop_lt
@@ -587,7 +588,6 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
         have h1 : (slabPtrOf n_max (gmRemoveTail n_max gm b) b' (j / slabSize n_max) + 1) *
             slabSize n_max ≤ gm 0 * slabSize n_max := Nat.mul_le_mul_right _ hp_lt
         rw [Nat.add_one_mul] at h1
-        dsimp only [g_slab]
         omega
       · have hr'_lt : j - gmRemoveTail n_max gm b (gmQIdx b') * slabSize n_max <
             gmRemoveTail n_max gm b (gmRIdx b') := by omega
@@ -597,7 +597,6 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
             gm 1 - 1 := by
           rw [← hpres.2.1]
           exact htail'.ptr_lt b' hb' _ hr'_lt
-        dsimp only [g_slab]
         omega
     dsimp only [arr₃]
     rw [Function.update_of_ne hne_slab]
@@ -616,7 +615,6 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
     have h1 : (slabPtrOf n_max gm b' (j / slabSize n_max) + 1) * slabSize n_max ≤
         gm 0 * slabSize n_max := Nat.mul_le_mul_right _ hp_lt
     rw [Nat.add_one_mul] at h1
-    dsimp only [g_u]
     omega
   -- Helper: any tail slot `(b', r')` with `(b', r') ≠ (b, u)` is `≠ g_u`.
   have htail_ne_gu : ∀ b' < numBuckets n_max, ∀ r' < gm (gmRIdx b'),
@@ -667,7 +665,6 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
         unfold bCount at hj
         simp only [hb0, ↓reduceIte, hb'] at hj
         rw [hr_other b' hb' hne]
-        dsimp only [r']
         omega
       rw [hj_eq, Function.update_of_ne (htail_ne_gu b' hb' r' hr'_lt (Or.inl hne)), ← hj_eq]
       exact harr.other_bucket b' hb' hne j hj
@@ -683,7 +680,7 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
     rw [harr3_slot b hb _ hj']
     dsimp only [arr₁]
     have hu'_lt_r : u' < gm (gmRIdx b) := by omega
-    have hu'_ne : u' ≠ u := by dsimp only [u]; omega
+    have hu'_ne : u' ≠ u := by omega
     rw [Function.update_of_ne (htail_ne_gu b hb u' hu'_lt_r (Or.inr hu'_ne))]
     exact harr.low_tail u' (by omega)
   · intro u' hu'
@@ -692,7 +689,7 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
     rw [harr3_slot b hb _ hj']
     dsimp only [arr₁]
     have hr'_lt_r : slabSize n_max + u' < gm (gmRIdx b) := by omega
-    have hr'_ne : slabSize n_max + u' ≠ u := by dsimp only [u]; omega
+    have hr'_ne : slabSize n_max + u' ≠ u := by omega
     rw [Function.update_of_ne (htail_ne_gu b hb (slabSize n_max + u') hr'_lt_r (Or.inr hr'_ne))]
     exact harr.high_tail u' (by omega)
   · intro u' hu'_ge hu'_lt
@@ -703,16 +700,16 @@ theorem promoteArrInv_step {α : Type*} {n_max b k : ℕ} {gm₀ gm : ℕ → �
     by_cases heq : u' = u
     · subst heq
       rw [← hgu_eq_slot, Function.update_self, hgtop_eq_slot]
-      exact harr.high_tail u (by dsimp only [u]; omega)
+      exact harr.high_tail u (by omega)
     · have hu'_lt_r : u' < gm (gmRIdx b) := by omega
       rw [Function.update_of_ne (htail_ne_gu b hb u' hu'_lt_r (Or.inr heq))]
-      exact harr.shifted_tail u' (by dsimp only [u] at heq; omega) hu'_lt
+      exact harr.shifted_tail u' (by omega) hu'_lt
   · intro k' hk'
     dsimp only [arr₃]
     by_cases heq : k' = k
     · subst heq
       rw [← h0, Function.update_self, hgu_eq_slot]
-      exact harr.low_tail u (by dsimp only [u]; omega)
+      exact harr.low_tail u (by omega)
     · have hne_slab : gm₀ 0 * slabSize n_max + k' ≠ g_slab := by
         dsimp only [g_slab]; rw [h0]; omega
       have hlt_low : gm₀ 0 * slabSize n_max + k' < n_max - gm 1 := by
@@ -990,8 +987,8 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         exact harr.same_slabs j hj_old
       · set u := j - gm₀ (gmQIdx b) * slabSize n_max
         have hu_lt : u < slabSize n_max := by
-          rw [Nat.add_one_mul] at hj_slab; dsimp only [u]; omega
-        have hj_eq : j = gm₀ (gmQIdx b) * slabSize n_max + u := by dsimp only [u]; omega
+          rw [Nat.add_one_mul] at hj_slab; omega
+        have hj_eq : j = gm₀ (gmQIdx b) * slabSize n_max + u := by omega
         have hs_lt : j / slabSize n_max < gmPushSlab n_max gm b (gmQIdx b) := by
           rw [hq_b_push, hq b hb]
           exact Nat.div_lt_of_lt_mul (by rw [Nat.mul_comm]; exact hj_slab)
@@ -1005,15 +1002,14 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         rw [show slabSize n_max - 1 - (slabSize n_max - 1 - u) = u by omega, ← hj_eq] at hnew
         exact hnew
     · set u := j - (gm₀ (gmQIdx b) + 1) * slabSize n_max
-      have hu_lt : u < slabSize n_max := by dsimp only [u]; omega
+      have hu_lt : u < slabSize n_max := by omega
       have hu_cap : u < tailCapPerBucket n_max := by
         unfold tailCapPerBucket; rw [ite_eq_right hb0]; omega
       have hd_lt : b * tailCapPerBucket n_max + u < maxTailItems n_max :=
         mul_tailCapPerBucket_add_lt_maxTailItems hb hu_cap
       have hptr_tail : gmPushSlab n_max gm b (gmTailPtrIdx n_max b u) =
           gm (gmTailPtrIdx n_max b u) :=
-        hf.2.2.2.1 _ (by unfold gmTailPtrIdx gmTailPtrFlatIdx; omega)
-          (by unfold gmTailPtrIdx gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase; omega)
+        hf.2.2.2.1 _ (by wram_omega) (by wram_omega)
       rw [hptr_tail]
       have hslot_gm : n_max - 1 - gm (gmTailPtrIdx n_max b u) =
           slotOf n_max gm b (gm₀ (gmQIdx b) * slabSize n_max + u) := by
@@ -1045,8 +1041,8 @@ theorem slotOf_gmPushSlab_preserve {α : Type*} {n_max b : ℕ} {gm₀ gm : ℕ 
         have hd'_lt : b' * tailCapPerBucket n_max + (j - gm₀ (gmQIdx b') * slabSize n_max) <
             maxTailItems n_max :=
           mul_tailCapPerBucket_add_lt_maxTailItems hb' hr'_cap
-        rw [hf.2.2.2.1 _ (by unfold gmTailPtrIdx gmTailPtrFlatIdx; omega)
-          (by unfold gmTailPtrIdx gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase; omega)]
+        rw [hf.2.2.2.1 _ (by wram_omega)
+          (by wram_omega)]
     rw [hslot_eq]
     exact harr.other_bucket b' hb' hbeq j (by unfold bCount; simp [hb0, hb', hj])
 
@@ -1164,8 +1160,7 @@ theorem promoteSlabProg_effect {U V w n_max h_space base b : ℕ}
   refine ⟨by rw [hst, hf_push, hloopK.frontier_eq],
     fun a ha => by
       have ha' : ¬(base + offGM U V w n_max h_space ≤ a ∧
-          a < base + totalSpace U V w n_max h_space) := by
-        dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega
+          a < base + totalSpace U V w n_max h_space) := by wram_omega [ha]
       rw [hst, hout_push a ha', hloopK.mem_out a ha],
     by rw [hst, hl_push, hloopK.lm_eq],
     hinv2, hqb, hrb, hother, hbc,

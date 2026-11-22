@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Sequential
 public import Cslib.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
 
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Simulation
 import CslibFrontier.Tactic.SuppCases
@@ -494,9 +495,7 @@ theorem of_nil_output (h : machine.RunsWords x ws₀ [] time program ws₁ emit)
   let cfg₀ : Config k Bool State Operation x :=
     { tapes := wordsCfg x (some machine.initial) ws₀ [], channels := cfg.channels }
   have hprep : cfg = cfg₀.prependOutput out₀ := by
-    refine Config.ext ?_ rfl
-    rw [htapes]
-    exact Cfg.ext rfl rfl rfl rfl (by simp [cfg₀, Config.prependOutput, Cfg.prependOutput])
+    tm_step [htapes, cfg₀, Config.prependOutput]
   have hrun :
       machine.runOracleConfigFrom time cfg =
         (fun final => final.prependOutput out₀) <$> machine.runOracleConfigFrom time cfg₀ := by
@@ -551,13 +550,7 @@ theorem of_first_step_mapState {S : Type} {tm : MultiTapePTM k Bool S Operation}
           state := some (f tm.initial) }
         (fun _ => none) (fun _ => 0)) =
       Config.mapState f cfg₀ := by
-    refine Config.ext ?_ (by funext op; simp [Config.step, Config.mapState, cfg₀])
-    rw [Config.step, htapes]
-    exact Cfg.ext rfl
-      (by simp [Turing.Action.apply, wordsCfg, Config.mapState, Cfg.mapState, cfg₀])
-      (by funext l; simp [Turing.Action.apply, wordsCfg, Config.mapState, Cfg.mapState, cfg₀])
-      (by funext l; simp [Turing.Action.apply, wordsCfg, Config.mapState, Cfg.mapState, cfg₀])
-      (by simp [Turing.Action.apply, wordsCfg, Config.mapState, Cfg.mapState, cfg₀])
+    tm_step [Config.step, htapes, cfg₀]
   have htr_step : ∀ bit,
       machine.tr machine.initial cfg.tapes.inputSymbol cfg.tapes.workTapeSymbols
         cfg.answerSymbols bit =

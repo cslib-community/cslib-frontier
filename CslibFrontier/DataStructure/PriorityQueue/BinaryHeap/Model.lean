@@ -10,6 +10,8 @@ module
 public import CslibFrontier.DataStructure.PriorityQueue.Spec
 public import CslibFrontier.Computability.WordRAM.Heap
 import Mathlib.Order.Interval.Finset.Nat
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Indexed Binary Min-Heap: Memory Model and Invariant
@@ -56,11 +58,11 @@ namespace Cslib.DataStructure.PriorityQueue.BinaryHeap
 open Cslib.WordRAM Cslib.DataStructure Cslib.DataStructure.PriorityQueue
 
 /-- Memory footprint size (`3 * N + 1` words) of an indexed binary heap over `N` handles. -/
+@[wram_arith]
 def space (N : ℕ) : ℕ := 3 * N + 1
 
 /-- The binary-heap footprint on `N` handles is at least `N + 1` words. -/
-theorem space_lower (N : ℕ) : N + 1 ≤ space N := by
-  unfold space; omega
+theorem space_lower (N : ℕ) : N + 1 ≤ space N := by wram_omega
 
 /-- Decreasing a handle's key improves its priority under `IndexedMinPQ.RawPrioLE`. -/
 theorem entryLE_of_key_le {u k₁ k₂ : ℕ} (h : k₁ ≤ k₂) :
@@ -82,9 +84,9 @@ theorem stateOfMem_congr {N base : ℕ} {m₁ m₂ : ℕ → ℕ}
   funext ⟨v, hv⟩
   simp only [stateOfMem]
   have hp : base + 2 * N + 1 + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega
+    rw [Block.mem_footprint]; wram_omega
   have hk : base + v ∈ (Block.mk base (space N)).footprint := by
-    rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega
+    rw [Block.mem_footprint]; wram_omega
   rw [h _ hp, h _ hk]
 
 /-- **Structural binary-heap invariant**: positions `1, …, sz` store handles `< N`, and the `pos`
@@ -135,11 +137,11 @@ theorem HeapInv.congr_mem {m₂ : ℕ → ℕ} (h : HeapInv N base S mem)
     HeapInv N base S m₂ := by
   have hSN := h.size_le
   have hk (v : ℕ) (hv : v < N) : m₂ (base + v) = mem (base + v) :=
-    hm _ (by rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega) (by omega)
+    hm _ (by rw [Block.mem_footprint]; wram_omega) (by omega)
   have hh (i : ℕ) (h1 : 1 ≤ i) (h2 : i ≤ S) : m₂ (base + N + i) = mem (base + N + i) :=
-    hm _ (by rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega) (by omega)
+    hm _ (by rw [Block.mem_footprint]; wram_omega) (by omega)
   have hp (v : ℕ) (hv : v < N) : m₂ (base + 2 * N + 1 + v) = mem (base + 2 * N + 1 + v) :=
-    hm _ (by rw [Block.mem_footprint]; dsimp only [Block.Owns, space]; omega) (by omega)
+    hm _ (by rw [Block.mem_footprint]; wram_omega) (by omega)
   have hent (i : ℕ) (h1 : 1 ≤ i) (h2 : i ≤ S) :
       heapEntry N base m₂ i = heapEntry N base mem i := by
     have hv := h.vertex_lt i h1 h2
