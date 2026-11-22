@@ -30,8 +30,9 @@ numbers `v : ℕ` with primary schedule `primary : ℕ → P`, sequence slots `s
 * **General `3 * f < |P|` quorum threshold (`pbftQuorumSize P f = Fintype.card P - f`):**
   [CastroLiskov1999] §4 assumes `|P| = 3 * f + 1` for simplicity, where `2 * f + 1 = |P| - f`. Here
   certificates (`PreparedCert`, `CommittedLocal`, `NewView`) use quorum size `|P| - f`, which
-  equals `2 * f + 1` when `|P| = 3 * f + 1` and forms an `f`-dissemination quorum system for
-  **every** `3 * f < Fintype.card P` via `isDisseminationQuorumSystem_thresholdQuorums_sub`.
+  equals `2 * f + 1` when `|P| = 3 * f + 1` and forms an `f`-threshold dissemination quorum system
+  for **every** `3 * f < Fintype.card P` via
+  `isThresholdDisseminationQuorumSystem_thresholdQuorums_sub`.
 * **Ideal sender signatures without digests or MAC vectors:** messages in `st.network` carry ideal
   unforgeable signer identity (`PBFTMsg.signer`); faulty replicas `j ∈ F` may inject arbitrary
   messages signed by `j ∈ F` (`PBFTAction.byzSend`), while messages signed by `i ∉ F` originate
@@ -73,11 +74,6 @@ numbers `v : ℕ` with primary schedule `primary : ℕ → P`, sequence slots `s
   `(view, slot, val)`.
 * `Cslib.Distributed.ByzantineQuorum.executeSlotLog`: sequential deterministic state-machine
   execution over committed slot entries `0, ..., k - 1`.
-* `Cslib.Distributed.ByzantineQuorum.honestPrimaryThreePhaseActions`: computable 3-phase
-  normal-case action schedule for an honest primary.
-* `Cslib.Distributed.ByzantineQuorum.fin3Primary`,
-  `Cslib.Distributed.ByzantineQuorum.splitBrainTraceFin3`: primary schedule and explicit 13-step
-  split-brain execution trace on `Fin 3` (`f = 1`).
 
 ## Main results
 
@@ -93,15 +89,15 @@ numbers `v : ℕ` with primary schedule `primary : ℕ → P`, sequence slots `s
   across distinct views `v₁` and `v₂`.
 * `Cslib.Distributed.ByzantineQuorum.pbft_smr_state_agreement_idealAuth`: deterministic
   state-machine replicas executing committed slots `0, ..., k - 1` reach identical service states.
-* `Cslib.Distributed.ByzantineQuorum.pbft_honestPrimaryThreePhaseActions_commits`,
-  `Cslib.Distributed.ByzantineQuorum.pbft_honest_primary_three_phase_liveness`: synchronized
-  honest-primary 3-phase liveness step (after [CastroLiskov1999], §§4.2, 4.5.2)—when `primary v ∉ F`
-  and all honest replicas are active in view `v` at a fresh slot `s`, synchronous delivery of
-  `PrePrepare → Prepare → Commit` among `univ \ F` commits `(v, s, val)` at every honest replica.
+* `Cslib.Distributed.ByzantineQuorum.pbft_honest_primary_three_phase_liveness_idealAuth`:
+  synchronized honest-primary 3-phase liveness step (after [CastroLiskov1999], §§4.2, 4.5.2)—when
+  `primary v ∉ F` and all honest replicas are active in view `v` at a fresh slot `s`, synchronous
+  delivery of `PrePrepare → Prepare → Commit` among `univ \ F` commits `(v, s, val)` at every honest
+  replica.
 * `Cslib.Distributed.ByzantineQuorum.exists_pbft_splitBrain_fin3`: `|P| ≤ 3 * f` split-brain
-  view-change counterexample on `Fin 3` (`f = 1`, `F = {2}`), exhibiting a concrete reachable state
-  in which honest replica `0` commits `some false` at slot `0` in view `0` while honest replica `1`
-  commits `some true` at slot `0` in view `1`.
+  view-change counterexample on `Fin 3` (`f = 1`, `F = {2}`), exhibiting a primary schedule and a
+  reachable state in which honest replica `0` commits `some false` at slot `0` in view `0` while
+  honest replica `1` commits `some true` at slot `0` in view `1`.
 
 ## References
 
@@ -1497,7 +1493,7 @@ theorem preparedCert_unique_idealAuth {P V : Type*} [Fintype P] [DecidableEq P] 
     (hc₁ : c₁.ValidIn primary f st.network) (hc₂ : c₂.ValidIn primary f st.network)
     (hv : c₁.view = c₂.view) (hs : c₁.slot = c₂.slot) :
     c₁.val = c₂.val := by
-  have hdissem := isDisseminationQuorumSystem_thresholdQuorums_sub (P := P) hn
+  have hdissem := isThresholdDisseminationQuorumSystem_thresholdQuorums_sub (P := P) hn
   have hmem₁ : c₁.voters primary ∈ (thresholdQuorums P (pbftQuorumSize P f)).quorums :=
     mem_thresholdQuorums_iff.mpr hc₁.2.2.2
   have hmem₂ : c₂.voters primary ∈ (thresholdQuorums P (pbftQuorumSize P f)).quorums :=
@@ -1526,7 +1522,7 @@ theorem committedLocal_preserves_higher_prepared_idealAuth {P V : Type*} [Fintyp
   obtain ⟨c₀, committers, hc₀v, hc₀s, hc₀val, hc₀valid, hcomm_card, hcomm_msgs⟩ :=
     inv.committed_witness i₀ hi₀ ⟨v, s, val⟩ hcom
   dsimp only at hc₀v hc₀s hc₀val hcomm_msgs
-  have hdissem := isDisseminationQuorumSystem_thresholdQuorums_sub (P := P) hn
+  have hdissem := isThresholdDisseminationQuorumSystem_thresholdQuorums_sub (P := P) hn
   intro v'
   induction v' using Nat.strong_induction_on with
   | ind v' ih =>
@@ -1651,10 +1647,12 @@ theorem pbft_commit_agreement_idealAuth {P V : Type*} [Fintype P] [DecidableEq P
     | some cmd => smStep prev cmd
     | none => prev
 
-/-- Deterministic state-machine replication state agreement step (`#7506`): if two honest replicas
-`i₁, i₂ ∉ F` have committed views `views₁, views₂ : ℕ → ℕ` and slot commands `cmds₁, cmds₂` across
-all slots `< k` in reachable state `st` (`3 * f < Fintype.card P`, `F.card ≤ f`), then executing
-slots `0, ..., k - 1` from `smInit` yields identical service states at `i₁` and `i₂`. -/
+/-- Deterministic state-machine replication state-agreement step toward `#7506` (after
+[Castro and Liskov, §§3, 4.5.1, pp. 2–3, 6–7][CastroLiskov1999]; ideal-authentication
+checkpoint-free model): if two honest replicas `i₁, i₂ ∉ F` have committed views
+`views₁, views₂ : ℕ → ℕ` and slot commands `cmds₁, cmds₂` across all slots `< k` in reachable state
+`st` (`3 * f < Fintype.card P`, `F.card ≤ f`), then executing slots `0, ..., k - 1` from `smInit`
+yields identical service states at `i₁` and `i₂`. -/
 theorem pbft_smr_state_agreement_idealAuth {P S V : Type*} [Fintype P] [DecidableEq P]
     [DecidableEq V] {primary : ℕ → P} {f : ℕ} {F : Finset P}
     (hn : 3 * f < Fintype.card P) (hF : F.card ≤ f)
@@ -1683,7 +1681,7 @@ replica enumeration `enumP`:
 2. every honest backup `j ∈ (univ \ F).erase (primary v)` accepts and broadcasts `Prepare`,
 3. every honest replica `i ∈ univ \ F` assembles `PreparedCert` and broadcasts `Commit`, and then
    locally commits `(v, s, val)`. -/
-@[expose] def honestPrimaryThreePhaseActions {P V : Type*} [Fintype P] [DecidableEq P]
+private def honestPrimaryThreePhaseActions {P V : Type*} [Fintype P] [DecidableEq P]
     (primary : ℕ → P) (F : Finset P) (enumP : List P) (v s : ℕ)
     (val : Option V) : List (PBFTAction P V) :=
   let honest := Finset.univ \ F
@@ -1868,7 +1866,7 @@ private lemma foldl_completeCommit {P V : Type*} [Fintype P] [DecidableEq P] [De
 
 /-- Computable 3-phase liveness along `honestPrimaryThreePhaseActions` for any duplicate-free full
 enumeration `enumP` of `P`. -/
-theorem pbft_honestPrimaryThreePhaseActions_commits {P V : Type*} [Fintype P] [DecidableEq P]
+private lemma pbft_honestPrimaryThreePhaseActions_commits {P V : Type*} [Fintype P] [DecidableEq P]
     [DecidableEq V] {primary : ℕ → P} {f : ℕ} {F : Finset P}
     (hF : F.card ≤ f) {enumP : List P} (hnodup : enumP.Nodup) (hfull : ∀ i : P, i ∈ enumP)
     {st : PBFTState P V} (hst : PBFTReachable primary f F st)
@@ -1981,8 +1979,8 @@ reachable configuration `st` (`F.card ≤ f`) in which `primary v ∉ F` and eve
 F` is active in view `v` (`view = v`, `inViewChange = false`) with fresh slot `s`, there exists a
 finite 3-phase normal-case schedule reaching a configuration `st'` in which **every** honest
 replica `i ∉ F` has locally committed `(v, s, val)`. -/
-theorem pbft_honest_primary_three_phase_liveness {P V : Type*} [Fintype P] [DecidableEq P]
-    [DecidableEq V] {primary : ℕ → P} {f : ℕ} {F : Finset P}
+theorem pbft_honest_primary_three_phase_liveness_idealAuth {P V : Type*} [Fintype P]
+    [DecidableEq P] [DecidableEq V] {primary : ℕ → P} {f : ℕ} {F : Finset P}
     (hF : F.card ≤ f) {st : PBFTState P V} (hst : PBFTReachable primary f F st)
     {v s : ℕ} (val : Option V) (hp_honest : primary v ∉ F)
     (hactive : ∀ i, i ∉ F → (st.replicas i).view = v ∧ (st.replicas i).inViewChange = false)
@@ -1998,14 +1996,14 @@ theorem pbft_honest_primary_three_phase_liveness {P V : Type*} [Fintype P] [Deci
 /-! ### `|P| ≤ 3 * f` split-brain view-change counterexample (`Fin 3, f = 1`) -/
 
 /-- Round-robin primary schedule `v mod 3` on `Fin 3`. -/
-@[expose] def fin3Primary (v : ℕ) : Fin 3 :=
+private def fin3Primary (v : ℕ) : Fin 3 :=
   ⟨v % 3, Nat.mod_lt v (by decide)⟩
 
-/-- Concrete 12-step PBFT execution on `Fin 3` with `f = 1` and faulty replica `F = {2}`
+/-- Concrete 13-step PBFT execution on `Fin 3` with `f = 1` and faulty replica `F = {2}`
 (`|P| = 3 ≤ 3 * f`): honest replica `0` (`primary 0`) commits `some false` at slot `0` in view `0`
 using `{0, 2}`, faulty `2` omits its prepared certificate in `VIEW-CHANGE` to view `1`, and honest
 replica `1` (`primary 1`) commits `some true` at slot `0` in view `1` using `{1, 2}`. -/
-@[expose] def splitBrainTraceFin3 : List (PBFTAction (Fin 3) Bool) :=
+private def splitBrainTraceFin3 : List (PBFTAction (Fin 3) Bool) :=
   let cert₀ : PreparedCert (Fin 3) Bool := ⟨0, 0, some false, {2}⟩
   let vset₁ : Finset (ViewChangeMsg (Fin 3) Bool) := {⟨1, 1, ∅⟩, ⟨1, 2, ∅⟩}
   let cert₁ : PreparedCert (Fin 3) Bool := ⟨1, 0, some true, {2}⟩
@@ -2025,16 +2023,17 @@ replica `1` (`primary 1`) commits `some true` at slot `0` in view `1` using `{1,
 
 /-- Sharpness of `3 * f < Fintype.card P` for PBFT view-change safety (`#7506`): on `Fin 3` with
 `f = 1` (`Fintype.card (Fin 3) = 3 * f`) and static Byzantine set `F = {2}` (`F.card = 1 ≤ f`),
-there exists a reachable PBFT state in which honest replicas `0 ∉ F` and `1 ∉ F` locally commit
-conflicting client requests `some false ≠ some true` at sequence slot `0`. -/
+there exist a primary schedule `primary` and a reachable PBFT state in which honest replicas `0 ∉ F`
+and `1 ∉ F` locally commit conflicting client requests `some false ≠ some true` at sequence slot
+`0`. -/
 theorem exists_pbft_splitBrain_fin3 :
     let F : Finset (Fin 3) := {2}
     F.card ≤ 1 ∧ (0 : Fin 3) ∉ F ∧ (1 : Fin 3) ∉ F ∧
-      ∃ st : PBFTState (Fin 3) Bool,
-        PBFTReachable fin3Primary 1 F st ∧
+      ∃ (primary : ℕ → Fin 3) (st : PBFTState (Fin 3) Bool),
+        PBFTReachable primary 1 F st ∧
         CommittedLocal st 0 0 0 (some false) ∧
         CommittedLocal st 1 1 0 (some true) := by
-  refine ⟨by decide, by decide, by decide,
+  refine ⟨by decide, by decide, by decide, fin3Primary,
     splitBrainTraceFin3.foldl (pbftStep fin3Primary 1 {2}) (initPBFTState (Fin 3) Bool),
     PBFTReachable.init.foldl_steps splitBrainTraceFin3, ?_, ?_⟩
   · decide

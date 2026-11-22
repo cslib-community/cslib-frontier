@@ -13,48 +13,52 @@ public import Mathlib.Data.Finset.Powerset
 public import Mathlib.Data.Fintype.Card
 
 /-!
-# Byzantine Quorum Systems and Unauthenticated Masking-Register Safety
+# Threshold Byzantine Quorum Systems and Masking-Register Safety Step
 
-This module formalizes Byzantine quorum systems and unauthenticated masking-quorum register
-read-after-write safety after [Malkhi and Reiter][MalkhiReiter1998] (*Distributed Computing*
-11(4):203–213, 1998; preliminary version in STOC 1997, pp. 569–578), as part of `#7506` (`#3261`).
+This module formalizes uniform `b`-threshold Byzantine quorum systems and single-latest-write
+unauthenticated masking-quorum register safety as a step toward `#7506` (`#3261`), after
+[Malkhi and Reiter][MalkhiReiter1998] (*Distributed Computing* 11(4):203–213, 1998; preliminary
+version in STOC 1997, pp. 569–578), rather than the general non-uniform fail-prone system
+characterizations of that paper.
 
-A `QuorumSystem P` carries a finite family `quorums : Finset (Finset P)` of server subsets without
-bundling nonemptiness or pairwise intersection into the structure type, so candidate families such
-as `{U \ F | F ∈ B}` can be formed unconditionally before checking consistency. Against a
-fail-prone adversary structure `B : Set (Finset P)`, `IsAvailableFor qs B` requires every fault set
-`F ∈ B` to miss at least one quorum (`∃ Q ∈ qs.quorums, Disjoint Q F`). Specializing to the uniform
-`b`-threshold adversary `thresholdAdversary P b = {F | F.card ≤ b}` yields three increasingly
-strong Byzantine quorum classes:
+In [MalkhiReiter1998] §3.1 (p. 204), a quorum system over `U` is non-empty and pairwise
+intersecting, while a fail-prone system `B ⊆ 2^U` is non-empty and subset-incomparable (`∀ B₁ B₂ ∈
+B, B₁ ⊆ B₂ → B₁ = B₂`). Here `QuorumSystem P` carries an unbundled finite family
+`quorums : Finset (Finset P)` (deriving nonemptiness and pairwise intersection from
+`IsThresholdDisseminationQuorumSystem`), `IsAvailableFor qs B` requires every `F ∈ B` to miss some
+quorum (`∃ Q ∈ qs.quorums, Disjoint Q F`), and `thresholdAdversary P b = {F | F.card ≤ b}`
+downward-closes `{F | F.card = b}`:
 
-* **Dissemination quorum systems** (`IsDisseminationQuorumSystem b`, after Definition 5.1, §5.1,
-  p. 208, for self-verifying/authenticated data): availability against `|F| ≤ b` together with
-  `∀ Q₁ Q₂ ∈ quorums, ∀ F, |F| ≤ b → ((Q₁ ∩ Q₂) \ F).Nonempty` (equivalently
+* **Threshold dissemination quorum systems** (`IsThresholdDisseminationQuorumSystem b`, uniform
+  `b`-threshold specialization of Definition 5.1, §5.1, p. 208): availability against `|F| ≤ b`
+  together with `∀ Q₁ Q₂ ∈ quorums, ∀ F, |F| ≤ b → ((Q₁ ∩ Q₂) \ F).Nonempty` (equivalently
   `b + 1 ≤ (Q₁ ∩ Q₂).card`). Over `[Nonempty P]`, such a system exists if and only if
-  `3 * b < Fintype.card P` (after Corollary 5.5 and Example 5.6, p. 208).
-* **Masking quorum systems** (`IsMaskingQuorumSystem b`, after Definition 4.1, §4, pp. 205–206, for
-  raw unauthenticated data where clients know `b`): availability against `|F| ≤ b` together with
+  `3 * b < Fintype.card P` (`exists_thresholdDisseminationQuorumSystem_iff`, threshold step after
+  Corollary 5.5 and Example 5.6, p. 208).
+* **Threshold masking quorum systems** (`IsThresholdMaskingQuorumSystem b`, uniform `b`-threshold
+  specialization of Definition 4.1, §4, pp. 205–206): availability against `|F| ≤ b` together with
   `∀ Q₁ Q₂ ∈ quorums, ∀ F₁ F₂, |F₁| ≤ b → |F₂| ≤ b → (F₂ ∩ Q₂).card < ((Q₁ ∩ Q₂) \ F₁).card`
   (equivalently `2 * b + 1 ≤ (Q₁ ∩ Q₂).card`). Over `[Nonempty P]`, such a system exists if and
-  only if `4 * b < Fintype.card P` (after Corollary 4.4 and Example 4.6, pp. 206–207).
-* **Strong-inequality opaque quorum systems** (`IsOpaqueQuorumSystem b`, formalizing the strong
-  `O-Consistency1` inequality noted in §5.2, p. 209 immediately below Definition 5.9, where correct
-  up-to-date servers in `(Q₁ ∩ Q₂) \ F₁` strictly outnumber out-of-date and faulty servers
-  `((Q₂ \ Q₁) \ F₂).card + (Q₂ ∩ F₂).card` without timestamp tie-breaking): over `[Nonempty P]`,
-  such a system exists if and only if `5 * b < Fintype.card P` (contrasting with Definition 5.9 and
-  Theorem 5.12's weak-inequality timestamp tie-breaking variant, which admits `5 * b ≤ |P|` for
-  `b > 0`).
+  only if `4 * b < Fintype.card P` (`exists_thresholdMaskingQuorumSystem_iff`, threshold step after
+  Corollary 4.4 and Example 4.6, pp. 206–207).
+* **Threshold strong-opaque quorum systems** (`IsThresholdStrongOpaqueQuorumSystem b`, formalizing
+  the strict-inequality `>` variant of `O-Consistency1` noted in §5.2, p. 209 immediately below
+  Definition 5.9, where correct up-to-date servers in `(Q₁ ∩ Q₂) \ F₁` strictly outnumber
+  `((Q₂ \ Q₁) \ F₂).card + (Q₂ ∩ F₂).card` so timestamp-free majority voting suffices): over
+  `[Nonempty P]`, such a system exists if and only if `5 * b < Fintype.card P`
+  (`exists_thresholdStrongOpaqueQuorumSystem_iff`, contrasting with Definition 5.9, Example 5.11,
+  and Theorem 5.12's weak-inequality `≥` opaque quorum systems, whose exact bound is `5 * b ≤ |P|`
+  for `b > 0` and remains open under `#7506`).
 
-Finally, we formalize the unauthenticated timestamped register read/write protocol of §§3.2 and 4
-(pp. 205–206): correct servers update their stored `TimestampedVal` whenever a strictly newer
-timestamp arrives (`applyWrites`), faulty servers `u ∈ F` (`|F| ≤ b`) return arbitrary forged
-`(ts, val)` pairs without cryptographic signatures, and a client reading from any masking quorum
-`Q_r` filters to entries supported by at least `b + 1` servers in `Q_r` (`maskingCandidates`) and
-takes the maximum surviving timestamp (`maskingRead`). Whenever a latest completed write `w` was
-delivered to all correct members of some write quorum `Q_w`, `w` is the unique maximum-timestamp
-candidate in `maskingCandidates` and `maskingRead` returns `some w.val` (step after Lemma 4.2,
-p. 206). Load bounds, grid/Hadamard constructions, weak-inequality opaque quorums, §6 faulty-client
-writes, and results-inventory registration remain open under `#7506`.
+Finally, we formalize a single-latest-write step for the unauthenticated timestamped register
+protocol of §§3.2 and 4 (pp. 205–206): correct servers update their stored `TimestampedVal`
+whenever a strictly newer timestamp arrives (`applyWrites`), faulty servers `u ∈ F` (`|F| ≤ b`)
+return arbitrary forged `(ts, val)` pairs without cryptographic signatures, and a client reading
+from any masking quorum `Q_r` filters to entries supported by at least `b + 1` servers in `Q_r`
+(`maskingCandidates`) and selects the unique maximum surviving timestamp (`maskingRead`). General
+fail-prone systems `B` (Theorems 4.3 and 5.4; Corollaries 4.4 and 5.5), weak-inequality opaque
+quorums (Definition 5.9, Example 5.11, Theorem 5.12), load lower bounds (§3.3 Definition 3.1, §4
+Theorem 4.5, §5.2 Theorem 5.14), and §6 faulty-client Echo/Ready updates remain open under `#7506`.
 
 ## Main definitions
 
@@ -63,16 +67,16 @@ writes, and results-inventory registration remain open under `#7506`.
   fail-prone family `B : Set (Finset P)`.
 * `Cslib.Distributed.ByzantineQuorum.thresholdAdversary`: uniform `b`-fault adversary
   `{F : Finset P | F.card ≤ b}`.
-* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsDisseminationQuorumSystem`: `b`-dissemination
-  quorum system.
-* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsMaskingQuorumSystem`: `b`-masking quorum
-  system.
-* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsOpaqueQuorumSystem`: strong-inequality
-  `b`-opaque quorum system.
+* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsThresholdDisseminationQuorumSystem`: uniform
+  `b`-threshold dissemination quorum system.
+* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsThresholdMaskingQuorumSystem`: uniform
+  `b`-threshold masking quorum system.
+* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsThresholdStrongOpaqueQuorumSystem`: uniform
+  `b`-threshold strong-inequality opaque quorum system.
 * `Cslib.Distributed.ByzantineQuorum.thresholdQuorums`,
   `Cslib.Distributed.ByzantineQuorum.disseminationThresholdQuorums`,
   `Cslib.Distributed.ByzantineQuorum.maskingThresholdQuorums`,
-  `Cslib.Distributed.ByzantineQuorum.opaqueThresholdQuorums`: cardinality-threshold quorum
+  `Cslib.Distributed.ByzantineQuorum.strongOpaqueThresholdQuorums`: cardinality-threshold quorum
   constructions of sizes `⌈(|P| + b + 1)/2⌉`, `⌈(|P| + 2b + 1)/2⌉`, and `⌈(2|P| + 2b + 1)/3⌉`.
 * `Cslib.Distributed.ByzantineQuorum.TimestampedVal`,
   `Cslib.Distributed.ByzantineQuorum.TimestampedVal.updateIfNewer`,
@@ -84,33 +88,33 @@ writes, and results-inventory registration remain open under `#7506`.
 
 ## Main results
 
-* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsOpaqueQuorumSystem.toMasking`,
-  `Cslib.Distributed.ByzantineQuorum.QuorumSystem.IsMaskingQuorumSystem.toDissemination`:
-  containment hierarchy `Opaque → Masking → Dissemination`.
-* `Cslib.Distributed.ByzantineQuorum.QuorumSystem.isDisseminationQuorumSystem_iff_card_inter`,
-  `Cslib.Distributed.ByzantineQuorum.QuorumSystem.isMaskingQuorumSystem_iff_card_inter`,
-  `Cslib.Distributed.ByzantineQuorum.QuorumSystem.isOpaqueQuorumSystem_iff_card`: exact quorum
-  intersection and set-difference cardinality characterizations.
-* `Cslib.Distributed.ByzantineQuorum.isDisseminationQuorumSystem_thresholdQuorums_sub`,
-  `Cslib.Distributed.ByzantineQuorum.isDisseminationQuorumSystem_disseminationThresholdQuorums`,
-  `Cslib.Distributed.ByzantineQuorum.isMaskingQuorumSystem_maskingThresholdQuorums`,
-  `Cslib.Distributed.ByzantineQuorum.isOpaqueQuorumSystem_opaqueThresholdQuorums`: correctness of
-  the `(|P| - b)` and minimal threshold quorum constructions when `3 * b < |P|`, `4 * b < |P|`, and
-  `5 * b < |P|`.
-* `Cslib.Distributed.ByzantineQuorum.exists_disseminationQuorumSystem_iff`: over `[Nonempty P]`, a
-  `b`-dissemination quorum system exists iff `3 * b < Fintype.card P`.
-* `Cslib.Distributed.ByzantineQuorum.exists_maskingQuorumSystem_iff`: over `[Nonempty P]`, a
-  `b`-masking quorum system exists iff `4 * b < Fintype.card P`.
-* `Cslib.Distributed.ByzantineQuorum.exists_opaqueQuorumSystem_iff`: over `[Nonempty P]`, a
-  strong-inequality `b`-opaque quorum system exists iff `5 * b < Fintype.card P`.
+* `QuorumSystem.IsThresholdStrongOpaqueQuorumSystem.toMasking`,
+  `QuorumSystem.IsThresholdMaskingQuorumSystem.toDissemination`:
+  containment hierarchy `StrongOpaque → Masking → Dissemination`.
+* `QuorumSystem.isThresholdDisseminationQuorumSystem_iff_card_inter`,
+  `QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter`,
+  `QuorumSystem.isThresholdStrongOpaqueQuorumSystem_iff_card`:
+  exact quorum intersection and set-difference cardinality characterizations.
+* `isThresholdDisseminationQuorumSystem_thresholdQuorums_sub`,
+  `isThresholdDisseminationQuorumSystem_disseminationThresholdQuorums`,
+  `isThresholdMaskingQuorumSystem_maskingThresholdQuorums`,
+  `isThresholdStrongOpaqueQuorumSystem_strongOpaqueThresholdQuorums`:
+  correctness of the `(|P| - b)` and minimal threshold quorum constructions when `3 * b < |P|`,
+  `4 * b < |P|`, and `5 * b < |P|`.
+* `Cslib.Distributed.ByzantineQuorum.exists_thresholdDisseminationQuorumSystem_iff`: over
+  `[Nonempty P]`, a `b`-threshold dissemination quorum system exists iff `3 * b < Fintype.card P`.
+* `Cslib.Distributed.ByzantineQuorum.exists_thresholdMaskingQuorumSystem_iff`: over `[Nonempty P]`,
+  a `b`-threshold masking quorum system exists iff `4 * b < Fintype.card P`.
+* `Cslib.Distributed.ByzantineQuorum.exists_thresholdStrongOpaqueQuorumSystem_iff`: over
+  `[Nonempty P]`, a `b`-threshold strong-opaque quorum system exists iff `5 * b < Fintype.card P`.
 * `Cslib.Distributed.ByzantineQuorum.maskingCandidates_sound`: every entry in
   `maskingCandidates b Q_r resp` was returned by at least one correct server `u ∈ Q_r \ F`.
-* `Cslib.Distributed.ByzantineQuorum.masking_register_max_ts_eq`: any entry appearing at least
-  `b + 1` times in a masking read quorum at a timestamp at least as high as all other surviving
-  entries equals the latest completed write.
-* `Cslib.Distributed.ByzantineQuorum.maskingRead_eq_some_latest_write`: reading from any masking
-  quorum via `maskingRead` after asynchronous write deliveries returns `some w.val` for the latest
-  completed write `w` despite arbitrary unauthenticated Byzantine server responses on `F`.
+* `Cslib.Distributed.ByzantineQuorum.threshold_masking_register_max_ts_eq`: `b`-threshold
+  single-latest-write step showing any surviving candidate of maximum timestamp equals the latest
+  completed write.
+* `Cslib.Distributed.ByzantineQuorum.threshold_maskingRead_eq_some_latest_write`: `b`-threshold
+  single-latest-write step showing `maskingRead` returns `some w.val` for the latest completed
+  write `w` despite arbitrary unauthenticated Byzantine server responses on `F`.
 
 ## References
 
@@ -148,32 +152,34 @@ server. -/
 theorem mem_thresholdAdversary_iff {P : Type*} {b : ℕ} {F : Finset P} :
     F ∈ thresholdAdversary P b ↔ F.card ≤ b := Iff.rfl
 
-/-! ### Dissemination, masking, and strong-inequality opaque quorum systems -/
+/-! ### Threshold dissemination, masking, and strong-opaque quorum systems -/
 
-/-- A `b`-dissemination quorum system ([MalkhiReiter1998], Definition 5.1, §5.1, p. 208,
-specialized to `thresholdAdversary P b`): available against up to `b` faulty servers, and every
-pair of quorums intersects outside any faulty set of size at most `b`. -/
-@[expose] def QuorumSystem.IsDisseminationQuorumSystem {P : Type*} [DecidableEq P]
+/-- Uniform `b`-threshold specialization of dissemination quorum systems (`#7506`; after
+[MalkhiReiter1998], Definition 5.1, §5.1, p. 208, specialized to `thresholdAdversary P b`):
+available against up to `b` faulty servers, and every pair of quorums intersects outside any faulty
+set of size at most `b`. -/
+@[expose] def QuorumSystem.IsThresholdDisseminationQuorumSystem {P : Type*} [DecidableEq P]
     (qs : QuorumSystem P) (b : ℕ) : Prop :=
   qs.IsAvailableFor (thresholdAdversary P b) ∧
     ∀ Q₁ ∈ qs.quorums, ∀ Q₂ ∈ qs.quorums, ∀ F : Finset P, F.card ≤ b → ((Q₁ ∩ Q₂) \ F).Nonempty
 
-/-- A `b`-masking quorum system ([MalkhiReiter1998], Definition 4.1, §4, pp. 205–206, specialized
-to `thresholdAdversary P b`): available against up to `b` faulty servers, and for any two quorums
-`Q₁, Q₂` and fault sets `F₁, F₂` of size at most `b`, the correct intersection `(Q₁ ∩ Q₂) \ F₁`
-strictly outnumbers `F₂ ∩ Q₂`. -/
-@[expose] def QuorumSystem.IsMaskingQuorumSystem {P : Type*} [DecidableEq P]
+/-- Uniform `b`-threshold specialization of masking quorum systems (`#7506`; after
+[MalkhiReiter1998], Definition 4.1, §4, pp. 205–206, specialized to `thresholdAdversary P b`):
+available against up to `b` faulty servers, and for any two quorums `Q₁, Q₂` and fault sets
+`F₁, F₂` of size at most `b`, `(Q₁ ∩ Q₂) \ F₁` strictly outnumbers `F₂ ∩ Q₂`. -/
+@[expose] def QuorumSystem.IsThresholdMaskingQuorumSystem {P : Type*} [DecidableEq P]
     (qs : QuorumSystem P) (b : ℕ) : Prop :=
   qs.IsAvailableFor (thresholdAdversary P b) ∧
     ∀ Q₁ ∈ qs.quorums, ∀ Q₂ ∈ qs.quorums, ∀ F₁ F₂ : Finset P,
       F₁.card ≤ b → F₂.card ≤ b → (F₂ ∩ Q₂).card < ((Q₁ ∩ Q₂) \ F₁).card
 
-/-- A strong-inequality `b`-opaque quorum system ([MalkhiReiter1998], §5.2, p. 209 strong
-`O-Consistency1` remark following Definition 5.9, specialized to `thresholdAdversary P b`):
-available against up to `b` faulty servers, and for any two quorums `Q₁, Q₂` and fault sets
-`F₁, F₂` of size at most `b`, correct up-to-date servers `(Q₁ ∩ Q₂) \ F₁` strictly outnumber
-out-of-date correct servers `(Q₂ \ Q₁) \ F₂` plus faulty servers `Q₂ ∩ F₂`. -/
-@[expose] def QuorumSystem.IsOpaqueQuorumSystem {P : Type*} [DecidableEq P]
+/-- Uniform `b`-threshold strong-inequality opaque quorum system (`#7506`; formalizing the strict
+`>` variant of `O-Consistency1` noted in [MalkhiReiter1998], §5.2, p. 209 immediately below
+Definition 5.9, specialized to `thresholdAdversary P b`): available against up to `b` faulty
+servers, and for any two quorums `Q₁, Q₂` and fault sets `F₁, F₂` of size at most `b`, correct
+up-to-date servers `(Q₁ ∩ Q₂) \ F₁` strictly outnumber out-of-date correct servers `(Q₂ \ Q₁) \ F₂`
+plus faulty servers `Q₂ ∩ F₂`. -/
+@[expose] def QuorumSystem.IsThresholdStrongOpaqueQuorumSystem {P : Type*} [DecidableEq P]
     (qs : QuorumSystem P) (b : ℕ) : Prop :=
   qs.IsAvailableFor (thresholdAdversary P b) ∧
     ∀ Q₁ ∈ qs.quorums, ∀ Q₂ ∈ qs.quorums, ∀ F₁ F₂ : Finset P,
@@ -184,39 +190,43 @@ namespace QuorumSystem
 
 variable {P : Type*} [DecidableEq P] {qs : QuorumSystem P} {b : ℕ}
 
-/-- Every `b`-opaque quorum system is a `b`-masking quorum system. -/
-theorem IsOpaqueQuorumSystem.toMasking (h : qs.IsOpaqueQuorumSystem b) :
-    qs.IsMaskingQuorumSystem b := by
+/-- Every `b`-threshold strong-opaque quorum system is a `b`-threshold masking quorum system. -/
+theorem IsThresholdStrongOpaqueQuorumSystem.toMasking
+    (h : qs.IsThresholdStrongOpaqueQuorumSystem b) :
+    qs.IsThresholdMaskingQuorumSystem b := by
   refine ⟨h.1, fun Q₁ hQ₁ Q₂ hQ₂ F₁ F₂ hF₁ hF₂ => ?_⟩
   have hop := h.2 Q₁ hQ₁ Q₂ hQ₂ F₁ F₂ hF₁ hF₂
   rw [Finset.inter_comm]
   omega
 
-/-- Every `b`-masking quorum system is a `b`-dissemination quorum system. -/
-theorem IsMaskingQuorumSystem.toDissemination (h : qs.IsMaskingQuorumSystem b) :
-    qs.IsDisseminationQuorumSystem b := by
+/-- Every `b`-threshold masking quorum system is a `b`-threshold dissemination quorum system. -/
+theorem IsThresholdMaskingQuorumSystem.toDissemination
+    (h : qs.IsThresholdMaskingQuorumSystem b) :
+    qs.IsThresholdDisseminationQuorumSystem b := by
   refine ⟨h.1, fun Q₁ hQ₁ Q₂ hQ₂ F hF => ?_⟩
   have hm := h.2 Q₁ hQ₁ Q₂ hQ₂ F ∅ hF (Nat.zero_le b)
   simp only [Finset.empty_inter, Finset.card_empty] at hm
   exact Finset.card_pos.mp hm
 
-/-- Every `b`-dissemination quorum system has at least one quorum. -/
-theorem IsDisseminationQuorumSystem.quorums_nonempty (h : qs.IsDisseminationQuorumSystem b) :
+/-- Every `b`-threshold dissemination quorum system has at least one quorum. -/
+theorem IsThresholdDisseminationQuorumSystem.quorums_nonempty
+    (h : qs.IsThresholdDisseminationQuorumSystem b) :
     qs.quorums.Nonempty := by
   obtain ⟨Q, hQ, _⟩ := h.1 ∅ (Nat.zero_le b)
   exact ⟨Q, hQ⟩
 
-/-- Any two quorums in a `b`-dissemination quorum system intersect. -/
-theorem IsDisseminationQuorumSystem.inter_nonempty (h : qs.IsDisseminationQuorumSystem b)
+/-- Any two quorums in a `b`-threshold dissemination quorum system intersect. -/
+theorem IsThresholdDisseminationQuorumSystem.inter_nonempty
+    (h : qs.IsThresholdDisseminationQuorumSystem b)
     {Q₁ Q₂ : Finset P} (hQ₁ : Q₁ ∈ qs.quorums) (hQ₂ : Q₂ ∈ qs.quorums) :
     (Q₁ ∩ Q₂).Nonempty := by
   have hd := h.2 Q₁ hQ₁ Q₂ hQ₂ ∅ (Nat.zero_le b)
   simpa only [Finset.sdiff_empty] using hd
 
-/-- Exact cardinality characterization of `b`-dissemination quorum systems: availability against
-`|F| ≤ b` together with pairwise intersection of size at least `b + 1`. -/
-theorem isDisseminationQuorumSystem_iff_card_inter :
-    qs.IsDisseminationQuorumSystem b ↔
+/-- Exact cardinality characterization of `b`-threshold dissemination quorum systems: availability
+against `|F| ≤ b` together with pairwise intersection of size at least `b + 1`. -/
+theorem isThresholdDisseminationQuorumSystem_iff_card_inter :
+    qs.IsThresholdDisseminationQuorumSystem b ↔
       qs.IsAvailableFor (thresholdAdversary P b) ∧
         ∀ Q₁ ∈ qs.quorums, ∀ Q₂ ∈ qs.quorums, b + 1 ≤ (Q₁ ∩ Q₂).card := by
   refine and_congr_right fun _ => ⟨fun h Q₁ hQ₁ Q₂ hQ₂ => ?_, fun h Q₁ hQ₁ Q₂ hQ₂ F hF => ?_⟩
@@ -228,10 +238,10 @@ theorem isDisseminationQuorumSystem_iff_card_inter :
     have hsdiff := Finset.le_card_sdiff F (Q₁ ∩ Q₂)
     exact Finset.card_pos.mp (by omega)
 
-/-- Exact cardinality characterization of `b`-masking quorum systems: availability against
-`|F| ≤ b` together with pairwise intersection of size at least `2 * b + 1`. -/
-theorem isMaskingQuorumSystem_iff_card_inter :
-    qs.IsMaskingQuorumSystem b ↔
+/-- Exact cardinality characterization of `b`-threshold masking quorum systems: availability
+against `|F| ≤ b` together with pairwise intersection of size at least `2 * b + 1`. -/
+theorem isThresholdMaskingQuorumSystem_iff_card_inter :
+    qs.IsThresholdMaskingQuorumSystem b ↔
       qs.IsAvailableFor (thresholdAdversary P b) ∧
         ∀ Q₁ ∈ qs.quorums, ∀ Q₂ ∈ qs.quorums, 2 * b + 1 ≤ (Q₁ ∩ Q₂).card := by
   refine and_congr_right fun _ =>
@@ -272,11 +282,11 @@ private lemma card_sdiff_sdiff_add_card_inter (Q₁ Q₂ F₂ : Finset P) :
   have hs := Finset.card_sdiff_add_card_inter (Q₂ \ Q₁) F₂
   omega
 
-/-- Exact cardinality characterization of strong-inequality `b`-opaque quorum systems: availability
+/-- Exact cardinality characterization of `b`-threshold strong-opaque quorum systems: availability
 against `|F| ≤ b` together with `(Q₂ \ Q₁).card + 2 * b < (Q₁ ∩ Q₂).card` for all pairs of
 quorums. -/
-theorem isOpaqueQuorumSystem_iff_card :
-    qs.IsOpaqueQuorumSystem b ↔
+theorem isThresholdStrongOpaqueQuorumSystem_iff_card :
+    qs.IsThresholdStrongOpaqueQuorumSystem b ↔
       qs.IsAvailableFor (thresholdAdversary P b) ∧
         ∀ Q₁ ∈ qs.quorums, ∀ Q₂ ∈ qs.quorums, (Q₂ \ Q₁).card + 2 * b < (Q₁ ∩ Q₂).card := by
   refine and_congr_right fun _ =>
@@ -324,10 +334,10 @@ theorem mem_thresholdQuorums_iff {P : Type*} [Fintype P] {k : ℕ} {Q : Finset P
     QuorumSystem P :=
   thresholdQuorums P ((Fintype.card P + 2 * b + 2) / 2)
 
-/-- Canonical strong-inequality `b`-opaque threshold quorum system of minimum quorum size
-`⌈(2 * |P| + 2 * b + 1) / 3⌉ = (2 * |P| + 2 * b + 3) / 3` (after [MalkhiReiter1998], Example 5.11
-and §5.2 p. 209). -/
-@[expose] def opaqueThresholdQuorums (P : Type*) [Fintype P] (b : ℕ) :
+/-- Canonical `b`-threshold strong-opaque quorum system of minimum quorum size
+`⌈(2 * |P| + 2 * b + 1) / 3⌉ = (2 * |P| + 2 * b + 3) / 3` (`#7506`; strict-inequality adaptation of
+[MalkhiReiter1998], Example 5.11 and §5.2 p. 209). -/
+@[expose] def strongOpaqueThresholdQuorums (P : Type*) [Fintype P] (b : ℕ) :
     QuorumSystem P :=
   thresholdQuorums P ((2 * Fintype.card P + 2 * b + 3) / 3)
 
@@ -342,50 +352,55 @@ private lemma thresholdQuorums_isAvailableFor {P : Type*} [Fintype P] {k b : ℕ
   rw [mem_thresholdAdversary_iff] at hF
   omega
 
-/-- Maximal-resilience `(|P| - b)`-cardinality quorums form a `b`-dissemination quorum system for
-every `3 * b < Fintype.card P` (recovering `2 * b + 1` when `|P| = 3 * b + 1`). -/
-theorem isDisseminationQuorumSystem_thresholdQuorums_sub {P : Type*} [Fintype P] [DecidableEq P]
-    {b : ℕ} (hn : 3 * b < Fintype.card P) :
-    (thresholdQuorums P (Fintype.card P - b)).IsDisseminationQuorumSystem b := by
-  rw [QuorumSystem.isDisseminationQuorumSystem_iff_card_inter]
+/-- Maximal-resilience `(|P| - b)`-cardinality threshold step toward `#7506`: when
+`3 * b < Fintype.card P`, `thresholdQuorums P (Fintype.card P - b)` forms a `b`-threshold
+dissemination quorum system (recovering `2 * b + 1` when `|P| = 3 * b + 1`). -/
+theorem isThresholdDisseminationQuorumSystem_thresholdQuorums_sub {P : Type*} [Fintype P]
+    [DecidableEq P] {b : ℕ} (hn : 3 * b < Fintype.card P) :
+    (thresholdQuorums P (Fintype.card P - b)).IsThresholdDisseminationQuorumSystem b := by
+  rw [QuorumSystem.isThresholdDisseminationQuorumSystem_iff_card_inter]
   refine ⟨thresholdQuorums_isAvailableFor (by omega), fun Q₁ hQ₁ Q₂ hQ₂ => ?_⟩
   rw [mem_thresholdQuorums_iff] at hQ₁ hQ₂
   have hunion : (Q₁ ∪ Q₂).card ≤ Fintype.card P := Finset.card_le_univ (Q₁ ∪ Q₂)
   have hsum := Finset.card_union_add_card_inter Q₁ Q₂
   omega
 
-/-- When `3 * b < Fintype.card P`, `disseminationThresholdQuorums P b` is a `b`-dissemination
-quorum system (step after [MalkhiReiter1998], Example 5.6, p. 208; `#7506`). -/
-theorem isDisseminationQuorumSystem_disseminationThresholdQuorums {P : Type*} [Fintype P]
+/-- Threshold construction step toward `#7506` (after [Malkhi and Reiter, Example 5.6, §5.1,
+p. 208][MalkhiReiter1998]): when `3 * b < Fintype.card P`, `disseminationThresholdQuorums P b` is a
+`b`-threshold dissemination quorum system. -/
+theorem isThresholdDisseminationQuorumSystem_disseminationThresholdQuorums {P : Type*} [Fintype P]
     [DecidableEq P] {b : ℕ} (hn : 3 * b < Fintype.card P) :
-    (disseminationThresholdQuorums P b).IsDisseminationQuorumSystem b := by
-  rw [QuorumSystem.isDisseminationQuorumSystem_iff_card_inter]
+    (disseminationThresholdQuorums P b).IsThresholdDisseminationQuorumSystem b := by
+  rw [QuorumSystem.isThresholdDisseminationQuorumSystem_iff_card_inter]
   refine ⟨thresholdQuorums_isAvailableFor (by omega), fun Q₁ hQ₁ Q₂ hQ₂ => ?_⟩
   rw [disseminationThresholdQuorums, mem_thresholdQuorums_iff] at hQ₁ hQ₂
   have hunion : (Q₁ ∪ Q₂).card ≤ Fintype.card P := Finset.card_le_univ (Q₁ ∪ Q₂)
   have hsum := Finset.card_union_add_card_inter Q₁ Q₂
   omega
 
-/-- When `4 * b < Fintype.card P`, `maskingThresholdQuorums P b` is a `b`-masking quorum system
-(step after [MalkhiReiter1998], Example 4.6, p. 207; `#7506`). -/
-theorem isMaskingQuorumSystem_maskingThresholdQuorums {P : Type*} [Fintype P] [DecidableEq P]
-    {b : ℕ} (hn : 4 * b < Fintype.card P) :
-    (maskingThresholdQuorums P b).IsMaskingQuorumSystem b := by
-  rw [QuorumSystem.isMaskingQuorumSystem_iff_card_inter]
+/-- Threshold construction step toward `#7506` (after [Malkhi and Reiter, Example 4.6, §4,
+p. 207][MalkhiReiter1998]): when `4 * b < Fintype.card P`, `maskingThresholdQuorums P b` is a
+`b`-threshold masking quorum system. -/
+theorem isThresholdMaskingQuorumSystem_maskingThresholdQuorums {P : Type*} [Fintype P]
+    [DecidableEq P] {b : ℕ} (hn : 4 * b < Fintype.card P) :
+    (maskingThresholdQuorums P b).IsThresholdMaskingQuorumSystem b := by
+  rw [QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter]
   refine ⟨thresholdQuorums_isAvailableFor (by omega), fun Q₁ hQ₁ Q₂ hQ₂ => ?_⟩
   rw [maskingThresholdQuorums, mem_thresholdQuorums_iff] at hQ₁ hQ₂
   have hunion : (Q₁ ∪ Q₂).card ≤ Fintype.card P := Finset.card_le_univ (Q₁ ∪ Q₂)
   have hsum := Finset.card_union_add_card_inter Q₁ Q₂
   omega
 
-/-- When `5 * b < Fintype.card P`, `opaqueThresholdQuorums P b` is a strong-inequality `b`-opaque
-quorum system (step after [MalkhiReiter1998], §5.2, pp. 209–210; `#7506`). -/
-theorem isOpaqueQuorumSystem_opaqueThresholdQuorums {P : Type*} [Fintype P] [DecidableEq P]
-    {b : ℕ} (hn : 5 * b < Fintype.card P) :
-    (opaqueThresholdQuorums P b).IsOpaqueQuorumSystem b := by
-  rw [QuorumSystem.isOpaqueQuorumSystem_iff_card]
+/-- Strong-opaque threshold construction step toward `#7506` (strict-inequality adaptation after
+[Malkhi and Reiter, §5.2, p. 209 and Example 5.11, p. 210][MalkhiReiter1998]): when
+`5 * b < Fintype.card P`, `strongOpaqueThresholdQuorums P b` is a `b`-threshold strong-opaque quorum
+system. -/
+theorem isThresholdStrongOpaqueQuorumSystem_strongOpaqueThresholdQuorums {P : Type*} [Fintype P]
+    [DecidableEq P] {b : ℕ} (hn : 5 * b < Fintype.card P) :
+    (strongOpaqueThresholdQuorums P b).IsThresholdStrongOpaqueQuorumSystem b := by
+  rw [QuorumSystem.isThresholdStrongOpaqueQuorumSystem_iff_card]
   refine ⟨thresholdQuorums_isAvailableFor (by omega), fun Q₁ hQ₁ Q₂ hQ₂ => ?_⟩
-  rw [opaqueThresholdQuorums, mem_thresholdQuorums_iff] at hQ₁ hQ₂
+  rw [strongOpaqueThresholdQuorums, mem_thresholdQuorums_iff] at hQ₁ hQ₂
   have hunion : (Q₁ ∪ Q₂).card ≤ Fintype.card P := Finset.card_le_univ (Q₁ ∪ Q₂)
   have hsum := Finset.card_union_add_card_inter Q₁ Q₂
   have hsdiff := Finset.card_sdiff_add_card_inter Q₂ Q₁
@@ -433,17 +448,19 @@ private lemma exists_quorum_pair_bounds {P : Type*} [Fintype P] [DecidableEq P]
     rw [hF₂] at hc
     exact hc
 
-/-- Threshold-resilience step toward `#7506` (after [Malkhi and Reiter, Corollary 5.5, §5.1,
-p. 208][MalkhiReiter1998]; inventory registration remains open under `#7506` pending an
-outside-fleet source check): over a nonempty finite server universe `P`, a `b`-dissemination quorum
-system exists if and only if `3 * b < Fintype.card P`. -/
-theorem exists_disseminationQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P] [Nonempty P]
-    (b : ℕ) :
-    (∃ qs : QuorumSystem P, qs.IsDisseminationQuorumSystem b) ↔ 3 * b < Fintype.card P := by
+/-- Uniform `b`-threshold dissemination existence step toward `#7506` (specializing
+[Malkhi and Reiter, Corollary 5.5, §5.1, p. 208][MalkhiReiter1998] to `thresholdAdversary P b`;
+general fail-prone systems `B` of Theorem 5.4 and Corollary 5.5 remain open under `#7506`): over a
+nonempty finite server universe `P`, a `b`-threshold dissemination quorum system exists if and only
+if `3 * b < Fintype.card P`. -/
+theorem exists_thresholdDisseminationQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P]
+    [Nonempty P] (b : ℕ) :
+    (∃ qs : QuorumSystem P, qs.IsThresholdDisseminationQuorumSystem b) ↔
+      3 * b < Fintype.card P := by
   refine ⟨fun ⟨qs, hqs⟩ => ?_,
     fun hn => ⟨disseminationThresholdQuorums P b,
-      isDisseminationQuorumSystem_disseminationThresholdQuorums hn⟩⟩
-  rw [QuorumSystem.isDisseminationQuorumSystem_iff_card_inter] at hqs
+      isThresholdDisseminationQuorumSystem_disseminationThresholdQuorums hn⟩⟩
+  rw [QuorumSystem.isThresholdDisseminationQuorumSystem_iff_card_inter] at hqs
   obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
     have hc := hqs.2 Q hQ Q hQ
     rw [Finset.inter_self] at hc
@@ -452,16 +469,18 @@ theorem exists_disseminationQuorumSystem_iff {P : Type*} [Fintype P] [DecidableE
   have hpos : 0 < Fintype.card P := Fintype.card_pos
   omega
 
-/-- Threshold-resilience step toward `#7506` (after [Malkhi and Reiter, Corollary 4.4, §4,
-p. 206][MalkhiReiter1998]; inventory registration remains open under `#7506` pending an
-outside-fleet source check): over a nonempty finite server universe `P`, a `b`-masking quorum
-system exists if and only if `4 * b < Fintype.card P`. -/
-theorem exists_maskingQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P] [Nonempty P]
-    (b : ℕ) :
-    (∃ qs : QuorumSystem P, qs.IsMaskingQuorumSystem b) ↔ 4 * b < Fintype.card P := by
+/-- Uniform `b`-threshold masking existence step toward `#7506` (specializing
+[Malkhi and Reiter, Corollary 4.4, §4, p. 206][MalkhiReiter1998] to `thresholdAdversary P b`;
+general fail-prone systems `B` of Theorem 4.3 and Corollary 4.4 remain open under `#7506`): over a
+nonempty finite server universe `P`, a `b`-threshold masking quorum system exists if and only if
+`4 * b < Fintype.card P`. -/
+theorem exists_thresholdMaskingQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P]
+    [Nonempty P] (b : ℕ) :
+    (∃ qs : QuorumSystem P, qs.IsThresholdMaskingQuorumSystem b) ↔ 4 * b < Fintype.card P := by
   refine ⟨fun ⟨qs, hqs⟩ => ?_,
-    fun hn => ⟨maskingThresholdQuorums P b, isMaskingQuorumSystem_maskingThresholdQuorums hn⟩⟩
-  rw [QuorumSystem.isMaskingQuorumSystem_iff_card_inter] at hqs
+    fun hn => ⟨maskingThresholdQuorums P b,
+      isThresholdMaskingQuorumSystem_maskingThresholdQuorums hn⟩⟩
+  rw [QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter] at hqs
   obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, _⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
     have hc := hqs.2 Q hQ Q hQ
     rw [Finset.inter_self] at hc
@@ -470,17 +489,20 @@ theorem exists_maskingQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P] [
   have hpos : 0 < Fintype.card P := Fintype.card_pos
   omega
 
-/-- Strong-inequality opaque resilience step toward `#7506` (after the strong `O-Consistency1`
-variant noted in [Malkhi and Reiter, §5.2, p. 209][MalkhiReiter1998], contrasting with Definition
-5.9 and Theorem 5.12's weak-inequality timestamp tie-breaking bound `5 * b ≤ |P|` for `b > 0`,
-which remains open under `#7506`): over a nonempty finite server universe `P`, a strong-inequality
-`b`-opaque quorum system exists if and only if `5 * b < Fintype.card P`. -/
-theorem exists_opaqueQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P] [Nonempty P]
-    (b : ℕ) :
-    (∃ qs : QuorumSystem P, qs.IsOpaqueQuorumSystem b) ↔ 5 * b < Fintype.card P := by
+/-- Uniform `b`-threshold strong-opaque existence step toward `#7506` (formalizing the strict
+`>` variant of `O-Consistency1` noted in [Malkhi and Reiter, §5.2, p. 209][MalkhiReiter1998];
+contrasting with Definition 5.9, Example 5.11, and Theorem 5.12's weak-inequality `≥` opaque quorum
+systems whose exact bound is `5 * b ≤ |P|` for `b > 0`, which remain open under `#7506`): over a
+nonempty finite server universe `P`, a `b`-threshold strong-opaque quorum system exists if and only
+if `5 * b < Fintype.card P`. -/
+theorem exists_thresholdStrongOpaqueQuorumSystem_iff {P : Type*} [Fintype P] [DecidableEq P]
+    [Nonempty P] (b : ℕ) :
+    (∃ qs : QuorumSystem P, qs.IsThresholdStrongOpaqueQuorumSystem b) ↔
+      5 * b < Fintype.card P := by
   refine ⟨fun ⟨qs, hqs⟩ => ?_,
-    fun hn => ⟨opaqueThresholdQuorums P b, isOpaqueQuorumSystem_opaqueThresholdQuorums hn⟩⟩
-  rw [QuorumSystem.isOpaqueQuorumSystem_iff_card] at hqs
+    fun hn => ⟨strongOpaqueThresholdQuorums P b,
+      isThresholdStrongOpaqueQuorumSystem_strongOpaqueThresholdQuorums hn⟩⟩
+  rw [QuorumSystem.isThresholdStrongOpaqueQuorumSystem_iff_card] at hqs
   obtain ⟨Q₁, hQ₁, Q₂, hQ₂, hinter_ub, hsdiff_lb⟩ := exists_quorum_pair_bounds hqs.1 fun Q hQ => by
     have hc := hqs.2 Q hQ Q hQ
     rw [Finset.sdiff_self, Finset.inter_self, Finset.card_empty, zero_add] at hc
@@ -609,19 +631,19 @@ private lemma applyWrites_eq_latest {T V : Type*} [LinearOrder T]
       exact ⟨le_rfl, fun _ => rfl⟩
     · exact ⟨le_of_lt hlt, fun hts => absurd hts (ne_of_lt hlt)⟩
 
-/-- Unauthenticated masking-register safety step toward `#7506` (after [Malkhi and Reiter, §3.2 and
-Lemma 4.2, pp. 205–206][MalkhiReiter1998]): suppose `qs` is a `b`-masking quorum system, `F.card ≤
-b`, write `latest` (`init.ts < latest.ts`) has been delivered to every correct server in write
-quorum `Q_w ∈ qs.quorums`, every other write delivered to any correct server has timestamp `<
-latest.ts`, and `resp` agrees with each correct server's local state `applyWrites init (delivered
-u)` outside `F` (while faulty servers in `F` return arbitrary forged pairs). Then in any read quorum
-`Q_r ∈ qs.quorums`:
+/-- Unauthenticated `b`-threshold single-latest-write masking-register step toward `#7506` (after
+[Malkhi and Reiter, §§3.2, 4, Lemma 4.2, pp. 205–206][MalkhiReiter1998]): suppose `qs` is a
+`b`-threshold masking quorum system, `F.card ≤ b`, write `latest` (`init.ts < latest.ts`) has been
+delivered to every correct server in write quorum `Q_w ∈ qs.quorums`, every other write delivered to
+any correct server has timestamp `< latest.ts`, and `resp` agrees with each correct server's local
+state `applyWrites init (delivered u)` outside `F` (while faulty servers in `F` return arbitrary
+forged pairs). Then in any read quorum `Q_r ∈ qs.quorums`:
 
 1. `latest ∈ maskingCandidates b Q_r resp`, and
 2. any `e ∈ maskingCandidates b Q_r resp` whose timestamp is at least as large as every candidate in
    `maskingCandidates b Q_r resp` satisfies `e = latest` (hence `e.val = latest.val`). -/
-theorem masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [LinearOrder T] [DecidableEq V]
-    {qs : QuorumSystem P} {b : ℕ} (hqs : qs.IsMaskingQuorumSystem b)
+theorem threshold_masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [LinearOrder T]
+    [DecidableEq V] {qs : QuorumSystem P} {b : ℕ} (hqs : qs.IsThresholdMaskingQuorumSystem b)
     {F Q_w Q_r : Finset P} (hF : F.card ≤ b) (hQw : Q_w ∈ qs.quorums) (hQr : Q_r ∈ qs.quorums)
     {init latest : TimestampedVal T V} {delivered : P → List (TimestampedVal T V)}
     (hinit : init.ts < latest.ts)
@@ -635,7 +657,7 @@ theorem masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [LinearOrder 
   have hlatest_mem : latest ∈ maskingCandidates b Q_r resp := by
     rw [mem_maskingCandidates_iff]
     have hinter : 2 * b + 1 ≤ (Q_w ∩ Q_r).card :=
-      (QuorumSystem.isMaskingQuorumSystem_iff_card_inter.mp hqs).2 Q_w hQw Q_r hQr
+      (QuorumSystem.isThresholdMaskingQuorumSystem_iff_card_inter.mp hqs).2 Q_w hQw Q_r hQr
     have hsdiff : b + 1 ≤ ((Q_w ∩ Q_r) \ F).card := by
       have hs := Finset.le_card_sdiff F (Q_w ∩ Q_r)
       omega
@@ -654,12 +676,12 @@ theorem masking_register_max_ts_eq {P T V : Type*} [DecidableEq P] [LinearOrder 
   rw [he_eq] at hle heq
   exact heq (le_antisymm hle (hmax latest hlatest_mem))
 
-/-- Read-after-write safety for computable `maskingRead` (step after [Malkhi and Reiter, Lemma 4.2,
-p. 206][MalkhiReiter1998]; `#7506`): under the hypotheses of `masking_register_max_ts_eq`,
-`maskingRead b Q_r resp = some latest.val` for every read quorum `Q_r ∈ qs.quorums` and arbitrary
-Byzantine responses on `F`. -/
-theorem maskingRead_eq_some_latest_write {P T V : Type*} [DecidableEq P] [LinearOrder T]
-    [DecidableEq V] {qs : QuorumSystem P} {b : ℕ} (hqs : qs.IsMaskingQuorumSystem b)
+/-- Computable `b`-threshold single-latest-write masking-read step toward `#7506` (after
+[Malkhi and Reiter, §§3.2, 4, Lemma 4.2, pp. 205–206][MalkhiReiter1998]): under the hypotheses of
+`threshold_masking_register_max_ts_eq`, `maskingRead b Q_r resp = some latest.val` for every read
+quorum `Q_r ∈ qs.quorums` and arbitrary Byzantine responses on `F`. -/
+theorem threshold_maskingRead_eq_some_latest_write {P T V : Type*} [DecidableEq P] [LinearOrder T]
+    [DecidableEq V] {qs : QuorumSystem P} {b : ℕ} (hqs : qs.IsThresholdMaskingQuorumSystem b)
     {F Q_w Q_r : Finset P} (hF : F.card ≤ b) (hQw : Q_w ∈ qs.quorums) (hQr : Q_r ∈ qs.quorums)
     {init latest : TimestampedVal T V} {delivered : P → List (TimestampedVal T V)}
     (hinit : init.ts < latest.ts)
@@ -669,7 +691,7 @@ theorem maskingRead_eq_some_latest_write {P T V : Type*} [DecidableEq P] [Linear
     (hresp : ∀ u, u ∉ F → resp u = applyWrites init (delivered u)) :
     maskingRead b Q_r resp = some latest.val := by
   obtain ⟨hmem, huniq⟩ :=
-    masking_register_max_ts_eq hqs hF hQw hQr hinit hcompleted hbound hresp
+    threshold_masking_register_max_ts_eq hqs hF hQw hQr hinit hcompleted hbound hresp
   have hmax_latest : ∀ e' ∈ maskingCandidates b Q_r resp, e'.ts ≤ latest.ts := by
     intro e' he'
     obtain ⟨u, _, huF, hru⟩ := maskingCandidates_sound hF he'

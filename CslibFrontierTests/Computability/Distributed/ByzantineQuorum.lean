@@ -10,25 +10,24 @@ module
 import CslibFrontier.Computability.Distributed.ByzantineQuorum.QuorumSystems
 import CslibFrontier.Computability.Distributed.ByzantineQuorum.PBFT
 
-/-! Malkhi–Reiter Byzantine quorum systems and ideal-authentication checkpoint-free multi-slot
-`PBFT` state-machine replication step (checked as a `module` client with ordinary imports):
-threshold `decide` witnesses and impossibility boundaries across `Fin 3`..`Fin 7` for
-dissemination (`3 * b < |P|`), masking (`4 * b < |P|`), and strong-inequality opaque (`5 * b <
-|P|`) quorum systems; unauthenticated `maskingRead` resilience against forged higher timestamps on
-`Fin 5` (`b = 1`) contrasted with `Fin 4` ambiguity without signatures; a concrete multi-slot
-`PBFT` execution on `Fin 4` (`f = 1`, `F = {3}`) exercising 3-phase normal-case commit at slot `0`,
-out-of-order preparation at slot `2`, Byzantine equivocation by `3`, view change to view `1` whose
+/-! Uniform `b`-threshold Malkhi–Reiter Byzantine quorum systems and ideal-authentication
+checkpoint-free multi-slot `PBFT` state-machine replication steps (checked as a `module` client
+with ordinary imports): threshold `decide` witnesses and impossibility boundaries across
+`Fin 3`..`Fin 7` for dissemination (`3 * b < |P|`), masking (`4 * b < |P|`), and strong-opaque
+(`5 * b < |P|`) quorum systems; unauthenticated `maskingRead` resilience against forged higher
+timestamps on `Fin 5` (`b = 1`) contrasted with `Fin 4` ambiguity without signatures; concrete
+normal-case and adversarial multi-slot `PBFT` executions on `Fin 4` (`f = 1`, `F = {3}`) where
 `computeOset` preserves committed slot `0`, fills unprepared slot `1` with `none` (`null` no-op),
-and carries prepared slot `2`, followed by view-`1` commit completion and `executeSlotLog` SMR
-agreement; non-minimal `Fin 5` (`f = 1`, `pbftQuorumSize = 4`) liveness and agreement; and the
-`|P| = 3 * f` (`Fin 3, f = 1`) split-brain view-change counterexample. -/
+and carries prepared slot `2` despite Byzantine history-erasure attempts; non-minimal `Fin 5`
+(`f = 1`, `pbftQuorumSize = 4`) liveness and agreement; and the `|P| = 3 * f` (`Fin 3, f = 1`)
+split-brain view-change counterexample. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.ByzantineQuorum
 
 open Cslib Cslib.Distributed.ByzantineQuorum
 
-/-! ### 1. Malkhi–Reiter quorum systems: concrete thresholds, hierarchy, and boundaries -/
+/-! ### 1. Malkhi–Reiter threshold quorum systems: concrete thresholds, hierarchy, and boundaries -/
 
 example : ({0, 1, 2} : Finset (Fin 4)) ∈ (disseminationThresholdQuorums (Fin 4) 1).quorums := by
   decide
@@ -42,55 +41,58 @@ example : ({0, 1, 2, 3} : Finset (Fin 5)) ∈ (maskingThresholdQuorums (Fin 5) 1
 example : ({0, 1, 2} : Finset (Fin 5)) ∉ (maskingThresholdQuorums (Fin 5) 1).quorums := by
   decide
 
-example : ({0, 1, 2, 3, 4} : Finset (Fin 6)) ∈ (opaqueThresholdQuorums (Fin 6) 1).quorums := by
+example :
+    ({0, 1, 2, 3, 4} : Finset (Fin 6)) ∈ (strongOpaqueThresholdQuorums (Fin 6) 1).quorums := by
   decide
 
-example : ({0, 1, 2, 3} : Finset (Fin 6)) ∉ (opaqueThresholdQuorums (Fin 6) 1).quorums := by
+example : ({0, 1, 2, 3} : Finset (Fin 6)) ∉ (strongOpaqueThresholdQuorums (Fin 6) 1).quorums := by
   decide
 
 theorem exists_dissemination_fin4 :
-    ∃ qs : QuorumSystem (Fin 4), qs.IsDisseminationQuorumSystem 1 :=
-  (exists_disseminationQuorumSystem_iff (P := Fin 4) (b := 1)).mpr (by decide)
+    ∃ qs : QuorumSystem (Fin 4), qs.IsThresholdDisseminationQuorumSystem 1 :=
+  (exists_thresholdDisseminationQuorumSystem_iff (P := Fin 4) (b := 1)).mpr (by decide)
 
 theorem not_exists_dissemination_fin3 :
-    ¬∃ qs : QuorumSystem (Fin 3), qs.IsDisseminationQuorumSystem 1 := by
-  rw [exists_disseminationQuorumSystem_iff]
+    ¬∃ qs : QuorumSystem (Fin 3), qs.IsThresholdDisseminationQuorumSystem 1 := by
+  rw [exists_thresholdDisseminationQuorumSystem_iff]
   decide
 
 theorem exists_masking_fin5 :
-    ∃ qs : QuorumSystem (Fin 5), qs.IsMaskingQuorumSystem 1 :=
-  (exists_maskingQuorumSystem_iff (P := Fin 5) (b := 1)).mpr (by decide)
+    ∃ qs : QuorumSystem (Fin 5), qs.IsThresholdMaskingQuorumSystem 1 :=
+  (exists_thresholdMaskingQuorumSystem_iff (P := Fin 5) (b := 1)).mpr (by decide)
 
 theorem not_exists_masking_fin4 :
-    ¬∃ qs : QuorumSystem (Fin 4), qs.IsMaskingQuorumSystem 1 := by
-  rw [exists_maskingQuorumSystem_iff]
+    ¬∃ qs : QuorumSystem (Fin 4), qs.IsThresholdMaskingQuorumSystem 1 := by
+  rw [exists_thresholdMaskingQuorumSystem_iff]
   decide
 
-theorem exists_opaque_fin6 :
-    ∃ qs : QuorumSystem (Fin 6), qs.IsOpaqueQuorumSystem 1 :=
-  (exists_opaqueQuorumSystem_iff (P := Fin 6) (b := 1)).mpr (by decide)
+theorem exists_strongOpaque_fin6 :
+    ∃ qs : QuorumSystem (Fin 6), qs.IsThresholdStrongOpaqueQuorumSystem 1 :=
+  (exists_thresholdStrongOpaqueQuorumSystem_iff (P := Fin 6) (b := 1)).mpr (by decide)
 
-theorem not_exists_opaque_fin5 :
-    ¬∃ qs : QuorumSystem (Fin 5), qs.IsOpaqueQuorumSystem 1 := by
-  rw [exists_opaqueQuorumSystem_iff]
+theorem not_exists_strongOpaque_fin5 :
+    ¬∃ qs : QuorumSystem (Fin 5), qs.IsThresholdStrongOpaqueQuorumSystem 1 := by
+  rw [exists_thresholdStrongOpaqueQuorumSystem_iff]
   decide
 
-/-- At `|P| = 7` and `b = 2`, `2`-dissemination quorums exist (`3 * 2 < 7`) whereas `2`-masking
-quorums do not (`¬(4 * 2 < 7)`). -/
+/-- At `|P| = 7` and `b = 2`, `2`-threshold dissemination quorums exist (`3 * 2 < 7`) whereas
+`2`-threshold masking quorums do not (`¬(4 * 2 < 7)`). -/
 theorem fin7_twoFault_dissemination_without_masking :
-    (∃ qs : QuorumSystem (Fin 7), qs.IsDisseminationQuorumSystem 2) ∧
-      ¬∃ qs : QuorumSystem (Fin 7), qs.IsMaskingQuorumSystem 2 := by
-  rw [exists_disseminationQuorumSystem_iff, exists_maskingQuorumSystem_iff]
+    (∃ qs : QuorumSystem (Fin 7), qs.IsThresholdDisseminationQuorumSystem 2) ∧
+      ¬∃ qs : QuorumSystem (Fin 7), qs.IsThresholdMaskingQuorumSystem 2 := by
+  rw [exists_thresholdDisseminationQuorumSystem_iff, exists_thresholdMaskingQuorumSystem_iff]
   decide
 
-/-- Exercising the `Opaque → Masking → Dissemination` hierarchy and quorum non-emptiness on `Fin 6`
+/-- Exercising `StrongOpaque → Masking → Dissemination` and quorum non-emptiness on `Fin 6`
 (`b = 1`). -/
-theorem opaque_fin6_hierarchy_inter_nonempty
+theorem strongOpaque_fin6_hierarchy_inter_nonempty
     {Q₁ Q₂ : Finset (Fin 6)}
-    (hQ₁ : Q₁ ∈ (opaqueThresholdQuorums (Fin 6) 1).quorums)
-    (hQ₂ : Q₂ ∈ (opaqueThresholdQuorums (Fin 6) 1).quorums) :
-    (opaqueThresholdQuorums (Fin 6) 1).quorums.Nonempty ∧ (Q₁ ∩ Q₂).Nonempty := by
-  have hopq := isOpaqueQuorumSystem_opaqueThresholdQuorums (P := Fin 6) (b := 1) (by decide)
+    (hQ₁ : Q₁ ∈ (strongOpaqueThresholdQuorums (Fin 6) 1).quorums)
+    (hQ₂ : Q₂ ∈ (strongOpaqueThresholdQuorums (Fin 6) 1).quorums) :
+    (strongOpaqueThresholdQuorums (Fin 6) 1).quorums.Nonempty ∧ (Q₁ ∩ Q₂).Nonempty := by
+  have hopq :=
+    isThresholdStrongOpaqueQuorumSystem_strongOpaqueThresholdQuorums (P := Fin 6) (b := 1)
+      (by decide)
   have hdis := hopq.toMasking.toDissemination
   exact ⟨hdis.quorums_nonempty, hdis.inter_nonempty hQ₁ hQ₂⟩
 
@@ -125,11 +127,12 @@ theorem maskingRead_fin5_arbitrary_byzantine
     maskingRead 1 Q_r
       (fun u => if u = 4 then byzEntry else applyWrites ⟨0, 0⟩ (maskingDeliveredFin5 u)) =
       some 42 := by
-  have hqs := isMaskingQuorumSystem_maskingThresholdQuorums (P := Fin 5) (b := 1) (by decide)
+  have hqs :=
+    isThresholdMaskingQuorumSystem_maskingThresholdQuorums (P := Fin 5) (b := 1) (by decide)
   have hQw : ({0, 1, 2, 3} : Finset (Fin 5)) ∈ (maskingThresholdQuorums (Fin 5) 1).quorums := by
     decide
   have hF : ({4} : Finset (Fin 5)).card ≤ 1 := by decide
-  refine maskingRead_eq_some_latest_write hqs hF hQw hQr
+  refine threshold_maskingRead_eq_some_latest_write hqs hF hQw hQr
     (init := ⟨0, 0⟩) (latest := ⟨10, 42⟩) (delivered := maskingDeliveredFin5) (by decide) ?_ ?_ ?_
   · decide
   · decide
@@ -139,8 +142,8 @@ theorem maskingRead_fin5_arbitrary_byzantine
 
 /-- Contrast on `Fin 4` (`b = 1`, quorum size `3`): if write `⟨10, 42⟩` reached `Q_w = {1, 2, 3}`
 where `1` is Byzantine (`F = {1}`), a read from `Q_r = {0, 1, 2}` sees stale `⟨0, 0⟩` from `0`,
-honest `⟨10, 42⟩` from `2`, and forged `⟨10, 99⟩` (or `⟨0, 0⟩`) from Byzantine `1`, leaving zero
-`≥ 2`-vote support for `⟨10, 42⟩` without self-verifying signatures. -/
+honest `⟨10, 42⟩` from `2`, and forged `⟨10, 99⟩` from Byzantine `1`, leaving zero `≥ 2`-vote
+support for `⟨10, 42⟩` without self-verifying signatures. -/
 theorem fin4_unauthenticated_read_fails_threshold :
     let resp : Fin 4 → TimestampedVal ℕ ℕ
       | 0 => ⟨0, 0⟩
@@ -157,14 +160,23 @@ theorem fin4_unauthenticated_read_fails_threshold :
 def fin4Primary (v : ℕ) : Fin 4 :=
   ⟨v % 4, Nat.mod_lt v (by decide)⟩
 
-def fin4Enum : List (Fin 4) := [0, 1, 2, 3]
+/-- Concrete 9-step normal-case 3-phase trace on `Fin 4` (`f = 1`, `F = {3}`): all honest replicas
+`{0, 1, 2}` locally commit `(0, 0, some 1)`. -/
+def normalCaseTraceFin4 : List (PBFTAction (Fin 4) ℕ) :=
+  let cert : PreparedCert (Fin 4) ℕ := ⟨0, 0, some 1, {1, 2}⟩
+  [ .propose 0 0 (some 1)
+  , .acceptPrePrepare 1 0 0 (some 1)
+  , .acceptPrePrepare 2 0 0 (some 1)
+  , .completePrepare 0 cert
+  , .completePrepare 1 cert
+  , .completePrepare 2 cert
+  , .completeCommit 0 cert {0, 1, 2}
+  , .completeCommit 1 cert {0, 1, 2}
+  , .completeCommit 2 cert {0, 1, 2} ]
 
-/-- Normal-case 3-phase commit on `Fin 4` (`f = 1`, `F = {3}`) via
-`honestPrimaryThreePhaseActions`: all honest replicas `{0, 1, 2}` locally commit `(0, 0, some 1)`.
--/
 def normalCaseStateFin4 : PBFTState (Fin 4) ℕ :=
-  (honestPrimaryThreePhaseActions fin4Primary ({3} : Finset (Fin 4)) fin4Enum 0 0 (some 1)).foldl
-    (pbftStep fin4Primary 1 ({3} : Finset (Fin 4))) (initPBFTState (Fin 4) ℕ)
+  normalCaseTraceFin4.foldl (pbftStep fin4Primary 1 ({3} : Finset (Fin 4)))
+    (initPBFTState (Fin 4) ℕ)
 
 theorem normalCaseStateFin4_all_honest_commit :
     CommittedLocal normalCaseStateFin4 0 0 0 (some 1) ∧
@@ -182,7 +194,7 @@ def certSlot2View0 : PreparedCert (Fin 4) ℕ :=
   ⟨0, 2, some 2, {2, 3}⟩
 
 /-- Adversarial multi-slot view-change execution on `Fin 4` (`f = 1`, Byzantine `F = {3}`), running
-the exact `Fin 3` history-erasure attack against `n = 4 > 3 * f`:
+the `Fin 3` history-erasure attack against `n = 4 > 3 * f`:
 1. View `0`: replica `0` (`primary 0`) commits slot `0` (`some 1`) via `{0, 1, 3}`, while replica
    `2` prepares slot `2` (`some 2`) via `{0, 2, 3}` (leaving slot `1` unprepared).
 2. View change to view `1` (`fin4Primary 1 = 1`): committed replica `0` is slow, and Byzantine `3`
@@ -205,8 +217,7 @@ theorem computeOset_vsetView1_eq :
   decide
 
 def multiSlotTraceFin4 : List (PBFTAction (Fin 4) ℕ) :=
-  [ -- View 0: replica 0 commits slot 0 (`some 1`) via `{0, 1, 3}`; replica 2 prepares slot 2
-    .propose 0 0 (some 1)
+  [ .propose 0 0 (some 1)
   , .acceptPrePrepare 1 0 0 (some 1)
   , .byzSend (.prepare 0 0 (some 1) 3)
   , .completePrepare 0 certSlot0View0
@@ -218,7 +229,6 @@ def multiSlotTraceFin4 : List (PBFTAction (Fin 4) ℕ) :=
   , .byzSend (.prepare 0 2 (some 2) 3)
   , .completePrepare 2 certSlot2View0
   , .byzSend (.prepare 0 0 (some 9) 3)
-    -- View change to view 1: replica 0 is slow, Byzantine 3 sends empty pset, `{1, 2, 3}` forms NV
   , .startViewChange 1 1
   , .startViewChange 2 1
   , .byzSend (.viewChange vc3ByzView1)
@@ -276,7 +286,7 @@ theorem fin5_nonMinimal_quorum_liveness_and_safety :
         ∀ v₂ val₂, CommittedLocal st' 0 v₂ 0 val₂ → val₂ = some true := by
   refine ⟨by decide, ?_⟩
   obtain ⟨acts, hreach, hcom⟩ :=
-    pbft_honest_primary_three_phase_liveness (P := Fin 5) (V := Bool)
+    pbft_honest_primary_three_phase_liveness_idealAuth (P := Fin 5) (V := Bool)
       (primary := fin5Primary) (f := 1) (F := {4}) (by decide) PBFTReachable.init
       (v := 0) (s := 0) (some true) (by decide)
       (fun _ _ => ⟨rfl, rfl⟩)
@@ -287,16 +297,18 @@ theorem fin5_nonMinimal_quorum_liveness_and_safety :
     (by decide) (by decide) hreach
     (i₁ := 1) (i₂ := 0) (by decide) (by decide) (hcom 1 (by decide)) hcom₂).symm
 
-/-- Exercising the concrete `Fin 3, f = 1` (`|P| = 3 * f`) split-brain view-change trace directly
-via `splitBrainTraceFin3` and `exists_pbft_splitBrain_fin3`. -/
-theorem fin3_splitBrain_committed_conflict :
-    let st := splitBrainTraceFin3.foldl (pbftStep fin3Primary 1 ({2} : Finset (Fin 3)))
-      (initPBFTState (Fin 3) Bool)
-    CommittedLocal st 0 0 0 (some false) ∧ CommittedLocal st 1 1 0 (some true) ∧
-      ∃ st' : PBFTState (Fin 3) Bool,
-        PBFTReachable fin3Primary 1 ({2} : Finset (Fin 3)) st' ∧
-        CommittedLocal st' 0 0 0 (some false) ∧ CommittedLocal st' 1 1 0 (some true) := by
-  refine ⟨by decide, by decide, ?_⟩
-  exact exists_pbft_splitBrain_fin3.2.2.2
+/-- Exercising `exists_pbft_splitBrain_fin3` at `|P| = 3 * f` (`Fin 3, f = 1`): honest replicas
+`0 ∉ {2}` and `1 ∉ {2}` reach conflicting SMR service states (`!false = true ≠ false = !true`)
+after executing slot `0`. -/
+theorem fin3_splitBrain_divergent_smr_states :
+    ∃ (F : Finset (Fin 3)) (primary : ℕ → Fin 3) (st : PBFTState (Fin 3) Bool),
+      F.card ≤ 1 ∧ (0 : Fin 3) ∉ F ∧ (1 : Fin 3) ∉ F ∧
+      PBFTReachable primary 1 F st ∧
+      CommittedLocal st 0 0 0 (some false) ∧
+      CommittedLocal st 1 1 0 (some true) ∧
+      executeSlotLog false (fun _ b => !b) (fun _ => some false) 1 ≠
+        executeSlotLog false (fun _ b => !b) (fun _ => some true) 1 := by
+  obtain ⟨hcard, h0, h1, primary, st, hreach, hc0, hc1⟩ := exists_pbft_splitBrain_fin3
+  exact ⟨{2}, primary, st, hcard, h0, h1, hreach, hc0, hc1, by decide⟩
 
 end CslibFrontierTests.Distributed.ByzantineQuorum
