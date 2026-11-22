@@ -296,6 +296,7 @@ import CslibFrontier.Crypto.Computational.Encryption.Functional
 import CslibFrontier.Crypto.Computational.GenericGroup.BabyStepGiantStep
 import CslibFrontier.Crypto.Computational.GenericGroup.RecursiveDlog
 import CslibFrontier.Crypto.Computational.GoldreichLevin.HardCore
+import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
@@ -1881,6 +1882,32 @@ register_result "goldreich-levin-hard-core" where
     to the padded function, which is then a length-preserving permutation, and its Theorem 7.7 \
     predicate. Asymptotic security; the source's explicit runtime and advantage trade-off is not \
     stated."
+
+register_result "goldreich-levin-simultaneous-list-decoding" where
+  title := "Goldreich–Levin: simultaneous oracle-PPT list decoding for arbitrary Boolean oracles"
+  topic := "cryptography"
+  sources := [
+    { paper := Goldreich2008, theorem := "Theorem 7.8", locator := "printed p. 254" }
+  ]
+  theorems := [
+    Cslib.Crypto.GoldreichLevin.oracleListDecode_bitStringOracle_simultaneous_success_ge_half,
+    Cslib.Crypto.GoldreichLevin.isOraclePPTOn_oracleListDecode,
+    Cslib.Crypto.GoldreichLevin.oracleListDecodePruned_bitStringOracle_simultaneous_success_ge_half,
+    Cslib.Crypto.GoldreichLevin.isOraclePPTOn_oracleListDecodePruned
+  ]
+  scope := "On unary reciprocal-precision input p : ListDecodeParams encoding \
+    (p.dimension, p.precision) in unary under encListDecodeParams (with ε = 1 / p.precision and \
+    0 < p.precision), and for any Boolean oracle B : BitString p.dimension → Bool without \
+    efficiency assumptions, both uniform strict oracle-PPT decoders (certified by \
+    isOraclePPTOn_oracleListDecode and isOraclePPTOn_oracleListDecodePruned) succeed with \
+    probability at least 1 / 2 against bitStringOracle B: oracleListDecode outputs a \
+    duplicate-free list of length at most 16 · p.dimension · p.precision⁴ + 2 containing \
+    List.ofFn x for every x with 1 / 2 + 1 / p.precision ≤ agreement B x, and \
+    oracleListDecodePruned outputs a duplicate-free list of length at most p.precision² \
+    containing every such x and only List.ofFn x with 1 / 2 + 1 / (2 · p.precision) ≤ \
+    agreement B x. Statement correspondence checked in Goldreich (2008), Theorem 7.8, printed \
+    p. 254 (outside-fleet source check on PR #5617); live re-retrieval of the March 2007 draft \
+    r4.pdf from the author server was unavailable."
 
 register_result "goldreich-stretch-amplification-last-bits" where
   title := "Stretch amplification of a one-bit pseudorandom generator by emitted last bits"
