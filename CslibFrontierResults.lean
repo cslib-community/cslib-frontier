@@ -1,4 +1,6 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Registry
