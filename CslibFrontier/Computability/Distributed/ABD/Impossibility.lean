@@ -22,10 +22,10 @@ groups of fewer than a majority lets the groups operate separately and perform c
 operations. Here we prove the quantified converse for `2 ≤ Fintype.card P ≤ 2 * t` over any
 nontrivial value domain `[Nontrivial V]` (`not_implementsAtomicRegister_of_partition` and
 `not_implementsAtomicRegister`), and combine it with the single-process zero-message disjunct
-`implementsAtomicRegister_local_of_card_le_one` (`Fintype.card P ≤ 1`) and the two-phase quorum
-construction `implementsAtomicRegister_abd` (`2 * t < Fintype.card P`, following
-[LynchShvartsman1997] and [AttiyaBarNoyDolev1995]) into Lean's resilience characterization
-`exists_linearizableRegister_iff`.
+`implementsAtomicRegister_local_of_card_le_one` (`Fintype.card P ≤ 1`) and the cardinality-quorum
+envelope specialization `implementsAtomicRegister_abd` (`2 * t < Fintype.card P`, after
+[LynchShvartsman1997], §4.1–4.2 and [AttiyaBarNoyDolev1995], §4) into Lean's resilience
+characterization `exists_linearizableRegister_iff`.
 
 ## Partition replay argument
 
@@ -642,9 +642,10 @@ protocol implementing a `t`-fault wait-free linearizable atomic register initial
 exists if and only if `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`:
 
 * for `Fintype.card P ≤ 1`, `localRegisterProtocol` executes locally in zero messages;
-* for `2 * t < Fintype.card P`, `abdProtocol` provides sufficiency via two-phase `(n - t)`-quorums
-  ([LynchShvartsman1997], §4.1 and Theorem 4.5; cf. [AttiyaBarNoyDolev1995], §4, Theorem 4.9 and
-  §7);
+* for `2 * t < Fintype.card P`, `abdProtocol` provides sufficiency via `(n - t)`-cardinality
+  envelope quorums and idle-only invocations (an independent specialization **after**
+  [LynchShvartsman1997], §4.1–4.2 and [AttiyaBarNoyDolev1995], §4, pairing `abd_linearizable` with
+  `abd_terminates`);
 * for `2 ≤ Fintype.card P ≤ 2 * t`, `Protocol.not_implementsAtomicRegister` proves impossibility
   by two-group partition replay (motivated by [AttiyaBarNoyDolev1995], §1, p. 127). -/
 theorem exists_linearizableRegister_iff.{u, v} (P : Type u) (V : Type v) [Fintype P] [DecidableEq P]
