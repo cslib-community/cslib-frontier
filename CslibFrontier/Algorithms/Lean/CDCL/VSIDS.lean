@@ -24,10 +24,15 @@ weigh exponentially less. The solver decides an unassigned variable of greatest 
 
 Activities and the increment are natural numbers, so the kernel can run the solver. The decay
 step sets the increment to `inc + inc / 19`, with integer division, in place of MiniSat's
-floating-point `inc / 0.95`. As in MiniSat, when an activity exceeds a limit (here `2 ^ 200`) all
-activities and the increment are scaled down (here by `2 ^ 100`, with truncation). The increment
-starts at `2 ^ 100`. The truncations can make the increment grow less than by `1 / 0.95` and turn
-different activities into ties, so decisions can differ from those of floating-point activities.
+floating-point `inc / 0.95`. As in MiniSat, when an activity reaches a limit (here `2 ^ 60`, tested
+by a shift so that no large literal is built at run time) all activities and the increment are
+scaled down (here by `2 ^ 20`, with truncation). The increment starts at `2 ^ 40`. An activity is
+then below the limit plus the increment, and the increment at most `20 / 19` times the limit, so
+every value stays below `2 ^ 62`: compiled code keeps them as
+unboxed machine integers, with no arbitrary-precision arithmetic. The truncations can make the
+increment grow less than by `1 / 0.95` and turn different activities into ties (an activity more
+than about `2 ^ 60` times smaller than the increment becomes `0`), so decisions can differ from
+those of floating-point activities.
 
 The same structure, indexed by clause number and decaying by `1 / 0.999`, holds MiniSat's clause
 activities.
@@ -44,10 +49,16 @@ again, and rescaling lowers every activity. Under it, the variable popped has th
 activity among the unassigned variables (`VarOrder.pop_spec`). An entry keyed above the activity,
 left by a rescaling, is inserted again with the current activity when it reaches the top.
 
-The heap does not remove every scan. Testing whether a popped variable is assigned searches the
-trail's variables (`Trail.vars`); the fallback below scans the variables of the database; and since
-bumping inserts a variable again instead of moving its entry, the heap can hold more entries than
-there are variables. MiniSat's heap moves an entry in place and reads an assignment array.
+**Marks** (MiniSat's `inHeap`). An array marks variables certainly in the order: each marked
+variable has an entry keyed at least at its activity, assigned or not (`VarOrder.Marked`, part of
+the invariant). Inserting a variable marks it (`VarOrder.add`), and popping unmarks the variable of
+each entry it removes. After a backjump, the variables undone are inserted only if they are not
+marked (`VarOrder.addMissing`, MiniSat's `insertVarOrder`): a variable propagated, never popped,
+keeps its entry. Marking less than this is always sound; a mark only saves an insertion.
+
+The heap does not remove every scan. The fallback below scans the variables of the database, and
+since bumping inserts a variable again instead of moving its entry, the heap can hold more entries
+than there are variables. MiniSat's heap moves an entry in place.
 
 The choice of variable does not affect correctness: the solver only needs an unassigned variable
 of the database, or the fact that there is none. `Activity.pick` scans for one of greatest
@@ -63,6 +74,9 @@ when the variable order runs out.
 * `Cslib.Algorithms.Lean.CDCL.Activity.pick`: an unassigned variable of greatest activity.
 * `Cslib.Algorithms.Lean.CDCL.VarOrder`, `Cslib.Algorithms.Lean.CDCL.VarOrder.Inv`: the variable
   order and its invariant.
+* `Cslib.Algorithms.Lean.CDCL.VarOrder.Marked`, `Cslib.Algorithms.Lean.CDCL.VarOrder.add`,
+  `Cslib.Algorithms.Lean.CDCL.VarOrder.addMissing`: sound marks of the variables in the order, and
+  inserting variables with them.
 * `Cslib.Algorithms.Lean.CDCL.VarOrder.pop`: popping the decision variable.
 
 ## Main results
@@ -87,23 +101,20 @@ structure Activity where
   /-- The amount added to the activity of a bumped variable. -/
   inc : ℕ
 
-/-- The initial activities of the variables below `n`: all `0`, with increment `2 ^ 100`. -/
-def Activity.init (n : ℕ) : Activity := ⟨Array.replicate n 0, 2 ^ 100⟩
+/-- The initial activities of the variables below `n`: all `0`, with increment `2 ^ 40`. -/
+def Activity.init (n : ℕ) : Activity := ⟨Array.replicate n 0, 2 ^ 40⟩
 
 /-- The activity of the variable `v`. -/
 def Activity.get (A : Activity) (v : ℕ) : ℕ := A.score.getD v 0
 
-/-- The activity above which every activity is scaled down. -/
-def Activity.limit : ℕ := 2 ^ 200
-
-/-- **Bumping** `v`: its activity grows by the increment; if it exceeds the limit, every activity
-and the increment are divided by `2 ^ 100`. The activities are an array indexed by variable: for
+/-- **Bumping** `v`: its activity grows by the increment; if it reaches `2 ^ 60`, every activity
+and the increment are divided by `2 ^ 20`. The activities are an array indexed by variable: for
 `v` beyond its end, `Array.modify` leaves it unchanged, so bumping `v` does nothing and its
 activity stays `0`. The solver's variables are all within the array (`WExec.init` sizes it by the
 largest variable of the formula). -/
 def Activity.bumpVar (A : Activity) (v : ℕ) : Activity :=
   let score := A.score.modify v (· + A.inc)
-  if Activity.limit < score.getD v 0 then ⟨score.map (· >>> 100), A.inc >>> 100⟩
+  if score.getD v 0 >>> 60 != 0 then ⟨score.map (· >>> 20), A.inc >>> 20⟩
   else ⟨score, A.inc⟩
 
 /-- **After a conflict**: bump each variable met by the analysis once, then set the increment to
@@ -172,7 +183,7 @@ theorem Activity.get_bumpVar_le {A : Activity} {u v : ℕ} (huv : u ≠ v) :
       rw [h] at hmod
       simp only [Option.map_some, Option.getD_some] at hmod ⊢
       rw [← hmod]
-      exact Nat.shiftRight_le x 100
+      exact Nat.shiftRight_le x 20
   · exact hmod.le
 
 theorem Activity.get_foldl_bumpVar_le {v : ℕ} :
@@ -204,12 +215,20 @@ def OrderKey.toPair (k : OrderKey) : ℕ × ℕ := (k.activity, k.var)
 section
 attribute [local instance] lexOrd
 
-/-- Entries compare by activity, then by variable. -/
-instance : Ord OrderKey := ⟨fun a b => compare a.toPair b.toPair⟩
+/-- Entries compare by activity, then by variable: the lexicographic order on `toPair`, written
+out so that comparing builds no pairs at run time. -/
+instance : Ord OrderKey :=
+  ⟨fun a b => (compare a.activity b.activity).then (compare a.var b.var)⟩
+
+private theorem OrderKey.compare_eq (a b : OrderKey) :
+    compare a b = compare a.toPair b.toPair := rfl
 
 instance : Std.TransOrd OrderKey :=
   have h : Std.TransOrd (ℕ × ℕ) := inferInstance
-  { eq_swap := h.eq_swap, isLE_trans := h.isLE_trans }
+  { eq_swap := fun {a b} => by
+      rw [OrderKey.compare_eq, OrderKey.compare_eq]; exact h.eq_swap
+    isLE_trans := fun {a b c} hab hbc => by
+      rw [OrderKey.compare_eq] at hab hbc ⊢; exact h.isLE_trans hab hbc }
 
 /-- An entry at least another has at least its activity. -/
 theorem OrderKey.activity_le_of_isGE {a b : OrderKey} (h : (compare a b).isGE) :
@@ -234,98 +253,264 @@ def VarOrder.Covers (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) (oc
     Prop :=
   ∀ v ∈ V, v ∉ Trail.vars M → occ v = true → ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ H
 
-/-- **The invariant of the variable order** over the variables `V`, with the activities `A`, the
-trail `M` and the variables `occ` admits: a well-formed heap of variables of `V`, covering those
-admitted and not on the trail. -/
-structure VarOrder.Inv (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) :
-    Prop where
+/-! ### Marks: the variables certainly in the order -/
+
+/-- Whether the variable `v` is marked in `I`; `false` past its end. -/
+def VarOrder.marked (I : Array Bool) (v : ℕ) : Bool := I.getD v false
+
+/-- Setting a mark changes only that variable's mark, and only within the array. -/
+private theorem VarOrder.marked_setIfInBounds {I : Array Bool} {v w : ℕ} {b : Bool}
+    (h : VarOrder.marked (I.setIfInBounds v b) w = true) :
+    (w = v ∧ b = true) ∨ (w ≠ v ∧ VarOrder.marked I w = true) := by
+  unfold VarOrder.marked at h ⊢
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at h ⊢
+  by_cases hw : v = w
+  · subst hw
+    simp only [↓reduceIte] at h
+    split at h
+    · exact .inl ⟨rfl, by simpa using h⟩
+    · rename_i hlt
+      simp at h
+  · simp only [hw, ↓reduceIte] at h
+    exact .inr ⟨Ne.symm hw, h⟩
+
+/-- **The marks are sound** (MiniSat's `inHeap`): each variable marked in `I` has an entry keyed at
+least at its activity, whether it is assigned or not. A variable left unmarked may or may not have
+one. -/
+def VarOrder.Marked (H : VarOrder) (A : Activity) (I : Array Bool) : Prop :=
+  ∀ v, VarOrder.marked I v = true → ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ H
+
+/-- The marks stay sound with more entries and with activities no higher at the marked
+variables. -/
+private theorem VarOrder.Marked.mono {H H' : VarOrder} {A A' : Activity} {I : Array Bool}
+    (h : VarOrder.Marked H A I) (hH : ∀ e ∈ H, e ∈ H')
+    (hA : ∀ v, VarOrder.marked I v = true → A'.get v ≤ A.get v) : VarOrder.Marked H' A' I := by
+  intro v hv
+  obtain ⟨k, hk, hmem⟩ := h v hv
+  exact ⟨k, (hA v hv).trans hk, hH _ hmem⟩
+
+/-- **The invariant of the variable order** over the variables `V`, with the marks `I`, the
+activities `A`, the trail `M` and the variables `occ` admits: a well-formed heap of variables of
+`V`, covering those admitted and not on the trail, with sound marks. -/
+structure VarOrder.Inv (H : VarOrder) (I : Array Bool) (A : Activity) (V : List ℕ) (M : Trail)
+    (occ : ℕ → Bool) : Prop where
   wf : H.WF
   vars : ∀ e ∈ H, e.var ∈ V
   covers : H.Covers A V M occ
+  marked : VarOrder.Marked H A I
 
-/-- Inserting the variables `vs` with their activities. -/
-def VarOrder.insertVars (H : VarOrder) (A : Activity) (vs : List ℕ) : VarOrder :=
-  vs.foldl (fun H v => H.insertF (OrderKey.mk (A.get v) v)) H
+/-- **Inserting the variables `vs`** with their activities `A`, and marking them in `I`. -/
+def VarOrder.add (H : VarOrder) (I : Array Bool) (A : Activity) (vs : List ℕ) :
+    VarOrder × Array Bool :=
+  vs.foldl (fun (H, I) v => (H.insertF (OrderKey.mk (A.get v) v), I.setIfInBounds v true)) (H, I)
 
-theorem VarOrder.insertVars_wf {H : VarOrder} {A : Activity} {vs : List ℕ} (h : H.WF) :
-    (H.insertVars A vs).WF := by
-  induction vs generalizing H with
-  | nil => exact h
+/-- **Inserting the variables of `vs` not marked in `I`**, with their activities `A`, and marking
+them: MiniSat's `insertVarOrder`, which skips a variable already in the heap. -/
+def VarOrder.addMissing (H : VarOrder) (I : Array Bool) (A : Activity) (vs : List ℕ) :
+    VarOrder × Array Bool :=
+  vs.foldl (fun (H, I) v =>
+    if VarOrder.marked I v then (H, I)
+    else (H.insertF (OrderKey.mk (A.get v) v), I.setIfInBounds v true)) (H, I)
+
+/-- What inserting and marking `vs` keeps: a well-formed heap stays well formed, the entries are
+the old ones and entries of variables of `vs` with their activities, the marks stay sound, and
+every variable of `vs` gets an entry keyed at least at its activity. `addMissing` inserts only
+the unmarked ones, so its result is described by the same properties. -/
+structure VarOrder.Added (H : VarOrder) (I : Array Bool) (A : Activity) (vs : List ℕ)
+    (r : VarOrder × Array Bool) : Prop where
+  wf : H.WF → r.1.WF
+  mem_old : ∀ e ∈ H, e ∈ r.1
+  mem_new : ∀ e ∈ r.1, e ∈ H ∨ ∃ v ∈ vs, e = OrderKey.mk (A.get v) v
+  marked : VarOrder.Marked H A I → VarOrder.Marked r.1 A r.2
+  covers : VarOrder.Marked H A I → ∀ v ∈ vs, ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ r.1
+
+/-- Inserting one variable and marking it. -/
+private theorem VarOrder.added_one (H : VarOrder) (I : Array Bool) (A : Activity) (v : ℕ) :
+    VarOrder.Added H I A [v]
+      (H.insertF (OrderKey.mk (A.get v) v), I.setIfInBounds v true) := by
+  have hmem : ∀ e,
+      e ∈ H.insertF (OrderKey.mk (A.get v) v) ↔ e ∈ H ∨ e = OrderKey.mk (A.get v) v := fun e => by
+    rw [Batteries.BinaryHeap.insertF_eq, Batteries.BinaryHeap.mem_insert]
+  refine ⟨fun h => ?_, fun e he => (hmem e).2 (.inl he), fun e he => ?_, fun h w hw => ?_,
+    fun h w hw => ?_⟩
+  · rw [Batteries.BinaryHeap.insertF_eq]; exact Batteries.BinaryHeap.insert_wf h
+  · rcases (hmem e).1 he with he | rfl
+    · exact .inl he
+    · exact .inr ⟨v, List.mem_singleton_self v, rfl⟩
+  · rcases VarOrder.marked_setIfInBounds hw with ⟨rfl, -⟩ | ⟨-, hw⟩
+    · exact ⟨_, le_rfl, (hmem _).2 (.inr rfl)⟩
+    · obtain ⟨k, hk, hk'⟩ := h w hw
+      exact ⟨k, hk, (hmem _).2 (.inl hk')⟩
+  · rw [List.mem_singleton] at hw
+    subst hw
+    exact ⟨_, le_rfl, (hmem _).2 (.inr rfl)⟩
+
+/-- Two insertions in turn. -/
+private theorem VarOrder.Added.trans {H : VarOrder} {I : Array Bool} {A : Activity} {v : ℕ}
+    {vs : List ℕ} {r s : VarOrder × Array Bool} (h₁ : VarOrder.Added H I A [v] r)
+    (h₂ : VarOrder.Added r.1 r.2 A vs s) : VarOrder.Added H I A (v :: vs) s := by
+  refine ⟨fun h => h₂.wf (h₁.wf h), fun e he => h₂.mem_old e (h₁.mem_old e he), fun e he => ?_,
+    fun h => h₂.marked (h₁.marked h), fun h w hw => ?_⟩
+  · rcases h₂.mem_new e he with he | ⟨w, hw, rfl⟩
+    · rcases h₁.mem_new e he with he | ⟨w, hw, rfl⟩
+      · exact .inl he
+      · exact .inr ⟨w, by simp_all, rfl⟩
+    · exact .inr ⟨w, List.mem_cons_of_mem _ hw, rfl⟩
+  · rcases List.mem_cons.1 hw with rfl | hw
+    · obtain ⟨k, hk, hmem⟩ := h₁.covers h w (List.mem_singleton_self w)
+      exact ⟨k, hk, h₂.mem_old _ hmem⟩
+    · exact h₂.covers (h₁.marked h) w hw
+
+/-- Nothing inserted. -/
+private theorem VarOrder.added_nil (H : VarOrder) (I : Array Bool) (A : Activity) :
+    VarOrder.Added H I A [] (H, I) :=
+  ⟨id, fun _ he => he, fun _ he => .inl he, id, fun _ _ hw => absurd hw List.not_mem_nil⟩
+
+theorem VarOrder.added_add (H : VarOrder) (I : Array Bool) (A : Activity) (vs : List ℕ) :
+    VarOrder.Added H I A vs (VarOrder.add H I A vs) := by
+  induction vs generalizing H I with
+  | nil => exact VarOrder.added_nil H I A
+  | cons v vs ih => exact (VarOrder.added_one H I A v).trans (ih _ _)
+
+/-- Inserting and marking `vs` gives each variable of `vs` an entry keyed at its activity, and
+marks only the variables of `vs` besides those already marked. -/
+theorem VarOrder.add_spec (H : VarOrder) (I : Array Bool) (A : Activity) (vs : List ℕ) :
+    (∀ v ∈ vs, ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.add H I A vs).1) ∧
+    ∀ w, VarOrder.marked (VarOrder.add H I A vs).2 w = true →
+      w ∈ vs ∨ VarOrder.marked I w = true := by
+  induction vs generalizing H I with
+  | nil => exact ⟨fun _ hv => absurd hv List.not_mem_nil, fun _ hw => .inr hw⟩
   | cons v vs ih =>
-    refine ih ?_
-    dsimp only
-    rw [Batteries.BinaryHeap.insertF_eq]
-    exact Batteries.BinaryHeap.insert_wf h
+    obtain ⟨ih₁, ih₂⟩ := ih (H.insertF (OrderKey.mk (A.get v) v)) (I.setIfInBounds v true)
+    have hold := (VarOrder.added_add (H.insertF (OrderKey.mk (A.get v) v))
+      (I.setIfInBounds v true) A vs).mem_old
+    refine ⟨fun w hw => ?_, fun w hw => ?_⟩
+    · rcases List.mem_cons.1 hw with rfl | hw
+      · refine ⟨_, le_rfl, hold _ ?_⟩
+        rw [Batteries.BinaryHeap.insertF_eq]
+        exact Batteries.BinaryHeap.mem_insert.2 (.inr rfl)
+      · exact ih₁ w hw
+    · rcases ih₂ w hw with hw | hw
+      · exact .inl (List.mem_cons_of_mem _ hw)
+      · rcases VarOrder.marked_setIfInBounds hw with ⟨rfl, -⟩ | ⟨-, hw⟩
+        · exact .inl List.mem_cons_self
+        · exact .inr hw
 
-theorem VarOrder.mem_insertVars {H : VarOrder} {A : Activity} {vs : List ℕ} {e : OrderKey} :
-    e ∈ H.insertVars A vs ↔ e ∈ H ∨ ∃ v ∈ vs, e = OrderKey.mk (A.get v) v := by
-  induction vs generalizing H with
-  | nil => simp [VarOrder.insertVars]
+theorem VarOrder.added_addMissing (H : VarOrder) (I : Array Bool) (A : Activity) (vs : List ℕ) :
+    VarOrder.Added H I A vs (VarOrder.addMissing H I A vs) := by
+  induction vs generalizing H I with
+  | nil => exact VarOrder.added_nil H I A
   | cons v vs ih =>
-    change e ∈ VarOrder.insertVars (H.insertF _) A vs ↔ _
-    rw [ih, Batteries.BinaryHeap.insertF_eq, Batteries.BinaryHeap.mem_insert]
-    simp only [List.mem_cons, exists_eq_or_imp]
-    tauto
+    change VarOrder.Added H I A (v :: vs) (VarOrder.addMissing
+      (if VarOrder.marked I v then (H, I)
+        else (H.insertF (OrderKey.mk (A.get v) v), I.setIfInBounds v true)).1
+      (if VarOrder.marked I v then (H, I)
+        else (H.insertF (OrderKey.mk (A.get v) v), I.setIfInBounds v true)).2 A vs)
+    split
+    · rename_i hv
+      have h₂ := ih H I
+      refine ⟨h₂.wf, h₂.mem_old, fun e he => ?_, h₂.marked, fun h w hw => ?_⟩
+      · rcases h₂.mem_new e he with he | ⟨w, hw, rfl⟩
+        · exact .inl he
+        · exact .inr ⟨w, List.mem_cons_of_mem _ hw, rfl⟩
+      · rcases List.mem_cons.1 hw with rfl | hw
+        · obtain ⟨k, hk, hmem⟩ := h w hv
+          exact ⟨k, hk, h₂.mem_old _ hmem⟩
+        · exact h₂.covers h w hw
+    · exact (VarOrder.added_one H I A v).trans (ih _ _)
 
 /-- **All the variables of `V` inserted** in an empty order, with their activities: an order
-satisfying the invariant whatever the trail. -/
-theorem VarOrder.inv_insertVars_empty (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) :
-    (VarOrder.insertVars Batteries.BinaryHeap.emptyF A (dedupVars V)).Inv A V M occ := by
+satisfying the invariant whatever the trail, with any marks of no variable. -/
+theorem VarOrder.inv_add_empty (A : Activity) (V : List ℕ) (M : Trail) (occ : ℕ → Bool) (n : ℕ) :
+    (VarOrder.add Batteries.BinaryHeap.emptyF (Array.replicate n false) A (dedupVars V)).1.Inv
+      (VarOrder.add Batteries.BinaryHeap.emptyF (Array.replicate n false) A (dedupVars V)).2
+      A V M occ := by
   have hempty : (Batteries.BinaryHeap.emptyF : VarOrder).WF := by
     rw [Batteries.BinaryHeap.emptyF_eq]; exact Batteries.BinaryHeap.empty_wf
-  refine ⟨VarOrder.insertVars_wf hempty, fun e he => ?_, fun v hv _ _ =>
-    ⟨_, le_rfl, VarOrder.mem_insertVars.2 (.inr ⟨v, (mem_dedupKey Function.injective_id).2 hv,
-      rfl⟩)⟩⟩
-  rcases VarOrder.mem_insertVars.1 he with he | ⟨v, hv, rfl⟩
-  · rw [Batteries.BinaryHeap.emptyF_eq] at he
-    exact absurd he Batteries.BinaryHeap.mem_empty
+  have hnone : ∀ e, e ∉ (Batteries.BinaryHeap.emptyF : VarOrder) := fun e he => by
+    rw [Batteries.BinaryHeap.emptyF_eq] at he
+    exact Batteries.BinaryHeap.mem_empty he
+  have h := VarOrder.added_add Batteries.BinaryHeap.emptyF (Array.replicate n false) A (dedupVars V)
+  have hm : VarOrder.Marked Batteries.BinaryHeap.emptyF A (Array.replicate n false) :=
+    fun v hv => by
+      simp only [VarOrder.marked, Array.getD_eq_getD_getElem?, Array.getElem?_replicate] at hv
+      split at hv <;> simp at hv
+  refine ⟨h.wf hempty, fun e he => ?_, fun v hv _ _ =>
+    h.covers hm v ((mem_dedupKey Function.injective_id).2 hv), h.marked hm⟩
+  rcases h.mem_new e he with he | ⟨v, hv, rfl⟩
+  · exact absurd he (hnone e)
   · exact (mem_dedupKey Function.injective_id).1 hv
+
+/-- The result of popping: the variable found, if any, the order left and the marks left. -/
+structure VarOrder.Popped where
+  /-- The variable found. -/
+  var : Option ℕ
+  /-- The order left. -/
+  order : VarOrder
+  /-- The marks left. -/
+  marks : Array Bool
+
+/-- A popped entry's variable is unmarked; the marks of the other variables stay sound. -/
+private theorem VarOrder.Marked.popMaxF {H : VarOrder} {A : Activity} {I : Array Bool}
+    {e : OrderKey} (h : VarOrder.Marked H A I) (he : H.maxF = some e) :
+    VarOrder.Marked H.popMaxF A (I.setIfInBounds e.var false) := fun v hv => by
+  rcases VarOrder.marked_setIfInBounds hv with ⟨-, h'⟩ | ⟨hne, hv⟩
+  · exact absurd h' (by decide)
+  obtain ⟨k, hk, hmem⟩ := h v hv
+  rcases Batteries.BinaryHeap.mem_popMaxF he hmem with h' | h'
+  · exact absurd (by rw [← h']) hne
+  · exact ⟨k, hk, h'⟩
 
 /-- **Popping the decision variable**: the entries at the top are removed until one is of an
 unassigned variable admitted by `occ`, with its current activity. An entry of an assigned or
 unadmitted variable, or keyed below the variable's activity, is dropped; an entry keyed above it,
-left by a rescaling of the activities, is inserted again with the current activity. `none` if the
-order runs out, or the fuel does. -/
+left by a rescaling of the activities, is inserted again with the current activity. The variable
+of each entry removed is unmarked in `I`. `none` if the order runs out, or the fuel does. -/
 def VarOrder.pop (A : Activity) (asg : Assign) (occ : ℕ → Bool) :
-    (fuel : ℕ) → VarOrder → Option ℕ × VarOrder
-  | 0, H => (none, H)
-  | fuel + 1, H =>
+    (fuel : ℕ) → VarOrder → Array Bool → VarOrder.Popped
+  | 0, H, I => ⟨none, H, I⟩
+  | fuel + 1, H, I =>
     match H.maxF with
-    | none => (none, H)
+    | none => ⟨none, H, I⟩
     | some e =>
       let v := e.var
       let k := e.activity
       let H' := H.popMaxF
-      if asg.assigned v || !occ v then VarOrder.pop A asg occ fuel H'
-      else if A.get v = k then (some v, H')
+      let I' := I.setIfInBounds v false
+      if asg.assigned v || !occ v then VarOrder.pop A asg occ fuel H' I'
+      else if A.get v = k then ⟨some v, H', I'⟩
       else if A.get v < k then
-        VarOrder.pop A asg occ fuel (H'.insertF (OrderKey.mk (A.get v) v))
-      else VarOrder.pop A asg occ fuel H'
+        VarOrder.pop A asg occ fuel (H'.insertF (OrderKey.mk (A.get v) v)) I'
+      else VarOrder.pop A asg occ fuel H' I'
 
-/-- **What popping finds**: the order stays well formed over the variables `V`; a variable found
-is in `V`, unassigned, admitted, and of greatest activity among the unassigned admitted variables
-of `V`; and every other unassigned admitted variable of `V` stays covered. -/
+/-- **What popping finds**: the order stays well formed over the variables `V`, with sound marks; a
+variable found is in `V`, unassigned, admitted, and of greatest activity among the unassigned
+admitted variables of `V`; and every other unassigned admitted variable of `V` stays covered. -/
 theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} {occ : ℕ → Bool} (hasg : asg.Agrees M) :
-    ∀ (fuel : ℕ) (H : VarOrder), H.WF → (∀ e ∈ H, e.var ∈ V) → H.Covers A V M occ →
-    (VarOrder.pop A asg occ fuel H).2.WF ∧
-    (∀ e ∈ (VarOrder.pop A asg occ fuel H).2, e.var ∈ V) ∧
-    (∀ x, (VarOrder.pop A asg occ fuel H).1 = some x →
+    ∀ (fuel : ℕ) (H : VarOrder) (I : Array Bool), H.WF → (∀ e ∈ H, e.var ∈ V) →
+    H.Covers A V M occ → VarOrder.Marked H A I →
+    (VarOrder.pop A asg occ fuel H I).order.WF ∧
+    (∀ e ∈ (VarOrder.pop A asg occ fuel H I).order, e.var ∈ V) ∧
+    (∀ x, (VarOrder.pop A asg occ fuel H I).var = some x →
       x ∈ V ∧ x ∉ Trail.vars M ∧ occ x = true ∧
         ∀ y ∈ V, y ∉ Trail.vars M → occ y = true → A.get y ≤ A.get x) ∧
-    (∀ v ∈ V, v ∉ Trail.vars M → occ v = true → (VarOrder.pop A asg occ fuel H).1 ≠ some v →
-      ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.pop A asg occ fuel H).2)
-  | 0, H, hwf, hV, hcov => ⟨hwf, hV, fun _ h => absurd h (by simp [VarOrder.pop]),
-      fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
-  | fuel + 1, H, hwf, hV, hcov => by
+    (∀ v ∈ V, v ∉ Trail.vars M → occ v = true → (VarOrder.pop A asg occ fuel H I).var ≠ some v →
+      ∃ k, A.get v ≤ k ∧ OrderKey.mk k v ∈ (VarOrder.pop A asg occ fuel H I).order) ∧
+    VarOrder.Marked (VarOrder.pop A asg occ fuel H I).order A
+      (VarOrder.pop A asg occ fuel H I).marks
+  | 0, H, I, hwf, hV, hcov, hI => ⟨hwf, hV, fun _ h => absurd h (by simp [VarOrder.pop]),
+      fun v hv hvM hvo _ => hcov v hv hvM hvo, hI⟩
+  | fuel + 1, H, I, hwf, hV, hcov, hI => by
     unfold VarOrder.pop
     split
-    · exact ⟨hwf, hV, fun _ h => absurd h (by simp), fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
+    · exact ⟨hwf, hV, fun _ h => absurd h (by simp), fun v hv hvM hvo _ => hcov v hv hvM hvo, hI⟩
     · rename_i e he
       dsimp only
       have hwf' : H.popMaxF.WF := by
         rw [Batteries.BinaryHeap.popMaxF_eq]; exact Batteries.BinaryHeap.popMax_wf hwf
       have hV' : ∀ f ∈ H.popMaxF, f.var ∈ V := fun f hf =>
         hV f (Batteries.BinaryHeap.mem_of_mem_popMaxF hf)
+      have hI' := VarOrder.Marked.popMaxF hI he
       have heH : e ∈ H := Batteries.BinaryHeap.mem_of_max he
       have hge : ∀ f ∈ H, f.activity ≤ e.activity := fun f hf => by
         rw [Batteries.BinaryHeap.maxF_eq] at he
@@ -344,8 +529,8 @@ theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} {occ : ℕ → Bool} (ha
         fun v hne k _ h => hne (by rw [← h])
       split
       · rename_i hskip
-        refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM hvo =>
-          hkeep v hv hvM hvo fun k _ h => ?_
+        refine VarOrder.pop_spec hasg fuel _ _ hwf' hV' (fun v hv hvM hvo =>
+          hkeep v hv hvM hvo fun k _ h => ?_) hI'
         have hve : v = e.var := by rw [← h]
         subst hve
         rcases Bool.or_eq_true_iff.1 hskip with h' | h'
@@ -359,7 +544,7 @@ theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} {occ : ℕ → Bool} (ha
         split
         · rename_i hk
           refine ⟨hwf', hV', fun x hx => ?_, fun v hv hvM hvo hne =>
-            hkeep v hv hvM hvo (hother v fun h => hne (by rw [h]))⟩
+            hkeep v hv hvM hvo (hother v fun h => hne (by rw [h])), hI'⟩
           simp only [Option.some.injEq] at hx
           subst hx
           refine ⟨hV e heH, hunassigned, hocc, fun y hy hyM hyo => ?_⟩
@@ -370,7 +555,12 @@ theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} {occ : ℕ → Bool} (ha
             have hwf'' :
                 (H.popMaxF.insertF (OrderKey.mk (A.get e.var) e.var)).WF := by
               rw [Batteries.BinaryHeap.insertF_eq]; exact Batteries.BinaryHeap.insert_wf hwf'
-            refine VarOrder.pop_spec hasg fuel _ hwf'' (fun f hf => ?_) fun v hv hvM hvo => ?_
+            have hsub : ∀ f ∈ H.popMaxF,
+                f ∈ H.popMaxF.insertF (OrderKey.mk (A.get e.var) e.var) := fun f hf => by
+                rw [Batteries.BinaryHeap.insertF_eq]
+                exact Batteries.BinaryHeap.mem_insert.2 (.inl hf)
+            refine VarOrder.pop_spec hasg fuel _ _ hwf'' (fun f hf => ?_) (fun v hv hvM hvo => ?_)
+              (hI'.mono hsub fun _ _ => le_rfl)
             · rw [Batteries.BinaryHeap.insertF_eq, Batteries.BinaryHeap.mem_insert] at hf
               rcases hf with hf | rfl
               · exact hV' f hf
@@ -382,8 +572,8 @@ theorem VarOrder.pop_spec {A : Activity} {V : List ℕ} {occ : ℕ → Bool} (ha
               · obtain ⟨k, hk, hmem⟩ := hkeep v hv hvM hvo (hother v hve)
                 exact ⟨k, hk, Batteries.BinaryHeap.mem_insert.2 (.inl hmem)⟩
           · rename_i hne hnlt
-            refine VarOrder.pop_spec hasg fuel _ hwf' hV' fun v hv hvM hvo =>
-              hkeep v hv hvM hvo ?_
+            refine VarOrder.pop_spec hasg fuel _ _ hwf' hV' (fun v hv hvM hvo =>
+              hkeep v hv hvM hvo ?_) hI'
             intro k hk h
             have hv : v = e.var := by rw [← h]
             have hke : k = e.activity := by rw [← h]
