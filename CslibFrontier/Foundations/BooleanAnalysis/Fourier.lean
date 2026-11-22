@@ -70,6 +70,9 @@ coefficient on the circle, so the name is meant to be used qualified.
   at two points detect their agreement on `K`.
 * `Cslib.BitString.fourierCoeff_sum_mul_chi`, `Cslib.BitString.fourierCoeff_injective`:
   uniqueness of the Fourier coefficients.
+* `Cslib.BitString.abs_fourierCoeff_le_expect_abs`, `Cslib.BitString.abs_le_sum_abs_fourierCoeff`:
+  `‖f̂‖∞ ≤ ‖f‖₁` and `‖f‖∞ ≤ ‖f̂‖₁`; the second follows from `Cslib.BitString.abs_sum_mul_chi_le`,
+  which bounds a combination of characters by the sum of its absolute weights.
 * `Cslib.BitString.expect_mul_eq_sum_fourierCoeff_mul`: Plancherel's identity.
 * `Cslib.BitString.fourierCoeff_comp_arrowCongr`: relabelling the coordinates relabels the
   Fourier coefficients.
@@ -216,6 +219,13 @@ theorem chi_eq_signVal_parityOn (S : Finset ι) (x : ι → Bool) :
 @[simp] theorem abs_chi (T : Finset ι) (x : ι → Bool) : |chi ℝ T x| = 1 := by
   rw [chi_eq_signVal_parityOn, abs_signVal]
 
+/-- A combination of real characters has absolute value at most the sum of the absolute values of
+its weights. With the Fourier expansion this is `‖f‖∞ ≤ ‖f̂‖₁`
+(`BitString.abs_le_sum_abs_fourierCoeff`). -/
+theorem abs_sum_mul_chi_le (s : Finset (Finset ι)) (c : Finset ι → ℝ) (x : ι → Bool) :
+    |∑ S ∈ s, c S * chi ℝ S x| ≤ ∑ S ∈ s, |c S| :=
+  (abs_sum_le_sum_abs _ _).trans_eq (by simp only [abs_mul, abs_chi, mul_one])
+
 /-- The character of `S` is the trivial additive character exactly when `S` is empty. -/
 @[simp] theorem chiChar_eq_zero_iff {S : Finset ι} : chiChar ℝ S = 0 ↔ S = ∅ := by
   classical
@@ -335,6 +345,12 @@ theorem fourierCoeff_comp_arrowCongr {κ : Type*} [Fintype κ] [DecidableEq κ] 
 @[simp] theorem fourierCoeff_empty (f : (ι → Bool) → ℝ) : fourierCoeff f ∅ = 𝔼 x, f x := by
   simp [fourierCoeff]
 
+/-- A Fourier coefficient is at most the mean absolute value: `|f̂(S)| ≤ 𝔼 |f|`, that is
+`‖f̂‖∞ ≤ ‖f‖₁`, the first half of [O'Donnell, Exercise 3.9][ODonnell2014]. -/
+theorem abs_fourierCoeff_le_expect_abs (f : (ι → Bool) → ℝ) (S : Finset ι) :
+    |fourierCoeff f S| ≤ 𝔼 x, |f x| :=
+  (abs_expect_le _ _).trans_eq (by simp only [abs_mul, abs_chi, mul_one])
+
 /-- **The Fourier expansion**: every function is the sum of its characters weighted by its
 Fourier coefficients. -/
 theorem sum_fourierCoeff_mul_chi (f : (ι → Bool) → ℝ) (x : ι → Bool) :
@@ -344,6 +360,12 @@ theorem sum_fourierCoeff_mul_chi (f : (ι → Bool) → ℝ) (x : ι → Bool) :
   simp only [mul_assoc, ← mul_sum, sum_chi_mul_chi, mul_ite, mul_zero, sum_ite_eq', mem_univ,
     ite_true]
   field_simp
+
+/-- A function is at most the sum of the absolute values of its Fourier coefficients:
+`‖f‖∞ ≤ ‖f̂‖₁`, the second half of [O'Donnell, Exercise 3.9][ODonnell2014]. -/
+theorem abs_le_sum_abs_fourierCoeff (f : (ι → Bool) → ℝ) (x : ι → Bool) :
+    |f x| ≤ ∑ S, |fourierCoeff f S| :=
+  sum_fourierCoeff_mul_chi f x ▸ abs_sum_mul_chi_le univ (fourierCoeff f) x
 
 /-- **The Fourier coefficients are unique**: a combination of characters has its weights as
 coefficients. -/
@@ -426,9 +448,9 @@ theorem fourierCoeff_sq_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset 
 
 /-- A Fourier coefficient of a Boolean function, read as signs, has absolute value at most one. -/
 theorem abs_fourierCoeff_signVal_le_one (f : (ι → Bool) → Bool) (S : Finset ι) :
-    |fourierCoeff (fun x => signVal (f x)) S| ≤ 1 := by
-  rw [← sq_le_one_iff_abs_le_one]
-  exact fourierCoeff_sq_signVal_le_one f S
+    |fourierCoeff (fun x => signVal (f x)) S| ≤ 1 :=
+  (abs_fourierCoeff_le_expect_abs _ S).trans_eq <| by
+    simp only [abs_signVal, expect_const univ_nonempty]
 
 /-- A Boolean function, read as signs, has spectral norm `∑_S |f̂(S)|` at least one. -/
 theorem one_le_sum_abs_fourierCoeff_signVal (f : (ι → Bool) → Bool) :
