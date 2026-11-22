@@ -11,10 +11,10 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Oper
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperserCore.Reduction
 
 /-!
-# Zero-locus reductions and `0/6` potential accounting for `4n - 10d`
+# Zero-locus reductions and `0/5` potential accounting for `4n - 9d`
 
-Specialization of `Cslib.Circuits.Boolean.AffineDisperserCore.State.Reduction` to `4n - 10d`
-states with zero-locus pairs and `0/6` degree weights:
+Specialization of `Cslib.Circuits.Boolean.AffineDisperserCore.State.Reduction` to `4n - 9d`
+states with zero-locus pairs and `0/5` degree weights:
 
 * `State.Reduction.wt_le`: non-partners never gain weight, even when deletions reroute to them;
 * `State.Reduction.step_of_delete`: deleting any deletable constraint is always a step;
@@ -44,9 +44,9 @@ open AffineDisperserCore.State
 
 variable {n : ℕ} {f : BooleanFunction n}
 
-/-! ### `0/6` weight and single-deletion step -/
+/-! ### `0/5` weight and single-deletion step -/
 
-/-- Under `0/6` weights, a parameter that is not the partner of a member of `F` never gains
+/-- Under `0/5` weights, a parameter that is not the partner of a member of `F` never gains
 weight, even if deletions reroute to it. -/
 theorem Reduction.wt_le {S S' : State n} {F : Finset ℕ} {D T : List (ℕ ⊕ ℕ)}
     (h : Reduction f S S' F D T) (hS : S.Valid f) {u : ℕ}
@@ -66,7 +66,7 @@ theorem Reduction.wt_le {S S' : State n} {F : Finset ℕ} {D T : List (ℕ ⊕ �
   · rw [h.wt_eq_zero hS hu hpart]
     exact Nat.zero_le _
 
-/-- Deleting a single constraint is always a step of gate elimination under `0/6` weights:
+/-- Deleting a single constraint is always a step of gate elimination under `0/5` weights:
 no parameter can gain weight. -/
 theorem Reduction.step_of_delete {S S' : State n} {N : ℕ ⊕ ℕ}
     (h : Reduction f S S' ∅ [N] [N]) (hS : S.Valid f) : Step f S S' := by

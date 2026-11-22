@@ -219,6 +219,19 @@ theorem decodeTrials_take (spec : BlockRejectionSpec α) (t : ℕ) (w : List Boo
     | some a => rfl
     | none => exact ih (w.drop spec.width)
 
+/-- Post-composing a single-block decoder with `Option.map f` commutes with `decodeTrials`. -/
+theorem decodeTrials_map {β : Type*} (spec : BlockRejectionSpec α) (f : α → β)
+    (spec' : BlockRejectionSpec β) (hw : spec'.width = spec.width)
+    (ha : ∀ bits, spec'.attempt bits = (spec.attempt bits).map f) :
+    ∀ (t : ℕ) (bits : List Bool),
+      spec'.decodeTrials t bits = (spec.decodeTrials t bits).map f
+  | 0, _ => rfl
+  | t + 1, bits => by
+    rw [decodeTrials_succ, decodeTrials_succ, hw, ha]
+    cases spec.attempt (bits.take spec.width) with
+    | none => exact decodeTrials_map spec f spec' hw ha t (bits.drop spec.width)
+    | some a => rfl
+
 /-- Distribution of running at most `trials` independent `width`-bit blocks. -/
 @[expose] noncomputable def runTrials (spec : BlockRejectionSpec α) (trials : ℕ) :
     PMF (Option α) :=

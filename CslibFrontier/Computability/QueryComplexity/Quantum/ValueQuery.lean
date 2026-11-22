@@ -18,7 +18,9 @@ This module extends the phase-oracle quantum query model (`Cslib.Quantum.run`) t
 value-query model (`Cslib.Quantum.ValueState`, `Cslib.Quantum.valueOracle`,
 `Cslib.Quantum.runValue`) over an arbitrary finite query index type `ι`, finite value/answer
 register `V`, and finite workspace `W`, where each oracle call applies an input-dependent unitary
-`step (x i)` to the `V` register controlled by the query index `i`. Permutation oracles
+`step (x i)` to the `V` register controlled by the query index `i`. Diagonal phase kickback
+(`Cslib.Quantum.phaseStep`, recovering `Cslib.Quantum.phaseOracle` and `Cslib.Quantum.run` via
+`Cslib.Quantum.valueOracle_phaseStep` and `Cslib.Quantum.runValue_phaseStep`), permutation oracles
 (`Cslib.Quantum.permStep`), group-addition oracles (`Cslib.Quantum.addStep`), and XOR oracles
 (`BitString` as an additive group) are special cases. Multi-outcome computational-basis readouts
 (`Cslib.Quantum.measureOut`) are provided by
@@ -41,13 +43,15 @@ For lower bounds, restricting a value-query algorithm to inputs taking only two 
 ## Main definitions
 
 * `Cslib.Quantum.ValueState`: quantum states over `ι × V × W`.
-* `Cslib.Quantum.valueOracle`, `Cslib.Quantum.permStep`, `Cslib.Quantum.addStep`: value-query
-  oracles.
+* `Cslib.Quantum.valueOracle`, `Cslib.Quantum.phaseStep`, `Cslib.Quantum.permStep`,
+  `Cslib.Quantum.addStep`: value-query oracles and canonical per-symbol steps.
 * `Cslib.Quantum.runValue`: final state of a `T`-query value-query algorithm.
 * `Cslib.Quantum.embedOutcome`: embedding value-query outcomes into `Fin N × Bool × V × W`.
 
 ## Main results
 
+* `Cslib.Quantum.runValue_phaseStep`: `phaseStep` identifies `Cslib.Quantum.run` as a
+  specialization of `runValue` on `State N W = ValueState (Fin N) Bool W`.
 * `Cslib.Quantum.norm_runValue`: value-query algorithms preserve norms.
 * `Cslib.Quantum.exists_sim_involution`: simulating a two-valued restriction with an involutive
   difference by `T` binary phase queries.
@@ -290,6 +294,32 @@ theorem addStep_rel_involutive [AddCommGroup V] (h2 : ∀ v : V, v + v = 0) (a�
     v + a₁ + a₀ + a₁ + a₀ = v + (a₁ + a₁) + (a₀ + a₀) := by abel
     _ = v := by rw [h2 a₁, h2 a₀, add_zero, add_zero]
 
+/-- Diagonal phase unitary on a `Bool` response qubit: `|b⟩ ↦ (-1)^{b && bit} |b⟩`.
+Specializing `valueOracle` and `runValue` to `phaseStep` on `State N W = ValueState (Fin N) Bool W`
+recovers `Cslib.Quantum.phaseOracle` and `Cslib.Quantum.run`. -/
+@[expose] noncomputable def phaseStep (bit : Bool) :
+    EuclideanSpace ℂ Bool ≃ₗᵢ[ℂ] EuclideanSpace ℂ Bool where
+  toFun ψ := WithLp.toLp 2 fun b => (if b && bit then (-1 : ℂ) else 1) * ψ.ofLp b
+  invFun ψ := WithLp.toLp 2 fun b => (if b && bit then (-1 : ℂ) else 1) * ψ.ofLp b
+  map_add' ψ₁ ψ₂ := by
+    ext b; simp only [WithLp.ofLp_add, Pi.add_apply]; ring
+  map_smul' r ψ := by
+    ext b; simp only [PiLp.smul_apply, smul_eq_mul, RingHom.id_apply]; ring
+  left_inv ψ := by ext b; cases bit <;> cases b <;> simp
+  right_inv ψ := by ext b; cases bit <;> cases b <;> simp
+  norm_map' ψ := by
+    have hsq : ‖(WithLp.toLp 2 fun b => (if b && bit then (-1 : ℂ) else 1) * ψ.ofLp b :
+        EuclideanSpace ℂ Bool)‖ ^ 2 = ‖ψ‖ ^ 2 := by
+      rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
+      refine sum_congr rfl fun b _ => ?_
+      cases bit <;> cases b <;> simp
+    exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp hsq
+
+/-- Coordinate evaluation of `phaseStep bit φ`. -/
+@[simp] theorem phaseStep_apply (bit : Bool) (φ : EuclideanSpace ℂ Bool) (b : Bool) :
+    (phaseStep bit φ).ofLp b = (if b && bit then (-1 : ℂ) else 1) * φ.ofLp b :=
+  rfl
+
 /-- The state after `t` queries of a value-query algorithm `U` starting from `ψ₀` on input
 `x : ι → α`. -/
 @[expose] noncomputable def runValue
@@ -307,6 +337,22 @@ theorem norm_runValue (step : α → (EuclideanSpace ℂ V ≃ₗᵢ[ℂ] Euclid
   induction t with
   | zero => exact (U 0).norm_map ψ₀
   | succ t ih => rw [runValue, LinearIsometry.norm_map, LinearIsometryEquiv.norm_map, ih]
+
+/-- On `State N W = ValueState (Fin N) Bool W`, `valueOracle phaseStep` agrees with the controlled
+phase oracle `phaseOracle`. -/
+@[simp] theorem valueOracle_phaseStep {N : ℕ} (x : Fin N → Bool) (ψ : State N W) :
+    valueOracle phaseStep x ψ = phaseOracle x ψ := by
+  ext ⟨i, b, w⟩
+  rfl
+
+/-- On `State N W = ValueState (Fin N) Bool W`, `runValue phaseStep` agrees with the phase-query
+execution `run`. -/
+@[simp] theorem runValue_phaseStep {N : ℕ}
+    (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ₀ : State N W) (x : Fin N → Bool) (t : ℕ) :
+    runValue phaseStep U ψ₀ x t = run U ψ₀ x t := by
+  induction t with
+  | zero => rfl
+  | succ t ih => simp [runValue, run, ih]
 
 end ValueModel
 
@@ -401,29 +447,6 @@ private theorem inv_sqrt_two_sq : (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) ^ 2 = 1 / 2
   rw [sq, ← Complex.ofReal_mul, ← mul_inv, Real.mul_self_sqrt zero_le_two]
   push_cast; ring
 
-/-- Controlled `Z` on a single `Bool` qubit. -/
-private noncomputable def ctrlZBool (flag : Bool) :
-    EuclideanSpace ℂ Bool ≃ₗᵢ[ℂ] EuclideanSpace ℂ Bool where
-  toFun ψ := WithLp.toLp 2 fun b => (if flag ∧ b then (-1 : ℂ) else 1) * ψ.ofLp b
-  invFun ψ := WithLp.toLp 2 fun b => (if flag ∧ b then (-1 : ℂ) else 1) * ψ.ofLp b
-  map_add' ψ₁ ψ₂ := by
-    ext b; simp only [WithLp.ofLp_add, Pi.add_apply]; ring
-  map_smul' r ψ := by
-    ext b; simp only [PiLp.smul_apply, smul_eq_mul, RingHom.id_apply]; ring
-  left_inv ψ := by ext b; cases flag <;> cases b <;> simp
-  right_inv ψ := by ext b; cases flag <;> cases b <;> simp
-  norm_map' ψ := by
-    have hsq : ‖(WithLp.toLp 2 fun b => (if flag ∧ b then (-1 : ℂ) else 1) * ψ.ofLp b :
-        EuclideanSpace ℂ Bool)‖ ^ 2 = ‖ψ‖ ^ 2 := by
-      rw [EuclideanSpace.norm_sq_eq, EuclideanSpace.norm_sq_eq]
-      refine sum_congr rfl fun b _ => ?_
-      cases flag <;> cases b <;> simp
-    exact (sq_eq_sq₀ (norm_nonneg _) (norm_nonneg _)).mp hsq
-
-private theorem ctrlZBool_apply (flag : Bool) (ψ : EuclideanSpace ℂ Bool) (b : Bool) :
-    (ctrlZBool flag ψ).ofLp b = (if flag ∧ b then (-1 : ℂ) else 1) * ψ.ofLp b :=
-  rfl
-
 private def boolSwapEquiv (B : Type*) : (Bool × B) ≃ (B × Bool) where
   toFun p := (p.2, p.1)
   invFun q := (q.2, q.1)
@@ -444,11 +467,11 @@ private noncomputable def liftBoolLeft {B : Type*} [Fintype B]
 /-- Controlled `Z` on `Bool × B`: negates amplitudes with `c = true` when `flag = true`. -/
 private noncomputable def ctrlZ {B : Type*} [Fintype B] (flag : Bool) :
     EuclideanSpace ℂ (Bool × B) ≃ₗᵢ[ℂ] EuclideanSpace ℂ (Bool × B) :=
-  liftBoolLeft fun _ => ctrlZBool flag
+  liftBoolLeft fun _ => phaseStep flag
 
 @[simp] private theorem ctrlZ_apply {B : Type*} [Fintype B] (flag : Bool)
     (φ : EuclideanSpace ℂ (Bool × B)) (c : Bool) (v : B) :
-    (ctrlZ flag φ).ofLp (c, v) = (if flag ∧ c then (-1 : ℂ) else 1) * φ.ofLp (c, v) :=
+    (ctrlZ flag φ).ofLp (c, v) = (if c && flag then (-1 : ℂ) else 1) * φ.ofLp (c, v) :=
   rfl
 
 omit [Fintype ι] [Fintype W] in
@@ -532,12 +555,12 @@ private theorem inv_sqrt_two_real_sq : (Real.sqrt 2)⁻¹ ^ 2 + (Real.sqrt 2)⁻
 /-- 1-qubit Hadamard gate on `ℂ^Bool`. -/
 private noncomputable def hadBool :
     EuclideanSpace ℂ Bool ≃ₗᵢ[ℂ] EuclideanSpace ℂ Bool :=
-  (ctrlZBool true).trans (rotBool (Real.sqrt 2)⁻¹ (Real.sqrt 2)⁻¹ inv_sqrt_two_real_sq)
+  (phaseStep true).trans (rotBool (Real.sqrt 2)⁻¹ (Real.sqrt 2)⁻¹ inv_sqrt_two_real_sq)
 
 private theorem hadBool_apply (ψ : EuclideanSpace ℂ Bool) (c : Bool) :
     (hadBool ψ).ofLp c = (((Real.sqrt 2)⁻¹ : ℝ) : ℂ) *
       (if c then ψ.ofLp false - ψ.ofLp true else ψ.ofLp false + ψ.ofLp true) := by
-  cases c <;> simp [hadBool, rotBool_apply, ctrlZBool_apply] <;> ring
+  cases c <;> simp [hadBool, rotBool_apply, phaseStep_apply] <;> ring
 
 private theorem hadBool_self (ψ : EuclideanSpace ℂ Bool) : hadBool (hadBool ψ) = ψ := by
   ext c
@@ -552,16 +575,16 @@ private noncomputable def swapBool :
     (swapBool ψ).ofLp c = ψ.ofLp (!c) := by
   cases c <;> rfl
 
-private theorem hadBool_ctrlZBool_hadBool (flag : Bool) (ψ : EuclideanSpace ℂ Bool) :
-    hadBool (ctrlZBool flag (hadBool ψ)) = if flag then swapBool ψ else ψ := by
+private theorem hadBool_phaseStep_hadBool (flag : Bool) (ψ : EuclideanSpace ℂ Bool) :
+    hadBool (phaseStep flag (hadBool ψ)) = if flag then swapBool ψ else ψ := by
   cases flag
-  · have hcz : ctrlZBool false (hadBool ψ) = hadBool ψ := by
-      ext c; simp [ctrlZBool_apply]
+  · have hcz : phaseStep false (hadBool ψ) = hadBool ψ := by
+      ext c; simp [phaseStep_apply]
     simp only [Bool.false_eq_true, ite_false, hcz, hadBool_self]
   · ext c
     cases c <;>
-      simp only [ite_true, hadBool_apply, ctrlZBool_apply, swapBool_apply, Bool.false_eq_true,
-        ite_false, and_false, and_true, Bool.not_false, Bool.not_true] <;>
+      simp only [ite_true, hadBool_apply, phaseStep_apply, swapBool_apply, Bool.false_eq_true,
+        ite_false, Bool.and_true, Bool.not_false, Bool.not_true] <;>
       (ring_nf; simp only [inv_sqrt_two_sq]; ring)
 
 private noncomputable def ctrlUnit (R : EuclideanSpace ℂ V ≃ₗᵢ[ℂ] EuclideanSpace ℂ V) :
@@ -584,8 +607,8 @@ private theorem invBoolV_ctrlZ_invBoolV (R : EuclideanSpace ℂ V ≃ₗᵢ[ℂ]
     ext ⟨c, v⟩
     simp only [liftBoolLeft_apply,
       show (WithLp.toLp 2 fun b => (ctrlZ flag (liftBoolLeft (fun _ => hadBool) x)).ofLp (b, v)) =
-        ctrlZBool flag (hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v))) from rfl,
-      hadBool_ctrlZBool_hadBool]
+        phaseStep flag (hadBool (WithLp.toLp 2 fun b => x.ofLp (b, v))) from rfl,
+      hadBool_phaseStep_hadBool]
     cases flag <;> rfl
   have hH : ∀ x : EuclideanSpace ℂ (Bool × V),
       liftBoolLeft (fun _ => hadBool) (liftBoolLeft (fun _ => hadBool) x) = x := fun x => by
@@ -857,7 +880,7 @@ private theorem prepYBool_symm_apply (ψ : EuclideanSpace ℂ Bool) (c : Bool) :
 private theorem prepY_rotBool_gadget (c s μ ν : ℝ) (hcs : c ^ 2 + s ^ 2 = 1)
     (hmu : c ^ 2 - s ^ 2 = μ) (hnu : 2 * c * s = ν) (flag : Bool) (z : ℂ) :
     (rotBool c (-s) (by nlinarith)).trans prepYBool.symm
-        (ctrlZBool flag (rotBool c s hcs (ctrlZBool flag (prepYBool (WithLp.toLp 2 fun b =>
+        (phaseStep flag (rotBool c s hcs (phaseStep flag (prepYBool (WithLp.toLp 2 fun b =>
           if b then 0 else z))))) =
       WithLp.toLp 2 fun b =>
         if b then 0 else (if flag then (μ : ℂ) + Complex.I * ν else 1) * z := by
@@ -873,8 +896,8 @@ private theorem prepY_rotBool_gadget (c s μ ν : ℝ) (hcs : c ^ 2 + s ^ 2 = 1)
   ext b
   cases flag <;> cases b <;>
     simp only [LinearIsometryEquiv.trans_apply, prepYBool_symm_apply, rotBool_apply,
-      ctrlZBool_apply, prepYBool_apply, ite_true, Bool.false_eq_true, ite_false,
-      Complex.ofReal_neg, and_self, and_false, and_true]
+      phaseStep_apply, prepYBool_apply, ite_true, Bool.false_eq_true, ite_false,
+      Complex.ofReal_neg, Bool.and_self, Bool.and_false, Bool.false_and]
   · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
   · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]; ring
   · ring_nf; simp only [inv_sqrt_two_sq, hI, hc2, hs2]
@@ -893,13 +916,13 @@ private theorem liftBasis_ctrlZ {B₁ B₂ : Type*} [Fintype B₁] [Fintype B₂
     (φ : EuclideanSpace ℂ (Bool × B₁)) :
     liftBasis U (ctrlZ flag φ) = ctrlZ flag (liftBasis U φ) := by
   have hslice : ∀ c : Bool,
-      sliceSecond (ctrlZ flag φ) c = (if flag ∧ c then (-1 : ℂ) else 1) • sliceSecond φ c := by
+      sliceSecond (ctrlZ flag φ) c = (if c && flag then (-1 : ℂ) else 1) • sliceSecond φ c := by
     intro c
     ext v
     cases flag <;> cases c <;> simp [sliceSecond]
   ext ⟨c, k⟩
   change (U (sliceSecond (ctrlZ flag φ) c)).ofLp k =
-    (if flag ∧ c then (-1 : ℂ) else 1) * (U (sliceSecond φ c)).ofLp k
+    (if c && flag then (-1 : ℂ) else 1) * (U (sliceSecond φ c)).ofLp k
   rw [hslice, map_smul, PiLp.smul_apply, smul_eq_mul]
 
 private theorem liftBasis_embedBoolFalse {B₁ B₂ : Type*} [Fintype B₁] [Fintype B₂]
@@ -974,7 +997,7 @@ theorem exists_sim_value {N : ℕ}
       ext ⟨b, k⟩
       have hmid_k : ∀ x : EuclideanSpace ℂ (Bool × Fin d),
           (WithLp.toLp 2 fun b' => (ctrlZ flag x).ofLp (b', k)) =
-            ctrlZBool flag (WithLp.toLp 2 fun b' => x.ofLp (b', k)) := fun _ => rfl
+            phaseStep flag (WithLp.toLp 2 fun b' => x.ofLp (b', k)) := fun _ => rfl
       simp only [Qpost, Qmid, Qpre, liftBoolLeft_apply, hmid_k]
       exact congrArg (fun u => u.ofLp b)
         (prepY_rotBool_gadget (c k) (s k) (μ k) (ν k) (hcs k) (hmu k) (hnu k) flag

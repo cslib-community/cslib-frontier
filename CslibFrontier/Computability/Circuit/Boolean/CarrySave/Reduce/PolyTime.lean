@@ -32,6 +32,8 @@ Input counts and references are binary, word widths unary, and all supplied leaf
 
 * `Cslib.Circuits.Boolean.sumPairsCode_eq_code`: exact reduction and final-adder code.
 * `Cslib.Circuits.Boolean.computableInPolyTime_sumPairsCode`: uniform native generation.
+* `Cslib.Circuits.Boolean.computableInPolyTime_pairWithZero`,
+  `Cslib.Circuits.Boolean.computableInPolyTime_sumPairs`: typed `@[fun_prop]` `(·.code)` rules.
 -/
 
 public section
@@ -106,5 +108,51 @@ private theorem computableInPolyTime_falseWordCode
     (computableInPolyTime_balancedCode hn
       (computableInPolyTime_csa4to2.comp hw)
       (computableInPolyTime_falseWordCode hn (by fun_prop)) hcs)
+
+/-- Emit the code of a typed `pairWithZero` leaf directly from binary input arity, unary word
+width, and the leaf circuit code. -/
+theorem computableInPolyTime_pairWithZero
+    {α : Type} {enc : α ↪ List Bool} {n w : α → ℕ}
+    {C : (a : α) → Circuit signature (n a) (w a)}
+    (hn : ComputableInPolyTime n enc encNat)
+    (hw : ComputableInPolyTime w enc encUnary)
+    (hC : ComputableInPolyTime (fun a => (C a).code) enc encCode) :
+    ComputableInPolyTime (fun a => (pairWithZero (C a)).code) enc encCode := by
+  simpa only [← pairWithZeroCode_eq_code] using
+    computableInPolyTime_pairWithZeroCode hn hw hC
+
+/-- `@[fun_prop]` rule for `pairWithZero` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_pairWithZero
+    {α : Type} {enc : α ↪ List Bool} {n w : α → ℕ}
+    {C : (a : α) → Circuit signature (n a) (w a)}
+    (hn : ComputableInPolyTime n enc encNat)
+    (hw : ComputableInPolyTime w enc encUnary)
+    (hC : Circuit.ComputableCircuitCode C enc encOp) :
+    Circuit.ComputableCircuitCode (fun a => pairWithZero (C a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_pairWithZero hn hw hC.computableInPolyTime)
+
+/-- Emit the code of a typed `sumPairs` reduction directly from binary input arity, unary word
+width, and the list of carry-save leaf codes. -/
+theorem computableInPolyTime_sumPairs
+    {α : Type} {enc : α ↪ List Bool} {n w : α → ℕ}
+    {cs : (a : α) → List (Circuit signature (n a) (w a + w a))}
+    (hn : ComputableInPolyTime n enc encNat)
+    (hw : ComputableInPolyTime w enc encUnary)
+    (hcs : ComputableInPolyTime (fun a => (cs a).map Circuit.code) enc (encList encCode)) :
+    ComputableInPolyTime (fun a => (sumPairs (n a) (w a) (cs a)).code) enc encCode := by
+  simpa only [← sumPairsCode_eq_code] using
+    computableInPolyTime_sumPairsCode hn hw hcs
+
+/-- `@[fun_prop]` rule for `sumPairs` in typed circuit compositions. -/
+@[fun_prop] theorem computableCircuitCode_sumPairs
+    {α : Type} {enc : α ↪ List Bool} {n w : α → ℕ}
+    {cs : (a : α) → List (Circuit signature (n a) (w a + w a))}
+    (hn : ComputableInPolyTime n enc encNat)
+    (hw : ComputableInPolyTime w enc encUnary)
+    (hcs : ComputableInPolyTime (fun a => (cs a).map Circuit.code) enc (encList encCode)) :
+    Circuit.ComputableCircuitCode (fun a => sumPairs (n a) (w a) (cs a)) enc encOp :=
+  Circuit.computableCircuitCode_of_computableInPolyTime
+    (computableInPolyTime_sumPairs hn hw hcs)
 
 end Cslib.Circuits.Boolean

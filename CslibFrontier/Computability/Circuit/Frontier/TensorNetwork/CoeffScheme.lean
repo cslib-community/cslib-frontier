@@ -33,7 +33,7 @@ import CslibFrontier.Tactic.EncLen
 An entry of a packet tensor of the contraction algorithm of [OpenAI2026ETH] expands a product of
 at most `L` affine row factors and keeps the coefficient of a mode monomial. The source evaluates
 it in time `exp(O(L log s))` and polynomial space (§D.4.6, p. 63). This file gives that
-evaluation as an instance of `Cslib.GenericRAM.StackRecursion.Scheme`, on the coefficient lists
+evaluation as an instance of `Cslib.Algorithms.StackRecursion.Scheme`, on the coefficient lists
 of `A_p = (ℤ / 2 ^ p)[U] / (f)`.
 
 The data (`CoeffScheme.Terms`) are, at a context `x : C`, the precision `(p, fl)`, the list of
@@ -87,7 +87,7 @@ namespace Cslib.Circuits.Frontier
 
 namespace CoeffScheme
 
-open Finset GaloisRingArith NativePacket Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+open Finset GaloisRingArith NativePacket Cslib.GenericRAM Cslib.Algorithms.StackRecursion
 
 /-- **The data of coefficient extraction**: at a context `x : C`, the precision `(p, fl)` of the
 coefficient lists, the list of the modes, and the terms of the row factors (`term x r none` the

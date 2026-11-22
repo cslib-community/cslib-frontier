@@ -80,13 +80,14 @@ public noncomputable def backend (w C : ℕ) (L : Stack.Memory.Layout) :
     | .pop => id
     | .size => id
 
-private theorem layoutWords_fits {w : ℕ} {L : Stack.Memory.Layout} {e : Memory.State}
-    (hw : Memory.WellFormed w e) (hi : Stack.Memory.Inv L e) (j : Fin 4) :
-    Fits w (layoutWords L j) := by
+private theorem valid_layoutWords_fits {w : ℕ} {L : Stack.Memory.Layout} {e : Memory.State}
+    (hw : Memory.WellFormed w e) (hi : Stack.Memory.Inv L e) :
+    ∀ j, Fits w (layoutWords L j) := by
   have h₁ : L.count.base + L.count.length ≤ e.frontier := hi.count_allocated
   have h₂ : L.items.base + L.items.length ≤ e.frontier := hi.items_allocated
-  refine hw.frontier_fits.of_le ?_
-  fin_cases j <;> simp [layoutWords] <;> omega
+  exact layoutWords_fits
+    (blockWords_fits (hw.frontier_fits.of_le (by omega)) (hw.frontier_fits.of_le (by omega)))
+    (blockWords_fits (hw.frontier_fits.of_le (by omega)) (hw.frontier_fits.of_le (by omega)))
 
 /-- The backend runs the methods of `Stack.Memory`. -/
 public theorem implements {w C : ℕ} {L : Stack.Memory.Layout} (hL : L.Valid w C) :
@@ -100,10 +101,10 @@ public theorem implements {w C : ℕ} {L : Stack.Memory.Layout} (hL : L.Valid w 
       change (Stack.Memory.abs L e).length < C at hlen
       rw [Stack.Memory.length_abs] at hlen
       exact ⟨fits_appendWords (d := L) (a := v) layoutWords
-        (Equiv.funUnique (Fin 1) ℕ).symm.toEmbedding (layoutWords_fits hw hi) fun _ => hv,
+        wordWords (valid_layoutWords_fits hw hi) fun _ => hv,
         hC ▸ hL, hi, (by omega : e.mem L.count.base < L.items.length)⟩
-    | pop => exact ⟨layoutWords_fits hw hi, hC ▸ hL, hi⟩
-    | size => exact ⟨layoutWords_fits hw hi, trivial⟩
+    | pop => exact ⟨valid_layoutWords_fits hw hi, hC ▸ hL, hi⟩
+    | size => exact ⟨valid_layoutWords_fits hw hi, trivial⟩
 
 /-- The native stack on layout `L`. -/
 public noncomputable def implementation {w C : ℕ} {L : Stack.Memory.Layout} (hL : L.Valid w C) :

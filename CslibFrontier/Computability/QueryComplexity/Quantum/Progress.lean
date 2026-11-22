@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Search
 public import Cslib.Foundations.Data.BitString
-import CslibFrontier.Foundations.Quantum.Measurement.Overlap
+import CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary
 
 /-!
 # Weighted progress measures for quantum query adversary arguments
@@ -21,14 +21,14 @@ one controlled phase-oracle step changes `⟨ψ, φ⟩` by `2 ∑_{i : xᵢ ≠ 
 
 For any finite set `R` of input pairs and nonnegative pair weights
 `γ : BitString N × BitString N → ℝ`, the **weighted progress measure** after `t` queries is
-`∑_{(x, y) ∈ R} γ(x, y) |⟨ψₓᵗ, ψ_yᵗ⟩|` (`Cslib.Quantum.weightedProgress`). Before any query all
-states agree (`weightedProgress_zero`). Choosing nonnegative step weights `a, b` on `(p, i)` with
-`γ(p)² ≤ a(p, i) b(p, i)` whenever `p.1 i ≠ p.2 i` splits each overlap loss across the two
-endpoints using `∑_i ‖Π_i ψ‖² ≤ 1` (`Cslib.Quantum.sum_sq_norm_ctrlProj_le`), giving the generic
-adversary inequality `Cslib.Quantum.one_sub_mul_sum_le_of_sq_le` used by both the spectral
-sensitivity bound (`CslibFrontier.Computability.QueryComplexity.Quantum.Adversary`) and
-Ambainis's relational adversary bound
-(`CslibFrontier.Computability.QueryComplexity.Quantum.AmbainisAdversary`).
+`∑_{(x, y) ∈ R} γ(x, y) |⟨ψₓᵗ, ψ_yᵗ⟩|` (`Cslib.Quantum.weightedProgress`). Identifying
+`Cslib.Quantum.run` with `Cslib.Quantum.runValue Cslib.Quantum.phaseStep`
+(`Cslib.Quantum.runValue_phaseStep`) specializes the general value-query progress bounds of
+`CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary` directly to phase-oracle
+algorithms (`weightedProgress_zero`, `weightedProgress_zero_sub_le`, and
+`Cslib.Quantum.one_sub_mul_sum_le_of_sq_le`), used by the spectral sensitivity bound
+(`CslibFrontier.Computability.QueryComplexity.Quantum.Adversary`) and weighted adversary schemes
+(`CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary`).
 
 ## Main definitions
 
@@ -114,92 +114,19 @@ noncomputable def weightedProgress (U : ℕ → State N W →ₗᵢ[ℂ] State N
     (R : Finset (BitString N × BitString N)) (γ : BitString N × BitString N → ℝ) (t : ℕ) : ℝ :=
   ∑ p ∈ R, γ p * ‖inner ℂ (run U ψ₀ p.1 t) (run U ψ₀ p.2 t)‖
 
+private theorem weightedProgress_eq_valueWeightedProgress
+    (U : ℕ → State N W →ₗᵢ[ℂ] State N W) (ψ₀ : State N W)
+    (R : Finset (BitString N × BitString N)) (γ : BitString N × BitString N → ℝ) (t : ℕ) :
+    weightedProgress U ψ₀ R γ t = valueWeightedProgress phaseStep U ψ₀ R γ t := by
+  simp only [weightedProgress, valueWeightedProgress, runValue_phaseStep]
+
 /-- Before any query the states agree, so the weighted progress measure is `∑ p ∈ R, γ p`. -/
 theorem weightedProgress_zero (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ : State N W}
     (hψ₀ : ‖ψ₀‖ = 1) (R : Finset (BitString N × BitString N))
     (γ : BitString N × BitString N → ℝ) :
     weightedProgress U ψ₀ R γ 0 = ∑ p ∈ R, γ p := by
-  have h : ‖inner ℂ (U 0 ψ₀) (U 0 ψ₀)‖ = 1 := by
-    rw [LinearIsometry.inner_map_map, inner_self_eq_norm_sq_to_K, hψ₀]
-    simp
-  simp only [weightedProgress, run, h, mul_one]
-
-
-/-- Summing coordinatewise query-magnitude losses across one endpoint projection `k`. -/
-private theorem sum_weighted_norm_sq_ctrlProj_le
-    (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1)
-    (R : Finset (BitString N × BitString N)) (k : BitString N × BitString N → BitString N)
-    (w : BitString N × BitString N → Fin N → ℝ) (α : BitString N → ℝ)
-    (hα₀ : ∀ x ∈ R.image k, 0 ≤ α x)
-    (hα : ∀ x ∈ R.image k, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x, w p i ≤ α x)
-    (t : ℕ) :
-    ∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i, w p i * ‖ctrlProj i (run U ψ₀ (k p) t)‖ ^ 2 ≤
-      ∑ x ∈ R.image k, α x := by
-  classical
-  rw [← Finset.sum_fiberwise_of_maps_to (s := R) (g := k) (t := R.image k)
-    fun _ h => mem_image_of_mem k h]
-  refine sum_le_sum fun x hx => ?_
-  calc
-    ∑ p ∈ R with k p = x, ∑ i with p.1 i ≠ p.2 i, w p i * ‖ctrlProj i (run U ψ₀ (k p) t)‖ ^ 2
-        = ∑ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x,
-            w p i * ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 := by
-          trans ∑ p ∈ R, ∑ i,
-            if p.1 i ≠ p.2 i ∧ k p = x then w p i * ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 else 0
-          · simp only [sum_filter]
-            refine sum_congr rfl fun p _ => ?_
-            by_cases hkx : k p = x <;> simp [hkx]
-          · simp only [sum_filter]
-            exact sum_comm
-    _ = ∑ i, (∑ p ∈ R with p.1 i ≠ p.2 i ∧ k p = x, w p i) *
-          ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 := by simp only [sum_mul]
-    _ ≤ ∑ i, α x * ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 :=
-          sum_le_sum fun i _ => mul_le_mul_of_nonneg_right (hα x hx i) (sq_nonneg _)
-    _ = α x * ∑ i, ‖ctrlProj i (run U ψ₀ x t)‖ ^ 2 := (mul_sum ..).symm
-    _ ≤ α x := (mul_le_mul_of_nonneg_left (sum_sq_norm_ctrlProj_le U hψ₀ x t)
-          (hα₀ x hx)).trans_eq (mul_one _)
-
-/-- **One query lowers `weightedProgress`** by at most the endpoint weight budgets. -/
-private theorem weightedProgress_sub_succ_le
-    (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1)
-    (R : Finset (BitString N × BitString N)) (γ : BitString N × BitString N → ℝ)
-    (a b : BitString N × BitString N → Fin N → ℝ) (α β : BitString N → ℝ)
-    (hγ : ∀ p ∈ R, 0 ≤ γ p)
-    (ha : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ a p i)
-    (hb : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ b p i)
-    (hγsq : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → γ p ^ 2 ≤ a p i * b p i)
-    (hα₀ : ∀ x ∈ R.image Prod.fst, 0 ≤ α x)
-    (hβ₀ : ∀ y ∈ R.image Prod.snd, 0 ≤ β y)
-    (hα : ∀ x ∈ R.image Prod.fst, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.1 = x, a p i ≤ α x)
-    (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β y)
-    (t : ℕ) :
-    weightedProgress U ψ₀ R γ t - weightedProgress U ψ₀ R γ (t + 1) ≤
-      ∑ x ∈ R.image Prod.fst, α x + ∑ y ∈ R.image Prod.snd, β y := by
-  classical
-  have hstep : weightedProgress U ψ₀ R γ t - weightedProgress U ψ₀ R γ (t + 1) ≤
-      (∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i, a p i * ‖ctrlProj i (run U ψ₀ p.1 t)‖ ^ 2) +
-        ∑ p ∈ R, ∑ i with p.1 i ≠ p.2 i, b p i * ‖ctrlProj i (run U ψ₀ p.2 t)‖ ^ 2 := by
-    simp only [weightedProgress, ← sum_sub_distrib, ← sum_add_distrib]
-    refine sum_le_sum fun p hp => ?_
-    have h := norm_inner_phaseOracle_phaseOracle_ge p.1 p.2 (run U ψ₀ p.1 t) (run U ψ₀ p.2 t)
-    change γ p * ‖inner ℂ (run U ψ₀ p.1 t) (run U ψ₀ p.2 t)‖ -
-        γ p * ‖inner ℂ (U (t + 1) (phaseOracle p.1 (run U ψ₀ p.1 t)))
-          (U (t + 1) (phaseOracle p.2 (run U ψ₀ p.2 t)))‖ ≤ _
-    rw [LinearIsometry.inner_map_map]
-    have h1 : γ p * ‖inner ℂ (run U ψ₀ p.1 t) (run U ψ₀ p.2 t)‖ -
-          γ p * ‖inner ℂ (phaseOracle p.1 (run U ψ₀ p.1 t))
-            (phaseOracle p.2 (run U ψ₀ p.2 t))‖ ≤
-        ∑ i with p.1 i ≠ p.2 i,
-          2 * γ p * (‖ctrlProj i (run U ψ₀ p.1 t)‖ * ‖ctrlProj i (run U ψ₀ p.2 t)‖) := by
-      have hm := mul_le_mul_of_nonneg_left h (hγ p hp)
-      rw [mul_sub, ← mul_assoc, mul_comm (γ p) 2, mul_sum] at hm
-      linarith
-    refine h1.trans (sum_le_sum fun i hi => ?_)
-    have hi' := (mem_filter.1 hi).2
-    exact two_mul_mul_le_of_sq_le_mul (norm_nonneg _) (norm_nonneg _)
-      (ha p hp i hi') (hb p hp i hi') (hγsq p hp i hi')
-  have hX := sum_weighted_norm_sq_ctrlProj_le U hψ₀ R Prod.fst a α hα₀ hα t
-  have hY := sum_weighted_norm_sq_ctrlProj_le U hψ₀ R Prod.snd b β hβ₀ hβ t
-  linarith
+  rw [weightedProgress_eq_valueWeightedProgress]
+  exact valueWeightedProgress_zero phaseStep U hψ₀ R γ
 
 /-- **Telescoping**: `T` queries lower `weightedProgress` by at most `T` times the endpoint
 weight budgets. -/
@@ -211,19 +138,13 @@ theorem weightedProgress_zero_sub_le
     (ha : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ a p i)
     (hb : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ b p i)
     (hγsq : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → γ p ^ 2 ≤ a p i * b p i)
-    (hα₀ : ∀ x ∈ R.image Prod.fst, 0 ≤ α x)
-    (hβ₀ : ∀ y ∈ R.image Prod.snd, 0 ≤ β y)
     (hα : ∀ x ∈ R.image Prod.fst, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.1 = x, a p i ≤ α x)
     (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β y)
     (T : ℕ) :
     weightedProgress U ψ₀ R γ 0 - weightedProgress U ψ₀ R γ T ≤
       T * (∑ x ∈ R.image Prod.fst, α x + ∑ y ∈ R.image Prod.snd, β y) := by
-  induction T with
-  | zero => simp
-  | succ T ih =>
-    have hstep := weightedProgress_sub_succ_le U hψ₀ R γ a b α β hγ ha hb hγsq hα₀ hβ₀ hα hβ T
-    push_cast
-    linarith
+  simpa only [weightedProgress_eq_valueWeightedProgress] using
+    valueWeightedProgress_zero_sub_le phaseStep U hψ₀ R γ a b α β hγ ha hb hγsq hα hβ T
 
 /-- **Weighted quantum adversary inequality**: if after `T` queries the states on every pair in
 `R` have overlap at most `δ`, and weights `a, b` satisfy `γ(p)² ≤ a(p, i) b(p, i)` whenever
@@ -238,19 +159,11 @@ theorem one_sub_mul_sum_le_of_sq_le
     (ha : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ a p i)
     (hb : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → 0 ≤ b p i)
     (hγsq : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i → γ p ^ 2 ≤ a p i * b p i)
-    (hα₀ : ∀ x ∈ R.image Prod.fst, 0 ≤ α x)
-    (hβ₀ : ∀ y ∈ R.image Prod.snd, 0 ≤ β y)
     (hα : ∀ x ∈ R.image Prod.fst, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.1 = x, a p i ≤ α x)
     (hβ : ∀ y ∈ R.image Prod.snd, ∀ i, ∑ p ∈ R with p.1 i ≠ p.2 i ∧ p.2 = y, b p i ≤ β y) :
     (1 - δ) * ∑ p ∈ R, γ p ≤
-      T * (∑ x ∈ R.image Prod.fst, α x + ∑ y ∈ R.image Prod.snd, β y) := by
-  have htel := weightedProgress_zero_sub_le U hψ₀ R γ a b α β hγ ha hb hγsq hα₀ hβ₀ hα hβ T
-  rw [weightedProgress_zero U hψ₀] at htel
-  have hend : weightedProgress U ψ₀ R γ T ≤ δ * ∑ p ∈ R, γ p := by
-    calc
-      weightedProgress U ψ₀ R γ T ≤ ∑ p ∈ R, γ p * δ :=
-        sum_le_sum fun p hp => mul_le_mul_of_nonneg_left (hδ p hp) (hγ p hp)
-      _ = δ * ∑ p ∈ R, γ p := by rw [← sum_mul, mul_comm]
-  linarith
+      T * (∑ x ∈ R.image Prod.fst, α x + ∑ y ∈ R.image Prod.snd, β y) :=
+  one_sub_mul_sum_le_of_sq_le_value phaseStep U hψ₀ T R γ
+    (by simpa only [runValue_phaseStep] using hδ) a b α β hγ ha hb hγsq hα hβ
 
 end Cslib.Quantum
