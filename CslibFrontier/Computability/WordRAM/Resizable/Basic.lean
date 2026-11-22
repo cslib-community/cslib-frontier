@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Computability.WordRAM.BoundedExec
 public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Resizable Word RAM machine model
@@ -179,10 +180,10 @@ theorem DemonicGrow.trans_one {w L k : ℕ} {mem₀ mem₁ mem₂ : ℕ → ℕ}
 /-- Zero-initializing `[L, L + k)` via `clear mem L k` satisfies `DemonicGrow` when zero above. -/
 theorem demonicGrow_clear (w L k : ℕ) (mem : ℕ → ℕ) (hz : ∀ a, L ≤ a → mem a = 0) :
     DemonicGrow w L k mem (clear mem L k) := by
-  refine ⟨fun a ha => clear_of_not_owns (by simp only [Block.Owns]; omega), fun a hlo hhi => ?_,
+  refine ⟨fun a ha => clear_of_not_owns (by wram_omega), fun a hlo hhi => ?_,
     fun a ha => ?_⟩
   · rw [clear_of_owns ⟨hlo, hhi⟩]; exact fits_zero w
-  · rw [clear_of_not_owns (by simp only [Block.Owns]; omega)]; exact hz a (by omega)
+  · rw [clear_of_not_owns (by wram_omega)]; exact hz a (by omega)
 /-- `DemonicGrow w x.frontier k` preserves `RData.Bounded w` when `Fits w (x.frontier + k)`. -/
 theorem RData.Bounded.grow {w : ℕ} {x : RData r} (hx : x.Bounded w) {dst : Fin r} {k : ℕ}
     {mem' : ℕ → ℕ} (hfit : Fits w (x.frontier + k))
@@ -207,8 +208,8 @@ theorem RData.Bounded.shrink {w : ℕ} {x : RData r} (hx : x.Bounded w) {k : ℕ
     · rw [clear_of_owns hown]; exact fits_zero w
     · rw [clear_of_not_owns hown]; exact hx.mem_fits a
   · dsimp only at ha ⊢; by_cases hlt : a < x.frontier
-    · exact clear_of_owns (by simp only [Block.Owns]; omega)
-    · rw [clear_of_not_owns (by simp only [Block.Owns]; omega)]; exact hx.zero_above (by omega)
+    · exact clear_of_owns (by wram_omega)
+    · rw [clear_of_not_owns (by wram_omega)]; exact hx.zero_above (by omega)
 
 /-- Clearing `[frontier, frontier + k)` after `DemonicGrow` recovers `x.mem` when `x.Bounded w`. -/
 theorem clear_demonicGrow_eq {w k : ℕ} {x : RData r} {mem' : ℕ → ℕ}
@@ -216,10 +217,10 @@ theorem clear_demonicGrow_eq {w k : ℕ} {x : RData r} {mem' : ℕ → ℕ}
     clear mem' x.frontier k = x.mem := by
   funext a
   by_cases ha_lt : a < x.frontier
-  · rw [clear_of_not_owns (by simp only [Block.Owns]; omega), hdem.1 a ha_lt]
+  · rw [clear_of_not_owns (by wram_omega), hdem.1 a ha_lt]
   · by_cases ha_in : a < x.frontier + k
-    · rw [clear_of_owns (by simp only [Block.Owns]; omega), hx.zero_above (by omega)]
-    · rw [clear_of_not_owns (by simp only [Block.Owns]; omega),
+    · rw [clear_of_owns (by wram_omega), hx.zero_above (by omega)]
+    · rw [clear_of_not_owns (by wram_omega),
         hdem.2.2 a (by omega), hx.zero_above (by omega)]
 
 /-! ## Bounds-checked data instruction evaluation on `RData r` -/
@@ -746,10 +747,10 @@ private theorem write_zero_demonicGrow_one {w L : ℕ} {mem mem' : ℕ → ℕ}
 private theorem clear_shrink_step {m : ℕ → ℕ} {f i : ℕ} (hi : i < f) :
     clear (clear m (f - i) i) (f - i - 1) 1 = clear m (f - (i + 1)) (i + 1) := by
   funext a; by_cases h1 : (Block.mk (f - i - 1) 1).Owns a
-  · rw [clear_of_owns h1, clear_of_owns (by simp only [Block.Owns] at h1 ⊢; omega)]
+  · rw [clear_of_owns h1, clear_of_owns (by wram_omega [h1])]
   · rw [clear_of_not_owns h1]; by_cases h2 : (Block.mk (f - i) i).Owns a
-    · rw [clear_of_owns h2, clear_of_owns (by simp only [Block.Owns] at h2 ⊢; omega)]
-    · rw [clear_of_not_owns h2, clear_of_not_owns (by simp only [Block.Owns] at h1 h2 ⊢; omega)]
+    · rw [clear_of_owns h2, clear_of_owns (by wram_omega [h2])]
+    · rw [clear_of_not_owns h2, clear_of_not_owns (by wram_omega [h1, h2])]
 
 /-- Derived exact-basis (`Basis.exact`) subroutine looping single-word `.grow` `regs count` times in
 `4 * count + 5` instructions, storing the old `frontier` in `result` when `0 < regs count`. -/

@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.WordRAM.Realization.BoundedTactic
 public import CslibFrontier.Computability.WordRAM.Realization.GlueVector
 public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.ReducedKWise
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Runtime `ReducedKWise` Parameters and Four-Russians Table Initialization
@@ -64,7 +66,7 @@ open scoped ENNReal
 /-- Number of product limb words (`108 ≥ 2 * reducedLimbCount t`) at `[scratchBase + 54, +108)`. -/
 @[expose] def prodWords : ℕ := 108
 /-- Total scratch footprint (`54 + 108 = 162` words) for runtime polynomial hash evaluation. -/
-@[expose] def scratchWords : ℕ := 162
+@[expose, wram_arith] def scratchWords : ℕ := 162
 
 @[simp] theorem accWords_eq : accWords = 54 := rfl
 @[simp] theorem prodWords_eq : prodWords = 108 := rfl
@@ -172,7 +174,7 @@ theorem fits_mkHashParams {w w₀ b b' k hashBase scratchBase : ℕ}
     (hfit_scr : Fits w (scratchBase + scratchWords)) (i : Fin 19) :
     Fits w (mkHashParams w w₀ b b' k i) := by
   have hw_lt : Fits w w := Nat.lt_two_pow_self
-  have h162 : Fits w 162 := hfit_scr.of_le (by dsimp only [scratchWords]; omega)
+  have h162 : Fits w 162 := hfit_scr.of_le (by wram_omega)
   have hspace : Fits w (ReducedKWise.space w w₀ b b' k) := hfit_hash.of_le (by omega)
   have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hpowc_le : 2 ^ rChunk w₀ b b' ≤ 2 ^ (2 * rChunk w₀ b b') :=
@@ -225,13 +227,13 @@ private theorem clmulTab_index_props {c idx : ℕ} (hidx : idx < 2 ^ (2 * c)) :
     dsimp only [u, v]
     rw [Nat.shiftLeft_eq, Nat.shiftRight_eq_div_pow, Nat.and_two_pow_sub_one_eq_mod, mul_comm]
     exact Nat.div_add_mod idx (2 ^ c)
-  have hprev_le : prevIdx ≤ idx := by have := Nat.shiftRight_le v 1; dsimp only [prevIdx]; omega
+  have hprev_le : prevIdx ≤ idx := by have := Nat.shiftRight_le v 1; omega
   refine ⟨hu_lt, hv_lt, lt_of_le_of_lt hprev_le hidx, hprev_le, fun hv0 => ?_, fun hv0 => ?_,
     ?_, ?_⟩
   · have : v >>> 1 < v := by rw [Nat.shiftRight_eq_div_pow, pow_one]; omega
-    dsimp only [prevIdx]; omega
+    omega
   · have : v >>> 1 = 0 := by rw [hv0]; rfl
-    dsimp only [prevIdx]; omega
+    omega
   · dsimp only [prevIdx]
     rw [Nat.shiftRight_eq_div_pow, Nat.shiftLeft_eq, mul_comm u (2 ^ c),
       Nat.mul_add_div (Nat.two_pow_pos c), Nat.div_eq_of_lt hv_shr_lt, Nat.add_zero]
@@ -611,7 +613,7 @@ private theorem initTableGenProg_aux {w w₀ b b' k hashBase : ℕ} {s₀ : Memo
         fun _ hi => (Nat.not_lt_zero _ hi).elim⟩
   dsimp only [s']; rw [hprog_eq]
   refine ⟨⟨w₀, b, b', k, hc_lt, rfl, hfr, hfit⟩, hsafe, hv, hcost, hfr',
-    ⟨fun wIdx hwIdx => ?_, hentry'⟩, fun a ha => hmod a (by dsimp only [mod]; omega)⟩
+    ⟨fun wIdx hwIdx => ?_, hentry'⟩, fun a ha => hmod a (by omega)⟩
   have hsh := two_pow_two_mul_chunkBits_shiftRight (rStep w₀ b b') w
   exact hword' wIdx (hsh.symm ▸ hwIdx)
 

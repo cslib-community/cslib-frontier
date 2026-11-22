@@ -110,25 +110,39 @@ theorem criticalShiftedRootLabel_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
     (criticalRootLabel_dimension_le n ell) hnorm
   exact ⟨hsdegree.trans hdegree, hsnorm⟩
 
+/-- Total-degree budget for the shifted label evaluated at the integer critical objective. -/
+@[expose] def criticalLabelObjectiveDegreeBound (n ell b : ℕ) : ℕ :=
+  let D := ell ^ n
+  let N := n * ell.size
+  let B := criticalRootLabelCoeffNormExponent n ell b
+  Polynomial.signLabelDegreeBound (N + 1) (Polynomial.sparseRootLabelPrecision D B) D * (ell + 1)
+
+/-- Binary coefficient-norm budget for the shifted label evaluated at the integer critical
+objective. -/
+@[expose] def criticalLabelObjectiveCoeffNormExponent (n ell b : ℕ) : ℕ :=
+  let D := ell ^ n
+  let N := n * ell.size
+  let B := criticalRootLabelCoeffNormExponent n ell b
+  let s := Polynomial.sparseRootLabelPrecision D B
+  let d := Polynomial.signLabelDegreeBound (N + 1) s D
+  let k := Polynomial.signLabelNormExponent (N + 1) s
+    (Polynomial.iterateDerivativeNormExponent D B) + N + 3
+  let bv := criticalSystemCoeffNormExponent n ell b + criticalParameterExponent n ell b
+  k + bv * d
+
 /-- Evaluating the shifted label at the integer critical objective multiplies the label's
 degree bound by `ell + 1`. The specialization bound supplies the objective's coefficient
 allowance for the composed polynomial. -/
 theorem criticalLabelObjective_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
     (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
     (L : List (Fin (ell ^ n) × SignType)) {e : ℕ} (he : e ≤ ell ^ n) :
-    let D := ell ^ n
-    let N := n * ell.size
-    let B := criticalRootLabelCoeffNormExponent n ell b
-    let s := Polynomial.sparseRootLabelPrecision D B
-    let d := Polynomial.signLabelDegreeBound (N + 1) s D
-    let k := Polynomial.signLabelNormExponent (N + 1) s
-      (Polynomial.iterateDerivativeNormExponent D B) + N + 3
     let u := criticalParameterExponent n ell b
-    let bv := criticalSystemCoeffNormExponent n ell b + u
     let v := deformedPolynomial ell (fun i => (separatedCenters ell i : ℤ)) (2 ^ u) F
     let w := Polynomial.aeval v (criticalShiftedRootLabel (by omega) b F hF L e)
-    w.totalDegree ≤ d * (ell + 1) ∧ w.coeffNorm1 ≤ 2 ^ (k + bv * d) := by
-  intro D N B s d k u bv v w
+    w.totalDegree ≤ criticalLabelObjectiveDegreeBound n ell b ∧
+      w.coeffNorm1 ≤ 2 ^ criticalLabelObjectiveCoeffNormExponent n ell b := by
+  intro u v w
+  let bv := criticalSystemCoeffNormExponent n ell b + u
   let g := criticalShiftedRootLabel (by omega : 1 ≤ ell) b F hF L e
   obtain ⟨hdeg, hnorm⟩ := criticalShiftedRootLabel_bounds hell F hF hb L he
   have hvdeg : v.totalDegree ≤ ell + 1 :=
@@ -139,7 +153,7 @@ theorem criticalLabelObjective_bounds {n ell b : ℕ} (hell : 2 ≤ ell)
     (Nat.mul_le_mul hdeg hvdeg), ?_⟩
   refine (Polynomial.coeffNorm1_aeval_mvPolynomial_le g v Nat.one_le_two_pow hv).trans ?_
   exact (Nat.mul_le_mul hnorm (Nat.pow_le_pow_right Nat.one_le_two_pow hdeg)).trans_eq
-    (by rw [← pow_mul, ← pow_add])
+    (by rw [← pow_mul, ← pow_add, criticalLabelObjectiveCoeffNormExponent])
 
 /-- The determinant of multiplication by the label evaluated at the deformed objective
 in the integer critical quotient. -/
@@ -151,6 +165,30 @@ in the integer critical quotient. -/
   (multiplicationMatrix hell (criticalLower ell a u F) (criticalLower_degree ell hell a u F hF)
     (Polynomial.aeval (deformedPolynomial ell a u F)
       (criticalShiftedRootLabel hell b F hF L e))).det
+
+/-- Binary magnitude budget for the finite feasibility determinant. -/
+@[expose] def criticalLabelDeterminantExponent (n ell b : ℕ) : ℕ :=
+  multiplicationMatrixCharpolyCoeffNormExponent n ell (criticalLabelObjectiveDegreeBound n ell b)
+    (criticalLabelObjectiveCoeffNormExponent n ell b)
+    (criticalSystemCoeffNormExponent n ell b + criticalParameterExponent n ell b)
+
+/-- The determinant in the finite feasibility criterion is bounded solely by the arity,
+degree and coefficient budget of the integer input, uniformly over bounded shifts.
+Adapted from `FiniteCriticalNormBounds.finiteCriticalDeterminant_natAbs_le` in the
+pinned lean-canny revision above. -/
+theorem natAbs_criticalLabelDeterminant_le {n ell b : ℕ} (hell : 2 ≤ ell)
+    (F : MvPolynomial (Fin n) ℤ) (hF : F.totalDegree ≤ ell) (hb : F.coeffNorm1 ≤ 2 ^ b)
+    (L : List (Fin (ell ^ n) × SignType)) {e : ℕ} (he : e ≤ ell ^ n) :
+    (criticalLabelDeterminant (by omega) b F hF L e).natAbs ≤
+      2 ^ criticalLabelDeterminantExponent n ell b := by
+  let a : Fin n → ℤ := fun i => separatedCenters ell i
+  let u : ℤ := 2 ^ criticalParameterExponent n ell b
+  let w := Polynomial.aeval (deformedPolynomial ell a u F)
+    (criticalShiftedRootLabel (by omega : 1 ≤ ell) b F hF L e)
+  obtain ⟨hdeg, hnorm⟩ := criticalLabelObjective_bounds hell F hF hb L he
+  exact natAbs_multiplicationMatrix_det_le_pow_two hell (criticalLower ell a u F)
+    (criticalLower_degree ell (by omega) a u F hF)
+    (criticalSystem_coeffNorm1_at_pow_two_le (by omega) F hF hb _).1 w hdeg hnorm
 
 /-- A nonnegative polynomial satisfying the given bounds has a real zero exactly when
 a short derivative-sign list and a bounded shift make its critical quotient determinant

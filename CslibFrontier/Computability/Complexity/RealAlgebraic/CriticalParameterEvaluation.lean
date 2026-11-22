@@ -57,7 +57,7 @@ private theorem binarySize_polyTime {f : α → ℕ} (hf : ComputableInPolyTime 
     (binary_mul' (binarySize_polyTime (binary_add' hB (.const 1))) hn') hJ)
     (binary_mul' hR hB)) hR
   simpa only [parametricValueCoeffNormExponent, criticalSystemCoeffNormExponent,
-    Function.comp_apply] using binary_add'
+    PurePower.multiplicationMatrixCharpolyCoeffNormExponent, Function.comp_apply] using binary_add'
       (binarySize_polyTime (binary_add' hD (.const 1))) (binary_mul' hA hD)
 
 /-- The exponent that avoids the value-section and derivative-resultant roots is

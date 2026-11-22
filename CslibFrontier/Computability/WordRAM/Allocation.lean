@@ -8,6 +8,8 @@ module
 -- upstream: candidate (based on edemaine/lean-trominoes @6d5b36c1)
 
 public import CslibFrontier.Computability.WordRAM.Notation
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Memory allocation and arrays on the word RAM
@@ -71,6 +73,7 @@ structure Block where
 namespace Block
 
 /-- The block contains the cell at address `a`. -/
+@[wram_arith]
 def Owns (b : Block) (a : ℕ) : Prop := b.base ≤ a ∧ a < b.base + b.length
 
 /-- The contents of the block's cells in memory `m`, indexed from `0`. -/
@@ -81,9 +84,7 @@ def Realizes (b : Block) (m : ℕ → ℕ) (vs : Fin b.length → ℕ) : Prop :=
 
 /-- A block below the frontier is disjoint from any block allocated at the frontier. -/
 theorem disjoint_of_le {b : Block} {frontier k : ℕ} (hb : b.base + b.length ≤ frontier) {a : ℕ}
-    (ha : b.Owns a) : ¬(Block.mk frontier k).Owns a := by
-  simp only [Owns] at ha ⊢
-  omega
+    (ha : b.Owns a) : ¬(Block.mk frontier k).Owns a := by wram_omega [ha]
 
 /-- Writing a cell of the block updates the value at its index. -/
 theorem Realizes.update {b : Block} {m : ℕ → ℕ} {vs : Fin b.length → ℕ} (h : b.Realizes m vs)

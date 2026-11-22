@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Quantitative
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
+import CslibFrontier.Foundations.Data.Option
 
 /-!
 # Options and list heads for `fun_prop` at degree one
@@ -47,11 +48,7 @@ theorem optionElim_one {α β γ : Type} [Inhabited β] {encA : α ↪ List Bool
     (hn : ComputableInDegree fallback encA encC 1 1)
     (hb : ComputableInDegree (fun p : α × β => body p.1 p.2) (encPair encA encB) encC 1 1) :
     ComputableInDegree (fun a => (value a).elim (fallback a) (body a)) encA encC 1 1 := by
-  have h : (fun a => (value a).elim (fallback a) (body a)) =
-      fun a => if (value a).isSome then body a ((value a).getD default) else fallback a := by
-    funext a
-    cases value a <;> rfl
-  rw [h]
+  simp only [Option.elim_eq_if_isSome default]
   have hg : ComputableInDegree (fun a => (value a).getD default) encA encB 1 1 :=
     ((getD (enc₁ := encB) default).comp hv).mono
   exact ite_le ((isSome encB).comp hv) ((hb.comp (id'.prod hg)).mono (d' := 1) (e' := 1)) hn
