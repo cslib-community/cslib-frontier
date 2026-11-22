@@ -66,8 +66,15 @@ example : Term.evalTermWord 8 [3]
   decide +kernel
 
 -- Two complete leaf tokens leave two residues and do not form a single term.
-example : Term.evalTermWord 8 [] (encList encTermToken [.inl 0, .inl 1]) = none := by
-  decide +kernel
+example :
+    let word := encList encTermToken [.inl 0, .inl 1]
+    ¬ ∃ t : Term word.length, encTerm word.length t = word := by
+  intro word
+  rintro ⟨t, ht⟩
+  have h := (Term.evalTermWord_eq_some_iff (p := 8) (point := [])).2 ⟨t, ht, rfl⟩
+  have hnone : Term.evalTermWord 8 [] word = none := by decide +kernel
+  rw [hnone] at h
+  cases h
 
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
 def sentence : Formula 0 :=

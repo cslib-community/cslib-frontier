@@ -28,7 +28,8 @@ case dispatch of `TermModularFrames` in lean-canny at
 For a positive modulus, a framed token list can be evaluated from an empty stack in
 polynomial time. The number and width of residues bound every intermediate encoding.
 The strict token decoder and a singleton-stack check lift this certificate to raw term
-words without fixing the ambient dimension.
+words without fixing the ambient dimension. Every successful evaluation comes from a
+complete term whose variable ranks fit within the input length.
 -/
 
 public section
@@ -183,6 +184,66 @@ theorem evalTermWord_encTerm {n : ℕ} (p : ℕ) (point : List ℕ) (t : Term n)
     (fun stack => if stack.tail.isEmpty then stack.head? else none) = some (t.evalResidue p point)
   rw [evalTokenStack_tokens]
   rfl
+
+private theorem exists_terms_of_evalTokenStack {n p : ℕ} (point : List ℕ)
+    (tokens : List TermToken) {residues : List ℕ}
+    (hrank : ∀ i, .inr (.inl i) ∈ tokens → i < n)
+    (h : evalTokenStack p point tokens [] = some residues) :
+    ∃ terms : List (Term n),
+      terms.flatMap (fun t => (encTerm_tokens n t).map TermToken.ofFin) = tokens ∧
+      terms.map (evalResidue p point) = residues := by
+  induction tokens generalizing residues with
+  | nil =>
+    cases h
+    exact ⟨[], rfl, rfl⟩
+  | cons token tokens ih =>
+    change (evalTokenStack p point tokens []).bind (evalTokenStep p point token) =
+      some residues at h
+    obtain ⟨intermediate, htail, hstep⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨terms, htokens, hresidues⟩ := ih
+      (fun i hi => hrank i (List.mem_cons_of_mem _ hi)) htail
+    rw [← hresidues] at hstep
+    rcases token with z | (i | (⟨⟩ | ⟨⟩))
+    · cases hstep
+      refine ⟨.const z :: terms, ?_, rfl⟩
+      exact congrArg (List.cons (α := TermToken) (.inl z)) htokens
+    · have hi := hrank i (List.mem_cons_self ..)
+      cases hstep
+      refine ⟨.var ⟨i, hi⟩ :: terms, ?_, rfl⟩
+      exact congrArg (List.cons (α := TermToken) (.inr (.inl i))) htokens
+    · rcases terms with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> cases hstep
+      refine ⟨.add l r :: rest, ?_, rfl⟩
+      simpa [encTerm_tokens, TermToken.ofFin, List.append_assoc] using
+        congrArg (Sum.inr (Sum.inr (.inl ())) :: ·) htokens
+    · rcases terms with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> cases hstep
+      refine ⟨.mul l r :: rest, ?_, rfl⟩
+      simpa [encTerm_tokens, TermToken.ofFin, List.append_assoc] using
+        congrArg (Sum.inr (Sum.inr (.inr ())) :: ·) htokens
+
+/-- Raw evaluation succeeds with a residue exactly on words encoding a single term with that
+residue. The input length suffices as the ambient dimension for the reconstructed term. -/
+theorem evalTermWord_eq_some_iff {p value : ℕ} {point : List ℕ} {word : List Bool} :
+    evalTermWord p point word = some value ↔
+      ∃ t : Term word.length, encTerm word.length t = word ∧ t.evalResidue p point = value := by
+  constructor
+  · intro h
+    simp only [evalTermWord, Option.bind_eq_bind] at h
+    obtain ⟨tokens, hdecode, h⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨stack, hstack, hvalue⟩ := Option.bind_eq_some_iff.mp h
+    rcases stack with _ | ⟨r, _ | ⟨s, rest⟩⟩
+    · cases hvalue
+    · cases hvalue
+      obtain ⟨terms, htokens, hresidues⟩ := exists_terms_of_evalTokenStack point tokens
+        (fun _ hi => termTokenRank_lt_of_decode hdecode hi) hstack
+      obtain ⟨t, rfl, ht⟩ := List.map_eq_singleton_iff.mp hresidues
+      simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil] at htokens
+      have hword := (termTokensDecoder.decode_eq_some_iff _ _).mp hdecode
+      have hterm := (termTokensDecoder.decode_eq_some_iff _ _).mp
+        (termTokensDecoder_decode_encTerm t)
+      exact ⟨t, hterm.symm.trans ((congrArg (encList encTermToken) htokens).trans hword), ht⟩
+    · cases hvalue
+  · rintro ⟨t, hword, hvalue⟩
+    rw [← hword, evalTermWord_encTerm, hvalue]
 
 /-- Uniform polynomial time on raw words, with a positive binary modulus and a framed list
 of binary coordinates. The result uses the standard option encoding of a binary residue. -/
