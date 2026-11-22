@@ -11,15 +11,13 @@ public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Sweep
-public import CslibFrontier.Computability.Communication.Forster
+public import CslibFrontier.Computability.Communication.QuadFormSignRank
 import CslibFrontier.Computability.Circuit.Frontier.Layouts.Components
 import CslibFrontier.Computability.Circuit.Program
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
 import CslibFrontier.Foundations.Data.BitString.Agree
 import CslibFrontier.Foundations.Data.Set.Card
-import CslibFrontier.Foundations.LinearAlgebra.Matrix.EuclideanOpNorm
-import CslibFrontier.Foundations.LinearAlgebra.Matrix.Lindsey
 import Mathlib.Data.Fintype.Powerset
 import Mathlib.Data.Fintype.Sum
 import Mathlib.Order.Interval.Finset.Nat
@@ -90,7 +88,6 @@ linear threshold units reading all inputs and internal gates):
   lower bound for `ThresholdTop` circuits.
 * `Cslib.Circuits.Frontier.signRank_le_two_of_isHalfspaceComb_one`,
   `Cslib.Circuits.Frontier.signRank_thresholdTop_le`,
-  `Cslib.Circuits.Frontier.two_pow_cutRank_le_signRank_quadForm_sq`,
   `Cslib.Circuits.Frontier.eventually_lt_innerSize_thresholdTop_hardForm`: single-cut sign-rank
   bounds and `hardForm` lower bound via Forster's theorem.
 -/
@@ -1720,203 +1717,6 @@ theorem signRank_thresholdTop_le {σ : Signature.{v}} {U : Type u} [Fintype U]
       ← Nat.card_eq_fintype_card (α := Ecut), Nat.card_coe_set_eq]
   exact (Communication.signRank_le_card_of_mul hrep).trans_eq hcard_idx
 
-open Classical in
-/-- **Bilinear operator-norm bound for quadratic-form sign matrices.** Across any coordinate cut
-`X : Set ι`, the `±1` sign matrix `M` of `BitString.quadForm Q` satisfies
-`|∑ a, ∑ b, p_vec a * M a b * q_vec b| ≤ √(2 ^ |ι| / 2 ^ (Q + Qᵀ).cutRank X) * ‖p_vec‖₂ * ‖q_vec‖₂`.
--/
-theorem abs_sum_mul_signMatrix_quadForm_le {ι : Type*} [Fintype ι] [DecidableEq ι]
-    (Q : Matrix ι ι (ZMod 2)) (X : Set ι)
-    (p_vec : (X → Bool) → ℝ) (q_vec : (↥Xᶜ → Bool) → ℝ) :
-    |∑ a, ∑ b, p_vec a *
-        Communication.signMatrix ℝ (fun a' b' =>
-          BitString.quadForm Q ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (a', b')))
-          a b * q_vec b| ≤
-      √((2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X) *
-        √(∑ a, p_vec a ^ 2) * √(∑ b, q_vec b ^ 2) := by
-  let glue := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
-  let f : (X → Bool) → (↥Xᶜ → Bool) → Bool := fun a b => BitString.quadForm Q (glue (a, b))
-  set M := Communication.signMatrix ℝ f
-  let bitEquiv : Bool ≃ ZMod 2 :=
-    { toFun := BitString.bitVal (ZMod 2)
-      invFun := fun z => decide (z = 1)
-      left_inv := fun b => by cases b <;> decide
-      right_inv := fun z => by revert z; decide }
-  let eX : (X → Bool) ≃ (X → ZMod 2) := Equiv.piCongrRight fun _ => bitEquiv
-  let eY : (↥Xᶜ → Bool) ≃ (↥Xᶜ → ZMod 2) := Equiv.piCongrRight fun _ => bitEquiv
-  let C := (Q + Qᵀ).submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι)
-  let g : (X → ZMod 2) → ℝ := fun u =>
-    (-1) ^ (u ⬝ᵥ Q.submatrix ((↑) : X → ι) ((↑) : X → ι) *ᵥ u).val
-  let h : (↥Xᶜ → ZMod 2) → ℝ := fun w =>
-    (-1) ^ (w ⬝ᵥ Q.submatrix ((↑) : ↥Xᶜ → ι) ((↑) : ↥Xᶜ → ι) *ᵥ w).val
-  have hM_entry (a : X → Bool) (b : ↥Xᶜ → Bool) :
-      M a b = g (eX a) * h (eY b) * (-1) ^ (eX a ⬝ᵥ C *ᵥ eY b).val := by
-    have hS : M a b = (-1 : ℝ) ^ ((fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) ⬝ᵥ
-        Q *ᵥ fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)).val :=
-      (BitString.neg_one_pow_val_eq Q (glue (a, b))).symm
-    have hq := Matrix.dotProduct_mulVec_self_eq_add Q X
-      fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)
-    have ha_sub : (X.domRestrict fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) = eX a := by
-      have h1 : X.domRestrict (glue (a, b)) = a :=
-        congrArg Prod.fst ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply _)
-      ext i
-      exact congrArg (BitString.bitVal (ZMod 2)) (congrFun h1 i)
-    have hb_sub : (Xᶜ.domRestrict fun i => BitString.bitVal (ZMod 2) (glue (a, b) i)) = eY b := by
-      have h2 : Xᶜ.domRestrict (glue (a, b)) = b :=
-        congrArg Prod.snd ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).apply_symm_apply _)
-      ext j
-      exact congrArg (BitString.bitVal (ZMod 2)) (congrFun h2 j)
-    rw [hS, hq, ZMod.neg_one_pow_val_add, ZMod.neg_one_pow_val_add, ha_sub, hb_sub]
-  set kerCard := #{z : ↥Xᶜ → ZMod 2 | C *ᵥ z = 0}
-  have hker_eq : (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X =
-      (2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X := by
-    have h1 := Matrix.card_ker_mul_two_pow_rank C
-    have hC : C.rank = (Q + Qᵀ).cutRank X := ((Q + Qᵀ).cutRank_eq_rank X).symm
-    rw [hC] at h1
-    have h1r : (kerCard : ℝ) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X = (2 : ℝ) ^ Fintype.card ↥Xᶜ := by
-      exact_mod_cast h1
-    have hn : Fintype.card ↥Xᶜ + Fintype.card X = Fintype.card ι := by
-      rw [add_comm, ← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card,
-        ← Nat.card_eq_fintype_card, Nat.card_coe_set_eq, Nat.card_coe_set_eq]
-      exact ncard_add_ncard_compl X
-    rw [eq_div_iff (by positivity)]
-    calc (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X * (2 : ℝ) ^ (Q + Qᵀ).cutRank X
-        = ((kerCard : ℝ) * (2 : ℝ) ^ (Q + Qᵀ).cutRank X) * (2 : ℝ) ^ Fintype.card X := by ring
-      _ = (2 : ℝ) ^ Fintype.card ↥Xᶜ * (2 : ℝ) ^ Fintype.card X := by rw [h1r]
-      _ = (2 : ℝ) ^ Fintype.card ι := by rw [← pow_add, hn]
-  have hcs := Matrix.abs_sum_mul_le_sqrt_mul_sqrt M p_vec q_vec
-  suffices hrow : ∑ a, (M *ᵥ q_vec) a ^ 2 ≤
-      ((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) * ∑ b, q_vec b ^ 2 by
-    calc |∑ a, ∑ b, p_vec a * M a b * q_vec b|
-        ≤ √(∑ a, p_vec a ^ 2) * √(∑ a, (M *ᵥ q_vec) a ^ 2) := hcs
-      _ ≤ √(∑ a, p_vec a ^ 2) *
-            √(((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) * ∑ b, q_vec b ^ 2) :=
-          mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hrow) (Real.sqrt_nonneg _)
-      _ = √((2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X) *
-            √(∑ a, p_vec a ^ 2) * √(∑ b, q_vec b ^ 2) := by
-          rw [hker_eq, Real.sqrt_mul (by positivity)]
-          ring
-  let q' : (↥Xᶜ → ZMod 2) → ℝ := fun w => h w * q_vec (eY.symm w)
-  have hgsq (u : X → ZMod 2) : g u ^ 2 = 1 := by
-    dsimp only [g]
-    rw [← pow_mul, mul_comm _ 2, pow_mul, neg_one_sq, one_pow]
-  have hhsq (w : ↥Xᶜ → ZMod 2) : h w ^ 2 = 1 := by
-    dsimp only [h]
-    rw [← pow_mul, mul_comm _ 2, pow_mul, neg_one_sq, one_pow]
-  have hsum_reidx : (∑ a, (M *ᵥ q_vec) a ^ 2) =
-      ∑ u : X → ZMod 2, (∑ w : ↥Xᶜ → ZMod 2, q' w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val) ^ 2 := by
-    refine Fintype.sum_equiv eX _ _ fun a => ?_
-    have hmv : (M *ᵥ q_vec) a =
-        g (eX a) * ∑ w : ↥Xᶜ → ZMod 2, q' w * (-1 : ℝ) ^ (eX a ⬝ᵥ C *ᵥ w).val := by
-      rw [Matrix.mulVec, dotProduct, Finset.mul_sum]
-      refine Fintype.sum_equiv eY _ _ fun b => ?_
-      rw [hM_entry a b]
-      simp only [q', Equiv.symm_apply_apply]
-      ring
-    rw [hmv, mul_pow, hgsq (eX a), one_mul]
-  have hexpand : (∑ u : X → ZMod 2,
-        (∑ w : ↥Xᶜ → ZMod 2, q' w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val) ^ 2) =
-      ∑ w, ∑ w', q' w * q' w' *
-        (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) := by
-    calc ∑ u : X → ZMod 2, (∑ w, q' w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val) ^ 2
-        = ∑ u, ∑ w, ∑ w', q' w * q' w' * (-1 : ℝ) ^ (u ⬝ᵥ (C *ᵥ w + C *ᵥ w')).val := by
-            refine Fintype.sum_congr _ _ fun u => ?_
-            simp only [sq, Finset.sum_mul_sum, dotProduct_add, ZMod.neg_one_pow_val_add]
-            exact Finset.sum_congr rfl fun w _ => Finset.sum_congr rfl fun w' _ => by ring
-      _ = ∑ w, ∑ w', ∑ u, q' w * q' w' * (-1 : ℝ) ^ (u ⬝ᵥ (C *ᵥ w + C *ᵥ w')).val := by
-            rw [Finset.sum_comm]
-            exact Finset.sum_congr rfl fun w _ => Finset.sum_comm
-      _ = _ := Finset.sum_congr rfl fun w _ => Finset.sum_congr rfl fun w' _ => by
-            rw [← Finset.mul_sum, Matrix.sum_neg_one_pow_val_dotProduct]
-  have hfib_eq (w w' : ↥Xᶜ → ZMod 2) : C *ᵥ w + C *ᵥ w' = 0 ↔ C *ᵥ w' = C *ᵥ w := by
-    rw [add_eq_zero_iff_eq_neg, ZModModule.neg_eq_self, eq_comm]
-  have hfib_card (w : ↥Xᶜ → ZMod 2) :
-      (∑ w' : ↥Xᶜ → ZMod 2,
-        if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) =
-        (kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X := by
-    simp_rw [hfib_eq]
-    rw [Finset.sum_ite, Finset.sum_const, Finset.sum_const_zero, add_zero, nsmul_eq_mul]
-    congr 1
-    exact_mod_cast Matrix.card_filter_mulVec_eq C w
-  have hsymm : (∑ w : ↥Xᶜ → ZMod 2, ∑ w' : ↥Xᶜ → ZMod 2,
-        q' w' ^ 2 * (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0)) =
-      ∑ w, ∑ w', q' w ^ 2 * (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) := by
-    rw [Finset.sum_comm]
-    refine Finset.sum_congr rfl fun w' _ => Finset.sum_congr rfl fun w _ => ?_
-    rw [add_comm (C *ᵥ w) (C *ᵥ w')]
-  have hamgm : ∑ w, ∑ w', q' w * q' w' *
-        (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) ≤
-      ∑ w, ∑ w', ((q' w ^ 2 + q' w' ^ 2) / 2) *
-        (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) :=
-    Finset.sum_le_sum fun w _ => Finset.sum_le_sum fun w' _ =>
-      mul_le_mul_of_nonneg_right (by linarith [two_mul_le_add_sq (q' w) (q' w')])
-        (by by_cases hc0 : C *ᵥ w + C *ᵥ w' = 0 <;> simp only [hc0, ↓reduceIte] <;> positivity)
-  have hq'_sum : ∑ w : ↥Xᶜ → ZMod 2, q' w ^ 2 = ∑ b : ↥Xᶜ → Bool, q_vec b ^ 2 := by
-    refine Fintype.sum_equiv eY.symm _ _ fun w => ?_
-    simp only [q', mul_pow, hhsq w, one_mul]
-  rw [hsum_reidx, hexpand]
-  calc ∑ w, ∑ w', q' w * q' w' *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0)
-      ≤ ∑ w, ∑ w', ((q' w ^ 2 + q' w' ^ 2) / 2) *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) := hamgm
-    _ = (1 / 2) * (∑ w, ∑ w', q' w ^ 2 *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0) +
-        ∑ w, ∑ w', q' w' ^ 2 *
-          (if C *ᵥ w + C *ᵥ w' = 0 then (2 : ℝ) ^ Fintype.card X else 0)) := by
-          rw [← Finset.sum_add_distrib]
-          rw [Finset.mul_sum]
-          refine Finset.sum_congr rfl fun w _ => ?_
-          rw [← Finset.sum_add_distrib, Finset.mul_sum]
-          exact Finset.sum_congr rfl fun w' _ => by ring
-    _ = ∑ w, q' w ^ 2 * ((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) := by
-          rw [hsymm]
-          have h2 : ∀ x : ℝ, (1 / 2) * (x + x) = x := fun x => by ring
-          rw [h2]
-          exact Finset.sum_congr rfl fun w _ => by rw [← Finset.mul_sum, hfib_card w]
-    _ = ((kerCard : ℝ) * (2 : ℝ) ^ Fintype.card X) * ∑ b, q_vec b ^ 2 := by
-          rw [← Finset.sum_mul, hq'_sum, mul_comm]
-
-open Classical in
-/-- **Sign-rank lower bound for quadratic forms via Forster and Lindsey.** For any quadratic form
-`BitString.quadForm Q` over `𝔽₂` and any coordinate cut `X : Set ι`, the sign-rank across `(X, Xᶜ)`
-satisfies `2 ^ (Q + Qᵀ).cutRank X ≤ signRank ^ 2`. -/
-theorem two_pow_cutRank_le_signRank_quadForm_sq {ι : Type*} [Fintype ι] [DecidableEq ι]
-    (Q : Matrix ι ι (ZMod 2)) (X : Set ι) :
-    2 ^ (Q + Qᵀ).cutRank X ≤
-      Communication.signRank (fun (a : X → Bool) (b : ↥Xᶜ → Bool) =>
-        BitString.quadForm Q
-          ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (a, b))) ^ 2 := by
-  let glue := (Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm
-  let f : (X → Bool) → (↥Xᶜ → Bool) → Bool := fun a b => BitString.quadForm Q (glue (a, b))
-  set M := Communication.signMatrix ℝ f
-  have hforster := Communication.mul_sqrt_card_mul_card_le_mul_signRank f M
-    (μ := 1) (lam := √((2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X))
-    (fun a b => by
-      simp only [M, Communication.signMatrix_apply]
-      by_cases hfab : f a b = true <;> simp only [hfab, ↓reduceIte] <;> norm_num)
-    (abs_sum_mul_signMatrix_quadForm_le Q X)
-  have hsq := pow_le_pow_left₀ (by positivity) hforster 2
-  have hcard_prod : (Fintype.card (X → Bool) : ℝ) * Fintype.card (↥Xᶜ → Bool) =
-      (2 : ℝ) ^ Fintype.card ι := by
-    have hn : Fintype.card X + Fintype.card ↥Xᶜ = Fintype.card ι := by
-      rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card,
-        Nat.card_coe_set_eq, Nat.card_coe_set_eq]
-      exact ncard_add_ncard_compl X
-    simp only [Fintype.card_fun, Fintype.card_bool, Nat.cast_pow, Nat.cast_ofNat]
-    rw [← pow_add, hn]
-  rw [one_mul, Real.sq_sqrt (by positivity), mul_pow, Real.sq_sqrt (by positivity), hcard_prod]
-    at hsq
-  have hmul := mul_le_mul_of_nonneg_right hsq (by positivity : (0 : ℝ) ≤ 2 ^ (Q + Qᵀ).cutRank X)
-  have hrhs_eq : (2 : ℝ) ^ Fintype.card ι / (2 : ℝ) ^ (Q + Qᵀ).cutRank X *
-      (Communication.signRank f : ℝ) ^ 2 * (2 : ℝ) ^ (Q + Qᵀ).cutRank X =
-      (2 : ℝ) ^ Fintype.card ι * (Communication.signRank f : ℝ) ^ 2 := by
-    field_simp
-  rw [hrhs_eq] at hmul
-  have h2pos : (0 : ℝ) < (2 : ℝ) ^ Fintype.card ι := by positivity
-  have hreal : ((2 : ℝ) ^ (Q + Qᵀ).cutRank X) ≤ (Communication.signRank f : ℝ) ^ 2 :=
-    le_of_mul_le_mul_left (by linarith) h2pos
-  exact_mod_cast hreal
-
 /-- Complementing a vertex set in `liveNetwork p (fun _ => False) U` complements `readIn`. -/
 private theorem readIn_compl_liveNetwork {σ : Signature.{v}} {U : Type u} {n g : ℕ}
     (p : Program σ n g) (P : Set (Compiler.Vertex (liveCircuit p (fun _ => False)))) :
@@ -1933,24 +1733,6 @@ private theorem readIn_compl_liveNetwork {σ : Signature.{v}} {U : Type u} {n g 
     exact hvP (hv ▸ hw ▸ hwP)
   · intro hi
     refine ⟨.signal ⟨.input i, hreach⟩, fun hP => hi ⟨_, hP, hsite⟩, hsite⟩
-
-/-- If `W` is closed (`G.edgeCut W = ∅`) and `G.edgeCut S ⊆ G.touching W`, then `S \ W` is closed.
--/
-theorem edgeCut_sdiff_eq_empty {V E : Type*} {G : Multigraph V E} {S W : Set V}
-    (hW : G.edgeCut W = ∅) (hSW : G.edgeCut S ⊆ G.touching W) :
-    G.edgeCut (S \ W) = ∅ := by
-  rw [G.edgeCut_eq_empty_iff]
-  intro e
-  have hWe := G.edgeCut_eq_empty_iff.mp hW e
-  by_cases heW : G.src e ∈ W
-  · have htW : G.tgt e ∈ W := hWe.mp heW
-    simp only [Set.mem_sdiff, heW, htW, not_true_eq_false, and_false]
-  · have htW : G.tgt e ∉ W := mt hWe.mpr heW
-    have hnot_touch : e ∉ G.touching W := by
-      simp only [Multigraph.mem_touching, heW, htW, or_self, not_false_eq_true]
-    have hnot_cutS : e ∉ G.edgeCut S := fun h => hnot_touch (hSW h)
-    rw [Multigraph.mem_edgeCut, not_not] at hnot_cutS
-    simp only [Set.mem_sdiff, heW, htW, not_false_eq_true, and_true, hnot_cutS]
 
 open Classical in
 private theorem cutRank_hardMatrix_le_of_thresholdTop_eval {σ : Signature.{v}} {n g : ℕ}
@@ -1973,7 +1755,7 @@ private theorem cutRank_hardMatrix_le_of_thresholdTop_eval {σ : Signature.{v}} 
           ((Equiv.piEquivPiSubtypeProd
             (· ∈ (liveNetwork p (fun _ => False) Bool).readIn P) fun _ => Bool).symm (a, b))) :=
     funext fun _ => funext fun _ => hTeval _
-  have hsr_lo := two_pow_cutRank_le_signRank_quadForm_sq (hardMatrix n)
+  have hsr_lo := Communication.two_pow_cutRank_le_signRank_quadForm_sq (hardMatrix n)
     ((liveNetwork p (fun _ => False) Bool).readIn P)
   rw [← heval_eq] at hsr_lo
   have hsq_up : (2 * 2 ^ ((liveNetwork p (fun _ => False) Bool).edgeCut P).ncard) ^ 2 =
@@ -2000,28 +1782,8 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
   have hη : 0 < η := by positivity
   obtain ⟨C, hC⟩ := hlayout.exists_layout_componentwise hη
   set defic : ℕ → ℕ := fun n => 2 * (2 * Nat.sqrt (n / 2) + 1) + 1
-  have hdefic_o : (fun n : ℕ => ((defic n : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) := by
-    rw [isLittleO_iff]
-    intro δ hδ
-    filter_upwards [tendsto_natCast_atTop_atTop.eventually
-      (eventually_ge_atTop ((8 / δ) ^ 2 + 6 / δ))] with n hn
-    have hn0 : (0 : ℝ) ≤ n := Nat.cast_nonneg n
-    have h60 : 0 ≤ 6 / δ := by positivity
-    have hsqrt : (Nat.sqrt (n / 2) : ℝ) ≤ √n :=
-      Real.nat_sqrt_le_real_sqrt.trans (Real.sqrt_le_sqrt (by exact_mod_cast Nat.div_le_self n 2))
-    have hss : √n * √n = n := Real.mul_self_sqrt hn0
-    have hroot : 8 / δ ≤ √n := Real.le_sqrt_of_sq_le (by linarith)
-    have h4 : 4 * √n ≤ δ / 2 * n := by
-      have hm := mul_le_mul_of_nonneg_left hroot (by positivity : (0 : ℝ) ≤ δ / 2 * √n)
-      have e1 : δ / 2 * √n * (8 / δ) = 4 * √n := by field_simp; ring
-      have e2 : δ / 2 * √n * √n = δ / 2 * n := by rw [mul_assoc, hss]
-      linarith
-    have h3 : 3 ≤ δ / 2 * n := by
-      have : 6 / δ * δ = 6 := by field_simp
-      nlinarith [sq_nonneg (8 / δ)]
-    simp only [defic, Real.norm_eq_abs, Nat.abs_cast]
-    push_cast
-    linarith
+  have hdefic_o : (fun n : ℕ => ((defic n : ℕ) : ℝ)) =o[atTop] fun n => (n : ℝ) :=
+    isLittleO_hardDeficiency
   have herr_o : (fun n : ℕ => (1 + 2 * (A + η)) * (defic n : ℝ) +
       (2 * |C| + 6 * (A + η) + 4)) =o[atTop] fun n => (n : ℝ) :=
     (hdefic_o.const_mul_left _).add (isLittleO_const_id_atTop _).natCast_atTop
@@ -2112,7 +1874,7 @@ theorem eventually_lt_innerSize_thresholdTop_hardForm_of_layoutBound {A : ℝ} (
     rcases hclosed_dichotomy W hW_cut with hW_small | hW_big
     · exfalso
       set Bset := lay.initial s \ W
-      have hB_cut : Nnet.edgeCut Bset = ∅ := edgeCut_sdiff_eq_empty hW_cut hfront_W
+      have hB_cut : Nnet.edgeCut Bset = ∅ := Multigraph.edgeCut_sdiff_eq_empty hW_cut hfront_W
       have hB_sub : Nnet.readIn Bset ⊆ Nnet.readIn (lay.initial s) :=
         fun _ ⟨v, hv, hi⟩ => ⟨v, hv.1, hi⟩
       have hinit_sub : Nnet.readIn (lay.initial s) ⊆ Nnet.readIn Bset ∪ Nnet.readIn W := by

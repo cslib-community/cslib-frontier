@@ -28,10 +28,10 @@ example :
       fin_cases i <;> fin_cases j <;> simp_all⟩
     let bellPlusAncilla : Circuit 5 :=
       [⟨1, Gate.hadamard, wire1 0⟩,
-       ⟨1, phaseT, wire1 3⟩,
+       ⟨1, Gate.phaseT, wire1 3⟩,
        ⟨2, Gate.cnot, wire01⟩,
-       ⟨1, pauliZ, wire1 4⟩,
-       ⟨2, controlledGate Gate.hadamard, wire12⟩]
+       ⟨1, Gate.pauliZ, wire1 4⟩,
+       ⟨2, Gate.controlled Gate.hadamard, wire12⟩]
     twoQubitCount bellPlusAncilla = 2 ∧ AllBondRankTwo bellPlusAncilla := by
   intro wire1 wire01 wire12 bellPlusAncilla
   refine ⟨rfl, fun g hg => ?_, fun g hg h2 => ?_⟩
@@ -43,7 +43,7 @@ example :
     · cases h2
     · exact cnot_hasBondRankTwo
     · cases h2
-    · exact controlledGate_hasBondRankTwo Gate.hadamard
+    · exact controlled_hasBondRankTwo Gate.hadamard
 
 example (x : Fin 3 → Bool) :
     let dataIn3 : Fin 3 ↪ Fin 5 :=
@@ -60,7 +60,7 @@ example (x : Fin 3 → Bool) :
 /-! ### `Clifford + T` identity, phase-state unit norm, and reversible linear bijection -/
 
 example : (cos (π / 8) + sin (π / 8)) ^ 2 = 1 + 1 / √2 := by
-  rw [cos_add_sin_pi_div_eight, sq_sqrt (by positivity)]
+  rw [Gate.cos_add_sin_pi_div_eight, sq_sqrt (by positivity)]
 
 example (Q : Matrix (Fin 4) (Fin 4) (ZMod 2)) (e : Fin 4 ↪ Fin 7) (x₀ : Fin 7 → Bool) :
     ‖phaseState Q e x₀‖ = 1 :=
