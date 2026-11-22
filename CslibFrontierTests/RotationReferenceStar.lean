@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceSpokeEmbedding
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.RecoveryInvariants
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionContraction
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRecut
@@ -112,9 +113,10 @@ private def doubleLoop : FixedRotationInput :=
 private def firstLoop : Fin doubleLoop.graph.edges.length := ⟨0, by decide⟩
 private def secondLoop : Fin doubleLoop.graph.edges.length := ⟨1, by decide⟩
 
--- The order crosses the cut in the prescribed word and preserves both ends of the first loop.
+-- The fixed-order bouquet makes the query accept and preserves both ends of the first loop.
 example :
     ∃ D : PolygonalDrawing doubleLoop.graph, D.IsEmbedding ∧
+      query doubleLoop = true ∧
       sbtw (((D.cutPort 1 (secondLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle)
         (((D.cutPort 1 (firstLoop, true) - D.vertex 0).arg : ℝ) : Real.Angle)
         (((D.cutPort 1 (firstLoop, false) - D.vertex 0).arg : ℝ) : Real.Angle) ∧
@@ -165,7 +167,8 @@ example :
     simpa [doubleLoop, incidenceVertices] using hv
   have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
   have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
-  refine ⟨D, hD, ?_, ?_, ?_, ?_, ?_⟩
+  refine ⟨D, hD, ?_, ?_, ?_, ?_, ?_, ?_⟩
+  · exact query_eq_true_of_rotation_embedding hI hD (PolygonalDrawing.bouquet_realizes r hloop) hfix
   · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
       hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
       (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)

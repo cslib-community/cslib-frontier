@@ -451,59 +451,49 @@ theorem arity_cast_ne_zero (params : FRISmoothParams F) (i : Fin params.m) :
 
 theorem domainSize_eq_arity_mul_succ (params : FRISmoothParams F) (i : Fin params.m) :
     params.domainSize i.val = params.arity i * params.domainSize (i.val + 1) := by
-  have hle := params.cumLog_add_stepLog_le_d i
-  have hsucc := params.cumLog_succ i
+  have := params.cumLog_add_stepLog_le_d i
+  have := params.cumLog_succ i
   simp only [domainSize, arity, ← pow_add]
-  congr 1
-  omega
+  exact congrArg (2 ^ ·) (by omega)
 
 theorem dim_eq_arity_mul_succ (params : FRISmoothParams F) (i : Fin params.m) :
     params.dim i.val = params.arity i * params.dim (i.val + 1) := by
   have hsucc := params.cumLog_succ i
   have hle : params.cumLog (i.val + 1) ≤ params.totalLog := params.cumLog_le_totalLog i.isLt
-  simp only [dim, arity]
   have hexp : params.totalLog - params.cumLog i.val =
       params.stepLog i + (params.totalLog - params.cumLog (i.val + 1)) := by omega
-  rw [hexp, pow_add]
-  ring
+  rw [dim, arity, dim, mul_left_comm, ← pow_add, ← hexp]
 
 theorem dim_last (params : FRISmoothParams F) : params.dim params.m = params.kFinal := by
   simp [dim]
+
+private theorem domainSize_anti (params : FRISmoothParams F) {i j : ℕ} (hij : i ≤ j) :
+    params.domainSize j ≤ params.domainSize i :=
+  Nat.pow_le_pow_right (by omega) (Nat.sub_le_sub_left (friCumLog_mono params.stepLog hij) _)
 
 /-- Per-round curve-degree weight identity: `(l⁽ⁱ⁾ - 1) * n_{i+1} = nᵢ - n_{i+1}`. -/
 theorem arity_sub_one_mul_domainSize (params : FRISmoothParams F) (i : Fin params.m) :
     (params.arity i - 1) * params.domainSize (i.val + 1) =
       params.domainSize i.val - params.domainSize (i.val + 1) := by
-  have hdom := params.domainSize_eq_arity_mul_succ i
-  have har := params.two_le_arity i
-  rw [Nat.sub_mul, one_mul, hdom]
+  rw [Nat.sub_mul, one_mul, params.domainSize_eq_arity_mul_succ i]
 
 /-- **Exact smooth curve-degree telescoping**: summing `(l⁽ⁱ⁾ - 1) * n_{i+1}` across all `m`
 folding rounds telescopes exactly to `2 ^ d - 2 ^ (d - totalLog)`. -/
 theorem sum_arity_sub_one_mul_domainSize (params : FRISmoothParams F) :
     (∑ i : Fin params.m, (params.arity i - 1) * params.domainSize (i.val + 1)) =
       2 ^ params.d - 2 ^ (params.d - params.totalLog) := by
-  have hrew : ∀ i : Fin params.m,
-      (params.arity i - 1) * params.domainSize (i.val + 1) =
-        params.domainSize i.val - params.domainSize (i.val + 1) :=
-    params.arity_sub_one_mul_domainSize
-  simp only [hrew]
-  suffices ∀ (k : ℕ) (hk : k ≤ params.m),
-      (∑ i : Fin k, (params.domainSize i.val - params.domainSize (i.val + 1))) =
-        2 ^ params.d - params.domainSize k from
-    this params.m le_rfl
-  intro k hk
+  simp_rw [params.arity_sub_one_mul_domainSize]
+  suffices ∀ k, (∑ i : Fin k, (params.domainSize i.val - params.domainSize (i.val + 1))) =
+      params.domainSize 0 - params.domainSize k from this params.m
+  intro k
   induction k with
   | zero => simp [domainSize]
   | succ k ih =>
     rw [Fin.sum_univ_castSucc]
-    simp only [Fin.val_castSucc, Fin.val_last]
-    rw [ih (Nat.le_of_succ_le hk)]
-    have hle1 : params.domainSize (k + 1) ≤ params.domainSize k :=
-      Nat.pow_le_pow_right (by omega)
-        (Nat.sub_le_sub_left (friCumLog_mono params.stepLog (Nat.le_succ k)) params.d)
-    have hle2 : params.domainSize k ≤ 2 ^ params.d :=
-      Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _)
+    simp only [Fin.val_castSucc, Fin.val_last, ih]
+    have h1 : params.domainSize (k + 1) ≤ params.domainSize k :=
+      params.domainSize_anti (Nat.le_succ k)
+    have h0 : params.domainSize k ≤ params.domainSize 0 := params.domainSize_anti (Nat.zero_le k)
     omega
 
 /-- **Round-`0` maximality across smooth folding rounds**: every round's curve-degree budget
@@ -511,34 +501,20 @@ theorem sum_arity_sub_one_mul_domainSize (params : FRISmoothParams F) :
 theorem arity_sub_one_mul_domainSize_le_first (params : FRISmoothParams F) (i : Fin params.m) :
     (params.arity i - 1) * params.domainSize (i.val + 1) ≤
       2 ^ params.d - 2 ^ (params.d - params.firstStepLog) := by
-  have hm_pos : 0 < params.m := Nat.pos_of_ne_zero (fun h => by have := i.isLt; omega)
-  have hfirst : params.firstStepLog = params.stepLog ⟨0, hm_pos⟩ := by
-    simp only [firstStepLog, hm_pos, ↓reduceDIte]
+  have hm_pos : 0 < params.m := Nat.pos_of_ne_zero fun h => by have := i.isLt; omega
   have hcum1 : params.cumLog 1 = params.firstStepLog := by
-    rw [params.cumLog_succ ⟨0, hm_pos⟩, hfirst]
-    simp [cumLog]
+    simp [cumLog, firstStepLog, hm_pos, friCumLog_succ_of_lt _ hm_pos]
   rw [params.arity_sub_one_mul_domainSize i]
-  by_cases hi0 : i.val = 0
-  · have hdom0 : params.domainSize i.val = 2 ^ params.d := by simp [domainSize, hi0]
-    have hdom1 : params.domainSize (i.val + 1) = 2 ^ (params.d - params.firstStepLog) := by
-      simp [domainSize, hi0, hcum1]
-    omega
-  · have h1le : 1 ≤ i.val := by omega
-    have hdom_le : params.domainSize i.val ≤ 2 ^ (params.d - params.firstStepLog) := by
-      rw [← hcum1]
-      exact Nat.pow_le_pow_right (by omega)
-        (Nat.sub_le_sub_left (friCumLog_mono params.stepLog h1le) params.d)
-    have hfirst_pos : 1 ≤ params.firstStepLog := by
-      rw [hfirst]
-      exact params.hstepPos ⟨0, hm_pos⟩
-    have hfirst_le_d : params.firstStepLog ≤ params.d := by
-      rw [← hcum1]
-      exact params.cumLog_le_d hm_pos
-    have htwice : 2 * 2 ^ (params.d - params.firstStepLog) ≤ 2 ^ params.d := by
-      have h1 : 2 * 2 ^ (params.d - params.firstStepLog) =
-          2 ^ (1 + (params.d - params.firstStepLog)) := by rw [pow_add, pow_one]
-      rw [h1]
-      exact Nat.pow_le_pow_right (by omega) (by omega)
+  rcases Nat.eq_zero_or_pos i.val with hi0 | hi_pos
+  · simp [domainSize, hi0, hcum1]
+  · have hdom_le : params.domainSize i.val ≤ params.domainSize 1 := params.domainSize_anti hi_pos
+    have hdom0 := params.domainSize_eq_arity_mul_succ ⟨0, hm_pos⟩
+    have hmul : 2 * params.domainSize 1 ≤ params.domainSize 0 :=
+      (Nat.mul_le_mul_right _ (params.two_le_arity ⟨0, hm_pos⟩)).trans_eq hdom0.symm
+    change params.domainSize i.val - params.domainSize (i.val + 1) ≤
+      params.domainSize 0 - 2 ^ (params.d - params.firstStepLog)
+    have h1 : params.domainSize 1 = 2 ^ (params.d - params.firstStepLog) := by
+      simp [domainSize, hcum1]
     omega
 
 end FRISmoothParams
@@ -722,14 +698,11 @@ theorem evalLagrange_eq_of_mem_reedSolomon {k n : ℕ} (hkn : k ≤ n)
     evalLagrange (fun t : Fin k => α ⟨t.val, lt_of_lt_of_le t.isLt hkn⟩)
       (fun t : Fin k => f ⟨t.val, lt_of_lt_of_le t.isLt hkn⟩) (α j) = f j := by
   obtain ⟨p, hp, rfl⟩ := mem_reedSolomon.mp hf
-  have hpts_inj : Function.Injective (fun t : Fin k => α ⟨t.val, lt_of_lt_of_le t.isLt hkn⟩) := by
-    intro t₁ t₂ h
-    exact Fin.ext (Fin.mk.inj (hα h))
-  rw [evalLagrange_eq_eval_interpolate]
-  have hdeg : p.degree < (Finset.univ : Finset (Fin k)).card := by
-    simpa only [Finset.card_univ, Fintype.card_fin] using hp
-  have hrec := Lagrange.eq_interpolate (Set.injOn_of_injective hpts_inj) hdeg
-  exact congrArg (fun q : F[X] => q.eval (α j)) hrec.symm
+  have hpts_inj : Function.Injective fun t : Fin k => α ⟨t.val, lt_of_lt_of_le t.isLt hkn⟩ :=
+    fun _ _ h => Fin.ext (Fin.mk.inj (hα h))
+  rw [evalLagrange_eq_eval_interpolate,
+    ← Lagrange.eq_interpolate (Set.injOn_of_injective hpts_inj)
+      (by simpa only [Finset.card_univ, Fintype.card_fin] using hp)]
 
 end LagrangeInterpolation
 
@@ -810,39 +783,27 @@ theorem friSmoothHonestWord_mem_rsCode (params : FRISmoothParams F)
   | 0, _, _ => hf₀
   | j + 1, hj, zs => by
     let i : Fin params.m := ⟨j, Nat.lt_of_succ_le hj⟩
-    have ih := friSmoothHonestWord_mem_rsCode params hf₀ j (Nat.le_of_succ_le hj)
-      (fun k => zs k.castSucc)
-    have hsplit : 2 ^ (params.d - params.cumLog j) =
-        params.arity i * 2 ^ (params.d - params.cumLog (j + 1)) :=
-      params.domainSize_eq_arity_mul_succ i
-    have hdim : params.dim j = params.arity i * params.dim (j + 1) :=
-      params.dim_eq_arity_mul_succ i
+    have hsplit := params.domainSize_eq_arity_mul_succ i
+    obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp
+      (friSmoothHonestWord_mem_rsCode params hf₀ j (Nat.le_of_succ_le hj) (fun k => zs k.castSucc))
     have hprev_rs :
         (fun idx : Fin (params.arity i * 2 ^ (params.d - params.cumLog (j + 1))) =>
           friSmoothHonestWord params f₀ j (Nat.le_of_succ_le hj) (fun k => zs k.castSucc)
             ⟨idx.val, lt_of_lt_of_eq idx.isLt hsplit.symm⟩) ∈
         reedSolomon
-          (cosetPoint (params.g ^ (2 ^ params.cumLog j)) (params.ω ^ (2 ^ params.cumLog j))
-            (params.arity i * 2 ^ (params.d - params.cumLog (j + 1))))
-          (params.arity i * params.dim (j + 1)) := by
-      obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp ih
-      refine mem_reedSolomon.mpr ⟨p, hdim ▸ hp, ?_⟩
-      ext idx
-      exact congrFun hpeq ⟨idx.val, lt_of_lt_of_eq idx.isLt hsplit.symm⟩
+          (cosetPoint (params.g ^ (2 ^ params.cumLog j)) (params.ω ^ (2 ^ params.cumLog j)) _)
+          (params.arity i * params.dim (j + 1)) :=
+      mem_reedSolomon.mpr ⟨p, params.dim_eq_arity_mul_succ i ▸ hp,
+        funext fun idx => congrFun hpeq ⟨idx.val, lt_of_lt_of_eq idx.isLt hsplit.symm⟩⟩
     have hωj : IsPrimitiveRoot (params.ω ^ (2 ^ params.cumLog j))
-        (params.arity i * 2 ^ (params.d - params.cumLog (j + 1))) := by
-      simpa only [← hsplit] using isPrimitiveRoot_pow_two_pow params.hω
-        (params.cumLog_le_d (Nat.le_of_succ_le hj))
-    have hfolded := foldWord_mem_reedSolomon (pow_ne_zero _ params.hg)
-      (params.arity_cast_ne_zero i) (Nat.pow_pos (by omega)) hωj hprev_rs (zs (Fin.last j))
-    have hgpow : (params.g ^ (2 ^ params.cumLog j)) ^ params.arity i =
-        params.g ^ (2 ^ params.cumLog (j + 1)) := by
-      rw [params.cumLog_succ i, FRISmoothParams.arity, ← pow_mul, ← pow_add]
-    have hωpow : (params.ω ^ (2 ^ params.cumLog j)) ^ params.arity i =
-        params.ω ^ (2 ^ params.cumLog (j + 1)) := by
+        (params.arity i * 2 ^ (params.d - params.cumLog (j + 1))) :=
+      hsplit ▸ isPrimitiveRoot_pow_two_pow params.hω (params.cumLog_le_d (Nat.le_of_succ_le hj))
+    have hpow (x : F) : (x ^ (2 ^ params.cumLog j)) ^ params.arity i =
+        x ^ (2 ^ params.cumLog (j + 1)) := by
       rw [params.cumLog_succ i, FRISmoothParams.arity, ← pow_mul, ← pow_add]
     simpa only [friSmoothHonestWord, FRISmoothParams.rsCode, FRISmoothParams.eval, cosetEval,
-      hgpow, hωpow] using hfolded
+      hpow] using foldWord_mem_reedSolomon (pow_ne_zero _ params.hg)
+      (params.arity_cast_ne_zero i) (Nat.pow_pos (by omega)) hωj hprev_rs (zs (Fin.last j))
 
 /-- Prefix challenge independence: `friSmoothHonestWord` depends only on `zs` up to round `j`. -/
 theorem friSmoothHonestWord_congr (params : FRISmoothParams F) (f₀ : OracleTable params.d F) :
@@ -889,6 +850,38 @@ theorem friHonestWord_succ_apply (params : FRIParams F) (f₀ : OracleTable para
         (zs (Fin.last j)) := by
   rfl
 
+private theorem foldFiber_toSmooth_eq_fold2Fiber_at (params : FRIParams F) (i : Fin params.m)
+    (ys : Fin (params.toSmooth.arity i) → F)
+    (idx : Fin (2 ^ (params.d - params.toSmooth.cumLog (i.val + 1)))) (z : F) :
+    foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog i.val))
+        (params.ω ^ (2 ^ params.toSmooth.cumLog i.val)) ys idx z =
+      fold2Fiber (ys ⟨0, by simp⟩) (ys ⟨1, by simp⟩)
+        (params.eval i.val ⟨idx.val, lt_of_lt_of_le
+          (by simpa only [params.toSmooth_cumLog i.isLt] using idx.isLt)
+          (Nat.pow_le_pow_right (by omega) (by omega))⟩) z := by
+  have hci1 : params.toSmooth.cumLog (i.val + 1) = i.val + 1 := params.toSmooth_cumLog i.isLt
+  have hid : i.val < params.d := lt_of_lt_of_le i.isLt params.hm
+  have hωi : IsPrimitiveRoot (params.ω ^ (2 ^ i.val)) (2 * 2 ^ (params.d - (i.val + 1))) :=
+    params.domainSize_eq_two_mul_succ hid ▸ isPrimitiveRoot_pow_two_pow params.hω hid.le
+  rw [show foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog i.val))
+      (params.ω ^ (2 ^ params.toSmooth.cumLog i.val)) ys idx z =
+      foldFiber (params.g ^ (2 ^ i.val)) (params.ω ^ (2 ^ i.val))
+        (fun t : Fin 2 => ys ⟨t.val, by simp [t.isLt]⟩)
+        ⟨idx.val, by simpa only [hci1] using idx.isLt⟩ z by
+    simp only [foldFiber, foldFiberComp, params.toSmooth_cumLog i.isLt.le, hci1,
+      FRISmoothParams.arity, pow_one]; rfl]
+  rw [foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωi]
+  simp [FRIParams.eval, cosetEval, cosetPoint]
+
+private theorem padOracle_eq_apply {d i j : ℕ} {f : Fin (2 ^ (d - i)) → F}
+    {g : Fin (2 ^ (d - j)) → F} (hpad : padOracle f = padOracle g)
+    {a : Fin (2 ^ (d - i))} {b : Fin (2 ^ (d - j))} (hab : a.val = b.val) :
+    f a = g b := by
+  have h := congrFun hpad ⟨a.val, lt_of_lt_of_le a.isLt
+    (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩
+  rwa [padOracle_apply_of_lt _ _ a.isLt,
+    padOracle_apply_of_lt _ _ (hab ▸ b.isLt), show (⟨a.val, _⟩ : Fin _) = b from Fin.ext hab] at h
+
 /-- The padded honest prover oracle tables of binary `friHonestWord` and smooth
 `friSmoothHonestWord params.toSmooth` coincide identically at every round `j ≤ m`. -/
 theorem padOracle_friHonestWord_eq_smooth (params : FRIParams F) (f₀ : OracleTable params.d F) :
@@ -899,79 +892,18 @@ theorem padOracle_friHonestWord_eq_smooth (params : FRIParams F) (f₀ : OracleT
   | j + 1, hj, zs => by
     have hj_le : j ≤ params.m := Nat.le_of_succ_le hj
     have ih := padOracle_friHonestWord_eq_smooth params f₀ j hj_le (fun k => zs k.castSucc)
-    have hcj : params.toSmooth.cumLog j = j := params.toSmooth_cumLog hj_le
     have hcj1 : params.toSmooth.cumLog (j + 1) = j + 1 := params.toSmooth_cumLog hj
-    have hjd : j < params.d := lt_of_lt_of_le (Nat.lt_of_succ_le hj) params.hm
-    have hsplit : 2 ^ (params.d - j) = 2 * 2 ^ (params.d - (j + 1)) :=
-      params.domainSize_eq_two_mul_succ hjd
-    have hωj : IsPrimitiveRoot (params.ω ^ (2 ^ j)) (2 * 2 ^ (params.d - (j + 1))) :=
-      hsplit ▸ isPrimitiveRoot_pow_two_pow params.hω hjd.le
     ext idx
     by_cases hlt : idx.val < 2 ^ (params.d - (j + 1))
     · have hlt' : idx.val < 2 ^ (params.d - params.toSmooth.cumLog (j + 1)) := by
         simpa only [hcj1] using hlt
       rw [padOracle_apply_of_lt _ _ hlt, padOracle_apply_of_lt _ _ hlt',
-        friHonestWord_succ_apply, friSmoothHonestWord_succ_apply]
-      have harg : ∀ t : Fin 2,
-          friSmoothHonestWord params.toSmooth f₀ j hj_le (fun k => zs k.castSucc)
-            ⟨idx.val + t.val * 2 ^ (params.d - params.toSmooth.cumLog (j + 1)), by
-              have hval_lt : idx.val + t.val * 2 ^ (params.d - (j + 1)) < 2 ^ (params.d - j) := by
-                have ht : t.val = 0 ∨ t.val = 1 := by omega
-                rcases ht with ht | ht <;> simp only [ht, zero_mul, one_mul, add_zero] <;> omega
-              simpa only [hcj, hcj1] using hval_lt⟩ =
-          friHonestWord params f₀ j hj_le (fun k => zs k.castSucc)
-            ⟨idx.val + t.val * 2 ^ (params.d - (j + 1)), by
-              have ht : t.val = 0 ∨ t.val = 1 := by omega
-              rcases ht with ht | ht <;> simp only [ht, zero_mul, one_mul, add_zero] <;>
-                omega⟩ := by
-        intro t
-        have hval_lt : idx.val + t.val * 2 ^ (params.d - (j + 1)) < 2 ^ (params.d - j) := by
-          have ht : t.val = 0 ∨ t.val = 1 := by omega
-          rcases ht with ht | ht <;> simp only [ht, zero_mul, one_mul, add_zero] <;> omega
-        have hval_lt' : idx.val + t.val * 2 ^ (params.d - (j + 1)) <
-            2 ^ (params.d - params.toSmooth.cumLog j) := by
-          simpa only [hcj] using hval_lt
-        have hval_lt_d : idx.val + t.val * 2 ^ (params.d - (j + 1)) < 2 ^ params.d :=
-          lt_of_lt_of_le hval_lt (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))
-        have hpeq := congrFun ih ⟨idx.val + t.val * 2 ^ (params.d - (j + 1)), hval_lt_d⟩
-        rw [padOracle_apply_of_lt _ _ hval_lt, padOracle_apply_of_lt _ _ hval_lt'] at hpeq
-        convert hpeq.symm using 2
-        exact Fin.ext (by simp [hcj1])
-      have hfold :
-          foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog j))
-            (params.ω ^ (2 ^ params.toSmooth.cumLog j))
-            (fun t : Fin (params.toSmooth.arity ⟨j, Nat.lt_of_succ_le hj⟩) =>
-              friSmoothHonestWord params.toSmooth f₀ j hj_le (fun k => zs k.castSucc)
-                ⟨idx.val + t.val * 2 ^ (params.d - params.toSmooth.cumLog (j + 1)), by
-                  have hval_lt : idx.val + t.val * 2 ^ (params.d - (j + 1)) < 2 ^ (params.d - j) :=
-                    by
-                      have ht : t.val = 0 ∨ t.val = 1 := by
-                        have := t.isLt
-                        dsimp only [FRISmoothParams.arity] at this
-                        omega
-                      rcases ht with ht | ht <;> simp only [ht, zero_mul, one_mul, add_zero] <;>
-                        omega
-                  simpa only [hcj, hcj1] using hval_lt⟩)
-            ⟨idx.val, hlt'⟩ (zs (Fin.last j)) =
-          foldFiber (params.g ^ (2 ^ j)) (params.ω ^ (2 ^ j))
-            (fun t : Fin 2 =>
-              friHonestWord params f₀ j hj_le (fun k => zs k.castSucc)
-                ⟨idx.val + t.val * 2 ^ (params.d - (j + 1)), by
-                  have ht : t.val = 0 ∨ t.val = 1 := by omega
-                  rcases ht with ht | ht <;> simp only [ht, zero_mul, one_mul, add_zero] <;>
-                    omega⟩)
-            ⟨idx.val, hlt⟩ (zs (Fin.last j)) := by
-        simp only [foldFiber, foldFiberComp, hcj, hcj1, FRISmoothParams.arity, pow_one]
-        refine Finset.sum_congr rfl fun r _ => ?_
-        congr 2
-        refine Finset.sum_congr rfl fun t _ => ?_
-        congr 1
-        simpa only [hcj1] using harg t
-      rw [hfold, foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωj]
-      simp [FRIParams.eval, cosetEval, cosetPoint]
-    · have hlt' : ¬ idx.val < 2 ^ (params.d - params.toSmooth.cumLog (j + 1)) := by
-        simpa only [hcj1] using hlt
-      simp only [padOracle, hlt, hlt', ↓reduceDIte]
+        friHonestWord_succ_apply, friSmoothHonestWord_succ_apply,
+        foldFiber_toSmooth_eq_fold2Fiber_at params ⟨j, Nat.lt_of_succ_le hj⟩ _ ⟨idx.val, hlt'⟩]
+      congr 1
+      · exact padOracle_eq_apply ih (by simp)
+      · exact padOracle_eq_apply ih (by simp [hcj1])
+    · simp [padOracle, hlt, hcj1]
 
 /-- **Reed–Solomon invariance of honest FRI folding** (corollary of
 `friSmoothHonestWord_mem_rsCode`): if `f₀ ∈ params.initialCode`, then every honest prover round
@@ -979,20 +911,13 @@ word `friHonestWord params f₀ j hj zs` lies in `params.rsCode j`. -/
 theorem friHonestWord_mem_rsCode (params : FRIParams F) {f₀ : OracleTable params.d F}
     (hf₀ : f₀ ∈ params.initialCode) (j : ℕ) (hj : j ≤ params.m) (zs : Fin j → F) :
     friHonestWord params f₀ j hj zs ∈ params.rsCode j := by
-  have hsm := friSmoothHonestWord_mem_rsCode params.toSmooth
+  obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp <| friSmoothHonestWord_mem_rsCode params.toSmooth
     (by simpa only [FRIParams.toSmooth_initialCode] using hf₀) j hj zs
-  obtain ⟨p, hp, hpeq⟩ := mem_reedSolomon.mp hsm
   have hcj : params.toSmooth.cumLog j = j := params.toSmooth_cumLog hj
-  refine mem_reedSolomon.mpr ⟨p, (params.toSmooth_dim hj) ▸ hp, ?_⟩
-  ext k
-  have hk_lt : k.val < 2 ^ (params.d - j) := k.isLt
-  have hk_lt' : k.val < 2 ^ (params.d - params.toSmooth.cumLog j) := by
-    simpa only [hcj] using hk_lt
-  have hk_d : k.val < 2 ^ params.d :=
-    lt_of_lt_of_le hk_lt (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))
-  have hpad := congrFun (padOracle_friHonestWord_eq_smooth params f₀ j hj zs) ⟨k.val, hk_d⟩
-  rw [padOracle_apply_of_lt _ _ hk_lt, padOracle_apply_of_lt _ _ hk_lt'] at hpad
-  rw [hpad, ← congrFun hpeq ⟨k.val, hk_lt'⟩]
+  refine mem_reedSolomon.mpr ⟨p, params.toSmooth_dim hj ▸ hp, funext fun k => ?_⟩
+  have hk' : k.val < 2 ^ (params.d - params.toSmooth.cumLog j) := by simpa only [hcj] using k.isLt
+  rw [padOracle_eq_apply (padOracle_friHonestWord_eq_smooth params f₀ j hj zs)
+      (b := ⟨k.val, hk'⟩) rfl, ← congrFun hpeq ⟨k.val, hk'⟩]
   simp [FRIParams.eval, FRISmoothParams.eval, cosetEval, cosetPoint, hcj]
 
 /-- Prefix challenge independence: `friHonestWord` depends only on `zs` up to round `j`. -/
@@ -1042,13 +967,9 @@ at smooth folding round `i : Fin m`. -/
 
 theorem friSmoothFiberIdx_val_lt (params : FRISmoothParams F) (i : Fin params.m)
     (s : Fin (2 ^ params.d)) (t : Fin (params.arity i)) :
-    (friSmoothFiberIdx params i s t).val < 2 ^ (params.d - params.cumLog i.val) := by
-  have hsplit := params.domainSize_eq_arity_mul_succ i
-  dsimp only [FRISmoothParams.domainSize] at hsplit
-  have hfib := (fiberIdx (friSmoothFoldedFin params i s) t).isLt
-  dsimp only [fiberIdx, friSmoothFoldedFin] at hfib
-  dsimp only [friSmoothFiberIdx]
-  omega
+    (friSmoothFiberIdx params i s t).val < 2 ^ (params.d - params.cumLog i.val) :=
+  lt_of_lt_of_eq (fiberIdx (friSmoothFoldedFin params i s) t).isLt
+    (params.domainSize_eq_arity_mul_succ i).symm
 
 /-- Final-round active index `s % 2 ^ (d - totalLog)` inside `Fin (2 ^ (d - totalLog))`. -/
 @[expose] def friSmoothFinalFin (params : FRISmoothParams F) (s : Fin (2 ^ params.d)) :
@@ -1314,6 +1235,11 @@ along the powering chain of `s`, and final-round agreement with `friSmoothFinalC
   oracles (Fin.last params.m) (friSmoothFinalIdx params s) =
     friSmoothFinalCodeword params (oracles (Fin.last params.m)) (friSmoothFinalFin params s)
 
+private theorem getD_map_ofFn {α β : Type*} {n : ℕ} (f : Fin n → α) (g : α → β) (d : β) :
+    (fun t : Fin n => ((List.ofFn f).map g).getD t.val d) = fun t => g (f t) := by
+  funext t
+  simp [List.length_ofFn, t.isLt]
+
 private theorem friSmoothCheckFoldList_map [DecidableEq F] (params : FRISmoothParams F)
     (headerVals : Fin params.kFinal → F)
     (chals : Fin (params.m + 1) → FRIChal F params.d params.q)
@@ -1332,37 +1258,14 @@ private theorem friSmoothCheckFoldList_map [DecidableEq F] (params : FRISmoothPa
         evalLagrange params.finalAnchorPoints headerVals
           (params.eval params.m (friSmoothFinalFin params s)) := by
   induction rounds with
-  | nil =>
-    simp [friSmoothFoldQueriesList, friSmoothCheckFoldList]
+  | nil => simp [friSmoothFoldQueriesList, friSmoothCheckFoldList]
   | cons i is ih =>
-    let fibList : List F :=
-      (List.ofFn fun t : Fin (params.arity i) =>
-        (i.castSucc, friSmoothFiberIdx params i s t)).map fun p => oracles p.1 p.2
-    have hfib_len : fibList.length = params.arity i := by
-      simp [fibList]
-    have hfib_getD :
-        (fun t : Fin (params.arity i) => fibList.getD t.val 0) =
-        fun t : Fin (params.arity i) => oracles i.castSucc (friSmoothFiberIdx params i s t) := by
-      funext t
-      have hlt : t.val < fibList.length := by simpa only [hfib_len] using t.isLt
-      rw [List.getD_eq_getElem _ _ hlt]
-      simp [fibList]
-    simp only [friSmoothFoldQueriesList, List.map_append, List.map_cons, friSmoothCheckFoldList]
-    change (match (fibList ++ oracles i.succ (friSmoothFoldedIdx params i s) ::
-        (friSmoothFoldQueriesList params s is).map fun p => oracles p.1 p.2).drop
-          (params.arity i) with
-      | yNext :: rest =>
-        decide (foldFiber (params.g ^ (2 ^ params.cumLog i.val))
-            (params.ω ^ (2 ^ params.cumLog i.val))
-            (fun t : Fin (params.arity i) =>
-              ((fibList ++ oracles i.succ (friSmoothFoldedIdx params i s) ::
-                (friSmoothFoldQueriesList params s is).map fun p => oracles p.1 p.2).take
-                  (params.arity i)).getD t.val 0)
-            (friSmoothFoldedFin params i s) (chals i.castSucc).foldScalar = yNext) &&
-          friSmoothCheckFoldList params headerVals chals s is rest
-      | [] => false) = true ↔ _
-    rw [List.drop_left' hfib_len, List.take_left' hfib_len, hfib_getD]
-    simp only [Bool.and_eq_true, decide_eq_true_eq, ih, List.mem_cons, forall_eq_or_imp, and_assoc]
+    have hlen : ((List.ofFn fun t : Fin (params.arity i) =>
+        (i.castSucc, friSmoothFiberIdx params i s t)).map fun p => oracles p.1 p.2).length =
+        params.arity i := by simp
+    simp only [friSmoothFoldQueriesList, List.map_append, List.map_cons, friSmoothCheckFoldList,
+      List.drop_left' hlen, List.take_left' hlen, getD_map_ofFn, Bool.and_eq_true,
+      decide_eq_true_eq, ih, List.mem_cons, forall_eq_or_imp, and_assoc]
 
 private theorem friSmoothCheckSingle_map [DecidableEq F] (params : FRISmoothParams F)
     (stmt : OracleTable params.d F)
@@ -1394,12 +1297,10 @@ private theorem friSmoothCheckRepsList_map [DecidableEq F] (params : FRISmoothPa
         friSmoothSingleAccepts params stmt chals oracles
           ((chals (Fin.last params.m)).queryIdxs a) := by
   induction reps with
-  | nil =>
-    simp [friSmoothRepQueriesList, friSmoothCheckRepsList]
+  | nil => simp [friSmoothRepQueriesList, friSmoothCheckRepsList]
   | cons a as ih =>
-    have hlen :
-        ((friSmoothSingleQueries params ((chals (Fin.last params.m)).queryIdxs a)).map
-          fun p => oracles p.1 p.2).length = params.singleRepQueries := by
+    have hlen : ((friSmoothSingleQueries params ((chals (Fin.last params.m)).queryIdxs a)).map
+        fun p => oracles p.1 p.2).length = params.singleRepQueries := by
       simp [length_friSmoothSingleQueries]
     simp only [friSmoothRepQueriesList, List.map_append, friSmoothCheckRepsList,
       List.take_left' hlen, List.drop_left' hlen, Bool.and_eq_true, friSmoothCheckSingle_map, ih,
@@ -1416,29 +1317,16 @@ theorem iopVerify_friSmoothIOP_eq_true_iff [DecidableEq F] (params : FRISmoothPa
       ∀ a : Fin params.q,
         friSmoothSingleAccepts params stmt chals oracles
           ((chals (Fin.last params.m)).queryIdxs a) := by
-  have hhdr_len :
-      ((friSmoothHeaderQueries params).map fun p => oracles p.1 p.2).length = params.kFinal := by
-    simp [length_friSmoothHeaderQueries]
-  have hhdr_getD :
-      (fun t : Fin params.kFinal =>
-        (((friSmoothHeaderQueries params).map fun p => oracles p.1 p.2)).getD t.val 0) =
-      fun t : Fin params.kFinal =>
-        oracles (Fin.last params.m)
-          ⟨t.val, lt_of_lt_of_le (lt_of_lt_of_le t.isLt params.hkLe)
-            (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩ := by
-    funext t
-    have hlt : t.val < ((friSmoothHeaderQueries params).map fun p => oracles p.1 p.2).length := by
-      simpa only [hhdr_len] using t.isLt
-    rw [List.getD_eq_getElem _ _ hlt]
-    simp [friSmoothHeaderQueries]
-  have hlen_all :
-      ((friSmoothQueries params chals).map fun p => oracles p.1 p.2).length =
-        params.proofOracleQueries := by
-    simp [length_friSmoothQueries]
+  have hhdr_len : ((friSmoothHeaderQueries params).map fun p => oracles p.1 p.2).length =
+      params.kFinal := by simp [length_friSmoothHeaderQueries]
+  have hlen_all : ((friSmoothQueries params chals).map fun p => oracles p.1 p.2).length =
+      params.proofOracleQueries := by simp [length_friSmoothQueries]
   simp only [iopVerify, iopAnswers, friSmoothIOP, friSmoothDecide, hlen_all, decide_true,
     Bool.true_and]
-  simp only [friSmoothQueries, List.map_append, List.take_left' hhdr_len, List.drop_left' hhdr_len,
-    hhdr_getD, friSmoothCheckRepsList_map, List.mem_finRange, true_implies]
+  simp only [friSmoothQueries, List.map_append, List.take_left' hhdr_len,
+    List.drop_left' hhdr_len]
+  simp only [friSmoothHeaderQueries, getD_map_ofFn, friSmoothCheckRepsList_map,
+    List.mem_finRange, true_implies]
 
 /-- **Perfect completeness of the smooth FRI IOP**: for every codeword `f₀ ∈ params.initialCode`
 and every challenge vector `chals`, the smooth FRI verifier accepts the honest prover's tables. -/
@@ -1448,60 +1336,21 @@ theorem friSmoothIOP_complete [DecidableEq F] (params : FRISmoothParams F) :
   rw [iopVerify_friSmoothIOP_eq_true_iff]
   intro a
   set s := (chals (Fin.last params.m)).queryIdxs a
-  refine ⟨?_, ?_, ?_⟩
+  refine ⟨?_, fun i => ?_, ?_⟩
   · simp only [iopProverOracles, friSmoothIOP, padOracle, FRISmoothParams.cumLog, friCumLog_zero,
       Nat.sub_zero, s.isLt, ↓reduceDIte, friSmoothHonestWord]
-  · intro i
-    have hi_le : i.val + 1 ≤ params.m := i.isLt
-    have hnext_lt : (friSmoothFoldedIdx params i s).val <
-        2 ^ (params.d - params.cumLog (i.val + 1)) :=
-      (friSmoothFoldedFin params i s).isLt
-    have hfib_eq :
-        (fun t : Fin (params.arity i) =>
-          iopProverOracles (friSmoothIOP params) f₀ () chals i.castSucc
-            (friSmoothFiberIdx params i s t)) =
-        fun t : Fin (params.arity i) =>
-          friSmoothHonestWord params f₀ i.val (Nat.le_of_lt_succ i.castSucc.isLt)
-            (fun k => (prefixChallenges chals i.castSucc k).foldScalar)
-            ⟨(friSmoothFiberIdx params i s t).val, friSmoothFiberIdx_val_lt params i s t⟩ := by
-      funext t
-      simp only [iopProverOracles, friSmoothIOP, Fin.val_castSucc,
-        padOracle_apply_of_lt _ _ (friSmoothFiberIdx_val_lt params i s t)]
-    rw [hfib_eq]
-    simp only [iopProverOracles, friSmoothIOP, Fin.val_succ, padOracle_apply_of_lt _ _ hnext_lt]
-    rw [friSmoothHonestWord_succ_apply]
-    have hcongr :
-        friSmoothHonestWord params f₀ i.val (Nat.le_of_succ_le hi_le)
-          (fun k : Fin i.val => (prefixChallenges chals i.succ k.castSucc).foldScalar) =
-        friSmoothHonestWord params f₀ i.val (Nat.le_of_lt_succ i.castSucc.isLt)
-          (fun k : Fin i.val => (prefixChallenges chals i.castSucc k).foldScalar) :=
-      friSmoothHonestWord_congr params f₀ i.val _ fun k => rfl
-    rw [hcongr]
+  · simp only [iopProverOracles, friSmoothIOP, Fin.val_castSucc, Fin.val_succ,
+      padOracle_apply_of_lt _ _ (friSmoothFiberIdx_val_lt params i s _)]
+    rw [padOracle_apply_of_lt _ (friSmoothFoldedIdx params i s)
+        (friSmoothFoldedFin params i s).isLt, friSmoothHonestWord_succ_apply]
+    rw [friSmoothHonestWord_congr params f₀ i.val (Nat.le_of_succ_le i.isLt) fun _ => rfl]
     rfl
-  · have hfin_lt : (friSmoothFinalIdx params s).val < 2 ^ (params.d - params.totalLog) :=
-      (friSmoothFinalFin params s).isLt
-    have hmem :
-        friSmoothHonestWord params f₀ params.m le_rfl
-          (fun k => (prefixChallenges chals (Fin.last params.m) k).foldScalar) ∈
-        params.rsCode params.m :=
-      friSmoothHonestWord_mem_rsCode params hf₀ params.m le_rfl _
+  · have hmem := friSmoothHonestWord_mem_rsCode params hf₀ params.m le_rfl
+      (fun k => (prefixChallenges chals (Fin.last params.m) k).foldScalar)
     rw [FRISmoothParams.rsCode, params.dim_last] at hmem
-    simp only [iopProverOracles, friSmoothIOP, Fin.val_last, padOracle_apply_of_lt _ _ hfin_lt,
-      friSmoothFinalCodeword]
-    have hhdr :
-        (fun t : Fin params.kFinal =>
-          padOracle (i := params.totalLog)
-            (friSmoothHonestWord params f₀ params.m le_rfl
-              (fun k => (prefixChallenges chals (Fin.last params.m) k).foldScalar))
-            ⟨t.val, lt_of_lt_of_le (lt_of_lt_of_le t.isLt params.hkLe)
-              (Nat.pow_le_pow_right (by omega) (Nat.sub_le _ _))⟩) =
-        fun t : Fin params.kFinal =>
-          friSmoothHonestWord params f₀ params.m le_rfl
-            (fun k => (prefixChallenges chals (Fin.last params.m) k).foldScalar)
-            ⟨t.val, lt_of_lt_of_le t.isLt params.hkLe⟩ := by
-      funext t
-      exact padOracle_apply_of_lt _ _ (lt_of_lt_of_le t.isLt params.hkLe)
-    rw [hhdr]
+    simp only [iopProverOracles, friSmoothIOP, Fin.val_last, friSmoothFinalCodeword,
+      padOracle_apply_of_lt _ (friSmoothFinalIdx params s) (friSmoothFinalFin params s).isLt]
+    conv_rhs => arg 2; ext t; rw [padOracle_apply_of_lt _ _ (lt_of_lt_of_le t.isLt params.hkLe)]
     exact (evalLagrange_eq_of_mem_reedSolomon params.hkLe
       (cosetEval_injective params.hg params.hω params.htotal) hmem
       (friSmoothFinalFin params s)).symm
@@ -1790,35 +1639,15 @@ theorem foldFiber_toSmooth_eq_fold2Fiber (params : FRIParams F) (i : Fin params.
         (friSmoothFoldedFin params.toSmooth i s) z =
       fold2Fiber (ys ⟨0, by simp⟩) (ys ⟨1, by simp⟩)
         (params.eval i.val (friRoundPosFin params i s)) z := by
-  have hci : params.toSmooth.cumLog i.val = i.val := params.toSmooth_cumLog i.isLt.le
-  have hci1 : params.toSmooth.cumLog (i.val + 1) = i.val + 1 := params.toSmooth_cumLog i.isLt
-  have hid : i.val < params.d := lt_of_lt_of_le i.isLt params.hm
-  have hsplit : 2 ^ (params.d - i.val) = 2 * 2 ^ (params.d - (i.val + 1)) :=
-    params.domainSize_eq_two_mul_succ hid
-  have hωi : IsPrimitiveRoot (params.ω ^ (2 ^ i.val)) (2 * 2 ^ (params.d - (i.val + 1))) :=
-    hsplit ▸ isPrimitiveRoot_pow_two_pow params.hω hid.le
-  have hrew :
-      foldFiber (params.g ^ (2 ^ params.toSmooth.cumLog i.val))
-          (params.ω ^ (2 ^ params.toSmooth.cumLog i.val)) ys
-          (friSmoothFoldedFin params.toSmooth i s) z =
-        foldFiber (params.g ^ (2 ^ i.val)) (params.ω ^ (2 ^ i.val))
-          (fun t : Fin 2 => ys ⟨t.val, by simp [t.isLt]⟩)
-          (friFoldedFin params i s) z := by
-    simp only [foldFiber, foldFiberComp, friSmoothFoldedFin, friFoldedFin, hci, hci1,
-      FRISmoothParams.arity, pow_one]
-    rfl
-  rw [hrew, foldFiber_two_eq_fold2Fiber (Nat.pow_pos (by omega)) hωi]
-  simp [FRIParams.eval, cosetEval, cosetPoint, friFoldedFin, friRoundPosFin]
+  rw [foldFiber_toSmooth_eq_fold2Fiber_at params i ys (friSmoothFoldedFin params.toSmooth i s) z]
+  congr 2
+  exact Fin.ext (by simp [friSmoothFoldedFin, friRoundPosFin, params.toSmooth_cumLog i.isLt])
 
 /-- **Exact IOP equality**: binary 2-to-1 `friIOP params` coincides identically with
 `friSmoothIOP params.toSmooth` across `proveRound`, `queries`, and `decide`. -/
 theorem friIOP_eq_friSmoothIOP [DecidableEq F] (params : FRIParams F) :
     friIOP params = friSmoothIOP params.toSmooth := by
-  cases h1 : friIOP params
-  cases h2 : friSmoothIOP params.toSmooth
-  simp only [friIOP, friSmoothIOP] at h1 h2
-  cases h1
-  cases h2
+  dsimp only [friIOP, friSmoothIOP]
   congr 1
   funext j stmt _ prevChals
   exact padOracle_friHonestWord_eq_smooth params stmt j.val (Nat.le_of_lt_succ j.isLt)
