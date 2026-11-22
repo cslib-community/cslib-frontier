@@ -247,13 +247,13 @@ private theorem foldMin_eq_none_iff {n : ℕ} {l : List (Fin n × ℕ)} :
 private theorem foldMin_mem_and_le {n : ℕ} {l : List (Fin n × ℕ)} {uk : Fin n × ℕ}
     (h : foldMin l = some uk) : uk ∈ l ∧ ∀ uk' ∈ l, PrioLE uk uk' := by
   fun_induction foldMin l generalizing uk with
-  | case1 => simp at h
-  | case2 a l hl =>
+  | case1 => simp at h -- []
+  | case2 a l hl => -- a :: l, foldMin l = none
     cases h
     rw [foldMin_eq_none_iff.mp hl]
     exact ⟨List.mem_singleton.mpr rfl, fun uk' huk' => by
       rw [List.mem_singleton.mp huk']; exact PrioLE.refl _⟩
-  | case3 a l b hl ih =>
+  | case3 a l b hl ih => -- a :: l, foldMin l = some b
     cases h
     obtain ⟨hb_mem, hb_le⟩ := ih hl
     unfold chooseMin

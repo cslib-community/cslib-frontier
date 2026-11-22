@@ -89,20 +89,19 @@ theorem lowbit_one : lowbit 1 = 1 := by
 
 theorem lowbit_pos {n : ℕ} (hn : 0 < n) : 0 < lowbit n := by
   fun_induction lowbit n with
-  | case1 => omega
-  | case2 => exact Nat.one_pos
-  | case3 n _ _ ih =>
+  | case3 n _ _ ih => -- n even: 2 * lowbit (n / 2)
     have := ih (by omega)
     omega
+  | _ => omega -- n = 0, or n odd
 
 theorem lowbit_le (n : ℕ) : lowbit n ≤ n := by
   fun_induction lowbit n <;> omega
 
 theorem lowbit_dvd (n : ℕ) : lowbit n ∣ n := by
   fun_induction lowbit n with
-  | case1 => exact Nat.dvd_refl 0
-  | case2 n => exact one_dvd n
-  | case3 n _ _ ih =>
+  | case1 => exact Nat.dvd_refl 0 -- n = 0
+  | case2 n => exact one_dvd n -- n odd
+  | case3 n _ _ ih => -- n even: 2 * lowbit (n / 2)
     obtain ⟨q, hq⟩ := ih
     exact ⟨q, by rw [Nat.mul_assoc, ← hq]; omega⟩
 
@@ -110,9 +109,9 @@ theorem lowbit_dvd (n : ℕ) : lowbit n ∣ n := by
 theorem exists_odd_mul_lowbit {n : ℕ} (hn : 0 < n) :
     ∃ q k : ℕ, lowbit n = 2 ^ k ∧ n = (2 * q + 1) * 2 ^ k := by
   fun_induction lowbit n with
-  | case1 => omega
-  | case2 n => exact ⟨n / 2, 0, rfl, by omega⟩
-  | case3 n _ _ ih =>
+  | case1 => omega -- n = 0
+  | case2 n => exact ⟨n / 2, 0, rfl, by omega⟩ -- n odd
+  | case3 n _ _ ih => -- n even: 2 * lowbit (n / 2)
     obtain ⟨q, k, hlb, hfact⟩ := ih (by omega)
     refine ⟨q, k + 1, by rw [hlb]; ring, ?_⟩
     rw [Nat.pow_succ, ← Nat.mul_assoc, ← hfact]
@@ -304,7 +303,7 @@ private theorem two_pow_exponent_lt_of_two_mul_le {k k' : ℕ}
 private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowbit m = 2 ^ k) :
     (downChain m).length + k ≤ Nat.log 2 m + 1 := by
   fun_induction downChain m generalizing k with
-  | case1 m hm ih =>
+  | case1 m hm ih => -- 0 < m: m :: downChain (m - lowbit m)
     rw [List.length_cons]
     have hk_log : k ≤ Nat.log 2 m := Nat.le_log_of_pow_le (by omega) (hlb ▸ lowbit_le m)
     rcases Nat.eq_zero_or_pos (m - lowbit m) with h0 | hpos
@@ -318,7 +317,7 @@ private theorem length_downChain_add_exp_le {m k : ℕ} (hm : 0 < m) (hlb : lowb
       have hsub := ih hpos hlb'
       have hlog_mono : Nat.log 2 (m - lowbit m) ≤ Nat.log 2 m := Nat.log_mono_right (by omega)
       omega
-  | case2 => omega
+  | case2 => omega -- m = 0
 
 /-- Every downward Fenwick query chain from `m > 0` has length at most `⌊log₂ m⌋ + 1`. -/
 theorem length_downChain_le_log {m : ℕ} (hm : 0 < m) :
@@ -343,7 +342,7 @@ private theorem length_upChain_add_exp_le {n m k : ℕ}
     (hm : 0 < m) (hmn : m ≤ n) (hlb : lowbit m = 2 ^ k) :
     (upChain n m).length + k ≤ Nat.log 2 n + 1 := by
   fun_induction upChain n m generalizing k with
-  | case1 m _ ih =>
+  | case1 m _ ih => -- 0 < m ∧ m ≤ n: m :: upChain n (m + lowbit m)
     rw [List.length_cons]
     have hk_log : k ≤ Nat.log 2 n :=
       Nat.le_log_of_pow_le (by omega) ((hlb ▸ lowbit_le m).trans hmn)
@@ -358,7 +357,7 @@ private theorem length_upChain_add_exp_le {n m k : ℕ}
     · rw [upChain]
       simp only [hnext, and_false, ↓reduceDIte, List.length_nil]
       omega
-  | case2 => omega
+  | case2 => omega -- otherwise: []
 
 /-- Every upward Fenwick update chain from `1 ≤ m ≤ n` has length at most `⌊log₂ n⌋ + 1`. -/
 theorem length_upChain_le_log {n m : ℕ} (hm : 0 < m) (hmn : m ≤ n) :
@@ -383,21 +382,21 @@ theorem length_upChain_le_clog (n m : ℕ) :
 
 private theorem ge_of_mem_upChain {n m x : ℕ} (hx : x ∈ upChain n m) : m ≤ x := by
   fun_induction upChain n m with
-  | case1 m _ ih =>
+  | case1 m _ ih => -- 0 < m ∧ m ≤ n: m :: upChain n (m + lowbit m)
     rcases List.mem_cons.mp hx with rfl | htail
     · exact Nat.le_refl _
     · have := ih htail
       omega
-  | case2 => simp only [List.not_mem_nil] at hx
+  | case2 => simp only [List.not_mem_nil] at hx -- otherwise: []
 
 theorem pairwise_lt_upChain (n m : ℕ) : (upChain n m).Pairwise (· < ·) := by
   fun_induction upChain n m with
-  | case1 m h ih =>
-    have hlb_pos : 0 < lowbit m := lowbit_pos h.1
+  | case1 m hguard ih => -- 0 < m ∧ m ≤ n: m :: upChain n (m + lowbit m)
+    have hlb_pos : 0 < lowbit m := lowbit_pos hguard.1
     refine List.Pairwise.cons (fun x hx => ?_) ih
     have hge := ge_of_mem_upChain hx
     omega
-  | case2 => exact List.Pairwise.nil
+  | case2 => exact List.Pairwise.nil -- otherwise: []
 
 theorem nodup_upChain (n m : ℕ) : (upChain n m).Nodup :=
   (pairwise_lt_upChain n m).imp (fun h => Nat.ne_of_lt h)
@@ -408,7 +407,7 @@ theorem nodup_upChain (n m : ℕ) : (upChain n m).Nodup :=
 theorem mem_upChain_iff {n m idx : ℕ} (hm : 0 < m) :
     idx ∈ upChain n m ↔ m ≤ idx ∧ idx ≤ n ∧ idx - lowbit idx < m := by
   fun_induction upChain n m with
-  | case1 m h ih =>
+  | case1 m hguard ih => -- 0 < m ∧ m ≤ n: m :: upChain n (m + lowbit m)
     simp only [List.mem_cons]
     have hlb_pos : 0 < lowbit m := lowbit_pos hm
     rcases lt_trichotomy idx m with hlt | rfl | hgt
@@ -418,7 +417,7 @@ theorem mem_upChain_iff {n m idx : ℕ} (hm : 0 < m) :
         · have hge := ge_of_mem_upChain htail
           omega
       · omega
-    · simp only [true_or, Nat.le_refl, h.2, true_and, true_iff]
+    · simp only [true_or, Nat.le_refl, hguard.2, true_and, true_iff]
       omega
     · have hneq : idx ≠ m := Nat.ne_of_gt hgt
       simp only [hneq, false_or]
@@ -430,10 +429,10 @@ theorem mem_upChain_iff {n m idx : ℕ} (hm : 0 < m) :
       · rintro ⟨_, hin, hsub⟩
         obtain ⟨hsub', hle'⟩ := hbridge.mp hsub
         exact ⟨hle', hin, hsub'⟩
-  | case2 m h =>
+  | case2 m hguard => -- otherwise: []
     simp only [List.not_mem_nil, false_iff]
     rintro ⟨hle, hin, _⟩
-    exact h ⟨hm, Nat.le_trans hle hin⟩
+    exact hguard ⟨hm, Nat.le_trans hle hin⟩
 
 /-! ## Immediate-children partition of `[idx - lowbit idx, idx)` -/
 
@@ -447,7 +446,7 @@ private theorem exists_child_of_mem_upChain {idx m : ℕ}
     (hm : 0 < m) (hlt : m < idx) (hmem : idx ∈ upChain idx m) :
     ∃ c ∈ fenwickChildren idx, c ∈ upChain idx m := by
   fun_induction upChain idx m with
-  | case1 m h ih =>
+  | case1 m _ ih => -- 0 < m ∧ m ≤ idx: m :: upChain idx (m + lowbit m)
     rcases List.mem_cons.mp hmem with rfl | htail
     · exact False.elim (Nat.lt_irrefl _ hlt)
     · have hm'_le : m + lowbit m ≤ idx := ge_of_mem_upChain htail
@@ -457,7 +456,7 @@ private theorem exists_child_of_mem_upChain {idx m : ℕ}
         exact ⟨⟨hm, by omega⟩, heq⟩
       · obtain ⟨c, hc_child, hc_mem⟩ := ih (by omega) hlt' htail
         exact ⟨c, hc_child, List.mem_cons_of_mem _ hc_mem⟩
-  | case2 => simp only [List.not_mem_nil] at hmem
+  | case2 => simp only [List.not_mem_nil] at hmem -- otherwise: []
 
 /-- Intervals `[c - lowbit c, c)` of distinct immediate Fenwick children of `idx` are disjoint. -/
 theorem pairwiseDisjoint_fenwickChildren (idx : ℕ) :

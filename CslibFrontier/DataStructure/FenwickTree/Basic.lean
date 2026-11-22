@@ -230,12 +230,12 @@ private theorem prefixSumLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (tree : Array α) {m : ℕ} (hm : m ≤ tree.size) (acc : α) :
     (prefixSumLoopM tree m acc).time = (downChain m).length := by
   fun_induction prefixSumLoopM tree m acc with
-  | case1 m acc h ih =>
+  | case1 m acc hguard ih => -- 0 < m ∧ m ≤ tree.size: visit node m
     rw [downChain]
-    simp only [h.1, ↓reduceDIte, TimeM.time_bind, TimeM.time_tick, List.length_cons]
+    simp only [hguard.1, ↓reduceDIte, TimeM.time_bind, TimeM.time_tick, List.length_cons]
     have := ih (by omega)
     omega
-  | case2 m acc h =>
+  | case2 m acc hguard => -- otherwise: return acc
     rw [show m = 0 by omega, downChain_zero]
     simp only [TimeM.time_pure, List.length_nil]
 
@@ -274,16 +274,16 @@ private theorem prefixSumLoopM_ret {α : Type*} [AddCommMonoid α]
     {m : ℕ} (hms : m ≤ s.length) (acc : α) :
     (prefixSumLoopM t.tree m acc).ret = acc + (s.take m).sum := by
   fun_induction prefixSumLoopM t.tree m acc with
-  | case1 m acc h ih =>
+  | case1 m acc hguard ih => -- 0 < m ∧ m ≤ tree.size: visit node m
     simp only [TimeM.ret_bind]
-    have hlt : m - lowbit m < m := Nat.sub_lt h.1 (lowbit_pos h.1)
-    rw [ih (by omega), hv.2 m h.1 h.2]
+    have hlt : m - lowbit m < m := Nat.sub_lt hguard.1 (lowbit_pos hguard.1)
+    rw [ih (by omega), hv.2 m hguard.1 hguard.2]
     have hsplit : s.take m = s.take (m - lowbit m) ++ (s.take m).drop (m - lowbit m) := by
       have h := (List.take_append_drop (m - lowbit m) (s.take m)).symm
       rwa [List.take_take, Nat.min_eq_left (Nat.le_of_lt hlt)] at h
     conv_rhs => rw [hsplit, List.sum_append]
     rw [add_assoc, add_comm ((s.take m).drop (m - lowbit m)).sum]
-  | case2 m acc h =>
+  | case2 m acc hguard => -- otherwise: return acc
     obtain rfl : m = 0 := by have := hv.1; omega
     simp only [TimeM.ret_pure, List.take_zero, List.sum_nil, add_zero]
 
@@ -344,13 +344,13 @@ private theorem addLoopM_time_eq {α : Type*} [AddCommMonoid α]
     (n m : ℕ) (δ : α) (tree : Array α) :
     (addLoopM n m δ tree).time = (upChain n m).length := by
   fun_induction addLoopM n m δ tree with
-  | case1 m tree h ih =>
+  | case1 m tree hguard ih => -- 0 < m ∧ m ≤ n: update node m
     rw [upChain]
-    simp only [h, and_self, ↓reduceDIte, time_simps]
+    simp only [hguard, and_self, ↓reduceDIte, time_simps]
     omega
-  | case2 m tree h =>
+  | case2 m tree hguard => -- otherwise: return tree
     rw [upChain]
-    simp only [h, ↓reduceDIte, time_simps]
+    simp only [hguard, ↓reduceDIte, time_simps]
 
 /-- Exact tick count of `addM`: `(upChain t.size (pos + 1)).length` in bounds, `0` out of
 bounds. -/
@@ -557,11 +557,11 @@ private theorem buildLoopM_spec {α : Type*} [AddCommMonoid α]
     (hm1 : 1 ≤ m) (hmn : m ≤ s.length + 1) (hinv : BuildInv s m tree) :
     BuildInv s (s.length + 1) (buildLoopM s.length m tree).ret := by
   fun_induction buildLoopM s.length m tree with
-  | case2 m tree h =>
+  | case2 m tree hguard => -- loop guard fails: return tree
     obtain rfl : m = s.length + 1 := by have := hinv.size_eq; omega
     exact hinv
-  | case1 m tree h _ _ ih =>
-    have hms : m ≤ s.length := h.2.1
+  | case1 m tree hguard _ _ ih => -- 1 ≤ m ≤ n: propagate node m into its parent
+    have hms : m ≤ s.length := hguard.2.1
     have hmt : m ≤ tree.size := hinv.size_eq ▸ hms
     have hm_val : tree[m - 1]'(by omega) =
         ∑ i ∈ Finset.Ico (m - lowbit m) m, s.getD i 0 := by
