@@ -61,11 +61,12 @@ conclusion UNSAT;
 end pseudo-Boolean proof;
 "
 
-#guard checkAugmented php32 php32Proof == some (.unsat 10)
+-- The kernel proof is trimmed to the final sum, the constraint `6`.
+#guard checkAugmented php32 php32Proof == some (.unsat 6)
 
--- The hints the elaborator computes, and the translated references.
+-- A derived constraint that nothing uses is trimmed.
 #guard (elaborate [] none none "pseudo-Boolean proof version 3.0\nrup >= 0 ;\noutput NONE;
-conclusion NONE;\nend pseudo-Boolean proof;").toOption.map (·.proof.steps.length) == some 1
+conclusion NONE;\nend pseudo-Boolean proof;").toOption.map (·.proof.steps.length) == some 0
 
 -- A step that is not RUP is rejected.
 #guard (checkAugmented php32

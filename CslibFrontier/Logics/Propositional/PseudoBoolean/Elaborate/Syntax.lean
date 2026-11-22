@@ -504,6 +504,74 @@ partial def endSection (L : Lexer σ) : PM σ Unit := do
   expect L "end"
   while (← L.next) != ";" do pure ()
 
+/-! #### The kernel syntax inside `def_order` -/
+
+mutual
+
+/-- A reference of a specification step, made absolute and sent to its kernel number. -/
+partial def remapRef (map : Std.HashMap ℕ ℕ) : Ref → Ref
+  | .abs n => .abs ((map[n]?).getD n)
+  | r => r
+
+/-- The constraint references of a step in a specification, sent to kernel numbers; relative
+references inside the subproof are kept. -/
+partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
+  | .pol ops => .pol (ops.map fun (o : AOp) => match o with
+    | .ref r => .ref (remapRef map r)
+    | o => o)
+  | .rup c (some hs) => .rup c (some (hs.map fun (h : AHint) => match h with
+    | .ref r => .ref (remapRef map r)
+    | h => h))
+  | .pbc c sub q => .pbc c (sub.map (·.map (remap map a))) (q.map (remapRef map))
+  | .goal g sub q => .goal g (sub.map (remap map a)) (q.map (remapRef map))
+  | s => s
+
+/-- The local number of a reference inside `def_order`, the next number being `next`. -/
+partial def refNum (next : ℕ) : Ref → ℕ
+  | .abs n => n
+  | .rel k => next - k
+  | .label _ => 0
+
+/-- A step inside `def_order`, in the kernel syntax, numbered from `next`; with the next number
+after it. -/
+partial def toKernelStep (s : AStep) (next : ℕ) : Option (Step × ℕ) :=
+  match s with
+  | .pol ops => (ops.mapM fun (o : AOp) => match o with
+      | .ref r => some (PolOp.id (refNum next r)) | .lit l => some (.lit l) | .add => some .add
+      | .mul k => some (.mul k) | .div k => some (.div k) | .sat => some .sat
+      | .weaken v => some (.weaken v) | _ => none).map fun ops => (.pol ops, next + 1)
+  | .rup c none => some (.rupSearch c, next + 1)
+  | .rup c (some hs) =>
+    some (.rup c (hs.map fun (h : AHint) => match h with
+      | .neg => .neg
+      | .ref r => .id (refNum next r)), next + 1)
+  | .pbc c (some sub) q =>
+    let (ks, n') := toKernelSteps sub (next + 1)
+    some (.pbc c ks ((q.map (refNum n')).getD (n' - 1)), n' + 1)
+  | _ => none
+
+/-- Steps inside `def_order`, numbered from `next`. -/
+partial def toKernelSteps (ss : List AStep) (next : ℕ) : List Step × ℕ :=
+  ss.foldl (fun (acc, n) s => match toKernelStep s n with
+    | some (k, n') => (acc ++ [k], n')
+    | none => (acc, n)) ([], next)
+
+/-- The items of a subproof inside `def_order`, in the kernel syntax, numbered from `next`: a
+`proofgoal` block's negated goal takes the next number. -/
+partial def toKernelItems (items : List AStep) (next : ℕ) : List RedItem × ℕ :=
+  items.foldl (fun (acc, n) s => match s with
+    | .goal g sub q =>
+      let (ks, n') := toKernelSteps sub (n + 1)
+      let g := match g with
+        | .hash k => GoalId.hash k
+        | .ref r => GoalId.db (refNum n r)
+      (acc ++ [.goal g ks ((q.map (refNum n')).getD (n' - 1))], n')
+    | s => match toKernelStep s n with
+      | some (k, n') => (acc ++ [.step k], n')
+      | none => (acc, n)) ([], next)
+
+end
+
 mutual
 
 /-- A rule, with a label before it, if any; `none` at `output`, `qed` and `end`, which are not
@@ -781,68 +849,6 @@ partial def orderProof (L : Lexer σ) : PM σ (List AStep × Option Ref) := do
   let items ← steps L
   let q ← qed L
   return (items, q)
-
-/-- A reference of a specification step, made absolute and sent to its kernel number. -/
-partial def remapRef (map : Std.HashMap ℕ ℕ) : Ref → Ref
-  | .abs n => .abs ((map[n]?).getD n)
-  | r => r
-
-/-- The constraint references of a step in a specification, sent to kernel numbers; relative
-references inside the subproof are kept. -/
-partial def remap (map : Std.HashMap ℕ ℕ) (a : ℕ) : AStep → AStep
-  | .pol ops => .pol (ops.map fun (o : AOp) => match o with
-    | .ref r => .ref (remapRef map r)
-    | o => o)
-  | .rup c (some hs) => .rup c (some (hs.map fun (h : AHint) => match h with
-    | .ref r => .ref (remapRef map r)
-    | h => h))
-  | .pbc c sub q => .pbc c (sub.map (·.map (remap map a))) (q.map (remapRef map))
-  | .goal g sub q => .goal g (sub.map (remap map a)) (q.map (remapRef map))
-  | s => s
-
-/-- The local number of a reference inside `def_order`, the next number being `next`. -/
-partial def refNum (next : ℕ) : Ref → ℕ
-  | .abs n => n
-  | .rel k => next - k
-  | .label _ => 0
-
-/-- A step inside `def_order`, in the kernel syntax, numbered from `next`; with the next number
-after it. -/
-partial def toKernelStep (s : AStep) (next : ℕ) : Option (Step × ℕ) :=
-  match s with
-  | .pol ops => (ops.mapM fun (o : AOp) => match o with
-      | .ref r => some (PolOp.id (refNum next r)) | .lit l => some (.lit l) | .add => some .add
-      | .mul k => some (.mul k) | .div k => some (.div k) | .sat => some .sat
-      | .weaken v => some (.weaken v) | _ => none).map fun ops => (.pol ops, next + 1)
-  | .rup c none => some (.rupSearch c, next + 1)
-  | .rup c (some hs) =>
-    some (.rup c (hs.map fun (h : AHint) => match h with
-      | .neg => .neg
-      | .ref r => .id (refNum next r)), next + 1)
-  | .pbc c (some sub) q =>
-    let (ks, n') := toKernelSteps sub (next + 1)
-    some (.pbc c ks ((q.map (refNum n')).getD (n' - 1)), n' + 1)
-  | _ => none
-
-/-- Steps inside `def_order`, numbered from `next`. -/
-partial def toKernelSteps (ss : List AStep) (next : ℕ) : List Step × ℕ :=
-  ss.foldl (fun (acc, n) s => match toKernelStep s n with
-    | some (k, n') => (acc ++ [k], n')
-    | none => (acc, n)) ([], next)
-
-/-- The items of a subproof inside `def_order`, in the kernel syntax, numbered from `next`: a
-`proofgoal` block's negated goal takes the next number. -/
-partial def toKernelItems (items : List AStep) (next : ℕ) : List RedItem × ℕ :=
-  items.foldl (fun (acc, n) s => match s with
-    | .goal g sub q =>
-      let (ks, n') := toKernelSteps sub (n + 1)
-      let g := match g with
-        | .hash k => GoalId.hash k
-        | .ref r => GoalId.db (refNum n r)
-      (acc ++ [.goal g ks ((q.map (refNum n')).getD (n' - 1))], n')
-    | s => match toKernelStep s n with
-      | some (k, n') => (acc ++ [.step k], n')
-      | none => (acc, n)) ([], next)
 
 end
 

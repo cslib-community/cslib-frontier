@@ -15,7 +15,9 @@ into a kernel proof (`Cslib.Logic.PL.VeriPB.Elab.elaborate`) and checks the kern
 `s VERIFIED <conclusion>` or `s REJECTED <reason>` and the time of each phase on `c` lines, and
 exits with `0` on acceptance and `1` otherwise. With `--emit`, it writes the kernel proof in the
 text format, for an external kernel checker such as CakePB; the printer is not verified.
-With `--no-check`, it only elaborates.
+With `--no-check`, it only elaborates. With `--kernel`, it does not elaborate: it checks a proof
+in the kernel format with the text front end (`Cslib.Logic.PL.VeriPB.Text.checkOPB`,
+`Cslib.Logic.PL.VeriPB.Text.checkDIMACS`), for comparison with other elaborators.
 -/
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB
@@ -178,6 +180,13 @@ def main (args : List String) : IO UInt32 := do
   let t₀ ← IO.monoMsNow
   let fmlText ← IO.FS.readFile fml
   let pbpText ← IO.FS.readFile pbp
+  if args.contains "--kernel" then
+    let r := if cnf then Text.checkDIMACS fmlText pbpText else Text.checkOPB fmlText pbpText
+    let t₁ ← IO.monoMsNow
+    IO.println s!"c kernel text check {t₁ - t₀} ms"
+    match r with
+    | some c => IO.println s!"s VERIFIED {conclStr #[] c}"; return 0
+    | none => IO.println "s REJECTED kernel text check"; return 1
   let inst : Option Instance := if cnf then
       (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩
     else Text.parseOPB fmlText
