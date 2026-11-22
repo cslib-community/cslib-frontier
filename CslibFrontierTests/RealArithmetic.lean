@@ -183,6 +183,19 @@ set_option linter.hashCommand false in
   formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
     formulaWordGateValues [] termSign == [false]
 
+-- A malformed word has no comparison terms, so its sign reader can be arbitrary.
+example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
+    (formulaWordGateValues [] termSign).getD 0 false = true ↔
+      x ∈ (Formula.ofWord []).solutionSet := by
+  refine formulaWordGateValues_getD_zero_eq_true_iff [] termSign x ?_
+  intro _ h
+  have hinvalid : validFormulaWord [] ≠ true := by
+    intro hvalid
+    obtain ⟨p, hp⟩ := validFormulaWord_eq_true_iff.mp hvalid
+    cases p <;> simp [encFormula_apply, encFormula_tokens] at hp
+  rw [formulaWordTokens_eq, Formula.ofWord_of_not_valid hinvalid] at h
+  simp [encFormula_tokens, FormulaToken.encodeTerms] at h
+
 -- The total view preserves the existential semantics of a satisfiable formula.
 example :
     (Formula.ofWord (encFormula 0 (.eqZero (.const 0)))).solutionSet.Nonempty := by
