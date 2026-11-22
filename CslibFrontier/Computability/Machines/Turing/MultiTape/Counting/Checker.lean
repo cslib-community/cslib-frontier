@@ -211,7 +211,6 @@ theorem computableInPolyTime_binaryStep [Finite State]
     ComputableInPolyTime (binaryStep machine width)
       encRuntime encRuntime := by
   unfold binaryStep
-  simp only [bind]
   option_match_to_elim
   fun_prop
 
@@ -333,7 +332,6 @@ theorem computableInPolyTime_finishRuntime [Finite State] :
     ComputableInPolyTime (finishRuntime (k := k) (State := State))
       encRuntime (encOption encBits) := by
   unfold finishRuntime
-  simp only [bind]
   option_match_to_elim
   fun_prop
 
@@ -359,7 +357,7 @@ theorem checkBinary_eq_certificateAccepts (machine : MultiTapeCTM k Bool State)
 theorem computableInPolyTime_checkBinary [Finite State]
     (machine : MultiTapeCTM k Bool State) (width : ℕ) (verdict : Bool) :
     ComputableInPolyTime (checkBinary machine width verdict) (encPair encBits encBits) encBool := by
-  unfold checkBinary Option.any
+  unfold checkBinary
   option_match_to_elim
   fun_prop
 

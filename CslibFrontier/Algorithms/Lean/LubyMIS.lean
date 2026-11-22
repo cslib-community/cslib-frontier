@@ -175,6 +175,11 @@ noncomputable def run (k : ℕ) : ProbComp (State V) :=
 noncomputable def lubyMIS (k : ℕ) : ProbComp (Finset V) :=
   State.chosen <$> run G k
 
+/-- The law of `lubyMIS`: pushing `run G k` forward along `State.chosen`. -/
+theorem eval_lubyMIS (k : ℕ) :
+    ProbComp.eval (lubyMIS G k) = (ProbComp.eval (run G k)).map State.chosen :=
+  ProbComp.eval_map _ _
+
 theorem run_zero : run G 0 = pure (init : State V) := by
   simp only [run, OracleComp.iterate_zero]
 
