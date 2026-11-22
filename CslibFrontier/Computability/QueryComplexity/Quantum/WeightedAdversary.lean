@@ -140,8 +140,7 @@ theorem sum_wtSnd_eq_weightSum (S : WeightScheme N) :
 /-- Rescaled progress-measure bound for any positive balancing factor `c > 0`. -/
 private theorem one_sub_mul_sum_le_of_pos (S : WeightScheme N)
     (U : ℕ → State N W →ₗᵢ[ℂ] State N W) {ψ₀ : State N W} (hψ₀ : ‖ψ₀‖ = 1) (T : ℕ)
-    {δ : ℝ} (hδ : ∀ p ∈ S.R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ δ)
-    {vA vB : ℝ} (hvA : 0 ≤ vA) (hvB : 0 ≤ vB)
+    {δ vA vB : ℝ} (hδ : ∀ p ∈ S.R, ‖inner ℂ (run U ψ₀ p.1 T) (run U ψ₀ p.2 T)‖ ≤ δ)
     (hA : ∀ x ∈ S.R.image Prod.fst, ∀ i, S.loadFst x i ≤ vA * S.wtFst x)
     (hB : ∀ y ∈ S.R.image Prod.snd, ∀ i, S.loadSnd y i ≤ vB * S.wtSnd y)
     {c : ℝ} (hc : 0 < c) :
@@ -156,8 +155,6 @@ private theorem one_sub_mul_sum_le_of_pos (S : WeightScheme N)
       have hs := S.sq_le p hp i hi
       calc S.w p ^ 2 ≤ S.u p i * S.v p i := hs
         _ = (c * S.u p i) * (S.v p i / c) := by field_simp)
-    (fun x _ => mul_nonneg (mul_nonneg hc.le hvA) (S.wtFst_nonneg x))
-    (fun y _ => mul_nonneg (div_nonneg hvB hc.le) (S.wtSnd_nonneg y))
     (fun x hx i => by
       rw [← mul_sum]
       calc c * S.loadFst x i ≤ c * (vA * S.wtFst x) :=
@@ -196,21 +193,21 @@ theorem one_sub_mul_sum_le (S : WeightScheme N) (U : ℕ → State N W →ₗᵢ
   · simp only [zero_mul, Real.sqrt_zero, mul_zero]
     refine nonpos_of_forall_pos_le_div (B := T * vB * S.weightSum)
       (by have := S.weightSum_nonneg; positivity) fun c hc => ?_
-    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ le_rfl hvB hA hB hc
+    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hA hB hc
     have heq : (T : ℝ) * (c * 0 + vB / c) * S.weightSum = (T * vB * S.weightSum) / c := by ring
     exact heq ▸ hbal
   rcases hvB.eq_or_lt with rfl | hvB_pos
   · simp only [mul_zero, Real.sqrt_zero, zero_mul]
     refine nonpos_of_forall_pos_le_div (B := T * vA * S.weightSum)
       (by have := S.weightSum_nonneg; positivity) fun c hc => ?_
-    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hvA_pos.le le_rfl hA hB (inv_pos.2 hc)
+    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hA hB (inv_pos.2 hc)
     have heq : (T : ℝ) * (c⁻¹ * vA + 0 / c⁻¹) * S.weightSum = (T * vA * S.weightSum) / c := by
       rw [zero_div, add_zero, inv_mul_eq_div]
       ring
     exact heq ▸ hbal
   · set c := √vB / √vA
     have hc : 0 < c := div_pos (Real.sqrt_pos.2 hvB_pos) (Real.sqrt_pos.2 hvA_pos)
-    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hvA_pos.le hvB_pos.le hA hB hc
+    have hbal := S.one_sub_mul_sum_le_of_pos U hψ₀ T hδ hA hB hc
     have hcoeff : c * vA + vB / c = 2 * √(vA * vB) := by
       rw [Real.sqrt_mul hvA_pos.le]
       have hsqA : √vA * √vA = vA := Real.mul_self_sqrt hvA_pos.le

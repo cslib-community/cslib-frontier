@@ -82,6 +82,7 @@ import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.Reduction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
@@ -142,6 +143,8 @@ import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
+
+import CslibFrontier.Foundations.BooleanAnalysis.LevelOneInequality
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -304,6 +307,7 @@ import CslibFrontier.Crypto.Computational.GoldreichLevin.WordListDecoder
 import CslibFrontier.Crypto.Computational.HardCore.NoUniversal
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.OneWay
 import CslibFrontier.Crypto.Primitives.PRG.ReadOnceBias
+import CslibFrontier.Crypto.Primitives.PRG.ModThreeBias
 import CslibFrontier.Crypto.Computational.InaccessibleEntropy.TargetCollision
 import CslibFrontier.Crypto.Computational.IndexedSignature.Counter
 import CslibFrontier.Crypto.Computational.KeyExchange.KeyGuessing
@@ -503,6 +507,15 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.PartialSynchrony.Liveness
+import CslibFrontier.Computability.Distributed.MutualExclusion.Bakery
+import CslibFrontier.Computability.Distributed.MutualExclusion.FilterLock
+import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
+import CslibFrontier.Computability.Distributed.ChandyLamport.Correctness
+import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
+import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
+import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
+import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
 
 /-!
 # Collected results
@@ -10012,6 +10025,21 @@ register_result "goldreich-read-once-prg-stretch" where
     printed hypothesis ε < 1 does not suffice: σ ↦ σσ has ℓ = 2 = 2^1 with error 1/2 \
     (exists_secure_not_isSmallBias)."
 
+register_result "goldreich-small-bias-not-space-pseudorandom" where
+  title := "An exponentially small-bias distribution that is not (2, 0.666)-pseudorandom"
+  topic := "pseudorandomness"
+  sources := [
+    { paper := Goldreich2007DraftR4, theorem := "Exercise 8.39",
+      locator := "March 2007 draft, printed p. 380 / PDF p. 116" }
+  ]
+  theorems := [Cslib.Crypto.PRG.exists_isSmallBias_not_secure]
+  scope := "The distribution on {0,1}^n is the uniform distribution on the words of weight \
+    divisible by three, as the output of a generator whose seeds are those words. Its bias \
+    (Eq. (8.18), the absolute value of IsSmallBias's bias) is at most 4 c^n with c = √3/2 < 1 \
+    for every n, and for every n ≥ 10 a read-once program with 2^2 states per layer \
+    (Definition 8.20, space 2) distinguishes it from uniform with gap above 0.666, so the \
+    ensemble is not (2, 0.666)-pseudorandom."
+
 register_result "goldreich-adaptive-t-wise-independence" where
   title := "Adaptive block tests of t-wise independent generators"
   topic := "pseudorandomness"
@@ -10246,10 +10274,16 @@ register_result "mpda-well-nested-reachability" where
     and an independently related suffix (s4, s5) give the pair (s1, s5); the suffix supplies \
     the concatenation needed for consecutive matched pairs. This is the relational \
     characterization of the table computed by Algorithm 2, which starts from the identity pairs \
-    and the nop transitions; the finite iteration of Algorithm 2, its termination and the \
-    equality of its output with WellNestedReach are not formalized. Source check: outside-fleet \
-    agent review (review_6193_endpoint, codex-coord-20261111-1634) on PR #6474, against \
-    arXiv:2002.05950v2 Section 2 p. 4, Section 3 pp. 7-8 and Appendix B p. 22."
+    and the nop transitions. For finitely many control states, letters and stack symbols and a \
+    decidable transition relation, the module of the mpda-hole-bounded-emptiness entry also \
+    computes the table: the finite set wellNestedPairs iterates the closure rules of \
+    WellNestedReach as many times as there are pairs of states, and contains exactly the pairs \
+    related by WellNestedReach (mem_wellNestedPairs). Algorithm 2 instead alternates a \
+    transitive closure with a push-pop step until nothing changes; both reach the same least \
+    fixed point, and the order of rule applications and the number of iterations are not \
+    formalized. Source check: outside-fleet agent review (review_6193_endpoint, \
+    codex-coord-20261111-1634) on PR #6474, against arXiv:2002.05950v2 Section 2 p. 4, Section 3 \
+    pp. 7-8 and Appendix B p. 22."
 register_result "offline-dictionary-attack" where
   title := "The offline dictionary attack recovers a password in the dictionary, or one with the \
     same hash, with at most |D| hash evaluations"
@@ -10945,6 +10979,24 @@ register_result "computational-universal-hash-single-to-multi-query" where
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
 
+register_result "xor-hash-computational-universality" where
+  title := "XOR-hash from a secure PRF is computationally universal"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.6",
+      locator := "v0.6, Section 7.2.3, printed pp. 260–262; Figure 7.2 and equation (7.12)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.isComputationalUHF_xorHashWordFamily,
+    Cslib.Crypto.UHF.succProbability_xorHashWordFamily_le
+  ]
+  scope := "Uniform strict PPT adversaries in the single-pair game, with the security parameter \
+    as deterministic public setup and a private uniform n-bit PRF key. Messages have a \
+    polynomial-time computable cap and fixed-width blocks. The word PRF is defined on the full \
+    request width, and its table is restricted to blocks with a padded unary position prefix. \
+    The reciprocal of the digest-space cardinality is negligible. The explicit wrapper \
+    preserves the real collision law and has ideal success at most that reciprocal."
+
 register_result "computational-difference-unpredictability-implies-universal-hashing" where
   title := "Computational difference unpredictability implies computational universal hashing"
   topic := "cryptography"
@@ -11524,6 +11576,461 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
 
+register_result "dijkstra-k-state-self-stabilizing-token-ring" where
+  title := "Dijkstra's K-state self-stabilizing token ring under a central daemon"
+  topic := "distributed computing"
+  sources := [
+    { paper := Dijkstra1974,
+      theorem := "Solution with K-state Machines and Note 1 (K ≥ N, central daemon)",
+      locator := "CACM 17(11), pp. 643–644 (left column, 'Solution with K-state Machines \
+        (K > N)', and right column, Note 1); author manuscript EWD426, pp. 0–4" },
+    { paper := Dijkstra1973,
+      theorem := "Solution with K-state machines (K ≥ N, central daemon)",
+      locator := "UT Austin EWD391 transcription, pp. EWD391 - 1 to EWD391 - 2 (before the \
+        second '* * *' break)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SelfStabilization.exists_dijkstraPrivileged,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_legitimate_closed,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_token_circulates,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_of_pred_le
+  ]
+  scope := "Models Dijkstra's first K-state token-ring protocol under a central daemon on Fin n \
+    (corresponding to Dijkstra's N + 1 machines numbered 0 .. N, so N = n - 1) over \
+    configurations Fin n → Fin K: bottom machine 0 is privileged iff s 0 = s (0 - 1) and steps \
+    to s 0 + 1, normal machine i > 0 is privileged iff s i ≠ s (i - 1) and steps to s (i - 1), \
+    legitimate states (DijkstraLegitimate n K) are those with (dijkstraPrivilegedSet s).card = 1, \
+    and dijkstraRing n K fires one privileged machine per transition. SelfStabilizing lts \
+    Legitimate requires forward closure (requirement (2) on p. 643), absence of terminal states \
+    (implying requirement (1)), and WellFounded (CorruptedStep lts Legitimate) (finite-step \
+    convergence from every initial state under arbitrary enabled moves; source conditions (3), \
+    that each privilege occurs in some legitimate state, and (4), mutual reachability of all \
+    legitimate states, on p. 643 are requirements of Dijkstra's legitimate-state specification \
+    that lie outside the generic SelfStabilizing predicate's scope, while n-step clockwise \
+    privilege circulation is proved in dijkstraRing_token_circulates). Proves Note 1 on p. 644 \
+    for 2 ≤ n, 2 ≤ K, and n - 1 ≤ K (K ≥ N). CACM p. 643 excludes a distributed daemon and \
+    EWD391's later section considers separate reads and adjustments, so the simultaneous \
+    atomic-subset model dijkstraDistRing and its closure/convergence/iff theorems, together with \
+    the explicit K * (n * (n - 1) / 2) + K bound (dijkstraRing_mTr_legitimate_of_le) and \
+    periodic converse (dijkstraRing_not_selfStabilizing_of_lt_pred, \
+    dijkstraRing_selfStabilizing_iff), are original to this formalization; p. 644's 4-state and \
+    3-state bidirectional rings and EWD391's fair-command composite-ring endpoint remain open \
+    under #7291. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7337 \
+    at 6c70b685b657: \
+    https://github.com/cslib-community/cslib-frontier/pull/7337#pullrequestreview-6011167278."
+
+register_result "fischer-lynch-interactive-consistency-round-lower-bound" where
+  title := "Fischer–Lynch round lower bound for interactive consistency on n ≥ t + 2 processes"
+  topic := "distributed computing"
+  sources := [
+    { paper := FischerLynch1982,
+      theorem := "Theorem 5",
+      locator := "§3 and §6, printed pp. 184–186" }
+  ]
+  theorems := [
+    Cslib.Distributed.Byzantine.InteractiveProtocol.not_solvesInteractiveConsistency_of_rounds_le
+  ]
+  scope := "For any finite process type P with DecidableEq P, nontrivial input type V \
+    (Nontrivial V), state type S, message type M, fault bound t : ℕ, fixed decision round R : ℕ \
+    with R ≤ t and t + 2 ≤ Fintype.card P, and deterministic synchronous complete-network \
+    protocol π : InteractiveProtocol P V S M (unrestricted send and update functions with no \
+    encoding or local computation bound), ¬ π.SolvesInteractiveConsistency t R: against a fixed \
+    set F : Finset P of at most t faulty senders sending arbitrary recipient-dependent messages \
+    adv : ℕ → P → P → M, correct processes cannot both agree on a common output vector P → V \
+    and recover every correct process's private input at its own coordinate after R rounds. The \
+    bound t + 2 ≤ Fintype.card P makes explicit the two-nonfaulty-processes hypothesis implicit \
+    in the paper's m = 0 base case and invocation of Pease–Shostak–Lamport (n ≥ 3t + 1 for \
+    t ≥ 1, §5 Theorem 3); at n = 2, t = 1 (Fin 2), interactive consistency is solvable in R = 1 \
+    round, whereas for 3 ≤ n ≤ 3t and t ≥ 1 Theorem 3 rules out tolerating t faults in any \
+    number of rounds. Companion declarations in the same module—the Boolean consensus round \
+    lower bound Protocol.not_solvesByzantineAgreement_of_rounds_le (adaptation to \
+    Cslib.Distributed.Byzantine.Protocol for 2 ≤ Fintype.card P and R ≤ t), the majority \
+    adapter InteractiveProtocol.solvesByzantineAgreement_toByzantineAgreement, and the \
+    two-parameter characterization exists_solvesByzantineAgreement_iff_full (library synthesis \
+    with Pease–Shostak–Lamport, Lamport–Shostak–Pease, and Fischer–Lynch–Merritt)—are kept \
+    distinct from Theorem 5. Source check: outside-fleet agent review (reviewer-codex-edemaine) \
+    on PR #7150 at 5b7e3dc4e661: \
+    https://github.com/cslib-community/cslib-frontier/pull/7150#pullrequestreview-6011267968."
+
+register_result "dolev-strong-authenticated-broadcast" where
+  title := "Dolev–Strong (t + 1)-round authenticated broadcast with quadratic chain-transmission \
+    bound"
+  topic := "distributed computing"
+  sources := [
+    { paper := DolevStrong1983,
+      theorem := "Theorem 3",
+      locator := "§4, printed pp. 662–663 (authenticated model in §§1–2 and §4, pp. 656–662)" }
+  ]
+  theorems := [
+    Cslib.Distributed.Byzantine.dolevStrong_solvesAuthenticatedBroadcast,
+    Cslib.Distributed.Byzantine.dolevStrong_correctMessagesSent_le
+  ]
+  scope := "For any finite linearly ordered process type P (Fintype P, LinearOrder P), value \
+    type V with DecidableEq V, designated sender dealer : P, fallback default v₀ : V, fault \
+    threshold t : ℕ, and decision round R ≥ t + 1 (with no n > 3t bound, including t ≥ |P| - 1): \
+    dolevStrong_solvesAuthenticatedBroadcast proves that dolevStrong P V dealer v₀ t satisfies \
+    AuthProtocol.SolvesAuthenticatedBroadcast t R (well-signed honest emissions plus agreement \
+    and correct-dealer validity across all deterministic runs with a static set F : Finset P of \
+    at most t faulty senders under AuthProtocol.Unforgeable), and \
+    dolevStrong_correctMessagesSent_le bounds AuthProtocol.correctMessagesSent F adv input R \
+    ≤ 2 * (Fintype.card P - F.card) * (Fintype.card P - 1). Model and cost scope vs. §4 \
+    Theorem 3: there is no random sampling or computational signature assumption; \
+    AuthProtocol.Unforgeable models unforgeability by value-level execution provenance \
+    (permitting faulty coalitions to splice or reorder signatures on a value once those correct \
+    signers have signed that value, rather than enforcing syntactic nested-label provenance \
+    (((v)p₁)p₂⋯)pᵢ); dolevStrong accepts dealer-rooted exact-phase-length Nodup chains \
+    (c.signers.getLast? = some dealer, c.signers.length = r + 1), excludes existing chain \
+    signers from forwarding recipients (dst ∉ c.signers), caps extracted values at two per \
+    process in deterministic sender (LinearOrder P) and message-list order, and freezes after \
+    t + 1 rounds; and dolevStrong_correctMessagesSent_le counts point-to-point SignedChain \
+    transmissions emitted by correct processes (at most two per directed edge leaving a correct \
+    process via dolevStrong_sum_send_length_le_two, and at most two relayed values per correct \
+    process via dolevStrong_sum_toRelay_length_eq), without bounding signature bit-length or \
+    total point-to-point traffic by two messages per process. Theorem 4's (t + 2)-round \
+    O(n + t²) message optimization is not formalized here (tracked under #7115). Source check: \
+    outside-fleet agent review (reviewer-codex-edemaine) on PR #7150 at 5b7e3dc4e661: \
+    https://github.com/cslib-community/cslib-frontier/pull/7150#pullrequestreview-6011267968."
+
+register_result "fischer-lynch-merritt-vertex-separator-impossibility" where
+  title := "No synchronous Boolean Byzantine agreement across a vertex separator of size at most 2t"
+  topic := "distributed computing"
+  sources := [
+    { paper := FischerLynchMerritt1985,
+      theorem := "Theorem 1",
+      locator := "PODC '85, §3, p. 61, and §3.2, pp. 62–63" }
+  ]
+  theorems := [
+    Cslib.Distributed.ByzantineGraph.GraphProtocol.not_solvesByzantineAgreement_of_isVertexSeparator
+  ]
+  scope := "For any process type P with DecidableEq P, undirected communication graph \
+    G : SimpleGraph P, state type S, message type M, fault threshold t : ℕ, fixed decision \
+    round R : ℕ, deterministic synchronous edge-indexed protocol π : GraphProtocol G S M, \
+    vertices u v : P, and finite vertex separator C : Finset P (G.IsVertexSeparator u v C, \
+    so u ≠ v, u ∉ C, v ∉ C, and no G-walk from u to v avoids C) with C.card ≤ 2 * t, \
+    ¬ π.SolvesByzantineAgreement t R (Boolean inputs P → Bool, static faulty set F : Finset P \
+    with F.card ≤ t injecting arbitrary edge messages adv : ℕ → ∀ j i : P, G.Adj j i → M, \
+    equivalent to rushing adversaries via GraphProtocol.SolvesByzantineAgreement.adaptive, \
+    requiring Boolean agreement across correct processes and unanimous-input validity after \
+    R rounds). Proved via the split-cut two-sheeted covering network P × Bool of §3.2 \
+    (pp. 62–63). Fischer, Lynch, and Merritt state Theorem 1 over directed graphs in an \
+    axiomatic behavior model (Locality and Fault axioms, §2, pp. 60–61) with arbitrary \
+    termination (CHOOSE on behaviors, §3, p. 61) and both parts of graph inadequacy (n ≤ 3m \
+    in §3.1 and connectivity ≤ 2m in §3.2); Lean restricts here to undirected SimpleGraph P \
+    and deterministic synchronous round-by-round protocols with a uniform fixed decision \
+    round R. The companion 2 ≤ |P| ≤ 3t bound is GraphProtocol.not_solvesByzantineAgreement \
+    in ByzantineGraph.Basic, and Dolev's designated-sender broadcast characterization \
+    (Dolev1982) remains separate under #7121. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7157 at a90c2643e5e0 and 782aaaf8ef37: \
+    https://github.com/cslib-community/cslib-frontier/pull/7157#pullrequestreview-6009403669 \
+    and \
+    https://github.com/cslib-community/cslib-frontier/pull/7157#pullrequestreview-6010628288."
+
+register_result "chandy-lamport-consistent-global-snapshot" where
+  title := "Chandy–Lamport marker snapshots record a causally consistent reachable global state"
+  topic := "distributed computing"
+  sources := [
+    { paper := ChandyLamport1985,
+      theorem := "Theorem 1",
+      locator := "§4, p. 72 (proof pp. 72–73)" }
+  ]
+  theorems := [
+    Cslib.Distributed.ChandyLamport.System.chandyLamport_perm_mTr,
+    Cslib.Distributed.ChandyLamport.System.chandyLamport_consistent_cut
+  ]
+  scope := "For any process type P with DecidableEq P, local state type S, message type M, \
+    asynchronous point-to-point FIFO message-passing system sys : System P S M with \
+    DecidableRel sys.graph.Adj (no finiteness or decidable state/message equality assumption), \
+    well-formed pre-snapshot state S_init (sys.IsPreSnapshot S_init, allowing existing in-flight \
+    application traffic on edges of sys.graph), and finite marker-augmented execution \
+    sys.snapLts.MTr S_init xl S_final reaching a completed snapshot S_final \
+    (IsSnapshotComplete S_final): chandyLamport_perm_mTr proves \
+    sys.lts.MTr (project S_init) (sys.tracePreEvents S_init xl) (extractSnapshot S_final), \
+    sys.lts.MTr (extractSnapshot S_final) (sys.tracePostEvents S_init xl) (project S_final), \
+    and (sys.tracePreEvents S_init xl ++ sys.tracePostEvents S_init xl).Perm (eraseTrace xl), \
+    and chandyLamport_consistent_cut derives \
+    sys.lts.CanReach (project S_init) (extractSnapshot S_final) ∧ \
+    sys.lts.CanReach (extractSnapshot S_final) (project S_final). Unchanged prefix and suffix \
+    traces outside the [ι, φ) snapshot segment compose at the preserved boundary states \
+    project S_init and project S_final via LTS.MTr.comp. Quantifies over all admitted \
+    nondeterministic FIFO schedules with no timing or probabilistic premise; transitions are \
+    deterministic in a supplied trace. Model differences vs. §§2 and 3.2–3.3 (pp. 65–71): \
+    sys.graph : Digraph P admits at most one channel per ordered pair (including self-loops) \
+    rather than separately labeled parallel channels, each Event may emit a list \
+    sent : List (P × M) of outgoing messages atomically rather than a single-channel 5-tuple \
+    step, initiateSnapshot and the first recvMarker record local state and append outgoing \
+    markers atomically, and extractSnapshot assembles the global record directly without \
+    collector dissemination. The §5 stability-detection corollary (System.stablePred_transfer) \
+    and the §3.3 completion theorem under Finite P, StronglyConnected sys.graph, a recorded \
+    initiator, and weak FIFO head-delivery fairness FairChannels (System.snapshot_liveness) \
+    are proved separately in the same module. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7162 at 3b169cc66a55: \
+    https://github.com/cslib-community/cslib-frontier/pull/7162#pullrequestreview-6010522397."
+
+register_result "herlihy-register-consensus-number-one" where
+  title := "Atomic read/write registers have wait-free consensus number 1"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991, theorem := "Theorem 2",
+      locator := "§3.1, printed pp. 131–133 (Figures 3–5)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.not_waitFreeConsensus_registers,
+    Cslib.Distributed.SharedMemory.exists_register_consensus_iff
+  ]
+  scope := "Deterministic asynchronous P-process shared-memory Protocol over any finite process \
+    type P ([Fintype P] [DecidableEq P]) and indexed family of atomic multi-reader multi-writer \
+    read/write registers registerObj (init i) (where RegOp.read returns some s without modifying \
+    s and RegOp.write v overwrites s with v returning none), with wait-free termination modeled \
+    as reachable-from-initConfig accessibility of active transitions (Protocol.WaitFree : \
+    ∀ inp, Acc π.StepRel (π.initConfig inp)). Proves binary SolvesWaitFreeConsensus is \
+    impossible whenever 2 ≤ Fintype.card P (not_waitFreeConsensus_registers) and solvable if \
+    and only if Fintype.card P ≤ 1 (exists_register_consensus_iff, paired with 1-step \
+    oneProcProtocol). Source check: outside-fleet agent review (reviewer-codex-edemaine) on \
+    PR #7273 at 8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "herlihy-test-and-set-two-process-consensus" where
+  title := "Two-process wait-free consensus from TestAndSet and atomic registers"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991,
+      theorem := "Figure 7 (test&set instance of Theorem 3)",
+      locator := "§3.2, printed pp. 133–134" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_testAndSetProtocol,
+    Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_testAndSet_two
+  ]
+  scope := "Explicit 3-step wait-free consensus protocol testAndSetProtocol over per-process \
+    atomic read/write proposal registers (registerObj) and a single TestAndSet object \
+    (testAndSetObj): each process writes its input to its proposal register, invokes TestAndSet, \
+    and reads and decides the winning proposer's register. Proves SolvesWaitFreeConsensus over \
+    any value type V whenever regOf : P → R is injective and other selects the unique peer \
+    (solvesWaitFreeConsensus_testAndSetProtocol), hence whenever Fintype.card P ≤ 2 \
+    (solvesWaitFreeConsensus_testAndSet_two). Formalizes the concrete test&set instance of \
+    Figure 7; Theorem 3's general two-process lower bound over arbitrary nontrivial \
+    read-modify-write functions f (∃ v, f v ≠ v) is not formalized here and remains open in \
+    #7199. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7273 at \
+    8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "herlihy-commuting-or-overwriting-rmw-impossibility" where
+  title := "Three-process wait-free consensus impossibility for commuting-or-overwriting objects"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991, theorem := "Theorem 4",
+      locator := "§3.2, printed p. 134" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.not_waitFreeConsensus_rmw_of_three_le,
+    Cslib.Distributed.SharedMemory.exists_testAndSet_consensus_iff
+  ]
+  scope := "Deterministic asynchronous P-process shared-memory Protocol ([Fintype P] \
+    [DecidableEq P]) with reachable-from-initConfig Protocol.WaitFree over any indexed family of \
+    deterministic shared objects objs i satisfying Herlihy's commuting-or-overwriting \
+    ('interfering', p. 134) state predicate IsCommutingOrOverwriting (proved in the same module \
+    for registerObj, testAndSetObj, swapObj, and fetchAndAddObj over any AddCommSemigroup): \
+    proves binary SolvesWaitFreeConsensus is impossible whenever 3 ≤ Fintype.card P \
+    (not_waitFreeConsensus_rmw_of_three_le), and combines with testAndSetProtocol to show binary \
+    wait-free consensus from TestAndSet objects and atomic read/write registers is solvable iff \
+    Fintype.card P ≤ 2 (exists_testAndSet_consensus_iff). Source check: outside-fleet agent \
+    review (reviewer-codex-edemaine) on PR #7273 at 8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "herlihy-compare-and-swap-consensus" where
+  title := "CompareAndSwap solves wait-free consensus for every finite number of processes"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991, theorem := "Theorem 5",
+      locator := "§3.2, printed p. 135 (Figures 8–9)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_cas
+  ]
+  scope := "1-step protocol casConsensusProtocol over a single value-returning CompareAndSwap \
+    object casObj (none : Option V) initialized to sentinel none: each process proposes \
+    CAS(none, some (inp p)), deciding inp p on response none and w on response some w. Proves \
+    SolvesWaitFreeConsensus for every finite process type P ([Finite P] [DecidableEq P]) and \
+    every decidable value type V ([DecidableEq V]). Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7273 at 8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "lamport-bakery-mutual-exclusion" where
+  title := "Lamport's Bakery algorithm achieves mutual exclusion and first-come-first-served \
+    over safe overlapping reads"
+  topic := "distributed computing"
+  sources := [
+    { paper := Lamport1974,
+      theorem := "Assertions 1 and 2, mutual exclusion, and first-come-first-served (adapted)",
+      locator := "\"The Algorithm\" and \"Proof of Correctness\", printed pp. 454–455" }
+  ]
+  theorems := [
+    Cslib.Distributed.MutualExclusion.bakery_doorway_lt,
+    Cslib.Distributed.MutualExclusion.bakery_cs_lt,
+    Cslib.Distributed.MutualExclusion.bakery_mutualExclusion,
+    Cslib.Distributed.MutualExclusion.bakery_fcfs
+  ]
+  scope := "Over any finite linearly ordered process type P ([Fintype P] [LinearOrder P]), \
+    bakeryLTS P models finite asynchronous interleavings of single-writer safe registers \
+    choosing : P → Bool and number : P → ℕ with split-phase writes (.writeChoosingTrue, \
+    .writeNumber, .writeChoosingFalse, .writeNumberZero), arbitrary-order doorway maximum \
+    scans (BakeryPhase.readMax), nondeterministic overlapping safe reads (SafeReadChoosing and \
+    SafeReadNumber returning arbitrary Bool or ℕ values during active writes or .failed \
+    phases), and transient processor failure/recovery (.fail and .recover resetting choosing \
+    to false and number to 0). Proves critical-section ticket ordering (bakery_cs_lt, \
+    Assertion 2), unconditional mutual exclusion on all states reachable from BakeryState.init \
+    (bakery_mutualExclusion), and first-come-first-served entry (bakery_fcfs). Whereas \
+    Assertion 1 in Lamport (1974, p. 454) starts before doorway entry and states the numeric \
+    inequality number[p] < number[q], bakery_doorway_lt starts before q's doorway ticket scan \
+    (beforeDoorwayScan) and states the induced lexicographic inequality ticket p < ticket q. \
+    Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7391 at \
+    471e81e4cc71: \
+    https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
+
+register_result "lamport-bakery-starvation-freedom" where
+  title := "Per-process starvation freedom for Lamport's Bakery algorithm under weak step \
+    fairness and bounded failures"
+  topic := "distributed computing"
+  sources := [
+    { paper := Lamport1974,
+      theorem := "Starvation freedom from Assertion 3 (per-process weak-fairness variant)",
+      locator := "\"Proof of Correctness\", Assertion 3 and ensuing paragraph, printed p. 455" }
+  ]
+  theorems := [
+    Cslib.Distributed.MutualExclusion.bakery_starvationFree
+  ]
+  scope := "For any infinite execution (bakeryLTS P).OmegaExecution ss μs from a reachable \
+    state (ss 0).Reachable over [Fintype P] [LinearOrder P], assuming explicit weak \
+    per-process step fairness (BakeryState.WeakFair ss μs, under which enabled doorway/waiting \
+    steps, in-progress write completions, critical-section exits, and .recover transitions \
+    eventually occur), a global bound N on total processor failures (BakeryAction.NoFailAfter \
+    μs N), and that the trying target process p never fails (∀ k, μs k ≠ .fail p), p \
+    eventually enters CriticalSection (∃ k, (ss k).inCS p). Whereas Assertion 3 in Lamport \
+    (1974, p. 455) states bounded-failure progress for some process in the bakery, \
+    bakery_starvationFree formalizes the ensuing per-process lockout-freedom consequence under \
+    explicit weak scheduling fairness and p's no-failure premise. Source check: outside-fleet \
+    agent review (reviewer-codex-edemaine) on PR #7391 at 471e81e4cc71: \
+    https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
+
+register_result "peterson-filter-lock-mutual-exclusion" where
+  title := "Peterson's (n − 1)-level filter lock achieves n-process mutual exclusion over \
+    bounded atomic registers"
+  topic := "distributed computing"
+  sources := [
+    { paper := Peterson1981,
+      theorem := "Figure 3 mutual exclusion",
+      locator := "Figure 3, printed p. 116" }
+  ]
+  theorems := [
+    Cslib.Distributed.MutualExclusion.filterLock_mutualExclusion
+  ]
+  scope := "Models Peterson's n-process generalization (Fig. 3, p. 116, whose correctness \
+    proof the paper leaves to the reader) as filterLock n over 0-indexed Fin n-valued atomic \
+    single-register read/write arrays level : Fin n → Fin n and victim : Fin (n - 1) → Fin n \
+    (both initialized to 0 for n > 0). In each waiting room r : Fin (n - 1), filterStep? \
+    evaluates the room wait test via individual atomic reads rather than an atomic multi-word \
+    formula: checkVictim advances when victim[r] ≠ p, and checkLevel records individual \
+    processes q ≠ p read with level[q] < r + 1 until Finset.univ.erase p is cleared. Proves \
+    that at most one process occupies CriticalSection in any reachable state \
+    (filterLock_mutualExclusion), using the inductive level-capacity bound card_at_level_le as \
+    proof infrastructure. Companion theorem filterLock_exists_cs_execution supplies an enabled \
+    finite trying-only execution reaching CriticalSection, while fair-execution progress across \
+    infinite runs requires sequencing the room scan and remains open under #7296 alongside the \
+    general Burns–Lynch space lower bound. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7391 at 471e81e4cc71: \
+    https://github.com/cslib-community/cslib-frontier/pull/7391#pullrequestreview-6010996984."
+
+register_result "dwork-lynch-stockmeyer-omission-partial-synchrony-consensus" where
+  title := "Deterministic consensus under partial synchrony with omission faults requires and \
+    suffices at 2t < N (basic round model)"
+  topic := "distributed computing"
+  sources := [
+    { paper := DworkLynchStockmeyer1988,
+      theorem := "Theorem 3.1, Theorem 4.3, and Table I (basic round model)",
+      locator := "§1.2, Table I, p. 291; §3.1, p. 295; §3.2.1, p. 297; and §4.3, pp. 305–306" }
+  ]
+  theorems := [
+    Cslib.Distributed.PartialSynchrony.omission_terminates_after_gst,
+    Cslib.Distributed.PartialSynchrony.solvesOmissionPartialSync_omissionQuorumProtocol,
+    Cslib.Distributed.PartialSynchrony.not_omissionPartialSync_weakUnanimity,
+    Cslib.Distributed.PartialSynchrony.not_solvesOmissionPartialSync,
+    Cslib.Distributed.PartialSynchrony.exists_solvesOmissionPartialSync_iff
+  ]
+  scope := "Formalized in the Section 3.1 basic round model (PartialSyncProtocol P V S M with \
+    adversarial pre-stabilization delivery deliver : ℕ → P → P → Bool and reliable \
+    correct-to-correct delivery IsGST deliver F gst from an unknown round gst onward) over any \
+    finite process type P ([Fintype P]) and value type V: (1) for 2 * t < Fintype.card P and \
+    [DecidableEq P] [DecidableEq V], the original three-subround rotating-coordinator \
+    view-locking protocol omissionQuorumProtocol achieves unconditional write-once \
+    irrevocability, agreement across correct processes, strong unanimity (∀ i, x i = v), and \
+    post-GST decision by round gst + 3 * (t + 2) (omission_terminates_after_gst, \
+    solvesOmissionPartialSync_omissionQuorumProtocol, witnessing the existence half of \
+    Theorem 3.1 via a three-subround rotating-coordinator view-locking construction in place of \
+    Algorithm 1's alternating trying/lock-release phases and monotone PROPER-set piggybacking); \
+    (2) for 2 ≤ Fintype.card P ≤ 2 * t and [Nontrivial V], no deterministic protocol achieves \
+    post-GST termination against ≤ t omission faults together with failure-free (F = ∅, \
+    ∃ gst, IsGST deliver ∅ gst) agreement and weak unanimity \
+    (not_omissionPartialSync_weakUnanimity, healing the two-group partition after R₀, R₁, and \
+    max R₀ R₁ as in Theorem 4.3, pp. 305–306, with immediate corollary \
+    not_solvesOmissionPartialSync); and (3) together with ownInputProtocol for \
+    Fintype.card P ≤ 1, solvability of SolvesOmissionPartialSync t is equivalent to \
+    Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P (exists_solvesOmissionPartialSync_iff, \
+    Table I, p. 291). Models the Section 3.1 basic round model directly; the real-time \
+    step-group simulations for synchronous processors with eventual or unknown Δ \
+    (Theorems 4.1–4.2, pp. 303–305) and partially synchronous processors \
+    (Sections 5–6, pp. 306–322) are out of scope. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7394 at b118ef3313b5: \
+    https://github.com/cslib-community/cslib-frontier/pull/7394#pullrequestreview-6011300049."
+
+register_result "dwork-lynch-stockmeyer-byzantine-partial-synchrony-consensus" where
+  title := "Deterministic unauthenticated Byzantine consensus under partial synchrony requires \
+    and suffices at 3t < N (basic round model)"
+  topic := "distributed computing"
+  sources := [
+    { paper := DworkLynchStockmeyer1988,
+      theorem := "Theorem 3.3, Remark 1, and §1.2 / Table I (basic round model)",
+      locator := "§1.2 and Table I, p. 291; §3.1, p. 295; and §3.2.3, p. 302" }
+  ]
+  theorems := [
+    Cslib.Distributed.PartialSynchrony.byzQuorum_terminates_after_gst,
+    Cslib.Distributed.PartialSynchrony.solvesByzantinePartialSync_byzQuorumProtocol,
+    Cslib.Distributed.PartialSynchrony.not_partialSync_of_le_three_t,
+    Cslib.Distributed.PartialSynchrony.not_solvesByzantinePartialSync,
+    Cslib.Distributed.PartialSynchrony.exists_solvesByzantinePartialSync_iff
+  ]
+  scope := "Formalized in the Section 3.1 basic round model (PartialSyncProtocol P V S M, \
+    IsGST deliver F gst) over any finite process type P ([Fintype P] [DecidableEq P]) and value \
+    type V: (1) for 3 * t < Fintype.card P and [DecidableEq V], the original six-subround \
+    rotating-coordinator view-locking protocol byzQuorumProtocol (using a two-round \
+    t + 1 / n - t unauthenticated status and input-properness relay followed by n - t echo, \
+    vote/lock, and commit quorums) achieves unconditional write-once irrevocability, agreement \
+    across correct processes, strong correct-input validity (∀ i ∉ F, x i = v, implying strong \
+    unanimity ∀ i, x i = v), and post-GST decision by round gst + 6 * (t + 2) \
+    (byzQuorum_terminates_after_gst, solvesByzantinePartialSync_byzQuorumProtocol, witnessing \
+    the existence half of Theorem 3.3 and Remark 1's O(t) post-GST round complexity via a \
+    six-subround rotating-coordinator view-locking construction in place of Algorithm 3's \
+    alternating trying/lock-release phases, monotone PROPER-set piggybacking, and continuous \
+    Srikanth–Toueg broadcast); (2) for 2 ≤ Fintype.card P ≤ 3 * t and [Nontrivial V], \
+    specializing to GST = 0 (deliver = fun _ _ _ => true) embeds synchronous \
+    Cslib.Distributed.Byzantine.Protocol (PartialSyncProtocol.toSyncProtocol), refuting both \
+    fixed-round R agreement, correct-input validity, and termination \
+    (not_partialSync_of_le_three_t, via Byzantine.Protocol.not_solvesByzantineAgreement) and \
+    run-dependent eventual termination under SolvesByzantinePartialSync t \
+    (not_solvesByzantinePartialSync, via Byzantine.Protocol.state_eq_coverState), matching the \
+    unauthenticated reduction to synchronous Pease–Shostak–Lamport / Fischer–Lynch–Merritt \
+    noted in §1.2, p. 291 (and distinct from Theorem 4.4, p. 306, which proves 2 ≤ N ≤ 3t for \
+    authenticated Byzantine faults under weak unanimity via pre-GST partition delay and is not \
+    formalized here); and (3) together with ownInputProtocol for Fintype.card P ≤ 1, \
+    solvability of SolvesByzantinePartialSync t is equivalent to \
+    Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P (exists_solvesByzantinePartialSync_iff, §1.2 \
+    and Table I, p. 291). Models the Section 3.1 basic round model directly; the real-time \
+    step-group simulations for synchronous processors with eventual or unknown Δ \
+    (Theorems 4.1–4.2, pp. 303–305), authenticated Byzantine protocols and Theorem 4.4 \
+    (§3.2.2, p. 298, and §4.3, p. 306), and partially synchronous processors \
+    (Sections 5–6, pp. 306–322) are out of scope. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7394 at b118ef3313b5: \
+    https://github.com/cslib-community/cslib-frontier/pull/7394#pullrequestreview-6011300049."
+
 register_result "low-individual-degree-projective-self-improvement" where
   title := "Projective self-improvement for symmetric low-individual-degree strategies"
   topic := "nonlocal games"
@@ -11986,9 +12493,10 @@ register_result "mpda-hole-bounded-not-scope-bounded" where
     source's witness for unbounded scope is a^m b^m (a c^2 b d^2)^m; the Lean witness takes the \
     groups of L_bh with p = q = 0. The statement is for visibly MPDAs, as in the source's \
     argument; whether the separation holds when stack operations are hidden is open (issue \
-    #6712). The phase-bounded comparison in the last sentence of Proposition 2 is not \
-    formalized here. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR \
-    #6714 at 17f93ab43d, against arXiv:2002.05950v2, printed pp. 4-7: \
+    #6712). The phase-bounded comparison in the last sentence of Proposition 2 is the entry \
+    mpda-hole-bounded-incomparable-phase-bounded. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6714 at 17f93ab43d, against arXiv:2002.05950v2, printed \
+    pp. 4-7: \
     https://github.com/cslib-community/cslib-frontier/pull/6714#issuecomment-7037725174."
 
 register_result "linear-reductions-preserve-ptas" where
@@ -12755,3 +13263,21 @@ register_result "odonnell-unbiased-noise-stability-dictators" where
     the closed interval containing the book's 0 < ρ < 1; and for 0 < ρ < 1, Stab_ρ[f] = ρ if \
     and only if f x = b ⊕ x i for some coordinate i and bit b, the book's ±χ_i. The equality \
     case fails at both endpoints."
+
+register_result "odonnell-level-one-inequality" where
+  title := "Level-1 Inequality with the explicit constant 16"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Level-1 Inequality",
+      locator := "arXiv:2105.10386v1, §5.4, printed p. 126; proof for [−1, 1]-valued functions \
+        on printed p. 128" }
+  ]
+  theorems := [
+    Cslib.BitString.levelWeight_one_le_of_abs_le_one,
+    Cslib.BitString.levelWeight_one_bitVal_le
+  ]
+  scope := "Uniform cube on any finite coordinate type. The source's O(α² log(1/α)) is stated \
+    with the explicit constant 16 and the natural logarithm: W¹[f] ≤ 16 α² ln(1/α) whenever \
+    α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
+    for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
+    is not covered."

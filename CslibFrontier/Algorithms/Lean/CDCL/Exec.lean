@@ -305,10 +305,10 @@ structure Marks.Inv (m : Marks) (Cur M₀ : Trail) (V : List ℕ) : Prop where
 theorem Marks.inv_empty (Cur M₀ : Trail) (V : List ℕ) : Marks.empty.Inv Cur M₀ V where
   out_below := by simp [Marks.empty]
   out_seen := by simp [Marks.empty]
-  below_out _ _ h := by simp [Marks.empty, Assign.assigned, Assign.value] at h
+  below_out _ _ h := by simp [Marks.empty, Assign.assigned] at h
   path_eq := by
-    simp [Marks.empty, Assign.assigned, Assign.value]
-  seen_iff _ := by simp [Marks.empty, Assign.assigned, Assign.value]
+    simp [Marks.empty, Assign.assigned]
+  seen_iff _ := by simp [Marks.empty, Assign.assigned]
   vars_mem := by simp [Marks.empty]
 
 /-- Seeing the variable `v` adds one to the count of the seen variables of a trail assigning each

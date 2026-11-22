@@ -21,11 +21,10 @@ computing Andreev's function `andreev b m` on all `n = 2 ^ b + b m` inputs, in t
 `α = ⌊(m - 1) / 2⌋` it has exactly
 `N (N - 1) / 2 + b N (m + α) / 2 + 2 (N - 1) + 2 α b + 3 b m + ⌈b m / 2⌉`
 bottom gates and one top gate, improving the `(3/4) n ^ 2` circuit of `WeightedThreshold.Andreev`.
-The mathematics is original, AI-assisted work under
-[#4640](https://github.com/cslib-community/cslib-frontier/issues/4640). Statement numbers and
-labels ("preprint, Theorem 5", proof in Appendix A) refer to the author's unpublished draft
-(C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function*), which is not publicly
-accessible; the correspondence with it is not verifiable by third parties.
+The mathematics is original. Statement numbers and labels ("preprint, Theorem 5", proof in
+Appendix A) refer to C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function*
+(unpublished draft, not publicly accessible; the correspondence with it is not verifiable by third
+parties).
 
 The top gate tests the sign of the score `P` of `AndreevSharpScore`. Its non-affine terms are
 realized by six families of bottom gates (`AndreevSharpIndex`):
@@ -69,9 +68,10 @@ and the top weights on inputs at most `(2 n ^ 3 + 54 n (n + 1)) / 27`; only the 
 
 ## References
 
-* [cslib-frontier#4640](https://github.com/cslib-community/cslib-frontier/issues/4640):
-  original AI-assisted work, following C. Reitwiessner, *Depth-Two Threshold Circuits for
-  Andreev's Function* (unpublished draft, not publicly accessible), Theorem 5 and Appendix A.
+* [A. E. Andreev, *On a method for obtaining more than quadratic effective lower bounds for the
+  complexity of π-schemes*][Andreev1987]
+* C. Reitwiessner, *Depth-Two Threshold Circuits for Andreev's Function* (unpublished draft, not
+  publicly accessible), Theorem 5 and Appendix A.
 -/
 
 @[expose] public section

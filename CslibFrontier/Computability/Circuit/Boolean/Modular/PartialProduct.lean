@@ -18,6 +18,7 @@ past the output width are discarded; this computes a modular partial product on 
 
 ## Main definitions
 
+* `Cslib.Circuits.Boolean.Modular.partialProductBit`: formula for one retained product digit.
 * `Cslib.Circuits.Boolean.Modular.partialProduct`: a shifted partial-product word.
 
 ## Main results
@@ -40,14 +41,14 @@ open BitString
 variable {w : ℕ}
 
 /-- Each retained product digit is one AND gate; lower shifted-out positions are false. -/
-private def partialProductBit (w : ℕ) (i j : Fin w) : Formula signature (w + w) :=
-  if h : i.val ≤ j.val then
+@[expose] def partialProductBit (w : ℕ) (i j : Fin w) : Formula signature (w + w) :=
+  if i.val ≤ j.val then
     (Formula.input (Fin.castAdd w ⟨j.val - i.val, by omega⟩)).and
       (.input (Fin.natAdd w i))
   else .const false
 
 /-- Multiply the first word by the `i`th bit of the second word, shifted by `i`. -/
-def partialProduct (w : ℕ) (i : Fin w) : Circuit signature (w + w) w :=
+@[expose] def partialProduct (w : ℕ) (i : Fin w) : Circuit signature (w + w) w :=
   Circuit.pi fun j => (partialProductBit w i j).toCircuit
 
 private theorem eval_partialProduct (i j : Fin w) (a b : BitString w) :
@@ -55,9 +56,10 @@ private theorem eval_partialProduct (i j : Fin w) (a b : BitString w) :
       if h : i.val ≤ j.val then a ⟨j.val - i.val, by omega⟩ && b i else false := by
   by_cases h : i.val ≤ j.val
   · simp only [partialProduct, Circuit.eval_pi, Formula.eval_toCircuit, partialProductBit,
-      h, ↓reduceDIte, Formula.eval_and, Formula.eval_input, Fin.append_left, Fin.append_right]
+      h, ↓reduceIte, ↓reduceDIte, Formula.eval_and, Formula.eval_input, Fin.append_left,
+      Fin.append_right]
   · simp only [partialProduct, Circuit.eval_pi, Formula.eval_toCircuit, partialProductBit,
-      h, ↓reduceDIte, Formula.eval_const]
+      h, ↓reduceIte, ↓reduceDIte, Formula.eval_const]
 
 /-- The circuit word agrees with the corresponding truncated `BitVec` shift. -/
 private theorem word_eval_partialProduct (i : Fin w) (a b : BitString w) :

@@ -201,6 +201,126 @@ theorem exists_arcCap_iff_forall_isCut (N : Network V) (k : ℕ) :
         (Finset.card_le_card_of_injOn (Fin.castLE hk) (fun _ hi => by simpa using hi)
           fun _ _ _ _ h' => Fin.castLE_injective hk h').trans (hcap u v)⟩
 
+end CapAndArc
+
+end Directed
+
+/-! ### Multidigraph arc-disjoint Menger -/
+
+section Multidigraph
+
+variable {V E : Type*} (src tgt : E → V)
+
+private noncomputable def multiNetwork [DecidableEq V] [Fintype E]
+    (s t : V) : Network V where
+  cap u v := (Finset.univ.filter fun e => src e = u ∧ tgt e = v).card
+  s := s
+  t := t
+
+private theorem cutCapacity_multiNetwork [Fintype V] [DecidableEq V] [Fintype E] (s t : V)
+    (S : Finset V) :
+    (multiNetwork src tgt s t).cutCapacity S = (Multidigraph.outArcs src tgt S).card := by
+  classical
+  have hunion : Multidigraph.outArcs src tgt S =
+      S.biUnion fun u => (Finset.univ \ S).biUnion fun v =>
+        Finset.univ.filter fun e => src e = u ∧ tgt e = v := by
+    ext e; simp only [Multidigraph.mem_outArcs, Finset.mem_biUnion, Finset.mem_sdiff,
+      Finset.mem_univ, true_and, Finset.mem_filter]
+    exact ⟨fun ⟨hs, ht⟩ => ⟨src e, hs, tgt e, ht, rfl, rfl⟩,
+      fun ⟨_, hu, _, hv, h1, h2⟩ => ⟨h1 ▸ hu, h2 ▸ hv⟩⟩
+  rw [hunion, Finset.card_biUnion]
+  · simp only [Network.cutCapacity, multiNetwork]
+    refine Finset.sum_congr rfl fun _ _ => (Finset.card_biUnion fun _ _ _ _ hne =>
+      Finset.disjoint_left.mpr fun _ he he' => hne ?_).symm
+    simp only [Finset.mem_filter] at he he'; exact he.2.2.symm.trans he'.2.2
+  · intro u _ u' _ hne
+    refine Finset.disjoint_left.mpr fun e he he' => ?_
+    simp only [Finset.mem_biUnion, Finset.mem_filter] at he he'
+    obtain ⟨_, _, _, heu, _⟩ := he; obtain ⟨_, _, _, heu', _⟩ := he'
+    exact hne (heu.symm.trans heu')
+
+/-- **Menger's theorem, directed multidigraph arc-disjoint form, with a matching cut**
+([Menger1927]; [Schrijver2017], §4.1, Corollary 4.1b for directed multigraphs): for distinct
+`s`, `t` in a finite multidigraph `src tgt : E → V`, there are `(outArcs src tgt S).card`
+pairwise arc-disjoint simple directed `s`–`t` paths for some `S` with `s ∈ S`, `t ∉ S`. -/
+theorem exists_multidigraph_arcDisjoint_eq_outArcs [Finite V] [DecidableEq V] [Fintype E]
+    {s t : V} (hst : s ≠ t) :
+    ∃ S : Finset V, s ∈ S ∧ t ∉ S ∧
+      ∃ Q : Fin (Multidigraph.outArcs src tgt S).card → List E,
+        (∀ i, Multidigraph.IsDipath src tgt s t (Q i)) ∧
+        Pairwise fun i j => (Q i).Disjoint (Q j) := by
+  classical
+  have := Fintype.ofFinite V
+  obtain ⟨S, hS, P, hP, hcap⟩ := exists_arcCap_eq_cutCapacity (multiNetwork src tgt s t) hst
+  have hcard : (multiNetwork src tgt s t).cutCapacity S = (Multidigraph.outArcs src tgt S).card :=
+    cutCapacity_multiNetwork src tgt s t S
+  let I (u v : V) : Finset (Fin ((multiNetwork src tgt s t).cutCapacity S)) :=
+    Finset.univ.filter fun i => (u, v) ∈ (P i).zip (P i).tail
+  let A (u v : V) : Finset E := Finset.univ.filter fun e => src e = u ∧ tgt e = v
+  let pick (u v : V) i (hi : i ∈ I u v) : E :=
+    ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).1
+  have hpick_st : ∀ u v i (hi : i ∈ I u v), src (pick u v i hi) = u ∧ tgt (pick u v i hi) = v :=
+    fun u v i hi => by
+      have hm := ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).2
+      simp only [A, Finset.mem_filter, Finset.mem_univ, true_and] at hm; exact hm
+  have hpick_inj : ∀ u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂,
+      pick u₁ v₁ i₁ hi₁ = pick u₂ v₂ i₂ hi₂ → i₁ = i₂ := by
+    intro u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂ heq
+    obtain ⟨hs₁, ht₁⟩ := hpick_st u₁ v₁ i₁ hi₁
+    obtain ⟨hs₂, ht₂⟩ := hpick_st u₂ v₂ i₂ hi₂
+    obtain rfl : u₁ = u₂ := hs₁.symm.trans (heq ▸ hs₂)
+    obtain rfl : v₁ = v₂ := ht₁.symm.trans (heq ▸ ht₂)
+    exact congrArg Subtype.val <| (((A u₁ v₁).equivFin.symm.injective.comp
+      (Fin.castLE_injective (hcap u₁ v₁))).comp (I u₁ v₁).equivFin.injective) (Subtype.ext heq)
+  let Q₀ (i : Fin ((multiNetwork src tgt s t).cutCapacity S)) : List E :=
+    ((P i).zip (P i).tail).pmap
+      (fun e he => pick e.1 e.2 i (Finset.mem_filter.mpr ⟨Finset.mem_univ _, he⟩)) (fun _ he => he)
+  refine ⟨S, hS.1, hS.2, fun i => Q₀ (Fin.cast hcard.symm i), fun i => ?_, fun i j hij e hei hej =>
+      ?_⟩
+  · obtain ⟨hnd, hps, hpt, _⟩ := hP (Fin.cast hcard.symm i)
+    exact (Multidigraph.isDipath_pmap_zip_tail src tgt _
+      (fun e he => hpick_st e.1 e.2 _ _) hnd hps hpt (fun _ he => he)).1
+  · simp only [Q₀, List.mem_pmap] at hei hej
+    obtain ⟨p₁, hp₁, rfl⟩ := hei; obtain ⟨p₂, hp₂, heq⟩ := hej
+    exact hij (Fin.cast_injective _ (hpick_inj _ _ _ _ _ _ _ _ heq).symm)
+
+/-- **Menger's theorem, directed multidigraph arc-disjoint form** ([Menger1927];
+[Schrijver2017], §4.1, Corollary 4.1b for directed multigraphs): in a finite multidigraph
+`src tgt : E → V`, there are `k` pairwise arc-disjoint simple directed `s`–`t` paths if and only
+if every `s`–`t` arc cut has at least `k` arcs. -/
+theorem exists_multidigraph_arcDisjoint_iff_forall_isArcCut [Finite V] [Finite E]
+    (s t : V) (k : ℕ) :
+    (∃ Q : Fin k → List E, (∀ i, Multidigraph.IsDipath src tgt s t (Q i)) ∧
+      Pairwise fun i j => (Q i).Disjoint (Q j)) ↔
+      ∀ C : Finset E, Multidigraph.IsArcCut src tgt s t C → k ≤ C.card := by
+  classical
+  have := Fintype.ofFinite V
+  have := Fintype.ofFinite E
+  constructor
+  · rintro ⟨Q, hQ, hdisj⟩ C hC
+    exact Multidigraph.card_le_card_of_disjoint_of_isArcCut src tgt hQ hdisj hC
+  · intro h
+    by_cases hst : s = t
+    · subst hst
+      exact ⟨fun _ => [], fun _ => ⟨List.isChain_nil, List.nodup_singleton s,
+          fun _ h => by simp at h, fun _ => rfl, fun _ h => by simp at h⟩,
+        fun _ _ _ _ he => by simp at he⟩
+    · obtain ⟨S, hs, ht, Q, hQ, hdisj⟩ := exists_multidigraph_arcDisjoint_eq_outArcs src tgt hst
+      have hk : k ≤ (Multidigraph.outArcs src tgt S).card :=
+        h _ (Multidigraph.isArcCut_outArcs src tgt hs ht)
+      exact ⟨fun i => Q (Fin.castLE hk i), fun i => hQ _,
+        fun _ _ hij => hdisj ((Fin.castLE_injective hk).ne hij)⟩
+
+end Multidigraph
+
+section Directed
+
+variable {V : Type*}
+
+section CapAndArc
+
+variable [Fintype V] [DecidableEq V]
+
 /-- The unit-capacity network of `G` with source `s` and sink `t`. -/
 private def unitNetwork (G : Digraph V) [DecidableRel G.Adj] (s t : V) : Network V where
   cap u v := if G.Adj u v then 1 else 0
@@ -236,6 +356,19 @@ private theorem exists_unit_flowPaths (G : Digraph V) [DecidableRel G.Adj] {s t 
   have h1 : (unitNetwork G s t).cap e.1 e.2 = 1 := by simp [unitNetwork, hadj _ e hei]
   have := hcap e.1 e.2; omega
 
+private theorem card_multidigraph_outArcs_arcSrc_arcTgt (G : Digraph V) [DecidableRel G.Adj]
+    (S : Finset V) :
+    (Multidigraph.outArcs (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) S).card =
+      (G.outArcs S).card := by
+  have himg : (Multidigraph.outArcs (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) S).map
+      ⟨Subtype.val, Subtype.val_injective⟩ = G.outArcs S := by
+    ext e
+    simp only [Finset.mem_map, Function.Embedding.coeFn_mk, Multidigraph.mem_outArcs,
+      Digraph.mem_outArcs, Subtype.exists]
+    exact ⟨fun ⟨a, hadj, ⟨hs, ht⟩, hEq⟩ => hEq ▸ ⟨hs, ht, hadj⟩,
+      fun ⟨hs, ht, hadj⟩ => ⟨e, hadj, ⟨hs, ht⟩, rfl⟩⟩
+  rw [← himg, Finset.card_map]
+
 /-- **Menger's theorem, directed arc-disjoint form, with a matching cut** ([Menger1927];
 [Schrijver2017], §4.1, Corollary 4.1b): for distinct `s`, `t` there are `(G.outArcs S).card`
 pairwise arc-disjoint directed `s`–`t` paths for some `S` with `s ∈ S`, `t ∉ S`. -/
@@ -243,8 +376,23 @@ theorem exists_arcDisjoint_eq_outArcs (G : Digraph V) [DecidableRel G.Adj] {s t 
     (hst : s ≠ t) :
     ∃ S : Finset V, s ∈ S ∧ t ∉ S ∧ ∃ P : Fin (G.outArcs S).card → List V,
       (∀ i, G.IsDipath s t (P i)) ∧ Digraph.ArcDisjoint P := by
-  obtain ⟨S, hs, ht, P, hP, hdisj, -⟩ := exists_unit_flowPaths G hst
-  exact ⟨S, hs, ht, P, hP, hdisj⟩
+  obtain ⟨S, hs, ht, Q, hQ, hdisj⟩ :=
+    exists_multidigraph_arcDisjoint_eq_outArcs (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) hst
+  have hcard := card_multidigraph_outArcs_arcSrc_arcTgt G S
+  let P : Fin (G.outArcs S).card → List V :=
+    fun i => s :: (Q (Fin.cast hcard.symm i)).map (Multidigraph.arcTgt G)
+  refine ⟨S, hs, ht, P, fun i => ?_, fun i j hij e hei hej => ?_⟩
+  · have hQi := hQ (Fin.cast hcard.symm i)
+    exact ⟨hQi.2.1, rfl, hQi.getLast?_vertices,
+      Multidigraph.toDigraph_arcSrc_arcTgt G ▸ hQi.isChain_toDigraph⟩
+  · have hz₁ := (hQ (Fin.cast hcard.symm i)).zip_tail_vertices
+    have hz₂ := (hQ (Fin.cast hcard.symm j)).zip_tail_vertices
+    rw [hz₁, List.mem_map] at hei
+    rw [hz₂, List.mem_map] at hej
+    obtain ⟨a₁, ha₁, rfl⟩ := hei
+    obtain ⟨a₂, ha₂, haEq⟩ := hej
+    have hEq : a₁ = a₂ := Subtype.ext haEq.symm
+    exact hdisj ((Fin.cast_injective _).ne hij) ha₁ (hEq ▸ ha₂)
 
 omit [Fintype V] [DecidableEq V] in
 /-- **Menger's theorem, directed arc-disjoint form** ([Menger1927]; [Schrijver2017], §4.1,
@@ -258,14 +406,28 @@ theorem exists_arcDisjoint_iff_forall_isArcCut [Finite V] (G : Digraph V) (s t :
   constructor
   · rintro ⟨P, hP, hdisj⟩ C hC; exact Digraph.card_le_card_of_arcDisjoint_of_isArcCut hP hdisj hC
   · intro h
-    by_cases hst : s = t
-    · subst hst
-      exact ⟨fun _ => [s], fun _ => ⟨List.nodup_singleton s, rfl, rfl, List.isChain_singleton s⟩,
-        fun _ _ _ e he => by simp at he⟩
-    · obtain ⟨S, hs, ht, P, hP, hdisj⟩ := exists_arcDisjoint_eq_outArcs G hst
-      have hk : k ≤ (G.outArcs S).card := h _ (Digraph.isArcCut_outArcs G hs ht)
-      exact ⟨fun i => P (Fin.castLE hk i), fun i => hP _,
-        fun _ _ hij => hdisj ((Fin.castLE_injective hk).ne hij)⟩
+    obtain ⟨Q, hQ, hdisj⟩ :=
+      (exists_multidigraph_arcDisjoint_iff_forall_isArcCut
+        (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) s t k).mpr fun C' hC' => by
+          have hCut : G.IsArcCut s t (C'.map ⟨Subtype.val, Subtype.val_injective⟩) := by
+            intro p hp
+            obtain ⟨hq, -, hzip⟩ := Multidigraph.isDipath_pmap_zip_tail
+              (Multidigraph.arcSrc G) (Multidigraph.arcTgt G) (fun e he => ⟨e, he⟩)
+              (fun _ _ => ⟨rfl, rfl⟩) hp.1 hp.2.1 hp.2.2.1
+              (Digraph.isChain_iff_forall_mem_zip_tail.mp hp.2.2.2)
+            obtain ⟨a, ha, haC'⟩ := hC' _ hq
+            exact ⟨a.1, hzip ▸ List.mem_map_of_mem ha, Finset.mem_map_of_mem _ haC'⟩
+          simpa using h _ hCut
+    refine ⟨fun i => s :: (Q i).map (Multidigraph.arcTgt G), fun i => ?_,
+      fun i j hij e hei hej => ?_⟩
+    · have hc := (hQ i).isChain_toDigraph
+      rw [Multidigraph.toDigraph_arcSrc_arcTgt] at hc
+      exact ⟨(hQ i).2.1, rfl, (hQ i).getLast?_vertices, hc⟩
+    rw [(hQ i).zip_tail_vertices, List.mem_map] at hei
+    rw [(hQ j).zip_tail_vertices, List.mem_map] at hej
+    obtain ⟨a₁, ha₁, rfl⟩ := hei
+    obtain ⟨a₂, ha₂, haEq⟩ := hej
+    exact hdisj hij ha₁ (Subtype.ext haEq.symm ▸ ha₂)
 
 end CapAndArc
 
@@ -618,149 +780,6 @@ theorem exists_vertexDisjoint_iff_forall_isSeparator [Finite V] (G : Digraph V)
       fun _ _ hij => hdisj ((Fin.castLE_injective hk).ne hij)⟩
 
 end Directed
-
-/-! ### Multidigraph arc-disjoint Menger -/
-
-section Multidigraph
-
-variable {V E : Type*} (src tgt : E → V)
-
-private noncomputable def multiNetwork [DecidableEq V] [Fintype E]
-    (s t : V) : Network V where
-  cap u v := (Finset.univ.filter fun e => src e = u ∧ tgt e = v).card
-  s := s
-  t := t
-
-private theorem cutCapacity_multiNetwork [Fintype V] [DecidableEq V] [Fintype E] (s t : V)
-    (S : Finset V) :
-    (multiNetwork src tgt s t).cutCapacity S = (Multidigraph.outArcs src tgt S).card := by
-  classical
-  have hunion : Multidigraph.outArcs src tgt S =
-      S.biUnion fun u => (Finset.univ \ S).biUnion fun v =>
-        Finset.univ.filter fun e => src e = u ∧ tgt e = v := by
-    ext e; simp only [Multidigraph.mem_outArcs, Finset.mem_biUnion, Finset.mem_sdiff,
-      Finset.mem_univ, true_and, Finset.mem_filter]
-    exact ⟨fun ⟨hs, ht⟩ => ⟨src e, hs, tgt e, ht, rfl, rfl⟩,
-      fun ⟨_, hu, _, hv, h1, h2⟩ => ⟨h1 ▸ hu, h2 ▸ hv⟩⟩
-  rw [hunion, Finset.card_biUnion]
-  · simp only [Network.cutCapacity, multiNetwork]
-    refine Finset.sum_congr rfl fun _ _ => (Finset.card_biUnion fun _ _ _ _ hne =>
-      Finset.disjoint_left.mpr fun _ he he' => hne ?_).symm
-    simp only [Finset.mem_filter] at he he'; exact he.2.2.symm.trans he'.2.2
-  · intro u _ u' _ hne
-    refine Finset.disjoint_left.mpr fun e he he' => ?_
-    simp only [Finset.mem_biUnion, Finset.mem_filter] at he he'
-    obtain ⟨_, _, _, heu, _⟩ := he; obtain ⟨_, _, _, heu', _⟩ := he'
-    exact hne (heu.symm.trans heu')
-
-private theorem pmap_zip_isDipath_aux {S : V × V → Prop}
-    (f : ∀ e, S e → E) (hf : ∀ e (he : S e), src (f e he) = e.1 ∧ tgt (f e he) = e.2) :
-    ∀ {p : List V}, p.Nodup →
-      ∀ {s t : V}, p.head? = some s → p.getLast? = some t →
-      ∀ (hS : ∀ e ∈ p.zip p.tail, S e),
-      let q := (p.zip p.tail).pmap f hS
-      q.IsChain (fun a b => tgt a = src b) ∧
-      (s :: q.map tgt) = p ∧
-      (∀ e ∈ q.head?, src e = s) ∧
-      (q = [] → s = t) ∧
-      (∀ e ∈ q.getLast?, tgt e = t)
-  | [], _, _, _, hs, _, _ => by simp at hs
-  | [x], _, s, t, hs, ht, _ => by
-    obtain rfl : s = x := (Option.some.inj hs).symm
-    obtain rfl : t = s := (Option.some.inj ht).symm
-    exact ⟨List.isChain_nil, rfl, (fun _ h => by cases h), (fun _ => rfl), (fun _ h => by cases h)⟩
-  | x :: y :: rest', hp, s, t, hs, ht, hS => by
-    obtain rfl : s = x := (Option.some.inj hs).symm
-    have he0_eq := hf (s, y) (hS (s, y) (by simp))
-    rcases rest' with _ | ⟨z, zs⟩
-    · obtain rfl : t = y := (Option.some.inj ht).symm
-      refine ⟨List.isChain_singleton _, by simp [he0_eq.2], fun e he => ?_, (by simp),
-        fun e he => ?_⟩
-      · cases show some (f (s, t) _) = some e from he; exact he0_eq.1
-      · cases show some (f (s, t) _) = some e from he; exact he0_eq.2
-    · obtain ⟨hchain', hmap', hhd', _, hlt'⟩ := pmap_zip_isDipath_aux f hf
-        (List.nodup_cons.mp hp).2 rfl (by simpa using ht)
-        (fun e he => hS e (List.mem_cons_of_mem (s, y) he))
-      refine ⟨List.isChain_cons_cons.mpr ⟨he0_eq.2.trans
-          (hhd' (f (y, z) _) rfl).symm, hchain'⟩,
-        ?_, fun e he => ?_, (by simp), hlt'⟩
-      · simpa [List.pmap, he0_eq.2] using congrArg (s :: ·) hmap'
-      · cases show some (f (s, y) _) = some e from he; exact he0_eq.1
-
-/-- **Menger's theorem, directed multidigraph arc-disjoint form, with a matching cut**
-([Menger1927]; [Schrijver2017], §4.1, Corollary 4.1b for directed multigraphs): for distinct
-`s`, `t` in a finite multidigraph `src tgt : E → V`, there are `(outArcs src tgt S).card`
-pairwise arc-disjoint simple directed `s`–`t` paths for some `S` with `s ∈ S`, `t ∉ S`. -/
-theorem exists_multidigraph_arcDisjoint_eq_outArcs [Finite V] [DecidableEq V] [Fintype E]
-    {s t : V} (hst : s ≠ t) :
-    ∃ S : Finset V, s ∈ S ∧ t ∉ S ∧
-      ∃ Q : Fin (Multidigraph.outArcs src tgt S).card → List E,
-        (∀ i, Multidigraph.IsDipath src tgt s t (Q i)) ∧
-        Pairwise fun i j => (Q i).Disjoint (Q j) := by
-  classical
-  have := Fintype.ofFinite V
-  obtain ⟨S, hS, P, hP, hcap⟩ := exists_arcCap_eq_cutCapacity (multiNetwork src tgt s t) hst
-  have hcard : (multiNetwork src tgt s t).cutCapacity S = (Multidigraph.outArcs src tgt S).card :=
-    cutCapacity_multiNetwork src tgt s t S
-  let I (u v : V) : Finset (Fin ((multiNetwork src tgt s t).cutCapacity S)) :=
-    Finset.univ.filter fun i => (u, v) ∈ (P i).zip (P i).tail
-  let A (u v : V) : Finset E := Finset.univ.filter fun e => src e = u ∧ tgt e = v
-  let pick (u v : V) i (hi : i ∈ I u v) : E :=
-    ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).1
-  have hpick_st : ∀ u v i (hi : i ∈ I u v), src (pick u v i hi) = u ∧ tgt (pick u v i hi) = v :=
-    fun u v i hi => by
-      have hm := ((A u v).equivFin.symm (Fin.castLE (hcap u v) ((I u v).equivFin ⟨i, hi⟩))).2
-      simp only [A, Finset.mem_filter, Finset.mem_univ, true_and] at hm; exact hm
-  have hpick_inj : ∀ u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂,
-      pick u₁ v₁ i₁ hi₁ = pick u₂ v₂ i₂ hi₂ → i₁ = i₂ := by
-    intro u₁ v₁ i₁ hi₁ u₂ v₂ i₂ hi₂ heq
-    obtain ⟨hs₁, ht₁⟩ := hpick_st u₁ v₁ i₁ hi₁
-    obtain ⟨hs₂, ht₂⟩ := hpick_st u₂ v₂ i₂ hi₂
-    obtain rfl : u₁ = u₂ := hs₁.symm.trans (heq ▸ hs₂)
-    obtain rfl : v₁ = v₂ := ht₁.symm.trans (heq ▸ ht₂)
-    exact congrArg Subtype.val <| (((A u₁ v₁).equivFin.symm.injective.comp
-      (Fin.castLE_injective (hcap u₁ v₁))).comp (I u₁ v₁).equivFin.injective) (Subtype.ext heq)
-  let Q₀ (i : Fin ((multiNetwork src tgt s t).cutCapacity S)) : List E :=
-    ((P i).zip (P i).tail).pmap
-      (fun e he => pick e.1 e.2 i (Finset.mem_filter.mpr ⟨Finset.mem_univ _, he⟩)) (fun _ he => he)
-  refine ⟨S, hS.1, hS.2, fun i => Q₀ (Fin.cast hcard.symm i), fun i => ?_, fun i j hij e hei hej =>
-      ?_⟩
-  · obtain ⟨hnd, hps, hpt, _⟩ := hP (Fin.cast hcard.symm i)
-    obtain ⟨hc, hm, hhd, hnil, hlt⟩ := pmap_zip_isDipath_aux src tgt _
-      (fun e he => hpick_st e.1 e.2 _ _) hnd hps hpt (fun _ he => he)
-    exact ⟨hc, hm ▸ hnd, hhd, hnil, hlt⟩
-  · simp only [Q₀, List.mem_pmap] at hei hej
-    obtain ⟨p₁, hp₁, rfl⟩ := hei; obtain ⟨p₂, hp₂, heq⟩ := hej
-    exact hij (Fin.cast_injective _ (hpick_inj _ _ _ _ _ _ _ _ heq).symm)
-
-/-- **Menger's theorem, directed multidigraph arc-disjoint form** ([Menger1927];
-[Schrijver2017], §4.1, Corollary 4.1b for directed multigraphs): in a finite multidigraph
-`src tgt : E → V`, there are `k` pairwise arc-disjoint simple directed `s`–`t` paths if and only
-if every `s`–`t` arc cut has at least `k` arcs. -/
-theorem exists_multidigraph_arcDisjoint_iff_forall_isArcCut [Finite V] [Finite E]
-    (s t : V) (k : ℕ) :
-    (∃ Q : Fin k → List E, (∀ i, Multidigraph.IsDipath src tgt s t (Q i)) ∧
-      Pairwise fun i j => (Q i).Disjoint (Q j)) ↔
-      ∀ C : Finset E, Multidigraph.IsArcCut src tgt s t C → k ≤ C.card := by
-  classical
-  have := Fintype.ofFinite V
-  have := Fintype.ofFinite E
-  constructor
-  · rintro ⟨Q, hQ, hdisj⟩ C hC
-    exact Multidigraph.card_le_card_of_disjoint_of_isArcCut src tgt hQ hdisj hC
-  · intro h
-    by_cases hst : s = t
-    · subst hst
-      exact ⟨fun _ => [], fun _ => ⟨List.isChain_nil, List.nodup_singleton s,
-          fun _ h => by simp at h, fun _ => rfl, fun _ h => by simp at h⟩,
-        fun _ _ _ _ he => by simp at he⟩
-    · obtain ⟨S, hs, ht, Q, hQ, hdisj⟩ := exists_multidigraph_arcDisjoint_eq_outArcs src tgt hst
-      have hk : k ≤ (Multidigraph.outArcs src tgt S).card :=
-        h _ (Multidigraph.isArcCut_outArcs src tgt hs ht)
-      exact ⟨fun i => Q (Fin.castLE hk i), fun i => hQ _,
-        fun _ _ hij => hdisj ((Fin.castLE_injective hk).ne hij)⟩
-
-end Multidigraph
 
 /-! ### Undirected Menger, set-to-set and global `k`-connectivity -/
 
