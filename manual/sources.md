@@ -944,7 +944,7 @@ Jason D. Hartline. *Mechanism Design and Approximation*, book manuscript; chapte
 Juris Hartmanis. "Computational Complexity of One-Tape Turing Machine Computations." *Journal of the ACM* 15(2), 325–339, 1968. https://doi.org/10.1145/321450.321464 . Bibliographic metadata checked through Crossref; the article body was not inspected in this pass. The manual cites it for the `n log n` lower bound on one-tape recognition of nonregular languages, as attributed in [Pighizzini 2009](#pighizzini2009), §1 and §4.
 
 <a id="hearndemaine2005"></a>
-## HearnDemaine2005
+## hearndemaine2005
 
 Robert A. Hearn and Erik D. Demaine. *PSPACE-completeness of sliding-block puzzles and other problems through the nondeterministic constraint logic model of computation*. Theoretical Computer Science 343 (2005), 72–96. Sections 2.1–2.2 of the authors’ version define the three reachability questions and the AND/OR vertex types. Theorem 5 and Corollary 6 (§3.1, pp. 7–8 of that version) give their polynomial-space upper bounds. The formalization proves these bounds for finite AND/OR multigraphs, allowing loops and parallel edges as in footnote 2 on p. 4. It uses one bit per edge and deterministic Savitch search. The bounds for general weighted graphs and the PSPACE-hardness directions remain open in this library. [Authors’ version](https://erikdemaine.org/papers/NCL_TCS/paper.pdf)
 
