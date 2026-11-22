@@ -66,13 +66,10 @@ theorem timeBound_le {L m N : ℕ} (hm : m ≤ L) (t : ℕ) (qs : List (Fin N ×
   have hT : 10 ^ L ≤ S := by
     have hmul : 10 ^ L ≤ (numBands L m N + 1) * 10 ^ L :=
       Nat.le_mul_of_pos_left _ (by omega)
-    exact hmul.trans ((Nat.le_add_left _ _).trans
-      ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)))
+    dsimp only [S, workShape]; omega
   have hB : numBands L m N ^ 2 * ((boxes L m t).card + 1) ≤ S :=
     (Nat.le_add_left _ _).trans (Nat.le_add_right _ _)
-  have hQ : qs.length ≤ S :=
-    (Nat.le_add_left _ _).trans ((Nat.le_add_right _ _).trans
-      ((Nat.le_add_right _ _).trans ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _))))
+  have hQ : qs.length ≤ S := by dsimp only [S, workShape]; omega
   have hA : qs.length * (∑ d ∈ Finset.range (t + 1), alpha m d) ≤ S :=
     Nat.le_add_left _ _
   have hf := (frontTime_le L m N qs.length).trans

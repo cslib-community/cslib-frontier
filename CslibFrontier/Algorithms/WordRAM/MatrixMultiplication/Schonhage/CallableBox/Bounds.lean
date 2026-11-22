@@ -45,9 +45,7 @@ theorem timeBound_le_shape (m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) :
   have hG : 1 ≤ G := by dsimp only [G]; nlinarith only [Nat.zero_le m]
   have hS : N * D m + qs.length + 1 ≤ S := by
     dsimp only [S, BoxProduct.workShape]
-    calc N * D m + qs.length + 1 = 1 + N * D m + qs.length := by omega
-      _ ≤ _ := (Nat.le_add_right _ _).trans ((Nat.le_add_right _ _).trans
-        ((Nat.le_add_right _ _).trans (Nat.le_add_right _ _)))
+    omega
   have hlin := (Nat.mul_le_mul_left 2048 hS).trans
     (Nat.mul_le_mul_right S (show 2048 ≤ 2048 * G by omega))
   have hbase := BoxProduct.timeBound_le (L := 21 * m) (m := m) (by omega) t qs
