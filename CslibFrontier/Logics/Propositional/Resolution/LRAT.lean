@@ -123,42 +123,19 @@ end Derivation
 
 /-! ### The checker accepts the certificate -/
 
-/-- Unit propagation from the negation of a resolvent, hinting its two premises, succeeds. -/
+/-- Unit propagation from the negation of a resolvent, hinting its two premises, succeeds: the
+first premise propagates `v`, and then every literal of the second is false. -/
 theorem propagateHints_resolvent {db : List (ℕ × Clause ℕ)} {i₁ i₂ v : ℕ} {c₁ c₂ : Clause ℕ}
     (h₁ : db.find? (·.1 == i₁) = some (i₁, c₁)) (h₂ : db.find? (·.1 == i₂) = some (i₂, c₂)) :
     propagateHints db ((c₁.resolvent c₂ v).map Std.Sat.Literal.negate) [i₁, i₂] = true := by
-  set T := (c₁.resolvent c₂ v).map Std.Sat.Literal.negate
-  have hT : ∀ l, l ∈ c₁.resolvent c₂ v → Std.Sat.Literal.negate l ∈ T := fun l hl =>
-    List.mem_map.2 ⟨l, hl, rfl⟩
-  -- the literals of `c₁` that the negated resolvent leaves open are all `(v, true)`
-  have hopen : ∀ l ∈ c₁.filter (fun l => !T.contains (Std.Sat.Literal.negate l)),
-      l = (v, true) := by
-    intro l hl
-    obtain ⟨hl, hT'⟩ := List.mem_filter.1 hl
-    by_contra hne
-    have := hT l (Clause.mem_resolvent.2 (.inl ⟨hl, hne⟩))
-    simp [this] at hT'
-  -- every literal of `c₂` is false once `v` holds
-  have hclosed :
-      c₂.filter (fun l => !((v, true) :: T).contains (Std.Sat.Literal.negate l)) = [] := by
-    refine List.filter_eq_nil_iff.2 fun l hl => ?_
-    simp only [Bool.not_eq_true', Bool.not_eq_false]
-    by_cases hlv : l = (v, false)
-    · subst hlv
-      simp [Std.Sat.Literal.negate]
-    · simp [hT l (Clause.mem_resolvent.2 (.inr ⟨hl, hlv⟩))]
-  rw [propagateHints_cons]
-  simp only [h₁]
-  split
-  · rfl
-  · rename_i l ls hls
-    have hl : l = (v, true) := hopen l (hls ▸ List.mem_cons_self)
-    have hall : ls.all (· == l) = true := List.all_eq_true.2 fun l' hl' => by
-      simp [hl, hopen l' (hls ▸ List.mem_cons_of_mem _ hl')]
-    subst hl
-    simp only [hall, ↓reduceIte]
-    rw [propagateHints_cons]
-    simp only [h₂, hclosed]
+  have hT : ∀ l ∈ c₁.resolvent c₂ v,
+      Std.Sat.Literal.negate l ∈ (c₁.resolvent c₂ v).map Std.Sat.Literal.negate :=
+    fun l hl => List.mem_map.2 ⟨l, hl, rfl⟩
+  refine propagateHints_cons_of_forall_ne (l := (v, true)) h₁
+    (fun m hm hne => hT m (Clause.mem_resolvent.2 (.inl ⟨hm, hne⟩))) fun _ _ => ?_
+  exact propagateHints_cons_of_forall_ne (l := (v, false)) h₂
+    (fun m hm hne => List.mem_cons_of_mem _ (hT m (Clause.mem_resolvent.2 (.inr ⟨hm, hne⟩))))
+    fun _ h => (h (by simp [Std.Sat.Literal.negate])).elim
 
 /-- A database that numbers every clause of the formula as `checkLRAT` does, and every other
 entry below `k`. -/

@@ -26,7 +26,7 @@ namespace Cslib.Crypto.ModuleSIS
 variable {d k n q : ℕ}
 
 /-- The challenge matrix `[I | A]` of Hermite normal form Module-SIS. -/
-def hermiteMatrix (A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)) :
+@[expose] def hermiteMatrix (A : Matrix (Fin d) (Fin k) (Fin n → ZMod q)) :
     Matrix (Fin d) (Fin (d + k)) (Fin n → ZMod q) :=
   fun i => Fin.append (fun j => if j = i then (1 : Negacyclic (ZMod q) n).coeffs else 0) (A i)
 

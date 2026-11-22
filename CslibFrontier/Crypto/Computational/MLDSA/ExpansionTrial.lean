@@ -73,6 +73,7 @@ private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option
       match Fin.findSome? (fun i : Fin pre => terminalReply (tryAt (start + i.val * step))) with
       | some r => r
       | none => firstAccepted step tryAt post (start + pre * step) := by
+  unfold firstAccepted
   induction pre generalizing start with
   | zero => simp [Fin.findSome?]
   | succ pre ih =>
@@ -82,16 +83,16 @@ private theorem split_firstAccepted (step : ℕ) (tryAt : ℕ → Option (Option
       lia
     simp only [Fin.val_zero, Nat.zero_mul, Nat.add_zero, next]
     cases h : tryAt start with
-    | none => simp [firstAccepted, terminalReply, h]
+    | none => simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
     | some r =>
       cases r with
-      | some sig => simp [firstAccepted, terminalReply, h]
+      | some sig => simp [signingRetryLoop, id_bind_eq, id_pure_eq, terminalReply, h]
       | none =>
         have eq : start + (pre + 1) * step = start + step + pre * step := by
           rw [Nat.succ_mul]
           lia
-        simpa only [firstAccepted, h, Option.bind_some, terminalReply, Option.map_none,
-          Option.none_or, Option.bind_eq_bind, eq] using ih (start + step)
+        simpa only [signingRetryLoop, id_bind_eq, id_pure_eq, id_eq, h, terminalReply,
+          Option.map_none, Option.none_or, eq] using ih (start + step)
 
 
 private def tupleReply (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : PrivateKey s)
@@ -148,16 +149,15 @@ private theorem find_updated (s : Level) (G : Xofs) (A : PublicMatrix s) (sk : P
   | some reply => rfl
   | none =>
     change firstAccepted step attempt (1 + (813 - j.val)) cutAt = _
-    rw [Nat.one_add, firstAccepted]
+    rw [Nat.one_add, firstAccepted, signingRetryLoop]
     have mid : attempt cutAt = G.attemptWithMask s sk A m y := by simp [attempt]
-    rw [mid]
+    simp only [id_bind_eq, id_pure_eq, id_eq, mid]
     cases h : G.attemptWithMask s sk A m y with
-    | none => simp only [Option.bind_eq_bind, Option.bind_none]
+    | none => rfl
     | some reply =>
       cases reply with
-      | some sig => simp only [Option.bind_eq_bind, Option.bind_some, Option.pure_def]
+      | some sig => rfl
       | none =>
-        simp only [Option.bind_eq_bind, Option.bind_some]
         change firstAccepted step attempt (813 - j.val) (cutAt + step) = _
         have start : (j.val + 1) * step = cutAt + step := Nat.succ_mul j.val step
         rw [firstAccepted_eq_terminal, firstAccepted_eq_terminal, start]

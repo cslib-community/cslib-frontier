@@ -7,15 +7,19 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: local-only (test suite)
 
+import Cslib.Foundations.Data.BitString
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.Field.ZMod
+import Mathlib.Algebra.Ring.BooleanRing
 
 set_option linter.privateModule false
 
@@ -143,6 +147,62 @@ theorem not_isComputationalDUF_residueHash :
   have hnegl := h.negligible_succProbability (fun _ => pure guess)
     (ComputableInPolyTime.const guess).isPPTOn
   exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
+
+/-- Repeating a block uses two distinct table entries, even against an empty comparison input. -/
+example :
+    (PMF.uniformOfFintype (Bool × Fin 2 → BitString 2)).map
+        (fun f => xorHash f ⟨[true, true], by decide⟩ - xorHash f ⟨[], by decide⟩) =
+      PMF.uniformOfFintype (BitString 2) :=
+  uniform_xorHash_sub (by decide)
+
+/-- The finite collision game uses the ideal table's pairwise bound. -/
+example (A : ProbComp (CollisionGuess {m : List Bool // m.length ≤ 2})) :
+    ProbComp.eval (collisionExperiment (xorHash (Y := BitString 2)) A) true ≤
+      (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ :=
+  (isUniversalHash_iff_eval_collisionExperiment_le _ _).mp
+    isDeltaUniversalHash_xorHash.isUniversalHash A
+
+/-- The finite reduction bounds success on short messages and uses at most four table calls. -/
+example (F : Bool → Bool × Fin 2 → BitString 2)
+    (A : ProbComp (CollisionGuess {m : List Bool // m.length ≤ 2})) :
+    ProbComp.eval (collisionExperiment (fun k => xorHash (F k)) A) true ≤
+      (PRF.advantage F (xorHashCollisionReduction A) : ℝ≥0∞) +
+        (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ ∧
+    (xorHashCollisionReduction (Y := BitString 2) A).IsQueryBounded 4 :=
+  ⟨eval_collisionExperiment_xorHash_le_prfAdvantage F A,
+    isQueryBounded_xorHashCollisionReduction A⟩
+
+/-- Three messages of at most two blocks give three candidate pairs and at most six queries. -/
+example (F : Bool → Bool × Fin 2 → BitString 2)
+    (A : ProbComp (List {m : List Bool // m.length ≤ 2}))
+    (hA : ∀ ms ∈ (ProbComp.eval A).support, ms.length ≤ 3) :
+    ProbComp.eval (multiQueryExperiment (fun k => xorHash (F k)) A) true ≤
+      (PRF.advantage F (xorHashMultiQueryReduction 3 A) : ℝ≥0∞) +
+        (3 : ℝ≥0∞) * (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ ∧
+    (xorHashMultiQueryReduction (Y := BitString 2) 3 A).IsQueryBounded 6 := by
+  refine ⟨?_, isQueryBounded_xorHashMultiQueryReduction 3 A⟩
+  simpa only [show (3 : ℕ).choose 2 = 3 by decide, Nat.cast_ofNat] using
+    eval_multiQueryExperiment_xorHash_le_prfAdvantage F A hA
+
+/-- The wrapper rejects a repeated message and detects the collision once it sees a distinct one. -/
+example :
+    let m₀ : {m : List Bool // m.length ≤ 1} := ⟨[false], by decide⟩
+    let m₁ : {m : List Bool // m.length ≤ 1} := ⟨[true], by decide⟩
+    let A : ProbComp (List {m : List Bool // m.length ≤ 1}) := pure [m₀, m₀, m₁]
+    let oracle (_ : Bool × Fin 1) : ProbComp (BitString 2) := pure 0
+    (xorHashMultiQueryReduction 2 A).run oracle = pure false ∧
+      (xorHashMultiQueryReduction 3 A).run oracle = pure true :=
+  ⟨rfl, rfl⟩
+
+/-- Equal blocks at different positions use different queries, and the extra block is ignored. -/
+example :
+    (xorHashWordQueries 2 2 [[false], [false], [true]]).run
+        (fun q => pure (if q.2.headD false then [true, true] else [false, true])) =
+      pure [true, false] := rfl
+
+/-- No reply is needed to produce the initial zero digest for an empty message. -/
+example :
+    (xorHashWordQueries 2 2 []).run (fun _ => pure []) = pure [false, false] := rfl
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

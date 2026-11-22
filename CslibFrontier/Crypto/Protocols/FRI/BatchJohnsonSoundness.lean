@@ -193,9 +193,7 @@ theorem friSmoothBatchCommitRound_escape_le_of_weightedCurveEscapePerRound [Fint
   | cons head rest =>
     rw [toOuterMeasure_not_friSmoothBatchGoodStep_cons]
     have htail_len : (friBatchTailTranscript rest).length = i.val := by
-      simp only [List.length_cons] at hlen
-      rw [length_friBatchTailTranscript]
-      omega
+      simpa [List.length_cons] using hlen
     have hpm : (friBatchTailTranscript rest).length < params.m := htail_len ▸ i.isLt
     have hbound := friSmoothCommitRound_escape_le_of_weightedCurveEscapePerRound params hesc
       (stmt.eval head.2.batchCoeffs) (friBatchTailTranscript rest) hpm π hdoomed
@@ -221,14 +219,9 @@ theorem sum_friSmoothBatchRoundEscape_eq (params : FRISmoothParams F) (ε_batch 
     (e : ℕ) (ε_commit : Fin params.m → ℝ≥0∞) :
     (∑ j : Fin (params.m + 2), friSmoothBatchRoundEscape params ε_batch e ε_commit j) =
       friSmoothBatchSumError params ε_batch e ε_commit := by
-  rw [Fin.sum_univ_succ, friSmoothBatchRoundEscape, Fin.cases_zero, friSmoothBatchSumError]
-  congr 1
-  calc (∑ i : Fin (params.m + 1),
-        Fin.cases ε_batch (friSmoothRoundEscape params e ε_commit) i.succ)
-      = ∑ i : Fin (params.m + 1), friSmoothRoundEscape params e ε_commit i :=
-        Finset.sum_congr rfl fun i _ => Fin.cases_succ i
-    _ = friSmoothSumError params e ε_commit :=
-        sum_friSmoothRoundEscape_eq_friSmoothSumError params e ε_commit
+  rw [Fin.sum_univ_succ, friSmoothBatchRoundEscape, Fin.cases_zero, friSmoothBatchSumError,
+    ← sum_friSmoothRoundEscape_eq_friSmoothSumError]
+  rfl
 
 /-- Post-commit single-query acceptance predicate for an `(m + 1)`-round smooth batched commit
 prefix `pref` and final committed oracle `πFinal`. -/
@@ -257,6 +250,34 @@ starting positions in `Fin (2 ^ d)` pass `friSmoothBatchFinalPasses`. -/
         (B < (Finset.univ.filter fun s =>
           friSmoothBatchFinalPasses params t stmt pref πFinal s).card)
 
+private theorem friSmoothBatchPerRoundEscape_of_escape [Fintype F] [DecidableEq F]
+    (params : FRISmoothParams F) (t : ℕ) {e : ℕ} {ε_batch : ℝ≥0∞}
+    {ε_commit : Fin params.m → ℝ≥0∞}
+    (hbatch : SmoothBatchRound0Escape params t e ε_batch)
+    (hesc : WeightedCurveEscapePerRound params (2 ^ params.d - e - 1) ε_commit) :
+    ∀ stmt ∉ params.batchProximityLang t e,
+      ∀ (j : Fin (params.m + 2)) pref π,
+        pref.length = j.val →
+        friSmoothBatchDoomed params t (2 ^ params.d - e - 1) stmt pref →
+        (PMF.uniformOfFintype (FRIBatchChal F params.d params.q t)).toOuterMeasure
+          {c | ¬ friSmoothBatchGoodStep params t (2 ^ params.d - e - 1) stmt pref π c} ≤
+        friSmoothBatchRoundEscape params ε_batch e ε_commit j := by
+  intro stmt hfar j pref π hlen hdoomed
+  cases j using Fin.cases with
+  | zero =>
+    rw [List.eq_nil_of_length_eq_zero hlen, friSmoothBatchRoundEscape, Fin.cases_zero]
+    exact friSmoothBatchRound0_escape_le_of_escape params t hbatch hfar π
+  | succ k =>
+    rw [friSmoothBatchRoundEscape, Fin.cases_succ]
+    by_cases hk : k.val < params.m
+    · simp only [friSmoothRoundEscape, hk, ↓reduceDIte]
+      exact friSmoothBatchCommitRound_escape_le_of_weightedCurveEscapePerRound params t hesc stmt
+        pref (i := ⟨k.val, hk⟩) hlen π hdoomed
+    · have hk_eq : k.val = params.m := by omega
+      simpa only [friSmoothRoundEscape, hk, ↓reduceDIte] using
+        friSmoothBatchQueryRound_escape_le params t (2 ^ params.d - e - 1) stmt pref
+          (by simpa only [Fin.val_succ, hk_eq] using hlen) π hdoomed
+
 /-- **Conditional step (smooth batched FRI commit-phase union bound assuming
 `SmoothBatchRound0Escape` and `WeightedCurveEscapePerRound`)**. -/
 theorem friSmoothBatchCommitGame_le_of_escape [Fintype F] [DecidableEq F]
@@ -272,73 +293,20 @@ theorem friSmoothBatchCommitGame_le_of_escape [Fintype F] [DecidableEq F]
   refine (iopCommitPhase_map_true_le_sum (hrbr.init_doomed stmt hfar) (hrbr.step_doomed stmt)
     (params.m + 1) (Fin.cases ε_batch ε_commit)
     (fun j pref π hlen hdoomed => ?_) P _
-    (fun pref πFinal hlen hdoomed => ?_)).trans_eq ?_
-  · refine Fin.cases (motive := fun j : Fin (params.m + 1) =>
-      pref.length = j.val →
-      (PMF.uniformOfFintype (FRIBatchChal F params.d params.q t)).toOuterMeasure
-        {c | ¬ friSmoothBatchGoodStep params t (2 ^ params.d - e - 1) stmt pref π c} ≤
-        Fin.cases ε_batch ε_commit j) ?_ ?_ j hlen
-    · intro hlen0
-      rw [List.eq_nil_of_length_eq_zero hlen0, Fin.cases_zero]
-      exact friSmoothBatchRound0_escape_le_of_escape params t hbatch hfar π
-    · intro i hleni
-      rw [Fin.cases_succ]
-      exact friSmoothBatchCommitRound_escape_le_of_weightedCurveEscapePerRound params t hesc stmt
-        pref hleni π hdoomed
+    (fun pref πFinal hlen hdoomed => ?_)).trans_eq (by rw [Fin.sum_univ_succ, Fin.cases_zero]; rfl)
+  · have hbound := friSmoothBatchPerRoundEscape_of_escape params t hbatch hesc stmt hfar
+      j.castSucc pref π hlen hdoomed
+    cases j using Fin.cases with
+    | zero => simpa [friSmoothBatchRoundEscape] using hbound
+    | succ i =>
+      simpa [friSmoothBatchRoundEscape, friSmoothRoundEscape, i.isLt] using hbound
   · cases pref with
     | nil => cases hlen
     | cons head rest =>
-      have htail_len : (friBatchTailTranscript rest).length = params.m := by
-        simp only [List.length_cons] at hlen
-        rw [length_friBatchTailTranscript]
-        omega
-      have hcard :=
-        card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed params htail_len πFinal hdoomed
-      have hcongr :
-          (@Finset.filter _
-              (fun s => friSmoothBatchFinalPasses params t stmt (head :: rest) πFinal s)
-              (Classical.decPred _) Finset.univ).card =
-          (Finset.univ.filter fun s =>
-            friSmoothFinalPasses params (stmt.eval head.2.batchCoeffs)
-              (friBatchTailTranscript rest) πFinal s).card := by
-        congr 2
-      exact decide_eq_false (not_lt_of_ge (hcongr.trans_le hcard))
-  · rw [Fin.sum_univ_succ, Fin.cases_zero]
-    congr 1
-
-private theorem friSmoothBatchPerRoundEscape_of_escape [Fintype F] [DecidableEq F]
-    (params : FRISmoothParams F) (t : ℕ) {e : ℕ} {ε_batch : ℝ≥0∞}
-    {ε_commit : Fin params.m → ℝ≥0∞}
-    (hbatch : SmoothBatchRound0Escape params t e ε_batch)
-    (hesc : WeightedCurveEscapePerRound params (2 ^ params.d - e - 1) ε_commit) :
-    ∀ stmt ∉ params.batchProximityLang t e,
-      ∀ (j : Fin (params.m + 2)) pref π,
-        pref.length = j.val →
-        friSmoothBatchDoomed params t (2 ^ params.d - e - 1) stmt pref →
-        (PMF.uniformOfFintype (FRIBatchChal F params.d params.q t)).toOuterMeasure
-          {c | ¬ friSmoothBatchGoodStep params t (2 ^ params.d - e - 1) stmt pref π c} ≤
-        friSmoothBatchRoundEscape params ε_batch e ε_commit j := by
-  intro stmt hfar j pref π hlen hdoomed
-  refine Fin.cases (motive := fun j : Fin (params.m + 2) =>
-    pref.length = j.val →
-    (PMF.uniformOfFintype (FRIBatchChal F params.d params.q t)).toOuterMeasure
-      {c | ¬ friSmoothBatchGoodStep params t (2 ^ params.d - e - 1) stmt pref π c} ≤
-      friSmoothBatchRoundEscape params ε_batch e ε_commit j) ?_ ?_ j hlen
-  · intro hlen0
-    rw [List.eq_nil_of_length_eq_zero hlen0, friSmoothBatchRoundEscape, Fin.cases_zero]
-    exact friSmoothBatchRound0_escape_le_of_escape params t hbatch hfar π
-  · intro k hlenk
-    rw [friSmoothBatchRoundEscape, Fin.cases_succ]
-    by_cases hk : k.val < params.m
-    · simp only [friSmoothRoundEscape, hk, ↓reduceDIte]
-      exact friSmoothBatchCommitRound_escape_le_of_weightedCurveEscapePerRound params t hesc stmt
-        pref (i := ⟨k.val, hk⟩) hlenk π hdoomed
-    · have hk_eq : k.val = params.m := by omega
-      have hlen_m1 : pref.length = params.m + 1 := by
-        simpa only [Fin.val_succ, hk_eq] using hlenk
-      simpa only [friSmoothRoundEscape, hk, ↓reduceDIte] using
-        friSmoothBatchQueryRound_escape_le params t (2 ^ params.d - e - 1) stmt pref hlen_m1 π
-          hdoomed
+      have hcard := card_filter_friSmoothFinalPasses_le_of_friSmoothDoomed params
+        (by simpa [List.length_cons] using hlen) πFinal hdoomed
+      exact decide_eq_false <| not_lt_of_ge <| (congrArg Finset.card <| Finset.ext fun s => by
+        simp only [Finset.mem_filter, Finset.mem_univ, true_and]; rfl).trans_le hcard
 
 /-- **Conditional step (summed interactive soundness for `friSmoothBatchIOP` assuming
 `SmoothBatchRound0Escape` and `WeightedCurveEscapePerRound`)**. -/
@@ -369,67 +337,34 @@ private theorem add_sum_natCast_div_ennreal {ι : Type*} (B₀ : ℕ) (s : Finse
     (x : ι → ℕ) (D : ℕ) :
     ((B₀ : ℝ≥0∞) / (D : ℝ≥0∞)) + (∑ i ∈ s, ((x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞)) =
       ((B₀ + ∑ i ∈ s, x i : ℕ) : ℝ≥0∞) / (D : ℝ≥0∞) := by
-  rw [Nat.cast_add, ENNReal.add_div]
-  congr 1
-  simp only [div_eq_mul_inv, ← Finset.sum_mul, Nat.cast_sum]
+  simp only [Nat.cast_add, Nat.cast_sum, div_eq_mul_inv, add_mul, Finset.sum_mul]
 
 omit [Field F] in
 private theorem one_sub_inv_two_pow_nonneg (m : ℕ) :
-    0 ≤ 1 - (1 : ℝ) / (2 : ℝ) ^ m := by
-  have h1le : (1 : ℝ) ≤ (2 : ℝ) ^ m := one_le_pow₀ (by norm_num)
-  have hdiv : (1 : ℝ) / (2 : ℝ) ^ m ≤ 1 := div_le_one_of_le₀ h1le (by positivity)
-  linarith
+    0 ≤ 1 - (1 : ℝ) / (2 : ℝ) ^ m :=
+  sub_nonneg.mpr <| div_le_one_of_le₀ (one_le_pow₀ (by norm_num)) (by positivity)
 
 omit [Field F] in
 private theorem two_sub_inv_two_pow_nonneg (m : ℕ) :
     0 ≤ 2 - (1 : ℝ) / (2 : ℝ) ^ m := by
-  have h := one_sub_inv_two_pow_nonneg m
-  linarith
+  linarith [one_sub_inv_two_pow_nonneg m]
 
 private theorem friSmoothBatchCommitGame_eq_zero_of_two_pow_le [Fintype F]
     (params : FRISmoothParams F) (t B : ℕ) (hB : 2 ^ params.d ≤ B)
     (stmt : FRIBatchStmt F params.d t)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t)) :
     friSmoothBatchCommitGame params t B stmt P true = 0 := by
-  have hgame : friSmoothBatchCommitGame params t B stmt P = PMF.pure false := by
-    rw [friSmoothBatchCommitGame]
-    have hmap : ∀ pref,
-        (P pref).map (fun πFinal =>
-          letI : DecidablePred
-            (fun s => friSmoothBatchFinalPasses params t stmt pref πFinal s) :=
-            Classical.decPred _
-          decide
-            (B < (Finset.univ.filter fun s =>
-              friSmoothBatchFinalPasses params t stmt pref πFinal s).card)) =
-        PMF.pure false := by
-      intro pref
-      have hfn :
-          (fun πFinal =>
-            letI : DecidablePred
-              (fun s => friSmoothBatchFinalPasses params t stmt pref πFinal s) :=
-              Classical.decPred _
-            decide
-              (B < (Finset.univ.filter fun s =>
-                friSmoothBatchFinalPasses params t stmt pref πFinal s).card)) =
-          Function.const _ false := by
-        funext πFinal
-        have hcard :
-            (@Finset.filter _ (fun s => friSmoothBatchFinalPasses params t stmt pref πFinal s)
-              (Classical.decPred _) Finset.univ).card ≤ 2 ^ params.d :=
-          (Finset.card_le_univ _).trans_eq (Fintype.card_fin _)
-        exact decide_eq_false (not_lt_of_ge (hcard.trans hB))
-      rw [hfn, PMF.map_const]
-    rw [show (fun pref =>
-        (P pref).map fun πFinal =>
-          letI : DecidablePred
-            (fun s => friSmoothBatchFinalPasses params t stmt pref πFinal s) :=
-            Classical.decPred _
-          decide
-            (B < (Finset.univ.filter fun s =>
-              friSmoothBatchFinalPasses params t stmt pref πFinal s).card)) =
-      (fun _ => PMF.pure false) from funext hmap, PMF.bind_const]
-  rw [hgame, PMF.pure_apply]
-  simp only [Bool.true_eq_false, ↓reduceIte]
+  have hconst (pref πFinal) :
+      letI : DecidablePred (fun s => friSmoothBatchFinalPasses params t stmt pref πFinal s) :=
+        Classical.decPred _
+      decide (B < (Finset.univ.filter fun s =>
+        friSmoothBatchFinalPasses params t stmt pref πFinal s).card) = false :=
+    decide_eq_false <| not_lt_of_ge <|
+      ((Finset.card_le_univ _).trans_eq (Fintype.card_fin _)).trans hB
+  simp only [friSmoothBatchCommitGame, hconst]
+  change ((iopRunRounds P (params.m + 1) []).bind fun pref =>
+    (P pref).map (Function.const _ false)) true = 0
+  simp only [PMF.map_const, PMF.bind_const, PMF.pure_apply, Bool.true_eq_false, ↓reduceIte]
 
 private theorem friSmoothBatchCommitGame_le_of_floor [Fintype F]
     (params : FRISmoothParams F) (t : ℕ) {α α₀ : ℝ} {ε_C : ℝ≥0∞}
@@ -449,50 +384,25 @@ private theorem friSmoothBatchCommitGame_le_of_floor [Fintype F]
   by_cases hα₀_lt : α₀ < 1
   · obtain ⟨hiff, _, hB_eq, _, he_lt⟩ :=
       friBatchFloorThreshold_bounds params.initialCode t stmt hα₀_nn hα₀_lt
-    have hnot :
-        stmt ∉ params.batchProximityLang t (2 ^ params.d - 1 - ⌊α₀ * (2 ^ params.d : ℝ)⌋₊) :=
-      hiff.mp fun D' v₀ hv₀ v hv hag => (hagree_le D' v₀ hv₀ v hv hag).trans hα_le_α₀
     rw [← hB_eq]
-    exact hprox _ hnot he_lt
-  · have h1le : 1 ≤ α₀ := not_lt.mp hα₀_lt
-    have h2le : 2 ^ params.d ≤ ⌊α₀ * (2 ^ params.d : ℝ)⌋₊ := by
-      refine Nat.le_floor ?_
-      have hn : (0 : ℝ) ≤ (2 ^ params.d : ℝ) := by positivity
-      calc ((2 ^ params.d : ℕ) : ℝ)
-          = 1 * (2 ^ params.d : ℝ) := by push_cast; ring
-        _ ≤ α₀ * (2 ^ params.d : ℝ) := mul_le_mul_of_nonneg_right h1le hn
-    rw [friSmoothBatchCommitGame_eq_zero_of_two_pow_le params t _ h2le stmt P]
-    exact zero_le
-
-private theorem iopInteractiveGame_smoothBatch_le_ofReal_add_pow_of_one_lt [Fintype F]
-    [DecidableEq F] (params : FRISmoothParams F) (t : ℕ) {α ε_C : ℝ} (hε_nn : 0 ≤ ε_C)
-    (h1lt : 1 < α) (stmt : FRIBatchStmt F params.d t)
-    (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t)) :
-    iopInteractiveGame (friSmoothBatchIOP params t) stmt P true ≤
-      ENNReal.ofReal (ε_C + α ^ params.q) := by
-  have h1pow : (1 : ℝ) ≤ α ^ params.q := by
-    simpa only [one_pow] using pow_le_pow_left₀ zero_le_one h1lt.le params.q
-  have h1le : (1 : ℝ) ≤ ε_C + α ^ params.q := by linarith
-  calc iopInteractiveGame (friSmoothBatchIOP params t) stmt P true
-      ≤ 1 := PMF.coe_le_one _ true
-    _ = ENNReal.ofReal 1 := ENNReal.ofReal_one.symm
-    _ ≤ ENNReal.ofReal (ε_C + α ^ params.q) := ENNReal.ofReal_le_ofReal h1le
+    exact hprox _ (hiff.mp fun D' v₀ hv₀ v hv hag =>
+      (hagree_le D' v₀ hv₀ v hv hag).trans hα_le_α₀) he_lt
+  · have h2le : 2 ^ params.d ≤ ⌊α₀ * (2 ^ params.d : ℝ)⌋₊ := Nat.le_floor <| by
+      simpa only [Nat.cast_pow, Nat.cast_ofNat, one_mul] using
+        mul_le_mul_of_nonneg_right (not_lt.mp hα₀_lt) (by positivity : (0 : ℝ) ≤ (2 ^ params.d : ℝ))
+    simp [friSmoothBatchCommitGame_eq_zero_of_two_pow_le params t _ h2le stmt P]
 
 private theorem query_pow_le_ofReal_pow {d e q : ℕ} {α : ℝ}
     (hq_lt : (((2 ^ d - e - 1 : ℕ) : ℝ) / (2 ^ d : ℝ)) < α) :
     (((2 ^ d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ d : ℝ≥0∞)) ^ q ≤ ENNReal.ofReal (α ^ q) := by
-  set r : ℝ := ((2 ^ d - e - 1 : ℕ) : ℝ) / (2 ^ d : ℝ)
-  have hr_nn : 0 ≤ r := by positivity
-  have hcast : (((2 ^ d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ d : ℝ≥0∞)) = ENNReal.ofReal r := by
-    dsimp only [r]
-    rw [ENNReal.ofReal_div_of_pos (by positivity), ENNReal.ofReal_natCast,
-      ENNReal.ofReal_pow (by norm_num), ENNReal.ofReal_ofNat]
-  rw [hcast, ← ENNReal.ofReal_pow hr_nn q]
+  have hr_nn : 0 ≤ ((2 ^ d - e - 1 : ℕ) : ℝ) / (2 ^ d : ℝ) := by positivity
+  rw [← ENNReal.ofReal_natCast, ← ENNReal.ofReal_ofNat (n := 2), ← ENNReal.ofReal_pow (by norm_num),
+    ← ENNReal.ofReal_div_of_pos (by positivity), ← ENNReal.ofReal_pow hr_nn q]
   exact ENNReal.ofReal_le_ofReal (pow_le_pow_left₀ hr_nn hq_lt.le q)
 
 private theorem friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le [Fintype F] [DecidableEq F]
     (params : FRISmoothParams F) (t : ℕ) {α ε_C : ℝ} (hε_nn : 0 ≤ ε_C)
-    (hα_pos : 0 < α) (hα_le : α ≤ 1)
+    (hα_pos : 0 < α)
     {stmt : FRIBatchStmt F params.d t} (hfar : stmt ∉ params.batchCorrAgreeLang t α)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t))
     (hprox : ∀ e : ℕ, stmt ∉ params.batchProximityLang t e →
@@ -502,18 +412,16 @@ private theorem friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le [Fintype F]
           params.q) :
     iopInteractiveGame (friSmoothBatchIOP params t) stmt P true ≤
       ENNReal.ofReal (ε_C + α ^ params.q) := by
-  set e : ℕ := 2 ^ params.d - ⌈α * (2 ^ params.d : ℝ)⌉₊
-  have hnot_e : stmt ∉ params.batchProximityLang t e := by
-    rwa [FRISmoothParams.batchCorrAgreeLang,
-        friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hfar
-  obtain ⟨_, hq_lt, he_le⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
-  have hpow_nn : 0 ≤ α ^ params.q := pow_nonneg hα_pos.le params.q
-  refine (hprox e hnot_e he_le).trans ?_
-  calc ENNReal.ofReal ε_C +
-        (((2 ^ params.d - e - 1 : ℕ) : ℝ≥0∞) / (2 ^ params.d : ℝ≥0∞)) ^ params.q
-      ≤ ENNReal.ofReal ε_C + ENNReal.ofReal (α ^ params.q) :=
-        add_le_add le_rfl (query_pow_le_ofReal_pow hq_lt)
-    _ = ENNReal.ofReal (ε_C + α ^ params.q) := (ENNReal.ofReal_add hε_nn hpow_nn).symm
+  by_cases hα_le : α ≤ 1
+  · rw [FRISmoothParams.batchCorrAgreeLang,
+      friBatchCorrAgreeLang_eq_proximityLang params.initialCode t hα_le] at hfar
+    obtain ⟨_, hq_lt, he_le⟩ := friBatchCeilThreshold_bounds params.d hα_pos hα_le
+    refine (hprox _ hfar he_le).trans ?_
+    rw [ENNReal.ofReal_add hε_nn (pow_nonneg hα_pos.le _)]
+    exact add_le_add le_rfl (query_pow_le_ofReal_pow hq_lt)
+  · have h1pow : (1 : ℝ) ≤ α ^ params.q := one_le_pow₀ (not_le.mp hα_le).le
+    exact (PMF.coe_le_one _ true).trans <| ENNReal.ofReal_one.symm.trans_le <|
+      ENNReal.ofReal_le_ofReal (by linarith)
 
 private theorem friSmoothBatchRBRError_ceil_le [Fintype F] (params : FRISmoothParams F)
     (ε_batch : ℝ≥0∞) {α : ℝ} (hα_pos : 0 < α) (hα_le : α ≤ 1) (B_commit : ℕ) :
@@ -567,20 +475,16 @@ theorem friSmoothBatchUniqueCommitError_ennreal_eq [Fintype F] (params : FRISmoo
     ((2 * 2 ^ params.d - 2 ^ (params.d - params.totalLog) : ℕ) : ℝ≥0∞) /
         (Fintype.card F : ℝ≥0∞) =
       ENNReal.ofReal (friSmoothBatchUniqueCommitError params) := by
-  have hcR : (0 : ℝ) < (Fintype.card F : ℝ) := by exact_mod_cast Fintype.card_pos
   have hr0_nn : 0 ≤ (2 ^ params.d : ℝ) / (Fintype.card F : ℝ) := by positivity
   have hrc_nn : 0 ≤ friSmoothUniqueCommitError params :=
     mul_nonneg (one_sub_inv_two_pow_nonneg params.totalLog) hr0_nn
-  have hr0_eq :
-      (2 ^ params.d : ℝ≥0∞) / (Fintype.card F : ℝ≥0∞) =
-        ENNReal.ofReal ((2 ^ params.d : ℝ) / (Fintype.card F : ℝ)) := by
-    rw [ENNReal.ofReal_div_of_pos hcR, ENNReal.ofReal_pow (by norm_num), ENNReal.ofReal_ofNat,
-      ENNReal.ofReal_natCast]
-  rw [← smooth_unique_round0_add_sum_eq, hr0_eq, sum_friSmoothUniqueRoundEscape_eq,
+  rw [← smooth_unique_round0_add_sum_eq, sum_friSmoothUniqueRoundEscape_eq,
+    ← ENNReal.ofReal_natCast (Fintype.card F), ← ENNReal.ofReal_ofNat (n := 2),
+    ← ENNReal.ofReal_pow (by norm_num),
+    ← ENNReal.ofReal_div_of_pos (by exact_mod_cast Fintype.card_pos : (0 : ℝ) < Fintype.card F),
     ← ENNReal.ofReal_add hr0_nn hrc_nn]
-  congr 1
-  simp only [friSmoothUniqueCommitError, friSmoothBatchUniqueCommitError]
-  ring
+  exact congrArg ENNReal.ofReal <| by
+    simp only [friSmoothUniqueCommitError, friSmoothBatchUniqueCommitError]; ring
 
 /-- **Unconditional unique-decoding smooth batched FRI commit-phase upper bound
 (`batchProximityLang`)**. -/
@@ -619,19 +523,10 @@ private theorem smooth_two_mul_add_dim_le_of_div_le (params : FRISmoothParams F)
       1 - (1 + (params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / 2) :
     2 * e + params.dim 0 ≤ 2 ^ params.d := by
   have hn : (0 : ℝ) < (2 ^ params.d : ℝ) := by positivity
-  have hmul := mul_le_mul_of_nonneg_right he (by positivity : (0 : ℝ) ≤ 2 * (2 ^ params.d : ℝ))
-  have hlhs : ((e : ℝ) / (2 ^ params.d : ℝ)) * (2 * (2 ^ params.d : ℝ)) = 2 * (e : ℝ) := by
-    field_simp
-  have hrhs :
-      (1 - (1 + (params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / 2) * (2 * (2 ^ params.d : ℝ)) =
-        (2 ^ params.d : ℝ) - (params.dim 0 : ℝ) := by
-    field_simp
-    ring
-  rw [hlhs, hrhs] at hmul
-  have hcast : ((2 * e + params.dim 0 : ℕ) : ℝ) ≤ ((2 ^ params.d : ℕ) : ℝ) := by
-    rw [Nat.cast_add, Nat.cast_mul, Nat.cast_ofNat, Nat.cast_pow, Nat.cast_ofNat]
-    linarith
-  exact_mod_cast hcast
+  field_simp at he
+  exact_mod_cast (by
+    rw [Nat.cast_add, Nat.cast_mul, Nat.cast_pow, Nat.cast_ofNat]; linarith :
+    ((2 * e + params.dim 0 : ℕ) : ℝ) ≤ ((2 ^ params.d : ℕ) : ℝ))
 
 /-- **Unconditional real-`α` unique-decoding smooth batched FRI commit-phase upper bound**
 (unique-decoding counterpart of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed
@@ -650,14 +545,12 @@ theorem friSmoothBatchCommitGame_le_of_unique [Fintype F]
     friSmoothBatchCommitGame params t ⌊α₀ * (2 ^ params.d : ℝ)⌋₊ stmt P true ≤
       ENNReal.ofReal (friSmoothBatchUniqueCommitError params) := by
   intro α₀
-  have hmid_nn : 0 ≤ (1 + (params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / 2 := by positivity
-  refine friSmoothBatchCommitGame_le_of_floor params t (hmid_nn.trans (le_max_right _ _))
-    (le_max_left _ _) hagree_le P fun e₀ hnot_e₀ he₀_lt => ?_
-  have hle_mid : (1 + (params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / 2 ≤ α₀ := le_max_right _ _
-  have huniq : 2 * e₀ + params.dim 0 ≤ 2 ^ params.d :=
-    smooth_two_mul_add_dim_le_of_div_le params (by linarith)
-  exact (friSmoothBatchCommitGame_proximity_le_of_unique params t huniq hnot_e₀ P).trans_eq
-    (friSmoothBatchUniqueCommitError_ennreal_eq params)
+  exact friSmoothBatchCommitGame_le_of_floor params t
+    (le_trans (by positivity) (le_max_right _ _)) (le_max_left _ _) hagree_le P
+    fun _ hnot he₀ => (friSmoothBatchCommitGame_proximity_le_of_unique params t
+      (smooth_two_mul_add_dim_le_of_div_le params
+        (by have : _ ≤ α₀ := le_max_right _ _; linarith)) hnot P).trans_eq
+      (friSmoothBatchUniqueCommitError_ennreal_eq params)
 
 /-- **Unconditional real-`α` unique-decoding interactive smooth batched FRI soundness upper bound**
 (unique-decoding counterpart of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed
@@ -668,19 +561,13 @@ theorem friSmoothBatchIOP_interactiveGame_le_of_unique [Fintype F] [DecidableEq 
     {stmt : FRIBatchStmt F params.d t} (hfar : stmt ∉ params.batchCorrAgreeLang t α)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t)) :
     iopInteractiveGame (friSmoothBatchIOP params t) stmt P true ≤
-      ENNReal.ofReal (friSmoothBatchUniqueCommitError params + α ^ params.q) := by
-  by_cases hα_le : α ≤ 1
-  · have hα_pos : 0 < α := lt_of_lt_of_le (by positivity) hα
-    refine friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le params t
-      (friSmoothBatchUniqueCommitError_nonneg params) hα_pos hα_le hfar P
-      fun e hnot_e he_le => ?_
-    have huniq : 2 * e + params.dim 0 ≤ 2 ^ params.d :=
-      smooth_two_mul_add_dim_le_of_div_le params (he_le.trans (by linarith))
-    refine (friSmoothBatchIOP_interactiveGame_proximity_le_of_unique params t huniq hnot_e
-      P).trans_eq ?_
-    rw [friSmoothBatchUniqueCommitError_ennreal_eq]
-  · exact iopInteractiveGame_smoothBatch_le_ofReal_add_pow_of_one_lt params t
-      (friSmoothBatchUniqueCommitError_nonneg params) (not_le.mp hα_le) stmt P
+      ENNReal.ofReal (friSmoothBatchUniqueCommitError params + α ^ params.q) :=
+  friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le params t
+    (friSmoothBatchUniqueCommitError_nonneg params) (lt_of_lt_of_le (by positivity) hα) hfar P
+    fun _ hnot he_le => by
+      simpa only [friSmoothBatchUniqueCommitError_ennreal_eq] using
+        friSmoothBatchIOP_interactiveGame_proximity_le_of_unique params t
+          (smooth_two_mul_add_dim_le_of_div_le params (he_le.trans (by linarith))) hnot P
 
 /-- **Contrapositive real-`α` unique-decoding interactive smooth batched FRI soundness**. -/
 theorem friSmoothBatchIOP_sound_of_unique [Fintype F] [DecidableEq F]
@@ -1018,33 +905,23 @@ private theorem round0_add_friSmoothJohnsonCommitError_eq [Fintype F]
       ENNReal.ofReal (friSmoothJohnsonCommitError params mJ) =
     ENNReal.ofReal (friSmoothBatchJohnsonCommitError params mJ) := by
   have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast params.one_le_dim 0
-  have hr0_nn :
-      0 ≤ 1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
-        (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ)) := by
-    positivity
-  have hrc_nn : 0 ≤ friSmoothJohnsonCommitError params mJ :=
-    mul_nonneg (one_sub_inv_two_pow_nonneg params.totalLog) hr0_nn
-  rw [← ENNReal.ofReal_add hr0_nn hrc_nn]
-  congr 1
+  have hr0_nn : 0 ≤ 1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
+      (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ)) := by positivity
   simp only [friSmoothJohnsonCommitError, friSmoothBatchJohnsonCommitError]
-  ring
+  rw [← ENNReal.ofReal_add hr0_nn (mul_nonneg (one_sub_inv_two_pow_nonneg params.totalLog) hr0_nn)]
+  exact congrArg ENNReal.ofReal (by ring)
 
 private theorem friSmoothBatchJohnsonCommitError_le_eta [Fintype F] (params : FRISmoothParams F)
     {mJ : ℕ} {η : ℝ} (hη : 0 < η) (hpow : ((mJ + 1 : ℝ) ^ 6) ≤ 64 / (η ^ 6)) :
     friSmoothBatchJohnsonCommitError params mJ ≤ friSmoothBatchJohnsonEtaCommitError params η := by
   have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast params.one_le_dim 0
   have hFR : (0 : ℝ) < (Fintype.card F : ℝ) := by exact_mod_cast Fintype.card_pos
-  have h2sub_nn : 0 ≤ 2 - (1 : ℝ) / (2 : ℝ) ^ params.totalLog :=
-    two_sub_inv_two_pow_nonneg params.totalLog
-  refine mul_le_mul_of_nonneg_left ?_ h2sub_nn
+  refine mul_le_mul_of_nonneg_left ?_ (two_sub_inv_two_pow_nonneg params.totalLog)
   calc 1800 * ((mJ + 1 : ℝ) ^ 6) * ((2 ^ params.d : ℝ) ^ 2) /
         (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ))
       ≤ 1800 * (64 / (η ^ 6)) * ((2 ^ params.d : ℝ) ^ 2) /
           (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (Fintype.card F : ℝ)) := by gcongr
-    _ = 115200 * ((2 ^ params.d : ℝ) ^ 2) /
-          (((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (η ^ 6) * (Fintype.card F : ℝ)) := by
-        field_simp
-        ring
+    _ = _ := by field_simp; ring
 
 /-- **Original explicit-constant Johnson smooth batched FRI commit-phase upper bound
 (`batchProximityLang`)** up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - √ρ / (2 * mJ)`. -/
@@ -1096,14 +973,11 @@ private theorem smooth_exists_mJ_and_commitError_le_of_eta [Fintype F]
           Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)) ∧
       ENNReal.ofReal (friSmoothBatchJohnsonCommitError params mJ) ≤
         ENNReal.ofReal (friSmoothBatchJohnsonEtaCommitError params η) := by
-  have hk₀_le : params.dim 0 ≤ 2 ^ params.d := by
-    simpa only [FRISmoothParams.domainSize, FRISmoothParams.cumLog, friCumLog_zero, Nat.sub_zero]
-      using params.dim_le_domainSize (Nat.zero_le params.m)
-  obtain ⟨mJ, hmJ, he_mJ, hpow_mJ⟩ :=
-    ProximityGap.exists_multiplicity_of_eta (params.one_le_dim 0) hk₀_le hη
-      (by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he)
-  exact ⟨mJ, hmJ, by simpa only [Nat.cast_pow, Nat.cast_ofNat] using he_mJ,
-    ENNReal.ofReal_le_ofReal (friSmoothBatchJohnsonCommitError_le_eta params hη hpow_mJ)⟩
+  have hk₀ := params.dim_le_domainSize (Nat.zero_le params.m)
+  obtain ⟨mJ, hmJ, he_mJ, hpow⟩ := ProximityGap.exists_multiplicity_of_eta (params.one_le_dim 0)
+    (by simpa [FRISmoothParams.domainSize] using hk₀) hη (mod_cast he)
+  exact ⟨mJ, hmJ, mod_cast he_mJ,
+    ENNReal.ofReal_le_ofReal (friSmoothBatchJohnsonCommitError_le_eta params hη hpow)⟩
 
 /-- **Original explicit-constant `η`-gap Johnson smooth batched FRI commit-phase upper bound
 (`batchProximityLang`)** up to `(e : ℝ) / 2 ^ d ≤ 1 - √ρ - η` (`0 < η`). -/
@@ -1133,6 +1007,23 @@ theorem friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson_eta [Fintype F
   exact (friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson params t hmJ he_mJ hfar P).trans
     (add_le_add hle le_rfl)
 
+private theorem smooth_johnson_slack_of_le (params : FRISmoothParams F) {mJ : ℕ} (hmJ : 1 ≤ mJ)
+    {α x : ℝ}
+    (hα : Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) *
+      (1 + 1 / (2 * (mJ : ℝ))) ≤ α)
+    (hx : x ≤ 1 - α) :
+    0 < α ∧
+      x ≤ 1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
+        Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)) := by
+  have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast params.one_le_dim 0
+  have hsq : 0 < Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) :=
+    Real.sqrt_pos.mpr (by positivity)
+  have hmJR : (0 : ℝ) < (mJ : ℝ) := by exact_mod_cast hmJ
+  have hmul : Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (1 + 1 / (2 * (mJ : ℝ))) =
+      Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) +
+        Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)) := by ring
+  exact ⟨lt_of_lt_of_le (by positivity) hα, by linarith⟩
+
 /-- **Original explicit-constant real-`α` Johnson smooth batched FRI commit-phase upper bound**
 (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Lemma 8.2 on printed pp. 38–39,
 Eq. (8.5), and Section 8.2.1 on printed pp. 41–43, bridged via
@@ -1152,19 +1043,10 @@ theorem friSmoothBatchCommitGame_le_of_johnson [Fintype F]
     friSmoothBatchCommitGame params t ⌊α₀ * (2 ^ params.d : ℝ)⌋₊ stmt P true ≤
       ENNReal.ofReal (friSmoothBatchJohnsonCommitError params mJ) := by
   intro α₀
-  set cJ : ℝ :=
-    Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) * (1 + 1 / (2 * (mJ : ℝ)))
-  have hcJ_nn : 0 ≤ cJ := by positivity
-  refine friSmoothBatchCommitGame_le_of_floor params t (hcJ_nn.trans (le_max_right _ _))
-    (le_max_left _ _) hagree_le P fun e₀ hnot_e₀ he₀_lt => ?_
-  have hcJ_le : cJ ≤ α₀ := le_max_right _ _
-  have hcJ_expand :
-      1 - cJ =
-        1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
-          Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)) := by
-    dsimp only [cJ]
-    ring
-  exact friSmoothBatchCommitGame_proximity_le_of_johnson params t hmJ (by linarith) hnot_e₀ P
+  exact friSmoothBatchCommitGame_le_of_floor params t
+    (le_trans (by positivity) (le_max_right _ _)) (le_max_left _ _) hagree_le P
+    fun e₀ hnot_e₀ he₀_lt => friSmoothBatchCommitGame_proximity_le_of_johnson params t hmJ
+      (smooth_johnson_slack_of_le params hmJ (le_max_right _ _) he₀_lt.le).2 hnot_e₀ P
 
 /-- **Original explicit-constant real-`α` `η`-gap smooth batched FRI commit-phase upper bound**
 (using `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
@@ -1182,33 +1064,10 @@ theorem friSmoothBatchCommitGame_le_of_johnson_eta [Fintype F]
     friSmoothBatchCommitGame params t ⌊α₀ * (2 ^ params.d : ℝ)⌋₊ stmt P true ≤
       ENNReal.ofReal (friSmoothBatchJohnsonEtaCommitError params η) := by
   intro α₀
-  set cEta : ℝ := Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) + η
-  have hcEta_nn : 0 ≤ cEta := by positivity
-  refine friSmoothBatchCommitGame_le_of_floor params t (hcEta_nn.trans (le_max_right _ _))
-    (le_max_left _ _) hagree_le P fun e₀ hnot_e₀ he₀_lt => ?_
-  have hcEta_le : cEta ≤ α₀ := le_max_right _ _
-  exact friSmoothBatchCommitGame_proximity_le_of_johnson_eta params t hη
-    (by dsimp only [cEta] at hcEta_le; linarith) hnot_e₀ P
-
-private theorem smooth_johnson_slack_of_le (params : FRISmoothParams F) {mJ : ℕ} (hmJ : 1 ≤ mJ)
-    {α x : ℝ}
-    (hα : Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) *
-      (1 + 1 / (2 * (mJ : ℝ))) ≤ α)
-    (hx : x ≤ 1 - α) :
-    0 < α ∧
-      x ≤ 1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
-        Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)) := by
-  have hk₀R : (0 : ℝ) < (params.dim 0 : ℝ) := by exact_mod_cast params.one_le_dim 0
-  have hsq_pos : 0 < Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) :=
-    Real.sqrt_pos.mpr (by positivity)
-  have hmJR : (0 : ℝ) < (mJ : ℝ) := by exact_mod_cast hmJ
-  have hexpand :
-      1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) *
-          (1 + 1 / (2 * (mJ : ℝ))) =
-        1 - Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) -
-          Real.sqrt ((params.dim 0 : ℝ) / (2 ^ params.d : ℝ)) / (2 * (mJ : ℝ)) := by
-    ring
-  exact ⟨lt_of_lt_of_le (by positivity) hα, by linarith⟩
+  exact friSmoothBatchCommitGame_le_of_floor params t
+    (le_trans (by positivity) (le_max_right _ _)) (le_max_left _ _) hagree_le P
+    fun e₀ hnot_e₀ he₀_lt => friSmoothBatchCommitGame_proximity_le_of_johnson_eta params t hη
+      (by have : _ ≤ α₀ := le_max_right _ _; linarith) hnot_e₀ P
 
 /-- **Original explicit-constant real-`α` Johnson interactive smooth batched FRI soundness upper
 bound** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed
@@ -1220,15 +1079,12 @@ theorem friSmoothBatchIOP_interactiveGame_le_of_johnson [Fintype F] [DecidableEq
     {stmt : FRIBatchStmt F params.d t} (hfar : stmt ∉ params.batchCorrAgreeLang t α)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t)) :
     iopInteractiveGame (friSmoothBatchIOP params t) stmt P true ≤
-      ENNReal.ofReal (friSmoothBatchJohnsonCommitError params mJ + α ^ params.q) := by
-  by_cases hα_le : α ≤ 1
-  · refine friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le params t
-      (friSmoothBatchJohnsonCommitError_nonneg params mJ)
-      (smooth_johnson_slack_of_le params hmJ hα le_rfl).1 hα_le hfar P fun e hnot_e he_le =>
-        friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson params t hmJ
-          (smooth_johnson_slack_of_le params hmJ hα he_le).2 hnot_e P
-  · exact iopInteractiveGame_smoothBatch_le_ofReal_add_pow_of_one_lt params t
-      (friSmoothBatchJohnsonCommitError_nonneg params mJ) (not_le.mp hα_le) stmt P
+      ENNReal.ofReal (friSmoothBatchJohnsonCommitError params mJ + α ^ params.q) :=
+  friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le params t
+    (friSmoothBatchJohnsonCommitError_nonneg params mJ)
+    (smooth_johnson_slack_of_le params hmJ hα le_rfl).1 hfar P fun _ hnot_e he_le =>
+      friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson params t hmJ
+        (smooth_johnson_slack_of_le params hmJ hα he_le).2 hnot_e P
 
 /-- **Contrapositive original explicit-constant real-`α` Johnson interactive smooth batched FRI
 soundness** (in the setting of [BenSassonCarmonIshaiKoppartySaraf2020], Theorem 8.3 on printed
@@ -1253,16 +1109,12 @@ theorem friSmoothBatchIOP_interactiveGame_le_of_johnson_eta [Fintype F] [Decidab
     {stmt : FRIBatchStmt F params.d t} (hfar : stmt ∉ params.batchCorrAgreeLang t α)
     (P : InteractiveIOPProver params.d F (FRIBatchChal F params.d params.q t)) :
     iopInteractiveGame (friSmoothBatchIOP params t) stmt P true ≤
-      ENNReal.ofReal (friSmoothBatchJohnsonEtaCommitError params η + α ^ params.q) := by
-  by_cases hα_le : α ≤ 1
-  · have hα_pos : 0 < α := lt_of_lt_of_le (by positivity) hα
-    refine friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le params t
-      (friSmoothBatchJohnsonEtaCommitError_nonneg params hη) hα_pos hα_le hfar P
-      fun e hnot_e he_le =>
-        friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson_eta params t hη (by linarith)
-          hnot_e P
-  · exact iopInteractiveGame_smoothBatch_le_ofReal_add_pow_of_one_lt params t
-      (friSmoothBatchJohnsonEtaCommitError_nonneg params hη) (not_le.mp hα_le) stmt P
+      ENNReal.ofReal (friSmoothBatchJohnsonEtaCommitError params η + α ^ params.q) :=
+  friSmoothBatchIOP_interactiveGame_le_of_corrAgree_le params t
+    (friSmoothBatchJohnsonEtaCommitError_nonneg params hη)
+    (lt_of_lt_of_le (by positivity) hα) hfar P fun _ hnot_e he_le =>
+      friSmoothBatchIOP_interactiveGame_proximity_le_of_johnson_eta params t hη (by linarith)
+        hnot_e P
 
 /-- **Contrapositive original explicit-constant real-`α` `η`-gap interactive smooth batched FRI
 soundness** (using `η` directly rather than `min(η, √ρ / 20)` in Eq. (1.3)). -/
@@ -1583,16 +1435,9 @@ theorem friBatchCommitGame_eq_friSmoothBatchCommitGame [Fintype F] (params : FRI
   funext pref
   congr 1
   funext πFinal
-  congr 1
-  congr 1
-  have hfilt :
-      (@Finset.filter _ (fun s => friBatchFinalPasses params t stmt pref πFinal s)
-        (Classical.decPred _) Finset.univ) =
-      (@Finset.filter _ (fun s => friSmoothBatchFinalPasses params.toSmooth t stmt pref πFinal s)
-        (Classical.decPred _) Finset.univ) := by
-    ext s
+  congr 2
+  exact congrArg Finset.card <| Finset.ext fun s => by
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, friBatchFinalPasses_iff_smooth]
-  exact congrArg Finset.card hfilt
 
 private theorem friBatchUniqueCommitError_eq_smooth [Fintype F] (params : FRIParams F) :
     friBatchUniqueCommitError params = friSmoothBatchUniqueCommitError params.toSmooth := by
@@ -1646,10 +1491,9 @@ theorem friBatchCommitGame_le_of_escape [Fintype F] [DecidableEq F]
     friBatchCommitGame params t (2 ^ params.d - e - 1) stmt P true ≤
       ε_batch + ∑ i : Fin params.m, ε_commit i := by
   rw [friBatchCommitGame_eq_friSmoothBatchCommitGame]
-  have hbatch' : SmoothBatchRound0Escape params.toSmooth t e ε_batch := by
-    simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode] using
-      hbatch
-  exact friSmoothBatchCommitGame_le_of_escape params.toSmooth t hbatch'
+  exact friSmoothBatchCommitGame_le_of_escape params.toSmooth t
+    (by simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode] using
+      hbatch)
     ((weightedLineEscapePerRound_iff_weightedCurveEscapePerRound params _ _).mp hesc)
     (by rwa [params.toSmooth_batchProximityLang]) P
 
@@ -1666,10 +1510,9 @@ theorem friBatchIOP_interactiveGame_le_of_escape [Fintype F] [DecidableEq F]
     iopInteractiveGame (friBatchIOP params t) stmt P true ≤
       friBatchSumError params ε_batch e ε_commit := by
   rw [friBatchIOP_eq_friSmoothBatchIOP]
-  have hbatch' : SmoothBatchRound0Escape params.toSmooth t e ε_batch := by
-    simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode] using
-      hbatch
-  exact friSmoothBatchIOP_interactiveGame_le_of_escape params.toSmooth t hbatch'
+  exact friSmoothBatchIOP_interactiveGame_le_of_escape params.toSmooth t
+    (by simpa only [BatchRound0Escape, SmoothBatchRound0Escape, params.toSmooth_initialCode] using
+      hbatch)
     ((weightedLineEscapePerRound_iff_weightedCurveEscapePerRound params _ _).mp hesc)
     (by rwa [params.toSmooth_batchProximityLang]) P
 
@@ -1847,11 +1690,9 @@ theorem friBatchBCS_corrAgree_romSoundness_bound_of_unique [Fintype F] [Decidabl
     (by simpa only [params.toSmooth_dim (Nat.zero_le _)] using hα) hα_le hdec σ hFS hMT).trans ?_
   have hle : 2 ^ params.d - 2 ^ (params.d - params.toSmooth.firstStepLog) ≤ 2 ^ (params.d - 1) := by
     have h2 := two_mul_toSmooth_first_sub_le params
-    cases hd : params.d with
-    | zero => simp only [Nat.zero_sub, pow_zero, Nat.sub_self, Nat.zero_le]
-    | succ k =>
-      rw [hd, pow_succ'] at h2
-      simp only [Nat.add_sub_cancel]
+    rcases Nat.eq_zero_or_pos params.d with hd | hd
+    · simp [hd]
+    · have : 2 * 2 ^ (params.d - 1) = 2 ^ params.d := by rw [← pow_succ', Nat.sub_add_cancel hd]
       omega
   gcongr
 

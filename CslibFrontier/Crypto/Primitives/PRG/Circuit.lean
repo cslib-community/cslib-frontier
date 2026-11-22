@@ -20,14 +20,14 @@ import Cslib.Crypto.Primitives.PRG.Basic
 Concrete security of generators (`Cslib.Crypto.PRG.Generator.Secure`) is relative to a class of
 admissible tests. This module supplies the nonuniform class: the deterministic tests computed by
 De Morgan circuits with at most `t` gates (`IsCircuitTest`), where every AND, OR, NOT and constant
-gate counts. It states the security notions used by the natural proofs barrier
-[RazborovRudich1997, Section 4]:
+gate counts. The proof of the natural proofs barrier uses two levels of circuit security
+[RazborovRudich1997, Theorem 4.1, pp. 30–31]:
 
 * a keyed family of Boolean functions is pseudorandom against circuits when the generator mapping
   a key to the truth table of its function is (`truthTableGenerator`). The tests read the whole
   truth table, that is they query the function at every input. The family is *exponentially
   secure* when it resists circuits of size `2 ^ (c n)` with error `2 ^ (-c n)` for every `c`
-  (`IsExponentiallySecure`);
+  (`IsExponentiallySecure`), the condition derived for the GGM family;
 * a family of length-doubling generators is *subexponentially secure* when, for all long seeds of
   length `k`, it resists circuits of size `2 ^ m` with error `2 ^ (-m)` for `m ^ d ≤ k`
   (`IsSubexponentiallySecure`). Security against circuits of size `2 ^ (k ^ ε)` with error
@@ -46,7 +46,7 @@ other coordinates fixed.
 * `Cslib.Crypto.PRG.IsExponentiallySecure`: keyed families pseudorandom against circuits of size
   `2 ^ (c n)` with error `2 ^ (-c n)`, for every `c`.
 * `Cslib.Crypto.PRG.IsSubexponentiallySecure`: length-doubling generators resisting circuits of
-  size `2 ^ (k ^ (1 / d))`.
+  size `2 ^ m` with error `2 ^ (-m)` whenever `m ^ d ≤ k`, for all sufficiently large `k`.
 
 ## Main results
 
@@ -98,20 +98,27 @@ variable {Key : ℕ → Type*} [∀ n, Fintype (Key n)] [∀ n, Nonempty (Key n)
 /-- A keyed family `F` of Boolean functions is *exponentially secure* against circuits when, for
 every `c`, eventually no test computed with at most `2 ^ (c n)` gates distinguishes the truth
 table of `F n key`, for a uniformly random key, from a uniformly random truth table with advantage
-more than `2 ^ (-c n)`. This is the hypothesis of the natural proofs barrier
-[RazborovRudich1997, Section 4]. The tests read the whole truth table, that is they query the
-function at every input. -/
+more than `2 ^ (-c n)`. This formulation for arbitrary finite key types is novel to this library.
+It packages the truth-table test in the proof of [RazborovRudich1997, Theorem 4.1, pp. 30–31,
+equation (3)]. The paper constructs a GGM family from a length-doubling generator. For that family,
+`Cslib.Crypto.GGM.isExponentiallySecure_booleanFamily` derives this condition from
+`IsSubexponentiallySecure` and a polynomial bound on the generator's circuit size. -/
 def IsExponentiallySecure (F : ∀ n, Key n → BooleanFunction n) : Prop :=
   ∀ c, ∀ᶠ n in atTop,
     (truthTableGenerator (F n)).Secure (IsCircuitTest (2 ^ (c * n))) (2 ^ (c * n))⁻¹
 
 end Family
 
-/-- A family of length-doubling generators is *subexponentially secure* against circuits, with
-exponent `1 / d`, when for all sufficiently long seeds, of length `k`, no test computed with at
-most `2 ^ m` gates has advantage more than `2 ^ (-m)` against `G k`, for every `m` with
-`m ^ d ≤ k`. Up to rounding, `G k` resists circuits of size `2 ^ (k ^ ε)` with advantage
-`2 ^ (-k ^ ε)` for `ε = 1 / d`, the hypothesis of [RazborovRudich1997, Section 4]. -/
+/-- A family of length-doubling generators is *subexponentially secure* if, at all sufficiently
+large seed lengths `k`, every De Morgan test of size at most `S = 2 ^ m` has advantage at most
+`1 / S` whenever `m ^ d ≤ k`. For positive `d` this uses integer exponents up to the `d`th root
+of `k`. At `d = 0` it requires the bound for every `m`.
+
+[RazborovRudich1997, p. 26 and §4, p. 30, before Theorem 4.1] conjecture generators of hardness
+`2 ^ (k ^ ε)` for some `ε > 0`. Their `H(Gₖ)` is the least size budget `S` admitting a test with
+advantage at least `1 / S` on uniform seeds against uniform outputs. Thus `H(Gₖ) > S` gives a
+strict upper bound at budget `S`, and this predicate allows equality. The polynomial circuit-size
+bound on the generator in Theorem 4.1 is a separate hypothesis of the barrier theorem. -/
 def IsSubexponentiallySecure (G : ∀ k, Generator (BitString k) (BitString (2 * k))) (d : ℕ) :
     Prop :=
   ∀ᶠ k in atTop, ∀ m, m ^ d ≤ k → (G k).Secure (IsCircuitTest (2 ^ m)) (2 ^ m)⁻¹
