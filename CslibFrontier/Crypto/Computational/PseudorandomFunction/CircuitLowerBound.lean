@@ -30,12 +30,15 @@ import CslibFrontier.Tactic.PPT
 /-!
 # Unconditional `2n - 2` `B₂`-circuit size lower bound for pseudorandom functions
 
-This module formalizes Sections 4.2 and 7.1 (Definitions 4.4–4.5, Definition 7.1, Lemmas 7.2–7.4,
-and Theorem 7.5) of Fan, Li, and Yang [FanLiYang2022]: every pseudorandom function ensemble
-`D = {D_n}` over `BooleanFunction n` satisfies
-`Pr_{f ← D_n}[complexity (fullInterpretation (k := 2)) (single f) < 2 * n - 2] ≤ negl(n)`,
-where circuit size counts binary gates over the complete two-input Boolean basis `B₂`
-(`Cslib.Circuits.fullInterpretation (k := 2) (Carrier := Bool)`).
+For every Boolean-output PRF ensemble, at all sufficiently large input lengths `n`, some
+function in its support requires at least `2 * n - 2` gates. This gives the worst-case bound
+of [FanLiYang2022, Theorem 7.5, p. 41] over the complete two-input Boolean basis `B₂`.
+Definition 4.9 (p. 28) takes the maximum of the minimum gate counts over the collection `Fₙ`
+supporting the distribution. A witness in the support belongs to every such collection.
+
+The proof establishes the stronger distributional bound that the probability of sampling a
+function below the threshold is negligible. The keyed corollaries apply this bound to the first
+output bit of a word-valued PRF and then to circuits computing all its output bits.
 
 ## Proof architecture and design notes
 
@@ -99,19 +102,20 @@ where circuit size counts binary gates over the complete two-input Boolean basis
   `Cslib.Crypto.succProbability_criticalPathDistinguisher_of_not_disjoint_criticalPath`,
   `Cslib.Crypto.succProbability_booleanPRFIdealGame_criticalPathDistinguisher_le`,
   `Cslib.Crypto.negligible_booleanPRFIdealGame_criticalPathDistinguisher`: Lemma 7.2.
-* `Cslib.Crypto.BooleanPRF.negligible_complexity_lt_two_mul_sub_two`,
-  `Cslib.Crypto.BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity`:
-  **Fan–Li–Yang Theorem 7.5** for `BooleanPRF` ensembles.
+* `Cslib.Crypto.BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity`:
+  the eventual worst-case gate lower bound of [FanLiYang2022, Theorem 7.5].
+* `Cslib.Crypto.BooleanPRF.negligible_complexity_lt_two_mul_sub_two`: the probability of sampling
+  a function below this bound is negligible.
 * `Cslib.Crypto.PseudorandomFunction.negligible_complexity_restriction_lt_two_mul_sub_two`,
   `Cslib.Crypto.PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two`,
   `Cslib.Crypto.PseudorandomFunction.eventually_exists_key_two_mul_sub_two_le_complexity`:
-  **Fan–Li–Yang Theorem 7.5** for `Cslib.Crypto.PseudorandomFunction`.
+  keyed corollaries for the first output bit and the full word-valued function.
 
 ## References
 
 * [Z. Fan, J. Li, and T. Yang, *The Exact Complexity of Pseudorandom Functions and the Black-Box
   Natural Proof Barrier for Bootstrapping Results in Computational Complexity*][FanLiYang2022],
-  Sections 4.2 and 7.1.
+  ECCC TR21-125, Revision 1, §§4.1–4.2, 4.4 and 7.1.
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*][BonehShoup2023], Chapter 4.
 -/
 
@@ -143,11 +147,12 @@ returning `[]` on malformed queries. -/
 @[expose] noncomputable def booleanPRFIdealGame (adversary : OracleDistinguisher) (n : ℕ) : Game :=
   (PMF.uniformOfFintype (BooleanFunction n)).bind (evalBooleanOracle adversary n)
 
-/-- A Boolean-output pseudorandom function ensemble ([FanLiYang2022], Definitions 4.4–4.5):
-no uniform strict oracle-PPT adversary distinguishes `D n` from a uniformly random `n`-bit Boolean
-function with non-negligible advantage. As in [FanLiYang2022], Definition 4.5, this definition
-imposes no efficient sampling or evaluation condition on `D n`, so the uniform ensemble
-`fun n => PMF.uniformOfFintype (BooleanFunction n)` satisfies it unconditionally. -/
+/-- A Boolean-output PRF ensemble [FanLiYang2022, Definitions 4.4–4.5, pp. 26–27]. Every uniform
+strict oracle-PPT adversary on unary parameter `n` has negligible distinguishing advantage between
+a single function drawn from `D n` and a uniform Boolean function on `n` bits. The source takes
+`n ≥ 1`. Here `n = 0` is immaterial to negligibility, and both word oracles return `[]` on queries
+of other lengths. The distribution and its functions may be inefficient to sample and evaluate.
+In particular, the uniform function ensemble satisfies this condition. -/
 @[expose] def BooleanPRF (D : ∀ n, PMF (BooleanFunction n)) : Prop :=
   Game.Indistinguishable (booleanPRFRealGame D) booleanPRFIdealGame (IsOraclePPT encBool)
 
@@ -1131,9 +1136,9 @@ private theorem succProbability_le_advantage_add (g₁ g₂ : Game) :
   rw [← NNReal.coe_le_coe, NNReal.coe_add, Game.coe_advantage]
   linarith [le_abs_self ((Game.succProbability g₁ : ℝ) - Game.succProbability g₂)]
 
-/-- **Fan–Li–Yang Theorem 7.5** (for `BooleanPRF` ensembles): for every `BooleanPRF D`, the
-probability that `f ← D n` has `B₂`-circuit complexity strictly less than `2 * n - 2` is
-negligible in `n`. -/
+/-- Distributional strengthening of [FanLiYang2022, Theorem 7.5]. For every Boolean PRF
+ensemble, the probability of sampling a function with `B₂`-circuit complexity strictly below
+`2 * n - 2` is negligible in `n`. -/
 theorem BooleanPRF.negligible_complexity_lt_two_mul_sub_two {D : ∀ n, PMF (BooleanFunction n)}
     (hD : BooleanPRF D) :
     Negligible (fun n =>
@@ -1219,8 +1224,11 @@ theorem BooleanPRF.negligible_complexity_lt_two_mul_sub_two {D : ∀ n, PMF (Boo
   simpa only [Game.succProbability,
     ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)] using hnn
 
-/-- For every `BooleanPRF D` and all sufficiently large `n`, some function in the support of `D n`
-requires at least `2 * n - 2` binary gates over `B₂`. -/
+/-- The worst-case lower bound of [FanLiYang2022, §7.1, Theorem 7.5, p. 41]. For every
+`BooleanPRF D` and all sufficiently large `n`, a function in the support of `D n` needs at least
+`2 * n - 2` gates. Inputs and output wires are free. Each binary Boolean gate and each nullary
+constant costs one gate. For `n ≥ 2`, a constant binary gate on two input wires realizes the same
+constant at the same cost in the source’s `B₂` basis. -/
 theorem BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity
     {D : ∀ n, PMF (BooleanFunction n)} (hD : BooleanPRF D) :
     ∀ᶠ n in Filter.atTop,
@@ -1240,7 +1248,8 @@ theorem BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity
   rw [hmap, PMF.pure_apply_self, ENNReal.toNNReal_one, NNReal.coe_one] at hn
   norm_num at hn
 
-/-- **Fan–Li–Yang Theorem 7.5** for the first-output-bit ensemble of a `PseudorandomFunction`. -/
+/-- For a uniform key of a word-valued PRF, the probability that its first output bit is
+computable with fewer than `2 * n - 2` gates is negligible. -/
 theorem PseudorandomFunction.negligible_complexity_restriction_lt_two_mul_sub_two
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     Negligible (fun n =>
@@ -1250,9 +1259,9 @@ theorem PseudorandomFunction.negligible_complexity_restriction_lt_two_mul_sub_tw
   simpa only [prfFirstBitEnsemble, _root_.PMF.map_comp, Function.comp_def] using
     hF.booleanPRF.negligible_complexity_lt_two_mul_sub_two
 
-/-- **Fan–Li–Yang Theorem 7.5** for `Cslib.Crypto.PseudorandomFunction`: under a uniformly sampled
-`n`-bit key, the `n`-output function `x ↦ BitString.ofList n (family key (List.ofFn x))` has
-`B₂`-circuit complexity strictly less than `2 * n - 2` with negligible probability. -/
+/-- Under a uniform `n`-bit PRF key, the probability that the full `n`-output function has
+`B₂`-circuit complexity below `2 * n - 2` is negligible. A circuit for all outputs also computes
+the first bit by selecting that output wire. -/
 theorem PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     Negligible (fun n =>
@@ -1301,8 +1310,7 @@ theorem PseudorandomFunction.negligible_complexity_lt_two_mul_sub_two
   exact ENNReal.toNNReal_mono (PMF.apply_ne_top _ _) hle
 
 /-- For every `PseudorandomFunction family` and all sufficiently large `n`, there exists an `n`-bit
-key `key : BitString n` whose induced Boolean function (and hence whose `n`-output function) has
-`B₂`-circuit complexity at least `2 * n - 2`. -/
+key whose first-output-bit function has `B₂`-circuit complexity at least `2 * n - 2`. -/
 theorem PseudorandomFunction.eventually_exists_key_two_mul_sub_two_le_complexity
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family) :
     ∀ᶠ n in Filter.atTop,

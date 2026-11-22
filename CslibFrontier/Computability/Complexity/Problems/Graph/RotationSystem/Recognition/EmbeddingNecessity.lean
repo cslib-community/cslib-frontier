@@ -973,18 +973,8 @@ subdivision edge is frozen. The reference vertex positions are attained internal
 theorem query_eq_true_of_unfrozen_embedding {I : FixedRotationInput} (hI : Valid I)
     (hF : (frozenGraph I).edges = [])
     (D : PolygonalDrawing (subdivisionGraph I)) (hD : D.IsEmbedding) : query I = true := by
-  have hdeclared : (subdivisionGraph I).incidenceVertices ⊆ (subdivisionGraph I).vertices := by
-    intro v hv
-    obtain ⟨p, hp, hv⟩ := List.mem_flatMap.mp hv
-    obtain ⟨j, hj, he⟩ := List.mem_iff_getElem.mp hp
-    let e : Fin (subdivisionGraph I).edges.length := ⟨j, hj⟩
-    have hend := (Dart.edge_eq_vertices e).symm.trans he
-    rw [← hend] at hv
-    simp only [List.mem_cons, List.not_mem_nil, or_false] at hv
-    rcases hv with rfl | rfl
-    · exact subdivision_end_declared hI e false
-    · exact subdivision_end_declared hI e true
-  obtain ⟨E, hE, hV, _, _, _, _⟩ := hD.exists_vertex_placement hdeclared
+  obtain ⟨E, hE, hV, _, _, _, _⟩ := hD.exists_vertex_placement
+    (subdivisionGraph_endpoints_declared hI)
     (referenceDrawing I).vertex (referenceDrawing_vertices_injective hI)
   apply query_eq_true_of_positioned_frozen_embedding hI E hE hV
   intro e he
