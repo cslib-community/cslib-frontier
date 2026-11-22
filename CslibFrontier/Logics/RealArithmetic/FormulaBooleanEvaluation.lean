@@ -298,6 +298,31 @@ def formulaWordGateValuesWithSignature {n : ℕ} (word : List Bool)
     if hi : index < n then formulaWordComparisonAnswer word index (signature ⟨index, hi⟩)
     else false
 
+/-- The finite-signature scan uses polynomial space when the word and the list of signs in
+gate order are available in polynomial time. The signs use the framed `encList encSign`
+encoding, and each comparison looks up its sign at a binary gate index. -/
+theorem formulaWordGateValuesWithSignature_polySpace {α : Type} [Inhabited α]
+    {input : α ↪ List Bool} {word : α → List Bool} {signs : α → List SignType}
+    (hword : ComputableInPolyTime word input encBits)
+    (hsigns : ComputableInPolyTime signs input (encList encSign)) :
+    ComputableInPolySpace (fun a => formulaWordGateValuesWithSignature (word a)
+      (fun index : Fin (signs a).length => (signs a)[index.val])) input encBits := by
+  have hcontext := fst input encNat
+  have hindex := snd input encNat
+  have hlist := hsigns.comp hcontext
+  have hinBounds := binary_lt' hindex (length_list_binary' hlist)
+  have hsign := listGetD_binary (encA := encSign) 0 hlist hindex
+  have htest := formulaWordComparisonAnswer_polyTime (hword.comp hcontext) hindex hsign
+  have hanswer := ite_decide hinBounds htest (const false)
+  unfold formulaWordGateValuesWithSignature
+  refine formulaWordGateValuesWithAnswers_polySpace hword
+    ((ComputableInPolySpace.of_polyTime hanswer).congr ?_)
+  rintro ⟨a, index⟩
+  by_cases hi : index < (signs a).length
+  · simp only [Function.comp_apply, ite_eq_left hi, dite_eq_left hi, List.getD_eq_getElem?_getD,
+      List.getElem?_eq_getElem hi, Option.getD_some]
+  · simp only [Function.comp_apply, ite_eq_right hi, dite_eq_right hi]
+
 /-- A finite gate signature covering the formula word's tokens gives the term-sign value
 of the total formula view if its sign at every comparison agrees with the requested term's
 sign. This adapts `LeanCanny.ETR.FormulaBooleanCircuitSource.value_signature` to the
