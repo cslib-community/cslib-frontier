@@ -136,10 +136,8 @@ theorem andreevShiftResidual_involutive (b m : ℕ) (σ : Fin b → Fin m) :
     w (andreevTableIndex b m idx) by
       have h := andreevResidualParities_andreevShiftResidual b m σ w
       rw [andreevShiftResidual] at h
-      have hcancel (u v : BitString b) : u + v + v = u :=
-        funext fun _ => by simp only [Pi.add_apply, add_assoc, BooleanRing.add_self, add_zero]
       simp only [andreevShiftResidual, andreevTranslateTableFun_tableIndex, Bool.xor_false, h,
-        Equiv.symm_apply_apply, hcancel, Equiv.apply_symm_apply]
+        Equiv.symm_apply_apply, Cslib.BitString.add_cancel_right, Equiv.apply_symm_apply]
 
 /-- Involution XNORing each table coordinate `idx` with `h ((BitString.equivFin b).symm idx)`. -/
 def andreevAlignTable (b m : ℕ) (h : BitString b → Bool)
