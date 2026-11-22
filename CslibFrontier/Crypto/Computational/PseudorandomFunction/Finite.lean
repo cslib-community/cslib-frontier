@@ -49,10 +49,8 @@ other request by the empty word. -/
 theorem wordOracle_bitString {m : Type → Type*} [Monad m] [LawfulMonad m] (n : ℕ)
     (f : BitString n → BitString n) :
     (OracleCodec.bitString n).wordOracle (fun x => (pure (f x) : m (BitString n))) =
-      fun request => pure (randomFunctionOracle n f request.2) := by
-  funext ⟨⟨⟩, word⟩
-  by_cases hword : word.length = n <;>
-    simp [OracleCodec.wordOracle, OracleCodec.bitString, randomFunctionOracle, hword]
+      fun request => pure (randomFunctionOracle n f request.2) :=
+  wordOracle_bitStrings n n f
 
 namespace PRF
 

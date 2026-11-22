@@ -4625,6 +4625,7 @@ public import CslibFrontier.Computability.Probabilistic.Internal.Oracle.Time
 public import CslibFrontier.Computability.Probabilistic.LinearHash
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
+public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 public import CslibFrontier.Computability.Probabilistic.Oracle.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle.Normalization
@@ -7860,6 +7861,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.EvalPure
 public import CslibFrontier.Languages.Probabilistic.Oracle.Interaction
 public import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 public import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm.Init
+public import CslibFrontier.Languages.Probabilistic.Oracle.Lens
 public import CslibFrontier.Languages.Probabilistic.Oracle.LimitQueries
 public import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 public import CslibFrontier.Languages.Probabilistic.Oracle.Norm.Init
@@ -7924,6 +7926,7 @@ public import CslibFrontier.Languages.Probabilistic.UniformNat.Support
 public import CslibFrontier.Languages.Probabilistic.UntilBad
 public import CslibFrontier.Languages.Probabilistic.UntilBad.ChooseTwo
 public import CslibFrontier.Languages.Probabilistic.UntilBad.Flag
+public import CslibFrontier.Languages.Probabilistic.UntilBad.PlantedQuery
 public import CslibFrontier.Languages.Probabilistic.UntilBad.TwoCost
 public import CslibFrontier.Languages.Probabilistic.Vector
 public import CslibFrontier.Languages.SQL.Column
@@ -8837,6 +8840,7 @@ public import CslibFrontier.Probability.StatisticalDistance
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 public import CslibFrontier.Probability.StatisticalDistance.ClosedForm
 public import CslibFrontier.Probability.StatisticalDistance.Coupling
+public import CslibFrontier.Probability.StatisticalDistance.CouplingBind
 public import CslibFrontier.Probability.StatisticalDistance.DirectProduct
 public import CslibFrontier.Probability.StatisticalDistance.Event
 public import CslibFrontier.Probability.StatisticalDistance.OptimalCoupling
