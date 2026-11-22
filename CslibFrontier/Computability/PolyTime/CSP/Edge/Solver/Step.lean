@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Program
 import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.AncestryPolyTime
 import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.LiftingPolyTime
-import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -143,7 +143,7 @@ private theorem poly_sumState {α β γ : Type} {ea : α ↪ List Bool} {eb : β
     (hl : ComputableInPolyTime (fun p : γ × α => left p.1 p.2) (encPair eg ea) encState)
     (hr : ComputableInPolyTime (fun p : γ × β => right p.1 p.2) (encPair eg eb) encState) :
     ComputableInPolyTime (fun a => (value a).elim (left a) (right a)) eg encState :=
-  NativeCases.sumElimWithInput emptyState hv hl hr
+  ComputableInPolyTime.sumElimWithInput emptyState hv hl hr
 
 attribute [local fun_prop] poly_current poly_frames poly_budget poly_status poly_stateMk
   poly_pushWith poly_augmentWith poly_liftWith poly_sumState
