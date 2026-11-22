@@ -91,9 +91,9 @@ def resolveOn (l : Literal ℕ) (d₀ d₁ : Clause ℕ) : Clause ℕ :=
   if l.2 then d₀.resolvent d₁ l.1 else d₁.resolvent d₀ l.1
 
 /-- **The resolution chain of a RUP step**, following unit propagation along the hints from the
-literals `t` assumed true, as `Cslib.Logic.PL.CNF.propagateHints` does: the lines it adds, latest
-first, and the line it derives, every literal of which is false under `t`; `none` if propagation
-fails. After the rest of the chain derives a line from `l :: t`, where `l` is the literal the
+literals `t` assumed true, as `Cslib.Logic.PL.CNF.propagateHints` does, by the residual of each
+hinted clause (`Cslib.Logic.PL.Clause.residual`): the lines it adds, latest first, and the line
+it derives, every literal of which is false under `t`; `none` if propagation fails. After the rest of the chain derives a line from `l :: t`, where `l` is the literal the
 current hinted clause propagates, that line is resolved with the line of the hinted clause on the
 variable of `l` when it contains the negation of `l` and `l` is new; otherwise either it or the
 hinted clause's line is already false under `t`. -/
@@ -103,18 +103,17 @@ def rupChain (db : List LRATEntry) : List (Literal ℕ) → List ℕ → Option 
     match db.find? (·.id == h) with
     | none => none
     | some e =>
-      match e.clause.filter (fun l => !t.contains (Literal.negate l)) with
-      | [] => some ([], e.line)
-      | l :: ls =>
-        if ls.all (· == l) then
-          match rupChain db (l :: t) hs with
-          | none => none
-          | some (ls₁, d₁) =>
-            if Literal.negate l ∈ d₁ ∧ l ∉ t then
-              if l ∈ e.line then some (resolveOn l e.line d₁ :: ls₁, resolveOn l e.line d₁)
-              else some ([], e.line)
-            else some (ls₁, d₁)
-        else none
+      match e.clause.residual t with
+      | .empty => some ([], e.line)
+      | .unit l =>
+        match rupChain db (l :: t) hs with
+        | none => none
+        | some (ls₁, d₁) =>
+          if Literal.negate l ∈ d₁ ∧ l ∉ t then
+            if l ∈ e.line then some (resolveOn l e.line d₁ :: ls₁, resolveOn l e.line d₁)
+            else some ([], e.line)
+          else some (ls₁, d₁)
+      | .other => none
 
 /-- The translation on a database: the lines `ls` so far grow by the chain of each RUP step, and
 the result is reached at the first empty-clause step. -/
@@ -198,37 +197,17 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
     have he := List.mem_of_find?_eq_some hfind
     obtain ⟨hd₀, hsub⟩ := hdb e he
     simp only [hfind, Option.map_some, LRATEntry.toPair] at hprop
-    -- a literal of the clause is false under `t` or is kept by the filter
-    have hkeep : ∀ m ∈ e.clause, Literal.negate m ∈ t ∨
-        m ∈ e.clause.filter (fun l => !t.contains (Literal.negate l)) := by
-      intro m hm
-      by_cases hmt : Literal.negate m ∈ t
-      · exact .inl hmt
-      · exact .inr (List.mem_filter.2 ⟨hm, by simpa using hmt⟩)
-    rcases hfilt : e.clause.filter (fun l => !t.contains (Literal.negate l)) with _ | ⟨l, rest⟩
+    rcases hres : e.clause.residual t with _ | l | _
     · -- every literal of the hinted clause is false: the chain ends with its line
-      refine ⟨[], e.line, by simp only [rupChain, hfind, hfilt], hls, hd₀, fun m hm => ?_,
-        Nat.zero_le _, Nat.zero_le _⟩
-      rcases hkeep m (hsub m hm) with h | h
-      · exact h
-      · rw [hfilt] at h
-        simp at h
-    simp only [hfilt] at hprop
-    split at hprop
+      exact ⟨[], e.line, by simp only [rupChain, hfind, hres], hls, hd₀,
+        fun m hm => Clause.residual_eq_empty_iff.1 hres m (hsub m hm), Nat.zero_le _,
+        Nat.zero_le _⟩
     swap
-    · simp at hprop
-    rename_i hall
-    have hopen : ∀ m ∈ e.line, Literal.negate m ∈ t ∨ m = l := by
-      intro m hm
-      rcases hkeep m (hsub m hm) with h | h
-      · exact .inl h
-      · rw [hfilt] at h
-        rcases List.mem_cons.1 h with rfl | h
-        · exact .inr rfl
-        · exact .inr (by simpa using List.all_eq_true.1 hall m h)
-    have hlnew : Literal.negate l ∉ t := by
-      have := (List.mem_filter.1 (hfilt ▸ List.mem_cons_self : l ∈ _)).2
-      simpa using this
+    · simp [hres] at hprop
+    simp only [hres] at hprop
+    obtain ⟨-, hlnew, hoth⟩ := Clause.residual_eq_unit_iff.1 hres
+    have hopen : ∀ m ∈ e.line, Literal.negate m ∈ t ∨ m = l := fun m hm =>
+      (em (m = l)).elim .inr fun hne => .inl (hoth m (hsub m hm) hne)
     obtain ⟨ls₁, d₁, hc₁, hp₁, hd₁, hf₁, hlen₁, hvar₁⟩ := ih (l :: t) hprop
     have hfree : freeVars φ (l :: t) ⊆ freeVars φ t := by
       intro v hv
@@ -239,7 +218,7 @@ private theorem rupChain_spec {db : List LRATEntry} {ls : List (Clause ℕ)} (hl
           if l ∈ e.line then some (resolveOn l e.line d₁ :: ls₁, resolveOn l e.line d₁)
           else some ([], e.line)
         else some (ls₁, d₁) := by
-      simp only [rupChain, hfind, hfilt, hall, hc₁, ↓reduceIte]
+      simp only [rupChain, hfind, hres, hc₁]
     rw [hrun]
     by_cases hA : Literal.negate l ∈ d₁ ∧ l ∉ t
     · simp only [hA, not_false_eq_true, and_self, ↓reduceIte]
