@@ -3,4 +3,5 @@ import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
+import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Registry
