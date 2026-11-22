@@ -28,16 +28,19 @@ previous outcomes. For any real-valued process `X k : (Fin k → α) → ℝ` al
 one-step conditional expectation on supported prefixes `h ∈ (seqProcess step k).support` does not
 increase (`∑' x, (step k h x).toReal * X (k + 1) ... ≤ X k h`) and whose one-step values on
 `(step k h).support` lie in a history-dependent interval `[a, b]` of width `b - a ≤ c k` bounded
-by a deterministic step width `c k`, iterating `Cslib.Probability.PMF.tsum_mul_exp_sub_mean_le`
-bounds the exponential moment of `X n - X 0` by `exp (s² (∑ k < n, c k ^ 2) / 8)`
-(`seqProcess_mul_exp_le`, extending [Hoeffding1963, §4, eq. (4.16)]). Optimizing the Laplace
-parameter gives the discrete Azuma–Hoeffding upper, lower, and two-sided tail inequalities
-(`seqProcess_ge_le`, `seqProcess_le_le`, `seqProcess_abs_sub_ge_le`)
-[Hoeffding1963, Theorem 2 (eq. (2.6)) and martingale remark (eq. (2.18)); Azuma1967] on arbitrary
-outcome types `α` without `[Fintype α]` or a caller-supplied `[MeasurableSpace α]`, for all
-`ε ≥ 0` (including zero total squared width `∑ k < n, c k ^ 2 = 0`, where the bound evaluates to
-`1`). Measure-theoretic filtrations and random step widths outside a deterministic envelope `c k`
-are outside this finite-horizon `PMF` model.
+by a deterministic step width `c k`, centering the next value by its conditional mean preserves
+that width, `Cslib.Probability.PMF.tsum_mul_exp_sub_mean_le` ([Hoeffding1963, §4, eq. (4.16)])
+gives the conditional `[G]` factor ([Azuma1967, §1, p. 357 and Remark 1, p. 358]) with parameter
+`c k / 2`, and nonpositive supermartingale drift iterates to the exponential moment bound
+`exp (s² (∑ k < n, c k ^ 2) / 8)` (`seqProcess_mul_exp_le`, adapting
+[Azuma1967, §2, proof of Lemma 2, display (2.4), pp. 358–359]). Optimizing the Laplace parameter
+derives the fixed-time upper, lower, and two-sided Azuma–Hoeffding tail corollaries
+(`seqProcess_ge_le`, `seqProcess_le_le`, `seqProcess_abs_sub_ge_le`; cf.
+[Hoeffding1963, Theorem 2 (eq. (2.6)) and martingale extension (eq. (2.18))]) on arbitrary outcome
+types `α` without `[Fintype α]` or a caller-supplied `[MeasurableSpace α]`, for all `ε ≥ 0`
+(including zero total squared width `∑ k < n, c k ^ 2 = 0`, where the bound evaluates to `1`).
+Measure-theoretic filtrations and random step widths outside a deterministic envelope `c k` are
+outside this finite-horizon `PMF` model.
 
 ## Main definitions
 
@@ -176,11 +179,12 @@ theorem tsum_toReal_seqProcess_step (step : ∀ t : ℕ, (Fin t → α) → PMF 
     simp [tsum_empty]
 
 /-- **Azuma–Hoeffding exponential moment bound** along `seqProcess`
-[Hoeffding1963, §2 eq. (2.18) and §4 eq. (4.16); Azuma1967]: if at each step `k < n` and supported
-prefix `h`, the conditional expectation of `X (k + 1) (Fin.snoc h ·)` is at most `X k h` and its
-values on `(step k h).support` lie in a history-dependent interval of width at most the
-deterministic step bound `c k`, then for every `s ≥ 0` the exponential moment of `s * (X n - X 0)`
-is at most `exp (s² * (∑ k ∈ range n, c k ^ 2) / 8)`. -/
+[Azuma1967, §2, proof of Lemma 2, display (2.4), pp. 358–359; Hoeffding1963, §2 eq. (2.18) and
+§4 eq. (4.16)]: if at each step `k < n` and supported prefix `h`, the conditional expectation of
+`X (k + 1) (Fin.snoc h ·)` is at most `X k h` and its values on `(step k h).support` lie in a
+history-dependent interval of width at most the deterministic step bound `c k`, then for every
+`s ≥ 0` the exponential moment of `s * (X n - X 0)` is at most
+`exp (s² * (∑ k ∈ range n, c k ^ 2) / 8)`. -/
 theorem seqProcess_mul_exp_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     (X : ∀ k : ℕ, (Fin k → α) → ℝ) (c : ℕ → ℝ) (n : ℕ)
     (hmean : ∀ k, k < n → ∀ h ∈ (seqProcess step k).support,
@@ -252,11 +256,12 @@ theorem seqProcess_mul_exp_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
           exact congrArg (ENNReal.ofReal ∘ Real.exp) (by ring)
 
 /-- **Azuma–Hoeffding inequality, upper tail**
-[Hoeffding1963, Theorem 2 (eq. (2.6)) and eq. (2.18); Azuma1967]: if `X` is a discrete
-supermartingale along `seqProcess step` whose one-step conditional support at each supported prefix
-lies in a history-dependent interval of width at most the deterministic step bound `c k` (`k < n`),
-then `X n` exceeds `X 0 Fin.elim0 + ε` (`ε ≥ 0`) with probability at most
-`exp (-2 ε² / ∑ k ∈ range n, c k ^ 2)` (`1` when `∑ k ∈ range n, c k ^ 2 = 0`). -/
+[Azuma1967, §2, proof of Lemma 2, display (2.4), pp. 358–359; Hoeffding1963, Theorem 2 (eq. (2.6))
+and eq. (2.18)]: if `X` is a discrete supermartingale along `seqProcess step` whose one-step
+conditional support at each supported prefix lies in a history-dependent interval of width at most
+the deterministic step bound `c k` (`k < n`), then `X n` exceeds `X 0 Fin.elim0 + ε` (`ε ≥ 0`) with
+probability at most `exp (-2 ε² / ∑ k ∈ range n, c k ^ 2)` (`1` when
+`∑ k ∈ range n, c k ^ 2 = 0`). -/
 theorem seqProcess_ge_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     (X : ∀ k : ℕ, (Fin k → α) → ℝ) (c : ℕ → ℝ) (n : ℕ)
     (hmean : ∀ k, k < n → ∀ h ∈ (seqProcess step k).support,
@@ -305,11 +310,11 @@ theorem seqProcess_ge_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     ring
 
 /-- **Azuma–Hoeffding inequality, lower tail**
-[Hoeffding1963, Theorem 2 (eq. (2.6)) and eq. (2.18); Azuma1967]: if `X` is a discrete
-submartingale along `seqProcess step` whose one-step conditional support at each supported prefix
-lies in a history-dependent interval of width at most the deterministic step bound `c k` (`k < n`),
-then `X n` falls at or below `X 0 Fin.elim0 - ε` (`ε ≥ 0`) with probability at most
-`exp (-2 ε² / ∑ k ∈ range n, c k ^ 2)`. -/
+[Azuma1967, §2, proof of Lemma 2, display (2.4), pp. 358–359; Hoeffding1963, Theorem 2 (eq. (2.6))
+and eq. (2.18)]: if `X` is a discrete submartingale along `seqProcess step` whose one-step
+conditional support at each supported prefix lies in a history-dependent interval of width at most
+the deterministic step bound `c k` (`k < n`), then `X n` falls at or below `X 0 Fin.elim0 - ε`
+(`ε ≥ 0`) with probability at most `exp (-2 ε² / ∑ k ∈ range n, c k ^ 2)`. -/
 theorem seqProcess_le_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     (X : ∀ k : ℕ, (Fin k → α) → ℝ) (c : ℕ → ℝ) (n : ℕ)
     (hmean : ∀ k, k < n → ∀ h ∈ (seqProcess step k).support,
@@ -334,11 +339,11 @@ theorem seqProcess_le_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     exact ⟨neg_le_neg (hg x hx).2, neg_le_neg (hg x hx).1⟩
 
 /-- **Azuma–Hoeffding inequality, two-sided tail**
-[Hoeffding1963, Theorem 2 (eq. (2.6)) and eq. (2.18); Azuma1967]: if `X` is a discrete martingale
-along `seqProcess step` whose one-step conditional support at each supported prefix lies in a
-history-dependent interval of width at most the deterministic step bound `c k` (`k < n`), then
-`|X n - X 0 Fin.elim0| ≥ ε` (`ε ≥ 0`) with probability at most
-`2 * exp (-2 ε² / ∑ k ∈ range n, c k ^ 2)`. -/
+[Azuma1967, §2, proof of Lemma 2, display (2.4), pp. 358–359; Hoeffding1963, Theorem 2 (eq. (2.6))
+and eq. (2.18)]: if `X` is a discrete martingale along `seqProcess step` whose one-step conditional
+support at each supported prefix lies in a history-dependent interval of width at most the
+deterministic step bound `c k` (`k < n`), then `|X n - X 0 Fin.elim0| ≥ ε` (`ε ≥ 0`) with
+probability at most `2 * exp (-2 ε² / ∑ k ∈ range n, c k ^ 2)`. -/
 theorem seqProcess_abs_sub_ge_le (step : ∀ t : ℕ, (Fin t → α) → PMF α)
     (X : ∀ k : ℕ, (Fin k → α) → ℝ) (c : ℕ → ℝ) (n : ℕ)
     (hmean : ∀ k, k < n → ∀ h ∈ (seqProcess step k).support,

@@ -29,12 +29,16 @@ contributes `p x * ⊤ = ⊤` instead of vanishing under `0 * ⊤ = 0`.
 
 For discrete probability distributions `p, q : PMF X` and `1 < α`, `PMF.renyiDiv α p q : ℝ≥0∞` is
 the Rényi divergence `D_α(p ‖ q) = log (renyiMoment α p q) / (α - 1)` in natural logarithms
-[Renyi1961; Mironov2017, Definition 3], taking the value `⊤` when `renyiMoment α p q = ⊤`
-(matching `InformationTheory.klDiv`). Weighted AM–GM (`Real.geom_mean_le_arith_mean2_weighted`)
-yields joint convexity / sub-additivity of `(u, v) ↦ u * (u / v) ^ (α - 1)` on arbitrary countable
-support, giving both nonnegativity (`1 ≤ renyiMoment α p q`, [Mironov2017, Appendix A]) and the
-data-processing inequality under Markov kernels (`renyiMoment_bind_le`, `renyiDiv_bind_le`,
-[Mironov2017, Section III]) without `[Fintype]` or `[MeasurableSpace]` hypotheses.
+[Renyi1961, §3, eq. (3.3), p. 554; Mironov2017, Definition 3] (where [Renyi1961] states the finite
+positive-reference formula in `log₂`), taking the value `⊤` when `renyiMoment α p q = ⊤` (matching
+`InformationTheory.klDiv`). `InformationTheory.klDiv` is a separate definition in
+`CslibFrontier.Probability.RelativeEntropy`; this module covers finite orders `1 < α` and supplies
+neither an `α → 1` limit theorem nor an `α = ∞` max-divergence endpoint. Weighted AM–GM
+(`Real.geom_mean_le_arith_mean2_weighted`) yields joint convexity / sub-additivity of
+`(u, v) ↦ u * (u / v) ^ (α - 1)` on arbitrary countable support, giving both nonnegativity
+(`1 ≤ renyiMoment α p q`, [Mironov2017, Appendix A]) and the data-processing inequality under
+Markov kernels (`renyiMoment_bind_le`, `renyiDiv_bind_le`, [Mironov2017, Section III]) without
+`[Fintype]` or `[MeasurableSpace]` hypotheses.
 
 ## Main definitions
 
@@ -263,11 +267,12 @@ variable {X Y : Type*}
 
 /-- The Rényi divergence `D_α(p ‖ q) = log (renyiMoment α p q) / (α - 1)` of discrete
 distributions `p, q : PMF X` for orders `1 < α`, valued in `ℝ≥0∞` (equal to `⊤` when
-`renyiMoment α p q = ⊤`) [Renyi1961; Mironov2017, Definition 3].
+`renyiMoment α p q = ⊤`) [Renyi1961, §3, eq. (3.3), p. 554; Mironov2017, Definition 3].
 
 This finite-order formula applies to `1 < α`: at `α = 1`, `renyiMoment 1 p q = 1` and division by
-`α - 1 = 0` evaluates to `0` rather than the `α → 1` Kullback–Leibler limit
-(`InformationTheory.klDiv` in `CslibFrontier.Probability.RelativeEntropy`). -/
+`α - 1 = 0` evaluates to `0`, whereas `InformationTheory.klDiv` in
+`CslibFrontier.Probability.RelativeEntropy` is a separate Kullback–Leibler definition (no `α → 1`
+limit theorem or `α = ∞` max-divergence endpoint is proved here). -/
 noncomputable def renyiDiv (α : ℝ) (p q : PMF X) : ℝ≥0∞ :=
   open Classical in
   if renyiMoment α p q = ⊤ then ⊤

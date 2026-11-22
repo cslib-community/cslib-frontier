@@ -137,7 +137,7 @@ Hagit Attiya, Amotz Bar-Noy and Danny Dolev. "Sharing Memory Robustly in Message
 <a id="azuma67"></a>
 ## azuma67
 
-Kazuoki Azuma. "Weighted Sums of Certain Dependent Random Variables." *Tôhoku Mathematical Journal* 19(3), 357–367, 1967. https://doi.org/10.2748/tmj/1178243286 . Bibliographic metadata checked via DOI/Project Euclid records on 2026-11-22; the 1967 journal scan was not directly retrieved, so internal theorem and page locators remain `unverified`, and the discrete sequential `PMF` exponential-moment and tail bounds in [Azuma.lean](../CslibFrontier/Probability/Azuma.lean) follow the centered MGF and martingale proof of [hoeffding63](#hoeffding63), Theorem 2 and eq. (2.18).
+Kazuoki Azuma. "Weighted Sums of Certain Dependent Random Variables." *Tôhoku Mathematical Journal* 19(3), 357–367, 1967. https://doi.org/10.2748/tmj/1178243286 ; J-STAGE publisher scan https://www.jstage.jst.go.jp/article/tmj1949/19/3/19_3_357/_pdf/-char/en . Checked against the publisher scan during outside-fleet source review on 2026-11-22: §1 property `[G]` on printed p. 357 and Remark 1 on printed p. 358 (bounded increments), and §2 proof of Lemma 2, display (2.4) on printed pp. 358–359 (iterated conditional exponential-moment bound for weighted martingale differences). In [Azuma.lean](../CslibFrontier/Probability/Azuma.lean), `seqProcess_mul_exp_le` adapts display (2.4) to finite-horizon sequential `PMF` processes by deriving the conditional `[G]` factor with parameter `c k / 2` from the one-step centered Hoeffding bound ([hoeffding63](#hoeffding63), Theorem 2 eq. (2.6), eq. (2.18), and §4 eq. (4.16)) and nonpositive supermartingale drift, with the fixed-time tails as corollaries.
 
 <a id="babai86"></a>
 ## babai86
@@ -2019,7 +2019,7 @@ Omer Reingold. “Undirected Connectivity in Log-Space.” *Journal of the ACM* 
 <a id="renyi61"></a>
 ## renyi61
 
-Alfréd Rényi. "On Measures of Entropy and Information." *Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability, Volume 1: Contributions to the Theory of Statistics*, 547–561, University of California Press, Berkeley, CA, 1961. Bibliographic metadata checked via secondary bibliographic records on 2026-11-22; the 1961 proceedings scan was not directly inspected, so internal theorem and page locators are not cited, and the discrete Rényi divergence formulation follows [mironov17](#mironov17), Definition 3 and Appendix A.
+Alfréd Rényi. "On Measures of Entropy and Information." *Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability, Volume 1: Contributions to the Theory of Statistics*, 547–561, University of California Press, Berkeley, CA, 1961. Open scan: https://static.renyi.hu/renyi_cikkek/1961_on_measures_of_entropy_and_information.pdf . Checked against that scan during outside-fleet source review on 2026-11-22: §3, eq. (3.3) on printed p. 554 defines order-`α` information for finite distributions with positive reference masses in base-`2` logarithms (`log₂`); swapping the paper's distribution letters to `(p, q)` and multiplying by `ln 2` yields the finite natural-logarithm formula, while countable support, `⊤` on off-support atoms, and the modern data-processing, composition, and hockey-stick properties in [Renyi.lean](../CslibFrontier/Probability/Renyi.lean) follow [mironov17](#mironov17).
 
 <a id="reynolds02"></a>
 ## reynolds02

@@ -13310,11 +13310,14 @@ register_result "azuma-hoeffding-seq-process" where
   title := "Azuma–Hoeffding exponential moment and tail inequalities for sequential PMF processes"
   topic := "probability"
   sources := [
+    { paper := Azuma1967,
+      theorem := "Lemma 2 (proof, display (2.4)), property [G], and Remark 1",
+      locator := "§1 (property [G], p. 357; Remark 1, p. 358) and §2 (proof of Lemma 2, \
+        display (2.4), pp. 358–359)" },
     { paper := Hoeffding1963,
       theorem := "Theorem 2 (eq. (2.6)) and martingale extension (eq. (2.18))",
       locator := "§2, printed pp. 16, 18 (PDF pp. 5, 7); §4, eqs. (4.16)–(4.17), printed \
-        pp. 22–23 (PDF pp. 11–12)" },
-    { paper := Azuma1967, theorem := unverified, locator := unverified }
+        pp. 22–23 (PDF pp. 11–12)" }
   ]
   theorems := [
     Cslib.Probability.PMF.seqProcess_mul_exp_le,
@@ -13322,21 +13325,22 @@ register_result "azuma-hoeffding-seq-process" where
     Cslib.Probability.PMF.seqProcess_le_le,
     Cslib.Probability.PMF.seqProcess_abs_sub_ge_le
   ]
-  scope := "Finite-horizon discrete trajectory laws seqProcess step n : PMF (Fin n → α) over an \
-    arbitrary outcome type α without Fintype or caller-supplied MeasurableSpace, measuring tail \
-    events via (toOuterMeasure …).toReal. At each step k < n and supported prefix \
-    h ∈ (seqProcess step k).support, X satisfies the one-step conditional supermartingale, \
-    submartingale, or martingale expectation bound against (step k h ·).toReal and its values on \
-    (step k h).support lie in a history-dependent interval [a, b] of width b - a ≤ c k bounded \
-    by a deterministic step width c k : ℝ. Covers all ε ≥ 0 (extending Hoeffding's t > 0) and \
-    zero total squared width ∑ k < n, c k ^ 2 = 0 (where division by zero in ℝ gives exp 0 = 1). \
-    General measure-theoretic filtrations and predictable random step widths without a \
-    deterministic envelope c k are not covered. Source check: JSTOR PDF (SHA-256 \
-    3021bcc097ef23a99a84d0eef8dcce2fd835c71df79a105727d3e03f8f0b8930) and outside-fleet agent \
-    check (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d \
-    (https://github.com/cslib-community/cslib-frontier/pull/7481#pullrequestreview-6012832802); \
-    the 1967 Tôhoku Math. J. scan for Azuma1967 was not retrieved, so its locator remains \
-    unverified."
+  scope := "Finite-horizon sequential PMF adaptation of Azuma's iterated conditional \
+    exponential-moment bound (display (2.4)) over trajectory laws \
+    seqProcess step n : PMF (Fin n → α) on an arbitrary outcome type α without Fintype or \
+    caller-supplied MeasurableSpace, with fixed-time tail corollaries measured via \
+    (toOuterMeasure …).toReal. At each step k < n and supported prefix \
+    h ∈ (seqProcess step k).support, centering the next value by its conditional mean preserves \
+    its history-dependent interval width b - a ≤ c k (bounded by a deterministic step width \
+    c k : ℝ), the library's one-step centered Hoeffding bound supplies Azuma's conditional [G] \
+    factor with parameter c k / 2, and nonpositive supermartingale drift yields the s ≥ 0 moment \
+    bound (with submartingale and martingale fixed-time tails derived from it). Covers all ε ≥ 0 \
+    (including ∑ k < n, c k ^ 2 = 0, where division by zero in ℝ gives exp 0 = 1); general \
+    measure-theoretic filtrations and predictable random step widths without a deterministic \
+    envelope c k are not covered. Source check: outside-fleet agent scan check \
+    (reviewer-codex-edemaine) of Azuma (1967) J-STAGE scan and Hoeffding (1963) JSTOR PDF \
+    (SHA-256 3021bcc097ef23a99a84d0eef8dcce2fd835c71df79a105727d3e03f8f0b8930) on PR #7481 \
+    (https://github.com/cslib-community/cslib-frontier/pull/7481#pullrequestreview-6012948226)."
 
 register_result "renyi-divergence-properties" where
   title := "Nonnegativity, data processing, adaptive composition, and hockey-stick conversion \
@@ -13347,7 +13351,9 @@ register_result "renyi-divergence-properties" where
       theorem := "Definition 3, Post-processing, Proposition 1, Proposition 3, and Appendix A",
       locator := "arXiv:1702.07476v3, §III (Definition 3, Post-processing, Proposition 1), \
         §IV (Proposition 3), and Appendix A" },
-    { paper := Renyi1961, theorem := unverified, locator := unverified }
+    { paper := Renyi1961,
+      theorem := "Definition of order-α information (eq. (3.3))",
+      locator := "§3, eq. (3.3), printed p. 554" }
   ]
   theorems := [
     Cslib.Probability.PMF.one_le_renyiMoment,
@@ -13360,14 +13366,19 @@ register_result "renyi-divergence-properties" where
   scope := "Discrete distributions PMF X over arbitrary types X without Fintype or \
     MeasurableSpace, for finite orders 1 < α (1 ≤ α in renyiMoment_bind_le), with ℝ≥0∞-valued \
     renyiDiv in natural logarithms taking value ⊤ on off-support atoms (p x ≠ 0, q x = 0). \
-    Adaptive two-stage composition (renyiDiv_bind_pair_le) bounds the joint transcript (x, y) \
-    assuming the second-stage kernel bound on x ∈ p.support; hockeyStick_le_of_renyiDiv_le holds \
-    for all 0 < δ (extending Mironov's 0 < δ < 1 trivially when δ ≥ 1). The α → 1 KL limit and \
-    α = ∞ max-divergence endpoint are handled by dedicated modules rather than PMF.renyiDiv. \
-    Source check: arXiv:1702.07476v3 (renyi.tex SHA-256 \
-    3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef) and outside-fleet agent \
-    check (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d; the 1961 Berkeley Symposium \
-    scan for Renyi1961 was not inspected."
+    Rényi (1961, §3, eq. (3.3), printed p. 554) defines order-α information for finite \
+    distributions with positive reference masses in log₂ (swapping the paper's letters to (p, q) \
+    and multiplying by ln 2 yields the finite natural-log expression), while Mironov (2017) \
+    supplies the modern properties registered here: nonnegativity, data processing, adaptive \
+    two-stage composition (renyiDiv_bind_pair_le on the joint transcript (x, y) under support \
+    assumptions x ∈ p.support), and hockey-stick conversion (hockeyStick_le_of_renyiDiv_le for \
+    all 0 < δ, extending 0 < δ < 1 trivially when δ ≥ 1). PMF.renyiDiv covers finite 1 < α; \
+    InformationTheory.klDiv is a separate KL definition, and this module supplies neither an \
+    α → 1 limit theorem nor an α = ∞ max-divergence endpoint. Source check: arXiv:1702.07476v3 \
+    (renyi.tex SHA-256 3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef) and \
+    outside-fleet agent check (reviewer-codex-edemaine) of both Mironov (2017) and Rényi (1961) \
+    on PR #7481 \
+    (https://github.com/cslib-community/cslib-frontier/pull/7481#pullrequestreview-6012987466)."
 
 register_result "mironov-renyi-differential-privacy" where
   title := "Post-processing, adaptive sequential composition, and approximate-DP conversion for \
@@ -13387,13 +13398,13 @@ register_result "mironov-renyi-differential-privacy" where
     Cslib.Privacy.RenyiDifferentiallyPrivate.differentiallyPrivate
   ]
   scope := "Mechanisms M : D → PMF R over arbitrary domain and output types relative to an \
-    arbitrary adjacency relation Adj : D → D → Prop, with 1 < α enforced in \
+    arbitrary adjacency relation Adj : D → D → Prop, with 1 < α and 0 ≤ ε enforced in \
     RenyiDifferentiallyPrivate. Sequential composition (bind_pair for two stages, \
     adaptiveComposition for k rounds with round-dependent budgets ε i ≥ 0) releases the full \
     joint/list transcript; differentiallyPrivate converts (α, ε)-RDP to \
     (ε + log (1 / δ) / (α - 1), ofReal δ)-DP for all 0 < δ (extending 0 < δ < 1 by the trivial \
     range δ ≥ 1). Source check: arXiv:1702.07476v3 and outside-fleet agent check \
-    (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d."
+    (reviewer-codex-edemaine) on PR #7481."
 
 register_result "bun-steinke-pure-dp-to-rdp" where
   title := "Pure (ε, 0)-differential privacy implies (α, α ε² / 2)-Rényi differential privacy"

@@ -362,19 +362,25 @@ example :
     have hd : ENNReal.ofReal (1 / 2 : ℝ) = 1 / 2 := by ennreal_to_real
     rwa [hc, hd] at hhs
 
-/- Boundary check: `RenyiDifferentiallyPrivate` rejects orders `α ≤ 1` (in particular `α = 1`,
-where the finite-order ratio formula on `PMF.pure` would otherwise collapse to `0`), and rejects
+/- Boundary checks: `RenyiDifferentiallyPrivate` rejects orders `α ≤ 1` (in particular `α = 1`,
+where the finite-order ratio formula on `PMF.pure` would otherwise collapse to `0`), rejects
+negative budgets `ε < 0` even on a constant point-mass mechanism (`renyiDiv_self = 0`), and rejects
 `PMF.pure` on adjacent distinct inputs at every order `1 < α`. -/
 example {α : ℝ} (hα : α ≤ 1) (ε : ℝ) :
     ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True) _root_.PMF.pure α ε :=
   fun h => not_lt_of_ge hα h.1
+
+example {α ε : ℝ} (hε : ε < 0) :
+    ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True)
+      (fun _ => _root_.PMF.pure true) α ε :=
+  fun h => not_le_of_gt hε h.2.1
 
 example (ε : ℝ) :
     ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True) _root_.PMF.pure 1 ε ∧
       ∀ α : ℝ, 1 < α →
         ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True) _root_.PMF.pure α ε := by
   refine ⟨fun h => lt_irrefl 1 h.1, fun α hα h => ?_⟩
-  have hle := h.2 (x := true) (y := false) trivial
+  have hle := h.2.2 (x := true) (y := false) trivial
   have htop : renyiDiv α (_root_.PMF.pure true) (_root_.PMF.pure false) = ⊤ := by
     rw [renyiDiv_eq_top_iff, renyiMoment, tsum_fintype, Fintype.sum_bool]
     simp [ENNReal.top_rpow_of_pos (sub_pos.mpr hα)]
@@ -418,8 +424,7 @@ example (n k : ℕ) :
       (Privacy.adaptiveComposition
         (fun (_ : List Bool) b => ProbComp.eval (randomizedResponse b)) k)
       (k * Real.log (7 / 3) + Real.log 8) (1 / 8) := by
-    have h := hrdp_comp.differentiallyPrivate (mul_nonneg k.cast_nonneg hlog_nn)
-      (by norm_num : (0 : ℝ) < 1 / 8)
+    have h := hrdp_comp.differentiallyPrivate (by norm_num : (0 : ℝ) < 1 / 8)
     have h18 : ENNReal.ofReal (1 / 8 : ℝ) = 1 / 8 := by ennreal_to_real
     rw [h18] at h
     exact h.mono (le_of_eq (by norm_num)) le_rfl

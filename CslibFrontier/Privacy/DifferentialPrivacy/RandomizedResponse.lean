@@ -177,7 +177,7 @@ theorem renyiDifferentiallyPrivate_randomizedResponse {α : ℝ} (hα : 1 < α) 
     exact ENNReal.one_le_ofReal.mp h1
   have hε_nn : 0 ≤ Real.log M / (α - 1) :=
     div_nonneg (Real.log_nonneg hM1) (sub_pos.mpr hα).le
-  refine ⟨hα, fun x y _ => ?_⟩
+  refine ⟨hα, hε_nn, fun x y _ => ?_⟩
   by_cases hxy : x = y
   · subst hxy
     simp
@@ -193,7 +193,8 @@ theorem renyiDifferentiallyPrivate_randomizedResponseSurvey (n : ℕ) {α : ℝ}
       (Real.log ((3 / 4) * (3 : ℝ) ^ (α - 1) + (1 / 4) * (3 : ℝ) ^ (1 - α)) / (α - 1)) := by
   simp only [eval_randomizedResponseSurvey]
   exact RenyiDifferentiallyPrivate.pi (M := fun _ truth => ProbComp.eval (randomizedResponse truth))
-    hα fun _ => renyiDifferentiallyPrivate_randomizedResponse hα
+    hα (renyiDifferentiallyPrivate_randomizedResponse hα).2.1
+    fun _ => renyiDifferentiallyPrivate_randomizedResponse hα
 
 /-- The expected number of "Yes" answers is `n / 4 + (number of true "Yes") / 2`
 [DworkRoth2014, §2.3]. -/
