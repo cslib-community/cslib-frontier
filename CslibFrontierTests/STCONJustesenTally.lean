@@ -329,32 +329,6 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     simp only [SourceRoundLoop.Admissible, r, hsize, Nat.zero_add, and_self, le_refl]
   exact h w seed source target n le_rfl r hr
 
--- Plug the retained round and final membership into the source-loop transition.
-example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
-    (context : JustesenSourceContext) (limit : ℕ) :
-    let E := encJustesenSourceLoopState
-    let encStep := encPair E encReadChoice
-    let M := justesenSourceLoop ntm c context limit
-    ComputableInSpace M.query E encNat (fun s => (E s).length) ∧
-      ComputableInSpace M.next encStep E (fun p => (encStep p).length) := by
-  intro E encStep M
-  let encRound := encJustesenRetainedSourceRoundState
-  let encMember := MembershipTally.encRetainedState encJustesenSubdivisionContext
-    encJustesenSubdivisionState
-  let initial := SourceRoundLoop.start context limit
-  let round := justesenRetainedSourceRound ntm c initial
-  obtain ⟨hrq, hrn, hrh, hrr⟩ := justesenRetainedSourceRound_parts_inSpace ntm c initial
-  obtain ⟨hq, hn, hh, hr⟩ := justesenSourceMembershipMachine_parts_inSpace ntm c
-  exact ⟨SourceRoundLoop.query_inSpace encJustesenSourceContext encRound encMember
-      initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
-      (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
-      MembershipTally.retainedReply hrq hq,
-    SourceRoundLoop.next_inSpace encJustesenSourceContext encRound encMember
-      initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
-      (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
-      MembershipTally.retainedReply justesenRetainedSourceRoundEntry_inSpace
-      justesenSourceMembershipStart_inSpace hrr hr hrh hh hrn hn⟩
-
 -- Every prefix fits the shared budget, and zero fuel stops without a verdict.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     ∃ C, ∀ w : List Bool,
@@ -516,36 +490,41 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
   simpa only [Nat.add_mul] using
     (hsize w seed source target n le_rfl).2 (A * (Nat.log2 w.length + 1))
 
--- The compiler prepares the seed-zero context from the original input and starts with fuel one.
+-- A native scan with computed full fuel has one accepting occurrence at its polynomial clock.
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
-    let baseline : JustesenSourceContext :=
-      ⟨configurationJustesenSubdivisionContext ntm c [] 0, 0, 0⟩
-    let M := justesenSourceLoop ntm c baseline 0
-    let entry (w : List Bool) :=
-      (justesenSourceLoop ntm c ⟨configurationJustesenSubdivisionContext ntm c w 0, 0, 0⟩ 1).init
+    let ctx (w : List Bool) : JustesenSourceContext :=
+      ⟨configurationJustesenSubdivisionContext ntm c w 0, 0, 0⟩
+    let M := justesenSourceLoop ntm c (ctx []) 0
+    let entry (w : List Bool) := (justesenSourceLoop ntm c (ctx w) (ctx w).size).init
     ∃ R : Routines M entry encBits (fun w => Nat.log2 w.length + 1),
       ∃ L d, ∀ w, R.machine.RunsInSpace w (L * (Nat.log2 w.length + 1)) ∧
-        R.machine.RunsInTime w (polyClock d w.length) := by
-  intro baseline M entry
+        R.machine.RunsInTime w (polyClock d w.length) ∧
+        (Native.countingMachine R.I R.P R.F R.C).acceptCount (polyClock d w.length)
+          (R.machine.initCfg w) = 1 := by
+  intro ctx M entry
   let budget (w : List Bool) := Nat.log2 w.length + 1
-  let ctx (w : List Bool) : JustesenSourceContext :=
-    ⟨configurationJustesenSubdivisionContext ntm c w 0, 0, 0⟩
   have hadj := configurationJustesenSubdivisionContext_inSpace ntm c (enc := encBits)
     (ComputableInLogSpace.const 0) (fun _ => Nat.two_pow_pos _)
   have hadj' : ComputableInSpace (fun w => (ctx w).adjacency) encBits
       encJustesenSubdivisionContext budget :=
     hadj.mono_le fun _ => Nat.le_succ _
-  have hn (v : ℕ) : ComputableInSpace (fun _ => v) encBits encNat budget :=
-    (ComputableInSpace.constZero v).mono_le fun _ => Nat.zero_le _
-  have hc := encJustesenSourceContext_mk_budget hadj' (hn 0) (hn 0)
-  have ht : ComputableInSpace (fun _ => (⟨1, 0⟩ : Tally)) encBits encTally budget :=
-    (ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _
-  have hreg := SourceRoundLoop.encRegisters_mk_budget encJustesenSourceContext hc (hn 1) (hn 0) ht
-  exact configurationJustesenSourceLoop_exists_routines ntm c ctx (fun _ => 1) hreg
-    (fun w => by
-      obtain ⟨hs, _⟩ := configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w
-      have hpos := Nat.zero_lt_of_lt hs
-      exact ⟨⟨0, Nat.two_pow_pos _⟩, ⟨0, hpos⟩, ⟨0, hpos⟩, rfl, hpos⟩)
+  have hzero : ComputableInSpace (fun _ => 0) encBits encNat budget :=
+    (ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _
+  have hc := encJustesenSourceContext_mk_budget hadj' hzero hzero
+  have hreg := SourceRoundLoop.start_budget encJustesenSourceContext hc
+    (encJustesenSourceContext_size_budget hc)
+  have hsize (w : List Bool) : (ctx w).size =
+      (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount :=
+    configurationJustesenSourceContext_size ntm c w 0 0 0
+  have hpos (w : List Bool) :
+      0 < (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount :=
+    Nat.zero_lt_of_lt (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).1
+  obtain ⟨R, L, d, hR⟩ :=
+    configurationJustesenSourceLoop_exists_routines ntm c ctx (fun w => (ctx w).size) hreg
+      (fun w => ⟨⟨0, Nat.two_pow_pos _⟩, ⟨0, hpos w⟩, ⟨0, hpos w⟩, rfl, (hsize w).le⟩)
+  refine ⟨R, L, d, fun w => ⟨(hR w).1, (hR w).2, ?_⟩⟩
+  exact configurationJustesenSourceLoop_acceptCount_eq_one ntm c R w (hR w).2
+    ⟨0, Nat.two_pow_pos _⟩ ⟨0, hpos w⟩ ⟨0, hpos w⟩ rfl (hsize w)
 
 -- With no fuel, no accepting native occurrence can record any selector list.
 example {k : ℕ} {State : Type} [Fintype State] {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}

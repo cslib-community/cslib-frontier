@@ -14,10 +14,10 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 /-!
 # The natural proofs barrier from pseudorandom generators
 
-Razborov and Rudich derive the hypothesis of the natural proofs barrier, an exponentially secure
-keyed family of Boolean functions with members of polynomial circuit size, from a pseudorandom
-generator secure against circuits of size `2 ^ (k ^ ε)`, by the construction of Goldreich,
-Goldwasser and Micali [RazborovRudich1997, Section 4], [GGM1986]. With the GGM family of
+In the proof of [RazborovRudich1997, Theorem 4.1, pp. 30–31], the construction of Goldreich,
+Goldwasser and Micali [GGM1986] turns a generator secure against circuits of size `2 ^ (k ^ ε)`
+into a keyed family of Boolean functions. The barrier uses the security of its truth tables and
+the polynomial circuit size of its members. With the GGM family of
 `Cslib.Crypto.GGM.booleanFamily`, whose members have circuits of polynomial size
 (`Cslib.Crypto.GGM.complexity_booleanFamily_le`) and which is exponentially secure for
 subexponentially secure generators (`Cslib.Crypto.GGM.isExponentiallySecure_booleanFamily`), the

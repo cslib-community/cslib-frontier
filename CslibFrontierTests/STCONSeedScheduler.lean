@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext.Scheduler
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceLoop.Scheduler
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 meta import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 
@@ -18,7 +18,7 @@ set_option linter.privateModule false
 namespace CslibFrontierTests.STCONSeedScheduler
 
 open Cslib.Complexity.STCON Cslib.DoubleCounting
-open Turing Turing.MultiTapeTM
+open Turing Turing.DoubleCounting Turing.MultiTapeTM
 
 -- Original positions 0 and 1 map to subdivision IDs 0 and 2.
 private def setup : SeedSearchSetup :=
@@ -210,5 +210,152 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     ← seedSchedulerFrame_indexed_request s rank position false]
   exact ⟨justesenSourceContextOfRequest_adjacency_eq ntm c w rank s.sourceID,
     rfl, rfl, rfl, rfl, rfl⟩
+
+open Cslib.Code.JustesenFamily ComputableInSpace in
+/-- The scheduler's request and field can enter the concrete loop at the same budget. -/
+example :
+    let encArgs := encPair encSeedSearchSetup (encPair encNat (encOption encNat))
+    let E := encPair encArgs encFieldContext
+    ComputableInSpace (fun p => justesenSourceLoopEntryOfRequest (seedScanRequest p.1) p.2)
+      E encJustesenSourceLoopState (fun p => (E p).length) := by
+  intro encArgs E
+  exact justesenSourceLoopEntryOfRequest_budget
+    (budget_comp_linear seedScanRequest_inSpace (fst encArgs encFieldContext))
+    (snd encArgs encFieldContext)
+
+open ComputableInSpace Turing.NondeterministicQueryMachine in
+/-- The scheduler can call all four operations within the budget of its live state and selector. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    (context : JustesenSourceContext) (limit : ℕ)
+    {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {state : α → JustesenSourceLoopState} {choice : α → Option Bool × Bool}
+    (hstate : ComputableInSpace state enc encJustesenSourceLoopState S)
+    (hchoice : ComputableInSpace choice enc encReadChoice S) :
+    let M := justesenSourceLoop ntm c context limit
+    ComputableInSpace (fun a => M.query (state a)) enc encNat S ∧
+      ComputableInSpace (fun a => M.next (state a, choice a)) enc encJustesenSourceLoopState S ∧
+      ComputableInSpace (fun a => M.halted (state a)) enc encBool S ∧
+      ComputableInSpace (fun a => SourceRoundLoop.reply (state a)) enc
+        (encOption SourceRoundLoop.encVerdict) S := by
+  obtain ⟨hq, hn, hh, hr⟩ := justesenSourceLoop_parts_inSpace ntm c context limit
+  exact ⟨budget_comp_linear hq hstate, budget_comp_linear hn (budget_prod hstate hchoice),
+    budget_comp_linear hh hstate, budget_comp_linear hr hstate⟩
+
+/-- The designated and indexed scheduler requests enter the original-word native loop. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (rank position : ℕ) :
+    let s := configurationSeedSearchSetup ntm c w
+    let n := s.parameters.search.subdivision.vertexCount
+    let field := configurationFieldContext ntm c w
+    let adj := configurationJustesenSubdivisionContext ntm c w rank
+    justesenSourceLoopEntryOfRequest (seedScanRequest (s, rank, none)) field =
+      (justesenSourceLoop ntm c ⟨adj, s.sourceID, s.targetID⟩ n).init ∧
+    justesenSourceLoopEntryOfRequest (seedScanRequest (s, rank, some position)) field =
+      (justesenSourceLoop ntm c ⟨adj, s.originalSourceID position, s.targetID⟩ n).init := by
+  intro s n field adj
+  rw [← seedSchedulerFrame_designated_request,
+    ← seedSchedulerFrame_indexed_request s rank position false]
+  exact ⟨justesenSourceLoopEntryOfRequest_eq ntm c w rank s.sourceID,
+    justesenSourceLoopEntryOfRequest_eq ntm c w rank (s.originalSourceID position)⟩
+
+/-- The fixed machine preserves the initialized field and returns the initialized scheduler's
+terminal observation on the original word. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w bits : List Bool) :
+    let field := configurationFieldContext ntm c w
+    let setup := configurationSeedSearchSetup ntm c w
+    let endState := (justesenSeedScheduler ntm c).replay w bits
+      (configurationJustesenSeedSchedulerEntry ntm c w)
+    endState.1 = field ∧
+      SeedSchedulerMachine.reply endState.2 =
+        SeedSchedulerMachine.reply ((justesenSeedSchedulerFor ntm c setup field).run w bits) := by
+  intro field setup endState
+  have h := configurationJustesenSeedScheduler_replay ntm c w bits
+  exact ⟨congrArg Prod.fst h, congrArg (fun q => SeedSchedulerMachine.reply q.2) h⟩
+
+/-- The same clock bounds the fixed scheduler at every original-word entry. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    PolyBounded List.length (configurationJustesenSeedSchedulerClock ntm c) ∧
+      NondeterministicQueryMachine.HaltsWithin
+        ((justesenSeedScheduler ntm c).withInit (configurationJustesenSeedSchedulerEntry ntm c w))
+        w (configurationJustesenSeedSchedulerClock ntm c w) :=
+  ⟨configurationJustesenSeedSchedulerClock_polyBounded ntm c,
+    configurationJustesenSeedScheduler_haltsWithin_clock ntm c w⟩
+
+/-- Candidate zero has one designated scan trace returning the reference verdict. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (frame : SeedSchedulerFrame)
+    (h : seedSchedulerCandidate (configurationSeedSearchSetup ntm c w) 0 = some frame) :
+    let scan := justesenSeedSchedulerScan ntm c
+    let entry := justesenSourceLoopEntryOfRequest frame.request (configurationFieldContext ntm c w)
+    (∃! bits, scan.FirstHalting w bits entry ∧
+      (SourceRoundLoop.reply (scan.replay w bits entry)).isSome) ∧
+    ∃ bits verdict, scan.FirstHalting w bits entry ∧
+      SourceRoundLoop.reply (scan.replay w bits entry) = some verdict ∧
+      configurationSeedSchedulerReferenceScan ntm c w frame.request = some verdict := by
+  obtain ⟨hvalid, hsetup, _⟩ := seedSchedulerCandidate_valid h
+  have htrace := configurationJustesenSeedSchedulerScan_existsUnique_firstHalting
+    ntm c w frame hsetup hvalid
+  obtain ⟨bits, hfirst, hsome⟩ := htrace.exists
+  obtain ⟨verdict, hreply⟩ := Option.isSome_iff_exists.mp hsome
+  exact ⟨htrace, bits, verdict, hfirst, hreply,
+    configurationJustesenSeedSchedulerScan_firstHalting_eq_reference
+      ntm c w frame hsetup hvalid bits verdict hfirst hreply⟩
+
+/-- A negative reply at candidate zero matches the mathematical scanner and rules out a path
+to the setup's target in the subdivision for the all-zero seed. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w bits rest : List Bool) (frame : SeedSchedulerFrame)
+    (hcandidate : seedSchedulerCandidate (configurationSeedSearchSetup ntm c w) 0 = some frame)
+    (hreply : (justesenSeedSchedulerScan ntm c).readReply SourceRoundLoop.reply w
+      (justesenSourceLoopEntryOfRequest frame.request (configurationFieldContext ntm c w))
+      bits = some (.decided false, rest)) :
+    let I := configurationInstance ntm c w
+    let s := configurationSeedSearchSetup ntm c w
+    let n := s.parameters.search.subdivision.vertexCount
+    let edge := Cslib.Reachability.Hoza.generatedSubdivisionAdj (layeredDigraph I)
+      (configurationSubdivisionIndex ntm c w) (fun _ => false)
+    configurationSeedSchedulerReferenceScan ntm c w frame.request = some (.decided false) ∧
+      ∃ source : Fin n, source.val = frame.request.sourceID ∧
+        ¬ Relation.ReflTransGen edge source
+          ⟨s.targetID, (configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w).2⟩ := by
+  obtain ⟨hvalid, hsetup, hseed⟩ := seedSchedulerCandidate_valid hcandidate
+  obtain ⟨source, hsource, _, hreach⟩ :=
+    configurationJustesenSeedSchedulerScan_readReply_correct
+      ntm c w frame hsetup hvalid bits rest (.decided false) hreply
+  refine ⟨configurationJustesenSeedSchedulerScan_readReply_eq_reference
+    ntm c w frame hsetup hvalid bits rest (.decided false) hreply, source, hsource, fun hpath => ?_⟩
+  have hfalse := hreach.mpr (by simpa only [hseed, Nat.zero_testBit] using hpath)
+  cases hfalse
+
+/-- The native compiler can compose the observations under any retained-state producer's budget. -/
+example {k : ℕ} {State α : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) {enc : α ↪ List Bool} {S : α → ℕ} {state : α → JustesenSeedSchedulerState}
+    (hs : ComputableInSpace state enc encJustesenSeedSchedulerState S) :
+    let M := justesenSeedScheduler ntm c
+    ComputableInSpace (fun a => M.query (state a)) enc encNat S ∧
+      ComputableInSpace (fun a => M.halted (state a)) enc encBool S ∧
+      ComputableInSpace (fun a => M.accept (state a)) enc encBool S := by
+  obtain ⟨hq, hh, ha⟩ := justesenSeedScheduler_observations_inSpace ntm c
+  exact ⟨ComputableInSpace.budget_comp_linear hq hs,
+    ComputableInSpace.budget_comp_linear hh hs, ComputableInSpace.budget_comp_linear ha hs⟩
+
+open Cslib.Complexity in
+/-- The retained scheduler returns the original machine's decision on its unique successful
+trace, for any input on which the simulated machine obeys its space bound. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (hspace : ntm.RunsInSpace w (c * (Nat.log2 w.length + 1))) :
+    let M := justesenSeedScheduler ntm c
+    let entry := configurationJustesenSeedSchedulerEntry ntm c w
+    let reply := fun trace => SeedSchedulerMachine.reply (M.replay w trace entry).2
+    ∃ (answer : SeedSchedulerMachine.Answer) (bits : List Bool),
+      (answer.reachable = true ↔ ntm.Accepts w) ∧
+      M.FirstHalting w bits entry ∧ reply bits = some (some answer) ∧
+      ∀ other, M.FirstHalting w other entry → (reply other).isSome → other = bits := by
+  obtain ⟨answer, bits, _, _, _, hreach, hfirst, hreply, hunique⟩ :=
+    configurationJustesenSeedScheduler_replay_correct ntm c w
+  exact ⟨answer, bits, hreach.trans (configurationInstance_mem_iff ntm c hspace),
+    hfirst, hreply, hunique⟩
 
 end CslibFrontierTests.STCONSeedScheduler
