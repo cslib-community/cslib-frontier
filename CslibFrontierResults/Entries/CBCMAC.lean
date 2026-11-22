@@ -39,31 +39,11 @@ register_result "cbc-mac-prefix-free-prf" where
     repeated identical valid queries are permitted). The reduction cbcMacToPrfDistinguisher is \
     certified oracle PPT (isOraclePPT_cbcMacToPrfDistinguisher). Concrete bound: \
     advantage_cbcMac_le gives Adv ≤ PRFadv[cbcMacToPrfDistinguisher ℓ A, F] + Q² ℓ(n)² / 2^n \
-    for Q queries, carrying twice equation (6.7)'s (Q ℓ)² / (2 |X|) collision constant from \
-    abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le."
-
-register_result "cbc-mac-extension-attack" where
-  title := "Unmodified zero-IV CBC-MAC is insecure as a variable-length MAC and PRF"
-  topic := "cryptography"
-  sources := [
-    { paper := BonehShoup2023,
-      theorem := "Section 6.4.3 CBC extension attack (unnumbered)",
-      locator := "Section 6.4.3, pp. 230–231" }
-  ]
-  theorems := [
-    Cslib.Crypto.not_macSufCmaOn_cbcMacFamily,
-    Cslib.Crypto.not_prfOn_cbcMacFamily
-  ]
-  scope := "For every length-preserving keyed block family F (including any \
-    PseudorandomFunction), the 1-query uniform strict oracle-PPT forger cbcExtensionForger \
-    (isOraclePPT_cbcExtensionForger) queries the 1-block zero message 0^n, receives tag \
-    t = F(k, 0^n), and outputs the fresh 2-block forgery (0^n ++ t, t), winning macSufCmaGameOn \
-    (and macEufCmaGameOn via eval_macSufCmaGameOn_eq_macEufCmaGameOn) on lpBlockValid (fun _ => 2) \
-    with probability 1 at every n ≥ 1 (eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger). \
-    Consequently cbcMacFamily F fails both MACSUFCMAOn (lpBlockValid (fun _ => 2)) \
-    (not_macSufCmaOn_cbcMacFamily; equivalent to MACEUFCMAOn by macSufCmaOn_iff_macEufCmaOn) \
-    and PseudorandomFunctionOn (lpBlockValid (fun _ => 2)) id (not_prfOn_cbcMacFamily, via \
-    PseudorandomFunctionOn.macSufCmaOn)."
+    at parameter n for any distinguisher making at most Q queries and satisfying \
+    IsPrefixFreeOn (cbcBlockValid ℓ n) n, carrying twice equation (6.7)'s (Q ℓ)² / (2 |X|) \
+    collision constant from abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le. \
+    Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7563#pullrequestreview-6015088271"
 
 register_result "cbc-mac-fixed-block-prf-and-mac" where
   title := "Fixed-block-count basic CBC-MAC is a pseudorandom function and strongly unforgeable MAC"
@@ -87,8 +67,11 @@ register_result "cbc-mac-fixed-block-prf-and-mac" where
     perfect correctness; sufCma_cbcFixedBlockMAC proves MACScheme.SUFCMA (Attack Game 6.1 and \
     Definition 6.2, pp. 218–219; EUFCMA follows via MACScheme.SUFCMA.eufCma) against uniform \
     strict oracle-PPT forgers via the certified reduction cbcFixedBlockMacToPrfDistinguisher \
-    (isOraclePPT_cbcFixedBlockMacToPrfDistinguisher), with concrete bound \
-    PRFadv + (Q + 1)² ℓ(n)² / 2^n + 1 / 2^n (succProbability_sufCmaGame_cbcFixedBlockMAC_le)."
+    (isOraclePPT_cbcFixedBlockMacToPrfDistinguisher). Concrete bound: \
+    succProbability_sufCmaGame_cbcFixedBlockMAC_le gives \
+    PRFadv + (Q + 1)² ℓ(n)² / 2^n + 1 / 2^n at parameter n under the finite hypotheses 0 < n, \
+    0 < ℓ(n), and at most Q signing queries. Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7563#pullrequestreview-6015088271"
 
 register_result "length-prepended-cbc-mac-prf-and-mac" where
   title := "Length-prepended CBC-MAC is a variable-length pseudorandom function and SUF-CMA MAC"
@@ -113,15 +96,19 @@ register_result "length-prepended-cbc-mac-prf-and-mac" where
     L : ℕ → ℕ, lengthPrependedCbcMacFamily F prepends the n-bit little-endian binary block count \
     BitString.lowBits n (msg.length / n) (prependLengthWord, matching blockCountBlock) and \
     evaluates basic zero-IV CBC-MAC on whole-block messages of 0 to L n blocks (lpBlockValid L, \
-    empty message included, giving 1 to L n + 1 blocks after prepending; L n < 2^n holds \
-    eventually by polynomial boundedness). Against uniform strict oracle-PPT adversaries, \
-    prfOn_lengthPrependedCbcMac proves PseudorandomFunctionOn (lpBlockValid L) id, and \
-    macSufCmaOn_lengthPrependedCbcMac proves strong adaptive chosen-message unforgeability \
+    empty message included, giving 1 to L n + 1 blocks after prepending). Against uniform strict \
+    oracle-PPT adversaries, prfOn_lengthPrependedCbcMac proves \
+    PseudorandomFunctionOn (lpBlockValid L) id, and macSufCmaOn_lengthPrependedCbcMac proves \
     MACSUFCMAOn (lpBlockValid L) (equivalent to MACEUFCMAOn by macSufCmaOn_iff_macEufCmaOn; \
     Attack Game 6.1 and Definition 6.2, pp. 218–219; malformed queries outside lpBlockValid L \
     receive [] without tagging or recording, and invalid candidate messages never verify). The \
     reductions lengthPrependedToPrfDistinguisher and lengthPrependedMacToPrfDistinguisher are \
-    certified oracle PPT; concrete bounds give PRFadv + Q² (L n + 1)² / 2^n and \
-    PRFadv + (Q + 1)² (L n + 1)² / 2^n + 1 / 2^n (twice (6.7)'s collision constant). \
+    certified oracle PPT. Concrete bounds: advantage_lengthPrependedCbcMac_le gives \
+    PRFadv + Q² (L(n) + 1)² / 2^n and succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le \
+    gives PRFadv + (Q + 1)² (L(n) + 1)² / 2^n + 1 / 2^n (twice (6.7)'s collision constant), \
+    where both concrete bounds require L(n) < 2^n and at most Q queries at the parameter n being \
+    bounded; the asymptotic proofs derive L(n) < 2^n eventually from polynomial boundedness of L. \
     lengthPrependedBlockMAC packages any fixed unary polytime block-count schedule k (including \
-    k n = 0) as a verified-correct MACScheme with SUFCMA security (and EUFCMA via .eufCma)."
+    k n = 0) as a verified-correct MACScheme with SUFCMA security (and EUFCMA via .eufCma). \
+    Outside-fleet source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/7563#pullrequestreview-6015088271"

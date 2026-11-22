@@ -56,10 +56,11 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
    fixed `ℓ n`-block messages (`0 < ℓ n`) gives standard `PseudorandomFunctionOver` security
    (`PseudorandomFunction.prfOver_cbcMac`) and `MACScheme` `SUFCMA` security
    (`PseudorandomFunction.sufCma_cbcFixedBlockMAC`, with `EUFCMA` via `MACScheme.SUFCMA.eufCma`).
-   Conversely, without prefix-freeness or length-prepending, the 1-query length-extension forger
-   `cbcExtensionForger` ([BonehShoup2023], Section 6.4.3, pp. 230–231) breaks variable-length
-   `MACSUFCMAOn` and `PseudorandomFunctionOn` for every length-preserving family
-   (`not_macSufCmaOn_cbcMacFamily`, `not_prfOn_cbcMacFamily`).
+   As a CBC-MAC step toward #5801's open cascade / extendable-PRF / extension-attack item (after
+   [BonehShoup2023], Section 6.4.3, pp. 230–231; cascade `F*` and Definition 6.4 remain open), the
+   1-query length-extension forger `cbcExtensionForger` breaks variable-length `MACSUFCMAOn` and
+   `PseudorandomFunctionOn` for every length-preserving family (`not_macSufCmaOn_cbcMacFamily`,
+   `not_prfOn_cbcMacFamily`).
 2. **Length-prepended CBC-MAC is a variable-length PRF and adaptive MAC** ([BonehShoup2023],
    Section 6.4.1 Theorem 6.3, pp. 226–229, Section 6.6.1 Method 1 via Section 6.6 Theorem 6.8,
    pp. 235–236, and Section 6.3 Theorem 6.2, p. 224):
@@ -147,8 +148,9 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   concrete forgery bounds, and adaptive `MACSUFCMAOn` security on variable-length whole-block
   messages ([BonehShoup2023], Theorems 6.2, 6.3, and 6.8).
 * `isOraclePPT_cbcExtensionForger`, `eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger`,
-  `not_macSufCmaOn_cbcMacFamily`, `not_prfOn_cbcMacFamily`: 1-query length-extension forgery and
-  PRF insecurity of unmodified zero-IV CBC-MAC ([BonehShoup2023], Section 6.4.3, pp. 230–231).
+  `not_macSufCmaOn_cbcMacFamily`, `not_prfOn_cbcMacFamily`: CBC-MAC length-extension step toward
+  #5801 after [BonehShoup2023], Section 6.4.3 (pp. 230–231; cascade `F*` and Definition 6.4 remain
+  open).
 * `isOraclePPT_cbcFixedBlockMacToPrfDistinguisher`,
   `succProbability_sufCmaGame_cbcFixedBlockMAC_le`,
   `PseudorandomFunction.sufCma_cbcFixedBlockMAC`,
@@ -2707,10 +2709,11 @@ theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
     simp [hval2, hne, hforge]
   · exact PMF.bind_const _ _
 
-/-- **Unmodified zero-IV CBC-MAC is an insecure variable-length MAC** ([BonehShoup2023], Section
-6.4.3, printed pp. 230–231): for every length-preserving `family` (including any
-`PseudorandomFunction`), `cbcMacFamily family` fails `MACSUFCMAOn (lpBlockValid (fun _ => 2))` (and
-hence `MACEUFCMAOn` by `macSufCmaOn_iff_macEufCmaOn`). -/
+/-- CBC-MAC step toward #5801 after [BonehShoup2023], Section 6.4.3 (printed pp. 230–231), not the
+full Section 6.4.2–6.4.3 / Definition 6.4 cascade and extendable-PRF endpoint: for every
+length-preserving `family` (including any `PseudorandomFunction`), unmodified `cbcMacFamily family`
+fails `MACSUFCMAOn (lpBlockValid (fun _ => 2))` (and hence `MACEUFCMAOn` by
+`macSufCmaOn_iff_macEufCmaOn`). -/
 theorem not_macSufCmaOn_cbcMacFamily {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
       (family key query).length = key.length) :
@@ -2731,9 +2734,10 @@ theorem not_macSufCmaOn_cbcMacFamily {family : List Bool → List Bool → List 
   have hlt := hN N le_rfl
   norm_num at hlt
 
-/-- **Unmodified zero-IV CBC-MAC is not a variable-length pseudorandom function**
-([BonehShoup2023], Section 6.4.3, printed p. 231): for every length-preserving `family`,
-`cbcMacFamily family` fails `PseudorandomFunctionOn (lpBlockValid (fun _ => 2)) id`. -/
+/-- CBC-MAC step toward #5801 after [BonehShoup2023], Section 6.4.3 (printed p. 231), not the full
+Section 6.4.2–6.4.3 / Definition 6.4 cascade and extendable-PRF endpoint: for every
+length-preserving `family`, unmodified `cbcMacFamily family` fails
+`PseudorandomFunctionOn (lpBlockValid (fun _ => 2)) id`. -/
 theorem not_prfOn_cbcMacFamily {family : List Bool → List Bool → List Bool}
     (hlen : ∀ key query : List Bool, query.length = key.length →
       (family key query).length = key.length) :
