@@ -51,7 +51,7 @@ def reading(theorems: dict[str, tuple[str, tuple[str, ...]]],
     return r
 
 
-def run(text: str, r: c.Reading, results: str | Iterable[str] = "") -> c.Problems:
+def run(text: str, r: c.Reading, results: Iterable[str] = ()) -> c.Problems:
     rows, errors = c.parse_inventory(text)
     return c.check(rows, errors, r, KEYS, results, pathlib.Path("."))
 
@@ -178,7 +178,7 @@ class CheckTests(unittest.TestCase):
     def test_results_inventory_never_lists_a_novel_assumption(self) -> None:
         r = reading({"Cslib.Crypto.AdvicePRG.gmw": ("", (ADVICE,)),
                      "Cslib.Crypto.elGamal": ("", (DDH,))})
-        results = "theorems := [Cslib.Crypto.AdvicePRG.gmw, Cslib.Crypto.elGamal]"
+        results = {"Cslib.Crypto.AdvicePRG.gmw", "Cslib.Crypto.elGamal"}
         errors = run(INVENTORY, r, results).errors
         self.assertEqual(len(errors), 1)
         self.assertIn("results inventory lists `AdvicePRG.gmw`", errors[0])
@@ -321,7 +321,7 @@ register_result "fixture-short-name" where
   scope := "Fixture."
 """
         topic_src.write_text(entry_text, encoding="utf-8")
-        self.assertEqual(c.RESULT_NAME.findall(entry_text), ["Cslib.Crypto"])
+        self.assertNotIn("Cslib.Crypto.fromHard", entry_text)
         subprocess.run([lean_bin, f"--root={self.root / 'src'}", "-o", str(topic_olean),
                         str(topic_src)], cwd=c.ROOT, env=env, check=True, capture_output=True)
         exporter = self.root / "ExportFixture.lean"

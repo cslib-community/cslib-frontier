@@ -50,8 +50,10 @@ landing it on `main`. Pushes to `main` run `--report`, which prints the differen
 rewrites the baseline for the current gaps, keeping existing justifications and leaving new ones
 empty; fill them in, or the check fails.
 
-This is a post-build check: it needs the outputs of `lake build CslibFrontier`, and refuses stale
-ones unless `--no-build-check` is given. It supplements review: it does not judge whether a
+This is a post-build check: the full audit (and `--report` / `--update-baseline`) needs the
+outputs of `lake build CslibFrontier CslibFrontierResults`, while `--list` needs only
+`lake build CslibFrontier`; stale outputs are refused unless `--no-build-check` is given. It
+supplements review: it does not judge whether a
 definition matches its cited source, whether a locator is right, or whether a standard assumption
 under a headline, with the instance the theorem supplies, is the one the cited result assumes. It
 does not see a cited result that a docstring names without a bibliography key, the word "theorem"
@@ -105,7 +107,6 @@ THEOREM = re.compile(r"\btheorem\b", re.I)
 SENTENCE_END = re.compile(r"[.!?][*_)\"']*(?:\s|$)")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 BIB_KEY = re.compile(r"^@\w+\{\s*([^,\s]+)\s*,", re.M)
-RESULT_NAME = re.compile(r"\b(?:Cslib|Turing)\.[A-Za-z0-9_.'!?]+")
 
 
 @dataclass(frozen=True)
@@ -315,7 +316,7 @@ class Problems:
 
 
 def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set[str],
-          results: str | Iterable[str], base: Path) -> Problems:
+          results: Iterable[str], base: Path) -> Problems:
     errors = list(format_errors)
     gaps: dict[str, dict[str, str]] = {s: {} for s in SECTIONS}
     registered: dict[str, Row] = {}
@@ -344,8 +345,7 @@ def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set
             errors.append(f"`{short(name)}` ({module}:{line}) is assumed by {len(theorems)} "
                           f"theorem(s), e.g. `{short(sorted(theorems)[0])}`, but is not in the "
                           "assumptions inventory")
-    results_names = (set(RESULT_NAME.findall(results)) if isinstance(results, str)
-                     else set(results))
+    results_names = set(results)
     for name, row in registered.items():
         if name not in reading.assumptions:
             continue
