@@ -42,36 +42,22 @@ open MvPolynomial Turing.MultiTapeTM
   | .add l r => (l.evalResidue p point + r.evalResidue p point) % p
   | .mul l r => (l.evalResidue p point * r.evalResidue p point) % p
 
-private theorem constant_residue_eq (p : ℕ) [NeZero p] (z : ℤ) :
-    (z % (p : ℤ)).toNat = (z : ZMod p).val := by
-  simpa only [Int.toNat_natCast] using (congrArg Int.toNat (ZMod.val_intCast (n := p) z)).symm
-
 /-- For a positive modulus the result is the canonical residue of the term polynomial
 with each coordinate read from the supplied list and missing coordinates set to zero. -/
 theorem evalResidue_eq {n p : ℕ} (hp : 0 < p) (point : List ℕ) (t : Term n) :
     t.evalResidue p point = (t.toPolynomial.eval₂ (Int.castRingHom (ZMod p))
       (fun i => ((point[i.val]?.getD 0 : ℕ) : ZMod p))).val := by
   let : NeZero p := ⟨hp.ne'⟩
-  have hcast : (t.evalResidue p point : ZMod p) =
-      t.toPolynomial.eval₂ (Int.castRingHom (ZMod p))
-        (fun i => ((point[i.val]?.getD 0 : ℕ) : ZMod p)) := by
-    induction t with
-    | const z =>
-      simp only [evalResidue, toPolynomial, eval₂_C, Int.coe_castRingHom, constant_residue_eq,
-        ZMod.natCast_zmod_val]
-    | var i =>
-      simp only [evalResidue, toPolynomial, eval₂_X, ZMod.natCast_mod]
-    | add l r hl hr =>
-      simp only [evalResidue, toPolynomial, eval₂_add, ZMod.natCast_mod, Nat.cast_add, hl, hr]
-    | mul l r hl hr =>
-      simp only [evalResidue, toPolynomial, eval₂_mul, ZMod.natCast_mod, Nat.cast_mul, hl, hr]
-  have hlt : t.evalResidue p point < p := by
-    cases t with
-    | const z =>
-      rw [evalResidue, constant_residue_eq p z]
-      exact ZMod.val_lt (z : ZMod p)
-    | var _ | add _ _ | mul _ _ => exact Nat.mod_lt _ hp
-  simpa only [ZMod.val_natCast_of_lt hlt] using congrArg ZMod.val hcast
+  induction t with
+  | const z =>
+    rw [evalResidue, toPolynomial, eval₂_C, Int.coe_castRingHom, ← ZMod.val_intCast,
+      Int.toNat_natCast]
+  | var i =>
+    rw [evalResidue, toPolynomial, eval₂_X, ZMod.val_natCast]
+  | add l r hl hr =>
+    simp only [evalResidue, toPolynomial, eval₂_add, hl, hr, ZMod.val_add]
+  | mul l r hl hr =>
+    simp only [evalResidue, toPolynomial, eval₂_mul, hl, hr, ZMod.val_mul]
 
 private theorem length_add_mul {n : ℕ} (l r : Term n) :
     let bound := (encTerm n l).length + (encTerm n r).length + 1
