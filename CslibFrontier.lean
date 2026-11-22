@@ -1585,6 +1585,10 @@ public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Circuit.Formula.NodeCount
 public import CslibFrontier.Computability.Circuit.Frontier.Arborescence
 public import CslibFrontier.Computability.Circuit.Frontier.AverageCase
+public import CslibFrontier.Computability.Circuit.Frontier.Basis.PairAtlas
+public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2
+public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2.BranchingProgram
+public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2.Compression
 public import CslibFrontier.Computability.Circuit.Frontier.BoundedFanIn
 public import CslibFrontier.Computability.Circuit.Frontier.BranchingProgram
 public import CslibFrontier.Computability.Circuit.Frontier.Closure
@@ -1598,8 +1602,10 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Circuit
+public import CslibFrontier.Computability.Circuit.Frontier.Correlation.RealRank
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Rectangle
 public import CslibFrontier.Computability.Circuit.Frontier.Demand
+public import CslibFrontier.Computability.Circuit.Frontier.Dual.Kirchhoff
 public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
 public import CslibFrontier.Computability.Circuit.Frontier.Incidence
 public import CslibFrontier.Computability.Circuit.Frontier.IncidenceComponents
@@ -1617,6 +1623,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Cubic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.CostLambda
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.EdgeScores
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Sample
@@ -1656,6 +1663,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Swit
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched.Triangle
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.VertexGaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.WeightedKernel
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.WeightedMatching
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Aggregate
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.LowerBound
@@ -3422,6 +3430,9 @@ public import CslibFrontier.Computability.Distributed.ByzantineGraph.Basic
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 public import CslibFrontier.Computability.Distributed.ByzantineQuorum.PBFT
 public import CslibFrontier.Computability.Distributed.ByzantineQuorum.QuorumSystems
+public import CslibFrontier.Computability.Distributed.CRDT.Basic
+public import CslibFrontier.Computability.Distributed.CRDT.DataTypes
+public import CslibFrontier.Computability.Distributed.CRDT.Monotonicity
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.TotalOrder
 public import CslibFrontier.Computability.Distributed.ChandyLamport.Basic
@@ -3459,9 +3470,15 @@ public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
 public import CslibFrontier.Computability.Distributed.SelfStabilization.Basic
 public import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
+public import CslibFrontier.Computability.Distributed.SetAgreement.AtomicSnapshot
+public import CslibFrontier.Computability.Distributed.SetAgreement.ImmediateSnapshot
+public import CslibFrontier.Computability.Distributed.SetAgreement.Impossibility
 public import CslibFrontier.Computability.Distributed.SharedMemory.Basic
 public import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
 public import CslibFrontier.Computability.Distributed.SharedMemory.Universal
+public import CslibFrontier.Computability.Distributed.VectorClock.Basic
+public import CslibFrontier.Computability.Distributed.VectorClock.Clocks
+public import CslibFrontier.Computability.Distributed.VectorClock.LowerBound
 public import CslibFrontier.Computability.GenericRAM.Algebraic
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.GenericRAM.Native
@@ -7028,6 +7045,7 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.E
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.VertexConnectivity
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Crown
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CubicEdgeColoring
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CubicMatching
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.CutRank
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.DominatingSet
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.EdgeSide
@@ -7741,6 +7759,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowPerturbation
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.PowersStormer
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RankSupport
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RealRankLindsey
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RectPermanent
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Random
