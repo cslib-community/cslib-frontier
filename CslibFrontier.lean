@@ -2612,6 +2612,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.WideClauseCount
 public import CslibFrontier.Computability.Complexity.FineGrained.WordRAM
 public import CslibFrontier.Computability.Complexity.Gradel
 public import CslibFrontier.Computability.Complexity.Gradel.Tableau
+public import CslibFrontier.Computability.Complexity.HardnessEncoding.NatCodec
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.PolyTime
 public import CslibFrontier.Computability.Complexity.HardnessEncoding.Program
 public import CslibFrontier.Computability.Complexity.ImmermanVardi
@@ -4799,6 +4800,7 @@ public import CslibFrontier.Computability.RAM.Cost
 public import CslibFrontier.Computability.RAM.Defs
 public import CslibFrontier.Computability.RAM.Input
 public import CslibFrontier.Computability.RAM.Squaring
+public import CslibFrontier.Computability.RandomizedCost
 public import CslibFrontier.Computability.Reduction.ManyOne
 public import CslibFrontier.Computability.Reduction.TruthTable
 public import CslibFrontier.Computability.RelationAlgebra.Tiling.Frame
