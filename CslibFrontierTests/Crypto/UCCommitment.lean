@@ -4,16 +4,23 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+
 import CslibFrontier.Crypto.Protocols.UC.Commitment
+import CslibFrontier.Probability.PMF.Uniform
+
+-- This test module intentionally exports no declarations.
+set_option linter.privateModule false
 
 /-!
-# Tests for ideal UC bit commitment and the Canetti–Fischlin impossibility theorem
+# Tests for ideal UC bit commitment and the statistical call-bounded impossibility theorem
 
-We verify non-vacuity and concrete behavior of `fcom` and `PlainCommitmentScheme`:
+Module-encapsulated client tests exercising the public API of `fcom` and `PlainCommitmentScheme`
+via ordinary `import`:
 1. `trivialScheme` commits by sending the bit `b` in the clear (`commit _ b := pure (b, ())`,
    `verify _ c _ := pure (some c)`): it is deterministic (`IsPolyBounded 0 0`) and perfectly
    complete (`trivialScheme_perfectlyComplete`), so its honest UC execution (`C = ∅`) succeeds with
-   probability `1`, yet by Canetti–Fischlin it cannot UC-realize `fcom`
+   probability `1`, yet by `not_realizes_fcom` it cannot realize `fcom`
    (`not_realizes_trivialScheme`) or emulate `fcom` within error `1 / 5`
    (`not_realizesWithin_trivialScheme`).
 2. `oneTimePadScheme` masks the committed bit with a uniform Boolean pad `r` in the commit phase
@@ -25,7 +32,7 @@ We verify non-vacuity and concrete behavior of `fcom` and `PlainCommitmentScheme
    eight fields of `HonestView` recorded by the ten-query schedule `honestViewEnv` (committer
    replies, receiver replies before and after each delivery, and the `(c, o)` transcript;
    `advantage_oneTimePadEmptySim_honestViewEnv`). This is not a simulation of every `C = ∅`
-   environment. Nevertheless, by the Canetti–Fischlin argument it cannot UC-realize `fcom` against
+   environment. Nevertheless, by the Canetti–Fischlin argument it cannot realize `fcom` against
    static corruptions (`not_realizes_oneTimePadScheme`).
 -/
 
@@ -35,6 +42,42 @@ open Polynomial
 open Cslib Cslib.Crypto Cslib.Crypto.Protocols.UC
 open scoped NNReal
 
+/-! ### Local closed-machine stepping helpers for concrete schedule traces -/
+
+private def closeRunFrom {ιE α : Type} {E : ιE → Type}
+    (M : Machine OracleSpec.empty E) (prog : ProbOracleComp E α) (s : M.State) : ProbComp α :=
+  Prod.fst <$> Machine.closeProgram (M.runFrom prog s)
+
+private theorem run_eq_closeRunFrom_of_init_pure {ιE α : Type} {E : ιE → Type}
+    (M : Machine OracleSpec.empty E) (prog : ProbOracleComp E α) (s₀ : M.State)
+    (hinit : M.init = pure s₀ := by rfl) :
+    M.run prog = closeRunFrom M prog s₀ := by
+  simp only [Machine.run, Machine.link, hinit, ProbOracleComp.sample_pure, pure_bind, closeRunFrom,
+    Machine.closeProgram_map]
+
+@[simp] private theorem closeRunFrom_pure {ιE α : Type} {E : ιE → Type}
+    (M : Machine OracleSpec.empty E) (a : α) (s : M.State) :
+    closeRunFrom M (pure a) s = pure a := rfl
+
+private theorem closeRunFrom_query_pure {ιE α : Type} {E : ιE → Type}
+    (M : Machine OracleSpec.empty E) (q : ιE) (cont : E q → ProbOracleComp E α)
+    (s : M.State) (r : E q) (s' : M.State)
+    (h : (M.handle q).run s = pure (r, s') := by rfl) :
+    closeRunFrom M (ProbOracleComp.query q >>= cont) s = closeRunFrom M (cont r) s' := by
+  rw [closeRunFrom, Machine.runFrom_bind, Machine.runFrom_query, h, pure_bind]; rfl
+
+private theorem closeRunFrom_query_sample {ιE α β : Type} {E : ιE → Type}
+    (M : Machine OracleSpec.empty E) (q : ιE) (cont : E q → ProbOracleComp E β)
+    (s : M.State) (d : ProbComp α) (f : α → E q) (g : α → M.State)
+    (h : (M.handle q).run s = (fun a => (f a, g a)) <$> ProbOracleComp.sample d) :
+    closeRunFrom M (ProbOracleComp.query q >>= cont) s =
+      d >>= fun a => closeRunFrom M (cont (f a)) (g a) := by
+  rw [closeRunFrom, Machine.runFrom_bind, Machine.runFrom_query, h, bind_map_left,
+    Machine.closeProgram_bind, Machine.closeProgram_sample, map_bind]
+  rfl
+
+/-! ### 1. Deterministic clear-bit scheme (`trivialScheme`) -/
+
 /-- Deterministic plain-model commitment scheme that sends `b` as the commit message and `()` as the
 opening message. -/
 def trivialScheme : PlainCommitmentScheme Bool Unit where
@@ -42,12 +85,8 @@ def trivialScheme : PlainCommitmentScheme Bool Unit where
   verify _ c _ := pure (some c)
 
 theorem trivialScheme_isPolyBounded : trivialScheme.IsPolyBounded 0 0 where
-  commit κ b := by
-    rw [Polynomial.eval_zero]
-    exact OracleComp.IsCostBounded.pure _ 0
-  verify κ c o := by
-    rw [Polynomial.eval_zero]
-    exact OracleComp.IsCostBounded.pure _ 0
+  commit _ _ := by rw [Polynomial.eval_zero]; exact OracleComp.IsCostBounded.pure _ 0
+  verify _ _ _ := by rw [Polynomial.eval_zero]; exact OracleComp.IsCostBounded.pure _ 0
 
 theorem trivialScheme_toProtocol_polyBounded : trivialScheme.toProtocol.PolyBounded (0 + 0) :=
   trivialScheme.toProtocol_polyBounded trivialScheme_isPolyBounded
@@ -91,19 +130,21 @@ theorem one_le_sum_advantage_trivialScheme
   push_cast at h ⊢
   linarith
 
-/-- Concrete impossibility: `trivialScheme` cannot UC-realize `fcom` within constant error `1 / 5`
+/-- Concrete impossibility: `trivialScheme` cannot realize `fcom` within constant error `1 / 5`
 for any simulator budget polynomial `g`. -/
 theorem not_realizesWithin_trivialScheme (g : Polynomial ℕ) :
     ¬ RealizesWithin trivialScheme.toProtocol fcom g (fun _ _ _ => (1 / 5 : ℝ≥0)) := by
   refine not_realizesWithin_fcom (pV := 0) trivialScheme_isPolyBounded.2 g
-    (fun _ _ _ => (1 / 5 : ℝ≥0)) 0 ?_
+    (fun _ _ _ => (1 / 5 : ℝ≥0)) 0 fun _ _ => ?_
   rw [acceptProb_trivialScheme, acceptProb_trivialScheme]
   norm_num
 
-/-- Asymptotic impossibility: `trivialScheme` does not UC-realize `fcom`. -/
+/-- Asymptotic impossibility: `trivialScheme` does not realize `fcom`. -/
 theorem not_realizes_trivialScheme : ¬ Realizes trivialScheme.toProtocol fcom :=
   not_realizes_fcom_of_perfectlyComplete trivialScheme_isPolyBounded.2
     trivialScheme_perfectlyComplete
+
+/-! ### 2. Randomized one-time-pad scheme (`oneTimePadScheme`) -/
 
 /-- Randomized one-time-pad commitment scheme: commits to `b` by sampling a uniform Boolean mask
 `r ← unifFin 1` (`decide (r = 1)`) and sending `c = b ^^ mask` with opening `o = mask`. -/
@@ -115,13 +156,11 @@ def oneTimePadScheme : PlainCommitmentScheme Bool Bool where
   verify _ c o := pure (some (c ^^ o))
 
 theorem oneTimePadScheme_isPolyBounded : oneTimePadScheme.IsPolyBounded 1 0 where
-  commit κ b := by
+  commit _ _ := by
     rw [Polynomial.eval_one]
     simp only [oneTimePadScheme, bind_pure_comp]
     exact (OracleComp.isCostBounded_map_iff _ _ _).mpr (OracleComp.IsCostBounded.query 1)
-  verify κ c o := by
-    rw [Polynomial.eval_zero]
-    exact OracleComp.IsCostBounded.pure _ 0
+  verify _ _ _ := by rw [Polynomial.eval_zero]; exact OracleComp.IsCostBounded.pure _ 0
 
 theorem oneTimePadScheme_perfectlyComplete : oneTimePadScheme.PerfectlyComplete := fun κ b => by
   have hxor (r : Fin 2) :
@@ -136,16 +175,16 @@ abbrev fcomIdealNet :=
   netSpec (RoutedNetQ 2 CommitmentInput CommitmentBackdoor)
     (RoutedNetR CommitmentOutput (Option CommitmentOutput))
 
-/-- Explicit simulator for `oneTimePadScheme` in the uncorrupted case (`C = ∅`): when a commitment
-is recorded in `fcom`, `.readCommit` samples and caches a uniform commit bit `c`; `.deliverCommit`
+/-- Explicit simulator for `oneTimePadScheme` on honest schedules (`C = ∅`): when a commitment is
+recorded in `fcom`, `.readCommit` samples and caches a uniform commit bit `c`; `.deliverCommit`
 gates receipt delivery in `fcom` via `.deliverCommit`; once `fcom` reveals `some (.opened b)` on
-`.query`, `.readOpen` computes `o := c ^^ b`; and `.deliverOpen` gates opening delivery in
-`fcom` via `.deliverOpen`.
+`.query`, `.readOpen` computes `o := c ^^ b`; and `.deliverOpen` gates opening delivery in `fcom`
+via `.deliverOpen`.
 
 It forwards `.deliverCommit _` and `.deliverOpen _` without checking the delivered message, so it is
 not a general `C = ∅` simulator: an environment that delivers `!c` instead of `c` and then polls the
-receiver sees `none` in the real world but the receipt here. It is only used for the honest
-schedules `honestCommitEnv` and `honestViewEnv`. -/
+receiver sees `none` in the real world but the receipt here. It is used for the honest schedules
+`honestCommitEnv` and `honestViewEnv`. -/
 def oneTimePadEmptySim : PlainCommitmentSim Bool Bool := fun _ _ =>
   { State := Option Bool
     init := pure none
@@ -179,53 +218,17 @@ def oneTimePadEmptySim : PlainCommitmentSim Bool Bool := fun _ _ =>
 private def otpIdealState (κ : ℕ) (st : Option Bool) (s : CommitmentState) :
     (execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).State := (st, s)
 
-private def otpIdealReply (q : RoutedNetQ 2 CommitmentInput (PlainNetQ Bool Bool))
-    (r : RoutedNetR CommitmentOutput (PlainNetR Bool Bool)) :
-    execSpec 2 CommitmentInput CommitmentOutput
-      (RoutedNetQ 2 CommitmentInput (PlainNetQ Bool Bool))
-      (RoutedNetR CommitmentOutput (PlainNetR Bool Bool)) (.inr q) := r
-
-private theorem init_otpIdeal (κ : ℕ) :
-    (execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).init =
-      pure (otpIdealState κ none .idle) := rfl
-
-private theorem handle_otpIdeal_commit (κ : ℕ) (b : Bool) (st : Option Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (0, .commit b))).run
-      (otpIdealState κ st .idle) =
-      pure (none, otpIdealState κ st (.committed b false)) := rfl
-
-private theorem handle_otpIdeal_query_idle (κ : ℕ) (st : Option Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (1, .query))).run
-      (otpIdealState κ st .idle) =
-      pure (none, otpIdealState κ st .idle) := rfl
-
-private theorem handle_otpIdeal_query_active (κ : ℕ) (st : Option Bool) (b : Bool)
-    (phase : CommitmentPhase) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (1, .query))).run
-      (otpIdealState κ st (.active b phase)) =
-      pure (fcomLockedReply b phase, otpIdealState κ st (.active b phase)) := by
-  rcases phase with ⟨_ | _, _ | _, _ | _⟩ <;> rfl
-
-private theorem handle_otpIdeal_query_committed_false (κ : ℕ) (st : Option Bool) (b : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (1, .query))).run
-      (otpIdealState κ st (.committed b false)) =
-      pure (none, otpIdealState κ st (.committed b false)) := rfl
-
-private theorem handle_otpIdeal_query_committed_true (κ : ℕ) (st : Option Bool) (b : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (1, .query))).run
-      (otpIdealState κ st (.committed b true)) =
-      pure (some .receipt, otpIdealState κ st (.committed b true)) := rfl
-
-private theorem handle_otpIdeal_query_opened_true (κ : ℕ) (st : Option Bool) (b : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (1, .query))).run
-      (otpIdealState κ st (.opened b true)) =
-      pure (some .receipt, otpIdealState κ st (.opened b true)) := rfl
+private def otpRealState (κ : ℕ) (s₁ : CommitterState Bool Bool) (s₂ : ReceiverState Bool) :
+    (corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).State := (s₁, s₂)
 
 private theorem handle_otpIdeal_readCommit (κ : ℕ) (b : Bool) (recDel : Bool) :
     ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inr (.inr .readCommit))).run
       (otpIdealState κ none (.committed b recDel)) =
       (fun r : Fin 2 =>
-        (otpIdealReply (.inr .readCommit) (.inr (.commitMsg (some (decide (r.val = 1))))),
+        ((Sum.inr (.commitMsg (some (decide (r.val = 1)))) :
+            execSpec 2 CommitmentInput CommitmentOutput
+              (RoutedNetQ 2 CommitmentInput (PlainNetQ Bool Bool))
+              (RoutedNetR CommitmentOutput (PlainNetR Bool Bool)) (.inr (.inr .readCommit))),
           otpIdealState κ (some (decide (r.val = 1))) (.committed b recDel))) <$>
         ProbOracleComp.sample (ProbComp.unifFin 1) := by
   change Equiv.prodAssoc _ _ _ <$>
@@ -241,57 +244,62 @@ private theorem handle_otpIdeal_readCommit (κ : ℕ) (b : Bool) (recDel : Bool)
     Machine.runFrom_bind, Machine.runFrom_sample, bind_map_left]
   rfl
 
-private theorem handle_otpIdeal_deliverCommit (κ : ℕ) (st : Option Bool) (b : Bool)
-    (c : Bool) (recDel : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle
-      (.inr (.inr (.deliverCommit c)))).run (otpIdealState κ st (.committed b recDel)) =
-      pure (otpIdealReply (.inr (.deliverCommit c)) (.inr .ack),
-        otpIdealState κ st (.committed b true)) := rfl
+private theorem handle_otpReal_commit (κ : ℕ) (b : Bool) :
+    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle (Sum.inl (0, .commit b))).run
+      (otpRealState κ .idle .waiting) =
+      (fun r : Fin 2 =>
+        (none,
+          otpRealState κ (.committed (b ^^ decide (r.val = 1)) (decide (r.val = 1))) .waiting)) <$>
+        ProbOracleComp.sample (ProbComp.unifFin 1) := by
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, oneTimePadScheme, otpRealState,
+    StateT.run]
+  simp [bind_pure_comp, Functor.map_map]
 
-private theorem handle_otpIdeal_openCom (κ : ℕ) (st : Option Bool) (b : Bool) (recDel : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inl (0, .openCom))).run
-      (otpIdealState κ st (.committed b recDel)) =
-      pure (none, otpIdealState κ st (.opened b recDel)) := rfl
+private theorem handle_otpReal_deliverCommit (κ : ℕ) (c o : Bool) :
+    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle
+      (Sum.inr (.inr (.deliverCommit c)))).run (otpRealState κ (.committed c o) .waiting) =
+      pure (Sum.inr .ack, otpRealState κ (.committed c o) (.committed c)) := by
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, otpRealState, StateT.run,
+    Functor.map, StateT.map]
+  simp
 
-private theorem handle_otpIdeal_readOpen (κ : ℕ) (c b : Bool) (recDel : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle (.inr (.inr .readOpen))).run
-      (otpIdealState κ (some c) (.opened b recDel)) =
-      pure (otpIdealReply (.inr .readOpen) (.inr (.openMsg (some (c ^^ b)))),
-        otpIdealState κ (some c) (.opened b recDel)) := rfl
-
-private theorem handle_otpIdeal_deliverOpen (κ : ℕ) (st : Option Bool) (b o : Bool) :
-    ((execMachine fcom.toProtocol oneTimePadEmptySim κ ∅).handle
-      (.inr (.inr (.deliverOpen o)))).run (otpIdealState κ st (.opened b true)) =
-      pure (otpIdealReply (.inr (.deliverOpen o)) (.inr .ack),
-        otpIdealState κ st
-          (.active b { opened := true, recDelivered := true, openDelivered := true })) := rfl
+private theorem handle_otpReal_deliverOpen (κ : ℕ) (c o : Bool) :
+    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle
+      (Sum.inr (.inr (.deliverOpen o)))).run (otpRealState κ (.opened c o) (.committed c)) =
+      pure (Sum.inr .ack, otpRealState κ (.opened c o) (.finished (some (c ^^ o)))) := by
+  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, oneTimePadScheme, otpRealState,
+    StateT.run, Functor.map, StateT.map]
+  simp [ProbOracleComp.sample_pure]
 
 private theorem exec_fcom_oneTimePadEmptySim_honestCommitEnv (b : Bool) (κ : ℕ) (z : List Bool) :
     exec fcom.toProtocol oneTimePadEmptySim ∅ (honestCommitEnv b) κ z =
       (ProbComp.unifFin 1 >>= fun _ => pure true) := by
-  simp only [exec, Machine.run, Machine.link, honestCommitEnv, init_otpIdeal,
-    Machine.runFrom_bind, Machine.runFrom_query,
-    Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
-    pure_bind, map_bind]
-  rw [handle_otpIdeal_commit]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_readCommit]
-  simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
+  let M := execMachine fcom.toProtocol oneTimePadEmptySim κ ∅
+  rw [exec, run_eq_closeRunFrom_of_init_pure M _ (otpIdealState κ none .idle)]
+  dsimp only [honestCommitEnv]
+  rw [closeRunFrom_query_pure M _ _ (otpIdealState κ none .idle) none
+      (otpIdealState κ none (.committed b false)) rfl,
+    closeRunFrom_query_sample M _ _ _ _ _ _ (handle_otpIdeal_readCommit κ b false)]
   refine bind_congr fun r => ?_
-  simp only [otpIdealReply, Machine.runFrom_bind, Machine.runFrom_query,
-    Machine.closeProgram_bind, map_bind]
-  rw [handle_otpIdeal_deliverCommit]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_openCom]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_readOpen]
-  simp only [otpIdealReply, Machine.closeProgram_pure, pure_bind,
-    Machine.runFrom_bind, Machine.runFrom_query, Machine.closeProgram_bind, map_bind]
-  rw [handle_otpIdeal_deliverOpen]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_query_active]
-  simp only [fcomLockedReply, Machine.closeProgram_pure, pure_bind, Machine.runFrom_pure, map_pure]
-  cases b <;> rfl
+  let c := decide (r.val = 1)
+  dsimp only
+  rw [closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.committed b false)) (Sum.inr .ack)
+      (otpIdealState κ (some c) (.committed b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.committed b true)) none
+      (otpIdealState κ (some c) (.opened b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.opened b true))
+      (Sum.inr (.openMsg (some (c ^^ b)))) (otpIdealState κ (some c) (.opened b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.opened b true)) (Sum.inr .ack)
+      (otpIdealState κ (some c)
+        (.active b { opened := true, recDelivered := true, openDelivered := true })) rfl,
+    closeRunFrom_query_pure M _ _
+      (otpIdealState κ (some c)
+        (.active b { opened := true, recDelivered := true, openDelivered := true }))
+      (some (.opened b))
+      (otpIdealState κ (some c)
+        (.active b { opened := true, recDelivered := true, openDelivered := true })) rfl,
+    closeRunFrom_pure]
+  simp only [decide_true]
 
 /-- In the ideal world (`C = ∅`), running `honestCommitEnv b` with `oneTimePadEmptySim` against
 `fcom` outputs `true` with probability `1`. -/
@@ -377,68 +385,6 @@ def honestViewEnv (b : Bool) (P : HonestView → Bool) :
     | _ => return false
   | _ => return false
 
-private def otpRealState (κ : ℕ) (s₁ : CommitterState Bool Bool) (s₂ : ReceiverState Bool) :
-    (corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).State := (s₁, s₂)
-
-private theorem init_otpReal (κ : ℕ) :
-    (corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).init =
-      pure (otpRealState κ .idle .waiting) := rfl
-
-private theorem handle_otpReal_commit (κ : ℕ) (b : Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle (Sum.inl (0, .commit b))).run
-      (otpRealState κ .idle .waiting) =
-      (fun r : Fin 2 =>
-        (none,
-          otpRealState κ (.committed (b ^^ decide (r.val = 1)) (decide (r.val = 1))) .waiting)) <$>
-        ProbOracleComp.sample (ProbComp.unifFin 1) := by
-  simp [corruptRouter, PlainCommitmentScheme.toProtocol, oneTimePadScheme, otpRealState,
-    StateT.run, bind_pure_comp, ProbOracleComp.sample_pure, Functor.map_map]
-
-private theorem handle_otpReal_query_waiting (κ : ℕ) (s₁ : CommitterState Bool Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle (Sum.inl (1, .query))).run
-      (otpRealState κ s₁ .waiting) =
-      pure (none, otpRealState κ s₁ .waiting) := rfl
-
-private theorem handle_otpReal_readCommit (κ : ℕ) (c o : Bool) (s₂ : ReceiverState Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle
-      (Sum.inr (.inr .readCommit))).run (otpRealState κ (.committed c o) s₂) =
-      pure (.inr (.commitMsg (some c)), otpRealState κ (.committed c o) s₂) := rfl
-
-private theorem handle_otpReal_deliverCommit (κ : ℕ) (c o : Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle
-      (Sum.inr (.inr (.deliverCommit c)))).run (otpRealState κ (.committed c o) .waiting) =
-      pure (.inr .ack, otpRealState κ (.committed c o) (.committed c)) := by
-  simp [corruptRouter, PlainCommitmentScheme.toProtocol, otpRealState, StateT.run,
-    Functor.map, StateT.map]
-
-private theorem handle_otpReal_query_committed (κ : ℕ) (s₁ : CommitterState Bool Bool) (c : Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle (Sum.inl (1, .query))).run
-      (otpRealState κ s₁ (.committed c)) =
-      pure (some .receipt, otpRealState κ s₁ (.committed c)) := rfl
-
-private theorem handle_otpReal_openCom (κ : ℕ) (c o : Bool) (s₂ : ReceiverState Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle (Sum.inl (0, .openCom))).run
-      (otpRealState κ (.committed c o) s₂) =
-      pure (none, otpRealState κ (.opened c o) s₂) := rfl
-
-private theorem handle_otpReal_readOpen (κ : ℕ) (c o : Bool) (s₂ : ReceiverState Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle
-      (Sum.inr (.inr .readOpen))).run (otpRealState κ (.opened c o) s₂) =
-      pure (.inr (.openMsg (some o)), otpRealState κ (.opened c o) s₂) := rfl
-
-private theorem handle_otpReal_deliverOpen (κ : ℕ) (c o : Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle
-      (Sum.inr (.inr (.deliverOpen o)))).run (otpRealState κ (.opened c o) (.committed c)) =
-      pure (.inr .ack, otpRealState κ (.opened c o) (.finished (some (c ^^ o)))) := by
-  dsimp only [corruptRouter, PlainCommitmentScheme.toProtocol, oneTimePadScheme, otpRealState,
-    StateT.run, Functor.map, StateT.map]
-  simp [ProbOracleComp.sample_pure]
-
-private theorem handle_otpReal_query_finished (κ : ℕ) (s₁ : CommitterState Bool Bool) (b : Bool) :
-    ((corruptRouter ∅ (oneTimePadScheme.toProtocol κ ∅)).handle (Sum.inl (1, .query))).run
-      (otpRealState κ s₁ (.finished (some b))) =
-      pure (some (.opened b), otpRealState κ s₁ (.finished (some b))) := rfl
-
 private theorem exec_real_honestViewEnv (b : Bool) (P : HonestView → Bool)
     (κ : ℕ) (z : List Bool) :
     exec oneTimePadScheme.toProtocol (dummyAdversary 2 _ _) ∅ (honestViewEnv b P) κ z =
@@ -450,35 +396,34 @@ private theorem exec_real_honestViewEnv (b : Bool) (P : HonestView → Bool)
             openMessage := decide (r.val = 1),
             receiverFinal := some (.opened ((b ^^ decide (r.val = 1)) ^^ decide (r.val = 1))) }) <$>
         ProbComp.unifFin 1 := by
-  rw [exec_dummyAdversary, map_eq_bind_pure_comp]
-  simp only [Machine.run, Machine.link, honestViewEnv, init_otpReal,
-    Machine.runFrom_bind, Machine.runFrom_query,
-    Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
-    pure_bind, map_bind]
-  rw [handle_otpReal_commit]
-  simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
+  let M := corruptRouter (∅ : Finset (Fin 2)) (oneTimePadScheme.toProtocol κ ∅)
+  rw [exec_dummyAdversary, run_eq_closeRunFrom_of_init_pure M _ (otpRealState κ .idle .waiting),
+    map_eq_bind_pure_comp]
+  dsimp only [honestViewEnv]
+  rw [closeRunFrom_query_sample M _ _ _ _ _ _ (handle_otpReal_commit κ b)]
   refine bind_congr fun r => ?_
-  rw [handle_otpReal_query_waiting]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpReal_readCommit]
-  simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_bind,
-    Machine.runFrom_query, Machine.closeProgram_bind, map_bind]
-  rw [handle_otpReal_deliverCommit]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpReal_query_committed]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpReal_openCom]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpReal_query_committed]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpReal_readOpen]
-  simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_bind,
-    Machine.runFrom_query, Machine.closeProgram_bind, map_bind]
-  rw [handle_otpReal_deliverOpen]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpReal_query_finished]
-  simp only [Machine.closeProgram_pure, pure_bind, Machine.runFrom_pure, map_pure,
-    Function.comp_apply]
+  let o := decide (r.val = 1)
+  let c := b ^^ o
+  rw [closeRunFrom_query_pure M _ _ (otpRealState κ (.committed c o) .waiting) none
+      (otpRealState κ (.committed c o) .waiting) rfl,
+    closeRunFrom_query_pure M _ _ (otpRealState κ (.committed c o) .waiting)
+      (Sum.inr (.commitMsg (some c))) (otpRealState κ (.committed c o) .waiting) rfl]
+  dsimp only
+  rw [closeRunFrom_query_pure M _ _ _ _ _ (handle_otpReal_deliverCommit κ c o),
+    closeRunFrom_query_pure M _ _ (otpRealState κ (.committed c o) (.committed c)) (some .receipt)
+      (otpRealState κ (.committed c o) (.committed c)) rfl,
+    closeRunFrom_query_pure M _ _ (otpRealState κ (.committed c o) (.committed c)) none
+      (otpRealState κ (.opened c o) (.committed c)) rfl,
+    closeRunFrom_query_pure M _ _ (otpRealState κ (.opened c o) (.committed c)) (some .receipt)
+      (otpRealState κ (.opened c o) (.committed c)) rfl,
+    closeRunFrom_query_pure M _ _ (otpRealState κ (.opened c o) (.committed c))
+      (Sum.inr (.openMsg (some o))) (otpRealState κ (.opened c o) (.committed c)) rfl]
+  dsimp only
+  rw [closeRunFrom_query_pure M _ _ _ _ _ (handle_otpReal_deliverOpen κ c o),
+    closeRunFrom_query_pure M _ _ (otpRealState κ (.opened c o) (.finished (some (c ^^ o))))
+      (some (.opened (c ^^ o))) (otpRealState κ (.opened c o) (.finished (some (c ^^ o)))) rfl,
+    closeRunFrom_pure]
+  rfl
 
 private theorem exec_fcom_oneTimePadEmptySim_honestViewEnv (b : Bool) (P : HonestView → Bool)
     (κ : ℕ) (z : List Bool) :
@@ -490,36 +435,40 @@ private theorem exec_fcom_oneTimePadEmptySim_honestViewEnv (b : Bool) (P : Hones
             openReply := none, receiverBeforeOpenDelivery := some .receipt,
             openMessage := decide (r.val = 1) ^^ b, receiverFinal := some (.opened b) }) <$>
         ProbComp.unifFin 1 := by
-  rw [map_eq_bind_pure_comp]
-  simp only [exec, Machine.run, Machine.link, honestViewEnv, init_otpIdeal,
-    Machine.runFrom_bind, Machine.runFrom_query,
-    Machine.closeProgram_bind, Machine.closeProgram_map, Machine.closeProgram_sample,
-    pure_bind, map_bind]
-  rw [handle_otpIdeal_commit]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_query_committed_false]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_readCommit]
-  simp only [Machine.closeProgram_map, Machine.closeProgram_sample, bind_map_left]
+  let M := execMachine fcom.toProtocol oneTimePadEmptySim κ ∅
+  rw [exec, run_eq_closeRunFrom_of_init_pure M _ (otpIdealState κ none .idle),
+    map_eq_bind_pure_comp]
+  dsimp only [honestViewEnv]
+  rw [closeRunFrom_query_pure M _ _ (otpIdealState κ none .idle) none
+      (otpIdealState κ none (.committed b false)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ none (.committed b false)) none
+      (otpIdealState κ none (.committed b false)) rfl,
+    closeRunFrom_query_sample M _ _ _ _ _ _ (handle_otpIdeal_readCommit κ b false)]
   refine bind_congr fun r => ?_
-  simp only [otpIdealReply, Machine.runFrom_bind, Machine.runFrom_query,
-    Machine.closeProgram_bind, map_bind]
-  rw [handle_otpIdeal_deliverCommit]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_query_committed_true]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_openCom]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_query_opened_true]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_readOpen]
-  simp only [otpIdealReply, Machine.closeProgram_pure, pure_bind,
-    Machine.runFrom_bind, Machine.runFrom_query, Machine.closeProgram_bind, map_bind]
-  rw [handle_otpIdeal_deliverOpen]
-  simp only [Machine.closeProgram_pure, pure_bind]
-  rw [handle_otpIdeal_query_active]
-  simp only [fcomLockedReply, Machine.closeProgram_pure, pure_bind, Machine.runFrom_pure,
-    map_pure, Function.comp_apply, ite_true]
+  let c := decide (r.val = 1)
+  dsimp only
+  rw [closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.committed b false)) (Sum.inr .ack)
+      (otpIdealState κ (some c) (.committed b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.committed b true)) (some .receipt)
+      (otpIdealState κ (some c) (.committed b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.committed b true)) none
+      (otpIdealState κ (some c) (.opened b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.opened b true)) (some .receipt)
+      (otpIdealState κ (some c) (.opened b true)) rfl,
+    closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.opened b true))
+      (Sum.inr (.openMsg (some (c ^^ b)))) (otpIdealState κ (some c) (.opened b true)) rfl]
+  dsimp only
+  rw [closeRunFrom_query_pure M _ _ (otpIdealState κ (some c) (.opened b true)) (Sum.inr .ack)
+      (otpIdealState κ (some c)
+        (.active b { opened := true, recDelivered := true, openDelivered := true })) rfl,
+    closeRunFrom_query_pure M _ _
+      (otpIdealState κ (some c)
+        (.active b { opened := true, recDelivered := true, openDelivered := true }))
+      (some (.opened b))
+      (otpIdealState κ (some c)
+        (.active b { opened := true, recDelivered := true, openDelivered := true })) rfl,
+    closeRunFrom_pure]
+  rfl
 
 /-- For every bit `b` and every distinguisher predicate `P : HonestView → Bool`, the real (`C = ∅`,
 `dummyAdversary`) and ideal (`C = ∅`, `oneTimePadEmptySim`) executions of `honestViewEnv b P` have
@@ -531,19 +480,10 @@ theorem eval_exec_oneTimePadEmptySim_honestViewEnv (b : Bool) (P : HonestView �
   rw [exec_real_honestViewEnv, exec_fcom_oneTimePadEmptySim_honestViewEnv,
     ProbComp.eval_map, ProbComp.eval_map, ProbComp.eval_unifFin]
   cases b
-  · congr 1
-    ext r
-    fin_cases r <;> rfl
-  · calc
-      PMF.map _ (Probability.PMF.uniformOfFintype (Fin 2))
-        = PMF.map _ (PMF.map (Equiv.swap (0 : Fin 2) 1)
-            (Probability.PMF.uniformOfFintype (Fin 2))) := by
-          rw [Probability.PMF.uniformOfFintype_map_equiv (Equiv.swap (0 : Fin 2) 1)]
-      _ = PMF.map _ (Probability.PMF.uniformOfFintype (Fin 2)) := by
-          rw [PMF.map_comp]
-          congr 1
-          ext r
-          fin_cases r <;> rfl
+  · congr 1; ext r; fin_cases r <;> rfl
+  · nth_rw 1 [← Probability.PMF.uniformOfFintype_map_equiv (Equiv.swap (0 : Fin 2) 1)]
+    simp only [PMF.map_comp]
+    congr 1; ext r; fin_cases r <;> rfl
 
 /-- `oneTimePadEmptySim` perfectly simulates the honest schedule `honestViewEnv b P`: the
 advantage is zero for every committed bit `b` and every predicate `P : HonestView → Bool`. -/
@@ -556,7 +496,7 @@ theorem advantage_oneTimePadEmptySim_honestViewEnv (b : Bool) (P : HonestView �
 
 /-- Even though `oneTimePadScheme`'s commit message `b ^^ mask` hides `b` perfectly and the honest
 schedules `honestCommitEnv` and `honestViewEnv` are perfectly simulated when `C = ∅`, it still
-cannot UC-realize `fcom` in the plain model against static corruptions. -/
+cannot realize `fcom` in the plain model against static corruptions. -/
 theorem not_realizes_oneTimePadScheme : ¬ Realizes oneTimePadScheme.toProtocol fcom :=
   not_realizes_fcom_of_perfectlyComplete oneTimePadScheme_isPolyBounded.2
     oneTimePadScheme_perfectlyComplete
