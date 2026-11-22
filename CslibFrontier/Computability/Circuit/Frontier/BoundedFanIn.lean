@@ -58,8 +58,10 @@ for maximum degree `r + 1`. Two families of Gaussian vertex-score layouts instan
 * `Cslib.Circuits.Frontier.eventually_weightedSix_lt_four_mul_innerSize`,
   `Cslib.Circuits.Frontier.eventually_387_div_100_lt_four_mul_innerSize`: upgraded `r = 5` bounds
   (`4 s > (3.87 - ε) n`).
-* Nondeterministic (`..._of_nondeterministicDecides`) and linear-map (`..._of_isTotallyRegular`)
-  counterparts for `r = 3, 4, 5`.
+* `Frontier.eventually_four_sub_mul_lt_two_mul_innerSize_of_nondeterministicDecides`,
+  `Frontier.eventually_four_sub_mul_lt_two_mul_innerSize_of_isTotallyRegular`:
+  nondeterministic and linear-map counterparts (along with `*_of_nondeterministicDecides` and
+  `*_of_isTotallyRegular` for `r = 4, 5`).
 -/
 
 public section
