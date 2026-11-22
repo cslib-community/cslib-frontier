@@ -555,30 +555,23 @@ theorem querySlotProg_spec (p : KickTreeParams) {base slot q : ℕ} (hslot : slo
   unfold querySlotProg querySlotGenProg readPackedGenProg
   dsimp only [mkKickRuntimeParams]
   rw [StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-    clientState_readPackedProg, clientResult_readPackedProg]
-  have hocc : readPacked (base + offOcc p) 1 p.w s.mem slot = occAt base p s.mem slot := by
-    simp [occAt, hocc_lt]
-  rw [hocc]
+    clientState_readPackedProg, clientResult_readPackedProg,
+    show readPacked (base + offOcc p) 1 p.w s.mem slot = occAt base p s.mem slot by
+      simp [occAt, hocc_lt]]
   by_cases ho : occAt base p s.mem slot = 0
-  · rw [ite_eq_left ho, ite_eq_left ho]
+  · simp only [ho, ↓reduceIte]
     exact ⟨rfl, rfl⟩
-  · rw [ite_eq_right ho, ite_eq_right ho,
-      StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-      clientState_readPackedProg, clientResult_readPackedProg]
-    have hq : readPacked (base + offQuot p) (quotBits p) p.w s.mem slot =
-        quotAt base p s.mem slot := by
-      simp [quotAt, hslot]
-    rw [hq]
+  · rw [ite_eq_right ho, ite_eq_right ho, StateTransitionSpec.clientState_bind,
+      StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
+      clientResult_readPackedProg,
+      show readPacked (base + offQuot p) (quotBits p) p.w s.mem slot = quotAt base p s.mem slot by
+        simp [quotAt, hslot]]
     by_cases hqe : quotAt base p s.mem slot = q
-    · rw [ite_eq_left hqe, ite_eq_left hqe,
-        StateTransitionSpec.clientState_bind, StateTransitionSpec.clientResult_bind,
-        clientState_readPackedProg, clientResult_readPackedProg]
-      have hv : readPacked (base + offVal p) (valBits p.V) p.w s.mem slot =
-          valAt base p s.mem slot := by
-        simp [valAt, hslot]
-      rw [hv]
-      exact ⟨rfl, rfl⟩
-    · rw [ite_eq_right hqe, ite_eq_right hqe]
+    · rw [ite_eq_left hqe, ite_eq_left hqe, StateTransitionSpec.clientState_bind,
+        StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
+        clientResult_readPackedProg]
+      exact ⟨rfl, by simp only [valAt, hslot, ↓reduceIte]; rfl⟩
+    · simp only [hqe, ↓reduceIte]
       exact ⟨rfl, rfl⟩
 
 /-! ### 4. Bit-Packed Sparse `SlotMeta` Accessors -/
@@ -984,6 +977,126 @@ theorem validHistory_kickStepProg {w base pathBase : ℕ} (p : KickTreeParams)
         fun _ _ _ => trivial
   · trivial
 
+private theorem writeThreeSlotFields_outside (p : KickTreeParams) (hw : 0 < p.w)
+    {base slot q v e a : ℕ} (m : ℕ → ℕ) (hslot : slot < p.nMax)
+    (ha : ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p)) :
+    writeElevMem base p (writeValMem base p (writeQuotMem base p m slot q) slot v) slot e a =
+      m a :=
+  (writePacked_outside hw _ hslot e (not_in_elev_of_outside ha)).trans
+    ((writePacked_outside hw _ hslot v (not_in_val_of_outside ha)).trans
+      (writePacked_outside hw _ hslot q (not_in_quot_of_outside ha)))
+
+private theorem writeThreeSlotFields_effects (p : KickTreeParams) (hw : 0 < p.w)
+    {base slot q v e : ℕ} (m : ℕ → ℕ) (hslot : slot < p.nMax)
+    (hq : q < 2 ^ quotBits p) (hv : v < 2 ^ valBits p.V) (he : e < 2 ^ 1) :
+    let m' := writeElevMem base p (writeValMem base p (writeQuotMem base p m slot q) slot v) slot e
+    quotAt base p m' = Function.update (quotAt base p m) slot q ∧
+      valAt base p m' = Function.update (valAt base p m) slot v ∧
+      occAt base p m' = occAt base p m ∧
+      elevAt base p m' = Function.update (elevAt base p m) slot e ∧
+      metaAt base p m' = metaAt base p m ∧
+      ∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → m' a = m a := by
+  let m1 := writeQuotMem base p m slot q
+  let m2 := writeValMem base p m1 slot v
+  have heQ := writeQuotMem_effects (base := base) p hw m hslot hq
+  have heV := writeValMem_effects (base := base) p hw m1 hslot hv
+  have heE := writeElevMem_effects (base := base) p hw m2 hslot he
+  refine ⟨heE.1.trans (heV.1.trans heQ.1),
+    heE.2.1.trans (heV.2.1.trans (by rw [heQ.2.1])),
+    heE.2.2.1.trans (heV.2.2.1.trans heQ.2.2.1),
+    heE.2.2.2.1.trans (by rw [heV.2.2.2.1, heQ.2.2.2.1]),
+    heE.2.2.2.2.1.trans (heV.2.2.2.2.1.trans heQ.2.2.2.2.1),
+    fun a ha => (heE.2.2.2.2.2 a (not_in_elev_of_outside ha)).trans
+      ((heV.2.2.2.2.2 a (not_in_val_of_outside ha)).trans
+        (heQ.2.2.2.2.2 a (not_in_quot_of_outside ha)))⟩
+
+private theorem writeFourSlotFields_effects (p : KickTreeParams) (hw : 0 < p.w)
+    {base slot q v e o : ℕ} (m : ℕ → ℕ) (hslot : slot < p.nMax)
+    (hq : q < 2 ^ quotBits p) (hv : v < 2 ^ valBits p.V) (he : e < 2 ^ 1) (ho : o < 2 ^ 1) :
+    let m' := writeOccMem base p
+      (writeElevMem base p (writeValMem base p (writeQuotMem base p m slot q) slot v) slot e)
+      slot o
+    quotAt base p m' = Function.update (quotAt base p m) slot q ∧
+      valAt base p m' = Function.update (valAt base p m) slot v ∧
+      occAt base p m' = Function.update (occAt base p m) slot o ∧
+      elevAt base p m' = Function.update (elevAt base p m) slot e ∧
+      metaAt base p m' = metaAt base p m ∧
+      ∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → m' a = m a := by
+  let m3 := writeElevMem base p (writeValMem base p (writeQuotMem base p m slot q) slot v) slot e
+  obtain ⟨hQ, hV, hO3, hE, hM, hOut3⟩ := writeThreeSlotFields_effects p hw m hslot hq hv he
+  have heO := writeOccMem_effects (base := base) p hw m3 (slot_lt_occLen hslot) ho
+  exact ⟨heO.1.trans hQ, heO.2.1.trans hV, heO.2.2.1.trans (by rw [hO3]),
+    heO.2.2.2.1.trans hE, heO.2.2.2.2.1.trans hM,
+    fun a ha => (heO.2.2.2.2.2 a (not_in_occ_of_outside ha)).trans (hOut3 a ha)⟩
+
+private theorem kickStepProg_vacant_exec (p : KickTreeParams)
+    {base pathBase : ℕ} {st : KickStepState} {s : Memory.State}
+    (hact : 0 < st.active) (hocc : readPacked (base + offOcc p) 1 p.w s.mem
+      (s.mem (pathBase + st.stepIdx)) = 0) :
+    let slot := s.mem (pathBase + st.stepIdx)
+    (Memory.spec 0).clientResult s (kickStepProg p base pathBase st) =
+        ⟨st.stepIdx + 1, 0, 0, 0, 0⟩ ∧
+      (Memory.spec 0).clientState s (kickStepProg p base pathBase st) =
+        { mem := writeOccMem base p
+            (writeElevMem base p
+              (writeValMem base p (writeQuotMem base p s.mem slot st.quot) slot st.val)
+              slot st.elevated)
+            slot 1
+          frontier := s.frontier } := by
+  have hr_mem : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
+  have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) =
+      s.mem (pathBase + st.stepIdx) := rfl
+  refine ⟨?_, ?_⟩
+  · unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+    dsimp only [mkKickRuntimeParams]
+    rw [ite_eq_left hact, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
+      StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
+      clientResult_readPackedProg, hocc, ite_eq_left rfl]
+    iterate 4 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
+    rfl
+  · unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+    dsimp only [mkKickRuntimeParams]
+    rw [ite_eq_left hact, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
+      StateTransitionSpec.clientState_bind, clientState_readPackedProg,
+      clientResult_readPackedProg, hocc, ite_eq_left rfl]
+    iterate 4 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
+    rfl
+
+private theorem kickStepProg_displace_exec (p : KickTreeParams)
+    {base pathBase : ℕ} {st : KickStepState} {s : Memory.State}
+    (hact : 0 < st.active) (hslot : s.mem (pathBase + st.stepIdx) < p.nMax)
+    (hocc : readPacked (base + offOcc p) 1 p.w s.mem (s.mem (pathBase + st.stepIdx)) ≠ 0) :
+    let slot := s.mem (pathBase + st.stepIdx)
+    (Memory.spec 0).clientResult s (kickStepProg p base pathBase st) =
+        ⟨st.stepIdx + 1, quotAt base p s.mem slot, valAt base p s.mem slot,
+          elevAt base p s.mem slot, 1⟩ ∧
+      (Memory.spec 0).clientState s (kickStepProg p base pathBase st) =
+        { mem := writeElevMem base p
+            (writeValMem base p (writeQuotMem base p s.mem slot st.quot) slot st.val)
+            slot st.elevated
+          frontier := s.frontier } := by
+  have hr_mem : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
+  have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) =
+      s.mem (pathBase + st.stepIdx) := rfl
+  constructor <;>
+  · unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
+    dsimp only [mkKickRuntimeParams]
+    first
+    | (rw [ite_eq_left hact, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
+        StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
+        clientResult_readPackedProg, ite_eq_right hocc]
+       iterate 3 rw [StateTransitionSpec.clientResult_bind,
+         clientState_readPackedProg, clientResult_readPackedProg]
+       iterate 3 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
+       simp only [quotAt, valAt, elevAt, hslot, ↓reduceIte]; rfl)
+    | (rw [ite_eq_left hact, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
+        StateTransitionSpec.clientState_bind, clientState_readPackedProg,
+        clientResult_readPackedProg, ite_eq_right hocc]
+       iterate 3 rw [StateTransitionSpec.clientState_bind,
+         clientState_readPackedProg, clientResult_readPackedProg]
+       iterate 3 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
+       rfl)
+
 private theorem kickStepProg_step_frame (p : KickTreeParams) (hw : 0 < p.w)
     {base pathBase : ℕ} {st : KickStepState} {s : Memory.State}
     (hslot : 0 < st.active → s.mem (pathBase + st.stepIdx) < p.nMax) :
@@ -995,73 +1108,16 @@ private theorem kickStepProg_step_frame (p : KickTreeParams) (hw : 0 < p.w)
   intro st' s'
   by_cases ha_pos : 0 < st.active
   · have hs := hslot ha_pos
-    have hsO : s.mem (pathBase + st.stepIdx) < occLen p := slot_lt_occLen hs
-    set slot := s.mem (pathBase + st.stepIdx)
-    have hr_mem : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
-    have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) = slot := rfl
-    by_cases hocc : readPacked (base + offOcc p) 1 p.w s.mem slot = 0
-    · have hres : st' = ⟨st.stepIdx + 1, 0, 0, 0, 0⟩ := by
-        change (Memory.spec 0).clientResult s _ = _
-        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-        dsimp only [mkKickRuntimeParams]
-        rw [ite_eq_left ha_pos, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
-          StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
-          clientResult_readPackedProg, hocc, ite_eq_left rfl]
-        iterate 4 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
-        rfl
-      have hst : s' = {
-          mem := writeOccMem base p
-            (writeElevMem base p
-              (writeValMem base p (writeQuotMem base p s.mem slot st.quot) slot st.val)
-              slot st.elevated)
-            slot 1
-          frontier := s.frontier } := by
-        change (Memory.spec 0).clientState s _ = _
-        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-        dsimp only [mkKickRuntimeParams]
-        rw [ite_eq_left ha_pos, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
-          StateTransitionSpec.clientState_bind, clientState_readPackedProg,
-          clientResult_readPackedProg, hocc, ite_eq_left rfl]
-        iterate 4 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
-        rfl
-      rw [hres, hst]
-      refine ⟨rfl, fun a ha => ?_, fun h => nomatch h⟩
-      exact (writePacked_outside hw _ hsO 1 (not_in_occ_of_outside ha)).trans
-        ((writePacked_outside hw _ hs st.elevated (not_in_elev_of_outside ha)).trans
-          ((writePacked_outside hw _ hs st.val (not_in_val_of_outside ha)).trans
-            (writePacked_outside hw _ hs st.quot (not_in_quot_of_outside ha))))
-    · have hres_step : st'.stepIdx = st.stepIdx + 1 := by
-        change KickStepState.stepIdx
-          ((Memory.spec 0).clientResult s (kickStepProg p base pathBase st)) = _
-        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-        dsimp only [mkKickRuntimeParams]
-        rw [ite_eq_left ha_pos, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
-          StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
-          clientResult_readPackedProg, ite_eq_right hocc]
-        iterate 3 rw [StateTransitionSpec.clientResult_bind,
-          clientState_readPackedProg, clientResult_readPackedProg]
-        iterate 3 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
-        rfl
-      have hst : s' = {
-          mem := writeElevMem base p
-            (writeValMem base p (writeQuotMem base p s.mem slot st.quot) slot st.val)
-            slot st.elevated
-          frontier := s.frontier } := by
-        change (Memory.spec 0).clientState s _ = _
-        unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-        dsimp only [mkKickRuntimeParams]
-        rw [ite_eq_left ha_pos, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
-          StateTransitionSpec.clientState_bind, clientState_readPackedProg,
-          clientResult_readPackedProg, ite_eq_right hocc]
-        iterate 3 rw [StateTransitionSpec.clientState_bind,
-          clientState_readPackedProg, clientResult_readPackedProg]
-        iterate 3 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
-        rfl
-      rw [hst]
-      refine ⟨rfl, fun a ha => ?_, fun _ => ⟨ha_pos, hres_step⟩⟩
-      exact (writePacked_outside hw _ hs st.elevated (not_in_elev_of_outside ha)).trans
-        ((writePacked_outside hw _ hs st.val (not_in_val_of_outside ha)).trans
-          (writePacked_outside hw _ hs st.quot (not_in_quot_of_outside ha)))
+    by_cases hocc : readPacked (base + offOcc p) 1 p.w s.mem (s.mem (pathBase + st.stepIdx)) = 0
+    · obtain ⟨hres, hst⟩ := kickStepProg_vacant_exec p ha_pos hocc
+      rw [show st' = _ from hres, show s' = _ from hst]
+      exact ⟨rfl, fun a ha => (writePacked_outside hw _ (slot_lt_occLen hs) 1
+        (not_in_occ_of_outside ha)).trans (writeThreeSlotFields_outside p hw s.mem hs ha),
+        fun h => nomatch h⟩
+    · obtain ⟨hres, hst⟩ := kickStepProg_displace_exec p ha_pos hs hocc
+      rw [show st' = _ from hres, show s' = _ from hst]
+      exact ⟨rfl, fun a ha => writeThreeSlotFields_outside p hw s.mem hs ha,
+        fun _ => ⟨ha_pos, rfl⟩⟩
   · have hinact := kickStepProg_inactive_spec p (base := base) (pathBase := pathBase)
       (st := st) (by omega) s
     change st' = st ∧ s' = s at hinact
@@ -1103,11 +1159,9 @@ theorem kickLoopProg_spec {w base pathBase fuel : ℕ} (p : KickTreeParams)
   have hw : 0 < p.w := henv.2.1
   let env : KickStepEnv := ⟨mkKickRuntimeParams p, base, pathBase⟩
   let fullInv (i : ℕ) (st : KickStepState) (s : Memory.State) : Prop :=
-    Memory.WellFormed w s ∧
-      s.frontier = s₀.frontier ∧
+    Memory.WellFormed w s ∧ s.frontier = s₀.frontier ∧
       (∀ a, ¬(base + p.hSpace ≤ a ∧ a < base + totalSpace p) → s.mem a = s₀.mem a) ∧
-      (0 < st.active → st.stepIdx = st₀.stepIdx + i) ∧
-      inv i st s
+      (0 < st.active → st.stepIdx = st₀.stepIdx + i) ∧ inv i st s
   obtain ⟨hsafe, hv, hcost, hfr, hmod, _, _, _, _, hinv_f⟩ :=
     iterate_spec kickStepGenProg KickStepSafe w env 21 fuel fullInv
       (fun a => base + p.hSpace ≤ a ∧ a < base + totalSpace p)
@@ -1119,23 +1173,19 @@ theorem kickLoopProg_spec {w base pathBase fuel : ℕ} (p : KickTreeParams)
           have hmem_eq := hout_s (pathBase + (st₀.stepIdx + i)) (hpath_disj i hi)
           have hsl := hpath_slots i hi
           exact ⟨by omega, by rw [hidx]; omega⟩
-        have hsafe_step : KickStepSafe w (env, st) s := by
-          refine ⟨⟨p, rfl, henv⟩, fun ha_pos => ?_⟩
-          dsimp only [env]
-          have hidx := hidx_s ha_pos
-          obtain ⟨hp_lt, hsl⟩ := hp_info ha_pos
-          exact ⟨hwf_s.fits_of_lt_frontier hp_lt, hwf_s.1.of_le (by omega), hsl⟩
         have hv_step := validHistory_kickStepProg p henv hwf_s (by rw [hfr_s]; exact ha) hp_info
-        have hcost_step := memoryCost_kickStepProg_le p base pathBase st s
         obtain ⟨hfr_step, hout_step, hact_step⟩ :=
           kickStepProg_step_frame p hw (base := base) (pathBase := pathBase)
             (fun ha_pos => (hp_info ha_pos).2)
-        have hwf_next :
-            Memory.WellFormed w ((Memory.spec 0).clientState s (kickStepGenProg (env, st))) := by
-          rw [← clientState_width w, ← StateTransitionSpec.run_runClient]
-          exact hwf_s.run hv_step
-        refine ⟨hsafe_step, hv_step, hcost_step, hfr_step, hout_step,
-          hwf_next, hfr_step.trans hfr_s,
+        refine ⟨⟨⟨p, rfl, henv⟩, fun ha_pos => by
+            dsimp only [env]
+            have hidx := hidx_s ha_pos
+            obtain ⟨hp_lt, hsl⟩ := hp_info ha_pos
+            exact ⟨hwf_s.fits_of_lt_frontier hp_lt, hwf_s.1.of_le (by omega), hsl⟩⟩,
+          hv_step, memoryCost_kickStepProg_le p base pathBase st s, hfr_step, hout_step,
+          by rw [← clientState_width w, ← StateTransitionSpec.run_runClient]
+             exact hwf_s.run hv_step,
+          hfr_step.trans hfr_s,
           fun a ha_out => (hout_step a ha_out).trans (hout_s a ha_out),
           fun ha_next => by
             obtain ⟨ha_prev, hstep_eq⟩ := hact_step ha_next
@@ -1206,50 +1256,13 @@ theorem kickStepProg_vacant_spec (p : KickTreeParams) (hw : 0 < p.w)
       occAt base p s'.mem = Function.update (occAt base p s.mem) slot 1 ∧
       metaAt base p s'.mem = metaAt base p s.mem := by
   intro slot s'
-  change slot < p.nMax at hslot
-  change occAt base p s.mem slot = 0 at hvac
-  have hocc_lt : slot < occLen p := slot_lt_occLen hslot
   have hocc_read : readPacked (base + offOcc p) 1 p.w s.mem slot = 0 := by
-    simpa [occAt, hocc_lt] using hvac
-  set m1 := writeQuotMem base p s.mem slot st.quot
-  set m2 := writeValMem base p m1 slot st.val
-  set m3 := writeElevMem base p m2 slot st.elevated
-  set m4 := writeOccMem base p m3 slot 1
-  have hr_mem : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
-  have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) = slot := rfl
-  have hres : (Memory.spec 0).clientResult s (kickStepProg p base pathBase st) =
-      ⟨st.stepIdx + 1, 0, 0, 0, 0⟩ := by
-    unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-    dsimp only [mkKickRuntimeParams]
-    rw [ite_eq_left hact, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
-      StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
-      clientResult_readPackedProg, hocc_read, ite_eq_left rfl]
-    iterate 4 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
-    rfl
-  have hst : s' = { mem := m4, frontier := s.frontier } := by
-    change (Memory.spec 0).clientState s (kickStepProg p base pathBase st) = _
-    unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-    dsimp only [mkKickRuntimeParams]
-    rw [ite_eq_left hact, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
-      StateTransitionSpec.clientState_bind, clientState_readPackedProg,
-      clientResult_readPackedProg, hocc_read, ite_eq_left rfl]
-    iterate 4 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
-    rfl
-  have heQ := writeQuotMem_effects (base := base) p hw s.mem hslot hq
-  have heV := writeValMem_effects (base := base) p hw m1 hslot hv
-  have heE := writeElevMem_effects (base := base) p hw m2 hslot he
-  have heO := writeOccMem_effects (base := base) p hw m3 hocc_lt (by decide : 1 < 2 ^ 1)
-  rw [hst]
-  refine ⟨hres, rfl, fun a ha => ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (heO.2.2.2.2.2 a (not_in_occ_of_outside ha)).trans
-      ((heE.2.2.2.2.2 a (not_in_elev_of_outside ha)).trans
-        ((heV.2.2.2.2.2 a (not_in_val_of_outside ha)).trans
-          (heQ.2.2.2.2.2 a (not_in_quot_of_outside ha))))
-  · exact heO.1.trans (heE.1.trans (heV.1.trans heQ.1))
-  · exact heO.2.1.trans (heE.2.1.trans (heV.2.1.trans (by rw [heQ.2.1])))
-  · exact heO.2.2.2.1.trans (heE.2.2.2.1.trans (by rw [heV.2.2.2.1, heQ.2.2.2.1]))
-  · exact heO.2.2.1.trans (by rw [heE.2.2.1, heV.2.2.1, heQ.2.2.1])
-  · exact heO.2.2.2.2.1.trans (heE.2.2.2.2.1.trans (heV.2.2.2.2.1.trans heQ.2.2.2.2.1))
+    simpa [occAt, slot_lt_occLen hslot] using hvac
+  obtain ⟨hres, hst⟩ := kickStepProg_vacant_exec p hact hocc_read
+  obtain ⟨hQ, hV, hO, hE, hM, hOut⟩ :=
+    writeFourSlotFields_effects p hw s.mem hslot hq hv he (by decide : 1 < 2 ^ 1)
+  rw [show s' = _ from hst]
+  exact ⟨hres, rfl, hOut, hQ, hV, hE, hO, hM⟩
 
 /-- Pure array-update specification for `kickStepProg` when the candidate slot `slot` is occupied
 (`occAt base p s.mem slot ≠ 0`): atomically displaces `(oldQuot, oldVal, oldElev)`, writes
@@ -1276,53 +1289,12 @@ theorem kickStepProg_displace_spec (p : KickTreeParams) (hw : 0 < p.w)
       occAt base p s'.mem = occAt base p s.mem ∧
       metaAt base p s'.mem = metaAt base p s.mem := by
   intro slot s'
-  change slot < p.nMax at hslot
-  change occAt base p s.mem slot ≠ 0 at hocc_ne
-  have hocc_lt : slot < occLen p := slot_lt_occLen hslot
   have hocc_read : readPacked (base + offOcc p) 1 p.w s.mem slot ≠ 0 := by
-    simpa [occAt, hocc_lt] using hocc_ne
-  set m1 := writeQuotMem base p s.mem slot st.quot
-  set m2 := writeValMem base p m1 slot st.val
-  set m3 := writeElevMem base p m2 slot st.elevated
-  have hr_mem : (Memory.spec 0).clientState s (Memory.read (pathBase + st.stepIdx)) = s := rfl
-  have hr_res : (Memory.spec 0).clientResult s (Memory.read (pathBase + st.stepIdx)) = slot := rfl
-  have hres : (Memory.spec 0).clientResult s (kickStepProg p base pathBase st) =
-      ⟨st.stepIdx + 1, quotAt base p s.mem slot, valAt base p s.mem slot,
-        elevAt base p s.mem slot, 1⟩ := by
-    unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-    dsimp only [mkKickRuntimeParams]
-    rw [ite_eq_left hact, StateTransitionSpec.clientResult_bind, hr_mem, hr_res,
-      StateTransitionSpec.clientResult_bind, clientState_readPackedProg,
-      clientResult_readPackedProg, ite_eq_right hocc_read]
-    iterate 3 rw [StateTransitionSpec.clientResult_bind,
-      clientState_readPackedProg, clientResult_readPackedProg]
-    iterate 3 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
-    change KickStepState.mk _ _ _ _ _ = _
-    simp [quotAt, valAt, elevAt, hslot]
-  have hst : s' = { mem := m3, frontier := s.frontier } := by
-    change (Memory.spec 0).clientState s (kickStepProg p base pathBase st) = _
-    unfold kickStepProg kickStepGenProg readPackedGenProg writePackedGenProg
-    dsimp only [mkKickRuntimeParams]
-    rw [ite_eq_left hact, StateTransitionSpec.clientState_bind, hr_mem, hr_res,
-      StateTransitionSpec.clientState_bind, clientState_readPackedProg,
-      clientResult_readPackedProg, ite_eq_right hocc_read]
-    iterate 3 rw [StateTransitionSpec.clientState_bind,
-      clientState_readPackedProg, clientResult_readPackedProg]
-    iterate 3 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
-    rfl
-  have heQ := writeQuotMem_effects (base := base) p hw s.mem hslot hq
-  have heV := writeValMem_effects (base := base) p hw m1 hslot hv
-  have heE := writeElevMem_effects (base := base) p hw m2 hslot he
-  rw [hst]
-  refine ⟨hres, rfl, fun a ha => ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (heE.2.2.2.2.2 a (not_in_elev_of_outside ha)).trans
-      ((heV.2.2.2.2.2 a (not_in_val_of_outside ha)).trans
-        (heQ.2.2.2.2.2 a (not_in_quot_of_outside ha)))
-  · exact heE.1.trans (heV.1.trans heQ.1)
-  · exact heE.2.1.trans (heV.2.1.trans (by rw [heQ.2.1]))
-  · exact heE.2.2.2.1.trans (by rw [heV.2.2.2.1, heQ.2.2.2.1])
-  · exact heE.2.2.1.trans (heV.2.2.1.trans heQ.2.2.1)
-  · exact heE.2.2.2.2.1.trans (heV.2.2.2.2.1.trans heQ.2.2.2.2.1)
+    simpa [occAt, slot_lt_occLen hslot] using hocc_ne
+  obtain ⟨hres, hst⟩ := kickStepProg_displace_exec p hact hslot hocc_read
+  obtain ⟨hQ, hV, hO, hE, hM, hOut⟩ := writeThreeSlotFields_effects p hw s.mem hslot hq hv he
+  rw [show s' = _ from hst]
+  exact ⟨hres, rfl, hOut, hQ, hV, hE, hO, hM⟩
 
 /-! ### 6. Bit-Packed Hashed-Slot Vacating and Unindexed Tail-Cubby Compaction Subroutines -/
 
@@ -1425,33 +1397,23 @@ theorem clearSlotProg_spec (p : KickTreeParams) (hw : 0 < p.w)
       occAt base p s'.mem = Function.update (occAt base p s.mem) slot 0 ∧
       metaAt base p s'.mem = metaAt base p s.mem := by
   intro s'
-  have hsO : slot < occLen p := slot_lt_occLen hslot
-  set m1 := writeQuotMem base p s.mem slot 0
-  set m2 := writeValMem base p m1 slot 0
-  set m3 := writeElevMem base p m2 slot 0
-  set m4 := writeOccMem base p m3 slot 0
-  have hst : s' = { mem := m4, frontier := s.frontier } := by
+  have hst : s' = {
+      mem := writeOccMem base p
+        (writeElevMem base p (writeValMem base p (writeQuotMem base p s.mem slot 0) slot 0)
+          slot 0)
+        slot 0
+      frontier := s.frontier } := by
     change (Memory.spec 0).clientState s (clearSlotProg p base slot) = _
     unfold clearSlotProg clearSlotGenProg writePackedGenProg
     dsimp only [mkKickRuntimeParams]
     iterate 3 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
     rw [clientState_writePackedProg]
     rfl
-  have he1 := writeQuotMem_effects (base := base) p hw s.mem hslot (by positivity)
-  have he2 := writeValMem_effects (base := base) p hw m1 hslot (by positivity)
-  have he3 := writeElevMem_effects (base := base) p hw m2 hslot (by positivity)
-  have he4 := writeOccMem_effects (base := base) p hw m3 hsO (by positivity)
+  obtain ⟨hQ, hV, hO, hE, hM, hOut⟩ :=
+    writeFourSlotFields_effects p hw s.mem hslot
+      (by positivity) (by positivity) (by positivity) (by positivity)
   rw [hst]
-  refine ⟨rfl, fun a ha => ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (he4.2.2.2.2.2 a (not_in_occ_of_outside ha)).trans
-      ((he3.2.2.2.2.2 a (not_in_elev_of_outside ha)).trans
-        ((he2.2.2.2.2.2 a (not_in_val_of_outside ha)).trans
-          (he1.2.2.2.2.2 a (not_in_quot_of_outside ha))))
-  · rw [he4.1, he3.1, he2.1, he1.1]
-  · rw [he4.2.1, he3.2.1, he2.2.1, he1.2.1]
-  · rw [he4.2.2.2.1, he3.2.2.2.1, he2.2.2.2.1, he1.2.2.2.1]
-  · rw [he4.2.2.1, he3.2.2.1, he2.2.2.1, he1.2.2.1]
-  · rw [he4.2.2.2.2.1, he3.2.2.2.2.1, he2.2.2.2.2.1, he1.2.2.2.2.1]
+  exact ⟨rfl, hOut, hQ, hV, hE, hO, hM⟩
 
 /-- Input record for `popUnindexedSlotGenProg` (local formalization adaptation swap-removing an
 entry from an unindexed `[0, len)` `TailCubby` slot array). -/
@@ -1604,27 +1566,13 @@ theorem popUnindexedSlotProg_spec (p : KickTreeParams) (hw : 0 < p.w)
           lastSlot 0 ∧
       metaAt base p s'.mem = metaAt base p s.mem := by
   intro s'
-  have hsO : slot < occLen p := slot_lt_occLen hslot
   have hlO : lastSlot < occLen p := slot_lt_occLen hlast
-  have hpsQ : readPacked (base + offQuot p) (quotBits p) p.w s.mem slot =
-      quotAt base p s.mem slot := by simp [quotAt, hslot]
-  have hpsV : readPacked (base + offVal p) (valBits p.V) p.w s.mem slot =
-      valAt base p s.mem slot := by simp [valAt, hslot]
-  have hpsE : readPacked (base + offElev p) 1 p.w s.mem slot =
-      elevAt base p s.mem slot := by simp [elevAt, hslot]
-  have hq_eq : readPacked (base + offQuot p) (quotBits p) p.w s.mem lastSlot =
-      quotAt base p s.mem lastSlot := by simp [quotAt, hlast]
-  have hv_eq : readPacked (base + offVal p) (valBits p.V) p.w s.mem lastSlot =
-      valAt base p s.mem lastSlot := by simp [valAt, hlast]
-  have he_eq : readPacked (base + offElev p) 1 p.w s.mem lastSlot =
-      elevAt base p s.mem lastSlot := by simp [elevAt, hlast]
-  have ho_eq : readPacked (base + offOcc p) 1 p.w s.mem lastSlot =
-      occAt base p s.mem lastSlot := by simp [occAt, hlO]
-  set m1 := writeQuotMem base p s.mem slot (quotAt base p s.mem lastSlot)
-  set m2 := writeValMem base p m1 slot (valAt base p s.mem lastSlot)
-  set m3 := writeElevMem base p m2 slot (elevAt base p s.mem lastSlot)
-  set m4 := writeOccMem base p m3 slot (occAt base p s.mem lastSlot)
-  set sMid : Memory.State := { mem := m4, frontier := s.frontier }
+  let m4 := writeOccMem base p
+    (writeElevMem base p
+      (writeValMem base p (writeQuotMem base p s.mem slot (quotAt base p s.mem lastSlot))
+        slot (valAt base p s.mem lastSlot))
+      slot (elevAt base p s.mem lastSlot))
+    slot (occAt base p s.mem lastSlot)
   have hres : (Memory.spec 0).clientResult s (popUnindexedSlotProg p base slot lastSlot) =
       ((quotAt base p s.mem slot, valAt base p s.mem slot), elevAt base p s.mem slot) := by
     unfold popUnindexedSlotProg popUnindexedSlotGenProg readPackedGenProg writePackedGenProg
@@ -1634,35 +1582,30 @@ theorem popUnindexedSlotProg_spec (p : KickTreeParams) (hw : 0 < p.w)
     iterate 4 rw [StateTransitionSpec.clientResult_bind, clientState_writePackedProg]
     rw [StateTransitionSpec.clientResult_bind]
     change ((_, _), _) = _
-    rw [hpsQ, hpsV, hpsE]
-  have hst : s' = (Memory.spec 0).clientState sMid (clearSlotProg p base lastSlot) := by
+    simp [quotAt, valAt, elevAt, hslot]
+  have hst : s' = (Memory.spec 0).clientState
+      { mem := m4, frontier := s.frontier } (clearSlotProg p base lastSlot) := by
     change (Memory.spec 0).clientState s (popUnindexedSlotProg p base slot lastSlot) = _
     unfold popUnindexedSlotProg popUnindexedSlotGenProg readPackedGenProg writePackedGenProg
     dsimp only
     iterate 7 rw [StateTransitionSpec.clientState_bind,
       clientState_readPackedProg, clientResult_readPackedProg]
     dsimp only [mkKickRuntimeParams]
-    rw [hq_eq, hv_eq, he_eq, ho_eq]
     iterate 4 rw [StateTransitionSpec.clientState_bind, clientState_writePackedProg]
     rw [StateTransitionSpec.clientState_bind]
+    simp only [m4, quotAt, valAt, elevAt, occAt, hlast, hlO, ↓reduceIte]
     rfl
-  have he1 := writeQuotMem_effects (base := base) p hw s.mem hslot (quotAt_lt base p s.mem lastSlot)
-  have he2 := writeValMem_effects (base := base) p hw m1 hslot (valAt_lt base p s.mem lastSlot)
-  have he3 := writeElevMem_effects (base := base) p hw m2 hslot (elevAt_lt base p s.mem lastSlot)
-  have he4 := writeOccMem_effects (base := base) p hw m3 hsO (occAt_lt base p s.mem lastSlot)
+  obtain ⟨hQ, hV, hO, hE, hM, hOut⟩ := writeFourSlotFields_effects p hw s.mem hslot
+    (quotAt_lt base p s.mem lastSlot) (valAt_lt base p s.mem lastSlot)
+    (elevAt_lt base p s.mem lastSlot) (occAt_lt base p s.mem lastSlot)
   obtain ⟨hc_fr, hc_out, hc_q, hc_v, hc_e, hc_o, hc_m⟩ :=
-    clearSlotProg_spec p hw (base := base) hlast sMid
+    clearSlotProg_spec p hw (base := base) hlast { mem := m4, frontier := s.frontier }
   rw [hst]
-  refine ⟨hres, hc_fr, fun a ha => ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · exact (hc_out a ha).trans
-      ((he4.2.2.2.2.2 a (not_in_occ_of_outside ha)).trans
-        ((he3.2.2.2.2.2 a (not_in_elev_of_outside ha)).trans
-          ((he2.2.2.2.2.2 a (not_in_val_of_outside ha)).trans
-            (he1.2.2.2.2.2 a (not_in_quot_of_outside ha)))))
-  · rw [hc_q]; dsimp only [sMid]; rw [he4.1, he3.1, he2.1, he1.1]
-  · rw [hc_v]; dsimp only [sMid]; rw [he4.2.1, he3.2.1, he2.2.1, he1.2.1]
-  · rw [hc_e]; dsimp only [sMid]; rw [he4.2.2.2.1, he3.2.2.2.1, he2.2.2.2.1, he1.2.2.2.1]
-  · rw [hc_o]; dsimp only [sMid]; rw [he4.2.2.1, he3.2.2.1, he2.2.2.1, he1.2.2.1]
-  · rw [hc_m]; dsimp only [sMid]; rw [he4.2.2.2.2.1, he3.2.2.2.2.1, he2.2.2.2.2.1, he1.2.2.2.2.1]
+  exact ⟨hres, hc_fr, fun a ha => (hc_out a ha).trans (hOut a ha),
+    hc_q.trans (congrArg (Function.update · lastSlot 0) hQ),
+    hc_v.trans (congrArg (Function.update · lastSlot 0) hV),
+    hc_e.trans (congrArg (Function.update · lastSlot 0) hE),
+    hc_o.trans (congrArg (Function.update · lastSlot 0) hO),
+    hc_m.trans hM⟩
 
 end Cslib.DataStructure.Dictionary.WordRAM.KickTree
