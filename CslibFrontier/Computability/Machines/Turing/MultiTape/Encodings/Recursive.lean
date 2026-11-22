@@ -103,7 +103,7 @@ theorem splitForest_eq_some_iff {arity : τ → ℕ} {pending : ℕ}
     splitForest arity pending tokens = some (front, rest) ↔
       Forest arity pending front ∧ front ++ rest = tokens := by
   fun_induction splitForest arity pending tokens generalizing front rest with
-  | case1 tokens =>
+  | case1 tokens => -- no pending roots
     constructor
     · intro h
       obtain ⟨rfl, rfl⟩ := Prod.mk.inj (Option.some.inj h)
@@ -111,13 +111,13 @@ theorem splitForest_eq_some_iff {arity : τ → ℕ} {pending : ℕ}
     · rintro ⟨h, heq⟩
       cases h
       simpa using heq.symm
-  | case2 pending =>
+  | case2 pending => -- roots pending, no tokens left
     constructor
     · simp
     · rintro ⟨h, heq⟩
       cases h
       simp at heq
-  | case3 pending token tokens ih =>
+  | case3 pending token tokens ih => -- roots pending, `token :: tokens`
     change (splitForest arity (pending + arity token) tokens).bind
       (fun p => some (token :: p.1, p.2)) = some (front, rest) ↔ _
     rw [Option.bind_eq_some_iff]
@@ -213,9 +213,9 @@ private theorem splitForest_eq_scan (arity : τ → ℕ) (tokens : List τ) (pen
         some (tokens.take (state.consumed - count), tokens.drop (state.consumed - count))
       else none := by
   fun_induction splitForest arity pending tokens generalizing count with
-  | case1 => rw [scanStep_zero]; simp
-  | case2 => simp
-  | case3 pending token tokens ih =>
+  | case1 => rw [scanStep_zero]; simp -- no pending roots
+  | case2 => simp -- roots pending, no tokens left
+  | case3 pending token tokens ih => -- roots pending, `token :: tokens`
     change (splitForest arity (pending + arity token) tokens).bind
       (fun p => some (token :: p.1, p.2)) = _
     rw [ih (count + 1)]

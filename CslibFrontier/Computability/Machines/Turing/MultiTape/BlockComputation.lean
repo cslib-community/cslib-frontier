@@ -301,9 +301,9 @@ theorem value_eq_some_iff {n : ℕ} (hn : n ≤ q) (v : View k State b) :
     value machine input b σ n = some v ↔
       Prefix machine input b σ n ∧ v = trueView machine input b σ n := by
   fun_induction value machine input b σ n generalizing v with
-  | case1 => simp [Prefix, trueView, eq_comm]
-  | case3 n hnq => omega
-  | case2 n hnq ihprev ihj =>
+  | case1 => simp [Prefix, trueView, eq_comm] -- index 0: initial view
+  | case3 n hnq => omega -- n + 1, n ≥ q: none
+  | case2 n hnq ihprev ihj => -- n + 1, n < q: gate
     let i : Fin q := ⟨n, hnq⟩
     let providers : Fin k → Fin 3 → Option (View k State b) := fun h d =>
       match hp : lastBefore (InWindow σ h (portBlock σ i h d)) i with

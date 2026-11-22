@@ -269,8 +269,8 @@ omit [Primcodable Symbol] in
 lemma unmapSome_eq_some_iff {xs : List (Option Symbol)} {l : List Symbol} :
     unmapSome xs = some l ↔ xs = l.map some := by
   fun_induction unmapSome xs generalizing l with
-  | case3 a xs ih => cases l <;> simp [ih, and_comm]
-  | _ => cases l <;> simp
+  | case3 a xs ih => cases l <;> simp [ih, and_comm] -- some a :: xs
+  | _ => cases l <;> simp -- [] and none :: _
 
 theorem primrec_unmapSome :
     Primrec (unmapSome : List (Option Symbol) → Option (List Symbol)) := by

@@ -370,15 +370,15 @@ adds at most `2 * n` cells. -/
 private lemma forall₂_sim (d : Desc) (n : ℕ) (w : Win) :
     List.Forall₂ (Grow n) w.2 (sim d n w).1.2 := by
   fun_induction sim d n w with
-  | case1 => exact forall₂_grow_refl 0 _
-  | case2 w =>
+  | case1 => exact forall₂_grow_refl 0 _ -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', hw, h | h | ⟨e, -, h⟩⟩ <;> rw [h] <;>
       try rw [hw]
     · exact forall₂_grow_refl 1 _
     · exact .cons (grow_moveIn i p p') (forall₂_grow_refl 1 _)
     · exact .cons (grow_moveIn i p p') (forall₂_grow_refl 1 _)
     · exact .cons (grow_moveIn i p p') (forall₂_applyTapes ts _)
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hs := firstHalf_add_half (n + 2)
     exact forall₂_trans (fun _ _ _ ha hb => ⟨by omega, by omega⟩) (forall₂_restore ih₁)
       (forall₂_restore ih₂)
@@ -387,21 +387,21 @@ private lemma forall₂_sim (d : Desc) (n : ℕ) (w : Win) :
 private lemma state_sim {d : Desc} {D : ℕ} (hD : descLen d ≤ D) (n : ℕ) {w : Win}
     (hw : w.1.getD 0 ≤ D) : (sim d n w).1.1.getD 0 ≤ D := by
   fun_induction sim d n w with
-  | case1 => exact hw
-  | case2 w =>
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h]
     · exact hw
     · exact hw
     · simp
     · exact (state_le he).trans hD
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw)
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw) -- n + 2 steps: first half, then second half
 
 /-- The windowed simulation keeps a bound on the cells above the length of the description. -/
 private lemma valLe_sim {d : Desc} {B : ℕ} (hB : descLen d ≤ B) (n : ℕ) {w : Win}
     (hw : ∀ t ∈ w.2, ValLe B t) : ∀ t ∈ (sim d n w).1.2, ValLe B t := by
   fun_induction sim d n w with
-  | case1 => exact hw
-  | case2 w =>
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', hw', h | h | ⟨e, he, h⟩⟩ <;> rw [h]
     · exact hw
     all_goals
@@ -411,7 +411,7 @@ private lemma valLe_sim {d : Desc} {B : ℕ} (hB : descLen d ≤ B) (n : ℕ) {w
     · exact hw.2
     · exact hw.2
     · exact valLe_applyTapes hw.2 fun ta hta => (write_le he hta).trans hB
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have h₁ : ∀ t ∈ w₁.2, ValLe B t := valLe_restore hw (ih₁ (valLe_extract hw))
     exact valLe_restore h₁ (ih₂ (valLe_extract h₁))
 
@@ -454,8 +454,8 @@ description. -/
 private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
     (sim d n w).2.length ≤ n ∧ ∀ o ∈ (sim d n w).2, o ≤ descLen d := by
   fun_induction sim d n w with
-  | case1 => simp
-  | case2 w =>
+  | case1 => simp -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     rcases wstep_cases d w with h | ⟨i, ts, p, p', -, h | h | ⟨e, he, h⟩⟩ <;> rw [h]
     · simp
     · simp
@@ -463,7 +463,7 @@ private lemma sim_out (d : Desc) (n : ℕ) (w : Win) :
     · have := output_le he
       revert this
       cases e.2.output <;> simp
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hs := firstHalf_add_half (n + 2)
     refine ⟨?_, fun o ho => (List.mem_append.mp ho).elim (ih₁.2 o) (ih₂.2 o)⟩
     have h₁ := ih₁.1

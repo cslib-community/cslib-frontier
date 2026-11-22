@@ -574,14 +574,14 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
   intro c w
   revert c
   fun_induction sim d n w with
-  | case1 w =>
+  | case1 w => -- 0 steps
     intro c hq _ hagr
     refine ⟨rfl, hq, rfl, fun k W F W' F' hW hF hW' hF' => ?_⟩
     change (view x c)[k]? = some F' at hF'
     obtain rfl : W' = W := Option.some.inj (hW'.symm.trans hW)
     obtain rfl : F' = F := Option.some.inj (hF'.symm.trans hF)
     exact tr_zero (hagr k W' F' hW hF)
-  | case2 w =>
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨st, _ | ⟨i, ws⟩⟩ := w <;> rintro ⟨q, p, ts⟩ hq hlen hagr
     · simp [view] at hlen
     simp only at hq
@@ -643,7 +643,7 @@ private theorem sim_spec (d : Desc) (x : List ℕ) (n : ℕ) : ∀ (c : SCfg) (w
       cases ht''
       rw [realView_apply]
       exact tr_apply (hws k W t hW ht) _
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     intro c hq hlen hagr
     have hrs : firstHalf (n + 2) + (n + 2) / 2 = n + 2 := by simp only [firstHalf]; omega
     rw [show n.succ.succ = n + 2 from rfl] at hagr ⊢
@@ -745,12 +745,12 @@ private lemma act_cases (d : Desc) (q a : Option ℕ) (rs : List (Option ℕ)) :
 /-- The windowed simulation keeps the number of windows. -/
 theorem length_sim (d : Desc) (n : ℕ) (w : Win) : (sim d n w).1.2.length = w.2.length := by
   fun_induction sim d n w with
-  | case1 => rfl
-  | case2 w =>
+  | case1 => rfl -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · rfl
     · simp [wstep_eq, length_applyTapes_eq]
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hle : ∀ r w, (extract r w).2.length = w.2.length := by simp [extract]
     simp only [r₂, w₁, r₁, length_restore, ih₁, ih₂, hle]
     omega
@@ -766,11 +766,11 @@ theorem length_sim_le (d : Desc) (n : ℕ) (w : Win) {k : ℕ} {W W' : Tape}
     (hW : w.2[k]? = some W) (hW' : (sim d n w).1.2[k]? = some W') :
     W'.left.length ≤ W.left.length + n ∧ W'.right.length ≤ max W.right.length 1 + n := by
   fun_induction sim d n w generalizing k W W' with
-  | case1 w =>
+  | case1 w => -- 0 steps
     rw [hW, Option.some.injEq] at hW'
     subst hW'
     omega
-  | case2 w =>
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · simp at hW
     rw [wstep_eq] at hW'
@@ -787,7 +787,7 @@ theorem length_sim_le (d : Desc) (n : ℕ) (w : Win) {k : ℕ} {W W' : Tape}
         Option.some.injEq] at hW'
       subst hW'
       exact length_apply_le W _
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     obtain ⟨P, J, hP, hJ, rfl⟩ := getElem?_restore_eq_some.mp hW'
     obtain ⟨W₀, I, hW₀, hI, rfl⟩ := getElem?_restore_eq_some.mp hP
     rw [hW, Option.some.injEq] at hW₀
@@ -873,8 +873,8 @@ theorem sim_cells (d : Desc) (S : Option ℕ → Prop) (h0 : S none)
   change ∀ W ∈ (sim d n w).1.2, Cells S W
   change ∀ W ∈ w.2, Cells S W at hw
   fun_induction sim d n w with
-  | case1 => exact hw
-  | case2 w =>
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · exact hw
     rw [wstep_eq]
@@ -888,7 +888,7 @@ theorem sim_cells (d : Desc) (S : Option ℕ → Prop) (h0 : S none)
     · rcases act_cases d q (inSym i.read) (ws.map Tape.read) with h | ⟨e, he, h⟩ <;> rw [h]
       · simp
       · exact htable e he
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     have hr : ∀ r w, (∀ W ∈ w.2, Cells S W) → ∀ W ∈ (extract r w).2, Cells S W :=
       fun r w hw W hW => by
         simp only [extract, List.mem_map] at hW
@@ -907,22 +907,22 @@ state of a transition. -/
 theorem sim_state (d : Desc) (T : Option ℕ → Prop) (h0 : T none)
     (htable : ∀ e ∈ d.table, T e.2.state) (n : ℕ) (w : Win) (hw : T w.1) : T (sim d n w).1.1 := by
   fun_induction sim d n w with
-  | case1 => exact hw
-  | case2 w =>
+  | case1 => exact hw -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · exact hw
     rw [wstep_eq]
     rcases act_cases d q (inSym i.read) (ws.map Tape.read) with h | ⟨e, he, h⟩ <;> rw [h]
     · exact h0
     · exact htable e he
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw)
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => exact ih₂ (ih₁ hw) -- n + 2 steps: first half, then second half
 
 /-- Every symbol emitted by the windowed simulation is the output of a transition. -/
 theorem sim_output (d : Desc) (n : ℕ) (w : Win) :
     ∀ o ∈ (sim d n w).2, ∃ e ∈ d.table, e.2.output = some o := by
   fun_induction sim d n w with
-  | case1 => simp
-  | case2 w =>
+  | case1 => simp -- 0 steps
+  | case2 w => -- 1 step: `wstep`
     obtain ⟨q, _ | ⟨i, ws⟩⟩ := w
     · simp [wstep]
     rw [wstep_eq]
@@ -930,7 +930,7 @@ theorem sim_output (d : Desc) (n : ℕ) (w : Win) :
     · simp
     · intro o ho
       exact ⟨e, he, by simpa using ho⟩
-  | case3 n w r₁ w₁ r₂ ih₁ ih₂ =>
+  | case3 n w r₁ w₁ r₂ ih₁ ih₂ => -- n + 2 steps: first half, then second half
     intro o ho
     exact (List.mem_append.1 ho).elim (ih₁ o) (ih₂ o)
 

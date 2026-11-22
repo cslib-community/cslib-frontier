@@ -154,8 +154,8 @@ private theorem descending_value_eq {n : ℕ} (hn : n ≤ q) :
         encode (value machine input b σ n) := by
   fun_induction Ary.Descending.value (encode (some (initialView machine b))) (child σ)
       (codeGate machine input b σ encode decode) (child_lt σ) n with
-  | case1 => rw [value]
-  | case2 n ih =>
+  | case1 => rw [value] -- index 0: the source
+  | case2 n ih => -- index n + 1: its gate
     rw [codeGate, ← intervalGate_value machine input b σ (by omega)]
     congr 2 with j
     have hj := child_lt σ (n + 1) (by omega) j

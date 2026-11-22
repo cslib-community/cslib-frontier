@@ -133,10 +133,10 @@ private def insertSortedNat (x : ℕ) : List ℕ → List ℕ
 private theorem mem_insertSortedNat (x : ℕ) (l : List ℕ) (z : ℕ) :
     z ∈ insertSortedNat x l ↔ z = x ∨ z ∈ l := by
   fun_induction insertSortedNat x l with
-  | case1 | case2 | case3 => simp
-  | case4 y ys _ _ ih =>
+  | case4 y ys _ _ ih => -- x > y: recurse
     simp only [List.mem_cons, ih]
     tauto
+  | _ => simp -- [], x < y, x = y
 
 private theorem length_insertSortedNat_le (x : ℕ) (l : List ℕ) :
     (insertSortedNat x l).length ≤ l.length + 1 := by
@@ -145,14 +145,14 @@ private theorem length_insertSortedNat_le (x : ℕ) (l : List ℕ) :
 private theorem pairwise_lt_insertSortedNat (x : ℕ) {l : List ℕ} (hl : l.Pairwise (· < ·)) :
     (insertSortedNat x l).Pairwise (· < ·) := by
   fun_induction insertSortedNat x l with
-  | case1 => simp
-  | case2 y ys hlt =>
+  | case1 => simp -- []
+  | case2 y ys hlt => -- x < y: prepend x
     refine List.pairwise_cons.mpr ⟨fun z hz => ?_, hl⟩
     rcases List.mem_cons.mp hz with rfl | hz'
     · exact hlt
     · exact lt_trans hlt ((List.pairwise_cons.mp hl).1 z hz')
-  | case3 => exact hl
-  | case4 y ys hlt heq ih =>
+  | case3 => exact hl -- x = y: unchanged
+  | case4 y ys hge hne ih => -- x > y: recurse
     obtain ⟨hy, hys⟩ := List.pairwise_cons.mp hl
     refine List.pairwise_cons.mpr ⟨fun z hz => ?_, ih hys⟩
     rcases (mem_insertSortedNat x ys z).mp hz with rfl | hz'

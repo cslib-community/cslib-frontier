@@ -202,11 +202,11 @@ private theorem splitUntilHalted_spec (i : Fin k) (body : MultiTapePTM k Bool St
         RepeatUntilBlank.runConfig (body.runClosedConfigFromCoins pair.1 c) ∧
       (pair.2 = [] ∨ (body.runClosedConfigFromCoins pair.1 c).tapes.state = none) := by
   fun_induction splitUntilHalted body c coins with
-  | case1 =>
+  | case1 => -- no coins
     simp only [List.nil_append, runClosedConfigFromCoins, List.foldl_nil, true_or, and_self]
-  | case2 c bit rest hhalt =>
+  | case2 c bit rest hhalt => -- halted
     simp only [hhalt, List.nil_append, runClosedConfigFromCoins, List.foldl_nil, or_true, and_self]
-  | case3 c bit rest hhalt pair ih =>
+  | case3 c bit rest hhalt pair ih => -- running: step, then recurse
     obtain ⟨happ, hrep, hpost⟩ := ih
     refine ⟨congrArg (bit :: ·) happ, ?_, hpost⟩
     simp only [runClosedConfigFromCoins, List.foldl_cons]
