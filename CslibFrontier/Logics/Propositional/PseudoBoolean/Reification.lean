@@ -653,29 +653,28 @@ theorem objGoal_normalize_degree {z : ℕ} {w : VeriPB.WVal} {f : VeriPB.Objecti
   simp only [normalize, fromLinear, h0]
   omega
 
-/-- `(z ⇒ c)|_{z ↦ 0}` is trivially true. -/
-theorem substC_zero_impl_pos {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
-    (VeriPB.Witness.substC [(z, .zero)] (impl [(z, true)] c)).normalize.degree = 0 := by
-  obtain ⟨h₁, h₂⟩ := substTerms_of_not_mem (w := .zero) c.terms h
-  have hd : VeriPB.Witness.substTerm [(z, .zero)] (c.degree, Std.Sat.Literal.negate (z, true)) =
-      ([], c.degree) := by
-    simp [VeriPB.Witness.substTerm, find_single, Std.Sat.Literal.negate]
-  have : VeriPB.Witness.substC [(z, .zero)] (impl [(z, true)] c) = ⟨c.terms, 0⟩ := by
+/-- The witness `z ↦ w` on `l ⇒ c`, for `l` on `z` false under `w` and `z` not in `c`, leaves the
+trivially true `c` of degree `0`. -/
+private theorem substC_impl_single {z : ℕ} {w : VeriPB.WVal} {b : Bool} {c : PBConstr}
+    (h : z ∉ c.vars)
+    (hd : VeriPB.Witness.substTerm [(z, w)] (c.degree, Std.Sat.Literal.negate (z, b)) =
+      ([], c.degree)) :
+    (VeriPB.Witness.substC [(z, w)] (impl [(z, b)] c)).normalize.degree = 0 := by
+  obtain ⟨h₁, h₂⟩ := substTerms_of_not_mem (w := w) c.terms h
+  have : VeriPB.Witness.substC [(z, w)] (impl [(z, b)] c) = ⟨c.terms, 0⟩ := by
     simp only [VeriPB.Witness.substC, impl, List.map_cons, List.map_nil, List.singleton_append,
       List.flatMap_cons, List.sum_cons, hd, h₁, h₂, List.nil_append, add_zero, Nat.sub_self]
   rw [this]; exact normalize_degree_of_degree_zero _
 
+/-- `(z ⇒ c)|_{z ↦ 0}` is trivially true. -/
+theorem substC_zero_impl_pos {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
+    (VeriPB.Witness.substC [(z, .zero)] (impl [(z, true)] c)).normalize.degree = 0 :=
+  substC_impl_single h (by simp [VeriPB.Witness.substTerm, find_single, Std.Sat.Literal.negate])
+
 /-- `(c ⇒ z)|_{z ↦ 1}` is trivially true. -/
 theorem substC_one_impl_neg {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
-    (VeriPB.Witness.substC [(z, .one)] (impl [(z, false)] c)).normalize.degree = 0 := by
-  obtain ⟨h₁, h₂⟩ := substTerms_of_not_mem (w := .one) c.terms h
-  have hd : VeriPB.Witness.substTerm [(z, .one)] (c.degree, Std.Sat.Literal.negate (z, false)) =
-      ([], c.degree) := by
-    simp [VeriPB.Witness.substTerm, find_single, Std.Sat.Literal.negate]
-  have : VeriPB.Witness.substC [(z, .one)] (impl [(z, false)] c) = ⟨c.terms, 0⟩ := by
-    simp only [VeriPB.Witness.substC, impl, List.map_cons, List.map_nil, List.singleton_append,
-      List.flatMap_cons, List.sum_cons, hd, h₁, h₂, List.nil_append, add_zero, Nat.sub_self]
-  rw [this]; exact normalize_degree_of_degree_zero _
+    (VeriPB.Witness.substC [(z, .one)] (impl [(z, false)] c)).normalize.degree = 0 :=
+  substC_impl_single h (by simp [VeriPB.Witness.substTerm, find_single, Std.Sat.Literal.negate])
 
 theorem touchedTrue_of_not_mem {z : ℕ} {w : VeriPB.WVal} {c : PBConstr} (h : z ∉ c.vars) :
     VeriPB.Witness.touchedTrue [(z, w)] c = true := by

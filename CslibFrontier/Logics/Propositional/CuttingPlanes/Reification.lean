@@ -327,6 +327,23 @@ theorem IsProof.lemma2 {ls : List (Ineq V)} (h : IsProof Γ ls) {I : Ineq V} (hI
   refine ⟨ext, hp, ?_, hlen⟩
   rwa [add_sum_offLit I _ fun v hv => (offCoeff_lt τ I hv).le] at hmem
 
+/-- One step of the lifting for a line `I` of `Γ↾ρ` or an axiom: the line `J` with
+`J↾ρ = I↾ρ` joins the lifted proof and Lemma 2 lifts it. -/
+private theorem lift_axiom {ls ls' : List (Ineq V)} {I J : Ineq V} (hp : IsProof Γ (J :: ls'))
+    (hlen : ls'.length ≤ (3 * #S + 1) * ls.length)
+    (hall : ∀ D ∈ ls, ∃ K : ℕ, D.restrict S τ + K • guard S τ ∈ ls')
+    (hIJ : I.restrict S τ = J.restrict S τ) :
+    ∃ ls'', IsProof Γ ls'' ∧ ls''.length ≤ (3 * #S + 1) * (I :: ls).length ∧
+      ∀ D ∈ I :: ls, ∃ K : ℕ, D.restrict S τ + K • guard S τ ∈ ls'' := by
+  obtain ⟨ext, hp', hmem, hlen'⟩ := hp.lemma2 (S := S) (τ := τ) List.mem_cons_self
+  refine ⟨ext ++ J :: ls', hp', ?_, ?_⟩
+  · simp only [List.length_append, List.length_cons]; rw [Nat.mul_succ]; omega
+  · intro D hD
+    rcases List.mem_cons.1 hD with rfl | hD
+    · exact ⟨_, by rwa [hIJ]⟩
+    · obtain ⟨K, hK⟩ := hall D hD
+      exact ⟨K, List.mem_append_right _ (List.mem_cons_of_mem _ hK)⟩
+
 /-- **Lifting a cutting planes proof under a partial assignment.** This is not the full
 Theorem 1 of the paper but its cutting-planes cases (Cases 1–5): RUP steps (Case 6) are not
 covered, and the reification coefficient is not saturated, which cutting planes cannot do.
@@ -344,34 +361,13 @@ theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ
   | @hyp ls I h hI ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨C, hC, rfl⟩ := hI
-    obtain ⟨ext, hp', hmem, hlen'⟩ := (hp.hyp hC).lemma2 (S := S) (τ := τ) List.mem_cons_self
-    refine ⟨ext ++ C :: ls', hp', ?_, ?_⟩
-    · simp only [List.length_append, List.length_cons]; rw [Nat.mul_succ]; omega
-    · intro D hD
-      rcases List.mem_cons.1 hD with rfl | hD
-      · exact ⟨_, by rwa [restrict_restrict]⟩
-      · obtain ⟨K, hK⟩ := hall D hD
-        exact ⟨K, List.mem_append_right _ (List.mem_cons_of_mem _ hK)⟩
+    exact lift_axiom (hp.hyp hC) hlen hall (restrict_restrict C)
   | @nonneg ls h v ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
-    obtain ⟨ext, hp', hmem, hlen'⟩ := (hp.nonneg v).lemma2 (S := S) (τ := τ) List.mem_cons_self
-    refine ⟨ext ++ _ :: ls', hp', ?_, ?_⟩
-    · simp only [List.length_append, List.length_cons]; rw [Nat.mul_succ]; omega
-    · intro D hD
-      rcases List.mem_cons.1 hD with rfl | hD
-      · exact ⟨_, hmem⟩
-      · obtain ⟨K, hK⟩ := hall D hD
-        exact ⟨K, List.mem_append_right _ (List.mem_cons_of_mem _ hK)⟩
+    exact lift_axiom (hp.nonneg v) hlen hall rfl
   | @leOne ls h v ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
-    obtain ⟨ext, hp', hmem, hlen'⟩ := (hp.leOne v).lemma2 (S := S) (τ := τ) List.mem_cons_self
-    refine ⟨ext ++ _ :: ls', hp', ?_, ?_⟩
-    · simp only [List.length_append, List.length_cons]; rw [Nat.mul_succ]; omega
-    · intro D hD
-      rcases List.mem_cons.1 hD with rfl | hD
-      · exact ⟨_, hmem⟩
-      · obtain ⟨K, hK⟩ := hall D hD
-        exact ⟨K, List.mem_append_right _ (List.mem_cons_of_mem _ hK)⟩
+    exact lift_axiom (hp.leOne v) hlen hall rfl
   | @add ls I J h hI hJ ih =>
     obtain ⟨ls', hp, hlen, hall⟩ := ih
     obtain ⟨KI, hKI⟩ := hall I hI

@@ -17,9 +17,9 @@ on small proofs, checked by `decide +kernel`:
 
 * the reification `x3 ⇔ 2 x1 + x2 ≥ 2` of a fresh variable, under an objective, as
   `runTop_reify` predicts, and its rejection for a variable that is not fresh;
-* `reifyProof`, which reifies `x3 ⇔ x1 + x2 ≥ 2`, wraps `x3` from the unit clauses `x1` and `x2`,
+* `reifySteps`, which reifies `x3 ⇔ x1 + x2 ≥ 2`, wraps `x3` from the unit clauses `x1` and `x2`,
   unwraps `x1 + x2 ≥ 2` and refutes `~x1 + ~x2 ≥ 1`;
-* `fusionProof`, fusion resolution under the guard `x3`: from `x3 ∧ x2 ⇒ x1` and
+* `fusionSteps`, fusion resolution under the guard `x3`: from `x3 ∧ x2 ⇒ x1` and
   `x3 ∧ ~x2 ⇒ x1`, derive `x3 ⇒ x1`.
 
 Both proofs are also written out as kernel text, `reifyText` and `fusionText`, as a small printer
