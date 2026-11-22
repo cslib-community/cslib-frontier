@@ -47,36 +47,43 @@ open Diagram Source Cslib.Logic.PL Cslib.Logic.PL.QBF
 
 /-- Emit a closed circuit after regularizing the source. -/
 @[expose] def circuit (x : Input) : Diagram Gate [] [] :=
-  Circuit.diagram (quantifiers (normalize x).1) (masks (normalize x).1 (normalize x).2)
+  Circuit.diagram (quantifiers (normalize x).rounds)
+    (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The circuit's explicit legal initial configuration. -/
 @[expose] def initial (x : Input) : Realization Gate.interp (circuit x) [] [] :=
-  Circuit.initial (quantifiers (normalize x).1) (masks (normalize x).1 (normalize x).2)
+  Circuit.initial (quantifiers (normalize x).rounds)
+    (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The fixed target, with the initial body and a set output record. -/
 @[expose] def target (x : Input) : Realization Gate.interp (circuit x) [] [] :=
-  Circuit.target (quantifiers (normalize x).1) (masks (normalize x).1 (normalize x).2)
+  Circuit.target (quantifiers (normalize x).rounds)
+    (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The output memory used by the configuration-to-edge question. -/
 @[expose] def output (x : Input) : (circuit x).Edge :=
-  Circuit.output (quantifiers (normalize x).1) (masks (normalize x).1 (normalize x).2)
+  Circuit.output (quantifiers (normalize x).rounds)
+    (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The try wire, initially inactive in the edge-to-edge question. -/
 @[expose] def tryIn (x : Input) : (circuit x).Edge :=
-  Circuit.tryIn (quantifiers (normalize x).1) (masks (normalize x).1 (normalize x).2)
+  Circuit.tryIn (quantifiers (normalize x).rounds)
+    (masks (normalize x).rounds (normalize x).matrix)
 
 /-- The body sat wire, pointing up at the target of the edge-to-edge question. -/
 @[expose] def satOut (x : Input) : (circuit x).Edge :=
-  Circuit.satOut (quantifiers (normalize x).1) (masks (normalize x).1 (normalize x).2)
+  Circuit.satOut (quantifiers (normalize x).rounds)
+    (masks (normalize x).rounds (normalize x).matrix)
 
 private theorem truth_iff_mem (x : Input) :
-    Chain.Truth (Matrix.Satisfies (masks (normalize x).1 (normalize x).2))
-      (quantifiers (normalize x).1) [] ↔ x ∈ TQBFCNF := by
+    Chain.Truth (Matrix.Satisfies (masks (normalize x).rounds (normalize x).matrix))
+      (quantifiers (normalize x).rounds) [] ↔ x ∈ TQBFCNF := by
   let n := normalize x
-  have hc : (rounds n.1 (ofCNF n.2)).Closed := normalize_closed x
-  have hm : n ∈ TQBFCNF ↔ (rounds n.1 (ofCNF n.2)).eval (fun _ => false) = true :=
-    mem_TQBF_iff_of_closed hc (fun _ => false)
-  exact (truth_iff_eval n.1 n.2 hc (fun _ => false)).trans (hm.symm.trans (normalize_mem_iff x))
+  have hc : (rounds n.rounds (ofCNF n.matrix)).Closed := normalize_closed x
+  have hm : n ∈ TQBFCNF ↔ (rounds n.rounds (ofCNF n.matrix)).eval (fun _ => false) = true :=
+    mem_TQBFCNF.trans (mem_TQBF_iff_of_closed hc (fun _ => false))
+  exact (truth_iff_eval n.rounds n.matrix hc (fun _ => false)).trans
+    (hm.symm.trans (normalize_mem_iff x))
 
 /-- **Fixed-target correctness for every upstream input.** Open formulas are replaced by a
 fixed false instance before the closed circuit is constructed. -/

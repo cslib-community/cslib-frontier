@@ -160,8 +160,8 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
 /-- The output record always has edge number four. -/
 @[simp] theorem output_val (x : Source.Input) : (output x).val = 4 := by
   rw [output, numEquiv_val]
-  let D := Matrix.body (Source.quantifiers (Source.normalize x).1)
-    (Source.masks (Source.normalize x).1 (Source.normalize x).2)
+  let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
+    (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
   change ((OutputLatch.diagram.comp D).subst Gate.expand).num
     ((openSimSubst Gate.expandOpenSim (OutputLatch.diagram.comp D)).ι
       (compLeft OutputLatch.diagram D OutputLatch.mem)) = 4
@@ -170,8 +170,8 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
 /-- The outer try input always has edge number six. -/
 @[simp] theorem tryIn_val (x : Source.Input) : (tryIn x).val = 6 := by
   rw [tryIn, numEquiv_val]
-  let D := Matrix.body (Source.quantifiers (Source.normalize x).1)
-    (Source.masks (Source.normalize x).1 (Source.normalize x).2)
+  let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
+    (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
   change ((OutputLatch.diagram.comp D).subst Gate.expand).num
     ((openSimSubst Gate.expandOpenSim (OutputLatch.diagram.comp D)).ι
       (compLeft OutputLatch.diagram D OutputLatch.attempt)) = 6
@@ -180,8 +180,8 @@ private theorem controller_num (D : Diagram Gate [Color.blue, Color.blue] [])
 /-- The body's returned sat always has edge number zero. -/
 @[simp] theorem satOut_val (x : Source.Input) : (satOut x).val = 0 := by
   rw [satOut, numEquiv_val]
-  let D := Matrix.body (Source.quantifiers (Source.normalize x).1)
-    (Source.masks (Source.normalize x).1 (Source.normalize x).2)
+  let D := Matrix.body (Source.quantifiers (Source.normalize x).rounds)
+    (Source.masks (Source.normalize x).rounds (Source.normalize x).matrix)
   change ((OutputLatch.diagram.comp D).subst Gate.expand).num
     ((openSimSubst Gate.expandOpenSim (OutputLatch.diagram.comp D)).ι
       (compLeft OutputLatch.diagram D OutputLatch.sat)) = 0

@@ -44,28 +44,30 @@ namespace Cslib.Complexity.NCL.QBF.Source
 open Cslib.Logic.PL Cslib.Logic.PL.QBF
 
 /-- An upstream alternating prenex CNF input, with variable names encoded in binary. -/
-abbrev Input := List (ℕ × ℕ) × CNF ℕ
+abbrev Input := PrenexCNF
 
 /-- A fixed false closed source: `∃ x, ∀ y, y`. -/
-@[expose] def noInput : Input := ([(0, 1)], [[(1, true)]])
+@[expose] def noInput : Input := ⟨[(0, 1)], [[(1, true)]]⟩
 
 /-- Every literal's name occurs in the prefix, including shadowed names. -/
 @[expose] def isClosedInput (x : Input) : Bool :=
-  x.2.all fun c => c.all fun l => decide (l.1 ∈ roundVars x.1)
+  x.matrix.all fun c => c.all fun l => decide (l.1 ∈ roundVars x.rounds)
 
 private theorem isClosedInput_eq_true_iff (x : Input) :
-    isClosedInput x = true ↔ (rounds x.1 (ofCNF x.2)).Closed := by
+    isClosedInput x = true ↔ (rounds x.rounds (ofCNF x.matrix)).Closed := by
   simp only [isClosedInput, List.all_eq_true, decide_eq_true_eq, closed_rounds_ofCNF_iff]
 
 /-- Retain closed formulas and replace open formulas by a fixed false instance. -/
 @[expose] def normalize (x : Input) : Input :=
   if isClosedInput x then x else noInput
 
-private theorem no_notMem : noInput ∉ TQBFCNF := by unfold TQBFCNF TQBF noInput; decide +kernel
+private theorem no_notMem : noInput ∉ TQBFCNF := by
+  rw [mem_TQBFCNF, mem_TQBF]
+  decide +kernel
 
 /-- Every normalized input is closed. -/
 theorem normalize_closed (x : Input) :
-    (rounds (normalize x).1 (ofCNF (normalize x).2)).Closed := by
+    (rounds (normalize x).rounds (ofCNF (normalize x).matrix)).Closed := by
   unfold normalize
   split_ifs with hc
   · exact (isClosedInput_eq_true_iff x).1 hc
@@ -78,7 +80,8 @@ theorem normalize_mem_iff (x : Input) : normalize x ∈ TQBFCNF ↔ x ∈ TQBFCN
   unfold normalize
   split_ifs with hc
   · rfl
-  · exact iff_of_false no_notMem (fun h => hc ((isClosedInput_eq_true_iff x).2 h.1))
+  · exact iff_of_false no_notMem fun h =>
+      hc ((isClosedInput_eq_true_iff x).2 (mem_TQBF.mp (mem_TQBFCNF.mp h)).1)
 
 open _root_.Turing.MultiTapeTM
 
@@ -86,7 +89,7 @@ open _root_.Turing.MultiTapeTM
 @[fun_prop]
 theorem computableInPolyTime_normalize :
     ComputableInPolyTime normalize encPrenexCNF encPrenexCNF := by
-  unfold normalize isClosedInput noInput encPrenexCNF roundVars encCNF
+  unfold normalize isClosedInput noInput roundVars
   simp only [List.decide_mem_eq_any]
   fun_prop
 

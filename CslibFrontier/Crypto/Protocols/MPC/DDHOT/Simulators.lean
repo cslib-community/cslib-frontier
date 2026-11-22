@@ -194,6 +194,18 @@ theorem advantage_bind_ddhOTReceiverSimProb_le (n : ℕ) (d : F.Desc)
 
 /-! ### Efficiency of the simulator families -/
 
+private structure SixBitsCtx (α : Type) where
+  input : α
+  s₁ : List Bool
+  s₂ : List Bool
+  s₃ : List Bool
+  s₄ : List Bool
+  s₅ : List Bool
+  s₆ : List Bool
+
+private enc_structure encSixBitsCtx (α : Type) (enc : α ↪ List Bool) : SixBitsCtx α where
+  input : enc, s₁ : encBits, s₂ : encBits, s₃ : encBits, s₄ : encBits, s₅ : encBits, s₆ : encBits
+
 /-- Six `sampleExpBits` draws followed by an efficiently computable function of the input and the
 six bit strings are uniform strict PPT. -/
 private theorem isPPTOn_sampleExpBits_six {α β : Type} {enc : α ↪ List Bool}
@@ -220,18 +232,30 @@ private theorem isPPTOn_sampleExpBits_six {α β : Type} {enc : α ↪ List Bool
       (hx : ComputableInPolyTime x encγ enc) :
       IsPPTOn encγ encBits fun c => F.sampleExpBits (n (x c)) (d (x c)) :=
     F.isPPTOn_sampleExpBits (hn.comp hx) (hd.comp hx)
-  refine IsPPTOn.bind_with (hsample .id') ?_
-  refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-  refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
-  exact (hW (γ := ((((((α × List Bool) × List Bool) × List Bool) × List Bool) × List Bool) ×
-      List Bool))
-    (x := fun p => p.1.1.1.1.1.1)
-    (s₁ := fun p => p.1.1.1.1.1.2) (s₂ := fun p => p.1.1.1.1.2) (s₃ := fun p => p.1.1.1.2)
-    (s₄ := fun p => p.1.1.2) (s₅ := fun p => p.1.2) (s₆ := fun p => p.2) (by fun_prop)
-    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
+  let sampleSix (x : α) : ProbComp (SixBitsCtx α) := do
+    let s₁ ← F.sampleExpBits (n x) (d x)
+    let s₂ ← F.sampleExpBits (n x) (d x)
+    let s₃ ← F.sampleExpBits (n x) (d x)
+    let s₄ ← F.sampleExpBits (n x) (d x)
+    let s₅ ← F.sampleExpBits (n x) (d x)
+    let s₆ ← F.sampleExpBits (n x) (d x)
+    pure ⟨x, s₁, s₂, s₃, s₄, s₅, s₆⟩
+  have hsix : IsPPTOn enc (encSixBitsCtx α enc) sampleSix := by
+    refine IsPPTOn.bind_with (hsample .id') ?_
+    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
+    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
+    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
+    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
+    refine IsPPTOn.bind_with (hsample (by fun_prop)) ?_
+    exact (encSixBitsCtx_mk_polyTime α enc (by fun_prop) (by fun_prop) (by fun_prop)
+      (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)).isPPTOn
+  refine (hsix.map (hW (encγ := encSixBitsCtx α enc) (x := SixBitsCtx.input)
+    (s₁ := SixBitsCtx.s₁) (s₂ := SixBitsCtx.s₂) (s₃ := SixBitsCtx.s₃)
+    (s₄ := SixBitsCtx.s₄) (s₅ := SixBitsCtx.s₅) (s₆ := SixBitsCtx.s₆) (by fun_prop)
+    (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop))).congr
+    fun x => ?_
+  simp only [sampleSix, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.map_bind,
+    PMF.pure_map]
 
 /-- The view words that `ddhOTSenderSimProb` writes at group parameters `d` on the sender's
 messages `m = (m₀, m₁)` and six raw bit strings `aBits, r₀Bits, s₀Bits, r₁Bits, s₁Bits, bBits`. -/
@@ -562,7 +586,7 @@ private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncodin
           aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits ⟨0, hj⟩ =
         F.ddhOTSenderViewWords d (ddhOTSenderViewWith (xs senderUniv) c₀
           (ddhOTReceiverMsg g (xs receiverUniv) (BitString.binaryValue bBits : ZMod q)
-            ((c₀.toSenderCoins q).1 • g)))
+            ((c₀.toSenderCoins q).exponent • g)))
       rw [hσ]
       cases σ <;> simp only [ddhOTFullSimWords, ddhOTSenderViewWords, ddhOTSenderViewWith,
         DDHOTSenderBitCoins.toSenderCoins, ddhOTReceiverMsg, Bool.false_eq_true, ↓reduceIte,
@@ -570,10 +594,10 @@ private theorem isPPT_ddhOTFullSimProb : F.ddhOTFullSimProb.IsPPT F.ddhOTEncodin
     · change F.ddhOTFullSimWords d (xs senderUniv) (xs receiverUniv)
           aBits r₀Bits s₀Bits r₁Bits s₁Bits bBits ⟨1, hj⟩ =
         F.ddhOTReceiverViewWords d (ddhOTReceiverViewWith (xs receiverUniv) bBits
-          ((c₀.toSenderCoins q).1 • g)
+          ((c₀.toSenderCoins q).exponent • g)
           (ddhOTSenderReplyUnchecked g (xs senderUniv) (c₀.toSenderCoins q)
             (ddhOTReceiverMsg g (xs receiverUniv) (BitString.binaryValue bBits : ZMod q)
-              ((c₀.toSenderCoins q).1 • g))))
+              ((c₀.toSenderCoins q).exponent • g))))
       rw [hσ]
       cases σ <;> simp only [ddhOTFullSimWords, ddhOTReceiverViewWords, ddhOTReceiverViewWith,
         DDHOTSenderBitCoins.toSenderCoins, ddhOTSenderReplyUnchecked, ddhOTEncryptBranch,
@@ -620,7 +644,7 @@ theorem advantage_ddhOTProbSenderGame_le (setup : ℕ → PMF F.Desc)
       (PMF.uniformOfFintype (ZMod q)).bind fun b =>
         ProbComp.eval (Z.guess n d c.state
           (singletonView (ddhOTSenderViewWith (c.inputs 0) raw₀
-            (ddhOTReceiverMsg g (c.inputs 1) b ((raw₀.toSenderCoins q).1 • g))),
+            (ddhOTReceiverMsg g (c.inputs 1) b ((raw₀.toSenderCoins q).exponent • g))),
             otOutputs c.inputs))
   let idealMid : Game :=
     (ProbComp.eval (F.sampleDDHOTSenderBitCoins n d)).bind fun raw₀ =>
@@ -644,7 +668,7 @@ theorem advantage_ddhOTProbSenderGame_le (setup : ℕ → PMF F.Desc)
       F.advantage_bind_sampleExpBits_le n d fun b =>
         ProbComp.eval (Z.guess n d c.state
           (singletonView (ddhOTSenderViewWith (c.inputs 0) raw₀
-            (ddhOTReceiverMsg g (c.inputs 1) b ((raw₀.toSenderCoins q).1 • g))),
+            (ddhOTReceiverMsg g (c.inputs 1) b ((raw₀.toSenderCoins q).exponent • g))),
             otOutputs c.inputs))
   have h2 : Game.advantage idealMid
       ((ProbComp.eval (F.sampleDDHOTSenderBitCoins n d)).bind fun raw₀ =>

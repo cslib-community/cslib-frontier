@@ -52,7 +52,7 @@ open Cslib.Logic.PL Cslib.Logic.PL.QBF _root_.Turing.MultiTapeTM
 
 /-- Prepare the normalized source's prefix and matrix masks for circuit emission. -/
 @[expose] def prepare (x : Input) : List Quantifier × List (List Bool) :=
-  (quantifiers (normalize x).1, masks (normalize x).1 (normalize x).2)
+  (quantifiers (normalize x).rounds, masks (normalize x).rounds (normalize x).matrix)
 
 private abbrev clauseEncoding := encList (encPair encNat encBool)
 
@@ -124,18 +124,17 @@ theorem computableInPolyTime_quantifiers :
 /-- Compile all source clauses to literal masks in polynomial time. -/
 @[fun_prop]
 theorem computableInPolyTime_masks :
-    ComputableInPolyTime (fun x : Input => masks x.1 x.2) encPrenexCNF
+    ComputableInPolyTime (fun x : Input => masks x.rounds x.matrix) encPrenexCNF
       (encList (encList encBool)) := by
-  have hv : ComputableInPolyTime (fun x : Input => (roundVars x.1).reverse)
+  have hv : ComputableInPolyTime (fun x : Input => (roundVars x.rounds).reverse)
       encPrenexCNF (encList encNat) := by
-    unfold roundVars encPrenexCNF encCNF
+    unfold roundVars
     fun_prop
-  have hc : ComputableInPolyTime (fun x : Input => x.2) encPrenexCNF
+  have hc : ComputableInPolyTime (fun x : Input => x.matrix) encPrenexCNF
       (encList (encList (encPair encNat encBool))) := by
-    unfold encPrenexCNF encCNF
     fun_prop
   have hm : ComputableInPolyTime (fun p : Input × Clause ℕ =>
-      clauseMask (roundVars p.1.1).reverse p.2)
+      clauseMask (roundVars p.1.rounds).reverse p.2)
       (encPair encPrenexCNF clauseEncoding) (encList encBool) :=
     computableInPolyTime_clauseMask
       (hv.comp (ComputableInPolyTime.fst encPrenexCNF clauseEncoding))
@@ -145,7 +144,8 @@ theorem computableInPolyTime_masks :
 /-- Normalization, prefix generation, and shadowing-aware masks form a polynomial-time frontend. -/
 @[fun_prop]
 theorem computableInPolyTime_prepare : ComputableInPolyTime prepare encPrenexCNF encPrepared := by
-  unfold prepare encPrepared
-  fun_prop
+  have hn := computableInPolyTime_normalize
+  exact (computableInPolyTime_quantifiers.comp (by fun_prop)).prod
+    (computableInPolyTime_masks.comp hn)
 
 end Cslib.Complexity.NCL.QBF.Source
