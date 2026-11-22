@@ -655,9 +655,8 @@ theorem configurationJustesenSeedScheduler_acceptCount {k : ℕ} {State : Type}
   rw [← Nat.cast_inj (R := ℕ∞)]
   calc
     _ = {trace : List Bool |
-        M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true}.encard := by
-      simpa only [MultiTapeCTM.acceptCount, encBits_apply, beq_iff_eq, List.cons.injEq, and_true]
-        using R.branchCount_eq_encard_firstHalting w hclock (· == [true])
+        M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true}.encard :=
+      R.acceptCount_eq_encard_firstHalting w hclock
     _ = _ := by
       rw [hset]
       change (if I ∈ STCON then ({bits} : Set (List Bool)) else ∅).encard =
