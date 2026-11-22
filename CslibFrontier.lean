@@ -2963,6 +2963,7 @@ public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.PolyTime
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ThreeSAT.Tracks
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.Valiant
+public import CslibFrontier.Computability.Complexity.Problems.Permanent.XorGadget
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne.Basic
 public import CslibFrontier.Computability.Complexity.Problems.Permanent.ZeroOne.Integer
@@ -7137,6 +7138,7 @@ public import CslibFrontier.Foundations.Data.Matrix.Permanent
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.BooleanSum
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Determinant
+public import CslibFrontier.Foundations.Data.Matrix.Permanent.Gadget
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Line
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Relay
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Split

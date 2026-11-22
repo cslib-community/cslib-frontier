@@ -38,8 +38,9 @@ from `#3SAT` to the integer permanent (`metricReducible_sharpThreeSAT_intPermane
 
 The proof uses Goldreich's gadget, verified by evaluation of its minors, and an elimination of
 the gadgets one clause at a time. It is not the XOR-gadget construction of the Arora–Barak draft
-[Arora and Barak, Theorem 9.8][AroraBarak07], whose draft claims a factor `4 ^ (3 m)` and does not
-verify its gadgets.
+[Arora and Barak, Theorem 9.8][AroraBarak07], whose draft claims a factor `4 ^ (3 m)` and leaves
+the analysis of its gadgets to exercises. The XOR gadget is analyzed in
+`Cslib.Complexity.XorGadget`.
 
 ## Main definitions
 
