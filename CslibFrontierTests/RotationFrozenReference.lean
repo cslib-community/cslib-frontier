@@ -8,6 +8,7 @@ module
 -- upstream: local-only (ordinary clients of actual frozen-reference geometry)
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
 import CslibFrontier.Foundations.Geometry.Polygonal.LineEnds
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import CslibFrontier.Foundations.Geometry.Polygonal.CutTransport
@@ -235,5 +236,21 @@ example :
   dsimp only
   exact ⟨frozenReferenceDrawing_isEmbedding (validate_eq_true_iff _ |>.mp (by decide +kernel)),
     by decide +kernel, by decide +kernel⟩
+
+-- The same protected set contains the fixed isolate and the whole reverse-oriented loop spoke.
+example :
+    IsCompact (frozenReferenceObstacle bothFixed) ∧
+      IsPathConnected (frozenReferenceObstacle bothFixed)ᶜ ∧
+      referencePoint bothFixed 2 ∈ frozenReferenceObstacle bothFixed := by
+  exact ⟨frozenReferenceObstacle_isCompact bothFixed,
+    frozenReferenceObstacle_compl_isPathConnected valid_bothFixed,
+    (mem_frozenReferenceObstacle_iff valid_bothFixed).mpr (Or.inl ⟨2, by decide +kernel, rfl⟩)⟩
+
+example :
+    ((referenceDrawing bothFixed).route (subdivisionDart bothFixed loopLast).1).support ⊆
+      frozenReferenceObstacle bothFixed := by
+  intro z hz
+  exact (mem_frozenReferenceObstacle_iff valid_bothFixed).mpr
+    (Or.inr ⟨loopLast, by decide +kernel, hz⟩)
 
 end Cslib.Tests.RotationFrozenReference

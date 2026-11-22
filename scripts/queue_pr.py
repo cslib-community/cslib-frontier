@@ -17,8 +17,9 @@ so the reviewer can reread and rerun. Check events and reactions are not discuss
 It does not judge the approval itself, a hold named in it, or a request for human review in the
 PR or its issue; the reviewer checks those before running it. The discussion read is not atomic
 with enqueue and does not inspect linked issues. Its retarget check (a base change
-newer than the head's commit date) only catches the common mistake of queueing a stacked PR before
-it merges `main`; `scripts/check_restack.py` is what verifies a restacked head.
+newer than the head's commit date when current `main` is not already an ancestor of the head) only
+catches the common mistake of queueing a stacked PR before it merges `main`;
+`scripts/check_restack.py` is what verifies a restacked head.
 
 Exit status: 0 when the PR is queued (or already was), 1 when it is refused or the check is still
 running, 2 on a `gh` error. Requires an authenticated `gh` with write access to the repository.
@@ -45,7 +46,7 @@ QUERY = """
 query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
-      id state isDraft baseRefName headRefOid mergeable
+      id state isDraft baseRefName baseRefOid headRefOid mergeable
       mergeQueueEntry { position state }
       timelineItems(last: 1, itemTypes: [BASE_REF_CHANGED_EVENT,
                                          AUTOMATIC_BASE_CHANGE_SUCCEEDED_EVENT]) {
@@ -128,6 +129,30 @@ def gh_graphql(query: str, **variables: str | int) -> dict:
     return data["data"]
 
 
+def is_ancestor(owner: str, name: str, base: str, head: str) -> bool:
+    """Return True when GitHub reports `base` is an ancestor of `head` (fail-closed on error)."""
+    if base == head:
+        return True
+    result = subprocess.run(
+        ["gh", "api", f"repos/{owner}/{name}/compare/{base}...{head}"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        return False
+    try:
+        data = json.loads(result.stdout)
+    except ValueError:
+        return False
+    return (
+        isinstance(data, dict)
+        and data.get("status") in {"ahead", "identical"}
+        and data.get("behind_by") == 0
+        and isinstance(data.get("merge_base_commit"), dict)
+        and data["merge_base_commit"].get("sha") == base
+    )
+
+
 def fetch_pr(owner: str, name: str, number: int) -> dict:
     """Read the PR and every check page, pinned to its initial commit's node ID and OID.
 
@@ -147,6 +172,20 @@ def fetch_pr(owner: str, name: str, number: int) -> dict:
     commit = (commits[0] or {}).get("commit")
     if not isinstance(commit, dict) or not commit.get("id") or not commit.get("oid"):
         raise GhError("GitHub returned no latest commit identity")
+    retargets = [
+        e["createdAt"] for e in ((pr.get("timelineItems") or {}).get("nodes") or [])
+        if isinstance(e, dict) and isinstance(e.get("createdAt"), str) and e["createdAt"]
+    ]
+    committed = commit.get("committedDate")
+    base_oid = pr.get("baseRefOid")
+    if (pr.get("state") == "OPEN"
+            and not pr.get("mergeQueueEntry")
+            and pr.get("baseRefName") == "main"
+            and isinstance(committed, str) and committed
+            and retargets and retargets[-1] > committed
+            and isinstance(base_oid, str) and re.fullmatch(r"[0-9a-f]{40}", base_oid)
+            and isinstance(commit["oid"], str) and re.fullmatch(r"[0-9a-f]{40}", commit["oid"])):
+        pr["baseIsAncestor"] = is_ancestor(owner, name, base_oid, commit["oid"])
     if commit.get("statusCheckRollup") is None:
         return pr  # No checks have been reported yet.
     page, contexts, seen = commit, [], set()
@@ -298,7 +337,8 @@ def assess(pr: dict, sha: str) -> tuple[str, list[str]]:
         return "refused", ["GitHub's latest commit for it is not the approved head; retry shortly"]
     reasons = []
     retargets = [e["createdAt"] for e in pr["timelineItems"]["nodes"] if e.get("createdAt")]
-    if retargets and retargets[-1] > commits[0]["commit"]["committedDate"]:
+    if (retargets and retargets[-1] > commits[0]["commit"]["committedDate"]
+            and not pr.get("baseIsAncestor")):
         reasons.append("its base changed after the approved head was committed (a stacked PR "
                        "retargeted when its lower PR landed); merge `main` into it, run "
                        "scripts/check_restack.py, and queue the new head")

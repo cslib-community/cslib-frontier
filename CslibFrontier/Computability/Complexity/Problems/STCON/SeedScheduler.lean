@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
@@ -40,9 +41,12 @@ certificates for subsequent native loop compilation.
   designated frame and check whether to call the scanner under the caller's workspace budget.
 * `seedSchedulerStep_noReply_inSpace`: skip a designated root or reject a missing verdict
   in space linear in the frame's encoded length.
+* `seedSchedulerStep_inSpace`: process every optional verdict in space linear in the
+  paired frame and verdict encoding.
 * `seedSchedulerStep_progress`: each continuing transition stays in bounds and advances
   the seed or the source phase.
 * `runSeedSchedulerFor_eq`: agreement with the indexed search, including list multiplicity.
+* `runSeedSchedulerForFrom_step`: the monadic interpretation of a native control step.
 * `length_seedSchedulerCall_le`: additive scheduler and scanner state bound.
 * `runSeedSchedulerFor_clock`: product bound for the spent callback clock.
 
@@ -257,6 +261,58 @@ theorem seedSchedulerStep_noReply_inSpace :
     | none => simp [seedSchedulerStep, ha]
     | some answer => cases hs : f.needsScan <;> simp [seedSchedulerStep, ha, hs]
 
+private theorem seedSchedulerStep_bad_inSpace :
+    let E := encPair encSeedSchedulerFrame encNat
+    ComputableInSpace (fun p => seedSchedulerStep p.1 (some (.bad p.2)))
+      E encSeedSchedulerStepResult (fun p => (E p).length) := by
+  have hframe := fst encSeedSchedulerFrame encNat
+  have hrequest := encSeedSchedulerFrame_request_budget hframe
+  have hsetup := encSeedScanRequest_setup_budget hrequest
+  have hseed := budget_natSucc (encSeedScanRequest_seed_budget hrequest)
+  have hcand := seedSchedulerCandidate_budget hsetup hseed
+  have htag := of_inO (ComputableInO.inl encSeedSchedulerFrame (encOption encBool))
+  have hnext := budget_comp_linear (optionElim (.inr none) htag) hcand
+  have hskip := budget_comp_linear seedSchedulerStep_noReply_inSpace hframe
+  exact (budget_ite (SeedSchedulerFrame.needsScan_budget hframe)
+    (budget_optionSome hnext) hskip).of_enc_eq fun p => by
+      cases ha : p.1.answer with
+      | none => simp [seedSchedulerStep, seedSchedulerStep.nextSeed,
+          SeedSchedulerFrame.needsScan, ha]
+      | some answer =>
+        cases hs : p.1.needsScan <;> simp [seedSchedulerStep, seedSchedulerStep.nextSeed, ha, hs]
+
+private theorem seedSchedulerStep_decided_inSpace :
+    let E := encPair encSeedSchedulerFrame encBool
+    ComputableInSpace (fun p => seedSchedulerStep p.1 (some (.decided p.2)))
+      E encSeedSchedulerStepResult (fun p => (E p).length) := by
+  let E := encPair encSeedSchedulerFrame encBool
+  have hframe := fst encSeedSchedulerFrame encBool
+  have hfirst := seedSchedulerRoot_budget hframe (budget_const 0 (.refl _))
+    (snd encSeedSchedulerFrame encBool)
+  have hretained := fst E encBool
+  have hindexedFrame := budget_comp_linear hframe hretained
+  have hcursor := budget_natSucc (encSeedSchedulerFrame_cursor_budget hindexedFrame)
+  have hnext := seedSchedulerRoot_budget hindexedFrame hcursor (snd E encBool)
+  have hid := budget_id (enc := E) (.refl _)
+  have hinput := budget_prod hid (encSeedSchedulerFrame_answer_budget hframe)
+  exact (budget_comp_linear
+    (optionElimSnd (budget_optionSome hfirst) (budget_optionSome hnext)) hinput).of_enc_eq
+    fun p => by
+      cases ha : p.1.answer with
+      | none => simp [seedSchedulerStep, ha]
+      | some answer => cases hs : p.1.needsScan <;> simp [seedSchedulerStep, ha, hs]
+
+/-- Process an optional source verdict in workspace linear in the paired frame and reply. -/
+theorem seedSchedulerStep_inSpace :
+    let E := encPair encSeedSchedulerFrame
+      (encOption _root_.Turing.DoubleCounting.SourceRoundLoop.encVerdict)
+    ComputableInSpace (fun p => seedSchedulerStep p.1 p.2)
+      E encSeedSchedulerStepResult (fun p => (E p).length) := by
+  exact (_root_.Turing.DoubleCounting.SourceRoundLoop.verdictElimSnd_inSpace
+    seedSchedulerStep_noReply_inSpace seedSchedulerStep_bad_inSpace
+    seedSchedulerStep_decided_inSpace).of_enc_eq fun
+    | (_, none) | (_, some (.bad _)) | (_, some (.decided _)) => rfl
+
 /-- The seed is below its exclusive limit. The designated phase uses cursor zero and the
 designated source. An indexed phase uses a bounded cursor and its corresponding source. -/
 @[expose] def SeedSchedulerFrame.Valid (f : SeedSchedulerFrame) : Prop :=
@@ -266,6 +322,11 @@ designated source. An indexed phase uses a bounded cursor and its corresponding 
     | none => f.cursor = 0 ∧ f.request.sourceID = s.sourceID
     | some _ => f.cursor < s.parameters.search.subdivision.originalCount ∧
       f.request.sourceID = s.originalSourceID f.cursor
+
+/-- A valid frame holds a rank below the seed limit. -/
+theorem SeedSchedulerFrame.Valid.seed_lt {f : SeedSchedulerFrame} (hf : f.Valid) :
+    f.request.seed < f.request.setup.parameters.search.seedLimit :=
+  hf.1
 
 /-- Each available candidate starts in a valid designated frame. -/
 theorem seedSchedulerCandidate_valid {s : SeedSearchSetup} {seed : ℕ} {f : SeedSchedulerFrame}
@@ -277,6 +338,13 @@ theorem seedSchedulerCandidate_valid {s : SeedSearchSetup} {seed : ℕ} {f : See
     exact ⟨⟨‹_›, rfl, rfl⟩, rfl, rfl⟩
   · contradiction
 
+/-- A frame constructed at a valid indexed root and seed is valid. -/
+theorem seedSchedulerFrame_indexed_valid (s : SeedSearchSetup) {seed position : ℕ}
+    (hseed : seed < s.parameters.search.seedLimit)
+    (hposition : position < s.parameters.search.subdivision.originalCount) (answer : Bool) :
+    (seedSchedulerFrame s seed (some (position, answer)) (s.originalSourceID position)).Valid :=
+  ⟨hseed, hposition, rfl⟩
+
 private theorem seedSchedulerRoot_progress {f g : SeedSchedulerFrame} {position : ℕ}
     {answer : Bool} (hf : f.Valid) (h : seedSchedulerRoot f position answer = .inl g) :
     g.Valid ∧ g.request.setup = f.request.setup ∧ g.request.seed = f.request.seed ∧
@@ -284,7 +352,7 @@ private theorem seedSchedulerRoot_progress {f g : SeedSchedulerFrame} {position 
   dsimp only [seedSchedulerRoot] at h
   split at h
   · cases h
-    exact ⟨⟨hf.1, ‹_›, rfl⟩, rfl, rfl, rfl, rfl⟩
+    exact ⟨seedSchedulerFrame_indexed_valid _ hf.1 ‹_› answer, rfl, rfl, rfl, rfl⟩
   · contradiction
 
 private theorem seedSchedulerNextSeed_progress {f g : SeedSchedulerFrame}
@@ -353,6 +421,24 @@ theorem seedSchedulerStep_noReply_of_needsScan (f : SeedSchedulerFrame)
     (hscan : f.needsScan = true) : seedSchedulerStep f none = none := by
   cases ha : f.answer <;> simp [seedSchedulerStep, ha, hscan]
 
+/-- A scheduled step returns a continuation or a terminal result if every requested scan
+supplies a verdict. An indexed skip does not require one. -/
+theorem seedSchedulerStep_isSome (f : SeedSchedulerFrame) (verdict : Option ControllerVerdict)
+    (h : f.needsScan = true → verdict.isSome) :
+    (seedSchedulerStep f verdict).isSome := by
+  cases verdict with
+  | some value =>
+    cases ha : f.answer with
+    | none => cases value <;> simp [seedSchedulerStep, ha]
+    | some _ =>
+      cases hneeds : f.needsScan <;> cases value <;> simp [seedSchedulerStep, ha, hneeds]
+  | none =>
+    have hskip : f.needsScan = false :=
+      Bool.eq_false_of_not_eq_true (fun hneeds => by simpa using h hneeds)
+    cases ha : f.answer with
+    | none => simp [SeedSchedulerFrame.needsScan, ha] at hskip
+    | some _ => simp [seedSchedulerStep, ha, hskip]
+
 /-- Run the binary scheduler on the initialized carrier. The frame exposes the retained
 registers for resource accounting. A scanner can use just its request field. -/
 def runSeedSchedulerFor {m : Type → Type} [AlternativeMonad m] (s : SeedSearchSetup)
@@ -379,6 +465,157 @@ theorem runSeedSchedulerFor_eq {m : Type → Type} [AlternativeMonad m] (s : See
   exact runSeedScheduler_eq (length := s.parameters.search.seedWidth)
     (fun i u => scan ⟨s, i.val, u.val⟩) _ _
 
+/-- Interpret a suspended STCON seed search using the initialized source numbering.
+A missing phase starts the designated scan. An indexed phase retains its cursor and answer. -/
+def runSeedSchedulerForFrom {m : Type → Type} [AlternativeMonad m] (s : SeedSearchSetup)
+    (hs : s.sourceID < s.parameters.search.subdivision.vertexCount)
+    (hr : ∀ position < s.parameters.search.subdivision.originalCount,
+      s.originalSourceID position < s.parameters.search.subdivision.vertexCount)
+    (scan : SeedScanRequest → m (Option ControllerVerdict)) (seed : ℕ)
+    (phase : Option (ℕ × Bool)) : m (Option (SeedAnswer s.parameters.search.seedWidth)) :=
+  runSeedSchedulerFrom (fun i _ u => scan ⟨s, i.val, u.val⟩)
+    (fun j => ⟨s.originalSourceID j.val, hr _ j.isLt⟩) ⟨s.sourceID, hs⟩ seed phase
+
+/-- The interpretation at rank zero is the initialized STCON seed search. -/
+theorem runSeedSchedulerForFrom_start {m : Type → Type} [AlternativeMonad m] (s : SeedSearchSetup)
+    (hs : s.sourceID < s.parameters.search.subdivision.vertexCount)
+    (hr : ∀ position < s.parameters.search.subdivision.originalCount,
+      s.originalSourceID position < s.parameters.search.subdivision.vertexCount)
+    (scan : SeedScanRequest → m (Option ControllerVerdict)) :
+    runSeedSchedulerForFrom s hs hr scan 0 none =
+      runSeedSchedulerFor s hs hr (fun f => scan f.request) := by
+  unfold runSeedSchedulerForFrom runSeedSchedulerFor
+  rw [runSeedSchedulerFrom_start]
+  rfl
+
+/-- A decided indexed scan advances to the next root or returns the retained designated answer. -/
+theorem seedSchedulerStep_indexed_decided (f : SeedSchedulerFrame) {answer : Bool}
+    (hanswer : f.answer = some answer) (hit : Bool) :
+    let s := f.request.setup
+    let position := f.cursor + 1
+    seedSchedulerStep f (some (.decided hit)) = some
+      (if position < s.parameters.search.subdivision.originalCount then
+        .inl (seedSchedulerFrame s f.request.seed (some (position, answer))
+          (s.originalSourceID position))
+      else .inr (some answer)) := by
+  change seedSchedulerStep f (some (.decided hit)) =
+    some (seedSchedulerRoot f (f.cursor + 1) answer)
+  simp [seedSchedulerStep, hanswer]
+
+/-- A successful native control step preserves the mathematical continuation. A returned
+verdict must agree with the monadic scan when the frame requests one. A terminal step returns
+the current candidate with its retained decision, or exhausts the search. -/
+theorem runSeedSchedulerForFrom_step {m : Type → Type} [AlternativeMonad m] [LawfulMonad m]
+    (s : SeedSearchSetup) (hs : s.sourceID < s.parameters.search.subdivision.vertexCount)
+    (hr : ∀ position < s.parameters.search.subdivision.originalCount,
+      s.originalSourceID position < s.parameters.search.subdivision.vertexCount)
+    (scan : SeedScanRequest → m (Option ControllerVerdict))
+    (hlimit : s.parameters.search.seedLimit = 2 ^ s.parameters.search.seedWidth)
+    {f : SeedSchedulerFrame} (hf : f.Valid) (hsetup : f.request.setup = s)
+    {reply : Option ControllerVerdict} {next : SeedSchedulerFrame ⊕ Option Bool}
+    (hstep : seedSchedulerStep f reply = some next)
+    (hscan : ∀ value, reply = some value → f.needsScan = true →
+      scan f.request = pure (some value)) :
+    let runFrame (g : SeedSchedulerFrame) :=
+      runSeedSchedulerForFrom s hs hr scan g.request.seed (g.answer.map fun b => (g.cursor, b))
+    let rank : Fin (2 ^ s.parameters.search.seedWidth) :=
+      ⟨f.request.seed, by
+        have hseed := hf.1
+        rw [hsetup, hlimit] at hseed
+        exact hseed⟩
+    runFrame f = next.elim runFrame (fun answer => pure (answer.map fun b => ⟨rank, b⟩)) := by
+  intro runFrame rank
+  have hseed := rank.isLt
+  change f.request.seed < 2 ^ s.parameters.search.seedWidth at hseed
+  let finish (answer : Option Bool) : m (Option (SeedAnswer s.parameters.search.seedWidth)) :=
+    pure (answer.map fun b => ⟨rank, b⟩)
+  change runFrame f = next.elim runFrame finish
+  let rootAt (j : Fin s.parameters.search.subdivision.originalCount) :
+      Fin s.parameters.search.subdivision.vertexCount := ⟨s.originalSourceID j, hr _ j.isLt⟩
+  let source : Fin s.parameters.search.subdivision.vertexCount := ⟨s.sourceID, hs⟩
+  let call (i : Fin (2 ^ s.parameters.search.seedWidth))
+      (_ : Option (Fin s.parameters.search.subdivision.originalCount × Bool))
+      (u : Fin s.parameters.search.subdivision.vertexCount) := scan ⟨s, i, u⟩
+  have rootOutcome (position : ℕ) (answer : Bool)
+      (hnext : seedSchedulerRoot f position answer = next) :
+      runSeedSchedulerForFrom s hs hr scan f.request.seed (some (position, answer)) =
+        next.elim runFrame finish := by
+    rw [← hnext]
+    by_cases hc : position < s.parameters.search.subdivision.originalCount
+    · simp [seedSchedulerRoot, hsetup, hc, runFrame, seedSchedulerFrame]
+    · rw [seedSchedulerRoot, hsetup, ite_eq_right hc]
+      change runSeedSchedulerFrom call rootAt source f.request.seed (some (position, answer)) =
+        pure (some ⟨rank, answer⟩)
+      exact runSeedSchedulerFrom_indexed_done call rootAt source hseed (Nat.le_of_not_lt hc) answer
+  have seedOutcome (hnext : seedSchedulerStep.nextSeed f = next) :
+      runSeedSchedulerForFrom s hs hr scan (f.request.seed + 1) none =
+        next.elim runFrame finish := by
+    rw [← hnext]
+    by_cases hn : f.request.seed + 1 < s.parameters.search.seedLimit
+    · simp [seedSchedulerStep.nextSeed, seedSchedulerCandidate, hsetup, hn, runFrame,
+        seedSchedulerFrame]
+    · have hdone : 2 ^ s.parameters.search.seedWidth ≤ f.request.seed + 1 :=
+        hlimit ▸ Nat.le_of_not_lt hn
+      simpa [seedSchedulerStep.nextSeed, seedSchedulerCandidate, hsetup, hn, finish,
+        runSeedSchedulerForFrom] using
+        runSeedSchedulerFrom_exhausted call rootAt source hdone none
+  have scanAt {u : ℕ} (hu : f.request.sourceID = u) {value : ControllerVerdict}
+      (hvalue : reply = some value) (hneeds : f.needsScan = true) :
+      scan ⟨s, f.request.seed, u⟩ = pure (some value) := by
+    rw [← hsetup, ← hu]
+    exact hscan value hvalue hneeds
+  cases hanswer : f.answer with
+  | none =>
+    have hu : f.request.sourceID = s.sourceID := by
+      have hf' : f.cursor = 0 ∧ f.request.sourceID = s.sourceID := by
+        simpa only [SeedSchedulerFrame.Valid, hanswer, hsetup] using hf.2
+      exact hf'.2
+    have hneeds : f.needsScan = true := by simp [SeedSchedulerFrame.needsScan, hanswer]
+    cases reply with
+    | none => simp [seedSchedulerStep, hanswer] at hstep
+    | some value =>
+      have hagree := runSeedSchedulerFrom_designated call rootAt source hseed value
+        (scanAt hu rfl hneeds)
+      cases value with
+      | bad _ =>
+        refine Eq.trans ?_ (seedOutcome (by simpa [seedSchedulerStep, hanswer] using hstep))
+        simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_none] using hagree
+      | decided answer =>
+        refine Eq.trans ?_ (rootOutcome 0 answer ?_)
+        · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_none] using hagree
+        · simpa [seedSchedulerStep, hanswer] using hstep
+  | some answer =>
+    have hposition : f.cursor < s.parameters.search.subdivision.originalCount ∧
+        f.request.sourceID = s.originalSourceID f.cursor := by
+      simpa only [SeedSchedulerFrame.Valid, hanswer, hsetup] using hf.2
+    have hroot : (rootAt ⟨f.cursor, hposition.1⟩ = source) ↔
+        s.originalSourceID f.cursor = s.sourceID := Fin.ext_iff
+    by_cases hskip : s.originalSourceID f.cursor = s.sourceID
+    · have hneeds : f.needsScan = false := by
+        simp [SeedSchedulerFrame.needsScan, hanswer, hsetup, hposition.2, hskip]
+      have hagree := runSeedSchedulerFrom_indexed call rootAt source hseed hposition.1 answer none
+        (by simp [hroot, hskip]) (by simp)
+      refine Eq.trans ?_ (rootOutcome (f.cursor + 1) answer ?_)
+      · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
+      · simpa [seedSchedulerStep, hanswer, hneeds] using hstep
+    · have hneeds : f.needsScan = true := by
+        simp [SeedSchedulerFrame.needsScan, hanswer, hsetup, hposition.2, hskip]
+      cases reply with
+      | none => simp [seedSchedulerStep, hanswer, hneeds] at hstep
+      | some value =>
+        have hagree := runSeedSchedulerFrom_indexed call rootAt source hseed hposition.1 answer
+          (some value) (by simp [hroot, hskip]) (fun _ hv => scanAt hposition.2 hv hneeds)
+        cases value with
+        | bad _ =>
+          refine Eq.trans ?_ (seedOutcome ?_)
+          · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
+          · simpa [seedSchedulerStep, hanswer, hneeds] using hstep
+        | decided hit =>
+          refine Eq.trans ?_ (rootOutcome (f.cursor + 1) answer ?_)
+          · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
+          · exact Option.some.inj ((seedSchedulerStep_indexed_decided f hanswer hit).symm.trans
+              hstep)
+
 /-- Retained scheduler bits are linear in the setup size, even when a scanner rejects.
 The bound covers all pending scans, including the designated scan with cursor zero. -/
 theorem length_encSeedSchedulerFrame_le (s : SeedSearchSetup) (i cursor u : ℕ)
@@ -397,6 +634,22 @@ theorem length_encSeedSchedulerFrame_le (s : SeedSearchSetup) (i cursor u : ℕ)
   have hsource := (length_encNat_mono hu).trans
     ((encSubdivisionSize_vertexCount_length_le s.parameters.search.subdivision).trans hsub)
   cases answer <;> enc_len [encSeedSchedulerFrame_apply, encSeedScanRequest_apply]
+
+/-- Valid scheduler frames are bounded by their setup once the designated source and indexed
+roots are known to lie in the subdivision. -/
+theorem SeedSchedulerFrame.Valid.length_le {f : SeedSchedulerFrame} (hf : f.Valid)
+    (hsource : f.request.setup.sourceID <
+      f.request.setup.parameters.search.subdivision.vertexCount)
+    (hroot : ∀ j < f.request.setup.parameters.search.subdivision.originalCount,
+      f.request.setup.originalSourceID j <
+        f.request.setup.parameters.search.subdivision.vertexCount) :
+    (encSeedSchedulerFrame f).length ≤ 12 * (encSeedSearchSetup f.request.setup).length + 9 := by
+  obtain ⟨hi, hphase⟩ := hf
+  split at hphase
+  · exact length_encSeedSchedulerFrame_le _ _ _ _ _ hi.le
+      (hphase.1 ▸ Nat.zero_le _) (hphase.2 ▸ hsource.le)
+  · exact length_encSeedSchedulerFrame_le _ _ _ _ _ hi.le
+      hphase.1.le (hphase.2 ▸ (hroot _ hphase.1).le)
 
 private theorem scanFrame_bounds (s : SeedSearchSetup)
     (hlimit : s.parameters.search.seedLimit = 2 ^ s.parameters.search.seedWidth)

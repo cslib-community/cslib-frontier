@@ -19,6 +19,8 @@ import Mathlib.Data.Finset.Powerset
 import Mathlib.Data.Fintype.Pi
 import Mathlib.Data.List.GetD
 import Mathlib.Order.Interval.Finset.Nat
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Odd-Stride Double Hashing under Limited Independence and Double Tabulation
@@ -425,7 +427,7 @@ theorem val_oddStridePerm {U M : ℕ} (h₁ : Fin U → Fin (2 ^ M))
 
 /-- Maximum probe-depth cutoff `L = Nat.clog 2 (max n_max 4) + 4` for the partial dependency
 dichotomy ([SchmidtSiegel1990], Theorem 1). -/
-@[expose] def maxProbeCutoff (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def maxProbeCutoff (n_max : ℕ) : ℕ :=
   Nat.clog 2 (max n_max 4) + 4
 
 /-- Extended insertion-order rank placing an absent query key `u ∉ Dictionary.dom s` strictly
@@ -2119,7 +2121,7 @@ theorem sum_probeCount_oddStride_le_of_kWiseIndependent
     (∑ θ : Θ₁ × Θ₂, probeCount (T θ) u (oddStridePerm (h₁ θ.1) (h₂ θ.2) u)) ≤
       2 * Fintype.card (Θ₁ × Θ₂) := by
   let L := maxProbeCutoff n_max
-  have hL_ge4 : 4 ≤ L := by dsimp only [L, maxProbeCutoff]; omega
+  have hL_ge4 : 4 ≤ L := by wram_omega
   have hL_pos : 1 ≤ L := by omega
   let D := (Dictionary.dom s).erase u
   have hD_le : D.card ≤ n_max := Finset.card_erase_le.trans hdom

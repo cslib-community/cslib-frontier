@@ -73,24 +73,22 @@ variable {p : Protocol X Y Z} {ε ε' : ℝ} {R : X → Y → Z → Prop} {ν : 
 
 theorem distributionalComplexity_le_depth (hp : p.distributionalError ν R ≤ ε) :
     distributionalComplexity ε R ν ≤ p.depth :=
-  iInf_le (fun p : {p : Protocol X Y Z // p.distributionalError ν R ≤ ε} => (p.1.depth : ℕ∞))
-    ⟨p, hp⟩
+  ENat.iInf_subtype_natCast_le hp
 
 theorem le_distributionalComplexity_iff {k : ℕ∞} :
     k ≤ distributionalComplexity ε R ν ↔
-      ∀ p : Protocol X Y Z, p.distributionalError ν R ≤ ε → k ≤ p.depth := by
-  simp only [distributionalComplexity, le_iInf_iff, Subtype.forall]
+      ∀ p : Protocol X Y Z, p.distributionalError ν R ≤ ε → k ≤ p.depth :=
+  ENat.le_iInf_subtype_natCast_iff
 
 theorem distributionalComplexity_le_iff {k : ℕ} :
     distributionalComplexity ε R ν ≤ k ↔
-      ∃ p : Protocol X Y Z, p.distributionalError ν R ≤ ε ∧ p.depth ≤ k := by
-  simp only [distributionalComplexity, ENat.iInf_natCast_le_natCast_iff, Subtype.exists,
-    exists_prop]
+      ∃ p : Protocol X Y Z, p.distributionalError ν R ≤ ε ∧ p.depth ≤ k :=
+  ENat.iInf_subtype_natCast_le_natCast_iff
 
 /-- Allowing more error makes a relation easier. -/
 theorem distributionalComplexity_anti (hε : ε ≤ ε') :
     distributionalComplexity ε' R ν ≤ distributionalComplexity ε R ν :=
-  le_distributionalComplexity_iff.mpr fun _ hp => distributionalComplexity_le_depth (hp.trans hε)
+  ENat.iInf_subtype_natCast_mono fun _ hp => hp.trans hε
 
 end Protocol
 
@@ -116,25 +114,15 @@ theorem ecomplexity_le_of_forall_distributionalComplexity_le [Finite X] [Finite 
     {c : ℕ} (h : ∀ ν : PMF (X × Y), (∀ q ∈ ν.support, q.1 ∈ A ∧ q.2 ∈ B) →
       Protocol.distributionalComplexity ε R ν ≤ c) :
     ecomplexity ε R A B ≤ c := by
-  -- The game: one player picks a protocol sending at most `c` bits, the other a pair of inputs
-  -- from `A × B`, and the first loses when the protocol errs.
   have : Nonempty {p : Protocol X Y Z // p.depth ≤ c} :=
     ⟨⟨.output (Classical.arbitrary Z), by simp⟩⟩
-  obtain ⟨μ, -, hμ⟩ := PMF.exists_forall_toOuterMeasure_le
-    (I := {p : Protocol X Y Z // p.depth ≤ c}) (J := {q : X × Y // q.1 ∈ A ∧ q.2 ∈ B})
-    (fun p q => ¬R q.1.1 q.1.2 (p.1.run q.1.1 q.1.2)) (ε := ε) fun ν => by
-      obtain ⟨p, hp, hc⟩ := Protocol.distributionalComplexity_le_iff.mp
-        (h (ν.map Subtype.val) fun q hq => by
-          obtain ⟨q', -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hq
-          exact q'.2)
-      refine ⟨⟨p, hc⟩, ?_⟩
-      rwa [Protocol.distributionalError, PMF.toOuterMeasure_map_apply] at hp
-  refine ecomplexity_le_iff.mpr ⟨μ.map Subtype.val, fun x hx y hy => ?_, ?_⟩
-  · rw [errorProb, PMF.toOuterMeasure_map_apply]
-    exact hμ ⟨(x, y), hx, hy⟩
-  · refine depth_le_iff.mpr fun p hp => ?_
-    obtain ⟨p', -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
-    exact_mod_cast p'.2
+  obtain ⟨μ, hμ, hc⟩ := PMF.exists_maxCost_le_and_forall_errorProb_le
+    (cost := Protocol.depth) (Acc := fun (p : Protocol X Y Z) (q : X × Y) =>
+      R q.1 q.2 (p.run q.1 q.2))
+    (D := {q : X × Y | q.1 ∈ A ∧ q.2 ∈ B}) (c := c) (ε := ε) fun ν hν => by
+      obtain ⟨p, hp, hc⟩ := Protocol.distributionalComplexity_le_iff.mp (h ν hν)
+      exact ⟨p, hc, hp⟩
+  exact ecomplexity_le_iff.mpr ⟨μ, fun x hx y hy => hμ (x, y) ⟨hx, hy⟩, hc⟩
 
 /-- **Yao's principle**: on finite inputs, the public-coin complexity on `A × B` with error `ε` is
 at most `c` exactly when the distributional complexity with error `ε` is at most `c` under every
@@ -151,15 +139,8 @@ finite inputs, the public-coin complexity on `A × B` with error `ε` is the lar
 complexity with error `ε` under a distribution on `A × B`. -/
 theorem ecomplexity_eq_iSup_distributionalComplexity [Finite X] [Finite Y] [Nonempty Z] :
     ecomplexity ε R A B = ⨆ (ν : PMF (X × Y)) (_ : ∀ q ∈ ν.support, q.1 ∈ A ∧ q.2 ∈ B),
-      Protocol.distributionalComplexity ε R ν := by
-  refine le_antisymm ?_ (iSup₂_le fun _ hν => distributionalComplexity_le_ecomplexity hν)
-  cases hsup : ⨆ (ν : PMF (X × Y)) (_ : ∀ q ∈ ν.support, q.1 ∈ A ∧ q.2 ∈ B),
-      Protocol.distributionalComplexity ε R ν using ENat.recTopCoe with
-  | top => exact le_top
-  | coe c =>
-    exact ecomplexity_le_of_forall_distributionalComplexity_le fun ν hν =>
-      hsup ▸ le_iSup₂ (f := fun (ν : PMF (X × Y)) (_ : ∀ q ∈ ν.support, q.1 ∈ A ∧ q.2 ∈ B) =>
-        Protocol.distributionalComplexity ε R ν) ν hν
+      Protocol.distributionalComplexity ε R ν :=
+  ENat.eq_iSup₂_of_le_natCast_iff fun _ => ecomplexity_le_iff_forall_distributionalComplexity_le
 
 /-- **Yao's minimax principle** for computing a function: on finite inputs, the public-coin
 complexity of `f` with error `ε` is the largest distributional complexity of `f` with error `ε`. -/

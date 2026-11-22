@@ -959,9 +959,9 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
     set nodes1 := Function.update sl.nodes leftIdx leftNd
     set nodes2 := Function.update nodes1 rightIdx rightNd
     set nodes3 := Function.update nodes2 sl.root newRootNd
-    have hlr_ne : leftIdx ≠ rightIdx := by dsimp [leftIdx, rightIdx]; omega
-    have hroot_ne_l : sl.root ≠ leftIdx := by dsimp [leftIdx]; omega
-    have hroot_ne_r : sl.root ≠ rightIdx := by dsimp [rightIdx]; omega
+    have hlr_ne : leftIdx ≠ rightIdx := by omega
+    have hroot_ne_l : sl.root ≠ leftIdx := by omega
+    have hroot_ne_r : sl.root ≠ rightIdx := by omega
     have hl_nd : nodes3 leftIdx = (splitFullNode fpBits W_val tMin (sl.nodes T.rootIdx)).left := by
       dsimp only [nodes3, nodes2, nodes1]
       rw [Function.update_of_ne hroot_ne_l.symm, Function.update_of_ne hlr_ne,
@@ -975,8 +975,8 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       intro v hv_er
       obtain ⟨hv_ne_rt, hv_mem⟩ := mem_erase.mp hv_er
       have hv_lt : v < sl.alloc := (hv.leafCount_le_card_nodeSet).1 v hv_mem
-      have hv_ne_l : v ≠ leftIdx := by dsimp [leftIdx]; omega
-      have hv_ne_r : v ≠ rightIdx := by dsimp [rightIdx]; omega
+      have hv_ne_l : v ≠ leftIdx := by omega
+      have hv_ne_r : v ≠ rightIdx := by omega
       have hv_ne_slrt : v ≠ sl.root := by rwa [← hroot]
       refine ⟨?_, hv_ne_l, hv_ne_r⟩
       dsimp only [nodes3, nodes2, nodes1]
@@ -986,7 +986,7 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       hdisjLR, hlo_sep, hsep_hi, hpotLR, hvL, hvR⟩ :=
       splitFullNode_spec (alloc' := sl.alloc + 2) (nodes' := nodes3)
         (leftIdx := leftIdx) (rightIdx := rightIdx) (by omega) hv
-        (by rwa [hroot]) (by omega) (by dsimp [leftIdx]; omega) (by dsimp [rightIdx]; omega)
+        (by rwa [hroot]) (by omega) (by omega) (by omega)
         hlr_ne hl_nd hr_nd herase
     rw [hroot] at hlo_sep hsep_hi hvL hvR
     let rootCs : Fin 2 → BTreeTree := fun i => if i.val = 0 then leftT else rightT
@@ -1006,7 +1006,7 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       dsimp only [rootCs, Fin.val_zero, Fin.val_one]
       simp only [↓reduceIte, one_ne_zero]
       have h1_sub : 1 - (tMin - 1) = 0 := by omega
-      have halloc_sub : leftIdx + 2 - 1 = (leftIdx - 1) + 2 := by dsimp [leftIdx]; omega
+      have halloc_sub : leftIdx + 2 - 1 = (leftIdx - 1) + 2 := by omega
       dsimp only [leftIdx] at halloc_sub ⊢
       rw [h1_sub, halloc_sub, Nat.mul_add]
       omega
@@ -1020,8 +1020,8 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
       have hnewVals_lt : newVals < 2 ^ ((1 + 1) * W_val) := by
         dsimp only [newVals]
         rw [Nat.shiftLeft_eq, show (1 + 1) * W_val = W_val + W_val by ring, Nat.pow_add]
-        have hl_lt' : leftIdx < 2 ^ W_val := by dsimp [leftIdx]; omega
-        have hr_le' : rightIdx + 1 ≤ 2 ^ W_val := by dsimp [rightIdx]; omega
+        have hl_lt' : leftIdx < 2 ^ W_val := by omega
+        have hr_le' : rightIdx + 1 ≤ 2 ^ W_val := by omega
         calc leftIdx + rightIdx * 2 ^ W_val
             < 2 ^ W_val + rightIdx * 2 ^ W_val := by omega
           _ = (rightIdx + 1) * 2 ^ W_val := by ring
@@ -1033,12 +1033,12 @@ theorem splitRootIfFull_spec {fpBits W_val tMin : ℕ} {sl : BTreeSlice}
         dsimp only [newVals]
         rw [laneGet_eq_div_mod, Nat.zero_mul, pow_zero, Nat.div_one, Nat.shiftLeft_eq,
           Nat.add_mul_mod_self_right]
-        exact Nat.mod_eq_of_lt (by dsimp [leftIdx]; omega)
+        exact Nat.mod_eq_of_lt (by omega)
       have hval1 : laneGet W_val newVals 1 = rightIdx := by
         dsimp only [newVals]
         rw [laneGet_eq_div_mod, one_mul, Nat.shiftLeft_eq,
           Nat.add_mul_div_right _ _ (Nat.two_pow_pos W_val),
-          Nat.div_eq_of_lt (by dsimp [leftIdx]; omega), Nat.zero_add]
+          Nat.div_eq_of_lt (by omega), Nat.zero_add]
         exact Nat.mod_eq_of_lt halloc_val
       refine ⟨by omega, rfl, by simp, by omega, hsep_hi.trans hhi_fp, hnewVals_lt,
         by dsimp only [newRootNd]; rw [hlane0_sep]; exact hlo_sep,
@@ -1141,7 +1141,7 @@ theorem finishLeafInsert_leaf_spec {isRoot : Bool} {fpBits W_val tMin leafIdx cn
         simp [hrc, hne]
       · simp [hrc]
     have hq_lt_W : q < 2 ^ W_key :=
-      hq_fp.trans (Nat.pow_lt_pow_right (by decide) (by dsimp [W_key]; omega))
+      hq_fp.trans (Nat.pow_lt_pow_right (by decide) (by omega))
     have hgt_r : ∀ j, r ≤ j → j < cnt → q < laneGet W_key nd.keysWord j := by
       intro j hrj hjc
       have hle := hge_r j hrj hjc
