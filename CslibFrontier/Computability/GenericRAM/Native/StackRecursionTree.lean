@@ -224,10 +224,10 @@ theorem value_of_run_eq_some {J : Type} {fuel : J → ℕ} {root : J → X} {a :
     {N H : ℕ} (he : R.Eval I (root a) y N H) (hrun : R.run fuel root a = some y') :
     I.value y' := by
   obtain ⟨-, -, ⟨x, hr, -⟩ | ⟨z, hr, hz⟩⟩ := he.good_iterate (fuel a)
-  · simp only [run] at hrun
+  · simp only [run, State.returned] at hrun
     rw [hr] at hrun
     simp at hrun
-  · simp only [run] at hrun
+  · simp only [run, State.returned] at hrun
     rw [hr] at hrun
     cases hrun
     exact hz

@@ -12,6 +12,7 @@ import CslibFrontier.Languages.Probabilistic.Repeat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -136,11 +137,9 @@ theorem eval_guessLink_active_eq_map_coins (E : Scheme)
       (evaluateTest (n, (before ++ predecessor :: target :: after).map Prod.fst, links)))
   · exact PMF.bind_congr_on_support _ _ _ htest
   rw [hsplice, PMF.bind_map]
-  simp only [PMF.map, Function.comp_def, guessLinkCoins, linkStateDecoder_decode_active, ↓reduceIte]
-  exact (BitString.uniformList_bind_split _ _ (fun first second => PMF.pure
-    (evaluateTest (n, (before ++ predecessor :: target :: after).map Prod.fst,
-      spliceEncryptedKeyLinkCoins evaluateEncrypt n encCoins capacity before predecessor
-        target after cut challenge first) second))).symm
+  unfold guessLinkCoins
+  simp only [Function.comp_def, linkStateDecoder_decode_active, ↓reduceIte]
+  exact (BitString.uniformList_map_split _ _ _).symm
 
 /-- Rejected coordinates ignore every tape and the supplied challenge. -/
 @[simp] theorem guessLinkCoins_reject

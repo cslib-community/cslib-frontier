@@ -12,6 +12,7 @@ public import CslibFrontier.Crypto.Computational.Homomorphic.KeyChain.Reduction.
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -93,24 +94,9 @@ theorem eval_publicKeyGame_eq_map_coins (E : Scheme) (adversary : Encryption.Adv
     apply PMF.bind_congr_on_support
     exact hguess choice hchoice
   simp only [hchoose, hencrypt, PMF.bind_map, Function.comp_def]
-  rw [PMF.map]
-  change _ = (BitString.uniformList (chooseCoins + (encCoins + guessCoins))).bind
-    (fun tape => PMF.pure (publicKeyGameCoins evaluateChoose evaluateEncrypt evaluateGuess bit
-      chooseCoins encCoins (n, artifact) tape))
   unfold publicKeyGameCoins
-  rw [BitString.uniformList_bind_split _ _ (fun first rest => PMF.pure
-    (evaluateGuess (n, (evaluateChoose (n, encPublicKey artifact) first).2,
-      false :: evaluateEncrypt (n, artifact.1.getD 0 [],
-        if bit then (evaluateChoose (n, encPublicKey artifact) first).1.2
-        else (evaluateChoose (n, encPublicKey artifact) first).1.1) (rest.take encCoins))
-      (rest.drop encCoins)))]
-  congr 1 with first : 1
-  rw [BitString.uniformList_bind_split _ _ (fun second third => PMF.pure
-    (evaluateGuess (n, (evaluateChoose (n, encPublicKey artifact) first).2,
-      false :: evaluateEncrypt (n, artifact.1.getD 0 [],
-        if bit then (evaluateChoose (n, encPublicKey artifact) first).1.2
-        else (evaluateChoose (n, encPublicKey artifact) first).1.1) second) third))]
-  rfl
+  dsimp only
+  exact (BitString.uniformList_map_split3 _ _ _ _).symm
 
 /-- The concrete adaptive-game replay is native polynomial time in the public artifact,
 parameter, tape, and unary component budgets. -/
