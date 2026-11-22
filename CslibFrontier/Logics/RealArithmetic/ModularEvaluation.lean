@@ -17,6 +17,8 @@ public import Mathlib.Data.ZMod.Basic
 
 The evaluator follows the arithmetic syntax, reducing every intermediate modulo the supplied
 modulus. For a positive modulus it gives the canonical residue of the integer polynomial.
+The same computation can consume the constructor tokens directly from right to left, using
+a stack of residues and rejecting operators with too few operands.
 The term's binary word length bounds the polynomial degree and the exponent of a dyadic
 coefficient norm bound, regardless of the ambient dimension.
 
@@ -26,6 +28,8 @@ Adapted from `TermEvaluationContext` and `EncodedTermPolynomial` in lean-canny a
 ## Main results
 
 * `Term.evalResidue_eq`: canonical modular evaluation with zero-padded coordinates.
+* `Term.evalTokenStack_tokens`: evaluation of a term's prefix tokens pushes its residue.
+* `Term.evalTokenStack_bounds`: a bound on the length and entries of each successful stack.
 * `Term.toPolynomial_bounds`: degree and coefficient norm bounds from the encoded term.
 -/
 
@@ -58,6 +62,71 @@ theorem evalResidue_eq {n p : ℕ} (hp : 0 < p) (point : List ℕ) (t : Term n) 
     simp only [evalResidue, toPolynomial, eval₂_add, hl, hr, ZMod.val_add]
   | mul l r hl hr =>
     simp only [evalResidue, toPolynomial, eval₂_mul, hl, hr, ZMod.val_mul]
+
+/-- Process one constructor token from the right of a prefix stream. A leaf pushes a residue.
+A binary operator replaces the top two residues and fails if fewer than two are available. -/
+@[expose] def evalTokenStep {n : ℕ} (p : ℕ) (point : List ℕ) :
+    (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) → List ℕ → Option (List ℕ)
+  | .inl z, stack => some ((z % (p : ℤ)).toNat :: stack)
+  | .inr (.inl i), stack => some (point[i.val]?.getD 0 % p :: stack)
+  | .inr (.inr (.inl _)), l :: r :: stack => some ((l + r) % p :: stack)
+  | .inr (.inr (.inr _)), l :: r :: stack => some ((l * r) % p :: stack)
+  | .inr (.inr _), _ => none
+
+/-- Process prefix tokens from right to left, starting with an existing residue stack.
+Failure propagates if any operator has too few operands. -/
+@[expose] def evalTokenStack {n : ℕ} (p : ℕ) (point : List ℕ)
+    (tokens : List (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit)) (stack : List ℕ) : Option (List ℕ) :=
+  tokens.foldr (fun token result => result.bind (evalTokenStep p point token)) (some stack)
+
+/-- Processing a complete term stream pushes its modular value above the initial stack. -/
+theorem evalTokenStack_tokens {n : ℕ} (p : ℕ) (point : List ℕ) (t : Term n) (stack : List ℕ) :
+    evalTokenStack p point (encTerm_tokens n t) stack = some (t.evalResidue p point :: stack) := by
+  induction t generalizing stack with
+  | const z => rfl
+  | var i => rfl
+  | add l r hl hr | mul l r hl hr =>
+    simp only [evalTokenStack] at hl hr
+    simp only [encTerm_tokens, evalTokenStack, List.foldr_cons, List.foldr_append, List.foldr_nil,
+      hr, hl, Option.bind_some, evalTokenStep, evalResidue]
+
+private theorem evalTokenStep_bounds {n p : ℕ} (hp : 0 < p) (point : List ℕ)
+    (token : ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) {stack result : List ℕ}
+    (hs : ∀ x ∈ stack, x < p) (h : evalTokenStep p point token stack = some result) :
+    result.length ≤ stack.length + 1 ∧ ∀ x ∈ result, x < p := by
+  rcases token with z | (i | (_ | _))
+  · cases h
+    have hz := (Int.toNat_lt (n := p) (Int.emod_nonneg z (by omega : (p : ℤ) ≠ 0))).2
+      (Int.emod_lt_of_pos z (by omega))
+    exact ⟨le_rfl, List.forall_mem_cons.mpr ⟨hz, hs⟩⟩
+  · cases h
+    exact ⟨le_rfl, List.forall_mem_cons.mpr ⟨Nat.mod_lt _ hp, hs⟩⟩
+  all_goals
+    rcases stack with _ | ⟨l, _ | ⟨r, rest⟩⟩ <;> cases h
+    refine ⟨?_, List.forall_mem_cons.mpr ⟨Nat.mod_lt _ hp, ?_⟩⟩
+    · simp only [List.length_cons]
+      omega
+    · exact (List.forall_mem_cons.mp (List.forall_mem_cons.mp hs).2).2
+
+/-- Each successful suffix of the prefix stream grows the stack by at most one entry per token.
+For positive `p`, every entry stays below `p` if the initial entries do. -/
+theorem evalTokenStack_bounds {n p : ℕ} (hp : 0 < p) (point : List ℕ)
+    (tokens : List (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit)) {stack result : List ℕ}
+    (hs : ∀ x ∈ stack, x < p) (h : evalTokenStack p point tokens stack = some result) :
+    result.length ≤ stack.length + tokens.length ∧ ∀ x ∈ result, x < p := by
+  induction tokens generalizing result with
+  | nil =>
+    cases h
+    exact ⟨le_rfl, hs⟩
+  | cons token tokens ih =>
+    change (evalTokenStack p point tokens stack).bind (evalTokenStep p point token) =
+      some result at h
+    obtain ⟨intermediate, hintermediate, hstep⟩ := Option.bind_eq_some_iff.mp h
+    obtain ⟨hlen, hentries⟩ := ih hintermediate
+    obtain ⟨hlen', hentries'⟩ := evalTokenStep_bounds hp point token hentries hstep
+    refine ⟨?_, hentries'⟩
+    simp only [List.length_cons]
+    omega
 
 private theorem length_add_mul {n : ℕ} (l r : Term n) :
     let bound := (encTerm n l).length + (encTerm n r).length + 1
