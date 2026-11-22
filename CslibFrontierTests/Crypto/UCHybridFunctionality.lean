@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
 
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Crypto.Protocols.UC.Commitment
 import CslibFrontier.Crypto.Protocols.UC.HybridFunctionality
 import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
@@ -31,6 +34,8 @@ This test suite exercises `UC.HybridFunctionality` on two concrete 2-party witne
    `HybridFunctionality.toMachine` recovers `fcom.toProtocol` definitionally, and a full 2-party
    commit-and-open execution yields identical output distributions under both.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.UCHybridFunctionality
 
