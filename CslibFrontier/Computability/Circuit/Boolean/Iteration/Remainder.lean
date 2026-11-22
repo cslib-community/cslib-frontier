@@ -270,8 +270,8 @@ theorem synthesis_subMod (s : Set (BooleanFunction n)) (a b d : BitString n → 
   exact build.finish (by synthesis_available)
     (by dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]; nlinarith)
 
-/-- Select the time itself for a short query. For a long query reduce its displacement from
-`K` modulo the period `d`. The caller supplies its short-time test. -/
+/-- Select the time resized to `w` bits for a short query. For a long query reduce its
+displacement from `K` modulo the period `d`. The caller supplies its short-time test. -/
 def periodicTimeIndex (K : ℕ) (d : BitVec w) (bits : BitString m) (short : Bool) : BitVec w :=
   let k := BitVec.ofNat w K
   if short then (BitString.equivBitVec bits).setWidth w

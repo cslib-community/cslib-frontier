@@ -59,8 +59,9 @@ open FunctionalGraph
 
 variable {n m a : ℕ}
 
-/-- For a time given by `m` bits and a cycle length `ell`, the time itself if it is below
-`2 ^ n`, and otherwise `2 ^ n` plus the excess modulo `ell`, in `n + 3` bits. -/
+/-- Compare the time with the `m`-bit encoding of `2 ^ n`. When `n < m`, times below
+that cutoff are returned directly. At or above it the result is `2 ^ n` plus the excess
+modulo the cycle length `ell`, in `n + 3` bits. -/
 def compressedTime (n : ℕ) (ell : BitVec (n + 3)) (bits : BitString m) : BitVec (n + 3) :=
   periodicTimeIndex (2 ^ n) ell bits ((BitString.equivBitVec bits).ult (BitVec.ofNat m (2 ^ n)))
 
