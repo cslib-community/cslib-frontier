@@ -47,26 +47,30 @@ counting proof for `m × n` and `n × n` matrices over any finite field `K` of s
    Setting `t = 0` gives existence (`Matrix.exists_div_log_le_rigidity`), and setting
    `t = ⌊(|n| - r) ^ 2 / 2⌋` on square matrices gives rigidity at least
    `(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)` for a `> 1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋` fraction of
-   matrices (`Matrix.one_sub_inv_pow_lt_card_sq_div_log_le_rigidity`). For fixed dimensions and
-   large fields (`|K| > 4 · 2 ^ (|m| |n|)`), almost all matrices attain the exact upper bound
-   `(|m| - r) (|n| - r)` (`Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`, a finite-field
-   counterpart to Valiant's Zariski-open `(n - r) ^ 2` statement over infinite fields).
+   matrices (`Matrix.one_sub_inv_pow_lt_card_sq_div_log_le_rigidity`); this fraction tends to `1`
+   whenever `|n| - r → ∞`, and the integer floor has order `Ω((|n| - r) ^ 2 / log_q |n|)` whenever
+   `(|n| - r) ^ 2 = Ω(log_q |n|)` (for example when `K` is fixed and `r ≤ (1 - ε) |n|` for fixed
+   `ε > 0`). For fixed dimensions and large fields (`|K| > 4 · 2 ^ (|m| |n|)`), almost all matrices
+   attain the exact upper bound `(|m| - r) (|n| - r)`
+   (`Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`, original to this library).
 
 ## Main results
 
-* `Matrix.card_rank_le_mul_lt`: fewer than `4 q ^ (|m| |n| - (|m| - r) (|n| - r))` of the `m × n`
-  matrices over `K` have rank at most `r`.
-* `Matrix.card_rigidity_lt_mul_le`: the Hamming-ball union bound on the number of `m × n` matrices
+* `Matrix.card_rank_le_mul_lt`: counting step showing fewer than
+  `4 q ^ (|m| |n| - (|m| - r) (|n| - r))` of the `m × n` matrices over `K` have rank at most `r`.
+* `Matrix.card_rigidity_lt_mul_le`: Hamming-ball union-bound step on the number of `m × n` matrices
   with `A.rigidity r < s`.
-* `Matrix.one_sub_inv_pow_lt_card_le_rigidity_div`: quantitative high-probability lower bound on
-  the rigidity of a uniformly random `m × n` matrix over `K`.
+* `Matrix.one_sub_inv_pow_lt_card_le_rigidity_div`: rectangular tail-bound step on the rigidity of a
+  uniformly random `m × n` matrix over `K`.
 * `Matrix.one_sub_inv_pow_lt_card_sq_div_log_le_rigidity`: random `n × n` matrices over `K` have
-  rigidity `Ω((|n| - r) ^ 2 / log_q |n|)` with probability `> 1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋`
-  ([Valiant1977]; [Lokam2009], §2.1, pp. 11–12).
-* `Matrix.exists_div_log_le_rigidity`: some `m × n` matrix over `K` has rigidity at least
-  `(|m| - r) (|n| - r) / (⌊log_q (|m| |n|)⌋ + 2)`.
-* `Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`: more than a `1 - 4 · 2 ^ (|m| |n|) / |K|`
-  fraction of `m × n` matrices attain the exact maximum rigidity `(|m| - r) (|n| - r)`.
+  rigidity at least `(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)` with probability
+  `> 1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋`, giving `Ω((|n| - r) ^ 2 / log_q |n|)` whenever
+  `(|n| - r) ^ 2 = Ω(log_q |n|)` ([Valiant1977]; [Lokam2009], §2.1, pp. 11–12).
+* `Matrix.exists_div_log_le_rigidity`: existence corollary showing some `m × n` matrix over `K` has
+  rigidity at least `(|m| - r) (|n| - r) / (⌊log_q (|m| |n|)⌋ + 2)`.
+* `Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`: over large finite fields (original to this
+  library), more than a `1 - 4 · 2 ^ (|m| |n|) / |K|` fraction of `m × n` matrices attain the exact
+  maximum rigidity `(|m| - r) (|n| - r)`.
 
 ## References
 
@@ -286,9 +290,9 @@ private theorem card_matrix_eq_pow :
   change Fintype.card (m → n → K) = _
   rw [Fintype.card_fun, Fintype.card_fun, ← pow_mul, mul_comm]
 
-/-- **Counting low-rank matrices over a finite field.** Over a finite field `K` of size `q`, fewer
-than `4 q ^ (|m| |n| - (|m| - r) (|n| - r))` of the `q ^ (|m| |n|)` matrices of size `m × n` have
-rank at most `r`. -/
+/-- Counting step for finite-field rigidity bounds: over a finite field `K` of size `q`, fewer than
+`4 q ^ (|m| |n| - (|m| - r) (|n| - r))` of the `q ^ (|m| |n|)` matrices of size `m × n` have rank
+at most `r`. -/
 theorem card_rank_le_mul_lt (r : ℕ) :
     #{B : Matrix m n K | B.rank ≤ r} *
         Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r)) <
@@ -429,10 +433,10 @@ private theorem card_rigidity_lt_mul_lt_of_pos {r s : ℕ} (hs : 1 ≤ s) :
         Nat.mul_lt_mul_of_pos_left (card_rank_le_mul_lt r) hVpos
     _ = 4 * V * Fintype.card K ^ (Fintype.card m * Fintype.card n) := by ring
 
-/-- **Counting matrices of bounded rigidity over a finite field** ([Valiant1977]; [Lokam2009],
-§2.1, pp. 11–12). A matrix of rigidity less than `s` at target rank `r` lies within Hamming
-distance `s - 1` of some matrix of rank at most `r`, so combining `Matrix.card_rank_le_mul_lt` with
-the volume of a Hamming ball bounds the number of such matrices. -/
+/-- Hamming-ball union-bound step for finite-field random-matrix rigidity (after [Lokam2009], §2.1,
+pp. 11–12): a matrix of rigidity less than `s` at target rank `r` lies within Hamming distance
+`s - 1` of some matrix of rank at most `r`, so combining `Matrix.card_rank_le_mul_lt` with the
+volume of a Hamming ball bounds the number of such matrices. -/
 theorem card_rigidity_lt_mul_le (r s : ℕ) :
     #{A : Matrix m n K | A.rigidity r < s} *
         Fintype.card K ^ ((Fintype.card m - r) * (Fintype.card n - r)) ≤
@@ -513,8 +517,8 @@ private theorem card_rigidity_lt_mul_pow_lt {r s t : ℕ}
           ring_nf
   exact Nat.lt_of_mul_lt_mul_right hscale
 
-/-- **Quantitative rigidity of random matrices over a finite field** ([Valiant1977]; [Lokam2009],
-§2.1, pp. 11–12). Over a finite field `K` of size `q`, whenever
+/-- Rectangular tail-bound step for `Matrix.one_sub_inv_pow_lt_card_sq_div_log_le_rigidity` (after
+[Lokam2009], §2.1, pp. 11–12): over a finite field `K` of size `q`, whenever
 `(⌊log_q (|m| |n|)⌋ + 2) s + t ≤ (|m| - r) (|n| - r)`, strictly more than a `1 - q ^ -t` fraction
 of all `m × n` matrices have rigidity at least `s` at target rank `r`. -/
 theorem one_sub_inv_pow_lt_card_le_rigidity_div {r s t : ℕ}
@@ -543,11 +547,10 @@ theorem one_sub_inv_pow_lt_card_le_rigidity_div {r s t : ℕ}
     exact hbadR
   linarith
 
-/-- **Exact maximal rigidity over large finite fields** (finite-field counterpart to the
-infinite-field `R_A(r) = (n - r) ^ 2` bound of [Valiant1977]; [Lokam2009], §2.1, pp. 11–12). Over a
-finite field `K`, strictly more than a `1 - 4 · 2 ^ (|m| |n|) / |K|` fraction of all `m × n`
-matrices attain the maximum possible rigidity `(|m| - r) (|n| - r)`. In particular, when
-`4 · 2 ^ (|m| |n|) ≤ |K|`, some `m × n` matrix has rigidity `(|m| - r) (|n| - r)`. -/
+/-- Over a large finite field `K` (original to this library), strictly more than a
+`1 - 4 · 2 ^ (|m| |n|) / |K|` fraction of all `m × n` matrices attain the maximum possible
+rigidity `(|m| - r) (|n| - r)`. In particular, when `4 · 2 ^ (|m| |n|) ≤ |K|`, some `m × n`
+matrix has rigidity `(|m| - r) (|n| - r)`. -/
 theorem one_sub_lt_card_rigidity_eq_mul_sub_div (r : ℕ) :
     1 - 4 * (2 : ℝ) ^ (Fintype.card m * Fintype.card n) / Fintype.card K <
       (#{A : Matrix m n K |
@@ -624,8 +627,9 @@ end DecidableIndex
 /-- **Random square matrices over a finite field are nearly maximally rigid** ([Valiant1977];
 [Lokam2009], §2.1, pp. 11–12). Over a finite field `K` of size `q`, strictly more than a
 `1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋` fraction of all `n × n` matrices have rigidity at least
-`(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)`. As `|n| - r → ∞`, this fraction tends to `1` and the bound
-is `Ω((|n| - r) ^ 2 / log_q |n|)`. -/
+`(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)`. The fraction tends to `1` whenever `|n| - r → ∞`; when in
+addition `(|n| - r) ^ 2 = Ω(log_q |n|)` (for example when `K` is fixed and `r ≤ (1 - ε) |n|` for
+fixed `ε > 0`), the integer floor has order `Ω((|n| - r) ^ 2 / log_q |n|)`. -/
 theorem one_sub_inv_pow_lt_card_sq_div_log_le_rigidity [DecidableEq n] (r : ℕ) :
     1 - ((Fintype.card K : ℝ)⁻¹) ^ ((Fintype.card n - r) ^ 2 / 2) <
       (#{A : Matrix n n K |
@@ -665,9 +669,9 @@ theorem one_sub_inv_pow_lt_card_sq_div_log_le_rigidity [DecidableEq n] (r : ℕ)
     _ ≤ X := Nat.mul_div_le X 2
     _ = (N - r) * (N - r) := sq (N - r)
 
-/-- **Existence of highly rigid matrices over a finite field** ([Valiant1977]; [Lokam2009], §2.1,
-pp. 11–12). For every finite field `K`, dimensions `m, n`, and target rank `r`, some `m × n`
-matrix over `K` has rigidity at least `(|m| - r) (|n| - r) / (⌊log_{|K|} (|m| |n|)⌋ + 2)`. -/
+/-- Existence corollary of the finite-field counting step (after [Lokam2009], §2.1, pp. 11–12):
+for every finite field `K`, dimensions `m, n`, and target rank `r`, some `m × n` matrix over `K`
+has rigidity at least `(|m| - r) (|n| - r) / (⌊log_{|K|} (|m| |n|)⌋ + 2)`. -/
 theorem exists_div_log_le_rigidity (r : ℕ) :
     ∃ A : Matrix m n K,
       (Fintype.card m - r) * (Fintype.card n - r) /

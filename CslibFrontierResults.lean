@@ -1,2 +1,3 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Registry
