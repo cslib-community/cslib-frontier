@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Computability.QueryComplexity.Randomized
 public import CslibFrontier.Probability.Minimax
-import Mathlib.Data.Fintype.Powerset
+import CslibFrontier.Foundations.Data.ENat.IInf
 
 /-!
 # Yao's minimax principle for decision trees
@@ -83,18 +83,16 @@ variable [Finite ι]
 
 theorem distributionalComplexity_le_depth (h : t.distributionalError ν f ≤ ε) :
     distributionalComplexity ε ν f ≤ t.depth :=
-  Nat.sInf_le ⟨t, h, le_rfl⟩
+  Nat.sInf_le_of_le h
 
 /-- For `ε ≥ 0` the distributional complexity is attained: some decision tree of depth
 `D^ν_ε(f)` errs with probability at most `ε` on inputs drawn from `ν`. -/
 theorem exists_distributionalError_le_depth_eq_distributionalComplexity
     (ν : StdSimplex ℝ (ι → Bool)) (f : (ι → Bool) → β) : ∃ t : DecisionTree ι β,
-      t.distributionalError ν f ≤ ε ∧ t.depth = distributionalComplexity ε ν f := by
-  obtain ⟨t, ht, -⟩ := DecisionTree.exists_computes_depth_eq_complexity f
-  obtain ⟨t', ht', hd⟩ := Nat.sInf_mem (s := {d | ∃ t : DecisionTree ι β,
-    t.distributionalError ν f ≤ ε ∧ t.depth ≤ d})
-      ⟨_, t, ht.distributionalError_eq_zero.trans_le ε.coe_nonneg, le_rfl⟩
-  exact ⟨t', ht', le_antisymm hd (distributionalComplexity_le_depth ht')⟩
+      t.distributionalError ν f ≤ ε ∧ t.depth = distributionalComplexity ε ν f :=
+  let h := DecisionTree.exists_computes_depth_eq_complexity f
+  Nat.exists_eq_sInf_of_exists DecisionTree.depth
+    ⟨h.choose, h.choose_spec.1.distributionalError_eq_zero.trans_le ε.coe_nonneg⟩
 
 /-- **The easy direction of Yao's principle**: `D^ν_ε(f) ≤ R_ε(f)` for every distribution `ν` on
 the inputs. To bound `R_ε(f)` below, it suffices to find a distribution on which every shallow
@@ -112,36 +110,9 @@ error `ε`. -/
 theorem exists_computes_of_forall_exists_distributionalError_le {ε : ℝ}
     (h : ∀ ν : StdSimplex ℝ (ι → Bool), ∃ t : DecisionTree ι β,
       t.depth ≤ d ∧ t.distributionalError ν f ≤ ε) :
-    ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth ≤ d := by
-  classical
-  have := Fintype.ofFinite ι
-  -- the pure strategies of the algorithm: the sets of inputs on which a tree of depth at most `d`
-  -- errs
-  let I := {S : Set (ι → Bool) // ∃ t : DecisionTree ι β, t.depth ≤ d ∧ {x | t.eval x ≠ f x} = S}
-  have : Fintype I := Fintype.ofFinite I
-  obtain ⟨t₀, ht₀, -⟩ := h (.single fun _ => false)
-  have : Nonempty I := ⟨⟨_, t₀, ht₀, rfl⟩⟩
-  choose tree htree_depth htree_err using fun S : I => S.2
-  have hM (S : I) (x : ι → Bool) :
-      (if (tree S).eval x = f x then 0 else 1 : ℝ) = if x ∈ S.1 then 1 else 0 := by
-    rw [← htree_err S]
-    by_cases hx : (tree S).eval x = f x <;> simp [hx]
-  obtain ⟨p, hp⟩ := StdSimplex.exists_forall_sum_le_of_forall_exists_sum_le (I := I)
-    (fun S x => if x ∈ S.1 then 1 else 0) (c := ε) fun q => by
-      obtain ⟨t, ht, hq⟩ := h q
-      refine ⟨⟨_, t, ht, rfl⟩, ?_⟩
-      rw [DecisionTree.distributionalError_eq_sum, Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-        at hq
-      refine le_of_eq_of_le (Finset.sum_congr rfl fun x _ => ?_) hq
-      by_cases hx : t.eval x = f x <;> simp [hx]
-  refine ⟨p.map tree, fun x => ?_, depth_le_iff.mpr fun t ht => ?_⟩
-  · rw [errorProb_eq_sum, StdSimplex.weights_map,
-      Finsupp.sum_mapDomain_index (fun _ => zero_mul _) fun _ _ _ => add_mul _ _ _,
-      Finsupp.sum_fintype _ _ fun _ => zero_mul _]
-    exact le_of_eq_of_le (Finset.sum_congr rfl fun S _ => by rw [hM]) (hp x)
-  · obtain ⟨S, -, rfl⟩ : ∃ S, ¬p.weights S = 0 ∧ tree S = t := by
-      simpa [StdSimplex.weights_map] using ht
-    exact htree_depth S
+    ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth ≤ d :=
+  StdSimplex.exists_maxCost_le_and_forall_errorProb_le DecisionTree.depth
+    (fun t x => t.eval x = f x) h
 
 /-- `R_ε(f) ≤ d` exactly when `D^ν_ε(f) ≤ d` for every distribution `ν` on the inputs. -/
 theorem randomizedComplexity_le_iff_forall_distributionalComplexity_le :
@@ -157,25 +128,14 @@ theorem randomizedComplexity_le_iff_forall_distributionalComplexity_le :
 /-- **Yao's minimax principle**: the randomized decision tree complexity is the largest
 distributional complexity over the distributions on the inputs, `R_ε(f) = ⨆ ν, D^ν_ε(f)`. -/
 theorem randomizedComplexity_eq_iSup_distributionalComplexity (ε : ℝ≥0) (f : (ι → Bool) → β) :
-    randomizedComplexity ε f = ⨆ ν : StdSimplex ℝ (ι → Bool), distributionalComplexity ε ν f := by
-  have hbdd : BddAbove (Set.range fun ν : StdSimplex ℝ (ι → Bool) =>
-      distributionalComplexity ε ν f) :=
-    ⟨randomizedComplexity ε f, Set.forall_mem_range.mpr fun ν =>
-      distributionalComplexity_le_randomizedComplexity ε ν f⟩
-  exact le_antisymm (randomizedComplexity_le_iff_forall_distributionalComplexity_le.mpr
-    fun ν => le_ciSup hbdd ν) (ciSup_le fun ν =>
-      distributionalComplexity_le_randomizedComplexity ε ν f)
+    randomizedComplexity ε f = ⨆ ν : StdSimplex ℝ (ι → Bool), distributionalComplexity ε ν f :=
+  Nat.eq_ciSup_of_le_iff fun _ => randomizedComplexity_le_iff_forall_distributionalComplexity_le
 
 /-- **Yao's minimax principle**, with a hardest distribution: some distribution `ν` on the inputs
 has `D^ν_ε(f) = R_ε(f)`. -/
 theorem exists_distributionalComplexity_eq_randomizedComplexity (ε : ℝ≥0) (f : (ι → Bool) → β) :
-    ∃ ν : StdSimplex ℝ (ι → Bool), distributionalComplexity ε ν f = randomizedComplexity ε f := by
-  have hbdd : BddAbove (Set.range fun ν : StdSimplex ℝ (ι → Bool) =>
-      distributionalComplexity ε ν f) :=
-    ⟨randomizedComplexity ε f, Set.forall_mem_range.mpr fun ν =>
-      distributionalComplexity_le_randomizedComplexity ε ν f⟩
-  obtain ⟨ν, hν⟩ := Nat.sSup_mem (Set.range_nonempty _) hbdd
-  exact ⟨ν, hν.trans (randomizedComplexity_eq_iSup_distributionalComplexity ε f).symm⟩
+    ∃ ν : StdSimplex ℝ (ι → Bool), distributionalComplexity ε ν f = randomizedComplexity ε f :=
+  Nat.exists_eq_of_le_iff fun _ => randomizedComplexity_le_iff_forall_distributionalComplexity_le
 
 end QueryComplexity
 

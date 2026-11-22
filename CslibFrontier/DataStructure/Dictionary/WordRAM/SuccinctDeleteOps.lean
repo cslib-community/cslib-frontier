@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctBucketOps
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Bucket-Level Dictionary Deletion (`deletePrepProg`, `deleteFinishProg`) in `Memory.Prog`
@@ -812,8 +813,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         refine ⟨by rw [hf_pop, hf_pr, hf_c, hf_u2, hf_u1],
           fun a ha => by
             have ha_lm : ¬(base + offLM U V w₀ n_max h_space ≤ a ∧
-                a < base + offGM U V w₀ n_max h_space) := by
-              dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega
+                a < base + offGM U V w₀ n_max h_space) := by wram_omega [ha]
             rw [hout_pop a ha, hout_pr a ha_lm, hout_c a ha, hout_u2 a ha_lm, hout_u1 a ha_lm],
           hslot_pop, htot_pop, hbc_b_pop, hbc_other_pop,
           fun b' hb' hne j hj => ?_,
@@ -928,8 +928,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
         refine ⟨by rw [hf_pop, hf_u1],
           fun a ha => by
             have ha_lm : ¬(base + offLM U V w₀ n_max h_space ≤ a ∧
-                a < base + offGM U V w₀ n_max h_space) := by
-              dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega
+                a < base + offGM U V w₀ n_max h_space) := by wram_omega [ha]
             rw [hout_pop a ha, hout_u1 a ha_lm],
           hslot_pop, htot_pop, hbc_b_pop, hbc_other_pop,
           fun b' hb' hne j hj => ?_,
@@ -954,8 +953,7 @@ theorem deleteFinishProg_bucket_spec {U V w₀ n_max h_space w base b q_target m
           · rintro ⟨hj_lt_last, hj_cap, hm_j⟩
             rw [hidx_id j hj_lt_last] at hm_j
             exact ⟨⟨by dsimp only [j_last, gm₀] at hj_lt_last ⊢; omega, hj_cap, hm_j⟩,
-              fun ⟨_, h_eq⟩ => by
-                dsimp only [j_del, j_last, gm₀] at hj_lt_last hjeq_last h_eq ⊢; omega⟩
+              fun ⟨_, h_eq⟩ => by omega⟩
     -- Now assemble the theorem from `h_unified`
     rcases h_unified with ⟨hf', hout', hslot', htot', hbc_b', hbc_other', hold_other', hold_b',
       ⟨L', hchains', hmem_other', hmem_b'⟩, hcost'⟩

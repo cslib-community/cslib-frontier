@@ -218,6 +218,11 @@ def retainedMachine (ctx : Context) : NondeterministicQueryMachine (RetainedStat
   NondeterministicQueryMachine.retain retainedStateEquiv
     (fun k => withRuntimeWalk edge start verdict clock initialWalk k ctx) context
 
+/-- Native acceptance records successful tally completion, including a false reply. -/
+theorem retainedMachine_accept (ctx : Context) (s : RetainedState κ τ) :
+    (retainedMachine edge start verdict clock initialWalk context ctx).accept s =
+      (retainedReply s).isSome := by rfl
+
 /-- Changing both the adjacency context and the query at entry preserves the transitions. -/
 theorem retainedMachine_withInit (ctx newCtx : Context) (newContext : κ) :
     (retainedMachine edge start verdict clock initialWalk context ctx).withInit
@@ -489,7 +494,8 @@ theorem retainedMachine_native_firstHalting_iff {α : Type}
       ∃! branch, bits = selectors (BoundedWalk.selectors clock) branch ∧
         ∃ hit, Scan.run adjacent source target radius expected branch = some hit := by
   apply native_firstHalting_iff_of_reply R a bits retainedReply (BoundedWalk.selectors clock)
-    (BoundedWalk.eq_of_selectors_prefix clock) adjacent source target radius expected (fun _ => rfl)
+    (BoundedWalk.eq_of_selectors_prefix clock) adjacent source target radius expected
+    (retainedMachine_accept edge start verdict clock initialWalk context ctx)
   intro hit
   have hM := retainedMachine_withInit edge start verdict clock initialWalk context ctx (params a)
     (walkContext a)

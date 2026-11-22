@@ -62,9 +62,8 @@ theorem mem_UL_of_firstHalting {α σ : Type} {enc : α ↪ List Bool} {encS : �
   let f (a : α) := N.acceptCount (fuel a) (R.machine.initCfg (enc a))
   have hcount (a : α) : (f a : ℕ∞) =
       {bits : List Bool | M.FirstHalting (enc a) bits (start a) ∧
-        M.accept (M.replay (enc a) bits (start a)) = true}.encard := by
-    simpa only [f, N, MultiTapeCTM.acceptCount, beq_iff_eq, List.cons.injEq, and_true] using
-      R.branchCount_eq_encard_firstHalting a (hfuel a) (· == [true])
+        M.accept (M.replay (enc a) bits (start a)) = true}.encard :=
+    R.acceptCount_eq_encard_firstHalting a (hfuel a)
   refine ⟨f, ⟨R.k, Native.State R.SI R.SP R.SF, inferInstance, N, R.k * (2 * R.c + 1), ?_⟩,
     ?_, ?_⟩
   · intro a

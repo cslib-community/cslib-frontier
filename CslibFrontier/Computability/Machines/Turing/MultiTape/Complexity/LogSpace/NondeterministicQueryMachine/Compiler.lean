@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Routines
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.PolyClock
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.HaltingTime
 
 /-!
 # Native finite-state compilation of nondeterministic query machines
@@ -20,6 +22,8 @@ computable in the target space; the passes and the finalizer do not depend on th
 
 ## Main results
 
+* `Turing.NondeterministicQueryMachine.Routines.exists_logSpace_polyClock`: a compiled
+  logarithmic-space machine with all branches halting has a uniform polynomial clock.
 * `Turing.NondeterministicQueryMachine.exists_recognizesInSpace`: the native compiler preserves
   existential acceptance and bounds every computation prefix, with no halting hypothesis.
 * `Turing.NondeterministicQueryMachine.exists_decidesInSpace`: given a common abstract clock, the
@@ -391,16 +395,36 @@ theorem accepts_iff (a : α) :
     exact ⟨⟨p'', by simpa [p''] using hphead⟩,
       by simpa [p''] using hp'halt, by simpa [p'', haccept] using hp'out⟩
 
+private theorem runsInSpace_mul (a : α) (hS : 1 ≤ S a) :
+    R.machine.RunsInSpace (enc a) (R.k * (2 * R.c + 1) * S a) :=
+  (R.runsInSpace a).mono (calc
+    R.k * (2 * (R.c * S a) + 1) ≤ R.k * ((2 * R.c + 1) * S a) :=
+      Nat.mul_le_mul_left _ (by nlinarith only [hS])
+    _ = R.k * (2 * R.c + 1) * S a := by ring)
+
+/-- A common selector clock for each input yields a single polynomial native halting
+bound when the compiled routines use logarithmic space. -/
+theorem exists_logSpace_polyClock
+    (R : Routines M start enc (fun a => Nat.log2 (enc a).length + 1))
+    {time : α → ℕ} (hhalt : ∀ a, (M.withInit (start a)).HaltsWithin (enc a) (time a)) :
+    ∃ L d, ∀ a, R.machine.RunsInSpace (enc a) (L * (Nat.log2 (enc a).length + 1)) ∧
+      R.machine.RunsInTime (enc a) (polyClock d (enc a).length) := by
+  let L := R.k * (2 * R.c + 1)
+  let : Finite R.SI := R.finiteI
+  let : ∀ b, Finite (R.SP b) := R.finiteP
+  let : Finite R.SF := R.finiteF
+  obtain ⟨d, hd⟩ := R.machine.exists_runsInTime_polynomial_of_runsInSpace_log L
+  refine ⟨L, d, fun a => ?_⟩
+  have hspace := R.runsInSpace_mul a (Nat.succ_le_succ (Nat.zero_le _))
+  obtain ⟨_, htime⟩ := R.exists_runsInTime a (hhalt a)
+  exact ⟨hspace, hd hspace htime⟩
+
 /-- The compiled machine recognizes `A` in `O(S)` visited-cell space whenever the abstract run on
 `enc a`, started in `start a`, accepts exactly the members of `A`. No halting is required. -/
 theorem recognizesInSpace {A : Set α}
     (hcorrect : ∀ a, a ∈ A ↔ (M.withInit (start a)).Accepts (enc a)) (hS : ∀ a, 1 ≤ S a) :
     R.machine.RecognizesInSpace enc A (fun a => R.k * (2 * R.c + 1) * S a) := fun a =>
-  ⟨(R.runsInSpace a).mono (calc
-      R.k * (2 * (R.c * S a) + 1) ≤ R.k * ((2 * R.c + 1) * S a) :=
-        Nat.mul_le_mul_left _ (by nlinarith only [hS a])
-      _ = R.k * (2 * R.c + 1) * S a := by ring),
-    (hcorrect a).trans (R.accepts_iff a).symm⟩
+  ⟨R.runsInSpace_mul a (hS a), (hcorrect a).trans (R.accepts_iff a).symm⟩
 
 end Routines
 
