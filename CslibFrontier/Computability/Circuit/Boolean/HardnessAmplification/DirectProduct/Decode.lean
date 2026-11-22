@@ -548,8 +548,7 @@ theorem sum_card_filter_dpDecode_ne_le (C' : (Fin k → U) → Fin k → V) (f :
     rw [div_le_iff₀ hθ]
     have hkw : (k : ℝ) ≤ 2 * w := by exact_mod_cast hk
     have hNm : (0 : ℝ) ≤ N ^ m := by positivity
-    calc (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m ≤ ε / 32 * k * #S * N ^ m :=
-          mul_le_mul_of_nonneg_right hbad hNm
+    calc (∑ x, (#(badPairs C' f P b₀ x) : ℝ)) * N ^ m ≤ ε / 32 * k * #S * N ^ m := by gcongr
       _ ≤ ε / 32 * (2 * w) * #S * N ^ m := by gcongr
       _ = ε * n / 4 * N ^ m * θ := by simp only [θ]; field_simp; ring
   have hNm : (0 : ℝ) ≤ N ^ m := by positivity
