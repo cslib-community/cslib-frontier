@@ -95,9 +95,11 @@ CakePB's `check_change_pres`): the variables of `C` are in `P` and are not `x`, 
 `#1`, `x ⇒ C`, and `#2`, `x ⇐ C`, follow from the core set, each trivially or by a `proofgoal`
 block, as the kernel format requires (§6.1). So `x ⇔ C` on every solution of the core set
 (`Cslib.Logic.PL.VeriPB.presChangeCheck_sound`). `epreserved P` checks that the current preserved
-set is `P`, as a set (`Cslib.Logic.PL.VeriPB.sameVars`). After a change, `solx` is rejected, as
-§5.8.3 requires (CakePB accepts it), and the witnesses of `red`, `dom` and checked deletion must
-leave the *current* preserved set alone, as in CakePB.
+set is `P`, as a set (`Cslib.Logic.PL.VeriPB.sameVars`). As CakePB's `update_pres`, adding a
+variable already in `P` or removing one not in it leaves `P` as it is; VeriPB 3.0.2 rejects both
+(`PreservedAddVariableAlreadyInSet`, `PreservedRemoveVariableNotInSet`). After a change, `solx`
+is rejected, as §5.8.3 requires (CakePB accepts it), and the witnesses of `red`, `dom` and checked
+deletion must leave the *current* preserved set alone, as in CakePB.
 
 The conclusions keep their statements against the preserved set of the *input*: `ENUMERATION`
 counts the projections of the input's solutions to the input's preserved set, which is what §4.3

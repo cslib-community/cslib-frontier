@@ -42,12 +42,14 @@ First, the line `f N;` is optional, as in the general format (§4.1). The kernel
 as the first command after the header (§6.1), but a proof without it is accepted and checked against
 the parsed formula. Second, `red`, `dom`, the checked `delc` and `obju` may omit their subproof, and
 a goal is also autoproven when it is a constraint of the database up to the order of its terms
-(`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the subproof (§6.1). The
-`red` steps of a specification must have their subproof, as in CakePB. Third, in `def_order` the
-`aux` line and the `reflexivity` section are optional, a missing reflexivity proof leaving only
-trivially true goals; the kernel format requires both (§6.1). The remaining extensions, `del id` and
-`rup` without hints, are described under **Steps**. So a proof accepted here need not be a kernel
-proof.
+(`Cslib.Logic.PL.VeriPB.sameUpToOrder`). `preserved_add` and `preserved_rm` may also omit
+`: subproof … qed;`, but then only a goal of degree `0` after normalization is autoproven, not one
+that is a constraint up to order. The strict kernel format requires the subproof (§6.1). The `red`
+steps of a specification must have their subproof, as in CakePB. Third, in `def_order` the `aux`
+line and the `reflexivity` section are optional, a missing reflexivity proof leaving only
+trivially true goals; the kernel format requires both (§6.1). The remaining extensions, `del id`
+and `rup` without hints, are described under **Steps**. So a proof accepted here need not be a
+kernel proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
@@ -589,6 +591,19 @@ private def witnessTail (N : Names) (fuel : ℕ) (ts : List String) :
       (qedOpt rest).map fun (q, rest) => ((ω, some items, q), rest)
   | _ => none
 
+/-- The optional subproof after the constraint or objective of `obju`, `preserved_add` and
+`preserved_rm`: `;`, or `: subproof … qed [label];`, with no closing contradiction. -/
+private def subproofTail (label : String) (N : Names) (fuel : ℕ) :
+    List String → Option (Option (List RedItem) × List String)
+  | ";" :: rest => some (none, rest)
+  | ":" :: "subproof" :: rest =>
+    (redItems N fuel rest).bind fun (items, rest) =>
+      match rest with
+      | "qed" :: ";" :: rest => some (some items, rest)
+      | "qed" :: k :: ";" :: rest => if k == label then some (some items, rest) else none
+      | _ => none
+  | _ => none
+
 /-- The `vars` section of an order (§5.3): `left u;`, `right v;` and an optional `aux a;`, with
 `a` possibly empty, then `end [vars];`. -/
 private def orderVars (N : Names) (ts : List String) :
@@ -728,28 +743,13 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
   | "obju" :: kind :: ts =>
     (if kind == "new" then some false else if kind == "diff" then some true else none).bind
       fun diff =>
-        match objTerms N ts with
-        | some (g, ";" :: rest) => some ([.obju diff g none], rest)
-        | some (g, ":" :: "subproof" :: rest) =>
-          (redItems N fuel rest).bind fun (items, rest) =>
-            match rest with
-            | "qed" :: ";" :: rest | "qed" :: "obju" :: ";" :: rest =>
-              some ([.obju diff g (some items)], rest)
-            | _ => none
-        | _ => none
+        (objTerms N ts).bind fun (g, rest) =>
+          (subproofTail "obju" N fuel rest).map fun (sub, rest) => ([.obju diff g sub], rest)
   | k@"preserved_add" :: x :: ":" :: ts | k@"preserved_rm" :: x :: ":" :: ts =>
     (N.var? x).bind fun v =>
-      let add := k == "preserved_add"
-      match geq N ts with
-      | some (c, ";" :: rest) => some ([.presChange add v c none], rest)
-      | some (c, ":" :: "subproof" :: rest) =>
-        (redItems N fuel rest).bind fun (items, rest) =>
-          match rest with
-          | "qed" :: ";" :: rest => some ([.presChange add v c (some items)], rest)
-          | "qed" :: k' :: ";" :: rest =>
-            if k' == k then some ([.presChange add v c (some items)], rest) else none
-          | _ => none
-      | _ => none
+      (geq N ts).bind fun (c, rest) =>
+        (subproofTail k N fuel rest).map fun (sub, rest) =>
+          ([.presChange (k == "preserved_add") v c sub], rest)
   | "epreserved" :: ts => (varList N ts).map fun (vs, rest) => ([.epreserved vs], rest)
   | "core" :: "id" :: ts =>
     match ids ts with
