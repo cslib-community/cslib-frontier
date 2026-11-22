@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.WordRAM.Copy
 public import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Copying an array while accumulating its original words
@@ -90,58 +91,33 @@ theorem exec {w : ℕ} (x : Data 8) (h1 : Fits w 1)
     (ht : Fits w (x.regs total + wordSum x.mem (x.regs src) (x.regs len)))
     (hsep : x.regs src + x.regs len ≤ x.regs dst) :
     ∃ y, ExecWithin w program x y (8 * x.regs len + 4) ∧ Post id x y := by
+  unfold program
+  wram_exec
   let P (j : ℕ) (y : Data 8) : Prop :=
     y.regs src = x.regs src ∧ y.regs dst = x.regs dst ∧ y.regs len = x.regs len ∧
-    y.regs one = 1 ∧
-    y.mem = ArrayCopy.copyPrefix x.mem (x.regs src) (x.regs dst) j ∧
+    y.regs one = 1 ∧ y.mem = ArrayCopy.copyPrefix x.mem (x.regs src) (x.regs dst) j ∧
     y.regs total = x.regs total + wordSum x.mem (x.regs src) j
-  have hbody (y : Data 8) (hy : P (y.regs idx) y) (hi : y.regs idx < x.regs len) :
-      ∃ z, ExecWithin w body y z 6 ∧ P (y.regs idx + 1) z ∧
-        z.regs idx = y.regs idx + 1 := by
-    obtain ⟨hys, hyd, hyl, hyo, hym, hyt⟩ := hy
-    have hsrc : Fits w (y.regs src + y.regs idx) := by
-      rw [hys]; exact hs.of_le (by omega)
-    have hdst : Fits w (y.regs dst + y.regs idx) := by
-      rw [hyd]; exact hd.of_le (by omega)
-    have hinc : Fits w (y.regs idx + 1) := hs.of_le (by omega)
-    have hread : y.mem (y.regs src + y.regs idx) = x.mem (x.regs src + y.regs idx) := by
-      rw [hym, hys]
-      exact ArrayCopy.copyPrefix_outside (by omega)
-    have hsum : Fits w (y.regs total + y.mem (y.regs src + y.regs idx)) := by
-      rw [hyt, hread]
+  refine WP.of_spec
+    (ExecWithin.loop_count (N := x.regs len) (T := 6) P (fun _ hy => hy.2.2.1) ?_ ?_ ?_) ?_
+  · rintro y ⟨hys, hyd, hyl, hyo, hym, hyt⟩ hi
+    have hread : y.mem (x.regs src + y.regs idx) = x.mem (x.regs src + y.regs idx) := by
+      rw [hym]; exact ArrayCopy.copyPrefix_outside (by omega)
+    have hsum : Fits w (x.regs total + wordSum x.mem (x.regs src) (y.regs idx) +
+        x.mem (x.regs src + y.regs idx)) := by
       have hle : wordSum x.mem (x.regs src) (y.regs idx + 1) ≤
           wordSum x.mem (x.regs src) (x.regs len) :=
         Finset.sum_le_sum_of_subset_of_nonneg (Finset.range_mono (by omega))
-          (fun _ _ _ => Nat.zero_le _)
-      apply ht.of_le
-      simpa only [wordSum, Finset.sum_range_succ, Nat.add_assoc] using
-        Nat.add_le_add_left hle (x.regs total)
-    refine ⟨?z, ?run, ?inv, ?increment⟩
-    case run => ram_eval [body, hsrc, hdst, hinc, hsum, hyo]
-    case inv =>
-      refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩
-      · simpa +decide [Function.update_apply] using hys
-      · simpa +decide [Function.update_apply] using hyd
-      · simpa +decide [Function.update_apply] using hyl
-      · simpa +decide [Function.update_apply] using hyo
-      · simp only [Data.set_mem, Data.write_mem]
-        rw [hread, hym, hyd, ← ArrayCopy.copyPrefix_succ]
-      · simp only [Data.set_regs, Function.update_apply]
-        simp only [show (total : Fin 8) ≠ idx by decide, ↓reduceIte]
-        rw [hyt, hread]
-        simp only [wordSum, Finset.sum_range_succ, Nat.add_assoc]
-    case increment => rfl
-  let x₀ := (x.set idx 0).set one 1
-  have hx₀ : P (x₀.regs idx) x₀ := by simp +decide [P, x₀, wordSum]
-  obtain ⟨y, he, ⟨hys, hyd, hyl, hyo, hym, hyt⟩, _⟩ := ExecWithin.loop_count P
-    (fun y hy => hy.2.2.1) hbody (by simp +decide [x₀, idx, one]) hx₀
-  refine ⟨y, ?_, by simpa only [id] using hym, hys, hyd, hyl,
-    by simpa only [id] using hyt⟩
-  have hinit := (ExecWithin.const (d := idx) (x := x) (fits_zero w)).seq
-    ((ExecWithin.const (d := one) h1).seq he)
-  convert hinit using 1
-  · rfl
-  · simp +decide only [x₀, Data.set_regs, Function.update_apply, ↓reduceIte, Nat.sub_zero]
-    omega
+          fun _ _ _ => Nat.zero_le _
+      rw [wordSum, Finset.sum_range_succ, ← wordSum] at hle
+      fits [hle]
+    unfold body
+    wram_exec [hys, hyd, hyo, hyt, hread]
+    dsimp only [P]
+    wram_simp [hys, hyd, hyl, hyo, hym, ← ArrayCopy.copyPrefix_succ, wordSum,
+      Finset.sum_range_succ, Nat.add_assoc]
+  · wram_simp [Nat.zero_le]
+  · dsimp only [P, wordSum]; wram_simp [ArrayCopy.copyPrefix_zero, Finset.sum_range_zero]
+  · rintro y ⟨⟨hys, hyd, hyl, _, hym, hyt⟩, _⟩
+    exact ⟨by wram_simp; omega, ⟨hym, hys, hyd, hyl, hyt⟩⟩
 
 end Cslib.WordRAM.ArrayCopySum
