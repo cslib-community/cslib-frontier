@@ -1221,6 +1221,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
 public import CslibFrontier.Computability.Circuit.Boolean.BatchLookup
 public import CslibFrontier.Computability.Circuit.Boolean.BatchOr
 public import CslibFrontier.Computability.Circuit.Boolean.BinaryCost
+public import CslibFrontier.Computability.Circuit.Boolean.BinaryField
 public import CslibFrontier.Computability.Circuit.Boolean.BitBlast
 public import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 public import CslibFrontier.Computability.Circuit.Boolean.BoundedError
@@ -1316,6 +1317,8 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Decoder
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Depth
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.DepthSearch
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Encoded
+public import CslibFrontier.Computability.Circuit.Boolean.Iteration.EndpointOptimization
+public import CslibFrontier.Computability.Circuit.Boolean.Iteration.EndpointPower
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Eventual
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.ForestCircuitRecords
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.ForestCircuits
@@ -1336,6 +1339,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.NavigationWo
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Optimization
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Permutation
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.PrimeCycles
+public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Ranked
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Record
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.RecordCircuit
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Remainder
@@ -1346,6 +1350,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Selection
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SequentialSquaring
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SharedDictionary
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SparseDisplacement
+public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SparseLookup
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SparseNavigation
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.SparseTime
 public import CslibFrontier.Computability.Circuit.Boolean.Iteration.Target
@@ -6919,6 +6924,7 @@ public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.Checkpoint
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.Commutation
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.Cycle
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.DistinguishedPoints
+public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.EndpointCheckpoints
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.ForestDuality
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.ForestIntervals
 public import CslibFrontier.Foundations.Combinatorics.FunctionalGraph.ForestNavigation
@@ -8933,6 +8939,7 @@ public import CslibFrontier.Probability.KWiseIndependent.CountSketch
 public import CslibFrontier.Probability.KWiseIndependent.Coupling
 public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation
 public import CslibFrontier.Probability.KWiseIndependent.DoubleTabulation.Parameters
+public import CslibFrontier.Probability.KWiseIndependent.Minwise
 public import CslibFrontier.Probability.KWiseIndependent.Polynomial
 public import CslibFrontier.Probability.KWiseIndependent.Reduced
 public import CslibFrontier.Probability.KWiseIndependent.ReducedLimbs
