@@ -236,10 +236,11 @@ theorem isPPTOn_hashThenPRFWordIdealQueries {outLen : ℕ → ℕ} {valid : ℕ 
   let input := encPair encUnary encBits
   let hparam := (ComputableInPolyTime.fst input encBits).fst'
   let hmsg := ComputableInPolyTime.snd input encBits
-  have hrun := isPPTOn_runState_cachedRandomFunctionOracle (prepare := id)
-    (valid := fun (p : ℕ × List Bool) q => valid p.1 q) (outLen := outLen ∘ Prod.fst)
+  have hrun := isPPTOn_runState_cachedSamplerOracle (prepare := id)
+    (valid := fun (p : ℕ × List Bool) q => valid p.1 q)
+    (sampleReply := fun p => BitString.sampleList (outLen p.1))
     hA.on ComputableInPolyTime.id' (hvalid.comp (hparam.prod hmsg))
-    (houtLen.comp (ComputableInPolyTime.fst encUnary encBits))
+    (houtLen.comp (ComputableInPolyTime.fst encUnary encBits)).sampleList
   exact hrun.map (by fun_prop)
 
 /-- A supported output contains no repeated or invalid words. -/
@@ -260,8 +261,9 @@ theorem nodup_valid_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ →
   refine ProbOracleComp.runWith_invariant oracle invariant ?_ (A n aux) []
     (by simp [invariant]) result cache hrun
   intro request s hs reply next hnext
-  rcases cachedRandomFunctionOracle_cache_of_mem_support (valid := valid n)
-      (outLen := outLen n) (query := request.2) (cache := s) (result := (reply, next)) hnext with
+  rcases cachedSamplerOracle_cache_of_mem_support (valid := valid n)
+      (sampleReply := BitString.sampleList (outLen n)) (query := request.2) (cache := s)
+      (result := (reply, next)) hnext with
     hsame | ⟨hv, hfresh, hcons⟩
   · change next = s at hsame
     rw [hsame]
@@ -289,7 +291,7 @@ theorem length_le_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ → �
   have hbound := ProbOracleComp.measure_runState_le (cost := fun _ => 1) hQ
     (fun request => cachedRandomFunctionOracle (valid n) (outLen n) request.2) List.length
     (fun _ s z hz => by
-      rcases cachedRandomFunctionOracle_cache_of_mem_support hz with hsame | ⟨_, _, hcons⟩
+      rcases cachedSamplerOracle_cache_of_mem_support hz with hsame | ⟨_, _, hcons⟩
       · rw [hsame]
         exact Nat.le_succ _
       · rw [hcons, List.length_cons]) [] (result, cache) hrun
@@ -312,10 +314,10 @@ private theorem eval_hashThenPRFWordIdealRun (outLen : ℕ → ℕ)
   apply congrArg (fun oracle => ProbOracleComp.runWith oracle (A n aux) [])
   funext req cache
   by_cases h : valid n req.2 = true
-  · simp only [cachedRandomFunctionOracle, ite_eq_left h, ProbOracleComp.runWith_query,
-      ProbComp.eval_memoize, BitString.eval_sampleList]
-  · simp only [cachedRandomFunctionOracle, ite_eq_right h, ProbOracleComp.runWith_pure,
-      ProbComp.eval_pure]
+  · simp only [cachedRandomFunctionOracle, cachedSamplerOracle, ite_eq_left h,
+      ProbOracleComp.runWith_query, ProbComp.eval_memoize, BitString.eval_sampleList]
+  · simp only [cachedRandomFunctionOracle, cachedSamplerOracle, ite_eq_right h,
+      ProbOracleComp.runWith_pure, ProbComp.eval_pure]
 
 private theorem map_fst_runWith_answer_uniformList_eq_eager (inLen outLen : ℕ)
     (program : ProbOracleComp (fun _ : BitString inLen => List Bool) Bool) :
