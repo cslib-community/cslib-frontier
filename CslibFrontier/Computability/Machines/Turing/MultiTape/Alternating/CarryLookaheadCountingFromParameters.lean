@@ -36,29 +36,22 @@ open MultiTapeTM Cslib.Circuits.Boolean.CarryLookahead.Query
   clockOfEvaluator cInit dInit a
     (CarryLookaheadCounting.clock c d cRoot dRoot context a.count a.query.width)
 
-/-- Add the native raw-parameter prefix to a fixed count-bit evaluator. The resulting machine
-is independent of the evaluator's runtime bound and uses its actual initial control state. -/
-theorem exists_evaluator_of_evaluator (predicate : List Bool × ℕ → Bool)
-    {k r q : ℕ} {S : Type} [Finite S]
+/-- Install the native counting layout for an arbitrary alternating continuation. Its semantics
+and branch clock are preserved, so the same initializer serves sums and reduced products. -/
+theorem exists_prepend {k r q : ℕ} {S : Type} [Finite S]
     (evaluator : MultiTapeATM (CarryLookaheadCountingLayout.size k r q) Bool S) :
     ∃ (scratch : ℕ) (Q : Type) (_ : Finite Q)
       (atm : MultiTapeATM (CarryLookaheadCountingPrepare.size scratch k r q) Bool Q)
       (cInit dInit : ℕ),
-      ∀ (input context : List Bool) (n w : ℕ) (bit : Fin w) (claim : Bool)
-        (evaluationTime : ℕ),
-        (let cfg := (CarryLookaheadCounting.initial k r q input context n w bit.val claim).withState
-            (some evaluator.toPTM.initial);
-          evaluator.HaltsWithin evaluationTime cfg ∧
-            (evaluator.AcceptsWithin evaluationTime cfg ↔
-              Cslib.Circuits.Boolean.CarrySaveQuery.Counting.count n w
-                (fun j => predicate (context, j)) bit = claim)) →
-        let a : CountingInput.Input := ⟨n, ⟨w, bit.val, claim⟩⟩
+      ∀ (input context : List Bool) (a : CountingInput.Input) (evaluationTime : ℕ),
+        let cfg := (CarryLookaheadCounting.initial k r q input context a.count a.query.width
+          a.query.bit a.query.claim).withState (some evaluator.toPTM.initial)
         let start := (CarryLookaheadCountingPrepare.initial scratch k r q input context a).withState
           (some atm.toPTM.initial)
-        atm.HaltsWithin (clockOfEvaluator cInit dInit a evaluationTime) start ∧
+        evaluator.HaltsWithin evaluationTime cfg →
+          atm.HaltsWithin (clockOfEvaluator cInit dInit a evaluationTime) start ∧
           (atm.AcceptsWithin (clockOfEvaluator cInit dInit a evaluationTime) start ↔
-            Cslib.Circuits.Boolean.CarrySaveQuery.Counting.count n w
-              (fun j => predicate (context, j)) bit = claim) := by
+            evaluator.AcceptsWithin evaluationTime cfg) := by
   obtain ⟨scratch, P, hP, prepare, cInit, dInit, hprepare⟩ :=
     CarryLookaheadCountingPrepare.exists_prepare k r q
   let : Finite P := hP
@@ -66,28 +59,24 @@ theorem exists_evaluator_of_evaluator (predicate : List Bool × ℕ → Bool)
   let leaf := evaluator.extendTapes e
   let atm := prependTM prepare leaf
   refine ⟨scratch, _, inferInstance, atm, cInit, dInit, ?_⟩
-  intro input context n w bit claim evaluationTime hevaluator
-  let a : CountingInput.Input := ⟨n, ⟨w, bit.val, claim⟩⟩
-  let start := CarryLookaheadCountingPrepare.initial scratch k r q input context a
+  intro input context a evaluationTime cfg start hh
+  let storage := CarryLookaheadCountingPrepare.initial scratch k r q input context a
   let finish := CarryLookaheadCountingPrepare.config scratch k r q input context a
     (CarryLookaheadCountingInitialLayout.canonical a)
   have hv : viewCfg e (finish.withState (some leaf.toPTM.toNTM.q₀)) =
-      (CarryLookaheadCounting.initial k r q input context n w bit.val claim).withState
-        (some evaluator.toPTM.initial) := by
+      cfg := by
     change (viewCfg e finish).withState (some evaluator.toPTM.initial) = _
     rw [CarryLookaheadCountingPrepare.view_prepared]
-  obtain ⟨hh, ha⟩ := hevaluator
   have hl : leaf.HaltsWithin evaluationTime
       (finish.withState (some leaf.toPTM.toNTM.q₀)) := by
     rw [haltsWithin_extendTapes_iff, hv]
     exact hh
-  have hspec := prependTM_spec prepare leaf start finish
+  have hspec := prependTM_spec prepare leaf storage finish
     (cInit * ((CountingInput.encInput a).length + 1) ^ dInit)
     evaluationTime
     (hprepare input context a) hl
   refine ⟨hspec.1, hspec.2.trans ?_⟩
   rw [acceptsWithin_extendTapes_iff, hv]
-  exact ha
 
 /-- One finite native ATM answers ordinary count bits from only context and raw parameters.
 No binary height, unary frontier, routing metadata, control header, or status is supplied. -/
@@ -108,11 +97,12 @@ theorem exists_evaluator (predicate : List Bool × ℕ → Bool)
     CarryLookaheadCounting.exists_evaluator predicate hp
   let : Finite S := hS
   obtain ⟨scratch, Q, hQ, atm, cInit, dInit, h⟩ :=
-    exists_evaluator_of_evaluator predicate evaluator
+    exists_prepend evaluator
   refine ⟨scratch, k, r, q, Q, hQ, atm, cInit, dInit, c, d, cRoot, dRoot, ?_⟩
   intro input context n w bit claim
-  exact h input context n w bit claim
-    (CarryLookaheadCounting.clock c d cRoot dRoot context n w)
-    (hevaluator input context n w bit claim)
+  obtain ⟨hh, ha⟩ := hevaluator input context n w bit claim
+  obtain ⟨hh', ha'⟩ := h input context ⟨n, ⟨w, bit.val, claim⟩⟩
+    (CarryLookaheadCounting.clock c d cRoot dRoot context n w) hh
+  exact ⟨hh', ha'.trans ha⟩
 
 end Turing.MultiTapeATM.CarryLookaheadCountingFromParameters

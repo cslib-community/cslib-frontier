@@ -63,11 +63,12 @@ theorem exists_evaluator (predicate : List Bool × ℕ → Bool) {T W : List Boo
     CarryLookaheadCountingCost.exists_evaluator predicate hp
   let : Finite S := hS
   obtain ⟨scratch, Q, hQ, atm, cInit, dInit, h⟩ :=
-    CarryLookaheadCountingFromParameters.exists_evaluator_of_evaluator predicate evaluator
+    CarryLookaheadCountingFromParameters.exists_prepend evaluator
   refine ⟨scratch, k, r, q, Q, hQ, atm, cInit, dInit, c, d, cRoot, dRoot, ?_⟩
   intro input context n w bit claim predicateTime hpTime
-  exact h input context n w bit claim
-    (CarryLookaheadCountingCost.clock c d cRoot dRoot context n w predicateTime)
-    (hevaluator input context n w bit claim predicateTime hpTime)
+  obtain ⟨hh, ha⟩ := hevaluator input context n w bit claim predicateTime hpTime
+  obtain ⟨hh', ha'⟩ := h input context ⟨n, ⟨w, bit.val, claim⟩⟩
+    (CarryLookaheadCountingCost.clock c d cRoot dRoot context n w predicateTime) hh
+  exact ⟨hh', ha'.trans ha⟩
 
 end Turing.MultiTapeATM.CarryLookaheadCountingFromParametersCost

@@ -95,7 +95,7 @@ private theorem exists_widened_verifier (k states width : ℕ) (hw : 0 < width)
   obtain ⟨d, hf, hg⟩ := ScheduleChallenge.exists_widen_setup_degree k states width
   obtain ⟨u, src, Q, hQ, atm, c, h⟩ :=
     RootPackingBalance.TerminalLayout.exists_load_from hf hg _ _
-      (ScheduleCountPrepare.context_ne_request scratch a r q) eval
+      (CarryLookaheadCountingPrepare.context_ne_request scratch a r q) eval
   obtain ⟨B, hB⟩ := ScheduleChallenge.exists_widen_clock c d width hw
   refine ⟨u, src, Q, hQ, atm, B + C * width, max 2 t₀, ?_⟩
   intro State _ M st input t ht budget hseed bit claim p start time
@@ -106,7 +106,7 @@ private theorem exists_widened_verifier (k states width : ℕ) (hw : 0 < width)
   obtain ⟨hh, ha⟩ := he M st input ht' budget hseed index claim
   have hs := h input p 0 (Nat.zero_le _) eTime
   dsimp only at hs
-  rw [ScheduleCountPrepare.ready_eq_initial] at hs
+  rw [CarryLookaheadCountingPrepare.ready_eq_initial] at hs
   obtain ⟨hh₁, ha₁⟩ := hs hh
   have hb := hB p ((Nat.le_max_left _ _).trans ht) bit.isLt
   have hc := Nat.mul_le_mul_left C (width_clock_le t width hw)

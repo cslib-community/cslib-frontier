@@ -13,19 +13,6 @@ open Turing Turing.MultiTapeTM Turing.MultiTapeATM
 open Cslib SignedOperandRequest
 open Cslib.Circuits.Frontier.FastContraction
 
-private theorem start_eq_workTape {k : ℕ} {S : Type} (child : MultiTapeATM (k + 2) Bool S)
-    (input word : List Bool) :
-    SharedWordFork.start (Fin.natAdd k 0) child input word 0 =
-      (WorkTapePredicate.config input word).withState (some child.toPTM.initial) := by
-  apply Cfg.ext <;> try rfl
-  · funext i z
-    by_cases hi : i = Fin.natAdd k 0 <;>
-      simp [SharedWordFork.start, WordGameLeaf.config, RootPackingBalance.TerminalLayout.blank,
-        WorkTapePredicate.config, tapesCfg, hi]
-  · funext i
-    simp [SharedWordFork.start, WordGameLeaf.config, RootPackingBalance.TerminalLayout.blank,
-      WorkTapePredicate.config, tapesCfg]
-
 -- A real native predicate answers zero operands, with one clock over all bounded requests.
 private theorem exists_zero_child (D p : ℕ) :
     ∃ (k : ℕ) (S : Type) (_ : Finite S) (child : MultiTapeATM (k + 2) Bool S) (time : ℕ),
@@ -47,11 +34,11 @@ private theorem exists_zero_child (D p : ℕ) :
     (f := charge) (b := (right, coefficient, bit, claim)) (Finset.mem_univ _)
   have hh : child.HaltsWithin (charge (right, coefficient, bit, claim)) cfg := by
     dsimp only [cfg]
-    rw [start_eq_workTape]
+    rw [SharedWordFork.start_eq_workTape]
     exact (hchild req input).2
   have ha : child.AcceptsWithin (charge (right, coefficient, bit, claim)) cfg ↔ false = claim := by
     dsimp only [cfg]
-    rw [start_eq_workTape]
+    rw [SharedWordFork.start_eq_workTape]
     refine (hchild req input).1.trans ?_
     change (!claim) = true ↔ false = claim
     cases claim <;> decide

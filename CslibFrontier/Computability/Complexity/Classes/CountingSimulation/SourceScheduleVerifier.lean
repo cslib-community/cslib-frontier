@@ -46,7 +46,7 @@ theorem exists_challenge_verifier (k states : ℕ) {K : ℕ} {R : Type} [Finite 
   obtain ⟨d, hf, hg⟩ := ScheduleChallenge.exists_setup_degree k states
   obtain ⟨u, src, Q, hQ, atm, c, h⟩ :=
     RootPackingBalance.TerminalLayout.exists_load_from hf hg _ _
-      (ScheduleCountPrepare.context_ne_request scratch a r q) eval
+      (CarryLookaheadCountingPrepare.context_ne_request scratch a r q) eval
   obtain ⟨B, hB⟩ := ScheduleChallenge.exists_clock c d
   refine ⟨u, src, Q, hQ, atm, B + C, max 2 t₀, ?_⟩
   intro State _ M st input t ht budget hseed bit claim p start time
@@ -54,7 +54,7 @@ theorem exists_challenge_verifier (k states : ℕ) {K : ℕ} {R : Type} [Finite 
   obtain ⟨hh, ha⟩ := he M st input ((Nat.le_max_right _ _).trans ht) budget hseed bit claim
   have hs := h input p 0 (Nat.zero_le _) eTime
   dsimp only at hs
-  rw [ScheduleCountPrepare.ready_eq_initial] at hs
+  rw [CarryLookaheadCountingPrepare.ready_eq_initial] at hs
   obtain ⟨hh₁, ha₁⟩ := hs hh
   have hb := (hB p ((Nat.le_max_left _ _).trans ht) bit.isLt).trans
     (Nat.mul_le_mul_left B (Nat.succ_le_succ (numBlocks_le_div_sqrt_log_add_one t)))

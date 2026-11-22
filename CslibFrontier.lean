@@ -3562,10 +3562,12 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuardedWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuessVerify
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.InputFromTape
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.IntervalCount
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.IntervalCountGame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.IntervalCountNative
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Marking
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonCorrection
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonProduct
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.OuterRootLeafRunner
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord
@@ -3574,6 +3576,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Segment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct.Input
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ReducedProduct.Native
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ResidueInverse
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootEndpointGround
@@ -3666,6 +3669,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Initializer
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitializerBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.InitializerCorrect
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.NewtonProductRequest
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.NodeReply
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.NodeReplyCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.NormalizePoint
@@ -3702,6 +3706,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplaySupplierInit
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplaySupplierTotal
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RawScheduleEndpoint
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ReducedProductRequest
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RelativeScan
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RelativeScanDispatch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RelativeScanIndex
@@ -4322,6 +4327,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.HaltedReplay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.InputFromTape
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.Decode
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.PolyTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalSimulation
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalTensor

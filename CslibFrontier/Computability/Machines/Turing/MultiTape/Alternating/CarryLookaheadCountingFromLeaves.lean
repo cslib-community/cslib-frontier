@@ -120,16 +120,17 @@ theorem exists_evaluator_exact (predicate : List Bool × ℕ → Bool) {k : ℕ}
     CarryLookaheadCounting.exists_evaluator_of_terminal predicate terminal cP dP
   let : Finite SE := hSE
   obtain ⟨scratch, Q, hQ, atm, cInit, dInit, h⟩ :=
-    CarryLookaheadCountingFromParameters.exists_evaluator_of_evaluator predicate evaluator
+    CarryLookaheadCountingFromParameters.exists_prepend evaluator
   refine ⟨scratch, r, q, Q, hQ, atm, cInit, dInit, c, d, ?_⟩
   intro input context n w bit claim leafTime ht ha
   have hr := hterminal input context n w (CarrySaveCountingRoot.clockOfLeaf leafTime n w)
     (root_spec leaf predicate input context n w leafTime ht ha)
   have he := hevaluator input context n w (CarrySaveCountingRoot.clockOfLeaf leafTime n w)
     hr bit claim
-  have hf := h input context n w bit claim
+  obtain ⟨hh, ha⟩ := h input context ⟨n, ⟨w, bit.val, claim⟩⟩
     (CarryLookaheadCounting.clockOfRoot c d w
-      (CarrySaveCountingRoot.clockOfLeaf leafTime n w)) he
+      (CarrySaveCountingRoot.clockOfLeaf leafTime n w)) he.1
+  have hf := And.intro hh (ha.trans he.2)
   dsimp only at hf ⊢
   rwa [clock_eq_overhead_add] at hf
 

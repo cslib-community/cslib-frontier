@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.IntervalCount.PolyTime
+module
+
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.IntervalCount
 
 /-! Interval counts of a concrete fair-coin machine on plain data: the count is evaluated, the
 interval tensor follows, and the polynomial-time certificate applies with a satisfiable budget. -/
@@ -78,5 +80,52 @@ example : MultiTapeTM.ComputableInPolyTime (fun x : List Bool =>
     (IntervalData.computableInPolyTime_mk MultiTapeTM.ComputableInPolyTime.id'
       (.const _) (.const _) (.const _) (.const _) (.const _) (.const _) (.const _))
     (size := fun _ => 20) (Cslib.PolynomiallyBounded.const 20) fun _ => by norm_num
+
+/-- The same concrete two-step interval, or its zero-width boundary case, with nonempty input. -/
+public def interval (empty : Bool) : IntervalData 1 Bool :=
+  ⟨[true], if empty then 0 else 2, J₀, δ₁, controlData c₀,
+    fun _ => windowCells 2 fun _ _ => none, controlData c₁,
+    fun h => windowCells 2 (w₁ h)⟩
+
+-- The source is nonempty. Zero-width data admit no outgoing offset, while the ordinary
+-- two-step interval admits exactly one of its four coin strings.
+private theorem count_interval (empty : Bool) :
+    (interval empty).count walk = if empty then 0 else 1 := by
+  cases empty <;> decide
+
+-- The parser and the new native entry keep the previous general interval encoding unchanged.
+example (d : IntervalData 1 Bool) :
+    IntervalData.decoder.decode (encIntervalData d) = d :=
+  IntervalData.decoder.decode_enc d
+
+example (d : IntervalData 1 Bool) : encIntervalData d =
+    MultiTapeTM.encPair MultiTapeTM.encBits (MultiTapeTM.encPair MultiTapeTM.encUnary
+      (MultiTapeTM.encPair (MultiTapeTM.encPi MultiTapeTM.encIntBin)
+        (MultiTapeTM.encPair (MultiTapeTM.encFinite (Option (Fin 1) → SignType))
+          (MultiTapeTM.encPair encControlData
+            (MultiTapeTM.encPair (MultiTapeTM.encPi (MultiTapeTM.encList
+              (MultiTapeTM.encOption MultiTapeTM.encBool))) (MultiTapeTM.encPair encControlData
+                (MultiTapeTM.encPi (MultiTapeTM.encList
+                  (MultiTapeTM.encOption MultiTapeTM.encBool)))))))))
+      (IntervalData.equivProd d) := encIntervalData_apply d
+
+open MultiTapeATM in
+/-- One actual finite machine serves both interval boundaries and both claims. Only the request
+word is installed; the count limit, precision, height and carry-save fields are computed. -/
+public theorem native_interval_count : ∃ (u : ℕ) (src : Fin u) (Q : Type) (_ : Finite Q)
+    (atm : MultiTapeATM u Bool Q) (C E : ℕ),
+    ∀ (host : List Bool) (empty claim : Bool),
+      let a : IntervalCount.Request 1 Bool := ⟨interval empty, 0, claim⟩
+      let cfg := SharedWordFork.start src atm host (IntervalCount.encRequest a) 0
+      let time := C * ((IntervalCount.encRequest a).length + 1) ^ E
+      atm.HaltsWithin time cfg ∧ (atm.AcceptsWithin time cfg ↔ (!empty) = claim) := by
+  obtain ⟨u, src, Q, hQ, atm, C, E, h⟩ := IntervalCount.exists_evaluator walk
+  refine ⟨u, src, Q, hQ, atm, C, E, ?_⟩
+  intro host empty claim a cfg time
+  obtain ⟨hh, ha⟩ := h host a (by dsimp [a]; omega)
+  refine ⟨hh, ha.trans ?_⟩
+  change ((interval empty).count walk).testBit 0 = claim ↔ (!empty) = claim
+  rw [count_interval]
+  cases empty <;> rfl
 
 end CslibFrontierTests.HPVIntervalCount

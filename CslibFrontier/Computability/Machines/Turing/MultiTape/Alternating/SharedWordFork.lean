@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SharedFork
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.RootPackingBalance.TerminalLayout
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WorkTapePredicate
 
 /-!
 # A shared word for two independently compiled machines
@@ -27,6 +28,19 @@ open MultiTapeTM RootPackingBalance.TerminalLayout
 @[expose] def start {K : ℕ} {S : Type} (src : Fin K) (atm : MultiTapeATM K Bool S)
     (input word : List Bool) (pos : ℕ) :=
   WordGameLeaf.config src (some atm.toPTM.initial) word pos (blank K input)
+
+/-- A shared word at the native predicate's designated input tape is its actual initial
+work-tape configuration, including the host input head and blank scratch and marker tapes. -/
+theorem start_eq_workTape {k : ℕ} {S : Type} (atm : MultiTapeATM (k + 2) Bool S)
+    (input word : List Bool) :
+    start (Fin.natAdd k 0) atm input word 0 =
+      (WorkTapePredicate.config input word).withState (some atm.toPTM.initial) := by
+  apply Cfg.ext <;> try rfl
+  · funext i z
+    by_cases hi : i = Fin.natAdd k 0 <;>
+      simp [start, WordGameLeaf.config, blank, WorkTapePredicate.config, tapesCfg, hi]
+  · funext i
+    simp [start, WordGameLeaf.config, blank, WorkTapePredicate.config, tapesCfg]
 
 private theorem view_start {k K : ℕ} {S : Type} (atm : MultiTapeATM k Bool S)
     (emb : Fin k ↪ Fin K) (src : Fin k) (input word : List Bool) (pos : ℕ) :

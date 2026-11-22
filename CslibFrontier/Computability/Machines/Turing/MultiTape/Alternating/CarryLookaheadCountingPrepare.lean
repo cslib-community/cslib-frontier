@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarryLookaheadCountingInitialLayout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveDepthPrepare.Embedded
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordFunctionLayout
 
 /-!
@@ -51,6 +52,47 @@ abbrev size (scratch k r q : ℕ) : ℕ :=
 @[expose] def initial (scratch k r q : ℕ) (input context : List Bool) (a : CountingInput.Input) :
     Cfg (size scratch k r q) Bool Unit input :=
   config scratch k r q input context a {}
+
+/-- The protected context and the binary source live on distinct tapes. -/
+theorem context_ne_request (scratch k r q : ℕ) :
+    evaluatorTapes scratch k r q (contextTape k r q) ≠
+      Fin.natAdd (scratch + CarryLookaheadCountingLayout.size k r q) 0 :=
+  Fin.castAdd_ne_natAdd _ _
+
+/-- Loading exactly these two words gives the physical initial configuration. -/
+theorem ready_eq_initial (scratch k r q : ℕ) (input context : List Bool) (a : CountingInput.Input) :
+    TwoWordInput.ready (evaluatorTapes scratch k r q (contextTape k r q))
+      (Fin.natAdd (scratch + CarryLookaheadCountingLayout.size k r q) 0)
+      input context (CountingInput.encInput a) = initial scratch k r q input context a := by
+  have hw : TwoWordInput.words (evaluatorTapes scratch k r q (contextTape k r q))
+      (Fin.natAdd (scratch + CarryLookaheadCountingLayout.size k r q) 0)
+      context (CountingInput.encInput a) = ambientWords scratch k r q context a {} := by
+    let E := CarryLookaheadCountingLayout.size k r q
+    let u : Fin E := contextTape k r q
+    change TwoWordInput.words ((Fin.natAdd scratch u).castAdd 2) (Fin.natAdd (scratch + E) 0)
+      _ _ = _
+    funext i
+    rw [TwoWordInput.words, ambientWords, words_empty]
+    cases i using Fin.addCases with
+    | left i =>
+      rw [Fin.append_left, ite_eq_right (Fin.castAdd_ne_natAdd _ _)]
+      cases i using Fin.addCases with
+      | left i =>
+        rw [Fin.append_left, ite_eq_right]
+        exact fun h => Fin.castAdd_ne_natAdd _ _ (Fin.castAdd_injective _ _ h)
+      | right i =>
+        rw [Fin.append_right, Function.update_apply]
+        by_cases h : i = u
+        · subst i; simp [u]
+        · rw [ite_eq_right h, ite_eq_right]
+          exact fun he => h (Fin.natAdd_injective _ _ (Fin.castAdd_injective _ _ he))
+    | right i =>
+      rw [ite_eq_right (Fin.castAdd_ne_natAdd _ _).symm, Fin.append_right]
+      fin_cases i <;> simp
+  simp only [TwoWordInput.ready, initial, config, hw]
+  apply Cfg.ext <;> try rfl
+  funext i z
+  simp [wordsCfg, tapesCfg]
 
 /-- Lift a field update through the scratch prefix and the retained parameter tapes. -/
 theorem ambientWords_update_of_eq (scratch k r q : ℕ) (context : List Bool)

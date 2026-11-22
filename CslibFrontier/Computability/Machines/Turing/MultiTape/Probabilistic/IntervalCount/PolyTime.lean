@@ -60,6 +60,8 @@ their stored cells (`Turing.MultiTapeTM.encBiTape`), and the head positions in b
 ## Main results
 
 * `Turing.MultiTapePTM.computableInPolyTime_localRun`: replays are polynomial-time.
+* `Turing.MultiTapePTM.computableInPolyTime_localIntervalStepData`: one interval witness is
+  checked in polynomial time, without enumerating the other coin strings.
 * `Turing.MultiTapePTM.IntervalData.computableInPolyTime_mk`,
   `Turing.MultiTapePTM.ControlData.computableInPolyTime_mk`: assembling the arguments.
 * `Turing.MultiTapePTM.computableInPolyTime_localIntervalCount`: interval counts are
@@ -574,6 +576,11 @@ the offsets in unary. -/
 noncomputable def encControlData : ControlData k State ↪ List Bool :=
   encPair (encFinite (Option State)) (encPair (encPi encUnary) (encFinite OutputTrack))
 
+/-- Control data retain the framed state, unary-offset table and final output-track code. -/
+theorem encControlData_apply (c : ControlData k State) : encControlData c =
+    encPair (encFinite (Option State)) (encPair (encPi encUnary) (encFinite OutputTrack)) c := by
+  rfl
+
 /-- **The encoding of the arguments of an interval count**: the input, the block length in unary,
 the block indices in binary, the movements by their ranks, and the records and window cells. -/
 noncomputable def encIntervalData : IntervalData k State ↪ List Bool :=
@@ -581,6 +588,13 @@ noncomputable def encIntervalData : IntervalData k State ↪ List Bool :=
     (encPair (encFinite (Option (Fin k) → SignType)) (encPair encControlData
       (encPair (encPi (encList (encOption encBool))) (encPair encControlData
         (encPi (encList (encOption encBool))))))))))
+
+/-- The existing interval layout in field order; every field except the last is framed. -/
+theorem encIntervalData_apply (d : IntervalData k State) : encIntervalData d =
+    encPair encBits (encPair encUnary (encPair (encPi encIntBin)
+      (encPair (encFinite (Option (Fin k) → SignType)) (encPair encControlData
+        (encPair (encPi (encList (encOption encBool))) (encPair encControlData
+          (encPi (encList (encOption encBool))))))))) (IntervalData.equivProd d) := by rfl
 
 /-- The interval count of its arguments. -/
 @[expose] def IntervalData.count [DecidableEq State] (machine : MultiTapePTM k Bool State)
@@ -627,6 +641,11 @@ private theorem controlData_parts : ComputableInPolyTime (fun c : ControlData k 
     encControlData (encPair (encFinite (Option State)) (encPair (encPi encUnary)
       (encFinite OutputTrack))) :=
   of_eq fun _ => rfl
+
+/-- Reading the unary block width does not enumerate the interval's coin strings. -/
+theorem IntervalData.computableInPolyTime_b :
+    ComputableInPolyTime (IntervalData.b (k := k) (State := State)) encIntervalData encUnary :=
+  intervalData_parts.snd'.fst'
 
 /-- The finite storage of the embedded window of computed arguments. -/
 private theorem localStartData' {d : α → IntervalData k State}
@@ -718,6 +737,21 @@ private theorem computableInPolyTime_stepTest [DecidableEq State] :
   · exact allConst _ fun h _ => decide_eq'
       (localCfg_windowCellsAt hb ((pi_apply _ (some h)).comp hJ) hl h) ((pi_apply _ h).comp hw)
 
+/-- Check one interval witness by replaying only its supplied coin string and testing the
+resulting control, head coordinates and work windows. No bound on `2 ^ b` is required. -/
+theorem computableInPolyTime_localIntervalStepData [DecidableEq State]
+    (machine : MultiTapePTM k Bool State) {d : α → IntervalData k State}
+    (hd : ComputableInPolyTime d input encIntervalData) {coins : α → List Bool}
+    (hc : ComputableInPolyTime coins input encBits) :
+    ComputableInPolyTime (fun a =>
+      decide (machine.LocalIntervalStepData (d a).b (d a).input (d a).J (d a).δ
+        (d a).cIn (d a).wIn (d a).cOut (d a).wOut (coins a))) input encBool := by
+  have hword : ComputableInPolyTime (fun a => (d a).input) input encBits :=
+    (intervalData_parts.comp hd).fst'
+  have hrun := computableInPolyTime_localRun machine hword hc (localStartData' hd)
+  simp only [stepTest_eq]
+  simpa only [Function.comp_def] using computableInPolyTime_stepTest.comp (hd.prod hrun)
+
 /-- **Interval counts are polynomial-time** in their computed arguments, provided that the `2 ^ b`
 coin strings, with their encodings, are polynomially many in the input: the count enumerates them
 and replays each on the finite storage of the embedded window. -/
@@ -731,18 +765,11 @@ theorem computableInPolyTime_localIntervalCount [DecidableEq State]
     (intervalData_parts.comp hd).snd'.fst'
   have hlist := bitsEnumList hb hsize hbudget
   have hfst := fst input encBits
-  have hrun : ComputableInPolyTime (fun p : α × List Bool => machine.localRun (d p.1).input p.2
-      (localStartData (d p.1).b (d p.1).input (d p.1).J (d p.1).cIn (d p.1).wIn))
-      (encPair input encBits) encLocalCfg :=
-    computableInPolyTime_localRun machine ((intervalData_parts.comp (hd.comp hfst)).fst')
-      (snd _ _) (localStartData' (hd.comp hfst))
   have htest : ComputableInPolyTime (fun p : α × List Bool =>
       decide (machine.LocalIntervalStepData (d p.1).b (d p.1).input (d p.1).J (d p.1).δ
         (d p.1).cIn (d p.1).wIn (d p.1).cOut (d p.1).wOut p.2)) (encPair input encBits)
         encBool := by
-    simp only [stepTest_eq]
-    simpa only [Function.comp_def] using computableInPolyTime_stepTest.comp
-      ((hd.comp hfst).prod hrun)
+    exact computableInPolyTime_localIntervalStepData machine (hd.comp hfst) (snd _ _)
   exact countPWithInput hlist htest
 
 end Count
