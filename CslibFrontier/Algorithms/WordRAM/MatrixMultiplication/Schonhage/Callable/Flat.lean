@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Input
 import CslibFrontier.Computability.WordRAM.FlatEndpoint
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Initialized flat callable products
@@ -91,7 +92,7 @@ theorem setup_size : setup.size ≤ 1024 := by
 
 /-- The setup normalization sequence never inspects the physical word width. -/
 theorem setup_not_readsWidth : ¬setup.ReadsWidth :=
-  not_or.mpr ⟨by decide, MemoryWindow.dynamicSetup_not_readsWidth (r := 160) powerBank 128⟩
+  Code.not_readsWidth_of_readsWidthBool rfl
 
 /-- The complete standalone caller has a fixed finite flat program, including halt. -/
 theorem program_length_le : (entryProgram.program Reg.result).length ≤ 131072 := by
@@ -106,8 +107,8 @@ theorem program_length_le : (entryProgram.program Reg.result).length ≤ 131072 
 
 /-- The width-independent code computes its own virtual modulus without reading physical width. -/
 theorem not_readsWidth : ¬entryProgram.ReadsWidth := by
-  have hr : ¬restoreInput.ReadsWidth := by decide +kernel
-  have ho : ¬returnOutput.ReadsWidth := by decide +kernel
+  have hr : ¬restoreInput.ReadsWidth := Code.not_readsWidth_of_readsWidthBool rfl
+  have ho : ¬returnOutput.ReadsWidth := Code.not_readsWidth_of_readsWidthBool rfl
   simp only [entryProgram, program, Code.ReadsWidth, Op.ReadsWidth,
     MemoryWindow.readsWidth_compile, QueriedProduct.not_readsWidth, setup_not_readsWidth,
     hr, ho, not_false_eq_true, or_self]

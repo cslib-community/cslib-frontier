@@ -38,6 +38,8 @@ namespace Cslib.Complexity.QuantumContraction
 
 open Quantum BitString Turing.MultiTapeTM Cslib.GenericRAM ComputableInPolyTime
 
+attribute [local irreducible] ComputableInPolyTime
+
 variable {α : Type} {enc : α ↪ List Bool}
 
 private theorem poly_targets {gs : α → List GateCode}

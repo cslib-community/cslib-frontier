@@ -10,10 +10,12 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.TFNP.Subclasses.PotentialLineCollapse
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.BinaryWord
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Tactic.PolyTime
 
 /-!
 # `SOPL = PLS ∩ PPADS` and `EOPL = PLS ∩ PPAD`
@@ -744,27 +746,7 @@ section Computability
 
 variable {enc : α ↪ List Bool}
 
-private theorem binary_two_pow_pt {β : Type} {input : β ↪ List Bool} {k : β → ℕ}
-    (hk : ComputableInPolyTime k input encUnary) :
-    ComputableInPolyTime (fun b => 2 ^ k b) input encNat :=
-  ComputableInPolyTime.binary_two_pow.comp hk
-
-attribute [local fun_prop] binary_two_pow_pt
-
-private theorem computableInPolyTime_plsPpadsBranch
-    (hn₁ : ComputableInPolyTime n₁ enc encUnary) (hn₂ : ComputableInPolyTime n₂ enc encUnary)
-    {fz fr : α × List Bool → ℕ}
-    (hfz : ComputableInPolyTime fz (encPair enc encBits) encNat)
-    (hfr : ComputableInPolyTime fr (encPair enc encBits) encNat) :
-    ComputableInPolyTime (fun p => p.2.take (n₁ p.1) ++
-      (binaryWord (n₁ p.1 + n₂ p.1) (fz p) ++ binaryWord (n₁ p.1 + n₂ p.1) (fr p)))
-      (encPair enc encBits) encBits := by
-  have ha := ComputableInPolyTime.fst enc encBits
-  have hx := ComputableInPolyTime.bitsTakeWithInput
-    (ComputableInPolyTime.snd enc encBits) (hn₁.comp ha)
-  have hm := ComputableInPolyTime.unary_add.comp ((hn₁.comp ha).prod (hn₂.comp ha))
-  exact ComputableInPolyTime.bitsAppend hx
-    (ComputableInPolyTime.bitsAppend (binaryWord_polyTime hm hfz) (binaryWord_polyTime hm hfr))
+attribute [local fun_prop, local program_certificate] binaryWord_polyTime
 
 theorem computableInPolyTime_plsPpadsSucc
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
@@ -774,53 +756,7 @@ theorem computableInPolyTime_plsPpadsSucc
     (hP₂ : ComputableInPolyTime P₂ (encPair enc encBits) encBits)
     (hS₂ : ComputableInPolyTime S₂ (encPair enc encBits) encBits) :
     ComputableInPolyTime (plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂) (encPair enc encBits) encBits := by
-  have ha := ComputableInPolyTime.fst enc encBits
-  have hw := ComputableInPolyTime.snd enc encBits
-  have h₁ := hn₁.comp ha; have h₂ := hn₂.comp ha
-  have hm := ComputableInPolyTime.unary_add.comp (h₁.prod h₂)
-  have hx := ComputableInPolyTime.bitsTakeWithInput hw h₁
-  have hz := ComputableInPolyTime.bitsTakeWithInput
-    (ComputableInPolyTime.bitsDropWithInput hw h₁) hm
-  have hr := ComputableInPolyTime.bitsDropWithInput
-    (ComputableInPolyTime.bitsDropWithInput hw h₁) hm
-  have hT := ComputableInPolyTime.binary_two_pow.comp hm
-  have hM := binary_sub' hT (ComputableInPolyTime.binary_two_pow.comp h₂)
-  have hα := ComputableInPolyTime.bitsBinaryValue.comp hz
-  have hk := ComputableInPolyTime.bitsBinaryValue.comp hr
-  have hrest := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend hz hr)
-  have hy := binaryWord_polyTime h₂ hα
-  have hNx := hN₁.comp (ha.prod hx)
-  have hstep := ComputableInPolyTime.binary_lt'
-    (hC₁.comp (ha.prod hNx)) (hC₁.comp (ha.prod hx))
-  have hshift := computableInPolyTime_plsPpadsBranch hn₁ hn₂
-    (binary_sub' hα (.const 1)) (binary_add' hk (.const 1))
-  have hactive := computableInPolyTime_plsPpadsBranch hn₁ hn₂
-    (binary_sub' (ComputableInPolyTime.bitsBinaryValue.comp (hS₂.comp (ha.prod hy))) (.const 1))
-    (binary_add' hk (.const 1))
-  have hjump := ComputableInPolyTime.bitsAppend hNx (ComputableInPolyTime.bitsAppend
-    (ComputableInPolyTime.bitsAppend hx hy) ((ComputableInPolyTime.bitsReplicate false).comp hm))
-  have hiso := ComputableInPolyTime.bool_and'
-    (ComputableInPolyTime.bool_not.comp
-      (hy.decide_eq' ((ComputableInPolyTime.bitsReplicate false).comp h₂)))
-    (ComputableInPolyTime.bool_not.comp
-      ((computableInPolyTime_hasIn hn₂ hP₂ hS₂).comp (ha.prod hy)))
-  have hresult := ComputableInPolyTime.ite_decide hstep
-    (ComputableInPolyTime.ite_decide (ComputableInPolyTime.binary_lt' hk hM)
-      (ComputableInPolyTime.ite_decide
-        (ComputableInPolyTime.binary_lt' hα (ComputableInPolyTime.binary_two_pow.comp h₂))
-        (((computableInPolyTime_hasOut hn₂ hP₂ hS₂).comp (ha.prod hy)).ite
-          hactive (hiso.ite hshift hrest))
-        (ComputableInPolyTime.ite_decide
-          (ComputableInPolyTime.binary_lt' hα (binary_sub' hT hk)) hshift hrest))
-      ((ComputableInPolyTime.bool_and' (hk.decide_eq' hM)
-        (ComputableInPolyTime.binary_lt' hα
-          (ComputableInPolyTime.binary_two_pow.comp h₂))).ite hjump hrest)) hrest
-  change ComputableInPolyTime (fun p => plsPpadsSucc n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
-  convert hresult using 1
-  funext p
-  simp only [plsPpadsSucc, plsPpadsSuccCore, Function.comp_def, zeroVertex,
-    decide_eq_true_eq, List.append_assoc]
-  split_ifs <;> first | rfl | contradiction
+  polytime [plsPpadsSucc, plsPpadsSuccCore]
 
 theorem computableInPolyTime_plsPpadsPred
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
@@ -830,49 +766,7 @@ theorem computableInPolyTime_plsPpadsPred
     (hP₂ : ComputableInPolyTime P₂ (encPair enc encBits) encBits)
     (hS₂ : ComputableInPolyTime S₂ (encPair enc encBits) encBits) :
     ComputableInPolyTime (plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂) (encPair enc encBits) encBits := by
-  have ha := ComputableInPolyTime.fst enc encBits
-  have hw := ComputableInPolyTime.snd enc encBits
-  have h₁ := hn₁.comp ha; have h₂ := hn₂.comp ha
-  have hm := ComputableInPolyTime.unary_add.comp (h₁.prod h₂)
-  have hx := ComputableInPolyTime.bitsTakeWithInput hw h₁
-  have hz := ComputableInPolyTime.bitsTakeWithInput
-    (ComputableInPolyTime.bitsDropWithInput hw h₁) hm
-  have hr := ComputableInPolyTime.bitsDropWithInput
-    (ComputableInPolyTime.bitsDropWithInput hw h₁) hm
-  have hT := ComputableInPolyTime.binary_two_pow.comp hm
-  have hM := binary_sub' hT (ComputableInPolyTime.binary_two_pow.comp h₂)
-  have hα := ComputableInPolyTime.bitsBinaryValue.comp hz
-  have hk := ComputableInPolyTime.bitsBinaryValue.comp hr
-  have hrest := ComputableInPolyTime.bitsAppend hx (ComputableInPolyTime.bitsAppend hz hr)
-  have hαnext := binary_add' hα (.const 1)
-  have hy := binaryWord_polyTime h₂ hαnext
-  have hx₀ := ComputableInPolyTime.bitsTakeWithInput hz h₁
-  have hNx₀ := hN₁.comp (ha.prod hx₀)
-  have hcond0 := ComputableInPolyTime.bool_and'
-    (ComputableInPolyTime.binary_lt' (hC₁.comp (ha.prod hNx₀)) (hC₁.comp (ha.prod hx₀)))
-    (hNx₀.decide_eq' hx)
-  have hjump := ComputableInPolyTime.bitsAppend hx₀ (ComputableInPolyTime.bitsAppend
-    (binaryWord_polyTime hm
-      (ComputableInPolyTime.bitsBinaryValue.comp (ComputableInPolyTime.bitsDropWithInput hz h₁)))
-    (binaryWord_polyTime hm hM))
-  have hshift := computableInPolyTime_plsPpadsBranch hn₁ hn₂ hαnext (binary_sub' hk (.const 1))
-  have hactive := computableInPolyTime_plsPpadsBranch hn₁ hn₂
-    (ComputableInPolyTime.bitsBinaryValue.comp (hP₂.comp (ha.prod hy)))
-    (binary_sub' hk (.const 1))
-  have hstep := ComputableInPolyTime.binary_lt'
-    (hC₁.comp (ha.prod (hN₁.comp (ha.prod hx)))) (hC₁.comp (ha.prod hx))
-  have hresult := ComputableInPolyTime.ite_decide (hk.decide_eq' (.const 0))
-    (hcond0.ite hjump hrest)
-    ((ComputableInPolyTime.bool_and' (ComputableInPolyTime.binary_le' hk hM) hstep).ite
-      (ComputableInPolyTime.ite_decide
-        (ComputableInPolyTime.binary_lt' hαnext (ComputableInPolyTime.binary_two_pow.comp h₂))
-        (((computableInPolyTime_hasIn hn₂ hP₂ hS₂).comp (ha.prod hy)).ite hactive
-          ((ComputableInPolyTime.bool_not.comp
-            ((computableInPolyTime_hasOut hn₂ hP₂ hS₂).comp (ha.prod hy))).ite hshift hrest))
-        (ComputableInPolyTime.ite_decide
-          (ComputableInPolyTime.binary_lt' hα (binary_sub' hT hk)) hshift hrest)) hrest)
-  change ComputableInPolyTime (fun p => plsPpadsPred n₁ N₁ C₁ n₂ P₂ S₂ p) _ _
-  simpa only [plsPpadsPred, plsPpadsPredCore, Function.comp_def, decide_eq_true_eq] using hresult
+  polytime [plsPpadsPred, plsPpadsPredCore]
 
 theorem computableInPolyTime_plsPpadsPotential
     (hn₁ : ComputableInPolyTime n₁ enc encUnary)
@@ -890,8 +784,7 @@ section Collapse
 
 variable {enc : α ↪ List Bool} {R : α → List Bool → Prop}
 
-attribute [local fun_prop] ComputableInPolyTime.bool_and' binaryWord_polyTime
-  ComputableInPolyTime.binary_le'
+attribute [local fun_prop] binaryWord_polyTime
 
 /-- A problem in `FNP` whose solutions can be read back, on the same instance, from the local
 optima of a uniform polynomial-time local-search family and from the sinks of a uniform
@@ -913,8 +806,7 @@ theorem mem_SOPL_of_localOpt_sinkOfLine (hR : R ∈ FNP enc)
     (h₂ : ∀ a w, sinkOfLineRel n₂ P₂ S₂ a w → R a (g₂ (a, w))) :
     R ∈ SOPL enc := by
   obtain ⟨m₀, hm₀, hB⟩ := exists_potentialBound hn₁ hC₁
-  have hBpt : ComputableInPolyTime (fun a => 2 ^ m₀ a) enc encNat :=
-    ComputableInPolyTime.binary_two_pow.comp hm₀
+  have hBpt : ComputableInPolyTime (fun a => 2 ^ m₀ a) enc encNat := by fun_prop
   have hW : ComputableInPolyTime (plsPpadsWidth n₁ n₂) enc encUnary := by
     unfold plsPpadsWidth
     fun_prop

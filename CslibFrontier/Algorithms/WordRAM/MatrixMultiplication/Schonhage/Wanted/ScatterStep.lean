@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.ScatterWrite
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Wanted.CountStep
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # One computed wanted-query scatter
@@ -75,19 +76,15 @@ theorem exec_scatterStep {w L m N Q n : ℕ} (hm : m ≤ L) (pairs : ℕ → ℕ
     ram_eval [loadQuery, loaded, hx.queries, hx.tables.two, hx.tables.one, hi, hI, hJ,
       ha1, pointer, index, queries, queryRow, queryCol,
       BandPreparation.one, BandPreparation.two, Fin.mk.injEq]
-  have lp : Parameters L m N Q loaded := hx.of_exec hload (by decide +kernel)
+  have lp : Parameters L m N Q loaded := by regs_frame
   have hrfit : Fits w (routeBudget L m N (tableAddress L Q)) := hfit.of_le (by
     unfold wordBudget
     omega)
   obtain ⟨routed, hr, _, _, htile, hvalue, hrmem, hrregs⟩ := exec_route hm I J loaded lp.route
     (by simp [loaded, queryRow, queryCol, pointer]) (by simp [loaded]) htable hrfit
   change routed.mem = x.mem at hrmem
-  have rp : Parameters L m N Q routed := lp.reframe (by
-    intro i hi
-    have hf : ∀ i ∈ parameterRegisters, ¬RouteLocal i := by decide +kernel
-    exact hrregs i (hf i hi))
-  have hidx : routed.regs index = n :=
-    (hrregs index (by decide)).trans (by simp [loaded, index, pointer, queryRow, queryCol, hi])
+  have rp : Parameters L m N Q routed := by regs_frame
+  have hidx : routed.regs index = n := by regs_frame
   have hcursor : routed.mem (cursorAddressBase L m N Q + key n) = p := by
     rw [hrmem]
     exact hcursors _ hk
