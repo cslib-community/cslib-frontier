@@ -7,12 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests of the positivity_lemma attribute)
 
-public import CslibFrontier.Tactic.PositivityLemma
-public import CslibFrontier.Foundations.Combinatorics.Expander.Basic
-public import CslibFrontier.Computability.LogSpaceDerandomization.HierarchyRankEnvironment
-public import Mathlib.Tactic.FieldSimp
-public import Mathlib.Tactic.GCongr
-public import Mathlib.Tactic.Positivity
+import CslibFrontier.Tactic.PositivityLemma
+import CslibFrontier.Foundations.Combinatorics.Expander.Basic
+import CslibFrontier.Computability.LogSpaceDerandomization.HierarchyRankEnvironment
+import Mathlib.Tactic.FieldSimp
+import Mathlib.Tactic.GCongr
+import Mathlib.Tactic.Positivity
 
 /-!
 # Tests for `@[positivity_lemma]`
@@ -23,7 +23,7 @@ determined by the target expression are synthesized or discharged automatically,
 data or type arguments, non-sign conclusions, and variable heads are rejected.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.PositivityLemma
 
@@ -69,10 +69,10 @@ example {V D : Type*} [DecidableEq V] [Fintype V] [Fintype D] (G : RotationMap V
 /-! ### Synthesized instances and discharged side conditions -/
 
 /-- A quantity whose positivity depends on `[NeZero P]`, which does not appear in `modScale P`. -/
-def modScale (P : ℕ) : ℝ := P
+private def modScale (P : ℕ) : ℝ := P
 
-@[positivity_lemma]
-theorem modScale_pos {P : ℕ} [NeZero P] : 0 < modScale P :=
+@[local positivity_lemma]
+private theorem modScale_pos {P : ℕ} [NeZero P] : 0 < modScale P :=
   Nat.cast_pos.mpr (NeZero.pos P)
 
 /-- Instance synthesis directly and through `[Fact P.Prime]`. -/
@@ -85,10 +85,10 @@ example (P : ℕ) : 0 ≤ modScale P ^ 2 := by
   positivity
 
 /-- A quantity that is positive only on nonnegative arguments. -/
-noncomputable def shifted (x : ℝ) : ℝ := x / 2 + 1
+private noncomputable def shifted (x : ℝ) : ℝ := x / 2 + 1
 
-@[positivity_lemma]
-theorem shifted_pos {x : ℝ} (hx : 0 ≤ x) : 0 < shifted x := by
+@[local positivity_lemma]
+private theorem shifted_pos {x : ℝ} (hx : 0 ≤ x) : 0 < shifted x := by
   unfold shifted
   positivity
 
@@ -103,10 +103,10 @@ example (x : ℝ) : 0 ≤ shifted x ^ 2 := by
   positivity
 
 /-- A quantity whose positivity requires a linear `ℕ` comparison. -/
-noncomputable def slackGap (r H : ℕ) : ℝ := (H : ℝ) - r + 1
+private noncomputable def slackGap (r H : ℕ) : ℝ := (H : ℝ) - r + 1
 
-@[positivity_lemma]
-theorem slackGap_pos {r H : ℕ} (hr : r ≤ H) : 0 < slackGap r H := by
+@[local positivity_lemma]
+private theorem slackGap_pos {r H : ℕ} (hr : r ≤ H) : 0 < slackGap r H := by
   unfold slackGap
   have : (r : ℝ) ≤ H := by exact_mod_cast hr
   linarith
@@ -121,10 +121,10 @@ example (r H : ℕ) : 0 ≤ slackGap r H ^ 2 := by
   positivity
 
 /-- Cyclic sign-lemma hypothesis terminates cleanly when unprovable and succeeds from context. -/
-noncomputable def mystery (x : ℝ) : ℝ := x
+private noncomputable def mystery (x : ℝ) : ℝ := x
 
-@[positivity_lemma]
-theorem mystery_pos_of_pos {x : ℝ} (hx : 0 < mystery x) : 0 < mystery x := hx
+@[local positivity_lemma]
+private theorem mystery_pos_of_pos {x : ℝ} (hx : 0 < mystery x) : 0 < mystery x := hx
 
 example (x : ℝ) (hx : 0 < mystery x) : 0 < 2 * mystery x := by positivity
 
@@ -134,7 +134,7 @@ example (x : ℝ) : 0 ≤ mystery x ^ 2 := by
 
 /-! ### Rejected registrations -/
 
-theorem shifted_le (x : ℝ) : shifted x ≤ x + 1 ∨ x < 0 := by
+private theorem shifted_le (x : ℝ) : shifted x ≤ x + 1 ∨ x < 0 := by
   unfold shifted
   rcases le_or_gt 0 x with h | h
   · exact .inl (by linarith)
@@ -145,9 +145,9 @@ error: `@[positivity_lemma]` needs a lemma concluding `0 < e` or `0 ≤ e`, but 
   shifted x ≤ x + 1 ∨ x < 0
 -/
 #guard_msgs in
-attribute [positivity_lemma] shifted_le
+attribute [local positivity_lemma] shifted_le
 
-theorem shifted_undetermined {x y : ℝ} (hy : 0 ≤ y) : 0 < shifted (x ^ 2) := by
+private theorem shifted_undetermined {x y : ℝ} (hy : 0 ≤ y) : 0 < shifted (x ^ 2) := by
   have _ := hy
   positivity
 
@@ -158,9 +158,11 @@ is not determined by
   shifted (x ^ 2)
 -/
 #guard_msgs in
-attribute [positivity_lemma] shifted_undetermined
+attribute [local positivity_lemma] shifted_undetermined
 
-theorem shifted_inst_undetermined {α : Type*} [Nonempty α] (x : ℝ) : 0 < shifted (x ^ 2) := by
+private theorem shifted_inst_undetermined {α : Type*} [inst : Nonempty α] (x : ℝ) :
+    0 < shifted (x ^ 2) := by
+  have _ := inst
   positivity
 
 /--
@@ -170,14 +172,14 @@ is not determined by
   shifted (x ^ 2)
 -/
 #guard_msgs in
-attribute [positivity_lemma] shifted_inst_undetermined
+attribute [local positivity_lemma] shifted_inst_undetermined
 
-theorem nnreal_nonneg (x : NNReal) : 0 ≤ x := x.2
+private theorem nnreal_nonneg (x : NNReal) : 0 ≤ x := x.2
 
 /--
 error: `@[positivity_lemma]`: nnreal_nonneg states the sign of a variable, which `positivity` would have to try on every expression
 -/
 #guard_msgs in
-attribute [positivity_lemma] nnreal_nonneg
+attribute [local positivity_lemma] nnreal_nonneg
 
 end CslibFrontierTests.PositivityLemma
