@@ -44,6 +44,7 @@ public import CslibFrontier.Algorithms.Lean.BinarySearch
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Basic
 public import CslibFrontier.Algorithms.Lean.BurrowsWheeler.Decode
 public import CslibFrontier.Algorithms.Lean.CDCL.Assign
+public import CslibFrontier.Algorithms.Lean.CDCL.CertificateSize
 public import CslibFrontier.Algorithms.Lean.CDCL.Dimacs
 public import CslibFrontier.Algorithms.Lean.CDCL.Exec
 public import CslibFrontier.Algorithms.Lean.CDCL.Heap
@@ -8303,12 +8304,14 @@ public import CslibFrontier.Logics.Propositional.QBF.Blocks
 public import CslibFrontier.Logics.Propositional.Resolution
 public import CslibFrontier.Logics.Propositional.Resolution.CliqueColoring
 public import CslibFrontier.Logics.Propositional.Resolution.ExistentialPebble
+public import CslibFrontier.Logics.Propositional.Resolution.FromLRAT
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.Extraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.MonotoneExtraction
 public import CslibFrontier.Logics.Propositional.Resolution.Interpolation.PolyTime
 public import CslibFrontier.Logics.Propositional.Resolution.LRAT
 public import CslibFrontier.Logics.Propositional.Resolution.LRATLog
+public import CslibFrontier.Logics.Propositional.Resolution.LRATLowerBound
 public import CslibFrontier.Logics.Propositional.Resolution.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Resolution.PigeonholeSpace
 public import CslibFrontier.Logics.Propositional.Resolution.Proof
