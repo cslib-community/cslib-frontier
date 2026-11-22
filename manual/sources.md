@@ -109,6 +109,11 @@ Andris Ambainis, Michele Mosca, Alain Tapp and Ronald de Wolf. *Private Quantum 
 
 Alexandr Andoni, Piotr Indyk. “Near-Optimal Hashing Algorithms for Approximate Nearest Neighbor in High Dimensions.” *Communications of the ACM* 51(1), 117–122, 2008. https://doi.org/10.1145/1327452.1327494 . Inspected in the author-hosted copy (https://people.csail.mit.edu/indyk/p117-andoni.pdf). Section 2.4, "Strategy 1", p. 119, states: "It is shown in [25, 19] that the first strategy, with L′ = 3L, yields a solution to the randomized c-approximate R-near neighbor problem". Here [25] is Indyk–Motwani, STOC 1998 ([indykmotwani98](#indykmotwani98)), and [19] is Gionis–Indyk–Motwani, "Similarity search in high dimensions via hashing", VLDB 1999. The same page takes `L = Θ(n^ρ)` with `ρ = ln(1/P₁)/ln(1/P₂)`. Cited as an exposition of the rule that stops the LSH query after `3L` candidates; the rule itself is credited to [25, 19].
 
+<a id="angluin1980b"></a>
+## angluin1980b
+
+Dana Angluin. "Local and Global Properties in Networks of Processors." *Proceedings of the Twelfth Annual ACM Symposium on Theory of Computing (STOC 1980)*, 82–93, 1980. https://doi.org/10.1145/800141.804655 . The library's key is `Angluin1980b` (distinguished from `Angluin1980`). Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the conference proceedings PDF was not directly inspected, so internal theorem and page locators are not claimed. [RingElection/Anonymous.lean](../CslibFrontier/Computability/Distributed/RingElection/Anonymous.lean) proves concrete oriented-ring rotational symmetry steps toward [#7200](https://github.com/cslib-community/cslib-frontier/issues/7200) (not the paper's general processor-network covering impossibility endpoints): synchronous-round rotational invariance (`AnonProtocol.not_electsUniqueLeader_sync_of_two_le`) and sequential FIFO wave uniformity (`AnonAsyncProtocol.exists_rotWave_trace_leaders_card_ne_one`) on `Fin n` for `2 ≤ n`, even when nodes know `n`.
+
 <a id="anshelevichdktwr08"></a>
 ## anshelevichdktwr08
 
@@ -481,6 +486,11 @@ Amit Chakrabarti. *Data Stream Algorithms: Lecture Notes*. Dartmouth College, la
 ## changkannan06
 
 Kevin L. Chang and Ravi Kannan. "The Space Complexity of Pass-Efficient Algorithms for Clustering." *Proceedings of the Seventeenth Annual ACM-SIAM Symposium on Discrete Algorithms (SODA 2006)*, 1157–1166. https://doi.org/10.1145/1109557.1109685 . Checked against the SODA text on 2026-11-13: Section 5.1, the proof of Theorem 5.1 (stated on p. 1164), on p. 1165, which simulates an `ℓ`-pass algorithm with memory `M(A)` by "a total of 2ℓ − 1 messages of size at most M(A)", Alice and Bob alternately continuing each pass on their halves of the stream. The journal version (SIAM J. Comput., 2009, retitled) was not inspected.
+
+<a id="changroberts1979"></a>
+## changroberts1979
+
+Ernest Chang and Rosemary Roberts. "An Improved Algorithm for Decentralized Extrema-Finding in Circular Configurations of Processes." *Communications of the ACM* 22(5), 281–283, 1979. https://doi.org/10.1145/359104.359108 . The library's key is `ChangRoberts1979`. Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the article PDF was not directly inspected, so internal theorem and page locators are not claimed. [RingElection/ChangRoberts.lean](../CslibFrontier/Computability/Distributed/RingElection/ChangRoberts.lean) formalizes simultaneous-all-initiator election-pass steps toward [#7200](https://github.com/cslib-community/cslib-frontier/issues/7200) (not the arbitrary-initiator or elected-announcement-pass endpoints) over an asynchronous FIFO unidirectional ring `Fin n` (`crAllInit`): unique-maximum termination (`crAllInit_terminates`), the `n * (n + 1) / 2` message bound (`crAllInit_messages_le`, `crAllInit_totalMsgs_rev_eq`), and the `n H_n` permutation-average formula (`crAllInit_avg_totalMsgs_eq`).
 
 <a id="charikar02"></a>
 ## charikar02
@@ -1826,6 +1836,11 @@ Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifia
 ## peikert2016
 
 Chris Peikert. *A Decade of Lattice Cryptography*. Foundations and Trends in Theoretical Computer Science 10(4), 283–424, 2016. https://doi.org/10.1561/0400000074 ; author PDF dated February 17, 2016 at https://web.eecs.umich.edu/~cpeikert/pubs/lattice-survey.pdf . Consulted in the February 17, 2016 author PDF: Section 4.2.1, unnumbered "Normal form" paragraph, printed p. 23, for the sample transformation from `(n + m)`-sample uniform-secret LWE to `m`-sample error-secret (normal-form) LWE by inverting the top `n × n` block, losing the singular-block probability (`NormalForm.lean` formalizes these finite probability steps on framed-integer `ProbComp` callers toward the hardness reductions in #3673, without certifying polynomial-time inversion).
+
+<a id="peterson1982"></a>
+## peterson1982
+
+Gary L. Peterson. "An $O(n \log n)$ Unidirectional Algorithm for the Circular Extrema Problem." *ACM Transactions on Programming Languages and Systems* 4(4), 758–762, 1982. https://doi.org/10.1145/69622.357194 . The library's key is `Peterson1982`. Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the journal PDF was not directly inspected, so internal theorem and page locators are not claimed. [RingElection/Peterson.lean](../CslibFrontier/Computability/Distributed/RingElection/Peterson.lean) formalizes all-initially-active basic two-hop unidirectional FIFO ring election steps toward [#7200](https://github.com/cslib-community/cslib-frontier/issues/7200) (with all `n` nodes starting active in `twoHopAllActiveInit`, rather than spontaneous wakeup or the `1.44 n log n` Fibonacci-threshold refinement): strict-local-peak active-subring halving `2 * active_{k + 1} ≤ active_k` (`twoHopAllActive_phase_halving`), one-step FIFO confluence (`twoHopStep_comm`), unique-maximum termination (`twoHopAllActive_elects_leader`), and the `2 * n * Nat.log 2 n + n` asynchronous message bound (`twoHopAllActive_messages_le`).
 
 <a id="pighizzini2009"></a>
 ## pighizzini2009
