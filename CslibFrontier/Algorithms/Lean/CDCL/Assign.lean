@@ -411,6 +411,13 @@ theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective
 repeated literals (`dedupLits`) and indexes the watch lists. -/
 def litKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
 
+/-- The key of the negation of `l`, computed without building the negation. -/
+def negKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 0 else 1
+
+theorem litKey_negate (l : Literal ℕ) : litKey l.negate = negKey l := by
+  obtain ⟨v, b⟩ := l
+  cases b <;> rfl
+
 theorem litKey_injective : Function.Injective litKey := by
   intro ⟨v, x⟩ ⟨w, y⟩ h
   simp only [litKey] at h
