@@ -9,7 +9,9 @@ module
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
+import Mathlib.Topology.MetricSpace.Bounded
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.IntervalCases
 import Mathlib.Tactic.Linarith
@@ -355,5 +357,40 @@ theorem declared_star_has_three_supports :
   change (0 : ℂ) ∈ (Route.line _ 0).support
   rw [Route.support_line]
   exact right_mem_segment ℝ _ _
+
+-- On the one-fixed-end input, move the free leaf off its prescribed point.
+example :
+    let J := smallInput 1
+    let d : Dart J.graph := (⟨0, by decide +kernel⟩, false)
+    ∃ E : PolygonalDrawing (subdivisionGraph J), E.IsEmbedding ∧
+      E.vertex 3 ≠ referencePoint J 3 ∧ E.vertex 0 = referencePoint J 0 ∧
+      E.route (subdivisionDart J d).1 = (referenceDrawing J).route (subdivisionDart J d).1 := by
+  dsimp only
+  let J := smallInput 1
+  have hJ : Valid J := small_valid 1
+  have hv : 3 ∈ (subdivisionGraph J).vertices := by decide +kernel
+  have hfree : ¬ IsFrozenReferenceVertex J 3 := by
+    rintro (h | ⟨d, hd, he⟩)
+    · exact (show 3 ∉ J.graph.vertices by decide +kernel) h
+    · have hf : ∀ d : Dart J.graph, 3 = J.graph.vertices.length + d.index →
+          (J.orders.getD d.vertex none).isSome = false := by decide +kernel
+      simp only [hf d he, Bool.false_eq_true] at hd
+  let points : Set ℂ := referencePoint J '' {w | w ∈ (subdivisionGraph J).vertices}
+  have hpoints : points.Finite :=
+    (subdivisionGraph J).vertices.finite_toSet.image (referencePoint J)
+  obtain ⟨R, hR, hbound⟩ :=
+    ((frozenReferenceObstacle_isCompact J).union hpoints.isCompact).isBounded.subset_ball_lt 0 0
+  have hout : (R : ℂ) ∉ frozenReferenceObstacle J ∪ points := by
+    intro h
+    have hlt := Metric.mem_ball.mp (hbound h)
+    rw [dist_zero_right, Complex.norm_real, Real.norm_of_nonneg hR.le] at hlt
+    exact (lt_irrefl R) hlt
+  have hne (w : ℕ) (hw : w ∈ (subdivisionGraph J).vertices) : (R : ℂ) ≠ referencePoint J w :=
+    fun h => hout (Or.inr ⟨w, hw, h.symm⟩)
+  obtain ⟨E, hE, hpos, hother, hfrozen⟩ :=
+    exists_move_unfrozen_reference_vertex hJ (small_embedding 1) (fun _ _ => rfl)
+      (fun _ _ => rfl) hv hfree (fun h => hout (Or.inl h)) (fun w hw _ => hne w hw)
+  exact ⟨E, hE, fun h => hne 3 hv (hpos.symm.trans h), hother 0 (by decide +kernel) (by decide),
+    hfrozen _ (by decide +kernel)⟩
 
 end CslibFrontierTests.RotationEmbeddingNecessity
