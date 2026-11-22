@@ -1077,6 +1077,11 @@ F. C. Hennie. “One-tape, off-line Turing machine computations.” *Information
 
 Christopher Henson and Fabrizio Montesi. *Computer Science as Infrastructure: the Spine of the Lean Computer Science Library (CSLib)*. EPTCS 449 (LSFA 2026), pp. 141–148, 2026. https://doi.org/10.4204/EPTCS.449.9 . Version-of-record metadata verified through https://arxiv.org/abs/2602.15078v2 on 2026-11-02 UTC; DOI resolver was unavailable in this research environment.
 
+<a id="herlihy1991"></a>
+## herlihy1991
+
+Maurice Herlihy. "Wait-Free Synchronization." *ACM Transactions on Programming Languages and Systems* 13(1), 124–149, 1991. https://doi.org/10.1145/114005.102808 . Inspected the author-hosted print PDF https://cs.brown.edu/~mph/Herlihy91/p124-herlihy.pdf (SHA-256 `f2758020dc0c0dd6502d5eb43ccdce313d568095b8eb3eabb9d02959394a221f`; note the PDF running footer misprints `Vol. 11, No. 1`, whereas the journal volume is `13`, `0164-0925/91/0100-0124`) on 2026-11-22 UTC: Figure 1 (p. 126, impossibility and universality hierarchy); §2.2–2.3 (pp. 128–130, concurrent systems, sequential histories, linearizability `<_H ⊆ <_S`, wait-free vs bounded wait-free implementations); §3 (pp. 130–131, consensus consistency/wait-freedom/validity and Definition 1 on p. 130 for consensus number); §3.1 (pp. 131–133, bivalence/univalence/decision steps on p. 131, Theorem 2 on pp. 131–132 & Figures 3–5 on pp. 132–133 proving read/write registers have consensus number `1`); §3.2 (pp. 133–135, Figure 6 on p. 133, Theorem 3 on pp. 133–134 & Figure 7 on p. 134 for 2-process RMW consensus, p. 134 defining "interfering" commuting-or-overwriting RMW families, Theorem 4 on p. 134 proving 3-process impossibility for interfering RMW operations, and Theorem 5 on p. 135 & Figures 8–9 on p. 135 proving `compare&swap` has infinite consensus number); and §4.1 (pp. 143–146, remark on p. 144 noting that omitting the `announce` helping step makes the log-append protocol nonblocking rather than wait-free across unbounded streams, Figure 14 on p. 145, Lemmas 1–5 on pp. 144–146, and Theorem 14 on p. 146). Cited by [SharedMemory/Basic.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Basic.lean) (`Protocol.WaitFree` modeled as accessibility of active transitions from every `initConfig`), [SharedMemory/Hierarchy.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Hierarchy.lean) (`1 < 2 < ∞` hierarchy, formalizing the concrete `test&set` instance of Figure 7 while leaving Theorem 3's general arbitrary-nontrivial-RMW lower bound open), and [SharedMemory/Universal.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Universal.lean) (formalizing the finite-invocation-batch `P`, unhelped idealized `ConsensusCell` log-append step under `ValidSlotSchedule`, without §4.1's `announce`/helping array or §4.2's bounded-memory cell reclamation).
+
 <a id="hhk17"></a>
 ## hhk17
 
@@ -1583,6 +1588,11 @@ Hanjun Li, Tianren Liu. "How to Garble Mixed Circuits that Combine Boolean and A
 ## lll82
 
 Arjen K. Lenstra, Hendrik W. Lenstra Jr. and László Lovász. "Factoring Polynomials with Rational Coefficients." *Mathematische Annalen* 261, 515–534, 1982. https://doi.org/10.1007/BF01457454 . Inspected the author-hosted scan https://www.math.leidenuniv.nl/~hwl/PUBLICATIONS/1982f/art.pdf on 2026-11-08: §1, conditions (1.4)–(1.5) and the remark after (1.5), Proposition (1.6) and the remark after it, Proposition (1.11), the algorithm (1.15)–(1.21), the swap formulas (1.22) and the termination argument (1.23)–(1.26).
+
+<a id="louiabuamara1987"></a>
+## louiabuamara1987
+
+Michael C. Loui and Hosame H. Abu-Amara. "Memory Requirements for Agreement Among Unreliable Asynchronous Processes." *Advances in Computing Research* 4, 163–183, JAI Press, 1987. Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full chapter text was not inspected in this pass, so no definition, theorem, or passage from this chapter is claimed. Listed in [SharedMemory/Basic.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Basic.lean) and [SharedMemory/Hierarchy.lean](../CslibFrontier/Computability/Distributed/SharedMemory/Hierarchy.lean) solely as prior shared-register impossibility work noted by Herlihy ([herlihy1991](#herlihy1991), §3.1, p. 132, ref. `[21]`, and §3.7, p. 142); all formalized shared-memory definitions and theorems are verified against [herlihy1991](#herlihy1991).
 
 <a id="lovasz1979"></a>
 ## lovasz1979

@@ -503,6 +503,7 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
 import CslibFrontier.Computability.Distributed.ChandyLamport.Correctness
 import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
@@ -11718,6 +11719,95 @@ register_result "chandy-lamport-consistent-global-snapshot" where
     are proved separately in the same module. Source check: outside-fleet agent review \
     (reviewer-codex-edemaine) on PR #7162 at 3b169cc66a55: \
     https://github.com/cslib-community/cslib-frontier/pull/7162#pullrequestreview-6010522397."
+
+register_result "herlihy-register-consensus-number-one" where
+  title := "Atomic read/write registers have wait-free consensus number 1"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991, theorem := "Theorem 2",
+      locator := "§3.1, printed pp. 131–133 (Figures 3–5)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.not_waitFreeConsensus_registers,
+    Cslib.Distributed.SharedMemory.exists_register_consensus_iff
+  ]
+  scope := "Deterministic asynchronous P-process shared-memory Protocol over any finite process \
+    type P ([Fintype P] [DecidableEq P]) and indexed family of atomic multi-reader multi-writer \
+    read/write registers registerObj (init i) (where RegOp.read returns some s without modifying \
+    s and RegOp.write v overwrites s with v returning none), with wait-free termination modeled \
+    as reachable-from-initConfig accessibility of active transitions (Protocol.WaitFree : \
+    ∀ inp, Acc π.StepRel (π.initConfig inp)). Proves binary SolvesWaitFreeConsensus is \
+    impossible whenever 2 ≤ Fintype.card P (not_waitFreeConsensus_registers) and solvable if \
+    and only if Fintype.card P ≤ 1 (exists_register_consensus_iff, paired with 1-step \
+    oneProcProtocol). Source check: outside-fleet agent review (reviewer-codex-edemaine) on \
+    PR #7273 at 8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "herlihy-test-and-set-two-process-consensus" where
+  title := "Two-process wait-free consensus from TestAndSet and atomic registers"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991,
+      theorem := "Figure 7 (test&set instance of Theorem 3)",
+      locator := "§3.2, printed pp. 133–134" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_testAndSetProtocol,
+    Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_testAndSet_two
+  ]
+  scope := "Explicit 3-step wait-free consensus protocol testAndSetProtocol over per-process \
+    atomic read/write proposal registers (registerObj) and a single TestAndSet object \
+    (testAndSetObj): each process writes its input to its proposal register, invokes TestAndSet, \
+    and reads and decides the winning proposer's register. Proves SolvesWaitFreeConsensus over \
+    any value type V whenever regOf : P → R is injective and other selects the unique peer \
+    (solvesWaitFreeConsensus_testAndSetProtocol), hence whenever Fintype.card P ≤ 2 \
+    (solvesWaitFreeConsensus_testAndSet_two). Formalizes the concrete test&set instance of \
+    Figure 7; Theorem 3's general two-process lower bound over arbitrary nontrivial \
+    read-modify-write functions f (∃ v, f v ≠ v) is not formalized here and remains open in \
+    #7199. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7273 at \
+    8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "herlihy-commuting-or-overwriting-rmw-impossibility" where
+  title := "Three-process wait-free consensus impossibility for commuting-or-overwriting objects"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991, theorem := "Theorem 4",
+      locator := "§3.2, printed p. 134" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.not_waitFreeConsensus_rmw_of_three_le,
+    Cslib.Distributed.SharedMemory.exists_testAndSet_consensus_iff
+  ]
+  scope := "Deterministic asynchronous P-process shared-memory Protocol ([Fintype P] \
+    [DecidableEq P]) with reachable-from-initConfig Protocol.WaitFree over any indexed family of \
+    deterministic shared objects objs i satisfying Herlihy's commuting-or-overwriting \
+    ('interfering', p. 134) state predicate IsCommutingOrOverwriting (proved in the same module \
+    for registerObj, testAndSetObj, swapObj, and fetchAndAddObj over any AddCommSemigroup): \
+    proves binary SolvesWaitFreeConsensus is impossible whenever 3 ≤ Fintype.card P \
+    (not_waitFreeConsensus_rmw_of_three_le), and combines with testAndSetProtocol to show binary \
+    wait-free consensus from TestAndSet objects and atomic read/write registers is solvable iff \
+    Fintype.card P ≤ 2 (exists_testAndSet_consensus_iff). Source check: outside-fleet agent \
+    review (reviewer-codex-edemaine) on PR #7273 at 8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
+
+register_result "herlihy-compare-and-swap-consensus" where
+  title := "CompareAndSwap solves wait-free consensus for every finite number of processes"
+  topic := "distributed computing"
+  sources := [
+    { paper := Herlihy1991, theorem := "Theorem 5",
+      locator := "§3.2, printed p. 135 (Figures 8–9)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SharedMemory.solvesWaitFreeConsensus_cas
+  ]
+  scope := "1-step protocol casConsensusProtocol over a single value-returning CompareAndSwap \
+    object casObj (none : Option V) initialized to sentinel none: each process proposes \
+    CAS(none, some (inp p)), deciding inp p on response none and w on response some w. Proves \
+    SolvesWaitFreeConsensus for every finite process type P ([Finite P] [DecidableEq P]) and \
+    every decidable value type V ([DecidableEq V]). Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7273 at 8420cad56deb: \
+    https://github.com/cslib-community/cslib-frontier/pull/7273#pullrequestreview-6010529520."
 
 register_result "low-individual-degree-projective-self-improvement" where
   title := "Projective self-improvement for symmetric low-individual-degree strategies"

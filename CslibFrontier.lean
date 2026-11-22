@@ -3277,6 +3277,9 @@ public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
 public import CslibFrontier.Computability.Distributed.RingElection.Peterson
 public import CslibFrontier.Computability.Distributed.SelfStabilization.Basic
 public import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
+public import CslibFrontier.Computability.Distributed.SharedMemory.Basic
+public import CslibFrontier.Computability.Distributed.SharedMemory.Hierarchy
+public import CslibFrontier.Computability.Distributed.SharedMemory.Universal
 public import CslibFrontier.Computability.GenericRAM.Algebraic
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.GenericRAM.Native
