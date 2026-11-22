@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.DecisionTree.Composition
+import CslibFrontier.Computability.DecisionTree.FreeM.OracleComp
 import CslibFrontier.Computability.DecisionTree.Parity
 import Mathlib.Data.Fintype.BigOperators
 
@@ -122,8 +122,15 @@ example : (selector.substitute subroutine).depth ≤ 4 := by
 
 example : selector.depth * 3 = 6 := by decide
 
-example : ∀ x : Fin 5 → Bool, (selector.substitute subroutine).eval x =
+private theorem selector_eval : ∀ x : Fin 5 → Bool, (selector.substitute subroutine).eval x =
     if x 0 then x 2 && x 3 && x 4 else x 1 := by decide
+
+-- Replacing Boolean requests by their free subroutines evaluates to the same asymmetric function.
+example (x : Fin 5 → Bool) :
+    (OracleComp.substitute (fun i => (subroutine i).toFreeM) selector.toFreeM).foldFreeM id
+      (fun i k => k (x i)) = (if x 0 then x 2 && x 3 && x 4 else x 1) := by
+  rw [← toFreeM_substitute, eval_toFreeM]
+  exact selector_eval x
 
 -- The same compiled tree has different execution costs on its short and long branches.
 example : (selector.substitute subroutine).cost (fun _ => false) = 2 := by decide
@@ -165,5 +172,17 @@ private def unreachable : DecisionTree Unit Bool :=
 
 -- The depth-three structural path asks the same bit for inconsistent answers.
 example : unreachable.depth = 3 ∧ ∀ x : Unit → Bool, unreachable.cost x ≤ 2 := by decide
+
+example : OracleComp.IsCostBounded (fun _ => 1) unreachable.toFreeM 3 :=
+  (weightedDepth_le_iff_isCostBounded _ _ _).mp (by decide)
+
+example : ¬ OracleComp.IsCostBounded (fun _ => 1) unreachable.toFreeM 2 := by
+  rw [← weightedDepth_le_iff_isCostBounded]
+  decide
+
+-- Returning a large result does not narrow the Boolean reply universe or change its budget.
+example {β : Type 1} (t : DecisionTree Unit β) (w : Unit → ℕ) (n : ℕ) :
+    t.weightedDepth w ≤ n ↔ OracleComp.IsCostBounded w t.toFreeM n :=
+  weightedDepth_le_iff_isCostBounded t w n
 
 end CslibFrontierTests.DecisionTreeComposition
