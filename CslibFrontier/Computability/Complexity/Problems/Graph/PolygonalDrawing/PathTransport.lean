@@ -8,8 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing
-public import Mathlib.Topology.Path
+public import Mathlib.Topology.Connected.PathConnected
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SquareMove
+import CslibFrontier.Foundations.Geometry.PuncturedPaths
+import Mathlib.LinearAlgebra.Complex.FiniteDimensional
 import Mathlib.Topology.MetricSpace.Thickening
 import Mathlib.Topology.UniformSpace.HeineCantor
 
@@ -19,6 +21,9 @@ import Mathlib.Topology.UniformSpace.HeineCantor
 The path need only be continuous. Compactness of its image supplies one positive clearance
 from the closed obstacle set, and uniform continuity supplies a finite subdivision for that
 clearance. Each local square move then fixes every protected vertex and whole protected route.
+
+When the obstacle complement is path connected, a vertex can move to any vacant point in
+that complement. The proof removes every other vertex position before choosing a path.
 -/
 
 public section
@@ -102,5 +107,44 @@ theorem IsEmbedding.exists_vertex_move_along_path {G : Graph} {D : PolygonalDraw
     apply Subtype.ext
     simp [time, hnpos.ne']
   simpa only [htime, path.target] using place n le_rfl
+
+/-- Move a declared vertex to a vacant point in a path-connected closed-obstacle complement.
+All other declared vertex positions stay fixed, and each selected route supported in the
+obstacle is literally unchanged. -/
+theorem IsEmbedding.exists_vertex_move_in_compl {G : Graph} {D : PolygonalDrawing G}
+    (hD : D.IsEmbedding) (hG : ∀ v ∈ G.incidenceVertices, v ∈ G.vertices)
+    (v : ℕ) (hv : v ∈ G.vertices) {K : Set ℂ} (hK : IsClosed K)
+    (hconn : IsPathConnected Kᶜ) (hsource : D.vertex v ∉ K)
+    {b : ℂ} (htarget : b ∉ K)
+    (hvacant : ∀ w ∈ G.vertices, w ≠ v → b ≠ D.vertex w)
+    (keep : Set (Fin G.edges.length)) (hkeep : ∀ e ∈ keep, (D.route e).support ⊆ K) :
+    ∃ E : PolygonalDrawing G, E.IsEmbedding ∧ E.vertex v = b ∧
+      (∀ w ∈ G.vertices, w ≠ v → E.vertex w = D.vertex w) ∧
+      ∀ e ∈ keep, E.route e = D.route e := by
+  let names : Set ℕ := {w | w ∈ G.vertices ∧ w ≠ v}
+  let occupied := D.vertex '' names
+  have hnames : names.Finite := G.vertices.finite_toSet.subset (fun _ hw => hw.1)
+  have hoccupied : occupied.Finite := hnames.image D.vertex
+  have hrank : 1 < Module.rank ℝ ℂ := by
+    rw [Complex.rank_real_complex]
+    simpa only [Nat.cast_one, Nat.cast_ofNat] using
+      (Nat.cast_lt.mpr (show (1 : ℕ) < 2 by decide) : (↑(1 : ℕ) : Cardinal) < ↑(2 : ℕ))
+  have hjoined : IsPathConnected (Kᶜ \ occupied) :=
+    isPathConnected_sdiff_finite_of_isOpen hrank hK.isOpen_compl hconn hoccupied
+  have hs : D.vertex v ∈ Kᶜ \ occupied := by
+    refine ⟨hsource, ?_⟩
+    rintro ⟨w, ⟨hw, hwv⟩, heq⟩
+    exact hwv (hD.vertices_injective hw hv heq)
+  have ht : b ∈ Kᶜ \ occupied := by
+    refine ⟨htarget, ?_⟩
+    rintro ⟨w, ⟨hw, hwv⟩, heq⟩
+    exact hvacant w hw hwv heq.symm
+  have hpath := hjoined.joinedIn _ hs _ ht
+  have hclear : Set.range hpath.somePath ⊆ (K ∪ occupied)ᶜ := by
+    rintro z ⟨t, rfl⟩ (hz | hz)
+    · exact (hpath.somePath_mem t).1 hz
+    · exact (hpath.somePath_mem t).2 hz
+  exact hD.exists_vertex_move_along_path hG v hpath.somePath (hK.union hoccupied.isClosed) hclear
+    (fun w hw hwv => Or.inr ⟨w, ⟨hw, hwv⟩, rfl⟩) keep (fun e he z hz => Or.inl (hkeep e he hz))
 
 end Cslib.Complexity.Graph.PolygonalDrawing
