@@ -1,4 +1,5 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Registry
