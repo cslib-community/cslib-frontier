@@ -44,7 +44,7 @@ Both `CslibFrontier.Computability.Circuit.Boolean.EvaluationTime` and
   designated binary output wire numbers.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits
 
@@ -55,6 +55,7 @@ section MultiOutput
 universe u v
 
 /-- Evaluate all output wires listed in `code.2` after running the gate list `code.1` on `x`. -/
+@[expose]
 def evalOutputs {σ : Signature.{v}} {U : Type u} (I : Interpretation σ U) (d : U)
     (code : List (σ.Op × List ℕ) × List ℕ) (x : List U) : List U :=
   let vals := evalCode I d x code.1
@@ -98,7 +99,7 @@ private theorem polyTime_step (I : Interpretation σ U) (d : U) :
 /-- **Polynomial-time evaluation** of gate lists over a finite operation set and finite carrier,
 charging the framed input list and binary-indexed gate list. -/
 @[fun_prop]
-theorem computableInPolyTime_evalCode (I : Interpretation σ U) (d : U)
+protected theorem computableInPolyTime_evalCode (I : Interpretation σ U) (d : U)
     {x : α → List U} {gates : α → List (σ.Op × List ℕ)}
     (hx : ComputableInPolyTime x encIn (encList eU))
     (hgates : ComputableInPolyTime gates encIn (encList (Circuit.encGate eOp))) :
@@ -117,24 +118,24 @@ theorem computableInPolyTime_evalCode (I : Interpretation σ U) (d : U)
 
 /-- Read a binary-indexed output wire from the computed gate trace in polynomial time. -/
 @[fun_prop]
-theorem computableInPolyTime_evalOutput (I : Interpretation σ U) (d : U)
+protected theorem computableInPolyTime_evalOutput (I : Interpretation σ U) (d : U)
     {x : α → List U} {gates : α → List (σ.Op × List ℕ)} {output : α → ℕ}
     (hx : ComputableInPolyTime x encIn (encList eU))
     (hgates : ComputableInPolyTime gates encIn (encList (Circuit.encGate eOp)))
     (houtput : ComputableInPolyTime output encIn encNat) :
     ComputableInPolyTime (fun a => (evalCode I d (x a) (gates a)).getD (output a) d) encIn eU :=
-  listGetD_binary d (computableInPolyTime_evalCode I d hx hgates) houtput
+  listGetD_binary d (Circuits.computableInPolyTime_evalCode I d hx hgates) houtput
 
 /-- Evaluate every output wire listed by a runtime circuit code in polynomial time. -/
 @[fun_prop]
-theorem computableInPolyTime_evalOutputs (I : Interpretation σ U) (d : U)
+protected theorem computableInPolyTime_evalOutputs (I : Interpretation σ U) (d : U)
     {code : α → List (σ.Op × List ℕ) × List ℕ} {x : α → List U}
     (hcode : ComputableInPolyTime code encIn (Circuit.encCode eOp))
     (hx : ComputableInPolyTime x encIn (encList eU)) :
     ComputableInPolyTime (fun a => evalOutputs I d (code a) (x a)) encIn (encList eU) := by
   have hvals : ComputableInPolyTime
       (fun a => evalCode I d (x a) (code a).1) encIn (encList eU) :=
-    computableInPolyTime_evalCode I d hx hcode.fst'
+    Circuits.computableInPolyTime_evalCode I d hx hcode.fst'
   exact mapWithInput hcode.snd'
     (listGetD_binary d (hvals.comp (fst encIn encNat)) (snd encIn encNat))
 

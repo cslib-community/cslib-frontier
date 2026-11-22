@@ -27,14 +27,14 @@ from `CslibFrontier.Computability.Circuit.Encoding.Combinators` to De Morgan for
 * `Cslib.Circuits.Boolean.formulaCode_eq_code`: exact agreement with typed instantiation.
 * `Cslib.Circuits.Boolean.computableInPolyTime_formulaCode`: instantiate a fixed formula
   at efficiently computed input wires.
-* `Cslib.Circuits.Boolean.computableInPolyTime_code_rename_toCircuit`,
-  `computableInPolyTime_code_input_toCircuit`, `computableInPolyTime_code_const_toCircuit`,
-  `computableInPolyTime_code_not_toCircuit`, `computableInPolyTime_code_and_toCircuit`,
-  `computableInPolyTime_code_or_toCircuit`, `computableInPolyTime_code_ite_toCircuit`: typed
-  polynomial-time code rules for De Morgan formulas.
+* `Cslib.Circuits.Boolean.computableInPolyTime_code_input_toCircuit`,
+  `computableInPolyTime_code_const_toCircuit`, `computableInPolyTime_code_not_toCircuit`,
+  `computableInPolyTime_code_and_toCircuit`, `computableInPolyTime_code_or_toCircuit`,
+  `computableInPolyTime_code_ite_toCircuit`: typed polynomial-time code rules for De Morgan
+  formulas.
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Boolean
 
@@ -58,15 +58,6 @@ theorem computableInPolyTime_formulaCode {α : Type} {enc : α ↪ List Bool}
     (hwires : ∀ i, ComputableInPolyTime (fun a => wires a i) enc encNat) :
     ComputableInPolyTime (fun a => formulaCode (n a) F (wires a)) enc encCode :=
   Circuit.computableInPolyTime_formulaCode F hn hwires
-
-/-- Emit the circuit code of a renamed fixed De Morgan formula `(F.rename (wires a)).toCircuit`
-directly from binary input arity and binary wire indices. -/
-theorem computableInPolyTime_code_rename_toCircuit {α : Type} {enc : α ↪ List Bool}
-    {n : α → ℕ} {m : ℕ} (F : Formula signature m) {wires : (a : α) → Fin m → Fin (n a)}
-    (hn : ComputableInPolyTime n enc encNat)
-    (hwires : ∀ i, ComputableInPolyTime (fun a => (wires a i).val) enc encNat) :
-    ComputableInPolyTime (fun a => (F.rename (wires a)).toCircuit.code) enc encCode :=
-  Formula.computableInPolyTime_code_rename_toCircuit F hn hwires
 
 /-- Emit the circuit code of a De Morgan input leaf `(Formula.input (w a)).toCircuit`. -/
 theorem computableInPolyTime_code_input_toCircuit {α : Type} {enc : α ↪ List Bool}

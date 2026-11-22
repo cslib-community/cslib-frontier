@@ -1669,17 +1669,6 @@ theorem computableCircuitCode_ite {σ : Signature} {encOp : σ.Op ↪ List Bool}
   computableCircuitCode_of_computableInPolyTime
     (computableInPolyTime_code_ite hp ht.computableInPolyTime he.computableInPolyTime)
 
-/-- Emit the circuit code of a renamed fixed formula `(F.rename (wires a)).toCircuit`. -/
-theorem _root_.Cslib.Circuits.Formula.computableInPolyTime_code_rename_toCircuit
-    {σ : Signature} {encOp : σ.Op ↪ List Bool}
-    {α : Type} {enc : α ↪ List Bool} {n : α → ℕ} {m : ℕ}
-    (F : Formula σ m) {wires : (a : α) → Fin m → Fin (n a)}
-    (hn : ComputableInPolyTime n enc encNat)
-    (hwires : ∀ i, ComputableInPolyTime (fun a => (wires a i).val) enc encNat) :
-    ComputableInPolyTime (fun a => (F.rename (wires a)).toCircuit.code)
-      enc (encCode encOp) := by
-  simpa only [← formulaCode_eq_code] using computableInPolyTime_formulaCode F hn hwires
-
 /-- Emit the circuit code of an input formula `(Formula.input (w a)).toCircuit`. -/
 theorem _root_.Cslib.Circuits.Formula.computableInPolyTime_code_input_toCircuit
     {σ : Signature} {encOp : σ.Op ↪ List Bool}

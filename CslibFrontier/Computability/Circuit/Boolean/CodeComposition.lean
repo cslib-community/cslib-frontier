@@ -19,12 +19,9 @@ Specializes the signature-polymorphic raw circuit-code combinators of
 
 ## Main definitions
 
-* `Cslib.Circuits.Boolean.shiftCodeWire`, `Cslib.Circuits.Boolean.shiftCode`: relocate gate and
-  output wire references of a De Morgan circuit code past preceding gates.
 * `Cslib.Circuits.Boolean.appendCode`, `Cslib.Circuits.Boolean.appendCodes`,
   `Cslib.Circuits.Boolean.bundleCode`: combine De Morgan raw codes on shared inputs.
-* `Cslib.Circuits.Boolean.compCodeWire`, `Cslib.Circuits.Boolean.compCode`: compose De Morgan raw
-  circuit codes sequentially.
+* `Cslib.Circuits.Boolean.compCode`: compose De Morgan raw circuit codes sequentially.
 
 ## Main results
 
@@ -41,19 +38,11 @@ Specializes the signature-polymorphic raw circuit-code combinators of
 * [S. Arora, B. Barak, *Computational Complexity: A Modern Approach*, Section 6.1][AroraBarak09]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Boolean
 
 open Turing.MultiTapeTM
-
-/-- Retain an input wire, or shift a gate wire past `offset` preceding gates. -/
-abbrev shiftCodeWire (n offset i : ℕ) : ℕ := Circuit.shiftCodeWire n offset i
-
-/-- Shift the gate references and output references of a raw De Morgan code. -/
-abbrev shiftCode (n offset : ℕ) (code : List (Op × List ℕ) × List ℕ) :
-    List (Op × List ℕ) × List ℕ :=
-  Circuit.shiftCode n offset code
 
 /-- Run two raw De Morgan codes on shared inputs, listing the first code's outputs before the
 second's. -/
@@ -90,25 +79,6 @@ theorem evalOutput_appendCode_code {n m p : ℕ} (c : Circuit signature n m)
       funext j
       exact ((c.append d).eval_eq_evalOutput x j).symm
     _ = _ := by rw [Circuit.eval_append, List.ofFn_fin_append]
-
-/-- Shifting wire numbers is polynomial-time with all quantities encoded in binary. -/
-@[fun_prop]
-theorem computableInPolyTime_shiftCodeWire {α : Type} {enc : α ↪ List Bool}
-    {n offset i : α → ℕ} (hn : ComputableInPolyTime n enc encNat)
-    (hoffset : ComputableInPolyTime offset enc encNat)
-    (hi : ComputableInPolyTime i enc encNat) :
-    ComputableInPolyTime (fun a => shiftCodeWire (n a) (offset a) (i a)) enc encNat :=
-  Circuit.computableInPolyTime_shiftCodeWire hn hoffset hi
-
-/-- Relocating a circuit-code block is polynomial-time with binary offsets. -/
-@[fun_prop]
-theorem computableInPolyTime_shiftCode {α : Type} {enc : α ↪ List Bool}
-    {n offset : α → ℕ} {code : α → List (Op × List ℕ) × List ℕ}
-    (hn : ComputableInPolyTime n enc encNat)
-    (hoffset : ComputableInPolyTime offset enc encNat)
-    (hcode : ComputableInPolyTime code enc encCode) :
-    ComputableInPolyTime (fun a => shiftCode (n a) (offset a) (code a)) enc encCode :=
-  Circuit.computableInPolyTime_shiftCode hn hoffset hcode
 
 /-- Combining circuit codes is polynomial-time, including binary input and wire counts. -/
 @[fun_prop]
@@ -216,10 +186,6 @@ theorem exists_circuit_bundleCode {k n : ℕ} (cs : Fin k → Circuit signature 
         ∀ x j, c.eval interpretation x j = (cs j).eval interpretation x 0 :=
   ⟨Circuit.pi cs, bundleCode_code cs blockSize hs, fun x j => congrFun (Circuit.eval_pi cs x) j⟩
 
-/-- Route a later circuit's inputs through `c`'s outputs and shift its gates past `c`'s gates. -/
-abbrev compCodeWire (n : ℕ) (c : List (Op × List ℕ) × List ℕ) (i : ℕ) : ℕ :=
-  Circuit.compCodeWire n c i
-
 /-- Feed the outputs of `c` to the inputs of `d`, matching the argument order of `Circuit.comp`. -/
 abbrev compCode (n : ℕ) (d c : List (Op × List ℕ) × List ℕ) :
     List (Op × List ℕ) × List ℕ :=
@@ -239,16 +205,6 @@ theorem length_compCode (n : ℕ) (d c : List (Op × List ℕ) × List ℕ) :
 theorem length_compCode_outputs (n : ℕ) (d c : List (Op × List ℕ) × List ℕ) :
     (compCode n d c).2.length = d.2.length :=
   Circuit.length_compCode_outputs n d c
-
-/-- Resolve a composed wire in polynomial time, including binary output lookup and offsets. -/
-@[fun_prop]
-theorem computableInPolyTime_compCodeWire {α : Type} {enc : α ↪ List Bool}
-    {n i : α → ℕ} {c : α → List (Op × List ℕ) × List ℕ}
-    (hn : ComputableInPolyTime n enc encNat)
-    (hc : ComputableInPolyTime c enc encCode)
-    (hi : ComputableInPolyTime i enc encNat) :
-    ComputableInPolyTime (fun a => compCodeWire (n a) (c a) (i a)) enc encNat :=
-  Circuit.computableInPolyTime_compCodeWire hn hc hi
 
 /-- Construct sequential circuit codes in polynomial time. -/
 @[fun_prop]
