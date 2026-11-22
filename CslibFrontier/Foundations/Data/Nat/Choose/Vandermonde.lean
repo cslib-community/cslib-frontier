@@ -19,9 +19,8 @@ import Mathlib.Data.Nat.Choose.Vandermonde
 
 Choosing `D x` of `N x` elements in each of several disjoint blocks chooses `Σ D x` of the
 `Σ N x` elements, so a product of binomial coefficients is at most the binomial coefficient of the
-sums (`Nat.prod_choose_le_choose_sum`, from Vandermonde's identity); in particular
-`C(m, j) ≤ C(2 m, 2 j)` (`Nat.choose_le_choose_two_mul`). Fewer selected elements are absorbed by
-stars and bars: `C(N, D) ≤ C(N + K, K)` for `D ≤ K`
+sums (`Nat.prod_choose_le_choose_sum`, from Vandermonde's identity). Fewer selected elements are
+absorbed by stars and bars: `C(N, D) ≤ C(N + K, K)` for `D ≤ K`
 (`Nat.choose_le_add_choose_of_le`). Quantitatively, `C(N + K, K) ≤ (3 R) ^ K` when `N + K ≤ R K`
 (`Nat.add_choose_le_three_mul_pow`), from `K ^ K ≤ 3 ^ K K!`; this is the bound
 `C(N + K, K) ≤ (e (N + K) / K) ^ K` with `e` replaced by `3`.
@@ -30,7 +29,6 @@ stars and bars: `C(N, D) ≤ C(N + K, K)` for `D ≤ K`
 
 * `Nat.prod_choose_le_choose_sum`: Vandermonde's inequality.
 * `Nat.choose_le_choose_add_add`, `Nat.choose_le_add_choose_of_le`: monotonicity.
-* `Nat.choose_le_choose_two_mul`: `C(m, j) ≤ C(2 m, 2 j)`.
 * `Nat.add_choose_le_three_mul_pow`: `C(N + K, K) ≤ (3 R) ^ K` when `N + K ≤ R K`.
 -/
 
@@ -74,12 +72,6 @@ theorem prod_choose_le_choose_sum {ι : Type*} (s : Finset ι) (N D : ι → ℕ
           exact Finset.single_le_sum
             (f := fun ij : ℕ × ℕ => (N a).choose ij.1 * (∑ x ∈ s, N x).choose ij.2)
             (fun _ _ => Nat.zero_le _) hm
-
-/-- `C(m, j) ≤ C(2 m, 2 j)`: by Vandermonde's inequality `C(m, j) ^ 2 ≤ C(2 m, 2 j)`. -/
-theorem choose_le_choose_two_mul (m j : ℕ) : m.choose j ≤ (2 * m).choose (2 * j) := by
-  have h := prod_choose_le_choose_sum (univ : Finset (Fin 2)) (fun _ => m) (fun _ => j)
-  simp only [prod_const, sum_const, smul_eq_mul] at h
-  exact (Nat.le_self_pow two_ne_zero _).trans h
 
 /-- **Stars and bars, quantitatively**: if `N + K ≤ R K`, then `C(N + K, K) ≤ (3 R) ^ K`. -/
 theorem add_choose_le_three_mul_pow {N K R : ℕ} (hR : N + K ≤ R * K) :

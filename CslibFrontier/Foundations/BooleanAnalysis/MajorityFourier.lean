@@ -35,8 +35,8 @@ indicator on `S \ {i}`. A function of the weight has the same coefficient on all
 size (`BitString.fourierCoeff_eq_of_card_eq`), so it suffices to sum the coefficients over all
 `2 j`-subsets `T` of the other coordinates. At a string with `m` true and `m` false bits among the
 other `2 m` coordinates, the characters of these sets sum to the coefficient of `X ^ (2 m - 2 j)` in
-`(X - 1) ^ m (X + 1) ^ m = (X ^ 2 - 1) ^ m`, which is `(-1) ^ j C(m, j)`
-(`BitString.sum_powersetCard_chi`); such strings have density `C(2 m, m) / 4 ^ m`
+`(X - 1) ^ m (X + 1) ^ m = (X ^ 2 - 1) ^ m` by Vieta's formula, which is `(-1) ^ j C(m, j)`; such
+strings have density `C(2 m, m) / 4 ^ m`
 (`BitString.expect_ite_card_filter_eq` in `Data.BitString.AgreeExpect`). The book instead compares
 two expansions of the noise operator applied to the tie indicator.
 
@@ -79,8 +79,6 @@ across the levels.
 
 ## Main results
 
-* `Cslib.BitString.sum_powersetCard_chi`: the sum of the characters of the `2 j`-subsets at a
-  balanced string.
 * `Cslib.BitString.isOdd_majority`, `Cslib.BitString.derivative_signVal_majority`: majority of an
   odd number of bits is odd, and its derivative is the tie indicator.
 * `Cslib.BitString.fourierCoeff_signVal_majority_of_even`,
@@ -115,7 +113,7 @@ omit [Fintype ι] [DecidableEq ι] in
 /-- At a string with `m` true and `m` false bits on `s`, the characters of the `2 j`-subsets of
 `s` sum to `(-1) ^ j C(m, j)`: by Vieta's formula the sum is a coefficient of
 `∏_{l ∈ s} (X + χ(x_l)) = (X - 1) ^ m (X + 1) ^ m = (X ^ 2 - 1) ^ m`. -/
-theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : ℕ)
+private theorem sum_powersetCard_chi (s : Finset ι) (x : ι → Bool) (m j : ℕ)
     (htrue : #{l ∈ s | x l = true} = m) (hfalse : #{l ∈ s | x l = false} = m) :
     ∑ T ∈ s.powersetCard (2 * j), chi ℝ T x = (-1) ^ j * m.choose j := by
   have hs : #s = 2 * m := by
@@ -274,7 +272,12 @@ theorem abs_fourierCoeff_signVal_majority_le_singleton (m : ℕ) (S : Finset (Fi
     abs_pow, abs_neg, abs_one, one_pow, one_mul, abs_of_nonneg (by positivity),
     abs_of_nonneg (by positivity)]
   refine mul_le_of_le_one_left (by positivity) (div_le_one_of_le₀ ?_ (by positivity))
-  exact_mod_cast Nat.choose_le_choose_two_mul m j
+  have hc : m.choose j ≤ (2 * m).choose (2 * j) := by
+    rcases le_or_gt j m with hjm | hjm
+    · rw [two_mul j]
+      exact (Nat.choose_le_choose_add_add m j j).trans (Nat.choose_le_choose _ (by omega))
+    · simp [Nat.choose_eq_zero_of_lt hjm]
+  exact_mod_cast hc
 
 /-- One step of the decrease: from level `2 j + 1 ≤ m` to level `2 j + 3`, the coefficients of
 majority shrink by the factor `(2 j + 1) / (2 m - 2 j - 1) ≤ 1`. -/

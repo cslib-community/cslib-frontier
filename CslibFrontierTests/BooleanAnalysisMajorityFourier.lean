@@ -11,7 +11,6 @@ public import CslibFrontier.Foundations.BooleanAnalysis.MajorityFourier
 public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
 import CslibFrontier.Foundations.Data.Finset.Expect
-import CslibFrontier.Foundations.Data.Nat.Choose.Vandermonde
 import Mathlib.Algebra.BigOperators.Fin
 
 /-! # Tests for the Fourier coefficients of majority
@@ -23,8 +22,7 @@ the whole set, and `0` on the sets of even size. The coefficients on a singleton
 set are also computed by brute force over the eight inputs. Majority of five bits has coefficients
 `3 / 8` on the singletons, `-1 / 8` on the sets of size three, and `3 / 8` on the whole set. The
 lemmas behind the theorem are also checked on small cases: counting the true bits outside a
-coordinate and their distribution, symmetric spectra, the derivative of majority, and the sum of
-characters at a balanced string.
+coordinate and their distribution, symmetric spectra, and the derivative of majority.
 
 Complementary levels of majority of three bits have opposite coefficients. The level-one weight of
 majority drops from `3 / 4` on three bits to `45 / 64` on five, majority of five bits has no
@@ -125,13 +123,6 @@ example : derivative 0 (fun x => signVal (majority (2 * 1 + 1) x)) ![false, true
 example : derivative 0 (fun x => signVal (majority (2 * 1 + 1) x)) ![false, true, true] = 0 := by
   rw [derivative_signVal_majority, ite_eq_right (by decide)]
 
--- At a string with two true and two false bits, the characters of the six pairs sum to
--- `(-1) ^ 1 C(2, 1) = -2`.
-example : ∑ T ∈ (univ : Finset (Fin 4)).powersetCard (2 * 1), chi ℝ T ![true, true, false, false] =
-    -2 := by
-  rw [sum_powersetCard_chi _ _ 2 1 (by decide) (by decide)]
-  norm_num
-
 -- Complementary levels of majority of three bits: `|{0}| + |univ| = 4`, so the whole-set
 -- coefficient is `(-1) ^ 1` times the singleton coefficient.
 example : fourierCoeff maj₃ univ = -fourierCoeff maj₃ {0} := by
@@ -185,10 +176,6 @@ example : levelWeight (2 * (2 - 0) + 1) (fun x => signVal (majority (2 * 2 + 1) 
   rw [levelWeight_signVal_majority_of_odd 2 0] at h
   norm_num [Nat.choose] at h ⊢
   linarith
-
--- The binomial inequality behind it, on numbers too large to check by hand: `C(30, 7) ≤ C(60, 14)`.
-example : (30 : ℕ).choose 7 ≤ (60 : ℕ).choose 14 :=
-  Nat.choose_le_choose_two_mul 30 7
 
 -- No coefficient of majority of five bits exceeds the singleton coefficient `C(4, 2) / 16 = 3 / 8`.
 example (S : Finset (Fin (2 * 2 + 1))) :
