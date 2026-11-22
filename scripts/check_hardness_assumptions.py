@@ -74,6 +74,7 @@ assumption. The known cases (#5578 finding 9) are `Cslib.Complexity.MildlyHardOn
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
@@ -85,11 +86,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import check_security_premises as csp  # noqa: E402
 import lean_outputs as lo  # noqa: E402
+import results_registry as rr  # noqa: E402
 
 INVENTORY = ROOT / "manual/programs-crypto-and-probability/assumptions.md"
 BASELINE = ROOT / "scripts/hardness_assumptions_baseline.json"
 BIBLIOGRAPHY = ROOT / "references.bib"
-RESULTS_DIR = ROOT / "CslibFrontierResults"
 UPSTREAM_BUILD = ROOT / ".lake/packages/cslib/.lake/build/lib/lean"
 HEADER = ["Assumption", "Status", "Source definition", "Deviations or relation", "Nonvacuity"]
 STATUSES = ("standard", "novel", "vocabulary")
@@ -174,16 +175,36 @@ def bibliography_keys(text: str) -> set[str]:
     return set(BIB_KEY.findall(text))
 
 
-def results_text(directory: Path = RESULTS_DIR) -> str:
-    """Concatenate every registry module under `directory` (excluding `Registry.lean`)."""
-    if not directory.is_dir():
-        return ""
-    registry = (directory / "Registry.lean").resolve()
-    return "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted(directory.rglob("*.lean"))
-        if not path.is_symlink() and path.resolve() != registry
-    )
+def exported_result_theorems(manifest: dict) -> set[str]:
+    """The fully resolved theorem names exported by `scripts/ExportResults.lean`."""
+    results = manifest.get("results")
+    if not isinstance(results, list):
+        raise ValueError("Registry results must be a list")
+    names: set[str] = set()
+    for entry in results:
+        if not isinstance(entry, dict) or not isinstance(entry.get("theorems"), list):
+            raise ValueError(f"Invalid registry entry: {entry!r}")
+        for theorem in entry["theorems"]:
+            if not isinstance(theorem, str) or not theorem:
+                raise ValueError(f"Invalid theorem name in registry: {theorem!r}")
+            names.add(theorem)
+    return names
+
+
+def registered_result_theorems(root: Path = ROOT, check_build: bool = True) -> set[str]:
+    """Load resolved registered theorem names from the compiled `CslibFrontierResults` library,
+    covering `Entries.lean`, topic submodules under `CslibFrontierResults/Entries/`, and short
+    identifiers resolved under `open` or `namespace`."""
+    if check_build:
+        manifest = rr.load_lean_registry(root)
+    else:
+        exported = subprocess.run(["lake", "env", "lean", "--run", "scripts/ExportResults.lean"],
+                                  cwd=root, text=True, capture_output=True)
+        if exported.returncode:
+            sys.exit("scripts/ExportResults.lean failed; run `lake build CslibFrontierResults` "
+                     "first:\n" + (exported.stderr or exported.stdout))
+        manifest = json.loads(exported.stdout)
+    return exported_result_theorems(manifest)
 
 
 def cited_keys(text: str, keys: set[str]) -> list[str]:
@@ -294,7 +315,7 @@ class Problems:
 
 
 def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set[str],
-          results: str, base: Path) -> Problems:
+          results: str | Iterable[str], base: Path) -> Problems:
     errors = list(format_errors)
     gaps: dict[str, dict[str, str]] = {s: {} for s in SECTIONS}
     registered: dict[str, Row] = {}
@@ -323,7 +344,8 @@ def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set
             errors.append(f"`{short(name)}` ({module}:{line}) is assumed by {len(theorems)} "
                           f"theorem(s), e.g. `{short(sorted(theorems)[0])}`, but is not in the "
                           "assumptions inventory")
-    results_names = set(RESULT_NAME.findall(results))
+    results_names = (set(RESULT_NAME.findall(results)) if isinstance(results, str)
+                     else set(results))
     for name, row in registered.items():
         if name not in reading.assumptions:
             continue
@@ -430,8 +452,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if (args.report or args.list) and args.update_baseline:
         parser.error("--report and --list do not combine with --update-baseline")
-    if not args.no_build_check and not lo.lake_outputs_current(("CslibFrontier",)):
-        sys.exit("build outputs are missing or stale; run `lake build CslibFrontier` "
+    targets = ("CslibFrontier",) if args.list else ("CslibFrontier", "CslibFrontierResults")
+    if not args.no_build_check and not lo.lake_outputs_current(targets):
+        sys.exit(f"build outputs are missing or stale; run `lake build {' '.join(targets)}` "
                  "(or pass --no-build-check)")
     reading = scan(ROOT, lo.DEFAULT_BUILD_DIR, UPSTREAM_BUILD)
     rows, format_errors = parse_inventory(INVENTORY.read_text(encoding="utf-8"))
@@ -439,7 +462,7 @@ def main(argv: list[str] | None = None) -> int:
         print(listing(rows, reading))
         return 0
     keys = bibliography_keys(BIBLIOGRAPHY.read_text(encoding="utf-8"))
-    results = results_text()
+    results = registered_result_theorems(ROOT, check_build=not args.no_build_check)
     problems = check(rows, format_errors, reading, keys, results, INVENTORY.parent)
     baseline = load_baseline(args.baseline) if args.baseline.exists() else \
         {s: {} for s in SECTIONS}
