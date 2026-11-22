@@ -340,6 +340,7 @@ import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.SchnorrProtocol
@@ -529,6 +530,8 @@ import CslibFrontier.Probability.Azuma
 import CslibFrontier.Probability.Renyi
 import CslibFrontier.Foundations.BooleanAnalysis.Subcube
 import CslibFrontier.Foundations.Data.BitString.AgreeExpect
+
+import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
 
 /-!
 # Collected results
@@ -11058,6 +11061,27 @@ register_result "computational-universal-hash-single-to-multi-query" where
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
 
+register_result "hash-then-prf-computational-security" where
+  title := "Hash-then-PRF composition from a computational universal hash"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Theorem 7.7",
+      locator := "v0.6, Section 7.3, printed pp. 262–265; equations (7.18)–(7.22)" }
+  ]
+  theorems := [
+    Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable,
+    Cslib.Crypto.PRF.computableInPolyTime_hashThenPRFWord,
+    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_multiQuery,
+    Cslib.Crypto.PRF.advantage_hashThenPRFWord_le_add_collision
+  ]
+  scope := "Uniform strict oracle-PPT word adversaries. The hash and PRF keys are sampled \
+    independently at fixed widths computable from the unary security parameter. The message \
+    domain has a polynomial-time validity test and maps to the fixed-width input of the PRF. \
+    The ideal function consistently samples independent replies on valid messages. Repetitions \
+    are allowed, and malformed messages receive empty replies in both games. The explicit \
+    wrappers have strict PPT certificates and the single-pair bound uses bounded fair-bit \
+    rejection sampling."
+
 register_result "xor-hash-computational-universality" where
   title := "XOR-hash from a secure PRF is computationally universal"
   topic := "cryptography"
@@ -12625,6 +12649,38 @@ register_result "odonnell-edge-isoperimetric-inequality" where
     b = true and b = false; these are the book's Pr[f = 1] and Pr[f = −1]. The logarithm is \
     Real.logb 2, the book's log. The book's optimality remark for α a power of 1/2 is checked \
     only for the conjunction of two bits. Source check: outside-fleet review on PR #5817."
+
+register_result "odonnell-kkl-edge-isoperimetric-theorem" where
+  title := "KKL Edge-Isoperimetric Theorem"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "KKL Edge-Isoperimetric Theorem (unnumbered), general-variance case of \
+        Exercise 9.29",
+      locator := "arXiv:2105.10386v1, §9.6, printed p. 267; Exercise 9.29 in §9.7, printed p. 276" }
+  ]
+  theorems := [Cslib.BitString.exists_nine_div_sq_mul_one_ninth_rpow_le_influence]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal, whose variance 𝔼 x, (F x - 𝔼 y, F y) ^ 2 is positive (the book's \
+    nonconstant f), some coordinate i has (9 / Ĩ²) · (1/9) ^ Ĩ ≤ influence i F, where \
+    Ĩ = totalInfluence F / variance is a real exponent; this is the book's MaxInf bound. The \
+    book's remark Ĩ ≥ 1 is not a hypothesis. Covers the general-variance case asked for in \
+    Exercise 9.29, which contains the book's unbiased case."
+
+register_result "odonnell-kkl-theorem" where
+  title := "Kahn–Kalai–Linial Theorem with constant 1/4"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Kahn–Kalai–Linial (KKL) Theorem (unnumbered)",
+      locator := "arXiv:2105.10386v1, §9.6, printed p. 265; derived from the Edge-Isoperimetric \
+        version on printed p. 267" }
+  ]
+  theorems := [Cslib.BitString.exists_expect_sub_expect_sq_mul_log_card_div_le_influence]
+  scope := "For every f : (ι → Bool) → Bool over a nonempty finite coordinate type ι with \
+    n = card ι, read as signs F through signVal, some coordinate i has \
+    Var[F] · log n / (4 n) ≤ influence i F, with Var[F] = 𝔼 x, (F x - 𝔼 y, F y) ^ 2 and the \
+    natural logarithm. The book states the theorem with an unspecified constant Ω(·); this \
+    fixes it to 1/4 for every n ≥ 1, not the asymptotic 1/2 of Exercise 9.30(c)."
 
 register_result "mpda-hole-bounded-incomparable-phase-bounded" where
   title := "Hole-bounded and phase-bounded visibly MPDA languages are incomparable"

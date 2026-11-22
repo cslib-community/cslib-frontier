@@ -631,8 +631,8 @@ theorem eval_cpaGame_cpaLimitToOneQuery (E : SymmetricCipher) (ctBound : ℕ →
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (cpaLimitToOneQuery ctBound adversary) bit n) =
       ProbComp.eval (E.cpaOneTimeGame adversary bit n) := by
-  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, cpaOneTimeGame, cpaLimitToOneQuery,
-    runWith_norm, pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, cpaOneTimeGame, cpaLimitToOneQuery, runWith_norm,
+    pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   congr 2
   funext request alreadyQueried
@@ -740,9 +740,7 @@ private theorem eval_cpaGame_detCPAAdversary_false (E : SymmetricCipher) (ctBoun
     (hdet : ∀ k ∈ (ProbComp.eval (E.keyGen n)).support,
       ∃ c, ProbComp.eval (E.encrypt n k (List.replicate n false)) = PMF.pure c) :
     ProbComp.eval (E.cpaGame (detCPAAdversary ctBound) false n) = PMF.pure true := by
-  simp only [cpaGame, symmetricCPAGameOn, detCPAAdversary, ProbOracleComp.run_bind,
-    ProbOracleComp.run_map, ProbOracleComp.run_query, ProbOracleComp.run_pure, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
+  simp only [cpaGame, symmetricCPAGameOn, detCPAAdversary, runWith_norm, pmf_norm]
   refine PMF.bind_eq_pure_of_forall_mem_support fun k hk => ?_
   obtain ⟨c, hc⟩ := hdet k hk
   simp [symmetricCPAReplyOn, hc]
@@ -750,16 +748,13 @@ private theorem eval_cpaGame_detCPAAdversary_false (E : SymmetricCipher) (ctBoun
 private theorem eval_cpaGame_detCPAAdversary_true (E : SymmetricCipher) (ctBound : ℕ → ℕ) {n : ℕ}
     (hn : 1 ≤ n) (hctLen : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (detCPAAdversary ctBound) true n) = PMF.pure false := by
-  simp only [cpaGame, symmetricCPAGameOn, detCPAAdversary, ProbOracleComp.run_bind,
-    ProbOracleComp.run_map, ProbOracleComp.run_query, ProbOracleComp.run_pure, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure]
+  simp only [cpaGame, symmetricCPAGameOn, detCPAAdversary, runWith_norm, pmf_norm]
   have hneMsg : List.replicate n true ≠ List.replicate n false := by
     obtain ⟨m, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by lia : n ≠ 0)
     simp
   refine PMF.bind_eq_pure_of_forall_mem_support fun ke hke => ?_
   simp only [symmetricCPAReplyOn, unframe_encPair_encBits, dropFrame_encPair_encBits,
-    List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte, PMF.bind_map,
-    Function.comp_def]
+    List.length_replicate, beq_self_eq_true, Bool.and_self, ↓reduceIte]
   refine PMF.bind_eq_pure_of_forall_mem_support fun c₁ hc₁ => ?_
   have hc₁Len : c₁.length ≤ ctBound n :=
     hctLen ke hke (List.replicate n true) List.length_replicate c₁ hc₁
@@ -1723,8 +1718,8 @@ theorem eval_cpaGame_ccaToCPAAdversary (E : SymmetricCipher) (ctBound : ℕ → 
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.cpaGame (ccaToCPAAdversary ctBound adversary) bit n) =
       ProbComp.eval (E.ccaRejectGame adversary bit n) := by
-  simp only [cpaGame, symmetricCPAGameOn, ProbOracleComp.run, ccaRejectGame, ccaToCPAAdversary,
-    runWith_norm, pmf_norm]
+  simp only [cpaGame, symmetricCPAGameOn, ccaRejectGame, ccaToCPAAdversary, runWith_norm,
+    pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun k hk => ?_
   have hsim := ProbOracleComp.runWith_map_state
     (fun request queried => ProbComp.eval (E.ccaRejectOracle n k bit request queried))

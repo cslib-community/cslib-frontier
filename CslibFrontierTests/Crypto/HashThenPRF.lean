@@ -23,6 +23,7 @@ Checks the finite and word PRF composition APIs as a `module` client:
 - tightness/necessity on constant hashes, counterexample when `m₀ = m₁` (`Z = Bool`), comparison
   with `(Q ^ 2 / 2 : ℕ) * ε`, and the query-bound hypothesis probe;
 - the word reduction forwards valid queries and gives an empty reply to malformed queries;
+- the real composition keeps both keys fixed across repeated queries and rejects bad words;
 - the ideal collector stores a repeated valid query once and skips a rejected query of the same
   length;
 - the ideal games have zero advantage when only one word is valid.
@@ -47,12 +48,27 @@ example (msg : List Bool) :
     (inLen := fun _ => 1) (outLen := fun _ => 1)
     (fun _ word => word.length == 1) (fun _ _ word => word) (fun _ query => query)
     (fun _ _ _ _ hv => beq_iff_eq.mp hv) (fun _ _ h => h) (readFirstReply msg) 1]
-  simp only [readFirstReply, ProbOracleComp.run_map, ProbOracleComp.run_query,
+  simp only [hashThenPRFWordRealGame, readFirstReply, ProbOracleComp.run_map,
+    ProbOracleComp.run_query,
     ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.pure_map, PMF.bind_const,
     hashThenPRF]
   by_cases h : msg.length = 1
   · simp [h]
   · simp [beq_eq_false_iff_ne.mpr h]
+
+private def checkRepeatedReply : OracleDistinguisher := fun _ _ => do
+  let first ← ProbOracleComp.query ((), [true])
+  let malformed ← ProbOracleComp.query ((), [])
+  let second ← ProbOracleComp.query ((), [true])
+  return (first == second) && malformed.isEmpty
+
+example :
+    ProbComp.eval (hashThenPRFWordRealGame (fun _ => 2) (fun _ word => word == [true])
+      (fun _ key _ => [key.headD false]) (fun key digest => [key.headD false ^^ digest.headD false])
+      checkRepeatedReply 1) = PMF.pure true := by
+  have h : (BitString.uniformList 1).map (fun _ => true) = PMF.pure true := PMF.map_const _ _
+  simp [hashThenPRFWordRealGame, checkRepeatedReply, hashThenPRF, ProbComp.eval_bind,
+    ProbOracleComp.run_bind, ProbOracleComp.run_query, h]
 
 private def repeatedWordQueries : OracleDistinguisher := fun _ _ => do
   let _ ← ProbOracleComp.query ((), [true])
@@ -84,7 +100,8 @@ example (A : OracleDistinguisher) :
         BitString.ofList 1 (H 1 (List.ofFn k) m) = BitString.ofList 1 (H 1 (List.ofFn k) m') := by
     rintro ⟨m, _, m', _, hne, hm, hm', _⟩
     exact hne ((beq_iff_eq.mp hm).trans (beq_iff_eq.mp hm').symm)
-  simp only [UHF.multiQueryGame, ProbComp.eval_pure, Game.withSetup_pure, ProbComp.eval_bind,
+  simp only [UHF.multiQueryGame, hashThenPRFWordHash, ProbComp.eval_pure,
+    Game.withSetup_pure, ProbComp.eval_bind,
     hnoCollision, decide_false, PMF.bind_const, PMF.pure_apply_of_ne _ _ Bool.false_ne_true.symm]
     at hbound
   exact le_antisymm (by exact_mod_cast hbound) bot_le

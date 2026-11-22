@@ -1,3 +1,5 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.DistributedConcurrentObjects
+import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Registry
