@@ -124,11 +124,11 @@ theorem chsh_approx (φ : AlgState A) {A₀ A₁ B₀ B₁ : A} (hA₀ : IsSelfA
   have b₁ := φ.norm_one_sub_mul_self_sq_le hB₁ hB₁'
   have key : ∀ x : ℝ, 0 ≤ x → x ^ 2 ≤ √2 * η → x ≤ √(√2 * η) := fun x hx hle =>
     Real.le_sqrt_of_sq_le hle
-  refine ⟨key _ (φ.norm_nonneg _) (by nlinarith), key _ (φ.norm_nonneg _) (by nlinarith),
-    ?_, ?_⟩
-  · rw [Approx, sub_zero]
+  refine ⟨approx_iff.mpr (key _ (φ.norm_nonneg _) (by nlinarith)),
+    approx_iff.mpr (key _ (φ.norm_nonneg _) (by nlinarith)), ?_, ?_⟩
+  · rw [approx_iff, sub_zero]
     exact key _ (φ.norm_nonneg _) (by nlinarith)
-  · rw [Approx, sub_zero]
+  · rw [approx_iff, sub_zero]
     exact key _ (φ.norm_nonneg _) (by nlinarith)
 
 omit [TopologicalSpace A] [ContinuousFunctionalCalculus ℝ A IsSelfAdjoint]

@@ -27,11 +27,6 @@ variable {A α β : Type*} [Fintype α] [Fintype β]
   [Ring A] [StarRing A] [PartialOrder A] [StarOrderedRing A] [Algebra ℂ A]
   [StarModule ℂ A] [SelfAdjointDecompose A]
 
-private theorem norm_add_sq_le (φ : AlgState A) (x y : A) :
-    φ.norm (x + y) ^ 2 ≤ 2 * (φ.norm x ^ 2 + φ.norm y ^ 2) :=
-  (pow_le_pow_left₀ (φ.norm_nonneg _) (φ.norm_add_le x y) 2).trans (by
-    nlinarith [sq_nonneg (φ.norm x - φ.norm y)])
-
 /-- Transfer commutation from two commuting measurements to their approximations on the
 other side. Exact cross-commutation is enough for the two products in the comparison. -/
 theorem pairCommutatorDefect_le_of_commuting_copies (φ : AlgState A)
@@ -54,8 +49,8 @@ theorem pairCommutatorDefect_le_of_commuting_copies (φ : AlgState A)
       simp only [X, Y, Z, W, mul_sub, (hPT a b).eq, (hRT a b).eq, (hRQ a b).eq]
       abel
     rw [he]
-    linarith [norm_add_sq_le φ (X a b + Y a b) (Z a b + W a b),
-      norm_add_sq_le φ (X a b) (Y a b), norm_add_sq_le φ (Z a b) (W a b)]
+    linarith [φ.norm_add_sq_le (X a b + Y a b) (Z a b + W a b),
+      φ.norm_add_sq_le (X a b) (Y a b), φ.norm_add_sq_le (Z a b) (W a b)]
   have hX : (∑ a, ∑ b, φ.norm (X a b) ^ 2) = copyDefect φ Q T := by
     unfold X copyDefect
     rw [sum_comm]
