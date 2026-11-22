@@ -276,9 +276,7 @@ def tupleGraphLoopEquiv : M ≃ {g : M ⊕ TupleVertex I K // tupleGraph I K g g
     | ⟨.inr q, h⟩ => absurd h (by simp [tupleGraph])
   left_inv _ := rfl
   right_inv g := by
-    rcases g with ⟨a | q, h⟩
-    · rfl
-    · exact absurd h (by simp [tupleGraph])
+    grind [tupleGraph]
 
 private theorem coe_tupleGraphLoopEquiv_symm (g : {g : M ⊕ TupleVertex I K // tupleGraph I K g g}) :
     (g : M ⊕ TupleVertex I K) = .inl ((tupleGraphLoopEquiv I K).symm g) := by
@@ -351,9 +349,7 @@ theorem finSat_toGraph {ψ : RawFormula} (hψ : ∀ a ∈ ψ.atoms, a.1 = 0 ∧ 
       if hy : P (w y) then ⟨w y, hy⟩ else Classical.arbitrary _
     have hwu : ∀ x < ψ.varBound, w x = u x := fun x hx => by
       simp only [u]
-      split
-      · rfl
-      · exact absurd (hP x hx.le) ‹_›
+      grind
     refine ⟨Subtype P, inferInstance, hne,
       fun _ bs => IsTupleGadget (fun a b => J 0 [a, b]) (bs.map Subtype.val), u, ?_⟩
     refine (realize_interpret (Q := fun a => a.1 = 0 ∧ 0 < a.2) (B := ψ.varBound)
