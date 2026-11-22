@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Progress
 public import CslibFrontier.Computability.QueryComplexity.Quantum.Search
 public import Cslib.Foundations.Data.BitString
-import CslibFrontier.Computability.QueryComplexity.Quantum.WeightedAdversary
+import CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary
 import CslibFrontier.Foundations.Data.BitString.Flip
 import CslibFrontier.Foundations.Data.Hamming
 import CslibFrontier.Foundations.Quantum.Measurement.Overlap
@@ -42,18 +42,17 @@ threshold functions and majority are in the module
 Tribes and to the `AND` of `OR`s in
 `CslibFrontier.Computability.QueryComplexity.Quantum.AmbainisAdversary.Tribes`.
 
-**The argument.** Let `ψ_x^t` be the state after `t` queries on input `x`. The weighted
-progress measure (`Cslib.Quantum.weightedProgress` in
-`CslibFrontier.Computability.QueryComplexity.Quantum.Progress`) with unit weights sums
-`S_t = ∑_{(x, y) ∈ R} |⟨ψ_x^t, ψ_y^t⟩|`.
-* Before any query all states are equal, so `S_0 = |R|`. At the end `S_T ≤ δ |R|`.
-* The oracles of `x` and `y` differ only on the query indices `i` with `x_i ≠ y_i`, so one query
-  lowers `|⟨ψ_x, ψ_y⟩|` by at most `2 ∑_{i : x_i ≠ y_i} ‖Π_i ψ_x‖ ‖Π_i ψ_y‖`
-  (`Cslib.Quantum.norm_inner_phaseOracle_phaseOracle_ge`), where `Π_i` is `Cslib.Quantum.ctrlProj`.
-* For every `c > 0`, taking step weights `c √L / l_{x,i}` and `√L / (c l_{y,i})` in
-  `Cslib.Quantum.one_sub_mul_sum_le_of_sq_le` bounds each step's loss by
-  `√L (c |X| + |Y| / c)`, where `X` and `Y` are the sets of first and second inputs. Taking
-  `c = √(|Y| / |X|)` gives `2 √L √(|X| |Y|)`.
+**The argument.** Viewing `Cslib.Quantum.phaseOracle` as the value-query oracle
+`Cslib.Quantum.valueOracle Cslib.Quantum.phaseStep` on `State N W = ValueState (Fin N) Bool W`
+(`Cslib.Quantum.runValue_phaseStep`) specializes the general value-query Theorem 6 bound
+`Cslib.Quantum.one_sub_mul_sqrt_le_two_mul_mul_sqrt_value` in
+`CslibFrontier.Computability.QueryComplexity.Quantum.ValueAdversary` directly to Boolean bit
+queries:
+* Before any query all states are equal, so the unweighted progress sum starts at `|R|` and ends at
+  most `δ |R|`.
+* One query lowers `|⟨ψ_x, ψ_y⟩|` only at indices `i` with `x_i ≠ y_i`, where Cauchy–Schwarz and
+  Parseval across query slices bound each step's drop by `2 √L √(|X| |Y|)` for first- and
+  second-input sets `X` and `Y`.
 * Finally `|R| ≥ m |X|` and `|R| ≥ m' |Y|`, so `|R| ≥ √(m m') √(|X| |Y|)`.
 
 **Source mapping** (numbering of arXiv:quant-ph/0002066v1).
@@ -108,60 +107,9 @@ theorem one_sub_mul_sqrt_le_two_mul_mul_sqrt {ψ₀ : State N W} (hψ₀ : ‖ψ
     (hm : ∀ p ∈ R, m ≤ #{q ∈ R | q.1 = p.1}) (hm' : ∀ p ∈ R, m' ≤ #{q ∈ R | q.2 = p.2})
     (hL : ∀ p ∈ R, ∀ i, p.1 i ≠ p.2 i →
       #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} * #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} ≤ L) :
-    (1 - δ) * √(m * m') ≤ 2 * T * √L := by
-  classical
-  rcases Nat.eq_zero_or_pos L with rfl | hL_pos
-  · simp only [Nat.cast_zero, Real.sqrt_zero, mul_zero]
-    obtain ⟨p, hp⟩ := hR
-    have hsame : p.1 = p.2 := by
-      ext i
-      by_contra hne
-      have h1 : 1 ≤ #{q ∈ R | q.1 i ≠ q.2 i ∧ q.1 = p.1} :=
-        card_pos.2 ⟨p, mem_filter.2 ⟨hp, hne, rfl⟩⟩
-      have h2 : 1 ≤ #{q ∈ R | q.1 i ≠ q.2 i ∧ q.2 = p.2} :=
-        card_pos.2 ⟨p, mem_filter.2 ⟨hp, hne, rfl⟩⟩
-      have := hL p hp i hne
-      nlinarith
-    have h1δ : 1 ≤ δ := by
-      have hle := hδ p hp
-      rw [hsame, inner_self_eq_norm_sq_to_K, norm_run, hψ₀] at hle
-      simpa using hle
-    exact mul_nonpos_of_nonpos_of_nonneg (by linarith) (Real.sqrt_nonneg _)
-  · let S := WeightScheme.ofUnweighted R L hL
-    have hW : 0 < S.weightSum := by
-      have hcard : (0 : ℝ) < #R := by exact_mod_cast hR.card_pos
-      simpa [S, WeightScheme.weightSum, WeightScheme.ofUnweighted] using hcard
-    have hsqrtL : 0 < √(L : ℝ) := Real.sqrt_pos.2 (Nat.cast_pos.2 hL_pos)
-    have hA : ∀ x ∈ S.R.image Prod.fst, ∀ i,
-        ((m : ℝ) / √L) * S.loadFst x i ≤ S.wtFst x := by
-      intro x hx i
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hx
-      calc ((m : ℝ) / √L) * S.loadFst p.1 i
-          ≤ ((m : ℝ) / √L) * √L :=
-            mul_le_mul_of_nonneg_left
-              (WeightScheme.ofUnweighted_loadFst_le hL p.1 i) (by positivity)
-        _ = m := div_mul_cancel₀ _ hsqrtL.ne'
-        _ ≤ S.wtFst p.1 := by
-            rw [WeightScheme.ofUnweighted_wtFst]
-            exact_mod_cast hm p hp
-    have hB : ∀ y ∈ S.R.image Prod.snd, ∀ i,
-        ((m' : ℝ) / √L) * S.loadSnd y i ≤ S.wtSnd y := by
-      intro y hy i
-      obtain ⟨p, hp, rfl⟩ := mem_image.1 hy
-      calc ((m' : ℝ) / √L) * S.loadSnd p.2 i
-          ≤ ((m' : ℝ) / √L) * √L :=
-            mul_le_mul_of_nonneg_left
-              (WeightScheme.ofUnweighted_loadSnd_le hL p.2 i) (by positivity)
-        _ = m' := div_mul_cancel₀ _ hsqrtL.ne'
-        _ ≤ S.wtSnd p.2 := by
-            rw [WeightScheme.ofUnweighted_wtSnd]
-            exact_mod_cast hm' p hp
-    have hbd := S.one_sub_mul_sqrt_le_of_load_le U hψ₀ T hW hδ
-      (mA := (m : ℝ) / √L) (mB := (m' : ℝ) / √L) (by positivity) (by positivity) hA hB
-    have hmul : √(((m : ℝ) / √L) * ((m' : ℝ) / √L)) = √(m * m') / √L := by
-      rw [div_mul_div_comm, ← sq, Real.sqrt_div (by positivity), Real.sqrt_sq hsqrtL.le]
-    rw [hmul, mul_div_assoc', div_le_iff₀ hsqrtL] at hbd
-    exact hbd
+    (1 - δ) * √(m * m') ≤ 2 * T * √L :=
+  one_sub_mul_sqrt_le_two_mul_mul_sqrt_value phaseStep U hψ₀ T hR
+    (by simpa only [runValue_phaseStep] using hδ) hm hm' hL
 
 /-- **Ambainis's adversary bound** [Ambainis2002], Theorem 2, for Boolean outputs: let a
 `T`-query algorithm with a unit initial state accept, by an outcome in `S`, the first input of

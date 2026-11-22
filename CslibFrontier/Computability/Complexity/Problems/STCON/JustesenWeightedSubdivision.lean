@@ -279,12 +279,9 @@ theorem configurationJustesenSubdivisionContext_inSpace
       enc encJustesenSubdivisionContext (fun a => Nat.log2 (enc a).length) := by
   have hword : ComputableInLogSpace (fun a => enc a) enc encBits :=
     ComputableInLogSpace.of_eq fun _ => rfl
-  obtain ⟨t, C, hspace⟩ := configurationJustesenSubdivisionContext_inLogSpace ntm c hword hrank
   obtain ⟨D, hlen⟩ := length_configurationJustesenSubdivisionContext_le_log ntm c
-  exact ⟨t, max C D,
-    hspace.mono (fun _ => le_rfl) fun _ => Nat.mul_le_mul_right _ (le_max_left C D),
-    fun a => (hlen (enc a) (rank a) (hvalid a)).trans
-      (Nat.mul_le_mul_right _ (le_max_right C D))⟩
+  exact (configurationJustesenSubdivisionContext_inLogSpace ntm c hword hrank).inSpace_of_length_log
+    ⟨D, fun a => hlen (enc a) (rank a) (hvalid a)⟩
 
 /-- The generated subdivision adjacency transported to its canonical finite vertex IDs. -/
 @[expose] noncomputable def configurationJustesenSubdivisionAdjacent

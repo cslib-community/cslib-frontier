@@ -16,6 +16,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Foundations.Data.Rat.Basic
 import Mathlib.Data.Rat.Cast.Defs
+import Mathlib.Data.Rat.Floor
 import Mathlib.Data.Rat.Lemmas
 
 /-!
@@ -35,6 +36,7 @@ numerator and binary denominator, casting integers, constructing normalized quot
   `.rat_mul`, `.rat_div` and primed composition rules: rational field operations.
 * `Turing.MultiTapeTM.ComputableInPolyTime.rat_isZero`, `.rat_eq`, `.rat_le`, `.rat_lt` and primed
   composition rules: rational zero, equality, and order tests.
+* `Turing.MultiTapeTM.ComputableInPolyTime.rat_floor`, `.rat_floor'`: rational floor `Rat.floor`.
 -/
 
 public section
@@ -355,5 +357,60 @@ theorem rat_eq' {α : Type} {input : α ↪ List Bool} {left right : α → ℚ}
     (hright : ComputableInPolyTime right input encRat) :
     ComputableInPolyTime (fun x => decide (left x = right x)) input encBool :=
   rat_eq.comp (hleft.prod hright)
+
+private theorem rat_floor_eq_ite (q : ℚ) :
+    q.floor =
+      if q.num < 0 then
+        -(((q.num.natAbs + q.den - 1) / q.den : ℕ) : ℤ)
+      else
+        ((q.num.toNat / q.den : ℕ) : ℤ) := by
+  rw [Rat.floor_def]
+  have hd : 0 < q.den := q.den_pos
+  cases h : q.num with
+  | ofNat m =>
+    rw [Int.ofNat_eq_natCast]
+    have hnn : ¬ ((m : ℤ) < 0) := by omega
+    simp only [hnn, ↓reduceIte, Int.toNat_natCast]
+    exact Int.ofNat_ediv_ofNat
+  | negSucc m =>
+    have hneg : Int.negSucc m < 0 := Int.negSucc_lt_zero m
+    simp only [hneg, ↓reduceIte, Int.natAbs_negSucc]
+    rw [Int.negSucc_ediv _ (by exact_mod_cast hd)]
+    have hdiv : (m.succ + q.den - 1) / q.den = m / q.den + 1 := by
+      have hsub : m.succ + q.den - 1 = m + q.den := by omega
+      rw [hsub, Nat.add_div_right m hd]
+    rw [hdiv]
+    change -((m : ℤ) / (q.den : ℤ) + 1) = -((m / q.den + 1 : ℕ) : ℤ)
+    rw [Int.ofNat_ediv_ofNat]
+    push_cast
+    ring
+
+/-- Rational floor `Rat.floor` is computable in polynomial time under `encRat` and `encIntBin`. -/
+@[fun_prop]
+theorem rat_floor : ComputableInPolyTime Rat.floor encRat encIntBin := by
+  have hcond : ComputableInPolyTime (fun q : ℚ => decide (q.num < 0)) encRat encBool :=
+    intBin_lt' rat_num (const 0)
+  have hneg : ComputableInPolyTime
+      (fun q : ℚ => -(((q.num.natAbs + q.den - 1) / q.den : ℕ) : ℤ)) encRat encIntBin :=
+    intBin_neg.comp (intBin_natCast.comp
+      (binary_div' (binary_sub' (binary_add' (intBin_natAbs.comp rat_num) rat_den) (const 1))
+        rat_den))
+  have hnonneg : ComputableInPolyTime
+      (fun q : ℚ => ((q.num.toNat / q.den : ℕ) : ℤ)) encRat encIntBin :=
+    intBin_natCast.comp (binary_div' (intBin_toNat.comp rat_num) rat_den)
+  have h := ite_decide hcond hneg hnonneg
+  have heq :
+      (fun q : ℚ =>
+        if q.num < 0 then -(((q.num.natAbs + q.den - 1) / q.den : ℕ) : ℤ)
+        else ((q.num.toNat / q.den : ℕ) : ℤ)) = Rat.floor :=
+    funext fun q => (rat_floor_eq_ite q).symm
+  rwa [heq] at h
+
+/-- Rational floor of a computed rational number. -/
+@[fun_prop]
+theorem rat_floor' {α : Type} {input : α ↪ List Bool} {f : α → ℚ}
+    (hf : ComputableInPolyTime f input encRat) :
+    ComputableInPolyTime (fun x => (f x).floor) input encIntBin :=
+  rat_floor.comp hf
 
 end Turing.MultiTapeTM.ComputableInPolyTime

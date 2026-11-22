@@ -59,12 +59,9 @@ variable {m n K α : Type*}
 
 /-- The number of entries where the matrices `A` and `B` differ.
 
-When `m` is infinite (only `n` is required to be finite below), this counts with `Set.ncard`,
-which is `0` on infinite sets. Then, at every target rank `r ≥ 1`, some matrix of rank at most one
-differs from `A` in infinitely many entries, and the rigidity collapses to the junk value `0`; at
-`r = 0` the rigidity is `diffCount A 0` (`Matrix.rigidity_zero`), which can be genuine. The results
-relating rigidity to rank (`Matrix.rigidity_eq_zero_iff` and below) therefore assume
-`[Finite m]`. -/
+This counts differing positions with `Set.ncard`, which returns `0` on infinite sets.
+`Matrix.rigidity` and all rigidity results below therefore require `[Finite m]` alongside
+`[Fintype n]`, so that `diffCount` equals the true Hamming distance on `m × n`. -/
 noncomputable def diffCount (A B : Matrix m n α) : ℕ :=
   {p : m × n | A p.1 p.2 ≠ B p.1 p.2}.ncard
 
@@ -105,7 +102,9 @@ variable [Field K]
 
 /-- **Matrix rigidity** ([Lokam2009], Definition 2.1): the least number of entries of `A` that must
 be changed to make its rank at most `r`. -/
-noncomputable def rigidity (A : Matrix m n K) (r : ℕ) : ℕ :=
+-- Finiteness restricts the public domain; `sInf` and `ncard` themselves do not require it.
+@[nolint unusedArguments]
+noncomputable def rigidity [Finite m] (A : Matrix m n K) (r : ℕ) : ℕ :=
   sInf (diffCount A '' {B | B.rank ≤ r})
 
 private theorem nonempty_rigiditySet (A : Matrix m n K) (r : ℕ) :
@@ -114,9 +113,16 @@ private theorem nonempty_rigiditySet (A : Matrix m n K) (r : ℕ) :
 
 /-- A matrix `B` of rank at most `r` that differs from `A` in `diffCount A B` entries bounds the
 rigidity of `A`. -/
-theorem rigidity_le {A B : Matrix m n K} {r : ℕ} (hB : B.rank ≤ r) :
+theorem rigidity_le [Finite m] {A B : Matrix m n K} {r : ℕ} (hB : B.rank ≤ r) :
     A.rigidity r ≤ diffCount A B :=
   Nat.sInf_le ⟨B, hB, rfl⟩
+
+/-- Rigidity is at most the number of entries. -/
+theorem rigidity_le_card [Fintype m] (A : Matrix m n K) (r : ℕ) :
+    A.rigidity r ≤ Fintype.card m * Fintype.card n :=
+  (rigidity_le (B := 0) (by simp)).trans (diffCount_le_card _ _)
+
+variable [Finite m]
 
 /-- Some matrix of rank at most `r` differs from `A` in exactly `A.rigidity r` entries. -/
 theorem exists_rigidity_eq (A : Matrix m n K) (r : ℕ) :
@@ -137,18 +143,11 @@ theorem rigidity_antitone (A : Matrix m n K) : Antitone A.rigidity := fun r r' h
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A r
   exact hAB ▸ rigidity_le (hB.trans hr)
 
-/-- Rigidity is at most the number of entries. -/
-theorem rigidity_le_card [Fintype m] (A : Matrix m n K) (r : ℕ) :
-    A.rigidity r ≤ Fintype.card m * Fintype.card n :=
-  (rigidity_le (B := 0) (by simp)).trans (diffCount_le_card _ _)
-
 /-- At target rank zero, the rigidity is the number of nonzero entries. -/
 theorem rigidity_zero (A : Matrix m n K) : A.rigidity 0 = diffCount A 0 := by
   obtain ⟨B, hB, hAB⟩ := exists_rigidity_eq A 0
   rw [rank_eq_zero_iff.1 (Nat.le_zero.1 hB)] at hAB
   exact hAB.symm
-
-variable [Finite m]
 
 /-- No changes are needed when the rank is already at most `r`. -/
 theorem rigidity_eq_zero_iff {A : Matrix m n K} {r : ℕ} : A.rigidity r = 0 ↔ A.rank ≤ r := by

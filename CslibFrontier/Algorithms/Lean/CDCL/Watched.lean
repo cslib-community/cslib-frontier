@@ -1065,7 +1065,9 @@ end: the invariant of the visit is stated on `S.withKept t kept`. -/
 @[expose] def WExec.withKept (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) : WExec φ :=
   { S with store := { S.store with watches := setWatch S.store.watches (negKey t) kept } }
 
-theorem WExec.withKept_putBack (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) (k b : ℕ) :
+-- The facts of the loop on `withKept` are private: the exposed `processFrom` names them only in
+-- tactic proofs, which may use private declarations.
+private theorem WExec.withKept_putBack (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) (k b : ℕ) :
     (S.withKept t kept).putBack t k b = S.withKept t ((kept.push k).push b) := by
   simp only [WExec.withKept, WExec.putBack, addWatch_setWatch]
 
@@ -1102,7 +1104,7 @@ theorem WExec.ProcInv.restore_inv {S : WExec φ} {t : Literal ℕ} {kept rest : 
       · exact h.blocker_mem _ y hy
     · exact h.blocker_mem i y hy
 
-theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) {k j o x u : ℕ}
+private theorem WExec.withKept_moveTo (S : WExec φ) (t : Literal ℕ) (kept : Array ℕ) {k j o x u : ℕ}
     (hx : x ≠ negKey t) :
     ({ S.withKept t kept with store := (S.withKept t kept).store.moveTo k j o x u } :
       WExec φ) =
@@ -1150,7 +1152,7 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
           ⟨k, litOfKey b⟩ .skip :=
         WExec.visitSpec_of hu hA hv
       WExec.processFrom t u hu m c n ws ((kept.push k).push b) S hn'
-        (S.withKept_putBack t kept k b ▸ h.skip hs) hm hc
+        (by exact S.withKept_putBack t kept k b ▸ h.skip hs) hm hc
     | .keep b' =>
       have hs : VisitSpec (S.withKept t kept).store (S.withKept t kept).M t.negate
           ⟨k, litOfKey b⟩ (.keep (litOfKey b')) :=

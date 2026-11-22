@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.VanEmdeBoas.Basic
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Recursive van Emde Boas memory representation
@@ -90,8 +91,7 @@ theorem universeSize_le_span (d : ℕ) : universeSize d ≤ span d := by
 /-- Every smaller record size is bounded by its parent record size. -/
 theorem span_le_succ (d : ℕ) : span d ≤ span (d + 1) := by
   have h := summary_end_le_span d
-  dsimp only [summaryOffset] at h
-  omega
+  wram_omega [h]
 
 /-- Every split size is bounded by its record span. -/
 theorem splitSize_le_span (d : ℕ) : splitSize d ≤ span d := by
@@ -227,11 +227,11 @@ theorem rep_writeBounds {d p : ℕ} {t : Tree d} {mem : ℕ → ℕ}
     refine ⟨header_writeBounds hr.1 b, ?_, ?_⟩
     · apply rep_frame hr.2.1
       intro a ha _
-      exact writeBounds_away b (Or.inr (by dsimp only [summaryOffset] at ha; omega))
+      exact writeBounds_away b (Or.inr (by wram_omega [ha]))
     · intro i
       apply rep_frame (hr.2.2 i)
       intro a ha _
-      exact writeBounds_away b (Or.inr (by dsimp only [clusterOffset] at ha; omega))
+      exact writeBounds_away b (Or.inr (by wram_omega [ha]))
 
 /-- Replacing one cluster interval preserves its parent, summary and sibling clusters. -/
 theorem rep_replace_cluster {d p : ℕ} {b : Option (ℕ × ℕ)} {s : Tree d}
@@ -243,7 +243,7 @@ theorem rep_replace_cluster {d p : ℕ} {b : Option (ℕ × ℕ)} {s : Tree d}
     Rep (.node b s (Function.update c i t)) p mem' := by
   refine ⟨(header_congr ?_).mp hr.1, ?_, ?_⟩
   · intro a ha
-    have hstart : 5 ≤ clusterOffset d i.val := by dsimp only [clusterOffset]; omega
+    have hstart : 5 ≤ clusterOffset d i.val := by wram_omega
     exact (hf (p + a) (Or.inl (by omega))).symm
   · apply rep_frame hr.2.1
     intro a _ ha
@@ -272,7 +272,7 @@ theorem rep_replace_summary {d p : ℕ} {b : Option (ℕ × ℕ)} {s s' : Tree d
       mem' a = mem a) : Rep (.node b s' c) p mem' := by
   refine ⟨(header_congr ?_).mp hr.1, hs, ?_⟩
   · intro a ha
-    exact (hf (p + a) (Or.inl (by dsimp only [summaryOffset]; omega))).symm
+    exact (hf (p + a) (Or.inl (by wram_omega))).symm
   · intro i
     apply rep_frame (hr.2.2 i)
     intro a hlo _

@@ -50,7 +50,7 @@ approximate phase flip of Shi's §4.1 is not needed with the Hadamard gate.
   computation*][Shi2003], §4 (arXiv:quant-ph/0205115v2)
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Quantum
 
@@ -100,7 +100,7 @@ theorem unitaryEquiv_place_of_diagonal {k : ℕ} (A : Fin k ↪ Fin m) (U : Gate
 namespace GateCode
 
 /-- The codes `H, X, H` on qubit `t`: the phase flip `Z` on `t`. -/
-def zCodes (t : ℕ) : List GateCode := [(true, t, []), (false, t, []), (true, t, [])]
+@[expose] def zCodes (t : ℕ) : List GateCode := [(true, t, []), (false, t, []), (true, t, [])]
 
 theorem wellFormed_zCodes {t : ℕ} (ht : t < m) : ∀ g ∈ zCodes t, WellFormed m g := by
   intro g hg
@@ -109,7 +109,8 @@ theorem wellFormed_zCodes {t : ℕ} (ht : t < m) : ∀ g ∈ zCodes t, WellForme
 
 /-- Classical codes, the phase flip on qubit `t`, and the codes run backwards: the **phase oracle**
 of bit `t` of `classicalRun gs`. -/
-def phaseOracleCodes (gs : List GateCode) (t : ℕ) : List GateCode := gs ++ zCodes t ++ gs.reverse
+@[expose] def phaseOracleCodes (gs : List GateCode) (t : ℕ) : List GateCode :=
+  gs ++ zCodes t ++ gs.reverse
 
 end GateCode
 
@@ -144,22 +145,22 @@ namespace GateCode
 /-- Toffoli gates computing into qubit `w` the AND of the qubits `cs`, using the qubits
 `w + 1, …, w + |cs|` as scratch: `andCodes [] w` is NOT on `w`, and `andCodes (c :: cs) w` computes
 the AND of `cs` into `w + 1` and then applies `Λ₂(σ_x)[c, w + 1; w]`. -/
-def andCodes : List ℕ → ℕ → List GateCode
+@[expose] def andCodes : List ℕ → ℕ → List GateCode
   | [], w => [(false, w, [])]
   | c :: cs, w => andCodes cs (w + 1) ++ [(false, w, [c, w + 1])]
 
 /-- The codes of `andCodes cs w` target only the qubits `w, …, w + |cs|`. -/
 theorem target_mem_andCodes {cs : List ℕ} {w : ℕ} :
-    ∀ g ∈ andCodes cs w, w ≤ g.2.1 ∧ g.2.1 ≤ w + cs.length := by
+    ∀ b t d, (b, t, d) ∈ andCodes cs w → w ≤ t ∧ t ≤ w + cs.length := by
   induction cs generalizing w with
   | nil => simp [andCodes]
   | cons c cs ih =>
-    intro g hg
+    intro b t d hg
     rcases List.mem_append.mp hg with hg | hg
-    · have := ih g hg
+    · have := ih b t d hg
       simp only [List.length_cons]
       omega
-    · obtain rfl := List.mem_singleton.mp hg
+    · cases List.mem_singleton.mp hg
       simp
 
 theorem isClassical_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w)
@@ -200,9 +201,11 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
     have hcs : ∀ c' ∈ cs, c' < w + 1 := fun c' h => by
       have := hc c' (List.mem_cons_of_mem _ h)
       omega
-    have hne (i : ℕ) (hi : i < w + 1) : ∀ g ∈ andCodes cs (w + 1), g.2.1 ≠ i := fun g hg => by
-      have := (target_mem_andCodes g hg).1
-      omega
+    have hne (i : ℕ) (hi : i < w + 1) : ∀ g ∈ andCodes cs (w + 1), g.2.1 ≠ i :=
+      fun ⟨b, t, d⟩ hg => by
+        change t ≠ i
+        have := (target_mem_andCodes b t d hg).1
+        omega
     rw [andCodes, classicalRun_append, classicalRun_cons, classicalRun_nil, readBit_classicalStep,
       readBit_classicalRun_of_forall_ne (hne w (by omega))]
     simp only [List.all_cons, List.all_nil, Bool.and_true,
@@ -212,7 +215,7 @@ theorem readBit_classicalRun_andCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ 
 
 /-- NOT gates on the qubits `cs`, then `andCodes`: computes into qubit `w` whether all the qubits
 `cs` are zero. -/
-def zeroTestCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
+@[expose] def zeroTestCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
   cs.map (fun c => (false, c, [])) ++ andCodes cs w
 
 theorem isClassical_zeroTestCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, c < w)
@@ -220,7 +223,7 @@ theorem isClassical_zeroTestCodes {cs : List ℕ} {w : ℕ} (hc : ∀ c ∈ cs, 
   refine IsClassical.append.mpr ⟨fun g hg => ?_, isClassical_andCodes hc hw⟩
   obtain ⟨c, hc', rfl⟩ := List.mem_map.mp hg
   have := hc c hc'
-  exact ⟨rfl, by simp, by simp, by simp; omega⟩
+  exact ⟨rfl, by simp, by simp, by simp only [List.mem_cons, List.not_mem_nil, or_false]; omega⟩
 
 /-- **`zeroTestCodes cs w` computes into qubit `w` whether the qubits `cs` are all zero**, when the
 scratch qubits `w, …, w + |cs|` start at zero. -/
@@ -258,7 +261,7 @@ theorem readBit_classicalRun_zeroTestCodes {cs : List ℕ} (hnd : cs.Nodup) {w :
 /-- The **reflection about the all-zero string** of the qubits `cs`: negate the amplitudes of the
 basis strings on which every qubit of `cs` is zero, computing the test into the scratch qubits
 `w, …, w + |cs|`. -/
-def reflectZeroCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
+@[expose] def reflectZeroCodes (cs : List ℕ) (w : ℕ) : List GateCode :=
   phaseOracleCodes (zeroTestCodes cs w) w
 
 end GateCode

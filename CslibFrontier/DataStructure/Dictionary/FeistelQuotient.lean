@@ -24,6 +24,8 @@ import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # One-round Feistel quotienting and universal succinct bit accounting
@@ -92,7 +94,7 @@ def keyBits (U : ℕ) : ℕ :=
   Nat.clog 2 U
 
 /-- Number of bits `⌈log₂ V⌉` needed to represent values in `Fin V`. -/
-@[expose]
+@[expose, wram_arith]
 def valBits (V : ℕ) : ℕ :=
   Nat.clog 2 V
 
@@ -103,7 +105,7 @@ def slabScale (n : ℕ) : ℕ :=
   2 ^ Dynamic.logLogFactor n
 
 /-- Number of bucket index bits `b = ⌊log₂ n⌋ - 3 * logLogFactor n`. -/
-@[expose]
+@[expose, wram_arith]
 def bucketBits (n : ℕ) : ℕ :=
   Nat.log 2 n - 3 * Dynamic.logLogFactor n
 
@@ -113,7 +115,7 @@ def numBuckets (n : ℕ) : ℕ :=
   2 ^ bucketBits n
 
 /-- Number of stored quotient bits per key `q_bits = ⌈log₂ U⌉ - bucketBits n`. -/
-@[expose]
+@[expose, wram_arith]
 def quotientBits (U n : ℕ) : ℕ :=
   keyBits U - bucketBits n
 
@@ -282,9 +284,7 @@ theorem quotient_bits_le_choose {U n : ℕ} :
   · have hll : 1 ≤ Dynamic.logLogFactor n := Dynamic.one_le_logLogFactor n
     have hkey : keyBits U ≤ Nat.log 2 n + 1 := Nat.clog_le_of_le_pow
       (hUn.le.trans (Nat.lt_pow_succ_log_self (by decide) n).le)
-    have hq : quotientBits U n ≤ 3 * Dynamic.logLogFactor n + 1 := by
-      unfold quotientBits bucketBits
-      omega
+    have hq : quotientBits U n ≤ 3 * Dynamic.logLogFactor n + 1 := by wram_omega
     rw [Nat.choose_eq_zero_of_lt hUn, Nat.clog_zero_right, Nat.zero_add]
     nlinarith [Nat.mul_le_mul_left n hq]
   · have hexp : n * keyBits U ≤
