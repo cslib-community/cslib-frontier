@@ -620,6 +620,11 @@ Ronald de Wolf. *Quantum Computing: Lecture Notes*. arXiv:1907.09415, read in v6
 
 Reinhard Diestel. *Graph Theory*, sixth edition. Graduate Texts in Mathematics 173, Springer, 2025. The author's free preview chapters (https://www.math.uni-hamburg.de/home/diestel/books/graph.theory/preview/Ch3.pdf and Ch1.pdf) were consulted on 2026-11-08 and 2026-11-11 UTC for Section 1.4 (`k`-connectedness `|G| > k`, separating sets, Proposition 1.4.2 `κ(G) ≤ λ(G)`), Section 3.3, Theorem 3.3.1 (`A`–`B` Menger), Corollary 3.3.5 (i) (vertex form, `ab ∉ E`) and (ii) (edge form), and Theorem 3.3.6 (i)–(ii) (global `k`-connectivity Menger).
 
+<a id="dijkstrascholten1980"></a>
+## dijkstrascholten1980
+
+Edsger W. Dijkstra and Carel S. Scholten. "Termination Detection for Diffusing Computations." *Information Processing Letters* 11(1), 1–4, August 1980. https://doi.org/10.1016/0020-0190(80)90021-6 . Author manuscript EWD687a (26 January 1979), E. W. Dijkstra Archive, University of Texas at Austin: typescript PDF https://www.cs.utexas.edu/~EWD/ewd06xx/EWD687a.PDF (SHA-256 `f4930afa16451a4e692e1e37b1dca50235450f9c5da72eb15ee888314f9b0bb9`, 9 PDF pages; cover notice on PDF p. 1 records publication as *Information Processing Letters* 11, 1: 1–4, 1980) and HTML transcription https://www.cs.utexas.edu/~EWD/transcriptions/EWD06xx/EWD687a.html (SHA-256 `af6e11072721321943ed132b74374da40477bf95db8102c55bef29c83da93e10`), both inspected in full on 2026-11-22 UTC. Journal metadata was verified against the Crossref DOI record; the typeset Elsevier journal PDF was not directly inspected, so all verified locators refer to `EWD687a`: `EWD687a - 0`–`2` (PDF pp. 3–5: diffusing computations from a single environment node, incoming deficit sum `C`, outgoing deficit sum `D`, invariants P0–P3 with `C > 0 ∨ D = 0` on internal nodes), `EWD687a - 3` (PDF p. 6: signalling guard `G : C > 1 ∨ (C = 1 ∧ D = 0)` and Theorem 1, bounded-step return of the environment to the neutral state once the computation proper terminates), `EWD687a - 4`–`5` (PDF pp. 7–8: invariant P4, pointed-bag "cornets" with oldest incoming "engagement edge", observations a)–c) establishing a rooted tree of engaged nodes, Theorem 2 proving that a neutral environment implies global termination, and the concluding remark that the single counter `D` suffices on the outgoing side). The formalization in `Cslib.Distributed.DijkstraScholten` models the concrete asynchronous in-flight message-passing, single-parent (`Option P`) eager-acknowledgement overlay step toward #7286 rather than `EWD687a`'s atomic edge-deficit updates and general deferred-cornet obligation bags.
+
 <a id="dilworth1950"></a>
 ## dilworth1950
 
@@ -1544,6 +1549,11 @@ Pasin Manurangsi and Prasad Raghavendra. “A Birthday Repetition Theorem and Co
 ## mathlib
 
 Mathlib contributors. *Mathlib*, pinned source `69552756cd8a2d2d48763cf7279fd814d6a1224d`, inspected 2026-11-01. https://github.com/leanprover-community/mathlib4/tree/69552756cd8a2d2d48763cf7279fd814d6a1224d
+
+<a id="mattern1987"></a>
+## mattern1987
+
+Friedemann Mattern. "Algorithms for Distributed Termination Detection." *Distributed Computing* 2(3), 161–175, 1987. https://doi.org/10.1007/BF01782776 . Bibliographic metadata checked against the Crossref DOI record on 2026-11-22 UTC; the full text was not inspected (gated behind an automated challenge on the publisher host), so no section or theorem locators are cited. Referenced only as bibliographic context for general non-diffusing message-counting termination detection tracked in #7286; the sequential-polling false-termination trace `exists_phantom_termination_naive_poll` in `Cslib.Distributed.DijkstraScholten` is an original 3-process counterexample constructed directly in Lean.
 
 <a id="mccreightmeyer69"></a>
 ## mccreightmeyer69
