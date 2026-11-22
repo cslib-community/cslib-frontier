@@ -171,6 +171,18 @@ example (F : Bool → Bool × Fin 2 → BitString 2)
   ⟨eval_collisionExperiment_xorHash_le_prfAdvantage F A,
     isQueryBounded_xorHashCollisionReduction A⟩
 
+/-- Three messages of at most two blocks give three candidate pairs and at most six queries. -/
+example (F : Bool → Bool × Fin 2 → BitString 2)
+    (A : ProbComp (List {m : List Bool // m.length ≤ 2}))
+    (hA : ∀ ms ∈ (ProbComp.eval A).support, ms.length ≤ 3) :
+    ProbComp.eval (multiQueryExperiment (fun k => xorHash (F k)) A) true ≤
+      (PRF.advantage F (xorHashMultiQueryReduction 3 A) : ℝ≥0∞) +
+        (3 : ℝ≥0∞) * (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ ∧
+    (xorHashMultiQueryReduction (Y := BitString 2) 3 A).IsQueryBounded 6 := by
+  refine ⟨?_, isQueryBounded_xorHashMultiQueryReduction 3 A⟩
+  simpa only [show (3 : ℕ).choose 2 = 3 by decide, Nat.cast_ofNat] using
+    eval_multiQueryExperiment_xorHash_le_prfAdvantage F A hA
+
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
   guess _ digest := pure ⟨target, digest⟩
