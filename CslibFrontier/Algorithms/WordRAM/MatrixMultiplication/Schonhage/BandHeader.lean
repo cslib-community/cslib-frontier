@@ -67,24 +67,6 @@ structure BasicParameters (L m N : ℕ) (x : Data 96) : Prop where
   /-- Constant ten. -/
   ten : x.regs ten = 10
 
-private def basicRegisters : Finset (Fin 96) :=
-  {levels, inner, rows, zero, two, three, four, seven, ten}
-
-private theorem BasicParameters.of_frame {L m N : ℕ} {x y : Data 96}
-    (hx : BasicParameters L m N x) (hone : y.regs BandPreparation.one = 1)
-    (h : ∀ i ∈ basicRegisters, y.regs i = x.regs i) : BasicParameters L m N y :=
-  ⟨by regs_frame, by regs_frame, by regs_frame, by regs_frame, hone,
-    by regs_frame, by regs_frame, by regs_frame, by regs_frame, by regs_frame⟩
-
-private theorem BasicParameters.after_power {L m N : ℕ} {v : Fin 96} {x y : Data 96}
-    (hx : BasicParameters L m N x) (hv : v ∉ basicRegisters)
-    (hone : y.regs BandPreparation.one = 1)
-    (hf : ∀ i, i ≠ v → i ≠ counter → i ≠ BandPreparation.one → y.regs i = x.regs i) :
-    BasicParameters L m N y := hx.of_frame hone (by
-  intro i hi
-  have hstatic : ∀ i ∈ basicRegisters, i ≠ counter ∧ i ≠ BandPreparation.one := by decide
-  exact hf i (fun heq => hv (heq ▸ hi)) (hstatic i hi).1 (hstatic i hi).2)
-
 /-- The global numerical budget bounds every final header power and its exponent. -/
 theorem power_fits {w L m N : ℕ} (hfit : Fits w (wordBudget L m N))
     (b n : ℕ) (hb : b ≤ 10) (hn : n ≤ L) : Fits w (b ^ n + n + 2) := by
@@ -105,38 +87,30 @@ theorem exec_headerPowers {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
       y.regs cells = 7 ^ L ∧ y.regs leaves = 10 ^ L ∧ y.mem = x.mem := by
   obtain ⟨x1, h1, hD, ho1, hm1, hf1⟩ := exec_powerCode columns four inner (by decide)
     4 m (by decide) x hx.four hx.inner (power_fits hfit 4 m (by decide) hm)
-  have hp1 : BasicParameters L m N x1 := hx.after_power (by decide) ho1 hf1
+  have hp1 : BasicParameters L m N x1 := by regs_frame
   let x2 := x1.set temporary (L - m)
   have hsub : ExecWithin w (ram[ temporary ← levels - inner ]) x1 x2 1 := by
     have hL := power_fits hfit 1 L (by decide) le_rfl
     have hs : Fits w (L - m) := hL.of_le (by simp only [one_pow]; omega)
     ram_eval [x2, hp1.levels, hp1.inner, hs, temporary, levels, inner]
-  have ho2 : x2.regs one = 1 := by simpa [x2, temporary, one] using hp1.one
-  have hp2 : BasicParameters L m N x2 := hp1.of_frame ho2 (by
-    intro i hi
-    apply hsub.regs_eq
-    have hf : ∀ i ∈ basicRegisters, (ram[ temporary ← levels - inner ]).Preserves i := by
-      simp only [Code.Preserves, Op.dest_bin]
-      decide
-    exact hf i hi)
+  have hp2 : BasicParameters L m N x2 := by regs_frame
   have htemp : x2.regs temporary = L - m := by simp [x2]
   obtain ⟨x3, h3, hN0, ho3, hm3, hf3⟩ := exec_powerCode outerSize three temporary (by decide)
     3 (L - m) (by decide) x2 hp2.three htemp
     (power_fits hfit 3 (L - m) (by decide) (Nat.sub_le _ _))
-  have hp3 : BasicParameters L m N x3 := hp2.after_power (by decide) ho3 hf3
+  have hp3 : BasicParameters L m N x3 := by regs_frame
   obtain ⟨x4, h4, hS2, ho4, hm4, hf4⟩ := exec_powerCode masks two levels (by decide)
     2 L (by decide) x3 hp3.two hp3.levels (power_fits hfit 2 L (by decide) le_rfl)
-  have hp4 : BasicParameters L m N x4 := hp3.after_power (by decide) ho4 hf4
+  have hp4 : BasicParameters L m N x4 := by regs_frame
   obtain ⟨x5, h5, hS7, ho5, hm5, hf5⟩ := exec_powerCode cells seven levels (by decide)
     7 L (by decide) x4 hp4.seven hp4.levels (power_fits hfit 7 L (by decide) le_rfl)
-  have hp5 : BasicParameters L m N x5 := hp4.after_power (by decide) ho5 hf5
+  have hp5 : BasicParameters L m N x5 := by regs_frame
   obtain ⟨y, h6, hS10, ho6, hm6, hf6⟩ := exec_powerCode leaves ten levels (by decide)
     10 L (by decide) x5 hp5.ten hp5.levels (power_fits hfit 10 L (by decide) le_rfl)
-  refine ⟨y, ?_, hp5.after_power (by decide) ho6 hf6, ?_, ?_, ?_, ?_, hS10, ?_⟩
+  refine ⟨y, ?_, by regs_frame, ?_, ?_, ?_, ?_, hS10, ?_⟩
   · apply (h1.seq (hsub.seq (h3.seq (h4.seq (h5.seq h6))))).mono
     omega
-  · have hD2 : x2.regs columns = 4 ^ m := by simpa [x2, temporary, columns] using hD
-    regs_frame
+  · regs_frame
   · regs_frame
   · regs_frame
   · regs_frame
@@ -215,14 +189,7 @@ theorem exec_header {w L m N : ℕ} (hm : m ≤ L) (x : Data 96)
       hS2, hS7, hS10, hD, hnd2, hB, hts2, hS, hI, hT, hC,
       prefixSize, snapshot, inverse, table, catalogue, rows, columns, leaves, cells,
       masks, two, four, Fin.mk.injEq, Function.update_idem]
-  have hfixed : BasicParameters L m N y := hbasic.of_frame (by
-    simpa [y, prefixSize, snapshot, inverse, table, catalogue, one] using hbasic.one) (by
-      intro i hi
-      apply hy.regs_eq
-      have hf : ∀ i ∈ basicRegisters, headerLayout.Preserves i := by
-        simp only [headerLayout, Code.Preserves, Op.dest_bin]
-        decide
-      exact hf i hi)
+  have hfixed : BasicParameters L m N y := by regs_frame
   refine ⟨y, ?_, ?_, hzmem⟩
   · exact (hs.seq (hz.seq hy)).mono (by omega)
   · constructor
