@@ -12,12 +12,16 @@ import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 import all CslibFrontier.Crypto.Computational.MLDSA.CompressedKeyOnly
 import all CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 import all CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
+import all CslibFrontier.Crypto.Computational.MLDSA.QuantumCommitment
+import all CslibFrontier.Crypto.Computational.MLDSA.QuantumSigning
 import CslibFrontier.Crypto.Computational.MLDSA.RejNTTExhaustion
+import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204
 meta import CslibFrontier.Crypto.Computational.MLDSA.FullPairMLWE
 meta import CslibFrontier.Crypto.Computational.MLDSA.AmbientVerification
 meta import CslibFrontier.Crypto.Computational.MLDSA.PublicPairSigning
 meta import CslibFrontier.Crypto.Computational.MLDSA.RandomXof
+meta import CslibFrontier.Crypto.Computational.MLDSA.RepresentativeOverlap
 meta import CslibFrontier.Crypto.Computational.MLDSA.SignedMatrix
 meta import CslibFrontier.Crypto.Computational.MLDSA.FIPS204Signing
 meta import CslibFrontier.Crypto.Computational.MLDSA.ExpandAProgramming
@@ -246,6 +250,33 @@ private def checkVerifierWrite (s : Level) : Bool := Id.run do
 #guard checkVerifierWrite .mlDSA65
 #guard checkVerifierWrite .mlDSA87
 
+-- The same raw word is a legal representative and a commitment input. Short inputs in
+-- Algorithm 6 return zeros, so the public key starts with zeros. Its own 64-byte hash and
+-- the one-bit message's representative consist of 0x01 bytes; the empty message misses.
+private def representativeOverlapCheck (s : Level) (messageBits : ℕ) : Bool := Id.run do
+  let zero := constantStream fun _ => 0
+  let H : Xofs := ⟨zero, constantStream (fun x => if x.length > 528 then 1 else 0)⟩
+  let some keys := H.keyGen s (fun _ => 0) | return false
+  let pk := keys.publicKey
+  let tr := H.h256.readBytes pk 64
+  let empty : Forgery := ⟨[], [], []⟩
+  let one : Forgery := ⟨[], [false], []⟩
+  let y := representativeInput tr (formattedMessage one)
+  let final := representativeInput tr (formatMessage (List.replicate messageBits false) [])
+  let signed := commitmentInput s (fun _ _ => 0) (H.messageRepresentative pk (formattedMessage one))
+  -- A second stream tests the equal-input outcome on the generated all-zero public key.
+  let Z : Xofs := ⟨zero, zero⟩
+  let self : Forgery := ⟨[], List.replicate (8 * pk.length - 528) false, []⟩
+  return final == signed && H.matchingRepresentativeInput pk [empty] == none &&
+    H.matchingRepresentativeInput pk [empty, one] == some y && Keccak.bytesToBitsLE pk != y &&
+    H.h256.read y 64 == tr && tr != pk.take 64 &&
+    Z.matchingRepresentativeInput pk [self] == some (Keccak.bytesToBitsLE pk) &&
+    Z.h256.readBytes pk 64 == pk.take 64
+
+#guard representativeOverlapCheck .mlDSA44 6128
+#guard representativeOverlapCheck .mlDSA65 6128
+#guard representativeOverlapCheck .mlDSA87 8176
+
 -- Algorithm 32 appends the column before the row. Adjacent addresses, bit-length variants
 -- and longer reads exercise the same XOF that the verifier and an outside caller receive.
 private def matrixAddressChecks : Bool := Id.run do
@@ -415,10 +446,11 @@ example (other : ExtendableOutput) (rho : FixedBytes 32)
       (result.trial.forgery.message, result.writes.map (fun w => (w.request, w.reply)),
         result.trial.log)) = PMF.pure ([true], [(q, none)], []) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, programmedCommands, signingProbe,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-    OracleComp.sumHandler, signingCall,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_nil, Nat.not_lt_zero, ite_false]
+  simp only [publicPairSigning, runProgrammed, runSigningProgram, programmedCommands,
+    statefulSigningCommands, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q,
+    List.length_nil, Nat.not_lt_zero, ite_false]
   rw [show List.range 814 = 0 :: List.range' 1 813 by rw [List.range_eq_range', List.range'_succ],
     List.findSomeM?_cons]
   simp only [fatalDraw, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure,
@@ -432,10 +464,60 @@ example (s : Level) (H : Xofs) (rho : FixedBytes 32) (pair : MLDSA.PublicKey s.p
       (result.trial.forgery.message, result.writes, result.trial.log, result.trial.xofs)) =
       PMF.pure ([true], [], [], H) := by
   intro q
-  simp only [publicPairSigning, runProgrammed, programmedCommands, signingProbe,
-    ProbOracleComp.runWith_bind, ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure,
-    OracleComp.sumHandler, signingCall,
-    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q, List.length_replicate,
-    show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind, Option.isNone_none]
+  simp only [publicPairSigning, runProgrammed, runSigningProgram, programmedCommands,
+    statefulSigningCommands, signingProbe, ProbOracleComp.runWith_bind,
+    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, OracleComp.sumHandler, signingCall,
+    PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, q,
+    List.length_replicate, show 255 < 256 by decide, ite_true, PMF.pure_map, PMF.pure_bind,
+    Option.isNone_none]
 
 end Cslib.Crypto.MLDSA.FIPS204.QuantumSigningForger
+
+-- Every mask reaches the same encoded address at the zero matrix. A useful
+-- reprogramming estimate therefore has to account for the law of the public matrix.
+example (s : Level) (extra : Finset (List Bool)) (μ : Cslib.BitString 512) :
+    (signingAddressLaw s extra 0 μ).support.Subsingleton := by
+  have hz (y : Fin s.params.ℓ → Poly) : moduleSISMap (0 : PublicMatrix s) y = 0 := by
+    funext i
+    simp [moduleSISMap]
+  unfold signingAddressLaw
+  simp_rw [hz]
+  change (PMF.map (Function.const _ _) _).support.Subsingleton
+  rw [PMF.map_const, PMF.support_pure]
+  exact Set.subsingleton_singleton
+
+-- One update at the quantum hash-query budgets in Fallahpour–Fehr–Huang, Table 3.
+-- The three exponents bound its additive loss before any later signing calls.
+example (s : Level) :
+    let queries : ℕ := match s with | .mlDSA44 => 128 | .mlDSA65 => 192 | .mlDSA87 => 256
+    let bits : ℕ := match s with | .mlDSA44 => 106 | .mlDSA65 => 447 | .mlDSA87 => 639
+    2 * (2 : ℝ) ^ queries * ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) ≤ 1 / 2 ^ bits := by
+  intro queries bits
+  rw [← mul_div_assoc, div_le_div_iff₀ (by positivity) (by positivity), one_mul]
+  apply (Real.le_sqrt (by positivity) (by positivity)).2
+  have cert : (22 * 2 ^ queries * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
+    cases s <;> decide +kernel
+  have bound : ((22 : ℝ) * 2 ^ queries * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
+    exact_mod_cast cert
+  nlinarith only [bound]
+
+-- The classical comparison permits 814 attempts on each of 2^64 signing requests.
+-- At the three hash-query budgets its statistical-distance contribution remains below one.
+example (s : Level) :
+    let h : ℕ := match s with | .mlDSA44 => 128 | .mlDSA65 => 192 | .mlDSA87 => 256
+    let bits : ℕ := match s with | .mlDSA44 => 32 | .mlDSA65 => 373 | .mlDSA87 => 566
+    let t := 2 ^ 64 * 814
+    ((2 * t * 2 ^ h + t.choose 2 : ℕ) : ℝ) *
+      ((11 / 10) / Real.sqrt (2 ^ s.commitmentBoxBits)) ≤ 1 / 2 ^ bits := by
+  intro h bits t
+  rw [← mul_div_assoc, div_le_div_iff₀ (by positivity) (by positivity), one_mul]
+  apply (Real.le_sqrt (by positivity) (by positivity)).2
+  let count := 2 * t * 2 ^ h + t.choose 2
+  have cert : (11 * count * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
+    dsimp only [count, t]
+    rw [Nat.choose_two_right]
+    cases s <;> decide +kernel
+  have bound : ((11 : ℝ) * count * 2 ^ bits) ^ 2 ≤ 100 * 2 ^ s.commitmentBoxBits := by
+    exact_mod_cast cert
+  change ((count : ℝ) * (11 / 10) * 2 ^ bits) ^ 2 ≤ _
+  nlinarith only [bound]

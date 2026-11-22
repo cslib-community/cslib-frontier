@@ -9,7 +9,11 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceDrawing
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEdges
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.PrescribedOrder
+public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Restriction
+public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Basic
 public import Mathlib.Analysis.SpecialFunctions.Trigonometric.Angle
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.SplitOrder
 import CslibFrontier.Foundations.Geometry.Polygonal.RayOrder
 import Mathlib.Data.List.GetD
 import Mathlib.Data.List.Nodup
@@ -33,21 +37,12 @@ neither a global embedding nor generic position, frozen placement, move realizat
 Hanani–Tutte/query-completeness theorem. The remaining full recognition and source-model
 objective is tracked in [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 
-## Main definitions
-
-* `Cslib.Complexity.Graph.RotationRecognition.subdivisionDart`: the original end's actual
-  first/last subdivision dart, preserving occurrence and end tag.
-
 ## Main results
 
 * `Cslib.Complexity.Graph.RotationRecognition.frozen_iff_exists_subdivisionDart`: the stored
   flag selects exactly the indexed first/last segments of originally fixed ends.
-* `Cslib.Complexity.Graph.RotationRecognition.subdivisionDart_endpoints`: the original center
-  and the fresh leaf named by the original binary dart index.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_subdivisionDart_germ`: the
   actual outgoing vector from that center to that leaf.
-* `Cslib.Complexity.Graph.RotationRecognition.fixedWord_dart_vertex`: membership in a
-  prescribed complete word determines the original center.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_arg_lt_iff`: actual
   arguments decrease in the literal prescribed word, including comparison with itself.
 * `Cslib.Complexity.Graph.RotationRecognition.referenceDrawing_fixedWord_directions_injective`:
@@ -62,15 +57,6 @@ namespace Cslib.Complexity.Graph.RotationRecognition
 
 open Polygonal
 
-/-- Retain the original occurrence and end tag while selecting its incident first or last
-subdivision segment. In particular, the two original loop ends select different segments. -/
-@[expose] def subdivisionDart (I : FixedRotationInput) (d : Dart I.graph) :
-    Dart (subdivisionGraph I) :=
-  (⟨3 * d.1.val + if d.2 then 2 else 0, by
-    have hi := d.1.isLt
-    simp only [subdivisionGraph, List.length_map, length_subdivide]
-    cases d.2 <;> simp only [Bool.false_eq_true, ↓reduceIte] <;> omega⟩, d.2)
-
 /-- The actual stored frozen bit selects exactly the first or last segment of an originally
 fixed indexed end. This raw combinatorial classifier does not require `Valid`. -/
 theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
@@ -83,11 +69,10 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
     simpa only [subdivisionGraph, List.length_map] using e.isLt
   constructor
   · intro hf
-    have hsize : e.val < 3 * I.graph.edges.length := by simpa only [length_subdivide] using he
-    let i : Fin I.graph.edges.length := ⟨e.val / 3, by omega⟩
-    let k : Fin 3 := ⟨e.val % 3, Nat.mod_lt _ (by decide)⟩
+    let i := (subdivisionEdgeIndex I e).original
+    let k := (subdivisionEdgeIndex I e).piece
     have hlookup := subdivide_getElem? I i k
-    have hindex : 3 * i.val + k.val = e.val := by dsimp [i, k]; omega
+    have hindex : 3 * i.val + k.val = e.val := (subdivisionEdgeIndex_val I e).symm
     rw [hindex] at hlookup
     have hget := Option.some.inj ((List.getElem?_eq_getElem he).symm.trans hlookup)
     have hk : k.val = 0 ∨ k.val = 1 ∨ k.val = 2 := by have := k.isLt; omega
@@ -128,38 +113,6 @@ theorem frozen_iff_exists_subdivisionDart (I : FixedRotationInput)
       change (I.orders.getD I.graph.edges[i].2 none).isSome = true
       simpa only [Fin.getElem_fin, Dart.vertex, Graph.edgeEndpoint, ↓reduceIte,
         List.getD_eq_getElem _ _ i.isLt] using hf
-
-/-- The selected outgoing end has its original center and its own fresh occurrence leaf. -/
-theorem subdivisionDart_endpoints (I : FixedRotationInput) (d : Dart I.graph) :
-    (subdivisionDart I d).vertex = d.vertex ∧
-      (subdivisionDart I d).reverse.vertex = I.graph.vertices.length + d.index := by
-  rcases d with ⟨⟨i, hi⟩, b⟩
-  cases b
-  · have h := subdivide_getElem? I ⟨i, hi⟩ 0
-    simp only [Fin.getElem_fin, Fin.val_zero, Nat.add_zero, List.getElem_cons_zero] at h
-    have he : (subdivisionGraph I).edges.getD (3 * i) (0, 0) =
-        (I.graph.edges[i].1, I.graph.vertices.length + 2 * i) := by
-      simp only [subdivisionGraph, List.getD_eq_getElem?_getD, List.getElem?_map, h]
-      rfl
-    change ((subdivisionGraph I).edges.getD (3 * i) (0, 0)).1 =
-      (I.graph.edges.getD i (0, 0)).1 ∧
-      ((subdivisionGraph I).edges.getD (3 * i) (0, 0)).2 = I.graph.vertices.length + 2 * i
-    rw [he, List.getD_eq_getElem _ _ hi]
-    exact ⟨rfl, rfl⟩
-  · have h := subdivide_getElem? I ⟨i, hi⟩ 2
-    change (subdivide I)[3 * i + 2]? = some
-      ((I.graph.vertices.length + 2 * i + 1, I.graph.edges[i].2),
-        (I.orders.getD I.graph.edges[i].2 none).isSome) at h
-    have he : (subdivisionGraph I).edges.getD (3 * i + 2) (0, 0) =
-        (I.graph.vertices.length + 2 * i + 1, I.graph.edges[i].2) := by
-      simp only [subdivisionGraph, List.getD_eq_getElem?_getD, List.getElem?_map, h]
-      rfl
-    change ((subdivisionGraph I).edges.getD (3 * i + 2) (0, 0)).2 =
-      (I.graph.edges.getD i (0, 0)).2 ∧
-      ((subdivisionGraph I).edges.getD (3 * i + 2) (0, 0)).1 =
-        I.graph.vertices.length + (2 * i + 1)
-    rw [he, List.getD_eq_getElem _ _ hi, Nat.add_assoc]
-    exact ⟨rfl, rfl⟩
 
 /-- The actual outgoing first/last route vector points from the original center to its leaf. -/
 theorem referenceDrawing_subdivisionDart_germ (I : FixedRotationInput) (d : Dart I.graph) :
@@ -247,13 +200,6 @@ private theorem fixedWord_rank_spec {I : FixedRotationInput} (hI : Valid I) {v :
   · rw [hvrank, hrank]
     dsimp [k, i]
     omega
-
-/-- A dart in a prescribed complete word has that word's center. -/
-theorem fixedWord_dart_vertex {I : FixedRotationInput} (hI : Valid I) {v : ℕ}
-    {word : List ℕ} (hw : I.orders.getD v none = some word)
-    {d : Dart I.graph} (hd : d.index ∈ word) : d.vertex = v := by
-  have hf := (hI.2.2.2 v word hw).2 d.index |>.mp hd
-  exact (Dart.vertex_index d).symm.trans (mem_fiber.mp hf).2
 
 /-- Actual outgoing arguments decrease along the literal prescribed word. No inequality
 between the two darts is assumed: comparing a dart with itself also satisfies this iff. -/
@@ -343,5 +289,28 @@ theorem referenceDrawing_fixedWord_clockwise_iff {I : FixedRotationInput} (hI : 
     referenceDrawing_fixedWord_arg_lt_iff hI hw hb ha,
     referenceDrawing_fixedWord_arg_lt_iff hI hw ha hc]
   tauto
+
+/-- The boundary ports of an embedding realizing a prescribed word have the same clockwise
+triples as the matching reference rays. The radius changes the port positions but does not
+change their order as seen from the original center. -/
+theorem cutPort_clockwise_iff_reference {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) {r : RotationSystem I.graph}
+    (hReal : D.Realizes r) (hfixed : Realizes I r) {ρ : ℝ} (hρ : 0 < ρ)
+    {v : ℕ} {word : List ℕ} (hw : I.orders.getD v none = some word)
+    {a b c : Dart I.graph} (ha : a.index ∈ word) (hb : b.index ∈ word) (hc : c.index ∈ word)
+    (hab : a ≠ b) (hbc : b ≠ c) (hac : a ≠ c) :
+    sbtw (((D.cutPort ρ c - D.vertex v).arg : ℝ) : Real.Angle)
+      (((D.cutPort ρ b - D.vertex v).arg : ℝ) : Real.Angle)
+      (((D.cutPort ρ a - D.vertex v).arg : ℝ) : Real.Angle) ↔
+    sbtw ((referenceDrawing I).direction (subdivisionDart I c))
+      ((referenceDrawing I).direction (subdivisionDart I b))
+      ((referenceDrawing I).direction (subdivisionDart I a)) := by
+  have hav := fixedWord_dart_vertex hI hw ha
+  have hbv := fixedWord_dart_vertex hI hw hb
+  have hcv := fixedWord_dart_vertex hI hw hc
+  exact (hReal.cutPort_clockwise hD v hρ (Metric.mem_ball_self hρ)
+    a b c hav hbv hcv hab hbc hac).trans
+    ((hfixed.mem_rotationInterval_iff_fixedWord hI hw ha hb hc hab hbc hac).trans
+      (referenceDrawing_fixedWord_clockwise_iff hI hw ha hb hc hab hbc hac).symm)
 
 end Cslib.Complexity.Graph.RotationRecognition

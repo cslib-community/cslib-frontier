@@ -311,6 +311,38 @@ theorem prvIndAdvantage_eq_zero_of_invalid [DecidableEq Λ] (A : PrvIndAdversary
     simp only [h pair st hq, ↓reduceIte]
   rw [prvIndAdvantage, Experiment.advantage, hexp false, hexp true, Game.advantage_self]
 
+/-- Library infrastructure (no cited result): rewrite the `PrvSim` experiment distribution
+on a predicate `P` holding on all valid queries in the support of `B.choose ()`, replacing the
+real-or-simulated view computation by `rhs`. -/
+theorem eval_prvSimExperiment_eq_bind {α : Query Fn → Type} (S : PrvSimulator Λ)
+    (B : PrvSimAdversary Fn σ) (b : Bool) (P : Query Fn → Prop) [DecidablePred P]
+    (hP : ∀ q st, (q, st) ∈ (ProbComp.eval (B.choose ())).support →
+      q.input.length = G.inLen q.fn → P q)
+    (wrap : ∀ q, α q → PrvView) (rhs : ∀ q, PMF (α q))
+    (hrhs : ∀ q st, (q, st) ∈ (ProbComp.eval (B.choose ())).support →
+      q.input.length = G.inLen q.fn →
+      ProbComp.eval (if b then G.prvView k q else S (G.ev q.fn q.input) (Φ.phi q.fn)) =
+        (rhs q).map (wrap q)) :
+    ProbComp.eval (prvSimExperiment G Φ k S B b) =
+      (ProbComp.eval (B.choose ())).bind fun (q, st) =>
+        if q.input.length = G.inLen q.fn ∧ P q then
+          (rhs q).bind fun a => ProbComp.eval (B.guess st (some (wrap q a)))
+        else ProbComp.eval (B.guess st none) := by
+  simp only [prvSimExperiment, ProbComp.eval_bind]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨q, st⟩ hmem => ?_
+  dsimp only
+  by_cases hx : q.input.length = G.inLen q.fn
+  · have hstep := hrhs q st hmem hx
+    simp only [hx, hP q st hmem hx, and_self, ↓reduceIte]
+    cases b
+    · simp only [Bool.false_eq_true, ↓reduceIte] at hstep ⊢
+      rw [ProbComp.eval_bind, hstep, PMF.bind_map]
+      rfl
+    · simp only [↓reduceIte] at hstep ⊢
+      rw [ProbComp.eval_bind, hstep, PMF.bind_map]
+      rfl
+  · simp only [hx, false_and, ↓reduceIte]
+
 end Bounds
 
 end Cslib.Crypto.Garbling

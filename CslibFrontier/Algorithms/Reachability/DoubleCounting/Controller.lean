@@ -50,14 +50,22 @@ structure RoundUpdate where
 /-- The Figure 1 callback takes the radius, current tally, and queried vertex. -/
 abbrev MembershipScan (m : Type → Type) (n : ℕ) := ℕ → Tally → Fin n → m Bool
 
-private def countPredecessors {m : Type → Type} [Monad m] {n : ℕ}
-    (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool) (v : Fin n) : m ℕ :=
-  Fin.foldlM n (fun c u => do
-    if ← edge u v then
-      if ← member u then return c + 1 else return c
-    else return c) 0
+/-- One predecessor test: count only when both callbacks answer true. An arbitrary index type
+lets typed scans and binary scalar query controllers share this dispatch. -/
+@[expose] def predecessorStep {m : Type → Type} [Monad m] {α : Type}
+    (edge : α → α → m Bool) (member : α → m Bool) (v : α)
+    (c : ℕ) (u : α) : m ℕ := do
+  if ← edge u v then
+    if ← member u then return c + 1 else return c
+  else return c
 
-private def scanVertex {m : Type → Type} [Monad m] {n : ℕ}
+/-- Scan all predecessors using the same handler as each finite prefix. -/
+@[expose] def countPredecessors {m : Type → Type} [Monad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool) (v : Fin n) : m ℕ :=
+  Fin.foldlM n (fun c u => predecessorStep edge member v c u) 0
+
+/-- Process one vertex, adding its contribution once even when its predecessors tie. -/
+@[expose] def scanVertex {m : Type → Type} [Monad m] {n : ℕ}
     (edge : Fin n → Fin n → m Bool) (member : Fin n → m Bool)
     (k : ℕ) (a : RoundUpdate) (v : Fin n) : m RoundUpdate := do
   if ← member v then return a
@@ -66,7 +74,7 @@ private def scanVertex {m : Type → Type} [Monad m] {n : ℕ}
 
 /-- Update the tally and check for ties by scanning vertices and their predecessors.
 Only scalar registers persist across calls. -/
-def scanNextRound {m : Type → Type} [Monad m] {n : ℕ}
+@[expose] def scanNextRound {m : Type → Type} [Monad m] {n : ℕ}
     (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (k : ℕ) (t : Tally) :
     m RoundUpdate :=
   Fin.foldlM n (scanVertex edge (member k t) k) ⟨t, false⟩
@@ -123,7 +131,7 @@ theorem scanNextRound_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n :
   have hpred (v : Fin n) :
       countPredecessors edge (member k (expected r s k)) v =
         pure (univ.filter fun u => u ∈ round r s k ∧ r u v).card := by
-    simp only [countPredecessors, he, hm, pure_bind]
+    simp only [countPredecessors, predecessorStep, he, hm, pure_bind]
     have hstep (c : ℕ) (u : Fin n) :
         (if decide (r u v) = true then
           if decide (u ∈ round r s k) = true then (pure (c + 1) : m ℕ) else pure c
@@ -189,20 +197,27 @@ inductive ControllerVerdict where
   | decided (reachable : Bool)
   deriving DecidableEq, Repr
 
-private def runRounds {m : Type → Type} [Monad m] {n : ℕ}
-    (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
+/-- Run the fuel-bounded controller with a supplied round and final membership action. -/
+@[expose] def runRoundsWith {m : Type → Type} [Monad m]
+    (nextRound : ℕ → ℕ → Tally → m RoundUpdate) (member : ℕ → ℕ → Tally → m Bool) :
     ℕ → ℕ → Tally → m (Option ControllerVerdict)
   | 0, _, _ => pure none
   | fuel + 1, k, t => do
-    let a ← scanNextRound edge member k t
+    let a ← nextRound (fuel + 1) k t
     if a.bad then return some (.bad (k + 1))
     if a.tally.count == t.count then
-      return some (.decided (← member k t target))
-    runRounds edge member target fuel (k + 1) a.tally
+      return some (.decided (← member (fuel + 1) k t))
+    runRoundsWith nextRound member fuel (k + 1) a.tally
+
+/-- Fuel-bounded round loop used by `runController`. -/
+@[expose] def runRounds {m : Type → Type} [Monad m] {n : ℕ}
+    (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
+    ℕ → ℕ → Tally → m (Option ControllerVerdict) :=
+  runRoundsWith (fun _ => scanNextRound edge member) (fun _ k t => member k t target)
 
 /-- Run at most one update per vertex, starting with the source alone. The correctness
 theorem excludes fuel exhaustion when the callback contract holds. -/
-def runController {m : Type → Type} [Monad m] {n : ℕ}
+@[expose] def runController {m : Type → Type} [Monad m] {n : ℕ}
     (edge : Fin n → Fin n → m Bool) (member : MembershipScan m n) (target : Fin n) :
     m (Option ControllerVerdict) :=
   runRounds edge member target n 0 ⟨1, 0⟩
@@ -246,13 +261,14 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     obtain ⟨a, ha, ht, hb⟩ := scanNextRound_correct he (hm k hk) hk
     cases hbad : a.bad with
     | true =>
-      refine ⟨.bad (k + 1), by simp [runRounds, ha, hbad], fun i hi => hgood i (by omega), ?_⟩
+      refine ⟨.bad (k + 1), by simp [runRounds, runRoundsWith, ha, hbad],
+        fun i hi => hgood i (by omega), ?_⟩
       exact fun h => by simpa [hbad] using hb.mpr h
     | false =>
       by_cases hs : (expected r s (k + 1)).count = (expected r s k).count
       · have hstable := stable_of_count_eq hs
         refine ⟨.decided (decide (target ∈ round r s k)), ?_, ?_, ?_⟩
-        · simp [runRounds, ha, hbad, ht, hs, hm k hk]
+        · simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hm k hk]
         · intro j
           rw [existsUnique_passes_iff]
           intro v hv
@@ -267,7 +283,8 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
           · exact hb.mp hbad
           · exact hgood j (by omega)
         obtain ⟨verdict, hv, hspec⟩ := ih (k + 1) (by omega) (by omega) hgood'
-        exact ⟨verdict, by simp [runRounds, ha, hbad, ht, hs, hv], hspec⟩
+        simp only [runRounds] at hv
+        exact ⟨verdict, by simp [runRounds, runRoundsWith, ha, hbad, ht, hs, hv], hspec⟩
 
 /-- Under the adjacency and unique membership-replay contracts, the controller returns the
 first nonunique round, or the reachability answer when all rounds are unique. Fuel suffices
