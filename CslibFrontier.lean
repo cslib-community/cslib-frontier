@@ -3142,6 +3142,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.Characteristi
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
