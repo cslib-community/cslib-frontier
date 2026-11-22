@@ -10,7 +10,8 @@ module
 public import CslibFrontier.Crypto.Computational.MLDSA.SigningSimulation
 public import CslibFrontier.Crypto.Protocols.Signature.RandomOracle
 import CslibFrontier.Crypto.Game.CloseTo.RejectedProgramming
-import CslibFrontier.Languages.Probabilistic.Simulation
+import CslibFrontier.Foundations.Data.List.Lookup
+public import CslibFrontier.Languages.Probabilistic.Transcript
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Languages.Probabilistic.QueryCount.Scale
 import CslibFrontier.Languages.Probabilistic.Traverse.FindM
@@ -31,6 +32,11 @@ costs at most the number of trial/direct-query pairs times the same largest atom
 remaining accepted responses with the full-public-key simulator preserves their joint law.
 For a partial digest expander the simulator also records the terminal failed attempt, with a
 fresh commitment drawn from the public matrix. This preserves expansion errors exactly.
+
+The transcript of the partial simulator identifies the newest writer at the verifier’s actual
+digest read. Either a direct oracle call supplied the digest or the signing history contains an
+accepted response on the same representative. In the latter case a fresh signature gives the
+ordinary Module-SIS witness of [BaiEtAl2021Dilithium], §6.2.2, equation (8).
 -/
 
 public section
@@ -149,21 +155,31 @@ private theorem closeTo_runTrials_overwrite (K : ℕ) (hγ : 0 < P.γ₁)
   simpa only [List.length_nil, Nat.mul_zero, zero_add, runTrials, Bool.false_eq_true,
     ↓reduceIte] using hop.map (Prod.map id Prod.fst)
 
+/-- One terminal trial or a direct digest call, retaining the chosen annotation on each write. -/
+private noncomputable def terminalTrialHandler {Entry : Type} (dist : PMF Digest)
+    (attempt : Digest → PMF (Option ((Fin P.k → Fin P.n → ℤ) × Reply)))
+    (ambient : Digest → Entry) (terminal : Digest → Reply → Entry) (digest : Entry → Digest) :
+    (q : List Bool ⊕ SigningHashPoint P) →
+      StateT (List (SigningHashPoint P × Entry)) PMF (SigningTrialSpec P Digest Reply q) :=
+  sumHandler (fun msg cache => do
+    let c ← dist
+    let out ← attempt c
+    match out with
+    | none => return (none, cache)
+    | some (w, reply) => return (some reply, ((w, msg), terminal c reply) :: cache))
+    (fun point cache => match cache.lookup point with
+      | some entry => pure (digest entry, cache)
+      | none => do
+        let c ← dist
+        return (c, (point, ambient c) :: cache))
+
 /-- Only terminal trials write their point. A terminal reply can be a signature or an error. -/
 private noncomputable def runTerminalTrials (K : ℕ) (dist : PMF Digest)
     (attempt : Digest → PMF (Option ((Fin P.k → Fin P.n → ℤ) × Reply)))
     (program : OracleComp (SigningTrialSpec P Digest Reply) α) :
     PMF (α × List (SigningHashPoint P × Digest)) :=
-  let handler : (q : List Bool ⊕ SigningHashPoint P) →
-      StateT (List (SigningHashPoint P × Digest)) PMF (SigningTrialSpec P Digest Reply q) :=
-    sumHandler (fun msg cache => do
-      let c ← dist
-      let out ← attempt c
-      match out with
-      | none => return (none, cache)
-      | some t => return (some t.2, ((t.1, msg), c) :: cache))
-      (memoize fun _ => dist)
-  (interpret handler (expandSigningRetries P K program)).run []
+  (interpret (terminalTrialHandler P dist attempt id (fun c _ => c) id)
+    (expandSigningRetries P K program)).run []
 
 private noncomputable def trialCoins (hγ : 0 < P.γ₁) (dist : PMF Digest) :=
   dist.bind fun c => (signingMaskLaw P hγ).map (c, ·)
@@ -223,8 +239,8 @@ private theorem run_accepted (K : ℕ) (hγ : 0 < P.γ₁) (dist : PMF Digest)
   cases q with
   | inr k => exact (trial_hash P false hγ dist sk result k cache).symm
   | inl m =>
-    simp only [sumHandler, programmedTrial, trialCoins, PMF.monad_bind_eq_bind,
-      PMF.monad_pure_eq_pure, PMF.bind_map, PMF.map_bind, PMF.map_comp,
+    simp only [terminalTrialHandler, sumHandler, programmedTrial, trialCoins,
+      PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.bind_map, PMF.map_bind, PMF.map_comp,
       RandomOracle.programmedTrialStep, Bool.false_or, trialPoint, Function.comp_def]
     congr 1 with c : 1
     rw [PMF.map]
@@ -443,5 +459,271 @@ theorem closeTo_partialSigningROM (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
     rw [← freshSigningAttempt_eq_simulate P hP hq hβ d ω sk hs₁ hs₂ (hc c poly e)]
     simp only [freshSigningAttempt, PMF.map_comp, Function.comp_def, terminalTranscript,
       Option.map_map, partialResult, e, trialPoint]
+
+/-- A digest cache write records the direct hash reply or the terminal answer of a signing
+request. A signing error is a terminal write, while an erased rejection makes no entry. -/
+inductive SigningWrite (Digest Reply : Type) where
+  /-- First direct query at an unassigned point. -/
+  | ambient (raw : Digest)
+  /-- Terminal signing trial, including a possible expansion error in `reply`. -/
+  | signing (raw : Digest) (reply : Reply)
+
+/-- The raw digest that a later lookup observes. -/
+def SigningWrite.digest : SigningWrite Digest Reply → Digest
+  | .ambient raw | .signing raw _ => raw
+
+private abbrev SignReply (P : Params) (Digest : Type) :=
+  Option (Digest × CompressedSignature P)
+
+private noncomputable def observedTrial (dist : PMF Digest)
+    (attempt : Digest → PMF (Option ((Fin P.k → Fin P.n → ℤ) × Reply))) :=
+  terminalTrialHandler P dist attempt SigningWrite.ambient SigningWrite.signing SigningWrite.digest
+
+private def outerSigningQuery (K : ℕ) :
+    (q : List Bool ⊕ SigningHashPoint P) →
+      OracleComp (SigningTrialSpec P Digest (SignReply P Digest)) (SigningROMSpec P Digest q) :=
+  sumHandler (fun m => Option.join <$> (List.range K).findSomeM? fun _ =>
+      query (spec := SigningTrialSpec P Digest (SignReply P Digest)) (.inl m))
+    (fun point => query (spec := SigningTrialSpec P Digest (SignReply P Digest)) (.inr point))
+
+private theorem expand_partialSigningProgram (K : ℕ)
+    (program : OracleComp (SigningROMSpec P Digest) α) :
+    expandSigningRetries P K (partialSigningProgram P program) =
+      interpret (outerSigningQuery P K) program := by
+  simp only [expandSigningRetries, partialSigningProgram, interpret_interpret]
+  congr 1
+  funext q
+  cases q <;> simp [sumHandler, outerSigningQuery]
+
+/-- Execute the partial signing simulator, recording the last writer at each cache entry and
+the actual outward query/reply transcript. Both lists are newest first. Retry attempts are
+internal to a signing query and do not appear in the outward transcript. -/
+noncomputable def simulatePartialSigningTranscript (d ω K : ℕ) (hβ : P.β < P.γ₁)
+    (dist : PMF Digest) (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
+    (program : OracleComp (SigningROMSpec P Digest) α) :
+    PMF (α × List (SigningHashPoint P ×
+      SigningWrite Digest (Option (Digest × CompressedSignature P))) ×
+        Transcript (SigningROMSpec P Digest)) :=
+  let primitive := observedTrial P dist (simulatePartialTrial P d ω hβ expand pk)
+  (interpret (withTranscript fun q => interpret primitive (outerSigningQuery P K q)) program).run
+    ([], [])
+
+/-- Forgetting write annotations and the outward transcript recovers the original joint law
+of the adversary's output and the complete simulated digest cache. -/
+theorem simulatePartialSigningTranscript_forget (d ω K : ℕ) (hβ : P.β < P.γ₁)
+    (dist : PMF Digest) (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
+    (program : OracleComp (SigningROMSpec P Digest) α) :
+    (simulatePartialSigningTranscript P d ω K hβ dist expand pk program).map
+      (fun (a, cache, _) => (a, cache.map fun (key, entry) => (key, entry.digest))) =
+      simulatePartialSigningROM P d ω K hβ dist expand pk program := by
+  let attempt := simulatePartialTrial P d ω hβ expand pk
+  let oracle := observedTrial P dist attempt
+  let erase := List.map fun (e : SigningHashPoint P × SigningWrite Digest (SignReply P Digest)) =>
+    (e.1, e.2.digest)
+  have hlog := run_interpret_withTranscript
+    (fun q => interpret oracle (outerSigningQuery P K q)) program [] []
+  have forget := congrArg (PMF.map (Prod.map id erase)) hlog
+  rw [PMF.map_comp] at forget
+  refine forget.trans ?_
+  rw [← interpret_interpret]
+  unfold simulatePartialSigningROM runTerminalTrials
+  rw [expand_partialSigningProgram]
+  apply run_interpret_map_state oracle _ erase
+  intro q st
+  cases q with
+  | inl m =>
+    simp only [oracle, observedTrial, terminalTrialHandler, sumHandler, PMF.monad_bind_eq_bind,
+      PMF.monad_pure_eq_pure, PMF.map_bind]
+    congr 1 with raw : 1
+    congr 1 with out : 1
+    rcases out with _ | ⟨w, reply⟩ <;> simp [erase, SigningWrite.digest]
+  | inr point =>
+    simp only [oracle, observedTrial, terminalTrialHandler, sumHandler, erase, List.lookup_map_snd]
+    cases st.lookup point <;>
+      simp [SigningWrite.digest, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.map_bind]
+
+private theorem retry_support (dist : PMF Digest)
+    (attempt : Digest → PMF (Option ((Fin P.k → Fin P.n → ℤ) × Reply))) (msg : List Bool)
+    (xs : List ℕ) (cache : List (SigningHashPoint P × SigningWrite Digest Reply)) {reply next}
+    (h : (reply, next) ∈ ((interpret (observedTrial P dist attempt) (xs.findSomeM? fun _ =>
+      query (spec := SigningTrialSpec P Digest Reply) (.inl msg))).run cache).support) :
+    (reply = none ∧ next = cache) ∨ ∃ raw w sent, reply = some sent ∧
+      next = ((w, msg), .signing raw sent) :: cache ∧ some (w, sent) ∈ (attempt raw).support := by
+  induction xs with
+  | nil =>
+    simp only [List.findSomeM?_nil, interpret_pure, StateT.run_pure, PMF.monad_pure_eq_pure,
+      PMF.mem_support_pure_iff, Prod.mk.injEq] at h
+    exact Or.inl h
+  | cons _ xs ih =>
+    simp only [List.findSomeM?_cons, interpret_bind, interpret_query, StateT.run_bind,
+      PMF.monad_bind_eq_bind, PMF.mem_support_bind_iff] at h
+    obtain ⟨⟨one, st⟩, hone, htail⟩ := h
+    simp only [observedTrial, terminalTrialHandler, sumHandler, StateT.run, PMF.monad_bind_eq_bind,
+      PMF.mem_support_bind_iff] at hone
+    obtain ⟨raw, _, trial, ht, hs⟩ := hone
+    rcases trial with _ | ⟨w, sent⟩
+    · simp only [PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hs
+      obtain ⟨rfl, rfl⟩ := hs
+      exact ih htail
+    · simp only [PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hs
+      obtain ⟨rfl, rfl⟩ := hs
+      simp only [interpret_pure, StateT.run_pure, PMF.monad_pure_eq_pure,
+        PMF.mem_support_pure_iff, Prod.mk.injEq] at htail
+      exact Or.inr ⟨raw, w, sent, htail.1, htail.2, ht⟩
+
+private def writeRecorded
+    (attempt : Digest → PMF (Option ((Fin P.k → Fin P.n → ℤ) × SignReply P Digest)))
+    (log : Transcript (SigningROMSpec P Digest))
+    (e : SigningHashPoint P × SigningWrite Digest (SignReply P Digest)) : Prop :=
+  match e.2 with
+  | .ambient raw => ⟨.inr e.1, raw⟩ ∈ log
+  | .signing raw sent => ⟨.inl e.1.2, sent⟩ ∈ log ∧ some (e.1.1, sent) ∈ (attempt raw).support
+
+private theorem writeRecorded_cons {attempt log e} (event)
+    (h : writeRecorded P (Digest := Digest) attempt log e) :
+    writeRecorded P attempt (event :: log) e := by
+  cases e with
+  | mk point entry =>
+    cases entry with
+    | ambient raw => exact List.mem_cons_of_mem _ h
+    | signing raw sent => exact ⟨List.mem_cons_of_mem _ h.1, h.2⟩
+
+private theorem recorded_of_mem_simulatePartialSigningTranscript (d ω K : ℕ) (hβ : P.β < P.γ₁)
+    (dist : PMF Digest) (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
+    (program : OracleComp (SigningROMSpec P Digest) α) {a cache log}
+    (hrun : (a, cache, log) ∈ (simulatePartialSigningTranscript P d ω K hβ dist expand pk
+      program).support) :
+    ∀ e ∈ cache, writeRecorded P (simulatePartialTrial P d ω hβ expand pk) log e := by
+  let attempt := simulatePartialTrial P d ω hβ expand pk
+  let primitive := observedTrial P dist attempt
+  apply run_interpret_invariant
+    (withTranscript fun q => interpret primitive (outerSigningQuery P K q))
+    (fun st => ∀ e ∈ st.1, writeRecorded P attempt st.2 e) _ program ([], []) (by simp) a
+    (cache, log) hrun
+  intro q ⟨st, prev⟩ hprev answer after h
+  obtain ⟨⟨actual, next⟩, hquery, he⟩ := (PMF.mem_support_map_iff ..).1 h
+  cases he
+  intro e he
+  have old (he : e ∈ st) := writeRecorded_cons P ⟨q, answer⟩ (hprev e he)
+  cases q with
+  | inl msg =>
+    change (answer, next) ∈
+      ((interpret primitive (outerSigningQuery P K (.inl msg))).run st).support at hquery
+    simp only [outerSigningQuery, sumHandler, interpret_map, StateT.run_map,
+      PMF.monad_map_eq_map, PMF.mem_support_map_iff] at hquery
+    obtain ⟨⟨answer, next'⟩, hsearch, heq⟩ := hquery
+    cases heq
+    rcases retry_support P dist attempt msg (List.range K) st hsearch with
+      ⟨rfl, rfl⟩ | ⟨raw, w, sent, rfl, rfl, ht⟩
+    · exact old he
+    · rcases List.mem_cons.mp he with rfl | htail
+      · exact ⟨List.mem_cons_self, ht⟩
+      · exact old htail
+  | inr point =>
+    simp only [outerSigningQuery, sumHandler, interpret_query, primitive, observedTrial,
+      terminalTrialHandler] at hquery
+    cases eq : st.lookup point with
+    | some entry =>
+      simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hquery
+      exact old (hquery.2 ▸ he)
+    | none =>
+      simp only [eq, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+        PMF.mem_support_pure_iff, Prod.mk.injEq] at hquery
+      obtain ⟨raw, _, rfl, rfl⟩ := hquery
+      rcases List.mem_cons.mp he with rfl | htail
+      · exact List.mem_cons_self
+      · exact old htail
+
+/-- A candidate forgery in the compressed signing ROM: a message representative, a transmitted
+commitment digest, and a decoded compressed signature. -/
+@[ext] structure ForgeryCandidate (Digest : Type) where
+  /-- The message representative bits. -/
+  message : List Bool
+  /-- The commitment digest carried by the candidate signature. -/
+  digest : Digest
+  /-- The response, hint vector, and sparse challenge. -/
+  signature : CompressedSignature P
+
+/-- Append the verifier's commitment-digest query to the forger, using its output message
+representative and the high bits recovered from its output response. Return the candidate and
+the oracle answer so that verification compares the transmitted digest with the actual read. -/
+@[expose] def queryForgeryDigest (d : ℕ) (pk : PublicKey P)
+    (forger : OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest)) :
+    OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest × Digest) := do
+  let forged ← forger
+  let reply ← query (spec := SigningROMSpec P Digest)
+    (.inr (forged.signature.recover d pk, forged.message))
+  return (forged, reply)
+
+private theorem lookup_of_queryForgeryDigest (d ω K : ℕ) (hβ : P.β < P.γ₁)
+    (dist : PMF Digest) (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
+    (forger : OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest))
+    {forged reply cache log} (h : ((forged, reply), cache, log) ∈
+      (simulatePartialSigningTranscript P d ω K hβ dist expand pk
+        (queryForgeryDigest P d pk forger)).support) :
+    (cache.lookup (forged.signature.recover d pk, forged.message)).map SigningWrite.digest =
+      some reply := by
+  simp only [simulatePartialSigningTranscript, queryForgeryDigest, interpret_bind, interpret_query,
+    interpret_pure, StateT.run_bind, StateT.run_pure, PMF.monad_bind_eq_bind,
+    PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff, PMF.mem_support_pure_iff] at h
+  obtain ⟨⟨forged, st, prev⟩, _, ⟨raw, state⟩, hquery, heq⟩ := h
+  cases heq
+  obtain ⟨⟨actual, next⟩, hreply, he⟩ := (PMF.mem_support_map_iff ..).1 hquery
+  cases he
+  simp only [outerSigningQuery, sumHandler, interpret_query, observedTrial, terminalTrialHandler]
+    at hreply
+  cases eq : st.lookup (forged.signature.recover d pk, forged.message) with
+  | some entry =>
+    simp only [eq, PMF.monad_pure_eq_pure, PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply
+    obtain ⟨rfl, rfl⟩ := hreply
+    simp [eq]
+  | none =>
+    simp only [eq, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, PMF.mem_support_bind_iff,
+      PMF.mem_support_pure_iff, Prod.mk.injEq] at hreply
+    obtain ⟨c, _, rfl, rfl⟩ := hreply
+    simp [SigningWrite.digest]
+
+/-- At a fresh verifying lookup in the adaptive simulator, the newest entry is either a direct
+oracle answer or a signing reply on this same message representative. In the latter case the
+reply is in the outward transcript and subtracting it from the forgery gives an ordinary MSIS
+solution. Overwritten entries, signing errors and exhausted retries require no freshness
+assumptions. A first read by the verifier is covered by the direct-oracle case. -/
+theorem ambient_or_isSolution_of_fresh_lookup (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
+    (hγq : 4 * P.γ₂ < P.q) (d ω K : ℕ) (hβ : P.β < P.γ₁) (dist : PMF Digest)
+    (expand : Digest → Option (Fin P.n → ZMod P.q)) (pk : PublicKey P)
+    (forger : OracleComp (SigningROMSpec P Digest) (ForgeryCandidate P Digest))
+    {forged : ForgeryCandidate P Digest} {cache log}
+    (hrun : ((forged, forged.digest), cache, log) ∈ (simulatePartialSigningTranscript P d ω K hβ
+      dist expand pk (queryForgeryDigest P d pk forger)).support)
+    (hfresh : ⟨.inl forged.message, some (forged.digest, forged.signature)⟩ ∉ log)
+    (hexpand : expand forged.digest = some forged.signature.c)
+    (hz : ResponseShort P forged.signature.z) :
+    (cache.lookup (forged.signature.recover d pk, forged.message) =
+        some (.ambient forged.digest) ∧
+      ⟨.inr (forged.signature.recover d pk, forged.message), forged.digest⟩ ∈ log) ∨
+    ∃ other, cache.lookup (forged.signature.recover d pk, forged.message) =
+        some (.signing forged.digest (some (forged.digest, other))) ∧
+      ⟨.inl forged.message, some (forged.digest, other)⟩ ∈ log ∧
+      ModuleSIS.IsSolution (ModuleSIS.hermiteMatrix pk.A)
+        (max (2 * (P.γ₁ - P.β)) (4 * P.γ₂ + 2))
+        (responseDifference d pk forged.signature other) := by
+  have hlookup := lookup_of_queryForgeryDigest P d ω K hβ dist expand pk forger hrun
+  obtain ⟨entry, he, hd⟩ := Option.map_eq_some_iff.mp hlookup
+  obtain ⟨front, back, hs, _⟩ := List.lookup_eq_some_iff.mp he
+  have hmem : ((forged.signature.recover d pk, forged.message), entry) ∈ cache := by simp [hs]
+  have recorded := recorded_of_mem_simulatePartialSigningTranscript P d ω K hβ dist expand pk
+    _ hrun _ hmem
+  cases entry with
+  | ambient x =>
+    change x = forged.digest at hd
+    subst x
+    exact Or.inl ⟨he, recorded⟩
+  | signing x sent =>
+    change x = forged.digest at hd
+    subst x
+    obtain ⟨inLog, ht⟩ := recorded
+    obtain ⟨other, rfl, sol⟩ := isSolution_of_forgery_at_simulated_digest P hP hq hγq d ω hβ pk
+      expand forged.digest ht (fun e => hfresh (e ▸ inLog)) hexpand hz rfl
+    exact Or.inr ⟨other, he, inLog, sol⟩
 
 end Cslib.Crypto.MLDSA

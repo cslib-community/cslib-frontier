@@ -9,6 +9,7 @@ module
 import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBPresFixtures
 -- `import all`: the kernel evaluates the parsers and checkers of `Text` and the step `stepTop` of
 -- `Redundance`, whose bodies are not exposed, to decide the acceptance of the fixtures.
 import all CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
@@ -17,8 +18,9 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 /-! Decided text clients of the VeriPB output and conclusion theorems: the acceptance of the
 `decision_output` and `optimization_output_opposing_lits_objective` fixtures of the VeriPB
 repository, of the PHP(3, 2) proof with symmetry breaking by `dom`, and of the optimality proof
-by `dom` under the order `notAux` with an auxiliary variable, is checked by `decide +kernel`, and
-the soundness theorems are applied to it. -/
+by `dom` under the order `notAux` with an auxiliary variable, and of a projected enumeration that
+changes the preserved set, is checked by `decide +kernel`, and the soundness theorems are applied
+to it. -/
 
 set_option linter.privateModule false
 
@@ -88,5 +90,16 @@ example : ∃ I f, parseOPB sym2Aux = some I ∧ I.objective = some f ∧
   obtain ⟨l, hl, hle⟩ := hlb σ hσ
   cases hl
   exact hle
+
+/-- The enumeration that logs a solution and then removes `x5` from the preserved set by
+`preserved_rm` is accepted with `ENUMERATION_PARTIAL 1`. -/
+theorem enumAfterRm_accepted :
+    (checkOPBOutput pres4Rm enumAfterRm).map (·.1) = some (.enumPartial 1) := by
+  decide +kernel
+
+-- So the input formula has a solution, counted against its own preserved set `x1 x3 x5`.
+example : ∃ I P, parseOPB pres4Rm = some I ∧ I.preserved = some P ∧
+    (1 : ℕ∞) ≤ (projections I.constraints P).encard :=
+  le_encard_of_checkOPB_enumPartial enumAfterRm_accepted
 
 end CslibFrontierTests.Logics.Propositional.VeriPBText

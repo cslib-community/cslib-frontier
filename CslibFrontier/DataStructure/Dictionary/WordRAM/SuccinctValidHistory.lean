@@ -14,6 +14,8 @@ import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabMove
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabOps
 import all CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctDeleteOps
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Memory History Admissibility (`ValidHistory`) for Succinct Dictionary Programs
@@ -133,6 +135,7 @@ theorem validProg_boundedWhile {δ σ : Type} {w F : ℕ}
     · exact validProg_pure a
 
 /-- Standard dictionary frontier `base + totalSpace U V w n_max h_space`. -/
+@[wram_arith]
 abbrev dictFrontier (U V w n_max h_space base : ℕ) : ℕ :=
   base + totalSpace U V w n_max h_space
 
@@ -141,32 +144,28 @@ theorem validProg_readQuot {U V w n_max h_space base idx : ℕ} {s : Memory.Stat
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (readQuotProg U w n_max h_space (base, idx)) := by
   intro ⟨_, hf⟩
-  exact validHistory_readPackedProg hw hidx
-    (by dsimp only [dictFrontier, totalSpace, offGM, offLM, offVal, offQuot] at hf ⊢; omega)
+  exact validHistory_readPackedProg hw hidx (by wram_omega [hf])
 
 theorem validProg_writeQuot {U V w n_max h_space base idx val : ℕ} {s : Memory.State}
     (hw : 0 < w) (hU : U ≤ 2 ^ w) (hidx : idx < n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (writeQuotProg U w n_max h_space ((base, idx), val)) := by
   intro ⟨hwf, hf⟩
-  exact validHistory_writePackedProg hw (quotientBits_le_of_le_pow hU) hidx hwf
-    (by dsimp only [dictFrontier, totalSpace, offGM, offLM, offVal, offQuot] at hf ⊢; omega)
+  exact validHistory_writePackedProg hw (quotientBits_le_of_le_pow hU) hidx hwf (by wram_omega [hf])
 
 theorem validProg_readVal {U V w n_max h_space base idx : ℕ} {s : Memory.State}
     (hw : 0 < w) (hidx : idx < n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (readValProg U V w n_max h_space (base, idx)) := by
   intro ⟨_, hf⟩
-  exact validHistory_readPackedProg hw hidx
-    (by dsimp only [dictFrontier, totalSpace, offGM, offLM, offVal] at hf ⊢; omega)
+  exact validHistory_readPackedProg hw hidx (by wram_omega [hf])
 
 theorem validProg_writeVal {U V w n_max h_space base idx val : ℕ} {s : Memory.State}
     (hw : 0 < w) (hV : V ≤ 2 ^ w) (hidx : idx < n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (writeValProg U V w n_max h_space ((base, idx), val)) := by
   intro ⟨hwf, hf⟩
-  exact validHistory_writePackedProg hw (Nat.clog_le_of_le_pow hV) hidx hwf
-    (by dsimp only [dictFrontier, totalSpace, offGM, offLM, offVal] at hf ⊢; omega)
+  exact validHistory_writePackedProg hw (Nat.clog_le_of_le_pow hV) hidx hwf (by wram_omega [hf])
 
 theorem validProg_readLM {U V w n_max h_space c base idx : ℕ} {s : Memory.State}
     (hw : 0 < w) (hc : c < 9) (hidx : idx < totalMicroBuckets n_max) :
@@ -177,10 +176,7 @@ theorem validProg_readLM {U V w n_max h_space c base idx : ℕ} {s : Memory.Stat
     Nat.mul_le_mul_right _ hc
   rw [Nat.add_one_mul] at hsub
   exact validHistory_readPackedProg hw hidx
-    (by
-      unfold lmSubWords at hsub
-      dsimp only [dictFrontier, totalSpace, offGM, offLMSub, offLM, lmSubWords] at hf ⊢
-      omega)
+    (by wram_omega [hsub, hf])
 
 theorem validProg_writeLM {U V w n_max h_space c base idx val : ℕ} {s : Memory.State}
     (hw : 0 < w) (hnU : n_max ≤ U) (hU : U < 2 ^ w) (hc : c < 9)
@@ -192,18 +188,14 @@ theorem validProg_writeLM {U V w n_max h_space c base idx val : ℕ} {s : Memory
     Nat.mul_le_mul_right _ hc
   rw [Nat.add_one_mul] at hsub
   exact validHistory_writePackedProg hw (effBucketPosBits_le_of_lt_pow hnU hU) hidx hwf
-    (by
-      unfold lmSubWords at hsub
-      dsimp only [dictFrontier, totalSpace, offGM, offLMSub, offLM, lmSubWords] at hf ⊢
-      omega)
+    (by wram_omega [hsub, hf])
 
 theorem validProg_readGM {U V w n_max h_space base idx : ℕ} {s : Memory.State}
     (hw : 0 < w) (hidx : idx < globalMetaLen n_max) :
     ValidProg w (dictFrontier U V w n_max h_space base) s
       (readGMProg U V w n_max h_space (base, idx)) := by
   intro ⟨_, hf⟩
-  exact validHistory_readPackedProg hw hidx
-    (by dsimp only [dictFrontier, totalSpace] at hf ⊢; omega)
+  exact validHistory_readPackedProg hw hidx (by wram_omega [hf])
 
 theorem validProg_bind_readGM_eq {α : Type} {U V w n_max h_space base idx v : ℕ} {s : Memory.State}
     {k : ℕ → Memory.Prog α}
@@ -221,7 +213,7 @@ theorem validProg_writeGM {U V w n_max h_space base idx val : ℕ} {s : Memory.S
       (writeGMProg U V w n_max h_space ((base, idx), val)) := by
   intro ⟨hwf, hf⟩
   exact validHistory_writePackedProg hw (globalPtrBits_le_of_lt_pow hnU hU) hidx hwf
-    (by dsimp only [dictFrontier, totalSpace] at hf ⊢; omega)
+    (by wram_omega [hf])
 
 /-! ## Section 2: Slot resolution, tail pool, and slab pool operations -/
 
@@ -235,7 +227,7 @@ theorem validProg_readBucketCount {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {
       (readBucketCountProg U V w n_max h_space d) := by
   unfold readBucketCountProg
   split_ifs with hb0
-  · exact validProg_readGM hw (by unfold globalMetaLen; omega)
+  · exact validProg_readGM hw (by wram_omega)
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
     exact validProg_bind (validProg_readGM hw (gmQIdx_lt hb_pos hb))
       (validProg_bind (validProg_readGM hw (gmRIdx_lt hb_pos hb)) (validProg_pure _))
@@ -417,7 +409,7 @@ theorem validProg_gmCompactSlab {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s 
     (hpre : GmCompactSlabInv U V w n_max h_space d.1 d.2 s) :
     ValidProg w (dictFrontier U V w n_max h_space d.1) s
       (gmCompactSlabProg U V w n_max h_space d) := by
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   simp only [gmCompactSlabProg, gmCompactSlabGenProg, readGMGenProg_mk,
     gmRelinkMovedSlabGenProg_mk, gmLinkMovedNeighborsGenProg_mk, writeGMGenProg_mk]
   refine validProg_bind (validProg_readGM hw h0_lt) ?_
@@ -592,7 +584,7 @@ theorem validProg_lastSlotOf {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : M
   simp only [lastSlotOfProg, lastSlotOfGenProg, ite_bucketBits_mk, readGMGenProg_mk,
     p_gmTailPtrBase_mk, p_tailCap_mk, p_nMaxSubOne_mk]
   split_ifs with hb0
-  · exact validProg_bind (validProg_readGM hw (by unfold globalMetaLen; omega)) (validProg_pure _)
+  · exact validProg_bind (validProg_readGM hw (by wram_omega)) (validProg_pure _)
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
     have hr_idx_lt : 4 + 3 * d.2 + 1 < globalMetaLen n_max := gmRIdx_lt hb_pos hb
     have hr_pos : 1 ≤ gmAt d.1 U V w n_max h_space s.mem (gmRIdx d.2) :=
@@ -600,8 +592,7 @@ theorem validProg_lastSlotOf {U V w n_max h_space : ℕ} {d : ℕ × ℕ} {s : M
     have hr_cap : gmAt d.1 U V w n_max h_space s.mem (4 + 3 * d.2 + 1) - 1 <
         tailCapPerBucket n_max := by
       have := (hinv.multi_r_bounds hb_pos d.2 hb).1
-      unfold gmRIdx at this hr_pos
-      omega
+      wram_omega [this, hr_pos]
     have hptr_lt := gmTailPtrIdx_lt hb_pos hb hr_cap
     refine validProg_bind (validProg_readGM hw hr_idx_lt) ?_
     rw [clientState_readGMProg, clientResult_readGMProg s hr_idx_lt]
@@ -654,7 +645,7 @@ theorem validProg_pushBackSlot {U V w n_max h_space : ℕ}
     readGMGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk, writeGMGenProg_mk,
     pushBackTailWriteGenProg_mk, promoteSlabGenProg_mk]
   split_ifs with hb0
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  · have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     have hc_lt : gm₀ 0 < n_max := by
       change totalSlots n_max gm₀ < n_max at htot
       unfold totalSlots at htot; rw [ite_eq_left hb0] at htot; exact htot
@@ -699,7 +690,7 @@ theorem validProg_popBackSlot {U V w n_max h_space : ℕ}
   simp only [popBackSlotProg, popBackSlotGenProg, ite_bucketBits_mk, readGMGenProg_mk,
     writeGMGenProg_mk, removeLastTailItemGenProg_mk, demoteSlabGenProg_mk]
   split_ifs with hb0
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  · have h0_lt : 0 < globalMetaLen n_max := by wram_omega
     exact validProg_bind (validProg_readGM hw h0_lt)
       (validProg_writeGM hw hnU hU h0_lt)
   · have hb_pos : 0 < bucketBits n_max := Nat.pos_of_ne_zero hb0
@@ -1105,12 +1096,12 @@ theorem validProg_readTotalSlots {U V w n_max h_space : ℕ}
       (readTotalSlotsProg U V w n_max h_space base) := by
   simp only [readTotalSlotsProg, readTotalSlotsGenProg, ite_bucketBits_mk, readGMGenProg_mk,
     p_slabSize_mk]
-  have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  have h0_lt : 0 < globalMetaLen n_max := by wram_omega
   split_ifs with hb0
   · simp only [pure_bind]
     exact validProg_readGM hw h0_lt
   · simp only [pure_bind]
-    have h1_lt : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
+    have h1_lt : 1 < globalMetaLen n_max := by wram_omega
     exact validProg_bind (validProg_readGM hw h0_lt)
       (validProg_bind (validProg_readGM hw h1_lt) (validProg_pure _))
 

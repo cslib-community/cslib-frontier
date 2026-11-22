@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilisti
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PrepareClock
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Compiling polynomial clocks
@@ -87,11 +88,7 @@ theorem start_ready (machine : MultiTapePTM k Bool State Oracle) (input word : L
       (ready (PrepareState := PrepareState) input word) =
       AuxiliaryTape.config ((machine.extendTapes (Fin.castAddEmb r)).initialConfig input)
         (tapeOfList word) 0 false := by
-  refine Config.ext ?_ rfl
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;>
-    refine Fin.lastCases ?_ (fun j => ?_) i <;>
-      simp [Sequential.start, ready, Cfg.withState, wordsCfg, AuxiliaryTape.config,
-        initialConfig, Cfg.init]
+  tm_step [Sequential.start, ready, AuxiliaryTape.config, initialConfig]
 
 /-- The embedded deterministic preparation reaches the exact ready configuration. -/
 theorem prepare_runFrom (prepare : MultiTapeTM (r + 1) Bool PrepareState)
