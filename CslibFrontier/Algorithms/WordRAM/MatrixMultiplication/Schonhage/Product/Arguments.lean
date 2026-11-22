@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Transfer
-import CslibFrontier.Computability.WordRAM.PreservesMask
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Computing each tile's actual kernel arguments
@@ -111,14 +111,7 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
       Reg.address, Reg.offsets, Reg.index, Reg.first, Reg.stop, Reg.one, Reg.rowBand, Reg.colBand,
       Reg.bands, Reg.leftPointer, Reg.rightPointer, Reg.leaves, Reg.catalogue, Reg.queryPointer,
       Reg.answerPointer, Reg.codes, Reg.grouped, Reg.depth, Reg.scratch, Reg.epoch, Fin.mk.injEq]
-  have yp : Parameters L m N Q y := hp.of_frame (by
-    intro i hi
-    apply he.regs_eq
-    have h : ∀ j ∈ parameterRegisters, tileArguments.Preserves j :=
-      Code.preserves_of_preservesAllPred (by
-        simp only [parameterRegisters, Finset.mem_insert, Finset.mem_singleton]
-        rfl)
-    exact h i hi)
+  have yp : Parameters L m N Q y := by regs_frame
   refine ⟨y, he, yp, rfl, ?_⟩
   simp +decide [y, Data.comap_regs, hx, B, H, C, bank,
     PrunedQuery.inputDepth, PrunedQuery.arrayA, PrunedQuery.arrayB, PrunedQuery.queries,

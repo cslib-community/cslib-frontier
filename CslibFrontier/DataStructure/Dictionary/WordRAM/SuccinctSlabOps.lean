@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabDemote
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.UpdateSimp
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -160,10 +161,8 @@ theorem bCount_le_totalSlots {n_max : ℕ} {gm : ℕ → ℕ} (hinv : SlotStoreI
   rcases Nat.eq_zero_or_pos (bucketBits n_max) with hb0 | hb_pos
   · unfold bCount totalSlots; simp only [hb0, ↓reduceIte]; split_ifs <;> omega
   · rw [bCount_multi_eq hb_pos hb, totalSlots_multi_eq hb_pos]
-    have hq_le := Nat.mul_le_mul_right (slabSize n_max)
-      (q_le_nslabs_of_slabBijection (hinv.multi_slab hb_pos) hb)
-    have hr_le := r_le_ntails_of_tailBijection (hinv.multi_tail hb_pos) hb
-    omega
+    stride_omega [q_le_nslabs_of_slabBijection (hinv.multi_slab hb_pos) hb,
+      r_le_ntails_of_tailBijection (hinv.multi_tail hb_pos) hb]
 
 theorem pos_gmRIdx_of_pos_bCount {n_max : ℕ} {gm : ℕ → ℕ} {b : ℕ}
     (hb_pos : 0 < bucketBits n_max) (hinv : SlotStoreInv n_max gm)
@@ -511,14 +510,9 @@ private theorem slotOf_ne_freshTail {n_max : ℕ} {gm : ℕ → ℕ}
   rw [bCount_multi_eq hb_pos hb'] at hj
   unfold slotOf; rw [ite_eq_right (Nat.ne_of_gt hb_pos)]
   split_ifs with hj_slab
-  · have hp_lt := hslab.ptr_lt b' hb' (j / slabSize n_max)
-      (Nat.div_lt_of_lt_mul (by rwa [Nat.mul_comm]))
-    have hmod_lt := Nat.mod_lt j (slabSize_pos n_max)
-    have hmul : (slabPtrOf n_max gm b' (j / slabSize n_max) + 1) * slabSize n_max ≤
-        gm 0 * slabSize n_max := Nat.mul_le_mul_right _ hp_lt
-    rw [Nat.add_one_mul] at hmul; omega
-  · have hr' : j - gm (gmQIdx b') * slabSize n_max < gm (gmRIdx b') := by omega
-    have ht'_lt := htail.ptr_lt b' hb' (j - gm (gmQIdx b') * slabSize n_max) hr'
+  · have hp_lt := hslab.ptr_lt b' hb' (j / slabSize n_max) (by stride_omega [slabSize_pos n_max])
+    stride_omega [slabSize_pos n_max]
+  · have ht'_lt := htail.ptr_lt b' hb' (j - gm (gmQIdx b') * slabSize n_max) (by omega)
     omega
 
 /-- Pure state effect and return value of `pushBackTailWriteProg`. -/
@@ -615,13 +609,12 @@ theorem pushBackTailWriteProg_effect {U V w n_max h_space base b q_val v_val : �
     fun b' hb' hne => by
       rw [bCount_multi_eq hb_pos hb', bCount_multi_eq hb_pos hb', hgm1_eq, hpQ b' hb',
         hpOther b' hb' hne],
-    by rw [hst, hq_wv, hq_wq, hslot_new, Function.update_self],
-    by rw [hst, hv_wv, hslot_new, Function.update_self],
+    by rw [hst, hq_wv, hq_wq, hslot_new]; update_simp,
+    by rw [hst, hv_wv, hslot_new]; update_simp,
     fun b' hb' j hj => ?_⟩
   have hne := slotOf_ne_freshTail hb_pos htail₀ hslab₀ htot hb' hj
-  rw [hst, hq_wv, hq_wq, hq_app, hv_wv, hv_wq, hv_app, hgm1_eq, hslot_app.2 b' hb' j hj,
-    Function.update_of_ne hne, Function.update_of_ne hne]
-  exact ⟨rfl, rfl⟩
+  exact ⟨by rw [hst, hq_wv, hq_wq, hq_app, hgm1_eq, hslot_app.2 b' hb' j hj]; update_simp,
+    by rw [hst, hv_wv, hv_wq, hv_app, hgm1_eq, hslot_app.2 b' hb' j hj]; update_simp⟩
 
 /-- Precondition for `pushBackSlotProg` in `Realizes`. -/
 @[expose]
@@ -861,20 +854,17 @@ private theorem pushBackSlotProg_effect_single {U V w n_max h_space base b q_val
       rw [hst, hout3 a (by wram_omega [ha]), hout2 a (by wram_omega [ha]),
         hout1 a (by wram_omega [ha])],
     by rw [hst, hl3, hl2, hl1],
-    slotStoreInv_single hb0 (by rw [hgm', Function.update_self]; omega),
-    by unfold totalSlots; simp only [hb0, ↓reduceIte, hgm', Function.update_self],
-    by unfold bCount; simp only [hb0, ↓reduceIte, hgm', Function.update_self],
+    slotStoreInv_single hb0 (by rw [hgm']; update_simp; omega),
+    by unfold totalSlots; simp only [hb0, ↓reduceIte, hgm']; update_simp,
+    by unfold bCount; simp only [hb0, ↓reduceIte, hgm']; update_simp,
     fun b' hb' hne => absurd (bucket_eq_zero_of_bits_eq_zero hb0 hb') hne,
-    by rw [hst, hq3, hq2, hq1]; simp [slotOf, bCount, hb0],
-    by rw [hst, hv3, hv2]; simp [slotOf, bCount, hb0],
+    by rw [hst, hq3, hq2, hq1]; simp only [slotOf, bCount, hb0, ↓reduceIte]; update_simp,
+    by rw [hst, hv3, hv2]; simp only [slotOf, bCount, hb0, ↓reduceIte]; update_simp,
     fun b' hb' j hj => ?_, by unfold slotPotential; simp [hb0, hcost]⟩
-  have hb'0 := bucket_eq_zero_of_bits_eq_zero hb0 hb'
-  subst hb'0
+  obtain rfl := bucket_eq_zero_of_bits_eq_zero hb0 hb'
   simp only [bCount, hb0, ↓reduceIte] at hj
   simp only [slotOf, hb0, ↓reduceIte]
-  rw [hst, hq3, hq2, hq1, hv3, hv2, hv1, Function.update_of_ne (by omega),
-    Function.update_of_ne (by omega)]
-  exact ⟨rfl, rfl⟩
+  exact ⟨by rw [hst, hq3, hq2, hq1]; update_simp, by rw [hst, hv3, hv2, hv1]; update_simp⟩
 
 private theorem pushBackSlotProg_effect_multi {U V w n_max h_space base b q_val v_val : ℕ}
     (hw : 0 < w) (hb_pos : 0 < bucketBits n_max) (s : Memory.State)
@@ -1222,12 +1212,12 @@ private theorem popBackSlotProg_effect_single {U V w n_max h_space base b : ℕ}
   refine ⟨by rw [hst, hf1],
     fun a ha => by rw [hst, hout1 a (by wram_omega [ha])],
     by rw [hst, hl1],
-    slotStoreInv_single hb0 (by rw [hgm', Function.update_self]; omega),
+    slotStoreInv_single hb0 (by rw [hgm']; update_simp; omega),
     by unfold totalSlots
-       simp only [hb0, ↓reduceIte, hgm', Function.update_self]
+       simp only [hb0, ↓reduceIte, hgm']; update_simp
        change 1 ≤ gmAt base U V w n_max h_space s.mem 0 at hbc
        dsimp only [gm₀]; omega,
-    by unfold bCount; simp only [hb0, ↓reduceIte, hgm', Function.update_self]; rfl,
+    by unfold bCount; simp only [hb0, ↓reduceIte, hgm']; update_simp,
     fun b' hb' hne => absurd (bucket_eq_zero_of_bits_eq_zero hb0 hb') hne,
     fun b' _ j _ => by simp only [slotOf, hb0, ↓reduceIte]; rw [hst, hq1, hv1]; exact ⟨rfl, rfl⟩,
     by unfold slotPotential; simp [hb0, hcost]⟩

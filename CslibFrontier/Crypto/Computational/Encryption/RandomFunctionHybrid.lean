@@ -15,9 +15,9 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.QueryCount
 public import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Crypto.Game.UntilBad
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.ENNRealToReal
@@ -105,7 +105,6 @@ public section
 namespace Cslib.Crypto
 
 open Cslib.Probability
-open OracleComp (sumHandler)
 open scoped ENNReal NNReal
 
 variable {n : ℕ}
@@ -401,8 +400,8 @@ theorem eval_blockModeIdealOracle (ℓ : ℕ) (q : BlockModeQuery n) :
     ProbComp.eval (blockModeIdealOracle ℓ q) =
       (PMF.uniformOfFintype (BitString n)).bind fun iv =>
         (uniformBlocks (n := n) (blockModeBlocks ℓ q)).map (iv, ·) := by
-  simp only [blockModeIdealOracle, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
-    uniformBlocks_eq, Function.comp_def, ← PMF.bind_pure_comp, PMF.bind_bind, PMF.pure_bind]
+  simp only [blockModeIdealOracle, ProbComp.eval_uniform, uniformBlocks_eq, pmf_norm,
+    ← PMF.bind_pure_comp]
 
 private theorem map_unit_runWith_freshStep_blockModeQueryProgram
     (keystream : BitString n → ℕ →
@@ -417,13 +416,11 @@ private theorem map_unit_runWith_freshStep_blockModeQueryProgram
   have hpad := map_iv_uniformBlocks_zipWith (blockModeSelect ℓ b q)
   rw [length_blockModeSelect] at hpad
   rw [eval_blockModeIdealOracle, ← hpad]
-  simp only [blockModeQueryProgram, ProbOracleComp.runWith_bind, ProbOracleComp.runWith_sample,
-    ProbComp.eval_uniform, length_blockModeSelect, ProbOracleComp.runWith_pure,
-    PMF.map_bind, PMF.bind_map, Function.comp_def, PMF.pure_map]
+  simp only [blockModeQueryProgram, ProbComp.eval_uniform, length_blockModeSelect,
+    runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun iv _ => ?_
-  have hk := hks iv s
-  rw [← hk]
-  simp only [PMF.map_comp, Function.comp_def]
+  rw [← hks iv s]
+  simp only [pmf_norm]
   rfl
 
 /-- **Fresh sampling of a block-mode query program.** If every answer of `program`, under fresh
@@ -439,38 +436,12 @@ theorem freshGame_simulate_eq_blockModeIdealExperiment
     (ProbOracleComp.runWith freshStep
         (ProbOracleComp.simulate program adversary) ([], false)).map Prod.fst =
       ProbComp.eval (blockModeIdealExperiment ℓ adversary) := by
-  have hstate :
-      (ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))
-          adversary ([], false)).map (fun x => (x.1, ())) =
-        ProbOracleComp.runWith
-          (fun q (u : Unit) => (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, u))
-          adversary () :=
+  have hstate := congrArg (PMF.map Prod.fst) <|
     ProbOracleComp.runWith_map_state
       (fun q => ProbOracleComp.runWith freshStep (program q))
       (fun q (u : Unit) => (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, u))
-      (fun _ => ()) (fun q s => hprogram q s) adversary ([], false)
-  have hro :
-      ProbOracleComp.runWith
-          (fun q (u : Unit) => (ProbComp.eval (blockModeIdealOracle ℓ q)).map (·, u)) adversary () =
-        (OracleComp.interpret
-          (sumHandler ProbComp.unifOracle fun q => ProbComp.eval (blockModeIdealOracle ℓ q))
-          adversary).map (·, ()) :=
-    by simpa only [OracleComp.evalWith_eq_interpret] using
-      ProbOracleComp.runWith_readOnly (fun q _ => ProbComp.eval (blockModeIdealOracle ℓ q))
-        adversary ()
-  rw [ProbOracleComp.runWith_simulate]
-  calc
-    (ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))
-          adversary ([], false)).map Prod.fst
-        = ((ProbOracleComp.runWith (fun q => ProbOracleComp.runWith freshStep (program q))
-              adversary ([], false)).map fun x => (x.1, ())).map Prod.fst :=
-          (PMF.map_comp (fun x : Bool × FlagState n => (x.1, ())) _ Prod.fst).symm
-    _ = ((OracleComp.interpret
-            (sumHandler ProbComp.unifOracle fun q => ProbComp.eval (blockModeIdealOracle ℓ q))
-            adversary).map (·, ())).map Prod.fst := by rw [hstate, hro]
-    _ = ProbComp.eval (blockModeIdealExperiment ℓ adversary) := by
-          rw [(PMF.map_comp (·, ()) _ Prod.fst).trans (PMF.map_id _),
-            blockModeIdealExperiment, ProbOracleComp.eval_run]
+      (fun _ => ()) hprogram adversary ([], false)
+  simpa only [blockModeIdealExperiment, runWith_norm, pmf_norm] using hstate
 
 /-- Under fresh sampling, whenever the keystream program outputs uniform blocks on every query,
 `blockModeReduction` has the exact same output distribution as `blockModeIdealExperiment`. -/
@@ -505,7 +476,7 @@ private theorem toOuterMeasure_repeated_freshStep_simulate_le
     (ProbOracleComp.runWith freshStep (ProbOracleComp.simulate program adversary)
         ([], false)).toOuterMeasure {x | x.2.repeated = true} ≤
       ((K.choose 2 : ℕ) : ℝ≥0∞) * ((2 : ℝ≥0∞) ^ n)⁻¹ := by
-  rw [ProbOracleComp.runWith_simulate]
+  rw [ProbOracleComp.runWith_simulate_eta]
   simpa using
     ProbOracleComp.toOuterMeasure_bad_choose_two_cost_le
       (handler := fun q => ProbOracleComp.runWith freshStep (program q))

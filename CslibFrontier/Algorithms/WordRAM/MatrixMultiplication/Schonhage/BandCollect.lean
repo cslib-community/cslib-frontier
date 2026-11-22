@@ -9,7 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCopy
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandParameters
-import CslibFrontier.Computability.WordRAM.PreservesMask
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Charged copies into the shared band catalogue
@@ -102,19 +102,8 @@ theorem exec_collectBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
     have hn : start.regs copyLen = 10 ^ L := by simp [start]
     rw [hn]
     omega
-  refine ⟨y, hwhole, ?_, parameters_reframe hx ?_, ?_⟩
-  · simpa [start, copySrc, copyDst, copyLen, temporary, Encoding.outputBase, Nat.add_comm]
-      using hmem
-  · intro i hi
-    apply hwhole.regs_eq
-    have hp : ∀ side i, i ∈ parameterRegisters → (collectBand side).Preserves i := by
-      intro side
-      cases side <;>
-        exact Code.preserves_of_preservesAllPred (by
-          simp only [parameterRegisters, headerRegisters, Finset.mem_union,
-            Finset.mem_insert, Finset.mem_singleton]
-          rfl)
-    exact hp side i hi
-  · exact (hwhole.regs_eq (by cases side <;> decide)).trans hb
+  refine ⟨y, hwhole, ?_, by cases side <;> regs_frame, by cases side <;> regs_frame⟩
+  simpa [start, copySrc, copyDst, copyLen, temporary, Encoding.outputBase, Nat.add_comm]
+    using hmem
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation

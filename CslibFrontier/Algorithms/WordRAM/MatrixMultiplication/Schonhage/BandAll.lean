@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandEncode
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Every shared band, computed once
@@ -26,13 +27,6 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparatio
 
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
-
-private theorem ne_band_of_mem {i : Fin 96} (hi : i ∈ parameterRegisters) : i ≠ band := by
-  have hp : ∀ j ∈ parameterRegisters, j ≠ band := by
-    simp only [parameterRegisters, headerRegisters, Finset.forall_mem_union,
-      Finset.forall_mem_insert, Finset.mem_singleton, forall_eq]
-    decide
-  exact hp i hi
 
 /-- Catalogue blocks are ordered by band index, without duplicating them per tile. -/
 theorem catalogue_address_lt {L m N β γ p : ℕ} (side : Bool) (hβγ : β < γ)
@@ -84,9 +78,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
   let start := x.set band 0
   have hs : ExecWithin (B := .standard) (w + 2) (ram[ band ← #0 ]) x start 1 :=
     ExecWithin.const (fits_zero _)
-  have hp : BandParameters L m N start := parameters_reframe hx (by
-    intro i hi
-    simp only [start, Data.set_regs, Function.update_of_ne (ne_band_of_mem hi)])
+  have hp : BandParameters L m N start := by regs_frame
   let P (j : ℕ) (y : Data 96) : Prop := BandParameters L m N y ∧
     (∀ β < j, ∀ p < 10 ^ L,
       y.mem (catalogueAddress L m N side β p) =
@@ -128,9 +120,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
         band, one, Fin.mk.injEq]
     have hzb : z.regs band = β + 1 := by simp [z]
     refine ⟨z, he.seq hz, ?_, hzb⟩
-    · refine ⟨parameters_reframe htp ?_, ?_, ?_⟩
-      · intro i hi
-        simp only [z, Data.set_regs, Function.update_of_ne (ne_band_of_mem hi)]
+    · refine ⟨by regs_frame, ?_, ?_⟩
       · intro γ hγ p hp
         change t.mem _ = _
         by_cases hγβ : γ = β

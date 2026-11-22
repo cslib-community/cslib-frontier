@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Codes
 public import CslibFrontier.Computability.WordRAM.Power
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
-import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Fixed native code for pruned tensor queries
@@ -360,8 +359,7 @@ def program : Code .standard registers := ram[
   ⟪header⟫; ⟪powers⟫; ⟪parameters⟫; ⟪work⟫ ]
 
 /-- The same program is used at every word width; it never reads the physical word size. -/
-theorem not_readsWidth : ¬program.ReadsWidth :=
-  Code.not_readsWidth_of_readsWidthBool rfl
+theorem not_readsWidth : ¬program.ReadsWidth := by decide
 
 /-- A fixed bound on both control code and all arithmetic blocks, including the final halt. -/
 theorem program_length_le : (program.program output).length ≤ 4096 := by

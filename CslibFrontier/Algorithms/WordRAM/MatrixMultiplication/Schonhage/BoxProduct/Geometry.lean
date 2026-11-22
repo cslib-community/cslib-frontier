@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.State
-import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 
@@ -48,10 +47,7 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
       boxBank, Reg.directory, Reg.threshold, BoxTable.Reg.levels, BoxTable.Reg.inner,
       BoxTable.Reg.threshold, BoxTable.Reg.directory, Fin.mk.injEq, Fin.val_ofNat, Fin.val_natCast]
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
-  have up : QueriedProduct.Parameters L m N Q u := hp.of_frame (fun i hi =>
-    hu.regs_eq (Code.preserves_of_preservesAllPred (by
-      simp only [QueriedProduct.parameterRegisters, Finset.mem_insert, Finset.mem_singleton]
-      rfl) i hi))
+  have up : QueriedProduct.Parameters L m N Q u := by regs_frame
   obtain ⟨z, hz, zp, zK, zV, zcat⟩ := BoxTable.exec_geometry (L := L) (m := m) (t := t) (D := D)
       (u.comap boxBank)
     (by simp [u, boxBank, BoxTable.Reg.levels, BoxTable.Reg.inner,
@@ -112,10 +108,7 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
       Reg.count, Reg.results, QueriedProduct.Reg.depth, QueriedProduct.Reg.one,
       QueriedProduct.Reg.leaves, QueriedProduct.Reg.temporary, QueriedProduct.Reg.index,
       Fin.mk.injEq]
-  have yp : QueriedProduct.Parameters L m N Q y := vp.of_frame (fun i hi =>
-    hy.regs_eq (Code.preserves_of_preservesAllPred (by
-      simp only [QueriedProduct.parameterRegisters, Finset.mem_insert, Finset.mem_singleton]
-      rfl) i hi))
+  have yp : QueriedProduct.Parameters L m N Q y := by regs_frame
   refine ⟨y, (hu.seq (hv.seq hy)).mono (by unfold BoxTable.geometryTime; omega), yp,
     ?_, by simp [y], ?_, ?_⟩
   · constructor
