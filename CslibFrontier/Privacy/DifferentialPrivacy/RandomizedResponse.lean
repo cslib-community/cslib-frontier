@@ -48,7 +48,7 @@ expected number of "Yes" answers is `n / 4 + (number of true "Yes") / 2`
 * `Cslib.Privacy.differentiallyPrivate_randomizedResponseSurvey`: the survey is
   `(ln 3, 0)`-private for Hamming adjacency.
 * `Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponse`,
-  `Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponseSurvey`: exact order-`α` Rényi
+  `Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponseSurvey`: order-`α` Rényi
   differential privacy [Mironov2017, Proposition 5].
 * `Cslib.Privacy.sum_eval_randomizedResponseSurvey_mul_estimator`: the unbiased estimator.
 
@@ -177,7 +177,7 @@ theorem renyiDifferentiallyPrivate_randomizedResponse {α : ℝ} (hα : 1 < α) 
     exact ENNReal.one_le_ofReal.mp h1
   have hε_nn : 0 ≤ Real.log M / (α - 1) :=
     div_nonneg (Real.log_nonneg hM1) (sub_pos.mpr hα).le
-  intro x y _
+  refine ⟨hα, fun x y _ => ?_⟩
   by_cases hxy : x = y
   · subst hxy
     simp

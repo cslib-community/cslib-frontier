@@ -517,6 +517,10 @@ import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
 import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
+import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
+import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
+import CslibFrontier.Probability.Azuma
+import CslibFrontier.Probability.Renyi
 
 /-!
 # Collected results
@@ -13301,3 +13305,136 @@ register_result "odonnell-level-one-inequality" where
     α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
     for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
     is not covered."
+
+register_result "azuma-hoeffding-seq-process" where
+  title := "Azuma–Hoeffding exponential moment and tail inequalities for sequential PMF processes"
+  topic := "probability"
+  sources := [
+    { paper := Hoeffding1963,
+      theorem := "Theorem 2 (eq. (2.6)) and martingale extension (eq. (2.18))",
+      locator := "§2, printed pp. 16, 18 (PDF pp. 5, 7); §4, eqs. (4.16)–(4.17), printed \
+        pp. 22–23 (PDF pp. 11–12)" },
+    { paper := Azuma1967, theorem := unverified, locator := unverified }
+  ]
+  theorems := [
+    Cslib.Probability.PMF.seqProcess_mul_exp_le,
+    Cslib.Probability.PMF.seqProcess_ge_le,
+    Cslib.Probability.PMF.seqProcess_le_le,
+    Cslib.Probability.PMF.seqProcess_abs_sub_ge_le
+  ]
+  scope := "Finite-horizon discrete trajectory laws seqProcess step n : PMF (Fin n → α) over an \
+    arbitrary outcome type α without Fintype or caller-supplied MeasurableSpace, measuring tail \
+    events via (toOuterMeasure …).toReal. At each step k < n and supported prefix \
+    h ∈ (seqProcess step k).support, X satisfies the one-step conditional supermartingale, \
+    submartingale, or martingale expectation bound against (step k h ·).toReal and its values on \
+    (step k h).support lie in a history-dependent interval [a, b] of width b - a ≤ c k bounded \
+    by a deterministic step width c k : ℝ. Covers all ε ≥ 0 (extending Hoeffding's t > 0) and \
+    zero total squared width ∑ k < n, c k ^ 2 = 0 (where division by zero in ℝ gives exp 0 = 1). \
+    General measure-theoretic filtrations and predictable random step widths without a \
+    deterministic envelope c k are not covered. Source check: JSTOR PDF (SHA-256 \
+    3021bcc097ef23a99a84d0eef8dcce2fd835c71df79a105727d3e03f8f0b8930) and outside-fleet agent \
+    check (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d \
+    (https://github.com/cslib-community/cslib-frontier/pull/7481#pullrequestreview-6012832802); \
+    the 1967 Tôhoku Math. J. scan for Azuma1967 was not retrieved, so its locator remains \
+    unverified."
+
+register_result "renyi-divergence-properties" where
+  title := "Nonnegativity, data processing, adaptive composition, and hockey-stick conversion \
+    for discrete Rényi divergence"
+  topic := "probability"
+  sources := [
+    { paper := Mironov2017,
+      theorem := "Definition 3, Post-processing, Proposition 1, Proposition 3, and Appendix A",
+      locator := "arXiv:1702.07476v3, §III (Definition 3, Post-processing, Proposition 1), \
+        §IV (Proposition 3), and Appendix A" },
+    { paper := Renyi1961, theorem := unverified, locator := unverified }
+  ]
+  theorems := [
+    Cslib.Probability.PMF.one_le_renyiMoment,
+    Cslib.Probability.PMF.renyiMoment_bind_le,
+    Cslib.Probability.PMF.renyiDiv_bind_le,
+    Cslib.Probability.PMF.renyiDiv_map_le,
+    Cslib.Probability.PMF.renyiDiv_bind_pair_le,
+    Cslib.Probability.PMF.hockeyStick_le_of_renyiDiv_le
+  ]
+  scope := "Discrete distributions PMF X over arbitrary types X without Fintype or \
+    MeasurableSpace, for finite orders 1 < α (1 ≤ α in renyiMoment_bind_le), with ℝ≥0∞-valued \
+    renyiDiv in natural logarithms taking value ⊤ on off-support atoms (p x ≠ 0, q x = 0). \
+    Adaptive two-stage composition (renyiDiv_bind_pair_le) bounds the joint transcript (x, y) \
+    assuming the second-stage kernel bound on x ∈ p.support; hockeyStick_le_of_renyiDiv_le holds \
+    for all 0 < δ (extending Mironov's 0 < δ < 1 trivially when δ ≥ 1). The α → 1 KL limit and \
+    α = ∞ max-divergence endpoint are handled by dedicated modules rather than PMF.renyiDiv. \
+    Source check: arXiv:1702.07476v3 (renyi.tex SHA-256 \
+    3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef) and outside-fleet agent \
+    check (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d; the 1961 Berkeley Symposium \
+    scan for Renyi1961 was not inspected."
+
+register_result "mironov-renyi-differential-privacy" where
+  title := "Post-processing, adaptive sequential composition, and approximate-DP conversion for \
+    Rényi differential privacy"
+  topic := "differential privacy"
+  sources := [
+    { paper := Mironov2017,
+      theorem := "Definition 4, Post-processing, Proposition 1, and Proposition 3",
+      locator := "arXiv:1702.07476v3, §III (Definition 4, Post-processing, Proposition 1) and \
+        §IV (Proposition 3)" }
+  ]
+  theorems := [
+    Cslib.Privacy.RenyiDifferentiallyPrivate.bind,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.map,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.bind_pair,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.adaptiveComposition,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.differentiallyPrivate
+  ]
+  scope := "Mechanisms M : D → PMF R over arbitrary domain and output types relative to an \
+    arbitrary adjacency relation Adj : D → D → Prop, with 1 < α enforced in \
+    RenyiDifferentiallyPrivate. Sequential composition (bind_pair for two stages, \
+    adaptiveComposition for k rounds with round-dependent budgets ε i ≥ 0) releases the full \
+    joint/list transcript; differentiallyPrivate converts (α, ε)-RDP to \
+    (ε + log (1 / δ) / (α - 1), ofReal δ)-DP for all 0 < δ (extending 0 < δ < 1 by the trivial \
+    range δ ≥ 1). Source check: arXiv:1702.07476v3 and outside-fleet agent check \
+    (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d."
+
+register_result "bun-steinke-pure-dp-to-rdp" where
+  title := "Pure (ε, 0)-differential privacy implies (α, α ε² / 2)-Rényi differential privacy"
+  topic := "differential privacy"
+  sources := [
+    { paper := BunSteinke2016,
+      theorem := "Proposition 3.3 (and Proposition 1.4)",
+      locator := "arXiv:1605.02065v1, §1.2.1 (Proposition 1.4) and §3.1 (Proposition 3.3, label \
+        prop:EpsSquared)" },
+    { paper := Mironov2017,
+      theorem := "Section V (citing Bun–Steinke; cf. Lemma 1 with coefficient 2)",
+      locator := "arXiv:1702.07476v3, §V" }
+  ]
+  theorems := [
+    Cslib.Privacy.DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure
+  ]
+  scope := "Any pure (ε, 0)-differentially private discrete mechanism M : D → PMF R (0 ≤ ε) \
+    under a symmetric adjacency relation Adj satisfies (α, α ε² / 2)-Rényi differential privacy \
+    for every finite order 1 < α (matching (ε² / 2)-zCDP on finite orders). Symmetry of Adj \
+    supplies the two-sided max-divergence premise of Bun–Steinke Proposition 3.3; derived via \
+    the library's ε tanh (ε / 2) + (α - 1) ε² / 2 privacy-loss refinement \
+    (DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh). Source check: arXiv:1605.02065v1 \
+    (main.tex SHA-256 5bf5affdf21fa0b5fe2bdd6c1056220c58ceed1cf8ea18b3234eb271c9728dcc) and \
+    outside-fleet agent check (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d."
+
+register_result "mironov-randomized-response-rdp" where
+  title := "Order-α Rényi differential privacy of binary randomized response"
+  topic := "differential privacy"
+  sources := [
+    { paper := Mironov2017,
+      theorem := "Proposition 5",
+      locator := "arXiv:1702.07476v3, §VI-A (Proposition 5)" }
+  ]
+  theorems := [
+    Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponse,
+    Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponseSurvey
+  ]
+  scope := "Specializes Mironov's binary randomized response (parameter p ∈ (0, 1)) to the \
+    fair-coin protocol randomizedResponse : Bool → ProbComp Bool (truthful answer probability \
+    p = 3 / 4 under ProbComp.eval, adjacency True on Bool), establishing \
+    (α, log ((3/4) · 3^(α - 1) + (1/4) · 3^(1 - α)) / (α - 1))-RDP for every 1 < α, together \
+    with the n-respondent product survey randomizedResponseSurvey under HammingAdjacent. \
+    Source check: arXiv:1702.07476v3 and outside-fleet agent check (reviewer-codex-edemaine) on \
+    PR #7481 at 94e42f6e1a9d."

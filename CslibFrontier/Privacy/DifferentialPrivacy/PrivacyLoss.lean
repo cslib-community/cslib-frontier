@@ -25,18 +25,21 @@ function `E_{r ∼ p}[exp ((α - 1) · L(r))]` of the privacy loss `L(r) = ln (p
 `[e^{-ε}, e^ε]`, convexity of `x ↦ x ^ α` bounds the moment by
 `cosh (ε (α - 1)) + tanh (ε / 2) · sinh (ε (α - 1))` per unit of mass (`renyiMoment_le_of_le_mul`),
 hence by `exp (tanh (ε / 2) · ε (α - 1) + (ε (α - 1))² / 2)` (`renyiMoment_le_exp`). Taking
-logarithms gives the Rényi divergence bound `D_α(p ‖ q) ≤ ε tanh (ε / 2) + (α - 1) ε² / 2`
-(`renyiDiv_le_of_le_mul`), which yields both the sharp pure-DP to RDP bound `α ε² / 2`
-[Mironov2017, Section V] and the per-round step of advanced composition.
+logarithms gives the privacy-loss refinement `D_α(p ‖ q) ≤ ε tanh (ε / 2) + (α - 1) ε² / 2`
+(`renyiDiv_le_of_le_mul`), which yields both the quadratic pure-DP to Rényi divergence bound
+`α ε² / 2` of [BunSteinke2016, Proposition 3.3] (cited in [Mironov2017, Section V]) and the
+per-round step of advanced composition.
 
 ## Main results
 
 * `Cslib.Privacy.renyiMoment_le_of_le_mul`, `Cslib.Privacy.renyiMoment_le_exp`: the Rényi moment
   bounds for an `ε`-close pair of mass functions.
-* `Cslib.Privacy.renyiDiv_le_of_le_mul`: the corresponding Rényi divergence bound on `PMF`s.
+* `Cslib.Privacy.renyiDiv_le_of_le_mul`: the `ε tanh (ε / 2) + (α - 1) ε² / 2` Rényi divergence
+  refinement on `PMF`s.
 
 ## References
 
+* [BunSteinke2016]
 * [DworkRoth2014]
 * [Mironov2017]
 -/

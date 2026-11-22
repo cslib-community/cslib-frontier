@@ -16,8 +16,10 @@ import CslibFrontier.Foundations.Analysis.SpecialFunctions.Hyperbolic
 # Rényi differential privacy
 
 A randomized mechanism `M : D → PMF R` satisfies `(α, ε)`-*Rényi differential privacy* (`RDP`)
-for order `1 < α` relative to an adjacency relation `Adj` when `D_α(M x ‖ M y) ≤ ε` for every
-adjacent pair `(x, y)` (`RenyiDifferentiallyPrivate`, [Mironov2017, Definition 4]).
+relative to an adjacency relation `Adj` when `1 < α` and `D_α(M x ‖ M y) ≤ ε` for every adjacent
+pair `(x, y)` (`RenyiDifferentiallyPrivate`, [Mironov2017, Definition 4]). Enforcing `1 < α` in
+the predicate avoids the `α = 1` collapse of the finite-order ratio formula `log M / (α - 1)` to
+`0` (where [Mironov2017, Definition 3] instead takes the `α → 1` Kullback–Leibler limit).
 
 Rényi differential privacy enjoys post-processing (`RenyiDifferentiallyPrivate.bind`,
 `RenyiDifferentiallyPrivate.map`, [Mironov2017, Section III]), additive sequential composition
@@ -25,15 +27,16 @@ under adaptive mechanism choice (`RenyiDifferentiallyPrivate.bind_pair`,
 `RenyiDifferentiallyPrivate.adaptiveComposition`, [Mironov2017, Proposition 1]), coordinatewise
 parallel composition for local randomizers under Hamming adjacency
 (`RenyiDifferentiallyPrivate.pi`), conversion to `(ε + log (1 / δ) / (α - 1), δ)`-differential
-privacy (`RenyiDifferentiallyPrivate.differentiallyPrivate`, [Mironov2017, Proposition 3]), and
-quadratic-in-`ε` conversion from pure `(ε, 0)`-differential privacy
-(`DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh`,
-`DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure`, [Mironov2017, Section V]).
+privacy (`RenyiDifferentiallyPrivate.differentiallyPrivate`, [Mironov2017, Proposition 3]), a
+`tanh` privacy-loss refinement from pure `(ε, 0)`-differential privacy
+(`DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh`), and the quadratic `(α, α ε² / 2)`-RDP
+bound (`DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure`,
+[BunSteinke2016, Proposition 3.3], cited in [Mironov2017, Section V]).
 
 ## Main definitions
 
-* `Cslib.Privacy.RenyiDifferentiallyPrivate`: `(α, ε)`-Rényi differential privacy relative to
-  `Adj` [Mironov2017, Definition 4].
+* `Cslib.Privacy.RenyiDifferentiallyPrivate`: `(α, ε)`-Rényi differential privacy (`1 < α`)
+  relative to `Adj` [Mironov2017, Definition 4].
 
 ## Main results
 
@@ -46,13 +49,15 @@ quadratic-in-`ε` conversion from pure `(ε, 0)`-differential privacy
   `HammingAdjacent`.
 * `Cslib.Privacy.RenyiDifferentiallyPrivate.differentiallyPrivate`: conversion from `(α, ε)`-RDP
   to `(ε + log (1 / δ) / (α - 1), δ)`-DP [Mironov2017, Proposition 3].
-* `Cslib.Privacy.DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh`,
-  `Cslib.Privacy.DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure`: pure `(ε, 0)`-DP
-  mechanisms are `(α, ε tanh (ε / 2) + (α - 1) ε² / 2)`-RDP and hence `(α, α ε² / 2)`-RDP
-  [Mironov2017, Section V].
+* `Cslib.Privacy.DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh`: privacy-loss refinement
+  from pure `(ε, 0)`-DP to `(α, ε tanh (ε / 2) + (α - 1) ε² / 2)`-RDP.
+* `Cslib.Privacy.DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure`: pure `(ε, 0)`-DP
+  mechanisms are `(α, α ε² / 2)`-RDP [BunSteinke2016, Proposition 3.3].
 
 ## References
 
+* [M. Bun and T. Steinke, *Concentrated Differential Privacy: Simplifications, Extensions, and
+  Lower Bounds*][BunSteinke2016]
 * [I. Mironov, *Rényi differential privacy*][Mironov2017]
 -/
 
@@ -66,10 +71,10 @@ namespace Cslib.Privacy
 universe u v w
 
 /-- A mechanism `M : D → PMF R` is `(α, ε)`-Rényi differentially private relative to `Adj` when
-`renyiDiv α (M x) (M y) ≤ ofReal ε` for all `Adj x y` [Mironov2017, Definition 4]. -/
+`1 < α` and `renyiDiv α (M x) (M y) ≤ ofReal ε` for all `Adj x y` [Mironov2017, Definition 4]. -/
 @[expose] def RenyiDifferentiallyPrivate {D : Type u} {R : Type v}
     (Adj : D → D → Prop) (M : D → PMF R) (α ε : ℝ) : Prop :=
-  ∀ ⦃x y⦄, Adj x y → Probability.PMF.renyiDiv α (M x) (M y) ≤ ENNReal.ofReal ε
+  1 < α ∧ ∀ ⦃x y⦄, Adj x y → Probability.PMF.renyiDiv α (M x) (M y) ≤ ENNReal.ofReal ε
 
 namespace RenyiDifferentiallyPrivate
 
@@ -80,28 +85,28 @@ variable {D : Type u} {R : Type v} {R' : Type w} {Adj : D → D → Prop} {M : D
 /-- Rényi differential privacy is monotone in the privacy budget `ε`. -/
 theorem mono {ε' : ℝ} (h : RenyiDifferentiallyPrivate Adj M α ε) (hε : ε ≤ ε') :
     RenyiDifferentiallyPrivate Adj M α ε' :=
-  fun _ _ hxy => (h hxy).trans (ENNReal.ofReal_le_ofReal hε)
+  ⟨h.1, fun _ _ hxy => (h.2 hxy).trans (ENNReal.ofReal_le_ofReal hε)⟩
 
 /-- **Post-processing** [Mironov2017, Section III]: applying a Markov kernel `K` preserves
-`(α, ε)`-Rényi differential privacy for `1 < α`. -/
-theorem bind (hα : 1 < α) (h : RenyiDifferentiallyPrivate Adj M α ε) (K : R → PMF R') :
+`(α, ε)`-Rényi differential privacy. -/
+theorem bind (h : RenyiDifferentiallyPrivate Adj M α ε) (K : R → PMF R') :
     RenyiDifferentiallyPrivate Adj (fun x => (M x).bind K) α ε :=
-  fun _ _ hxy => (Probability.PMF.renyiDiv_bind_le hα _ _ K).trans (h hxy)
+  ⟨h.1, fun _ _ hxy => (Probability.PMF.renyiDiv_bind_le h.1 _ _ K).trans (h.2 hxy)⟩
 
-/-- Deterministic post-processing preserves `(α, ε)`-Rényi differential privacy for `1 < α`
+/-- Deterministic post-processing preserves `(α, ε)`-Rényi differential privacy
 [Mironov2017, Section III]. -/
-theorem map (hα : 1 < α) (h : RenyiDifferentiallyPrivate Adj M α ε) (f : R → R') :
+theorem map (h : RenyiDifferentiallyPrivate Adj M α ε) (f : R → R') :
     RenyiDifferentiallyPrivate Adj (fun x => (M x).map f) α ε :=
-  fun _ _ hxy => (Probability.PMF.renyiDiv_map_le hα _ _ f).trans (h hxy)
+  ⟨h.1, fun _ _ hxy => (Probability.PMF.renyiDiv_map_le h.1 _ _ f).trans (h.2 hxy)⟩
 
-/-- **Conversion from RDP to approximate DP** [Mironov2017, Proposition 3]: if `1 < α`, `0 ≤ ε`,
-and `M` is `(α, ε)`-Rényi differentially private, then for every `0 < δ`, `M` is
+/-- **Conversion from RDP to approximate DP** [Mironov2017, Proposition 3]: if `0 ≤ ε` and `M` is
+`(α, ε)`-Rényi differentially private, then for every `0 < δ`, `M` is
 `(ε + log (1 / δ) / (α - 1), ofReal δ)`-differentially private. -/
-theorem differentiallyPrivate (hα : 1 < α) (hε : 0 ≤ ε) {δ : ℝ} (hδ : 0 < δ)
+theorem differentiallyPrivate (hε : 0 ≤ ε) {δ : ℝ} (hδ : 0 < δ)
     (h : RenyiDifferentiallyPrivate Adj M α ε) :
     DifferentiallyPrivate Adj M (ε + Real.log (1 / δ) / (α - 1)) (ENNReal.ofReal δ) :=
   DifferentiallyPrivate.iff_hockeyStick_le.mpr fun _ _ hxy =>
-    Probability.PMF.hockeyStick_le_of_renyiDiv_le hα hε hδ (h hxy)
+    Probability.PMF.hockeyStick_le_of_renyiDiv_le h.1 hε hδ (h.2 hxy)
 
 end Basic
 
@@ -112,7 +117,7 @@ variable {D : Type u} {R₁ R₂ R : Type v} {Adj : D → D → Prop} {α ε₁ 
 /-- Adaptive sequential composition when the second stage is `(α, ε₂)`-RDP on outputs satisfying
 `P` and the first stage produces only such outputs. -/
 private theorem bind_pair_of_support {M₁ : D → PMF R₁} {M₂ : R₁ → D → PMF R₂}
-    (hα : 1 < α) (hε₁ : 0 ≤ ε₁) (hε₂ : 0 ≤ ε₂)
+    (hε₁ : 0 ≤ ε₁) (hε₂ : 0 ≤ ε₂)
     (h₁ : RenyiDifferentiallyPrivate Adj M₁ α ε₁) (P : R₁ → Prop)
     (hP : ∀ x r₁, r₁ ∈ (M₁ x).support → P r₁)
     (h₂ : ∀ r₁, P r₁ → RenyiDifferentiallyPrivate Adj (M₂ r₁) α ε₂) :
@@ -121,17 +126,17 @@ private theorem bind_pair_of_support {M₁ : D → PMF R₁} {M₂ : R₁ → D 
         let r₁ ← M₁ x
         let r₂ ← M₂ r₁ x
         return (r₁, r₂)) α (ε₁ + ε₂) := by
-  intro x y hxy
+  refine ⟨h₁.1, fun x y hxy => ?_⟩
   simp only [monad_bind_eq_bind, monad_pure_eq_pure]
   rw [ENNReal.ofReal_add hε₁ hε₂]
-  exact (Probability.PMF.renyiDiv_bind_pair_le hα (M₁ x) (M₁ y)
-    fun r₁ hr₁ => h₂ r₁ (hP x r₁ hr₁) hxy).trans (add_le_add (h₁ hxy) le_rfl)
+  exact (Probability.PMF.renyiDiv_bind_pair_le h₁.1 (M₁ x) (M₁ y)
+    fun r₁ hr₁ => (h₂ r₁ (hP x r₁ hr₁)).2 hxy).trans (add_le_add (h₁.2 hxy) le_rfl)
 
 /-- **Adaptive sequential composition** [Mironov2017, Proposition 1]: running an `(α, ε₁)`-RDP
 mechanism `M₁` followed by an adaptively chosen `(α, ε₂)`-RDP mechanism `M₂ r₁` and releasing
 both outputs is `(α, ε₁ + ε₂)`-RDP. -/
 theorem bind_pair {M₁ : D → PMF R₁} {M₂ : R₁ → D → PMF R₂}
-    (hα : 1 < α) (hε₁ : 0 ≤ ε₁) (hε₂ : 0 ≤ ε₂)
+    (hε₁ : 0 ≤ ε₁) (hε₂ : 0 ≤ ε₂)
     (h₁ : RenyiDifferentiallyPrivate Adj M₁ α ε₁)
     (h₂ : ∀ r₁, RenyiDifferentiallyPrivate Adj (M₂ r₁) α ε₂) :
     RenyiDifferentiallyPrivate Adj
@@ -139,10 +144,10 @@ theorem bind_pair {M₁ : D → PMF R₁} {M₂ : R₁ → D → PMF R₂}
         let r₁ ← M₁ x
         let r₂ ← M₂ r₁ x
         return (r₁, r₂)) α (ε₁ + ε₂) :=
-  bind_pair_of_support hα hε₁ hε₂ h₁ (fun _ => True) (fun _ _ _ => trivial) fun r₁ _ => h₂ r₁
+  bind_pair_of_support hε₁ hε₂ h₁ (fun _ => True) (fun _ _ _ => trivial) fun r₁ _ => h₂ r₁
 
-/-- **`k`-fold adaptive sequential composition** [Mironov2017, Proposition 1]: if round `i < k`
-is `(α, ε i)`-RDP for every history of length `i`, the `k`-round transcript is
+/-- **`k`-fold adaptive sequential composition** [Mironov2017, Proposition 1]: if `1 < α` and
+round `i < k` is `(α, ε i)`-RDP for every history of length `i`, the `k`-round transcript is
 `(α, ∑ i < k, ε i)`-RDP. -/
 theorem adaptiveComposition {M : List R → D → PMF R} {ε : ℕ → ℝ}
     (hα : 1 < α) (k : ℕ) (hε : ∀ i < k, 0 ≤ ε i)
@@ -152,33 +157,33 @@ theorem adaptiveComposition {M : List R → D → PMF R} {ε : ℕ → ℝ}
       (∑ i ∈ Finset.range k, ε i) := by
   induction k with
   | zero =>
-    intro x y _
+    refine ⟨hα, fun x y _ => ?_⟩
     simp [Privacy.adaptiveComposition_zero]
   | succ k ih =>
     have ih' := ih (fun i hi => hε i (Nat.lt_succ_of_lt hi))
       (fun history hlen => h history (Nat.lt_succ_of_lt hlen))
     have hsum_nn : 0 ≤ ∑ i ∈ Finset.range k, ε i :=
       Finset.sum_nonneg fun i hi => hε i (Nat.lt_succ_of_lt (Finset.mem_range.mp hi))
-    have hpair := ih'.bind_pair_of_support (M₂ := M) hα hsum_nn (hε k (Nat.lt_succ_self k))
+    have hpair := ih'.bind_pair_of_support (M₂ := M) hsum_nn (hε k (Nat.lt_succ_self k))
       (fun history => history.length = k)
       (fun x _ hl => length_of_mem_support_adaptiveComposition M k x hl)
       (fun history hl => hl ▸ h history (hl.symm ▸ Nat.lt_succ_self k))
-    have hmap := hpair.map hα fun p => p.2 :: p.1
+    have hmap := hpair.map fun p => p.2 :: p.1
     rw [Finset.sum_range_succ]
     convert hmap using 2 with x
     rw [Privacy.adaptiveComposition_succ]
     simp only [monad_bind_eq_bind, monad_pure_eq_pure, PMF.map_bind, PMF.pure_map]
 
-/-- Products of local randomizers under `HammingAdjacent`: if each coordinate randomizer `M i` is
-`(α, ε)`-RDP against arbitrary changes of its own input, their independent product is `(α, ε)`-RDP
-for `HammingAdjacent`. -/
+/-- Products of local randomizers under `HammingAdjacent`: if `1 < α` and each coordinate
+randomizer `M i` is `(α, ε)`-RDP against arbitrary changes of its own input, their independent
+product is `(α, ε)`-RDP for `HammingAdjacent`. -/
 theorem pi {ι X Y : Type*} [Fintype ι] [Finite Y] {M : ι → X → PMF Y} {α ε : ℝ}
     (hα : 1 < α)
     (h : ∀ i, RenyiDifferentiallyPrivate (fun _ _ => True) (M i) α ε) :
     RenyiDifferentiallyPrivate HammingAdjacent
       (fun x => Probability.PMF.pi fun i => M i (x i)) α ε := by
   classical
-  intro x y hxy
+  refine ⟨hα, fun x y hxy => ?_⟩
   by_cases hxy_eq : x = y
   · subst hxy_eq
     simp
@@ -197,7 +202,7 @@ theorem pi {ι X Y : Type*} [Fintype ι] [Finite Y] {M : ι → X → PMF Y} {α
   simp only [Function.update_self, Function.update_idem] at hR
   dsimp only
   rw [hupdate, ← hL, ← hR]
-  exact ((h i).bind hα _) trivial
+  exact ((h i).bind _).2 trivial
 
 end Composition
 
@@ -207,17 +212,19 @@ section FromPureDP
 
 variable {D : Type u} {R : Type v} {Adj : D → D → Prop} {M : D → PMF R} {ε α : ℝ}
 
-/-- Any pure `(ε, 0)`-differentially private mechanism for a symmetric adjacency relation satisfies
+/-- Privacy-loss refinement for pure `(ε, 0)`-differential privacy: any `(ε, 0)`-differentially
+private mechanism for a symmetric adjacency relation satisfies
 `(α, ε tanh (ε / 2) + (α - 1) ε² / 2)`-Rényi differential privacy for all `1 < α`. -/
 theorem DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh
     (hAdj : ∀ ⦃x y⦄, Adj x y → Adj y x) (hε : 0 ≤ ε) (hα : 1 < α)
     (h : DifferentiallyPrivate Adj M ε 0) :
     RenyiDifferentiallyPrivate Adj M α (ε * Real.tanh (ε / 2) + (α - 1) * ε ^ 2 / 2) :=
-  fun _ _ hxy => renyiDiv_le_of_le_mul hε hα
+  ⟨hα, fun _ _ hxy => renyiDiv_le_of_le_mul hε hα
     (DifferentiallyPrivate.iff_apply_le.mp h hxy)
-    (DifferentiallyPrivate.iff_apply_le.mp h (hAdj hxy))
+    (DifferentiallyPrivate.iff_apply_le.mp h (hAdj hxy))⟩
 
-/-- **Pure-DP to RDP conversion** [Mironov2017, Section V]: any pure `(ε, 0)`-differentially
+/-- **Pure-DP to RDP conversion** [BunSteinke2016, Proposition 3.3] (cited in
+[Mironov2017, Section V], where Lemma 1 proves `2 α ε²`): any pure `(ε, 0)`-differentially
 private mechanism for a symmetric adjacency relation satisfies `(α, α ε² / 2)`-Rényi differential
 privacy for all `1 < α`. -/
 theorem DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure

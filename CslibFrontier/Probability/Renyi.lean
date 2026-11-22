@@ -45,8 +45,6 @@ data-processing inequality under Markov kernels (`renyiMoment_bind_le`, `renyiDi
 
 ## Main results
 
-* `Cslib.Probability.tsum_tsub_le_renyiMoment`: Markov conversion from `renyiMoment` to truncated
-  excess.
 * `Cslib.Probability.renyiMoment_comp_of_injective`,
   `Cslib.Probability.renyiMoment_mul_prod`: reindexing and conditional product factorization of
   `renyiMoment`.
@@ -264,12 +262,28 @@ namespace PMF
 variable {X Y : Type*}
 
 /-- The Rényi divergence `D_α(p ‖ q) = log (renyiMoment α p q) / (α - 1)` of discrete
-distributions `p, q : PMF X`, valued in `ℝ≥0∞` (equal to `⊤` when `renyiMoment α p q = ⊤`)
-[Renyi1961; Mironov2017, Definition 3]. -/
-@[expose] noncomputable def renyiDiv (α : ℝ) (p q : PMF X) : ℝ≥0∞ :=
+distributions `p, q : PMF X` for orders `1 < α`, valued in `ℝ≥0∞` (equal to `⊤` when
+`renyiMoment α p q = ⊤`) [Renyi1961; Mironov2017, Definition 3].
+
+This finite-order formula applies to `1 < α`: at `α = 1`, `renyiMoment 1 p q = 1` and division by
+`α - 1 = 0` evaluates to `0` rather than the `α → 1` Kullback–Leibler limit
+(`InformationTheory.klDiv` in `CslibFrontier.Probability.RelativeEntropy`). -/
+noncomputable def renyiDiv (α : ℝ) (p q : PMF X) : ℝ≥0∞ :=
   open Classical in
   if renyiMoment α p q = ⊤ then ⊤
   else ENNReal.ofReal (Real.log (renyiMoment α p q).toReal / (α - 1))
+
+/-- `renyiDiv α p q` is infinite if and only if `renyiMoment α p q` is infinite. -/
+@[simp] theorem renyiDiv_eq_top_iff (α : ℝ) (p q : PMF X) :
+    renyiDiv α p q = ⊤ ↔ renyiMoment α p q = ⊤ := by
+  classical
+  simp [renyiDiv]
+
+/-- Value of `renyiDiv α p q` when `renyiMoment α p q ≠ ⊤`. -/
+theorem renyiDiv_of_ne_top {α : ℝ} {p q : PMF X} (h : renyiMoment α p q ≠ ⊤) :
+    renyiDiv α p q = ENNReal.ofReal (Real.log (renyiMoment α p q).toReal / (α - 1)) := by
+  classical
+  simp [renyiDiv, h]
 
 /-- **Nonnegativity of Rényi divergence** (moment form) [Mironov2017, Appendix A]: for `1 < α`
 and any `p, q : PMF X`, `1 ≤ renyiMoment α p q`. -/

@@ -134,6 +134,11 @@ Bengt Aspvall, Michael F. Plass and Robert Endre Tarjan. "A Linear-Time Algorith
 
 Hagit Attiya, Amotz Bar-Noy and Danny Dolev. "Sharing Memory Robustly in Message-Passing Systems." *Journal of the ACM* 42(1), 124–142, 1995. https://doi.org/10.1145/200836.200869 ; author PDF https://groups.csail.mit.edu/tds/papers/Attiya/JACM95.pdf . Inspected on 2026-11-22 UTC for §1 (p. 127, split-partition / message-suspension motivation for majority resilience), §2.1–2.2 (pp. 128–129, complete-network asynchronous crash-fault message passing and single-writer multi-reader atomic register specification), §3 (pp. 130–131, Lemma 3.1 majority-acknowledgment `communicate` primitive), §4 (pp. 131–134, Figure 2, Lemmas 4.3–4.6, Propositions 4.7–4.8 and Theorem 4.9 on p. 134: unbounded SWMR atomic register emulator tolerating `⌊(n - 1)/2⌋` processor failures using one `communicate` phase for writes, two `communicate` phases with read write-back for reads, `O(n)` messages and `O(1)` time per operation), and §7 (pp. 140–141, obtaining multi-writer multi-reader atomic registers by composition over the SWMR emulator; §§5–6 bounded-timestamp and dynamic-link emulators are not formalized). In [ABD/Basic.lean](../CslibFrontier/Computability/Distributed/ABD/Basic.lean), [ABD/Protocol.lean](../CslibFrontier/Computability/Distributed/ABD/Protocol.lean) and [ABD/Impossibility.lean](../CslibFrontier/Computability/Distributed/ABD/Impossibility.lean), the asynchronous envelope model (`Fair F` delivering eventually to recipients outside `F`, without §3's ping-pong channel discipline or message/time cost bounds) and linearizability specification support the independent `(n - t)`-cardinality quorum envelope MWMR `(seq, writer)` specialization `abdProtocol` (after [lynchshvartsman1997](#lynchshvartsman1997), §4.1–4.2) together with Lean's quantified `2 ≤ n ≤ 2t` partition impossibility (`not_implementsAtomicRegister_of_partition`, `not_implementsAtomicRegister`, motivated by §1, p. 127) and `n ≤ 1 ∨ 2t < n` resilience characterization (`exists_linearizableRegister_iff`).
 
+<a id="azuma67"></a>
+## azuma67
+
+Kazuoki Azuma. "Weighted Sums of Certain Dependent Random Variables." *Tôhoku Mathematical Journal* 19(3), 357–367, 1967. https://doi.org/10.2748/tmj/1178243286 . Bibliographic metadata checked via DOI/Project Euclid records on 2026-11-22; the 1967 journal scan was not directly retrieved, so internal theorem and page locators remain `unverified`, and the discrete sequential `PMF` exponential-moment and tail bounds in [Azuma.lean](../CslibFrontier/Probability/Azuma.lean) follow the centered MGF and martingale proof of [hoeffding63](#hoeffding63), Theorem 2 and eq. (2.18).
+
 <a id="babai86"></a>
 ## babai86
 
@@ -431,6 +436,11 @@ Dan Boneh and Victor Shoup. *A Graduate Course in Applied Cryptography*, version
 ## bt06
 
 Andrej Bogdanov and Luca Trevisan. *Average-Case Complexity*. Foundations and Trends in Theoretical Computer Science 2(1), 1–106, 2006. https://doi.org/10.1561/0400000004 ; arXiv:cs/0606037. Definition, lemma and theorem numbers (Definitions 1, 2, 6, 8–11 and 17, Proposition 7, Lemma 18, Theorem 19, Claim 20) were checked against the arXiv text on 2026-11-07.
+
+<a id="bunsteinke16"></a>
+## bunsteinke16
+
+Mark Bun and Thomas Steinke. "Concentrated Differential Privacy: Simplifications, Extensions, and Lower Bounds." *Theory of Cryptography (TCC 2016-B, Part I)*, Lecture Notes in Computer Science 9985, 635–658, Springer, 2016. https://doi.org/10.1007/978-3-662-53641-4_24 ; preprint arXiv:1605.02065v1, https://arxiv.org/abs/1605.02065v1 . Checked against the arXiv:1605.02065v1 LaTeX source (`main.tex`, SHA-256 `5bf5affdf21fa0b5fe2bdd6c1056220c58ceed1cf8ea18b3234eb271c9728dcc`) on 2026-11-22: §1.2.1 Proposition 1.4 (`prop:PDPtoCDP-intro`), §2 Definition of Rényi divergence `D_α(P ‖ Q)` and Lemma `lem:Renyi`, and §3.1 Proposition 3.3 (`prop:EpsSquared`: if `D_∞(P ‖ Q) ≤ ε` and `D_∞(Q ‖ P) ≤ ε`, then `D_α(P ‖ Q) ≤ α ε² / 2` for all `α > 1`). LNCS volume, page numbers, and DOI were taken from the bibliographic record.
 
 <a id="burnslynch1993"></a>
 ## burnslynch1993
@@ -1142,6 +1152,11 @@ David Heath, Vladimir Kolesnikov, Lucien K. L. Ng. “Garbled Circuit Lookup Tab
 
 John E. Hopcroft, Rajeev Motwani and Jeffrey D. Ullman. *Introduction to Automata Theory, Languages, and Computation*, third edition. Addison-Wesley, 2006. ISBN 0-321-45536-3. Cited for Section 7.4.4 ("Testing Membership in a CFL"), the CYK algorithm for grammars in Chomsky normal form. The section number and title were checked against secondary course material, not the printed book.
 
+<a id="hoeffding63"></a>
+## hoeffding63
+
+Wassily Hoeffding. "Probability Inequalities for Sums of Bounded Random Variables." *Journal of the American Statistical Association* 58(301), 13–30, March 1963. https://doi.org/10.1080/01621459.1963.10500830 . Checked against the JSTOR PDF (`hoefding.pdf`, SHA-256 `3021bcc097ef23a99a84d0eef8dcce2fd835c71df79a105727d3e03f8f0b8930`, 19 pages, printed pp. 13–30) on 2026-11-22: §2 Theorem 2, eq. (2.6) on printed p. 16 (PDF p. 5, `Pr{X̄ - μ ≥ t} ≤ exp (-2 n² t² / ∑_{i=1}^n (b_i - a_i)²)` for `a_i ≤ X_i ≤ b_i` and `t > 0`), the martingale extension on printed p. 18, eq. (2.18) (PDF p. 7, noting Theorems 1 and 2 remain true when `S'_m = S_m - E S_m` is a martingale), and §4 Lemma 1 and eqs. (4.11)–(4.17) on printed pp. 21–23 (PDF pp. 10–12, centered MGF bound `E e^{h(X_i - μ_i)} ≤ e^{h² (b_i - a_i)² / 8}` and optimization at `h = 4 n t / ∑ (b_i - a_i)²`).
+
 <a id="holenstein05"></a>
 ## holenstein05
 
@@ -1717,7 +1732,7 @@ Maurice Mignotte. "Some Useful Bounds." In Bruno Buchberger, George E. Collins a
 <a id="mironov17"></a>
 ## mironov17
 
-Ilya Mironov. "Rényi Differential Privacy." *2017 IEEE 30th Computer Security Foundations Symposium (CSF)*, 263–275, IEEE, 2017. https://doi.org/10.1109/CSF.2017.11 ; preprint arXiv:1702.07476v3, https://arxiv.org/abs/1702.07476v3 . Checked against the arXiv:1702.07476v3 LaTeX source (`renyi.tex`, SHA-256 `3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef`) on 2026-11-22: Definitions 1–2 (pure and approximate differential privacy), Definition 3 (Section III, Rényi divergence `D_α(P ‖ Q)` of order `α > 1` in natural logarithms), Definition 4 (Section III, `(α, ε)`-Rényi differential privacy), Section III "Post-processing" (`D_α(g(P) ‖ g(Q)) ≤ D_α(P ‖ Q)`), Proposition 1 (Section III, adaptive sequential composition), Proposition 3 (Section IV, conversion from `(α, ε)`-RDP to `(ε + log(1/δ)/(α - 1), δ)`-DP), Lemma 1 and the Bun–Steinke remark following it (Section V, pure-DP to RDP conversion), Proposition 5 (Section VI-A, randomized response), and Appendix A (nonnegativity `0 ≤ D_α(P ‖ Q)`). IEEE CSF page numbers and DOI were taken from the bibliographic record.
+Ilya Mironov. "Rényi Differential Privacy." *2017 IEEE 30th Computer Security Foundations Symposium (CSF)*, 263–275, IEEE, 2017. https://doi.org/10.1109/CSF.2017.11 ; preprint arXiv:1702.07476v3, https://arxiv.org/abs/1702.07476v3 . Checked against the arXiv:1702.07476v3 LaTeX source (`renyi.tex`, SHA-256 `3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef`) on 2026-11-22: Definitions 1–2 (pure and approximate differential privacy), Definition 3 (Section III, Rényi divergence `D_α(P ‖ Q)` of order `α > 1` in natural logarithms, with `α = 1` defined by the KL limit), Definition 4 (Section III, `(α, ε)`-Rényi differential privacy), Section III "Post-processing" (`D_α(g(P) ‖ g(Q)) ≤ D_α(P ‖ Q)`), Proposition 1 (Section III, adaptive sequential composition), Proposition 3 (Section IV, conversion from `(α, ε)`-RDP to `(ε + log(1/δ)/(α - 1), δ)`-DP), Section V Lemma 1 (`2 α ε²`, citing [bunsteinke16](#bunsteinke16), Proposition 3.3 for the sharp `α ε² / 2` bound), Proposition 5 (Section VI-A, randomized response), and Appendix A (nonnegativity `0 ≤ D_α(P ‖ Q)`). IEEE CSF page numbers and DOI were taken from the bibliographic record.
 
 <a id="mirsky1971"></a>
 ## mirsky1971

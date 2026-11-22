@@ -7,13 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-public import CslibFrontier.MachineLearning.Replicable.BiasEstimation
-public import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
-public import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
-public import CslibFrontier.Probability.Azuma
-public import CslibFrontier.Probability.PMF.Coin
-public import CslibFrontier.Probability.Renyi
-public import CslibFrontier.Probability.StochasticDomination.Adapted
+import CslibFrontier.MachineLearning.Replicable.BiasEstimation
+import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
+import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
+import CslibFrontier.Probability.Azuma
+import CslibFrontier.Probability.PMF.Coin
+import CslibFrontier.Probability.Renyi
+import CslibFrontier.Probability.StochasticDomination.Adapted
 import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.FinCases
@@ -31,14 +31,15 @@ Concrete checked instances for:
    switches between `{-1, 3}` and `{-2, 2}` depending on the sign of the current cumulative sum,
    plus `seqCount_ge_le` / `seqCount_le_le` and infinite-domain `boundedMean_concentrates`.
 2. `Cslib.Probability.renyiMoment` and `Cslib.Probability.PMF.renyiDiv`: exact order-`2` value
-   `log (7 / 3)` on Bernoulli `(3 / 4, 1 / 4)` vs `(1 / 4, 3 / 4)`, off-support `⊤` behavior,
-   data processing (`renyiDiv_bind_le`, `renyiDiv_map_le`), adaptive two-stage composition
-   (`renyiDiv_bind_pair_le`), `hockeyStick_le_of_renyiDiv_le` conversion, and
-   `Cslib.Privacy.RenyiDifferentiallyPrivate` on `randomizedResponse` and
+   `log (7 / 3)` on Bernoulli `(3 / 4, 1 / 4)` vs `(1 / 4, 3 / 4)` via `renyiDiv_of_ne_top`,
+   off-support `⊤` behavior via `renyiDiv_eq_top_iff`, data processing (`renyiDiv_bind_le`,
+   `renyiDiv_map_le`), adaptive two-stage composition (`renyiDiv_bind_pair_le`),
+   `hockeyStick_le_of_renyiDiv_le` conversion, order boundary `¬ RenyiDifferentiallyPrivate … 1 ε`
+   on `PMF.pure`, and `Cslib.Privacy.RenyiDifferentiallyPrivate` on `randomizedResponse` and
    `randomizedResponseSurvey`.
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.ProbAzumaRenyi
 
@@ -47,30 +48,22 @@ open scoped BigOperators ENNReal
 
 /-! ### 1. Stateful adaptive walk on `ℤ` (`Probability.Azuma`) -/
 
-/-- Biased probability `1 / 4` in `[0, 1]`. -/
-noncomputable def quarterProb : unitInterval := ⟨1 / 4, by norm_num, by norm_num⟩
+private noncomputable def quarterProb : unitInterval := ⟨1 / 4, by norm_num, by norm_num⟩
 
-/-- Fair probability `1 / 2` in `[0, 1]`. -/
-noncomputable def halfProb : unitInterval := ⟨1 / 2, by norm_num, by norm_num⟩
+private noncomputable def halfProb : unitInterval := ⟨1 / 2, by norm_num, by norm_num⟩
 
-/-- Biased probability `3 / 4` in `[0, 1]`. -/
-noncomputable def threeQuarterProb : unitInterval := ⟨3 / 4, by norm_num, by norm_num⟩
+private noncomputable def threeQuarterProb : unitInterval := ⟨3 / 4, by norm_num, by norm_num⟩
 
-/-- Asymmetric zero-mean step on `{-1, 3} ⊂ ℤ` (`P(3) = 1/4`, `P(-1) = 3/4`, width `4`). -/
-noncomputable def asymStep : PMF ℤ :=
+private noncomputable def asymStep : PMF ℤ :=
   (coin quarterProb).map fun b => if b then 3 else -1
 
-/-- Symmetric zero-mean step on `{-2, 2} ⊂ ℤ` (`P(2) = 1/2`, `P(-2) = 1/2`, width `4`). -/
-noncomputable def symStep : PMF ℤ :=
+private noncomputable def symStep : PMF ℤ :=
   (coin halfProb).map fun b => if b then 2 else -2
 
-/-- Stateful adaptive transition kernel on `ℤ`: chooses `asymStep` when the running sum of the
-prefix `h : Fin t → ℤ` is nonnegative and `symStep` when the running sum is negative. -/
-noncomputable def adaptiveWalkStep (t : ℕ) (h : Fin t → ℤ) : PMF ℤ :=
+private noncomputable def adaptiveWalkStep (t : ℕ) (h : Fin t → ℤ) : PMF ℤ :=
   if 0 ≤ ∑ j : Fin t, h j then asymStep else symStep
 
-/-- Cumulative real position of a trajectory `h : Fin k → ℤ`. -/
-def walkPos (k : ℕ) (h : Fin k → ℤ) : ℝ :=
+private def walkPos (k : ℕ) (h : Fin k → ℤ) : ℝ :=
   ∑ j : Fin k, (h j : ℝ)
 
 private theorem asymStep_apply (z : ℤ) :
@@ -157,11 +150,11 @@ private theorem adaptiveWalk_range (k : ℕ) (h : Fin k → ℤ) :
     cases b <;> simp only [↓reduceIte, Bool.false_eq_true] <;> constructor <;> push_cast <;>
       linarith
 
-/-- Explicit trajectory masses showing `seqProcess adaptiveWalkStep 2` is genuinely stateful
+/- Explicit trajectory masses showing `seqProcess adaptiveWalkStep 2` is genuinely stateful
 (`![3, -1]` stays in `asymStep` with mass `(1/4)*(3/4) = 3/16`, whereas `![-1, 2]` switches to
 `symStep` at step `1` with mass `(3/4)*(1/2) = 3/8`), together with MGF and Azuma–Hoeffding tail
 bounds over `8` adaptive steps on `ℤ`. -/
-theorem adaptiveWalk_azuma_check :
+example :
     seqProcess adaptiveWalkStep 2 ![3, -1] = 3 / 16 ∧
       seqProcess adaptiveWalkStep 2 ![-1, 2] = 3 / 8 ∧
       (∑' h : Fin 8 → ℤ, seqProcess adaptiveWalkStep 8 h *
@@ -221,11 +214,10 @@ theorem adaptiveWalk_azuma_check :
     hle.trans_eq (congrArg Real.exp (by norm_num)),
     habs.trans_eq (by congr 2; norm_num)⟩
 
-/-- Sequential Azuma event-count tails (`seqCount_ge_le`, `seqCount_le_le`) on `adaptiveWalkStep`
-for the event `{z | 0 < z}` (whose conditional probability is `1 / 4` under `asymStep` and `1 / 2`
-under `symStep`, hence always in `[1 / 4, 1 / 2]`), plus infinite-domain
-`MachineLearning.Replicable.boundedMean_concentrates` on `PMF ℤ`. -/
-theorem seqCount_and_infinite_domain_mean_check :
+/- Sequential Azuma event-count tails (`seqCount_ge_le`, `seqCount_le_le`) on `adaptiveWalkStep`
+for `{z | 0 < z}`, plus infinite-domain `MachineLearning.Replicable.boundedMean_concentrates` on
+`PMF ℤ`. -/
+example :
     (((seqProcess adaptiveWalkStep 8).toOuterMeasure
       {h | 6 ≤ (seqCount (fun _ _ => {z : ℤ | 0 < z}) 8 h : ℝ)}).toReal ≤ Real.exp (-1)) ∧
     (((seqProcess adaptiveWalkStep 8).toOuterMeasure
@@ -279,9 +271,7 @@ theorem seqCount_and_infinite_domain_mean_check :
 
 /-! ### 2. Rényi divergence & Rényi differential privacy (`Probability.Renyi`, `Privacy.Renyi`) -/
 
-/-- Exact order-`2` Rényi moment `7 / 3` and Rényi divergence `log (7 / 3)` between `coin (3 / 4)`
-and `coin (1 / 4)`, together with off-support `renyiDiv 2 (pure true) (pure false) = ⊤`. -/
-theorem renyiDiv_bernoulli_exact_and_off_support :
+private theorem renyiDiv_bernoulli_exact_and_off_support :
     renyiMoment 2 (coin threeQuarterProb) (coin quarterProb) = 7 / 3 ∧
       renyiDiv 2 (coin threeQuarterProb) (coin quarterProb) =
         ENNReal.ofReal (Real.log (7 / 3)) ∧
@@ -295,20 +285,23 @@ theorem renyiDiv_bernoulli_exact_and_off_support :
   have hdiv : renyiDiv 2 (coin threeQuarterProb) (coin quarterProb) =
       ENNReal.ofReal (Real.log (7 / 3)) := by
     have h73 : (7 / 3 : ℝ≥0∞) ≠ ⊤ := ENNReal.div_ne_top (by norm_num) (by norm_num)
-    simp only [renyiDiv, hmom, h73, ↓reduceIte]
+    rw [renyiDiv_of_ne_top (hmom.trans_ne h73), hmom]
     have htr : ((7 / 3 : ℝ≥0∞)).toReal = 7 / 3 := by norm_num
     rw [htr, show (2 : ℝ) - 1 = 1 by norm_num, div_one]
   have htop : renyiDiv 2 (_root_.PMF.pure true) (_root_.PMF.pure false) = ⊤ := by
-    have hmom_top : renyiMoment 2 (_root_.PMF.pure true) (_root_.PMF.pure false) = ⊤ := by
-      rw [renyiMoment, tsum_fintype, Fintype.sum_bool, show (2 : ℝ) - 1 = 1 by norm_num]
-      simp
-    simp [renyiDiv, hmom_top]
+    rw [renyiDiv_eq_top_iff, renyiMoment, tsum_fintype, Fintype.sum_bool,
+      show (2 : ℝ) - 1 = 1 by norm_num]
+    simp
   exact ⟨hmom, hdiv, htop⟩
 
-/-- Data processing (`renyiDiv_bind_le`, `renyiDiv_map_le`), adaptive two-stage composition
-(`renyiDiv_bind_pair_le`), and Rényi-to-`hockeyStick` conversion (`hockeyStick_le_of_renyiDiv_le`)
-on Bernoulli distributions at `α = 2`. -/
-theorem renyiDiv_data_processing_composition_and_hockeyStick :
+example :
+    renyiMoment 2 (coin threeQuarterProb) (coin quarterProb) = 7 / 3 ∧
+      renyiDiv 2 (coin threeQuarterProb) (coin quarterProb) =
+        ENNReal.ofReal (Real.log (7 / 3)) ∧
+      renyiDiv 2 (_root_.PMF.pure true) (_root_.PMF.pure false) = ⊤ := by
+  exact renyiDiv_bernoulli_exact_and_off_support
+
+example :
     (∀ K : Bool → PMF ℕ,
       renyiDiv 2 ((coin threeQuarterProb).bind K) ((coin quarterProb).bind K) ≤
         ENNReal.ofReal (Real.log (7 / 3))) ∧
@@ -369,10 +362,26 @@ theorem renyiDiv_data_processing_composition_and_hockeyStick :
     have hd : ENNReal.ofReal (1 / 2 : ℝ) = 1 / 2 := by ennreal_to_real
     rwa [hc, hd] at hhs
 
-/-- `RenyiDifferentiallyPrivate` on `randomizedResponse` (`(2, log (7 / 3))`-RDP, strictly tighter
-than `(2, (log 3)²)` from generic pure-DP conversion), `n`-respondent `randomizedResponseSurvey`,
-`k`-round adaptive composition, and conversion to `(ε', δ)`-DP. -/
-theorem randomizedResponse_rdp_composition_and_dp_conversion (n k : ℕ) :
+/- Boundary check: `RenyiDifferentiallyPrivate` rejects orders `α ≤ 1` (in particular `α = 1`,
+where the finite-order ratio formula on `PMF.pure` would otherwise collapse to `0`), and rejects
+`PMF.pure` on adjacent distinct inputs at every order `1 < α`. -/
+example {α : ℝ} (hα : α ≤ 1) (ε : ℝ) :
+    ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True) _root_.PMF.pure α ε :=
+  fun h => not_lt_of_ge hα h.1
+
+example (ε : ℝ) :
+    ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True) _root_.PMF.pure 1 ε ∧
+      ∀ α : ℝ, 1 < α →
+        ¬ RenyiDifferentiallyPrivate (fun _ _ : Bool => True) _root_.PMF.pure α ε := by
+  refine ⟨fun h => lt_irrefl 1 h.1, fun α hα h => ?_⟩
+  have hle := h.2 (x := true) (y := false) trivial
+  have htop : renyiDiv α (_root_.PMF.pure true) (_root_.PMF.pure false) = ⊤ := by
+    rw [renyiDiv_eq_top_iff, renyiMoment, tsum_fintype, Fintype.sum_bool]
+    simp [ENNReal.top_rpow_of_pos (sub_pos.mpr hα)]
+  rw [htop, top_le_iff] at hle
+  exact ENNReal.ofReal_ne_top hle
+
+example (n k : ℕ) :
     RenyiDifferentiallyPrivate (fun _ _ => True)
       (fun b => ProbComp.eval (randomizedResponse b)) 2 (Real.log (7 / 3)) ∧
     RenyiDifferentiallyPrivate HammingAdjacent
@@ -409,7 +418,7 @@ theorem randomizedResponse_rdp_composition_and_dp_conversion (n k : ℕ) :
       (Privacy.adaptiveComposition
         (fun (_ : List Bool) b => ProbComp.eval (randomizedResponse b)) k)
       (k * Real.log (7 / 3) + Real.log 8) (1 / 8) := by
-    have h := hrdp_comp.differentiallyPrivate one_lt_two (mul_nonneg k.cast_nonneg hlog_nn)
+    have h := hrdp_comp.differentiallyPrivate (mul_nonneg k.cast_nonneg hlog_nn)
       (by norm_num : (0 : ℝ) < 1 / 8)
     have h18 : ENNReal.ofReal (1 / 8 : ℝ) = 1 / 8 := by ennreal_to_real
     rw [h18] at h
