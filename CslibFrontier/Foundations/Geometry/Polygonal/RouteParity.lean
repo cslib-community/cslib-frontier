@@ -137,8 +137,8 @@ theorem rayParity_closed_excursion (c p : Route) (hjoin : c.finish = p.start)
     ((c.concat p).concat c.reverse).rayParity u z = p.rayParity u z := by
   have hreturn : (c.concat p).finish = c.reverse.start := by
     change (c.concat p).endpoint true = c.reverse.endpoint false
-    simpa only [endpoint_concat c p hjoin, endpoint_reverse, Bool.not_false, ↓reduceIte]
-      using hclosed.trans hjoin.symm
+    rw [endpoint_concat c p hjoin, endpoint_reverse]
+    simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
   rw [rayParity_concat (c.concat p) c.reverse hreturn, rayParity_concat c p hjoin,
     rayParity_reverse]
   calc
