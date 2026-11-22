@@ -20,17 +20,17 @@ Exercises across the `module` boundary:
    covers across `COPY`, `XOR`, and `U₂`, and the `2 < 3 < 4` rank separation on `AND → XOR`.
 2. `Basis.U2`: `SimpleGraph.exists_isMatching_mul_eight_ge` on `K₄` (`⊤ : SimpleGraph (Fin 4)`),
    `Boolean.DeMorgan.isU2`, and `Boolean.isU2`.
-3. `Layouts.Gaussian.CostLambda`: strict numerical improvement `4.57597 < 4.6362` (`< 4.6754 <
-   4.6871`), `u2CubicPairBound_gaussian`, and unconditional `4.6362 n` worst-case, nondeterministic,
-   and average-case `U₂` / De Morgan / Boolean lower bounds.
-4. `Correlation.RealRank`: `rank_signMatrix < rank_charMatrix < nonnegRank` on `andXorSet`,
+3. `Layouts.Gaussian.CostLambda`: strict numerical improvement `4.57597 < 4.6362`,
+   `u2CubicPairBound_gaussian`, and unconditional `4.6362 n` worst-case, nondeterministic, and
+   average-case `U₂` / De Morgan / Boolean lower bounds.
+4. `Correlation.RealRank`: `rank_signMatrix < rank_communicationMatrix < nonnegRank` on `andXorSet`,
    `sq_correlation_quadForm_mul_le_rank_signMatrix`, and unconditional `2.8006 n` `U₂` correlation
    bounds (`2.78798 < 2.8006`).
 -/
 
 set_option linter.privateModule false
 
-open Cslib.Circuits Cslib.Circuits.Frontier Matrix Real Filter Asymptotics
+open Cslib Cslib.Circuits Cslib.Circuits.Frontier Matrix Real Filter Asymptotics
 
 namespace CslibFrontierTests.FrontierU2Matched
 
@@ -53,11 +53,11 @@ example : Basis.HasUnambiguousRectangles
       (Basis.andTypeRel true false true 0)) 3 :=
   Basis.hasUnambiguousRectangles_u2 (.gate false false false) (.gate true false true 0)
 
-example : (Basis.signIndicator ℝ Basis.andXorMatrix).rank = 2 ∧
-    (Basis.boolIndicator ℝ Basis.andXorMatrix).rank = 3 ∧
-    (Basis.boolIndicator (ZMod 2) Basis.andXorMatrix).rank = 3 ∧
-    (Basis.boolIndicator ℝ Basis.andXorMatrix).nonnegRank = 4 :=
-  ⟨Basis.rank_signIndicator_andXorMatrix_real,
+example : (Communication.signMatrix ℝ Basis.andXorMatrix).rank = 2 ∧
+    (Communication.communicationMatrix ℝ Basis.andXorMatrix).rank = 3 ∧
+    (Communication.communicationMatrix (ZMod 2) Basis.andXorMatrix).rank = 3 ∧
+    (Communication.communicationMatrix ℝ Basis.andXorMatrix).nonnegRank = 4 :=
+  ⟨Basis.rank_signMatrix_andXorMatrix_real,
     Basis.rank_andXorMatrix_real,
     Basis.rank_andXorMatrix_zmod2,
     Basis.nonnegRank_andXorMatrix_real⟩
@@ -98,18 +98,9 @@ example : (46362 / 10000 : ℝ) ≤
         ((7 / 8) * (271212 / 1000000) + (1 / 8) * (2 * Gaussian.gaussianCoefficient)) ∧
     (28007 / 10000 : ℝ) ≤
       1 + (1 / 2 - (2 * Gaussian.gaussianCoefficient - 271212 / 1000000)) /
-        ((7 / 8) * (271212 / 1000000) + (1 / 8) * (2 * Gaussian.gaussianCoefficient)) ∧
-    (46871 / 10000 : ℝ) ≤ 1 + 1 / (271212 / 1000000 : ℝ) ∧
-    (46754 / 10000 : ℝ) ≤
-      1 + (1 - (2 * Gaussian.gaussianCoefficient - 271212 / 1000000) / 3) / (271212 / 1000000) ∧
-    (28318 / 10000 : ℝ) ≤
-      1 + (1 / 2 - (2 * Gaussian.gaussianCoefficient - 271212 / 1000000) / 3) /
-        (271212 / 1000000) :=
+        ((7 / 8) * (271212 / 1000000) + (1 / 8) * (2 * Gaussian.gaussianCoefficient)) :=
   ⟨Gaussian.u2CircuitCoefficient_ge_46362,
-    Gaussian.u2CorrelationThreshold_ge_28007,
-    Gaussian.u2CleanCircuitCoefficient_ge_46871,
-    Gaussian.u2EdmondsCircuitCoefficient_ge_46754,
-    Gaussian.u2EdmondsCorrelationThreshold_ge_28318⟩
+    Gaussian.u2CorrelationThreshold_ge_28007⟩
 
 example {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} (hSK : DenseRectangleFree S K) :
     ∀ᶠ n in atTop, ∀ (k : ℕ) (Acc : Set Bool)
@@ -143,9 +134,13 @@ example {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} {b : ℕ → ℝ}
 /-! ### 4. `RealRank`: `2 < 3 < 4` separation and `2.8006 n` `U₂` correlation -/
 
 open Classical in
-example : (signMatrix andXorSet andXorCut).rank < (charMatrix andXorSet andXorCut).rank ∧
-    ((charMatrix andXorSet andXorCut).rank : ℕ∞) < (charMatrix andXorSet andXorCut).nonnegRank := by
-  rw [rank_signMatrix_andXorSet, rank_charMatrix_andXorSet, nonnegRank_charMatrix_andXorSet]
+example :
+    (Communication.signMatrix ℝ (cutFun andXorSet andXorCut)).rank <
+      (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).rank ∧
+    ((Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).rank : ℕ∞) <
+      (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).nonnegRank := by
+  rw [rank_signMatrix_andXorSet, rank_communicationMatrix_andXorSet,
+    nonnegRank_communicationMatrix_andXorSet]
   norm_num
 
 open Classical in

@@ -254,89 +254,78 @@ theorem patch_union {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
     · exact gateSatisfies_congr hβ₂_touch₁ hβ₁_sat v hv₁
     · exact hβ₂_sat v hv₂
 
+private theorem cleanWire_merge_wire_step {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
+    {S₁ S₂ : Set (Vertex c)} (hd : Disjoint S₁ S₂) {f : Edge c}
+    (hint : (graph c).edgeCut S₁ ∩ (graph c).edgeCut S₂ = {f})
+    {a₁ b₁ a₂ b₂ : Edge c} {neg₁ neg₂ : Bool}
+    (hcl₁ : ∀ v ∈ S₁, IsCleanVertex v) (hne₁ : a₁ ≠ b₁)
+    (hcut₁ : (graph c).edgeCut S₁ = {a₁, b₁}) (hsrc₁ : src b₁ ∈ S₁)
+    (hsd₁ : ∀ α, GateSatisfies I S₁ α → α b₁ = (α a₁ ^^ neg₁))
+    (hrl₁ : ∀ α, α b₁ = (α a₁ ^^ neg₁) → ∃ β, EqOn β α (internalEdges c S₁)ᶜ ∧
+      GateSatisfies I S₁ β)
+    (hcl₂ : ∀ v ∈ S₂, IsCleanVertex v) (hne₂ : a₂ ≠ b₂)
+    (hcut₂ : (graph c).edgeCut S₂ = {a₂, b₂}) (htgt₂ : tgt a₂ ∈ S₂)
+    (hsd₂ : ∀ α, GateSatisfies I S₂ α → α b₂ = (α a₂ ^^ neg₂))
+    (hrl₂ : ∀ α, α b₂ = (α a₂ ^^ neg₂) → ∃ β, EqOn β α (internalEdges c S₂)ᶜ ∧
+      GateSatisfies I S₂ β)
+    (hfa₁ : f = a₁) (hfb₂ : f = b₂) :
+    CleanWire I (S₁ ∪ S₂) := by
+  classical
+  obtain ⟨hc_union, _⟩ := edgeCut_union_of_inter_singleton hd hint
+  have hcl_u : ∀ v ∈ S₁ ∪ S₂, IsCleanVertex v := fun v hv => hv.elim (hcl₁ v) (hcl₂ v)
+  have ha₂_ne_b₁ : a₂ ≠ b₁ := fun h => by
+    have : a₂ ∈ (graph c).edgeCut S₁ ∩ (graph c).edgeCut S₂ :=
+      ⟨by rw [hcut₁, h]; simp, by rw [hcut₂]; simp⟩
+    rw [hint, mem_singleton_iff, hfb₂] at this
+    exact hne₂ this
+  have hs₁ : (graph c).edgeCut S₁ \ {f} = {b₁} := by
+    rw [hcut₁, hfa₁]; ext e; simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
+    exact ⟨fun ⟨h, hne⟩ => h.resolve_left hne, fun h => ⟨Or.inr h, h ▸ hne₁.symm⟩⟩
+  have hs₂ : (graph c).edgeCut S₂ \ {f} = {a₂} := by
+    rw [hcut₂, hfb₂]; ext e; simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
+    exact ⟨fun ⟨h, hne⟩ => h.resolve_right hne, fun h => ⟨Or.inl h, h ▸ hne₂⟩⟩
+  refine ⟨a₂, b₁, neg₂ ^^ neg₁, hcl_u, ha₂_ne_b₁, ?_, Or.inr htgt₂, Or.inl hsrc₁, ?_, ?_⟩
+  · rw [hc_union, hs₁, hs₂]; ext e; simp [or_comm]
+  · intro α hsat
+    have h1' := hsd₁ α fun v hv => hsat v (Or.inl hv)
+    have h2' := hsd₂ α fun v hv => hsat v (Or.inr hv)
+    rw [h1', ← hfa₁, hfb₂, h2', Bool.xor_assoc]
+  · intro α hα
+    let α₀ : Edge c → Bool := fun e => if e = f then (α a₂ ^^ neg₂) else α e
+    refine patch_union hd hint α α₀ (fun e hne => ite_eq_right hne) ?_ ?_
+    · refine hrl₁ α₀ ?_
+      have hb₁_eq : α₀ b₁ = α b₁ := ite_eq_right (hfa₁ ▸ hne₁.symm)
+      have ha₁_eq : α₀ a₁ = (α a₂ ^^ neg₂) := ite_eq_left hfa₁.symm
+      rw [hb₁_eq, ha₁_eq, hα, Bool.xor_assoc]
+    · intro β₁ hβ₁
+      refine hrl₂ β₁ ?_
+      have hb₂ : β₁ b₂ = (α a₂ ^^ neg₂) :=
+        (hβ₁ (by rw [hcut₂]; simp)).trans (ite_eq_left hfb₂.symm)
+      have ha₂ : β₁ a₂ = α a₂ :=
+        (hβ₁ (by rw [hcut₂]; simp)).trans (ite_eq_right (hfb₂ ▸ hne₂))
+      rw [hb₂, ha₂]
+
 private theorem cleanWire_merge_wire {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
     {S₁ S₂ : Set (Vertex c)} (hd : Disjoint S₁ S₂)
     (hw₁ : CleanWire I S₁) (hw₂ : CleanWire I S₂)
     (h1 : ((graph c).edgeCut S₁ ∩ (graph c).edgeCut S₂).ncard = 1) :
     CleanWire I (S₁ ∪ S₂) := by
-  classical
   obtain ⟨f, hint⟩ := ncard_eq_one.mp h1
-  obtain ⟨hc_union, _⟩ := edgeCut_union_of_inter_singleton hd hint
-  obtain ⟨a₁, b₁, neg₁, hcl₁, hne₁, hcut₁, htgt₁, hsrc₁, hsd₁, hrl₁⟩ := hw₁
-  obtain ⟨a₂, b₂, neg₂, hcl₂, hne₂, hcut₂, htgt₂, hsrc₂, hsd₂, hrl₂⟩ := hw₂
+  rcases hw₁ with ⟨a₁, b₁, neg₁, hcl₁, hne₁, hcut₁, htgt₁, hsrc₁, hsd₁, hrl₁⟩
+  rcases hw₂ with ⟨a₂, b₂, neg₂, hcl₂, hne₂, hcut₂, htgt₂, hsrc₂, hsd₂, hrl₂⟩
   have hf₁ : f = a₁ ∨ f = b₁ := by
     have : f ∈ (graph c).edgeCut S₁ := (hint.symm ▸ mem_singleton f).1
     simpa [hcut₁] using this
   have hf₂ : f = a₂ ∨ f = b₂ := by
     have : f ∈ (graph c).edgeCut S₂ := (hint.symm ▸ mem_singleton f).2
     simpa [hcut₂] using this
-  have hcl_u : ∀ v ∈ S₁ ∪ S₂, IsCleanVertex v := fun v hv => hv.elim (hcl₁ v) (hcl₂ v)
   rcases hf₁ with hfa₁ | hfb₁ <;> rcases hf₂ with hfa₂ | hfb₂
   · exact (disjoint_left.mp hd (hfa₁ ▸ htgt₁) (hfa₂ ▸ htgt₂)).elim
-  · -- `f = a₁ = b₂`: `S₂` feeds `S₁` (`a₂ → f → b₁`)
-    have ha₂_ne_b₁ : a₂ ≠ b₁ := fun h => by
-      have : a₂ ∈ (graph c).edgeCut S₁ ∩ (graph c).edgeCut S₂ :=
-        ⟨by rw [hcut₁, h]; simp, by rw [hcut₂]; simp⟩
-      rw [hint, mem_singleton_iff, hfb₂] at this
-      exact hne₂ this
-    have hs₁ : (graph c).edgeCut S₁ \ {f} = {b₁} := by
-      rw [hcut₁, hfa₁]; ext e; simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
-      exact ⟨fun ⟨h, hne⟩ => h.resolve_left hne, fun h => ⟨Or.inr h, h ▸ hne₁.symm⟩⟩
-    have hs₂ : (graph c).edgeCut S₂ \ {f} = {a₂} := by
-      rw [hcut₂, hfb₂]; ext e; simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
-      exact ⟨fun ⟨h, hne⟩ => h.resolve_right hne, fun h => ⟨Or.inl h, h ▸ hne₂⟩⟩
-    refine ⟨a₂, b₁, neg₂ ^^ neg₁, hcl_u, ha₂_ne_b₁, ?_, Or.inr htgt₂, Or.inl hsrc₁, ?_, ?_⟩
-    · rw [hc_union, hs₁, hs₂]; ext e; simp [or_comm]
-    · intro α hsat
-      have h1' := hsd₁ α fun v hv => hsat v (Or.inl hv)
-      have h2' := hsd₂ α fun v hv => hsat v (Or.inr hv)
-      rw [h1', ← hfa₁, hfb₂, h2', Bool.xor_assoc]
-    · intro α hα
-      let α₀ : Edge c → Bool := fun e => if e = f then (α a₂ ^^ neg₂) else α e
-      refine patch_union hd hint α α₀ (fun e hne => ite_eq_right hne) ?_ ?_
-      · refine hrl₁ α₀ ?_
-        have hb₁_eq : α₀ b₁ = α b₁ := ite_eq_right (hfa₁ ▸ hne₁.symm)
-        have ha₁_eq : α₀ a₁ = (α a₂ ^^ neg₂) := ite_eq_left hfa₁.symm
-        rw [hb₁_eq, ha₁_eq, hα, Bool.xor_assoc]
-      · intro β₁ hβ₁
-        refine hrl₂ β₁ ?_
-        have hb₂ : β₁ b₂ = (α a₂ ^^ neg₂) :=
-          (hβ₁ (by rw [hcut₂]; simp)).trans (ite_eq_left hfb₂.symm)
-        have ha₂ : β₁ a₂ = α a₂ :=
-          (hβ₁ (by rw [hcut₂]; simp)).trans (ite_eq_right (hfb₂ ▸ hne₂))
-        rw [hb₂, ha₂]
-  · -- `f = b₁ = a₂`: `S₁` feeds `S₂` (`a₁ → f → b₂`)
-    have ha₁_ne_b₂ : a₁ ≠ b₂ := fun h => by
-      have : a₁ ∈ (graph c).edgeCut S₁ ∩ (graph c).edgeCut S₂ :=
-        ⟨by rw [hcut₁]; simp, by rw [hcut₂, h]; simp⟩
-      rw [hint, mem_singleton_iff, hfb₁] at this
-      exact hne₁ this
-    have hs₁ : (graph c).edgeCut S₁ \ {f} = {a₁} := by
-      rw [hcut₁, hfb₁]; ext e; simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
-      exact ⟨fun ⟨h, hne⟩ => h.resolve_right hne, fun h => ⟨Or.inl h, h ▸ hne₁⟩⟩
-    have hs₂ : (graph c).edgeCut S₂ \ {f} = {b₂} := by
-      rw [hcut₂, hfa₂]; ext e; simp only [mem_sdiff, mem_insert_iff, mem_singleton_iff]
-      exact ⟨fun ⟨h, hne⟩ => h.resolve_left hne, fun h => ⟨Or.inr h, h ▸ hne₂.symm⟩⟩
-    refine ⟨a₁, b₂, neg₁ ^^ neg₂, hcl_u, ha₁_ne_b₂, ?_, Or.inl htgt₁, Or.inr hsrc₂, ?_, ?_⟩
-    · rw [hc_union, hs₁, hs₂]; ext e; simp [or_comm]
-    · intro α hsat
-      have h1' := hsd₁ α fun v hv => hsat v (Or.inl hv)
-      have h2' := hsd₂ α fun v hv => hsat v (Or.inr hv)
-      rw [h2', ← hfa₂, hfb₁, h1', Bool.xor_assoc]
-    · intro α hα
-      let α₀ : Edge c → Bool := fun e => if e = f then (α a₁ ^^ neg₁) else α e
-      refine patch_union hd hint α α₀ (fun e hne => ite_eq_right hne) ?_ ?_
-      · refine hrl₁ α₀ ?_
-        have hb₁_eq : α₀ b₁ = (α a₁ ^^ neg₁) := ite_eq_left hfb₁.symm
-        have ha₁_eq : α₀ a₁ = α a₁ := ite_eq_right (hfb₁ ▸ hne₁)
-        rw [hb₁_eq, ha₁_eq]
-      · intro β₁ hβ₁
-        refine hrl₂ β₁ ?_
-        have ha₂ : β₁ a₂ = (α a₁ ^^ neg₁) :=
-          (hβ₁ (by rw [hcut₂]; simp)).trans (ite_eq_left hfa₂.symm)
-        have hb₂ : β₁ b₂ = α b₂ :=
-          (hβ₁ (by rw [hcut₂]; simp)).trans (ite_eq_right (hfa₂ ▸ hne₂.symm))
-        rw [hb₂, ha₂, hα, Bool.xor_assoc]
+  · exact cleanWire_merge_wire_step hd hint
+      hcl₁ hne₁ hcut₁ hsrc₁ hsd₁ hrl₁ hcl₂ hne₂ hcut₂ htgt₂ hsd₂ hrl₂ hfa₁ hfb₂
+  · rw [union_comm]
+    exact cleanWire_merge_wire_step hd.symm (by rwa [inter_comm])
+      hcl₂ hne₂ hcut₂ hsrc₂ hsd₂ hrl₂ hcl₁ hne₁ hcut₁ htgt₁ hsd₁ hrl₁ hfa₂ hfb₁
   · exact (disjoint_left.mp hd (hfb₁ ▸ hsrc₁) (hfb₂ ▸ hsrc₂)).elim
 
 private theorem cleanWire_merge_block3 {c : Circuit σ m_in m_out} {I : Interpretation σ Bool}
@@ -995,25 +984,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
   let Dfin : Finset (Vertex c) := Finset.univ.filter (IsDirtySingleton c I)
   set d₀ : ℕ := Dfin.card
   -- Initial singleton state.
-  let initCmp : (graph c).Compression 3 :=
-    { blocks := Finset.univ.image fun v => [v]
-      exists_mem := fun v => ⟨[v], Finset.mem_image_of_mem _ (Finset.mem_univ v),
-        List.mem_singleton_self v⟩
-      eq_of_mem := by simp
-      nodup := by simp
-      ne_nil := by simp
-      ncard_edgeCut_le := by
-        simp only [Finset.mem_image, Finset.mem_univ, true_and, forall_exists_index,
-          forall_apply_eq_imp_iff, List.mem_singleton]
-        intro v
-        refine (ncard_le_ncard fun e he => ?_).trans (hdeg v)
-        simp only [Multigraph.mem_edgeCut, mem_ofPred_eq] at he
-        rw [Multigraph.mem_incidenceSet]; tauto
-      ncard_edgeCut_take_le := by simp
-      card_le := by
-        rw [Finset.card_image_of_injective _ List.singleton_injective, Finset.card_univ,
-          Nat.card_eq_fintype_card]
-        exact Nat.le_add_right _ _ }
+  let initCmp : (graph c).Compression 3 := Multigraph.Compression.singletons hdeg
   let initDirty : Finset (List (Vertex c)) := Dfin.image fun v => [v]
   have hinit : U2CompressState c I d₀ :=
     { cmp := initCmp
@@ -1045,6 +1016,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
         have hc1 : initDirty.card = d₀ :=
           Finset.card_image_of_injective _ List.singleton_injective
         have hc2 : initCmp.blocks.card = Nat.card (Vertex c) := by
+          dsimp only [initCmp, Multigraph.Compression.singletons]
           rw [Finset.card_image_of_injective _ List.singleton_injective, Finset.card_univ,
             Nat.card_eq_fintype_card]
         rw [hc1, hc2]
@@ -1070,128 +1042,25 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
         · rwa [inter_comm]
         · rwa [union_comm]
     obtain ⟨B, B', hB, hB', hne, hlen, hjoin, hcut⟩ := hex_pair
-    have hd_mem (v : Vertex c) (hv : v ∈ B) : v ∉ B' :=
-      fun hv' => hne (st.cmp.eq_of_mem B hB B' hB' v hv hv')
     have hd_set : Disjoint {v : Vertex c | v ∈ B} {v : Vertex c | v ∈ B'} :=
-      disjoint_left.mpr hd_mem
-    have hrest (C : List (Vertex c)) (hC : C ∈ st.cmp.blocks) (hCB : C ≠ B) (hCB' : C ≠ B')
-        (v : Vertex c) (hv : v ∈ C) : v ∉ B ∧ v ∉ B' :=
-      ⟨fun h => hCB (st.cmp.eq_of_mem C hC B hB v hv h),
-        fun h => hCB' (st.cmp.eq_of_mem C hC B' hB' v hv h)⟩
-    let blocks' := insert (B ++ B') ((st.cmp.blocks.erase B).erase B')
+      disjoint_left.mpr fun v hv hv' => hne (st.cmp.eq_of_mem B hB B' hB' v hv hv')
+    let cmp' : (graph c).Compression 3 := st.cmp.merge hB hB' hne hlen hjoin hcut
+    let blocks' := cmp'.blocks
     have hmem {C : List (Vertex c)} : C ∈ blocks' ↔
         C = B ++ B' ∨ (C ≠ B' ∧ C ≠ B ∧ C ∈ st.cmp.blocks) := by
-      simp only [blocks', Finset.mem_insert, Finset.mem_erase]
-    have hsup (C : List (Vertex c)) (hC : C ∈ st.cmp.blocks) :
-        ∃ D ∈ blocks', ∀ v ∈ C, v ∈ D := by
-      by_cases h : C = B ∨ C = B'
-      · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
-        rcases h with rfl | rfl <;> intro v hv <;> simp [hv]
-      · rw [not_or] at h
-        exact ⟨C, hmem.mpr (Or.inr ⟨h.2, h.1, hC⟩), fun v hv => hv⟩
-    have hnot_app : B ++ B' ∉ st.cmp.blocks := by
-      intro hm
-      obtain ⟨v, hv⟩ := List.exists_mem_of_ne_nil B (st.cmp.ne_nil B hB)
-      have heq := st.cmp.eq_of_mem (B ++ B') hm B hB v (List.mem_append_left _ hv) hv
-      have hlen_eq := congrArg List.length heq
-      rw [List.length_append] at hlen_eq
-      have := List.length_pos_of_ne_nil (st.cmp.ne_nil B' hB')
-      omega
-    have hnot_er : B ++ B' ∉ (st.cmp.blocks.erase B).erase B' := by
-      intro hm; simp only [Finset.mem_erase] at hm; exact hnot_app hm.2.2
-    have hcard : blocks'.card + 1 = st.cmp.blocks.card := by
-      dsimp only [blocks']
-      rw [Finset.card_insert_of_notMem hnot_er, Finset.card_erase_of_mem
-        (Finset.mem_erase.mpr ⟨hne.symm, hB'⟩), Finset.card_erase_of_mem hB]
-      have := Finset.one_lt_card.mpr ⟨B, hB, B', hB', hne⟩
-      omega
+      simp only [blocks', cmp', Multigraph.Compression.blocks_merge, Finset.mem_insert,
+        Finset.mem_erase]
+    have hnot_app : B ++ B' ∉ st.cmp.blocks := st.cmp.notMem_blocks_append hB hB'
+    have hcard : blocks'.card + 1 = st.cmp.blocks.card :=
+      st.cmp.card_insert_append_erase_add_one hB hB' hne
     have happ (L L' : List (Vertex c)) : {v | v ∈ L ++ L'} = {v | v ∈ L} ∪ {v | v ∈ L'} :=
       Set.ext fun _ => List.mem_append
-    -- Internal edges increase by at least `m := |(edgeCut B ∩ edgeCut B')|`.
     set E_old : Set (Edge c) := {e | ∃ D ∈ st.cmp.blocks, src e ∈ D ∧ tgt e ∈ D}
     set E_join : Set (Edge c) := (graph c).edgeCut {v | v ∈ B} ∩ (graph c).edgeCut {v | v ∈ B'}
     set E_new : Set (Edge c) := {e | ∃ D ∈ blocks', src e ∈ D ∧ tgt e ∈ D}
-    have hsub_E : E_old ∪ E_join ⊆ E_new := by
-      rintro e (⟨C, hC, hs, ht⟩ | ⟨h1, h2⟩)
-      · obtain ⟨D, hD, hCD⟩ := hsup C hC
-        exact ⟨D, hD, hCD _ hs, hCD _ ht⟩
-      · refine ⟨B ++ B', Finset.mem_insert_self _ _, ?_⟩
-        have := hd_mem (src e)
-        have := hd_mem (tgt e)
-        simp only [Multigraph.mem_edgeCut, mem_ofPred_eq, graph_src, graph_tgt] at h1 h2
-        simp only [List.mem_append]
-        tauto
-    have hdisj_E : Disjoint E_old E_join := by
-      refine disjoint_left.mpr ?_
-      rintro e ⟨D, hD, hs, ht⟩ ⟨h1, h2⟩
-      have key (C : List (Vertex c)) (hC : C ∈ st.cmp.blocks)
-          (h : e ∈ (graph c).edgeCut {v | v ∈ C}) : D = C := by
-        simp only [Multigraph.mem_edgeCut, mem_ofPred_eq, graph_src, graph_tgt] at h
-        by_cases hs' : src e ∈ C
-        · exact st.cmp.eq_of_mem D hD C hC _ hs hs'
-        · exact st.cmp.eq_of_mem D hD C hC _ ht (by tauto)
-      exact hne ((key B hB h1).symm.trans (key B' hB' h2))
-    have hE_inc : E_old.ncard + E_join.ncard ≤ E_new.ncard := by
-      have := ncard_le_ncard hsub_E
-      rwa [ncard_union_eq hdisj_E] at this
+    have hE_inc : E_old.ncard + E_join.ncard ≤ E_new.ncard :=
+      st.cmp.ncard_internal_add_join_le hB hB' hne
     have hm_pos : 1 ≤ E_join.ncard := hjoin.ncard_pos
-    let cmp' : (graph c).Compression 3 :=
-      { blocks := blocks'
-        exists_mem := fun v => by
-          obtain ⟨C, hC, hv⟩ := st.cmp.exists_mem v
-          obtain ⟨D, hD, hCD⟩ := hsup C hC
-          exact ⟨D, hD, hCD v hv⟩
-        eq_of_mem := by
-          simp only [hmem]
-          rintro C (rfl | ⟨hC1, hC2, hC⟩) C' (rfl | ⟨hC1', hC2', hC'⟩) v hv hv'
-          · rfl
-          · rw [List.mem_append] at hv; have := hrest C' hC' hC2' hC1' v hv'; tauto
-          · rw [List.mem_append] at hv'; have := hrest C hC hC2 hC1 v hv; tauto
-          · exact st.cmp.eq_of_mem C hC C' hC' v hv hv'
-        nodup := by
-          simp only [hmem]
-          rintro C (rfl | ⟨-, -, hC⟩)
-          · exact List.nodup_append.mpr ⟨st.cmp.nodup B hB, st.cmp.nodup B' hB',
-              fun a ha b hb hab => hd_mem a ha (hab ▸ hb)⟩
-          · exact st.cmp.nodup C hC
-        ne_nil := by
-          simp only [hmem]
-          rintro C (rfl | ⟨-, -, hC⟩)
-          · exact List.append_ne_nil_of_left_ne_nil (st.cmp.ne_nil B hB) _
-          · exact st.cmp.ne_nil C hC
-        ncard_edgeCut_le := by
-          simp only [hmem]
-          rintro C (rfl | ⟨-, -, hC⟩)
-          · rwa [happ]
-          · exact st.cmp.ncard_edgeCut_le C hC
-        ncard_edgeCut_take_le := by
-          simp only [hmem]
-          rintro C (rfl | ⟨-, -, hC⟩) idx hidx
-          · rw [List.length_append] at hidx ⊢
-            rw [List.take_append]
-            rcases lt_or_ge idx B.length with hk' | hk'
-            · rw [Nat.sub_eq_zero_of_le hk'.le, List.take_zero, List.append_nil]
-              exact (st.cmp.ncard_edgeCut_take_le B hB idx hk').trans
-                (Nat.mul_le_mul_left 3 (Nat.log_mono_right (by omega)))
-            · rw [List.take_of_length_le hk']
-              have hb : B'.length ≠ 0 := by omega
-              have h1' := (graph c).ncard_edgeCut_union_le {v | v ∈ B}
-                {v | v ∈ B'.take (idx - B.length)}
-              have h3' := st.cmp.ncard_edgeCut_le B hB
-              have h4' := st.cmp.ncard_edgeCut_take_le B' hB' (idx - B.length) (by omega)
-              have h5' : Nat.log 2 B'.length + 1 ≤ Nat.log 2 (B.length + B'.length) := by
-                rw [← Nat.log_mul_base one_lt_two hb]
-                exact Nat.log_mono_right (by omega)
-              have h6' := Nat.mul_le_mul_left 3 h5'
-              simp only [Nat.mul_add, Nat.mul_one] at h6'
-              rw [happ]
-              omega
-          · exact st.cmp.ncard_edgeCut_take_le C hC idx hidx
-        card_le := by
-          have := st.cmp.card_le
-          change Nat.card (Vertex c) ≤ st.cmp.blocks.card + E_old.ncard at this
-          change Nat.card (Vertex c) ≤ blocks'.card + E_new.ncard
-          omega }
     -- Update `dirty'` according to the three merge cases.
     by_cases hdirty_or : B ∈ st.dirty ∨ B' ∈ st.dirty
     · let dirty' := insert (B ++ B') ((st.dirty.erase B).erase B')
@@ -1222,7 +1091,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
             have := Finset.card_pos.mpr ⟨B', hB'd⟩
             omega
       refine ⟨{ cmp := cmp', dirty := dirty', dirty_sub := hd_sub', clean := ?_, count := ?_ },
-        by dsimp [cmp']; omega⟩
+        Nat.lt_of_succ_le hcard.le⟩
       · intro C hC hnotC
         rcases hmem.mp hC with rfl | ⟨h1, h2, hCo⟩
         · exact (hnotC (Finset.mem_insert_self _ _)).elim
@@ -1243,7 +1112,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
               fun h => hdirty_or.1 (h ▸ hCd), st.dirty_sub hCd⟩)
         have hd_card' : dirty'.card ≤ st.dirty.card + 1 := Finset.card_insert_le _ _
         refine ⟨{ cmp := cmp', dirty := dirty', dirty_sub := hd_sub', clean := ?_, count := ?_ },
-          by dsimp [cmp']; omega⟩
+          Nat.lt_of_succ_le hcard.le⟩
         · intro C hC hnotC
           rcases hmem.mp hC with rfl | ⟨_, _, hCo⟩
           · exact (hnotC (Finset.mem_insert_self _ _)).elim
@@ -1273,7 +1142,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
               ((graph c).edgeCut {v | v ∈ B}).ncard + ((graph c).edgeCut {v | v ∈ B'}).ncard at hadd
             omega
         refine ⟨{ cmp := cmp', dirty := st.dirty, dirty_sub := hd_sub', clean := ?_, count := ?_ },
-          by dsimp [cmp']; omega⟩
+          Nat.lt_of_succ_le hcard.le⟩
         · intro C hC hnotC
           rcases hmem.mp hC with rfl | ⟨_, _, hCo⟩
           · exact hmerged_clean
@@ -1306,15 +1175,7 @@ theorem exists_u2_saturated {n k : ℕ} (c : Circuit σ (n + k) 1) {I : Interpre
       ← Nat.card_eq_fintype_card, mul_comm _ 3] at hsum
     exact hsum
   set E_int : Set (Edge c) := {e | ∃ B ∈ st.cmp.blocks, src e ∈ B ∧ tgt e ∈ B}
-  have hcompl_ext : st.cmp.externalᶜ = E_int := by
-    ext e
-    simp only [Multigraph.Compression.external, mem_compl_iff, mem_ofPred_eq, not_not,
-      graph_src, graph_tgt, E_int]
-    exact ⟨fun h => ⟨_, (st.cmp.blockOf (src e)).2, st.cmp.mem_blockOf _,
-        h ▸ st.cmp.mem_blockOf _⟩,
-      fun ⟨B, hB, hs, ht⟩ => by
-        rw [(st.cmp.mem_iff_blockOf_eq (B := ⟨B, hB⟩)).mp hs,
-          (st.cmp.mem_iff_blockOf_eq (B := ⟨B, hB⟩)).mp ht]⟩
+  have hcompl_ext : st.cmp.externalᶜ = E_int := st.cmp.compl_external
   have hE_part : Nat.card st.cmp.external + E_int.ncard = Nat.card (Edge c) := by
     rw [Nat.card_coe_set_eq, ← hcompl_ext, ncard_add_ncard_compl]
   have hblk_card : st.cmp.blocks.card = Nat.card st.cmp.blocks :=

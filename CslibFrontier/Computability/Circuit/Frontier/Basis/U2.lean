@@ -34,6 +34,9 @@ branching program (`Basis.U2.BranchingProgram`), the `7/8` cubic matching theore
    nondeterministic, worst-case, and average-case circuits over every `U₂` basis
    (`Interpretation.IsU2`), with specializations to `Boolean.DeMorgan` and `Boolean`.
 
+The `U₂` pair-compressed `4.6362 n` frontier lower bounds and parametric `U2CubicPairBound`
+reductions are original to this library.
+
 ## Main results
 
 * `Cslib.Circuits.Frontier.eventually_lt_innerSize_u2_nondeterministic`,

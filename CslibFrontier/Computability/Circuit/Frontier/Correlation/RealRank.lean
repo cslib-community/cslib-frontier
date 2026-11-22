@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Basis.PairAtlas
 public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Rectangle
+public import CslibFrontier.Computability.Communication.Rank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RealRankLindsey
 public import Mathlib.Data.Fintype.Pi
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rank
@@ -23,17 +24,18 @@ import Mathlib.Tactic.Positivity
 # Real-rank communication bounds and unconditional `2.8006 n` `U₂` correlation
 
 Applies the real-rank Lindsey lemma (`Foundations.LinearAlgebra.Matrix.RealRankLindsey`) to
-`{1, -1}` and `{0, 1}` communication matrices across coordinate cuts `X ⊆ ι` and derives
-unconditional `2.8006 n` quadratic-form correlation bounds for `U₂` circuits:
+`Cslib.Communication.signMatrix` and `Cslib.Communication.communicationMatrix` across coordinate
+cuts `X ⊆ ι` (`cutFun T X`) and derives unconditional `2.8006 n` quadratic-form correlation bounds
+for `U₂` circuits:
 
 * **Real-rank correlation bound** (`sq_correlation_quadForm_mul_le_rank_signMatrix`,
-  `sq_correlation_quadForm_mul_le_rank_charMatrix_add_one`). Specializing
-  `Matrix.sq_sum_matrix_bilinear_mul_two_pow_rank_le` to `signMatrix T X` gives
-  `correlation S T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤ (signMatrix T X).rank` and
-  `(signMatrix T X).rank ≤ (charMatrix T X).rank + 1`.
-* **`AND → XOR` separation** (`rank_signMatrix_andXorSet`, `rank_charMatrix_andXorSet`,
-  `nonnegRank_charMatrix_andXorSet`). Across `{0, 1} | {2, 3}`, the `4`-bit `AND → XOR` relation has
-  `(signMatrix).rank = 2 < (charMatrix).rank = 3 < (charMatrix).nonnegRank = 4`.
+  `sq_correlation_quadForm_mul_le_rank_communicationMatrix_add_one`). Specializing
+  `Matrix.sq_sum_matrix_bilinear_mul_two_pow_rank_le` to `Communication.signMatrix ℝ (cutFun T X)`
+  gives `correlation S T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤ (signMatrix ℝ (cutFun T X)).rank` and, via
+  `Communication.rank_signMatrix_le`, `≤ (communicationMatrix ℝ (cutFun T X)).rank + 1`.
+* **`AND → XOR` separation** (`rank_signMatrix_andXorSet`, `rank_communicationMatrix_andXorSet`,
+  `nonnegRank_communicationMatrix_andXorSet`). Across `{0, 1} | {2, 3}`, the `4`-bit `AND → XOR`
+  relation has `(signMatrix).rank = 2 < (communicationMatrix).rank = 3 < nonnegRank = 4`.
 * **Unconditional `2.8006 n` `U₂` quadratic-form correlation bounds**
   (`eventually_abs_correlation_quadForm_le_u2_gaussian`,
   `eventually_abs_correlation_hardForm_le_u2`,
@@ -43,23 +45,25 @@ unconditional `2.8006 n` quadratic-form correlation bounds for `U₂` circuits:
   is **chosen nonconstructively by `Classical.choose`**) — by `2^{-Ω(n)}` for every `U₂` circuit up
   to `2.8006 n` inner gates (`c* ≥ 28007 / 10000 > 28006 / 10000`).
 
+The real-rank quadratic-form correlation bound (`sq_correlation_quadForm_mul_le_rank_signMatrix`)
+and the unconditional `2.8006 n` `U₂` correlation bounds are original to this library.
+
 ## Main definitions
 
-* `Cslib.Circuits.Frontier.charMatrix`, `Cslib.Circuits.Frontier.signMatrix`: `{0, 1}` and
-  `{1, -1}` communication matrices of `T ⊆ (ι → Bool)` across a cut `X : Set ι`.
+* `Cslib.Circuits.Frontier.cutFun`: Boolean communication function of `T ⊆ (ι → Bool)` across a
+  coordinate cut `X : Set ι`.
 * `Cslib.Circuits.Frontier.andXorSet`, `Cslib.Circuits.Frontier.andXorCut`: `4`-bit `AND → XOR`
-  witness separating `signMatrix` rank (`2`), `charMatrix` rank (`3`), and `nonnegRank` (`4`).
+  witness separating `signMatrix` rank (`2`), `communicationMatrix` rank (`3`), and `nonnegRank`
+  (`4`).
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.rank_signMatrix_le_rank_charMatrix_add_one`:
-  `(signMatrix T X).rank ≤ (charMatrix T X).rank + 1`.
 * `Cslib.Circuits.Frontier.sq_correlation_quadForm_mul_le_rank_signMatrix`,
-  `Cslib.Circuits.Frontier.sq_correlation_quadForm_mul_le_rank_charMatrix_add_one`: quadratic-form
-  correlation bounded by real rank across any cut `X`.
+  `Cslib.Circuits.Frontier.sq_correlation_quadForm_mul_le_rank_communicationMatrix_add_one`:
+  quadratic-form correlation bounded by real rank across any cut `X`.
 * `Cslib.Circuits.Frontier.rank_signMatrix_andXorSet`,
-  `Cslib.Circuits.Frontier.rank_charMatrix_andXorSet`,
-  `Cslib.Circuits.Frontier.nonnegRank_charMatrix_andXorSet`: `2 < 3 < 4` rank separation.
+  `Cslib.Circuits.Frontier.rank_communicationMatrix_andXorSet`,
+  `Cslib.Circuits.Frontier.nonnegRank_communicationMatrix_andXorSet`: `2 < 3 < 4` rank separation.
 * `Cslib.Circuits.Frontier.eventually_abs_correlation_quadForm_le_u2_gaussian`,
   `Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le_u2`,
   `Cslib.Circuits.Frontier.exists_eventually_abs_correlation_hardForm_le_of_lt_u2`,
@@ -69,7 +73,8 @@ unconditional `2.8006 n` quadratic-form correlation bounds for `U₂` circuits:
 ## References
 
 * [S. Jukna, *Extremal Combinatorics*, Ch. 14][Jukna2011]
-* [FioriniMassarPokuttaTiwaryDeWolf2015]
+* [S. Fiorini, S. Massar, S. Pokutta, H. R. Tiwary, and R. de Wolf, *Exponential Lower Bounds for
+  Polytopes in Combinatorial Optimization*, Section 3.1][FioriniMassarPokuttaTiwaryDeWolf2015]
 -/
 
 public section
@@ -83,73 +88,14 @@ section CutMatrices
 
 variable {ι : Type*}
 
-/-- Split an input `x : ι → Bool` into its restriction to `X` and its restriction to `Xᶜ`. -/
-def cutEquiv (X : Set ι) [DecidablePred (· ∈ X)] :
-    (ι → Bool) ≃ (X → Bool) × (↥Xᶜ → Bool) where
-  toFun x := (fun i => x i.1, fun i => x i.1)
-  invFun pq i := if h : i ∈ X then pq.1 ⟨i, h⟩ else pq.2 ⟨i, h⟩
-  left_inv x := funext fun i => by by_cases h : i ∈ X <;> simp [h]
-  right_inv := fun ⟨p, q⟩ => Prod.ext (funext fun ⟨i, h⟩ => dite_eq_left h)
-    (funext fun ⟨i, h⟩ => dite_eq_right h)
-
-/-- Boolean communication matrix of `T ⊆ (ι → Bool)` across the coordinate cut `X : Set ι`. -/
-private noncomputable def boolCutMatrix (T : Set (ι → Bool)) (X : Set ι) :
-    Matrix (X → Bool) (↥Xᶜ → Bool) Bool :=
+/-- Boolean communication function of `T ⊆ (ι → Bool)` across the coordinate cut `X : Set ι`,
+gluing `p : X → Bool` and `q : ↥Xᶜ → Bool` via `Equiv.piEquivPiSubtypeProd`. -/
+noncomputable def cutFun (T : Set (ι → Bool)) (X : Set ι) (p : X → Bool) (q : ↥Xᶜ → Bool) :
+    Bool :=
   letI := Classical.propDecidable
-  Matrix.of fun p q => decide ((cutEquiv X).symm (p, q) ∈ T)
-
-/-- The `{0, 1}` real communication matrix of `T` across `X`. -/
-noncomputable def charMatrix (T : Set (ι → Bool)) (X : Set ι) :
-    Matrix (X → Bool) (↥Xᶜ → Bool) ℝ :=
-  Basis.boolIndicator ℝ (boolCutMatrix T X)
-
-/-- The `{1, -1}` real sign communication matrix of `T` across `X`. -/
-noncomputable def signMatrix (T : Set (ι → Bool)) (X : Set ι) :
-    Matrix (X → Bool) (↥Xᶜ → Bool) ℝ :=
-  Basis.signIndicator ℝ (boolCutMatrix T X)
-
-theorem charMatrix_apply (T : Set (ι → Bool)) (X : Set ι) (p : X → Bool) (q : ↥Xᶜ → Bool) :
-    charMatrix T X p q =
-      letI := Classical.propDecidable
-      if (cutEquiv X).symm (p, q) ∈ T then 1 else 0 := by
-  classical
-  simp only [charMatrix, Basis.boolIndicator_apply, boolCutMatrix, of_apply]
-  by_cases h : (cutEquiv X).symm (p, q) ∈ T <;> simp [h]
-
-theorem signMatrix_apply (T : Set (ι → Bool)) (X : Set ι) (p : X → Bool) (q : ↥Xᶜ → Bool) :
-    signMatrix T X p q =
-      letI := Classical.propDecidable
-      if (cutEquiv X).symm (p, q) ∈ T then 1 else -1 := by
-  classical
-  simp only [signMatrix, Basis.signIndicator_apply, boolCutMatrix, of_apply]
-  by_cases h : (cutEquiv X).symm (p, q) ∈ T <;> simp [h]
-
-/-- Shifting from `{0, 1}` to `{1, -1}` adds at most `1` to the real matrix rank:
-`signIndicator = 2 • boolIndicator - J`. -/
-theorem rank_signIndicator_le_add_one {m n : Type*} [Fintype n]
-    (M : Matrix m n Bool) :
-    (Basis.signIndicator ℝ M).rank ≤ (Basis.boolIndicator ℝ M).rank + 1 := by
-  have heq : Basis.signIndicator ℝ M =
-      (2 : ℝ) • Basis.boolIndicator ℝ M + Matrix.vecMulVec (fun _ => -1) (fun _ => 1) := by
-    ext i j
-    simp only [Basis.signIndicator_apply, Matrix.add_apply, Matrix.smul_apply,
-      Basis.boolIndicator_apply, Matrix.vecMulVec_apply, smul_eq_mul]
-    cases M i j <;> norm_num
-  rw [heq]
-  have hadd := Matrix.rank_add_le
-    ((2 : ℝ) • Basis.boolIndicator ℝ M) (Matrix.vecMulVec (fun _ => (-1 : ℝ)) (fun _ => 1))
-  have hsmul : ((2 : ℝ) • Basis.boolIndicator ℝ M).rank = (Basis.boolIndicator ℝ M).rank :=
-    Matrix.rank_smul_of_mem_nonZeroDivisors _ (mem_nonZeroDivisors_of_ne_zero two_ne_zero)
-  have hvec := Matrix.rank_vecMulVec_le (fun _ : m => (-1 : ℝ)) (fun _ : n => (1 : ℝ))
-  omega
+  decide ((Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool).symm (p, q) ∈ T)
 
 variable [Fintype ι] [DecidableEq ι]
-
-open Classical in
-/-- For every `T` and cut `X`, `(signMatrix T X).rank ≤ (charMatrix T X).rank + 1`. -/
-theorem rank_signMatrix_le_rank_charMatrix_add_one (T : Set (ι → Bool)) (X : Set ι) :
-    (signMatrix T X).rank ≤ (charMatrix T X).rank + 1 :=
-  rank_signIndicator_le_add_one (boolCutMatrix T X)
 
 /-- Equivalence between `Bool` and `ZMod 2` via `BitString.bitVal`. -/
 private def boolEquivZMod2 : Bool ≃ ZMod 2 where
@@ -161,12 +107,12 @@ private def boolEquivZMod2 : Bool ≃ ZMod 2 where
 open Classical in
 /-- **Correlation through real sign-matrix rank.** For any quadratic form `Q` over `𝔽₂`, target set
 `T ⊆ (ι → Bool)`, and coordinate cut `X ⊆ ι`,
-`correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤ (signMatrix T X).rank`.
--/
+`correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
+  (Communication.signMatrix ℝ (cutFun T X)).rank`. -/
 theorem sq_correlation_quadForm_mul_le_rank_signMatrix
     (Q : Matrix ι ι (ZMod 2)) (T : Set (ι → Bool)) (X : Set ι) :
     correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
-      (signMatrix T X).rank := by
+      (Communication.signMatrix ℝ (cutFun T X)).rank := by
   set S := {x : ι → Bool | BitString.quadForm Q x}
   set N : ℝ := (Fintype.card (ι → Bool) : ℝ)
   have hNn : N = 2 ^ Fintype.card ι := by simp [N, Fintype.card_bool]
@@ -174,7 +120,7 @@ theorem sq_correlation_quadForm_mul_le_rank_signMatrix
     rw [← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card, ← Nat.card_eq_fintype_card,
       Nat.card_coe_set_eq, Nat.card_coe_set_eq]
     exact ncard_add_ncard_compl X
-  let e := cutEquiv X
+  let e := Equiv.piEquivPiSubtypeProd (· ∈ X) fun _ => Bool
   let eX : (X → Bool) ≃ (X → ZMod 2) := Equiv.piCongrRight fun _ => boolEquivZMod2
   let eY : (↥Xᶜ → Bool) ≃ (↥Xᶜ → ZMod 2) := Equiv.piCongrRight fun _ => boolEquivZMod2
   let C := (Q + Qᵀ).submatrix ((↑) : X → ι) ((↑) : ↥Xᶜ → ι)
@@ -182,12 +128,11 @@ theorem sq_correlation_quadForm_mul_le_rank_signMatrix
     (-1) ^ (u ⬝ᵥ Q.submatrix ((↑) : X → ι) ((↑) : X → ι) *ᵥ u).val
   let h : (↥Xᶜ → ZMod 2) → ℝ := fun w =>
     (-1) ^ (w ⬝ᵥ Q.submatrix ((↑) : ↥Xᶜ → ι) ((↑) : ↥Xᶜ → ι) *ᵥ w).val
-  set Mz : Matrix (X → ZMod 2) (↥Xᶜ → ZMod 2) ℝ := (signMatrix T X).submatrix eX.symm eY.symm
+  set Mz : Matrix (X → ZMod 2) (↥Xᶜ → ZMod 2) ℝ :=
+    (Communication.signMatrix ℝ (cutFun T X)).submatrix eX.symm eY.symm
   have hsum : correlation S T * N =
-      -∑ u : X → ZMod 2, ∑ w : ↥Xᶜ → ZMod 2, Mz u w * g u * h w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val := by
-    rw [correlation_mul_card_eq_sum, ← Finset.sum_neg_distrib]
-    simp_rw [← Finset.sum_neg_distrib]
-    rw [← Fintype.sum_prod_type']
+      ∑ u : X → ZMod 2, ∑ w : ↥Xᶜ → ZMod 2, Mz u w * g u * h w * (-1 : ℝ) ^ (u ⬝ᵥ C *ᵥ w).val := by
+    rw [correlation_mul_card_eq_sum, ← Fintype.sum_prod_type']
     refine Fintype.sum_equiv (e.trans (Equiv.prodCongr eX eY)) _ _ fun x => ?_
     simp only [Equiv.trans_apply, Equiv.prodCongr_apply, Prod.map_fst, Prod.map_snd]
     have hq := dotProduct_mulVec_self_eq_add Q X fun i => BitString.bitVal (ZMod 2) (x i)
@@ -197,12 +142,15 @@ theorem sq_correlation_quadForm_mul_le_rank_signMatrix
       rw [BitString.neg_one_pow_val_eq]
       simp only [S, mem_ofPred_eq]
       split_ifs <;> simp
-    have hT : Mz (eX (e x).1) (eY (e x).2) = if x ∈ T then 1 else -1 := by
-      simp only [Mz, submatrix_apply, Equiv.symm_apply_apply, signMatrix_apply]
+    have hT : Mz (eX (e x).1) (eY (e x).2) = if x ∈ T then -1 else 1 := by
+      simp only [Mz, submatrix_apply, Equiv.symm_apply_apply, Communication.signMatrix_apply,
+        cutFun]
       have hex : e.symm (e x) = x := e.symm_apply_apply x
+      change (if decide (e.symm ((e x).1, (e x).2) ∈ T) = true then (-1 : ℝ) else 1) = _
       rw [Prod.mk.eta, hex]
+      by_cases hxT : x ∈ T <;> simp [hxT]
     have hw : (if (x ∈ S ↔ x ∈ T) then (1 : ℝ) else -1) =
-        (if x ∈ T then 1 else -1) * (if x ∈ S then 1 else -1) := by
+        -(if x ∈ T then -1 else 1) * (if x ∈ S then 1 else -1) := by
       by_cases hxS : x ∈ S <;> by_cases hxT : x ∈ T <;> simp [hxS, hxT]
     rw [hw, ← hT, hS, hq, ZMod.neg_one_pow_val_add, ZMod.neg_one_pow_val_add]
     have hg_eq : X.domRestrict (fun i => BitString.bitVal (ZMod 2) (x i)) = eX (e x).1 := rfl
@@ -214,13 +162,13 @@ theorem sq_correlation_quadForm_mul_le_rank_signMatrix
     (fun _ => by simp [g]) (fun _ => by simp [h])
   have hCR : (2 : ℝ) ^ C.rank = 2 ^ (Q + Qᵀ).cutRank X := by
     rw [((Q + Qᵀ).cutRank_eq_rank X).symm]
-  have hMrankR : (Mz.rank : ℝ) = (signMatrix T X).rank :=
+  have hMrankR : (Mz.rank : ℝ) = (Communication.signMatrix ℝ (cutFun T X)).rank :=
     congrArg Nat.cast (Matrix.rank_submatrix _ eX.symm eY.symm)
   set Fsq : ℝ := ∑ u, ∑ w, Mz u w ^ 2
   have hMsq : Fsq = N := by
     have h1 : ∀ u w, Mz u w ^ 2 = 1 := by
       intro u w
-      simp only [Mz, submatrix_apply, signMatrix_apply]
+      simp only [Mz, submatrix_apply, Communication.signMatrix_apply]
       split_ifs <;> norm_num
     dsimp only [Fsq]
     simp_rw [h1, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one]
@@ -233,27 +181,27 @@ theorem sq_correlation_quadForm_mul_le_rank_signMatrix
     rw [hNn, ← pow_add, hn]
   have hNN : 0 < N * N := by rw [hNn]; positivity
   have hbound : correlation S T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X * (N * N) ≤
-      (signMatrix T X).rank * (N * N) := by
+      (Communication.signMatrix ℝ (cutFun T X)).rank * (N * N) := by
     calc correlation S T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X * (N * N)
         = (correlation S T * N) ^ 2 * 2 ^ (Q + Qᵀ).cutRank X := by ring
       _ ≤ (Mz.rank : ℝ) * Fsq * 2 ^ Fintype.card X * 2 ^ Fintype.card ↥Xᶜ := by
-          rw [hsum, neg_sq, ← hCR]
+          rw [hsum, ← hCR]
           exact hL
-      _ = (signMatrix T X).rank * (N * N) := by
-          rw [hMrankR, hMsq, mul_assoc ((signMatrix T X).rank * N), hprod]
+      _ = (Communication.signMatrix ℝ (cutFun T X)).rank * (N * N) := by
+          rw [hMrankR, hMsq, mul_assoc ((Communication.signMatrix ℝ (cutFun T X)).rank * N), hprod]
           ring
   exact le_of_mul_le_mul_right hbound hNN
 
 open Classical in
-/-- **Correlation through `{0, 1}` real matrix rank.** Across any coordinate cut `X ⊆ ι`,
-`correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
-  (charMatrix T X).rank + 1`. -/
-theorem sq_correlation_quadForm_mul_le_rank_charMatrix_add_one
+/-- **Correlation through `{0, 1}` real communication-matrix rank.** Across any coordinate cut
+`X ⊆ ι`, `correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
+  (Communication.communicationMatrix ℝ (cutFun T X)).rank + 1`. -/
+theorem sq_correlation_quadForm_mul_le_rank_communicationMatrix_add_one
     (Q : Matrix ι ι (ZMod 2)) (T : Set (ι → Bool)) (X : Set ι) :
     correlation {x | BitString.quadForm Q x} T ^ 2 * 2 ^ (Q + Qᵀ).cutRank X ≤
-      (charMatrix T X).rank + 1 :=
+      (Communication.communicationMatrix ℝ (cutFun T X)).rank + 1 :=
   (sq_correlation_quadForm_mul_le_rank_signMatrix Q T X).trans
-    (by exact_mod_cast rank_signMatrix_le_rank_charMatrix_add_one T X)
+    (by exact_mod_cast Communication.rank_signMatrix_le (cutFun T X))
 
 end CutMatrices
 
@@ -295,61 +243,68 @@ private def andXorRightEquiv : (↥andXorCutᶜ → Bool) ≃ Bool × Bool where
     · rfl
   right_inv := fun ⟨_, _⟩ => rfl
 
-private theorem boolCutMatrix_andXorSet :
-    boolCutMatrix andXorSet andXorCut =
-      Basis.andXorMatrix.submatrix andXorLeftEquiv andXorRightEquiv := by
+private theorem cutFun_andXorSet (p : andXorCut → Bool) (q : ↥andXorCutᶜ → Bool) :
+    cutFun andXorSet andXorCut p q =
+      Basis.andXorMatrix (andXorLeftEquiv p) (andXorRightEquiv q) := by
   classical
-  ext p q
   rw [Bool.eq_iff_iff]
-  simp only [boolCutMatrix, of_apply, submatrix_apply]
+  dsimp only [cutFun]
   rw [decide_eq_true_eq]
   simp only [andXorSet, mem_ofPred_eq]
-  have h0 : (cutEquiv andXorCut).symm (p, q) 0 = p ⟨0, by simp [andXorCut]⟩ :=
+  let e := Equiv.piEquivPiSubtypeProd (· ∈ andXorCut) fun _ => Bool
+  have h0 : e.symm (p, q) 0 = p ⟨0, by simp [andXorCut]⟩ :=
     dite_eq_left (by simp [andXorCut])
-  have h1 : (cutEquiv andXorCut).symm (p, q) 1 = p ⟨1, by simp [andXorCut]⟩ :=
+  have h1 : e.symm (p, q) 1 = p ⟨1, by simp [andXorCut]⟩ :=
     dite_eq_left (by simp [andXorCut])
-  have h2 : (cutEquiv andXorCut).symm (p, q) 2 = q ⟨2, by simp [andXorCut]⟩ :=
+  have h2 : e.symm (p, q) 2 = q ⟨2, by simp [andXorCut]⟩ :=
     dite_eq_right (by simp [andXorCut])
-  have h3 : (cutEquiv andXorCut).symm (p, q) 3 = q ⟨3, by simp [andXorCut]⟩ :=
+  have h3 : e.symm (p, q) 3 = q ⟨3, by simp [andXorCut]⟩ :=
     dite_eq_right (by simp [andXorCut])
+  change Basis.andXorMatrix (e.symm (p, q) 0, e.symm (p, q) 1)
+    (e.symm (p, q) 2, e.symm (p, q) 3) = true ↔ _
   rw [h0, h1, h2, h3]
   rfl
 
 open Classical in
-/-- Across `andXorCut`, the `{1, -1}` sign matrix of `andXorSet` has real rank `2`. -/
-theorem rank_signMatrix_andXorSet : (signMatrix andXorSet andXorCut).rank = 2 := by
-  have heq : signMatrix andXorSet andXorCut =
-      (Basis.signIndicator ℝ Basis.andXorMatrix).submatrix andXorLeftEquiv andXorRightEquiv := by
+/-- Across `andXorCut`, the `{-1, 1}` sign matrix of `andXorSet` has real rank `2`. -/
+theorem rank_signMatrix_andXorSet :
+    (Communication.signMatrix ℝ (cutFun andXorSet andXorCut)).rank = 2 := by
+  have heq : Communication.signMatrix ℝ (cutFun andXorSet andXorCut) =
+      (Communication.signMatrix ℝ Basis.andXorMatrix).submatrix andXorLeftEquiv
+        andXorRightEquiv := by
     ext p q
-    simp only [signMatrix, Basis.signIndicator_apply, submatrix_apply, boolCutMatrix_andXorSet]
-    by_cases h : Basis.andXorMatrix (andXorLeftEquiv p) (andXorRightEquiv q) = true <;> simp [h]
-  rw [heq, Matrix.rank_submatrix, Basis.rank_signIndicator_andXorMatrix_real]
+    simp [Communication.signMatrix, cutFun_andXorSet]
+  rw [heq, Matrix.rank_submatrix, Basis.rank_signMatrix_andXorMatrix_real]
 
 open Classical in
-/-- Across `andXorCut`, the `{0, 1}` characteristic matrix of `andXorSet` has real rank `3`. -/
-theorem rank_charMatrix_andXorSet : (charMatrix andXorSet andXorCut).rank = 3 := by
-  have heq : charMatrix andXorSet andXorCut =
-      (Basis.boolIndicator ℝ Basis.andXorMatrix).submatrix andXorLeftEquiv andXorRightEquiv := by
+/-- Across `andXorCut`, the `{0, 1}` communication matrix of `andXorSet` has real rank `3`. -/
+theorem rank_communicationMatrix_andXorSet :
+    (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).rank = 3 := by
+  have heq : Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut) =
+      (Communication.communicationMatrix ℝ Basis.andXorMatrix).submatrix andXorLeftEquiv
+        andXorRightEquiv := by
     ext p q
-    simp only [charMatrix, Basis.boolIndicator_apply, submatrix_apply, boolCutMatrix_andXorSet]
-    by_cases h : Basis.andXorMatrix (andXorLeftEquiv p) (andXorRightEquiv q) = true <;> simp [h]
+    simp [Communication.communicationMatrix, cutFun_andXorSet]
   rw [heq, Matrix.rank_submatrix, Basis.rank_andXorMatrix_real]
 
-/-- Across `andXorCut`, the `{0, 1}` characteristic matrix of `andXorSet` has nonnegative rank `4`
-(strictly exceeding both `(signMatrix andXorSet andXorCut).rank = 2` and
-`(charMatrix andXorSet andXorCut).rank = 3`). -/
-theorem nonnegRank_charMatrix_andXorSet : (charMatrix andXorSet andXorCut).nonnegRank = 4 := by
-  have heq : charMatrix andXorSet andXorCut =
-      (Basis.boolIndicator ℝ Basis.andXorMatrix).submatrix andXorLeftEquiv andXorRightEquiv := by
+/-- Across `andXorCut`, the `{0, 1}` communication matrix of `andXorSet` has nonnegative rank `4`
+(strictly exceeding both `(signMatrix ℝ (cutFun andXorSet andXorCut)).rank = 2` and
+`(communicationMatrix ℝ (cutFun andXorSet andXorCut)).rank = 3`). -/
+theorem nonnegRank_communicationMatrix_andXorSet :
+    (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).nonnegRank = 4 := by
+  have heq : Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut) =
+      (Communication.communicationMatrix ℝ Basis.andXorMatrix).submatrix andXorLeftEquiv
+        andXorRightEquiv := by
     ext p q
-    simp only [charMatrix, Basis.boolIndicator_apply, submatrix_apply, boolCutMatrix_andXorSet]
-    by_cases h : Basis.andXorMatrix (andXorLeftEquiv p) (andXorRightEquiv q) = true <;> simp [h]
-  have hle1 := Matrix.nonnegRank_submatrix_le (Basis.boolIndicator ℝ Basis.andXorMatrix)
-    andXorLeftEquiv andXorRightEquiv
-  have hinv : Basis.boolIndicator ℝ Basis.andXorMatrix =
-      (charMatrix andXorSet andXorCut).submatrix andXorLeftEquiv.symm andXorRightEquiv.symm := by
+    simp [Communication.communicationMatrix, cutFun_andXorSet]
+  have hle1 := Matrix.nonnegRank_submatrix_le
+    (Communication.communicationMatrix ℝ Basis.andXorMatrix) andXorLeftEquiv andXorRightEquiv
+  have hinv : Communication.communicationMatrix ℝ Basis.andXorMatrix =
+      (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut)).submatrix
+        andXorLeftEquiv.symm andXorRightEquiv.symm := by
     rw [heq, submatrix_submatrix, Equiv.self_comp_symm, Equiv.self_comp_symm, submatrix_id_id]
-  have hle2 := Matrix.nonnegRank_submatrix_le (charMatrix andXorSet andXorCut)
+  have hle2 := Matrix.nonnegRank_submatrix_le
+    (Communication.communicationMatrix ℝ (cutFun andXorSet andXorCut))
     andXorLeftEquiv.symm andXorRightEquiv.symm
   rw [← heq] at hle1
   rw [← hinv] at hle2

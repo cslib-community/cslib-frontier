@@ -58,6 +58,10 @@ cut alphabet exponent at `P` to
 and wiring directly into `ReadOnceNBP` (`KirchhoffDecomposition.branchingProgram`) and `Sweep`
 (`KirchhoffDecomposition.sweep`).
 
+The simultaneous `COPY` + Kirchhoff `1`-symbol frontier compression (`KirchhoffDecomposition`,
+`kirchhoff_splice`, `branchingProgram`, and `unambiguous_branchingProgram`) is original to this
+library.
+
 ## Main definitions
 
 * `Cslib.Circuits.Frontier.Multigraph.edgeContribution`,
@@ -1173,7 +1177,7 @@ private theorem state_insert_of_splice [Finite V] {P : Set V} {v : V} (hv : v �
 /-- **Gluing for Kirchhoff-compressed branching programs.** Every accepting path of
 `D.branchingProgram π` on `x` is realized as `t ↦ D.state (π.initial t) α` for a global satisfying
 assignment `α` of `N` on `x` (without requiring acyclicity!). -/
-theorem exists_satisfies_of_isAcceptingPath [Finite V] {x : ι → A} {γ : ℕ → D.State}
+private theorem exists_satisfies_of_isAcceptingPath [Finite V] {x : ι → A} {γ : ℕ → D.State}
     (hγ : (D.branchingProgram π).IsAcceptingPath x γ) :
     ∃ α : E → A, N.Satisfies x α ∧ ∀ t ≤ Nat.card V + 1, γ t = D.state (π.initial t) α := by
   classical
@@ -1259,7 +1263,7 @@ theorem unambiguous_branchingProgram [Finite V]
 
 /-- At layer `t ≤ |V|`, the states visited by `D.branchingProgram π` on `N.accepted` number at most
 `|A| ^ D.compressedWidth (π.initial t)`. -/
-theorem ncard_image_path_le [Finite V] [Finite A] [Finite ιC] [Finite ιK] {t : ℕ}
+private theorem ncard_image_path_le [Finite V] [Finite A] [Finite ιC] [Finite ιK] {t : ℕ}
     (ht : t ≤ Nat.card V) :
     ((fun x => (D.branchingProgram π).path x t) '' N.accepted).ncard ≤
       Nat.card A ^ D.compressedWidth (π.initial t) := by
@@ -1276,7 +1280,7 @@ theorem ncard_image_path_le [Finite V] [Finite A] [Finite ιC] [Finite ιK] {t :
 uniquely determined by `D.cutMessage (π.initial t) α` and the incident wire values of `α` at the
 vertex processed at step `t`, step `t < |V|` has at most
 `|A| ^ (D.compressedWidth (π.initial t) + |incidenceSet v_t| + |readAt v_t|)` edges. -/
-theorem ncard_edges_le [Finite V] [Finite ι] [Finite A] [Finite ιC] [Finite ιK] {t : ℕ}
+private theorem ncard_edges_le [Finite V] [Finite ι] [Finite A] [Finite ιC] [Finite ιK] {t : ℕ}
     (ht : t < Nat.card V) :
     ((D.branchingProgram π).edges t).ncard ≤
       Nat.card A ^ (D.compressedWidth (π.initial t) +
@@ -1346,7 +1350,7 @@ theorem ncard_edges_le [Finite V] [Finite ι] [Finite A] [Finite ιC] [Finite ι
 
 /-- At the final step `t = |V|`, both frontiers are empty and edges are determined by unread
 inputs. -/
-theorem ncard_edges_last_le [Finite ι] [Finite A] :
+private theorem ncard_edges_last_le [Finite ι] [Finite A] :
     ((D.branchingProgram π).edges (Nat.card V)).ncard ≤ Nat.card A ^ N.readᶜ.ncard := by
   classical
   have hempty (s : ℕ) (hs : Nat.card V ≤ s) (α : E → A) :

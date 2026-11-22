@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Communication.Rank
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.NonnegRank
 public import Mathlib.Algebra.Field.ZMod
 public import Mathlib.Basic.Real.Basic
@@ -40,19 +41,21 @@ gates (`U₂` AND-type gates, `XOR` parity gates, and `COPY` fan-out junctions):
   `hasUnambiguousRectangles_andType_copy`, `hasUnambiguousRectangles_andType_out_in`,
   `hasUnambiguousRectangles_andType_in_out`). Even the `32` `AND – AND` pairs with four distinct
   rows partition into three disjoint `1`-rectangles.
-* **`AND → XOR` rank separation** (`rank_signIndicator_andXorMatrix_real`,
+* **`AND → XOR` rank separation** (`rank_signMatrix_andXorMatrix_real`,
   `rank_andXorMatrix_real`, `rank_andXorMatrix_zmod2`, `nonnegRank_andXorMatrix_real`). The
   `AND → XOR` transfer matrix is a permutation of the square slack matrix: its `{±1}` sign matrix
   has real rank `2`, its `{0, 1}` matrix has rank `3` over `ℝ` and over `ZMod 2`, whereas its
   `K_{2,2}`-freeness forces every combinatorial `1`-rectangle to cover at most `2` of its `8` ones,
-  giving `nonnegRank = 4` [FioriniMassarPokuttaTiwaryDeWolf2015].
+  giving `nonnegRank = 4` [Fiorini, Massar, Pokutta, Tiwary, and de Wolf,
+  Section 3.1][FioriniMassarPokuttaTiwaryDeWolf2015].
+
+The unambiguous `2`- and `3`-rectangle transfer-matrix atlas for matched Boolean gate pairs is
+original to this library.
 
 ## Main definitions
 
 * `Cslib.Circuits.Frontier.Basis.IsUnambiguousCover`,
   `Cslib.Circuits.Frontier.Basis.HasUnambiguousRectangles`: unambiguous `1`-rectangle partitions.
-* `Cslib.Circuits.Frontier.Basis.boolIndicator`,
-  `Cslib.Circuits.Frontier.Basis.signIndicator`: `{0, 1}` and `{1, -1}` indicator matrices.
 * `Cslib.Circuits.Frontier.Basis.copyRel`, `Cslib.Circuits.Frontier.Basis.xorRel`,
   `Cslib.Circuits.Frontier.Basis.andTypeRel`: `3`-pin relations of `COPY`, `XOR`, and `U₂` gates.
 * `Cslib.Circuits.Frontier.Basis.pairCount`, `Cslib.Circuits.Frontier.Basis.pairMatrix`:
@@ -63,7 +66,7 @@ gates (`U₂` AND-type gates, `XOR` parity gates, and `COPY` fan-out junctions):
 
 * `Cslib.Circuits.Frontier.Basis.HasUnambiguousRectangles.nonnegRank_le`,
   `Cslib.Circuits.Frontier.Basis.HasUnambiguousRectangles.rank_le`: nonnegative-rank and rank
-  bounds from unambiguous rectangle partitions.
+  bounds on `Cslib.Communication.communicationMatrix` from unambiguous rectangle partitions.
 * `Cslib.Circuits.Frontier.Basis.hasUnambiguousRectangles_copy_copy`,
   `Cslib.Circuits.Frontier.Basis.hasUnambiguousRectangles_xor_xor`: `2`-rectangle bounds.
 * `Cslib.Circuits.Frontier.Basis.hasUnambiguousRectangles_copy_andType`,
@@ -71,7 +74,7 @@ gates (`U₂` AND-type gates, `XOR` parity gates, and `COPY` fan-out junctions):
   `Cslib.Circuits.Frontier.Basis.hasUnambiguousRectangles_andType_out_in`,
   `Cslib.Circuits.Frontier.Basis.hasUnambiguousRectangles_andType_in_out`: `3`-rectangle `U₂`
   atlas.
-* `Cslib.Circuits.Frontier.Basis.rank_signIndicator_andXorMatrix_real`,
+* `Cslib.Circuits.Frontier.Basis.rank_signMatrix_andXorMatrix_real`,
   `Cslib.Circuits.Frontier.Basis.rank_andXorMatrix_real`,
   `Cslib.Circuits.Frontier.Basis.rank_andXorMatrix_zmod2`,
   `Cslib.Circuits.Frontier.Basis.nonnegRank_andXorMatrix_real`: the `2 < 3 < 4` rank separation on
@@ -79,7 +82,8 @@ gates (`U₂` AND-type gates, `XOR` parity gates, and `COPY` fan-out junctions):
 
 ## References
 
-* [FioriniMassarPokuttaTiwaryDeWolf2015]
+* [S. Fiorini, S. Massar, S. Pokutta, H. R. Tiwary, and R. de Wolf, *Exponential Lower Bounds for
+  Polytopes in Combinatorial Optimization*, Section 3.1][FioriniMassarPokuttaTiwaryDeWolf2015]
 -/
 
 public section
@@ -113,30 +117,6 @@ rectangles. -/
 @[expose]
 def HasUnambiguousRectangles (M : Matrix m n Bool) (k : ℕ) : Prop :=
   ∃ (row : Fin k → m → Bool) (col : Fin k → n → Bool), IsUnambiguousCover M row col
-
-/-- The `{0, 1}` matrix over `R` associated with a Boolean matrix `M`. -/
-def boolIndicator (R : Type*) [Zero R] [One R] (M : Matrix m n Bool) : Matrix m n R :=
-  M.map fun b => if b then 1 else 0
-
-@[simp]
-theorem boolIndicator_apply (R : Type*) [Zero R] [One R] (M : Matrix m n Bool) (i : m) (j : n) :
-    boolIndicator R M i j = if M i j then 1 else 0 := by
-  rw [boolIndicator, Matrix.map_apply]
-
-@[simp]
-theorem boolIndicator_transpose (R : Type*) [Zero R] [One R] (M : Matrix m n Bool) :
-    (boolIndicator R M)ᵀ = boolIndicator R Mᵀ := by
-  ext i j
-  rw [Matrix.transpose_apply, boolIndicator_apply, boolIndicator_apply, Matrix.transpose_apply]
-
-/-- The `{1, -1}` sign matrix over `R` associated with a Boolean matrix `M`. -/
-def signIndicator (R : Type*) [One R] [Neg R] (M : Matrix m n Bool) : Matrix m n R :=
-  M.map fun b => if b then 1 else -1
-
-@[simp]
-theorem signIndicator_apply (R : Type*) [One R] [Neg R] (M : Matrix m n Bool) (i : m) (j : n) :
-    signIndicator R M i j = if M i j then 1 else -1 := by
-  rw [signIndicator, Matrix.map_apply]
 
 /-- Reindexing rows and columns along equivalences preserves `HasUnambiguousRectangles`. -/
 theorem HasUnambiguousRectangles.submatrix_equiv {M : Matrix m n Bool} {k : ℕ}
@@ -180,31 +160,32 @@ theorem HasUnambiguousRectangles.mono {M : Matrix m n Bool} {k k' : ℕ}
 
 /-- An unambiguous `k`-rectangle cover gives an exact `{0, 1}` matrix factorization over any
 semiring `R`. -/
-theorem IsUnambiguousCover.mul_eq_boolIndicator (R : Type*) [Semiring R]
+theorem IsUnambiguousCover.mul_eq_communicationMatrix (R : Type*) [Semiring R]
     {M : Matrix m n Bool} {k : ℕ} {row : Fin k → m → Bool} {col : Fin k → n → Bool}
     (h : IsUnambiguousCover M row col) :
     Matrix.of (fun i (r : Fin k) => if row r i then (1 : R) else 0) *
       Matrix.of (fun (r : Fin k) j => if col r j then (1 : R) else 0) =
-      boolIndicator R M := by
+      Communication.communicationMatrix R M := by
   ext i j
-  rw [Matrix.mul_apply, boolIndicator_apply]
+  rw [Matrix.mul_apply]
+  dsimp only [Communication.communicationMatrix, Matrix.of_apply]
   have hterm (r : Fin k) :
       (if row r i then (1 : R) else 0) * (if col r j then 1 else 0) =
         if (row r i && col r j) = true then 1 else 0 := by
     cases row r i <;> cases col r j <;> simp
-  simp only [Matrix.of_apply, hterm, Finset.sum_boole]
+  simp only [hterm, Finset.sum_boole]
   rw [h i j]
   cases M i j <;> simp
 
-/-- An unambiguous `k`-rectangle cover yields a nonnegative factorization of `boolIndicator R M`
-through `Fin k`. -/
+/-- An unambiguous `k`-rectangle cover yields a nonnegative factorization of
+`Communication.communicationMatrix R M` through `Fin k`. -/
 theorem HasUnambiguousRectangles.hasNonnegFactorization (R : Type*) [Semiring R] [PartialOrder R]
     [ZeroLEOneClass R] {M : Matrix m n Bool} {k : ℕ} (h : HasUnambiguousRectangles M k) :
-    (boolIndicator R M).HasNonnegFactorization (Fin k) := by
+    (Communication.communicationMatrix R M).HasNonnegFactorization (Fin k) := by
   obtain ⟨row, col, hcov⟩ := h
   refine ⟨Matrix.of fun i r => if row r i then 1 else 0,
     Matrix.of fun r j => if col r j then 1 else 0,
-    fun i r => ?_, fun r j => ?_, hcov.mul_eq_boolIndicator R⟩
+    fun i r => ?_, fun r j => ?_, hcov.mul_eq_communicationMatrix R⟩
   · simp only [Matrix.of_apply]
     split_ifs <;> [exact zero_le_one; exact le_rfl]
   · simp only [Matrix.of_apply]
@@ -213,16 +194,16 @@ theorem HasUnambiguousRectangles.hasNonnegFactorization (R : Type*) [Semiring R]
 /-- An unambiguous `k`-rectangle cover bounds the nonnegative rank by `k`. -/
 theorem HasUnambiguousRectangles.nonnegRank_le (R : Type*) [Semiring R] [PartialOrder R]
     [ZeroLEOneClass R] {M : Matrix m n Bool} {k : ℕ} (h : HasUnambiguousRectangles M k) :
-    (boolIndicator R M).nonnegRank ≤ k := by
+    (Communication.communicationMatrix R M).nonnegRank ≤ k := by
   simpa using (h.hasNonnegFactorization R).nonnegRank_le
 
 /-- An unambiguous `k`-rectangle cover bounds the matrix rank over any commutative ring with the
 strong rank condition by `k`. -/
 theorem HasUnambiguousRectangles.rank_le (R : Type*) [CommRing R] [StrongRankCondition R]
     [Fintype n] {M : Matrix m n Bool} {k : ℕ} (h : HasUnambiguousRectangles M k) :
-    (boolIndicator R M).rank ≤ k := by
+    (Communication.communicationMatrix R M).rank ≤ k := by
   obtain ⟨row, col, hcov⟩ := h
-  rw [← hcov.mul_eq_boolIndicator R]
+  rw [← hcov.mul_eq_communicationMatrix R]
   exact (Matrix.rank_mul_le_right _ _).trans
     ((Matrix.rank_le_card_height _).trans_eq (Fintype.card_fin k))
 
@@ -596,16 +577,17 @@ private def andXorLeft (R : Type*) [Ring R] : Matrix (Bool × Bool) (Fin 3) R
   | (true, true) => ![1, 1, -1]
 
 private def andXorRight (R : Type*) [Ring R] : Matrix (Fin 3) (Bool × Bool) R
-  | ⟨0, _⟩ => boolIndicator R andXorMatrix (false, false)
-  | ⟨1, _⟩ => boolIndicator R andXorMatrix (false, true)
-  | ⟨2, _⟩ => boolIndicator R andXorMatrix (true, false)
+  | ⟨0, _⟩ => Communication.communicationMatrix R andXorMatrix (false, false)
+  | ⟨1, _⟩ => Communication.communicationMatrix R andXorMatrix (false, true)
+  | ⟨2, _⟩ => Communication.communicationMatrix R andXorMatrix (true, false)
 
 private theorem andXorLeft_mul_andXorRight (R : Type*) [Ring R] :
-    andXorLeft R * andXorRight R = boolIndicator R andXorMatrix := by
+    andXorLeft R * andXorRight R = Communication.communicationMatrix R andXorMatrix := by
   ext ⟨b, d⟩ ⟨a, c⟩
   rw [Matrix.mul_apply, Fin.sum_univ_three]
   cases b <;> cases d <;> cases a <;> cases c <;>
-    simp [andXorLeft, andXorRight, boolIndicator, andXorMatrix, pairMatrix, andTypeRel, xorRel]
+    simp [andXorLeft, andXorRight, Communication.communicationMatrix, andXorMatrix, pairMatrix,
+      andTypeRel, xorRel]
 
 private def andXorRowSel (R : Type*) [Ring R] : Matrix (Fin 3) (Bool × Bool) R
   | ⟨0, _⟩, (b, d) => if !b && !d then 1 else 0
@@ -619,32 +601,35 @@ private def andXorColInv (R : Type*) [Ring R] : Matrix (Bool × Bool) (Fin 3) R
   | (true, true) => ![-1, 0, 1]
 
 private theorem andXorRowSel_mul_andXorColInv (R : Type*) [Ring R] :
-    andXorRowSel R * boolIndicator R andXorMatrix * andXorColInv R = 1 := by
+    andXorRowSel R * Communication.communicationMatrix R andXorMatrix * andXorColInv R = 1 := by
   ext i j
   fin_cases i <;> fin_cases j <;>
     simp [Matrix.mul_apply, Fintype.sum_prod_type, andXorRowSel, andXorColInv,
-      boolIndicator, andXorMatrix, pairMatrix, andTypeRel, xorRel]
+      Communication.communicationMatrix, andXorMatrix, pairMatrix, andTypeRel, xorRel]
 
 /-- Over any commutative ring with the strong rank condition, `andXorMatrix` has matrix rank
 exactly `3`. -/
 theorem rank_andXorMatrix (R : Type*) [CommRing R] [StrongRankCondition R] :
-    (boolIndicator R andXorMatrix).rank = 3 := by
+    (Communication.communicationMatrix R andXorMatrix).rank = 3 := by
   apply le_antisymm
   · rw [← andXorLeft_mul_andXorRight R]
     exact (Matrix.rank_mul_le_right _ _).trans
       ((Matrix.rank_le_card_height _).trans_eq (Fintype.card_fin 3))
   · calc 3 = (1 : Matrix (Fin 3) (Fin 3) R).rank := by rw [Matrix.rank_one, Fintype.card_fin]
-      _ = (andXorRowSel R * boolIndicator R andXorMatrix * andXorColInv R).rank := by
+      _ = (andXorRowSel R * Communication.communicationMatrix R andXorMatrix *
+            andXorColInv R).rank := by
         rw [andXorRowSel_mul_andXorColInv R]
-      _ ≤ (andXorRowSel R * boolIndicator R andXorMatrix).rank := Matrix.rank_mul_le_left _ _
-      _ ≤ (boolIndicator R andXorMatrix).rank := Matrix.rank_mul_le_right _ _
+      _ ≤ (andXorRowSel R * Communication.communicationMatrix R andXorMatrix).rank :=
+        Matrix.rank_mul_le_left _ _
+      _ ≤ (Communication.communicationMatrix R andXorMatrix).rank := Matrix.rank_mul_le_right _ _
 
 /-- Over `ℝ`, the `AND → XOR` transfer matrix has rank `3`. -/
-theorem rank_andXorMatrix_real : (boolIndicator ℝ andXorMatrix).rank = 3 :=
+theorem rank_andXorMatrix_real : (Communication.communicationMatrix ℝ andXorMatrix).rank = 3 :=
   rank_andXorMatrix ℝ
 
 /-- Over `ZMod 2`, the `AND → XOR` transfer matrix has rank `3`. -/
-theorem rank_andXorMatrix_zmod2 : (boolIndicator (ZMod 2) andXorMatrix).rank = 3 :=
+theorem rank_andXorMatrix_zmod2 :
+    (Communication.communicationMatrix (ZMod 2) andXorMatrix).rank = 3 :=
   rank_andXorMatrix (ZMod 2)
 
 private def andXorSignLeft : Matrix (Bool × Bool) (Fin 2) ℝ
@@ -654,46 +639,48 @@ private def andXorSignLeft : Matrix (Bool × Bool) (Fin 2) ℝ
   | (true, true) => ![0, -1]
 
 private def andXorSignRight : Matrix (Fin 2) (Bool × Bool) ℝ
-  | ⟨0, _⟩ => signIndicator ℝ andXorMatrix (false, false)
-  | ⟨1, _⟩ => signIndicator ℝ andXorMatrix (true, false)
+  | ⟨0, _⟩ => Communication.signMatrix ℝ andXorMatrix (false, false)
+  | ⟨1, _⟩ => Communication.signMatrix ℝ andXorMatrix (true, false)
 
 private theorem andXorSignLeft_mul_andXorSignRight :
-    andXorSignLeft * andXorSignRight = signIndicator ℝ andXorMatrix := by
+    andXorSignLeft * andXorSignRight = Communication.signMatrix ℝ andXorMatrix := by
   ext ⟨b, d⟩ ⟨a, c⟩
   rw [Matrix.mul_apply, Fin.sum_univ_two]
   cases b <;> cases d <;> cases a <;> cases c <;>
-    simp [andXorSignLeft, andXorSignRight, signIndicator, andXorMatrix, pairMatrix, andTypeRel,
-      xorRel]
+    simp [andXorSignLeft, andXorSignRight, Communication.signMatrix, andXorMatrix, pairMatrix,
+      andTypeRel, xorRel]
 
 private def andXorSignRowSel : Matrix (Fin 2) (Bool × Bool) ℝ
   | ⟨0, _⟩, (b, d) => if !b && !d then 1 else 0
   | ⟨1, _⟩, (b, d) => if b && !d then 1 else 0
 
 private noncomputable def andXorSignColInv : Matrix (Bool × Bool) (Fin 2) ℝ
-  | (false, false) => ![1 / 2, 1 / 2]
+  | (false, false) => ![-1 / 2, -1 / 2]
   | (false, true) => ![0, 0]
-  | (true, false) => ![1 / 2, -1 / 2]
+  | (true, false) => ![-1 / 2, 1 / 2]
   | (true, true) => ![0, 0]
 
 private theorem andXorSignRowSel_mul_andXorSignColInv :
-    andXorSignRowSel * signIndicator ℝ andXorMatrix * andXorSignColInv = 1 := by
+    andXorSignRowSel * Communication.signMatrix ℝ andXorMatrix * andXorSignColInv = 1 := by
   ext i j
   fin_cases i <;> fin_cases j <;>
     simp [Matrix.mul_apply, Fintype.sum_prod_type, andXorSignRowSel, andXorSignColInv,
-      signIndicator, andXorMatrix, pairMatrix, andTypeRel, xorRel] <;> norm_num
+      Communication.signMatrix, andXorMatrix, pairMatrix, andTypeRel, xorRel] <;> norm_num
 
-/-- Over `ℝ`, the `{1, -1}` sign matrix of `AND → XOR` has rank `2`: flipping the `XOR` external
+/-- Over `ℝ`, the `{-1, 1}` sign matrix of `AND → XOR` has rank `2`: flipping the `XOR` external
 wire negates its row, halving the `4` rows to two antipodal pairs. -/
-theorem rank_signIndicator_andXorMatrix_real : (signIndicator ℝ andXorMatrix).rank = 2 := by
+theorem rank_signMatrix_andXorMatrix_real :
+    (Communication.signMatrix ℝ andXorMatrix).rank = 2 := by
   apply le_antisymm
   · rw [← andXorSignLeft_mul_andXorSignRight]
     exact (Matrix.rank_mul_le_right _ _).trans
       ((Matrix.rank_le_card_height _).trans_eq (Fintype.card_fin 2))
   · calc 2 = (1 : Matrix (Fin 2) (Fin 2) ℝ).rank := by rw [Matrix.rank_one, Fintype.card_fin]
-      _ = (andXorSignRowSel * signIndicator ℝ andXorMatrix * andXorSignColInv).rank := by
+      _ = (andXorSignRowSel * Communication.signMatrix ℝ andXorMatrix * andXorSignColInv).rank := by
         rw [andXorSignRowSel_mul_andXorSignColInv]
-      _ ≤ (andXorSignRowSel * signIndicator ℝ andXorMatrix).rank := Matrix.rank_mul_le_left _ _
-      _ ≤ (signIndicator ℝ andXorMatrix).rank := Matrix.rank_mul_le_right _ _
+      _ ≤ (andXorSignRowSel * Communication.signMatrix ℝ andXorMatrix).rank :=
+        Matrix.rank_mul_le_left _ _
+      _ ≤ (Communication.signMatrix ℝ andXorMatrix).rank := Matrix.rank_mul_le_right _ _
 
 private theorem not_two_by_two_andXorMatrix (i₁ i₂ j₁ j₂ : Bool × Bool)
     (hi : i₁ ≠ i₂) (hj : j₁ ≠ j₂) :
@@ -749,10 +736,11 @@ private theorem card_support_andXorMatrix :
 /-- **Exact nonnegative rank of `AND → XOR` (`nonnegRank = 4 > 3 = rank`).** Because `andXorMatrix`
 has `8` ones and every `1`-rectangle covers at most `2` ones, no `3` nonnegative rank-one matrices
 can sum to `andXorMatrix`. -/
-theorem nonnegRank_andXorMatrix_real : (boolIndicator ℝ andXorMatrix).nonnegRank = 4 := by
+theorem nonnegRank_andXorMatrix_real :
+    (Communication.communicationMatrix ℝ andXorMatrix).nonnegRank = 4 := by
   apply le_antisymm
   · refine (Matrix.nonnegRank_le_card_height fun i j => ?_).trans_eq ?_
-    · simp only [boolIndicator_apply]
+    · dsimp only [Communication.communicationMatrix, Matrix.of_apply]
       split_ifs <;> norm_num
     · simp
   · rw [Matrix.le_nonnegRank_iff]
@@ -766,14 +754,17 @@ theorem nonnegRank_andXorMatrix_real : (boolIndicator ℝ andXorMatrix).nonnegRa
       have hne : (T * U) i j ≠ 0 :=
         (Matrix.mul_apply_ne_zero_iff_of_nonneg hT hU i j).2
           ⟨k, (Finset.mem_filter.mp hi).2, (Finset.mem_filter.mp hj).2⟩
-      rw [hTU, boolIndicator_apply] at hne
+      rw [hTU] at hne
+      dsimp only [Communication.communicationMatrix, Matrix.of_apply] at hne
       by_contra hf
       simp [hf] at hne
     have hsub : supp ⊆ Finset.univ.biUnion rect := by
       intro ⟨i, j⟩ hp
       have hij : andXorMatrix i j = true := (Finset.mem_filter.mp hp).2
       have hne : (T * U) i j ≠ 0 := by
-        rw [hTU, boolIndicator_apply, hij]
+        rw [hTU]
+        dsimp only [Communication.communicationMatrix, Matrix.of_apply]
+        rw [hij]
         norm_num
       obtain ⟨k, hik, hkj⟩ := (Matrix.mul_apply_ne_zero_iff_of_nonneg hT hU i j).1 hne
       exact Finset.mem_biUnion.2 ⟨k, Finset.mem_univ k,

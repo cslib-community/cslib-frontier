@@ -51,10 +51,13 @@ assumption) and evaluates the resulting rational `U₂` coefficients:
    `u ± v` with multiplier `μ = 1133/250` yields `𝔼[cost_{1/2}] ≤ 269265 / 1000000` for all
    `ρ₀ ≥ 94280904 / 100000000` (`measureReal_pairHalf_le`), and hence
    `U2CubicPairBound gaussianCoefficient (271212 / 1000000)` (`u2CubicPairBound_gaussian`).
-3. **Explicit rational `U₂` coefficients.** Evaluates rational lower bounds on the resulting `7/8`,
-   Edmonds `1/3`-dirty, and clean `U₂` circuit-size and quadratic-form correlation coefficients
+3. **Explicit rational `U₂` coefficients.** Evaluates rational lower bounds on the resulting `7/8`
+   `U₂` circuit-size (`≥ 4.6362`) and quadratic-form correlation (`≥ 2.8007`) coefficients
    (consumed by `CslibFrontier.Computability.Circuit.Frontier.Basis.U2` and
    `CslibFrontier.Computability.Circuit.Frontier.Correlation.RealRank`).
+
+The Hilbert-space two-cap sum-of-squares bound on `𝔼[cost_{1/2}]` (`measureReal_pairHalf_le`) and
+the resulting `U₂` Gaussian pair bound (`u2CubicPairBound_gaussian`) are original to this library.
 
 ## Main results
 
@@ -63,12 +66,8 @@ assumption) and evaluates the resulting rational `U₂` coefficients:
 * `Cslib.Circuits.Frontier.Gaussian.u2CubicPairBound_gaussian`:
   `U2CubicPairBound gaussianCoefficient (271212 / 1000000)`.
 * `Cslib.Circuits.Frontier.Gaussian.u2CircuitCoefficient_ge_46362`,
-  `Cslib.Circuits.Frontier.Gaussian.u2CorrelationThreshold_ge_28007`,
-  `Cslib.Circuits.Frontier.Gaussian.u2CorrelationThreshold_ge_28006`,
-  `Cslib.Circuits.Frontier.Gaussian.u2CleanCircuitCoefficient_ge_46871`,
-  `Cslib.Circuits.Frontier.Gaussian.u2EdmondsCircuitCoefficient_ge_46754`,
-  `Cslib.Circuits.Frontier.Gaussian.u2EdmondsCorrelationThreshold_ge_28318`: rational lower bounds
-  on the `U₂` gate-count and quadratic-form correlation coefficients.
+  `Cslib.Circuits.Frontier.Gaussian.u2CorrelationThreshold_ge_28007`: rational lower bounds on the
+  `U₂` gate-count and quadratic-form correlation coefficients.
 -/
 
 public section
@@ -349,26 +348,6 @@ section PairExpectations
 
 variable {V E : Type*} [Fintype V] [Finite E] {G : Multigraph V E}
 
-private theorem measurableSet_pairEvents (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (e : E) :
-    MeasurableSet (pairAnyEvent G M q R t e) ∧ MeasurableSet (pairBothEvent G M q R t e) := by
-  classical
-  have hstrad (S : Set E) : MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
-    have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
-        (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
-        (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by ext ω; simp [StraddlesOn]
-    rw [hset]
-    exact ((toFinite S).measurableSet_biUnion fun f _ =>
-        measurable_edgeScore q R f measurableSet_Iio).inter
-      ((toFinite S).measurableSet_biUnion fun f _ =>
-        measurable_edgeScore q R f measurableSet_Ici)
-  refine ⟨?_, ?_⟩
-  · unfold pairAnyEvent; split_ifs
-    · exact hstrad _
-    · exact MeasurableSet.empty
-  · unfold pairBothEvent; split_ifs
-    · exact (hstrad _).inter (hstrad _)
-    · exact MeasurableSet.empty
-
 omit [Finite E] in
 private theorem indicator_pairAnyEvent_le {M : Set E} {e ea eb ec ed : E} (he : e ∈ M)
     (hab_eq : G.incidenceSet (G.src e) \ {e} = {ea, eb})
@@ -465,8 +444,8 @@ private theorem measureReal_pairOne_le_straddle_add (_hloop : G.Loopless)
   set Sv := straddleEvent G q R t v
   have hSu_m : MeasurableSet Su := measurableSet_straddleEvent q R t u
   have hSv_m : MeasurableSet Sv := measurableSet_straddleEvent q R t v
-  have hA_m : MeasurableSet A_ev := (measurableSet_pairEvents M q R t e).1
-  have hB_m : MeasurableSet B_ev := (measurableSet_pairEvents M q R t e).2
+  have hA_m : MeasurableSet A_ev := measurableSet_pairAnyEvent M q R t e
+  have hB_m : MeasurableSet B_ev := measurableSet_pairBothEvent M q R t e
   have hint (C : Set (V → ℝ)) (hC : MeasurableSet C) : Integrable (C.indicator 1) P :=
     (integrable_const (1 : ℝ)).indicator hC
   have hpt (ω : V → ℝ) : A_ev.indicator (1 : (V → ℝ) → ℝ) ω +
@@ -547,8 +526,8 @@ theorem measureReal_pairHalf_le (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSe
   set B_ev := pairBothEvent G M q R t e
   set Sep : E → E → Set (V → ℝ) := fun f₁ f₂ =>
     {ω | t ∈ Ι (edgeScore G q R ω f₁) (edgeScore G q R ω f₂)}
-  have hA_m : MeasurableSet A_ev := (measurableSet_pairEvents M q R t e).1
-  have hB_m : MeasurableSet B_ev := (measurableSet_pairEvents M q R t e).2
+  have hA_m : MeasurableSet A_ev := measurableSet_pairAnyEvent M q R t e
+  have hB_m : MeasurableSet B_ev := measurableSet_pairBothEvent M q R t e
   have hSep_m (f₁ f₂ : E) : MeasurableSet (Sep f₁ f₂) :=
     measurableSet_setOf_mem_uIoc (measurable_edgeScore q R _) (measurable_edgeScore q R _) t
   have hint (C : Set (V → ℝ)) (hC : MeasurableSet C) : Integrable (C.indicator 1) P :=
@@ -780,30 +759,8 @@ theorem u2CubicPairBound_gaussian :
   norm_num at hρ_ker
   -- Grid and concentration parameters keeping tail + window + deviation slack within `(7/8) ξ`.
   let ε := ξ / 64
-  let T := √(36 / ξ) + 1
-  let K : ℕ := ⌈72 * T / (ξ * √(2 * π))⌉₊ + 1
   have hε : 0 < ε := by positivity
-  have hT : 0 < T := by positivity
-  have hK : 0 < K := Nat.succ_pos _
-  have hT_sq : 36 / ξ ≤ T ^ 2 := by
-    have h1 : √(36 / ξ) ≤ T := by dsimp only [T]; linarith
-    calc 36 / ξ = (√(36 / ξ)) ^ 2 := (sq_sqrt (by positivity)).symm
-      _ ≤ T ^ 2 := by nlinarith [sqrt_nonneg (36 / ξ)]
-  have htail_val : 18 / T ^ 2 ≤ ξ / 2 := by
-    rw [div_le_iff₀ (by positivity)]
-    have hmul := mul_le_mul_of_nonneg_left hT_sq (by linarith : (0 : ℝ) ≤ ξ / 2)
-    have heq : ξ / 2 * (36 / ξ) = 18 := by field_simp; ring
-    linarith
-  have hK_le : 72 * T / (ξ * √(2 * π)) ≤ K :=
-    (Nat.le_ceil _).trans (by push_cast [K]; linarith)
-  have hwin_val : 18 * (2 * T / K) / √(2 * π) ≤ ξ / 2 := by
-    have hsp : 0 < √(2 * π) := sqrt_pos.mpr (by positivity)
-    have hKpos : (0 : ℝ) < K := Nat.cast_pos.mpr hK
-    have hstep := mul_le_mul_of_nonneg_left hK_le (by positivity : 0 ≤ ξ * √(2 * π))
-    rw [mul_div_cancel₀ _ (by positivity)] at hstep
-    have heq : 18 * (2 * T / (K : ℝ)) / √(2 * π) = (36 * T) / (K * √(2 * π)) := by ring
-    rw [heq, div_le_iff₀ (by positivity)]
-    linarith
+  obtain ⟨T, K, hT, hK, htail_val, hwin_val⟩ := exists_tail_window_grid hξ
   refine ⟨⌈(7 * K + 3) * (vertexOverlap 3 (R + 1) : ℝ) / ε ^ 2⌉₊,
     fun V E _ _ G hloop _ h3 hN M M_clean hM hclean => ?_⟩
   classical
@@ -822,73 +779,7 @@ theorem u2CubicPairBound_gaussian :
   set c : ℝ := ε * h
   have hcpos : 0 < c := mul_pos hε hhpos
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
-  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := by
-    have hsum := G.sum_ncard_incidenceSet hloop
-    simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
-    have : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
-    rw [← Nat.card_eq_fintype_card (α := E)]
-    push_cast at this; linarith
-  have hDmono : (vertexOverlap 3 R : ℝ) ≤ D := by
-    refine Nat.cast_le.mpr ?_; unfold vertexOverlap; gcongr; omega
-  -- Local measurability and radius `(R + 2)` dependency of the four indicator event families.
-  have hunm_m (t : ℝ) (v : V) : MeasurableSet (unmatchedStraddleEvent G M q R t v) := by
-    unfold unmatchedStraddleEvent
-    by_cases hv : v ∈ G.matchedVertices M
-    · simp [hv]
-    · simp only [hv, not_false_eq_true, ↓reduceIte]; exact measurableSet_straddleEvent q R t v
-  have hunm_dep (t : ℝ) (v : V) :
-      DependsOn (· ∈ unmatchedStraddleEvent G M q R t v)
-        (closedBall G.toSimpleGraph v (R + 1)) := by
-    intro ω ω' hω; unfold unmatchedStraddleEvent
-    by_cases hv : v ∈ G.matchedVertices M
-    · simp [hv]
-    · simp only [hv, not_false_eq_true, ↓reduceIte]; exact dependsOn_straddleEvent q R t v hω
-  have hscore_outer (e f : E)
-      (hf : f ∈ (G.incidenceSet (G.src e) \ {e}) ∪ (G.incidenceSet (G.tgt e) \ {e}))
-      {ω ω' : V → ℝ} (hω : ∀ z ∈ closedBall G.toSimpleGraph (G.src e) (R + 2), ω z = ω' z) :
-      edgeScore G q R ω f = edgeScore G q R ω' f := by
-    rcases hf with hf | hf
-    · refine edgeScore_congr hf.1 fun z hz => hω z ?_
-      exact (show G.toSimpleGraph.edist (G.src e) z ≤ ((R + 1 : ℕ) : ℕ∞) from hz).trans
-        (by exact_mod_cast Nat.le_succ (R + 1))
-    · exact edgeScore_congr hf.1 fun z hz => hω z (closedBall_tgt_subset e (R + 1) hz)
-  have hany_m (t : ℝ) (e : E) : MeasurableSet (pairAnyEvent G M q R t e) :=
-    (measurableSet_pairEvents M q R t e).1
-  have hboth_m (S_e : Set E) (t : ℝ) (e : E) : MeasurableSet (pairBothEvent G S_e q R t e) :=
-    (measurableSet_pairEvents S_e q R t e).2
-  have hany_dep (t : ℝ) (e : E) :
-      DependsOn (· ∈ pairAnyEvent G M q R t e) (closedBall G.toSimpleGraph (G.src e) (R + 2)) := by
-    intro ω ω' hω; unfold pairAnyEvent; split_ifs
-    · simp only [mem_ofPred_eq, eq_iff_iff]
-      exact G.pairStraddlesAny_congr fun f hf => hscore_outer e f hf hω
-    · rfl
-  have hboth_dep (S_e : Set E) (t : ℝ) (e : E) :
-      DependsOn (· ∈ pairBothEvent G S_e q R t e)
-        (closedBall G.toSimpleGraph (G.src e) (R + 2)) := by
-    intro ω ω' hω; unfold pairBothEvent; split_ifs
-    · simp only [mem_ofPred_eq, eq_iff_iff]
-      exact G.pairStraddlesBoth_congr fun f hf => hscore_outer e f hf hω
-    · rfl
-  have devSingle (t : ℝ) :
-      P_meas.real (deviation (unmatchedStraddleEvent G M q R t) c) ≤ h * D / c ^ 2 := by
-    refine (measureReal_deviation_le (hunm_m t) (fun v => closedBall G.toSimpleGraph v (R + 1))
-      (hunm_dep t) (fun v => card_not_disjoint_closedBall_le hdeg (by norm_num) R v) hcpos).trans ?_
-    gcongr
-  have devPair (A : E → Set (V → ℝ)) (hm : ∀ e, MeasurableSet (A e))
-      (hd : ∀ e, DependsOn (· ∈ A e) (closedBall G.toSimpleGraph (G.src e) (R + 2))) :
-      P_meas.real (deviation A c) ≤ 3 / 2 * h * D / c ^ 2 := by
-    refine (measureReal_deviation_le hm (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2)) hd
-      (fun e => card_not_disjoint_closedBall_src_le hdeg (R + 1) e) hcpos).trans_eq ?_
-    rw [hE]
-  have devEdge {p : ℝ → Prop} (hp : MeasurableSet {x | p x}) :
-      P_meas.real (deviation (edgeScoreEvent G q R p) c) ≤ 3 / 2 * h * D / c ^ 2 := by
-    have hdep : ∀ e, DependsOn (· ∈ edgeScoreEvent G q R p e)
-        (closedBall G.toSimpleGraph (G.src e) (R + 1)) := fun e ω ω' hω => by
-      simp only [edgeScoreEvent, mem_ofPred_eq, edgeScore_congr (Or.inl rfl) hω]
-    refine (measureReal_deviation_le (fun e => measurable_edgeScore q R e hp)
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) hdep
-      (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hcpos).trans ?_
-    rw [hE]; gcongr
+  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq_three_halves hloop h3
   let grid (i : ℕ) : ℝ := -T + i * δ
   let winEv (i : ℕ) : E → Set (V → ℝ) :=
     edgeScoreEvent G q R fun x => grid i ≤ x ∧ x < grid i + δ
@@ -901,12 +792,16 @@ theorem u2CubicPairBound_gaussian :
   let badLo : Set (V → ℝ) := deviation (edgeScoreEvent G q R (· < -T)) c
   let badHi : Set (V → ℝ) := deviation (edgeScoreEvent G q R (T ≤ ·)) c
   have hCost_le (i : ℕ) (_ : i < K) : P_meas.real (badCost i) ≤ (11 / 2) * h * D / c ^ 2 := by
-    have h1 := devSingle (grid i)
-    have h2 := devPair (pairAnyEvent G M q R (grid i)) (hany_m (grid i)) (hany_dep (grid i))
-    have h3' := devPair (pairBothEvent G (M \ M_clean) q R (grid i))
-      (hboth_m (M \ M_clean) (grid i)) (hboth_dep (M \ M_clean) (grid i))
-    have h4 := devPair (pairBothEvent G M_clean q R (grid i))
-      (hboth_m M_clean (grid i)) (hboth_dep M_clean (grid i))
+    have h1 := measureReal_deviation_unmatchedStraddleEvent_le hdeg M q R (grid i) hcpos
+    have h2 := measureReal_deviation_closedBall_src_le hloop h3 R
+      (fun e => measurableSet_pairAnyEvent M q R (grid i) e)
+      (fun e => dependsOn_pairAnyEvent hloop M q R (grid i) e) hcpos
+    have h3' := measureReal_deviation_closedBall_src_le hloop h3 R
+      (fun e => measurableSet_pairBothEvent (M \ M_clean) q R (grid i) e)
+      (fun e => dependsOn_pairBothEvent hloop (M \ M_clean) q R (grid i) e) hcpos
+    have h4 := measureReal_deviation_closedBall_src_le hloop h3 R
+      (fun e => measurableSet_pairBothEvent M_clean q R (grid i) e)
+      (fun e => dependsOn_pairBothEvent hloop M_clean q R (grid i) e) hcpos
     refine (measureReal_union_le _ _).trans ?_
     refine (add_le_add (measureReal_union_le _ _) h4).trans ?_
     refine (add_le_add (add_le_add (measureReal_union_le _ _) h3')
@@ -915,11 +810,14 @@ theorem u2CubicPairBound_gaussian :
         3 / 2 * h * D / c ^ 2 = (11 / 2) * h * D / c ^ 2 := by ring
     linarith only [h1, h2, h3', h4, heq_sum]
   have hWin_le (i : ℕ) (_ : i < K) : P_meas.real (badWin i) ≤ 3 / 2 * h * D / c ^ 2 :=
-    devEdge (measurableSet_Ico : MeasurableSet (Ico (grid i) (grid i + δ)))
+    measureReal_deviation_edgeScoreEvent_le hloop h3 q R
+      (measurableSet_Ico : MeasurableSet (Ico (grid i) (grid i + δ))) hcpos
   have hLo_le : P_meas.real badLo ≤ 3 / 2 * h * D / c ^ 2 :=
-    devEdge (measurableSet_Iio : MeasurableSet (Iio (-T)))
+    measureReal_deviation_edgeScoreEvent_le hloop h3 q R
+      (measurableSet_Iio : MeasurableSet (Iio (-T))) hcpos
   have hHi_le : P_meas.real badHi ≤ 3 / 2 * h * D / c ^ 2 :=
-    devEdge (measurableSet_Ici : MeasurableSet (Ici T))
+    measureReal_deviation_edgeScoreEvent_le hloop h3 q R
+      (measurableSet_Ici : MeasurableSet (Ici T)) hcpos
   have hsmall : K * ((11 / 2) * h * D / c ^ 2 + 3 / 2 * h * D / c ^ 2) +
       3 / 2 * h * D / c ^ 2 + 3 / 2 * h * D / c ^ 2 < 1 := by
     have hlt : (7 * (K : ℝ) + 3) * D < ε ^ 2 * h := by
@@ -962,17 +860,10 @@ theorem u2CubicPairBound_gaussian :
   have tail (p : ℝ → Prop) (hp : ∀ x, p x → T ≤ |x|)
       (hdev : ω ∉ deviation (edgeScoreEvent G q R p) c) :
       12 * ({e | p (edgeScore G q R ω e)}.ncard : ℝ) ≤ B_tot := by
-    have hcount := ncard_lt_of_notMem_deviation hdev
-    have hmean_t : ∑ e, P_meas.real (edgeScoreEvent G q R p e) ≤ 3 / 2 * h * (1 / T ^ 2) := by
-      refine (Finset.sum_le_sum fun e _ => (measureReal_mono (μ := P_meas) fun ω' hω' =>
-        hp _ hω').trans (measureReal_le_abs_le (unit e) hT)).trans_eq ?_
-      rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hE]
-    have hmul : 12 * (3 / 2 * h * (1 / T ^ 2)) = h * (18 / T ^ 2) := by field_simp; ring
-    have hc_eq : 12 * c = h * (12 * ε) := by dsimp only [c]; ring
-    have hset : {e | ω ∈ edgeScoreEvent G q R p e} = {e | p (edgeScore G q R ω e)} := rfl
-    rw [hset] at hcount
+    refine (twelve_mul_ncard_edgeScore_tail_le hloop h3 unit hT hp hdev).trans ?_
     refine le_trans ?_ hB_tail
-    linarith only [hcount, hmean_t, hmul, hc_eq]
+    dsimp only [c, h]
+    linarith
   have htop_eq : -T + K * δ = T := by dsimp only [δ]; field_simp; ring
   refine ⟨edgeScore G q R ω, ?_⟩
   have hgrid_mid : ∀ i < K,
@@ -1193,29 +1084,5 @@ theorem u2CorrelationThreshold_ge_28007 :
     linarith
   rw [← sub_le_iff_le_add', le_div_iff₀ hden_pos]
   linarith
-
-/-- **The `U₂` quadratic-form correlation threshold is strictly above `2.8006` (`28006 / 10000`).**
--/
-theorem u2CorrelationThreshold_ge_28006 :
-    (28006 / 10000 : ℝ) ≤
-      1 + (1 / 2 - (2 * gaussianCoefficient - 271212 / 1000000)) /
-        ((7 / 8) * (271212 / 1000000) + (1 / 8) * (2 * gaussianCoefficient)) :=
-  le_trans (by norm_num) u2CorrelationThreshold_ge_28007
-
-/-- Clean-matching `U₂` circuit coefficient (`1 + 1 / B_{U₂} ≥ 4.6871`). -/
-theorem u2CleanCircuitCoefficient_ge_46871 :
-    (46871 / 10000 : ℝ) ≤ 1 + 1 / (271212 / 1000000 : ℝ) := by norm_num
-
-/-- Edmonds `1/3`-dirty-fraction `U₂` circuit coefficient (`≥ 4.6754`). -/
-theorem u2EdmondsCircuitCoefficient_ge_46754 :
-    (46754 / 10000 : ℝ) ≤
-      1 + (1 - (2 * gaussianCoefficient - 271212 / 1000000) / 3) / (271212 / 1000000) := by
-  linarith [two_mul_gaussianCoefficient_le]
-
-/-- Edmonds `1/3`-dirty-fraction `U₂` quadratic-form correlation threshold (`≥ 2.8318`). -/
-theorem u2EdmondsCorrelationThreshold_ge_28318 :
-    (28318 / 10000 : ℝ) ≤
-      1 + (1 / 2 - (2 * gaussianCoefficient - 271212 / 1000000) / 3) / (271212 / 1000000) := by
-  linarith [two_mul_gaussianCoefficient_le]
 
 end Cslib.Circuits.Frontier.Gaussian
