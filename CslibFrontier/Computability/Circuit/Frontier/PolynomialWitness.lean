@@ -11,12 +11,15 @@ public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
 public import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree
 public import Mathlib.Data.ZMod.Basic
+import CslibFrontier.Computability.Circuit.Frontier.Witness
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
 import CslibFrontier.Foundations.Combinatorics.Hoeffding
 import CslibFrontier.Foundations.Combinatorics.SetFamily.ShadowDegeneracy
 import CslibFrontier.Foundations.Data.Set.Card
+import Mathlib.Algebra.Ring.GeomSum
 import Mathlib.Analysis.SpecialFunctions.Pow.Asymptotics
 import Mathlib.Data.Fintype.Powerset
+import Mathlib.Tactic.FinCases
 
 /-!
 # Low-degree polynomial witnesses for worst-case and average-case frontier bounds
@@ -113,9 +116,6 @@ open Finset Asymptotics Real
 open Filter (atTop Tendsto eventually_ge_atTop)
 open scoped BigOperators
 
-private theorem zmod2_eq_zero_or_one (z : ZMod 2) : z = 0 ∨ z = 1 := by
-  revert z; decide
-
 /-- The subexponential rectangle threshold for degree-`2 p` polynomial witnesses at rank `s`:
 `s + s ^ (p - 1) · 2 ^ ⌈(p! · s) ^ (1 / p)⌉₊`. For `p = 2` (quartic polynomials),
 `log (polyThreshold 2 s) = O(√s)`. -/
@@ -142,13 +142,6 @@ section Footprint
 private def monomialWeight {m : ℕ} (I : Finset (Fin m)) : ℕ :=
   ∑ i ∈ I, 2 ^ (i : ℕ)
 
-private theorem sum_range_two_pow (k : ℕ) : (∑ r ∈ Finset.range k, 2 ^ r) + 1 = 2 ^ k := by
-  induction k with
-  | zero => simp
-  | succ k ih =>
-    rw [Finset.sum_range_succ, add_right_comm, ih, pow_succ]
-    omega
-
 private theorem monomialWeight_lt_two_pow {m : ℕ} (I : Finset (Fin m)) :
     monomialWeight I < 2 ^ m := by
   let emb : Fin m ↪ ℕ := ⟨Fin.val, Fin.val_injective⟩
@@ -159,7 +152,8 @@ private theorem monomialWeight_lt_two_pow {m : ℕ} (I : Finset (Fin m)) :
     exact mem_range.mpr i.isLt
   have hle : ∑ r ∈ I.map emb, 2 ^ r ≤ ∑ r ∈ Finset.range m, 2 ^ r :=
     Finset.sum_le_sum_of_subset hsub
-  have htot := sum_range_two_pow m
+  rw [Nat.geomSum_eq le_rfl, Nat.div_one] at hle
+  have hpos : 0 < 2 ^ m := Nat.two_pow_pos m
   omega
 
 private theorem monomialWeight_injective {m : ℕ} :
@@ -333,8 +327,12 @@ private theorem sum_footprint_eq_zero {m : ℕ} (A : Set (Fin m → Bool))
     exact Finset.sum_subset (subset_univ supp) fun I _ hIn => by
       simp only [supp, mem_filter, Finset.mem_univ, true_and, not_not] at hIn
       rw [hIn, zero_smul]
-  have hgI₀ : g I₀ = 1 :=
-    (zmod2_eq_zero_or_one (g I₀)).resolve_left (mem_filter.mp hI₀).2
+  have hgI₀ : g I₀ = 1 := by
+    have hne := (mem_filter.mp hI₀).2
+    generalize g I₀ = z at hne ⊢
+    fin_cases z
+    · exact absurd rfl hne
+    · rfl
   have hsplit := Finset.add_sum_erase supp (fun I : footprint A => g I • monomialCol A I.1) hI₀
   rw [hsum_supp, hgI₀, one_smul] at hsplit
   have hcol_eq : monomialCol A I₀.1 = - ∑ I ∈ supp.erase I₀, g I • monomialCol A I.1 :=
@@ -438,6 +436,33 @@ private theorem le_card_footprint_le_of_polyThreshold {m p s : ℕ} (hp : 1 ≤ 
   have hcard_fp := ncard_le_card_footprint A
   omega
 
+private theorem injective_mulVec_of_row_independent {s : ℕ} (M : Fin s → Fin s → ZMod 2)
+    (hM : ∀ r : Fin s → ZMod 2, (fun j => ∑ i, r i * M i j) = 0 → r = 0) :
+    Function.Injective (fun (w : Fin s → ZMod 2) (i : Fin s) => ∑ j, M i j * w j) := by
+  let f (r : Fin s → ZMod 2) (j : Fin s) : ZMod 2 := ∑ i, r i * M i j
+  have hf_inj : Function.Injective f := fun r₁ r₂ heq => by
+    have h0 : f (r₁ - r₂) = 0 := by
+      funext j
+      simp only [f, Pi.sub_apply, sub_mul, Finset.sum_sub_distrib]
+      exact sub_eq_zero.mpr (congrFun heq j)
+    exact sub_eq_zero.mp (hM _ h0)
+  have hf_surj : Function.Surjective f := Finite.injective_iff_surjective.mp hf_inj
+  intro w₁ w₂ heq
+  funext k
+  obtain ⟨u, hu⟩ := hf_surj (fun j => if j = k then 1 else 0)
+  have hswap (w : Fin s → ZMod 2) : ∑ i, u i * ∑ j, M i j * w j = w k := by
+    calc ∑ i, u i * ∑ j, M i j * w j
+        = ∑ j, f u j * w j := by
+          simp only [f, Finset.sum_mul, Finset.mul_sum]
+          rw [Finset.sum_comm]
+          exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by ring
+      _ = ∑ j, (if j = k then (1 : ZMod 2) else 0) * w j := by rw [hu]
+      _ = w k := by
+          rw [Fintype.sum_eq_single k (fun j hj => by simp [hj])]
+          simp
+  rw [← hswap w₁, ← hswap w₂]
+  exact Finset.sum_congr rfl fun i _ => congrArg (u i * ·) (congrFun heq i)
+
 private theorem exists_pivot_rows {α : Type*} {s : ℕ} (N : α → Fin s → ZMod 2)
     (hcol : ∀ c : Fin s → ZMod 2, (fun x => ∑ j, c j * N x j) = 0 → c = 0) :
     ∃ a : Fin s → α, ∀ r : Fin s → ZMod 2, (fun j => ∑ i, r i * N (a i) j) = 0 → r = 0 := by
@@ -458,35 +483,13 @@ private theorem exists_pivot_rows {α : Type*} {s : ℕ} (N : α → Fin s → Z
       funext j
       simpa only [c0, Fin.cons_succ, Pi.zero_apply] using congrFun h0 j.succ
     obtain ⟨a₀, ha₀⟩ := ih (fun x j => N x j.succ) hcol'
-    let rowMap (r : Fin s → ZMod 2) (j : Fin s) : ZMod 2 := ∑ i, r i * N (a₀ i) j.succ
-    have hrow_inj : Function.Injective rowMap := by
-      intro r₁ r₂ heq
-      have hsub : rowMap (r₁ - r₂) = 0 := by
-        funext j
-        simp only [rowMap, Pi.sub_apply, sub_mul, Finset.sum_sub_distrib]
-        exact sub_eq_zero.mpr (congrFun heq j)
-      exact sub_eq_zero.mp (ha₀ (r₁ - r₂) hsub)
-    have hrow_surj : Function.Surjective rowMap := Finite.injective_iff_surjective.mp hrow_inj
     let colMap (c : Fin s → ZMod 2) (i : Fin s) : ZMod 2 := ∑ j, c j * N (a₀ i) j.succ
+    have hcol_eq : colMap = fun c i => ∑ j, N (a₀ i) j.succ * c j := by
+      ext c i
+      exact Finset.sum_congr rfl fun j _ => mul_comm _ _
     have hcolB_inj : Function.Injective colMap := by
-      intro c₁ c₂ heq
-      funext k
-      obtain ⟨u, hu⟩ := hrow_surj (fun j => if j = k then 1 else 0)
-      have hswap (c : Fin s → ZMod 2) : ∑ i, u i * colMap c i = c k := by
-        calc ∑ i, u i * ∑ j, c j * N (a₀ i) j.succ
-            = ∑ i, ∑ j, c j * (u i * N (a₀ i) j.succ) := by
-              refine Finset.sum_congr rfl fun i _ => ?_
-              rw [Finset.mul_sum]
-              exact Finset.sum_congr rfl fun j _ => by ring
-          _ = ∑ j, c j * rowMap u j := by
-              rw [Finset.sum_comm]
-              exact Finset.sum_congr rfl fun j _ => (Finset.mul_sum _ _ _).symm
-          _ = ∑ j, c j * (if j = k then (1 : ZMod 2) else 0) := by rw [hu]
-          _ = c k := by
-              rw [Fintype.sum_eq_single k]
-              · simp
-              · intro j hj; simp [hj]
-      rw [← hswap c₁, ← hswap c₂, heq]
+      rw [hcol_eq]
+      exact injective_mulVec_of_row_independent (fun i j => N (a₀ i) j.succ) ha₀
     have hcolB_surj : Function.Surjective colMap := Finite.injective_iff_surjective.mp hcolB_inj
     obtain ⟨coeff, hcoeff⟩ := hcolB_surj fun i => N (a₀ i) 0
     let w (x : α) : ZMod 2 := N x 0 - ∑ j : Fin s, coeff j * N x j.succ
@@ -526,9 +529,11 @@ private theorem exists_pivot_rows {α : Type*} {s : ℕ} (N : α → Fin s → Z
       congrFun hr j
     rw [hr_at 0, Finset.sum_eq_zero fun j _ => by rw [hr_at j.succ, mul_zero], sub_zero] at hr0_sum
     have hr0 : r 0 = 0 := by
-      rcases zmod2_eq_zero_or_one (r 0) with h0 | h1
-      · exact h0
-      · rw [h1, one_mul] at hr0_sum
+      generalize r 0 = z at hr0_sum ⊢
+      fin_cases z
+      · rfl
+      · change (1 : ZMod 2) * w x₀ = 0 at hr0_sum
+        rw [one_mul] at hr0_sum
         exact absurd hr0_sum hx₀
     have htail_zero : (fun j : Fin s => ∑ i : Fin s, r i.succ * N (a₀ i) j.succ) = 0 := by
       funext j
@@ -665,27 +670,9 @@ private theorem bijective_kronecker_bilinear {s : ℕ} (M₁ M₂ : Fin s → Fi
       ∑ j₁ : Fin s, ∑ j₂ : Fin s, M₁ q.1 j₁ * C (j₁, j₂) * M₂ q.2 j₂) := by
   have mulVec_inj : ∀ (M : Fin s → Fin s → ZMod 2),
       (∀ r : Fin s → ZMod 2, (fun j => ∑ i, r i * M i j) = 0 → r = 0) →
-      ∀ w : Fin s → ZMod 2, (∀ i, ∑ j, M i j * w j = 0) → w = 0 := by
-    intro M hM w hw
-    let f (r : Fin s → ZMod 2) (j : Fin s) : ZMod 2 := ∑ i, r i * M i j
-    have hf_inj : Function.Injective f := fun r₁ r₂ heq => by
-      have h0 : f (r₁ - r₂) = 0 := by
-        funext j
-        simp only [f, Pi.sub_apply, sub_mul, Finset.sum_sub_distrib]
-        exact sub_eq_zero.mpr (congrFun heq j)
-      exact sub_eq_zero.mp (hM _ h0)
-    have hf_surj : Function.Surjective f := Finite.injective_iff_surjective.mp hf_inj
-    funext k
-    obtain ⟨u, hu⟩ := hf_surj (fun j => if j = k then 1 else 0)
-    calc w k = ∑ j, (if j = k then (1 : ZMod 2) else 0) * w j := by
-          rw [Fintype.sum_eq_single k (fun j hj => by simp [hj])]
-          simp
-      _ = ∑ j, f u j * w j := by rw [hu]
-      _ = ∑ i, u i * ∑ j, M i j * w j := by
-          simp only [f, Finset.sum_mul, Finset.mul_sum]
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun i _ => Finset.sum_congr rfl fun j _ => by ring
-      _ = 0 := Finset.sum_eq_zero fun i _ => by rw [hw i, mul_zero]
+      ∀ w : Fin s → ZMod 2, (∀ i, ∑ j, M i j * w j = 0) → w = 0 :=
+    fun M hM w hw => @injective_mulVec_of_row_independent s M hM w 0 <|
+      funext fun i => by simp [hw i]
   have h1 := mulVec_inj M₁ hM₁
   have h2 := mulVec_inj M₂ hM₂
   let L (C : Fin s × Fin s → ZMod 2) (q : Fin s × Fin s) : ZMod 2 :=
@@ -980,7 +967,7 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
           rw [Equiv.apply_symm_apply]; exact ha_mem q.1
         · change (eCut (eCut.symm (a q.1, b q.2))).2 ∈ B
           rw [Equiv.apply_symm_apply]; exact hb_mem q.2
-      rcases zmod2_eq_zero_or_one v with rfl | rfl
+      fin_cases v
       · exact Or.inl fun q => hAB (hmem_rect q)
       · exact Or.inr fun q => hAB (hmem_rect q)
   have hcount : #bad < 2 ^ M := by
@@ -1026,14 +1013,16 @@ theorem exists_lowDegree_rectangleFree {p : ℕ} (hp : 1 ≤ p) (n : ℕ) :
     · have hset : {x : Fin n → Bool | (1 - f₀) x = v} = {x | f₀ x = 1 - v} := by
         ext x
         simp only [Pi.sub_apply, Pi.one_apply, Set.mem_ofPred_eq]
-        rcases zmod2_eq_zero_or_one (f₀ x) with h1 | h1 <;>
-          rcases zmod2_eq_zero_or_one v with rfl | rfl <;> simp [h1]
+        rw [sub_eq_iff_eq_add, eq_sub_iff_add_eq, add_comm, eq_comm]
       rw [hset]
       exact hc_good (1 - v)
     · have hset : {x : Fin n → Bool | (1 - f₀) x = 1} = {x | f₀ x = 1}ᶜ := by
         ext x
-        simp only [Pi.sub_apply, Pi.one_apply, Set.mem_ofPred_eq, Set.mem_compl_iff]
-        rcases zmod2_eq_zero_or_one (f₀ x) with h1 | h1 <;> simp [h1]
+        simp only [Pi.sub_apply, Pi.one_apply, Set.mem_ofPred_eq, Set.mem_compl_iff, sub_eq_self]
+        generalize f₀ x = z
+        fin_cases z
+        · exact ⟨fun _ h => (by cases h), fun _ => rfl⟩
+        · exact ⟨fun h _ => (by cases h), fun h => absurd rfl h⟩
       rw [hset]
       have htot := Set.ncard_add_ncard_compl {x : Fin n → Bool | f₀ x = 1}
       rw [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool, Fintype.card_fin] at htot
@@ -1522,40 +1511,19 @@ theorem exists_lowDegree_denseRectangleFree_family {p : ℕ} (hp : 2 ≤ p) :
       ∀ n, 2 ^ (n - 1) ≤ {x | f n x = 1}.ncard := by
   choose f hf_deg hfree hdense using fun n =>
     exists_lowDegree_rectangleFree (by omega : 1 ≤ p) n
-  refine ⟨f, hf_deg, ⟨Filter.Eventually.of_forall fun n => hfree n 1, ?_, ?_⟩, hdense⟩
-  · have h1lt : (1 : ℝ) < p := by
-      have : 1 < p := by omega
-      exact_mod_cast this
-    refine isLittleO_log_polyThreshold hp (Filter.Eventually.of_forall fun n => by omega) h1lt ?_
-    refine IsBigO.of_bound 3 ?_
-    filter_upwards [eventually_ge_atTop 1] with n hn
-    rw [Real.rpow_one, Real.norm_of_nonneg (Nat.cast_nonneg _),
-      Real.norm_of_nonneg (Nat.cast_nonneg _)]
-    have hn' : (1 : ℝ) ≤ n := by exact_mod_cast hn
-    push_cast
-    linarith
-  · refine (IsBigO.of_bound (Real.log 2) (Filter.Eventually.of_forall fun n => ?_)).trans_isLittleO
-      (isLittleO_const_id_atTop (1 : ℝ)).natCast_atTop
-    have hL : 0 < Real.log 2 := Real.log_pos one_lt_two
-    have hpos : (0 : ℝ) < 2 ^ (n - 1) := by positivity
-    have hlow : (2 : ℝ) ^ (n - 1) ≤ {x | f n x = 1}.ncard := by exact_mod_cast hdense n
-    have hup : ({x | f n x = 1}.ncard : ℝ) ≤ 2 ^ n := by
-      have := Set.ncard_le_card {x : Fin n → Bool | f n x = 1}
-      simp only [Nat.card_eq_fintype_card, Fintype.card_fun, Fintype.card_bool,
-        Fintype.card_fin] at this
-      exact_mod_cast this
-    have hlog_low : ((n : ℝ) - 1) * Real.log 2 ≤ Real.log {x | f n x = 1}.ncard := by
-      calc ((n : ℝ) - 1) * Real.log 2 ≤ ((n - 1 : ℕ) : ℝ) * Real.log 2 := by
-            gcongr
-            rcases n with _ | n <;> simp
-        _ = Real.log (2 ^ (n - 1)) := by rw [Real.log_pow]
-        _ ≤ Real.log {x | f n x = 1}.ncard := Real.log_le_log hpos hlow
-    have hlog_up : Real.log {x | f n x = 1}.ncard ≤ n * Real.log 2 := by
-      rw [← Real.log_pow]
-      exact Real.log_le_log (hpos.trans_le hlow) hup
-    rw [Nat.card_eq_fintype_card, Fintype.card_bool, Nat.cast_ofNat, Real.norm_eq_abs, norm_one,
-      mul_one, abs_le]
-    constructor <;> linarith
+  refine ⟨f, hf_deg, ⟨Filter.Eventually.of_forall fun n => hfree n 1, ?_,
+    isLittleO_deficit_of_two_pow_le_ncard hdense⟩, hdense⟩
+  have h1lt : (1 : ℝ) < p := by
+    have : 1 < p := by omega
+    exact_mod_cast this
+  refine isLittleO_log_polyThreshold hp (Filter.Eventually.of_forall fun n => by omega) h1lt ?_
+  refine IsBigO.of_bound 3 ?_
+  filter_upwards [eventually_ge_atTop 1] with n hn
+  rw [Real.rpow_one, Real.norm_of_nonneg (Nat.cast_nonneg _),
+    Real.norm_of_nonneg (Nat.cast_nonneg _)]
+  have hn' : (1 : ℝ) ≤ n := by exact_mod_cast hn
+  push_cast
+  linarith
 
 /-- **Quartic polynomial families (`deg ≤ 4`) satisfy `DenseRectangleFree`.** -/
 theorem exists_quartic_denseRectangleFree_family :
@@ -1662,14 +1630,9 @@ theorem exists_lowDegree_rectangleBias_family {p : ℕ} (hp : 2 ≤ p) {β : ℝ
   have hlog_pt : (fun n : ℕ => Real.log (polyThreshold p (s n))) =o[atTop] fun n : ℕ => (n : ℝ) :=
     isLittleO_log_polyThreshold hp (Filter.Eventually.of_forall fun n => by simp only [s]; omega)
       (by linarith) hsO
-  have hlog_n1 : (fun n : ℕ => Real.log ((n : ℝ) + 1)) =o[atTop] fun n : ℕ => (n : ℝ) := by
-    have ht : Tendsto (fun n : ℕ => (n : ℝ) + 1) atTop atTop :=
-      Filter.tendsto_atTop_add_const_right _ 1 tendsto_natCast_atTop_atTop
-    exact (isLittleO_log_id_atTop.comp_tendsto ht).trans_isBigO
-      ((isBigO_refl _ _).add (isLittleO_const_id_atTop (1 : ℝ)).natCast_atTop.isBigO)
   have hdom : (fun n : ℕ => Real.log (polyThreshold p (s n)) +
       β * Real.log ((n : ℝ) + 1) + Real.log 8) =o[atTop] fun n : ℕ => (n : ℝ) :=
-    (hlog_pt.add (hlog_n1.const_mul_left β)).add
+    (hlog_pt.add ((isLittleO_log_add 1).const_mul_left β)).add
       (isLittleO_const_id_atTop (Real.log 8)).natCast_atTop
   refine (IsBigO.of_bound 1 ?_).trans_isLittleO hdom
   filter_upwards [eventually_ge_atTop 1] with n _
