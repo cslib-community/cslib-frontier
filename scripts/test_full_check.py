@@ -44,6 +44,7 @@ SOURCE_CHECK_NAMES = frozenset({
     "Projection chain ratchet (changed modules)",
     "Projection chain report",
     "Repeated-proof-block notice (advisory)",
+    "High-fan-in module impact (advisory)",
     "Documentation pins",
 })
 # The only `run` lines of a mirrored step that the local run does not repeat: they compute CI's
@@ -249,6 +250,14 @@ class WorkflowParityTests(unittest.TestCase):
         names = [step.name for step in full.STEPS]
         for audit in ("Tidy statement ratchet", "Result registry references", "Changed-file lints"):
             self.assertGreater(names.index(audit), names.index("lake build"))
+
+    def test_pr_and_full_lint_steps_are_complementary(self):
+        lean = {step["name"]: step for step in self.named_by_job["lean-checks"]}
+        self.assertEqual(lean["lake lint (affected modules)"]["if"], "github.event_name == 'pull_request'")
+        self.assertEqual(lean["lake lint"]["if"], "github.event_name != 'pull_request'")
+        self.assertIn("python3 -B scripts/quick_check.py --lint-only --base \"$BASE\"",
+                      lean["lake lint (affected modules)"]["run"])
+        self.assertEqual(lean["lake lint"]["run"], "lake lint")
 
     def test_local_steps_are_not_ci_steps(self):
         # A local step must neither pass for a mirror of a CI step nor hide one from the parity check.

@@ -196,14 +196,14 @@ theorem sum_mul_signVal_eq [Fintype X] [Fintype Y] (p : Protocol X Y Bool) (ν :
     ∑ x, ∑ y, (ν (x, y)).toReal * signVal (f x y) * signVal (p.run x y) =
       1 - 2 * p.distributionalError ν (fun x y b => f x y = b) := by
   classical
-  rw [distributionalError, PMF.toOuterMeasure_apply_toReal, ← PMF.sum_toReal ν, mul_sum,
+  rw [distributionalError, PMF.errorProb_eq_sum, ← PMF.sum_toReal ν, mul_sum,
     ← sum_sub_distrib, ← Fintype.sum_prod_type' (fun x y =>
       (ν (x, y)).toReal * signVal (f x y) * signVal (p.run x y))]
   refine sum_congr rfl fun q _ => ?_
   rw [mul_assoc, signVal_mul_signVal]
   by_cases h : f q.1 q.2 = p.run q.1 q.2
   · simp [h]
-  · simp only [h, ite_false, Set.mem_ofPred_eq, not_false_eq_true, ite_true]
+  · simp only [h, ite_false]
     ring
 
 /-- **The discrepancy bound** for deterministic protocols: a protocol erring with probability at

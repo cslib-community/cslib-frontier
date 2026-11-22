@@ -16,6 +16,8 @@ import CslibFrontier.Foundations.Data.Nat.ChooseLog
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Parameters, Threshold Inequalities, and Succinct Space Accounting for the WHP Dictionary
@@ -114,7 +116,7 @@ theorem one_le_cEff (c : ℕ) : 1 ≤ cEff c :=
 
 /-- Number of base-`2 ^ bCharWhp` key characters `8 * (cEff c + 5)` (`≥ 48`), serving as both the
 Stage-1 reduced-key character count and the constant height of the `G`/`S` buffer tries. -/
-@[expose] def cTabWhp (c : ℕ) : ℕ :=
+@[expose, wram_arith] def cTabWhp (c : ℕ) : ℕ :=
   8 * (cEff c + 5)
 
 /-- Character count `cTabWhp c` is at least `48`. -/
@@ -140,13 +142,11 @@ theorem le_qTabWhp (c : ℕ) : 30 ≤ qTabWhp c := by
 /-- Combined logarithmic exponent multiplier `320 + 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c` (`Θ(c^3)`)
 chosen so `codeExpWhp c * Dynamic.logLogFactor n_max ≤ bCharWhp n_max` discharges both Thorup's code
 bound and all polylogarithmic scale inequalities. -/
-@[expose] def codeExpWhp (c : ℕ) : ℕ :=
+@[expose, wram_arith] def codeExpWhp (c : ℕ) : ℕ :=
   320 + 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c
 
 /-- Logarithmic exponent multiplier `codeExpWhp c` is at least `320`. -/
-theorem le_codeExpWhp (c : ℕ) : 320 ≤ codeExpWhp c := by
-  unfold codeExpWhp
-  omega
+theorem le_codeExpWhp (c : ℕ) : 320 ≤ codeExpWhp c := by wram_omega
 
 /-- Minimum `⌊log₂ n_max⌋` threshold `64 * (codeExpWhp c) ^ 2 + 16 * codeExpWhp c` (`Θ(c^6)`). -/
 @[expose] def bMinWhp (c : ℕ) : ℕ :=
@@ -168,8 +168,7 @@ private theorem cTabWhp_bounds_le_codeExpWhp (c : ℕ) :
   have h3a : (cTabWhp c + 1) ^ 2 * qTabWhp c ≤ 16 * (cTabWhp c + 1) ^ 2 * qTabWhp c := by
     rw [mul_assoc 16]
     exact Nat.le_mul_of_pos_left _ (by decide)
-  unfold codeExpWhp
-  omega
+  wram_omega
 
 private theorem dTabWhp_le_two_pow (c : ℕ) :
     dTabWhp c ≤ 2 ^ (3 * (cTabWhp c + 1)) := by
@@ -199,11 +198,11 @@ theorem whpThreshold_pos (c : ℕ) : 0 < whpThreshold c := by
 /-! ## Section 2: Bucket, quotient, fingerprint, salt, B+-tree, and buffer parameters -/
 
 /-- Tabulation character width `⌊log₂ n_max⌋ / 4`. -/
-@[expose] def bCharWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def bCharWhp (n_max : ℕ) : ℕ :=
   Nat.log 2 n_max / 4
 
 /-- Feistel bucket index bit-width `⌊log₂ n_max⌋ - 12 * Dynamic.logLogFactor n_max`. -/
-@[expose] def bWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def bWhp (n_max : ℕ) : ℕ :=
   Nat.log 2 n_max - 12 * Dynamic.logLogFactor n_max
 
 /-- Number of Feistel buckets `M = 2 ^ bWhp n_max`. -/
@@ -216,7 +215,7 @@ theorem whpThreshold_pos (c : ℕ) : 0 < whpThreshold c := by
 
 /-- Salted fingerprint bit-width `36 * Dynamic.logLogFactor n_max`
 (`2 ^ fpBitsWhp n_max = (slabScale n_max) ^ 36`). -/
-@[expose] def fpBitsWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def fpBitsWhp (n_max : ℕ) : ℕ :=
   36 * Dynamic.logLogFactor n_max
 
 /-- Per-bucket salt search bound `(cEff c + 4) * slabScale n_max`. -/
@@ -237,11 +236,11 @@ theorem whpThreshold_pos (c : ℕ) : 0 < whpThreshold c := by
   n_max / (numBucketsWhp n_max * (8 * slabScale n_max))
 
 /-- Dedicated front-yard slot capacity per bucket `⌊n_max / M⌋ - 4 * deltaWhp n_max`. -/
-@[expose] def capFrontWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def capFrontWhp (n_max : ℕ) : ℕ :=
   n_max / numBucketsWhp n_max - 4 * deltaWhp n_max
 
 /-- Per-bucket backyard pointer directory capacity `2 * (slabScale n_max) ^ 11`. -/
-@[expose] def capBackWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def capBackWhp (n_max : ℕ) : ℕ :=
   2 * (slabScale n_max) ^ 11
 
 /-- Maximum good-event bucket occupancy `4 * (slabScale n_max) ^ 12`. -/
@@ -249,20 +248,20 @@ theorem whpThreshold_pos (c : ℕ) : 0 < whpThreshold c := by
   4 * (slabScale n_max) ^ 12
 
 /-- Global shared backyard pool capacity `n_max - numBucketsWhp n_max * capFrontWhp n_max`. -/
-@[expose] def poolSizeWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def poolSizeWhp (n_max : ℕ) : ℕ :=
   n_max - numBucketsWhp n_max * capFrontWhp n_max
 
 /-- Minimum degree `t ≥ 2` of internal SWAR B+-tree nodes:
 `max 2 (⌊log₂ n_max⌋ / (160 * Dynamic.logLogFactor n_max))`. -/
-@[expose] def tMinWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def tMinWhp (n_max : ℕ) : ℕ :=
   max 2 (Nat.log 2 n_max / (160 * Dynamic.logLogFactor n_max))
 
 /-- SWAR key lane bit-width `fpBitsWhp n_max + 2 = 36 * Dynamic.logLogFactor n_max + 2`. -/
-@[expose] def keyLaneBitsWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def keyLaneBitsWhp (n_max : ℕ) : ℕ :=
   fpBitsWhp n_max + 2
 
 /-- SWAR child/local-coord lane bit-width `12 * Dynamic.logLogFactor n_max + 8`. -/
-@[expose] def valLaneBitsWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def valLaneBitsWhp (n_max : ℕ) : ℕ :=
   12 * Dynamic.logLogFactor n_max + 8
 
 /-- Packed SWAR keys-word bit-width `2 * tMinWhp n_max * keyLaneBitsWhp n_max`. -/
@@ -275,7 +274,7 @@ theorem whpThreshold_pos (c : ℕ) : 0 < whpThreshold c := by
 
 /-- Packed SWAR B+-tree node metadata bit-width `Dynamic.logLogFactor n_max + 4`
 (`isLeaf` + `keyCount`). -/
-@[expose] def nodeMetaBitsWhp (n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def nodeMetaBitsWhp (n_max : ℕ) : ℕ :=
   Dynamic.logLogFactor n_max + 4
 
 /-- Nodes per SWAR B+-tree slice `32 * (slabScale n_max) ^ 12 / (tMinWhp n_max - 1) + 64`. -/
@@ -368,8 +367,7 @@ private theorem mul_ell_le_bCharWhp {c n_max : ℕ} (hth : whpThreshold c ≤ n_
 private theorem mul_ell_le_log {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     1280 * Dynamic.logLogFactor n_max ≤ Nat.log 2 n_max := by
   have h := mul_ell_le_bCharWhp hth
-  unfold bCharWhp at h
-  omega
+  wram_omega [h]
 
 /-- When `n_max ≤ U`, bucket bit-width `bWhp n_max` is at most `keyBits U`. -/
 theorem bWhp_le_keyBits {U n_max : ℕ} (hnU : n_max ≤ U) :
@@ -392,9 +390,7 @@ theorem numBucketsWhp_mul_scale_pow12_le {c n_max : ℕ} (hth : whpThreshold c �
   have hn0 : n_max ≠ 0 := by
     have := whpThreshold_pos c
     omega
-  have hadd : bWhp n_max + 12 * Dynamic.logLogFactor n_max = Nat.log 2 n_max := by
-    unfold bWhp
-    omega
+  have hadd : bWhp n_max + 12 * Dynamic.logLogFactor n_max = Nat.log 2 n_max := by wram_omega
   calc numBucketsWhp n_max * (slabScale n_max) ^ 12
       = 2 ^ bWhp n_max * (2 ^ Dynamic.logLogFactor n_max) ^ 12 := rfl
     _ = 2 ^ (bWhp n_max + 12 * Dynamic.logLogFactor n_max) := by
@@ -409,8 +405,7 @@ private theorem le_two_mul_numBucketsWhp_mul_scale_pow12 (n_max : ℕ) :
   · exact Nat.zero_le _
   · have hlt : n_max < 2 ^ (Nat.log 2 n_max + 1) := Nat.lt_pow_succ_log_self Nat.one_lt_two n_max
     have hle : Nat.log 2 n_max + 1 ≤ bWhp n_max + 12 * Dynamic.logLogFactor n_max + 1 := by
-      unfold bWhp
-      omega
+      wram_omega
     have hpow := hlt.le.trans (Nat.pow_le_pow_right (by decide) hle)
     have heq : 2 ^ (bWhp n_max + 12 * Dynamic.logLogFactor n_max + 1) =
         2 * numBucketsWhp n_max * (slabScale n_max) ^ 12 := by
@@ -446,14 +441,11 @@ theorem keysWordBitsWhp_lt_log {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) 
   have h1 := Dynamic.one_le_logLogFactor n_max
   have ht : tMinWhp n_max = Nat.log 2 n_max / (160 * Dynamic.logLogFactor n_max) := by
     have h8 := eight_le_tMinWhp hth
-    unfold tMinWhp at h8 ⊢
-    omega
+    wram_omega [h8]
   have hmul : tMinWhp n_max * (160 * Dynamic.logLogFactor n_max) ≤ Nat.log 2 n_max := by
     rw [ht]
     exact Nat.div_mul_le_self _ _
-  have hkl : keyLaneBitsWhp n_max ≤ 38 * Dynamic.logLogFactor n_max := by
-    unfold keyLaneBitsWhp fpBitsWhp
-    omega
+  have hkl : keyLaneBitsWhp n_max ≤ 38 * Dynamic.logLogFactor n_max := by wram_omega
   have h2t : (2 * tMinWhp n_max + 1) * keyLaneBitsWhp n_max <
       tMinWhp n_max * (160 * Dynamic.logLogFactor n_max) := by
     have h8 := eight_le_tMinWhp hth
@@ -469,9 +461,7 @@ theorem valsWordBitsWhp_lt_log {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) 
     valsWordBitsWhp n_max + valLaneBitsWhp n_max < Nat.log 2 n_max := by
   have h := keysWordBitsWhp_lt_log hth
   have h1 := Dynamic.one_le_logLogFactor n_max
-  have hle : valLaneBitsWhp n_max ≤ keyLaneBitsWhp n_max := by
-    unfold valLaneBitsWhp keyLaneBitsWhp fpBitsWhp
-    omega
+  have hle : valLaneBitsWhp n_max ≤ keyLaneBitsWhp n_max := by wram_omega
   unfold valsWordBitsWhp
   unfold keysWordBitsWhp at h
   nlinarith
@@ -499,9 +489,7 @@ theorem two_mul_doubleTabCodeBound_le_pow_bCharWhp {c n_max : ℕ} (hth : whpThr
       have hlt1 : c' ≤ 2 ^ c' := (@Nat.lt_two_pow_self c').le
       have hlt2 : 2 * (cEff c + 4) ≤ 2 ^ c' := by
         have hlt := (@Nat.lt_two_pow_self c').le
-        have hle : 2 * (cEff c + 4) ≤ c' := by
-          dsimp only [c', cTabWhp]
-          omega
+        have hle : 2 * (cEff c + 4) ≤ c' := by wram_omega
         exact hle.trans hlt
       calc c' * (2 * (cEff c + 4)) ≤ 2 ^ c' * 2 ^ c' := Nat.mul_le_mul hlt1 hlt2
         _ = 2 ^ (2 * c') := by rw [← Nat.pow_add, two_mul]
@@ -613,9 +601,7 @@ theorem sum_sub_capFront_le_poolSize {c n_max : ℕ} (hth : whpThreshold c ≤ n
     unfold capFrontWhp
     rw [Nat.mul_sub]
     omega
-  have hpool_ge : 4 * numBucketsWhp n_max * deltaWhp n_max ≤ poolSizeWhp n_max := by
-    unfold poolSizeWhp
-    omega
+  have hpool_ge : 4 * numBucketsWhp n_max * deltaWhp n_max ≤ poolSizeWhp n_max := by wram_omega
   have hq_lt : n_max < numBucketsWhp n_max * (n_max / numBucketsWhp n_max + 1) := by
     have := Nat.div_add_mod n_max (numBucketsWhp n_max)
     have := Nat.mod_lt n_max hM_pos
@@ -635,8 +621,7 @@ theorem sum_sub_capFront_le_poolSize {c n_max : ℕ} (hth : whpThreshold c ≤ n
     have hL11_pos : 4 ≤ (slabScale n_max) ^ 11 := by
       calc 4 ≤ 2 ^ 11 := by decide
         _ ≤ (slabScale n_max) ^ 11 := Nat.pow_le_pow_left hL2 11
-    unfold capFrontWhp capBackWhp
-    omega
+    wram_omega
   · intro b
     have hub := hupper b
     have hδ_pow : deltaWhp n_max ≤ (slabScale n_max) ^ 12 := by
@@ -675,8 +660,7 @@ theorem sum_sub_capFront_le_poolSize {c n_max : ℕ} (hth : whpThreshold c ≤ n
           sum_congr rfl fun b _ => Nat.sub_add_cancel (hge_cf b)
         rw [sum_add_distrib, sum_const, card_univ, Fintype.card_fin, smul_eq_mul] at h1
         exact h1
-      unfold poolSizeWhp
-      omega
+      wram_omega
 
 /-! ## Section 5: Memory layout and master succinct space theorem (`whpSpace_le_succinctWords`) -/
 
@@ -693,7 +677,7 @@ theorem sum_sub_capFront_le_poolSize {c n_max : ℕ} (hth : whpThreshold c ≤ n
 Stage-2 salted bucket and fingerprint double-tabulation tables, bit-packed quotients and values,
 per-slot and per-bucket metadata, shared backyard slab pools, SWAR B+-tree slices, and both epoch
 `BufTrie` arrays. -/
-@[expose] def largeSpaceWhp (c U V w n_max : ℕ) : ℕ :=
+@[expose, wram_arith] def largeSpaceWhp (c U V w n_max : ℕ) : ℕ :=
   let auxWords :=
     packedWords n_max (12 * Dynamic.logLogFactor n_max + 4) w +
     packedWords (numBucketsWhp n_max * (capFrontWhp n_max + capBackWhp n_max)) 2 w +
@@ -723,11 +707,11 @@ per-slot and per-bucket metadata, shared backyard slab pools, SWAR B+-tree slice
     largeSpaceWhp c U V w n_max
 
 /-- `c`-only redundancy multiplier on `n_max * logLogFactor n_max` (`Θ(c^6)` due to `bMinWhp c`). -/
-@[expose] def whpSpaceFactor (c : ℕ) : ℕ :=
+@[expose, wram_arith] def whpSpaceFactor (c : ℕ) : ℕ :=
   bMinWhp c + 120000
 
 /-- Universal additive `w`-bit word slack (`160` words, independent of `c, U, V, w, n_max`). -/
-@[expose] def whpSpaceConst : ℕ := 160
+@[expose, wram_arith] def whpSpaceConst : ℕ := 160
 
 /-- Universal bit accounting for `n_max` quotients of `quotBitsWhp U n_max` bits and `n_max` values
 of `valBits V` bits across all `n_max ≤ U`. -/
@@ -738,7 +722,7 @@ private theorem quotient_val_whp_bits_le_optBits {U V n_max : ℕ} (hnU : n_max 
     rcases Nat.eq_zero_or_pos n_max with rfl | _
     · exact Nat.zero_le _
     · exact (Nat.lt_pow_succ_log_self Nat.one_lt_two n_max).le.trans
-        (Nat.pow_le_pow_right (by decide) (by unfold bWhp; omega))
+        (Nat.pow_le_pow_right (by decide) (by wram_omega))
   have hexp : n_max * keyBits U ≤
       n_max + n_max * (bWhp n_max + 12 * Dynamic.logLogFactor n_max + 1) +
         Nat.clog 2 (U.choose n_max) :=
@@ -765,8 +749,7 @@ private theorem small_bits_le_optBits {c U V n_max : ℕ} (hsmall : n_max < whpT
   have hmul1 : (bMinWhp c + 2) * n_max ≤ (bMinWhp c + 2) * n_max * Dynamic.logLogFactor n_max :=
     Nat.le_mul_of_pos_right _ hll
   have hdist : (bMinWhp c + 2) * n_max = n_max * bMinWhp c + 2 * n_max := by ring
-  unfold Dynamic.optBits valBits
-  omega
+  wram_omega
 
 /-- Upper bound on `globalPtrBits n_max` when `whpThreshold c ≤ n_max`:
 `globalPtrBits n_max ≤ 2 * slabScale n_max`. -/
@@ -775,8 +758,7 @@ private theorem globalPtrBits_le_two_mul_slabScale' {c n_max : ℕ} (hth : whpTh
   have hb : 0 < bucketBits n_max := by
     have h := mul_ell_le_log hth
     have h1 := Dynamic.one_le_logLogFactor n_max
-    unfold bucketBits at *
-    omega
+    wram_omega
   exact globalPtrBits_le_two_mul_slabScale hb
 
 /-- Upper bound on `poolSizeWhp n_max` when `whpThreshold c ≤ n_max`:
@@ -848,9 +830,7 @@ private theorem ceil_div_add_le (A c₁ B c₂ w : ℕ) :
 private theorem pow_three_mul_bCharWhp_le {c n_max : ℕ} (hth : whpThreshold c ≤ n_max) :
     2 ^ (3 * bCharWhp n_max) ≤ n_max := by
   have hn0 : n_max ≠ 0 := by have := whpThreshold_pos c; omega
-  have hle : 3 * bCharWhp n_max ≤ Nat.log 2 n_max := by
-    unfold bCharWhp
-    omega
+  have hle : 3 * bCharWhp n_max ≤ Nat.log 2 n_max := by wram_omega
   exact (Nat.pow_le_pow_right (by decide) hle).trans (Nat.pow_log_le_self 2 hn0)
 
 private theorem add_six_le_two_pow : ∀ {k : ℕ}, 4 ≤ k → k + 6 ≤ 2 ^ k
@@ -905,8 +885,7 @@ theorem sublinear_table_bits_le {c n_max : ℕ} (hth : whpThreshold c ≤ n_max)
   have hfp_lt_pow : fpBitsWhp n_max ≤ 2 ^ bc := by
     have : fpBitsWhp n_max ≤ Nat.log 2 n_max := by
       have := mul_ell_le_log hth
-      unfold fpBitsWhp
-      omega
+      wram_omega
     exact this.trans hlog_lt_pow
   have hptr_lt_pow : globalPtrBits n_max ≤ 2 ^ bc := by
     have hptr := globalPtrBits_le_two_mul_slabScale' hth
@@ -999,7 +978,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
     have h12 := packedWords_add_le n_max 1 n_max (keyBits U) w
     have h123 := div_add_packedWords_le (n_max * 1 + n_max * keyBits U) 5 n_max (valBits V) w
     have hbits := small_bits_le_optBits (V := V) hsmall hnU
-    have hfac : bMinWhp c + 2 ≤ whpSpaceFactor c := by unfold whpSpaceFactor; omega
+    have hfac : bMinWhp c + 2 ≤ whpSpaceFactor c := by wram_omega
     have hnum : n_max * 1 + n_max * keyBits U + n_max * valBits V ≤
         Dynamic.optBits U V n_max + whpSpaceFactor c * n_max * Dynamic.logLogFactor n_max := by
       calc n_max * 1 + n_max * keyBits U + n_max * valBits V
@@ -1012,8 +991,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
         (Dynamic.optBits U V n_max + whpSpaceFactor c * n_max * Dynamic.logLogFactor n_max +
           w - 1) / w :=
       Nat.div_le_div_right (by omega)
-    unfold Dynamic.succinctWords whpSpaceConst
-    omega
+    wram_omega
   · have hth : whpThreshold c ≤ n_max := Nat.le_of_not_lt hsmall
     obtain ⟨htb1, htb2, htb3, htc, htm, htl⟩ := sublinear_table_bits_le hth
     have hM_L12 := numBucketsWhp_mul_scale_pow12_le hth
@@ -1109,9 +1087,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
       have hm_le : nodeMetaBitsWhp n_max ≤ tMinWhp n_max * ell := by
         have h4 : 4 ≤ 4 * ell := Nat.le_mul_of_pos_right 4 hell
         have h5 : 5 * ell ≤ tMinWhp n_max * ell := Nat.mul_le_mul_right ell (by omega)
-        unfold nodeMetaBitsWhp
-        dsimp only [ell] at h4 h5 ⊢
-        omega
+        wram_omega [h4, h5]
       calc totalBTreeNodesWhp n_max * nodeMetaBitsWhp n_max
           ≤ totalBTreeNodesWhp n_max * (tMinWhp n_max * ell) := Nat.mul_le_mul_left _ hm_le
         _ = (totalBTreeNodesWhp n_max * tMinWhp n_max) * ell := by ring
@@ -1120,10 +1096,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
     have hb_bt_keys :
         totalBTreeNodesWhp n_max * keysWordBitsWhp n_max ≤ 29184 * (n_max * ell) := by
       have hk_le : keysWordBitsWhp n_max ≤ 76 * (tMinWhp n_max * ell) := by
-        have hk1 : keyLaneBitsWhp n_max ≤ 38 * ell := by
-          unfold keyLaneBitsWhp fpBitsWhp
-          dsimp only [ell] at hell ⊢
-          omega
+        have hk1 : keyLaneBitsWhp n_max ≤ 38 * ell := by wram_omega [hell]
         calc 2 * tMinWhp n_max * keyLaneBitsWhp n_max
             ≤ 2 * tMinWhp n_max * (38 * ell) := Nat.mul_le_mul_left _ hk1
           _ = 76 * (tMinWhp n_max * ell) := by ring
@@ -1135,10 +1108,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
     have hb_bt_vals :
         totalBTreeNodesWhp n_max * valsWordBitsWhp n_max ≤ 15360 * (n_max * ell) := by
       have hv_le : valsWordBitsWhp n_max ≤ 40 * (tMinWhp n_max * ell) := by
-        have hv1 : valLaneBitsWhp n_max ≤ 20 * ell := by
-          unfold valLaneBitsWhp
-          dsimp only [ell] at hell ⊢
-          omega
+        have hv1 : valLaneBitsWhp n_max ≤ 20 * ell := by wram_omega [hell]
         calc 2 * tMinWhp n_max * valLaneBitsWhp n_max
             ≤ 2 * tMinWhp n_max * (20 * ell) := Nat.mul_le_mul_left _ hv1
           _ = 40 * (tMinWhp n_max * ell) := by ring
@@ -1212,7 +1182,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
       fun _ => by ring
     have htot_bits : B_bkt + B_fp + B_qv + B_aux ≤
         Dynamic.optBits U V n_max + whpSpaceFactor c * n_max * Dynamic.logLogFactor n_max := by
-      have hfac : 60000 ≤ whpSpaceFactor c := by unfold whpSpaceFactor; omega
+      have hfac : 60000 ≤ whpSpaceFactor c := by wram_omega
       have h60k : B_bkt + B_fp + B_qv + B_aux ≤
           Dynamic.optBits U V n_max + 60000 * (n_max * ell) := by
         dsimp only [B_bkt, B_fp, B_qv, B_aux, a12, a11, a10, a9, a8, a7, a6, a5, a4, a3, a2, a1]
@@ -1233,10 +1203,7 @@ theorem whpSpace_le_succinctWords {c U V w n_max : ℕ} (hnU : n_max ≤ U) :
         (Dynamic.optBits U V n_max + whpSpaceFactor c * n_max * Dynamic.logLogFactor n_max +
           w - 1) / w :=
       Nat.div_le_div_right (by omega)
-    dsimp only [B_bkt, B_fp, B_qv] at hhash_words hcomb1 hcomb2 hdiv
-    unfold largeSpaceWhp Dynamic.succinctWords whpSpaceConst
-    dsimp only [auxWords, totLoc, trieEntries, ell, M] at haux_words ⊢
-    omega
+    wram_omega [hhash_words, hcomb1, hcomb2, hdiv, haux_words]
 
 /-- Branching cube bound for SWAR B+-tree height: when `whpThreshold c ≤ n_max`,
 `slabScale n_max ≤ (tMinWhp n_max) ^ 3`. -/
@@ -1253,7 +1220,6 @@ theorem slabScale_le_tMinWhp_cubed {c n_max : ℕ} (hth : whpThreshold c ≤ n_m
   · have ht_ge : 1575 ≤ tMinWhp n_max := by
       have hdiv : 1575 ≤ m / (160 * ell) := by
         rw [Nat.le_div_iff_mul_le (by positivity)]
-        dsimp only [ell, m] at hell26 hm ⊢
         omega
       unfold tMinWhp
       exact hdiv.trans (le_max_right 2 _)

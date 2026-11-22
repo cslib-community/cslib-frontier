@@ -186,7 +186,7 @@ theorem size_lt_of_refutation?_eq_some {φ : CNF ℕ} {d : φ.Derivation []}
   · cases h
   · rename_i c d' hc hd
     cases h
-    rw [size_refutationOf, List.card_toFinset]
+    rw [size_refutationOf, ← List.length_eraseDups]
     exact size_search_lt φ _ _ _ _ _ hd
 
 /-- **Upper bound on the length of the solver's certificates.** A certificate returned by the

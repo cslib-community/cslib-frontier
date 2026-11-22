@@ -8,6 +8,7 @@ module
 -- upstream: candidate (Mathlib, finite-dimensional polar decomposition)
 
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.UnitaryGroup
+import CslibFrontier.Foundations.LinearAlgebra.Matrix.BlockDiagonalOrder
 public import Mathlib.Analysis.Matrix.Order
 public import Mathlib.Analysis.SpecialFunctions.ContinuousFunctionalCalculus.Rpow.Basic
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.PosSemidefTrace
@@ -103,14 +104,20 @@ theorem exists_unitary_polar (A : Matrix n n ℂ) :
   rw [h.isHermitian.eq,
     CFC.sqrt_mul_sqrt_self _ (posSemidef_conjTranspose_mul_self A).nonneg]
 
+omit [DecidableEq n] in
+/-- Taking the adjoint of one factor in the real trace pairing with a Hermitian matrix
+preserves the pairing. -/
+theorem IsHermitian.re_trace_conjTranspose_mul {H : Matrix n n ℂ} (hH : H.IsHermitian)
+    (U : Matrix n n ℂ) : (Uᴴ * H).trace.re = (U * H).trace.re := by
+  have h : ((U * H)ᴴ).trace.re = (U * H).trace.re := by
+    rw [trace_conjTranspose, Complex.star_def, Complex.conj_re]
+  rwa [conjTranspose_mul, hH.eq, trace_mul_comm H] at h
+
 private theorem re_trace_mul_le_trace_of_unitary (U H : Matrix n n ℂ)
     (hU : U ∈ unitaryGroup n ℂ) (hH : H.PosSemidef) :
     (U * H).trace.re ≤ H.trace.re := by
   have hUU : Uᴴ * U = 1 := (mem_unitaryGroup_iff').mp hU
-  have hconj : (Uᴴ * H).trace.re = (U * H).trace.re := by
-    have h : ((U * H)ᴴ).trace.re = (U * H).trace.re := by
-      rw [trace_conjTranspose, Complex.star_def, Complex.conj_re]
-    rwa [conjTranspose_mul, hH.isHermitian.eq, trace_mul_comm H] at h
+  have hconj := hH.isHermitian.re_trace_conjTranspose_mul U
   have h := (Complex.nonneg_iff.mp
     ((posSemidef_conjTranspose_mul_self (1 - U)).trace_mul_nonneg hH)).1
   rw [conjTranspose_sub, conjTranspose_one, sub_mul, mul_sub, mul_sub, hUU,
@@ -168,20 +175,6 @@ private theorem traceNorm_adjoint_square (A : Matrix n n ℂ) :
   unfold traceNorm
   rw [conjTranspose_conjTranspose, hroot, trace_mul_comm (U * H) Uᴴ,
     ← Matrix.mul_assoc, hUU, Matrix.one_mul]
-
-omit [Fintype m] [Fintype n] [DecidableEq m] [DecidableEq n] in
-private theorem fromBlocks_posSemidef_diagonal [Finite m] [Finite n]
-    (A : Matrix m m ℂ) (B : Matrix n n ℂ)
-    (hA : A.PosSemidef) (hB : B.PosSemidef) :
-    (fromBlocks A 0 0 B).PosSemidef := by
-  classical
-  let := Fintype.ofFinite m
-  let := Fintype.ofFinite n
-  obtain ⟨R, rfl⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp hA.nonneg
-  obtain ⟨S, rfl⟩ := CStarAlgebra.nonneg_iff_eq_star_mul_self.mp hB.nonneg
-  simpa only [fromBlocks_conjTranspose, conjTranspose_zero, fromBlocks_multiply,
-    Matrix.zero_mul, Matrix.mul_zero, zero_add, add_zero, star_eq_conjTranspose]
-    using posSemidef_conjTranspose_mul_self (fromBlocks R 0 0 S)
 
 open Classical in
 private theorem sqrt_fromBlocks_diagonal {p q : Type*} [Fintype p] [Fintype q]

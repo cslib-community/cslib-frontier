@@ -55,6 +55,23 @@ protected theorem SupportLE.refl (ρ : Matrix ι ι ℂ) : SupportLE ρ ρ :=
   fun _ h => h
 
 omit [DecidableEq ι] in
+/-- Support inclusion is transitive. -/
+protected theorem SupportLE.trans {ρ σ τ : Matrix ι ι ℂ}
+    (hρσ : SupportLE ρ σ) (hστ : SupportLE σ τ) : SupportLE ρ τ :=
+  fun x hx => hρσ x (hστ x hx)
+
+omit [DecidableEq ι] in
+/-- The support of a positive semidefinite matrix is contained in that of every
+larger positive semidefinite matrix. -/
+theorem SupportLE.of_le {σ τ : Matrix ι ι ℂ} (hσ : σ.PosSemidef) (h : σ ≤ τ) :
+    SupportLE σ τ := by
+  intro x hx
+  apply hσ.dotProduct_mulVec_zero_iff.mp
+  have hdiff := ((Matrix.le_iff.mp h).dotProduct_mulVec_nonneg x)
+  rw [sub_mulVec, dotProduct_sub, hx, dotProduct_zero, zero_sub, neg_nonneg] at hdiff
+  exact le_antisymm hdiff (hσ.dotProduct_mulVec_nonneg x)
+
+omit [DecidableEq ι] in
 /-- Support inclusion is preserved by nonnegative weighted sums of the pairs when the
 reference matrices are positive semidefinite. -/
 theorem SupportLE.sum_smul {κ : Type*} [Fintype κ] (w : κ → ℝ) (hw : ∀ k, 0 ≤ w k)
@@ -69,6 +86,35 @@ theorem SupportLE.sum_smul {κ : Type*} [Fintype κ] (w : κ → ℝ) (hw : ∀ 
   by_cases hwk : w k = 0
   · rw [hwk, zero_smul]
   · rw [hs k x (hzero k hk hwk), smul_zero]
+
+omit [DecidableEq ι] in
+/-- A rectangular compression preserves support inclusion when its reference is positive
+semidefinite. -/
+theorem SupportLE.conjTranspose_mul_mul {κ : Type*} [Fintype κ]
+    {ρ σ : Matrix ι ι ℂ} (h : SupportLE ρ σ) (hσ : σ.PosSemidef) (V : Matrix ι κ ℂ) :
+    SupportLE (Vᴴ * ρ * V) (Vᴴ * σ * V) := by
+  intro x hx
+  have he : star (V *ᵥ x) ⬝ᵥ (σ *ᵥ (V *ᵥ x)) = 0 := by
+    rw [star_mulVec, dotProduct_mulVec, vecMul_vecMul, ← dotProduct_mulVec, mulVec_mulVec, hx,
+      dotProduct_zero]
+  have hz := h (V *ᵥ x) (hσ.dotProduct_mulVec_zero_iff.mp he)
+  rw [← mulVec_mulVec, ← mulVec_mulVec, hz, mulVec_zero]
+
+omit [DecidableEq ι] in
+/-- Principal submatrices inherit support inclusion from a pair with positive semidefinite
+reference. -/
+theorem SupportLE.submatrix {κ : Type*} [Fintype κ] {ρ σ : Matrix ι ι ℂ}
+    (h : SupportLE ρ σ) (hσ : σ.PosSemidef) (f : κ → ι) :
+    SupportLE (ρ.submatrix f f) (σ.submatrix f f) := by
+  classical
+  let V := (1 : Matrix ι ι ℂ).submatrix (Equiv.refl ι) f
+  have hcomp (A : Matrix ι ι ℂ) : Vᴴ * A * V = A.submatrix f f := by
+    dsimp only [V]
+    rw [conjTranspose_submatrix, conjTranspose_one, one_submatrix_mul f (Equiv.refl ι),
+      mul_submatrix_one (Equiv.refl ι) f, submatrix_submatrix]
+    rfl
+  rw [← hcomp ρ, ← hcomp σ]
+  exact h.conjTranspose_mul_mul hσ V
 
 /-- The finite trace formula, with the logarithm assigned zero on the kernel. -/
 @[expose] noncomputable def relativeEntropyReal (ρ σ : Matrix ι ι ℂ) : ℝ :=
@@ -86,6 +132,34 @@ theorem relativeEntropy_of_supportLE {ρ σ : Matrix ι ι ℂ} (h : SupportLE �
 theorem relativeEntropy_of_not_supportLE {ρ σ : Matrix ι ι ℂ} (h : ¬ SupportLE ρ σ) :
     relativeEntropy ρ σ = ⊤ := by
   simp only [relativeEntropy, ite_eq_right h]
+
+/-- Relabelling both matrix coordinates by one equivalence preserves relative entropy. -/
+theorem relativeEntropy_reindex {κ : Type*} [Fintype κ] [DecidableEq κ] (e : ι ≃ κ)
+    {ρ σ : Matrix ι ι ℂ} (hρ : ρ.IsHermitian) (hσ : σ.PosSemidef) :
+    relativeEntropy (reindex e e ρ) (reindex e e σ) = relativeEntropy ρ σ := by
+  let F := reindexStarAlgEquiv ℂ ℂ e
+  have hσ' : (reindex e e σ).PosSemidef := hσ.submatrix e.symm
+  have hsupp : SupportLE (reindex e e ρ) (reindex e e σ) ↔ SupportLE ρ σ := by
+    constructor
+    · intro h
+      simpa only [reindex_apply, submatrix_submatrix, Equiv.symm_comp_self, submatrix_id_id]
+        using h.submatrix hσ' e
+    · exact fun h => h.submatrix hσ e.symm
+  by_cases hs : SupportLE ρ σ
+  · have htr (A : Matrix ι ι ℂ) : (F A).trace = A.trace := by
+      change (reindex e e A).trace = _
+      simp only [trace, diag_apply, reindex_apply, submatrix_apply]
+      exact e.symm.sum_comp (fun i : ι => A i i)
+    have hc : Continuous F := F.toAlgEquiv.toLinearMap.continuous_of_finiteDimensional
+    have hlog (A : Matrix ι ι ℂ) (hA : A.IsHermitian) :
+        F (cfc Real.log A) = cfc Real.log (F A) :=
+      StarAlgHomClass.map_cfc F Real.log A (A.finite_real_spectrum.continuousOn _)
+        hc hA.isSelfAdjoint (hA.isSelfAdjoint.map F)
+    rw [relativeEntropy_of_supportLE (hsupp.mpr hs), relativeEntropy_of_supportLE hs]
+    change (relativeEntropyReal (F ρ) (F σ) : WithTop ℝ) = _
+    rw [relativeEntropyReal, relativeEntropyReal, ← hlog ρ hρ, ← hlog σ hσ.isHermitian,
+      ← map_sub, ← map_mul, htr]
+  · rw [relativeEntropy_of_not_supportLE (mt hsupp.mp hs), relativeEntropy_of_not_supportLE hs]
 
 private theorem trace_diagonal_mul_conj_re (a b : ι → ℝ) (W : Matrix ι ι ℂ) :
     (diagonal (fun i => (a i : ℂ)) * (W * diagonal (fun j => (b j : ℂ)) * Wᴴ)).trace.re =
@@ -374,6 +448,24 @@ theorem relativeEntropy_nonneg {ρ σ : Matrix ι ι ℂ} (hρ : IsDensityMatrix
     exact_mod_cast relativeEntropyReal_nonneg hρ hσ h
   · rw [relativeEntropy_of_not_supportLE h]
     exact le_top
+
+/-- Scaling the reference by a positive constant subtracts the logarithm of that
+constant times the source trace. The identity uses only the support of the source. -/
+theorem relativeEntropy_smul_right {ρ σ : Matrix ι ι ℂ}
+    (hρ : ρ.IsHermitian) (hσ : σ.IsHermitian) {c : ℝ} (hc : 0 < c) :
+    relativeEntropy ρ (c • σ) =
+      relativeEntropy ρ σ + ((-(Real.log c * ρ.trace.re) : ℝ) : WithTop ℝ) := by
+  have hsupp : SupportLE ρ (c • σ) ↔ SupportLE ρ σ := by
+    simp only [SupportLE, smul_mulVec, smul_eq_zero, hc.ne', false_or]
+  by_cases hs : SupportLE ρ σ
+  · rw [relativeEntropy_of_supportLE (hsupp.mpr hs), relativeEntropy_of_supportLE hs,
+      ← WithTop.coe_add, WithTop.coe_eq_coe]
+    simp only [relativeEntropyReal, mul_sub, trace_sub, Complex.sub_re]
+    rw [trace_mul_log_smul_re hρ hσ hs hc]
+    ring
+  · rw [relativeEntropy_of_not_supportLE hs,
+      relativeEntropy_of_not_supportLE (fun h => hs (hsupp.mp h))]
+    simp
 
 /-- When relative entropy is finite, fidelity is at least the exponential of minus half
 the entropy in nats. -/

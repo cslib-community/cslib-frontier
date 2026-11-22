@@ -236,18 +236,32 @@ theorem bind_pi_update {γ : Type*} [DecidableEq ι] (p : ∀ i, PMF (α i)) (i 
     (pi_bind_update_pair p i)
   simpa only [PMF.bind_bind, PMF.bind_map, Function.comp_def] using h
 
+/-- Split a heterogeneous independent finite sequence into its first draw and its remaining
+draws. -/
+theorem pi_fin_succ_dep {count : ℕ} {δ : Fin (count + 1) → Type*} [∀ i, Finite (δ i)]
+    (p : ∀ i, PMF (δ i)) :
+    pi p =
+      (p 0).bind (fun first => (pi (fun i : Fin count => p i.succ)).map (Fin.cons first)) := by
+  ext outcome
+  rw [pi_apply, Fin.prod_univ_succ, PMF.bind_apply, tsum_eq_single (outcome 0)]
+  · rw [PMF.map_apply, tsum_eq_single (Fin.tail outcome)]
+    · simp [pi_apply, Fin.cons_self_tail, Fin.tail]
+    · intro w hw
+      rw [ite_eq_right]
+      intro hcons
+      exact absurd (by rw [hcons, Fin.tail_cons]) hw
+  · intro a ha
+    rw [PMF.map_apply, tsum_eq_zero_iff.mpr, mul_zero]
+    intro w
+    rw [ite_eq_right]
+    intro hcons
+    exact absurd (by rw [hcons, Fin.cons_zero]) ha
+
 /-- Split an independent finite sequence into its first draw and its remaining draws. -/
 theorem pi_fin_succ {γ : Type*} [Finite γ] (count : ℕ) (p : PMF γ) :
     pi (fun _ : Fin (count + 1) => p) =
-      p.bind (fun first => (pi (fun _ : Fin count => p)).map (Fin.cons first)) := by
-  let e := Fin.consEquiv (fun _ : Fin (count + 1) => γ)
-  calc
-    _ = (p.bind (fun first => (pi (fun _ : Fin count => p)).map (first, ·))).map e := by
-      ext outcome
-      rw [map_equiv_apply, bind_map_prodMk_apply]
-      exact Fin.prod_univ_succ (fun i => p (outcome i))
-    _ = _ := by
-      simp [PMF.map_bind, PMF.map_comp, Function.comp_def, e, Fin.consEquiv]
+      p.bind (fun first => (pi (fun _ : Fin count => p)).map (Fin.cons first)) :=
+  pi_fin_succ_dep (fun _ => p)
 
 /-- Independent pairs can be sampled by drawing their first components, then drawing each
 second component conditionally and independently. -/

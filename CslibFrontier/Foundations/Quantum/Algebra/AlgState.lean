@@ -11,6 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.CStarAlgebra.GelfandNaimarkSegal
 public import Mathlib.Analysis.Matrix.Order
 import CslibFrontier.Foundations.Analysis.InnerProductSpace.PiL2
+import Mathlib.Analysis.Real.Sqrt
 
 /-!
 # States on star-ordered algebras
@@ -45,6 +46,10 @@ need no C⋆-norm.
   real and nonnegative on nonnegative elements.
 * `Cslib.Quantum.AlgState.norm_apply_star_mul_le`: Cauchy–Schwarz for states.
 * `Cslib.Quantum.AlgState.norm_le_one`: a contraction, `a⋆a ≤ 1`, has state norm at most `1`.
+* `Cslib.Quantum.AlgState.norm_sub_sq_eq_of_mul_self`: for self-adjoint involutions,
+  `‖U - V‖²_φ = 2 - 2 Re φ(U V)`.
+* `Cslib.Quantum.AlgState.comap`, `Cslib.Quantum.AlgState.norm_comap`: pulling a state back along
+  a monotone star-algebra homomorphism, `‖a‖_{φ ∘ f} = ‖f a‖_φ`.
 -/
 
 @[expose] public section
@@ -187,10 +192,79 @@ theorem re_apply_star_mul_le (φ : AlgState A) (a b : A) :
     (φ (star a * b)).re ≤ φ.norm a * φ.norm b :=
   (Complex.re_le_norm _).trans (φ.norm_apply_star_mul_le a b)
 
+/-- Cauchy–Schwarz for a finite sum of state pairings. -/
+theorem abs_sum_re_star_mul_le {ι : Type*} [Fintype ι] (φ : AlgState A) (X Y : ι → A) :
+    |∑ i, (φ (star (X i) * Y i)).re| ≤
+      √(∑ i, φ.norm (X i) ^ 2) * √(∑ i, φ.norm (Y i) ^ 2) := by
+  calc
+    _ ≤ ∑ i, |(φ (star (X i) * Y i)).re| := Finset.abs_sum_le_sum_abs _ _
+    _ ≤ ∑ i, φ.norm (X i) * φ.norm (Y i) := Finset.sum_le_sum fun i _ =>
+      (Complex.abs_re_le_norm _).trans (φ.norm_apply_star_mul_le _ _)
+    _ ≤ _ := Real.sum_mul_le_sqrt_mul_sqrt _ _ _
+
+/-- Cauchy–Schwarz for a state pairing with a normalized left family. -/
+theorem abs_sum_re_star_mul_le_of_normalized {ι : Type*} [Fintype ι]
+    (φ : AlgState A) (X Y : ι → A)
+    (hX : (∑ a, φ.norm (X a) ^ 2) ≤ 1) :
+    |∑ a, (φ (star (X a) * Y a)).re| ≤ √(∑ a, φ.norm (Y a) ^ 2) := by
+  refine (φ.abs_sum_re_star_mul_le X Y).trans ?_
+  simpa only [Real.sqrt_one, one_mul] using
+    mul_le_mul_of_nonneg_right (Real.sqrt_le_sqrt hX) (Real.sqrt_nonneg _)
+
+/-- Cauchy–Schwarz for a state pairing with a normalized right family. -/
+theorem abs_sum_re_star_mul_le_of_normalized_right {ι : Type*} [Fintype ι]
+    (φ : AlgState A) (X Y : ι → A)
+    (hY : (∑ a, φ.norm (Y a) ^ 2) ≤ 1) :
+    |∑ a, (φ (star (X a) * Y a)).re| ≤ √(∑ a, φ.norm (X a) ^ 2) := by
+  refine (φ.abs_sum_re_star_mul_le X Y).trans ?_
+  simpa only [Real.sqrt_one, mul_one] using
+    mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hY) (Real.sqrt_nonneg _)
+
+/-- A bound `x⋆x ≤ y` bounds the state norm: `‖x‖²_φ ≤ Re φ(y)`. -/
+theorem norm_sq_le_of_star_mul_le (φ : AlgState A) {x y : A} (h : star x * x ≤ y) :
+    φ.norm x ^ 2 ≤ (φ y).re := by
+  rw [norm_sq]
+  exact φ.re_apply_mono h
+
 /-- A contraction, `a⋆a ≤ 1`, has state norm at most `1`. -/
 theorem norm_le_one (φ : AlgState A) {a : A} (h : star a * a ≤ 1) : φ.norm a ≤ 1 := by
   rw [norm_eq_sqrt, Real.sqrt_le_one]
   exact φ.re_apply_le_one h
+
+/-- For self-adjoint involutions `U`, `V` the squared distance is linear in the correlation:
+`‖U - V‖²_φ = 2 - 2 Re φ(U V)`. -/
+theorem norm_sub_sq_eq_of_mul_self (φ : AlgState A) {U V : A} (hU : IsSelfAdjoint U)
+    (hV : IsSelfAdjoint V) (hU2 : U * U = 1) (hV2 : V * V = 1) :
+    φ.norm (U - V) ^ 2 = 2 - 2 * (φ (U * V)).re := by
+  have h1 : ∀ {W : A}, IsSelfAdjoint W → W * W = 1 → ‖φ.toPreGNS W‖ ^ 2 = 1 := fun hW hW2 => by
+    change φ.norm _ ^ 2 = 1
+    rw [φ.norm_sq, hW.star_eq, hW2, φ.map_one, Complex.one_re]
+  change ‖φ.toPreGNS (U - V)‖ ^ 2 = _
+  rw [map_sub, norm_sub_sq (𝕜 := ℂ), h1 hU hU2, h1 hV hV2, inner_toPreGNS, hU.star_eq,
+    RCLike.re_to_complex]
+  ring
+
+omit [StarModule ℂ A] [SelfAdjointDecompose A] in
+/-- The **pullback** `φ ∘ f` of a state along a monotone star-algebra homomorphism `f`. -/
+noncomputable def comap {B : Type*} [Ring B] [StarRing B] [PartialOrder B] [Algebra ℂ B]
+    (φ : AlgState B) (f : A →⋆ₐ[ℂ] B) (hf : Monotone f) : AlgState A where
+  toFun a := φ (f a)
+  map_add' a b := by simp [map_add]
+  map_smul' z a := by simp [map_smul]
+  monotone' _ _ h := φ.apply_mono (hf h)
+  map_one' := by simp [φ.map_one]
+
+omit [StarOrderedRing A] [StarModule ℂ A] [SelfAdjointDecompose A] in
+theorem comap_apply {B : Type*} [Ring B] [StarRing B] [PartialOrder B] [Algebra ℂ B]
+    (φ : AlgState B) (f : A →⋆ₐ[ℂ] B) (hf : Monotone f) (a : A) :
+    φ.comap f hf a = φ (f a) :=
+  rfl
+
+/-- The state norm of a pullback is the state norm of the image: `‖a‖_{φ ∘ f} = ‖f a‖_φ`. -/
+theorem norm_comap {B : Type*} [Ring B] [StarRing B] [PartialOrder B] [StarOrderedRing B]
+    [Algebra ℂ B] [StarModule ℂ B] [SelfAdjointDecompose B] (φ : AlgState B) (f : A →⋆ₐ[ℂ] B)
+    (hf : Monotone f) (a : A) : (φ.comap f hf).norm a = φ.norm (f a) := by
+  rw [norm_eq_sqrt, norm_eq_sqrt, comap_apply, map_mul, map_star]
 
 end Star
 
@@ -220,13 +294,8 @@ theorem vector_apply (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) (M : Matr
 /-- The state norm of a vector state is the norm of the image vector: `‖M‖_ψ = ‖M ψ‖`. -/
 theorem norm_vector (ψ : EuclideanSpace ℂ ι) (hψ : ‖ψ‖ = 1) (M : Matrix ι ι ℂ) :
     (vector ψ hψ).norm M = ‖(WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)‖ := by
-  have h := EuclideanSpace.star_dotProduct_self_eq_norm_sq
-    (WithLp.toLp 2 (M *ᵥ ψ.ofLp) : EuclideanSpace ℂ ι)
-  rw [WithLp.ofLp_toLp] at h
-  rw [norm_eq_sqrt, vector_apply, star_eq_conjTranspose, ← mulVec_mulVec, dotProduct_mulVec,
-    ← star_mulVec, h]
-  norm_cast
-  rw [Real.sqrt_sq (_root_.norm_nonneg _)]
+  apply (sq_eq_sq₀ ((vector ψ hψ).norm_nonneg M) (_root_.norm_nonneg _)).mp
+  rw [norm_sq, vector_apply, star_eq_conjTranspose, Matrix.norm_toLp_mulVec_sq_eq]
 
 end Matrix
 

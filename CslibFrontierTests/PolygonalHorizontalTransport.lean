@@ -10,10 +10,12 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.HorizontalTransport
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Rotation
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.CutTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Points
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Bouquet
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Realization.Forward
 import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+import CslibFrontier.Foundations.Geometry.Polygonal.SquareMove
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
@@ -362,5 +364,98 @@ example : ((Route.line 0 0).plateauShear 0 1 10).support = {(10 : ℂ)} := by
     simpa using Polygonal.plateauShear_apply_inner (h := 0) (by norm_num : (0 : ℝ) < 1) 10
       (z := 0) (by norm_num)
   simp only [segment_same, Set.image_singleton, he]
+
+-- Two nonparallel walls cut the original spoke at distinct parameters.
+example :
+    let D := PolygonalDrawing.star 1
+    let c : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap - AffineMap.const ℝ ℂ (1 / 3)
+    let d : ℂ →ᵃ[ℝ] ℝ := Complex.imCLM.toLinearMap.toAffineMap - AffineMap.const ℝ ℂ (2 / 3)
+    let edge : Fin (starGraph 1).edges.length := ⟨0, by decide +kernel⟩
+    (∀ f ∈ [c, d], (0 : ℝ) ∈ Set.Ioo (f (D.route edge).finish) (f (D.route edge).start)) ∧
+      ∃ E : PolygonalDrawing (starGraph 1), E.IsEmbedding ∧ E.vertex = D.vertex ∧
+        (∀ e, (E.route e).support = (D.route e).support) ∧
+        ∀ e (i : Fin (E.route e).segments) f, f ∈ [c, d] →
+          0 ∉ Set.Ioo (min (f ((E.route e).point i.castSucc)) (f ((E.route e).point i.succ)))
+            (max (f ((E.route e).point i.castSucc)) (f ((E.route e).point i.succ))) := by
+  dsimp only
+  refine ⟨?_, (PolygonalDrawing.star_isEmbedding 1).exists_wall_refinement _⟩
+  intro f hf
+  simp only [List.mem_cons, List.not_mem_nil, or_false] at hf
+  rcases hf with rfl | rfl
+  · change (0 : ℝ) - 1 / 3 < 0 ∧ (0 : ℝ) < ((0 : ℕ) : ℝ) + 1 - 1 / 3
+    constructor <;> norm_num
+  · change (0 : ℝ) - 2 / 3 < 0 ∧ (0 : ℝ) < 1 - 2 / 3
+    constructor <;> norm_num
+
+private noncomputable def stretch (cut x : ℝ) : ℝ := x + max 0 (x - cut)
+
+private theorem stretch_strictMono (cut : ℝ) : StrictMono (stretch cut) := by
+  intro x y hxy
+  exact add_lt_add_of_lt_of_le hxy (max_le_max_left 0 (sub_le_sub_right hxy.le cut))
+
+private theorem stretch_interpolation (cut x y t : ℝ) (ht : t ∈ Set.Icc 0 1)
+    (hcut : 0 ∉ Set.Ioo (min (x - cut) (y - cut)) (max (x - cut) (y - cut))) :
+    stretch cut (AffineMap.lineMap x y t) =
+      AffineMap.lineMap (stretch cut x) (stretch cut y) t := by
+  have hsides : (0 ≤ x - cut ∧ 0 ≤ y - cut) ∨ (x - cut ≤ 0 ∧ y - cut ≤ 0) := by
+    simpa only [Set.mem_Ioo, not_and_or, not_lt, le_min_iff, max_le_iff] using hcut
+  have hn : 0 ≤ 1 - t := sub_nonneg.mpr ht.2
+  rcases hsides with ⟨hx, hy⟩ | ⟨hx, hy⟩
+  · have hm : 0 ≤ AffineMap.lineMap x y t - cut := by
+      rw [AffineMap.lineMap_apply_ring]
+      nlinarith only [mul_nonneg hn hx, mul_nonneg ht.1 hy]
+    simp only [stretch, max_eq_right hm, max_eq_right hx, max_eq_right hy]
+    simp only [AffineMap.lineMap_apply_ring]
+    ring
+  · have hm : AffineMap.lineMap x y t - cut ≤ 0 := by
+      rw [AffineMap.lineMap_apply_ring]
+      nlinarith only [mul_nonpos_of_nonneg_of_nonpos hn hx,
+        mul_nonpos_of_nonneg_of_nonpos ht.1 hy]
+    simp only [stretch, max_eq_left hm, max_eq_left hx, max_eq_left hy, add_zero]
+
+-- Stretch the two coordinates across distinct cuts through the original oblique spoke.
+example :
+    let D := PolygonalDrawing.star 1
+    let F (z : ℂ) : ℂ := ⟨stretch (1 / 3) z.re, stretch (2 / 3) z.im⟩
+    ∃ E : PolygonalDrawing (starGraph 1), E.IsEmbedding ∧ E.vertex = F ∘ D.vertex ∧
+      ∀ e, (E.route e).support = F '' (D.route e).support := by
+  let F (z : ℂ) : ℂ := ⟨stretch (1 / 3) z.re, stretch (2 / 3) z.im⟩
+  let re : ℂ →ᵃ[ℝ] ℝ := Complex.reCLM.toLinearMap.toAffineMap
+  let im : ℂ →ᵃ[ℝ] ℝ := Complex.imCLM.toLinearMap.toAffineMap
+  let c := re - AffineMap.const ℝ ℂ (1 / 3)
+  let d := im - AffineMap.const ℝ ℂ (2 / 3)
+  have hinj : Function.Injective F := by
+    intro a b hab
+    exact Complex.ext ((stretch_strictMono (1 / 3)).injective (congrArg Complex.re hab))
+      ((stretch_strictMono (2 / 3)).injective (congrArg Complex.im hab))
+  apply (PolygonalDrawing.star_isEmbedding 1).exists_image_across_walls [c, d] hinj
+  intro a b hcut t ht
+  apply Complex.ext
+  · change stretch (1 / 3) (re (AffineMap.lineMap a b t)) = re (AffineMap.lineMap (F a) (F b) t)
+    rw [AffineMap.apply_lineMap re a b t, AffineMap.apply_lineMap re (F a) (F b) t]
+    exact stretch_interpolation _ _ _ _ ht (hcut c (by simp))
+  · change stretch (2 / 3) (im (AffineMap.lineMap a b t)) = im (AffineMap.lineMap (F a) (F b) t)
+    rw [AffineMap.apply_lineMap im a b t, AffineMap.apply_lineMap im (F a) (F b) t]
+    exact stretch_interpolation _ _ _ _ ht (hcut d (by simp))
+
+
+-- The center moves inside its square and the leaf on the outside remains fixed.
+example :
+    ∃ E : PolygonalDrawing (starGraph 1), E.IsEmbedding ∧ E.vertex 1 = ((1 / 2 : ℝ) : ℂ) ∧
+      E.vertex 0 = ⟨1, 1⟩ := by
+  obtain ⟨F, walls, hinj, hcenter, hfixed, hline⟩ :=
+    exists_square_move 0 ((1 / 2 : ℝ) : ℂ) (r := 3 / 4) (by norm_num)
+      (by norm_num [Complex.norm_real, Real.norm_eq_abs])
+  obtain ⟨E, hE, hv, _⟩ :=
+    (PolygonalDrawing.star_isEmbedding 1).exists_image_across_walls walls hinj hline
+  refine ⟨E, hE, ?_, ?_⟩
+  · have hc : (PolygonalDrawing.star 1).vertex 1 = 0 := by
+      simp [PolygonalDrawing.star, starPoint]
+    rw [hv, Function.comp_apply, hc]
+    exact hcenter
+  · have hl : (PolygonalDrawing.star 1).vertex 0 = ⟨1, 1⟩ := by
+      norm_num [PolygonalDrawing.star, starPoint]
+    rw [hv, Function.comp_apply, hl]
+    exact hfixed _ (by norm_num)
 
 end CslibFrontierTests.PolygonalHorizontalTransport
