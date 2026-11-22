@@ -1,6 +1,6 @@
 # Results and reference inventory
 
-The canonical collection is [Entries.lean](../CslibFrontierResults/Entries.lean): readable Lean
+The canonical collection lives under `CslibFrontierResults/` (existing entries in [Entries.lean](../CslibFrontierResults/Entries.lean) and topic modules under `CslibFrontierResults/Entries/`, aggregated into [CslibFrontierResults.lean](../CslibFrontierResults.lean) by `lake exe mk_all`): readable Lean
 commands with real theorem identifiers. This is the initial collection for
 [#2012](https://github.com/cslib-community/cslib-frontier/issues/2012), not a complete inventory
 or a claim that every cited paper is fully formalized.
@@ -85,6 +85,11 @@ qualified names and module ownership; these are not maintained as duplicate stri
 `CslibFrontierResults` is a separate local documentation library, included in the default
 `lake build` targets. Mathematical modules do not import the registry. Compiled environment
 entries survive imports and are exported by [ExportResults.lean](../scripts/ExportResults.lean).
+Place new `register_result` entries in topic modules under `CslibFrontierResults/Entries/`
+(importing `CslibFrontierResults.Registry` and the defining library module) and regenerate
+[CslibFrontierResults.lean](../CslibFrontierResults.lean) with `lake exe mk_all`, which
+`scripts/restack_mechanical.py` merges automatically, so concurrent pull requests do not collide on
+[Entries.lean](../CslibFrontierResults/Entries.lean).
 JSON is generated output; there is no hand-maintained `registry.json`.
 
 ## Reading and checking

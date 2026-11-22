@@ -18,6 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Data.List.GetD
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Tactic.PolyTime
+import CslibFrontier.Computability.Circuit.Boolean.Encoding.PolyTime
 
 /-!
 # Uniform polynomial-time evaluation of encrypted layers
@@ -63,9 +64,7 @@ variable {E : Scheme} {secretWidth ciphertextWidth : ℕ → ℕ}
 include hD in
 private theorem computableInPolyTime_decryptionArity :
     ComputableInPolyTime (fun n => secretWidth n + ciphertextWidth n) encUnary encUnary := by
-  have hview : ComputableInPolyTime
-      (fun C : Σ m, Circuit Boolean.signature m 1 => (C.1, C.2.code))
-      (Boolean.encCircuit 1) (encPair encUnary Boolean.encCode) := .of_eq fun _ => rfl
+  have hview := Boolean.computableInPolyTime_arity_code 1
   exact (hview.comp hD).fst'
 
 include hencrypt hevaluate hD in

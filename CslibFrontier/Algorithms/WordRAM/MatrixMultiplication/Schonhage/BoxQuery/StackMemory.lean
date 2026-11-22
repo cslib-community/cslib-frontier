@@ -13,75 +13,69 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Bo
 /-!
 # Readback of the actual native query frontier
 
-Each pending prefix is represented by its five computed scalar fields. List heads
-occupy the top physical record, so the existing native push prepends a task and pop
-removes that head. These are memory predicates, not supplied execution or layout certificates.
+Each pending prefix is represented by its five computed scalar fields via
+`Cslib.WordRAM.RecordSpec` and `Cslib.WordRAM.WordStack.Holds`. List heads occupy the top
+physical record, so the native push prepends a task and pop removes that head.
 -/
 
 public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery
 
-open Cslib.Algorithms.MatrixMultiplication.Schonhage
+open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-/-- The five real words of one prefix task at its occupied native record index. -/
-structure TaskReadback {L : ℕ} (η : OutStr L) (F n : ℕ) (xs : List Term)
-    (μ : ℕ → ℕ) : Prop where
-  /-- Prefix depth. -/
-  depth : μ (F + n * 5) = xs.length
-  /-- Existing little-endian prefix code. -/
-  code : μ (F + n * 5 + 1) = prefixCode xs
-  /-- Number of used indexed inner terms. -/
-  used : μ (F + n * 5 + 2) = usedFrom η 0 xs
-  /-- Initial inner P0 count. -/
-  stars : μ (F + n * 5 + 3) = starsFrom η 0 xs
-  /-- Actual decimal power. -/
-  power : μ (F + n * 5 + 4) = 10 ^ xs.length
+/-- Five-word flat memory specification of one pending prefix `xs : List Term` under `η`. -/
+abbrev prefixTaskSpec {L : ℕ} (η : OutStr L) : RecordSpec (List Term) 5 where
+  toWords xs := ![xs.length, prefixCode xs, usedFrom η 0 xs, starsFrom η 0 xs, 10 ^ xs.length]
 
 /-- Pending logical prefixes in top-first order, with no initial-zero-memory premise. -/
-@[expose] def StackMemory {L : ℕ} (η : OutStr L) (F : ℕ) :
-    List (List Term) → (ℕ → ℕ) → Prop
-  | [], _ => True
-  | xs :: rest, μ => TaskReadback η F rest.length xs μ ∧ StackMemory η F rest μ
-
-/-- Transport a real record across equality of its occupied five-word interval. -/
-theorem TaskReadback.transport {L F n : ℕ} {η : OutStr L} {xs : List Term}
-    {μ ν : ℕ → ℕ} (h : TaskReadback η F n xs μ)
-    (hf : ∀ q, F + n * 5 ≤ q → q < F + n * 5 + 5 → ν q = μ q) :
-    TaskReadback η F n xs ν := by
-  constructor
-  · rw [hf _ (by omega) (by omega)]; exact h.depth
-  · rw [hf _ (by omega) (by omega)]; exact h.code
-  · rw [hf _ (by omega) (by omega)]; exact h.used
-  · rw [hf _ (by omega) (by omega)]; exact h.stars
-  · rw [hf _ (by omega) (by omega)]; exact h.power
+abbrev StackMemory {L : ℕ} (η : OutStr L) (F : ℕ) :
+    List (List Term) → (ℕ → ℕ) → Prop :=
+  WordStack.Holds (prefixTaskSpec η) F
 
 /-- Changes outside the occupied stack prefix preserve every pending task. -/
 theorem StackMemory.transport {L F : ℕ} {η : OutStr L} {tasks : List (List Term)}
     {μ ν : ℕ → ℕ} (h : StackMemory η F tasks μ)
     (hf : ∀ q, F ≤ q → q < F + 5 * tasks.length → ν q = μ q) :
-    StackMemory η F tasks ν := by
-  induction tasks with
-  | nil => trivial
-  | cons xs rest ih =>
-    refine ⟨h.1.transport (fun q hq hq' => hf q (by omega) (by
-      simp only [List.length_cons]; omega)), ?_⟩
-    exact ih h.2 (fun q hq hq' => hf q hq (by simp only [List.length_cons]; omega))
+    StackMemory η F tasks ν :=
+  h.frame fun q hq hq' => hf q hq (by omega)
 
 /-- Appending the actual five computed fields prepends precisely that logical task. -/
 theorem StackMemory.push {L F : ℕ} {η : OutStr L} {tasks : List (List Term)}
     {μ : ℕ → ℕ} (h : StackMemory η F tasks μ) (xs : List Term) :
     StackMemory η F (xs :: tasks)
       (writeTask F tasks.length xs.length (prefixCode xs) (usedFrom η 0 xs)
-        (starsFrom η 0 xs) (10 ^ xs.length) μ) := by
-  refine ⟨?_, h.transport (fun q hq hq' => writeTask_frame _ _ _ _ _ _ _ _ q (by omega))⟩
-  obtain ⟨hd, hc, hu, he, hp⟩ := writeTask_read F tasks.length xs.length
-    (prefixCode xs) (usedFrom η 0 xs) (starsFrom η 0 xs) (10 ^ xs.length) μ
-  exact ⟨hd, hc, hu, he, hp⟩
+        (starsFrom η 0 xs) (10 ^ xs.length) μ) :=
+  h.push_write xs
 
-/-- A nonempty stack exposes its real top record and preserves every deeper pending task. -/
-theorem StackMemory.pop {L F : ℕ} {η : OutStr L} {tasks : List (List Term)}
-    {xs : List Term} {μ : ℕ → ℕ} (h : StackMemory η F (xs :: tasks) μ) :
-    TaskReadback η F tasks.length xs μ ∧ StackMemory η F tasks μ := h
+/-- Registers modified while popping a five-word prefix task. -/
+@[expose] def PopLocal (i : Fin registers) : Prop :=
+  WordStack.PopLocal Reg.top Reg.cursor popFields i
+
+instance (i : Fin registers) : Decidable (PopLocal i) :=
+  inferInstanceAs (Decidable (WordStack.PopLocal Reg.top Reg.cursor popFields i))
+
+/-- Pop the occupied top prefix task `xs` from `StackMemory η F (xs :: rest)` in twelve
+native instructions, loading its five scalar fields and preserving the remaining stack `rest`. -/
+theorem StackMemory.exec_pop {w L F : ℕ} {η : OutStr L} {xs : List Term}
+    {rest : List (List Term)} {x : Data registers}
+    (hstack : StackMemory η F (xs :: rest) x.mem)
+    (hF : x.regs Reg.stack = F) (hn : x.regs Reg.top = rest.length + 1)
+    (h5 : x.regs Reg.five = 5) (h1 : x.regs BoxTable.Reg.one = 1)
+    (hfit : Fits w (F + 5 * (rest.length + 1) + 8)) :
+    ∃ y, ExecWithin w pop x y 12 ∧ y.regs Reg.top = rest.length ∧
+      StackMemory η F rest y.mem ∧
+      y.regs Reg.depth = xs.length ∧ y.regs Reg.code = prefixCode xs ∧
+      y.regs Reg.used = usedFrom η 0 xs ∧ y.regs Reg.stars = starsFrom η 0 xs ∧
+      y.regs Reg.power = 10 ^ xs.length ∧ y.mem = x.mem ∧
+      (∀ i, ¬PopLocal i → y.regs i = x.regs i) := by
+  obtain ⟨y, hy, hytop, hystack, hyfields, hymem, hyregs⟩ :=
+    WordStack.pop_exec (prefixTaskSpec η) Reg.stack Reg.top Reg.cursor Reg.five BoxTable.Reg.one
+      popFields rest xs x
+      (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+      (by decide) (by decide) (by decide) (by decide)
+      hF hn h5 h1 hstack (hfit.of_le (by omega))
+  exact ⟨y, hy.within, hytop, hystack,
+    hyfields 0, hyfields 1, hyfields 2, hyfields 3, hyfields 4, hymem, hyregs⟩
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

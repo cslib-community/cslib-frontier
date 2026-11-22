@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.DataStructure.FusionTree.XorCorrection
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Loading and selecting sketch neighbors
@@ -84,20 +86,18 @@ abbrev divergence : Fin 17 := 15
 abbrev index : Fin 17 := 16
 
 /-- Clamped predecessor position. -/
+@[wram_arith]
 def left (t : ℕ) : ℕ := t - 1
 /-- Clamped successor position, expressed using two saturating subtractions. -/
+@[wram_arith]
 def right (n t : ℕ) : ℕ := t - (t - (n - 1))
 
 private theorem indices_lt {n t : ℕ} (hn : 0 < n) (ht : t ≤ n) :
-    left t < n ∧ right n t < n := by
-  dsimp only [left, right]
-  omega
+    left t < n ∧ right n t < n := by wram_omega
 
 /-- Exactly one of the two optional sketch neighbors is repeated at an end cut. -/
 private theorem indices_neighbors {n t : ℕ} (hn : 0 < n) (ht : t ≤ n) :
-    (left t + 1 = t ∨ left t = t) ∧ (right n t + 1 = t ∨ right n t = t) := by
-  dsimp only [left, right]
-  omega
+    (left t + 1 = t ∨ left t = t) ∧ (right n t + 1 = t ∨ right n t = t) := by wram_omega
 
 /-- Index selected by the comparison in `code`. -/
 private def selectIndex (score : ℕ → ℕ) (n t : ℕ) : ℕ :=
@@ -112,9 +112,7 @@ private theorem selectIndex_spec (score : ℕ → ℕ) {n t : ℕ} (hn : 0 < n) 
   have hi := indices_lt hn ht
   have hneighbor := indices_neighbors hn ht
   have hcover (i : ℕ) (hi : i < n) (hc : i + 1 = t ∨ i = t) :
-      i = left t ∨ i = right n t := by
-    dsimp only [left, right]
-    omega
+      i = left t ∨ i = right n t := by wram_omega
   unfold selectIndex
   split
   · rename_i hs

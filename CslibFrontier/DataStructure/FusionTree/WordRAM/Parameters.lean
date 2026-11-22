@@ -13,6 +13,8 @@ public import CslibFrontier.DataStructure.FusionTree.Capacity
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Compress
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.LowerRank
 import Mathlib.Tactic.FinCases
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Concrete fusion-node preprocessing parameters
@@ -101,6 +103,7 @@ variable {w n : ℕ} {keys : Fin n → ℕ}
 /-- Selected-bit count, at most one per adjacent pair. -/
 abbrev r (_p : NodeParameters w keys) : ℕ := relevantCount w keys
 /-- Compressed payload width. -/
+@[wram_arith]
 def b (p : NodeParameters w keys) : ℕ := 2 * p.r ^ 4
 /-- Input position mask. -/
 def C (_p : NodeParameters w keys) : ℕ := positionMask (sourcePositions w keys)
@@ -219,8 +222,7 @@ theorem count_lt_radix (p : NodeParameters w keys) (hsorted : StrictMono keys)
     simpa only [Fintype.card_fin] using Fintype.card_le_of_injective f hf
   have hrb : p.r < p.b + 1 := by
     have hp : p.r ≤ p.r ^ 4 := Nat.le_self_pow (by decide) _
-    dsimp only [b]
-    omega
+    wram_omega
   exact hc.trans_lt (Nat.pow_lt_pow_right (by decide) hrb)
 
 /-- In particular the separately stored occupancy is a physical word. -/
