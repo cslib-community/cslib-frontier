@@ -15,10 +15,10 @@ import Mathlib.Data.Fin.VecNotation
 clock-dimension lower-bound steps (checked as a `module` client with ordinary imports):
 `decide`-validated causal execution checks on `Fin 3` and `Fin 4`, Lamport false-causality
 concurrent pairs, tie-broken `lamportTotalOrder`, Mattern exact causal & concurrent
-characterizations and `O(1)` single-coordinate tests, consistent vs inconsistent cuts with
-Mattern's frontier condition, explicit `decide`-checked crown executions on `Fin 3` and `Fin 4`,
-and client instantiations of `not_exists_1d_characterization`, `unicast_clock_dim_lower_bound`, and
-`exists_unicast_orderEmbedding_clock_iff`. -/
+characterizations and single-coordinate comparison of given timestamps, consistent vs
+inconsistent cuts with Mattern's frontier condition, explicit `decide`-checked crown executions
+on `Fin 3` and `Fin 4`, and client instantiations of `not_exists_1d_characterization`,
+`unicast_clock_dim_lower_bound`, and `exists_unicast_orderEmbedding_clock_iff`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.VectorClock

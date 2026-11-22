@@ -39,7 +39,9 @@ register_result "lamport-scalar-logical-clocks" where
     communication-free counterexample witnessing p. 560's remark that the converse of the Clock \
     Condition fails across concurrent events; the distributed mutual exclusion protocol \
     (pp. 561–562) and physical clock synchronization bound (pp. 562–565) are not formalized \
-    here."
+    here. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7258 at \
+    3f79747f5389: \
+    https://github.com/cslib-community/cslib-frontier/pull/7258#pullrequestreview-6013805833."
 
 register_result "mattern-consistent-cut-sublattice" where
   title := "Consistent cuts of distributed executions are closed under union and intersection \
@@ -62,11 +64,13 @@ register_result "mattern-consistent-cut-sublattice" where
     Finset.univ) and that every receive event in C has its matching earlier send event in C. \
     Checked against Mattern's author-edited reprint PDF (SHA-256 \
     64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae); the North-Holland book \
-    pagination (pp. 215–226) was not separately inspected."
+    pagination (pp. 215–226) was not separately inspected. Source check: outside-fleet agent \
+    review (reviewer-codex-edemaine) on PR #7258 at 3f79747f5389: \
+    https://github.com/cslib-community/cslib-frontier/pull/7258#pullrequestreview-6013805833."
 
 register_result "mattern-vector-clocks-causality" where
-  title := "Vector clocks induce an order-isomorphism with happens-before and admit an O(1) \
-    single-coordinate causality test"
+  title := "Vector clocks induce an order-isomorphism with happens-before and characterize \
+    causality by single-coordinate comparison of given timestamps"
   topic := "distributed computing"
   sources := [
     { paper := Mattern1989,
@@ -87,11 +91,14 @@ register_result "mattern-vector-clocks-causality" where
     (yielding the identical vector on every valid execution as ticking before sup by Theorem 5, \
     p. 127, and contrasting with Fidge 1988 Rule RA4's sender-entry increment). Proves exact \
     product-order characterization of HappensBeforeLe and HappensBefore (Theorem 10), \
-    single-coordinate characterization at e₁.actor for e₁ ≠ e₂ (Theorem 11), and equivalence of \
-    irreflexive event concurrency Execution.Concurrent with vector coordinatewise \
-    incomparability (agreeing on distinct events with Definition 4's reflexive vector \
-    concurrency by vc_injective). Checked against Mattern's author-edited reprint PDF (SHA-256 \
-    64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae)."
+    single-coordinate comparison of given timestamps at e₁.actor (and for e₁ ≠ e₂ on strict \
+    HappensBefore, Theorem 11), and equivalence of irreflexive event concurrency \
+    Execution.Concurrent with vector coordinatewise incomparability (agreeing on distinct events \
+    with Definition 4's reflexive vector concurrency by vc_injective). Checked against Mattern's \
+    author-edited reprint PDF (SHA-256 \
+    64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae). Source check: \
+    outside-fleet agent review (reviewer-codex-edemaine) on PR #7258 at 3f79747f5389: \
+    https://github.com/cslib-community/cslib-frontier/pull/7258#pullrequestreview-6013805833."
 
 register_result "mattern-consistent-cut-frontier-criterion" where
   title := "Consistent-cut characterization via owner-maximized frontier vector timestamps"
@@ -112,4 +119,6 @@ register_result "mattern-consistent-cut-frontier-criterion" where
     ∀ p q : P, E.vc (frontier q) p ≤ E.vc (frontier p) p (equivalent to \
     sup_q C(c_q)[p] = C(c_p)[p] for every p). Checked against Mattern's author-edited reprint \
     PDF (SHA-256 64830b6a039f0e1840e06d1e745b8abe00d2e224b17721e2fff37731116d3bae); the \
-    non-FIFO snapshot algorithm (§11, pp. 129–131) is not formalized here."
+    non-FIFO snapshot algorithm (§11, pp. 129–131) is not formalized here. Source check: \
+    outside-fleet agent review (reviewer-codex-edemaine) on PR #7258 at 3f79747f5389: \
+    https://github.com/cslib-community/cslib-frontier/pull/7258#pullrequestreview-6013805833."

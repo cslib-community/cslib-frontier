@@ -33,8 +33,9 @@ message-passing executions (`Cslib.Distributed.VectorClock.Execution`):
    sender's coordinate on receive so its single-coordinate test uses `<` instead of `≤`). We prove:
    * **Exact order-isomorphism** (`happensBeforeLe_iff_vc_le`, `happensBefore_iff_vc_lt`):
      `e₁ ≼ e₂ ↔ E.vc e₁ ≤ E.vc e₂` and `e₁ ≺ e₂ ↔ E.vc e₁ < E.vc e₂`,
-   * **`O(1)` single-coordinate test** (`happensBeforeLe_iff_coord_le`,
-     `happensBefore_iff_coord_le`): for `e₁ ≠ e₂`, `e₁ ≺ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor`,
+   * **Single-coordinate comparison of given timestamps** (`happensBeforeLe_iff_coord_le`,
+     `happensBefore_iff_coord_le`): `e₁ ≼ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor`, and for
+     `e₁ ≠ e₂`, `e₁ ≺ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor`,
    * **Exact concurrency detection** (`concurrent_iff_vc_incomparable`), and
    * **Mattern's frontier cut characterization** (`isConsistentCut_cutOfFrontier_iff`): the cut
      induced by per-process frontier events `frontier : P → E.Event` is consistent iff every
@@ -61,8 +62,8 @@ message-passing executions (`Cslib.Distributed.VectorClock.Execution`):
 * `Cslib.Distributed.VectorClock.not_exists_1d_characterization`: for `2 ≤ Fintype.card P`, no
   single `LinearOrder`-valued clock characterizes `HappensBeforeLe` across executions on `P`.
 * `Cslib.Distributed.VectorClock.Execution.happensBeforeLe_iff_coord_le`,
-  `Cslib.Distributed.VectorClock.Execution.happensBefore_iff_coord_le`: `O(1)` single-coordinate
-  causality test at `e₁.actor`.
+  `Cslib.Distributed.VectorClock.Execution.happensBefore_iff_coord_le`: causality
+  characterization by single-coordinate comparison of given timestamps at `e₁.actor`.
 * `Cslib.Distributed.VectorClock.Execution.happensBeforeLe_iff_vc_le`,
   `Cslib.Distributed.VectorClock.Execution.happensBefore_iff_vc_lt`: exact order-isomorphism between
   happens-before and the product order on `VectorClock P`.
@@ -538,8 +539,8 @@ private theorem vc_eq_zero_or_exists_le [DecidableEq P] (E : Execution P) :
           · exact .inl hz0
           · exact .inr ⟨x, hxact, hxs.trans hmsg.happensBeforeLe, hxeq⟩
 
-/-- **`O(1)` single-coordinate test (`≼`)** ([Mattern1989]): `e₁ ≼ e₂` iff `e₁`'s own process
-coordinate in `vc e₁` is at most that in `vc e₂`. -/
+/-- **Single-coordinate comparison of given timestamps (`≼`)** ([Mattern1989], §8, Theorem 11):
+`e₁ ≼ e₂` iff `e₁`'s own process coordinate in `vc e₁` is at most that in `vc e₂`. -/
 theorem happensBeforeLe_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBeforeLe e₁ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor := by
   constructor
@@ -557,8 +558,8 @@ theorem happensBeforeLe_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e�
         omega
       exact (E.programOrder_happensBeforeLe hxact.symm hle_idx).trans hxe₂
 
-/-- **`O(1)` single-coordinate test (`≺`)** ([Mattern1989]): for distinct events `e₁ ≠ e₂`,
-`e₁ ≺ e₂` iff `E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor`. -/
+/-- **Single-coordinate comparison of given timestamps (`≺`)** ([Mattern1989], §8, Theorem 11):
+for distinct events `e₁ ≠ e₂`, `e₁ ≺ e₂` iff `E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor`. -/
 theorem happensBefore_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event}
     (hne : e₁ ≠ e₂) :
     E.HappensBefore e₁ e₂ ↔ E.vc e₁ e₁.actor ≤ E.vc e₂ e₁.actor := by
