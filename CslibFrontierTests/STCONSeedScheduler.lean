@@ -34,6 +34,18 @@ private theorem rootValid (i : ℕ) (hi : i < setup.parameters.search.subdivisio
   change (1 + 1) * i < 4
   omega
 
+-- A terminal native transition retains the designated negative answer after a positive reply.
+example (scan : SeedScanRequest → List (Option ControllerVerdict))
+    (hscan : scan ⟨setup, 1, setup.originalSourceID 1⟩ = [some (.decided true)])
+    (hvalid : (seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1)).Valid)
+    (hstep : seedSchedulerStep
+      (seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1))
+      (some (.decided true)) = some (.inr (some false))) :
+    runSeedSchedulerForFrom setup sourceValid rootValid scan 1 (some (1, false)) =
+      [some ⟨1, false⟩] := by
+  exact runSeedSchedulerForFrom_step setup sourceValid rootValid scan rfl hvalid rfl hstep
+    (by intro value hv _; cases hv; exact hscan)
+
 -- Seed zero fails at the other source. Seed one is selected with the designated `false`
 -- answer, even though the other source answers `true`. Each of the two successful
 -- verdicts at seed zero continues to seed one, where the two outcomes multiply.
