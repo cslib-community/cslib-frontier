@@ -52,4 +52,18 @@ theorem coeff_eval_X_pow {R : Type*} [CommSemiring R] (p : R[X][Y]) {radix : ℕ
       omega
     rw [coeff_eq_zero_of_natDegree_lt h, zero_mul, coeff_zero]
 
+/-- Evaluating the packed polynomial at `z` evaluates the bivariate polynomial
+at `z` and `z ^ radix`. -/
+theorem aeval_eval_X_pow {R A : Type*} [CommSemiring R] [CommSemiring A] [Algebra R A]
+    (p : R[X][Y]) (radix : ℕ) (z : A) :
+    aeval z (p.eval (X ^ radix)) = aevalAeval z (z ^ radix) p := by
+  let specialize : R[X][Y] →ₐ[R] R[X] :=
+    (aeval (R := R[X]) (X ^ radix)).restrictScalars R
+  change ((aeval z).comp specialize) p = _
+  congr 1
+  apply algHom_ext'
+  · ext
+    simp [specialize]
+  · simp [specialize]
+
 end Polynomial.Bivariate
