@@ -58,8 +58,8 @@ every literal occurrence.
 oldest literal. As in MiniSat, the queue is the part of the trail from a head position on
 (`Cslib.Algorithms.Lean.CDCL.WExec.qhead`, `Cslib.Algorithms.Lean.CDCL.WExec.queue`): a literal is
 queued by being pushed on the trail, and processed by moving the head past it. A conflict with
-no decision on the trail ends with a certificate; otherwise it is analysed, the learned clause is minimized (`Cslib.Algorithms.Lean.CDCL.Learned.minimize`), and
-Backjump and Learn follow; the variables met by the analysis are bumped
+no decision on the trail ends with a certificate; otherwise it is analysed, the learned clause is
+minimized (`Cslib.Algorithms.Lean.CDCL.Learned.minimize`), and Backjump and Learn follow; the variables met by the analysis are bumped
 (`Cslib.Algorithms.Lean.CDCL.Activity.bump`). With the queue empty, it checks the short clauses for
 a conflict or a unit, then decides an unassigned variable of the database of greatest activity
 (VSIDS, `Cslib.Algorithms.Lean.CDCL.WExec.pickVar`), popped from the variable order
