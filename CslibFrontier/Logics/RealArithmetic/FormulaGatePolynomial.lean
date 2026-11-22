@@ -21,7 +21,9 @@ at lean-canny revision `970f28a5ecefc1327402ade16c068aa4b1b2c183` to the frontie
 source. Evaluating both variables recovers the original term evaluated at the specialized
 coordinates. The term budget bounds both degrees of the substituted polynomial and the growth
 of its coefficient norm. With a radix above the inner degree bound, Kronecker substitution
-recovers a bivariate coefficient by reading one univariate coefficient.
+recovers a bivariate coefficient by reading one univariate coefficient. The executable gate
+query evaluates the substituted polynomial modulo a positive modulus when supplied the
+specialized coordinate values.
 -/
 
 public section
@@ -100,5 +102,19 @@ theorem coeff_aeval_kronecker_formulaWordGateTerm (word : List Bool) (index : �
     Finset.le_sup (f := outerDegree) (Finset.mem_univ k)
   have hdegree := (formulaWordGatePolynomial_degree_bounds word index coordinates houter hinner).2
   exact Polynomial.Bivariate.coeff_eval_X_pow _ (hdegree.trans_lt hradix) i j hi
+
+/-- The encoded gate query computes the canonical residue of bivariate specialization
+from coordinate values in the supplied list. Missing entries have value zero.
+This is the evaluation step for the indexed family in
+`LeanCanny.ETR.FormulaAtomPolynomials.family` at the revision above. -/
+theorem formulaWordGateResidue_eq_aevalAeval (word : List Bool) (index : ℕ)
+    (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {p : ℕ}
+    (hp : 0 < p) (point : List ℕ) (x y : ZMod p)
+    (hpoint : ∀ k : Fin word.length, ((point[k.val]?.getD 0 : ℕ) : ZMod p) =
+      Polynomial.aevalAeval x y (coordinates k)) :
+    formulaWordGateResidue word index p point =
+      (Polynomial.aevalAeval x y (formulaWordGatePolynomial word index coordinates)).val := by
+  rw [formulaWordGateResidue_eq word index hp, formulaWordGatePolynomial,
+    MvPolynomial.comp_aeval_apply, funext hpoint]
 
 end Cslib.Logic.RealArithmetic

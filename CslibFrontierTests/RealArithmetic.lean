@@ -216,7 +216,13 @@ set_option linter.hashCommand false in
     formulaWordComparisonResidue word 2 8 [] == some 6 &&
     (formulaWordComparisonResidue word 0 8 []).isNone &&
     (formulaWordComparisonResidue word (2 ^ 80) 8 []).isNone &&
-    (formulaWordComparisonResidue [] 0 8 []).isNone
+    (formulaWordComparisonResidue [] 0 8 []).isNone &&
+    formulaWordGateResidue word 1 8 [11] == 3 &&
+    formulaWordGateResidue word 1 8 [] == 0 &&
+    formulaWordGateResidue word 2 8 [] == 6 &&
+    formulaWordGateResidue word 0 8 [] == 0 &&
+    formulaWordGateResidue word (2 ^ 80) 8 [] == 0 &&
+    formulaWordGateResidue [] 0 8 [] == 0
 
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
