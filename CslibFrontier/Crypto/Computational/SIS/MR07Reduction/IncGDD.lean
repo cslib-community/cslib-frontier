@@ -761,6 +761,10 @@ private theorem computableInPolyTime_combineOutputInt :
     fun_prop
   have hrngN := unary_range' hn
   let encQ := encPair CombineOutArg.enc encUnary
+  have hp1 := (fst CombineOutArg.enc encUnary).comp (fst encQ encUnary)
+  have hr := (snd CombineOutArg.enc encUnary).comp (fst encQ encUnary)
+  have hc := snd encQ encUnary
+  have hz_c := listGetDWithInput (hz.comp hp1) hc 0
   have hazDivQ : ComputableInPolyTime
       (fun p : CombineOutArg => (List.range p.n).map fun r =>
         (Rat.divInt (((List.range p.m).map fun c =>
@@ -771,16 +775,12 @@ private theorem computableInPolyTime_combineOutputInt :
         (fun q : CombineOutArg × ℕ => ((List.range q.1.m).map fun c =>
           (((q.1.cols.getD c ([], [])).2.getD q.2 0 : ℕ) : ℤ) * q.1.z.getD c 0).sum)
         encQ encIntBin := by
-      have hp1 := (fst CombineOutArg.enc encUnary).comp (fst encQ encUnary)
-      have hr := (snd CombineOutArg.enc encUnary).comp (fst encQ encUnary)
-      have hc := snd encQ encUnary
       have hcol : ComputableInPolyTime
           (fun t : (CombineOutArg × ℕ) × ℕ => (t.1.1.cols.getD t.2 ([], [])).2)
           (encPair encQ encUnary) (encList encNat) :=
         (snd (encList encIntBin) (encList encNat)).comp
           (listGetDWithInput (hcols.comp hp1) hc ([], []))
       have ha_rc := intBin_natCast.comp (listGetDWithInput hcol hr 0)
-      have hz_c := listGetDWithInput (hz.comp hp1) hc 0
       exact (mapWithInput (unary_range' (hm.comp (fst CombineOutArg.enc encUnary)))
         (intBin_mul' ha_rc hz_c)).trans intBin_sum
     have hqZ := intBin_natCast.comp (hq.comp (fst CombineOutArg.enc encUnary))
@@ -791,10 +791,6 @@ private theorem computableInPolyTime_combineOutputInt :
         q.1.z.getD c 0 * ((q.1.cols.getD c ([], [])).1.getD q.2 0 -
           (q.1.vs.getD c []).getD q.2 0 - (q.1.ys.getD c []).getD q.2 0)).sum)
       encQ encIntBin := by
-    have hp1 := (fst CombineOutArg.enc encUnary).comp (fst encQ encUnary)
-    have hr := (snd CombineOutArg.enc encUnary).comp (fst encQ encUnary)
-    have hc := snd encQ encUnary
-    have hz_c := listGetDWithInput (hz.comp hp1) hc 0
     have hsk_c : ComputableInPolyTime
         (fun t : (CombineOutArg × ℕ) × ℕ => (t.1.1.cols.getD t.2 ([], [])).1)
         (encPair encQ encUnary) (encList encIntBin) :=
