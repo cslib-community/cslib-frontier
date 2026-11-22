@@ -985,9 +985,10 @@ construction with a polynomial-time reduction. In the table, library `unsatVal` 
 - The class-level PCP theorem and native polynomial-time gap reductions are implemented, not
   merely postulated finite constructions. The gap-CSP alphabet and encodings remain visible.
 - [IndependentSet.lean](../CslibFrontier/Computability/PCP/Approximation/IndependentSet.lean)
-  proves `Cslib.Complexity.GapIndependentSet_npHard` at one fixed constant and
-  `GapIndependentSet_notMem_PromiseP` under $P\ne NP$. Neither supplies the $n^{-\delta}$
-  hardness claimed in the unnumbered §18.3 conclusion, or amplification to every constant.
+  proves `Cslib.Complexity.GapIndependentSet_npHard` and `Cslib.Complexity.GapClique_npHard` for
+  every constant $0 < s < 1$ via FGLSS and repetition (`PCPWith_one`), together with
+  `GapIndependentSet_notMem_PromiseP` and `GapClique_notMem_PromiseP` under $P\ne NP$. Neither
+  supplies the size-dependent $n^{-\delta}$ hardness claimed in the unnumbered §18.3 conclusion.
 - The many partial Dinur rows reflect a different, successful proof of 18.2, not a missing PCP
   theorem. Reimplementing every fixed-walk auxiliary lemma is not necessary to use that endpoint.
 
