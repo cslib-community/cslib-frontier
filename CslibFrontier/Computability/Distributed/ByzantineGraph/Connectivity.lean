@@ -236,8 +236,9 @@ theorem not_solvesByzantineAgreement_of_isVertexSeparator {t R : ℕ} {u v : P} 
 `not_solvesByzantineAgreement_of_isVertexSeparator` (matching the disconnection of `G` into
 nonempty `A` and `B` by a set `C` of at most `2t` vertices in
 [Fischer, Lynch and Merritt][FischerLynchMerritt1985], §3.2, p. 63): if `P` partitions into
-nonempty sets `A`, `B` and `C` with `|C| ≤ 2t` and no edge of `G` connecting `A` and `B`, then no
-protocol on `G` solves synchronous fixed-round Boolean Byzantine agreement against `t` faults. -/
+nonempty sets `A` and `B` and a separator `C` (possibly `C = ∅`, including at `t = 0` when `G` is
+disconnected) with `|C| ≤ 2t` and no edge of `G` connecting `A` and `B`, then no protocol on `G`
+solves synchronous fixed-round Boolean Byzantine agreement against `t` faults. -/
 theorem not_solvesByzantineAgreement_of_vertexCut [Fintype P] {t R : ℕ} {A B C : Finset P}
     (hA : A.Nonempty) (hB : B.Nonempty) (hAB : Disjoint A B) (hAC : Disjoint A C)
     (hBC : Disjoint B C) (huniv : A ∪ B ∪ C = Finset.univ)

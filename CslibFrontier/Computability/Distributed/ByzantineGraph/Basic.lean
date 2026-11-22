@@ -137,10 +137,10 @@ and a faulty neighbour `j ∈ F` sends `adv r j i hji` along edge `hji : G.Adj j
     (R : ℕ) (i : P) : Bool :=
   π.output i (π.state F adv x R i)
 
-/-- `π` solves Byzantine agreement on `G` against at most `t` faults in `R` rounds: whenever at
-most `t` processes are faulty, whatever messages they send along incident edges of `G`, the correct
-processes agree after `R` rounds and decide `v` when all of them have input `v`
-([Dolev1982]; [FischerLynchMerritt1985]). -/
+/-- `π` solves synchronous Boolean Byzantine agreement on `G` against at most `t` faults in `R`
+rounds: whenever at most `t` processes are faulty, whatever messages they send along incident edges
+of `G`, the correct processes agree after `R` rounds and decide `v` when all correct processes have
+input `v` ([Fischer, Lynch and Merritt][FischerLynchMerritt1985], §3, p. 61). -/
 structure SolvesByzantineAgreement (t R : ℕ) : Prop where
   /-- Agreement: all correct processes decide the same value. -/
   agreement : ∀ F : Finset P, F.card ≤ t → ∀ (adv : ℕ → ∀ j i : P, G.Adj j i → M) (x : P → Bool),
