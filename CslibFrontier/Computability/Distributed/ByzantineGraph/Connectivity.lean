@@ -13,16 +13,34 @@ public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Connectivity.V
 import CslibFrontier.Algorithms.Lean.MaxFlow.Menger
 
 /-!
-# The `2t + 1` vertex-connectivity characterization for Byzantine agreement
+# Vertex-separator impossibility and synchronous Boolean consensus on graphs
 
-General-graph synchronous deterministic Byzantine agreement against `t` static Byzantine faults is
-solvable on a finite graph `G : SimpleGraph P` if and only if `|P| ≤ 1` or both `3t < |P|` and `G`
-is `(2t + 1)`-vertex-connected: `GraphProtocol.ownInput` handles `|P| ≤ 1` without communication;
-sufficiency for `3t < |P|` and `(2t + 1)`-vertex-connected `G` combines disjoint-path purification
-([Dolev1982]) with recursive oral messages ([LamportShostakPease1982]) across paths supplied by
-Menger's theorem ([Menger1927]); and impossibility when `2 ≤ |P| ≤ 3t` or `G` is not
-`(2t + 1)`-vertex-connected follows from the node and connectivity bounds ([Dolev1982];
-[PeaseShostakLamport1980]) via the covering-network proofs of [FischerLynchMerritt1985].
+For deterministic synchronous protocols on an undirected communication graph `G : SimpleGraph P`
+with a uniform fixed decision round `R`, this module proves the `2t` vertex-separator lower bound
+of [Fischer, Lynch and Merritt][FischerLynchMerritt1985] (Theorem 1, §3.2, pp. 62–63) for Boolean
+consensus (`GraphProtocol.not_solvesByzantineAgreement_of_isVertexSeparator`), and establishes the
+synchronous Boolean consensus adaptation of the `|P| > 3t` and `(2t + 1)`-vertex-connectivity
+characterization (`exists_solvesByzantineAgreement_of_le_iff`,
+`exists_solvesByzantineAgreement_iff`):
+
+* `|P| ≤ 1` is solved without communication by `GraphProtocol.ownInput`.
+* When `3t < |P|` and `G` is `(2t + 1)`-vertex-connected, `purifiedOM` adapts disjoint-path
+  purification (after [Dolev][Dolev1982], §2 Theorem 1, p. 19) to relay simulated trees of
+  `Cslib.Distributed.Byzantine.om` ([Lamport, Shostak and Pease][LamportShostakPease1982]) across
+  paths supplied by Menger's theorem (`SimpleGraph.IsVertexConnected`; [Diestel2025],
+  Theorem 3.3.6 (i); [Menger1927]).
+* When `2 ≤ |P| ≤ 3t` or `G` is not `(2t + 1)`-vertex-connected, impossibility follows from the
+  node and separator covering bounds ([Fischer, Lynch and Merritt][FischerLynchMerritt1985],
+  Theorem 1, §3.1–3.2, pp. 61–63; [Pease, Shostak and Lamport][PeaseShostakLamport1980]).
+
+**Distinction from Dolev's broadcast problem.** [Dolev][Dolev1982] (§1 `Agreement B`, pp. 15–16,
+and §5 Corollary 10, p. 29) characterizes *designated-sender Byzantine broadcast*, in which a
+single transmitter sends a value to all receivers and validity requires agreeing on that
+transmitter's value whenever it is reliable (together with *Crusader Agreement*, `Agreement A`,
+§4 Theorem 7, p. 26). By contrast, `GraphProtocol.SolvesByzantineAgreement` gives every process a
+Boolean input and requires validity only when all correct processes share the same input (the
+Boolean consensus formulation of [Fischer, Lynch and Merritt][FischerLynchMerritt1985], §3, p. 61).
+Dolev's designated-sender broadcast and Crusader agreement models are not formalized here.
 
 ## Impossibility on graphs of connectivity at most `2t`
 
@@ -96,9 +114,11 @@ equivalence `exists_solvesByzantineAgreement_iff`.
 
 ## References
 
-* [D. Dolev, *The Byzantine generals strike again*][Dolev1982]
+* [R. Diestel, *Graph Theory*][Diestel2025], §1.4 and §3.3 (Theorem 3.3.6 (i))
+* [D. Dolev, *The Byzantine generals strike again*][Dolev1982], §1 (pp. 15–16) and §2 (Theorem 1,
+  p. 19)
 * [M. J. Fischer, N. A. Lynch, M. Merritt, *Easy impossibility proofs for distributed consensus
-  problems*][FischerLynchMerritt1985]
+  problems*][FischerLynchMerritt1985], §2–3 (Theorem 1, pp. 60–63)
 * [L. Lamport, R. Shostak, M. Pease, *The Byzantine generals problem*][LamportShostakPease1982]
 * [K. Menger, *Zur allgemeinen Kurventheorie*][Menger1927]
 * [M. Pease, R. Shostak, L. Lamport, *Reaching agreement in the presence of
@@ -187,9 +207,11 @@ private theorem exists_split_card_le {C : Finset P} {t : ℕ} (hcard : C.card �
     · rw [Finset.card_sdiff_of_subset hC₁sub]
       omega
 
-/-- **Vertex-separator impossibility bound** ([Dolev1982]; [FischerLynchMerritt1985]): if `C`
-separates `u` from `v` in `G` and `|C| ≤ 2t`, then no protocol on `G` solves Byzantine agreement
-against `t` faults in any fixed round count `R`. -/
+/-- **Vertex-separator impossibility bound for synchronous Boolean consensus**
+([Fischer, Lynch and Merritt][FischerLynchMerritt1985], Theorem 1, §3, p. 61; connectivity proof in
+§3.2, pp. 62–63): in the deterministic synchronous fixed-decision-round model on an undirected
+graph `G`, if `C` separates `u` from `v` in `G` and `|C| ≤ 2t`, then no protocol on `G` solves
+Boolean Byzantine agreement against at most `t` static faults in any fixed round count `R`. -/
 theorem not_solvesByzantineAgreement_of_isVertexSeparator {t R : ℕ} {u v : P} {C : Finset P}
     (hsep : G.IsVertexSeparator u v C) (hcard : C.card ≤ 2 * t) :
     ¬ π.SolvesByzantineAgreement t R := by
@@ -210,10 +232,12 @@ theorem not_solvesByzantineAgreement_of_isVertexSeparator {t R : ℕ} {u v : P} 
   · exact False.elim (hx.1 (SimpleGraph.mem_reachAvoiding_of_adj hyR hxy.symm hx.2))
   · exact Finset.mem_union.mp (hCcov hyC)
 
-/-- **Vertex-cut impossibility bound, partition form** ([Dolev1982]; [FischerLynchMerritt1985]):
-if `P` partitions into nonempty sets `A`, `B` and a cut `C` of size `|C| ≤ 2t` with no edge of `G`
-connecting `A` and `B`, then no protocol on `G` solves Byzantine agreement against `t` faults in
-any fixed round count `R`. -/
+/-- Explicit `(A, B, C)` vertex-partition specialization of
+`not_solvesByzantineAgreement_of_isVertexSeparator` (matching the disconnection of `G` into
+nonempty `A` and `B` by a set `C` of at most `2t` vertices in
+[Fischer, Lynch and Merritt][FischerLynchMerritt1985], §3.2, p. 63): if `P` partitions into
+nonempty sets `A`, `B` and `C` with `|C| ≤ 2t` and no edge of `G` connecting `A` and `B`, then no
+protocol on `G` solves synchronous fixed-round Boolean Byzantine agreement against `t` faults. -/
 theorem not_solvesByzantineAgreement_of_vertexCut [Fintype P] {t R : ℕ} {A B C : Finset P}
     (hA : A.Nonempty) (hB : B.Nonempty) (hAB : Disjoint A B) (hAC : Disjoint A C)
     (hBC : Disjoint B C) (huniv : A ∪ B ∪ C = Finset.univ)
@@ -232,9 +256,12 @@ theorem not_solvesByzantineAgreement_of_vertexCut [Fintype P] {t R : ℕ} {A B C
         · exact hyC
   exact π.not_solvesByzantineAgreement_of_isVertexSeparator hsep hcard
 
-/-- **Global `(2t + 1)`-connectivity necessity** ([Dolev1982]; [FischerLynchMerritt1985]): on at
-least two processes, if `G` is not `(2t + 1)`-vertex-connected, then no protocol on `G` solves
-Byzantine agreement against `t` faults in any fixed round count `R`. -/
+/-- Global `(2t + 1)`-vertex-connectivity necessity for synchronous fixed-round Boolean consensus
+on `|P| ≥ 2` processes, combining the separator lower bound
+`not_solvesByzantineAgreement_of_isVertexSeparator`
+([Fischer, Lynch and Merritt][FischerLynchMerritt1985], Theorem 1, §3.2, pp. 62–63) when `G` admits
+a separator of size at most `2t` with the node bound `not_solvesByzantineAgreement` (§3.1,
+pp. 61–62) when `2 ≤ |P| ≤ 2t + 1`. -/
 theorem not_solvesByzantineAgreement_of_not_isVertexConnected [Fintype P] {t R : ℕ}
     (h2 : 2 ≤ Fintype.card P) (hconn : ¬ G.IsVertexConnected (2 * t + 1)) :
     ¬ π.SolvesByzantineAgreement t R := by
@@ -451,14 +478,6 @@ private theorem curBuf_succ_cons_eq {v s : ℕ} (hs : s < epochLen P) (i : P) {j
     simp only [↓reduceIte, add_zero]
   · simp only [hs0, ↓reduceIte]
 
-private theorem curBuf_nil (v : ℕ) (i : P) :
-    ∀ {s : ℕ}, s ≤ epochLen P →
-      curBuf routes F adv x v s i [] =
-        ((purifiedOM t routes).state F adv x (v * epochLen P) i).omTree
-  | 0, _ => rfl
-  | s + 1, hs => (curBuf_succ_nil routes F adv x (by omega) i).trans
-      (curBuf_nil v i (by omega))
-
 private theorem curBuf_freeze (v : ℕ) (i : P) (w : List P) :
     ∀ {s d : ℕ}, w.length ≤ s → s + d ≤ epochLen P →
       curBuf routes F adv x v (s + d) i w = curBuf routes F adv x v s i w
@@ -623,10 +642,13 @@ private theorem omResolve_purifiedOM_eq_frozenTree {R : ℕ}
 
 end PurifiedOMProof
 
-/-- **Disjoint-path oral messages** ([Dolev1982]; [LamportShostakPease1982]): given `2t + 1`
-pairwise internally vertex-disjoint simple paths between every pair of distinct vertices in `G`,
-`purifiedOM t routes` solves Byzantine agreement on `G` against `t` faults among `|P| > 3t`
-processes in any `R ≥ (t + 1) * epochLen P` synchronous rounds. -/
+/-- **Synchronous Boolean consensus via disjoint-path oral messages** (consensus adaptation
+combining path purification after [Dolev][Dolev1982], §2 Theorem 1, p. 19, with recursive oral
+messages `Byzantine.om` of [Lamport, Shostak and Pease][LamportShostakPease1982], §3 Theorem 1,
+p. 390; not Dolev's designated-sender broadcast theorem, §5 Corollary 10, p. 29): given a routing
+table `routes : DisjointPaths G (2 * t + 1)`, `purifiedOM t routes` solves synchronous Boolean
+Byzantine agreement on `G` against `t` faults among `|P| > 3t` processes in any
+`R ≥ (t + 1) * epochLen P` rounds. -/
 theorem solvesByzantineAgreement_purifiedOM {P : Type*} [Fintype P] [DecidableEq P]
     {G : SimpleGraph P} [DecidableRel G.Adj] (t : ℕ) (routes : DisjointPaths G (2 * t + 1))
     (hn : 3 * t < Fintype.card P) {R : ℕ} (hR : (t + 1) * epochLen P ≤ R) :
@@ -658,10 +680,12 @@ theorem solvesByzantineAgreement_purifiedOM {P : Type*} [Fintype P] [DecidableEq
     · rw [Finset.card_univ]
       omega
 
-/-! ### Menger bridge and complete topological characterization -/
+/-! ### Menger bridge and synchronous Boolean consensus characterization -/
 
-/-- **Menger bridge for `DisjointPaths`** ([Menger1927]): a finite simple graph `G` is
-`k`-vertex-connected if and only if `k < |P|` and `DisjointPaths G k` is nonempty. -/
+/-- Bridge between `SimpleGraph.IsVertexConnected k` and `DisjointPaths G k` via Menger's global
+vertex-connectivity theorem (`isVertexConnected_iff_forall_exists_injective_internallyDisjoint`;
+[Diestel2025], Theorem 3.3.6 (i); [Menger1927]): a finite simple graph `G` is `k`-vertex-connected
+if and only if `k < |P|` and `DisjointPaths G k` is nonempty. -/
 theorem isVertexConnected_iff_card_gt_and_nonempty_disjointPaths {P : Type*} [Fintype P]
     (G : SimpleGraph P) (k : ℕ) :
     G.IsVertexConnected k ↔ k < Fintype.card P ∧ Nonempty (DisjointPaths G k) := by
@@ -732,14 +756,17 @@ private theorem solvesByzantineAgreement_ulift.{u, s₀, m₀, v, w} {P : Type u
     rw [uliftProtocol_state]
     exact h.validity F hF _ x b hb i hi
 
-/-- **Topological characterization of synchronous Byzantine agreement at fixed round bound.** For
-any `R ≥ (t + 1) * epochLen P`, some protocol on `G` solves Byzantine agreement against `t` faults
-in `R` rounds if and only if `|P| ≤ 1` or both `3t < |P|` and `G` is `(2t + 1)`-vertex-connected:
-`GraphProtocol.ownInput` handles `|P| ≤ 1`, `purifiedOM` handles `3t < |P|` on `(2t + 1)`-connected
-graphs ([Dolev1982]; [LamportShostakPease1982]; [Menger1927]), and the node and connectivity bounds
-exclude `2 ≤ |P| ≤ 3t` and graphs of connectivity at most `2t` ([Dolev1982];
-[PeaseShostakLamport1980]; [FischerLynchMerritt1985]). Whether fewer than `(t + 1) * epochLen P`
-rounds suffice on a specific graph is not addressed here. -/
+/-- **Synchronous Boolean consensus characterization at fixed round bound** (Boolean consensus
+adaptation on `SimpleGraph P`, rather than Dolev's designated-sender broadcast characterization in
+[Dolev][Dolev1982], §1 pp. 15–16 and §5 Corollary 10, p. 29). For any `R ≥ (t + 1) * epochLen P`,
+some protocol on `G` solves synchronous Boolean Byzantine agreement against `t` faults in `R`
+rounds if and only if `|P| ≤ 1` or both `3t < |P|` and `G` is `(2t + 1)`-vertex-connected:
+`GraphProtocol.ownInput` handles `|P| ≤ 1`; `purifiedOM` handles `3t < |P|` on `(2t + 1)`-connected
+graphs (adapting path purification after [Dolev][Dolev1982], §2 Theorem 1, p. 19, with
+`Byzantine.om` of [LamportShostakPease1982] and Menger's theorem [Diestel2025]); and the node and
+separator bounds exclude `2 ≤ |P| ≤ 3t` and graphs of connectivity at most `2t`
+([FischerLynchMerritt1985], Theorem 1, §3.1–3.2, pp. 61–63; [PeaseShostakLamport1980]). Whether
+fewer than `(t + 1) * epochLen P` rounds suffice on a specific graph is not addressed here. -/
 theorem exists_solvesByzantineAgreement_of_le_iff.{u} {P : Type u} [Fintype P] [DecidableEq P]
     (G : SimpleGraph P) (t : ℕ) {R : ℕ} (hR : (t + 1) * epochLen P ≤ R) :
     (∃ (S M : Type u) (π : GraphProtocol G S M), π.SolvesByzantineAgreement t R) ↔
@@ -757,13 +784,15 @@ theorem exists_solvesByzantineAgreement_of_le_iff.{u} {P : Type u} [Fintype P] [
       exact ⟨PurifiedOMState P, List P → List P → Bool, purifiedOM t routes,
         solvesByzantineAgreement_purifiedOM t routes hn hR⟩
 
-/-- **Complete topological characterization of synchronous Byzantine agreement.** Some protocol on
-`G` solves Byzantine agreement against `t` faults in some fixed round count `R` if and only if
-`|P| ≤ 1` or both `3t < |P|` and `G` is `(2t + 1)`-vertex-connected: `GraphProtocol.ownInput`
-handles `|P| ≤ 1`, `purifiedOM` handles `3t < |P|` on `(2t + 1)`-connected graphs ([Dolev1982];
-[LamportShostakPease1982]; [Menger1927]), and the node and connectivity bounds exclude
-`2 ≤ |P| ≤ 3t` and graphs of connectivity at most `2t` ([Dolev1982]; [PeaseShostakLamport1980];
-[FischerLynchMerritt1985]). -/
+/-- **Synchronous Boolean consensus characterization on finite simple graphs** (Boolean consensus
+adaptation on `SimpleGraph P`, rather than Dolev's designated-sender broadcast characterization in
+[Dolev][Dolev1982], §1 pp. 15–16 and §5 Corollary 10, p. 29). Some protocol on `G` solves
+synchronous Boolean Byzantine agreement against `t` faults in some fixed round count `R` if and
+only if `|P| ≤ 1` or both `3t < |P|` and `G` is `(2t + 1)`-vertex-connected:
+`GraphProtocol.ownInput` handles `|P| ≤ 1`; `purifiedOM` handles `3t < |P|` on `(2t + 1)`-connected
+graphs (after [Dolev][Dolev1982], §2 Theorem 1, p. 19; [LamportShostakPease1982]; [Diestel2025]);
+and the node and separator bounds exclude `2 ≤ |P| ≤ 3t` and graphs of connectivity at most `2t`
+([FischerLynchMerritt1985], Theorem 1, §3.1–3.2, pp. 61–63; [PeaseShostakLamport1980]). -/
 theorem exists_solvesByzantineAgreement_iff.{u} {P : Type u} [Fintype P] [DecidableEq P]
     (G : SimpleGraph P) (t : ℕ) :
     (∃ (S M : Type u) (R : ℕ) (π : GraphProtocol G S M), π.SolvesByzantineAgreement t R) ↔

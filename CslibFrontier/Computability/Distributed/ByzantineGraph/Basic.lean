@@ -13,12 +13,14 @@ public import Mathlib.Data.Fintype.Card
 import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 
 /-!
-# Synchronous Byzantine agreement on general communication graphs
+# Synchronous Boolean consensus on general communication graphs
 
 Deterministic synchronous message passing over an undirected communication graph
-`G : SimpleGraph P` in the presence of static Byzantine faults, following [Dolev1982] and
-[Fischer, Lynch and Merritt][FischerLynchMerritt1985] for the agreement problem of
-[Pease, Shostak and Lamport][PeaseShostakLamport1980].
+`G : SimpleGraph P` in the presence of static Byzantine faults, for the Boolean consensus problem
+of [Pease, Shostak and Lamport][PeaseShostakLamport1980] and
+[Fischer, Lynch and Merritt][FischerLynchMerritt1985] (§3, p. 61: every process holds a Boolean
+input, all correct processes agree, and unanimous correct inputs force that decision; this differs
+from the single-sender broadcast problem `Agreement B` of [Dolev][Dolev1982], §1, pp. 15–16).
 
 In `GraphProtocol G State Msg`, processes communicate only along edges of `G`: in round `r + 1`,
 process `i` sends `send r i s j hij` to each adjacent process `j` (`hij : G.Adj i j`) and updates
@@ -392,31 +394,20 @@ private theorem ofProtocol_state_eq_state (π : Byzantine.Protocol P S M) (F : F
           rw [ofProtocol_state_eq_state π F adv x r j hj]
 
 private theorem state_eq_ofProtocol_state (π : Byzantine.Protocol P S M) (F : Finset P)
-    (advG : ℕ → ∀ j i : P, (⊤ : SimpleGraph P).Adj j i → M) (x : P → Bool) :
-    ∀ r, ∀ i ∉ F,
-      (ofProtocol π).state F advG x r i =
-        π.state F (fun r j i =>
-          if hji : j = i then π.send r j (π.init j false) i
-          else advG r j i hji) x r i
-  | 0, _, _ => rfl
-  | r + 1, i, hi => by
-    dsimp only [state, Byzantine.Protocol.state]
-    change π.update r i ((ofProtocol π).state F advG x r i) _ =
-      π.update r i (π.state F _ x r i) _
-    congr 1
-    · exact state_eq_ofProtocol_state π F advG x r i hi
-    · funext j
-      by_cases hji : j = i
-      · subst hji
-        simp only [↓reduceDIte, hi, ↓reduceIte]
-        rw [state_eq_ofProtocol_state π F advG x r j hi]
-      · simp only [hji, ↓reduceDIte]
-        by_cases hj : j ∈ F
-        · simp only [hj, ↓reduceIte]
-        · simp only [hj, ↓reduceIte]
-          change π.send r j ((ofProtocol π).state F advG x r j) i =
-            π.send r j (π.state F _ x r j) i
-          rw [state_eq_ofProtocol_state π F advG x r j hj]
+    (advG : ℕ → ∀ j i : P, (⊤ : SimpleGraph P).Adj j i → M) (x : P → Bool) (r : ℕ) (i : P)
+    (hi : i ∉ F) :
+    (ofProtocol π).state F advG x r i =
+      π.state F (fun r j i =>
+        if hji : j = i then π.send r j (π.init j false) i
+        else advG r j i hji) x r i := by
+  let adv : ℕ → P → P → M := fun r j i =>
+    if hji : j = i then π.send r j (π.init j false) i else advG r j i hji
+  have hadv : advG = fun r j i _ => adv r j i := by
+    funext r j i hji
+    have hne : j ≠ i := hji
+    simp only [adv, hne, ↓reduceDIte]
+  exact (congrArg (fun a => (ofProtocol π).state F a x r i) hadv).trans
+    (ofProtocol_state_eq_state π F adv x r i hi)
 
 /-- Restricting a `Byzantine.Protocol` to `GraphProtocol ⊤` preserves `SolvesByzantineAgreement` in
 both directions, keeping the state and message types unchanged. -/
@@ -439,9 +430,10 @@ theorem solvesByzantineAgreement_ofProtocol_iff (π : Byzantine.Protocol P S M) 
     · rw [decision, state_eq_ofProtocol_state π F advG x R i hi]
       exact h.validity F hF _ x v hv i hi
 
-/-- **No Byzantine agreement with `n ≤ 3t` processes on any graph** ([PeaseShostakLamport1980];
-[FischerLynchMerritt1985]): on any communication graph `G` over `n` processes with `2 ≤ n ≤ 3t`,
-no protocol solves Byzantine agreement against `t` faults in any fixed round count `R`. Obtained
+/-- **No synchronous Boolean consensus with `n ≤ 3t` processes on any graph**
+([PeaseShostakLamport1980]; [FischerLynchMerritt1985], Theorem 1, §3.1, pp. 61–62): on any
+communication graph `G` over `n` processes with `2 ≤ n ≤ 3t`, no protocol solves synchronous
+fixed-round Boolean Byzantine agreement against `t` faults in any round count `R`. Obtained
 immediately by simulating `π` on `⊤` (`toSupergraph le_top`) and applying the complete-graph node
 bound `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement`. -/
 theorem not_solvesByzantineAgreement [Fintype P] {t R : ℕ} (h2 : 2 ≤ Fintype.card P)
@@ -483,11 +475,12 @@ private theorem send_congr_target {r : ℕ} {j : P} {s₁ s₂ : S} (hs : s₁ =
   subst hs
   rfl
 
-/-- **The graph covering lemma** ([FischerLynchMerritt1985]). Suppose the correct processes embed
-into a covering network by `e`, preserving their labels, inputs, and mutual `G`-edges
-(`G.Adj j i → nbr (e i) j = e j`), and that along every `G`-edge from a faulty process `j ∈ F` to a
-correct process `i ∉ F`, `j` sends what `nbr (e i) j` sends in the covering network. Then every
-correct process `i` has the same state as `e i` after every round. -/
+/-- **The graph covering lemma** (after [Fischer, Lynch and Merritt][FischerLynchMerritt1985], §2,
+pp. 60–61). Suppose the correct processes embed into a covering network by `e`, preserving their
+labels, inputs, and mutual `G`-edges (`G.Adj j i → nbr (e i) j = e j`), and that along every
+`G`-edge from a faulty process `j ∈ F` to a correct process `i ∉ F`, `j` sends what `nbr (e i) j`
+sends in the covering network. Then every correct process `i` has the same state as `e i` after
+every round. -/
 theorem state_eq_coverState {N : Type*} (label : N → P) (input : N → Bool) (nbr : N → P → N)
     (F : Finset P) (adv : ℕ → ∀ j i : P, G.Adj j i → M) (x : P → Bool) (e : P → N)
     (hlabel : ∀ i ∉ F, label (e i) = i) (hinput : ∀ i ∉ F, input (e i) = x i)
