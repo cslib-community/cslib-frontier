@@ -58,8 +58,8 @@ Closing `F` with a closed resource machine `R κ C : Machine OracleSpec.empty G`
 * `Cslib.Crypto.Protocols.UC.HybridFunctionality.close_polyBounded`: closing a bounded hybrid
   functionality with a bounded resource yields a bounded protocol.
 * `Cslib.Crypto.Protocols.UC.HybridFunctionality.exec_close`: the UC execution of `F.close R` is the
-  exact program obtained by running the resource `R κ C` against the reduction program linking `Z`,
-  `A`, and `routeCorrupt C (F.toMachine κ C)`.
+  exact program obtained by running the resource `R κ C` against the reduction program linking
+  `absorbAdversary C A Z κ z` with `routeCorrupt C (F.toMachine κ C)`.
 * `Cslib.Crypto.Protocols.UC.HybridFunctionality.advantage_close`: swapping the private resource of
   a hybrid functionality reduces to the `SSP.advantage` between the two resources for that explicit
   reduction program.
@@ -147,30 +147,30 @@ theorem HybridFunctionality.close_polyBounded {F : HybridFunctionality n In Out 
 
 /-- Library infrastructure (no cited result): running the UC execution of `F.close R` is, as an
 exact equation of programs, running the private resource `R κ C` against the program that links
-`Z κ z` with the lifted adversary `A κ C` and the corruption-routed machine
-`routeCorrupt C (F.toMachine κ C)`. -/
+`absorbAdversary C A Z κ z` with the corruption-routed machine `routeCorrupt C (F.toMachine κ C)`.
+-/
 theorem HybridFunctionality.exec_close (F : HybridFunctionality n In Out BackQ BackR G)
     (R : ℕ → Finset (Fin n) → Machine OracleSpec.empty G)
     (A : ExecAdversary n In Out BackQ BackR AdvQ AdvR) (C : Finset (Fin n))
     (Z : Environment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
     exec (F.close R) A C Z κ z =
       (R κ C).run
-        ((routeCorrupt C (F.toMachine κ C)).link ((liftAdversary (A κ C)).link (Z κ z))) := by
-  simp only [exec, execMachine, close, corruptRouter_comp, Machine.run_comp]
+        ((routeCorrupt C (F.toMachine κ C)).link (absorbAdversary C A Z κ z)) := by
+  simp only [exec, execMachine, close, corruptRouter_comp, Machine.run_comp, absorbAdversary]
 
 /-- Library infrastructure (no cited result): swapping the private resource of a hybrid
 functionality is a state-separating reduction. The environment's advantage between `F.close R` and
 `F.close R'` (with the same adversary) equals the `SSP.advantage` between the two resources for the
-program that links `Z`, the adversary, and `F` behind static-corruption routing. -/
+program that links `absorbAdversary C A Z κ z` with `routeCorrupt C (F.toMachine κ C)`. -/
 theorem HybridFunctionality.advantage_close (F : HybridFunctionality n In Out BackQ BackR G)
     (R R' : ℕ → Finset (Fin n) → Machine OracleSpec.empty G)
     (A : ExecAdversary n In Out BackQ BackR AdvQ AdvR) (C : Finset (Fin n))
     (Z : Environment n In Out AdvQ AdvR) (κ : ℕ) (z : List Bool) :
     UC.advantage (F.close R) (F.close R') A A C Z κ z =
       SSP.advantage
-        ((routeCorrupt C (F.toMachine κ C)).link ((liftAdversary (A κ C)).link (Z κ z)))
+        ((routeCorrupt C (F.toMachine κ C)).link (absorbAdversary C A Z κ z))
         (R κ C) (R' κ C) := by
-  simp only [advantage, exec, execMachine, close, corruptRouter_comp]
+  simp only [advantage, exec, execMachine, close, corruptRouter_comp, absorbAdversary]
   exact (SSP.advantage_comp (Z κ z) (liftAdversary (A κ C)) _ _).trans
     (SSP.advantage_comp _ (routeCorrupt C (F.toMachine κ C)) _ _)
 
@@ -185,7 +185,7 @@ theorem HybridFunctionality.isQueryBounded_closeReduction
     (hA : A.PolyBounded pA) (hZ : Z.PolyBounded pZ)
     (C : Finset (Fin n)) (κ : ℕ) (z : List Bool) :
     OracleComp.IsQueryBounded
-      ((routeCorrupt C (F.toMachine κ C)).link ((liftAdversary (A κ C)).link (Z κ z)))
+      ((routeCorrupt C (F.toMachine κ C)).link (absorbAdversary C A Z κ z))
       (pF.eval κ + (absorbPoly pZ pA).eval κ * (pF.eval κ + 1)) :=
   Machine.isQueryBounded_link (isBounded_routeCorrupt C (hF κ C))
     (absorbAdversary_polyBounded C hA hZ κ z)

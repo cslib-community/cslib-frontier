@@ -129,7 +129,7 @@ private def queryCorruptedPartyOne :
 private abbrev coinRelayReduction (κ : ℕ) (z : List Bool) :
     ProbOracleComp (netSpec Unit Bool) Bool :=
   (routeCorrupt corruptOne (coinRelay.toMachine κ corruptOne)).link
-    ((liftAdversary (relayDummyAdv κ corruptOne)).link (queryPartyZero κ z))
+    (absorbAdversary corruptOne relayDummyAdv queryPartyZero κ z)
 
 private theorem zero_notMem_corruptOne : (0 : Fin 2) ∉ corruptOne := by decide
 
@@ -137,8 +137,8 @@ private theorem one_mem_corruptOne : (1 : Fin 2) ∈ corruptOne := by decide
 
 private theorem coinRelayReduction_eq_query (κ : ℕ) (z : List Bool) :
     coinRelayReduction κ z = ProbOracleComp.query (spec := netSpec Unit Bool) () := by
-  simp only [coinRelayReduction, relayDummyAdv, dummyAdversary, liftAdversary, Machine.liftRight_id,
-    Machine.link_id]
+  simp only [coinRelayReduction, absorbAdversary, relayDummyAdv, dummyAdversary, liftAdversary,
+    Machine.liftRight_id, Machine.link_id]
   simp only [Machine.link, queryPartyZero, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.runFrom_pure, routeCorrupt, zero_notMem_corruptOne, ↓reduceIte]
   simp only [coinRelay, HybridFunctionality.toMachine, ↓reduceIte, ProbOracleComp.sample_pure,
@@ -209,7 +209,8 @@ theorem eval_exec_coinRelay_grows_state (κ : ℕ) (z : List Bool) :
     (exec (coinRelay.close fairCoinResource) relayDummyAdv corruptOne
       queryTwiceAndCheckCount κ z).eval = PMF.pure true := by
   rw [HybridFunctionality.exec_close]
-  simp only [relayDummyAdv, dummyAdversary, liftAdversary, Machine.liftRight_id, Machine.link_id]
+  simp only [absorbAdversary, relayDummyAdv, dummyAdversary, liftAdversary, Machine.liftRight_id,
+    Machine.link_id]
   simp only [Machine.link, queryTwiceAndCheckCount, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.runFrom_pure, routeCorrupt, zero_notMem_corruptOne, ↓reduceIte, StateT.run_map]
   simp only [coinRelay, HybridFunctionality.toMachine, ↓reduceIte, ProbOracleComp.sample_pure,
@@ -227,7 +228,8 @@ theorem eval_exec_coinRelay_corrupt_blocked (κ : ℕ) (z : List Bool) :
     (exec (coinRelay.close fairCoinResource) relayDummyAdv corruptOne
       queryCorruptedPartyOne κ z).eval = PMF.pure true := by
   rw [HybridFunctionality.exec_close]
-  simp only [relayDummyAdv, dummyAdversary, liftAdversary, Machine.liftRight_id, Machine.link_id]
+  simp only [absorbAdversary, relayDummyAdv, dummyAdversary, liftAdversary, Machine.liftRight_id,
+    Machine.link_id]
   simp only [Machine.link, queryCorruptedPartyOne, Machine.runFrom_bind, Machine.runFrom_query,
     Machine.runFrom_pure, routeCorrupt, one_mem_corruptOne, ↓reduceIte, StateT.run_pure]
   simp only [coinRelay, HybridFunctionality.toMachine, ProbOracleComp.sample_pure, pure_bind,
