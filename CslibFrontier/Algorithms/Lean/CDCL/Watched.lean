@@ -1335,7 +1335,9 @@ are built once, read by the backjump and cleared after it. -/
   let k := (dedupLits L.clause).length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
-    let red := reducedWith opts red L.used L.id (L.id + 1) (isLearntId φ.length L.id)
+    -- a learned clause's number is the log's next one, beyond the clauses of `φ`
+    -- (`Learned.isLearntId_id`): it counts as learned, with no test of `φ.length`
+    let red := reducedWith opts red L.used L.id (L.id + 1) true
     let store := store.addClause L.id (learnedWatched L.clause L.lit)
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order.1, order.2,
       phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
@@ -2020,6 +2022,13 @@ theorem WExec.maybeReduce_conflicts (S : WExec φ) :
   · split <;> rfl
   · rfl
 
+/-- The number of a learned clause is a learned number: the log's next number, beyond the clauses
+of `φ`. -/
+theorem Learned.isLearntId_id {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
+    isLearntId φ.length L.id = true := by
+  simp only [isLearntId, Learned.id]
+  exact decide_eq_true log.next_gt
+
 /-- **The count of learned clauses at insertion**: with reduction on, a conflict whose learned
 clause goes to the watch store (two or more literals) counts it exactly when its number is a
 learned one (`isLearntId`), the rule by which `WatchStore.learntCount` counts the store
@@ -2030,7 +2039,7 @@ theorem WExec.afterConflict_learnts (S : WExec φ) (sp : Split) (L : S.exec.Lear
       if isLearntId φ.length L.id then S.red.learnts + 1 else S.red.learnts := by
   unfold WExec.afterConflict
   dsimp only
-  rw [ite_eq_left hk]
+  rw [ite_eq_left hk, L.isLearntId_id]
   simp only [reducedWith, hred, ite_true, Reduction.learn]
   split <;> rfl
 
