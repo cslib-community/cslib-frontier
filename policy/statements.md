@@ -14,11 +14,11 @@ new proof ideas need no source; label them as original without implying a cited 
 
 Whether a new definition needs checked examples on both sides (an instance where it holds and one
 where it fails) is for the author and reviewers to judge; reviewers may ask for them when a
-definition could be vacuous or trivially satisfied. For a new problem set, game or domain
-predicate with non-trivial boundary cases—such as self-loops or parallel edges in a multigraph
-model, an asymmetric matrix where transpose conventions differ, or repeated and malformed oracle
-queries—include a concrete checked witness exercising that boundary so an off-by-one guard,
-transposed convention or unintended restriction fails elaboration.
+definition could be vacuous or trivially satisfied. When a new problem set, game, predicate,
+construction or transcribed algorithm has subtle model boundaries—such as self-loops or parallel
+edges in a multigraph model, an asymmetric matrix where transpose conventions differ, or repeated
+and malformed oracle queries—include a concrete checked witness in the tests exercising that
+boundary so an off-by-one guard, transposed convention or unintended restriction fails elaboration.
 
 Search for existing notions before adding public definitions. Reuse or extend them when they
 express the intended mathematics; explain a non-obvious decision to introduce a parallel notion.
@@ -202,15 +202,17 @@ encoding-readability lint checks rule 1 against a per-module baseline that may o
    of its docstring states the choice (`encUnaryPair`, not `encArgs`). A name must not hide one.
 7. **No hidden defaults.** Do not let an elaborator or typeclass choose an encoding for a type;
    the `enc%` proposal (#1830) is parked.
-8. **Keep restricted-class problems on the general encoding.** When a cited complexity or
+8. **Keep restricted-class results on the general encoding.** When a cited complexity or
    algorithmic result restricts inputs by a mathematical property (planar graphs, bounded-degree
-   instances, bounded treewidth, read-once formulas), state the headline on the general problem's
-   instance type under its standard encoding (`{x | x ∈ Problem ∧ Restricted x}`), rather than
-   replacing the input type or encoding with a caller-supplied witness or decomposition (a
-   rotation system, progressive slice word or tree decomposition) unless the cited theorem itself
-   takes that representation as input. Supplying a witness in the input changes the computational
-   problem—for example, removing planarity or treewidth recognition—and belongs to an honestly
-   named intermediate problem (`PlaneWord…`, `TreeDecomp…`) under
+   instances, bounded treewidth, read-once formulas), follow the source's treatment of the
+   restriction on the general problem's instance type and encoding unless the cited result itself
+   takes a different representation as input: state a restricted language whose membership includes
+   the property as `{x | x ∈ Problem ∧ Restricted x}`, and state a promise problem or algorithmic
+   correctness claim under a precondition with `Restricted x` as a hypothesis on `x : Instance`
+   (without claiming recognition of `Restricted x`). Replacing the input type or encoding with a
+   caller-supplied witness or decomposition (a rotation system, progressive slice word or tree
+   decomposition) when the source does not take one changes the computational problem and belongs
+   to an honestly named intermediate step (`PlaneWord…`, `TreeDecomp…`) under
    [Faithful headlines](#faithful-headlines) rule 2.
 
 ### Security theorems
