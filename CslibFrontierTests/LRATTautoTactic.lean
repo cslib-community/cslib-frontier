@@ -359,14 +359,128 @@ error: lrat_tauto: the goal is not a propositional tautology. It is false under 
 example : ∀ p q : Prop, (p → q) → q → p := by
   lrat_tauto
 
--- The assignment is to the atoms as opaque propositions: `n = n` is one atom, assigned `False`,
--- though the goal holds.
+-- The assignment is to the atoms as opaque propositions: `0 + n = n` is one atom, assigned
+-- `False`, though the goal holds.
 /--
-error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment to its atoms, read as independent propositions:
-  n = n := False
+error: lrat_tauto: the goal is not a propositional tautology. It is false under this assignment
+to its atoms, read as independent propositions: 0 + n = n := False
 -/
+#guard_msgs (whitespace := lax) in
+example : ∀ n : ℕ, 0 + n = n := by
+  lrat_tauto
+
+/-! ### Hypotheses of the context -/
+
+/-- Modus ponens and modus tollens from the context. -/
+theorem hyps_solved (p q r : Prop) (hpq : p → q) (hqr : q → r) (hnr : ¬r) : ¬p := by
+  lrat_tauto
+
+/--
+info: 'CslibFrontierTests.LRATTautoTactic.hyps_solved' depends on axioms:
+[propext, Classical.choice, Quot.sound]
+-/
+#guard_msgs (whitespace := lax) in
+#print axioms hyps_solved
+
+/-- The hypotheses are used with the goal's own premises, over shared atoms. -/
+example (p q r : Prop) (h : p ∨ q) (hp : p → r) : (q → r) → r := by
+  lrat_tauto
+
+/-- A contradiction in the context proves any goal, even one that is a single atom. -/
+example (p : Prop) (n : ℕ) (h₁ : p) (h₂ : ¬p) : n = 37 := by
+  lrat_tauto
+
+/-- Hypotheses that are not propositional formulas are atoms: here `∀ x, f x = 0` and
+`f 1 = 0`, the latter shared with the goal. -/
+example (f : ℕ → ℕ) (h : ∀ x, f x = 0) (h₁ : f 1 = 0 → f 2 = 0) (h₂ : f 1 = 0) :
+    f 2 = 0 ∧ (∀ x, f x = 0) := by
+  lrat_tauto
+
+/-- Hypotheses whose types depend on other hypotheses and on variables of the context. -/
+example (p : Prop) (f : p → ℕ) (hp : p) (h : f hp = 0 ∨ f hp = 1) (h₀ : ¬f hp = 0) :
+    f hp = 1 := by
+  lrat_tauto
+
+/-- `-hyps` turns the hypotheses off. -/
+example (p q : Prop) (hp : p) (hpq : p → q) : q := by
+  fail_if_success lrat_tauto -hyps
+  lrat_tauto
+
+-- Unknown options are rejected.
+/-- error: lrat_tauto: unknown option; the only option is `-hyps` -/
 #guard_msgs in
+example (p : Prop) (hp : p) : p := by
+  lrat_tauto -zeta
+
+-- Only the hypotheses whose clauses the certificate uses reach the kernel, so the unused
+-- variables linter flags the others.
+/--
+warning: Variable name `hq` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively,
+prefix the name with `_` to silence this warning:
+  [apply] _hq
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+---
+warning: Variable name `hpq` is not explicitly referenced.
+
+Hint: The binding can be removed (if unused) or named `_` (if used implicitly). Alternatively,
+prefix the name with `_` to silence this warning:
+  [apply] _hpq
+
+Note: This linter can be disabled with `set_option linter.unusedVariables false`
+-/
+#guard_msgs (whitespace := lax) in
+example (p q r : Prop) (hq : q) (hpq : p → q) (hr : r) (hrp : r → p) : p := by
+  lrat_tauto
+
+/-- Twenty irrelevant hypotheses, none of which reaches the kernel. -/
+example (a b : Fin 20 → Prop) (p q : Prop)
+    (_h0 : a 0 ∨ b 0) (_h1 : a 1 ∨ b 1) (_h2 : a 2 ∨ b 2) (_h3 : a 3 ∨ b 3) (_h4 : a 4 ∨ b 4)
+    (_h5 : a 5 ∨ b 5) (_h6 : a 6 ∨ b 6) (_h7 : a 7 ∨ b 7) (_h8 : a 8 ∨ b 8) (_h9 : a 9 ∨ b 9)
+    (_h10 : a 10 → b 10) (_h11 : a 11 → b 11) (_h12 : a 12 → b 12) (_h13 : a 13 → b 13)
+    (_h14 : a 14 → b 14) (_h15 : a 15 → b 15) (_h16 : a 16 → b 16) (_h17 : a 17 → b 17)
+    (_h18 : a 18 → b 18) (_h19 : a 19 → b 19)
+    (hp : p) (hpq : p → q) (hq : q → a 0) : a 0 := by
+  lrat_tauto
+
+-- When the goal does not follow, the error names the hypotheses used and the assignment.
+/--
+error: lrat_tauto: the goal does not follow propositionally from the hypotheses hpq, hq. It is
+false, and the hypotheses are true, under this assignment to the atoms of the goal and the
+hypotheses, read as independent propositions: p := False q := True
+-/
+#guard_msgs (whitespace := lax) in
+example (p q : Prop) (hpq : p → q) (hq : q) : p := by
+  lrat_tauto
+
+/-- A certificate supplied with `using` refutes the goal alone, so the hypotheses are ignored. -/
+example (p q : Prop) (_hpq : p → q) (_hnq : ¬q) : (p → q) → ¬q → ¬p := by
+  lrat_tauto using contrapositionCert
+
+/-! ### Leaves closed by `rfl` and by a hypothesis -/
+
+/-- `n = n` is one atom, which `rfl` proves. -/
 example : ∀ n : ℕ, n = n := by
+  lrat_tauto
+
+/-- An atom proved by `rfl` at reducible transparency, here `HEq`, closes one side of a
+disjunction. -/
+example (p : Prop) (x : ℕ) : p ∨ HEq x x := by
+  lrat_tauto
+
+/-- `rfl` is tried at reducible transparency only: `0 + n = n` is not proved. -/
+example (n : ℕ) : 0 + n = n ∨ False := by
+  fail_if_success lrat_tauto
+  simp
+
+/-- An atom of the goal that is a hypothesis, as `assumption` closes it. -/
+example (s : Set ℕ) (h : 3 ∈ s) : (3 ∈ s → False) → 4 ∈ s := by
+  lrat_tauto
+
+/-- An atom whose negation is a hypothesis. -/
+example (x y : ℕ) (h : ¬x < y) : x < y → x = 7 := by
   lrat_tauto
 
 end CslibFrontierTests.LRATTautoTactic

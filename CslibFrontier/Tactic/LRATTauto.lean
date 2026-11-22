@@ -32,13 +32,14 @@ is proved by `decide` for the checker built for kernel reduction,
 `Cslib.Logic.PL.CNF.checkLRATKernel`, and rewritten with
 `Cslib.Logic.PL.CNF.checkLRATKernel_eq_checkLRAT`. So the kernel runs that checker, and only that
 run is trusted; where the certificate came from does not matter. The goals proved are the
-classical tautologies, since `eval_prop_of_checkLRAT` decides each atom classically.
+classical tautologies, since `eval_prop_of_checkLRAT` decides each atom classically. Without
+`using`, `P` is `P₁ → ⋯ → Pₖ → G` for the goal `G` and the premises `Pᵢ` that the tactic finds
+in the context (see "Hypotheses and leaves"); the trusted step is the same, on a larger formula.
 
 ## Reading the goal
 
 * Leading binders whose type is not a proposition, as in `∀ (p q : Prop) (n : ℕ), …`, are
-  introduced first. Hypotheses in the local context are not used: revert the ones the proof
-  needs.
+  introduced first. The hypotheses of the local context are read as premises (see below).
 * `P ∧ Q`, `P ∨ Q`, `False` and an implication `P → Q` between propositions (a non-dependent
   arrow whose domain is a proposition) are read as the constructors `and`, `or`, `falsum` and
   `imp`. `Proposition` has no other constructors, so the other connectives are encoded:
@@ -46,8 +47,39 @@ classical tautologies, since `eval_prop_of_checkLRAT` decides each atom classica
   `and (imp P Q) (imp Q P)`.
 * Every other subterm is an atom: an equation `f x = y`, an order fact `n < 3`, a dependent `∀`
   or `∃`, a definition such as `a ≠ b` that unfolds to a connective. Atoms are numbered from `0`
-  in order of first occurrence, left to right, and two atoms are the same when they are
-  definitionally equal at reducible transparency.
+  in order of first occurrence, left to right, in the goal and then in the premises, and two atoms
+  are the same when they are definitionally equal at reducible transparency.
+
+## Hypotheses and leaves
+
+Without `using`, the tactic proves `P₁ → ⋯ → Pₖ → G` for the goal `G` and premises `Pᵢ`, read
+over shared atoms, and applies the proof to the premises' proofs; nothing is reverted. The
+premises are:
+
+* the hypotheses of the local context whose types are propositions, other than implementation
+  details, in the order of the context. A hypothesis that is not a propositional formula, such as
+  `h : ∀ x, f x = 0`, is an atom, as such subterms of the goal are; its type may mention other
+  hypotheses and variables. `lrat_tauto -hyps` leaves them out.
+* the atoms that reflexivity proves at reducible transparency, `a = b` by `Eq.refl` and
+  `HEq a b` by `HEq.refl` when `a` and `b` are definitionally equal at that transparency, with
+  that proof, as the leaves `tauto` closes by `rfl`. An `↔` is a connective, never an atom. No
+  other tactic runs on the atoms. The leaves `tauto` closes by `assumption` are covered by the
+  hypotheses: an atom that is a hypothesis `h : a`, or whose negation is one, `h : ¬a`, is fixed
+  by that premise.
+
+Premises that a certificate does not need would still cost the kernel their clauses, so they are
+dropped. The solver refutes the formula with all the premises; those with a clause among the
+hints of the trimmed certificate (one of the definitional clauses of its subformulas, or the
+clause of its `imp` node asserting it) are kept, the formula is read again from them alone,
+numbering its atoms afresh, and the solver refutes that formula. The kernel checks the
+certificate for that formula. If the solver finds the smaller formula satisfiable, which the
+selection does not rule out, the formula with all the premises and its certificate are used. This
+selection is untrusted, like the solver. Hypotheses that share no atom with the goal are not
+dropped before solving: they can still matter, as a contradictory pair does.
+
+A certificate supplied with `using` refutes the formula of the goal alone, without premises, and
+`lrat_tauto?` prints that formula: the clause numbers of a fixed certificate should not depend on
+the context. Revert the hypotheses that a supplied certificate needs.
 
 ## The certificate
 
@@ -68,11 +100,13 @@ and reports which.
 ## Generating the certificate
 
 Without `using`, the tactic runs the CDCL solver `Cslib.Algorithms.Lean.CDCL.solveCompact` on the
-formula, in Lean's interpreter during elaboration. If the formula is satisfiable, the goal is not a
-propositional tautology, and the error shows an assignment of truth values to the atoms, read as
-independent propositions, under which the goal's propositional structure is false. It need not be
-a countermodel of the goal itself, since the atoms may not be able to take those values: for
-`∀ n : ℕ, n = n`, the one atom `n = n` is assigned `False`. Otherwise the solver
+formula, in Lean's interpreter during elaboration. If the formula is satisfiable, the goal does not
+follow propositionally from the premises, and the error shows an assignment of truth values to the
+atoms, read as independent propositions, under which the goal's propositional structure is false
+and the premises are true; when the context has propositional hypotheses, it names them. It need
+not be a countermodel of the goal itself, since the atoms may not be able to take those values:
+for `∀ n : ℕ, 0 + n = n`, the one atom `0 + n = n`, which `rfl` at reducible transparency does not
+prove, is assigned `False`. Otherwise the solver
 returns a certificate, which is proved correct (`Cslib.Algorithms.Lean.CDCL.solveCompact_unsat`)
 but is not trusted here: the kernel checks it as it checks a supplied one. The certificate is first
 trimmed to the steps that the empty clause depends on, without the deletions, and the clauses it
@@ -100,8 +134,9 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
 
 ## Main definitions
 
-* `lrat_tauto`: close the goal from a certificate generated by the CDCL solver.
-* `lrat_tauto using cert`: close the goal from the certificate `cert`.
+* `lrat_tauto`: close the goal, using the hypotheses, from a certificate generated by the CDCL
+  solver; `lrat_tauto -hyps` without the hypotheses.
+* `lrat_tauto using cert`: close the goal alone from the certificate `cert`.
 * `lrat_tauto?`: print the formula that a certificate for the goal must refute.
 
 ## Limitations
@@ -125,7 +160,11 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
   measures these families.
 * The solver runs in Lean's interpreter, and its work counts toward `maxHeartbeats`; it takes a
   small fraction of the time of the kernel check, but on the larger formulas enough heartbeats
-  that `set_option maxHeartbeats` must be raised.
+  that `set_option maxHeartbeats` must be raised. When premises are dropped it runs twice, and the
+  first run includes every propositional hypothesis of the context.
+* Atoms are compared at reducible transparency only: `h : a ≠ b` is the atom `a ≠ b`, not the
+  negation of the atom `a = b`, and `h : b = a` does not prove the atom `a = b`. A hypothesis whose
+  type is only definitionally equal to a formula at a higher transparency is an atom.
 -/
 
 public section
@@ -139,17 +178,23 @@ open Cslib.Logic.PL
 arbitrary propositions, from an LRAT certificate that refutes the numbered Plaisted–Greenbaum
 transformation of the negated goal. The certificate is generated by the CDCL solver at
 elaboration time, or supplied as `lrat_tauto using cert` with `cert : Array LRAT.IntAction`; when
-the goal is not a propositional tautology, the error shows an assignment to its atoms, read as
-independent propositions, under which it is false. The kernel checks the certificate by
-evaluating `Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over non-propositions, such as
-`∀ p q : Prop`, are introduced first; hypotheses in the context are not used. The atoms are the
-maximal subterms that are not connectives, compared at reducible transparency.
+the goal does not follow propositionally from the hypotheses, the error shows an assignment to the
+atoms, read as independent propositions, under which it is false and they are true. The kernel
+checks the certificate by evaluating `Cslib.Logic.PL.CNF.checkLRATKernel`. Leading binders over
+non-propositions, such as `∀ p q : Prop`, are introduced first. The atoms are the maximal subterms
+that are not connectives, compared at reducible transparency.
 
-A supplied certificate is a closed term the kernel can evaluate: a literal, or a definition whose
-body it can unfold. A certificate the checker rejects is reported as such.
+Without `using`, the propositional hypotheses of the context are premises, with the atoms that
+`rfl` proves at reducible transparency; the premises that the certificate does not need are
+dropped before the kernel check. `lrat_tauto -hyps` does not use the hypotheses.
 
-`lrat_tauto?` prints the formula the certificate must refute, in DIMACS form. -/
-syntax (name := lratTauto) "lrat_tauto" (" using " term)? : tactic
+A supplied certificate refutes the formula of the goal alone, without premises. It is a closed
+term the kernel can evaluate: a literal, or a definition whose body it can unfold. A certificate
+the checker rejects is reported as such.
+
+`lrat_tauto?` prints the formula a supplied certificate must refute, in DIMACS form. -/
+syntax (name := lratTauto) "lrat_tauto" Lean.Parser.Tactic.optConfig (" using " term)? :
+    tactic
 
 /-- `lrat_tauto?` prints the formula that a certificate for `lrat_tauto using` must refute: the
 numbered Plaisted–Greenbaum transformation of the negated goal in DIMACS form, preceded by comment
@@ -160,6 +205,8 @@ syntax (name := lratTautoQuery) "lrat_tauto?" : tactic
 allow_unused_tactic Cslib.Tactic.LRATTauto.lratTautoQuery
 
 meta section
+
+open Std.Tactic.BVDecide (LRAT.IntAction LRAT.Action)
 
 /-- A goal read as a propositional formula. An atom keeps its index and the expression it was
 read from. -/
@@ -258,14 +305,131 @@ private partial def introNonProps (g : MVarId) : MetaM MVarId := g.withContext d
       return ← introNonProps (← g.intro1P).2
   return g
 
-/-- The goal read as a formula, and its atoms. -/
-private def readGoal (g : MVarId) : MetaM (Shape × Array Expr) := g.withContext do
+/-- A proof that the goal may use: a hypothesis of the local context, or a fact about an atom. -/
+private structure Premise where
+  /-- The proposition it proves. -/
+  type : Expr
+  /-- Its proof: the hypothesis itself, or a proof by `rfl`. -/
+  proof : Expr
+  /-- Whether it is a hypothesis of the context, rather than a fact found by `rfl`. -/
+  isHyp : Bool
+
+/-- The goal and the premises read as formulas over shared atoms. -/
+private structure Formula where
+  /-- The goal read as a formula. -/
+  goal : Shape
+  /-- The premises, the hypotheses first. -/
+  premises : Array Premise
+  /-- The premises read as formulas, in the same order. -/
+  shapes : Array Shape
+  /-- The atoms, numbered in order of first occurrence in the goal, then in the premises. -/
+  atoms : Array Expr
+
+/-- The hypotheses of the local context whose types are propositions, other than implementation
+details, in the order of the context. -/
+private def contextPremises : MetaM (Array Premise) := do
+  let mut ps := #[]
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let ty ← instantiateMVars d.type
+    if ← isProp ty then
+      ps := ps.push { type := ty, proof := d.toExpr, isHyp := true }
+  return ps
+
+/-- A proof of an atom by reflexivity at reducible transparency, if it is an equation `a = b` or
+`HEq a b` whose sides are definitionally equal at that transparency. An `↔` is never an atom. -/
+private def rflProof (e : Expr) : MetaM (Option Expr) := withReducible <| withNewMCtxDepth do
+  match e.getAppFnArgs with
+  | (``Eq, #[_, a, b]) =>
+    if ← isDefEq a b then return some (← mkEqRefl a)
+  | (``HEq, #[α, a, β, b]) =>
+    if (← isDefEq α β) && (← isDefEq a b) then return some (← mkHEqRefl a)
+  | _ => pure ()
+  return none
+
+/-- The goal and the premises `ps` read as formulas over shared atoms. With `leaves`, each atom
+that `rfl` proves (`rflProof`) is added after them as a premise. -/
+private def readFormula (g : MVarId) (ps : Array Premise) (leaves : Bool) : MetaM Formula :=
+  g.withContext do
   let t ← instantiateMVars (← g.getType)
   unless ← isProp t do
     throwError "lrat_tauto: the goal is not a proposition:{indentExpr t}"
   AtomM.run .reducible do
     let s ← reify t
-    return (s, (← get).atoms)
+    let mut ps := ps
+    let mut shapes ← ps.mapM (reify ·.type)
+    if leaves then
+      for (a, i) in (← get).atoms.zipIdx do
+        if let some pf ← rflProof a then
+          ps := ps.push { type := a, proof := pf, isHyp := false }
+          shapes := shapes.push (.atom i a)
+    return { goal := s, premises := ps, shapes, atoms := (← get).atoms }
+
+/-- The formula read: `imp P₁ (imp P₂ … (imp Pₖ G))` for the premises `Pᵢ` and the goal `G`. -/
+private def Formula.shape (f : Formula) : Shape := f.shapes.foldr .imp f.goal
+
+/-- The numbered Plaisted–Greenbaum transformation of the negated formula, which the
+certificate refutes. -/
+private def Formula.cnf (f : Formula) : CNF ℕ :=
+  (Proposition.imp (f.shape.toProposition f.atoms.size) .falsum).plaistedGreenbaumNumberedCNF
+
+/-- The numbers that the traversal of `Proposition.plaistedGreenbaumClauses` gives to a premise:
+those of its subformulas other than atoms, from `lo` to `hi - 1`; its variable; and the variable
+of the `imp` node whose antecedent it is. -/
+private structure PremiseVars where
+  /-- The first number of its subformulas. -/
+  lo : ℕ
+  /-- One past the last number of its subformulas. -/
+  hi : ℕ
+  /-- Its variable. -/
+  var : ℕ
+  /-- The variable of the `imp` node of which it is the antecedent. -/
+  node : ℕ
+
+/-- The numbers of the premises `hs` in the traversal of `imp h₁ (imp h₂ … (imp hₖ G))` from
+`k`, following `Proposition.plaistedGreenbaumClauses` (in post-order: the antecedent, then the
+consequent, then the node), and the first number not used. -/
+private def premiseVars {n : ℕ} (G : Proposition (Fin n)) :
+    List (Proposition (Fin n)) → ℕ → List PremiseVars × ℕ
+  | [], k => ([], k + G.plaistedGreenbaumLabels.length)
+  | h :: hs, k =>
+    let hi := k + h.plaistedGreenbaumLabels.length
+    let var := match h with
+      | .atom i => i.val
+      | _ => hi - 1
+    let (rest, node) := premiseVars G hs hi
+    (⟨k, hi, var, node⟩ :: rest, node + 1)
+
+/-- For each premise, whether a clause belonging to it is a hint of the certificate: one of the
+definitional clauses of its subformulas, or the clause of its `imp` node asserting it. These
+premises form an unsatisfiable core, up to the `imp` nodes, which the formula rebuilt from them
+replaces. -/
+private def usedPremises (f : Formula) (cert : Array LRAT.IntAction) : Array Bool := Id.run do
+  let n := f.atoms.size
+  let φ := f.cnf
+  let (vars, _) := premiseVars (f.goal.toProposition n) (f.shapes.toList.map (·.toProposition n))
+    n
+  -- the premise of each number of a subformula, and of each `imp` node
+  let mut owner : Std.HashMap ℕ ℕ := {}
+  let mut node : Std.HashMap ℕ ℕ := {}
+  for (pv, i) in vars.zipIdx do
+    for x in [pv.lo:pv.hi] do owner := owner.insert x i
+    node := node.insert pv.node i
+  let clauses := φ.toArray
+  let mut used := Array.replicate f.premises.size false
+  for a in cert do
+    let hints : Array ℕ := match a with
+      | .addRup _ _ hints | .addEmpty _ hints => hints
+      | .addRat _ _ _ hints _ => hints
+      | .del _ => #[]
+    for h in hints do
+      let some c := clauses[h - 1]? | continue
+      let some (x, _) := c.head? | continue
+      if let some i := owner[x]? then used := used.set! i true
+      if let some i := node[x]? then
+        if let some pv := vars[i]? then
+          if c == [(x, true), (pv.var, true)] then used := used.set! i true
+  return used
 
 /-- The DIMACS form of a formula over the variables `0, 1, …`: the variable `i` is `i + 1`. -/
 private def dimacs (φ : CNF ℕ) (atomLines : List String) : String :=
@@ -288,8 +452,6 @@ private def explainRejection (checkE cert : Expr) (ex : Exception) : MetaM Messa
       unfold."
   | .error _ => return m!"lrat_tauto: the kernel did not accept the certificate:\n\
       {ex.toMessageData}"
-
-open Std.Tactic.BVDecide (LRAT.IntAction LRAT.Action)
 
 initialize registerTraceClass `lrat_tauto
 
@@ -376,11 +538,10 @@ private def certToExpr (cert : Array LRAT.IntAction) : Expr :=
   arrayLit (mkApp2 (mkConst ``LRAT.Action [0, 0]) clauseT (mkConst ``Nat))
     (cert.toList.map action)
 
-/-- The certificate for the numbered Plaisted–Greenbaum transformation `φ` of the negated goal,
-from the generator (`generateCert`), trimmed when the trimmed one is accepted; if `φ` is
-satisfiable, an error showing the assignment to the abstract atoms under which the goal's
-propositional structure is false. -/
-private def certFor (φ : CNF ℕ) (atoms : Array Expr) : MetaM (Array LRAT.IntAction) := do
+/-- The certificate for the numbered Plaisted–Greenbaum transformation `φ` of a negated formula,
+from the generator (`generateCert`), trimmed when the trimmed one is accepted; or, if `φ` is
+satisfiable, the assignment the generator found. -/
+private def certFor (φ : CNF ℕ) : MetaM (Except (ℕ → Bool) (Array LRAT.IntAction)) := do
   let start ← IO.monoMsNow
   match ← IO.lazyPure fun _ => generateCert φ with
   | .unsat cert =>
@@ -389,12 +550,47 @@ private def certFor (φ : CNF ℕ) (atoms : Array Expr) : MetaM (Array LRAT.IntA
     trace[lrat_tauto] "{φ.length} clauses; the solver's certificate has {cert.size} steps, \
       {trimmed.size} after trimming{if ok then "" else ", rejected, so it is not used"}; \
       {(← IO.monoMsNow) - start} ms"
-    return if ok then trimmed else cert
-  | .sat σ =>
-    let lines := atoms.toList.zipIdx.map fun (e, i) =>
-      m!"\n  {e} := {if σ i then "True" else "False"}"
-    throwError "lrat_tauto: the goal is not a propositional tautology. It is false under this \
+    return .ok (if ok then trimmed else cert)
+  | .sat σ => return .error σ
+
+/-- The error for a formula that the assignment `σ` falsifies: the goal is false and the premises
+true under `σ`, read on the atoms. -/
+private def countermodel (f : Formula) (σ : ℕ → Bool) : MessageData :=
+  let lines := f.atoms.toList.zipIdx.map fun (e, i) =>
+    m!"\n  {e} := {if σ i then "True" else "False"}"
+  let hyps := (f.premises.filter (·.isHyp)).toList.map fun p => m!"{p.proof}"
+  if hyps.isEmpty then
+    m!"lrat_tauto: the goal is not a propositional tautology. It is false under this \
       assignment to its atoms, read as independent propositions:{MessageData.joinSep lines ""}"
+  else
+    m!"lrat_tauto: the goal does not follow propositionally from the hypotheses \
+      {MessageData.joinSep hyps ", "}. It is false, and the hypotheses are true, under this \
+      assignment to the atoms of the goal and the hypotheses, read as independent \
+      propositions:{MessageData.joinSep lines ""}"
+
+/-- The formula `f` of the goal `g`, or one with fewer premises, and a certificate for it. The
+generator refutes `f`; the premises with a clause among the certificate's hints
+(`usedPremises`) are kept, the formula is read again from them alone, which numbers its atoms
+afresh, and the generator refutes that formula. If it does not, `f` and its certificate are
+returned. If `f` is satisfiable, the error shows the assignment. -/
+private def solveFormula (g : MVarId) (f : Formula) :
+    MetaM (Formula × Array LRAT.IntAction) := do
+  match ← certFor f.cnf with
+  | .error σ => throwError countermodel f σ
+  | .ok cert =>
+    let used := usedPremises f cert
+    if used.all id then return (f, cert)
+    let ps := (f.premises.zip used).filterMap fun (p, u) => if u then some p else none
+    let core ← readFormula g ps false
+    match ← certFor core.cnf with
+    | .ok coreCert =>
+      trace[lrat_tauto] "{ps.size} of the {f.premises.size} premises are used; the formula is \
+        read again from them"
+      return (core, coreCert)
+    | .error _ =>
+      trace[lrat_tauto] "the formula read from the {ps.size} premises used is satisfiable, so \
+        all {f.premises.size} are kept"
+      return (f, cert)
 
 /-- The body of the valuation `valuation atoms`, for the atoms numbered `lo, …, hi - 1`: a
 balanced tree of `cond (Nat.blt i.val m) …`, where `i : Fin n` is the bound variable `#0`. The
@@ -416,16 +612,20 @@ spent on the final step, against 0.3 seconds with this valuation. -/
 private def valuation (atoms : Array Expr) : Expr :=
   .lam `i (toTypeExpr (Fin atoms.size)) (valuationTree atoms 0 atoms.size) .default
 
-/-- Closes the goal `g`, already introduced, from the certificate `cert`, or from one the
-generator finds. -/
-private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withContext do
-  let (s, atoms) ← readGoal g
-  let n := atoms.size
-  let cert ← match cert with
-    | some cert => pure cert
+/-- Closes the goal `g`, already introduced, from the certificate `cert` for the goal alone, or
+from one the generator finds for the goal and the premises: with `hyps`, the propositional
+hypotheses of the context, and the atoms `rfl` proves. -/
+private def closeGoal (g : MVarId) (cert : Option Expr) (hyps : Bool) : MetaM Unit :=
+  g.withContext do
+  let (f, cert) ← match cert with
+    | some cert => pure (← readFormula g #[] false, cert)
     | none =>
-      let φ := (Proposition.imp (s.toProposition n) .falsum).plaistedGreenbaumNumberedCNF
-      certToExpr <$> certFor φ atoms
+      let f ← readFormula g (← if hyps then contextPremises else pure #[]) true
+      let (f, cert) ← solveFormula g f
+      pure (f, certToExpr cert)
+  let s := f.shape
+  let atoms := f.atoms
+  let n := atoms.size
   let a := propositionToExpr (s.toProposition n)
   let negA := mkApp3 (mkConst ``Proposition.imp [0]) (toTypeExpr (Fin n)) a
     (mkApp (mkConst ``Proposition.falsum [0]) (toTypeExpr (Fin n)))
@@ -444,14 +644,22 @@ private def closeGoal (g : MVarId) (cert : Option Expr) : MetaM Unit := g.withCo
     hcheck
   let hA ← mkAppM ``Proposition.eval_prop_of_checkLRAT #[hcheck, v]
   let (_, p, hiff) ← s.iffGoal
-  -- `hiff : X ↔ P`, where `X` is `A.eval v` up to unfolding `eval` and the valuation.
-  g.assign (mkApp4 (mkConst ``Iff.mp) (← inferType hA) p hiff hA)
+  -- `hiff : X ↔ P`, where `X` is `A.eval v` up to unfolding `eval` and the valuation, and `P` is
+  -- `P₁ → ⋯ → Pₖ → G` for the premises `Pᵢ`.
+  g.assign <| mkAppN (mkApp4 (mkConst ``Iff.mp) (← inferType hA) p hiff hA)
+    (f.premises.map (·.proof))
 
 end
 
 open Std.Tactic.BVDecide (LRAT.IntAction) in
 elab_rules : tactic
-  | `(tactic| lrat_tauto $[using $cert]?) => do
+  | `(tactic| lrat_tauto $cfg:optConfig $[using $cert]?) => do
+    let mut hyps := true
+    for item in cfg.raw[0].getArgs do
+      match item[0] with
+      | `(Lean.Parser.Tactic.negConfigItem| -hyps) => hyps := false
+      | `(Lean.Parser.Tactic.posConfigItem| +hyps) => hyps := true
+      | _ => throwErrorAt item "lrat_tauto: unknown option; the only option is `-hyps`"
     let g ← introNonProps (← getMainGoal)
     replaceMainGoal [g]
     g.withContext do
@@ -461,7 +669,7 @@ elab_rules : tactic
         if certE.hasFVar || certE.hasMVar then
           throwError "lrat_tauto: the certificate must be a closed term:{indentExpr certE}"
         return certE
-      closeGoal g certE
+      closeGoal g certE hyps
     replaceMainGoal []
 
 elab_rules : tactic
@@ -469,10 +677,9 @@ elab_rules : tactic
     let msg ← withoutModifyingState do
       let g ← introNonProps (← getMainGoal)
       g.withContext do
-        let (s, atoms) ← readGoal g
-        let n := atoms.size
-        let φ := (Proposition.imp (s.toProposition n) .falsum).plaistedGreenbaumNumberedCNF
-        let atomLines ← atoms.toList.zipIdx.mapM fun (e, i) => do
+        let f ← readFormula g #[] false
+        let φ := f.cnf
+        let atomLines ← f.atoms.toList.zipIdx.mapM fun (e, i) => do
           let shown := (← ppExpr e).pretty 1000000
           return s!"c {i + 1} := {shown.replace "\n" " "}"
         return dimacs φ atomLines
