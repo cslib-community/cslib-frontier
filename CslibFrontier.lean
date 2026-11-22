@@ -5254,6 +5254,7 @@ public import CslibFrontier.Crypto.Computational.ElGamal.StronglyUnpredictable
 public import CslibFrontier.Crypto.Computational.ElGamal.Unpredictable
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 public import CslibFrontier.Crypto.Computational.Encryption.Basic
+public import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 public import CslibFrontier.Crypto.Computational.Encryption.BlockModeWord
 public import CslibFrontier.Crypto.Computational.Encryption.CBCMode
 public import CslibFrontier.Crypto.Computational.Encryption.CBCMode.Uniform
