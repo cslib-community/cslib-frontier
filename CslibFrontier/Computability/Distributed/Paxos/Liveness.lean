@@ -26,21 +26,27 @@ with the necessity of quorum intersection ([Lamport1998]; [Lamport2001]):
    (`t = 1` majority quorums) and `Fin 2` proposers with distinct inputs (`inputs 0 ≠ inputs 1`), an
    explicit crash-free, drop-free, stutter-free infinite execution alternates `Phase1a` prepares so
    each proposer's `Phase2a` accept request is preempted before `Phase2b` can fire, preventing any
-   acceptor from voting and any learner from deciding.
-2. **Single-Distinguished-Leader Liveness (`paxos_liveness_of_sole_leader`):** From any reachable
-   Synod state, if a live proposer `p` issues `Phase1a(b)` at a ballot `b = ⟨r, p⟩` strictly
-   exceeding all previously seen or promised ballots, no ballot strictly greater than `b` is
-   subsequently issued, and ballot-`b` packets among `p`, one live quorum `Q ∈ qs.quorums`, and a
-   live learner `l` are delivered without loss, then `l` learns a decree value across the four
-   phases (`1a → 1b → 2a → 2b`), even in the presence of arbitrary concurrent deliveries or drops of
-   older ballots `< b`. `exists_sole_leader_execution` constructs an explicit 4-phase execution from
-   any reachable state.
-3. **Disjoint-Quorum Split-Brain Impossibility (`not_synod_safe_of_disjoint_quorums`):** Over any
-   nontrivial value type `[Nontrivial V]`, no deterministic asynchronous message-passing protocol
-   (`AsyncQuorumProtocol`) can guarantee agreement and uniform validity while allowing independent
-   single-quorum progress on two disjoint subsets `Q₁, Q₂` (`Disjoint Q₁ Q₂`, in particular whenever
-   `2 ≤ Fintype.card P ≤ 2 * t`). Conversely, `synodQuorumProtocol` satisfies both safety and
-   single-quorum progress for every `QuorumSystem P` (hence whenever `2 * t < Fintype.card P`).
+   acceptor from voting and any learner from deciding ([Lamport2001] §2.4; cf. [Lamport1998] §2.4).
+2. **Conditional Single-Distinguished-Leader Liveness (`paxos_liveness_of_sole_leader`):** Formalizes
+   the conditional single-distinguished-proposer 4-phase progress step ([Lamport2001] §2.4; cf.
+   [Lamport1998] §2.1 Theorem 2 and §2.4): from any reachable Synod state, assuming an
+   already-selected live leader `p` prepares a ballot `b = ⟨r, p⟩` strictly exceeding all previously
+   seen or promised ballots (`BallotsBelow`), no ballot strictly greater than `b` is subsequently
+   prepared, and ballot-`b` packets among `p`, one live quorum `Q ∈ qs.quorums`, and a live learner
+   `l` are delivered without loss, `l` learns a decree value across the four phases
+   (`1a → 1b → 2a → 2b`), even alongside arbitrary concurrent deliveries or drops of older ballots
+   `< b` (`exists_sole_leader_execution` constructs an explicit 4-phase execution). Leader election,
+   NACK `nextBal[q]` ballot-bumping, and [Lamport1998] §2.4's real-time hourglass timeout bounds are
+   not modeled here.
+3. **Disjoint-Quorum Split-Brain Impossibility (`not_synod_safe_of_disjoint_quorums`):** Formalizes
+   via `AsyncQuorumProtocol` the standard asynchronous partition / split-brain argument motivating
+   quorum intersection in [Lamport1998] §1.2 and §2.1 (`B2`) and [Lamport2001] §2.2 (rather than a
+   numbered theorem statement of those papers): over any nontrivial value type `[Nontrivial V]`, no
+   deterministic asynchronous message-passing protocol can guarantee agreement and uniform validity
+   while allowing independent single-quorum progress on two disjoint subsets `Q₁, Q₂`
+   (`Disjoint Q₁ Q₂`, in particular whenever `2 ≤ Fintype.card P ≤ 2 * t`). Conversely,
+   `synodQuorumProtocol` satisfies both safety and single-quorum progress for every `QuorumSystem P`
+   (hence whenever `2 * t < Fintype.card P`).
 
 ## Main definitions
 
@@ -989,13 +995,15 @@ private lemma learner_received_mono {l : Learner}
       · exact hsub
     | _ => exact hsub
 
-/-- **Single-distinguished-leader liveness:** from any reachable Synod state `ss 0`, if live
-proposer `p` issues `prepare p r` at step `0` with ballot `b = ⟨r, p⟩` strictly exceeding all
-ballots previously present or promised (`BallotsBelow (ss 0) b`), no ballot strictly greater than
-`b` is subsequently prepared, and ballot-`b` packets among `p`, one live quorum `Q ∈ qs.quorums`,
-and live learner `l` are delivered without loss (`LiveAndLossless b p Q l ss xs`), then `l`
-eventually learns a decree value `v` at ballot `b` (and `((ss k).learners l).learned = some v`)
-([Lamport1998]; [Lamport2001]). -/
+/-- **Conditional single-distinguished-leader liveness ([Lamport2001] §2.4; cf. [Lamport1998] §2.1
+Theorem 2 and §2.4):** assuming an already-selected sole leader `p` (without modeling leader
+election, NACK `nextBal[q]` ballot-bumping, or real-time timeout bounds), from any reachable Synod
+state `ss 0`, if live proposer `p` issues `prepare p r` at step `0` with ballot `b = ⟨r, p⟩`
+strictly exceeding all ballots previously present or promised (`BallotsBelow (ss 0) b`), no ballot
+strictly greater than `b` is subsequently prepared, and ballot-`b` packets among `p`, one live
+quorum `Q ∈ qs.quorums`, and live learner `l` are delivered without loss
+(`LiveAndLossless b p Q l ss xs`), then `l` eventually learns a decree value `v` at ballot `b`
+(and `((ss k).learners l).learned = some v`). -/
 theorem paxos_liveness_of_sole_leader {inputs : Proposer → V}
     {ss : ωSequence (SynodState Proposer Acceptor Learner V)}
     {xs : ωSequence (SynodAction Proposer Acceptor Learner V)}
@@ -2010,10 +2018,12 @@ private lemma replay_group_mTr {Q : Finset P} {s₀ s₁ u₀ : NetState P S M V
 
 end AsyncQuorumProtocol
 
-/-- **Disjoint-quorum split-brain impossibility:** over any nontrivial value domain
-`[Nontrivial V]`, if subsets `Q₁, Q₂ : Finset P` are disjoint (`Disjoint Q₁ Q₂`), no deterministic
-asynchronous message-passing protocol `π` can simultaneously guarantee `SafeConsensus` and
-single-quorum progress (`CanDecideIn`) on both `Q₁` and `Q₂` ([Lamport1998]; [Lamport2001]). -/
+/-- **Disjoint-quorum split-brain impossibility:** formalizes via `AsyncQuorumProtocol` the standard
+asynchronous partition / split-brain argument motivating quorum intersection in [Lamport1998] §1.2
+and §2.1 (`B2`) and [Lamport2001] §2.2 (rather than a numbered theorem statement of those papers).
+Over any nontrivial value domain `[Nontrivial V]`, if subsets `Q₁, Q₂ : Finset P` are disjoint
+(`Disjoint Q₁ Q₂`), no deterministic asynchronous message-passing protocol `π` can simultaneously
+guarantee `SafeConsensus` and single-quorum progress (`CanDecideIn`) on both `Q₁` and `Q₂`. -/
 theorem not_synod_safe_of_disjoint_quorums {P S L M V : Type*}
     [DecidableEq P] [DecidableEq M] [Nontrivial V]
     (π : AsyncQuorumProtocol P S L M V) {Q₁ Q₂ : Finset P} (hdisj : Disjoint Q₁ Q₂) :

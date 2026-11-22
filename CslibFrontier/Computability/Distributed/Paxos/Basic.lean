@@ -16,17 +16,24 @@ public import Mathlib.Order.Prod.Lex.Basic
 /-!
 # Lamport's Single-Decree Paxos (Synod) Protocol and Unconditional Quorum Safety
 
-This module formalizes Lamport's Single-Decree Synod consensus protocol ([Lamport1998];
-[Lamport2001]) over abstract intersecting quorum systems (`QuorumSystem`) and an asynchronous
+This module formalizes Lamport's **Single-Decree Synod** consensus protocol (§2 of [Lamport1998];
+§2 of [Lamport2001]) over abstract intersecting quorum systems (`QuorumSystem`) and an asynchronous
 message-passing labelled transition system (`Cslib.LTS`) allowing arbitrary message reordering,
-duplication, packet loss/omission, and crash-stop node failures.
+duplication, packet loss/omission, and **crash-stop** node failures.
+
+**Scope and model notes:** Only single-decree consensus (§2) is formalized here; §3 Multi-Paxos
+state-machine / ledger replication remains open. Nodes suffer permanent crash-stop faults
+(`crashed : Bool`) rather than crash-recovery with persistent stable storage ([Lamport1998] §1.3,
+§2.3; [Lamport2001] §2.1, §2.5), while `.prepare p r` resets per-round proposer fields. Phase 2b
+uses [Lamport2001] §2.2's `mb ≤ b` voting guard (`allowsVote`, updating `maxBal := some b`) rather
+than [Lamport1998] §2.3 step (4)'s `b = nextBal[q]`.
 
 The protocol state (`SynodState`) is completely ghost-free: proposers, acceptors, and learners store
 only the operational registers read by protocol transitions, and packet drops genuinely erase
-messages from the live network buffer `msgs`. Safety invariants (including Lamport's quorum-witness
-condition on `Phase2a` proposals and promise–vote monotonicity) are proved inductively over a
-non-dropping shadow execution (`traceMsgs`) and projected onto all reachable states via network
-monotonicity.
+messages from the live network buffer `msgs`. Safety invariants (Lamport's `P2^c` / `B3`
+quorum-witness condition on `Phase2a` proposals and `P1^a` promise–vote monotonicity) are proved
+inductively over a non-dropping shadow execution (`traceMsgs`) and projected onto all reachable
+states via network monotonicity.
 
 ## Main definitions
 
@@ -1262,7 +1269,8 @@ private lemma synodCoreInv_of_mTr {inputs : Proposer → V}
 /-! ### Main safety theorems -/
 
 /-- **Single-proposal per ballot:** along any Synod execution trace, at most one value is ever
-proposed in `Phase2a` for any given ballot `b` ([Lamport1998]; [Lamport2001]). -/
+proposed in `Phase2a` for any given ballot `b` ([Lamport1998] §2.1 `B1`, §2.2–§2.3;
+[Lamport2001] §2.2, §2.5). -/
 theorem phase2a_unique_of_ballot {inputs : Proposer → V}
     {xl : List (SynodAction Proposer Acceptor Learner V)}
     {s : SynodState Proposer Acceptor Learner V}
@@ -1301,9 +1309,9 @@ private lemma phase2aBelow_card_lt {msgs : Finset (Msg Proposer Acceptor V)}
     | phase2a b'' _ => exact decide_eq_true ((of_decide_eq_true hm.2).trans hlt)
     | _ => cases hm.2
 
-/-- **Lamport's inductive ballot-choice invariant:** if a quorum `Q ∈ qs.quorums` has voted
-`(b, v)` in Phase 2b, then every `Phase2a(b', v')` emitted in the trace with `b ≤ b'` satisfies
-`v' = v` ([Lamport1998]; [Lamport2001]). -/
+/-- **Lamport's inductive ballot-choice invariant (`P2^b` / §2.1 Lemma):** if a quorum
+`Q ∈ qs.quorums` has voted `(b, v)` in Phase 2b, then every `Phase2a(b', v')` emitted in the trace
+with `b ≤ b'` satisfies `v' = v` ([Lamport1998] §2.1 Lemma; [Lamport2001] §2.2 `P2^b`–`P2^c`). -/
 theorem chosenAt_implies_higher_phase2a_eq {inputs : Proposer → V}
     {xl : List (SynodAction Proposer Acceptor Learner V)}
     {s : SynodState Proposer Acceptor Learner V}
@@ -1346,7 +1354,7 @@ theorem chosenAt_implies_higher_phase2a_eq {inputs : Proposer → V}
 
 /-- **Global learner agreement:** in any reachable Synod state, any two values `v₁, v₂` learned by
 any two learners `l₁, l₂` at any two ballots `b₁, b₂` satisfy `v₁ = v₂`
-([Lamport1998]; [Lamport2001]). -/
+([Lamport1998] §2.1 Theorem 1, Appendix A2; [Lamport2001] §2.2 `P2`, §2.3). -/
 theorem paxos_agreement {inputs : Proposer → V}
     {s : SynodState Proposer Acceptor Learner V}
     (hr : Reachable qs inputs s)
