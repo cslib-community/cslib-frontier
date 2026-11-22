@@ -42,6 +42,16 @@ When `Fintype.card P ≤ 1`, a single process needs no network coordination: `lo
 executes `read` and `write` locally in zero messages and satisfies `ImplementsAtomicRegister v₀ t`
 for every fault bound `t`.
 
+### Relationship to `Cslib.DistributedConsistency`
+
+Upstream `Cslib.DistributedConsistency` (`AbstractExecution.Linearizability`, following Burckhardt
+2014) axiomatizes consistency guarantees over abstract event sets equipped with declarative
+visibility (`vis`) and arbitration (`ar`) relations on a `ReplicatedDataType`. Here `Linearizable`
+instead formalizes Herlihy–Wing shared-register linearizability directly on finite operational LTS
+histories `List (OpRecord P V)`, handling incomplete execution prefixes via subsets of pending
+writes and providing a kernel-reducible `Decidable` instance (`instDecidableLinearizable`) for
+concrete protocol traces.
+
 ## Main definitions
 
 * `Cslib.Distributed.ABD.Envelope`: point-to-point message envelope carrying `src`, `dest`, `body`.
@@ -73,6 +83,9 @@ for every fault bound `t`.
   `registerValAfter v₀ hist (seq.take k)`.
 * `Cslib.Distributed.ABD.instDecidableLinearizable`: computable `Decidable` instance for
   `Linearizable v₀ hist` when `[DecidableEq V]`.
+* `Cslib.Distributed.ABD.deliverHistory_entry_preserves`,
+  `Cslib.Distributed.ABD.Protocol.mTr_history_entry_preserves`: transitions preserve `caller`,
+  `kind`, and `invStep` of existing history records.
 * `Cslib.Distributed.ABD.Protocol.exists_fair_omegaExecution`,
   `Cslib.Distributed.ABD.Protocol.Reachable.exists_admissibleRun`: every state extends via a
   delivery-only fair suffix to an infinite execution.
@@ -131,6 +144,7 @@ theorem card_broadcastAll {P M : Type*} [Fintype P] (m : M) :
     (broadcastAll P m).card = Fintype.card P := by
   simp [broadcastAll]
 
+/-- Broadcasting `m` from `src` sends an envelope `⟨src, q, m⟩` to every recipient `q : P`. -/
 theorem mem_broadcastAll_tag {P M : Type*} [Fintype P] (src q : P) (m : M) :
     ⟨src, q, m⟩ ∈ (broadcastAll P m).map (tagSender src) :=
   Multiset.mem_map.mpr ⟨(q, m), Multiset.mem_map.mpr ⟨q, Finset.mem_univ q, rfl⟩, rfl⟩
@@ -323,6 +337,7 @@ theorem registerValAfter_cons {P V : Type*} (v₀ : V) (hist : List (OpRecord P 
          | some rec => match rec.kind with | .write v => v | .read => v₀
          | none => v₀) hist rest := rfl
 
+/-- Sequential register evaluation splits across list concatenation. -/
 theorem registerValAfter_append {P V : Type*} (v₀ : V) (hist : List (OpRecord P V))
     (l₁ l₂ : List ℕ) :
     registerValAfter v₀ hist (l₁ ++ l₂) =
@@ -741,6 +756,89 @@ theorem length_deliverHistory {P V : Type*} (hist : List (OpRecord P V))
     | some stDone =>
       cases hist[pend.opId]? <;> simp
 
+private lemma deliverHistory_getElem?_preserves {P V : Type*} (hist : List (OpRecord P V))
+    (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V))
+    {i : ℕ} (hi : i < hist.length) {rec' : OpRecord P V}
+    (hget : (deliverHistory hist resp step pend?)[i]? = some rec') :
+    rec'.caller = hist[i].caller ∧
+    rec'.kind = hist[i].kind ∧
+    rec'.invStep = hist[i].invStep ∧
+    (∀ r, rec'.status.respStep? = some r →
+      hist[i].status.respStep? = some r ∨ r = step) := by
+  have hsame (heq : rec' = hist[i]) :
+      rec'.caller = hist[i].caller ∧
+      rec'.kind = hist[i].kind ∧
+      rec'.invStep = hist[i].invStep ∧
+      (∀ r, rec'.status.respStep? = some r →
+        hist[i].status.respStep? = some r ∨ r = step) :=
+    ⟨congrArg OpRecord.caller heq, congrArg OpRecord.kind heq,
+      congrArg OpRecord.invStep heq, fun r hr => Or.inl (heq ▸ hr)⟩
+  cases pend? with
+  | none =>
+    rw [deliverHistory, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
+    exact hsame hget.symm
+  | some pend =>
+    dsimp only [deliverHistory] at hget
+    cases hm_comp : matchCompletion pend.kind resp step with
+    | none =>
+      rw [hm_comp, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
+      exact hsame hget.symm
+    | some stDone =>
+      rw [hm_comp] at hget
+      have hst_step : ∀ r, stDone.respStep? = some r → r = step := by
+        intro r hr
+        cases hk : pend.kind <;> cases hsp : resp
+        · simp [hk, hsp, matchCompletion] at hm_comp
+        · rename_i rsp
+          cases rsp with
+          | readRet v =>
+            rw [hk, hsp, matchCompletion, Option.some.injEq] at hm_comp
+            subst hm_comp; symm; simpa [OpStatus.respStep?] using hr
+          | writeAck => simp [hk, hsp, matchCompletion] at hm_comp
+        · simp [hk, hsp, matchCompletion] at hm_comp
+        · rename_i w rsp
+          cases rsp with
+          | readRet v => simp [hk, hsp, matchCompletion] at hm_comp
+          | writeAck =>
+            rw [hk, hsp, matchCompletion, Option.some.injEq] at hm_comp
+            subst hm_comp; symm; simpa [OpStatus.respStep?] using hr
+      cases hrec : hist[pend.opId]? with
+      | none =>
+        rw [hrec, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
+        exact hsame hget.symm
+      | some rec =>
+        rw [hrec] at hget
+        have hp_lt : pend.opId < hist.length := by
+          by_contra hge
+          rw [List.getElem?_eq_none (Nat.le_of_not_lt hge)] at hrec
+          cases hrec
+        have hrec_eq : rec = hist[pend.opId] := by
+          rw [List.getElem?_eq_getElem hp_lt, Option.some.injEq] at hrec
+          exact hrec.symm
+        by_cases hip : pend.opId = i
+        · subst hip
+          rw [List.getElem?_set_self hi, Option.some.injEq] at hget
+          have hset : rec' = { hist[pend.opId] with status := stDone } := by
+            rw [← hget, hrec_eq]
+          exact ⟨by simp [hset], by simp [hset], by simp [hset],
+            fun r hr => Or.inr (hst_step r (by simpa [hset] using hr))⟩
+        · rw [List.getElem?_set_ne hip, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
+          exact hsame hget.symm
+
+/-- Delivering a response preserves `caller`, `kind`, and `invStep` at every index
+`i < hist.length`, and any response timestamp in `deliverHistory` either was already present in
+`hist` or equals `step`. -/
+theorem deliverHistory_entry_preserves {P V : Type*} (hist : List (OpRecord P V))
+    (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V))
+    {i : ℕ} (hi : i < hist.length)
+    (hi' : i < (deliverHistory hist resp step pend?).length) :
+    (deliverHistory hist resp step pend?)[i].caller = hist[i].caller ∧
+    (deliverHistory hist resp step pend?)[i].kind = hist[i].kind ∧
+    (deliverHistory hist resp step pend?)[i].invStep = hist[i].invStep ∧
+    (∀ r, (deliverHistory hist resp step pend?)[i].status.respStep? = some r →
+      hist[i].status.respStep? = some r ∨ r = step) :=
+  deliverHistory_getElem?_preserves hist resp step pend? hi (List.getElem?_eq_getElem hi')
+
 private lemma getElem?_deliverHistory_of_ne {P V : Type*} (hist : List (OpRecord P V))
     (resp : Option (OpResp V)) (step : ℕ) (pend? : Option (PendingOp V)) {i : ℕ}
     (hne : ∀ pend, pend? = some pend → pend.opId ≠ i) :
@@ -800,6 +898,8 @@ variable {P S M V : Type*} [DecidableEq P] [DecidableEq M] (π : Protocol P S M 
     step := s.step + 1 }
 
 omit [DecidableEq M] in
+/-- Unfolding equation for `doInvoke` when `onInvoke` does not complete immediately (`resp = none`).
+-/
 theorem doInvoke_of_resp_eq_none {caller : P} {kind : OpKind V} {s : State P S M V}
     {nextSt : S} {outMsgs : Multiset (P × M)}
     (hout : π.onInvoke caller (s.proc caller).state kind = ⟨nextSt, outMsgs, none⟩) :
@@ -810,6 +910,8 @@ theorem doInvoke_of_resp_eq_none {caller : P} {kind : OpKind V} {s : State P S M
         step := s.step + 1 } := by
   simp [doInvoke, hout]
 
+/-- Unfolding equation for `doDeliver` when `onRecv` emits no completion response (`resp = none`).
+-/
 theorem doDeliver_of_resp_eq_none {e : Envelope P M} {s : State P S M V}
     {nextSt : S} {outMsgs : Multiset (P × M)}
     (hout : π.onRecv e.dest (s.proc e.dest).state e.src e.body = ⟨nextSt, outMsgs, none⟩) :
@@ -820,6 +922,7 @@ theorem doDeliver_of_resp_eq_none {e : Envelope P M} {s : State P S M V}
         step := s.step + 1 } := by
   simp [doDeliver, hout]
 
+/-- Unfolding equation for `doDeliver` when `onRecv` completes `e.dest`'s pending operation. -/
 theorem doDeliver_of_complete {e : Envelope P M} {s : State P S M V}
     {nextSt : S} {outMsgs : Multiset (P × M)} {resp : Option (OpResp V)}
     {pend : PendingOp V} {stDone : OpStatus V}
@@ -846,9 +949,11 @@ theorem doDeliver_of_complete {e : Envelope P M} {s : State P S M V}
 @[expose] def Reachable [Fintype P] (s : State P S M V) : Prop :=
   π.lts.CanReach π.start s
 
+/-- The initial state `π.start` is reachable. -/
 theorem reachable_start [Fintype P] : π.Reachable π.start :=
   LTS.CanReach.refl π.lts π.start
 
+/-- Reachability from `π.start` composes with `π.lts.CanReach`. -/
 theorem Reachable.trans [Fintype P] {π : Protocol P S M V} {s s' : State P S M V}
     (hs : π.Reachable s) (hreach : π.lts.CanReach s s') : π.Reachable s' := by
   obtain ⟨xl, hxl⟩ := hs
@@ -857,7 +962,7 @@ theorem Reachable.trans [Fintype P] {π : Protocol P S M V} {s s' : State P S M 
 
 /-! ### Structural invariants of `history` and `msgs` -/
 
-theorem tr_history_length_le {s s' : State P S M V} {a : Action P M V}
+private lemma tr_history_length_le {s s' : State P S M V} {a : Action P M V}
     (htr : π.lts.Tr s a s') : s.history.length ≤ s'.history.length := by
   cases a with
   | invoke caller kind =>
@@ -870,11 +975,47 @@ theorem tr_history_length_le {s s' : State P S M V} {a : Action P M V}
     obtain rfl := htr
     exact le_rfl
 
+/-- Execution history length never decreases along a finite execution. -/
 theorem mTr_history_length_le {s t : State P S M V} {xl : List (Action P M V)}
     (hmtr : π.lts.MTr s xl t) : s.history.length ≤ t.history.length := by
   induction hmtr with
   | refl => exact le_rfl
   | stepL htr _ ih => exact (π.tr_history_length_le htr).trans ih
+
+private lemma tr_history_entry_preserves {s s' : State P S M V} {a : Action P M V}
+    (htr : π.lts.Tr s a s') {i : ℕ} (hi : i < s.history.length)
+    (hi' : i < s'.history.length) :
+    s'.history[i].caller = s.history[i].caller ∧
+    s'.history[i].kind = s.history[i].kind ∧
+    s'.history[i].invStep = s.history[i].invStep := by
+  cases a with
+  | invoke caller kind =>
+    obtain ⟨_, rfl⟩ := htr
+    simp [doInvoke, List.getElem_append_left hi]
+  | deliver e =>
+    obtain ⟨_, rfl⟩ := htr
+    obtain ⟨hc, hk, hv, _⟩ :=
+      deliverHistory_entry_preserves s.history _ s.step (s.proc e.dest).pending hi hi'
+    exact ⟨hc, hk, hv⟩
+  | stutter =>
+    obtain rfl := htr
+    exact ⟨rfl, rfl, rfl⟩
+
+/-- Every finite sequence of transitions preserves `caller`, `kind`, and `invStep` at every
+already-invoked index `i < s.history.length`. -/
+theorem mTr_history_entry_preserves {s t : State P S M V} {xl : List (Action P M V)}
+    (hmtr : π.lts.MTr s xl t) {i : ℕ} (hi : i < s.history.length)
+    (hit : i < t.history.length) :
+    t.history[i].caller = s.history[i].caller ∧
+    t.history[i].kind = s.history[i].kind ∧
+    t.history[i].invStep = s.history[i].invStep := by
+  induction hmtr with
+  | refl => exact ⟨rfl, rfl, rfl⟩
+  | stepL htr _ ih =>
+    have hi' := lt_of_lt_of_le hi (π.tr_history_length_le htr)
+    obtain ⟨c1, k1, v1⟩ := ih hi' hit
+    obtain ⟨c0, k0, v0⟩ := π.tr_history_entry_preserves htr hi hi'
+    exact ⟨c1.trans c0, k1.trans k0, v1.trans v0⟩
 
 /-- Completed entries in `history` never change across transitions. -/
 theorem tr_history_completed_stable {s s' : State P S M V} {a : Action P M V}
@@ -956,6 +1097,7 @@ process `e.dest ∉ F` is eventually delivered. -/
     (ss : ωSequence (State P S M V)) (xs : ωSequence (Action P M V)) : Prop :=
   ss 0 = π.start ∧ π.lts.OmegaExecution ss xs ∧ Fair F ss xs
 
+/-- Every state along an `AdmissibleRun` is reachable from `π.start`. -/
 theorem admissibleRun_reachable [Fintype P] {F : Finset P}
     {ss : ωSequence (State P S M V)} {xs : ωSequence (Action P M V)}
     (ha : π.AdmissibleRun F ss xs) (k : ℕ) : π.Reachable (ss k) :=

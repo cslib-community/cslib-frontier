@@ -50,8 +50,6 @@ Partition `P` into two disjoint nonempty subsets `A, B : Finset P` with `A.card 
   impossibility given disjoint nonempty `A, B` covering `P` with `A.card ≤ t` and `B.card ≤ t`.
 * `Cslib.Distributed.ABD.Protocol.not_implementsAtomicRegister`: no protocol implements a `t`-fault
   wait-free linearizable atomic register when `2 ≤ Fintype.card P ≤ 2 * t` and `[Nontrivial V]`.
-* `Cslib.Distributed.ABD.Protocol.not_implementsAtomicRegister_two`: the `Fin 2, t = 1` special
-  case.
 * `Cslib.Distributed.ABD.exists_linearizableRegister_iff`: a `t`-fault wait-free linearizable
   atomic register protocol over `(P, V)` exists if and only if
   `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`.
@@ -121,27 +119,22 @@ private lemma admissibleRun_of_first_step (F : Finset P) {a₀ : Action P M V}
 omit [Fintype P] in
 /-- Along any finite sequence of `IsDrainAction F` transitions:
 1. `history.length` does not change;
-2. every `caller` and `kind` in `history` is preserved;
-3. any response timestamp in `history` stays strictly below `step`;
-4. every process `p ∈ F` keeps its initial `proc p`;
-5. message counts addressed to `F` never decrease. -/
+2. any response timestamp in `history` stays strictly below `step`;
+3. every process `p ∈ F` keeps its initial `proc p`;
+4. message counts addressed to `F` never decrease. -/
 private lemma mTr_drain_preserves {F : Finset P} {s₀ s₁ : State P S M V}
     {xl : List (Action P M V)} (hmtr : π.lts.MTr s₀ xl s₁)
     (hdrain : ∀ a ∈ xl, IsDrainAction F a)
     (hresp₀ : ∀ (i : ℕ) (hi : i < s₀.history.length) r,
       s₀.history[i].status.respStep? = some r → r < s₀.step) :
     s₁.history.length = s₀.history.length ∧
-    (∀ (i : ℕ) (hi : i < s₀.history.length) (hi₁ : i < s₁.history.length),
-      s₁.history[i].caller = s₀.history[i].caller ∧
-      s₁.history[i].kind = s₀.history[i].kind ∧
-      s₁.history[i].invStep = s₀.history[i].invStep) ∧
     (∀ (i : ℕ) (hi₁ : i < s₁.history.length) r,
       s₁.history[i].status.respStep? = some r → r < s₁.step) ∧
     (∀ p ∈ F, s₁.proc p = s₀.proc p) ∧
     (∀ e : Envelope P M, e.dest ∈ F → s₀.msgs.count e ≤ s₁.msgs.count e) := by
   induction hmtr with
   | refl =>
-    exact ⟨rfl, fun _ _ _ => ⟨rfl, rfl, rfl⟩, hresp₀, fun _ _ => rfl, fun _ _ => le_rfl⟩
+    exact ⟨rfl, hresp₀, fun _ _ => rfl, fun _ _ => le_rfl⟩
   | @stepL s a s' xl' s_end htr _ ih =>
     have ha : IsDrainAction F a := hdrain a List.mem_cons_self
     have hrest : ∀ b ∈ xl', IsDrainAction F b := fun b hb => hdrain b (List.mem_cons_of_mem a hb)
@@ -155,93 +148,18 @@ private lemma mTr_drain_preserves {F : Finset P} {s₀ s₁ : State P S M V}
       have hmdest : m.dest ∉ F := ha
       let s' := π.doDeliver m s
       have hlen_s' : s'.history.length = s.history.length := by simp [s', doDeliver]
-      have hcki_s' : ∀ (i : ℕ) (hi : i < s.history.length) (hi' : i < s'.history.length),
-          s'.history[i].caller = s.history[i].caller ∧
-          s'.history[i].kind = s.history[i].kind ∧
-          s'.history[i].invStep = s.history[i].invStep ∧
-          (∀ r, s'.history[i].status.respStep? = some r →
-            s.history[i].status.respStep? = some r ∨ r = s.step) := by
-        intro i hi hi'
-        have hsame (heq : s'.history[i] = s.history[i]) :
-            s'.history[i].caller = s.history[i].caller ∧
-            s'.history[i].kind = s.history[i].kind ∧
-            s'.history[i].invStep = s.history[i].invStep ∧
-            (∀ r, s'.history[i].status.respStep? = some r →
-              s.history[i].status.respStep? = some r ∨ r = s.step) :=
-          ⟨congrArg OpRecord.caller heq, congrArg OpRecord.kind heq,
-            congrArg OpRecord.invStep heq, fun r hr => Or.inl (heq ▸ hr)⟩
-        have hget : (deliverHistory s.history
-            (π.onRecv m.dest (s.proc m.dest).state m.src m.body).resp s.step
-            (s.proc m.dest).pending)[i]? = some s'.history[i] :=
-          List.getElem?_eq_getElem hi'
-        cases hp : (s.proc m.dest).pending with
-        | none =>
-          rw [hp, deliverHistory, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-          exact hsame hget.symm
-        | some pnd =>
-          rw [hp] at hget
-          dsimp only [deliverHistory] at hget
-          cases hm_comp :
-              matchCompletion pnd.kind (π.onRecv m.dest (s.proc m.dest).state m.src m.body).resp
-                s.step with
-          | none =>
-            rw [hm_comp, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-            exact hsame hget.symm
-          | some stDone =>
-            rw [hm_comp] at hget
-            have hst_step : ∀ r, stDone.respStep? = some r → r = s.step := by
-              intro r hr
-              cases hk : pnd.kind <;>
-                cases hsp : (π.onRecv m.dest (s.proc m.dest).state m.src m.body).resp
-              · simp [hk, hsp, matchCompletion] at hm_comp
-              · rename_i rsp
-                cases rsp with
-                | readRet v =>
-                  rw [hk, hsp, matchCompletion, Option.some.injEq] at hm_comp
-                  subst hm_comp; symm; simpa [OpStatus.respStep?] using hr
-                | writeAck => simp [hk, hsp, matchCompletion] at hm_comp
-              · simp [hk, hsp, matchCompletion] at hm_comp
-              · rename_i w rsp
-                cases rsp with
-                | readRet v => simp [hk, hsp, matchCompletion] at hm_comp
-                | writeAck =>
-                  rw [hk, hsp, matchCompletion, Option.some.injEq] at hm_comp
-                  subst hm_comp; symm; simpa [OpStatus.respStep?] using hr
-            cases hrec : s.history[pnd.opId]? with
-            | none =>
-              rw [hrec, List.getElem?_eq_getElem hi, Option.some.injEq] at hget
-              exact hsame hget.symm
-            | some rec =>
-              rw [hrec] at hget
-              have hp_lt : pnd.opId < s.history.length := by
-                by_contra hge
-                rw [List.getElem?_eq_none (Nat.le_of_not_lt hge)] at hrec
-                cases hrec
-              have hrec_eq : rec = s.history[pnd.opId] := by
-                rw [List.getElem?_eq_getElem hp_lt, Option.some.injEq] at hrec
-                exact hrec.symm
-              by_cases hip : pnd.opId = i
-              · subst hip
-                rw [List.getElem?_set_self hi, Option.some.injEq] at hget
-                rw [← hget, hrec_eq]
-                exact ⟨rfl, rfl, rfl, fun r hr => Or.inr (hst_step r hr)⟩
-              · rw [List.getElem?_set_ne hip, List.getElem?_eq_getElem hi,
-                  Option.some.injEq] at hget
-                exact hsame hget.symm
       have hresp_s' : ∀ (i : ℕ) (hi' : i < s'.history.length) r,
           s'.history[i].status.respStep? = some r → r < s'.step := by
         intro i hi' r hr
         have hi : i < s.history.length := hlen_s' ▸ hi'
-        rcases (hcki_s' i hi hi').2.2.2 r hr with hold | rfl
+        obtain ⟨_, _, _, hstep⟩ := deliverHistory_entry_preserves s.history
+          (π.onRecv m.dest (s.proc m.dest).state m.src m.body).resp s.step
+          (s.proc m.dest).pending hi hi'
+        rcases hstep r hr with hold | rfl
         · exact Nat.lt_succ_of_lt (hresp₀ i hi r hold)
         · exact Nat.lt_succ_self s.step
-      obtain ⟨hlen1, hcki1, hresp1, hproc1, hmsg1⟩ := ih hrest hresp_s'
-      refine ⟨hlen1.trans hlen_s', ?_, hresp1, ?_, ?_⟩
-      · intro i hi hi1
-        have hi' : i < s'.history.length := hlen_s'.symm ▸ hi
-        obtain ⟨c1, k1, v1⟩ := hcki1 i hi' hi1
-        obtain ⟨c0, k0, v0, _⟩ := hcki_s' i hi hi'
-        exact ⟨c1.trans c0, k1.trans k0, v1.trans v0⟩
+      obtain ⟨hlen1, hresp1, hproc1, hmsg1⟩ := ih hrest hresp_s'
+      refine ⟨hlen1.trans hlen_s', hresp1, ?_, ?_⟩
       · intro p hp
         have hpm : p ≠ m.dest := fun heq => hmdest (heq ▸ hp)
         rw [hproc1 p hp]
@@ -517,12 +435,13 @@ theorem not_implementsAtomicRegister_of_partition {t : ℕ}
     | some rsp =>
       cases rsp <;> simp [hsp, matchCompletion, OpStatus.respStep?] at hr
       omega
-  obtain ⟨hlen₁, hcki₁, hresp₁, hproc₁_B, hmsg₁_B⟩ :=
+  obtain ⟨hlen₁, hresp₁, hproc₁_B, hmsg₁_B⟩ :=
     π.mTr_drain_preserves hm₁ hdrain₁ hresp_s₁_init
   have hs₁_len : s₁.history.length = 1 := by
     simpa [s₁_init, doInvoke, start] using hlen₁
   have hs₁_rec : ∃ stp₁ < s₁.step, s₁.history = [⟨a₀, .write v₁, 0, .doneWrite stp₁⟩] := by
-    obtain ⟨hc0, hk0, hinv0⟩ := hcki₁ 0 (by simp [doInvoke, start]) hk₁_lt
+    obtain ⟨hc0, hk0, hinv0⟩ :=
+      π.mTr_history_entry_preserves hm₁ (by simp [doInvoke, start]) hk₁_lt
     simp only [doInvoke, start, List.nil_append, List.getElem_singleton] at hc0 hk0 hinv0
     have hlin₁ := hImpl.linearizable s₁ hreach_s₁
     obtain ⟨seq₁, _, hcomp₁, _, hvalid₁⟩ := hlin₁
@@ -628,14 +547,6 @@ theorem not_implementsAtomicRegister [Nontrivial V] {t : ℕ}
   obtain ⟨v₁, hne⟩ := exists_ne v₀
   obtain ⟨A, B, hAB, hcover, hA, hB, ⟨a₀, ha₀⟩, ⟨b₀, hb₀⟩⟩ := exists_two_partition h2 hle
   exact π.not_implementsAtomicRegister_of_partition A B hAB hcover hA hB ha₀ hb₀ hne
-
-/-- **Two-process impossibility (`Fin 2, t = 1`):** over any nontrivial value domain `V`, no
-asynchronous protocol on `Fin 2` implements a wait-free linearizable atomic register tolerating a
-single crash fault. -/
-theorem not_implementsAtomicRegister_two {S M V : Type*} [DecidableEq M] [Nontrivial V]
-    (v₀ : V) (π : Protocol (Fin 2) S M V) :
-    ¬ π.ImplementsAtomicRegister v₀ 1 :=
-  π.not_implementsAtomicRegister (by decide) (by decide) v₀
 
 end Protocol
 

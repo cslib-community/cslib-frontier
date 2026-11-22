@@ -115,22 +115,24 @@ theorem nextWriteTag_seq {P : Type*} (s : ℕ) (w : P) : (nextWriteTag s w).seq 
 theorem nextWriteTag_writer {P : Type*} (s : ℕ) (w : P) :
     (nextWriteTag s w).writer = (w : WithBot P) := rfl
 
+/-- `initTag P` (`(0, ⊥)`) is the least element of `Tag P`. -/
 theorem initTag_le {P : Type*} [LinearOrder P] (τ : Tag P) : initTag P ≤ τ := by
   rw [initTag, ← toLex_ofLex τ, Prod.Lex.toLex_le_toLex]
   by_cases h : 0 < (ofLex τ).1
   · exact Or.inl h
   · exact Or.inr ⟨by omega, bot_le⟩
 
+/-- Every write tag `nextWriteTag s w` strictly exceeds `initTag P`. -/
 theorem initTag_lt_nextWriteTag {P : Type*} [LinearOrder P] (s : ℕ) (w : P) :
     initTag P < nextWriteTag s w :=
   Prod.Lex.toLex_lt_toLex.mpr (Or.inl (Nat.succ_pos s))
 
-theorem lt_nextWriteTag_of_seq_le {P : Type*} [LinearOrder P] {τ : Tag P} {s : ℕ}
+private lemma lt_nextWriteTag_of_seq_le {P : Type*} [LinearOrder P] {τ : Tag P} {s : ℕ}
     (h : τ.seq ≤ s) (w : P) : τ < nextWriteTag s w := by
   rw [← toLex_ofLex τ, nextWriteTag, Prod.Lex.toLex_lt_toLex]
   exact Or.inl (Nat.lt_succ_of_le h)
 
-theorem seq_le_of_le {P : Type*} [LinearOrder P] {τ₁ τ₂ : Tag P} (h : τ₁ ≤ τ₂) :
+private lemma seq_le_of_le {P : Type*} [LinearOrder P] {τ₁ τ₂ : Tag P} (h : τ₁ ≤ τ₂) :
     τ₁.seq ≤ τ₂.seq := by
   rw [← toLex_ofLex τ₁, ← toLex_ofLex τ₂, Prod.Lex.toLex_le_toLex] at h
   rcases h with hlt | ⟨heq, _⟩
@@ -2219,87 +2221,13 @@ theorem abd_terminates {t : ℕ} (h2t : 2 * t < Fintype.card P) (v₀ : V)
   obtain ⟨c₀, kind, _, hlen_kinv, _, hss_k₁⟩ := hact_inv
   have hck_const : ∀ j (hij : i < (ss j).history.length),
       (ss j).history[i].caller = c₀ ∧ (ss j).history[i].kind = kind := by
-    have htr_ck : ∀ m (hm : i < (ss m).history.length) (hm' : i < (ss (m + 1)).history.length),
-        (ss (m + 1)).history[i].caller = (ss m).history[i].caller ∧
-        (ss (m + 1)).history[i].kind = (ss m).history[i].kind := by
-      intro m hm hm'
-      have htr_m := hexec m
-      cases hx : xs m with
-      | stutter =>
-        rw [hx] at htr_m
-        have hss_eq : ss (m + 1) = ss m := htr_m
-        have hget : (ss (m + 1)).history[i]? = (ss m).history[i]? := by rw [hss_eq]
-        rw [List.getElem?_eq_getElem hm', List.getElem?_eq_getElem hm] at hget
-        exact ⟨congrArg OpRecord.caller (Option.some.inj hget),
-          congrArg OpRecord.kind (Option.some.inj hget)⟩
-      | invoke cm km =>
-        rw [hx] at htr_m; obtain ⟨_, heq_m⟩ := htr_m
-        have hget : (ss (m + 1)).history[i]? = some (ss m).history[i] := by
-          rw [heq_m, Protocol.doInvoke, List.getElem?_append_left hm, List.getElem?_eq_getElem hm]
-        rw [List.getElem?_eq_getElem hm', Option.some.injEq] at hget
-        exact ⟨congrArg OpRecord.caller hget, congrArg OpRecord.kind hget⟩
-      | deliver em =>
-        rw [hx] at htr_m; obtain ⟨_, hss_next⟩ := htr_m
-        have hget : (ss (m + 1)).history[i]? =
-            (deliverHistory (ss m).history
-              (π.onRecv em.dest ((ss m).proc em.dest).state em.src em.body).resp
-              (ss m).step ((ss m).proc em.dest).pending)[i]? := by
-          rw [hss_next]; rfl
-        have hck_opt : ∀ r : OpRecord P V,
-            (deliverHistory (ss m).history
-              (π.onRecv em.dest ((ss m).proc em.dest).state em.src em.body).resp
-              (ss m).step ((ss m).proc em.dest).pending)[i]? = some r →
-            r.caller = (ss m).history[i].caller ∧ r.kind = (ss m).history[i].kind := by
-          intro r hr
-          cases hp_em : ((ss m).proc em.dest).pending with
-          | none =>
-            rw [hp_em, deliverHistory, List.getElem?_eq_getElem hm, Option.some.injEq] at hr
-            subst hr; exact ⟨rfl, rfl⟩
-          | some pnd =>
-            rw [hp_em] at hr
-            dsimp only [deliverHistory] at hr
-            cases hmc :
-                matchCompletion pnd.kind
-                  (π.onRecv em.dest ((ss m).proc em.dest).state em.src em.body).resp
-                  (ss m).step with
-            | none =>
-              rw [hmc, List.getElem?_eq_getElem hm, Option.some.injEq] at hr
-              subst hr; exact ⟨rfl, rfl⟩
-            | some stDone =>
-              rw [hmc] at hr
-              cases hget_p : (ss m).history[pnd.opId]? with
-              | none =>
-                rw [hget_p, List.getElem?_eq_getElem hm, Option.some.injEq] at hr
-                subst hr; exact ⟨rfl, rfl⟩
-              | some rec =>
-                rw [hget_p] at hr
-                by_cases hp : pnd.opId = i
-                · subst hp
-                  rw [List.getElem?_eq_getElem hm, Option.some.injEq] at hget_p
-                  subst hget_p
-                  rw [List.getElem?_set_self hm, Option.some.injEq] at hr
-                  subst hr; exact ⟨rfl, rfl⟩
-                · rw [List.getElem?_set_ne hp, List.getElem?_eq_getElem hm,
-                    Option.some.injEq] at hr
-                  subst hr; exact ⟨rfl, rfl⟩
-        exact hck_opt _ (hget.symm.trans (List.getElem?_eq_getElem hm'))
-    have hck_add : ∀ d (hd : i < (ss (k₁ + d)).history.length),
-        (ss (k₁ + d)).history[i].caller = c₀ ∧ (ss (k₁ + d)).history[i].kind = kind := by
-      intro d
-      induction d with
-      | zero =>
-        intro hd
-        simp [hss_k₁, Protocol.doInvoke, ← hlen_kinv]
-      | succ d ih =>
-        intro hd'
-        have hmd : i < (ss (k₁ + d)).history.length :=
-          lt_of_lt_of_le hk₁_lt (hlen_le k₁ (k₁ + d) (Nat.le_add_right k₁ d))
-        obtain ⟨hc1, hk1⟩ := htr_ck (k₁ + d) hmd hd'
-        obtain ⟨hc0, hk0⟩ := ih hmd
-        exact ⟨hc1.trans hc0, hk1.trans hk0⟩
     intro j hij
-    obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le (Nat.find_min' hex_lt hij)
-    exact hck_add d hij
+    have hk₁_j : k₁ ≤ j := Nat.find_min' hex_lt hij
+    obtain ⟨hcj, hkj, _⟩ :=
+      π.mTr_history_entry_preserves (hexec.extract_mTr hk₁_j) hk₁_lt hij
+    have hk₁_ck : (ss k₁).history[i].caller = c₀ ∧ (ss k₁).history[i].kind = kind := by
+      simp [hss_k₁, Protocol.doInvoke, ← hlen_kinv]
+    exact ⟨hcj.trans hk₁_ck.1, hkj.trans hk₁_ck.2⟩
   have hc₀_notF : c₀ ∉ F := (hck_const k₀ hi₀).1 ▸ hc
   have hpend_c₀ : ∀ j, k₁ ≤ j → ((ss j).proc c₀).pending = some ⟨i, kind⟩ := by
     intro j hj

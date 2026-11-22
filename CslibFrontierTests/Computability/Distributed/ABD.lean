@@ -18,9 +18,9 @@ read write-back prevents the inversion on the same quorum schedule (linearizing 
 before both reads via `IsLinearization`), and (c) concurrent multi-writer tie-breaking via
 lexicographic `(seq, writer)` tags; plus instantiations of `prec_irrefl`, `prec_trans`,
 `quorum_inter_notMem`, `mTr_repTag_mono`, `implementsAtomicRegister_local_of_card_le_one`,
-`implementsAtomicRegister_abd` (on `Bool` and infinite `ℕ`), `not_implementsAtomicRegister_two`,
-`not_implementsAtomicRegister`, and the universe-polymorphic `exists_linearizableRegister_iff`
-threshold across `Fin 1`, `Fin 2`, `Fin 3`, and `Fin 4`. -/
+`implementsAtomicRegister_abd` (on `Bool` and infinite `ℕ`), `not_implementsAtomicRegister`, and
+the universe-polymorphic `exists_linearizableRegister_iff` threshold across `Fin 1`, `Fin 2`,
+`Fin 3`, and `Fin 4`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.ABD
@@ -350,7 +350,7 @@ example :
 -- Impossibility on `Fin 2, t = 1` and `Fin 4, t = 2`.
 example {S M : Type} [DecidableEq M] (π : Protocol (Fin 2) S M Bool) :
     ¬ π.ImplementsAtomicRegister false 1 :=
-  π.not_implementsAtomicRegister_two false
+  π.not_implementsAtomicRegister (by decide) (by decide) false
 
 example {S M : Type} [DecidableEq M] (π : Protocol (Fin 4) S M ℕ) :
     ¬ π.ImplementsAtomicRegister 0 2 :=
