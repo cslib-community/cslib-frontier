@@ -18,7 +18,11 @@ import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredConditionalStates
 import CslibFrontier.Computability.PCP.TwoProverGame.AnchoredNoisyStates
 import CslibFrontier.Computability.PCP.TwoProverGame.GameAlgebraPerfect
 import CslibFrontier.Computability.PCP.TwoProverGame.LinearSystem
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSelfImprovement
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.ProjectiveSoundness
 import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SelfImprovementSDP
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.SymmetricSoundness
+import CslibFrontier.Computability.PCP.TwoProverGame.LowIndividualDegree.TensorSelfImprovement
 import CslibFrontier.Computability.PCP.TwoProverGame.Synchronous
 import CslibFrontier.Foundations.Algebra.Group.HomomorphismTesting
 import CslibFrontier.Foundations.Quantum.DensityMatrix.ClassicalQuantumEntropy
@@ -73,8 +77,11 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashFamily.Transport
+import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
+import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Computability.QueryComplexity.MajorityThree
 import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
@@ -464,6 +471,7 @@ import CslibFrontier.Computability.Automata.MPDA.PhaseSeparation
 import CslibFrontier.Computability.Automata.MPDA.ScopeHoles
 import CslibFrontier.Computability.Automata.MPDA.Separation
 import CslibFrontier.Computability.Automata.MPDA.SeparationAutomaton
+import CslibFrontier.Computability.Automata.MPDA.Witness
 import CslibFrontier.Computability.Automata.MPDA.WellNested
 import CslibFrontier.Crypto.Computational.PseudorandomGenerator.ModReduction
 import CslibFrontier.Crypto.Computational.StatisticalIndistinguishability
@@ -484,6 +492,9 @@ import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 import CslibFrontier.Probability.Minimax.Dantzig
+import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
+import CslibFrontier.Foundations.Probability.InvarianceSums
+import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
 
 /-!
 # Collected results
@@ -10830,6 +10841,37 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "computational-universal-hash-single-to-multi-query" where
+  title := "Computational universal hashing implies multi-query security"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 7.1",
+      locator := "v0.6, Section 7.1.1, printed pp. 254–255; equation (7.2)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsComputationalUHF.isMultiQueryUHF,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_le_collisionPairReduction
+  ]
+  scope := "A strict PPT public setup and uniform private key in its finite key space. The \
+    uniform strict PPT adversary receives the unary parameter and public setup. Only distinct \
+    valid messages count toward a collision. Bounded fair-bit sampling of ordered positions \
+    accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
+    query bound from the setup and adversary certificates. The predicates express security for an \
+    existing family and leave the hash algorithm's own efficiency requirements to the caller."
+
+register_result "computational-difference-unpredictability-implies-universal-hashing" where
+  title := "Computational difference unpredictability implies computational universal hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Zero-difference reduction (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269, after Remark 7.3" }
+  ]
+  theorems := [Cslib.Crypto.UHF.IsComputationalDUF.isComputationalUHF_zmod]
+  scope := "Asymptotic form of the zero-prediction reduction. The setup chooses a digest modulus. \
+    One uniform strict PPT machine copies the collision guess and appends the canonical binary \
+    encoding of zero, which has the same word at every modulus. The games have equal success \
+    probability and keep the uniform hash key private."
+
 register_result "pairwise-unpredictability-implies-universal-hashing" where
   title := "Pairwise unpredictability implies universality and difference universality"
   topic := "cryptography"
@@ -10875,6 +10917,19 @@ register_result "one-time-mac-from-pairwise-unpredictable-hash" where
     successful forgery gives a prediction for a distinct message. The bound covers all \
     two-stage adversaries with arbitrary private state and no runtime restriction. \
     Source check: outside-fleet agent review (coord-6b6b1583) on PR #6949 at 269b724487."
+
+register_result "xpoly-hash-prediction" where
+  title := "One revealed Hxpoly digest lets the adversary predict another"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.29",
+      locator := "v0.6, printed p. 285" }
+  ]
+  theorems := [Cslib.Crypto.UHF.eval_predictionExperiment_xpolyHash]
+  scope := "The first query is the empty message, with digest equal to the key. The second \
+    message is the singleton zero, and the adversary predicts the square of the first digest. \
+    The attack wins with probability one for any finite field and any length bound of at \
+    least one. Both stages have strict PPT certificates at each prime modulus."
 
 register_result "variable-length-polynomial-not-universal" where
   title := "The coefficient hash Hfpoly fails universality on variable-length messages"
@@ -11383,6 +11438,46 @@ register_result "synchronous-game-perfect-commuting-equivalence" where
     actions and works with any tracial state. The real-valued score formulation requires full \
     support on question pairs for the implication from score one to pointwise perfection."
 
+register_result "low-individual-degree-projective-self-improvement" where
+  title := "Projective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 9.4 (restates Theorem 6.2)",
+      locator := "arXiv:2009.12982v1, §9.3, pp. 80–82" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_projectiveSymmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. Input failure is allowed under the \
+    successful agreement premise. The projective output is on the original local space and \
+    has an explicit failure outcome. The theorem bounds completeness loss, point mismatch, \
+    successful squared-distance consistency and the majorant-weighted failure probability by \
+    3000m(ε^(1/32) + δ^(1/32) + (d/|F|)^(1/32)), using the actual axis and point-consistency \
+    losses. The subsequent low-degree induction and soundness remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6612#issuecomment-7016129909."
+
+register_result "low-individual-degree-projective-soundness" where
+  title := "Quantitative soundness for projective low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 3.10",
+      locator := "arXiv:2009.12982v1, p. 15 and the proof in §6" }
+  ]
+  theorems := [
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs,
+    Cslib.PCP.LowIndividualDegree.exists_projective_polynomial_POVMs_of_winProb
+  ]
+  scope := "Quantitative variant of Theorem 3.10 for finite projective tensor strategies over \
+    a finite field, with k ≥ md. The original spaces may differ, and no symmetry is assumed. \
+    The two projective polynomial POVMs are on the original local spaces. Let r = d/|F| and \
+    σ = 320000 m² (100000 k² m R + exp(-k/(80000 m²))), where R sums the 1/128 powers of \
+    the axis, consistency and diagonal losses and of r. Let ζ = σ + √(4(σ + δ)) + mr, \
+    where δ is the consistency loss. Each opposite-player point disagreement is bounded by \
+    σ + √(8ζ + 4√(18ζ)), and full-polynomial disagreement by ζ + 2√(18ζ). The branchwise \
+    result allows an independent diagonal cutoff. The full-score result uses the Figure 2 \
+    cutoff and substitutes three times the full loss for each branch loss. Outside source \
+    check: https://github.com/cslib-community/cslib-frontier/pull/6621#issuecomment-7016634350."
+
 register_result "low-individual-degree-self-improvement-sdp" where
   title := "Strong duality for the low-individual-degree self-improvement SDP"
   topic := "nonlocal games"
@@ -11396,6 +11491,41 @@ register_result "low-individual-degree-self-improvement-sdp" where
     failure effect completing them to measurements. The dual ranges over common operator \
     majorants. The optimum has equal primal and dual traces, no primal failure mass and \
     complementary slackness for each polynomial."
+
+register_result "low-individual-degree-symmetric-self-improvement" where
+  title := "Nonprojective self-improvement for symmetric low-individual-degree strategies"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Lemma 9.1",
+      locator := "arXiv:2009.12982v1, pp. 67–68" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_symmetricSelfImprovement]
+  scope := "Finite tensor strategies over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. The input may have a failure outcome if \
+    its successful agreement meets the stated premise. One local polynomial submeasurement \
+    and a positive common majorant give the completeness, point mismatch, successful \
+    self-consistency and dual gap bounds with error 100m(√ε + √δ + √(d/|F|)), using the actual \
+    axis and point-consistency losses. Projective rounding and induction remain separate. \
+    Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6609#issuecomment-7014866968."
+
+register_result "low-individual-degree-symmetric-soundness" where
+  title := "Quantitative symmetric soundness for the low-individual-degree test"
+  topic := "nonlocal games"
+  sources := [
+    { paper := JNVWY2020LowIndividualDegree, theorem := "Theorem 6.1",
+      locator := "arXiv:2009.12982v1, p. 51 and the induction in §6.2, pp. 57–61" }
+  ]
+  theorems := [Cslib.PCP.LowIndividualDegree.exists_polynomial_POVM_of_symmetric]
+  scope := "Quantitative variant of Theorem 6.1 with its own explicit error function. The model \
+    is a finite tensor strategy over a finite field with a normalized swap-invariant vector \
+    state and identical local projective measurements. For dimension m and k ≥ md, a complete \
+    local POVM on polynomials of individual degree at most d has mean disagreement at most \
+    160000 m² (100000 k² m R + exp(-k/(80000 m²))). Here R sums the 1/128 powers of the three \
+    branch losses and the ratio d/|F|. The diagonal cutoff is independent and can be set to md \
+    for the Figure 2 verifier. The output can be nonprojective. Nonsymmetric strategies are a \
+    separate result. Outside source check: \
+    https://github.com/cslib-community/cslib-frontier/pull/6618#issuecomment-7016417669."
 
 register_result "mpda-one-hole-is-no-hole" where
   title := "Complete 1-hole-bounded runs of multistack pushdown automata are well-nested"
@@ -12249,8 +12379,186 @@ register_result "mpda-hole-bounded-emptiness" where
     printed-start variant answers true and repaired Algorithm 1 false. There the initial state \
     has no push and no pop, so the variant only opens empty holes there, and the well-nested \
     acceptance check of line 3 cannot pass the crossing pushes and pops. Theorem 1 states \
-    termination and correctness; the complexity bound given in the paragraph after it and \
-    witness generation are not formalized. Source check: outside-fleet agent review \
-    (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, against arXiv:2002.05950v2, printed \
-    pp. 5, 8, 10 and 22-23: \
+    termination and correctness; the complexity bound given in the paragraph after it is \
+    not formalized, and witness generation is the entry mpda-hole-bounded-witness. Source \
+    check: outside-fleet agent review (reviewer-codex-edemaine) on PR #6748 at 884b0de71e, \
+    against arXiv:2002.05950v2, printed pp. 5, 8, 10 and 22-23: \
     https://github.com/cslib-community/cslib-frontier/pull/6748#pullrequestreview-5998692474."
+
+register_result "mpda-hole-bounded-witness" where
+  title := "Generating a K-hole-bounded accepting run of an MPDA from the emptiness search"
+  topic := "automata theory"
+  sources := [
+    { paper := AkshayGastinKrishnaRoychowdhury2020, theorem := "Section 4 (witness generation)",
+      locator := "arXiv:2002.05950v2, Section 4 \"Generating a Witness\", printed p. 11; \
+        Appendix C, Algorithm 5 (well-nested witness generation, printed p. 24) and Algorithm 6 \
+        (non-well-nested witness generation, printed p. 25)" }
+  ]
+  theorems := [Cslib.Automata.MPDA.isSome_witness_iff, Cslib.Automata.MPDA.witness_spec]
+  scope := "For every MPDA whose control states, input letters and stack symbols are FinEnum \
+    types, with decidable transitions and initial and final states, and every K: the executable \
+    function witness K returns a sequence of transitions exactly when the search isEmpty K of \
+    the mpda-hole-bounded-emptiness entry answers false, and every returned sequence labels a \
+    run from an initial state with empty stacks to a final state with empty stacks and is \
+    K-hole-bounded. By Theorem 1 it therefore returns a run exactly when the K-hole-bounded \
+    language is not empty. The returned run need not be shortest. The run is built backwards \
+    from an accepting list as in Algorithm 6: each open hole carries its atomic hole segments, \
+    newest first, which play the role of the source's witness stacks, and each step back over \
+    AddPop or AddHole appends the corresponding pop or block. Two deviations. First, Algorithm \
+    5 is repaired: as printed, its last case may recurse on the pair it was called on, so the \
+    recursion need not terminate; the Lean search wnWitness recurses with fuel, and with the \
+    fuel used to compute WR it succeeds exactly on the pairs of WR. Second, the source \
+    backtracks along a recorded BFS tree; the Lean search recomputes the rounds of the search \
+    until they stabilize and takes each predecessor from the previous round, so it needs no \
+    parent pointers. The module client test CslibFrontierTests.MPDA.Witness evaluates the \
+    witness on a two-stack MPDA whose accepting runs all have two holes: none for K = 1, an \
+    accepting run for K = 2. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #6997 at cf522d35ed, against arXiv:2002.05950v2, printed \
+    pp. 11-12 and 24-25: \
+    https://github.com/cslib-community/cslib-frontier/pull/6997#pullrequestreview-6007294100."
+
+register_result "odonnell-invariance-principle-sums" where
+  title := "Invariance Principle for Sums of Random Variables"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Invariance Principle for Sums of Random Variables",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 354 (proof pp. 354–355)" }
+  ]
+  theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le]
+  scope := "Product laws Measure.pi μ and Measure.pi ν over any finite index type ι, for \
+    coordinate probability measures μ i, ν i on ℝ in L³ (MemLp id 3) with equal first and \
+    second moments (∫ s, s ∂μ i = ∫ s, s ∂ν i and ∫ s, s ^ 2 ∂μ i = ∫ s, s ^ 2 ∂ν i): for \
+    every C³ test ψ : ℝ → ℝ (ContDiff ℝ 3 ψ) with ∀ y, |iteratedDeriv 3 ψ y| ≤ C, \
+    |∫ z, ψ (∑ i, z i) ∂Measure.pi μ − ∫ z, ψ (∑ i, z i) ∂Measure.pi ν| ≤ C / 6 · ∑ i, \
+    (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i). The two families need not live on a common \
+    probability space. Source check: outside-fleet agent review (jetski-rev-5600) on PR #5600 \
+    at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-lipschitz" where
+  title := "Invariance Principle for Sums of Random Variables for Lipschitz test functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.59",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 356; moving-average smoothing cf. \
+        §11.8, Exercise 11.40, printed p. 380" }
+  ]
+  theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le_of_lipschitzWith]
+  scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
+    moments: for every K-Lipschitz ψ : ℝ → ℝ (K : ℝ≥0), \
+    |∫ z, ψ (∑ i, z i) ∂Measure.pi μ − ∫ z, ψ (∑ i, z i) ∂Measure.pi ν| ≤ 6 K · γ_XY^(1/3) \
+    where γ_XY = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i). Proved with the explicit \
+    constant 6 (for the book's O(c · γ_XY^(1/3))) by smoothing ψ with a three-fold moving \
+    average (ProbabilityTheory.abs_integral_comp_sub_le_of_lipschitzWith at m = 3, cf. \
+    Exercise 11.40) instead of the book's C^∞ Gaussian smoothing of Proposition 11.58. Source \
+    check: outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-levy-distance" where
+  title := "Lévy-distance invariance for sums of independent random variables"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.61",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; proof method in §11.8, Exercise \
+        11.42, printed p. 381" }
+  ]
+  theorems := [
+    ProbabilityTheory.measureReal_sum_le_le_add,
+    ProbabilityTheory.measureReal_sum_le_sub_le
+  ]
+  scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
+    moments: for every u : ℝ, (Measure.pi μ).real {z | ∑ i, z i ≤ u} ≤ \
+    (Measure.pi ν).real {z | ∑ i, z i ≤ u + ε} + ε and \
+    (Measure.pi ν).real {z | ∑ i, z i ≤ u − ε} − ε ≤ (Measure.pi μ).real {z | ∑ i, z i ≤ u} \
+    with ε = 3 γ_XY^(1/4) and γ_XY = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i), bounding \
+    the Lévy distance between ∑ Xᵢ and ∑ Yᵢ by 3 γ_XY^(1/4) (for the book's O(γ_XY^(1/4))). \
+    Proved via the explicit-shift step measureReal_sum_le_le_add_div_pow (128 / 3 · γ_XY / η³ \
+    for η > 0, Exercise 11.42) using the one-sided C³ ramp smoothing Real.stepSmoothing 3 (cf. \
+    Exercise 11.41(b), whose smoothed step is monotone, two-sided and C^∞) and \
+    right-continuity at γ_XY = 0. Source check: outside-fleet agent review (jetski-rev-5600) \
+    on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-berry-esseen-fourth-root" where
+  title := "Fourth-root Berry–Esseen bound from the Invariance Principle for sums"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.62",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; Berry–Esseen setting on printed \
+        p. 350 and eq. (11.28) on printed p. 355" }
+  ]
+  theorems := [ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le]
+  scope := "Product law Measure.pi μ over any finite index type ι, for coordinate probability \
+    measures μ i on ℝ in L³ with ∫ s, s ∂μ i = 0 for all i and ∑ i, ∫ s, s ^ 2 ∂μ i = 1 (the \
+    X-only Berry–Esseen setting of §11.5, p. 350): for every u : ℝ, \
+    |(Measure.pi μ).real {z | ∑ i, z i ≤ u} − cdf (gaussianReal 0 1) u| ≤ \
+    6 (∑ i, ∫ s, |s| ^ 3 ∂μ i)^(1/4). Proved with the explicit constant 6 for the book's \
+    O(γ^(1/4)) by comparing X internally against independent Yᵢ ∼ N(0, Var[Xᵢ]) via \
+    abs_measureReal_sum_le_sub_cdf_le_of_hasLaw and bounding E|Yᵢ|³ ≤ 2 E|Xᵢ|³ (via \
+    integral_abs_pow_three_gaussianReal_le and Lyapunov's inequality \
+    sqrt_integral_sq_pow_three_le) in place of the book's 2 √(2/π) E|Xᵢ|³ in (11.28). Not \
+    covered: the classical Berry–Esseen Theorem with error O(∑ E|Xᵢ|³) and the Variant \
+    Berry–Esseen Theorem of §11.5 (tracked in roadmap/pseudorandomness.md). Source check: \
+    outside-fleet agent reviews (jetski-rev-5600 and inventory_rank_property) on PR #5600 at \
+    8de640fb945c and 701d0603fe51: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015 \
+    and \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5909369687."
+
+register_result "odonnell-invariance-multilinear-levy-distance" where
+  title := "Lévy-distance Basic Invariance Principle for low-degree multilinear polynomials"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Corollary 11.70, first statement, and Exercise 11.44",
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
+        p. 381" }
+  ]
+  theorems := [
+    ProbabilityTheory.measureReal_multilinearEval_le_le_add,
+    ProbabilityTheory.measureReal_multilinearEval_le_sub_le
+  ]
+  scope := "Product laws Measure.pi μ and Measure.pi ν over any finite coordinate type ι \
+    whose coordinate probability measures satisfy Hypothesis 11.65 (HasInvarianceMoments: in \
+    L⁴ with mean 0, variance 1, third moment 0, and fourth moment at most 9), and formal \
+    multilinear coefficients c : Finset ι → ℝ of degree at most k (∀ S, k < #S → c S = 0), \
+    variance ∑_{S ≠ ∅} c S ^ 2 ≤ 1, and coordinate influences multilinearInfluence c t ≤ ε \
+    (ε ≥ 0): for every u : ℝ, (Measure.pi μ).real {z | multilinearEval c z ≤ u} ≤ \
+    (Measure.pi ν).real {z | multilinearEval c z ≤ u + δ} + δ and \
+    (Measure.pi ν).real {z | multilinearEval c z ≤ u − δ} − δ ≤ \
+    (Measure.pi μ).real {z | multilinearEval c z ≤ u} with δ = 4 · 2ᵏ · ε^(1/5) (explicit \
+    constant 4 for the book's O(2ᵏ ε^(1/5))), proved from Corollary 11.67 via the C⁴ step \
+    smoothing Real.stepSmoothing 4. Only the first statement of Corollary 11.70 is formalized; \
+    its second statement, the bound (1/ρ)^O(k) ε^(1/8) for (2, 3, ρ)-hypercontractive \
+    ensembles in the setting of Remark 11.66, is open and tracked in \
+    roadmap/pseudorandomness.md. Source check: outside-fleet agent review (jetski-rev-5600) on \
+    PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-boolean-cube-levy-distance" where
+  title := "Lévy-distance Basic Invariance Principle for functions on the Boolean cube"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Corollary 11.70, first statement (Boolean-cube form), and Exercise 11.44",
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
+        p. 381" }
+  ]
+  theorems := [
+    Cslib.BitString.dens_le_le_measureReal_multilinearEval_le_add,
+    Cslib.BitString.measureReal_multilinearEval_le_sub_le_dens
+  ]
+  scope := "Uniform cube on any finite coordinate type ι: for f : (ι → Bool) → ℝ with \
+    totalDegree f ≤ k, variance 𝔼 x, (f x − 𝔼 y, f y) ^ 2 ≤ 1, and influence i f ≤ ε (ε ≥ 0) \
+    for every i, and independent comparison coordinates y under Measure.pi μ with each μ i \
+    satisfying Hypothesis 11.65 (HasInvarianceMoments: in L⁴ with mean 0, variance 1, third \
+    moment 0, and fourth moment at most 9), (dens {x | f x ≤ u} : ℝ) ≤ \
+    (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u + δ} + δ and \
+    (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u − δ} − δ ≤ \
+    (dens {x | f x ≤ u} : ℝ) for every u : ℝ, with δ = 4 · 2ᵏ · ε^(1/5). Specializes \
+    odonnell-invariance-multilinear-levy-distance to uniform signs on the first side via \
+    measureReal_pi_rademacher_multilinearEval_le. The second statement of Corollary 11.70 \
+    (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
+    outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."

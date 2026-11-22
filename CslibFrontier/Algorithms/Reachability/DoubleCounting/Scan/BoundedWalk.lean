@@ -45,6 +45,18 @@ structure Registers (N : ℕ) where
   /-- Number of edges still permitted. -/
   fuel : ℕ
 
+/-- Read binary endpoint ranks at a positive dimension, reducing each rank modulo the size. -/
+@[expose] def Registers.ofRanks {N : ℕ} (positive : 0 < N) (current target fuel : ℕ) :
+    Registers N :=
+  ⟨⟨current % N, Nat.mod_lt _ positive⟩, ⟨target % N, Nat.mod_lt _ positive⟩, fuel⟩
+
+/-- Reading the ranks of typed registers recovers those registers. -/
+theorem Registers.ofRanks_val {N : ℕ} (positive : 0 < N) (r : Registers N) :
+    Registers.ofRanks positive r.current.val r.target.val r.fuel = r := by
+  cases r with
+  | mk current target fuel =>
+    simp only [ofRanks, Nat.mod_eq_of_lt current.isLt, Nat.mod_eq_of_lt target.isLt]
+
 /-- Control state of the walk. A running adjacency call retains the destination and registers. -/
 inductive State (N : ℕ) (τ : Type)
   | choose (registers : Registers N) (choice : NondeterministicChoice.State)
@@ -1238,7 +1250,7 @@ private def readVertex (n v : ℕ) : Fin (positiveDimension n) :=
   ⟨v % positiveDimension n, Nat.mod_lt _ (positiveDimension_pos n)⟩
 
 private def readRegisters (n : ℕ) (r : RegisterFields) : Registers (positiveDimension n) :=
-  ⟨readVertex n r.1, readVertex n r.2.1, r.2.2⟩
+  Registers.ofRanks (positiveDimension_pos n) r.1 r.2.1 r.2.2
 
 private theorem readRegisters_budget {n : α → ℕ} {r : α → RegisterFields}
     (hn : ComputableInSpace (fun a => positiveDimension (n a)) encIn encNat budget)
@@ -1252,12 +1264,8 @@ private theorem readVertex_succ (n : ℕ) (v : Fin (n + 1)) :
   Fin.ext (Nat.mod_eq_of_lt v.isLt)
 
 private theorem readRegisters_succ (n : ℕ) (r : Registers (n + 1)) :
-    readRegisters (n + 1) (registerFields r) = r := by
-  cases r with
-  | mk u v f =>
-    change Registers.mk (readVertex (n + 1) u.val) (readVertex (n + 1) v.val) f = _
-    rw [readVertex_succ, readVertex_succ]
-    rfl
+    readRegisters (n + 1) (registerFields r) = r :=
+  Registers.ofRanks_val (positiveDimension_pos (n + 1)) r
 
 /-- Adjacency entry input: framed context and source ID, followed by the destination ID. -/
 abbrev encStartRequest {κ : Type} (encContext : κ ↪ List Bool) : (κ × ℕ × ℕ) ↪ List Bool :=
@@ -1488,11 +1496,9 @@ theorem native_firstHalting_accept_iff (registers : α → Registers N)
         (walkM readNext (fun u v => pure (adjacent u v))
           (registers a).target (registers a).fuel (registers a).current tail).1 = some left := by
   let walk := machine edge start verdict clock (registers a)
+  rw [R.existsUnique_accepting_replay_iff]
   constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalts, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := R.replay_correct a hreplay hhalts
-    have haccept : walk.accept (walk.run (encIn a) bits) = true :=
-      List.cons.inj (houtput.symm.trans hout) |>.1
+  · rintro ⟨hfirst, haccept⟩
     change (remainingFuel (walk.run (encIn a) bits)).isSome = true at haccept
     obtain ⟨left, hl⟩ := Option.isSome_iff_exists.mp haccept
     obtain ⟨tail, hbits, hwalk⟩ :=
@@ -1502,16 +1508,11 @@ theorem native_firstHalting_accept_iff (registers : α → Registers N)
   · rintro ⟨tail, left, rfl, hs⟩
     obtain ⟨hfirst, hresult⟩ := firstHalting_selectors edge start verdict clock (registers a)
       (encIn a) adjacent hclock hedge tail hs
-    obtain ⟨indices, ⟨final, hreplay, hhalts⟩, hunique⟩ :=
-      (R.existsUnique_replay_iff a (selectors clock tail)).mpr hfirst
-    have hout := (R.replay_correct a hreplay hhalts).2
     have haccept : walk.accept (walk.run (encIn a) (selectors clock tail)) = true := by
       change (remainingFuel _).isSome = true
       rw [hresult]
       rfl
-    have hout' := hout.trans (congrArg (fun b => [b]) haccept)
-    exact ⟨indices, ⟨final, hreplay, hhalts, hout'⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+    exact ⟨hfirst, haccept⟩
 
 end Native
 

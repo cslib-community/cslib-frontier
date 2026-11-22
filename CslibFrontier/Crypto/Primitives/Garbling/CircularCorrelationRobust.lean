@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Primitives.Garbling.OneHot
 public import CslibFrontier.Crypto.Primitives.PRF.Finite
 public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
+import CslibFrontier.Probability.PMF.Uniform
 
 /-!
 # Circular correlation robustness
@@ -56,8 +57,15 @@ Definition 1, has its own dependent query type and lives in
 * `Cslib.Crypto.Garbling.CCR.advantage`: the circular correlation robustness advantage.
 * `Cslib.Crypto.Garbling.CCR.IsTweakUnique`: tweak uniqueness for Boolean CCR adversaries (at most
   one query per tweak on every execution path).
+* `Cslib.Crypto.Garbling.CCR.keyOnlyEmbed`, `Cslib.Crypto.Garbling.CCR.keyOnlyHandler`: lifting
+  key-only CCR queries `(x, t, b)` into full-label queries `((x, true), t, b)`.
 * `Cslib.Crypto.Garbling.CCR.Arithmetic.advantage`: the arithmetic variant, with
   `Cslib.Crypto.Garbling.CCR.Arithmetic.IsTweakUnique`.
+
+## Main results
+
+* `Cslib.Crypto.Garbling.CCR.advantage_keyOnly`: key-only CCR advantage transfers to full-label
+  CCR advantage.
 
 ## Implementation notes
 
@@ -157,6 +165,63 @@ theorem IsTweakUnique.transcript_tweak_le_one [DecidableEq T] {A : Adversary L T
     (t : T) :
     (transcript.map fun entry => if entry.1.tweak = t then 1 else 0).sum ≤ 1 :=
   ProbOracleComp.transcript_cost_le (h t) oracle hmem
+
+omit [AddCommGroup L] [AddCommGroup M] in
+/-- Library construction (no cited definition): embedding of key-only queries into full-label
+queries via colour bit `true`. -/
+@[expose] def keyOnlyEmbed (L T : Type) : Query L T ↪ Query (L × Bool) T where
+  toFun q := ⟨(q.label, true), q.tweak, q.bit⟩
+  inj' := by
+    rintro ⟨x, t, b⟩ ⟨x', t', b'⟩ h
+    simp only [Query.mk.injEq, Prod.mk.injEq, and_true] at h
+    rcases h with ⟨rfl, rfl, rfl⟩
+    rfl
+
+omit [AddCommGroup L] [AddCommGroup M] in
+/-- Library construction (no cited definition): lift a key-only CCR query to a full-label CCR
+query via `keyOnlyEmbed`, so that adding the offset `(R, true)` cancels the colour bit to
+`false`. -/
+@[expose] def keyOnlyHandler {L T M : Type} (q : Query L T) :
+    ProbOracleComp (fun _ : Query (L × Bool) T => M) M :=
+  ProbOracleComp.query (keyOnlyEmbed L T q)
+
+private theorem oracle_keyOnly (H : L × Bool → T → M) (R : L) (Δ' : M) (q : Query L T) :
+    oracle H (R, true) Δ' (keyOnlyEmbed L T q) =
+      oracle (fun x t => H (x, false) t) R Δ' q := by
+  change H (q.label + R, true + true) q.tweak + bitOffset Δ' q.bit =
+    H (q.label + R, false) q.tweak + bitOffset Δ' q.bit
+  rw [show (true + true : Bool) = false by decide]
+
+/-- Library infrastructure (no cited result): **Key-only CCR advantage transfer.** For any key-only
+adversary `A` against `fun x t => H (x, false) t` with input offset `δ` and output offset `δ'`,
+lifting its queries via `keyOnlyHandler` preserves its CCR advantage against `H` with input offset
+`fun r => (δ r, true)` and output offset `δ'`. -/
+theorem advantage_keyOnly [Fintype Key] [Nonempty Key] [Fintype L] [DecidableEq L]
+    [Fintype T] [DecidableEq T] [Fintype M] [Nonempty M]
+    (H : L × Bool → T → M) (δ : Key → L) (δ' : Key → M) (A : Adversary L T M) :
+    advantage (fun x t => H (x, false) t) δ δ' A =
+      advantage H (fun r => (δ r, true)) δ' (ProbOracleComp.simulate keyOnlyHandler A) := by
+  have hreal : ProbComp.eval (PRF.realExperiment (keyed H (fun r => (δ r, true)) δ')
+      (ProbOracleComp.simulate keyOnlyHandler A)) =
+      ProbComp.eval (PRF.realExperiment (keyed (fun x t => H (x, false) t) δ δ') A) := by
+    simp only [PRF.realExperiment, ProbOracleComp.run_simulate, ProbComp.eval_bind,
+      ProbComp.eval_uniform]
+    refine congrArg _ (funext fun r =>
+      congrArg ProbComp.eval (congrArg A.run (funext fun q => ?_)))
+    rw [keyOnlyHandler, ProbOracleComp.run_query, keyed, oracle_keyOnly]
+    rfl
+  have hideal : ProbComp.eval (PRF.idealExperiment (ProbOracleComp.simulate keyOnlyHandler A)) =
+      ProbComp.eval (PRF.idealExperiment A) := by
+    simp only [PRF.idealExperiment, ProbOracleComp.run_simulate, ProbComp.eval_bind,
+      ProbComp.eval_uniform]
+    have hcomp : (fun f : Query (L × Bool) T → M =>
+        ProbComp.eval (A.run fun q => (keyOnlyHandler q).run fun q' => pure (f q'))) =
+        (fun g : Query L T → M => ProbComp.eval (A.run fun q => pure (g q))) ∘
+          (fun f q => f (keyOnlyEmbed L T q)) := by
+      funext f
+      rfl
+    rw [hcomp, ← PMF.bind_map, Probability.PMF.uniformOfFintype_pi_map_comp_embedding]
+  simp only [advantage, PRF.advantage, hreal, hideal]
 
 /-! ### The arithmetic variant -/
 

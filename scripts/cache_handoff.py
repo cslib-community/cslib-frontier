@@ -40,15 +40,15 @@ WORKFLOW_FILE = "lean_action_ci.yml"
 WORKFLOW_PATH = f".github/workflows/{WORKFLOW_FILE}"
 INPUTS = ("lean-toolchain", "lake-manifest.json", "lakefile.toml")
 # Payload bounds. On 2026-11-08 a full build was 101,848 files and 4.64 GB, packing to 1.67 GB;
-# the earlier bounds (100,000 files, 4 GiB, 1 GiB compressed) had silently disabled the handoff,
-# so every `main` push rebuilt what its merge group had already checked. These leave about 2.5x
-# headroom; a miss is reported as a workflow warning so that outgrowing them again is visible.
-MAX_FILES = 300_000
-MAX_BYTES = 12 * 1024 ** 3
-MAX_ARCHIVE_BYTES = 4 * 1024 ** 3
+# on 2026-11-21 a full build was 172,812 files and 7.53 GB, packing to 2.64 GB. These bounds
+# keep ~2.9x file / ~2.9x raw / ~3.2x compressed headroom; a miss is reported as a workflow
+# warning so that outgrowing them again is visible.
+MAX_FILES = 500_000
+MAX_BYTES = 20 * 1024 ** 3
+MAX_ARCHIVE_BYTES = 8 * 1024 ** 3
 MAX_METADATA_BYTES = 64 * 1024
 # Download budget for an archive of up to MAX_ARCHIVE_BYTES, inside the step's 10 minutes.
-DOWNLOAD_SECONDS = 420
+DOWNLOAD_SECONDS = 480
 # First-parent ancestors that `restore --ancestor` considers, nearest first. Every commit that
 # lands through the queue has a handoff for two days, so the nearest one is normally one or two
 # commits back: the tip of `main` when the group was formed, behind any queue entries ahead of it
@@ -125,8 +125,11 @@ def source_context(root: Path, env: dict, event: str) -> dict:
         ["git", "status", "--porcelain", "--untracked-files=no"], cwd=root, text=True,
     )
     require(not dirty.strip(), "Tracked sources are modified")
+    # Exclude ImageVersion so simultaneous GitHub runner-image patch rollouts (e.g.
+    # standard 4-core ubuntu-24.04 vs cslib-ubuntu-24.04-8core) share validated handoffs on
+    # the same OS/ABI. lakefile.toml also sets platformIndependent = true for .olean/.ir outputs.
     platform = {key: env.get(key, "")
-                for key in ("RUNNER_OS", "RUNNER_ARCH", "ImageOS", "ImageVersion")}
+                for key in ("RUNNER_OS", "RUNNER_ARCH", "ImageOS")}
     require(all(isinstance(value, str) and value for value in platform.values()),
             "Runner platform is unknown")
     generation = env.get("CACHE_RECOVERY_GENERATION", "") or "0"
@@ -211,23 +214,76 @@ def module_setup_input(path: Path) -> bool:
 
 @contextmanager
 def gzip_bundle(archive: Path):
-    """Stream the existing tar format through up to four compression workers where available."""
+    """Stream the existing tar format through parallel compression workers where available."""
     pigz = shutil.which("pigz")
     if not pigz:
         print("Handoff compression: Python gzip, level 1", flush=True)
         with tarfile.open(archive, "w:gz", compresslevel=1) as bundle:
             yield bundle
         return
-    print("Handoff compression: pigz, level 1, four workers", flush=True)
+    workers = min(8, max(1, os.cpu_count() or 4))
+    print(f"Handoff compression: pigz, level 1, {workers} workers", flush=True)
     with archive.open("wb") as output, subprocess.Popen(
-            [pigz, "-n", "-1", "-p", "4", "-c"], stdin=subprocess.PIPE, stdout=output,
+            [pigz, "-n", "-1", "-p", str(workers), "-c"], stdin=subprocess.PIPE, stdout=output,
             env={**os.environ, "PIGZ": "", "GZIP": ""}) as compressor:
         with compressor.stdin as stream:
-            with tarfile.open(fileobj=stream, mode="w|", bufsize=128 * 1024) as bundle:
+            with tarfile.open(fileobj=stream, mode="w|", bufsize=1024 * 1024) as bundle:
                 yield bundle
         status = compressor.wait()
         if status:
             raise subprocess.CalledProcessError(status, compressor.args)
+
+
+@contextmanager
+def open_gzip_tar_reader(archive: Path):
+    """Stream tar decompression through `pigz` when available, else Python `tarfile`."""
+    pigz = shutil.which("pigz")
+    if not pigz:
+        with tarfile.open(archive, "r:gz") as bundle:
+            yield bundle
+        return
+    decompressor = subprocess.Popen(
+        [pigz, "-d", "-c", str(archive)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env={**os.environ, "PIGZ": "", "GZIP": ""},
+    )
+    aborted = False
+    try:
+        with tarfile.open(fileobj=decompressor.stdout, mode="r|", bufsize=1024 * 1024) as bundle:
+            yield bundle
+    except BaseException:
+        aborted = True
+        raise
+    finally:
+        if aborted:
+            if decompressor.stdout is not None:
+                decompressor.stdout.close()
+            if decompressor.poll() is None:
+                decompressor.terminate()
+                try:
+                    decompressor.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    decompressor.kill()
+                    decompressor.wait()
+            else:
+                decompressor.wait()
+            if decompressor.stderr is not None:
+                decompressor.stderr.close()
+        else:
+            # Drain any trailing tar zero-block padding so pigz verifies the full gzip CRC/trailer
+            # and exits 0 instead of receiving SIGPIPE.
+            if decompressor.stdout is not None:
+                while decompressor.stdout.read(1024 * 1024):
+                    pass
+                decompressor.stdout.close()
+            stderr_bytes = decompressor.stderr.read() if decompressor.stderr is not None else b""
+            if decompressor.stderr is not None:
+                decompressor.stderr.close()
+            status = decompressor.wait()
+            if status:
+                stderr = stderr_bytes.decode("utf-8", "replace").strip()
+                raise tarfile.ReadError(f"pigz decompression failed (exit {status}): {stderr}")
 
 
 def pack(root: Path, output: Path, env: dict) -> str:
@@ -389,8 +445,8 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
             and inventory["bytes"] <= MAX_BYTES
             and inventory.get("compressed_bytes") == archive.stat().st_size
             and inventory.get("sha256") == digest(archive), "Invalid archive inventory or digest")
-    seen, size = set(), 0
-    with tarfile.open(archive, "r:gz") as bundle:
+    seen, created_dirs, size = set(), set(), 0
+    with open_gzip_tar_reader(archive) as bundle:
         for member in bundle:
             parts = member.name.split("/")
             require(member.isfile() and not member.sparse and "\\" not in member.name
@@ -404,9 +460,12 @@ def unpack(download: Path, stage: Path, context: dict, run: dict) -> Path:
             require(type(member.mtime) in (int, float) and 0 <= member.mtime <= 2 ** 32,
                     "Invalid archive timestamp")
             target = stage.joinpath(*parts)
-            target.parent.mkdir(parents=True, exist_ok=True)
+            parent = target.parent
+            if parent not in created_dirs:
+                parent.mkdir(parents=True, exist_ok=True)
+                created_dirs.add(parent)
             with bundle.extractfile(member) as source, target.open("xb") as output:
-                shutil.copyfileobj(source, output)
+                shutil.copyfileobj(source, output, 1024 * 1024)
             target.chmod(0o755 if member.mode & 0o111 else 0o644)
             os.utime(target, (member.mtime, member.mtime))
     require(len(seen) == inventory["files"] and size == inventory["bytes"],

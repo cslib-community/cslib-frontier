@@ -7,7 +7,8 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
-import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceContext.Scheduler
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 meta import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 
 /-! Ordinary-import clients for the binary seed and source scheduler. -/
@@ -45,6 +46,63 @@ private def scan (f : SeedSchedulerFrame) : List (Option ControllerVerdict) :=
 set_option linter.hashCommand false in
 #guard (runSeedSchedulerFor setup sourceValid rootValid scan).map
     (Option.map fun a => (a.seed.val, a.reachable)) == List.replicate 4 (some (1, false))
+
+-- Skip the designated root, try the other root, and restart after the bad verdict.
+-- The next seed keeps its designated negative answer even though its other root is positive.
+set_option linter.hashCommand false in
+#guard
+  let run := do
+    let designated ← seedSchedulerCandidate setup 0
+    let .inl skip ← seedSchedulerStep designated (some (.decided false)) | none
+    if skip.needsScan then none else
+    let .inl indexed ← seedSchedulerStep skip none | none
+    if !indexed.needsScan || indexed.request.sourceID != 2 then none else
+    let .inl next ← seedSchedulerStep indexed (some (.bad 0)) | none
+    if next.request.seed != 1 || !next.needsScan then none else
+    let .inl skip ← seedSchedulerStep next (some (.decided false)) | none
+    let .inl indexed ← seedSchedulerStep skip none | none
+    let .inr answer ← seedSchedulerStep indexed (some (.decided true)) | none
+    pure answer
+  run == some (some false)
+
+set_option linter.hashCommand false in
+#guard
+  match seedSchedulerCandidate setup 3 with
+  | none => false
+  | some last =>
+    (seedSchedulerStep last none).isNone &&
+      (match seedSchedulerStep last (some (.bad 0)) with
+       | some (.inr none) => true
+       | _ => false)
+
+example {f g : SeedSchedulerFrame} {reply : Option ControllerVerdict}
+    (hf : f.Valid) (h : seedSchedulerStep f reply = some (.inl g)) :
+    g.Valid ∧ g.request.setup = f.request.setup :=
+  let progress := seedSchedulerStep_progress hf h
+  ⟨progress.1, progress.2.1⟩
+
+open ComputableInSpace in
+/-- Initialize a candidate and inspect its scan guard under the caller's input budget. -/
+example :
+    let E := encPair encSeedSearchSetup encNat
+    ComputableInSpace (fun p => (seedSchedulerCandidate p.1 p.2).map
+      SeedSchedulerFrame.needsScan) E (encOption encBool) (fun p => (E p).length) := by
+  intro E
+  have hentry := seedSchedulerCandidate_budget (fst encSeedSearchSetup encNat)
+    (snd encSeedSearchSetup encNat)
+  have hguard := SeedSchedulerFrame.needsScan_budget
+    (budget_id (enc := encSeedSchedulerFrame) (.refl _))
+  have hmap := optionElim (encE := encOption encBool) none (budget_optionSome hguard)
+  exact (budget_comp_linear hmap hentry).of_enc_eq fun p => by
+    cases seedSchedulerCandidate p.1 p.2 <;> rfl
+
+open ComputableInSpace in
+/-- The scheduler can advance without a reply within the budget of the live frame. -/
+example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {frame : α → SeedSchedulerFrame}
+    (hframe : ComputableInSpace frame enc encSeedSchedulerFrame S) :
+    ComputableInSpace (fun a => seedSchedulerStep (frame a) none)
+      enc encSeedSchedulerStepResult S :=
+  budget_comp_linear seedSchedulerStep_noReply_inSpace hframe
 
 private def rejecting (_ : SeedSchedulerFrame) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=
@@ -95,5 +153,36 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
         (fun bits u => scanner ⟨s, (Cslib.BitString.equivFin _ bits).val, u.val⟩)
         (fun j => ⟨s.originalSourceID j.val, hr _ j.isLt⟩) ⟨s.sourceID, hs⟩ :=
   runSeedSchedulerFor_eq _ _ _ scanner
+
+open Cslib.Code.JustesenFamily ComputableInSpace in
+/-- The scheduler's binary request can feed the context adapter under the existing budget. -/
+example :
+    let encArgs := encPair encSeedSearchSetup (encPair encNat (encOption encNat))
+    let E := encPair encArgs encFieldContext
+    ComputableInSpace (fun p => justesenSourceContextOfRequest (seedScanRequest p.1) p.2)
+      E encJustesenSourceContext (fun p => (E p).length) := by
+  intro encArgs E
+  exact justesenSourceContextOfRequest_budget
+    (budget_comp_linear seedScanRequest_inSpace (fst encArgs encFieldContext))
+    (snd encArgs encFieldContext)
+
+/-- Both scheduler entries use the original word's weighted adjacency and designated target.
+Only the selected source ID differs. -/
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) (rank position : ℕ) :
+    let s := configurationSeedSearchSetup ntm c w
+    let field := configurationFieldContext ntm c w
+    let designated := justesenSourceContextOfRequest (seedScanRequest (s, rank, none)) field
+    let indexed := justesenSourceContextOfRequest (seedScanRequest (s, rank, some position)) field
+    designated.adjacency = configurationJustesenSubdivisionContext ntm c w rank ∧
+      indexed.adjacency = designated.adjacency ∧
+      designated.sourceID = s.sourceID ∧ indexed.sourceID = s.originalSourceID position ∧
+      designated.targetID = s.targetID ∧ indexed.targetID = s.targetID := by
+  intro s field designated indexed
+  dsimp only [designated, indexed]
+  rw [← seedSchedulerFrame_designated_request,
+    ← seedSchedulerFrame_indexed_request s rank position false]
+  exact ⟨justesenSourceContextOfRequest_adjacency_eq ntm c w rank s.sourceID,
+    rfl, rfl, rfl, rfl, rfl⟩
 
 end CslibFrontierTests.STCONSeedScheduler

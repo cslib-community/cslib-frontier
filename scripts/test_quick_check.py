@@ -608,6 +608,139 @@ class QuickCheckTests(unittest.TestCase):
         self.assertIn("DemoTests.Client", calls[0])
         self.assertEqual(calls[0][1:4], ["build", "--wfail", "--iofail"])
 
+    def _enable_batteries_linter(self):
+        self.write(
+            "lakefile.toml",
+            'name = "quickfixture"\ndefaultTargets = ["Demo"]\n'
+            'lintDriver = "batteries/runLinter"\n'
+            '[[lean_lib]]\nname = "Demo"\n[[lean_lib]]\nname = "DemoTests"\n',
+        )
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def test_lint_only_runs_scoped_linter_on_affected_library_modules(self):
+        self._enable_batteries_linter()
+        self.write("Demo/Middle.lean", "import Demo.Base\ndef middle : Nat := value + 2\n")
+        commands = []
+        with patch.object(quick, "run_check",
+                          side_effect=lambda _root, cmd, label, **_kw: (commands.append((label, cmd)), 0)[1]), \
+             patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = quick.run_lint_only(self.root, "origin/main", parser=self.simple_headers)
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0][0], "lint Demo.Middle")
+        self.assertIn("--no-build", commands[0][1])
+        self.assertIn("1 affected library module(s)", out.getvalue())
+
+    def test_lint_only_skips_prose_only_and_test_only_changes(self):
+        self._enable_batteries_linter()
+        real_run = subprocess.run
+        lake_calls = []
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd and cmd[0] == "lake":
+                lake_calls.append(cmd)
+                return subprocess.CompletedProcess(cmd, 0)
+            return real_run(cmd, *args, **kwargs)
+
+        self.write("ROADMAP.md", "updated docs\n")
+        with patch.object(quick, "run_lint") as lint_mock, \
+             patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main",
+                                     parser=lambda *_: self.fail("should skip QuickImports on prose"))
+        self.assertEqual(rc, 0)
+        lint_mock.assert_not_called()
+        self.assertEqual(lake_calls, [])
+
+        self.write("DemoTests/Client.lean", "import Demo.Middle\nexample : Nat := middle + 1\n")
+        with patch.object(quick, "run_lint") as lint_mock, \
+             patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main", parser=self.simple_headers)
+        self.assertEqual(rc, 0)
+        lint_mock.assert_not_called()
+        self.assertEqual(lake_calls, [])
+
+    def test_lint_only_falls_back_on_unsupported_changes_and_thresholds(self):
+        self._enable_batteries_linter()
+        real_run = subprocess.run
+        lake_calls = []
+        lake_rc = [0]
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd and cmd[0] == "lake":
+                lake_calls.append((list(cmd), kwargs.get("cwd")))
+                return subprocess.CompletedProcess(cmd, lake_rc[0])
+            return real_run(cmd, *args, **kwargs)
+
+        self.write("Demo/Base.lean", "def value : Nat := 99\n")
+        with patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO) as out:
+            # Two affected library modules (Demo.Base, Demo.Middle) exceed max_modules=1.
+            rc = quick.run_lint_only(self.root, "origin/main", max_modules=1,
+                                     parser=self.simple_headers)
+        self.assertEqual(rc, 0)
+        self.assertEqual(lake_calls, [(["lake", "lint"], self.root)])
+        self.assertIn("falls back to whole-library `lake lint`", out.getvalue())
+
+        # With --no-full-fallback, returns exit code 3 without running `lake lint`.
+        lake_calls.clear()
+        with patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main", max_modules=1,
+                                     no_full_fallback=True, parser=self.simple_headers)
+        self.assertEqual(rc, quick.NO_FALLBACK_STATUS)
+        self.assertEqual(lake_calls, [])
+
+        # Non-Lean script edit falls back to `lake lint` and propagates its exit code.
+        lake_rc[0] = 5
+        self.write("scripts/tool.py", "print(1)\n")
+        with patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main", parser=self.simple_headers)
+        self.assertEqual(rc, 5)
+        self.assertEqual(lake_calls, [(["lake", "lint"], self.root)])
+
+    def test_lint_only_flag_rejects_focused_and_negative_bounds(self):
+        with self.assertRaises(SystemExit) as err:
+            with patch("sys.stderr", new_callable=io.StringIO):
+                quick.main(["--lint-only", "--focused"], self.root)
+        self.assertEqual(err.exception.code, 2)
+        with self.assertRaises(SystemExit) as err:
+            with patch("sys.stderr", new_callable=io.StringIO):
+                quick.main(["--lint-only", "--lint-max-modules", "-1"], self.root)
+        self.assertEqual(err.exception.code, 2)
+
+    def test_shallow_merge_commit_resolves_direct_first_parent(self):
+        self._enable_batteries_linter()
+        base_sha = self.git("rev-parse", "origin/main").strip()
+        self.git("checkout", "-qb", "pr")
+        self.write("Demo/Middle.lean", "import Demo.Base\ndef middle : Nat := value + 7\n")
+        self.commit()
+        self.git("checkout", "-qb", "merged", base_sha)
+        self.git("merge", "--no-ff", "-qm", "merge pr", "pr")
+        with tempfile.TemporaryDirectory(prefix="quick-shallow-") as box:
+            bare = Path(box) / "bare.git"
+            bare.mkdir()
+            env = {**os.environ, "GIT_ALLOW_PROTOCOL": "file"}
+            subprocess.run(["git", "init", "--bare", "-q", str(bare)], env=env, check=True)
+            self.git("push", "-q", bare.as_uri(), "merged:refs/heads/merged")
+            self.git("push", "-q", bare.as_uri(), f"{base_sha}:refs/heads/base_tip")
+            shallow = Path(box) / "co"
+            shallow.mkdir()
+            for args in (
+                ["init", "-q"],
+                ["remote", "add", "origin", bare.as_uri()],
+                ["fetch", "-q", "--depth=1", "origin", "merged"],
+                ["checkout", "-q", "--detach", "FETCH_HEAD"],
+                ["fetch", "-q", "--no-tags", "--depth=1", "origin", base_sha],
+            ):
+                subprocess.run(["git", "-C", str(shallow), *args], env=env, check=True)
+            plan = quick.make_plan(shallow, base_sha, parser=self.simple_headers)
+            self.assertEqual(plan.base, base_sha)
+            self.assertEqual(plan.lint, {"Demo.Middle": ["Demo.Middle"]})
+
 
 class LocalManualGateTests(unittest.TestCase):
     """Exercise the shell entry point with a real checker and no Lean or publishing tools."""

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.BranchReplay
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.CallReplay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
@@ -25,10 +26,13 @@ rejects the source scan.
 
 ## Main results
 
+* `subsingleton_successful_firstHalting` composes callback occurrence uniqueness.
 * `firstHalting_iff_replayRounds` identifies successful selector streams with replay of the
   existing fuel-bounded loop.
+* `replayRounds_correct` gives the mathematical verdict of a successful full-fuel replay.
 * `haltsWithin` and `length_run_le` charge the retained registers and supplied callback bounds
   on every branch.
+* `verdictElimSnd_inSpace` dispatches an optional verdict while retaining encoded caller data.
 * `exists_routines` compiles the loop with supplied native callbacks and
   `native_firstHalting_accept_iff` preserves its accepting occurrence lists.
 -/
@@ -38,6 +42,8 @@ public section
 namespace Turing.DoubleCounting.SourceRoundLoop
 
 open Cslib.DoubleCounting MultiTapeTM ComputableInSpace
+open NondeterministicQueryMachine (encReadChoice exists_firstHalting_prefix_with_next readReply
+  successful_call_iff)
 variable {κ ρ μ : Type}
 
 /-- Scalar round registers and data needed to initialize either callback. -/
@@ -74,6 +80,28 @@ private def verdictView : ControllerVerdict ≃ (ℕ ⊕ Bool) where
 /-- One tag followed by the tied radius or the reachability bit. -/
 def encVerdict : ControllerVerdict ↪ List Bool :=
   verdictView.toEmbedding.trans (encSum encNat encBool)
+
+/-- Case analysis on an optional verdict retains the caller's first component.
+The missing, bad-radius, and decided branches supply their linear-space certificates. -/
+theorem verdictElimSnd_inSpace {π ε : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
+    {missing : π → ε} {bad : π × ℕ → ε} {decided : π × Bool → ε}
+    (hmissing : ComputableInSpace missing encP encE (fun p => (encP p).length))
+    (hbad : ComputableInSpace bad (encPair encP encNat) encE
+      (fun p => (encPair encP encNat p).length))
+    (hdecided : ComputableInSpace decided (encPair encP encBool) encE
+      (fun p => (encPair encP encBool p).length)) :
+    let E := encPair encP (encOption encVerdict)
+    ComputableInSpace (fun p : π × Option ControllerVerdict =>
+      match p.2 with
+      | none => missing p.1
+      | some (.bad radius) => bad (p.1, radius)
+      | some (.decided answer) => decided (p.1, answer))
+      E encE (fun p => (E p).length) := by
+  have hsome := (sumElimSnd hbad hdecided).of_encIn_eq
+    (encIn' := encPair encP encVerdict)
+    (fun p : π × ControllerVerdict => (p.1, verdictView p.2)) (fun _ => rfl)
+  exact (optionElimSnd hmissing hsome).of_enc_eq fun
+    | (_, none) | (_, some (.bad _)) | (_, some (.decided _)) => rfl
 
 /-- A pending round, a pending final membership query, or the terminal verdict. -/
 abbrev State (κ ρ μ : Type) :=
@@ -142,175 +170,6 @@ theorem machine_withInit {κ ρ μ : Type} (r r' : Registers κ)
   unfold machine NondeterministicQueryMachine.withInit
   rfl
 
-private theorem live_prefix {α : Type} (M : NondeterministicQueryMachine α)
-    (input bits : List Bool) (s : α) (hlive : M.halted (M.replay input bits s) = false)
-    (n : ℕ) : M.halted (M.replay input (bits.take n) s) = false := by
-  cases hp : M.halted (M.replay input (bits.take n) s)
-  · rfl
-  · have he := M.replay_append input (bits.take n) (bits.drop n) s
-    rw [List.take_append_drop, M.replay_of_halted input hp] at he
-    rw [he, hp] at hlive
-    cases hlive
-
-private theorem split_call {α β : Type} (outer : NondeterministicQueryMachine α)
-    (callee : NondeterministicQueryMachine β) (input : List Bool) (wrap : β → α)
-    (hwrap : ∀ s, outer.halted (wrap s) = false)
-    (hstep : ∀ s bit, callee.halted s = false →
-      outer.step input (wrap s) bit = wrap (callee.step input s bit))
-    (bits : List Bool) (s : β)
-    (hh : outer.halted (outer.replay input bits (wrap s)) = true) :
-    ∃ callBits selector rest, bits = callBits ++ selector :: rest ∧
-      callee.FirstHalting input callBits s ∧
-      outer.replay input callBits (wrap s) = wrap (callee.replay input callBits s) := by
-  have hc : callee.halted (callee.replay input bits s) = true := by
-    by_contra hn
-    have hlive := Bool.eq_false_iff.mpr hn
-    rw [outer.replay_map_of_live input callee wrap hstep bits s
-      (fun n _ => live_prefix callee input bits s hlive n), hwrap] at hh
-    cases hh
-  obtain ⟨callBits, ⟨hp, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hc
-  obtain ⟨rest, he⟩ := hp
-  have hr := outer.replay_map_of_live input callee wrap hstep callBits s hfirst.2
-  cases rest with
-  | nil =>
-    rw [List.append_nil] at he
-    rw [← he, hr, hwrap] at hh
-    cases hh
-  | cons selector rest =>
-    exact ⟨callBits, selector, rest, he.symm, hfirst, hr⟩
-
-private theorem firstHalting_append_live_iff {α : Type} (M : NondeterministicQueryMachine α)
-    (input before after : List Bool) (s : α)
-    (hlive : M.halted (M.replay input before s) = false) :
-    M.FirstHalting input (before ++ after) s ↔
-      M.FirstHalting input after (M.replay input before s) := by
-  constructor
-  · intro h
-    refine ⟨by simpa only [M.replay_append] using h.1, fun n hn => ?_⟩
-    have hh := h.2 (before.length + n) (by simp only [List.length_append]; omega)
-    rw [List.take_append, List.take_of_length_le (by omega : before.length ≤ before.length + n),
-      Nat.add_sub_cancel_left, M.replay_append] at hh
-    exact hh
-  · intro h
-    refine ⟨by simpa only [M.replay_append] using h.1, fun n hn => ?_⟩
-    by_cases hle : n ≤ before.length
-    · rw [List.take_append_of_le_length hle]
-      exact live_prefix M input before s hlive n
-    · rw [List.take_append, List.take_of_length_le (by omega : before.length ≤ n), M.replay_append]
-      exact h.2 (n - before.length) (by simp only [List.length_append] at hn; omega)
-
-private def readReply {β γ : Type} (callee : NondeterministicQueryMachine β)
-    (ret : β → Option γ) (input : List Bool) (s : β) : List Bool → Option (γ × List Bool)
-  | [] => none
-  | bit :: rest =>
-    if callee.halted s then
-      if bit then none else (ret s).map fun value => (value, rest)
-    else readReply callee ret input (callee.step input s bit) rest
-
-private theorem readReply_iff {β γ : Type} (callee : NondeterministicQueryMachine β)
-    (ret : β → Option γ) (input bits : List Bool) (s : β) (value : γ) (rest : List Bool) :
-    readReply callee ret input s bits = some (value, rest) ↔
-      ∃ callBits, bits = callBits ++ false :: rest ∧ callee.FirstHalting input callBits s ∧
-        ret (callee.replay input callBits s) = some value := by
-  induction bits generalizing s with
-  | nil => simp [readReply, List.append_eq_nil_iff]
-  | cons bit bits ih =>
-    cases hhalt : callee.halted s
-    · rw [readReply, ite_eq_right (by simp [hhalt]), ih]
-      constructor
-      · rintro ⟨callBits, rfl, hfirst, hret⟩
-        exact ⟨bit :: callBits, rfl,
-          (callee.firstHalting_cons_iff input _ _ _).mpr ⟨hhalt, hfirst⟩, hret⟩
-      · rintro ⟨(_ | hd) , he, hfirst, hret⟩
-        · have hh := hfirst.1
-          rw [callee.replay_nil, hhalt] at hh
-          cases hh
-        · rename_i tl
-          change bit :: bits = hd :: (tl ++ false :: rest) at he
-          obtain ⟨rfl, rfl⟩ := List.cons.inj he
-          exact ⟨tl, rfl, ((callee.firstHalting_cons_iff input _ _ _).mp hfirst).2, hret⟩
-    · rw [readReply, ite_eq_left hhalt]
-      suffices hh : (∃ callBits, bit :: bits = callBits ++ false :: rest ∧
-          callee.FirstHalting input callBits s ∧
-          ret (callee.replay input callBits s) = some value) ↔
-          bit = false ∧ bits = rest ∧ ret s = some value by
-        rw [hh]
-        cases bit <;> simp [eq_comm, and_comm]
-      constructor
-      · rintro ⟨(_ | hd), he, hfirst, hret⟩
-        · exact ⟨(List.cons.inj he).1, (List.cons.inj he).2, hret⟩
-        · have hl := ((callee.firstHalting_cons_iff input _ _ _).mp hfirst).1
-          rw [hhalt] at hl
-          cases hl
-      · rintro ⟨rfl, rfl, hret⟩
-        exact ⟨[], rfl, ⟨hhalt, by simp⟩, hret⟩
-
-private theorem successful_call_iff {α β γ : Type}
-    (outer : NondeterministicQueryMachine α) (callee : NondeterministicQueryMachine β)
-    (input : List Bool) (wrap : β → α) (ret : β → Option γ) (resume : γ → α)
-    (reject final : α) (hreject : outer.halted reject = true) (hne : reject ≠ final)
-    (hfinal : outer.halted final = true) (hwrap : ∀ s, outer.halted (wrap s) = false)
-    (hlive : ∀ s bit, callee.halted s = false →
-      outer.step input (wrap s) bit = wrap (callee.step input s bit))
-    (hreturn : ∀ s bit, callee.halted s = true →
-      outer.step input (wrap s) bit = if bit then reject else (ret s).elim reject resume)
-    (s : β) (bits : List Bool) :
-    outer.FirstHalting input bits (wrap s) ∧ outer.replay input bits (wrap s) = final ↔
-      ∃ value rest, readReply callee ret input s bits = some (value, rest) ∧
-        outer.FirstHalting input rest (resume value) ∧
-        outer.replay input rest (resume value) = final := by
-  have finish (callBits rest : List Bool) (bit : Bool) (h : callee.FirstHalting input callBits s) :
-      let t := outer.step input (wrap (callee.replay input callBits s)) bit
-      (outer.FirstHalting input (callBits ++ bit :: rest) (wrap s) ∧
-        outer.replay input (callBits ++ bit :: rest) (wrap s) = final) ↔
-      (outer.FirstHalting input rest t ∧ outer.replay input rest t = final) := by
-    have hr := outer.replay_map_of_live input callee wrap hlive callBits s h.2
-    have hp := firstHalting_append_live_iff outer input callBits (bit :: rest) (wrap s)
-      (by rw [hr, hwrap])
-    simp only [hp, outer.replay_append, hr, outer.firstHalting_cons_iff, hwrap, true_and,
-      outer.replay_cons]
-  constructor
-  · rintro ⟨hfirst, hend⟩
-    have hh : outer.halted (outer.replay input bits (wrap s)) = true := hend ▸ hfinal
-    obtain ⟨callBits, bit, rest, rfl, hc, _⟩ :=
-      split_call outer callee input wrap hwrap hlive bits s hh
-    have hs := (finish callBits rest bit hc).mp ⟨hfirst, hend⟩
-    rw [hreturn _ _ hc.1] at hs
-    cases bit
-    · simp only [Bool.false_eq_true, ite_false] at hs
-      cases he : ret (callee.replay input callBits s) with
-      | none =>
-        rw [he, Option.elim_none, outer.replay_of_halted input hreject] at hs
-        exact (hne hs.2).elim
-      | some value =>
-        rw [he, Option.elim_some] at hs
-        exact ⟨value, rest, (readReply_iff _ _ _ _ _ _ _).mpr ⟨_, rfl, hc, he⟩, hs⟩
-    · simp only [ite_true, outer.replay_of_halted input hreject] at hs
-      exact (hne hs.2).elim
-  · rintro ⟨value, rest, hread, hs⟩
-    obtain ⟨callBits, rfl, hc, hret⟩ := (readReply_iff _ _ _ _ _ _ _).mp hread
-    apply (finish callBits rest false hc).mpr
-    simpa only [hreturn _ _ hc.1, Bool.false_eq_true, ite_false, hret, Option.elim_some] using hs
-
-private theorem call_returns_by {β : Type} (callee : NondeterministicQueryMachine β)
-    (input bits : List Bool) (s : β) (clock : ℕ)
-    (hclock : (callee.withInit s).HaltsWithin input clock)
-    (hlen : clock < bits.length) :
-    ∃ callBits selector rest, bits = callBits ++ selector :: rest ∧ callBits.length ≤ clock ∧
-      callee.FirstHalting input callBits s := by
-  have htake : (bits.take clock).length = clock := List.length_take_of_le hlen.le
-  have hhalt := hclock (bits.take clock) htake
-  have hh : callee.halted (callee.replay input (bits.take clock) s) = true := hhalt
-  obtain ⟨callBits, ⟨hpre, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hh
-  have hcl : callBits.length ≤ clock := htake ▸ hpre.length_le
-  obtain ⟨suffix, hsuffix⟩ := hpre.trans (List.take_prefix clock bits)
-  cases suffix with
-  | nil =>
-    rw [List.append_nil] at hsuffix
-    rw [hsuffix] at hcl
-    omega
-  | cons selector rest => exact ⟨callBits, selector, rest, hsuffix.symm, hcl, hfirst⟩
-
 section Replay
 
 variable (initial : Registers κ)
@@ -351,7 +210,7 @@ private theorem member_return (r : Registers κ) (s : μ) (bit : Bool)
 
 /-- Replay the existing round loop using the supplied callbacks and a stream of selectors.
 On success the result records the verdict and the selector suffix still unused. -/
-def replayRounds (r : Registers κ) (bits : List Bool) :
+@[expose] def replayRounds (r : Registers κ) (bits : List Bool) :
     Option (Option ControllerVerdict × List Bool) :=
   (runRoundsWith (m := StateT (List Bool) Option)
     (fun fuel radius tally => readReply round roundReply input
@@ -396,11 +255,9 @@ private theorem finish_iff (terminal : Option ControllerVerdict) (verdict : Cont
     (M).FirstHalting input bits (.inr terminal) ∧
         (M).replay input bits (.inr terminal) = .inr (some verdict) ↔
       bits = [] ∧ terminal = some verdict := by
-  cases bits with
-  | nil => simp [NondeterministicQueryMachine.FirstHalting, machine]
-  | cons bit bits =>
-    rw [(M).firstHalting_cons_iff]
-    simp [machine]
+  have hh : (M).halted (.inr terminal) = true := rfl
+  rw [(M).firstHalting_iff_nil_of_halted input bits _ hh, (M).replay_of_halted input hh]
+  simp only [Sum.inr.injEq]
 
 private theorem member_success_iff (r : Registers κ) (bits : List Bool)
     (verdict : ControllerVerdict) :
@@ -483,11 +340,248 @@ theorem firstHalting_iff_replayRounds (bits : List Bool) (verdict : ControllerVe
           cases bit <;> cases roundReply t <;> rfl
   exact aux initial bits
 
-/-- A register invariant preserved when a round grows without tying. -/
+/-- A register invariant preserved when a completed round with fuel grows without tying. -/
 @[expose] def Closed (P : Registers κ → Prop) : Prop :=
-  ∀ r, P r → ∀ bits a,
+  ∀ r, P r → 0 < r.fuel → ∀ bits a,
+    round.FirstHalting input bits (roundStart r) →
     roundReply (round.replay input bits (roundStart r)) = some a →
     a.bad = false → a.tally.count ≠ r.tally.count → P (r.advance a.tally)
+
+/-- Successful round and final membership traces give a successful first halt of the loop.
+The invariant must give positive fuel and be preserved by completed rounds that continue. -/
+theorem exists_successful_firstHalting (P : Registers κ → Prop) (hp : P initial)
+    (hpositive : ∀ r, P r → 0 < r.fuel)
+    (hclosed : Closed round roundStart roundReply input P)
+    (hround : ∀ r, P r → ∃ bits a, round.FirstHalting input bits (roundStart r) ∧
+      roundReply (round.replay input bits (roundStart r)) = some a)
+    (hmember : ∀ r, P r → ∃ bits hit, member.FirstHalting input bits (memberStart r) ∧
+      memberReply (member.replay input bits (memberStart r)) = some hit) :
+    ∃ bits verdict, (M).FirstHalting input bits (M).init ∧
+      (M).run input bits = .inr (some verdict) := by
+  have aux (r : Registers κ) (hr : P r) :
+      ∃ bits verdict,
+        replayRounds round roundStart roundReply member memberStart memberReply input r bits =
+          some (some verdict, []) := by
+    induction r using (measure (fun r : Registers κ => r.fuel)).wf.induction with
+    | h r ih =>
+      have hfuel := hpositive r hr
+      have hne := Nat.ne_of_gt hfuel
+      obtain ⟨roundBits, a, hfirst, hreply⟩ := hround r hr
+      have hread (rest : List Bool) :
+          readReply round roundReply input (roundStart r) (roundBits ++ false :: rest) =
+            some (a, rest) :=
+        (round.readReply_iff roundReply input _ _ a rest).mpr ⟨roundBits, rfl, hfirst, hreply⟩
+      by_cases hbad : a.bad = true
+      · refine ⟨roundBits ++ [false], .bad (r.radius + 1), ?_⟩
+        rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread []]
+        simp only [hbad, ite_true]
+      · by_cases hcount : a.tally.count = r.tally.count
+        · obtain ⟨memberBits, hit, hmfirst, hmreply⟩ := hmember r hr
+          have hmread :
+              readReply member memberReply input (memberStart r) (memberBits ++ [false]) =
+                some (hit, []) :=
+            (member.readReply_iff memberReply input _ _ hit []).mpr
+              ⟨memberBits, rfl, hmfirst, hmreply⟩
+          refine ⟨roundBits ++ false :: (memberBits ++ [false]), .decided hit, ?_⟩
+          rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread]
+          simp [hbad, hcount, hmread]
+        · have hlt : (r.advance a.tally).fuel < r.fuel := by
+            simp only [Registers.advance]
+            omega
+          obtain ⟨rest, verdict, hrest⟩ := ih _ hlt (hclosed r hr hfuel roundBits a hfirst hreply
+            (Bool.eq_false_iff.mpr hbad) hcount)
+          refine ⟨roundBits ++ false :: rest, verdict, ?_⟩
+          rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread]
+          simpa [hbad, hcount] using hrest
+  obtain ⟨bits, verdict, h⟩ := aux initial hp
+  exact ⟨bits, verdict,
+    (firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
+      memberReply input bits verdict).mpr h⟩
+
+/-- The source loop has at most one successful first-halting selector list if each round and
+final membership invocation at an admissible register state has at most one successful list.
+The invariant is needed only at the initial state and after a round that continues the loop. -/
+theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P initial)
+    (hclosed : Closed round roundStart roundReply input P)
+    (hround : ∀ r, P r → 0 < r.fuel →
+      {bits : List Bool | round.FirstHalting input bits (roundStart r) ∧
+        (roundReply (round.replay input bits (roundStart r))).isSome}.Subsingleton)
+    (hmember : ∀ r, P r → 0 < r.fuel →
+      {bits : List Bool | member.FirstHalting input bits (memberStart r) ∧
+        (memberReply (member.replay input bits (memberStart r))).isSome}.Subsingleton) :
+    {bits : List Bool | (M).FirstHalting input bits (M).init ∧
+      (M).accept ((M).run input bits) = true}.Subsingleton := by
+  have aux (r : Registers κ) (hr : P r) (left right : List Bool)
+      (v v' : ControllerVerdict) :
+      replayRounds round roundStart roundReply member memberStart memberReply input r left =
+        some (some v, []) →
+      replayRounds round roundStart roundReply member memberStart memberReply input r right =
+        some (some v', []) → left = right := by
+    induction hf : r.fuel using Nat.strongRecOn generalizing r left right v v' with
+    | ind fuel ih =>
+      intro hleft hright
+      by_cases hz : r.fuel = 0
+      · rw [replayRounds, hz, runRoundsWith] at hleft
+        cases hleft
+      · have hpos : 0 < r.fuel := Nat.pos_of_ne_zero hz
+        rw [replayRounds_step _ _ _ _ _ _ _ _ _ hz] at hleft hright
+        cases hl : readReply round roundReply input (roundStart r) left with
+        | none => simp [hl] at hleft
+        | some l =>
+          cases hr' : readReply round roundReply input (roundStart r) right with
+          | none => simp [hr'] at hright
+          | some r' =>
+            obtain ⟨a, suffix⟩ := l
+            obtain ⟨a', suffix'⟩ := r'
+            obtain ⟨callBits, hlBits, hrBits, hfirst, hret, rfl⟩ :=
+              round.readReply_commonPrefix roundReply input (roundStart r) (hround r hr hpos) hl hr'
+            simp only [hl] at hleft
+            simp only [hr'] at hright
+            rw [hlBits, hrBits]
+            suffices he : suffix = suffix' by rw [he]
+            by_cases hb : a.bad = true
+            · rw [ite_eq_left hb] at hleft hright
+              exact (congrArg Prod.snd (Option.some.inj hleft)).trans
+                (congrArg Prod.snd (Option.some.inj hright)).symm
+            · rw [ite_eq_right hb] at hleft hright
+              by_cases hc : (a.tally.count == r.tally.count) = true
+              · rw [ite_eq_left hc] at hleft hright
+                obtain ⟨⟨hit, tail⟩, hread, hout⟩ := Option.map_eq_some_iff.mp hleft
+                obtain ⟨⟨hit', tail'⟩, hread', hout'⟩ := Option.map_eq_some_iff.mp hright
+                have htail : tail = [] := congrArg Prod.snd hout
+                have htail' : tail' = [] := congrArg Prod.snd hout'
+                obtain ⟨memberBits, hl', hr', _, _, _⟩ :=
+                  member.readReply_commonPrefix memberReply input (memberStart r)
+                    (hmember r hr hpos) hread hread'
+                rw [hl', hr', htail, htail']
+              · rw [ite_eq_right hc] at hleft hright
+                have hc' : a.tally.count ≠ r.tally.count := fun he => hc (beq_iff_eq.mpr he)
+                have hnext := hclosed r hr hpos callBits a hfirst hret
+                  (Bool.eq_false_iff.mpr hb) hc'
+                have hlt : (r.advance a.tally).fuel < fuel := by
+                  simp only [Registers.advance]
+                  omega
+                exact ih _ hlt (r.advance a.tally) hnext suffix suffix' v v' rfl hleft hright
+  intro left hl right hr
+  have accepted (bits : List Bool)
+      (h : (M).accept ((M).run input bits) = true) :
+      ∃ v, (M).run input bits = .inr (some v) := by
+    change (reply ((M).run input bits)).isSome = true at h
+    cases he : (M).run input bits with
+    | inl => rw [he] at h; cases h
+    | inr verdict =>
+      cases verdict with
+      | none => rw [he] at h; cases h
+      | some v => exact ⟨v, rfl⟩
+  obtain ⟨v, hv⟩ := accepted left hl.2
+  obtain ⟨v', hv'⟩ := accepted right hr.2
+  exact aux initial hp left right v v'
+    ((firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
+      memberReply input left v).mp ⟨hl.1, hv⟩)
+    ((firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
+      memberReply input right v').mp ⟨hr.1, hv'⟩)
+
+section Verdict
+
+open Relation
+
+variable {n : ℕ} {r : Fin n → Fin n → Prop} {source target : Fin n} (context : κ)
+  (hround : ∀ fuel k, (∃! w, Passes r source k w) → ∀ bits a rest,
+    readReply round roundReply input (roundStart ⟨context, fuel, k, expected r source k⟩) bits =
+      some (a, rest) →
+    a.tally = expected r source (k + 1) ∧
+      (a.bad = false ↔ ∃! w, Passes r source (k + 1) w))
+  (hmember : ∀ fuel k, (∃! w, Passes r source k w) → ∀ bits hit rest,
+    readReply member memberReply input (memberStart ⟨context, fuel, k, expected r source k⟩)
+      bits = some (hit, rest) → (hit = true ↔ target ∈ Cslib.DoubleCounting.round r source k))
+
+include hround hmember in
+private theorem replayRounds_eq_runRounds {edge : Fin n → Fin n → Id Bool}
+    {membership : MembershipScan Id n}
+    (he : ∀ u v, edge u v = pure (by classical exact decide (r u v)))
+    (hm : ∀ k, (∃! w, Passes r source k w) → ∀ v,
+      membership k (expected r source k) v =
+        pure (by classical exact decide (v ∈ Cslib.DoubleCounting.round r source k)))
+    (fuel k : ℕ) (hpass : ∃! w, Passes r source k w)
+    (bits rest : List Bool) (out : Option ControllerVerdict)
+    (h : replayRounds round roundStart roundReply member memberStart memberReply input
+      ⟨context, fuel, k, expected r source k⟩ bits = some (out, rest)) :
+    runRounds edge membership target fuel k (expected r source k) = out := by
+  classical
+  induction fuel generalizing k bits with
+  | zero =>
+    change some (none, bits) = some (out, rest) at h
+    exact congrArg Prod.fst (Option.some.inj h)
+  | succ fuel ih =>
+    rw [replayRounds_step round roundStart roundReply member memberStart memberReply
+      input _ bits (Nat.succ_ne_zero fuel)] at h
+    cases hread : readReply round roundReply input
+        (roundStart ⟨context, fuel + 1, k, expected r source k⟩) bits with
+    | none => simp [hread] at h
+    | some result =>
+      obtain ⟨a, suffix⟩ := result
+      have ⟨ha, hab⟩ := hround (fuel + 1) k hpass bits a suffix hread
+      obtain ⟨reference, href, ht, hb⟩ := scanNextRound_correct he (hm k hpass) hpass
+      have hflag : reference.bad = a.bad := by
+        apply Bool.not_inj
+        apply Bool.eq_iff_iff.mpr
+        simpa only [Bool.not_eq_true_eq_eq_false] using hb.trans hab.symm
+      have heq : reference = a := by
+        cases reference
+        cases a
+        exact congrArg₂ RoundUpdate.mk (ht.trans ha.symm) hflag
+      simp only [hread] at h
+      simp only [runRounds, runRoundsWith, href, heq, pure_bind]
+      by_cases hbad : a.bad = true
+      · rw [ite_eq_left hbad] at h ⊢
+        exact congrArg Prod.fst (Option.some.inj h)
+      · rw [ite_eq_right hbad] at h ⊢
+        by_cases hstable : (a.tally.count == (expected r source k).count) = true
+        · rw [ite_eq_left hstable] at h ⊢
+          obtain ⟨⟨hit, tail⟩, hhit, hout⟩ := Option.map_eq_some_iff.mp h
+          have hbit := hmember (fuel + 1) k hpass suffix hit tail hhit
+          have hm' : membership k (expected r source k) target = hit := by
+            rw [hm k hpass]
+            change decide (target ∈ Cslib.DoubleCounting.round r source k) = hit
+            apply Bool.eq_iff_iff.mpr
+            simpa only [decide_eq_true_eq] using hbit.symm
+          rw [hm']
+          exact congrArg Prod.fst hout
+        · rw [ite_eq_right hstable] at h ⊢
+          rw [ha] at h ⊢
+          have hnext := hab.mp (Bool.eq_false_iff.mpr hbad)
+          exact ih (k + 1) hnext suffix h
+
+include hround hmember in
+/-- With full vertex-count fuel, a successful replay reports the first tied round, or
+correctly decides reachability when every round is unique. The callback contracts only
+concern successful replies at exact totals and a unique current round. -/
+theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdict}
+    (h : replayRounds round roundStart roundReply member memberStart memberReply input
+      (start context n) bits = some (some verdict, rest)) :
+    match verdict with
+    | .bad k => (∀ j < k, ∃! w, Passes r source j w) ∧ ¬ (∃! w, Passes r source k w)
+    | .decided hit =>
+      (∀ k, ∃! w, Passes r source k w) ∧ (hit = true ↔ ReflTransGen r source target) := by
+  classical
+  let edge (u v : Fin n) : Id Bool := decide (r u v)
+  let membership : MembershipScan Id n :=
+    fun k _ v => decide (v ∈ Cslib.DoubleCounting.round r source k)
+  have he (u v : Fin n) : edge u v = pure (decide (r u v)) := rfl
+  have hm k (_ : ∃! w, Passes r source k w) (v : Fin n) :
+      membership k (expected r source k) v =
+        pure (decide (v ∈ Cslib.DoubleCounting.round r source k)) := rfl
+  obtain ⟨reference, href, hspec⟩ := runController_correct (target := target) he hm
+  have hzero := expected_zero r source
+  have hrun := replayRounds_eq_runRounds round roundStart roundReply member memberStart
+    memberReply input context hround hmember he hm n 0 (existsUnique_passes_zero r source)
+    bits rest (some verdict) (by simpa only [hzero, start] using h)
+  rw [hzero, ← runController, href] at hrun
+  have heq := Option.some.inj hrun
+  subst reference
+  cases verdict <;> exact hspec
+
+end Verdict
 
 /-- A round fuel bound, the common round clock and the final membership clock bound every
 source branch. Both return selectors and all rejections are charged to the same clock. -/
@@ -500,7 +594,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
       (hlen : memberClock < bits.length) :
       (M).halted ((M).replay input bits (memberState r (memberStart r))) = true := by
     obtain ⟨callBits, selector, rest, rfl, _, hfirst⟩ :=
-      call_returns_by member input bits (memberStart r) memberClock (hmember r hr) hlen
+      exists_firstHalting_prefix_with_next member input bits (memberStart r) memberClock
+        (hmember r hr) hlen
     rw [(M).replay_append,
       (M).replay_map_of_live input member (memberState r)
         (member_step initial round roundStart roundReply member memberStart memberReply input r)
@@ -521,7 +616,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
           rw [Nat.one_mul] at hle
           omega
         obtain ⟨callBits, selector, rest, rfl, hcl, hfirst⟩ :=
-          call_returns_by round input bits (roundStart r) roundClock (hround r hr) hlen'
+          exists_firstHalting_prefix_with_next round input bits (roundStart r) roundClock
+            (hround r hr) hlen'
         let t := round.replay input callBits (roundStart r)
         have hentry : enterRound (μ := μ) roundStart r = roundState r (roundStart r) := by
           simp only [enterRound, ite_eq_right hzero, roundState]
@@ -557,7 +653,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
                     (r.advance a.tally).fuel * (roundClock + 1) + (roundClock + 1) := by
                   rw [← hnext, Nat.add_mul, Nat.one_mul]
                 have hp' : P (r.advance a.tally) :=
-                  hclosed r hr callBits a hret (Bool.eq_false_iff.mpr hbad)
+                  hclosed r hr (Nat.pos_of_ne_zero hzero) callBits a hfirst hret
+                    (Bool.eq_false_iff.mpr hbad)
                     (by simpa only [beq_iff_eq] using hstable)
                 exact ih _ hlt (r.advance a.tally) hp' rest (by omega) rfl
         · exact hreject
@@ -611,7 +708,9 @@ private theorem invariant_step {P : Registers κ → Prop}
               exact ⟨hp, [], rfl⟩
             · rw [returnRound, ite_eq_right hbad, ite_eq_right heq]
               apply invariant_enter
-              · exact hclosed r hp bits a (ht.symm ▸ ha)
+              · obtain ⟨first, ⟨_, hfirst, hstate⟩, _⟩ :=
+                  round.existsUnique_firstHalting_prefix input (ht.symm ▸ hhalt)
+                exact hclosed r hp hfuel first a hfirst ((hstate.trans ht).symm ▸ ha)
                   (Bool.eq_false_iff.mpr hbad) (by simpa only [beq_iff_eq] using heq)
               · simp only [Registers.advance]
                 omega
@@ -688,8 +787,6 @@ local notation "P" => encPair R encRound
 local notation "Q" => encPair R encMember
 local notation "F" => encOption encVerdict
 local notation "E" => encState encContext encRound encMember
-/-- A query answer paired with the selected branch bit. -/
-abbrev encChoice := encPair (encOption encBool) encBool
 
 private theorem round_budget {α : Type} {enc : α ↪ List Bool} {budget : α → ℕ}
     {r : α → Registers κ} {s : α → ρ}
@@ -797,28 +894,28 @@ theorem next_inSpace
     (hroundHalt : ComputableInSpace round.halted encRound encBool (fun s => (encRound s).length))
     (hmemberHalt : ComputableInSpace member.halted encMember encBool
       (fun s => (encMember s).length))
-    (hroundNext : ComputableInSpace round.next (encPair encRound encChoice) encRound
-      (fun p => (encPair encRound encChoice p).length))
-    (hmemberNext : ComputableInSpace member.next (encPair encMember encChoice) encMember
-      (fun p => (encPair encMember encChoice p).length)) :
-    ComputableInSpace (M).next (encPair E encChoice) E
-      (fun p => (encPair E encChoice p).length) := by
-  have hroundFrame := fst P encChoice
-  have hroundRead := snd P encChoice
+    (hroundNext : ComputableInSpace round.next (encPair encRound encReadChoice) encRound
+      (fun p => (encPair encRound encReadChoice p).length))
+    (hmemberNext : ComputableInSpace member.next (encPair encMember encReadChoice) encMember
+      (fun p => (encPair encMember encReadChoice p).length)) :
+    ComputableInSpace (M).next (encPair E encReadChoice) E
+      (fun p => (encPair E encReadChoice p).length) := by
+  have hroundFrame := fst P encReadChoice
+  have hroundRead := snd P encReadChoice
   have hroundRegs := fst' hroundFrame
   have hroundState := snd' hroundFrame
   have hroundBit := snd' hroundRead
   have hreturned := budget_comp_linear
     (returnRound_inSpace encContext encRound encMember _ _ hroundStart hmemberStart)
     (budget_prod hroundRegs (budget_comp_linear hroundReply hroundState))
-  have hroundReject := budget_const (encIn := encPair P encChoice) (encB := E)
+  have hroundReject := budget_const (encIn := encPair P encReadChoice) (encB := E)
     (.inr none) (.refl _)
   have hroundContinue := round_budget encContext encRound encMember hroundRegs
     (budget_comp_linear hroundNext (budget_prod hroundState hroundRead))
   have hround := budget_ite (budget_comp_linear hroundHalt hroundState)
     (budget_ite hroundBit hroundReject hreturned) hroundContinue
-  have hmFrame := fst Q encChoice
-  have hmRead := snd Q encChoice
+  have hmFrame := fst Q encReadChoice
+  have hmRead := snd Q encReadChoice
   have hmRegs := fst' hmFrame
   have hmState := snd' hmFrame
   have hmBit := snd' hmRead
@@ -827,16 +924,16 @@ theorem next_inSpace
     (of_inO (ComputableInO.inr encNat encBool)).of_enc_eq fun _ => rfl
   have hmReply := budget_comp_linear hmemberReply hmState
   have hmHit := budget_comp_linear hdecide (budget_optionGetD false hmReply)
-  have hmNone := budget_const (encIn := encPair Q encChoice) (encB := F) none (.refl _)
+  have hmNone := budget_const (encIn := encPair Q encReadChoice) (encB := F) none (.refl _)
   have hmResult := budget_ite (budget_optionIsSome hmReply) (budget_optionSome hmHit) hmNone
-  have hmReject := budget_const (encIn := encPair Q encChoice) (encB := E)
+  have hmReject := budget_const (encIn := encPair Q encReadChoice) (encB := E)
     (.inr none) (.refl _)
   have hmDone := finish_budget encContext encRound encMember hmResult
   have hmContinue := member_budget encContext encRound encMember hmRegs
     (budget_comp_linear hmemberNext (budget_prod hmState hmRead))
   have hmember := budget_ite (budget_comp_linear hmemberHalt hmState)
     (budget_ite hmBit hmReject hmDone) hmContinue
-  have hfinished := finish_budget encContext encRound encMember (fst F encChoice)
+  have hfinished := finish_budget encContext encRound encMember (fst F encReadChoice)
   refine (sumElimFst (sumElimFst hround hmember) hfinished).of_enc_eq ?_
   rintro ⟨(⟨r, s⟩ | ⟨r, s⟩) | verdict, read, bit⟩
   · cases bit <;> cases round.halted s <;> rfl
@@ -862,10 +959,10 @@ theorem exists_routines {α : Type} (enc : α ↪ List Bool) (S : α → ℕ)
     (hroundHalt : ComputableInSpace round.halted encRound encBool (fun s => (encRound s).length))
     (hmemberHalt : ComputableInSpace member.halted encMember encBool
       (fun s => (encMember s).length))
-    (hroundNext : ComputableInSpace round.next (encPair encRound encChoice) encRound
-      (fun p => (encPair encRound encChoice p).length))
-    (hmemberNext : ComputableInSpace member.next (encPair encMember encChoice) encMember
-      (fun p => (encPair encMember encChoice p).length))
+    (hroundNext : ComputableInSpace round.next (encPair encRound encReadChoice) encRound
+      (fun p => (encPair encRound encReadChoice p).length))
+    (hmemberNext : ComputableInSpace member.next (encPair encMember encReadChoice) encMember
+      (fun p => (encPair encMember encReadChoice p).length))
     (hstates : ∃ c, ∀ a bits, (E ((machine (registers a) round roundStart roundReply
       member memberStart memberReply).run (enc a) bits)).length ≤ c * S a) :
     Nonempty (Routines (M) (fun a => enterRound roundStart (registers a)) enc S) := by
@@ -915,19 +1012,14 @@ theorem native_firstHalting_accept_iff {α : Type} {enc : α ↪ List Bool} {S :
   have haccept (s : State κ ρ μ) :
       (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
     rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+  rw [routines.existsUnique_accepting_replay_iff]
   constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := routines.replay_correct a hreplay hhalt
-    obtain ⟨verdict, hresult⟩ := (haccept _).mp (List.cons.inj (houtput.symm.trans hout)).1
+  · rintro ⟨hfirst, htrue⟩
+    obtain ⟨verdict, hresult⟩ := (haccept _).mp htrue
     exact ⟨verdict, (hspec verdict).mp ⟨hfirst, hresult⟩⟩
   · rintro ⟨verdict, hrun⟩
     obtain ⟨hfirst, hresult⟩ := (hspec verdict).mpr hrun
-    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
-      (routines.existsUnique_replay_iff a bits).mpr hfirst
-    have hout := (routines.replay_correct a hreplay hhalt).2
-    have ha := (haccept _).mpr ⟨verdict, hresult⟩
-    exact ⟨indices, ⟨final, hreplay, hhalt, by rwa [ha] at hout⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+    exact ⟨hfirst, (haccept _).mpr ⟨verdict, hresult⟩⟩
 
 end Native
 
