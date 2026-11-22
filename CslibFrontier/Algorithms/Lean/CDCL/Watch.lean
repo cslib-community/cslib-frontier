@@ -779,10 +779,10 @@ theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
 /-- A clause with its literals that are not false under the assignment `A` first, so that they are
 the ones watched. -/
 @[expose] def watchOrder (A : Assign) (c : Clause ℕ) : Clause ℕ :=
-  c.filter (fun l => !A.holds l.negate) ++ c.filter (fun l => A.holds l.negate)
+  c.filter (fun l => !A.isFalse l) ++ c.filter (fun l => A.isFalse l)
 
 theorem watchOrder_perm (A : Assign) (c : Clause ℕ) : (watchOrder A c).Perm c := by
-  have := List.filter_append_perm (fun l => !A.holds l.negate) c
+  have := List.filter_append_perm (fun l => !A.isFalse l) c
   simpa [watchOrder] using this
 
 /-- If the first literal of `watchOrder A c` is false, every literal of `c` is. -/
@@ -791,24 +791,15 @@ theorem falsifies_of_watchOrder {A : Assign} {M : Trail} (hA : A.Agrees M) {c re
     Trail.Falsifies M c := by
   intro l hl
   by_contra hne
-  have hmem : l ∈ c.filter (fun l => !A.holds l.negate) :=
+  have hmem : l ∈ c.filter (fun l => !A.isFalse l) :=
     List.mem_filter.2 ⟨hl, by
-      rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.holds_iff]; exact hne⟩
+      rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.isFalse_iff]; exact hne⟩
   obtain ⟨x, xs, hx⟩ := List.exists_cons_of_ne_nil (List.ne_nil_of_mem hmem)
   rw [watchOrder, hx, List.cons_append, List.cons.injEq] at h
   obtain ⟨rfl, -⟩ := h
   have := (List.mem_filter.1 (hx ▸ List.mem_cons_self : x ∈ _)).2
-  rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.holds_iff] at this
+  rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.isFalse_iff] at this
   exact this hw
-
-/-- **The watch store** of the numbered clauses `F` under the assignment `A`: every clause with at
-least two different literals, without repetitions, watching its first two literals once those that
-are not false under `A` are put first. It adds the clauses with
-`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
-unchanged for fewer than two literals. -/
-@[expose] def WatchStore.build (A : Assign) : List (ℕ × Clause ℕ) → WatchStore
-  | [] => ⟨#[], #[]⟩
-  | e :: F => (build A F).addClause e.1 (watchOrder A (dedupLits e.2))
 
 /-- The literals of a clause without repetitions, removed in linear time (`dedupLits`), are those
 of `List.dedup`, up to order. -/
@@ -816,32 +807,175 @@ theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
   (List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
     fun l => by rw [mem_dedupKey litKey_injective, List.mem_dedup]
 
-/-- The watch store built from `F` under an assignment agreeing with the trail `M`, none of whose
-clauses `M` falsifies, satisfies the invariant with every literal of `M` processed: a clause whose
-**first** watched literal is false has every literal false. (Its second watched literal may be
-false while the clause is still open, as in a binary clause with one false and one unassigned
-literal.) -/
-theorem WatchStore.build_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
-    ∀ F : List (ℕ × Clause ℕ),
-    (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) → (WatchStore.build A F).Inv F M []
-  | [], _ => WatchStore.inv_empty M []
-  | e :: F, hF => by
-    have ih := build_inv hA F fun e' he' => hF e' (List.mem_cons_of_mem _ he')
-    have hperm := (watchOrder_perm A (dedupLits e.2)).trans (dedupLits_perm e.2)
-    simp only [build]
-    match hc : watchOrder A (dedupLits e.2) with
+/-! #### Removing repetitions with a shared array -/
+
+/-- **Removing repetitions with marks kept between clauses**: `dedupKeyGo litKey`
+(`dedupLitsGo_fst`), also returning the array with the literals kept marked. -/
+def dedupLitsGo : Clause ℕ → Array Bool → Clause ℕ → Clause ℕ × Array Bool
+  | [], m, acc => (acc.reverse, m)
+  | x :: xs, m, acc =>
+    if m.getD (litKey x) false then dedupLitsGo xs m acc
+    else dedupLitsGo xs (m.setIfInBounds (litKey x) true) (x :: acc)
+
+theorem dedupLitsGo_fst : ∀ (xs : Clause ℕ) (m : Array Bool) (acc : Clause ℕ),
+    (dedupLitsGo xs m acc).1 = dedupKeyGo litKey xs m acc
+  | [], _, _ => rfl
+  | x :: xs, m, acc => by
+    rw [dedupLitsGo, dedupKeyGo]
+    split
+    · exact dedupLitsGo_fst xs m acc
+    · exact dedupLitsGo_fst xs _ (x :: acc)
+
+/-- The array returned marks the literals seen, those of `acc` and of `xs`. -/
+theorem dedupLitsGo_snd : ∀ (xs : Clause ℕ) (m : Array Bool) (acc : Clause ℕ),
+    (∀ x ∈ xs, litKey x < m.size) → (∀ y, m.getD (litKey y) false = true ↔ y ∈ acc) →
+    ∀ y, (dedupLitsGo xs m acc).2.getD (litKey y) false = true ↔ y ∈ acc ∨ y ∈ xs
+  | [], m, acc, _, hm => fun y => by simpa [dedupLitsGo] using hm y
+  | x :: xs, m, acc, hsize, hm => by
+    have hx : litKey x < m.size := hsize x List.mem_cons_self
+    have hsize' : ∀ y ∈ xs, litKey y < m.size := fun y hy => hsize y (List.mem_cons_of_mem _ hy)
+    rw [dedupLitsGo]
+    by_cases hmark : m.getD (litKey x) false = true
+    · rw [ite_eq_left hmark]
+      have h₁ := dedupLitsGo_snd xs m acc hsize' hm
+      have hxa : x ∈ acc := (hm x).1 hmark
+      intro y
+      rw [h₁, List.mem_cons]
+      constructor
+      · rintro (h | h)
+        · exact .inl h
+        · exact .inr (.inr h)
+      · rintro (h | rfl | h)
+        · exact .inl h
+        · exact .inl hxa
+        · exact .inr h
+    · rw [ite_eq_right hmark]
+      have hm' : ∀ y, (m.setIfInBounds (litKey x) true).getD (litKey y) false = true ↔
+          y ∈ x :: acc := fun y => by
+        simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds, List.mem_cons]
+        by_cases hyx : litKey x = litKey y
+        · have := litKey_injective hyx
+          subst this
+          simp [hx]
+        · rw [ite_eq_right hyx]
+          have := hm y
+          simp only [Array.getD_eq_getD_getElem?] at this
+          rw [this]
+          exact ⟨.inr, fun h => h.resolve_left fun h' => hyx (h' ▸ rfl)⟩
+      have h₁ := dedupLitsGo_snd xs _ (x :: acc) (fun y hy => by simpa using hsize' y hy) hm'
+      intro y
+      rw [h₁]
+      simp only [List.mem_cons]
+      tauto
+
+/-- Clearing the marks of the literals `L`. -/
+def clearKeys (L : Clause ℕ) (m : Array Bool) : Array Bool :=
+  L.foldl (fun m x => m.setIfInBounds (litKey x) false) m
+
+/-- Clearing the marks of `L`, which include every literal marked, leaves no mark. -/
+theorem clearKeys_clean : ∀ (L : Clause ℕ) (m : Array Bool),
+    (∀ y, m.getD (litKey y) false = true → y ∈ L) →
+    ∀ y, (clearKeys L m).getD (litKey y) false = false
+  | [], m, hm => fun y => by
+    cases h : m.getD (litKey y) false
+    · exact h
+    · exact absurd (hm y h) List.not_mem_nil
+  | x :: L, m, hm => by
+    refine clearKeys_clean L _ fun y hy => ?_
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at hy
+    by_cases hyx : litKey x = litKey y
+    · rw [ite_eq_left hyx] at hy
+      split at hy <;> simp at hy
+    · rw [ite_eq_right hyx] at hy
+      have := hm y (by simpa [Array.getD_eq_getD_getElem?] using hy)
+      exact (List.mem_cons.1 this).resolve_left fun h => hyx (h ▸ rfl)
+
+/-- **Removing the repetitions of `c`** with the marks `m`, which mark nothing and are cleared
+again: the array is not allocated per clause, as `dedupLits` allocates it. If a literal of `c`
+lies beyond the array, `dedupLits` is used instead. -/
+def dedupWith (m : Array Bool) (c : Clause ℕ) : Clause ℕ × Array Bool :=
+  if c.all fun l => decide (litKey l < m.size) then
+    let r := dedupLitsGo c m []
+    (r.1, clearKeys r.1 r.2)
+  else (dedupLits c, m)
+
+theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ) (hm : ∀ y, m.getD (litKey y) false = false) :
+    (dedupWith m c).1.Perm c.dedup ∧ ∀ y, (dedupWith m c).2.getD (litKey y) false = false := by
+  unfold dedupWith
+  split
+  · rename_i hall
+    have hsize : ∀ x ∈ c, litKey x < m.size := by simpa using hall
+    have hm0 : ∀ y, m.getD (litKey y) false = true ↔ y ∈ ([] : Clause ℕ) := by simp [hm]
+    obtain ⟨h₁, h₂⟩ := dedupKeyGo_spec litKey_injective c m [] hsize hm0 List.nodup_nil
+    have h₃ := dedupLitsGo_snd c m [] hsize hm0
+    dsimp only
+    rw [dedupLitsGo_fst]
+    refine ⟨(List.perm_ext_iff_of_nodup h₂ (List.nodup_dedup c)).2 fun l => by
+      rw [h₁, List.mem_dedup]; simp, clearKeys_clean _ _ fun y hy => ?_⟩
+    rw [h₁]
+    exact (h₃ y).1 hy
+  · exact ⟨dedupLits_perm c, hm⟩
+
+/-- The watch store of `F`, as `WatchStore.build`, removing repetitions with the marks `m`, which
+are returned cleared. -/
+@[expose] def WatchStore.buildWith (A : Assign) :
+    List (ℕ × Clause ℕ) → Array Bool → WatchStore × Array Bool
+  | [], m => (⟨#[], #[]⟩, m)
+  | e :: F, m =>
+    let r := buildWith A F m
+    let d := dedupWith r.2 e.2
+    (r.1.addClause e.1 (watchOrder A d.1), d.2)
+
+/-- One past the greatest literal code of `F`: the size of the marks for its repetitions. -/
+@[expose] def keyBound (F : List (ℕ × Clause ℕ)) : ℕ :=
+  F.foldl (fun n e => e.2.foldl (fun n l => max n (litKey l + 1)) n) 0
+
+/-- **The watch store** of the numbered clauses `F` under the assignment `A`: every clause with at
+least two different literals, without repetitions, watching its first two literals once those that
+are not false under `A` are put first. It adds the clauses with
+`Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
+unchanged for fewer than two literals. Repetitions are removed with one array of marks for all the
+clauses (`Cslib.Algorithms.Lean.CDCL.dedupWith`). -/
+@[expose] def WatchStore.build (A : Assign) (F : List (ℕ × Clause ℕ)) : WatchStore :=
+  (WatchStore.buildWith A F (Array.replicate (keyBound F) false)).1
+
+theorem WatchStore.buildWith_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
+    ∀ (F : List (ℕ × Clause ℕ)) (m : Array Bool), (∀ y, m.getD (litKey y) false = false) →
+    (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) →
+    (WatchStore.buildWith A F m).1.Inv F M [] ∧
+      ∀ y, (WatchStore.buildWith A F m).2.getD (litKey y) false = false
+  | [], m, hm, _ => ⟨WatchStore.inv_empty M [], hm⟩
+  | e :: F, m, hm, hF => by
+    obtain ⟨ih, hm'⟩ := buildWith_inv hA F m hm fun e' he' => hF e' (List.mem_cons_of_mem _ he')
+    have hd := dedupWith_spec _ e.2 hm'
+    have hperm := (watchOrder_perm A _).trans hd.1
+    simp only [buildWith]
+    refine ⟨?_, hd.2⟩
+    match hc : watchOrder A (dedupWith (buildWith A F m).2 e.2).1 with
     | w₁ :: w₂ :: rest =>
       rw [hc] at hperm
       have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
       refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
         (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
       exact hF e List.mem_cons_self hlen fun l hl =>
-        falsifies_of_watchOrder hA hc hp.1 l ((mem_dedupKey litKey_injective).2 hl)
+        falsifies_of_watchOrder hA hc hp.1 l (hd.1.mem_iff.2 (List.mem_dedup.2 hl))
     | [] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])
     | [_] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])
+
+/-- The watch store built from `F` under an assignment agreeing with the trail `M`, none of whose
+clauses `M` falsifies, satisfies the invariant with every literal of `M` processed: a clause whose
+**first** watched literal is false has every literal false. (Its second watched literal may be
+false while the clause is still open, as in a binary clause with one false and one unassigned
+literal.) -/
+theorem WatchStore.build_inv {A : Assign} {M : Trail} (hA : A.Agrees M) (F : List (ℕ × Clause ℕ))
+    (hF : ∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) :
+    (WatchStore.build A F).Inv F M [] :=
+  (WatchStore.buildWith_inv hA F _ (fun y => by
+    simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+    split <;> simp) hF).1
 
 end Cslib.Algorithms.Lean.CDCL
