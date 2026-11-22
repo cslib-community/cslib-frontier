@@ -146,7 +146,7 @@ theorem one_sub_mul_sum_sensitiveCoords_le {f : BooleanFunction N} {ε : ℝ}
       exact norm_inner_run_le U hψ₀ T S h hε (hp2 ▸ hi.symm))
     (fun p _ => u p.1 ^ 2) (fun p _ => w p.2 ^ 2) (fun x => u x ^ 2) (fun y => w y ^ 2)
     (fun p _ => mul_nonneg (hu _) (hw _)) (fun _ _ _ _ => sq_nonneg _) (fun _ _ _ _ => sq_nonneg _)
-    (fun _ _ _ _ => by ring_nf; rfl) (fun _ _ => sq_nonneg _) (fun _ _ => sq_nonneg _)
+    (fun _ _ _ _ => by ring_nf; rfl)
     (fun x _ i => by
       refine (sum_le_sum_of_subset_of_nonneg (t := {(x, update x i (!x i))}) ?_
         fun _ _ _ => sq_nonneg _).trans_eq (by simp)

@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.FineGrained.CountingScale
 public import CslibFrontier.Computability.Complexity.FineGrained.ReplacementParams
 public import Mathlib.Data.Nat.Log
 import CslibFrontier.Foundations.Data.Nat.Asymptotics
+import CslibFrontier.Foundations.Data.Nat.Clog
 import CslibFrontier.Foundations.Data.Nat.LogTwoRpow
 import Mathlib.Analysis.Asymptotics.Lemmas
 import Mathlib.Analysis.Complex.ExponentialBounds
@@ -85,9 +86,6 @@ open ReplacementParams
 
 /-! ### Integer floor characterization of `numGroups` (`s_n = ⌊√λ_n / ν_n²⌋`) -/
 
-private theorem clog_two_le_self (n : ℕ) : Nat.clog 2 n ≤ n :=
-  (Nat.clog_le_iff_le_pow one_lt_two).mpr n.lt_two_pow_self.le
-
 private theorem one_le_clog_two_iff {n : ℕ} : 1 ≤ Nat.clog 2 n ↔ 2 ≤ n := by
   change 0 < Nat.clog 2 n ↔ 2 ≤ n
   rw [Nat.lt_clog_iff_pow_lt one_lt_two]
@@ -122,7 +120,7 @@ theorem numGroups_le_clog (n : ℕ) : numGroups n ≤ Nat.clog 2 n :=
 
 /-- `numGroups n ≤ n` for every natural number `n`. -/
 theorem numGroups_le_self (n : ℕ) : numGroups n ≤ n :=
-  (numGroups_le_clog n).trans (clog_two_le_self n)
+  (numGroups_le_clog n).trans (Nat.clog_le_self 2 n)
 
 /-- Combined floor characterization `s_n² ν_n⁴ ≤ λ_n < (s_n + 1)² ν_n⁴` for `1 ≤ ν_n`. -/
 theorem numGroups_floor_bounds {n : ℕ} (hnu : 1 ≤ Nat.clog 2 (Nat.clog 2 n)) :
@@ -324,7 +322,7 @@ theorem div_numGroups_le_interpolationScale_of_clog_ge {n : ℕ} (h : 640000 ≤
   let lam := Nat.clog 2 n
   let nu := Nat.clog 2 lam
   have hs2 : 2 ≤ numGroups n := two_le_numGroups_of_clog_ge h
-  have hn16 : 16 ≤ n := by have := clog_two_le_self n; omega
+  have hn16 : 16 ≤ n := by have := Nat.clog_le_self 2 n; omega
   have hdiv : (n : ℝ) / (numGroups n : ℝ) ≤ 2 * ((n : ℝ) * (nu : ℝ) ^ 2 / Real.sqrt (lam : ℝ)) :=
     div_numGroups_le_two_mul (by omega : 1 ≤ numGroups n)
   let X := Real.log ((n : ℝ) + 16)
@@ -744,7 +742,7 @@ private theorem leaf_poly_le_input_poly {n m m_leaf B_n C_B β : ℕ} (d_leaf : 
     calc
       m_leaf ≤ C_B * Nat.clog 2 n ^ β * n := hm.trans (Nat.mul_le_mul_right n hB)
       _ ≤ C_B * n ^ β * n := Nat.mul_le_mul_right n
-          (Nat.mul_le_mul_left C_B (Nat.pow_le_pow_left (clog_two_le_self n) β))
+          (Nat.mul_le_mul_left C_B (Nat.pow_le_pow_left (Nat.clog_le_self 2 n) β))
       _ = C_B * n ^ (β + 1) := by rw [pow_succ]; ring
       _ ≤ C_B * (n + m + 1) ^ (β + 1) :=
         Nat.mul_le_mul_left C_B (Nat.pow_le_pow_left (by omega) (β + 1))

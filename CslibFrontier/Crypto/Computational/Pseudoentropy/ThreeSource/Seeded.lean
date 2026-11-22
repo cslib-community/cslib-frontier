@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Pseudoentropy.ThreeSource
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Probabilistic.LinearHash
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Tactic.PolyTime.Init
 
 /-!
@@ -172,29 +173,20 @@ theorem generate_distribution (count seedBits bound observationBits labelBits re
           hashSamples count seedBits bound observationBits labelBits remainingBits
             ((listRows count seedBits coins).map (fun seed => (evaluate seed, seed)))
             firstKey middleKey lastKey) := by
-  unfold seedLength
-  let run (coins lastKey middleKey firstKey : List Bool) :=
+  unfold seedLength generate
+  dsimp only
+  rw [uniformList_map_split (count * seedBits) _ fun coins rest =>
     hashSamples count seedBits bound observationBits labelBits remainingBits
-      ((listRows count seedBits coins).map (fun seed => (evaluate seed, seed)))
-      firstKey middleKey lastKey
-  change (uniformList _).bind (fun tape => PMF.pure
-    (run (tape.take (count * seedBits))
-      ((tape.drop (count * seedBits)).take (remainingBits * (count * seedBits)))
-      (((tape.drop (count * seedBits)).drop (remainingBits * (count * seedBits))).take
-        (labelBits * count))
-      (((tape.drop (count * seedBits)).drop (remainingBits * (count * seedBits))).drop
-        (labelBits * count)))) = _
-  rw [uniformList_bind_split (count * seedBits) _ (fun coins tape => PMF.pure
-    (run coins (tape.take (remainingBits * (count * seedBits)))
-      ((tape.drop (remainingBits * (count * seedBits))).take (labelBits * count))
-      ((tape.drop (remainingBits * (count * seedBits))).drop (labelBits * count))))]
+      ((listRows count seedBits coins).map fun seed => (evaluate seed, seed))
+      ((rest.drop (remainingBits * (count * seedBits))).drop (labelBits * count))
+      ((rest.drop (remainingBits * (count * seedBits))).take (labelBits * count))
+      (rest.take (remainingBits * (count * seedBits)))]
   congr 1 with coins : 1
-  rw [uniformList_bind_split (remainingBits * (count * seedBits)) _
-    (fun lastKey tape => PMF.pure
-      (run coins lastKey (tape.take (labelBits * count)) (tape.drop (labelBits * count))))]
-  congr 1 with lastKey : 1
-  exact uniformList_bind_split (labelBits * count) _
-    (fun middleKey firstKey => PMF.pure (run coins lastKey middleKey firstKey))
+  exact uniformList_map_split3 (remainingBits * (count * seedBits)) (labelBits * count)
+    (observationBits * (count * (2 * bound + 1))) fun lastKey middleKey firstKey =>
+      hashSamples count seedBits bound observationBits labelBits remainingBits
+        ((listRows count seedBits coins).map fun seed => (evaluate seed, seed))
+        firstKey middleKey lastKey
 
 /-- Supplying independent uniform keys to the deterministic hash core realizes the three
 probabilistic hashing calls exactly. Only the observation padding requires a size bound. -/

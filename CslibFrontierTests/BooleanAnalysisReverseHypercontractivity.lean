@@ -238,6 +238,9 @@ example {f : (ι → Bool) → ℝ} (hf : ∀ x, 0 < f x) :
 /-- The subcube of the one-bit cube where the bit is `c`. -/
 def subcube (c : Bool) : Set (Unit → Bool) := {x | x () = c}
 
+/-- A point lies in the subcube where the bit is `c` exactly when its bit is `c`. -/
+theorem mem_subcube {c : Bool} {x : Unit → Bool} : x ∈ subcube c ↔ x () = c := Iff.rfl
+
 /-- Each one-bit subcube has volume `1 / 2`. -/
 theorem expect_indicator_subcube (c : Bool) :
     𝔼 x, (subcube c).indicator (1 : (Unit → Bool) → ℝ) x = 1 / 2 := by

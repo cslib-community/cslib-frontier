@@ -87,7 +87,7 @@ public section
 
 namespace Cslib.Circuits.Frontier.FastContraction
 
-open GaloisRingArith ChildCursor Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+open GaloisRingArith ChildCursor Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 
 variable {T : Type}

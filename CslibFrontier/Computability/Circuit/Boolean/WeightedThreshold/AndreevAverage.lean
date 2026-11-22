@@ -14,8 +14,7 @@ public import CslibFrontier.Foundations.Data.BitString.Weight
 # Average-case depth-two weighted threshold circuit upper bounds for Andreev's function
 
 This module proves the average-case agreement bounds for the windowed depth-two weighted threshold
-circuit `andreevWindowedCircuit b m r B` from `AndreevWindowed.lean` (Milestone 2 of
-[#2347](https://github.com/cslib-community/cslib-frontier/issues/2347)):
+circuit `andreevWindowedCircuit b m r B` [Andreev1987]:
 
 1. **Subcube Fourier projection (`andreevSubcubeScore_eq_two_pow_mul_sum`,
    `andreevSubcubeEval_eq_decide`):**
@@ -37,6 +36,11 @@ circuit `andreevWindowedCircuit b m r B` from `AndreevWindowed.lean` (Milestone 
    Combining the Hoeffding tail bounds for `andreevTableScore` and `andreevBlockSum` over
    `S ∈ andreevPrefixSubsets b r` yields both the `(1 - δ)`-agreement depth-two threshold circuit
    upper bound at `r = b` and the `(1 / 2 + ε)`-correlation upper bound for `r < b`.
+
+## References
+
+* [A. E. Andreev, *On a method for obtaining more than quadratic effective lower bounds for the
+  complexity of π-schemes*][Andreev1987]
 -/
 
 @[expose] public section
@@ -60,15 +64,14 @@ theorem self_mem_andreevSubcube (b r : ℕ) (p : BitString b) :
     p ∈ andreevSubcube b r p := by simp
 
 /-- Embedding `BitString (b - r)` into `BitString b` by fixing the first `r` coordinates to `p`. -/
-def andreevSubcubeEmbedding {b r : ℕ} (hr : r ≤ b) (p : BitString b) :
+private def andreevSubcubeEmbedding {b r : ℕ} (hr : r ≤ b) (p : BitString b) :
     BitString (b - r) ↪ BitString b where
   toFun z j := if h : j.val < r then p j else z ⟨j.val - r, by omega⟩
   inj' z₁ z₂ h := by
     funext k; have hk := congrFun h ⟨r + k.val, by omega⟩
     simpa [show ¬ (r + k.val < r) by omega] using hk
 
-@[simp]
-theorem andreevSubcubeEmbedding_apply {b r : ℕ} (hr : r ≤ b) (p : BitString b)
+private theorem andreevSubcubeEmbedding_apply {b r : ℕ} (hr : r ≤ b) (p : BitString b)
     (z : BitString (b - r)) (j : Fin b) :
     andreevSubcubeEmbedding hr p z j = if h : j.val < r then p j else z ⟨j.val - r, by omega⟩ := rfl
 
@@ -205,7 +208,7 @@ theorem two_mul_card_filter_decide_le_eq {ι : Type*} [Fintype ι] [DecidableEq 
 
 /-- Recurrence `(K + 1) * (2 * K + 1).choose K = 2 * (2 * K + 1) * (2 * K - 1).choose (K - 1)`
 for `1 ≤ K`. -/
-theorem succ_mul_choose_two_mul_add_one {K : ℕ} (hK : 1 ≤ K) :
+private theorem succ_mul_choose_two_mul_add_one {K : ℕ} (hK : 1 ≤ K) :
     (K + 1) * (2 * K + 1).choose K = 2 * (2 * K + 1) * (2 * K - 1).choose (K - 1) := by
   have h1 := Nat.add_one_mul_choose_eq (2 * K - 1) (K - 1)
   have h1' : 2 * K * (2 * K - 1).choose (K - 1) = (2 * K).choose K * K := by
@@ -288,26 +291,26 @@ theorem andreevShiftTable_apply (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
     andreevShiftTable b m w = andreevShiftTableFun b m w := rfl
 
 /-- The truth-table coordinate `i₀` corresponding to `0 : BitString b`. -/
-def andreevZeroTableCoord (b m : ℕ) : Fin (2 ^ b + b * m) :=
+private def andreevZeroTableCoord (b m : ℕ) : Fin (2 ^ b + b * m) :=
   andreevTableIndex b m (BitString.equivFin b 0)
 
 /-- The punctured subcube support `(andreevSubcube b r 0).erase 0` mapped into truth-table
 coordinates in `Fin (2 ^ b + b * m)`. -/
-def andreevZeroPuncturedSupport (b m r : ℕ) : Finset (Fin (2 ^ b + b * m)) :=
+private def andreevZeroPuncturedSupport (b m r : ℕ) : Finset (Fin (2 ^ b + b * m)) :=
   ((andreevSubcube b r 0).erase 0).map ⟨fun c => andreevTableIndex b m (BitString.equivFin b c),
     (andreevTableIndex_injective b m).comp (BitString.equivFin b).injective⟩
 
-theorem andreevZeroTableCoord_notMem_puncturedSupport (b m r : ℕ) :
+private theorem andreevZeroTableCoord_notMem_puncturedSupport (b m r : ℕ) :
     andreevZeroTableCoord b m ∉ andreevZeroPuncturedSupport b m r := by
   simp [andreevZeroTableCoord, andreevZeroPuncturedSupport]
 
-theorem card_andreevZeroPuncturedSupport {b r : ℕ} (hr : r ≤ b) (m : ℕ) :
+private theorem card_andreevZeroPuncturedSupport {b r : ℕ} (hr : r ≤ b) (m : ℕ) :
     #(andreevZeroPuncturedSupport b m r) = 2 ^ (b - r) - 1 := by
   rw [andreevZeroPuncturedSupport, card_map, card_erase_of_mem (self_mem_andreevSubcube b r 0),
     card_andreevSubcube hr]
 
 /-- Under `andreevShiftTable b m`, `andreev b m` evaluates to `w (andreevZeroTableCoord b m)`. -/
-theorem andreev_shiftTable (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
+private theorem andreev_shiftTable (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
     andreev b m (andreevShiftTable b m w) = w (andreevZeroTableCoord b m) := by
   rw [andreev_eq_table_parities, andreevShiftTable_apply, andreevParities_shiftTableFun,
     andreevTable_shiftTableFun,
@@ -317,7 +320,7 @@ theorem andreev_shiftTable (b m : ℕ) (w : BitString (2 ^ b + b * m)) :
 
 /-- Under `andreevShiftTable b m`, `andreevSubcubeEval b m r` for `r < b` reduces to the majority
 vote over `insert (andreevZeroTableCoord b m) (andreevZeroPuncturedSupport b m r)`. -/
-theorem andreevSubcubeEval_shiftTable {b r : ℕ} (hr : r < b) (m : ℕ)
+private theorem andreevSubcubeEval_shiftTable {b r : ℕ} (hr : r < b) (m : ℕ)
     (w : BitString (2 ^ b + b * m)) :
     andreevSubcubeEval b m r (andreevShiftTable b m w) =
       decide (2 ^ (b - r - 1) ≤ (w (andreevZeroTableCoord b m)).toNat +
@@ -378,18 +381,9 @@ theorem two_mul_card_andreevSubcubeEval_eq_andreev {b r : ℕ} (hr : r < b) (m :
           decide (2 ^ (b - r - 1) ≤ (w (andreevZeroTableCoord b m)).toNat +
             #{i ∈ andreevZeroPuncturedSupport b m r | w i = true}) =
               w (andreevZeroTableCoord b m)} := by
-    rw [← card_map (andreevShiftTable b m).toEmbedding]; congr 1; ext w
-    simp only [mem_filter, mem_univ, true_and, mem_map, Equiv.toEmbedding_apply]
-    constructor
-    · rintro ⟨u, hu, rfl⟩
-      have h1 := andreevSubcubeEval_shiftTable hr m (andreevShiftTable b m u)
-      have h2 := andreev_shiftTable b m (andreevShiftTable b m u)
-      have hinv : andreevShiftTable b m (andreevShiftTable b m u) = u :=
-        andreevShiftTableFun_involutive b m u
-      rw [hinv] at h1 h2; rwa [← h1, ← h2]
-    · intro hw
-      refine ⟨andreevShiftTable b m w, ?_, andreevShiftTableFun_involutive b m w⟩
-      rwa [andreevSubcubeEval_shiftTable hr, andreev_shiftTable]
+    rw [card_filter, card_filter, ← Equiv.sum_comp (andreevShiftTable b m)]
+    refine sum_congr rfl fun w _ => ?_
+    rw [andreevSubcubeEval_shiftTable hr, andreev_shiftTable]
   rw [hbij]
   simpa [Fintype.card_fin, card_andreevZeroPuncturedSupport hr.le] using
     two_mul_card_filter_decide_le_eq (andreevZeroPuncturedSupport b m r)
