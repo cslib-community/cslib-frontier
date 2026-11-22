@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
@@ -60,6 +61,25 @@ example : (univariateDerivativeResidue 101 2 2 0 (fun i => if i = 2 then 3 else 
     (by intro i _; by_cases hi : i = 2 <;> simp [hi, Polynomial.coeff_monomial])
   norm_num [Polynomial.coeff_iterate_derivative, Nat.descFactorial] at h
   exact h
+
+-- The qualifying slot precedes the second derivative of 3X², followed by zero padding.
+example (i : Fin 3) :
+    (sparseDerivativeTestResidue 101 2 0 5 (fun j => if j = 2 then 3 else 0)
+      [2] i.val : ZMod 101) = ![5, 6, 0] i := by
+  have h := sparseDerivativeTestResidue_cast (p := 101) (D := 2) (N := 2)
+    (Polynomial.monomial 2 (3 : ℤ)) (Polynomial.C 5) 0 5 (fun j => if j = 2 then 3 else 0)
+    [(1, 1)] (Polynomial.natDegree_monomial_le _) (by decide)
+    (by intro j _; by_cases hj : j = 2 <;> simp [hj, Polynomial.coeff_monomial])
+    (by simp) i
+  fin_cases i
+  · simpa [Polynomial.sparseRootLabelTests] using h
+  · change _ = (Polynomial.derivative^[2] (Polynomial.monomial 2 (3 : ℤ))).eval₂
+      (Int.castRingHom (ZMod 101)) 0 at h
+    norm_num [Polynomial.eval₂_at_zero, Polynomial.coeff_iterate_derivative,
+      Nat.descFactorial] at h ⊢
+    exact h
+  · change _ = (0 : Polynomial ℤ).eval₂ (Int.castRingHom (ZMod 101)) 0 at h
+    simpa using h
 
 -- Above-dimension addresses return zero even for arbitrary evaluators and nonprime moduli.
 example (p n ell B m : ℕ) (hm : ell ^ n < m)
