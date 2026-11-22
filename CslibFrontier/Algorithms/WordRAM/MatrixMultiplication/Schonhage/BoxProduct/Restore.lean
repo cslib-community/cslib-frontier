@@ -41,14 +41,8 @@ theorem exec_restoreInput {W L m t N Q : ℕ} (x : Data 160)
   have hy : ExecWithin W restoreThreshold u y 2 := by
     ram_eval [restoreThreshold, y, up.inputSize, ut, QueriedProduct.Reg.address,
       QueriedProduct.Reg.inputSize, Reg.threshold, Fin.mk.injEq]
-  refine ⟨y, (hu.seq hy).mono (by omega), up.of_frame ?_, ?_⟩
-  · intro i hi
-    have hnot : QueriedProduct.Reg.address ∉ QueriedProduct.parameterRegisters := by decide
-    have hne : i ≠ QueriedProduct.Reg.address := by
-      intro heq
-      exact hnot (heq ▸ hi)
-    simp only [y, Data.write_regs, Data.set_regs, Function.update_of_ne hne]
-  · change Function.update u.mem _ t = _
-    rw [um]
+  refine ⟨y, (hu.seq hy).mono (by omega), by regs_frame, ?_⟩
+  change Function.update u.mem _ t = _
+  rw [um]
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct

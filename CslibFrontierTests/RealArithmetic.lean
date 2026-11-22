@@ -8,6 +8,7 @@ module
 -- upstream: local-only (real-arithmetic semantic and codec regression tests)
 
 import CslibFrontier.Computability.Complexity.Classes.ExistsReal
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolySpace.Plain
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
@@ -191,6 +192,13 @@ set_option linter.hashCommand false in
   let word := encFormula 0 (.and (.not (.eqZero term)) (.or .false (.ltZero term)))
   let termSign := fun bits => if bits == encTerm 0 term then (-1 : SignType) else 0
   formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithAnswers word (· != 2) == [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithAnswers word (fun i => formulaWordComparisonAnswer word i (-1)) ==
+      [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 6) word (fun _ => -1) ==
+      [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 5) word (fun _ => -1) ==
+      [false, true, false, false, false, false] &&
     formulaWordGateValues [] termSign == [false]
 
 -- A huge gate index uses the same suffix offsets as a small one. A child at the gate
@@ -212,6 +220,28 @@ set_option linter.hashCommand false in
     formulaWordGateUpdate word 3 true [] == [true] &&
     formulaWordGateUpdate word 3 false [] == [false] &&
     formulaWordGateUpdate [] (2 ^ 80) true [] == [false]
+
+-- A positive sign never satisfies either comparison, so this reader uses a constant answer.
+example :
+    ComputableInPolySpace (fun word : List Bool => formulaWordGateValues word (fun _ => 1))
+      encBits encBits := by
+  refine formulaWordGateValues_polySpace_of_comparisonAnswers ComputableInPolyTime.id' ?_
+  refine ComputableInPolySpace.congr
+    (ComputableInPolySpace.of_polyTime (ComputableInPolyTime.const false)) ?_
+  rintro ⟨word, index⟩
+  cases formulaWordComparisonRequest word index with
+  | none => rfl
+  | some request =>
+    rcases request with ⟨_, strict⟩
+    cases strict <;> simp [Option.any, FormulaComparisonRequest.requestedSign]
+
+-- A raw formula word and a framed sign list are ordinary inputs to the space certificate.
+example :
+    ComputableInPolySpace (fun p : List Bool × List SignType =>
+      formulaWordGateValuesWithSignature p.1 (fun index : Fin p.2.length => p.2[index.val]))
+      (encPair encBits (encList encSign)) encBits :=
+  formulaWordGateValuesWithSignature_polySpace (ComputableInPolyTime.fst _ _)
+    (ComputableInPolyTime.snd _ _)
 
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
