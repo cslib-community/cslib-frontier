@@ -20,7 +20,7 @@ each attaining the exact `49`-instruction potential bound). An adaptive `Statefu
 interleaves appends with indexed reads.
 -/
 
-@[expose] public section
+public section
 
 open Cslib Cslib.WordRAM
 open Cslib.DataStructure
@@ -126,7 +126,7 @@ example : (DynamicArray.WordRAM.spec 8).runClient [] adaptiveClient =
 
 theorem adaptiveClient_valid :
     (DynamicArray.WordRAM.spec 8).ValidHistory []
-      ((DynamicArray.WordRAM.spec 8).runClient [] adaptiveClient).2.2 := by
+      ((DynamicArray.WordRAM.spec 8).clientHistory [] adaptiveClient) := by
   change (Fits 8 11 ∧ Fits 8 4) ∧ (Fits 8 22 ∧ Fits 8 12) ∧
     (0 < 2 ∧ Fits 8 0) ∧ (Fits 8 44 ∧ Fits 8 20) ∧ (2 < 3 ∧ Fits 8 2) ∧ True
   decide
