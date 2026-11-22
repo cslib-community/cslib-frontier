@@ -5239,6 +5239,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.LoopCongr
 public import CslibFrontier.Computability.WordRAM.Realization.MemoryBackend
 public import CslibFrontier.Computability.WordRAM.Realization.Module
 public import CslibFrontier.Computability.WordRAM.Realization.Primitive
+public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.Program
 public import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 public import CslibFrontier.Computability.WordRAM.Realization.Random
@@ -8453,6 +8454,7 @@ public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent
 public import CslibFrontier.Logics.Propositional.CNF.KWiseIndependent.Trinomial
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
 public import CslibFrontier.Logics.Propositional.CNF.LRATFast
+public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
 public import CslibFrontier.Logics.Propositional.CNF.LRATRelabel
 public import CslibFrontier.Logics.Propositional.CNF.LocalLemma
 public import CslibFrontier.Logics.Propositional.CNF.Majority
@@ -9206,5 +9208,7 @@ public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
 public import CslibFrontier.Tactic.UpdateSimp
+public import CslibFrontier.Tactic.ValidProg
+public import CslibFrontier.Tactic.ValidProg.Init
 public import CslibFrontier.Tactic.WramOmega
 public import CslibFrontier.Tactic.WramOmega.Init
