@@ -86,7 +86,7 @@ namespace Cslib.Circuits.Frontier
 namespace FastContraction
 
 open GaloisRingArith NativePacket ChildCursor NativeRecovery ContractionSchedule NativeChild
-  Cslib.GenericRAM Cslib.GenericRAM.StackRecursion Turing.MultiTapeTM
+  Cslib.GenericRAM Cslib.Algorithms.StackRecursion Turing.MultiTapeTM
 
 variable {T : Type}
 

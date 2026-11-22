@@ -10,8 +10,9 @@ Containments, separations, closure properties, complete problems and reductions 
 
 ### Structure, time and space
 
-- **Counting-hierarchy arithmetic** ([#5619](https://github.com/cslib-community/cslib-frontier/issues/5619)): reusable decision/function levels, uniform short-index counting and summation, finite-field products, and integer signs from bounded modular-residue access.
-  Prove uniform bit-cost certificates and the proposed level bounds, separating algebraic identities from computational realization; real feasibility belongs to the downstream lean-canny project.
+- **Real-algebraic counting bounds** ([#6560](https://github.com/cslib-community/cslib-frontier/issues/6560)): port lean-canny's ETR/∃ℝ containment in C₂₆P and existential–universal real truth in C₆₀P, with PSPACE corollaries.
+  Extract reusable implicit-polynomial, coefficient and trace algorithms while preserving uniformity, encodings and full evaluator costs.
+
 - **Planar Boolean CSP dichotomy** ([#3091](https://github.com/cslib-community/cslib-frontier/issues/3091)): extend the native Boolean classification to ordered planar instances of arbitrary fixed relation arity, preserving individual incidence occurrences and cyclic argument order.
   The endpoint must prove the embedding and recognition interface, the cyclic-difference reduction, the even delta-matroid edge-CSP algorithm and planar hardness transfer internally, including the additional self-complementary tractable family.
   Supplied-embedding or matching-realizable-only milestones leave it open.
@@ -42,6 +43,10 @@ Containments, separations, closure properties, complete problems and reductions 
   Koucký–Mertz–Pyne–Sami's [*Collapsing Catalytic Classes*](https://arxiv.org/abs/2504.08444) with its parameter ranges and oracle promises: `CL = CNL = CPrL = CBPL`, compress-or-compute simulation, catalytic Savitch and complementation, randomized space–catalyst tradeoffs, hierarchy collapses and lossy-space consequences.
 - **Robust catalytic extensions** ([#2521](https://github.com/cslib-community/cslib-frontier/issues/2521)): the Koucký–Mertz–Sami [robust catalytic extensions](https://arxiv.org/abs/2605.09648), tracked separately from KMPS.
   Their broader collapse is conditional on an explicit circuit-hardness assumption, and their resetting-error and time regimes are kept distinct from the unconditional KMPS results.
+- **Min-isolating weight generator** ([#6747](https://github.com/cslib-community/cslib-frontier/issues/6747)):
+  check and register the statement of Theorem 1.3 of Hoza’s [NL = UL, ECCC TR26-323](https://eccc.weizmann.ac.il/report/2026/323/)
+  against the existing [combinatorial guarantees](../CslibFrontier/Algorithms/Reachability/MinIsolation/Generator.lean)
+  and [native evaluator](../CslibFrontier/Algorithms/Reachability/MinIsolation/Generator/WeightDimensions.lean).
 - **Classical randomized-space proof reuse** ([#1444](https://github.com/cslib-community/cslib-frontier/issues/1444)): audit and simplify the existing `RL ⊆ NL ⊆ DSPACE(log² n)` proof in [LogSpace/Savitch.lean](../CslibFrontier/Computability/Complexity/Classes/LogSpace/Savitch.lean).
   Reuse support semantics, midpoint reachability, compact configuration graphs and native space simulation; share lemmas and refactor real clients while preserving encodings and workspace bounds.
   `RL = L` remains unresolved; this classical-first milestone has no preprint-estimator dependency.
@@ -53,6 +58,9 @@ Containments, separations, closure properties, complete problems and reductions 
 - **Time–space lower bounds for nondeterministic linear time** ([#2896](https://github.com/cslib-community/cslib-frontier/issues/2896)): the Arora–Barak bound `NTIME(n) ⊄ TISP(n^1.2, n^0.2)` by virtual padding and the Lipton–Viglas `n^(√2 − ε)` form, from the speedup and slowdown lemmas for `TISP` and `Σ₂TIME`.
   Beyond these: the textbook `√(t·s)` speedup, the golden-ratio deterministic bound of Fortnow, Lipton, van Melkebeek and Viglas, and the transfer to SAT through a quasi-linear-size Cook–Levin reduction.
 - **Alternating classes** ([#4086](https://github.com/cslib-community/cslib-frontier/issues/4086)): the remaining Chandra–Kozen–Stockmeyer bridges `ATIME t ⊆ DSPACE t`, `NSPACE s ⊆ ATIME (s ^ 2)` and `DTIME (2 ^ O(s)) ⊆ ASPACE s` (`ATIME`, `ASPACE` and `ASPACE s ⊆ DTIME (2 ^ O(s))` are done), and bounded-alternation characterizations of PH; sharp bounds for sublinear space, distinct from polynomial-space simulation.
+- **Unambiguous space** ([#7185](https://github.com/cslib-community/cslib-frontier/issues/7185)): `NSPACE(s) = USPACE(s)` for every bound `s ≥ log₂ n`, without space-constructibility, for native machines and arbitrary injective input encodings.
+  Run the Justesen seed scheduler on configuration graphs of growing radix, for a decider and for its Immerman–Szelepcsényi complement, until one of the two accepts.
+  This needs the scheduler's size bounds uniformly in the radix exponent.
 - **Fast alternating counting simulation** ([#4728](https://github.com/cslib-community/cslib-frontier/issues/4728)): clocked bitwise accepting-path counting through tensor contraction in alternating time `O(n + t / sqrt(log(t+2)))`. Remaining work includes locally accessible contraction expressions, certified index and arithmetic costs, and the count-preserving machine reduction. Input access and clock computation must be charged explicitly.
 - **Alternating logspace, `P ⊆ AL`** ([#2873](https://github.com/cslib-community/cslib-frontier/issues/2873)): play the circuit-value game on the tableau of a polynomial-time machine in logarithmic space.
   This needs a word game machine whose round reads the input from the input tape and keeps only the `O(log n)`-bit wire claim on its work tape.
@@ -91,7 +99,7 @@ Containments, separations, closure properties, complete problems and reductions 
 
 - **Another Solution Problem (ASP) framework:** ASP reductions with certified polynomial-time forward and inverse witness maps, starting from the parsimonious reductions to positive exact-one SAT and its planar three-occurrence variants.
   Exact count preservation alone does not supply the ASP runtime certificates.
-- **Counting reductions and hierarchies:** counting reductions and further oracle results preserving exact multiplicities; modular and counting hierarchies; the oracle-algorithm form of Stockmeyer's approximate counting.
+- **Counting reductions and hierarchies:** further counting reductions and oracle results; modular and counting hierarchies.
 - **Exact counting by determinants** ([#3081](https://github.com/cslib-community/cslib-frontier/issues/3081)): Kasteleyn's Pfaffian method for counting perfect matchings of planar graphs in polynomial time, in contrast with permanent #P-completeness (polynomial-time counting for unweighted and weighted spanning trees, simple and multi-digraph arborescences, and BEST Eulerian circuits, along with root independence for balanced graphs, are formalized).
 - **Target-relativized counting classes:** `LWPP^A`, `WPP^A` and `SBP^A` with `FP^A` targets; adaptive WPP closure and UP-oracle containment.
 - **Native oracle counting machines:** efficient encoded oracle checking, response-access costs and oracle-machine characterizations, with resource bounds uniform over admissible oracles.
@@ -114,7 +122,7 @@ In dependency order:
 - **Restricted-domain numeric certificates:** numeric certificates for further restricted-domain families; canonical BIT on a restricted domain need not be first-order definable.
 - **Order-free reductions:** SAT-to-3SAT, graph-property hardness, and bridges to the separately encoded problems.
 - **Synthesis rules and regular-language quantifiers:** extend the synthesis rules to nested operator bodies and give regular-language quantifiers their ordered characteristic-word semantics.
-- **Native NL closure facts:** the closure properties that the in-compiler inductive counting of FO(TC) ⊆ NL bypasses: intersection, union, logspace reductions and NL^NL = NL.
+- **Native NL closure facts:** NL^NL = NL.
 - **Further logical characterizations:** on ordered structures, DLOGTIME-uniform AC⁰ = FO(≤, BIT) (Barrington–Immerman–Straubing); then order-invariant and fixed-point queries and uniform translations between syntax, structures and algorithms.
 - **Witness-carrying reductions:** a witness-carrying reduction structure once a client needs one, for example size bounds for Cook–Levin.
 - **Logical lower-bound methods** ([locality track](https://github.com/cslib-community/cslib-frontier/issues/3015)): Ehrenfeucht–Fraïssé games (also with constants), Hanf and Gaifman locality with Gaifman's normal form and the exact locality ranks `2 ^ (n - 1) - 1` and `2 ^ n - 1` (Libkin, Exercises 4.10 and 4.11), and counting and fixed-point expressiveness with Cai–Fürer–Immerman separations, linked to the ordered capture theorems, where FO(≤, BIT) defines EVEN.
@@ -175,7 +183,7 @@ Define logspace and DLOGTIME uniformity with explicit gate-address, direct-conne
 - **Håstad's optimal MAX-E3SAT hardness** ([#886](https://github.com/cslib-community/cslib-frontier/issues/886)): for `0 < ε < 1/8`, NP-hardness of distinguishing satisfiable E3-CNF formulas from those where every assignment satisfies at most `7/8 + ε` of the clauses.
   The route: parallel repetition with small-soundness Label Cover, the long-code 3-bit test for MAX-E3LIN hardness (Theorem 5.4), the four-clause reduction (Theorem 6.1, imperfect completeness), and the test for satisfiable formulas (Theorem 6.5).
 - **MAX 2-SAT** ([#3481](https://github.com/cslib-community/cslib-frontier/issues/3481)): NP-completeness of the decision problem by the Garey–Johnson–Stockmeyer ten-clause gadget, APX-hardness with explicit inapproximability constants, and a reduction from MAX 2-SAT to unweighted MAX CUT.
-- **FGLSS clique hardness:** the FGLSS clique-hardness reduction and its amplification, retaining the exact gap and reduction runtime.
+- **FGLSS clique hardness:** derive every-constant Independent Set and Clique hardness by amplification and complement, using the nonadaptive FGLSS graph, its independence-number identity, and its native runtime certificate.
 - **Approximation classes and gap reductions:** gap and approximation-preserving reductions, APX/PTAS/FPTAS, inapproximability consequences of PCP, CSP classifications and relaxation gaps, with assumptions such as the Unique Games Conjecture stated explicitly.
   The 2-to-2 games theorem waits for [#886](https://github.com/cslib-community/cslib-frontier/issues/886).
 - **Approximation algorithms:** a general interface for approximation ratios of optimization problems, under which polynomial-time algorithms such as Johnson's `7 / 8` algorithm for MAX-E3SAT meet matching hardness results such as Håstad's ([#886](https://github.com/cslib-community/cslib-frontier/issues/886)); LP and SDP rounding, such as Goemans–Williamson for MAX-CUT and MAX-SAT.

@@ -7,12 +7,16 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Crypto.Primitives.ByteString
 public import CslibFrontier.Crypto.Primitives.Hash.Sponge
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import Mathlib.Algebra.Order.Floor.Div
+import all CslibFrontier.Crypto.Primitives.ByteString
+import CslibFrontier.Foundations.Data.BitString.List
+import all Batteries.Data.List.Basic
 
 /-!
-# Keccak-p[1600, 24] and byte-aligned SHAKE
+# Keccak-p[1600, 24], SHA3-512 and byte-aligned SHAKE
 
 This module implements the concrete permutation and byte-aligned extendable-output function from
 [NIST FIPS 202][NISTFIPS202]. The state is a `5 × 5` array of 64-bit lanes. Lane bit `z` is the
@@ -21,11 +25,12 @@ coordinate (Sections 3.1.2--3.1.3). The five round steps follow Algorithms 1--7 
 in Sections 3.2--3.3; `keccakP1600Rounds24` is Algorithm 8's underlying function as specified in
 Section 4.
 
-`byteXof` implements Algorithms 8--9 and Section 6.2 for byte-aligned messages at any lane-aligned
-Keccak-p[1600] rate/capacity split. Bytes are expanded least significant bit first, matching NIST's
-official SHAKE example state dumps; the SHAKE suffix `1111` and `pad10*1` are appended; rate blocks
-are processed by the existing `Cslib.Crypto.Sponge.hashBlocks`; and output bytes are assembled in
-the same convention. `shake256` is the 1088-bit-rate specialization; SHAKE128 specializes the same
+`byteSponge` implements Algorithms 8--9 for byte-aligned messages at any lane-aligned
+Keccak-p[1600] rate/capacity split and explicit domain-separation suffix. Bytes are expanded least
+significant bit first, matching NIST's official example state dumps; the suffix and `pad10*1` are
+appended; rate blocks are processed by the existing `Cslib.Crypto.Sponge.hashBlocks`; and output
+bytes are assembled in the same convention. `sha3512` uses the 576-bit rate, suffix `01`, and a
+64-byte output. `shake256` uses the 1088-bit rate and suffix `1111`; SHAKE128 specializes the same
 machinery in `CslibFrontier.Crypto.Primitives.Hash.Keccak.SHAKE128`.
 
 This is a checked executable specification, not a constant-time or efficient implementation, a
@@ -41,8 +46,9 @@ August 2015 standard and does not claim agreement with a future revision or with
 * `Cslib.Crypto.Keccak.keccakP1600Rounds24View`: the transformation on a selected sponge split.
 * `Cslib.Crypto.Keccak.byteBitsLE`, `bytesToBitsLE`, `bitsToByteLE`: the explicit FIPS 202
   least-significant-bit-first byte boundary.
-* `Cslib.Crypto.Keccak.rateBytesFor`, `squeezeBytesFor`, `byteXof`: shared byte-aligned XOF
-  machinery parameterized by the sponge layout.
+* `Cslib.Crypto.Keccak.rateBytesFor`, `squeezeBytesFor`, `byteSponge`: shared byte-aligned sponge
+  machinery parameterized by the layout and domain-separation suffix.
+* `Cslib.Crypto.Keccak.sha3512`: byte-aligned SHA3-512.
 * `Cslib.Crypto.Keccak.shake256`: byte-aligned SHAKE256 with an output length in bytes.
 
 ## Main results
@@ -51,8 +57,9 @@ August 2015 standard and does not claim agreement with a future revision or with
   round trips.
 * `Cslib.Crypto.Keccak.toSpongeView_ofSpongeView`, `ofSpongeView_toSpongeView`: the selected state
   views are inverse.
-* `Cslib.Crypto.Keccak.length_byteXof`, `take_byteXof`: the shared byte XOF has the requested
-  length and preserves prefixes.
+* `Cslib.Crypto.Keccak.length_byteSponge`, `take_byteSponge`: the shared sponge has the requested
+  length and preserves prefixes for a fixed suffix.
+* `Cslib.Crypto.Keccak.length_sha3512`: SHA3-512 returns exactly 64 bytes.
 * `Cslib.Crypto.Keccak.length_shake256`, `take_shake256`: SHAKE256 returns exactly the requested
   byte count, and longer requests preserve the preceding XOF bytes.
 
@@ -95,6 +102,9 @@ structure SpongeLayout where
 /-- The rate and capacity bit-string views selected by a lane-aligned sponge layout. -/
 abbrev SpongeView (layout : SpongeLayout) :=
   BitString (64 * layout.rateLanes) × BitString (64 * layout.capacityLanes)
+
+/-- The SHA3-512 layout: nine rate lanes and sixteen capacity lanes. -/
+@[expose] def sha3512Layout : SpongeLayout := ⟨9, 16, by decide, by decide⟩
 
 /-- The SHAKE256 layout: 17 rate lanes and eight capacity lanes. -/
 @[expose] def shake256Layout : SpongeLayout := ⟨17, 8, by decide, by decide⟩
@@ -184,7 +194,7 @@ abbrev SpongeState := SpongeView shake256Layout
   BitVec.ofFin (BitString.equivFin 64 bits)
 
 /-- Reading an in-range coordinate of `laneOfBits` returns the corresponding input bit. -/
-private theorem getLsbD_laneOfBits (bits : BitString 64) (i : ℕ) (hi : i < 64) :
+theorem getLsbD_laneOfBits (bits : BitString 64) (i : ℕ) (hi : i < 64) :
     (laneOfBits bits).getLsbD i = bits ⟨i, hi⟩ := by
   rw [laneOfBits, BitVec.getLsbD_ofFin]
   exact BitString.testBit_equivFin bits ⟨i, hi⟩
@@ -304,7 +314,7 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
     SpongeView layout :=
   toSpongeView layout (keccakP1600Rounds24 (ofSpongeView layout state))
 
-/-! ### Shared byte-aligned SHAKE machinery -/
+/-! ### Shared byte-aligned sponge machinery -/
 
 /-- Expand a byte into FIPS 202 bit-string order, least significant bit first. -/
 @[expose] def byteBitsLE (byte : Fin 256) : List Bool :=
@@ -313,6 +323,16 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
 /-- Expand a byte string into FIPS 202 bit-string order. -/
 @[expose] def bytesToBitsLE (bytes : List (Fin 256)) : List Bool :=
   bytes.flatMap byteBitsLE
+
+/-- Each serialized FIPS 202 byte contributes exactly eight bits. -/
+theorem length_bytesToBitsLE (bytes : List (Fin 256)) :
+    (bytesToBitsLE bytes).length = 8 * bytes.length := by
+  induction bytes with
+  | nil => rfl
+  | cons b tail ih =>
+    change (byteBitsLE b ++ bytesToBitsLE tail).length = _
+    simp only [List.length_append, byteBitsLE, BitString.length_lowBits, ih, List.length_cons]
+    lia
 
 /-- FIPS 202 Algorithm 9, `pad10*1(x, m)`. -/
 @[expose] def pad10star1 (x m : ℕ) : List Bool :=
@@ -338,6 +358,115 @@ theorem ofSpongeView_toSpongeView (layout : SpongeLayout) (A : State) :
   change BitString.lowBits 8 (BitString.lsbValue (bits.take 8)) = bits
   rw [List.take_of_length_le (by omega)]
   simpa [h] using BitString.lowBits_lsbValue bits
+
+/-- Packing an aligned bit string eight bits at a time and expanding recovers the string. -/
+theorem bytesToBitsLE_toChunks {bits : List Bool} (h : 8 ∣ bits.length) :
+    bytesToBitsLE ((bits.toChunks 8).map bitsToByteLE) = bits := by
+  let decode (chunks : List (List Bool)) :=
+    bytesToBitsLE (chunks.map bitsToByteLE)
+  have snoc (chunks : Array (List Bool)) (chunk : Array Bool) (hlen : chunk.size = 8) :
+      decode (chunks.push chunk.toList).toList = decode chunks.toList ++ chunk.toList := by
+    simp [decode, bytesToBitsLE, hlen, byteBitsLE_bitsToByteLE]
+  have go (tail : List Bool) (cur : Array Bool) (done : Array (List Bool))
+      (hp : 0 < cur.size) (hb : cur.size ≤ 8) (hdiv : 8 ∣ cur.size + tail.length) :
+      decode (List.toChunks.go 8 tail cur done) = decode done.toList ++ cur.toList ++ tail := by
+    induction tail generalizing cur done with
+    | nil =>
+      have hl : cur.size = 8 := by simp at hdiv; omega
+      simp only [List.toChunks.go, List.append_nil]
+      exact snoc done cur hl
+    | cons x xs ih =>
+      rw [List.toChunks.go]
+      split
+      · rename_i hc
+        have hl : cur.size = 8 := beq_iff_eq.mp hc
+        rw [ih _ _ (by simp) (by simp) (by simp_all; omega), snoc _ _ hl]
+        simp
+      · rename_i hn
+        have hl : cur.size ≠ 8 := by simpa using hn
+        rw [ih _ _ (by simp) (by simp; omega) (by simpa [Nat.add_assoc, Nat.add_comm,
+          Nat.add_left_comm] using hdiv)]
+        simp
+  cases bits with
+  | nil => rfl
+  | cons x xs =>
+    change decode (List.toChunks.go 8 xs #[x] #[]) = x :: xs
+    simpa [decode, bytesToBitsLE] using
+      go xs #[x] #[] (by simp) (by simp) (by simpa [Nat.add_comm] using h)
+
+/-- Little-endian expansion preserves all the information in a byte string. -/
+theorem bytesToBitsLE_injective : Function.Injective bytesToBitsLE := by
+  intro xs
+  induction xs with
+  | nil =>
+    intro ys h
+    symm
+    simpa [length_bytesToBitsLE] using congrArg List.length h
+  | cons a xs ih =>
+    intro ys h
+    cases ys with
+    | nil =>
+      have len := congrArg List.length h
+      simp [length_bytesToBitsLE] at len
+    | cons b ys =>
+      change byteBitsLE a ++ bytesToBitsLE xs = byteBitsLE b ++ bytesToBitsLE ys at h
+      obtain ⟨head, tail⟩ := List.append_inj h (by simp [byteBitsLE])
+      have hab : a = b := by simpa using congrArg bitsToByteLE head
+      rw [hab, ih tail]
+
+/-- The FIPS 202 little-endian bijection between a fixed byte string and its bit register. -/
+def fixedBytesEquivBitsLE (d : ℕ) : FixedBytes d ≃ BitString (8 * d) where
+  toFun D := BitString.ofList _ (bytesToBitsLE D.toList)
+  invFun bits :=
+    let bytes := ((List.ofFn bits).toChunks 8).map bitsToByteLE
+    fun i => bytes.getD i 0
+  left_inv D := by
+    have bits : List.ofFn (BitString.ofList (8 * d) (bytesToBitsLE D.toList)) =
+        bytesToBitsLE D.toList :=
+      BitString.ofFn_ofList (by rw [length_bytesToBitsLE, FixedBytes.length_toList])
+    funext i
+    simp only [bits]
+    have chunks := bytesToBitsLE_toChunks
+      (bits := bytesToBitsLE D.toList) (by simp [length_bytesToBitsLE])
+    have bytes := bytesToBitsLE_injective chunks
+    rw [bytes]
+    simp [FixedBytes.toList, List.getD_eq_getElem?_getD]
+  right_inv bits := by
+    have unpack := bytesToBitsLE_toChunks (bits := List.ofFn bits) (by simp)
+    have len := congrArg List.length unpack
+    rw [length_bytesToBitsLE, List.length_ofFn] at len
+    have size : ((List.ofFn bits).toChunks 8).length = d := by
+      simp only [List.length_map] at len
+      lia
+    have read : (List.ofFn fun i : Fin d =>
+        (((List.ofFn bits).toChunks 8).map bitsToByteLE).getD i 0) =
+        ((List.ofFn bits).toChunks 8).map bitsToByteLE := by
+      apply List.ext_getElem
+      · simp [size]
+      · intro i hi _
+        simp [List.getD_eq_getElem?_getD, size] at *
+    apply List.ofFn_inj.mp
+    dsimp only [FixedBytes.toList]
+    rw [read, unpack, BitString.ofFn_ofList (by simp)]
+
+/-- The register has precisely the bits that the underlying SHAKE byte stream returns. -/
+theorem ofFn_fixedBytesEquivBitsLE {d : ℕ} (D : FixedBytes d) :
+    List.ofFn (fixedBytesEquivBitsLE d D) = bytesToBitsLE D.toList :=
+  BitString.ofFn_ofList (by rw [length_bytesToBitsLE, FixedBytes.length_toList])
+
+/-- The first `n` bytes expand to the first `8 * n` bits, including truncated inputs. -/
+theorem bytesToBitsLE_take (xs : List (Fin 256)) (n : ℕ) :
+    bytesToBitsLE (xs.take n) = (bytesToBitsLE xs).take (8 * n) := by
+  induction n generalizing xs with
+  | zero => simp [bytesToBitsLE]
+  | succ n ih =>
+    cases xs with
+    | nil => simp [bytesToBitsLE]
+    | cons a xs =>
+      change byteBitsLE a ++ bytesToBitsLE (xs.take n) = (byteBitsLE a ++ bytesToBitsLE xs).take _
+      have enough : (byteBitsLE a).length ≤ 8 * (n + 1) := by simp [byteBitsLE]
+      rw [ih, List.take_append, List.take_of_length_le enough]
+      simp [byteBitsLE, Nat.mul_succ]
 
 /-- Read the rate selected by `layout` as consecutive little-endian bytes. -/
 @[expose] def rateBytesFor (layout : SpongeLayout) (rate : BitString (64 * layout.rateLanes)) :
@@ -401,31 +530,48 @@ theorem take_squeezeBytesFor (layout : SpongeLayout)
   rw [squeezeBytesFor, take_flatMap_rateBytesFor,
     Sponge.take_hashBlocks _ _ h, squeezeBytesFor]
 
-/-- Byte-aligned SHAKE with the rate and capacity selected by `layout`.
-
-The output length is measured in bytes. Every specialization uses the SHAKE suffix `1111` and
-FIPS 202's `pad10*1`; `layout` changes only the rate/capacity split. -/
-@[expose] def byteXof (layout : SpongeLayout) (input : List (Fin 256)) (outputBytes : ℕ) :
+/-- Absorb an arbitrary bit string with a distinguished suffix and FIPS 202 padding, then
+squeeze the requested number of little-endian bytes. -/
+@[expose] def bitSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List Bool) (outputBytes : ℕ) :
     List (Fin 256) :=
-  let suffixed := bytesToBitsLE input ++ [true, true, true, true]
+  let suffixed := input ++ suffix
   let padded := suffixed ++ pad10star1 (64 * layout.rateLanes) suffixed.length
   let blocks := Sponge.toBlocks (64 * layout.rateLanes) padded
   let rateBytes := 8 * layout.rateLanes
   let outputBlockCount := outputBytes ⌈/⌉ rateBytes
   (squeezeBytesFor layout blocks outputBlockCount).take outputBytes
 
-/-- A byte-aligned XOF returns exactly the requested byte count. -/
-@[simp] theorem length_byteXof (layout : SpongeLayout) (input : List (Fin 256))
-    (outputBytes : ℕ) : (byteXof layout input outputBytes).length = outputBytes := by
-  rw [byteXof, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
+/-- Byte-aligned Keccak sponge with the rate and capacity selected by `layout` and the supplied
+domain-separation suffix, whose bits are listed in FIPS 202 bit-string order.
+
+The output length is measured in bytes. The input bytes and output bytes are little-endian at the
+bit boundary, and FIPS 202's `pad10*1` follows the suffix. -/
+@[expose] def byteSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List (Fin 256)) (outputBytes : ℕ) :
+    List (Fin 256) :=
+  bitSponge layout suffix (bytesToBitsLE input) outputBytes
+
+/-- An arbitrary bit-string input produces exactly the requested number of output bytes. -/
+@[simp] theorem length_bitSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List Bool) (outputBytes : ℕ) :
+    (bitSponge layout suffix input outputBytes).length = outputBytes := by
+  rw [bitSponge, List.length_take, length_squeezeBytesFor, Nat.min_eq_left]
   exact le_smul_ceilDiv (a := 8 * layout.rateLanes) (b := outputBytes) (by
     have hr := layout.rate_pos
     omega)
 
-/-- Byte-aligned XOF output is prefix-consistent across requested lengths. -/
-theorem take_byteXof (layout : SpongeLayout) (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
-    (byteXof layout input n).take m = byteXof layout input m := by
-  rw [byteXof, List.take_take, Nat.min_eq_left h, byteXof]
+/-- A byte-aligned sponge returns exactly the requested byte count. -/
+@[simp] theorem length_byteSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List (Fin 256)) (outputBytes : ℕ) :
+    (byteSponge layout suffix input outputBytes).length = outputBytes :=
+  length_bitSponge layout suffix (bytesToBitsLE input) outputBytes
+
+/-- On arbitrary bit-string inputs, shorter sponge outputs are prefixes of longer ones. -/
+theorem take_bitSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List Bool) {m n : ℕ} (h : m ≤ n) :
+    (bitSponge layout suffix input n).take m = bitSponge layout suffix input m := by
+  rw [bitSponge, List.take_take, Nat.min_eq_left h, bitSponge]
   have hk : m ⌈/⌉ (8 * layout.rateLanes) ≤ n ⌈/⌉ (8 * layout.rateLanes) := by
     rw [Nat.ceilDiv_eq_add_pred_div, Nat.ceilDiv_eq_add_pred_div]
     exact Nat.div_le_div_right (by
@@ -442,6 +588,43 @@ theorem take_byteXof (layout : SpongeLayout) (input : List (Fin 256)) {m n : ℕ
       rw [List.take_take, Nat.min_eq_left hm]
     _ = (squeezeBytesFor layout _ (m ⌈/⌉ (8 * layout.rateLanes))).take m := by
       rw [take_squeezeBytesFor _ _ hk]
+
+/-- For a fixed suffix, byte-aligned sponge output is prefix-consistent across requested lengths. -/
+theorem take_byteSponge (layout : SpongeLayout) (suffix : List Bool)
+    (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
+    (byteSponge layout suffix input n).take m = byteSponge layout suffix input m :=
+  take_bitSponge layout suffix (bytesToBitsLE input) h
+
+/-- Byte-aligned SHAKE with the rate and capacity selected by `layout`.
+
+The output length is measured in bytes. Every specialization uses the SHAKE suffix `1111` and
+FIPS 202's `pad10*1`; `layout` changes only the rate/capacity split. -/
+@[expose] def byteXof (layout : SpongeLayout) (input : List (Fin 256)) (outputBytes : ℕ) :
+    List (Fin 256) :=
+  byteSponge layout [true, true, true, true] input outputBytes
+
+/-- A byte-aligned XOF returns exactly the requested byte count. -/
+@[simp] theorem length_byteXof (layout : SpongeLayout) (input : List (Fin 256))
+    (outputBytes : ℕ) : (byteXof layout input outputBytes).length = outputBytes := by
+  simp [byteXof]
+
+/-- Byte-aligned XOF output is prefix-consistent across requested lengths. -/
+theorem take_byteXof (layout : SpongeLayout) (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
+    (byteXof layout input n).take m = byteXof layout input m := by
+  simpa [byteXof] using take_byteSponge layout [true, true, true, true] input h
+
+/-! ### SHA3-512 specialization -/
+
+/-- Byte-aligned SHA3-512 from FIPS 202 Section 6.1.
+
+The input bytes use the explicit little-endian bit convention of `bytesToBitsLE`. The suffix is
+the SHA-3 domain separator `01` in FIPS bit-string order, and the digest is 64 bytes. -/
+@[expose] def sha3512 (input : List (Fin 256)) : List (Fin 256) :=
+  byteSponge sha3512Layout [false, true] input 64
+
+/-- SHA3-512 returns exactly 64 bytes. -/
+@[simp] theorem length_sha3512 (input : List (Fin 256)) : (sha3512 input).length = 64 := by
+  simp [sha3512]
 
 /-! ### SHAKE256 specialization -/
 
@@ -520,8 +703,5 @@ theorem take_squeezeBytes (blocks : List (BitString 1088)) {m n : ℕ} (h : m �
 theorem take_shake256 (input : List (Fin 256)) {m n : ℕ} (h : m ≤ n) :
     (shake256 input n).take m = shake256 input m := by
   simpa [shake256] using take_byteXof shake256Layout input h
-
-/-- Requesting no bytes returns the empty SHAKE256 output. -/
-@[simp] theorem shake256_zero_output (input : List (Fin 256)) : shake256 input 0 = [] := rfl
 
 end Cslib.Crypto.Keccak

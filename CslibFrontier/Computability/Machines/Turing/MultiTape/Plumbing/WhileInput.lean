@@ -13,6 +13,8 @@ module
 public import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Cursor
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.RepeatUntilBlank
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Run.FirstStep
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Repeating a machine while the input head reads a symbol
@@ -26,11 +28,14 @@ what it read (`Turing.MultiTapeTM.TransformsTapesAt`), is thus run until the inp
 * `Turing.MultiTapeTM.inputSymbolAt`: the symbol at a position of the input.
 * `Turing.MultiTapeTM.WhileInput.inputTest`: the test of the input head.
 * `Turing.MultiTapeTM.whileInput`: the loop, `tm` combined with the test.
+* `Turing.MultiTapeMachine.whileInput`: the corresponding choice-free explicit transition table.
 
 ## Main results
 
 * `Turing.MultiTapeTM.transformsTapesAt_whileInput`: a loop invariant preserved by every round
   gives a specification of `whileInput tm`, with the times of the rounds adding up.
+* `Turing.MultiTapeMachine.toTM_whileInput`: forgetting the explicit table recovers the legacy
+  loop.
 -/
 
 namespace Turing.MultiTapeTM
@@ -78,6 +83,46 @@ public noncomputable abbrev whileInput (tm : MultiTapeTM k Symbol State) :
   simp only [SignType.coe_one] at this
   omega
 
+/-- One round of `combine tm test (handOver ()) f q₀`: once the test step hands over to `tm.q₀`,
+running `tm` to a halted `wordsCfgAt` configuration within space `σ` returns to `.inr ()` in
+`u + 1` steps (`u ≤ τ`) while keeping every head within `[-σ, σ]`. -/
+public theorem ConfinedRun.exists_combine_round {test : MultiTapeTM k Symbol Unit}
+    {tm : MultiTapeTM k Symbol State} {f : Option Unit → Option (State ⊕ Unit)}
+    {q₀ : State ⊕ Unit} {start : Cfg k Symbol (State ⊕ Unit) input} {t : ℕ}
+    {p p' : Fin (input.length + 2)} {w w' : Fin k → List Symbol} {out out' : List Symbol}
+    {τ σ : ℕ}
+    (hd : ConfinedRun (combine tm test (handOver ()) f q₀) start
+      (wordsCfgAt input p (some (.inr ())) w out) t σ)
+    (hstart : (combine tm test (handOver ()) f q₀).step
+      (wordsCfgAt input p (some (.inr ())) w out) =
+      (wordsCfgAt input p (some tm.q₀) w out).mapState (handOver ()))
+    (hrun : tm.runFrom (wordsCfgAt input p (some tm.q₀) w out) τ =
+      wordsCfgAt input p' none w' out')
+    (hsp : (MultiTapeNTM.RunPath.ofDeterministic tm (wordsCfgAt input p (some tm.q₀) w out)
+      τ).space ≤ σ) :
+    ∃ u ≤ τ, ConfinedRun (combine tm test (handOver ()) f q₀) start
+      (wordsCfgAt input p' (some (.inr ())) w' out') (t + (u + 1)) σ := by
+  obtain ⟨u, hu, hhalt⟩ := exists_haltsAt (show (tm.runFrom _ τ).Halted by rw [hrun]; rfl)
+  have hround :
+      (combine tm test (handOver ()) f q₀).runFrom
+        (wordsCfgAt input p (some (.inr ())) w out) (u + 1) =
+      wordsCfgAt input p' (some (.inr ())) w' out' := by
+    rw [runFrom_succ_eq_step, hstart, hhalt.runFrom_combine_left (handOver_some ()) le_rfl,
+      ← hhalt.runFrom_eq hu, hrun]
+    rfl
+  refine ⟨u, hu, by rw [runFrom_add, hd.reaches, hround], fun l => ?_⟩
+  rw [visitedByTapeHead_add, hd.reaches]
+  refine Finset.union_subset (hd.confined l) (visitedByTapeHead_subset _ fun m hm => ?_)
+  rcases m with _ | m
+  · simp [runFrom]
+  · rw [runFrom_succ_eq_step, hstart]
+    obtain hlt | rfl := (Nat.lt_succ_iff.mp hm).lt_or_eq
+    · rw [hhalt.runFrom_combine_left (handOver_some ()) hlt.le]
+      exact visitedByTapeHead_subset_Icc _ rfl ((space_mono tm _ hu).trans hsp)
+        (MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic.mpr ⟨m, by lia, rfl⟩)
+    · rw [hhalt.runFrom_combine_left (handOver_some ()) le_rfl, ← hhalt.runFrom_eq hu, hrun]
+      simp
+
 namespace WhileInput
 
 variable {tm : MultiTapeTM k Symbol State}
@@ -87,9 +132,8 @@ lemma step_check (p : Fin (input.length + 2)) (ws : Fin k → List Symbol) (out 
     (whileInput tm).step (wordsCfgAt input p (some (.inr ())) ws out) =
       wordsCfgAt input p ((inputSymbolAt input p).map fun _ => .inl tm.q₀) ws out := by
   rw [step_of_state rfl, inputSymbol_eq_inputSymbolAt]
-  refine Cfg.ext ?_ ?_ ?_ ?_ ?_ <;>
-    (try simp [whileInput, combine, adaptedTr, inputTest, Action.apply, moveInputPos_zero]) <;>
-    rfl
+  cases h : inputSymbolAt input p <;>
+    tm_step [combine, adaptedTr, inputTest, wordsCfgAt, h]
 
 /-- One round: from the test with the input head on a symbol, the loop runs `tm` once and is back
 at the test, after at most `τ + 1` steps and with its heads within `[-σ, σ]`. -/
@@ -102,30 +146,8 @@ lemma exists_runFrom_round {c : Cfg k Symbol (State ⊕ Unit) input} {t : ℕ}
       τ).space ≤ σ) :
     ∃ u ≤ τ, ConfinedRun (whileInput tm) c (wordsCfgAt input p' (some (.inr ())) w' out')
       (t + (u + 1)) σ := by
-  obtain ⟨u, hu, hhalt⟩ := exists_haltsAt (show (tm.runFrom _ τ).Halted by rw [hrun]; rfl)
   obtain ⟨a, ha⟩ := Option.ne_none_iff_exists'.mp hsym
-  have hstart : (whileInput tm).step (wordsCfgAt input p (some (.inr ())) w out) =
-      (wordsCfgAt input p (some tm.q₀) w out).mapState (handOver ()) := by
-    rw [step_check, ha]
-    rfl
-  have hround : (whileInput tm).runFrom (wordsCfgAt input p (some (.inr ())) w out) (u + 1) =
-      wordsCfgAt input p' (some (.inr ())) w' out' := by
-    rw [Nat.add_comm, runFrom_add, runFrom_one, hstart,
-      hhalt.runFrom_combine_left (handOver_some ()) le_rfl,
-      ← hhalt.runFrom_eq hu, hrun]
-    rfl
-  refine ⟨u, hu, by rw [runFrom_add, hc.reaches, hround], fun l => ?_⟩
-  rw [visitedByTapeHead_add, hc.reaches]
-  refine Finset.union_subset (hc.confined l) (visitedByTapeHead_subset _ fun m hm => ?_)
-  rcases m with _ | m
-  · simp [runFrom]
-  · rw [Nat.add_comm, runFrom_add, runFrom_one, hstart]
-    obtain hlt | rfl := (Nat.lt_succ_iff.mp hm).lt_or_eq
-    · rw [hhalt.runFrom_combine_left (handOver_some ()) hlt.le]
-      exact visitedByTapeHead_subset_Icc _ rfl ((space_mono tm _ hu).trans hsp)
-        (MultiTapeNTM.RunPath.mem_visitedByTapeHead_ofDeterministic.mpr ⟨m, by lia, rfl⟩)
-    · rw [hhalt.runFrom_combine_left (handOver_some ()) le_rfl, ← hhalt.runFrom_eq hu, hrun]
-      simp
+  exact hc.exists_combine_round (by rw [step_check, ha]; rfl) hrun hsp
 
 end WhileInput
 
@@ -190,3 +212,36 @@ public theorem transformsTapesAt_whileInput {tm : MultiTapeTM k Symbol State}
       simp
 
 end Turing.MultiTapeTM
+
+namespace Turing.MultiTapeMachine
+
+variable {k : ℕ} {Symbol State : Type}
+
+/-- Repeat an explicit table while the physical input head reads a symbol. -/
+public def whileInput (machine : MultiTapeMachine k Symbol State Empty Id) :
+    MultiTapeMachine k Symbol (State ⊕ Unit) Empty Id :=
+  ofTr (.inr ()) fun state input work =>
+    match state with
+    | .inl state =>
+      let action := Action.emptyOracleEquiv (machine.tr state input work Empty.elim)
+      { action with state := MultiTapeTM.handOver () action.state }
+    | .inr () =>
+      ⟨0, fun _ => (none, 0), none, input.map fun _ => .inl machine.initial⟩
+
+/-- Forgetting the explicit input loop gives the established deterministic loop. -/
+public theorem toTM_whileInput (machine : MultiTapeMachine k Symbol State Empty Id) :
+    machine.whileInput.toTM = MultiTapeTM.whileInput machine.toTM := by
+  rw [whileInput, toTM_ofTr]
+  simp only [MultiTapeTM.whileInput, MultiTapeTM.combine]
+  congr 1 with state input work : 3
+  cases state with
+  | inl state =>
+      simp only [Sum.elim_inl, MultiTapeTM.adaptedTr, MultiTapeNTM.Adapter.mapState,
+        id_eq, MultiTapeTM.tr_ofTr, toTM]
+  | inr state =>
+      obtain rfl := Subsingleton.elim state ()
+      cases input <;>
+        simp [MultiTapeTM.adaptedTr, MultiTapeNTM.Adapter.mapState,
+          MultiTapeTM.WhileInput.inputTest, MultiTapeTM.tr_ofTr, toTM]
+
+end Turing.MultiTapeMachine

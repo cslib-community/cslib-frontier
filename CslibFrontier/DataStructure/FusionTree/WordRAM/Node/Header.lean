@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node.Registers
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Model
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Loading concrete fusion-node parameters
@@ -141,7 +142,7 @@ theorem exec_readHeader {w n q a : ℕ} {keys : Fin n → ℕ} (p : NodeParamete
     exact Function.update_of_ne hni _ _
   refine ⟨y, hxu.seq (he.rename (bank_injective _)), ?_, hv.2.1⟩
   refine ⟨⟨(hyword 1).trans hr.count_eq, ?_⟩,
-    (hyinput query (by decide)).trans hxq, (hyinput pointer (by decide)).trans hxa,
+    by regs_frame, by regs_frame,
     fun i => (congrFun hv.2.1 _).trans (hr.keys_eq i)⟩
   intro j
   have hh := hyword ⟨j.val + 3, by omega⟩

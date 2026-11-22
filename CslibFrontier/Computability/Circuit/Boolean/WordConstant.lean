@@ -10,6 +10,7 @@ module
 public import Cslib.Computability.Circuit.Boolean.Basic
 public import CslibFrontier.Computability.Circuit.CompositionDepth
 public import CslibFrontier.Computability.Circuit.Pi
+import CslibFrontier.Computability.Circuit.Boolean.Simps
 
 /-!
 # Constant words over the Boolean basis
@@ -48,8 +49,7 @@ output bit `i` to the corresponding constant gate. -/
 @[simp] theorem eval_wordConstCircuit (y : BitString w) (x : BitString n) :
     (wordConstCircuit n y).eval interpretation x = y := by
   funext i
-  rw [wordConstCircuit, Circuit.eval_comp, Circuit.eval_wiring, Circuit.eval_append,
-    Function.comp_apply]
+  simp only [circuit_simps, wordConstCircuit]
   cases y i <;> rfl
 
 /-- `wordConstCircuit n y` uses `2` gates (one `false` and one `true` constant gate). -/
@@ -58,10 +58,9 @@ output bit `i` to the corresponding constant gate. -/
   rfl
 
 /-- `wordConstCircuit n y` has depth at most `1`. -/
+@[circuit_bound]
 theorem depth_wordConstCircuit_le (n : ℕ) (y : BitString w) :
     (wordConstCircuit n y).depth ≤ 1 := by
-  refine (Circuit.depth_comp_le _ _).trans ?_
-  rw [Circuit.depth_wiring, zero_add]
-  exact (Circuit.depth_append_le _ _).trans (by simp)
+  circuit_bound [wordConstCircuit]
 
 end Cslib.Circuits.Boolean

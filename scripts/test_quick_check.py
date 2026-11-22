@@ -75,6 +75,52 @@ class QuickCheckTests(unittest.TestCase):
                           "DemoTests/Client.lean"])
         self.assertEqual(plan.restore_built, ["Demo.lean"])
 
+    def test_focused_defers_only_unedited_global_test_leaves(self):
+        with (self.root / "lakefile.toml").open("a") as stream:
+            stream.write('[[lean_lib]]\nname = "CslibFrontierTests"\nroots = []\nglobs = ["CslibFrontierTests.+"]\n')
+        for test in ("Smoke", "Axioms"):
+            self.write(f"CslibFrontierTests/{test}.lean", "import Demo\n")
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("Demo/Base.lean", "def value := 2\n")
+        def focused():
+            return quick.make_plan(self.root, parser=self.simple_headers, focused=True)
+
+        plan = focused()
+        self.assertEqual(plan.deferred, ["CslibFrontierTests.Axioms", "CslibFrontierTests.Smoke"])
+        self.assertEqual(set(self.plan().targets) - set(plan.targets), set(plan.deferred))
+        self.assertIn("DemoTests.AllClient", plan.targets)
+        self.assertNotIn("CslibFrontierTests/Axioms.lean", plan.restore_files)
+        self.write("CslibFrontierTests/Smoke.lean", "import Demo\n-- changed\n")
+        self.write("CslibFrontierTests/Client.lean", "import CslibFrontierTests.Axioms\n")
+        self.assertEqual(focused().deferred, [])
+        self.assertIn("CslibFrontierTests.Axioms", focused().targets)
+
+    def test_mixed_prose_and_new_bibliography_entries_keep_lean_clients(self):
+        self.write("references.bib", "@book{Existing,\n}\n")
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.write("Demo/Base.lean", "def value := 2\n")
+        self.write("results/topic.md", "Source mapping.\n")
+        self.write("manual/workflows/operation.md", "Procedure.\n")
+        self.write("roadmap/topic.md", "Topics.\n")
+        self.write("references.bib", "@book{Added,\n}\n@book{Existing,\n}\n")
+        plan = self.plan()
+        self.assertIn("DemoTests.Client", plan.targets)
+        self.assertTrue(any("--config-only" in command for _, command in plan.checks))
+        self.assertTrue(any("--check-metadata" in command for _, command in plan.checks))
+        self.write("references.bib", "@book{Removed,\n}\n")
+        with self.assertRaisesRegex(quick.FullCheck, "existing bibliography"):
+            self.plan()
+        self.write("references.bib", "@book{Existing,\n}\n")
+        (self.root / "results/link.md").symlink_to(self.root / "Demo/Base.lean")
+        with self.assertRaisesRegex(quick.FullCheck, "symlinked"):
+            self.plan()
+        (self.root / "results/link.md").unlink()
+        self.write("manual/programs-crypto-and-probability/assumptions.md", "Inventory\n")
+        with self.assertRaisesRegex(quick.FullCheck, "non-Lean change"):
+            self.plan()
+
     def test_unused_aggregate_is_not_audited_or_built(self):
         (self.root / "DemoTests/AllClient.lean").unlink()
         self.write("DemoTests.lean", "import DemoTests.Client\n")
@@ -509,7 +555,8 @@ class QuickCheckTests(unittest.TestCase):
         with patch.object(quick, "make_plan", side_effect=quick.FullCheck("unsafe")), \
              patch.object(quick.subprocess, "run") as run, \
              patch("sys.stdout", new_callable=io.StringIO) as out:
-            self.assertEqual(quick.main(["--no-full-fallback"], self.root), quick.NO_FALLBACK_STATUS)
+            for flag in ("--no-full-fallback", "--focused"):
+                self.assertEqual(quick.main([flag], self.root), quick.NO_FALLBACK_STATUS)
         run.assert_not_called()
         self.assertIn("cannot plan this change: unsafe", out.getvalue())
 
@@ -555,11 +602,144 @@ class QuickCheckTests(unittest.TestCase):
             calls.append(command)
             return 1 if "DemoTests.Client" in command else 0
 
-        with patch.object(quick, "make_plan", side_effect=lambda r, b: original(r, b, parser=self.simple_headers)), \
+        with patch.object(quick, "make_plan", side_effect=lambda r, b, **kw: original(r, b, parser=self.simple_headers, **kw)), \
              patch.object(quick, "run_check", side_effect=run):
             self.assertEqual(quick.main([], self.root), 1)
         self.assertIn("DemoTests.Client", calls[0])
         self.assertEqual(calls[0][1:4], ["build", "--wfail", "--iofail"])
+
+    def _enable_batteries_linter(self):
+        self.write(
+            "lakefile.toml",
+            'name = "quickfixture"\ndefaultTargets = ["Demo"]\n'
+            'lintDriver = "batteries/runLinter"\n'
+            '[[lean_lib]]\nname = "Demo"\n[[lean_lib]]\nname = "DemoTests"\n',
+        )
+        self.commit()
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+
+    def test_lint_only_runs_scoped_linter_on_affected_library_modules(self):
+        self._enable_batteries_linter()
+        self.write("Demo/Middle.lean", "import Demo.Base\ndef middle : Nat := value + 2\n")
+        commands = []
+        with patch.object(quick, "run_check",
+                          side_effect=lambda _root, cmd, label, **_kw: (commands.append((label, cmd)), 0)[1]), \
+             patch("sys.stdout", new_callable=io.StringIO) as out:
+            rc = quick.run_lint_only(self.root, "origin/main", parser=self.simple_headers)
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0][0], "lint Demo.Middle")
+        self.assertIn("--no-build", commands[0][1])
+        self.assertIn("1 affected library module(s)", out.getvalue())
+
+    def test_lint_only_skips_prose_only_and_test_only_changes(self):
+        self._enable_batteries_linter()
+        real_run = subprocess.run
+        lake_calls = []
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd and cmd[0] == "lake":
+                lake_calls.append(cmd)
+                return subprocess.CompletedProcess(cmd, 0)
+            return real_run(cmd, *args, **kwargs)
+
+        self.write("ROADMAP.md", "updated docs\n")
+        with patch.object(quick, "run_lint") as lint_mock, \
+             patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main",
+                                     parser=lambda *_: self.fail("should skip QuickImports on prose"))
+        self.assertEqual(rc, 0)
+        lint_mock.assert_not_called()
+        self.assertEqual(lake_calls, [])
+
+        self.write("DemoTests/Client.lean", "import Demo.Middle\nexample : Nat := middle + 1\n")
+        with patch.object(quick, "run_lint") as lint_mock, \
+             patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main", parser=self.simple_headers)
+        self.assertEqual(rc, 0)
+        lint_mock.assert_not_called()
+        self.assertEqual(lake_calls, [])
+
+    def test_lint_only_falls_back_on_unsupported_changes_and_thresholds(self):
+        self._enable_batteries_linter()
+        real_run = subprocess.run
+        lake_calls = []
+        lake_rc = [0]
+
+        def fake_run(cmd, *args, **kwargs):
+            if cmd and cmd[0] == "lake":
+                lake_calls.append((list(cmd), kwargs.get("cwd")))
+                return subprocess.CompletedProcess(cmd, lake_rc[0])
+            return real_run(cmd, *args, **kwargs)
+
+        self.write("Demo/Base.lean", "def value : Nat := 99\n")
+        with patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO) as out:
+            # Two affected library modules (Demo.Base, Demo.Middle) exceed max_modules=1.
+            rc = quick.run_lint_only(self.root, "origin/main", max_modules=1,
+                                     parser=self.simple_headers)
+        self.assertEqual(rc, 0)
+        self.assertEqual(lake_calls, [(["lake", "lint"], self.root)])
+        self.assertIn("falls back to whole-library `lake lint`", out.getvalue())
+
+        # With --no-full-fallback, returns exit code 3 without running `lake lint`.
+        lake_calls.clear()
+        with patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main", max_modules=1,
+                                     no_full_fallback=True, parser=self.simple_headers)
+        self.assertEqual(rc, quick.NO_FALLBACK_STATUS)
+        self.assertEqual(lake_calls, [])
+
+        # Non-Lean script edit falls back to `lake lint` and propagates its exit code.
+        lake_rc[0] = 5
+        self.write("scripts/tool.py", "print(1)\n")
+        with patch.object(quick.subprocess, "run", side_effect=fake_run), \
+             patch("sys.stdout", new_callable=io.StringIO):
+            rc = quick.run_lint_only(self.root, "origin/main", parser=self.simple_headers)
+        self.assertEqual(rc, 5)
+        self.assertEqual(lake_calls, [(["lake", "lint"], self.root)])
+
+    def test_lint_only_flag_rejects_focused_and_negative_bounds(self):
+        with self.assertRaises(SystemExit) as err:
+            with patch("sys.stderr", new_callable=io.StringIO):
+                quick.main(["--lint-only", "--focused"], self.root)
+        self.assertEqual(err.exception.code, 2)
+        with self.assertRaises(SystemExit) as err:
+            with patch("sys.stderr", new_callable=io.StringIO):
+                quick.main(["--lint-only", "--lint-max-modules", "-1"], self.root)
+        self.assertEqual(err.exception.code, 2)
+
+    def test_shallow_merge_commit_resolves_direct_first_parent(self):
+        self._enable_batteries_linter()
+        base_sha = self.git("rev-parse", "origin/main").strip()
+        self.git("checkout", "-qb", "pr")
+        self.write("Demo/Middle.lean", "import Demo.Base\ndef middle : Nat := value + 7\n")
+        self.commit()
+        self.git("checkout", "-qb", "merged", base_sha)
+        self.git("merge", "--no-ff", "-qm", "merge pr", "pr")
+        with tempfile.TemporaryDirectory(prefix="quick-shallow-") as box:
+            bare = Path(box) / "bare.git"
+            bare.mkdir()
+            env = {**os.environ, "GIT_ALLOW_PROTOCOL": "file"}
+            subprocess.run(["git", "init", "--bare", "-q", str(bare)], env=env, check=True)
+            self.git("push", "-q", bare.as_uri(), "merged:refs/heads/merged")
+            self.git("push", "-q", bare.as_uri(), f"{base_sha}:refs/heads/base_tip")
+            shallow = Path(box) / "co"
+            shallow.mkdir()
+            for args in (
+                ["init", "-q"],
+                ["remote", "add", "origin", bare.as_uri()],
+                ["fetch", "-q", "--depth=1", "origin", "merged"],
+                ["checkout", "-q", "--detach", "FETCH_HEAD"],
+                ["fetch", "-q", "--no-tags", "--depth=1", "origin", base_sha],
+            ):
+                subprocess.run(["git", "-C", str(shallow), *args], env=env, check=True)
+            plan = quick.make_plan(shallow, base_sha, parser=self.simple_headers)
+            self.assertEqual(plan.base, base_sha)
+            self.assertEqual(plan.lint, {"Demo.Middle": ["Demo.Middle"]})
 
 
 class LocalManualGateTests(unittest.TestCase):
@@ -571,7 +751,8 @@ class LocalManualGateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix="cslib-frontier-manual-gates-")
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for source in ("scripts/check.sh", "scripts/check_operator_manual.py", "manual/data/visuals.py"):
+        for source in ("scripts/check.sh", "scripts/check_operator_manual.py", "manual/data/build_latex.py",
+                       "manual/data/visuals.py"):
             self.write(source, (REPO / source).read_text())
         self.write("manual/README.md", "# Manual\n\n[Drivers](AGENT_OPERATORS.md)\n"
                    "[Example](workflows/example.md)\n")
@@ -630,6 +811,10 @@ class LocalManualGateTests(unittest.TestCase):
         commands = [json.loads(x) for x in self.log.read_text().splitlines()]
         self.assertEqual(commands[1:], [["quick_check.py", "--base", "origin/main",
                                          "--no-full-fallback"]])
+        self.log.unlink()
+        self.assertEqual(self.run_gate("--focused").returncode, 0)
+        commands = [json.loads(x) for x in self.log.read_text().splitlines()]
+        self.assertEqual(commands[-1], ["quick_check.py", "--base", "origin/main", "--focused"])
         self.log.unlink()
         bad = self.run_gate("--no-full-fallback")
         self.assertEqual(bad.returncode, 2)

@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSearch
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Micro-Chain Update Helpers and Bucket Metadata Readers in `Memory.Prog`
@@ -332,7 +333,7 @@ theorem realizes_prependIfIndexedGen :
       (fun _ _ => 0) := by
   have hp := realizes_lmPrependGen
   realize
-  all_goals (
+  (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [prependIfIndexedGenPre_mk, PrependIfIndexedPre, prependIfIndexedGenProg_mk,
@@ -481,7 +482,7 @@ theorem realizes_unlinkIfIndexedGen :
       (fun _ _ => 0) := by
   have hu := realizes_lmUnlinkGen
   realize
-  all_goals (
+  (
     rcases d with ⟨⟨dp, d1⟩, d2⟩
     obtain ⟨⟨U, V, w₀, n_max, h_space, hw, hnU, hU, hV, rfl⟩, henv⟩ := h.1
     simpDictParamsWith [unlinkIfIndexedGenPre_mk, UnlinkIfIndexedPre, unlinkIfIndexedGenProg_mk,
@@ -612,13 +613,13 @@ theorem realizes_readTotalSlotsGen :
       (fun _ _ => 0) := by
   realizeDict using [realizes_readGMGen]
   · exact h.1
-  · unfold globalMetaLen; omega
+  · wram_omega
   · exact fits_const_of_dictEnv h.1 (by decide)
   · exact h.1
-  · unfold globalMetaLen; omega
-  · unfold globalMetaLen; omega
-  · have h0_lt : 0 < globalMetaLen n_max := by unfold globalMetaLen; omega
-    have h1_lt : 1 < globalMetaLen n_max := by unfold globalMetaLen; omega
+  · wram_omega
+  · wram_omega
+  · have h0_lt : 0 < globalMetaLen n_max := by wram_omega
+    have h1_lt : 1 < globalMetaLen n_max := by wram_omega
     rw [clientState_readGMProg, clientResult_readGMProg s h0_lt,
       clientResult_readGMProg s h1_lt]
     exact fits_of_le_max_n_one h.1 hw hnU hU
@@ -755,7 +756,7 @@ theorem copyLastPayloadProg_effect {U V w n_max h_space base b phys_del : ℕ}
     eff₂.2.2.2.1.trans (congrArg (fun f => Function.update f phys_del v_last) eff₁.2.2.2.1),
     eff₂.2.2.2.2.1.trans eff₁.2.2.2.2.1,
     eff₂.2.2.2.2.2.trans eff₁.2.2.2.2.2⟩
-  rw [eff₂.2.1 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega),
-    eff₁.2.1 a (by dsimp only [totalSpace, offGM, offLM, offVal, offQuot] at ha ⊢; omega)]
+  rw [eff₂.2.1 a (by wram_omega [ha]),
+    eff₁.2.1 a (by wram_omega [ha])]
 
 end Cslib.DataStructure.Dictionary.WordRAM.Succinct

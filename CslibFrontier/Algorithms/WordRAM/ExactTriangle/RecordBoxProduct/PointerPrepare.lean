@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordBoxProduct.Patch
 import CslibFrontier.Algorithms.WordRAM.ExactTriangle.RecordProduct.Prepare
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Record decoding without low-payload staging
@@ -66,8 +67,7 @@ theorem exec_prepare {W b m n i out rho piece s t q : ℕ}
   obtain ⟨y, hy, ym, yb, yr⟩ := exec_patchInput h hb' hm hlen hI
     (hfit.of_le (by unfold QueriedProduct.inputEnd; omega))
   refine ⟨y, (hrun hy).mono (by omega), yb,
-    (hy.regs_eq (by decide)).trans hs, (hy.regs_eq (by decide)).trans ht,
-    (hy.regs_eq (by decide)).trans hq, ?_, ?_, ?_,
+    by regs_frame, by regs_frame, by regs_frame, ?_, ?_, ?_,
     fun j hj => (yr j hj).trans (hregs j hj)⟩
   · intro a ha
     by_cases h0 : a = 0

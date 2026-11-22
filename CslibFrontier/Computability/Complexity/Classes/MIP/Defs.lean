@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Complexity.Classes.IP
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Probabilistic.Oracle.SingleOracle
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 
 /-!
 # Multiprover interactive proofs (`MIP₂` and `MIP`)
@@ -114,31 +115,20 @@ theorem run_singleOracle_independent (P : ι → Prover Unit) (i₀ : ι)
       (Prod.map id (fun s' => s' i₀)) =
       (P i₀).run p (s i₀) := by
   rw [Prover.run, WordOracleComp.run_interpret_singleOracle, Prover.run]
-  unfold ProbOracleComp.runWith OracleComp.runWith
-  induction p using PFunctor.FreeM.induction generalizing s with
-  | pure a =>
-    simp only [OracleComp.interpret_pure, StateT.run_pure, Probability.PMF.monad_pure_eq_pure,
-      PMF.pure_map, Prod.map_apply, id_eq]
-  | lift_bind q cont ih =>
-    rw [show (PFunctor.FreeM.lift q).bind cont = OracleComp.query q >>= cont from rfl]
-    simp only [OracleComp.interpret_bind, OracleComp.interpret_query, StateT.run_bind,
-      Probability.PMF.monad_bind_eq_bind, PMF.map_bind]
-    cases q with
-    | inl n =>
-      change ((ProbComp.unifOracle n).map (·, s)).bind _ =
-        ((ProbComp.unifOracle n).map (·, s i₀)).bind _
-      rw [PMF.bind_map, PMF.bind_map]
-      congr 1 with bit : 1
-      exact ih bit s
-    | inr q =>
-      obtain ⟨⟨⟩, msg⟩ := q
-      change (((P i₀).respond ((), msg) (s i₀)).map
-          (fun x => (x.1, Function.update s i₀ x.2))).bind _ =
-        (((P i₀).respond ((), msg) (s i₀))).bind _
-      rw [PMF.bind_map]
-      congr 1 with x : 1
-      simpa only [Function.comp_apply, Function.update_self] using
-        ih x.1 (Function.update s i₀ x.2)
+  apply ProbOracleComp.runWith_map_state
+    (fun q : Unit × List Bool => (independent P).respond (i₀, q.2))
+    (P i₀).respond (fun s' => s' i₀) ?_ p s
+  intro q state
+  obtain ⟨⟨⟩, msg⟩ := q
+  change ((((P i₀).respond ((), msg)).run (state i₀)).map
+      (fun x => (x.1, Function.update state i₀ x.2))).map
+        (fun x => (x.1, x.2 i₀)) =
+    ((P i₀).respond ((), msg)).run (state i₀)
+  rw [PMF.map_comp]
+  convert PMF.map_id (((P i₀).respond ((), msg)).run (state i₀)) using 1
+  congr 1
+  funext x
+  simp only [Function.comp_apply, Function.update_self, Prod.eta, id_eq]
 
 /-- A single-channel verifier routed to prover `i₀` has the exact same acceptance probability
 against `independent P` as the original verifier against `P i₀`. -/
@@ -235,7 +225,7 @@ theorem PolyTimeReducible.mem_MIP₂ {encA : α ↪ List Bool} {encB : β ↪ Li
     A ∈ MIP₂ encA := by
   obtain ⟨f, hf, hAB⟩ := hred
   obtain ⟨V, hV, hproof⟩ := hB
-  exact ⟨fun a => V (f a), hV.preprocess' hf, hproof.comp hAB⟩
+  exact ⟨fun a => V (f a), hV.preprocess hf, hproof.comp hAB⟩
 
 /-- **`MIP` is closed under polynomial-time reductions.** -/
 theorem PolyTimeReducible.mem_MIP {encA : α ↪ List Bool} {encB : β ↪ List Bool}
@@ -243,7 +233,7 @@ theorem PolyTimeReducible.mem_MIP {encA : α ↪ List Bool} {encB : β ↪ List 
     A ∈ MIP encA := by
   obtain ⟨f, hf, hAB⟩ := hred
   obtain ⟨p, V, hV, hproof⟩ := hB
-  exact ⟨p, fun a => V (f a), hV.preprocess' hf, hproof.comp hAB⟩
+  exact ⟨p, fun a => V (f a), hV.preprocess hf, hproof.comp hAB⟩
 
 /-- **`IP ⊆ MIP₂`**: a single-prover interactive proof uses the first of two provers (`0 : Fin 2`)
 and ignores the second. -/

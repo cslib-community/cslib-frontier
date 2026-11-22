@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.St
 public import CslibFrontier.Computability.Probabilistic.PPT
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Crypto.Protocols.MPC.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.DPi
 
 /-!
 # Asymptotic computational semi-honest security of protocol families
@@ -111,9 +112,13 @@ differences:
   simulator families give close ideal games.
 * `Cslib.Crypto.Protocols.MPC.PartyEncoding.encCoalition_singleton`: the word of a single party's
   values, as two-party certificates use it.
+* `Cslib.Crypto.Protocols.MPC.PartyEncoding.encCoalition_apply_polyTime`: reading one member's
+  value from the word of a coalition's values, as simulator certificates use it.
 
-`CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` proves the notion for DDH oblivious
-transfer from the DDH assumption (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTSemiHonestSecure`).
+`CslibFrontier/Crypto/Protocols/MPC/DDHOT/Simulators.lean` proves the notion across all static
+coalitions for DDH oblivious transfer with raw fair-coin bit-string party views from the DDH
+assumption (`Cslib.Crypto.PrimeOrderGroupFamily.DDH.ddhOTProbFamily_semiHonestSecure`, a
+stand-alone step toward [BonehShoup2023], Theorem 23.7).
 The test module `CslibFrontierTests.Crypto.MPCAsymptotic` refutes it for a protocol that leaks a
 party's input bit, with a PPT environment, and proves it without assumptions for the protocol that
 delivers the bit as the functionality's output, through `SemiHonestSecure.of_perfect`.
@@ -254,6 +259,19 @@ theorem encCoalition_singleton (n : ℕ) (d : Desc) (i : Fin m)
   funext ⟨j, hj⟩
   obtain rfl := Finset.mem_singleton.mp hj
   rfl
+
+/-- **Reading one member's value.** From the word of a coalition's values, computed in polynomial
+time, the representation of member `i`'s value is computed in polynomial time. A certificate
+applies it to `encSimInput_inputs_polyTime` or `encSimInput_outputs_polyTime` to read a
+coalition member's input or output from a simulator's input. -/
+theorem encCoalition_apply_polyTime {I : Finset (Fin m)} {γ : Type} {enc : γ ↪ List Bool}
+    {n : γ → ℕ} {d : γ → Desc} {v : (c : γ) → (i : I) → X (n c) (d c) i}
+    (h : ComputableInPolyTime (fun c => e.encCoalition (n c) (d c) I (v c)) enc encBits)
+    (i : I) : ComputableInPolyTime (fun c => e.rep (n c) (d c) i (v c i)) enc (e.enc i) := by
+  have htable : ComputableInPolyTime (fun c => fun j : I => e.rep (n c) (d c) j (v c j)) enc
+      (encDPi fun j : I => e.enc j) :=
+    h.of_enc_eq fun _ => rfl
+  exact (ComputableInPolyTime.dpi_apply _ i).comp htable
 
 end PartyEncoding
 

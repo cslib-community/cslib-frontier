@@ -40,6 +40,15 @@ blank line before the list, or rewrap a prose line that merely starts with `-`, 
 number and a period. Items of an open list, nested ones included, need no blank line. Lists
 inside block quotes are not checked.
 
+It also reports a locator inside the label of a link into `sources.md`, such as
+`[Boneh and Shoup, Section 5.6][bs23]`. The PDF prints such a link as a citation number and drops
+its label, so the locator is lost. Write the locator after the link:
+`[Boneh and Shoup][bs23], Section 5.6`. Section, chapter, page, statement, figure, table and
+equation numbers count, spelled out or abbreviated (`Sec. 5`, `Thm. 4`) and in either case, and so
+does any bare dotted number (`CLRS 15.5`). A version written `TLS 1.3` therefore counts too: write
+it `v1.3` or put it after the link. A year, or a title word after a keyword (`Algorithm Design`),
+does not. Labels that wrap onto the next line are checked as one label.
+
 To produce the books, also install Pandoc, XeLaTeX and `pdfinfo` (Poppler).
 The main book's model diagrams require
 Graphviz (`dot`); the short agent manual does not invoke it. The TeX installation needs
@@ -118,9 +127,8 @@ it links to the separate short manual without duplicating that manual’s conten
 link-only navigation paragraphs. The original academic paper plan remains in
 [history/paper-plan.md](history/paper-plan.md) as historical editorial context.
 
-Coordinator review must cover the impact on both manuals before integration. When either
-manual changes, check its rendered pages and retain its matching manifest when distributing
-the artifact. A shared converter change requires checking both editions. See
+When distributing a PDF, retain its matching manifest. A converter or layout change requires
+checking the rendered pages of both editions. See
 [the maintenance procedure](MAINTAINING.md) and the
 [contribution policy](../CONTRIBUTING.md#maintaining-the-manuals).
 
@@ -221,7 +229,7 @@ The historical study reports a fixed observation at `13e6a319`, dated November 2
 Its scripts are optional tools for inspecting the evidence; running them is not a prerequisite
 for reading or building either manual. Outputs default to the ignored `manual/_generated/`
 directory. Keep generated JSON, API responses, dependency copies and plots out of commits.
-The maintained chapters and [model map](model-map.md) hold the semantic account; the scripts
+The frozen reference chapters and [model map](model-map.md) hold the semantic account; the scripts
 do not reconstruct the retired detailed model ledgers or repeat their mathematical review.
 
 With Git history through the fixed revision available locally, run from the repository root:

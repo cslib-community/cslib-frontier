@@ -14,10 +14,15 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Run
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.SpaceBudget
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Ite
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.Append
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Basic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 import CslibFrontier.Computability.Complexity.Classes.Constructible.Space
 import CslibFrontier.Computability.Complexity.Classes.Hierarchy.SpaceDiagonalBounds
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.TidyNormalForm
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigOLe
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LinearSpaceArith
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
@@ -174,17 +179,20 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
   have hclock := ((ComputableInDegree.two_pow_length encUnary).inO_one.comp_linear
     hGu).of_enc_eq (encC := encNat) (g := fun x : List Bool => 2 ^ G x.length) fun x => by
       simp only [Function.comp_apply, encUnary_apply, List.length_replicate]
-  obtain ⟨cC, hCt, -⟩ := ((hclock.prod hGu).tidy).mono (S' := fun x : List Bool => G x.length)
+  have hC := (hclock.prod hGu).mono (S' := fun x : List Bool => G x.length)
     (T' := fun x => TG x + (G x.length + 1) ^ 2 + (TG x + (G x.length + 1) ^ 2)) 4
     (fun x => by have := Nat.le_self_pow two_ne_zero (G x.length + 1); omega)
     (fun x => by omega)
+  obtain ⟨cC, hCt, -⟩ := Internal.NormalForm.inO hC
   -- the input of the budgeted universal machine, recomputed and never charged
-  obtain ⟨kF, hF⟩ := hAB.append hCt (encOut := eInS) (g := universalInput G) fun x => by
+  obtain ⟨kF, hF⟩ := ComputableTidilyInTimeAndSpace.append hAB hCt
+    (encOut := eInS) (g := universalInput G) fun x => by
     simp only [universalInput, eInS, encPair_apply, encBits_apply, List.append_assoc]; rfl
   -- the budgeted universal run and the verdict
   obtain ⟨cV, hV, -⟩ := computableInO_verdict.comp
-    computableTidilyInO_budgetedUniversal.computableInO
-  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space hF.computableInTimeAndSpace hV
+    computableInO_budgetedUniversal
+  obtain ⟨cU, hU⟩ := ComputableInTimeAndSpace.comp_space
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace hF) hV
   obtain ⟨dU, hU⟩ := hU.exists_computableTidilyInTimeAndSpace
   -- the test and the case distinction
   obtain ⟨tc, cc, hc⟩ := computableInLogSpace_tinyDesc
@@ -216,7 +224,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
       budgetSpace_le (decodeDesc (tinyCut x)) (x.map eBit) (G x.length) (2 ^ G x.length)
     have hD : (eDesc (decodeDesc (tinyCut x))).length ≤ cD * (Nat.log2 x.length + 1) := hcD x
     have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+      rw [length_encNat_two_pow]
     have hn : (encNat ((x.map eBit).length + 1)).length ≤ Nat.log2 x.length + 2 := by
       rw [List.length_map]; exact length_encNat_le_log2_add_two le_rfl
     have hmax : (x.map eBit).foldr max 0 ≤ 1 := listMax_le fun b _ => by cases b <;> decide
@@ -236,7 +244,7 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
         rw [encUnary_apply, List.length_replicate]
         cases c <;> decide
     have hclk : (encNat (2 ^ G x.length)).length = G x.length + 1 := by
-      rw [encNat_two_pow, List.length_append, List.length_replicate, List.length_singleton]
+      rw [length_encNat_two_pow]
     have hlen : (eInS (universalInput G x)).length + 1 ≤
         (2 * (eDesc (decodeDesc (tinyCut x))).length + 3 * G x.length + 12) * (x.length + 1) := by
       simp only [universalInput, eInS, length_encPair, encUnary_apply, List.length_replicate, hclk,
@@ -248,7 +256,8 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     have h₃ : (encNat (x.length + 1)).length ≤ Nat.log2 x.length + 2 :=
       length_encNat_le_log2_add_two le_rfl
     nlinarith [Nat.zero_le (cD * G x.length)]
-  obtain ⟨K, hK⟩ := exists_space_of_bigOLe h.computableInTimeAndSpace
+  obtain ⟨K, hK⟩ := exists_space_of_bigOLe
+    (ComputableTidilyInTimeAndSpace.computableInTimeAndSpace h)
     (V := fun x : List Bool => G x.length + Nat.log2 x.length) (by
       simp only [encBits_apply]
       bigO)

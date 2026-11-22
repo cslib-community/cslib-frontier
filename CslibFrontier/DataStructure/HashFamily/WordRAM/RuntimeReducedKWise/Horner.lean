@@ -83,7 +83,7 @@ private theorem realizesBounded_innerClmulStepGen :
     rcases d with ⟨⟨hp, tBase, prodBase, i, uLimb⟩, ⟨m, curR⟩⟩
     obtain ⟨w₀, b, b', k, hashBase, hc_lt, rfl, rfl, hfr_h, hfr_p, hi_lt, hm_lt, hu_lt,
       hcur_fit⟩ := h
-    try (dsimp only [hpC_mk, hpMaskC_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk, hpMask2C_mk] at *)
+    dsimp only [hpC_mk, hpMaskC_mk, hpP_mk, hpMaskP_mk, hpTwoC_mk, hpMask2C_mk] at *
     have hpack_le : 2 ^ rPack w w₀ b b' * (2 * rChunk w₀ b b') ≤ w :=
       two_pow_reducedPackShift_mul_le (le_of_lt hc_lt)
     have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
@@ -121,10 +121,9 @@ private theorem realizesBounded_innerClmulStepGen :
   all_goals (try
     exact Nat.xor_lt_two_pow (hmem.2 _)
       (hpowc.of_le (le_of_lt (and_two_pow_sub_one_lt _ (rChunk w₀ b b')))))
-  all_goals (try
-    refine Nat.xor_lt_two_pow ?_ (hpow2c.of_le
-      ((Nat.shiftRight_le _ _).trans (le_of_lt (and_two_pow_sub_one_lt _ (2 * rChunk w₀ b b')))))
-    rw [Function.update_of_ne (by omega)]; exact hmem.2 _)
+  refine Nat.xor_lt_two_pow ?_ (hpow2c.of_le
+    ((Nat.shiftRight_le _ _).trans (le_of_lt (and_two_pow_sub_one_lt _ (2 * rChunk w₀ b b')))))
+  rw [Function.update_of_ne (by omega)]; exact hmem.2 _
 
 private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVal : ℕ}
     {s₀ : Memory.State}
@@ -150,7 +149,6 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
           (i * rChunk w₀ b b')) ∧
     (∀ a, (a < prodBase ∨ prodBase + 2 * rLimbs w₀ b b' ≤ a) → s'.mem a = s₀.mem a) := by
   intro hp env prog s'
-  have hc_pos : 0 < rChunk w₀ b b' := reducedChunkBits_pos _
   have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hpowc : Fits w (2 ^ rChunk w₀ b b') :=
     hpow2c.of_le (Nat.pow_le_pow_right two_pos (by omega))
@@ -260,7 +258,7 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
             rcases eq_or_ne d (i + m) with rfl | hne0
             · rw [Function.update_self]; exact Nat.xor_lt_two_pow (hprod_s _ hd) hlo_lt
             · rw [Function.update_of_ne hne0]; exact hprod_s d hd
-        · rw [packLimbs_congr hs₁_fn, packLimbs_update_pair hc_pos f (by omega) hcl_lt,
+        · rw [packLimbs_congr hs₁_fn, packLimbs_update_pair f (by omega) hcl_lt,
             hpack_s, Nat.xor_assoc]
           change P₀ ^^^ (clmul uLimb (truncLimbs (rChunk w₀ b b') m rVal) <<<
               (i * rChunk w₀ b b') ^^^
@@ -303,18 +301,17 @@ private theorem realizesBounded_outerClmulStepGen :
     obtain ⟨w₀, b, b', k, hashBase, hc_lt, rfl, rfl, hfr_h, hfr_s, hdisj, htab,
       hi_lt, hr_fit, hacc_lt, hprod_lt⟩ := h
     try (dsimp only [hpL0_mk] at *)
-    try dsimp only [accWords, prodWords, scratchWords] at *
+    dsimp only [accWords, prodWords, scratchWords] at *
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have hL_eq : 2 * rHalf w₀ b b' = rLimbs w₀ b b' := rfl)
   all_goals try exact hmem.1.of_le (by omega)
-  all_goals (
-    rw [hL_eq]
-    have haccW : accWords = 54 := rfl
-    have hscrW : scratchWords = 162 := rfl
-    exact iterationSafe_imp
-      (innerClmulLoop_spec hc_lt hfr_h (by omega) (by omega) htab hi_lt (hacc_lt i hi_lt)
-        hr_fit hprod_lt).1
-      (fun _ => rfl) (fun _ _ hs => hs))
+  rw [hL_eq]
+  have haccW : accWords = 54 := rfl
+  have hscrW : scratchWords = 162 := rfl
+  exact iterationSafe_imp
+    (innerClmulLoop_spec hc_lt hfr_h (by omega) (by omega) htab hi_lt (hacc_lt i hi_lt)
+      hr_fit hprod_lt).1
+    (fun _ => rfl) (fun _ _ hs => hs)
 
 private theorem outerClmulLoop_spec {w w₀ b b' k hashBase scratchBase rVal accVal : ℕ}
     {s₀ : Memory.State}
@@ -440,8 +437,8 @@ private theorem realizesBounded_reduceAddStepGen :
   all_goals (
     rcases d with ⟨⟨hp, hashBase, scratchBase, coeffOff⟩, m⟩
     obtain ⟨w₀, b, b', k, hc_lt, rfl, hcoeff, hfr_h, hfr_s, hm_lt⟩ := h
-    try (dsimp only [hpL0_mk] at *)
-    try dsimp only [accWords, prodWords, scratchWords] at *
+    dsimp only [hpL0_mk] at *
+    dsimp only [accWords, prodWords, scratchWords] at *
     have hL_eq : rLimbs w₀ b b' = 2 * rHalf w₀ b b' := rfl
     have hL0_le : rHalf w₀ b b' ≤ 27 := reducedHalfLimbs_le _
     have hxor3 := Nat.xor_lt_two_pow
@@ -452,7 +449,7 @@ private theorem realizesBounded_reduceAddStepGen :
   all_goals try exact hmem.1.of_le (by unfold ReducedKWise.space at hfr_h; omega)
   all_goals try exact Nat.xor_lt_two_pow (hmem.2 _) (hmem.2 _)
   all_goals try exact Nat.xor_lt_two_pow (Nat.xor_lt_two_pow (hmem.2 _) (hmem.2 _)) (hmem.2 _)
-  all_goals exact hxor3
+  exact hxor3
 
 private theorem reduceAddLoop_spec {w w₀ b b' k hashBase scratchBase PVal : ℕ}
     {θ : ReducedPolySeed w₀ b b' k} {coeffIdx : Fin k} {s₀ : Memory.State}
@@ -542,8 +539,9 @@ private theorem reduceAddLoop_spec {w w₀ b b' k hashBase scratchBase PVal : �
             dsimp only at hhigh
             rw [Nat.add_sub_of_le hm_ge,
               show 2 * rHalf w₀ b b' + (m - rHalf w₀ b b') = rHalf w₀ b b' + m by omega,
-              getLimb_eq_zero_of_lt (d := 4 * rHalf w₀ b b' + (m - rHalf w₀ b b')) hP_lt (
-                by omega),
+              getLimb_eq_zero_of_lt (m := 4 * rHalf w₀ b b' + (m - rHalf w₀ b b'))
+                (hP_lt.trans_le (Nat.pow_le_pow_right two_pos
+                  (Nat.mul_le_mul_right _ (by omega)))),
               Nat.xor_zero] at hhigh
             have hval_eq : (s.mem (scratchBase + accWords + m) ^^^
                 s.mem (scratchBase + accWords + (rHalf w₀ b b' + m))) ^^^
@@ -644,16 +642,16 @@ private theorem hornerStep_spec {w w₀ b b' k hashBase scratchBase rVal accVal 
   have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
   obtain ⟨hsafe_z, hv_z, hcost_z, hfr_z, hz_mem, hout_z⟩ :=
     zeroWordsLoop_spec (w := w) (baseAddr := prodBase) (n := 2 * rLimbs w₀ b b') (s₀ := s₀)
-      (by change prodBase + 2 * rLimbs w₀ b b' ≤ s.frontier; dsimp only [prodBase]; omega)
+      (by change prodBase + 2 * rLimbs w₀ b b' ≤ s.frontier; omega)
   have hs₁_out : ∀ a, (a < scratchBase ∨ scratchBase + scratchWords ≤ a) → s₁.mem a = s.mem a :=
-    fun a ha => (hout_z a (by dsimp only [prodBase]; omega)).trans
-      (Function.update_of_ne (by dsimp only [prodBase]; omega) _ _)
+    fun a ha => (hout_z a (by omega)).trans
+      (Function.update_of_ne (by omega) _ _)
   have htab₁ : ReducedKWise.TableRep hashBase w w₀ b b' k s₁.mem :=
     tableRep_congr htab fun a h1 h2 => (hs₁_out a (by omega)).symm
   have hacc₁ :
       ∀ m < rLimbs w₀ b b', s₁.mem (scratchBase + m) = getLimb (rChunk w₀ b b') accVal m :=
-    fun m hm => (hout_z _ (Or.inl (by dsimp only [prodBase]; omega))).trans
-      ((Function.update_of_ne (by dsimp only [prodBase]; omega) _ _).trans (hacc m hm))
+    fun m hm => (hout_z _ (Or.inl (by omega))).trans
+      ((Function.update_of_ne (by omega) _ _).trans (hacc m hm))
   obtain ⟨hsafe_o, hv_o, hcost_o, hfr_o, hprod₂, hout_o⟩ :=
     outerClmulLoop_spec hc_lt (by rw [hfr_z]; exact hfr_h) (by rw [hfr_z]; exact hfr_s)
       hdisj htab₁ hr_fit hr_lt hacc_lt hacc₁ hz_mem
@@ -685,7 +683,7 @@ private theorem hornerStep_spec {w w₀ b b' k hashBase scratchBase rVal accVal 
   refine ⟨hsafe_z, hsafe_o, hsafe_r, ?_, ?_, ?_, hs'_eq ▸ (hfr_r.trans (hfr_o.trans hfr_z)),
     hs'_eq ▸ hacc_r, fun a ha => hs'_eq ▸ (hout_r a (by omega)).trans (hs₂_out a ha)⟩
   · rw [hstep_eq, validHistory_bind', validHistory_bind', validHistory_bind', validHistory_bind']
-    exact ⟨⟨⟨by dsimp only [prodBase]; omega, Nat.two_pow_pos w⟩, trivial⟩, hv_z, hv_o, hv_r,
+    exact ⟨⟨⟨by omega, Nat.two_pow_pos w⟩, trivial⟩, hv_z, hv_o, hv_r,
       trivial⟩
   · rw [hstep_eq, memoryCost_bind', memoryCost_bind', memoryCost_bind', memoryCost_bind',
       memoryCost_pure, Nat.add_zero]
@@ -713,7 +711,7 @@ theorem realizesBounded_hornerStepGen :
     obtain ⟨w₀, b, b', k, θ, accVal, hc_lt, rfl, hfr_h, hfr_s, hdisj, htab, hseed,
       hj_lt, hr_fit, hr_lt, hacc_lt, hacc⟩ := h
     try (dsimp only [hpL0_mk, hpSeedWords_mk, hpK_mk] at *)
-    try dsimp only [accWords, prodWords, scratchWords] at *
+    dsimp only [accWords, prodWords, scratchWords] at *
     have hL0_le : rHalf w₀ b b' ≤ 27 := reducedHalfLimbs_le _
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have h4L0 : 4 * rHalf w₀ b b' = 2 * rLimbs w₀ b b' := by
@@ -729,7 +727,7 @@ theorem realizesBounded_hornerStepGen :
     unfold ReducedKWise.space ReducedKWise.seedWords at hfr_h; omega)
   all_goals try exact hmem.1.of_le (by
     try rw [h2L0]
-    unfold ReducedKWise.space at hfr_h; try unfold ReducedKWise.seedWords at *; omega)
+    unfold ReducedKWise.space at hfr_h; unfold ReducedKWise.seedWords at *; omega)
   all_goals first
     | (rw [h4L0]; exact iterationSafe_imp hsafe_z (fun _ => rfl) (fun _ _ hs => hs))
     | (rw [h4L0, h2L0]; exact iterationSafe_imp hsafe_o (fun _ => rfl) (fun _ _ hs => hs))

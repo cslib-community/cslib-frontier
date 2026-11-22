@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise.ParamsInit
 public import CslibFrontier.DataStructure.HashFamily.WordRAM.RuntimeReducedKWise.Horner
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Runtime-Parameterized `ReducedKWise` Hashing on the Resizable Word RAM
@@ -95,8 +97,8 @@ private theorem realizesBounded_packOutStepGen :
   all_goals (
     rcases d with ⟨⟨hp, scratchBase⟩, ⟨m, out, remB, sh⟩⟩
     obtain ⟨w₀, b, b', k, hb'_le, hc_lt, rfl, hfr_s, hm_lt, hout_lt, hrem_le, hsum⟩ := h
-    try (dsimp only [hpC_mk, hpMaskC_mk] at *)
-    try dsimp only [accWords, prodWords, scratchWords] at *
+    dsimp only [hpC_mk, hpMaskC_mk] at *
+    dsimp only [accWords, prodWords, scratchWords] at *
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have hw_lt : Fits w w := Nat.lt_two_pow_self
     have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
@@ -118,7 +120,7 @@ private theorem realizesBounded_packOutStepGen :
         _ = 2 ^ (rChunk w₀ b b' + sh) := (pow_add 2 _ sh).symm
         _ ≤ 2 ^ w := Nat.pow_le_pow_right two_pos (by omega)
     first | exact hpart | exact Nat.xor_lt_two_pow hout_lt hpart)
-  all_goals (try
+  all_goals (
     have hpart : (s.mem (scratchBase + m) &&& ((1 <<< remB) - 1)) <<< sh < 2 ^ w := by
       rw [Nat.shiftLeft_eq 1 remB, one_mul, Nat.shiftLeft_eq]
       calc (s.mem (scratchBase + m) &&& (2 ^ remB - 1)) * 2 ^ sh
@@ -143,7 +145,7 @@ private theorem packOutLoop_spec {w w₀ b b' k scratchBase evalVal : ℕ} {s₀
     ((Memory.spec 0).clientResult s₀ prog).2.1 = evalVal &&& (2 ^ b' - 1) := by
   intro hp prog
   have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
-  try dsimp only [accWords, prodWords, scratchWords] at *
+  dsimp only [accWords, prodWords, scratchWords] at *
   let inv (m : ℕ) (st : ℕ × ℕ × ℕ × ℕ) (s : Memory.State) : Prop :=
     s₀ = s ∧ (m, packLimbs (rChunk w₀ b b') m (getLimb (rChunk w₀ b b') evalVal) &&& (2 ^ b' - 1),
       b' - m * rChunk w₀ b b', min b' (m * rChunk w₀ b b')) = st
@@ -238,7 +240,7 @@ def evalHashGenProg : HashParams × ℕ × ℕ × ℕ → Memory.Prog ℕ
     pure out
 
 /-- Parameter-independent `O(k)` upper bound on `memoryCost (evalHashGenProg d) s`. -/
-@[expose] def evalMemBound (k : ℕ) : ℕ := 15014 * k + 109
+@[expose, wram_arith] def evalMemBound (k : ℕ) : ℕ := 15014 * k + 109
 
 /-- Entry precondition for `evalHashGenProg`. -/
 def EvalHashGenPre (w : ℕ) : HashParams × ℕ × ℕ × ℕ → Memory.State → Prop
@@ -352,8 +354,7 @@ private theorem evalHashGenProg_aux {w U w₀ b b' k hashBase scratchBase : ℕ}
           (memoryCost (iterate packOutStepGenProg (hp, scratchBase) (rLimbs w₀ b b')
             (0, 0, b', 0)) s₂ + _))) ≤ _
     rw [hrk_cost, hs_p, htail_cost]
-    dsimp only [hp, r, s₁, s₂, evalMemBound] at hcost_h hcost_p ⊢
-    omega
+    wram_omega [hcost_h, hcost_p]
   · rw [hprog_eq, StateTransitionSpec.clientResult_bind, hr_eq, hrk_state,
       StateTransitionSpec.clientResult_bind, StateTransitionSpec.clientResult_bind,
       StateTransitionSpec.clientResult_bind, hs_p]
@@ -403,7 +404,7 @@ theorem realizesBounded_evalHashGen :
     obtain ⟨U, w₀, b, b', k, θ, u, hw₀_pos, hw₀, hU, hb', hk_pos, hc_lt, rfl, rfl,
       hfr_h, hfit_h, hfr_s, hfit_s, hdisj, hrep⟩ := h
     try (dsimp only [hpL0_mk, hpK_mk, hpB'_mk] at *)
-    try dsimp only [accWords, prodWords, scratchWords] at *
+    dsimp only [accWords, prodWords, scratchWords] at *
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have h2L0 : 2 * rHalf w₀ b b' = rLimbs w₀ b b' := rfl
     obtain ⟨_, hrk_pre, hsafe_z, hsafe_h, hsafe_p, _⟩ :=

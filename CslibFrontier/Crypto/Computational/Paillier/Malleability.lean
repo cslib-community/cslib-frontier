@@ -80,8 +80,11 @@ returns `decrypt sk ct`. -/
 theorem computableInPolyTime_incrementCiphertext :
     ComputableInPolyTime (fun ⟨pk, ct⟩ => incrementCiphertext pk ct) (encPair encBits encBits)
       encBits := by
-  unfold incrementCiphertext addCiphertexts
-  fun_prop
+  have hp := ComputableInPolyTime.id' (encIn := encPair encBits encBits)
+  have hN := ComputableInPolyTime.bitsToNat.comp hp.fst'
+  have hinc := (ComputableInPolyTime.binary_add' (.const 1) hN).encoding_comp
+  simpa only [incrementCiphertext, Function.comp_def] using
+    computableInPolyTime_addCiphertexts.comp (hp.fst'.prod (hp.snd'.prod hinc))
 
 /-- **Incrementing adds one to the plaintext**: for a valid description `d`, every ciphertext in
 the support of `encrypt n (encNat N) m` increments to a ciphertext that decrypts to
@@ -171,7 +174,7 @@ theorem advantage_cca2GameOn_incrementAdversary (gen : ℕ → ProbComp Desc) (n
         incrementAdversary true n)) = 1 := by
   unfold incrementAdversary
   exact advantage_cca2GameOn_maulAdversary (fun _ hkeys => validMessages_keyGen hkeys)
-    fun bit _ hkeys _ hct => increment_conditions bit hkeys hct
+    fun bit _ hkeys _ hct => (increment_conditions bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **Paillier encryption is not 1CCA secure** ([BonehShoup2023], Section 12.2.1, pp. 469–470,
 applied to the additive homomorphism of Paillier encryption): for every modulus generator `gen`,
@@ -185,7 +188,8 @@ theorem not_indcca2On_paillier (gen : ℕ → ProbComp Desc) :
     (target := fun _ pk => encOption encBits (some (encNat (2 % ofBits pk))))
     (.const 0) (.const 1) (computableInPolyTime_incrementCiphertext.comp (by fun_prop))
     computableInPolyTime_incrementTarget (fun _ _ hkeys => validMessages_keyGen hkeys)
-    fun _ bit _ hkeys _ hct => increment_conditions bit hkeys hct
+    fun _ bit _ hkeys _ hct =>
+      (increment_conditions bit hkeys hct).imp_left (ne_of_apply_ne _)
 
 /-- **Paillier encryption is not CCA secure** in the interleaved multi-challenge sense of
 [BonehShoup2023], Attack Game 12.1 and Definition 12.1 (pp. 467–468), by

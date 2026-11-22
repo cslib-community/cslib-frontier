@@ -496,9 +496,9 @@ noncomputable def ofBivarPoly (J ℓ : ℕ) {R : Type*} [CommRing R] :
   map_one' := ext fun j u => by
     simp only [of_apply, one_eq_const, const_apply]
     by_cases hj : (j : ℕ) = 0
-    · simp only [hj, true_and, coeff_one_zero]
+    · simp only [hj, true_and, AddMonoidAlgebra.coeff_one_zero]
       by_cases hu : (u : ℕ) = 0
-      · simp only [hu, ↓reduceIte, coeff_one_zero]
+      · simp only [hu, ↓reduceIte, AddMonoidAlgebra.coeff_one_zero]
       · simp only [hu, ↓reduceIte, coeff_one]
     · simp only [hj, false_and, ↓reduceIte, coeff_one, coeff_zero]
   map_mul' p q := ext fun j u => by

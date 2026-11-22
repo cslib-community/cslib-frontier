@@ -48,7 +48,7 @@ private theorem linfty_opNorm_le_iff {A : Matrix ι ι ℝ} {δ : ℝ} (hδ : 0 
   lift δ to NNReal using hδ
   rw [NNReal.coe_le_coe, Finset.sup_le_iff]
   refine forall_congr' fun i => ?_
-  simp only [Finset.mem_univ, true_implies, ← NNReal.coe_le_coe, NNReal.coe_sum, coe_nnnorm,
+  simp only [Finset.mem_univ, true_implies, ← NNReal.coe_le_coe, NNReal.coe_sum, coe_nnNorm,
     Real.norm_eq_abs]
 
 open scoped Matrix.Norms.Operator in

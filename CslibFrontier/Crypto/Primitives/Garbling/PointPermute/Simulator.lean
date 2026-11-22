@@ -11,7 +11,7 @@ public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute
 public import CslibFrontier.Crypto.Primitives.Garbling.Privacy
 public import CslibFrontier.Crypto.Primitives.Garbling.Games
 public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.Efficient
-public import CslibFrontier.Crypto.Primitives.Garbling.PointPermute.LabelWord
+public import CslibFrontier.Crypto.Primitives.Garbling.LabelWord
 public import CslibFrontier.Computability.Probabilistic.PPT
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Computability.Probabilistic.Sampling
@@ -386,10 +386,7 @@ theorem simLabel_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k v : γ → �
     (hcoins : ComputableInPolyTime coins encIn encBits)
     (hv : ComputableInPolyTime v encIn encUnary) :
     ComputableInPolyTime (fun x => simLabel (k x) (coins x) (v x)) encIn encBits := by
-  have h : ComputableInPolyTime (fun p : ℕ × List Bool × ℕ => simLabel p.1 p.2.1 p.2.2)
-      (encPair encUnary (encPair encBits encUnary)) encBits := by
-    polytime [simLabel, BitString.listRow]
-  exact h.comp (hk.prod (hcoins.prod hv))
+  fun_prop [simLabel]
 
 attribute [local fun_prop] simLabel_polyTime
 

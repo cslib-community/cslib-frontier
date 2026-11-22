@@ -78,9 +78,8 @@ example :
 example :
     3 / 4 < measureProb (run (simonAlg 3 E1 0) (simonInit 0) (simonInput E1 id) ((1 + 2) * 1))
       (simonFound 3 0) := by
-  refine (simonAlg_search_spec E1 0).2 _ _ ?_
-  rw [simonFun_simonInput]
-  exact (simonPromise_zero_iff _).mpr Function.injective_id
+  simp only [(simonAlg_search_spec E1 0).2, simonFun_simonInput,
+    (simonPromise_zero_iff _).mpr Function.injective_id]
 
 example (m : ℕ) :
     1 - 1 / 2 ^ m ≤ measureProb (run (simonAlg m E1 0) (simonInit 0) (simonInput E1 id) (m * 1))

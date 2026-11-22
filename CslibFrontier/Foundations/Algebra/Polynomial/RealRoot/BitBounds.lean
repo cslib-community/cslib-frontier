@@ -98,27 +98,10 @@ theorem hasCoeffBitBound_coeffBitBound (cs : List ℚ) :
   intro q hq
   exact haux cs 0 q hq
 
-private theorem mem_of_mem_trim {q : ℚ} {cs : List ℚ} (hq : q ∈ trim cs) : q ∈ cs := by
-  induction cs with
-  | nil => simp only [trim, List.not_mem_nil] at hq
-  | cons a as ih =>
-    simp only [trim] at hq
-    by_cases he : (trim as).isEmpty = true
-    · simp only [he, ↓reduceIte] at hq
-      by_cases ha : a = 0
-      · simp only [ha, ↓reduceIte, List.not_mem_nil] at hq
-      · rw [ite_eq_right (fun h => absurd h ha), List.mem_singleton] at hq
-        subst hq
-        exact List.mem_cons_self
-    · simp only [he, Bool.false_eq_true, ↓reduceIte, List.mem_cons] at hq
-      rcases hq with rfl | hmem
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem a (ih hmem)
-
-/-- `HasCoeffBitBound B` is preserved by `trim`. -/
+/-- `HasCoeffBitBound B` is preserved by `CoeffList.trim`. -/
 theorem HasCoeffBitBound.trim {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
-    HasCoeffBitBound B (Cslib.RealRoot.trim cs) :=
-  fun q hq => hB q (mem_of_mem_trim hq)
+    HasCoeffBitBound B (CoeffList.trim cs) :=
+  fun q hq => hB q ((CoeffList.trim_sublist cs).subset hq)
 
 private theorem abs_rat_le_two_pow {B : ℕ} {q : ℚ} (hn : Int.natAbs q.num ≤ 2 ^ B) :
     |q| ≤ (2 : ℚ) ^ B := by
@@ -144,7 +127,7 @@ private theorem maxAbsList_le_two_pow {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
 /-- Upper bound `cauchyBoundNat cs ≤ 2 ^ (2 * B) + 2` under `HasCoeffBitBound B cs`. -/
 theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
     cauchyBoundNat cs ≤ 2 ^ (2 * B) + 2 := by
-  let t := trim cs
+  let t := CoeffList.trim cs
   have htB : HasCoeffBitBound B t := hB.trim
   dsimp only [cauchyBoundNat]
   split_ifs with hlen
@@ -153,8 +136,8 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
       dsimp only [t] at hnil
       simp only [hnil, List.length_nil] at hlen
       omega
-    obtain ⟨lc, hlc, hlc0⟩ := (isTrimmed_trim cs).getLast?_ne_zero htnil
-    have hlc_mem : lc ∈ t := List.mem_of_getLast? hlc
+    obtain ⟨l, lc, hlc0, hteq⟩ := (CoeffList.isTrimmed_trim cs).exists_append_singleton htnil
+    have hlc_mem : lc ∈ t := by simp [t, hteq]
     have hlc_den : lc.den ≤ 2 ^ B := (htB lc hlc_mem).2
     have hlc_num_pos : 1 ≤ Int.natAbs lc.num :=
       Int.natAbs_pos.mpr (Rat.num_ne_zero.mpr hlc0)
@@ -176,7 +159,7 @@ theorem cauchyBoundNat_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBi
     have hdropB : HasCoeffBitBound B t.dropLast :=
       fun q hq => htB q (List.dropLast_subset t hq)
     have hm_le : maxAbsList t.dropLast ≤ (2 : ℚ) ^ B := maxAbsList_le_two_pow hdropB
-    have hlc_eq : Option.getD t.getLast? 1 = lc := by rw [hlc, Option.getD_some]
+    have hlc_eq : Option.getD t.getLast? 1 = lc := by simp [t, hteq]
     rw [hlc_eq]
     let b := maxAbsList t.dropLast / |lc| + 1
     have hb_nonneg : 0 ≤ b :=
@@ -258,11 +241,11 @@ private theorem foldl_sqNorm_le_of_bound (ns : List ℤ) (M acc : ℕ)
 
 /-- Upper bound on cleared-denominator `sqNormList` under `HasCoeffBitBound B cs`. -/
 theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
-    sqNormList (Prod.snd (clearDenomsList (trim cs))) ≤
+    sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs))) ≤
       cs.length * 4 ^ ((cs.length + 1) * B) := by
-  let t := trim cs
+  let t := CoeffList.trim cs
   let n := cs.length
-  have ht_len : t.length ≤ n := trim_length_le cs
+  have ht_len : t.length ≤ n := CoeffList.length_trim_le cs
   have htB : HasCoeffBitBound B t := hB.trim
   have hD_le : lcmDens t ≤ 2 ^ (n * B) :=
     (lcmDens_le_of_bitBound htB).trans
@@ -289,10 +272,10 @@ theorem sqNormList_clearDenoms_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
   rw [h4, hns_len] at hsq
   exact hsq.trans (Nat.mul_le_mul_right _ ht_len)
 
-/-- Logarithmic bound on `sqNormList (clearDenomsList (trim cs)).2`
+/-- Logarithmic bound on `sqNormList (clearDenomsList (CoeffList.trim cs)).2`
 under `HasCoeffBitBound B cs`. -/
 theorem clog4_sqNormList_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : HasCoeffBitBound B cs) :
-    Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (trim cs)))) ≤
+    Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
       cs.length + (cs.length + 1) * B := by
   refine Nat.clog_le_of_le_pow ?_
   have hsq := sqNormList_clearDenoms_le_of_bitBound hB
@@ -319,7 +302,7 @@ theorem mignotteBisectionDepth_le_of_bitBound {B : ℕ} {cs : List ℚ} (hB : Ha
         (cs.length + 2) * cs.length :=
       Nat.mul_le_mul (Nat.add_le_add_right hd_le_n 2) hclog_d
     have h2 : ((ofCoeffList cs).natDegree - 1) *
-          Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (trim cs)))) ≤
+          Nat.clog 4 (sqNormList (Prod.snd (clearDenomsList (CoeffList.trim cs)))) ≤
         cs.length * (cs.length + (cs.length + 1) * B) :=
       Nat.mul_le_mul ((Nat.sub_le _ _).trans hd_le_n) hsn
     have hsum : 1 + 2 * (B + 1) + (cs.length + 2) * cs.length +
@@ -494,14 +477,14 @@ theorem isolateRoots_dyadicBounded (cs : List ℚ) :
       DyadicBounded (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs) I.lower ∧
         DyadicBounded (cauchyBoundNat cs) (2 * mignotteBisectionDepth cs) I.upper := by
   simp only [isolateRoots, isolateRootsM]
-  by_cases he : (trim cs).isEmpty = true
+  by_cases he : (CoeffList.trim cs).isEmpty = true
   · simp only [he, ↓reduceIte, TimeM.ret_pure]
     intro _ h; cases h
   · simp only [he, Bool.false_eq_true, ↓reduceIte, TimeM.ret_bind, sturmVariationsM_ret]
     intro I hI
     let b := cauchyBoundNat cs
     let k := mignotteBisectionDepth cs
-    have h := isolateIocM_dyadicBounded (trim cs) (sturmSeqList cs) k k b 0
+    have h := isolateIocM_dyadicBounded (CoeffList.trim cs) (sturmSeqList cs) k k b 0
       (-(b : ℚ)) (b : ℚ) _ _ (DyadicBounded.of_neg_nat b) (DyadicBounded.of_nat b) I hI
     have heq : 0 + k + k = 2 * k := by omega
     simpa only [heq] using h

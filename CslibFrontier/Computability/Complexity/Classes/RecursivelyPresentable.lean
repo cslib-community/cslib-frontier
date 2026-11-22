@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.P
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Halting.Computable
 import CslibFrontier.Computability.Complexity.Classes.P.Closure
 import CslibFrontier.Computability.Complexity.Classes.P.Finite

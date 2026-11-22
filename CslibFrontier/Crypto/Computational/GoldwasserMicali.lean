@@ -388,7 +388,15 @@ theorem computableInPolyTime_decrypt :
 theorem computableInPolyTime_mulCiphertexts :
     ComputableInPolyTime (fun ⟨pk, ct₁, ct₂⟩ => mulCiphertexts pk ct₁ ct₂)
       (encPair encBits (encPair encBits encBits)) encBits := by
-  unfold mulCiphertexts mulCiphertextsNat; fun_prop
+  have hp := ComputableInPolyTime.id'
+    (encIn := encPair encBits (encPair encBits encBits))
+  have hx := ComputableInPolyTime.bitsToNat.comp hp.snd'.fst'
+  have hy := ComputableInPolyTime.bitsToNat.comp hp.snd'.snd'
+  have hN := ComputableInPolyTime.bitsToNat.comp
+    (ComputableInPolyTime.unframe.comp hp.fst')
+  simpa only [mulCiphertexts, mulCiphertextsNat, encNat_apply, Function.comp_def] using
+    (ComputableInPolyTime.binary_mod'
+      (ComputableInPolyTime.binary_mul' hx hy) hN).encoding_comp
 
 /-! ### Support-level correctness and XOR homomorphism -/
 
@@ -834,8 +842,8 @@ theorem isPPTOn_blumQRDistinguisher {adversary : Encryption.Adversary} (hA : adv
         mulCiphertexts (blumPublicKey q.1.1.2.1) q.2
           (encNat (if ChoiceOut.msg₀ q.1.2 ^^ ChoiceOut.msg₁ q.1.2 then q.1.1.2.2 else 1)))
       E₂ encBits := by
-    unfold mulCiphertexts mulCiphertextsNat
-    fun_prop
+    simpa only [Function.comp_def] using computableInPolyTime_mulCiphertexts.comp
+      (hpk'.prod ((ComputableInPolyTime.snd E₁ encBits).prod hw))
   have hprepare : ComputableInPolyTime
       (fun q : ((ℕ × ℕ × ℕ) × ChoiceOut Bool) × List Bool =>
         (q.1.1.1, ChoiceOut.state q.1.2, mulCiphertexts (blumPublicKey q.1.1.2.1) q.2

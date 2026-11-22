@@ -2,6 +2,7 @@
 
 import contextlib
 import copy
+import gzip
 import io
 import json
 import os
@@ -23,7 +24,8 @@ REPOSITORY = "cslib-community/cslib-frontier"
 
 
 class API:
-    def __init__(self, sha):
+    def __init__(self, context):
+        sha = context["source_sha"]
         self.workflow = {"id": 7, "path": handoff.WORKFLOW_PATH, "state": "active"}
         self.runs = [{"id": 101, "run_number": 20, "run_attempt": 1, "workflow_id": 7,
                       "path": handoff.WORKFLOW_PATH, "head_sha": sha, "event": "merge_group",
@@ -32,7 +34,7 @@ class API:
                       "repository": {"id": 9, "full_name": REPOSITORY},
                       "head_repository": {"id": 9, "full_name": REPOSITORY}}]
         self.artifact = {
-            "id": 303, "name": handoff.artifact_name(sha, 101, 1), "expired": False,
+            "id": 303, "name": handoff.artifact_name(context, 101, 1), "expired": False,
             "size_in_bytes": 1000,
             "workflow_run": {"id": 101, "head_sha": sha, "repository_id": 9,
                              "head_repository_id": 9},
@@ -85,7 +87,7 @@ class HandoffTests(unittest.TestCase):
         (self.build / "bin/check").write_bytes(b"executable")
         (self.build / "bin/check").chmod(0o755)
         self.output = self.base / "packed"
-        self.api = API(sha)
+        self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
 
     def pack(self):
         with contextlib.redirect_stdout(io.StringIO()):
@@ -93,7 +95,7 @@ class HandoffTests(unittest.TestCase):
 
     def download(self, repository, run_id, name, destination):
         self.assertEqual((repository, run_id, name),
-                         (REPOSITORY, 101, handoff.artifact_name(self.env["GITHUB_SHA"], 101, 1)))
+                         (REPOSITORY, 101, self.api.artifact["name"]))
         for source in self.output.iterdir():
             shutil.copyfile(source, destination / source.name)
 
@@ -112,8 +114,8 @@ class HandoffTests(unittest.TestCase):
         self.pack()
         original = (self.build / "lib/lean/Example.olean").read_bytes()
         self.env["CACHE_RECOVERY_GENERATION"] = "incident-20261106-1"
-        with self.assertRaisesRegex(handoff.Rejected, "mismatch"):
-            self.restore()
+        with self.assertRaisesRegex(handoff.Rejected, "compatible run-attempt"):
+            self.restore(lambda *args: self.fail("Downloaded an incompatible recovery generation"))
         self.assertEqual((self.build / "lib/lean/Example.olean").read_bytes(), original)
 
     def test_cache_recovery_disables_handoff_before_packing_or_api_access(self):
@@ -183,6 +185,29 @@ class HandoffTests(unittest.TestCase):
         (self.root / "lean-toolchain").write_text("changed")
         with self.assertRaises(handoff.Rejected):
             self.pack()
+        self.assertFalse((self.base / "outputs").exists())
+
+    @unittest.skipUnless(shutil.which("pigz"), "parallel gzip is optional")
+    def test_parallel_and_fallback_compression_write_the_same_tar(self):
+        with patch.object(handoff.shutil, "which", return_value=None):
+            self.pack()
+        with gzip.open(self.output / "build.tar.gz", "rb") as archive:
+            expected = archive.read()
+        self.output = self.base / "parallel"
+        self.pack()
+        with gzip.open(self.output / "build.tar.gz", "rb") as archive:
+            self.assertEqual(archive.read(), expected)
+        self.restore()
+
+    def test_failed_compressor_never_advertises_partial_output(self):
+        compressor = self.base / "bad-compressor"
+        compressor.write_text("#!/bin/sh\ncat >/dev/null\nexit 23\n")
+        compressor.chmod(0o755)
+        with patch.object(handoff.shutil, "which", return_value=str(compressor)), \
+                self.assertRaises(subprocess.CalledProcessError) as failed:
+            self.pack()
+        self.assertEqual(failed.exception.returncode, 23)
+        self.assertFalse(self.output.exists())
         self.assertFalse((self.base / "outputs").exists())
 
     def test_kill_switch_disables_restore_before_contacting_api(self):
@@ -308,7 +333,7 @@ class HandoffTests(unittest.TestCase):
         run("git", "-c", "commit.gpgsign=false", "-c", "user.name=Test",
             "-c", "user.email=test@example.invalid", "commit", "-qm", "Real Lake fixture")
         self.env["GITHUB_SHA"] = run("git", "rev-parse", "HEAD").strip()
-        self.api = API(self.env["GITHUB_SHA"])
+        self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
         self.pack()
         self.assertTrue(all((self.build / p).is_file() for p in setup))
 
@@ -356,7 +381,7 @@ class HandoffTests(unittest.TestCase):
                  {"run_attempt": 0}, {"status": "in_progress", "conclusion": None},
                  {"conclusion": "failure"}, {"conclusion": "cancelled"})
         for changes in cases:
-            self.api = API(self.env["GITHUB_SHA"])
+            self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
             self.api.runs[0].update(changes)
             with self.subTest(changes=changes), self.assertRaises(handoff.Rejected):
                 self.restore(lambda *args: self.fail("Downloaded before validating the run"))
@@ -366,7 +391,7 @@ class HandoffTests(unittest.TestCase):
                               "conclusion": "failure"})
         with self.assertRaises(handoff.Rejected):
             self.restore()
-        self.api = API(self.env["GITHUB_SHA"])
+        self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
         self.api.current = {**self.api.runs[0], "run_attempt": 2,
                             "status": "in_progress", "conclusion": None}
         with self.assertRaises(handoff.Rejected):
@@ -376,7 +401,7 @@ class HandoffTests(unittest.TestCase):
         for changes in (None, {"expired": True}, {"name": "old-attempt"},
                         {"size_in_bytes": handoff.MAX_ARCHIVE_BYTES + handoff.MAX_METADATA_BYTES + 1},
                         {"workflow_run": {"id": 100}}):
-            self.api = API(self.env["GITHUB_SHA"])
+            self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
             if changes is None:
                 self.api.artifact = None
             else:
@@ -390,7 +415,7 @@ class HandoffTests(unittest.TestCase):
         changes = (lambda meta: meta.update(source_sha="f" * 40),
                    lambda meta: meta["inputs"].update({"lean-toolchain": "different"}),
                    lambda meta: meta["platform"].update(RUNNER_ARCH="ARM64"),
-                   lambda meta: meta["platform"].update(ImageVersion="different"),
+                   lambda meta: meta["platform"].update(ImageOS="ubuntu22"),
                    lambda meta: meta["producer"].update(run_attempt=2),
                    lambda meta: meta["archive"].update(sha256="0" * 64),
                    lambda meta: meta["archive"].update(files=handoff.MAX_FILES + 1))
@@ -427,7 +452,7 @@ class HandoffTests(unittest.TestCase):
     def test_run_or_artifact_change_during_download_does_not_install(self):
         self.pack()
         for kind in ("run", "attempt", "failure", "artifact", "expired"):
-            self.api = API(self.env["GITHUB_SHA"])
+            self.api = API(handoff.source_context(self.root, self.env, "merge_group"))
             def download(*args):
                 self.download(*args)
                 if kind == "run":
@@ -539,11 +564,57 @@ class HandoffTests(unittest.TestCase):
                                          timeout=handoff.DOWNLOAD_SECONDS)
 
     def test_limits_hold_a_measured_full_build(self):
-        # A full build measured on 2026-11-08; the limits must keep headroom above it.
-        files, unpacked, packed = 101_848, 4_639_707_458, 1_665_078_866
+        # Full build measured on 2026-11-21 (`merge_group` handoff); limits must keep headroom.
+        files, unpacked, packed = 172_812, 7_531_960_728, 2_637_860_662
         self.assertGreaterEqual(handoff.MAX_FILES, 2 * files)
         self.assertGreaterEqual(handoff.MAX_BYTES, 2 * unpacked)
         self.assertGreaterEqual(handoff.MAX_ARCHIVE_BYTES, 2 * packed)
+
+    def test_cross_image_version_on_same_os_shares_handoff(self):
+        self.pack()
+        (self.build / "lib/lean/Example.olean").write_bytes(b"old")
+        self.env["ImageVersion"] = "20261116.376.1"
+        self.restore()
+        self.assertEqual((self.build / "lib/lean/Example.olean").read_bytes(), b"compiled")
+
+    def test_unpack_succeeds_with_and_without_pigz_and_rejects_corrupt_stream(self):
+        self.pack()
+        archive = self.output / "build.tar.gz"
+        context = handoff.source_context(self.root, self.env, "merge_group")
+        run = self.api.runs[0]
+        for use_pigz in (True, False):
+            dest = self.base / f"unpack-{use_pigz}"
+            dest.mkdir()
+            with patch.object(handoff.shutil, "which",
+                              return_value=shutil.which("pigz") if use_pigz else None):
+                unpacked = handoff.unpack(self.output, dest, context, run)
+            self.assertEqual((unpacked / "lib/lean/Example.olean").read_bytes(), b"compiled")
+        # Truncated archive fails under both pigz and stdlib tarfile; flipped CRC is caught by
+        # pigz stream verification (and `unpack` verifies full SHA-256 before reading in all modes).
+        raw = archive.read_bytes()
+        truncated = self.base / "truncated.tar.gz"
+        truncated.write_bytes(raw[:max(1, len(raw) // 2)])
+        for use_pigz in (True, False):
+            with self.subTest(case="truncated", use_pigz=use_pigz), \
+                 patch.object(handoff.shutil, "which",
+                              return_value=shutil.which("pigz") if use_pigz else None), \
+                 self.assertRaises((tarfile.TarError, EOFError, OSError)):
+                with handoff.open_gzip_tar_reader(truncated) as bundle:
+                    for member in bundle:
+                        f = bundle.extractfile(member)
+                        if f is not None:
+                            f.read()
+        if shutil.which("pigz"):
+            bad_crc = self.base / "badcrc.tar.gz"
+            flipped = bytearray(raw)
+            flipped[-6] ^= 0xFF
+            bad_crc.write_bytes(bytes(flipped))
+            with self.assertRaises(tarfile.ReadError):
+                with handoff.open_gzip_tar_reader(bad_crc) as bundle:
+                    for member in bundle:
+                        f = bundle.extractfile(member)
+                        if f is not None:
+                            f.read()
 
 
 class AncestorAPI:
@@ -553,7 +624,7 @@ class AncestorAPI:
         self.workflow = {"id": 7, "path": handoff.WORKFLOW_PATH, "state": "active"}
         self.runs, self.artifacts, self.calls = {}, {}, []
 
-    def add(self, sha, run_id, **changes):
+    def add(self, sha, run_id, name="no-compatible-artifact", **changes):
         run = {"id": run_id, "run_number": run_id, "run_attempt": 1, "workflow_id": 7,
                "path": handoff.WORKFLOW_PATH, "head_sha": sha, "event": "merge_group",
                "head_branch": f"gh-readonly-queue/main/pr-{run_id}-parent",
@@ -562,7 +633,7 @@ class AncestorAPI:
                "head_repository": {"id": 9, "full_name": REPOSITORY}, **changes}
         self.runs.setdefault(sha, []).append(run)
         self.artifacts[run_id] = {
-            "id": 1000 + run_id, "name": handoff.artifact_name(sha, run_id, 1), "expired": False,
+            "id": 1000 + run_id, "name": name, "expired": False,
             "size_in_bytes": 1000,
             "workflow_run": {"id": run_id, "head_sha": sha, "repository_id": 9,
                              "head_repository_id": 9}}
@@ -616,11 +687,11 @@ class AncestorHandoffTests(unittest.TestCase):
         (self.build / self.olean).write_bytes(f"built {back} back".encode())
         output = self.base / f"packed-{len(list(self.base.glob('packed-*')))}"
         with contextlib.redirect_stdout(io.StringIO()):
-            handoff.pack(self.root, output, {**self.env, "GITHUB_SHA": sha,
-                                             "GITHUB_RUN_ID": str(run_id)})
+            name = handoff.pack(self.root, output, {**self.env, "GITHUB_SHA": sha,
+                                                    "GITHUB_RUN_ID": str(run_id)})
         self.git("checkout", "-q", self.chain[0])
         (self.build / self.olean).write_bytes(b"stale snapshot")
-        self.api.add(sha, run_id, **changes)
+        self.api.add(sha, run_id, name, **changes)
         self.packed[run_id] = self.output = output
 
     def download(self, repository, run_id, name, destination):
@@ -687,6 +758,24 @@ class AncestorHandoffTests(unittest.TestCase):
                 self.restore()
                 self.assertEqual(self.downloads, [202])
 
+    def test_nearer_build_from_another_runner_os_is_skipped_before_downloading(self):
+        self.history(2)
+        self.handoff(2)
+        with patch.dict(self.env, {"ImageOS": "ubuntu22"}):
+            self.handoff(1)
+        self.restore()
+        self.assertEqual(self.downloads, [202])
+        self.assertEqual((self.build / self.olean).read_bytes(), b"built 2 back")
+
+    def test_nearer_build_with_different_image_patch_version_is_reused(self):
+        self.history(2)
+        self.handoff(2)
+        with patch.dict(self.env, {"ImageVersion": "20261116.376.1"}):
+            self.handoff(1)
+        self.restore()
+        self.assertEqual(self.downloads, [201])
+        self.assertEqual((self.build / self.olean).read_bytes(), b"built 1 back")
+
     def test_a_later_failed_run_of_the_ancestor_overrides_its_old_success(self):
         self.history(2)
         self.handoff(1)
@@ -738,8 +827,8 @@ class AncestorHandoffTests(unittest.TestCase):
             with self.subTest(name=name):
                 self.history(2, change=name)
                 self.handoff(1)
-                self.assert_miss("source, configuration or platform mismatch", self.download)
-                self.assertEqual(self.downloads, [201])
+                self.assert_miss("compatible run-attempt")
+                self.assertEqual(self.downloads, [])
                 self.git("reset", "-q", "--hard", self.chain[2])
 
     def test_metadata_must_name_the_chosen_ancestor_platform_generation_and_attempt(self):
@@ -751,7 +840,7 @@ class AncestorHandoffTests(unittest.TestCase):
                    lambda meta: meta.update(repository="other/repo"),
                    lambda meta: meta.update(cache_recovery_generation="1"),
                    lambda meta: meta["inputs"].update({"lakefile.toml": "different"}),
-                   lambda meta: meta["platform"].update(ImageVersion="different"),
+                   lambda meta: meta["platform"].update(ImageOS="ubuntu22"),
                    lambda meta: meta["producer"].update(run_attempt=2),
                    lambda meta: meta["producer"].update(event="push"),
                    lambda meta: meta["archive"].update(sha256="0" * 64))
@@ -759,9 +848,9 @@ class AncestorHandoffTests(unittest.TestCase):
             (self.output / "metadata.json").write_bytes(original)
             self.metadata(change)
             self.assert_miss("mismatch|Invalid archive", self.download)
-        self.env["ImageVersion"] = "20261101.1"
+        self.env["ImageOS"] = "ubuntu22"
         (self.output / "metadata.json").write_bytes(original)
-        self.assert_miss("platform mismatch", self.download)
+        self.assert_miss("compatible run-attempt")
 
     def test_only_merge_group_events_may_use_an_ancestor_build(self):
         self.history(2)
@@ -812,6 +901,59 @@ class AncestorHandoffTests(unittest.TestCase):
                   (f"{prefix}runs/200/artifacts?per_page=100", True)]
         self.assertEqual(self.api.calls,
                          [(f"{prefix}workflows/{handoff.WORKFLOW_FILE}", False)] + 2 * lookup)
+
+    def pr_merge(self):
+        self.history(1)
+        main = self.chain[0]
+        self.git("checkout", "-qb", "feature", self.chain[1])
+        self.git("commit", "--allow-empty", "-qm", "Feature")
+        self.git("checkout", "-q", "--detach", main)
+        self.git("merge", "-q", "--no-ff", "-m", "Test merge", "feature")
+        self.chain = self.git("rev-list", "--first-parent", "HEAD").split()
+        self.env["GITHUB_SHA"] = self.chain[0]
+        self.handoff(1)
+        return {**self.env, "GITHUB_EVENT_NAME": "pull_request", "GITHUB_BASE_REF": "main",
+                "GITHUB_REF": "refs/pull/1/merge"}
+
+    def test_pr_restores_only_the_checked_out_main_parent_even_in_a_depth_one_checkout(self):
+        env = self.pr_merge()
+        self.shallow_consumer()
+        self.assertEqual(handoff.first_parents(self.root), self.chain[:1])
+        self.downloads = []
+        with contextlib.redirect_stdout(io.StringIO()) as report:
+            handoff.restore(self.root, env, pr_base=True, api=self.api, downloader=self.download)
+        self.assertEqual(self.downloads, [201])
+        self.assertIn(f"PR base {self.chain[1]}", report.getvalue())
+        self.assertEqual((self.build / self.olean).read_bytes(), b"built 1 back")
+        self.assertTrue(all(f"head_sha={self.chain[1]}&event=merge_group" in url
+                            for url in self.api.listings()))
+        self.assertEqual(handoff.first_parents(self.root), self.chain[:1])
+
+    def test_pr_base_requires_a_main_targeting_merge_ref_and_honors_switches_and_warm_snapshot(self):
+        env = self.pr_merge()
+        for changes in ({"GITHUB_BASE_REF": "stack"}, {"GITHUB_REF": "refs/pull/1/head"},
+                        {"GITHUB_REF": "refs/heads/main"}, {"GITHUB_EVENT_NAME": "pull_request_target"},
+                        {"DISABLE_BUILD_HANDOFF": "1"}, {"DISABLE_PR_BUILD_HANDOFF": "true"},
+                        {"DISABLE_CACHE_RESTORE": "1"}):
+            with self.subTest(changes=changes), self.assertRaises(handoff.Rejected):
+                handoff.restore(self.root, {**env, **changes}, pr_base=True, api=self.fail,
+                                downloader=self.fail)
+        with contextlib.redirect_stdout(io.StringIO()):
+            handoff.restore(self.root, {**env, "RESTORED_LAKE_KEY": f"lake-key-{self.chain[1]}"},
+                            pr_base=True, api=self.fail, downloader=self.fail)
+        self.git("checkout", "-q", self.chain[1])
+        with self.assertRaisesRegex(handoff.Rejected, "two-parent"):
+            handoff.restore(self.root, {**env, "GITHUB_SHA": self.chain[1]}, pr_base=True,
+                            api=self.fail, downloader=self.fail)
+
+    def test_pr_base_miss_never_uses_a_pr_artifact_or_an_earlier_ancestor(self):
+        env = self.pr_merge()
+        self.handoff(2)
+        self.api.runs[self.chain[1]][0]["event"] = "pull_request"
+        with self.assertRaisesRegex(handoff.Rejected, "exact-source merge group"):
+            handoff.restore(self.root, env, pr_base=True, api=self.api, downloader=self.fail)
+        self.assertEqual(len(self.api.listings()), 1)
+        self.assertEqual((self.build / self.olean).read_bytes(), b"stale snapshot")
 
     def test_change_during_download_does_not_install(self):
         for kind in ("rerun", "failure", "expired", "checkout", "input"):
@@ -986,12 +1128,14 @@ class AncestorHandoffTests(unittest.TestCase):
 
     def test_cli_selects_the_ancestor_path_only_when_asked(self):
         for arguments, called, idle in ((["restore", "--ancestor"], "restore_ancestor", "restore"),
-                                        (["restore"], "restore", "restore_ancestor")):
+                                        (["restore"], "restore", "restore_ancestor"),
+                                        (["restore", "--pr-base"], "restore", "restore_ancestor")):
             with self.subTest(arguments=arguments), \
                     patch("sys.argv", ["cache_handoff.py", *arguments]), \
                     patch.object(handoff, called) as used, patch.object(handoff, idle) as unused:
                 self.assertEqual(handoff.main(), 0)
-                used.assert_called_once_with(handoff.ROOT, os.environ)
+                expected = {"pr_base": True} if "--pr-base" in arguments else {}
+                used.assert_called_once_with(handoff.ROOT, os.environ, **expected)
                 unused.assert_not_called()
         with patch("sys.argv", ["cache_handoff.py", "restore", "--ancestor"]), \
                 patch.dict(os.environ, {"GITHUB_ACTIONS": "true"}), \

@@ -96,10 +96,10 @@ theorem IsPPTOn.mapMWith {α β γ : Type} {input : α ↪ List Bool}
     (hprogram : IsPPTOn (encPair input element) output (fun p => program p.1 p.2))
     (hlist : ComputableInPolyTime list input (encList element)) :
     IsPPTOn input (encList output) (fun a => (list a).mapM (program a)) := by
-  have hlist := hlist.tidy
-  have hpairs : ComputableTidilyInPolyTime (fun a => (list a).map fun b => (a, b))
-      input (encList (encPair input element)) := by fun_prop
-  apply (hprogram.mapM.preprocess (ComputableInPolyTime.of_tidy hpairs)).congr
+  have hpairs : ComputableInPolyTime (fun a => (list a).map fun b => (a, b))
+      input (encList (encPair input element)) :=
+    ComputableInPolyTime.mapWithInput hlist (ComputableInPolyTime.id')
+  apply (hprogram.mapM.preprocess hpairs).congr
   intro a
   simp only [List.mapM_map, Function.comp_def]
 

@@ -41,12 +41,12 @@ example : ComputableInO (fun n : ℕ => n) encUnary encUnary
       ((encUnary n).length + (encUnary n).length + (encUnary n).length + (encUnary n).length +
         (encUnary n).length + (encUnary n).length + 1)) :=
   ComputableInO.divConq trivialDC (init := id) (F := fun n => n) (cn := fun _ _ _ => 0)
-    (ComputableTidilyInO.of_linear (.of_eq fun _ => rfl)).computableInO
-    (ComputableTidilyInO.const (encMid := encBool) true).computableInO
-    (ComputableTidilyInO.of_linear (.of_eq fun _ => rfl)).computableInO
-    (ComputableTidilyInO.of_linear (.of_eq fun _ => rfl)).computableInO
-    (ComputableTidilyInO.of_linear (.of_eq fun _ => rfl)).computableInO
-    (ComputableTidilyInO.snd encUnary encUnary).computableInO
+    (ComputableInO.of_linear (.of_eq fun _ => rfl))
+    (ComputableInO.const (encMid := encBool) true)
+    (ComputableInO.of_linear (.of_eq fun _ => rfl))
+    (ComputableInO.of_linear (.of_eq fun _ => rfl))
+    (ComputableInO.of_linear (.of_eq fun _ => rfl))
+    (ComputableInO.snd encUnary encUnary)
     (fun _ _ => le_rfl) (fun _ _ _ h => absurd h (by simp [trivialDC]))
     (fun _ => .base rfl)
 

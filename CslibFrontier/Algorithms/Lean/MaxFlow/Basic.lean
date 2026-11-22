@@ -133,26 +133,20 @@ theorem pathArcs_cons_cons (u v : V) (rest : List V) :
     pathArcs (u :: v :: rest) = (u, v) :: pathArcs (v :: rest) := rfl
 
 theorem fst_mem_of_mem_pathArcs {p : List V} {e : V × V} (h : e ∈ pathArcs p) : e.1 ∈ p := by
-  induction p with
-  | nil => simp at h
-  | cons u rest ih =>
-    rcases rest with _ | ⟨v, rest'⟩
-    · simp at h
-    · simp only [pathArcs_cons_cons, List.mem_cons] at h
-      rcases h with rfl | h'
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem u (ih h')
+  fun_induction pathArcs p with
+  | case1 u v rest ih =>
+    rcases List.mem_cons.mp h with rfl | h'
+    · exact List.mem_cons_self
+    · exact List.mem_cons_of_mem u (ih h')
+  | case2 => simp at h
 
 theorem snd_mem_of_mem_pathArcs {p : List V} {e : V × V} (h : e ∈ pathArcs p) : e.2 ∈ p := by
-  induction p with
-  | nil => simp at h
-  | cons u rest ih =>
-    rcases rest with _ | ⟨v, rest'⟩
-    · simp at h
-    · simp only [pathArcs_cons_cons, List.mem_cons] at h
-      rcases h with rfl | h'
-      · exact List.mem_cons_of_mem u List.mem_cons_self
-      · exact List.mem_cons_of_mem u (ih h')
+  fun_induction pathArcs p with
+  | case1 u v rest ih =>
+    rcases List.mem_cons.mp h with rfl | h'
+    · exact List.mem_cons_of_mem u List.mem_cons_self
+    · exact List.mem_cons_of_mem u (ih h')
+  | case2 => simp at h
 
 theorem pathArcs_append_singleton {p : List V} {x y : V} (hp : p ≠ [])
     (hlast : p.getLast? = some x) :
@@ -191,47 +185,38 @@ theorem length_pathArcs_add_one {p : List V} (hp : p ≠ []) :
 
 theorem ne_of_mem_pathArcs {p : List V} (hp : p.Nodup) {u v : V}
     (he : (u, v) ∈ pathArcs p) : u ≠ v := by
-  induction p with
-  | nil => simp at he
-  | cons x rest ih =>
-    rcases rest with _ | ⟨y, rest'⟩
-    · simp at he
-    · obtain ⟨hx, hnodup⟩ := List.nodup_cons.mp hp
-      simp only [pathArcs_cons_cons, List.mem_cons] at he
-      rcases he with ⟨rfl, rfl⟩ | he'
-      · intro hxy
-        exact hx (hxy ▸ List.mem_cons_self)
-      · exact ih hnodup he'
+  fun_induction pathArcs p with
+  | case1 x y rest ih =>
+    obtain ⟨hx, hnodup⟩ := List.nodup_cons.mp hp
+    rcases List.mem_cons.mp he with ⟨rfl, rfl⟩ | he'
+    · intro hxy
+      exact hx (hxy ▸ List.mem_cons_self)
+    · exact ih hnodup he'
+  | case2 => simp at he
 
 theorem map_fst_pathArcs_sublist (p : List V) : List.Sublist ((pathArcs p).map Prod.fst) p := by
-  induction p with
-  | nil => exact List.Sublist.slnil
-  | cons x rest ih =>
-    rcases rest with _ | ⟨y, rest'⟩
-    · exact List.nil_sublist [x]
-    · simp only [pathArcs_cons_cons, List.map_cons]
-      exact List.Sublist.cons_cons x ih
+  fun_induction pathArcs p with
+  | case1 x y rest ih => exact List.Sublist.cons_cons x ih
+  | case2 => exact List.nil_sublist _
 
 theorem nodup_pathArcs {p : List V} (hp : p.Nodup) : (pathArcs p).Nodup :=
   List.Nodup.of_map Prod.fst (hp.sublist (map_fst_pathArcs_sublist p))
 
 theorem not_swap_mem_pathArcs {p : List V} (hp : p.Nodup) {u v : V}
     (he : (u, v) ∈ pathArcs p) : (v, u) ∉ pathArcs p := by
-  induction p with
-  | nil => simp at he
-  | cons x rest ih =>
-    rcases rest with _ | ⟨y, rest'⟩
-    · simp at he
-    · obtain ⟨hx, hnodup⟩ := List.nodup_cons.mp hp
-      simp only [pathArcs_cons_cons, List.mem_cons, Prod.mk.injEq] at he ⊢
-      intro hswap
-      rcases he with ⟨rfl, rfl⟩ | he'
-      · rcases hswap with ⟨hxy, _⟩ | hswap'
-        · exact hx (hxy ▸ List.mem_cons_self)
-        · exact hx (snd_mem_of_mem_pathArcs hswap')
-      · rcases hswap with ⟨rfl, rfl⟩ | hswap'
-        · exact hx (snd_mem_of_mem_pathArcs he')
-        · exact ih hnodup he' hswap'
+  fun_induction pathArcs p with
+  | case1 x y rest ih =>
+    obtain ⟨hx, hnodup⟩ := List.nodup_cons.mp hp
+    simp only [List.mem_cons, Prod.mk.injEq] at he ⊢
+    intro hswap
+    rcases he with ⟨rfl, rfl⟩ | he'
+    · rcases hswap with ⟨hxy, _⟩ | hswap'
+      · exact hx (hxy ▸ List.mem_cons_self)
+      · exact hx (snd_mem_of_mem_pathArcs hswap')
+    · rcases hswap with ⟨rfl, rfl⟩ | hswap'
+      · exact hx (snd_mem_of_mem_pathArcs he')
+      · exact ih hnodup he' hswap'
+  | case2 => simp at he
 
 /-- The consecutive pairs of `p` are all `r`-steps iff `p` is an `r`-chain (`List.IsChain`). -/
 theorem forall_mem_pathArcs_iff_isChain {r : V → V → Prop} :
@@ -327,15 +312,12 @@ private theorem suffixFrom_eq_cons_and_suffix [DecidableEq V] {ys : List V} {x :
       exact ⟨rest, by simp [hxy, hdrop], hsuf.trans (List.suffix_cons y ys')⟩
 
 theorem head?_loopErase [DecidableEq V] (p : List V) : (loopErase p).head? = p.head? := by
-  induction p with
-  | nil => rfl
-  | cons x xs ih =>
-    rw [loopErase]
-    split_ifs with hx
-    · obtain ⟨rest, hdrop, _⟩ := suffixFrom_eq_cons_and_suffix hx
-      rw [hdrop]
-      rfl
-    · rfl
+  fun_induction loopErase p with
+  | case1 | case3 => rfl
+  | case2 x xs ys hx =>
+    obtain ⟨rest, hdrop, _⟩ := suffixFrom_eq_cons_and_suffix hx
+    rw [hdrop]
+    rfl
 
 theorem getLast?_loopErase [DecidableEq V] (p : List V) :
     (loopErase p).getLast? = p.getLast? := by
@@ -360,15 +342,13 @@ theorem getLast?_loopErase [DecidableEq V] (p : List V) :
       · rw [List.getLast?_cons_of_ne_nil hys_ne, ih, List.getLast?_cons_cons]
 
 theorem nodup_loopErase [DecidableEq V] (p : List V) : (loopErase p).Nodup := by
-  induction p with
-  | nil => exact List.nodup_nil
-  | cons x xs ih =>
-    rw [loopErase]
-    split_ifs with hx
-    · obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
-      rw [hdrop]
-      exact ih.sublist hsuf.sublist
-    · exact List.nodup_cons.mpr ⟨hx, ih⟩
+  fun_induction loopErase p with
+  | case1 => exact List.nodup_nil
+  | case2 x xs ys hx ih =>
+    obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
+    rw [hdrop]
+    exact ih.sublist hsuf.sublist
+  | case3 x xs ys hx ih => exact List.nodup_cons.mpr ⟨hx, ih⟩
 
 theorem mem_pathArcs_loopErase [DecidableEq V] {p : List V} {e : V × V}
     (he : e ∈ pathArcs (loopErase p)) : e ∈ pathArcs p := by
@@ -399,16 +379,13 @@ theorem mem_pathArcs_loopErase [DecidableEq V] {p : List V} {e : V × V}
           · exact .inr (ih (hys ▸ he'))
 
 theorem length_loopErase_le [DecidableEq V] (p : List V) : (loopErase p).length ≤ p.length := by
-  induction p with
-  | nil => rfl
-  | cons x xs ih =>
-    rw [loopErase]
-    split_ifs with hx
-    · obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
-      rw [hdrop]
-      exact le_trans hsuf.sublist.length_le (Nat.le_succ_of_le ih)
-    · simp only [List.length_cons]
-      omega
+  fun_induction loopErase p with
+  | case1 => rfl
+  | case2 x xs ys hx ih =>
+    obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
+    rw [hdrop]
+    exact le_trans hsuf.sublist.length_le (Nat.le_succ_of_le ih)
+  | case3 x xs ys hx ih => exact Nat.succ_le_succ ih
 
 /-- A reflexive–transitive chain of `r`-steps from `u` to `v` is realized by a duplicate-free
 vertex list from `u` to `v` whose consecutive pairs are `r`-steps (loop erasure). -/

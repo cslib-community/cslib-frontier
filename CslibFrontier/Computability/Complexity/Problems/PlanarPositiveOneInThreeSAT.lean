@@ -329,11 +329,7 @@ polynomial time under their ordinary binary encodings. -/
 theorem computableInPolyTime_toDrawnPlanarPositiveOneInExactThreeSATThree :
     ComputableInPolyTime toDrawnPlanarPositiveOneInExactThreeSATThree encCNF
       encDrawnPlanarPositiveOneInExactThreeSATThree := by
-  have hd := SAT.ExactOne.DrawingNative.computableInPolyTime_positiveDrawing.comp
-    (computableInPolyTime_toPlanarThreeSAT.prod
-      (encDrawnPlanarThreeSATThree_drawing_polyTime computableInPolyTime_toDrawnPlanarThreeSAT))
-  exact encDrawnPlanarPositiveOneInExactThreeSATThree_mk_polyTime
-    computableInPolyTime_toPlanarPositiveOneInExactThreeSATThree hd
+  fun_prop [toDrawnPlanarPositiveOneInExactThreeSATThree]
 
 /-- Ordinary 3SAT reduces natively to the positive target with its actual drawing supplied. -/
 theorem polyTimeReducible_ThreeSAT_DrawnPlanarPositiveOneInExactThreeSATThree :

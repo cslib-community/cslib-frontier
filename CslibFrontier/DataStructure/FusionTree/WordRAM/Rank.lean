@@ -219,7 +219,7 @@ theorem exec {w b n q : ℕ} (s : ℕ → ℕ) (x : Data 10) (hn : 0 < n)
   let cq := 2 ^ b - 1 - q
   let cs := fun i => 2 ^ b - 1 - s i
   have hp := Nat.two_pow_pos b
-  have hcq : cq < 2 ^ b := by dsimp only [cq]; omega
+  have hcq : cq < 2 ^ b := by omega
   have hcs (i : ℕ) (_ : i < n) : cs i < 2 ^ b := by dsimp only [cs]; omega
   have hbitwidth : b ≤ w := by
     have := Nat.le_mul_of_pos_right (b + 1) hn

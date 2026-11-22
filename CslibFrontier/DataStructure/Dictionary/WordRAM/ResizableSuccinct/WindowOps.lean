@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.ResizableSuccinct.Accessors
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Metadata and Circular-Window `Memory.Prog` Primitives
@@ -104,7 +105,7 @@ theorem realizesBounded_copyCompItemGen :
   all_goals (
     rcases d with ⟨⟨cp, itemBase⟩, ⟨src, dst⟩⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hsrc, hdst⟩ := h
-    try simp only [StateTransitionSpec.clientState, runClient_state_readCompQuotGenProg,
+    simp only [StateTransitionSpec.clientState, runClient_state_readCompQuotGenProg,
       runClient_state_readCompValGenProg, runClient_state_writeCompQuotGenProg] at *)
   all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
 
@@ -143,7 +144,7 @@ theorem realizesBounded_clearCompItemGen :
   all_goals (
     rcases d with ⟨⟨cp, itemBase⟩, idx⟩
     obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    try simp only [StateTransitionSpec.clientState, runClient_state_writeCompQuotGenProg] at *)
+    simp only [StateTransitionSpec.clientState, runClient_state_writeCompQuotGenProg] at *)
   all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩
 
 /-- Read `LocalMeta[c, idx]` at `metaBase` in `Memory.Prog`. -/
@@ -286,8 +287,7 @@ theorem realizesBounded_readCompGMGen :
   obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
   simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
   refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  unfold offCompItems offDenseToTail offTailToDense at *
-  omega
+  wram_omega
 
 /-- Write `val` into `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompGMGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -334,8 +334,7 @@ theorem realizesBounded_writeCompGMGen :
   obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
   simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
   refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  unfold offCompItems offDenseToTail offTailToDense at *
-  omega
+  wram_omega
 
 /-- Read `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def readCompTDGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -377,8 +376,7 @@ theorem realizesBounded_readCompTDGen :
   obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
   simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
   refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  unfold offCompItems offDenseToTail at *
-  omega
+  wram_omega
 
 /-- Write `val` into `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def writeCompTDGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -424,8 +422,7 @@ theorem realizesBounded_writeCompTDGen :
   obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
   simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
   refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  unfold offCompItems offDenseToTail at *
-  omega
+  wram_omega
 
 /-- Read `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def readCompDTGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -463,8 +460,7 @@ theorem realizesBounded_readCompDTGen :
   obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
   simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
   refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  unfold offCompItems at *
-  omega
+  wram_omega
 
 /-- Write `val` into `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def writeCompDTGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -506,8 +502,7 @@ theorem realizesBounded_writeCompDTGen :
   obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
   simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
   refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  unfold offCompItems at *
-  omega
+  wram_omega
 
 /-! ## Section 2: Circular-Window Transitions, Owner-Bucket Recovery, and `fits_mkCompParams` -/
 
@@ -518,8 +513,7 @@ theorem maxTailItems_le_of_pos {N : ℕ} (hM : 0 < maxTailItems N) : maxTailItem
     · exact hb
   have h1 := gmSlabMetaBase_add_eq_globalMetaLen hb_pos
   have h2 := globalMetaLen_le_of_bucketBits_pos hb_pos
-  unfold gmSlabMetaBase gmTailOwnerBase at h1
-  omega
+  wram_omega [h1]
 
 /-- Overflow-free evaluation of `denseOfCirc (cpMaxTail cp) b_win c` in `Memory.Prog`. -/
 def denseOfCircGenProg : CompParams × (ℕ × ℕ) → Memory.Prog ℕ
@@ -636,7 +630,7 @@ theorem clientResult_denseOfPhysGenProg {U V w N metaBase g : ℕ} {s : Memory.S
   · rw [ite_eq_left hb0, ite_eq_left hb0]; rfl
   · rw [ite_eq_right hb0, ite_eq_right hb0]
     have hb_pos : 0 < bucketBits N := Nat.pos_of_ne_zero hb0
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     rw [prog_clientResult_bind, clientResult_readCompGMGenProg h0_lt,
       clientState_readCompGMGenProg]
     by_cases hg_lt : g < compGmAt metaBase U w N s.mem 0 * slabSize N
@@ -691,7 +685,7 @@ theorem realizesBounded_denseOfPhysGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hg_lt, hb_cond⟩ := h
     simp only [cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk] at *
     have hb_pos : 0 < bucketBits N := by omega
-    have h0_lt : 0 < globalMetaLen N := by unfold globalMetaLen; omega
+    have h0_lt : 0 < globalMetaLen N := by wram_omega
     obtain ⟨hb_tail_le, htail_cond⟩ := hb_cond hb_pos
     try simp only [StateTransitionSpec.clientState, clientResult_readCompGMGenProg h0_lt,
       runClient_state_readCompGMGenProg] at *)
@@ -738,7 +732,7 @@ theorem realizesBounded_winGrowRightGen :
   all_goals try omega
   all_goals try exact lt_of_le_of_lt (by omega) hU
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
-  all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
+  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
 
 theorem clientState_winGrowRightGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -782,7 +776,7 @@ theorem realizesBounded_winGrowLeftGen :
     have hM_pos : 0 < maxTailItems N := by omega)
   all_goals try omega
   all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
-  all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
+  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
 
 theorem clientState_winGrowLeftGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -833,7 +827,7 @@ theorem realizesBounded_winShrinkRightGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hbn_le, hdt_lt, htd_lt⟩ := h
     have hM_pos : 0 < maxTailItems N := by omega
     have hcrem_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    try simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
+    simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
       clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
       clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
       runClient_state_writeCompTDGenProg] at *)
@@ -880,7 +874,7 @@ theorem realizesBounded_winShrinkLeftGen :
     obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hb_le, hdt_lt, htd_lt⟩ := h
     have hM_pos : 0 < maxTailItems N := by omega
     have hcrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    try simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
+    simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
       clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
       clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
       runClient_state_writeCompTDGenProg] at *)

@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.DecodeThenExtract.Security
 public import CslibFrontier.Crypto.Computational.FuzzyExtractor.Reusable
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Matrix.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
@@ -25,7 +26,6 @@ import CslibFrontier.Foundations.Data.List.Lookup
 import CslibFrontier.Foundations.Data.List.OfFn
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.UniformNat.Residue
-import CslibFrontier.Tactic.EncLen
 
 /-!
 # Weak reusability of the common-matrix fuzzy extractor
@@ -92,9 +92,9 @@ the Section 5 reductions also use); that program has the law of the typed simula
 * Theorem 1 assumes that the FMR scheme "is an (M, ℓ, t, ϵ)-fuzzy extractor", which comprises
   correctness and security (Definition 1, p. 4), and Definition 2 defines weak reusability for a
   fuzzy extractor. The theorem here assumes and concludes only the security halves, since the
-  weak-reusability experiment never runs reproduction (`Rec`). Correctness of the common-matrix
-  scheme, averaged over the uniform matrix, is
-  `DecoderCorrectWithError.setupCorrect_commonMatrixFuzzyExtractor`.
+  weak-reusability experiment never runs reproduction (`Rec`). Setup reproduction correctness of
+  the common-matrix scheme relative to a caller-supplied decoder (`DecoderCorrectWithError`,
+  #6040) is `setupCorrect_commonMatrixFuzzyExtractor_of_decoderCorrectWithError`.
 
 ## References
 
@@ -508,7 +508,7 @@ theorem isPPT_commonMatrixSimulator (hm : ComputableInPolyTime m encUnary encUna
         (fun call : Call => decide (call.2.1.2.length = m call.1.secParam * w call.1.secParam))
         encCall encBool :=
       ComputableInPolyTime.unary_eq' hlen (ComputableInPolyTime.unary_mul' (hm.comp hκc) hwc)
-    exact IsPPTOn.ite' hcond hyes (ComputableInPolyTime.const []).isPPTOn
+    exact IsPPTOn.ite hcond hyes (ComputableInPolyTime.const []).isPPTOn
   have hhandler : IsPPTOn encCall (encPair encBits (encFinEnum Unit))
       (fun ⟨x, request, state⟩ => (StateT.lift (simHandler (m x.secParam)
         (k x.secParam + l x.secParam) (w x.secParam) (t x.secParam) (helperWord x.helper)

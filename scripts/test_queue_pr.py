@@ -16,6 +16,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import queue_pr  # noqa: E402
 
 SHA = "a" * 40
+BASE_SHA = "d" * 40
 COMMIT_ID = "COMMIT_1"
 
 
@@ -36,7 +37,8 @@ def pr(*checks: dict, committed: str = "2026-11-07T09:00:00Z", retargeted: str |
     commit = {"id": COMMIT_ID, "oid": SHA, "committedDate": committed,
               "statusCheckRollup": {"contexts": connection(*checks)}}
     return {"id": "PR_1", "state": "OPEN", "isDraft": False, "baseRefName": "main",
-            "headRefOid": SHA, "mergeable": "MERGEABLE", "mergeQueueEntry": None,
+            "baseRefOid": BASE_SHA, "headRefOid": SHA, "mergeable": "MERGEABLE",
+            "mergeQueueEntry": None,
             "timelineItems": {"nodes": [{"createdAt": retargeted}] if retargeted else []},
             "commits": {"nodes": [{"commit": commit}]}, **fields}
 
@@ -102,6 +104,8 @@ class AssessTests(unittest.TestCase):
         status, reasons = queue_pr.assess(pr(check_run(), retargeted="2026-11-07T09:30:00Z"), SHA)
         self.assertEqual(status, "refused")
         self.assertIn("base changed", reasons[0])
+        already_merged = pr(check_run(), retargeted="2026-11-07T09:30:00Z", baseIsAncestor=True)
+        self.assertEqual(queue_pr.assess(already_merged, SHA), ("ready", []))
         later = pr(check_run(), retargeted="2026-11-07T08:00:00Z")
         self.assertEqual(queue_pr.assess(later, SHA)[0], "ready")
 
@@ -469,6 +473,90 @@ class WaitingDiscussionTests(unittest.TestCase):
                 self.assertEqual(result, 1, out)
                 self.assertEqual(events.count("discussion"), 1)
                 api.assert_not_called()
+
+
+class RetargetAncestorTests(unittest.TestCase):
+    def compare_result(self, payload: dict | str, returncode: int = 0) -> subprocess.CompletedProcess:
+        text = payload if isinstance(payload, str) else json.dumps(payload)
+        return subprocess.CompletedProcess([], returncode, text, "")
+
+    def test_retarget_after_commit_allows_head_already_containing_main(self) -> None:
+        entry = {"enqueuePullRequest": {"mergeQueueEntry": {"position": 1, "state": "QUEUED"}}}
+        for status in ("ahead", "identical"):
+            with self.subTest(status=status):
+                page = {"repository": {"pullRequest": pr(
+                    check_run(), retargeted="2026-11-07T09:30:00Z")}}
+                compare = self.compare_result({
+                    "status": status,
+                    "behind_by": 0,
+                    "merge_base_commit": {"sha": BASE_SHA},
+                })
+                out = io.StringIO()
+                with patch.object(queue_pr, "gh_graphql", side_effect=[page, entry]) as graphql, \
+                     patch.object(queue_pr.subprocess, "run", return_value=compare) as run, \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                    rc = queue_pr.main(["7108", SHA])
+                self.assertEqual(rc, 0, out.getvalue())
+                run.assert_called_once_with(
+                    ["gh", "api", f"repos/{queue_pr.REPO}/compare/{BASE_SHA}...{SHA}"],
+                    capture_output=True, text=True)
+                self.assertEqual(graphql.call_args_list[-1],
+                                 call(queue_pr.ENQUEUE, id="PR_1", sha=SHA))
+
+    def test_retarget_after_commit_refuses_when_main_not_ancestor_or_compare_fails(self) -> None:
+        cases = (
+            self.compare_result({"status": "diverged", "behind_by": 2,
+                                 "merge_base_commit": {"sha": "e" * 40}}),
+            self.compare_result({"status": "behind", "behind_by": 1,
+                                 "merge_base_commit": {"sha": SHA}}),
+            self.compare_result({"status": "ahead", "behind_by": 0,
+                                 "merge_base_commit": {"sha": "e" * 40}}),
+            self.compare_result({"status": "ahead", "behind_by": 1,
+                                 "merge_base_commit": {"sha": BASE_SHA}}),
+            self.compare_result("not json"),
+            self.compare_result({}, returncode=1),
+        )
+        for compare in cases:
+            with self.subTest(compare=compare):
+                page = {"repository": {"pullRequest": pr(
+                    check_run(), retargeted="2026-11-07T09:30:00Z")}}
+                out = io.StringIO()
+                with patch.object(queue_pr, "gh_graphql", return_value=page) as graphql, \
+                     patch.object(queue_pr.subprocess, "run", return_value=compare), \
+                     contextlib.redirect_stdout(out), contextlib.redirect_stderr(out):
+                    rc = queue_pr.main(["7108", SHA])
+                self.assertEqual(rc, 1, out.getvalue())
+                self.assertIn("its base changed after the approved head was committed",
+                              out.getvalue())
+                self.assertEqual(len(graphql.call_args_list), 1)
+
+    def test_compare_is_skipped_when_retarget_did_not_follow_commit(self) -> None:
+        for candidate in (
+                pr(check_run()),
+                pr(check_run(), retargeted="2026-11-07T08:00:00Z"),
+                pr(check_run(), retargeted="2026-11-07T09:30:00Z", baseRefName="feat/lower"),
+                pr(check_run(), retargeted="2026-11-07T09:30:00Z",
+                   mergeQueueEntry={"position": 1, "state": "QUEUED"})):
+            with self.subTest(candidate=candidate), \
+                 patch.object(queue_pr, "gh_graphql",
+                              return_value={"repository": {"pullRequest": candidate}}), \
+                 patch.object(queue_pr.subprocess, "run") as run:
+                queue_pr.fetch_pr("cslib-community", "cslib-frontier", 12)
+                run.assert_not_called()
+
+    def test_retargeted_head_without_rollup_yet_waits_for_checks_when_main_is_ancestor(self) -> None:
+        raw = pr(retargeted="2026-11-07T09:30:00Z")
+        raw["commits"]["nodes"][0]["commit"]["statusCheckRollup"] = None
+        compare = self.compare_result({
+            "status": "ahead",
+            "behind_by": 0,
+            "merge_base_commit": {"sha": BASE_SHA},
+        })
+        with patch.object(queue_pr, "gh_graphql", return_value={"repository": {"pullRequest": raw}}), \
+             patch.object(queue_pr.subprocess, "run", return_value=compare):
+            fetched = queue_pr.fetch_pr("cslib-community", "cslib-frontier", 7108)
+        self.assertEqual(queue_pr.assess(fetched, SHA),
+                         ("pending", ["required checks are still running at the approved head"]))
 
 
 if __name__ == "__main__":
