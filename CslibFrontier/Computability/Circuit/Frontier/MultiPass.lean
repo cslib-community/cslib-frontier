@@ -54,6 +54,9 @@ branching programs** and **partial-overlap coordinate restrictions**:
   nondeterministic branching program and its `sweep`.
 * `Cslib.Circuits.Frontier.SameOrderPassNBP`: layered same-order `k`-pass nondeterministic
   branching program and its `sweep`.
+* `Cslib.Circuits.Frontier.ReadOnceNBP.Deterministic`,
+  `Cslib.Circuits.Frontier.ReadOnceNBP.toAlternatingPassNBP`: determinism predicate and embedding
+  of a `ReadOnceNBP` as a `1`-pass `AlternatingPassNBP`.
 
 ## Main results
 
@@ -71,8 +74,9 @@ branching programs** and **partial-overlap coordinate restrictions**:
   `Cslib.Circuits.Frontier.SameOrderPassNBP.ncard_accepted_le_deterministic`,
   `Cslib.Circuits.Frontier.SameOrderPassNBP.le_two_mul_passes_sub_one_mul_logb_card`: same-order
   `k`-pass counting and `w ≥ n / (2 k - 1) - o(n)` width lower bounds.
-* `Cslib.Circuits.Frontier.le_logb_card_of_slice_readOnce`: partial-overlap slice bound
-  `w ≥ (1 - α) n - o(n)`.
+* `Cslib.Circuits.Frontier.le_passes_mul_logb_card_of_slice`,
+  `Cslib.Circuits.Frontier.le_logb_card_of_slice_readOnce`: partial-overlap slice bounds for
+  `k`-pass (`AlternatingPassNBP`) and read-once (`ReadOnceNBP`) programs (`w ≥ (1 - α) n - o(n)`).
 
 ## References
 
@@ -409,6 +413,18 @@ private theorem le_mul_logb_of_ncard_le {ι U : Type*} [Finite ι] [Finite U] [N
   push_cast at hlog
   linarith
 
+/-- A deterministic relation `R : M → M → Prop` on a finite state space `M` has at most `|M|`
+related pairs. -/
+private theorem ncard_fiber_le_card_of_deterministic {M : Type*} [Finite M] {R : M → M → Prop}
+    (hdet : ∀ m m₁ m₂, R m m₁ → R m m₂ → m₁ = m₂) :
+    {q : M × M | R q.1 q.2}.ncard ≤ Nat.card M := by
+  calc {q : M × M | R q.1 q.2}.ncard
+      ≤ (Set.univ : Set M).ncard := by
+        refine ncard_le_ncard_of_injOn Prod.fst (fun _ _ => mem_univ _) ?_ (toFinite _)
+        rintro ⟨m₁, m₁'⟩ h₁ ⟨m₂, m₂'⟩ h₂ (rfl : m₁ = m₂)
+        exact Prod.ext rfl (hdet m₁ m₁' m₂' h₁ h₂)
+    _ = Nat.card M := ncard_univ M
+
 /-! ### Alternating (`boustrophedon`) `k`-pass branching programs -/
 
 /-- Base coordinate index read at local step `s` of pass `p` in an alternating `k`-pass schedule of
@@ -421,7 +437,7 @@ private def passStep (T p t : ℕ) : ℕ :=
   if p % 2 = 0 then t else T - 1 - t
 
 /-- Layer of pass `p` separating `revealed τ` from `(revealed τ)ᶜ` in an alternating schedule. -/
-def passBoundary (T p τ : ℕ) : ℕ :=
+@[expose] def passBoundary (T p τ : ℕ) : ℕ :=
   if p % 2 = 0 then τ else T - τ
 
 private theorem passCoord_passStep {T : ℕ} (p : ℕ) {t : ℕ} (ht : t < T) :
@@ -497,14 +513,8 @@ structure IsAcceptingPath (x : ι → U) (γ : ℕ → ℕ → M) : Prop where
 /-- A deterministic alternating `k`-pass program over a finite state space `M` has fiber bound
 `Nat.card M`. -/
 theorem Deterministic.hasFiberBound [Finite M] {P : AlternatingPassNBP ι U M}
-    (hdet : P.Deterministic) : P.HasFiberBound (Nat.card M) := by
-  intro p hp s hs a
-  calc {q : M × M | P.Edge p s q.1 a q.2}.ncard
-      ≤ (Set.univ : Set M).ncard := by
-        refine ncard_le_ncard_of_injOn Prod.fst (fun _ _ => mem_univ _) ?_ (toFinite _)
-        rintro ⟨m₁, m₁'⟩ h₁ ⟨m₂, m₂'⟩ h₂ (rfl : m₁ = m₂)
-        exact Prod.ext rfl (hdet p hp s hs m₁ a m₁' m₂' h₁ h₂)
-    _ = Nat.card M := ncard_univ M
+    (hdet : P.Deterministic) : P.HasFiberBound (Nat.card M) :=
+  fun p hp s hs a => ncard_fiber_le_card_of_deterministic fun m => hdet p hp s hs m a
 
 private theorem newly_subset_revealed {s t : ℕ} (h : s < t) : P.newly s ⊆ P.revealed t :=
   fun _ hi => P.revealed_mono (Nat.succ_le_of_lt h) hi.1
@@ -824,14 +834,8 @@ structure IsAcceptingPath (x : ι → U) (γ : ℕ → ℕ → M) : Prop where
 /-- A deterministic same-order `k`-pass program over a finite state space `M` has fiber bound
 `Nat.card M`. -/
 theorem Deterministic.hasFiberBound [Finite M] {P : SameOrderPassNBP ι U M}
-    (hdet : P.Deterministic) : P.HasFiberBound (Nat.card M) := by
-  intro p hp s hs a
-  calc {q : M × M | P.Edge p s q.1 a q.2}.ncard
-      ≤ (Set.univ : Set M).ncard := by
-        refine ncard_le_ncard_of_injOn Prod.fst (fun _ _ => mem_univ _) ?_ (toFinite _)
-        rintro ⟨m₁, m₁'⟩ h₁ ⟨m₂, m₂'⟩ h₂ (rfl : m₁ = m₂)
-        exact Prod.ext rfl (hdet p hp s hs m₁ a m₁' m₂' h₁ h₂)
-    _ = Nat.card M := ncard_univ M
+    (hdet : P.Deterministic) : P.HasFiberBound (Nat.card M) :=
+  fun p hp s hs a => ncard_fiber_le_card_of_deterministic fun m => hdet p hp s hs m a
 
 private theorem newly_subset_revealed {s t : ℕ} (h : s < t) : P.newly s ⊆ P.revealed t :=
   fun _ hi => P.revealed_mono (Nat.succ_le_of_lt h) hi.1
@@ -1035,24 +1039,92 @@ theorem le_two_mul_passes_sub_one_mul_logb_card [Finite ι] [Finite U] [Nontrivi
 
 end SameOrderPassNBP
 
-/-! ### Partial-overlap (`read-(1 + α)`) slice bound -/
+/-! ### Embedding `ReadOnceNBP` into `AlternatingPassNBP` and partial-overlap slice bounds -/
 
-/-- **Slice-induced read-once lower bound (`w ≥ (1 - α) n - o(n)`).** Suppose `S ⊆ U^ι` is
+namespace ReadOnceNBP
+
+variable {ι U M : Type*} (P : ReadOnceNBP ι U M)
+
+/-- `P` is deterministic when every `(t, m, a)` has at most one successor state `m'`. -/
+@[expose] def Deterministic : Prop :=
+  ∀ t < P.length, ∀ m a m₁ m₂, P.Edge t m a m₁ → P.Edge t m a m₂ → m₁ = m₂
+
+/-- Embed a `ReadOnceNBP` as a `1`-pass `AlternatingPassNBP` with the same filtration and accepted
+set. -/
+@[expose] def toAlternatingPassNBP : AlternatingPassNBP ι U M where
+  passes := 1
+  passes_pos := Nat.one_pos
+  length := P.length
+  revealed := P.revealed
+  revealed_zero := P.revealed_zero
+  revealed_length := P.revealed_length
+  revealed_mono := P.revealed_mono
+  start := P.start
+  accept := P.accept
+  Edge p s m a m' :=
+    if hp : p = 0 then
+      P.Edge s m (fun i => a ⟨i.1, by subst hp; exact i.2⟩) m'
+    else False
+
+@[simp]
+theorem toAlternatingPassNBP_passes : P.toAlternatingPassNBP.passes = 1 :=
+  rfl
+
+@[simp]
+theorem toAlternatingPassNBP_length : P.toAlternatingPassNBP.length = P.length :=
+  rfl
+
+@[simp]
+theorem toAlternatingPassNBP_newly (t : ℕ) : P.toAlternatingPassNBP.newly t = P.newly t :=
+  rfl
+
+/-- `P.toAlternatingPassNBP` accepts the exact same inputs as `P`. -/
+@[simp]
+theorem toAlternatingPassNBP_accepted : P.toAlternatingPassNBP.accepted = P.accepted := by
+  ext x
+  constructor
+  · rintro ⟨γ, hstart, hacc, _, hedge⟩
+    refine ⟨γ 0, hstart, hacc, fun t ht => ?_⟩
+    have h := hedge 0 Nat.one_pos t ht
+    dsimp only [toAlternatingPassNBP, ↓reduceDIte] at h
+    exact h
+  · rintro ⟨γ₀, hstart, hacc, hedge⟩
+    refine ⟨fun _ t => γ₀ t, hstart, hacc, fun p hp => ?_, fun p hp t ht => ?_⟩
+    · rw [toAlternatingPassNBP_passes] at hp
+      omega
+    · rw [toAlternatingPassNBP_passes] at hp
+      have hp0 : p = 0 := by omega
+      subst p
+      dsimp only [toAlternatingPassNBP, ↓reduceDIte]
+      exact hedge t ht
+
+/-- Determinism of `P` transfers to `P.toAlternatingPassNBP`. -/
+theorem Deterministic.toAlternatingPassNBP {P : ReadOnceNBP ι U M} (hdet : P.Deterministic) :
+    P.toAlternatingPassNBP.Deterministic := by
+  intro p hp t ht m a m₁ m₂ h₁ h₂
+  rw [toAlternatingPassNBP_passes] at hp
+  have hp0 : p = 0 := by omega
+  subst p
+  exact hdet t ht m a m₁ m₂ h₁ h₂
+
+end ReadOnceNBP
+
+/-- **Slice-induced `k`-pass lower bound (`w ≥ ((1 - α) / k) n - o(n)`).** Suppose `S ⊆ U^ι` is
 nonempty and `K`-rectangle-free, `O ⊆ ι` is the subset of multi-read coordinates, and for every
-fixing `a : O → U` there is a deterministic `1`-pass program on `↥Oᶜ` with state space `M` of
-length `T' > 0` (at most one coordinate per step) accepting `restrictSlice S O a`. Then
-`log_q |S| - |O| - 2 log_q K - log_q T' - 1 ≤ log_q |M|`. -/
-theorem le_logb_card_of_slice_readOnce {ι U M : Type*} [Finite ι] [Finite U] [Nontrivial U]
-    [Finite M] {S : Set (ι → U)} {K T' : ℕ} (hS : RectangleFree S K) (hne : S.Nonempty)
+fixing `a : O → U` there is a deterministic `k`-pass alternating program on `↥Oᶜ` with state space
+`M` of length `T' > 0` (at most one coordinate per step) accepting `restrictSlice S O a`. Then
+`log_q |S| - |O| - 2 log_q K - log_q T' - 1 ≤ k · log_q |M|`. -/
+theorem le_passes_mul_logb_card_of_slice {ι U M : Type*} [Finite ι] [Finite U] [Nontrivial U]
+    [Finite M] {S : Set (ι → U)} {K k T' : ℕ} (hS : RectangleFree S K) (hne : S.Nonempty)
     (hT' : 0 < T') (O : Set ι)
     (hslice : ∀ a : O → U, ∃ P : AlternatingPassNBP ↥Oᶜ U M,
-      P.passes = 1 ∧ P.length = T' ∧ P.Deterministic ∧
+      P.passes = k ∧ P.length = T' ∧ P.Deterministic ∧
         (∀ t < P.length, (P.newly t).ncard ≤ 1) ∧ P.accepted = restrictSlice S O a) :
     Real.logb (Nat.card U) S.ncard - O.ncard - 2 * Real.logb (Nat.card U) K -
         Real.logb (Nat.card U) T' - 1 ≤
-      Real.logb (Nat.card U) (Nat.card M) := by
+      (k : ℝ) * Real.logb (Nat.card U) (Nat.card M) := by
   obtain ⟨a, ha⟩ := exists_le_mul_ncard_restrictSlice S O
-  obtain ⟨P, hp1, hlen, hdet, hunit, hacc⟩ := hslice a
+  obtain ⟨P, hpk, hlen, hdet, hunit, hacc⟩ := hslice a
   have hq1 : (1 : ℝ) < Nat.card U := by exact_mod_cast (Finite.one_lt_card (α := U))
   have hS_pos : 0 < S.ncard := (ncard_pos (toFinite _)).mpr hne
   have hqO_pos : 0 < Nat.card U ^ O.ncard := pow_pos Nat.card_pos _
@@ -1066,12 +1138,32 @@ theorem le_logb_card_of_slice_readOnce {ι U M : Type*} [Finite ι] [Finite U] [
     exact (ncard_pos (toFinite _)).mp hslice_pos
   have hP := P.le_passes_mul_logb_card hdet (hlen ▸ hT') hunit
     (hacc ▸ hS.restrictSlice O a) hslice_ne
-  rw [hp1, hlen, hacc, Nat.cast_one, one_mul] at hP
+  rw [hpk, hlen, hacc] at hP
   have haR : (S.ncard : ℝ) ≤ (Nat.card U : ℝ) ^ O.ncard * (restrictSlice S O a).ncard := by
     exact_mod_cast ha
   have hlogS := Real.logb_le_logb_of_le hq1 (by exact_mod_cast hS_pos) haR
   rw [Real.logb_mul (by positivity) (by positivity), Real.logb_pow,
     Real.logb_self_eq_one hq1, mul_one] at hlogS
   linarith
+
+/-- **Slice-induced read-once lower bound (`w ≥ (1 - α) n - o(n)`).** Suppose `S ⊆ U^ι` is
+nonempty and `K`-rectangle-free, `O ⊆ ι` is the subset of multi-read coordinates, and for every
+fixing `a : O → U` there is a deterministic `ReadOnceNBP` on `↥Oᶜ` with state space `M` of length
+`T' > 0` (at most one coordinate per step) accepting `restrictSlice S O a`. Then
+`log_q |S| - |O| - 2 log_q K - log_q T' - 1 ≤ log_q |M|`. -/
+theorem le_logb_card_of_slice_readOnce {ι U M : Type*} [Finite ι] [Finite U] [Nontrivial U]
+    [Finite M] {S : Set (ι → U)} {K T' : ℕ} (hS : RectangleFree S K) (hne : S.Nonempty)
+    (hT' : 0 < T') (O : Set ι)
+    (hslice : ∀ a : O → U, ∃ P : ReadOnceNBP ↥Oᶜ U M,
+      P.length = T' ∧ P.Deterministic ∧
+        (∀ t < P.length, (P.newly t).ncard ≤ 1) ∧ P.accepted = restrictSlice S O a) :
+    Real.logb (Nat.card U) S.ncard - O.ncard - 2 * Real.logb (Nat.card U) K -
+        Real.logb (Nat.card U) T' - 1 ≤
+      Real.logb (Nat.card U) (Nat.card M) := by
+  simpa only [Nat.cast_one, one_mul] using
+    le_passes_mul_logb_card_of_slice (k := 1) hS hne hT' O fun a => by
+      obtain ⟨P, hlen, hdet, hunit, hacc⟩ := hslice a
+      exact ⟨P.toAlternatingPassNBP, rfl, hlen, hdet.toAlternatingPassNBP, hunit,
+        P.toAlternatingPassNBP_accepted.trans hacc⟩
 
 end Cslib.Circuits.Frontier

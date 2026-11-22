@@ -35,8 +35,9 @@ the parameters improve for the uniform distance kernel, the width is at most
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Gaussian.exists_width_le_of_unitRows`: a good sample for arbitrary
-  localized unit rows with edge-dependent correlations.
+* `Cslib.Circuits.Frontier.Gaussian.exists_width_le_of_unitRows`,
+  `Cslib.Circuits.Frontier.Gaussian.exists_width_le_of_unitRows_add_mul`: a good sample and its
+  `ξ |V|`-slack corollary for arbitrary localized unit rows with edge-dependent correlations.
 * `Cslib.Circuits.Frontier.Gaussian.exists_multi_vertex_sample`: specialization to uniform
   distance-kernel rows.
 * `Cslib.Circuits.Frontier.Gaussian.exists_width_le_vertexCoefficient`: Gaussian vertex layouts
@@ -230,6 +231,61 @@ theorem exists_multi_vertex_sample [Finite V] [Finite E] (hloop : G.Loopless) {d
   congr 1
   rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
 
+/-- **Asymptotic Gaussian layout bound for localized unit rows.** For every `d ≥ 2`, radius `R`,
+and vertex slack `ξ > 0`, there is a threshold `N₀` such that every multigraph `G` of maximum
+degree `d` on more than `N₀` vertices, equipped with unit vectors `row` supported in radius-`R`
+balls and edge correlation lower bounds `ρ e`, admits a layout of width at most
+`(∑_e arccos (ρ e) / π) + ξ |V|`. -/
+theorem exists_width_le_of_unitRows_add_mul {d : ℕ} (hd : 2 ≤ d) (R : ℕ) {ξ : ℝ} (hξ : 0 < ξ) :
+    ∃ N₀ : ℕ, ∀ (V E : Type*) [Fintype V] [Fintype E] (G : Multigraph V E),
+      G.MaxDegreeLE d → N₀ < Nat.card V →
+      ∀ (row : V → EuclideanSpace ℝ V), (∀ v, ‖row v‖ = 1) →
+        (∀ v z, R < G.toSimpleGraph.edist v z → row v z = 0) →
+        ∀ (ρ : E → ℝ), (∀ e : E, ρ e ≤ ⟪row (G.src e), row (G.tgt e)⟫) →
+          ∃ σ : Layout V, (G.width σ : ℝ) ≤ (∑ e : E, arccos (ρ e) / π) + ξ * Nat.card V := by
+  set D : ℝ := (d : ℝ)
+  have hD : 2 ≤ D := by simp only [D]; exact_mod_cast hd
+  set T : ℝ := 1 + 4 * D / ξ
+  set ε : ℝ := ξ / (4 * (D + 1))
+  set M : ℕ := ⌈8 * D * T / ξ⌉₊ + 1
+  have hT : 0 < T := by positivity
+  have hε : 0 < ε := by positivity
+  have hM : 0 < M := Nat.succ_pos _
+  have hMR : 8 * D * T / ξ ≤ (M : ℝ) := by
+    simp only [M]
+    push_cast
+    linarith [Nat.le_ceil (8 * D * T / ξ)]
+  have htail : D / T ^ 2 ≤ ξ / 4 := by
+    rw [div_le_iff₀ (sq_pos_of_pos hT)]
+    have hx : 0 ≤ 4 * D / ξ := by positivity
+    have hsq : 4 * D / ξ ≤ T ^ 2 := by
+      simp only [T]
+      nlinarith [sq_nonneg (4 * D / ξ)]
+    have H := mul_le_mul_of_nonneg_left hsq hξ.le
+    rw [mul_div_cancel₀ _ hξ.ne'] at H
+    linarith
+  have hgrid : D * (2 * T / M) / √(2 * π) ≤ ξ / 4 := by
+    have hsqrt : 1 ≤ √(2 * π) :=
+      (le_sqrt (by norm_num) (by positivity)).mpr (by linarith [two_le_pi])
+    have hfrac : D * (2 * T / M) ≤ ξ / 4 := by
+      rw [← mul_div_assoc, div_le_iff₀ (by exact_mod_cast hM : (0 : ℝ) < M)]
+      have H := (div_le_iff₀ hξ).mp hMR
+      linarith
+    exact (div_le_self (by positivity) hsqrt).trans hfrac
+  have herr : D / T ^ 2 + D * (2 * T / M) / √(2 * π) + (D + 1) * ε ≤ ξ := by
+    have heq : (D + 1) * ε = ξ / 4 := by
+      simp only [ε]
+      field_simp
+    linarith
+  refine ⟨⌈((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2⌉₊,
+    fun V E _ _ G hdeg large row hunit hsupp ρ hcorr => ?_⟩
+  have hlarge : ((M : ℝ) * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2 < Nat.card V :=
+    (Nat.le_ceil _).trans_lt (Nat.cast_lt.mpr large)
+  obtain ⟨σ, hσ⟩ := exists_width_le_of_unitRows G hd hdeg R row hunit hsupp ρ hcorr hT hε hM hlarge
+  refine ⟨σ, hσ.trans ?_⟩
+  have hV := mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))
+  linarith
+
 /-- **Gaussian vertex layouts of multigraphs.** For every `ξ > 0`, every large enough loopless
 multigraph of maximum degree `d ≥ 2` has a layout of width at most
 `vertexCoefficient d · |E| + ξ |V|`, parallel edges counted with multiplicity. -/
@@ -262,44 +318,18 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
     rw [vertexCoefficient, show vertexCorrelation d = g from rfl, heq]
     linarith
   obtain ⟨q, R, hq, hcorr⟩ := exists_decay_radius_degree hd hρg
-  set T := 1 + 4 * D / ξ
-  set ε := ξ / (4 * (D + 1))
-  set M : ℕ := ⌈8 * D * T / ξ⌉₊ + 1
-  have hT : 0 < T := by positivity
-  have hε : 0 < ε := by positivity
-  have hM : 0 < M := Nat.succ_pos _
-  have hMR : 8 * D * T / ξ ≤ (M : ℝ) := by
-    simp only [M]
-    push_cast
-    linarith [Nat.le_ceil (8 * D * T / ξ)]
-  have htail : D / T ^ 2 ≤ ξ / 4 := by
-    rw [div_le_iff₀ (sq_pos_of_pos hT)]
-    have hx : 0 ≤ 4 * D / ξ := by positivity
-    have hsq : 4 * D / ξ ≤ T ^ 2 := by
-      simp only [T]
-      nlinarith [sq_nonneg (4 * D / ξ)]
-    have H := mul_le_mul_of_nonneg_left hsq hξ.le
-    rw [mul_div_cancel₀ _ hξ.ne'] at H
-    linarith
-  have hgrid : D * (2 * T / M) / √(2 * π) ≤ ξ / 4 := by
-    have hsqrt : 1 ≤ √(2 * π) :=
-      (le_sqrt (by norm_num) (by positivity)).mpr (by linarith [two_le_pi])
-    have hfrac : D * (2 * T / M) ≤ ξ / 4 := by
-      rw [← mul_div_assoc, div_le_iff₀ (by exact_mod_cast hM : (0 : ℝ) < M)]
-      have H := (div_le_iff₀ hξ).mp hMR
-      linarith
-    exact (div_le_self (by positivity) hsqrt).trans hfrac
-  have herr : D / T ^ 2 + D * (2 * T / M) / √(2 * π) + (D + 1) * ε ≤ 3 * ξ / 4 := by
-    have heq : (D + 1) * ε = ξ / 4 := by
-      simp only [ε]
-      field_simp
-    linarith
-  refine ⟨⌈(M * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2⌉₊,
-    fun V E _ _ G hl hdeg large => ?_⟩
-  have hlarge : (M * (D + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2 < Nat.card V :=
-    (Nat.le_ceil _).trans_lt (by exact_mod_cast large)
-  obtain ⟨σ, hσ⟩ := exists_multi_vertex_sample hl hd hdeg hq R hcorr hT hε hM hlarge
+  obtain ⟨N₀, hN₀⟩ := exists_width_le_of_unitRows_add_mul hd R (ξ := 3 * ξ / 4) (by positivity)
+  refine ⟨N₀, fun V E _ _ G hl hdeg large => ?_⟩
+  classical
+  let _ : Fintype V := Fintype.ofFinite V
+  let _ : Fintype E := Fintype.ofFinite E
+  obtain ⟨σ, hσ⟩ := hN₀ V E G hdeg large (unitKernelRow G.toSimpleGraph q R)
+    (norm_unitKernelRow q R) (fun _ _ h => unitKernelRow_eq_zero_of_lt h) (fun _ => ρ)
+    (fun e => hcorr.trans (le_inner_unitKernelRow_src_tgt hl hd hdeg hq R e))
   refine ⟨σ, hσ.trans ?_⟩
+  have hsum : (∑ _e : E, arccos ρ / π) = arccos ρ / π * Nat.card E := by
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, ← Nat.card_eq_fintype_card, mul_comm]
+  rw [hsum]
   have hE : (Nat.card E : ℝ) ≤ D * Nat.card V := by
     simp only [D]
     exact_mod_cast G.card_le_mul_card hdeg
@@ -308,7 +338,6 @@ theorem exists_width_le_vertexCoefficient {d : ℕ} (hd : 2 ≤ d) {ξ : ℝ} (h
     convert h using 1
     field_simp
   have h1 := mul_le_mul_of_nonneg_right hcoef (Nat.cast_nonneg (α := ℝ) (Nat.card E))
-  have h2 := mul_le_mul_of_nonneg_left herr (Nat.cast_nonneg (α := ℝ) (Nat.card V))
   nlinarith
 
 end Cslib.Circuits.Frontier.Gaussian

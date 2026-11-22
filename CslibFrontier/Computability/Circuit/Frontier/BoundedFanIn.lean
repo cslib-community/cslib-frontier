@@ -132,6 +132,18 @@ theorem eventually_degreeCoefficient_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r)
   eventually_lt_mul_innerSize hr (Gaussian.degreeCoefficient_pos (by omega))
     (layoutBound_degree (by omega)) hSK hε
 
+omit [Finite U] [Nontrivial U] in
+private theorem eventually_lt_mul_innerSize_of_multiarySize {r : ℕ} {c_lo k : ℝ} (hk : 0 ≤ k)
+    (h : ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
+        c_lo * n < k * c.multiarySize) :
+    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
+      (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
+        c_lo * n < k * c.innerSize := by
+  filter_upwards [h] with n hn σ I Acc c hfan hS
+  exact (hn σ I Acc c hfan hS).trans_le
+    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) hk)
+
 /-- **The frontier lower bound for fan-in at most three, charging only multiary gates.** Under the
 hypotheses of `eventually_degreeCoefficient_lt_mul_multiarySize`, every circuit of fan-in at most
 three deciding `S_n` has `s` multiary gates with `2 s > (7/2 - ε) n`. -/
@@ -151,11 +163,9 @@ theorem eventually_seven_div_two_lt_two_mul_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 3 → c.Decides I Acc (S n) →
-        (7 / 2 - ε) * n < 2 * c.innerSize := by
-  filter_upwards [eventually_seven_div_two_lt_two_mul_multiarySize.{u, v} hSK hε] with n hn
-  intro σ I Acc c hfan hS
-  exact (hn σ I Acc c hfan hS).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) zero_le_two)
+        (7 / 2 - ε) * n < 2 * c.innerSize :=
+  eventually_lt_mul_innerSize_of_multiarySize zero_le_two
+    (eventually_seven_div_two_lt_two_mul_multiarySize.{u, v} hSK hε)
 
 /-! ### Upgraded degree-weighted walk-kernel bounds (`r = 3, 4, 5`) -/
 
@@ -179,11 +189,9 @@ theorem eventually_four_sub_mul_lt_two_mul_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 3 → c.Decides I Acc (S n) →
-        (4 - ε) * n < 2 * c.innerSize := by
-  filter_upwards [eventually_four_sub_mul_lt_two_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  exact (hn σ I Acc c hfan hdec).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) zero_le_two)
+        (4 - ε) * n < 2 * c.innerSize :=
+  eventually_lt_mul_innerSize_of_multiarySize zero_le_two
+    (eventually_four_sub_mul_lt_two_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Upgraded fan-in-three multiary gate-count bound (`s > (2 - ε) n`).** Dividing
 `eventually_four_sub_mul_lt_two_mul_multiarySize` by `2` gives `(2 - ε) n < c.multiarySize`. -/
@@ -239,11 +247,9 @@ theorem eventually_weightedFive_lt_three_mul_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 4 → c.Decides I Acc (S n) →
-        (1 + 3 * π / (5 * arccos (4 / 5)) - ε) * n < 3 * c.innerSize := by
-  filter_upwards [eventually_weightedFive_lt_three_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  exact (hn σ I Acc c hfan hdec).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by positivity))
+        (1 + 3 * π / (5 * arccos (4 / 5)) - ε) * n < 3 * c.innerSize :=
+  eventually_lt_mul_innerSize_of_multiarySize (by positivity)
+    (eventually_weightedFive_lt_three_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Rational fan-in-four frontier lower bound (`3 s > (3.929 - ε) n`), charging only multiary
 gates.** -/
@@ -263,11 +269,9 @@ theorem eventually_3929_div_1000_lt_three_mul_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 4 → c.Decides I Acc (S n) →
-        (3929 / 1000 - ε) * n < 3 * c.innerSize := by
-  filter_upwards [eventually_3929_div_1000_lt_three_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  exact (hn σ I Acc c hfan hdec).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by positivity))
+        (3929 / 1000 - ε) * n < 3 * c.innerSize :=
+  eventually_lt_mul_innerSize_of_multiarySize (by positivity)
+    (eventually_3929_div_1000_lt_three_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Nondeterministic fan-in-four frontier lower bound.** -/
 theorem eventually_weightedFive_lt_three_mul_innerSize_of_nondeterministicDecides
@@ -299,11 +303,9 @@ theorem eventually_weightedSix_lt_four_mul_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 5 → c.Decides I Acc (S n) →
-        (1 + 2 * π / (3 * arccos (√5 / 3)) - ε) * n < 4 * c.innerSize := by
-  filter_upwards [eventually_weightedSix_lt_four_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  exact (hn σ I Acc c hfan hdec).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by positivity))
+        (1 + 2 * π / (3 * arccos (√5 / 3)) - ε) * n < 4 * c.innerSize :=
+  eventually_lt_mul_innerSize_of_multiarySize (by positivity)
+    (eventually_weightedSix_lt_four_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Rational fan-in-five frontier lower bound (`4 s > (3.87 - ε) n`), charging only multiary
 gates.** -/
@@ -323,11 +325,9 @@ theorem eventually_387_div_100_lt_four_mul_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost 5 → c.Decides I Acc (S n) →
-        (387 / 100 - ε) * n < 4 * c.innerSize := by
-  filter_upwards [eventually_387_div_100_lt_four_mul_multiarySize.{u, v} hSK hε] with
-    n hn σ I Acc c hfan hdec
-  exact (hn σ I Acc c hfan hdec).trans_le
-    (mul_le_mul_of_nonneg_left (Nat.cast_le.mpr c.multiarySize_le_innerSize) (by positivity))
+        (387 / 100 - ε) * n < 4 * c.innerSize :=
+  eventually_lt_mul_innerSize_of_multiarySize (by positivity)
+    (eventually_387_div_100_lt_four_mul_multiarySize.{u, v} hSK hε)
 
 /-- **Nondeterministic fan-in-five frontier lower bound.** -/
 theorem eventually_weightedSix_lt_four_mul_innerSize_of_nondeterministicDecides
