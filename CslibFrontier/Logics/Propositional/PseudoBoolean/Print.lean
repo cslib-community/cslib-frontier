@@ -337,10 +337,6 @@ private theorem lines_render {L : List (List (List Char))} (hL : ∀ l ∈ L, �
 private theorem nat?_toDecimal (n : ℕ) : nat? (String.ofList (Nat.toDecimal n)) = some n := by
   rw [nat?, String.toList_ofList, Nat.ofDecimal?_toDecimal]
 
-private theorem dropChar?_ofList (c d : Char) (ds : List Char) :
-    dropChar? c (String.ofList (d :: ds)) = if d == c then some (String.ofList ds) else none := by
-  rw [dropChar?, String.toList_ofList]
-
 private theorem startsWithChar_ofList (c d : Char) (ds : List Char) :
     startsWithChar c (String.ofList (d :: ds)) = (d == c) := by
   rw [startsWithChar, String.toList_ofList]
@@ -515,8 +511,8 @@ private theorem terms_terms (M N : Names) (π : ℕ → ℕ) (ts : List (ℕ × 
     (h : ∀ t ∈ ts, Reads M N π (termVar t)) (fuel : ℕ) (rest : List String)
     (L : List (ℕ × ℤ)) (k : ℤ) :
     terms M (fuel + ts.length) ((ts.flatMap (termWords N)).map String.ofList ++ rest) L k =
-      terms M fuel rest (linOf L (ts.map fun t => (t.1, π t.2.1, t.2.2)))
-        (negOf k (ts.map fun t => (t.1, π t.2.1, t.2.2))) := by
+      terms M fuel rest (linOf L (ts.map (Instance.renameTerm π)))
+        (negOf k (ts.map (Instance.renameTerm π))) := by
   induction ts generalizing L k fuel with
   | nil => rfl
   | cons t ts ih =>

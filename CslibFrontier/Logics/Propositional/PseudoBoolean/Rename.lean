@@ -30,8 +30,8 @@ this says that the conclusions hold for the named instance, under any assignment
 With `α = ℕ`, it says that an injective renumbering `π` changes nothing, because the renamed
 instance `Cslib.Logic.PL.VeriPB.Instance.rename π I` has the values of `I` read through `π`
 (`Cslib.Logic.PL.VeriPB.Instance.values_rename`). The conclusions are read off the values by
-`Cslib.Logic.PL.VeriPB.Instance.satisfiable_iff`, `Cslib.Logic.PL.VeriPB.Instance.forall_iff`,
-`Cslib.Logic.PL.VeriPB.Instance.exists_iff` and
+`Cslib.Logic.PL.VeriPB.Instance.satisfiable_iff`, `Cslib.Logic.PL.VeriPB.Instance.exists_iff`,
+`Cslib.Logic.PL.VeriPB.Instance.image_solsLE` and
 `Cslib.Logic.PL.VeriPB.Instance.projections_eq`, and the output guarantees transfer as a whole
 (`Cslib.Logic.PL.VeriPB.Instance.semOutput_rename_iff`).
 
@@ -59,9 +59,13 @@ namespace Instance
 
 /-! ### Renaming -/
 
+/-- A term with its variable `v` renamed `π v`. -/
+def renameTerm (π : ℕ → ℕ) : ℕ × Literal ℕ → ℕ × Literal ℕ
+  | (a, v, b) => (a, π v, b)
+
 /-- A constraint with each variable `v` renamed `π v`. -/
 def renameConstr (π : ℕ → ℕ) (c : PBConstr) : PBConstr :=
-  ⟨c.terms.map fun t => (t.1, π t.2.1, t.2.2), c.degree⟩
+  ⟨c.terms.map (renameTerm π), c.degree⟩
 
 /-- An objective with each variable `v` renamed `π v`. -/
 def renameObj (π : ℕ → ℕ) (f : Objective) : Objective :=
@@ -74,7 +78,11 @@ def rename (π : ℕ → ℕ) (I : Instance) : Instance :=
 
 @[simp] theorem rename_id (I : Instance) : I.rename id = I := by
   obtain ⟨cs, obj, pres⟩ := I
-  have hc : ∀ c : PBConstr, renameConstr id c = c := fun ⟨ts, d⟩ => by simp [renameConstr]
+  have ht : ∀ t, renameTerm id t = t := fun ⟨a, v, b⟩ => rfl
+  have hc : ∀ c : PBConstr, renameConstr id c = c := fun ⟨ts, d⟩ => by
+    simp only [renameConstr, PBConstr.mk.injEq, and_true]
+    conv_rhs => rw [← List.map_id ts]
+    exact List.map_congr_left fun t _ => ht t
   have ho : ∀ f : Objective, renameObj id f = f := fun ⟨l, k⟩ => by simp [renameObj]
   have hcs : cs.map (renameConstr id) = cs := by
     conv_rhs => rw [← List.map_id cs]
@@ -198,14 +206,6 @@ theorem values_rename_eq {π : ℕ → ℕ} {I : Instance} {P : List ℕ}
 
 theorem satisfiable_iff (I : Instance) : I.Satisfiable ↔ (I.values []).Nonempty :=
   ⟨fun ⟨σ, h⟩ => ⟨_, σ, h, rfl⟩, fun ⟨_, σ, h, _⟩ => ⟨σ, h⟩⟩
-
-/-- A property of the value and projection of every solution. -/
-theorem forall_iff (I : Instance) (P : List ℕ) (p : ℤ → List Bool → Prop) :
-    (∀ σ, (∀ c ∈ I.constraints, c.Holds σ) → p (objValue I.objective σ) (proj P σ)) ↔
-      ∀ x ∈ I.values P, p x.1 x.2 := by
-  refine ⟨fun h x hx => ?_, fun h σ hσ => h _ (mem_values.2 ⟨σ, hσ, rfl⟩)⟩
-  obtain ⟨σ, hσ, rfl⟩ := mem_values.1 hx
-  exact h σ hσ
 
 /-- A property of the value and projection of some solution. -/
 theorem exists_iff (I : Instance) (P : List ℕ) (p : ℤ → List Bool → Prop) :

@@ -342,13 +342,13 @@ def opbNames (s : String) : Names :=
 
 /-! #### Well-formed names -/
 
-private theorem dropChar?_ofList' (c d : Char) (ds : List Char) :
+private theorem dropChar?_ofList (c d : Char) (ds : List Char) :
     dropChar? c (String.ofList (d :: ds)) = if d == c then some (String.ofList ds) else none := by
   rw [dropChar?, String.toList_ofList]
 
 /-- The standard name `x(n + 1)` is the variable `n`. -/
 theorem stdVar?_std (n : ℕ) : stdVar? (String.ofList ('x' :: Nat.toDecimal (n + 1))) = some n := by
-  rw [stdVar?, dropChar?_ofList']
+  rw [stdVar?, dropChar?_ofList]
   simp [nat?, String.toList_ofList, Nat.ofDecimal?_toDecimal]
 
 private theorem mem_addNew {acc l : List String} {t : String} :
