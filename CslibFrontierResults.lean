@@ -44,6 +44,7 @@ import CslibFrontierResults.Entries.ODonnellLevelK
 import CslibFrontierResults.Entries.ODonnellLowDegreeGranularity
 import CslibFrontierResults.Entries.ODonnellLowDegreePart
 import CslibFrontierResults.Entries.ODonnellMargulisRusso
+import CslibFrontierResults.Entries.ODonnellMonotoneCoefficient
 import CslibFrontierResults.Entries.ODonnellNearlyConstantNoise
 import CslibFrontierResults.Entries.ODonnellPTFSparsity
 import CslibFrontierResults.Entries.ODonnellPeres
