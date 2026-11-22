@@ -502,6 +502,7 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
 
 /-!
 # Collected results
@@ -12725,3 +12726,82 @@ register_result "gaspers-cubic-switched-cutwidth" where
     fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
     are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
     (main.tex) and compiled PDF on 2026-11-22."
+
+register_result "dijkstra-k-state-self-stabilizing-token-ring" where
+  title := "Dijkstra's K-state self-stabilizing token ring under distributed and central daemons"
+  topic := "distributed computing"
+  sources := [
+    { paper := Dijkstra1974,
+      theorem := "Solution with K-state Machines (K > N) and Note 1 (K ≥ N)",
+      locator := "CACM 17(11), pp. 643–644 (left column, 'Solution with K-state Machines \
+        (K > N)', and right column, Note 1); author manuscript EWD426, pp. 0–4" },
+    { paper := Dijkstra1973,
+      theorem := "Solution with K-state machines (K ≥ N)",
+      locator := "UT Austin EWD391 transcription, pp. EWD391 - 1 to EWD391 - 2" }
+  ]
+  theorems := [
+    Cslib.Distributed.SelfStabilization.exists_dijkstraPrivileged,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_legitimate_closed,
+    Cslib.Distributed.SelfStabilization.dijkstraDistRing_legitimate_closed,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_token_circulates,
+    Cslib.Distributed.SelfStabilization.dijkstraDistRing_selfStabilizing_of_le,
+    Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_of_pred_le
+  ]
+  scope := "Models Dijkstra's first K-state token-ring protocol on Fin n (corresponding to \
+    Dijkstra's N + 1 machines numbered 0 .. N, so N = n - 1) over configurations Fin n → Fin K: \
+    bottom machine 0 is privileged iff s 0 = s (0 - 1) and steps to s 0 + 1, normal machine \
+    i > 0 is privileged iff s i ≠ s (i - 1) and steps to s (i - 1), and legitimate states \
+    (DijkstraLegitimate n K) are those with (dijkstraPrivilegedSet s).card = 1. dijkstraRing n K \
+    models the central daemon (one privileged machine moves per step) and dijkstraDistRing n K \
+    models the distributed daemon (any nonempty S : Finset (Fin n) of privileged machines moves \
+    simultaneously). SelfStabilizing lts Legitimate requires forward closure (criterion (2) on \
+    p. 643), absence of terminal states (implying criterion (1)), and WellFounded \
+    (CorruptedStep lts Legitimate) (worst-case finite-step stabilization under arbitrary \
+    adversarial scheduling without fairness assumptions; optional ergodicity criteria (3)–(4) \
+    on p. 643 are not bundled into SelfStabilizing, while n-step clockwise mutual-exclusion \
+    circulation is proved in dijkstraRing_token_circulates). Proves distributed-daemon \
+    self-stabilization for 2 ≤ n ≤ K (K > N) and central-daemon Note 1 for 2 ≤ n, 2 ≤ K, and \
+    n - 1 ≤ K (K ≥ N). The explicit K * (n * (n - 1) / 2) + K step bounds \
+    (dijkstraDistRing_mTr_legitimate_of_le, dijkstraRing_mTr_legitimate_of_le) and periodic \
+    converse counterexample executions (dijkstraDistRing_not_selfStabilizing_of_lt, \
+    dijkstraRing_not_selfStabilizing_of_lt_pred) yielding the iff characterizations \
+    (dijkstraDistRing_selfStabilizing_iff, dijkstraRing_selfStabilizing_iff) are original to \
+    this formalization; the four-state and three-state bidirectional ring solutions on p. 644 \
+    remain open under #7291. Primary sources inspected firsthand on 2026-11-22 (CACM PDF \
+    SHA-256 283a8360655dcafc10cbef8e58fc60f6332e8a660516635b9db37ac00e38cbac, EWD426 PDF \
+    SHA-256 bac4d6c8f79db228d139d23197e945fa1816989a111e25e6893ad66b9c59eb52, EWD391 HTML \
+    SHA-256 5de1ab12c133be80d9865eff729cd10e7d6095f96e420063f9b690fd6c3543ce); outside-fleet \
+    source check requested on PR #7337."
+
+register_result "dijkstra-composite-ring-self-stabilization-impossibility" where
+  title := "No deterministic uniform protocol self-stabilizes to unique privilege on a composite \
+    anonymous ring"
+  topic := "distributed computing"
+  sources := [
+    { paper := Dijkstra1973,
+      theorem := "Composite-ring symmetry impossibility",
+      locator := "UT Austin EWD391 transcription, pp. EWD391 - 0 to EWD391 - 1 (first paragraph \
+        after the first '* * *' break)" }
+  ]
+  theorems := [
+    Cslib.Distributed.SelfStabilization.not_uniform_selfStabilizing_composite_ring,
+    Cslib.Distributed.SelfStabilization.not_uniform_distSelfStabilizing_composite_ring
+  ]
+  scope := "For any nonempty state type State, composite dimensions 2 ≤ a and 2 ≤ b, \
+    deterministic anonymous local ring protocol π : UniformRingProtocol State reading \
+    (s (i - 1), s i, s (i + 1)) on Fin (a * b), and legitimate set \
+    Legitimate ⊆ π.UniquePrivilege (a * b), neither the central-daemon transition system \
+    π.centralLTS (a * b) nor the distributed-daemon transition system π.distLTS (a * b) \
+    satisfies SelfStabilizing · Legitimate (via b-divisibility of privileged counts on \
+    a-periodic states, UniformRingProtocol.card_privilegedSet_dvd_of_isRingPeriodic). EWD391 \
+    states the cyclic-symmetry obstruction under \
+    a central daemon assuming the daemon selects the b equally spaced privileged machines of an \
+    a-periodic state in turn before repeating; Lean eliminates any daemon fairness assumption \
+    by constructing an explicit infinite LTS.OmegaExecution from a constant initial state that \
+    sweeps one privileged modulo-a residue class (an independent set at pairwise ring distance \
+    at least 2 since 2 ≤ a) sequentially every b steps while forward closure of Legitimate \
+    (SelfStabilizing.mTr_mem) rules out intermediate visits to Legitimate. Prime ring sizes and \
+    randomized symmetry breaking are outside scope. Primary source inspected firsthand on \
+    2026-11-22 (EWD391 HTML SHA-256 \
+    5de1ab12c133be80d9865eff729cd10e7d6095f96e420063f9b690fd6c3543ce); outside-fleet source \
+    check requested on PR #7337."

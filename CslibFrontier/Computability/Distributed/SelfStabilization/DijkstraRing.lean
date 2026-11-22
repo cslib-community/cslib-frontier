@@ -31,10 +31,9 @@ impossibility theorem for uniform anonymous composite rings.
 In [Dijkstra][Dijkstra1974] (p. 644, left column), the ring consists of `N + 1` machines numbered
 `0` through `N`; here `n` denotes the total ring size `N + 1`, indexed by `Fin n`:
 
-* Bottom machine `0`: privileged iff `s 0 = s (ringLeft 0)` (`s 0 = s ⟨n - 1, _⟩`), moving to
-  `(s 0 + 1) mod K`.
-* Normal machine `i > 0`: privileged iff `s i ≠ s (ringLeft i)` (`s i ≠ s ⟨i - 1, _⟩`), moving to
-  `s (ringLeft i)`.
+* Bottom machine `0`: privileged iff `s 0 = s (0 - 1)` (`s 0 = s ⟨n - 1, _⟩`), moving to `s 0 + 1`
+  (`(s 0 + 1) mod K` in `Fin K`).
+* Normal machine `i > 0`: privileged iff `s i ≠ s (i - 1)`, moving to `s (i - 1)`.
 * Legitimate configurations (`DijkstraLegitimate n K`): configurations in which *exactly one*
   machine `i : Fin n` is privileged.
 
@@ -47,17 +46,16 @@ We establish:
    `dijkstraRing_legitimate_closed`, `dijkstraDistRing_legitimate_closed`,
    `dijkstraRing_token_circulates`): legitimate configurations are constant or two-plateau step
    functions, central and distributed transitions coincide on legitimate states, and the unique
-   privilege advances by `ringRight` on every step, visiting every machine once per `n` steps.
+   privilege advances from `p` to `p + 1` on every step, visiting every machine once per `n` steps.
 3. *Worst-case finite stabilization* (`dijkstraDistRing_mTr_legitimate_of_le`,
    `dijkstraDistRing_selfStabilizing_of_le`, `dijkstraRing_mTr_legitimate_of_le`,
-   `dijkstraRing_selfStabilizing_of_le`, `dijkstraRing_selfStabilizing_of_pred_le`): when
-   `2 ≤ n ≤ K` (`K > N`), every distributed-daemon execution enters `DijkstraLegitimate n K` within
-   `K * (n * (n - 1) / 2) + K` steps without fairness assumptions; under a central daemon,
-   `n - 1 ≤ K` (`K ≥ N`, Note 1 on p. 644) suffices.
+   `dijkstraRing_selfStabilizing_of_pred_le`): when `2 ≤ n ≤ K` (`K > N`), every distributed-daemon
+   execution enters `DijkstraLegitimate n K` within `K * (n * (n - 1) / 2) + K` steps without
+   fairness assumptions; under a central daemon, `n - 1 ≤ K` (`K ≥ N`, Note 1 on p. 644) suffices.
 4. *Sharpness and necessary-and-sufficient bounds* (`dijkstraDistRing_not_selfStabilizing_of_lt`,
    `dijkstraRing_not_selfStabilizing_of_lt_pred`, `dijkstraDistRing_selfStabilizing_iff`,
-   `dijkstraRing_selfStabilizing_iff`): explicit periodic non-stabilizing executions show that for
-   `2 ≤ n` and `2 ≤ K`, `dijkstraDistRing n K` is self-stabilizing iff `n ≤ K` and
+   `dijkstraRing_selfStabilizing_iff`): original explicit periodic non-stabilizing executions show
+   that for `2 ≤ n` and `2 ≤ K`, `dijkstraDistRing n K` is self-stabilizing iff `n ≤ K` and
    `dijkstraRing n K` is self-stabilizing iff `n - 1 ≤ K`.
 5. *Composite anonymous ring impossibility* (`not_uniform_selfStabilizing_composite_ring`,
    `not_uniform_distSelfStabilizing_composite_ring`): on a composite ring of size `n = a * b`
@@ -66,9 +64,6 @@ We establish:
 
 ## Main definitions
 
-* `Cslib.Distributed.SelfStabilization.ringLeft`,
-  `Cslib.Distributed.SelfStabilization.ringRight`: left and right neighbours on `Fin n`.
-* `Cslib.Distributed.SelfStabilization.modSucc`: modular increment `(x + 1) mod K` on `Fin K`.
 * `Cslib.Distributed.SelfStabilization.dijkstraPrivileged`,
   `Cslib.Distributed.SelfStabilization.dijkstraNextVal`,
   `Cslib.Distributed.SelfStabilization.dijkstraStep`,
@@ -95,7 +90,7 @@ We establish:
   `Cslib.Distributed.SelfStabilization.dijkstraPrivilegedSet_tokenConfig`,
   `Cslib.Distributed.SelfStabilization.dijkstraPrivilegedSet_step_of_eq_singleton`: explicit
   two-plateau characterization of unique-privilege configurations and one-step clockwise rotation
-  of the privilege.
+  of the privilege from `p` to `p + 1`.
 * `Cslib.Distributed.SelfStabilization.dijkstraRing_legitimate_closed`,
   `Cslib.Distributed.SelfStabilization.dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate`,
   `Cslib.Distributed.SelfStabilization.dijkstraDistRing_legitimate_closed`,
@@ -104,16 +99,14 @@ We establish:
   legitimate configurations, and exact round-robin token circulation.
 * `Cslib.Distributed.SelfStabilization.dijkstraDistRing_mTr_legitimate_of_le`,
   `Cslib.Distributed.SelfStabilization.dijkstraDistRing_selfStabilizing_of_le`,
-  `Cslib.Distributed.SelfStabilization.dijkstraRing_mTr_legitimate_of_le`,
-  `Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_of_le`: worst-case stabilization
-  within `K * (n * (n - 1) / 2) + K` steps when `2 ≤ n ≤ K` under both distributed and central
-  daemons.
+  `Cslib.Distributed.SelfStabilization.dijkstraRing_mTr_legitimate_of_le`: worst-case stabilization
+  within `K * (n * (n - 1) / 2) + K` steps when `2 ≤ n ≤ K` under distributed and central daemons.
 * `Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_of_pred_le`: central-daemon
   self-stabilization for `n - 1 ≤ K` ([Dijkstra][Dijkstra1974], p. 644, Note 1).
 * `Cslib.Distributed.SelfStabilization.dijkstraRing_not_selfStabilizing_of_lt_pred`,
-  `Cslib.Distributed.SelfStabilization.dijkstraDistRing_not_selfStabilizing_of_lt`: explicit
-  periodic non-stabilizing executions when `K + 1 < n` (central daemon) and `K < n` (distributed
-  daemon).
+  `Cslib.Distributed.SelfStabilization.dijkstraDistRing_not_selfStabilizing_of_lt`: original
+  explicit periodic non-stabilizing executions when `K + 1 < n` (central daemon) and `K < n`
+  (distributed daemon).
 * `Cslib.Distributed.SelfStabilization.dijkstraDistRing_selfStabilizing_iff`,
   `Cslib.Distributed.SelfStabilization.dijkstraRing_selfStabilizing_iff`: exact `n ≤ K` and
   `n - 1 ≤ K` characterizations for distributed and central daemons (`2 ≤ n`, `2 ≤ K`).
@@ -136,42 +129,58 @@ namespace Cslib.Distributed.SelfStabilization
 
 open Cslib
 
-/-! ### Ring neighbours and modular increment -/
+/-! ### Modular `Fin` arithmetic helpers and Dijkstra's `K`-state token ring -/
 
-/-- Left-hand neighbour `(i - 1) mod n` on the oriented ring `Fin n` ([Dijkstra][Dijkstra1974],
-p. 644, `L`). -/
-@[expose] def ringLeft {n : ℕ} [NeZero n] (i : Fin n) : Fin n :=
-  if h : i.val = 0 then
-    ⟨n - 1, Nat.sub_lt (NeZero.pos n) Nat.one_pos⟩
-  else
-    ⟨i.val - 1, Nat.lt_trans (Nat.sub_lt (Nat.pos_of_ne_zero h) Nat.one_pos) i.isLt⟩
+private theorem fin_sub_one_eq {n : ℕ} [NeZero n] (i : Fin n) :
+    i - 1 = if h : i.val = 0 then
+      ⟨n - 1, Nat.sub_lt (NeZero.pos n) Nat.one_pos⟩
+    else
+      ⟨i.val - 1, Nat.lt_trans (Nat.sub_lt (Nat.pos_of_ne_zero h) Nat.one_pos) i.isLt⟩ := by
+  rcases n with _ | _ | m
+  · exact absurd rfl (NeZero.ne 0)
+  · ext; simp
+  · ext
+    rcases i with ⟨_ | k, hk⟩
+    · simp [Fin.sub_def]
+    · simp only [Nat.succ_ne_zero, ↓reduceDIte, Fin.sub_def, Fin.val_one, Nat.add_sub_cancel]
+      have : m + 1 + (k + 1) = (m + 1 + 1) + k := by omega
+      rw [this, Nat.add_mod_left, Nat.mod_eq_of_lt (by omega)]
 
-/-- Right-hand neighbour `(i + 1) mod n` on the oriented ring `Fin n` ([Dijkstra][Dijkstra1974],
-p. 644, `R`). -/
-@[expose] def ringRight {n : ℕ} [NeZero n] (i : Fin n) : Fin n :=
-  if h : i.val + 1 = n then
-    ⟨0, NeZero.pos n⟩
-  else
-    ⟨i.val + 1, Nat.lt_of_le_of_ne (Nat.succ_le_of_lt i.isLt) h⟩
+private theorem fin_add_one_eq {n : ℕ} [NeZero n] (i : Fin n) :
+    i + 1 = if h : i.val + 1 = n then
+      ⟨0, NeZero.pos n⟩
+    else
+      ⟨i.val + 1, Nat.lt_of_le_of_ne (Nat.succ_le_of_lt i.isLt) h⟩ := by
+  rcases n with _ | _ | m
+  · exact absurd rfl (NeZero.ne 0)
+  · ext; simp
+  · ext
+    simp only [Fin.add_def, Fin.val_one]
+    split_ifs with h
+    · simp [h]
+    · exact Nat.mod_eq_of_lt (Nat.lt_of_le_of_ne (Nat.succ_le_of_lt i.isLt) h)
 
-private theorem ringLeft_ringRight {n : ℕ} [NeZero n] (i : Fin n) :
-    ringLeft (ringRight i) = i := by
-  ext
+private theorem fin_add_one_mod {K : ℕ} [NeZero K] (x : Fin K) :
+    x + 1 = ⟨(x.val + 1) % K, Nat.mod_lt _ (NeZero.pos K)⟩ := by
+  rcases K with _ | _ | m
+  · exact absurd rfl (NeZero.ne 0)
+  · ext; simp
+  · ext; simp [Fin.add_def]
+
+private theorem fin_add_sub_one {n : ℕ} [NeZero n] (i : Fin n) :
+    i + 1 - 1 = i := by
+  rw [fin_add_one_eq]
   have hi_lt := i.isLt
-  simp only [ringRight]
   split_ifs with hlast
-  · simp [ringLeft, ← hlast]
-  · simp [ringLeft]
+  · rw [fin_sub_one_eq]; simp [← hlast]
+  · rw [fin_sub_one_eq]; simp
 
-/-- Modular increment `(x + 1) mod K` on `Fin K`. -/
-@[expose] def modSucc {K : ℕ} [NeZero K] (x : Fin K) : Fin K :=
-  ⟨(x.val + 1) % K, Nat.mod_lt _ (NeZero.pos K)⟩
-
-private theorem modSucc_ne_self {K : ℕ} [NeZero K] (hK : 2 ≤ K) (x : Fin K) :
-    modSucc x ≠ x := by
+private theorem fin_add_one_ne_self {K : ℕ} [NeZero K] (hK : 2 ≤ K) (x : Fin K) :
+    x + 1 ≠ x := by
   intro h
   have hval := congrArg Fin.val h
-  simp only [modSucc] at hval
+  rw [fin_add_one_mod] at hval
+  dsimp only at hval
   by_cases hx : x.val + 1 < K
   · rw [Nat.mod_eq_of_lt hx] at hval
     omega
@@ -179,23 +188,21 @@ private theorem modSucc_ne_self {K : ℕ} [NeZero K] (hK : 2 ≤ K) (x : Fin K) 
     rw [hx', Nat.mod_self] at hval
     omega
 
-/-! ### Dijkstra's `K`-state token ring -/
-
-/-- Machine `i` is privileged in configuration `s` iff `s 0 = s (ringLeft 0)` when `i = 0`, and
-`s i ≠ s (ringLeft i)` when `i > 0` ([Dijkstra][Dijkstra1974], p. 644, "Solution with K-state
+/-- Machine `i` is privileged in configuration `s` iff `s 0 = s (0 - 1)` when `i = 0`, and
+`s i ≠ s (i - 1)` when `i > 0` ([Dijkstra][Dijkstra1974], p. 644, "Solution with K-state
 Machines"). -/
 @[expose] def dijkstraPrivileged {n K : ℕ} [NeZero n] (s : Fin n → Fin K) (i : Fin n) : Prop :=
-  if i.val = 0 then s i = s (ringLeft i) else s i ≠ s (ringLeft i)
+  if i.val = 0 then s i = s (i - 1) else s i ≠ s (i - 1)
 
 instance {n K : ℕ} [NeZero n] (s : Fin n → Fin K) (i : Fin n) :
     Decidable (dijkstraPrivileged s i) :=
-  inferInstanceAs (Decidable (if i.val = 0 then s i = s (ringLeft i) else s i ≠ s (ringLeft i)))
+  inferInstanceAs (Decidable (if i.val = 0 then s i = s (i - 1) else s i ≠ s (i - 1)))
 
-/-- Next local value of machine `i` when firing: `(s 0 + 1) mod K` for bottom machine `0`, and
-`s (ringLeft i)` for `i > 0` ([Dijkstra][Dijkstra1974], p. 644). -/
+/-- Next local value of machine `i` when firing: `s 0 + 1` (`(s 0 + 1) mod K`) for bottom machine
+`0`, and `s (i - 1)` for `i > 0` ([Dijkstra][Dijkstra1974], p. 644). -/
 @[expose] def dijkstraNextVal {n K : ℕ} [NeZero n] [NeZero K]
     (s : Fin n → Fin K) (i : Fin n) : Fin K :=
-  if i.val = 0 then modSucc (s i) else s (ringLeft i)
+  if i.val = 0 then s i + 1 else s (i - 1)
 
 /-- Single-machine configuration update when machine `i` moves. -/
 @[expose] def dijkstraStep {n K : ℕ} [NeZero n] [NeZero K]
@@ -233,7 +240,7 @@ machine is privileged ([Dijkstra][Dijkstra1974], p. 644). -/
 /-- Canonical two-plateau configuration placing the unique privilege at `p` with base value `c`. -/
 @[expose] def dijkstraTokenConfig (n K : ℕ) [NeZero K]
     (p : Fin n) (c : Fin K) : Fin n → Fin K :=
-  fun j => if p.val = 0 then c else if j.val < p.val then modSucc c else c
+  fun j => if p.val = 0 then c else if j.val < p.val then c + 1 else c
 
 @[simp]
 theorem dijkstraDistStep_singleton {n K : ℕ} [NeZero n] [NeZero K]
@@ -244,6 +251,8 @@ theorem dijkstraDistStep_singleton {n K : ℕ} [NeZero n] [NeZero K]
   · subst hji; simp [dijkstraDistStep, dijkstraStep]
   · simp [dijkstraDistStep, dijkstraStep, hji]
 
+/-- A central-daemon step of machine `i` coincides with the singleton distributed-daemon step
+`{i}`. -/
 theorem dijkstraRing_tr_iff_distRing_singleton {n K : ℕ} [NeZero n] [NeZero K]
     (s : Fin n → Fin K) (i : Fin n) (s' : Fin n → Fin K) :
     (dijkstraRing n K).Tr s i s' ↔ (dijkstraDistRing n K).Tr s {i} s' := by
@@ -271,7 +280,7 @@ private theorem eq_zero_of_unprivileged_prefix {n K : ℕ} [NeZero n]
     intro hk
     have hkn : k + 1 < n := Nat.lt_of_lt_of_le hk hm
     have hnot := hunpriv ⟨k + 1, hkn⟩ (Nat.succ_pos k) hk
-    simp only [dijkstraPrivileged, Nat.succ_ne_zero, ↓reduceIte, ringLeft,
+    simp only [dijkstraPrivileged, Nat.succ_ne_zero, ↓reduceIte, fin_sub_one_eq,
       ↓reduceDIte, Nat.add_sub_cancel, not_not] at hnot
     exact hnot.trans (ih (Nat.lt_of_succ_lt hk))
 
@@ -283,7 +292,7 @@ theorem exists_dijkstraPrivileged {n K : ℕ} [NeZero n] (s : Fin n → Fin K) :
   · refine ⟨0, ?_⟩
     have hconst := eq_zero_of_unprivileged_prefix le_rfl fun i hi _ => hall i hi
     have hz : (0 : Fin n).val = 0 := rfl
-    simp only [dijkstraPrivileged, hz, ↓reduceIte, ringLeft, ↓reduceDIte]
+    simp only [dijkstraPrivileged, hz, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte]
     exact (hconst (n - 1) (Nat.sub_lt (NeZero.pos n) Nat.one_pos)).symm
   · push Not at hall
     obtain ⟨i, _, hi⟩ := hall
@@ -331,7 +340,7 @@ theorem dijkstraPrivilegedSet_eq_singleton_iff {n K : ℕ} [NeZero n]
         have hip := (hmem i).mp hpriv
         exact Nat.ne_of_lt hil (congrArg Fin.val hip)
       have hp_priv : dijkstraPrivileged s p := (hmem p).mpr rfl
-      simp only [dijkstraPrivileged, hp0, ↓reduceIte, ringLeft, ↓reduceDIte] at hp_priv
+      simp only [dijkstraPrivileged, hp0, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte] at hp_priv
       have hp_sub_lt : p.val - 1 < p.val :=
         Nat.sub_lt (Nat.pos_of_ne_zero hp0) Nat.one_pos
       have hp_pred : s ⟨p.val - 1, Nat.lt_trans hp_sub_lt p.isLt⟩ = s 0 :=
@@ -348,7 +357,8 @@ theorem dijkstraPrivilegedSet_eq_singleton_iff {n K : ℕ} [NeZero n]
             omega
           have hnz : p.val + (d + 1) ≠ 0 := by omega
           have hnot : ¬ dijkstraPrivileged s ⟨p.val + (d + 1), hd⟩ := mt (hmem _).mp hne_p
-          simp only [dijkstraPrivileged, hnz, ↓reduceIte, ringLeft, ↓reduceDIte, not_not] at hnot
+          simp only [dijkstraPrivileged, hnz, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
+            not_not] at hnot
           have hsub : (⟨p.val + (d + 1) - 1,
               Nat.lt_trans (Nat.sub_lt (Nat.pos_of_ne_zero hnz) Nat.one_pos) hd⟩ : Fin n) =
               ⟨p.val + d, Nat.lt_of_succ_lt hd⟩ := by ext; dsimp only; omega
@@ -375,33 +385,33 @@ theorem dijkstraPrivilegedSet_eq_singleton_iff {n K : ℕ} [NeZero n]
       by_cases hi0 : i.val = 0
       · have hi_ne_p : i ≠ p := fun h => hp0 (h ▸ hi0)
         have hi_eq0 : s i = s 0 := hlt i (by omega)
-        have hlast : s (ringLeft i) = s p := by
+        have hlast : s (i - 1) = s p := by
           apply hge
-          simp only [ringLeft, hi0, ↓reduceDIte]
+          simp only [fin_sub_one_eq, hi0, ↓reduceDIte]
           omega
         simp only [dijkstraPrivileged, hi0, ↓reduceIte, hi_eq0, hlast, hi_ne_p, iff_false]
         exact hne.symm
       · by_cases hip : i = p
         · subst hip
           simp only [dijkstraPrivileged, hi0, ↓reduceIte, iff_true]
-          have hleft : (ringLeft i).val < i.val := by
-            simp only [ringLeft, hi0, ↓reduceDIte]
+          have hleft : (i - 1).val < i.val := by
+            simp only [fin_sub_one_eq, hi0, ↓reduceDIte]
             omega
-          rw [hlt (ringLeft i) hleft]
+          rw [hlt (i - 1) hleft]
           exact hne
         · simp only [dijkstraPrivileged, hi0, ↓reduceIte, hip, iff_false, not_not]
           by_cases hilt : i.val < p.val
-          · have hleft : (ringLeft i).val < p.val := by
-              simp only [ringLeft, hi0, ↓reduceDIte]
+          · have hleft : (i - 1).val < p.val := by
+              simp only [fin_sub_one_eq, hi0, ↓reduceDIte]
               omega
-            rw [hlt i hilt, hlt (ringLeft i) hleft]
+            rw [hlt i hilt, hlt (i - 1) hleft]
           · have higt : p.val < i.val := by
               have : i.val ≠ p.val := fun h => hip (Fin.ext h)
               omega
-            have hleft : p.val ≤ (ringLeft i).val := by
-              simp only [ringLeft, hi0, ↓reduceDIte]
+            have hleft : p.val ≤ (i - 1).val := by
+              simp only [fin_sub_one_eq, hi0, ↓reduceDIte]
               omega
-            rw [hge i (Nat.le_of_lt higt), hge (ringLeft i) hleft]
+            rw [hge i (Nat.le_of_lt higt), hge (i - 1) hleft]
 
 /-- Every canonical plateau configuration `dijkstraTokenConfig n K p c` has `p` as its unique
 privileged machine when `2 ≤ K`. -/
@@ -416,7 +426,7 @@ theorem dijkstraPrivilegedSet_tokenConfig {n K : ℕ} [NeZero n] [NeZero K]
   · have hpos : 0 < p.val := Nat.pos_of_ne_zero hp0
     refine ⟨?_, ?_, ?_⟩
     · simp only [dijkstraTokenConfig, hp0, ↓reduceIte, lt_irrefl, hzero_val, hpos, ne_eq]
-      exact (modSucc_ne_self hK c).symm
+      exact (fin_add_one_ne_self hK c).symm
     · intro j hj
       simp [dijkstraTokenConfig, hp0, hj, hpos]
     · intro j hj
@@ -424,11 +434,11 @@ theorem dijkstraPrivilegedSet_tokenConfig {n K : ℕ} [NeZero n] [NeZero K]
       simp [dijkstraTokenConfig, hp0, hnot_lt]
 
 /-- Firing the unique privileged machine `p` in a legitimate configuration transfers the unique
-privilege to `ringRight p` ([Dijkstra][Dijkstra1974], p. 644). -/
+privilege to `p + 1` ([Dijkstra][Dijkstra1974], p. 644). -/
 theorem dijkstraPrivilegedSet_step_of_eq_singleton {n K : ℕ} [NeZero n] [NeZero K]
     (hK : 2 ≤ K) {s : Fin n → Fin K} {p : Fin n}
     (hs : dijkstraPrivilegedSet s = {p}) :
-    dijkstraPrivilegedSet (dijkstraStep s p) = {ringRight p} := by
+    dijkstraPrivilegedSet (dijkstraStep s p) = {p + 1} := by
   have hplat := (dijkstraPrivilegedSet_eq_singleton_iff s p).mp hs
   rw [dijkstraPrivilegedSet_eq_singleton_iff]
   have hz : (0 : Fin n).val = 0 := rfl
@@ -437,37 +447,37 @@ theorem dijkstraPrivilegedSet_step_of_eq_singleton {n K : ℕ} [NeZero n] [NeZer
     have hp_eq0 : p = 0 := Fin.ext hp0
     subst hp_eq0
     by_cases hn1 : n = 1
-    · have hr0 : (ringRight (0 : Fin n)).val = 0 := by
-        simp [ringRight, hn1]
+    · have hr0 : ((0 : Fin n) + 1).val = 0 := by
+        simp [fin_add_one_eq, hn1]
       simp only [hr0, ↓reduceIte]
       intro j
       have hj0 : j = 0 := Fin.ext (by have := j.isLt; omega)
       rw [hj0]
     · have h1ne : 0 + 1 ≠ n := by omega
-      have hr_val : (ringRight (0 : Fin n)).val = 1 := by
-        simp [ringRight, h1ne]
+      have hr_val : ((0 : Fin n) + 1).val = 1 := by
+        simp [fin_add_one_eq, h1ne]
       simp only [hr_val, Nat.one_ne_zero, ↓reduceIte]
-      have hs'0 : dijkstraStep s 0 0 = modSucc (s 0) := by
+      have hs'0 : dijkstraStep s 0 0 = s 0 + 1 := by
         simp [dijkstraStep, dijkstraNextVal]
       have hs'_pos : ∀ j : Fin n, 0 < j.val → dijkstraStep s 0 j = s 0 := by
         intro j hj
         have hjne : j ≠ 0 := fun h => by rw [h] at hj; exact Nat.lt_irrefl 0 hj
         rw [dijkstraStep, Function.update_of_ne hjne, hplat j]
       refine ⟨?_, ?_, ?_⟩
-      · rw [hs'0, hs'_pos (ringRight 0) (by omega)]
-        exact (modSucc_ne_self hK (s 0)).symm
+      · rw [hs'0, hs'_pos (0 + 1) (by omega)]
+        exact (fin_add_one_ne_self hK (s 0)).symm
       · intro j hj
         have hj0 : j = 0 := Fin.ext (by omega)
         rw [hj0]
       · intro j hj
-        rw [hs'_pos j (by omega), hs'_pos (ringRight 0) (by omega)]
+        rw [hs'_pos j (by omega), hs'_pos (0 + 1) (by omega)]
   · simp only [hp0, ↓reduceIte] at hplat
     obtain ⟨hne, hlt, hge⟩ := hplat
     have hp_pos : 0 < p.val := Nat.pos_of_ne_zero hp0
     have hnext_p : dijkstraNextVal s p = s 0 := by
       simp only [dijkstraNextVal, hp0, ↓reduceIte]
       apply hlt
-      simp only [ringLeft, hp0, ↓reduceDIte]
+      simp only [fin_sub_one_eq, hp0, ↓reduceDIte]
       omega
     have hs'_lt : ∀ j : Fin n, j.val ≤ p.val → dijkstraStep s p j = s 0 := by
       intro j hj
@@ -481,20 +491,20 @@ theorem dijkstraPrivilegedSet_step_of_eq_singleton {n K : ℕ} [NeZero n] [NeZer
       have hjp : j ≠ p := fun h => Nat.ne_of_gt hj (congrArg Fin.val h)
       rw [dijkstraStep, Function.update_of_ne hjp, hge j (Nat.le_of_lt hj)]
     by_cases hlast : p.val + 1 = n
-    · have hr0 : (ringRight p).val = 0 := by simp [ringRight, hlast]
+    · have hr0 : (p + 1).val = 0 := by simp [fin_add_one_eq, hlast]
       simp only [hr0, ↓reduceIte]
       intro j
       have hj_lt := j.isLt
       rw [hs'_lt j (by omega), hs'_lt 0 (by rw [hz]; omega)]
-    · have hr_val : (ringRight p).val = p.val + 1 := by simp [ringRight, hlast]
+    · have hr_val : (p + 1).val = p.val + 1 := by simp [fin_add_one_eq, hlast]
       simp only [hr_val, Nat.succ_ne_zero, ↓reduceIte]
       refine ⟨?_, ?_, ?_⟩
-      · rw [hs'_gt (ringRight p) (by omega), hs'_lt 0 (by rw [hz]; omega)]
+      · rw [hs'_gt (p + 1) (by omega), hs'_lt 0 (by rw [hz]; omega)]
         exact hne
       · intro j hj
         rw [hs'_lt j (by omega), hs'_lt 0 (by rw [hz]; omega)]
       · intro j hj
-        rw [hs'_gt j (by omega), hs'_gt (ringRight p) (by omega)]
+        rw [hs'_gt j (by omega), hs'_gt (p + 1) (by omega)]
 
 /-- Closure of `DijkstraLegitimate n K` under central-daemon transitions (`2 ≤ K`). -/
 theorem dijkstraRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK : 2 ≤ K)
@@ -539,9 +549,9 @@ theorem dijkstraDistRing_legitimate_closed {n K : ℕ} [NeZero n] [NeZero K] (hK
   obtain ⟨i, _, htr'⟩ := (dijkstraDistRing_tr_iff_dijkstraRing_of_legitimate hs S).mp htr
   exact dijkstraRing_legitimate_closed hK hs htr'
 
-private theorem ringRight_val_mod {n : ℕ} [NeZero n] (p : Fin n) :
-    (ringRight p).val = (p.val + 1) % n := by
-  simp only [ringRight]
+private theorem fin_add_one_val_mod {n : ℕ} [NeZero n] (p : Fin n) :
+    (p + 1).val = (p.val + 1) % n := by
+  simp only [fin_add_one_eq]
   split_ifs with hlast
   · rw [hlast, Nat.mod_self]
   · exact (Nat.mod_eq_of_lt (Nat.lt_of_le_of_ne (Nat.succ_le_of_lt p.isLt) hlast)).symm
@@ -569,10 +579,10 @@ theorem dijkstraRing_token_circulates {n K : ℕ} [NeZero n] [NeZero K] (hK : 2 
     subst hip
     have hs₂ := dijkstraPrivilegedSet_step_of_eq_singleton hK hs
     obtain ⟨hfinal, hsteps⟩ := ih hs₂
-    have hr_mod : ∀ m, ((ringRight i).val + m) % n = (i.val + (m + 1)) % n := by
+    have hr_mod : ∀ m, ((i + 1).val + m) % n = (i.val + (m + 1)) % n := by
       intro m
       calc
-        ((ringRight i).val + m) % n = ((i.val + 1) % n + m) % n := by rw [ringRight_val_mod]
+        ((i + 1).val + m) % n = ((i.val + 1) % n + m) % n := by rw [fin_add_one_val_mod]
         _ = (i.val + 1 + m) % n := Nat.mod_add_mod _ _ _
         _ = (i.val + (m + 1)) % n := by ring_nf
     refine ⟨?_, ?_⟩
@@ -603,7 +613,7 @@ private theorem two_mul_sum_range (m : ℕ) :
       ring
 
 private def dijkstraPotential {n K : ℕ} [NeZero n] (s : Fin n → Fin K) : ℕ :=
-  ∑ i : Fin n, if 0 < i.val ∧ s i ≠ s (ringLeft i) then n - i.val else 0
+  ∑ i : Fin n, if 0 < i.val ∧ s i ≠ s (i - 1) then n - i.val else 0
 
 private theorem dijkstraPotential_le {n K : ℕ} [NeZero n] (s : Fin n → Fin K) :
     dijkstraPotential s ≤ n * (n - 1) / 2 := by
@@ -632,7 +642,7 @@ private theorem dijkstraPotential_distStep_le {n K : ℕ} [NeZero n] [NeZero K]
   obtain ⟨_, hpriv, rfl⟩ := htr
   let d : (Fin n → Fin K) → ℕ → ℕ := fun u k =>
     if hk : 0 < k ∧ k < n then
-      if u ⟨k, hk.2⟩ ≠ u (ringLeft ⟨k, hk.2⟩) then 1 else 0
+      if u ⟨k, hk.2⟩ ≠ u (⟨k, hk.2⟩ - 1) then 1 else 0
     else 0
   let inS : ℕ → ℕ := fun k =>
     if hk : k < n then (if (⟨k, hk⟩ : Fin n) ∈ S then 1 else 0) else 0
@@ -646,10 +656,10 @@ private theorem dijkstraPotential_distStep_le {n K : ℕ} [NeZero n] [NeZero K]
     have hk_sub : k - 1 < n := by omega
     let ik : Fin n := ⟨k, hkn⟩
     let ik_prev : Fin n := ⟨k - 1, hk_sub⟩
-    have hleft_eq : ringLeft ik = ik_prev := by
-      ext
+    have hleft_eq : ik - 1 = ik_prev := by
+      rw [fin_sub_one_eq]
       have hik_nz : k ≠ 0 := by omega
-      simp [ringLeft, ik, ik_prev, hik_nz]
+      simp [ik, ik_prev, hik_nz]
     have hd_s : d s k = if s ik ≠ s ik_prev then 1 else 0 := by
       simp [d, hk_pos, hkn, ik, hleft_eq]
     have hd_s' : d (dijkstraDistStep s S) k =
@@ -686,7 +696,7 @@ private theorem dijkstraPotential_distStep_le {n K : ℕ} [NeZero n] [NeZero K]
       rw [dijkstraPotential]
       refine Finset.sum_congr rfl fun i _ => ?_
       by_cases hi0 : 0 < i.val
-      · by_cases hne : u i = u (ringLeft i) <;> simp [d, hi0, i.isLt, hne]
+      · by_cases hne : u i = u (i - 1) <;> simp [d, hi0, i.isLt, hne]
       · simp [d, hi0]
     rw [hrew, Fin.sum_univ_eq_sum_range (fun k => (n - k) * d u k) n]
     have hr : Finset.range n = insert 0 (Finset.Ico 1 n) := by
@@ -812,10 +822,10 @@ private theorem not_legit_bottomSteps_eq_zero_of_onlyZeroPrefix {n K : ℕ} [NeZ
   | @stepL s₁ S s₂ μs s₃ htr hmtr' ih =>
     obtain ⟨m, hm1, hmn, hlt, hge⟩ := hpref
     have hs₁0 : s₁ 0 = v := hlt 0 (by change 0 < m; omega)
-    have hs₁_last : s₁ (ringLeft 0) ≠ v := by
+    have hs₁_last : s₁ (0 - 1) ≠ v := by
       apply hge
       have hzero : (0 : Fin n).val = 0 := rfl
-      simp only [ringLeft, hzero, ↓reduceDIte]
+      simp only [fin_sub_one_eq, hzero, ↓reduceDIte]
       omega
     have hnot_priv0 : ¬ dijkstraPrivileged s₁ 0 := by
       have hzero : (0 : Fin n).val = 0 := rfl
@@ -834,10 +844,10 @@ private theorem not_legit_bottomSteps_eq_zero_of_onlyZeroPrefix {n K : ℕ} [NeZ
         simp [dijkstraDistStep, h0, hs₁0]
       · have hnot_priv : ¬ dijkstraPrivileged s₁ i := by
           simp only [dijkstraPrivileged, hi0, ↓reduceIte, not_not]
-          have hleft : (ringLeft i).val < m := by
-            simp only [ringLeft, hi0, ↓reduceDIte]
+          have hleft : (i - 1).val < m := by
+            simp only [fin_sub_one_eq, hi0, ↓reduceDIte]
             omega
-          rw [hlt i hi, hlt (ringLeft i) hleft]
+          rw [hlt i hi, hlt (i - 1) hleft]
         have hiS : i ∉ S := fun h => hnot_priv (hpriv i h)
         simp [dijkstraDistStep, hiS, hlt i hi]
     let im : Fin n := ⟨m, hmn⟩
@@ -846,7 +856,7 @@ private theorem not_legit_bottomSteps_eq_zero_of_onlyZeroPrefix {n K : ℕ} [NeZ
         have hm_nz : im.val ≠ 0 := by simp [im]; omega
         simp only [dijkstraDistStep, him, ↓reduceIte, dijkstraNextVal, hm_nz]
         apply hlt
-        simp only [ringLeft, hm_nz, ↓reduceDIte, im]
+        simp only [fin_sub_one_eq, hm_nz, ↓reduceDIte, im]
         omega
       have hgt_ne : ∀ i : Fin n, m + 1 ≤ i.val → dijkstraDistStep s₁ S i ≠ v := by
         intro i hi
@@ -854,7 +864,7 @@ private theorem not_legit_bottomSteps_eq_zero_of_onlyZeroPrefix {n K : ℕ} [NeZ
         · have hi_nz : i.val ≠ 0 := by omega
           simp only [dijkstraDistStep, hiS, ↓reduceIte, dijkstraNextVal, hi_nz]
           apply hge
-          simp only [ringLeft, hi_nz, ↓reduceDIte]
+          simp only [fin_sub_one_eq, hi_nz, ↓reduceDIte]
           omega
         · simp only [dijkstraDistStep, hiS, ↓reduceIte]
           exact hge i (by omega)
@@ -891,7 +901,7 @@ private theorem not_legit_bottomSteps_eq_zero_of_onlyZeroPrefix {n K : ℕ} [NeZ
           · have hi_nz : i.val ≠ 0 := by omega
             simp only [dijkstraDistStep, hiS, ↓reduceIte, dijkstraNextVal, hi_nz]
             apply hge
-            simp only [ringLeft, hi_nz, ↓reduceDIte]
+            simp only [fin_sub_one_eq, hi_nz, ↓reduceDIte]
             omega
           · simp [dijkstraDistStep, hiS, hge i hi]
       exact ih ⟨m, hm1, hmn, hlt_keep, hge_ne⟩ hs'
@@ -912,10 +922,10 @@ private theorem not_legit_bottomSteps_le_of_avoids {n K : ℕ} [NeZero n] [NeZer
       by_cases hiS : i ∈ S
       · have hi_nz : i.val ≠ 0 := by omega
         simp only [dijkstraDistStep, hiS, ↓reduceIte, dijkstraNextVal, hi_nz]
-        exact hav (ringLeft i)
+        exact hav (i - 1)
       · simp [dijkstraDistStep, hiS, hav i]
     by_cases h0 : (0 : Fin n) ∈ S
-    · have hs₂0 : dijkstraDistStep s₁ S 0 = modSucc (s₁ 0) := by
+    · have hs₂0 : dijkstraDistStep s₁ S 0 = s₁ 0 + 1 := by
         simp [dijkstraDistStep, h0, dijkstraNextVal]
       have hb_cons : bottomSteps (S :: μs) = bottomSteps μs + 1 := by simp [bottomSteps, h0]
       have hdist_pos : 0 < modDist (s₁ 0) v := by
@@ -929,7 +939,7 @@ private theorem not_legit_bottomSteps_le_of_avoids {n K : ℕ} [NeZero n] [NeZer
           omega
         · rw [Nat.mod_eq_of_lt (by omega)]
           omega
-      by_cases hhit : modSucc (s₁ 0) = v
+      by_cases hhit : s₁ 0 + 1 = v
       · have hpref : OnlyZeroPrefix v (dijkstraDistStep s₁ S) := by
           refine ⟨1, le_rfl, hn, fun i hi => ?_, fun i hi => hpos_ne i (by omega)⟩
           have hi0 : i = 0 := Fin.ext (show i.val = 0 by omega)
@@ -943,12 +953,13 @@ private theorem not_legit_bottomSteps_le_of_avoids {n K : ℕ} [NeZero n] [NeZer
             rw [hi_eq0, hs₂0]
             exact hhit
           · exact hpos_ne i (Nat.pos_of_ne_zero hi0)
-        have hdist_dec : modDist (modSucc (s₁ 0)) v + 1 = modDist (s₁ 0) v := by
-          simp only [modDist, modSucc]
+        have hdist_dec : modDist (s₁ 0 + 1) v + 1 = modDist (s₁ 0) v := by
+          simp only [modDist, fin_add_one_mod]
           have hlt1 := (s₁ 0).isLt
           have hlt2 := v.isLt
           have hne0 : (s₁ 0).val ≠ v.val := fun h => hav 0 (Fin.ext h)
-          have hne_succ : ((s₁ 0).val + 1) % K ≠ v.val := fun h => hhit (Fin.ext h)
+          have hne_succ : ((s₁ 0).val + 1) % K ≠ v.val :=
+            fun h => hhit (by rw [fin_add_one_mod]; exact Fin.ext h)
           by_cases hwrap : (s₁ 0).val + 1 = K
           · rw [hwrap, Nat.mod_self, Nat.sub_zero, Nat.add_mod_right, Nat.mod_eq_of_lt hlt2]
             have : v.val + K - (s₁ 0).val = v.val + 1 := by omega
@@ -1010,11 +1021,11 @@ private theorem exists_missing_of_priv_zero {n K : ℕ} [NeZero n]
     ∃ v : Fin K, ∀ i : Fin n, s i ≠ v := by
   have hz : (0 : Fin n).val = 0 := rfl
   simp only [dijkstraPrivileged, hz, ↓reduceIte] at hpriv0
-  let last : Fin n := ringLeft (0 : Fin n)
+  let last : Fin n := (0 : Fin n) - 1
   have hlast_ne0 : last ≠ 0 := by
     intro h
     have hv := congrArg Fin.val h
-    simp only [last, ringLeft, hz, ↓reduceDIte] at hv
+    simp only [last, fin_sub_one_eq, hz, ↓reduceDIte] at hv
     omega
   have himg_sub : Finset.univ.image s ⊆ (Finset.univ.erase last).image s := by
     intro x hx
@@ -1056,7 +1067,8 @@ private theorem mTr_split_first_bottom {n K : ℕ} [NeZero n] [NeZero K]
 
 /-- Explicit worst-case convergence bound under a distributed daemon: when `2 ≤ n ≤ K`, every
 distributed-daemon execution of length at least `K * (n * (n - 1) / 2) + K` ends in
-`DijkstraLegitimate n K`, with zero fairness assumptions. -/
+`DijkstraLegitimate n K`, with zero fairness assumptions (quantitative refinement of
+[Dijkstra][Dijkstra1974], p. 644). -/
 theorem dijkstraDistRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hnK : n ≤ K) {s₀ s' : Fin n → Fin K} {μs : List (Finset (Fin n))}
     (hmtr : (dijkstraDistRing n K).MTr s₀ μs s')
@@ -1098,7 +1110,8 @@ theorem dijkstraDistRing_selfStabilizing_of_le {n K : ℕ} [NeZero n] [NeZero K]
     dijkstraDistRing_not_isTerminal
     (fun _ _ _ hmtr hlen => dijkstraDistRing_mTr_legitimate_of_le hn hnK hmtr hlen)
 
-/-- Explicit worst-case convergence bound under a central daemon when `2 ≤ n ≤ K`. -/
+/-- Explicit worst-case convergence bound under a central daemon when `2 ≤ n ≤ K` (quantitative
+refinement of [Dijkstra][Dijkstra1974], p. 644). -/
 theorem dijkstraRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hnK : n ≤ K) {s₀ s' : Fin n → Fin K} {μs : List (Fin n)}
     (hmtr : (dijkstraRing n K).MTr s₀ μs s')
@@ -1107,9 +1120,7 @@ theorem dijkstraRing_mTr_legitimate_of_le {n K : ℕ} [NeZero n] [NeZero K]
   dijkstraDistRing_mTr_legitimate_of_le hn hnK (dijkstraRing_mTr_to_distRing hmtr)
     (by simpa using hlen)
 
-/-- Whenever `2 ≤ n` and `n ≤ K`, Dijkstra's `K`-state token ring is self-stabilizing under a
-central daemon ([Dijkstra][Dijkstra1974], p. 644). -/
-theorem dijkstraRing_selfStabilizing_of_le {n K : ℕ} [NeZero n] [NeZero K]
+private theorem dijkstraRing_selfStabilizing_of_le {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hnK : n ≤ K) :
     SelfStabilizing (dijkstraRing n K) (DijkstraLegitimate n K) :=
   SelfStabilizing.of_subLTS (dijkstraDistRing_selfStabilizing_of_le hn hnK)
@@ -1187,17 +1198,17 @@ theorem dijkstraRing_selfStabilizing_of_pred_le {n K : ℕ} [NeZero n] [NeZero K
         have hi_ne0 : i ≠ 0 := by
           intro hi0
           subst hi0
-          have hs₂'0 : s₂' 0 = modSucc (s₁ 0) := by simp [s₂', dijkstraStep, dijkstraNextVal]
-          have hs₂'_last : s₂' (ringLeft 0) = s₁ 0 := by
-            have hne : ringLeft (0 : Fin n) ≠ 0 := by
+          have hs₂'0 : s₂' 0 = s₁ 0 + 1 := by simp [s₂', dijkstraStep, dijkstraNextVal]
+          have hs₂'_last : s₂' (0 - 1) = s₁ 0 := by
+            have hne : (0 : Fin n) - 1 ≠ 0 := by
               intro h
               have hv := congrArg Fin.val h
-              simp only [ringLeft, hz, ↓reduceDIte] at hv
+              simp only [fin_sub_one_eq, hz, ↓reduceDIte] at hv
               omega
-            change dijkstraStep s₁ 0 (ringLeft 0) = s₁ 0
+            change dijkstraStep s₁ 0 (0 - 1) = s₁ 0
             rw [dijkstraStep, Function.update_of_ne hne, hpriv₀.symm]
           simp only [dijkstraPrivileged, hz, ↓reduceIte, hs₂'0, hs₂'_last] at hpriv_i
-          exact modSucc_ne_self hK (s₁ 0) hpriv_i
+          exact fin_add_one_ne_self hK (s₁ 0) hpriv_i
         have h0not_i : (0 : Fin n) ∉ ({i} : Finset (Fin n)) := by simp [Ne.symm hi_ne0]
         have hb_m₃ : K ≤ bottomSteps μs₃ := by
           simpa [bottomSteps, h0not_i] using hb_m₂
@@ -1274,8 +1285,8 @@ private theorem shiftVal_eq_iff {K : ℕ} [NeZero K] (c : ℕ) (x y : Fin K) :
 private theorem dijkstraPrivileged_shiftVal {n K : ℕ} [NeZero n] [NeZero K]
     (c : ℕ) (s : Fin n → Fin K) (i : Fin n) :
     dijkstraPrivileged (shiftVal c s) i ↔ dijkstraPrivileged s i := by
-  have heq : (shiftVal c s i = shiftVal c s (ringLeft i)) ↔ s i = s (ringLeft i) :=
-    shiftVal_eq_iff c (s i) (s (ringLeft i))
+  have heq : (shiftVal c s i = shiftVal c s (i - 1)) ↔ s i = s (i - 1) :=
+    shiftVal_eq_iff c (s i) (s (i - 1))
   simp only [dijkstraPrivileged]
   split_ifs
   · exact heq
@@ -1296,7 +1307,7 @@ private theorem dijkstraStep_shiftVal {n K : ℕ} [NeZero n] [NeZero K]
   by_cases hji : j = i
   · subst hji
     ext
-    simp only [dijkstraStep, shiftVal, Function.update_self, dijkstraNextVal, modSucc]
+    simp only [dijkstraStep, shiftVal, Function.update_self, dijkstraNextVal, fin_add_one_mod]
     split_ifs
     · simp only [Nat.mod_add_mod]
       congr 1
@@ -1310,7 +1321,7 @@ private theorem dijkstraDistStep_shiftVal {n K : ℕ} [NeZero n] [NeZero K]
   funext j
   by_cases hjS : j ∈ S
   · ext
-    simp only [dijkstraDistStep, hjS, ↓reduceIte, shiftVal, dijkstraNextVal, modSucc]
+    simp only [dijkstraDistStep, hjS, ↓reduceIte, shiftVal, dijkstraNextVal, fin_add_one_mod]
     split_ifs
     · simp only [Nat.mod_add_mod]
       congr 1
@@ -1386,13 +1397,14 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
     rw [hsched]
     have hp0 : dijkstraPrivileged (centralCycleState n K 0) 0 := by
       have hz : (0 : Fin n).val = 0 := rfl
-      simp only [dijkstraPrivileged, hz, ↓reduceIte, ringLeft, ↓reduceDIte, centralCycleState]
+      simp only [dijkstraPrivileged, hz, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
+        centralCycleState]
       ext
       have hnot : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
       simp [hnot]
     have hplast : dijkstraPrivileged (centralCycleState n K 0) ⟨n - 1, by omega⟩ := by
       have hnz : n - 1 ≠ 0 := by omega
-      simp only [dijkstraPrivileged, hnz, ↓reduceIte, ringLeft, ↓reduceDIte,
+      simp only [dijkstraPrivileged, hnz, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
         centralCycleState]
       have hnot1 : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
       have hnot2 : ¬ n - 1 - 1 ≤ n - (K + 2) + 1 := by omega
@@ -1409,7 +1421,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
       · have hieq : i = 0 := Fin.ext hi0
         subst hieq
         ext
-        simp [centralCycleState, h1le, dijkstraStep, dijkstraNextVal, modSucc]
+        simp [centralCycleState, h1le, dijkstraStep, dijkstraNextVal, fin_add_one_mod]
       · have hine : i ≠ 0 := fun h => hi0 (by rw [h]; rfl)
         have hil : i.val ≤ n - 1 := by have := i.isLt; omega
         rw [dijkstraStep, Function.update_of_ne hine]
@@ -1423,8 +1435,8 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         simp [centralCycleSched, hr0, hrK]
       let p := centralCycleSched n K hn r
       have hp_nz : p.val ≠ 0 := by rw [hsched_val]; omega
-      have hleft_val : (ringLeft p).val = n - r - 1 := by
-        simp only [ringLeft, hp_nz, ↓reduceDIte]
+      have hleft_val : (p - 1).val = n - r - 1 := by
+        simp only [fin_sub_one_eq, hp_nz, ↓reduceDIte]
         rw [hsched_val]
       have hp_priv : dijkstraPrivileged (centralCycleState n K r) p := by
         simp only [dijkstraPrivileged, hp_nz, ↓reduceIte]
@@ -1434,19 +1446,19 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         have hp_gt_d : ¬ p.val ≤ n - (K + 2) + 1 := by rw [hsched_val]; omega
         have hp_le_nr : p.val ≤ n - r := by rw [hsched_val]
         simp only [hp_gt_d, hp_le_nr, ↓reduceIte] at hv
-        have hl_nz : (ringLeft p).val ≠ 0 := by rw [hleft_val]; omega
+        have hl_nz : (p - 1).val ≠ 0 := by rw [hleft_val]; omega
         simp only [hl_nz, ↓reduceIte] at hv
         by_cases hrrK : r = K
-        · have hl_le_d : (ringLeft p).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
+        · have hl_le_d : (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
           simp only [hl_le_d, ↓reduceIte] at hv
           have hsub : n - 1 - p.val = K - 1 := by rw [hsched_val]; omega
           rw [hsub, Nat.mod_eq_of_lt (by omega)] at hv
           omega
-        · have hl_gt_d : ¬ (ringLeft p).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
-          have hl_le_nr : (ringLeft p).val ≤ n - r := by rw [hleft_val]; omega
+        · have hl_gt_d : ¬ (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
+          have hl_le_nr : (p - 1).val ≤ n - r := by rw [hleft_val]; omega
           simp only [hl_gt_d, hl_le_nr, ↓reduceIte] at hv
           have hs1 : n - 1 - p.val = r - 1 := by rw [hsched_val]; omega
-          have hs2 : n - 1 - (ringLeft p).val = r := by rw [hleft_val]; omega
+          have hs2 : n - 1 - (p - 1).val = r := by rw [hleft_val]; omega
           rw [hs1, hs2, Nat.mod_eq_of_lt (by omega), Nat.mod_eq_of_lt (by omega)] at hv
           omega
       have hstep_eq : centralCycleState n K (r + 1) =
@@ -1457,16 +1469,16 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         by_cases hip : i = p
         · subst hip
           simp only [dijkstraStep, Function.update_self, dijkstraNextVal, hp_nz, ↓reduceIte]
-          have hnext_val : (centralCycleState n K r (ringLeft p)).val = (n - p.val) % K := by
-            have hl_nz : (ringLeft p).val ≠ 0 := by rw [hleft_val]; omega
+          have hnext_val : (centralCycleState n K r (p - 1)).val = (n - p.val) % K := by
+            have hl_nz : (p - 1).val ≠ 0 := by rw [hleft_val]; omega
             simp only [centralCycleState, hr0, hrK, ↓reduceIte, hl_nz]
             by_cases hrrK : r = K
-            · have hl_le_d : (ringLeft p).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
+            · have hl_le_d : (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
               have hnp : n - p.val = K := by rw [hsched_val]; omega
               simp [hl_le_d, hnp]
-            · have hl_gt_d : ¬ (ringLeft p).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
-              have hl_le_nr : (ringLeft p).val ≤ n - r := by rw [hleft_val]; omega
-              have hs2 : n - 1 - (ringLeft p).val = n - p.val := by
+            · have hl_gt_d : ¬ (p - 1).val ≤ n - (K + 2) + 1 := by rw [hleft_val]; omega
+              have hl_le_nr : (p - 1).val ≤ n - r := by rw [hleft_val]; omega
+              have hs2 : n - 1 - (p - 1).val = n - p.val := by
                 rw [hleft_val, hsched_val]; omega
               simp [hl_gt_d, hl_le_nr, hs2]
           rw [hnext_val]
@@ -1510,7 +1522,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
           have hp1 : dijkstraPrivileged (centralCycleState n K 1) ⟨1, by omega⟩ := by
             have h1le : 1 ≤ K := by omega
             have h1d : 1 ≤ n - (K + 2) + 1 := by omega
-            simp only [dijkstraPrivileged, Nat.one_ne_zero, ↓reduceIte, ringLeft, ↓reduceDIte,
+            simp only [dijkstraPrivileged, Nat.one_ne_zero, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte,
               Nat.sub_self, centralCycleState, h1le, h1d]
             intro heq
             have hv := congrArg Fin.val heq
@@ -1524,7 +1536,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
             have hnot_d : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
             have hnot_nr : ¬ n - 1 ≤ n - r := by omega
             have hsub1 : n - (n - 1) = 1 := by omega
-            simp [dijkstraPrivileged, ringLeft, centralCycleState, hr0, hrK,
+            simp [dijkstraPrivileged, fin_sub_one_eq, centralCycleState, hr0, hrK,
               Nat.sub_ne_zero_of_lt (by omega : 1 < n), hnot_d, hnot_nr, hsub1]
           exact not_legit_of_two hp0 hp_priv (Ne.symm (fun h => hp_nz (by rw [h]; rfl)))
       exact ⟨⟨hp_priv, hstep_eq⟩, hnot_leg⟩
@@ -1534,8 +1546,8 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         simp [centralCycleSched, hr0, hrK, hr]
       let p := centralCycleSched n K hn r
       have hp_nz : p.val ≠ 0 := by rw [hsched_val]; omega
-      have hleft_val : (ringLeft p).val = r - (K + 1) := by
-        simp only [ringLeft, hp_nz, ↓reduceDIte]
+      have hleft_val : (p - 1).val = r - (K + 1) := by
+        simp only [fin_sub_one_eq, hp_nz, ↓reduceDIte]
         rw [hsched_val]
         omega
       have hp_priv : dijkstraPrivileged (centralCycleState n K r) p := by
@@ -1544,7 +1556,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         have hv := congrArg Fin.val heq
         have hp_not_1 : ¬ p.val ≤ r - (K + 1) := by rw [hsched_val]; omega
         have hp_le_d : p.val ≤ n - (K + 2) + 1 := by rw [hsched_val]; omega
-        have hl_le_1 : (ringLeft p).val ≤ r - (K + 1) := by rw [hleft_val]
+        have hl_le_1 : (p - 1).val ≤ r - (K + 1) := by rw [hleft_val]
         simp only [centralCycleState, hr0, hnot_leK, ↓reduceIte, hp_not_1, hp_le_d,
           hl_le_1, h1mod] at hv
         omega
@@ -1552,8 +1564,8 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         have hnot1 : ¬ n - 1 ≤ r - (K + 1) := by omega
         have hnotd : ¬ n - 1 ≤ n - (K + 2) + 1 := by omega
         have hsub1 : n - (n - 1) = 1 := by omega
-        simp [dijkstraPrivileged, ringLeft, centralCycleState, hr0, hnot_leK, hnot1, hnotd,
-          hsub1]
+        simp [dijkstraPrivileged, fin_sub_one_eq, centralCycleState, hr0, hnot_leK, hnot1,
+          hnotd, hsub1]
       have hstep_eq : centralCycleState n K (r + 1) =
           dijkstraStep (centralCycleState n K r) p := by
         funext i
@@ -1562,7 +1574,7 @@ private theorem centralCycleState_step {n K : ℕ} [NeZero n] [NeZero K]
         by_cases hip : i = p
         · subst hip
           ext
-          have hl_le_1 : (ringLeft p).val ≤ r - (K + 1) := by rw [hleft_val]
+          have hl_le_1 : (p - 1).val ≤ r - (K + 1) := by rw [hleft_val]
           have hp_le_next : p.val ≤ r + 1 - (K + 1) := by rw [hsched_val]; omega
           simp only [dijkstraStep, Function.update_self, dijkstraNextVal, hp_nz, ↓reduceIte,
             centralCycleState, hr1_nz, hnot_leK1, hp_le_next, hr0, hnot_leK, hl_le_1]
@@ -1588,9 +1600,10 @@ private theorem centralCycleState_end {n K : ℕ} [NeZero K] (hn : K + 2 ≤ n) 
     have hni : n - i.val = n - 1 - i.val + 1 := by omega
     rw [hni, Nat.mod_add_mod]
 
-/-- When `2 ≤ K` and `K + 1 < n` (`K < N` in [Dijkstra][Dijkstra1974], p. 644, Note 1), Dijkstra's
-`K`-state ring admits an explicit periodic central-daemon execution that never enters
-`DijkstraLegitimate n K`, so `dijkstraRing n K` is not self-stabilizing. -/
+/-- Original converse counterexample showing sharpness of Note 1 of [Dijkstra][Dijkstra1974]
+(p. 644): when `2 ≤ K` and `K + 1 < n` (`K < N`), Dijkstra's `K`-state ring admits an explicit
+periodic central-daemon execution that never enters `DijkstraLegitimate n K`, so
+`dijkstraRing n K` is not self-stabilizing. -/
 theorem dijkstraRing_not_selfStabilizing_of_lt_pred {n K : ℕ} [NeZero n] [NeZero K]
     (hK : 2 ≤ K) (hKn : K + 1 < n) :
     ¬ SelfStabilizing (dijkstraRing n K) (DijkstraLegitimate n K) := by
@@ -1623,10 +1636,11 @@ theorem dijkstraRing_not_selfStabilizing_of_lt_pred {n K : ℕ} [NeZero n] [NeZe
     exact (centralCycleState_step hK hn (Nat.mod_lt t hn_pos)).2
   exact not_selfStabilizing_of_omegaExecution hexec hbad
 
-/-- When `2 ≤ K` and `K < n` (`K ≤ N` in [Dijkstra][Dijkstra1974], p. 644), Dijkstra's `K`-state
-ring is not self-stabilizing under a distributed daemon: at `n = K + 1`, synchronous execution from
+/-- Original converse counterexample showing sharpness of the `K > N` bound in
+[Dijkstra][Dijkstra1974] (p. 644): when `2 ≤ K` and `K < n` (`K ≤ N`), Dijkstra's `K`-state ring
+is not self-stabilizing under a distributed daemon (at `n = K + 1`, synchronous execution from
 `(0, K - 1, K - 2, …, 1, 0)` cycles through `K` states in each of which all `n ≥ 3` machines are
-privileged. -/
+privileged). -/
 theorem dijkstraDistRing_not_selfStabilizing_of_lt {n K : ℕ} [NeZero n] [NeZero K]
     (hK : 2 ≤ K) (hKn : K < n) :
     ¬ SelfStabilizing (dijkstraDistRing n K) (DijkstraLegitimate n K) := by
@@ -1642,13 +1656,13 @@ theorem dijkstraDistRing_not_selfStabilizing_of_lt {n K : ℕ} [NeZero n] [NeZer
     have hpriv_all : ∀ i : Fin n, dijkstraPrivileged s₀ i := by
       intro i
       by_cases hi0 : i.val = 0
-      · simp only [dijkstraPrivileged, hi0, ↓reduceIte, ringLeft, ↓reduceDIte]
+      · simp only [dijkstraPrivileged, hi0, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte]
         apply Fin.ext
         dsimp only [s₀]
         have hlast : n - 1 = K := by omega
         rw [hi0, Nat.zero_mod, Nat.sub_zero, hlast, Nat.mod_self, Nat.sub_zero]
         exact (Nat.mod_self K).symm
-      · simp only [dijkstraPrivileged, hi0, ↓reduceIte, ringLeft, ↓reduceDIte]
+      · simp only [dijkstraPrivileged, hi0, ↓reduceIte, fin_sub_one_eq, ↓reduceDIte]
         intro heq
         have hv : (K - i.val % K) % K = (K - (i.val - 1) % K) % K := congrArg Fin.val heq
         by_cases hi1 : i.val = 1
@@ -1671,10 +1685,9 @@ theorem dijkstraDistRing_not_selfStabilizing_of_lt {n K : ℕ} [NeZero n] [NeZer
       funext i
       apply Fin.ext
       by_cases hi0 : i.val = 0
-      · dsimp only [dijkstraDistStep, dijkstraNextVal, shiftVal, modSucc, s₀]
-        simp [hi0]
+      · simp [dijkstraDistStep, dijkstraNextVal, hi0, fin_add_one_mod, shiftVal, s₀]
       · simp only [dijkstraDistStep, Finset.mem_univ, ↓reduceIte, dijkstraNextVal,
-          hi0, ringLeft, ↓reduceDIte, shiftVal]
+          hi0, fin_sub_one_eq, ↓reduceDIte, shiftVal]
         dsimp only [s₀]
         rw [Nat.mod_add_mod]
         by_cases hi1 : i.val = 1
@@ -1708,16 +1721,20 @@ theorem dijkstraDistRing_not_selfStabilizing_of_lt {n K : ℕ} [NeZero n] [NeZer
       omega
     exact not_selfStabilizing_of_omegaExecution hexec hbad
 
-/-- Exact characterization under a distributed daemon (`2 ≤ n`, `2 ≤ K`): Dijkstra's `K`-state
-token ring is self-stabilizing iff `n ≤ K` (`K > N` in [Dijkstra][Dijkstra1974], p. 644). -/
+/-- Exact characterization under a distributed daemon (`2 ≤ n`, `2 ≤ K`), combining
+[Dijkstra][Dijkstra1974] (p. 644, `K > N`) with the original converse
+`dijkstraDistRing_not_selfStabilizing_of_lt`: Dijkstra's `K`-state token ring is self-stabilizing
+iff `n ≤ K`. -/
 theorem dijkstraDistRing_selfStabilizing_iff {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hK : 2 ≤ K) :
     SelfStabilizing (dijkstraDistRing n K) (DijkstraLegitimate n K) ↔ n ≤ K :=
   ⟨fun hss => not_lt.mp fun hlt => dijkstraDistRing_not_selfStabilizing_of_lt hK hlt hss,
     dijkstraDistRing_selfStabilizing_of_le hn⟩
 
-/-- Exact characterization under a central daemon (`2 ≤ n`, `2 ≤ K`): Dijkstra's `K`-state token
-ring is self-stabilizing iff `n - 1 ≤ K` (`K ≥ N` in [Dijkstra][Dijkstra1974], p. 644, Note 1). -/
+/-- Exact characterization under a central daemon (`2 ≤ n`, `2 ≤ K`), combining Note 1 of
+[Dijkstra][Dijkstra1974] (p. 644, `K ≥ N`) with the original converse
+`dijkstraRing_not_selfStabilizing_of_lt_pred`: Dijkstra's `K`-state token ring is self-stabilizing
+iff `n - 1 ≤ K`. -/
 theorem dijkstraRing_selfStabilizing_iff {n K : ℕ} [NeZero n] [NeZero K]
     (hn : 2 ≤ n) (hK : 2 ≤ K) :
     SelfStabilizing (dijkstraRing n K) (DijkstraLegitimate n K) ↔ n - 1 ≤ K :=
@@ -1750,11 +1767,11 @@ variable {State : Type*} (π : UniformRingProtocol State)
 
 /-- Whether node `i` is privileged in configuration `s`. -/
 @[expose] def isPrivileged {n : ℕ} [NeZero n] (s : Fin n → State) (i : Fin n) : Bool :=
-  π.privileged (s (ringLeft i)) (s i) (s (ringRight i))
+  π.privileged (s (i - 1)) (s i) (s (i + 1))
 
 /-- Next state of node `i` in configuration `s`. -/
 @[expose] def nextVal {n : ℕ} [NeZero n] (s : Fin n → State) (i : Fin n) : State :=
-  π.step (s (ringLeft i)) (s i) (s (ringRight i))
+  π.step (s (i - 1)) (s i) (s (i + 1))
 
 /-- Set of privileged nodes of `π` in configuration `s`. -/
 @[expose] def privilegedSet {n : ℕ} [NeZero n] (s : Fin n → State) : Finset (Fin n) :=
@@ -1774,12 +1791,12 @@ variable {State : Type*} (π : UniformRingProtocol State)
     S.Nonempty ∧ (∀ i ∈ S, π.isPrivileged s i = true) ∧
       s' = fun j => if j ∈ S then π.nextVal s j else s j
 
-private theorem ringLeft_mod_eq {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) [NeZero (a * b)]
+private theorem sub_one_mod_eq {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) [NeZero (a * b)]
     {i j : Fin (a * b)} (hij : i.val % a = j.val % a) :
-    (ringLeft i).val % a = (ringLeft j).val % a := by
-  have hmod : ∀ x : Fin (a * b), (ringLeft x).val % a = (x.val + (a - 1)) % a := by
+    (i - 1).val % a = (j - 1).val % a := by
+  have hmod : ∀ x : Fin (a * b), (x - 1).val % a = (x.val + (a - 1)) % a := by
     intro x
-    simp only [ringLeft]
+    simp only [fin_sub_one_eq]
     split_ifs with hx0
     · dsimp only
       rw [hx0, zero_add, Nat.mod_eq_of_lt (by omega : a - 1 < a)]
@@ -1797,12 +1814,12 @@ private theorem ringLeft_mod_eq {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b) [NeZer
         _ = (x.val + (a - 1)) % a := by congr 1; omega
   rw [hmod i, hmod j, ← Nat.mod_add_mod, hij, Nat.mod_add_mod]
 
-private theorem ringRight_mod_eq {a b : ℕ} [NeZero (a * b)]
+private theorem add_one_mod_eq {a b : ℕ} [NeZero (a * b)]
     {i j : Fin (a * b)} (hij : i.val % a = j.val % a) :
-    (ringRight i).val % a = (ringRight j).val % a := by
-  have hmod : ∀ x : Fin (a * b), (ringRight x).val % a = (x.val + 1) % a := by
+    (i + 1).val % a = (j + 1).val % a := by
+  have hmod : ∀ x : Fin (a * b), (x + 1).val % a = (x.val + 1) % a := by
     intro x
-    simp only [ringRight]
+    simp only [fin_add_one_eq]
     split_ifs with hlast
     · simp only [Nat.zero_mod]
       have : (x.val + 1) % a = (a * b) % a := by rw [hlast]
@@ -1815,14 +1832,14 @@ private theorem isPrivileged_eq_of_isRingPeriodic {a b : ℕ} (ha : 1 ≤ a) (hb
     {i j : Fin (a * b)} (hij : i.val % a = j.val % a) :
     π.isPrivileged s i = π.isPrivileged s j := by
   simp only [isPrivileged]
-  rw [hper _ _ (ringLeft_mod_eq ha hb hij), hper i j hij, hper _ _ (ringRight_mod_eq hij)]
+  rw [hper _ _ (sub_one_mod_eq ha hb hij), hper i j hij, hper _ _ (add_one_mod_eq hij)]
 
 private theorem nextVal_eq_of_isRingPeriodic {a b : ℕ} (ha : 1 ≤ a) (hb : 1 ≤ b)
     [NeZero (a * b)] {s : Fin (a * b) → State} (hper : IsRingPeriodic a s)
     {i j : Fin (a * b)} (hij : i.val % a = j.val % a) :
     π.nextVal s i = π.nextVal s j := by
   simp only [nextVal]
-  rw [hper _ _ (ringLeft_mod_eq ha hb hij), hper i j hij, hper _ _ (ringRight_mod_eq hij)]
+  rw [hper _ _ (sub_one_mod_eq ha hb hij), hper i j hij, hper _ _ (add_one_mod_eq hij)]
 
 /-- On a ring of size `a * b` (`1 ≤ a`, `1 ≤ b`), the number of privileged nodes in any
 `a`-periodic configuration is divisible by `b`. -/
@@ -1910,13 +1927,13 @@ theorem not_uniform_selfStabilizing_composite_ring {State : Type*} [Nonempty Sta
     have hle1 := Nat.le_of_dvd Nat.one_pos hdvd
     omega
   -- Independent-set property: distinct elements of a mod-`a` coset are non-adjacent in `C_{a*b}`.
-  have coset_ne_ringLeft : ∀ {r : ℕ} (hr : r < a) {k₁ k₂ : ℕ} (hk₁ : k₁ < b) (hk₂ : k₂ < b),
+  have coset_ne_sub_one : ∀ {r : ℕ} (hr : r < a) {k₁ k₂ : ℕ} (hk₁ : k₁ < b) (hk₂ : k₂ < b),
       k₁ ≠ k₂ →
       (⟨a * k₁ + r, by nlinarith⟩ : Fin (a * b)) ≠
-        ringLeft (⟨a * k₂ + r, by nlinarith⟩ : Fin (a * b)) := by
+        (⟨a * k₂ + r, by nlinarith⟩ : Fin (a * b)) - 1 := by
     intro r hr k₁ k₂ hk₁ hk₂ hne h
     have hv := congrArg Fin.val h
-    simp only [ringLeft] at hv
+    simp only [fin_sub_one_eq] at hv
     split_ifs at hv with hz
     · dsimp only at hv
       have hk₂0 : k₂ = 0 := by nlinarith
@@ -1950,16 +1967,16 @@ theorem not_uniform_selfStabilizing_composite_ring {State : Type*} [Nonempty Sta
       (hne : k₁ ≠ k₂),
       let p₁ : Fin (a * b) := ⟨a * k₁ + r, by nlinarith⟩
       let p₂ : Fin (a * b) := ⟨a * k₂ + r, by nlinarith⟩
-      p₁ ≠ p₂ ∧ p₁ ≠ ringLeft p₂ ∧ p₁ ≠ ringRight p₂ := by
+      p₁ ≠ p₂ ∧ p₁ ≠ p₂ - 1 ∧ p₁ ≠ p₂ + 1 := by
     intro r hr k₁ k₂ hk₁ hk₂ hne p₁ p₂
     have hp_ne : p₁ ≠ p₂ := by
       intro h
       have hv : a * k₁ + r = a * k₂ + r := congrArg Fin.val h
       have hmul : a * k₁ = a * k₂ := by omega
       exact hne (Nat.eq_of_mul_eq_mul_left (by omega) hmul)
-    refine ⟨hp_ne, coset_ne_ringLeft hr hk₁ hk₂ hne, fun h => ?_⟩
-    exact coset_ne_ringLeft hr hk₂ hk₁ hne.symm
-      ((ringLeft_ringRight p₂).symm.trans (congrArg ringLeft h.symm))
+    refine ⟨hp_ne, coset_ne_sub_one hr hk₁ hk₂ hne, fun h => ?_⟩
+    exact coset_ne_sub_one hr hk₂ hk₁ hne.symm
+      ((fin_add_sub_one p₂).symm.trans (congrArg (· - 1) h.symm))
   -- For any `a`-periodic configuration `u`, construct its `b`-step coset sweep.
   have hcoset_sweep : ∀ u : Fin (a * b) → State, IsRingPeriodic a u →
       ∃ (st : ℕ → Fin (a * b) → State) (lbl : ℕ → Fin (a * b)),
@@ -2003,7 +2020,7 @@ theorem not_uniform_selfStabilizing_composite_ring {State : Type*} [Nonempty Sta
       have hpk_same : st k pk = u pk := by
         simp [st, hpk_div]
       have hnbor_same : ∀ x : Fin (a * b),
-          (x = ringLeft pk ∨ x = ringRight pk) → st k x = u x := by
+          (x = pk - 1 ∨ x = pk + 1) → st k x = u x := by
         intro x hx
         simp only [st, hmin_k]
         split_ifs with hcond
@@ -2022,9 +2039,9 @@ theorem not_uniform_selfStabilizing_composite_ring {State : Type*} [Nonempty Sta
           · exact hnl hx_eq.symm
           · exact hnr hx_eq.symm
         · rfl
-      have hleft_same : st k (ringLeft pk) = u (ringLeft pk) :=
+      have hleft_same : st k (pk - 1) = u (pk - 1) :=
         hnbor_same _ (Or.inl rfl)
-      have hright_same : st k (ringRight pk) = u (ringRight pk) :=
+      have hright_same : st k (pk + 1) = u (pk + 1) :=
         hnbor_same _ (Or.inr rfl)
       have hpriv_pk : π.isPrivileged (st k) pk = true := by
         have heq_p : π.isPrivileged (st k) pk = π.isPrivileged u pk := by

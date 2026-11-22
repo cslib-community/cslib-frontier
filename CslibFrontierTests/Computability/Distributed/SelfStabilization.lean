@@ -139,7 +139,8 @@ theorem fin4_k4_exists_stabilizing_omegaExecution (s₀ : Fin 4 → Fin 4) :
     ∃ (ss : ωSequence (Fin 4 → Fin 4)) (μs : ωSequence (Fin 4)),
       ss 0 = s₀ ∧ (dijkstraRing 4 4).OmegaExecution ss μs ∧
         ∃ k₀, ∀ k ≥ k₀, ss k ∈ DijkstraLegitimate 4 4 := by
-  have hss := dijkstraRing_selfStabilizing_of_le (n := 4) (K := 4) (by decide) (by decide)
+  have hss :=
+    dijkstraRing_selfStabilizing_of_pred_le (n := 4) (K := 4) (by decide) (by decide) (by decide)
   obtain ⟨ss, μs, h0, hexec⟩ := hss.exists_omegaExecution s₀
   exact ⟨ss, μs, h0, hexec, hss.eventually_legitimate hexec⟩
 
@@ -147,7 +148,7 @@ theorem fin4_k4_exists_stabilizing_omegaExecution (s₀ : Fin 4 → Fin 4) :
 
 private def sampleUniformRing : UniformRingProtocol (Fin 2) where
   privileged l s r := decide (l ≠ s ∨ s = r)
-  step _ s _ := modSucc s
+  step _ s _ := s + 1
 
 /-- Concrete `2`-periodic configuration `(0, 1, 0, 1)` on `Fin (2 * 2)` has an even number (`4`) of
 privileges, and stepping the independent coset `{0, 2}` one node at a time (`0` then `2`) under
