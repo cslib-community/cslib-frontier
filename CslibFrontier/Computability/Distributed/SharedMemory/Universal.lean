@@ -12,38 +12,35 @@ public import Mathlib.Data.Fintype.Card
 import Mathlib.Data.Finset.Card
 
 /-!
-# Herlihy's universal construction from single-use consensus objects
+# Finite-batch log-append universal construction over single-use consensus cells
 
-Any object with consensus number `n` (or `∞`, such as `CompareAndSwap` in
-`CslibFrontier/Computability/Distributed/SharedMemory/Hierarchy.lean`) is *universal* for `n`
-processes: given an arbitrary deterministic sequential state machine (`SeqSpec State Op Resp`), it
-can implement a linearizable concurrent object without locks ([Herlihy1991]).
+This module formalizes the finite-invocation-batch (`P`), unhelped log-append step over idealized
+single-use `ConsensusCell` slots (after [Herlihy1991], §4.1, pp. 143–146, Figure 14 p. 145 &
+Theorem 14 p. 146) toward `#7199`. As Herlihy observes ([Herlihy1991], §4.1, p. 144), omitting the
+`announce[1..n]` helping array makes log-append nonblocking rather than wait-free across unbounded
+invocation streams: here `P` indexes a **finite batch** of invocations (`Fintype P`), slots are
+modeled as idealized predetermined-winner `ConsensusCell`s under `ValidSlotSchedule` rather than
+`Protocol` executions, and [Herlihy1991]'s `announce`/helping array and §4.2 cell reclamation remain
+open in `#7199`.
 
-This module formalizes Herlihy's conceptual log-append universal construction over an idealized
-sequence of single-use consensus cells (`slot : ℕ → ConsensusCell (P × Op)`):
+Within this finite-batch log-append model:
 
 * Each `ConsensusCell α` models a single-use consensus slot whose `propose` operation returns the
   unique agreed winner for that slot (`propose_eq`).
-* `applyLog` replays the sequential state machine `M` from `M.init` along a list of agreed
-  `(caller, operation)` commands, and `slotLog` reads the agreed prefix of length `k` from `slot`
-  (`slotLog_eq` shows all callers reconstruct the identical log prefix without shared locks).
+* `applyLog` replays the deterministic sequential state machine `M` (`SeqSpec State Op Resp`) from
+  `M.init` along a list of agreed `(caller, operation)` commands, and `slotLog` reads the agreed
+  prefix of length `k` from `slot` (`slotLog_eq` shows all callers reconstruct the identical log
+  prefix without shared locks).
 * `universalInvoke` executes a tagged operation `(p, op)` starting from the settled log length
   `startSlot` observed when the invocation begins, proposing `(p, op)` to consecutive consensus
   slots until `p` wins a slot `k` and then returning the exact sequential response of `M.step`
   applied to `applyLog M (slotLog slot (p, op) k)`.
 * Under `ValidSlotSchedule` (consensus validity, start-time causality, and at-most-once winning
-  across a finite invocation set `P`), pigeonhole on `Fintype.card P` proves bounded wait-free
-  completion within at most `Fintype.card P` slot attempts (`universalInvoke_terminates`), unique
-  per-invocation linearization slots (`universalInvoke_slotIdx_injective`), and global
-  Herlihy–Wing linearizability preserving sequential state-machine responses and real-time
-  precedence (`universalInvoke_spec`, `universal_linearizable`).
-
-**Model scope:** `P` indexes distinct invocations (for single-shot execution, process IDs; for
-multi-shot histories, `(processId, seqNum)` pairs so repeated identical operations by one process
-carry distinct tags). This formalizes the unbounded consensus-log construction over idealized
-single-use `ConsensusCell`s; Herlihy's bounded-memory `announce`/helping array — needed when an
-unbounded stream of new operations by fast processes could otherwise overtake a slow process forever
-— is outside this milestone (tracked in `#7199`).
+  across the finite invocation batch `P`), pigeonhole on `Fintype.card P` proves completion within
+  at most `Fintype.card P` slot attempts (`universalInvoke_terminates`), unique per-invocation
+  linearization slots (`universalInvoke_slotIdx_injective`), and Herlihy–Wing linearizability
+  preserving sequential state-machine responses and real-time precedence (`universalInvoke_spec`,
+  `universalInvoke_linearizable_of_validSlotSchedule`).
 
 ## Main definitions
 
@@ -54,7 +51,7 @@ unbounded stream of new operations by fast processes could otherwise overtake a 
   log replay and prefix reconstruction from consensus slots.
 * `Cslib.Distributed.SharedMemory.UniversalResult`: completed invocation output (`slotIdx`, `resp`).
 * `Cslib.Distributed.SharedMemory.universalInvokeAux`,
-  `Cslib.Distributed.SharedMemory.universalInvoke`: Herlihy's log-append universal invocation.
+  `Cslib.Distributed.SharedMemory.universalInvoke`: finite-batch log-append universal invocation.
 * `Cslib.Distributed.SharedMemory.SlotActive`,
   `Cslib.Distributed.SharedMemory.ValidSlotSchedule`: validity and causality conditions on a
   concurrent consensus-slot execution over `P`.
@@ -69,13 +66,14 @@ unbounded stream of new operations by fast processes could otherwise overtake a 
   replayed sequential state to `applyLog M (slotLog slot probe (k + 1))`.
 * `Cslib.Distributed.SharedMemory.universalInvoke_slotIdx_injective`: distinct invocations win
   distinct consensus log indices (giving a strict total linearization order on `P`).
-* `Cslib.Distributed.SharedMemory.universal_linearizable`: global Herlihy–Wing linearizability —
-  every invocation completes wait-free with a unique log slot, exact sequential state-machine
-  response, and real-time precedence (`(res p).slotIdx < startSlot q → (res p).slotIdx <
-  (res q).slotIdx`).
-* `Cslib.Distributed.SharedMemory.universal_slotIdx_bijective`: when all invocations start at `0`,
-  the winning slots form a bijection `P ≃ Fin (Fintype.card P)` permuting all `Fintype.card P`
-  operations into a single sequential execution of `M`.
+* `Cslib.Distributed.SharedMemory.universalInvoke_linearizable_of_validSlotSchedule`: finite-batch
+  linearizability under `ValidSlotSchedule` — every invocation completes within `Fintype.card P`
+  slots with a unique log slot, exact sequential state-machine response, and real-time precedence
+  (`(res p).slotIdx < startSlot q → (res p).slotIdx < (res q).slotIdx`).
+* `Cslib.Distributed.SharedMemory.universalInvoke_slotIdx_bijective_of_validSlotSchedule`: when all
+  invocations start at `0` under `ValidSlotSchedule`, the winning slots form a bijection
+  `P ≃ Fin (Fintype.card P)` permuting all `Fintype.card P` operations into a single sequential
+  execution of `M`.
 
 ## References
 
@@ -151,7 +149,8 @@ theorem slotLog_eq {P Op : Type*} (slot : ℕ → ConsensusCell (P × Op)) (x y 
   intro i _
   exact (slot i).propose_eq x y
 
-theorem slotLog_succ {P Op : Type*} (slot : ℕ → ConsensusCell (P × Op)) (probe : P × Op) (k : ℕ) :
+private theorem slotLog_succ {P Op : Type*} (slot : ℕ → ConsensusCell (P × Op)) (probe : P × Op)
+    (k : ℕ) :
     slotLog slot probe (k + 1) = slotLog slot probe k ++ [(slot k).propose probe] := by
   simp only [slotLog, List.range_succ, List.map_append, List.map_cons, List.map_nil]
 
@@ -276,7 +275,7 @@ private theorem universalInvokeAux_eq_some_of_exists_win {p : P} {op : Op} {k fu
 
 omit [DecidableEq P] in
 /-- No invocation `p` can win a slot `j < startSlot p` before `p` has begun. -/
-theorem ValidSlotSchedule.ne_winner_before_start
+private theorem ValidSlotSchedule.ne_winner_before_start
     (hsched : ValidSlotSchedule slot ops startSlot) (p : P) {j : ℕ} (hj : j < startSlot p)
     (probe : P × Op) : ((slot j).propose probe).1 ≠ p := by
   intro heq
@@ -380,17 +379,18 @@ theorem universalInvoke_slotIdx_injective [Fintype P]
   rw [hidx, hq_win] at hp_win
   exact (Prod.mk.inj hp_win).1.symm
 
-/-- **Herlihy's universal construction linearizability ([Herlihy1991]):** in the unbounded
-single-use `ConsensusCell` log model (without [Herlihy1991]'s bounded-memory `announce`/helping
-array), under any `ValidSlotSchedule` over finite invocation set `P`, there is a total assignment
-`res : P → UniversalResult Resp` of completed invocation outcomes such that:
+/-- Finite-batch linearizability of `universalInvoke` under `ValidSlotSchedule` (unhelped idealized
+`ConsensusCell` log-append step after [Herlihy1991], §4.1, pp. 143–146, Figure 14 p. 145 &
+Theorem 14 p. 146, without `announce`/helping or §4.2 cell reclamation): for any finite invocation
+batch `P`, there is a total assignment `res : P → UniversalResult Resp` of completed invocation
+outcomes such that:
 1. every invocation `p : P` terminates in `[startSlot p, startSlot p + Fintype.card P)`,
 2. winning log indices `(res p).slotIdx` are injective across `P`,
 3. real-time precedence is preserved (`(res p).slotIdx < startSlot q → (res p).slotIdx <
    (res q).slotIdx`), and
 4. at `(res p).slotIdx`, the agreed log records `(p, ops p)` and `(res p).resp` equals the exact
    sequential transition response of `M` on the replayed prefix. -/
-theorem universal_linearizable [Fintype P]
+theorem universalInvoke_linearizable_of_validSlotSchedule [Fintype P]
     (M : SeqSpec State Op Resp) (hsched : ValidSlotSchedule slot ops startSlot) :
     ∃ res : P → UniversalResult Resp,
       (∀ p, universalInvoke M slot p (ops p) (startSlot p) = some (res p)) ∧
@@ -414,10 +414,10 @@ theorem universal_linearizable [Fintype P]
     have hq_le := (universalInvoke_spec hsched (hres q) (q, ops q)).1
     omega
 
-/-- When all invocations `P` start at `0` (or more generally complete within slots
-`0 ..< Fintype.card P`), their winning consensus indices form a bijection `P ≃ Fin (Fintype.card P)`
-ordering all `Fintype.card P` concurrent invocations without gaps. -/
-theorem universal_slotIdx_bijective [Fintype P]
+/-- Under `ValidSlotSchedule` with `startSlot = 0`, the winning consensus indices of a finite
+invocation batch `P` form a bijection `P ≃ Fin (Fintype.card P)` ordering all `Fintype.card P`
+concurrent invocations without gaps. -/
+theorem universalInvoke_slotIdx_bijective_of_validSlotSchedule [Fintype P]
     (hsched : ValidSlotSchedule slot ops (fun _ => 0))
     {res : P → UniversalResult Resp}
     (hres : ∀ p, universalInvoke M slot p (ops p) 0 = some (res p)) :

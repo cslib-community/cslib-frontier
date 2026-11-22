@@ -17,47 +17,51 @@ import Mathlib.Data.Fintype.EquivFin
 
 Different shared-memory synchronization primitives have strictly different wait-free consensus
 numbers — the maximum number of asynchronous crash-prone processes for which they can solve
-wait-free consensus ([LouiAbuAmara1987]; [Herlihy1991]). Building on the bivalence and
-critical-configuration engine in
+wait-free consensus ([LouiAbuAmara1987]; [Herlihy1991], §3, Definition 1, p. 130 & Figure 1,
+p. 126). Building on the bivalence and critical-configuration engine in
 `CslibFrontier/Computability/Distributed/SharedMemory/Basic.lean`, this module establishes the
 three fundamental levels `1 < 2 < ∞` of Herlihy's hierarchy:
 
-* **Level `1` — Atomic read/write registers:**
+* **Level `1` — Atomic read/write registers ([Herlihy1991], §3.1, Theorem 2, pp. 131–133):**
   * `oneProcProtocol` / `solvesWaitFreeConsensus_one`: when `Fintype.card P ≤ 1`, a single-step
     protocol solves wait-free consensus over any value type and any nonempty object family.
   * `not_waitFreeConsensus_registers`: when `2 ≤ Fintype.card P`, no wait-free protocol using only
     atomic multi-reader multi-writer read/write registers (`registerObj`) solves binary consensus
-    ([LouiAbuAmara1987]; [Herlihy1991]). At a critical configuration `c*` with `p ≠ q` stepping to
-    `false`-univalent and `true`-univalent configurations, operations on distinct registers or two
-    reads commute, a read followed by a write is invisible to the writer's solo continuation, and a
-    write followed by a write overwrites the earlier write without returning the overwritten value.
+    ([LouiAbuAmara1987]; [Herlihy1991], §3.1, Theorem 2 & Figures 3–5, pp. 131–133). At a critical
+    configuration `c*` with `p ≠ q` stepping to `false`-univalent and `true`-univalent
+    configurations, operations on distinct registers or two reads commute, a read followed by a
+    write is invisible to the writer's solo continuation, and a write followed by a write overwrites
+    the earlier write without returning the overwritten value.
   * `exists_register_consensus_iff`: binary wait-free consensus is solvable from atomic read/write
     registers if and only if `Fintype.card P ≤ 1`.
 
-* **Level `2` — Commuting-or-overwriting read-modify-write primitives:**
-  * `IsCommutingOrOverwriting` captures Herlihy's algebraic obstruction for consensus number `2`:
-    any two operations on the same object either commute on the object's state or one overwrites
-    the other's effect on the state. Atomic registers (`registerObj`), `testAndSetObj`,
-    `swapObj`, and `fetchAndAddObj` (over any `AddCommSemigroup`) all satisfy
-    `IsCommutingOrOverwriting`.
+* **Level `2` — Commuting-or-overwriting read-modify-write primitives ([Herlihy1991], §3.2,
+  Theorems 3–4, pp. 133–134):**
+  * `IsCommutingOrOverwriting` captures Herlihy's "interfering" algebraic obstruction for consensus
+    number `2` ([Herlihy1991], §3.2, p. 134): any two operations on the same object either commute
+    on the object's state or one overwrites the other's effect on the state. Atomic registers
+    (`registerObj`), `testAndSetObj`, `swapObj`, and `fetchAndAddObj` (over any `AddCommSemigroup`)
+    all satisfy `IsCommutingOrOverwriting`.
   * `testAndSetProtocol` / `solvesWaitFreeConsensus_testAndSet_two`: an explicit 3-step protocol
     (write own proposal register, invoke `testAndSetObj`, read the winning process's proposal
-    register) solves wait-free consensus whenever `Fintype.card P ≤ 2`.
+    register; [Herlihy1991], §3.2, Theorem 3 & Figure 7, pp. 133–134) solves wait-free consensus
+    whenever `Fintype.card P ≤ 2`.
   * `not_waitFreeConsensus_rmw_of_three_le`: when `3 ≤ Fintype.card P`, no wait-free protocol over
     any indexed family of commuting-or-overwriting objects (including any mix of registers,
-    `TestAndSet`, `Swap`, and `FetchAndAdd`) solves binary consensus, because a third bystander
-    process `w ∉ {p, q}` running solo cannot distinguish the post-critical object states.
+    `TestAndSet`, `Swap`, and `FetchAndAdd`; [Herlihy1991], §3.2, Theorem 4, p. 134) solves binary
+    consensus, because a third bystander process `w ∉ {p, q}` running solo cannot distinguish the
+    post-critical object states.
   * `exists_testAndSet_consensus_iff`: binary wait-free consensus is solvable from `TestAndSet`
     objects and atomic registers if and only if `Fintype.card P ≤ 2`.
 
-* **Level `∞` — `CompareAndSwap`:**
+* **Level `∞` — `CompareAndSwap` ([Herlihy1991], §3.2, Theorem 5 & Figures 8–9, p. 135):**
   * `not_isCommutingOrOverwriting_casObj` / `not_isCommutingOrOverwriting_casObj_option`:
     `casObj` is *not* commuting-or-overwriting whenever the state type has at least three distinct
     values (such as `Option V` for `[Nontrivial V]`; note that on a 2-element domain without an
     uninitialized sentinel `none`, conditional 1-bit updates degenerate to `TestAndSet`/reset).
   * `casConsensusProtocol` / `solvesWaitFreeConsensus_cas`: a 1-step protocol over a single
-    `casObj (none : Option V)` solves wait-free consensus for **every** finite process set `P` and
-    every decidable value type `V`.
+    `casObj (none : Option V)` ([Herlihy1991], §3.2, Figure 9, p. 135) solves wait-free consensus
+    for **every** finite process set `P` and every decidable value type `V`.
 
 ## Main definitions
 
@@ -150,6 +154,8 @@ private theorem false_of_same_object_critical [Fintype P]
     (hsame : ∀ (cstar : Config P ObjState S Bool) (p q : P) (_hpq : p ≠ q)
       (i : I) (op_p : Op i) (next_p : Resp i → S) (dec_p : Resp i → Option Bool)
       (op_q : Op i) (next_q : Resp i → S) (dec_q : Resp i → Option Bool),
+      Acc π.StepRel (applyAt objs p i op_p next_p dec_p cstar) →
+      Acc π.StepRel (applyAt objs q i op_q next_q dec_q cstar) →
       π.IsUnivalent (applyAt objs p i op_p next_p dec_p cstar) false →
       π.IsUnivalent (applyAt objs q i op_q next_q dec_q cstar) true →
       π.lts.CanReach (applyAt objs p i op_p next_p dec_p cstar)
@@ -158,10 +164,14 @@ private theorem false_of_same_object_critical [Fintype P]
         (applyAt objs p i op_p next_p dec_p (applyAt objs q i op_q next_q dec_q cstar)) →
       False) : False := by
   obtain ⟨inp, hbiv_init⟩ := π.exists_bivalent_init hcons hcard
-  obtain ⟨cstar, p, q, _, _, hall_act, hpq, hup, huq⟩ :=
+  obtain ⟨cstar, p, q, hreach_star, _, hall_act, hpq, hup, huq⟩ :=
     π.exists_critical_config hcons (π.reachable_initConfig inp) hbiv_init
+  have ha_star : Acc π.StepRel cstar :=
+    ((π.reachable_initConfig inp).trans hreach_star).acc hcons.waitFree
   have hp_act : cstar.Active p := hall_act p
   have hq_act : cstar.Active q := hall_act q
+  have ha_p : Acc π.StepRel (π.step p cstar) := ha_star.inv ⟨p, hp_act, rfl⟩
+  have ha_q : Acc π.StepRel (π.step q cstar) := ha_star.inv ⟨q, hq_act, rfl⟩
   have hqp : q ≠ p := hpq.symm
   by_cases htarget : π.target p (cstar.proc p).state = π.target q (cstar.proc q).state
   · have htwo {a b : P} (ha : cstar.Active a) (hb : cstar.Active b) (hba : b ≠ a) :
@@ -175,6 +185,8 @@ private theorem false_of_same_object_critical [Fintype P]
     have hgen : ∀ (i₁ i₂ : I) (_ : i₁ = i₂)
         (op_p : Op i₁) (next_p : Resp i₁ → S) (dec_p : Resp i₁ → Option Bool)
         (op_q : Op i₂) (next_q : Resp i₂ → S) (dec_q : Resp i₂ → Option Bool),
+        Acc π.StepRel (applyAt objs p i₁ op_p next_p dec_p cstar) →
+        Acc π.StepRel (applyAt objs q i₂ op_q next_q dec_q cstar) →
         π.IsUnivalent (applyAt objs p i₁ op_p next_p dec_p cstar) false →
         π.IsUnivalent (applyAt objs q i₂ op_q next_q dec_q cstar) true →
         π.lts.CanReach (applyAt objs p i₁ op_p next_p dec_p cstar)
@@ -182,13 +194,15 @@ private theorem false_of_same_object_critical [Fintype P]
         π.lts.CanReach (applyAt objs q i₂ op_q next_q dec_q cstar)
           (applyAt objs p i₁ op_p next_p dec_p (applyAt objs q i₂ op_q next_q dec_q cstar)) →
         False := by
-      rintro i₁ i₂ rfl op_p next_p dec_p op_q next_q dec_q huf hut hr_pq hr_qp
-      exact hsame cstar p q hpq i₁ op_p next_p dec_p op_q next_q dec_q huf hut hr_pq hr_qp
+      rintro i₁ i₂ rfl op_p next_p dec_p op_q next_q dec_q hap haq huf hut hr_pq hr_qp
+      exact hsame cstar p q hpq i₁ op_p next_p dec_p op_q next_q dec_q hap haq huf hut hr_pq hr_qp
     refine hgen (π.target p (cstar.proc p).state) (π.target q (cstar.proc q).state) htarget
       (π.op p (cstar.proc p).state) (π.next p (cstar.proc p).state)
       (π.decideVal p (cstar.proc p).state)
       (π.op q (cstar.proc q).state) (π.next q (cstar.proc q).state)
-      (π.decideVal q (cstar.proc q).state) ?_ ?_ ?_ ?_
+      (π.decideVal q (cstar.proc q).state) ?_ ?_ ?_ ?_ ?_ ?_
+    · rwa [← step_eq_applyAt π hp_act]
+    · rwa [← step_eq_applyAt π hq_act]
     · rwa [← step_eq_applyAt π hp_act]
     · rwa [← step_eq_applyAt π hq_act]
     · rw [← htwo hp_act hq_act hqp, ← step_eq_applyAt π hp_act]
@@ -196,7 +210,7 @@ private theorem false_of_same_object_critical [Fintype P]
     · rw [← htwo hq_act hp_act hpq, ← step_eq_applyAt π hq_act]
       exact π.canReach_step p (π.step q cstar)
   · have hcomm := π.step_comm_of_ne_target hp_act hq_act hpq htarget
-    exact Protocol.not_univalent_of_indistinguishable hcons.waitFree p hup huq
+    exact Protocol.not_univalent_of_indistinguishable p ha_p ha_q hup huq
       (π.canReach_step q (π.step p cstar)) (π.canReach_step p (π.step q cstar))
       (congrArg Config.mem hcomm) (congrFun (congrArg Config.proc hcomm) p)
 
@@ -206,7 +220,8 @@ private theorem waitFree_of_decides_in_one_step [Finite P]
   let _ : Fintype P := Fintype.ofFinite P
   let activeCount : Config P ObjState S V → ℕ :=
     fun c => (Finset.univ.filter fun q => c.Active q).card
-  refine Subrelation.wf ?_ (InvImage.wf activeCount wellFounded_lt)
+  refine Protocol.WaitFree.of_wellFounded
+    (Subrelation.wf ?_ (InvImage.wf activeCount wellFounded_lt))
   rintro c' c ⟨p, hact, rfl⟩
   have hnot_act : ¬ (π.step p c).Active p := by
     intro hact'
@@ -304,9 +319,10 @@ theorem solvesWaitFreeConsensus_one {P I V : Type*} {Op Resp ObjState : I → Ty
   · rintro inp c v hr ⟨p, hp⟩
     exact ⟨p, ((hinv inp c hr p).2 v hp).symm⟩
 
-/-- **Loui–Abu-Amara / Herlihy Level-1 impossibility ([LouiAbuAmara1987]; [Herlihy1991]):**
-no wait-free deterministic shared-memory protocol using only atomic multi-reader multi-writer
-read/write registers solves binary consensus for `2 ≤ Fintype.card P` processes. -/
+/-- **Loui–Abu-Amara / Herlihy Level-1 impossibility ([LouiAbuAmara1987]; [Herlihy1991], §3.1,
+Theorem 2 & Figures 3–5, pp. 131–133):** no wait-free deterministic shared-memory protocol using
+only atomic multi-reader multi-writer read/write registers solves binary consensus for
+`2 ≤ Fintype.card P` processes. -/
 theorem not_waitFreeConsensus_registers {P I S : Type*} {Val : I → Type*}
     [Fintype P] [DecidableEq P] [DecidableEq I]
     {init : ∀ i, Val i}
@@ -315,31 +331,31 @@ theorem not_waitFreeConsensus_registers {P I S : Type*} {Val : I → Type*}
     ¬ π.SolvesWaitFreeConsensus := by
   intro hcons
   refine false_of_same_object_critical π hcons hcard ?_
-  intro cstar p q hpq i op_p next_p dec_p op_q next_q dec_q huf hut hr_pq hr_qp
+  intro cstar p q hpq i op_p next_p dec_p op_q next_q dec_q ha_p ha_q huf hut hr_pq hr_qp
   have hqp : q ≠ p := hpq.symm
   cases op_p with
   | read =>
     cases op_q with
     | read =>
-      refine Protocol.not_univalent_of_indistinguishable hcons.waitFree q huf hut hr_pq hr_qp
+      refine Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut hr_pq hr_qp
         ?_ ?_
       · simp only [applyAt, registerObj, Function.update_eq_self]
       · simp only [applyAt, registerObj, Function.update_eq_self, Function.update_self,
           Function.update_of_ne hqp]
     | write vq =>
-      refine Protocol.not_univalent_of_indistinguishable hcons.waitFree q huf hut
+      refine Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
         hr_pq (LTS.CanReach.refl _ _) ?_ ?_
       · simp only [applyAt, registerObj, Function.update_eq_self]
       · simp only [applyAt, registerObj, Function.update_self]
   | write vp =>
     cases op_q with
     | read =>
-      refine Protocol.not_univalent_of_indistinguishable hcons.waitFree p huf hut
+      refine Protocol.not_univalent_of_indistinguishable p ha_p ha_q huf hut
         (LTS.CanReach.refl _ _) hr_qp ?_ ?_
       · simp only [applyAt, registerObj, Function.update_eq_self]
       · simp only [applyAt, registerObj, Function.update_self]
     | write vq =>
-      refine Protocol.not_univalent_of_indistinguishable hcons.waitFree q huf hut
+      refine Protocol.not_univalent_of_indistinguishable q ha_p ha_q huf hut
         hr_pq (LTS.CanReach.refl _ _) ?_ ?_
       · simp only [applyAt, registerObj, Function.update_idem]
       · simp only [applyAt, registerObj, Function.update_self]
@@ -363,12 +379,13 @@ theorem exists_register_consensus_iff {P : Type*} [Fintype P] [DecidableEq P] :
 
 /-! ### Level 2: Commuting-or-overwriting read-modify-write objects -/
 
-/-- A deterministic shared object `obj` is *commuting-or-overwriting* ([Herlihy1991]) if for every
-pair of operations `op₁, op₂` and every object state `s`, either `op₁` and `op₂` drive `s` to the
-same object state in both orders, `op₂` overwrites `op₁`'s effect on the object state, or `op₁`
-overwrites `op₂`'s effect on the object state. Formulated pointwise on `(obj.step _ _).1` for
-arbitrary `ObjSpec`s, this uniformly covers both read-modify-write primitives (`testAndSetObj`,
-`swapObj`, `fetchAndAddObj`) and atomic read/write registers (`registerObj`). -/
+/-- A deterministic shared object `obj` is *commuting-or-overwriting* ("interfering" in
+[Herlihy1991], §3.2, p. 134) if for every pair of operations `op₁, op₂` and every object state `s`,
+either `op₁` and `op₂` drive `s` to the same object state in both orders, `op₂` overwrites `op₁`'s
+effect on the object state, or `op₁` overwrites `op₂`'s effect on the object state. Formulated
+pointwise on `(obj.step _ _).1` for arbitrary `ObjSpec`s, this uniformly covers both
+read-modify-write primitives (`testAndSetObj`, `swapObj`, `fetchAndAddObj`) and atomic read/write
+registers (`registerObj`). -/
 def IsCommutingOrOverwriting {Op Resp ObjState : Type*}
     (obj : ObjSpec Op Resp ObjState) : Prop :=
   ∀ op₁ op₂ s,
@@ -462,7 +479,7 @@ def toObjSpec (k : TASRegKind.{u}) : ObjSpec k.Op k.Resp k.State :=
     { init := ULift.up false
       step := fun _ s => (ULift.up true, s) }
 
-theorem isCommutingOrOverwriting_toObjSpec (k : TASRegKind.{u}) :
+private theorem isCommutingOrOverwriting_toObjSpec (k : TASRegKind.{u}) :
     IsCommutingOrOverwriting k.toObjSpec := by
   cases k with
   | reg _ init => exact isCommutingOrOverwriting_registerObj init
@@ -559,7 +576,7 @@ private theorem waitFree_testAndSetProtocol {P R : Type*} {V : Type u}
   let π := testAndSetProtocol regOf v₀ other
   let measure : Config P (fun i => (tasKind R v₀ i).State) (TASState R V) V → ℕ :=
     fun c => ∑ q : P, tasProcRank (c.proc q)
-  refine Subrelation.wf ?_ (InvImage.wf measure wellFounded_lt)
+  refine Protocol.WaitFree.of_wellFounded (Subrelation.wf ?_ (InvImage.wf measure wellFounded_lt))
   rintro c' c ⟨p, hact, rfl⟩
   simp only [InvImage, measure]
   have hlt_p : tasProcRank ((π.step p c).proc p) < tasProcRank (c.proc p) := by
@@ -888,18 +905,19 @@ private theorem exists_other_of_card_le_two {P : Type*} [Fintype P]
   rw [hcard3, Finset.card_univ] at hle
   omega
 
-/-- **2-process `TestAndSet` sufficiency ([Herlihy1991]):** whenever `Fintype.card P ≤ 2`, there is
-a 3-step `testAndSetProtocol` solving wait-free consensus over `P` and `V`. -/
+/-- **2-process `TestAndSet` sufficiency ([Herlihy1991], §3.2, Theorem 3 & Figure 7,
+pp. 133–134):** whenever `Fintype.card P ≤ 2`, there is a 3-step `testAndSetProtocol` solving
+wait-free consensus over `P` and `V`. -/
 theorem solvesWaitFreeConsensus_testAndSet_two {P : Type*} {V : Type u} [Fintype P] [DecidableEq P]
     (v₀ : V) (hcard : Fintype.card P ≤ 2) :
     ∃ other : P → P, (testAndSetProtocol (id : P → P) v₀ other).SolvesWaitFreeConsensus := by
   obtain ⟨other, hother⟩ := exists_other_of_card_le_two hcard
   exact ⟨other, solvesWaitFreeConsensus_testAndSetProtocol id Function.injective_id v₀ other hother⟩
 
-/-- **Herlihy's Level-2 impossibility ([Herlihy1991]):** when `3 ≤ Fintype.card P`, no wait-free
-deterministic shared-memory protocol over any indexed family of commuting-or-overwriting shared
-objects (including any combination of atomic read/write registers, `testAndSetObj`, `swapObj`, and
-`fetchAndAddObj`) solves binary consensus. -/
+/-- **Herlihy's Level-2 impossibility ([Herlihy1991], §3.2, Theorem 4, p. 134):** when
+`3 ≤ Fintype.card P`, no wait-free deterministic shared-memory protocol over any indexed family of
+commuting-or-overwriting shared objects (including any combination of atomic read/write registers,
+`testAndSetObj`, `swapObj`, and `fetchAndAddObj`) solves binary consensus. -/
 theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState : I → Type*}
     [Fintype P] [DecidableEq P] [DecidableEq I]
     {objs : ∀ i, ObjSpec (Op i) (Resp i) (ObjState i)}
@@ -909,7 +927,7 @@ theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState 
     ¬ π.SolvesWaitFreeConsensus := by
   intro hcons
   refine false_of_same_object_critical π hcons (by omega) ?_
-  intro cstar p q _ i op_p next_p dec_p op_q next_q dec_q huf hut hr_pq hr_qp
+  intro cstar p q _ i op_p next_p dec_p op_q next_q dec_q ha_p ha_q huf hut hr_pq hr_qp
   have hex_w : ∃ w : P, w ≠ p ∧ w ≠ q := by
     have hlt : ({p, q} : Finset P).card < (Finset.univ : Finset P).card := by
       have hle2 : ({p, q} : Finset P).card ≤ 2 := Finset.card_le_two (a := p) (b := q)
@@ -920,22 +938,22 @@ theorem not_waitFreeConsensus_rmw_of_three_le {P I S : Type*} {Op Resp ObjState 
     exact ⟨w, hw_notin⟩
   obtain ⟨w, hwp, hwq⟩ := hex_w
   rcases hobj i op_p op_q (cstar.mem i) with hcomm | hover_q | hover_p
-  · refine Protocol.not_univalent_of_indistinguishable hcons.waitFree w huf hut hr_pq hr_qp ?_ ?_
+  · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut hr_pq hr_qp ?_ ?_
     · simp only [applyAt, Function.update_self, Function.update_idem, hcomm]
     · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
-  · refine Protocol.not_univalent_of_indistinguishable hcons.waitFree w huf hut
+  · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut
       hr_pq (LTS.CanReach.refl _ _) ?_ ?_
     · simp only [applyAt, Function.update_self, Function.update_idem, hover_q]
     · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
-  · refine Protocol.not_univalent_of_indistinguishable hcons.waitFree w huf hut
+  · refine Protocol.not_univalent_of_indistinguishable w ha_p ha_q huf hut
       (LTS.CanReach.refl _ _) hr_qp ?_ ?_
     · simp only [applyAt, Function.update_self, Function.update_idem, hover_p]
     · simp only [applyAt, Function.update_of_ne hwp, Function.update_of_ne hwq]
 
-/-- **Sharp Level-2 consensus characterization ([Herlihy1991]):** wait-free binary consensus
-(`SolvesWaitFreeConsensus`) is solvable using `TestAndSet` objects and atomic read/write registers
-if and only if `Fintype.card P ≤ 2` (solvable for `0`, `1`, or `2` processes via
-`testAndSetProtocol`, and impossible for `3 ≤ Fintype.card P` by
+/-- **Sharp Level-2 consensus characterization ([Herlihy1991], §3.2, Theorems 3–4, pp. 133–134):**
+wait-free binary consensus (`SolvesWaitFreeConsensus`) is solvable using `TestAndSet` objects and
+atomic read/write registers if and only if `Fintype.card P ≤ 2` (solvable for `0`, `1`, or `2`
+processes via `testAndSetProtocol`, and impossible for `3 ≤ Fintype.card P` by
 `not_waitFreeConsensus_rmw_of_three_le`). -/
 theorem exists_testAndSet_consensus_iff {P : Type*} [Fintype P] [DecidableEq P] :
     (∃ (I : Type) (_ : DecidableEq I) (kind : I → TASRegKind.{0}) (S : Type)
@@ -1011,9 +1029,9 @@ def casConsensusProtocol (P V : Type*) [DecidableEq V] :
     | none => some s
     | some w => some w
 
-/-- **`n`-process `CompareAndSwap` consensus ([Herlihy1991]):** `casConsensusProtocol` solves
-wait-free consensus for **every** finite process set `P` (`consensus number = ∞`) and every
-decidable value type `V`. -/
+/-- **`n`-process `CompareAndSwap` consensus ([Herlihy1991], §3.2, Theorem 5 & Figures 8–9,
+p. 135):** `casConsensusProtocol` solves wait-free consensus for **every** finite process set `P`
+(`consensus number = ∞`) and every decidable value type `V`. -/
 theorem solvesWaitFreeConsensus_cas {P V : Type*} [Finite P] [DecidableEq P] [DecidableEq V] :
     (casConsensusProtocol P V).SolvesWaitFreeConsensus := by
   let π := casConsensusProtocol P V

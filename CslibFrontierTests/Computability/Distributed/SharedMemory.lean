@@ -20,8 +20,9 @@ import Mathlib.Algebra.Group.Nat.Defs
 * concrete `decide`-checked non-commuting/non-overwriting witness on `casObj (none : Option Bool)`
   contrasted with `testAndSetObj`, `swapObj`, and `fetchAndAddObj`;
 * `decide`-checked universal construction log replay for both a concurrent bank account with
-  overdraft protection and a concurrent FIFO queue, together with a proved `ValidSlotSchedule`
-  witness exercising `universal_linearizable` and `universal_slotIdx_bijective`;
+  overdraft protection and a concurrent FIFO queue, together with proved `ValidSlotSchedule`
+  witnesses exercising `universalInvoke_linearizable_of_validSlotSchedule` and
+  `universalInvoke_slotIdx_bijective_of_validSlotSchedule`;
 * instantiations of the `≤ 1`, `≤ 2`, and `∀ n` consensus-hierarchy theorems. -/
 set_option linter.privateModule false
 
@@ -207,8 +208,9 @@ theorem bank_universal_execution :
     applyLog bankSpec (slotLog bankSlots (0, bankOps 0) 4) = 30 := by
   decide
 
-/-- Proof that `bankSlots` satisfies `ValidSlotSchedule`, making `universal_linearizable` concrete
-and non-vacuous on staggered real-time operations (`0`, `1`, `2` all precede `3`!). -/
+/-- Proof that `bankSlots` satisfies `ValidSlotSchedule`, making
+`universalInvoke_linearizable_of_validSlotSchedule` concrete and non-vacuous on staggered real-time
+operations (`0`, `1`, `2` all precede `3`!). -/
 theorem validSlotSchedule_bankSlots :
     ValidSlotSchedule bankSlots bankOps bankStartSlot := by
   have hno_active_ge4 : ∀ m, ¬ SlotActive bankSlots bankOps bankStartSlot (m + 4) := by
@@ -251,11 +253,13 @@ example :
       (∀ p, universalInvoke bankSpec bankSlots p (bankOps p) (bankStartSlot p) = some (res p)) ∧
       Function.Injective (fun p => (res p).slotIdx) ∧
       (∀ p q, (res p).slotIdx < bankStartSlot q → (res p).slotIdx < (res q).slotIdx) := by
-  obtain ⟨res, hres, hinj, hprec, _⟩ := universal_linearizable bankSpec validSlotSchedule_bankSlots
+  obtain ⟨res, hres, hinj, hprec, _⟩ :=
+    universalInvoke_linearizable_of_validSlotSchedule bankSpec validSlotSchedule_bankSlots
   exact ⟨res, hres, hinj, hprec⟩
 
 /-- Concurrent FIFO queue state machine (`enqueue` / `dequeue`) replayed via `universalInvoke`,
-also exercising `universal_slotIdx_bijective` when all 4 operations start at `0`. -/
+also exercising `universalInvoke_slotIdx_bijective_of_validSlotSchedule` when all 4 operations
+start at `0`. -/
 inductive QueueOp where
   | enqueue (x : ℕ)
   | dequeue
@@ -325,8 +329,10 @@ example :
     ∃ (res : Fin 4 → UniversalResult (Option ℕ)) (order : Fin 4 ≃ Fin (Fintype.card (Fin 4))),
       (∀ p, universalInvoke queueSpec queueSlots p (queueOps p) 0 = some (res p)) ∧
       ∀ p, (order p).val = (res p).slotIdx := by
-  obtain ⟨res, hres, _, _, _⟩ := universal_linearizable queueSpec validSlotSchedule_queueSlots
-  obtain ⟨order, hord⟩ := universal_slotIdx_bijective validSlotSchedule_queueSlots hres
+  obtain ⟨res, hres, _, _, _⟩ :=
+    universalInvoke_linearizable_of_validSlotSchedule queueSpec validSlotSchedule_queueSlots
+  obtain ⟨order, hord⟩ :=
+    universalInvoke_slotIdx_bijective_of_validSlotSchedule validSlotSchedule_queueSlots hres
   exact ⟨res, order, hres, hord⟩
 
 /-! ### 4. Instantiations of the `1 < 2 < ∞` hierarchy theorems -/
