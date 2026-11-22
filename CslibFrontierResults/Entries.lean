@@ -12643,7 +12643,10 @@ register_result "odonnell-small-set-expansion" where
   scope := "Uniform cube on any finite coordinate type, any set A given by its indicator \
     A.indicator 1 with volume α = 𝔼 1_A, and 0 ≤ ρ ≤ 1 including both endpoints: \
     Stab_ρ[1_A] ≤ α^(2/(1 + ρ)), the probability that a uniform x and a ρ-correlated y both lie \
-    in A. The source's equivalent conditional form for α > 0 (x uniform on A) is not stated."
+    in A. The source's equivalent conditional form for α > 0 (x uniform on A) is not stated. \
+    Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7349 at \
+    d9c6f83d6736: \
+    https://github.com/cslib-community/cslib-frontier/pull/7349#pullrequestreview-6010792242."
 
 register_result "odonnell-small-set-expansion-one-third" where
   title := "Small subsets are noise-sensitive at ρ = 1/3"
@@ -12655,7 +12658,9 @@ register_result "odonnell-small-set-expansion-one-third" where
   theorems := [Cslib.BitString.noiseStability_one_third_indicator_le]
   scope := "Uniform cube on any finite coordinate type and any set A given by its indicator \
     A.indicator 1 with volume α = 𝔼 1_A: Stab_{1/3}[1_A] ≤ α^(3/2). The source's equivalent \
-    conditional form for α > 0 (x uniform on A, Pr[y ∈ A] ≤ α^(1/2)) is not stated."
+    conditional form for α > 0 (x uniform on A, Pr[y ∈ A] ≤ α^(1/2)) is not stated. Source \
+    check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7349 at d9c6f83d6736: \
+    https://github.com/cslib-community/cslib-frontier/pull/7349#pullrequestreview-6010792242."
 
 register_result "btree-rank-comparison-lower-bound" where
   title := "Comparison lower bound for B-tree rank search"
