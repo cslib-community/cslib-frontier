@@ -90,8 +90,18 @@ example (c d : ℕ) (hε : Negligible ε) :
   intro Q
   negligible
 
+private abbrev UnaryCert (f : ℕ → ℕ) : Prop :=
+  ComputableInPolyTime f encUnary encUnary
+
+private abbrev UnaryCertPair (f g : ℕ → ℕ) : Prop :=
+  UnaryCert f ∧ ComputableInPolyTime g encUnary encUnary
+
 example (hQ : ComputableInPolyTime Q encUnary encUnary) (hε : Negligible ε) :
     Negligible (fun n => (2 * Q n : ℝ≥0) / 2 ^ n + (Q n : ℝ≥0) * ε n) := by
+  negligible
+
+example {P : ℕ → ℕ} (hQ : UnaryCert Q) (hPR : UnaryCertPair P R) (hε : Negligible ε) :
+    Negligible (fun n => (2 * Q n + P n : ℝ≥0) / 2 ^ n + (R n : ℝ≥0) * ε n) := by
   negligible
 
 /-! ### Pointwise upper bounds (`negligible using hle`) in `ℝ≥0` and `ℝ` -/

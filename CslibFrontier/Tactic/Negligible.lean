@@ -326,8 +326,9 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
   for decl in lctx do
     if decl.isImplementationDetail then continue
     let ty ← instantiateMVars decl.type
-    if (ty.find? (·.isConstOf ``Cslib.Crypto.Negligible)).isSome then
-      for id in (collectFVars {} ty).fvarIds do
+    let tyR ← whnfR ty
+    if (tyR.find? (·.isConstOf ``Cslib.Crypto.Negligible)).isSome then
+      for id in (collectFVars {} tyR).fvarIds do
         protectedFVars := protectedFVars.insert id
     if decl.isLet then
       if ← isScalarOrParamFunType ty then
@@ -338,39 +339,38 @@ private meta def prepareNegligibleContext : TacticM Unit := withMainContext do
   let mut knownPolyFns : Array Expr := #[]
   for decl in lctx do
     if decl.isImplementationDetail then continue
-    let rawTy ← instantiateMVars decl.type
-    if (rawTy.find? (·.isConstOf ``Cslib.PolynomiallyBounded)).isSome then
-      let ty ← whnfR rawTy
-      if ty.isAppOfArity ``Cslib.PolynomiallyBounded 1 then
-        knownPolyFns := knownPolyFns.push ty.appArg!
+    let ty ← whnfR (← instantiateMVars decl.type)
+    if ty.isAppOfArity ``Cslib.PolynomiallyBounded 1 then
+      knownPolyFns := knownPolyFns.push ty.appArg!
 
   for decl in lctx do
     if decl.isImplementationDetail || decl.isLet then continue
     let ty ← instantiateMVars decl.type
     if ← isProp ty then
-      if (ty.find? (·.isConstOf ``Bool)).isSome &&
-          (ty.find? (·.isConstOf ``Cslib.Crypto.Negligible)).isSome then
-        if let .forallE _ dom body _ ← whnfR ty then
-          if dom.isConstOf ``Bool then
-            let tyFalse := body.instantiate1 (mkConst ``Bool.false)
-            if (← whnfR tyFalse).consumeMData.isAppOfArity ``Cslib.Crypto.Negligible 1 then
-              let tyTrue := body.instantiate1 (mkConst ``Bool.true)
-              newHyps := newHyps.push {
-                userName := decl.userName.appendAfter "_false"
-                type := tyFalse
-                value := mkApp decl.toExpr (mkConst ``Bool.false)
-              }
-              newHyps := newHyps.push {
-                userName := decl.userName.appendAfter "_true"
-                type := tyTrue
-                value := mkApp decl.toExpr (mkConst ``Bool.true)
-              }
-      let mut candidates : Array (Expr × Expr) := #[(decl.toExpr, ty)]
-      if ty.isAppOfArity ``And 2 then
-        candidates := candidates.push (← mkAppM ``And.left #[decl.toExpr], ty.getArg! 0)
-        candidates := candidates.push (← mkAppM ``And.right #[decl.toExpr], ty.getArg! 1)
+      let tyR ← whnfR ty
+      if let .forallE _ dom body _ := tyR then
+        if (← whnfR dom).isConstOf ``Bool then
+          let tyFalse := body.instantiate1 (mkConst ``Bool.false)
+          if (← whnfR tyFalse).consumeMData.isAppOfArity ``Cslib.Crypto.Negligible 1 then
+            let tyTrue := body.instantiate1 (mkConst ``Bool.true)
+            newHyps := newHyps.push {
+              userName := decl.userName.appendAfter "_false"
+              type := tyFalse
+              value := mkApp decl.toExpr (mkConst ``Bool.false)
+            }
+            newHyps := newHyps.push {
+              userName := decl.userName.appendAfter "_true"
+              type := tyTrue
+              value := mkApp decl.toExpr (mkConst ``Bool.true)
+            }
+      let mut candidates : Array (Expr × Expr) := #[(decl.toExpr, tyR)]
+      if tyR.isAppOfArity ``And 2 then
+        candidates := candidates.push
+          (← mkAppM ``And.left #[decl.toExpr], ← whnfR (tyR.getArg! 0))
+        candidates := candidates.push
+          (← mkAppM ``And.right #[decl.toExpr], ← whnfR (tyR.getArg! 1))
       for (cand, candTy) in candidates do
-        if (candTy.find? (·.isConstOf `Turing.MultiTapeTM.ComputableInPolyTime)).isSome then
+        if candTy.isAppOf `Turing.MultiTapeTM.ComputableInPolyTime then
           for lem in unaryPolyCertificateLemmas do
             if let some pf ← applyUnaryCertificate? lem cand then
               let pfTy ← instantiateMVars (← inferType pf)
@@ -460,6 +460,32 @@ private meta def normalizeNegligibleForms : TacticM Unit := withMainContext do
               Pi.pow_apply, one_div, div_eq_mul_inv, one_mul, mul_inv, ← inv_pow] at $ident:ident))
         catch _ => pure ()
 
+/-- Traverse 6-argument binary arithmetic applications in `binOps` (visiting both operands
+`args[4]!` and `args[5]!`) and `HPow.hPow` (visiting only the base `args[4]!` and leaving the
+exponent `args[5]!` untouched), rebuilding modified nodes with `mkApp4`/`mkApp2`. -/
+private meta def walkBinaryAndPow (binOps : Array Name)
+    (recur : Expr → MetaM (Expr × Bool)) (c e : Expr) :
+    MetaM (Option (Expr × Bool)) := do
+  for opName in binOps do
+    if c.isAppOfArity opName 6 then
+      let args := c.getAppArgs
+      let (l', ml) ← recur args[4]!
+      let (r', mr) ← recur args[5]!
+      if ml || mr then
+        let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
+        return some (mkApp2 pre l' r', true)
+      else
+        return some (e, false)
+  if c.isAppOfArity ``HPow.hPow 6 then
+    let args := c.getAppArgs
+    let (b', mb) ← recur args[4]!
+    if mb then
+      let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
+      return some (mkApp2 pre b' args[5]!, true)
+    else
+      return some (e, false)
+  return none
+
 /-- Replace occurrences in a `ℕ` expression `e` matching `pat` at `.instances` transparency
 (without unfolding `let` bindings or `def`s) by `replacement`. -/
 private meta partial def replaceNatAtInstances (pat replacement e : Expr) :
@@ -470,24 +496,9 @@ private meta partial def replaceNatAtInstances (pat replacement e : Expr) :
     if matched then
       return (replacement, true)
   let c := e.cleanupAnnotations
-  for opName in #[``HAdd.hAdd, ``HMul.hMul] do
-    if c.isAppOfArity opName 6 then
-      let args := c.getAppArgs
-      let (l', ml) ← replaceNatAtInstances pat replacement args[4]!
-      let (r', mr) ← replaceNatAtInstances pat replacement args[5]!
-      if ml || mr then
-        let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
-        return (mkApp2 pre l' r', true)
-      else
-        return (e, false)
-  if c.isAppOfArity ``HPow.hPow 6 then
-    let args := c.getAppArgs
-    let (b', mb) ← replaceNatAtInstances pat replacement args[4]!
-    if mb then
-      let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
-      return (mkApp2 pre b' args[5]!, true)
-    else
-      return (e, false)
+  if let some res ←
+      walkBinaryAndPow #[``HAdd.hAdd, ``HMul.hMul] (replaceNatAtInstances pat replacement) c e then
+    return res
   if c.isApp && c.getAppNumArgs == 1 then
     if (← inferType c.appArg!).isConstOf ``Nat then
       let (a', ma) ← replaceNatAtInstances pat replacement c.appArg!
@@ -501,24 +512,9 @@ private meta partial def walkNNRealCombinators (onSubterm : Expr → MetaM (Opti
   if let some e' ← onSubterm e then
     return (e', true)
   let c := e.cleanupAnnotations
-  for opName in #[``HAdd.hAdd, ``HMul.hMul, ``HDiv.hDiv] do
-    if c.isAppOfArity opName 6 then
-      let args := c.getAppArgs
-      let (l', ml) ← walkNNRealCombinators onSubterm args[4]!
-      let (r', mr) ← walkNNRealCombinators onSubterm args[5]!
-      if ml || mr then
-        let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
-        return (mkApp2 pre l' r', true)
-      else
-        return (e, false)
-  if c.isAppOfArity ``HPow.hPow 6 then
-    let args := c.getAppArgs
-    let (b', mb) ← walkNNRealCombinators onSubterm args[4]!
-    if mb then
-      let pre := mkApp4 c.getAppFn args[0]! args[1]! args[2]! args[3]!
-      return (mkApp2 pre b' args[5]!, true)
-    else
-      return (e, false)
+  if let some res ← walkBinaryAndPow #[``HAdd.hAdd, ``HMul.hMul, ``HDiv.hDiv]
+      (walkNNRealCombinators onSubterm) c e then
+    return res
   if c.isAppOfArity ``Inv.inv 3 then
     let args := c.getAppArgs
     let (a', ma) ← walkNNRealCombinators onSubterm args[2]!
@@ -595,9 +591,7 @@ private meta def collectAbstractableHypIds (gGoal : MVarId) (predName : Name)
     let mut ids : Array FVarId := #[]
     for decl in ← getLCtx do
       if decl.isImplementationDetail || decl.isLet then continue
-      let rawTy ← instantiateMVars decl.type
-      unless (rawTy.find? (·.isConstOf predName)).isSome do continue
-      let ty ← whnfR rawTy
+      let ty ← whnfR (← instantiateMVars decl.type)
       unless ty.consumeMData.isAppOfArity predName 1 do continue
       let arg := ty.consumeMData.appArg!.eta
       if arg.isFVar then
