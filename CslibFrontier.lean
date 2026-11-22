@@ -3337,6 +3337,9 @@ public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMes
 public import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Basic
 public import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
+public import CslibFrontier.Computability.Distributed.CRDT.Basic
+public import CslibFrontier.Computability.Distributed.CRDT.DataTypes
+public import CslibFrontier.Computability.Distributed.CRDT.Monotonicity
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.Causal
 public import CslibFrontier.Computability.Distributed.CausalBroadcast.TotalOrder
 public import CslibFrontier.Computability.Distributed.ChandyLamport.Basic
