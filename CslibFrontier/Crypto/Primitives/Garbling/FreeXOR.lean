@@ -149,12 +149,12 @@ private theorem bool_add_eq_true_of_ne {a b : Bool} (h : a ≠ b) : a + b = true
 
 /-- The colour flips of a row against a labelling: slot `k` flips when the row's colour differs
 from the colour of the label of its argument. -/
-private def flipped {τ : Circuit.Topology n m s} {free : Fin s → Bool} (A : Wire n s → K × Bool)
+@[expose] def flipped {τ : Circuit.Topology n m s} {free : Fin s → Bool} (A : Wire n s → K × Bool)
     (r : GarbledRow τ free) (k : Fin (τ.arity r.gate)) : Bool :=
   r.2 k + (A (τ.wires r.gate k)).2
 
 /-- Slot `k` is the first one where `e` is set. -/
-private def isFirst {a : ℕ} (e : Fin a → Bool) (k : Fin a) : Bool :=
+@[expose] def isFirst {a : ℕ} (e : Fin a → Bool) (k : Fin a) : Bool :=
   e k && decide (∀ j < k, e j = false)
 
 private theorem isFirst_eq_true_iff {a : ℕ} {e : Fin a → Bool} {k₀ : Fin a}
@@ -216,7 +216,7 @@ private theorem trace_gate_of_free
 
 /-- The output bit of a row against a labelling `A` on input `x`: whether the row's plaintext is
 the label of `A` or the other label of its gate. -/
-private def rowBit (A : Wire n C.size → K × Bool) (r : GarbledRow C.topology free) : Bool :=
+@[expose] def rowBit (A : Wire n C.size → K × Bool) (r : GarbledRow C.topology free) : Bool :=
   C.program.trace I x (.gate r.gate) + I (C.program.lines r.gate).op
     fun k : Fin (C.topology.arity r.gate) =>
       flipped A r k + C.program.trace I x (C.topology.wires r.gate k)
@@ -224,7 +224,7 @@ private def rowBit (A : Wire n C.size → K × Bool) (r : GarbledRow C.topology 
 /-- The query of the reduction for a slot: the key of the slot's argument under the labelling
 `A`, the slot's tweak, and a bit that is set only on the first flipped slot of a row whose output
 bit is set. -/
-def reductionQuery (A : Wire n C.size → K × Bool) (p : GarbledSlot C.topology free) :
+@[expose] def reductionQuery (A : Wire n C.size → K × Bool) (p : GarbledSlot C.topology free) :
     CCR.Query K T :=
   ⟨(A (C.topology.wires p.1.gate p.2)).1, tw p, isFirst (flipped A p.1) p.2 && rowBit C I x A p.1⟩
 
@@ -501,14 +501,14 @@ theorem View.run_simulateWith {τ : Circuit.Topology n m s} (hτ : τ.IsOrdered)
 
 /-- The table built by the reduction from oracle answers `O`: in each row, the slots whose colour
 flips against `A` read the oracle, and the others hash their label under `A`. -/
-private def reductionTable {τ : Circuit.Topology n m s} {free : Fin s → Bool}
+@[expose] def reductionTable {τ : Circuit.Topology n m s} {free : Fin s → Bool}
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (A : Wire n s → K × Bool)
     (O : GarbledSlot τ free → K × Bool) (r : GarbledRow τ free) : K × Bool :=
   A (.gate r.gate) + ∑ k, if flipped A r k = true then O ⟨r, k⟩ else
     H (A (τ.wires r.gate k)).1 (tw ⟨r, k⟩)
 
 /-- The view built by the reduction. -/
-private def reductionView (τ : Circuit.Topology n m s) {free : Fin s → Bool}
+@[expose] def reductionView (τ : Circuit.Topology n m s) {free : Fin s → Bool}
     (H : K → T → K × Bool) (tw : GarbledSlot τ free → T) (y : Fin m → Bool)
     (A : Wire n s → K × Bool) (O : GarbledSlot τ free → K × Bool) : View τ free K where
   table := reductionTable H tw A O
@@ -677,7 +677,8 @@ only the topology, the free gates, the hash, the tweaks and the output. -/
 /-- The adversary against circular correlation robustness: sample base labels, propagate them,
 query the oracle once for each slot of the garbled table, build the view from the answers, and
 run `D` on it. -/
-noncomputable def reduction : ProbOracleComp (fun _ : CCR.Query K T => K × Bool) Bool := do
+@[expose] noncomputable def reduction :
+    ProbOracleComp (fun _ : CCR.Query K T => K × Bool) Bool := do
   let base ← ProbOracleComp.sample (ProbComp.uniform (Wire n C.size → K × Bool))
   let O ← ProbOracleComp.tabulate (reductionQuery C I tw x (propagate C.topology free base))
     (Finset.univ : Finset (GarbledSlot C.topology free)).toList
@@ -713,7 +714,9 @@ theorem isTweakUnique_reduction [DecidableEq T] (htw : Function.Injective tw) :
         (propagate C.topology free base) O))
   simpa only [reduction, Nat.zero_add, Nat.add_zero] using h
 
-private theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
+/-- Library infrastructure (no cited result): evaluation of `reduction` against a fixed oracle
+`f` samples uniform base labels and applies `D` to `reductionView` on the resulting answers. -/
+theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
     ProbComp.eval ((reduction C I H tw x D).run fun q => pure (f q)) =
       (PMF.uniformOfFintype (Wire n C.size → K × Bool)).bind fun base =>
         ProbComp.eval (D (reductionView C.topology H tw (C.eval I x)
@@ -723,8 +726,9 @@ private theorem eval_run_reduction (f : CCR.Query K T → K × Bool) :
     pure_bind, ProbComp.eval_bind, ProbComp.eval_uniform, Finset.mem_toList, Finset.mem_univ,
     ite_true]
 
-/-- With the circular oracle, the reduction plays the real experiment. -/
-private theorem realGame_reduction
+/-- Library infrastructure (no cited result): with the circular oracle, the reduction plays the
+real experiment. -/
+theorem realGame_reduction
     (hfree : ∀ g, free g = true → ∀ v, I (C.program.lines g).op v = ∑ k, v k)
     (hK : ∀ k : K, k + k = 0) :
     ProbComp.eval (PRF.realExperiment (CCR.keyed H id (·, true)) (reduction C I H tw x D)) =
@@ -738,9 +742,9 @@ private theorem realGame_reduction
   rw [PMF.bind_map]
   rfl
 
-/-- With a uniform random function, the reduction plays the simulated experiment, when distinct
-slots have distinct tweaks. -/
-private theorem idealGame_reduction [DecidableEq K] [Fintype T] [DecidableEq T]
+/-- Library infrastructure (no cited result): with a uniform random function, the reduction plays
+the simulated experiment, when distinct slots have distinct tweaks. -/
+theorem idealGame_reduction [DecidableEq K] [Fintype T] [DecidableEq T]
     (htw : Function.Injective tw) :
     ProbComp.eval (PRF.idealExperiment (reduction C I H tw x D)) = simGame C I H tw x D := by
   simp only [PRF.idealExperiment, simGame, simulate, ProbComp.eval_bind, ProbComp.eval_uniform,

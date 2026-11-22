@@ -69,7 +69,7 @@ public section
 namespace Cslib.Complexity.CountingSimulation
 
 open Cslib.Circuits.Frontier Cslib.Circuits.Frontier.ContractionSchedule
-  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+  Cslib.Circuits.Frontier.FastContraction Cslib.GenericRAM Cslib.Algorithms.StackRecursion
   Turing.MultiTapeTM
 
 /-! ### The clock -/

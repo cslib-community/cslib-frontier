@@ -9,7 +9,9 @@ module
 
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Li.AffineSource
+public import CslibFrontier.Foundations.Data.BitString.LinearEquiv
 import CslibFrontier.Foundations.Data.BitString.AffineSubspace
+import CslibFrontier.Foundations.Data.BitString.ZModSpace
 import CslibFrontier.Tactic.FinIndex
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -73,49 +75,13 @@ by a factor `(1 + α)` ([LiZhong2024, Def. 22]). -/
   ∀ V : Submodule Bool (BitString n), 2 * finrank Bool V ≤ n →
     (1 + α) * (finrank Bool V : ℝ) ≤ (finrank Bool ↥(⨆ i : Fin d, V.map (T i)) : ℝ)
 
-/-! ### Bit-splitting equivalences and basic condenser -/
+/-! ### Bit-splitting projections and basic condenser -/
 
-/-- Split a bit string of length `m + m` into its first and second halves as a `Bool`-linear
-equivalence. -/
-@[expose] def splitHalfEquiv (m : ℕ) :
-    BitString (m + m) ≃ₗ[Bool] BitString m × BitString m where
-  toFun x := (fun i => x ⟨i.1, by omega⟩, fun i => x ⟨m + i.1, by omega⟩)
-  invFun p j := if h : j.1 < m then p.1 ⟨j.1, h⟩ else p.2 ⟨j.1 - m, by omega⟩
-  left_inv x := by
-    funext j
-    dsimp only
-    split_ifs with h
-    · rfl
-    · congr 1
-      fin_index
-  right_inv p := by
-    ext i <;> dsimp only
-    · rw [dite_eq_left i.2]
-    · rw [dite_eq_right (by omega)]
-      exact congrArg p.2 (by fin_index)
-  map_add' x y := by
-    ext i <;> rfl
-  map_smul' c x := by
-    ext i <;> rfl
+private def projLeft (m : ℕ) : BitString (m + m) →ₗ[Bool] BitString m :=
+  (LinearMap.fst Bool (BitString m) (BitString m)).comp (appendLinearEquiv m m).symm.toLinearMap
 
-/-- Linear equivalence of bit strings of equal lengths. -/
-@[expose] def bitStringCongr {n₁ n₂ : ℕ} (h : n₁ = n₂) : BitString n₁ ≃ₗ[Bool] BitString n₂ where
-  toFun x i := x (Fin.cast h.symm i)
-  invFun y j := y (Fin.cast h j)
-  left_inv x := by funext j; simp
-  right_inv y := by funext i; simp
-  map_add' _ _ := rfl
-  map_smul' _ _ := rfl
-
-private def projLeft (m : ℕ) : BitString (m + m) →ₗ[Bool] BitString m where
-  toFun x := (splitHalfEquiv m x).1
-  map_add' x y := by rw [map_add]; rfl
-  map_smul' c x := by rw [map_smul]; rfl
-
-private def projRight (m : ℕ) : BitString (m + m) →ₗ[Bool] BitString m where
-  toFun x := (splitHalfEquiv m x).2
-  map_add' x y := by rw [map_add]; rfl
-  map_smul' c x := by rw [map_smul]; rfl
+private def projRight (m : ℕ) : BitString (m + m) →ₗ[Bool] BitString m :=
+  (LinearMap.snd Bool (BitString m) (BitString m)).comp (appendLinearEquiv m m).symm.toLinearMap
 
 /-- **Single-step basic affine somewhere condenser** (`BasicCond`, [LiZhong2024, Alg. 1]):
 splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2` linear projections
@@ -123,7 +89,7 @@ splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2`
 @[expose] def basicCond {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m) :
     BitString (m + m) →ₗ[Bool] (Fin (2 * d + 2) → BitString m) where
   toFun x idx :=
-    let p := splitHalfEquiv m x
+    let p := (appendLinearEquiv m m).symm x
     if h0 : idx.1 = 0 then p.1
     else if h1 : idx.1 = 1 then p.2
     else
@@ -131,9 +97,9 @@ splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2`
       else p.2 + T ⟨(idx.1 - 2) / 2, by have := idx.2; omega⟩ p.1
   map_add' x y := by
     funext idx
-    have hxy : splitHalfEquiv m (x + y) =
-        ((splitHalfEquiv m x).1 + (splitHalfEquiv m y).1,
-         (splitHalfEquiv m x).2 + (splitHalfEquiv m y).2) := by
+    have hxy : (appendLinearEquiv m m).symm (x + y) =
+        (((appendLinearEquiv m m).symm x).1 + ((appendLinearEquiv m m).symm y).1,
+         ((appendLinearEquiv m m).symm x).2 + ((appendLinearEquiv m m).symm y).2) := by
       rw [map_add]; rfl
     dsimp only
     rw [hxy]
@@ -145,8 +111,8 @@ splits `x ∈ BitString (m + m)` into `(x₁, x₂)` and outputs the `2 * d + 2`
         split_ifs <;> simp only [map_add] <;> abel
   map_smul' c x := by
     funext idx
-    have hsmul : splitHalfEquiv m (c • x) =
-        (c • (splitHalfEquiv m x).1, c • (splitHalfEquiv m x).2) := by
+    have hsmul : (appendLinearEquiv m m).symm (c • x) =
+        (c • ((appendLinearEquiv m m).symm x).1, c • ((appendLinearEquiv m m).symm x).2) := by
       rw [map_smul]; rfl
     dsimp only
     rw [hsmul]
@@ -170,14 +136,14 @@ private theorem basicCond_one {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool
 private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
     basicCond T x ⟨2 + 2 * i.1, by omega⟩ = projLeft m x + T i (projRight m x) := by
-  change (if h0 : (2 + 2 * i.1) = 0 then (splitHalfEquiv m x).1
-    else if h1 : (2 + 2 * i.1) = 1 then (splitHalfEquiv m x).2
+  change (if h0 : (2 + 2 * i.1) = 0 then ((appendLinearEquiv m m).symm x).1
+    else if h1 : (2 + 2 * i.1) = 1 then ((appendLinearEquiv m m).symm x).2
     else if ((2 + 2 * i.1) - 2) % 2 = 0 then
-      (splitHalfEquiv m x).1 +
-        T ⟨((2 + 2 * i.1) - 2) / 2, by have := i.2; omega⟩ (splitHalfEquiv m x).2
+      ((appendLinearEquiv m m).symm x).1 +
+        T ⟨((2 + 2 * i.1) - 2) / 2, by have := i.2; omega⟩ ((appendLinearEquiv m m).symm x).2
     else
-      (splitHalfEquiv m x).2 +
-        T ⟨((2 + 2 * i.1) - 2) / 2, by have := i.2; omega⟩ (splitHalfEquiv m x).1) =
+      ((appendLinearEquiv m m).symm x).2 +
+        T ⟨((2 + 2 * i.1) - 2) / 2, by have := i.2; omega⟩ ((appendLinearEquiv m m).symm x).1) =
     projLeft m x + T i (projRight m x)
   rw [dite_eq_right (by omega), dite_eq_right (by omega), ite_eq_left (by omega)]
   exact congrArg (fun k => projLeft m x + T k (projRight m x)) (by fin_index)
@@ -185,14 +151,14 @@ private theorem basicCond_even {m d : ℕ} (T : Fin d → BitString m →ₗ[Boo
 private theorem basicCond_odd {m d : ℕ} (T : Fin d → BitString m →ₗ[Bool] BitString m)
     (x : BitString (m + m)) (i : Fin d) :
     basicCond T x ⟨2 + 2 * i.1 + 1, by omega⟩ = projRight m x + T i (projLeft m x) := by
-  change (if h0 : (2 + 2 * i.1 + 1) = 0 then (splitHalfEquiv m x).1
-    else if h1 : (2 + 2 * i.1 + 1) = 1 then (splitHalfEquiv m x).2
+  change (if h0 : (2 + 2 * i.1 + 1) = 0 then ((appendLinearEquiv m m).symm x).1
+    else if h1 : (2 + 2 * i.1 + 1) = 1 then ((appendLinearEquiv m m).symm x).2
     else if ((2 + 2 * i.1 + 1) - 2) % 2 = 0 then
-      (splitHalfEquiv m x).1 +
-        T ⟨((2 + 2 * i.1 + 1) - 2) / 2, by have := i.2; omega⟩ (splitHalfEquiv m x).2
+      ((appendLinearEquiv m m).symm x).1 +
+        T ⟨((2 + 2 * i.1 + 1) - 2) / 2, by have := i.2; omega⟩ ((appendLinearEquiv m m).symm x).2
     else
-      (splitHalfEquiv m x).2 +
-        T ⟨((2 + 2 * i.1 + 1) - 2) / 2, by have := i.2; omega⟩ (splitHalfEquiv m x).1) =
+      ((appendLinearEquiv m m).symm x).2 +
+        T ⟨((2 + 2 * i.1 + 1) - 2) / 2, by have := i.2; omega⟩ ((appendLinearEquiv m m).symm x).1) =
     projRight m x + T i (projLeft m x)
   rw [dite_eq_right (by omega), dite_eq_right (by omega), ite_eq_right (by omega)]
   exact congrArg (fun k => projRight m x + T k (projLeft m x)) (by fin_index)
@@ -237,7 +203,7 @@ private theorem finrank_sup_biSup_le {m : ℕ} (B : Submodule Bool (BitString m)
     have hB_le : B ≤ (B ⊔ ⨆ i ∈ s, S i) ⊓ (B ⊔ S j) := le_inf le_sup_left le_sup_left
     have hinf_le : finrank Bool B ≤ finrank Bool ↥((B ⊔ ⨆ i ∈ s, S i) ⊓ (B ⊔ S j)) :=
       Submodule.finrank_mono hB_le
-    have hsup := finrank_sup_add_finrank_inf_bitString (B ⊔ ⨆ i ∈ s, S i) (B ⊔ S j)
+    have hsup := finrank_sup_add_finrank_inf_bool (B ⊔ ⨆ i ∈ s, S i) (B ⊔ S j)
     have hB_W : finrank Bool B ≤ finrank Bool ↥(B ⊔ S j) := Submodule.finrank_mono le_sup_left
     have hle1 : finrank Bool ↥(B ⊔ (S j ⊔ ⨆ i ∈ s, S i)) + finrank Bool B ≤
         finrank Bool ↥(B ⊔ ⨆ i ∈ s, S i) + finrank Bool ↥(B ⊔ S j) := by
@@ -385,7 +351,7 @@ private theorem basicCond_subspace_boost_case1 {m d : ℕ} (hd : 3 ≤ d) {α : 
   have hfin_sup : finrank Bool ↥(B ⊔ A'.map (T i)) ≤ finrank Bool M + t := by
     have h1 : finrank Bool ↥(B ⊔ A'.map (T i)) ≤ finrank Bool ↥(M ⊔ C) :=
       Submodule.finrank_mono hsup_le
-    have h2 := finrank_sup_add_finrank_inf_bitString M C
+    have h2 := finrank_sup_add_finrank_inf_bool M C
     have h3 : finrank Bool ↥(M ⊔ C) ≤ finrank Bool M + t := by
       change finrank Bool ↥(M ⊔ C) + finrank Bool ↥(M ⊓ C) = finrank Bool M + t at h2
       omega
@@ -447,13 +413,13 @@ private theorem basicCond_subspace_boost_case2 {m d : ℕ} (hd : 3 ≤ d) {α : 
       rw [add_assoc, hself, add_zero]
     rwa [heq] at hadd
   have hCt_le : finrank Bool ↥(C.map (T i)) ≤ t := by
-    have hrank := finrank_range_add_finrank_ker_bitString (T i) C
+    have hrank := finrank_map_add_finrank_inf_ker_bool (T i) C
     change finrank Bool ↥(C.map (T i)) + _ = t at hrank
     omega
   have hfin_sup : finrank Bool ↥(A' ⊔ B.map (T i)) ≤ finrank Bool M + t := by
     have h1 : finrank Bool ↥(A' ⊔ B.map (T i)) ≤ finrank Bool ↥(M ⊔ C.map (T i)) :=
       Submodule.finrank_mono hsup_le
-    have h2 := finrank_sup_add_finrank_inf_bitString M (C.map (T i))
+    have h2 := finrank_sup_add_finrank_inf_bool M (C.map (T i))
     have h3 : finrank Bool ↥(M ⊔ C.map (T i)) ≤ finrank Bool M + finrank Bool ↥(C.map (T i)) := by
       calc finrank Bool ↥(M ⊔ C.map (T i))
           ≤ finrank Bool ↥(M ⊔ C.map (T i)) + finrank Bool ↥(M ⊓ C.map (T i)) :=
@@ -488,20 +454,20 @@ private theorem basicCond_subspace_boost {m d : ℕ} (hm : 0 < m) (hd : 3 ≤ d)
       rintro x ⟨⟨_, hx1⟩, hx2⟩
       have hx1' : projLeft m x = 0 := LinearMap.mem_ker.mp hx1
       have hx2' : projRight m x = 0 := LinearMap.mem_ker.mp hx2
-      apply (splitHalfEquiv m).injective
+      apply (appendLinearEquiv m m).symm.injective
       rw [map_zero]
-      ext i <;> [exact congrFun hx1' i; exact congrFun hx2' i]
-    have hrank := finrank_range_add_finrank_ker_bitString (projRight m) W
+      exact Prod.ext hx1' hx2'
+    have hrank := finrank_map_add_finrank_inf_ker_bool (projRight m) W
     rw [hkerW, finrank_bot, add_zero] at hrank
     exact hrank.symm
   have hsr : s + r = k := by
-    have hrank := finrank_range_add_finrank_ker_bitString (projLeft m) V
+    have hrank := finrank_map_add_finrank_inf_ker_bool (projLeft m) V
     change s + finrank Bool W = k at hrank
     rwa [hdim_W] at hrank
-  obtain ⟨C, hC_le, hC_inf, hC_sup⟩ := exists_isCompl_submodule B P2 hB_le_P2
+  obtain ⟨C, hC_le, hC_inf, hC_sup⟩ := exists_isCompl_submodule_bool hB_le_P2
   set t := finrank Bool C
   have hP2_dim : finrank Bool P2 = r + t := by
-    have hsum := finrank_sup_add_finrank_inf_bitString C B
+    have hsum := finrank_sup_add_finrank_inf_bool C B
     rw [hC_inf, hC_sup, finrank_bot, add_zero, add_comm] at hsum
     exact hsum
   have hd_pos : (0 : ℝ) < d := by positivity
@@ -580,7 +546,7 @@ theorem isAffineSomewhereCondenser_basicCond {m d : ℕ} (hd : 3 ≤ d) {α δ :
         (by rw [hdim]; exact hk)
     · push Not at hk_le
       obtain ⟨V', hV'_le, hV'_dim⟩ :=
-        exists_submodule_finrank_eq_bitString A.direction m hk_le.le
+        exists_submodule_finrank_eq_bool A.direction m hk_le.le
       have hge' : δ * ((m + m : ℕ) : ℝ) ≤ finrank Bool V' := by
         rw [hV'_dim]
         have : ((m + m : ℕ) : ℝ) = 2 * (m : ℝ) := by push_cast; ring
@@ -610,12 +576,12 @@ applies `basicCond` across `h` halving rounds from `m * 2 ^ h` down to `m`, prod
 @[expose] def sCond {d : ℕ} (T : ∀ m, Fin d → BitString m →ₗ[Bool] BitString m) :
     ∀ (h m : ℕ), BitString (m * 2 ^ h) →ₗ[Bool] (Fin ((2 * d + 2) ^ h) → BitString m)
   | 0, m =>
-    { toFun := fun x _ => bitStringCongr (by ring) x
+    { toFun := fun x _ => congrLinearEquiv (by ring) x
       map_add' := fun x y => by funext _; rw [map_add]; rfl
       map_smul' := fun c x => by funext _; rw [map_smul]; rfl }
   | h + 1, m =>
     let split : BitString (m * 2 ^ (h + 1)) →ₗ[Bool] BitString (m * 2 ^ h + m * 2 ^ h) :=
-      (bitStringCongr (by ring)).toLinearMap
+      (congrLinearEquiv (by ring)).toLinearMap
     let step1 := (basicCond (T (m * 2 ^ h))).comp split
     { toFun := fun x idx =>
         let p := finProdFinEquiv.symm (idx.cast (@Nat.pow_succ' (2 * d + 2) h))
@@ -651,7 +617,7 @@ private theorem isAffineSomewhereCondenser_sCond_aux {d : ℕ} (hd : 3 ≤ d) {�
   | 0, m, r, hr => by
     intro X k hX hk
     refine ⟨0, k, ?_, ?_⟩
-    · let e : BitString (m * 2 ^ 0) ≃ₗ[Bool] BitString m := bitStringCongr (by ring)
+    · let e : BitString (m * 2 ^ 0) ≃ₗ[Bool] BitString m := congrLinearEquiv (by ring)
       let L0 : BitString (m * 2 ^ 0) →ₗ[Bool] BitString m := e.toLinearMap
       have hL : IsAffine (fun x => sCond T 0 m x 0) := isAffine_of_linearMap L0
       obtain ⟨A, hA, hdim, rfl⟩ := hX
@@ -674,7 +640,7 @@ private theorem isAffineSomewhereCondenser_sCond_aux {d : ℕ} (hd : 3 ≤ d) {�
       unfold condStepRate
       split_ifs <;> positivity
     let eCongr : BitString (m * 2 ^ (h + 1)) ≃ₗ[Bool] BitString (m * 2 ^ h + m * 2 ^ h) :=
-      bitStringCongr (by ring)
+      congrLinearEquiv (by ring)
     let r₀ : ℝ := min r (1 / 2)
     have hr₀_pos : 0 < r₀ := lt_min hr (by norm_num)
     have hr₀_half : r₀ ≤ 1 / 2 := min_le_right _ _

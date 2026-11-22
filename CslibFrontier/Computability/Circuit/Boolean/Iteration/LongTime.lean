@@ -62,7 +62,8 @@ variable {n m a : ℕ}
 /-- For a time given by `m` bits and a cycle length `ell`, the time itself if it is below
 `2 ^ n`, and otherwise `2 ^ n` plus the excess modulo `ell`, in `n + 3` bits. -/
 def compressedTime (n : ℕ) (ell : BitVec (n + 3)) (bits : BitString m) : BitVec (n + 3) :=
-  if (word bits).ult (BitVec.ofNat m (2 ^ n)) then (word bits).setWidth (n + 3)
+  if (BitString.equivBitVec bits).ult (BitVec.ofNat m (2 ^ n)) then
+    (BitString.equivBitVec bits).setWidth (n + 3)
   else BitVec.ofNat (n + 3) (2 ^ n) +
     subMod (streamRemainder ell bits) (BitVec.ofNat (n + 3) (2 ^ n)) ell
 
@@ -70,7 +71,7 @@ def compressedTime (n : ℕ) (ell : BitVec (n + 3)) (bits : BitString m) : BitVe
 theorem toNat_compressedTime (f : BitString n → BitString n) (x : BitString n)
     (bits : BitString m) (hnm : n < m) :
     (compressedTime n (BitVec.ofNat (n + 3) (cycleLength f x)) bits).toNat =
-      normalizedTime f x (word bits).toNat := by
+      normalizedTime f x (BitString.equivBitVec bits).toNat := by
   have h8 : 2 ^ (n + 3) = 8 * 2 ^ n := by rw [pow_add]; ring
   have hNm : 2 ^ n < 2 ^ m := Nat.pow_lt_pow_right (by decide) hnm
   have hl := cycleLength_le_two_pow f x
@@ -86,18 +87,19 @@ theorem toNat_compressedTime (f : BitString n → BitString n) (x : BitString n)
   · rw [BitVec.toNat_setWidth, Nat.mod_eq_of_lt (by omega)]
   · have hd : (subMod (streamRemainder (BitVec.ofNat (n + 3) (cycleLength f x)) bits)
         (BitVec.ofNat (n + 3) (2 ^ n)) (BitVec.ofNat (n + 3) (cycleLength f x))).toNat =
-        ((word bits).toNat - 2 ^ n) % cycleLength f x := by
+        ((BitString.equivBitVec bits).toNat - 2 ^ n) % cycleLength f x := by
       rw [toNat_subMod _ _ _ (by omega) hw, hr, hell, BitVec.toNat_ofNat,
         Nat.mod_eq_of_lt (by omega : 2 ^ n < 2 ^ (n + 3))]
       apply Nat.add_sub_mod_mod_eq_of_modEq hp (Nat.mod_lt _ hp)
-      calc ((word bits).toNat - 2 ^ n) % cycleLength f x + 2 ^ n
-          ≡ ((word bits).toNat - 2 ^ n) + 2 ^ n [MOD cycleLength f x] :=
+      calc ((BitString.equivBitVec bits).toNat - 2 ^ n) % cycleLength f x + 2 ^ n
+          ≡ ((BitString.equivBitVec bits).toNat - 2 ^ n) + 2 ^ n [MOD cycleLength f x] :=
             (Nat.mod_modEq _ _).add_right _
-        _ = (word bits).toNat := Nat.sub_add_cancel (by omega)
-        _ ≡ (word bits).toNat % cycleLength f x [MOD cycleLength f x] := (Nat.mod_modEq _ _).symm
+        _ = (BitString.equivBitVec bits).toNat := Nat.sub_add_cancel (by omega)
+        _ ≡ (BitString.equivBitVec bits).toNat % cycleLength f x [MOD cycleLength f x] :=
+          (Nat.mod_modEq _ _).symm
     rw [BitVec.toNat_add, BitVec.toNat_ofNat, Nat.mod_eq_of_lt (by omega : 2 ^ n < 2 ^ (n + 3)),
       hd]
-    have := Nat.mod_lt ((word bits).toNat - 2 ^ n) hp
+    have := Nat.mod_lt ((BitString.equivBitVec bits).toNat - 2 ^ n) hp
     exact Nat.mod_eq_of_lt (by omega)
 
 /-- Compressing an available time with an available cycle length: one streaming remainder over
@@ -112,24 +114,25 @@ private theorem synthesis_compressedTime (s : Set (BooleanFunction a))
   let bound := fun _ : BitString a => BitVec.ofNat (n + 3) (2 ^ n)
   let difference := fun x => subMod (rem x) (bound x) (ell x)
   let advance := fun x => bound x + difference x
-  let short := fun x => (word (bits x)).ult (BitVec.ofNat m (2 ^ n))
+  let short := fun x => (BitString.equivBitVec (bits x)).ult (BitVec.ofNat m (2 ^ n))
   have hbound : wordWires bound ⊆ s := by
     rintro _ ⟨i, rfl⟩
     exact hc ((BitVec.ofNat (n + 3) (2 ^ n)).getLsbD i.val)
-  have hword : wordWires (fun x => word (bits x)) ⊆ s := by
+  have hword : wordWires (fun x => BitString.equivBitVec (bits x)) ⊆ s := by
     rintro _ ⟨i, rfl⟩
-    simpa only [getLsbD_word] using hb i
+    simpa only [BitString.getLsbD_equivBitVec] using hb i
   -- Later stages reuse the remainder and the intermediate compressed words.
   let b := Synthesis.Builder.start interpretation s
   synthesis_step b using synthesis_streamRemainder b.wires ell bits
   synthesis_step b using synthesis_subMod b.wires rem bound ell
   synthesis_step b using Synthesis.word_add bound difference
   synthesis_step b using
-    Synthesis.word_ult (fun x => word (bits x)) (fun _ => BitVec.ofNat m (2 ^ n))
+    Synthesis.word_ult (fun x => BitString.equivBitVec (bits x)) (fun _ => BitVec.ofNat m (2 ^ n))
   have hresize := wordWires_setWidth_subset (v := n + 3) (s := b.wires)
-    (value := fun x => word (bits x)) (by synthesis_available) (by synthesis_available)
+    (value := fun x => BitString.equivBitVec (bits x)) (by synthesis_available)
+    (by synthesis_available)
   synthesis_step b using
-    Synthesis.word_mux (fun x => (word (bits x)).setWidth (n + 3)) advance short
+    Synthesis.word_mux (fun x => (BitString.equivBitVec (bits x)).setWidth (n + 3)) advance short
   exact b.finish (by synthesis_available)
     (by
       dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]
@@ -170,7 +173,7 @@ private theorem long_time_circuit (c : Circuit signature n n) (m L : ℕ) (hnm :
   let ell := fun z => labelLength (canonicalLabel f (init z))
   have hlength : wordWires ell ⊆ b.wires := by
     rintro _ ⟨i, rfl⟩
-    simp only [ell, labelLength, getLsbD_word]
+    simp only [ell, labelLength, BitString.getLsbD_equivBitVec]
     synthesis_available
   synthesis_step b using synthesis_compressedTime b.wires ell bits
   let time := fun z => compressedTime n (ell z) (bits z)
@@ -178,7 +181,7 @@ private theorem long_time_circuit (c : Circuit signature n n) (m L : ℕ) (hnm :
       (fun j _ => fixed_power n c (2 ^ j) L hL hLN) b.wires init
       (fun z i => (time z).getLsbD i.val)
   have h := b.finish (t := wires fun z =>
-    f^[(word fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat] (init z))
+    f^[(BitString.equivBitVec fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat] (init z))
     (by synthesis_available) (k := longTimeBudget n c.size m L)
     (by
       dsimp +zetaDelta [Synthesis.Builder.add, Synthesis.Builder.start]
@@ -187,9 +190,9 @@ private theorem long_time_circuit (c : Circuit signature n n) (m L : ℕ) (hnm :
   obtain ⟨out, ho, hs⟩ := h.exists_circuit_outputs
   refine ⟨out, fun z => ?_, hs⟩
   · rw [ho z]
-    change f^[(word fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat] (init z) =
-      f^[(word (bits z)).toNat] (init z)
-    rw [word_getLsbD]
+    change f^[(BitString.equivBitVec fun i : Fin (n + 3) => (time z).getLsbD i.val).toNat]
+      (init z) = f^[(BitString.equivBitVec (bits z)).toNat] (init z)
+    rw [BitString.equivBitVec_getLsbD]
     simp only [time, ell, canonicalLabel, labelLength_labelBits]
     rw [toNat_compressedTime f _ _ hnm, iterate_normalizedTime]
 

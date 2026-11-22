@@ -314,7 +314,8 @@ example : ∃ y, ExecWithin 2 (realizes_allocLayout.code cursor source temporary
   have hm (a : ℕ) : Fits 2 (zeroMem a) := (zero_fits a).mono (by decide)
   obtain ⟨y, hy, hyMem, hf, ho⟩ := native (n := 0) (base := 0) zeroMem
     (by decide) (by decide) (by decide) hm (by decide)
-  exact ⟨y, hy, hyMem, hf, ho⟩
+  exact ⟨y, hy, hyMem, hf, fun
+    | ⟨0, _⟩ => ho 0 | ⟨1, _⟩ => ho 1 | ⟨2, _⟩ => ho 2 | ⟨3, _⟩ => ho 3⟩
 
 -- Same emitted code at nonzero frontier; arbitrary dirty outside memory is literally retained.
 example : ∃ y, ExecWithin 4 (realizes_allocLayout.code cursor source temporary)
@@ -326,7 +327,8 @@ example : ∃ y, ExecWithin 4 (realizes_allocLayout.code cursor source temporary
   have hm (a : ℕ) : Fits 4 (dirtyMem a) := (dirty_fits a).mono (by decide)
   obtain ⟨y, hy, hyMem, hf, ho⟩ := native (n := 1) (base := 3) dirtyMem
     (by decide) (by decide) (by decide) hm (by decide)
-  exact ⟨y, hy, hyMem, hf, ho⟩
+  exact ⟨y, hy, hyMem, hf, fun
+    | ⟨0, _⟩ => ho 0 | ⟨1, _⟩ => ho 1 | ⟨2, _⟩ => ho 2 | ⟨3, _⟩ => ho 3⟩
 
 private def freshMem (a : ℕ) : ℕ := if a = 0 then 7 else 0
 
