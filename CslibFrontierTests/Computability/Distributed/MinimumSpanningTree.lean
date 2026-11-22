@@ -7,11 +7,12 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Computability.Distributed.MinimumSpanningTree.BlueRule
+import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
+import CslibFrontier.Algorithms.Lean.Kruskal.SimpleGraph
 import CslibFrontier.Computability.Distributed.MinimumSpanningTree.GHS
 
-/-! Checked `module` client tests for `Cslib.Distributed.MinimumSpanningTree` using ordinary
-imports:
+/-! Checked `module` client tests for `SimpleGraph.IsMST` and
+`Cslib.Distributed.MinimumSpanningTree` using ordinary imports:
 1. `Fin 1` singleton execution exercising `FragAction.wakeupSingleton` (`0` messages, `0` combines).
 2. `K₂` (`Fin 2`, `1` edge) execution reaching `.halted` in `4` steps (`1` merge) with exact
    tightness `s.msgs.total = 6` (`6 + 4 * 2 = 5 * 2 * Nat.log 2 2 + 2 * 1 + 2 = 14`) in
@@ -136,10 +137,15 @@ theorem k3_reachable_final (dual : Bool) :
 
 /-- Nonvacuous instantiation of `existsUnique_isMST_of_injOn`,
 `IsMOE.mem_edgeSet_of_isMST_of_injOn`, `FragReachable.halted_branchGraph_isMST`,
-`FragReachable.rejected_not_isMOE`, and `FragReachable.msgs_total_le` on `(K₃, k3Weight)`. -/
+`FragReachable.rejected_not_isMOE`, `FragReachable.msgs_total_le`, and agreement with sequential
+`Kruskal.kruskalGraph` (`Kruskal.isMST_iff_eq_toSimpleGraph_kruskalGraph_of_injOn`) on
+`(K₃, k3Weight)`. -/
 theorem k3_mst_and_protocol_theorems :
     (∃! T, IsMST (⊤ : SimpleGraph (Fin 3)) k3Weight T) ∧
     IsMST (⊤ : SimpleGraph (Fin 3)) k3Weight (k3Final false).branchGraph ∧
+    (k3Final false).branchGraph =
+      Cslib.Algorithms.Lean.Kruskal.toSimpleGraph
+        (Cslib.Algorithms.Lean.Kruskal.kruskalGraph (⊤ : SimpleGraph (Fin 3)) k3Weight) ∧
     edgeWeightSum (k3Final false).branchGraph k3Weight = 30 ∧
     (∀ S : Finset (Fin 3), ¬ IsMOE (⊤ : SimpleGraph (Fin 3)) k3Weight S s(0, 2)) ∧
     (k3Final false).msgs.total ≤
@@ -149,10 +155,16 @@ theorem k3_mst_and_protocol_theorems :
   have hhalt : (k3Final false).Halted := by decide
   have hrej : s(0, 2) ∈ (k3Final false).rejectedEdges := by decide
   obtain ⟨hMST, _⟩ := hr.halted_branchGraph_isMST k3_connected k3_injOn hhalt
+  have hkruskal :
+      (k3Final false).branchGraph =
+        Cslib.Algorithms.Lean.Kruskal.toSimpleGraph
+          (Cslib.Algorithms.Lean.Kruskal.kruskalGraph (⊤ : SimpleGraph (Fin 3)) k3Weight) :=
+    (Cslib.Algorithms.Lean.Kruskal.isMST_iff_eq_toSimpleGraph_kruskalGraph_of_injOn
+      k3_connected k3Weight k3_injOn).mp hMST
   have hsum : edgeWeightSum (k3Final false).branchGraph k3Weight = 30 := by
     rw [edgeWeightSum_eq_sum_edgeFinset]
     decide
-  exact ⟨existsUnique_isMST_of_injOn k3_connected k3_injOn, hMST, hsum,
+  exact ⟨existsUnique_isMST_of_injOn k3_connected k3_injOn, hMST, hkruskal, hsum,
     hr.rejected_not_isMOE k3_connected k3_injOn hrej, hr.msgs_total_le⟩
 
 /-! ### 4. 6-vertex level-2 execution (`changeRootHops > 0` and absorption into `Found`) -/

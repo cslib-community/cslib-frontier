@@ -5,7 +5,7 @@ Authors: Samuel Schlesinger
 -/
 
 module
--- upstream: candidate
+-- upstream: candidate (Mathlib, `Mathlib/Combinatorics/SimpleGraph/Acyclic.lean`)
 
 public import CslibFrontier.Init
 public import Mathlib.Algebra.BigOperators.Finprod
@@ -19,52 +19,47 @@ import Mathlib.Data.Fintype.Powerset
 /-!
 # Cut Property (Blue Rule) and Minimum Spanning Tree Uniqueness on `SimpleGraph`
 
-This module formalizes minimum-weight spanning trees (`IsMST`), outgoing cut edges
-(`IsOutgoingEdge`, `outgoingEdges`), minimum-weight outgoing edges (`IsMOE`), the cycle-exchange cut
-property, and distinct-weight MST uniqueness on Mathlib's `SimpleGraph V`, following Section 2
-(Properties 1 and 2, p. 68) of [GallagerHumbletSpira1983].
+This module formalizes minimum-weight spanning trees (`SimpleGraph.IsMST`), outgoing cut edges
+(`SimpleGraph.IsOutgoingEdge`, `SimpleGraph.outgoingEdges`), minimum-weight outgoing edges
+(`SimpleGraph.IsMOE`), the cycle-exchange cut property, and distinct-weight MST uniqueness on
+Mathlib's `SimpleGraph V`, following Section 2 (Properties 1 and 2, p. 68) of
+[GallagerHumbletSpira1983] and bridging both sequential Kruskal
+(`CslibFrontier.Algorithms.Lean.Kruskal.SimpleGraph`) and the distributed GHS protocol
+(`CslibFrontier.Computability.Distributed.MinimumSpanningTree.GHS`).
 
 ## Main definitions
 
-* `Cslib.Distributed.MinimumSpanningTree.IsSpanningTree`: spanning tree `T ≤ G ∧ T.IsTree` of a
-  simple graph `G`.
-* `Cslib.Distributed.MinimumSpanningTree.edgeWeightSum`: total edge weight
-  `∑ᶠ e ∈ H.edgeSet, w e` of a simple graph `H`.
-* `Cslib.Distributed.MinimumSpanningTree.IsMST`: minimum-weight spanning tree of `(G, w)`.
-* `Cslib.Distributed.MinimumSpanningTree.IsOutgoingEdge`: undirected edge of `G` with one endpoint
-  in `S : Finset V` and one outside `S`.
-* `Cslib.Distributed.MinimumSpanningTree.crossesCut`,
-  `Cslib.Distributed.MinimumSpanningTree.outgoingEdges`: computable Boolean cut test and outgoing
+* `SimpleGraph.IsSpanningTree`: spanning tree `T ≤ G ∧ T.IsTree` of a simple graph `G`.
+* `SimpleGraph.edgeWeightSum`: total edge weight `∑ᶠ e ∈ H.edgeSet, w e` of a simple graph `H`.
+* `SimpleGraph.IsMST`: minimum-weight spanning tree of `(G, w)`.
+* `SimpleGraph.IsOutgoingEdge`: undirected edge of `G` with one endpoint in `S : Finset V` and one
+  outside `S`.
+* `SimpleGraph.crossesCut`, `SimpleGraph.outgoingEdges`: computable Boolean cut test and outgoing
   edge `Finset` for finite decidable graphs.
-* `Cslib.Distributed.MinimumSpanningTree.IsMOE`: minimum-weight outgoing edge of a vertex subset
-  `S : Finset V` in `(G, w)`.
+* `SimpleGraph.IsMOE`: minimum-weight outgoing edge of a vertex subset `S : Finset V` in `(G, w)`.
 
 ## Main results
 
-* `Cslib.Distributed.MinimumSpanningTree.IsSpanningTree.swap_edge`: adding a non-tree edge
-  `s(u, v)` (`u ∈ S`, `v ∉ S`) to a spanning tree `T` and deleting a boundary edge `e'` on the
-  `u`–`v` tree path yields another spanning tree preserving any subgraph internal to `S`.
-* `Cslib.Distributed.MinimumSpanningTree.IsMST.exists_sup_edge_of_isMOE`: **GHS Property 1**
-  ([GallagerHumbletSpira1983], §2, p. 68) — extending a fragment `H ≤ T` of an MST `T` by any
-  minimum-weight outgoing edge of its vertex set yields a subgraph of an MST `T'`.
-* `Cslib.Distributed.MinimumSpanningTree.IsMOE.mem_edgeSet_of_isMST_of_injOn`: **Distinct-weight
-  cut / blue-rule theorem** — when `w` is injective on `G.edgeSet`, every minimum-weight outgoing
-  edge across any cut belongs to every MST of `G`.
-* `Cslib.Distributed.MinimumSpanningTree.exists_isMOE`,
-  `Cslib.Distributed.MinimumSpanningTree.existsUnique_isMOE_of_injOn`: existence (and uniqueness
+* `SimpleGraph.IsSpanningTree.swap_edge`: adding a non-tree edge `s(u, v)` (`u ∈ S`, `v ∉ S`) to a
+  spanning tree `T` and deleting a boundary edge `e'` on the `u`–`v` tree path yields another
+  spanning tree preserving any subgraph internal to `S`.
+* `SimpleGraph.IsMST.exists_sup_edge_of_isMOE`: **GHS Property 1** ([GallagerHumbletSpira1983], §2,
+  p. 68) — extending a fragment `H ≤ T` of an MST `T` by any minimum-weight outgoing edge of its
+  vertex set yields a subgraph of an MST `T'`.
+* `SimpleGraph.IsMOE.mem_edgeSet_of_isMST_of_injOn`: **Distinct-weight cut / blue-rule theorem** —
+  when `w` is injective on `G.edgeSet`, every minimum-weight outgoing edge across any cut belongs to
+  every MST of `G`.
+* `SimpleGraph.exists_isMOE`, `SimpleGraph.existsUnique_isMOE_of_injOn`: existence (and uniqueness
   under injective edge weights) of the minimum-weight outgoing edge of any nonempty proper vertex
   subset `S` in a finite connected graph.
-* `Cslib.Distributed.MinimumSpanningTree.exists_isMST`: every finite connected graph admits a
-  minimum-weight spanning tree.
-* `Cslib.Distributed.MinimumSpanningTree.IsMST.eq_of_injOn`,
-  `Cslib.Distributed.MinimumSpanningTree.existsUnique_isMST_of_injOn`: **GHS Property 2**
+* `SimpleGraph.exists_isMST`: every finite connected graph admits a minimum-weight spanning tree.
+* `SimpleGraph.IsMST.eq_of_injOn`, `SimpleGraph.existsUnique_isMST_of_injOn`: **GHS Property 2**
   ([GallagerHumbletSpira1983], §2, p. 68) — when `w` is injective on `G.edgeSet`, the minimum
   spanning tree of a finite connected graph is unique.
-* `Cslib.Distributed.MinimumSpanningTree.le_of_forall_isMOE_of_isMST_of_injOn`,
-  `Cslib.Distributed.MinimumSpanningTree.isAcyclic_of_forall_isMOE_of_injOn`,
-  `Cslib.Distributed.MinimumSpanningTree.isMST_of_forall_isMOE_of_connected_of_injOn`: any subgraph
-  whose edges are all cut-MOEs is contained in the unique MST, hence acyclic, and equals the unique
-  MST once connected.
+* `SimpleGraph.le_of_forall_isMOE_of_isMST_of_injOn`,
+  `SimpleGraph.isAcyclic_of_forall_isMOE_of_injOn`,
+  `SimpleGraph.isMST_of_forall_isMOE_of_connected_of_injOn`: any subgraph whose edges are all
+  cut-MOEs is contained in the unique MST, hence acyclic, and equals the unique MST once connected.
 
 ## References
 
@@ -74,9 +69,7 @@ property, and distinct-weight MST uniqueness on Mathlib's `SimpleGraph V`, follo
 
 public section
 
-namespace Cslib.Distributed.MinimumSpanningTree
-
-open SimpleGraph
+namespace SimpleGraph
 
 /-! ### Spanning trees, edge-weight sums, and minimum spanning trees -/
 
@@ -143,11 +136,11 @@ theorem isOutgoingEdge_mk {V : Type*} {G : SimpleGraph V} {S : Finset V} {u v : 
     e
 
 @[simp]
-theorem crossesCut_mk {V : Type*} [DecidableEq V] (S : Finset V) (u v : V) :
+private theorem crossesCut_mk {V : Type*} [DecidableEq V] (S : Finset V) (u v : V) :
     crossesCut S s(u, v) = (decide (u ∈ S) != decide (v ∈ S)) :=
   rfl
 
-theorem crossesCut_eq_true_iff {V : Type*} [DecidableEq V] (S : Finset V) (e : Sym2 V) :
+private theorem crossesCut_eq_true_iff {V : Type*} [DecidableEq V] (S : Finset V) (e : Sym2 V) :
     crossesCut S e = true ↔ ∃ u ∈ S, ∃ v ∉ S, e = s(u, v) := by
   induction e using Sym2.ind with
   | _ x y =>
@@ -543,4 +536,4 @@ theorem isMST_of_forall_isMOE_of_connected_of_injOn {V W : Type*} [Finite V]
     rw [← SimpleGraph.edgeSet_inj, ← H.coe_edgeFinset, ← T.coe_edgeFinset, hfin_eq]
   exact heq ▸ hMST
 
-end Cslib.Distributed.MinimumSpanningTree
+end SimpleGraph

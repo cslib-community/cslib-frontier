@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
-public import CslibFrontier.Computability.Distributed.MinimumSpanningTree.BlueRule
+public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.MinimumSpanningTree
 public import Cslib.Foundations.Semantics.LTS.Basic
 import Mathlib.Data.Nat.Log
 
@@ -227,11 +227,11 @@ message counters are zero. -/
     e
 
 @[simp]
-theorem bothIn_mk {V : Type*} [DecidableEq V] (S : Finset V) (u v : V) :
+private theorem bothIn_mk {V : Type*} [DecidableEq V] (S : Finset V) (u v : V) :
     bothIn S s(u, v) = (decide (u ∈ S) && decide (v ∈ S)) :=
   rfl
 
-theorem bothIn_eq_true_iff {V : Type*} [DecidableEq V] (S : Finset V) (e : Sym2 V) :
+private theorem bothIn_eq_true_iff {V : Type*} [DecidableEq V] (S : Finset V) (e : Sym2 V) :
     bothIn S e = true ↔ ∀ x ∈ e, x ∈ S := by
   induction e using Sym2.ind with
   | _ u v =>
@@ -250,12 +250,13 @@ theorem bothIn_eq_true_iff {V : Type*} [DecidableEq V] (S : Finset V) (e : Sym2 
     e
 
 @[simp]
-theorem betweenSets_mk {V : Type*} [DecidableEq V] (S₁ S₂ : Finset V) (u v : V) :
+private theorem betweenSets_mk {V : Type*} [DecidableEq V] (S₁ S₂ : Finset V) (u v : V) :
     betweenSets S₁ S₂ s(u, v) =
       ((decide (u ∈ S₁) && decide (v ∈ S₂)) || (decide (u ∈ S₂) && decide (v ∈ S₁))) :=
   rfl
 
-theorem betweenSets_eq_true_iff {V : Type*} [DecidableEq V] (S₁ S₂ : Finset V) (e : Sym2 V) :
+private theorem betweenSets_eq_true_iff {V : Type*} [DecidableEq V] (S₁ S₂ : Finset V)
+    (e : Sym2 V) :
     betweenSets S₁ S₂ e = true ↔ ∃ u ∈ S₁, ∃ v ∈ S₂, e = s(u, v) := by
   induction e using Sym2.ind with
   | _ x y =>
@@ -274,7 +275,7 @@ theorem betweenSets_eq_true_iff {V : Type*} [DecidableEq V] (S₁ S₂ : Finset 
     [Fintype G.edgeSet] (s : FragState V) (S : Finset V) : Bool :=
   decide (∀ c ∈ G.edgeFinset, bothIn S c = true → s.edgeState c ≠ .basic)
 
-theorem noBasicInternalEdges_eq_true_iff {V : Type*} [DecidableEq V] (G : SimpleGraph V)
+private theorem noBasicInternalEdges_eq_true_iff {V : Type*} [DecidableEq V] (G : SimpleGraph V)
     [Fintype G.edgeSet] (s : FragState V) (S : Finset V) :
     noBasicInternalEdges G s S = true ↔
       ∀ c ∈ G.edgeFinset, bothIn S c = true → s.edgeState c ≠ .basic := by
