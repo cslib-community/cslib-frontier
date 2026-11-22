@@ -31,8 +31,8 @@ Markov counts distinct negative subformulas in systems of AND/OR/NOT/constant fo
 the conventions of his 1957 paper retained in [Markov1963, §2]. Identical negative subformulas
 can therefore be shared. The formal theorem uses native shared circuits. The upper proof
 synthesizes monotone functions using AND, OR and constants without additional negations. The chain
-maximum is attained on a nonempty strictly increasing chain (`exists_strict_chain_decrease`), matching
-the source convention. The statements also cover zero inputs and zero outputs.
+maximum is attained on a nonempty strictly increasing chain (`exists_strict_chain_decrease`),
+matching the source convention. The statements also cover zero inputs and zero outputs.
 
 ## Main results
 
