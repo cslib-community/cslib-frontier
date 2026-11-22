@@ -6890,6 +6890,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.SparseEquations.Degree
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseHermiteRecovery
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseIncidence
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseReplacementDesign
+public import CslibFrontier.Foundations.BooleanAnalysis.SpectralConcentration
 public import CslibFrontier.Foundations.BooleanAnalysis.SpectralSample
 public import CslibFrontier.Foundations.BooleanAnalysis.StableInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.Subcube
