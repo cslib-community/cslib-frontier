@@ -4,7 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Logics.Propositional.Resolution.LineProof
+import CslibFrontier.Logics.Propositional.Resolution.SemanticDerivation
 
 /-!
 # Tests: `LineProof` DAG combinators, simulation and semantic refutations

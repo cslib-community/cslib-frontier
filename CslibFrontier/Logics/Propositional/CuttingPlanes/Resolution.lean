@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
-public import CslibFrontier.Logics.Propositional.Resolution.LineProof
+public import CslibFrontier.Logics.Propositional.Resolution.Proof
 import Mathlib.Tactic.Abel
 
 /-!

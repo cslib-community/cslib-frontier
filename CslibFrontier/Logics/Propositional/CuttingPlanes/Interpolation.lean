@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CuttingPlanes
+public import CslibFrontier.Logics.Propositional.LineProof.SemanticDerivation
 public import CslibFrontier.Logics.Propositional.SemanticDerivation
 import CslibFrontier.Computability.Communication.BinarySearch
 import Mathlib.Algebra.BigOperators.Fin
