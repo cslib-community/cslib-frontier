@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Alternation.TQBF
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 import CslibFrontier.Computability.Complexity.Classes.Alternation.Savitch
 import CslibFrontier.Computability.Complexity.Classes.Inclusions
 import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime
@@ -24,9 +25,9 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.NormalForm
 
 A quantified Boolean formula is in **alternating prenex conjunctive normal form** when it is
 `∃ x₁, ∀ y₁, ⋯, ∃ xₙ, ∀ yₙ, ψ` for a formula `ψ` in conjunctive normal form
-(`Cslib.Logic.PL.QBF.rounds`, `Cslib.Logic.PL.QBF.ofCNF`). `TQBFCNF` is the set of pairs of a list
-of rounds `(xᵢ, yᵢ)` and a formula `ψ` whose formula is a true closed formula
-(`Cslib.Complexity.TQBF`).
+(`Cslib.Logic.PL.QBF.rounds`, `Cslib.Logic.PL.QBF.ofCNF`). `TQBFCNF` is the set of instances
+`x : PrenexCNF` consisting of a list `x.rounds` of rounds `(xᵢ, yᵢ)` and a formula `x.matrix`
+whose prenex formula is a true closed formula (`Cslib.Complexity.TQBF`).
 The game played on such a formula is Sipser's FORMULA-GAME [Sipser, Theorem 8.11][Sipser2013],
 the starting point of the textbook `PSPACE`-hardness proofs of games such as Generalized Geography
 [Sipser, Theorem 8.14][Sipser2013].
@@ -37,15 +38,16 @@ games (`Cslib.Complexity.TQBF.gameFormula`), which every problem in `PSPACE` red
 (`Cslib.Complexity.exists_isGameVerifier_of_mem_PSPACE`), are already almost in this form: rounds
 over the moves, then existential quantifiers over the variables of a Cook–Levin tableau and the
 conjunction of the tableau with equivalences linking its certificate variables to the moves. Each
-equivalence `a ↔ b` is written as the two clauses `¬a ∨ b` and `a ∨ ¬b`
-(`Cslib.Complexity.TQBF.certLinkCNF`), and each existential quantifier `∃ v` becomes the round
-`∃ v, ∀ d` over a fixed variable `d` that occurs nowhere else (`Cslib.Complexity.TQBF.dummyVar`),
+equivalence `a ↔ b` is written as the two clauses `¬a ∨ b` and `a ∨ ¬b`, and each existential
+quantifier `∃ v` becomes the round `∃ v, ∀ d` over a fixed variable `d` that occurs nowhere else,
 which does not change the value (`Cslib.Logic.PL.QBF.eval_rounds_map_pair`).
 
 ## Main definitions
 
-* `Cslib.Complexity.TQBFCNF`, `Cslib.Complexity.encPrenexCNF`: the problem and its encoding.
-* `Cslib.Complexity.TQBF.prenexReduce`: the formula of a game in alternating prenex conjunctive
+* `Cslib.Complexity.PrenexCNF`, `Cslib.Complexity.encPrenexCNF`, `Cslib.Complexity.TQBFCNF`:
+  alternating prenex CNF instances, their encoding, and the problem of true closed instances.
+* `Cslib.Complexity.TQBF.prenexPairs`, `Cslib.Complexity.TQBF.prenexMatrix`,
+  `Cslib.Complexity.TQBF.prenexReduce`: the formula of a game in alternating prenex conjunctive
   normal form.
 
 ## Main results
@@ -64,21 +66,42 @@ which does not change the value (`Cslib.Logic.PL.QBF.eval_rounds_map_pair`).
 * [L. Stockmeyer, A. Meyer, *Word problems requiring exponential time*][StockmeyerMeyer1973]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Complexity
 
 open _root_.Turing _root_.Turing.MultiTapeTM Cslib.Logic.PL
 
-/-- Instances `(ps, ψ)` of `TQBFCNF`: the rounds of quantifiers as framed pairs of binary
-variables, and the formula as in `Cslib.Complexity.encCNF`. -/
-abbrev encPrenexCNF : List (ℕ × ℕ) × CNF ℕ ↪ List Bool :=
-  encPair (encList (encPair encNat encNat)) encCNF
+/-- An instance of `TQBFCNF`: a list `rounds` of alternating `(∃ xᵢ, ∀ yᵢ)` variable pairs together
+with a quantifier-free body `matrix` in conjunctive normal form. -/
+@[ext]
+structure PrenexCNF where
+  /-- Alternating quantifier rounds `(x₁, y₁), …, (xₙ, yₙ)`, read as `∃ x₁, ∀ y₁, …, ∃ xₙ, ∀ yₙ`. -/
+  rounds : List (ℕ × ℕ)
+  /-- The quantifier-free body `ψ` in conjunctive normal form. -/
+  matrix : CNF ℕ
+  deriving DecidableEq
 
-/-- **True closed formulas in alternating prenex conjunctive normal form**: the pairs of rounds
-`(x₁, y₁), …, (xₙ, yₙ)` and a formula `ψ` in conjunctive normal form such that
-`∃ x₁, ∀ y₁, ⋯, ∃ xₙ, ∀ yₙ, ψ` is a true closed formula. -/
-def TQBFCNF : Set (List (ℕ × ℕ) × CNF ℕ) := {x | QBF.rounds x.1 (QBF.ofCNF x.2) ∈ TQBF}
+/-- Encoding of `PrenexCNF`: the framed list of `(∃, ∀)` binary variable pairs
+(`encList (encPair encNat encNat)`) followed by `Cslib.Complexity.encCNF` of the matrix, preserving
+the exact encoded words of `encPair (encList (encPair encNat encNat)) encCNF`. -/
+enc_structure encPrenexCNF : PrenexCNF where
+  rounds : (encList (encPair encNat encNat)), matrix : encCNF
+
+/-- **True closed formulas in alternating prenex conjunctive normal form**: the instances
+`⟨rounds, ψ⟩ : PrenexCNF` such that `∃ x₁, ∀ y₁, ⋯, ∃ xₙ, ∀ yₙ, ψ` is a true closed formula. -/
+def TQBFCNF : Set PrenexCNF := {x | QBF.rounds x.rounds (QBF.ofCNF x.matrix) ∈ TQBF}
+
+/-- An instance `x` belongs to `TQBFCNF` iff `QBF.rounds x.rounds (QBF.ofCNF x.matrix) ∈ TQBF`. -/
+theorem mem_TQBFCNF {x : PrenexCNF} :
+    x ∈ TQBFCNF ↔ QBF.rounds x.rounds (QBF.ofCNF x.matrix) ∈ TQBF :=
+  Iff.rfl
+
+/-- `⟨ps, ψ⟩ ∈ TQBFCNF` iff `QBF.rounds ps (QBF.ofCNF ψ) ∈ TQBF`. -/
+@[simp]
+theorem mk_mem_TQBFCNF {ps : List (ℕ × ℕ)} {ψ : CNF ℕ} :
+    (⟨ps, ψ⟩ : PrenexCNF) ∈ TQBFCNF ↔ QBF.rounds ps (QBF.ofCNF ψ) ∈ TQBF :=
+  Iff.rfl
 
 namespace TQBF
 
@@ -102,7 +125,7 @@ variable {k : ℕ} {State : Type} [Fintype State]
 
 /-- The links of the certificate variables to the blocks of level `0` (`certLinks`) as clauses:
 `¬a ∨ b` and `a ∨ ¬b` for each link `a ↔ b`. -/
-noncomputable def certLinkCNF (k : ℕ) (State : Type) [Fintype State] (w : ℕ) : CNF ℕ :=
+private noncomputable def certLinkCNF (k : ℕ) (State : Type) [Fintype State] (w : ℕ) : CNF ℕ :=
   (List.range (2 * w)).flatMap fun j =>
     [[(tabVar (CookLevin.Var.cert (k := k) (State := State) j), false), (certVar w j, true)],
       [(tabVar (CookLevin.Var.cert (k := k) (State := State) j), true), (certVar w j, false)]]
@@ -119,7 +142,7 @@ private theorem eval_certLinkCNF (w : ℕ) (σ : ℕ → Bool) :
 
 /-- A variable of the blocks of level `0` that no formula of a game uses: the first variable of
 the midpoint block of level `0`. -/
-def dummyVar : ℕ := blockVar 2 0 0
+private def dummyVar : ℕ := blockVar 2 0 0
 
 private theorem dummyVar_ne_tabVar (v : CookLevin.Var k State) : dummyVar ≠ tabVar v := by
   intro h
@@ -178,12 +201,13 @@ private theorem dummyVar_notMem_freeVars (tab : CNF (CookLevin.Var k State)) (w 
 theorem eval_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) (σ : ℕ → Bool) :
     (QBF.rounds (prenexPairs tab w) (QBF.ofCNF (prenexMatrix tab w))).eval σ =
       (gameFormula tab w).eval σ := by
-  rw [prenexPairs, QBF.rounds_append, gameFormula]
+  dsimp only [prenexPairs]
+  rw [QBF.rounds_append, gameFormula]
   refine QBF.eval_rounds_congr (fun τ => ?_) _ σ
   rw [QBF.eval_rounds_map_pair (dummyVar_notMem_freeVars tab w), baseFormula, baseMatrix]
   refine QBF.eval_exs_congr (fun τ => ?_) _ τ
-  rw [QBF.eval_ofCNF, prenexMatrix, CNF.eval_append, eval_certLinkCNF, QBF.eval_and,
-    QBF.eval_ofCNF]
+  dsimp only [prenexMatrix]
+  rw [QBF.eval_ofCNF, CNF.eval_append, eval_certLinkCNF, QBF.eval_and, QBF.eval_ofCNF]
 
 /-- **The normal form of the formula of a game is closed.** -/
 theorem closed_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
@@ -193,7 +217,8 @@ theorem closed_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
   obtain ⟨hx, hnot⟩ := hx
   apply hnot
   have hbase : x ∈ baseVars tab w → x ∈ QBF.roundVars (prenexPairs tab w) := fun h => by
-    simp only [prenexPairs, QBF.roundVars, List.flatMap_append, List.mem_append,
+    dsimp only [prenexPairs]
+    simp only [QBF.roundVars, List.flatMap_append, List.mem_append,
       List.flatMap_map, List.mem_flatMap, List.mem_cons, List.not_mem_nil, or_false]
     exact Or.inr ⟨x, h, Or.inl rfl⟩
   rcases mem_vars_prenexMatrix hx with ⟨j, hj, rfl | rfl⟩ | ⟨v, hv, rfl⟩
@@ -204,7 +229,8 @@ theorem closed_prenex (tab : CNF (CookLevin.Var k State)) (w : ℕ) :
       split_ifs with hjw
       · exact List.mem_append_left _ (List.mem_map.2 ⟨j, List.mem_range.2 hjw, rfl⟩)
       · exact List.mem_append_right _ (List.mem_map.2 ⟨j - w, List.mem_range.2 (by omega), rfl⟩)
-    simp only [prenexPairs, QBF.roundVars, List.flatMap_append, List.mem_append] at this ⊢
+    dsimp only [prenexPairs]
+    simp only [QBF.roundVars, List.flatMap_append, List.mem_append] at this ⊢
     exact Or.inl this
   · exact hbase (List.mem_append_left _ (List.mem_map.2 ⟨v, hv, rfl⟩))
 
@@ -215,17 +241,18 @@ section Reduction
 variable {α : Type} (enc : α ↪ List Bool) (p : Polynomial ℕ)
 
 /-- The Cook–Levin tableau of the formula of a game (`gameReduce`). -/
-noncomputable def gameTableau {kV : ℕ} {StateV : Type} [Fintype StateV] [DecidableEq StateV]
-    (tmV : MultiTapeTM kV Bool StateV) (cV dV : ℕ) (a : α) : CNF (CookLevin.Var kV StateV) :=
+private noncomputable def gameTableau {kV : ℕ} {StateV : Type} [Fintype StateV]
+    [DecidableEq StateV] (tmV : MultiTapeTM kV Bool StateV) (cV dV : ℕ) (a : α) :
+    CNF (CookLevin.Var kV StateV) :=
   CookLevin.tableau tmV (frame (enc a)) (2 * p.eval (enc a).length)
     (cV * (2 * (enc a).length + 2 * p.eval (enc a).length + 2) ^ dV)
 
 /-- **The reduction of a game to `TQBFCNF`**: the formula of the game (`gameReduce`) in
 alternating prenex conjunctive normal form. -/
 noncomputable def prenexReduce {kV : ℕ} {StateV : Type} [Fintype StateV] [DecidableEq StateV]
-    (tmV : MultiTapeTM kV Bool StateV) (cV dV : ℕ) (a : α) : List (ℕ × ℕ) × CNF ℕ :=
-  (prenexPairs (gameTableau enc p tmV cV dV a) (p.eval (enc a).length),
-    prenexMatrix (gameTableau enc p tmV cV dV a) (p.eval (enc a).length))
+    (tmV : MultiTapeTM kV Bool StateV) (cV dV : ℕ) (a : α) : PrenexCNF :=
+  ⟨prenexPairs (gameTableau enc p tmV cV dV a) (p.eval (enc a).length),
+    prenexMatrix (gameTableau enc p tmV cV dV a) (p.eval (enc a).length)⟩
 
 variable {enc p}
 
@@ -234,7 +261,8 @@ variable {enc p}
 theorem prenexReduce_mem_TQBFCNF_iff {kV : ℕ} {StateV : Type} [Fintype StateV]
     [DecidableEq StateV] (tmV : MultiTapeTM kV Bool StateV) (cV dV : ℕ) (a : α) :
     prenexReduce enc p tmV cV dV a ∈ TQBFCNF ↔ gameReduce enc p tmV cV dV a ∈ TQBF := by
-  rw [TQBFCNF, Set.mem_ofPred_eq, prenexReduce,
+  dsimp only [prenexReduce]
+  rw [mk_mem_TQBFCNF,
     mem_TQBF_iff_of_closed (closed_prenex _ _) (fun _ => false), gameReduce,
     mem_TQBF_iff_of_closed (closed_gameFormula _ _) (fun _ => false), eval_prenex]
   rfl
@@ -288,7 +316,7 @@ theorem computableInPolyTime_prenexReduce {kV : ℕ} {StateV : Type} [Fintype St
       enc encCNF :=
     (listAppend (encList (encPair encNat encBool))).comp
       ((hlinks.comp hp).prod (hrelabel.comp htableau))
-  exact hpairs.prod hmatrix
+  exact encPrenexCNF_mk_polyTime hpairs hmatrix
 
 end Reduction
 
@@ -297,8 +325,7 @@ end TQBF
 /-- `TQBFCNF` is in `PSPACE`: writing the formula is polynomial-time. -/
 theorem TQBFCNF_mem_PSPACE : TQBFCNF ∈ PSPACE encPrenexCNF :=
   PolyTimeReducible.mem_PSPACE
-    ⟨fun x => QBF.rounds x.1 (QBF.ofCNF x.2), by unfold encPrenexCNF encCNF; fun_prop,
-      fun _ => Iff.rfl⟩
+    ⟨fun x => QBF.rounds x.rounds (QBF.ofCNF x.matrix), by fun_prop, fun _ => Iff.rfl⟩
     TQBF_mem_PSPACE
 
 /-- **`TQBFCNF` is `PSPACE`-hard**: a problem in `PSPACE` is a game of polynomially many moves

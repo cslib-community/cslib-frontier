@@ -6,7 +6,7 @@ Authors: Karn Seth
 
 module
 
-import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction
+import CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.PrvSim
 import CslibFrontier.Tactic.PolyTime
 
 /-!
@@ -14,14 +14,15 @@ import CslibFrontier.Tactic.PolyTime
 
 A client of `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Scheme`,
 `CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Efficient`,
-`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator` and
-`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction` under module encapsulation.
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Simulator`,
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.Reduction` and
+`CslibFrontier.Crypto.Primitives.Garbling.FreeXOR.PrvSim` under module encapsulation.
 
 We build two multi-gate circuits combining AND, OR and XOR gates with the same topology and XOR
 gate positions, verify that `phiXor` identifies them while hiding non-XOR gate truth tables, check
 garbling, evaluation and decoding across all eight inputs, check the simulator's efficiency,
-layout and decoding, and instantiate the reduction legality and oracle-PPT certificates on a
-stateful strict PPT adversary.
+layout and decoding, and instantiate the reduction certificates and
+`CircularCorrelationRobust.prvSim_freeXOR` on a stateful strict PPT adversary.
 -/
 
 set_option linter.privateModule false
@@ -172,8 +173,17 @@ example (k : ℕ) :
     CCR.IsTweakUnique ((CCR.codec k).adapt (FreeXOR.prvSimReduction toyHash adversary k [])) :=
   FreeXOR.isTweakUnique_prvSimReduction toyHash adversary k
 
-/-- At level `k = 5`, `prvSimReduction` enters the guarded branch and issues `16` oracle
-requests (`8` for each of `validCircuit₁`'s two non-XOR gates). -/
+/-- `validCircuit₁` has 4 gates, so `8 * q = 32 ≤ 2 ^ 5` at parameter `k = 5`. -/
+private theorem capacity_adversary {q : Query ValidCircuit} {state : Bool}
+    (h : (q, state) ∈ (ProbComp.eval ((adversary 5).choose ())).support) :
+    8 * q.fn.1.q ≤ 2 ^ 5 := by
+  simp only [adversary, ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff,
+    Prod.mk.injEq] at h
+  obtain ⟨rfl, -⟩ := h
+  decide
+
+/-- At `k = 5`, `prvSimReduction` enters the guarded branch and issues `16` oracle requests (`8` for
+each of `validCircuit₁`'s two non-XOR gates). -/
 example {State : Type} (oracle : Unit × List Bool → StateT State PMF (List Bool)) (s : State) :
     ∃ result s' transcript,
       (result, s', transcript) ∈
@@ -192,4 +202,22 @@ example {State : Type} (oracle : Unit × List Bool → StateT State PMF (List Bo
   rw [hlen]
   decide
 
+/-- At `k = 5`, the `prv.sim` advantage of `adversary` equals the CCR advantage of
+`prvSimReduction`. -/
+example : prvSimAdvantage (FreeXOR.scheme toyHash) FreeXOR.phiXor 5
+      (FreeXOR.simWord toyHash 5) (adversary 5) =
+    CCR.advantage (CCR.atLevel toyHash 5) CCR.offset CCR.offset
+      ((CCR.codec 5).adapt (FreeXOR.prvSimReduction toyHash adversary 5 [])) :=
+  FreeXOR.prvSimAdvantage_simWord_eq toyHash adversary 5 fun _ _ h _ => capacity_adversary h
+
+/-- Under circular correlation robustness, `CircularCorrelationRobust.prvSim_freeXOR` gives a PPT
+simulator for `adversary` with negligible `prv.sim` advantage over `phiXor`. -/
+example {hash : List Bool → List Bool → List Bool} (h : CircularCorrelationRobust hash) :
+    ∃ S : ℕ → PrvSimulator FreeXOR.XorTopology,
+      IsPPTOn (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encUnary
+        (Turing.MultiTapeTM.encPair Turing.MultiTapeTM.encBits FreeXOR.encXorTopology))
+        encPrvView (fun (k, y, φ) => S k y φ) ∧
+      Negligible fun k => prvSimAdvantage (FreeXOR.scheme hash) FreeXOR.phiXor k (S k)
+        (adversary k) :=
+  h.prvSim_freeXOR Bool Turing.MultiTapeTM.encBool adversary adversary_isPPT
 end CslibFrontierTests.Crypto.GarblingFreeXORFamily

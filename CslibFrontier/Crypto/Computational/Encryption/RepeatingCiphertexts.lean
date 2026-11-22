@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.ListCollision
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
 import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 import CslibFrontier.Crypto.Negligible.Basic
@@ -20,7 +21,6 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
 import CslibFrontier.Probability.PMF.Support
 import CslibFrontier.Tactic.PPT
-import CslibFrontier.Tactic.PolyTime
 
 /-!
 # Repeating Ciphertexts under Chosen-Plaintext Attack
@@ -102,12 +102,6 @@ with `[]` without logging), and output `true` iff two logged ciphertexts are equ
   let out ← ProbComp.eval (((A n []).runState (E.ciEncryptionOracle n k)).run [])
   return !decide out.2.Nodup
 
-/-- Boolean check on the `(ciphertext, randomMsg)` transcript of `repeatToCPAAdversary`: returns
-`true` iff two recorded entries have the same ciphertext and distinct right-hand challenge
-messages. -/
-private def hasDistinctCollision (seen : List (List Bool × List Bool)) : Bool :=
-  seen.any fun p => seen.any fun q => (p.1 == q.1) && (p.2 != q.2)
-
 /-- Stateful handler for `repeatToCPAAdversary` ([BonehShoup2023], Exercise 5.12, printed p. 211):
 on an `n`-bit query `m`, sample a uniform `n`-bit string `r ← BitString.sampleList n`, query the
 left-or-right CPA oracle on `(m, r)`, truncate the reply to `bound` bits, and prepend `(c, r)` to
@@ -136,11 +130,6 @@ noncomputable def repeatToCPAAdversary {α : Type} (ctBound : ℕ → ℕ)
         (repeatWrapperStep n (ctBound n)))
       (A n [])).run []
     return hasDistinctCollision out.2
-
-private theorem computableInPolyTime_hasDistinctCollision :
-    ComputableInPolyTime hasDistinctCollision (encList (encPair encBits encBits)) encBool := by
-  unfold hasDistinctCollision
-  polytime
 
 /-- `repeatToCPAAdversary ctBound A` is uniformly strict oracle-PPT whenever `ctBound` is
 computable in unary polynomial time and `A` is uniformly strict oracle-PPT. -/
@@ -212,7 +201,7 @@ theorem isOraclePPT_repeatToCPAAdversary {α : Type} {encOut : α ↪ List Bool}
   have hpost : ComputableInPolyTime
       (fun out : α × List (List Bool × List Bool) => hasDistinctCollision out.2)
       (encPair encOut EState) encBool :=
-    computableInPolyTime_hasDistinctCollision.comp (ComputableInPolyTime.snd _ _)
+    (polyTime_hasDistinctCollision encBits encBits).comp (ComputableInPolyTime.snd _ _)
   simpa only [bind_pure_comp] using (IsOraclePPTOn.map hrun hpost).isOraclePPT
 
 /-- In Experiment `true` (`b = 1`), every recorded entry `(c, r)` in `repeatToCPAAdversary`

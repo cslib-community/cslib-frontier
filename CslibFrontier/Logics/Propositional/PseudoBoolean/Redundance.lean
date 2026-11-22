@@ -2979,38 +2979,8 @@ private theorem holds_of_allHold_initDb {σ : ℕ → Bool} {F : List PBConstr}
 /-- A step keeps every constraint of the database that it does not delete. -/
 private theorem runStep_mem {db db' : List (ℕ × PBConstr)} {n n' : ℕ} {st : Step}
     (h : runStep db n st = some (db', n')) {e : ℕ × PBConstr} (he : e ∈ db)
-    (hd : st.delIds.contains e.1 = false) : e ∈ db' := by
-  cases st with
-  | pol ops =>
-    simp only [runStep] at h
-    split at h
-    · simp only [Option.some.injEq, Prod.mk.injEq] at h
-      exact h.1 ▸ List.mem_cons_of_mem _ he
-    · cases h
-  | rup c hs =>
-    simp only [runStep] at h
-    split at h
-    · simp only [Option.some.injEq, Prod.mk.injEq] at h
-      exact h.1 ▸ List.mem_cons_of_mem _ he
-    · cases h
-  | rupSearch c =>
-    simp only [runStep] at h
-    split at h
-    · simp only [Option.some.injEq, Prod.mk.injEq] at h
-      exact h.1 ▸ List.mem_cons_of_mem _ he
-    · cases h
-  | pbc c sub q =>
-    simp only [runStep, Option.map_eq_some_iff] at h
-    obtain ⟨m, -, hm⟩ := h
-    simp only [Prod.mk.injEq] at hm
-    exact hm.1 ▸ List.mem_cons_of_mem _ he
-  | del ids =>
-    simp only [runStep] at h
-    split at h
-    · simp only [Option.some.injEq, Prod.mk.injEq] at h
-      rw [← h.1, List.mem_filter]
-      exact ⟨he, by simpa [Step.delIds] using hd⟩
-    · cases h
+    (hd : st.delIds.contains e.1 = false) : e ∈ db' :=
+  (runStep_effect _ _ _ _ _ h).mem he fun _ hst => by simpa [hst, Step.delIds] using hd
 
 /-- **The core invariant** of a state for the formula `F` and the input objective `obj`: CakePB's
 `valid_conf`, the `chk` part of `check_csteps_correct`, and its `id_ok`. -/

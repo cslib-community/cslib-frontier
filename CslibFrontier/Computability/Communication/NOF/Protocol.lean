@@ -50,6 +50,8 @@ announces the value (`NOF.Protocol.ecomplexityFun_le_succ`).
   complexity.
 * `Cslib.Communication.NOF.Protocol.sendBits`: a player writes a bit string.
 * `Cslib.Communication.NOF.Protocol.sendEach`: several players write one bit each.
+* `Cslib.Communication.NOF.Protocol.bind`, `Cslib.Communication.NOF.Protocol.runAll`: running
+  protocols one after another.
 
 ## Main results
 
@@ -58,6 +60,8 @@ announces the value (`NOF.Protocol.ecomplexityFun_le_succ`).
   `Cslib.Communication.NOF.Protocol.le_ecomplexity_iff`: upper and lower bounds on communication
   complexity, and `Cslib.Communication.NOF.Protocol.ecomplexityFun_le_iff`,
   `Cslib.Communication.NOF.Protocol.le_ecomplexityFun_iff` for functions.
+* `Cslib.Communication.NOF.Protocol.depth_bind_le`,
+  `Cslib.Communication.NOF.Protocol.depth_runAll_le`: depth bounds for sequential composition.
 * `Cslib.Communication.NOF.Protocol.ecomplexityFun_le_succ`: the trivial protocol.
 
 ## References
@@ -147,34 +151,31 @@ noncomputable def ecomplexity (R : (∀ i, X i) → Z → Prop) (A : Set (∀ i,
   ⨅ p : {p : Protocol X Z // p.Solves R A}, (p.1.depth : ℕ∞)
 
 theorem ecomplexity_le_depth (hp : p.Solves R A) : ecomplexity R A ≤ p.depth :=
-  iInf_le (fun p : {p : Protocol X Z // p.Solves R A} => (p.1.depth : ℕ∞)) ⟨p, hp⟩
+  ENat.iInf_subtype_natCast_le hp
 
-theorem ecomplexity_ne_top_iff : ecomplexity R A ≠ ⊤ ↔ ∃ p : Protocol X Z, p.Solves R A := by
-  rw [ecomplexity, ENat.iInf_natCast_ne_top, nonempty_subtype]
+theorem ecomplexity_ne_top_iff : ecomplexity R A ≠ ⊤ ↔ ∃ p : Protocol X Z, p.Solves R A :=
+  ENat.iInf_subtype_natCast_ne_top_iff
 
 /-- When some protocol solves `R`, the least depth is attained. -/
 theorem exists_solves_depth_eq_ecomplexity (h : ∃ p : Protocol X Z, p.Solves R A) :
-    ∃ p : Protocol X Z, p.Solves R A ∧ (p.depth : ℕ∞) = ecomplexity R A := by
-  have : Nonempty {p : Protocol X Z // p.Solves R A} := nonempty_subtype.mpr h
-  obtain ⟨⟨p, hp⟩, hmin⟩ :=
-    ENat.exists_eq_iInf (fun p : {p : Protocol X Z // p.Solves R A} => (p.1.depth : ℕ∞))
-  exact ⟨p, hp, hmin⟩
+    ∃ p : Protocol X Z, p.Solves R A ∧ (p.depth : ℕ∞) = ecomplexity R A :=
+  ENat.exists_eq_iInf_subtype_natCast h
 
 /-- Upper bounds on communication complexity: `R` has communication complexity at most `k` on `A`
 exactly when some protocol of depth at most `k` solves it. -/
 theorem ecomplexity_le_iff {k : ℕ} :
-    ecomplexity R A ≤ k ↔ ∃ p : Protocol X Z, p.Solves R A ∧ p.depth ≤ k := by
-  simp only [ecomplexity, ENat.iInf_natCast_le_natCast_iff, Subtype.exists, exists_prop]
+    ecomplexity R A ≤ k ↔ ∃ p : Protocol X Z, p.Solves R A ∧ p.depth ≤ k :=
+  ENat.iInf_subtype_natCast_le_natCast_iff
 
 /-- Lower bounds on communication complexity are lower bounds on the depth of every protocol
 solving the relation, including when there is none. -/
 theorem le_ecomplexity_iff {k : ℕ∞} :
-    k ≤ ecomplexity R A ↔ ∀ p : Protocol X Z, p.Solves R A → k ≤ p.depth := by
-  simp only [ecomplexity, le_iInf_iff, Subtype.forall]
+    k ≤ ecomplexity R A ↔ ∀ p : Protocol X Z, p.Solves R A → k ≤ p.depth :=
+  ENat.le_iInf_subtype_natCast_iff
 
 /-- Solving a relation on a larger set is harder. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) : ecomplexity R A' ≤ ecomplexity R A :=
-  le_iInf fun p => iInf_le_of_le ⟨p.1, p.2.mono hA⟩ le_rfl
+  ENat.iInf_subtype_natCast_mono fun _ hp => hp.mono hA
 
 /-- The communication complexity of computing `f` on all inputs: `ecomplexity` of the relation
 `f x = z` on all inputs. -/
@@ -188,19 +189,19 @@ theorem solves_univ_iff : p.Solves (fun x z => f x = z) Set.univ ↔ p.run = f :
   ⟨fun h => funext fun x => (h x trivial).symm, fun h x _ => by rw [h]⟩
 
 theorem ecomplexityFun_le_depth (hp : p.run = f) : ecomplexityFun f ≤ p.depth :=
-  ecomplexity_le_depth (solves_univ_iff.mpr hp)
+  ENat.iInf_subtype_natCast_le_of_iff (fun _ => solves_univ_iff) hp
 
 /-- Computing `f` has communication complexity at most `k` exactly when some protocol of depth at
 most `k` computes `f`. -/
 theorem ecomplexityFun_le_iff {k : ℕ} :
-    ecomplexityFun f ≤ k ↔ ∃ p : Protocol X Z, p.run = f ∧ p.depth ≤ k := by
-  simp only [ecomplexityFun, ecomplexity_le_iff, solves_univ_iff]
+    ecomplexityFun f ≤ k ↔ ∃ p : Protocol X Z, p.run = f ∧ p.depth ≤ k :=
+  ENat.iInf_subtype_natCast_le_natCast_iff_of_iff fun _ => solves_univ_iff
 
 /-- Lower bounds on the communication complexity of `f` are lower bounds on the depth of every
 protocol computing `f`, including when there is none. -/
 theorem le_ecomplexityFun_iff {k : ℕ∞} :
-    k ≤ ecomplexityFun f ↔ ∀ p : Protocol X Z, p.run = f → k ≤ p.depth := by
-  simp only [ecomplexityFun, le_ecomplexity_iff, solves_univ_iff]
+    k ≤ ecomplexityFun f ↔ ∀ p : Protocol X Z, p.run = f → k ≤ p.depth :=
+  ENat.le_iInf_subtype_natCast_iff_of_iff fun _ => solves_univ_iff
 
 /-! ### Writing a bit string -/
 
@@ -295,6 +296,61 @@ theorem ecomplexityFun_le_succ {i j : ι} (hij : i ≠ j) {n : ℕ}
     funext fun x => ?_, depth_sendBits_le fun m => by simp⟩
   simp only [run_sendBits, run_speak, run_output, hanswer]
   cases f x <;> rfl
+
+/-! ### Sequencing protocols -/
+
+/-- Run `p`, then the protocol `q z` chosen by the output `z` of `p`: each leaf of `p` labelled
+`z` is replaced by `q z`. -/
+def bind {Z' : Type*} : Protocol X Z → (Z → Protocol X Z') → Protocol X Z'
+  | output z, q => q z
+  | speak i send p₀ p₁, q => speak i send (p₀.bind q) (p₁.bind q)
+
+@[simp] theorem run_bind {Z' : Type*} (p : Protocol X Z) (q : Z → Protocol X Z')
+    (x : ∀ i, X i) : (p.bind q).run x = (q (p.run x)).run x := by
+  induction p with
+  | output _ => rfl
+  | speak i send p₀ p₁ ih₀ ih₁ => cases h : send (view i x) <;> simp [bind, h, ih₀, ih₁]
+
+/-- Sequencing writes at most the bits of the first protocol and then those of the second. -/
+theorem depth_bind_le {Z' : Type*} {p : Protocol X Z} {q : Z → Protocol X Z'} {d : ℕ}
+    (hq : ∀ z, (q z).depth ≤ d) : (p.bind q).depth ≤ p.depth + d := by
+  induction p with
+  | output z => simpa [bind] using hq z
+  | speak _ _ _ _ ih₀ ih₁ =>
+    simp only [bind, depth_speak]
+    omega
+
+/-- Run the protocols `ps 0, …, ps (k - 1)` one after another and output `g` of their outputs. -/
+def runAll {Z' : Type*} :
+    {k : ℕ} → (Fin k → Protocol X Z) → ((Fin k → Z) → Z') → Protocol X Z'
+  | 0, _, g => output (g Fin.elim0)
+  | _ + 1, ps, g => (ps 0).bind fun z => runAll (Fin.tail ps) fun v => g (Fin.cons z v)
+
+@[simp] theorem run_runAll {Z' : Type*} {k : ℕ} (ps : Fin k → Protocol X Z)
+    (g : (Fin k → Z) → Z') (x : ∀ i, X i) :
+    (runAll ps g).run x = g fun t => (ps t).run x := by
+  induction k generalizing Z' with
+  | zero =>
+    simp only [runAll, run_output]
+    congr 1 with t : 1
+    exact t.elim0
+  | succ _ ih =>
+    rw [runAll, run_bind, ih]
+    congr 1 with t : 1
+    induction t using Fin.cases <;> rfl
+
+/-- Running `k` protocols of depth at most `d` one after another writes at most `k d` bits. -/
+theorem depth_runAll_le {Z' : Type*} {k : ℕ} {ps : Fin k → Protocol X Z}
+    {g : (Fin k → Z) → Z'} {d : ℕ} (hps : ∀ t, (ps t).depth ≤ d) :
+    (runAll ps g).depth ≤ k * d := by
+  induction k generalizing Z' with
+  | zero => simp [runAll]
+  | succ _ ih =>
+    rw [runAll]
+    refine (depth_bind_le fun _ => ih fun t => hps t.succ).trans ?_
+    have := hps 0
+    rw [Nat.succ_mul]
+    omega
 
 end Protocol
 

@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Redu
 public import CslibFrontier.Foundations.Combinatorics.AffineDisperser.Basic
 
 /-!
-# Deletion steps `(D1)`–`(D4)` for `4n - 10d` gate elimination
+# Deletion steps `(D1)`–`(D4)` for `4n - 9d` gate elimination
 
 Whenever any of the four deletion rules `(D1)`–`(D4)` of [Mishra and Santhanam][MishraSanthanam2027]
 applies to a valid state `S` for a `d`-affine disperser with `d < S.a`, one step reduces `m + s`
@@ -36,7 +36,7 @@ while keeping `Δa = 0` and `ΔW ≤ -1`.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.State.Valid.exists_unit_delete`: performing `(D4)` on a
   unit-degree unpaired parameter.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.State.Valid.step_of_deletion`: every available
-  deletion yields a valid step with `ΔW ≤ 10 Δa`.
+  deletion yields a valid step with `ΔW ≤ 9 Δa`.
 
 ## References
 
