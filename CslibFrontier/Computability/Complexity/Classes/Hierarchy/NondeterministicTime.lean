@@ -179,7 +179,6 @@ private theorem exists_computableInO_accepts (d : ℕ) : ∃ D, ComputableInO
   exact ⟨D, (h.mono_le (fun q => le_of_eq (e q).symm)
     (fun q => le_of_eq (e q).symm)).of_enc_eq fun _ => rfl⟩
 
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- The brute force at the end of an interval runs within time exponential in the description,
 the input and the certificate length. -/
 private theorem exists_computableInO_brute (d : ℕ) : ∃ K, ComputableInO

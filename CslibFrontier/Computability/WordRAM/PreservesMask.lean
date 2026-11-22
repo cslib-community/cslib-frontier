@@ -56,19 +56,22 @@ variable {B : Basis} {r r' : ℕ}
 namespace Op
 
 /-- Returns `true` iff `o` does not write a register satisfying `keep`. -/
-def preservesAll (keep : Fin r → Bool) : Op B r → Bool
-  | .const d _ | .copy d _ | .alu _ d _ | .load d _ => !(keep d)
-  | .store _ _ => true
+def preservesAll (keep : Fin r → Bool) (o : Op B r) : Bool :=
+  match o.dest with
+  | some d => !(keep d)
+  | none => true
 
 /-- Minimum written register index of `o`, or `r` for `store`. -/
-def writeStart : Op B r → ℕ
-  | .const d _ | .copy d _ | .alu _ d _ | .load d _ => d.val
-  | .store _ _ => r
+def writeStart (o : Op B r) : ℕ :=
+  match o.dest with
+  | some d => d.val
+  | none => r
 
 /-- Strict upper bound (`d.val + 1`) on the register index written by `o`, or `0` for `store`. -/
-def writeEnd : Op B r → ℕ
-  | .const d _ | .copy d _ | .alu _ d _ | .load d _ => d.val + 1
-  | .store _ _ => 0
+def writeEnd (o : Op B r) : ℕ :=
+  match o.dest with
+  | some d => d.val + 1
+  | none => 0
 
 /-- Returns `true` iff `o` observes the physical word size `w`. -/
 def readsWidthBool : Op B r → Bool
@@ -83,9 +86,14 @@ private theorem readsWidthBool_rename (f : Fin r → Fin r') (o : Op B r) :
     (o.rename f).readsWidthBool = o.readsWidthBool := by
   cases o <;> rfl
 
+private theorem dest_rename (f : Fin r → Fin r') (o : Op B r) :
+    (o.rename f).dest = o.dest.map f := by
+  cases o <;> rfl
+
 private theorem preservesAll_rename (keep : Fin r' → Bool) (f : Fin r → Fin r') (o : Op B r) :
     (o.rename f).preservesAll keep = o.preservesAll (keep ∘ f) := by
-  cases o <;> rfl
+  simp only [preservesAll, dest_rename]
+  cases o.dest <;> rfl
 
 end Op
 
@@ -108,13 +116,13 @@ theorem preservesAll_eq_true_iff (keep : Fin r → Bool) (c : Code B r) :
     c.preservesAll keep = true ↔ ∀ i : Fin r, keep i = true → c.Preserves i := by
   induction c with
   | op o =>
-    cases o with
-    | const d _ | copy d _ | alu _ d _ | load d _ =>
-      simp only [preservesAll, Op.preservesAll, Preserves, Op.dest, Bool.not_eq_true',
-        ne_eq, Option.some.injEq]
+    simp only [preservesAll, Op.preservesAll, Preserves]
+    cases o.dest with
+    | none => simp
+    | some d =>
+      simp only [Bool.not_eq_true', ne_eq, Option.some.injEq]
       exact ⟨fun h i hi heq => by subst heq; simp [hi] at h,
         fun h => Bool.eq_false_iff.mpr fun hd => h d hd rfl⟩
-    | store _ _ => simp [preservesAll, Op.preservesAll, Preserves, Op.dest]
   | seq c₁ c₂ ih₁ ih₂ =>
     simp only [preservesAll, Bool.and_eq_true, Preserves, ih₁, ih₂]
     exact ⟨fun ⟨h₁, h₂⟩ i hi => ⟨h₁ i hi, h₂ i hi⟩,
@@ -183,9 +191,12 @@ private theorem preserves_of_lt_writeStart {c : Code B r} {i : Fin r} (hi : i.va
     c.Preserves i := by
   induction c with
   | op o =>
-    cases o <;> simp only [Preserves, Op.dest, ne_eq, Option.some.injEq, writeStart,
-      Op.writeStart, reduceCtorEq, not_false_eq_true] at hi ⊢
-    all_goals exact fun h => Nat.ne_of_lt hi (congrArg Fin.val h).symm
+    simp only [Preserves, writeStart, Op.writeStart] at hi ⊢
+    cases h : o.dest with
+    | none => simp
+    | some d =>
+      simp only [h, ne_eq, Option.some.injEq] at hi ⊢
+      exact fun heq => Nat.ne_of_lt hi (congrArg Fin.val heq).symm
   | seq c₁ c₂ ih₁ ih₂ =>
     simp only [writeStart, lt_min_iff] at hi
     exact ⟨ih₁ hi.1, ih₂ hi.2⟩
@@ -205,9 +216,12 @@ private theorem preserves_of_writeEnd_le {c : Code B r} {i : Fin r} (hi : c.writ
     c.Preserves i := by
   induction c with
   | op o =>
-    cases o <;> simp only [Preserves, Op.dest, ne_eq, Option.some.injEq, writeEnd,
-      Op.writeEnd, reduceCtorEq, not_false_eq_true] at hi ⊢
-    all_goals exact fun h => absurd (congrArg Fin.val h) (by omega)
+    simp only [Preserves, writeEnd, Op.writeEnd] at hi ⊢
+    cases h : o.dest with
+    | none => simp
+    | some d =>
+      simp only [h, ne_eq, Option.some.injEq] at hi ⊢
+      exact fun heq => absurd (congrArg Fin.val heq) (by omega)
   | seq c₁ c₂ ih₁ ih₂ =>
     simp only [writeEnd, max_le_iff] at hi
     exact ⟨ih₁ hi.1, ih₂ hi.2⟩
