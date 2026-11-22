@@ -228,10 +228,7 @@ theorem negate_inj {l l' : Literal ℕ} (h : l.negate = l'.negate) : l = l' := b
   obtain ⟨v', b'⟩ := l'
   cases b <;> cases b' <;> simp_all [Std.Sat.Literal.negate]
 
-@[simp] theorem negate_negate (l : Literal ℕ) : l.negate.negate = l := by
-  simp [Std.Sat.Literal.negate]
-
-theorem negate_eq_iff {y l : Literal ℕ} : y.negate = l ↔ y = l.negate :=
+private theorem negate_eq_iff {y l : Literal ℕ} : y.negate = l ↔ y = l.negate :=
   ⟨fun h => by subst h; simp, fun h => by subst h; simp⟩
 
 theorem lits_append (M N : Trail) : Trail.lits (M ++ N) = Trail.lits M ++ Trail.lits N :=
@@ -316,7 +313,7 @@ theorem Marks.inv_empty (Cur M₀ : Trail) (V : List ℕ) : Marks.empty.Inv Cur 
 
 /-- Seeing the variable `v` adds one to the count of the seen variables of a trail assigning each
 variable once, if it is one of its variables. -/
-theorem countP_set_seen {s : Assign} {v : ℕ} (hv : s.assigned v = false) :
+private theorem countP_set_seen {s : Assign} {v : ℕ} (hv : s.assigned v = false) :
     ∀ {Cur : Trail}, (Trail.vars Cur).Nodup →
       (Cur.countP fun e => (s.set v (some true)).assigned e.lit.1) =
         (Cur.countP fun e => s.assigned e.lit.1) + if v ∈ Trail.vars Cur then 1 else 0
@@ -551,7 +548,7 @@ theorem trail_level (N M₀ : XTrail) (d : Literal ℕ) :
   simp
 
 /-- An assignment agreeing with the current level has values only on the literals above. -/
-theorem value_eq_none_of_agrees {cur : Assign} {Cur A : Trail} (h : cur.Agrees Cur)
+private theorem value_eq_none_of_agrees {cur : Assign} {Cur A : Trail} (h : cur.Agrees Cur)
     (hA : Trail.lits Cur ⊆ Trail.lits A) : ∀ v, v ∉ Trail.vars A → cur.value v = none :=
   fun v hv => by
     cases hc : cur.value v with
@@ -592,7 +589,7 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
         simp only [List.nil_append, XTrail.trail_cons, XEntry.entry_decision, Trail.vars,
           List.map_cons, List.nodup_cons] at hnd
         exact hnd.1 h)
-      cur (value_eq_none_of_agrees hcurA hA)
+      cur (by exact value_eq_none_of_agrees hcurA hA)
   | .decision _ :: _, _, _, _, _, _, _, _, _, _, hdec, _ =>
     absurd (hdec _ List.mem_cons_self) (by simp)
   | .implied l r :: N', hA, cur, hcurA, m, hm, hpath, hints, hh, hreasons, hdec, hnd =>
@@ -621,7 +618,7 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
     if hs : m.seen.assigned l.1 = true then
       if hp : m.path = 1 then
         m.learned log l false hm hs hp hints hh (hA (mem_lits_cons.2 (.inl rfl))) hlM
-          cur (value_eq_none_of_agrees hcurA hA)
+          cur (by exact value_eq_none_of_agrees hcurA hA)
       else
         match hR : log.clause? r with
         | none => absurd hreasons.isSome (by simp [hR])
@@ -673,11 +670,11 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
 /-- **First-UIP conflict analysis.** Above the newest decision `d`, with the implied literals `N`
 over it and the trail `M₀` below it, the clause numbered `i` is false and has a literal false at
 the current level. Its literals are marked (`Cslib.Algorithms.Lean.CDCL.Marks.absorb`), and the
-analysis walks down the level (`Cslib.Algorithms.Lean.CDCL.analyzeGo`), adding the reasons of the
-entries whose variables are seen, until one seen variable is left on the level, its first unique
-implication point, which is reached at the latest at the decision. The learned clause is never
-false at the current level elsewhere, and the hints, the reasons added, oldest first, and then the
-clause `i`, refute it by unit propagation. -/
+analysis walks down the level, adding the reasons of the entries whose variables are seen, until
+one seen variable is left on the level, its first unique implication point, which is reached at
+the latest at the decision. The learned clause is never false at the current level elsewhere, and
+the hints, the reasons added, oldest first, and then the clause `i`, refute it by unit
+propagation. -/
 def analyze (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) (N : XTrail)
     (hA : Trail.lits (XTrail.trail N ++ [⟨d, true⟩]) ⊆ Trail.lits A) (cur : Assign)
     (hcurA : cur.Agrees (XTrail.trail N ++ [⟨d, true⟩])) (i : ℕ) (C : Clause ℕ)
