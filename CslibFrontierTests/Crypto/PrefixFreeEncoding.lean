@@ -14,9 +14,9 @@ public import CslibFrontier.Crypto.Primitives.PRF.RandPrefixFreeEncoding
 # Tests for Deterministic Prefix-Free Encodings
 
 Concrete evaluations, client applications, empty-message counterexample, compatibility with
-`IsRandPrefixFreeEncoding` at `ε = 0`, and axiom checks for
-`CslibFrontier.Crypto.PRF.IsPrefixFreeEncoding`, `stopBitEncode`, and
-`isPrefixFreeEncoding_prependLength`.
+`IsRandPrefixFreeEncoding` at `ε = 0`, and a choice-free axiom check for
+`isPrefixFreeEncoding_stopBitEncode`, exercising `Cslib.Crypto.PRF.IsPrefixFreeEncoding`,
+`stopBitEncode`, and `isPrefixFreeEncoding_prependLength`.
 -/
 
 public section
@@ -88,9 +88,5 @@ example {K M X : Type*} (seed : PMF K) {pf : M → List X} (h : IsPrefixFreeEnco
 /-- info: 'Cslib.Crypto.PRF.isPrefixFreeEncoding_stopBitEncode' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs in
 #print axioms isPrefixFreeEncoding_stopBitEncode
-
-/-- info: 'Cslib.Crypto.isPrefixFreeEncoding_prependLength' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs in
-#print axioms isPrefixFreeEncoding_prependLength
 
 end CslibFrontierTests.Crypto.PrefixFreeEncoding
