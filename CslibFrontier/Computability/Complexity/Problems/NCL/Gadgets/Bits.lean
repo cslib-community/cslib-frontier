@@ -19,10 +19,6 @@ concatenate in the same creation order as their diagrams.
 ## Main definitions
 
 * `Cslib.Complexity.NCL.Gate.extendedBits`: created-edge bits of a primitive expansion.
-
-## Main results
-
-* `Cslib.Complexity.NCL.Gate.extendedBits_comp_realization`: stacking concatenates bits.
 * `Cslib.Complexity.NCL.Gate.bitMap`: the shared compositional bit-map interface.
 
 ## References
@@ -66,15 +62,6 @@ private theorem extendedBits_tensor (D₁ : Diagram Gate a b) (D₂ : Diagram Ga
     extendedBits (D₁.tensor D₂) s =
       extendedBits D₁ (s ∘ tensorLeft D₁ D₂) ++ extendedBits D₂ (s ∘ tensorRight D₁ D₂) :=
   OpenSim.bits_tensor (openSimSubst expandOpenSim D₁) (openSimSubst expandOpenSim D₂) s
-
-/-- Expanded stacked realizations serialize by concatenation. -/
-theorem extendedBits_comp_realization {D₁ : Diagram Gate a b} {D₂ : Diagram Gate b c}
-    {x y z : List Bool} (R₁ : Realization Gate.interp D₁ x y)
-    (R₂ : Realization Gate.interp D₂ y z) :
-    extendedBits (D₁.comp D₂) (R₁.comp R₂).orient =
-      extendedBits D₁ R₁.orient ++ extendedBits D₂ R₂.orient :=
-  OpenSim.bits_comp_realization (openSimSubst expandOpenSim D₁)
-    (openSimSubst expandOpenSim D₂) R₁ R₂
 
 /-- Canonical primitive expansion as a compositional bit map. -/
 @[expose] def bitMap : BitMap Gate where

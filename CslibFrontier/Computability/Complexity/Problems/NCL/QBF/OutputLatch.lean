@@ -67,6 +67,8 @@ wires are the body's sat and try inputs, in that order. -/
 
 theorem latch_lock : latchOcc.emb Latch.lock = sat := by decide +kernel
 
+attribute [local instance] Diagram.decidableLegal
+
 /-- A canonical memory value with arbitrary sat and try directions. All red branches are
 inactive. Only the two blue branch directions and the memory depend on `recorded`. -/
 @[expose] def canonical (recorded response trying : Bool) :

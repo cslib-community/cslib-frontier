@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Reduction
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Gadgets.Expansion
+import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Emit.Layout
 
 /-!
 # AND/OR expansion of source circuits
@@ -45,77 +46,18 @@ namespace Cslib.Complexity.NCL.QBF.Expanded
 
 open Diagram Network
 
-private theorem checkGens_step (b : Bool) : (step b).checkGens Gate.checkStandard = true := by
-  cases b <;> decide +kernel
-
-private theorem checkGens_row (r : List Color) : ∀ (n : ℕ) (m : List Bool),
-    (row r n m).checkGens Gate.checkStandard = true
-  | 0, _ => rfl
-  | n + 1, m => by
-    simp only [row, checkGens, checkGens_step, checkGens_row, Bool.true_and]
-
-private theorem checkGens_clause (r : List Color) : ∀ (n : ℕ) (m : List Bool),
-    (clause r n m).checkGens Gate.checkStandard = true
-  | 0, _ => by
-    simp only [clause, checkGens, Bool.and_true]
-    decide +kernel
-  | n + 1, m => by
-    simp only [clause]
-    split
-    · simp only [checkGens, checkGens_row, Bool.and_true]
-      decide +kernel
-    · simp only [checkGens, checkGens_clause, Bool.true_and]
-
-private theorem checkGens_conjoin (r : List Color) (n : ℕ) : ∀ (ms : List (List Bool)),
-    (conjoin r n ms).checkGens Gate.checkStandard = true
-  | [] => rfl
-  | m :: ms => by
-    simp only [conjoin, checkGens, checkGens_clause, checkGens_conjoin, Bool.true_and,
-      Bool.and_true]
-    decide +kernel
-
-private theorem checkGens_network (r : List Color) (n : ℕ) (ms : List (List Bool)) :
-    (network r n ms).checkGens Gate.checkStandard = true := by
-  cases ms with
-  | nil =>
-    simp only [network, checkGens, Bool.true_and, Bool.and_true]
-    decide +kernel
-  | cons m ms => simp only [network, checkGens, checkGens_clause, checkGens_conjoin, Bool.true_and]
-
-private theorem checkGens_chain (r : List Color) (qs : List Quantifier) :
-    (Chain.diagram r qs).checkGens Gate.checkStandard = true := by
-  induction qs generalizing r with
-  | nil => rfl
-  | cons q qs ih =>
-    simp only [Chain.diagram, checkGens, Bool.and_true]
-    have hq : q.gadget.checkGens Gate.checkStandard = true := by cases q <;> decide +kernel
-    exact congrArg₂ Bool.and hq (ih ([Color.red, Color.red] ++ r))
-
-private theorem checkGens_caps (r : List Color) (p : ℕ) :
-    (Matrix.caps r p).checkGens Gate.checkStandard = true := by
-  induction p with
-  | zero => rfl
-  | succ p ih =>
-    simp only [Matrix.caps, checkGens, ih, Bool.and_true]
-    decide +kernel
-
-private theorem checkGens_terminalBase (p : ℕ) (ms : List (List Bool)) :
-    (Matrix.terminalBase p ms).checkGens Gate.checkStandard = true := by
-  simp only [Matrix.terminalBase, checkGens, checkGens_network, checkGens_moveLeft,
-    checkGens_caps, Bool.true_and, Bool.and_true]
-  decide +kernel
-
-private theorem checkGens_terminal : ∀ (qs : List Quantifier) (p : ℕ) (ms : List (List Bool)),
-    (Matrix.terminal p qs ms).checkGens Gate.checkStandard = true
-  | [], p, ms => checkGens_terminalBase p ms
-  | _ :: qs, p, ms => checkGens_terminal qs (p + 1) ms
+private theorem checkGens_layout {a b : List Color} {D : Diagram Gate a b}
+    {s : D.Edge → Bool} {k : ℕ} {p : Emit.Program} {recorded : Bool}
+    (h : Emit.Layout recorded D s k p) : D.checkGens Gate.checkStandard = true := by
+  induction h with
+  | id => rfl
+  | cell op _ => cases op <;> decide +kernel
+  | comp _ _ ih₁ ih₂ | tensor _ _ ih₁ ih₂ => exact congrArg₂ Bool.and ih₁ ih₂
 
 /-- All cells of the closed QBF circuit pass the standard expansion checks. -/
 theorem checkGens_circuit (qs : List Quantifier) (ms : List (List Bool)) :
-    (Circuit.diagram qs ms).checkGens Gate.checkStandard = true := by
-  simp only [Circuit.diagram, Matrix.body, checkGens, checkGens_chain, checkGens_terminal,
-    Bool.and_true]
-  decide +kernel
+    (Circuit.diagram qs ms).checkGens Gate.checkStandard = true :=
+  checkGens_layout (Emit.Layout.circuit false qs ms)
 
 /-- Expand a normalized source circuit into primitive AND/OR gadgets. -/
 @[expose]

@@ -56,7 +56,7 @@ structure Target where
 abbrev Target.language (T : Target) : Word.Fixed.Language where
   Opcode := Opcode
   enumeration := inferInstance
-  fragment op := let ⟨a, b, diagram⟩ := op.gateFragment; ⟨a, b, T.map diagram⟩
+  fragment op := ⟨op.data.inputs, op.data.outputs, T.map op.data.diagram⟩
 
 /-- Primitive diagram interpretation as a word-valued interpretation. -/
 private def Target.wordTarget (T : Target) : WordTarget Slice where

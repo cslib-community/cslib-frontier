@@ -25,9 +25,8 @@ serializations, including the canonical extensions supplied by open simulations.
 ## Main results
 
 * `Cslib.Complexity.NCL.Diagram.bits_closed`: serialization of a closed diagram.
-* `Cslib.Complexity.NCL.Diagram.OpenSim.bits_comp_realization`: serialization respects stacking.
-* `Cslib.Complexity.NCL.Diagram.OpenSim.bits_tensor_realization`: serialization respects
-  juxtaposition.
+* `Cslib.Complexity.NCL.Diagram.OpenSim.bits_comp`: serialization respects stacking.
+* `Cslib.Complexity.NCL.Diagram.OpenSim.bits_tensor`: serialization respects juxtaposition.
 
 ## References
 
@@ -114,13 +113,6 @@ theorem bits_tensor {D₃ : Diagram Γ c d} {D₃' : Diagram Γ' c d}
     (S₁.tensor S₃).bits s =
       S₁.bits (s ∘ tensorLeft D₁ D₃) ++ S₃.bits (s ∘ tensorRight D₁ D₃) :=
   innerBits_glueTensor ..
-
-/-- Serializing the extension of stacked realizations concatenates their extensions. -/
-theorem bits_comp_realization {x y z : List Bool}
-    (S₁ : OpenSim I I' D₁ D₁') (S₂ : OpenSim I I' D₂ D₂')
-    (R₁ : Realization I D₁ x y) (R₂ : Realization I D₂ y z) :
-    (S₁.comp S₂).bits (R₁.comp R₂).orient = S₁.bits R₁.orient ++ S₂.bits R₂.orient := by
-  rw [bits_comp, Realization.comp_orient_compLeft, Realization.comp_orient_compRight]
 
 end OpenSim
 

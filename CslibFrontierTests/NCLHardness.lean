@@ -20,14 +20,12 @@ example (x : Source.Input) : (Reduction.graphData x).checkValid = true :=
 example : Reduction.toConfig ([], []) ∈ AndOrNCL :=
   (Reduction.mem_toConfig_iff ([], [])).2 ⟨rfl, rfl⟩
 
-example : Reduction.toEdge Source.noInput ∉ AndOrNCLEdge := by
+example : Reduction.toEdge ([], [[]]) ∉ AndOrNCLEdge := by
   rw [Reduction.mem_toEdge_iff]
-  unfold Source.noInput TQBFCNF TQBF
+  unfold TQBFCNF TQBF
   decide +kernel
 
-example : Reduction.toEdgeToEdge Source.yesInput ∈ AndOrNCLEdgeToEdge := by
-  rw [Reduction.mem_toEdgeToEdge_iff]
-  unfold Source.yesInput TQBFCNF TQBF
-  decide +kernel
+example : Reduction.toEdgeToEdge ([], []) ∈ AndOrNCLEdgeToEdge :=
+  (Reduction.mem_toEdgeToEdge_iff ([], [])).2 ⟨rfl, rfl⟩
 
 end CslibFrontierTests.NCLHardness

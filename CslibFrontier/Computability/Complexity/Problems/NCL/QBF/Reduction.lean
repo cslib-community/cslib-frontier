@@ -73,13 +73,13 @@ private theorem truth_iff_mem (x : Input) :
     Chain.Truth (Matrix.Satisfies (masks (normalize x).1 (normalize x).2))
       (quantifiers (normalize x).1) [] ↔ x ∈ TQBFCNF := by
   let n := normalize x
-  have hc : (rounds n.1 (ofCNF n.2)).Closed := (normalize_regular x).1
+  have hc : (rounds n.1 (ofCNF n.2)).Closed := normalize_closed x
   have hm : n ∈ TQBFCNF ↔ (rounds n.1 (ofCNF n.2)).eval (fun _ => false) = true :=
     mem_TQBF_iff_of_closed hc (fun _ => false)
   exact (truth_iff_eval n.1 n.2 hc (fun _ => false)).trans (hm.symm.trans (normalize_mem_iff x))
 
-/-- **Fixed-target correctness for every upstream input.** The normalization handles source
-closedness and empty cases before the closed circuit is constructed. -/
+/-- **Fixed-target correctness for every upstream input.** Open formulas are replaced by a
+fixed false instance before the closed circuit is constructed. -/
 theorem reachable_iff_mem_TQBFCNF (x : Input) :
     ((circuit x).graph Gate.interp).Reachable (initial x).orient (target x).orient ↔
       x ∈ TQBFCNF :=

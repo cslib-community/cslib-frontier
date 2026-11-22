@@ -7,7 +7,7 @@ Authors: Xuyang Peng
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Matrix
+public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.Initial
 public import CslibFrontier.Computability.Complexity.Problems.NCL.QBF.OutputLatch
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Gadgets.Expansion
 public import Mathlib.Data.FinEnum
@@ -72,20 +72,39 @@ instance : FinEnum Opcode :=
 /-- A sequence of fixed fragments, each paired with its wire offset. -/
 abbrev Program := List (ℕ × Opcode)
 
-/-- The source-gate diagram represented by an instruction tag. -/
-@[expose] def Opcode.gateFragment : Opcode → Σ a b : List Color, Diagram Gate a b
-  | .output => ⟨_, _, OutputLatch.diagram⟩
-  | .ex => ⟨_, _, existsGadget⟩
-  | .all => ⟨_, _, forallGadget⟩
-  | .tapFirst => ⟨_, _, Network.tapFirst⟩
-  | .tap => ⟨_, _, Network.tap⟩
-  | .conj => ⟨_, _, Network.conj⟩
-  | .returnGate => ⟨_, _, Matrix.returnGate⟩
-  | .cap => ⟨_, _, gen Gate.cap⟩
-  | .start => ⟨_, _, gen Gate.start⟩
-  | .fixed => ⟨_, _, Gate.node [] [.blue]⟩
-  | .swapBlueRed => ⟨_, _, Diagram.swap .blue .red⟩
-  | .swapRedBlue => ⟨_, _, Diagram.swap .red .blue⟩
+/-- A fixed gate diagram together with its source and target orientations. -/
+structure Fragment where
+  /-- Top wire colors. -/
+  inputs : List Color
+  /-- Bottom wire colors. -/
+  outputs : List Color
+  /-- The circuit implementing the instruction. -/
+  diagram : Diagram Gate inputs outputs
+  /-- Canonical edge directions indexed by the output record bit. -/
+  orient : Bool → diagram.Edge → Bool
+
+/-- A fragment whose initial and target directions are all false. -/
+@[expose] def Fragment.inactive {a b : List Color} (D : Diagram Gate a b) : Fragment :=
+  ⟨a, b, D, fun _ _ => false⟩
+
+/-- The diagram and canonical configurations of each source instruction. -/
+@[expose] def Opcode.data : Opcode → Fragment
+  | .output => ⟨_, _, OutputLatch.diagram, fun r => (OutputLatch.canonical r true false).orient⟩
+  | .ex => ⟨_, _, existsGadget, fun _ => Initial.existsInitial.orient⟩
+  | .all => ⟨_, _, forallGadget, fun _ => Initial.forallInitial.orient⟩
+  | .returnGate => ⟨_, _, Matrix.returnGate, fun _ => Initial.returnInitial.orient⟩
+  | .tapFirst => .inactive Network.tapFirst
+  | .tap => .inactive Network.tap
+  | .conj => .inactive Network.conj
+  | .cap => .inactive (gen Gate.cap)
+  | .start => .inactive (gen Gate.start)
+  | .fixed => .inactive (Gate.node [] [.blue])
+  | .swapBlueRed => .inactive (Diagram.swap .blue .red)
+  | .swapRedBlue => .inactive (Diagram.swap .red .blue)
+
+/-- The boundary-indexed diagram for the fixed instruction language. -/
+@[expose] def Opcode.gateFragment (op : Opcode) : Σ a b : List Color, Diagram Gate a b :=
+  ⟨op.data.inputs, op.data.outputs, op.data.diagram⟩
 
 /-- The fixed primitive diagram implementing each instruction tag. -/
 @[expose] def Opcode.fragment (op : Opcode) : Σ a b : List Color, Diagram Prim a b :=

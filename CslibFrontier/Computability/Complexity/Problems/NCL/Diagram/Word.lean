@@ -48,6 +48,7 @@ inductive Slice
   | gen (k : ℕ) (a b : List Color) (vs : List (Vertex (Fin a.length ⊕ Fin b.length)))
   /-- The wires at offsets `k` and `k + 1` cross. -/
   | swap (k : ℕ)
+  deriving @[expose] DecidableEq
 
 /-- The state of a run: the edges on the current wires, the next edge number, and the vertices
 built so far. -/
@@ -279,6 +280,12 @@ theorem forall_mem_vertexList_iff {a b : List Color} (D : Diagram Γ a b)
 theorem forall_vertexList_iff {a b : List Color} (D : Diagram Γ a b) (s : D.Edge → Bool) :
     (∀ v ∈ vertexList I D, v.Sat s) ↔ (D.graph I).Legal s :=
   forall_mem_vertexList_iff D (fun v => v.Sat s)
+
+/-- Decide legality directly on the diagram's explicit vertex list. -/
+@[expose, instance_reducible]
+def decidableLegal {a b : List Color} (D : Diagram Γ a b) (s : D.Edge → Bool) :
+    Decidable ((D.graph I).Legal s) :=
+  decidable_of_iff _ (forall_vertexList_iff D s)
 
 /-- **The word of a closed diagram builds its graph**: the run numbers the edges `0, 1, …` in
 order of creation, and an orientation of the numbered edges satisfies every listed vertex exactly

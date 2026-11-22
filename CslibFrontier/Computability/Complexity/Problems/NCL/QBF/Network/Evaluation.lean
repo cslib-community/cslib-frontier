@@ -51,6 +51,8 @@ open Diagram Gate
 local notation "R" => Color.red
 local notation "B" => Color.blue
 
+attribute [local instance] Diagram.decidableLegal
+
 /-- Collect a literal, preserving its direction and copying it to the accumulator. -/
 @[expose] def evalTapFirst (l : Bool) : Realization Gate.interp tapFirst [l] [l, l] where
   orient := fun e => l && [0, 1, 3, 4, 5].contains (tapFirst.num e)

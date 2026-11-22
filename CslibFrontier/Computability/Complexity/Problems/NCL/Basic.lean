@@ -103,6 +103,7 @@ structure Vertex (E : Type*) where
   ports : List (WeightedPort E)
   /-- The minimum in-flow. -/
   minInflow : ℕ
+  deriving @[expose] DecidableEq
 
 namespace Vertex
 

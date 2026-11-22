@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Substitution
-public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Word
+public import CslibFrontier.Computability.Complexity.Problems.NCL.Diagram.Enumeration
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.Refutation
 public import CslibFrontier.Computability.Complexity.Problems.NCL.ConstraintGraph.Run
 public import Mathlib.Data.Fintype.Pi
@@ -242,6 +242,32 @@ structure Cert (g : Γ a b) (H : Diagram Γ' a b) where
     let (pre, post) := forward (code - 2 ^ bit) bit
     (post.reverse, pre.reverse)
   else forward code bit
+
+/-- A move certificate tabulated by boundary directions and creation-order edge numbers.
+The low bits encode the top ports followed by the bottom ports, both from left to right.
+Only forward moves are supplied. -/
+structure Cert.Table (n : ℕ) where
+  /-- Internal edges oriented forward in the canonical extension of this boundary. -/
+  innerBits : ℕ → List ℕ
+  /-- Propagation rounds between refutation splits. -/
+  rounds : ℕ
+  /-- Refutation tree for each forbidden boundary. -/
+  refute : ℕ → Refutation ℕ := fun _ => .conflict
+  /-- Internal reversals before and after a false-to-true boundary reversal. -/
+  forward : ℕ → ℕ → List (Fin n) × List (Fin n)
+
+/-- Read a numbered table as a typed generator-implementation certificate. -/
+@[expose] def Cert.ofTable {g : Γ a b} {H : Diagram Γ' a b}
+    (t : Cert.Table (a.length + H.innerCount)) : Cert g H :=
+  let code β := (boundaryList a b).foldr (fun p n => Nat.bit (β p) n) 0
+  let moves β (x : Fin a.length ⊕ Fin b.length) :=
+    movesOfForward t.forward (code β) (Sum.elim Fin.val (fun i => a.length + i.val) x)
+  { canon := fun β y =>
+      ((H.boundaryPartial β).lookup y).getD ((t.innerBits (code β)).contains (H.num y))
+    rounds := t.rounds
+    refute := fun β => t.refute (code β)
+    pre := fun β x => ((moves β x).1).map H.numEquiv.symm
+    post := fun β x => ((moves β x).2).map H.numEquiv.symm }
 
 variable (I I') in
 /-- The certificates are valid. Configurations are enumerated only on the boundary. -/

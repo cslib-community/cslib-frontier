@@ -58,6 +58,8 @@ def controls (r : List Color) : List Bool := true :: false :: List.replicate r.l
   | [] => controls r
   | _ :: qs => boundary ([R, R] ++ r) qs
 
+attribute [local instance] Diagram.decidableLegal
+
 /-- The existential gadget with its variable latch false and both literals inactive. -/
 @[expose] def existsInitial : Realization Gate.interp existsGadget
     [true, false] [true, false, false, false] where
