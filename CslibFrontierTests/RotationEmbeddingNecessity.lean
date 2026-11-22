@@ -8,6 +8,7 @@ module
 
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.EmbeddingNecessity
 public import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.Star
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
 import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
 import CslibFrontier.Foundations.Geometry.Polygonal.AttachmentParameters
@@ -392,5 +393,37 @@ example :
       (fun _ _ => rfl) hv hfree (fun h => hout (Or.inl h)) (fun w hw _ => hne w hw)
   exact ⟨E, hE, fun h => hne 3 hv (hpos.symm.trans h), hother 0 (by decide +kernel) (by decide),
     hfrozen _ (by decide +kernel)⟩
+
+-- Both free leaves start at each other's target; the two original centers are already placed.
+example :
+    ∃ D : PolygonalDrawing (subdivisionGraph input), D.IsEmbedding ∧
+      D.vertex 2 = referencePoint input 3 ∧ D.vertex 3 = referencePoint input 2 ∧
+      ∃ E : PolygonalDrawing (subdivisionGraph input), E.IsEmbedding ∧
+        ∀ w ∈ (subdivisionGraph input).vertices, E.vertex w = referencePoint input w := by
+  let p : ℕ ≃ ℕ := Equiv.swap 2 3
+  have hp (w : ℕ) (hw : w ∈ (subdivisionGraph input).vertices) :
+      p w ∈ (subdivisionGraph input).vertices := by
+    have hwlt : w < 4 := by simpa [subdivisionGraph, subdivisionSize, input] using hw
+    interval_cases w <;> decide +kernel
+  have hq : Set.InjOn (fun w => referencePoint input (p w))
+      {w | w ∈ (subdivisionGraph input).vertices} := by
+    intro u hu w hw h
+    exact p.injective (referenceDrawing_vertices_injective input_valid (hp u hu) (hp w hw) h)
+  obtain ⟨D, hD, hpos, _, _, _, _⟩ :=
+    (drawing_embedding false).exists_vertex_placement
+      (subdivisionGraph_endpoints_declared input_valid) (fun w => referencePoint input (p w)) hq
+  have hcenter (v : ℕ) (hv : v ∈ input.graph.vertices) : D.vertex v = referencePoint input v := by
+    have hvlt : v < 2 := by simpa [input] using hv
+    interval_cases v
+    · exact hpos 0 (by decide +kernel)
+    · exact hpos 1 (by decide +kernel)
+  have hfreeze (d : Dart input.graph) (hd : (input.orders.getD d.vertex none).isSome) :
+      D.route (subdivisionDart input d).1 = (referenceDrawing input).route
+        (subdivisionDart input d).1 := by
+    have hfalse : ∀ d : Dart input.graph, (input.orders.getD d.vertex none).isSome = false := by
+      decide +kernel
+    simp only [hfalse d, Bool.false_eq_true] at hd
+  obtain ⟨E, hE, hV, _⟩ := exists_subdivision_embedding_at_reference input_valid hD hcenter hfreeze
+  exact ⟨D, hD, hpos 2 (by decide +kernel), hpos 3 (by decide +kernel), E, hE, hV⟩
 
 end CslibFrontierTests.RotationEmbeddingNecessity
