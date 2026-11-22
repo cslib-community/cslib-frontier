@@ -31,11 +31,13 @@ variable {k s : ℕ} {State : Type} (e : State ≃ Fin s) (machine : MultiTapePT
 
 /-! ### Codes of actions -/
 
+/-- The code of a head move: `0` for left, `1` for stay, `2` for right. -/
 def sgnCode : SignType → ℕ
   | .neg => 0
   | .zero => 1
   | .pos => 2
 
+/-- The code of a write action: `0` for no write, and `cc c + 1` for writing the cell `c`. -/
 def wCode : Option (Option Bool) → ℕ
   | none => 0
   | some c => cc c + 1
@@ -93,8 +95,11 @@ theorem keyOf_lt {st inc bit wk : ℕ} (hst : st < s + 1) (hinc : inc < 3) (hbit
 
 /-! ### The machine as tables -/
 
+/-- The code of the next state of the action at a key. -/
 def fSt (key : ℕ) : ℕ := stc e (actOf e machine key).state
+/-- The code of the input head move of the action at a key. -/
 def fIn (key : ℕ) : ℕ := sgnCode (actOf e machine key).inputTape
+/-- The code of the output cell of the action at a key. -/
 def fOut (key : ℕ) : ℕ := cc (actOf e machine key).output
 
 /-- The write code of tape `x / keyCount` at key `x % keyCount`. -/
@@ -136,10 +141,13 @@ theorem fM_key {key : ℕ} (hkey : key < keyCount k s) (h : Fin k) :
 
 /-! ### The step in codes -/
 
+/-- The position `r` moved by the head move with code `m` (as in `sgnCode`). -/
 def moveC (r m : ℕ) : ℕ := if m = 0 then r - 1 else if m = 1 then r else r + 1
 
+/-- The input head position `ip` moved by the move with code `m`, capped at `n + 1`. -/
 def ipC (n ip m : ℕ) : ℕ := min (n + 1) (moveC ip m)
 
+/-- The numeric tape `t` after writing with write code `wc` and moving with move code `mc`. -/
 def tapeC (t : NTape) (wc mc : ℕ) : NTape :=
   let hd := if wc = 0 then t.1 else wc - 1
   if mc = 0 then (t.2.1 % 3, t.2.1 / 3, t.2.2 * 3 + hd)

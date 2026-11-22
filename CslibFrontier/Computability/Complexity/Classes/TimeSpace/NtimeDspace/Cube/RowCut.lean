@@ -789,7 +789,8 @@ theorem sum_φw_none (σ : Multiset ℕ) : ((located none σ).map φw).sum = (wt
     simp only [Function.comp, φw]
     push_cast; ring
 
-macro "lb_rule" : tactic => `(tactic| first
+/-- Close a lower-bound goal of the row cut by one of its bound lemmas. -/
+macro (name := lbRule) "lb_rule" : tactic => `(tactic| first
   | with_reducible exact LB.zero _
   | (with_reducible refine lb_side _ _ ?_); omega
   | (with_reducible refine lb_step _ _ ?_); omega

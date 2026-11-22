@@ -39,8 +39,11 @@ open Finset SPTree
 
 /-- What the explicit machine reports about a node. -/
 structure Info where
+  /-- The kind of the node: `0` leaf, `1` sum, `2` product, `3` shift (see `SPTree.tag`). -/
   tag : ℕ
+  /-- The precision of the node. -/
   prec : ℕ
+  /-- The index length of a sum node, the shift of a shift node, and `0` otherwise. -/
   param : ℕ
 deriving DecidableEq
 
@@ -49,17 +52,25 @@ def SPTree.info (t : SPTree) : Info := ⟨t.tag, t.prec, t.param⟩
 
 /-- A frame of the evaluation stack. -/
 structure Frame where
+  /-- The bit requested of the node. -/
   k : ℕ
+  /-- The current column. -/
   j : ℕ
+  /-- The current split (used at product nodes). -/
   l : ℕ
+  /-- The carry. -/
   c : ℕ
 deriving DecidableEq
 
 /-- A state of the evaluator. -/
 structure State where
+  /-- The mode: `true` when calling the current node, `false` when returning a bit below it. -/
   call : Bool
+  /-- The requested bit index in call mode, or the returned bit in return mode. -/
   v : ℕ
+  /-- The evaluation stack, innermost frame first. -/
   frames : List Frame
+  /-- The path of the current node, deepest symbol first. -/
   path : List ℕ
 deriving DecidableEq
 

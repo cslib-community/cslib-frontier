@@ -44,17 +44,27 @@ section Terms
 
 variable (k s : ℕ)
 
+/-- The term computing `cradix k b`, the radix `b ^ (k + 1) * 3` of control records. -/
 def cradT (bT : Term) : Term := mul (powT bT (const (k + 1))) (const 3)
+/-- The term computing `controlCount k s b`, the number of control records. -/
 def ccountT (bT : Term) : Term := mul (const (s + 1)) (cradT k bT)
+/-- The term computing `ctlSt k s b n`, the state code of the control record numbered `n`. -/
 def ctlStT (bT n : Term) : Term :=
   mod (ite (lt (div n (cradT k bT)) (const s)) (div n (cradT k bT)) (const s)) (const (s + 1))
+/-- The term computing `ctlOff k b n c`, the offset of head index `c` in the control record
+numbered `n`. -/
 def ctlOffT (bT n c : Term) : Term :=
   mod (divPowT bT (div (mod n (cradT k bT)) (const 3)) c) bT
+/-- The term computing `ctlTr k b n`, the track code of the control record numbered `n`. -/
 def ctlTrT (bT n : Term) : Term := mod (mod n (cradT k bT)) (const 3)
+/-- The term computing `contCell k s b n r`, the code of cell `r` of the block contents numbered
+`n`. -/
 def contCellT (bT n r : Term) : Term :=
   ite (lt n (ccountT k s bT)) (const 0) (mod (divPowT (const 3) (sub n (ccountT k s bT)) r)
     (const 3))
 
+/-- The term computing `portOfNum k σ c i i' δ`, the window entry of block `δ` of interval `i`'s
+window in the window of interval `i'`. -/
 def portOfT (σT cT iT i'T δT : Term) : Term :=
   mod (sub (add (add (digitCountT k σT cT (const 2) iT) (digitCountT k σT cT (const 0) i'T)) δT)
     (add (digitCountT k σT cT (const 0) iT) (digitCountT k σT cT (const 2) i'T))) (const 3)
@@ -119,16 +129,20 @@ section Data
 
 variable (k s : ℕ)
 
+/-- The term computing `inSt k s b init L i`, the state code entering interval `i`, from the
+letter numbers given by `L`. -/
 def inStT (init : ℕ) (bT : Term) (L : Term → Term) (iT : Term) : Term :=
   ite (eqT iT (const 0)) (const init)
     (ite (lt (L (sub iT (const 1))) (ccountT k s bT)) (ctlStT k s bT (L (sub iT (const 1))))
       (const 0))
 
+/-- The term computing `inOff k s b L i c`, the offset of head index `c` entering interval `i`. -/
 def inOffT (bT : Term) (L : Term → Term) (iT c : Term) : Term :=
   ite (eqT iT (const 0)) (const 0)
     (ite (lt (L (sub iT (const 1))) (ccountT k s bT)) (ctlOffT k bT (L (sub iT (const 1))) c)
       (const 0))
 
+/-- The term computing `inTr k s b L i`, the track code entering interval `i`. -/
 def inTrT (bT : Term) (L : Term → Term) (iT : Term) : Term :=
   ite (eqT iT (const 0)) (const 0)
     (ite (lt (L (sub iT (const 1))) (ccountT k s bT)) (ctlTrT k bT (L (sub iT (const 1))))

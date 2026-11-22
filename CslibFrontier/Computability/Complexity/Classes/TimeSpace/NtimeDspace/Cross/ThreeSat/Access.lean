@@ -192,9 +192,6 @@ def funT (sT vT AT : Term) : Term :=
 
 /-! ### Values -/
 
-@[simp] theorem pos_ite_one {c : Prop} [Decidable c] : (0 < if c then 1 else 0) ↔ c := by
-  split_ifs with h <;> simp [h]
-
 @[simp] theorem pos_toNat {b : Bool} : 0 < b.toNat ↔ b = true := by cases b <;> simp
 
 section Values

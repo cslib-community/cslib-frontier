@@ -212,13 +212,17 @@ def inT (R a : Term) : Term :=
   ite (eqT (digitT R a (const 1)) (const 0)) (const 0)
     (mod (add (input (sub (digitT R a (const 1)) (const 1))) (const 1)) (const 3))
 
+/-- The key (`keyOf`) of the packed configuration `a` and the coin `bit`: its state code,
+input cell code, the coin and its head cells. -/
 def keyT (k s : ℕ) (R a bit : Term) : Term :=
   add (digitT R a (const 0)) (mul (const (s + 1))
     (add (inT R a) (mul (const 3) (add bit (mul (const 2) (headsT k R a))))))
 
+/-- The term computing `moveC r m`. -/
 def moveCT (r m : Term) : Term :=
   ite (eqT m (const 0)) (sub r (const 1)) (ite (eqT m (const 1)) r (add r (const 1)))
 
+/-- The term computing `min a b`. -/
 def minT (a b : Term) : Term := ite (lt b a) b a
 
 /-- The tape digit `f` after a step with write code `wc` and move code `mc`. -/

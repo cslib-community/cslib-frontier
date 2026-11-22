@@ -40,7 +40,8 @@ partial def extProof (L a b : Expr) (fuel : ℕ) : MetaM (Option Expr) := do
           return some (← mkAppM ``Ext.trans #[decl.toExpr, rest])
   return none
 
-elab "tame_ext" : tactic => do
+/-- Prove an `Ext` goal by a chain of local `Ext` hypotheses. -/
+elab (name := tameExt) "tame_ext" : tactic => do
   let g ← getMainGoal
   g.withContext do
   let ty ← instantiateMVars (← g.getType)
@@ -131,7 +132,8 @@ def findLe (n : Expr) : MetaM (Option Expr) := do
       if ← sameTerm (dty.getArg! 2) n then return some decl.toExpr
   return none
 
-syntax "tame_step" : tactic
+/-- One step of `tame`: close a tier goal by a hypothesis or reduce it by one tier rule. -/
+syntax (name := tameStep) "tame_step" : tactic
 
 elab_rules : tactic
   | `(tactic| tame_step) => do
@@ -358,7 +360,7 @@ elab_rules : tactic
     replaceMainGoal [← g.replaceTargetDefEq ty']
 
 /-- Numeric side conditions, only once they are free of metavariables. -/
-elab "tame_num" : tactic => do
+elab (name := tameNum) "tame_num" : tactic => do
   let g ← getMainGoal
   let ty ← instantiateMVars (← g.getType)
   if ty.hasMVar then throwError "tame_num: metavariables"
@@ -381,7 +383,7 @@ namespace Cslib.Complexity.NtimeDspace.ProgTerm
 open Lean Meta Elab Lean.Elab.Tactic
 
 /-- Report why `tame_step` fails on each remaining tier goal. -/
-elab "tame_why" : tactic => do
+elab (name := tameWhy) "tame_why" : tactic => do
   let gs ← getGoals
   for g in gs do
     let ty ← instantiateMVars (← g.getType)

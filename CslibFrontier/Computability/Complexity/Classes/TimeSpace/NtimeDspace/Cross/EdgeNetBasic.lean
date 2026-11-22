@@ -33,6 +33,7 @@ structure EdgeNet (R V : Type) where
   M : ℕ
   /-- The two ends of an edge. -/
   u : Fin M → V
+  /-- The second end of an edge. -/
   w : Fin M → V
   huw : ∀ i, u i ≠ w i
   /-- The ports of a vertex, in order. -/

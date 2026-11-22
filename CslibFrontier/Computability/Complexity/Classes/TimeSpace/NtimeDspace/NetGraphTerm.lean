@@ -102,6 +102,8 @@ theorem StableAt.sdigT (k : ℕ) {σT cT iT : Term} {env : List ℕ} (h1 : Stabl
     (h2 : StableAt w cT env) (h3 : StableAt w iT env) : StableAt w (sdigT k σT cT iT) env :=
   fun extra => by rw [denote_sdigT, denote_sdigT, h1 extra, h2 extra, h3 extra]
 
+/-- The term computing `digitCount k σ c δ i`, the number of intervals `i' < i` with digit `δ`
+at position `c + (k + 1) i'` of `σ`. -/
 def digitCountT (k : ℕ) (σT cT δT iT : Term) : Term :=
   sumT iT fun i' => eqT (sdigT k σT cT i') δT
 
@@ -122,6 +124,7 @@ theorem StableAt.digitCountT (k : ℕ) {σT cT δT iT : Term} {env : List ℕ}
   rw [denote_digitCountT k iT (h1.extend extra) (h2.extend extra) (h3.extend extra),
     denote_digitCountT k iT h1 h2 h3, h1 extra, h2 extra, h3 extra, h4 extra]
 
+/-- The term computing `inWindowNum k σ c i δ i'` as `1` or `0`. -/
 def inWindowT (k : ℕ) (σT cT iT δT i'T : Term) : Term :=
   mul (leT' (add (add (digitCountT k σT cT (const 2) i'T) (digitCountT k σT cT (const 0) iT))
       (const 1))
@@ -149,6 +152,7 @@ theorem StableAt.inWindowT (k : ℕ) {σT cT iT δT i'T : Term} {env : List ℕ}
 
 /-! ### Last and next appearances -/
 
+/-- The term computing the code (`optCode`) of `lastBeforeNum k σ c i δ`. -/
 def lastBeforeT (k : ℕ) (σT cT iT δT : Term) : Term :=
   foldT iT (const 0) fun acc j => ite (inWindowT k σT cT iT δT j) (add j (const 1)) acc
 
@@ -171,6 +175,7 @@ theorem denote_lastBeforeT (k : ℕ) {σT cT iT δT : Term} {env : List ℕ}
       denote_add, denote_const]
     split_ifs <;> simp_all
 
+/-- The term computing the code (`optCode`) of `firstAfterNum k q σ c i δ`. -/
 def firstAfterT (k : ℕ) (qT σT cT iT δT : Term) : Term :=
   foldT qT (const 0) fun acc j =>
     ite (mul (eqT acc (const 0)) (mul (lt iT j) (inWindowT k σT cT iT δT j)))

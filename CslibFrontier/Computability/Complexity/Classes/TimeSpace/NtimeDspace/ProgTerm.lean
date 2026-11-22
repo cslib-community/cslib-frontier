@@ -43,16 +43,27 @@ def Bnd (w : List Bool) (B : ℕ) (t : Term) (env : List ℕ) : Prop :=
 
 /-- The variable bound at level `l`. -/
 def lvl (l : ℕ) : Term := fun d => .var (d - l - 1)
+/-- The constant `k`. -/
 def const (k : ℕ) : Term := fun _ => .const k
+/-- The sum `a + b`. -/
 def add (a b : Term) : Term := fun d => .add (a d) (b d)
+/-- The truncated difference `a - b`. -/
 def sub (a b : Term) : Term := fun d => .sub (a d) (b d)
+/-- The product `a * b`. -/
 def mul (a b : Term) : Term := fun d => .mul (a d) (b d)
+/-- The floor quotient `a / b` (`0` when `b = 0`). -/
 def div (a b : Term) : Term := fun d => .div (a d) (b d)
+/-- The remainder `a % b` (`a` when `b = 0`). -/
 def mod (a b : Term) : Term := fun d => .mod (a d) (b d)
+/-- Bit `i` of `a`, as `0` or `1`. -/
 def bit (a i : Term) : Term := fun d => .bit (a d) (i d)
+/-- The comparison `a < b`, as `1` if true and `0` otherwise. -/
 def lt (a b : Term) : Term := fun d => .lt (a d) (b d)
+/-- The input bit at position `a`: `1`, `0`, or `2` past the end of the input. -/
 def input (a : Term) : Term := fun d => .input (a d)
+/-- The conditional: `t` if `c` is positive, and `e` otherwise. -/
 def ite (c t e : Term) : Term := fun d => .ite (c d) (t d) (e d)
+/-- `letT a f` binds the value of `a` to a new variable and evaluates `f` at it. -/
 def letT (a : Term) (f : Term → Term) : Term := fun d => .letIn (a d) (f (lvl d) (d + 1))
 /-- `foldT n init f` iterates `acc ← f acc i` for `i < n`. -/
 def foldT (n init : Term) (f : Term → Term → Term) : Term :=

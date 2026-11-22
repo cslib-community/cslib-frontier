@@ -149,12 +149,19 @@ theorem tm_allLtT {n : Term} {test : Term → Term} {Nv dn dt : ℕ} (hn : Val w
 /-- The terms of the first clique: the network, `K`, `q = 2K`, the field width, the budget array,
 the node `v` and the argument code. -/
 structure FirstT where
+  /-- The accessors of the network. -/
   N : NetT
+  /-- The term for `K`. -/
   KT : Term
+  /-- The term for `q = 2K`. -/
   qT : Term
+  /-- The term for the field width `fw`. -/
   fwT : Term
+  /-- The term for the budget array. -/
   arT : Term
+  /-- The term for the node `v`. -/
   vT : Term
+  /-- The term for the argument code `args`. -/
   argsT : Term
 
 variable {V : ℕ} {G : EdgeNet ℤ (Fin V)} {F : FirstT} {K fw ar v args : ℕ}

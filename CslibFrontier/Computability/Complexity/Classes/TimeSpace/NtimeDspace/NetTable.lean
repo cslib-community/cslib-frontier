@@ -46,8 +46,11 @@ section Terms
 
 variable (k s : ℕ)
 
+/-- The term computing `letterBits k s b`, the number of bits of a letter. -/
 def letterBitsT (bT : Term) : Term := mul (const (s + k + 4)) bT
 
+/-- The term computing `halfBase k q m v n`, the first explicit edge of block edge `n` at
+vertex `v`. -/
 def halfBaseT (qT mT vT nT : Term) : Term :=
   ite (eqT (blockSrcT k qT nT) vT) (mul mT nT) (add (halvesT k qT mT) (mul mT nT))
 
@@ -110,19 +113,25 @@ section Terms2
 
 variable (k s : ℕ)
 
+/-- The term computing `letterCount k s b`, the number of letters. -/
 def letterCountT (bT : Term) : Term := add (ccountT k s bT) (powT (const 3) bT)
 
+/-- The term computing `validNum` at the explicit ports as `1` or `0`: every block edge at `v`
+reads a letter number below `letterCount` from the table index `j`. -/
 def validT (qT bT σT vT jT : Term) : Term :=
   allT (mul qT (const (3 * k + 1))) fun n =>
     sub (const 1) (mul (lt (const 0) (add (eqT (blockSrcT k qT n) vT)
         (eqT (edgeTargetT k qT σT n) vT)))
       (sub (const 1) (lt (lettersT k qT (letterBitsT k s bT) σT vT jT n) (letterCountT k s bT))))
 
+/-- The term computing `acceptNum k s b n`, the accepting weight of the letter numbered `n`. -/
 def acceptT (bT n : Term) : Term :=
   mul (lt n (ccountT k s bT)) (eqT (mod (mod n (cradT k bT)) (const 3)) (const 1))
 
 variable {State : Type} (e : State ≃ Fin s) (machine : MultiTapePTM k Bool State)
 
+/-- The term computing `oldEntryNum`: the tensor of an interval for `v < q`, and otherwise the
+sink of edge `v - q`, the accepting weight for the last one and `1` for the others. -/
 def oldEntryT (RT NT qT bT σT : Term) (L : Term → Term) (vT : Term) : Term :=
   ite (lt vT qT) (intervalEntryT e machine RT NT qT bT σT L vT)
     (ite (eqT (add (sub vT qT) (const 1)) qT) (acceptT k s bT (L (sub vT qT))) (const 1))

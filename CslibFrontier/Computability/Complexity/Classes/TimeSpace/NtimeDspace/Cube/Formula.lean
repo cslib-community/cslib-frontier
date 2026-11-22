@@ -59,10 +59,15 @@ open Finset NtimeDspace.Cross
 /-- The data of a formula: a network, the number `K` of vertex groups of the first clique, the
 field width of choice codes, and the precision. -/
 structure Setup where
+  /-- The number of vertices of the network. -/
   V : ℕ
+  /-- The network. -/
   G : EdgeNet ℤ (Fin V)
+  /-- The number `K` of vertex groups of the first clique. -/
   K : ℕ
+  /-- The field width of choice codes. -/
   fw : ℕ
+  /-- The precision: values are computed modulo `2 ^ P`. -/
   P : ℕ
 
 namespace Setup

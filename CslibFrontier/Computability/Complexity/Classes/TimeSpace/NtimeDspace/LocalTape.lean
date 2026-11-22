@@ -112,8 +112,10 @@ def NTape.read (t : NTape) : ℤ → ℕ
 /-- Write a cell code under the head. -/
 def NTape.write (t : NTape) (c : ℕ) : NTape := (c, t.2.1, t.2.2)
 
+/-- Move the head one cell right: the old head cell becomes the nearest left digit. -/
 def NTape.moveRight (t : NTape) : NTape := (t.2.2 % 3, t.2.1 * 3 + t.1, t.2.2 / 3)
 
+/-- Move the head one cell left: the old head cell becomes the nearest right digit. -/
 def NTape.moveLeft (t : NTape) : NTape := (t.2.1 % 3, t.2.1 / 3, t.2.2 * 3 + t.1)
 
 /-- The numeric form of `BiTape.step`. -/

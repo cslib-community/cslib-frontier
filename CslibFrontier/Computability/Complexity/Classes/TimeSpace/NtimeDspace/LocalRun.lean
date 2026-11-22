@@ -78,10 +78,15 @@ theorem trc_inj {t t' : OutputTrack} (h : trc t = trc t') : t = t' := by
 
 /-- A numeric configuration. -/
 structure NCfg (k : ℕ) where
+  /-- The code of the state (`stc`). -/
   st : ℕ
+  /-- The input head position. -/
   ip : ℕ
+  /-- Each work tape, as an `NTape`. -/
   tapes : Fin k → NTape
+  /-- Each work head, as its index in the window of `3b` cells of its tape. -/
   rho : Fin k → ℕ
+  /-- The code of the output track (`trc`). -/
   tr : ℕ
 
 /-- A head index after a move. -/

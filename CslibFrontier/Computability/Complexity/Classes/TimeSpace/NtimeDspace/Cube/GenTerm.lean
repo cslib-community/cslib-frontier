@@ -185,11 +185,17 @@ end Dispatch
 /-- The input terms, over the parameter `[par]`: the network accessors, the precision, the reader
 fuel, the field width, the number of vertex groups and the fuel of the unfolding. -/
 structure CubeT where
+  /-- The terms for the network accessors. -/
   N : NetT
+  /-- The term for the precision `P`. -/
   PT : Term
+  /-- The term for the reader fuel `B`. -/
   BT : Term
+  /-- The term for the field width `fw`. -/
   fwT : Term
+  /-- The term for the number `K` of vertex groups. -/
   KT : Term
+  /-- The term for the fuel `H` of the unfolding. -/
   HT : Term
 
 variable {V : ℕ} (G : EdgeNet ℤ (Fin V))

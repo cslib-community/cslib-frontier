@@ -42,9 +42,13 @@ inductive Kind | leaf | sum | prod
 
 /-- A formula over `ℤ` described by structured states. -/
 structure AGen (St : Type) where
+  /-- The kind of the node of a state: a sum, a binary product or a leaf. -/
   kind : St → Kind
+  /-- The index length of a sum node: it has `2 ^ width st` children. -/
   width : St → ℕ
+  /-- The integer value of a leaf. -/
   leafVal : St → ℤ
+  /-- The state of child `i` of a node (`0` and `1` for a product). -/
   child : St → ℕ → St
 
 namespace AGen

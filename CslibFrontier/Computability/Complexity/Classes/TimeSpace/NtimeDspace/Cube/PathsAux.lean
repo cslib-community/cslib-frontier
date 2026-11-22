@@ -442,12 +442,19 @@ the last label, `Ξ` for the copies of a table entry (`Ξ / h` from a parent of 
 `D0` and `Dm` for the depths of the products of the first clique and of the merged cliques, and
 `Wm` for the weights of the transport recursion. -/
 structure BudPar where
+  /-- The number of merges. -/
   e : ℕ
+  /-- The product cost. -/
   ℓ : ℕ
+  /-- The bound for the last label. -/
   Λ : ℕ
+  /-- The bound for the copies of a table entry (`Ξ / h` from a parent of name length `h`). -/
   Ξ : ℕ
+  /-- The depth bound for the products of the first clique. -/
   D0 : ℕ
+  /-- The depth bound for the products of the merged cliques. -/
   Dm : ℕ
+  /-- The weight bound for the transport recursion. -/
   Wm : ℕ
 
 namespace BudPar

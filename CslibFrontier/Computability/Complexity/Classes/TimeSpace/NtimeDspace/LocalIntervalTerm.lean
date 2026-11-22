@@ -28,6 +28,8 @@ open ProgTerm ProgTerm.Term Cslib.Turing _root_.Turing _root_.Turing.MultiTapePT
 
 variable {w : List Bool}
 
+/-- The term computing `readN (hd, L, Rt) c rho`, the code of window cell `c` of a tape whose head
+has index `rho`. -/
 def readT (hd L Rt c rho : Term) : Term :=
   ite (eqT c rho) hd
     (ite (lt rho c) (mod (divPowT (const 3) Rt (sub (sub c rho) (const 1))) (const 3))

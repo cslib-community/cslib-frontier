@@ -71,25 +71,42 @@ theorem val_primeT {x : Term} {v : ℕ} (hx : Val w x env v) :
 
 /-- The terms of the parameters. -/
 structure Ctx where
+  /-- The term of `τ`, the first argument of the residue program. -/
   τ : Term
+  /-- The term of `n`, the second argument of the residue program. -/
   n : Term
+  /-- The term of the lower end `H` of the prime window `(H, X]`. -/
   H : Term
+  /-- The term of the upper end `X` of the prime window `(H, X]`. -/
   X : Term
+  /-- The term of the bit bound `E`: the number decoded is at most `2^E`. -/
   E : Term
+  /-- The term of the width `W`, the base in which tuples of `g` factors are packed. -/
   W : Term
+  /-- The term of the group size `r`: the selected primes are grouped `r` at a time. -/
   r : Term
+  /-- The term of the number `g` of groups. -/
   g : Term
+  /-- The term of `W^g`, the number of packed tuples. -/
   Wg : Term
 
 /-- The values of the parameters. -/
 structure SC where
+  /-- The first argument `τ` of the residue program. -/
   τ : ℕ
+  /-- The second argument `n` of the residue program. -/
   n : ℕ
+  /-- The lower end `H` of the prime window `(H, X]`. -/
   H : ℕ
+  /-- The upper end `X` of the prime window `(H, X]`. -/
   X : ℕ
+  /-- The bit bound `E`: the number decoded is at most `2^E`. -/
   E : ℕ
+  /-- The width `W`, the base in which tuples of `g` factors are packed. -/
   W : ℕ
+  /-- The group size `r`: the selected primes are grouped `r` at a time. -/
   r : ℕ
+  /-- The number `g` of groups. -/
   g : ℕ
 
 variable (w) in

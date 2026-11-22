@@ -10,12 +10,11 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.WeightTerm
 
 /-!
-# The support parser as a term
+# Comparison and the binary logarithm as terms
 
-`stepT` mirrors `ParserFold.stepNat` on packed states, and `scanT` folds it over
-the bits of a candidate number. With `PackedParser` and `ParserFold.scan_eq_fold`
-its meaning is the packed result of `BoundedSupportParser.scan` on the
-candidate's word.
+`leT a b` is `1` when `a ≤ b` and `0` otherwise (`denote_leT`), and `log2T K c` computes
+`Nat.log2 c` for `1 ≤ c < 2 ^ (K + 1)` by counting the `i < K` with `2 ^ (i + 1) ≤ c`
+(`log2T_denote`).
 -/
 
 @[expose] public section
@@ -37,48 +36,6 @@ def leT (a b : Term) : Term := sub (const 1) (lt b a)
     (leT a b).denote w env = if a.denote w env ≤ b.denote w env then 1 else 0 := by
   simp only [leT, denote_sub, denote_const, denote_lt]
   split_ifs <;> omega
-
-def packT (M t c r f z a : Term) : Term :=
-  add t (mul (const 4) (add c (mul M (add r (mul M (add f (mul M (add z (mul M a)))))))))
-
-def finishT (B Cap q M c r f gap : Term) : Term :=
-  ite (mul (mul (lt (const 0) gap) (leT gap (sub B c))) (lt r Cap))
-    (packT M (const 1) (add c gap) (add r (const 1))
-      (ite (add (eqT f (const 1)) (eqT (add c gap) q)) (const 1) (const 0)) (const 0) (const 0))
-    (const 0)
-
-def prefixT (B Cap Lb q M c r f z b : Term) : Term :=
-  ite (eqT b (const 0))
-    (ite (lt z Lb) (packT M (const 2) c r f (add z (const 1)) (const 0)) (const 0))
-    (ite (lt (const 0) B)
-      (ite (eqT z (const 0)) (finishT B Cap q M c r f (const 1))
-        (packT M (const 3) c r f z (const 1)))
-      (const 0))
-
-def payloadT (B Cap q M c r f z a b : Term) : Term :=
-  ite (mul (leT b B) (leT a (div (sub B b) (const 2))))
-    (ite (eqT (sub z (const 1)) (const 0))
-      (finishT B Cap q M c r f (add (mul (const 2) a) b))
-      (packT M (const 3) c r f (sub z (const 1)) (add (mul (const 2) a) b)))
-    (const 0)
-
-/-- The packed transition. -/
-def stepT (B Cap Lb q M x b : Term) : Term :=
-  ite (eqT (mod x (const 4)) (const 1))
-    (ite (lt (mod (div (div x (const 4)) M) M) Cap)
-      (prefixT B Cap Lb q M (mod (div x (const 4)) M) (mod (div (div x (const 4)) M) M)
-        (mod (div (div (div x (const 4)) M) M) M) (const 0) b)
-      (const 0))
-    (ite (eqT (mod x (const 4)) (const 2))
-      (prefixT B Cap Lb q M (mod (div x (const 4)) M) (mod (div (div x (const 4)) M) M)
-        (mod (div (div (div x (const 4)) M) M) M)
-        (mod (div (div (div (div x (const 4)) M) M) M) M) b)
-      (ite (eqT (mod x (const 4)) (const 3))
-        (payloadT B Cap q M (mod (div x (const 4)) M) (mod (div (div x (const 4)) M) M)
-          (mod (div (div (div x (const 4)) M) M) M)
-          (mod (div (div (div (div x (const 4)) M) M) M) M)
-          (div (div (div (div (div x (const 4)) M) M) M) M) b)
-        (const 0)))
 
 /-- `log₂ c` for `1 ≤ c < 2^(K+1)`: the number of `i < K` with `2^(i+1) ≤ c`. -/
 def log2T (K c : Term) : Term :=
@@ -105,16 +62,5 @@ theorem log2T_denote (K c : Term) (env : List ℕ) (hc : StableAt w c env)
     · rw [ite_eq_left (Nat.div_pos_iff.mpr ⟨by positivity, (Nat.le_log2 hne).mp h⟩), ite_eq_left h]
     · rw [ite_eq_right (fun h' => h ((Nat.le_log2 hne).mpr (Nat.div_pos_iff.mp h').2)), ite_eq_right
         h]
-
-/-- The parser over the word of candidate `c`. -/
-def scanT (B Cap Lb q M K c : Term) : Term :=
-  foldT (log2T K c) (const 1) fun acc j => stepT B Cap Lb q M acc (bit c j)
-
-/-- Validity of a packed final state. -/
-def validT (x : Term) : Term := eqT (mod x (const 4)) (const 1)
-/-- The membership register of a packed final state. -/
-def foundT (M x : Term) : Term := mod (div (div (div x (const 4)) M) M) M
-/-- The rank register of a packed final state. -/
-def rankT (M x : Term) : Term := mod (div (div x (const 4)) M) M
 
 end Cslib.Complexity.NtimeDspace.ProgTerm

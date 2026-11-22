@@ -25,7 +25,8 @@ namespace Cslib.Complexity.NtimeDspace.SumProduct
 open NtimeDspace.ProgLang NtimeDspace.ProgTerm Term NatList
 
 /-- Discharge the side conditions `a < env.length` of variable lemmas. -/
-macro "lvl_disch" : tactic => `(tactic| ((try simp only [List.length_cons]); omega))
+macro (name := lvlDisch)
+    "lvl_disch" : tactic => `(tactic| ((try simp only [List.length_cons]); omega))
 
 /-! ### Building codes -/
 
@@ -121,10 +122,6 @@ theorem bnd_pushT {k j l c F : ℕ} {env : List ℕ} (hk : k < env.length) (hj :
 
 /-! ### The branches -/
 
-@[simp] theorem zero_lt_ite_one_zero (p : Prop) [Decidable p] :
-    (0 < if p then (1 : ℕ) else 0) ↔ p := by
-  split_ifs with h <;> simp [h]
-
 theorem denote_ite_lt (a b t e : Term) (env : List ℕ) :
     (ite (lt a b) t e).denote w env =
       if a.denote w env < b.denote w env then t.denote w env else e.denote w env := by
@@ -212,9 +209,13 @@ theorem denote_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (_hv : v 
 precision and the parameter of a node, and closed in `[k, path, len]` for bit `k`
 of a leaf. -/
 structure Queries where
+  /-- The program for the tag of the node at a path, closed in `[path, len]`. -/
   tag : Prog
+  /-- The program for the precision of the node at a path, closed in `[path, len]`. -/
   prec : Prog
+  /-- The program for the parameter of the node at a path, closed in `[path, len]`. -/
   param : Prog
+  /-- The program for bit `k` of the leaf at a path, closed in `[k, path, len]`. -/
   bit : Prog
   tag_closed : Prog'.closed 2 tag = true
   prec_closed : Prog'.closed 2 prec = true
@@ -254,8 +255,11 @@ def stepT (Q : Queries) (len S : Term) : Term :=
 
 /-- The numeric oracles of the queries, at input `w` and length `n`. -/
 def Queries.qt (Q : Queries) (w : List Bool) (n : ℕ) (pc : ℕ) : ℕ := Q.tag.eval w [pc, n]
+/-- The precision oracle: `Q.prec` evaluated at path code `pc` and length `n`. -/
 def Queries.qp (Q : Queries) (w : List Bool) (n : ℕ) (pc : ℕ) : ℕ := Q.prec.eval w [pc, n]
+/-- The parameter oracle: `Q.param` evaluated at path code `pc` and length `n`. -/
 def Queries.qa (Q : Queries) (w : List Bool) (n : ℕ) (pc : ℕ) : ℕ := Q.param.eval w [pc, n]
+/-- The leaf-bit oracle: `Q.bit` evaluated at bit `k`, path code `pc` and length `n`. -/
 def Queries.qb (Q : Queries) (w : List Bool) (n : ℕ) (k pc : ℕ) : ℕ := Q.bit.eval w [k, pc, n]
 
 theorem denote_callT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : len < env.length)
@@ -633,7 +637,8 @@ theorem bnd_callT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : 
 
 set_option hygiene false in
 /-- Compute the values of variables in the return branch. -/
-macro "ret_vals" : tactic => `(tactic| simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let,
+macro (name := retVals)
+    "ret_vals" : tactic => `(tactic| simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let,
   denote_hdT, denote_tlT, denote_callT2 Q.tag_closed, denote_callT2 Q.param_closed, hFv, hPav,
   hdF_enc_cons, tlF_enc_cons, hz0, ho1])
 
@@ -746,7 +751,8 @@ theorem bnd_retT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : l
 
 set_option hygiene false in
 /-- Compute the values of variables in the step. -/
-macro "step_vals" : tactic => `(tactic| simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let,
+macro (name := stepVals)
+    "step_vals" : tactic => `(tactic| simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let,
   denote_hdT, denote_tlT, denote_const, hSv, State.code, hdF_enc_cons, tlF_enc_cons])
 
 /-- **Value bounds of one step.** -/

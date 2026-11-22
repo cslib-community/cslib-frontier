@@ -13,8 +13,7 @@ public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspa
 /-!
 # Arithmetic helper terms
 
-Terms for `Nat.clog 2`, ceiling division, `max`, the parameter choice
-`ParameterChoice.choose`, and primality by trial division. Powers of a loop
+Terms for `Nat.clog 2`, ceiling division and primality by trial division. Powers of a loop
 variable are avoided: `2^i < m` is tested as `0 < (m-1)/2^i` by repeated
 division (`divPowT`).
 -/
@@ -65,28 +64,12 @@ theorem StableAt.clogT {m : Term} {env : List ℕ} (hm : StableAt w m env)
 
 /-! ### Ceiling division and maximum -/
 
+/-- The term computing the ceiling division `⌈a / b⌉`, as `(a + b - 1) / b`. -/
 def ceilDivT (a b : Term) : Term := div (sub (add a b) (const 1)) b
 
 theorem denote_ceilDivT (a b : Term) (env : List ℕ) :
     (ceilDivT a b).denote w env = (a.denote w env + b.denote w env - 1) / b.denote w env := by
   simp [ceilDivT]
-
-def maxT (a b : Term) : Term := ite (lt a b) b a
-
-theorem denote_maxT (a b : Term) (env : List ℕ) :
-    (maxT a b).denote w env = max (a.denote w env) (b.denote w env) := by
-  simp only [maxT, denote_ite, denote_lt]
-  split_ifs <;> omega
-
-/-! ### The parameter choice -/
-
-/-- `ParameterChoice.choose N`, from `lg = log₂ N`: the number of `i < lg` with
-`cost (i+1) ≤ lg`. -/
-def chooseT (lg : Term) : Term :=
-  sumT lg fun i => lt (const 0) (divPowT (const 4)
-    (div lg (mul (const 16) (mul (add i (const 1)) (add i (const 1))))) (add i (const 1)))
-
-/-! ### Primality -/
 
 /-- `1` if `p` is prime: `2 ≤ p` and no `d` with `2 ≤ d < p` divides `p`. -/
 def primeT (p : Term) : Term :=

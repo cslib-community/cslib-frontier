@@ -46,6 +46,8 @@ theorem getD_eq_optCode (o : Option ℕ) (d : ℕ) :
 
 /-! ### Edge endpoints -/
 
+/-- The term computing `edgeTargetNum k q σ n`, the vertex at which the block edge numbered `n`
+ends. -/
 def edgeTargetT (k : ℕ) (qT σT nT : Term) : Term :=
   ite (lt nT qT) (ite (lt (add nT (const 1)) qT) (add nT (const 1)) (add qT nT))
     (ite (eqT (firstAfterT k qT σT
@@ -79,6 +81,7 @@ theorem StableAt.edgeTargetT (k : ℕ) {qT σT nT : Term} {env : List ℕ} (hq :
   rw [denote_edgeTargetT k (hq.extend extra) (hσ.extend extra) (hn.extend extra),
     denote_edgeTargetT k hq hσ hn, hq extra, hσ extra, hn extra]
 
+/-- The term computing `blockSrcNum k q n`, the interval that the block edge numbered `n` leaves. -/
 def blockSrcT (k : ℕ) (qT nT : Term) : Term :=
   ite (lt nT qT) nT (div (sub nT qT) (const (k * 3)))
 
@@ -89,6 +92,8 @@ def blockSrcT (k : ℕ) (qT nT : Term) : Term :=
 /-- The number of block-edge halves, `q (3k + 1) m`. -/
 def halvesT (k : ℕ) (qT mT : Term) : Term := mul (mul qT (const (3 * k + 1))) mT
 
+/-- The term computing `explicitSrcNum k q m σ j`, the vertex at which the explicit edge numbered
+`j` starts. -/
 def explicitSrcT (k : ℕ) (qT mT σT jT : Term) : Term :=
   ite (lt jT (halvesT k qT mT)) (blockSrcT k qT (div jT mT))
     (edgeTargetT k qT σT (div (sub jT (halvesT k qT mT)) mT))
@@ -110,6 +115,8 @@ theorem StableAt.explicitSrcT (k : ℕ) {qT mT σT jT : Term} {env : List ℕ}
   rw [denote_explicitSrcT k (hq.extend extra) (hm.extend extra) (hσ.extend extra)
     (hj.extend extra), denote_explicitSrcT k hq hm hσ hj, hq extra, hm extra, hσ extra, hj extra]
 
+/-- The term computing `explicitTgtNum k q m j`, the vertex at which the explicit edge numbered
+`j` ends. -/
 def explicitTgtT (k : ℕ) (qT mT jT : Term) : Term :=
   add (mul qT (const (3 * k + 2)))
     (ite (lt jT (halvesT k qT mT)) jT (sub jT (halvesT k qT mT)))

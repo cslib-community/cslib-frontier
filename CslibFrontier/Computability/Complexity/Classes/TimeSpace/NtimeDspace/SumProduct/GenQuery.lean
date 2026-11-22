@@ -52,12 +52,19 @@ theorem Prog'.closed_mono : ∀ (p : Prog) {m n : ℕ}, Prog'.closed m p = true 
 `[len]`, the child state from `[state, symbol, len]`, the node data from `[state, len]`, and
 the leaf bits from `[k, state, len]`. -/
 structure GenProg where
+  /-- The initial state, from `[len]`. -/
   init : Prog
+  /-- The fuel bounding the depth of the unfolding, from `[len]`. -/
   fuel : Prog
+  /-- The state of a child, from `[state, symbol, len]`. -/
   child : Prog
+  /-- The kind of the node of a state, from `[state, len]`. -/
   tag : Prog
+  /-- The precision of the node of a state, from `[state, len]`. -/
   prec : Prog
+  /-- The parameter of the node of a state, from `[state, len]`. -/
   param : Prog
+  /-- The leaf bits, from `[k, state, len]`; bit `k` is set when the value is positive. -/
   bit : Prog
   init_closed : Prog'.closed 1 init = true
   fuel_closed : Prog'.closed 1 fuel = true

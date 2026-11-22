@@ -134,18 +134,22 @@ theorem startComp_eq (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ)
 
 /-! ### The start term -/
 
+/-- The term computing `ipStart b N Jp Jm o`, the input position at the start. -/
 def ipStartT (bT NT JpT JmT o : Term) : Term :=
   ite (mul (sub (const 1) (lt (add (add (mul bT JpT) o) (const 1)) (mul bT JmT)))
       (lt (sub (add (add (mul bT JpT) o) (const 1)) (mul bT JmT)) (add NT (const 2))))
     (sub (add (add (mul bT JpT) o) (const 1)) (mul bT JmT)) (const 0)
 
+/-- The term computing `leftN CellI base pos`, the left number of a tape window. -/
 def leftT (cellI : Term → Term) (baseT posT : Term) : Term :=
   sumT posT fun j => mul (cellI (add baseT (sub (sub posT (const 1)) j))) (powT (const 3) j)
 
+/-- The term computing `rightN CellI base pos L`, the right number of a tape window. -/
 def rightT (cellI : Term → Term) (baseT posT LT : Term) : Term :=
   sumT LT fun j => mul (ite (lt (add (add posT (const 1)) j) LT)
     (cellI (add baseT (add (add posT (const 1)) j))) (const 0)) (powT (const 3) j)
 
+/-- The term computing `startComp b N Jp Jm stI trI OffI CellI i`, digit `i` of the packed start. -/
 def startCompT (bT NT JpT JmT stI trI : Term) (offI cellI : Term → Term) (i : Term) : Term :=
   ite (eqT i (const 0)) stI
   (ite (eqT i (const 1)) (ipStartT bT NT JpT JmT (offI (const 0)))

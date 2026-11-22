@@ -163,6 +163,7 @@ abbrev Y := (List ℕ × ℕ) × (ℕ × Bool)
 abbrev encY : Y ↪ List Bool :=
   encPair (encPair (encList encUnary) encUnary) (encPair encNat encBool)
 
+/-- The linear bound on the states of the search: the length of the encoding of `y`. -/
 noncomputable abbrev LY (y : Y) : ℕ := (encY y).length
 
 /-- Whether the choice number `y.2.1` is accepting, simulating `y.1.2` steps. -/

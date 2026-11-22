@@ -157,6 +157,7 @@ def width (i τ : ℕ) : ℕ := (halfEdges G K i τ).length
 
 /-- The node of vertex group `i`, of test group `τ`. -/
 def vNode (i : ℕ) : ℕ := i
+/-- The node of test group `τ`. -/
 def tNode (τ : ℕ) : ℕ := K + τ
 
 /-- The budgets of the first clique: `b(b+1)/2` on (vertex group, test group) pairs, `0`

@@ -921,13 +921,13 @@ theorem tm_consV (hx : Val w env x X) (tx : Tm w L dx x env) (hl : Val w env l L
 
 /-- **The code of a list of terms**, of tier `d` when its value is below `2^(d·L)` and every entry
 has tier `dt`. -/
-theorem val_tm_encV {dt d : ℕ} (hdt : 2 * dt + 1 ≤ 32) (hd : d + 2 * dt + 4 ≤ 128) (hd1 : 1 ≤ d)
+theorem val_tm_encV {dt d : ℕ} (hdt : 2 * dt + 1 ≤ 32) (hd : d + 2 * dt + 4 ≤ 128)
     (hL : 9 ≤ L) : ∀ {ts : List Term} {vs : List ℕ},
       List.Forall₂ (fun t v => Val w env t v ∧ Tm w L dt t env) ts vs →
       NatList.enc vs < 2 ^ (d * L) → Val w env (encV ts) (NatList.enc vs) ∧ Tm w L d (encV ts) env
   | [], [], .nil, h => ⟨val_encV_nil, tm_const h (by omega)⟩
   | _ :: _, v :: vs, .cons ⟨hv, ht⟩ hr, h => by
-    have ih := val_tm_encV hdt hd hd1 hL hr (lt_of_le_of_lt (NatList.enc_le_enc_cons v vs) h)
+    have ih := val_tm_encV hdt hd hL hr (lt_of_le_of_lt (NatList.enc_le_enc_cons v vs) h)
     exact ⟨val_encV_cons hv ih.1, tm_consV hv ht ih.1 ih.2 hdt hd hL (by rw [consF_enc]; exact h)⟩
 
 end TierList

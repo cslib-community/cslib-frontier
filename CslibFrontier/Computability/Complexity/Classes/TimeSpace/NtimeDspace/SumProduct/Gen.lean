@@ -33,10 +33,15 @@ open SPTree
 
 /-- The numeric data of a generator, at a fixed input. -/
 structure GenFun where
+  /-- The kind of the node of a state: `1` sum, `2` product, `3` shift, otherwise a leaf. -/
   tag : ℕ → ℕ
+  /-- The precision of the node of a state. -/
   prec : ℕ → ℕ
+  /-- The parameter of the node of a state: the index length of a sum or the shift. -/
   param : ℕ → ℕ
+  /-- The bits of the value of a leaf state. -/
   bit : ℕ → ℕ → Bool
+  /-- The state of the child with a given index. -/
   child : ℕ → ℕ → ℕ
 
 namespace GenFun
