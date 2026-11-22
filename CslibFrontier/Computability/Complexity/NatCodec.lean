@@ -8,9 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
 public import Mathlib.Data.Nat.Pairing
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 
 /-!
 # Composable natural-number index codecs for hardness reductions

@@ -12,6 +12,8 @@ import CslibFrontier.Computability.CellProbe.Randomized
 import CslibFrontier.Computability.Complexity.NatCodec
 import CslibFrontier.Computability.Complexity.Problems.DominatingSet
 import CslibFrontier.Computability.Complexity.Problems.ThreeSAT
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.QueryComplexity.Yao
 import CslibFrontier.Computability.RandomizedCost
 import CslibFrontier.Probability.PMF.Event
@@ -269,10 +271,10 @@ example :
 
 example :
     ComputableInPolyTime
-      (fun s : OpaqueIdx ⊕ ℕ => Sum.elim (fun x => 2 * x.raw) (fun n => 2 * n + 1) s)
-      (encSum encOpaqueIdx encUnary) encNat := by
-  have hraw := computableInPolyTime_opaqueRaw
-  fun_prop
+      (Sum.elim (fun x : OpaqueIdx => 2 * x.raw) (fun n : ℕ => 2 * n + 1))
+      (encSum encOpaqueIdx encUnary) encNat :=
+  ComputableInPolyTime.sumElim
+    (have := computableInPolyTime_opaqueRaw; by fun_prop) (by fun_prop)
 
 example :
     ComputableInPolyTime

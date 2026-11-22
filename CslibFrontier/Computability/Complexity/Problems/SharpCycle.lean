@@ -13,7 +13,9 @@ public import Mathlib.Data.Set.Card
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.Directed
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryPair
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import Mathlib.Data.List.Permutation
 import Mathlib.Data.List.Rotate
 import Mathlib.Data.List.Sublists

@@ -25,7 +25,7 @@ without requiring `Inhabited`, `Finite`, or `Decoder` on either summand or on th
 ## Main results
 
 * `Turing.MultiTapeTM.ComputableInPolyTime.sumInl`, `.sumInr`: tagged sum construction.
-* `Turing.MultiTapeTM.ComputableInPolyTime.sumElim`, `.sumElim'`: tagged sum elimination.
+* `Turing.MultiTapeTM.ComputableInPolyTime.sumElim`: tagged sum elimination.
 * `Turing.MultiTapeTM.ComputableInPolyTime.sumElimSnd`, `.sumElimWithInput`: tagged sum elimination
   retaining captured inputs.
 -/
@@ -96,22 +96,11 @@ theorem sumElimWithInput {γ δ : Type} {ea : α ↪ List Bool} {eb : β ↪ Lis
 
 /-- Eliminate a tagged sum in polynomial time on arbitrary summand and output encodings, without
 requiring `Inhabited`, `Finite`, or `Decoder` on any type. -/
-@[fun_prop]
 theorem sumElim {γ : Type} {encA : α ↪ List Bool} {encB : β ↪ List Bool}
     {encC : γ ↪ List Bool} {f : α → γ} {g : β → γ}
     (hf : ComputableInPolyTime f encA encC) (hg : ComputableInPolyTime g encB encC) :
     ComputableInPolyTime (Sum.elim f g) (encSum encA encB) encC :=
   sumElimWithInput id' (hf.comp (snd (encSum encA encB) encA))
     (hg.comp (snd (encSum encA encB) encB))
-
-/-- Composition rule for `Sum.elim` on a computed tagged sum. -/
-@[fun_prop]
-theorem sumElim' {δ γ : Type} {encD : δ ↪ List Bool} {encA : α ↪ List Bool}
-    {encB : β ↪ List Bool} {encC : γ ↪ List Bool} {s : δ → α ⊕ β}
-    {f : α → γ} {g : β → γ}
-    (hs : ComputableInPolyTime s encD (encSum encA encB))
-    (hf : ComputableInPolyTime f encA encC) (hg : ComputableInPolyTime g encB encC) :
-    ComputableInPolyTime (fun x => Sum.elim f g (s x)) encD encC :=
-  (sumElim hf hg).comp hs
 
 end Turing.MultiTapeTM.ComputableInPolyTime
