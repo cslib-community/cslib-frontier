@@ -95,71 +95,71 @@ theorem lpNorm_two_le_exp_mul_lpNorm {p : ℝ} (hp₀ : 0 < p) (hp₂ : p ≤ 2)
       exact this
     have : m = 0 := by simp only [hm, hf0, ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true,
       zero_pow, expect_const_zero]
-    linarith
+    linarith only [hmpos, this]
   set A := 𝔼 x, |f x| ^ p with hA
   have hApos : 0 < A := hpos p hp₀.ne'
   -- for each `ε > 0`, interpolating between `p` and `2 + ε`
   have key : ∀ ε : ℝ, 0 < ε →
       p / 2 * Real.log m ≤ Real.log A + (2 - p) * k + (2 - p) * k / 2 * ε := by
     intro ε hε
-    have hD : 0 < 2 + ε - p := by linarith
+    have hD : 0 < 2 + ε - p := by linarith only [hp₂, hε]
     have hθ0 : 0 < ε / (2 + ε - p) := div_pos hε hD
-    have hθ1 : ε / (2 + ε - p) < 1 := (div_lt_one hD).2 (by linarith)
+    have hθ1 : ε / (2 + ε - p) < 1 := (div_lt_one hD).2 (by linarith only [hp₀, hp₂])
     have hexp : ε / (2 + ε - p) * p + (1 - ε / (2 + ε - p)) * (2 + ε) = 2 := by
       field_simp; ring
     have hhol := Fintype.expect_rpow_le_rpow_mul_rpow (f := fun x => |f x|)
-      (fun x => abs_nonneg _) hθ0 hθ1 hp₀.le (by linarith : (0 : ℝ) ≤ 2 + ε)
+      (fun x => abs_nonneg _) hθ0 hθ1 hp₀.le (by positivity : (0 : ℝ) ≤ 2 + ε)
     rw [hexp] at hhol
     simp only [Real.rpow_two, sq_abs] at hhol
-    have hBpos := hpos (2 + ε) (by linarith)
+    have hBpos := hpos (2 + ε) (by positivity)
     set B := 𝔼 x, |f x| ^ (2 + ε) with hB
     have hlog1 : Real.log m ≤
         ε / (2 + ε - p) * Real.log A + (1 - ε / (2 + ε - p)) * Real.log B := by
       have := Real.log_le_log hmpos hhol
       rwa [Real.log_mul (Real.rpow_pos_of_pos hApos _).ne' (Real.rpow_pos_of_pos hBpos _).ne',
         Real.log_rpow hApos, Real.log_rpow hBpos] at this
-    have hbon := lpNorm_le_sqrt_pow_mul_lpNorm_two (q := 2 + ε) (by linarith) hf
+    have hbon := lpNorm_le_sqrt_pow_mul_lpNorm_two (q := 2 + ε) (by linarith only [hε]) hf
     rw [lpNorm, lpNorm_two, ← hB, ← hm] at hbon
     have hlog2 : (2 + ε)⁻¹ * Real.log B ≤ k * (Real.log (1 + ε) / 2) + Real.log m / 2 := by
       have := Real.log_le_log (Real.rpow_pos_of_pos hBpos _) hbon
-      rwa [Real.log_rpow hBpos, Real.log_mul (pow_pos (Real.sqrt_pos.2 (by linarith)) _).ne'
-        (Real.sqrt_pos.2 hmpos).ne', Real.log_pow, Real.log_sqrt (by linarith),
+      rwa [Real.log_rpow hBpos,
+        Real.log_mul (pow_pos (Real.sqrt_pos.2 (by linarith only [hε])) _).ne'
+          (Real.sqrt_pos.2 hmpos).ne', Real.log_pow, Real.log_sqrt (by linarith only [hε]),
         Real.log_sqrt hmpos.le, show 2 + ε - 1 = 1 + ε by ring] at this
     have hlog3 : Real.log (1 + ε) ≤ ε := by
-      have := Real.log_le_sub_one_of_pos (by linarith : 0 < 1 + ε)
-      linarith
+      linarith only [Real.log_le_sub_one_of_pos (by positivity : 0 < 1 + ε)]
     have h1 : (2 + ε - p) * Real.log m ≤ ε * Real.log A + (2 - p) * Real.log B := by
       have := mul_le_mul_of_nonneg_left hlog1 hD.le
       have e : (2 + ε - p) * (ε / (2 + ε - p) * Real.log A +
           (1 - ε / (2 + ε - p)) * Real.log B) = ε * Real.log A + (2 - p) * Real.log B := by
         field_simp; ring
-      linarith
+      linarith only [this, e]
     have h2 : Real.log B ≤ (2 + ε) * (k * (Real.log (1 + ε) / 2) + Real.log m / 2) := by
-      have := mul_le_mul_of_nonneg_left hlog2 (by linarith : (0 : ℝ) ≤ 2 + ε)
-      rwa [← mul_assoc, mul_inv_cancel₀ (by linarith : (2 + ε : ℝ) ≠ 0), one_mul] at this
-    have h3 := mul_le_mul_of_nonneg_left h2 (by linarith : (0 : ℝ) ≤ 2 - p)
+      have := mul_le_mul_of_nonneg_left hlog2 (by positivity : (0 : ℝ) ≤ 2 + ε)
+      rwa [← mul_assoc, mul_inv_cancel₀ (by positivity : (2 + ε : ℝ) ≠ 0), one_mul] at this
+    have h3 := mul_le_mul_of_nonneg_left h2 (by linarith only [hp₂] : (0 : ℝ) ≤ 2 - p)
     have h4 : (2 - p) * (2 + ε) * k / 2 * Real.log (1 + ε) ≤ (2 - p) * (2 + ε) * k / 2 * ε :=
       mul_le_mul_of_nonneg_left hlog3
-        (div_nonneg (mul_nonneg (mul_nonneg (by linarith) (by linarith)) (Nat.cast_nonneg k))
-          two_pos.le)
+        (div_nonneg (mul_nonneg (mul_nonneg (by linarith only [hp₂]) (by positivity))
+          (Nat.cast_nonneg k)) two_pos.le)
     have h5 : ε * (p / 2 * Real.log m) ≤
         ε * (Real.log A + (2 - p) * k + (2 - p) * k / 2 * ε) := by
-      linarith
+      linarith only [h1, h3, h4]
     exact le_of_mul_le_mul_left h5 hε
   have hkey : p / 2 * Real.log m ≤ Real.log A + (2 - p) * k := by
     refine le_of_forall_pos_le_add fun δ hδ => ?_
     have hc : 0 ≤ (2 - p) * k / 2 :=
-      div_nonneg (mul_nonneg (by linarith) (Nat.cast_nonneg k)) two_pos.le
+      div_nonneg (mul_nonneg (by linarith only [hp₂]) (Nat.cast_nonneg k)) two_pos.le
     have h := key (δ / ((2 - p) * k / 2 + 1)) (by positivity)
     have hcδ : (2 - p) * k / 2 * (δ / ((2 - p) * k / 2 + 1)) ≤ δ := by
       rw [mul_div_assoc', div_le_iff₀ (by positivity)]
-      nlinarith
-    linarith
+      nlinarith only [hc, hδ]
+    linarith only [h, hcδ]
   have hlogm : Real.log m * (1 / 2) ≤ k * (2 / p - 1) + Real.log A * p⁻¹ := by
     have e : (k : ℝ) * (2 / p - 1) + Real.log A * p⁻¹ = (Real.log A + (2 - p) * k) / p := by
       field_simp; ring
     rw [e, le_div_iff₀ hp₀]
-    linarith
+    linarith only [hkey]
   rw [lpNorm_two, ← hm, lpNorm, ← hA, Real.sqrt_eq_rpow, Real.rpow_def_of_pos hmpos,
     Real.rpow_def_of_pos hApos, ← Real.exp_add]
   exact Real.exp_le_exp.2 hlogm
@@ -225,7 +225,7 @@ theorem dens_le_exp_neg_mul_rpow {k : ℕ} {f : (ι → Bool) → ℝ} (hf : f �
       have h := mul_le_mul_of_nonneg_left hlogt (by positivity : (0 : ℝ) ≤ 2 / k)
       rw [← mul_assoc, show 2 / (k : ℝ) * (k / 2) = 1 by field_simp, one_mul,
         Real.log_mul two_ne_zero he.ne', Real.log_exp] at h
-      linarith
+      linarith only [h]
     exact (Real.log_le_log_iff two_pos hqpos).1 hlog2
   -- Markov's inequality for `|f| ^ q`
   have hmk := Fintype.mul_dens_filter_le_expect (f := fun x => |f x| ^ q)
@@ -253,21 +253,19 @@ theorem dens_le_exp_neg_mul_rpow {k : ℕ} {f : (ι → Bool) → ℝ} (hf : f �
   rcases (show (0 : ℝ) ≤ D by positivity).eq_or_lt with hD0 | hDpos
   · rw [← hD0]; positivity
   -- take logarithms
-  have hq1 : 0 < q - 1 := by linarith
+  have hq1 : 0 < q - 1 := by linarith only [hq2]
   have hlog := Real.log_le_log (by positivity) hmain
   rw [Real.log_mul (by positivity) hDpos.ne', Real.log_rpow (by positivity),
     Real.log_rpow (by positivity), Real.log_mul ht0.ne' hf0.ne',
     Real.log_mul (by positivity) hf0.ne', Real.log_pow, Real.log_sqrt hq1.le] at hlog
-  have hlq : Real.log (q - 1) ≤ Real.log q := Real.log_le_log hq1 (by linarith)
+  have hlq : Real.log (q - 1) ≤ Real.log q := Real.log_le_log hq1 (by linarith only [])
   -- `log D ≤ q (k / 2 log (q - 1) - log t) ≤ q (k / 2 log q - log t) = -(k / 2) q`
   have hkey : Real.log D ≤ -(k / 2 * q) := by
-    have h1 : k / 2 * Real.log q - Real.log t = -(k / 2) := by
-      rw [hlogq]; field_simp; ring
+    have h1 : k / 2 * Real.log q - Real.log t = -(k / 2) := by rw [hlogq]; field_simp; ring
     have h2 : q * (k * (Real.log (q - 1) / 2)) ≤ q * (k / 2 * Real.log q) := by
-      apply mul_le_mul_of_nonneg_left _ hqpos.le
-      have := mul_le_mul_of_nonneg_left hlq (by positivity : (0 : ℝ) ≤ k / 2)
-      linarith
-    nlinarith
+      have hk := mul_le_mul_of_nonneg_left hlq (by positivity : (0 : ℝ) ≤ k / 2)
+      exact mul_le_mul_of_nonneg_left (by linarith only [hk]) hqpos.le
+    nlinarith only [hlog, h1, h2, hqpos]
   have hfinal : k / (2 * Real.exp 1) * s = k / 2 * q := by
     rw [hq]; field_simp
   rw [hfinal, ← Real.exp_log hDpos]
@@ -302,8 +300,8 @@ theorem exp_neg_two_mul_div_four_le_dens_lt {k : ℕ} {f : (ι → Bool) → ℝ
   -- `(𝔼 |g|) ^ 2 = 4 (𝔼 E g) ^ 2 ≤ 4 Pr[f > μ] 𝔼 g ^ 2`
   have hC : (𝔼 x, |g x|) ^ 2 ≤ 4 * (dens {x | μ < f x} : ℝ) * 𝔼 x, g x ^ 2 := by
     rw [habs]
-    linarith
-  linarith [exp_neg_two_mul_le_of_sq_expect_abs_le hgdeg hV hC]
+    linarith only [hcs]
+  linarith only [exp_neg_two_mul_le_of_sq_expect_abs_le hgdeg hV hC]
 
 /-! ### Khintchine's inequality -/
 
