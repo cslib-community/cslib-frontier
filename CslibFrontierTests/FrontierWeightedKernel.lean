@@ -23,7 +23,6 @@ example : (1 / 3 : ℝ) < Gaussian.degreeCoefficient 4 := by
   norm_num
 
 example : WeightedKernel.fiveCoefficient < Gaussian.degreeCoefficient 5 := by
-  have ha5 : arccos (4 / 5) ≤ 64351 / 100000 := WeightedKernel.arccos_four_fifths_le
   have hcorr5 : Gaussian.vertexCorrelation 5 = 4 / 5 := by
     unfold Gaussian.vertexCorrelation
     push_cast

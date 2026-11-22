@@ -61,6 +61,8 @@ branching programs** and **partial-overlap coordinate restrictions**:
   `Cslib.Circuits.Frontier.RectangleBias.restrictSlice`,
   `Cslib.Circuits.Frontier.exists_le_mul_ncard_restrictSlice`: restriction invariance and dense
   slice existence.
+* `Cslib.Circuits.Frontier.Sweep.ncard_le_of_ncard_transition_le`: shared sweep cardinality bound
+  from a per-step state-fiber factor.
 * `Cslib.Circuits.Frontier.AlternatingPassNBP.ncard_accepted_le_of_hasFiberBound`,
   `Cslib.Circuits.Frontier.AlternatingPassNBP.ncard_accepted_le_deterministic`,
   `Cslib.Circuits.Frontier.AlternatingPassNBP.le_passes_mul_logb_card`: alternating `k`-pass
@@ -69,13 +71,15 @@ branching programs** and **partial-overlap coordinate restrictions**:
   `Cslib.Circuits.Frontier.SameOrderPassNBP.ncard_accepted_le_deterministic`,
   `Cslib.Circuits.Frontier.SameOrderPassNBP.le_two_mul_passes_sub_one_mul_logb_card`: same-order
   `k`-pass counting and `w ≥ n / (2 k - 1) - o(n)` width lower bounds.
+* `Cslib.Circuits.Frontier.le_logb_card_of_slice_readOnce`: partial-overlap slice bound
+  `w ≥ (1 - α) n - o(n)`.
 
 ## References
 
 * [S. Jukna, *Boolean Function Complexity: Advances and Frontiers*, Ch. 16][Jukna2012]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Circuits.Frontier
 
@@ -93,7 +97,8 @@ noncomputable def extendAssign (O : Set ι) (a : O → U) (y : ↥Oᶜ → U) : 
   fun i => if h : i ∈ O then a ⟨i, h⟩ else y ⟨i, h⟩
 
 /-- The slice `{y : ↥Oᶜ → U | extendAssign O a y ∈ S}` of `S` fixing `O` to `a`. -/
-noncomputable def restrictSlice (S : Set (ι → U)) (O : Set ι) (a : O → U) : Set (↥Oᶜ → U) :=
+@[expose] noncomputable def restrictSlice (S : Set (ι → U)) (O : Set ι) (a : O → U) :
+    Set (↥Oᶜ → U) :=
   extendAssign O a ⁻¹' S
 
 @[simp]
@@ -308,7 +313,7 @@ theorem exists_le_mul_ncard_restrictSlice [Finite ι] [Finite U] [Nonempty U] (S
 
 end RestrictSlice
 
-/-! ### Finite product cardinality helper -/
+/-! ### Shared sweep transition-capacity and logarithmic width helpers -/
 
 private theorem ncard_pi_univ_le {k : ℕ} {α : Type*} [Finite α] (F : Fin k → Set α) {C : ℕ}
     (hF : ∀ p, (F p).ncard ≤ C) : (Set.univ.pi F).ncard ≤ C ^ k := by
@@ -336,15 +341,83 @@ private theorem ncard_pi_univ_le {k : ℕ} {α : Type*} [Finite α] (F : Fin k �
       _ ≤ C * C ^ k := Nat.mul_le_mul (hF 0) (ih (fun p => F p.succ) fun p => hF p.succ)
       _ = C ^ (k + 1) := (pow_succ' C k).symm
 
+/-- **Sweep bound from per-step state-fiber capacity.** If `W : Sweep S M` has `0 < W.length` and
+at most `|U| ^ |W.newly t| · F` transitions at each step `t < W.length`, then for any
+`K`-rectangle-free `S`,
+`|S| ≤ (K - 1) ^ 2 · (∑_{t < W.length} |U| ^ |W.newly t|) · F`. -/
+theorem Sweep.ncard_le_of_ncard_transition_le {ι U M : Type*} [Finite ι] [Finite U]
+    {S : Set (ι → U)} (W : Sweep S M) (hL : 0 < W.length) {F K : ℕ}
+    (htrans : ∀ t < W.length, (W.transition t '' S).ncard ≤ Nat.card U ^ (W.newly t).ncard * F)
+    (hS : RectangleFree S K) :
+    S.ncard ≤
+      (K - 1) ^ 2 * (∑ t ∈ Finset.range W.length, Nat.card U ^ (W.newly t).ncard) * F := by
+  rcases S.eq_empty_or_nonempty with hempty | hne
+  · simp [hempty]
+  by_cases hK : K ≤ S.ncard
+  · calc S.ncard
+        ≤ (K - 1) ^ 2 * W.transitionCount := W.ncard_le hS hK
+      _ ≤ (K - 1) ^ 2 * ∑ t ∈ Finset.range W.length, Nat.card U ^ (W.newly t).ncard * F :=
+          Nat.mul_le_mul_left _ (Finset.sum_le_sum fun t ht => htrans t (Finset.mem_range.mp ht))
+      _ = (K - 1) ^ 2 * (∑ t ∈ Finset.range W.length, Nat.card U ^ (W.newly t).ncard) * F := by
+          rw [← Finset.sum_mul, mul_assoc]
+  · obtain ⟨x, hx⟩ := hne
+    have hK1 : 1 < K := hS.one_lt ⟨x, hx⟩
+    have h1 : 1 ≤ Nat.card U ^ (W.newly 0).ncard * F := by
+      calc 1 ≤ (W.transition 0 '' S).ncard :=
+            (ncard_pos ((toFinite S).image _)).mpr ⟨_, x, hx, rfl⟩
+        _ ≤ Nat.card U ^ (W.newly 0).ncard * F := htrans 0 hL
+    have hsum1 : 1 ≤ (∑ t ∈ Finset.range W.length, Nat.card U ^ (W.newly t).ncard) * F := by
+      rw [Finset.sum_mul]
+      exact h1.trans (Finset.single_le_sum (f := fun t => Nat.card U ^ (W.newly t).ncard * F)
+        (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hL))
+    calc S.ncard ≤ K - 1 := by omega
+      _ ≤ (K - 1) ^ 2 * 1 := by
+          rw [sq, mul_one]
+          exact Nat.le_mul_of_pos_left _ (by omega)
+      _ ≤ (K - 1) ^ 2 * (∑ t ∈ Finset.range W.length, Nat.card U ^ (W.newly t).ncard) * F := by
+          rw [mul_assoc]
+          exact Nat.mul_le_mul_left _ hsum1
+
+private theorem sum_pow_newly_le {ι : Type*} (U : Type*) [Finite U] [Nonempty U]
+    {L : ℕ} {newly : ℕ → Set ι} (hunit : ∀ t < L, (newly t).ncard ≤ 1) :
+    (∑ t ∈ Finset.range L, Nat.card U ^ (newly t).ncard) ≤ L * Nat.card U := by
+  calc (∑ t ∈ Finset.range L, Nat.card U ^ (newly t).ncard)
+      ≤ ∑ _t ∈ Finset.range L, Nat.card U ^ 1 :=
+        Finset.sum_le_sum fun t ht =>
+          Nat.pow_le_pow_right Nat.card_pos (hunit t (Finset.mem_range.mp ht))
+    _ = L * Nat.card U := by simp
+
+private theorem le_mul_logb_of_ncard_le {ι U : Type*} [Finite ι] [Finite U] [Nontrivial U]
+    {S : Set (ι → U)} {K L m E : ℕ} (hL : 0 < L) (hm : 0 < m)
+    (hS : RectangleFree S K) (hne : S.Nonempty)
+    (hcnt : S.ncard ≤ (K - 1) ^ 2 * L * Nat.card U * m ^ E) :
+    Real.logb (Nat.card U) S.ncard - 2 * Real.logb (Nat.card U) K -
+        Real.logb (Nat.card U) L - 1 ≤
+      (E : ℝ) * Real.logb (Nat.card U) m := by
+  have hq1 : (1 : ℝ) < Nat.card U := by exact_mod_cast (Finite.one_lt_card (α := U))
+  have hK1 : 1 < K := hS.one_lt hne
+  have hS_pos : 0 < S.ncard := (ncard_pos (toFinite _)).mpr hne
+  have hcnt' : S.ncard ≤ K ^ 2 * L * Nat.card U * m ^ E :=
+    hcnt.trans (by gcongr; omega)
+  have hcntR : (S.ncard : ℝ) ≤ (K : ℝ) ^ 2 * L * Nat.card U * (m : ℝ) ^ E := by
+    exact_mod_cast hcnt'
+  have hlog := Real.logb_le_logb_of_le hq1 (by exact_mod_cast hS_pos) hcntR
+  rw [Real.logb_mul (by positivity) (by positivity),
+    Real.logb_mul (by positivity) (by positivity),
+    Real.logb_mul (by positivity) (by positivity),
+    Real.logb_pow, Real.logb_pow, Real.logb_self_eq_one hq1] at hlog
+  push_cast at hlog
+  linarith
+
 /-! ### Alternating (`boustrophedon`) `k`-pass branching programs -/
 
 /-- Base coordinate index read at local step `s` of pass `p` in an alternating `k`-pass schedule of
 length `T`: `s` when `p` is even, and `T - 1 - s` when `p` is odd. -/
-def passCoord (T p s : ℕ) : ℕ :=
+@[expose] def passCoord (T p s : ℕ) : ℕ :=
   if p % 2 = 0 then s else T - 1 - s
 
 /-- Local step of pass `p` that reads coordinate block `t < T` in an alternating schedule. -/
-def passStep (T p t : ℕ) : ℕ :=
+private def passStep (T p t : ℕ) : ℕ :=
   if p % 2 = 0 then t else T - 1 - t
 
 /-- Layer of pass `p` separating `revealed τ` from `(revealed τ)ᶜ` in an alternating schedule. -/
@@ -408,16 +481,16 @@ structure IsAcceptingPath (x : ι → U) (γ : ℕ → ℕ → M) : Prop where
     P.Edge p s (γ p s) ((P.stepCoords p s).domRestrict x) (γ p (s + 1))
 
 /-- The inputs accepted by `P`. -/
-def accepted : Set (ι → U) :=
+@[expose] def accepted : Set (ι → U) :=
   {x | ∃ γ, P.IsAcceptingPath x γ}
 
 /-- Per-label state-transition capacity bound `C` at every pass and step. -/
-def HasFiberBound (C : ℕ) : Prop :=
+@[expose] def HasFiberBound (C : ℕ) : Prop :=
   ∀ p < P.passes, ∀ s < P.length, ∀ a : P.stepCoords p s → U,
     {q : M × M | P.Edge p s q.1 a q.2}.ncard ≤ C
 
 /-- `P` is deterministic when every `(p, s, m, a)` has at most one successor state `m'`. -/
-def Deterministic : Prop :=
+@[expose] def Deterministic : Prop :=
   ∀ p < P.passes, ∀ s < P.length, ∀ m a m₁ m₂,
     P.Edge p s m a m₁ → P.Edge p s m a m₂ → m₁ = m₂
 
@@ -517,10 +590,10 @@ theorem IsAcceptingPath.splice {P : AlternatingPassNBP ι U M} {x y z : ι → U
 
 open Classical in
 /-- Chosen accepting trajectory for each accepted input. -/
-noncomputable def path (x : ι → U) : ℕ → ℕ → M :=
+private noncomputable def path (x : ι → U) : ℕ → ℕ → M :=
   if h : ∃ γ, P.IsAcceptingPath x γ then h.choose else fun _ _ => P.start
 
-theorem isAcceptingPath_path {x : ι → U} (hx : x ∈ P.accepted) :
+private theorem isAcceptingPath_path {x : ι → U} (hx : x ∈ P.accepted) :
     P.IsAcceptingPath x (P.path x) := by
   unfold path
   split_ifs with h
@@ -653,40 +726,8 @@ theorem ncard_accepted_le_of_hasFiberBound [Finite ι] [Finite U] [Finite M] (hL
     {C K : ℕ} (hC : P.HasFiberBound C) (hS : RectangleFree P.accepted K) :
     P.accepted.ncard ≤
       (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-        C ^ P.passes := by
-  rcases P.accepted.eq_empty_or_nonempty with hempty | hne
-  · simp [hempty]
-  by_cases hK : K ≤ P.accepted.ncard
-  · calc P.accepted.ncard
-        ≤ (K - 1) ^ 2 * P.sweep.transitionCount := P.sweep.ncard_le hS hK
-      _ ≤ (K - 1) ^ 2 *
-            ∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard * C ^ P.passes := by
-          refine Nat.mul_le_mul_left _ (Finset.sum_le_sum fun t ht => ?_)
-          exact P.ncard_transition_sweep_le hC (Finset.mem_range.mp ht)
-      _ = (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-            C ^ P.passes := by
-          rw [← Finset.sum_mul, mul_assoc]
-  · obtain ⟨x, hx⟩ := hne
-    have hK1 : 1 < K := hS.one_lt ⟨x, hx⟩
-    have h1 : 1 ≤ Nat.card U ^ (P.newly 0).ncard * C ^ P.passes := by
-      calc 1 ≤ (P.sweep.transition 0 '' P.accepted).ncard :=
-            (ncard_pos (toFinite _)).mpr ⟨_, x, hx, rfl⟩
-        _ ≤ Nat.card U ^ (P.newly 0).ncard * C ^ P.passes :=
-            P.ncard_transition_sweep_le hC hL
-    have hsum1 : 1 ≤ (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-        C ^ P.passes := by
-      rw [Finset.sum_mul]
-      exact h1.trans (Finset.single_le_sum
-        (f := fun t => Nat.card U ^ (P.newly t).ncard * C ^ P.passes)
-        (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hL))
-    calc P.accepted.ncard ≤ K - 1 := by omega
-      _ ≤ (K - 1) ^ 2 * 1 := by
-          rw [sq, mul_one]
-          exact Nat.le_mul_of_pos_left _ (by omega)
-      _ ≤ (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-            C ^ P.passes := by
-          rw [mul_assoc]
-          exact Nat.mul_le_mul_left _ hsum1
+        C ^ P.passes :=
+  P.sweep.ncard_le_of_ncard_transition_le hL (fun _ ht => P.ncard_transition_sweep_le hC ht) hS
 
 /-- **Deterministic alternating `k`-pass rectangle bound (unit coordinate steps).** When each block
 `newly t` reads at most one coordinate and `P` is deterministic,
@@ -695,19 +736,12 @@ theorem ncard_accepted_le_deterministic [Finite ι] [Finite U] [Nonempty U] [Fin
     (hdet : P.Deterministic) (hL : 0 < P.length) (hunit : ∀ t < P.length, (P.newly t).ncard ≤ 1)
     {K : ℕ} (hS : RectangleFree P.accepted K) :
     P.accepted.ncard ≤ (K - 1) ^ 2 * P.length * Nat.card U * Nat.card M ^ P.passes := by
-  have hsum : (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) ≤
-      P.length * Nat.card U := by
-    calc (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard)
-        ≤ ∑ _t ∈ Finset.range P.length, Nat.card U ^ 1 := by
-          refine Finset.sum_le_sum fun t ht => ?_
-          exact Nat.pow_le_pow_right Nat.card_pos (hunit t (Finset.mem_range.mp ht))
-      _ = P.length * Nat.card U := by simp
   calc P.accepted.ncard
       ≤ (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
           Nat.card M ^ P.passes :=
         P.ncard_accepted_le_of_hasFiberBound hL hdet.hasFiberBound hS
     _ ≤ (K - 1) ^ 2 * (P.length * Nat.card U) * Nat.card M ^ P.passes :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hsum)
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (sum_pow_newly_le U hunit))
     _ = (K - 1) ^ 2 * P.length * Nat.card U * Nat.card M ^ P.passes := by ring
 
 /-- **Alternating `k`-pass logarithmic state-width lower bound (`w ≥ n / k - o(n)`).** Over a
@@ -719,26 +753,9 @@ theorem le_passes_mul_logb_card [Finite ι] [Finite U] [Nontrivial U] [Finite M]
     {K : ℕ} (hS : RectangleFree P.accepted K) (hne : P.accepted.Nonempty) :
     Real.logb (Nat.card U) P.accepted.ncard - 2 * Real.logb (Nat.card U) K -
         Real.logb (Nat.card U) P.length - 1 ≤
-      (P.passes : ℝ) * Real.logb (Nat.card U) (Nat.card M) := by
-  have hq1 : (1 : ℝ) < Nat.card U := by exact_mod_cast (Finite.one_lt_card (α := U))
-  have hK1 : 1 < K := hS.one_lt hne
-  have hMpos : 0 < Nat.card M := @Nat.card_pos M ⟨P.start⟩ _
-  have hacc_pos : 0 < P.accepted.ncard := (ncard_pos (toFinite _)).mpr hne
-  have hcnt := P.ncard_accepted_le_deterministic hdet hL hunit hS
-  have hcnt' : P.accepted.ncard ≤ K ^ 2 * P.length * Nat.card U * Nat.card M ^ P.passes := by
-    refine hcnt.trans ?_
-    gcongr
-    omega
-  have hcntR : (P.accepted.ncard : ℝ) ≤
-      (K : ℝ) ^ 2 * P.length * Nat.card U * (Nat.card M : ℝ) ^ P.passes := by
-    exact_mod_cast hcnt'
-  have hlog := Real.logb_le_logb_of_le hq1 (by exact_mod_cast hacc_pos) hcntR
-  rw [Real.logb_mul (by positivity) (by positivity),
-    Real.logb_mul (by positivity) (by positivity),
-    Real.logb_mul (by positivity) (by positivity),
-    Real.logb_pow, Real.logb_pow, Real.logb_self_eq_one hq1] at hlog
-  push_cast at hlog
-  linarith
+      (P.passes : ℝ) * Real.logb (Nat.card U) (Nat.card M) :=
+  le_mul_logb_of_ncard_le hL (@Nat.card_pos M ⟨P.start⟩ _) hS hne
+    (P.ncard_accepted_le_deterministic hdet hL hunit hS)
 
 end AlternatingPassNBP
 
@@ -791,16 +808,16 @@ structure IsAcceptingPath (x : ι → U) (γ : ℕ → ℕ → M) : Prop where
     P.Edge p s (γ p s) ((P.newly s).domRestrict x) (γ p (s + 1))
 
 /-- The inputs accepted by `P`. -/
-def accepted : Set (ι → U) :=
+@[expose] def accepted : Set (ι → U) :=
   {x | ∃ γ, P.IsAcceptingPath x γ}
 
 /-- Per-label state-transition capacity bound `C` at every pass and step. -/
-def HasFiberBound (C : ℕ) : Prop :=
+@[expose] def HasFiberBound (C : ℕ) : Prop :=
   ∀ p < P.passes, ∀ s < P.length, ∀ a : P.newly s → U,
     {q : M × M | P.Edge p s q.1 a q.2}.ncard ≤ C
 
 /-- `P` is deterministic when every `(p, s, m, a)` has at most one successor state `m'`. -/
-def Deterministic : Prop :=
+@[expose] def Deterministic : Prop :=
   ∀ p < P.passes, ∀ s < P.length, ∀ m a m₁ m₂,
     P.Edge p s m a m₁ → P.Edge p s m a m₂ → m₁ = m₂
 
@@ -861,10 +878,10 @@ theorem IsAcceptingPath.splice {P : SameOrderPassNBP ι U M} {x y z : ι → U} 
 
 open Classical in
 /-- Chosen accepting trajectory for each accepted input. -/
-noncomputable def path (x : ι → U) : ℕ → ℕ → M :=
+private noncomputable def path (x : ι → U) : ℕ → ℕ → M :=
   if h : ∃ γ, P.IsAcceptingPath x γ then h.choose else fun _ _ => P.start
 
-theorem isAcceptingPath_path {x : ι → U} (hx : x ∈ P.accepted) :
+private theorem isAcceptingPath_path {x : ι → U} (hx : x ∈ P.accepted) :
     P.IsAcceptingPath x (P.path x) := by
   unfold path
   split_ifs with h
@@ -973,41 +990,10 @@ theorem ncard_accepted_le_of_hasFiberBound [Finite ι] [Finite U] [Finite M] (hL
     P.accepted.ncard ≤
       (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
         Nat.card M ^ (P.passes - 1) * C ^ P.passes := by
-  rcases P.accepted.eq_empty_or_nonempty with hempty | hne
-  · simp [hempty]
-  by_cases hK : K ≤ P.accepted.ncard
-  · calc P.accepted.ncard
-        ≤ (K - 1) ^ 2 * P.sweep.transitionCount := P.sweep.ncard_le hS hK
-      _ ≤ (K - 1) ^ 2 * ∑ t ∈ Finset.range P.length,
-            Nat.card U ^ (P.newly t).ncard * Nat.card M ^ (P.passes - 1) * C ^ P.passes := by
-          refine Nat.mul_le_mul_left _ (Finset.sum_le_sum fun t ht => ?_)
-          exact P.ncard_transition_sweep_le hC (Finset.mem_range.mp ht)
-      _ = (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-            Nat.card M ^ (P.passes - 1) * C ^ P.passes := by
-          rw [← Finset.sum_mul, ← Finset.sum_mul]
-          ring
-  · obtain ⟨x, hx⟩ := hne
-    have hK1 : 1 < K := hS.one_lt ⟨x, hx⟩
-    have h1 : 1 ≤ Nat.card U ^ (P.newly 0).ncard * Nat.card M ^ (P.passes - 1) * C ^ P.passes := by
-      calc 1 ≤ (P.sweep.transition 0 '' P.accepted).ncard :=
-            (ncard_pos (toFinite _)).mpr ⟨_, x, hx, rfl⟩
-        _ ≤ Nat.card U ^ (P.newly 0).ncard * Nat.card M ^ (P.passes - 1) * C ^ P.passes :=
-            P.ncard_transition_sweep_le hC hL
-    have hsum1 : 1 ≤ (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-        Nat.card M ^ (P.passes - 1) * C ^ P.passes := by
-      rw [Finset.sum_mul, Finset.sum_mul]
-      exact h1.trans (Finset.single_le_sum
-        (f := fun t => Nat.card U ^ (P.newly t).ncard * Nat.card M ^ (P.passes - 1) * C ^ P.passes)
-        (fun _ _ => Nat.zero_le _) (Finset.mem_range.mpr hL))
-    calc P.accepted.ncard ≤ K - 1 := by omega
-      _ ≤ (K - 1) ^ 2 * 1 := by
-          rw [sq, mul_one]
-          exact Nat.le_mul_of_pos_left _ (by omega)
-      _ ≤ (K - 1) ^ 2 * ((∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-            Nat.card M ^ (P.passes - 1) * C ^ P.passes) :=
-          Nat.mul_le_mul_left _ hsum1
-      _ = (K - 1) ^ 2 * (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) *
-            Nat.card M ^ (P.passes - 1) * C ^ P.passes := by ring
+  have h := P.sweep.ncard_le_of_ncard_transition_le hL
+    (F := Nat.card M ^ (P.passes - 1) * C ^ P.passes)
+    (fun _ ht => by rw [← mul_assoc]; exact P.ncard_transition_sweep_le hC ht) hS
+  rwa [← mul_assoc] at h
 
 /-- **Deterministic same-order `k`-pass rectangle bound (unit coordinate steps).** When each block
 reads at most one coordinate and `P` is deterministic,
@@ -1017,13 +1003,6 @@ theorem ncard_accepted_le_deterministic [Finite ι] [Finite U] [Nonempty U] [Fin
     {K : ℕ} (hS : RectangleFree P.accepted K) :
     P.accepted.ncard ≤
       (K - 1) ^ 2 * P.length * Nat.card U * Nat.card M ^ (2 * P.passes - 1) := by
-  have hsum : (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard) ≤
-      P.length * Nat.card U := by
-    calc (∑ t ∈ Finset.range P.length, Nat.card U ^ (P.newly t).ncard)
-        ≤ ∑ _t ∈ Finset.range P.length, Nat.card U ^ 1 := by
-          refine Finset.sum_le_sum fun t ht => ?_
-          exact Nat.pow_le_pow_right Nat.card_pos (hunit t (Finset.mem_range.mp ht))
-      _ = P.length * Nat.card U := by simp
   have hpow : Nat.card M ^ (P.passes - 1) * Nat.card M ^ P.passes =
       Nat.card M ^ (2 * P.passes - 1) := by
     rw [← pow_add]
@@ -1038,7 +1017,7 @@ theorem ncard_accepted_le_deterministic [Finite ι] [Finite U] [Nonempty U] [Fin
           Nat.card M ^ (2 * P.passes - 1) := by
         rw [mul_assoc _ (Nat.card M ^ (P.passes - 1)), hpow]
     _ ≤ (K - 1) ^ 2 * (P.length * Nat.card U) * Nat.card M ^ (2 * P.passes - 1) :=
-        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hsum)
+        Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ (sum_pow_newly_le U hunit))
     _ = (K - 1) ^ 2 * P.length * Nat.card U * Nat.card M ^ (2 * P.passes - 1) := by ring
 
 /-- **Same-order `k`-pass logarithmic state-width lower bound (`w ≥ n / (2 k - 1) - o(n)`).** Over
@@ -1050,27 +1029,9 @@ theorem le_two_mul_passes_sub_one_mul_logb_card [Finite ι] [Finite U] [Nontrivi
     {K : ℕ} (hS : RectangleFree P.accepted K) (hne : P.accepted.Nonempty) :
     Real.logb (Nat.card U) P.accepted.ncard - 2 * Real.logb (Nat.card U) K -
         Real.logb (Nat.card U) P.length - 1 ≤
-      ((2 * P.passes - 1 : ℕ) : ℝ) * Real.logb (Nat.card U) (Nat.card M) := by
-  have hq1 : (1 : ℝ) < Nat.card U := by exact_mod_cast (Finite.one_lt_card (α := U))
-  have hK1 : 1 < K := hS.one_lt hne
-  have hMpos : 0 < Nat.card M := @Nat.card_pos M ⟨P.start⟩ _
-  have hacc_pos : 0 < P.accepted.ncard := (ncard_pos (toFinite _)).mpr hne
-  have hcnt := P.ncard_accepted_le_deterministic hdet hL hunit hS
-  have hcnt' : P.accepted.ncard ≤
-      K ^ 2 * P.length * Nat.card U * Nat.card M ^ (2 * P.passes - 1) := by
-    refine hcnt.trans ?_
-    gcongr
-    omega
-  have hcntR : (P.accepted.ncard : ℝ) ≤
-      (K : ℝ) ^ 2 * P.length * Nat.card U * (Nat.card M : ℝ) ^ (2 * P.passes - 1) := by
-    exact_mod_cast hcnt'
-  have hlog := Real.logb_le_logb_of_le hq1 (by exact_mod_cast hacc_pos) hcntR
-  rw [Real.logb_mul (by positivity) (by positivity),
-    Real.logb_mul (by positivity) (by positivity),
-    Real.logb_mul (by positivity) (by positivity),
-    Real.logb_pow, Real.logb_pow, Real.logb_self_eq_one hq1] at hlog
-  push_cast at hlog
-  linarith
+      ((2 * P.passes - 1 : ℕ) : ℝ) * Real.logb (Nat.card U) (Nat.card M) :=
+  le_mul_logb_of_ncard_le hL (@Nat.card_pos M ⟨P.start⟩ _) hS hne
+    (P.ncard_accepted_le_deterministic hdet hL hunit hS)
 
 end SameOrderPassNBP
 

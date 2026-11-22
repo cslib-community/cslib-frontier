@@ -10,10 +10,8 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.BoundedDegree
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Core
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
-public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiOrder
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
 import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Metric
-import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Cap
-import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 
@@ -72,8 +70,8 @@ endpoint degree pairs `3 ≤ d₁ ≤ d₂ ≤ d` with `d₁ + d₂ ≥ d + 3` (
 * `Cslib.Circuits.Frontier.WeightedKernel.le_inner_weightedKernelRow`,
   `Cslib.Circuits.Frontier.WeightedKernel.le_inner_unitWeightedKernelRow`: adjacent inner-product
   lower bounds.
-* `Cslib.Circuits.Frontier.WeightedKernel.exists_width_le_of_unitRows`: localized unit-vector
-  Gaussian vertex-score layout bound with edge-dependent correlations.
+* `Cslib.Circuits.Frontier.WeightedKernel.sum_one_sub_inv_deg_eq`: multigraph cycle-excess
+  handshake.
 * `Cslib.Circuits.Frontier.layoutBound_of_weightedKernel`: general degree-pair criterion for
   `LayoutBound d A`.
 * `Cslib.Circuits.Frontier.layoutBound_four_one_third`: `LayoutBound 4 (1 / 3)`.
@@ -86,7 +84,7 @@ endpoint degree pairs `3 ≤ d₁ ≤ d₂ ≤ d` with `d₁ + d₂ ≥ d + 3` (
   and normal correlation*][Sheppard1899]
 -/
 
-@[expose] public section
+public section
 
 open MeasureTheory ProbabilityTheory Real Set
 open scoped RealInnerProductSpace Interval
@@ -100,7 +98,7 @@ open Cslib.Circuits.Frontier.Gaussian
 /-! ### Finite maximum with zero floor -/
 
 /-- Maximum of `f` over a finite set `s`, floored at `0`. -/
-noncomputable def finsetMaxZero {α : Type*} (s : Finset α) (f : α → ℝ) : ℝ :=
+private noncomputable def finsetMaxZero {α : Type*} (s : Finset α) (f : α → ℝ) : ℝ :=
   open Classical in
   (insert (0 : ℝ) (s.image f)).max' (Finset.insert_nonempty _ _)
 
@@ -205,7 +203,7 @@ private theorem edgeWeight_le_one {deg : V → ℕ} {θ : ℝ} (hθ0 : 0 ≤ θ)
 
 /-- Maximum walk weight of length at most `r` from `u` to `z` in `H`, computed recursively by
 Bellman–Ford updates from the source vertex. -/
-noncomputable def bestWalkWeight [Finite V] (H : SimpleGraph V) (deg : V → ℕ) (θ : ℝ) :
+private noncomputable def bestWalkWeight [Finite V] (H : SimpleGraph V) (deg : V → ℕ) (θ : ℝ) :
     ℕ → V → V → ℝ
   | 0, u, z => open Classical in if u = z then 1 else 0
   | r + 1, u, z =>
@@ -229,8 +227,7 @@ section FiniteProps
 
 variable [Finite V] {H : SimpleGraph V} {deg : V → ℕ} {θ : ℝ}
 
-/-- Coordinate `z` of `weightedKernelRow` is `bestWalkWeight H deg θ R v z`. -/
-theorem weightedKernelRow_apply (R : ℕ) (v z : V) :
+private theorem weightedKernelRow_apply (R : ℕ) (v z : V) :
     weightedKernelRow H deg θ R v z = bestWalkWeight H deg θ R v z :=
   rfl
 
@@ -418,7 +415,8 @@ theorem one_le_norm_weightedKernelRow (R : ℕ) (v : V) :
 /-- Coordinate `z` of `unitWeightedKernelRow` is `weightedKernelRow` divided by its norm. -/
 theorem unitWeightedKernelRow_apply (R : ℕ) (v z : V) :
     unitWeightedKernelRow H deg θ R v z =
-      ‖weightedKernelRow H deg θ R v‖⁻¹ * weightedKernelRow H deg θ R v z :=
+      ‖weightedKernelRow H deg θ R v‖⁻¹ * weightedKernelRow H deg θ R v z := by
+  rw [unitWeightedKernelRow]
   rfl
 
 /-- Unit weighted kernel rows have norm `1`. -/
@@ -752,170 +750,11 @@ end FintypeProps
 
 end Kernel
 
-/-! ### Localized unit-vector Gaussian vertex-score layouts -/
-
-section UnitRowSample
-
-/-- **Good Gaussian sample for localized unit rows with edge-dependent correlations.** Let `G` be a
-loopless multigraph of maximum degree `d ≥ 2`, and let `row : V → EuclideanSpace ℝ V` assign each
-vertex a unit vector supported in the closed ball of radius `R` around `v` in `G.toSimpleGraph`,
-with edge inner products `ρ e ≤ ⟪row (G.src e), row (G.tgt e)⟫`. For large `|V|`, some Gaussian
-vertex-score layout achieves width at most
-`(∑_e arccos (ρ e) / π) + |V| (d / T ^ 2 + d (2 T / M) / √(2π) + (d + 1) ε)`. -/
-theorem exists_width_le_of_unitRows {V E : Type*} [Fintype V] [Fintype E] (G : Multigraph V E)
-    {d : ℕ} (hd : 2 ≤ d) (hdeg : G.MaxDegreeLE d) (R : ℕ) (row : V → EuclideanSpace ℝ V)
-    (hunit : ∀ v, ‖row v‖ = 1) (hsupp : ∀ v z, R < G.toSimpleGraph.edist v z → row v z = 0)
-    (ρ : E → ℝ) (hcorr : ∀ e : E, ρ e ≤ ⟪row (G.src e), row (G.tgt e)⟫) {T ε : ℝ} (hT : 0 < T)
-    (hε : 0 < ε) {M : ℕ} (hM : 0 < M)
-    (large : (M * (d + 1) + 2) * (vertexOverlap d R : ℝ) / ε ^ 2 < Nat.card V) :
-    ∃ σ : Layout V, (G.width σ : ℝ) ≤ (∑ e : E, arccos (ρ e) / π) +
-      Nat.card V * (d / T ^ 2 + d * (2 * T / M) / √(2 * π) + (d + 1) * ε) := by
-  classical
-  set P := Measure.pi fun _ : V => gaussianReal 0 1
-  set h : ℝ := ((Nat.card V : ℕ) : ℝ) with hh
-  set m : ℝ := ((Nat.card E : ℕ) : ℝ) with hm
-  set D : ℝ := ((vertexOverlap d R : ℕ) : ℝ)
-  set δ : ℝ := 2 * T / M with hδ
-  set c : ℝ := ε * h with hc
-  set S_cross : ℝ := ∑ e : E, arccos (ρ e) / π
-  have hMpos : (0 : ℝ) < M := by exact_mod_cast hM
-  have hhpos : 0 < h := lt_of_le_of_lt (by positivity) large
-  have hcpos : 0 < c := by positivity
-  have hδpos : 0 < δ := by positivity
-  have hScross0 : 0 ≤ S_cross :=
-    Finset.sum_nonneg fun e _ => div_nonneg (arccos_nonneg _) pi_pos.le
-  have hmh : m ≤ d * h := by
-    rw [hm, hh]
-    exact_mod_cast G.card_le_mul_card hdeg
-  have hcardV : (Fintype.card V : ℝ) = h := by rw [hh, Nat.card_eq_fintype_card]
-  have hcardE : (Fintype.card E : ℝ) = m := by rw [hm, Nat.card_eq_fintype_card]
-  let score (ω : V → ℝ) (v : V) : ℝ := ⟪row v, WithLp.toLp 2 ω⟫
-  let vEvent (f : ℝ → Prop) (v : V) : Set (V → ℝ) := {ω | f (score ω v)}
-  let cEvent (t : ℝ) (e : E) : Set (V → ℝ) := {ω | t ∈ Ι (score ω (G.src e)) (score ω (G.tgt e))}
-  have hmeas_score (v : V) : Measurable fun ω : V → ℝ => score ω v := by
-    dsimp only [score]
-    fun_prop
-  have hcongr_score {v : V} {ω ω' : V → ℝ}
-      (hω : ∀ z ∈ closedBall G.toSimpleGraph v R, ω z = ω' z) : score ω v = score ω' v :=
-    inner_toLp_congr (fun z hz => hsupp v z (lt_of_not_ge hz)) hω
-  have hball_succ (v : V) :
-      closedBall G.toSimpleGraph v R ⊆ closedBall G.toSimpleGraph v (R + 1) :=
-    fun _ (hz : G.toSimpleGraph.edist v _ ≤ R) =>
-      (show G.toSimpleGraph.edist v _ ≤ ((R + 1 : ℕ) : ℕ∞) from
-        hz.trans (by exact_mod_cast Nat.le_succ R))
-  have hdep_v (f : ℝ → Prop) (v : V) :
-      DependsOn (· ∈ vEvent f v) (closedBall G.toSimpleGraph v (R + 1)) := by
-    intro ω ω' hω
-    simp only [vEvent, mem_ofPred_eq]
-    rw [hcongr_score fun z hz => hω z (hball_succ v hz)]
-  have hdep_c (t : ℝ) (e : E) :
-      DependsOn (· ∈ cEvent t e) (closedBall G.toSimpleGraph (G.src e) (R + 1)) := by
-    intro ω ω' hω
-    simp only [cEvent, mem_ofPred_eq]
-    rw [hcongr_score fun z hz => hω z (hball_succ _ hz),
-      hcongr_score fun z hz => hω z (closedBall_tgt_subset e R hz)]
-  have crossDev (t : ℝ) : P.real (deviation (cEvent t) c) ≤ m * D / c ^ 2 := by
-    have := measureReal_deviation_le
-      (fun e => measurableSet_setOf_mem_uIoc (hmeas_score _) (hmeas_score _) t)
-      (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) (hdep_c t)
-      (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hcpos
-    rwa [hcardE] at this
-  have vertexDev {f : ℝ → Prop} (hf : MeasurableSet {x | f x}) :
-      P.real (deviation (vEvent f) c) ≤ h * D / c ^ 2 := by
-    have := measureReal_deviation_le (fun v => hmeas_score v hf)
-      (fun v => closedBall G.toSimpleGraph v (R + 1)) (hdep_v f)
-      (fun v => card_not_disjoint_closedBall_le hdeg (by omega) R v) hcpos
-    rwa [hcardV] at this
-  have hsmall : M * (m * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2 < 1 := by
-    have hm' : m * D / c ^ 2 ≤ d * h * D / c ^ 2 := by gcongr
-    have hcalc : (M * (d * h * D / c ^ 2 + h * D / c ^ 2) + h * D / c ^ 2 + h * D / c ^ 2) =
-        (M * (d + 1) + 2) * D / ε ^ 2 / h := by
-      rw [hc]
-      field_simp
-      ring
-    have hlast : (M * (d + 1) + 2) * D / ε ^ 2 / h < 1 := (div_lt_one hhpos).mpr large
-    nlinarith [mul_le_mul_of_nonneg_left hm' (Nat.cast_nonneg (α := ℝ) M)]
-  obtain ⟨ω, hmid, hlow, hhigh⟩ := exists_sample_of_grid_bounds
-    (fun i _ => crossDev (-T + i * δ))
-    (fun i _ => vertexDev (f := fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ)
-      ((measurableSet_le measurable_const measurable_id).inter
-        (measurableSet_lt measurable_id measurable_const)))
-    (vertexDev (f := (· < -T)) (measurableSet_lt measurable_id measurable_const))
-    (vertexDev (f := (T ≤ ·)) (measurableSet_le measurable_const measurable_id)) hsmall
-  set B := S_cross + h * (d / T ^ 2 + d * δ / √(2 * π) + (d + 1) * ε)
-  have vertexMean {f : ℝ → Prop} {b : ℝ} (hb : ∀ v, P.real (vEvent f v) ≤ b) :
-      ∑ v, P.real (vEvent f v) ≤ h * b :=
-    (Finset.sum_le_sum fun v _ => hb v).trans_eq
-      (by rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, hcardV])
-  have tail (f : ℝ → Prop) (hf : ∀ x, f x → T ≤ |x|) (hdev : ω ∉ deviation (vEvent f) c) :
-      d * ({v | ω ∈ vEvent f v}.ncard : ℝ) ≤ B := by
-    have hcount := ncard_lt_of_notMem_deviation hdev
-    have hmean : ∑ v, P.real (vEvent f v) ≤ h * (1 / T ^ 2) :=
-      vertexMean fun v => (measureReal_mono (μ := P) fun ω' hω' => hf _ hω').trans
-        (measureReal_le_abs_le (hunit v) hT)
-    have hbound : ({v | ω ∈ vEvent f v}.ncard : ℝ) ≤ h / T ^ 2 + c := by grind
-    have hmult := mul_le_mul_of_nonneg_left hbound (Nat.cast_nonneg (α := ℝ) d)
-    have hnonneg : 0 ≤ S_cross + h * (d * δ / √(2 * π) + ε) := by positivity
-    have hidentity : B = d * (h / T ^ 2 + c) + (S_cross + h * (d * δ / √(2 * π) + ε)) := by
-      simp only [B, hc]
-      ring
-    rw [hidentity]
-    linarith
-  have crossCount (t : ℝ) : (G.edgeCut {v | score ω v < t}).ncard =
-      {e | ω ∈ cEvent t e}.ncard := by
-    congr 1
-    ext e
-    simp only [Multigraph.mem_edgeCut, cEvent, mem_ofPred_eq, mem_uIoc, ← not_lt]
-    tauto
-  have hEdgeCross (t : ℝ) (e : E) : P.real (cEvent t e) ≤ arccos (ρ e) / π := by
-    have hu := hunit (G.src e)
-    have hv := hunit (G.tgt e)
-    refine (measureReal_mem_uIoc_le (hu.trans hv.symm) t).trans ?_
-    rw [InnerProductGeometry.angle_eq_arccos_inner_of_norm_eq_one hu hv]
-    exact div_le_div_of_nonneg_right (arccos_le_arccos (hcorr e)) pi_pos.le
-  have htop : -T + M * δ = T := by
-    rw [hδ]
-    field_simp
-    ring
-  obtain ⟨σ, hσ⟩ := G.exists_width_le_of_vertexScore hdeg (score ω) hδpos M (a := -T) (B := B)
-    (tail (· < -T) (fun x hx => by rw [abs_of_neg (by linarith)]; linarith) hlow)
-    (by
-      rw [htop]
-      exact tail (T ≤ ·) (fun x hx => hx.trans (le_abs_self x)) hhigh)
-    (by
-      intro i hi
-      have hthr : -T + ((i : ℝ) + 1) * δ = -T + i * δ + δ := by ring
-      rw [hthr]
-      have hC := ncard_lt_of_notMem_deviation (hmid i hi).1
-      have hW := ncard_lt_of_notMem_deviation (hmid i hi).2
-      have hCm : ∑ e, P.real (cEvent (-T + i * δ) e) ≤ S_cross :=
-        Finset.sum_le_sum fun e _ => hEdgeCross (-T + i * δ) e
-      have hWm := vertexMean (f := fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ)
-        (b := δ / √(2 * π)) fun v => measureReal_window_le (hunit v) (-T + i * δ) hδpos.le
-      have h1 : ((G.edgeCut {v | score ω v < -T + i * δ}).ncard : ℝ) ≤ S_cross + c := by
-        rw [crossCount]
-        linarith
-      have h2 : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) ≤
-          h * (δ / √(2 * π)) + c := by
-        have : ({v | -T + i * δ ≤ score ω v ∧ score ω v < -T + i * δ + δ}.ncard : ℝ) <
-            ∑ v, P.real (vEvent (fun x => -T + i * δ ≤ x ∧ x < -T + i * δ + δ) v) + c := hW
-        linarith
-      have hmult := mul_le_mul_of_nonneg_left h2 (Nat.cast_nonneg (α := ℝ) d)
-      have hnonneg : 0 ≤ h * (d / T ^ 2) := by positivity
-      have hidentity : B = (S_cross + c) + d * (h * (δ / √(2 * π)) + c) + h * (d / T ^ 2) := by
-        simp only [B, hc]
-        ring
-      rw [hidentity]
-      linarith)
-  exact ⟨σ, hσ⟩
-
-end UnitRowSample
-
 /-! ### Multigraph handshake and limiting degree-pair correlations -/
 
 /-- **Real-weighted multigraph handshake.** In a finite loopless multigraph, summing
 `|incidenceSet v| · w v` over vertices equals summing `w (src e) + w (tgt e)` over edges. -/
-theorem sum_ncard_incidenceSet_mul_real {V E : Type*} [Fintype V] [Fintype E]
+private theorem sum_ncard_incidenceSet_mul_real {V E : Type*} [Fintype V] [Fintype E]
     {G : Multigraph V E} (hl : G.Loopless) (w : V → ℝ) :
     ∑ v : V, ((G.incidenceSet v).ncard : ℝ) * w v = ∑ e : E, (w (G.src e) + w (G.tgt e)) := by
   classical
@@ -1308,8 +1147,7 @@ private theorem lt_pairCorrelation_of_bounds {d₁ d₂ : ℕ} (hd₁ : 3 ≤ d�
   · have : u * (√p + 1) < 0 := mul_neg_of_neg_of_pos (not_le.mp hu0) (by positivity)
     linarith
 
-/-- At `(4, 4)`, `pairCorrelation 4 4 = √3 / 2 = cos (π / 6)`. -/
-theorem pairCorrelation_four_four : pairCorrelation 4 4 = cos (π / 6) := by
+private theorem pairCorrelation_four_four : pairCorrelation 4 4 = cos (π / 6) := by
   have hs3 : (√3 : ℝ) ^ 2 = 3 := sq_sqrt (by norm_num)
   have hss3 : √(√3) * √(√3) = √3 := mul_self_sqrt (sqrt_nonneg 3)
   have hpw : pairWeight 4 4 = 1 / √3 := by
@@ -1320,8 +1158,7 @@ theorem pairCorrelation_four_four : pairCorrelation 4 4 = cos (π / 6) := by
   field_simp
   nlinarith [hs3]
 
-/-- At `(5, 5)`, `pairCorrelation 5 5 = 4 / 5`. -/
-theorem pairCorrelation_five_five : pairCorrelation 5 5 = 4 / 5 := by
+private theorem pairCorrelation_five_five : pairCorrelation 5 5 = 4 / 5 := by
   have h4 : √((4 : ℝ)) = 2 := (sqrt_eq_iff_eq_sq (by norm_num) (by norm_num)).mpr (by norm_num)
   have h2 : √((2 : ℝ)) * √((2 : ℝ)) = 2 := mul_self_sqrt (by norm_num)
   have hpw : pairWeight 5 5 = 1 / 2 := by
@@ -1330,8 +1167,7 @@ theorem pairCorrelation_five_five : pairCorrelation 5 5 = 4 / 5 := by
   rw [pairCorrelation, hpw]
   norm_num
 
-/-- At `(6, 6)`, `pairCorrelation 6 6 = √5 / 3`. -/
-theorem pairCorrelation_six_six : pairCorrelation 6 6 = √5 / 3 := by
+private theorem pairCorrelation_six_six : pairCorrelation 6 6 = √5 / 3 := by
   have hs5 : (√5 : ℝ) ^ 2 = 5 := sq_sqrt (by norm_num)
   have hss5 : √(√5) * √(√5) = √5 := mul_self_sqrt (sqrt_nonneg 5)
   have hpw : pairWeight 6 6 = 1 / √5 := by
@@ -1342,8 +1178,7 @@ theorem pairCorrelation_six_six : pairCorrelation 6 6 = √5 / 3 := by
   field_simp
   nlinarith [hs5]
 
-/-- In degree pair `(3, 4)`, `arccos (pairCorrelation 3 4) / π ≤ 5 / 36`. -/
-theorem arccos_pairCorrelation_three_four_le :
+private theorem arccos_pairCorrelation_three_four_le :
     arccos (pairCorrelation 3 4) / π ≤ 5 / 36 := by
   have hpi_lo := pi_gt_d4
   have hpi_hi := pi_lt_d4
@@ -1368,8 +1203,7 @@ theorem arccos_pairCorrelation_three_four_le :
   rw [div_le_iff₀ pi_pos]
   linarith
 
-/-- Lower bound `3217 / 5000 ≤ arccos (4 / 5) ≈ 0.643501`. -/
-theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) := by
+private theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) := by
   have hb := cos_bound (x := 3217 / 160000) (by norm_num)
   norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 3217 / 160000)] at hb
   have h0 : (49989893 / 50000000 : ℝ) ≤ cos (3217 / 160000) := by linarith [(abs_le.mp hb).1]
@@ -1386,8 +1220,7 @@ theorem le_arccos_four_fifths : (3217 / 5000 : ℝ) ≤ arccos (4 / 5) := by
         (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
     _ ≤ arccos (4 / 5) := arccos_le_arccos hcos
 
-/-- Upper bound `arccos (4 / 5) ≤ 64351 / 100000`. -/
-theorem arccos_four_fifths_le : arccos (4 / 5) ≤ 64351 / 100000 := by
+private theorem arccos_four_fifths_le : arccos (4 / 5) ≤ 64351 / 100000 := by
   have hb := cos_bound (x := 64351 / 3200000) (by norm_num)
   norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 64351 / 3200000)] at hb
   have h0 : cos (64351 / 3200000) ≤ 999797809 / 1000000000 := by linarith [(abs_le.mp hb).2]
@@ -1440,7 +1273,7 @@ private theorem arccos_pairCorrelation_three_five_le :
   exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
 
 /-- The exact degree-five layout coefficient `(5 / 3) arccos (4 / 5) / π ≈ 0.341388`. -/
-noncomputable def fiveCoefficient : ℝ :=
+@[expose] noncomputable def fiveCoefficient : ℝ :=
   5 / 3 * arccos (4 / 5) / π
 
 /-- `fiveCoefficient` is strictly positive. -/
@@ -1465,8 +1298,7 @@ theorem fiveCircuitCoefficient_ge_3929 :
     linarith [pi_gt_d6, arccos_four_fifths_le]
   linarith
 
-/-- Lower bound `7297 / 10000 ≤ arccos (√5 / 3) ≈ 0.729728`. -/
-theorem le_arccos_sqrt_five_div_three : (7297 / 10000 : ℝ) ≤ arccos (√5 / 3) := by
+private theorem le_arccos_sqrt_five_div_three : (7297 / 10000 : ℝ) ≤ arccos (√5 / 3) := by
   have hb := cos_bound (x := 7297 / 640000) (by norm_num)
   norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 7297 / 640000)] at hb
   have h0 : (9999350013 / 10000000000 : ℝ) ≤ cos (7297 / 640000) := by
@@ -1488,8 +1320,7 @@ theorem le_arccos_sqrt_five_div_three : (7297 / 10000 : ℝ) ≤ arccos (√5 / 
         (arccos_cos (by norm_num) (by linarith [pi_gt_three])).symm
     _ ≤ arccos (√5 / 3) := arccos_le_arccos hcos
 
-/-- Upper bound `arccos (√5 / 3) ≤ 72973 / 100000`. -/
-theorem arccos_sqrt_five_div_three_le : arccos (√5 / 3) ≤ 72973 / 100000 := by
+private theorem arccos_sqrt_five_div_three_le : arccos (√5 / 3) ≤ 72973 / 100000 := by
   have hb := cos_bound (x := 72973 / 6400000) (by norm_num)
   norm_num only [abs_of_pos (by norm_num : (0 : ℝ) < 72973 / 6400000)] at hb
   have h0 : cos (72973 / 6400000) ≤ 4999674989 / 5000000000 := by
@@ -1567,7 +1398,7 @@ private theorem arccos_pairCorrelation_three_six_le :
   exact (arccos_le_arccos hcos).trans_eq (arccos_cos (by norm_num) (by linarith [pi_gt_three]))
 
 /-- The exact degree-six layout coefficient `(3 / 2) arccos (√5 / 3) / π ≈ 0.348419`. -/
-noncomputable def sixCoefficient : ℝ :=
+@[expose] noncomputable def sixCoefficient : ℝ :=
   3 / 2 * arccos (√5 / 3) / π
 
 /-- `sixCoefficient` is strictly positive. -/
