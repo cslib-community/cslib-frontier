@@ -105,6 +105,10 @@ This is a guarantee about the text and the formula the parser returns: the parse
 to read the files as intended, and nothing is said about compiled code. It is smaller than the
 end-to-end theorem of CakePB (§6.2 of the VeriPB/CakePB documentation, 22 June 2026 edition),
 which also covers the execution of its compiled machine code and the parsing of DIMACS input.
+For an instance or formula built in Lean, the parsers drop out: they read back the text that
+`Cslib.Logic.PL.VeriPB.Text.printOPB` and `Cslib.Logic.PL.CNF.toDIMACS` print, and the soundness
+theorems in `CslibFrontier.Logics.Propositional.PseudoBoolean.Print` conclude about the Lean
+value itself (`Cslib.Logic.PL.VeriPB.Text.not_satisfiable_of_checkOPB_printOPB` and others).
 
 ## Main definitions
 

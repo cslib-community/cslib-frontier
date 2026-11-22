@@ -7193,6 +7193,7 @@ public import CslibFrontier.Foundations.Data.Nat.SqrtLog.Shifted
 public import CslibFrontier.Foundations.Data.Nat.SqrtRatio
 public import CslibFrontier.Foundations.Data.Nat.Subexponential
 public import CslibFrontier.Foundations.Data.Nat.SummationByParts
+public import CslibFrontier.Foundations.Data.Nat.ToDigits
 public import CslibFrontier.Foundations.Data.Nat.Totient
 public import CslibFrontier.Foundations.Data.Nat.TwoAdicInterval
 public import CslibFrontier.Foundations.Data.Option
@@ -8320,6 +8321,7 @@ public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
 public import CslibFrontier.Logics.Propositional.PseudoBoolean
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
+public import CslibFrontier.Logics.Propositional.PseudoBoolean.Print
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Redundance
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.VeriPB
