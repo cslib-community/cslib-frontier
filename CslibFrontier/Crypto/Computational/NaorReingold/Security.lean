@@ -38,6 +38,7 @@ import CslibFrontier.Probability.Product
 import CslibFrontier.Probability.StatisticalDistance.Product
 import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.GameHop
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Computational security of the Naor–Reingold PRF from DDH
@@ -1345,30 +1346,9 @@ private theorem DDH.negligible_naorReingoldDescGame {F : PrimeOrderGroupFamily}
       (by exact_mod_cast hnum_le : _ ≤ ((inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ : ℕ) : ℝ≥0) *
         (2 : ℝ≥0) ^ L) (by positivity)).trans_eq ?_
     rw [mul_div_mul_right _ _ h2L, div_eq_mul_inv, ← inv_pow]
-  have hinLen_poly : PolynomiallyBounded inLen := hinLen.polynomiallyBounded
-  have hcap_poly : PolynomiallyBounded (fun n => dyadicSize (inLen n)) :=
-    dyadicSize_polynomiallyBounded.comp hinLen_poly
-  have hnum_poly : PolynomiallyBounded
-      (fun n => inLen n + 2 * cQ * C * (2 * n + 6) ^ eQ) := by
-    fun_prop
-  have hε_neg : Negligible ε :=
-    (negligible_geometric (ratio := (2 : ℝ≥0)⁻¹) (by norm_num)).polynomiallyBounded_mul hnum_poly
-  have hddh_neg : Negligible fun n =>
-      Game.advantage
-        (F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n)
-        (F.ddhRandomGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n) :=
-    hDDH _ (isPPT_naorReingoldDescToDDHDistinguisher F hinLen hadv)
+  have hddh_neg := hDDH _ (isPPT_naorReingoldDescToDDHDistinguisher F hinLen hadv)
   have hinv_neg := hDDH.negligible_expected_inv_order
-  have hsum_neg : Negligible fun n =>
-      Game.advantage
-        (F.ddhRealGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n)
-        (F.ddhRandomGame setup (naorReingoldDescToDDHDistinguisher F inLen adv) n) +
-        2 * ε n +
-        (∑' d, setup n d * (F.order d : ℝ≥0∞)⁻¹).toNNReal :=
-    (hddh_neg.add (hε_neg.const_mul 2)).add hinv_neg
-  have htot_neg := hsum_neg.polynomiallyBounded_mul hcap_poly
-  refine negligible_of_le htot_neg fun n => ?_
-  simpa only [mul_comm (dyadicSize (inLen n) : ℝ≥0)] using
+  negligible using fun n =>
     advantage_naorReingoldDescGame_le F setup inLen adv n (Q n) (hQ_supp n) (hε_supp n)
 
 /-- Ideal-sampling step toward [BonehShoup2023], Exercise 10.4 (p. 424), not the cited result: if
@@ -1390,12 +1370,7 @@ theorem DDH.negligible_naorReingoldWordGame_ideal {F : PrimeOrderGroupFamily}
 private theorem negligible_add_one_div_two_pow {inLen : ℕ → ℕ}
     (hinLen : ComputableInPolyTime inLen encUnary encUnary) :
     Negligible fun n => ((inLen n + 1 : ℕ) : ℝ≥0) / (2 : ℝ≥0) ^ n := by
-  have hinLen_poly : PolynomiallyBounded inLen := hinLen.polynomiallyBounded
-  have hp : PolynomiallyBounded (fun n => inLen n + 1) := by fun_prop
-  refine negligible_of_le
-    ((negligible_geometric (ratio := (2 : ℝ≥0)⁻¹) (by norm_num)).polynomiallyBounded_mul hp)
-    fun n => ?_
-  rw [div_eq_mul_inv, ← inv_pow]
+  negligible
 
 /-- **Asymptotic DDH security of the executable Naor–Reingold group-PRF
 (`naorReingoldProbRealGame`)** ([BonehShoup2023], Exercise 10.4; [NaorReingold2004], Theorem 4.1):

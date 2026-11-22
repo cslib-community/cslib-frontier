@@ -24,7 +24,6 @@ import CslibFrontier.Probability.PMF.UniformIndex
 import CslibFrontier.Probability.PMF.UniformPoint
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
-import CslibFrontier.Tactic.Negligible
 
 /-!
 # Guessing advantage and key derivation in the random-oracle model
@@ -609,7 +608,8 @@ theorem negligible_roAdvantage_of_statisticalGuessHard {S X T : ℕ → Type}
     (hguess : ∀ A : ∀ n, GuessAdversary (X n) (S n),
       Negligible fun n => guessAdvantage (sample n) (info n) (A n)) :
     Negligible fun n => roAdvantage (sample n) (info n) (D n) := by
-  have := hguess fun n => roToGuess (Q n) (D n)
-  negligible using fun n => roAdvantage_le_mul_guessAdvantage (sample n) (info n) (hD n)
+  refine negligible_of_le ((hguess fun n => roToGuess (Q n) (D n)).polynomiallyBounded_mul hQ)
+    fun n => ?_
+  simpa [mul_comm] using roAdvantage_le_mul_guessAdvantage (sample n) (info n) (hD n)
 
 end Cslib.Crypto.KeyDerivation
