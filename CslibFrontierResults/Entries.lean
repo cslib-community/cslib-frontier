@@ -78,6 +78,7 @@ import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashFamily.Transport
 import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
@@ -364,6 +365,7 @@ import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Cut
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.StableSet
 import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.TSP
+import CslibFrontier.DataStructure.BTree.Comparisons.LowerBound
 import CslibFrontier.DataStructure.Dictionary.UniformProbing
 import CslibFrontier.DataStructure.NearNeighbor.Angular
 import CslibFrontier.DataStructure.NearNeighbor.PStable
@@ -10858,6 +10860,19 @@ register_result "computational-universal-hash-single-to-multi-query" where
     query bound from the setup and adversary certificates. The predicates express security for an \
     existing family and leave the hash algorithm's own efficiency requirements to the caller."
 
+register_result "computational-difference-unpredictability-implies-universal-hashing" where
+  title := "Computational difference unpredictability implies computational universal hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Zero-difference reduction (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269, after Remark 7.3" }
+  ]
+  theorems := [Cslib.Crypto.UHF.IsComputationalDUF.isComputationalUHF_zmod]
+  scope := "Asymptotic form of the zero-prediction reduction. The setup chooses a digest modulus. \
+    One uniform strict PPT machine copies the collision guess and appends the canonical binary \
+    encoding of zero, which has the same word at every modulus. The games have equal success \
+    probability and keep the uniform hash key private."
+
 register_result "pairwise-unpredictability-implies-universal-hashing" where
   title := "Pairwise unpredictability implies universality and difference universality"
   topic := "cryptography"
@@ -12548,3 +12563,22 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
     (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
     outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
     https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "btree-rank-comparison-lower-bound" where
+  title := "Comparison lower bound for B-tree rank search"
+  topic := "algorithms"
+  sources := [
+    { paper := Knuth1998, theorem := unverified, locator := "Section 6.2.1" }
+  ]
+  theorems := [
+    Cslib.DataStructure.BTree.IsRank.lowerBound_infinite,
+    Cslib.DataStructure.BTree.IsRank.lowerBound_wfInput_infinite,
+    Cslib.DataStructure.BTree.rank_lowerBound_infinite
+  ]
+  scope := "Proves the ⌈log₂(n + 1)⌉ comparison lower bound for comparison-based rank programs \
+    (IsRank, satisfied by both rankQ and rankBinQ) on B-trees over an infinite key type in the \
+    FreeM (LEQuery α) query model: on any duplicate-free tree (rank_lowerBound_infinite), over \
+    general (BTree α β × α) inputs (IsRank.lowerBound_infinite), and over well-formed B-trees \
+    WFInput α β t of minimum degree t ≥ 2 (IsRank.lowerBound_wfInput_infinite). Bounds \
+    comparison queries in FreeM (LEQuery α) rather than machine instructions; the companion \
+    comparison lower bound for lookup remains open under #3674."

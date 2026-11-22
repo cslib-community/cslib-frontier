@@ -24,6 +24,8 @@ import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Assumption-free Feistel permutation families (`Lemmas 5.1–5.2` and `Corollaries B.5–B.6`)
@@ -712,6 +714,7 @@ theorem dens_childRouter_exists_bucketLoad_sub_ge_le {c q b s T m : ℕ}
 
 /-- Half-independence exponent `m = 3 * ⌈log₂ max(n, 2)⌉ + 4` (`k = 2 * m`), chosen so that
 `2 ^ (s + 1) * (1 / 2) ^ m ≤ 1 / (8 * n ^ 2)` whenever `2 ^ s ≤ n`. -/
+@[wram_arith]
 def childRouterHalfInd (n : ℕ) : ℕ :=
   3 * Nat.clog 2 (max n 2) + 4
 
@@ -742,7 +745,7 @@ theorem dens_childRouter_bucketLoad_outside_le {c q b s T : ℕ}
   set m := childRouterHalfInd #S
   set μ : ℝ := (#S : ℝ) / (2 ^ s : ℝ)
   set a : ℝ := ((1 : ℝ) / 5) * μ ^ ((2 : ℝ) / 3)
-  have hm4 : 4 ≤ m := by dsimp [m, childRouterHalfInd]; omega
+  have hm4 : 4 ≤ m := by wram_omega
   have hm : 1 ≤ m := by omega
   have hS_pos : 1 ≤ #S := by
     have h1 : 1 ≤ 2 ^ s * (150 * m) ^ 3 := Nat.mul_pos (Nat.two_pow_pos s) (by positivity)
@@ -867,6 +870,7 @@ def childRouterCharBits (c T : ℕ) : ℕ :=
   max 1 ((Nat.clog 2 (max T 2) + max c 1 - 1) / max c 1)
 
 /-- Repetition factor `q = c * max α_inv 1 + 2` for gap bound `2 ^ s * T ≤ T ^ α_inv`. -/
+@[wram_arith]
 def childRouterRep (ε_inv α_inv : ℕ) : ℕ :=
   childRouterChars ε_inv * max α_inv 1 + 2
 
@@ -994,7 +998,7 @@ theorem childRouterSeedBits_pow_le (ε_inv α_inv s : ℕ) {T : ℕ} (hT : 1 ≤
       dsimp only [u]
       have : c ≤ 4 * c ^ 2 := by nlinarith
       omega
-    have hu_pow : u ^ c ≤ 2 ^ u := Nat.pow_le_two_pow (by omega) (by dsimp [u]; omega)
+    have hu_pow : u ^ c ≤ 2 ^ u := Nat.pow_le_two_pow (by omega) (by omega)
     calc ((c * b + s) ^ E) ^ 2 = (c * b + s) ^ c := by
           rw [← Nat.pow_mul]; congr 1; rw [hc_eq]; ring
       _ ≤ u ^ c := Nat.pow_le_pow_left hle_u c
@@ -1119,7 +1123,7 @@ theorem dens_childRouter_bucketLoad_outside_le_of_threshold {ε_inv α_inv s T :
       ℝ) ≤ 1 / (4 * (#S : ℝ) ^ 2) := by
   have hc : 1 ≤ childRouterChars ε_inv := by
     dsimp [childRouterChars]; have := le_max_right ε_inv 1; omega
-  have hq : 1 ≤ childRouterRep ε_inv α_inv := by dsimp [childRouterRep]; omega
+  have hq : 1 ≤ childRouterRep ε_inv α_inv := by wram_omega
   exact dens_childRouter_bucketLoad_outside_le hc hq
     (le_two_pow_mul_childRouterCharBits hc) S
     (childRouter_code_le_of_threshold hgap S hthresh) hconc
@@ -1186,7 +1190,7 @@ theorem childRouter_conc_of_two_pow_mul_pow_four_le {s n : ℕ}
       _ ≤ 2 ^ (s + 1 + Lx) := Nat.pow_le_pow_right (by decide) (by omega))
   have hm_le : childRouterHalfInd n ≤ 3 * s + 3 * Lx + 7 := by
     have hclog : Nat.clog 2 (max n 2) ≤ s + 1 + Lx := Nat.clog_le_of_le_pow hn_le_pow
-    dsimp [childRouterHalfInd]; omega
+    wram_omega
   have hcube_x : (150 * childRouterHalfInd n) ^ 3 ≤ x := by
     by_cases hLx : Lx ≤ s
     · have h150 : 150 * childRouterHalfInd n ≤ 1050 * s := by omega

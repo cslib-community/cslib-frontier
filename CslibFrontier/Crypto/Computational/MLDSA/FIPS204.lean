@@ -44,7 +44,7 @@ open Cslib.Probability
 
 /-- The two XOFs used by FIPS 204. Each SHAKE variant has a single raw-bit input space,
 shared by key generation, signing, verification and external queries. -/
-structure Xofs where
+@[ext] structure Xofs where
   /-- The XOF used to expand the public matrix. -/
   h128 : ExtendableOutput
   /-- The XOF used for secret expansion, masks, message representatives and challenges. -/
@@ -1045,9 +1045,38 @@ theorem eq_of_sigDecode {s : Level} {a b : List Byte} {σ : Signature s}
   exact (List.take_append_drop t a).symm.trans <| (congrArg₂ (· ++ ·) hdr hints).trans
     (List.take_append_drop t b)
 
+/-- Consecutive little-endian bytes in a commitment digest register. -/
+def registerBytes (s : Level) (d : BitString (8 * digestBytes s)) : List Byte :=
+  ((Keccak.fixedBytesEquivBitsLE (digestBytes s)).symm d).toList
+
+/-- A coherent commitment digest register supplies exactly the required number of bytes. -/
+@[simp] theorem length_registerBytes (s : Level) (d : BitString (8 * digestBytes s)) :
+    (registerBytes s d).length = digestBytes s := by
+  simp [registerBytes]
+
+/-- A literal digest of the prescribed length round-trips through the XOR register. -/
+theorem registerBytes_ofList (s : Level) (bytes : List Byte) (h : bytes.length = digestBytes s) :
+    registerBytes s (BitString.ofList (8 * digestBytes s) (Keccak.bytesToBitsLE bytes)) =
+      bytes := by
+  obtain ⟨v, rfl⟩ := FixedBytes.exists_toList h
+  have hbits : BitString.ofList (8 * digestBytes s) (Keccak.bytesToBitsLE v.toList) =
+      Keccak.fixedBytesEquivBitsLE (digestBytes s) v := by
+    rw [← Keccak.ofFn_fixedBytesEquivBitsLE, BitString.ofList_ofFn]
+  simp [registerBytes, hbits]
+
 /-- Algorithm 26 serializes the commitment digest, signed response and sparse hint. -/
 def encodeSignature (s : Level) (σ : Signature s) : List Byte :=
   σ.digest ++ packSigned (s.params.γ₁.log2 + 1) s.params.γ₁ σ.z ++ encodeHint σ.h
+
+/-- Length in bytes of an encoded signature (FIPS 204, Table 2). -/
+def signatureBytes (s : Level) : ℕ :=
+  digestBytes s + 32 * (s.params.γ₁.log2 + 1) * s.params.ℓ + hintLimit s + s.params.k
+
+/-- Encoding a signature satisfying the hint and digest bounds has its prescribed length. -/
+theorem length_encodeSignature (s : Level) (σ : Signature s)
+    (hd : σ.digest.length = digestBytes s) (hh : hintWeight s.params σ.h ≤ hintLimit s) :
+    (encodeSignature s σ).length = signatureBytes s := by
+  simp [encodeSignature, signatureBytes, packSigned, hd, length_encodeHint σ.h hh, Nat.add_assoc]
 
 /-- Algorithms 26 and 27 round-trip every signature with the prescribed digest length,
 an accepted response norm, and at most `ω` hint bits. -/
@@ -1061,10 +1090,8 @@ theorem sigDecode_encodeSignature (s : Level) (σ : Signature s)
   have plen : resp.length = 32 * w * s.params.ℓ := length_packCoeffs ..
   have tlen : (σ.digest ++ resp).length = digestBytes s + 32 * w * s.params.ℓ := by
     rw [List.length_append, hd, plen]
-  have len : (encodeSignature s σ).length =
-      digestBytes s + 32 * w * s.params.ℓ + hintLimit s + s.params.k := by
-    change ((σ.digest ++ resp) ++ hints).length = _
-    simp only [List.length_append, tlen, length_encodeHint σ.h hh, hints, Nat.add_assoc]
+  have len := length_encodeSignature s σ hd hh
+  change _ = digestBytes s + 32 * w * s.params.ℓ + hintLimit s + s.params.k at len
   have hdr : (encodeSignature s σ).take (digestBytes s) = σ.digest := by
     change ((σ.digest ++ resp) ++ hints).take _ = _
     rw [List.append_assoc, ← hd, List.take_left]
@@ -1186,6 +1213,11 @@ private theorem highTerm_publicKey (s : Level) (bytes : List Byte) (matrix) :
 
 /-- FIPS 202 specialization of `Xofs.representativeFromTr`. -/
 abbrev representativeFromTr := Xofs.representativeFromTr Xofs.shake
+
+/-- The message representative fits exactly in the 512-bit measured register. -/
+@[simp] theorem length_representativeFromTr {H : Xofs} (tr : List Byte) (formatted : List Bool) :
+    (H.representativeFromTr tr formatted).length = 512 := by
+  rw [Xofs.representativeFromTr, Keccak.length_bytesToBitsLE, H.h256.length_read]
 
 /-- SHAKE256 on `BytesToBits(H(pk,64)) || M'`. In particular a formatted message may end
 between two byte boundaries (Algorithm 8, lines 6–7). -/

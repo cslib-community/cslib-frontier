@@ -241,6 +241,13 @@ private theorem round_stable_of_size_le {n : ℕ} {r : Fin n → Fin n → Prop}
   · simpa using h
   · simpa using h.trans (Nat.le_succ (k + 1))
 
+/-- A change in the expected count means the next radius is below the vertex count. -/
+theorem radius_succ_lt_of_expected_count_ne {n : ℕ} {r : Fin n → Fin n → Prop}
+    {s : Fin n} {k : ℕ} (h : (expected r s (k + 1)).count ≠ (expected r s k).count) :
+    k + 1 < n := by
+  by_contra! hsize
+  exact h (by simp [expected, round_stable_of_size_le hsize])
+
 private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n : ℕ}
     {r : Fin n → Fin n → Prop} {s target : Fin n}
     {edge : Fin n → Fin n → m Bool} {member : MembershipScan m n}
@@ -275,9 +282,7 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
           have hr := reachableWithin_subset_setOf_reflTransGen (mem_round.mp hv)
           exact (existsUnique_passes_iff.mp hk) v (mem_round.mpr (hstable ▸ hr))
         · simp only [decide_eq_true_eq, mem_round, hstable, Set.mem_ofPred_eq]
-      · have hsize : k + 1 < n := by
-          by_contra! h
-          exact hs (by simp [expected, round_stable_of_size_le h])
+      · have hsize := radius_succ_lt_of_expected_count_ne hs
         have hgood' (j : ℕ) (hj : j ≤ k + 1) : ∃! w, Passes r s j w := by
           rcases Nat.eq_or_lt_of_le hj with rfl | hj
           · exact hb.mp hbad

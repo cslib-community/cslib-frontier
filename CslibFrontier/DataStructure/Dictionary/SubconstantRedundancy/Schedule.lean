@@ -17,6 +17,8 @@ import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Multi-Level Tree Parameter Schedule and Subconstant-Redundancy Bit Budget
@@ -158,6 +160,7 @@ def treeDepthAux (U r cur : ℕ) : ℕ → ℕ
 
 /-- Tree depth `k ≥ 2`: the least `ℓ ≥ 2` (within `Nat.floorLogStar U + 2`) such that
 `Nat.iterLog ℓ U ≤ 4 * r`. -/
+@[wram_arith]
 def treeDepth (U r : ℕ) : ℕ :=
   treeDepthAux U r 2 (Nat.floorLogStar U)
 
@@ -212,7 +215,7 @@ def nHigh (n U r k ℓ : ℕ) : ℕ :=
   if ℓ = 0 then n else nFloor n U r k ℓ + delta n U r k ℓ
 
 /-- Key-ID bit width `I_ℓ = 4 * ⌈log₂(2 * nFloor ℓ)⌉` at level `1 ≤ ℓ ≤ k` (`≥ 4 log₂ n_ℓ + 4`). -/
-@[expose]
+@[expose, wram_arith]
 def idBits (n U r k ℓ : ℕ) : ℕ :=
   4 * Nat.clog 2 (2 * max (nFloor n U r k ℓ) 1)
 
@@ -325,8 +328,7 @@ theorem two_le_treeDepth (U r : ℕ) : 2 ≤ treeDepth U r :=
 
 theorem treeDepth_le (U r : ℕ) : treeDepth U r ≤ Nat.floorLogStar U + 2 := by
   have h := treeDepthAux_le U r 2 (Nat.floorLogStar U)
-  dsimp only [treeDepth]
-  omega
+  wram_omega
 
 theorem iterLog_treeDepth_le {U r : ℕ} (hr : 1 ≤ r) :
     Nat.iterLog (treeDepth U r) U ≤ 4 * r := by
@@ -457,7 +459,7 @@ theorem nHigh_sub_nLow {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : ℓ ≤ P.depth) :
   omega
 
 /-- Quotient remainder bit-shift `I_ℓ - s_ℓ - I_{ℓ + 1}` on edge `ℓ → ℓ + 1`. -/
-@[expose]
+@[expose, wram_arith]
 def remBits (ℓ : ℕ) : ℕ :=
   P.idBits ℓ - P.branchBits ℓ - P.idBits (ℓ + 1)
 
@@ -502,8 +504,7 @@ theorem numNodes_mul_idUniv_mul_quotUniv {ℓ : ℕ} (h1 : 1 ≤ ℓ) (hℓ : �
     have hd_lt : 1 + d < P.depth := by omega
     have hstep := P.idBits_step_le (1 + d) (by omega) hd_lt
     have hexp : P.idBits (1 + d + 1) + P.branchBits (1 + d) + P.remBits (1 + d) =
-        P.idBits (1 + d) := by
-      dsimp only [remBits]; omega
+        P.idBits (1 + d) := by wram_omega
     calc P.numNodes (1 + (d + 1)) * 2 ^ P.idBits (1 + (d + 1)) * P.quotUniv (1 + (d + 1))
         = (P.numNodes (1 + d) * 2 ^ P.branchBits (1 + d)) *
             2 ^ P.idBits (1 + d + 1) *
@@ -539,7 +540,7 @@ def tableCap (ℓ : ℕ) : ℕ :=
   else P.nLow P.depth
 
 /-- Capacity `cap - N_2 * nLow 2` of the shared root value pool. -/
-@[expose]
+@[expose, wram_arith]
 def rootValPoolCap : ℕ :=
   P.cap - P.numNodes 2 * P.nLow 2
 
@@ -990,7 +991,6 @@ theorem idBits_pred_le_mul_levelScale {n U r ℓ : ℕ}
           congr 1; ring
   have hcl : Nat.clog 2 (2 * max (nFloor n U r k (ℓ - 1)) 1) ≤ 36 * s + 11 :=
     Nat.clog_le_of_le_pow h2y_le
-  dsimp only [idBits]
-  omega
+  wram_omega
 
 end Cslib.DataStructure.Dictionary.SubconstantRedundancy

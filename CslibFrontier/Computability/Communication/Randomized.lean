@@ -8,13 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Communication.Protocol
+public import CslibFrontier.Probability.Minimax
 public import Cslib.Foundations.Data.BitString
 public import Cslib.Probability.PMF
 public import Mathlib.Basic.Real.Basic
 import CslibFrontier.Foundations.Data.ENat.IInf
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
-import CslibFrontier.Probability.Minimax
 import CslibFrontier.Probability.PMF
 
 /-!
@@ -89,19 +89,19 @@ abbrev PublicCoin (X Y Z : Type*) : Type _ :=
 on a pair of inputs drawn from `ν` is not related to them by `R`. -/
 noncomputable def Protocol.distributionalError (p : Protocol X Y Z) (ν : PMF (X × Y))
     (R : X → Y → Z → Prop) : ℝ :=
-  (ν.toOuterMeasure {q | ¬R q.1 q.2 (p.run q.1 q.2)}).toReal
+  PMF.errorProb (fun q (p : Protocol X Y Z) => R q.1 q.2 (p.run q.1 q.2)) ν p
 
 namespace PublicCoin
 
 /-- The supremum of the tree depths of protocols in the support, or `⊤` if these depths are
 unbounded. Each tree's depth counts even branches unreachable by any input. -/
 noncomputable def depth (μ : PublicCoin X Y Z) : ℕ∞ :=
-  ⨆ p ∈ μ.support, (p.depth : ℕ∞)
+  PMF.maxCost Protocol.depth μ
 
 /-- The probability that the protocol drawn from `μ` gives an output on `x` and `y` that is not
 related to them by `R`. -/
 noncomputable def errorProb (μ : PublicCoin X Y Z) (R : X → Y → Z → Prop) (x : X) (y : Y) : ℝ :=
-  (μ.toOuterMeasure {p | ¬R x y (p.run x y)}).toReal
+  PMF.errorProb (fun (p : Protocol X Y Z) (q : X × Y) => R q.1 q.2 (p.run q.1 q.2)) μ (x, y)
 
 /-- A public-coin protocol `μ` solves `R` on `A × B` with error `ε` when on every pair of inputs
 from `A × B` its output is not related to them with probability at most `ε`. -/
@@ -122,26 +122,24 @@ variable {μ : PublicCoin X Y Z} {p : Protocol X Y Z} {R : X → Y → Z → Pro
   {B B' : Set Y} {ε ε' : ℝ} {x : X} {y : Y}
 
 theorem depth_le_iff {c : ℕ∞} : μ.depth ≤ c ↔ ∀ p ∈ μ.support, (p.depth : ℕ∞) ≤ c :=
-  iSup₂_le_iff
+  PMF.maxCost_le_iff
 
 theorem depth_le_depth (hp : p ∈ μ.support) : (p.depth : ℕ∞) ≤ μ.depth :=
-  le_iSup₂ (f := fun p (_ : p ∈ μ.support) => (p.depth : ℕ∞)) p hp
+  PMF.le_maxCost hp
 
 @[simp] theorem depth_pure (p : Protocol X Y Z) : depth (PMF.pure p) = p.depth :=
-  le_antisymm (depth_le_iff.mpr fun q hq => by rw [(PMF.mem_support_pure_iff _ _).mp hq])
-    (depth_le_depth ((PMF.mem_support_pure_iff _ _).mpr rfl))
+  PMF.maxCost_pure Protocol.depth p
 
 theorem errorProb_nonneg : 0 ≤ μ.errorProb R x y :=
-  ENNReal.toReal_nonneg
+  PMF.errorProb_nonneg
 
 theorem errorProb_le_one : μ.errorProb R x y ≤ 1 :=
-  PMF.toOuterMeasure_toReal_le_one μ _
+  PMF.errorProb_le_one
 
 open Classical in
 theorem errorProb_pure (p : Protocol X Y Z) (R : X → Y → Z → Prop) (x : X) (y : Y) :
-    errorProb (PMF.pure p) R x y = if R x y (p.run x y) then 0 else 1 := by
-  rw [errorProb, PMF.toOuterMeasure_pure_apply]
-  split_ifs <;> simp_all
+    errorProb (PMF.pure p) R x y = if R x y (p.run x y) then 0 else 1 :=
+  PMF.errorProb_pure (fun (p : Protocol X Y Z) (q : X × Y) => R q.1 q.2 (p.run q.1 q.2)) p (x, y)
 
 theorem Solves.mono (h : μ.Solves ε R A B) (hε : ε ≤ ε') (hA : A' ⊆ A) (hB : B' ⊆ B) :
     μ.Solves ε' R A' B' :=
@@ -151,7 +149,9 @@ theorem Solves.mono (h : μ.Solves ε R A B) (hε : ε ≤ ε') (hA : A' ⊆ A) 
 nonnegative error. -/
 theorem solves_pure (hp : p.Solves R A B) (hε : 0 ≤ ε) :
     Solves (PMF.pure p) ε R A B :=
-  fun x hx y hy => by simpa [errorProb_pure, hp x hx y hy] using hε
+  fun x hx y hy =>
+    PMF.errorProb_pure_le (fun (p : Protocol X Y Z) (q : X × Y) => R q.1 q.2 (p.run q.1 q.2))
+      (hp x hx y hy) hε
 
 /-- **The averaging argument**, the easy direction of Yao's principle: if `μ` solves `R` on
 `A × B` with error `ε`, then for every distribution `ν` on `A × B` some protocol that `μ` can draw
@@ -159,33 +159,33 @@ errs with probability at most `ε` on inputs drawn from `ν`. -/
 theorem Solves.exists_distributionalError_le (h : μ.Solves ε R A B) (ν : PMF (X × Y))
     (hν : ∀ q ∈ ν.support, q.1 ∈ A ∧ q.2 ∈ B) :
     ∃ p ∈ μ.support, p.distributionalError ν R ≤ ε :=
-  PMF.exists_mem_support_toOuterMeasure_le μ ν (fun p q => ¬R q.1 q.2 (p.run q.1 q.2))
-    fun q hq => h _ (hν q hq).1 _ (hν q hq).2
+  PMF.exists_errorProb_le ν fun q hq => h _ (hν q hq).1 _ (hν q hq).2
 
 theorem ecomplexity_le_depth (h : μ.Solves ε R A B) : ecomplexity ε R A B ≤ μ.depth :=
-  iInf_le (fun μ : {μ : PublicCoin X Y Z // μ.Solves ε R A B} => μ.1.depth) ⟨μ, h⟩
+  ENat.iInf_subtype_le h
 
 theorem le_ecomplexity_iff {k : ℕ∞} :
-    k ≤ ecomplexity ε R A B ↔ ∀ μ : PublicCoin X Y Z, μ.Solves ε R A B → k ≤ μ.depth := by
-  simp only [ecomplexity, le_iInf_iff, Subtype.forall]
+    k ≤ ecomplexity ε R A B ↔ ∀ μ : PublicCoin X Y Z, μ.Solves ε R A B → k ≤ μ.depth :=
+  ENat.le_iInf_subtype_iff
 
 theorem ecomplexity_le_iff {k : ℕ} :
-    ecomplexity ε R A B ≤ k ↔ ∃ μ : PublicCoin X Y Z, μ.Solves ε R A B ∧ μ.depth ≤ k := by
-  simp only [ecomplexity, ENat.iInf_le_natCast_iff, Subtype.exists, exists_prop]
+    ecomplexity ε R A B ≤ k ↔ ∃ μ : PublicCoin X Y Z, μ.Solves ε R A B ∧ μ.depth ≤ k :=
+  ENat.iInf_subtype_le_natCast_iff
 
 /-- Allowing more error makes a relation easier. -/
 theorem ecomplexity_anti (hε : ε ≤ ε') : ecomplexity ε' R A B ≤ ecomplexity ε R A B :=
-  le_iInf fun μ => iInf_le_of_le ⟨μ.1, μ.2.mono hε subset_rfl subset_rfl⟩ le_rfl
+  ENat.iInf_subtype_mono fun _ hμ => hμ.mono hε subset_rfl subset_rfl
 
 /-- Solving a relation on larger sets is harder. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
     ecomplexity ε R A' B' ≤ ecomplexity ε R A B :=
-  le_iInf fun μ => iInf_le_of_le ⟨μ.1, μ.2.mono le_rfl hA hB⟩ le_rfl
+  ENat.iInf_subtype_mono fun _ hμ => hμ.mono le_rfl hA hB
 
 /-- Public-coin protocols with nonnegative error are at least as good as deterministic ones. -/
 theorem ecomplexity_le_protocol (hε : 0 ≤ ε) :
     ecomplexity ε R A B ≤ Protocol.ecomplexity R A B :=
-  le_iInf fun p => (ecomplexity_le_depth (solves_pure p.2 hε)).trans_eq (depth_pure p.1)
+  ENat.iInf_subtype_le_iInf_subtype PMF.pure (fun _ hp => solves_pure hp hε)
+    fun p _ => (depth_pure p).le
 
 theorem ecomplexityFun_le_protocol {f : X → Y → Z} (hε : 0 ≤ ε) :
     ecomplexityFun ε f ≤ Protocol.ecomplexityFun f :=
@@ -194,19 +194,13 @@ theorem ecomplexityFun_le_protocol {f : X → Y → Z} (hε : 0 ≤ ε) :
 /-- Precomposing the inputs does not make a function harder: the players apply `a` and `b` to
 their inputs and run a protocol for `f`. -/
 theorem ecomplexityFun_comap_le {X' Y' : Type*} (f : X → Y → Z) (a : X' → X) (b : Y' → Y) :
-    ecomplexityFun ε (fun x y => f (a x) (b y)) ≤ ecomplexityFun ε f := by
-  refine le_ecomplexity_iff.mpr fun μ hμ => ?_
-  refine (ecomplexity_le_depth (μ := μ.map (Protocol.comap a b)) fun x _ y _ => ?_).trans ?_
-  · have h := hμ (a x) trivial (b y) trivial
-    rw [errorProb] at h ⊢
-    rw [PMF.toOuterMeasure_map_apply]
-    convert h using 3
-    ext p
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq, Protocol.run_comap]
-  · refine depth_le_iff.mpr fun p hp => ?_
-    obtain ⟨p', hp', rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
-    rw [Protocol.depth_comap]
-    exact depth_le_depth hp'
+    ecomplexityFun ε (fun x y => f (a x) (b y)) ≤ ecomplexityFun ε f :=
+  ENat.iInf_subtype_le_iInf_subtype (PMF.map (Protocol.comap a b))
+    (fun μ hμ x _ y _ => by
+      simpa [errorProb, PMF.errorProb_map, PMF.errorProb] using hμ (a x) trivial (b y) trivial)
+    fun μ _ =>
+      PMF.maxCost_map_le Protocol.depth Protocol.depth _ μ fun p _ =>
+        (Protocol.depth_comap a b p).le
 
 end PublicCoin
 
@@ -267,15 +261,10 @@ variable {P : PrivateCoin a b X Y Z} {R : X → Y → Z → Prop} {A A' : Set X}
 
 @[simp] theorem errorProb_toPublicCoin (P : PrivateCoin a b X Y Z) (R : X → Y → Z → Prop)
     (x : X) (y : Y) : P.toPublicCoin.errorProb R x y = P.errorProb R x y := by
-  simp only [PublicCoin.errorProb, toPublicCoin, PMF.toOuterMeasure_map_apply, errorProb]
-  congr 2
-  ext r
-  simp
+  simp [PublicCoin.errorProb, toPublicCoin, errorProb, PMF.errorProb]
 
-theorem depth_toPublicCoin_le (P : PrivateCoin a b X Y Z) : P.toPublicCoin.depth ≤ P.depth := by
-  refine PublicCoin.depth_le_iff.mpr fun p hp => ?_
-  obtain ⟨r, -, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hp
-  simp
+theorem depth_toPublicCoin_le (P : PrivateCoin a b X Y Z) : P.toPublicCoin.depth ≤ P.depth :=
+  PMF.maxCost_map_le_of_le Protocol.depth P.fix _ fun r _ => (P.depth_fix r).le
 
 theorem Solves.toPublicCoin (h : P.Solves ε R A B) : P.toPublicCoin.Solves ε R A B :=
   fun x hx y hy => (errorProb_toPublicCoin P R x y).trans_le (h x hx y hy)
@@ -297,27 +286,26 @@ theorem solves_comap {p : Protocol X Y Z} (hp : p.Solves R A B) (hε : 0 ≤ ε)
   exact hε
 
 theorem ecomplexity_le_depth (h : P.Solves ε R A B) : ecomplexity ε R A B ≤ P.depth :=
-  (iInf_le _ a).trans <| (iInf_le _ b).trans <|
-    iInf_le (fun P : {P : PrivateCoin a b X Y Z // P.Solves ε R A B} => (P.1.depth : ℕ∞)) ⟨P, h⟩
+  ENat.iInf₂_subtype_natCast_le h
 
 theorem le_ecomplexity_iff {k : ℕ∞} :
     k ≤ ecomplexity ε R A B ↔
-      ∀ a b (P : PrivateCoin a b X Y Z), P.Solves ε R A B → k ≤ P.depth := by
-  simp only [ecomplexity, le_iInf_iff, Subtype.forall]
+      ∀ a b (P : PrivateCoin a b X Y Z), P.Solves ε R A B → k ≤ P.depth :=
+  ENat.le_iInf₂_subtype_natCast_iff
 
 theorem ecomplexity_le_iff {k : ℕ} :
     ecomplexity ε R A B ≤ k ↔
-      ∃ a b, ∃ P : PrivateCoin a b X Y Z, P.Solves ε R A B ∧ P.depth ≤ k := by
-  simp only [ecomplexity, ENat.iInf_le_natCast_iff, Nat.cast_le, Subtype.exists, exists_prop]
+      ∃ a b, ∃ P : PrivateCoin a b X Y Z, P.Solves ε R A B ∧ P.depth ≤ k :=
+  ENat.iInf₂_subtype_natCast_le_natCast_iff
 
 /-- Allowing more error makes a relation easier. -/
 theorem ecomplexity_anti (hε : ε ≤ ε') : ecomplexity ε' R A B ≤ ecomplexity ε R A B :=
-  le_ecomplexity_iff.mpr fun _ _ _ hP => ecomplexity_le_depth (hP.mono hε subset_rfl subset_rfl)
+  ENat.iInf₂_subtype_natCast_mono fun _ _ _ hP => hP.mono hε subset_rfl subset_rfl
 
 /-- Solving a relation on larger sets is harder. -/
 theorem ecomplexity_mono (hA : A' ⊆ A) (hB : B' ⊆ B) :
     ecomplexity ε R A' B' ≤ ecomplexity ε R A B :=
-  le_ecomplexity_iff.mpr fun _ _ _ hP => ecomplexity_le_depth (hP.mono le_rfl hA hB)
+  ENat.iInf₂_subtype_natCast_mono fun _ _ _ hP => hP.mono le_rfl hA hB
 
 /-- Private-coin protocols with nonnegative error are at least as good as deterministic ones. -/
 theorem ecomplexity_le_protocol (hε : 0 ≤ ε) :
