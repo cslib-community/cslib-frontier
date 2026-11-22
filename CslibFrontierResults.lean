@@ -1,3 +1,4 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.CBCMAC
+import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
