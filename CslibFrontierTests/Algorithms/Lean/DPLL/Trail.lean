@@ -25,10 +25,19 @@ example : Trail.answer full = .unsat := by decide
 
 example : Trail.run full 8 [] = some (Trail.answer full) := by decide
 
--- On `unitFirst`, `φ.vars.dedup = [2, 0]`: the search first propagates `¬x0`, then `x2`.
+-- On `unitFirst` the search first propagates `¬x0`, then `x2`.
 example : Trail.answer unitFirst = .sat [(2, true), (0, false)] := by decide
 
 example : Trail.run unitFirst 8 [] = some (Trail.answer unitFirst) := by decide
+
+/-- `x0 ∨ x1 ∨ ¬x0`: its variables occur in the order `0, 1, 0`. -/
+def firstOccurrence : CNF ℕ := [[(0, true), (1, true), (0, false)]]
+
+-- Without a unit clause the search branches on the variable that occurs first, `x0`, although
+-- its last occurrence comes after that of `x1`.
+example : nextLiteral firstOccurrence [] = (0, true) := by decide
+
+example : Trail.answer firstOccurrence = .sat [(0, true)] := by decide
 
 -- The run of the steps ends within `2 ^ (N + 1)` steps.
 example : depth full = 2 ∧ (Trail.run full 7 []).isSome = true := by decide
