@@ -70,11 +70,13 @@ def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
 theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
   obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
 
-theorem holds_eq_true (A : Assign) (l : Literal ℕ) : A.holds l = true ↔ A.value l.1 = some l.2 := by
+private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
+    A.holds l = true ↔ A.value l.1 = some l.2 := by
   unfold holds
   split <;> simp_all
 
-theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) : A.isFalse l = A.holds l.negate := by
+private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
+    A.isFalse l = A.holds l.negate := by
   unfold isFalse holds
   obtain ⟨v, x⟩ := l
   simp only [Std.Sat.Literal.negate]
