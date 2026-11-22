@@ -1475,6 +1475,11 @@ Yehuda Lindell, Benny Pinkas. "A Proof of Security of Yao's Protocol for Two-Par
 
 Ming Li, John Tromp and Paul Vitányi. *Reversible Simulation of Irreversible Computation by Pebble Games*. Physica D 120, 168–176, 1998. https://doi.org/10.1016/S0167-2789(98)00052-9 . Locators refer to arXiv:quant-ph/9703009v3 (11 April 1997), https://arxiv.org/abs/quant-ph/9703009v3 . The reversible pebble rule (Section 6), the procedures `pebble(s, n)` and `unpebble(s, n)` (Section 7), Theorem 1, Corollaries 1 and 2, Lemma 1 and Theorem 2 were checked. The definitions of available pebbles and of weak and strong solvability, the statement and proof of Theorem 1 (including the distance estimate `2^j + 2^f + 2^(f+1) + ⋯ + 2^(j−1) ≤ 2^(j+1)`), and Corollary 1 were rechecked against the same arXiv version on 2026-11-08 for `ReversiblePathReachable.lean`.
 
+<a id="lundeliuslynch1984"></a>
+## lundeliuslynch1984
+
+Jennifer Lundelius and Nancy Lynch. "An Upper and Lower Bound for Clock Synchronization." *Information and Control* 62(2–3), 190–204, 1984. https://doi.org/10.1016/S0019-9958(84)80033-9 . Bibliographic metadata checked via DOI/bibliography records only; the journal full text was not inspected, so no internal section, lemma or theorem numbers are cited. Cited in [`ClockSync/Basic.lean`](../CslibFrontier/Computability/Distributed/ClockSync/Basic.lean) and [`ClockSync/LundeliusLynch.lean`](../CslibFrontier/Computability/Distributed/ClockSync/LundeliusLynch.lean) for time-shift indistinguishability of drift-free physical clock executions, the tight `((n - 1) / n) * (d_max - d_min)` lower bound on complete networks (proved here for deterministic synchronous full-information `R`-round protocols), and the matching 1-round midpoint-delay averaging upper bound.
+
 <a id="lundyannakakis1994"></a>
 ## lundyannakakis1994
 
@@ -2120,6 +2125,11 @@ Zhikun Wang and Ling Ren. "Single-Server Client Preprocessing PIR with Tight Spa
 ## wattenhofer16
 
 Roger Wattenhofer. *Principles of Distributed Computing*, lecture notes, ETH Zürich, Chapter 7 "Maximal Independent Set". https://disco.ethz.ch/courses/podc_allstars/lecture/chapter7.pdf (PDF dated 2016-08-23). Inspected 2026-11-08: Algorithm 7.12 ("Fast MIS 2"), Lemma 7.14 (edge removal), Theorem 7.15, Corollary 7.18 and the chapter notes, which attribute the algorithm to Métivier, Robson, Saheb-Djahromi and Zemmari (Distributed Computing 23(5–6), 2011) as a simplification of Luby (SIAM J. Comput. 15(4), 1986). Those two papers were not inspected.
+
+<a id="welchlynch1988"></a>
+## welchlynch1988
+
+Jennifer Lundelius Welch and Nancy Lynch. "A New Fault-Tolerant Algorithm for Clock Synchronization." *Information and Computation* 77(1), 1–36, 1988. https://doi.org/10.1016/0890-5401(88)90043-0 . Bibliographic metadata checked via DOI/bibliography records only; the journal full text was not inspected, so no internal section, lemma or theorem numbers are cited. Cited in [`ClockSync/ByzantineSync.lean`](../CslibFrontier/Computability/Distributed/ClockSync/ByzantineSync.lean) for the Byzantine fault-tolerant trimmed-midpoint convergence step (`trimmedMidpoint`, `byzantineClockStep`) for `3t < n` and its per-round `δ₀ / 2 + (d_max - d_min)` skew contraction on drift-free clocks (formalized here as synchronous lockstep resynchronization rounds rather than local-timer-triggered asynchronous resynchronization with nonzero hardware clock drift).
 
 <a id="williams2010"></a>
 ## williams2010

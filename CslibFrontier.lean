@@ -3183,6 +3183,9 @@ public import CslibFrontier.Computability.Distributed.Byzantine.Basic
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
 public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
+public import CslibFrontier.Computability.Distributed.ClockSync.Basic
+public import CslibFrontier.Computability.Distributed.ClockSync.ByzantineSync
+public import CslibFrontier.Computability.Distributed.ClockSync.LundeliusLynch
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
 public import CslibFrontier.Computability.Distributed.OrientedCycle.ColeVishkin
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Graph
