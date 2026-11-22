@@ -291,16 +291,6 @@ attribute [local fun_prop]
   ComputableInPolyTime.listAppend'
   ComputableInPolyTime.unary_lt'
   ComputableInPolyTime.bool_and'
-  IsPPTOn.mapM
-
-@[local fun_prop]
-private theorem mapMWith_fp {α β γ : Type} {input : α ↪ List Bool}
-    {element : β ↪ List Bool} {output : γ ↪ List Bool} {list : α → List β}
-    {program : α → β → ProbComp γ}
-    (hlist : ComputableInPolyTime list input (encList element))
-    (hprogram : IsPPTOn (encPair input element) output (fun p => program p.1 p.2)) :
-    IsPPTOn input (encList output) (fun a => (list a).mapM (program a)) :=
-  IsPPTOn.mapMWith hprogram hlist
 
 private theorem mul_pow_le_of_le {a k b c d : ℕ} (h : a ≤ k * b) :
     c * a ^ d ≤ c * k ^ d * b ^ d := by
@@ -1106,7 +1096,8 @@ theorem isPPTOn_cca2MultiGameOn {Msg Out : Type} {encMsg : Msg ↪ List Bool}
   dsimp only
   refine hkeyGen.bind_with ((isPPTOn_run_cca2MultiPhase1Oracle hdecrypt hA).bind_with ?_)
   refine IsPPTOn.cond (by fun_prop)
-    ((show IsPPTOn _ (encList encBits) _ by cases bit <;> fun_prop).bind_with ?_) (by fun_prop)
+    ((IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by cases bit <;> fun_prop)
+      (by fun_prop)).bind_with ?_) (by fun_prop)
   have hprep : ComputableInPolyTime (fun p => (p.1.1.1, p.1.1.2.2, p.1.2.1.2, p.2))
       (encPair (encPair encKeyPairInput
         (encPair (encPair (encList (encPair encMsg encMsg)) encBits) (encFinEnum Unit)))
@@ -1636,8 +1627,13 @@ theorem isOraclePPTOn_cca2MultiToSingleAt_choose {Msg : Type} [Inhabited Msg]
       (fun caller : (ℕ × List Bool) × ℕ =>
         (cca2MultiToSingleAt valid encrypt decBound adversary caller.2).choose
           caller.1.1 caller.1.2) := by
-  have := hA.choose.on
   dsimp only [cca2MultiToSingleAt]
+  refine (hA.choose.on.preprocess (by fun_prop)).bind_with ?_
+  refine IsOraclePPTOn.cond (by fun_prop) ?_ (by fun_prop)
+  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+    (by fun_prop)).isOraclePPTOn.bind_with ?_
+  refine (IsPPTOn.mapMWith (element := encPair encMsg encMsg) (by fun_prop)
+    (by fun_prop)).isOraclePPTOn.bind_with ?_
   fun_prop
 
 /-- Phase 2 (`guess`) of `cca2MultiToSingleAt` is uniformly strict oracle PPT in
