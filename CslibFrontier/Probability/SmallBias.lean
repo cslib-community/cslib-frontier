@@ -315,14 +315,6 @@ end Marginal
 
 section Linear
 
-omit [DecidableEq ι] in
-/-- The real sign of the inner product of bit strings `u ⬝ᵥ x` is the character, at `x`, of the
-set of coordinates where `u` is `true`. -/
-theorem signVal_dotProduct (u x : ι → Bool) : signVal (u ⬝ᵥ x) = chi ℝ {i | u i} x := by
-  rw [chi_eq_signVal_parityOn, parityOn_eq_sum, dotProduct, sum_filter]
-  congr 1
-  exact sum_congr rfl fun i _ => by cases u i <;> rfl
-
 variable {κ : Type*} [Fintype κ] [DecidableEq κ]
 
 /-- Reading `X` through the parities `y_j = c j ⬝ᵥ x` turns the bias at a set `T` of outputs into

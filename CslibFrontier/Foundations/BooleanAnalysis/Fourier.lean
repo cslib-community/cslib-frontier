@@ -196,6 +196,14 @@ theorem chi_update_of_mem (hi : i ∈ S) (x : ι → Bool) (b : Bool) :
 
 end DecidableEq
 
+/-- The character of a set on `ι ⊕ κ` at a string with halves `x` and `y` is the product of the
+characters of its parts `S.toLeft` and `S.toRight` in the two halves. -/
+theorem chi_sumElim {κ : Type*} (S : Finset (ι ⊕ κ)) (x : ι → Bool) (y : κ → Bool) :
+    chi R S (Sum.elim x y) = chi R S.toLeft x * chi R S.toRight y := by
+  conv_lhs => rw [← toLeft_disjSum_toRight (u := S)]
+  rw [chi, prod_disjSum]
+  rfl
+
 end CommRing
 
 /-- The real character of `S` is the product of the real signs of the bits in `S`. -/
@@ -457,6 +465,14 @@ theorem fourierCoeff_signVal (f : (ι → Bool) → Bool) (S : Finset ι) :
   exact expect_signVal_mul_signVal f (parityOn S)
 
 /-! ### Character sums for the inner product -/
+
+omit [DecidableEq ι] in
+/-- The real sign of the inner product of bit strings `u ⬝ᵥ x` is the character, at `x`, of the
+set of coordinates where `u` is `true`. -/
+theorem signVal_dotProduct (u x : ι → Bool) : signVal (u ⬝ᵥ x) = chi ℝ {i | u i} x := by
+  rw [chi_eq_signVal_parityOn, parityOn_eq_sum, dotProduct, sum_filter]
+  congr 1
+  exact sum_congr rfl fun i _ => by cases u i <;> rfl
 
 /-- **Character orthogonality for the inner product**, over any ring: the signs `(-1) ^ (w ⬝ᵥ y)`
 cancel over all bit strings `y` unless `w = 0`, since flipping a bit `i` with `w i = true`
