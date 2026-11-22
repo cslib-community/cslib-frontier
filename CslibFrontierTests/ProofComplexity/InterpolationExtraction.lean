@@ -164,9 +164,8 @@ example : ComputableInPolyTime
       let code := CNF.interpolantCode n A B ls
       evalOutput x code.1 (code.2.headD 0))
     (encPair (encPair encUnary (encPair (encPair
-      (encList (encList (encPair (encSum encNat encNat) encBool)))
-      (encList (encList (encPair (encSum encNat encNat) encBool))))
-      (encList (encList (encPair (encSum encNat (encSum encNat encNat)) encBool))))) encBits)
+      (encCNFOver (encSum encNat encNat)) (encCNFOver (encSum encNat encNat)))
+      (encList (encClause (encSum encNat (encSum encNat encNat)))))) encBits)
     encBool := by
   have h := (CNF.computableInPolyTime_interpolantCode encNat encNat).comp
     (ComputableInPolyTime.fst _ encBits)
@@ -220,15 +219,8 @@ example : ∃ C : Circuit Monotone.signature 1 1,
 positively in it. -/
 private def A₂ : CNF (ℕ ⊕ Unit) := A ++ [[(.inl 1, false), (.inr (), true)]]
 
-private theorem isProof_of_subset {F G : CNF (ℕ ⊕ (Unit ⊕ Unit))} (hsub : ∀ c ∈ F, c ∈ G)
-    {ls : List (Clause (ℕ ⊕ (Unit ⊕ Unit)))} (h : F.IsProof ls) : G.IsProof ls := by
-  induction h with
-  | nil => exact .nil
-  | mem _ hc ih => exact ih.mem (hsub _ hc)
-  | resolvent v _ h₁ h₂ hv₁ hv₂ ih => exact ih.resolvent v h₁ h₂ hv₁ hv₂
-
 private theorem isProof₂ : (A₂.appendShared B).IsProof lines :=
-  isProof_of_subset (by decide) isProof
+  isProof.mono (by decide)
 
 /-- With two inputs and `A₂`, the last line gets the dual gate `(x₀ ∧ c₂) ∨ c₁`, and the code
 computes `x₀`. -/
@@ -265,9 +257,8 @@ example : ComputableInPolyTime
     (fun ((n, (A, B), ls) : ℕ × (CNF (ℕ ⊕ ℕ) × CNF (ℕ ⊕ ℕ)) × List (Clause (ℕ ⊕ (ℕ ⊕ ℕ)))) =>
       CNF.monotoneInterpolantCode n A B ls)
     (encPair encUnary (encPair (encPair
-      (encList (encList (encPair (encSum encNat encNat) encBool)))
-      (encList (encList (encPair (encSum encNat encNat) encBool))))
-      (encList (encList (encPair (encSum encNat (encSum encNat encNat)) encBool)))))
+      (encCNFOver (encSum encNat encNat)) (encCNFOver (encSum encNat encNat)))
+      (encList (encClause (encSum encNat (encSum encNat encNat))))))
     Monotone.encCode :=
   CNF.computableInPolyTime_monotoneInterpolantCode encNat encNat
 

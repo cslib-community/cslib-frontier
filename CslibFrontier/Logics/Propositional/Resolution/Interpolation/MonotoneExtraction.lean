@@ -209,23 +209,6 @@ private theorem wireValue_twoGates {G : List (Monotone.Op × List ℕ)} {i u v :
   | 1 => exact Interpolant.wireValue_append_of_lt hv a
   | _ + 2 => rfl
 
-private theorem wireValue_padGate {G : List (Monotone.Op × List ℕ)} {w₁ w₂ : ℕ}
-    (hw₁ : w₁ < n + G.length) (hw₂ : w₂ < n + G.length) (op : Monotone.Op)
-    (hcode : Program.IsCodeFrom Monotone.signature n 0 (G ++ padGate (op, [w₁, w₂])))
-    (a : ℕ → Bool) :
-    Interpolant.wireValue Monotone.interpretation n (G ++ padGate (op, [w₁, w₂]))
-      (n + G.length + 1) a =
-      Monotone.interpretation op fun k =>
-        [Interpolant.wireValue Monotone.interpretation n G w₁ a,
-          Interpolant.wireValue Monotone.interpretation n G w₂ a][k.val]?.getD false := by
-  rw [Interpolant.wireValue_block Monotone.interpretation hcode (j := 1) (op := op)
-    (args := [w₁, w₂]) rfl a]
-  congr 1; funext k
-  match k.val with
-  | 0 => exact Interpolant.wireValue_append_of_lt hw₁ a
-  | 1 => exact Interpolant.wireValue_append_of_lt hw₂ a
-  | _ + 2 => rfl
-
 variable [DecidableEq Y] [DecidableEq Z]
 
 /-- Every line has two gates. -/
@@ -297,8 +280,8 @@ theorem CNF.IsProof.ofCode_monotoneInterpolantCode {n : ℕ} {A : CNF (ℕ ⊕ Y
     · convert hg₁.resolvent_inl_true i hg₂ using 1
       exact funext fun a => MonotoneInterpolant.wireValue_twoGates hi hw₁ hw₂ .or .and hcode a
   · convert hg₁.resolvent_inr_inl j hg₂ using 1
-    exact funext fun a => MonotoneInterpolant.wireValue_padGate hw₁ hw₂ .or hcode a
+    exact funext (Interpolant.wireValue_block_two Monotone.interpretation 1 .or hcode rfl hw₁ hw₂)
   · convert hg₁.resolvent_inr_inr k hg₂ using 1
-    exact funext fun a => MonotoneInterpolant.wireValue_padGate hw₁ hw₂ .and hcode a
+    exact funext (Interpolant.wireValue_block_two Monotone.interpretation 1 .and hcode rfl hw₁ hw₂)
 
 end Cslib.Logic.PL

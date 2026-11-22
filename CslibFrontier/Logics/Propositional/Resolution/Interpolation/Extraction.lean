@@ -387,6 +387,21 @@ theorem wireValue_block (I : Interpretation σ Bool) {n : ℕ} {G blk : List (σ
   rw [Nat.add_assoc]
   exact wireValue_gate I hcode (by rw [List.getElem?_append_right (by omega)]; simpa using hg) a
 
+/-- Evaluating a binary gate `(op, [w₁, w₂])` at offset `j` in an appended block when both wires
+come from earlier gates or inputs (`w₁, w₂ < n + G.length`). -/
+theorem wireValue_block_two (I : Interpretation σ Bool) (j : ℕ) (op : σ.Op) {n : ℕ}
+    {G blk : List (σ.Op × List ℕ)} {w₁ w₂ : ℕ} (hcode : Program.IsCodeFrom σ n 0 (G ++ blk))
+    (hg : blk[j]? = some (op, [w₁, w₂])) (hw₁ : w₁ < n + G.length) (hw₂ : w₂ < n + G.length)
+    (a : ℕ → Bool) :
+    wireValue I n (G ++ blk) (n + G.length + j) a =
+      I op fun k => [wireValue I n G w₁ a, wireValue I n G w₂ a][k.val]?.getD false := by
+  rw [wireValue_block I hcode hg a]
+  congr 1; funext k
+  match k.val with
+  | 0 => exact wireValue_append_of_lt hw₁ a
+  | 1 => exact wireValue_append_of_lt hw₂ a
+  | _ + 2 => rfl
+
 private theorem wireValue_replicate_const {I : Interpretation σ Bool} {s n : ℕ}
     {constOp : Bool → σ.Op} {G : List (σ.Op × List ℕ)} (hs : 0 < s)
     (hconst_eval : ∀ b f, I (constOp b) f = b) (b : Bool)
@@ -567,20 +582,6 @@ private theorem isCodeFrom_resolventGates {m w₁ w₂ : ℕ} {v : ℕ ⊕ (Y �
     refine ⟨⟨rfl, ?_⟩, ⟨rfl, ?_⟩, ⟨rfl, ?_⟩, ⟨rfl, ?_⟩, trivial⟩ <;> (simp; omega)
   all_goals exact ⟨⟨rfl, by simp⟩, ⟨rfl, by simp⟩, ⟨rfl, by simp⟩, ⟨rfl, by simp; omega⟩, trivial⟩
 
-private theorem wireValue_padGate {G : List (Op × List ℕ)} {w₁ w₂ : ℕ}
-    (hw₁ : w₁ < n + G.length) (hw₂ : w₂ < n + G.length) (op : Op)
-    (hcode : Program.IsCodeFrom signature n 0 (G ++ padGate (op, [w₁, w₂]))) (a : ℕ → Bool) :
-    wireValue interpretation n (G ++ padGate (op, [w₁, w₂])) (n + G.length + 3) a =
-      interpretation op fun k =>
-        [wireValue interpretation n G w₁ a, wireValue interpretation n G w₂ a][k.val]?.getD
-          false := by
-  rw [wireValue_block interpretation hcode (j := 3) (op := op) (args := [w₁, w₂]) rfl a]
-  congr 1; funext k
-  match k.val with
-  | 0 => exact wireValue_append_of_lt hw₁ a
-  | 1 => exact wireValue_append_of_lt hw₂ a
-  | _ + 2 => rfl
-
 variable [DecidableEq Y] [DecidableEq Z]
 
 /-- Every line has four gates. -/
@@ -648,8 +649,8 @@ theorem CNF.IsProof.ofCode_interpolantCode {n : ℕ} {A : CNF (ℕ ⊕ Y)} {B : 
     rw [e₁, e₂, e₀, Interpolant.wireValue_input hi, Interpolant.wireValue_append_of_lt hw₁,
       Interpolant.wireValue_append_of_lt hw₂]
   · convert hg₁.resolvent_inr_inl j hg₂ using 1
-    exact funext fun a => Interpolant.wireValue_padGate hw₁ hw₂ .or hcode a
+    exact funext (Interpolant.wireValue_block_two interpretation 3 .or hcode rfl hw₁ hw₂)
   · convert hg₁.resolvent_inr_inr k hg₂ using 1
-    exact funext fun a => Interpolant.wireValue_padGate hw₁ hw₂ .and hcode a
+    exact funext (Interpolant.wireValue_block_two interpretation 3 .and hcode rfl hw₁ hw₂)
 
 end Cslib.Logic.PL
