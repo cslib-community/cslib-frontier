@@ -47,6 +47,14 @@ theorem checkLoopFree_eq_true_iff (v : Vertex E) :
     v.checkLoopFree = true ↔ (v.ports.map (fun p => p.port.edge)).Nodup := by
   simp [checkLoopFree]
 
+/-- Injective edge renaming preserves the local loop-freedom check. -/
+theorem checkLoopFree_map {E' : Type*} [DecidableEq E'] (v : Vertex E) {f : E → E'}
+    (hf : Function.Injective f) : (v.map f).checkLoopFree = v.checkLoopFree := by
+  rw [Bool.eq_iff_iff, checkLoopFree_eq_true_iff, checkLoopFree_eq_true_iff]
+  simp only [Vertex.map, List.map_map, WeightedPort.map, Port.map, Function.comp_def]
+  simpa only [List.map_map, Function.comp_def] using
+    (List.nodup_map_iff (l := v.ports.map (fun p => p.port.edge)) hf)
+
 end Vertex
 
 namespace ConstraintGraph
