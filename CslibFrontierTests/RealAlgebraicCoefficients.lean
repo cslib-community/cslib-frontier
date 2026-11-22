@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientSign
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoordinateEvaluation
 import Mathlib.Tactic.FinCases
 
 /-! Extraction covers zero variables, absent coefficients, mixed terms and actual certificates. -/
@@ -51,6 +52,10 @@ example (a : ℕ) :
     (pointCutoff := fun _ => 0) (point := fun _ => [])
     .id' (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0)
     (CountingFunction.of_polyTime (.const [])) (by simp) (by simp) (by simp) (by simp)
+
+-- Radix eighteen gives the distinct field values two and four modulo five.
+example : (formulaWordGateKroneckerCoordinates (List.replicate 17 false) () 5 2 1
+    (fun q => q.innerValue + 2 * q.outerValue + q.index)).take 2 = [0, 1] := rfl
 
 -- Defaulting absent exponent entries to zero selects the constant term.
 example : multivariateCoefficientResidue 5 1 [] (fun z =>
