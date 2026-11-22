@@ -51,29 +51,35 @@ structure Watcher where
 /-- The positions of the clauses of a list of watchers. -/
 abbrev clauseIds (L : List Watcher) : List ℕ := L.map Watcher.clause
 
-/-- The watch list at index `i`, empty past the end of the array. -/
-@[expose] def watchList (W : Array (List Watcher)) (i : ℕ) : List Watcher := W.getD i []
+/-- **The watch lists**: for each index (`litKey`), an array of watchers. -/
+abbrev Watches : Type := Array (Array Watcher)
 
-/-- Applying `f` to the watch list at index `i`, growing the array if needed. -/
+/-- The watch list at index `i`, as a list, empty past the end of the array. The list is the array
+read backwards, so that adding a watcher at the end of the array (`Array.push`, in place) adds it
+at the head of the list, and the solver visits the array from its end. The invariants are stated
+on these lists. -/
+@[expose] def watchList (W : Watches) (i : ℕ) : List Watcher := (W.getD i #[]).toList.reverse
+
+/-- Applying `f` to the watch list at index `i`, growing the array if needed. The list is taken out
+of the array first (`Array.modify`), so that `f` updates it in place. -/
 @[expose, inline]
-def modifyWatch (W : Array (List Watcher)) (i : ℕ) (f : List Watcher → List Watcher) :
-    Array (List Watcher) :=
-  let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []
+def modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) : Watches :=
+  let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) #[]
   W'.modify i f
 
-/-- Adding the watcher `k` to the watch list at index `i`, growing the array if needed. -/
-@[expose] def addWatch (W : Array (List Watcher)) (i : ℕ) (k : Watcher) : Array (List Watcher) :=
-  modifyWatch W i (k :: ·)
+/-- Adding the watcher `k` to the watch list at index `i`, at the end of its array, growing the
+array of lists if needed. -/
+@[expose] def addWatch (W : Watches) (i : ℕ) (k : Watcher) : Watches :=
+  modifyWatch W i (·.push k)
 
 /-- Replacing the watch list at index `i`, growing the array if needed. -/
 @[expose]
-def setWatch (W : Array (List Watcher)) (i : ℕ) (L : List Watcher) : Array (List Watcher) :=
+def setWatch (W : Watches) (i : ℕ) (L : Array Watcher) : Watches :=
   modifyWatch W i fun _ => L
 
-theorem watchList_grow (W : Array (List Watcher)) (i j : ℕ) :
-    watchList (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []) j =
-      watchList W j := by
-  unfold watchList
+theorem getD_grow (W : Watches) (i j : ℕ) :
+    (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) #[]).getD j #[] =
+      W.getD j #[] := by
   split
   · rfl
   · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_append]
@@ -83,32 +89,33 @@ theorem watchList_grow (W : Array (List Watcher)) (i j : ℕ) :
       simp only [Array.getElem?_replicate]
       split <;> simp [Array.getElem?_eq_none (by omega : W.size ≤ j)]
 
-theorem i_lt_size_grow (W : Array (List Watcher)) (i : ℕ) :
-    i < (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []).size := by
+theorem i_lt_size_grow (W : Watches) (i : ℕ) :
+    i < (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) #[]).size := by
   split
   · assumption
   · simp; omega
 
-theorem watchList_modifyWatch (W : Array (List Watcher)) (i : ℕ) (f : List Watcher → List Watcher)
-    (j : ℕ) :
-    watchList (modifyWatch W i f) j = if j = i then f (watchList W i) else watchList W j := by
+theorem getD_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) (j : ℕ) :
+    (modifyWatch W i f).getD j #[] = if j = i then f (W.getD i #[]) else W.getD j #[] := by
   unfold modifyWatch
   have hlt := i_lt_size_grow W i
-  generalize hW' : (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) []) = W' at hlt
-  have hgrow : ∀ j, watchList W' j = watchList W j := fun j => hW' ▸ watchList_grow W i j
+  generalize hW' : (if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) #[]) = W'
+    at hlt
+  have hgrow : ∀ j, W'.getD j #[] = W.getD j #[] := fun j => hW' ▸ getD_grow W i j
   rw [← hgrow, ← hgrow]
-  unfold watchList
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   split
   · subst j; simp [Array.getElem?_eq_getElem hlt]
   · rename_i hne
     simp [Ne.symm hne]
 
-@[simp] theorem watchList_addWatch (W : Array (List Watcher)) (i : ℕ) (k : Watcher) (j : ℕ) :
-    watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j :=
-  watchList_modifyWatch W i _ j
+@[simp] theorem watchList_addWatch (W : Watches) (i : ℕ) (k : Watcher) (j : ℕ) :
+    watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j := by
+  unfold watchList addWatch
+  rw [getD_modifyWatch]
+  split <;> simp
 
-theorem mem_watchList_addWatch {W : Array (List Watcher)} {i j : ℕ} {k x : Watcher}
+theorem mem_watchList_addWatch {W : Watches} {i j : ℕ} {k x : Watcher}
     (h : x ∈ watchList (addWatch W i k) j) : x = k ∨ x ∈ watchList W j := by
   rw [watchList_addWatch] at h
   split at h
@@ -117,9 +124,11 @@ theorem mem_watchList_addWatch {W : Array (List Watcher)} {i j : ℕ} {k x : Wat
     exact List.mem_cons.1 h
   · exact .inr h
 
-@[simp] theorem watchList_setWatch (W : Array (List Watcher)) (i : ℕ) (L : List Watcher) (j : ℕ) :
-    watchList (setWatch W i L) j = if j = i then L else watchList W j :=
-  watchList_modifyWatch W i _ j
+@[simp] theorem watchList_setWatch (W : Watches) (i : ℕ) (L : Array Watcher) (j : ℕ) :
+    watchList (setWatch W i L) j = if j = i then L.toList.reverse else watchList W j := by
+  unfold watchList setWatch
+  rw [getD_modifyWatch]
+  split <;> rfl
 
 /-- **The watch store**: the clauses with at least two literals, each with its watched literals
 first, and the watch lists, giving for each literal the clauses that may watch it. -/
@@ -127,7 +136,7 @@ structure WatchStore where
   /-- The numbered clauses, watched literals first. -/
   clauses : Array (ℕ × Clause ℕ)
   /-- The watch lists, by `litKey`. -/
-  watches : Array (List Watcher)
+  watches : Watches
 
 /-- A literal is *processed* if it is on the trail and no longer in the propagation queue. -/
 @[expose] def Processed (M : Trail) (Q : List (Literal ℕ)) (x : Literal ℕ) : Prop :=
