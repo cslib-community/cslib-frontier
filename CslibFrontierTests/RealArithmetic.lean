@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
+import CslibFrontier.Logics.RealArithmetic.TermTokenDecoding
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
 
@@ -48,6 +49,16 @@ example : ComputableInPolyTime (fun token => Term.evalTokenStep (n := 0) 8 [] to
 example : ComputableInPolyTime (fun tokens => Term.evalTokenStack (n := 2) 8 [3] tokens [])
     (encList (encTermTokenEncoding 2)) (encOption (encList encNat)) :=
   Term.evalTokenStack_polyTime (.const 8) (fun _ => by decide) (.const [3]) .id'
+
+-- Decoding the word needs no ambient dimension to recover the variable rank.
+example : termTokensDecoder.decode (encTerm 2 (.add (.var 1) (.const (-2)))) =
+    some [.inr (.inr (.inl ())), .inr (.inl 1), .inl (-2)] := by
+  rw [termTokensDecoder_decode_encTerm]
+  rfl
+
+-- A complete frame with an empty payload is missing its constructor tag.
+example : termTokensDecoder.decode (frame []) = none := by
+  decide +kernel
 
 -- The grammar includes strict inequality and disjunction, negative coefficients and negation.
 def sentence : Formula 0 :=
