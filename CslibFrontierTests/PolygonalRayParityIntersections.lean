@@ -541,9 +541,21 @@ example :
     let p := (excursionStem.concat excursionSquare).concat excursionStem.reverse
     excursionStem.rayParity 1 ⟨1, 1⟩ = true ∧
       p.rayParity 1 ⟨1, 1⟩ = true ∧ p.rayParity 1 ⟨3, 1⟩ = false := by
+  classical
   dsimp only
   simp only [Route.rayParity_closed_excursion excursionStem excursionSquare rfl rfl]
-  norm_num [Route.rayParity, rayParity, Fin.sum_univ_succ, RayCrosses, horizontalIntercept,
-    excursionStem, excursionSquare, Route.line]
+  let bit (a b z : ℂ) : Bool := if RayCrosses a b z then true else 0
+  have stemBit (z : ℂ) : excursionStem.rayParity 1 z = bit ⟨4, 2⟩ 0 z := by
+    unfold Route.rayParity rayParity
+    change (∑ i : Fin 1, if RayCrosses (1 * excursionStem.point i.castSucc)
+      (1 * excursionStem.point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_one, one_mul] <;> rfl
+  have squareBits (z : ℂ) : excursionSquare.rayParity 1 z =
+      bit 0 ⟨2, 0⟩ z + bit ⟨2, 0⟩ ⟨2, 2⟩ z + bit ⟨2, 2⟩ ⟨0, 2⟩ z + bit ⟨0, 2⟩ 0 z := by
+    unfold Route.rayParity rayParity
+    change (∑ i : Fin 4, if RayCrosses (1 * excursionSquare.point i.castSucc)
+      (1 * excursionSquare.point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_four, one_mul] <;> rfl
+  norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept]
 
 end CslibFrontierTests.PolygonalRayParityIntersections
