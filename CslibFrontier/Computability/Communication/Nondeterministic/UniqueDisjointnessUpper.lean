@@ -69,7 +69,7 @@ disjointness relation `uniqueDisjointnessRel` [Sergeev2026UniqueDisjointness]:
 ## References
 
 * [V. Kaibel, S. Weltge, *A short proof that the extension complexity of the correlation polytope
-  grows exponentially*][KaibelWeltge2015]
+  grows exponentially*][KaibelWeltge2015], §2 (proof of Theorem 1, p. 3) and §3 (p. 3)
 * [I. S. Sergeev, *Upper Bounds for the Monotone Rank of the Unique Disjointness Matrix*]
   [Sergeev2026UniqueDisjointness], §2 (Theorem 1) and §3 (Theorem 2)
 -/
@@ -1700,7 +1700,8 @@ theorem two_pow_mul_coverNumber_uniqueDisjointnessRel_le {α : Type*} [Fintype �
     _ ≤ ((8 * (n + 1) ^ 7 * 3 ^ n : ℕ) : ℕ∞) := by exact_mod_cast hnat
 
 /-- **Polynomial-factor tightness of `(3 / 2) ^ n` for the covering rank of unique disjointness**
-([KaibelWeltge2015, Theorem 1]; [Sergeev2026UniqueDisjointness, §3, Theorem 2, p. 4]): there exist
+([KaibelWeltge2015, §3, p. 3, via the proof of Theorem 1 in §2, p. 3];
+[Sergeev2026UniqueDisjointness, §3, Theorem 2, p. 4]): there exist
 explicit constants `C, k : ℕ` (`C = 1024, k = 7`) such that for every `n ≥ 1`,
 `coverNumber true (uniqueDisjointnessRel (Fin n)) Set.univ Set.univ` is a finite natural number `r`
 satisfying `(3 / 2) ^ n ≤ r ≤ C * n ^ k * (3 / 2) ^ n`. -/

@@ -44,8 +44,9 @@ register_result "sergeev-unique-disjointness-covering-rank" where
       theorem := "Theorem 2",
       locator := "§3, pp. 4–6 (arXiv:2607.27014v1)" },
     { paper := KaibelWeltge2015,
-      theorem := "Theorem 1",
-      locator := "Sections 2–3 (arXiv:1307.3543v6)" }
+      theorem := "Unique-disjointness rectangle-covering bound (unnumbered, from the combinatorial \
+        part of the proof of Theorem 1)",
+      locator := "§3, p. 3, via §2, p. 3 (arXiv:1307.3543v6)" }
   ]
   theorems := [
     Nondeterministic.exists_coverNumber_uniqueDisjointnessRel_le,
