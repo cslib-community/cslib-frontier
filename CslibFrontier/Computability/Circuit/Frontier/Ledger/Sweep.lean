@@ -54,8 +54,10 @@ replacing the naive `|M| ^ 3` bound (`Frontier.Ledger.exists_ncard_le`).
 
 ## Main results
 
-* `Cslib.Circuits.Frontier.Ledger.mem_of_splice`: splicing two inputs whose readouts, partial
-  ledgers and cut values agree.
+* `Cslib.Circuits.Frontier.reach_input`, `Cslib.Circuits.Frontier.read_liveNetwork`: every input is
+  a signal of `liveCircuit`, and `liveNetwork` reads every input.
+* `Cslib.Circuits.Frontier.Ledger.trace_of_splice`, `Cslib.Circuits.Frontier.Ledger.mem_of_splice`:
+  splicing two inputs whose readouts, partial ledgers and cut values agree.
 * `Cslib.Circuits.Frontier.Ledger.run_eq_of_eqOn_readIn`: locality inside a closed set.
 * `Cslib.Circuits.Frontier.Ledger.ncard_extra_le`: the extra message at time `t` takes at most
   `min (|U| ^ k) |M| * |M|` values.
@@ -116,7 +118,7 @@ private theorem reach_of_live {w : Wire n s} (hw : Live p special w) :
   simpa [liveCircuit] using h
 
 /-- The inputs are signals of the live circuit. -/
-private theorem reach_input (i : Fin n) : Compiler.Reach (liveCircuit p special) (.input i) :=
+theorem reach_input (i : Fin n) : Compiler.Reach (liveCircuit p special) (.input i) :=
   reach_of_live trivial
 
 /-- The inner gates of the live circuit are the ordinary inner gates. -/
@@ -139,7 +141,7 @@ theorem card_live_le :
         rw [Nat.card_sum, Nat.card_eq_fintype_card (α := Fin n), Fintype.card_fin]
 
 /-- The live network reads every input. -/
-private theorem read_liveNetwork : (liveNetwork p special U).read = univ :=
+theorem read_liveNetwork : (liveNetwork p special U).read = univ :=
   eq_univ_of_forall fun i => ⟨_, mem_univ _, Compiler.site_of_reach (reach_input i)⟩
 
 /-- When there are inputs, the graph of the live circuit has a vertex. -/
@@ -255,6 +257,57 @@ private theorem totalOn_insert {u : Wire n s} {Q : Set (Wire n s)} (hu : u ∉ Q
 
 /-! ### Splicing -/
 
+/-- **Splicing traces wire by wire.** If the runs of `x` and `y` have the same readout on the
+special gates, the same ledger on the wires of a set of vertices `P`, and the same values on the
+edge cut of `P`, then every input `z` that reads like `x` at `P` and like `y` elsewhere has
+`p.trace I z` equal to `p.trace I x` on `wiresIn P` and equal to `p.trace I y` outside
+`wiresIn P`. -/
+theorem trace_of_splice {P : Set (Compiler.Vertex (liveCircuit p special))} {x y z : Fin n → U}
+    (hread : L.readout (L.total (p.trace I x)) = L.readout (L.total (p.trace I y)))
+    (hpart : L.totalOn (wiresIn P) (p.trace I x) = L.totalOn (wiresIn P) (p.trace I y))
+    (hcut : EqOn (fun e => p.trace I x e.signal.1) (fun e => p.trace I y e.signal.1)
+      ((liveNetwork p special U).edgeCut P))
+    (hzx : EqOn z x ((liveNetwork p special U).readIn P))
+    (hzy : EqOn z y ((liveNetwork p special U).readIn P)ᶜ)
+    (w : Wire n s) :
+    (w ∈ wiresIn P → p.trace I z w = p.trace I x w) ∧
+      (w ∉ wiresIn P → p.trace I z w = p.trace I y w) := by
+  have hαx0 := L.satisfies_network (L.total (p.trace I x)) x
+  rw [L.run_total_trace] at hαx0
+  have hαx : (L.network (L.total (p.trace I y))).Satisfies x
+      fun e => p.trace I x e.signal.1 := by
+    simpa only [network, hread] using hαx0
+  have hαy := L.satisfies_network (L.total (p.trace I y)) y
+  rw [L.run_total_trace] at hαy
+  generalize hmdef : L.total (p.trace I y) = m at hαx hαy
+  obtain ⟨γ, hγ, hγx, hγy⟩ := hαx.splice hαy hcut hzx hzy
+  have hwire (u : Wire n s) : (u ∈ wiresIn P → L.run m z u = p.trace I x u) ∧
+      (u ∉ wiresIn P → L.run m z u = p.trace I y u) := by
+    by_cases hreach : Compiler.Reach (liveCircuit p special) u
+    · rw [← show γ (Compiler.head ⟨u, hreach⟩) = L.run m z u from L.eq_run_of_satisfies hγ _]
+      refine ⟨fun ⟨_, hu⟩ => hγx (Or.inl hu), fun hu => ?_⟩
+      have hu' : (.signal ⟨u, hreach⟩ : Compiler.Vertex (liveCircuit p special)) ∉ P :=
+        fun h => hu ⟨hreach, h⟩
+      by_cases ht : Compiler.head ⟨u, hreach⟩ ∈ (L.network m).touching P
+      · rw [hγx ht]
+        refine hcut ?_
+        rcases ht with ht | ht
+        · exact absurd ht hu'
+        · exact fun h => hu' (h.mpr ht)
+      · exact hγy ht
+    · refine ⟨fun ⟨h, _⟩ => absurd h hreach, fun _ => ?_⟩
+      rw [L.run_eq_of_not_reach m hreach z y, ← hmdef, L.run_total_trace]
+  have htotal : L.total (L.run m z) = m := by
+    rw [L.total_eq_mul (wiresIn P)]
+    conv_rhs => rw [← hmdef, L.total_eq_mul (wiresIn P) (p.trace I y)]
+    congr 1
+    · rw [← hpart, totalOn, totalOn]
+      exact Finset.prod_congr rfl fun u hu => by rw [(hwire u).1 (by simpa using hu)]
+    · rw [totalOn, totalOn]
+      exact Finset.prod_congr rfl fun u hu => by rw [(hwire u).2 (by simpa using hu)]
+  rw [← L.run_eq_trace htotal]
+  exact hwire w
+
 /-- **Splicing two inputs with the same message.** Let `x` and `y` be inputs whose value at the
 wire `o` lies in `Acc`. If their runs have the same readout on the special gates, the same ledger
 on the wires of a set of vertices `P`, and the same values on the edge cut of `P`, then every
@@ -270,48 +323,10 @@ theorem mem_of_splice {o : Wire n s} {Acc : Set U}
     (hzx : EqOn z x ((liveNetwork p special U).readIn P))
     (hzy : EqOn z y ((liveNetwork p special U).readIn P)ᶜ) :
     p.trace I z o ∈ Acc := by
-  have hαx0 := L.satisfies_network (L.total (p.trace I x)) x
-  rw [L.run_total_trace] at hαx0
-  have hαx : (L.network (L.total (p.trace I y))).Satisfies x
-      fun e => p.trace I x e.signal.1 := by
-    simpa only [network, hread] using hαx0
-  have hαy := L.satisfies_network (L.total (p.trace I y)) y
-  rw [L.run_total_trace] at hαy
-  generalize hmdef : L.total (p.trace I y) = m at hαx hαy
-  obtain ⟨γ, hγ, hγx, hγy⟩ := hαx.splice hαy hcut hzx hzy
-  -- The run of `z` with the guess `m` agrees with `x` on the wires of `P` and with `y` on the
-  -- other wires.
-  have hwire (w : Wire n s) : (w ∈ wiresIn P → L.run m z w = p.trace I x w) ∧
-      (w ∉ wiresIn P → L.run m z w = p.trace I y w) := by
-    by_cases hreach : Compiler.Reach (liveCircuit p special) w
-    · rw [← show γ (Compiler.head ⟨w, hreach⟩) = L.run m z w from L.eq_run_of_satisfies hγ _]
-      refine ⟨fun ⟨_, hw⟩ => hγx (Or.inl hw), fun hw => ?_⟩
-      have hw' : (.signal ⟨w, hreach⟩ : Compiler.Vertex (liveCircuit p special)) ∉ P :=
-        fun h => hw ⟨hreach, h⟩
-      by_cases ht : Compiler.head ⟨w, hreach⟩ ∈ (L.network m).touching P
-      · rw [hγx ht]
-        refine hcut ?_
-        rcases ht with ht | ht
-        · exact absurd ht hw'
-        · exact fun h => hw' (h.mpr ht)
-      · exact hγy ht
-    · refine ⟨fun ⟨h, _⟩ => absurd h hreach, fun _ => ?_⟩
-      rw [L.run_eq_of_not_reach m hreach z y, ← hmdef, L.run_total_trace]
-  -- The ledger of the run of `z` is `m`, so the guess is consistent.
-  have htotal : L.total (L.run m z) = m := by
-    rw [L.total_eq_mul (wiresIn P)]
-    conv_rhs => rw [← hmdef, L.total_eq_mul (wiresIn P) (p.trace I y)]
-    congr 1
-    · rw [← hpart, totalOn, totalOn]
-      exact Finset.prod_congr rfl fun w hw => by rw [(hwire w).1 (by simpa using hw)]
-    · rw [totalOn, totalOn]
-      exact Finset.prod_congr rfl fun w hw => by rw [(hwire w).2 (by simpa using hw)]
-  rw [← L.run_eq_trace htotal]
+  have hwire := L.trace_of_splice hread hpart hcut hzx hzy o
   by_cases ho : o ∈ wiresIn P
-  · rw [(hwire o).1 ho]
-    exact hx
-  · rw [(hwire o).2 ho]
-    exact hy
+  · exact hwire.1 ho ▸ hx
+  · exact hwire.2 ho ▸ hy
 
 /-- **Locality inside a closed set.** For a fixed guess, the values of the run on the edges at a
 closed set of vertices `W` depend only on the inputs read in `W`. -/

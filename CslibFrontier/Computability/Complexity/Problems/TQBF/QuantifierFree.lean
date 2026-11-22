@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Fold
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Membership
@@ -171,34 +172,13 @@ theorem computableInPolyTime_decide_quantifierFree :
       (by fun_prop)
   fun_prop
 
-open Turing.MultiTapeTM.ComputableInPolyTime in
 /-- A step of the scan for a fixed kind of token, with the indicator of a list of variables as the
 assignment, is polynomial-time. -/
 private theorem evalStepAt_pt (k : QBF.Kind) :
     ComputableInPolyTime (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) =>
       QBF.evalStepAt (fun v => p.1.1.contains v) k p.2.2 p.1.2)
       (encPair (encPair (encList encNat) (encList encBool)) encToken) (encList encBool) := by
-  have hstack := (fst (encPair (encList encNat) (encList encBool)) encToken).snd'
-  have hvars := (fst (encPair (encList encNat) (encList encBool)) encToken).fst'
-  have hv := (snd (encPair (encList encNat) (encList encBool)) encToken).snd'
-  have hmem : ComputableInPolyTime
-      (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) => p.1.1.contains p.2.2)
-      (encPair (encPair (encList encNat) (encList encBool)) encToken) encBool := by fun_prop
-  have htail : ComputableInPolyTime
-      (fun p : (List ℕ × List Bool) × (QBF.Kind × ℕ) => p.1.2.tail)
-      (encPair (encPair (encList encNat) (encList encBool)) encToken)
-      (encList encBool) := by fun_prop
-  have hhead := (headD (encA := encBool) (encL := encList encBool) false).comp hstack
-  have hnext := (headD (encA := encBool) (encL := encList encBool) false).comp htail
-  cases k <;> simp only [QBF.evalStepAt]
-  · exact hmem.cons' hstack
-  · exact (const true).cons' hstack
-  · exact (const false).cons' hstack
-  · exact (bool_not.comp hhead).cons' htail
-  · exact (bool_and' hhead hnext).cons' (by fun_prop)
-  · exact (bool_or.comp (hhead.prod hnext)).cons' (by fun_prop)
-  · exact hstack
-  · exact hstack
+  cases k <;> simp only [QBF.evalStepAt] <;> fun_prop
 
 /-- A step of the scan is polynomial-time. -/
 private theorem evalStep_pt :

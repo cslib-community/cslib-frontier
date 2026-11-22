@@ -36,7 +36,7 @@ The check fails when
   presents a cited result (it cites a `references.bib` key, or its first sentence says "theorem" or
   opens with a bold title) without opening as a step or helper: its first sentence must contain
   the word "step" or "helper";
-* a results-inventory entry (`CslibFrontierResults/Entries.lean`) lists a theorem that rests on a
+* a results-inventory module (`CslibFrontierResults/`) lists a theorem that rests on a
   novel assumption.
 
 `scripts/hardness_assumptions_baseline.json` records the existing gaps of the third, fourth and
@@ -50,8 +50,10 @@ landing it on `main`. Pushes to `main` run `--report`, which prints the differen
 rewrites the baseline for the current gaps, keeping existing justifications and leaving new ones
 empty; fill them in, or the check fails.
 
-This is a post-build check: it needs the outputs of `lake build CslibFrontier`, and refuses stale
-ones unless `--no-build-check` is given. It supplements review: it does not judge whether a
+This is a post-build check: the full audit (and `--report` / `--update-baseline`) needs the
+outputs of `lake build CslibFrontier CslibFrontierResults`, while `--list` needs only
+`lake build CslibFrontier`; stale outputs are refused unless `--no-build-check` is given. It
+supplements review: it does not judge whether a
 definition matches its cited source, whether a locator is right, or whether a standard assumption
 under a headline, with the instance the theorem supplies, is the one the cited result assumes. It
 does not see a cited result that a docstring names without a bibliography key, the word "theorem"
@@ -74,6 +76,7 @@ assumption. The known cases (#5578 finding 9) are `Cslib.Complexity.MildlyHardOn
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 import json
 from pathlib import Path
@@ -85,11 +88,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 import check_security_premises as csp  # noqa: E402
 import lean_outputs as lo  # noqa: E402
+import results_registry as rr  # noqa: E402
 
 INVENTORY = ROOT / "manual/programs-crypto-and-probability/assumptions.md"
 BASELINE = ROOT / "scripts/hardness_assumptions_baseline.json"
 BIBLIOGRAPHY = ROOT / "references.bib"
-RESULTS = ROOT / "CslibFrontierResults/Entries.lean"
 UPSTREAM_BUILD = ROOT / ".lake/packages/cslib/.lake/build/lib/lean"
 HEADER = ["Assumption", "Status", "Source definition", "Deviations or relation", "Nonvacuity"]
 STATUSES = ("standard", "novel", "vocabulary")
@@ -104,7 +107,6 @@ THEOREM = re.compile(r"\btheorem\b", re.I)
 SENTENCE_END = re.compile(r"[.!?][*_)\"']*(?:\s|$)")
 LINK = re.compile(r"\]\(([^)\s]+)\)")
 BIB_KEY = re.compile(r"^@\w+\{\s*([^,\s]+)\s*,", re.M)
-RESULT_NAME = re.compile(r"\b(?:Cslib|Turing)\.[A-Za-z0-9_.'!?]+")
 
 
 @dataclass(frozen=True)
@@ -172,6 +174,38 @@ def parse_inventory(text: str) -> tuple[list[Row], list[str]]:
 
 def bibliography_keys(text: str) -> set[str]:
     return set(BIB_KEY.findall(text))
+
+
+def exported_result_theorems(manifest: dict) -> set[str]:
+    """The fully resolved theorem names exported by `scripts/ExportResults.lean`."""
+    results = manifest.get("results")
+    if not isinstance(results, list):
+        raise ValueError("Registry results must be a list")
+    names: set[str] = set()
+    for entry in results:
+        if not isinstance(entry, dict) or not isinstance(entry.get("theorems"), list):
+            raise ValueError(f"Invalid registry entry: {entry!r}")
+        for theorem in entry["theorems"]:
+            if not isinstance(theorem, str) or not theorem:
+                raise ValueError(f"Invalid theorem name in registry: {theorem!r}")
+            names.add(theorem)
+    return names
+
+
+def registered_result_theorems(root: Path = ROOT, check_build: bool = True) -> set[str]:
+    """Load resolved registered theorem names from the compiled `CslibFrontierResults` library,
+    covering `Entries.lean`, topic submodules under `CslibFrontierResults/Entries/`, and short
+    identifiers resolved under `open` or `namespace`."""
+    if check_build:
+        manifest = rr.load_lean_registry(root)
+    else:
+        exported = subprocess.run(["lake", "env", "lean", "--run", "scripts/ExportResults.lean"],
+                                  cwd=root, text=True, capture_output=True)
+        if exported.returncode:
+            sys.exit("scripts/ExportResults.lean failed; run `lake build CslibFrontierResults` "
+                     "first:\n" + (exported.stderr or exported.stdout))
+        manifest = json.loads(exported.stdout)
+    return exported_result_theorems(manifest)
 
 
 def cited_keys(text: str, keys: set[str]) -> list[str]:
@@ -282,7 +316,7 @@ class Problems:
 
 
 def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set[str],
-          results: str, base: Path) -> Problems:
+          results: Iterable[str], base: Path) -> Problems:
     errors = list(format_errors)
     gaps: dict[str, dict[str, str]] = {s: {} for s in SECTIONS}
     registered: dict[str, Row] = {}
@@ -311,7 +345,7 @@ def check(rows: list[Row], format_errors: list[str], reading: Reading, keys: set
             errors.append(f"`{short(name)}` ({module}:{line}) is assumed by {len(theorems)} "
                           f"theorem(s), e.g. `{short(sorted(theorems)[0])}`, but is not in the "
                           "assumptions inventory")
-    results_names = set(RESULT_NAME.findall(results))
+    results_names = set(results)
     for name, row in registered.items():
         if name not in reading.assumptions:
             continue
@@ -418,8 +452,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if (args.report or args.list) and args.update_baseline:
         parser.error("--report and --list do not combine with --update-baseline")
-    if not args.no_build_check and not lo.lake_outputs_current(("CslibFrontier",)):
-        sys.exit("build outputs are missing or stale; run `lake build CslibFrontier` "
+    targets = ("CslibFrontier",) if args.list else ("CslibFrontier", "CslibFrontierResults")
+    if not args.no_build_check and not lo.lake_outputs_current(targets):
+        sys.exit(f"build outputs are missing or stale; run `lake build {' '.join(targets)}` "
                  "(or pass --no-build-check)")
     reading = scan(ROOT, lo.DEFAULT_BUILD_DIR, UPSTREAM_BUILD)
     rows, format_errors = parse_inventory(INVENTORY.read_text(encoding="utf-8"))
@@ -427,7 +462,7 @@ def main(argv: list[str] | None = None) -> int:
         print(listing(rows, reading))
         return 0
     keys = bibliography_keys(BIBLIOGRAPHY.read_text(encoding="utf-8"))
-    results = RESULTS.read_text(encoding="utf-8") if RESULTS.exists() else ""
+    results = registered_result_theorems(ROOT, check_build=not args.no_build_check)
     problems = check(rows, format_errors, reading, keys, results, INVENTORY.parent)
     baseline = load_baseline(args.baseline) if args.baseline.exists() else \
         {s: {} for s in SECTIONS}

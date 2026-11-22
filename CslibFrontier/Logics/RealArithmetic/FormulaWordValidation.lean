@@ -431,6 +431,21 @@ def formulaWordComparisonRequest (word : List Bool) (index : ℕ) :
     Option FormulaComparisonRequest :=
   comparisonRequest (formulaWordTokenAt word index)
 
+/-- A comparison in the total formula view retains the canonical encoding of a term in
+the word's dimension. -/
+theorem formulaWordComparisonRequest_termWord_exists {word : List Bool} {index : ℕ}
+    {request : FormulaComparisonRequest} (hi : index < (formulaWordTokens word).length)
+    (h : formulaWordComparisonRequest word index = some request) :
+    ∃ t : Term word.length, request.termWord = encTerm word.length t := by
+  have hmem : formulaWordTokenAt word index ∈ formulaWordTokens word := by
+    rw [formulaWordTokenAt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
+      Option.getD_some]
+    exact List.getElem_mem _
+  rw [formulaWordTokens_eq] at hmem
+  obtain ⟨token, _, htoken⟩ := List.mem_map.mp hmem
+  rw [formulaWordComparisonRequest, ← htoken] at h
+  rcases token with _ | (term | (term | (_ | (_ | _)))) <;> cases h <;> exact ⟨term, rfl⟩
+
 private theorem comparisonRequest_polyTime :
     ComputableInPolyTime comparisonRequest encFormulaToken
       (encOption encFormulaComparisonRequest) := by
@@ -472,6 +487,30 @@ theorem formulaWordComparisonRequest_polyTime :
       (encPair encBits encNat) (encOption encFormulaComparisonRequest) :=
   comparisonRequest_polyTime.comp formulaWordTokenAt_polyTime
 
+/-- Test a supplied sign against the comparison requested at a gate. Gates without a
+comparison request return `false`. -/
+@[expose] def formulaWordComparisonAnswer (word : List Bool) (index : ℕ) (sign : SignType) : Bool :=
+  (formulaWordComparisonRequest word index).elim false fun request =>
+    decide (sign = request.requestedSign)
+
+/-- Testing an indexed comparison is polynomial time in the formula word, binary gate index,
+and supplied sign using `encSign`. -/
+theorem formulaWordComparisonAnswer_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index : α → ℕ} {sign : α → SignType}
+    (hword : ComputableInPolyTime word input encBits)
+    (hindex : ComputableInPolyTime index input encNat)
+    (hsign : ComputableInPolyTime sign input encSign) :
+    ComputableInPolyTime (fun a => formulaWordComparisonAnswer (word a) (index a) (sign a))
+      input encBool := by
+  have hrequest := formulaWordComparisonRequest_polyTime.comp (hword.prod hindex)
+  have hstrict : ComputableInPolyTime FormulaComparisonRequest.isStrict
+      encFormulaComparisonRequest encBool := by fun_prop
+  have htest := of_finite (encIn := encPair encSign encBool) (encOut := encBool)
+    (fun p : SignType × Bool => decide (p.1 = if p.2 then -1 else 0))
+  exact hrequest.optionElimWithInput (const false)
+    (htest.comp ((hsign.comp (fst input encFormulaComparisonRequest)).prod
+      (hstrict.comp (snd input encFormulaComparisonRequest))))
+
 /-- Read the comparison request of a serialized subformula, retaining its exact term word. -/
 theorem formulaWordComparisonRequest_of_prefix {n : ℕ} {word : List Bool} (p : Formula n)
     (before after : List FormulaToken)
@@ -505,6 +544,18 @@ def formulaWordGateValueWithAnswer (word : List Bool) (index : ℕ)
     (answer : Bool) (value : ℕ → Bool) : Bool :=
   gateValueWithAnswer (formulaWordTokenAt word index) (formulaWordChildIndices word index)
     answer value
+
+/-- Two supplied answers give the same gate value if they agree whenever the gate requests
+a comparison. -/
+theorem formulaWordGateValueWithAnswer_congr (word : List Bool) (index : ℕ)
+    (value : ℕ → Bool) {a b : Bool}
+    (h : (formulaWordComparisonRequest word index).isSome = true → a = b) :
+    formulaWordGateValueWithAnswer word index a value =
+      formulaWordGateValueWithAnswer word index b value := by
+  by_cases hc : (formulaWordComparisonRequest word index).isSome = true
+  · rw [h hc]
+  · have hn : (comparisonRequest (formulaWordTokenAt word index)).isSome ≠ true := hc
+    simp only [formulaWordGateValueWithAnswer, gateValueWithAnswer, ite_eq_right hn]
 
 /-- Evaluate the Boolean part of a gate in polynomial time from a raw word, binary position,
 comparison answer, and a certified reader of values at binary positions. -/

@@ -43,6 +43,8 @@ only with a definition folded, the proof stays `unfold a b; omega`.
 
 * `wram_omega`: prove a linear arithmetic goal, unfolding the `@[wram_arith]` definitions that
   occur.
+* `wram_omega_silent`, `Cslib.Tactic.WramOmega.tryProve`: silent, heartbeat-bounded helper used
+  by tactic dischargers (`wram_exec`, `wram_simp`, `wram_call`, `mem_frame`, `struct_frame`).
 -/
 
 public meta section
@@ -312,6 +314,101 @@ elab_rules : tactic
             arithmetic hypotheses. Products are unknowns to `omega`: give bounds on them with \
             `wram_omega [h]`.\n{unfolded}{hidden}\n{ex.toMessageData}"
       (prove.run { tagged, locals }).run' {}
+
+/-- Try to prove `g` with `wram_omega` (plus optional extra fact expressions `extra`) without
+emitting warnings or exceeding `maxHeartbeats` (in thousands). Returns `true` if `g` is closed; on
+failure restores the state and returns `false`. Skips immediately when `g` is not an arithmetic
+goal or mentions no `@[wram_arith]` definition, local definition, or power of two anywhere in the
+goal, `extra`, or arithmetic hypotheses. -/
+def tryProve (g : MVarId) (maxHeartbeats : ℕ := 20000) (extra : Array Expr := #[]) :
+    MetaM Bool := do
+  let env ← getEnv
+  let tagged := wramArithExt.getState env
+  let saved ← saveState
+  let ok ← g.withContext do
+    let tgt ← instantiateMVars (← g.getType)
+    let tgtArith ← if isArithmetic tagged tgt then pure true else do
+      let .const name _ := tgt.getAppFn | pure false
+      if ← isReducible name then pure (isArithmetic tagged (← whnfR tgt)) else pure false
+    unless tgtArith do return false
+    let (locals, allLocals) ← localDefinitions tagged
+    let hasTagOrPow (e : Expr) : Bool :=
+      e.getUsedConstants.any tagged.contains ||
+        (!allLocals.isEmpty && e.hasAnyFVar allLocals.contains) ||
+        (e.find? isPowerOfTwo).isSome
+    let tgtHas := hasTagOrPow tgt
+    let mut relevant := tgtHas
+    if !relevant then
+      for h in extra do
+        if hasTagOrPow (← instantiateMVars (← inferType h)) then
+          relevant := true
+          break
+    if !relevant then
+      for d in ← getLCtx do
+        if d.isImplementationDetail then continue
+        let ty ← instantiateMVars d.type
+        if isArithmetic tagged ty && hasTagOrPow ty then
+          relevant := true
+          break
+    unless relevant do return false
+    let attempt : MetaM Bool := do
+      let unfoldGoal (g : MVarId) : UnfoldM (MVarId × Array Expr) := do
+        let target ← unfoldTagged (← instantiateMVars (← g.getType))
+        recordPowers target
+        let mut extraFacts := #[]
+        for h in extra do
+          let ty ← unfoldTagged (← instantiateMVars (← inferType h))
+          recordPowers ty
+          extraFacts := extraFacts.push (← mkExpectedTypeHint h ty)
+        return (← g.replaceTargetDefEq target, extraFacts)
+      let prove : UnfoldM Bool := do
+        let g ←
+          if tgtHas || !extra.isEmpty then
+            let (g₁, extra₁) ← unfoldGoal g
+            if (← omegaWith g₁ {} (extra₁ ++ (← powerFacts))).isNone then return true
+            pure g₁
+          else
+            pure g
+        withReader ({ · with locals := allLocals }) do
+          let ctx ← read
+          let (g₂, extra₂) ← unfoldGoal g
+          let mut facts : Array Expr := extra₂
+          let mut replaced : FVarIdSet := {}
+          for d in ← getLCtx do
+            if d.isImplementationDetail then continue
+            let type ← instantiateMVars d.type
+            unless ← readByOmega type do continue
+            if ctx.mentions type then
+              let type ← unfoldTagged type
+              recordPowers type
+              facts := facts.push (← mkExpectedTypeHint d.toExpr type)
+              replaced := replaced.insert d.fvarId
+            else
+              recordPowers type
+          let st ← get
+          if replaced.isEmpty && st.unfolded.isEmpty && !st.reduced && st.powers.isEmpty then
+            return false
+          return (← omegaWith g₂ replaced (facts ++ (← powerFacts))).isNone
+      (prove.run { tagged, locals }).run' {}
+    let budget : MetaM Bool :=
+      withCurrHeartbeats <| withTheReader Core.Context
+        (fun ctx => { ctx with maxHeartbeats := maxHeartbeats * 1000 }) attempt
+    tryCatchRuntimeEx budget fun _ => return false
+  unless ok do saved.restore
+  return ok
+
+/-- Silent, heartbeat-bounded `wram_omega` for use inside tactic dischargers. -/
+syntax (name := wramOmegaSilent) "wram_omega_silent" : tactic
+
+elab_rules : tactic
+  | `(tactic| wram_omega_silent) => do
+    recordExtraModUse (isMeta := false) `Init.Omega
+    withMainContext do
+      let g ← getMainGoal
+      if ← tryProve g then
+        replaceMainGoal []
+      else
+        throwError "wram_omega_silent: could not prove goal"
 
 end Cslib.Tactic.WramOmega
 

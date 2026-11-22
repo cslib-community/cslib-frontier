@@ -76,7 +76,7 @@ variable {α : Type u} {β : Type v}
 
 section Lookup
 
-variable [DecidableEq α] {l : List (α × β)} {k a : α} {b : β}
+variable [BEq α] [LawfulBEq α] {l : List (α × β)} {k a : α} {b : β}
 
 /-- Lookup skips an entry with a different key. -/
 theorem lookup_cons_of_ne (h : k ≠ a) : List.lookup k ((a, b) :: l) = List.lookup k l := by

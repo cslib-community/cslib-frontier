@@ -34,8 +34,8 @@ import CslibFrontier.Crypto.Negligible.InversePolynomial
 import CslibFrontier.Computability.Probabilistic.Traverse
 import CslibFrontier.Foundations.Data.BitString.List.LowBits
 import CslibFrontier.Foundations.Data.Nat.Power
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation.Handler
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Languages.Probabilistic.Oracle.Support
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
@@ -766,15 +766,13 @@ private theorem eval_blockwiseGame (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.blockwiseGame E A n) = (ProbComp.eval (M.keyGen n)).bind fun sk =>
       (M.blockwiseRun E A n sk).bind fun out => PMF.pure
         (!(out.2.map Prod.fst).contains out.1.1 && M.blockwiseVerify E n sk out.1.1 out.1.2) := by
-  simp only [blockwiseGame, blockwiseRun, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [blockwiseGame, blockwiseRun, runWith_norm, pmf_norm]
 
 private theorem eval_blockwiseRepeatGame (A : BlockwiseMACAdversary) (n : ℕ) :
     ProbComp.eval (M.blockwiseRepeatGame E A n) = (ProbComp.eval (M.keyGen n)).bind fun sk =>
       (M.blockwiseRun E A n sk).bind fun out =>
         PMF.pure (!decide (out.2.map fun entry => entry.2.1).Nodup) := by
-  simp only [blockwiseRepeatGame, blockwiseRun, ProbComp.eval_bind, ProbComp.eval_pure,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp only [blockwiseRepeatGame, blockwiseRun, runWith_norm, pmf_norm]
 
 private theorem eval_blockwiseSigningOracle (n : ℕ) (sk m : List Bool)
     (log : List (List Bool × Tag)) :
@@ -1633,18 +1631,12 @@ theorem eval_blockwiseGame_toForger (A : BlockwiseMACAdversary) (replyBound : �
         (encTag tag).length ≤ replyBound n m.length) :
     ProbComp.eval (M.blockwiseGame E (A.toForger replyBound).toAdversary n) =
       ProbComp.eval (M.blockwiseGame E A n) := by
-  simp only [blockwiseGame, ProbComp.eval_bind, ProbComp.eval_pure]
+  simp only [blockwiseGame, BlockwiseMACForger.toAdversary, BlockwiseMACAdversary.toForger,
+    runWith_norm, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.eval_run_interpret_eq_runWith]
-  congr 1
-  rw [BlockwiseMACForger.toAdversary, BlockwiseMACAdversary.toForger,
-    ProbOracleComp.simulate_simulate, ProbOracleComp.runWith_simulate]
-  congr 1
+  congr 2
   funext m log
-  simp only [ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
-    ProbOracleComp.simulate_pure, bind_assoc, pure_bind, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_query, ProbOracleComp.runWith_pure, blockwiseSigningOracle,
-    ProbComp.eval_bind, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+  simp only [blockwiseSigningOracle, pmf_norm]
   refine PMF.bind_congr_on_support _ _ _ fun tag htag => ?_
   rw [List.take_of_length_le (hbound sk hsk m tag htag), tagDecoder.decode_enc]
 
