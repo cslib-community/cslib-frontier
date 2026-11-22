@@ -4,6 +4,8 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
 import CslibFrontier.Computability.Circuit.Frontier.Basis.PairAtlas
 import CslibFrontier.Computability.Circuit.Frontier.Basis.U2
 import CslibFrontier.Computability.Circuit.Frontier.Correlation.RealRank
@@ -25,6 +27,8 @@ Exercises across the `module` boundary:
    `sq_correlation_quadForm_mul_le_rank_signMatrix`, and unconditional `2.8006 n` `U₂` correlation
    bounds (`2.78798 < 2.8006`).
 -/
+
+set_option linter.privateModule false
 
 open Cslib.Circuits Cslib.Circuits.Frontier Matrix Real Filter Asymptotics
 

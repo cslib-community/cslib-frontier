@@ -494,12 +494,12 @@ private theorem measureReal_pairOne_le_straddle_add (_hloop : G.Loopless)
         · exfalso; apply hstr
           by_cases h1 : sc f₁ < t <;> by_cases h2 : sc f₂ < t <;> by_cases hm : sc e < t
           · exfalso; apply heq; simp [bm, h1, h2, hm]
-          · exact ⟨f₁, hf₁, h1, e, hw, not_lt.mp hm⟩
-          · exact ⟨f₁, hf₁, h1, f₂, hf₂, not_lt.mp h2⟩
-          · exact ⟨f₁, hf₁, h1, f₂, hf₂, not_lt.mp h2⟩
-          · exact ⟨f₂, hf₂, h2, f₁, hf₁, not_lt.mp h1⟩
-          · exact ⟨f₂, hf₂, h2, f₁, hf₁, not_lt.mp h1⟩
-          · exact ⟨e, hw, hm, f₁, hf₁, not_lt.mp h1⟩
+          · exact ⟨⟨f₁, hf₁, h1⟩, ⟨e, hw, not_lt.mp hm⟩⟩
+          · exact ⟨⟨f₁, hf₁, h1⟩, ⟨f₂, hf₂, not_lt.mp h2⟩⟩
+          · exact ⟨⟨f₁, hf₁, h1⟩, ⟨f₂, hf₂, not_lt.mp h2⟩⟩
+          · exact ⟨⟨f₂, hf₂, h2⟩, ⟨f₁, hf₁, not_lt.mp h1⟩⟩
+          · exact ⟨⟨f₂, hf₂, h2⟩, ⟨f₁, hf₁, not_lt.mp h1⟩⟩
+          · exact ⟨⟨e, hw, hm⟩, ⟨f₁, hf₁, not_lt.mp h1⟩⟩
           · exfalso; apply heq; simp [bm, h1, h2, hm]
     have hsu := hstar_le hea_u heb_u (Or.inl rfl : e ∈ G.incidenceSet u)
     have hsv := hstar_le hec_v hed_v (Or.inr rfl : e ∈ G.incidenceSet v)

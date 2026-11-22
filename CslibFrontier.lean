@@ -1593,6 +1593,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Circuit
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.RealRank
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Rectangle
 public import CslibFrontier.Computability.Circuit.Frontier.Demand
+public import CslibFrontier.Computability.Circuit.Frontier.Dual.Kirchhoff
 public import CslibFrontier.Computability.Circuit.Frontier.FanInTwo
 public import CslibFrontier.Computability.Circuit.Frontier.Incidence
 public import CslibFrontier.Computability.Circuit.Frontier.IncidenceComponents

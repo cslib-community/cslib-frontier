@@ -524,7 +524,7 @@ private theorem ncard_edgeCut_threshold_add_slack_le_matchingCost [Finite V] [Fi
       have hiff : G.EdgeStraddles score t v ↔
           ¬(decide (score e₀ < t) = decide (score e₁ < t) ∧
             decide (score e₁ < t) = decide (score e₂ < t)) := by
-        simp only [EdgeStraddles, hinc, mem_insert_iff, mem_singleton_iff]
+        simp only [EdgeStraddles, StraddlesOn, hinc, mem_insert_iff, mem_singleton_iff]
         by_cases h0 : score e₀ < t <;> by_cases h1 : score e₁ < t <;>
           by_cases h2 : score e₂ < t <;> simp [h0, h1, h2, not_lt.mp]
       simp only [starEnergy, starCost] at hmed
