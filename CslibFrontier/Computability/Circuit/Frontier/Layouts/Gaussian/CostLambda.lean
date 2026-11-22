@@ -7,7 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Circuit.Frontier.Basis.U2
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.WeightedMatching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Arccos
@@ -25,18 +25,17 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
-# Hilbert-space two-cap bound on `cost_λ` and unconditional `4.6362 n` `U₂` circuit lower bounds
+# Hilbert-space two-cap bound on `cost_λ` and `U₂` Gaussian coefficients
 
 For a clean matched pair `e = {u, v}` in a `U₂` cubic quotient with outer incident edge pairs
-`{a, b}` at `u` and `{c, d}` at `v`, the 3-state pair-compressed branching program from
-`CslibFrontier.Computability.Circuit.Frontier.Basis.U2` pays `log₂ 3 = 1 + λ` bits
-(`λ = log₂ 3 - 1 ≈ 0.5849625`) on `(1, 1)` splits where both outer pairs straddle the threshold `t`,
-and `1` bit on all other straddling outer splits. Thus its expected threshold cost under Gaussian
-edge scores `edgeScore G q R` is `𝔼[cost_λ]` where
+`{a, b}` at `u` and `{c, d}` at `v`, a 3-state pair-compressed branching program pays
+`log₂ 3 = 1 + λ` bits (`λ = log₂ 3 - 1 ≈ 0.5849625`) on `(1, 1)` splits where both outer pairs
+straddle the threshold `t`, and `1` bit on all other straddling outer splits. Thus its expected
+threshold cost under Gaussian edge scores `edgeScore G q R` is `𝔼[cost_λ]` where
 `cost_λ = 1_{PairStraddlesAny} + λ · 1_{PairStraddlesBoth}`.
 
 This module bounds `𝔼[cost_λ]` universally over all loopless cubic graphs (with no girth
-assumption) and derives unconditional `U₂` circuit lower bounds:
+assumption) and evaluates the resulting rational `U₂` coefficients:
 
 1. **Exact `cost_{1/2}` identity and `cost_λ` convex mix.** On all `16` outer Boolean masks,
    `cost_{1/2}(a, b, c, d)` equals `(1/2)(1_{a ≠ b} + 1_{c ≠ d})` plus
@@ -52,11 +51,10 @@ assumption) and derives unconditional `U₂` circuit lower bounds:
    `u ± v` with multiplier `μ = 1133/250` yields `𝔼[cost_{1/2}] ≤ 269265 / 1000000` for all
    `ρ₀ ≥ 94280904 / 100000000` (`measureReal_pairHalf_le`), and hence
    `U2CubicPairBound gaussianCoefficient (271212 / 1000000)` (`u2CubicPairBound_gaussian`).
-3. **Unconditional `4.6362 n` `U₂` lower bounds.** Combining `u2CubicPairBound_gaussian` with the
-   `7/8` vertex-coverage matching theorem on `3`-regular simple graphs gives unconditional `(4.6362
-   - ε) n` inner-gate lower bounds for worst-case, nondeterministic (`∀ k`), and average-case
-   circuits over every `U₂` basis (`Interpretation.IsU2`), including `Boolean.DeMorgan` and
-   `Boolean`.
+3. **Explicit rational `U₂` coefficients.** Evaluates rational lower bounds on the resulting `7/8`,
+   Edmonds `1/3`-dirty, and clean `U₂` circuit-size and quadratic-form correlation coefficients
+   (consumed by `CslibFrontier.Computability.Circuit.Frontier.Basis.U2` and
+   `CslibFrontier.Computability.Circuit.Frontier.Correlation.RealRank`).
 
 ## Main results
 
@@ -66,14 +64,11 @@ assumption) and derives unconditional `U₂` circuit lower bounds:
   `U2CubicPairBound gaussianCoefficient (271212 / 1000000)`.
 * `Cslib.Circuits.Frontier.Gaussian.u2CircuitCoefficient_ge_46362`,
   `Cslib.Circuits.Frontier.Gaussian.u2CorrelationThreshold_ge_28007`,
+  `Cslib.Circuits.Frontier.Gaussian.u2CorrelationThreshold_ge_28006`,
   `Cslib.Circuits.Frontier.Gaussian.u2CleanCircuitCoefficient_ge_46871`,
   `Cslib.Circuits.Frontier.Gaussian.u2EdmondsCircuitCoefficient_ge_46754`,
   `Cslib.Circuits.Frontier.Gaussian.u2EdmondsCorrelationThreshold_ge_28318`: rational lower bounds
   on the `U₂` gate-count and quadratic-form correlation coefficients.
-* `Cslib.Circuits.Frontier.eventually_46362_div_10000_sub_mul_lt_innerSize_u2_nondeterministic`,
-  `Cslib.Circuits.Frontier.eventually_46362_div_10000_sub_mul_lt_innerSize_u2`,
-  `Cslib.Circuits.Frontier.eventually_agreement_le_u2_46362`: unconditional `4.6362 n` `U₂`
-  nondeterministic, worst-case, and average-case circuit lower bounds.
 -/
 
 public section
@@ -354,16 +349,25 @@ section PairExpectations
 
 variable {V E : Type*} [Fintype V] [Finite E] {G : Multigraph V E}
 
-private theorem measurableSet_straddlesOn (q : ℝ) (R : ℕ) (t : ℝ) (S : Set E) :
-    MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
-  have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
-      (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
-      (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by ext ω; simp [StraddlesOn]
-  rw [hset]
-  exact ((toFinite S).measurableSet_biUnion fun f _ =>
-      measurable_edgeScore q R f measurableSet_Iio).inter
-    ((toFinite S).measurableSet_biUnion fun f _ =>
-      measurable_edgeScore q R f measurableSet_Ici)
+private theorem measurableSet_pairEvents (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ) (e : E) :
+    MeasurableSet (pairAnyEvent G M q R t e) ∧ MeasurableSet (pairBothEvent G M q R t e) := by
+  classical
+  have hstrad (S : Set E) : MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
+    have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
+        (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
+        (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by ext ω; simp [StraddlesOn]
+    rw [hset]
+    exact ((toFinite S).measurableSet_biUnion fun f _ =>
+        measurable_edgeScore q R f measurableSet_Iio).inter
+      ((toFinite S).measurableSet_biUnion fun f _ =>
+        measurable_edgeScore q R f measurableSet_Ici)
+  refine ⟨?_, ?_⟩
+  · unfold pairAnyEvent; split_ifs
+    · exact hstrad _
+    · exact MeasurableSet.empty
+  · unfold pairBothEvent; split_ifs
+    · exact (hstrad _).inter (hstrad _)
+    · exact MeasurableSet.empty
 
 omit [Finite E] in
 private theorem indicator_pairAnyEvent_le {M : Set E} {e ea eb ec ed : E} (he : e ∈ M)
@@ -461,11 +465,8 @@ private theorem measureReal_pairOne_le_straddle_add (_hloop : G.Loopless)
   set Sv := straddleEvent G q R t v
   have hSu_m : MeasurableSet Su := measurableSet_straddleEvent q R t u
   have hSv_m : MeasurableSet Sv := measurableSet_straddleEvent q R t v
-  have hA_m : MeasurableSet A_ev := by
-    dsimp only [A_ev, pairAnyEvent]; rw [ite_eq_left he]; exact measurableSet_straddlesOn q R t _
-  have hB_m : MeasurableSet B_ev := by
-    dsimp only [B_ev, pairBothEvent]; rw [ite_eq_left he]
-    exact (measurableSet_straddlesOn q R t _).inter (measurableSet_straddlesOn q R t _)
+  have hA_m : MeasurableSet A_ev := (measurableSet_pairEvents M q R t e).1
+  have hB_m : MeasurableSet B_ev := (measurableSet_pairEvents M q R t e).2
   have hint (C : Set (V → ℝ)) (hC : MeasurableSet C) : Integrable (C.indicator 1) P :=
     (integrable_const (1 : ℝ)).indicator hC
   have hpt (ω : V → ℝ) : A_ev.indicator (1 : (V → ℝ) → ℝ) ω +
@@ -546,11 +547,8 @@ theorem measureReal_pairHalf_le (hloop : G.Loopless) (h3 : ∀ v, (G.incidenceSe
   set B_ev := pairBothEvent G M q R t e
   set Sep : E → E → Set (V → ℝ) := fun f₁ f₂ =>
     {ω | t ∈ Ι (edgeScore G q R ω f₁) (edgeScore G q R ω f₂)}
-  have hA_m : MeasurableSet A_ev := by
-    dsimp only [A_ev, pairAnyEvent]; rw [ite_eq_left he]; exact measurableSet_straddlesOn q R t _
-  have hB_m : MeasurableSet B_ev := by
-    dsimp only [B_ev, pairBothEvent]; rw [ite_eq_left he]
-    exact (measurableSet_straddlesOn q R t _).inter (measurableSet_straddlesOn q R t _)
+  have hA_m : MeasurableSet A_ev := (measurableSet_pairEvents M q R t e).1
+  have hB_m : MeasurableSet B_ev := (measurableSet_pairEvents M q R t e).2
   have hSep_m (f₁ f₂ : E) : MeasurableSet (Sep f₁ f₂) :=
     measurableSet_setOf_mem_uIoc (measurable_edgeScore q R _) (measurable_edgeScore q R _) t
   have hint (C : Set (V → ℝ)) (hC : MeasurableSet C) : Integrable (C.indicator 1) P :=
@@ -854,14 +852,10 @@ theorem u2CubicPairBound_gaussian :
       exact (show G.toSimpleGraph.edist (G.src e) z ≤ ((R + 1 : ℕ) : ℕ∞) from hz).trans
         (by exact_mod_cast Nat.le_succ (R + 1))
     · exact edgeScore_congr hf.1 fun z hz => hω z (closedBall_tgt_subset e (R + 1) hz)
-  have hany_m (t : ℝ) (e : E) : MeasurableSet (pairAnyEvent G M q R t e) := by
-    unfold pairAnyEvent; split_ifs
-    · exact measurableSet_straddlesOn q R t _
-    · exact MeasurableSet.empty
-  have hboth_m (S_e : Set E) (t : ℝ) (e : E) : MeasurableSet (pairBothEvent G S_e q R t e) := by
-    unfold pairBothEvent; split_ifs
-    · exact (measurableSet_straddlesOn q R t _).inter (measurableSet_straddlesOn q R t _)
-    · exact MeasurableSet.empty
+  have hany_m (t : ℝ) (e : E) : MeasurableSet (pairAnyEvent G M q R t e) :=
+    (measurableSet_pairEvents M q R t e).1
+  have hboth_m (S_e : Set E) (t : ℝ) (e : E) : MeasurableSet (pairBothEvent G S_e q R t e) :=
+    (measurableSet_pairEvents S_e q R t e).2
   have hany_dep (t : ℝ) (e : E) :
       DependsOn (· ∈ pairAnyEvent G M q R t e) (closedBall G.toSimpleGraph (G.src e) (R + 2)) := by
     intro ω ω' hω; unfold pairAnyEvent; split_ifs
@@ -1225,120 +1219,3 @@ theorem u2EdmondsCorrelationThreshold_ge_28318 :
   linarith [two_mul_gaussianCoefficient_le]
 
 end Cslib.Circuits.Frontier.Gaussian
-
-/-! ### Unconditional `4.6362 n` `U₂` circuit lower bounds -/
-
-namespace Cslib.Circuits.Frontier
-
-universe v
-
-private theorem u2_dirty_le_A_gaussian :
-    2 * Gaussian.gaussianCoefficient - 271212 / 1000000 ≤
-      (7 / 8) * (271212 / 1000000) + (1 / 8) * (2 * Gaussian.gaussianCoefficient) := by
-  linarith [Gaussian.two_mul_gaussianCoefficient_le]
-
-/-- **Unconditional `(4.6362 - ε) n` `U₂` nondeterministic frontier lower bound.** For every dense
-`K_n`-rectangle-free family `S_n ⊆ Bool^n` and every `ε > 0`, eventually every nondeterministic
-circuit with any number `k` of witness inputs over any `U₂` basis deciding `S_n` has more than
-`(46362 / 10000 - ε) n` inner gates. -/
-theorem eventually_46362_div_10000_sub_mul_lt_innerSize_u2_nondeterministic
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} (hSK : DenseRectangleFree S K)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (c : Circuit σ (n + k) 1), I.IsU2 → c.NondeterministicDecides I Acc (S n) →
-        (46362 / 10000 - ε) * n < c.innerSize := by
-  filter_upwards [eventually_lt_innerSize_u2_nondeterministic.{v} Gaussian.gaussianCoefficient_pos
-    (by norm_num) Gaussian.le_two_mul_gaussianCoefficient Gaussian.u2CubicPairBound_gaussian
-    u2_dirty_le_A_gaussian hSK hε] with n hn k σ I Acc c hU2 hdec
-  refine lt_of_le_of_lt ?_ (hn k σ I Acc c hU2 hdec)
-  exact mul_le_mul_of_nonneg_right (by linarith [Gaussian.u2CircuitCoefficient_ge_46362])
-    (Nat.cast_nonneg n)
-
-/-- **Unconditional `(4.6362 - ε) n` `U₂` worst-case frontier lower bound.** For every dense
-`K_n`-rectangle-free family `S_n ⊆ Bool^n` and every `ε > 0`, eventually every circuit over any `U₂`
-basis deciding `S_n` has more than `(46362 / 10000 - ε) n` inner gates. -/
-theorem eventually_46362_div_10000_sub_mul_lt_innerSize_u2
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} (hSK : DenseRectangleFree S K)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (c : Circuit σ n 1), I.IsU2 → c.Decides I Acc (S n) →
-        (46362 / 10000 - ε) * n < c.innerSize := by
-  filter_upwards [eventually_46362_div_10000_sub_mul_lt_innerSize_u2_nondeterministic.{v} hSK hε]
-    with n hn σ I Acc c hU2 hdec
-  exact hn 0 σ I Acc c hU2 hdec.nondeterministicDecides
-
-/-- **Unconditional `(4.6362 - ε) n` De Morgan circuit lower bound.** -/
-theorem eventually_46362_div_10000_sub_mul_lt_innerSize_deMorgan
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} (hSK : DenseRectangleFree S K)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (Acc : Set Bool) (c : Circuit Boolean.DeMorgan.signature n 1),
-      c.Decides Boolean.DeMorgan.interpretation Acc (S n) →
-        (46362 / 10000 - ε) * n < c.innerSize := by
-  filter_upwards [eventually_46362_div_10000_sub_mul_lt_innerSize_u2.{0} hSK hε]
-    with n hn Acc c hdec
-  exact hn Boolean.DeMorgan.signature Boolean.DeMorgan.interpretation Acc c Boolean.DeMorgan.isU2
-    hdec
-
-/-- **Unconditional `(4.6362 - ε) n` Boolean circuit lower bound** (De Morgan with constants). -/
-theorem eventually_46362_div_10000_sub_mul_lt_innerSize_boolean
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} (hSK : DenseRectangleFree S K)
-    {ε : ℝ} (hε : 0 < ε) :
-    ∀ᶠ n in atTop, ∀ (Acc : Set Bool) (c : Circuit Boolean.signature n 1),
-      c.Decides Boolean.interpretation Acc (S n) →
-        (46362 / 10000 - ε) * n < c.innerSize := by
-  filter_upwards [eventually_46362_div_10000_sub_mul_lt_innerSize_u2.{0} hSK hε]
-    with n hn Acc c hdec
-  exact hn Boolean.signature Boolean.interpretation Acc c Boolean.isU2 hdec
-
-/-- **Unconditional `(4.6362 - ε) n` `U₂` average-case frontier lower bound.** Below
-`(46362 / 10000 - ε) n` inner gates, every circuit over any `U₂` basis agrees with a family `S_n`
-of rectangle bias `b_n` (`log K_n = o(n)`) on at most `1 / 2 + b_n + exp (-γ n)` of inputs. -/
-theorem eventually_agreement_le_u2_46362
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} {b : ℕ → ℝ}
-    (hbias : ∀ᶠ n in atTop, RectangleBias (S n) (K n) (b n))
-    (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ))
-    {ε : ℝ} (hε : 0 < ε) :
-    ∃ γ > 0, ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ Bool) (Acc : Set Bool)
-      (c : Circuit σ n 1), I.IsU2 → (c.innerSize : ℝ) ≤ (46362 / 10000 - ε) * n →
-        agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b n + Real.exp (-(γ * n)) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_agreement_le_u2.{v} Gaussian.gaussianCoefficient_pos
-    (by norm_num) Gaussian.le_two_mul_gaussianCoefficient Gaussian.u2CubicPairBound_gaussian
-    u2_dirty_le_A_gaussian hbias hK hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn σ I Acc c hU2 hsize
-  refine hn σ I Acc c hU2 (hsize.trans ?_)
-  exact mul_le_mul_of_nonneg_right (by linarith [Gaussian.u2CircuitCoefficient_ge_46362])
-    (Nat.cast_nonneg n)
-
-/-- **Unconditional `(4.6362 - ε) n` De Morgan average-case lower bound.** -/
-theorem eventually_agreement_le_deMorgan_46362
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} {b : ℕ → ℝ}
-    (hbias : ∀ᶠ n in atTop, RectangleBias (S n) (K n) (b n))
-    (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ))
-    {ε : ℝ} (hε : 0 < ε) :
-    ∃ γ > 0, ∀ᶠ n in atTop, ∀ (Acc : Set Bool) (c : Circuit Boolean.DeMorgan.signature n 1),
-      (c.innerSize : ℝ) ≤ (46362 / 10000 - ε) * n →
-        agreement (S n) {x | c.eval Boolean.DeMorgan.interpretation x 0 ∈ Acc} ≤
-          1 / 2 + b n + Real.exp (-(γ * n)) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_agreement_le_u2_46362.{0} hbias hK hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn Acc c hsize
-  exact hn Boolean.DeMorgan.signature Boolean.DeMorgan.interpretation Acc c
-    Boolean.DeMorgan.isU2 hsize
-
-/-- **Unconditional `(4.6362 - ε) n` Boolean average-case lower bound.** -/
-theorem eventually_agreement_le_boolean_46362
-    {S : ∀ n, Set (Fin n → Bool)} {K : ℕ → ℕ} {b : ℕ → ℝ}
-    (hbias : ∀ᶠ n in atTop, RectangleBias (S n) (K n) (b n))
-    (hK : (fun n => Real.log (K n)) =o[atTop] fun n => (n : ℝ))
-    {ε : ℝ} (hε : 0 < ε) :
-    ∃ γ > 0, ∀ᶠ n in atTop, ∀ (Acc : Set Bool) (c : Circuit Boolean.signature n 1),
-      (c.innerSize : ℝ) ≤ (46362 / 10000 - ε) * n →
-        agreement (S n) {x | c.eval Boolean.interpretation x 0 ∈ Acc} ≤
-          1 / 2 + b n + Real.exp (-(γ * n)) := by
-  obtain ⟨γ, hγ, hev⟩ := eventually_agreement_le_u2_46362.{0} hbias hK hε
-  refine ⟨γ, hγ, ?_⟩
-  filter_upwards [hev] with n hn Acc c hsize
-  exact hn Boolean.signature Boolean.interpretation Acc c Boolean.isU2 hsize
-
-end Cslib.Circuits.Frontier
