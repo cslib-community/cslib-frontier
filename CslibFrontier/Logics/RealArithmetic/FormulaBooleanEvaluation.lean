@@ -17,7 +17,8 @@ This adapts the wire scan and its correctness proof from
 at lean-canny revision `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 Every operand follows its parent in the prefix token stream, so visiting tokens from right to
 left gives each gate access to its previously computed operands. Arithmetic comparisons use
-a supplied interpretation of term-word signs.
+a supplied interpretation of term-word signs. Correct signs for the comparison terms appearing
+in the word suffice for the root value to characterize membership in the real solution set.
 -/
 
 public section
@@ -130,5 +131,52 @@ theorem formulaWordGateValues_getD_zero (word : List Bool) (termSign : List Bool
       (Formula.ofWord word).evalTermSigns (termSign ∘ encTerm word.length) :=
   formulaWordGateValues_getD_of_prefix (Formula.ofWord word) [] []
     (by simpa only [List.nil_append, List.append_nil] using formulaWordTokens_eq word) termSign
+
+private theorem evalTermSigns_eq_true_iff_of_token_signs {n : ℕ} (p : Formula n)
+    (termSign : Term n → SignType) (x : Fin n → ℝ)
+    (hsign : ∀ t, .inr (.inl t) ∈ encFormula_tokens n p ∨
+        .inr (.inr (.inl t)) ∈ encFormula_tokens n p → termSign t = SignType.sign (t.eval x)) :
+    p.evalTermSigns termSign = true ↔ x ∈ p.solutionSet := by
+  have restrict {parent child : Formula n} (hsub : encFormula_tokens n child ⊆
+      encFormula_tokens n parent)
+      (h : ∀ t, .inr (.inl t) ∈ encFormula_tokens n parent ∨
+        .inr (.inr (.inl t)) ∈ encFormula_tokens n parent → termSign t = SignType.sign (t.eval x))
+      (t : Term n) (ht : .inr (.inl t) ∈ encFormula_tokens n child ∨
+        .inr (.inr (.inl t)) ∈ encFormula_tokens n child) :
+      termSign t = SignType.sign (t.eval x) :=
+    h t (ht.imp (fun hm => hsub hm) (fun hm => hsub hm))
+  induction p with
+  | false => simp [Formula.evalTermSigns, Formula.solutionSet]
+  | eqZero t =>
+    have ht := hsign t (.inl (by simp [encFormula_tokens]))
+    simp [Formula.evalTermSigns, Formula.solutionSet, ht]
+  | ltZero t =>
+    have ht := hsign t (.inr (by simp [encFormula_tokens]))
+    simp [Formula.evalTermSigns, Formula.solutionSet, ht, sign_eq_neg_one_iff]
+  | not p ih =>
+    have hp := ih (restrict (by intro token ht; simp [encFormula_tokens, ht]) hsign)
+    simp [Formula.evalTermSigns, Formula.solutionSet, Bool.eq_false_iff, hp]
+  | and p q ihp ihq | or p q ihp ihq =>
+    have hp := ihp (restrict (by intro token ht; simp [encFormula_tokens, ht]) hsign)
+    have hq := ihq (restrict (by intro token ht; simp [encFormula_tokens, ht]) hsign)
+    simp [Formula.evalTermSigns, Formula.solutionSet, hp, hq]
+
+/-- The root gate holds at a real point if and only if the total formula view holds there,
+provided the sign reader gives the true sign for each comparison term in the word. -/
+theorem formulaWordGateValues_getD_zero_eq_true_iff (word : List Bool)
+    (termSign : List Bool → SignType) (x : Fin word.length → ℝ)
+    (hsign : ∀ t : Term word.length, .inr (.inl (encTerm word.length t)) ∈ formulaWordTokens word ∨
+        .inr (.inr (.inl (encTerm word.length t))) ∈ formulaWordTokens word →
+        termSign (encTerm word.length t) = SignType.sign (t.eval x)) :
+    (formulaWordGateValues word termSign).getD 0 false = true ↔
+      x ∈ (Formula.ofWord word).solutionSet := by
+  rw [formulaWordGateValues_getD_zero]
+  apply evalTermSigns_eq_true_iff_of_token_signs
+  intro t ht
+  apply hsign t
+  rw [formulaWordTokens_eq]
+  rcases ht with ht | ht
+  · exact .inl (List.mem_map_of_mem ht)
+  · exact .inr (List.mem_map_of_mem ht)
 
 end Cslib.Logic.RealArithmetic
