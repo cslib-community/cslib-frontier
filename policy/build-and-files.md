@@ -47,7 +47,14 @@ to validation machinery also need direct checks of the changed behavior. The req
 checks source validation. A PR confined to allowlisted prose
 can skip the Lean job. Merge groups still run it. The HTTP origin suite runs on main and on
 PR or queue changes outside the known Lean, bibliography and prose paths. Set the repository
-variable `FORCE_FULL_CI=1` to schedule both jobs on every event.
+variable `FORCE_FULL_CI=1` to schedule both jobs on every event. On `pull_request` runs,
+`lean-checks` runs declaration linting scoped to affected library modules (`scripts/quick_check.py
+--lint-only`, falling back to whole-library `lake lint` when changes are unsupported or exceed
+thresholds; `#5163`), `source-checks` posts an advisory notice (`scripts/check_hub_impact.py`)
+when a PR modifies an existing module with `>= 500` transitive importers, and the `Guide` workflow
+(`scripts/ci/select_guide.py`) skips `.lake` restoration and compilation when a PR touches nothing
+in `CslibFrontierGuide`'s transitive import closure. Merge groups, pushes to `main`, and manual
+runs continue to run whole-library `lake lint`.
 
 During development, check affected modules and representative clients before requesting review;
 a PR may use CI for the full run. For documentation-only changes, check consistency, links and

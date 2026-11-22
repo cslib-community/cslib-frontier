@@ -25,15 +25,19 @@ nonnegative quadratic polynomial.
 
 For a real random variable in `Lⁿ`, the moments `E[zʲ]` and absolute moments `E[|z|ʲ]` of order
 `j ≤ n` are integrable under a finite measure (`MeasureTheory.integrable_pow_of_memLp`,
-`MeasureTheory.integrable_abs_pow_of_memLp`). By Cauchy–Schwarz, the expectations of a `K`-Lipschitz
-function of two random variables in `L²` differ by at most `K` times their `L²` distance
-(`LipschitzWith.abs_integral_comp_sub_le_sqrt`).
+`MeasureTheory.integrable_abs_pow_of_memLp`). The third absolute moment is bounded above by
+`(E|z|³)² ≤ E[z²] E[z⁴]` (`MeasureTheory.sq_integral_abs_pow_three_le`) and below by Lyapunov's
+inequality `(√E[z²])³ ≤ E|z|³` (`MeasureTheory.sqrt_integral_sq_pow_three_le`). By
+Cauchy–Schwarz, the expectations of a `K`-Lipschitz function of two random variables in `L²`
+differ by at most `K` times their `L²` distance (`LipschitzWith.abs_integral_comp_sub_le_sqrt`).
 
 ## Main results
 
 * `MeasureTheory.sq_integral_mul_le`: Cauchy–Schwarz, `(∫ f g)² ≤ (∫ f²) (∫ g²)`.
 * `MeasureTheory.integrable_pow_of_memLp`: `z ∈ Lⁿ` and `j ≤ n` give `zʲ` integrable.
 * `MeasureTheory.integrable_abs_pow_of_memLp`: `z ∈ Lⁿ` and `j ≤ n` give `|z|ʲ` integrable.
+* `MeasureTheory.sq_integral_abs_pow_three_le`: `(E|z|³)² ≤ E[z²] E[z⁴]`.
+* `MeasureTheory.sqrt_integral_sq_pow_three_le`: Lyapunov's inequality `(√E[z²])³ ≤ E|z|³`.
 * `LipschitzWith.abs_integral_comp_sub_le_sqrt`: for `K`-Lipschitz `ψ` and `X`, `Y` in `L²`,
   `|E[ψ(X)] - E[ψ(Y)]| ≤ K √E[(X - Y)²]`.
 -/
@@ -81,6 +85,41 @@ theorem integrable_abs_pow_of_memLp {μ : Measure ℝ} [IsFiniteMeasure μ] {n :
   · simp
   have h' : MemLp id (j : ENNReal) μ := h.mono_exponent (by exact_mod_cast hj)
   simpa using h'.integrable_norm_pow hj0.ne'
+
+/-- The third absolute moment of a real random variable in `L⁴` satisfies
+`(E|z|³)² ≤ E[z²] E[z⁴]`, by Cauchy–Schwarz applied to `|z| · z²`. -/
+theorem sq_integral_abs_pow_three_le {μ : Measure ℝ} [IsFiniteMeasure μ] (h : MemLp id 4 μ) :
+    (∫ s, |s| ^ 3 ∂μ) ^ 2 ≤ (∫ s, s ^ 2 ∂μ) * ∫ s, s ^ 4 ∂μ := by
+  have h4 : MemLp id ((4 : ℕ) : ENNReal) μ := by exact_mod_cast h
+  have hcs := sq_integral_mul_le (P := μ) (f := fun s => |s|) (g := fun s => s ^ 2)
+    (by simpa using integrable_pow_of_memLp h4 (j := 2) (by norm_num))
+    (by simpa only [← pow_mul] using integrable_pow_of_memLp h4 (j := 4) le_rfl)
+    ((integrable_abs_pow_of_memLp h4 (j := 3) (by norm_num)).congr (ae_of_all _ fun s => by
+      simp only; rw [← sq_abs s]; ring))
+  have h3 : ∫ s, |s| * s ^ 2 ∂μ = ∫ s, |s| ^ 3 ∂μ := by
+    congr 1 with s : 1; rw [← sq_abs s]; ring
+  simpa only [sq_abs, ← pow_mul, h3] using hcs
+
+/-- **Lyapunov's inequality** for the second and third moments: a real random variable in `L³`
+has `(√E[z²])³ ≤ E|z|³`. The proof integrates `(|z| - σ)² (2 |z| + σ) ≥ 0` for `σ = √E[z²]`. -/
+theorem sqrt_integral_sq_pow_three_le {μ : Measure ℝ} [IsProbabilityMeasure μ]
+    (h : MemLp id 3 μ) : √(∫ s, s ^ 2 ∂μ) ^ 3 ≤ ∫ s, |s| ^ 3 ∂μ := by
+  have h3 : MemLp id ((3 : ℕ) : ENNReal) μ := by exact_mod_cast h
+  have hA := (integrable_abs_pow_of_memLp h3 (j := 3) le_rfl).const_mul 2
+  set σ := √(∫ s, s ^ 2 ∂μ)
+  have hB := (integrable_pow_of_memLp h3 (j := 2) (by norm_num)).const_mul (3 * σ)
+  have hσ : 0 ≤ σ := Real.sqrt_nonneg _
+  have hσ2 : σ ^ 2 = ∫ s, s ^ 2 ∂μ := Real.sq_sqrt (integral_nonneg fun s => sq_nonneg s)
+  have hpt (s : ℝ) : 0 ≤ 2 * |s| ^ 3 - 3 * σ * s ^ 2 + σ ^ 3 := by
+    have he : 2 * |s| ^ 3 - 3 * σ * s ^ 2 + σ ^ 3 = (|s| - σ) ^ 2 * (2 * |s| + σ) := by
+      rw [← sq_abs s]; ring
+    rw [he]
+    exact mul_nonneg (sq_nonneg _) (add_nonneg (by positivity) hσ)
+  have hint := integral_nonneg (μ := μ) (f := fun s => 2 * |s| ^ 3 - 3 * σ * s ^ 2 + σ ^ 3) hpt
+  rw [integral_add (f := fun s => 2 * |s| ^ 3 - 3 * σ * s ^ 2) (hA.sub hB) (integrable_const _),
+    integral_sub hA hB, integral_const_mul, integral_const_mul, integral_const, probReal_univ,
+    one_smul, ← hσ2] at hint
+  nlinarith
 
 /-- For `K`-Lipschitz `ψ` and `X`, `Y` in `L²` on a probability space,
 `|E[ψ(X)] - E[ψ(Y)]| ≤ K √E[(X - Y)²]`, by Cauchy–Schwarz. -/

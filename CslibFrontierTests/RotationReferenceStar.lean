@@ -135,6 +135,12 @@ example :
           (∀ i, (A.route i).support = ⋃ k : Fin 3,
             (F.route (⟨i, k⟩ : SubdivisionEdgeIndex doubleLoop).edge).support) ∧
           ∀ d : Dart doubleLoop.graph, A.germ d = F.germ (subdivisionDart doubleLoop d)) ∧
+      (∃ H : PolygonalDrawing (subdivisionGraph doubleLoop), H.IsEmbedding ∧
+        H.vertex 0 = referencePoint doubleLoop 0 ∧
+        H.route (subdivisionDart doubleLoop (firstLoop, false)).1 =
+          (referenceDrawing doubleLoop).route (subdivisionDart doubleLoop (firstLoop, false)).1 ∧
+        H.route (subdivisionDart doubleLoop (firstLoop, true)).1 =
+          (referenceDrawing doubleLoop).route (subdivisionDart doubleLoop (firstLoop, true)).1) ∧
       ∃ s ∈ Set.Ioo (0 : ℝ) 1, ∃ G : PolygonalDrawing (subdivisionGraph doubleLoop), G.IsEmbedding ∧
         G.vertex 0 = referencePoint doubleLoop 0 ∧
         let left := subdivisionDart doubleLoop (firstLoop, false)
@@ -159,7 +165,7 @@ example :
     simpa [doubleLoop, incidenceVertices] using hv
   have hD : D.IsEmbedding := PolygonalDrawing.bouquet_isEmbedding r hends hg hloop
   have hw : doubleLoop.orders.getD 0 none = some [2, 3, 0, 1] := by decide +kernel
-  refine ⟨D, hD, ?_, ?_, ?_, ?_⟩
+  refine ⟨D, hD, ?_, ?_, ?_, ?_, ?_⟩
   · have a := cutPort_clockwise_iff_reference hI hD (PolygonalDrawing.bouquet_realizes r hloop)
       hfix zero_lt_one hw (a := (firstLoop, false)) (b := (firstLoop, true))
       (c := (secondLoop, false)) (by decide +kernel) (by decide +kernel) (by decide +kernel)
@@ -191,6 +197,11 @@ example :
       refine ⟨hports d, ?_⟩
       simp only [PolygonalDrawing.direction, hger, Complex.real_smul, Complex.arg_real_mul _ ha]
     · exact exists_contracted_subdivision_embedding hI hF
+  · obtain ⟨H, hH, hcenters, hspokes⟩ :=
+      exists_subdivision_embedding_with_frozen_reference_routes hI hD
+        (PolygonalDrawing.bouquet_realizes r hloop) hfix
+    exact ⟨H, hH, hcenters 0 (by decide +kernel),
+      hspokes _ (by decide +kernel), hspokes _ (by decide +kernel)⟩
   · obtain ⟨ε, hε, hscale⟩ :=
       exists_subdivision_embedding_with_scaled_reference_spokes hI hD
         (PolygonalDrawing.bouquet_realizes r hloop) hfix

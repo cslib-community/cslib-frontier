@@ -15,6 +15,7 @@ public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.RandomOracle.Programming
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
+import CslibFrontier.Tactic.SuppCases
 
 /-!
 # Native strict-PPT programmable random oracles
@@ -122,6 +123,31 @@ enc_structure encProgrammingState (Log : Type) (encLog : Log ↪ List Bool) :
 
 variable {Caller Log : Type}
 
+/-- Shared programmable word-oracle dispatch parameterized by the active `.program` cache-update
+operation (`activeCache`). -/
+private def programWordHandlerWith
+    (dist : Caller → ProbComp (List Bool)) (active : Caller → List Bool → Bool)
+    (inactive : Caller → List Bool → Log → ProbComp (List Bool × Log))
+    (samplePre : Caller → List Bool → ProbComp (List Bool))
+    (finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log)
+    (activeCache : Caller → List Bool → List Bool → List (List Bool × List Bool) →
+      ProbComp (List Bool × List (List Bool × List Bool)))
+    (caller : Caller) (request : ProgrammingOp × List Bool) :
+    StateT (ProgrammingState Log) ProbComp (List Bool) := fun state =>
+  match request with
+  | (.program, req) =>
+      if active caller req then do
+        let coins ← samplePre caller req
+        let (digest, cache') ← activeCache caller req coins state.cache
+        let (reply, log') := finish caller req coins digest state.log
+        return (reply, ⟨cache', log'⟩)
+      else
+        (inactive caller req state.log).map fun (reply, log') =>
+          (reply, ⟨state.cache, log'⟩)
+  | (.hash, query) =>
+      (memoize (fun _ => dist caller) query state.cache).map fun (digest, cache') =>
+        (digest, ⟨cache', state.log⟩)
+
 /-- Executable lazy programmable word oracle. Active programming calls sample preimage coins,
 query the memoized random oracle at the computed point and update the caller log. Inactive calls
 run `inactive`; direct hash calls use the same cache. -/
@@ -132,20 +158,11 @@ def lazyProgramWordHandler
     (point : Caller → List Bool → List Bool → List Bool)
     (finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log)
     (caller : Caller) (request : ProgrammingOp × List Bool) :
-    StateT (ProgrammingState Log) ProbComp (List Bool) := fun state =>
-  match request with
-  | (.program, req) =>
-      if active caller req then do
-        let coins ← samplePre caller req
-        let (digest, cache') ← memoize (fun _ => dist caller) (point caller req coins) state.cache
-        let (reply, log') := finish caller req coins digest state.log
-        return (reply, ⟨cache', log'⟩)
-      else
-        (inactive caller req state.log).map fun (reply, log') =>
-          (reply, ⟨state.cache, log'⟩)
-  | (.hash, query) =>
-      (memoize (fun _ => dist caller) query state.cache).map fun (digest, cache') =>
-        (digest, ⟨cache', state.log⟩)
+    StateT (ProgrammingState Log) ProbComp (List Bool) :=
+  programWordHandlerWith dist active inactive samplePre finish
+    (fun caller req coins cache =>
+      memoize (fun _ => dist caller) (point caller req coins) cache)
+    caller request
 
 /-- Executable freshly programmed word oracle. It differs from `lazyProgramWordHandler` only on
 active programming calls, which sample a fresh digest and prepend the computed point without a
@@ -157,20 +174,11 @@ def overwriteProgramWordHandler
     (point : Caller → List Bool → List Bool → List Bool)
     (finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log)
     (caller : Caller) (request : ProgrammingOp × List Bool) :
-    StateT (ProgrammingState Log) ProbComp (List Bool) := fun state =>
-  match request with
-  | (.program, req) =>
-      if active caller req then do
-        let coins ← samplePre caller req
-        let digest ← dist caller
-        let (reply, log') := finish caller req coins digest state.log
-        return (reply, ⟨(point caller req coins, digest) :: state.cache, log'⟩)
-      else
-        (inactive caller req state.log).map fun (reply, log') =>
-          (reply, ⟨state.cache, log'⟩)
-  | (.hash, query) =>
-      (memoize (fun _ => dist caller) query state.cache).map fun (digest, cache') =>
-        (digest, ⟨cache', state.log⟩)
+    StateT (ProgrammingState Log) ProbComp (List Bool) :=
+  programWordHandlerWith dist active inactive samplePre finish
+    (fun caller req coins cache =>
+      (fun digest => (digest, (point caller req coins, digest) :: cache)) <$> dist caller)
+    caller request
 
 /-- A native lazy-programming call has exactly the joint reply/cache/log law of
 `lazyProgramHandler`, through `programmingCodec`. -/
@@ -190,20 +198,10 @@ theorem eval_lazyProgramWordHandler
           (state.cache, state.log)).map
         (fun ⟨reply, cache, log⟩ => (reply, ⟨cache, log⟩)) := by
   rcases request with ⟨op, word⟩
-  cases op with
-  | program =>
-      by_cases hactive : active caller word = true
-      · simp [lazyProgramWordHandler, lazyProgramHandler, programmingCodec,
-          OracleCodec.wordOracle, hactive, ProbComp.eval_memoize,
-          Function.Embedding.coe_refl, id_map, PMF.map, Function.comp_def]
-      · have hfalse : active caller word = false := Bool.eq_false_iff.mpr hactive
-        simp [lazyProgramWordHandler, lazyProgramHandler, programmingCodec,
-          OracleCodec.wordOracle, hactive, Function.Embedding.coe_refl, id_map,
-          PMF.map_comp, Function.comp_def]
-  | hash =>
-      simp [lazyProgramWordHandler, lazyProgramHandler, programmingCodec,
-        OracleCodec.wordOracle, ProbComp.eval_memoize, Function.Embedding.coe_refl, id_map,
-        PMF.map_comp, Function.comp_def]
+  cases op <;> by_cases hactive : active caller word = true <;>
+    simp [lazyProgramWordHandler, programWordHandlerWith, lazyProgramHandler, programmingCodec,
+      OracleCodec.wordOracle, hactive, ProbComp.eval_memoize, Function.Embedding.coe_refl, id_map,
+      PMF.map, Function.comp_def]
 
 /-- A native overwrite-programming call has exactly the joint reply/cache/log law of
 `overwriteProgramHandler`, through `programmingCodec`. -/
@@ -223,20 +221,32 @@ theorem eval_overwriteProgramWordHandler
           (state.cache, state.log)).map
         (fun ⟨reply, cache, log⟩ => (reply, ⟨cache, log⟩)) := by
   rcases request with ⟨op, word⟩
-  cases op with
-  | program =>
-      by_cases hactive : active caller word = true
-      · simp [overwriteProgramWordHandler, overwriteProgramHandler, programmingCodec,
-          OracleCodec.wordOracle, hactive, Function.Embedding.coe_refl, id_map,
-          PMF.map, Function.comp_def]
-      · have hfalse : active caller word = false := Bool.eq_false_iff.mpr hactive
-        simp [overwriteProgramWordHandler, overwriteProgramHandler, programmingCodec,
-          OracleCodec.wordOracle, hactive, Function.Embedding.coe_refl, id_map,
-          PMF.map_comp, Function.comp_def]
-  | hash =>
-      simp [overwriteProgramWordHandler, overwriteProgramHandler, programmingCodec,
-        OracleCodec.wordOracle, ProbComp.eval_memoize, Function.Embedding.coe_refl, id_map,
-        PMF.map_comp, Function.comp_def]
+  cases op <;> by_cases hactive : active caller word = true <;>
+    simp [overwriteProgramWordHandler, programWordHandlerWith, overwriteProgramHandler,
+      programmingCodec, OracleCodec.wordOracle, hactive, ProbComp.eval_memoize,
+      Function.Embedding.coe_refl, id_map, PMF.map, Function.comp_def]
+
+private theorem runWith_wordHandler_of_eval {α : Type}
+    {program : WordOracleComp ProgrammingOp α}
+    {semHandler : (q : List Bool ⊕ List Bool) →
+      StateT (List (List Bool × List Bool) × Log) PMF
+        (((fun _ : List Bool => List Bool) ⊕ₒ fun _ : List Bool => List Bool) q)}
+    {wordHandler : ProgrammingOp × List Bool → StateT (ProgrammingState Log) ProbComp (List Bool)}
+    (heval : ∀ request state, ProbComp.eval (wordHandler request state) =
+      (programmingCodec.wordOracle semHandler request (state.cache, state.log)).map
+        (fun ⟨reply, cache, log⟩ => (reply, ⟨cache, log⟩)))
+    {cache : List (List Bool × List Bool)} {log : Log} :
+    (ProbOracleComp.runWith semHandler (programmingCodec.adapt program) (cache, log)).map
+        (fun ⟨result, cache, log⟩ => (result, (⟨cache, log⟩ : ProgrammingState Log))) =
+      ProbOracleComp.runWith (fun request state => ProbComp.eval (wordHandler request state))
+        program ⟨cache, log⟩ := by
+  rw [programmingCodec.runWith_adapt]
+  exact ProbOracleComp.runWith_map_state
+    (programmingCodec.wordOracle semHandler)
+    (fun request state => ProbComp.eval (wordHandler request state))
+    (fun state : List (List Bool × List Bool) × Log =>
+      (⟨state.1, state.2⟩ : ProgrammingState Log))
+    (fun request state => (heval request ⟨state.1, state.2⟩).symm) program (cache, log)
 
 /-- Adaptive typed execution against `lazyProgramHandler` has exactly the joint result/cache/log
 law of native execution against `lazyProgramWordHandler`. -/
@@ -257,21 +267,9 @@ theorem runWith_lazyProgramWordHandler {α : Type}
           (result, (⟨cache, log⟩ : ProgrammingState Log))) =
       ProbOracleComp.runWith
         (fun request state => ProbComp.eval (lazyProgramWordHandler dist active inactive samplePre
-          point finish caller request state)) program ⟨cache, log⟩ := by
-  rw [programmingCodec.runWith_adapt]
-  refine ProbOracleComp.runWith_map_state
-    (programmingCodec.wordOracle
-      (lazyProgramHandler (ProbComp.eval (dist caller)) (active caller)
-        (fun request _ currentLog => ProbComp.eval (inactive caller request currentLog))
-        (fun request => ProbComp.eval (samplePre caller request)) (point caller) (finish caller)))
-    (fun request state => ProbComp.eval (lazyProgramWordHandler dist active inactive samplePre
-      point finish caller request state))
-    (fun state : List (List Bool × List Bool) × Log =>
-      (⟨state.1, state.2⟩ : ProgrammingState Log)) ?_ program (cache, log)
-  intro request state
-  symm
-  simpa using eval_lazyProgramWordHandler dist active inactive samplePre point finish caller
-    request (⟨state.1, state.2⟩ : ProgrammingState Log)
+          point finish caller request state)) program ⟨cache, log⟩ :=
+  runWith_wordHandler_of_eval
+    (eval_lazyProgramWordHandler dist active inactive samplePre point finish caller)
 
 /-- Adaptive typed execution against `overwriteProgramHandler` has exactly the joint
 result/cache/log law of native execution against `overwriteProgramWordHandler`. -/
@@ -292,32 +290,20 @@ theorem runWith_overwriteProgramWordHandler {α : Type}
           (result, (⟨cache, log⟩ : ProgrammingState Log))) =
       ProbOracleComp.runWith
         (fun request state => ProbComp.eval (overwriteProgramWordHandler dist active inactive
-          samplePre point finish caller request state)) program ⟨cache, log⟩ := by
-  rw [programmingCodec.runWith_adapt]
-  refine ProbOracleComp.runWith_map_state
-    (programmingCodec.wordOracle
-      (overwriteProgramHandler (ProbComp.eval (dist caller)) (active caller)
-        (fun request _ currentLog => ProbComp.eval (inactive caller request currentLog))
-        (fun request => ProbComp.eval (samplePre caller request)) (point caller) (finish caller)))
-    (fun request state => ProbComp.eval (overwriteProgramWordHandler dist active inactive
-      samplePre point finish caller request state))
-    (fun state : List (List Bool × List Bool) × Log =>
-      (⟨state.1, state.2⟩ : ProgrammingState Log)) ?_ program (cache, log)
-  intro request state
-  symm
-  simpa using eval_overwriteProgramWordHandler dist active inactive samplePre point finish caller
-    request (⟨state.1, state.2⟩ : ProgrammingState Log)
+          samplePre point finish caller request state)) program ⟨cache, log⟩ :=
+  runWith_wordHandler_of_eval
+    (eval_overwriteProgramWordHandler dist active inactive samplePre point finish caller)
 
 /-! ### Strict-PPT certificates -/
 
-/-- The lazy programmable word handler is strict PPT when each caller component is. The
-certificate charges the complete incoming and returned cache and log. -/
-theorem isPPTOn_lazyProgramWordHandler (input : Caller ↪ List Bool) (encLog : Log ↪ List Bool)
-    (dist : Caller → ProbComp (List Bool)) (active : Caller → List Bool → Bool)
-    (inactive : Caller → List Bool → Log → ProbComp (List Bool × Log))
-    (samplePre : Caller → List Bool → ProbComp (List Bool))
-    (point : Caller → List Bool → List Bool → List Bool)
-    (finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log)
+private theorem isPPTOn_programWordHandlerWith {input : Caller ↪ List Bool}
+    {encLog : Log ↪ List Bool} {dist : Caller → ProbComp (List Bool)}
+    {active : Caller → List Bool → Bool}
+    {inactive : Caller → List Bool → Log → ProbComp (List Bool × Log)}
+    {samplePre : Caller → List Bool → ProbComp (List Bool)}
+    {finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log}
+    {activeCache : Caller → List Bool → List Bool → List (List Bool × List Bool) →
+      ProbComp (List Bool × List (List Bool × List Bool))}
     (hdist : Probability.IsPPTOn input encBits dist)
     (hactive : ComputableInPolyTime (fun p : Caller × List Bool => active p.1 p.2)
       (encPair input encBits) encBool)
@@ -325,18 +311,19 @@ theorem isPPTOn_lazyProgramWordHandler (input : Caller ↪ List Bool) (encLog : 
       (encPair encBits encLog) (fun p => inactive p.1.1 p.1.2 p.2))
     (hsamplePre : Probability.IsPPTOn (encPair input encBits) encBits
       (fun p => samplePre p.1 p.2))
-    (hpoint : ComputableInPolyTime
-      (fun p : (Caller × List Bool) × List Bool => point p.1.1 p.1.2 p.2)
-      (encPair (encPair input encBits) encBits) encBits)
     (hfinish : ComputableInPolyTime
       (fun p : ((((Caller × List Bool) × List Bool) × List Bool) × Log) =>
         finish p.1.1.1.1 p.1.1.1.2 p.1.1.2 p.1.2 p.2)
       (encPair (encPair (encPair (encPair input encBits) encBits) encBits) encLog)
-      (encPair encBits encLog)) :
+      (encPair encBits encLog))
+    (hactiveCache : Probability.IsPPTOn
+      (encPair (encHandlerCall input encProgrammingOp (encProgrammingState Log encLog)) encBits)
+      (encPair encBits (encMemoCache encBits encBits))
+      (fun p => activeCache p.1.1 p.1.2.1.2 p.2 p.1.2.2.cache)) :
     Probability.IsPPTOn
       (encHandlerCall input encProgrammingOp (encProgrammingState Log encLog))
       (encPair encBits (encProgrammingState Log encLog))
-      (fun p => lazyProgramWordHandler dist active inactive samplePre point finish
+      (fun p => programWordHandlerWith dist active inactive samplePre finish activeCache
         p.1 p.2.1 p.2.2) := by
   let callEncoding :=
     encHandlerCall input encProgrammingOp (encProgrammingState Log encLog)
@@ -368,31 +355,10 @@ theorem isPPTOn_lazyProgramWordHandler (input : Caller ↪ List Bool) (encLog : 
   have hactiveCall : Probability.IsPPTOn callEncoding
       (encPair encBits (encProgrammingState Log encLog)) (fun p => do
         let coins ← samplePre p.1 p.2.1.2
-        let (digest, cache') ← memoize (fun _ => dist p.1)
-          (point p.1 p.2.1.2 coins) p.2.2.cache
+        let (digest, cache') ← activeCache p.1 p.2.1.2 coins p.2.2.cache
         let (reply, log') := finish p.1 p.2.1.2 coins digest p.2.2.log
         return (reply, ⟨cache', log'⟩)) := by
     apply Probability.IsPPTOn.bind_with hpre
-    have hdistCoins : Probability.IsPPTOn (encPair callEncoding encBits) encBits
-        (fun p => dist p.1.1) :=
-      Probability.IsPPTOn.preprocess hdist (by fun_prop)
-    have hmemoCoins : Probability.IsPPTOn (encPair callEncoding encBits)
-        (encPair encBits (encMemoCache encBits encBits)) (fun p =>
-          memoize (fun _ => dist p.1.1) (point p.1.1 p.1.2.1.2 p.2)
-            p.1.2.2.cache) :=
-      have hpointInput : ComputableInPolyTime
-          (fun p :
-            (Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool =>
-              ((p.1.1, p.1.2.1.2), p.2))
-          (encPair callEncoding encBits) (encPair (encPair input encBits) encBits) := by
-        fun_prop
-      Probability.IsPPTOn.memoize
-      (compute := fun p :
-          (Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool =>
-        fun _ => dist p.1.1)
-      (query := fun p => point p.1.1 p.1.2.1.2 p.2)
-      (cache := fun p => p.1.2.2.cache) hdistCoins
-      (hpoint.comp hpointInput) (by fun_prop)
     have hdone : ComputableInPolyTime
         (fun pair :
           ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
@@ -405,46 +371,83 @@ theorem isPPTOn_lazyProgramWordHandler (input : Caller ↪ List Bool) (encLog : 
         (encPair encBits (encProgrammingState Log encLog)) := by
       let sourceEncoding := encPair (encPair callEncoding encBits)
         (encPair encBits (encMemoCache encBits encBits))
-      have hfinishInput : ComputableInPolyTime
-          (fun pair :
-            ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
+      have hfinishSource := hfinish.comp (show ComputableInPolyTime
+          (fun pair : ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
               (List Bool × List (List Bool × List Bool)) =>
-            ((((pair.1.1.1, pair.1.1.2.1.2), pair.1.2), pair.2.1),
-              pair.1.1.2.2.log)) sourceEncoding
-          (encPair (encPair (encPair (encPair input encBits) encBits) encBits) encLog) := by
-        dsimp only [sourceEncoding]
-        fun_prop
-      have hfinishSource := hfinish.comp hfinishInput
-      have hcache : ComputableInPolyTime
-          (fun pair :
-            ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
-              (List Bool × List (List Bool × List Bool)) => pair.2.2)
-          sourceEncoding (encMemoCache encBits encBits) := by
-        dsimp only [sourceEncoding]
-        fun_prop
+            ((((pair.1.1.1, pair.1.1.2.1.2), pair.1.2), pair.2.1), pair.1.1.2.2.log))
+          sourceEncoding _ by dsimp only [sourceEncoding]; fun_prop)
+      have hcache : ComputableInPolyTime (fun pair => pair.2.2) sourceEncoding
+          (encMemoCache encBits encBits) := by dsimp only [sourceEncoding]; fun_prop
       exact hfinishSource.fst'.prod (hcache.prod hfinishSource.snd')
-    simpa only [bind_pure_comp] using Probability.IsPPTOn.map_with hmemoCoins
+    simpa only [bind_pure_comp] using Probability.IsPPTOn.map_with hactiveCache
       (f := fun p result =>
         let done := finish p.1.1 p.1.2.1.2 p.2 result.1 p.1.2.2.log
         (done.1, (⟨result.2, done.2⟩ : ProgrammingState Log)))
       hdone
-  have hactiveOnCall : ComputableInPolyTime (fun p => active p.1 p.2.1.2)
-      callEncoding encBool := by
-    have hactiveInput : ComputableInPolyTime
-        (fun p : Caller × (ProgrammingOp × List Bool) × ProgrammingState Log =>
-          (p.1, p.2.1.2)) callEncoding (encPair input encBits) := by fun_prop
-    exact hactive.comp hactiveInput
-  have hprogram := Probability.IsPPTOn.cond
-    hactiveOnCall hactiveCall hinactiveCall
+  have hactiveOnCall := hactive.comp (show ComputableInPolyTime
+      (fun p : Caller × (ProgrammingOp × List Bool) × ProgrammingState Log => (p.1, p.2.1.2))
+      callEncoding (encPair input encBits) by fun_prop)
+  have hprogram := Probability.IsPPTOn.cond hactiveOnCall hactiveCall hinactiveCall
   have hop : ComputableInPolyTime (fun p :
       Caller × (ProgrammingOp × List Bool) × ProgrammingState Log => p.2.1.1)
       callEncoding encProgrammingOp := by fun_prop
   have hall := Probability.IsPPTOn.cond
-    (ComputableInPolyTime.beq hop
-      (ComputableInPolyTime.const ProgrammingOp.program)) hprogram hhash
+    (ComputableInPolyTime.beq hop (ComputableInPolyTime.const ProgrammingOp.program))
+    hprogram hhash
   refine hall.congr fun p => ?_
   obtain ⟨caller, ⟨op, request⟩, state⟩ := p
-  cases op <;> simp [lazyProgramWordHandler]
+  cases op <;> simp [programWordHandlerWith]
+
+/-- The lazy programmable word handler is strict PPT when each caller component is. The
+certificate charges the complete incoming and returned cache and log. -/
+theorem isPPTOn_lazyProgramWordHandler (input : Caller ↪ List Bool) (encLog : Log ↪ List Bool)
+    (dist : Caller → ProbComp (List Bool)) (active : Caller → List Bool → Bool)
+    (inactive : Caller → List Bool → Log → ProbComp (List Bool × Log))
+    (samplePre : Caller → List Bool → ProbComp (List Bool))
+    (point : Caller → List Bool → List Bool → List Bool)
+    (finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log)
+    (hdist : Probability.IsPPTOn input encBits dist)
+    (hactive : ComputableInPolyTime (fun p : Caller × List Bool => active p.1 p.2)
+      (encPair input encBits) encBool)
+    (hinactive : Probability.IsPPTOn (encPair (encPair input encBits) encLog)
+      (encPair encBits encLog) (fun p => inactive p.1.1 p.1.2 p.2))
+    (hsamplePre : Probability.IsPPTOn (encPair input encBits) encBits
+      (fun p => samplePre p.1 p.2))
+    (hpoint : ComputableInPolyTime
+      (fun p : (Caller × List Bool) × List Bool => point p.1.1 p.1.2 p.2)
+      (encPair (encPair input encBits) encBits) encBits)
+    (hfinish : ComputableInPolyTime
+      (fun p : ((((Caller × List Bool) × List Bool) × List Bool) × Log) =>
+        finish p.1.1.1.1 p.1.1.1.2 p.1.1.2 p.1.2 p.2)
+      (encPair (encPair (encPair (encPair input encBits) encBits) encBits) encLog)
+      (encPair encBits encLog)) :
+    Probability.IsPPTOn
+      (encHandlerCall input encProgrammingOp (encProgrammingState Log encLog))
+      (encPair encBits (encProgrammingState Log encLog))
+      (fun p => lazyProgramWordHandler dist active inactive samplePre point finish
+        p.1 p.2.1 p.2.2) := by
+  let callEncoding :=
+    encHandlerCall input encProgrammingOp (encProgrammingState Log encLog)
+  have hpointInput : ComputableInPolyTime
+      (fun p : (Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool =>
+        ((p.1.1, p.1.2.1.2), p.2))
+      (encPair callEncoding encBits) (encPair (encPair input encBits) encBits) := by
+    dsimp only [callEncoding]; fun_prop
+  have hmemoCoins : Probability.IsPPTOn (encPair callEncoding encBits)
+      (encPair encBits (encMemoCache encBits encBits)) (fun p =>
+        memoize (fun _ => dist p.1.1) (point p.1.1 p.1.2.1.2 p.2) p.1.2.2.cache) :=
+    Probability.IsPPTOn.memoize
+      (compute := fun p :
+          (Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool =>
+        fun _ => dist p.1.1)
+      (query := fun p => point p.1.1 p.1.2.1.2 p.2)
+      (cache := fun p => p.1.2.2.cache)
+      (Probability.IsPPTOn.preprocess hdist (by dsimp only [callEncoding]; fun_prop))
+      (hpoint.comp hpointInput) (by dsimp only [callEncoding]; fun_prop)
+  exact isPPTOn_programWordHandlerWith
+    (activeCache := fun caller req coins cache =>
+      memoize (fun _ => dist caller) (point caller req coins) cache)
+    hdist hactive hinactive hsamplePre hfinish hmemoCoins
 
 /-- The overwrite programmable word handler is strict PPT when each caller component is. The
 certificate charges the complete incoming and returned cache and log. -/
@@ -477,106 +480,30 @@ theorem isPPTOn_overwriteProgramWordHandler (input : Caller ↪ List Bool)
         p.1 p.2.1 p.2.2) := by
   let callEncoding :=
     encHandlerCall input encProgrammingOp (encProgrammingState Log encLog)
-  have hdistCall : Probability.IsPPTOn callEncoding encBits (fun p => dist p.1) :=
-    Probability.IsPPTOn.preprocess hdist (by fun_prop)
-  have hhash := Probability.IsPPTOn.map_with (Probability.IsPPTOn.memoize
-    (compute := fun p : Caller × (ProgrammingOp × List Bool) × ProgrammingState Log =>
-      fun _ => dist p.1)
-    (query := fun p => p.2.1.2) (cache := fun p => p.2.2.cache)
-    hdistCall (by fun_prop) (by fun_prop))
-    (f := fun p result =>
-      (result.1, (⟨result.2, p.2.2.log⟩ : ProgrammingState Log))) (by fun_prop)
-  have hinactiveCall : Probability.IsPPTOn callEncoding
-      (encPair encBits (encProgrammingState Log encLog)) (fun p =>
-        (fun result =>
-          (result.1, (⟨p.2.2.cache, result.2⟩ : ProgrammingState Log))) <$>
-            inactive p.1 p.2.1.2 p.2.2.log) :=
-    Probability.IsPPTOn.map_with (Probability.IsPPTOn.preprocess hinactive
-      (prepare := fun p : Caller × (ProgrammingOp × List Bool) × ProgrammingState Log =>
-        ((p.1, p.2.1.2), p.2.2.log)) (by fun_prop))
-      (f := fun p result =>
-        (result.1, (⟨p.2.2.cache, result.2⟩ : ProgrammingState Log))) (by fun_prop)
-  have hpre : Probability.IsPPTOn callEncoding encBits (fun p =>
-      samplePre p.1 p.2.1.2) :=
-    Probability.IsPPTOn.preprocess hsamplePre
-      (prepare := fun p : Caller × (ProgrammingOp × List Bool) × ProgrammingState Log =>
-        (p.1, p.2.1.2)) (by fun_prop)
-  have hactiveCall : Probability.IsPPTOn callEncoding
-      (encPair encBits (encProgrammingState Log encLog)) (fun p => do
-        let coins ← samplePre p.1 p.2.1.2
-        let digest ← dist p.1
-        let (reply, log') := finish p.1 p.2.1.2 coins digest p.2.2.log
-        return (reply, ⟨(point p.1 p.2.1.2 coins, digest) :: p.2.2.cache, log'⟩)) := by
-    apply Probability.IsPPTOn.bind_with hpre
-    have hdistCoins : Probability.IsPPTOn (encPair callEncoding encBits) encBits
-        (fun p => dist p.1.1) :=
-      Probability.IsPPTOn.preprocess hdist (by fun_prop)
-    have hdone : ComputableInPolyTime
-        (fun pair :
-          ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
-            List Bool =>
-          let done := finish pair.1.1.1 pair.1.1.2.1.2 pair.1.2 pair.2
-            pair.1.1.2.2.log
-          (done.1, (⟨(point pair.1.1.1 pair.1.1.2.1.2 pair.1.2, pair.2) ::
-            pair.1.1.2.2.cache, done.2⟩ : ProgrammingState Log)))
-        (encPair (encPair callEncoding encBits) encBits)
-        (encPair encBits (encProgrammingState Log encLog)) := by
-      let sourceEncoding := encPair (encPair callEncoding encBits) encBits
-      have hfinishInput : ComputableInPolyTime
-          (fun pair :
-            ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
-              List Bool =>
-            ((((pair.1.1.1, pair.1.1.2.1.2), pair.1.2), pair.2),
-              pair.1.1.2.2.log)) sourceEncoding
-          (encPair (encPair (encPair (encPair input encBits) encBits) encBits) encLog) := by
-        dsimp only [sourceEncoding]
-        fun_prop
-      have hfinishSource := hfinish.comp hfinishInput
-      have hpointInput : ComputableInPolyTime
-          (fun pair :
-            ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
-              List Bool => ((pair.1.1.1, pair.1.1.2.1.2), pair.1.2))
-          sourceEncoding (encPair (encPair input encBits) encBits) := by
-        dsimp only [sourceEncoding]
-        fun_prop
-      have hpointSource := hpoint.comp hpointInput
-      have hdigest : ComputableInPolyTime
-          (fun pair :
-            ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
-              List Bool => pair.2) sourceEncoding encBits := by
-        dsimp only [sourceEncoding]
-        fun_prop
-      have hcache : ComputableInPolyTime
-          (fun pair :
-            ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
-              List Bool => pair.1.1.2.2.cache) sourceEncoding
-          (encMemoCache encBits encBits) := by
-        dsimp only [sourceEncoding]
-        fun_prop
-      have hnewCache := ComputableInPolyTime.cons' (hpointSource.prod hdigest) hcache
-      exact hfinishSource.fst'.prod (hnewCache.prod hfinishSource.snd')
-    simpa only [bind_pure_comp] using Probability.IsPPTOn.map_with hdistCoins
-      (f := fun p digest =>
-        let done := finish p.1.1 p.1.2.1.2 p.2 digest p.1.2.2.log
-        (done.1, (⟨(point p.1.1 p.1.2.1.2 p.2, digest) :: p.1.2.2.cache,
-          done.2⟩ : ProgrammingState Log))) hdone
-  have hactiveOnCall : ComputableInPolyTime (fun p => active p.1 p.2.1.2)
-      callEncoding encBool := by
-    have hactiveInput : ComputableInPolyTime
-        (fun p : Caller × (ProgrammingOp × List Bool) × ProgrammingState Log =>
-          (p.1, p.2.1.2)) callEncoding (encPair input encBits) := by fun_prop
-    exact hactive.comp hactiveInput
-  have hprogram := Probability.IsPPTOn.cond
-    hactiveOnCall hactiveCall hinactiveCall
-  have hop : ComputableInPolyTime (fun p :
-      Caller × (ProgrammingOp × List Bool) × ProgrammingState Log => p.2.1.1)
-      callEncoding encProgrammingOp := by fun_prop
-  have hall := Probability.IsPPTOn.cond
-    (ComputableInPolyTime.beq hop
-      (ComputableInPolyTime.const ProgrammingOp.program)) hprogram hhash
-  refine hall.congr fun p => ?_
-  obtain ⟨caller, ⟨op, request⟩, state⟩ := p
-  cases op <;> simp [overwriteProgramWordHandler]
+  let sourceEncoding := encPair (encPair callEncoding encBits) encBits
+  have hdistCoins : Probability.IsPPTOn (encPair callEncoding encBits) encBits
+      (fun p => dist p.1.1) :=
+    Probability.IsPPTOn.preprocess hdist (by dsimp only [callEncoding]; fun_prop)
+  have hpair : ComputableInPolyTime
+      (fun pair :
+        ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) × List Bool =>
+        (pair.2, (point pair.1.1.1 pair.1.1.2.1.2 pair.1.2, pair.2) :: pair.1.1.2.2.cache))
+      sourceEncoding (encPair encBits (encMemoCache encBits encBits)) := by
+    have hpt := hpoint.comp (show ComputableInPolyTime
+        (fun pair : ((Caller × (ProgrammingOp × List Bool) × ProgrammingState Log) × List Bool) ×
+            List Bool => ((pair.1.1.1, pair.1.1.2.1.2), pair.1.2))
+        sourceEncoding _ by dsimp only [sourceEncoding, callEncoding]; fun_prop)
+    have hdigest : ComputableInPolyTime (fun pair => pair.2) sourceEncoding encBits := by
+      dsimp only [sourceEncoding, callEncoding]; fun_prop
+    have hcache : ComputableInPolyTime (fun pair => pair.1.1.2.2.cache) sourceEncoding
+        (encMemoCache encBits encBits) := by dsimp only [sourceEncoding, callEncoding]; fun_prop
+    exact hdigest.prod (ComputableInPolyTime.cons' (hpt.prod hdigest) hcache)
+  have hoverwriteCoins := Probability.IsPPTOn.map_with hdistCoins
+    (f := fun p digest => (digest, (point p.1.1 p.1.2.1.2 p.2, digest) :: p.1.2.2.cache)) hpair
+  exact isPPTOn_programWordHandlerWith
+    (activeCache := fun caller req coins cache =>
+      (fun digest => (digest, (point caller req coins, digest) :: cache)) <$> dist caller)
+    hdist hactive hinactive hsamplePre hfinish hoverwriteCoins
 
 /-! ### Per-call resource contract -/
 
@@ -630,6 +557,89 @@ private theorem length_encProgrammingState (encLog : Log ↪ List Bool)
   simp only [encProgrammingState_apply, encProgrammingStateFields, length_encPair]
   ring
 
+private theorem programWordHandlerWith_support
+    {encLog : Log ↪ List Bool} {dist : Caller → ProbComp (List Bool)}
+    {active : Caller → List Bool → Bool}
+    {inactive : Caller → List Bool → Log → ProbComp (List Bool × Log)}
+    {samplePre : Caller → List Bool → ProbComp (List Bool)}
+    {finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log}
+    {activeCache : Caller → List Bool → List Bool → List (List Bool × List Bool) →
+      ProbComp (List Bool × List (List Bool × List Bool))}
+    {digestBound : Caller → ℕ} {pointBound replyBound logGrowth : Caller → List Bool → ℕ}
+    {logInvariant : Caller → Log → Prop}
+    (hdist : ∀ caller digest, digest ∈ (ProbComp.eval (dist caller)).support →
+      digest.length ≤ digestBound caller)
+    (hactiveCache : ∀ caller word coins,
+      coins ∈ (ProbComp.eval (samplePre caller word)).support →
+      ∀ cache, (∀ entry ∈ cache, entry.2.length ≤ digestBound caller) →
+      ∀ cached ∈ (ProbComp.eval (activeCache caller word coins cache)).support,
+        cached.1.length ≤ digestBound caller ∧
+          (∀ entry ∈ cached.2, entry.2.length ≤ digestBound caller) ∧
+          (encMemoCache encBits encBits cached.2).length ≤
+            (encMemoCache encBits encBits cache).length +
+              4 * pointBound caller word + 2 * digestBound caller + 3)
+    (hinactive : ∀ caller request log, logInvariant caller log →
+      ∀ result ∈ (ProbComp.eval (inactive caller request log)).support,
+        logInvariant caller result.2 ∧ result.1.length ≤ replyBound caller request ∧
+          (encLog result.2).length ≤ (encLog log).length + logGrowth caller request)
+    (hfinish : ∀ caller request coins,
+      coins ∈ (ProbComp.eval (samplePre caller request)).support →
+      ∀ digest, digest.length ≤ digestBound caller → ∀ log, logInvariant caller log →
+        logInvariant caller (finish caller request coins digest log).2 ∧
+          (finish caller request coins digest log).1.length ≤ replyBound caller request ∧
+          (encLog (finish caller request coins digest log).2).length ≤
+            (encLog log).length + logGrowth caller request)
+    {caller : Caller} {request : ProgrammingOp × List Bool} {state : ProgrammingState Log}
+    (hstate : ProgrammingInvariant digestBound logInvariant caller state)
+    {result : List Bool × ProgrammingState Log}
+    (hresult : result ∈ (ProbComp.eval (programWordHandlerWith dist active inactive samplePre
+      finish activeCache caller request state)).support) :
+    ProgrammingInvariant digestBound logInvariant caller result.2 ∧
+      result.1.length ≤
+        programmingResources digestBound pointBound replyBound logGrowth caller request.2 ∧
+      (encProgrammingState Log encLog result.2).length ≤
+        (encProgrammingState Log encLog state).length +
+          programmingResources digestBound pointBound replyBound logGrowth caller request.2 := by
+  obtain ⟨hcache, hlog⟩ := hstate
+  obtain ⟨op, word⟩ := request
+  cases op with
+  | hash =>
+      simp only [programWordHandlerWith] at hresult
+      supp_cases hresult [ProbComp.eval_memoize] with ⟨cached, hcached, rfl⟩
+      obtain ⟨hreply, hcache', hgrowth⟩ := Probability.memoize_call_size_le encBits encBits
+        (fun _ => ProbComp.eval (dist caller)) word state.cache (digestBound caller) hcache
+        (fun digest hdigest => hdist caller digest hdigest) cached hcached
+      refine ⟨⟨hcache', hlog⟩, ?_, ?_⟩
+      · unfold programmingResources
+        simpa only [encBits_apply] using hreply.trans (by lia)
+      · rw [length_encProgrammingState, length_encProgrammingState]
+        simp only [encBits_apply] at hgrowth
+        unfold programmingResources
+        lia
+  | program =>
+      simp only [programWordHandlerWith] at hresult
+      split_ifs at hresult with hactive
+      · supp_cases hresult with ⟨coins, hcoins, cached, hcached, rfl⟩
+        obtain ⟨hdigest, hcache', hcacheGrowth⟩ :=
+          hactiveCache caller word coins hcoins state.cache hcache cached hcached
+        obtain ⟨hlog', hreply, hlogGrowth⟩ :=
+          hfinish caller word coins hcoins cached.1 hdigest state.log hlog
+        refine ⟨⟨hcache', hlog'⟩, ?_, ?_⟩
+        · unfold programmingResources
+          lia
+        · rw [length_encProgrammingState, length_encProgrammingState]
+          unfold programmingResources
+          lia
+      · supp_cases hresult with ⟨inactiveResult, hinactiveResult, rfl⟩
+        obtain ⟨hlog', hreply, hlogGrowth⟩ :=
+          hinactive caller word state.log hlog inactiveResult hinactiveResult
+        refine ⟨⟨hcache, hlog'⟩, ?_, ?_⟩
+        · unfold programmingResources
+          lia
+        · rw [length_encProgrammingState, length_encProgrammingState]
+          unfold programmingResources
+          lia
+
 /-- Every supported lazy programmable-oracle call preserves `ProgrammingInvariant`, bounds the
 reply word and grows the complete encoded cache/log state by at most `programmingResources`. -/
 theorem lazyProgramWordHandler_support
@@ -667,161 +677,22 @@ theorem lazyProgramWordHandler_support
         programmingResources digestBound pointBound replyBound logGrowth caller request.2 ∧
       (encProgrammingState Log encLog result.2).length ≤
         (encProgrammingState Log encLog state).length +
-          programmingResources digestBound pointBound replyBound logGrowth caller request.2 := by
-  obtain ⟨hcache, hlog⟩ := hstate
-  obtain ⟨op, word⟩ := request
-  cases op with
-  | hash =>
-      simp only [lazyProgramWordHandler] at hresult
-      change result ∈ (ProbComp.eval ((fun cached =>
-        (cached.1, (⟨cached.2, state.log⟩ : ProgrammingState Log))) <$>
-          memoize (fun _ => dist caller) word state.cache)).support at hresult
-      rw [ProbComp.eval_map, ProbComp.eval_memoize] at hresult
-      obtain ⟨cached, hcached, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
-      obtain ⟨hreply, hcache', hgrowth⟩ := Probability.memoize_call_size_le encBits encBits
-        (fun _ => ProbComp.eval (dist caller)) word state.cache (digestBound caller) hcache
-        (fun digest hdigest => hdist caller digest hdigest) cached hcached
-      refine ⟨⟨hcache', hlog⟩, ?_, ?_⟩
-      · unfold programmingResources
-        simpa only [encBits_apply] using hreply.trans (by lia)
-      · rw [length_encProgrammingState, length_encProgrammingState]
-        simp only [encBits_apply] at hgrowth
-        unfold programmingResources
-        lia
-  | program =>
-      simp only [lazyProgramWordHandler] at hresult
-      split_ifs at hresult with hactive
-      · rw [ProbComp.eval_bind] at hresult
-        obtain ⟨coins, hcoins, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
-        rw [ProbComp.eval_bind] at hresult
-        obtain ⟨cached, hcached, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
-        rw [ProbComp.eval_memoize] at hcached
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-        subst result
-        obtain ⟨hdigest, hcache', hcacheGrowth⟩ :=
-          Probability.memoize_call_size_le encBits encBits
-            (fun _ => ProbComp.eval (dist caller)) (point caller word coins) state.cache
-            (digestBound caller) hcache (fun digest hdigest => hdist caller digest hdigest)
-            cached hcached
-        obtain ⟨hlog', hreply, hlogGrowth⟩ :=
-          hfinish caller word coins hcoins cached.1 (by simpa only [encBits_apply] using hdigest)
-            state.log hlog
-        refine ⟨⟨hcache', hlog'⟩, ?_, ?_⟩
-        · unfold programmingResources
-          lia
-        · rw [length_encProgrammingState, length_encProgrammingState]
-          have hpointBound := hpoint caller word coins hcoins
-          simp only [encBits_apply] at hcacheGrowth
-          unfold programmingResources
-          lia
-      · change result ∈ (ProbComp.eval ((fun inactiveResult =>
-          (inactiveResult.1, (⟨state.cache, inactiveResult.2⟩ : ProgrammingState Log))) <$>
-            inactive caller word state.log)).support at hresult
-        rw [ProbComp.eval_map] at hresult
-        obtain ⟨inactiveResult, hinactiveResult, rfl⟩ :=
-          (PMF.mem_support_map_iff _ _ _).mp hresult
-        obtain ⟨hlog', hreply, hlogGrowth⟩ :=
-          hinactive caller word state.log hlog inactiveResult hinactiveResult
-        refine ⟨⟨hcache, hlog'⟩, ?_, ?_⟩
-        · unfold programmingResources
-          lia
-        · rw [length_encProgrammingState, length_encProgrammingState]
-          unfold programmingResources
-          lia
-
-private theorem overwriteProgramWordHandler_support
-    (encLog : Log ↪ List Bool) (dist : Caller → ProbComp (List Bool))
-    (active : Caller → List Bool → Bool)
-    (inactive : Caller → List Bool → Log → ProbComp (List Bool × Log))
-    (samplePre : Caller → List Bool → ProbComp (List Bool))
-    (point : Caller → List Bool → List Bool → List Bool)
-    (finish : Caller → List Bool → List Bool → List Bool → Log → List Bool × Log)
-    (digestBound : Caller → ℕ) (pointBound replyBound logGrowth : Caller → List Bool → ℕ)
-    (logInvariant : Caller → Log → Prop)
-    (hdist : ∀ caller digest, digest ∈ (ProbComp.eval (dist caller)).support →
-      digest.length ≤ digestBound caller)
-    (hpoint : ∀ caller request coins,
-      coins ∈ (ProbComp.eval (samplePre caller request)).support →
-      (point caller request coins).length ≤ pointBound caller request)
-    (hinactive : ∀ caller request log, logInvariant caller log →
-      ∀ result ∈ (ProbComp.eval (inactive caller request log)).support,
-        logInvariant caller result.2 ∧ result.1.length ≤ replyBound caller request ∧
-          (encLog result.2).length ≤ (encLog log).length + logGrowth caller request)
-    (hfinish : ∀ caller request coins,
-      coins ∈ (ProbComp.eval (samplePre caller request)).support →
-      ∀ digest, digest.length ≤ digestBound caller → ∀ log, logInvariant caller log →
-        logInvariant caller (finish caller request coins digest log).2 ∧
-          (finish caller request coins digest log).1.length ≤ replyBound caller request ∧
-          (encLog (finish caller request coins digest log).2).length ≤
-            (encLog log).length + logGrowth caller request)
-    (caller : Caller) (request : ProgrammingOp × List Bool) (state : ProgrammingState Log)
-    (hstate : ProgrammingInvariant digestBound logInvariant caller state)
-    (result : List Bool × ProgrammingState Log)
-    (hresult : result ∈ (ProbComp.eval (overwriteProgramWordHandler dist active inactive samplePre
-      point finish caller request state)).support) :
-    ProgrammingInvariant digestBound logInvariant caller result.2 ∧
-      result.1.length ≤
-        programmingResources digestBound pointBound replyBound logGrowth caller request.2 ∧
-      (encProgrammingState Log encLog result.2).length ≤
-        (encProgrammingState Log encLog state).length +
-          programmingResources digestBound pointBound replyBound logGrowth caller request.2 := by
-  obtain ⟨hcache, hlog⟩ := hstate
-  obtain ⟨op, word⟩ := request
-  cases op with
-  | hash =>
-      simp only [overwriteProgramWordHandler] at hresult
-      change result ∈ (ProbComp.eval ((fun cached =>
-        (cached.1, (⟨cached.2, state.log⟩ : ProgrammingState Log))) <$>
-          memoize (fun _ => dist caller) word state.cache)).support at hresult
-      rw [ProbComp.eval_map, ProbComp.eval_memoize] at hresult
-      obtain ⟨cached, hcached, rfl⟩ := (PMF.mem_support_map_iff _ _ _).mp hresult
-      obtain ⟨hreply, hcache', hgrowth⟩ := Probability.memoize_call_size_le encBits encBits
-        (fun _ => ProbComp.eval (dist caller)) word state.cache (digestBound caller) hcache
-        (fun digest hdigest => hdist caller digest hdigest) cached hcached
-      refine ⟨⟨hcache', hlog⟩, ?_, ?_⟩
-      · unfold programmingResources
-        simpa only [encBits_apply] using hreply.trans (by lia)
-      · rw [length_encProgrammingState, length_encProgrammingState]
-        simp only [encBits_apply] at hgrowth
-        unfold programmingResources
-        lia
-  | program =>
-      simp only [overwriteProgramWordHandler] at hresult
-      split_ifs at hresult with hactive
-      · rw [ProbComp.eval_bind] at hresult
-        obtain ⟨coins, hcoins, hresult⟩ := (PMF.mem_support_bind_iff _ _ _).mp hresult
-        rw [ProbComp.eval_bind] at hresult
-        obtain ⟨digest, hdigestSupport, hresult⟩ :=
-          (PMF.mem_support_bind_iff _ _ _).mp hresult
-        simp only [ProbComp.eval_pure, PMF.mem_support_pure_iff] at hresult
-        subst result
-        have hdigest := hdist caller digest hdigestSupport
-        obtain ⟨hlog', hreply, hlogGrowth⟩ :=
-          hfinish caller word coins hcoins digest hdigest state.log hlog
-        refine ⟨⟨?_, hlog'⟩, ?_, ?_⟩
-        · simpa using And.intro hdigest hcache
-        · unfold programmingResources
-          lia
-        · rw [length_encProgrammingState, length_encProgrammingState]
-          have hpointBound := hpoint caller word coins hcoins
-          simp only [encMemoCache, encList_cons, List.length_append, length_frame,
-            length_encPair, encBits_apply]
-          unfold programmingResources
-          lia
-      · change result ∈ (ProbComp.eval ((fun inactiveResult =>
-          (inactiveResult.1, (⟨state.cache, inactiveResult.2⟩ : ProgrammingState Log))) <$>
-            inactive caller word state.log)).support at hresult
-        rw [ProbComp.eval_map] at hresult
-        obtain ⟨inactiveResult, hinactiveResult, rfl⟩ :=
-          (PMF.mem_support_map_iff _ _ _).mp hresult
-        obtain ⟨hlog', hreply, hlogGrowth⟩ :=
-          hinactive caller word state.log hlog inactiveResult hinactiveResult
-        refine ⟨⟨hcache, hlog'⟩, ?_, ?_⟩
-        · unfold programmingResources
-          lia
-        · rw [length_encProgrammingState, length_encProgrammingState]
-          unfold programmingResources
-          lia
+          programmingResources digestBound pointBound replyBound logGrowth caller request.2 :=
+  programWordHandlerWith_support (active := active)
+    (activeCache := fun caller req coins cache =>
+      memoize (fun _ => dist caller) (point caller req coins) cache)
+    hdist
+    (fun caller word coins hcoins cache hcache cached hcached => by
+      rw [ProbComp.eval_memoize] at hcached
+      obtain ⟨hdigest, hcache', hcacheGrowth⟩ :=
+        Probability.memoize_call_size_le encBits encBits
+          (fun _ => ProbComp.eval (dist caller)) (point caller word coins) cache
+          (digestBound caller) hcache (fun digest hdigest => hdist caller digest hdigest)
+          cached hcached
+      have hpt := hpoint caller word coins hcoins
+      simp only [encBits_apply] at hdigest hcacheGrowth
+      exact ⟨hdigest, hcache', by lia⟩)
+    hinactive hfinish hstate hresult
 
 /-! ### Whole-program strict-PPT certificates -/
 
@@ -877,18 +748,15 @@ theorem isPPTOn_run_lazyProgramWordHandler {β : Type} (input : Caller ↪ List 
     Probability.IsPPTOn input (encPair output (encProgrammingState Log encLog))
       (fun caller => ((program (prepare caller).1 (prepare caller).2).runState
         (lazyProgramWordHandler dist active inactive samplePre point finish caller)).run
-          (initial caller)) := by
-  apply Probability.IsOraclePPT.isPPTOn_runState
+          (initial caller)) :=
+  Probability.IsOraclePPT.isPPTOn_runState
     (resources := programmingResources digestBound pointBound replyBound logGrowth)
-    hprogram hprepare hhandler hinitial
-    (ProgrammingInvariant digestBound logInvariant) (fun caller =>
-      ⟨hinitCache caller, hinitLog caller⟩)
-  · exact computableInPolyTime_programmingResources input digestBound pointBound replyBound
-      logGrowth hdigestBound hpointBound hreplyBound hlogGrowth
-  · exact fun caller request state hstate result hresult =>
-      lazyProgramWordHandler_support encLog dist active inactive samplePre point finish
-        digestBound pointBound replyBound logGrowth logInvariant hdist hpoint hinactive hfinish
-        caller request state hstate result hresult
+    hprogram hprepare hhandler hinitial (ProgrammingInvariant digestBound logInvariant)
+    (fun caller => ⟨hinitCache caller, hinitLog caller⟩)
+    (computableInPolyTime_programmingResources input digestBound pointBound replyBound
+      logGrowth hdigestBound hpointBound hreplyBound hlogGrowth)
+    (lazyProgramWordHandler_support encLog dist active inactive samplePre point finish
+      digestBound pointBound replyBound logGrowth logInvariant hdist hpoint hinactive hfinish)
 
 /-- Running a uniform strict oracle-PPT program against the overwrite programmable word handler
 is strict PPT, including its final cache and log. It uses the same local additive resource
@@ -942,17 +810,26 @@ theorem isPPTOn_run_overwriteProgramWordHandler {β : Type} (input : Caller ↪ 
     Probability.IsPPTOn input (encPair output (encProgrammingState Log encLog))
       (fun caller => ((program (prepare caller).1 (prepare caller).2).runState
         (overwriteProgramWordHandler dist active inactive samplePre point finish caller)).run
-          (initial caller)) := by
-  apply Probability.IsOraclePPT.isPPTOn_runState
+          (initial caller)) :=
+  Probability.IsOraclePPT.isPPTOn_runState
     (resources := programmingResources digestBound pointBound replyBound logGrowth)
-    hprogram hprepare hhandler hinitial
-    (ProgrammingInvariant digestBound logInvariant) (fun caller =>
-      ⟨hinitCache caller, hinitLog caller⟩)
-  · exact computableInPolyTime_programmingResources input digestBound pointBound replyBound
-      logGrowth hdigestBound hpointBound hreplyBound hlogGrowth
-  · exact fun caller request state hstate result hresult =>
-      overwriteProgramWordHandler_support encLog dist active inactive samplePre point finish
-        digestBound pointBound replyBound logGrowth logInvariant hdist hpoint hinactive hfinish
-        caller request state hstate result hresult
+    hprogram hprepare hhandler hinitial (ProgrammingInvariant digestBound logInvariant)
+    (fun caller => ⟨hinitCache caller, hinitLog caller⟩)
+    (computableInPolyTime_programmingResources input digestBound pointBound replyBound
+      logGrowth hdigestBound hpointBound hreplyBound hlogGrowth)
+    (fun caller request state hstate result hresult =>
+      programWordHandlerWith_support (active := active)
+        (activeCache := fun caller req coins cache =>
+          (fun digest => (digest, (point caller req coins, digest) :: cache)) <$> dist caller)
+        hdist
+        (fun caller word coins hcoins cache hcache cached hcached => by
+          supp_cases hcached with ⟨digest, hdigestSupport, rfl⟩
+          have hdigest := hdist caller digest hdigestSupport
+          have hpt := hpoint caller word coins hcoins
+          refine ⟨hdigest, by simpa using And.intro hdigest hcache, ?_⟩
+          simp only [encMemoCache, encList_cons, List.length_append, length_frame, length_encPair,
+            encBits_apply]
+          lia)
+        hinactive hfinish hstate hresult)
 
 end Cslib.RandomOracle

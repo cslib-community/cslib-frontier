@@ -697,6 +697,14 @@ private theorem predRegisters_eq_of_step {B n : ℕ} {r : Register k → ℕ} {s
     | .neg => decide (r .inputPos = 0)
     | .zero => false
     | .pos => decide (r .inputPos = n + 1)
+  have hwrite_div (i : Fin k) (x : ℕ) :
+      ((act.workTapes i).1.elim (r (.head i)) symbolCode + 3 * x) / 3 = x := by
+    have hlt : (act.workTapes i).1.elim (r (.head i)) symbolCode < 3 := by
+      rcases (act.workTapes i).1 with _ | b
+      · rw [Option.elim_none, of_decide_eq_true (hheads _ ⟨i, rfl⟩)]
+        exact symbolCode_lt _
+      · exact symbolCode_lt b
+    rw [Nat.add_mul_div_left _ _ (by decide : 0 < 3), Nat.div_eq_of_lt hlt, Nat.zero_add]
   refine ⟨altInput, prevOutput, funext fun reg => ?_⟩
   cases reg with
   | inputPos =>
@@ -720,38 +728,18 @@ private theorem predRegisters_eq_of_step {B n : ℕ} {r : Register k → ℕ} {s
     dsimp only [predRegisters]
     exact (of_decide_eq_true (hheads _ ⟨i, rfl⟩)).symm
   | left i =>
-    have hhi : r (.head i) = symbolCode (workObs i) :=
-      of_decide_eq_true (hheads _ ⟨i, rfl⟩)
-    let hwrite := (act.workTapes i).1.elim (r (.head i)) symbolCode
-    have hhwrite_lt : hwrite < 3 := by
-      dsimp only [hwrite]
-      rcases (act.workTapes i).1 with _ | b
-      · rw [Option.elim_none, hhi]
-        exact symbolCode_lt _
-      · exact symbolCode_lt b
     dsimp only [predRegisters]
     rw [hrv (.head i), hrv (.left i)]
     cases hm_wt : (act.workTapes i).2 <;>
       simp only [nextRegisters, tapeStep, hm_wt]
     · exact Nat.mod_add_div (r (.left i)) 3
-    · change (hwrite + 3 * r (.left i)) / 3 = r (.left i)
-      rw [Nat.add_mul_div_left _ _ (by decide : 0 < 3), Nat.div_eq_of_lt hhwrite_lt, Nat.zero_add]
+    · exact hwrite_div i (r (.left i))
   | right i =>
-    have hhi : r (.head i) = symbolCode (workObs i) :=
-      of_decide_eq_true (hheads _ ⟨i, rfl⟩)
-    let hwrite := (act.workTapes i).1.elim (r (.head i)) symbolCode
-    have hhwrite_lt : hwrite < 3 := by
-      dsimp only [hwrite]
-      rcases (act.workTapes i).1 with _ | b
-      · rw [Option.elim_none, hhi]
-        exact symbolCode_lt _
-      · exact symbolCode_lt b
     dsimp only [predRegisters]
     rw [hrv (.head i), hrv (.right i)]
     cases hm_wt : (act.workTapes i).2 <;>
       simp only [nextRegisters, tapeStep, hm_wt]
-    · change (hwrite + 3 * r (.right i)) / 3 = r (.right i)
-      rw [Nat.add_mul_div_left _ _ (by decide : 0 < 3), Nat.div_eq_of_lt hhwrite_lt, Nat.zero_add]
+    · exact hwrite_div i (r (.right i))
     · exact Nat.mod_add_div (r (.right i)) 3
 
 private theorem exists_predRecipe_of_edgeWithSymbol {B n u v : ℕ} {symbol : Option Bool}
@@ -1074,6 +1062,21 @@ theorem clockedOutCount_pos_of_outPort_eq_some (machine : MultiTapePTM k Bool St
   | none => rw [hg] at h; cases h
   | some v => exact (mem_coinOutTargetsWithSymbol_iff machine ..).mp (List.mem_of_getElem? hg)
 
+private theorem clockedPort_invert {N src pSrc qDest dest pDest bound : ℕ}
+    {srcList destList : List ℕ} {target : ℕ}
+    (hsrc_nodup : srcList.Nodup) (hg : srcList[pSrc]? = some target)
+    (htarget_lt : target < N) (hu_mem : src % N ∈ destList)
+    (hdest_len : destList.length ≤ bound)
+    (heq : (qDest * N + target, destList.idxOf (src % N)) = (dest, pDest)) :
+    dest / N = qDest ∧ dest % N = target ∧ pDest < bound ∧
+      destList[pDest]? = some (src % N) ∧ srcList.idxOf target = pSrc := by
+  obtain ⟨rfl, rfl⟩ := Prod.mk.inj heq
+  obtain ⟨hp_len, hp_val⟩ := List.getElem?_eq_some_iff.mp hg
+  obtain ⟨hdiv, hmod⟩ : (qDest * N + target) / N = qDest ∧ (qDest * N + target) % N = target :=
+    (Nat.div_mod_unique (Nat.zero_lt_of_lt htarget_lt)).2 ⟨by ring, htarget_lt⟩
+  exact ⟨hdiv, hmod, (List.idxOf_lt_length_of_mem hu_mem).trans_le hdest_len,
+    List.getElem?_idxOf hu_mem, hp_val ▸ hsrc_nodup.idxOf_getElem pSrc hp_len⟩
+
 theorem clockedOutCount_eq_clockedCoinCount_of_outPort_eq_some
     (machine : MultiTapePTM k Bool State) {D d : ℕ} {w : List Bool} {a p b q : ℕ}
     (h : clockedOutPort machine D d w a p = some (b, q)) :
@@ -1090,13 +1093,12 @@ theorem clockedOutCount_eq_clockedCoinCount_of_outPort_eq_some
   | none => rw [hg] at h; cases h
   | some v =>
     rw [hg, Option.some.injEq, Prod.mk.injEq] at h
-    obtain ⟨hb_eq, -⟩ := h
-    have hv_mem : v ∈ coinOutTargetsWithSymbol machine B w.length (a % N)
-        w[queryIndex (k := k) B (a % N)]? := List.mem_of_getElem? hg
+    obtain ⟨rfl, -⟩ := h
     have hv_lt : v < N :=
-      (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine hv_mem).2
-    obtain ⟨hb_div, hb_mod⟩ : b / N = a / N + 1 ∧ b % N = v :=
-      (Nat.div_mod_unique (Nat.zero_lt_of_lt hv_lt)).2 ⟨by rw [← hb_eq]; ring, hv_lt⟩
+      (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine (List.mem_of_getElem? hg)).2
+    obtain ⟨hb_div, hb_mod⟩ :
+        ((a / N + 1) * N + v) / N = a / N + 1 ∧ ((a / N + 1) * N + v) % N = v :=
+      (Nat.div_mod_unique (Nat.zero_lt_of_lt hv_lt)).2 ⟨by ring, hv_lt⟩
     dsimp only [clockedOutCount, clockedOutCountWithSymbol, clockedCoinCountWithSymbol]
     rw [ite_eq_left hcond, hg, ite_eq_left hb_div.symm, hb_mod]
 
@@ -1113,83 +1115,57 @@ theorem clockedOutPort_eq_some_iff (machine : MultiTapePTM k Bool State)
   · intro hout
     dsimp only [clockedOutPort] at hout
     split_ifs at hout with hcond
-    obtain ⟨_, hp_lt, ha_div⟩ := hcond
-    have ha_div' : a / N < T := ha_div
+    have ha_div : a / N < T := hcond.2.2
     cases hg : (coinOutTargetsWithSymbol machine B n (a % N)
         w[queryIndex (k := k) B (a % N)]?)[p]? with
     | none => rw [hg] at hout; cases hout
     | some v =>
-      rw [hg, Option.some.injEq, Prod.mk.injEq] at hout
-      obtain ⟨hb_eq, hq_eq⟩ := hout
-      have hv_mem : v ∈ coinOutTargetsWithSymbol machine B n (a % N)
-          w[queryIndex (k := k) B (a % N)]? := List.mem_of_getElem? hg
+      rw [hg, Option.some.injEq] at hout
+      have hv_mem := List.mem_of_getElem? hg
       have hv_lt : v < N := (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine hv_mem).2
-      have hN_pos : 0 < N := Nat.zero_lt_of_lt hv_lt
-      have hu_mem : a % N ∈ coinInSources machine B w v :=
-        (mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w (a % N) v).mp hv_mem
-      have hq_len : (coinInSources machine B w v).idxOf (a % N) <
-          (coinInSources machine B w v).length := List.idxOf_lt_length_of_mem hu_mem
-      have hq_lt : q < inPortBound machine := by
-        rw [← hq_eq]
-        exact hq_len.trans_le (length_coinInSources_le machine B w v)
-      obtain ⟨hb_div, hb_mod⟩ : b / N = a / N + 1 ∧ b % N = v :=
-        (Nat.div_mod_unique hN_pos).2 ⟨by rw [← hb_eq]; ring, hv_lt⟩
+      obtain ⟨hb_div, hb_mod, hq_lt, hget_in, hidx_out⟩ :=
+        clockedPort_invert (qDest := a / N + 1)
+          (nodup_coinOutTargetsWithSymbol machine B n (a % N) _) hg hv_lt
+          ((mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w (a % N) v).mp hv_mem)
+          (length_coinInSources_le machine B w v) hout
       have hb_lt : b < clockedVertexBound (k := k) D d n :=
-        (Nat.div_lt_iff_lt_mul (y := T + 1) hN_pos).1 (by omega)
+        (Nat.div_lt_iff_lt_mul (y := T + 1) (Nat.zero_lt_of_lt hv_lt)).1 (by omega)
       have hb_cond : b < clockedVertexBound (k := k) D d n ∧ q < inPortBound machine ∧
           0 < b / N := ⟨hb_lt, hq_lt, by rw [hb_div]; exact Nat.succ_pos _⟩
-      obtain ⟨hp_len, hp_val⟩ := List.getElem?_eq_some_iff.mp hg
       dsimp only [clockedInPort]
-      rw [ite_eq_left hb_cond, hb_mod, ← hq_eq, List.getElem?_idxOf hu_mem]
+      rw [ite_eq_left hb_cond, hb_mod, hget_in]
       simp only [Option.some.injEq, Prod.mk.injEq]
-      refine ⟨?_, ?_⟩
-      · rw [hb_div, Nat.add_sub_cancel, Nat.mul_comm]
-        exact Nat.div_add_mod a N
-      · rw [← hp_val]
-        exact (nodup_coinOutTargetsWithSymbol machine B n (a % N) _).idxOf_getElem p hp_len
+      exact ⟨by rw [hb_div, Nat.add_sub_cancel, Nat.mul_comm]; exact Nat.div_add_mod a N, hidx_out⟩
   · intro hin
     dsimp only [clockedInPort] at hin
     split_ifs at hin with hcond
-    obtain ⟨hb_lt, _, hb_pos⟩ := hcond
+    obtain ⟨hb_lt, -, hb_pos⟩ := hcond
     have hb_pos' : 0 < b / N := hb_pos
     cases hg : (coinInSources machine B w (b % N))[q]? with
     | none => rw [hg] at hin; cases hin
     | some u =>
-      rw [hg, Option.some.injEq, Prod.mk.injEq] at hin
-      obtain ⟨ha_eq, hp_eq⟩ := hin
-      have hu_mem : u ∈ coinInSources machine B w (b % N) := List.mem_of_getElem? hg
-      have hv_mem : b % N ∈ coinOutTargetsWithSymbol machine B n u
-          w[queryIndex (k := k) B u]? :=
-        (mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w u (b % N)).mpr hu_mem
+      rw [hg, Option.some.injEq] at hin
+      have hv_mem : b % N ∈ coinOutTargetsWithSymbol machine B n u w[queryIndex (k := k) B u]? :=
+        (mem_coinOutTargetsWithSymbol_iff_mem_coinInSources machine B w u (b % N)).mpr
+          (List.mem_of_getElem? hg)
       have hu_lt : u < N := (lt_vertexBound_of_mem_coinOutTargetsWithSymbol machine hv_mem).1
       have hN_pos : 0 < N := Nat.zero_lt_of_lt hu_lt
-      have hp_len : (coinOutTargetsWithSymbol machine B n u
-          w[queryIndex (k := k) B u]?).idxOf (b % N) <
-          (coinOutTargetsWithSymbol machine B n u w[queryIndex (k := k) B u]?).length :=
-        List.idxOf_lt_length_of_mem hv_mem
-      have hp_lt : p < 2 := by
-        rw [← hp_eq]
-        exact hp_len.trans_le (length_coinOutTargetsWithSymbol_le machine B n u _)
-      have hb_lt' : b < (T + 1) * N := hb_lt
-      have hb_div_lt : b / N < T + 1 :=
-        (Nat.div_lt_iff_lt_mul hN_pos).mpr hb_lt'
-      obtain ⟨ha_div, ha_mod⟩ : a / N = b / N - 1 ∧ a % N = u :=
-        (Nat.div_mod_unique hN_pos).2 ⟨by rw [← ha_eq]; ring, hu_lt⟩
+      obtain ⟨ha_div, ha_mod, hp_lt, hget_out, hidx_in⟩ :=
+        clockedPort_invert (qDest := b / N - 1)
+          (nodup_coinInSources machine B w (b % N)) hg hu_lt hv_mem
+          (length_coinOutTargetsWithSymbol_le machine B n u _) hin
+      have hb_div_lt : b / N < T + 1 := (Nat.div_lt_iff_lt_mul hN_pos).mpr (hb_lt : b < (T + 1) * N)
       have ha_div_lt : a / N < T := by omega
       have ha_lt : a < clockedVertexBound (k := k) D d n :=
         (Nat.div_lt_iff_lt_mul (y := T + 1) hN_pos).1 (by omega)
       have ha_cond : a < clockedVertexBound (k := k) D d n ∧ p < 2 ∧ a / N < T :=
         ⟨ha_lt, hp_lt, ha_div_lt⟩
-      obtain ⟨hq_len, hq_val⟩ := List.getElem?_eq_some_iff.mp hg
       dsimp only [clockedOutPort]
-      rw [ite_eq_left ha_cond, ha_mod, ← hp_eq, List.getElem?_idxOf hv_mem]
+      rw [ite_eq_left ha_cond, ha_mod, hget_out]
       simp only [Option.some.injEq, Prod.mk.injEq]
-      refine ⟨?_, ?_⟩
-      · have hsub : b / N - 1 + 1 = b / N := by omega
-        rw [ha_div, hsub, Nat.mul_comm]
-        exact Nat.div_add_mod b N
-      · rw [← hq_val]
-        exact (nodup_coinInSources machine B w (b % N)).idxOf_getElem q hq_len
+      refine ⟨?_, hidx_in⟩
+      rw [ha_div, show b / N - 1 + 1 = b / N by omega, Nat.mul_comm]
+      exact Nat.div_add_mod b N
 
 /-! ### Space-budget certificates for pre-queried port and multiplicity evaluation -/
 

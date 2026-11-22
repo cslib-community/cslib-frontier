@@ -121,6 +121,18 @@ theorem lhs_le_coeffSum (σ : ℕ → Bool) (ts : List (ℕ × Literal ℕ)) : l
   | nil => simp
   | cons t ts ih => simp only [lhs_cons, coeffSum_cons]; have := termVal_le σ t; omega
 
+/-- A constraint holds at `σ` exactly when it holds at an assignment agreeing with `σ` on the
+variables of its terms. -/
+theorem holds_congr {σ τ : ℕ → Bool} {c : PBConstr}
+    (h : ∀ t ∈ c.terms, σ (termVar t) = τ (termVar t)) : c.Holds σ ↔ c.Holds τ := by
+  suffices lhs σ c.terms = lhs τ c.terms by unfold Holds; rw [this]
+  unfold lhs
+  congr 1
+  refine List.map_congr_left fun t ht => ?_
+  obtain ⟨a, v, b⟩ := t
+  simp only [termVal, Literal.eval]
+  rw [show σ v = τ v from h _ ht]
+
 /-- A term and the term of the negated literal sum to the coefficient. -/
 theorem termVal_add_negate (σ : ℕ → Bool) (a : ℕ) (l : Literal ℕ) :
     termVal σ (a, l) + termVal σ (a, Std.Sat.Literal.negate l) = a := by

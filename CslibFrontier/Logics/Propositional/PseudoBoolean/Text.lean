@@ -36,38 +36,48 @@ extended as described below, producing the abstract syntax checked by
   `ENUMERATION_COMPLETE n : id` or `NONE`, and
   `end pseudo-Boolean proof;`.
 
-**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1
-of the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented
-format. First, the line `f N;` is optional, as in the general format (§4.1). The kernel format
-requires it as the first command after the header (§6.1), but a proof without it is accepted and
-checked against the parsed formula. Second, `red`, the checked `delc` and `obju` may omit their
-subproof, and a goal is also autoproven when it is a constraint of the database up to the order
-of its terms (`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the
-subproof (§6.1). The remaining extensions, `del id` and `rup` without hints, are described under
-**Steps**. So a proof accepted here need not be a kernel proof.
+**Supported fragment and extensions.** The parser accepts a fragment of the kernel format (§6.1 of
+the VeriPB/CakePB documentation, 22 June 2026 edition), with extensions from the augmented format.
+First, the line `f N;` is optional, as in the general format (§4.1). The kernel format requires it
+as the first command after the header (§6.1), but a proof without it is accepted and checked against
+the parsed formula. Second, `red`, `dom`, the checked `delc` and `obju` may omit their subproof, and
+a goal is also autoproven when it is a constraint of the database up to the order of its terms
+(`Cslib.Logic.PL.VeriPB.sameUpToOrder`); the strict kernel format requires the subproof (§6.1). The
+`red` steps of a specification must have their subproof, as in CakePB. Third, in `def_order` the
+`aux` line and the `reflexivity` section are optional, a missing reflexivity proof leaving only
+trivially true goals; the kernel format requires both (§6.1). The remaining extensions, `del id` and
+`rup` without hints, are described under **Steps**. So a proof accepted here need not be a kernel
+proof.
 
 **Variables.** The variable `xN` is `N - 1`, as in `Cslib.Logic.PL.Literal.ofDIMACS`, so a DIMACS
 variable and its name in the proof agree. Formulas use only these names, as OPB requires. A proof
-may introduce other names; they are numbered after every `xN` of the formula and the proof, in
-order of first appearance. How the proof's own variables are numbered does not matter for
-the conclusions, which concern only the parsed formula. An output formula is read with the names
-of its proof, the names of the proof and of the output text being numbered together.
+may introduce other names; they are numbered after every `xN` of the formula and the proof, in order
+of first appearance; so are the auxiliary variables `$a` of orders (§5.3), which are names like any
+other here, the checker testing their freshness where it matters. How the proof's own variables are
+numbered does not matter for the conclusions, which concern only the parsed formula. An output
+formula is read with the names of its proof, the names of the proof and of the output text being
+numbered together.
 
-**Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` with a
-witness and an optional subproof of `proofgoal` blocks (`#1`, `#2` for the objective, and
-constraint numbers), the solution-logging steps `sol`, `soli` and `solx` and the bound `obji`
-(§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax, an
-optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id`
-(§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of
-derived constraints, the unchecked `delc` of core constraints, and the checked
-`delc id : ω` of one core constraint, with an optional subproof. Deletion, `core`,
-strengthening-to-core, solution logging, `obji` and `obju` are accepted only at top level, as
-the format requires. Two steps of the augmented format are also accepted: `del id`, read as the
-untyped deletion `Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts
-as unchecked), and `rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`.
-Everything else (`pol` operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and
-`ia`, orders, `dom`, the preserved-set rules, `del spec`, levels, and the conclusion `UNSAT`
-without an ID) is rejected.
+**Steps.** The kernel steps `pol`, `rup` with hints, `pbc` with its subproof, `red` and `dom` with a
+witness and an optional subproof of `proofgoal` blocks (labelled `#k` or by constraint numbers) and
+the scopes `scope leq` and `scope geq`, each closed by `end;`, `end scope;` or `end scope leq;`
+(`geq`), the orders of `def_order` (a `vars` section with `left`, `right` and an `aux` line, which
+the kernel format requires and is optional here, an optional `spec` section of `red` steps with
+subproofs, a `def` section, a `transitivity` section with `fresh_right` variables, the `fresh_aux_1`
+and `fresh_aux_2` variables if there are auxiliary variables, and a `proof`, an optional
+`reflexivity` section; §5.3), `load_order` with and without literals, the order checks `eord_def`
+and `eord_loaded` (§5.11.3), the solution-logging steps `sol`, `soli` and `solx` and the bound
+`obji` (§5.8), the objective update `obju new` or `obju diff` with an objective in the OPB syntax,
+an optional constant included, and an optional subproof of `proofgoal #1` and `#2` (§5.9), `core id`
+(§5.1), `strengthening_to_core on` and `off` (§5.6), and the deletions (§5.7.1): `deld` of derived
+constraints, the unchecked `delc` of core constraints, and the checked `delc id : ω` of one core
+constraint, with an optional subproof. Orders, `dom`, deletion, `core`, strengthening-to-core,
+solution logging, `obji` and `obju` are accepted only at top level, as the format requires. Two
+steps of the augmented format are also accepted: `del id`, read as the untyped deletion
+`Cslib.Logic.PL.VeriPB.Step.del` (§5.7.2; a deletion of a core constraint counts as unchecked), and
+`rup` without hints, read as `Cslib.Logic.PL.VeriPB.Step.rupSearch`. Everything else (`pol`
+operations `c`, `m`, `n` and `-`, relative constraint numbers, `i` and `ia`, the preserved-set
+rules, `del spec`, levels, and the conclusion `UNSAT` without an ID) is rejected.
 
 **Output sections.** `Cslib.Logic.PL.VeriPB.Text.checkOPBOutput` takes the output formula of
 `output g FILE;` as a third text, and checks the section with
@@ -209,10 +219,11 @@ def stdVar? (t : String) : Option ℕ :=
     | _ => none
   | none => none
 
-/-- A variable name of the extended format: at least two characters, the first a letter or `_`. -/
+/-- A variable name of the extended format: at least two characters, the first a letter, `_`, or
+the `$` of an auxiliary variable (§5.3). -/
 private def isName (t : String) : Bool :=
   match t.toList with
-  | c :: _ :: _ => c.isAlpha || c == '_'
+  | c :: _ :: _ => c.isAlpha || c == '_' || c == '$'
   | _ => false
 
 /-- The variable names of a proof: the standard ones are numbered by their index, the others in
@@ -454,9 +465,11 @@ private def qedOpt : List String → Option (Option ℕ × List String)
   | "qed" :: _ :: ":" :: n :: ";" :: ts => (id? n).map (some ·, ts)
   | _ => none
 
-/-- A proof goal label: `#1`, `#2` (the objective) or a constraint number. -/
+/-- A proof goal label: `#k` or a constraint number. -/
 private def goalId (t : String) : Option GoalId :=
-  if t == "#1" then some .self else if t == "#2" then some .obj else (id? t).map .db
+  match dropChar? '#' t with
+  | some k => (id? k).map .hash
+  | none => (id? t).map .db
 
 /-- The literals of a logged solution, up to `;`. -/
 private def lits (N : Names) : List String → Option (List (Literal ℕ) × List String)
@@ -504,7 +517,14 @@ private def steps (N : Names) : ℕ → List String → Option (List Step × Lis
 
 end
 
-/-- The items of a `red` subproof, up to its closing `qed`. -/
+/-- The end `end [scope [k]];` of a scope `scope k`, and the rest after it. -/
+private def endScope (k : String) : List String → Option (List String)
+  | "end" :: ";" :: ts | "end" :: "scope" :: ";" :: ts => some ts
+  | "end" :: "scope" :: k' :: ";" :: ts => if k' == k then some ts else none
+  | _ => none
+
+/-- The items of a `red` subproof, up to its closing `qed` (or, in a scope, its `end`):
+derivation steps, `proofgoal` blocks, and the scopes `scope leq` and `scope geq` (§5.4). -/
 private def redItems (N : Names) : ℕ → List String → Option (List RedItem × List String)
   | 0, _ => none
   | fuel + 1, "proofgoal" :: g :: ts =>
@@ -514,28 +534,170 @@ private def redItems (N : Names) : ℕ → List String → Option (List RedItem 
         (qedId rest).bind fun (q, rest) =>
           (redItems N fuel rest).map fun (items, rest) => (.goal g sub q :: items, rest)
       | none => none
+  | fuel + 1, "scope" :: k :: ts =>
+    (if k == "leq" then some false else if k == "geq" then some true else none).bind fun geq =>
+      (redItems N fuel ts).bind fun (inner, rest) =>
+        (endScope k rest).bind fun rest =>
+          (redItems N fuel rest).map fun (items, rest) => (.scope geq inner :: items, rest)
   | _ + 1, "qed" :: ts => some ([], "qed" :: ts)
+  | _ + 1, "end" :: ts => some ([], "end" :: ts)
   | fuel + 1, ts =>
     match step N fuel ts with
     | some (s, rest) => (redItems N fuel rest).map fun (items, rest) => (.step s :: items, rest)
     | none => none
 
-/-- A top-level step: a `red` step, a deletion, `core id`, `strengthening_to_core`, solution
-logging, or an implicational step. These steps other than the implicational ones are top-level
-only: subproof scopes are specified in §5.5 of the format documentation, `core id` in §5.1,
+/-- Variables up to `;`, and the rest after it. -/
+private def varList (N : Names) : List String → Option (List ℕ × List String)
+  | ";" :: ts => some ([], ts)
+  | t :: ts => (N.var? t).bind fun v => (varList N ts).map fun (vs, rest) => (v :: vs, rest)
+  | [] => none
+
+/-- The end `end [kw];` of a section, and the rest after it. -/
+private def endOf (kw : String) : List String → Option (List String)
+  | "end" :: ";" :: ts => some ts
+  | "end" :: k :: ";" :: ts => if k == kw then some ts else none
+  | _ => none
+
+/-- The constraints of a `def` section, each ended by `;`, up to its `end`. -/
+private def defConstrs (N : Names) : ℕ → List String → Option (List PBConstr × List String)
+  | 0, _ => none
+  | _ + 1, "end" :: ts => some ([], "end" :: ts)
+  | fuel + 1, ts =>
+    match geq N ts with
+    | some (c, ";" :: rest) => (defConstrs N fuel rest).map fun (cs, rest) => (c :: cs, rest)
+    | _ => none
+
+/-- A `proof … qed [proof] [: id];` block of a transitivity or reflexivity proof. -/
+private def orderProof (N : Names) (fuel : ℕ) : List String → Option (OrderProof × List String)
+  | "proof" :: ts =>
+    (redItems N fuel ts).bind fun (items, rest) =>
+      (qedOpt rest).map fun (q, rest) => (⟨items, q⟩, rest)
+  | _ => none
+
+/-- The witness and optional subproof after the first `:` of `red`, `dom` and a checked `delc`:
+`ω;`, or `ω : subproof … qed [label] [: n];`, with the subproof's items and closing
+contradiction. -/
+private def witnessTail (N : Names) (fuel : ℕ) (ts : List String) :
+    Option ((Witness × Option (List RedItem) × Option ℕ) × List String) :=
+  match witness N ts with
+  | some (ω, ";" :: rest) => some ((ω, none, none), rest)
+  | some (ω, ":" :: "subproof" :: rest) =>
+    (redItems N fuel rest).bind fun (items, rest) =>
+      (qedOpt rest).map fun (q, rest) => ((ω, some items, q), rest)
+  | _ => none
+
+/-- The `vars` section of an order (§5.3): `left u;`, `right v;` and an optional `aux a;`, with
+`a` possibly empty, then `end [vars];`. -/
+private def orderVars (N : Names) (ts : List String) :
+    Option ((List ℕ × List ℕ × List ℕ) × List String) := do
+  let ("vars" :: "left" :: ts) := ts | none
+  let (u, ts) ← varList N ts
+  let ("right" :: ts) := ts | none
+  let (v, ts) ← varList N ts
+  let (a, ts) ← match ts with
+    | "aux" :: ts => varList N ts
+    | ts => some ([], ts)
+  let ts ← endOf "vars" ts
+  pure ((u, v, a), ts)
+
+/-- The lines of a `spec` section of `def_order` (§5.3), up to its `end`:
+`red C : ω : subproof … qed [: n];`, the constraint and its justification. As in CakePB's
+parser, each line needs its subproof, possibly empty; `red C : ω;` is rejected. -/
+private def specLines (N : Names) : ℕ → List String →
+    Option (List (PBConstr × SpecStep) × List String)
+  | 0, _ => none
+  | _ + 1, "end" :: ts => some ([], "end" :: ts)
+  | fuel + 1, "red" :: ts =>
+    match geq N ts with
+    | some (c, ":" :: rest) =>
+      (witnessTail N fuel rest).bind fun ((ω, sub, q), rest) =>
+        if sub.isSome then
+          (specLines N fuel rest).map fun (ls, rest) => ((c, ⟨ω, sub, q⟩) :: ls, rest)
+        else none
+    | _ => none
+  | _ + 1, _ => none
+
+/-- The body of `def_order name`, after its name (§5.3): the `vars` section, an optional `spec`
+section, the `def` section, the `transitivity` section with its `fresh_right` variables, the
+`fresh_aux_1` and `fresh_aux_2` variables if any, and its proof, an optional `reflexivity`
+section, and `end [def_order];`. -/
+private def defOrderBody (N : Names) (fuel : ℕ) (ts : List String) :
+    Option ((Order × List SpecStep × TransVars × OrderProof × OrderProof) × List String) := do
+  let ((u, v, a), ts) ← orderVars N ts
+  let (spec, ts) ← match ts with
+    | "spec" :: ts => do
+      let (ls, ts) ← specLines N fuel ts
+      let ts ← endOf "spec" ts
+      pure (ls, ts)
+    | ts => pure ([], ts)
+  let ("def" :: ts) := ts | none
+  let (defn, ts) ← defConstrs N fuel ts
+  let ts ← endOf "def" ts
+  let ("transitivity" :: "vars" :: "fresh_right" :: ts) := ts | none
+  let (w, ts) ← varList N ts
+  let (b, c, ts) ← match ts with
+    | "fresh_aux_1" :: ts => do
+      let (b, ts) ← varList N ts
+      let ("fresh_aux_2" :: ts) := ts | none
+      let (c, ts) ← varList N ts
+      pure (b, c, ts)
+    | ts => pure ([], [], ts)
+  let ts ← endOf "vars" ts
+  let (tp, ts) ← orderProof N fuel ts
+  let ts ← endOf "transitivity" ts
+  let (rp, ts) ← match ts with
+    | "reflexivity" :: ts => do
+      let (rp, ts) ← orderProof N fuel ts
+      let ts ← endOf "reflexivity" ts
+      pure (rp, ts)
+    | ts => pure (⟨[], none⟩, ts)
+  let ts ← endOf "def_order" ts
+  pure ((⟨u, v, a, spec.map (·.1), defn⟩, spec.map (·.2), ⟨w, b, c⟩, tp, rp), ts)
+
+/-- The body of `eord_def name`, after its name (§5.11.3): the `vars` section, an optional `spec`
+section of constraints, the `def` section, and `end [eord_def];`. -/
+private def eordDefBody (N : Names) (fuel : ℕ) (ts : List String) :
+    Option (Order × List String) := do
+  let ((u, v, a), ts) ← orderVars N ts
+  let (spec, ts) ← match ts with
+    | "spec" :: ts => do
+      let (cs, ts) ← defConstrs N fuel ts
+      let ts ← endOf "spec" ts
+      pure (cs, ts)
+    | ts => pure ([], ts)
+  let ("def" :: ts) := ts | none
+  let (defn, ts) ← defConstrs N fuel ts
+  let ts ← endOf "def" ts
+  let ts ← endOf "eord_def" ts
+  pure (⟨u, v, a, spec, defn⟩, ts)
+
+/-- A top-level step: a `red` or `dom` step, an order definition or loading, a deletion, `core id`,
+`strengthening_to_core`, solution logging, or an implicational step. These steps other than the
+implicational ones are top-level only: subproof scopes are specified in §5.5 of the format
+documentation, the orders in §5.3, `core id` in §5.1,
 strengthening-to-core mode in §5.6, and the kernel deletions in §5.7.1. A checked deletion
 `delc id : ω [: subproof … qed [delc] [: n]];` deletes one constraint. -/
 private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopStep × List String)
-  | "red" :: ts =>
+  | k@"red" :: ts | k@"dom" :: ts =>
+    let mk := if k == "red" then TopStep.red else TopStep.dom
     match geq N ts with
-    | some (c, ";" :: rest) => some ([.red c [] none none], rest)
+    | some (c, ";" :: rest) => some ([mk c [] none none], rest)
     | some (c, ":" :: rest) =>
-      match witness N rest with
-      | some (ω, ";" :: rest) => some ([.red c ω none none], rest)
-      | some (ω, ":" :: "subproof" :: rest) =>
-        (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.red c ω (some items) q], rest)
-      | _ => none
+      (witnessTail N fuel rest).map fun ((ω, sub, q), rest) => ([mk c ω sub q], rest)
+    | _ => none
+  | "def_order" :: name :: ts =>
+    (defOrderBody N fuel ts).map fun ((O, sp, w, tp, rp), rest) =>
+      ([.defOrder name O sp w tp rp], rest)
+  | "eord_def" :: name :: ts =>
+    (eordDefBody N fuel ts).map fun (O, rest) => ([.eordDef name O], rest)
+  | "eord_loaded" :: name :: ts =>
+    match lits N ts with
+    | some (z, ";" :: rest) => some ([.eordLoaded name z], rest)
+    | _ => none
+  | "load_order" :: ";" :: rest => some ([.unloadOrder], rest)
+  | "load_order" :: name :: ts =>
+    match lits N ts with
+    | some (z, ";" :: rest) => some ([.loadOrder name z], rest)
     | _ => none
   | "deld" :: ts =>
     match ids ts with
@@ -543,12 +705,7 @@ private def topStep (N : Names) (fuel : ℕ) : List String → Option (List TopS
     | _ => none
   | "delc" :: n :: ":" :: ts =>
     (id? n).bind fun i =>
-      match witness N ts with
-      | some (ω, ";" :: rest) => some ([.delcChecked i ω none none], rest)
-      | some (ω, ":" :: "subproof" :: rest) =>
-        (redItems N fuel rest).bind fun (items, rest) =>
-          (qedOpt rest).map fun (q, rest) => ([.delcChecked i ω (some items) q], rest)
-      | _ => none
+      (witnessTail N fuel ts).map fun ((ω, sub, q), rest) => ([.delcChecked i ω sub q], rest)
   | "delc" :: ts =>
     match ids ts with
     | some (ns, ";" :: rest) => some ([.delc ns], rest)

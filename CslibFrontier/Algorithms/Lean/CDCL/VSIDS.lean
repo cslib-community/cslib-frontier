@@ -220,7 +220,8 @@ out so that comparing builds no pairs at run time. -/
 instance : Ord OrderKey :=
   ⟨fun a b => (compare a.activity b.activity).then (compare a.var b.var)⟩
 
-theorem OrderKey.compare_eq (a b : OrderKey) : compare a b = compare a.toPair b.toPair := rfl
+private theorem OrderKey.compare_eq (a b : OrderKey) :
+    compare a b = compare a.toPair b.toPair := rfl
 
 instance : Std.TransOrd OrderKey :=
   have h : Std.TransOrd (ℕ × ℕ) := inferInstance
@@ -258,7 +259,7 @@ def VarOrder.Covers (H : VarOrder) (A : Activity) (V : List ℕ) (M : Trail) (oc
 def VarOrder.marked (I : Array Bool) (v : ℕ) : Bool := I.getD v false
 
 /-- Setting a mark changes only that variable's mark, and only within the array. -/
-theorem VarOrder.marked_setIfInBounds {I : Array Bool} {v w : ℕ} {b : Bool}
+private theorem VarOrder.marked_setIfInBounds {I : Array Bool} {v w : ℕ} {b : Bool}
     (h : VarOrder.marked (I.setIfInBounds v b) w = true) :
     (w = v ∧ b = true) ∨ (w ≠ v ∧ VarOrder.marked I w = true) := by
   unfold VarOrder.marked at h ⊢
@@ -281,7 +282,7 @@ def VarOrder.Marked (H : VarOrder) (A : Activity) (I : Array Bool) : Prop :=
 
 /-- The marks stay sound with more entries and with activities no higher at the marked
 variables. -/
-theorem VarOrder.Marked.mono {H H' : VarOrder} {A A' : Activity} {I : Array Bool}
+private theorem VarOrder.Marked.mono {H H' : VarOrder} {A A' : Activity} {I : Array Bool}
     (h : VarOrder.Marked H A I) (hH : ∀ e ∈ H, e ∈ H')
     (hA : ∀ v, VarOrder.marked I v = true → A'.get v ≤ A.get v) : VarOrder.Marked H' A' I := by
   intro v hv
@@ -450,8 +451,8 @@ structure VarOrder.Popped where
   marks : Array Bool
 
 /-- A popped entry's variable is unmarked; the marks of the other variables stay sound. -/
-theorem VarOrder.Marked.popMaxF {H : VarOrder} {A : Activity} {I : Array Bool} {e : OrderKey}
-    (h : VarOrder.Marked H A I) (he : H.maxF = some e) :
+private theorem VarOrder.Marked.popMaxF {H : VarOrder} {A : Activity} {I : Array Bool}
+    {e : OrderKey} (h : VarOrder.Marked H A I) (he : H.maxF = some e) :
     VarOrder.Marked H.popMaxF A (I.setIfInBounds e.var false) := fun v hv => by
   rcases VarOrder.marked_setIfInBounds hv with ⟨-, h'⟩ | ⟨hne, hv⟩
   · exact absurd h' (by decide)

@@ -70,11 +70,13 @@ def litEq (a b : Literal ℕ) : Bool := a.1 == b.1 && a.2 == b.2
 theorem litEq_eq_decide (a b : Literal ℕ) : litEq a b = decide (a = b) := by
   obtain ⟨_, _⟩ := a; obtain ⟨_, _⟩ := b; simp only [litEq, Prod.mk.injEq, Bool.decide_and]; rfl
 
-theorem holds_eq_true (A : Assign) (l : Literal ℕ) : A.holds l = true ↔ A.value l.1 = some l.2 := by
+private theorem holds_eq_true (A : Assign) (l : Literal ℕ) :
+    A.holds l = true ↔ A.value l.1 = some l.2 := by
   unfold holds
   split <;> simp_all
 
-theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) : A.isFalse l = A.holds l.negate := by
+private theorem isFalse_eq_holds_negate (A : Assign) (l : Literal ℕ) :
+    A.isFalse l = A.holds l.negate := by
   unfold isFalse holds
   obtain ⟨v, x⟩ := l
   simp only [Std.Sat.Literal.negate]
@@ -295,12 +297,14 @@ theorem assigned_mark (A : Assign) (vs : List ℕ) (v : ℕ) :
   simp only [assigned, value_mark]
   split <;> simp_all
 
-/-- An array in which exactly the variables `vs` are assigned. -/
-def marks (vs : List ℕ) : Assign := (⟨#[]⟩ : Assign).mark vs
+/-- An array in which exactly the variables `vs` are assigned. It is sized once for the greatest
+of them, so that marking never grows it. -/
+def marks (vs : List ℕ) : Assign := (⟨Array.replicate (vs.foldl max 0 + 1) none⟩ : Assign).mark vs
 
 theorem assigned_marks (vs : List ℕ) (v : ℕ) : (marks vs).assigned v = true ↔ v ∈ vs := by
   rw [marks, assigned_mark]
-  simp [assigned, value]
+  simp only [assigned, value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+  split <;> simp
 
 /-- **The assignment of a trail** without repeated variables agrees with it. -/
 theorem agrees_ofTrail (M : Trail) (hM : (Trail.vars M).Nodup) : (ofTrail M).Agrees M :=

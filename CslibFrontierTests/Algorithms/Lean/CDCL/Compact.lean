@@ -67,6 +67,26 @@ private def php54 : CNF ℕ := (CNF.pigeonhole 5 4).relabel fun x => 4 * x.1.val
   | .unsat cert => !(learnedSteps cert).isEmpty && (learnedSteps cert).all id
   | .sat _ => false
 
+/-- Whether a certificate has one RUP step per conflict but the last, and closes with its only
+empty-clause step, for the last conflict, which has no decision. -/
+private def oneStepPerConflict (cert : Array Std.Tactic.BVDecide.LRAT.IntAction)
+    (conflicts : ℕ) : Bool :=
+  let isRup : Std.Tactic.BVDecide.LRAT.IntAction → Bool
+    | .addRup .. => true
+    | _ => false
+  let isEmpty : Std.Tactic.BVDecide.LRAT.IntAction → Bool
+    | .addEmpty .. => true
+    | _ => false
+  cert.toList.countP isRup + 1 == conflicts && cert.toList.countP isEmpty == 1 &&
+    (cert.back?.map isEmpty).getD false
+
+-- On PHP(5, 4), with conflicts at decisions and a last one without, each conflict at a decision
+-- adds one RUP step, its learned clause, and the last one the empty clause, in every mode.
+#guard [CcminMode.none, .basic, .recursive].all fun m =>
+  match solveWith { ccminMode := m } php54 with
+  | (.unsat cert, s) => 1 < s.conflicts && oneStepPerConflict cert s.conflicts
+  | (.sat _, _) => false
+
 -- The mode is selected on PHP(5, 4): both modes remove literals, and the recursive one more in
 -- total. These totals do not show that the recursive mode removes more from each clause;
 -- `CslibFrontierTests.Algorithms.Lean.CDCL.Minimize` compares the two modes on one fixed clause.
