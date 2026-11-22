@@ -123,22 +123,7 @@ theorem computableInPolyTime_schnorrSignCoins :
     ComputableInPolyTime F.schnorrSignCoins
       (encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits))))
       (encPair encBits encBits) := by
-  let encIn := encPair F.encDesc (encPair encBits (encPair encBits (encPair encBits encBits)))
-  have hd : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.1)
-      encIn F.encDesc := by fun_prop
-  have hsk : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.1)
-      encIn encBits := by fun_prop
-  have hr : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.1)
-      encIn encBits := by fun_prop
-  have hro : ComputableInPolyTime
-      (fun p : F.Desc × List Bool × List Bool × List Bool × List Bool => p.2.2.2.2)
-      encIn encBits := by fun_prop
-  have hcommit := F.computableInPolyTime_schnorrCommitBits.comp (hd.prod hr)
-  have hresp := F.computableInPolyTime_schnorrRespondBits.comp (hd.prod (hsk.prod (hr.prod hro)))
-  exact hcommit.prod hresp
+  fun_prop [PrimeOrderGroupFamily.schnorrSignCoins]
 
 /-- `schnorrSignCoins` lifted to `ProbComp` is uniform strict PPT. -/
 theorem isPPTOn_schnorrSignCoins :
