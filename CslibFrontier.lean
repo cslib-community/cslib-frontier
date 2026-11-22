@@ -1378,6 +1378,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.Padding.PolyTi
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Size
 public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame
+public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame.Formula
 public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame.Machine
 public import CslibFrontier.Computability.Circuit.Boolean.Lookup
 public import CslibFrontier.Computability.Circuit.Boolean.MachineSimulation
@@ -1675,6 +1676,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastCon
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.ResidueInverse
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedProduct
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedRouting
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedValueGame
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SparseProduct
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SparseProductQuery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionDerivation
