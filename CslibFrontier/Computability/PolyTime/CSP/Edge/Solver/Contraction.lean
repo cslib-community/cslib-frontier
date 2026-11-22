@@ -355,14 +355,13 @@ private theorem poly_constraint : ComputableInPolyTime
         (Table.outsidePositions p.2.1.scope.length (Blossom.positions p.1.2 p.2.1.scope)).map
           (fun j => p.2.1.scope.getD j 0) ++ [freshBase p.1.1.body + p.2.2])
       encConstraintArgs (encList encNat) := by fun_prop
-  have hnew := ht.prod ho
   have hg : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) =>
         (Blossom.positions p.1.2 p.2.1.scope).isEmpty) encConstraintArgs encBool := by fun_prop
   have hc : ComputableInPolyTime
       (fun p : (EdgeForest.Input × List ℕ) × (Constraint Table ℕ × ℕ) => p.2.1)
       encConstraintArgs (encConstraint encTable encNat) := by fun_prop
-  exact hg.ite' hc hnew
+  exact hg.ite' hc (encConstraint_mk_polyTime ht ho)
 
 /-- Whole-instance contraction is ordinary native polynomial-time on all raw inputs.
 The certificate scans actual rows and scopes and includes binary fresh-name arithmetic. -/
