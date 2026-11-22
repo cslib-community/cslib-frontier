@@ -1,0 +1,202 @@
+/-
+Copyright (c) 2026 lean-canny contributors, Erik Demaine. All rights reserved.
+Released under Apache 2.0 license as described in the file LICENSE.
+Authors: lean-canny contributors, Erik Demaine
+-/
+module
+-- upstream: candidate
+
+public import CslibFrontier.Init
+public import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Recursive
+
+/-!
+# Polynomial-time syntax validation for real-arithmetic formula words
+
+This adapts `LeanCanny.ETR.Grammar.recognizeFormula` from lean-canny at
+`970f28a5ecefc1327402ade16c068aa4b1b2c183` to the frontier formula encoding. The strict
+formula-token decoder handles framing. The recursive-encoding checker verifies that the
+constructor stream describes one tree, and term recognition at modulus one checks the comparison
+payloads. Valid words encode formulas in the dimension given by their length.
+-/
+
+public section
+
+namespace Cslib.Logic.RealArithmetic
+
+open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
+
+private def validTermWord (word : List Bool) : Bool :=
+  (Term.evalTermWord 1 [] word).isSome
+
+private def inspectToken : FormulaToken → ℕ × Bool :=
+  Sum.elim (fun _ => (0, true))
+    (Sum.elim (fun word => (0, validTermWord word))
+      (Sum.elim (fun word => (0, validTermWord word))
+        (Sum.elim (fun _ => (1, true))
+          (Sum.elim (fun _ => (2, true)) (fun _ => (2, true))))))
+
+/-- Check that a raw bit word encodes one formula, including every comparison's term syntax. -/
+def validFormulaWord (word : List Bool) : Bool :=
+  (formulaTokensDecoder.decode word).elim false fun tokens =>
+    RecursiveEncoding.isTree (fun token => (inspectToken token).1) tokens &&
+      tokens.all fun token => (inspectToken token).2
+
+private theorem validTermWord_eq_true_iff {word : List Bool} :
+    validTermWord word = true ↔ ∃ t : Term word.length, encTerm word.length t = word := by
+  constructor
+  · intro h
+    obtain ⟨value, hvalue⟩ := Option.isSome_iff_exists.mp h
+    obtain ⟨t, ht, _⟩ := Term.evalTermWord_eq_some_iff.mp hvalue
+    exact ⟨t, ht⟩
+  · rintro ⟨t, ht⟩
+    rw [← ht, validTermWord, Term.evalTermWord_encTerm]
+    rfl
+
+private theorem inspectToken_encodeTerms_arity {n : ℕ}
+    (token : Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit) :
+    (inspectToken (FormulaToken.encodeTerms token)).1 = encFormula_arity n token := by
+  rcases token with _ | (_ | (_ | (_ | (_ | _)))) <;> rfl
+
+private theorem inspectToken_encodeTerms_valid {n : ℕ}
+    (token : Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit) :
+    (inspectToken (FormulaToken.encodeTerms token)).2 = true := by
+  rcases token with _ | (_ | (_ | (_ | (_ | _)))) <;>
+    simp only [FormulaToken.encodeTerms, Sum.map_inr, Sum.map_inl, inspectToken, Sum.elim_inr,
+      Sum.elim_inl, id_eq, validTermWord, Term.evalTermWord_encTerm, Option.isSome_some]
+
+private theorem formulaForest_map_encodeTerms {n roots : ℕ}
+    (tokens : List (Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit)) :
+    RecursiveEncoding.Forest (fun token => (inspectToken token).1) roots
+        (tokens.map FormulaToken.encodeTerms) ↔
+      RecursiveEncoding.Forest (encFormula_arity n) roots tokens := by
+  induction tokens generalizing roots with
+  | nil =>
+    constructor <;> intro h <;> cases h <;> exact .nil
+  | cons token tokens ih =>
+    simp only [List.map_cons]
+    constructor
+    · intro h
+      cases h with
+      | cons h =>
+        rw [inspectToken_encodeTerms_arity] at h
+        exact .cons (ih.mp h)
+    · intro h
+      cases h with
+      | cons h =>
+        apply RecursiveEncoding.Forest.cons
+        rw [inspectToken_encodeTerms_arity]
+        exact ih.mpr h
+
+/-- A canonical formula encoding passes the syntax validator in any variable dimension. -/
+theorem validFormulaWord_encFormula {n : ℕ} (p : Formula n) :
+    validFormulaWord (encFormula n p) = true := by
+  rw [validFormulaWord, formulaTokensDecoder_decode_encFormula, Option.elim_some,
+    Bool.and_eq_true, RecursiveEncoding.isTree_eq_true_iff, formulaForest_map_encodeTerms,
+    List.all_eq_true]
+  refine ⟨encFormula_tokens_forest n p, ?_⟩
+  intro token htoken
+  obtain ⟨source, _, rfl⟩ := List.mem_map.mp htoken
+  exact inspectToken_encodeTerms_valid source
+
+private theorem exists_encodeTerms_of_valid {n : ℕ} (token : FormulaToken)
+    (hvalid : (inspectToken token).2 = true)
+    (hlen : ∀ word, token = .inr (.inl word) ∨ token = .inr (.inr (.inl word)) →
+      word.length ≤ n) :
+    ∃ source : Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit,
+      FormulaToken.encodeTerms source = token := by
+  have liftTerm {word : List Bool} (h : validTermWord word = true) (hw : word.length ≤ n) :
+      ∃ t : Term n, encTerm n t = word := by
+    obtain ⟨t, ht⟩ := validTermWord_eq_true_iff.mp h
+    exact ⟨t.rename (Fin.castLE hw), (encTerm_rename (Fin.castLE hw) (fun _ => rfl) t).trans ht⟩
+  rcases token with u | (word | (word | tail))
+  · exact ⟨.inl u, rfl⟩
+  · obtain ⟨t, ht⟩ := liftTerm hvalid (hlen word (Or.inl rfl))
+    exact ⟨.inr (.inl t), congrArg (fun w => (.inr (.inl w) : FormulaToken)) ht⟩
+  · obtain ⟨t, ht⟩ := liftTerm hvalid (hlen word (Or.inr rfl))
+    exact ⟨.inr (.inr (.inl t)), congrArg (fun w => (.inr (.inr (.inl w)) : FormulaToken)) ht⟩
+  · exact ⟨.inr (.inr (.inr tail)), rfl⟩
+
+private theorem exists_map_encodeTerms {n : ℕ} (tokens : List FormulaToken)
+    (h : ∀ token ∈ tokens, ∃ source : Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit,
+      FormulaToken.encodeTerms source = token) :
+    ∃ sources : List (Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit),
+      sources.map FormulaToken.encodeTerms = tokens := by
+  induction tokens with
+  | nil => exact ⟨[], rfl⟩
+  | cons token tokens ih =>
+    obtain ⟨source, hsource⟩ := h token (List.mem_cons_self ..)
+    obtain ⟨sources, hsources⟩ := ih fun t ht => h t (List.mem_cons_of_mem _ ht)
+    exact ⟨source :: sources, by rw [List.map_cons, hsource, hsources]⟩
+
+/-- Validation recognizes exactly the formula encodings, using the input length as a variable
+dimension large enough to contain every unary variable rank in the word. -/
+theorem validFormulaWord_eq_true_iff {word : List Bool} :
+    validFormulaWord word = true ↔ ∃ p : Formula word.length, encFormula word.length p = word := by
+  constructor
+  · intro hvalid
+    cases hdecode : formulaTokensDecoder.decode word with
+    | none => simp [validFormulaWord, hdecode] at hvalid
+    | some tokens =>
+      rw [validFormulaWord, hdecode, Option.elim_some, Bool.and_eq_true,
+        RecursiveEncoding.isTree_eq_true_iff, List.all_eq_true] at hvalid
+      obtain ⟨hforest, hterms⟩ := hvalid
+      obtain ⟨sources, rfl⟩ := exists_map_encodeTerms tokens (n := word.length)
+        fun token htoken => exists_encodeTerms_of_valid token (hterms token htoken)
+          fun term ht => (formulaTermWord_length_lt_of_decode hdecode
+            (ht.imp (· ▸ htoken) (· ▸ htoken))).le
+      have htree := RecursiveEncoding.isTree_eq_true_iff.mpr
+        ((formulaForest_map_encodeTerms sources).mp hforest)
+      have hparse := encFormula_decodeTokens_map word.length sources
+      simp only [htree, ite_true] at hparse
+      obtain ⟨p, _, hp⟩ := Option.map_eq_some_iff.mp hparse
+      refine ⟨p, ?_⟩
+      have hcanonical := formulaTokensDecoder_decode_encFormula p
+      rw [hp] at hcanonical
+      exact ((formulaTokensDecoder.decode_eq_some_iff _ _).1 hcanonical).symm.trans
+        ((formulaTokensDecoder.decode_eq_some_iff _ _).1 hdecode)
+  · rintro ⟨p, hp⟩
+    exact (congrArg validFormulaWord hp).symm.trans (validFormulaWord_encFormula p)
+
+private theorem sumCases_polyTime {α β γ : Type}
+    {ea : α ↪ List Bool} {eb : β ↪ List Bool} {ec : γ ↪ List Bool}
+    {left : α → γ} {right : β → γ} (fallback : γ)
+    (hl : ComputableInPolyTime left ea ec) (hr : ComputableInPolyTime right eb ec) :
+    ComputableInPolyTime (Sum.elim left right) (encSum ea eb) ec :=
+  (sumElimSnd (left := fun _ : Unit => left) (right := fun _ : Unit => right)
+    fallback (hl.comp (snd encUnit ea)) (hr.comp (snd encUnit eb))).comp
+    ((const ()).prod id')
+
+private theorem inspectToken_polyTime :
+    ComputableInPolyTime inspectToken encFormulaToken (encPair encUnary encBool) := by
+  have hterm : ComputableInPolyTime validTermWord encBits encBool :=
+    optionIsSome (Term.evalTermWord_polyTime (.const 1) (fun _ => by decide) (.const []) id')
+  have hcompare : ComputableInPolyTime (fun word => (0, validTermWord word))
+      encBits (encPair encUnary encBool) :=
+    (const 0).prod hterm
+  exact sumCases_polyTime (0, false) (const (0, true))
+    (sumCases_polyTime (0, false) hcompare
+      (sumCases_polyTime (0, false) hcompare
+        (sumCases_polyTime (0, false) (const (1, true))
+          (sumCases_polyTime (0, false) (const (2, true)) (const (2, true))))))
+
+/-- Syntax validation runs in polynomial time uniformly in the raw bit word. -/
+theorem validFormulaWord_polyTime :
+    ComputableInPolyTime validFormulaWord encBits encBool := by
+  let encTokens := encList encFormulaToken
+  have harity := (fst encUnary encBool).comp inspectToken_polyTime
+  have hshape := RecursiveEncoding.isTree_polyTime harity (maximum := 2) fun token => by
+    rcases token with _ | (_ | (_ | (_ | (_ | _)))) <;>
+      simp only [Function.comp_apply, inspectToken, Sum.elim_inl, Sum.elim_inr,
+        Nat.zero_le, Nat.reduceLeDiff, le_refl]
+  have hvalid := (snd encUnary encBool).comp inspectToken_polyTime
+  have hall := allWith (hvalid.comp (snd encUnit encFormulaToken)) (const ()) id'
+  exact optionElimWithInput formulaTokensDecoder.computable (const false)
+    ((bool_and' hshape hall).comp (snd encBits encTokens))
+
+end Cslib.Logic.RealArithmetic
