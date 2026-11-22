@@ -14,31 +14,32 @@ public import Mathlib.Data.Finset.Card
 import Mathlib.Data.Fintype.Fin
 
 /-!
-# Angluin's Anonymous Ring Leader Election Impossibility
+# Rotational Symmetry Steps on Anonymous Rings
 
-Deterministic symmetry-preservation and leader-election impossibility on anonymous rings
-`Fin n`, following [Angluin][Angluin1980b].
+Synchronous-round and sequential-FIFO-wave rotational symmetry steps on anonymous oriented rings
+`Fin n` (steps towards [Angluin][Angluin1980b], not the general processor-network covering
+impossibility endpoints of `[Angluin1980b]`).
 
 Every processor in an anonymous ring starts in the same initial state `init` without a distinct
 identifier and executes the same deterministic transition function. Because a protocol value may
-be chosen separately for each ring size `n`, the impossibility results hold even when `n` is
-common knowledge among the processors. Both bidirectional and unidirectional message passing are
-covered in two execution models:
+be chosen separately for each ring size `n`, these symmetry steps hold even when `n` is common
+knowledge among the processors. Both bidirectional and unidirectional message passing are covered
+in two concrete ring models:
 
 1. **Synchronous rounds (`AnonProtocol`):** in round `r`, each node `i : Fin n` sends `toPred r s`
    counter-clockwise to `i - 1` and `toSucc r s` clockwise to `i + 1`, then updates via
    `recv r s fromPred fromSucc`. Shifting the initial state assignment by `+ k` commutes with
    every round (`AnonProtocol.stateFrom_shift_eq`), so from a uniform initial state all nodes
-   share the exact same state after every round (`AnonProtocol.state_shift_eq`,
-   `AnonProtocol.run_eq`). Consequently, for `n ≥ 2` the set of self-declared leaders has
-   cardinality `0` or `n`, never `1` (`AnonProtocol.not_leaderElection_anonymous_ring`).
+   share the exact same state after every round (`AnonProtocol.state_shift_eq`). Consequently, for
+   `2 ≤ n` the set of self-declared leaders has cardinality `0` or `n`, never `1`
+   (`AnonProtocol.not_electsUniqueLeader_sync_of_two_le`).
 2. **Asynchronous FIFO schedules (`AnonAsyncProtocol`):** directed edges `i → i + 1` and
-   `i → i - 1` carry unbounded FIFO queues modelled as a `Cslib.LTS`. Single-node delivery steps
-   commute with cyclic index shifts (`AnonAsyncProtocol.step_shift_eq`,
-   `AnonAsyncProtocol.exec_shift_eq`). Moreover, sequential round-robin FIFO waves delivering one
-   message along every clockwise or counter-clockwise edge (`clockwiseWave`, `counterWave`) are
-   valid `LTS.MTr` executions whenever the corresponding queues are nonempty and preserve exact
-   rotational symmetry across all nodes (`AnonAsyncProtocol.not_leaderElection_anonymous_async`).
+   `i → i - 1` carry unbounded FIFO queues modelled as a `Cslib.LTS`. Finite delivery schedules
+   commute with cyclic index shifts (`AnonAsyncProtocol.exec_shift_eq`). Moreover, sequential
+   round-robin FIFO waves delivering one message along every clockwise or counter-clockwise edge
+   (`clockwiseWave`, `counterWave`) are valid `LTS.MTr` executions whenever the corresponding
+   queues are nonempty and preserve exact rotational symmetry across all nodes
+   (`AnonAsyncProtocol.exists_rotWave_trace_leaders_card_ne_one`).
 
 ## Main definitions
 
@@ -60,13 +61,14 @@ covered in two execution models:
   invariance of synchronous rounds on `Fin n`.
 * `Cslib.Distributed.RingElection.AnonProtocol.leaders_card_eq_zero_or_self`: in any round, either
   `0` or all `n` nodes declare leadership.
-* `Cslib.Distributed.RingElection.AnonProtocol.not_leaderElection_anonymous_ring`: Angluin's
-  synchronous anonymous ring leader-election impossibility for `n ≥ 2`.
+* `Cslib.Distributed.RingElection.AnonProtocol.not_electsUniqueLeader_sync_of_two_le`:
+  synchronous-round symmetry step on `Fin n` (`2 ≤ n`, after `[Angluin1980b]`).
 * `Cslib.Distributed.RingElection.AnonAsyncProtocol.exec_shift_eq`: cyclic shift equivariance of
   asynchronous FIFO schedules.
 * `Cslib.Distributed.RingElection.AnonAsyncProtocol.mtr_rotWave_uniform`,
-  `Cslib.Distributed.RingElection.AnonAsyncProtocol.not_leaderElection_anonymous_async`: sequential
-  FIFO wave reachability and Angluin's asynchronous FIFO anonymous ring impossibility for `n ≥ 2`.
+  `Cslib.Distributed.RingElection.AnonAsyncProtocol.exists_rotWave_trace_leaders_card_ne_one`:
+  sequential FIFO wave uniformity and rotational-wave symmetry step on `Fin n` (`2 ≤ n`, after
+  `[Angluin1980b]`).
 
 ## References
 
@@ -140,8 +142,7 @@ private theorem stateFrom_succ {n : ℕ} [NeZero n] (s₀ : Fin n → S) (r : �
 
 @[simp] theorem run_zero (n : ℕ) [NeZero n] (i : Fin n) : P.run n 0 i = P.init := rfl
 
-/-- **Rotational equivariance.** Shifting node indices by `+ k` mod `n` commutes with every
-synchronous round. -/
+/-- Shifting node indices by `+ k` mod `n` commutes with every synchronous round on `Fin n`. -/
 theorem stateFrom_shift_eq {n : ℕ} [NeZero n] (s₀ : Fin n → S) (k : Fin n) (r : ℕ) (i : Fin n) :
     P.stateFrom s₀ r (i + k) = P.stateFrom (fun j => s₀ (j + k)) r i := by
   induction r generalizing i with
@@ -151,8 +152,8 @@ theorem stateFrom_shift_eq {n : ℕ} [NeZero n] (s₀ : Fin n → S) (k : Fin n)
     have hsucc : i + k + 1 = i + 1 + k := add_right_comm i k 1
     rw [stateFrom_succ, stateFrom_succ, hpred, hsucc, ih, ih, ih]
 
-/-- **Rotational invariance (`state_shift_eq`).** In an anonymous ring, shifting any node index by
-`+ k` mod `n` leaves its state unchanged after every synchronous round `r`. -/
+/-- From a uniform initial state on `Fin n`, shifting any node index by `+ k` mod `n` leaves its
+state unchanged after every synchronous round `r`. -/
 theorem state_shift_eq (n : ℕ) [NeZero n] (r : ℕ) (i k : Fin n) :
     P.run n r (i + k) = P.run n r i :=
   P.stateFrom_shift_eq (fun _ => P.init) k r i
@@ -210,10 +211,11 @@ theorem leaders_card_eq_zero_or_self (n : ℕ) [NeZero n] (r : ℕ) :
     intro i hi
     exact hex ⟨i, (Finset.mem_filter.mp hi).2⟩
 
-/-- **Angluin's Anonymous Leader Election Impossibility (`[Angluin1980b]`).**
-No deterministic anonymous ring protocol—bidirectional or unidirectional, even parameterized by the
-ring size `n`—can elect a unique leader in any round `r` on a ring of size `n ≥ 2`. -/
-theorem not_leaderElection_anonymous_ring {n : ℕ} [NeZero n] (hn : 2 ≤ n) (r : ℕ) :
+/-- A synchronous-round symmetry step on anonymous oriented rings `Fin n` (a step towards
+[Angluin][Angluin1980b], not the general processor-network covering endpoint): for `2 ≤ n`, no
+deterministic `AnonProtocol`—bidirectional or unidirectional, even parameterized by `n`—elects a
+unique leader in any synchronous round `r`. -/
+theorem not_electsUniqueLeader_sync_of_two_le {n : ℕ} [NeZero n] (hn : 2 ≤ n) (r : ℕ) :
     ¬ P.ElectsUniqueLeader n r := by
   rw [ElectsUniqueLeader]
   rcases P.leaders_card_eq_zero_or_self n r with h0 | hn_eq <;> omega
@@ -428,8 +430,8 @@ private theorem step_shift_eq {n : ℕ} [NeZero n] (e : AnonEvent n) (k : Fin n)
         rw [h1]
         exact update_shift (Function.update cfg.chanPred (t + k + 1) rest) t k _ i
 
-/-- **Schedule shift equivariance (`exec_shift_eq`).** Shifting indices by `+ k` commutes with any
-finite asynchronous FIFO schedule. -/
+/-- Shifting node indices by `+ k` commutes with any finite asynchronous FIFO schedule on
+`Fin n`. -/
 theorem exec_shift_eq {n : ℕ} [NeZero n] (cfg : AnonAsyncConfig n S M) (k : Fin n)
     (sched : List (AnonEvent n)) :
     P.exec (cfg.shift k) sched = (P.exec cfg (sched.map (AnonEvent.shift k))).shift k := by
@@ -862,11 +864,10 @@ private theorem mtr_counterWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncCon
   · rw [P.exec_counterWave_eq_dual cfg]
     exact ⟨fun i => huni_d.1 (-i), fun i => huni_d.2.2 (-i), fun i => huni_d.2.1 (-i)⟩
 
-/-- **Sequential FIFO wave symmetry (`mtr_rotWave_uniform`).**
-Starting from any uniform configuration, executing a clockwise wave (when clockwise queues are
-nonempty) or a counter-clockwise wave (when counter-clockwise queues are nonempty) is a valid
-multi-step `LTS.MTr` trace that leaves the ring in a uniform configuration, while executing any
-`rotSchedule` preserves uniformity even if some waves are no-ops. -/
+/-- Helper step for sequential FIFO waves on `Fin n`: from any uniform configuration, executing a
+clockwise wave (when clockwise queues are nonempty) or a counter-clockwise wave (when
+counter-clockwise queues are nonempty) is a valid multi-step `LTS.MTr` trace that leaves the ring
+in a uniform configuration. -/
 theorem mtr_rotWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
     {s : S} {cs cp : List M} (huni : cfg.IsUniform s cs cp) (d : RingDir) :
     (match d with
@@ -918,12 +919,12 @@ theorem mtr_rotWave_uniform {n : ℕ} [NeZero n] {cfg : AnonAsyncConfig n S M}
       obtain ⟨hmtr, huni'⟩ := P.mtr_counterWave_uniform huni
       exact ⟨fun _ => hmtr, _, _, _, huni'⟩
 
-/-- **Angluin's Asynchronous Anonymous Ring Impossibility (`[Angluin1980b]`).**
-From `P.initConfig n` (`n ≥ 2`), for every target wave count `W` there exists an enabled multi-step
-FIFO execution `sched` in `P.lts n` that either completes `W` nonempty waves (each delivering a
-message to every node) or reaches a quiescent terminal configuration (`(P.lts n).IsTerminal`), and
-whose resulting leader set has cardinality `≠ 1`. -/
-theorem not_leaderElection_anonymous_async {n : ℕ} [NeZero n] (hn : 2 ≤ n) (W : ℕ) :
+/-- A sequential-FIFO-wave symmetry step on anonymous oriented rings `Fin n` (a step towards
+[Angluin][Angluin1980b], not the general asynchronous processor-network endpoint): from
+`P.initConfig n` (`2 ≤ n`), for every target wave count `W` there exists an enabled multi-step FIFO
+trace `sched` in `P.lts n` that either completes `W` nonempty waves or reaches a quiescent terminal
+configuration (`(P.lts n).IsTerminal`), with leader cardinality `≠ 1`. -/
+theorem exists_rotWave_trace_leaders_card_ne_one {n : ℕ} [NeZero n] (hn : 2 ≤ n) (W : ℕ) :
     ∃ sched cfg,
       (P.lts n).MTr (P.initConfig n) sched cfg ∧
       (W * n ≤ sched.length ∨ (P.lts n).IsTerminal cfg) ∧

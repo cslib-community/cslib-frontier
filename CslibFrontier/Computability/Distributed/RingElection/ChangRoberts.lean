@@ -25,66 +25,63 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
 /-!
-# Chang–Roberts Asynchronous Unidirectional Ring Leader Election
+# All-Initiator Unidirectional FIFO Ring Election Steps
 
-Deterministic leader election on an asynchronous FIFO unidirectional ring `Fin n` (`n ≥ 1`) with
-injective identifiers `uid : Fin n → U` from a linear order `U`, following
-[Chang and Roberts][ChangRoberts1979].
+Intermediate steps for unidirectional asynchronous FIFO ring election on `Fin n` (`n ≥ 1`) with
+injective identifiers `uid : Fin n → U` when all `n` nodes initiate simultaneously and the election
+pass ends upon the maximum-identifier node receiving its own identifier back (steps towards
+[Chang and Roberts][ChangRoberts1979], not the arbitrary-initiator or announcement-pass endpoints of
+`[ChangRoberts1979]`).
 
 Initially every node `i : Fin n` injects its own identifier `uid i` into its outgoing clockwise
-FIFO channel `i → i + 1` (`crInit`). Whenever the channel `target - 1 → target` is nonempty, its
+FIFO channel `i → i + 1` (`crAllInit`). Whenever the channel `target - 1 → target` is nonempty, its
 oldest message `m` may be delivered to `target` (`crStep`, `crLTS`):
 
 * if `uid target < m`, `target` forwards `m` onto `target → target + 1`;
 * if `m < uid target`, `target` discards `m`;
 * if `m = uid target`, `target` sets `isLeader target := true` without forwarding `m`.
 
-This models simultaneous initiation by all `n` nodes, with the election pass ending when the
-maximum-identifier node receives its own identifier back (omitting an optional `n`-message
-announcement pass around the ring).
-
 Because each node's forwarding decision compares `m` only against its static identifier
 `uid target`, every token `uid s` traverses a schedule-independent clockwise arc of length
 `crHops uid s ∈ {1, …, n}` until hitting the first node `j` with `uid s ≤ uid j`. Tracking per-node
 delivery progress yields:
 
-1. **Safety and termination (`changRoberts_isLeader_le`, `changRoberts_isLeader_iff_max`,
-   `changRoberts_terminates`):** in every reachable state, only a `uid`-maximizer can set
-   `isLeader = true`; every execution terminates in at most `∑ s, crHops uid s` deliveries; and
-   every quiescent reachable state elects the unique `uid`-maximizing node `i*` while all `j ≠ i*`
-   have `isLeader j = false`.
-2. **Tight worst-case message complexity (`changRoberts_messages_le`,
-   `changRoberts_messages_sorted_eq`, `changRoberts_messages_id_eq`):** total messages transmitted
-   in any execution satisfy `crExecMsgs uid sched ≤ n * (n + 1) / 2`, attaining `n * (n + 1) / 2`
-   when identifiers decrease along the ring (`Fin.rev`) and `2 * n - 1` when identifiers increase
-   along the ring (`id`).
-3. **Exact `n H_n` average-case message complexity (`changRoberts_avg_messages_eq`):** over uniform
-   random identifier permutations `σ : Equiv.Perm (Fin n)`, the average message count equals
-   `∑ k ∈ Finset.Icc 1 n, (n : ℚ) / k`, proved via cyclic clockwise arc partitioning of stopping
-   sets (`sum_arcLen_eq`) and left-composition with `Equiv.swap v u` within upper-level sets.
+1. **Safety and termination steps (`crAllInit_isLeader_le`, `crAllInit_isLeader_iff_max`,
+   `crAllInit_terminates`):** in every state reachable from `crAllInit uid`, only a `uid`-maximizer
+   can set `isLeader = true`; every execution terminates in at most `∑ s, crHops uid s` deliveries;
+   and every quiescent reachable state elects the unique `uid`-maximizing node `i*` while all
+   `j ≠ i*` have `isLeader j = false`.
+2. **Worst-case and best-case message steps (`crAllInit_messages_le`, `crAllInit_totalMsgs_rev_eq`,
+   `crAllInit_totalMsgs_id_eq`):** total messages transmitted from `crAllInit uid` satisfy
+   `crAllInitMsgs uid sched ≤ n * (n + 1) / 2`, attaining `n * (n + 1) / 2` on `Fin.rev` and
+   `2 * n - 1` on `id`.
+3. **Average-case step (`crAllInit_avg_totalMsgs_eq`):** over uniform random identifier
+   permutations `σ : Equiv.Perm (Fin n)`, the average of `crAllInitTotalMsgs` equals
+   `∑ k ∈ Finset.Icc 1 n, (n : ℚ) / k`, proved via clockwise arc partitioning (`sum_arcLen_eq`) and
+   left-composition with `Equiv.swap v u` within upper-level sets.
 
 ## Main definitions
 
-* `Cslib.Distributed.RingElection.CRConfig`, `crInit`, `crStep`, `crLTS`, `crExec`: asynchronous
-  FIFO configurations, transitions, and labelled transition system for Chang–Roberts.
-* `Cslib.Distributed.RingElection.crExecMsgs`, `changRobertsTotalMsgs`, `crHops`: operational and
-  combinatorial message/hop counts.
+* `Cslib.Distributed.RingElection.CRConfig`, `crAllInit`, `crStep`, `crLTS`, `crExec`: asynchronous
+  FIFO configurations, simultaneous all-initiator start state, transitions, and LTS.
+* `Cslib.Distributed.RingElection.crAllInitMsgs`, `crAllInitTotalMsgs`, `crHops`: operational and
+  combinatorial message/hop counts for simultaneous all-node initiation.
 
 ## Main results
 
-* `Cslib.Distributed.RingElection.changRoberts_isLeader_le`: safety in every reachable state.
-* `Cslib.Distributed.RingElection.changRoberts_isLeader_iff_max`: quiescent leader characterization
-  as the unique `uid` maximum.
-* `Cslib.Distributed.RingElection.changRoberts_terminates`: bounded termination and unique leader
-  election across all asynchronous FIFO schedules.
-* `Cslib.Distributed.RingElection.changRoberts_execMsgs_eq_totalMsgs`,
-  `Cslib.Distributed.RingElection.changRoberts_messages_le`: schedule-independent exact complete-run
-  message count and `≤ n * (n + 1) / 2` message bound for every execution.
-* `Cslib.Distributed.RingElection.changRoberts_messages_sorted_eq`,
-  `Cslib.Distributed.RingElection.changRoberts_messages_id_eq`: exact worst-case `n * (n + 1) / 2`
-  and best-case `2 * n - 1` evaluations.
-* `Cslib.Distributed.RingElection.changRoberts_avg_messages_eq`: exact `n H_n` average-case message
-  count over `Equiv.Perm (Fin n)`.
+* `Cslib.Distributed.RingElection.crAllInit_isLeader_le`: safety step from `crAllInit uid`.
+* `Cslib.Distributed.RingElection.crAllInit_isLeader_iff_max`: quiescent leader characterization
+  step from `crAllInit uid`.
+* `Cslib.Distributed.RingElection.crAllInit_terminates`: bounded-termination and unique-leader step
+  from `crAllInit uid`.
+* `Cslib.Distributed.RingElection.crAllInit_execMsgs_eq_totalMsgs`,
+  `Cslib.Distributed.RingElection.crAllInit_messages_le`: complete-run message-count step and
+  `≤ n * (n + 1) / 2` bound step from `crAllInit uid`.
+* `Cslib.Distributed.RingElection.crAllInit_totalMsgs_rev_eq`,
+  `Cslib.Distributed.RingElection.crAllInit_totalMsgs_id_eq`: `n * (n + 1) / 2` and `2 * n - 1`
+  evaluation steps for `crAllInitTotalMsgs`.
+* `Cslib.Distributed.RingElection.crAllInit_avg_totalMsgs_eq`: `n H_n` permutation-average step for
+  `crAllInitTotalMsgs`.
 
 ## References
 
@@ -100,7 +97,7 @@ open Cslib
 
 /-! ### Operational asynchronous FIFO ring model -/
 
-/-- Global configuration of Chang–Roberts on an asynchronous FIFO unidirectional `n`-ring. -/
+/-- Global configuration of unidirectional FIFO ring election on `Fin n`. -/
 @[ext]
 structure CRConfig (n : ℕ) (U : Type*) where
   /-- Whether node `i` has received its own identifier back and declared leadership. -/
@@ -112,8 +109,9 @@ structure CRConfig (n : ℕ) (U : Type*) where
 @[expose] def CRConfig.inFlight {n : ℕ} {U : Type*} (cfg : CRConfig n U) : ℕ :=
   ∑ i : Fin n, (cfg.chan i).length
 
-/-- Initial Chang–Roberts configuration: every node `i` injects `[uid i]` onto `i → i + 1`. -/
-@[expose] def crInit {n : ℕ} {U : Type*} (uid : Fin n → U) : CRConfig n U where
+/-- Simultaneous all-initiator start configuration: every node `i` injects `[uid i]` onto
+`i → i + 1`. -/
+@[expose] def crAllInit {n : ℕ} {U : Type*} (uid : Fin n → U) : CRConfig n U where
   isLeader _ := false
   chan i := [uid i]
 
@@ -152,13 +150,13 @@ forward if `uid target < m`, drop if `m < uid target`, and set `isLeader target 
   | target :: rest =>
     crStepMsgs uid target cfg + crForwardedMsgs uid (crStep uid target cfg) rest
 
-/-- Total messages transmitted across edges in schedule `sched` from `crInit uid`: the `n` initial
-identifier injections plus all subsequent message forwardings. -/
-@[expose] def crExecMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U] (uid : Fin n → U)
+/-- Total messages transmitted across edges in schedule `sched` from `crAllInit uid`: the `n`
+initial identifier injections plus all subsequent message forwardings. -/
+@[expose] def crAllInitMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U] (uid : Fin n → U)
     (sched : List (Fin n)) : ℕ :=
-  n + crForwardedMsgs uid (crInit uid) sched
+  n + crForwardedMsgs uid (crAllInit uid) sched
 
-/-- Labelled transition system of enabled FIFO deliveries in Chang–Roberts on `Fin n`. -/
+/-- Labelled transition system of enabled FIFO deliveries for `crStep uid` on `Fin n`. -/
 @[expose] def crLTS {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U] (uid : Fin n → U) :
     LTS (CRConfig n U) (Fin n) where
   Tr cfg target cfg' := cfg.chan (target - 1) ≠ [] ∧ cfg' = crStep uid target cfg
@@ -172,14 +170,14 @@ ring (`a + 1, a + 2, …, a + n = a`). -/
   | some k => k + 1
   | none => n
 
-/-- Clockwise hop count made by node `s`'s initial message `uid s` in Chang–Roberts before reaching
-the first node `j` with `uid s ≤ uid j` (`1 ≤ crHops uid s ≤ n`). -/
+/-- Clockwise hop count made by node `s`'s initial message `uid s` before reaching the first node
+`j` with `uid s ≤ uid j` (`1 ≤ crHops uid s ≤ n`). -/
 @[expose] def crHops {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) (s : Fin n) : ℕ :=
   arcLen (Finset.univ.filter fun j => uid s ≤ uid j) s
 
-/-- Total number of edge transmissions in a complete Chang–Roberts election for `uid`. -/
-@[expose] def changRobertsTotalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+/-- Total number of edge transmissions in a complete election pass from `crAllInit uid`. -/
+@[expose] def crAllInitTotalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) : ℕ :=
   ∑ s : Fin n, crHops uid s
 
@@ -342,22 +340,22 @@ private theorem card_filter_eq_sum_ite {α : Type*} (s : Finset α) (P : α → 
     (s.filter P).card = ∑ x ∈ s, if P x then 1 else 0 := by
   rw [Finset.card_eq_sum_ones, Finset.sum_filter]
 
-/-- Message conservation along every valid execution `(crLTS uid).MTr (crInit uid) sched cfg`:
+/-- Message conservation along every valid execution `(crLTS uid).MTr (crAllInit uid) sched cfg`:
 total messages transmitted equal messages delivered (`sched.length`) plus messages still in flight
 (`cfg.inFlight`). -/
 private theorem crExecMsgs_eq_length_add_inFlight {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
-    crExecMsgs uid sched = sched.length + cfg.inFlight := by
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) :
+    crAllInitMsgs uid sched = sched.length + cfg.inFlight := by
   suffices ∀ (c₀ : CRConfig n U) (tr : List (Fin n)) (c₁ : CRConfig n U),
       (crLTS uid).MTr c₀ tr c₁ →
       c₀.inFlight + crForwardedMsgs uid c₀ tr = tr.length + c₁.inFlight by
-    have hinit : (crInit uid).inFlight = n := by
-      simp only [CRConfig.inFlight, crInit, List.length_singleton, Finset.sum_const,
+    have hinit : (crAllInit uid).inFlight = n := by
+      simp only [CRConfig.inFlight, crAllInit, List.length_singleton, Finset.sum_const,
         Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one]
-    have h := this (crInit uid) sched cfg hmtr
+    have h := this (crAllInit uid) sched cfg hmtr
     rw [hinit] at h
-    simpa only [crExecMsgs] using h
+    simpa only [crAllInitMsgs] using h
   intro c₀ tr c₁ h
   induction h with
   | refl => simp only [crForwardedMsgs, List.length_nil, zero_add, add_zero]
@@ -392,7 +390,7 @@ private theorem crExecMsgs_eq_length_add_inFlight {n : ℕ} [NeZero n] {U : Type
           dsimp only [CRConfig.inFlight] at hlen1 ih ⊢
           linarith
 
-/-- Exact global state invariant relating any reachable Chang–Roberts configuration `cfg` to a
+/-- Global state invariant relating any configuration `cfg` reachable from `crAllInit uid` to a
 per-origin hop progress vector `prog : Fin n → ℕ`. -/
 private def CRStateInv {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     (uid : Fin n → U) (schedLen : ℕ) (cfg : CRConfig n U) (prog : Fin n → ℕ) : Prop :=
@@ -406,14 +404,14 @@ private def CRStateInv {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
 
 private theorem crStateInv_init {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) :
-    CRStateInv uid 0 (crInit uid) (fun _ => 0) := by
+    CRStateInv uid 0 (crAllInit uid) (fun _ => 0) := by
   refine ⟨fun _ => Nat.zero_le _, ?_, ?_, ?_, ?_, ?_⟩
   · intro e m hm
-    simp only [crInit, List.mem_singleton] at hm
+    simp only [crAllInit, List.mem_singleton] at hm
     exact ⟨e, hm⟩
   · intro e s
     have h1 : 0 < crHops uid s := (crHops_spec uid s).1
-    simp only [crInit, ofNat_zero_fin, add_zero, h1, true_and]
+    simp only [crAllInit, ofNat_zero_fin, add_zero, h1, true_and]
     by_cases hes : e = s
     · rcases hes with rfl
       simp only [List.count_singleton_self, ↓reduceIte]
@@ -421,13 +419,13 @@ private theorem crStateInv_init {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
       simp only [hes, ↓reduceIte, List.count_cons_of_ne hne, List.count_nil]
   · intro i
     have hne : 0 ≠ crHops uid i := ne_of_lt (crHops_spec uid i).1
-    simp only [crInit, hne, and_false, decide_false]
+    simp only [crAllInit, hne, and_false, decide_false]
   · simp only [Finset.sum_const_zero]
   · have hfilt : (Finset.univ.filter fun s : Fin n => 0 < crHops uid s) = Finset.univ := by
       ext s
       simp only [Finset.mem_filter, Finset.mem_univ, true_and]
       exact iff_of_true (crHops_spec uid s).1 trivial
-    simp only [CRConfig.inFlight, crInit, List.length_singleton, Finset.sum_const,
+    simp only [CRConfig.inFlight, crAllInit, List.length_singleton, Finset.sum_const,
       Finset.card_univ, Fintype.card_fin, smul_eq_mul, mul_one, hfilt]
 
 private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
@@ -636,12 +634,12 @@ private theorem crStateInv_step {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
 
 private theorem crStateInv_of_mtr {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) :
     ∃ prog, CRStateInv uid sched.length cfg prog := by
   suffices ∀ c₀ tr c₁, (crLTS uid).MTr c₀ tr c₁ →
       ∀ l₀ prog₀, CRStateInv uid l₀ c₀ prog₀ →
       ∃ prog₁, CRStateInv uid (l₀ + tr.length) c₁ prog₁ by
-    obtain ⟨prog, h⟩ := this (crInit uid) sched cfg hmtr 0 (fun _ => 0) (crStateInv_init huid)
+    obtain ⟨prog, h⟩ := this (crAllInit uid) sched cfg hmtr 0 (fun _ => 0) (crStateInv_init huid)
     exact ⟨prog, by simpa only [zero_add] using h⟩
   intro c₀ tr c₁ h
   induction h with
@@ -656,12 +654,12 @@ private theorem crStateInv_of_mtr {n : ℕ} [NeZero n] {U : Type*} [LinearOrder 
 
 /-! ### Correctness and termination theorems -/
 
-/-- **Reachable-state safety (`changRoberts_isLeader_le`).**
-In any configuration reachable from `crInit uid`, if `cfg.isLeader i = true` then `uid i` is the
-maximum identifier across the ring. -/
-theorem changRoberts_isLeader_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+/-- A safety step for simultaneous all-initiator unidirectional FIFO ring election (a step towards
+[Chang and Roberts][ChangRoberts1979], not the arbitrary-initiator endpoint): in any configuration
+reachable from `crAllInit uid`, if `cfg.isLeader i = true` then `uid i` maximizes `uid`. -/
+theorem crAllInit_isLeader_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) {i : Fin n} (hi : cfg.isLeader i = true) :
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) {i : Fin n} (hi : cfg.isLeader i = true) :
     ∀ j : Fin n, uid j ≤ uid i := by
   obtain ⟨prog, _, _, _, hlead, _, _⟩ := crStateInv_of_mtr huid hmtr
   rw [hlead i, decide_eq_true_eq] at hi
@@ -683,12 +681,13 @@ private theorem isTerminal_iff_inFlight_eq_zero {n : ℕ} [NeZero n] {U : Type*}
       List.length_eq_zero_iff] at hzero
     exact hne (hzero (target - 1))
 
-/-- **Unique-maximum safety upon quiescence (`changRoberts_isLeader_iff_max`).**
-In every quiescent (`LTS.IsTerminal`) configuration reachable from `crInit uid`, a node `i` has
-`cfg.isLeader i = true` if and only if `uid i` is the global maximum identifier. -/
-theorem changRoberts_isLeader_iff_max {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+/-- A quiescent-characterization step for simultaneous all-initiator unidirectional FIFO ring
+election (a step towards [Chang and Roberts][ChangRoberts1979], not the arbitrary-initiator
+endpoint): at any quiescent (`LTS.IsTerminal`) state reachable from `crAllInit uid`,
+`cfg.isLeader i = true` iff `uid i` is the global maximum identifier. -/
+theorem crAllInit_isLeader_iff_max {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) (hterm : (crLTS uid).IsTerminal cfg)
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) (hterm : (crLTS uid).IsTerminal cfg)
     (i : Fin n) :
     cfg.isLeader i = true ↔ ∀ j : Fin n, uid j ≤ uid i := by
   obtain ⟨prog, hle, _, _, hlead, _, hflight⟩ := crStateInv_of_mtr huid hmtr
@@ -701,15 +700,15 @@ theorem changRoberts_isLeader_iff_max {n : ℕ} [NeZero n] {U : Type*} [LinearOr
   rw [hlead i, hprog_eq, decide_eq_true_eq]
   exact ⟨fun h => h.1, fun h => ⟨h, rfl⟩⟩
 
-/-- **Exact message count of every complete execution (`changRoberts_execMsgs_eq_totalMsgs`).**
-Every reachable quiescent configuration was reached in `changRobertsTotalMsgs uid` deliveries and
-transmitted `changRobertsTotalMsgs uid` messages in total, independent of the asynchronous FIFO
-schedule! -/
-theorem changRoberts_execMsgs_eq_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+/-- A complete-run message-count step for simultaneous all-initiator unidirectional FIFO ring
+election (a step towards [Chang and Roberts][ChangRoberts1979], not the cited endpoint): every
+quiescent configuration reachable from `crAllInit uid` was reached in `crAllInitTotalMsgs uid`
+deliveries and transmitted `crAllInitTotalMsgs uid` messages in total. -/
+theorem crAllInit_execMsgs_eq_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) (hterm : (crLTS uid).IsTerminal cfg) :
-    crExecMsgs uid sched = changRobertsTotalMsgs uid ∧
-      sched.length = changRobertsTotalMsgs uid := by
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) (hterm : (crLTS uid).IsTerminal cfg) :
+    crAllInitMsgs uid sched = crAllInitTotalMsgs uid ∧
+      sched.length = crAllInitTotalMsgs uid := by
   obtain ⟨prog, hle, _, _, _, hsum, hflight⟩ := crStateInv_of_mtr huid hmtr
   have hzero : cfg.inFlight = 0 := (isTerminal_iff_inFlight_eq_zero uid cfg).mp hterm
   rw [hzero, eq_comm, Finset.card_eq_zero, Finset.filter_eq_empty_iff] at hflight
@@ -717,41 +716,39 @@ theorem changRoberts_execMsgs_eq_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [Lin
     have := hflight (Finset.mem_univ s)
     have := hle s
     omega
-  have hlen : sched.length = changRobertsTotalMsgs uid := by
-    rw [hsum, changRobertsTotalMsgs]
+  have hlen : sched.length = crAllInitTotalMsgs uid := by
+    rw [hsum, crAllInitTotalMsgs]
     exact Finset.sum_congr rfl fun s _ => hprog_eq s
   have hmsgs := crExecMsgs_eq_length_add_inFlight uid hmtr
   rw [hzero, add_zero, hlen] at hmsgs
   exact ⟨hmsgs, hlen⟩
 
-/-- In any execution `(crLTS uid).MTr (crInit uid) sched cfg` (even partial), both `sched.length`
-and `crExecMsgs uid sched` are bounded by `changRobertsTotalMsgs uid`. -/
 private theorem crExecMsgs_le_totalMsgs {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
-    sched.length ≤ changRobertsTotalMsgs uid ∧
-      crExecMsgs uid sched ≤ changRobertsTotalMsgs uid := by
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) :
+    sched.length ≤ crAllInitTotalMsgs uid ∧
+      crAllInitMsgs uid sched ≤ crAllInitTotalMsgs uid := by
   obtain ⟨prog, hle, _, _, _, hsum, hflight⟩ := crStateInv_of_mtr huid hmtr
-  have hlen : sched.length ≤ changRobertsTotalMsgs uid := by
-    rw [hsum, changRobertsTotalMsgs]
+  have hlen : sched.length ≤ crAllInitTotalMsgs uid := by
+    rw [hsum, crAllInitTotalMsgs]
     exact Finset.sum_le_sum fun s _ => hle s
   refine ⟨hlen, ?_⟩
   rw [crExecMsgs_eq_length_add_inFlight uid hmtr, hsum, hflight, card_filter_eq_sum_ite,
-    ← Finset.sum_add_distrib, changRobertsTotalMsgs]
+    ← Finset.sum_add_distrib, crAllInitTotalMsgs]
   refine Finset.sum_le_sum fun s _ => ?_
   have := hle s
   split_ifs <;> omega
 
-/-- **Bounded termination and unique leader election (`changRoberts_terminates`).**
-Every reachable configuration of Chang–Roberts extends to a quiescent terminal configuration, and
-every reachable quiescent configuration elects the unique `uid`-maximizing node `i*`
-(`cfg'.isLeader i* = true` and `∀ j ≠ i*, cfg'.isLeader j = false`). -/
-theorem changRoberts_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+/-- A bounded-termination and unique-leader step for simultaneous all-initiator unidirectional FIFO
+ring election (a step towards [Chang and Roberts][ChangRoberts1979], not the arbitrary-initiator
+endpoint): every configuration reachable from `crAllInit uid` extends to quiescence, and every
+reachable quiescent state elects the unique `uid`-maximizing node `i*`. -/
+theorem crAllInit_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) :
-    (∀ sched cfg, (crLTS uid).MTr (crInit uid) sched cfg →
+    (∀ sched cfg, (crLTS uid).MTr (crAllInit uid) sched cfg →
       ∃ tail cfg', (crLTS uid).MTr cfg tail cfg' ∧ (crLTS uid).IsTerminal cfg') ∧
     (∃! iStar : Fin n, ∀ j : Fin n, uid j ≤ uid iStar) ∧
-    ∀ sched cfg, (crLTS uid).MTr (crInit uid) sched cfg → (crLTS uid).IsTerminal cfg →
+    ∀ sched cfg, (crLTS uid).MTr (crAllInit uid) sched cfg → (crLTS uid).IsTerminal cfg →
       ∃! iStar : Fin n, cfg.isLeader iStar = true := by
   have huniq_max : ∃! iStar : Fin n, ∀ j : Fin n, uid j ≤ uid iStar := by
     have hne : (Finset.univ : Finset (Fin n)).Nonempty :=
@@ -770,10 +767,10 @@ theorem changRoberts_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
   refine ⟨?_, huniq_max, ?_⟩
   · intro sched cfg hmtr
     suffices ∀ rem sched c,
-        changRobertsTotalMsgs uid - sched.length ≤ rem →
-        (crLTS uid).MTr (crInit uid) sched c →
+        crAllInitTotalMsgs uid - sched.length ≤ rem →
+        (crLTS uid).MTr (crAllInit uid) sched c →
         ∃ tail c', (crLTS uid).MTr c tail c' ∧ (crLTS uid).IsTerminal c' from
-      this (changRobertsTotalMsgs uid - sched.length) sched cfg le_rfl hmtr
+      this (crAllInitTotalMsgs uid - sched.length) sched cfg le_rfl hmtr
     intro rem
     induction rem with
     | zero =>
@@ -801,15 +798,14 @@ theorem changRoberts_terminates {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
         exact ⟨target :: tail, c_end, LTS.MTr.stepL htr htail, hterm_end⟩
   · intro sched cfg hmtr hterm
     obtain ⟨iStar, hiStar, huniq⟩ := huniq_max
-    refine ⟨iStar, (changRoberts_isLeader_iff_max huid hmtr hterm iStar).mpr hiStar, fun j hj => ?_⟩
-    exact huniq j ((changRoberts_isLeader_iff_max huid hmtr hterm j).mp hj)
+    refine ⟨iStar, (crAllInit_isLeader_iff_max huid hmtr hterm iStar).mpr hiStar, fun j hj => ?_⟩
+    exact huniq j ((crAllInit_isLeader_iff_max huid hmtr hterm j).mp hj)
 
 /-! ### Tight worst-case and best-case message bounds -/
 
-/-- Combinatorial worst-case bound: `changRobertsTotalMsgs uid ≤ n * (n + 1) / 2`. -/
-private theorem changRobertsTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+private theorem crAllInitTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) :
-    changRobertsTotalMsgs uid ≤ n * (n + 1) / 2 := by
+    crAllInitTotalMsgs uid ≤ n * (n + 1) / 2 := by
   have hhop_le : ∀ s : Fin n,
       crHops uid s ≤ 1 + (Finset.univ.filter fun j : Fin n => uid j < uid s).card := by
     intro s
@@ -831,9 +827,9 @@ private theorem changRobertsTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [Linea
       rw [Finset.card_image_of_injOn hinj, Nat.card_Ico]
     have hle := Finset.card_le_card hsub
     omega
-  have hsum_le : changRobertsTotalMsgs uid ≤
+  have hsum_le : crAllInitTotalMsgs uid ≤
       n + ∑ s : Fin n, (Finset.univ.filter fun j : Fin n => uid j < uid s).card := by
-    calc changRobertsTotalMsgs uid
+    calc crAllInitTotalMsgs uid
         ≤ ∑ s : Fin n, (1 + (Finset.univ.filter fun j : Fin n => uid j < uid s).card) :=
           Finset.sum_le_sum fun s _ => hhop_le s
       _ = n + ∑ s : Fin n, (Finset.univ.filter fun j : Fin n => uid j < uid s).card := by
@@ -878,26 +874,27 @@ private theorem changRobertsTotalMsgs_le {n : ℕ} [NeZero n] {U : Type*} [Linea
       smul_eq_mul, mul_one] at hsum_part
     change Slt + Sgt + n = n * n at hsum_part
     omega
-  have hmul : 2 * changRobertsTotalMsgs uid ≤ n * (n + 1) := by
-    change changRobertsTotalMsgs uid ≤ n + Slt at hsum_le
+  have hmul : 2 * crAllInitTotalMsgs uid ≤ n * (n + 1) := by
+    change crAllInitTotalMsgs uid ≤ n + Slt at hsum_le
     nlinarith
   omega
 
-/-- **Worst-case operational message bound (`changRoberts_messages_le`).**
-In every asynchronous FIFO execution `(crLTS uid).MTr (crInit uid) sched cfg`, total messages
-transmitted satisfy `crExecMsgs uid sched ≤ n * (n + 1) / 2`. -/
-theorem changRoberts_messages_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
+/-- A worst-case operational message-bound step for simultaneous all-initiator unidirectional FIFO
+ring election (a step towards [Chang and Roberts][ChangRoberts1979], not the cited endpoint): in
+every execution `(crLTS uid).MTr (crAllInit uid) sched cfg`, total messages transmitted satisfy
+`crAllInitMsgs uid sched ≤ n * (n + 1) / 2`. -/
+theorem crAllInit_messages_le {n : ℕ} [NeZero n] {U : Type*} [LinearOrder U]
     {uid : Fin n → U} (huid : Function.Injective uid) {sched : List (Fin n)} {cfg : CRConfig n U}
-    (hmtr : (crLTS uid).MTr (crInit uid) sched cfg) :
-    crExecMsgs uid sched ≤ n * (n + 1) / 2 :=
-  (crExecMsgs_le_totalMsgs huid hmtr).2.trans (changRobertsTotalMsgs_le huid)
+    (hmtr : (crLTS uid).MTr (crAllInit uid) sched cfg) :
+    crAllInitMsgs uid sched ≤ n * (n + 1) / 2 :=
+  (crExecMsgs_le_totalMsgs huid hmtr).2.trans (crAllInitTotalMsgs_le huid)
 
-/-- **Tight worst-case equality (`changRoberts_messages_sorted_eq`).**
-When identifiers decrease along the clockwise traversal direction (`uid = Fin.rev : Fin n → Fin n`),
-every node `s`'s message travels `n - s.val` hops to node `0`, giving `n * (n + 1) / 2` total
-messages. -/
-theorem changRoberts_messages_sorted_eq (n : ℕ) [NeZero n] :
-    changRobertsTotalMsgs (Fin.rev : Fin n → Fin n) = n * (n + 1) / 2 := by
+/-- A reverse-ordered evaluation step for `crAllInitTotalMsgs` (a step towards
+[Chang and Roberts][ChangRoberts1979], not the cited endpoint): when identifiers decrease along the
+clockwise traversal direction (`Fin.rev : Fin n → Fin n`), every node `s` sends its token
+`n - s.val` hops to node `0`, giving `n * (n + 1) / 2` total messages. -/
+theorem crAllInit_totalMsgs_rev_eq (n : ℕ) [NeZero n] :
+    crAllInitTotalMsgs (Fin.rev : Fin n → Fin n) = n * (n + 1) / 2 := by
   have hhop : ∀ s : Fin n, crHops (Fin.rev : Fin n → Fin n) s = n - s.val := by
     intro s
     have hs_lt : s.val < n := s.isLt
@@ -921,8 +918,8 @@ theorem changRoberts_messages_sorted_eq (n : ℕ) [NeZero n] :
         rw [hmod, Nat.mod_eq_of_lt (by omega)]
       rw [hval]
       omega
-  have hsum : changRobertsTotalMsgs (Fin.rev : Fin n → Fin n) = ∑ i ∈ Finset.range n, (n - i) := by
-    rw [changRobertsTotalMsgs, ← Fin.sum_univ_eq_sum_range (fun i => n - i) n]
+  have hsum : crAllInitTotalMsgs (Fin.rev : Fin n → Fin n) = ∑ i ∈ Finset.range n, (n - i) := by
+    rw [crAllInitTotalMsgs, ← Fin.sum_univ_eq_sum_range (fun i => n - i) n]
     exact Finset.sum_congr rfl fun s _ => hhop s
   rw [hsum]
   have hgauss : ∀ m : ℕ, 2 * (∑ i ∈ Finset.range m, (m - i)) = m * (m + 1) := by
@@ -938,17 +935,18 @@ theorem changRoberts_messages_sorted_eq (n : ℕ) [NeZero n] :
   have hm := hgauss n
   omega
 
-/-- **Best-case equality (`changRoberts_messages_id_eq`).**
-When identifiers increase clockwise (`uid = id : Fin n → Fin n`), nodes `0, …, n - 2` travel `1`
-hop while node `n - 1` travels `n` hops, giving `2 * n - 1` total messages. -/
-theorem changRoberts_messages_id_eq (n : ℕ) [NeZero n] :
-    changRobertsTotalMsgs (id : Fin n → Fin n) = 2 * n - 1 := by
+/-- An increasing-order evaluation step for `crAllInitTotalMsgs` (a step towards
+[Chang and Roberts][ChangRoberts1979], not the cited endpoint): when identifiers increase clockwise
+(`id : Fin n → Fin n`), nodes `0, …, n - 2` travel `1` hop while node `n - 1` travels `n` hops,
+giving `2 * n - 1` total messages. -/
+theorem crAllInit_totalMsgs_id_eq (n : ℕ) [NeZero n] :
+    crAllInitTotalMsgs (id : Fin n → Fin n) = 2 * n - 1 := by
   have hn_pos : 0 < n := Nat.pos_of_ne_zero (NeZero.ne n)
   rcases eq_or_lt_of_le (Nat.succ_le_of_lt hn_pos) with rfl | hn2
   · have h0 : crHops (id : Fin 1 → Fin 1) 0 = 1 := by
       obtain ⟨h1, hle, _, _⟩ := crHops_spec (id : Fin 1 → Fin 1) 0
       omega
-    rw [changRobertsTotalMsgs, Fin.sum_univ_one, h0]
+    rw [crAllInitTotalMsgs, Fin.sum_univ_one, h0]
   · have hhop : ∀ s : Fin n,
         crHops (id : Fin n → Fin n) s = if s.val = n - 1 then n else 1 := by
       intro s
@@ -967,9 +965,9 @@ theorem changRoberts_messages_id_eq (n : ℕ) [NeZero n] :
           rw [h1mod, Nat.mod_eq_of_lt (by omega)]
         omega
     let sLast : Fin n := ⟨n - 1, by omega⟩
-    have hsum : changRobertsTotalMsgs (id : Fin n → Fin n) =
+    have hsum : crAllInitTotalMsgs (id : Fin n → Fin n) =
         ∑ s : Fin n, Function.update (fun _ : Fin n => 1) sLast n s := by
-      rw [changRobertsTotalMsgs]
+      rw [crAllInitTotalMsgs]
       refine Finset.sum_congr rfl fun s _ => ?_
       rw [hhop s]
       by_cases hs : s = sLast
@@ -1037,8 +1035,7 @@ private theorem prevDist_spec {n : ℕ} [NeZero n] {A : Finset (Fin n)} (hA : A.
     prevDistAux_spec n 0 ⟨m, Nat.zero_le m, by simp only [zero_add]; exact (x - a₀).isLt, hm_mem⟩
   exact ⟨by simpa only [prevDist, zero_add] using hlt, hmem, fun j hj => hmin j (Nat.zero_le j) hj⟩
 
-/-- **Arc-partition identity (`sum_arcLen_eq`).**
-For any nonempty subset `A ⊆ Fin n`, the clockwise distances `arcLen A a` between consecutive
+/-- For any nonempty subset `A ⊆ Fin n`, the clockwise distances `arcLen A a` between consecutive
 elements of `A` around the `n`-ring sum to `n`. -/
 theorem sum_arcLen_eq {n : ℕ} [NeZero n] {A : Finset (Fin n)} (hA : A.Nonempty) :
     ∑ a ∈ A, arcLen A a = n := by
@@ -1190,20 +1187,21 @@ private theorem mul_sum_crHops_perm_eq {n : ℕ} [NeZero n] (v : Fin n) :
           rw [Finset.sum_const, Finset.card_univ, Fintype.card_perm, Fintype.card_fin,
             smul_eq_mul, mul_comm]
 
-/-- **Exact `n H_n` Average-Case Message Complexity (`changRoberts_avg_messages_eq`).**
-Averaged uniformly over all `n!` identifier permutations `σ : Equiv.Perm (Fin n)`, the total number
-of messages transmitted in Chang–Roberts equals `n H_n = ∑ k ∈ Finset.Icc 1 n, (n : ℚ) / k`. -/
-theorem changRoberts_avg_messages_eq (n : ℕ) [NeZero n] :
-    (∑ σ : Equiv.Perm (Fin n), (changRobertsTotalMsgs (⇑σ) : ℚ)) / (Nat.factorial n : ℚ) =
+/-- An average-case step for simultaneous all-initiator unidirectional FIFO ring election (a step
+towards [Chang and Roberts][ChangRoberts1979], not the cited endpoint): averaged uniformly over all
+`n!` identifier permutations `σ : Equiv.Perm (Fin n)`, `crAllInitTotalMsgs` equals
+`∑ k ∈ Finset.Icc 1 n, (n : ℚ) / k`. -/
+theorem crAllInit_avg_totalMsgs_eq (n : ℕ) [NeZero n] :
+    (∑ σ : Equiv.Perm (Fin n), (crAllInitTotalMsgs (⇑σ) : ℚ)) / (Nat.factorial n : ℚ) =
       ∑ k ∈ Finset.Icc 1 n, (n : ℚ) / k := by
   have hfact_ne : (Nat.factorial n : ℚ) ≠ 0 :=
     Nat.cast_ne_zero.mpr (Nat.factorial_ne_zero n)
-  have hsum_swap : (∑ σ : Equiv.Perm (Fin n), (changRobertsTotalMsgs (⇑σ) : ℚ)) =
+  have hsum_swap : (∑ σ : Equiv.Perm (Fin n), (crAllInitTotalMsgs (⇑σ) : ℚ)) =
       ∑ v : Fin n, ∑ σ : Equiv.Perm (Fin n), (crHops (⇑σ) (σ.symm v) : ℚ) := by
     have h1 : ∀ σ : Equiv.Perm (Fin n),
-        (changRobertsTotalMsgs (⇑σ) : ℚ) = ∑ v : Fin n, (crHops (⇑σ) (σ.symm v) : ℚ) := by
+        (crAllInitTotalMsgs (⇑σ) : ℚ) = ∑ v : Fin n, (crHops (⇑σ) (σ.symm v) : ℚ) := by
       intro σ
-      rw [changRobertsTotalMsgs]
+      rw [crAllInitTotalMsgs]
       push_cast
       exact (Equiv.sum_comp σ.symm fun i => (crHops (⇑σ) i : ℚ)).symm
     simp_rw [h1]
