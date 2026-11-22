@@ -75,9 +75,9 @@ theorem isPPTOn_keyGen
         (encPublicKey (p.1.2.1, p.2), p.1.2.2))
       (encPair (encPair input (encPair encBits encBits)) (encList encBits))
       (encPair encBits encBits) from
-      ((((ComputableInPolyTime.fst _ _).snd'.fst'.prod
-        (ComputableInPolyTime.snd _ _)).of_enc_eq fun _ => rfl).prod
-          (ComputableInPolyTime.fst _ _).snd'.snd').of_enc_eq fun _ => rfl)
+      (((ComputableInPolyTime.fst _ _).snd'.fst'.prod
+        (ComputableInPolyTime.snd _ _)).encoding_comp.prod
+        (ComputableInPolyTime.fst _ _).snd'.snd'))
 
 include hencrypt in
 /-- Decode any public word and encrypt under the decoded base public key. -/

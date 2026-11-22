@@ -100,11 +100,9 @@ theorem bitGraph_mem_P {encβ : β ↪ List Bool} {g : β → ℕ} (D : Decoder 
     D'.computableInPolyTime
   have hval : ComputableInPolyTime (fun w => g (D'.decode w).1) encBits encNat :=
     hg.comp ((ComputableInPolyTime.fst _ _).comp hdec)
-  have hsize : ComputableInPolyTime (fun w => (g (D'.decode w).1).size) encBits encUnary := by
-    simpa only [Nat.size_eq_bits_len] using ComputableInPolyTime.length_bits_comp hval.encoding_comp
   have hidx : ComputableInPolyTime (fun w => min (g (D'.decode w).1).size (D'.decode w).2)
       encBits encUnary :=
-    ComputableInPolyTime.binary_min_unary' hsize ((ComputableInPolyTime.snd _ _).comp hdec)
+    ComputableInPolyTime.binary_min_unary' (ComputableInPolyTime.binary_size.comp hval) hdec.snd'
   have hbit := ComputableInPolyTime.binary_testBit hval hidx
   refine ⟨fun w => decide (encPair encβ encNat (D'.decode w) = w) &&
     (g (D'.decode w).1).testBit (min (g (D'.decode w).1).size (D'.decode w).2),

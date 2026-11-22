@@ -66,7 +66,7 @@ example :
     mem_P_iff_exists_decidableInTimeAndSpace.mp firstBit_mem_P,
     (by polytime : ComputableInPolyTime
       (fun word : List Bool => word.foldl (fun reversed bit => bit :: reversed) [])
-      encBits encBits),
+      encBits encBits).exists_bounds,
     mem_NP_iff_exists_computableInTimeAndSpaceOfLength.mp SAT.mem_NP,
     computableInTimeAndSpace_id.exists_space_linear⟩
   obtain ⟨c, h⟩ := exists_decidableInTimeAndSpace_single
