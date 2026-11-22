@@ -62,12 +62,12 @@ open Cslib.Logic.PL Cslib.Logic.PL.CNF
 def Assigned (π : List (Literal ℕ)) (x : ℕ) : Bool :=
   π.contains (x, true) || π.contains (x, false)
 
-/-- The literal the solver branches on at `π`: the literal of a unit clause, or else the first
-variable of `φ.vars.dedup` that `π` leaves open, `true` first. -/
+/-- The literal the solver branches on at `π`: the literal of a unit clause, or else the variable
+of the first literal occurrence that `π` leaves open, `true` first. -/
 def nextLiteral (φ : CNF ℕ) (π : List (Literal ℕ)) : Literal ℕ :=
   match unitLiteral? φ π with
   | some l => l
-  | none => ((φ.vars.dedup.find? fun x => !Assigned π x).getD 0, true)
+  | none => ((φ.vars.find? fun x => !Assigned π x).getD 0, true)
 
 /-- What the search does at a partial assignment. -/
 inductive Status : Type
@@ -133,12 +133,12 @@ theorem unitLiteral?_spec {φ : CNF ℕ} {π : List (Literal ℕ)} {l : Literal 
         by simpa using ‹¬π.contains l = true›⟩
   · cases hcl
 
-/-- Every variable of the formula is assigned when no variable of `φ.vars.dedup` is open. -/
+/-- Every variable of the formula is assigned when no variable of `φ.vars` is open. -/
 theorem forall_assigned_of_find?_eq_none {φ : CNF ℕ} {π : List (Literal ℕ)}
-    (h : φ.vars.dedup.find? (fun x => !Assigned π x) = none) :
+    (h : φ.vars.find? (fun x => !Assigned π x) = none) :
     ∀ x ∈ φ.vars, (x, true) ∈ π ∨ (x, false) ∈ π := by
   intro x hx
-  have := List.find?_eq_none.1 h x (List.mem_dedup.2 hx)
+  have := List.find?_eq_none.1 h x hx
   exact Decidable.or_iff_not_imp_left.2 (by simpa [Assigned] using this)
 
 /-- **The branch variable is open.** -/
@@ -159,13 +159,13 @@ theorem assigned_of_status_eq_branch {φ : CNF ℕ} {π : List (Literal ℕ)} {l
         refine ⟨hv, assigned_eq_false_iff.2 ?_⟩
         obtain ⟨v, b⟩ := l
         cases b <;> simp_all [Std.Sat.Literal.negate]
-      · cases hfind : φ.vars.dedup.find? (fun x => !Assigned π x) with
+      · cases hfind : φ.vars.find? (fun x => !Assigned π x) with
         | none =>
           exact absurd (all_any_holds (by simpa using hf)
             (forall_assigned_of_find?_eq_none hfind)) hs
         | some x =>
           have := List.find?_some hfind
-          exact ⟨List.mem_dedup.1 (List.mem_of_find?_eq_some hfind), by simpa using this⟩
+          exact ⟨List.mem_of_find?_eq_some hfind, by simpa using this⟩
 
 /-! ### The search without skipping -/
 
@@ -234,14 +234,14 @@ theorem dfs_eq_none_of_derivation {φ : CNF ℕ} {π : List (Literal ℕ)} (hπ 
 
 /-! ### The search without skipping finds the solver's answer -/
 
-/-- The open variables of `π` in the order of `φ.vars.dedup`. -/
+/-- The open variables of `π` in the order of their first occurrences in `φ.vars`. -/
 def openVars (φ : CNF ℕ) (π : List (Literal ℕ)) : List ℕ :=
-  φ.vars.dedup.filter fun x => !Assigned π x
+  φ.vars.eraseDups.filter fun x => !Assigned π x
 
 theorem openVars_cons (φ : CNF ℕ) (π : List (Literal ℕ)) (l : Literal ℕ) :
     openVars φ (l :: π) = (openVars φ π).erase l.1 := by
   simp only [openVars]
-  rw [List.Nodup.erase_eq_filter ((List.nodup_dedup _).filter _), List.filter_filter]
+  rw [List.Nodup.erase_eq_filter ((List.nodup_eraseDups _).filter _), List.filter_filter]
   congr 1
   funext x
   rw [assigned_cons]
@@ -252,10 +252,10 @@ theorem openVars_cons (φ : CNF ℕ) (π : List (Literal ℕ)) (l : Literal ℕ)
 
 theorem mem_openVars {φ : CNF ℕ} {π : List (Literal ℕ)} {x : ℕ} :
     x ∈ openVars φ π ↔ x ∈ φ.vars ∧ Assigned π x = false := by
-  simp [openVars, List.mem_dedup]
+  simp [openVars, List.mem_eraseDups]
 
 /-- The literal of the solver's branch is `nextLiteral` when the open variables are listed in the
-order of `φ.vars.dedup`. -/
+order of their first occurrences. -/
 theorem branchLiteral_eq {φ : CNF ℕ} {π : List (Literal ℕ)} {x : ℕ} {xs : List ℕ}
     (hvs : x :: xs = openVars φ π) : (branchLiteral φ π x xs).val = nextLiteral φ π := by
   unfold branchLiteral nextLiteral
@@ -270,7 +270,7 @@ theorem branchLiteral_eq {φ : CNF ℕ} {π : List (Literal ℕ)} {x : ℕ} {xs 
     simp [hmem, hl]
   · rename_i hl
     have : (openVars φ π).head? = some x := by rw [← hvs]; rfl
-    rw [openVars, List.head?_filter] at this
+    rw [openVars, List.head?_filter, List.find?_eraseDups] at this
     simp [this, hl]
 
 /-- The model of an outcome, if it is one. -/
@@ -381,9 +381,9 @@ theorem model?_search (φ : CNF ℕ) : (fuel : ℕ) → (π : List (Literal ℕ)
               rfl
 
 /-- The number of distinct variables of `φ`: the depth of the search tree. -/
-def depth (φ : CNF ℕ) : ℕ := φ.vars.dedup.length
+def depth (φ : CNF ℕ) : ℕ := φ.vars.eraseDups.length
 
-theorem openVars_nil (φ : CNF ℕ) : openVars φ [] = φ.vars.dedup := by
+theorem openVars_nil (φ : CNF ℕ) : openVars φ [] = φ.vars.eraseDups := by
   simp [openVars, Assigned]
 
 theorem model?_dpll (φ : CNF ℕ) : (dpll φ).model? = (dfs φ (depth φ) []).map assignment :=
