@@ -29,27 +29,28 @@ variable {ι : Type*} [Fintype ι] [DecidableEq ι]
 
 omit [Fintype ι] [DecidableEq ι] in
 /-- A dictator `x ↦ x i`, read as signs, is the character `χ_{i}`. -/
-theorem signVal_dictator_eq_chi (i : ι) : (fun x : ι → Bool => signVal (x i)) = chi ℝ {i} :=
+private theorem signVal_dictator_eq_chi (i : ι) :
+    (fun x : ι → Bool => signVal (x i)) = chi ℝ {i} :=
   funext fun x => (chi_singleton i x).symm
 
 /-- A dictator has variance `1`: its Fourier weight is all on `{i}`. -/
-theorem variance_dictator (i : ι) :
+private theorem variance_dictator (i : ι) :
     𝔼 x : ι → Bool, (signVal (x i) - 𝔼 y : ι → Bool, signVal (y i)) ^ 2 = 1 := by
   rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq, signVal_dictator_eq_chi, sum_filter,
     sum_eq_single {i} (fun S _ hS => by simp [fourierCoeff_chi, Ne.symm hS]) (by simp)]
   simp [fourierCoeff_chi]
 
 /-- A dictator has total influence `1`. -/
-theorem totalInfluence_dictator (i : ι) :
+private theorem totalInfluence_dictator (i : ι) :
     totalInfluence (fun x : ι → Bool => signVal (x i)) = 1 := by
   rw [signVal_dictator_eq_chi, totalInfluence_chi, card_singleton, Nat.cast_one]
 
 /-- The real function `χ_{0} + χ_{0,1}` on two bits. -/
-abbrev twoLevels : (Fin 2 → Bool) → ℝ := fun x => chi ℝ {0} x + chi ℝ {0, 1} x
+private abbrev twoLevels : (Fin 2 → Bool) → ℝ := fun x => chi ℝ {0} x + chi ℝ {0, 1} x
 
 /-- The Fourier weight of `χ_{0} + χ_{0,1}` is `1` on each of `{0}` and `{0, 1}`, and `0`
 elsewhere. -/
-theorem sum_mul_fourierCoeff_twoLevels_sq {s : Finset (Finset (Fin 2))} (h0 : {0} ∈ s)
+private theorem sum_mul_fourierCoeff_twoLevels_sq {s : Finset (Finset (Fin 2))} (h0 : {0} ∈ s)
     (h01 : {0, 1} ∈ s) (g : Finset (Fin 2) → ℝ) :
     ∑ S ∈ s, g S * fourierCoeff twoLevels S ^ 2 = g {0} + g {0, 1} := by
   have h : ({0} : Finset (Fin 2)) ≠ {0, 1} := by decide
@@ -58,7 +59,7 @@ theorem sum_mul_fourierCoeff_twoLevels_sq {s : Finset (Finset (Fin 2))} (h0 : {0
   · simp [fourierCoeff_add, Ne.symm hS.1, Ne.symm hS.2]
 
 /-- `χ_{0} + χ_{0,1}` has variance `2`. -/
-theorem variance_twoLevels : 𝔼 x, (twoLevels x - 𝔼 y, twoLevels y) ^ 2 = 2 := by
+private theorem variance_twoLevels : 𝔼 x, (twoLevels x - 𝔼 y, twoLevels y) ^ 2 = 2 := by
   rw [expect_sub_expect_sq_eq_sum_fourierCoeff_sq]
   have h := sum_mul_fourierCoeff_twoLevels_sq (s := univ.filter (· ≠ ∅)) (by simp) (by simp)
     fun _ => 1
@@ -67,14 +68,14 @@ theorem variance_twoLevels : 𝔼 x, (twoLevels x - 𝔼 y, twoLevels y) ^ 2 = 2
   norm_num
 
 /-- `χ_{0} + χ_{0,1}` has total influence `1 + 2 = 3`. -/
-theorem totalInfluence_twoLevels : totalInfluence twoLevels = 3 := by
+private theorem totalInfluence_twoLevels : totalInfluence twoLevels = 3 := by
   rw [totalInfluence_eq_sum_card_mul_fourierCoeff_sq,
     sum_mul_fourierCoeff_twoLevels_sq (mem_univ _) (mem_univ _)]
   norm_num
 
 /-- **The convexity step on two levels**: for `χ_{0} + χ_{0,1}`, with `Var = 2` and `I = 3`, it
 reads `2 · 3^{-3/2} ≤ 3^{-1} + 3^{-2} = 4 / 9`. -/
-example : 2 * (1 / 3 : ℝ) ^ (3 / 2 : ℝ) ≤ 4 / 9 := by
+theorem two_mul_one_third_rpow_le_four_ninths : 2 * (1 / 3 : ℝ) ^ (3 / 2 : ℝ) ≤ 4 / 9 := by
   have h := expect_sub_expect_sq_mul_one_third_rpow_le twoLevels
   rw [variance_twoLevels, totalInfluence_twoLevels,
     sum_mul_fourierCoeff_twoLevels_sq (by simp) (by simp)] at h
@@ -84,7 +85,8 @@ example : 2 * (1 / 3 : ℝ) ^ (3 / 2 : ℝ) ≤ 4 / 9 := by
 /-- **The KKL Edge-Isoperimetric Theorem on a dictator**: on every index set, for a dictator
 `x ↦ x i` (`Var = I = 1`) the theorem gives a coordinate of influence at least `1`, the maximum
 possible. -/
-example (i : ι) : ∃ j, 1 ≤ influence j fun x : ι → Bool => signVal (x i) := by
+theorem exists_one_le_influence_dictator (i : ι) :
+    ∃ j, 1 ≤ influence j fun x : ι → Bool => signVal (x i) := by
   obtain ⟨j, hj⟩ := exists_nine_div_sq_mul_one_ninth_rpow_le_influence (fun x : ι → Bool => x i)
     (by rw [variance_dictator]; norm_num)
   rw [variance_dictator, totalInfluence_dictator] at hj
@@ -93,7 +95,7 @@ example (i : ι) : ∃ j, 1 ≤ influence j fun x : ι → Bool => signVal (x i)
 /-- **The Kahn–Kalai–Linial theorem for Tribes**: the nearly balanced Tribes function on
 `n = s w` bits, `s = tribesSize w` and `w ≥ 2`, has variance at least `3 / 4`, so the theorem gives
 a coordinate of influence at least `3 log n / (16 n)`. -/
-example {w : ℕ} (hw : 2 ≤ w) :
+theorem exists_three_mul_log_div_le_influence_tribes {w : ℕ} (hw : 2 ≤ w) :
     ∃ k, 3 * Real.log (tribesSize w * w : ℕ) / (16 * (tribesSize w * w : ℕ)) ≤
       influence k (fun x => signVal (tribes w (tribesSize w) x)) := by
   have hs : 1 ≤ tribesSize w :=
