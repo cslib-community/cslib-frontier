@@ -13,12 +13,12 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Decoder.Nat
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.UniformNat
+import CslibFrontier.Crypto.Game.CloseTo.UniformNat
 import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.UniformPoint
-import CslibFrontier.Probability.StatisticalDistance.TotalVariation
 
 /-!
 # Tests for computational random-oracle KDF over encoded non-bit-string finite families
@@ -122,23 +122,18 @@ theorem isPPTOn_encZModVal_sampleZModModNat {width q : ℕ → ℕ} [∀ n, NeZe
   have hlt : x.val % q n < q n := Nat.mod_lt _ (NeZero.pos (q n))
   simp [encZModVal, ZMod.val_natCast, Nat.mod_eq_of_lt hlt]
 
-theorem closeTo_uniform_sampleZModModNat (width q : ℕ) [NeZero q] :
-    CloseTo (uniformOfFintype (ZMod q)) (ProbComp.eval (sampleZModModNat width q))
-      (((q : ℝ≥0) / 2 ^ width : ℝ≥0) : ℝ≥0∞) := by
-  refine (closeTo_of_dist_le ?_).symm
-  simpa only [sampleZModModNat, ProbComp.eval_map, NNReal.coe_div, NNReal.coe_natCast,
-    NNReal.coe_pow, NNReal.coe_ofNat] using
-      ProbComp.dist_map_natCast_eval_sampleModNat_le width q
-
 theorem statisticallyIndistinguishable_uniform_sampleZModModNat (q : ℕ) [NeZero q] :
     StatisticallyIndistinguishable (fun _ => uniformOfFintype (ZMod q))
       (fun n => ProbComp.eval (sampleZModModNat n q)) := by
-  refine ⟨fun n => (q : ℝ≥0) / 2 ^ n, ?_, fun n => closeTo_uniform_sampleZModModNat n q⟩
-  have hmul : (fun n : ℕ => (q : ℝ≥0) / 2 ^ n) = fun n => (q : ℝ≥0) * (1 / 2 ^ n) := by
-    funext n
-    ring
-  rw [hmul]
-  exact negligible_one_div_two_pow.const_mul (q : ℝ≥0)
+  refine ⟨fun n => (q : ℝ≥0) / 2 ^ n, ?_, fun n => ?_⟩
+  · have hmul : (fun n : ℕ => (q : ℝ≥0) / 2 ^ n) = fun n => (q : ℝ≥0) * (1 / 2 ^ n) := by
+      funext n
+      ring
+    rw [hmul]
+    exact negligible_one_div_two_pow.const_mul (q : ℝ≥0)
+  · simpa only [sampleZModModNat, ProbComp.eval_map, ENNReal.coe_div (pow_ne_zero _ two_ne_zero),
+      ENNReal.coe_natCast, ENNReal.coe_pow, ENNReal.coe_ofNat] using
+        closeTo_uniform_sampleModNat n q
 
 /-! ### 2. Boundary witnesses on `ZMod 3`: malformed queries, deduplication, exact `2 / 3` -/
 
@@ -257,7 +252,9 @@ theorem roAdvantage_boundaryZMod3_le_listGuessAdvantage_add (n : ℕ) :
   roAdvantage_toRODistinguisher_le_listGuessAdvantage_add
     (fun _ => decZModVal_eq_some_iff 3) (fun _ => encZModVal 3) (fun m => sampleZModModNat m 3)
     (fun _ => PMF.pure (2 : ZMod 3)) (fun _ _ => ()) boundaryZMod3Distinguisher n 4
-    (by simpa using closeTo_uniform_sampleZModModNat n 3)
+    (by
+      simpa only [sampleZModModNat, ProbComp.eval_map, ENNReal.coe_div (pow_ne_zero _ two_ne_zero),
+        ENNReal.coe_pow, ENNReal.coe_ofNat, Nat.cast_ofNat] using closeTo_uniform_sampleModNat n 3)
     (fun _ _ _ _ => isQueryBounded_boundaryZMod3Distinguisher n _)
 
 /-! ### 3. End-to-end Theorem 8.10 over `ZMod (3 ^ (2 * (n + 1))) → ZMod (3 ^ (n + 1))` & `ZMod 3`

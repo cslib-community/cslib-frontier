@@ -441,9 +441,12 @@ noncomputable abbrev roToGuess [Fintype S] [DecidableEq S] [Nonempty S] [Fintype
     (Q : ℕ) (D : RODistinguisher X S T) : GuessAdversary X S :=
   listGuessToGuess Q (roToListGuess D)
 
-/-- **Theorem 8.10, output-size bound** ([BonehShoup2023], §8.10.2, p. 331): if `D` makes at most
-`Q` random-oracle queries on every path, then `roToListGuess D` outputs a list of length at most
-`Q` on every supported run. -/
+/-- **Eager-table step toward the output-size bound of [BonehShoup2023], Theorem 8.10**
+(§8.10.2, p. 331), not the cited result: if `D` makes at most `Q` random-oracle queries on every
+path, then the eager-table list guesser `roToListGuess D` outputs a list of length at most `Q` on
+every supported run. For the elementary lazy-simulation wrapper `lazyROToListGuess`, see
+`length_le_of_mem_support_lazyROToListGuess` in
+`CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle.Computational`. -/
 theorem length_le_of_mem_support_roToListGuess [Fintype S] [DecidableEq S]
     [Fintype T] [Nonempty T] {D : RODistinguisher X S T} {Q : ℕ}
     (hQ : D.IsOracleQueryBounded Q) (x : X) {l : List S}

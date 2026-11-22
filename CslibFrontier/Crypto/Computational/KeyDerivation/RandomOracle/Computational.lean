@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Si
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import CslibFrontier.Computability.Probabilistic.Oracle.CachedSampler
 public import CslibFrontier.Crypto.Computational.KeyDerivation.RandomOracle
+public import CslibFrontier.Crypto.Game.StatisticalIndistinguishability
 public import CslibFrontier.Languages.Probabilistic.Oracle.Codec
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 public import CslibFrontier.Languages.Probabilistic.UniformNat.ModIndex
@@ -570,10 +571,6 @@ past the end of the list). -/
     let i ← ProbComp.sampleModIndex (width n) (Q n)
     return l.getD i (defaultS n)
 
-private theorem enc_getD {α : Type} (enc : α ↪ List Bool) (l : List α) (i : ℕ) (fallback : α) :
-    enc (l.getD i fallback) = ((l.map enc)[i]?).getD (enc fallback) := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_map, Option.getD_map]
-
 /-- **The lazy singleton-guessing wrapper is efficient**:
 `lazyROToGuess width Q defaultS decS encT sampleT D` is uniform strict PPT whenever `width` and `Q`
 are computable in polynomial time in unary, `(n, w) ↦ (decS n w).isSome` and
@@ -623,7 +620,8 @@ theorem isPPT_lazyROToGuess {X S T : ℕ → Type}
     hlist.bind_with (hsample.map_with hpick)
   refine hprog.congr fun p => ?_
   simp only [lazyROToGuess, ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure,
-    PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, enc_getD]
+    PMF.map, PMF.bind_bind, PMF.pure_bind, Function.comp_def, List.getD_eq_getElem?_getD,
+    List.getElem?_map, Option.getD_map]
 
 /-- **Concrete singleton-guessing inequality of Theorem 8.10** ([BonehShoup2023], §8.10.2,
 pp. 331–332), accounting for fair-coin index and digest sampling: when `sampleT n` is within

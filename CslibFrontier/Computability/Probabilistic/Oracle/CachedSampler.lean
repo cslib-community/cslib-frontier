@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Probabilistic.Memoize
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Computability.Probabilistic.Oracle.RunState
-public import CslibFrontier.Crypto.Game.StatisticalIndistinguishability
+public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
@@ -36,12 +36,14 @@ queries with `[]` without modifying the cache.
 
 * `Cslib.Probability.eval_cachedSamplerOracle`: `ProbComp.eval` identifies `cachedSamplerOracle`
   with `cachedDistOracle`.
-* `Cslib.Probability.cachedSamplerOracle_support`: per-call cache length growth (`≤ +1`) and key
-  validity preservation.
+* `Cslib.Probability.cachedSamplerOracle_cache_of_mem_support`,
+  `Cslib.Probability.cachedSamplerOracle_support`: per-call cache characterization (hit/invalid
+  retention or fresh-query prepend), length growth (`≤ +1`), and key-validity preservation.
 * `Cslib.Probability.valid_of_mem_runState_cachedSamplerOracle`: every key stored in the final
   cache of a run from `[]` satisfies `valid`.
-* `Cslib.Probability.isPPTOn_runState_cachedSamplerOracle`: whole-run uniform strict-PPT
-  certificate for running an `IsOraclePPTOn` program against `cachedSamplerOracle`.
+* `Cslib.Probability.isPPTOn_cachedSamplerOracle`,
+  `Cslib.Probability.isPPTOn_runState_cachedSamplerOracle`: per-call (`@[fun_prop]`) and whole-run
+  uniform strict-PPT certificates for `cachedSamplerOracle`.
 * `Cslib.Probability.closeTo_cachedDistOracle`: per-call statistical distance preservation for
   `cachedDistOracle`.
 -/
@@ -76,6 +78,25 @@ theorem eval_cachedSamplerOracle (valid : List Bool → Bool)
   · simp [cachedSamplerOracle, cachedDistOracle, hv, ProbComp.eval_memoize]
   · simp [cachedSamplerOracle, cachedDistOracle, hv, ProbComp.eval_pure]
 
+/-- A call to `cachedSamplerOracle` either leaves the cache untouched or prepends the reply to a
+fresh valid query. -/
+theorem cachedSamplerOracle_cache_of_mem_support {valid : List Bool → Bool}
+    {sampleReply : ProbComp (List Bool)} {query : List Bool}
+    {cache : List (List Bool × List Bool)} {result : List Bool × List (List Bool × List Bool)}
+    (hresult : result ∈
+      (ProbComp.eval (cachedSamplerOracle valid sampleReply query cache)).support) :
+    result.2 = cache ∨
+      valid query = true ∧ cache.lookup query = none ∧ result.2 = (query, result.1) :: cache := by
+  by_cases hvalid : valid query = true
+  · simp only [cachedSamplerOracle, ite_eq_left hvalid, ProbComp.eval_memoize] at hresult
+    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hresult with
+      ⟨_, hsame⟩ | ⟨hfresh, _, hnew⟩
+    · exact Or.inl hsame
+    · exact Or.inr ⟨hvalid, hfresh, hnew⟩
+  · simp only [cachedSamplerOracle, ite_eq_right hvalid, ProbComp.eval_pure,
+      PMF.mem_support_pure_iff] at hresult
+    exact Or.inl (congrArg Prod.snd hresult)
+
 /-- A call to `cachedSamplerOracle` adds at most one entry and preserves validity of cached keys. -/
 theorem cachedSamplerOracle_support {valid : List Bool → Bool}
     {sampleReply : ProbComp (List Bool)} {q : List Bool}
@@ -83,20 +104,14 @@ theorem cachedSamplerOracle_support {valid : List Bool → Bool}
     (hres : res ∈ (ProbComp.eval (cachedSamplerOracle valid sampleReply q cache)).support) :
     res.2.length ≤ cache.length + 1 ∧
       ((∀ entry ∈ cache, valid entry.1 = true) → ∀ entry ∈ res.2, valid entry.1 = true) := by
-  by_cases hvalid : valid q = true
-  · simp only [cachedSamplerOracle, ite_eq_left hvalid, ProbComp.eval_memoize] at hres
-    rcases (RandomOracle.mem_support_memoize_iff _ _ _ _).mp hres with ⟨_, hsame⟩ | ⟨_, _, hnext⟩
-    · rw [hsame]
-      exact ⟨Nat.le_succ _, id⟩
-    · rw [hnext]
-      refine ⟨by simp, fun hcache entry hentry => ?_⟩
-      rcases List.mem_cons.mp hentry with rfl | hmem
-      · exact hvalid
-      · exact hcache entry hmem
-  · simp only [cachedSamplerOracle, ite_eq_right hvalid, ProbComp.eval_pure,
-      PMF.mem_support_pure_iff] at hres
-    obtain rfl := hres
+  rcases cachedSamplerOracle_cache_of_mem_support hres with hsame | ⟨hvalid, _, hnext⟩
+  · rw [hsame]
     exact ⟨Nat.le_succ _, id⟩
+  · rw [hnext]
+    refine ⟨by simp, fun hcache entry hentry => ?_⟩
+    rcases List.mem_cons.mp hentry with rfl | hmem
+    · exact hvalid
+    · exact hcache entry hmem
 
 /-- Every key recorded in the final cache of a `runState` execution against `cachedSamplerOracle`
 from `[]` satisfies `valid`. -/
@@ -114,6 +129,23 @@ theorem valid_of_mem_runState_cachedSamplerOracle {α : Type}
     (fun cache => ∀ entry ∈ cache, valid entry.1 = true)
     (fun _ cache hcache _ _ hstep => (cachedSamplerOracle_support hstep).2 hcache)
     P [] (by simp) res.1 res.2 hres
+
+/-- Each call to `cachedSamplerOracle` charges the validity test, sampling, query and complete
+input/output cache. -/
+@[fun_prop]
+theorem isPPTOn_cachedSamplerOracle {α : Type} {input : α ↪ List Bool}
+    {valid : α → List Bool → Bool} {sampleReply : α → ProbComp (List Bool)}
+    {query : α → List Bool} {cache : α → List (List Bool × List Bool)}
+    (hvalid : ComputableInPolyTime (fun a => valid a (query a)) input encBool)
+    (hsample : IsPPTOn input encBits sampleReply)
+    (hquery : ComputableInPolyTime query input encBits)
+    (hcache : ComputableInPolyTime cache input (encMemoCache encBits encBits)) :
+    IsPPTOn input (encPair encBits (encMemoCache encBits encBits))
+      (fun a => cachedSamplerOracle (valid a) (sampleReply a) (query a) (cache a)) := by
+  unfold cachedSamplerOracle
+  exact IsPPTOn.cond hvalid
+    (IsPPTOn.memoize (compute := fun a _ => sampleReply a) hsample hquery hcache)
+    (((ComputableInPolyTime.const ([] : List Bool)).prod hcache).isPPTOn)
 
 /-- Running a strict oracle-PPT word program against `cachedSamplerOracle` from `[]` is uniform
 strict PPT when `prepare` and `valid` are computable in polynomial time and `sampleReply` is
@@ -145,12 +177,11 @@ theorem isPPTOn_runState_cachedSamplerOracle {Caller α β : Type}
     let requestEncoding := encPair (encFinEnum Unit) encBits
     let hcaller := ComputableInPolyTime.fst input (encPair requestEncoding cacheEncoding)
     let hrest := ComputableInPolyTime.snd input (encPair requestEncoding cacheEncoding)
-    unfold cachedSamplerOracle
-    exact IsPPTOn.cond
+    exact isPPTOn_cachedSamplerOracle
+      (valid := fun p : Caller × (Unit × List Bool) × List (List Bool × List Bool) => valid p.1)
+      (sampleReply := fun p => sampleReply p.1)
       (hvalid.comp (hcaller.prod hrest.fst'.snd'))
-      (IsPPTOn.memoize (compute := fun p _ => sampleReply p.1)
-        (hsample.preprocess hcaller) hrest.fst'.snd' hrest.snd')
-      (((ComputableInPolyTime.const ([] : List Bool)).prod hrest.snd').isPPTOn)
+      (hsample.preprocess hcaller) hrest.fst'.snd' hrest.snd'
   · intro a request cache hcache result hresult
     by_cases hquery : valid a request.2 = true
     · simp only [cachedSamplerOracle, ite_eq_left hquery, ProbComp.eval_memoize] at hresult
