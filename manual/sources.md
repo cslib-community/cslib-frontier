@@ -222,6 +222,11 @@ Richard Bellman. “Dynamic Programming Treatment of the Travelling Salesman Pro
 
 Charles H. Bennett. *Time/Space Trade-Offs for Reversible Computation*. SIAM Journal on Computing 18(4), 766–776, 1989. https://doi.org/10.1137/0218053 . Bibliographic metadata only; the paper was not inspected in this pass. The manual credits it with the recursive checkpointing strategy as described in [ltv98](#ltv98), Sections 6 and 7.
 
+<a id="benor1983"></a>
+## benor1983
+
+Michael Ben-Or. "Another Advantage of Free Choice (Extended Abstract): Completely Asynchronous Agreement Protocols." *Proceedings of the Second Annual ACM Symposium on Principles of Distributed Computing (PODC '83)*, 27–30, 1983. https://doi.org/10.1145/800221.806707 ; open copy https://cs.nyu.edu/~apanda/classes/sp26/papers/benor83.pdf . Checked against that PDF (SHA-256 `d094451eea8ce287ab4b4625eb50604e32e247dbf724a88d35b57e6fa2a778c4`) on 2026-11-22 UTC: Section 2 ("The Consensus Problem", printed pp. 27–28: binary inputs `x_P`, write-once `0`/`1` output register, unanimous validity `(C1)`, asynchronous message buffer `M`, history- and configuration-dependent adversary step/delivery schedule, and `t`-correctness) and Section 3 ("A Consensus Protocol", printed pp. 28–29: Protocol A on p. 28 with `N - t` Stage-1/Stage-2 waits, `> N / 2` majority for `(2, r, v, D)` vs `(2, r, ?)`, Stage-2 adoption on at least one `D`-message, decision on `> t` `D`-messages, and independent `1 / 2` local coin flip fallback; Theorem 1 and the `N ≤ 2t` partition remark on p. 29). [BenOr/Basic.lean](../CslibFrontier/Computability/Distributed/BenOr/Basic.lean) formalizes quorum-phase execution (`PhaseSchedule.Valid`) and phased mid-stage crash safety (`CrashSchedule.Valid`, `crashRun_agreement`) for Protocol A's thresholds under arbitrary coin sequences; [BenOr/Liveness.lean](../CslibFrontier/Computability/Distributed/BenOr/Liveness.lean) proves a **pre-coin phase-scheduler termination step** (`probRun`, selecting each phase's complete `PhaseSchedule` from the phase boundary state before sampling `localCoinLaw`), alongside a separate common-coin variant (`commonCoinLaw`, not in `[BenOr1983]`), while termination in Section 2's arbitrary step/delivery-interleaving scheduler model remains open in `#7120`.
+
 <a id="bensassonkopparty12"></a>
 ## bensassonkopparty12
 
