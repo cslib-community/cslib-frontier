@@ -37,8 +37,10 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   only a solution of the input certifies the upper bound or `SAT`;
 * the core/derived split: a checked deletion followed by an upper bound certified by a solution
   that does not solve the input, `deld`, unchecked and checked `delc`, `core id`,
-  strengthening-to-core mode, and the numbering of `red` and `delc` with and without subproofs,
-  each compared with VeriPB 3.0.2 and CakePB;
+  strengthening-to-core mode, the numbering of `red` and `delc` with and without subproofs, and
+  two checked deletions in turn, each compared with VeriPB 3.0.2 and CakePB, and the freshness of
+  the numbers (`Inv.ids`) and the monotonicity facts (`runTop_mono`) under the ordinary imports
+  of this module;
 * `obji`: a lower bound from an asserted value with no logged solution, alone and after `soli`;
 * the conclusion section: `SAT : ρ` and `BOUNDS lb : q ub : ρ` with stated assignments, and
   `NONE`;
@@ -536,6 +538,18 @@ end pseudo-Boolean proof;
 "
 
 #guard checkOPB one coreProof == some (.sat none)
+
+/-- Two checked deletions in turn: constraint `2` as in `coreProof`, then `x1 + x2 >= 1` again as
+constraint `5`, whose negation in the subproof is `6`. The numbers of the first subproof are not
+reused. VeriPB and CakePB accept this proof. -/
+def twoCheckedProof : String := coreProof.replace "qed delc : 4;\n"
+  "qed delc : 4;\npol 1 x2 + ;\ncore id 5;\ndelc 5 : : subproof\nrup >= 1 : 6 1;\nqed delc : 7;\n"
+
+#guard (twoCheckedProof.splitOn "delc").length == 5
+#guard checkOPB one twoCheckedProof == some (.sat none)
+-- The number `2` is gone after its deletion, so deleting it again is rejected (VeriPB and CakePB
+-- reject).
+#guard (checkOPB one (twoCheckedProof.replace "delc 5 : :" "delc 2 : :")).isNone
 -- Promoting a core constraint again is a no-op (VeriPB and CakePB accept).
 #guard checkOPB one (coreProof.replace "core id 2;" "core id 2 2;\ncore id 1 2;") ==
   some (.sat none)
@@ -1925,6 +1939,23 @@ example {σ : ℕ → Bool} {L : LoadedOrder} {pres : Option (List ℕ)} {obj : 
     (h : domCheck pres obj L db core n c ω items q = some n') :
     L.Le (Witness.apply σ ω) σ ∧ ¬ L.Le σ (Witness.apply σ ω) :=
   ⟨(domCheck_sound hL hdb hcore hc h).2.1, (domCheck_sound hL hdb hcore hc h).2.2.1⟩
+
+/-! ### Fresh numbers and monotonicity -/
+
+-- In a state that an accepted run reaches, two core constraints with the same number are the same,
+-- as checked deletion relies on, and the numbering has only advanced.
+example {F : List PBConstr} {obj : Option Objective} {pres : Option (List ℕ)} {ts : List TopStep}
+    {s : State} (h : runTop F obj (State.init F obj pres) ts = some s) {i : ℕ} {c c' : PBConstr}
+    (hc : (i, c) ∈ s.core) (hc' : (i, c') ∈ s.core) : c = c' ∧ F.length + 1 ≤ s.next :=
+  have hinv := (invariants_of_runTop h).1
+  ⟨hinv.ids.eq_of_mem (hinv.sub _ hc) (hinv.sub _ hc'), (runTop_mono h).next⟩
+
+-- Once `chk` is lost, it is not restored, and a run logs no more projections for an enumeration.
+example {F : List PBConstr} {obj : Option Objective} {s s' : State} {ts : List TopStep}
+    (h : runTop F obj s ts = some s') (hc : s.chk = false) :
+    s'.chk = false ∧ s'.logged = s.logged :=
+  ⟨Bool.eq_false_iff.2 fun h' => by simpa [hc] using (runTop_mono h).chk h',
+    (runTop_mono h).logged_eq hc⟩
 
 /-! ### Soundness -/
 
