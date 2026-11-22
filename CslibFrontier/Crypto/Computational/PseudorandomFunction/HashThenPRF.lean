@@ -7,17 +7,19 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: candidate
 
-public import CslibFrontier.Crypto.Computational.PseudorandomFunction
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.RandomOracle
 public import CslibFrontier.Crypto.Primitives.PRF.HashThenPRF
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.PolyTime
 
 /-!
-# Word PRF reduction for hash-then-PRF
+# Word reductions for hash-then-PRF
 
 The reduction samples a private hash key and forwards the digest of each valid word to its
 PRF challenger. Malformed words receive an empty reply without a call. A reply is read only
@@ -29,9 +31,14 @@ The real law uses two independent uniform keys and the composition `PRF.hashThen
 allowed. The ideal collision comparison and the security conclusion of Theorem 7.7 are tracked
 in [#5790](https://github.com/cslib-community/cslib-frontier/issues/5790).
 
+The query collector for Game 2 runs the same adversary against a fresh lazy random function and
+outputs the distinct valid queries in its cache. It is strict PPT and its output length is bounded
+by the adversary's query budget.
+
 ## Main definitions
 
 * `Cslib.Crypto.PRF.hashThenPRFWordReduction`: the explicit word-oracle adversary `B_F`.
+* `Cslib.Crypto.PRF.hashThenPRFWordIdealQueries`: the word query collector `B'_H` in Game 2.
 
 ## Main results
 
@@ -39,6 +46,11 @@ in [#5790](https://github.com/cslib-community/cslib-frontier/issues/5790).
 * `Cslib.Crypto.PRF.isQueryBounded_hashThenPRFWordReduction`: at most one call per input query.
 * `Cslib.Crypto.PRF.eval_prfRealGame_hashThenPRFWordReduction`: its real PRF run has the law
   of Game 0 of the proof of Theorem 7.7.
+* `Cslib.Crypto.PRF.isPPTOn_hashThenPRFWordIdealQueries`: a uniform strict PPT collector.
+* `Cslib.Crypto.PRF.nodup_valid_of_mem_support_hashThenPRFWordIdealQueries`: collected queries
+  are distinct and valid.
+* `Cslib.Crypto.PRF.length_le_of_mem_support_hashThenPRFWordIdealQueries`: output length respects
+  the adversary's query bound.
 -/
 
 public section
@@ -152,5 +164,84 @@ theorem eval_prfRealGame_hashThenPRFWordReduction {keyLen inLen outLen : ℕ →
       ProbOracleComp.run_query, prfOracle, hlen, map_pure, List.take_of_length_le hcap.le,
       hashThenPRF]
   · simp only [hashThenPRFWordHandler, hv, Bool.false_eq_true, ite_false, ProbOracleComp.run_pure]
+
+/-- The query-collecting step of Game 2 in [BonehShoup2023], v0.6, §7.3, printed p. 264.
+Run the word adversary against one uniform lazy function on the valid words, then return the
+cache keys. Each valid word is sampled once and malformed words receive `[]`. -/
+@[expose] noncomputable def hashThenPRFWordIdealQueries (outLen : ℕ → ℕ)
+    (valid : ℕ → List Bool → Bool) (A : OracleDistinguisher) :
+    ℕ × List Bool → ProbComp (List (List Bool)) := fun (n, aux) =>
+  (fun result => result.2.map Prod.fst) <$> ((A n aux).runState fun request =>
+    cachedRandomFunctionOracle (valid n) (outLen n) request.2).run []
+
+/-- The query collector is uniform strict PPT when the domain test and unary width schedule are
+polynomial-time and the adversary is uniform strict oracle PPT. -/
+theorem isPPTOn_hashThenPRFWordIdealQueries {outLen : ℕ → ℕ} {valid : ℕ → List Bool → Bool}
+    (houtLen : ComputableInPolyTime outLen encUnary encUnary)
+    (hvalid : ComputableInPolyTime (fun p => valid p.1 p.2) (encPair encUnary encBits) encBool)
+    {A : OracleDistinguisher} (hA : IsOraclePPT encBool A) :
+    IsPPTOn (encPair encUnary encBits) (encList encBits)
+      (hashThenPRFWordIdealQueries outLen valid A) := by
+  let input := encPair encUnary encBits
+  let hparam := (ComputableInPolyTime.fst input encBits).fst'
+  let hmsg := ComputableInPolyTime.snd input encBits
+  have hrun := isPPTOn_runState_cachedRandomFunctionOracle (prepare := id)
+    (valid := fun (p : ℕ × List Bool) q => valid p.1 q) (outLen := outLen ∘ Prod.fst)
+    hA.on ComputableInPolyTime.id' (hvalid.comp (hparam.prod hmsg))
+    (houtLen.comp (ComputableInPolyTime.fst encUnary encBits))
+  exact hrun.map (by fun_prop)
+
+/-- A supported output contains no repeated or invalid words. -/
+theorem nodup_valid_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ → ℕ}
+    {valid : ℕ → List Bool → Bool} {A : OracleDistinguisher} {n : ℕ} {aux : List Bool}
+    {ms : List (List Bool)}
+    (hms : ms ∈ (ProbComp.eval (hashThenPRFWordIdealQueries outLen valid A (n, aux))).support) :
+    ms.Nodup ∧ ∀ msg ∈ ms, valid n msg = true := by
+  rw [hashThenPRFWordIdealQueries, ProbComp.eval_map, PMF.mem_support_map_iff] at hms
+  obtain ⟨⟨result, cache⟩, hrun, rfl⟩ := hms
+  rw [ProbOracleComp.eval_runState] at hrun
+  let oracle (request : Unit × List Bool) (s : List (List Bool × List Bool)) :=
+    ProbComp.eval (cachedRandomFunctionOracle (valid n) (outLen n) request.2 s)
+  let invariant (s : List (List Bool × List Bool)) :=
+    (s.map Prod.fst).Nodup ∧ ∀ msg ∈ s.map Prod.fst, valid n msg = true
+  change (result, cache) ∈ (ProbOracleComp.runWith oracle (A n aux) []).support at hrun
+  change invariant cache
+  refine ProbOracleComp.runWith_invariant oracle invariant ?_ (A n aux) []
+    (by simp [invariant]) result cache hrun
+  intro request s hs reply next hnext
+  rcases cachedRandomFunctionOracle_cache_of_mem_support (valid := valid n)
+      (outLen := outLen n) (query := request.2) (cache := s) (result := (reply, next)) hnext with
+    hsame | ⟨hv, hfresh, hcons⟩
+  · change next = s at hsame
+    rw [hsame]
+    exact hs
+  · change next = (request.2, reply) :: s at hcons
+    dsimp only [invariant] at hs ⊢
+    rw [hcons, List.map_cons, List.nodup_cons]
+    refine ⟨⟨?_, hs.1⟩, ?_⟩
+    · intro hmem
+      obtain ⟨entry, he, heq⟩ := List.mem_map.mp hmem
+      exact (bne_iff_ne.mp (List.lookup_eq_none_iff.mp hfresh entry he)) heq.symm
+    · intro msg hmem
+      rcases List.mem_cons.mp hmem with rfl | hmem
+      · exact hv
+      · exact hs.2 msg hmem
+
+/-- A supported list contains at most as many entries as the adversary can query. -/
+theorem length_le_of_mem_support_hashThenPRFWordIdealQueries {outLen : ℕ → ℕ}
+    {valid : ℕ → List Bool → Bool} {A : OracleDistinguisher} {n Q : ℕ} {aux : List Bool}
+    (hQ : (A n aux).IsQueryBounded Q) {ms : List (List Bool)}
+    (hms : ms ∈ (ProbComp.eval (hashThenPRFWordIdealQueries outLen valid A (n, aux))).support) :
+    ms.length ≤ Q := by
+  rw [hashThenPRFWordIdealQueries, ProbComp.eval_map, PMF.mem_support_map_iff] at hms
+  obtain ⟨⟨result, cache⟩, hrun, rfl⟩ := hms
+  have hbound := ProbOracleComp.measure_runState_le (cost := fun _ => 1) hQ
+    (fun request => cachedRandomFunctionOracle (valid n) (outLen n) request.2) List.length
+    (fun _ s z hz => by
+      rcases cachedRandomFunctionOracle_cache_of_mem_support hz with hsame | ⟨_, _, hcons⟩
+      · rw [hsame]
+        exact Nat.le_succ _
+      · rw [hcons, List.length_cons]) [] (result, cache) hrun
+  simpa only [List.length_map, List.length_nil, Nat.zero_add] using hbound
 
 end Cslib.Crypto.PRF
