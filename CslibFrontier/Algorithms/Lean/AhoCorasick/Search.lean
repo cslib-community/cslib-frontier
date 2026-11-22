@@ -241,10 +241,9 @@ theorem time_scanLoopM_eq (P : List (List α)) (M : Machine α) (t : List α) (i
     (scanLoopM P M t i u).time =
       (scanLoopM P ⟨M.fail, fun _ => []⟩ t i u).time + (scanLoopM P M t i u).ret.length := by
   induction t generalizing i u with
-  | nil => simp only [scanLoopM, TimeM.time_pure, TimeM.ret_pure, List.length_nil, Nat.add_zero]
+  | nil => rfl
   | cons a t ih =>
-    simp only [scanLoopM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, TimeM.ret_bind,
-      TimeM.ret_pure, List.length_append, List.length_map, List.map_nil, List.length_nil, ih]
+    simp only [scanLoopM, time_simps, List.length_append, List.length_map, ih]
     omega
 
 /-- The scan's cost is its number of goto and failure transitions (the cost with emission
@@ -392,10 +391,9 @@ private theorem levelM_spec {P : List (List α)} {d : ℕ} (hd : 1 ≤ d) :
     intro M hps hM
     have hqP : q ∈ P := hps q List.mem_cons_self
     have hpsP : ∀ p ∈ ps, p ∈ P := fun p hp => hps p (List.mem_cons_of_mem q hp)
-    rw [levelM]
+    simp only [levelM, time_simps]
     split_ifs with hq
     · obtain ⟨hstep, _⟩ := stepM_spec hd hM hqP hq
-      simp only [TimeM.ret_bind]
       rw [hstep]
       set v := q.take (d + 1)
       set M1 := M.set P v (failure P v)
@@ -475,13 +473,12 @@ private theorem time_levelM_le {P : List (List α)} {d : ℕ} (hd : 1 ≤ d) :
     intro M hps hM
     have hqP : q ∈ P := hps q List.mem_cons_self
     have hpsP : ∀ p ∈ ps, p ∈ P := fun p hp => hps p (List.mem_cons_of_mem q hp)
-    rw [levelM, List.map_cons, List.map_cons, List.sum_cons, List.sum_cons]
+    simp only [levelM, time_simps]
     split_ifs with hq
     · obtain ⟨hstep, hfd⟩ := stepM_spec hd hM hqP hq
       rw [hfd] at hstep
       have hcost := (time_stepM_le P M.fail (failure P (q.take d)) (q[d]'hq)).1
       rw [hstep] at hcost
-      simp only [TimeM.time_bind]
       rw [hfd, hstep]
       have hvlen : (q.take (d + 1)).length = d + 1 := List.length_take_of_le hq
       have hM1 : AgreesUpTo P (M.set P (q.take (d + 1)) (failure P (q.take (d + 1)))) d :=

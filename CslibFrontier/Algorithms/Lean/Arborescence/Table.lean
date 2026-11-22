@@ -285,7 +285,7 @@ private theorem time_findCycleM (r : Fin n) (f : ParentTable n) :
   refine (time_foldlM_le (c := n + 1) _ _ _ fun acc x _ => ?_).trans_eq ?_
   · cases acc with
     | some _ => simp only [time_simps]; omega
-    | none => simp only [time_simps]; split <;> simp only [time_simps] <;> omega
+    | none => simp only [time_simps]; split <;> omega
   · rw [List.length_finRange]; ring
 
 private def findStep {α : Type*} (p : α → Bool) (a : Option α) (x : α) : Option α :=

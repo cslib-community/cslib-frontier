@@ -616,6 +616,7 @@ theorem reverseM_time {α : Type*} (xs : List α) : (reverseM xs).time = xs.leng
     ✓
     foldMinArcsM f es (f.resCap e.1 e.2)
 
+@[local time_simps]
 private theorem foldMinArcsM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow)
     (es : List (V × V)) (acc : ℕ) :
     (foldMinArcsM f es acc).ret = es.foldl (fun m b => min m (f.resCap b.1 b.2)) acc := by
@@ -630,10 +631,7 @@ private theorem foldMinArcsM_time {V : Type*} [Fintype V] {N : Network V} (f : N
 @[simp]
 theorem bottleneckM_ret {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
     (bottleneckM f p).ret = f.bottleneck p := by
-  unfold bottleneckM Network.Flow.bottleneck
-  rcases pathArcs p with _ | ⟨e, es⟩
-  · rfl
-  · exact foldMinArcsM_ret f es (f.resCap e.1 e.2)
+  time_spec bottleneckM [Network.Flow.bottleneck]
 
 @[simp, time_simps]
 theorem bottleneckM_time {V : Type*} [Fintype V] {N : Network V} (f : N.Flow) (p : List V) :
@@ -721,12 +719,12 @@ private theorem countAdjLoopM_time {n : ℕ} (adj : Fin n → List (Fin n))
 @[expose] def countAdjM {n : ℕ} (adj : Fin n → List (Fin n)) : TimeM ℕ ℕ :=
   countAdjLoopM adj (List.finRange n) 0
 
-@[simp]
+@[simp, time_simps]
 theorem countAdjM_ret {n : ℕ} (adj : Fin n → List (Fin n)) :
     (countAdjM adj).ret = adjSteps adj := by
   time_spec countAdjM
 
-@[simp]
+@[simp, time_simps]
 theorem countAdjM_time {n : ℕ} (adj : Fin n → List (Fin n)) :
     (countAdjM adj).time = n + adjSteps adj := by
   time_spec countAdjM [List.length_finRange]
@@ -917,6 +915,7 @@ private structure StepInv {n : ℕ} {N : Network (Fin n)} (f : N.Flow) (d : ℕ)
   valid_entry : ∀ w rp, vget st.revPath w = some rp →
     ValidRevPath f w rp ∧ f.resDist w < n ∧ f.resDist w ≤ d + 1
 
+@[local time_simps]
 private theorem scanNeighborsM_time {n : ℕ} {N : Network (Fin n)} (f : N.Flow)
     (u : Fin n) (rp_u : List (Fin n)) (hu_walk : IsRevWalkTo f u rp_u)
     (vs : List (Fin n)) (st : BfsState f)
@@ -930,13 +929,13 @@ private theorem expandLayerM_time_le {n : ℕ} {N : Network (Fin n)} (f : N.Flow
   induction us generalizing st with
   | nil => simp [expandLayerM]
   | cons u us' ih =>
-    simp only [expandLayerM, TimeM.time_bind, TimeM.time_tick, List.map_cons, List.sum_cons]
+    simp only [expandLayerM, time_simps]
     split
-    · have := ih st; simp only [TimeM.time_bind, TimeM.ret_pure, TimeM.time_pure]; omega
+    · have := ih st; simp only [time_simps]; omega
     · rename_i rp_u hget
       have := ih (scanNeighborsM f u rp_u (st.tblValid.walk u rp_u hget) (adj u) st
         (st.tblValid.mem_isSome u rp_u hget)).ret
-      simp only [TimeM.time_bind, scanNeighborsM_time]; omega
+      simp only [time_simps]; omega
 
 private theorem scanNeighborsM_preserves {n : ℕ} {N : Network (Fin n)} {f : N.Flow} {d : ℕ}
     {baseTbl : Vector (Option (List (Fin n))) n}
@@ -1535,7 +1534,7 @@ theorem edmondsKarpM_correct {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
       out.cut = out.flow.reachableCut ∧
       out.augmentations ≤ N.symArcs.card * (n / 2) ∧
       out.augmentations ≤ n * N.posArcs.card := by
-  simp only [edmondsKarpM, TimeM.ret_bind, hst, ↓reduceIte, countAdjM_ret]
+  simp only [edmondsKarpM, time_simps, hst, ↓reduceIte]
   obtain ⟨hno, hcut_eq, haug_sym, haug_pos, _⟩ := edmondsKarpLoopM_spec_init hadj hst
   have hval := Network.Flow.value_eq_cutCapacity_reachableCut _ hno
   have hmin := Network.Flow.isMinCut_of_value_eq_cutCapacity _
@@ -1556,12 +1555,10 @@ theorem edmondsKarpM_time_le {n : ℕ} {N : Network (Fin n)} {adj : Fin n → Li
     (edmondsKarpM N adj).time ≤ (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) := by
   have hn : 0 < n := Nat.zero_lt_of_lt N.s.isLt
   simp only [edmondsKarpM, time_simps]
-  by_cases hst : N.s = N.t
-  · simp only [hst, ↓reduceIte, TimeM.time_pure]
-    exact (by omega : 2 * n + (1 + 0) ≤ 2 * (adjSteps adj + 5 * n)).trans
+  split_ifs with hst
+  · exact (by omega : 2 * n + 1 ≤ 2 * (adjSteps adj + 5 * n)).trans
       (Nat.mul_le_mul_right _ (by omega))
-  · simp only [hst, ↓reduceIte, TimeM.time_bind, countAdjM_time, countAdjM_ret]
-    obtain ⟨_, _, _, _, hloop_t⟩ := edmondsKarpLoopM_spec_init hadj hst
+  · obtain ⟨_, _, _, _, hloop_t⟩ := edmondsKarpLoopM_spec_init hadj hst
     have hmul : (N.symArcs.card * (n / 2) + 2) * (adjSteps adj + 5 * n) =
         (adjSteps adj + 5 * n) + (N.symArcs.card * (n / 2) + 1) * (adjSteps adj + 5 * n) := by
       rw [show N.symArcs.card * (n / 2) + 2 = 1 + (N.symArcs.card * (n / 2) + 1) by omega,

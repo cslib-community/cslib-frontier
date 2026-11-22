@@ -364,31 +364,25 @@ bounds. -/
 theorem addM_time_eq_upChain {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).time = if pos < t.size then (upChain t.size (pos + 1)).length else 0 := by
-  unfold addM size
-  split_ifs with hpos
-  · simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero, addLoopM_time_eq]
-  · simp only [TimeM.time_pure]
+  time_spec addM [size]
 
 /-- `addM t pos δ` updates at most `⌈log₂ (t.size + 1)⌉` Fenwick nodes (`0` when `t.size = 0`). -/
 theorem addM_time_le_clog {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).time ≤ Nat.clog 2 (t.size + 1) := by
-  unfold addM
+  simp only [addM, time_simps]
   split_ifs with hpos
-  · simp only [time_simps]
-    exact length_upChain_le_clog t.size (pos + 1)
-  · simp only [TimeM.time_pure, Nat.zero_le]
+  · exact length_upChain_le_clog t.size (pos + 1)
+  · exact Nat.zero_le _
 
 /-- `addM t pos δ` updates at most `⌊log₂ t.size⌋ + 1` Fenwick nodes. -/
 theorem addM_time_le_log {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (addM t pos δ).time ≤ Nat.log 2 t.size + 1 := by
-  unfold addM
+  simp only [addM, time_simps]
   split_ifs with hpos
-  · simp only [time_simps]
-    exact length_upChain_le_log (by omega) (Nat.succ_le_of_lt hpos)
-  · simp only [TimeM.time_pure]
-    omega
+  · exact length_upChain_le_log (by omega) (Nat.succ_le_of_lt hpos)
+  · omega
 
 @[time_simps]
 private theorem addLoopM_size {α : Type*} [AddCommMonoid α]
@@ -483,10 +477,7 @@ theorem valid_add {α : Type*} [AddCommMonoid α]
 theorem size_add {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) (pos : ℕ) (δ : α) :
     (add t pos δ).size = t.size := by
-  unfold add addM size
-  split_ifs with hpos
-  · simp only [time_simps]
-  · simp only [TimeM.ret_pure]
+  unfold add; time_spec addM [size]
 
 theorem add_of_size_le {α : Type*} [AddCommMonoid α]
     (t : FenwickTree α) {pos : ℕ} (δ : α) (h : t.size ≤ pos) :
@@ -742,13 +733,10 @@ theorem ret_rangeSumM_eq {α : Type*} [AddCommGroup α]
 theorem rangeSumM_time_le_clog {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) (l r : ℕ) :
     (rangeSumM t l r).time ≤ 2 * Nat.clog 2 (t.size + 1) := by
-  unfold rangeSumM
-  split_ifs with hlt
-  · simp only [time_simps]
-    have h1 := prefixSumM_time_le_clog t r
-    have h2 := prefixSumM_time_le_clog t l
-    omega
-  · simp only [TimeM.time_pure, Nat.zero_le]
+  simp only [rangeSumM, time_simps]
+  have h1 := prefixSumM_time_le_clog t r
+  have h2 := prefixSumM_time_le_clog t l
+  split_ifs <;> omega
 
 /-- Point query at `0`-based index `pos` (`0` out of bounds) in `TimeM ℕ`. -/
 def getM {α : Type*} [AddCommGroup α] (t : FenwickTree α) (pos : ℕ) : TimeM ℕ α :=
@@ -814,21 +802,15 @@ theorem valid_set {α : Type*} [AddCommGroup α]
 theorem size_set {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) (pos : ℕ) (v : α) :
     (set t pos v).size = t.size := by
-  unfold set setM
-  split_ifs with hpos
-  · simp only [TimeM.ret_bind, ret_addM, size_add]
-  · simp only [TimeM.ret_pure]
+  unfold set; time_spec setM [ret_addM, size_add]
 
 theorem setM_time_le_clog {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) (pos : ℕ) (v : α) :
     (setM t pos v).time ≤ 3 * Nat.clog 2 (t.size + 1) := by
-  unfold setM
-  split_ifs with hpos
-  · simp only [TimeM.time_bind]
-    have h1 := getM_time_le_clog t pos
-    have h2 := addM_time_le_clog t pos (v - (getM t pos).ret)
-    omega
-  · simp only [TimeM.time_pure, Nat.zero_le]
+  simp only [setM, time_simps]
+  have h1 := getM_time_le_clog t pos
+  have h2 := addM_time_le_clog t pos (v - (getM t pos).ret)
+  split_ifs <;> omega
 
 theorem set_of_size_le {α : Type*} [AddCommGroup α]
     (t : FenwickTree α) {pos : ℕ} (v : α) (h : t.size ≤ pos) :

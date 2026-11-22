@@ -115,18 +115,8 @@ open Polynomial Cslib.Algorithms.Lean
 @[simp]
 theorem refineLeftLoopTotalM_ret (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),
-      (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret
-  | 0, u, v, _ => by
-    simp only [refineLeftLoopTotalM, refineLeftLoopM, TimeM.ret_bind, TimeM.ret_pure]
-  | fuel + 1, u, v, vu => by
-    simp only [refineLeftLoopTotalM, refineLeftLoopM, TimeM.ret_bind, sturmVariationsListM_ret,
-      sturmVariationsM_ret]
-    split_ifs with hvm
-    · simp only [TimeM.ret_pure]
-    · simp only [TimeM.ret_bind, evalCoeffListM_ret, evalListM_ret]
-      split_ifs with hem
-      · simp only [TimeM.ret_pure]
-      · exact refineLeftLoopTotalM_ret t seq fuel u ((u + v) / 2) vu
+      (refineLeftLoopTotalM t seq fuel u v vu).ret = (refineLeftLoopM t seq fuel u v vu).ret := by
+  time_spec refineLeftLoopTotalM [refineLeftLoopM]
 
 theorem refineLeftLoopTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu : ℕ),
@@ -136,16 +126,11 @@ theorem refineLeftLoopTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) :
   | 0, _, _, _ => by simp only [refineLeftLoopTotalM, time_simps, zero_mul, le_refl]
   | fuel + 1, u, v, vu => by
     have hsv := sturmVariationsListM_time_le seq ((u + v) / 2)
+    have ih := refineLeftLoopTotalM_time_le t seq fuel u ((u + v) / 2) vu
+    dsimp only at ih
     simp only [refineLeftLoopTotalM, time_simps]
     rw [Nat.succ_mul fuel]
-    split_ifs
-    · simp only [TimeM.time_pure]; omega
-    · simp only [time_simps]
-      split_ifs
-      · simp only [TimeM.time_pure]; omega
-      · have ih := refineLeftLoopTotalM_time_le t seq fuel u ((u + v) / 2) vu
-        dsimp only at ih
-        omega
+    split_ifs <;> omega
 
 /-- Step-charged conversion of a half-open isolating interval `(u, v]` into a closed isolating
 interval `[a, b] ⊆ [u, v]`. -/
@@ -167,13 +152,7 @@ interval `[a, b] ⊆ [u, v]`. -/
 theorem refineLeftRootTotalM_ret (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftRootTotalM t seq fuel u v vu).ret = (refineLeftRootM t seq fuel u v vu).ret := by
-  simp only [refineLeftRootTotalM, refineLeftRootM, time_simps]
-  split_ifs with hev
-  · simp only [TimeM.ret_pure]
-  · simp only [time_simps]
-    split_ifs with heu
-    · simp only [TimeM.ret_pure]
-    · exact refineLeftLoopTotalM_ret t seq fuel u v vu
+  time_spec refineLeftRootTotalM [refineLeftRootM, refineLeftLoopTotalM_ret]
 
 theorem refineLeftRootTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
@@ -181,15 +160,10 @@ theorem refineLeftRootTotalM_time_le (t : List ℚ) (seq : List (List ℚ)) (fue
     let eCost := 2 * t.length + 1
     (refineLeftRootTotalM t seq fuel u v vu).time ≤
       2 * eCost + 3 + fuel * (vCost + eCost + 4) := by
+  have hloop := refineLeftLoopTotalM_time_le t seq fuel u v vu
+  dsimp only at hloop
   simp only [refineLeftRootTotalM, time_simps]
-  split_ifs
-  · simp only [TimeM.time_pure]; omega
-  · simp only [time_simps]
-    split_ifs
-    · simp only [TimeM.time_pure]; omega
-    · have hloop := refineLeftLoopTotalM_time_le t seq fuel u v vu
-      dsimp only at hloop
-      omega
+  split_ifs <;> omega
 
 /-- Step-charged recursive Sturm-count bisection on `(u, v]`, charging arithmetic, comparisons,
 and list appends (`appendM`). -/
@@ -223,18 +197,12 @@ and list appends (`appendM`). -/
 theorem isolateIocTotalM_ret (t : List ℚ) (seq : List (List ℚ)) (depthBound : ℕ) :
     ∀ (fuel : ℕ) (u v : ℚ) (vu vv : ℕ),
       (isolateIocTotalM t seq depthBound fuel u v vu vv).ret =
-        (isolateIocM t seq depthBound fuel u v vu vv).ret
-  | fuel, u, v, vu, vv => by
-    unfold isolateIocTotalM isolateIocM
-    dsimp only
-    simp only [TimeM.ret_bind]
-    split_ifs with hc0 hc1
-    · simp only [TimeM.ret_pure]
-    · simp only [time_simps]
-    · cases fuel with
-      | zero => simp only [time_simps]
-      | succ fuel' =>
-        simp only [time_simps, isolateIocTotalM_ret t seq depthBound fuel']
+        (isolateIocM t seq depthBound fuel u v vu vv).ret := by
+  intro fuel
+  induction fuel with
+  | zero => intro u v vu vv; unfold isolateIocTotalM isolateIocM; simp only [time_simps]
+  | succ fuel' ih =>
+    intro u v vu vv; unfold isolateIocTotalM isolateIocM; simp only [time_simps, ih]
 
 private theorem isolateIocM_length_le {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     (t : List ℚ) (depthBound : ℕ) :
@@ -284,12 +252,12 @@ private theorem isolateIocTotalM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs
     unfold isolateIocTotalM
     simp only [time_simps]
     by_cases hc0 : vu - vv = 0
-    · simp only [eq_true hc0, ↓reduceIte, TimeM.time_pure]; omega
-    · simp only [eq_false hc0, ↓reduceIte, time_simps]
+    · simp only [eq_true hc0, ↓reduceIte]; omega
+    · simp only [eq_false hc0, ↓reduceIte]
       by_cases hc1 : vu - vv = 1
       · have href := refineLeftRootTotalM_time_le t (sturmSeqList cs) depthBound u v vu
         dsimp only at href
-        simp only [hc1, le_refl, ↓reduceIte, time_simps, zero_mul, one_mul]
+        simp only [hc1, le_refl, ↓reduceIte, zero_mul, one_mul]
         omega
       · simp only [eq_false hc1, show ¬(vu - vv ≤ 1) by omega, ↓reduceIte]
         set seq := sturmSeqList cs
@@ -361,16 +329,11 @@ theorem separateMidLoopM_time_le (seq : List (List ℚ)) :
   | fuel + 1, a, m, b, vm => by
     have hsv1 := sturmVariationsListM_time_le seq ((a + m) / 2)
     have hsv2 := sturmVariationsListM_time_le seq ((m + b) / 2)
+    have ih := separateMidLoopM_time_le seq fuel ((a + m) / 2) m ((m + b) / 2) vm
+    dsimp only at ih
     simp only [separateMidLoopM, time_simps]
     rw [Nat.succ_mul fuel]
-    split_ifs
-    · simp only [TimeM.time_pure]; omega
-    · simp only [time_simps]
-      split_ifs
-      · simp only [TimeM.time_pure]; omega
-      · have ih := separateMidLoopM_time_le seq fuel ((a + m) / 2) m ((m + b) / 2) vm
-        dsimp only at ih
-        omega
+    split_ifs <;> omega
 
 private theorem separateMidLoopM_dyadicBounded (seq : List (List ℚ)) :
     ∀ (fuel B e : ℕ) (a m b : ℚ) (vm : ℕ),
@@ -384,11 +347,9 @@ private theorem separateMidLoopM_dyadicBounded (seq : List (List ℚ)) :
     have hm2 := hm.mid hb
     split_ifs
     · exact ⟨hm1.mono (by omega), hm.mono (by omega)⟩
-    · simp only [time_simps]
-      split_ifs
-      · exact ⟨hm.mono (by omega), hm2.mono (by omega)⟩
-      · simpa only [Nat.add_right_comm, Nat.add_assoc] using
-          separateMidLoopM_dyadicBounded seq fuel B (e + 1) _ m _ vm hm1 (hm.mono (by omega)) hm2
+    · exact ⟨hm.mono (by omega), hm2.mono (by omega)⟩
+    · simpa only [Nat.add_right_comm, Nat.add_assoc] using
+        separateMidLoopM_dyadicBounded seq fuel B (e + 1) _ m _ vm hm1 (hm.mono (by omega)) hm2
 
 private theorem exists_root_Ioc_of_var_pos {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     {u v : ℚ} (huv : u ≤ v)
@@ -438,25 +399,21 @@ private theorem separateMidLoopM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).S
     have h2r := sturmVariationsList_antitone hsep hm2b.le
     dsimp only [seq, m₁, m₂] at h1l h1r h2l h2r
     simp only [separateMidLoopM, time_simps]
-    split_ifs with h1
-    · simp only [TimeM.ret_pure]
-      exact ⟨ham1.le, hm1m.le, le_rfl, hmb.le, hm1m,
+    split_ifs with h1 h2
+    · exact ⟨ham1.le, hm1m.le, le_rfl, hmb.le, hm1m,
         fun r h1r' hrm => no_root_Ioc_of_card_eq_zero hsep hm1m.le
           (by rw [← hvm]; dsimp only [m₁]; omega) h1r' hrm,
         fun _ _ _ => by linarith⟩
-    · simp only [time_simps]
-      split_ifs with h2
-      · simp only [TimeM.ret_pure]
-        exact ⟨ham.le, le_rfl, hmm2.le, hm2b.le, hmm2, fun _ _ _ => by linarith,
-          fun r hmr hrm2 => no_root_Ioc_of_card_eq_zero hsep hmm2.le
-            (by rw [← hvm]; dsimp only [m₂]; omega) hmr hrm2⟩
-      · have hw_next : (m₂ - m₁ : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ (depth + 1) := by
-          have : (m₂ - m₁ : ℝ) = (b - a : ℝ) / 2 := by dsimp only [m₁, m₂]; push_cast; ring
-          rw [this, pow_succ, ← div_div]; linarith
-        rcases separateMidLoopM_spec hsep fuel (depth + 1) m₁ m m₂ vm (by omega) hm1m hmm2
-            hvm (by dsimp only [m₁]; omega) (by dsimp only [m₂]; omega) hnotm hw_next with
-          ⟨i1, i2, i3, i4, ilt, in1, in2⟩
-        exact ⟨ham1.le.trans i1, i2, i3, i4.trans hm2b.le, ilt, in1, in2⟩
+    · exact ⟨ham.le, le_rfl, hmm2.le, hm2b.le, hmm2, fun _ _ _ => by linarith,
+        fun r hmr hrm2 => no_root_Ioc_of_card_eq_zero hsep hmm2.le
+          (by rw [← hvm]; dsimp only [m₂]; omega) hmr hrm2⟩
+    · have hw_next : (m₂ - m₁ : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ (depth + 1) := by
+        have : (m₂ - m₁ : ℝ) = (b - a : ℝ) / 2 := by dsimp only [m₁, m₂]; push_cast; ring
+        rw [this, pow_succ, ← div_div]; linarith
+      rcases separateMidLoopM_spec hsep fuel (depth + 1) m₁ m m₂ vm (by omega) hm1m hmm2
+          hvm (by dsimp only [m₁]; omega) (by dsimp only [m₂]; omega) hnotm hw_next with
+        ⟨i1, i2, i3, i4, ilt, in1, in2⟩
+      exact ⟨ham1.le.trans i1, i2, i3, i4.trans hm2b.le, ilt, in1, in2⟩
 
 /-- Separate the boundary between two consecutive isolating intervals `I₁` and `I₂` in `TimeM ℕ`,
 returning `(u₁', l₂')` with `I₁.lower ≤ u₁' ≤ I₁.upper`, `I₂.lower ≤ l₂' ≤ I₂.upper`, and
@@ -481,18 +438,12 @@ theorem separatePairM_time_le (t : List ℚ) (seq : List (List ℚ)) (depth : �
     let eCost := 2 * t.length + 1
     (separatePairM t seq depth I₁ I₂).time ≤
       eCost + vCost + depth * (2 * vCost + 6) + 3 := by
+  have := sturmVariationsListM_time_le seq I₁.upper
+  have hmid := separateMidLoopM_time_le seq depth I₁.lower I₁.upper I₂.upper
+    (sturmVariationsList seq I₁.upper)
+  dsimp only at hmid
   simp only [separatePairM, time_simps]
-  split_ifs
-  · simp only [TimeM.time_pure]; omega
-  · simp only [time_simps]
-    split_ifs
-    · simp only [TimeM.time_pure]; omega
-    · simp only [time_simps]
-      have := sturmVariationsListM_time_le seq I₁.upper
-      have hmid := separateMidLoopM_time_le seq depth I₁.lower I₁.upper I₂.upper
-        (sturmVariationsList seq I₁.upper)
-      dsimp only at hmid
-      omega
+  split_ifs <;> omega
 
 private theorem separatePairM_dyadicBounded (t : List ℚ) (seq : List (List ℚ))
     (depth B e : ℕ) (I₁ I₂ : RootInterval)
@@ -503,12 +454,9 @@ private theorem separatePairM_dyadicBounded (t : List ℚ) (seq : List (List ℚ
   simp only [separatePairM, time_simps]
   split_ifs
   · exact ⟨h1u.mono (by omega), h2l.mono (by omega)⟩
-  · simp only [time_simps]
-    split_ifs
-    · exact ⟨h1l.mono (by omega), h2l.mono (by omega)⟩
-    · simp only [time_simps]
-      exact separateMidLoopM_dyadicBounded seq depth B e I₁.lower I₁.upper I₂.upper _
-        h1l h1u h2u
+  · exact ⟨h1l.mono (by omega), h2l.mono (by omega)⟩
+  · exact separateMidLoopM_dyadicBounded seq depth B e I₁.lower I₁.upper I₂.upper _
+      h1l h1u h2u
 
 private theorem sturmVariationsList_sub_eq_one_of_unique_Ioc {cs : List ℚ}
     (hsep : (ofCoeffList cs).Separable) {u v : ℚ} {r₀ : ℝ} (huv : u ≤ v)
@@ -540,23 +488,22 @@ private theorem separatePairM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Sepa
       res.1 < res.2 ∧
       (∀ r : ℝ, (I₁.lower : ℝ) ≤ r ∧ r ≤ (I₁.upper : ℝ) ∧ pR.IsRoot r → r ≤ (res.1 : ℝ)) ∧
       (∀ r : ℝ, (I₂.lower : ℝ) ≤ r ∧ r ≤ (I₂.upper : ℝ) ∧ pR.IsRoot r → (res.2 : ℝ) ≤ r) := by
-  simp only [separatePairM, TimeM.ret_bind]
-  split_ifs with hlt
-  · exact ⟨hiso₁.1, le_rfl, le_rfl, hiso₂.1, hlt, fun _ h => h.2.1, fun _ h => h.1⟩
-  · rcases hgap with hlt' | ⟨heq_m, hnotm⟩
+  simp only [separatePairM, time_simps]
+  split
+  · next hlt =>
+    exact ⟨hiso₁.1, le_rfl, le_rfl, hiso₂.1, hlt, fun _ h => h.2.1, fun _ h => h.1⟩
+  · next hlt =>
+    rcases hgap with hlt' | ⟨heq_m, hnotm⟩
     · exact (hlt hlt').elim
-    · simp only [time_simps]
-      split_ifs with hel
-      · simp only [TimeM.ret_pure]
-        have hl_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
+    · split_ifs with hel
+      · have hl_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
           IsRoot.def.mpr ((eval_rat_eq_zero_iff cs I₁.lower).mp hel)
         have hl_lt : I₁.lower < I₁.upper :=
           lt_of_le_of_ne hiso₁.1 fun h => hnotm (h ▸ hl_root)
         obtain ⟨_, _, huniq⟩ := hiso₁.2
         refine ⟨le_rfl, hiso₁.1, le_rfl, hiso₂.1, heq_m ▸ hl_lt, fun r hr => ?_, fun _ h => h.1⟩
         rw [huniq r hr, ← huniq _ ⟨le_rfl, Rat.cast_le.mpr hiso₁.1, hl_root⟩]
-      · simp only [time_simps]
-        have hnotl : ¬((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
+      · have hnotl : ¬((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (I₁.lower : ℝ) :=
           fun h => hel ((eval_rat_eq_zero_iff cs I₁.lower).mpr h.eq_zero)
         have heqR : (I₁.upper : ℝ) = (I₂.lower : ℝ) := congrArg Rat.cast heq_m
         obtain ⟨r₁, ⟨hr₁l, hr₁u, hr₁r⟩, hr₁_uniq⟩ := hiso₁.2
@@ -775,9 +722,7 @@ private theorem isolateRootsTotal_eq_separateTouching (cs : List ℚ) :
       (separateTouchingM (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
         (isolateRoots cs)).ret := by
   simp only [isolateRootsTotal, isolateRootsTotalM, isolateRoots, isolateRootsM, time_simps]
-  by_cases he : (CoeffList.trim cs).isEmpty = true
-  · simp only [he, ↓reduceIte, time_simps, separateTouchingM]
-  · simp only [he, Bool.false_eq_true, ↓reduceIte, time_simps]
+  split_ifs <;> simp only [separateTouchingM, time_simps]
 
 /-- `isolateRootsTotal cs` has the exact same length as `isolateRoots cs`. -/
 theorem isolateRootsTotal_length_eq (cs : List ℚ) :

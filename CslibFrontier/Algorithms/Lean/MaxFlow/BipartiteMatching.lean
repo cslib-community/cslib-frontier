@@ -947,11 +947,10 @@ private theorem extractCoverLeftLoopM_time_le {m r : ℕ} (G : Fin m × Fin r �
   | cons u us' ih =>
     simp only [extractCoverLeftLoopM, time_simps]
     rw [Nat.add_one_mul]
-    split_ifs
+    split
     · have hrec := ih (insert u acc)
       omega
-    · simp only [TimeM.time_bind]
-      have h1 := hasUncoveredRightM_time_le G cut u (List.finRange r)
+    · have h1 := hasUncoveredRightM_time_le G cut u (List.finRange r)
       simp only [List.length_finRange] at h1
       have hrec :=
         ih (if (hasUncoveredRightM G cut u (List.finRange r)).ret then insert u acc else acc)

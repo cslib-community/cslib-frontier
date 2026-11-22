@@ -431,8 +431,7 @@ private theorem divModAuxM_spec {v : List ℚ} (hv : CoeffList.IsTrimmed v) (hv0
   | n + 1, u, hlen => by
     simp only [divModAuxM, time_simps]
     split_ifs with hlt
-    · simp only [TimeM.ret_pure]
-      exact ⟨CoeffList.isTrimmed_nil, by simp, CoeffList.isTrimmed_trim u, hlt, by simp⟩
+    · exact ⟨CoeffList.isTrimmed_nil, by simp, CoeffList.isTrimmed_trim u, hlt, by simp⟩
     · have huv : v.length ≤ (CoeffList.trim u).length := Nat.le_of_not_lt hlt
       have hu0 : CoeffList.trim u ≠ [] :=
         List.ne_nil_of_length_pos (lt_of_lt_of_le (List.length_pos_of_ne_nil hv0) huv)
@@ -444,7 +443,7 @@ private theorem divModAuxM_spec {v : List ℚ} (hv : CoeffList.IsTrimmed v) (hv0
       have hv_lastD : v.getLastD 0 = lc := by rw [hveq, List.getLastD_concat]
       have hu_lastD : (CoeffList.trim u).getLastD 0 = lu := by rw [hueq, List.getLastD_concat]
       have hfac0 : lu / lc ≠ 0 := div_ne_zero hlu0 hlc0
-      simp only [TimeM.ret_bind, getLast?M_ret, hv_last, hu_last, time_simps]
+      simp only [hv_last, hu_last, time_simps]
       set d := (CoeffList.trim u).length - v.length
       set c := lu / lc
       set diff := (subListM (CoeffList.trim u) ((List.replicate d 0 ++ v).map (c * ·))).ret
@@ -500,12 +499,10 @@ theorem divModAuxM_time_le :
     have htr_u := trimM_time_le u
     simp only [divModAuxM, time_simps]
     split_ifs with hlt
-    · simp only [TimeM.time_pure]
-      have hpos : 0 ≤ (n + 1) * (20 * M + 20) := Nat.zero_le _
+    · have hpos : 0 ≤ (n + 1) * (20 * M + 20) := Nat.zero_le _
       rw [Nat.add_right_comm n 1 1, Nat.succ_mul]
       omega
     · have huv : v.length ≤ (CoeffList.trim u).length := Nat.le_of_not_lt hlt
-      simp only [TimeM.time_bind, getLast?M_ret]
       have hgl_v := getLast?M_time_le v
       have hgl_u := getLast?M_time_le (CoeffList.trim u)
       cases v.getLast? with
@@ -672,15 +669,13 @@ theorem sturmSeqAuxM_time_le :
     simp only [sturmSeqAuxM, time_simps]
     rw [Nat.succ_mul (n + 1)]
     split_ifs with hemp
-    · simp only [time_simps]
-      have hpos : 0 ≤ (n + 1) * ((max p.length q.length + 2) *
+    · have hpos : 0 ≤ (n + 1) * ((max p.length q.length + 2) *
         (20 * max p.length q.length + 30)) := Nat.zero_le _
       have h2 : 2 ≤ (max p.length q.length + 2) * (20 * max p.length q.length + 30) :=
         (by decide : 2 ≤ 2 * 30).trans
           (Nat.mul_le_mul (Nat.le_add_left 2 _) (Nat.le_add_left 30 _))
       omega
-    · simp only [time_simps]
-      have hneg := negModListM_time_le p q
+    · have hneg := negModListM_time_le p q
       have hr_le : (CoeffList.negMod p q).length ≤ M :=
         (CoeffList.length_negMod_le p q).trans hp_le
       have hmax_qr : max q.length (CoeffList.negMod p q).length ≤ M := max_le hq_le hr_le
@@ -719,10 +714,8 @@ theorem sturmSeqListM_time_le (cs : List ℚ) :
   have htr := trimM_time_le cs
   simp only [sturmSeqListM, time_simps]
   split_ifs with hemp
-  · simp only [TimeM.time_pure]
-    nlinarith
-  · simp only [time_simps]
-    have hdp_t := derivListM_time_le (CoeffList.trim cs)
+  · nlinarith
+  · have hdp_t := derivListM_time_le (CoeffList.trim cs)
     have hdp_len : (CoeffList.deriv (CoeffList.trim cs)).length ≤ n :=
       (CoeffList.length_deriv_le (CoeffList.trim cs)).trans ((Nat.sub_le _ _).trans hp_le)
     have hmax : max (CoeffList.trim cs).length (CoeffList.deriv (CoeffList.trim cs)).length ≤ n :=
@@ -793,11 +786,7 @@ private theorem mapSignM_time (qs : List ℚ) : (mapSignM qs).time = qs.length +
 @[time_simps]
 private theorem filterNonzeroSignM_ret (ss : List SignType) :
     (filterNonzeroSignM ss).ret = ss.filter (fun x => decide (x ≠ 0)) := by
-  induction ss with
-  | nil => simp only [filterNonzeroSignM, List.filter_nil, TimeM.ret_bind, TimeM.ret_pure]
-  | cons s ss ih =>
-    simp only [filterNonzeroSignM, List.filter_cons, TimeM.ret_bind, ih]
-    split_ifs <;> simp only [TimeM.ret_pure]
+  time_spec filterNonzeroSignM [List.filter_nil, List.filter_cons]
 
 @[time_simps]
 private theorem filterNonzeroSignM_time (ss : List SignType) :
@@ -820,13 +809,7 @@ private theorem filterNonzeroSignM_time (ss : List SignType) :
 @[time_simps]
 private theorem destutterNeAuxM_ret (b : SignType) (l : List SignType) :
     (destutterNeAuxM b l).ret = List.destutter' (· ≠ ·) b l := by
-  induction l generalizing b with
-  | nil => simp only [destutterNeAuxM, List.destutter'_nil, time_simps]
-  | cons a l ih =>
-    simp only [destutterNeAuxM, TimeM.ret_bind]
-    by_cases hne : b ≠ a
-    · simp only [eq_true hne, ↓reduceIte, time_simps, ih a, List.destutter'_cons_pos l hne]
-    · simp only [eq_false hne, ↓reduceIte, ih b, List.destutter'_cons_neg l hne]
+  time_spec destutterNeAuxM [List.destutter'_nil, List.destutter'_cons]
 
 @[time_simps]
 private theorem destutterNeAuxM_time (b : SignType) (l : List SignType) :
@@ -971,14 +954,10 @@ theorem cauchyBoundNatM_time_le (cs : List ℚ) :
     (cauchyBoundNatM cs).time ≤ 8 * cs.length + 12 := by
   have ht_le : (CoeffList.trim cs).length ≤ cs.length := CoeffList.length_trim_le cs
   have htr := trimM_time_le cs
-  simp only [cauchyBoundNatM, time_simps]
-  split_ifs with hlen
-  · simp only [TimeM.time_pure]
-    omega
-  · simp only [time_simps, List.length_dropLast]
-    have hgl := getLast?M_time_le (CoeffList.trim cs)
-    have hdl := dropLastM_time_le (CoeffList.trim cs)
-    omega
+  simp only [cauchyBoundNatM, time_simps, List.length_dropLast]
+  have hgl := getLast?M_time_le (CoeffList.trim cs)
+  have hdl := dropLastM_time_le (CoeffList.trim cs)
+  split_ifs <;> omega
 
 /-- `TimeM ℕ`-charged `lcmDens`. -/
 @[expose] def lcmDensM : List ℚ → TimeM ℕ ℕ
@@ -1182,10 +1161,8 @@ theorem mignotteBisectionDepthM_time_le (cs : List ℚ) :
   have htr := trimM_time_le cs
   simp only [mignotteBisectionDepthM, time_simps]
   split_ifs with hlen
-  · simp only [TimeM.time_pure]
-    omega
-  · simp only [time_simps]
-    have hcb := cauchyBoundNatM_time_le cs
+  · omega
+  · have hcb := cauchyBoundNatM_time_le cs
     have hms := mignotteSepSqInvM_time_le cs
     have hdepth : mignotteBisectionDepth cs =
         Nat.clog 4 (4 * cauchyBoundNat cs ^ 2 * mignotteSepSqInv cs / 3 + 1) := by

@@ -16,16 +16,18 @@ public import Cslib.Algorithms.Lean.TimeM
 
 A program `p` in `Cslib.Algorithms.Lean.TimeM` is specified by its return value `p.ret` and its
 cost `p.time`. Both are computed by pushing the projection through the program: through `>>=`,
-`pure`, `<$>`, `tick`, then through each program it calls, whose own specification is used. This
-module makes that computation one step, so that a specification proof names the program and the
-facts particular to it, and not the laws of the monad.
+`pure`, `<$>`, `tick`, and `if … then … else …` (`ite` and `dite`), then through each program it
+calls, whose own specification is used. This module makes that computation one step, so that a
+specification proof names the program and the facts particular to it, and not the laws of the
+monad.
 
 ## The simp set
 
 `simp only [time_simps]` pushes `.ret` and `.time` through a program. The set holds
 
-* the laws of the monad: `ret_bind`, `time_bind`, `ret_pure`, `time_pure`, `ret_tick`, `time_tick`
-  and the `<$>` and `<*>` forms;
+* the laws of the monad: `ret_bind`, `time_bind`, `ret_pure`, `time_pure`, `ret_pure_bind`,
+  `time_pure_bind`, `ret_tick`, `time_tick`, the `<$>` and `<*>` forms, and conditional pushing
+  `ret_ite`, `time_ite`, `ret_dite`, `time_dite`;
 * the loop lemmas of `CslibFrontier.Algorithms.Lean.TimeM.Loops`, when that module is imported;
 * every specification tagged `@[time_simps]`. Tag the equation `(p x).ret = …` or `(p x).time = …`
   of a program that other programs call, so that their proofs use it without naming it;
@@ -46,11 +48,46 @@ See its docstring for the steps and for what it reports when it cannot close a g
 
 * `time_simps`: the simp set, declared in `CslibFrontier.Algorithms.Lean.TimeM.Simps.Init`.
 * `time_spec`: the tactic.
+
+## Main results
+
+* `Cslib.Algorithms.Lean.TimeM.ret_pure_bind`, `time_pure_bind`.
+* `Cslib.Algorithms.Lean.TimeM.ret_ite`, `time_ite`, `ret_dite`, `time_dite`.
 -/
 
 public section
 
 namespace Cslib.Algorithms.Lean.TimeM
+
+@[simp high, time_simps high]
+theorem ret_pure_bind {T : Type*} {α β : Type _} [Zero T] [Add T] (a : α) (f : α → TimeM T β) :
+    ((pure a : TimeM T α) >>= f).ret = (f a).ret := rfl
+
+@[simp high, time_simps high]
+theorem time_pure_bind {T : Type*} {α β : Type _} [Zero T] [Add T] (a : α) (f : α → TimeM T β) :
+    ((pure a : TimeM T α) >>= f).time = (0 : T) + (f a).time := rfl
+
+@[simp, time_simps]
+theorem ret_ite {T α : Type*} (c : Prop) [Decidable c] (t e : TimeM T α) :
+    (if c then t else e).ret = if c then t.ret else e.ret :=
+  apply_ite TimeM.ret c t e
+
+@[simp, time_simps]
+theorem time_ite {T α : Type*} (c : Prop) [Decidable c] (t e : TimeM T α) :
+    (if c then t else e).time = if c then t.time else e.time :=
+  apply_ite TimeM.time c t e
+
+@[simp, time_simps]
+theorem ret_dite {T α : Type*} (c : Prop) [Decidable c]
+    (t : c → TimeM T α) (e : ¬c → TimeM T α) :
+    (if h : c then t h else e h).ret = if h : c then (t h).ret else (e h).ret :=
+  apply_dite TimeM.ret c t e
+
+@[simp, time_simps]
+theorem time_dite {T α : Type*} (c : Prop) [Decidable c]
+    (t : c → TimeM T α) (e : ¬c → TimeM T α) :
+    (if h : c then t h else e h).time = if h : c then (t h).time else (e h).time :=
+  apply_dite TimeM.time c t e
 
 attribute [time_simps] ret_pure ret_bind ret_map ret_mapConst ret_seqRight ret_seqLeft ret_seq
   time_bind time_pure time_map time_seqRight time_seqLeft time_seq ret_tick time_tick
@@ -73,9 +110,9 @@ It runs three steps.
    a statement that is a conjunction. After `fun_induction` the hypotheses are rewrite rules too
    (`simp only [time_simps, h₁, h₂, *]`): this is how an induction hypothesis that is an equation
    is used. The `*` also takes the hypotheses of the theorem; after `fun_cases` there is no `*`.
-3. Close each goal by `rfl` or `omega`. If neither does, `split` the first `if` or `match` in the
-   goal, repeat step 2 and close every case by `rfl` or `omega`. If that fails too, try `grind` on
-   the goal.
+3. Close each goal by `rfl` or `omega`. If neither does, recursively `split` up to four nested
+   `if` or `match` expressions, repeating step 2 after each split and closing every leaf by `rfl`
+   or `omega`. If any leaf remains unsolved, backtrack the splits and try `grind` on the goal.
 
 `grind` is the last resort. When the goal needs a fact that `rfl` and `omega` do not know, pass it
 in the list: `time_spec p [Nat.succ_mul]` for `(k + 1) * c = k * c + c`,
@@ -89,10 +126,11 @@ specifications of the values that `p` computes on the way. Check with `#print ax
 must avoid one of them.
 
 `time_spec p` is meant to be the whole proof. A goal that step 3 cannot close is left as step 2
-produced it, without the split, so the error is `unsolved goals` on the normalized goal, which shows
-what is missing: usually the specification of a program that `p` calls, or a definition to pass in
-the list. The tactic itself fails only when neither `fun_induction p` nor `fun_cases p` applies, for
-instance when the goal has no call of `p` or `p` is applied to terms that are not variables.
+produced it, without the splits, so the error is `unsolved goals` on the normalized goal, which
+shows what is missing: usually the specification of a program that `p` calls, or a definition to
+pass in the list. The tactic itself fails only when neither `fun_induction p` nor `fun_cases p`
+applies, for instance when the goal has no call of `p` or `p` is applied to terms that are not
+variables.
 
 For a statement that needs more than this, such as a bound that uses the bounds of the programs `p`
 calls, do not continue after `time_spec`: write `simp only [p, time_simps]`, state those bounds with
@@ -121,12 +159,17 @@ macro_rules
       else
         `(tactic| try simp only [$set:ident, true_and, and_true, and_self, $lemmas,*, *])
     -- `grind` is the last resort: it runs on a goal only after `rfl` and `omega` have failed on it
-    -- and on its cases.
+    -- and on up to four nested `if`/`match` splits.
     let arith ← `(tactic| first | rfl | omega)
-    let finish (simpStep : TSyntax `tactic) : MacroM (TSyntax `tactic) :=
+    let rec splitSolve : Nat → TSyntax `tactic → MacroM (TSyntax `tactic)
+      | 0, _ => pure arith
+      | k + 1, simpStep => do
+        let next ← splitSolve k simpStep
+        `(tactic| first | $arith:tactic | (split <;> ($simpStep:tactic) <;> $next:tactic))
+    let finish (simpStep : TSyntax `tactic) : MacroM (TSyntax `tactic) := do
+      let splitTree ← splitSolve 4 simpStep
       `(tactic| first
-        | $arith:tactic
-        | (split <;> ($simpStep:tactic) <;> $arith:tactic)
+        | $splitTree:tactic
         | grind
         | skip)
     let finishInd ← finish simpInd

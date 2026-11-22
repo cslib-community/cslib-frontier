@@ -228,27 +228,15 @@ theorem isolateRootsM_ret (cs : List ℚ) : (isolateRootsM cs).ret = isolateRoot
 private theorem refineLeftLoopM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftLoopM t seq fuel u v vu).time ≤ fuel * (sturmSeqOpCost seq + t.length) := by
-  induction fuel generalizing u v vu with
-  | zero => simp [refineLeftLoopM]
-  | succ fuel ih =>
-    simp only [refineLeftLoopM, time_simps, Nat.succ_mul]
-    split_ifs
-    · simp only [time_simps]; omega
-    · simp only [time_simps]; split_ifs
-      · simp only [time_simps]; omega
-      · have := ih u ((u + v) / 2) vu; omega
+  time_spec refineLeftLoopM [Nat.succ_mul]
 
 private theorem refineLeftRootM_time_le (t : List ℚ) (seq : List (List ℚ)) (fuel : ℕ)
     (u v : ℚ) (vu : ℕ) :
     (refineLeftRootM t seq fuel u v vu).time ≤
       2 * t.length + fuel * (sturmSeqOpCost seq + t.length) := by
   simp only [refineLeftRootM, time_simps]
-  split_ifs
-  · simp only [time_simps]; omega
-  · simp only [time_simps]
-    split_ifs
-    · simp only [time_simps]; omega
-    · have := refineLeftLoopM_time_le t seq fuel u v vu; omega
+  have := refineLeftLoopM_time_le t seq fuel u v vu
+  split_ifs <;> omega
 
 theorem sturmVariationsList_antitone {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
     {u v : ℚ} (huv : u ≤ v) :
@@ -467,8 +455,9 @@ private theorem refineLeftLoopM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Se
     have hleL : vm ≤ vu := hvu ▸ sturmVariationsList_antitone hsep hum.le
     have hleR : vv ≤ vm := hvv ▸ sturmVariationsList_antitone hsep hmv.le
     simp only [refineLeftLoopM, time_simps]
-    split_ifs with hvm_eq
-    · have hvm' : vm = vu := hvm_eq
+    split
+    · next hvm_eq =>
+      have hvm' : vm = vu := hvm_eq
       have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 0 := by rw [← hvu]; omega
       have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 1 := by rw [← hvv]; omega
       have hnoL {r : ℝ} := no_root_Ioc_of_card_eq_zero hsep hum.le hcntL (r := r)
@@ -477,13 +466,13 @@ private theorem refineLeftLoopM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Se
       refine ⟨hiso, hum, le_rfl, fun r => (heq_mv r).trans ⟨fun ⟨hmr, hrv, hrr⟩ =>
         ⟨(Rat.cast_lt.mpr hum).trans hmr, hrv, hrr⟩, fun ⟨hur, hrv, hrr⟩ =>
         ⟨lt_of_not_ge fun hrm => hnoL hur hrm hrr, hrv, hrr⟩⟩⟩
-    · have hvm' : vm ≠ vu := hvm_eq
+    · next hvm_eq =>
+      have hvm' : vm ≠ vu := hvm_eq
       have hcntL : sturmVariationsList (sturmSeqList cs) u - vm = 1 := by rw [← hvu]; omega
       have hcntR : vm - sturmVariationsList (sturmSeqList cs) v = 0 := by rw [← hvv]; omega
       have hle_m : ∀ {r : ℝ}, r ≤ v →
           ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r → r ≤ m := fun hrv hrr =>
         le_of_not_gt fun hmr => no_root_Ioc_of_card_eq_zero hsep hmv.le hcntR hmr hrv hrr
-      simp only [time_simps]
       split_ifs with hem
       · have hm_root : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot (m : ℝ) :=
           (eval_rat_eq_zero_iff cs m).mp hem
@@ -513,20 +502,18 @@ private theorem refineLeftRootM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Se
         ((u : ℝ) < r ∧ r ≤ (v : ℝ) ∧ pR.IsRoot r) := by
   have huniq := unique_root_Ioc_of_card_eq_one hsep huv.le (hvu ▸ hvv ▸ hcnt)
   simp only [refineLeftRootM, time_simps]
-  split_ifs with hev
+  split_ifs with hev heu
   · have hv_root := (eval_rat_eq_zero_iff cs v).mp hev
     obtain ⟨hiso, hequiv⟩ := singleton_isolating_of_Ioc huv le_rfl hv_root fun r hur hrv hrr =>
       huniq.unique ⟨hur, hrv, hrr⟩ ⟨Rat.cast_lt.mpr huv, le_rfl, hv_root⟩
     exact ⟨hiso, huv.le, le_rfl, fun _ => huv, hequiv⟩
-  · simp only [time_simps]
-    split_ifs with heu
-    · obtain ⟨hiso, hequiv⟩ := closed_isolating_of_Ioc_not_left huv.le
-        (fun h => heu ((eval_rat_eq_zero_iff cs u).mpr h)) huniq
-      exact ⟨hiso, le_rfl, le_rfl, fun h0 => absurd h0 heu, hequiv⟩
-    · obtain ⟨hiso, hlow, hup, hequiv⟩ := refineLeftLoopM_spec hsep (mignotteBisectionDepth cs) 0
-        u v vu vv (Nat.zero_add _) huv hvu hvv hcnt (not_not.mp heu)
-        (by simpa only [pow_zero, div_one] using hwidth)
-      exact ⟨hiso, hlow.le, hup, fun _ => hlow, hequiv⟩
+  · obtain ⟨hiso, hequiv⟩ := closed_isolating_of_Ioc_not_left huv.le
+      (fun h => heu ((eval_rat_eq_zero_iff cs u).mpr h)) huniq
+    exact ⟨hiso, le_rfl, le_rfl, fun h0 => absurd h0 heu, hequiv⟩
+  · obtain ⟨hiso, hlow, hup, hequiv⟩ := refineLeftLoopM_spec hsep (mignotteBisectionDepth cs) 0
+      u v vu vv (Nat.zero_add _) huv hvu hvv hcnt (not_not.mp heu)
+      (by simpa only [pow_zero, div_one] using hwidth)
+    exact ⟨hiso, hlow.le, hup, fun _ => hlow, hequiv⟩
 
 /-- Separation invariant between consecutive isolating intervals: either `I₁.upper < I₂.lower`, or
 `I₁.upper = I₂.lower` and that shared rational boundary point is not a root of `p`. -/

@@ -380,11 +380,9 @@ theorem time_runM_le {n : ℕ} : ∀ (k : ℕ) (W : Fin (k + 2) → Fin (k + 2) 
     have hs := time_maOrderM_le W
     simp only [runM, time_simps]
     split_ifs with hst
-    · simp only [TimeM.time_pure]
-      nlinarith
+    · nlinarith
     · have ih := time_runM_le k (contractMatrix W (lastTwo 0 (maOrderM W).ret).1
         (lastTwo 0 (maOrderM W).ret).2) (contractPart part _ _ hst)
-      simp only [time_simps]
       nlinarith
 
 /-- `stoerWagner` in `TimeM`, with the charges of the cost model. -/

@@ -167,13 +167,7 @@ omit [DecidableEq V] in
 theorem ret_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     (checkNilScopeM hq sem F).ret =
       F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩) := by
-  induction F with
-  | nil => rfl
-  | cons c F ih =>
-    simp only [checkNilScopeM, TimeM.ret_bind, TimeM.ret_pure, ih, List.all_cons]
-    cases hc : c.scope with
-    | nil => simp [Constraint.eval, hc]
-    | cons _ _ => simp
+  time_spec checkNilScopeM [List.all_cons, Constraint.eval]
 
 omit [DecidableEq V] in
 theorem time_checkNilScopeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
@@ -228,23 +222,14 @@ theorem ret_projectUpdateM {q : ℕ} (hq : 0 < q) (v : V) (d : ℕ) (LB LP : Lis
   induction LP with
   | nil => rfl
   | cons u LP ih =>
-    by_cases huv : u = v
-    · simp only [projectUpdateM, huv, ite_true, time_simps, ih, toRadix_cons, Function.update_self]
-    · simp only [projectUpdateM, huv, ite_false, time_simps, ih, toRadix_cons,
-        Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
+    simp only [projectUpdateM, time_simps, ih, toRadix_cons]
+    split_ifs with huv
+    · simp only [huv, Function.update_self]
+    · simp only [Function.update_of_ne huv, Nat.mod_eq_of_lt (ofRadix_lt hq LB m u)]
 
 theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m : ℕ) :
     (projectUpdateM q v d LB m LP).time ≤ LP.length * (LB.length + 1) := by
-  induction LP with
-  | nil => simp [projectUpdateM]
-  | cons u LP ih =>
-    by_cases huv : u = v
-    · simp only [projectUpdateM, huv, ite_true, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        List.length_cons, Nat.succ_mul]
-      omega
-    · simp only [projectUpdateM, huv, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        time_lookupM, List.length_cons, Nat.succ_mul]
-      omega
+  time_spec projectUpdateM [time_lookupM, Nat.succ_mul]
 
 /-- Build a length-`n` array table entry by entry in `TimeM ℕ`. -/
 @[expose] def tableLoopM {β : Type} : ℕ → (ℕ → TimeM ℕ β) → TimeM ℕ (Array β)

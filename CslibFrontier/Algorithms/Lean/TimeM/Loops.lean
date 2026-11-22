@@ -14,13 +14,14 @@ public import Mathlib.Algebra.BigOperators.Fin
 /-!
 # Loops in the time monad
 
-Return values and costs of three loop combinators run in `Cslib.Algorithms.Lean.TimeM`:
-`Vector.ofFnM`, which fills a vector cell by cell, `List.mapM` and `List.foldlM`. The return value
-of each loop is the corresponding pure loop over the return values. The cost of `Vector.ofFnM` and
-of `List.mapM` is the sum of the costs of the cells, and a `List.foldlM` whose step always costs `c`
-costs `c` per element; more generally, if the cost of a step depends only on the element, the fold
-costs the sum of the element costs, and a fold whose step costs at most `c` costs at most `c` per
-element.
+Return values and costs of loop combinators run in `Cslib.Algorithms.Lean.TimeM`:
+`Vector.ofFnM`, which fills a vector cell by cell, `List.mapM`, `List.foldlM`, and `Fin.foldlM`
+(reduced to `List.foldlM` over `List.finRange` via `Fin.foldlM_eq_foldlM_finRange`). The return
+value of each loop is the corresponding pure loop over the return values. The cost of
+`Vector.ofFnM` and of `List.mapM` is the sum of the costs of the cells, and a `List.foldlM` whose
+step always costs `c` costs `c` per element; more generally, if the cost of a step depends only on
+the element, the fold costs the sum of the element costs, and a fold whose step costs at most `c`
+costs at most `c` per element.
 
 The equations are in the simp set `time_simps`
 (`CslibFrontier.Algorithms.Lean.TimeM.Simps`), so `simp only [time_simps]` and the tactic
@@ -130,5 +131,7 @@ theorem time_foldlM_le {α β : Type*} (f : β → α → TimeM ℕ β) (l : Lis
     rw [List.foldlM_cons, time_bind, List.length_cons, Nat.succ_mul, Nat.add_comm (l.length * c)]
     exact Nat.add_le_add (hf b a List.mem_cons_self)
       (ih _ fun acc x hx => hf acc x (List.mem_cons_of_mem a hx))
+
+attribute [time_simps] Fin.foldlM_eq_foldlM_finRange
 
 end Cslib.Algorithms.Lean.TimeM

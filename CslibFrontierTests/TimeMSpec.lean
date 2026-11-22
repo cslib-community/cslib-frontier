@@ -7,13 +7,13 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (tests of the time_simps simp set and the time_spec tactic)
 
-public import CslibFrontier.Algorithms.Lean.TimeM.Loops
+import CslibFrontier.Algorithms.Lean.TimeM.Loops
 
 /-!
 # Tests for `time_simps` and `time_spec`
 -/
 
-public section
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.TimeMSpec
 
@@ -22,17 +22,17 @@ open Cslib.Algorithms.Lean TimeM
 /-! A recursive program: one goal for each branch, closed with the induction hypothesis. -/
 
 /-- Sum a list, one tick for each element. -/
-def sumM : List ℕ → TimeM ℕ ℕ
+private def sumM : List ℕ → TimeM ℕ ℕ
   | [] => pure 0
   | x :: xs => do
     tick 1
     let s ← sumM xs
     pure (x + s)
 
-@[time_simps] theorem ret_sumM (l : List ℕ) : (sumM l).ret = l.sum := by
+@[local time_simps] private theorem ret_sumM (l : List ℕ) : (sumM l).ret = l.sum := by
   time_spec sumM
 
-@[time_simps] theorem time_sumM (l : List ℕ) : (sumM l).time = l.length := by
+@[local time_simps] private theorem time_sumM (l : List ℕ) : (sumM l).time = l.length := by
   time_spec sumM
 
 /-- The variables of a statement that binds them are introduced first. -/
@@ -43,14 +43,14 @@ example : ∀ l : List ℕ, (sumM l).time = l.length := by
 calls come from the simp set; the definition of the pure function it computes is passed. -/
 
 /-- Compare the sums of two lists. -/
-def leM (l₁ l₂ : List ℕ) : TimeM ℕ Bool := do
+private def leM (l₁ l₂ : List ℕ) : TimeM ℕ Bool := do
   let a ← sumM l₁
   let b ← sumM l₂
   tick 1
   pure (decide (a ≤ b))
 
 /-- What `leM` computes. -/
-def sumLe (l₁ l₂ : List ℕ) : Bool := decide (l₁.sum ≤ l₂.sum)
+private def sumLe (l₁ l₂ : List ℕ) : Bool := decide (l₁.sum ≤ l₂.sum)
 
 example (l₁ l₂ : List ℕ) : (leM l₁ l₂).time = l₁.length + l₂.length + 1 := by
   time_spec leM
@@ -71,17 +71,17 @@ example (l₁ l₂ : List ℕ) : (leM l₁ l₂).time = l₁.length + l₂.lengt
 /-! A bound from a hypothesis on the step, through an `if` on a computed value, which is split. -/
 
 /-- The first element on which `f` answers `true`. -/
-def findM {α : Type} (f : α → TimeM ℕ Bool) : List α → TimeM ℕ (Option α)
+private def findM {α : Type} (f : α → TimeM ℕ Bool) : List α → TimeM ℕ (Option α)
   | [] => pure none
   | a :: l => do
     let b ← f a
     if b then pure (some a) else findM f l
 
-theorem ret_findM {α : Type} (f : α → TimeM ℕ Bool) (l : List α) :
+private theorem ret_findM {α : Type} (f : α → TimeM ℕ Bool) (l : List α) :
     (findM f l).ret = l.find? fun a => (f a).ret := by
   time_spec findM [List.find?]
 
-theorem time_findM_le {α : Type} (f : α → TimeM ℕ Bool) (l : List α) (c : ℕ)
+private theorem time_findM_le {α : Type} (f : α → TimeM ℕ Bool) (l : List α) (c : ℕ)
     (hf : ∀ a ∈ l, (f a).time ≤ c) : (findM f l).time ≤ l.length * c := by
   time_spec findM
 
@@ -89,7 +89,7 @@ theorem time_findM_le {α : Type} (f : α → TimeM ℕ Bool) (l : List α) (c :
 proof then ends in `rfl` or `omega`, without `grind`. -/
 
 /-- Run a program `k` times. -/
-def repeatM (p : TimeM ℕ Unit) : ℕ → TimeM ℕ Unit
+private def repeatM (p : TimeM ℕ Unit) : ℕ → TimeM ℕ Unit
   | 0 => pure ()
   | k + 1 => do
     repeatM p k
@@ -103,7 +103,7 @@ computes the cost of the unfolded program, the bounds of the called programs are
 arithmetic finishes. -/
 
 /-- Search two lists. -/
-def find₂M {α : Type} (f : α → TimeM ℕ Bool) (l₁ l₂ : List α) : TimeM ℕ Bool := do
+private def find₂M {α : Type} (f : α → TimeM ℕ Bool) (l₁ l₂ : List α) : TimeM ℕ Bool := do
   let a ← findM f l₁
   let b ← findM f l₂
   pure (a.isSome || b.isSome)
@@ -117,8 +117,9 @@ example {α : Type} (f : α → TimeM ℕ Bool) (l₁ l₂ : List α) (c : ℕ)
   rw [Nat.add_mul]
   omega
 
-/-! The failure report. A goal that cannot be closed is left as the simp step produced it: the `if`
-is not split, and the branch that was closed is gone. Here the bound is false. -/
+/-! The failure report. A goal that cannot be closed is left as the simp step produced it: `.time`
+has been pushed into the `if`, the `if` itself is not split, and the branch that was closed is
+gone. Here the bound is false. -/
 
 /--
 error: unsolved goals
@@ -128,7 +129,7 @@ f : α → TimeM ℕ Bool
 a✝ : α
 l✝ : List α
 ih1✝ : (findM f l✝).time ≤ l✝.length
-⊢ (f a✝).time + (if (f a✝).ret = true then pure (some a✝) else findM f l✝).time ≤ l✝.length + 1
+⊢ ((f a✝).time + if (f a✝).ret = true then 0 else (findM f l✝).time) ≤ l✝.length + 1
 -/
 #guard_msgs in
 example {α : Type} (f : α → TimeM ℕ Bool) (l : List α) : (findM f l).time ≤ l.length := by
@@ -143,11 +144,84 @@ error: Could not find suitable call of `sumM` in the goal
 example (l₁ l₂ : List ℕ) : (leM l₁ l₂).time = l₁.length + l₂.length + 1 := by
   time_spec sumM
 
+/-! Conditionals (`ite` and `dite`) and nested `if`/`match` splits. `simp only [time_simps]` pushes
+`.ret` and `.time` through `if … then … else …` and `if h : … then … else …` in one pass, and
+`time_spec` closes up to four nested splits by `rfl` or `omega` without falling back to `grind`
+(avoiding `Classical.choice`). -/
+
+/-- Nested dependent and non-dependent conditionals with an `Option` match. -/
+private def classifyM {n : ℕ} (xs : Vector ℕ n) (i : ℕ) (opt : Option ℕ) : TimeM ℕ ℕ := do
+  tick 1
+  if hi : i < n then
+    let v ← if xs[i]'hi = 0 then pure 1 else do tick 2; pure (xs[i]'hi)
+    match opt with
+    | none => pure v
+    | some bonus => do
+      tick 1
+      if bonus < v then pure (v - bonus) else pure 0
+  else
+    pure 0
+
+private def classifyPure {n : ℕ} (xs : Vector ℕ n) (i : ℕ) (opt : Option ℕ) : ℕ :=
+  if hi : i < n then
+    let v := if xs[i]'hi = 0 then 1 else xs[i]'hi
+    match opt with
+    | none => v
+    | some bonus => if bonus < v then v - bonus else 0
+  else 0
+
+private theorem ret_classifyM {n : ℕ} (xs : Vector ℕ n) (i : ℕ) (opt : Option ℕ) :
+    (classifyM xs i opt).ret = classifyPure xs i opt := by
+  time_spec classifyM [classifyPure]
+
+private theorem time_classifyM_le {n : ℕ} (xs : Vector ℕ n) (i : ℕ) (opt : Option ℕ) :
+    (classifyM xs i opt).time ≤ 4 := by
+  time_spec classifyM
+
+/--
+info: '_private.CslibFrontierTests.TimeMSpec.0.CslibFrontierTests.TimeMSpec.time_classifyM_le' depends on axioms: [propext,
+ Quot.sound]
+-/
+#guard_msgs in
+#print axioms time_classifyM_le
+
+/-! Nested split failure still backtracks cleanly to the unsplit post-`simp` goal. -/
+
+/--
+error: unsolved goals
+case case1
+n : ℕ
+xs : Vector ℕ n
+i : ℕ
+opt : Option ℕ
+⊢ (1 +
+      if h : i < n then
+        if xs[i] = 0 then
+          (match opt with
+            | none => pure 1
+            | some bonus => do
+              tick 1
+              if bonus < 1 then pure (1 - bonus) else pure 0).time
+        else
+          2 +
+            (match opt with
+              | none => pure xs[i]
+              | some bonus => do
+                tick 1
+                if bonus < xs[i] then pure (xs[i] - bonus) else pure 0).time
+      else 0) ≤
+    3
+-/
+#guard_msgs in
+example {n : ℕ} (xs : Vector ℕ n) (i : ℕ) (opt : Option ℕ) :
+    (classifyM xs i opt).time ≤ 3 := by
+  time_spec classifyM
+
 /-! Loops. A fold whose step cost does not depend on the accumulator costs the sum of the step
 costs, and `simp only [time_simps]` finds this without being told the cost. -/
 
 /-- Sum a list with a fold, one tick for each element. -/
-def foldSumM (l : List ℕ) : TimeM ℕ ℕ :=
+private def foldSumM (l : List ℕ) : TimeM ℕ ℕ :=
   l.foldlM (fun acc x => do tick 1; pure (acc + x)) 0
 
 example (l : List ℕ) : (foldSumM l).time = l.length := by
@@ -155,6 +229,16 @@ example (l : List ℕ) : (foldSumM l).time = l.length := by
 
 example (l : List ℕ) : (foldSumM l).ret = l.foldl (· + ·) 0 := by
   time_spec foldSumM
+
+/-- `Fin.foldlM` reduces via `Fin.foldlM_eq_foldlM_finRange` in `time_simps`. -/
+private def finSumM (n : ℕ) : TimeM ℕ ℕ :=
+  Fin.foldlM n (fun acc (i : Fin n) => do tick 2; pure (acc + i.val)) 0
+
+example (n : ℕ) : (finSumM n).time = n * 2 := by
+  time_spec finSumM [List.length_finRange]
+
+example (n : ℕ) : (finSumM n).ret = (List.finRange n).foldl (fun acc i => acc + i.val) 0 := by
+  time_spec finSumM
 
 /-- A cost that depends on the element. -/
 example (l : List (List ℕ)) :

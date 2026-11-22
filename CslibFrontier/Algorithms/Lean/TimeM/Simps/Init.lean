@@ -24,10 +24,10 @@ and defines the tactic `time_spec` that uses the set.
 public meta section
 
 /-- The simp set `time_simps` pushes the projections `.ret` and `.time` of
-`Cslib.Algorithms.Lean.TimeM` through a program: through `>>=`, `pure`, `<$>`, `<*>`, `tick` and
-the loop combinators, and through every program whose return value or cost is stated as an
-equation tagged `@[time_simps]`. It also normalizes the length, sum and map of a `cons` or empty
-list and removes the zero cost of `pure`.
+`Cslib.Algorithms.Lean.TimeM` through a program: through `>>=`, `pure`, `<$>`, `<*>`, `tick`,
+`if … then … else …` (`ite` and `dite`), and the loop combinators, and through every program whose
+return value or cost is stated as an equation tagged `@[time_simps]`. It also normalizes the
+length, sum and map of a `cons` or empty list and removes the zero cost of `pure`.
 
 Use it as `simp only [time_simps]`, before any call of `simp` with its default set. The cost of a
 `List.foldlM` is rewritten by `time_foldlM_eq_sum_map`, whose side condition says that the step

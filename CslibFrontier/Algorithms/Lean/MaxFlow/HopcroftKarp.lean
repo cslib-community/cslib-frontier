@@ -810,10 +810,8 @@ private theorem hkBfsLoopM_time_le (fuel j : ℕ) (dist : Vector (Option ℕ) m)
     have hlt : (hkBfsLayerM G adj mate j frontier ⟨dist, [], false⟩).time =
         (frontier.map (hkBfsCost adj)).sum := hkBfsLayerM_time ..
     simp only [hkBfsLoopM, time_simps, hlt, hkBfsLayerM_ret, ← hsdef]
-    split_ifs
-    · simp only [TimeM.time_pure]; omega
-    · simp only [TimeM.time_pure]; omega
-    · have := ih (j + 1) s.dist s.next; omega
+    have := ih (j + 1) s.dist s.next
+    split_ifs <;> omega
 
 private theorem sum_hkBfsCost (adj : Fin m → List (Fin r)) :
     ∑ u, hkBfsCost adj u = bipAdjSteps adj + m := by
@@ -1272,7 +1270,7 @@ private theorem hkDfsRootsM_time_le (k : ℕ) (us : List (Fin m)) :
     · have h1 := hkDfsM_time_le (G := G) (adj := adj) (mate := mate) (dist := dist) k 0 u vis acc
       have h2 := ih (hkDfsM G adj mate dist k 0 u vis acc).ret.1
         ((hkDfsM G adj mate dist k 0 u vis acc).ret.2.getD acc)
-      simp only [TimeM.time_bind]; omega
+      omega
     · have := ih vis acc; omega
 
 /-- The initial potential is at most the total candidate list length, as `mate` is a matching. -/
@@ -1359,8 +1357,7 @@ private theorem hkLoopM_spec (hadj : BipAdjValid G adj) {C : ℕ}
     simp only [hkLoopM, time_simps]
     set b := (hkBfsM G adj mate).ret
     split_ifs with hf
-    · simp only [time_simps]
-      obtain ⟨N, hN, hmate'⟩ := hkPhaseM_spec (dist := b.dist) hadj hM hb.exact
+    · obtain ⟨N, hN, hmate'⟩ := hkPhaseM_spec (dist := b.dist) hadj hM hb.exact
       have hpt := hkPhaseM_time_le (dist := b.dist) (k := b.k) hadj hM hb.exact
       obtain ⟨t, ht, hfree⟩ := hb.found_true hf
       have hM' : IsMatching G (mateMatching (hkPhaseM G adj mate b.dist b.k).ret) :=
@@ -1379,8 +1376,7 @@ private theorem hkLoopM_spec (hadj : BipAdjValid G adj) {C : ℕ}
         have hmul : (ph - n + 1) * C = (ph - (n + 1) + 1) * C + C := by
           rw [show ph - n + 1 = (ph - (n + 1) + 1) + 1 by omega, Nat.add_mul, Nat.one_mul]
         omega
-    · simp only [time_simps]
-      obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
+    · obtain ⟨hstable, hsub, hdist⟩ := hb.found_false (Bool.eq_false_iff.mpr hf)
       refine ⟨⟨hM, le_rfl, Nat.sub_self n ▸ .done, b.k, hstable, hsub, hdist⟩, ?_⟩
       simp only [Nat.sub_self, Nat.zero_add, Nat.one_mul]; omega
 

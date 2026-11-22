@@ -291,11 +291,9 @@ private theorem computePrefixLoopM_time_le {α : Type*} [DecidableEq α]
 (`[KnuthMorrisPratt1977]`, Section 2; `[CLRS2009]`, Section 32.4). -/
 theorem computePrefixM_time_le {α : Type*} [DecidableEq α] (p : Array α) :
     (computePrefixM p).time ≤ 2 * (p.size - 1) := by
-  unfold computePrefixM
-  split_ifs with hp0
-  · simp only [TimeM.time_pure]
-    omega
-  · simpa only [Nat.zero_add] using computePrefixLoopM_time_le p 1 0 #[0]
+  simp only [computePrefixM, time_simps]
+  have := computePrefixLoopM_time_le p 1 0 #[0]
+  split_ifs <;> omega
 
 private theorem computePrefixLoopM_spec {α : Type*} [DecidableEq α]
     {p : Array α} {q k : ℕ} {pi : Array ℕ}
@@ -440,12 +438,11 @@ private theorem kmpSearchLoopM_time_le {α : Type*} [DecidableEq α]
   | succ rem ih =>
     have hi : i < t.size := by omega
     rw [kmpSearchLoopM]
-    simp only [hi, ↓reduceDIte, TimeM.time_bind]
+    simp only [hi, ↓reduceDIte, time_simps]
     have hadv := advanceM_time_add_ret_le p pi k (t[i]'hi)
     set k' := (advanceM p pi k (t[i]'hi)).ret
     split_ifs with hfull
-    · simp only [time_simps]
-      have hkNext_le : resetFullMatch p.size pi ≤ k' := hfull ▸ resetFullMatch_le hdec
+    · have hkNext_le : resetFullMatch p.size pi ≤ k' := hfull ▸ resetFullMatch_le hdec
       have hsub := ih (i + 1) (resetFullMatch p.size pi) (by omega)
       omega
     · have hsub := ih (i + 1) k' (by omega)
@@ -456,11 +453,9 @@ performs at most `2 * t.size` character comparisons. -/
 theorem kmpSearchWithPrefixM_time_le {α : Type*} [DecidableEq α]
     (p : Array α) {pi : Array ℕ} (hdec : IsDecreasingTable pi) (t : Array α) :
     (kmpSearchWithPrefixM p pi t).time ≤ 2 * t.size := by
-  unfold kmpSearchWithPrefixM
-  split_ifs with hp0
-  · simp only [TimeM.time_pure]
-    omega
-  · simpa only [Nat.zero_add, Nat.sub_zero] using kmpSearchLoopM_time_le p hdec t 0 0
+  simp only [kmpSearchWithPrefixM, time_simps]
+  have := kmpSearchLoopM_time_le p hdec t 0 0
+  split_ifs <;> omega
 
 /-- End-to-end KMP character-comparison bound (`[KnuthMorrisPratt1977]`, Sections 1–2;
 `[CLRS2009]`, Section 32.4):

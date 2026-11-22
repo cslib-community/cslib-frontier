@@ -400,8 +400,7 @@ theorem time_subsetWalksM (adj : Fin n → Fin n → Bool) (k : ℕ) :
 number of Hamiltonian paths of `adj`. -/
 @[simp, time_simps] theorem ret_countHamPathsM (adj : Fin n → Fin n → Bool) :
     (countHamPathsM adj).ret = (#(hamPaths adj) : ℤ) := by
-  rw [countHamPathsM, Fin.foldlM_eq_foldlM_finRange, ret_foldlM]
-  simp only [time_simps, maskCard_eq_card_maskSet, ← card_walksIn_eq_totalWalkCount]
+  simp only [countHamPathsM, time_simps, maskCard_eq_card_maskSet, ← card_walksIn_eq_totalWalkCount]
   rw [← List.foldl_map, ← List.sum_eq_foldl, ← Fin.sum_univ_def, card_hamPaths_eq_sum_walksIn]
   refine Finset.sum_bij (fun (k : Fin (2 ^ n)) _ => maskSet n k)
     (fun _ _ => Finset.mem_univ _) ?_ ?_ (fun _ _ => rfl)
@@ -419,7 +418,7 @@ theorem card_hamPaths_eq_toNat_ret_countHamPathsM (adj : Fin n → Fin n → Boo
 /-- Exact tick count of `countHamPathsM`: `2 ^ n * ((n - 1) * n ^ 2 + n + 1)`. -/
 theorem time_countHamPathsM (adj : Fin n → Fin n → Bool) :
     (countHamPathsM adj).time = 2 ^ n * ((n - 1) * n ^ 2 + n + 1) := by
-  time_spec countHamPathsM [Fin.foldlM_eq_foldlM_finRange, List.length_finRange]
+  time_spec countHamPathsM [List.length_finRange]
 
 /-- **Running-time bound of `countHamPathsM`**: at most `2 ^ n * (n ^ 3 + 1)` ticks for all `n`. -/
 theorem time_countHamPathsM_le (adj : Fin n → Fin n → Bool) :
@@ -450,7 +449,7 @@ theorem ret_decideHamPathM_eq_true_iff (adj : Fin n → Fin n → Bool) :
 
 @[simp] theorem time_decideHamPathM (adj : Fin n → Fin n → Bool) :
     (decideHamPathM adj).time = (countHamPathsM adj).time := by
-  simp [decideHamPathM]
+  time_spec decideHamPathM
 
 end TimeM
 

@@ -628,8 +628,7 @@ private theorem time_stepM_le {k : ℕ} {i : Fin n} {r : Option (List (Fin n) ×
   rw [← hWdef]
   unfold stepCost
   split_ifs with hk
-  · simp only [TimeM.time_pure]
-    have h0 : 0 ≤ 3 ^ (k + 2) := Nat.zero_le _
+  · have h0 : 0 ≤ 3 ^ (k + 2) := Nat.zero_le _
     omega
   · have hc := time_compressM_le (G := prefixGraph G (i.1 + 1)) k W c
     have h1 : 3 ^ (W.length + 1) ≤ 3 ^ (k + 2) := Nat.pow_le_pow_right (by norm_num) (by omega)
