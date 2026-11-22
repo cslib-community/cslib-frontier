@@ -6,10 +6,17 @@ Authors: Samuel Schlesinger
 
 module
 
+import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Crypto.Computational.Encryption.Bitwise
 import CslibFrontier.Crypto.Computational.Encryption.PublicKeyCPA
 import CslibFrontier.Crypto.Computational.GoldwasserMicali
+import CslibFrontier.Crypto.Game.CloseTo
 import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Negligible.Dyadic
+import CslibFrontier.Languages.Probabilistic.BitString
+import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Tactic.PolyTime
 import Mathlib.NumberTheory.LSeries.WeakPNT
 import Mathlib.Tactic.NormNum.Prime
@@ -25,8 +32,10 @@ and the multi-bit Blum-modulus API of `CslibFrontier.Crypto.Computational.Goldwa
   `length_blumPublicKey_le`;
 * coordinate hybrid endpoints (`eval_bitwiseHybridGameOn_zero`, `eval_bitwiseHybridGameOn_of_le`),
   the non-vanishing exact advantage identity `advantage_bitwiseEncrypt_eq` (`1 = 4 * (1 / 4)` at
-  `maxLen = 2`), strict-PPT certification (`isPPT_bitwiseToSingleAt`, `isPPT_bitwiseToSingle`), and
-  refutation of `WordINDCPA` on a plaintext-leaking 1-bit scheme;
+  `maxLen = 2`), strict-PPT certification (`isPPT_bitwiseToSingleAt`, `isPPT_bitwiseToSingle`),
+  boundary witnesses (`bitwise_boundary_witnesses`), refutation of `WordINDCPA` on a
+  plaintext-leaking 1-bit scheme, and necessity of polynomially bounded public-key length for
+  `INDCPA → WordINDCPA` (`indcpa_and_not_wordINDCPA_expKeyGen`);
 * client instantiations of `wordINDCPA_blumGoldwasserMicali` (and its lift to `WordINDCPAOracle`),
   plus `INDCPA.wordINDCPA_bitwiseEncrypt` when `gen` is uniform strict PPT;
 * joint satisfiability of `hblum`, `hsize`, `PolynomiallyBounded sizeBound`, and `hupper` at every
@@ -41,7 +50,7 @@ namespace CslibFrontierTests.Crypto.GoldwasserMicaliWord
 
 open Cslib Cslib.Probability Cslib.Crypto Cslib.Crypto.Encryption Cslib.Crypto.GoldwasserMicali
 open Turing.MultiTapeTM Filter Topology
-open scoped NNReal
+open scoped NNReal ENNReal
 
 /-! ### Word-level round-trip correctness and evaluation at `N = 21 = 3 * 7` -/
 
@@ -209,6 +218,234 @@ theorem bitwise_boundary_witnesses (n : ℕ) :
     rw [hshort, h4] at h
     rw [eq_div_iff (by norm_num), mul_comm]
     exact_mod_cast h.symm
+
+/-! ### Necessity of polynomially bounded public-key length for `INDCPA → WordINDCPA` -/
+
+private def expKeyGen (n : ℕ) : ProbComp (List Bool × List Bool) :=
+  pure (List.replicate (2 ^ n) false, [])
+
+private noncomputable def expLeakEncrypt (n : ℕ) (_pk : List Bool) (b : Bool) :
+    ProbComp (List Bool) :=
+  (fun coins => [b && (coins == encUnary n)]) <$> BitString.sampleList n
+
+private theorem isPPTOn_expLeakEncrypt :
+    IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, pk, b⟩ => expLeakEncrypt n pk b) := by
+  let E := encKeyedInput encBool
+  have hn : ComputableInPolyTime (fun x : ℕ × List Bool × Bool => x.1) E encUnary := by
+    dsimp only [E, encKeyedInput]; fun_prop
+  have hb : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × Bool) × List Bool => p.1.2.2) (encPair E encBits) encBool := by
+    dsimp only [E, encKeyedInput]; fun_prop
+  have hcoins : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × Bool) × List Bool => p.2) (encPair E encBits) encBits :=
+    ComputableInPolyTime.snd E encBits
+  have htarget : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × Bool) × List Bool => encUnary p.1.1) (encPair E encBits) encBits :=
+    (hn.comp (ComputableInPolyTime.fst E encBits)).encoding_comp
+  have hbody : ComputableInPolyTime
+      (fun p : (ℕ × List Bool × Bool) × List Bool => [p.1.2.2 && (p.2 == encUnary p.1.1)])
+      (encPair E encBits) encBits :=
+    (ComputableInPolyTime.bool_and.comp (hb.prod (hcoins.beq htarget))).encoding_comp
+  exact (IsPPTOn.of_seeded hn hbody).congr fun ⟨_, _, _⟩ => rfl
+
+private theorem eval_expLeakEncrypt_false (n : ℕ) (pk : List Bool) :
+    ProbComp.eval (expLeakEncrypt n pk false) = PMF.pure [false] := by
+  simp [expLeakEncrypt, PMF.map, Function.comp_def, PMF.bind_const]
+
+private theorem eval_expLeakEncrypt_true_apply_true (n : ℕ) (pk : List Bool) :
+    (ProbComp.eval (expLeakEncrypt n pk true)) [true] = (1 : ℝ≥0∞) / 2 ^ n := by
+  simp only [expLeakEncrypt, ProbComp.eval_map, BitString.eval_sampleList, Bool.true_and]
+  rw [BitString.uniformList_map_apply]
+  have hcard : (Finset.univ.filter fun r : Fin n → Bool =>
+      [List.ofFn r == encUnary n] = [true]).card = 1 := by
+    rw [Finset.card_eq_one]
+    refine ⟨fun _ => true, Finset.ext fun r => ?_⟩
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and, List.cons.injEq, and_true,
+      beq_iff_eq, Finset.mem_singleton, encUnary_apply]
+    refine ⟨fun h => funext fun i => ?_, fun h => by subst h; simp⟩
+    have hi := congrArg (·[i.val]?) h
+    simpa using hi
+  rw [hcard, Nat.cast_one]
+
+private theorem eval_expLeakEncrypt_true_ne (n : ℕ) (pk : List Bool) {c : List Bool}
+    (hf : c ≠ [false]) (ht : c ≠ [true]) :
+    (ProbComp.eval (expLeakEncrypt n pk true)) c = 0 := by
+  rw [PMF.apply_eq_zero_iff]
+  simp only [expLeakEncrypt, ProbComp.eval_map, PMF.mem_support_map_iff, not_exists, not_and]
+  rintro coins _ rfl
+  cases hcoin : coins == encUnary n
+  · exact hf (by rw [hcoin]; rfl)
+  · exact ht (by rw [hcoin]; rfl)
+
+private theorem closeTo_expLeakEncrypt (n : ℕ) (pk : List Bool) (b₀ b₁ : Bool) :
+    CloseTo (ProbComp.eval (expLeakEncrypt n pk b₀))
+      (ProbComp.eval (expLeakEncrypt n pk b₁)) ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) := by
+  have htf : CloseTo (ProbComp.eval (expLeakEncrypt n pk true))
+      (PMF.pure [false]) ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) := by
+    rw [closeTo_iff_tsum_tsub_le, tsum_eq_single [true]]
+    · rw [ENNReal.coe_div (pow_ne_zero _ (by norm_num))]
+      simp [eval_expLeakEncrypt_true_apply_true]
+    · intro c hc
+      by_cases hf : c = [false]
+      · subst hf
+        simp only [PMF.pure_apply, ↓reduceIte, tsub_eq_zero_iff_le]
+        exact PMF.coe_le_one _ _
+      · simp [eval_expLeakEncrypt_true_ne n pk hf hc]
+  cases b₀ <;> cases b₁
+  · exact (CloseTo.refl _).mono zero_le
+  · rw [eval_expLeakEncrypt_false]; exact htf.symm
+  · rw [eval_expLeakEncrypt_false]; exact htf
+  · exact (CloseTo.refl _).mono zero_le
+
+private theorem indcpa_expLeakEncrypt : INDCPA expKeyGen expLeakEncrypt := by
+  intro adversary _
+  refine negligible_of_le (negligible_const_div_two_pow 1) fun n => ?_
+  rw [Nat.cast_one]
+  dsimp only [Encryption.advantage, Encryption.game, gameOn]
+  simp only [Bool.false_eq_true, ↓reduceIte, expKeyGen, pmf_norm]
+  exact Game.advantage_bind_le_nnreal _ _ _ fun choice =>
+    Game.advantage_bind_le_of_closeTo (closeTo_expLeakEncrypt n _ _ _) _
+
+private noncomputable def expWordAdv : WordAdversary where
+  choose _ pk := pure ((pk, encUnary pk.length), pk)
+  guess _ state ct := pure (!(bitwiseDecrypt (fun _ c => c == [true]) [] ct == state))
+
+private theorem isPPT_expWordAdv : expWordAdv.IsPPT where
+  choose := by
+    have hpk := ComputableInPolyTime.snd encUnary encBits
+    have hones : ComputableInPolyTime (fun p : ℕ × List Bool => encUnary p.2.length)
+        (encPair encUnary encBits) encBits :=
+      ((ComputableInPolyTime.encoding_length encBits).comp hpk).encoding_comp
+    exact ((hpk.prod hones).prod hpk).isPPTOn
+  guess := by
+    have hbit : ComputableInPolyTime (fun q : List Bool × List Bool => q.2 == [true])
+        (encPair encBits encBits) encBool :=
+      (ComputableInPolyTime.snd encBits encBits).beq (ComputableInPolyTime.const [true])
+    have hct : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.2)
+        encGuessInput encBits := by dsimp only [encGuessInput]; fun_prop
+    have hst : ComputableInPolyTime (fun x : ℕ × List Bool × List Bool => x.2.1)
+        encGuessInput encBits := by dsimp only [encGuessInput]; fun_prop
+    have hdec := (computableInPolyTime_bitwiseDecrypt (decrypt := fun _ c => c == [true]) hbit).comp
+      ((ComputableInPolyTime.const ([] : List Bool)).prod hct)
+    exact (ComputableInPolyTime.bool_not.comp (hdec.beq hst)).isPPTOn
+
+private theorem eval_mapM_expLeakEncrypt_false (n : ℕ) (pk : List Bool) (k : ℕ) :
+    ProbComp.eval ((List.replicate k false).mapM (expLeakEncrypt n pk)) =
+      PMF.pure (List.replicate k [false]) := by
+  induction k with
+  | zero => simp
+  | succ k ih => simp [List.replicate_succ, List.mapM_cons, eval_expLeakEncrypt_false, ih]
+
+private noncomputable def allFalseRun (n : ℕ) (pk : List Bool) (k : ℕ) : PMF Bool :=
+  (ProbComp.eval ((List.replicate k true).mapM (expLeakEncrypt n pk))).map
+    fun cts => cts.map (· == [true]) == List.replicate k false
+
+private theorem allFalseRun_apply_true (n : ℕ) (pk : List Bool) (k : ℕ) :
+    (allFalseRun n pk k) true = ((ProbComp.eval (expLeakEncrypt n pk true)) [false]) ^ k := by
+  induction k with
+  | zero => simp [allFalseRun]
+  | succ k ih =>
+    have hstep : allFalseRun n pk (k + 1) =
+        (ProbComp.eval (expLeakEncrypt n pk true)).bind fun c =>
+          (allFalseRun n pk k).map fun ok => ((c == [true]) == false) && ok := by
+      simp [allFalseRun, List.replicate_succ, List.mapM_cons, pmf_norm, PMF.map_bind, PMF.map_comp,
+        Function.comp_def]
+    rw [hstep, PMF.bind_apply, tsum_eq_single [false]]
+    · have hf : (fun ok : Bool => (([false] == [true]) == false) && ok) = id := by
+        funext ok; simp
+      rw [hf, PMF.map_id, ih, pow_succ']
+    · intro c hc
+      by_cases ht : c = [true]
+      · subst ht
+        simp [PMF.map, Function.comp_def, PMF.bind_const]
+      · simp [eval_expLeakEncrypt_true_ne n pk hc ht]
+
+private theorem toReal_expLeakEncrypt_true_false (n : ℕ) (pk : List Bool) :
+    ((ProbComp.eval (expLeakEncrypt n pk true)) [false]).toReal = 1 - 1 / (2 : ℝ) ^ n := by
+  have hsum := Probability.PMF.toOuterMeasure_add_compl_ennreal
+    (ProbComp.eval (expLeakEncrypt n pk true)) ({[false]} : Set (List Bool))
+  rw [PMF.toOuterMeasure_apply_singleton] at hsum
+  have hcompl : (ProbComp.eval (expLeakEncrypt n pk true)).toOuterMeasure
+      ({[false]} : Set (List Bool))ᶜ =
+      (ProbComp.eval (expLeakEncrypt n pk true)) [true] := by
+    rw [PMF.toOuterMeasure_apply, tsum_eq_single [true]]
+    · simp
+    · intro c hc
+      by_cases hf : c = [false]
+      · subst hf; simp
+      · simp [eval_expLeakEncrypt_true_ne n pk hf hc]
+  rw [hcompl, eval_expLeakEncrypt_true_apply_true] at hsum
+  have hreal := congrArg ENNReal.toReal hsum
+  have hne1 : (1 : ℝ≥0∞) / 2 ^ n ≠ ⊤ := by
+    rw [div_eq_mul_inv]
+    exact ENNReal.mul_ne_top ENNReal.one_ne_top
+      (ENNReal.inv_ne_top.mpr (pow_ne_zero _ (by norm_num)))
+  rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) hne1, ENNReal.toReal_div, ENNReal.toReal_one,
+    ENNReal.toReal_pow, ENNReal.toReal_ofNat] at hreal
+  linarith
+
+/-- Separation witness (`Bitwise.lean`): `(expKeyGen, expLeakEncrypt)` has `2 ^ n`-bit public keys,
+strict-PPT encryption, and 1-bit `INDCPA` (`≤ 1 / 2 ^ n` advantage against all adversaries), yet
+`bitwiseEncrypt expLeakEncrypt` fails `WordINDCPA` (`expWordAdv` achieves advantage `≥ 1 / 2` at
+every `n`). Thus polynomially bounded public-key length is necessary for `INDCPA → WordINDCPA`. -/
+theorem indcpa_and_not_wordINDCPA_expKeyGen :
+    INDCPA expKeyGen expLeakEncrypt ∧
+    IsPPTOn (encKeyedInput encBool) encBits (fun ⟨n, pk, b⟩ => expLeakEncrypt n pk b) ∧
+    ¬ WordINDCPA expKeyGen (bitwiseEncrypt expLeakEncrypt) := by
+  refine ⟨indcpa_expLeakEncrypt, isPPTOn_expLeakEncrypt, fun hword => ?_⟩
+  have hneg := hword expWordAdv isPPT_expWordAdv
+  have hhalf : ∀ n : ℕ, (1 / 2 : ℝ≥0) ≤
+      Encryption.advantage
+        (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) expKeyGen
+          (bitwiseEncrypt expLeakEncrypt) expWordAdv) n := by
+    intro n
+    let pk := List.replicate (2 ^ n) false
+    have hfalse : ProbComp.eval
+        (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) expKeyGen
+          (bitwiseEncrypt expLeakEncrypt) expWordAdv false n) = PMF.pure false := by
+      simp [gameOn, expKeyGen, expWordAdv, bitwiseEncrypt, eval_mapM_expLeakEncrypt_false,
+        List.map_replicate]
+    have htrue : ProbComp.eval
+        (gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length) expKeyGen
+          (bitwiseEncrypt expLeakEncrypt) expWordAdv true n) =
+        (allFalseRun n pk (2 ^ n)).map (!·) := by
+      simp [gameOn, expKeyGen, expWordAdv, bitwiseEncrypt, allFalseRun, pk, encUnary_apply,
+        pmf_norm, PMF.map_comp, Function.comp_def]
+    have htrue_false : ((allFalseRun n pk (2 ^ n)).map (!·)) false =
+        (allFalseRun n pk (2 ^ n)) true := by
+      rw [PMF.map_apply, tsum_bool]; simp
+    have hsum := Probability.PMF.apply_true_add_apply_false
+      ((allFalseRun n pk (2 ^ n)).map (!·))
+    have hreal_sum := congrArg ENNReal.toReal hsum
+    rw [ENNReal.toReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _), ENNReal.toReal_one,
+      htrue_false, allFalseRun_apply_true, ENNReal.toReal_pow,
+      toReal_expLeakEncrypt_true_false] at hreal_sum
+    have hpow_le : (1 - 1 / (2 : ℝ) ^ n) ^ (2 ^ n) ≤ 1 / 2 := by
+      set t : ℝ := 1 / (2 : ℝ) ^ n with ht_def
+      have ht0 : 0 ≤ t := by positivity
+      have ht1 : t ≤ 1 := div_le_one_of_le₀ (one_le_pow₀ (by norm_num)) (by positivity)
+      have hsq : 1 - t ^ 2 ≤ 1 := by nlinarith
+      have hprod : ((1 - t) * (1 + t)) ^ (2 ^ n) ≤ 1 := by
+        have hring : (1 - t) * (1 + t) = 1 - t ^ 2 := by ring
+        rw [hring]
+        exact pow_le_one₀ (by nlinarith) hsq
+      have hbern : (2 : ℝ) ≤ (1 + t) ^ (2 ^ n) := by
+        have hb := one_add_mul_le_pow (by linarith : (-2 : ℝ) ≤ t) (2 ^ n)
+        have hkt : (2 ^ n : ℕ) * t = 1 := by
+          rw [ht_def]; push_cast; exact mul_one_div_cancel (by positivity)
+        linarith
+      rw [mul_pow] at hprod
+      have hnonneg : 0 ≤ (1 - t) ^ (2 ^ n) := pow_nonneg (by linarith) _
+      have h2 := mul_le_mul_of_nonneg_left hbern hnonneg
+      linarith
+    have hs0 : Game.succProbability (PMF.pure false) = 0 := by simp [Game.succProbability]
+    rw [← NNReal.coe_le_coe]
+    dsimp only [Encryption.advantage]
+    rw [hfalse, htrue, Game.coe_advantage, hs0, NNReal.coe_zero, zero_sub, abs_neg,
+      abs_of_nonneg (NNReal.coe_nonneg _), Game.coe_succProbability]
+    push_cast
+    linarith
+  exact not_negligible_const (by norm_num : (1 / 2 : ℝ≥0) ≠ 0) (negligible_of_le hneg hhalf)
 
 /-! ### Multi-bit Blum Goldwasser–Micali security clients -/
 

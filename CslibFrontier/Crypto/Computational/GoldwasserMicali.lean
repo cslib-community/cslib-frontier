@@ -74,10 +74,12 @@ modulus `N = p * q` and public nonresidue `z ∈ QNR_N^{+1}`:
   `blumQRDistinguisher` encrypts `m₀` and multiplies the ciphertext by the challenge when
   `m₀ ≠ m₁`; it is certified strict PPT (`isPPTOn_blumQRDistinguisher`) and loses only a
   `20 / 2 ^ n` sampling tail (`advantage_blumGame_le_qr`). When the prime bit-lengths are also
-  polynomially bounded in `n` (as for `n`-bit primes or any strict-PPT `gen`),
-  `wordINDCPA_blumGoldwasserMicali` lifts this through
-  `Encryption.INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le` to multi-bit
-  `Encryption.WordINDCPA` for `(blumKeyGen gen, encryptWord)` with word decryption `decryptWord`
+  polynomially bounded in `n` (as for `sizeBound = (· + c)` or any strict-PPT `gen`),
+  `wordINDCPA_blumGoldwasserMicali` provides the Blum-modulus multi-bit step toward #5293 (after
+  [KatzLindell2020], Section 15.4.4 and Exercise 15.12, locator not verified; not the textbook
+  `QNR_N^{+1}` key-generator endpoint), lifting `indcpa_blumGoldwasserMicali` through
+  `Encryption.INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le` to `Encryption.WordINDCPA`
+  for `(blumKeyGen gen, encryptWord)` with word decryption `decryptWord`
   (`decryptWord_encryptWord_blumKeyGen`).
 * **Ideal public keys** ([KatzLindell2020], Theorem 15.29): for public keys drawn from
   `publicKeyLaw` (uniform `z ∈ QNR_N^{+1}`), `qrDistinguisher` reduces single-bit IND-CPA to
@@ -1071,8 +1073,8 @@ theorem decryptBits_encryptBits_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} 
   decryptBits_encryptBits_of_correct
     (fun b _ h => decrypt_encrypt_blumKeyGen hblum hkeys b h) bits hcts
 
-/-- **Perfect correctness of Blum-modulus word-level Goldwasser–Micali encryption**
-(`blumKeyGen gen`, `encryptWord`, `decryptWord`) whenever `gen n` draws Blum moduli. -/
+/-- Blum-modulus word-level round-trip correctness step (`blumKeyGen gen`, `encryptWord`,
+`decryptWord`) whenever `gen n` draws Blum moduli. -/
 theorem decryptWord_encryptWord_blumKeyGen {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
     (hblum : ∀ d ∈ (ProbComp.eval (gen n)).support, IsBlumModulus d.p d.q)
     {keys : List Bool × List Bool} (hkeys : keys ∈ (ProbComp.eval (blumKeyGen gen n)).support)
@@ -1096,17 +1098,17 @@ theorem length_blumPublicKey_le {p q B : ℕ} (hp : p.size ≤ B) (hq : q.size �
   simp only [blumPublicKey, encPair_apply, List.length_append, length_frame, encNat_apply]
   omega
 
-/-- **Multi-bit IND-CPA security of Blum-modulus Goldwasser–Micali from quadratic residuosity.**
-Let `gen` draw Blum moduli `N = p * q` (`p ≡ q ≡ 3 (mod 4)`) whose prime factors have bit-length at
-least `n` and at most `sizeBound n` for a polynomially bounded function `sizeBound` (as for
-`n`-bit primes `sizeBound = id`, or any uniform strict-PPT modulus sampler `gen`). If quadratic
-residuosity is hard relative to `gen`, then bitwise Goldwasser–Micali encryption with public
-nonresidue `-1` (`blumKeyGen gen`, `encryptWord`) satisfies `Encryption.WordINDCPA` against all
-uniform strict-PPT word adversaries.
+/-- Blum-modulus multi-bit IND-CPA step toward #5293 (after [KatzLindell2020], Section 15.4.4 and
+Exercise 15.12, locator not verified; not the textbook `QNR_N^{+1}` key-generator endpoint). Let
+`gen` draw Blum moduli `N = p * q` (`p ≡ q ≡ 3 (mod 4)`) whose prime factors have bit-length at
+least `n` and at most `sizeBound n` for a polynomially bounded function `sizeBound` (for example
+`fun n => n + c`, `max · 5` for exact `n`-bit Blum primes at `n ≥ 5`, or the length cap of any
+uniform strict-PPT modulus sampler `gen`). If quadratic residuosity is hard relative to `gen`, then
+bitwise Goldwasser–Micali encryption with public nonresidue `-1` (`blumKeyGen gen`, `encryptWord`)
+satisfies `Encryption.WordINDCPA` against all uniform strict-PPT word adversaries.
 
-This combines the Blum-modulus single-bit theorem `indcpa_blumGoldwasserMicali` ([KatzLindell2020],
-Section 15.4.4 and Exercise 15.12; locator not verified) with the certified single-bit-to-multi-bit
-hybrid reduction `Encryption.INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le`
+This combines `indcpa_blumGoldwasserMicali` with the certified single-bit-to-multi-bit hybrid
+reduction step `Encryption.INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le`
 (`Encryption.bitwiseToSingle`, `Encryption.isPPT_bitwiseToSingle`). The upper bound `hupper`
 keeps public keys polynomially long in `n` (`length_blumPublicKey_le`), bounding the length of any
 strict-PPT adversary's challenge words; `sizeBound` and `gen` need not be computable. -/

@@ -30,16 +30,18 @@ import Mathlib.Data.List.GetD
 /-!
 # Multi-bit chosen-plaintext security of bitwise public-key encryption
 
-Encrypting each bit of a message word independently under a single-bit public-key scheme yields a
-bit-word encryption scheme (`bitwiseEncrypt`, `bitwiseDecrypt`). Any chosen-message adversary
-against equal-length challenge words of length at most `maxLen n` reduces to a single-bit
-chosen-message adversary (`bitwiseToSingle`) by a hybrid argument across the coordinates: the
-reduction chooses its challenge pair first, samples an index `split` from `Fin (dyadicSize (maxLen
-n))` via `ProbComp.sampleDyadicIndex (maxLen n)` so that sampling runs in strict fair-coin
-polynomial time with zero approximation error, submits `(m₀[split], m₁[split])` to the single-bit
-challenger, and encrypts the prefix `m₁.take split` and suffix `m₀.drop (split + 1)` itself using
-the public key ([KatzLindell2020], Section 12.2.2, Theorem 12.6, specialized to one message of
-polynomially many bits; cf. [BonehShoup2023], Section 11.3.2, Theorem 11.1).
+Library infrastructure for bitwise multi-bit public-key encryption (`bitwiseEncrypt`,
+`bitwiseDecrypt`) and its single-challenge coordinate hybrid reduction step (after
+[KatzLindell2020], Section 12.2.2, locator not verified, and [BonehShoup2023], Section 11.3.2,
+rather than Theorem 12.6's multi-encryption oracle endpoint). Encrypting each bit of a message word
+independently under a single-bit public-key scheme yields a bit-word encryption scheme. Any
+chosen-message adversary against equal-length challenge words of length at most `maxLen n` reduces
+to a single-bit chosen-message adversary (`bitwiseToSingle`) by a hybrid argument across the
+coordinates: the reduction chooses its challenge pair first, samples an index `split` from
+`Fin (dyadicSize (maxLen n))` via `ProbComp.sampleDyadicIndex (maxLen n)` so that sampling runs in
+strict fair-coin polynomial time with zero approximation error, submits `(m₀[split], m₁[split])` to
+the single-bit challenger, and encrypts the prefix `m₁.take split` and suffix `m₀.drop (split + 1)`
+itself using the public key.
 
 Because all bits of the challenge word are chosen before any ciphertext is produced, the prefix and
 suffix ciphertexts are sampled non-adaptively with `List.mapM`: unlike the adaptive multi-query
@@ -90,10 +92,10 @@ exponentially long public keys and `2⁻ⁿ` per-bit leakage fails `WordINDCPA`.
 ## References
 
 * [J. Katz, Y. Lindell, *Introduction to Modern Cryptography*, 3rd ed.][KatzLindell2020],
-  Section 12.2.2 (Theorem 12.6, p. 408) and Section 15.4.4.
+  Section 12.2.2 (locator not verified).
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Section 11.2 (Attack Game 11.1, p. 436) and Section 11.3.2
-  (Theorem 11.1, pp. 439–440).
+  (pp. 439–440).
 -/
 
 public section
@@ -507,9 +509,10 @@ theorem eval_bitwiseHybridGameOn_of_le
       List.append_nil]
   · simp only [hv, Bool.false_eq_true, ↓reduceIte]
 
-/-- **Single-step coordinate hybrid identity:** for `split < maxLen n`, whenever admissible
-challenges on supported keys have equal lengths, the signed gap between `bitwiseHybridGameOn` at
-`split` and at `split + 1` equals the signed single-bit gap of `bitwiseToSingleAt ... split`. -/
+/-- Single-coordinate hybrid step for `bitwiseHybridGameOn`: for `split < maxLen n`, whenever
+admissible challenges on supported keys have equal lengths, the signed gap between
+`bitwiseHybridGameOn` at `split` and at `split + 1` equals the signed single-bit gap of
+`bitwiseToSingleAt ... split`. -/
 theorem bitwiseHybridGameOn_step_gap
     (valid : ℕ → List Bool → List Bool → List Bool → Bool)
     (keyGen : ℕ → ProbComp (List Bool × List Bool))
@@ -607,7 +610,7 @@ theorem eval_game_bitwiseToSingle
     simp only [bitwiseToSingleAt, decide_eq_false hi, Bool.and_false, Bool.false_eq_true,
       ↓reduceIte, pmf_norm, decode_rejectBitwiseToSingleState, PMF.bind_const]
 
-/-- **Exact strict-PPT coordinate hybrid identity:** when every admissible challenge pair on
+/-- Coordinate-hybrid reduction step for `bitwiseEncrypt`: when every admissible challenge pair on
 supported keys has equal lengths at most `maxLen n`, the word adversary's chosen-message advantage
 against `bitwiseEncrypt encrypt` equals `dyadicSize (maxLen n)` times the single-bit advantage of
 `bitwiseToSingle valid encrypt maxLen adversary`. -/
@@ -643,11 +646,10 @@ theorem advantage_bitwiseEncrypt_eq
 
 /-! ### Asymptotic 1-bit-to-multi-bit chosen-plaintext security -/
 
-/-- **Single-bit `INDCPA` implies multi-bit `INDCPAOn` for bounded-length words:** for any
-polynomial-time admissibility predicate `valid` and unary polynomial-time length schedule `maxLen`
-such that admissible pairs on supported keys have equal lengths at most `maxLen n`, single-bit
-`INDCPA keyGen encrypt` and strict-PPT `encrypt` imply `INDCPAOn valid encBits keyGen
-(bitwiseEncrypt encrypt)`. Nothing is assumed about `keyGen`. -/
+/-- Bounded-length bitwise hybrid step: for any polynomial-time admissibility predicate `valid` and
+unary polynomial-time length schedule `maxLen` such that admissible pairs on supported keys have
+equal lengths at most `maxLen n`, single-bit `INDCPA keyGen encrypt` and strict-PPT `encrypt` imply
+`INDCPAOn valid encBits keyGen (bitwiseEncrypt encrypt)`. Nothing is assumed about `keyGen`. -/
 theorem INDCPA.indcpaOn_bitwiseEncrypt
     {valid : ℕ → List Bool → List Bool → List Bool → Bool}
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
@@ -670,12 +672,11 @@ theorem INDCPA.indcpaOn_bitwiseEncrypt
   refine negligible_of_le (hsingle.polynomiallyBounded_mul hpolyDyadic) fun n => ?_
   exact le_of_eq (advantage_bitwiseEncrypt_eq valid keyGen encrypt maxLen adversary n (hlen n))
 
-/-- **Single-bit `INDCPA` implies bitwise `WordINDCPA` under polynomially bounded public-key
-length:** when every public key produced by `keyGen n` has bit length at most `pkBound n` for a
-polynomially bounded function `pkBound` (which need not be computable), every uniform strict-PPT
-word adversary's chosen messages are bounded by an explicit unary polynomial-time schedule in `n`,
-so single-bit `INDCPA keyGen encrypt` and strict-PPT `encrypt` imply `WordINDCPA keyGen
-(bitwiseEncrypt encrypt)`. -/
+/-- Public-key-bounded bitwise hybrid step: when every public key produced by `keyGen n` has bit
+length at most `pkBound n` for a polynomially bounded function `pkBound` (which need not be
+computable), every uniform strict-PPT word adversary's chosen messages are bounded by an explicit
+unary polynomial-time schedule in `n`, so single-bit `INDCPA keyGen encrypt` and strict-PPT
+`encrypt` imply `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
 theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
@@ -715,9 +716,10 @@ theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
     simp only [validBoundedWords, decide_eq_true hmsgLen, Bool.and_true]
   simpa only [heqGame] using hbounded
 
-/-- **Single-bit `INDCPA` implies bitwise `WordINDCPA` ([KatzLindell2020], Section 12.2.2,
-Theorem 12.6, single-challenge bitwise form):** when `keyGen` and `encrypt` are uniform strict PPT,
-single-bit `INDCPA keyGen encrypt` implies `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
+/-- Single-challenge bitwise reduction step (library infrastructure after [KatzLindell2020],
+Section 12.2.2, locator not verified, and [BonehShoup2023], Section 11.3.2; not Theorem 12.6's
+multi-encryption oracle endpoint): when `keyGen` and `encrypt` are uniform strict PPT, single-bit
+`INDCPA keyGen encrypt` implies `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
 theorem INDCPA.wordINDCPA_bitwiseEncrypt
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
