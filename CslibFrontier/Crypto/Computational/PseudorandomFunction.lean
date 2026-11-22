@@ -8,13 +8,13 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
+public import CslibFrontier.Computability.Probabilistic.Oracle.Codec
 public import CslibFrontier.Computability.Probabilistic.Oracle.Parameter
 public import CslibFrontier.Crypto.Game
 public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
-import CslibFrontier.Languages.Probabilistic.Oracle.InterpNorm
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -44,7 +44,8 @@ queries and answers all have `n` bits.
 
 ## Main results
 
-* `Cslib.Crypto.interpret_randomFunctionQuery`: correctness of the finite-domain adapter.
+* `Cslib.Crypto.wordOracle_bitStrings`, `Cslib.Crypto.wordOracle_bitStrings_answer`: agreement of
+  `OracleCodec.bitStrings` with `randomFunctionOracle` and `lazyRandomFunctionOracle`.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
 
 ## References
@@ -75,19 +76,22 @@ def randomFunctionOracle (n : ℕ) {w : ℕ} (table : BitString n → BitString 
     (query : List Bool) : List Bool :=
   if query.length = n then List.ofFn (table (BitString.ofList n query)) else []
 
-/-- Adapt a valid word to the finite domain. Malformed words make no external call. -/
+/-- Adapt a valid word to the finite domain. Malformed words make no external call; this is
+`(OracleCodec.bitStrings n w).wordOracle ProbOracleComp.query` on `()`, `query`. -/
 def randomFunctionQuery (n : ℕ) {w : ℕ} (query : List Bool) :
     ProbOracleComp (fun _ : BitString n => BitString w) (List Bool) :=
   if query.length = n then List.ofFn <$> ProbOracleComp.query (BitString.ofList n query)
   else pure []
 
-/-- The finite query adapter preserves the word-valued table interface in every lawful monad. -/
-theorem interpret_randomFunctionQuery {m : Type → Type*} [Monad m] [LawfulMonad m]
-    (random : (n : ℕ) → m (Fin (n + 1))) (n : ℕ) {w : ℕ} (table : BitString n → BitString w)
-    (query : List Bool) :
-    OracleComp.interpret (OracleComp.sumHandler random (fun bits => pure (table bits)))
-      (randomFunctionQuery n query) = pure (randomFunctionOracle n table query) := by
-  by_cases h : query.length = n <;> simp [randomFunctionQuery, randomFunctionOracle, h]
+/-- `OracleCodec.bitStrings n w` presents `randomFunctionOracle n table` on the unit word channel:
+an `n`-bit request is answered by the bits of `table` and any other request by `[]`. -/
+theorem wordOracle_bitStrings {m : Type → Type*} [Monad m] [LawfulMonad m] (n w : ℕ)
+    (table : BitString n → BitString w) :
+    (OracleCodec.bitStrings n w).wordOracle (fun bits => (pure (table bits) : m (BitString w))) =
+      fun request => pure (randomFunctionOracle n table request.2) := by
+  funext ⟨⟨⟩, query⟩
+  by_cases h : query.length = n <;>
+    simp [OracleCodec.wordOracle, OracleCodec.bitStrings, randomFunctionOracle, h]
 
 open Classical in
 /-- A semantic random-function cache from `n`-bit to `w`-bit strings, retaining only the
@@ -98,6 +102,18 @@ noncomputable def lazyRandomFunctionOracle (n w : ℕ) (query : List Bool) :
     (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifOracle k))
       (RandomOracle.answer (fun _ => PMF.uniformOfFintype (BitString w))))
         (randomFunctionQuery n query)
+
+open Classical in
+/-- `OracleCodec.bitStrings n w` lifts `RandomOracle.answer` to `lazyRandomFunctionOracle n w` on
+the unit word channel. -/
+theorem wordOracle_bitStrings_answer (n w : ℕ) :
+    (OracleCodec.bitStrings n w).wordOracle
+        (RandomOracle.answer (fun _ : BitString n => PMF.uniformOfFintype (BitString w))) =
+      fun request => lazyRandomFunctionOracle n w request.2 := by
+  funext ⟨⟨⟩, query⟩
+  by_cases h : query.length = n <;>
+    simp [OracleCodec.wordOracle, OracleCodec.bitStrings, lazyRandomFunctionOracle,
+      randomFunctionQuery, h]
 
 /-- The real experiment of a keyed family with `inLen n`-bit inputs: sample one `n`-bit key and
 answer every query of `inLen n` bits with the family under that key, and any other query with the
@@ -124,22 +140,15 @@ theorem prfIdealGame_eq_lazy (inLen outLen : ℕ → ℕ) (adversary : OracleDis
           (fun request => lazyRandomFunctionOracle (inLen n) (outLen n) request.2))
             (adversary n [])).run (fun _ => none)).map Prod.fst := by
   classical
-  let adapted := OracleComp.interpret
-    (OracleComp.sumHandler (fun k => ProbOracleComp.sample (ProbComp.unifFin k))
-      (fun request : Unit × List Bool =>
-        (randomFunctionQuery (inLen n) request.2 :
-          ProbOracleComp (fun _ : BitString (inLen n) => BitString (outLen n)) (List Bool))))
-      (adversary n [])
-  have h := RandomOracle.uniform_interpret_prob_eq_lazy adapted
-  have heager (table : BitString (inLen n) → BitString (outLen n)) (query : List Bool) :
-      OracleComp.interpret
-        (OracleComp.sumHandler ProbComp.unifOracle (fun bits => PMF.pure (table bits)))
-          (randomFunctionQuery (inLen n) query) =
-        PMF.pure (randomFunctionOracle (inLen n) table query) :=
-    interpret_randomFunctionQuery ProbComp.unifOracle (inLen n) table query
-  simpa only [ProbOracleComp.runWith_eq_run_interpret, adapted, prfIdealGame, ProbComp.eval_uniform,
-    ProbOracleComp.eval_run, OracleComp.interpret_interpret, OracleComp.interpret_sumHandler,
-    interp_norm, pmf_norm, ProbComp.unifFin, heager, lazyRandomFunctionOracle] using h
+  have h := RandomOracle.uniform_interpret_prob_eq_lazy
+    ((OracleCodec.bitStrings (inLen n) (outLen n)).adapt (adversary n []))
+  have hpure (table : BitString (inLen n) → BitString (outLen n)) :
+      (fun bits => PMF.pure (table bits)) =
+        (fun bits => (pure (table bits) : PMF (BitString (outLen n)))) := rfl
+  simpa only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, ProbOracleComp.eval_run,
+    ProbComp.eval_pure, PMF.monad_bind_eq_bind, PMF.monad_pure_eq_pure, OracleCodec.interpret_adapt,
+    OracleCodec.runWith_adapt, ProbOracleComp.runWith_eq_run_interpret,
+    hpure, wordOracle_bitStrings, wordOracle_bitStrings_answer] using h
 
 /-- A keyed family with `n`-bit keys, `inLen n`-bit inputs and `outLen n`-bit outputs, evaluated in
 plain polynomial time and secure against every uniform adaptive oracle test: [BonehShoup2023],
