@@ -9,6 +9,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
 public import Mathlib.Basic.Sign.Defs
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
@@ -37,6 +38,7 @@ The child-index query returns the operands in their syntactic order.
 The indexed gate operation adapts the local wire evaluation of
 `LeanCanny.ETR.FormulaBooleanCircuitCorrect` at the same revision. It reads comparison signs
 from a supplied term-word interpretation and connective operands from supplied wire values.
+Comparison requests retain the exact term word and the required sign.
 -/
 
 public section
@@ -398,18 +400,102 @@ theorem formulaWordChildIndices_polyTime :
   exact ite_decide (unary_eq' harity (const 1)) (cons' hfirst (const []))
     (ite_decide (unary_eq' harity (const 2)) hchildren (const []))
 
+/-- A comparison gate's arithmetic query. -/
+structure FormulaComparisonRequest where
+  /-- The term word carried by the comparison token. -/
+  termWord : List Bool
+  /-- A strict comparison requests a negative sign. An equality requests zero. -/
+  isStrict : Bool
+  deriving DecidableEq
+
+/-- Frame the raw term word and append one bit indicating strict inequality. -/
+enc_structure encFormulaComparisonRequest : FormulaComparisonRequest where
+  termWord : encBits,
+  isStrict : encBool
+
+/-- The sign that makes the requested comparison true. -/
+def FormulaComparisonRequest.requestedSign (request : FormulaComparisonRequest) : SignType :=
+  if request.isStrict then -1 else 0
+
+private def comparisonRequest : FormulaToken → Option FormulaComparisonRequest
+  | .inr (.inl term) => some ⟨term, false⟩
+  | .inr (.inr (.inl term)) => some ⟨term, true⟩
+  | _ => none
+
+/-- Read the comparison request at a binary index of the total formula view.
+Connectives, falsity and out-of-range positions have no request. -/
+def formulaWordComparisonRequest (word : List Bool) (index : ℕ) :
+    Option FormulaComparisonRequest :=
+  comparisonRequest (formulaWordTokenAt word index)
+
+private theorem comparisonRequest_polyTime :
+    ComputableInPolyTime comparisonRequest encFormulaToken
+      (encOption encFormulaComparisonRequest) := by
+  let connectives := encSum encUnit (encSum encUnit encUnit)
+  let strictTail := encSum encBits connectives
+  let comparisonTail := encSum encBits strictTail
+  have heq : ComputableInPolyTime (fun term => FormulaComparisonRequest.mk term false)
+      encBits encFormulaComparisonRequest := by fun_prop
+  have hlt : ComputableInPolyTime (fun term => FormulaComparisonRequest.mk term true)
+      encBits encFormulaComparisonRequest := by fun_prop
+  let readStrict (token : List Bool ⊕ Unit ⊕ Unit ⊕ Unit) : Option FormulaComparisonRequest :=
+    token.getLeft?.map fun term => ⟨term, true⟩
+  have hstrict : ComputableInPolyTime readStrict strictTail
+      (encOption encFormulaComparisonRequest) :=
+    (ComputableInO.getLeft?_deg encBits connectives).computableInPolyTime
+      |>.optionMapWithInput (f := fun _ term => FormulaComparisonRequest.mk term true)
+        (hlt.comp (snd strictTail encBits))
+  have hright := (ComputableInO.getRight?_deg encBits strictTail).computableInPolyTime
+    |>.optionElimWithInput (body := fun _ payload => readStrict payload) (const none)
+      (hstrict.comp (snd comparisonTail strictTail))
+  let readComparison (token : List Bool ⊕ List Bool ⊕ Unit ⊕ Unit ⊕ Unit) :
+      Option FormulaComparisonRequest :=
+    token.getLeft?.elim (token.getRight?.elim none readStrict) (fun term => some ⟨term, false⟩)
+  have hcompare : ComputableInPolyTime readComparison comparisonTail
+      (encOption encFormulaComparisonRequest) :=
+    (ComputableInO.getLeft?_deg encBits strictTail).computableInPolyTime
+      |>.optionElimWithInput (body := fun _ term => some ⟨term, false⟩) hright
+        ((optionSome encFormulaComparisonRequest).comp (heq.comp (snd comparisonTail encBits)))
+  have h := (ComputableInO.getRight?_deg encUnit comparisonTail).computableInPolyTime
+    |>.optionElimWithInput (body := fun _ payload => readComparison payload) (const none)
+      (hcompare.comp (snd encFormulaToken comparisonTail))
+  apply h.of_enc_eq
+  rintro (_ | (_ | (_ | _))) <;> rfl
+
+/-- Extract the optional comparison request in polynomial time on the raw word and binary
+index. The term payload is copied unchanged. -/
+theorem formulaWordComparisonRequest_polyTime :
+    ComputableInPolyTime (fun p : List Bool × ℕ => formulaWordComparisonRequest p.1 p.2)
+      (encPair encBits encNat) (encOption encFormulaComparisonRequest) :=
+  comparisonRequest_polyTime.comp formulaWordTokenAt_polyTime
+
+/-- Read the comparison request of a serialized subformula, retaining its exact term word. -/
+theorem formulaWordComparisonRequest_of_prefix {n : ℕ} {word : List Bool} (p : Formula n)
+    (before after : List FormulaToken)
+    (h : formulaWordTokens word =
+      before ++ ((encFormula_tokens n p).map FormulaToken.encodeTerms ++ after)) :
+    formulaWordComparisonRequest word before.length =
+      match p with
+      | .eqZero t => some ⟨encTerm n t, false⟩
+      | .ltZero t => some ⟨encTerm n t, true⟩
+      | _ => none := by
+  unfold formulaWordComparisonRequest
+  cases p <;> rw [formulaWordTokenAt_append h] <;> rfl
+
 /-- Evaluate one Boolean gate of the total formula view. Comparison gates ask for the sign
 of their encoded term. Connectives read the supplied values at their child indices.
 Falsity and positions outside the token stream return `false`. -/
 def formulaWordGateValue (word : List Bool) (index : ℕ)
     (termSign : List Bool → SignType) (value : ℕ → Bool) : Bool :=
-  match formulaWordTokenAt word index, formulaWordChildIndices word index with
-  | .inr (.inl term), _ => decide (termSign term = 0)
-  | .inr (.inr (.inl term)), _ => decide (termSign term = -1)
-  | .inr (.inr (.inr (.inl _))), [child] => !(value child)
-  | .inr (.inr (.inr (.inr (.inl _)))), [left, right] => value left && value right
-  | .inr (.inr (.inr (.inr (.inr _)))), [left, right] => value left || value right
-  | _, _ => false
+  let token := formulaWordTokenAt word index
+  match comparisonRequest token with
+  | some request => decide (termSign request.termWord = request.requestedSign)
+  | none =>
+    match token, formulaWordChildIndices word index with
+    | .inr (.inr (.inr (.inl _))), [child] => !(value child)
+    | .inr (.inr (.inr (.inr (.inl _)))), [left, right] => value left && value right
+    | .inr (.inr (.inr (.inr (.inr _)))), [left, right] => value left || value right
+    | _, _ => false
 
 /-- A gate at the start of an encoded subformula reads the exact term payload for a
 comparison, or combines the values at the starts of its immediate operands. -/
