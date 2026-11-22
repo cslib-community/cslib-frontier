@@ -4,10 +4,17 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+-- upstream: local-only (regression tests)
+
 import Cslib.Computability.Circuit.Boolean.Basic
 import CslibFrontier.Computability.Circuit.Frontier.Arborescence
+import Mathlib.Tactic.FinCases
 
-/-! Checked clients for `SimpleGraph.ArborescenceIndep` and `Frontier/Arborescence.lean`. -/
+/-! Checked `module` clients for `SimpleGraph.ArborescenceIndep` and `Frontier/Arborescence.lean`.
+-/
+
+set_option linter.privateModule false
 
 open Set Cslib.Circuits Cslib.Circuits.Frontier
 
@@ -16,28 +23,25 @@ namespace CslibFrontierTests.FrontierArborescence
 /-! ### Out-forest acyclicity and Tree-DP bounds on `K_{1, 3}` and `K_{1, 4}` -/
 
 /-- Directed `3`-leaf root star on `Fin 4` (`0 → 1, 2, 3`). -/
-private def arcStar3 (u w : Fin 4) : Prop :=
-  u = 0 ∧ w ≠ 0
+private def arcStar3 : Digraph (Fin 4) where
+  Adj u w := u = 0 ∧ w ≠ 0
 
-private theorem arcStar3_rank ⦃u w : Fin 4⦄ (h : arcStar3 u w) : u.val < w.val := by
-  rcases h with ⟨rfl, hw⟩
-  exact Fin.pos_iff_ne_zero.mpr hw
+private theorem arcStar3_isBranching : arcStar3.IsBranching :=
+  Digraph.IsBranching.of_rank (rk := fun u : Fin 4 => u.val)
+    (fun _ _ ⟨hu, hw⟩ => hu ▸ Fin.pos_iff_ne_zero.mpr hw)
+    (fun _ _ _ ⟨hu₁, _⟩ ⟨hu₂, _⟩ => hu₁.trans hu₂.symm)
 
-private theorem arcStar3_subsingleton (w : Fin 4) : {u : Fin 4 | arcStar3 u w}.Subsingleton := by
-  rintro u₁ ⟨rfl, -⟩ u₂ ⟨rfl, -⟩
-  rfl
-
-private theorem arcStar3_out_int (w : Fin 4) (h : ∃ u, arcStar3 u w) :
-    {v : Fin 4 | arcStar3 w v}.ncard ≤ 2 := by
+private theorem arcStar3_out_int (w : Fin 4) (h : ∃ u, arcStar3.Adj u w) :
+    {v : Fin 4 | arcStar3.Adj w v}.ncard ≤ 2 := by
   obtain ⟨_, rfl, hw⟩ := h
-  have hemp : {v : Fin 4 | arcStar3 w v} = ∅ := by
+  have hemp : {v : Fin 4 | arcStar3.Adj w v} = ∅ := by
     ext v
     simp [arcStar3, hw]
   simp [hemp]
 
-private theorem arcStar3_out_root (r : Fin 4) (_ : ¬∃ u, arcStar3 u r) :
-    {v : Fin 4 | arcStar3 r v}.ncard ≤ 3 := by
-  calc {v : Fin 4 | arcStar3 r v}.ncard
+private theorem arcStar3_out_root (r : Fin 4) (_ : ¬∃ u, arcStar3.Adj u r) :
+    {v : Fin 4 | arcStar3.Adj r v}.ncard ≤ 3 := by
+  calc {v : Fin 4 | arcStar3.Adj r v}.ncard
       ≤ ({1, 2, 3} : Set (Fin 4)).ncard := by
         refine ncard_le_ncard (fun v hv => ?_) (toFinite _)
         have hv0 : v ≠ 0 := hv.2
@@ -50,45 +54,80 @@ private theorem arcStar3_out_root (r : Fin 4) (_ : ¬∃ u, arcStar3 u r) :
       refine Nat.add_le_add_right ((ncard_insert_le _ _).trans ?_) 1
       simp
 
-example : (SimpleGraph.fromRel arcStar3).IsAcyclic :=
-  SimpleGraph.fromRel_isAcyclic_of_subsingleton arcStar3_rank arcStar3_subsingleton
+example : (SimpleGraph.fromRel arcStar3.Adj).IsAcyclic :=
+  arcStar3_isBranching.toSimpleGraph_isAcyclic
 
 example : SimpleGraph.arborescenceCappedEdges arcStar3 =
-    (SimpleGraph.fromRel arcStar3).edgeSet.ncard :=
-  SimpleGraph.arborescenceCappedEdges_eq_ncard_edgeSet arcStar3_rank
+    (SimpleGraph.fromRel arcStar3.Adj).edgeSet.ncard :=
+  SimpleGraph.arborescenceCappedEdges_eq_ncard_edgeSet arcStar3_isBranching
     arcStar3_out_int arcStar3_out_root
 
-example : Real.logb 2 ((SimpleGraph.fromRel arcStar3).indepSetCount : ℝ) ≤
-    4 - (53 / 200 : ℝ) * ((SimpleGraph.fromRel arcStar3).edgeSet.ncard : ℝ) -
+example : Real.logb 2 ((SimpleGraph.fromRel arcStar3.Adj).indepSetCount : ℝ) ≤
+    4 - (53 / 200 : ℝ) * ((SimpleGraph.fromRel arcStar3.Adj).edgeSet.ncard : ℝ) -
       (33 / 1000 : ℝ) * ((SimpleGraph.arborescenceActiveRoots arcStar3).ncard : ℝ) := by
-  have h := SimpleGraph.logb_indepSetCount_fromRel_le arcStar3_rank arcStar3_subsingleton
+  have h := SimpleGraph.logb_indepSetCount_fromRel_le arcStar3_isBranching
     arcStar3_out_int arcStar3_out_root
   rw [Nat.card_eq_fintype_card, Fintype.card_fin] at h
   exact h
 
-example : ((SimpleGraph.fromRel arcStar3).indepSetCount : ℝ) ≤
-    (2 : ℝ) ^ ((4 : ℝ) - (53 / 200 : ℝ) * ((SimpleGraph.fromRel arcStar3).edgeSet.ncard : ℝ) -
+example : ((SimpleGraph.fromRel arcStar3.Adj).indepSetCount : ℝ) ≤
+    (2 : ℝ) ^ ((4 : ℝ) - (53 / 200 : ℝ) * ((SimpleGraph.fromRel arcStar3.Adj).edgeSet.ncard : ℝ) -
       (33 / 1000 : ℝ) * ((SimpleGraph.arborescenceActiveRoots arcStar3).ncard : ℝ)) := by
-  have h := SimpleGraph.indepSetCount_fromRel_le_rpow arcStar3_rank arcStar3_subsingleton
+  have h := SimpleGraph.indepSetCount_fromRel_le_rpow arcStar3_isBranching
     arcStar3_out_int arcStar3_out_root
   rw [Nat.card_eq_fintype_card, Fintype.card_fin] at h
   exact h
 
 /-- Directed `4`-leaf root star on `Fin 5` (`0 → 1, 2, 3, 4`), exercising degree capping at `3`. -/
-private def arcStar4 (u w : Fin 5) : Prop :=
-  u = 0 ∧ w ≠ 0
+private def arcStar4 : Digraph (Fin 5) where
+  Adj u w := u = 0 ∧ w ≠ 0
 
-example : Real.logb 2 ((SimpleGraph.fromRel arcStar4).indepSetCount : ℝ) ≤
+private theorem arcStar4_isBranching : arcStar4.IsBranching :=
+  Digraph.IsBranching.of_rank (rk := fun u : Fin 5 => u.val)
+    (fun _ _ ⟨hu, hw⟩ => hu ▸ Fin.pos_iff_ne_zero.mpr hw)
+    (fun _ _ _ ⟨hu₁, _⟩ ⟨hu₂, _⟩ => hu₁.trans hu₂.symm)
+
+example : SimpleGraph.arborescenceCappedEdges arcStar4 = 3 := by
+  rw [SimpleGraph.arborescenceCappedEdges, finsum_eq_sum_of_fintype]
+  have h0 : {v : Fin 5 | arcStar4.Adj 0 v} = ((Finset.univ.erase (0 : Fin 5) : Finset (Fin 5)) :
+      Set (Fin 5)) := by
+    ext v
+    simp [arcStar4]
+  have h0_card : {v : Fin 5 | arcStar4.Adj 0 v}.ncard = 4 := by
+    rw [h0, ncard_coe_finset, Finset.card_erase_of_mem (Finset.mem_univ 0), Finset.card_univ,
+      Fintype.card_fin]
+  have hno0 : ¬∃ u : Fin 5, arcStar4.Adj u 0 := by
+    rintro ⟨_, -, hne⟩
+    exact hne rfl
+  have hne0 : ∀ w : Fin 5, w ≠ 0 → {v : Fin 5 | arcStar4.Adj w v} = ∅ := fun w hw => by
+    ext v
+    simp [arcStar4, hw]
+  rw [Finset.sum_eq_single (0 : Fin 5)]
+  · simp [h0_card, hno0]
+  · intro w _ hw
+    simp [hne0 w hw]
+  · intro h
+    exact absurd (Finset.mem_univ 0) h
+
+example : (SimpleGraph.arborescenceActiveRoots arcStar4).ncard = 1 := by
+  have heq : SimpleGraph.arborescenceActiveRoots arcStar4 = {(0 : Fin 5)} := by
+    ext r
+    simp only [SimpleGraph.arborescenceActiveRoots, arcStar4, mem_ofPred_eq, mem_singleton_iff]
+    constructor
+    · rintro ⟨_, _, hr, -⟩
+      exact hr
+    · rintro rfl
+      exact ⟨fun ⟨_, _, hne⟩ => hne rfl, 1, rfl, by decide⟩
+  rw [heq, ncard_singleton]
+
+example : Real.logb 2 ((SimpleGraph.fromRel arcStar4.Adj).indepSetCount : ℝ) ≤
     5 - (53 / 200 : ℝ) * (SimpleGraph.arborescenceCappedEdges arcStar4 : ℝ) -
       (33 / 1000 : ℝ) * ((SimpleGraph.arborescenceActiveRoots arcStar4).ncard : ℝ) := by
-  have h := SimpleGraph.logb_indepSetCount_fromRel_le_capped
-    (arc := arcStar4) (rk := fun u : Fin 5 => u.val)
-    (fun _ _ ⟨hu, hw⟩ => hu ▸ Fin.pos_iff_ne_zero.mpr hw)
-    (fun _ _ ⟨hu₁, _⟩ _ ⟨hu₂, _⟩ => hu₁.trans hu₂.symm)
+  have h := SimpleGraph.logb_indepSetCount_fromRel_le_capped arcStar4_isBranching
   rw [Nat.card_eq_fintype_card, Fintype.card_fin] at h
   exact h
 
-/-! ### Circuit frontier arborescence and `1 / 4`-clause amortized bounds -/
+/-! ### Circuit frontier arborescence, concrete non-empty `D₀`, and `1 / 4`-clause bounds -/
 
 /-- Fan-in-2 Boolean circuit on `3` inputs: `g₀ = x₀ ∧ x₁`, `g₁ = g₀ ∨ x₂`. -/
 private def arbProg : Program Boolean.signature 3 2 :=
@@ -96,9 +135,52 @@ private def arbProg : Program Boolean.signature 3 2 :=
     ⟨Boolean.Op.and, ![Wire.input 0, Wire.input 1]⟩).gate
     ⟨Boolean.Op.or, ![Wire.gate 0, Wire.input 2]⟩
 
-private def arbCircuit : Circuit Boolean.signature 3 1 where
+private abbrev arbCircuit : Circuit Boolean.signature 3 1 where
   program := arbProg
   outputs _ := .gate 1
+
+/-- Singleton vertex cut isolating output gate `g₁`, whose incoming argument edges and outgoing
+head edge all cross `arbGate1Cut` so `.gate 1 ∈ depthOneDetermined (cutWires arbCircuit _)`. -/
+private def arbGate1Cut : Set (Compiler.Vertex arbCircuit) :=
+  {Compiler.Vertex.signal ⟨.gate 1, .output 0⟩}
+
+private theorem gate1_mem_depthOneDetermined_arbGate1Cut :
+    (.gate 1 : Wire 3 2) ∈
+      arbCircuit.program.depthOneDetermined (cutWires arbCircuit arbGate1Cut) := by
+  let sig1 : Compiler.Signal arbCircuit := ⟨.gate 1, .output 0⟩
+  have hhead_cut : Compiler.head sig1 ∈ (Compiler.graph arbCircuit).edgeCut arbGate1Cut := by
+    simp only [Multigraph.mem_edgeCut, arbGate1Cut, mem_singleton_iff, Compiler.graph_src,
+      Compiler.graph_tgt]
+    have hs : Compiler.src (Compiler.head sig1) = .signal sig1 := rfl
+    have ht : Compiler.tgt (Compiler.head sig1) ≠ .signal sig1 := by
+      intro h
+      exact Compiler.loopless (Compiler.head sig1) (hs.trans h.symm)
+    exact fun hiff => ht (hiff.mp hs)
+  refine ⟨⟨Compiler.head sig1, hhead_cut, rfl⟩, 1, rfl, fun a => ?_⟩
+  have harg_cut : Compiler.argEdge (c := arbCircuit) (.output 0) a ∈
+      (Compiler.graph arbCircuit).edgeCut arbGate1Cut := by
+    simp only [Multigraph.mem_edgeCut, arbGate1Cut, mem_singleton_iff, Compiler.graph_src,
+      Compiler.graph_tgt]
+    have ht : Compiler.tgt (Compiler.argEdge (c := arbCircuit) (.output 0) a) = .signal sig1 :=
+      Compiler.tgt_deliverEdge _
+    have hs : Compiler.src (Compiler.argEdge (c := arbCircuit) (.output 0) a) ≠ .signal sig1 := by
+      intro h
+      exact Compiler.loopless (Compiler.argEdge (c := arbCircuit) (.output 0) a) (h.trans ht.symm)
+    exact fun hiff => hs (hiff.mpr ht)
+  exact ⟨Compiler.argEdge (c := arbCircuit) (.output 0) a, harg_cut,
+    by simp [Compiler.consumed]⟩
+
+example : (arbCircuit.program.depthOneDetermined (cutWires arbCircuit arbGate1Cut)).Nonempty :=
+  ⟨.gate 1, gate1_mem_depthOneDetermined_arbGate1Cut⟩
+
+example : twoCappedClauseEdges arbCircuit.program Boolean.interpretation
+      (cutWires arbCircuit arbGate1Cut) ≤
+    clauseCappedEdges arbCircuit.program Boolean.interpretation
+      (cutWires arbCircuit arbGate1Cut \
+        arbCircuit.program.depthOneDetermined (cutWires arbCircuit arbGate1Cut)) +
+      4 * (arbCircuit.program.depthOneDetermined (cutWires arbCircuit arbGate1Cut)).ncard :=
+  twoCappedClauseEdges_le_add_four_mul arbCircuit.fanInAtMost_two Boolean.interpretation
+    (cutWires arbCircuit arbGate1Cut)
 
 example (P : Set (Compiler.Vertex arbCircuit)) :
     (u2ClauseGraph arbCircuit.program Boolean.interpretation
@@ -139,14 +221,5 @@ example (π : Layout (Compiler.Vertex arbCircuit)) (t : ℕ) (X : Set (Fin 3 →
           (cutWires arbCircuit (π.initial t)) : ℝ) :=
   logb_ncard_frontierValues_le_quarter_sub arbCircuit.fanInAtMost_two Boolean.interpretation
     (fun _ => {true}) π t X
-
-example (sg sz sa sb : Bool) :
-    (1 / 2 : ℝ) * (((sg != sz).toNat : ℝ) + ((sg != sa).toNat : ℝ) + ((sg != sb).toNat : ℝ)) -
-      (1 / 4 : ℝ) * ((((sg != sz) && (sg != sa)).toNat : ℝ) +
-        (((sg != sz) && (sg != sb)).toNat : ℝ)) =
-      (1 / 4 : ℝ) * ((sg != sz).toNat : ℝ) +
-        (3 / 8 : ℝ) * (((sg != sa).toNat : ℝ) + ((sg != sb).toNat : ℝ)) +
-        (1 / 8 : ℝ) * (((sz != sa).toNat : ℝ) + ((sz != sb).toNat : ℝ)) :=
-  half_cut_sub_quarter_clause_eq sg sz sa sb
 
 end CslibFrontierTests.FrontierArborescence

@@ -7,15 +7,15 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate (Mathlib, `Mathlib/Combinatorics/SimpleGraph/Clique.lean`)
 
-public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.Acyclic
+public import CslibFrontier.Foundations.Combinatorics.Digraph.Branching
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.IndepCount
 public import Mathlib.Algebra.BigOperators.Finprod
 public import Mathlib.Analysis.SpecialFunctions.Log.Base
 import Mathlib.Analysis.Calculus.Deriv.Add
-import Mathlib.Analysis.Calculus.Deriv.Inv
 import Mathlib.Analysis.Calculus.Deriv.MeanValue
 import Mathlib.Analysis.Calculus.Deriv.Mul
 import Mathlib.Analysis.Calculus.Deriv.Pow
+import Mathlib.Analysis.Complex.ExponentialBounds
 import Mathlib.Analysis.SpecialFunctions.Log.Deriv
 import Mathlib.Logic.Relation
 import Mathlib.Tactic.FieldSimp
@@ -26,39 +26,36 @@ import Mathlib.Tactic.Ring
 /-!
 # Independent-set bounds on directed out-forests
 
-A binary relation `arc : V → V → Prop` on a finite vertex type `V` forms a *directed out-forest*
-(*arborescence forest*) when it admits a strict topological ranking `rk : V → ℕ`
-(`arc u w → rk u < rk w`) and every vertex has in-degree at most one
-(`{u | arc u w}.Subsingleton`).
+A branching `B : Digraph V` (`hB : B.IsBranching`: at most one incoming arc per vertex and no
+directed cycles) forms a directed out-forest whose underlying undirected graph
+`SimpleGraph.fromRel B.Adj` is acyclic (`Digraph.IsBranching.toSimpleGraph_isAcyclic`).
 
-Embedding `V` into `Fin (M + 1)` above a virtual super-root `0` shows via
-`SimpleGraph.parentTree_isTree` that `SimpleGraph.fromRel arc` is an acyclic forest
-(`SimpleGraph.fromRel_isAcyclic_of_subsingleton`). Along each rooted component tree, bottom-up
-dynamic programming tracks the unchosen-root ratio `p(T_u) = i₀(T_u) / i(T_u) ∈ [1 / 2, 4 / 5]`
-against the quadratic potential `f(p) = (2 / 5) * (p - 1 / 2) + (3 / 10) * (p - 1 / 2) ^ 2`,
-establishing the rational entropy bound
+On a finite vertex type `V`, every branching admits a strict root-distance ranking
+(`Digraph.IsBranching.exists_rank`). Along each rooted component tree, bottom-up dynamic
+programming tracks the unchosen-root ratio `p(T_u) = i₀(T_u) / i(T_u) ∈ [1 / 2, 4 / 5]` against the
+quadratic potential `f(p) = (2 / 5) * (p - 1 / 2) + (3 / 10) * (p - 1 / 2) ^ 2`, establishing the
+rational entropy bound
 
-`Real.logb 2 i(G) ≤ |V| - (53 / 200) * cappedEdges(arc) - (33 / 1000) * |activeRoots(arc)|`
+`Real.logb 2 i(G) ≤ |V| - (53 / 200) * cappedEdges(B) - (33 / 1000) * |activeRoots(B)|`
 
 for arbitrary out-degrees (`SimpleGraph.logb_indepSetCount_fromRel_le_capped`), reducing to
-`(SimpleGraph.fromRel arc).edgeSet.ncard` whenever internal vertices have out-degree at most `2`
-and roots have out-degree at most `3` (`SimpleGraph.logb_indepSetCount_fromRel_le`).
+`(SimpleGraph.fromRel B.Adj).edgeSet.ncard` whenever internal vertices have out-degree at most `2`
+and roots have out-degree at most `3` (`SimpleGraph.logb_indepSetCount_fromRel_le`). These results
+are original to this library.
 
 ## Main definitions
 
-* `SimpleGraph.arborescenceActiveRoots`: roots (`¬∃ u, arc u r`) with at least one outgoing arc.
+* `SimpleGraph.arborescenceActiveRoots`: roots (`¬∃ u, B.Adj u r`) with at least one outgoing arc.
 * `SimpleGraph.arborescenceCappedEdges`: total outgoing arcs after capping internal vertices at `2`
   and roots at `3`.
 
 ## Main results
 
 * `SimpleGraph.indepSetCount_anti`: adding edges never increases `indepSetCount`.
-* `SimpleGraph.fromRel_isAcyclic_of_subsingleton`: the undirected graph of a finite topologically
-  ranked relation with in-degree at most `1` is acyclic.
 * `SimpleGraph.arborescenceCappedEdges_eq_ncard_edgeSet`: when non-roots have out-degree `≤ 2` and
-  roots have out-degree `≤ 3`, `arborescenceCappedEdges` equals `(fromRel arc).edgeSet.ncard`.
+  roots have out-degree `≤ 3`, `arborescenceCappedEdges B` equals `(fromRel B.Adj).edgeSet.ncard`.
 * `SimpleGraph.logb_indepSetCount_fromRel_le_capped`: universal `(53 / 200)` edge and `(33 / 1000)`
-  active-root upper bound on `Real.logb 2 (fromRel arc).indepSetCount`.
+  active-root upper bound on `Real.logb 2 (fromRel B.Adj).indepSetCount`.
 * `SimpleGraph.logb_indepSetCount_fromRel_le`, `SimpleGraph.indepSetCount_fromRel_le_rpow`:
   bounded-out-degree specializations in logarithmic and exponential (`2 ^ ·`) forms.
 -/
@@ -76,77 +73,6 @@ theorem indepSetCount_anti [Finite V] {G₁ G₂ : SimpleGraph V} (h : G₁ ≤ 
     G₂.indepSetCount ≤ G₁.indepSetCount := by
   refine ncard_le_ncard (fun s hs u hu w hw hne hadj => ?_) (toFinite _)
   exact hs hu hw hne (h hadj)
-
-/-! ### Acyclicity of ranked in-degree-`≤ 1` relations -/
-
-/-- **Out-forest acyclicity.** If `arc : V → V → Prop` strictly increases some rank `rk : V → ℕ`
-and every vertex has at most one incoming `arc`-neighbor, then `SimpleGraph.fromRel arc` is an
-acyclic forest. -/
-theorem fromRel_isAcyclic_of_subsingleton [Finite V] {arc : V → V → Prop} {rk : V → ℕ}
-    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) :
-    (SimpleGraph.fromRel arc).IsAcyclic := by
-  classical
-  cases nonempty_fintype V
-  -- Perturb `rk` via `Fintype.equivFin V` so the ranking is strictly injective on `V`.
-  let e := Fintype.equivFin V
-  let rk' : V → ℕ := fun v => rk v * (Fintype.card V + 1) + (e v).val + 1
-  have hrk'_pos : ∀ v, 0 < rk' v := fun _ => Nat.succ_pos _
-  have hrk'_inj : Function.Injective rk' := by
-    intro u w h
-    have hu : (e u).val < Fintype.card V + 1 := Nat.lt_succ_of_lt (e u).isLt
-    have hw : (e w).val < Fintype.card V + 1 := Nat.lt_succ_of_lt (e w).isLt
-    have hmod : ((rk u * (Fintype.card V + 1) + (e u).val) % (Fintype.card V + 1)) =
-        ((rk w * (Fintype.card V + 1) + (e w).val) % (Fintype.card V + 1)) := by
-      have h' : rk u * (Fintype.card V + 1) + (e u).val =
-          rk w * (Fintype.card V + 1) + (e w).val := by
-        dsimp only [rk'] at h
-        omega
-      rw [h']
-    rw [Nat.mul_add_mod_self_right, Nat.mod_eq_of_lt hu, Nat.mul_add_mod_self_right,
-      Nat.mod_eq_of_lt hw] at hmod
-    exact e.injective (Fin.ext hmod)
-  have hrk'_lt : ∀ ⦃u w⦄, arc u w → rk' u < rk' w := by
-    intro u w h
-    have hlt := hrank h
-    have hu := (e u).isLt
-    dsimp only [rk']
-    nlinarith
-  let M : ℕ := Finset.univ.sup rk'
-  have hle_M : ∀ v, rk' v ≤ M := fun v => Finset.le_sup (f := rk') (Finset.mem_univ v)
-  let emb : V → Fin (M + 1) := fun v => ⟨rk' v, Nat.lt_succ_of_le (hle_M v)⟩
-  have hemb_inj : Function.Injective emb := fun u w h => hrk'_inj (Fin.mk.inj h)
-  have hemb_ne : ∀ v, emb v ≠ 0 := fun v h => (hrk'_pos v).ne' (Fin.mk.inj h)
-  let par : Fin (M + 1) → Fin (M + 1) := fun i =>
-    if h : ∃ w : V, emb w = i then
-      let w := h.choose
-      if hu : ∃ u : V, arc u w then emb hu.choose else 0
-    else 0
-  have hpar_lt : ∀ i : Fin (M + 1), i ≠ 0 → par i < i := by
-    intro i hi
-    dsimp only [par]
-    split_ifs with hw hu
-    · calc emb hu.choose < emb hw.choose := Fin.mk_lt_mk.mpr (hrk'_lt hu.choose_spec)
-        _ = i := hw.choose_spec
-    · exact Fin.pos_iff_ne_zero.mpr hi
-    · exact Fin.pos_iff_ne_zero.mpr hi
-  have hpar_arc : ∀ ⦃u w⦄, arc u w → par (emb w) = emb u := by
-    intro u w harc
-    have hw : ∃ w' : V, emb w' = emb w := ⟨w, rfl⟩
-    have hw_eq : hw.choose = w := hemb_inj hw.choose_spec
-    have harc' : arc u hw.choose := by rwa [hw_eq]
-    have hu : ∃ u' : V, arc u' hw.choose := ⟨u, harc'⟩
-    have hu_eq : hu.choose = u := hin hw.choose hu.choose_spec harc'
-    simp only [par, hw, hu, ↓reduceDIte, hu_eq]
-  let hom : SimpleGraph.fromRel arc →g SimpleGraph.parentTree par :=
-    { toFun := emb
-      map_rel' := by
-        intro u w hadj
-        rw [fromRel_adj] at hadj
-        rw [parentTree_adj hpar_lt]
-        rcases hadj.2 with huw | hwu
-        · exact Or.inr ⟨hemb_ne w, hpar_arc huw⟩
-        · exact Or.inl ⟨hemb_ne u, hpar_arc hwu⟩ }
-  exact (parentTree_isTree hpar_lt).isAcyclic.comap hom hemb_inj
 
 /-! ### Rational logarithm and Bernstein polynomial certificates -/
 
@@ -214,63 +140,6 @@ private theorem log_one_add_le_cubic {t : ℝ} (ht : -1 < t) :
         exact div_nonpos_of_nonpos_of_nonneg hx3 (by linarith [hx'.1])
     exact hanti ⟨le_rfl, hneg.le⟩ ⟨hneg.le, le_rfl⟩ hneg.le
 
-/-- Rational lower bound `69313 / 100000 ≤ Real.log 2` via `2 = (1 + 1 / 3) / (1 - 1 / 3)`. -/
-private theorem log_two_ge_rat : (69313 / 100000 : ℝ) ≤ Real.log 2 := by
-  let h : ℝ → ℝ := fun z =>
-    Real.log (1 + z) - Real.log (1 - z) - 2 * (z + z ^ 3 / 3 + z ^ 5 / 5 + z ^ 7 / 7)
-  have hderiv : ∀ z ∈ Icc (0 : ℝ) (1 / 3), HasDerivAt h (2 * z ^ 8 / (1 - z ^ 2)) z := by
-    intro z hz
-    have hp : 0 < 1 + z := by linarith [hz.1]
-    have hm : 0 < 1 - z := by linarith [hz.2]
-    have hd_add : HasDerivAt (fun y : ℝ => Real.log (1 + y)) (1 + z)⁻¹ z := by
-      have hlin : HasDerivAt (fun y : ℝ => 1 + y) (0 + 1) z :=
-        (hasDerivAt_const z (1 : ℝ)).add (hasDerivAt_id z)
-      convert hlin.log hp.ne' using 1
-      ring
-    have hd_sub : HasDerivAt (fun y : ℝ => Real.log (1 - y)) (-(1 - z)⁻¹) z := by
-      have hlin : HasDerivAt (fun y : ℝ => 1 - y) (0 - 1) z :=
-        (hasDerivAt_const z (1 : ℝ)).sub (hasDerivAt_id z)
-      convert hlin.log hm.ne' using 1
-      ring
-    have hd_poly : HasDerivAt (fun y : ℝ => 2 * (y + y ^ 3 / 3 + y ^ 5 / 5 + y ^ 7 / 7))
-        (2 * (1 + z ^ 2 + z ^ 4 + z ^ 6)) z := by
-      have p1 : HasDerivAt (fun y : ℝ => y) 1 z := hasDerivAt_id z
-      have p3 : HasDerivAt (fun y : ℝ => y ^ 3 / 3) (3 * z ^ (3 - 1) / 3) z :=
-        (hasDerivAt_pow 3 z).div_const 3
-      have p5 : HasDerivAt (fun y : ℝ => y ^ 5 / 5) (5 * z ^ (5 - 1) / 5) z :=
-        (hasDerivAt_pow 5 z).div_const 5
-      have p7 : HasDerivAt (fun y : ℝ => y ^ 7 / 7) (7 * z ^ (7 - 1) / 7) z :=
-        (hasDerivAt_pow 7 z).div_const 7
-      convert (((p1.add p3).add p5).add p7).const_mul 2 using 1
-      ring
-    convert (hd_add.sub hd_sub).sub hd_poly using 1
-    have hne1 : 1 + z ≠ 0 := hp.ne'
-    have hne2 : 1 - z ≠ 0 := hm.ne'
-    have hne3 : 1 - z ^ 2 ≠ 0 := by nlinarith [hz.1, hz.2]
-    field_simp [hne1, hne2, hne3]
-    ring
-  have hmono : MonotoneOn h (Icc 0 (1 / 3)) := by
-    refine monotoneOn_of_hasDerivWithinAt_nonneg (f' := fun z : ℝ => 2 * z ^ 8 / (1 - z ^ 2))
-      (convex_Icc 0 (1 / 3)) ?_ ?_ ?_
-    · intro z hz
-      exact (hderiv z hz).continuousAt.continuousWithinAt
-    · intro z hz
-      have hz' : z ∈ Ioo (0 : ℝ) (1 / 3) := by simpa [interior_Icc] using hz
-      exact (hderiv z ⟨hz'.1.le, hz'.2.le⟩).hasDerivWithinAt
-    · intro z hz
-      have hz' : z ∈ Ioo (0 : ℝ) (1 / 3) := by simpa [interior_Icc] using hz
-      have hden : 0 ≤ 1 - z ^ 2 := by nlinarith [hz'.1, hz'.2]
-      exact div_nonneg (by positivity) hden
-  have hle : h 0 ≤ h (1 / 3) :=
-    hmono ⟨le_rfl, by norm_num⟩ ⟨by norm_num, le_rfl⟩ (by norm_num)
-  have hlog : Real.log (1 + 1 / 3) - Real.log (1 - 1 / 3) = Real.log 2 := by
-    rw [← Real.log_div (by norm_num) (by norm_num)]
-    norm_num
-  dsimp only [h] at hle
-  rw [hlog] at hle
-  norm_num at hle
-  linarith
-
 private theorem log_five_div_four_le : Real.log (5 / 4) ≤ 22324 / 100000 := by
   have hsplit : Real.log (5 / 4) = Real.log (1 + 1 / 8) + Real.log (1 + 1 / 9) := by
     rw [← Real.log_mul (by norm_num) (by norm_num)]
@@ -302,12 +171,18 @@ private theorem logb_two_le_of_log_le {x B U : ℝ} (hB : 0 ≤ B)
     (hlog : Real.log x ≤ U) (hrat : U ≤ (69313 / 100000 : ℝ) * B) :
     Real.logb 2 x ≤ B := by
   have hln2_pos : 0 < Real.log 2 := Real.log_pos (by norm_num)
-  have hln2_ge := log_two_ge_rat
+  have hln2_ge : (69313 / 100000 : ℝ) ≤ Real.log 2 := by linarith [Real.log_two_gt_d9]
   rw [Real.logb, div_le_iff₀ hln2_pos]
   calc Real.log x ≤ U := hlog
     _ ≤ (69313 / 100000 : ℝ) * B := hrat
     _ ≤ Real.log 2 * B := mul_le_mul_of_nonneg_right hln2_ge hB
     _ = B * Real.log 2 := mul_comm _ _
+
+/-- Barycentric coordinates on `[1 / 2, 4 / 5]`: `q = 1 / 2 + (3 / 10) * u` with `u, v ≥ 0`
+and `v = 1 - u`. -/
+private theorem exists_barycentric_coords {q : ℝ} (hq1 : 1 / 2 ≤ q) (hq2 : q ≤ 4 / 5) :
+    ∃ u v : ℝ, 0 ≤ u ∧ 0 ≤ v ∧ q = 1 / 2 + (3 / 10) * u ∧ v = 1 - u :=
+  ⟨(10 * q - 5) / 3, (8 - 10 * q) / 3, by linarith, by linarith, by ring, by ring⟩
 
 private theorem log_one_add_le_thirteen_eighths {p : ℝ} (hp1 : 1 / 2 ≤ p) :
     let t := (8 * p - 5) / 13
@@ -340,12 +215,7 @@ private theorem sqrt_mul_bounds {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1hi 
 /-- `1`-child inductive step on `[1 / 2, 4 / 5]`. -/
 private theorem step_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5) :
     Real.logb 2 (1 + p) + treePot (1 / (1 + p)) - treePot p ≤ 1 - 53 / 200 := by
-  set u : ℝ := (10 * p - 5) / 3
-  set v : ℝ := (8 - 10 * p) / 3
-  have hu : 0 ≤ u := by dsimp only [u]; linarith
-  have hv : 0 ≤ v := by dsimp only [v]; linarith
-  have hp_eq : p = 1 / 2 + (3 / 10) * u := by dsimp only [u]; ring
-  have hv_eq : v = 1 - u := by dsimp only [u, v]; ring
+  obtain ⟨u, v, hu, hv, hp_eq, hv_eq⟩ := exists_barycentric_coords hp1 hp2
   set t : ℝ := (8 * p - 5) / 13
   have hlog : Real.log (1 + p) ≤ 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
     log_one_add_le_thirteen_eighths hp1
@@ -401,19 +271,14 @@ private theorem step_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1h
     (h2lo : 1 / 2 ≤ p₂) (h2hi : p₂ ≤ 4 / 5) :
     Real.logb 2 (1 + p₁ * p₂) + treePot (1 / (1 + p₁ * p₂)) - treePot p₁ - treePot p₂ ≤
       1 - 2 * (53 / 200) := by
-  set q : ℝ := Real.sqrt (p₁ * p₂)
   obtain ⟨hq_sq, hq_lo, hq_hi⟩ := sqrt_mul_bounds h1lo h1hi h2lo h2hi
   have hamgm := two_mul_treePot_sqrt_le (by linarith : 0 ≤ p₁) (by linarith : 0 ≤ p₂)
+  set q : ℝ := Real.sqrt (p₁ * p₂)
   suffices h1d : Real.logb 2 (1 + q ^ 2) + treePot (1 / (1 + q ^ 2)) - 2 * treePot q ≤
       1 - 2 * (53 / 200) by
     rw [hq_sq] at h1d
     linarith
-  set u : ℝ := (10 * q - 5) / 3
-  set v : ℝ := (8 - 10 * q) / 3
-  have hu : 0 ≤ u := by dsimp only [u]; linarith
-  have hv : 0 ≤ v := by dsimp only [v]; linarith
-  have hq_eq : q = 1 / 2 + (3 / 10) * u := by dsimp only [u]; ring
-  have hv_eq : v = 1 - u := by dsimp only [u, v]; ring
+  obtain ⟨u, v, hu, hv, hq_eq, hv_eq⟩ := exists_barycentric_coords hq_lo hq_hi
   set t : ℝ := (2 * q ^ 2 - 1) / 3
   have hlog : Real.log (1 + q ^ 2) ≤ 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
     log_one_add_sq_le_three_halves
@@ -454,12 +319,7 @@ private theorem step_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1h
 /-- `1`-child active-root bound on `[1 / 2, 4 / 5]`. -/
 private theorem root_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5) :
     Real.logb 2 (1 + p) - treePot p ≤ 1 - 53 / 200 - 33 / 1000 := by
-  set u : ℝ := (10 * p - 5) / 3
-  set v : ℝ := (8 - 10 * p) / 3
-  have hu : 0 ≤ u := by dsimp only [u]; linarith
-  have hv : 0 ≤ v := by dsimp only [v]; linarith
-  have hp_eq : p = 1 / 2 + (3 / 10) * u := by dsimp only [u]; ring
-  have hv_eq : v = 1 - u := by dsimp only [u, v]; ring
+  obtain ⟨u, v, hu, hv, hp_eq, hv_eq⟩ := exists_barycentric_coords hp1 hp2
   set t : ℝ := (8 * p - 5) / 13
   have hlog : Real.log (1 + p) ≤ 48567 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
     log_one_add_le_thirteen_eighths hp1
@@ -484,18 +344,13 @@ private theorem root_one_child {p : ℝ} (hp1 : 1 / 2 ≤ p) (hp2 : p ≤ 4 / 5)
 private theorem root_two_children {p₁ p₂ : ℝ} (h1lo : 1 / 2 ≤ p₁) (h1hi : p₁ ≤ 4 / 5)
     (h2lo : 1 / 2 ≤ p₂) (h2hi : p₂ ≤ 4 / 5) :
     Real.logb 2 (1 + p₁ * p₂) - treePot p₁ - treePot p₂ ≤ 1 - 2 * (53 / 200) - 33 / 1000 := by
-  set q : ℝ := Real.sqrt (p₁ * p₂)
   obtain ⟨hq_sq, hq_lo, hq_hi⟩ := sqrt_mul_bounds h1lo h1hi h2lo h2hi
   have hamgm := two_mul_treePot_sqrt_le (by linarith : 0 ≤ p₁) (by linarith : 0 ≤ p₂)
+  set q : ℝ := Real.sqrt (p₁ * p₂)
   suffices h1d : Real.logb 2 (1 + q ^ 2) - 2 * treePot q ≤ 1 - 2 * (53 / 200) - 33 / 1000 by
     rw [hq_sq] at h1d
     linarith
-  set u : ℝ := (10 * q - 5) / 3
-  set v : ℝ := (8 - 10 * q) / 3
-  have hu : 0 ≤ u := by dsimp only [u]; linarith
-  have hv : 0 ≤ v := by dsimp only [v]; linarith
-  have hq_eq : q = 1 / 2 + (3 / 10) * u := by dsimp only [u]; ring
-  have hv_eq : v = 1 - u := by dsimp only [u, v]; ring
+  obtain ⟨u, v, hu, hv, hq_eq, hv_eq⟩ := exists_barycentric_coords hq_lo hq_hi
   set t : ℝ := (2 * q ^ 2 - 1) / 3
   have hlog : Real.log (1 + q ^ 2) ≤ 40561 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) :=
     log_one_add_sq_le_three_halves
@@ -583,12 +438,7 @@ private theorem root_three_children {p₁ p₂ p₃ : ℝ} (h1lo : 1 / 2 ≤ p�
   suffices h1d : Real.logb 2 (1 + q ^ 3) - 3 * treePot q ≤ 1 - 3 * (53 / 200) - 33 / 1000 by
     rw [hq_cb] at h1d
     linarith
-  set u : ℝ := (10 * q - 5) / 3
-  set v : ℝ := (8 - 10 * q) / 3
-  have hu : 0 ≤ u := by dsimp only [u]; linarith
-  have hv : 0 ≤ v := by dsimp only [v]; linarith
-  have hq_eq : q = 1 / 2 + (3 / 10) * u := by dsimp only [u]; ring
-  have hv_eq : v = 1 - u := by dsimp only [u, v]; ring
+  obtain ⟨u, v, hu, hv, hq_eq, hv_eq⟩ := exists_barycentric_coords hq_lo hq_hi
   set t : ℝ := (4 * q ^ 3 - 1) / 5
   have hlog : Real.log (1 + q ^ 3) ≤ 22324 / 100000 + (t - t ^ 2 / 2 + t ^ 3 / 3) := by
     have hsplit : 1 + q ^ 3 = (5 / 4) * (1 + t) := by dsimp only [t]; ring
@@ -623,14 +473,15 @@ private theorem root_three_children {p₁ p₂ p₃ : ℝ} (h1lo : 1 / 2 ≤ p�
 
 /-! ### Independent-set factorization and Tree-DP on finite out-forests -/
 
-/-- Active roots of `arc`: vertices with in-degree `0` and out-degree at least `1`. -/
-@[expose] def arborescenceActiveRoots (arc : V → V → Prop) : Set V :=
-  {r | (¬∃ u, arc u r) ∧ ∃ v, arc r v}
+/-- Active roots of `B`: vertices with in-degree `0` and out-degree at least `1`. -/
+@[expose] def arborescenceActiveRoots (B : Digraph V) : Set V :=
+  {r | (¬∃ u, B.Adj u r) ∧ ∃ v, B.Adj r v}
 
 open Classical in
-/-- Total outgoing arcs after capping internal vertices (`∃ u, arc u w`) at `2` and roots at `3`. -/
-@[expose] noncomputable def arborescenceCappedEdges (arc : V → V → Prop) : ℕ :=
-  ∑ᶠ w : V, min {v | arc w v}.ncard (if ∃ u, arc u w then 2 else 3)
+/-- Total outgoing arcs after capping internal vertices (`∃ u, B.Adj u w`) at `2` and roots at
+`3`. -/
+@[expose] noncomputable def arborescenceCappedEdges (B : Digraph V) : ℕ :=
+  ∑ᶠ w : V, min {v | B.Adj w v}.ncard (if ∃ u, B.Adj u w then 2 else 3)
 
 section TreeDP
 
@@ -835,10 +686,9 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
     simp only [sub, Finset.mem_filter, Finset.mem_univ, true_and] at hz1 hz2
     simp only [Finset.mem_coe, kids, Finset.mem_filter, Finset.mem_univ, true_and] at hv₁ hv₂
     exact Set.disjoint_left.mp (subtree_disjoint_children hrank hin hv₁ hv₂ hne) hz1 hz2
-  have hsub_cross : ∀ u : V, ∀ v₁ ∈ kids u, ∀ v₂ ∈ kids u, v₁ ≠ v₂ →
-      ∀ x ∈ sub v₁, ∀ y ∈ sub v₂, ¬G.Adj x y := by
-    intro u v₁ hv₁ v₂ hv₂ hne x hx y hy hadj
-    have hd : Disjoint (sub v₁) (sub v₂) := hsub_disj u hv₁ hv₂ hne
+  have no_cross_of_disjoint {v₁ v₂ : V} (hd : Disjoint (sub v₁) (sub v₂))
+      {x y : V} (hx : x ∈ sub v₁) (hy : y ∈ sub v₂) : ¬G.Adj x y := by
+    intro hadj
     simp only [sub, Finset.mem_filter, Finset.mem_univ, true_and] at hx hy
     rw [fromRel_adj] at hadj
     rcases hadj.2 with hxy | hyx
@@ -848,6 +698,9 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
     · exact Finset.disjoint_left.mp hd
         (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hx⟩)
         (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hy.tail hyx⟩)
+  have hsub_cross : ∀ u : V, ∀ v₁ ∈ kids u, ∀ v₂ ∈ kids u, v₁ ≠ v₂ →
+      ∀ x ∈ sub v₁, ∀ y ∈ sub v₂, ¬G.Adj x y :=
+    fun u _ hv₁ _ hv₂ hne _ hx _ hy => no_cross_of_disjoint (hsub_disj u hv₁ hv₂ hne) hx hy
   have hu_not_mem_biUnion : ∀ u : V, u ∉ (kids u).biUnion sub := by
     intro u hmem
     obtain ⟨v, hv, huv⟩ := Finset.mem_biUnion.mp hmem
@@ -1191,18 +1044,8 @@ private theorem logb_indepSetCount_fromRel_le_core [Fintype V] {arc : V → V �
     simp only [Finset.mem_coe, roots, Finset.mem_filter, Finset.mem_univ, true_and] at hr₁ hr₂
     exact Set.disjoint_left.mp (subtree_disjoint_roots hrank hin hr₁ hr₂ hne) hz1 hz2
   have hroots_cross : ∀ r₁ ∈ roots, ∀ r₂ ∈ roots, r₁ ≠ r₂ →
-      ∀ x ∈ sub r₁, ∀ y ∈ sub r₂, ¬G.Adj x y := by
-    intro r₁ hr₁ r₂ hr₂ hne x hx y hy hadj
-    have hd : Disjoint (sub r₁) (sub r₂) := hroots_disj hr₁ hr₂ hne
-    simp only [sub, Finset.mem_filter, Finset.mem_univ, true_and] at hx hy
-    rw [fromRel_adj] at hadj
-    rcases hadj.2 with hxy | hyx
-    · exact Finset.disjoint_left.mp hd
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ y, hx.tail hxy⟩)
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ y, hy⟩)
-    · exact Finset.disjoint_left.mp hd
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hx⟩)
-        (Finset.mem_filter.mpr ⟨Finset.mem_univ x, hy.tail hyx⟩)
+      ∀ x ∈ sub r₁, ∀ y ∈ sub r₂, ¬G.Adj x y :=
+    fun _ hr₁ _ hr₂ hne _ hx _ hy => no_cross_of_disjoint (hroots_disj hr₁ hr₂ hne) hx hy
   have huniv_eq : (Finset.univ : Finset V) = roots.biUnion sub := by
     ext z
     simp only [Finset.mem_univ, true_iff, Finset.mem_biUnion, roots, sub, Finset.mem_filter,
@@ -1292,36 +1135,36 @@ private theorem sum_outDeg_eq_ncard_edgeSet [Fintype V] {arc : V → V → Prop}
       · exact ⟨(w, u), by simp [hwu], Sym2.eq_swap⟩
 
 /-- When every non-root has out-degree at most `2` and every root has out-degree at most `3`,
-`arborescenceCappedEdges arc` equals `(SimpleGraph.fromRel arc).edgeSet.ncard`. -/
-theorem arborescenceCappedEdges_eq_ncard_edgeSet [Finite V] {arc : V → V → Prop} {rk : V → ℕ}
-    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w)
-    (hout_int : ∀ w, (∃ u, arc u w) → {v | arc w v}.ncard ≤ 2)
-    (hout_root : ∀ r, (¬∃ u, arc u r) → {v | arc r v}.ncard ≤ 3) :
-    arborescenceCappedEdges arc = (SimpleGraph.fromRel arc).edgeSet.ncard := by
+`arborescenceCappedEdges B` equals `(SimpleGraph.fromRel B.Adj).edgeSet.ncard`. -/
+theorem arborescenceCappedEdges_eq_ncard_edgeSet [Finite V] {B : Digraph V} (hB : B.IsBranching)
+    (hout_int : ∀ w, (∃ u, B.Adj u w) → {v | B.Adj w v}.ncard ≤ 2)
+    (hout_root : ∀ r, (¬∃ u, B.Adj u r) → {v | B.Adj r v}.ncard ≤ 3) :
+    arborescenceCappedEdges B = (SimpleGraph.fromRel B.Adj).edgeSet.ncard := by
   classical
   cases nonempty_fintype V
+  obtain ⟨rk, hrank⟩ := hB.exists_rank
   rw [arborescenceCappedEdges, finsum_eq_sum_of_fintype, ← sum_outDeg_eq_ncard_edgeSet hrank]
   refine Finset.sum_congr rfl fun w _ => ?_
   split_ifs with hw
   · exact Nat.min_eq_left (hout_int w hw)
   · exact Nat.min_eq_left (hout_root w hw)
 
-/-- **Universal out-forest independent-set bound (arbitrary out-degrees).** For any finite relation
-`arc : V → V → Prop` with a strict topological ranking `rk` and in-degree at most `1`, capping
-outgoing arcs at `2` on internal vertices and `3` on roots yields:
-`Real.logb 2 i(fromRel arc) ≤ |V| - (53 / 200) * cappedEdges - (33 / 1000) * |activeRoots|`. -/
-theorem logb_indepSetCount_fromRel_le_capped [Finite V] {arc : V → V → Prop} {rk : V → ℕ}
-    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton) :
-    Real.logb 2 ((SimpleGraph.fromRel arc).indepSetCount : ℝ) ≤
-      (Nat.card V : ℝ) - (53 / 200 : ℝ) * (arborescenceCappedEdges arc : ℝ) -
-        (33 / 1000 : ℝ) * ((arborescenceActiveRoots arc).ncard : ℝ) := by
+/-- **Universal out-forest independent-set bound (arbitrary out-degrees).** For any branching
+`B : Digraph V` on a finite vertex type `V`, capping outgoing arcs at `2` on internal vertices and
+`3` on roots yields:
+`Real.logb 2 i(fromRel B.Adj) ≤ |V| - (53 / 200) * cappedEdges - (33 / 1000) * |activeRoots|`. -/
+theorem logb_indepSetCount_fromRel_le_capped [Finite V] {B : Digraph V} (hB : B.IsBranching) :
+    Real.logb 2 ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) ≤
+      (Nat.card V : ℝ) - (53 / 200 : ℝ) * (arborescenceCappedEdges B : ℝ) -
+        (33 / 1000 : ℝ) * ((arborescenceActiveRoots B).ncard : ℝ) := by
   classical
   cases nonempty_fintype V
-  -- At each vertex `w`, choose `chosen w ⊆ univ.filter (arc w ·)` of exact capped size!
-  let cap : V → ℕ := fun w => min {v | arc w v}.ncard (if ∃ u, arc u w then 2 else 3)
-  have hle_card : ∀ w : V, cap w ≤ (Finset.univ.filter (arc w ·)).card := by
+  obtain ⟨rk, hrank⟩ := hB.exists_rank
+  -- At each vertex `w`, choose `chosen w ⊆ univ.filter (B.Adj w ·)` of exact capped size!
+  let cap : V → ℕ := fun w => min {v | B.Adj w v}.ncard (if ∃ u, B.Adj u w then 2 else 3)
+  have hle_card : ∀ w : V, cap w ≤ (Finset.univ.filter (B.Adj w ·)).card := by
     intro w
-    have heq : {v | arc w v}.ncard = (Finset.univ.filter (arc w ·)).card := by
+    have heq : {v | B.Adj w v}.ncard = (Finset.univ.filter (B.Adj w ·)).card := by
       rw [← ncard_coe_finset]
       congr 1; ext v; simp
     rw [← heq]
@@ -1329,19 +1172,19 @@ theorem logb_indepSetCount_fromRel_le_capped [Finite V] {arc : V → V → Prop}
   choose chosen hchosen_sub hchosen_card using
     fun w : V => Finset.exists_subset_card_eq (hle_card w)
   let arc' : V → V → Prop := fun u w => w ∈ chosen u
-  have harc'_imp : ∀ ⦃u w⦄, arc' u w → arc u w := by
+  have harc'_imp : ∀ ⦃u w⦄, arc' u w → B.Adj u w := by
     intro u w hw
     exact (Finset.mem_filter.mp (hchosen_sub u hw)).2
   have hrank' : ∀ ⦃u w⦄, arc' u w → rk u < rk w := fun _ _ h => hrank (harc'_imp h)
   have hin' : ∀ w, {u | arc' u w}.Subsingleton :=
-    fun w _ hu₁ _ hu₂ => hin w (harc'_imp hu₁) (harc'_imp hu₂)
+    fun _ _ hu₁ _ hu₂ => hB.in_unique (harc'_imp hu₁) (harc'_imp hu₂)
   have hkids' : ∀ w : V, Finset.univ.filter (arc' w ·) = chosen w := by
     intro w
     ext v
     simp [arc']
   have hout_int' : ∀ w, (∃ u, arc' u w) → (Finset.univ.filter (arc' w ·)).card ≤ 2 := by
     intro w ⟨u, huw⟩
-    have hw_in : ∃ u, arc u w := ⟨u, harc'_imp huw⟩
+    have hw_in : ∃ u, B.Adj u w := ⟨u, harc'_imp huw⟩
     rw [hkids' w, hchosen_card w]
     dsimp only [cap]
     simp only [hw_in, ↓reduceIte]
@@ -1352,7 +1195,7 @@ theorem logb_indepSetCount_fromRel_le_capped [Finite V] {arc : V → V → Prop}
     dsimp only [cap]
     split_ifs <;> omega
   -- Every original active root remains an active root of `arc'`:
-  have hroots_sub : arborescenceActiveRoots arc ⊆
+  have hroots_sub : arborescenceActiveRoots B ⊆
       (Finset.univ.filter fun r => (¬∃ u, arc' u r) ∧ ∃ v, arc' r v : Set V) := by
     rintro r ⟨hno_in, v, hrv⟩
     rw [Finset.mem_coe, Finset.mem_filter]
@@ -1360,39 +1203,39 @@ theorem logb_indepSetCount_fromRel_le_capped [Finite V] {arc : V → V → Prop}
     have hpos : 0 < cap r := by
       dsimp only [cap]
       simp only [hno_in, ↓reduceIte]
-      have h1 : 1 ≤ {v | arc r v}.ncard :=
+      have h1 : 1 ≤ {v | B.Adj r v}.ncard :=
         (ncard_pos (toFinite _)).mpr ⟨v, hrv⟩
       omega
     rw [← hchosen_card r] at hpos
     obtain ⟨v', hv'⟩ := Finset.card_pos.mp hpos
     exact ⟨v', hv'⟩
-  have hG_le : SimpleGraph.fromRel arc' ≤ SimpleGraph.fromRel arc := by
+  have hG_le : SimpleGraph.fromRel arc' ≤ SimpleGraph.fromRel B.Adj := by
     intro u w hadj
     rw [fromRel_adj] at hadj ⊢
     refine ⟨hadj.1, ?_⟩
     rcases hadj.2 with h1 | h2
     · exact Or.inl (harc'_imp h1)
     · exact Or.inr (harc'_imp h2)
-  have hindep_le : (SimpleGraph.fromRel arc).indepSetCount ≤
+  have hindep_le : (SimpleGraph.fromRel B.Adj).indepSetCount ≤
       (SimpleGraph.fromRel arc').indepSetCount := indepSetCount_anti hG_le
-  have hpos_G : (0 : ℝ) < ((SimpleGraph.fromRel arc).indepSetCount : ℝ) := by
-    have hne : ({s : Set V | (SimpleGraph.fromRel arc).IsIndepSet s}).Nonempty :=
+  have hpos_G : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) := by
+    have hne : ({s : Set V | (SimpleGraph.fromRel B.Adj).IsIndepSet s}).Nonempty :=
       ⟨∅, by simp⟩
     exact Nat.cast_pos.mpr ((ncard_pos (toFinite _)).mpr hne)
-  have hlog_mono : Real.logb 2 ((SimpleGraph.fromRel arc).indepSetCount : ℝ) ≤
+  have hlog_mono : Real.logb 2 ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) ≤
       Real.logb 2 ((SimpleGraph.fromRel arc').indepSetCount : ℝ) :=
     Real.logb_le_logb_of_le (by norm_num) hpos_G (by exact_mod_cast hindep_le)
   have hcore := logb_indepSetCount_fromRel_le_core hrank' hin' hout_int' hout_root'
   have hV : (Fintype.card V : ℝ) = (Nat.card V : ℝ) := by
     rw [Nat.card_eq_fintype_card]
   have hE : (∑ w : V, ((Finset.univ.filter (arc' w ·)).card : ℝ)) =
-      (arborescenceCappedEdges arc : ℝ) := by
+      (arborescenceCappedEdges B : ℝ) := by
     simp_rw [hkids', hchosen_card]
     dsimp only [cap]
     rw [arborescenceCappedEdges, finsum_eq_sum_of_fintype, Nat.cast_sum]
     refine Finset.sum_congr rfl fun w _ => ?_
     split_ifs <;> rfl
-  have hR : ((arborescenceActiveRoots arc).ncard : ℝ) ≤
+  have hR : ((arborescenceActiveRoots B).ncard : ℝ) ≤
       ((Finset.univ.filter fun r => (¬∃ u, arc' u r) ∧ ∃ v, arc' r v).card : ℝ) := by
     rw [← ncard_coe_finset]
     exact_mod_cast ncard_le_ncard hroots_sub (toFinite _)
@@ -1401,32 +1244,30 @@ theorem logb_indepSetCount_fromRel_le_capped [Finite V] {arc : V → V → Prop}
 
 /-- **Bounded-out-degree out-forest independent-set bound.** When internal vertices have out-degree
 at most `2` and roots have out-degree at most `3`,
-`Real.logb 2 i(fromRel arc) ≤ |V| - (53 / 200) * |E| - (33 / 1000) * |activeRoots|`. -/
-theorem logb_indepSetCount_fromRel_le [Finite V] {arc : V → V → Prop} {rk : V → ℕ}
-    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton)
-    (hout_int : ∀ w, (∃ u, arc u w) → {v | arc w v}.ncard ≤ 2)
-    (hout_root : ∀ r, (¬∃ u, arc u r) → {v | arc r v}.ncard ≤ 3) :
-    Real.logb 2 ((SimpleGraph.fromRel arc).indepSetCount : ℝ) ≤
-      (Nat.card V : ℝ) - (53 / 200 : ℝ) * ((SimpleGraph.fromRel arc).edgeSet.ncard : ℝ) -
-        (33 / 1000 : ℝ) * ((arborescenceActiveRoots arc).ncard : ℝ) := by
-  rw [← arborescenceCappedEdges_eq_ncard_edgeSet hrank hout_int hout_root]
-  exact logb_indepSetCount_fromRel_le_capped hrank hin
+`Real.logb 2 i(fromRel B.Adj) ≤ |V| - (53 / 200) * |E| - (33 / 1000) * |activeRoots|`. -/
+theorem logb_indepSetCount_fromRel_le [Finite V] {B : Digraph V} (hB : B.IsBranching)
+    (hout_int : ∀ w, (∃ u, B.Adj u w) → {v | B.Adj w v}.ncard ≤ 2)
+    (hout_root : ∀ r, (¬∃ u, B.Adj u r) → {v | B.Adj r v}.ncard ≤ 3) :
+    Real.logb 2 ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) ≤
+      (Nat.card V : ℝ) - (53 / 200 : ℝ) * ((SimpleGraph.fromRel B.Adj).edgeSet.ncard : ℝ) -
+        (33 / 1000 : ℝ) * ((arborescenceActiveRoots B).ncard : ℝ) := by
+  rw [← arborescenceCappedEdges_eq_ncard_edgeSet hB hout_int hout_root]
+  exact logb_indepSetCount_fromRel_le_capped hB
 
 /-- Exponential (`2 ^ ·`) form of `logb_indepSetCount_fromRel_le`. -/
-theorem indepSetCount_fromRel_le_rpow [Finite V] {arc : V → V → Prop} {rk : V → ℕ}
-    (hrank : ∀ ⦃u w⦄, arc u w → rk u < rk w) (hin : ∀ w, {u | arc u w}.Subsingleton)
-    (hout_int : ∀ w, (∃ u, arc u w) → {v | arc w v}.ncard ≤ 2)
-    (hout_root : ∀ r, (¬∃ u, arc u r) → {v | arc r v}.ncard ≤ 3) :
-    ((SimpleGraph.fromRel arc).indepSetCount : ℝ) ≤
+theorem indepSetCount_fromRel_le_rpow [Finite V] {B : Digraph V} (hB : B.IsBranching)
+    (hout_int : ∀ w, (∃ u, B.Adj u w) → {v | B.Adj w v}.ncard ≤ 2)
+    (hout_root : ∀ r, (¬∃ u, B.Adj u r) → {v | B.Adj r v}.ncard ≤ 3) :
+    ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) ≤
       (2 : ℝ) ^ ((Nat.card V : ℝ) -
-        (53 / 200 : ℝ) * ((SimpleGraph.fromRel arc).edgeSet.ncard : ℝ) -
-        (33 / 1000 : ℝ) * ((arborescenceActiveRoots arc).ncard : ℝ)) := by
-  have hpos : (0 : ℝ) < ((SimpleGraph.fromRel arc).indepSetCount : ℝ) := by
-    have hne : ({s : Set V | (SimpleGraph.fromRel arc).IsIndepSet s}).Nonempty :=
+        (53 / 200 : ℝ) * ((SimpleGraph.fromRel B.Adj).edgeSet.ncard : ℝ) -
+        (33 / 1000 : ℝ) * ((arborescenceActiveRoots B).ncard : ℝ)) := by
+  have hpos : (0 : ℝ) < ((SimpleGraph.fromRel B.Adj).indepSetCount : ℝ) := by
+    have hne : ({s : Set V | (SimpleGraph.fromRel B.Adj).IsIndepSet s}).Nonempty :=
       ⟨∅, by simp⟩
     exact Nat.cast_pos.mpr ((ncard_pos (toFinite _)).mpr hne)
   rw [← Real.rpow_logb (by norm_num : (0 : ℝ) < 2) (by norm_num : (2 : ℝ) ≠ 1) hpos]
   exact Real.rpow_le_rpow_of_exponent_le (by norm_num)
-    (logb_indepSetCount_fromRel_le hrank hin hout_int hout_root)
+    (logb_indepSetCount_fromRel_le hB hout_int hout_root)
 
 end SimpleGraph

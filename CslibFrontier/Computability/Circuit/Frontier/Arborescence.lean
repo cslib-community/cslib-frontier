@@ -23,7 +23,9 @@ two distinct wires `u₁, u₂ ∈ R` fed `w = .gate g`, their argument slots `a
 `≤ 2` slots of `g`, placing `w` in `depthOneDetermined W`
 (`clauseEdge_subsingleton_of_sdiff_depthOneDetermined`).
 
-Consequently, `u2ClauseGraph c.program I R` is unconditionally an acyclic out-forest
+Consequently, `clauseDigraph c.program I R` is a branching
+(`isBranching_clauseDigraph_of_sdiff_depthOneDetermined`), its underlying simple graph
+`u2ClauseGraph c.program I R` is unconditionally an acyclic forest
 (`isAcyclic_u2ClauseGraph_of_sdiff_depthOneDetermined`), and
 `SimpleGraph.logb_indepSetCount_fromRel_le_capped` bounds the number of distinct frontier states at
 every layout step `t` by
@@ -31,25 +33,26 @@ every layout step `t` by
 `Real.logb 2 |States_t| ≤ |W_t| - |D| - (53 / 200) * cappedEdges - (33 / 1000) * |activeRoots|`
 
 for any `D₀(W_t) ⊆ D ⊆ D*(W_t)` (`logb_ncard_frontierValues_le_arborescence`). Amortizing each wire
-of `D₀(W_t)` against its `≤ 2` incoming and `≤ 2` two-capped outgoing clauses yields the clean
-`D₀`-free `1 / 4`-per-clause bound on the unreduced cut `W_t`
-(`logb_ncard_frontierValues_le_quarter_sub`), together with the pairwise Boolean Girard
-decomposition reducing two-wire clause indicators to pairwise sign disagreements
-(`half_cut_sub_quarter_clause_eq`).
+of `D₀(W_t)` against its `≤ 2` incoming and `≤ 2` two-capped outgoing clauses
+(`twoCappedClauseEdges_le_add_four_mul`) yields the clean `D₀`-free `1 / 4`-per-clause bound on the
+unreduced cut `W_t` (`logb_ncard_frontierValues_le_quarter_sub`). These results are original to this
+library.
 
 ## Main definitions
 
+* `Cslib.Circuits.Frontier.clauseDigraph`: the directed `ClauseEdge` graph on a wire subset `R`.
 * `Cslib.Circuits.Frontier.clauseActiveRoots`, `Cslib.Circuits.Frontier.clauseCappedEdges`: active
-  roots and degree-capped arc count of the `ClauseEdge` out-forest on `R`.
+  roots and degree-capped arc count of `clauseDigraph p I R`.
 * `Cslib.Circuits.Frontier.twoCappedClauseEdges`: total outgoing `ClauseEdge`s on `W` capped at `2`
   per source wire.
 
 ## Main results
 
 * `Cslib.Circuits.Frontier.u2ClauseGraph_eq_fromRel`: `u2ClauseGraph` equals `SimpleGraph.fromRel`
-  of `ClauseEdge`.
-* `Cslib.Circuits.Frontier.clauseEdge_subsingleton_of_sdiff_depthOneDetermined`: for fan-in at most
-  `2`, every wire in `R ⊆ W \ p.depthOneDetermined W` has in-degree at most `1`.
+  of `(clauseDigraph p I R).Adj`.
+* `Cslib.Circuits.Frontier.clauseEdge_subsingleton_of_sdiff_depthOneDetermined`,
+  `Cslib.Circuits.Frontier.isBranching_clauseDigraph_of_sdiff_depthOneDetermined`: for fan-in at
+  most `2`, `clauseDigraph p I R` is a branching whenever `R ⊆ W \ p.depthOneDetermined W`.
 * `Cslib.Circuits.Frontier.isAcyclic_u2ClauseGraph_of_sdiff_depthOneDetermined`,
   `Cslib.Circuits.Frontier.isAcyclic_u2ClauseGraph_cutWires_sdiff`: reduced `U₂` clause graphs are
   acyclic forests.
@@ -60,11 +63,9 @@ decomposition reducing two-wire clause indicators to pairwise sign disagreements
   `Cslib.Circuits.Frontier.ncard_frontierValues_le_rpow_arborescence`,
   `Cslib.Circuits.Frontier.logb_ncard_frontierValues_le_arborescence_depthOne`: frontier state
   bounds along any layout `π`.
-* `Cslib.Circuits.Frontier.logb_ncard_frontierValues_le_quarter_sub`: `D₀`-free `1 / 4`-per-clause
-  amortized frontier bound on `cutWires c (π.initial t)`.
-* `Cslib.Circuits.Frontier.two_mul_and_bne_eq`,
-  `Cslib.Circuits.Frontier.half_cut_sub_quarter_clause_eq`: pairwise Girard decomposition of local
-  `U₂` clause indicators into two-vertex sign disagreements.
+* `Cslib.Circuits.Frontier.twoCappedClauseEdges_le_add_four_mul`,
+  `Cslib.Circuits.Frontier.logb_ncard_frontierValues_le_quarter_sub`: `4 * |D₀|` clause-loss bound
+  and `D₀`-free `1 / 4`-per-clause amortized frontier bound on `cutWires c (π.initial t)`.
 -/
 
 public section
@@ -98,10 +99,20 @@ private theorem wireRank_lt_of_clauseEdge {p : Program σ n s} {I : Interpretati
     have hlt := p.lt_of_lines_wires_eq_gate g a j hwire
     omega
 
-/-- `u2ClauseGraph p I R` is `SimpleGraph.fromRel` of the restricted `ClauseEdge` relation. -/
+/-- Directed `ClauseEdge` graph on a wire subset `R : Set (Wire n s)`. -/
+@[expose] def clauseDigraph (p : Program σ n s) (I : Interpretation σ Bool)
+    (R : Set (Wire n s)) : Digraph R where
+  Adj u w := ClauseEdge p I u.1 w.1
+
+@[simp]
+theorem clauseDigraph_adj (p : Program σ n s) (I : Interpretation σ Bool)
+    (R : Set (Wire n s)) (u w : R) :
+    (clauseDigraph p I R).Adj u w ↔ ClauseEdge p I u.1 w.1 := Iff.rfl
+
+/-- `u2ClauseGraph p I R` is `SimpleGraph.fromRel` of `(clauseDigraph p I R).Adj`. -/
 theorem u2ClauseGraph_eq_fromRel (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) :
-    u2ClauseGraph p I R = SimpleGraph.fromRel fun u w : R => ClauseEdge p I u.1 w.1 := by
+    u2ClauseGraph p I R = SimpleGraph.fromRel (clauseDigraph p I R).Adj := by
   ext u w
   rw [u2ClauseGraph_adj, SimpleGraph.fromRel_adj]
   constructor
@@ -143,6 +154,16 @@ theorem clauseEdge_subsingleton_of_sdiff_depthOneDetermined {p : Program σ n s}
   · rw [hwire₂]
     exact (hR u₂.2).1
 
+/-- **Branching property of `clauseDigraph`.** For any fan-in-at-most-2 program `p` and any
+`R ⊆ W \ p.depthOneDetermined W`, `clauseDigraph p I R` is a branching. -/
+theorem isBranching_clauseDigraph_of_sdiff_depthOneDetermined {p : Program σ n s}
+    (hfan : p.FanInAtMost 2) (I : Interpretation σ Bool) {W R : Set (Wire n s)}
+    (hR : R ⊆ W \ p.depthOneDetermined W) :
+    (clauseDigraph p I R).IsBranching :=
+  Digraph.IsBranching.of_rank (rk := fun u : R => wireRank u.1)
+    (fun _ _ h => wireRank_lt_of_clauseEdge h)
+    (fun _ _ w h1 h2 => clauseEdge_subsingleton_of_sdiff_depthOneDetermined hfan I hR w h1 h2)
+
 /-- **Out-forest acyclicity of `u2ClauseGraph`.** For any fan-in-at-most-2 program `p` and any
 `R ⊆ W \ p.depthOneDetermined W`, `u2ClauseGraph p I R` is an acyclic forest. -/
 theorem isAcyclic_u2ClauseGraph_of_sdiff_depthOneDetermined {p : Program σ n s}
@@ -150,10 +171,7 @@ theorem isAcyclic_u2ClauseGraph_of_sdiff_depthOneDetermined {p : Program σ n s}
     (hR : R ⊆ W \ p.depthOneDetermined W) :
     (u2ClauseGraph p I R).IsAcyclic := by
   rw [u2ClauseGraph_eq_fromRel]
-  exact SimpleGraph.fromRel_isAcyclic_of_subsingleton
-    (rk := fun u : R => wireRank u.1)
-    (fun _ _ h => wireRank_lt_of_clauseEdge h)
-    (clauseEdge_subsingleton_of_sdiff_depthOneDetermined hfan I hR)
+  exact (isBranching_clauseDigraph_of_sdiff_depthOneDetermined hfan I hR).toSimpleGraph_isAcyclic
 
 /-- Reduced `u2ClauseGraph` on `cutWires c P \ D` is acyclic whenever
 `c.program.depthOneDetermined (cutWires c P) ⊆ D` (including both `D = D₀` and `D = D*`). -/
@@ -170,12 +188,12 @@ theorem isAcyclic_u2ClauseGraph_cutWires_sdiff {c : Circuit σ n m} (hfan : c.Fa
 from `R` and at least one outgoing `ClauseEdge` into `R`. -/
 @[expose] def clauseActiveRoots (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) : Set R :=
-  SimpleGraph.arborescenceActiveRoots fun u w : R => ClauseEdge p I u.1 w.1
+  SimpleGraph.arborescenceActiveRoots (clauseDigraph p I R)
 
 /-- Total outgoing `ClauseEdge`s in `R` after capping non-roots at `2` and roots at `3`. -/
 @[expose] noncomputable def clauseCappedEdges (p : Program σ n s) (I : Interpretation σ Bool)
     (R : Set (Wire n s)) : ℕ :=
-  SimpleGraph.arborescenceCappedEdges fun u w : R => ClauseEdge p I u.1 w.1
+  SimpleGraph.arborescenceCappedEdges (clauseDigraph p I R)
 
 /-- **Arborescence `indepSetCount` bound on `u2ClauseGraph` (arbitrary out-degrees).** -/
 theorem logb_indepSetCount_u2ClauseGraph_le_capped {p : Program σ n s} (hfan : p.FanInAtMost 2)
@@ -185,9 +203,7 @@ theorem logb_indepSetCount_u2ClauseGraph_le_capped {p : Program σ n s} (hfan : 
       (R.ncard : ℝ) - (53 / 200 : ℝ) * (clauseCappedEdges p I R : ℝ) -
         (33 / 1000 : ℝ) * ((clauseActiveRoots p I R).ncard : ℝ) := by
   have h := SimpleGraph.logb_indepSetCount_fromRel_le_capped
-    (V := R) (arc := fun u w : R => ClauseEdge p I u.1 w.1) (rk := fun u : R => wireRank u.1)
-    (fun _ _ he => wireRank_lt_of_clauseEdge he)
-    (clauseEdge_subsingleton_of_sdiff_depthOneDetermined hfan I hR)
+    (isBranching_clauseDigraph_of_sdiff_depthOneDetermined hfan I hR)
   rw [← u2ClauseGraph_eq_fromRel, Nat.card_coe_set_eq] at h
   exact h
 
@@ -205,9 +221,7 @@ theorem logb_indepSetCount_u2ClauseGraph_le {p : Program σ n s} (hfan : p.FanIn
       (R.ncard : ℝ) - (53 / 200 : ℝ) * ((u2ClauseGraph p I R).edgeSet.ncard : ℝ) -
         (33 / 1000 : ℝ) * ((clauseActiveRoots p I R).ncard : ℝ) := by
   have h := SimpleGraph.logb_indepSetCount_fromRel_le
-    (V := R) (arc := fun u w : R => ClauseEdge p I u.1 w.1) (rk := fun u : R => wireRank u.1)
-    (fun _ _ he => wireRank_lt_of_clauseEdge he)
-    (clauseEdge_subsingleton_of_sdiff_depthOneDetermined hfan I hR)
+    (isBranching_clauseDigraph_of_sdiff_depthOneDetermined hfan I hR)
     hout_int hout_root
   rw [← u2ClauseGraph_eq_fromRel, Nat.card_coe_set_eq] at h
   exact h
@@ -291,7 +305,7 @@ theorem logb_ncard_frontierValues_le_arborescence_depthOne {c : Circuit σ n m}
   logb_ncard_frontierValues_le_arborescence hfan I Acc π t Subset.rfl
     (c.program.depthOneDetermined_subset_forwardDetermined _) X
 
-/-! ### Amortized `1 / 4`-per-clause `D₀`-free bound and Girard pairwise identity -/
+/-! ### Amortized `1 / 4`-per-clause `D₀`-free bound -/
 
 open Classical in
 /-- Total outgoing `ClauseEdge`s on `W` capped at `2` per source wire. -/
@@ -331,7 +345,7 @@ private theorem inDeg_clauseEdge_le_two {p : Program σ n s} (hfan : p.FanInAtMo
 
 /-- Removing `D₀ = p.depthOneDetermined W` reduces `twoCappedClauseEdges` by at most `4 * |D₀|`:
 at most `2 * |D₀|` from sources `u ∈ D₀` and at most `2 * |D₀|` from targets `w ∈ D₀`. -/
-private theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanInAtMost 2)
+theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan : p.FanInAtMost 2)
     (I : Interpretation σ Bool) (W : Set (Wire n s)) :
     twoCappedClauseEdges p I W ≤
       clauseCappedEdges p I (W \ p.depthOneDetermined W) +
@@ -433,7 +447,7 @@ private theorem twoCappedClauseEdges_le_add_four_mul {p : Program σ n s} (hfan 
       (if ∃ v : R, ClauseEdge p I v.1 u.1 then 2 else 3)) = clauseCappedEdges p I R := by
     rw [clauseCappedEdges, SimpleGraph.arborescenceCappedEdges, finsum_eq_sum_of_fintype]
     refine Finset.sum_congr rfl fun u _ => ?_
-    split_ifs <;> rfl
+    by_cases h : ∃ v : R, ClauseEdge p I v.1 u.1 <;> simp [clauseDigraph, h]
   have hsum_R : (∑ u : R, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2) ≤
       clauseCappedEdges p I R + 2 * D₀.ncard := by
     calc (∑ u : R, min {w : W | ClauseEdge p I u.1 w.1}.ncard 2)
@@ -468,28 +482,6 @@ theorem logb_ncard_frontierValues_le_quarter_sub {c : Circuit σ n m} (hfan : c.
   have hcap_nn : (0 : ℝ) ≤ (clauseCappedEdges c.program I (W \ D₀) : ℝ) := Nat.cast_nonneg _
   have hroot_nn : (0 : ℝ) ≤ ((clauseActiveRoots c.program I (W \ D₀)).ncard : ℝ) :=
     Nat.cast_nonneg _
-  linarith
-
-/-- **Pairwise Boolean Girard identity for two-wire cut indicators.** For any vertex sign `sg` and
-two neighbor signs `sz, sa : Bool`, twice the joint cut indicator `(sg != sz) && (sg != sa)` equals
-`(sg != sz) + (sg != sa) - (sz != sa)`. -/
-theorem two_mul_and_bne_eq (sg sz sa : Bool) :
-    (2 : ℝ) * (((sg != sz) && (sg != sa)).toNat : ℝ) =
-      ((sg != sz).toNat : ℝ) + ((sg != sa).toNat : ℝ) - ((sz != sa).toNat : ℝ) := by
-  cases sg <;> cases sz <;> cases sa <;> norm_num
-
-/-- **Decoupled `1 / 4`-clause local gate cost identity.** At a binary `U₂` gate `g` with sign `sg`,
-output sign `sz`, and input signs `sa, sb`, the `1 / 4`-amortized local cost decouples completely
-into pairwise sign disagreements (`Sheppard` `arccos` terms under Gaussian vertex scores). -/
-theorem half_cut_sub_quarter_clause_eq (sg sz sa sb : Bool) :
-    (1 / 2 : ℝ) * (((sg != sz).toNat : ℝ) + ((sg != sa).toNat : ℝ) + ((sg != sb).toNat : ℝ)) -
-      (1 / 4 : ℝ) * ((((sg != sz) && (sg != sa)).toNat : ℝ) +
-        (((sg != sz) && (sg != sb)).toNat : ℝ)) =
-      (1 / 4 : ℝ) * ((sg != sz).toNat : ℝ) +
-        (3 / 8 : ℝ) * (((sg != sa).toNat : ℝ) + ((sg != sb).toNat : ℝ)) +
-        (1 / 8 : ℝ) * (((sz != sa).toNat : ℝ) + ((sz != sb).toNat : ℝ)) := by
-  have h1 := two_mul_and_bne_eq sg sz sa
-  have h2 := two_mul_and_bne_eq sg sz sb
   linarith
 
 end OutForest
