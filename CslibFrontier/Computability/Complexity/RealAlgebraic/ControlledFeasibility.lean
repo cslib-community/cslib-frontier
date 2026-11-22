@@ -42,12 +42,6 @@ open MvPolynomial
 variable {α : Type} {n : α → ℕ} {enc : α ↪ List Bool} {a : ℕ}
   {P : (w : α) → MvPolynomial (Fin (n w)) ℤ}
 
-private theorem sign_neg_iff (z : ℤ) : z.sign < 0 ↔ z < 0 := by
-  rcases lt_trichotomy z 0 with h | rfl | h
-  · simp [Int.sign_eq_neg_one_of_neg h, h]
-  · simp
-  · simp [Int.sign_eq_one_of_pos h, h.not_gt]
-
 private theorem feasibilityWitnessTest_mem (C : Controlled P enc a) (E : Decoder enc)
     {d : α → ℕ} (hdpos : ∀ w, 1 ≤ d w) (hdegree : ∀ w, (P w).totalDegree ≤ d w + 1)
     (hd : ComputableInPolyTime d enc encNat) :
@@ -66,7 +60,7 @@ private theorem feasibilityWitnessTest_mem (C : Controlled P enc a) (E : Decoder
   funext q
   apply Bool.eq_iff_iff.mpr
   simp only [decide_eq_true_eq, C', preprocess, Function.comp_apply,
-    criticalFeasibilityDeterminant, sign_neg_iff]
+    criticalFeasibilityDeterminant, Int.sign_neg_iff]
   exact decide_eq_true_iff
 
 open Classical in
@@ -108,7 +102,7 @@ theorem feasibilityFunction_mem (C : Controlled P enc a) (E : Decoder enc) :
   simp only [decide_eq_true_eq, Function.comp_apply]
   exact congrArg (fun p : Prop => decide p) (propext (hcorrect w).symm)
 
-/-- The real-zero language of an `F_a) controlled polynomial family is in
+/-- The real-zero language of an `F_a` controlled polynomial family is in
 `C_(a+26)P`. -/
 theorem feasibility_mem (C : Controlled P enc a) (E : Decoder enc) :
     {w | ∃ x : Fin (n w) → ℝ, eval x ((P w).map (Int.castRingHom ℝ)) = 0} ∈
