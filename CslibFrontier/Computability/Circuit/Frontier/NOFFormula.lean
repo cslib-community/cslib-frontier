@@ -583,15 +583,15 @@ private theorem chopAux_spec {n B : ℕ} (hB : 1 ≤ B) (fuel : ℕ) {m : ℕ} (
     ∀ (x : Fin n → Bool) (b : Fin m → Bool),
       (chopAux B hB fuel T hfan hfuel).eval x b = T.eval x b := by
   fun_induction chopAux B hB fuel T hfan hfuel with
-  | case1 T _ hfuel =>
+  | case1 T _ hfuel => -- fuel exhausted
     have h0 : T.leafCount = 0 := Nat.le_zero.mp hfuel
     refine ⟨?_, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
     · simp [AllBounded, h0]
     · simp [steps]
-  | case2 fuel T hfan hfuel hle =>
+  | case2 fuel T hfan hfuel hle => -- leafCount ≤ 2 * B: a single root
     refine ⟨hle, ?_, rfl, fun _ => rfl, fun _ _ => rfl⟩
     simp [steps]
-  | case3 fuel T hfan hfuel hle res ih =>
+  | case3 fuel T hfan hfuel hle res ih => -- pluck a piece, recurse on the rest
     obtain ⟨hK_fan, hC_fan, hK_gt, hK_le, hsum_cnt, hsum_at, heval⟩ := res.2
     have hC_fuel : res.1.2.leafCount ≤ fuel := by omega
     obtain ⟨hbd, hsteps, htot, hat, hev⟩ := ih

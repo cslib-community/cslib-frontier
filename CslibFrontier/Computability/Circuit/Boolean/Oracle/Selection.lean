@@ -77,9 +77,10 @@ theorem firstSel_spec (d : BitString w) (acc : Fin N → Bool) (word : Fin N →
     (∃ i, acc i = true ∧ (∀ j < i, acc j = false) ∧ firstSel d acc word = word i) ∨
       ((∀ i, acc i = false) ∧ firstSel d acc word = d) := by
   fun_induction firstSel d acc word with
-  | case1 => exact .inr ⟨fun i => i.elim0, rfl⟩
+  | case1 => exact .inr ⟨fun i => i.elim0, rfl⟩ -- no candidates
+  -- acc 0: take word 0
   | case2 N acc word h0 => exact .inl ⟨0, h0, fun j hj => absurd hj (Fin.not_lt_zero j), rfl⟩
-  | case3 N acc word h0 ih =>
+  | case3 N acc word h0 ih => -- ¬acc 0: search the rest
     rcases ih with ⟨i, hi, hfirst, h⟩ | ⟨hnone, h⟩
     · refine .inl ⟨i.succ, hi, fun j hj => ?_, h⟩
       cases j using Fin.cases with

@@ -96,33 +96,34 @@ variable {blk : Fin n → Fin d}
 theorem polynomial_smPart (S : Finset (Fin d)) (F : SPFormula K n) :
     (smPart blk S F).polynomial = smProj blk S F.polynomial := by
   fun_induction smPart blk S F with
-  | case1 i => rw [polynomial_input, smProj_X, ite_eq_left rfl]
-  | case2 S i h => rw [polynomial_input, smProj_X, ite_eq_right h, polynomial_zero]
-  | case3 S m c args ih =>
+  | case1 i => rw [polynomial_input, smProj_X, ite_eq_left rfl] -- input, S = {blk i}
+  -- input, S ≠ {blk i}
+  | case2 S i hS => rw [polynomial_input, smProj_X, ite_eq_right hS, polynomial_zero]
+  | case3 S m c args ih => -- add gate
     rw [polynomial_add, polynomial_add, map_sum]
     exact Finset.sum_congr rfl fun j _ => by rw [ih, smProj_C_mul]
-  | case4 S m args ih =>
+  | case4 S m args ih => -- mul gate
     rw [polynomial_mul]
     exact polynomial_mulGadget (fun j => rfl) ih
-  | case5 a args =>
+  | case5 a args => -- const, S = ∅
     rw [show polynomial (Formula.gate (SigmaPiOp.const a) args : SPFormula K n) = C a from rfl,
       smProj_C, ite_eq_left rfl]
     rfl
-  | case6 S a args h =>
+  | case6 S a args hS => -- const, S ≠ ∅
     rw [show polynomial (Formula.gate (SigmaPiOp.const a) args : SPFormula K n) = C a from rfl,
-      smProj_C, ite_eq_right h, polynomial_zero]
+      smProj_C, ite_eq_right hS, polynomial_zero]
 
 /-- **`smPart` is set-multilinear** (original on formulas): `smPart blk S F` is syntactically
 set-multilinear on `S`. -/
 theorem isSetMultilinear_smPart (S : Finset (Fin d)) (F : SPFormula K n) :
     (smPart blk S F).IsSetMultilinear blk S := by
   fun_induction smPart blk S F with
-  | case1 i => exact .input i
-  | case2 S i h => exact isSetMultilinear_zero S
-  | case3 S m c args ih => exact .add c _ S ih
-  | case4 S m args ih => exact isSetMultilinear_mulGadget ih
-  | case5 a args => exact .const a
-  | case6 S a args h => exact isSetMultilinear_zero S
+  | case1 i => exact .input i -- input, S = {blk i}
+  | case2 S i hS => exact isSetMultilinear_zero S -- input, S ≠ {blk i}
+  | case3 S m c args ih => exact .add c _ S ih -- add gate
+  | case4 S m args ih => exact isSetMultilinear_mulGadget ih -- mul gate
+  | case5 a args => exact .const a -- const, S = ∅
+  | case6 S a args hS => exact isSetMultilinear_zero S -- const, S ≠ ∅
 
 /-- **`smPart` at most doubles the product-depth** (original on formulas; [Forbes2024, Cor. 27]):
 sum gates keep it and the product gadget adds two. -/
@@ -132,17 +133,17 @@ theorem productDepth_smPart_le (S : Finset (Fin d)) (F : SPFormula K n) :
       2 * (args j).productDepth ≤ 2 * Finset.univ.sup fun j => productDepth (args j) :=
     Nat.mul_le_mul_left 2 (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j))
   fun_induction smPart blk S F with
-  | case1 i => exact Nat.zero_le _
-  | case2 S i h => exact productDepth_zero.trans_le (Nat.zero_le _)
-  | case3 S m c args ih =>
+  | case1 i => exact Nat.zero_le _ -- input, S = {blk i}
+  | case3 S m c args ih => -- add gate
     rw [productDepth_add, productDepth_add]
     exact Finset.sup_le fun j _ => (ih j).trans (hle args j)
-  | case4 S m args ih =>
+  | case4 S m args ih => -- mul gate
     rw [productDepth_mul]
     exact (productDepth_mulGadget_le fun j T => (ih j T).trans (hle args j)).trans_eq
       (by rw [Nat.mul_add, Nat.mul_one])
-  | case5 a args => exact (productDepth_const a).trans_le (Nat.zero_le _)
-  | case6 S a args h => exact productDepth_zero.trans_le (Nat.zero_le _)
+  | case5 a args => exact (productDepth_const a).trans_le (Nat.zero_le _) -- const, S = ∅
+  -- input or const replaced by zero
+  | case2 S i hS | case6 S a args hS => exact productDepth_zero.trans_le (Nat.zero_le _)
 
 /-- **The size of `smPart`** (original; [Forbes2024, Cor. 27] bounds the size of the simulating
 circuit by `poly(s, Θ(d / ln d) ^ d)`): `smPart blk S F` has at most
@@ -158,9 +159,10 @@ theorem nodeCount_smPart_le (S : Finset (Fin d)) (F : SPFormula K n) :
     Nat.mul_le_mul_right _ (Nat.pow_le_pow_right hc
       (Finset.le_sup (f := fun j => productDepth (args j)) (Finset.mem_univ j)))
   fun_induction smPart blk S F with
-  | case1 i | case5 a args => exact hpos _
-  | case2 S i h | case6 S a args h => exact nodeCount_zero.trans_le (hpos _)
-  | case3 S m c args ih =>
+  | case1 i | case5 a args => exact hpos _ -- input or const kept
+  -- input or const replaced by zero
+  | case2 S i hS | case6 S a args hS => exact nodeCount_zero.trans_le (hpos _)
+  | case3 S m c args ih => -- add gate
     set p := Finset.univ.sup fun j => productDepth (args j)
     rw [productDepth_add, Formula.nodeCount_gate, Formula.nodeCount_gate]
     calc ∑ j, (smPart blk S (args j)).nodeCount + 1
@@ -170,7 +172,7 @@ theorem nodeCount_smPart_le (S : Finset (Fin d)) (F : SPFormula K n) :
       _ = smCost d ^ p * (∑ j, (args j).nodeCount + 1) := by
           rw [← Finset.mul_sum]
           ring
-  | case4 S m args ih =>
+  | case4 S m args ih => -- mul gate
     set p := Finset.univ.sup fun j => productDepth (args j)
     rw [productDepth_mul, Formula.nodeCount_gate]
     set s := ∑ j, (args j).nodeCount

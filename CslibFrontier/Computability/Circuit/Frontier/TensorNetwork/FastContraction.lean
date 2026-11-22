@@ -548,8 +548,8 @@ theorem val_value {WF : Call T → Prop} (hstep : StepCorrect ev mk WF) (hwf : W
     val x.prec x.fl (value ev mk x) =
       x.net.contraction fun t bs => val x.prec x.fl (VertexDesc.entry ev t bs) := by
   fun_induction value ev mk x with
-  | case1 x ha ih => exact hstep x hx ha _ fun c hc => ih c (hwf x hx ha c hc)
-  | case2 x _ =>
+  | case1 x ha ih => exact hstep x hx ha _ fun c hc => ih c (hwf x hx ha c hc) -- active call
+  | case2 x _ => -- leaf
     exact DescribedNetwork.val_sumValue_galois (VertexDesc.entry ev) (x.prec, x.fl) x.net
 
 end Cslib.Circuits.Frontier.FastContraction

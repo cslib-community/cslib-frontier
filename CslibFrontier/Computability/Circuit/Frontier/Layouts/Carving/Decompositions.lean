@@ -402,10 +402,10 @@ private theorem nodeDepth_eq_zero_iff (s : BinTree α) (x : s.Node) :
 private theorem nodeDepth_nodeParent_add_one (s : BinTree α) {x : s.Node} (hx : x ≠ s.nodeRoot) :
     s.nodeDepth (s.nodeParent x) + 1 = s.nodeDepth x := by
   fun_induction s.nodeParent x with
-  | case1 | case2 => exact absurd rfl hx
-  | case3 | case5 => simp
-  | case4 l r x hxr ih => simp [ih hxr]
-  | case6 l r y hyr ih => simp [ih hyr]
+  | case1 | case2 => exact absurd rfl hx -- the root
+  | case3 | case5 => simp -- child is the root of its subtree
+  | case4 l r x hxr ih => simp [ih hxr] -- left subtree, x ≠ its root
+  | case6 l r y hyr ih => simp [ih hyr] -- right subtree, y ≠ its root
 
 @[reducible] private def LeafIdx : BinTree α → Type
   | .leaf _ => Unit

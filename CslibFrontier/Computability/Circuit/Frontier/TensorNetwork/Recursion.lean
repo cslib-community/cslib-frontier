@@ -678,8 +678,8 @@ theorem exists_contractRec_eq_add (hpts : Pairwise fun k l => IsUnit (pts k - pt
     (N : TensorNetwork B Bool (Fin n) (Fin m)) (side : Fin n → Bool) (p : ℕ) :
     ∃ c : B, contractRec B hB sched pts d n m N side p = N.contraction + 2 ^ p * c := by
   fun_induction contractRec B hB sched pts d n m N side p with
-  | case1 | case3 => exact ⟨0, by simp⟩
-  | case2 d n m N side p θ _ hθ ih =>
+  | case1 | case3 => exact ⟨0, by simp⟩ -- no parameters, or guard fails
+  | case2 d n m N side p θ _ hθ ih => -- active call
     obtain ⟨hu, huM, hua, hh, hh', hn⟩ := hθ.admissible
     refine exists_callValue_eq_add B hB (fun n' m' N' side' p' => ?_) N side hθ.side_src
       hθ.side_tgt _ hu (by simpa using huM) hua (by simpa using hh) (by simpa using hh') _

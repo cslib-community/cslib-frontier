@@ -205,8 +205,8 @@ theorem evalFrom_eq_eval (p : Program signature n g) {fixed : Finset (Fin g)} {�
     (hz : ∀ prior ≤ gate, prior ∉ fixed → z prior = ∑ i, inputWeight p prior i * (x i).toNat) :
     evalFrom p fixed η z gate = p.eval interpretation x gate := by
   fun_induction evalFrom p fixed η z gate with
-  | case1 gate hgate => exact hfix gate le_rfl hgate
-  | case2 gate hgate ih =>
+  | case1 gate hgate => exact hfix gate le_rfl hgate -- gate ∈ fixed
+  | case2 gate hgate ih => -- gate ∉ fixed: threshold on weighted sum
     rw [eval_gate_eq, hz gate le_rfl hgate]
     have hsum : (∑ prior : Fin g, if _h : prior < gate then
           gateWeight p gate prior * (evalFrom p fixed η z prior).toNat else 0) =

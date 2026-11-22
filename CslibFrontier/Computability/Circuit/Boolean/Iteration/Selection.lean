@@ -115,16 +115,16 @@ theorem chooseRecord_spec (flags : Fin R → Bool) (records : Fin R → α) (fal
     ∃ j : Fin R, j.val < t ∧ flags j = true ∧
       chooseRecord flags records fallback t = records j := by
   fun_induction chooseRecord flags records fallback t with
-  | case1 => obtain ⟨j, hj, _⟩ := hex; omega
-  | case2 t ht hf => exact ⟨⟨t, ht⟩, by simp, hf, rfl⟩
-  | case3 t ht hf ih =>
+  | case1 => obtain ⟨j, hj, _⟩ := hex; omega -- t = 0
+  | case2 t ht hf => exact ⟨⟨t, ht⟩, by simp, hf, rfl⟩ -- t < R, record t flagged
+  | case3 t ht hf ih => -- t < R, record t not flagged
     obtain ⟨j, hj, hflag, hout⟩ := ih (by
       obtain ⟨j, hj, hflag⟩ := hex
       refine ⟨j, ?_, hflag⟩
       have hne : j.val ≠ t := fun h => hf ((Fin.ext h : j = ⟨t, ht⟩) ▸ hflag)
       omega)
     exact ⟨j, by omega, hflag, hout⟩
-  | case4 t ht ih =>
+  | case4 t ht ih => -- t ≥ R: skip
     obtain ⟨j, hj, hflag, hout⟩ := ih (by
       obtain ⟨j, _, hflag⟩ := hex
       exact ⟨j, by have := j.isLt; omega, hflag⟩)

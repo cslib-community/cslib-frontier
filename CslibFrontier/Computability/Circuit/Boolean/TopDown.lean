@@ -175,12 +175,12 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
         p.depthsWith andOrCost k :=
     p.wireDepthsWith_lines_add_le _ k a
   fun_induction kwProtocol p i₀ d w s with
-  | case1 d s i =>
+  | case1 d s i => -- input wire: output it
     dsimp only [RoundProtocol.run]
     simp only [Program.trace_input] at hx hy
     rw [hx, hy]
     cases s <;> decide
-  | case2 d s k hop ih =>
+  | case2 d s k hop ih => -- not gate: recurse on its argument
     have hx' := (hval k x).symm.trans hx
     have hy' := (hval k y).symm.trans hy
     rw [interpretation_of_op_eq_not hop] at hx' hy'
@@ -191,12 +191,12 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
     refine ih hd ?_ ?_
     · rw [hfirst, ← hx', Bool.not_not]
     · rw [hfirst, ← hy', Bool.not_not]
-  | case3 s k m hop | case5 s k m hop =>
+  | case3 s k m hop | case5 s k m hop => -- and/or gate, no messages left
     have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
     have hdk : p.depthsWith andOrCost k ≤ 0 := hw
     have := p.cost_le_depthsWith andOrCost k
     omega
-  | case4 s k m hop d ih =>
+  | case4 s k m hop d ih => -- and gate: speak, then recurse
     have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
     have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
     obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := false)
@@ -204,7 +204,7 @@ theorem kwProtocol_solves (p : Program signature n g) (i₀ : Fin n) (d : ℕ) (
     simp only [Bool.bne_false] at ha
     rw [RoundProtocol.run_speak, ha]
     exact ih _ (by have := hle k a; omega) hxa hya
-  | case6 s k m hop d ih =>
+  | case6 s k m hop d ih => -- or gate: speak, then recurse
     have hc : andOrCost (p.lines k).op = 1 := by rw [hop]; rfl
     have hdk : p.depthsWith andOrCost k ≤ d + 1 := hw
     obtain ⟨a, ha, hxa, hya⟩ := exists_argWith_witness (b := true)

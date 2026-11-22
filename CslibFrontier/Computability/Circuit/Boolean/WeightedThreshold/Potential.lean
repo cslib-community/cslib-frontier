@@ -784,14 +784,14 @@ theorem sweep_mem_fixed {fixed : Finset (Fin g)} {val : Fin g → Bool} {x : Fin
     {z : Fin g → Bool} (hfix : ∀ i ∈ fixed, z i = val i) (k : ℕ) {i : Fin g} (hi : i ∈ fixed) :
     P.sweep fixed val x z k i = val i := by
   fun_induction P.sweep fixed val x z k with
-  | case1 => exact hfix i hi
-  | case2 k hk ih =>
+  | case1 => exact hfix i hi -- k = 0
+  | case2 k hk ih => -- k < g: face step at k
     unfold faceStep
     by_cases hik : i = ⟨k, hk⟩
     · subst hik
       simp [hi]
     · rw [Function.update_of_ne hik, ih]
-  | case3 k _ ih => exact ih
+  | case3 k _ ih => exact ih -- k ≥ g: skip
 
 /-- Starting from any assignment `z` on the face `(fixed, val)`, the energy `P.energy x` after any
 number `k` of steps of the topological coordinate sweep is at most the energy of `z`. -/
@@ -799,9 +799,10 @@ theorem energy_sweep_le {fixed : Finset (Fin g)} {val : Fin g → Bool} {x : Fin
     {z : Fin g → Bool} (hfix : ∀ i ∈ fixed, z i = val i) (k : ℕ) :
     P.energy x (P.sweep fixed val x z k) ≤ P.energy x z := by
   fun_induction P.sweep fixed val x z k with
-  | case1 => exact le_rfl
+  | case1 => exact le_rfl -- k = 0
+  -- k < g: face step at k
   | case2 k _ ih => exact (P.energy_faceStep_le fun hi => P.sweep_mem_fixed hfix k hi).trans ih
-  | case3 k _ ih => exact ih
+  | case3 k _ ih => exact ih -- k ≥ g: skip
 
 end StrictMarginProgram
 
