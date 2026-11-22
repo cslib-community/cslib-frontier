@@ -4922,11 +4922,6 @@ private theorem image_solsLE_none (F : List PBConstr) (P : List ℕ) :
   ext l
   simp [solsLE, projections, objValue]
 
-/-- The indices below `n` are `n` many. -/
-private theorem encard_lt (n : ℕ) : {k : ℕ | k < n}.encard = n := by
-  have : {k : ℕ | k < n} = ↑(Finset.range n) := by ext; simp
-  rw [this, Set.encard_coe_eq_coe_finsetCard, Finset.card_range]
-
 /-- **Soundness of the enumeration count**: if the checker accepts
 `conclusion ENUMERATION_PARTIAL n` or `conclusion ENUMERATION_COMPLETE n : q` for the formula
 `F` with the preserved set `Pres`, then `F` has at least `n` solutions with distinct projections
@@ -4948,7 +4943,7 @@ theorem le_encard_of_checkRed_enum {F : List PBConstr} {obj : Option Objective} 
     rintro _ ⟨k, hk, rfl⟩
     exact .inr ⟨k, ⟨hk, le_rfl⟩, rfl⟩
   calc (n : ℕ∞) = (Sum.inr '' {k | k < s.logged.length} : Set (List Bool ⊕ ℕ)).encard := by
-        rw [Sum.inr_injective.injOn.encard_image, encard_lt, hlen]
+        rw [Sum.inr_injective.injOn.encard_image, Set.Nat.encard_range, hlen]
     _ ≤ (proj Pres '' solsLE F none 0).encard :=
         Set.encard_le_encard_of_injOn (hmaps.mono_left hsub) (hinj.mono hsub)
     _ = _ := by rw [image_solsLE_none]
@@ -4974,7 +4969,7 @@ theorem encard_eq_of_checkRed_enumComplete {F : List PBConstr} {obj : Option Obj
         rw [image_solsLE_none]
     _ ≤ (Sum.inr '' {k | k < s.logged.length} : Set (List Bool ⊕ ℕ)).encard :=
         Set.encard_le_encard_of_injOn (hmaps.mono_right hsub) hinj
-    _ = n := by rw [Sum.inr_injective.injOn.encard_image, encard_lt, hlen]
+    _ = n := by rw [Sum.inr_injective.injOn.encard_image, Set.Nat.encard_range, hlen]
 
 /-! ### Proofs without redundance and solutions -/
 
