@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Foundations.Data.BitString.BitVec
 import CslibFrontier.Foundations.Data.BitString.ZModSpace
 import CslibFrontier.Foundations.Data.BitString.LinearEquiv
 import CslibFrontier.Foundations.Data.Code.ParityCheck
@@ -17,7 +18,7 @@ import CslibFrontier.Foundations.Combinatorics.Multidigraph.Connectivity
 import CslibFrontier.Foundations.Combinatorics.Digraph.Connectivity
 
 /-!
-# Tests for `BitString` linear algebra, multigraph cut spaces, and multidigraphs
+# Tests for `BitString` representations, linear algebra, multigraph cut spaces, and multidigraphs
 
 Exercises:
 1. `Cslib.BitString.ZModSpace` (`toZModSpace`, `submoduleZModIso`, `finrank_submoduleZModIso`,
@@ -32,6 +33,11 @@ Exercises:
    multigraph with parallel edges and a self-loop.
 4. `Cslib.Multidigraph` ↔ `Digraph` bridges (`toDigraph_arcSrc_arcTgt`, `arcMatrix_arcSrc_arcTgt`,
    `arborescenceEquivSubdigraph`, `isDipath_pmap_zip_tail`).
+5. `Cslib.BitString.BitVec` (`equivBitVec`, `getLsbD_equivBitVec`, `getElem_equivBitVec`,
+   `equivBitVec_symm_apply`, `equivBitVec_getLsbD`, `toNat_equivBitVec_eq_equivFin`,
+   `equivBitVec_zero`, `equivBitVec_symm_zero`, `equivBitVec_compl`), bitwise `BooleanRing`
+   correspondence, and separation between `BooleanRing` `+` (XOR) and modular `BitVec` `+` at
+   `w = 2`.
 -/
 
 set_option linter.privateModule false
@@ -190,5 +196,51 @@ example :
     (fun e he => (⟨e, he⟩ : Multidigraph.Arc sampleDigraph)) (fun _ _ => ⟨rfl, rfl⟩)
     (p := [0, 1, 2]) (by decide) rfl rfl (by decide)
   ⟨h.1, h.2.1⟩
+
+/-! ### 5. `BitString.BitVec`: little-endian `BitVec` equivalence and bitwise vs. modular `+` -/
+
+-- Little-endian layout (`1 + 0 + 4 = 5`), zero, and bitwise complement on 3-bit strings.
+example :
+    equivBitVec ![true, false, true] = 5#3 ∧
+    equivBitVec.symm 5#3 = ![true, false, true] ∧
+    (equivBitVec ![true, false, true]).toNat = (equivFin 3 ![true, false, true] : ℕ) ∧
+    equivBitVec (0 : BitString 3) = 0#3 ∧
+    equivBitVec (![true, false, true]ᶜ : BitString 3) = 2#3 := by
+  decide
+
+-- Coordinate access, unsigned value agreement, and `BooleanRing` bitwise operations (`0`, `ᶜ`,
+-- XOR `+`, and AND `*`).
+example {w : ℕ} (x y : BitString w) (v : BitVec w) (i : Fin w) :
+    (equivBitVec x).getLsbD i.val = x i ∧
+    (equivBitVec x)[i.val] = x i ∧
+    equivBitVec.symm v i = v[i.val] ∧
+    equivBitVec (fun j : Fin w => v.getLsbD j.val) = v ∧
+    (equivBitVec x).toNat = (equivFin w x : ℕ) ∧
+    equivBitVec (0 : BitString w) = 0#w ∧
+    equivBitVec.symm 0#w = (0 : BitString w) ∧
+    equivBitVec xᶜ = ~~~equivBitVec x ∧
+    equivBitVec (x + y) = (equivBitVec x ^^^ equivBitVec y) ∧
+    equivBitVec (x * y) = (equivBitVec x &&& equivBitVec y) := by
+  refine ⟨getLsbD_equivBitVec x i, getElem_equivBitVec x i.val i.isLt,
+    equivBitVec_symm_apply v i, equivBitVec_getLsbD v, toNat_equivBitVec_eq_equivFin x,
+    equivBitVec_zero, equivBitVec_symm_zero, equivBitVec_compl x, ?_, ?_⟩ <;>
+  · apply BitVec.eq_of_getElem_eq
+    intro j hj
+    simp only [getElem_equivBitVec, BitVec.getElem_xor, BitVec.getElem_and,
+      Pi.add_apply, Pi.mul_apply]
+    cases x ⟨j, hj⟩ <;> cases y ⟨j, hj⟩ <;> rfl
+
+-- At `w = 2`, `BooleanRing` `+` on `BitString 2` is coordinatewise XOR (`1 ⊕ 3 = 2`), whereas
+-- `BitVec` `+` is modular addition mod `4` (`1 + 3 ≡ 0 (mod 4)`), so `equivBitVec` does not
+-- intertwine `BooleanRing` `+` with `BitVec` `+`.
+example :
+    let u : BitString 2 := ![true, false]
+    let v : BitString 2 := ![true, true]
+    equivBitVec u = 1#2 ∧
+    equivBitVec v = 3#2 ∧
+    equivBitVec (u + v) = 2#2 ∧
+    equivBitVec u + equivBitVec v = 0#2 ∧
+    equivBitVec (u + v) ≠ equivBitVec u + equivBitVec v := by
+  decide
 
 end CslibFrontierTests.BitStringZModCutSpace

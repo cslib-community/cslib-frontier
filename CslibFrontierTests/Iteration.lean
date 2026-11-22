@@ -39,14 +39,17 @@ open Cslib Cslib.Circuits Cslib.Circuits.Boolean Cslib.Circuits.Boolean.Iteratio
 -- A two-bit ripple-carry adder on the first two and last two inputs, from the shared carries.
 example : ∃ c : Circuit signature 4 2,
     c.Computes interpretation (fun x i =>
-      (word (fun j : Fin 2 => x ⟨j, by omega⟩) +
-        word (fun j : Fin 2 => x ⟨j + 2, by omega⟩)).getLsbD i.val) ∧ c.size ≤ 25 :=
-  (Synthesis.word_add (s := inputs 4) (fun x => word fun j : Fin 2 => x ⟨j, by omega⟩)
-    (fun x => word fun j : Fin 2 => x ⟨j + 2, by omega⟩)
+      (BitString.equivBitVec (fun j : Fin 2 => x ⟨j, by omega⟩) +
+        BitString.equivBitVec (fun j : Fin 2 => x ⟨j + 2, by omega⟩)).getLsbD i.val) ∧
+      c.size ≤ 25 :=
+  (Synthesis.word_add (s := inputs 4)
+    (fun x => BitString.equivBitVec fun j : Fin 2 => x ⟨j, by omega⟩)
+    (fun x => BitString.equivBitVec fun j : Fin 2 => x ⟨j + 2, by omega⟩)
     (fun i => ⟨⟨i, by omega⟩, funext fun x =>
-      (getLsbD_word (fun j : Fin 2 => x ⟨j, by omega⟩) i).symm⟩)
+      (BitString.getLsbD_equivBitVec (fun j : Fin 2 => x ⟨j, by omega⟩) i).symm⟩)
     (fun i => ⟨⟨i + 2, by omega⟩, funext fun x =>
-      (getLsbD_word (fun j : Fin 2 => x ⟨j + 2, by omega⟩) i).symm⟩)).exists_circuit_outputs
+      (BitString.getLsbD_equivBitVec
+        (fun j : Fin 2 => x ⟨j + 2, by omega⟩) i).symm⟩)).exists_circuit_outputs
 
 -- Table selection is exact in range, all-false out of range, and never selects positions beyond
 -- the index range.
@@ -362,7 +365,7 @@ example : ∃ out : Circuit signature 2 3,
 
 -- Minimal period circuit for `flip` at `L = 1`.
 example : ∃ out : Circuit signature 1 2,
-    (∀ x, (word (out.eval interpretation x)).toNat =
+    (∀ x, (BitString.equivBitVec (out.eval interpretation x)).toNat =
       Function.minimalPeriod (flip.eval interpretation) x) ∧
     out.size ≤ 110000 * powerBudget 1 1 2 1 := by
   simpa [flip] using minimal_period_circuit flip 1 one_pos (by decide)
