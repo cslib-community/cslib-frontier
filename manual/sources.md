@@ -247,6 +247,11 @@ deposit. The book's full text was inaccessible in this pass: internal locator no
 The formalization uses the later Robinson–Ollinger route described under
 [Jeandel–Vanier](#jeandelvanier2020), ported from the pinned lean-wang revision there.
 
+<a id="bermangarayperry1989"></a>
+## bermangarayperry1989
+
+Piotr Berman, Juan A. Garay and Kenneth J. Perry. "Towards Optimal Distributed Consensus." *30th Annual Symposium on Foundations of Computer Science (FOCS 1989)*, 410–415, 1989. https://doi.org/10.1109/SFCS.1989.63511 . Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full proceedings PDF was not inspected, so no numbered section or theorem locator is asserted. Cited by [Byzantine/PhaseKing.lean](../CslibFrontier/Computability/Distributed/Byzantine/PhaseKing.lean) for the 2-round-per-phase `phaseKing` protocol (`4 * t < Fintype.card P`, `2 * (t + 1)` rounds, `Msg = V`): in round `2 * k` the phase king selects the unique value with multiplicity at least `n - 2 * t` (defaulting to its own estimate `est`), and in round `2 * k + 1` each process locks onto any value that achieved multiplicity at least `n - t` in round `2 * k` and adopts the phase king's broadcast otherwise.
+
 <a id="bermanhartmanis75"></a>
 ## bermanhartmanis75
 
@@ -2055,6 +2060,11 @@ Jacobo Torán. “Space and Width in Propositional Resolution.” The Computatio
 ## tsybakov09
 
 Alexandre B. Tsybakov. *Introduction to Nonparametric Estimation*. Springer Series in Statistics, Springer, 2009 (ISBN 978-0-387-79051-0). https://doi.org/10.1007/b13794 . Bibliographic metadata checked on 2026-11-10 (full text not inspected); Section 2.4 (`Divergence Measures and Lower Bounds`) is cited for `f`-divergence properties, Hellinger/TV comparisons (with Tsybakov scaling squared Hellinger by `2`, whereas the library normalizes `h ∈ [0, 1]`), `χ²` tensorization, `2 h² ≤ KL ≤ χ²`, and the Ingster/Le Cam mixture second-moment reduction.
+
+<a id="turpincoan1984"></a>
+## turpincoan1984
+
+Russell Turpin and Brian A. Coan. "Extending Binary Byzantine Agreement to Multivalued Byzantine Agreement." *Information Processing Letters* 18(2), 73–76, 1984. https://doi.org/10.1016/0020-0190(84)90027-9 . Bibliographic metadata checked via secondary indexes on 2026-11-22 UTC; the full journal PDF was not inspected, so no numbered section or theorem locator is asserted. Cited by [Byzantine/PhaseKing.lean](../CslibFrontier/Computability/Distributed/Byzantine/PhaseKing.lean) for the `(R₀ + 2)`-round `turpinCoan` reduction (`3 * t < Fintype.card P`): round 1 broadcasts initial `V`-values and marks a process `perplexed` when `2 * count(input) ≤ n + t` (integer-multiplied form of `count(other) ≥ (n - t) / 2`); round 2 broadcasts the 1-bit `perplexed` flag, sets `alert` when `n - 2 * t ≤ count(true)`, and extracts as `candidate` the unique value received in round 1 from at least `t + 1` senders reporting `perplexed = false` (defaulting to `default : V`); rounds `3` through `R₀ + 2` run the underlying binary protocol on `alert`, deciding `default` on `true` and `candidate` on `false`.
 
 <a id="tutte48"></a>
 ## tutte48

@@ -3182,6 +3182,7 @@ public import CslibFrontier.Computability.Distributed.AsyncByzantine.Impossibili
 public import CslibFrontier.Computability.Distributed.Byzantine.Basic
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
+public import CslibFrontier.Computability.Distributed.Byzantine.PhaseKing
 public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
 public import CslibFrontier.Computability.Distributed.OrientedCycle.ColeVishkin
