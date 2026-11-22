@@ -1714,6 +1714,11 @@ Thierry Mignon and Nicolas Ressayre. *A quadratic bound for the determinant and 
 
 Maurice Mignotte. "Some Useful Bounds." In Bruno Buchberger, George E. Collins and Rüdiger Loos (eds.), *Computer Algebra: Symbolic and Algebraic Computation*, Computing Supplementum 4, 259–263, Springer, 1982. https://doi.org/10.1007/978-3-7091-7551-4_16 . Bibliographic metadata checked against DOI and secondary computer-algebra records on 2026-11-11 UTC; the primary Springer supplement pages 259–263 were not directly inspected, so internal theorem numbers are unverified. Cited alongside [`mahler64`](#mahler64) for the Mignotte coefficient `ℓ²` root-separation specialization (`Polynomial.mignotte_sep_sqNorm_real`, `Polynomial.mignotte_sep_sqNorm_rat`) governing `mignotteBisectionDepth`.
 
+<a id="mironov17"></a>
+## mironov17
+
+Ilya Mironov. "Rényi Differential Privacy." *2017 IEEE 30th Computer Security Foundations Symposium (CSF)*, 263–275, IEEE, 2017. https://doi.org/10.1109/CSF.2017.11 ; preprint arXiv:1702.07476v3, https://arxiv.org/abs/1702.07476v3 . Checked against the arXiv:1702.07476v3 LaTeX source (`renyi.tex`, SHA-256 `3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef`) on 2026-11-22: Definitions 1–2 (pure and approximate differential privacy), Definition 3 (Section III, Rényi divergence `D_α(P ‖ Q)` of order `α > 1` in natural logarithms), Definition 4 (Section III, `(α, ε)`-Rényi differential privacy), Section III "Post-processing" (`D_α(g(P) ‖ g(Q)) ≤ D_α(P ‖ Q)`), Proposition 1 (Section III, adaptive sequential composition), Proposition 3 (Section IV, conversion from `(α, ε)`-RDP to `(ε + log(1/δ)/(α - 1), δ)`-DP), Lemma 1 and the Bun–Steinke remark following it (Section V, pure-DP to RDP conversion), Proposition 5 (Section VI-A, randomized response), and Appendix A (nonnegativity `0 ≤ D_α(P ‖ Q)`). IEEE CSF page numbers and DOI were taken from the bibliographic record.
+
 <a id="mirsky1971"></a>
 ## mirsky1971
 
@@ -1995,6 +2000,11 @@ Oded Regev. "On lattices, learning with errors, random linear codes, and cryptog
 ## reingold2008
 
 Omer Reingold. “Undirected Connectivity in Log-Space.” *Journal of the ACM* 55(4), Article 17 (2008). DOI: https://doi.org/10.1145/1391289.1391291. Author copy dated 2008-05-03 inspected: https://omereingold.wordpress.com/wp-content/uploads/2014/10/sl.pdf.
+
+<a id="renyi61"></a>
+## renyi61
+
+Alfréd Rényi. "On Measures of Entropy and Information." *Proceedings of the Fourth Berkeley Symposium on Mathematical Statistics and Probability, Volume 1: Contributions to the Theory of Statistics*, 547–561, University of California Press, Berkeley, CA, 1961. Bibliographic metadata checked via secondary bibliographic records on 2026-11-22; the 1961 proceedings scan was not directly inspected, so internal theorem and page locators are not cited, and the discrete Rényi divergence formulation follows [mironov17](#mironov17), Definition 3 and Appendix A.
 
 <a id="reynolds02"></a>
 ## reynolds02

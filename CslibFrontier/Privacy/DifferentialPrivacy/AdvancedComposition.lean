@@ -21,10 +21,10 @@ privacy loss grows like `√k ε` instead of the `k ε` of basic composition
 (`DifferentiallyPrivate.adaptiveComposition`).
 
 The source proves the theorem through the KL divergence bound `ε (e^ε - 1)` and Azuma's
-inequality. Here the proof bounds the moment generating function of the privacy loss in each
-round (`lossMoment_le_exp`), multiplies the bounds along the transcript
-(`lossMoment_transcriptWeight_le`) and applies Markov's inequality
-(`tsum_tsub_le_lossMoment`). The per-round bound gives the sharper linear term
+inequality. Here the proof bounds the Rényi power-ratio moment of the privacy loss in each
+round (`renyiMoment_le_exp`), multiplies the bounds along the transcript
+(`renyiMoment_transcriptWeight_le`) and applies Markov's inequality
+(`Probability.tsum_tsub_le_renyiMoment`). The per-round bound gives the sharper linear term
 `k ε tanh (ε / 2) = k ε (e^ε - 1) / (e^ε + 1)` in place of `k ε (e^ε - 1)`
 (`DifferentiallyPrivate.advancedComposition_sqrt`), the third bound of
 [KairouzOhViswanath2017, Theorem 3.4]. Their proof also bounds a moment generating function, after
@@ -105,40 +105,42 @@ private theorem tsum_list_eq_tsum_tsum_cons (f : List R → ℝ≥0∞) (hf : f 
   refine (tsum_prod (f := fun r h => f (r :: h))).trans ?_
   rw [tsum_comm]
 
-/-- The privacy-loss moment of `k + 1` rounds, conditioned on the first `k`. -/
-theorem lossMoment_transcriptWeight_succ {K L : List R → R → ℝ≥0∞} (hL : ∀ h r, L h r ≠ ⊤)
-    (t : ℝ) (ht : 0 ≤ t) (k : ℕ) :
-    lossMoment t (transcriptWeight K (k + 1)) (transcriptWeight L (k + 1)) =
-      ∑' h, transcriptWeight K k h * (transcriptWeight K k h / transcriptWeight L k h) ^ t *
-        lossMoment t (K h) (L h) := by
-  rw [lossMoment_def, tsum_list_eq_tsum_tsum_cons _ (by simp [transcriptWeight])]
-  refine tsum_congr fun h => ?_
-  rw [lossMoment_def, ← ENNReal.tsum_mul_left]
-  refine tsum_congr fun r => ?_
-  simp only [transcriptWeight]
-  rw [ENNReal.mul_div_mul_comm (Or.inr (hL h r)) (Or.inl (transcriptWeight_ne_top hL k h)),
-    ENNReal.mul_rpow_of_nonneg _ _ ht]
-  ring
+/-- The order-`α` Rényi moment of `k + 1` rounds, conditioned on the first `k`. -/
+theorem renyiMoment_transcriptWeight_succ {K L : List R → R → ℝ≥0∞} (hL : ∀ h r, L h r ≠ ⊤)
+    {α : ℝ} (hα : 1 ≤ α) (k : ℕ) :
+    Probability.renyiMoment α (transcriptWeight K (k + 1)) (transcriptWeight L (k + 1)) =
+      ∑' h, transcriptWeight K k h * (transcriptWeight K k h / transcriptWeight L k h) ^ (α - 1) *
+        Probability.renyiMoment α (K h) (L h) := by
+  have hinj : Function.Injective (fun p : List R × R => p.2 :: p.1) :=
+    fun p q hpq => Prod.ext (List.cons.inj hpq).2 (List.cons.inj hpq).1
+  rw [Probability.renyiMoment_comp_of_injective hinj α (fun l hl => by
+    cases l with
+    | nil => rfl
+    | cons r h => exact absurd ⟨(h, r), rfl⟩ hl)]
+  exact Probability.renyiMoment_mul_prod hα (transcriptWeight_ne_top hL k) hL
 
-/-- If every round has privacy-loss moment at most `B`, then `k` rounds have moment at most
+/-- If every round has order-`α` Rényi moment at most `B`, then `k` rounds have moment at most
 `B ^ k`. -/
-theorem lossMoment_transcriptWeight_le {K L : List R → R → ℝ≥0∞} (hL : ∀ h r, L h r ≠ ⊤)
-    {t : ℝ} (ht : 0 ≤ t) {B : ℝ≥0∞} (hB : ∀ h, lossMoment t (K h) (L h) ≤ B) (k : ℕ) :
-    lossMoment t (transcriptWeight K k) (transcriptWeight L k) ≤ B ^ k := by
+theorem renyiMoment_transcriptWeight_le {K L : List R → R → ℝ≥0∞} (hL : ∀ h r, L h r ≠ ⊤)
+    {α : ℝ} (hα : 1 ≤ α) {B : ℝ≥0∞} (hB : ∀ h, Probability.renyiMoment α (K h) (L h) ≤ B)
+    (k : ℕ) :
+    Probability.renyiMoment α (transcriptWeight K k) (transcriptWeight L k) ≤ B ^ k := by
   induction k with
   | zero =>
-    rw [lossMoment_def, tsum_eq_single [] fun l hl => by cases l with
+    rw [Probability.renyiMoment, tsum_eq_single [] fun l hl => by cases l with
       | nil => exact absurd rfl hl
       | cons r h => simp [transcriptWeight]]
     simp [transcriptWeight]
   | succ k ih =>
-    rw [lossMoment_transcriptWeight_succ hL t ht, pow_succ]
-    calc ∑' h, transcriptWeight K k h * (transcriptWeight K k h / transcriptWeight L k h) ^ t *
-          lossMoment t (K h) (L h)
-        ≤ ∑' h, transcriptWeight K k h * (transcriptWeight K k h / transcriptWeight L k h) ^ t *
-          B := tsum_le_tsum fun h => by gcongr; exact hB h
-      _ = lossMoment t (transcriptWeight K k) (transcriptWeight L k) * B := by
-          rw [ENNReal.tsum_mul_right, lossMoment_def]
+    rw [renyiMoment_transcriptWeight_succ hL hα, pow_succ]
+    calc ∑' h, transcriptWeight K k h *
+            (transcriptWeight K k h / transcriptWeight L k h) ^ (α - 1) *
+            Probability.renyiMoment α (K h) (L h)
+        ≤ ∑' h, transcriptWeight K k h *
+            (transcriptWeight K k h / transcriptWeight L k h) ^ (α - 1) * B :=
+          tsum_le_tsum fun h => by gcongr; exact hB h
+      _ = Probability.renyiMoment α (transcriptWeight K k) (transcriptWeight L k) * B := by
+          rw [ENNReal.tsum_mul_right, Probability.renyiMoment]
       _ ≤ B ^ k * B := by gcongr
 
 /-- The mass function of `k` rounds of adaptive composition is the transcript weight. -/
@@ -257,19 +259,22 @@ theorem tsum_tsub_transcriptWeight_le {K L : List R → R → ℝ≥0∞} {ε : 
   have hLfin : ∀ h r, L h r ≠ ⊤ := fun h r =>
     ne_top_of_le_ne_top ENNReal.one_ne_top ((le_tsum (L h) r).trans (hL1 h))
   have hk' : (0 : ℝ) < k := Nat.cast_pos.mpr hk
+  set α : ℝ := 1 + a / k / ε
   have ht : 0 ≤ a / k / ε := div_nonneg (div_nonneg ha hk'.le) hε.le
-  have hst : ε * (a / k / ε) = a / k := by field_simp
-  have hround (h : List R) : lossMoment (a / k / ε) (K h) (L h) ≤
+  have hα : 1 ≤ α := by dsimp only [α]; linarith
+  have hα_sub : α - 1 = a / k / ε := by dsimp only [α]; ring
+  have hst : ε * (α - 1) = a / k := by rw [hα_sub]; field_simp
+  have hround (h : List R) : Probability.renyiMoment α (K h) (L h) ≤
       ENNReal.ofReal (Real.exp (Real.tanh (ε / 2) * (a / k) + (a / k) ^ 2 / 2)) := by
-    have := lossMoment_le_exp hε.le ht (hKL h) (hLK h) (hsum h)
+    have := renyiMoment_le_exp hε.le hα (hKL h) (hLK h) (hsum h)
       (ne_top_of_le_ne_top ENNReal.one_ne_top (hL1 h))
     rw [hst] at this
     exact this.trans ((mul_le_mul' le_rfl (hK1 h)).trans (mul_one _).le)
-  have hmom := lossMoment_transcriptWeight_le hLfin ht hround k
-  refine (tsum_tsub_le_lossMoment ht _ _ _).trans ?_
+  have hmom := renyiMoment_transcriptWeight_le hLfin hα hround k
+  refine (Probability.tsum_tsub_le_renyiMoment hα _ _ _).trans ?_
   refine (mul_le_mul' le_rfl hmom).trans ?_
   rw [← ENNReal.ofReal_pow (Real.exp_pos _).le, ← ENNReal.ofReal_mul (Real.exp_pos _).le,
-    ← Real.exp_nat_mul, ← Real.exp_add]
+    ← Real.exp_nat_mul, ← Real.exp_add, hα_sub]
   refine ENNReal.ofReal_le_ofReal (le_of_eq (congrArg Real.exp ?_))
   field_simp
   ring

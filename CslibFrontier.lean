@@ -8729,12 +8729,14 @@ public import CslibFrontier.Privacy.DifferentialPrivacy.PrivacyLoss
 public import CslibFrontier.Privacy.DifferentialPrivacy.RandomReconstruction
 public import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
 public import CslibFrontier.Privacy.DifferentialPrivacy.Reconstruction
+public import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
 public import CslibFrontier.Privacy.DifferentialPrivacy.Sensitivity
 public import CslibFrontier.Privacy.DifferentialPrivacy.SmallUniverse
 public import CslibFrontier.Probability.AdaptiveWeights
 public import CslibFrontier.Probability.ApproxEq
 public import CslibFrontier.Probability.ApproximateCounting
 public import CslibFrontier.Probability.ApproximateCounting.Relative
+public import CslibFrontier.Probability.Azuma
 public import CslibFrontier.Probability.BernoulliComparison
 public import CslibFrontier.Probability.BilinearFingerprint
 public import CslibFrontier.Probability.BinaryKL
@@ -8968,6 +8970,7 @@ public import CslibFrontier.Probability.Quantile
 public import CslibFrontier.Probability.RankDecoder
 public import CslibFrontier.Probability.RankDecoder.Native
 public import CslibFrontier.Probability.RejectionSampling
+public import CslibFrontier.Probability.Renyi
 public import CslibFrontier.Probability.Resilience
 public import CslibFrontier.Probability.Rewinding
 public import CslibFrontier.Probability.Rewinding.Consistency
