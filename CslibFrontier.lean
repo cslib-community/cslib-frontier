@@ -1598,6 +1598,10 @@ public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.QuadForm
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Steiner
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep.Uniform
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Certificates
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Compiler
+public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Hypergraph.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Compiler.Network
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation
 public import CslibFrontier.Computability.Circuit.Frontier.Correlation.Asymptotics
@@ -7908,6 +7912,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 public import CslibFrontier.Foundations.Probability.Gaussian.Real
 public import CslibFrontier.Foundations.Probability.Gaussian.Sheppard
 public import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
+public import CslibFrontier.Foundations.Probability.Gaussian.Slepian
 public import CslibFrontier.Foundations.Probability.Gaussian.Smoothing
 public import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 public import CslibFrontier.Foundations.Probability.Gaussian.Standard
