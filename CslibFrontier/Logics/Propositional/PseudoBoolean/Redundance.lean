@@ -1699,7 +1699,7 @@ private def State.improve (f : Objective) (s : State) (v : ℤ) : State :=
 
 /-- Add the constraint `c`, derived by `red` or `dom`, to the state `s` under the number `m`: it is
 a derived constraint, or a core constraint in strengthening-to-core mode (§5.6). -/
-private def State.addStrengthened (s : State) (m : ℕ) (c : PBConstr) : State :=
+def State.addStrengthened (s : State) (m : ℕ) (c : PBConstr) : State :=
   { s with
     db := (m, c.normalize) :: s.db, next := m + 1,
     core := if s.tcb then (m, c.normalize) :: s.core else s.core }
