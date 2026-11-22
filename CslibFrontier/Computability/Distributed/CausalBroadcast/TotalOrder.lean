@@ -38,8 +38,9 @@ and its fault-tolerance contrast against single-group Causal Broadcast (after Ha
    `Cslib.FLP.Algorithm P M S` (`consensusOfTotalOrderBroadcast_consensus`, after
    [HadzilacosToueg1994], §7.2.1, Figure 13 & Theorem 13, p. 58; [ChandraToueg1996], §7, p. 249) by
    deciding the payload of the first delivered message, and invokes
-   `Cslib.FLP.Consensus.ge_one_not_exists` to rule out `f ≥ 1` crash-resilient `TotalOrderBroadcastAlg`
-   for `2 ≤ Fintype.card P` and `[Nontrivial V]` (`not_exists_oneShotTotalOrderBroadcast_ge_one`).
+   `Cslib.FLP.Consensus.ge_one_not_exists` to rule out `f ≥ 1` crash-resilient
+   `TotalOrderBroadcastAlg` for `2 ≤ Fintype.card P` and `[Nontrivial V]`
+   (`not_exists_oneShotTotalOrderBroadcast_ge_one`).
    Paired with the `0`-fault deterministic sequencer `zeroFaultTotalOrderAlg`
    (`zeroFaultTotalOrderAlg_solves`), `exists_oneShotTotalOrderBroadcast_iff_eq_zero` characterizes
    one-shot solvability as `t = 0`.
