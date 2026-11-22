@@ -140,6 +140,7 @@ import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
+import CslibFrontier.Foundations.BooleanAnalysis.SmallSetExpansion
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -12630,6 +12631,31 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
     (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
     outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
     https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-small-set-expansion" where
+  title := "Small-Set Expansion Theorem"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Small-Set Expansion Theorem",
+      locator := "arXiv:2105.10386v1, §9.5, printed p. 264" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_indicator_le]
+  scope := "Uniform cube on any finite coordinate type, any set A given by its indicator \
+    A.indicator 1 with volume α = 𝔼 1_A, and 0 ≤ ρ ≤ 1 including both endpoints: \
+    Stab_ρ[1_A] ≤ α^(2/(1 + ρ)), the probability that a uniform x and a ρ-correlated y both lie \
+    in A. The source's equivalent conditional form for α > 0 (x uniform on A) is not stated."
+
+register_result "odonnell-small-set-expansion-one-third" where
+  title := "Small subsets are noise-sensitive at ρ = 1/3"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 9.8",
+      locator := "arXiv:2105.10386v1, §9.2, printed p. 254" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_one_third_indicator_le]
+  scope := "Uniform cube on any finite coordinate type and any set A given by its indicator \
+    A.indicator 1 with volume α = 𝔼 1_A: Stab_{1/3}[1_A] ≤ α^(3/2). The source's equivalent \
+    conditional form for α > 0 (x uniform on A, Pr[y ∈ A] ≤ α^(1/2)) is not stated."
 
 register_result "btree-rank-comparison-lower-bound" where
   title := "Comparison lower bound for B-tree rank search"

@@ -6551,6 +6551,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.QuadraticForm
 public import CslibFrontier.Foundations.BooleanAnalysis.RelevantCoordinates
 public import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 public import CslibFrontier.Foundations.BooleanAnalysis.SignApproximation
+public import CslibFrontier.Foundations.BooleanAnalysis.SmallSetExpansion
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseBranching
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseClearedSpecialization
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseEquations
