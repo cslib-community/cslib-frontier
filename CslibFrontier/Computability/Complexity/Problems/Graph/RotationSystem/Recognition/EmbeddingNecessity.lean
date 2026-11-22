@@ -974,7 +974,7 @@ theorem query_eq_true_of_unfrozen_embedding {I : FixedRotationInput} (hI : Valid
     (hF : (frozenGraph I).edges = [])
     (D : PolygonalDrawing (subdivisionGraph I)) (hD : D.IsEmbedding) : query I = true := by
   obtain ⟨E, hE, hV, _, _, _, _⟩ := hD.exists_vertex_placement
-    (fun hv => subdivisionGraph_endpoints_declared hI _ hv)
+    (subdivisionGraph_endpoints_declared hI)
     (referenceDrawing I).vertex (referenceDrawing_vertices_injective hI)
   apply query_eq_true_of_positioned_frozen_embedding hI E hE hV
   intro e he
