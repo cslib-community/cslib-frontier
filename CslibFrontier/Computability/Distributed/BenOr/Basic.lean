@@ -71,7 +71,7 @@ Protocol A, [BenOr1983], §3, printed p. 28, with `0`-indexed `r : ℕ`):
 
 * `Cslib.Distributed.BenOr.ProcState`: per-process estimate and write-once decision register.
 * `Cslib.Distributed.BenOr.PhaseSchedule`, `Cslib.Distributed.BenOr.PhaseSchedule.Valid`:
-  per-recipient Stage-1 and Stage-2 asynchronous quorums of size at least `|P| - t`.
+  per-recipient Stage-1 and Stage-2 phase quorums of size at least `|P| - t`.
 * `Cslib.Distributed.BenOr.majorityThreshold`: strict majority threshold `n / 2 + 1`.
 * `Cslib.Distributed.BenOr.reportCount`, `Cslib.Distributed.BenOr.stage1Proposal`: Stage-1 report
   tally and proposal rule.
@@ -148,10 +148,10 @@ theorem initState_est {P : Type*} (inp : P → Bool) (p : P) :
 theorem initState_decided {P : Type*} (inp : P → Bool) (p : P) :
     (initState inp p).decided = none := rfl
 
-/-- Asynchronous quorum-delivery schedule for one phase of Ben-Or's protocol.
+/-- Per-recipient quorum schedule for one two-stage phase of Ben-Or's protocol.
 In Stage 1, process `p` receives reports from `q1 p`; in Stage 2, `p` receives proposals from
-`q2 p`. Allowing distinct quorums per recipient models arbitrary asynchronous message delays and
-mid-broadcast crashes. -/
+`q2 p`. Allowing distinct sender sets per recipient captures recipient-varying quorum delivery
+within a phase boundary. -/
 @[ext]
 structure PhaseSchedule (P : Type*) where
   /-- Senders whose Stage-1 (`report`) messages arrive at process `p` before `p` advances. -/
@@ -371,7 +371,7 @@ private lemma stage2Update_decided_eq_some_iff_of_none {P : Type*} {t : ℕ} {pr
     · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
     · exact ⟨(fun h => nomatch h), fun ht' => (ht ht').elim⟩
 
-/-- Execute one two-stage phase of Ben-Or's protocol on global state `st` under asynchronous quorum
+/-- Execute one two-stage phase of Ben-Or's protocol on global state `st` under quorum-phase
 schedule `sched` and coin assignment `coins`. -/
 @[expose] def phaseStep {P : Type*} [Fintype P] (t : ℕ) (sched : PhaseSchedule P)
     (coins : P → Bool) (st : P → ProcState) (p : P) : ProcState :=
@@ -632,7 +632,7 @@ theorem run_exists_inp_eq_of_decided {P : Type*} [Fintype P] {t : ℕ} {sched : 
 
 /-! ### Dynamic mid-stage crash simulation and uniform agreement -/
 
-/-- Dynamic asynchronous schedule with cumulative mid-stage crashes: `crashed1 r` is the set of
+/-- Phased schedule with cumulative mid-stage crashes: `crashed1 r` is the set of
 processes that have crashed before completing Stage 1 of phase `r`, and `crashed2 r` is the set of
 processes that have crashed before completing Stage 2 of phase `r`. Crashed processes stop sending
 in subsequent stages and freeze their local state. -/
@@ -790,7 +790,7 @@ theorem crashRun_agreement {P : Type*} [Fintype P] [DecidableEq P] {t : ℕ} {cs
 
 /-! ### Non-termination under deterministic static coin fallbacks (`Fin 3, t = 1`) -/
 
-/-- Adversarial asynchronous schedule on `Fin 3` (`t = 1`, quorum size `2 = 3 - 1`, zero crashes):
+/-- Adversarial quorum-phase schedule on `Fin 3` (`t = 1`, quorum size `2 = 3 - 1`, zero crashes):
 processes `1` and `2` always observe one `some` proposal from `1` (adopting it without reaching
 the decision threshold `2`), while process `0` observes two `none` proposals and invokes its
 fallback coin. -/
@@ -837,7 +837,7 @@ private lemma phaseStep_fin3SplitSchedule_fixed (fallback : Fin 3 → Bool) :
 
 /-- **Necessity of fresh randomization (`Fin 3, t = 1`):** for every static deterministic coin
 fallback `fallback : Fin 3 → Bool`, there exist an input assignment `inp` and a valid crash-free
-asynchronous schedule `sched` (`sched.Valid 1`) such that **no process ever decides** in any phase
+quorum-phase schedule `sched` (`sched.Valid 1`) such that **no process ever decides** in any phase
 `r : ℕ`. -/
 theorem exists_nonterminating_of_fixed_coin (fallback : Fin 3 → Bool) :
     ∃ (inp : Fin 3 → Bool) (sched : PhaseSchedule (Fin 3)),
