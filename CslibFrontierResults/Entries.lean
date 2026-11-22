@@ -77,6 +77,8 @@ import CslibFrontier.Crypto.Protocols.Cipher.LinearCryptanalysis
 import CslibFrontier.Crypto.Protocols.MAC.GHASH
 import CslibFrontier.Probability.HashFamily.Polynomial
 import CslibFrontier.Probability.HashFamily.Transport
+import CslibFrontier.Crypto.Primitives.UHF.Computational
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.Finite
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
@@ -490,6 +492,9 @@ import CslibFrontier.Foundations.Probability.Gaussian.SmoothingParameter
 import CslibFrontier.Foundations.Probability.Gaussian.ShiftBounds
 import CslibFrontier.Foundations.Probability.Gaussian.SuccessiveMinimum
 import CslibFrontier.Probability.Minimax.Dantzig
+import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
+import CslibFrontier.Foundations.Probability.InvarianceSums
+import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
 
 /-!
 # Collected results
@@ -10836,6 +10841,37 @@ register_result "single-pair-hash-game-bounds" where
     exhaustive search of Exercise 7.3 counts colliding keys for each distinct pair and chooses \
     a maximizer independently of the challenge key and the violating pair."
 
+register_result "computational-universal-hash-single-to-multi-query" where
+  title := "Computational universal hashing implies multi-query security"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Lemma 7.1",
+      locator := "v0.6, Section 7.1.1, printed pp. 254–255; equation (7.2)" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.IsComputationalUHF.isMultiQueryUHF,
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_le_collisionPairReduction
+  ]
+  scope := "A strict PPT public setup and uniform private key in its finite key space. The \
+    uniform strict PPT adversary receives the unary parameter and public setup. Only distinct \
+    valid messages count toward a collision. Bounded fair-bit sampling of ordered positions \
+    accounts for exhaustion while preserving the Q²/2 loss. The reduction derives the polynomial \
+    query bound from the setup and adversary certificates. The predicates express security for an \
+    existing family and leave the hash algorithm's own efficiency requirements to the caller."
+
+register_result "computational-difference-unpredictability-implies-universal-hashing" where
+  title := "Computational difference unpredictability implies computational universal hashing"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Zero-difference reduction (unnumbered)",
+      locator := "v0.6, Section 7.4, printed p. 269, after Remark 7.3" }
+  ]
+  theorems := [Cslib.Crypto.UHF.IsComputationalDUF.isComputationalUHF_zmod]
+  scope := "Asymptotic form of the zero-prediction reduction. The setup chooses a digest modulus. \
+    One uniform strict PPT machine copies the collision guess and appends the canonical binary \
+    encoding of zero, which has the same word at every modulus. The games have equal success \
+    probability and keep the uniform hash key private."
+
 register_result "pairwise-unpredictability-implies-universal-hashing" where
   title := "Pairwise unpredictability implies universality and difference universality"
   topic := "cryptography"
@@ -12380,3 +12416,149 @@ register_result "mpda-hole-bounded-witness" where
     (reviewer-codex-edemaine) on PR #6997 at cf522d35ed, against arXiv:2002.05950v2, printed \
     pp. 11-12 and 24-25: \
     https://github.com/cslib-community/cslib-frontier/pull/6997#pullrequestreview-6007294100."
+
+register_result "odonnell-invariance-principle-sums" where
+  title := "Invariance Principle for Sums of Random Variables"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Invariance Principle for Sums of Random Variables",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 354 (proof pp. 354–355)" }
+  ]
+  theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le]
+  scope := "Product laws Measure.pi μ and Measure.pi ν over any finite index type ι, for \
+    coordinate probability measures μ i, ν i on ℝ in L³ (MemLp id 3) with equal first and \
+    second moments (∫ s, s ∂μ i = ∫ s, s ∂ν i and ∫ s, s ^ 2 ∂μ i = ∫ s, s ^ 2 ∂ν i): for \
+    every C³ test ψ : ℝ → ℝ (ContDiff ℝ 3 ψ) with ∀ y, |iteratedDeriv 3 ψ y| ≤ C, \
+    |∫ z, ψ (∑ i, z i) ∂Measure.pi μ − ∫ z, ψ (∑ i, z i) ∂Measure.pi ν| ≤ C / 6 · ∑ i, \
+    (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i). The two families need not live on a common \
+    probability space. Source check: outside-fleet agent review (jetski-rev-5600) on PR #5600 \
+    at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-lipschitz" where
+  title := "Invariance Principle for Sums of Random Variables for Lipschitz test functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.59",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 356; moving-average smoothing cf. \
+        §11.8, Exercise 11.40, printed p. 380" }
+  ]
+  theorems := [ProbabilityTheory.abs_integral_comp_sum_sub_le_of_lipschitzWith]
+  scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
+    moments: for every K-Lipschitz ψ : ℝ → ℝ (K : ℝ≥0), \
+    |∫ z, ψ (∑ i, z i) ∂Measure.pi μ − ∫ z, ψ (∑ i, z i) ∂Measure.pi ν| ≤ 6 K · γ_XY^(1/3) \
+    where γ_XY = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i). Proved with the explicit \
+    constant 6 (for the book's O(c · γ_XY^(1/3))) by smoothing ψ with a three-fold moving \
+    average (ProbabilityTheory.abs_integral_comp_sub_le_of_lipschitzWith at m = 3, cf. \
+    Exercise 11.40) instead of the book's C^∞ Gaussian smoothing of Proposition 11.58. Source \
+    check: outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-levy-distance" where
+  title := "Lévy-distance invariance for sums of independent random variables"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.61",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; proof method in §11.8, Exercise \
+        11.42, printed p. 381" }
+  ]
+  theorems := [
+    ProbabilityTheory.measureReal_sum_le_le_add,
+    ProbabilityTheory.measureReal_sum_le_sub_le
+  ]
+  scope := "Same product-law hypotheses on μ i and ν i in L³ with equal first and second \
+    moments: for every u : ℝ, (Measure.pi μ).real {z | ∑ i, z i ≤ u} ≤ \
+    (Measure.pi ν).real {z | ∑ i, z i ≤ u + ε} + ε and \
+    (Measure.pi ν).real {z | ∑ i, z i ≤ u − ε} − ε ≤ (Measure.pi μ).real {z | ∑ i, z i ≤ u} \
+    with ε = 3 γ_XY^(1/4) and γ_XY = ∑ i, (∫ s, |s| ^ 3 ∂μ i + ∫ s, |s| ^ 3 ∂ν i), bounding \
+    the Lévy distance between ∑ Xᵢ and ∑ Yᵢ by 3 γ_XY^(1/4) (for the book's O(γ_XY^(1/4))). \
+    Proved via the explicit-shift step measureReal_sum_le_le_add_div_pow (128 / 3 · γ_XY / η³ \
+    for η > 0, Exercise 11.42) using the one-sided C³ ramp smoothing Real.stepSmoothing 3 (cf. \
+    Exercise 11.41(b), whose smoothed step is monotone, two-sided and C^∞) and \
+    right-continuity at γ_XY = 0. Source check: outside-fleet agent review (jetski-rev-5600) \
+    on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-sums-berry-esseen-fourth-root" where
+  title := "Fourth-root Berry–Esseen bound from the Invariance Principle for sums"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 11.62",
+      locator := "arXiv:2105.10386v1, §11.5, printed p. 357; Berry–Esseen setting on printed \
+        p. 350 and eq. (11.28) on printed p. 355" }
+  ]
+  theorems := [ProbabilityTheory.abs_measureReal_sum_le_sub_cdf_le]
+  scope := "Product law Measure.pi μ over any finite index type ι, for coordinate probability \
+    measures μ i on ℝ in L³ with ∫ s, s ∂μ i = 0 for all i and ∑ i, ∫ s, s ^ 2 ∂μ i = 1 (the \
+    X-only Berry–Esseen setting of §11.5, p. 350): for every u : ℝ, \
+    |(Measure.pi μ).real {z | ∑ i, z i ≤ u} − cdf (gaussianReal 0 1) u| ≤ \
+    6 (∑ i, ∫ s, |s| ^ 3 ∂μ i)^(1/4). Proved with the explicit constant 6 for the book's \
+    O(γ^(1/4)) by comparing X internally against independent Yᵢ ∼ N(0, Var[Xᵢ]) via \
+    abs_measureReal_sum_le_sub_cdf_le_of_hasLaw and bounding E|Yᵢ|³ ≤ 2 E|Xᵢ|³ (via \
+    integral_abs_pow_three_gaussianReal_le and Lyapunov's inequality \
+    sqrt_integral_sq_pow_three_le) in place of the book's 2 √(2/π) E|Xᵢ|³ in (11.28). Not \
+    covered: the classical Berry–Esseen Theorem with error O(∑ E|Xᵢ|³) and the Variant \
+    Berry–Esseen Theorem of §11.5 (tracked in roadmap/pseudorandomness.md). Source check: \
+    outside-fleet agent reviews (jetski-rev-5600 and inventory_rank_property) on PR #5600 at \
+    8de640fb945c and 701d0603fe51: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015 \
+    and \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5909369687."
+
+register_result "odonnell-invariance-multilinear-levy-distance" where
+  title := "Lévy-distance Basic Invariance Principle for low-degree multilinear polynomials"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Corollary 11.70, first statement, and Exercise 11.44",
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
+        p. 381" }
+  ]
+  theorems := [
+    ProbabilityTheory.measureReal_multilinearEval_le_le_add,
+    ProbabilityTheory.measureReal_multilinearEval_le_sub_le
+  ]
+  scope := "Product laws Measure.pi μ and Measure.pi ν over any finite coordinate type ι \
+    whose coordinate probability measures satisfy Hypothesis 11.65 (HasInvarianceMoments: in \
+    L⁴ with mean 0, variance 1, third moment 0, and fourth moment at most 9), and formal \
+    multilinear coefficients c : Finset ι → ℝ of degree at most k (∀ S, k < #S → c S = 0), \
+    variance ∑_{S ≠ ∅} c S ^ 2 ≤ 1, and coordinate influences multilinearInfluence c t ≤ ε \
+    (ε ≥ 0): for every u : ℝ, (Measure.pi μ).real {z | multilinearEval c z ≤ u} ≤ \
+    (Measure.pi ν).real {z | multilinearEval c z ≤ u + δ} + δ and \
+    (Measure.pi ν).real {z | multilinearEval c z ≤ u − δ} − δ ≤ \
+    (Measure.pi μ).real {z | multilinearEval c z ≤ u} with δ = 4 · 2ᵏ · ε^(1/5) (explicit \
+    constant 4 for the book's O(2ᵏ ε^(1/5))), proved from Corollary 11.67 via the C⁴ step \
+    smoothing Real.stepSmoothing 4. Only the first statement of Corollary 11.70 is formalized; \
+    its second statement, the bound (1/ρ)^O(k) ε^(1/8) for (2, 3, ρ)-hypercontractive \
+    ensembles in the setting of Remark 11.66, is open and tracked in \
+    roadmap/pseudorandomness.md. Source check: outside-fleet agent review (jetski-rev-5600) on \
+    PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "odonnell-invariance-boolean-cube-levy-distance" where
+  title := "Lévy-distance Basic Invariance Principle for functions on the Boolean cube"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014,
+      theorem := "Corollary 11.70, first statement (Boolean-cube form), and Exercise 11.44",
+      locator := "arXiv:2105.10386v1, §11.6, printed p. 363; §11.8, Exercise 11.44, printed \
+        p. 381" }
+  ]
+  theorems := [
+    Cslib.BitString.dens_le_le_measureReal_multilinearEval_le_add,
+    Cslib.BitString.measureReal_multilinearEval_le_sub_le_dens
+  ]
+  scope := "Uniform cube on any finite coordinate type ι: for f : (ι → Bool) → ℝ with \
+    totalDegree f ≤ k, variance 𝔼 x, (f x − 𝔼 y, f y) ^ 2 ≤ 1, and influence i f ≤ ε (ε ≥ 0) \
+    for every i, and independent comparison coordinates y under Measure.pi μ with each μ i \
+    satisfying Hypothesis 11.65 (HasInvarianceMoments: in L⁴ with mean 0, variance 1, third \
+    moment 0, and fourth moment at most 9), (dens {x | f x ≤ u} : ℝ) ≤ \
+    (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u + δ} + δ and \
+    (Measure.pi μ).real {y | multilinearEval (fourierCoeff f) y ≤ u − δ} − δ ≤ \
+    (dens {x | f x ≤ u} : ℝ) for every u : ℝ, with δ = 4 · 2ᵏ · ε^(1/5). Specializes \
+    odonnell-invariance-multilinear-levy-distance to uniform signs on the first side via \
+    measureReal_pi_rademacher_multilinearEval_le. The second statement of Corollary 11.70 \
+    (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
+    outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
+    https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."

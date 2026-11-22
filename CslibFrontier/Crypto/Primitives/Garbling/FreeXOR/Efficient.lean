@@ -42,12 +42,15 @@ projection certificate `phiXor_polyTime`.
 * `Cslib.Crypto.Garbling.FreeXOR.XorTopology`: topology together with XOR gate flags.
 * `Cslib.Crypto.Garbling.FreeXOR.encXorTopology`: encoding of `XorTopology`.
 * `Cslib.Crypto.Garbling.FreeXOR.phiXor`: side information revealing topology and XOR gate flags.
+* `Cslib.Crypto.Garbling.FreeXOR.xorFlags`: XOR gate flags projected from four-bit gate records
+  via `isXorTable`.
 
 ## Main results
 
 * `Cslib.Crypto.Garbling.FreeXOR.scheme_isEfficient`: Free-XOR garbling is efficient.
 * `Cslib.Crypto.Garbling.FreeXOR.phiXor_compatible`: `phiXor` agrees with `scheme`'s length
   readers.
+* `Cslib.Crypto.Garbling.FreeXOR.xorFlags_polyTime`: `xorFlags` is computed in polynomial time.
 * `Cslib.Crypto.Garbling.FreeXOR.phiXor_polyTime`: `phiXor` is computed in polynomial time.
 -/
 
@@ -85,22 +88,41 @@ theorem phiXor_compatible (hash : List Bool → List Bool → List Bool) :
     phiXor.Compatible (scheme hash) :=
   fun _ => ⟨rfl, rfl, rfl⟩
 
+/-- Library infrastructure (no cited result): `isXorTable` is computed in polynomial time. -/
+theorem isXorTable_polyTime : ComputableInPolyTime isXorTable encBits encBool := by
+  polytime [isXorTable]
+
+/-- Library construction (no cited definition): XOR-gate flags projected from four-bit gate
+records `(A, B, tt)` via `isXorTable`. -/
+@[expose] def xorFlags (gates : List (ℕ × ℕ × List Bool)) : List Bool :=
+  gates.map fun (_, _, tt) => isXorTable tt
+
+/-- Library infrastructure (no cited result): `xorFlags` on a valid circuit's gate list equals
+`(phiXor.phi f).free`. -/
+theorem xorFlags_gateList (f : ValidCircuit) : xorFlags f.1.gateList = (phiXor.phi f).free := by
+  simp only [xorFlags, phiXor, ConventionalCircuit.gateList, List.map_ofFn]
+  exact congrArg List.ofFn (funext fun g => isXorTable_eq (f.1.G g))
+
+/-- Library infrastructure (no cited result): `xorFlags` is computed in polynomial time. -/
+theorem xorFlags_polyTime :
+    ComputableInPolyTime xorFlags (encList (encPair encNat (encPair encNat encBits))) encBits := by
+  have hcast : ComputableInPolyTime (fun l : List Bool => l) (encList encBool) encBits := by
+    polytime
+  have hmap : ComputableInPolyTime (fun gates : List (ℕ × ℕ × List Bool) =>
+      gates.map fun (_, _, tt) => isXorTable tt)
+      (encList (encPair encNat (encPair encNat encBits))) (encList encBool) := by
+    polytime [isXorTable]
+  exact hcast.comp hmap
+
 /-- `phiXor` runs in polynomial time from `encValidCircuit`. -/
 theorem phiXor_polyTime : ComputableInPolyTime phiXor.phi encValidCircuit encXorTopology := by
-  have hmap : ComputableInPolyTime
-      (fun ts : List (ℕ × ℕ × List Bool) => ts.map fun t => isXorTable t.2.2)
-      (encList (encPair encNat (encPair encNat encBits))) encBits := by
-    polytime [isXorTable]
-  have hfree : ComputableInPolyTime (fun f : ValidCircuit =>
-      List.ofFn fun g => isXorGate f.1 g) encValidCircuit encBits := by
+  have hfree : ComputableInPolyTime (fun f : ValidCircuit => List.ofFn fun g => isXorGate f.1 g)
+      encValidCircuit encBits := by
     have heq : (fun f : ValidCircuit => List.ofFn fun g => isXorGate f.1 g) = fun f =>
-        f.1.gateList.map fun t => isXorTable t.2.2 := by
-      funext f
-      simp only [ConventionalCircuit.gateList, List.map_ofFn]
-      refine congrArg List.ofFn (funext fun g => ?_)
-      exact (isXorTable_eq (f.1.G g)).symm
+        xorFlags f.1.gateList :=
+      funext fun f => (xorFlags_gateList f).symm
     rw [heq]
-    exact hmap.comp circuitData_polyTime.snd'.snd'
+    exact xorFlags_polyTime.comp circuitData_polyTime.snd'.snd'
   exact encXorTopology_mk_polyTime phiTopo_polyTime hfree
 
 section Words
@@ -477,9 +499,6 @@ private theorem propagateWords_polyTime :
       List.take_of_length_le (ConventionalCircuit.length_gateList _).le]
   rw [heq]
   exact hfold
-
-private theorem isXorTable_polyTime : ComputableInPolyTime isXorTable encBits encBool := by
-  polytime [isXorTable]
 
 include hf in
 private theorem rowFromTable_polyTime :

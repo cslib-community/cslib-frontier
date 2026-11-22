@@ -6,6 +6,8 @@ Authors: Matthew Doty
 
 module
 
+import CslibFrontierTests.Logics.Propositional.VeriPBAuxFixtures
+import CslibFrontierTests.Logics.Propositional.VeriPBDomFixtures
 import CslibFrontierTests.Logics.Propositional.VeriPBOutputFixtures
 -- `import all`: the kernel evaluates the parsers and checkers of `Text` and the step `stepTop` of
 -- `Redundance`, whose bodies are not exposed, to decide the acceptance of the fixtures.
@@ -14,7 +16,9 @@ import all CslibFrontier.Logics.Propositional.PseudoBoolean.Text
 
 /-! Decided text clients of the VeriPB output and conclusion theorems: the acceptance of the
 `decision_output` and `optimization_output_opposing_lits_objective` fixtures of the VeriPB
-repository is checked by `decide +kernel`, and the soundness theorems are applied to it. -/
+repository, of the PHP(3, 2) proof with symmetry breaking by `dom`, and of the optimality proof
+by `dom` under the order `notAux` with an auxiliary variable, is checked by `decide +kernel`, and
+the soundness theorems are applied to it. -/
 
 set_option linter.privateModule false
 
@@ -56,6 +60,31 @@ example : ∃ I f, parseOPB amo3Opt = some I ∧ I.objective = some f ∧
     ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ 2 := by
   obtain ⟨I, f, hI, hf, hlb, hub⟩ := bounds_of_checkOPB amo3Opt_accepted
   refine ⟨I, f, hI, hf, fun σ hσ => ?_, hub 2 rfl⟩
+  obtain ⟨l, hl, hle⟩ := hlb σ hσ
+  cases hl
+  exact hle
+
+/-- The PHP(3, 2) proof with symmetry breaking by `dom` under the order `lex4` is accepted with
+`UNSAT : 16`. -/
+theorem domPhp32_accepted : (checkOPBOutput php32 domPhp32).map (·.1) = some (.unsat 16) := by
+  decide +kernel
+
+-- So PHP(3, 2) has no solution.
+example : ∃ I, parseOPB php32 = some I ∧ ∀ σ : ℕ → Bool, ¬ ∀ c ∈ I.constraints, c.Holds σ :=
+  not_satisfiable_of_checkOPB domPhp32_accepted
+
+/-- The optimality proof by `dom` under the order `notAux`, whose negated order is refuted in
+`scope geq`, is accepted with `BOUNDS 1 : 9 1`. -/
+theorem domAuxObj_accepted : (checkOPBOutput sym2Aux domAuxObjProof).map (·.1) =
+    some (.bounds (some 1) 9 (some 1) none) := by
+  decide +kernel
+
+-- So the optimum of `x1 + x2` subject to `x1 + x2 >= 1` is `1`.
+example : ∃ I f, parseOPB sym2Aux = some I ∧ I.objective = some f ∧
+    (∀ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) → 1 ≤ f.eval σ) ∧
+    ∃ σ : ℕ → Bool, (∀ c ∈ I.constraints, c.Holds σ) ∧ f.eval σ ≤ 1 := by
+  obtain ⟨I, f, hI, hf, hlb, hub⟩ := bounds_of_checkOPB domAuxObj_accepted
+  refine ⟨I, f, hI, hf, fun σ hσ => ?_, hub 1 rfl⟩
   obtain ⟨l, hl, hle⟩ := hlb σ hσ
   cases hl
   exact hle

@@ -143,6 +143,7 @@ theorem readReply_commonPrefix {β γ : Type} (callee : NondeterministicQueryMac
     (ha : readReply callee ret input s left = some (a, rest))
     (ha' : readReply callee ret input s right = some (a', rest')) :
     ∃ callBits, left = callBits ++ false :: rest ∧ right = callBits ++ false :: rest' ∧
+      callee.FirstHalting input callBits s ∧
       ret (callee.replay input callBits s) = some a ∧ a = a' := by
   obtain ⟨callBits, hleft, hf, hret⟩ :=
     (readReply_iff _ _ _ _ _ _ _).mp ha
@@ -150,7 +151,28 @@ theorem readReply_commonPrefix {β γ : Type} (callee : NondeterministicQueryMac
     (readReply_iff _ _ _ _ _ _ _).mp ha'
   have he : callBits = other := hu ⟨hf, by simp [hret]⟩ ⟨hf', by simp [hret']⟩
   subst other
-  exact ⟨callBits, hleft, hright, hret, Option.some.inj (hret.symm.trans hret')⟩
+  exact ⟨callBits, hleft, hright, hf, hret, Option.some.inj (hret.symm.trans hret')⟩
+
+/-- If a selector stream runs past a common clock, it contains a first-halting callback
+prefix within that clock and at least one subsequent selector. -/
+theorem exists_firstHalting_prefix_with_next {β : Type} (callee : NondeterministicQueryMachine β)
+    (input bits : List Bool) (s : β) (clock : ℕ)
+    (hclock : (callee.withInit s).HaltsWithin input clock)
+    (hlen : clock < bits.length) :
+    ∃ callBits selector rest, bits = callBits ++ selector :: rest ∧ callBits.length ≤ clock ∧
+      callee.FirstHalting input callBits s := by
+  have htake : (bits.take clock).length = clock := List.length_take_of_le hlen.le
+  have hhalt := hclock (bits.take clock) htake
+  have hh : callee.halted (callee.replay input (bits.take clock) s) = true := hhalt
+  obtain ⟨callBits, ⟨hpre, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hh
+  have hcl : callBits.length ≤ clock := htake ▸ hpre.length_le
+  obtain ⟨suffix, hsuffix⟩ := hpre.trans (List.take_prefix clock bits)
+  cases suffix with
+  | nil =>
+    rw [List.append_nil] at hsuffix
+    rw [hsuffix] at hcl
+    omega
+  | cons selector rest => exact ⟨callBits, selector, rest, hsuffix.symm, hcl, hfirst⟩
 
 /-- A successful first halt of a caller suspended at a same-input callback decomposes into
 the callback's successful reply and a successful first halt of the resumed caller. -/

@@ -27,6 +27,8 @@ of `yᴴ y` the columns of `y` are orthogonal, the normalized nonzero ones form 
 
 * `Matrix.exists_unitary_extension`: an isometry extends to a unitary.
 * `Matrix.exists_polar`: polar decomposition of a square matrix; `yᴴ y ≤ 1` gives `|y| ≤ 1`.
+* `Matrix.IsHermitian.exists_isometry_of_mul_self`: a Hermitian projection is `E Eᴴ` for an
+  isometry `E`.
 -/
 
 public section
@@ -199,5 +201,49 @@ theorem exists_polar {m n : Type*} [Fintype m] [Fintype n] [DecidableEq m] [Deci
     have := Real.sqrt_le_one.mpr (hμ1 k)
     simp only [s]
     linarith
+
+/-- A Hermitian projection factors through an isometry: `P = E Eᴴ` with `Eᴴ E = 1`, where the
+columns of `E` are the eigenvectors of `P` for the eigenvalue `1`. -/
+theorem IsHermitian.exists_isometry_of_mul_self {n : Type*} [Fintype n] [DecidableEq n]
+    {A : Matrix n n ℂ} (hA : A.IsHermitian) (hAA : A * A = A) :
+    ∃ L : Finset n, ∃ E : Matrix n L ℂ, Eᴴ * E = 1 ∧ E * Eᴴ = A := by
+  obtain ⟨U, hU1, hU2, hUd⟩ := exists_unitary_eq_diagonal hA
+  set lam := hA.eigenvalues
+  have hD : Uᴴ * A * U = diagonal fun k => (lam k : ℂ) := by
+    rw [hUd]
+    simp only [← Matrix.mul_assoc, hU1, Matrix.one_mul]
+    rw [Matrix.mul_assoc, hU1, Matrix.mul_one]
+  have hlam : ∀ k, lam k * lam k = lam k := fun k => by
+    have h := congrArg (fun M => Uᴴ * M * U) hAA
+    have e : Uᴴ * (A * A) * U =
+        (Uᴴ * A * U) * (Uᴴ * A * U) := by
+      simp only [Matrix.mul_assoc]
+      rw [← Matrix.mul_assoc U Uᴴ, hU2, Matrix.one_mul]
+    rw [e, hD, diagonal_mul_diagonal] at h
+    have := congrFun (congrFun h k) k
+    simp only [diagonal_apply_eq] at this
+    exact_mod_cast this
+  have hl01 : ∀ k, lam k ≠ 1 → lam k = 0 := fun k hk => by
+    have := hlam k
+    have : lam k * (lam k - 1) = 0 := by linarith
+    rcases mul_eq_zero.mp this with h | h
+    · exact h
+    · exact absurd (by linarith) hk
+  refine ⟨univ.filter fun k => lam k = 1, Matrix.of fun i k => U i k.1, ?_, ?_⟩
+  · ext k k'
+    have := congrFun (congrFun hU1 k.1) k'.1
+    simp only [Matrix.mul_apply, conjTranspose_apply, Matrix.of_apply, Matrix.one_apply] at this ⊢
+    rw [this]
+    exact if_congr Subtype.ext_iff.symm rfl rfl
+  · ext i j
+    rw [hUd]
+    simp only [Matrix.mul_apply, conjTranspose_apply, Matrix.of_apply, diagonal_apply,
+      mul_ite, mul_zero, sum_ite_eq', mem_univ, ite_true]
+    rw [Finset.sum_coe_sort (univ.filter fun k => lam k = 1)
+      (fun k => U i k * star (U j k)), Finset.sum_filter]
+    refine sum_congr rfl fun k _ => ?_
+    split_ifs with hk
+    · rw [hk]; push_cast; ring
+    · rw [hl01 k hk]; push_cast; ring
 
 end Matrix

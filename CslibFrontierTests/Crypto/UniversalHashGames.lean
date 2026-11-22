@@ -7,12 +7,14 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 -- upstream: local-only (test suite)
 
-import CslibFrontier.Crypto.Primitives.UHF.Finite
+import CslibFrontier.Crypto.Negligible.Basic
+import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
+import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Algebra.Field.ZMod
 
 set_option linter.privateModule false
@@ -52,6 +54,95 @@ example :
     ProbComp.eval (differenceExperiment (fun (_ : Unit) (m : ZMod 3) => m)
       (pure ⟨⟨0, 0⟩, 0⟩)) true = 0 := by
   simp [differenceExperiment, ProbComp.eval_uniform]
+
+/-- A repeated message does not hide the collision of the two distinct messages. -/
+example :
+    1 ≤ ((3 : ℝ≥0∞) ^ 2 / 2) *
+      ProbComp.eval (collisionExperiment (fun (_ : Unit) (_ : Bool) => false)
+        (collisionPairReduction false (pure [false, true, false]))) true := by
+  have h := eval_multiQueryExperiment_le_collisionPairReduction
+    (fun (_ : Unit) (_ : Bool) => false) false (pure [false, true, false]) (Q := 3)
+    (by simp)
+  simpa [multiQueryExperiment, ProbComp.eval_uniform] using h
+
+open Turing.MultiTapeTM in
+/-- The actual wrapper on the repeated-message list is strict PPT. -/
+example : IsPPTOn encUnit (encCollisionGuess encBool)
+    (fun _ => collisionPairReduction false (pure [false, true, false])) :=
+  isPPTOn_collisionPairReduction (encM := encBool) (A := fun _ : Unit => pure [false, true, false])
+    (ComputableInPolyTime.const [false, true, false]).isPPTOn false
+
+private def unitSetup (_ : ℕ) : ProbComp Unit := pure ()
+
+private def boolHash (_ : ℕ) (_ : Unit) (_ : Unit) (m : Bool) : Bool := m
+
+private def constHash (_ : ℕ) (_ : Unit) (_ : Unit) (_ : Bool) : Bool := false
+
+open Turing.MultiTapeTM in
+/-- An injective hash on both Boolean messages is secure in the asymptotic game. -/
+example : IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash := by
+  have h : IsComputationalUHF encUnit encBool unitSetup (fun _ _ _ => true) boolHash := by
+    apply Game.Indistinguishable.of_negligible_succProbability
+    intro A _
+    have hfalse (n : ℕ) : collisionGame unitSetup (fun _ _ _ => true) boolHash A n =
+        PMF.pure false := by
+      simp [collisionGame, unitSetup, boolHash, ProbComp.eval_uniform, PMF.uniformOfFintype_unit]
+    simp [hfalse, Game.succProbability]
+  exact h.isMultiQueryUHF (ComputableInPolyTime.const ()).isPPTOn
+
+open Turing.MultiTapeTM in
+/-- A strict PPT adversary always wins the single-pair game against a constant hash. -/
+theorem not_isComputationalUHF_const :
+    ¬ IsComputationalUHF encUnit encBool unitSetup (fun _ _ _ => true) constHash := by
+  intro h
+  let guess : CollisionGuess Bool := ⟨false, true⟩
+  have hwin (n : ℕ) :
+      collisionGame unitSetup (fun _ _ _ => true) constHash (fun _ => pure guess) n =
+        PMF.pure true := by
+    simp [collisionGame, unitSetup, constHash, guess, ProbComp.eval_uniform,
+      PMF.uniformOfFintype_unit]
+  have hnegl := h.negligible_succProbability (fun _ => pure guess)
+    (ComputableInPolyTime.const guess).isPPTOn
+  exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
+
+open Turing.MultiTapeTM in
+/-- A strict PPT adversary always wins the multi-query game against a constant hash. -/
+theorem not_isMultiQueryUHF_const :
+    ¬ IsMultiQueryUHF encUnit encBool unitSetup (fun _ _ _ => true) constHash := by
+  intro h
+  let ms := [false, true, false]
+  have hwin (n : ℕ) :
+      multiQueryGame unitSetup (fun _ _ _ => true) constHash (fun _ => pure ms) n =
+        PMF.pure true := by
+    simp [multiQueryGame, unitSetup, constHash, ms, ProbComp.eval_uniform,
+      PMF.uniformOfFintype_unit]
+  have hnegl := h.negligible_succProbability (fun _ => pure ms)
+    (ComputableInPolyTime.const ms).isPPTOn
+  exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
+
+/-- Invalid messages do not contribute collisions to the multi-query game. -/
+example (n : ℕ) :
+    multiQueryGame unitSetup (fun _ _ m => m) constHash (fun _ => pure [false, true, false]) n =
+      PMF.pure false := by
+  simp [multiQueryGame, unitSetup, constHash, ProbComp.eval_uniform, PMF.uniformOfFintype_unit]
+
+private def residueHash (_ : ℕ) (_ : Unit) (_ : Unit) (m : Bool) : ZMod 3 :=
+  if m then 1 else 0
+
+open Turing.MultiTapeTM in
+/-- The public prediction of one always succeeds on the ordered Boolean pair. -/
+theorem not_isComputationalDUF_residueHash :
+    ¬ IsComputationalDUF encUnit encBool unitSetup (fun _ _ _ => true) residueHash
+      (fun _ => encZMod 3) := by
+  intro h
+  let guess : DifferenceGuess Bool (List Bool) := ⟨⟨false, true⟩, encZMod 3 1⟩
+  have hwin (n : ℕ) : differenceGame unitSetup (fun _ _ _ => true) residueHash
+      (fun _ => encZMod 3) (fun _ => pure guess) n = PMF.pure true := by
+    simp [differenceGame, unitSetup, residueHash, guess, ProbComp.eval_uniform,
+      PMF.uniformOfFintype_unit]
+  have hnegl := h.negligible_succProbability (fun _ => pure guess)
+    (ComputableInPolyTime.const guess).isPPTOn
+  exact not_negligible_const one_ne_zero (by simpa [hwin, Game.succProbability] using hnegl)
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

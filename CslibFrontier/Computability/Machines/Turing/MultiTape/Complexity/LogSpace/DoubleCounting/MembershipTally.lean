@@ -966,6 +966,39 @@ theorem haltsWithin {τ : Type} (ctx : Context) (walk : NondeterministicQueryMac
     omega
   · rfl
 
+open NondeterministicQueryMachine in
+/-- Transfer a tally's first-halting reply correspondence to the compiler's native
+accepting occurrence lists. The selector list fixes the typed scan transcript. -/
+theorem native_firstHalting_iff_of_reply {α σ : Type} {N : ℕ}
+    {M : NondeterministicQueryMachine σ} {init : α → σ} {enc : α ↪ List Bool} {S : α → ℕ}
+    (R : Routines M init enc S) (a : α) (bits : List Bool)
+    (readReply : σ → Option Bool) (walkSelectors : List (Fin N) → List Bool)
+    (hprefix : ∀ {xs ys}, walkSelectors xs <+: walkSelectors ys → xs = ys)
+    (adjacent : Fin N → Fin N → Bool) (source target : Fin N) (radius : ℕ)
+    (expected : Tally) (haccept : ∀ s, M.accept s = (readReply s).isSome)
+    (hreplay : ∀ hit,
+      M.FirstHalting (enc a) bits (init a) ∧ readReply (M.replay (enc a) bits (init a)) = some hit ↔
+        ∃! branch, bits = selectors walkSelectors branch ∧
+          Scan.run adjacent source target radius expected branch = some hit) :
+    (∃! indices, ∃ final,
+      Native.replayChoices R.I R.P R.F R.C (R.machine.initCfg (enc a)) indices =
+        some (bits, final) ∧ final.Halted ∧ final.output = [true]) ↔
+      ∃! branch, bits = selectors walkSelectors branch ∧
+        ∃ hit, Scan.run adjacent source target radius expected branch = some hit := by
+  rw [R.existsUnique_accepting_replay_iff]
+  constructor
+  · rintro ⟨hfirst, htrue⟩
+    rw [haccept] at htrue
+    obtain ⟨hit, hreply⟩ := Option.isSome_iff_exists.mp htrue
+    obtain ⟨branch, ⟨hbits, hscan⟩, _⟩ := (hreplay hit).mp ⟨hfirst, hreply⟩
+    exact ⟨branch, ⟨hbits, hit, hscan⟩, fun _ h =>
+      selectors_injective walkSelectors hprefix (h.1.symm.trans hbits)⟩
+  · rintro ⟨branch, ⟨hbits, hit, hscan⟩, _⟩
+    obtain ⟨hfirst, hreply⟩ := (hreplay hit).mpr
+      ⟨branch, ⟨hbits, hscan⟩, fun _ h => selectors_injective walkSelectors hprefix
+        (h.1.symm.trans hbits)⟩
+    exact ⟨hfirst, by simp only [haccept, hreply, Option.isSome_some]⟩
+
 section BoundedWalk
 
 variable {N : ℕ} {τ : Type}
@@ -1197,38 +1230,11 @@ theorem withBoundedWalk_native_firstHalting_iff {α : Type} {enc : α ↪ List B
   have hspec (hit : Bool) :=
     withBoundedWalk_firstHalting_iff edge start verdict clock fallback (enc a) adjacent
       source target radius expected bits hit hclock hedge
-  have hiff (hit : Bool) :
-      M.FirstHalting (enc a) bits startState ∧
-          M.replay (enc a) bits startState = .inr (.inr (some hit)) ↔
-        ∃! branch, bits = selectors (BoundedWalk.selectors clock) branch ∧
-          Scan.run adjacent source target radius expected branch = some hit := by
-    simpa only [← hM, init_withInit, firstHalting_withInit, run_withInit] using hspec hit
-  have accept_iff (s : State (BoundedWalk.State N τ)) :
-      M.accept s = true ↔ ∃ hit, s = .inr (.inr (some hit)) := by
-    change (reply s).isSome = true ↔ _
-    simp only [Option.isSome_iff_exists, reply_eq_some_iff]
-  constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := R.replay_correct a hreplay hhalt
-    have haccept := List.cons.inj (houtput.symm.trans hout) |>.1
-    obtain ⟨hit, hresult⟩ := (accept_iff _).mp haccept
-    obtain ⟨branch, ⟨hbits, hscan⟩, _⟩ := (hiff hit).mp ⟨hfirst, hresult⟩
-    refine ⟨branch, ⟨hbits, hit, hscan⟩, fun other hother => ?_⟩
-    exact selectors_injective _ (BoundedWalk.eq_of_selectors_prefix clock)
-      (hother.1.symm.trans hbits)
-  · rintro ⟨branch, ⟨hbits, hit, hscan⟩, _⟩
-    have hbranch : ∃! b, bits = selectors (BoundedWalk.selectors clock) b ∧
-        Scan.run adjacent source target radius expected b = some hit :=
-      ⟨branch, ⟨hbits, hscan⟩, fun _ hother =>
-        selectors_injective _ (BoundedWalk.eq_of_selectors_prefix clock)
-          (hother.1.symm.trans hbits)⟩
-    obtain ⟨hfirst, hresult⟩ := (hiff hit).mpr hbranch
-    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
-      (R.existsUnique_replay_iff a bits).mpr hfirst
-    have hout := (R.replay_correct a hreplay hhalt).2
-    have haccept := (accept_iff _).mpr ⟨hit, hresult⟩
-    exact ⟨indices, ⟨final, hreplay, hhalt, by rwa [haccept] at hout⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+  apply native_firstHalting_iff_of_reply R a bits reply (BoundedWalk.selectors clock)
+    (BoundedWalk.eq_of_selectors_prefix clock) adjacent source target radius expected (fun _ => rfl)
+  intro hit
+  simpa only [← hM, init_withInit, firstHalting_withInit, run_withInit, reply_eq_some_iff]
+    using hspec hit
 
 end BoundedWalk
 

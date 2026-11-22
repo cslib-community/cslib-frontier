@@ -33,6 +33,18 @@ variable {κ τ μ : Type}
 @[expose] def roundContext (size source : κ → ℕ) (r : Registers κ) : SourceRound.Context :=
   ⟨size r.context, source r.context, r.radius, r.tally⟩
 
+/-- Read the round arguments in workspace linear in the suspended loop registers. -/
+theorem roundContext_inSpace (size source : κ → ℕ) (encContext : κ ↪ List Bool)
+    (hsize : ComputableInSpace size encContext encNat (fun c => (encContext c).length))
+    (hsource : ComputableInSpace source encContext encNat (fun c => (encContext c).length)) :
+    ComputableInSpace (roundContext size source) (encRegisters encContext)
+      SourceRound.encContext (fun r => (encRegisters encContext r).length) := by
+  have hr := budget_id (enc := encRegisters encContext) (.refl _)
+  have hc := encRegisters_context_budget encContext hr
+  exact SourceRound.encContext_mk_budget (budget_comp_linear hsize hc)
+    (budget_comp_linear hsource hc) (encRegisters_radius_budget encContext hr)
+    (encRegisters_tally_budget encContext hr)
+
 /-- Prepare the source-round entry in workspace linear in the suspended loop registers. -/
 theorem roundEntry_inSpace (size source : κ → ℕ) (encContext : κ ↪ List Bool)
     (encCallee : τ ↪ List Bool)
@@ -40,13 +52,9 @@ theorem roundEntry_inSpace (size source : κ → ℕ) (encContext : κ ↪ List 
     (hsource : ComputableInSpace source encContext encNat (fun c => (encContext c).length)) :
     ComputableInSpace (fun r => SourceRound.entry (roundContext size source r))
       (encRegisters encContext) (SourceRound.encMachineState τ encCallee)
-      (fun r => (encRegisters encContext r).length) := by
-  have hr := budget_id (enc := encRegisters encContext) (.refl _)
-  have hc := encRegisters_context_budget encContext hr
-  have hctx := SourceRound.encContext_mk_budget (budget_comp_linear hsize hc)
-    (budget_comp_linear hsource hc) (encRegisters_radius_budget encContext hr)
-    (encRegisters_tally_budget encContext hr)
-  exact budget_comp_linear (SourceRound.entry_inSpace encCallee) hctx
+      (fun r => (encRegisters encContext r).length) :=
+  budget_comp_linear (SourceRound.entry_inSpace encCallee)
+    (roundContext_inSpace size source encContext hsize hsource)
 
 /-- Reachable scalar loop boundaries have the original context and polynomial count and sum. -/
 @[expose] def Admissible (context : κ) (size limit : ℕ) (r : Registers κ) : Prop :=
@@ -86,6 +94,43 @@ theorem length_encRegisters_le (encContext : κ ↪ List Bool) {context : κ} {s
     length_encPair, registerStateBound, hr.1]
   omega
 
+/-- A scalar round's returned update fits the loop's tally, radius and fuel invariant. -/
+theorem admissible_advance_of_round_answer (size source : κ → ℕ)
+    (callee : NondeterministicQueryMachine τ)
+    (calleeStart : SourceRound.Context → SourceRound.Request → τ)
+    (calleeReply : τ → Option Bool) {context : κ} {limit : ℕ} {r : Registers κ}
+    (hr : Admissible context (size context) limit r) (hpositive : 0 < r.fuel)
+    (input bits : List Bool) {a : RoundUpdate}
+    (hanswer : SourceRound.answer ((SourceRound.machine (roundContext size source r)
+      callee calleeStart calleeReply).run input bits) = some a) :
+    Admissible context (size context) limit (r.advance a.tally) := by
+  let ctx := roundContext size source r
+  let M := SourceRound.machine ctx callee calleeStart calleeReply
+  have hscalar := SourceRound.run_scalar_bounds ctx callee calleeStart calleeReply input bits
+  change (M.run input bits).controller.context = ctx ∧ _ at hscalar
+  obtain ⟨_, hcursor, hcount, hsum⟩ := hscalar
+  have hu : (M.run input bits).controller.update = a := by
+    simp only [SourceRound.answer, SourceRound.result] at hanswer
+    split at hanswer
+    · cases hanswer
+    · exact Option.some.inj hanswer
+  rw [hu] at hcount hsum
+  obtain ⟨hcontext, hfuel, hc, hs⟩ := hr
+  have hdim : ctx.size = size context := congrArg size hcontext
+  have hcursor' : (M.run input bits).controller.cursor ≤ size context :=
+    hcursor.trans_eq hdim
+  have hcount' : a.tally.count ≤ r.tally.count + size context := hcount.trans
+    (Nat.add_le_add_left hcursor' _)
+  have hsum' : a.tally.lengthSum ≤ r.tally.lengthSum + size context * (r.radius + 1) := by
+    exact hsum.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcursor') _)
+  refine ⟨hcontext, ?_, ?_, ?_⟩
+  · simp only [Registers.advance]
+    omega
+  · simp only [Registers.advance]
+    nlinarith
+  · simp only [Registers.advance]
+    nlinarith
+
 section Composition
 
 variable (size source : κ → ℕ)
@@ -114,36 +159,11 @@ private theorem singleRound_withInit (r : Registers κ) :
 theorem admissible_closed (input : List Bool) :
     Closed (singleRound) (entryRound) SourceRound.answer input
       (Admissible context (size context) limit) := by
-  intro r hr hpositive bits a hanswer _ _
+  intro r hr hpositive bits a _ hanswer _ _
   have hreentry := singleRound_withInit size source callee calleeStart calleeReply context limit r
   rw [← run_withInit, hreentry] at hanswer
-  let ctx := roundContext size source r
-  let M := SourceRound.machine ctx callee calleeStart calleeReply
-  have hscalar := SourceRound.run_scalar_bounds ctx callee calleeStart calleeReply input bits
-  change (M.run input bits).controller.context = ctx ∧ _ at hscalar
-  obtain ⟨_, hcursor, hcount, hsum⟩ := hscalar
-  change SourceRound.answer (M.run input bits) = some a at hanswer
-  have hu : (M.run input bits).controller.update = a := by
-    simp only [SourceRound.answer, SourceRound.result] at hanswer
-    split at hanswer
-    · cases hanswer
-    · exact Option.some.inj hanswer
-  rw [hu] at hcount hsum
-  obtain ⟨hcontext, hfuel, hc, hs⟩ := hr
-  have hdim : ctx.size = size context := congrArg size hcontext
-  have hcursor' : (M.run input bits).controller.cursor ≤ size context :=
-    hcursor.trans_eq hdim
-  have hcount' : a.tally.count ≤ r.tally.count + size context := hcount.trans
-    (Nat.add_le_add_left hcursor' _)
-  have hsum' : a.tally.lengthSum ≤ r.tally.lengthSum + size context * (r.radius + 1) := by
-    exact hsum.trans (Nat.add_le_add_left (Nat.mul_le_mul_right _ hcursor') _)
-  refine ⟨hcontext, ?_, ?_, ?_⟩
-  · simp only [Registers.advance]
-    omega
-  · simp only [Registers.advance]
-    nlinarith
-  · simp only [Registers.advance]
-    nlinarith
+  exact admissible_advance_of_round_answer size source callee calleeStart calleeReply
+    hr hpositive input bits hanswer
 
 /-- Compose the concrete source-round clock with the final membership clock on all branches.
 The round callback only receives requests in range for the retained dimension. -/

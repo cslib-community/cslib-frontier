@@ -10,9 +10,11 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.MvPolynomial.ParameterCoeffNorm
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.MultiplicationMatrix
+public import Mathlib.Data.Nat.Size
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.Charpoly.CoeffNorm
 import CslibFrontier.Foundations.LinearAlgebra.Matrix.DeterminantWeight
 import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.ResidueCoeffNorm
+import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 
 /-!
 # Coefficient norms of pure-power quotient characteristic polynomials
@@ -105,5 +107,77 @@ theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le {n d Ω V R : ℕ} 
     _ ≤ (C * V) ^ k := by
       rw [mul_pow]
       exact Nat.mul_le_mul_right _ (Nat.le_pow (by omega))
+
+/-- A binary norm budget for quotient characteristic polynomials, with multiplier degree
+at most `Ω`, multiplier norm at most `2 ^ bv` and relation norms at most `2 ^ br`. -/
+@[expose] def multiplicationMatrixCharpolyCoeffNormExponent (n ell Ω bv br : ℕ) : ℕ :=
+  let D := ell ^ n
+  let B := D * Ω + n * (ell - 1)
+  (D + 1).size + ((B + 1).size * n + (n.size + ell.size + (br + 1)) * n + br * B + bv) * D
+
+/-- Bound the bivariate norm of a quotient characteristic polynomial by a power of two
+using the binary budgets of the input norms. -/
+theorem bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two
+    {n ell Ω bv br : ℕ} (hell : 2 ≤ ell)
+    (r : Fin n → MvPolynomial (Fin n) (Polynomial ℤ))
+    (hr : ∀ i, (r i).totalDegree < ell) (hR : ∀ i, ParameterCoeffNorm.norm (r i) ≤ 2 ^ br)
+    (v : MvPolynomial (Fin n) (Polynomial ℤ)) (hdeg : v.totalDegree ≤ Ω)
+    (hV : ParameterCoeffNorm.norm v ≤ 2 ^ bv) :
+    (multiplicationMatrix (by omega : 1 ≤ ell) r hr v).charpoly.bivariateCoeffNorm1 ≤
+      2 ^ multiplicationMatrixCharpolyCoeffNormExponent n ell Ω bv br := by
+  obtain ⟨d, rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : ell ≠ 0)
+  let D := (d + 1) ^ n
+  let B := D * Ω + n * d
+  let A := (B + 1) ^ n * (n.factorial * ((d + 1) * (1 + 2 ^ br)) ^ n) * (2 ^ br) ^ B * 2 ^ bv
+  have hq : _ ≤ (D + 1) * A ^ D :=
+    bivariateCoeffNorm1_multiplicationMatrix_charpoly_le (by omega) r
+      (fun i => Nat.le_of_lt_succ (hr i)) hR Nat.one_le_two_pow v hdeg hV Nat.one_le_two_pow
+  have hscale : (d + 1) * (1 + 2 ^ br) ≤ 2 ^ ((d + 1).size + (br + 1)) := by
+    rw [pow_add 2 (d + 1).size, pow_succ (2 : ℕ) br]
+    exact Nat.mul_le_mul (Nat.lt_size_self _).le (by have := Nat.one_le_two_pow (n := br); omega)
+  have hJ : n.factorial * ((d + 1) * (1 + 2 ^ br)) ^ n ≤
+      2 ^ ((n.size + (d + 1).size + (br + 1)) * n) := by
+    rw [Nat.add_assoc, pow_mul, pow_add 2 n.size, mul_pow (2 ^ n.size)]
+    exact Nat.mul_le_mul (n.factorial_le_pow.trans (Nat.pow_le_pow_left (Nat.lt_size_self _).le _))
+      (Nat.pow_le_pow_left hscale _)
+  have hA : A ≤ 2 ^ ((B + 1).size * n + (n.size + (d + 1).size + (br + 1)) * n +
+      br * B + bv) := by
+    dsimp only [A]
+    conv_rhs =>
+      rw [pow_add 2 _ bv, pow_add 2 _ (br * B),
+        pow_add 2 ((B + 1).size * n), pow_mul 2 (B + 1).size, pow_mul 2 br B]
+    exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _
+      (Nat.mul_le_mul (Nat.pow_le_pow_left (Nat.lt_size_self _).le _) hJ))
+  refine hq.trans ((Nat.mul_le_mul (Nat.lt_size_self _).le (Nat.pow_le_pow_left hA _)).trans_eq ?_)
+  rw [← pow_mul, ← pow_add]
+  simp only [multiplicationMatrixCharpolyCoeffNormExponent, Nat.succ_sub_one]
+  rfl
+
+/-- Bound the integer determinant of multiplication in a pure-power quotient by the
+characteristic polynomial norm budget. Embed the inputs as constant parameter polynomials
+and use the degree-zero characteristic coefficient. -/
+theorem natAbs_multiplicationMatrix_det_le_pow_two {n ell Ω bv br : ℕ} (hell : 2 ≤ ell)
+    (r : Fin n → MvPolynomial (Fin n) ℤ)
+    (hr : ∀ i, (r i).totalDegree < ell) (hR : ∀ i, (r i).coeffNorm1 ≤ 2 ^ br)
+    (v : MvPolynomial (Fin n) ℤ) (hdeg : v.totalDegree ≤ Ω) (hV : v.coeffNorm1 ≤ 2 ^ bv) :
+    (multiplicationMatrix (by omega : 1 ≤ ell) r hr v).det.natAbs ≤
+      2 ^ multiplicationMatrixCharpolyCoeffNormExponent n ell Ω bv br := by
+  let M := multiplicationMatrix (by omega : 1 ≤ ell) r hr v
+  have h := bivariateCoeffNorm1_multiplicationMatrix_charpoly_le_pow_two hell
+    (fun i => (r i).map Polynomial.C)
+    (fun i => (totalDegree_map_le Polynomial.C _).trans_lt (hr i))
+    (fun i => by simpa only [ParameterCoeffNorm.map_C] using hR i)
+    (v.map Polynomial.C) ((totalDegree_map_le _ _).trans hdeg)
+    (by simpa only [ParameterCoeffNorm.map_C] using hV)
+  have hmap : (M.charpoly.map Polynomial.C).bivariateCoeffNorm1 ≤
+      2 ^ multiplicationMatrixCharpolyCoeffNormExponent n ell Ω bv br := by
+    dsimp only [M]
+    rw [← Matrix.charpoly_map, multiplicationMatrix_map]
+    exact h
+  have hc := (Polynomial.coeffNorm1_coeff_le_bivariateCoeffNorm1 (M.charpoly.map Polynomial.C)
+    0).trans hmap
+  rw [Matrix.det_eq_sign_charpoly_coeff]
+  simpa only [Polynomial.coeff_map, Polynomial.coeffNorm1_C, Int.natAbs_mul, Int.natAbs_pow,
+    Int.natAbs_neg, Int.natAbs_one, one_pow, one_mul, M] using hc
 
 end MvPolynomial.PurePower

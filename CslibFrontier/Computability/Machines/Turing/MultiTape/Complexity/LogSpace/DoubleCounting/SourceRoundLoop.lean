@@ -29,8 +29,10 @@ rejects the source scan.
 * `subsingleton_successful_firstHalting` composes callback occurrence uniqueness.
 * `firstHalting_iff_replayRounds` identifies successful selector streams with replay of the
   existing fuel-bounded loop.
+* `replayRounds_correct` gives the mathematical verdict of a successful full-fuel replay.
 * `haltsWithin` and `length_run_le` charge the retained registers and supplied callback bounds
   on every branch.
+* `verdictElimSnd_inSpace` dispatches an optional verdict while retaining encoded caller data.
 * `exists_routines` compiles the loop with supplied native callbacks and
   `native_firstHalting_accept_iff` preserves its accepting occurrence lists.
 -/
@@ -40,7 +42,8 @@ public section
 namespace Turing.DoubleCounting.SourceRoundLoop
 
 open Cslib.DoubleCounting MultiTapeTM ComputableInSpace
-open NondeterministicQueryMachine (encReadChoice readReply successful_call_iff)
+open NondeterministicQueryMachine (encReadChoice exists_firstHalting_prefix_with_next readReply
+  successful_call_iff)
 variable {κ ρ μ : Type}
 
 /-- Scalar round registers and data needed to initialize either callback. -/
@@ -77,6 +80,28 @@ private def verdictView : ControllerVerdict ≃ (ℕ ⊕ Bool) where
 /-- One tag followed by the tied radius or the reachability bit. -/
 def encVerdict : ControllerVerdict ↪ List Bool :=
   verdictView.toEmbedding.trans (encSum encNat encBool)
+
+/-- Case analysis on an optional verdict retains the caller's first component.
+The missing, bad-radius, and decided branches supply their linear-space certificates. -/
+theorem verdictElimSnd_inSpace {π ε : Type} {encP : π ↪ List Bool} {encE : ε ↪ List Bool}
+    {missing : π → ε} {bad : π × ℕ → ε} {decided : π × Bool → ε}
+    (hmissing : ComputableInSpace missing encP encE (fun p => (encP p).length))
+    (hbad : ComputableInSpace bad (encPair encP encNat) encE
+      (fun p => (encPair encP encNat p).length))
+    (hdecided : ComputableInSpace decided (encPair encP encBool) encE
+      (fun p => (encPair encP encBool p).length)) :
+    let E := encPair encP (encOption encVerdict)
+    ComputableInSpace (fun p : π × Option ControllerVerdict =>
+      match p.2 with
+      | none => missing p.1
+      | some (.bad radius) => bad (p.1, radius)
+      | some (.decided answer) => decided (p.1, answer))
+      E encE (fun p => (E p).length) := by
+  have hsome := (sumElimSnd hbad hdecided).of_encIn_eq
+    (encIn' := encPair encP encVerdict)
+    (fun p : π × ControllerVerdict => (p.1, verdictView p.2)) (fun _ => rfl)
+  exact (optionElimSnd hmissing hsome).of_enc_eq fun
+    | (_, none) | (_, some (.bad _)) | (_, some (.decided _)) => rfl
 
 /-- A pending round, a pending final membership query, or the terminal verdict. -/
 abbrev State (κ ρ μ : Type) :=
@@ -144,25 +169,6 @@ theorem machine_withInit {κ ρ μ : Type} (r r' : Registers κ)
       machine r' round roundStart roundReply member memberStart memberReply := by
   unfold machine NondeterministicQueryMachine.withInit
   rfl
-
-private theorem call_returns_by {β : Type} (callee : NondeterministicQueryMachine β)
-    (input bits : List Bool) (s : β) (clock : ℕ)
-    (hclock : (callee.withInit s).HaltsWithin input clock)
-    (hlen : clock < bits.length) :
-    ∃ callBits selector rest, bits = callBits ++ selector :: rest ∧ callBits.length ≤ clock ∧
-      callee.FirstHalting input callBits s := by
-  have htake : (bits.take clock).length = clock := List.length_take_of_le hlen.le
-  have hhalt := hclock (bits.take clock) htake
-  have hh : callee.halted (callee.replay input (bits.take clock) s) = true := hhalt
-  obtain ⟨callBits, ⟨hpre, hfirst, _⟩, _⟩ := callee.existsUnique_firstHalting_prefix input hh
-  have hcl : callBits.length ≤ clock := htake ▸ hpre.length_le
-  obtain ⟨suffix, hsuffix⟩ := hpre.trans (List.take_prefix clock bits)
-  cases suffix with
-  | nil =>
-    rw [List.append_nil] at hsuffix
-    rw [hsuffix] at hcl
-    omega
-  | cons selector rest => exact ⟨callBits, selector, rest, hsuffix.symm, hcl, hfirst⟩
 
 section Replay
 
@@ -334,11 +340,63 @@ theorem firstHalting_iff_replayRounds (bits : List Bool) (verdict : ControllerVe
           cases bit <;> cases roundReply t <;> rfl
   exact aux initial bits
 
-/-- A register invariant preserved when a round with fuel grows without tying. -/
+/-- A register invariant preserved when a completed round with fuel grows without tying. -/
 @[expose] def Closed (P : Registers κ → Prop) : Prop :=
   ∀ r, P r → 0 < r.fuel → ∀ bits a,
+    round.FirstHalting input bits (roundStart r) →
     roundReply (round.replay input bits (roundStart r)) = some a →
     a.bad = false → a.tally.count ≠ r.tally.count → P (r.advance a.tally)
+
+/-- Successful round and final membership traces give a successful first halt of the loop.
+The invariant must give positive fuel and be preserved by completed rounds that continue. -/
+theorem exists_successful_firstHalting (P : Registers κ → Prop) (hp : P initial)
+    (hpositive : ∀ r, P r → 0 < r.fuel)
+    (hclosed : Closed round roundStart roundReply input P)
+    (hround : ∀ r, P r → ∃ bits a, round.FirstHalting input bits (roundStart r) ∧
+      roundReply (round.replay input bits (roundStart r)) = some a)
+    (hmember : ∀ r, P r → ∃ bits hit, member.FirstHalting input bits (memberStart r) ∧
+      memberReply (member.replay input bits (memberStart r)) = some hit) :
+    ∃ bits verdict, (M).FirstHalting input bits (M).init ∧
+      (M).run input bits = .inr (some verdict) := by
+  have aux (r : Registers κ) (hr : P r) :
+      ∃ bits verdict,
+        replayRounds round roundStart roundReply member memberStart memberReply input r bits =
+          some (some verdict, []) := by
+    induction r using (measure (fun r : Registers κ => r.fuel)).wf.induction with
+    | h r ih =>
+      have hfuel := hpositive r hr
+      have hne := Nat.ne_of_gt hfuel
+      obtain ⟨roundBits, a, hfirst, hreply⟩ := hround r hr
+      have hread (rest : List Bool) :
+          readReply round roundReply input (roundStart r) (roundBits ++ false :: rest) =
+            some (a, rest) :=
+        (round.readReply_iff roundReply input _ _ a rest).mpr ⟨roundBits, rfl, hfirst, hreply⟩
+      by_cases hbad : a.bad = true
+      · refine ⟨roundBits ++ [false], .bad (r.radius + 1), ?_⟩
+        rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread []]
+        simp only [hbad, ite_true]
+      · by_cases hcount : a.tally.count = r.tally.count
+        · obtain ⟨memberBits, hit, hmfirst, hmreply⟩ := hmember r hr
+          have hmread :
+              readReply member memberReply input (memberStart r) (memberBits ++ [false]) =
+                some (hit, []) :=
+            (member.readReply_iff memberReply input _ _ hit []).mpr
+              ⟨memberBits, rfl, hmfirst, hmreply⟩
+          refine ⟨roundBits ++ false :: (memberBits ++ [false]), .decided hit, ?_⟩
+          rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread]
+          simp [hbad, hcount, hmread]
+        · have hlt : (r.advance a.tally).fuel < r.fuel := by
+            simp only [Registers.advance]
+            omega
+          obtain ⟨rest, verdict, hrest⟩ := ih _ hlt (hclosed r hr hfuel roundBits a hfirst hreply
+            (Bool.eq_false_iff.mpr hbad) hcount)
+          refine ⟨roundBits ++ false :: rest, verdict, ?_⟩
+          rw [replayRounds_step _ _ _ _ _ _ _ _ _ hne, hread]
+          simpa [hbad, hcount] using hrest
+  obtain ⟨bits, verdict, h⟩ := aux initial hp
+  exact ⟨bits, verdict,
+    (firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
+      memberReply input bits verdict).mpr h⟩
 
 /-- The source loop has at most one successful first-halting selector list if each round and
 final membership invocation at an admissible register state has at most one successful list.
@@ -375,7 +433,7 @@ theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P
           | some r' =>
             obtain ⟨a, suffix⟩ := l
             obtain ⟨a', suffix'⟩ := r'
-            obtain ⟨callBits, hlBits, hrBits, hret, rfl⟩ :=
+            obtain ⟨callBits, hlBits, hrBits, hfirst, hret, rfl⟩ :=
               round.readReply_commonPrefix roundReply input (roundStart r) (hround r hr hpos) hl hr'
             simp only [hl] at hleft
             simp only [hr'] at hright
@@ -392,13 +450,14 @@ theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P
                 obtain ⟨⟨hit', tail'⟩, hread', hout'⟩ := Option.map_eq_some_iff.mp hright
                 have htail : tail = [] := congrArg Prod.snd hout
                 have htail' : tail' = [] := congrArg Prod.snd hout'
-                obtain ⟨memberBits, hl', hr', _, _⟩ :=
+                obtain ⟨memberBits, hl', hr', _, _, _⟩ :=
                   member.readReply_commonPrefix memberReply input (memberStart r)
                     (hmember r hr hpos) hread hread'
                 rw [hl', hr', htail, htail']
               · rw [ite_eq_right hc] at hleft hright
                 have hc' : a.tally.count ≠ r.tally.count := fun he => hc (beq_iff_eq.mpr he)
-                have hnext := hclosed r hr hpos callBits a hret (Bool.eq_false_iff.mpr hb) hc'
+                have hnext := hclosed r hr hpos callBits a hfirst hret
+                  (Bool.eq_false_iff.mpr hb) hc'
                 have hlt : (r.advance a.tally).fuel < fuel := by
                   simp only [Registers.advance]
                   omega
@@ -422,6 +481,108 @@ theorem subsingleton_successful_firstHalting (P : Registers κ → Prop) (hp : P
     ((firstHalting_iff_replayRounds initial round roundStart roundReply member memberStart
       memberReply input right v').mp ⟨hr.1, hv'⟩)
 
+section Verdict
+
+open Relation
+
+variable {n : ℕ} {r : Fin n → Fin n → Prop} {source target : Fin n} (context : κ)
+  (hround : ∀ fuel k, (∃! w, Passes r source k w) → ∀ bits a rest,
+    readReply round roundReply input (roundStart ⟨context, fuel, k, expected r source k⟩) bits =
+      some (a, rest) →
+    a.tally = expected r source (k + 1) ∧
+      (a.bad = false ↔ ∃! w, Passes r source (k + 1) w))
+  (hmember : ∀ fuel k, (∃! w, Passes r source k w) → ∀ bits hit rest,
+    readReply member memberReply input (memberStart ⟨context, fuel, k, expected r source k⟩)
+      bits = some (hit, rest) → (hit = true ↔ target ∈ Cslib.DoubleCounting.round r source k))
+
+include hround hmember in
+private theorem replayRounds_eq_runRounds {edge : Fin n → Fin n → Id Bool}
+    {membership : MembershipScan Id n}
+    (he : ∀ u v, edge u v = pure (by classical exact decide (r u v)))
+    (hm : ∀ k, (∃! w, Passes r source k w) → ∀ v,
+      membership k (expected r source k) v =
+        pure (by classical exact decide (v ∈ Cslib.DoubleCounting.round r source k)))
+    (fuel k : ℕ) (hpass : ∃! w, Passes r source k w)
+    (bits rest : List Bool) (out : Option ControllerVerdict)
+    (h : replayRounds round roundStart roundReply member memberStart memberReply input
+      ⟨context, fuel, k, expected r source k⟩ bits = some (out, rest)) :
+    runRounds edge membership target fuel k (expected r source k) = out := by
+  classical
+  induction fuel generalizing k bits with
+  | zero =>
+    change some (none, bits) = some (out, rest) at h
+    exact congrArg Prod.fst (Option.some.inj h)
+  | succ fuel ih =>
+    rw [replayRounds_step round roundStart roundReply member memberStart memberReply
+      input _ bits (Nat.succ_ne_zero fuel)] at h
+    cases hread : readReply round roundReply input
+        (roundStart ⟨context, fuel + 1, k, expected r source k⟩) bits with
+    | none => simp [hread] at h
+    | some result =>
+      obtain ⟨a, suffix⟩ := result
+      have ⟨ha, hab⟩ := hround (fuel + 1) k hpass bits a suffix hread
+      obtain ⟨reference, href, ht, hb⟩ := scanNextRound_correct he (hm k hpass) hpass
+      have hflag : reference.bad = a.bad := by
+        apply Bool.not_inj
+        apply Bool.eq_iff_iff.mpr
+        simpa only [Bool.not_eq_true_eq_eq_false] using hb.trans hab.symm
+      have heq : reference = a := by
+        cases reference
+        cases a
+        exact congrArg₂ RoundUpdate.mk (ht.trans ha.symm) hflag
+      simp only [hread] at h
+      simp only [runRounds, runRoundsWith, href, heq, pure_bind]
+      by_cases hbad : a.bad = true
+      · rw [ite_eq_left hbad] at h ⊢
+        exact congrArg Prod.fst (Option.some.inj h)
+      · rw [ite_eq_right hbad] at h ⊢
+        by_cases hstable : (a.tally.count == (expected r source k).count) = true
+        · rw [ite_eq_left hstable] at h ⊢
+          obtain ⟨⟨hit, tail⟩, hhit, hout⟩ := Option.map_eq_some_iff.mp h
+          have hbit := hmember (fuel + 1) k hpass suffix hit tail hhit
+          have hm' : membership k (expected r source k) target = hit := by
+            rw [hm k hpass]
+            change decide (target ∈ Cslib.DoubleCounting.round r source k) = hit
+            apply Bool.eq_iff_iff.mpr
+            simpa only [decide_eq_true_eq] using hbit.symm
+          rw [hm']
+          exact congrArg Prod.fst hout
+        · rw [ite_eq_right hstable] at h ⊢
+          rw [ha] at h ⊢
+          have hnext := hab.mp (Bool.eq_false_iff.mpr hbad)
+          exact ih (k + 1) hnext suffix h
+
+include hround hmember in
+/-- With full vertex-count fuel, a successful replay reports the first tied round, or
+correctly decides reachability when every round is unique. The callback contracts only
+concern successful replies at exact totals and a unique current round. -/
+theorem replayRounds_correct {bits rest : List Bool} {verdict : ControllerVerdict}
+    (h : replayRounds round roundStart roundReply member memberStart memberReply input
+      (start context n) bits = some (some verdict, rest)) :
+    match verdict with
+    | .bad k => (∀ j < k, ∃! w, Passes r source j w) ∧ ¬ (∃! w, Passes r source k w)
+    | .decided hit =>
+      (∀ k, ∃! w, Passes r source k w) ∧ (hit = true ↔ ReflTransGen r source target) := by
+  classical
+  let edge (u v : Fin n) : Id Bool := decide (r u v)
+  let membership : MembershipScan Id n :=
+    fun k _ v => decide (v ∈ Cslib.DoubleCounting.round r source k)
+  have he (u v : Fin n) : edge u v = pure (decide (r u v)) := rfl
+  have hm k (_ : ∃! w, Passes r source k w) (v : Fin n) :
+      membership k (expected r source k) v =
+        pure (decide (v ∈ Cslib.DoubleCounting.round r source k)) := rfl
+  obtain ⟨reference, href, hspec⟩ := runController_correct (target := target) he hm
+  have hzero := expected_zero r source
+  have hrun := replayRounds_eq_runRounds round roundStart roundReply member memberStart
+    memberReply input context hround hmember he hm n 0 (existsUnique_passes_zero r source)
+    bits rest (some verdict) (by simpa only [hzero, start] using h)
+  rw [hzero, ← runController, href] at hrun
+  have heq := Option.some.inj hrun
+  subst reference
+  cases verdict <;> exact hspec
+
+end Verdict
+
 /-- A round fuel bound, the common round clock and the final membership clock bound every
 source branch. Both return selectors and all rejections are charged to the same clock. -/
 theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
@@ -433,7 +594,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
       (hlen : memberClock < bits.length) :
       (M).halted ((M).replay input bits (memberState r (memberStart r))) = true := by
     obtain ⟨callBits, selector, rest, rfl, _, hfirst⟩ :=
-      call_returns_by member input bits (memberStart r) memberClock (hmember r hr) hlen
+      exists_firstHalting_prefix_with_next member input bits (memberStart r) memberClock
+        (hmember r hr) hlen
     rw [(M).replay_append,
       (M).replay_map_of_live input member (memberState r)
         (member_step initial round roundStart roundReply member memberStart memberReply input r)
@@ -454,7 +616,8 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
           rw [Nat.one_mul] at hle
           omega
         obtain ⟨callBits, selector, rest, rfl, hcl, hfirst⟩ :=
-          call_returns_by round input bits (roundStart r) roundClock (hround r hr) hlen'
+          exists_firstHalting_prefix_with_next round input bits (roundStart r) roundClock
+            (hround r hr) hlen'
         let t := round.replay input callBits (roundStart r)
         have hentry : enterRound (μ := μ) roundStart r = roundState r (roundStart r) := by
           simp only [enterRound, ite_eq_right hzero, roundState]
@@ -490,7 +653,7 @@ theorem haltsWithin (P : Registers κ → Prop) (hp : P initial)
                     (r.advance a.tally).fuel * (roundClock + 1) + (roundClock + 1) := by
                   rw [← hnext, Nat.add_mul, Nat.one_mul]
                 have hp' : P (r.advance a.tally) :=
-                  hclosed r hr (Nat.pos_of_ne_zero hzero) callBits a hret
+                  hclosed r hr (Nat.pos_of_ne_zero hzero) callBits a hfirst hret
                     (Bool.eq_false_iff.mpr hbad)
                     (by simpa only [beq_iff_eq] using hstable)
                 exact ih _ hlt (r.advance a.tally) hp' rest (by omega) rfl
@@ -545,7 +708,9 @@ private theorem invariant_step {P : Registers κ → Prop}
               exact ⟨hp, [], rfl⟩
             · rw [returnRound, ite_eq_right hbad, ite_eq_right heq]
               apply invariant_enter
-              · exact hclosed r hp hfuel bits a (ht.symm ▸ ha)
+              · obtain ⟨first, ⟨_, hfirst, hstate⟩, _⟩ :=
+                  round.existsUnique_firstHalting_prefix input (ht.symm ▸ hhalt)
+                exact hclosed r hp hfuel first a hfirst ((hstate.trans ht).symm ▸ ha)
                   (Bool.eq_false_iff.mpr hbad) (by simpa only [beq_iff_eq] using heq)
               · simp only [Registers.advance]
                 omega
@@ -847,19 +1012,14 @@ theorem native_firstHalting_accept_iff {α : Type} {enc : α ↪ List Bool} {S :
   have haccept (s : State κ ρ μ) :
       (M).accept s = true ↔ ∃ verdict, s = .inr (some verdict) := by
     rcases s with _ | (_ | verdict) <;> simp [machine, reply]
+  rw [routines.existsUnique_accepting_replay_iff]
   constructor
-  · rintro ⟨_, ⟨final, hreplay, hhalt, hout⟩, _⟩
-    obtain ⟨hfirst, houtput⟩ := routines.replay_correct a hreplay hhalt
-    obtain ⟨verdict, hresult⟩ := (haccept _).mp (List.cons.inj (houtput.symm.trans hout)).1
+  · rintro ⟨hfirst, htrue⟩
+    obtain ⟨verdict, hresult⟩ := (haccept _).mp htrue
     exact ⟨verdict, (hspec verdict).mp ⟨hfirst, hresult⟩⟩
   · rintro ⟨verdict, hrun⟩
     obtain ⟨hfirst, hresult⟩ := (hspec verdict).mpr hrun
-    obtain ⟨indices, ⟨final, hreplay, hhalt⟩, hunique⟩ :=
-      (routines.existsUnique_replay_iff a bits).mpr hfirst
-    have hout := (routines.replay_correct a hreplay hhalt).2
-    have ha := (haccept _).mpr ⟨verdict, hresult⟩
-    exact ⟨indices, ⟨final, hreplay, hhalt, by rwa [ha] at hout⟩,
-      fun other ⟨finish, hr, hh, _⟩ => hunique other ⟨finish, hr, hh⟩⟩
+    exact ⟨hfirst, (haccept _).mpr ⟨verdict, hresult⟩⟩
 
 end Native
 

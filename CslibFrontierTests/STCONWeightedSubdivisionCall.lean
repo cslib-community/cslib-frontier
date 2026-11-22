@@ -8,6 +8,7 @@ module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenBoundedWalk
+import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenWeightedSubdivision.Replay
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 
 /-! Ordinary-import clients for weighted STCON adjacency and the flat scan interface. -/
@@ -32,6 +33,21 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
     ComputableInSpace M.next (QueryMachine.encStateRead enc) enc
       (fun p => (QueryMachine.encStateRead enc p).length) :=
   ⟨flatCallbackStart_inSpace _ _, (justesenWeightedSubdivisionCallback_parts_inSpace ntm).2.1⟩
+
+-- After a read and selector, a caller can inspect the next query, completion, and reply.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) :
+    let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+    let enc := encOption encJustesenSubdivisionState
+    let encNext := encPair enc NondeterministicQueryMachine.encReadChoice
+    ComputableInSpace (M.query ∘ M.next) encNext encNat (fun p => (encNext p).length) ∧
+    ComputableInSpace (M.halted ∘ M.next) encNext encBool (fun p => (encNext p).length) ∧
+    ComputableInSpace (fun p => (M.next p).map callbackVerdict) encNext (encOption encBool)
+      (fun p => (encNext p).length) := by
+  obtain ⟨hq, hn, hh, hv⟩ := justesenWeightedSubdivisionChoice_parts_inSpace ntm
+  have hquery := budget_comp_linear hq hn
+  have hhalt := budget_comp_linear hh hn
+  have hreply := budget_comp_linear hv hn
+  exact ⟨hquery, hhalt, hreply⟩
 
 -- Use the generated subdivision's adjacency specification at the original roots,
 -- with the code-bit correspondence supplied at the source column.
@@ -125,12 +141,68 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
           (graph (layeredDigraph I)
             (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj
               (index.symm u) (index.symm v)) ∧
-        ∀ t ≤ 3, (encJustesenSubdivisionState (M.runFrom w start t)).length ≤
-          C * (Nat.log2 w.length + 1) := by
+        (∀ t ≤ 3, (encJustesenSubdivisionState (M.runFrom w start t)).length ≤
+          C * (Nat.log2 w.length + 1)) ∧
+        (∀ bits, M.withRejectingChoice.FirstHalting w bits (some start) ∧
+          (M.withRejectingChoice.replay w bits (some start)).isSome ↔
+            bits = [false, false, false]) := by
   obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_contract ntm c
   refine ⟨C, fun w => ?_⟩
   intro I s size index seed ctx u v M start
-  exact hC w seed u v
+  obtain ⟨hbefore, hhalt, hadj, hspace⟩ := hC w seed u v
+  exact ⟨hbefore, hhalt, hadj, hspace,
+    configurationJustesenSubdivisionEdge_firstHalting_iff ntm c w seed u v⟩
+
+-- A vertex has no edge to itself. The parser returns false and preserves a nonempty suffix.
+-- Changing only the return selector makes that same parse fail.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State)
+    (c : ℕ) (w : List Bool) :
+    let I := configurationInstance ntm c w
+    let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (u : Fin size.vertexCount),
+      let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
+      let entry := some (justesenSubdivisionEdgeStart (ctx, u.val, u.val))
+      let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+      M.readReply (Option.map callbackVerdict) w entry [false, false, false, false, true] =
+        some (false, [true]) ∧
+      M.readReply (Option.map callbackVerdict) w entry [false, false, false, true, true] =
+        none := by
+  intro I size seed u ctx entry M
+  let v := (configurationSubdivisionIndex ntm c w).symm u
+  have hno : ¬ (graph (layeredDigraph I)
+      (generatedWeight ((BitString.equivFin _).symm seed)) size.chainBound).Adj v v := by
+    rintro (⟨_, hopen, _⟩ | ⟨_, _, hedge⟩)
+    · omega
+    · have hl := (layeredDigraph I).layer_adj hedge
+      omega
+  have hreply bits := configurationJustesenSubdivisionEdge_readReply_iff
+    ntm c w seed u u bits [true] false
+  refine ⟨(hreply _).mpr ⟨rfl, iff_of_false (by decide) hno⟩, ?_⟩
+  cases h : M.readReply (Option.map callbackVerdict) w entry [false, false, false, true, true] with
+  | none => rfl
+  | some reply =>
+    obtain ⟨hit, rest⟩ := reply
+    have hbits := ((configurationJustesenSubdivisionEdge_readReply_iff
+      ntm c w seed u u _ rest hit).mp h).1
+    cases hbits
+
+-- The clock covers arbitrary selectors, and an initial wrong selector may be padded.
+example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w : List Bool,
+      let I := configurationInstance ntm c w
+      let size := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision
+      ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (u v : Fin size.vertexCount)
+        (a b d : Bool) (extra : List Bool),
+        let ctx := configurationJustesenSubdivisionContext ntm c w seed.val
+        let start := some (justesenSubdivisionEdgeStart (ctx, u.val, v.val))
+        let M := (justesenWeightedSubdivisionCallback ntm).withRejectingChoice
+        M.halted (M.replay w [a, b, d] start) = true ∧
+          (encOption encJustesenSubdivisionState (M.replay w (true :: extra) start)).length ≤
+            C * (Nat.log2 w.length + 1) := by
+  obtain ⟨C, hC⟩ := configurationJustesenSubdivisionEdge_choice_bounds ntm c
+  refine ⟨C, fun w seed u v a b d extra => ?_⟩
+  obtain ⟨hclock, hspace⟩ := hC w seed u v
+  exact ⟨hclock [a, b, d] rfl, hspace (true :: extra)⟩
 
 example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
     PolyBounded List.length (configurationJustesenBoundedWalkClock ntm c) :=
