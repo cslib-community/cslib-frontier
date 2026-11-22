@@ -71,31 +71,6 @@ private theorem shortLength_of_no_return (f : BitString n → BitString n) (z : 
     funext fun _ => BitVec.getLsbD_zero.symm
   rw [he, BitString.equivBitVec_getLsbD]
 
-private def prefixTimeIndex (K : ℕ) (d : BitVec w) (bits : BitString m) : BitVec w :=
-  let t := BitString.equivBitVec bits
-  let k := BitVec.ofNat w K
-  if t.toNat < K then t.setWidth w else k + subMod (streamRemainder d bits) k d
-
-private theorem prefixTimeIndex_long (d : BitVec w) (bits : BitString m)
-    (hK : K ≤ (BitString.equivBitVec bits).toNat) (hd : 0 < d.toNat) (hdK : d.toNat ≤ K)
-    (hw : 2 * K ≤ 2 ^ w) :
-    (prefixTimeIndex K d bits).toNat =
-      K + ((BitString.equivBitVec bits).toNat - K) % d.toNat := by
-  let t := (BitString.equivBitVec bits).toNat
-  have hfit : K < 2 ^ w := by lia
-  have hdw : 2 * d.toNat ≤ 2 ^ w := by lia
-  have hr := toNat_streamRemainder d bits hd hdw
-  have he : (subMod (streamRemainder d bits) (BitVec.ofNat w K) d).toNat = (t - K) % d.toNat := by
-    rw [toNat_subMod _ _ _ hd hdw, hr, BitVec.toNat_ofNat, Nat.mod_eq_of_lt hfit]
-    apply Nat.add_sub_mod_mod_eq_of_modEq hd (Nat.mod_lt _ hd)
-    calc
-      (t - K) % d.toNat + K ≡ (t - K) + K [MOD d.toNat] := (Nat.mod_modEq _ _).add_right _
-      _ = t := Nat.sub_add_cancel hK
-      _ ≡ t % d.toNat [MOD d.toNat] := (Nat.mod_modEq _ _).symm
-  simp only [prefixTimeIndex, not_lt.mpr hK, ↓reduceIte, BitVec.toNat_add, BitVec.toNat_ofNat,
-    Nat.mod_eq_of_lt hfit, he]
-  exact Nat.mod_eq_of_lt (by have := Nat.mod_lt (t - K) hd; lia)
-
 private theorem synthesis_time_lt (s : Set (BooleanFunction a)) (bits : BitString a → BitString m)
     (hb : wires bits ⊆ s) (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s) (K : ℕ) :
     Synthesis interpretation s {fun x => decide ((BitString.equivBitVec (bits x)).toNat < K)}
@@ -110,35 +85,6 @@ private theorem synthesis_time_lt (s : Set (BooleanFunction a)) (bits : BitStrin
     simpa only [h, decide_true] using
       (Synthesis.of_mem (I := interpretation) (hc true)).mono
         Set.Subset.rfl Set.Subset.rfl (Nat.zero_le (5 * m + 2))
-
-private theorem synthesis_prefixTimeIndex (s : Set (BooleanFunction a)) (d : BitString a → BitVec w)
-    (bits : BitString a → BitString m) (hd : wordWires d ⊆ s) (hb : wires bits ⊆ s)
-    (hc : ∀ b : Bool, (fun _ : BitString a => b) ∈ s)
-    (hshort : (fun x => decide ((BitString.equivBitVec (bits x)).toNat < K)) ∈ s) :
-    Synthesis interpretation s (wordWires fun x => prefixTimeIndex K (d x) (bits x))
-      (m * (22 * w + 3) + 50 * (w + 1) ^ 2 + 16 * w + 1) := by
-  let bound := fun _ : BitString a => BitVec.ofNat w K
-  let rem := fun x => streamRemainder (d x) (bits x)
-  let diff := fun x => subMod (rem x) (bound x) (d x)
-  let advance := fun x => bound x + diff x
-  let tword := fun x => BitString.equivBitVec (bits x)
-  have hw : wordWires tword ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    simpa only [tword, BitString.getLsbD_equivBitVec] using hb ⟨i, rfl⟩
-  have hbound : wordWires bound ⊆ s := by
-    rintro _ ⟨i, rfl⟩
-    exact hc ((BitVec.ofNat w K).getLsbD i.val)
-  let b := Synthesis.Builder.start interpretation s
-  synthesis_step b using synthesis_streamRemainder b.wires d bits
-  synthesis_step b using synthesis_subMod b.wires rem bound d
-  synthesis_step b using Synthesis.word_add bound diff
-  have hresize := wordWires_setWidth_subset (v := w) (s := b.wires) (value := tword)
-    (by synthesis_available) (by synthesis_available)
-  synthesis_step b using Synthesis.word_mux (fun x => (tword x).setWidth w) advance
-    (fun x => decide ((tword x).toNat < K))
-  refine b.finish ?_ (by dsimp +zetaDelta [Synthesis.Builder.start, Synthesis.Builder.add]; lia)
-  rintro _ ⟨i, rfl⟩
-  exact Or.inr ⟨i, funext fun y => by simp [prefixTimeIndex, tword, advance, bound, diff, rem]⟩
 
 private theorem liveShortReady_iff (f : BitString n → BitString n) (x : BitString n) (t : ℕ)
     (hKw : K < 2 ^ w) :
@@ -160,23 +106,25 @@ private theorem liveShortValue (f : BitString n → BitString n) (x : BitString 
     (bits : BitString m) (hK : 0 < K) (hw : 2 * K ≤ 2 ^ w)
     (hready : LiveShortReady f K x (BitString.equivBitVec bits).toNat) :
     let d := shortLength (w := w) f K (f^[K] x)
-    let index := prefixTimeIndex K d bits
+    let index := periodicTimeIndex K d bits (decide ((BitString.equivBitVec bits).toNat < K))
     selectBits index (fun j : Fin (2 * K) => f^[j.val] x) =
       f^[(BitString.equivBitVec bits).toNat] x := by
   let t := (BitString.equivBitVec bits).toNat
   let d := shortLength (w := w) f K (f^[K] x)
-  let index := prefixTimeIndex K d bits
+  let index := periodicTimeIndex K d bits (decide ((BitString.equivBitVec bits).toNat < K))
   have hKw : K < 2 ^ w := by lia
   change selectBits index _ = f^[t] x
   by_cases ht : t < K
   · have he : index.toNat = t := by
-      simp only [index, prefixTimeIndex, show (BitString.equivBitVec bits).toNat < K from ht,
-        ↓reduceIte, BitVec.toNat_setWidth, Nat.mod_eq_of_lt (ht.trans hKw), t]
+      simp only [index, periodicTimeIndex, show (BitString.equivBitVec bits).toNat < K from ht,
+        decide_true, ↓reduceIte, BitVec.toNat_setWidth, Nat.mod_eq_of_lt (ht.trans hKw), t]
     rw [selectBits_of_toNat_lt _ _ (by rw [he]; lia)]
     exact congrArg (fun j => f^[j] x) he
   · obtain ⟨hp, hpK, hret⟩ := shortLength_of_return f _ hKw (hready.resolve_left ht)
-    have he : index.toNat = K + (t - K) % d.toNat :=
-      prefixTimeIndex_long d bits (le_of_not_gt ht) hp hpK hw
+    have he : index.toNat = K + (t - K) % d.toNat := by
+      change (periodicTimeIndex K d bits (decide (t < K))).toNat = _
+      rw [decide_eq_false ht]
+      exact toNat_periodicTimeIndex_long K d bits (le_of_not_gt ht) hp (by lia) (by lia)
     rw [selectBits_of_toNat_lt _ _ (by rw [he]; have := Nat.mod_lt (t - K) hp; lia)]
     change f^[index.toNat] x = f^[t] x
     rw [he, Nat.add_comm K, iterate_add_apply]
@@ -208,7 +156,7 @@ theorem live_short_circuit (c : Circuit signature n n) (m K : ℕ) (hK : 0 < K)
   let period := fun y => shortLength (w := w) f K (last y)
   let short := fun y => decide (t y < K)
   let ready := fun y => short y || !decide (period y = 0)
-  let index := fun y => prefixTimeIndex K (period y) (bits y)
+  let index := fun y => periodicTimeIndex K (period y) (bits y) (short y)
   let rows := fun (j : Fin (2 * K)) y => f^[j.val] (x y)
   let answer := fun y => selectBits (index y) (fun j => rows j y)
   let packed := fun y => Fin.append (fun _ : Fin 1 => ready y) (answer y)
@@ -238,8 +186,8 @@ theorem live_short_circuit (c : Circuit signature n n) (m K : ℕ) (hK : 0 < K)
   let b := b.add ((Synthesis.of_mem (I := interpretation) (s := b.wires)
     (show short ∈ b.wires by synthesis_available)).or
     (Synthesis.of_mem (show (fun y => !decide (period y = 0)) ∈ b.wires by synthesis_available)))
-  let b := b.add (synthesis_prefixTimeIndex (K := K) b.wires period bits (by synthesis_available)
-    (by synthesis_available) (fun v => by synthesis_available) (by synthesis_available))
+  let b := b.add (synthesis_periodicTimeIndex b.wires K period bits short (by synthesis_available)
+    (fun i => by synthesis_available) (fun v => by synthesis_available) (by synthesis_available))
   let b := b.add (Synthesis.selectBits index rows (fun i => by synthesis_available)
     (fun j i => by
       have h := hs j.val j.isLt.le i
