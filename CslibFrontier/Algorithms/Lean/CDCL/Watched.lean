@@ -529,7 +529,7 @@ structure WExec.ProcInv (S : WExec φ) (t : Literal ℕ) (L : List Watcher) : Pr
 /-- Starting to process `t`: its negation's watch list is emptied and becomes the list to visit. -/
 @[expose] def WExec.start (S : WExec φ) (t : Literal ℕ) : WExec φ :=
   -- a fresh empty array, as long as the list, so that the watchers put back are pushed in place
-  let i := litKey t.negate
+  let i := negKey t
   let n := (S.store.watches.getD i #[]).size
   { S with
     store := { S.store with watches := setWatch S.store.watches i (Array.emptyWithCapacity n) }
@@ -544,18 +544,18 @@ theorem WExec.start_procInv {S : WExec φ} (h : S.Inv) {t : Literal ℕ} (ht : t
   covers := h.store.covers
   listed k hk w hw := by
     have := h.store.listed k hk w hw
-    simp only [WExec.start, watchList_setWatch]
+    simp only [WExec.start, ← litKey_negate, watchList_setWatch]
     by_cases hw' : w = t.negate
     · exact .inr ⟨hw', hw' ▸ this⟩
     · have hne : ¬ litKey w = litKey t.negate := fun h => hw' (litKey_injective h)
       exact .inl (by simp only [hne, ↓reduceIte]; exact this)
   blocker_mem i x hx := by
-    simp only [WExec.start, watchList_setWatch] at hx
+    simp only [WExec.start, ← litKey_negate, watchList_setWatch] at hx
     split at hx
     · simp at hx
     · exact h.store.blocker_mem i x hx
   pending x hx := h.store.blocker_mem _ x hx
-  visited k hk := by simp [WExec.start] at hk
+  visited k hk := by simp [WExec.start, ← litKey_negate] at hk
   covered := h.store.covered
   short_mem := h.short_mem
   short_covers := h.short_covers
@@ -634,7 +634,7 @@ theorem otherWatch_mem {u w₁ w₂ : Literal ℕ} {rest : Clause ℕ} :
 /-- Putting a watcher back on the watch list of `t.negate`. -/
 @[expose] def WExec.putBack (S : WExec φ) (t : Literal ℕ) (x : Watcher) : WExec φ :=
   { S with store := { S.store with
-      watches := addWatch S.store.watches (litKey t.negate) x } }
+      watches := addWatch S.store.watches (negKey t) x } }
 
 /-- **Putting back** the watcher `w` just visited, or a watcher of the same clause, with a blocker
 of the clause, when the clause has a true literal. -/
@@ -649,7 +649,7 @@ theorem WExec.ProcInv.putBack {S : WExec φ} {t : Literal ℕ} {w : Watcher} {L 
     fun y hy => h.pending y (List.mem_cons_of_mem _ hy), fun k' hk'' hk' => ?_, h.covered,
     h.short_mem, h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above, h.t_mem,
     h.order, h.assign, h.occurs⟩
-  · simp only [WExec.putBack, watchList_addWatch]
+  · simp only [WExec.putBack, ← litKey_negate, watchList_addWatch]
     rcases h.listed k' hk' w' hw' with hl | ⟨rfl, hL⟩
     · split
       · rename_i hi
@@ -661,8 +661,8 @@ theorem WExec.ProcInv.putBack {S : WExec φ} {t : Literal ℕ} {w : Watcher} {L 
   · rcases mem_watchList_addWatch hy with rfl | hy
     · exact hmem
     · exact h.blocker_mem i y hy
-  · simp only [WExec.putBack, watchList_addWatch, ↓reduceIte, List.map_cons, List.mem_cons]
-      at hk''
+  · simp only [WExec.putBack, ← litKey_negate, watchList_addWatch, ↓reduceIte, List.map_cons,
+      List.mem_cons] at hk''
     rcases hk'' with rfl | hk''
     · exact htrue hk'
     · exact h.visited k' hk'' hk'
@@ -981,7 +981,7 @@ private theorem mem_clauseIds_append {A B : List Watcher} {k : ℕ} :
 /-- Restoring the watch list of `t.negate` after a conflict, with the watchers `L` still to be
 visited. -/
 @[expose] def WExec.restore (S : WExec φ) (t : Literal ℕ) (L : List Watcher) : WExec φ :=
-  let i := litKey t.negate
+  let i := negKey t
   let W := setWatch S.store.watches i (L ++ watchList S.store.watches i).reverse.toArray
   { S with store := { S.store with watches := W } }
 
@@ -990,7 +990,7 @@ theorem WExec.ProcInv.restore_inv {S : WExec φ} {t : Literal ℕ} {L : List Wat
   refine ⟨⟨h.exec, ⟨h.sound, h.nodup, h.long, h.covers, fun k' hk' w hw => ?_, fun i y hy => ?_,
     h.covered⟩, h.short_mem, h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above,
     h.order, h.assign, h.occurs⟩, rfl⟩
-  · simp only [WExec.restore, watchList_setWatch, List.reverse_reverse]
+  · simp only [WExec.restore, ← litKey_negate, watchList_setWatch, List.reverse_reverse]
     rcases h.listed k' hk' w hw with hl | ⟨rfl, hL⟩
     · split
       · rename_i hi
@@ -998,7 +998,7 @@ theorem WExec.ProcInv.restore_inv {S : WExec φ} {t : Literal ℕ} {L : List Wat
       · exact hl
     · simp only [↓reduceIte]
       exact mem_clauseIds_append.2 (.inl hL)
-  · simp only [WExec.restore, watchList_setWatch, List.reverse_reverse] at hy
+  · simp only [WExec.restore, ← litKey_negate, watchList_setWatch, List.reverse_reverse] at hy
     split at hy
     · rename_i hi
       rcases List.mem_append.1 hy with hy | hy
@@ -1033,24 +1033,16 @@ theorem WExec.ProcInv.conflict_clause {S : WExec φ} {t : Literal ℕ} {w : Watc
       · exact h₂ ▸ hu'
     · exact hrest y hy
 
-/-- The result of visiting a watch list from the state `S₀`: done, or a conflict, with no more
-conflicts counted. -/
-inductive ProcResult (φ : CNF ℕ) (S₀ : WExec φ) (t : Literal ℕ) : Type
+/-- The result of visiting a watch list from a state of measure at most `m` with `c` conflicts:
+done, or a conflict, with a measure at most `m` and still `c` conflicts. The bounds are indices,
+so that every step of the visit has the same result type and calls the next one in tail
+position; they are only used in proofs. -/
+inductive ProcResult (φ : CNF ℕ) (m c : ℕ) (t : Literal ℕ) : Type
   /-- Every watcher on the list was visited. -/
-  | done (S : WExec φ) (h : S.ProcInv t []) (hm : S.measure ≤ S₀.measure)
-      (hc : S.stats.conflicts = S₀.stats.conflicts)
+  | done (S : WExec φ) (h : S.ProcInv t []) (hm : S.measure ≤ m) (hc : S.stats.conflicts = c)
   /-- A clause of the database is false. -/
   | conflict (S : WExec φ) (h : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
-      (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ S₀.measure)
-      (hc : S.stats.conflicts = S₀.stats.conflicts)
-
-/-- A result from a state of smaller measure and as many conflicts is a result from `S₀`. Inlined,
-so that the states, needed only in the types, are not kept alive at runtime. -/
-@[expose, inline]
-def ProcResult.weaken {S₀ S₁ : WExec φ} {t : Literal ℕ} (hle : S₁.measure ≤ S₀.measure)
-    (hc : S₁.stats.conflicts = S₀.stats.conflicts) : ProcResult φ S₁ t → ProcResult φ S₀ t
-  | .done S h hm hc' => .done S h (hm.trans hle) (hc'.trans hc)
-  | .conflict S h e he hconf hm hc' => .conflict S h e he hconf (hm.trans hle) (hc'.trans hc)
+      (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ m) (hc : S.stats.conflicts = c)
 
 /-- The first `n + 1` watchers of an array, read backwards: the one at `n`, then the first `n`
 read backwards. -/
@@ -1059,56 +1051,58 @@ theorem reverse_take_succ {ws : Array Watcher} {n : ℕ} (hn : n < ws.size) :
   rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hn)]
   simp
 
-/-- **Visiting a watch list**, the array `ws` read backwards from position `n`: each watcher is
-visited in turn, until a conflict. The array is read by position, and the list of the watchers
-still to visit, `(ws.toList.take n).reverse`, appears only in the invariant (and, at a conflict,
-in the list put back). -/
+/-- **Visiting a watch list**, the array `ws` read backwards from position `n`, from a state of
+measure at most `m` with `c` conflicts: each watcher is visited in turn, until a conflict. The
+array is read by position, and the list of the watchers still to visit,
+`(ws.toList.take n).reverse`, appears only in the invariant (and, at a conflict, in the list put
+back). Each step calls the next in tail position, so the compiled visit is a loop. The falsified
+literal `u`, the negation of `t`, is computed once, by the caller. -/
 @[expose]
-def WExec.processFrom (t : Literal ℕ) (ws : Array Watcher) : (n : ℕ) → (S : WExec φ) →
-    n ≤ ws.size → S.ProcInv t (ws.toList.take n).reverse → ProcResult φ S t
-  | 0, S, _, h => .done S h le_rfl rfl
-  | n + 1, S, hn, h =>
+def WExec.processFrom (t : Literal ℕ) (u : Literal ℕ) (hu : u = t.negate) (ws : Array Watcher)
+    (m c : ℕ) : (n : ℕ) → (S : WExec φ) →
+    n ≤ ws.size → S.ProcInv t (ws.toList.take n).reverse → S.measure ≤ m →
+      S.stats.conflicts = c → ProcResult φ m c t
+  | 0, S, _, h, hm, hc => .done S h hm hc
+  | n + 1, S, hn, h, hm, hc =>
     let w := ws[n]
     have h : S.ProcInv t (w :: (ws.toList.take n).reverse) :=
       (reverse_take_succ (ws := ws) (n := n) (by omega)) ▸ h
-    match hv : S.store.visit S.assign t.negate w with
+    match hv : S.store.visit S.assign u w with
     | .skip =>
       have hs : VisitSpec S.store S.M t.negate w .skip :=
-        hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processFrom t ws n _ (by omega) (h.skip hs)).weaken (S₀ := S)
-        (by exact le_rfl) (by exact rfl)
+        hu ▸ hv ▸ S.store.visit_spec h.assign u w
+      WExec.processFrom t u hu ws m c n _ (by omega) (h.skip hs) hm hc
     | .keep b =>
       have hs : VisitSpec S.store S.M t.negate w (.keep b) :=
-        hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processFrom t ws n _ (by omega) (h.keep hs)).weaken (S₀ := S)
-        (by exact le_rfl) (by exact rfl)
+        hu ▸ hv ▸ S.store.visit_spec h.assign u w
+      WExec.processFrom t u hu ws m c n _ (by omega) (h.keep hs) hm hc
     | .move j x b =>
       have hs : VisitSpec S.store S.M t.negate w (.move j x b) :=
-        hv ▸ S.store.visit_spec h.assign t.negate w
+        hu ▸ hv ▸ S.store.visit_spec h.assign u w
       -- the store is updated after the visit, when `S` is its only holder
-      (WExec.processFrom t ws n { S with store := S.store.moveTo w.clause j b x t.negate }
-        (by omega) (h.move hs)).weaken
-        (S₀ := S) (by exact le_rfl) (by exact rfl)
+      WExec.processFrom t u hu ws m c n { S with store := S.store.moveTo w.clause j b x u }
+        (by omega) (by subst hu; exact h.move hs) hm hc
     | .unit l id =>
       have hs : VisitSpec S.store S.M t.negate w (.unit l id) :=
-        hv ▸ S.store.visit_spec h.assign t.negate w
-      have hu := h.unit hs
-      (WExec.processFrom t ws n _ (by omega) hu.1).weaken hu.2.le (by exact rfl)
+        hu ▸ hv ▸ S.store.visit_spec h.assign u w
+      have hun := h.unit hs
+      WExec.processFrom t u hu ws m c n _ (by omega) hun.1 (hun.2.le.trans hm) hc
     | .conflict id =>
       have hs : VisitSpec S.store S.M t.negate w (.conflict id) :=
-        hv ▸ S.store.visit_spec h.assign t.negate w
-      match hc : S.exec.log.clause? id with
-      | some c =>
+        hu ▸ hv ▸ S.store.visit_spec h.assign u w
+      match hcl : S.exec.log.clause? id with
+      | some cl =>
         have hcc := h.conflict_clause hs
         have hr := h.restore_inv
-        .conflict (S.restore t (w :: (ws.toList.take n).reverse)) hr.1 (id, c)
-          (by obtain ⟨c', hc', hlog, -⟩ := hcc; rw [hlog] at hc; cases hc; exact hc')
-          (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hc; cases hc; exact hf) hr.2.le rfl
-      | none => absurd hc (by obtain ⟨c', -, hlog, -⟩ := h.conflict_clause hs; simp [hlog])
+        .conflict (S.restore t (w :: (ws.toList.take n).reverse)) hr.1 (id, cl)
+          (by obtain ⟨c', hc', hlog, -⟩ := hcc; rw [hlog] at hcl; cases hcl; exact hc')
+          (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hcl; cases hcl; exact hf)
+          (hr.2.le.trans hm) hc
+      | none => absurd hcl (by obtain ⟨c', -, hlog, -⟩ := h.conflict_clause hs; simp [hlog])
     | .drop =>
       have hs : VisitSpec S.store S.M t.negate w .drop :=
-        hv ▸ S.store.visit_spec h.assign t.negate w
-      (WExec.processFrom t ws n S (by omega) (h.drop hs)).weaken le_rfl rfl
+        hu ▸ hv ▸ S.store.visit_spec h.assign u w
+      WExec.processFrom t u hu ws m c n S (by omega) (h.drop hs) hm hc
 
 /-! ### Moves at the top level -/
 
@@ -2090,9 +2084,12 @@ a restarted state has fewer conflicts than that. -/
   | t :: _ =>
     have ht : t ∈ S.queue := hq ▸ List.mem_cons_self
     -- the watch list is read before `start` empties its slot, so that it is not shared
-    let ws := S.store.watches.getD (litKey t.negate) #[]
-    match (S.start t).processFrom t ws ws.size le_rfl
-        (by rw [List.take_of_length_le (by simp)]; exact WExec.start_procInv hS ht) with
+    let ws := S.store.watches.getD (negKey t) #[]
+    match (S.start t).processFrom t t.negate rfl ws S.measure S.stats.conflicts ws.size le_rfl
+        (by
+          rw [List.take_of_length_le (by simp)]
+          have := WExec.start_procInv hS ht
+          rwa [watchList, litKey_negate] at this) le_rfl rfl with
     | .done S' h hm hc =>
       have hfin := WExec.finish_inv h
       .move (S'.finish t) hfin.1 (by

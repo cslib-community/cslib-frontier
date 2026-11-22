@@ -291,8 +291,9 @@ theorem findFree_none {A : Assign} {c : Array (Literal ℕ)} :
     · omega
 
 /-- **Visiting a watcher** when its watched literal `u` has become false under the assignment `A`:
-it is skipped if its blocker is true; otherwise its clause is read, by position. -/
-@[expose]
+it is skipped if its blocker is true; otherwise its clause is read, by position. Inlined, so that
+the outcome is matched on without being built. -/
+@[expose, inline]
 def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watcher) : Visit :=
   if A.holds w.blocker then .skip
   else if hk : w.clause < S.clauses.size then
