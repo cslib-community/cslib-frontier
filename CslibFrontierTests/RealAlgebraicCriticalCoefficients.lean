@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.RootLabelWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
@@ -55,6 +56,15 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- The zero source in one variable supplies the full label certificate at every binary address.
+example : (fun z : ℕ => criticalRootLabelResidue 101 1 1 0 z [] (fun _ => 0)) ∈
+    CountingFunction 13 encNat encNat :=
+  criticalRootLabelResidue_mem (a := 0) Decoder.nat
+    (p := fun _ => 101) (n := fun _ => 1) (d := fun _ => 1) (b := fun _ => 0)
+    (z := id) (data := fun _ => []) (value := fun _ => 0)
+    (.const 101) (.const 1) (.const 1) (.const 0) (by fun_prop)
+    (.const []) (CountingFunction.of_polyTime (.const 0))
 
 -- A negative second-derivative test follows the positive qualifying slot and precedes padding.
 example (i : Fin 3) :
