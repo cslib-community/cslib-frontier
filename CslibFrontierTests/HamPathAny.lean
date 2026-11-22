@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner
 module
 
 import CslibFrontier.Computability.Complexity.Problems.Hamiltonian.AnyEndpoints
+import CslibFrontier.Foundations.Data.List.IsChain
 
 /-! Clients of undirected Hamiltonian paths without given endpoints (`HamPathAny`) and of
 Arora–Barak 2007, Exercise 2 §17: concrete members and non-members, the empty-graph convention,
@@ -52,6 +53,14 @@ example : (⟨[0, 1], [(0, 0)]⟩ : Graph) ∉ HamPathAny := by
     simp only [List.isChain_cons_cons, Graph.toSimpleGraph_adj] at hch
     simp at hch
     omega
+
+/-- A pendant vertex is an end of every path through it: in the path `2 - 0 - 1` of `0 - 1 - 2`, the
+pendant vertex `2` comes first. The shared chain lemma gives this without inspecting the list. -/
+example : [2, 1, 0].head? = some 2 ∨ [2, 1, 0].getLast? = some 2 :=
+  List.IsChain.head?_eq_or_getLast?_eq_of_rel_eq
+    (R := (⟨[0, 1, 2], [(1, 0), (2, 1)]⟩ : Graph).toSimpleGraph.Adj) (w := 1)
+    (by simp [Graph.toSimpleGraph_adj]) (by decide) (by simp)
+    fun y h => by simp only [Graph.toSimpleGraph_adj] at h; simp at h; omega
 
 /-- The pendant-vertex reduction from designated endpoints. -/
 example (x : PathInstance) : DirHamPath.toAny x ∈ HamPathAny ↔ x ∈ HamPath :=
