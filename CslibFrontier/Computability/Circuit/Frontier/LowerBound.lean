@@ -107,7 +107,7 @@ structure DenseRectangleFree (S : ∀ n, Set (Fin n → U)) (K : ℕ → ℕ) : 
 variable {S : ∀ n, Set (Fin n → U)} {K : ℕ → ℕ}
 
 /-- A dense family of sets has `n - log_|U| |S_n| = o(n)`. -/
-private theorem isLittleO_sub_logb_ncard
+theorem isLittleO_sub_logb_ncard
     (hdense : (fun n => n * Real.log (Nat.card U) - Real.log (S n).ncard) =o[atTop]
       fun n => (n : ℝ)) :
     (fun n : ℕ => (n : ℝ) - Real.logb (Nat.card U) (S n).ncard) =o[atTop] fun n => (n : ℝ) := by

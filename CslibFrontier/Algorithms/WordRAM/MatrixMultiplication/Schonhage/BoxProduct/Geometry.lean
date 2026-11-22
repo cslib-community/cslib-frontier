@@ -25,8 +25,6 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct
 
 open Cslib.WordRAM Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-set_option maxRecDepth 4096 in
--- Fixed 160-register frame checks unfold the existing 32-member caller register set.
 /-- Construct shared geometry exactly once, save its actual addresses/count and initialize
 the reusable sparse-result allocation and tile index. -/
 theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
@@ -49,9 +47,7 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
       boxBank, Reg.directory, Reg.threshold, BoxTable.Reg.levels, BoxTable.Reg.inner,
       BoxTable.Reg.threshold, BoxTable.Reg.directory, Fin.mk.injEq, Fin.val_ofNat, Fin.val_natCast]
   have hT : 10 ^ L ≤ (L + 1) * 10 ^ L := Nat.le_mul_of_pos_left _ (by omega)
-  have up : QueriedProduct.Parameters L m N Q u := hp.of_frame (by
-    intro i hi
-    exact hu.regs_eq (by decide +revert))
+  have up : QueriedProduct.Parameters L m N Q u := by regs_frame
   obtain ⟨z, hz, zp, zK, zV, zcat⟩ := BoxTable.exec_geometry (L := L) (m := m) (t := t) (D := D)
       (u.comap boxBank)
     (by simp [u, boxBank, BoxTable.Reg.levels, BoxTable.Reg.inner,
@@ -112,9 +108,7 @@ theorem exec_prepareGeometry {w L m t N Q : ℕ} (x : Data 160)
       Reg.count, Reg.results, QueriedProduct.Reg.depth, QueriedProduct.Reg.one,
       QueriedProduct.Reg.leaves, QueriedProduct.Reg.temporary, QueriedProduct.Reg.index,
       Fin.mk.injEq]
-  have yp : QueriedProduct.Parameters L m N Q y := vp.of_frame (by
-    intro i hi
-    exact hy.regs_eq (by decide +revert))
+  have yp : QueriedProduct.Parameters L m N Q y := by regs_frame
   refine ⟨y, (hu.seq (hv.seq hy)).mono (by unfold BoxTable.geometryTime; omega), yp,
     ?_, by simp [y], ?_, ?_⟩
   · constructor
