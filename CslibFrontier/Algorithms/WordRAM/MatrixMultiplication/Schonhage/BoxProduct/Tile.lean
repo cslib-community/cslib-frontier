@@ -168,10 +168,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have hu := hz.rename boxBank_injective
   have ur (i : Fin 160) (hi : 64 ≤ i.val) : u.regs i = arg.regs i := boxBank_extend_high z arg i hi
   have up : QueriedProduct.Parameters L m N qs.length u := by regs_frame
-  have ub : Parameters L m t N qs.length u := arb.extend z
-  have ulow (i : Fin 64) (hi : ¬BoxTable.TileLocal i) :
-      (u.comap boxBank).regs i = (arg.comap boxBank).regs i := by
-    simpa only [u, Data.comap_extend boxBank_injective] using zregs i hi
+  have ub : Parameters L m t N qs.length u := by regs_frame
   have uread : BoxQuery.Readback m t D0 V pa pb encA encB u.mem := by
     change BoxQuery.Readback m t D0 V pa pb encA encB z.mem
     constructor
@@ -185,11 +182,7 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
       rw [zf _ (by dsimp only [D0, V]; unfold valueBase recordBase; omega), Data.comap_mem, arm]
       exact hgeom.directory s hs
     · exact zv
-  have ux : BoxBatch.Arguments L t pa pb D0 V K (u.comap boxBank) :=
-    ⟨(ulow _ (by decide)).trans arc.levels, (ulow _ (by decide)).trans arth,
-      (ulow _ (by decide)).trans arc.span, (ulow _ (by decide)).trans arA,
-      (ulow _ (by decide)).trans arB, (ulow _ (by decide)).trans arc.directory,
-      (ulow _ (by decide)).trans arV, (ulow _ (by decide)).trans arK⟩
+  have ux : BoxBatch.Arguments L t pa pb D0 V K (u.comap boxBank) := by regs_frame
   have uwanted (i : Fin wanted.length) : u.mem
       (QueriedProduct.codeBase L m N qs.length + a + i.val) =
         (PrunedQuery.queryIndex (wanted.get i)).val := by
@@ -199,14 +192,14 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
     simpa only [wanted, List.get_eq_getElem, List.getElem_ofFn, Nat.add_assoc] using
       hinput ⟨i.val, by simpa only [wanted, List.length_ofFn] using i.isLt⟩
   obtain ⟨q, hq, _, _, _, _, qv, _, qf⟩ := BoxBatch.exec_queryProgram wanted (u.comap boxBank)
-    ux ((ulow _ (by decide)).trans arq)
+    ux (by regs_frame)
     (by
       calc
         (u.comap boxBank).regs BoxBatch.Reg.stop = QueriedProduct.codeBase L m N qs.length + b := by
-          simpa only [b, Nat.add_assoc] using (ulow _ (by decide)).trans ars
+          regs_frame
         _ = (QueriedProduct.codeBase L m N qs.length + a) + wanted.length := by
           simp only [wanted, List.length_ofFn]
-          omega) ((ulow _ (by decide)).trans aro)
+          omega) (by regs_frame)
     encA encB haB hbB hinner uwanted rfl (by omega) (by omega)
     (by dsimp only [D0, V]; unfold valueBase recordBase; omega)
     (by simp only [wanted, List.length_ofFn]; omega) (by rfl) uread
@@ -220,14 +213,14 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have hv := hq.rename boxBank_injective
   have vr (i : Fin 160) (hi : 64 ≤ i.val) : v.regs i = u.regs i := boxBank_extend_high q u i hi
   have vp : QueriedProduct.Parameters L m N qs.length v := by regs_frame
-  have vb : Parameters L m t N qs.length v := ub.extend q
+  have vb : Parameters L m t N qs.length v := by regs_frame
   have vd : v.regs QueriedProduct.Reg.destination =
       QueriedProduct.groupedBase L m N qs.length + a := by regs_frame
   have vl : v.regs QueriedProduct.Reg.length = b - a := by regs_frame
   let c := v.set QueriedProduct.Reg.source O
   have hc : ExecWithin (B := .standard) (w + 2)
-      (ram[QueriedProduct.Reg.source ← Reg.results]) v c 1 := by
-    ram_eval [c, vb.results, O]
+      (ram[QueriedProduct.Reg.source ← Reg.results]) v c 1 :=
+    WP.execWithin (by wram_exec [vb.results]; rfl)
   have cp : QueriedProduct.Parameters L m N qs.length c := by regs_frame
   have cs : c.regs QueriedProduct.Reg.source = O := by simp [c]
   have cd : c.regs QueriedProduct.Reg.destination =
@@ -244,8 +237,8 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   let y := d.set QueriedProduct.Reg.index (j + 1)
   have hy : ExecWithin (B := .standard) (w + 2)
       (ram[QueriedProduct.Reg.index ← QueriedProduct.Reg.index + QueriedProduct.Reg.one])
-      d y 1 := by
-    ram_eval [y, di, dp.one, fnext]
+      d y 1 :=
+    WP.execWithin (by wram_exec [di, dp.one, fnext]; rfl)
   have yp : QueriedProduct.Parameters L m N qs.length y := by regs_frame
   have native : ExecWithin (w + 2) tileStep x y
       (328 * K + (b - a) * (batchUnit L m t + 7) + 63) := by
