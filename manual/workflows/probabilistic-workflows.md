@@ -565,7 +565,7 @@ uniform inputs, defined in
   re-export it. Each generator has a `_code` lemma stating exact agreement with the typed circuit.
   `polarizeCode` builds on `replicateCode`, from
   [CodeReplication.lean](../../CslibFrontier/Computability/Circuit/Boolean/CodeReplication.lean),
-  and on `muxCode`, from
+  and on `(muxCircuit m).code` (`computableInPolyTime_muxCircuit`), from
   [Comparison/PolyTime.lean](../../CslibFrontier/Computability/Circuit/Boolean/Comparison/PolyTime.lean).
 
 The thresholds are constants with `0 ≤ β < α² ≤ 1`, and the circuits are De Morgan circuits with
@@ -626,28 +626,39 @@ tensorization and comparison inequalities ([Tsybakov](../sources.md#tsybakov09),
   [`hellingerDist_map_le`](../../CslibFrontier/Probability/Hellinger.lean#L630).
 - **Pearson `χ²` divergence and Ingster / Le Cam mixture bounds (finite types).** Import
   [ChiSquare.lean](../../CslibFrontier/Probability/ChiSquare.lean).
-  [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L146) (`ℝ≥0∞`-valued
+  [`echiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L147) (`ℝ≥0∞`-valued
   `∑' a, ENNReal.ofReal (((p a).toReal - (q a).toReal) ^ 2) / q a`, with reference distribution `q`
   as the **second** argument matching `klDiv p.toMeasure q.toMeasure`) and real-valued
-  [`chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L152) (`(echiSquare p q).toReal`)
+  [`chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L153) (`(echiSquare p q).toReal`)
   are defined on any `PMF α`, together with nonnegativity and self-vanishing. All remaining
   theorems require `[Finite α]` / `[Fintype α]` (on countably infinite types, `p.support ⊆ q.support`
   alone does not imply finite divergence):
-  [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L171) equates finiteness
+  [`echiSquare_ne_top_iff`](../../CslibFrontier/Probability/ChiSquare.lean#L172) equates finiteness
   to `p.support ⊆ q.support`, and real-valued theorems state `p.support ⊆ q.support` explicitly so
   `x / 0 = 0` never hides off-support mass. These cover tensorization
-  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L303),
-  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L333)), TV upper bounds
-  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L370),
-  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L388)), data
-  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L405)), the
+  ([`one_add_chiSquare_pi`](../../CslibFrontier/Probability/ChiSquare.lean#L304),
+  [`one_add_chiSquare_iid`](../../CslibFrontier/Probability/ChiSquare.lean#L334)), TV upper bounds
+  ([`dist_le_sqrt_chiSquare_div_two`](../../CslibFrontier/Probability/ChiSquare.lean#L371),
+  [`tvDist_le_sqrt_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L389)), data
+  processing ([`chiSquare_bind_le`](../../CslibFrontier/Probability/ChiSquare.lean#L412)), the
   mixture second-moment identity
-  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L509),
-  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L559)), and the
+  ([`one_add_chiSquare_bind_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L445),
+  [`one_add_chiSquare_bind_iid_eq`](../../CslibFrontier/Probability/ChiSquare.lean#L495)), and the
   comparison hierarchy `2 h² ≤ KL ≤ log (1 + χ²) ≤ χ²`
-  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L607),
-  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L617),
-  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L659)).
+  ([`two_mul_hellingerSq_le_toReal_klDiv`](../../CslibFrontier/Probability/ChiSquare.lean#L543),
+  [`toReal_klDiv_le_log_one_add_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L553),
+  [`two_mul_hellingerSq_le_chiSquare`](../../CslibFrontier/Probability/ChiSquare.lean#L595)).
+- **Rényi moments and Rényi divergence (arbitrary discrete types).** Import
+  [Renyi.lean](../../CslibFrontier/Probability/Renyi.lean). `renyiMoment α p q` defines
+  `∑' x, p x * (p x / q x) ^ (α - 1)` on nonnegative weight functions `X → ℝ≥0∞` (so off-support
+  atoms evaluate to `p x * ⊤ = ⊤` for `1 < α`), and `PMF.renyiDiv α p q` defines the `ℝ≥0∞`-valued
+  Rényi divergence `D_α(p ‖ q)` on `PMF X` without `[Fintype]` or `[MeasurableSpace]` hypotheses,
+  covering nonnegativity (`one_le_renyiMoment`), Markov kernel and map data processing
+  (`renyiMoment_bind_le`, `renyiDiv_bind_le`, `renyiDiv_map_le`), adaptive two-stage composition
+  (`renyiDiv_bind_pair_le`), and conversion to `PMF.hockeyStick` (`hockeyStick_le_of_renyiDiv_le`).
+  Mechanism-level `(α, ε)`-Rényi differential privacy lives in
+  [Privacy/DifferentialPrivacy/Renyi.lean](../../CslibFrontier/Privacy/DifferentialPrivacy/Renyi.lean),
+  with checked examples in [ProbAzumaRenyi.lean](../../CslibFrontierTests/ProbAzumaRenyi.lean).
 
 The checked clients in [HellingerChiSquare.lean](../../CslibFrontierTests/HellingerChiSquare.lean)
 cover disjoint point masses (`echiSquare = ⊤`), rational Bernoulli pairs, the triangle inequality,
@@ -2470,7 +2481,9 @@ two-endpoint counterexample to dropping width.
 [ReserveOutput](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/ReserveOutput.lean)
 assembles the actual finite output from explicit lower-child conditional-error-cost fourth
 moments. Its finite geometric, routing and cutoff hypotheses are the documented fields of
-`ReserveOutputContext`; `ReserveOutputChildren` contains the independently supplied raw,
+`ReserveOutputContext` (extending `ResidualStage`, `CutoffProfile`, and `BinSchedule` from
+[StageContext](../../CslibFrontier/Computability/LogSpaceDerandomization/StageContext.lean));
+`ReserveOutputChildren` contains the independently supplied raw,
 preparation and maximum families. Their shared
 [OutputContext](../../CslibFrontier/Computability/LogSpaceDerandomization/NormalizedAtomRows/OutputContext.lean)
 module gives named constructions `amplification`, `tolerance`, `rawSteps`, `prepSteps`,
@@ -3749,8 +3762,12 @@ probabilities satisfy lower or upper bounds.
   `poissonBinomial_stochasticallyDominates_traj_adaptedCount`,
   `trajMeasure_adaptedCount_stochasticallyDominates_poissonBinomial`,
   `poissonBinomial_stochasticallyDominates_trajMeasure_adaptedCount`), and finite-horizon
-  sequential `PMF` processes (`PMF.seqProcess`, `PMF.seqCount`,
-  `PMF.seqCount_stochasticallyDominates_poissonBinomial`, `PMF.seqCount_active_toReal_Iio_le`).
+  sequential `PMF` processes (`PMF.seqProcess` and Azuma–Hoeffding concentration
+  `PMF.seqProcess_mul_exp_le`, `PMF.seqProcess_ge_le`, `PMF.seqProcess_le_le`,
+  `PMF.seqProcess_abs_sub_ge_le` in
+  [`Probability/Azuma.lean`](../../CslibFrontier/Probability/Azuma.lean), together with
+  `PMF.seqCount`, `PMF.seqCount_stochasticallyDominates_poissonBinomial`,
+  `PMF.seqCount_active_toReal_Iio_le`, `PMF.seqCount_ge_le`, and `PMF.seqCount_le_le`).
 - **Sequential processes with unreachable histories**:
   [`StochasticDomination/SequentialSupport.lean`](../../CslibFrontier/Probability/StochasticDomination/SequentialSupport.lean)
   provides `PMF.seqCount_stochasticallyDominates_poissonBinomial_of_support` and

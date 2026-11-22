@@ -232,11 +232,11 @@ noncomputable def randomGrover (N m : ℕ) :
 /-- The initial state of `randomGrover`: the uniform superposition of the query indices, with
 control bit `1`, and of the iteration counts `j < m`. -/
 noncomputable def randomGroverInit (N m : ℕ) : State N (Unit × Fin m) :=
-  WithLp.toLp 2 fun p => if p.2.1 then (((Real.sqrt N)⁻¹ * (Real.sqrt m)⁻¹ : ℝ) : ℂ) else 0
+  WithLp.toLp 2 fun (_, b, _) => if b then (((Real.sqrt N)⁻¹ * (Real.sqrt m)⁻¹ : ℝ) : ℂ) else 0
 
 theorem slice_randomGroverInit (m : ℕ) (j : Fin m) :
     slice j (randomGroverInit N m) = (((Real.sqrt m)⁻¹ : ℝ) : ℂ) • uniform N := by
-  ext p
+  ext ⟨i, b, u⟩
   simp only [slice_apply, randomGroverInit, uniform, PiLp.smul_apply, smul_eq_mul]
   split_ifs <;> push_cast <;> ring
 
@@ -358,19 +358,19 @@ noncomputable def orStage (N : ℕ) :
 /-- The algorithm for `OR_N`: two independent stages (`Cslib.Quantum.twice`), making
 `2 orRange N` queries. -/
 noncomputable def orSearch (N : ℕ) :
-    ℕ → State N ((Unit × Fin (orRange N)) × (Fin N × Bool × (Unit × Fin (orRange N)))) →ₗᵢ[ℂ]
-      State N ((Unit × Fin (orRange N)) × (Fin N × Bool × (Unit × Fin (orRange N)))) :=
+    ℕ → State N ((Unit × Fin (orRange N)) × QueryBasis N (Unit × Fin (orRange N))) →ₗᵢ[ℂ]
+      State N ((Unit × Fin (orRange N)) × QueryBasis N (Unit × Fin (orRange N))) :=
   twice (orRange N) (orStage N)
 
 /-- The initial state of `orSearch`: two copies of the initial state of `randomGrover`. -/
 noncomputable def orSearchInit (N : ℕ) :
-    State N ((Unit × Fin (orRange N)) × (Fin N × Bool × (Unit × Fin (orRange N)))) :=
+    State N ((Unit × Fin (orRange N)) × QueryBasis N (Unit × Fin (orRange N))) :=
   twiceInit (randomGroverInit N (orRange N))
 
 /-- The accepting outcomes of `orSearch`: the check bit of either stage is `1`. -/
 def orAccept (N : ℕ) : Finset (Fin N × Bool ×
-    ((Unit × Fin (orRange N)) × (Fin N × Bool × (Unit × Fin (orRange N))))) :=
-  univ.filter fun p => p.2.1 = true ∨ p.2.2.2.2.1 = true
+    ((Unit × Fin (orRange N)) × QueryBasis N (Unit × Fin (orRange N)))) :=
+  univ.filter fun (_, b, _, q) => b = true ∨ q.ctrl = true
 
 private theorem orRange_pos (N : ℕ) : 0 < orRange N := by
   unfold orRange
@@ -379,7 +379,7 @@ private theorem orRange_pos (N : ℕ) : 0 < orRange N := by
 /-- A stage accepts with the average success probability of `randomGrover`. -/
 theorem measureProb_run_orStage (hN : 0 < N) (x : Fin N → Bool) :
     measureProb (run (orStage N) (randomGroverInit N (orRange N)) x (orRange N))
-        (univ.filter fun p => p.2.1 = true) =
+        (univ.filter fun (_, b, _) => b = true) =
       ∑ i with x i = true,
         regProb (run (randomGrover N (orRange N)) (randomGroverInit N (orRange N)) x
           (orRange N - 1)) i := by
@@ -400,11 +400,11 @@ theorem measureProb_run_orSearch (hN : 0 < N) (x : Fin N → Bool) :
         Real.sin ((2 * j + 1) * searchAngle N (weight x)) ^ 2) / orRange N) ^ 2 := by
   classical
   have h := measureProb_run_twice (T := orRange N) (U := orStage N)
-    (norm_randomGroverInit hN (orRange_pos N)) x (univ.filter fun p => p.2.1 = true)
+    (norm_randomGroverInit hN (orRange_pos N)) x (univ.filter fun (_, b, _) => b = true)
   rw [measureProb_run_orStage hN, sum_regProb_run_randomGrover hN (by omega)] at h
   rw [← h, orSearch, orSearchInit, orAccept]
   congr 1
-  ext p
+  ext ⟨i, b, w, q⟩
   simp
 
 /-- **Deciding `OR_N` with `O(√N)` queries** after [Boyer, Brassard, Høyer,
@@ -424,7 +424,7 @@ theorem abs_measureProb_run_orSearch_sub_le (hN : 0 < N) (x : Fin N → Bool) :
   have ha1 : a ≤ 1 := by
     have := measureProb_le_measureProb_univ
       (run (orStage N) (randomGroverInit N (orRange N)) x (orRange N))
-      (univ.filter fun p => p.2.1 = true)
+      (univ.filter fun (_, b, _) => b = true)
     rw [measureProb_univ, norm_run, norm_randomGroverInit hN (orRange_pos N), one_pow,
       measureProb_run_orStage hN] at this
     exact this
