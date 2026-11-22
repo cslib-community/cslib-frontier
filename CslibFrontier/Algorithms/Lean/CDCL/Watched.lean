@@ -268,7 +268,7 @@ structure Stats where
 
 /-- Merging two lists sorted by `le`, in at most `fuel` steps. A loop of `sortBy`, which supplies
 enough fuel. -/
-@[expose] def sortBy.merge {α : Type} (le : α → α → Bool) :
+@[expose, specialize] def sortBy.merge {α : Type} (le : α → α → Bool) :
     (fuel : ℕ) → List α → List α → List α
   | 0, xs, ys => xs ++ ys
   | _ + 1, [], ys => ys
@@ -282,7 +282,7 @@ enough fuel. -/
   | x :: xs => let p := splitAlternate xs; (x :: p.2, p.1)
 
 /-- Merge sort by `le`, to depth `fuel`. A loop of `sortBy`, which supplies enough fuel. -/
-@[expose] def sortBy.go {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
+@[expose, specialize] def sortBy.go {α : Type} (le : α → α → Bool) : (fuel : ℕ) → List α → List α
   | 0, xs => xs
   | _ + 1, [] => []
   | _ + 1, [x] => [x]
@@ -292,7 +292,7 @@ enough fuel. -/
 
 /-- **Merge sort by `le`**, to the depth of the length of the list, which is enough. Unlike
 `List.mergeSort`, it is structurally recursive, so the kernel can run it. -/
-@[expose] def sortBy {α : Type} (le : α → α → Bool) (xs : List α) : List α :=
+@[expose, specialize] def sortBy {α : Type} (le : α → α → Bool) (xs : List α) : List α :=
   sortBy.go le xs.length xs
 
 /-- Whether the clause numbered `id` is a learned clause of a formula of `n` clauses: the clauses of
@@ -2207,6 +2207,48 @@ theorem WExec.Inv.restart {S : WExec φ} (hS : S.Inv) (hq : S.queue = []) : S.re
     exact this ▸ hs
   · exact hs.truncate (by rw [WExec.M_restart]; exact hN) h₁.1 h₂.1
 
+/-- **The numbers of `cand` to delete**: the learned ones (`isLearntId n`) not in `locked`,
+without repetitions, which LRAT checkers such as drat-trim's `lrat-check` reject. The numbers are
+marked from the least of them, so that each is tested in constant time: the numbers chosen
+together are mostly recent ones, so the arrays of marks are much shorter than the greatest
+number. -/
+@[expose] def chooseIds (n : ℕ) (locked cand : List ℕ) : List ℕ :=
+  let ids := cand.filter (isLearntId n)
+  let lo := ids.foldl min (ids.headD 0)
+  let kept := Assign.marks (locked.filterMap fun r => if lo ≤ r then some (r - lo) else none)
+  dedupKey (· - lo) <| ids.filter fun i => !kept.assigned (i - lo)
+
+/-- The least of `ids` and `m` is at most `m` and each of `ids`. -/
+theorem foldl_min_le {ids : List ℕ} :
+    ∀ m, ids.foldl min m ≤ m ∧ ∀ i ∈ ids, ids.foldl min m ≤ i := by
+  induction ids with
+  | nil => intro m; simp
+  | cons j ids ih =>
+    intro m
+    obtain ⟨h₁, h₂⟩ := ih (min m j)
+    refine ⟨le_trans h₁ (min_le_left _ _), fun i hi => ?_⟩
+    rcases List.mem_cons.1 hi with rfl | hi
+    · exact le_trans h₁ (min_le_right _ _)
+    · exact h₂ i hi
+
+/-- A number chosen is a learned one of `cand`, not in `locked`. -/
+theorem mem_chooseIds {n : ℕ} {locked cand : List ℕ} {i : ℕ} (h : i ∈ chooseIds n locked cand) :
+    i ∈ cand ∧ n < i ∧ i ∉ locked := by
+  unfold chooseIds at h
+  dsimp only at h
+  generalize hids : cand.filter (isLearntId n) = ids at h
+  generalize hlo : ids.foldl min (ids.headD 0) = lo at h
+  have h := mem_of_mem_dedupKey h
+  rw [List.mem_filter, Bool.not_eq_true'] at h
+  obtain ⟨hi, hkept⟩ := h
+  have hle : lo ≤ i := hlo ▸ (foldl_min_le _).2 i hi
+  rw [← hids, List.mem_filter] at hi
+  refine ⟨hi.1, by simpa [isLearntId] using hi.2, fun hm => ?_⟩
+  have : i - lo ∈ locked.filterMap fun r => if lo ≤ r then some (r - lo) else none :=
+    List.mem_filterMap.2 ⟨i, hm, by simp [hle]⟩
+  rw [← Assign.assigned_marks] at this
+  simp [this] at hkept
+
 /-- **The learned clauses to forget**, as MiniSat's `reduceDB` chooses them: the learned clauses
 of the store, those of more than two literals first by increasing activity; of the less active
 half, those of more than two literals, and of the other half, those of more than two literals and
@@ -2226,11 +2268,8 @@ reasons of the trail (MiniSat's *locked* clauses) and the short clauses. -/
   -- MiniSat's `activity < cla_inc / learnts.size()`, without rounding the quotient
   let chosen := (sorted.take half).filter (2 < ·.2) ++
     (sorted.drop half).filter fun e => 2 < e.2 && act.get e.1 * sorted.length < act.inc
-  -- the reasons of the trail (MiniSat's `locked`) and the short clauses are kept: their numbers are
-  -- marked once, so that each clause chosen is tested in constant time
-  let kept := Assign.marks (XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst)
-  -- LRAT checkers such as drat-trim's `lrat-check` reject a number deleted twice
-  dedupVars <| (chosen.map Prod.fst).filter fun i => isLearntId n i && !kept.assigned i
+  -- the reasons of the trail (MiniSat's `locked`) and the short clauses are kept
+  chooseIds n (XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst) (chosen.map Prod.fst)
 
 /-- The number of learned clauses in the store, those numbered above `n` (`isLearntId`). Reduction
 and simplification set the count of learned clauses from the rebuilt store, instead of subtracting
@@ -2309,13 +2348,7 @@ rebuilt and the certificate gets no deletion step. -/
 
 theorem WExec.mem_reduceIds {S : WExec φ} {i : ℕ} (h : i ∈ S.reduceIds) :
     φ.length < i ∧ i ∉ XTrail.reasonIds S.exec.trail ∧ ∀ e ∈ S.short, e.1 ≠ i := by
-  unfold WExec.reduceIds at h
-  rw [mem_dedupKey Function.injective_id] at h
-  simp only [List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', isLearntId,
-    decide_eq_true_eq] at h
-  obtain ⟨-, hlt, hkept⟩ := h
-  have hnot : i ∉ XTrail.reasonIds S.exec.trail ++ S.short.map Prod.fst := fun hm => by
-    rw [← Assign.assigned_marks] at hm; simp [hm] at hkept
+  obtain ⟨-, hlt, hnot⟩ := mem_chooseIds h
   simp only [List.mem_append, List.mem_map, not_or, not_exists, not_and] at hnot
   exact ⟨hlt, hnot.1, fun e he hei => hnot.2 e he hei⟩
 
