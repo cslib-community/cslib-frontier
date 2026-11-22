@@ -86,47 +86,26 @@ theorem adaptedCount_succ {Ω : Type*} (A : ℕ → Set Ω) (n : ℕ) (ω : Ω) 
 
 theorem adaptedCount_le {Ω : Type*} (A : ℕ → Set Ω) (n : ℕ) (ω : Ω) :
     adaptedCount A n ω ≤ n := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-    rw [adaptedCount_succ]
-    by_cases h : ω ∈ A n
-    · simp only [Set.indicator_of_mem h]
-      omega
-    · simp only [Set.indicator_of_notMem h]
-      omega
+  calc adaptedCount A n ω
+      ≤ ∑ _ ∈ Finset.range n, 1 :=
+        Finset.sum_le_sum fun t _ => by by_cases h : ω ∈ A t <;> simp [h]
+    _ = n := by simp
 
 theorem adaptedCount_mono {Ω : Type*} (A : ℕ → Set Ω) (ω : Ω) :
-    Monotone fun n => adaptedCount A n ω := by
-  intro m n hmn
-  induction n with
-  | zero =>
-    obtain rfl : m = 0 := Nat.le_zero.mp hmn
-    exact le_rfl
-  | succ n ih =>
-    rcases Nat.eq_or_lt_of_le hmn with rfl | hlt
-    · exact le_rfl
-    · dsimp only
-      rw [adaptedCount_succ]
-      exact (ih (Nat.lt_succ_iff.mp hlt)).trans (Nat.le_add_right _ _)
+    Monotone fun n => adaptedCount A n ω :=
+  fun _ _ hmn => Finset.sum_le_sum_of_subset (Finset.range_mono hmn)
 
 theorem measurable_adaptedCount {Ω : Type*} [m : MeasurableSpace Ω]
     (ℱ : Filtration ℕ m) {A : ℕ → Set Ω} (hA : ∀ t, MeasurableSet[ℱ (t + 1)] (A t))
     (n : ℕ) :
     Measurable[ℱ n] (adaptedCount A n) := by
   induction n with
-  | zero =>
-    have heq : adaptedCount A 0 = fun _ => 0 := funext (adaptedCount_zero A)
-    rw [heq]
-    exact measurable_const
+  | zero => simpa only [show adaptedCount A 0 = fun _ => 0 from funext (adaptedCount_zero A)]
+      using measurable_const
   | succ n ih =>
-    have heq : adaptedCount A (n + 1) = fun ω =>
-        adaptedCount A n ω + (A n).indicator (fun _ => 1) ω := by
-      ext ω
-      exact adaptedCount_succ A n ω
-    rw [heq]
-    refine (ih.mono (ℱ.mono n.le_succ) le_rfl).add ?_
-    exact measurable_const.indicator (hA n)
+    rw [show adaptedCount A (n + 1) = fun ω => adaptedCount A n ω + (A n).indicator (fun _ => 1) ω
+      from funext (adaptedCount_succ A n)]
+    exact (ih.mono (ℱ.mono n.le_succ) le_rfl).add (measurable_const.indicator (hA n))
 
 theorem adapted_adaptedCount {Ω : Type*} [m : MeasurableSpace Ω]
     (ℱ : Filtration ℕ m) {A : ℕ → Set Ω} (hA : ∀ t, MeasurableSet[ℱ (t + 1)] (A t)) :
@@ -163,91 +142,45 @@ private theorem pbValue_step (ps : List I) (f : ℕ → ℝ) {k : ℕ} (hk : k <
         (ps[k] : ℝ) * (pbValue ps f (k + 1) (m + 1) - pbValue ps f (k + 1) m) := by
   let qs := ps.drop (k + 1)
   have hdrop : ps.drop k = ps[k] :: qs := List.drop_eq_getElem_cons hk
-  have hlen : (ps.drop k).length = qs.length + 1 := by
-    rw [hdrop, List.length_cons]
-  have hpb0 :
-      pbValue ps f (k + 1) m =
-        (PMF.poissonBinomial qs 0).toReal * f (m + 0) +
-          ∑ x ∈ Finset.range (qs.length + 1),
-            (PMF.poissonBinomial qs (x + 1)).toReal * f (m + (x + 1)) := by
-    have hpb2 :
-        pbValue ps f (k + 1) m =
-          ∑ j ∈ Finset.range (qs.length + 2),
-            (PMF.poissonBinomial qs j).toReal * f (m + j) := by
-      symm
+  have hlen : (ps.drop k).length = qs.length + 1 := by rw [hdrop, List.length_cons]
+  have hpb0 : pbValue ps f (k + 1) m =
+      (PMF.poissonBinomial qs 0).toReal * f (m + 0) +
+        ∑ x ∈ Finset.range (qs.length + 1),
+          (PMF.poissonBinomial qs (x + 1)).toReal * f (m + (x + 1)) := by
+    have hpb2 : pbValue ps f (k + 1) m =
+        ∑ j ∈ Finset.range (qs.length + 2), (PMF.poissonBinomial qs j).toReal * f (m + j) := by
       rw [Finset.sum_range_succ,
         PMF.poissonBinomial_eq_zero_of_lt (ps := qs) (Nat.lt_succ_self _)]
       simp [pbValue, qs]
     rw [hpb2, Finset.sum_range_succ' (fun j => (PMF.poissonBinomial qs j).toReal * f (m + j)),
       add_comm]
-  have hpb1 :
-      pbValue ps f (k + 1) (m + 1) =
-        ∑ x ∈ Finset.range (qs.length + 1),
-          (PMF.poissonBinomial qs x).toReal * f (m + (x + 1)) := by
+  have hpb1 : pbValue ps f (k + 1) (m + 1) =
+      ∑ x ∈ Finset.range (qs.length + 1),
+        (PMF.poissonBinomial qs x).toReal * f (m + (x + 1)) := by
     change (∑ x ∈ Finset.range (qs.length + 1),
-      (PMF.poissonBinomial qs x).toReal * f ((m + 1) + x)) = _
-    refine Finset.sum_congr rfl fun x _ => ?_
-    have hidx : m + 1 + x = m + (x + 1) := by omega
-    rw [hidx]
+      (PMF.poissonBinomial qs x).toReal * f (m + 1 + x)) = _
+    exact Finset.sum_congr rfl fun x _ => by rw [Nat.add_assoc, Nat.add_comm 1 x]
   rw [pbValue, hlen, Finset.sum_range_succ']
-  simp_rw [hdrop, PMF.poissonBinomial_cons_zero_toReal, PMF.poissonBinomial_cons_succ_toReal]
-  have hsum_add :
-      (∑ x ∈ Finset.range (qs.length + 1),
-          ((1 - (ps[k] : ℝ)) * (PMF.poissonBinomial qs (x + 1)).toReal +
-              (ps[k] : ℝ) * (PMF.poissonBinomial qs x).toReal) * f (m + (x + 1))) =
-        (1 - (ps[k] : ℝ)) *
-            ∑ x ∈ Finset.range (qs.length + 1),
-              (PMF.poissonBinomial qs (x + 1)).toReal * f (m + (x + 1)) +
-          (ps[k] : ℝ) *
-            ∑ x ∈ Finset.range (qs.length + 1),
-              (PMF.poissonBinomial qs x).toReal * f (m + (x + 1)) := by
-    have hterm (x : ℕ) :
-        ((1 - (ps[k] : ℝ)) * (PMF.poissonBinomial qs (x + 1)).toReal +
-            (ps[k] : ℝ) * (PMF.poissonBinomial qs x).toReal) * f (m + (x + 1)) =
-          (1 - (ps[k] : ℝ)) * ((PMF.poissonBinomial qs (x + 1)).toReal * f (m + (x + 1))) +
-            (ps[k] : ℝ) * ((PMF.poissonBinomial qs x).toReal * f (m + (x + 1))) := by
-      ring
-    simp_rw [hterm, Finset.sum_add_distrib, ← Finset.mul_sum]
-  rw [hsum_add]
-  have hlin :
-      (1 - (ps[k] : ℝ)) * pbValue ps f (k + 1) m +
-          (ps[k] : ℝ) * pbValue ps f (k + 1) (m + 1) =
-        pbValue ps f (k + 1) m +
-          (ps[k] : ℝ) * (pbValue ps f (k + 1) (m + 1) - pbValue ps f (k + 1) m) := by
-    ring
-  rw [← hlin, hpb0, hpb1]
+  simp_rw [hdrop, PMF.poissonBinomial_cons_zero_toReal, PMF.poissonBinomial_cons_succ_toReal,
+    add_mul, mul_assoc, Finset.sum_add_distrib, ← Finset.mul_sum]
+  rw [hpb0, hpb1]
   ring
 
 private theorem pbValue_abs_le {ps : List I} {f : ℕ → ℝ} {C : ℝ} (hC : ∀ j, |f j| ≤ C)
     (k m : ℕ) :
     |pbValue ps f k m| ≤ C := by
-  have hC0 : 0 ≤ C := (abs_nonneg (f 0)).trans (hC 0)
-  calc
-    |pbValue ps f k m|
+  have hsum : ∑ j ∈ Finset.range ((ps.drop k).length + 1),
+      (PMF.poissonBinomial (ps.drop k) j).toReal = 1 := by
+    rw [← PMF.tsum_toReal (PMF.poissonBinomial (ps.drop k))]
+    exact (tsum_eq_sum fun j hj => by
+      simp [PMF.poissonBinomial_eq_zero_of_lt (by simpa using hj : (ps.drop k).length < j)]).symm
+  calc |pbValue ps f k m|
       ≤ ∑ j ∈ Finset.range ((ps.drop k).length + 1),
-          |(PMF.poissonBinomial (ps.drop k) j).toReal * f (m + j)| :=
-        Finset.abs_sum_le_sum_abs _ _
-    _ ≤ ∑ j ∈ Finset.range ((ps.drop k).length + 1),
-          (PMF.poissonBinomial (ps.drop k) j).toReal * C := by
-        refine Finset.sum_le_sum fun j _ => ?_
-        rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-        exact mul_le_mul_of_nonneg_left (hC (m + j)) ENNReal.toReal_nonneg
-    _ = (∑ j ∈ Finset.range ((ps.drop k).length + 1),
-          (PMF.poissonBinomial (ps.drop k) j).toReal) * C :=
-        (Finset.sum_mul _ _ _).symm
-    _ ≤ 1 * C := by
-        refine mul_le_mul_of_nonneg_right ?_ hC0
-        have hsum :
-            ∑ j ∈ Finset.range ((ps.drop k).length + 1),
-              (PMF.poissonBinomial (ps.drop k) j).toReal = 1 := by
-          have ht : ∑' j : ℕ, (PMF.poissonBinomial (ps.drop k) j).toReal = 1 := by
-            simp [PMF.tsum_toReal]
-          rw [← ht]
-          refine (tsum_eq_sum fun j hj => ?_).symm
-          simp only [Finset.mem_range, not_lt] at hj
-          rw [PMF.poissonBinomial_eq_zero_of_lt (by omega), ENNReal.toReal_zero]
-        exact hsum.le
-    _ = C := one_mul C
+          (PMF.poissonBinomial (ps.drop k) j).toReal * C :=
+        (Finset.abs_sum_le_sum_abs _ _).trans <| Finset.sum_le_sum fun j _ => by
+          rw [abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
+          exact mul_le_mul_of_nonneg_left (hC (m + j)) ENNReal.toReal_nonneg
+    _ = C := by rw [← Finset.sum_mul, hsum, one_mul]
 
 end BackwardInduction
 
@@ -283,71 +216,48 @@ private theorem integral_pbValue_step_diff {Ω : Type*} [m : MeasurableSpace Ω]
     ((measurable_from_top :
         Measurable fun m => pbValue ps f (k + 1) (m + 1) - pbValue ps f (k + 1) m).comp
       (measurable_adaptedCount ℱ hA k)).stronglyMeasurable
-  have hD_nn : ∀ ω, 0 ≤ D ω := fun ω =>
-    sub_nonneg.mpr (pbValue_mono hf (k + 1) (Nat.le_succ _))
-  have hI_int : Integrable Iₖ P :=
-    (integrable_const (1 : ℝ)).indicator (ℱ.le (k + 1) _ (hA k))
-  have hD_bd (ω : Ω) : |D ω| ≤ 2 * C := by
-    have h1 := pbValue_abs_le (ps := ps) hC (k + 1) (adaptedCount A k ω + 1)
-    have h2 := pbValue_abs_le (ps := ps) hC (k + 1) (adaptedCount A k ω)
-    exact (abs_sub _ _).trans (by linarith)
-  have hDI_int : Integrable (fun ω => D ω * Iₖ ω) P := by
-    refine Integrable.of_bound
-      ((hD_sm.mono (ℱ.le k)).aestronglyMeasurable.mul hI_int.aestronglyMeasurable)
-      (2 * C) (ae_of_all _ fun ω => ?_)
-    have hI_bd : |Iₖ ω| ≤ 1 := by
-      by_cases hω : ω ∈ A k <;> simp [Iₖ, hω]
-    simpa [abs_mul] using mul_le_mul (hD_bd ω) hI_bd (abs_nonneg _) (by positivity)
-  have hbase_int : Integrable (fun ω => pbValue ps f (k + 1) (adaptedCount A k ω)) P :=
-    integrable_pbValue ℱ hA ps hC (k + 1) k
-  have hD_int : Integrable D P := by
-    have hm1 : Measurable fun ω => pbValue ps f (k + 1) (adaptedCount A k ω + 1) :=
-      (measurable_from_top : Measurable fun m => pbValue ps f (k + 1) (m + 1)).comp
-        ((measurable_adaptedCount ℱ hA k).mono (ℱ.le k) le_rfl)
-    exact (Integrable.of_bound hm1.aestronglyMeasurable C
-      (ae_of_all _ fun ω => pbValue_abs_le (ps := ps) hC (k + 1) _)).sub hbase_int
-  have hDp_int : Integrable (fun ω => (ps[k] : ℝ) * D ω) P := hD_int.const_mul _
+  have hI_int : Integrable Iₖ P := (integrable_const (1 : ℝ)).indicator (ℱ.le (k + 1) _ (hA k))
+  have hD_bd (ω : Ω) : |D ω| ≤ 2 * C := (abs_sub _ _).trans <| by
+    linarith [pbValue_abs_le (ps := ps) hC (k + 1) (adaptedCount A k ω + 1),
+      pbValue_abs_le (ps := ps) hC (k + 1) (adaptedCount A k ω)]
+  have hDI_int : Integrable (fun ω => D ω * Iₖ ω) P :=
+    Integrable.of_bound ((hD_sm.mono (ℱ.le k)).aestronglyMeasurable.mul hI_int.aestronglyMeasurable)
+      (2 * C) (ae_of_all _ fun ω => by
+        have hI_bd : |Iₖ ω| ≤ 1 := by by_cases hω : ω ∈ A k <;> simp [Iₖ, hω]
+        simpa [abs_mul] using mul_le_mul (hD_bd ω) hI_bd (abs_nonneg _) (by positivity))
+  have hbase_int := integrable_pbValue (P := P) ℱ hA ps hC (k + 1) k
+  have hDp_int : Integrable (fun ω => (ps[k] : ℝ) * D ω) P :=
+    (Integrable.of_bound (hD_sm.mono (ℱ.le k)).aestronglyMeasurable (2 * C)
+      (ae_of_all _ hD_bd)).const_mul _
   have hDce_int : Integrable (fun ω => D ω * P[Iₖ | ℱ k] ω) P := by
-    have hce_bd : ∀ᵐ ω ∂P, |P[Iₖ | ℱ k] ω| ≤ 1 := by
-      have h0 : (fun _ : Ω => (0 : ℝ)) ≤ᵐ[P] P[Iₖ | ℱ k] :=
-        condExp_nonneg (ae_of_all _ fun ω => Set.indicator_nonneg (fun _ _ => zero_le_one) ω)
-      have hI_le : Iₖ ≤ᵐ[P] fun _ => (1 : ℝ) := ae_of_all _ fun ω => by
-        by_cases hω : ω ∈ A k <;> simp [Iₖ, hω]
-      have h1 : P[Iₖ | ℱ k] ≤ᵐ[P] fun _ => (1 : ℝ) := by
-        calc
-          P[Iₖ | ℱ k] ≤ᵐ[P] P[fun _ : Ω => (1 : ℝ) | ℱ k] :=
-            condExp_mono hI_int (integrable_const 1) hI_le
-          _ =ᵐ[P] fun _ => (1 : ℝ) := by rw [condExp_const (ℱ.le k) (1 : ℝ)]
-      filter_upwards [h0, h1] with ω hω0 hω1
-      exact abs_le.mpr ⟨by linarith, hω1⟩
+    have h0 : (fun _ : Ω => (0 : ℝ)) ≤ᵐ[P] P[Iₖ | ℱ k] :=
+      condExp_nonneg (ae_of_all _ fun ω => Set.indicator_nonneg (fun _ _ => zero_le_one) ω)
+    have h1 : P[Iₖ | ℱ k] ≤ᵐ[P] fun _ => (1 : ℝ) := by
+      calc P[Iₖ | ℱ k] ≤ᵐ[P] P[fun _ : Ω => (1 : ℝ) | ℱ k] :=
+            condExp_mono hI_int (integrable_const 1) <| ae_of_all _ fun ω => by
+              by_cases hω : ω ∈ A k <;> simp [Iₖ, hω]
+        _ =ᵐ[P] fun _ => (1 : ℝ) := by rw [condExp_const (ℱ.le k) (1 : ℝ)]
     refine Integrable.of_bound
       ((hD_sm.mono (ℱ.le k)).aestronglyMeasurable.mul
         (stronglyMeasurable_condExp.mono (ℱ.le k)).aestronglyMeasurable)
       (2 * C) ?_
-    filter_upwards [hce_bd] with ω hω
-    simpa [Real.norm_eq_abs, abs_mul] using
-      mul_le_mul (hD_bd ω) hω (abs_nonneg _) (by positivity)
-  have hsplit_lhs :
-      (fun ω => pbValue ps f k (adaptedCount A k ω)) =
-        fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + (ps[k] : ℝ) * D ω := by
-    ext ω
-    exact pbValue_step ps f hk (adaptedCount A k ω)
-  have hsplit_rhs :
-      (fun ω => pbValue ps f (k + 1) (adaptedCount A (k + 1) ω)) =
-        fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + D ω * Iₖ ω := by
-    ext ω
+    filter_upwards [h0, h1] with ω hω0 hω1
+    simpa [Real.norm_eq_abs, abs_mul] using mul_le_mul (hD_bd ω) (abs_le.mpr ⟨by linarith, hω1⟩)
+      (abs_nonneg _) (by positivity)
+  have hsplit_lhs : (fun ω => pbValue ps f k (adaptedCount A k ω)) =
+      fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + (ps[k] : ℝ) * D ω :=
+    funext fun ω => pbValue_step ps f hk (adaptedCount A k ω)
+  have hsplit_rhs : (fun ω => pbValue ps f (k + 1) (adaptedCount A (k + 1) ω)) =
+      fun ω => pbValue ps f (k + 1) (adaptedCount A k ω) + D ω * Iₖ ω := funext fun ω => by
     rw [adaptedCount_succ]
     by_cases hω : ω ∈ A k <;> simp [Iₖ, D, hω]
-  have hpull : ∫ ω, D ω * Iₖ ω ∂P = ∫ ω, D ω * P[Iₖ | ℱ k] ω ∂P := by
-    calc
-      ∫ ω, D ω * Iₖ ω ∂P
-        = ∫ ω, P[fun ω => D ω * Iₖ ω | ℱ k] ω ∂P := (integral_condExp (ℱ.le k)).symm
-      _ = ∫ ω, D ω * P[Iₖ | ℱ k] ω ∂P :=
-          integral_congr_ae (condExp_mul_of_stronglyMeasurable_left hD_sm hDI_int hI_int)
-  refine ⟨D, hD_nn, hDp_int, hDce_int,
+  refine ⟨D, fun ω => sub_nonneg.mpr (pbValue_mono hf (k + 1) (Nat.le_succ _)), hDp_int, hDce_int,
     ∫ ω, pbValue ps f (k + 1) (adaptedCount A k ω) ∂P, ?_, ?_⟩
   · rw [hsplit_lhs, integral_add hbase_int hDp_int]
-  · rw [hsplit_rhs, integral_add hbase_int hDI_int, hpull]
+  · rw [hsplit_rhs, integral_add hbase_int hDI_int]
+    congr 1
+    exact (integral_condExp (ℱ.le k)).symm.trans
+      (integral_congr_ae (condExp_mul_of_stronglyMeasurable_left hD_sm hDI_int hI_int))
 
 private theorem integral_pbValue_le_succ {Ω : Type*} [m : MeasurableSpace Ω] {P : Measure Ω}
     [IsProbabilityMeasure P] (ℱ : Filtration ℕ m) {A : ℕ → Set Ω}
@@ -384,24 +294,14 @@ private theorem integral_pbValue_succ_le {Ω : Type*} [m : MeasurableSpace Ω] {
 private theorem pbValue_zero_Ici_eq_real (ps : List I) (r : ℕ) :
     pbValue ps ((Set.Ici r).indicator (fun _ => (1 : ℝ))) 0 0 =
       (PMF.poissonBinomial ps).toMeasure.real (Set.Ici r) := by
-  rw [pbValue_zero, measureReal_def]
-  have hsum :
-      (PMF.poissonBinomial ps).toMeasure (Set.Ici r) =
-        ∑ j ∈ Finset.range (ps.length + 1),
-          if r ≤ j then PMF.poissonBinomial ps j else 0 := by
-    rw [PMF.toMeasure_apply _ measurableSet_Ici]
-    have hfin :
-        (∑' j : ℕ, (Set.Ici r).indicator (⇑(PMF.poissonBinomial ps)) j) =
-          ∑ j ∈ Finset.range (ps.length + 1),
-            (Set.Ici r).indicator (⇑(PMF.poissonBinomial ps)) j := by
-      refine tsum_eq_sum fun j hj => ?_
-      simp only [Finset.mem_range, not_lt] at hj
-      have hz := PMF.poissonBinomial_eq_zero_of_lt (ps := ps) (by omega : ps.length < j)
-      by_cases hrj : r ≤ j <;> simp [hrj, hz]
-    rw [hfin]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    by_cases hj : r ≤ j <;> simp [hj]
-  rw [hsum, ENNReal.toReal_sum fun j _ => by split_ifs <;> simp [PMF.apply_ne_top]]
+  rw [pbValue_zero, measureReal_def, PMF.toMeasure_apply _ measurableSet_Ici]
+  have hfin : (∑' j : ℕ, (Set.Ici r).indicator (⇑(PMF.poissonBinomial ps)) j) =
+      ∑ j ∈ Finset.range (ps.length + 1),
+        (Set.Ici r).indicator (⇑(PMF.poissonBinomial ps)) j :=
+    tsum_eq_sum fun j hj => by
+      simp [PMF.poissonBinomial_eq_zero_of_lt (by simpa using hj : ps.length < j)]
+  rw [hfin, ENNReal.toReal_sum fun j _ => by
+    dsimp only [Set.indicator]; split_ifs <;> simp [PMF.apply_ne_top]]
   refine Finset.sum_congr rfl fun j _ => ?_
   by_cases hj : r ≤ j <;> simp [hj]
 
@@ -518,48 +418,27 @@ private theorem adaptedCount_min_eq_of_inter {Ω : Type*} (A : ℕ → Set Ω) (
     min (adaptedCount A n ω) r =
       min (adaptedCount (fun t => A t ∩ {ω' | adaptedCount A t ω' < r}) n ω) r := by
   let A'' := fun t => A t ∩ {ω' | adaptedCount A t ω' < r}
-  have hle : adaptedCount A'' n ω ≤ adaptedCount A n ω := by
-    refine Finset.sum_le_sum fun t _ => ?_
-    by_cases ht : ω ∈ A'' t
-    · simp [A'', ht, ht.1]
-    · simp [ht]
-  by_cases hreach : r ≤ adaptedCount A'' n ω
-  · have hreach' : r ≤ adaptedCount A n ω := hreach.trans hle
-    rw [min_eq_right hreach', min_eq_right hreach]
-  · have hnot : adaptedCount A n ω < r := by
-      by_contra hc
-      have hge : r ≤ adaptedCount A n ω := not_lt.mp hc
-      have heq_lt (t : ℕ) (htr : adaptedCount A t ω < r) :
-          adaptedCount A'' t ω = adaptedCount A t ω :=
-        adaptedCount_congr_of_lt htr fun s _ hs => by simp [A'', hs]
-      have hex : ∃ t ≤ n, r ≤ adaptedCount A t ω := ⟨n, le_rfl, hge⟩
-      have ht₀_spec := Nat.find_spec hex
-      cases hfind : Nat.find hex with
-      | zero =>
-        rw [hfind, adaptedCount_zero] at ht₀_spec
-        have hr0 : r = 0 := Nat.le_zero.mp ht₀_spec.2
-        subst hr0
-        exact hreach (Nat.zero_le _)
-      | succ t₁ =>
-        rw [hfind] at ht₀_spec
-        have ht₁_lt : adaptedCount A t₁ ω < r := by
-          by_contra hc₁
-          have hmin : ¬ (t₁ ≤ n ∧ r ≤ adaptedCount A t₁ ω) :=
-            Nat.find_min hex (by rw [hfind]; exact Nat.lt_succ_self t₁)
-          exact hmin ⟨Nat.le_of_succ_le ht₀_spec.1, not_lt.mp hc₁⟩
-        have hA''t₁ : adaptedCount A'' t₁ ω = adaptedCount A t₁ ω := heq_lt t₁ ht₁_lt
-        have hstep : adaptedCount A'' (t₁ + 1) ω = adaptedCount A (t₁ + 1) ω := by
-          rw [adaptedCount_succ, adaptedCount_succ, hA''t₁]
-          by_cases hmem : ω ∈ A t₁ <;> simp [A'', hmem, ht₁_lt]
-        have hr_A'' : r ≤ adaptedCount A'' n ω := by
-          calc
-            r ≤ adaptedCount A (t₁ + 1) ω := ht₀_spec.2
-            _ = adaptedCount A'' (t₁ + 1) ω := hstep.symm
-            _ ≤ adaptedCount A'' n ω := adaptedCount_mono A'' ω ht₀_spec.1
-        exact absurd hr_A'' hreach
-    have heq : adaptedCount A'' n ω = adaptedCount A n ω :=
-      adaptedCount_congr_of_lt hnot fun t _ ht => by simp [A'', ht]
-    rw [heq]
+  have heq_lt (k : ℕ) (hk : adaptedCount A k ω < r) : adaptedCount A'' k ω = adaptedCount A k ω :=
+    adaptedCount_congr_of_lt hk fun _ _ ht => by simp [A'', ht]
+  by_cases hreach : r ≤ adaptedCount A n ω
+  · have hr_le : ∀ k, r ≤ adaptedCount A k ω → r ≤ adaptedCount A'' k ω := by
+      intro k hk
+      induction k with
+      | zero => simpa using hk
+      | succ k ih =>
+        by_cases hk' : r ≤ adaptedCount A k ω
+        · exact (ih hk').trans (adaptedCount_mono A'' ω k.le_succ)
+        · have hklt := not_le.mp hk'
+          rw [adaptedCount_succ] at hk
+          have hmem : ω ∈ A k := by
+            by_contra hnot
+            simp only [Set.indicator_of_notMem hnot, add_zero] at hk
+            exact hk' hk
+          rw [adaptedCount_succ, heq_lt k hklt,
+            Set.indicator_of_mem (show ω ∈ A'' k from ⟨hmem, hklt⟩)]
+          simpa [Set.indicator_of_mem hmem] using hk
+    rw [min_eq_right hreach, min_eq_right (hr_le n hreach)]
+  · rw [heq_lt n (not_le.mp hreach)]
 
 /-- Extending an `ℱ (t + 1)`-measurable event `E` by `Sᶜ` (`S` `ℱ t`-measurable) lifts an
 a.e. conditional lower bound `p ≤ P[E | ℱ t]` on `P.restrict S` to all of `P`. -/
@@ -569,38 +448,23 @@ theorem ae_le_condExp_union_compl {Ω : Type*} [m : MeasurableSpace Ω]
     (hp : (fun _ => (p : ℝ)) ≤ᵐ[P.restrict S] P[E.indicator (fun _ => (1 : ℝ)) | ℱ t]) :
     (fun _ => (p : ℝ)) ≤ᵐ[P] P[(E ∪ Sᶜ).indicator (fun _ => (1 : ℝ)) | ℱ t] := by
   have hS : MeasurableSet S := ℱ.le t _ hS_ℱ
-  have hind_eq :
-      (E ∪ Sᶜ).indicator (fun _ => (1 : ℝ)) =
-        S.indicator (E.indicator (fun _ => 1)) + Sᶜ.indicator (fun _ => 1) := by
+  have hind_eq : (E ∪ Sᶜ).indicator (fun _ => (1 : ℝ)) =
+      S.indicator (E.indicator (fun _ => 1)) + Sᶜ.indicator (fun _ => 1) := by
     ext ω
     by_cases hωS : ω ∈ S
     · by_cases hωE : ω ∈ E <;> simp [hωS, hωE]
     · simp [hωS]
   have hI_int : Integrable (E.indicator (fun _ => (1 : ℝ))) P :=
     (integrable_const 1).indicator (ℱ.le (t + 1) _ hE)
-  have hSI_int : Integrable (S.indicator (E.indicator (fun _ => (1 : ℝ)))) P :=
-    hI_int.indicator hS
-  have hSc_int : Integrable (Sᶜ.indicator (fun _ => (1 : ℝ))) P :=
-    (integrable_const 1).indicator hS.compl
-  have hce :
-      P[(E ∪ Sᶜ).indicator (fun _ => (1 : ℝ)) | ℱ t] =ᵐ[P]
-        S.indicator (P[E.indicator (fun _ => (1 : ℝ)) | ℱ t]) + Sᶜ.indicator (fun _ => 1) := by
+  have hce : P[(E ∪ Sᶜ).indicator (fun _ => (1 : ℝ)) | ℱ t] =ᵐ[P]
+      S.indicator (P[E.indicator (fun _ => (1 : ℝ)) | ℱ t]) + Sᶜ.indicator (fun _ => 1) := by
     rw [hind_eq]
-    calc
-      P[S.indicator (E.indicator (fun _ => (1 : ℝ))) + Sᶜ.indicator (fun _ => (1 : ℝ)) | ℱ t]
-        =ᵐ[P] P[S.indicator (E.indicator (fun _ => (1 : ℝ))) | ℱ t] +
-            P[Sᶜ.indicator (fun _ => (1 : ℝ)) | ℱ t] :=
-          condExp_add hSI_int hSc_int (ℱ t)
-      _ =ᵐ[P] S.indicator (P[E.indicator (fun _ => (1 : ℝ)) | ℱ t]) +
-            Sᶜ.indicator (P[fun _ : Ω => (1 : ℝ) | ℱ t]) :=
-          (condExp_indicator hI_int hS_ℱ).add
-            (condExp_indicator (integrable_const (1 : ℝ)) hS_ℱ.compl)
-      _ =ᵐ[P] S.indicator (P[E.indicator (fun _ => (1 : ℝ)) | ℱ t]) +
-            Sᶜ.indicator (fun _ => 1) := by
-          rw [condExp_const (ℱ.le t) (1 : ℝ)]
-  have hrest : ∀ᵐ ω ∂P, ω ∈ S → (p : ℝ) ≤ P[E.indicator (fun _ => (1 : ℝ)) | ℱ t] ω :=
-    (ae_restrict_iff' hS).mp hp
-  filter_upwards [hce, hrest] with ω hω hSω
+    refine (condExp_add (hI_int.indicator hS)
+      ((integrable_const 1).indicator hS.compl) (ℱ t)).trans ?_
+    refine ((condExp_indicator hI_int hS_ℱ).add
+      (condExp_indicator (integrable_const (1 : ℝ)) hS_ℱ.compl)).trans ?_
+    rw [condExp_const (ℱ.le t) (1 : ℝ)]
+  filter_upwards [hce, (ae_restrict_iff' hS).mp hp] with ω hω hSω
   rw [hω]
   by_cases hmem : ω ∈ S
   · simp [hmem, hSω hmem]
@@ -658,33 +522,24 @@ theorem adaptedCount_real_Iio_le_binomial {Ω : Type*} [m : MeasurableSpace Ω]
         P[(A t).indicator (fun _ => (1 : ℝ)) | ℱ t]) :
     P.real {ω | adaptedCount A n ω < r} ≤ (ProbabilityTheory.binomial n p).real (Set.Iio r) := by
   let ps := List.replicate n p
-  have hps : ps.length = n := List.length_replicate
   have hdom := adaptedCount_min_stochasticallyDominates_poissonBinomial ℱ hA ps r fun t ht => by
-    have ht' : t < n := by simpa [ps] using ht
-    simpa [ps] using hp t ht'
-  rw [hps] at hdom
-  have hm : Measurable (adaptedCount A n) :=
-    (measurable_adaptedCount ℱ hA n).mono (ℱ.le _) le_rfl
+    simpa [ps] using hp t (by simpa [ps] using ht)
+  rw [List.length_replicate] at hdom
   have hm_min : Measurable (fun ω => min (adaptedCount A n ω) r) :=
-    (measurable_from_top : Measurable fun k => min k r).comp hm
+    (measurable_from_top : Measurable fun k => min k r).comp
+      ((measurable_adaptedCount ℱ hA n).mono (ℱ.le _) le_rfl)
   have hle := hdom.le_real_Iio r
-  have hset₁ :
-      (fun ω => min (adaptedCount A n ω) r) ⁻¹' Set.Iio r = {ω | adaptedCount A n ω < r} := by
-    ext ω
-    simp [min_lt_iff]
-  have hset₂ : (fun k => min k r) ⁻¹' Set.Iio r = Set.Iio r := by
-    ext k
-    simp [min_lt_iff]
   have hL : (P.map fun ω => min (adaptedCount A n ω) r).real (Set.Iio r) =
       P.real {ω | adaptedCount A n ω < r} := by
-    rw [measureReal_def, Measure.map_apply hm_min measurableSet_Iio, ← measureReal_def, hset₁]
+    rw [measureReal_def, Measure.map_apply hm_min measurableSet_Iio, ← measureReal_def]
+    congr 1; ext ω; simp [min_lt_iff]
   have hR : ((PMF.poissonBinomial ps).map fun k => min k r).toMeasure.real (Set.Iio r) =
       (ProbabilityTheory.binomial n p).real (Set.Iio r) := by
     rw [measureReal_def, ← PMF.toMeasure_map (fun k => min k r) _ measurable_from_top,
-      Measure.map_apply measurable_from_top measurableSet_Iio, hset₂,
+      Measure.map_apply measurable_from_top measurableSet_Iio,
+      show (fun k => min k r) ⁻¹' Set.Iio r = Set.Iio r from by ext k; simp [min_lt_iff],
       PMF.toMeasure_poissonBinomial_replicate, ← measureReal_def]
-  rw [← hL, ← hR]
-  exact hle
+  rwa [hL, hR] at hle
 
 /-- **Active-before-target adapted domination (upper envelope)**: if `P[A t | ℱ t] ≤ ps[t]` a.e.
 on `{ω | adaptedCount A t ω < r}`, then `min · r` of `PMF.poissonBinomial ps` stochastically
@@ -698,45 +553,29 @@ theorem poissonBinomial_stochasticallyDominates_adaptedCount_min {Ω : Type*} [m
     StochasticallyDominates ((PMF.poissonBinomial ps).map fun k => min k r).toMeasure
       (P.map fun ω => min (adaptedCount A ps.length ω) r) := by
   let A'' : ℕ → Set Ω := fun t => A t ∩ {ω | adaptedCount A t ω < r}
-  have hA'' : ∀ t, MeasurableSet[ℱ (t + 1)] (A'' t) := by
-    intro t
-    refine (hA t).inter ?_
-    exact ((measurable_adaptedCount ℱ hA t).mono (ℱ.mono t.le_succ) le_rfl) measurableSet_Iio
+  have hA'' : ∀ t, MeasurableSet[ℱ (t + 1)] (A'' t) := fun t =>
+    (hA t).inter ((measurable_adaptedCount ℱ hA t).mono (ℱ.mono t.le_succ) le_rfl measurableSet_Iio)
   have hp'' : ∀ t (ht : t < ps.length),
       P[(A'' t).indicator (fun _ => (1 : ℝ)) | ℱ t] ≤ᵐ[P] fun _ => (ps[t] : ℝ) := by
     intro t ht
     let S : Set Ω := {ω | adaptedCount A t ω < r}
-    have hSm_ℱ : MeasurableSet[ℱ t] S :=
-      (measurable_adaptedCount ℱ hA t) measurableSet_Iio
-    have hSm : MeasurableSet S := ℱ.le t _ hSm_ℱ
-    have hind_eq :
-        (A'' t).indicator (fun _ => (1 : ℝ)) =
-          S.indicator ((A t).indicator (fun _ => 1)) := by
-      ext ω
-      by_cases hS : ω ∈ S
-      · by_cases hAt : ω ∈ A t <;> simp [A'', S, hS, hAt]
-      · simp [A'', S, hS]
-    have hI_int : Integrable ((A t).indicator (fun _ => (1 : ℝ))) P :=
-      (integrable_const 1).indicator (ℱ.le (t + 1) _ (hA t))
-    have hce :
-        P[(A'' t).indicator (fun _ => (1 : ℝ)) | ℱ t] =ᵐ[P]
-          S.indicator (P[(A t).indicator (fun _ => (1 : ℝ)) | ℱ t]) := by
+    have hSm_ℱ : MeasurableSet[ℱ t] S := (measurable_adaptedCount ℱ hA t) measurableSet_Iio
+    have hind_eq : (A'' t).indicator (fun _ => (1 : ℝ)) =
+        S.indicator ((A t).indicator (fun _ => 1)) := by
+      ext ω; by_cases hS : ω ∈ S <;> by_cases hAt : ω ∈ A t <;> simp [A'', S, hS, hAt]
+    have hce : P[(A'' t).indicator (fun _ => (1 : ℝ)) | ℱ t] =ᵐ[P]
+        S.indicator (P[(A t).indicator (fun _ => (1 : ℝ)) | ℱ t]) := by
       rw [hind_eq]
-      exact condExp_indicator hI_int hSm_ℱ
-    have hrest : ∀ᵐ ω ∂P, ω ∈ S → P[(A t).indicator (fun _ => (1 : ℝ)) | ℱ t] ω ≤ (ps[t] : ℝ) :=
-      (ae_restrict_iff' hSm).mp (hp t ht)
-    filter_upwards [hce, hrest] with ω hω hSω
+      exact condExp_indicator ((integrable_const (1 : ℝ)).indicator (ℱ.le (t + 1) _ (hA t))) hSm_ℱ
+    filter_upwards [hce, (ae_restrict_iff' (ℱ.le t _ hSm_ℱ)).mp (hp t ht)] with ω hω hSω
     rw [hω]
     by_cases hmem : ω ∈ S
-    · simp only [Set.indicator_of_mem hmem]
-      exact hSω hmem
-    · simp only [Set.indicator_of_notMem hmem]
-      exact (ps[t]).2.1
-  have hdom'' := poissonBinomial_stochasticallyDominates_adaptedCount ℱ hA'' ps hp''
-  have hmap := hdom''.map measurable_from_top (fun _ _ h => min_le_min_right r h)
-  rw [map_min_adaptedCount_eq ℱ hA'' ps.length r (adaptedCount_min_eq_of_inter A r ps.length),
+    · simpa [hmem] using hSω hmem
+    · simp [hmem, (ps[t]).2.1]
+  have hmap := (poissonBinomial_stochasticallyDominates_adaptedCount ℱ hA'' ps hp'').map
+    measurable_from_top (fun _ _ h => min_le_min_right r h)
+  rwa [map_min_adaptedCount_eq ℱ hA'' ps.length r (adaptedCount_min_eq_of_inter A r ps.length),
     PMF.toMeasure_map _ _ measurable_from_top] at hmap
-  exact hmap
 
 end FiltrationComparison
 
@@ -984,31 +823,14 @@ theorem seqCount_snoc {α : Type*} (E : ∀ t : ℕ, (Fin t → α) → Set α) 
     seqCount E (n + 1) (Fin.snoc h a) =
       seqCount E n h + by classical exact if a ∈ E n h then 1 else 0 := by
   classical
-  simp only [seqCount]
-  rw [Fin.sum_univ_castSucc]
-  simp only [Fin.snoc_last, Fin.val_last]
+  simp only [seqCount, Fin.sum_univ_castSucc, Fin.snoc_last, Fin.val_last, Fin.val_castSucc,
+    Fin.snoc_castSucc]
   congr 1
   · refine Finset.sum_congr rfl fun t _ => ?_
-    have hcast : Fin.snoc (α := fun _ => α) h a t.castSucc = h t :=
-      snoc_castLT h a t.1 t.isLt _
-    have hhist :
-        (fun j : Fin t.1 =>
-            Fin.snoc (α := fun _ => α) h a
-              (Fin.castLT j
-                (lt_trans j.isLt (Nat.lt_trans t.isLt (Nat.lt_succ_self n))))) =
-          fun j : Fin t.1 => h (Fin.castLT j (lt_trans j.isLt t.isLt)) := by
-      ext j
-      exact snoc_castLT h a j.1 (lt_trans j.isLt t.isLt) _
-    simp only [Fin.val_castSucc]
-    simp_rw [hcast, hhist]
-  · have heq :
-        (fun j : Fin n =>
-            Fin.snoc (α := fun _ => α) h a
-              (Fin.castLT j (lt_trans j.isLt (Nat.lt_succ_self n)))) =
-          h := by
-      ext j
-      exact snoc_castLT h a j.1 j.isLt _
-    rw [heq]
+    exact congrArg (fun p => if h t ∈ E t.1 p then 1 else 0)
+      (funext fun j => snoc_castLT h a j.1 (lt_trans j.isLt t.isLt) _)
+  · exact congrArg (fun p => if a ∈ E n p then 1 else 0)
+      (funext fun j => snoc_castLT h a j.1 j.isLt _)
 
 private theorem seqProcess_tsum_toReal {α : Type*} (p : PMF α) (f : α → ℝ)
     {C : ℝ} (hC : ∀ x, |f x| ≤ C) :
@@ -1076,47 +898,41 @@ private theorem tsum_toReal_seqProcess_step {α : Type*} (step : ∀ t : ℕ, (F
     let G : (Fin n → α) × α → ℝ := fun p =>
       ((seqProcess step n) p.1).toReal * ((step n p.1) p.2).toReal * C
     have hs_G : Summable G := by
-      refine (summable_prod_of_nonneg (f := G) fun _ =>
+      refine (summable_prod_of_nonneg fun _ =>
         mul_nonneg (mul_nonneg ENNReal.toReal_nonneg ENNReal.toReal_nonneg) hC0).mpr ?_
-      have h1 : Summable fun h₀ : Fin n → α => ((seqProcess step n) h₀).toReal * C :=
-        (PMF.summable_toReal _).mul_right C
       have h2 (h₀ : Fin n → α) :
           HasSum (fun a : α => G (h₀, a)) (((seqProcess step n) h₀).toReal * C) := by
-        have hsum := (PMF.summable_toReal (step n h₀)).hasSum
-        have hmul := (hsum.mul_left ((seqProcess step n) h₀).toReal).mul_right C
-        simpa [G, PMF.tsum_toReal, mul_assoc] using hmul
+        simpa [G, PMF.tsum_toReal, mul_assoc] using
+          (((PMF.summable_toReal (step n h₀)).hasSum.mul_left
+            ((seqProcess step n) h₀).toReal).mul_right C)
       refine ⟨fun h₀ => (h2 h₀).summable, ?_⟩
-      have heq : (fun h₀ => ∑' a, G (h₀, a)) = fun h₀ => ((seqProcess step n) h₀).toReal * C := by
-        ext h₀
-        exact (h2 h₀).tsum_eq
+      have heq : (fun h₀ => ∑' a, G (h₀, a)) = fun h₀ => ((seqProcess step n) h₀).toReal * C :=
+        funext fun h₀ => (h2 h₀).tsum_eq
       rw [heq]
-      exact h1
-    have hs_prod : Summable F := by
-      refine Summable.of_norm_bounded hs_G fun p => ?_
-      simp only [F, G, Real.norm_eq_abs, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg]
-      rw [mul_assoc]
-      exact mul_le_mul_of_nonneg_left
-        (mul_le_mul_of_nonneg_left (hC _) ENNReal.toReal_nonneg) ENNReal.toReal_nonneg
-    calc
-      ∑' h : Fin (n + 1) → α, ((seqProcess step (n + 1)) h).toReal * g h
-        = ∑' p : (Fin n → α) × α,
-            ((seqProcess step (n + 1)) (snocEquiv α n p)).toReal * g (snocEquiv α n p) :=
-          (Equiv.tsum_eq (snocEquiv α n) fun h =>
-            ((seqProcess step (n + 1)) h).toReal * g h).symm
-      _ = ∑' p : (Fin n → α) × α, F p := by
+      exact (PMF.summable_toReal (seqProcess step n)).mul_right C
+    have hs_prod : Summable F := Summable.of_norm_bounded hs_G fun p => by
+      simp only [F, G, Real.norm_eq_abs, abs_mul, abs_of_nonneg ENNReal.toReal_nonneg, mul_assoc]
+      exact mul_le_mul_of_nonneg_left (mul_le_mul_of_nonneg_left (hC _) ENNReal.toReal_nonneg)
+        ENNReal.toReal_nonneg
+    calc ∑' h : Fin (n + 1) → α, ((seqProcess step (n + 1)) h).toReal * g h
+        = ∑' p : (Fin n → α) × α, F p := by
+          rw [← Equiv.tsum_eq (snocEquiv α n)]
           refine tsum_congr fun p => ?_
           simp only [snocEquiv, Equiv.trans_apply, Equiv.prodComm_apply, Fin.snocEquiv_apply,
-            Prod.fst_swap, Prod.snd_swap, F]
-          rw [seqProcess_snoc, ENNReal.toReal_mul, mul_assoc]
-      _ = ∑' h : Fin n → α, ∑' a : α, F (h, a) := hs_prod.tsum_prod
+            Prod.fst_swap, Prod.snd_swap, F, seqProcess_snoc, ENNReal.toReal_mul, mul_assoc]
       _ = ∑' h : Fin n → α, ((seqProcess step n) h).toReal *
             ∑' a : α, ((step n h) a).toReal * g (Fin.snoc h a) := by
-          refine tsum_congr fun h => ?_
-          dsimp only [F]
-          exact tsum_mul_left
+          simpa [F, tsum_mul_left] using hs_prod.tsum_prod
   · rw [not_nonempty_iff] at hα
     have : IsEmpty (Fin (n + 1) → α) := ⟨fun h => hα.false (h (Fin.last n))⟩
     simp [tsum_empty]
+
+private theorem tsum_indicator_pmf_toReal {α : Type*} (p : _root_.PMF α) (s : Set α) :
+    (∑' a : α, s.indicator (fun a => (p a).toReal) a) = (p.toOuterMeasure s).toReal := by
+  classical
+  rw [PMF.toOuterMeasure_apply, ENNReal.tsum_toReal_eq fun a => by
+    by_cases ha : a ∈ s <;> simp [ha, PMF.apply_ne_top]]
+  exact tsum_congr fun a => by by_cases ha : a ∈ s <;> simp [ha]
 
 private theorem seqCount_stochasticallyDominates_poissonBinomial_of_length {α : Type*}
     (step : ∀ t : ℕ, (Fin t → α) → PMF α) (E : ∀ t : ℕ, (Fin t → α) → Set α)
@@ -1142,106 +958,53 @@ private theorem seqCount_stochasticallyDominates_poissonBinomial_of_length {α :
           ((seqProcess step k) h).toReal * Cslib.Probability.pbValue ps f k (seqCount E k h) := by
     induction k with
     | zero =>
-      have hsub : Subsingleton (Fin 0 → α) := ⟨fun a b => funext fun i => Fin.elim0 i⟩
-      rw [tsum_eq_single (Fin.elim0 : Fin 0 → α) fun g hg => absurd (Subsingleton.elim g _) hg]
+      rw [tsum_eq_single (Fin.elim0 : Fin 0 → α) fun g hg =>
+        absurd (Subsingleton.elim g _) hg]
       simp [seqProcess, Cslib.Probability.pbValue]
     | succ k ih =>
       refine (ih (Nat.le_of_succ_le hk)).trans ?_
       rw [tsum_toReal_seqProcess_step step k _ fun h =>
         Cslib.Probability.pbValue_abs_le hC (k + 1) _]
-      refine Summable.tsum_le_tsum ?_
+      refine Summable.tsum_le_tsum (fun h => mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg)
         (seqProcess_tsum_toReal _ _ fun h => Cslib.Probability.pbValue_abs_le (ps := ps) hC k _)
-        (seqProcess_tsum_toReal (C := 1) _ _ fun h => ?_)
-      · intro h
-        refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-        let D : ℝ :=
-          Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h + 1) -
-            Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h)
-        have hD_nn : 0 ≤ D := by
-          refine sub_nonneg.mpr ?_
-          exact Cslib.Probability.pbValue_mono hf_mono (k + 1) (Nat.le_succ _)
-        have hstep :
-            Cslib.Probability.pbValue ps f k (seqCount E k h) =
-              Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h) + (ps[k] : ℝ) * D :=
-          Cslib.Probability.pbValue_step ps f hk (seqCount E k h)
-        have hinner :
-            ∑' a : α, ((step k h) a).toReal *
-                Cslib.Probability.pbValue ps f (k + 1) (seqCount E (k + 1) (Fin.snoc h a)) =
-              Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h) +
-                ((step k h).toOuterMeasure (E k h)).toReal * D := by
-          classical
-          have heq (a : α) :
-              ((step k h) a).toReal *
-                  Cslib.Probability.pbValue ps f (k + 1) (seqCount E (k + 1) (Fin.snoc h a)) =
-                ((step k h) a).toReal * Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h) +
-                  ((E k h).indicator (fun a => ((step k h) a).toReal) a) * D := by
-            rw [seqCount_snoc]
-            by_cases ha : a ∈ E k h
-            · simp [D, ha]
-              ring
-            · simp [D, ha]
-          simp_rw [heq]
-          have hs1 : Summable fun a : α =>
-              ((step k h) a).toReal * Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h) :=
-            (PMF.summable_toReal _).mul_right _
-          have hs2 : Summable fun a : α =>
-              ((E k h).indicator (fun a => ((step k h) a).toReal) a) * D := by
-            refine Summable.of_norm_bounded ((PMF.summable_toReal (step k h)).mul_right |D|)
-              fun a => ?_
-            rw [Real.norm_eq_abs, abs_mul]
-            by_cases ha : a ∈ E k h
-            · simp [ha, abs_of_nonneg ENNReal.toReal_nonneg]
-            · simp only [ha, not_false_eq_true, Set.indicator_of_notMem, abs_zero, zero_mul]
-              exact mul_nonneg ENNReal.toReal_nonneg (abs_nonneg _)
-          rw [hs1.tsum_add hs2, tsum_mul_right, PMF.tsum_toReal, one_mul, tsum_mul_right]
-          have hprob :
-              ∑' a : α, (E k h).indicator (fun a => ((step k h) a).toReal) a =
-                ((step k h).toOuterMeasure (E k h)).toReal := by
-            rw [PMF.toOuterMeasure_apply]
-            conv_rhs =>
-              rw [ENNReal.tsum_toReal_eq (f := (E k h).indicator (step k h)) fun a => by
-                by_cases ha : a ∈ E k h
-                · simp [ha, PMF.apply_ne_top]
-                · simp [ha]]
-            refine tsum_congr fun a => ?_
-            by_cases ha : a ∈ E k h <;> simp [ha]
-          rw [hprob]
-        rw [hstep, hinner]
-        exact add_le_add_right (mul_le_mul_of_nonneg_right (hp k hk h) hD_nn) _
-      · exact abs_tsum_pmf_mul_le_one (step k h) _ fun a =>
-          Cslib.Probability.pbValue_abs_le (ps := ps) hC (k + 1) _
+        (seqProcess_tsum_toReal (C := 1) _ _ fun _ => abs_tsum_pmf_mul_le_one (step k _) _ fun _ =>
+          Cslib.Probability.pbValue_abs_le (ps := ps) hC (k + 1) _)
+      let D : ℝ :=
+        Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h + 1) -
+          Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h)
+      have hD_nn : 0 ≤ D :=
+        sub_nonneg.mpr (Cslib.Probability.pbValue_mono hf_mono (k + 1) (Nat.le_succ _))
+      have hinner : ∑' a : α, ((step k h) a).toReal *
+            Cslib.Probability.pbValue ps f (k + 1) (seqCount E (k + 1) (Fin.snoc h a)) =
+          Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h) +
+            ((step k h).toOuterMeasure (E k h)).toReal * D := by
+        classical
+        have heq (a : α) : ((step k h) a).toReal *
+              Cslib.Probability.pbValue ps f (k + 1) (seqCount E (k + 1) (Fin.snoc h a)) =
+            ((step k h) a).toReal * Cslib.Probability.pbValue ps f (k + 1) (seqCount E k h) +
+              (E k h).indicator (fun a => ((step k h) a).toReal) a * D := by
+          rw [seqCount_snoc]
+          by_cases ha : a ∈ E k h <;> simp [D, ha]; ring
+        simp_rw [heq]
+        rw [((PMF.summable_toReal _).mul_right _).tsum_add
+            (((PMF.summable_toReal (step k h)).indicator (E k h)).mul_right D),
+          tsum_mul_right, PMF.tsum_toReal, one_mul, tsum_mul_right, tsum_indicator_pmf_toReal]
+      rw [Cslib.Probability.pbValue_step ps f hk (seqCount E k h), hinner]
+      exact add_le_add_right (mul_le_mul_of_nonneg_right (hp k hk h) hD_nn) _
   have hmain := hchain ps.length le_rfl
-  have hlhs :
-      Cslib.Probability.pbValue ps f 0 0 =
-        ((poissonBinomial ps).toOuterMeasure (Set.Ici r)).toReal := by
+  have hlhs : Cslib.Probability.pbValue ps f 0 0 =
+      ((poissonBinomial ps).toOuterMeasure (Set.Ici r)).toReal := by
     rw [Cslib.Probability.pbValue_zero_Ici_eq_real ps r, measureReal_def,
       PMF.toMeasure_apply_eq_toOuterMeasure_apply _ measurableSet_Ici]
-  have hrhs :
-      (∑' h : Fin ps.length → α,
-          ((seqProcess step ps.length) h).toReal *
-            Cslib.Probability.pbValue ps f ps.length (seqCount E ps.length h)) =
-        (((seqProcess step ps.length).map (seqCount E ps.length)).toOuterMeasure
-          (Set.Ici r)).toReal := by
-    have hpb (h : Fin ps.length → α) :
-        Cslib.Probability.pbValue ps f ps.length (seqCount E ps.length h) =
-          if r ≤ seqCount E ps.length h then 1 else 0 := by
-      simp only [Cslib.Probability.pbValue, List.drop_length, List.length_nil, zero_add,
-        Finset.range_one, Finset.sum_singleton, poissonBinomial_nil, PMF.pure_apply, ↓reduceIte,
-        ENNReal.toReal_one, one_mul, add_zero]
-      by_cases hh : r ≤ seqCount E ps.length h <;> simp [f, hh]
-    simp_rw [hpb]
-    rw [PMF.toOuterMeasure_map_apply, PMF.toOuterMeasure_apply]
-    conv_rhs =>
-      rw [ENNReal.tsum_toReal_eq fun h => by
-        by_cases hh : seqCount E ps.length h ∈ Set.Ici r
-        · simp [hh, PMF.apply_ne_top]
-        · simp [hh]]
-    refine tsum_congr fun h => ?_
-    by_cases hh : r ≤ seqCount E ps.length h
-    · simp [hh]
-    · simp [hh]
-  rw [← hlhs, ← hrhs]
-  exact hmain
+  have hrhs : (∑' h : Fin ps.length → α,
+        ((seqProcess step ps.length) h).toReal *
+          Cslib.Probability.pbValue ps f ps.length (seqCount E ps.length h)) =
+      (((seqProcess step ps.length).map (seqCount E ps.length)).toOuterMeasure
+        (Set.Ici r)).toReal := by
+    simp_rw [Cslib.Probability.pbValue_length]
+    rw [PMF.toOuterMeasure_map_apply, ← tsum_indicator_pmf_toReal]
+    refine tsum_congr fun h => by by_cases hh : r ≤ seqCount E ps.length h <;> simp [f, hh]
+  rwa [← hlhs, ← hrhs]
 
 /-- **Sequential finite-horizon Poisson-binomial domination**: if at every step `t < ps.length` and
 every prefix `h`, the conditional event probability `((step t h).toOuterMeasure (E t h)).toReal` is
@@ -1272,62 +1035,43 @@ theorem seqCount_active_toReal_Iio_le {α : Type*}
   have hp' : ∀ t (ht : t < ps.length) (h : Fin t → α),
       (ps[t] : ℝ) ≤ ((step t h).toOuterMeasure (E' t h)).toReal := by
     intro t ht h
-    have ht' : t < n := by simpa [ps] using ht
     by_cases hreach : r ≤ seqCount E t h
     · have huniv : (step t h).toOuterMeasure Set.univ = 1 := by
         let _ : MeasurableSpace α := ⊤
         rw [← PMF.toMeasure_apply_eq_toOuterMeasure_apply (step t h) MeasurableSet.univ,
           measure_univ]
       simpa [ps, E', hreach, huniv] using p.2.2
-    · simpa [ps, E', hreach] using hp t ht' h (not_le.mp hreach)
-  have hdom := seqCount_stochasticallyDominates_poissonBinomial_of_length step E' n ps
-    (List.length_replicate) hp'
+    · simpa [ps, E', hreach] using hp t (by simpa [ps] using ht) h (not_le.mp hreach)
   have hIio := ENNReal.toReal_mono (PMF.toOuterMeasure_ne_top (poissonBinomial ps) (Set.Iio r))
-    (hdom.le_Iio r)
-  have hL :
-      ((seqProcess step n).map (seqCount E n)).toOuterMeasure (Set.Iio r) =
-        ((seqProcess step n).map (seqCount E' n)).toOuterMeasure (Set.Iio r) := by
+    ((seqCount_stochasticallyDominates_poissonBinomial_of_length step E' n ps
+      List.length_replicate hp').le_Iio r)
+  have hle_count (k : ℕ) (h₀ : Fin k → α) : seqCount E k h₀ ≤ seqCount E' k h₀ := by
+    classical
+    refine Finset.sum_le_sum fun t _ => ?_
+    dsimp only [E']; split_ifs <;> simp_all
+  have hlt_eq (k : ℕ) (h₀ : Fin k → α) (hlt : seqCount E k h₀ < r) :
+      seqCount E' k h₀ = seqCount E k h₀ := by
+    induction k with
+    | zero => simp
+    | succ k ih =>
+      obtain ⟨hprev, a, rfl⟩ : ∃ hprev a, h₀ = Fin.snoc hprev a :=
+        ⟨Fin.init h₀, h₀ (Fin.last k), (Fin.snoc_init_self h₀).symm⟩
+      classical
+      rw [seqCount_snoc] at hlt
+      have hk_lt : seqCount E k hprev < r := lt_of_le_of_lt (Nat.le_add_right _ _) hlt
+      rw [seqCount_snoc, seqCount_snoc, ih hprev hk_lt]
+      simp [E', not_le.mpr hk_lt]
+  have hL : ((seqProcess step n).map (seqCount E n)).toOuterMeasure (Set.Iio r) =
+      ((seqProcess step n).map (seqCount E' n)).toOuterMeasure (Set.Iio r) := by
     simp only [PMF.toOuterMeasure_map_apply]
-    congr 1
-    ext h
-    have hmono (k : ℕ) (hk : k ≤ n) (h₀ : Fin k → α) :
-        min (seqCount E k h₀) r = min (seqCount E' k h₀) r := by
-      induction k with
-      | zero => simp
-      | succ k ih =>
-        obtain ⟨hprev, a, rfl⟩ : ∃ hprev a, h₀ = Fin.snoc hprev a :=
-          ⟨Fin.init h₀, h₀ (Fin.last k), (Fin.snoc_init_self h₀).symm⟩
-        rw [seqCount_snoc, seqCount_snoc]
-        by_cases hk_lt : seqCount E k hprev < r
-        · have hk_eq : seqCount E k hprev = seqCount E' k hprev := by
-            have hm := ih (Nat.le_of_succ_le hk) hprev
-            have hlt' : seqCount E' k hprev < r := by
-              by_contra hge
-              have := min_eq_right (not_lt.mp hge)
-              rw [← this, ← hm, min_eq_left hk_lt.le] at *
-              omega
-            rw [min_eq_left hk_lt.le, min_eq_left hlt'.le] at hm
-            exact hm
-          have hE' : E' k hprev = E k hprev := by simp [E', not_le.mpr hk_lt]
-          rw [hk_eq, hE']
-        · have hge : r ≤ seqCount E k hprev := not_lt.mp hk_lt
-          have hk'_ge : r ≤ seqCount E' k hprev := by
-            have hm := ih (Nat.le_of_succ_le hk) hprev
-            rw [min_eq_right hge] at hm
-            exact le_trans (le_of_eq hm) (min_le_left _ _)
-          rw [min_eq_right (hge.trans (Nat.le_add_right _ _)),
-            min_eq_right (hk'_ge.trans (Nat.le_add_right _ _))]
-    have hm := hmono n le_rfl h
-    rw [Set.mem_preimage, Set.mem_preimage, Set.mem_Iio, Set.mem_Iio]
-    have hiff (x : ℕ) : x < r ↔ min x r < r :=
-      (min_lt_iff.trans (or_iff_left (lt_irrefl r))).symm
-    rw [hiff (seqCount E n h), hm, ← hiff (seqCount E' n h)]
-  have hR :
-      ((poissonBinomial ps).toOuterMeasure (Set.Iio r)).toReal =
-        (ProbabilityTheory.binomial n p).real (Set.Iio r) := by
+    congr 1; ext h
+    simp only [Set.mem_preimage, Set.mem_Iio]
+    refine ⟨fun hlt => (hlt_eq n h hlt).symm ▸ hlt, fun hlt => ?_⟩
+    exact (hle_count n h).trans_lt hlt
+  have hR : ((poissonBinomial ps).toOuterMeasure (Set.Iio r)).toReal =
+      (ProbabilityTheory.binomial n p).real (Set.Iio r) := by
     rw [← PMF.toMeasure_poissonBinomial_replicate n p, measureReal_def,
       PMF.toMeasure_apply_eq_toOuterMeasure_apply _ measurableSet_Iio]
-  rw [← hL, hR] at hIio
-  exact hIio
+  rwa [← hL, hR] at hIio
 
 end Cslib.Probability.PMF

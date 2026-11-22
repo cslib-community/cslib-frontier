@@ -9,7 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.MemoryView
 
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Havoc
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.PPZ.Round
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
@@ -430,17 +430,15 @@ theorem ampLoopWith_law {φ : CNF (Fin n)} {C Tb w Tc : ℕ} {S : List ℕ}
     have hrest := ExecRandLaw.seq_det_right (T₂ := 12 * (encodeClauses φ).length + 5 + 3)
       (c₂ := ram[ ⟪roundCheck⟫; if out = one then [ flag ← zero ] else [ flag ← one ] ])
       (Q := Q) hcore' fun y ⟨⟨⟨⟨hy, hyb⟩, hyB⟩, hyL⟩, _⟩ => by
-        obtain ⟨z, hz, hzm, hfz, hzo⟩ := roundCheck_exec hw hT hy hyb
-        have hzB : z.regs bBase = Tb + 2 * n + S.length := by regs_frame
-        have hzL : z.regs bLen = ds.length := by regs_frame
-        refine WP.exists_execWithin (WP.seq (WP.of_execWithin hz ?_))
+        refine WP.exists_execWithin (WP.seq ?_)
+        wram_call (roundCheck_exec hw hT hy hyb) framed with v m ⟨rfl, hfz, hzo⟩
         by_cases he : φ.eval (assignmentAt y.mem Tb n) = true <;>
           simp only [he, Bool.false_eq_true, ↓reduceIte] at hzo <;>
-          wram_exec [hzo, hfz.one_eq, hfz.zero_eq] <;>
-          exact ⟨⟨hfz.set (by decide) _, by wram_simp [hzB], by wram_simp [hzL],
-            by wram_simp [hzo, he, hzm, Bool.false_eq_true, ↓reduceIte],
-            by wram_simp [hfz.zero_eq, hfz.one_eq, he, hzm, Bool.false_eq_true, ↓reduceIte]⟩,
-            by simp [hzm]⟩
+          wram_exec [hzo, hy.one_eq, hy.zero_eq] <;>
+          exact ⟨⟨hfz.set (by decide) _, by wram_simp [hyB, hb₁], by wram_simp [hyL, hl₁],
+            by wram_simp [hzo, he, Bool.false_eq_true, ↓reduceIte],
+            by wram_simp [hy.zero_eq, hy.one_eq, he, Bool.false_eq_true, ↓reduceIte]⟩,
+            by wram_simp⟩
     have hbody : ExecRandLaw w (ampBodyWith core) x Q
         (9 * decSteps ds + 4 + (Tc + (12 * (encodeClauses φ).length + 5 + 3) + 2)) (2 * n)
         (fun y => partialAssignmentAt y.mem Tb n) (roundWith O) :=
@@ -702,40 +700,29 @@ theorem countSetup_spec {w B e c : ℕ} (x : Data 32) (hz : x.regs zero = 0) (ho
   refine WP.exists_execWithin ?_
   unfold countSetup countTop
   wram_exec [hz]
-  obtain ⟨y₁, hy₁, hm₁⟩ := fillLoop_spec (w := w) (B := B) (e := e)
-    (hw.of_le (by omega)) e (x.set iReg 0) (by wram_simp [hB]) (by wram_simp [he])
-    (by wram_simp [hz]) (by wram_simp [ho]) (by wram_simp)
-  simp only [Data.set_regs, Function.update_self, Nat.add_zero, Data.set_mem] at hm₁
-  have hb₁ : y₁.regs bBase = B := by regs_frame
-  have he₁ : y₁.regs eReg = e := by regs_frame
-  have ho₁ : y₁.regs one = 1 := by regs_frame
-  have hc₁ : y₁.regs cReg = c := by regs_frame
-  have hz₁ : y₁.regs zero = 0 := by regs_frame
-  refine WP.of_execWithin hy₁ ?_
-  wram_exec [hb₁, he₁, ho₁, hc₁, hz₁]
+  wram_call (fillLoop_spec (w := w) (B := B) (e := e) (hw.of_le (by omega)) e _ ..) framed [*]
+    with v₁ m₁ rfl
+  wram_exec [hB, he, ho, hc, hz]
+  simp only [countDigits] at hlen
   wram_call (mulAdd_rename_spec (w := w) (a := c) (cy := 0) (Bd := c)
-    (ds := List.replicate e 0 ++ [1])
-    (by wram_simp [hz₁]) (by wram_simp [ho₁]) (by wram_simp) (by wram_simp)
-    (by wram_simp [List.length_append, List.length_replicate, List.length_singleton])
-    (by
-      wram_simp [hb₁]
-      rintro ⟨t, ht⟩
-      simp only [List.length_append, List.length_replicate, List.length_singleton] at ht
-      change Function.update y₁.mem (B + e) 1 (B + t) = (List.replicate e 0 ++ [1])[t]
-      by_cases hte : t = e
-      · simp [hte]
-      · rw [Function.update_of_ne (by omega), congrFun hm₁ _, ite_eq_left (by omega),
-          List.getElem_append_left (by simp; omega), List.getElem_replicate])
-    (fun d hd => by
-      simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd; omega)
-    le_rfl (Nat.zero_le _) (hw.of_le (by omega))
-    (by wram_simp [hb₁]; exact hw.of_le (by simp only [countDigits] at hlen; omega)))
-    with y₃ ⟨hh₃, hl₃, hm₃⟩
-  wram_simp [hb₁] at hh₃ hm₃
-  refine ⟨by simp only [countSetupTime, countDigits] at hlen ⊢; omega, hl₃, hh₃, fun a ha => ?_⟩
-  rw [hm₃ a ha]
-  simp only [Data.set_mem, Data.write_mem]
-  rw [Function.update_of_ne (by omega), congrFun hm₁ a, ite_eq_right (by omega)]
+    (ds := List.replicate e 0 ++ [1]) ..) framed
+    [*, List.length_append, List.length_replicate, List.length_singleton]
+    with v₃ m₃ ⟨hh₃, hl₃, hm₃⟩
+  · refine ⟨by simp only [countSetupTime]; omega, hl₃, hh₃, fun a ha => ?_⟩
+    rw [hm₃ a ha]
+    wram_simp
+    exact ite_eq_right (by omega)
+  · rintro ⟨t, ht⟩
+    simp only [List.length_append, List.length_replicate, List.length_singleton] at ht
+    change Function.update (β := fun _ => ℕ) _ (B + e) 1 (B + t) = (List.replicate e 0 ++ [1])[t]
+    by_cases hte : t = e
+    · simp [hte]
+    · simp only [Function.update_of_ne (show B + t ≠ B + e by omega)]
+      rw [ite_eq_left (by omega), List.getElem_append_left (by simp; omega),
+        List.getElem_replicate]
+  · intro d hd
+    simp only [List.mem_append, List.mem_replicate, List.mem_singleton] at hd
+    omega
 
 /-- The instruction bound of the counter's setup. -/
 def countTime (k n c : ℕ) : ℕ := 5 * ppzExp k n + 10 * ppzCounterLen k n c + 13
