@@ -45,7 +45,7 @@ private theorem perCall (q j : Bool) :
 
 private def source := [false, false, true, true, true]
 
-private theorem firstStage (j : Bool) :
+example (j : Bool) :
     IsCostBounded (charge j) (interpret (fun q => calls (expand q)) (calls source))
       (if j then 4 else 11) := by
   have h := IsCostBounded.interpret_demand charge charge d (fun q => calls (expand q))
