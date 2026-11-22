@@ -37,10 +37,11 @@ Here we model asynchronous suspect-forwarding runs directly via:
   message delays and out-of-order delivery across ticks.
 * `AdmissibleGossipSchedule F sched`: causal, crash-respecting, duplicate-free asynchronous
   delivery in which every correct sender has infinitely many post-`t₀` packets delivered to every
-  correct recipient, witnessed constructively for every `(F, H)` by `periodicGossipSchedule`.
+  correct recipient, witnessed constructively (with zero-delay `sendTick = t` delivery) for every
+  `F` by `syncGossipSchedule`.
 
-We prove the three key properties P1–P3 ([Lemmas 3.1–3.3, p. 237][ChandraToueg1996]) for every
-`AdmissibleGossipSchedule F sched`:
+We prove the three key properties P1–P3 as discrete-tick gossip-transducer steps for #7503 (after
+[Lemmas 3.1–3.3, p. 237][ChandraToueg1996]) for every `AdmissibleGossipSchedule F sched`:
 
 1. **P1 (`gossipHistory_strongCompleteness`):** boosts `WeakCompleteness F H` to
    `StrongCompleteness F (gossipHistory H sched)` on finite `P`.
@@ -51,8 +52,8 @@ We prove the three key properties P1–P3 ([Lemmas 3.1–3.3, p. 237][ChandraTou
    from `t₁` onward in `H`, then eventually no correct process suspects `p` in
    `gossipHistory H sched`, preserving both `EventualStrongAccuracy` and `EventualWeakAccuracy`.
 
-Combining P1–P3 yields all four gossip reductions `Q → P`, `W → S`, `◇Q → ◇P`, and `◇W → ◇S`
-(`gossipHistory_isPerfect_of_isQuasiPerfect`, `gossipHistory_isStrong_of_isWeak`,
+Combining P1–P3 yields all four gossip-transducer reduction steps `Q → P`, `W → S`, `◇Q → ◇P`, and
+`◇W → ◇S` (`gossipHistory_isPerfect_of_isQuasiPerfect`, `gossipHistory_isStrong_of_isWeak`,
 `gossipHistory_isEventuallyPerfect_of_isEventuallyQuasiPerfect`,
 `gossipHistory_isEventuallyStrong_of_isEventuallyWeak`, and
 `DetectorClass.gossipHistory_sat_boost`).
@@ -66,32 +67,32 @@ Combining P1–P3 yields all four gossip reductions `Q → P`, `W → S`, `◇Q 
   suspect-forwarding transducer.
 * `Cslib.Distributed.FailureDetectors.AdmissibleGossipSchedule`: asynchronous causality, crash
   validity, non-duplication, and correct-to-correct liveness conditions on a gossip schedule.
-* `Cslib.Distributed.FailureDetectors.periodicGossipSchedule`,
-  `Cslib.Distributed.FailureDetectors.boostHistory`: constructive periodic all-to-all gossip
-  schedule and concrete `DetectorHistory` booster.
+* `Cslib.Distributed.FailureDetectors.syncGossipSchedule`: zero-delay (`sendTick = t`) all-to-all
+  gossip schedule witnessing non-vacuity of `AdmissibleGossipSchedule F`.
 * `Cslib.Distributed.FailureDetectors.DetectorClass.boost`: projection of the 8 detector classes
   onto the 4 strong-completeness classes `{.P, .S, .EP, .ES}`.
 
 ## Main results
 
-* `Cslib.Distributed.FailureDetectors.gossipHistory_strongCompleteness`: gossip transducer step
-  boosting `WeakCompleteness` to `StrongCompleteness` (after Lemma 3.1, p. 237).
+* `Cslib.Distributed.FailureDetectors.gossipHistory_strongCompleteness`: discrete-tick
+  gossip-transducer step for #7503 boosting `WeakCompleteness` to `StrongCompleteness` (after
+  Lemma 3.1, p. 237).
 * `Cslib.Distributed.FailureDetectors.gossipHistory_strongAccuracy`,
-  `Cslib.Distributed.FailureDetectors.gossipHistory_weakAccuracy`: preservation of perpetual
-  accuracy (after Lemma 3.2, p. 237).
+  `Cslib.Distributed.FailureDetectors.gossipHistory_weakAccuracy`: discrete-tick gossip-transducer
+  steps for #7503 preserving perpetual accuracy (after Lemma 3.2, p. 237).
 * `Cslib.Distributed.FailureDetectors.gossipHistory_eventualStrongAccuracy`,
-  `Cslib.Distributed.FailureDetectors.gossipHistory_eventualWeakAccuracy`: preservation of eventual
-  accuracy on finite `P` (after Lemma 3.3, p. 237).
+  `Cslib.Distributed.FailureDetectors.gossipHistory_eventualWeakAccuracy`: discrete-tick
+  gossip-transducer steps for #7503 preserving eventual accuracy on finite `P` (after Lemma 3.3,
+  p. 237).
 * `Cslib.Distributed.FailureDetectors.gossipHistory_isPerfect_of_isQuasiPerfect`,
   `Cslib.Distributed.FailureDetectors.gossipHistory_isStrong_of_isWeak`,
   `Cslib.Distributed.FailureDetectors.gossipHistory_isEventuallyPerfect_of_isEventuallyQuasiPerfect`
   and `Cslib.Distributed.FailureDetectors.gossipHistory_isEventuallyStrong_of_isEventuallyWeak`,
-  `Cslib.Distributed.FailureDetectors.DetectorClass.gossipHistory_sat_boost`: gossip transducer
-  steps for `Q → P`, `W → S`, `◇Q → ◇P`, and `◇W → ◇S` (after Theorem 3.4, p. 237).
-* `Cslib.Distributed.FailureDetectors.admissible_periodicGossipSchedule`,
-  `Cslib.Distributed.FailureDetectors.boostHistory_isStrong_of_isWeak`,
-  `Cslib.Distributed.FailureDetectors.boostHistory_isEventuallyStrong_of_isEventuallyWeak`:
-  constructive schedule admissibility and concrete `W → S` / `◇W → ◇S` boosters.
+  `Cslib.Distributed.FailureDetectors.DetectorClass.gossipHistory_sat_boost`: discrete-tick
+  gossip-transducer steps for #7503 for `Q → P`, `W → S`, `◇Q → ◇P`, and `◇W → ◇S` (after
+  Theorem 3.4, p. 237, and Corollary 3.5, p. 238).
+* `Cslib.Distributed.FailureDetectors.admissible_syncGossipSchedule`: non-vacuity of
+  `AdmissibleGossipSchedule F` via `syncGossipSchedule`.
 
 ## References
 
@@ -249,10 +250,10 @@ private theorem exists_tick_disjoint_packets {P : Type*} {F : FailurePattern P}
 
 /-! ### Lemmas 3.1, 3.2, and 3.3 of Chandra–Toueg (1996, p. 237) -/
 
-/-- **Perpetual non-suspicion transfer (Property P2, after
-[Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]):** in the `gossipHistory` transducer, if
-no non-crashed process suspects `p` strictly before tick `t` in `H`, then no process suspects `p`
-at tick `t` in `gossipHistory H sched`. -/
+/-- Discrete-tick gossip-transducer step for #7503 (Property P2, after
+[Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]): in `gossipHistory`, if no non-crashed
+process suspects `p` strictly before tick `t` in `H`, then no process suspects `p` at tick `t` in
+`gossipHistory H sched`. -/
 theorem gossipHistory_preserves_perpetual_notMem {P : Type*} [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) (H : DetectorHistory P) {p : P} {t : ℕ}
@@ -271,8 +272,9 @@ theorem gossipHistory_preserves_perpetual_notMem {P : Type*} [DecidableEq P]
       obtain ⟨_, hle, hsend⟩ := hadm.valid_delivery q t pkt hpkt
       exact hH pkt.sendTick (by omega) pkt.sender hsend
 
-/-- **Perpetual strong accuracy preservation** (gossip transducer step after
-[Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]): `gossipHistory` preserves
+`StrongAccuracy`. -/
 theorem gossipHistory_strongAccuracy {P : Type*} [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
@@ -284,8 +286,9 @@ theorem gossipHistory_strongAccuracy {P : Type*} [DecidableEq P]
   have hp' : p ∉ F t' := fun hmem => hp (F.mem_of_le (Nat.le_of_lt ht') hmem)
   exact hSA t' p hp' r hr
 
-/-- **Perpetual weak accuracy preservation** (gossip transducer step after
-[Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Lemma 3.2, p. 237][ChandraToueg1996]): `gossipHistory` preserves
+`WeakAccuracy`. -/
 theorem gossipHistory_weakAccuracy {P : Type*} [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
@@ -295,8 +298,8 @@ theorem gossipHistory_weakAccuracy {P : Type*} [DecidableEq P]
   exact ⟨p, hp, fun t q _ =>
     gossipHistory_preserves_perpetual_notMem hadm H (fun t' _ r hr => hns t' r hr) q⟩
 
-/-- **Weak-to-strong completeness boost (Property P1, gossip transducer step after
-[Chandra and Toueg, Lemma 3.1, p. 237][ChandraToueg1996]):** on finite `P`, if `H` satisfies
+/-- Discrete-tick gossip-transducer step for #7503 (Property P1, after
+[Chandra and Toueg, Lemma 3.1, p. 237][ChandraToueg1996]): on finite `P`, if `H` satisfies
 `WeakCompleteness F H`, then `gossipHistory H sched` satisfies `StrongCompleteness F` for every
 `AdmissibleGossipSchedule F sched`. -/
 theorem gossipHistory_strongCompleteness {P : Type*} [Finite P] [DecidableEq P]
@@ -361,8 +364,8 @@ theorem gossipHistory_strongCompleteness {P : Type*} [Finite P] [DecidableEq P]
     simpa only [pBound, hp, ↓reduceDIte] using Finset.le_sup (f := pBound) (mem_univ p)
   exact (hper_p p hp).choose_spec q hq t' (hle.trans ht')
 
-/-- **Eventual non-suspicion transfer (Property P3, gossip transducer step after
-[Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]):** on finite `P`, if `p ∈ F.Correct` and
+/-- Discrete-tick gossip-transducer step for #7503 (Property P3, after
+[Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): on finite `P`, if `p ∈ F.Correct` and
 no correct process suspects `p` from tick `t₁` onward in `H`, then there is a tick `T` from which
 onward no correct process suspects `p` in `gossipHistory H sched`. -/
 theorem gossipHistory_preserves_eventual_notMem {P : Type*} [Finite P] [DecidableEq P]
@@ -412,8 +415,9 @@ theorem gossipHistory_preserves_eventual_notMem {P : Type*} [Finite P] [Decidabl
     simpa only [qBound, hq, ↓reduceDIte] using Finset.le_sup (f := qBound) (mem_univ q)
   exact (hper_q q hq).choose_spec t' (hle.trans ht')
 
-/-- **Eventual strong accuracy preservation** (gossip transducer step after
-[Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): `gossipHistory` preserves
+`EventualStrongAccuracy` on finite `P`. -/
 theorem gossipHistory_eventualStrongAccuracy {P : Type*} [Finite P] [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
@@ -432,8 +436,9 @@ theorem gossipHistory_eventualStrongAccuracy {P : Type*} [Finite P] [DecidableEq
     simpa only [pBound, hp, ↓reduceDIte] using Finset.le_sup (f := pBound) (mem_univ p)
   exact (hper_p p hp).choose_spec t' (hle.trans ht') q hq
 
-/-- **Eventual weak accuracy preservation** (gossip transducer step after
-[Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Lemma 3.3, p. 237][ChandraToueg1996]): `gossipHistory` preserves
+`EventualWeakAccuracy` on finite `P`. -/
 theorem gossipHistory_eventualWeakAccuracy {P : Type*} [Finite P] [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
@@ -445,8 +450,9 @@ theorem gossipHistory_eventualWeakAccuracy {P : Type*} [Finite P] [DecidableEq P
 
 /-! ### The four completeness-boosting reductions (`Q → P`, `W → S`, `◇Q → ◇P`, `◇W → ◇S`) -/
 
-/-- **Gossip transducer reduction `Q → P`** (step after
-[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]): `gossipHistory` upgrades
+`IsQuasiPerfect` (`Q`) to `IsPerfect` (`P`). -/
 theorem gossipHistory_isPerfect_of_isQuasiPerfect {P : Type*} [Finite P] [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
@@ -454,8 +460,9 @@ theorem gossipHistory_isPerfect_of_isQuasiPerfect {P : Type*} [Finite P] [Decida
     IsPerfect F (gossipHistory H sched) :=
   ⟨gossipHistory_strongCompleteness hadm h.1, gossipHistory_strongAccuracy hadm h.2⟩
 
-/-- **Gossip transducer reduction `W → S`** (step after
-[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]): `gossipHistory` upgrades `IsWeak`
+(`W`) to `IsStrong` (`S`). -/
 theorem gossipHistory_isStrong_of_isWeak {P : Type*} [Finite P] [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P}
@@ -463,8 +470,9 @@ theorem gossipHistory_isStrong_of_isWeak {P : Type*} [Finite P] [DecidableEq P]
     IsStrong F (gossipHistory H sched) :=
   ⟨gossipHistory_strongCompleteness hadm h.1, gossipHistory_weakAccuracy hadm h.2⟩
 
-/-- **Gossip transducer reduction `◇Q → ◇P`** (step after
-[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]): `gossipHistory` upgrades
+`IsEventuallyQuasiPerfect` (`◇Q`) to `IsEventuallyPerfect` (`◇P`). -/
 theorem gossipHistory_isEventuallyPerfect_of_isEventuallyQuasiPerfect
     {P : Type*} [Finite P] [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
@@ -473,8 +481,9 @@ theorem gossipHistory_isEventuallyPerfect_of_isEventuallyQuasiPerfect
     IsEventuallyPerfect F (gossipHistory H sched) :=
   ⟨gossipHistory_strongCompleteness hadm h.1, gossipHistory_eventualStrongAccuracy hadm h.2⟩
 
-/-- **Gossip transducer reduction `◇W → ◇S`** (step after
-[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]). -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]): `gossipHistory` upgrades
+`IsEventuallyWeak` (`◇W`) to `IsEventuallyStrong` (`◇S`). -/
 theorem gossipHistory_isEventuallyStrong_of_isEventuallyWeak
     {P : Type*} [Finite P] [DecidableEq P]
     {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
@@ -483,8 +492,8 @@ theorem gossipHistory_isEventuallyStrong_of_isEventuallyWeak
     IsEventuallyStrong F (gossipHistory H sched) :=
   ⟨gossipHistory_strongCompleteness hadm h.1, gossipHistory_eventualWeakAccuracy hadm h.2⟩
 
-/-- Projects each of the eight detector classes onto its strong-completeness counterpart
-([Chandra and Toueg, Corollary 3.5, p. 238][ChandraToueg1996]). -/
+/-- Projects each of the eight detector classes onto its strong-completeness counterpart (step map
+for #7503, after [Chandra and Toueg, Corollary 3.5, p. 238][ChandraToueg1996]). -/
 @[expose] def DetectorClass.boost : DetectorClass → DetectorClass
   | .P | .Q => .P
   | .S | .W => .S
@@ -499,9 +508,10 @@ theorem DetectorClass.boost_le (c : DetectorClass) : c.boost ≤ c := by
 theorem DetectorClass.boost_idem (c : DetectorClass) : c.boost.boost = c.boost := by
   cases c <;> rfl
 
-/-- Uniform class-level gossip reduction: for every `c : DetectorClass` and every
-`AdmissibleGossipSchedule F sched` on finite `P`, `gossipHistory H sched` upgrades `c` to
-`c.boost`. -/
+/-- Discrete-tick gossip-transducer step for #7503 (after
+[Chandra and Toueg, Theorem 3.4, p. 237, and Corollary 3.5, p. 238][ChandraToueg1996]): for every
+`c : DetectorClass` and every `AdmissibleGossipSchedule F sched` on finite `P`,
+`gossipHistory H sched` upgrades `c` to `c.boost`. -/
 theorem DetectorClass.gossipHistory_sat_boost {P : Type*} [Finite P] [DecidableEq P]
     (c : DetectorClass) {F : FailurePattern P} {sched : P → ℕ → List (GossipPacket P)}
     (hadm : AdmissibleGossipSchedule F sched) {H : DetectorHistory P} (hsat : c.Sat F H) :
@@ -525,34 +535,35 @@ theorem DetectorClass.gossipHistory_sat_boost {P : Type*} [Finite P] [DecidableE
   | EQ => exact gossipHistory_isEventuallyPerfect_of_isEventuallyQuasiPerfect hadm hsat
   | EW => exact gossipHistory_isEventuallyStrong_of_isEventuallyWeak hadm hsat
 
-/-! ### Constructive periodic gossip schedule and concrete booster -/
+/-! ### Non-vacuity witness for `AdmissibleGossipSchedule` -/
 
-/-- Constructive periodic all-to-all gossip schedule: at each tick `t`, every non-crashed process
-`p ∉ F t` receives one suspect-list packet `⟨q, t⟩` from each non-crashed process `q ∉ F t` in
-`procs.dedup`. -/
-@[expose] def periodicGossipSchedule {P : Type*} [DecidableEq P]
+/-- Zero-delay (`sendTick = t`) all-to-all gossip schedule witnessing non-vacuity of
+`AdmissibleGossipSchedule F`: at each tick `t`, every non-crashed process `p ∉ F t` receives one
+suspect-list packet `⟨q, t⟩` from each non-crashed process `q ∉ F t` in `procs.dedup`. -/
+@[expose] def syncGossipSchedule {P : Type*} [DecidableEq P]
     (F : FailurePattern P) (procs : List P) (p : P) (t : ℕ) : List (GossipPacket P) :=
   if p ∈ F t then []
   else (procs.dedup.filter fun q => decide (q ∉ F t)).map fun q => ⟨q, t⟩
 
-/-- `periodicGossipSchedule F procs` satisfies `AdmissibleGossipSchedule F` whenever `procs` lists
-every process in `P`. -/
-theorem admissible_periodicGossipSchedule {P : Type*} [DecidableEq P]
+/-- Non-vacuity of `AdmissibleGossipSchedule F`: the zero-delay (`sendTick = t`) schedule
+`syncGossipSchedule F procs` satisfies `AdmissibleGossipSchedule F` whenever `procs` lists every
+process in `P`. -/
+theorem admissible_syncGossipSchedule {P : Type*} [DecidableEq P]
     (F : FailurePattern P) {procs : List P} (hprocs : ∀ q : P, q ∈ procs) :
-    AdmissibleGossipSchedule F (periodicGossipSchedule F procs) where
+    AdmissibleGossipSchedule F (syncGossipSchedule F procs) where
   valid_delivery p t pkt hpkt := by
     by_cases hp : p ∈ F t
-    · simp only [periodicGossipSchedule, hp, ↓reduceIte, List.not_mem_nil] at hpkt
-    · simp only [periodicGossipSchedule, hp, ↓reduceIte, List.mem_map, List.mem_filter,
+    · simp only [syncGossipSchedule, hp, ↓reduceIte, List.not_mem_nil] at hpkt
+    · simp only [syncGossipSchedule, hp, ↓reduceIte, List.mem_map, List.mem_filter,
         decide_eq_true_eq] at hpkt
       obtain ⟨q, ⟨_, hq⟩, rfl⟩ := hpkt
       exact ⟨hp, le_rfl, hq⟩
   unique_delivery_tick p t₁ t₂ pkt h₁ h₂ := by
     by_cases hp₁ : p ∈ F t₁
-    · simp only [periodicGossipSchedule, hp₁, ↓reduceIte, List.not_mem_nil] at h₁
+    · simp only [syncGossipSchedule, hp₁, ↓reduceIte, List.not_mem_nil] at h₁
     · by_cases hp₂ : p ∈ F t₂
-      · simp only [periodicGossipSchedule, hp₂, ↓reduceIte, List.not_mem_nil] at h₂
-      · simp only [periodicGossipSchedule, hp₁, hp₂, ↓reduceIte, List.mem_map] at h₁ h₂
+      · simp only [syncGossipSchedule, hp₂, ↓reduceIte, List.not_mem_nil] at h₂
+      · simp only [syncGossipSchedule, hp₁, hp₂, ↓reduceIte, List.mem_map] at h₁ h₂
         obtain ⟨_, _, heq₁⟩ := h₁
         obtain ⟨_, _, heq₂⟩ := h₂
         have ht₁ : t₁ = pkt.sendTick := congrArg GossipPacket.sendTick heq₁
@@ -562,31 +573,8 @@ theorem admissible_periodicGossipSchedule {P : Type*} [DecidableEq P]
     refine ⟨t₀, t₀, le_rfl, le_rfl, ?_⟩
     have hp₀ : p ∉ F t₀ := hp t₀
     have hq₀ : q ∉ F t₀ := hq t₀
-    simp only [periodicGossipSchedule, hp₀, ↓reduceIte, List.mem_map, List.mem_filter,
+    simp only [syncGossipSchedule, hp₀, ↓reduceIte, List.mem_map, List.mem_filter,
       List.mem_dedup, decide_eq_true_eq]
     exact ⟨q, ⟨hprocs q, hq₀⟩, rfl⟩
-
-/-- Concrete completeness-boosting transducer evaluating `gossipHistory` along
-`periodicGossipSchedule F procs`. -/
-@[expose] def boostHistory {P : Type*} [DecidableEq P]
-    (F : FailurePattern P) (procs : List P) (H : DetectorHistory P) : DetectorHistory P :=
-  gossipHistory H (periodicGossipSchedule F procs)
-
-/-- Concrete `W → S` gossip reduction via `boostHistory` (step after
-[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]). -/
-theorem boostHistory_isStrong_of_isWeak {P : Type*} [Finite P] [DecidableEq P]
-    {F : FailurePattern P} {procs : List P} (hprocs : ∀ q : P, q ∈ procs)
-    {H : DetectorHistory P} (hW : IsWeak F H) :
-    IsStrong F (boostHistory F procs H) :=
-  gossipHistory_isStrong_of_isWeak (admissible_periodicGossipSchedule F hprocs) hW
-
-/-- Concrete `◇W → ◇S` gossip reduction via `boostHistory` (step after
-[Chandra and Toueg, Theorem 3.4, p. 237][ChandraToueg1996]). -/
-theorem boostHistory_isEventuallyStrong_of_isEventuallyWeak {P : Type*} [Finite P] [DecidableEq P]
-    {F : FailurePattern P} {procs : List P} (hprocs : ∀ q : P, q ∈ procs)
-    {H : DetectorHistory P} (hEW : IsEventuallyWeak F H) :
-    IsEventuallyStrong F (boostHistory F procs H) :=
-  gossipHistory_isEventuallyStrong_of_isEventuallyWeak
-    (admissible_periodicGossipSchedule F hprocs) hEW
 
 end Cslib.Distributed.FailureDetectors

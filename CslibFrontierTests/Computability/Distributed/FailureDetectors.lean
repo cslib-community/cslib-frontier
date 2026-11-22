@@ -82,13 +82,13 @@ theorem fin3Leader_isEventuallyLeader :
   · have hlt : ¬ t' < 4 := by omega
     simp only [fin3Leader, hlt, ↓reduceIte]
 
--- Complement transformation `T_{Ω → ◇W}` yields `IsEventuallyStrong` (`◇S`), while violating
--- perpetual `StrongAccuracy` because correct process `1` is suspected at `t = 0`.
+-- Pure history-map step `LeaderHistory.toDetectorHistory` yields `IsEventuallyStrong` (`◇S`),
+-- while violating perpetual `StrongAccuracy` because correct process `1` is suspected at `t = 0`.
 example :
     let F := FailurePattern.const ({2} : Finset (Fin 3))
     IsEventuallyStrong F fin3Leader.toDetectorHistory ∧
     ¬ StrongAccuracy F fin3Leader.toDetectorHistory := by
-  refine ⟨fin3Leader_isEventuallyLeader.isEventuallyStrong, fun hSA => ?_⟩
+  refine ⟨fin3Leader_isEventuallyLeader.toDetectorHistory_isEventuallyStrong, fun hSA => ?_⟩
   have hmem : (1 : Fin 3) ∈ fin3Leader.toDetectorHistory 0 0 := by decide
   exact hSA 0 1 (by decide) 0 (by decide) hmem
 
@@ -131,20 +131,21 @@ example :
     G 1 4 = {2} := by
   decide
 
--- Constructive `boostHistory` upgrades `W → S` and `◇W → ◇S` on `Fin 3`.
+-- `gossipHistory` along `syncGossipSchedule` upgrades `W → S` and `◇W → ◇S` on `Fin 3`.
 example (F : FailurePattern (Fin 3)) (H : DetectorHistory (Fin 3)) (hW : IsWeak F H) :
-    IsStrong F (boostHistory F (List.finRange 3) H) :=
-  boostHistory_isStrong_of_isWeak List.mem_finRange hW
+    IsStrong F (gossipHistory H (syncGossipSchedule F (List.finRange 3))) :=
+  gossipHistory_isStrong_of_isWeak (admissible_syncGossipSchedule F List.mem_finRange) hW
 
 example (F : FailurePattern (Fin 3)) (H : DetectorHistory (Fin 3)) (hEW : IsEventuallyWeak F H) :
-    IsEventuallyStrong F (boostHistory F (List.finRange 3) H) :=
-  boostHistory_isEventuallyStrong_of_isEventuallyWeak List.mem_finRange hEW
+    IsEventuallyStrong F (gossipHistory H (syncGossipSchedule F (List.finRange 3))) :=
+  gossipHistory_isEventuallyStrong_of_isEventuallyWeak
+    (admissible_syncGossipSchedule F List.mem_finRange) hEW
 
 /-! ### 2-round `Fin 3, t = 1` execution of `ctRoundProtocol`: lying detector, split ts, decision -/
 
-/-- Concrete `ctRoundProtocol` instance on `Fin 3` (`t = 1`, `2 * 1 < 3`). -/
+/-- Concrete `t`-oblivious `ctRoundProtocol` instance on `Fin 3` (`qSize = 3 / 2 + 1 = 2`). -/
 def fin3CTProto : FDAsyncRoundProtocol (Fin 3) Bool (CTState Bool) (CTMsg Bool) :=
-  ctRoundProtocol (Fin 3) Bool (List.finRange 3) 0 1
+  ctRoundProtocol (Fin 3) Bool (List.finRange 3) 0
 
 /-- Initial inputs: `0 ↦ true`, `1 ↦ false`, `2 ↦ false`. -/
 def fin3Inputs : Fin 3 → Bool
@@ -263,37 +264,43 @@ example (tick : ℕ → ℕ) (deliver : ℕ → Fin 3 → Fin 3 → Bool) :
     ⟨0, fun _ => by simp only [fin3Crash2, FailurePattern.const_apply, mem_singleton]; decide⟩
     ⟨2, 0, by simp only [fin3Crash2, FailurePattern.const_apply, mem_singleton]⟩
 
--- Unconditional uniform agreement and validity over infinite `V = ℕ` even under the maximally
--- Byzantine failure detector `fun _ _ => Finset.univ` that suspects everyone at every tick!
-example (F : FailurePattern (Fin 3)) (tick : ℕ → ℕ) (deliver : ℕ → Fin 3 → Fin 3 → Bool)
-    (x : Fin 3 → ℕ) (k₁ k₂ : ℕ) (p₁ p₂ : Fin 3) (v₁ v₂ : ℕ)
-    (h₁ : (ctRoundProtocol (Fin 3) ℕ (List.finRange 3) 0 1).decision
+-- Unconditional uniform agreement and validity of `t`-oblivious `ctRoundProtocol` over infinite
+-- `V = ℕ` (requiring no fault-count bound, e.g. even on `Fin 2` where `2 * 1 = 2`!) and even under
+-- the maximally Byzantine failure detector `fun _ _ => Finset.univ` that suspects everyone!
+example (F : FailurePattern (Fin 2)) (tick : ℕ → ℕ) (deliver : ℕ → Fin 2 → Fin 2 → Bool)
+    (x : Fin 2 → ℕ) (k₁ k₂ : ℕ) (p₁ p₂ : Fin 2) (v₁ v₂ : ℕ)
+    (h₁ : (ctRoundProtocol (Fin 2) ℕ (List.finRange 2) 0).decision
       F (fun _ _ => Finset.univ) tick deliver x k₁ p₁ = some v₁)
-    (h₂ : (ctRoundProtocol (Fin 3) ℕ (List.finRange 3) 0 1).decision
+    (h₂ : (ctRoundProtocol (Fin 2) ℕ (List.finRange 2) 0).decision
       F (fun _ _ => Finset.univ) tick deliver x k₂ p₂ = some v₂) :
     v₁ = v₂ ∧ (∃ q, x q = v₁) :=
-  ⟨ctRoundProtocol_uniform_agreement F (fun _ _ => Finset.univ) tick deliver x (by decide) h₁ h₂,
+  ⟨ctRoundProtocol_uniform_agreement F (fun _ _ => Finset.univ) tick deliver x h₁ h₂,
     ctRoundProtocol_validity F (fun _ _ => Finset.univ) tick deliver x h₁⟩
 
--- Full `SolvesFDAsyncRoundConsensus` instances on `Fin 3, t = 1` (`Bool` and `ℕ`) and
--- `Fin 5, t = 2` (`ℕ`).
+-- Full `SolvesFDAsyncRoundConsensus` instances: the single `t`-oblivious `ctRoundProtocol` on
+-- `Fin 5` solves consensus simultaneously for `t = 0`, `t = 1`, and `t = 2`!
 example : fin3CTProto.SolvesFDAsyncRoundConsensus 1 IsEventuallyStrong :=
   solvesFDAsyncRoundConsensus_ctRoundProtocol List.mem_finRange 0 (by decide)
 
-example : (ctRoundProtocol (Fin 5) ℕ (List.finRange 5) 0 2).SolvesFDAsyncRoundConsensus
-    2 IsEventuallyStrong :=
-  solvesFDAsyncRoundConsensus_ctRoundProtocol List.mem_finRange 0 (by decide)
+example :
+    let π := ctRoundProtocol (Fin 5) ℕ (List.finRange 5) 0
+    π.SolvesFDAsyncRoundConsensus 1 IsEventuallyStrong ∧
+    π.SolvesFDAsyncRoundConsensus 2 IsEventuallyStrong :=
+  ⟨solvesFDAsyncRoundConsensus_ctRoundProtocol List.mem_finRange 0 (by decide),
+    solvesFDAsyncRoundConsensus_ctRoundProtocol List.mem_finRange 0 (by decide)⟩
 
--- End-to-end termination under `◇W` (`IsEventuallyWeak`) composed with `periodicGossipSchedule`.
+-- End-to-end termination under `◇W` (`IsEventuallyWeak`) composed with `syncGossipSchedule`.
 example (F : FailurePattern (Fin 3)) (H : DetectorHistory (Fin 3)) (hEW : IsEventuallyWeak F H)
     (tick : ℕ → ℕ) (deliver : ℕ → Fin 3 → Fin 3 → Bool)
-    (hadm : AdmissibleFDNetwork F (boostHistory F (List.finRange 3) H) 1 tick deliver)
+    (hadm : AdmissibleFDNetwork F
+      (gossipHistory H (syncGossipSchedule F (List.finRange 3))) 1 tick deliver)
     (x : Fin 3 → ℕ) :
     ∃ kStar, ∀ p ∈ F.Correct,
-      ((ctRoundProtocol (Fin 3) ℕ (List.finRange 3) 0 1).decision F
-        (boostHistory F (List.finRange 3) H) tick deliver x kStar p).isSome = true :=
+      ((ctRoundProtocol (Fin 3) ℕ (List.finRange 3) 0).decision F
+        (gossipHistory H (syncGossipSchedule F (List.finRange 3))) tick deliver x
+        kStar p).isSome = true :=
   ctRoundProtocol_terminates_of_isEventuallyWeak_gossip List.mem_finRange 0 (by decide) hEW
-    (admissible_periodicGossipSchedule F List.mem_finRange) hadm x
+    (admissible_syncGossipSchedule F List.mem_finRange) hadm x
 
 -- `2 ≤ |P| ≤ 2t` impossibility even under `◇P` (`IsEventuallyPerfect`) on `Fin 2, t = 1` and
 -- `Fin 4, t = 2`.

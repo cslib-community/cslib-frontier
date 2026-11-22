@@ -18,8 +18,10 @@ import Mathlib.Data.Finset.Lattice.Fold
 
 Formalizes crash failure patterns, suspect-set failure detector histories, completeness and accuracy
 properties, the eight failure detector classes of [Chandra and Toueg, §§2.1–2.4][ChandraToueg1996],
-and the eventual-leader oracle `Ω` of
-[Chandra, Hadzilacos and Toueg, §5][ChandraHadzilacosToueg1996].
+and the `Ω` eventual-leader history predicate and pure history-map step
+`LeaderHistory.toDetectorHistory` toward #7503 (after
+[Chandra, Hadzilacos and Toueg, §5][ChandraHadzilacosToueg1996]; their asynchronous automaton
+transformation `T_{Ω → ◇W}` is not formalized here).
 
 ## Mathematical overview
 
@@ -37,7 +39,7 @@ Over a process type `P` and discrete global clock ticks `t : ℕ`:
   `EventualWeakAccuracy`) yields the eight classes `P, S, ◇P, ◇S, Q, W, ◇Q, ◇W`
   ([§2.4, Figure 1, p. 234][ChandraToueg1996]). On finite `P`, the correct-process and alive-process
   formulations of eventual accuracy coincide (`eventualStrongAccuracy_iff_alive`,
-  `eventualWeakAccuracy_iff_alive`, proving the observation of [§2.3, p. 233][ChandraToueg1996]).
+  `eventualWeakAccuracy_iff_alive`, characterizing the §2.3 definitions on p. 233).
 * Before distributed gossip reduction (see
   `CslibFrontier.Computability.Distributed.FailureDetectors.Reduction`), raw history inclusion over
   admissible failure patterns (`F.Correct.Nonempty`) forms a 3-dimensional Boolean lattice
@@ -60,28 +62,29 @@ Over a process type `P` and discrete global clock ticks `t : ℕ`:
 * `Cslib.Distributed.FailureDetectors.DetectorClass`: enum of the eight classes equipped with its
   product Boolean lattice structure (`⊥ = .P`, `⊤ = .EW`) and satisfaction relation `Sat`.
 * `Cslib.Distributed.FailureDetectors.LeaderHistory`, `IsEventuallyLeader`,
-  `LeaderHistory.toDetectorHistory`: the `Ω` eventual-leader oracle and complement transformation
-  `H p t = univ \ {L p t}`
-  ([Chandra, Hadzilacos and Toueg, §5, p. 694][ChandraHadzilacosToueg1996]).
+  `LeaderHistory.toDetectorHistory`: the `Ω` eventual-leader history predicate and pure history-map
+  step `H p t = univ \ {L p t}` toward #7503 (after
+  [Chandra, Hadzilacos and Toueg, §5, p. 694][ChandraHadzilacosToueg1996]).
 
 ## Main results
 
-* `Cslib.Distributed.FailureDetectors.FailurePattern.exists_stabilize`: on finite `P`, every
-  `FailurePattern P` stabilizes to `F.Crashed` at a finite tick `t₀`.
+* `Cslib.Distributed.FailureDetectors.FailurePattern.exists_stabilize`: interface characterization
+  on finite `P` showing every `FailurePattern P` stabilizes to `F.Crashed` at a finite tick `t₀`.
 * `Cslib.Distributed.FailureDetectors.eventualStrongAccuracy_iff_alive`,
-  `Cslib.Distributed.FailureDetectors.eventualWeakAccuracy_iff_alive`: equivalence of correct-only
-  and alive-at-`t'` formulations of eventual accuracy ([§2.3, p. 233][ChandraToueg1996]).
+  `Cslib.Distributed.FailureDetectors.eventualWeakAccuracy_iff_alive`: interface characterizations
+  equating the `F.Correct` and alive-at-`t'` formulations of eventual accuracy on finite `P`.
 * `Cslib.Distributed.FailureDetectors.DetectorClass.sat_mono`,
-  `Cslib.Distributed.FailureDetectors.DetectorClass.forall_sat_imp_iff_le`: soundness and exact
-  completeness (`3 ≤ Fintype.card P`) of the 8-class raw-history inclusion lattice, supported by
-  explicit separating histories (`exists_isEventuallyPerfect_not_isWeakAccuracy`,
+  `Cslib.Distributed.FailureDetectors.DetectorClass.forall_sat_imp_iff_le`: original soundness and
+  exact completeness (`3 ≤ Fintype.card P`) of the 8-class raw-history inclusion lattice, supported
+  by explicit separating histories (`exists_isEventuallyPerfect_not_isWeakAccuracy`,
   `exists_isStrong_not_isEventualStrongAccuracy`,
   `exists_isQuasiPerfect_not_isStrongCompleteness`).
 * `Cslib.Distributed.FailureDetectors.weakCompleteness_iff_strongCompleteness_of_card_le_two`:
-  collapse of weak and strong completeness when `Fintype.card P ≤ 2` and `F.Correct.Nonempty`.
-* `Cslib.Distributed.FailureDetectors.IsEventuallyLeader.isEventuallyStrong`: history-level
-  complement step `Ω → ◇S` (and `◇W`, after
-  [Chandra, Hadzilacos and Toueg, Theorem 5.1, p. 694][ChandraHadzilacosToueg1996], part of #7503).
+  original collapse of weak and strong completeness when `Fintype.card P ≤ 2` and
+  `F.Correct.Nonempty`.
+* `Cslib.Distributed.FailureDetectors.IsEventuallyLeader.toDetectorHistory_isEventuallyStrong`:
+  pure history-map step `Ω → ◇S` for #7503 (after
+  [Chandra, Hadzilacos and Toueg, Theorem 5.1, p. 694][ChandraHadzilacosToueg1996]).
 
 ## References
 
@@ -174,9 +177,10 @@ theorem correct_const (S : Finset P) : (const S).Correct = (S : Set P)ᶜ := by
   ext p
   simp only [mem_correct_iff, const_apply, forall_const, Set.mem_compl_iff, mem_coe]
 
-/-- **Finite-time crash stabilization** ([Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]): over
-a finite process set `P`, there is a tick `t₀` from which onward `F t` contains every process in
-`F.Crashed` (equivalently `p ∉ F t ↔ p ∈ F.Correct`). -/
+/-- Interface characterization of `FailurePattern` on a finite process set `P` (capturing the
+stabilization remark in [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]): there is a tick `t₀`
+from which onward `F t` contains every process in `F.Crashed` (equivalently
+`p ∉ F t ↔ p ∈ F.Correct`). -/
 theorem exists_stabilize [Finite P] (F : FailurePattern P) :
     ∃ t₀, ∀ t, t₀ ≤ t → (∀ p, p ∈ F t ↔ p ∈ F.Crashed) ∧ (∀ p, p ∉ F t ↔ p ∈ F.Correct) := by
   classical
@@ -263,9 +267,9 @@ time after which some correct process is never suspected by any correct process.
 
 /-! #### Equivalence of alive-process and correct-process eventual accuracy on finite `P` -/
 
-/-- Proves the observation of [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]: on a finite
-process set `P`, eventual strong accuracy stated over `F.Correct` is equivalent to requiring
-`∀ p ∉ F t', ∀ q ∉ F t', p ∉ H q t'` after some time `t`. -/
+/-- Interface characterization of `EventualStrongAccuracy` on finite `P` (capturing the definition
+equivalence noted in [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]): quantifying over
+`F.Correct` is equivalent to quantifying over processes alive at `t'` (`p ∉ F t'`, `q ∉ F t'`). -/
 theorem eventualStrongAccuracy_iff_alive [Finite P] (F : FailurePattern P)
     (H : DetectorHistory P) :
     EventualStrongAccuracy F H ↔ ∃ t, ∀ t', t ≤ t' → ∀ p ∉ F t', ∀ q ∉ F t', p ∉ H q t' := by
@@ -278,8 +282,10 @@ theorem eventualStrongAccuracy_iff_alive [Finite P] (F : FailurePattern P)
   · rintro ⟨t, ht⟩
     exact ⟨t, fun t' ht' p hp q hq => ht t' ht' p (hp t') q (hq t')⟩
 
-/-- Alive-process characterization of `EventualWeakAccuracy` on finite `P`
-([Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]). -/
+/-- Interface characterization of `EventualWeakAccuracy` on finite `P` (analogous to
+`eventualStrongAccuracy_iff_alive`, [Chandra and Toueg, §2.3, p. 233][ChandraToueg1996]):
+quantifying over correct observers `q ∈ F.Correct` is equivalent to quantifying over alive observers
+`q ∉ F t'`. -/
 theorem eventualWeakAccuracy_iff_alive [Finite P] (F : FailurePattern P)
     (H : DetectorHistory P) :
     EventualWeakAccuracy F H ↔
@@ -556,8 +562,8 @@ pair on `(F, H)`. -/
   | .EQ, F, H => IsEventuallyQuasiPerfect F H
   | .EW, F, H => IsEventuallyWeak F H
 
-/-- **Soundness of the 8-class inclusion lattice:** over any admissible failure pattern
-(`F.Correct.Nonempty`), `c₁ ≤ c₂` implies `c₁.Sat F H → c₂.Sat F H`. -/
+/-- Original soundness of the 8-class raw-history inclusion lattice: over any admissible failure
+pattern (`F.Correct.Nonempty`), `c₁ ≤ c₂` implies `c₁.Sat F H → c₂.Sat F H`. -/
 theorem sat_mono {P : Type*} {c₁ c₂ : DetectorClass} (hle : c₁ ≤ c₂)
     {F : FailurePattern P} (hcorr : F.Correct.Nonempty) {H : DetectorHistory P}
     (hsat : c₁.Sat F H) : c₂.Sat F H := by
@@ -815,13 +821,14 @@ process `p` suspects every process except its currently trusted leader `L p t`. 
     (L : LeaderHistory P) : DetectorHistory P :=
   fun p t => Finset.univ.erase (L p t)
 
-/-- **History-level complement step `Ω → ◇S`** (step for #7503, strengthening the history map behind
-`T_{Ω → ◇W}` in [Chandra, Hadzilacos and Toueg, Theorem 5.1, p. 694][ChandraHadzilacosToueg1996],
-where the full theorem is stated over event-driven asynchronous automata `(F, H_Ω, I, S, T)`):
-suspecting `univ \ {L p t}` converts any `Ω` history `L` into an `IsEventuallyStrong` (`◇S`)
-detector history, and hence an `IsEventuallyWeak` (`◇W`) detector history. -/
-theorem IsEventuallyLeader.isEventuallyStrong {P : Type*} [Fintype P] [DecidableEq P]
-    {F : FailurePattern P} {L : LeaderHistory P} (hL : IsEventuallyLeader F L) :
+/-- Pure history-map step for #7503 (after the history map behind `T_{Ω → ◇W}` in
+[Chandra, Hadzilacos and Toueg, Theorem 5.1, p. 694][ChandraHadzilacosToueg1996]; their full theorem
+is stated over event-driven asynchronous automata `(F, H_Ω, I, S, T)`): suspecting
+`univ \ {L p t}` via `LeaderHistory.toDetectorHistory` converts any `Ω` history `L` into an
+`IsEventuallyStrong` (`◇S`) detector history. -/
+theorem IsEventuallyLeader.toDetectorHistory_isEventuallyStrong {P : Type*}
+    [Fintype P] [DecidableEq P] {F : FailurePattern P} {L : LeaderHistory P}
+    (hL : IsEventuallyLeader F L) :
     IsEventuallyStrong F L.toDetectorHistory := by
   obtain ⟨t, qStar, hqStar, htrust⟩ := hL
   refine ⟨⟨t, fun p hp q hq t' ht' => ?_⟩, ⟨t, qStar, hqStar, fun t' ht' q hq => ?_⟩⟩
@@ -831,12 +838,5 @@ theorem IsEventuallyLeader.isEventuallyStrong {P : Type*} [Fintype P] [Decidable
       not_false_eq_true, mem_univ, and_self]
   · simp only [LeaderHistory.toDetectorHistory, htrust q hq t' ht', mem_erase, ne_eq, not_true,
       false_and, not_false_eq_true]
-
-/-- History-level complement step `Ω → ◇W` (step for #7503, after
-[Chandra, Hadzilacos and Toueg, Theorem 5.1, p. 694][ChandraHadzilacosToueg1996]). -/
-theorem IsEventuallyLeader.isEventuallyWeak {P : Type*} [Fintype P] [DecidableEq P]
-    {F : FailurePattern P} {L : LeaderHistory P} (hL : IsEventuallyLeader F L) :
-    IsEventuallyWeak F L.toDetectorHistory :=
-  hL.isEventuallyStrong.toEventuallyWeak
 
 end Cslib.Distributed.FailureDetectors

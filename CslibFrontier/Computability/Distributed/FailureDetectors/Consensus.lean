@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.Distributed.FailureDetectors.Reduction
 import Mathlib.Data.List.Dedup
+import Mathlib.Order.WellFounded
 
 /-!
 # Asynchronous-Round `◇S` Consensus and `|P| ≤ 2t` Resilience Lower Bound
@@ -40,17 +41,30 @@ under adversarial per-subround link delivery `deliver : ℕ → P → P → Bool
 Within this unified `FDAsyncRoundProtocol` interface we prove both directions of the `2 * t < |P|`
 resilience threshold:
 
-* **4-stage rotating-coordinator `◇S` protocol (`ctRoundProtocol`, `2 * t < Fintype.card P`):**
+* **`t`-oblivious 4-stage rotating-coordinator `◇S` protocol (`ctRoundProtocol`):**
+  Matches [Chandra and Toueg, §6.2, Figure 6, p. 243, and remark on p. 244][ChandraToueg1996] in
+  being `t`-oblivious, waiting for strict-majority quorums of size `Fintype.card P / 2 + 1`
+  (`⌈(n + 1)/2⌉`). Relative to Figure 6, this asynchronous-round realization incorporates two
+  intentional adaptations: (i) `0`-indexed rounds `r = k / 4` storing updated timestamps
+  `ts := r + 1` so `0` remains the unupdated initial timestamp (`ts_p ← 0`), and (ii) lockstep
+  global subrounds `k` with a Subround-`3` (`k % 4 = 3`) `.phase4 s.decided` broadcast by all
+  decided processes in place of skewed-round execution and Figure 4's asynchronous diffusion
+  `R-broadcast`.
   * **Unconditional safety (`ctRoundProtocol_irrevocable`, `ctRoundProtocol_validity`,
-    `ctRoundProtocol_uniform_agreement`):** holds for `2 * t < Fintype.card P` across **all**
-    failure patterns `F`, **all** detector histories `H` (including arbitrarily Byzantine/lying
-    detectors that suspect everyone or no one), **all** clock maps `tick`, and **all** delivery
-    tables `deliver`, via timestamp-locking quorum intersection (`|Q₁ ∩ Q₂| ≥ |P| - 2t ≥ 1`).
-  * **Conditional termination under `◇S` and `◇W`
-    (`ctRoundProtocol_terminates_of_isEventuallyStrong`,
-    `ctRoundProtocol_terminates_of_isEventuallyWeak_gossip`):** once global time passes crash
+    `ctRoundProtocol_lock_preservation`, `ctRoundProtocol_uniform_agreement`):** holds without any
+    fault-count assumption across **all** `P`, **all** failure patterns `F`, **all** detector
+    histories `H` (including arbitrarily Byzantine/lying detectors that suspect everyone or no one),
+    **all** clock maps `tick`, and **all** delivery tables `deliver`, because any two strict
+    majorities of size `≥ |P| / 2 + 1` intersect (`|Q₁ ∩ Q₂| ≥ 1`).
+  * **Conditional termination under `◇S` and `◇W` (`2 * t < Fintype.card P`,
+    `ctRoundProtocol_terminates_of_isEventuallyStrong`,
+    `ctRoundProtocol_terminates_of_isEventuallyWeak_gossip`):** when `2 * t < Fintype.card P`, we
+    have `Fintype.card P / 2 + 1 ≤ Fintype.card P - t`, so once global time passes crash
     stabilization and eventual-weak-accuracy stabilization for an unsuspected correct process `q*`,
-    the next coordinator turn of `q*` gathers `≥ |P| - t` `ack`s and decides across all `F.Correct`.
+    the next coordinator turn of `q*` gathers `≥ |P| / 2 + 1` `ack`s and decides across all
+    `F.Correct`. Thus a single `t`-oblivious `ctRoundProtocol P V procs fallback` solves
+    `SolvesFDAsyncRoundConsensus t IsEventuallyStrong` simultaneously for every `t` with
+    `2 * t < Fintype.card P`.
 * **Resilience tightness (`not_solvesFDAsyncRoundConsensus_eventuallyPerfect`):** when
   `2 ≤ Fintype.card P ≤ 2 * t` and `[Nontrivial V]`, partitioning `P` into `A₀` and `A₁` of size
   `≤ t` (each of size `≥ |P| - t`) shows that **no** `FDAsyncRoundProtocol` solves `t`-resilient
@@ -74,9 +88,10 @@ Event-driven step-schedule realizations of Figures 5–6 and the valence-DAG nec
 * `Cslib.Distributed.FailureDetectors.ownInputFDProtocol`: zero-communication protocol for
   `Fintype.card P ≤ 1`.
 * `Cslib.Distributed.FailureDetectors.rotatingCoordinator`, `CTState`, `CTMsg`,
-  `ctRoundProtocol`: 4-subround rotating-coordinator `◇S` consensus protocol after Figure 6.
-* `Cslib.Distributed.FailureDetectors.LockedInRound`: round-`r` quorum-locking invariant on
-  `(r, v)`.
+  `ctRoundProtocol`: `t`-oblivious 4-subround rotating-coordinator `◇S` consensus protocol after
+  Figure 6.
+* `Cslib.Distributed.FailureDetectors.LockedInRound`: round-`r` strict-majority quorum-locking
+  invariant on `(r, v)`.
 
 ## Main results
 
@@ -88,13 +103,13 @@ Event-driven step-schedule realizations of Figures 5–6 and the valence-DAG nec
   `Cslib.Distributed.FailureDetectors.ctRoundProtocol_validity`,
   `Cslib.Distributed.FailureDetectors.ctRoundProtocol_lock_preservation`,
   `Cslib.Distributed.FailureDetectors.ctRoundProtocol_uniform_agreement`: unconditional safety of
-  `ctRoundProtocol` for `2 * t < Fintype.card P` under arbitrary `F, H, tick, deliver` (step after
-  Lemma 6.2.1, pp. 244–245).
+  `ctRoundProtocol` under arbitrary `F, H, tick, deliver` without any `t` bound (step after Lemma
+  6.2.1, pp. 244–245).
 * `Cslib.Distributed.FailureDetectors.ctRoundProtocol_terminates_of_isEventuallyStrong`,
   `Cslib.Distributed.FailureDetectors.solvesFDAsyncRoundConsensus_ctRoundProtocol`,
   `Cslib.Distributed.FailureDetectors.ctRoundProtocol_terminates_of_isEventuallyWeak_gossip`:
-  termination under `◇S` and gossip-boosted `◇W` (steps after Lemma 6.2.2, Theorem 6.2.3, and
-  Corollary 6.2.4, pp. 245–247).
+  termination under `◇S` and gossip-boosted `◇W` for `2 * t < Fintype.card P` (steps after Lemma
+  6.2.2, Theorem 6.2.3, and Corollary 6.2.4, pp. 245–247).
 * `Cslib.Distributed.FailureDetectors.not_solvesFDAsyncRoundConsensus_eventuallyPerfect`,
   `Cslib.Distributed.FailureDetectors.exists_solvesFDAsyncRoundConsensus_eventuallyStrong_iff`,
   `Cslib.Distributed.FailureDetectors.exists_solvesFDAsyncRoundConsensus_eventuallyPerfect_iff`:
@@ -135,12 +150,8 @@ structure FDAsyncRoundProtocol (P V State Msg : Type*) where
   /-- Optional decision read from local state (`none` while undecided). -/
   output : P → State → Option V
 
-private theorem strictMono_id_le {f : ℕ → ℕ} (hf : StrictMono f) : ∀ k, k ≤ f k
-  | 0 => Nat.zero_le _
-  | k + 1 => Nat.succ_le_of_lt (lt_of_le_of_lt (strictMono_id_le hf k) (hf (Nat.lt_succ_self k)))
-
 /-- Asynchronous network admissibility for subround clock `tick` and link schedule `deliver` under
-failure pattern `F`, detector history `H`, and fault budget `t`:
+failure pattern `F`, detector history `H`, and fault budget `t` (step network model for #7503):
 * `tick_strictMono`: subround completion ticks advance strictly (`k ≤ tick k`).
 * `wait_or_suspect`: for each correct recipient `p ∈ F.Correct` and process `q`, either `q` is
   non-crashed at `tick k` and delivers to `p`, or `p` suspects `q` at `tick k` (`q ∈ H p (tick k)`).
@@ -171,9 +182,9 @@ theorem AdmissibleFDNetwork.deliver_of_notMem {P : Type*} [Fintype P] [Decidable
   · exact hdel
   · exact absurd hsusp hns
 
-/-- **Sufficiency of `StrongCompleteness` for admissible asynchronous schedules:** whenever
-`∀ s, (F s).card ≤ t` and `StrongCompleteness F H` holds, shifting `tick k := T_sc + k` with full
-delivery between alive processes yields an `AdmissibleFDNetwork`. -/
+/-- Asynchronous-round step for #7503 (after [Chandra and Toueg, §6.2, p. 243][ChandraToueg1996]):
+whenever `∀ s, (F s).card ≤ t` and `StrongCompleteness F H` holds, shifting `tick k := T_sc + k`
+with full delivery between alive processes yields an `AdmissibleFDNetwork`. -/
 theorem exists_admissibleFDNetwork_of_strongCompleteness {P : Type*} [Fintype P] [DecidableEq P]
     {F : FailurePattern P} {H : DetectorHistory P} {t : ℕ}
     (hF : ∀ s, (F s).card ≤ t) (hSC : StrongCompleteness F H) :
@@ -195,9 +206,9 @@ theorem exists_admissibleFDNetwork_of_strongCompleteness {P : Type*} [Fintype P]
     simp only [card_univ] at hcard
     omega
 
-/-- **Necessity of crash suspicion for unblocked waiting:** if any process crashes in `F` while
-`F.Correct.Nonempty`, the blind detector `fun _ _ => ∅` admits **no** `AdmissibleFDNetwork` (every
-correct process eventually blocks waiting for the crashed process). -/
+/-- Asynchronous-round step for #7503: if any process crashes in `F` while `F.Correct.Nonempty`,
+the blind detector `fun _ _ => ∅` admits no `AdmissibleFDNetwork` (every correct process eventually
+blocks waiting for the crashed process). -/
 theorem not_admissibleFDNetwork_emptyDetector_of_crashed {P : Type*} [Fintype P] [DecidableEq P]
     {F : FailurePattern P} {t : ℕ} (hcorr : F.Correct.Nonempty) (hcrash : F.Crashed.Nonempty)
     {tick : ℕ → ℕ} {deliver : ℕ → P → P → Bool} :
@@ -205,7 +216,7 @@ theorem not_admissibleFDNetwork_emptyDetector_of_crashed {P : Type*} [Fintype P]
   intro hadm
   obtain ⟨p, hp⟩ := hcorr
   obtain ⟨q, t_c, hq_c⟩ := hcrash
-  have hge : t_c ≤ tick t_c := strictMono_id_le hadm.tick_strictMono t_c
+  have hge : t_c ≤ tick t_c := hadm.tick_strictMono.id_le t_c
   have hq_dead : q ∈ F (tick t_c) := F.mem_of_le hge hq_c
   rcases hadm.wait_or_suspect t_c p hp q with ⟨hq_alive, _⟩ | hsusp
   · exact hq_alive hq_dead
@@ -303,6 +314,9 @@ private theorem ownInputFDProtocol_decision {P V : Type*} [DecidableEq P]
   simp only [FDAsyncRoundProtocol.decision, ownInputFDProtocol_state]
   rfl
 
+/-- Original base-case helper for #7503: when `P` is a subsingleton (`Fintype.card P ≤ 1`),
+`ownInputFDProtocol` solves `SolvesFDAsyncRoundConsensus` for any fault budget `t` and detector
+predicate `DetPred`. -/
 theorem solvesFDAsyncRoundConsensus_ownInput {P V : Type*} [Fintype P] [DecidableEq P]
     [Subsingleton P] (t : ℕ) (DetPred : FailurePattern P → DetectorHistory P → Prop) :
     (ownInputFDProtocol P V).SolvesFDAsyncRoundConsensus t DetPred where
@@ -466,13 +480,14 @@ inductive CTMsg (V : Type*) where
   | 2 => .phase3 s.reply
   | _ => .phase4 s.decided
 
-/-- State transition of `ctRoundProtocol` in subround `k` (`r = k / 4`, phase `k % 4`). -/
+/-- State transition of `ctRoundProtocol` in subround `k` (`r = k / 4`, phase `k % 4`), using the
+`t`-oblivious strict-majority quorum threshold `Fintype.card P / 2 + 1`. -/
 @[expose] def ctUpdate {P V : Type*} [Fintype P] [DecidableEq P]
-    (procs : List P) (fallback : P) (t : ℕ) (k : ℕ) (p : P) (s : CTState V)
+    (procs : List P) (fallback : P) (k : ℕ) (p : P) (s : CTState V)
     (suspected : Finset P) (m : P → Option (CTMsg V)) : CTState V :=
   let r := k / 4
   let c := rotatingCoordinator procs fallback r
-  let qSize := Fintype.card P - t
+  let qSize := Fintype.card P / 2 + 1
   if k % 4 = 0 then
     if p = c then
       let pairs := procs.dedup.filterMap fun j => extractPhase1 (m j)
@@ -504,65 +519,72 @@ inductive CTMsg (V : Type*) where
     let inc := procs.dedup.findSome? fun j => extractDecide (m j)
     { s with decided := s.decided.or inc }
 
-/-- **4-stage rotating-coordinator `◇S` consensus protocol** in `FDAsyncRoundProtocol`
-(asynchronous-round step after [Chandra and Toueg, §6.2, Figure 6, p. 243][ChandraToueg1996]). -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, §6.2, Figure 6, p. 243, and remark on p. 244][ChandraToueg1996]):
+`t`-oblivious 4-subround rotating-coordinator `◇S` consensus protocol waiting for strict-majority
+quorums of size `Fintype.card P / 2 + 1`. Relative to Figure 6, this asynchronous-round realization
+uses `0`-indexed rounds `r = k / 4` storing updated timestamps `ts := r + 1` (so `0` remains the
+unupdated initial timestamp) and lockstep global subrounds `k` with a Subround-`3` (`k % 4 = 3`)
+`.phase4 s.decided` broadcast by all decided processes in place of skewed-round execution and
+Figure 4's asynchronous diffusion `R-broadcast`. -/
 @[expose] def ctRoundProtocol (P V : Type*) [Fintype P] [DecidableEq P]
-    (procs : List P) (fallback : P) (t : ℕ) : FDAsyncRoundProtocol P V (CTState V) (CTMsg V) where
+    (procs : List P) (fallback : P) : FDAsyncRoundProtocol P V (CTState V) (CTMsg V) where
   init _ v := ⟨v, 0, none, none, none⟩
   send := ctSend
-  update := ctUpdate procs fallback t
+  update := ctUpdate procs fallback
   output _ s := s.decided
 
-/-! ### Unconditional safety of `ctRoundProtocol` (`2 * t < Fintype.card P`) -/
+/-! ### Unconditional safety of `ctRoundProtocol` -/
 
-/-- Round-`r` quorum-locking predicate for `ctRoundProtocol`: coordinator `c_r` proposed `(r, v)`
-at the end of Subround `0`, and at least `|P| - t` processes recorded `ack` (`some (r, true)`) at
-the end of Subround `1`. -/
+/-- Round-`r` strict-majority quorum-locking predicate for `ctRoundProtocol`: coordinator `c_r`
+proposed `(r, v)` at the end of Subround `0`, and at least `Fintype.card P / 2 + 1` processes
+recorded `ack` (`some (r, true)`) at the end of Subround `1`. -/
 @[expose] def LockedInRound {P V : Type*} [Fintype P] [DecidableEq P]
-    (procs : List P) (fallback : P) (t : ℕ)
+    (procs : List P) (fallback : P)
     (F : FailurePattern P) (H : DetectorHistory P)
     (tick : ℕ → ℕ) (deliver : ℕ → P → P → Bool) (x : P → V) (r : ℕ) (v : V) : Prop :=
-  let st := (ctRoundProtocol P V procs fallback t).state F H tick deliver x
+  let st := (ctRoundProtocol P V procs fallback).state F H tick deliver x
   (st (4 * r + 1) (rotatingCoordinator procs fallback r)).proposal = some (r, v) ∧
-    ∃ Q : Finset P, Fintype.card P - t ≤ Q.card ∧
+    ∃ Q : Finset P, Fintype.card P / 2 + 1 ≤ Q.card ∧
       ∀ j ∈ Q, (st (4 * r + 2) j).reply = some (r, true)
 
 section Safety
 
 variable {P V : Type*} [Fintype P] [DecidableEq P]
-  {procs : List P} {fallback : P} {t : ℕ}
+  {procs : List P} {fallback : P}
   (F : FailurePattern P) (H : DetectorHistory P)
   (tick : ℕ → ℕ) (deliver : ℕ → P → P → Bool) (x : P → V)
 
-private abbrev ctSt (procs : List P) (fallback : P) (t : ℕ) :=
-  (ctRoundProtocol P V procs fallback t).state F H tick deliver x
+private abbrev ctSt (procs : List P) (fallback : P) :=
+  (ctRoundProtocol P V procs fallback).state F H tick deliver x
 
 private theorem ctSt_zero (p : P) :
-    ctSt F H tick deliver x procs fallback t 0 p = ⟨x p, 0, none, none, none⟩ :=
+    ctSt F H tick deliver x procs fallback 0 p = ⟨x p, 0, none, none, none⟩ :=
   rfl
 
 private theorem ctSt_succ (k : ℕ) (p : P) :
-    ctSt F H tick deliver x procs fallback t (k + 1) p =
-      if p ∈ F (tick k) then ctSt F H tick deliver x procs fallback t k p
-      else ctUpdate procs fallback t k p (ctSt F H tick deliver x procs fallback t k p)
+    ctSt F H tick deliver x procs fallback (k + 1) p =
+      if p ∈ F (tick k) then ctSt F H tick deliver x procs fallback k p
+      else ctUpdate procs fallback k p (ctSt F H tick deliver x procs fallback k p)
         (H p (tick k))
-        ((ctRoundProtocol P V procs fallback t).incoming F tick deliver
-          (ctSt F H tick deliver x procs fallback t k) k p) :=
+        ((ctRoundProtocol P V procs fallback).incoming F tick deliver
+          (ctSt F H tick deliver x procs fallback k) k p) :=
   rfl
 
-/-- **Unconditional irrevocability:** once `decided = some v` at any process `p` (correct or
-faulty), `decided` remains `some v` at all subsequent subrounds, under arbitrary `F, H, tick,
-deliver`. -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, §6.2, Figure 6, p. 243][ChandraToueg1996]): once `decided = some v` at any
+process `p` (correct or faulty) in `ctRoundProtocol`, `decided` remains `some v` at all subsequent
+subrounds under arbitrary `F, H, tick, deliver`. -/
 theorem ctRoundProtocol_irrevocable {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) (v : V)
-    (hdec : (ctRoundProtocol P V procs fallback t).decision F H tick deliver x k₁ p = some v) :
-    (ctRoundProtocol P V procs fallback t).decision F H tick deliver x k₂ p = some v := by
+    (hdec : (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₁ p = some v) :
+    (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₂ p = some v := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
   clear hk
   induction d with
   | zero => simpa only [Nat.add_zero] using hdec
   | succ d ih =>
-    change (ctSt F H tick deliver x procs fallback t (k₁ + d) p).decided = some v at ih
-    change (ctSt F H tick deliver x procs fallback t ((k₁ + d) + 1) p).decided = some v
+    change (ctSt F H tick deliver x procs fallback (k₁ + d) p).decided = some v at ih
+    change (ctSt F H tick deliver x procs fallback ((k₁ + d) + 1) p).decided = some v
     rw [ctSt_succ]
     by_cases hp : p ∈ F (tick (k₁ + d))
     · simp only [hp, ↓reduceIte, ih]
@@ -594,7 +616,7 @@ theorem ctRoundProtocol_irrevocable {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : 
 
 /-- Upper bound `(state k p).ts ≤ (k + 2) / 4` (so `(state (4 * r) p).ts ≤ r`). -/
 private theorem ctSt_ts_le :
-    ∀ (k : ℕ) (p : P), (ctSt F H tick deliver x procs fallback t k p).ts ≤ (k + 2) / 4
+    ∀ (k : ℕ) (p : P), (ctSt F H tick deliver x procs fallback k p).ts ≤ (k + 2) / 4
   | 0, _ => Nat.zero_le _
   | k + 1, p => by
     have ih := ctSt_ts_le k p
@@ -631,8 +653,8 @@ private theorem ctSt_ts_le :
 
 /-- Step-wise monotonicity of local timestamps `ts` in `ctRoundProtocol`. -/
 private theorem ctSt_ts_mono {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) :
-    (ctSt F H tick deliver x procs fallback t k₁ p).ts ≤
-      (ctSt F H tick deliver x procs fallback t k₂ p).ts := by
+    (ctSt F H tick deliver x procs fallback k₁ p).ts ≤
+      (ctSt F H tick deliver x procs fallback k₂ p).ts := by
   obtain ⟨d, rfl⟩ := Nat.exists_eq_add_of_le hk
   clear hk
   induction d with
@@ -640,10 +662,9 @@ private theorem ctSt_ts_mono {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) :
   | succ d ih =>
     refine ih.trans ?_
     let k := k₁ + d
-    have hts_le := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) (t := t)
-      k p
-    change (ctSt F H tick deliver x procs fallback t k p).ts ≤
-      (ctSt F H tick deliver x procs fallback t (k + 1) p).ts
+    have hts_le := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) k p
+    change (ctSt F H tick deliver x procs fallback k p).ts ≤
+      (ctSt F H tick deliver x procs fallback (k + 1) p).ts
     rw [ctSt_succ]
     by_cases hp : p ∈ F (tick k)
     · simp only [hp, ↓reduceIte, le_rfl]
@@ -677,9 +698,9 @@ private theorem ctSt_ts_mono {k₁ k₂ : ℕ} (hk : k₁ ≤ k₂) (p : P) :
 `p = rotatingCoordinator procs fallback r`. -/
 private theorem ctSt_proposal_inv :
     ∀ (k : ℕ) (p : P) (r : ℕ) (v : V),
-      (ctSt F H tick deliver x procs fallback t k p).proposal = some (r, v) →
+      (ctSt F H tick deliver x procs fallback k p).proposal = some (r, v) →
       p = rotatingCoordinator procs fallback r ∧ 4 * r + 1 ≤ k ∧
-        (ctSt F H tick deliver x procs fallback t (4 * r + 1) p).proposal = some (r, v)
+        (ctSt F H tick deliver x procs fallback (4 * r + 1) p).proposal = some (r, v)
   | 0, _, _, _, h => by rw [ctSt_zero] at h; nomatch h
   | k + 1, p, r, v, h => by
     have hstep := h
@@ -704,7 +725,7 @@ private theorem ctSt_proposal_inv :
         · simp only [hpc, ↓reduceIte] at hstep
           nomatch hstep
       · simp only [h0, ↓reduceIte] at hstep
-        have hprev : (ctSt F H tick deliver x procs fallback t k p).proposal = some (r, v) := by
+        have hprev : (ctSt F H tick deliver x procs fallback k p).proposal = some (r, v) := by
           by_cases h1 : k % 4 = 1
           · simp only [h1, ↓reduceIte] at hstep
             split at hstep
@@ -733,19 +754,19 @@ private theorem length_filterMap_eq_length_filter {α β : Type*} (f : α → Op
 /-- Unpacks the Phase-2 maximum-timestamp selection witnessing
 `(state (4 * r + 1) (coordinator r)).proposal = some (r, v)`. -/
 private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
-    (hprop : (ctSt F H tick deliver x procs fallback t (4 * r + 1)
+    (hprop : (ctSt F H tick deliver x procs fallback (4 * r + 1)
       (rotatingCoordinator procs fallback r)).proposal = some (r, v)) :
     ∃ (Q_est : Finset P) (ts_max : ℕ) (j₀ : P),
-      Fintype.card P - t ≤ Q_est.card ∧
+      Fintype.card P / 2 + 1 ≤ Q_est.card ∧
       j₀ ∈ Q_est ∧
-      (ctSt F H tick deliver x procs fallback t (4 * r) j₀).est = v ∧
-      (ctSt F H tick deliver x procs fallback t (4 * r) j₀).ts = ts_max ∧
-      ∀ j ∈ Q_est, (ctSt F H tick deliver x procs fallback t (4 * r) j).ts ≤ ts_max := by
+      (ctSt F H tick deliver x procs fallback (4 * r) j₀).est = v ∧
+      (ctSt F H tick deliver x procs fallback (4 * r) j₀).ts = ts_max ∧
+      ∀ j ∈ Q_est, (ctSt F H tick deliver x procs fallback (4 * r) j).ts ≤ ts_max := by
   let c := rotatingCoordinator procs fallback r
-  let prev := ctSt F H tick deliver x procs fallback t (4 * r)
-  let m₀ := (ctRoundProtocol P V procs fallback t).incoming F tick deliver prev (4 * r) c
+  let prev := ctSt F H tick deliver x procs fallback (4 * r)
+  let m₀ := (ctRoundProtocol P V procs fallback).incoming F tick deliver prev (4 * r) c
   have hstep := hprop
-  change (ctSt F H tick deliver x procs fallback t ((4 * r) + 1) c).proposal = some (r, v) at hstep
+  change (ctSt F H tick deliver x procs fallback ((4 * r) + 1) c).proposal = some (r, v) at hstep
   rw [ctSt_succ] at hstep
   by_cases hc_dead : c ∈ F (tick (4 * r))
   · simp only [hc_dead, ↓reduceIte] at hstep
@@ -755,7 +776,7 @@ private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
     have hd0 : (4 * r) / 4 = r := by omega
     simp only [hc_dead, ↓reduceIte, ctUpdate, hm0, hd0, c] at hstep
     let pairs := procs.dedup.filterMap fun j => extractPhase1 (m₀ j)
-    by_cases hq : Fintype.card P - t ≤ pairs.length
+    by_cases hq : Fintype.card P / 2 + 1 ≤ pairs.length
     · simp only [hq, pairs, m₀, prev, c, ↓reduceIte] at hstep
       cases hsel : selectMaxTs pairs with
       | none =>
@@ -773,7 +794,7 @@ private theorem ctSt_roundProposal_quorum {r : ℕ} {v : V}
         let lQ := procs.dedup.filter fun j => (extractPhase1 (m₀ j)).isSome
         have hlQ_nodup : lQ.Nodup := procs.nodup_dedup.filter _
         let Q_est : Finset P := lQ.toFinset
-        have hQ_card : Fintype.card P - t ≤ Q_est.card := by
+        have hQ_card : Fintype.card P / 2 + 1 ≤ Q_est.card := by
           rw [List.toFinset_card_of_nodup hlQ_nodup,
             ← length_filterMap_eq_length_filter (fun j => extractPhase1 (m₀ j)) procs.dedup]
           exact hq
@@ -807,11 +828,11 @@ positive timestamps `(state k p).ts = r₀ + 1` (witnessed by `coordinator r₀`
 proposal). -/
 private theorem ctSt_est_ts_origin (k : ℕ) :
     ∀ p : P,
-      (∃ q, x q = (ctSt F H tick deliver x procs fallback t k p).est) ∧
-      (∀ r₀, (ctSt F H tick deliver x procs fallback t k p).ts = r₀ + 1 →
-        (ctSt F H tick deliver x procs fallback t (4 * r₀ + 1)
+      (∃ q, x q = (ctSt F H tick deliver x procs fallback k p).est) ∧
+      (∀ r₀, (ctSt F H tick deliver x procs fallback k p).ts = r₀ + 1 →
+        (ctSt F H tick deliver x procs fallback (4 * r₀ + 1)
           (rotatingCoordinator procs fallback r₀)).proposal =
-          some (r₀, (ctSt F H tick deliver x procs fallback t k p).est)) := by
+          some (r₀, (ctSt F H tick deliver x procs fallback k p).est)) := by
   induction k using Nat.strongRecOn with
   | ind k ih =>
     cases k with
@@ -822,7 +843,7 @@ private theorem ctSt_est_ts_origin (k : ℕ) :
     | succ k =>
       intro p
       have ih_k := ih k (Nat.lt_succ_self k) p
-      let prev := ctSt F H tick deliver x procs fallback t k
+      let prev := ctSt F H tick deliver x procs fallback k
       rw [ctSt_succ]
       by_cases hp : p ∈ F (tick k)
       · simp only [hp, ↓reduceIte]
@@ -840,7 +861,7 @@ private theorem ctSt_est_ts_origin (k : ℕ) :
           · simp only [h1, ↓reduceIte]
             let r := k / 4
             let c := rotatingCoordinator procs fallback r
-            let m₁ := (ctRoundProtocol P V procs fallback t).incoming F tick deliver prev k p
+            let m₁ := (ctRoundProtocol P V procs fallback).incoming F tick deliver prev k p
             cases hm : m₁ c with
             | none =>
               have hm' := hm
@@ -876,7 +897,7 @@ private theorem ctSt_est_ts_origin (k : ℕ) :
                       · simp only [hdel, ↓reduceIte] at hm
                         nomatch hm
                     have hc_prop' :
-                        (ctSt F H tick deliver x procs fallback t (4 * r + 1) c).proposal =
+                        (ctSt F H tick deliver x procs fallback (4 * r + 1) c).proposal =
                           some (r, v) := hk_eq ▸ hc_prop
                     obtain ⟨_, _, j₀, _, _, hj₀_est, _, _⟩ :=
                       ctSt_roundProposal_quorum F H tick deliver x hc_prop'
@@ -906,8 +927,8 @@ private theorem ctSt_est_ts_origin (k : ℕ) :
 `(state (4 * r + 2) p).ts = r + 1`. -/
 private theorem ctSt_reply_origin :
     ∀ (k : ℕ) (p : P) (r : ℕ),
-      (ctSt F H tick deliver x procs fallback t k p).reply = some (r, true) →
-      4 * r + 2 ≤ k ∧ (ctSt F H tick deliver x procs fallback t (4 * r + 2) p).ts = r + 1
+      (ctSt F H tick deliver x procs fallback k p).reply = some (r, true) →
+      4 * r + 2 ≤ k ∧ (ctSt F H tick deliver x procs fallback (4 * r + 2) p).ts = r + 1
   | 0, _, _, h => by rw [ctSt_zero] at h; nomatch h
   | k + 1, p, r, h => by
     have hstep := h
@@ -927,8 +948,8 @@ private theorem ctSt_reply_origin :
       · simp only [h0, ↓reduceIte] at hstep
         by_cases h1 : k % 4 = 1
         · simp only [h1, ↓reduceIte] at hstep
-          let m₁ := (ctRoundProtocol P V procs fallback t).incoming F tick deliver
-            (ctSt F H tick deliver x procs fallback t k) k p
+          let m₁ := (ctRoundProtocol P V procs fallback).incoming F tick deliver
+            (ctSt F H tick deliver x procs fallback k) k p
           let c := rotatingCoordinator procs fallback (k / 4)
           cases hm : m₁ c with
           | none =>
@@ -968,7 +989,7 @@ private theorem ctSt_reply_origin :
               dsimp only at hstep
               split at hstep <;> (dsimp only at hstep; nomatch hstep)
         · simp only [h1, ↓reduceIte] at hstep
-          have hprev : (ctSt F H tick deliver x procs fallback t k p).reply = some (r, true) := by
+          have hprev : (ctSt F H tick deliver x procs fallback k p).reply = some (r, true) := by
             by_cases h2 : k % 4 = 2
             · simp only [h2, ↓reduceIte] at hstep
               split at hstep
@@ -981,14 +1002,14 @@ private theorem ctSt_reply_origin :
           obtain ⟨hk_le, hts⟩ := ctSt_reply_origin k p r hprev
           exact ⟨by omega, hts⟩
 
-/-- **Timestamp-locking quorum preservation** (asynchronous-round step after
+/-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Lemma 6.2.1, pp. 244–245][ChandraToueg1996]): once `LockedInRound` holds for
-`(r, v)` under `2 * t < Fintype.card P`, every coordinator proposal `(r', w)` in any later round
-`r' > r` satisfies `w = v`, regardless of `F, H, tick, deliver`. -/
-theorem ctRoundProtocol_lock_preservation (ht : 2 * t < Fintype.card P) {r : ℕ} {v : V}
-    (hlock : LockedInRound procs fallback t F H tick deliver x r v) :
+`(r, v)`, every coordinator proposal `(r', w)` in any later round `r' > r` satisfies `w = v`,
+unconditionally across all `P, F, H, tick, deliver`. -/
+theorem ctRoundProtocol_lock_preservation {r : ℕ} {v : V}
+    (hlock : LockedInRound procs fallback F H tick deliver x r v) :
     ∀ {r' : ℕ}, r < r' → ∀ {w : V},
-      ((ctRoundProtocol P V procs fallback t).state F H tick deliver x (4 * r' + 1)
+      ((ctRoundProtocol P V procs fallback).state F H tick deliver x (4 * r' + 1)
         (rotatingCoordinator procs fallback r')).proposal = some (r', w) → w = v := by
   obtain ⟨hprop_r, Q_ack, hQ_ack_card, hQ_ack⟩ := hlock
   intro r'
@@ -997,7 +1018,7 @@ theorem ctRoundProtocol_lock_preservation (ht : 2 * t < Fintype.card P) {r : ℕ
     intro hlt w hprop_r'
     obtain ⟨Q_est, ts_max, j₀, hQ_est_card, hj₀_mem, hj₀_est, hj₀_ts, hQ_est_max⟩ :=
       ctSt_roundProposal_quorum F H tick deliver x hprop_r'
-    -- Quorum intersection: `|Q_ack ∩ Q_est| ≥ |P| - 2t ≥ 1`.
+    -- Strict-majority quorum intersection: `|Q_ack| ≥ |P|/2 + 1` and `|Q_est| ≥ |P|/2 + 1`.
     have hinter_nonempty : (Q_ack ∩ Q_est).Nonempty := by
       have hunion := card_union_add_card_inter Q_ack Q_est
       have hle_univ : (Q_ack ∪ Q_est).card ≤ Fintype.card P := card_le_univ _
@@ -1008,12 +1029,12 @@ theorem ctRoundProtocol_lock_preservation (ht : 2 * t < Fintype.card P) {r : ℕ
     obtain ⟨_, hts_jStar⟩ := ctSt_reply_origin F H tick deliver x (4 * r + 2) jStar r
       (hQ_ack jStar hj_ack)
     have hts_mono := ctSt_ts_mono F H tick deliver x (procs := procs) (fallback := fallback)
-      (t := t) (show 4 * r + 2 ≤ 4 * r' by omega) jStar
+      (show 4 * r + 2 ≤ 4 * r' by omega) jStar
     have hts_ge : r + 1 ≤ ts_max := by
       have hmax := hQ_est_max jStar hj_est
       omega
     have hts_le_r' : ts_max ≤ r' := by
-      have hle := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback) (t := t)
+      have hle := ctSt_ts_le F H tick deliver x (procs := procs) (fallback := fallback)
         (4 * r') j₀
       omega
     obtain ⟨r₀, hr₀_eq⟩ : ∃ r₀, ts_max = r₀ + 1 := ⟨ts_max - 1, by omega⟩
@@ -1031,8 +1052,8 @@ theorem ctRoundProtocol_lock_preservation (ht : 2 * t < Fintype.card P) {r : ℕ
 /-- Every decided value in `ctRoundProtocol` originates from a `LockedInRound` event. -/
 private theorem ctSt_decided_locked :
     ∀ (k : ℕ) (p : P) (d : V),
-      (ctSt F H tick deliver x procs fallback t k p).decided = some d →
-      ∃ r, LockedInRound procs fallback t F H tick deliver x r d
+      (ctSt F H tick deliver x procs fallback k p).decided = some d →
+      ∃ r, LockedInRound procs fallback F H tick deliver x r d
   | 0, _, _, h => by rw [ctSt_zero] at h; nomatch h
   | k + 1, p, d, h => by
     have hstep := h
@@ -1043,7 +1064,7 @@ private theorem ctSt_decided_locked :
     · simp only [hp, ↓reduceIte, ctUpdate] at hstep
       by_cases h0 : k % 4 = 0
       · simp only [h0, ↓reduceIte] at hstep
-        have hprev : (ctSt F H tick deliver x procs fallback t k p).decided = some d := by
+        have hprev : (ctSt F H tick deliver x procs fallback k p).decided = some d := by
           split at hstep
           · split at hstep
             · split at hstep <;> exact hstep
@@ -1053,7 +1074,7 @@ private theorem ctSt_decided_locked :
       · simp only [h0, ↓reduceIte] at hstep
         by_cases h1 : k % 4 = 1
         · simp only [h1, ↓reduceIte] at hstep
-          have hprev : (ctSt F H tick deliver x procs fallback t k p).decided = some d := by
+          have hprev : (ctSt F H tick deliver x procs fallback k p).decided = some d := by
             split at hstep
             · split at hstep <;> (try split at hstep) <;> exact hstep
             · split at hstep <;> exact hstep
@@ -1065,7 +1086,7 @@ private theorem ctSt_decided_locked :
             let c := rotatingCoordinator procs fallback r
             by_cases hpc : p = c
             · simp only [hpc, c, r, ↓reduceIte] at hstep
-              cases hprop : (ctSt F H tick deliver x procs fallback t k c).proposal with
+              cases hprop : (ctSt F H tick deliver x procs fallback k c).proposal with
               | none =>
                 have hprop' := hprop
                 simp only [c, r] at hprop'
@@ -1077,13 +1098,14 @@ private theorem ctSt_decided_locked :
                 simp only [c, r] at hprop'
                 rw [hprop'] at hstep
                 dsimp only at hstep
-                let m₂ := (ctRoundProtocol P V procs fallback t).incoming F tick deliver
-                  (ctSt F H tick deliver x procs fallback t k) k c
+                let m₂ := (ctRoundProtocol P V procs fallback).incoming F tick deliver
+                  (ctSt F H tick deliver x procs fallback k) k c
                 by_cases hcond : r' = r ∧
-                    Fintype.card P - t ≤ (procs.dedup.filter fun j => isRoundAck r (m₂ j)).length
+                    Fintype.card P / 2 + 1 ≤
+                      (procs.dedup.filter fun j => isRoundAck r (m₂ j)).length
                 · simp only [m₂, c, r] at hcond
                   simp only [hcond, and_self, ↓reduceIte] at hstep
-                  cases hprev_dec : (ctSt F H tick deliver x procs fallback t k c).decided with
+                  cases hprev_dec : (ctSt F H tick deliver x procs fallback k c).decided with
                   | some d₀ =>
                     have hprev_dec' := hprev_dec
                     simp only [c, r] at hprev_dec'
@@ -1102,7 +1124,7 @@ private theorem ctSt_decided_locked :
                     let lAck := procs.dedup.filter fun j => isRoundAck (k / 4) (m₂ j)
                     have hlAck_nodup : lAck.Nodup := procs.nodup_dedup.filter _
                     let Q_ack : Finset P := lAck.toFinset
-                    have hQ_card : Fintype.card P - t ≤ Q_ack.card := by
+                    have hQ_card : Fintype.card P / 2 + 1 ≤ Q_ack.card := by
                       rw [List.toFinset_card_of_nodup hlAck_nodup]
                       exact hq_len
                     refine ⟨k / 4, hprop_round, Q_ack, hQ_card, fun j hj => ?_⟩
@@ -1113,7 +1135,7 @@ private theorem ctSt_decided_locked :
                     by_cases hdel : j ∉ F (tick k) ∧ deliver k j c = true
                     · simp only [hdel, not_false_eq_true, and_self, ↓reduceIte,
                         isRoundAck] at hack
-                      cases hrep : (ctSt F H tick deliver x procs fallback t k j).reply with
+                      cases hrep : (ctSt F H tick deliver x procs fallback k j).reply with
                       | none => simp only [hrep, Bool.false_eq_true] at hack
                       | some rb =>
                         rcases rb with ⟨r'', b⟩
@@ -1130,21 +1152,21 @@ private theorem ctSt_decided_locked :
             · simp only [hpc, c, r, ↓reduceIte] at hstep
               exact ctSt_decided_locked k p d hstep
           · simp only [h2, ↓reduceIte] at hstep
-            cases hprev_dec : (ctSt F H tick deliver x procs fallback t k p).decided with
+            cases hprev_dec : (ctSt F H tick deliver x procs fallback k p).decided with
             | some d₀ =>
               rw [hprev_dec, Option.some_or, Option.some.injEq] at hstep
               subst hstep
               exact ctSt_decided_locked k p d₀ hprev_dec
             | none =>
               rw [hprev_dec, Option.none_or] at hstep
-              let m₃ := (ctRoundProtocol P V procs fallback t).incoming F tick deliver
-                (ctSt F H tick deliver x procs fallback t k) k p
+              let m₃ := (ctRoundProtocol P V procs fallback).incoming F tick deliver
+                (ctSt F H tick deliver x procs fallback k) k p
               obtain ⟨j, _, hj_ex⟩ := List.exists_of_findSome?_eq_some hstep
               have hm3 : k % 4 = 3 := by omega
               simp only [FDAsyncRoundProtocol.incoming, ctRoundProtocol, ctSend, hm3] at hj_ex
               by_cases hdel : j ∉ F (tick k) ∧ deliver k j p = true
               · simp only [hdel, not_false_eq_true, and_self, ↓reduceIte, extractDecide] at hj_ex
-                cases hj_dec : (ctSt F H tick deliver x procs fallback t k j).decided with
+                cases hj_dec : (ctSt F H tick deliver x procs fallback k j).decided with
                 | none =>
                   rw [hj_dec] at hj_ex
                   nomatch hj_ex
@@ -1156,34 +1178,35 @@ private theorem ctSt_decided_locked :
               · simp only [hdel, ↓reduceIte, extractDecide] at hj_ex
                 nomatch hj_ex
 
-/-- **Unconditional uniform validity** (asynchronous-round step after
-[Chandra and Toueg, Theorem 6.2.3, p. 246][ChandraToueg1996]): any value decided by any process
-under any `(F, H, tick, deliver)` was proposed as some process's initial input `x q`. -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Theorem 6.2.3, p. 246][ChandraToueg1996]): any value decided by any process in
+`ctRoundProtocol` under any `(F, H, tick, deliver)` was proposed as some process's initial input
+`x q`. -/
 theorem ctRoundProtocol_validity {k : ℕ} {p : P} {v : V}
-    (hdec : (ctRoundProtocol P V procs fallback t).decision F H tick deliver x k p = some v) :
+    (hdec : (ctRoundProtocol P V procs fallback).decision F H tick deliver x k p = some v) :
     ∃ q, x q = v := by
   obtain ⟨r, hprop_r, _⟩ := ctSt_decided_locked F H tick deliver x k p v hdec
   obtain ⟨_, _, j₀, _, _, hj₀_est, _, _⟩ := ctSt_roundProposal_quorum F H tick deliver x hprop_r
   obtain ⟨⟨q, hq⟩, _⟩ := ctSt_est_ts_origin F H tick deliver x (4 * r) j₀
   exact ⟨q, hq.trans hj₀_est⟩
 
-/-- **Unconditional uniform agreement** (asynchronous-round step after
-[Chandra and Toueg, Lemma 6.2.1, pp. 244–245][ChandraToueg1996]): for `2 * t < Fintype.card P`, no
-two processes (correct or faulty) ever decide distinct values under **any** `(F, H, tick, deliver)`
-(even if `H` is an arbitrarily Byzantine/lying failure detector). -/
-theorem ctRoundProtocol_uniform_agreement (ht : 2 * t < Fintype.card P)
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Lemma 6.2.1, pp. 244–245][ChandraToueg1996]): no two processes (correct or
+faulty) ever decide distinct values in `ctRoundProtocol` under any `(F, H, tick, deliver)` (even if
+any number of processes crash or `H` is an arbitrarily lying failure detector). -/
+theorem ctRoundProtocol_uniform_agreement
     {k₁ k₂ : ℕ} {p₁ p₂ : P} {v₁ v₂ : V}
-    (h₁ : (ctRoundProtocol P V procs fallback t).decision F H tick deliver x k₁ p₁ = some v₁)
-    (h₂ : (ctRoundProtocol P V procs fallback t).decision F H tick deliver x k₂ p₂ = some v₂) :
+    (h₁ : (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₁ p₁ = some v₁)
+    (h₂ : (ctRoundProtocol P V procs fallback).decision F H tick deliver x k₂ p₂ = some v₂) :
     v₁ = v₂ := by
   obtain ⟨r₁, hlock₁⟩ := ctSt_decided_locked F H tick deliver x k₁ p₁ v₁ h₁
   obtain ⟨r₂, hlock₂⟩ := ctSt_decided_locked F H tick deliver x k₂ p₂ v₂ h₂
   rcases lt_trichotomy r₁ r₂ with hlt | rfl | hgt
-  · exact (ctRoundProtocol_lock_preservation F H tick deliver x ht hlock₁ hlt hlock₂.1).symm
+  · exact (ctRoundProtocol_lock_preservation F H tick deliver x hlock₁ hlt hlock₂.1).symm
   · have heq := hlock₁.1.symm.trans hlock₂.1
     simp only [Option.some.injEq, Prod.mk.injEq, true_and] at heq
     exact heq
-  · exact ctRoundProtocol_lock_preservation F H tick deliver x ht hlock₂ hgt hlock₁.1
+  · exact ctRoundProtocol_lock_preservation F H tick deliver x hlock₂ hgt hlock₁.1
 
 end Safety
 
@@ -1206,11 +1229,11 @@ private theorem length_filter_ge_card {α : Type*} {l : List α} {p : α → Boo
     _ = (l.dedup.filter p).length := List.toFinset_card_of_nodup (l.nodup_dedup.filter p)
     _ ≤ (l.filter p).length := (l.dedup_sublist.filter p).length_le
 
-/-- **Termination in an unsuspected correct-coordinator round** (step after
-[Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]): if `rStar` is coordinated by
-`qStar ∈ F.Correct`, all faulty processes have crashed by `tick (4 * rStar)`, and no correct
-process suspects `qStar` from `tick (4 * rStar)` onward, then every `p ∈ F.Correct` has decided by
-subround `4 * (rStar + 1)`. -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]): under `2 * t < Fintype.card P`, if
+`rStar` is coordinated by `qStar ∈ F.Correct`, all faulty processes have crashed by
+`tick (4 * rStar)`, and no correct process suspects `qStar` from `tick (4 * rStar)` onward, then
+every `p ∈ F.Correct` has decided in `ctRoundProtocol` by subround `4 * (rStar + 1)`. -/
 theorem ctRoundProtocol_decides_in_good_round
     {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     {t : ℕ} (ht : 2 * t < Fintype.card P)
@@ -1222,17 +1245,17 @@ theorem ctRoundProtocol_decides_in_good_round
     (hstab : ∀ k, 4 * rStar ≤ k → ∀ j, j ∉ F (tick k) → j ∈ F.Correct)
     (hunsusp : ∀ k, 4 * rStar ≤ k → ∀ p ∈ F.Correct, qStar ∉ H p (tick k)) :
     ∀ p ∈ F.Correct,
-      ((ctRoundProtocol P V procs fallback t).decision F H tick deliver x
+      ((ctRoundProtocol P V procs fallback).decision F H tick deliver x
         (4 * (rStar + 1)) p).isSome = true := by
-  let π := ctRoundProtocol P V procs fallback t
+  let π := ctRoundProtocol P V procs fallback
   let st := π.state F H tick deliver x
   have hstate_succ (k : ℕ) (p : P) :
       st (k + 1) p =
         if p ∈ F (tick k) then st k p
-        else ctUpdate procs fallback t k p (st k p) (H p (tick k))
+        else ctUpdate procs fallback k p (st k p) (H p (tick k))
           (π.incoming F tick deliver (st k) k p) := rfl
   have hsend (k : ℕ) (q : P) (s : CTState V) (p : P) : π.send k q s p = ctSend k q s p := rfl
-  -- Subround `0` (`4 * rStar`): `qStar` gathers `≥ |P| - t` Phase-1 estimates and sets `proposal`.
+  -- Subround `0` (`4 * rStar`): `qStar` gathers `≥ |P|/2 + 1` estimates and sets `proposal`.
   have hprop : ∃ vStar, (st (4 * rStar + 1) qStar).proposal = some (rStar, vStar) := by
     have hq_alive : qStar ∉ F (tick (4 * rStar)) := hqStar (tick (4 * rStar))
     have hm0 : (4 * rStar) % 4 = 0 := by omega
@@ -1242,9 +1265,10 @@ theorem ctRoundProtocol_decides_in_good_round
     let S₀ := Finset.univ.filter fun j =>
       decide (j ∉ F (tick (4 * rStar)) ∧ deliver (4 * rStar) j qStar = true)
     have hS₀_card : Fintype.card P - t ≤ S₀.card := hadm.quorum_delivery (4 * rStar) qStar hqStar
-    have hpairs_len : Fintype.card P - t ≤ pairs.length := by
+    have hpairs_len : Fintype.card P / 2 + 1 ≤ pairs.length := by
       rw [length_filterMap_eq_length_filter]
-      refine hS₀_card.trans (length_filter_ge_card fun j hj => ?_)
+      refine (show Fintype.card P / 2 + 1 ≤ Fintype.card P - t by omega).trans
+        (hS₀_card.trans (length_filter_ge_card fun j hj => ?_))
       simp only [S₀, mem_filter, mem_univ, true_and, decide_eq_true_eq] at hj
       refine ⟨List.mem_dedup.mpr (hprocs j), ?_⟩
       simp only [m₀, FDAsyncRoundProtocol.incoming, hj, not_false_eq_true, and_self, ↓reduceIte,
@@ -1290,7 +1314,7 @@ theorem ctRoundProtocol_decides_in_good_round
     simp only [hj_alive, ↓reduceIte, ctUpdate, hm1_ne0]
     simp only [hm1, hd1, ↓reduceIte, hcoord, hinc1]
   -- Subround `2` (`4 * rStar + 2`): every alive sender is in `F.Correct`, so `qStar` receives
-  -- `≥ |P| - t` `ack`s and sets `decided.isSome = true`.
+  -- `≥ |P|/2 + 1` `ack`s and sets `decided.isSome = true`.
   have hm2_ne0 : ¬ (4 * rStar + 2) % 4 = 0 := by omega
   have hm2_ne1 : ¬ (4 * rStar + 2) % 4 = 1 := by omega
   have hm2 : (4 * rStar + 2) % 4 = 2 := by omega
@@ -1302,9 +1326,10 @@ theorem ctRoundProtocol_decides_in_good_round
       decide (j ∉ F (tick (4 * rStar + 2)) ∧ deliver (4 * rStar + 2) j qStar = true)
     have hS₂_card : Fintype.card P - t ≤ S₂.card :=
       hadm.quorum_delivery (4 * rStar + 2) qStar hqStar
-    have hacks_len : Fintype.card P - t ≤
+    have hacks_len : Fintype.card P / 2 + 1 ≤
         (procs.dedup.filter fun j => isRoundAck rStar (m₂ j)).length := by
-      refine hS₂_card.trans (length_filter_ge_card fun j hj => ?_)
+      refine (show Fintype.card P / 2 + 1 ≤ Fintype.card P - t by omega).trans
+        (hS₂_card.trans (length_filter_ge_card fun j hj => ?_))
       simp only [S₂, mem_filter, mem_univ, true_and, decide_eq_true_eq] at hj
       have hj_corr : j ∈ F.Correct := hstab (4 * rStar + 2) (by omega) j hj.1
       refine ⟨List.mem_dedup.mpr (hprocs j), ?_⟩
@@ -1350,9 +1375,9 @@ theorem ctRoundProtocol_decides_in_good_round
   rw [hdInc]
   cases (st (4 * rStar + 3) p).decided <;> rfl
 
-/-- **Conditional termination of `ctRoundProtocol` under `◇S` (`IsEventuallyStrong`)**
-(asynchronous-round step after
-[Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]). -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Lemma 6.2.2, pp. 245–246][ChandraToueg1996]): under `2 * t < Fintype.card P` and
+`IsEventuallyStrong F H` (`◇S`), every correct process eventually decides in `ctRoundProtocol`. -/
 theorem ctRoundProtocol_terminates_of_isEventuallyStrong
     {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     {t : ℕ} (ht : 2 * t < Fintype.card P)
@@ -1361,7 +1386,7 @@ theorem ctRoundProtocol_terminates_of_isEventuallyStrong
     (hadm : AdmissibleFDNetwork F H t tick deliver) (hES : IsEventuallyStrong F H)
     (x : P → V) :
     ∃ kStar, ∀ p ∈ F.Correct,
-      ((ctRoundProtocol P V procs fallback t).decision F H tick deliver x kStar p).isSome =
+      ((ctRoundProtocol P V procs fallback).decision F H tick deliver x kStar p).isSome =
         true := by
   obtain ⟨t_stab, hstab⟩ := F.exists_stabilize
   obtain ⟨t_ewa, qStar, hqStar, h_unsusp⟩ := hES.2
@@ -1370,27 +1395,28 @@ theorem ctRoundProtocol_terminates_of_isEventuallyStrong
   refine ⟨4 * (rStar + 1), ctRoundProtocol_decides_in_good_round hprocs fallback ht hadm x hqStar
     hcoord (fun k hk j hj => ?_) (fun k hk p hp => ?_)⟩
   · have htk : t_stab ≤ tick k := by
-      have hid := strictMono_id_le hadm.tick_strictMono k
+      have hid : k ≤ tick k := hadm.tick_strictMono.id_le k
       have h1 : t_stab ≤ r₀ := le_max_left t_stab t_ewa
       omega
     exact (hstab (tick k) htk).2 j |>.mp hj
   · have htk : t_ewa ≤ tick k := by
-      have hid := strictMono_id_le hadm.tick_strictMono k
+      have hid : k ≤ tick k := hadm.tick_strictMono.id_le k
       have h2 : t_ewa ≤ r₀ := le_max_right t_stab t_ewa
       omega
     exact h_unsusp (tick k) htk p hp
 
-/-- **`ctRoundProtocol` solves `t`-resilient consensus under `◇S` (`IsEventuallyStrong`) whenever
-`2 * t < Fintype.card P`** (asynchronous-round step after
-[Chandra and Toueg, Theorem 6.2.3, p. 246][ChandraToueg1996]). -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Theorem 6.2.3, p. 246][ChandraToueg1996]): the `t`-oblivious protocol
+`ctRoundProtocol P V procs fallback` solves `t`-resilient consensus under `IsEventuallyStrong`
+(`◇S`) for every `t` with `2 * t < Fintype.card P`. -/
 theorem solvesFDAsyncRoundConsensus_ctRoundProtocol
     {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     {t : ℕ} (ht : 2 * t < Fintype.card P) :
-    (ctRoundProtocol P V procs fallback t).SolvesFDAsyncRoundConsensus t IsEventuallyStrong where
+    (ctRoundProtocol P V procs fallback).SolvesFDAsyncRoundConsensus t IsEventuallyStrong where
   irrevocable F _ H tick deliver x _ _ _ _ hk p _ v hdec :=
     ctRoundProtocol_irrevocable F H tick deliver x hk p v hdec
   agreement F _ H tick deliver x _ _ _ _ _ _ _ _ _ _ h₁ h₂ :=
-    ctRoundProtocol_uniform_agreement F H tick deliver x ht h₁ h₂
+    ctRoundProtocol_uniform_agreement F H tick deliver x h₁ h₂
   validity F _ H tick deliver x _ _ _ _ _ _ hdec :=
     ctRoundProtocol_validity F H tick deliver x hdec
   termination F _ H tick deliver x hadm hES p hp := by
@@ -1398,12 +1424,12 @@ theorem solvesFDAsyncRoundConsensus_ctRoundProtocol
       ctRoundProtocol_terminates_of_isEventuallyStrong hprocs fallback ht hadm hES x
     exact ⟨kStar, hkStar p hp⟩
 
-/-- **Composition with the `◇W → ◇S` gossip transducer** (asynchronous-round step after
+/-- Asynchronous-round step for #7503 (after
 [Chandra and Toueg, Corollary 6.2.4, pp. 246–247][ChandraToueg1996]): given any `◇W` history `H`
-(`IsEventuallyWeak F H`) and `AdmissibleGossipSchedule F gSched`, running `ctRoundProtocol` over
-the gossip-boosted history `gossipHistory H gSched` satisfies unconditional safety and guaranteed
-termination under any `AdmissibleFDNetwork` (which exists by
-`exists_admissibleFDNetwork_of_strongCompleteness`). -/
+(`IsEventuallyWeak F H`) and `AdmissibleGossipSchedule F gSched`, running `ctRoundProtocol` over the
+gossip-boosted history `gossipHistory H gSched` terminates across all `F.Correct` under any
+`AdmissibleFDNetwork` (which exists by `exists_admissibleFDNetwork_of_strongCompleteness`) whenever
+`2 * t < Fintype.card P`. -/
 theorem ctRoundProtocol_terminates_of_isEventuallyWeak_gossip
     {procs : List P} (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     {t : ℕ} (ht : 2 * t < Fintype.card P)
@@ -1412,7 +1438,7 @@ theorem ctRoundProtocol_terminates_of_isEventuallyWeak_gossip
     {tick : ℕ → ℕ} {deliver : ℕ → P → P → Bool}
     (hadm : AdmissibleFDNetwork F (gossipHistory H gSched) t tick deliver) (x : P → V) :
     ∃ kStar, ∀ p ∈ F.Correct,
-      ((ctRoundProtocol P V procs fallback t).decision F (gossipHistory H gSched) tick deliver x
+      ((ctRoundProtocol P V procs fallback).decision F (gossipHistory H gSched) tick deliver x
         kStar p).isSome = true :=
   ctRoundProtocol_terminates_of_isEventuallyStrong hprocs fallback ht hadm
     (gossipHistory_isEventuallyStrong_of_isEventuallyWeak hgossip hEW) x
@@ -1455,8 +1481,8 @@ private theorem fdState_eq_of_prefix {P V State Msg : Type*} [DecidableEq P]
         simp only [hq₁, hq₂, ↓reduceIte]
     rw [hprev, hH, hinc]
 
-/-- **Resilience lower-bound step (`2 ≤ Fintype.card P ≤ 2 * t` impossibility even under `◇P`,
-after [Chandra and Toueg, Theorem 6.3.1, pp. 247–248][ChandraToueg1996]):** when
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Theorem 6.3.1, pp. 247–248][ChandraToueg1996]): when
 `2 ≤ Fintype.card P ≤ 2 * t` and `V` has at least two distinct values, no `FDAsyncRoundProtocol`
 solves `SolvesFDAsyncRoundConsensus t IsEventuallyPerfect` (and hence none solves it under `◇S` or
 `◇W`). -/
@@ -1667,23 +1693,12 @@ theorem not_solvesFDAsyncRoundConsensus_eventuallyPerfect {P V S M : Type*}
     K₀ K₁ a₀ (by simp [F_A]) a₁ (by simp [F_A]) v₀ v₁ hdec_a₀ hdec_a₁
   exact hne hag
 
-/-- Corollary for `◇S` (`IsEventuallyStrong`): when `2 ≤ Fintype.card P ≤ 2 * t` and
-`[Nontrivial V]`, no `FDAsyncRoundProtocol` solves `SolvesFDAsyncRoundConsensus t
-IsEventuallyStrong`. -/
-theorem not_solvesFDAsyncRoundConsensus_eventuallyStrong {P V S M : Type*}
-    [Fintype P] [DecidableEq P] [Nontrivial V]
-    (π : FDAsyncRoundProtocol P V S M) {t : ℕ}
-    (h2 : 2 ≤ Fintype.card P) (h2t : Fintype.card P ≤ 2 * t) :
-    ¬ π.SolvesFDAsyncRoundConsensus t IsEventuallyStrong := fun hsol =>
-  not_solvesFDAsyncRoundConsensus_eventuallyPerfect π h2 h2t
-    (hsol.mono fun _ hcorr _ hEP => hEP.toEventuallyStrong hcorr)
-
 /-! ### Exact asynchronous-round resilience characterizations -/
 
-/-- **Sharp asynchronous-round resilience characterization for `◇S`** (step for #7503, combining
-`ctRoundProtocol` and `not_solvesFDAsyncRoundConsensus_eventuallyStrong`): over `[Nontrivial V]`,
-`t`-resilient consensus in `FDAsyncRoundProtocol` under `IsEventuallyStrong` is solvable if and
-only if `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`. -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Theorems 6.2.3 and 6.3.1, pp. 246–248][ChandraToueg1996]): over
+`[Nontrivial V]`, `t`-resilient consensus in `FDAsyncRoundProtocol` under `IsEventuallyStrong`
+(`◇S`) is solvable if and only if `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`. -/
 theorem exists_solvesFDAsyncRoundConsensus_eventuallyStrong_iff.{u, v} (P : Type u) (V : Type v)
     [Fintype P] [DecidableEq P] [Nontrivial V] (t : ℕ) :
     (∃ (S M : Type v) (π : FDAsyncRoundProtocol P V S M),
@@ -1692,7 +1707,8 @@ theorem exists_solvesFDAsyncRoundConsensus_eventuallyStrong_iff.{u, v} (P : Type
   constructor
   · rintro ⟨S, M, π, hsol⟩
     by_contra! h
-    exact not_solvesFDAsyncRoundConsensus_eventuallyStrong π (by omega) h.2 hsol
+    exact not_solvesFDAsyncRoundConsensus_eventuallyPerfect π (by omega) h.2
+      (hsol.mono fun _ hcorr _ hEP => hEP.toEventuallyStrong hcorr)
   · rintro (h1 | h2t)
     · have : Subsingleton P := Fintype.card_le_one_iff_subsingleton.mp h1
       exact ⟨V, PUnit.{v + 1}, ownInputFDProtocol P V,
@@ -1702,12 +1718,13 @@ theorem exists_solvesFDAsyncRoundConsensus_eventuallyStrong_iff.{u, v} (P : Type
       have hprocs : ∀ p : P, p ∈ procs := fun p =>
         List.mem_ofFn.mpr ⟨e p, Equiv.symm_apply_apply e p⟩
       let fallback : P := e.symm ⟨0, by omega⟩
-      exact ⟨CTState V, CTMsg V, ctRoundProtocol P V procs fallback t,
+      exact ⟨CTState V, CTMsg V, ctRoundProtocol P V procs fallback,
         solvesFDAsyncRoundConsensus_ctRoundProtocol hprocs fallback h2t⟩
 
-/-- **Sharp asynchronous-round resilience characterization for `◇P`** (step for #7503): even
-strengthening `◇S` to `◇P` (`IsEventuallyPerfect`) yields the identical resilience threshold
-`Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`. -/
+/-- Asynchronous-round step for #7503 (after
+[Chandra and Toueg, Theorems 6.2.3 and 6.3.1, pp. 246–248][ChandraToueg1996]): over
+`[Nontrivial V]`, strengthening `◇S` to `◇P` (`IsEventuallyPerfect`) yields the identical
+asynchronous-round resilience threshold `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`. -/
 theorem exists_solvesFDAsyncRoundConsensus_eventuallyPerfect_iff.{u, v} (P : Type u) (V : Type v)
     [Fintype P] [DecidableEq P] [Nontrivial V] (t : ℕ) :
     (∃ (S M : Type v) (π : FDAsyncRoundProtocol P V S M),
