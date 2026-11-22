@@ -13,7 +13,7 @@ public import Mathlib.Data.Fintype.Pi
 public import Mathlib.Order.Monotone.Basic
 
 /-!
-# Lamport scalar clocks and Fidge–Mattern vector clocks
+# Lamport scalar clocks and Mattern vector clocks
 
 This module formalizes operational logical clocks over causally well-formed asynchronous
 message-passing executions (`Cslib.Distributed.VectorClock.Execution`):
@@ -26,9 +26,11 @@ message-passing executions (`Cslib.Distributed.VectorClock.Execution`):
    **scalar incompleteness** (`not_exists_1d_characterization`): whenever `2 ≤ Fintype.card P`,
    there exists a valid execution on `P` whose causal order embeds into *no* `LinearOrder α`.
 
-2. **Fidge–Mattern vector clocks** ([Fidge1988], [Mattern1989]): each process maintains a vector
-   `Cslib.Distributed.VectorClock P := P → ℕ`, taking coordinatewise `⊔` upon message receipt and
-   incrementing its own coordinate at every step (`Execution.vc`). We prove:
+2. **Mattern vector clocks** ([Mattern1989], §§7–8; see also [Fidge1988] for the asynchronous
+   sender-increment variant): each process maintains `Cslib.Distributed.VectorClock P := P → ℕ`,
+   taking coordinatewise `⊔` upon message receipt and incrementing its own coordinate at every step
+   (`Execution.vc`; in contrast, [Fidge1988]'s asynchronous Rule RA4 additionally increments the
+   sender's coordinate on receive so its single-coordinate test uses `<` instead of `≤`). We prove:
    * **Exact order-isomorphism** (`happensBeforeLe_iff_vc_le`, `happensBefore_iff_vc_lt`):
      `e₁ ≼ e₂ ↔ E.vc e₁ ≤ E.vc e₂` and `e₁ ≺ e₂ ↔ E.vc e₁ < E.vc e₂`,
    * **`O(1)` single-coordinate test** (`happensBeforeLe_iff_coord_le`,
@@ -45,8 +47,7 @@ message-passing executions (`Cslib.Distributed.VectorClock.Execution`):
 * `Cslib.Distributed.VectorClock.Execution.lamportClock`: Lamport scalar timestamp `E.Event → ℕ`.
 * `Cslib.Distributed.VectorClock.Execution.lamportTotalOrder`: tie-broken strict total order on
   `E.Event` extending `HappensBefore`.
-* `Cslib.Distributed.VectorClock.Execution.vc`: Fidge–Mattern vector timestamp
-  `E.Event → VectorClock P`.
+* `Cslib.Distributed.VectorClock.Execution.vc`: Mattern vector timestamp `E.Event → VectorClock P`.
 * `Cslib.Distributed.VectorClock.Execution.cutOfFrontier`: global event prefix induced by a
   per-process frontier `P → E.Event`.
 
@@ -407,16 +408,17 @@ namespace Execution
 
 variable {P : Type u}
 
-/-! ### Fidge–Mattern vector clocks ([Fidge1988], [Mattern1989]) -/
+/-! ### Mattern vector clocks ([Mattern1989]; see also [Fidge1988]) -/
 
-/-- Local transition rule for Fidge–Mattern vector clocks: coordinatewise `⊔` with the incoming
-message vector (if any), followed by incrementing the executing process's own entry. -/
+/-- Local transition rule for Mattern vector clocks ([Mattern1989], §7): coordinatewise `⊔` with
+the incoming message vector (if any), followed by incrementing the executing process's own entry. -/
 @[expose] def vcNext [DecidableEq P] (p : P) (cur : VectorClock P)
     (msg? : Option (VectorClock P)) : VectorClock P :=
   let merged := cur ⊔ msg?.getD 0
   Function.update merged p (merged p + 1)
 
-/-- Fidge–Mattern vector clock `E.Event → VectorClock P` ([Fidge1988], [Mattern1989]). -/
+/-- Mattern vector clock `E.Event → VectorClock P` ([Mattern1989], §7; cf. [Fidge1988], Rules
+RA1–RA4, which additionally increment the sender's entry upon receive). -/
 @[expose] def vc [DecidableEq P] (E : Execution P) (e : E.Event) : VectorClock P :=
   E.evalScan 0 (fun _ => 0) vcNext e
 
@@ -563,7 +565,7 @@ theorem happensBefore_iff_coord_le [DecidableEq P] {E : Execution P} {e₁ e₂ 
   rw [← happensBeforeLe_iff_coord_le, happensBeforeLe_iff]
   exact ⟨fun h => .inr h, fun h => h.resolve_left hne⟩
 
-/-- **Fidge–Mattern order-isomorphism (`≼`)** ([Fidge1988], [Mattern1989]):
+/-- **Vector-clock order-isomorphism (`≼`)** ([Mattern1989], §8, Theorem 10):
 `e₁ ≼ e₂ ↔ E.vc e₁ ≤ E.vc e₂`. -/
 theorem happensBeforeLe_iff_vc_le [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBeforeLe e₁ e₂ ↔ E.vc e₁ ≤ E.vc e₂ :=
@@ -576,7 +578,7 @@ theorem vc_injective [DecidableEq P] (E : Execution P) : Function.Injective E.vc
     (happensBeforeLe_iff_vc_le.mpr heq.le)
     (happensBeforeLe_iff_vc_le.mpr heq.ge)
 
-/-- **Fidge–Mattern strict order-isomorphism (`≺`)** ([Fidge1988], [Mattern1989]):
+/-- **Vector-clock strict order-isomorphism (`≺`)** ([Mattern1989], §8, Theorem 10):
 `e₁ ≺ e₂ ↔ E.vc e₁ < E.vc e₂`. -/
 theorem happensBefore_iff_vc_lt [DecidableEq P] {E : Execution P} {e₁ e₂ : E.Event} :
     E.HappensBefore e₁ e₂ ↔ E.vc e₁ < E.vc e₂ := by

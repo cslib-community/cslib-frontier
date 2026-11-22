@@ -10,12 +10,13 @@ module
 public import CslibFrontier.Computability.Distributed.VectorClock.Clocks
 
 /-!
-# Charron-Bost's dimension lower bound for vector clocks
+# Crown-execution clock-dimension lower-bound step for unicast executions
 
-This module proves Bernadette Charron-Bost's tight dimension theorem ([CharronBost1991]):
-characterizing Lamport's happens-before relation across asynchronous message-passing executions on
-a finite process set `P` via coordinatewise order-embeddings into `Fin d → α` (for any
-`LinearOrder α`) requires dimension `d ≥ Fintype.card P`.
+This module proves a self-contained crown-execution dimension lower-bound step over finite unicast
+message-passing executions `Execution P` toward #7203 (after [CharronBost1991], whose primary
+journal text was not inspected, so this module does not claim its cited endpoint): characterizing
+`Execution.HappensBeforeLe` across `Execution P` via coordinatewise order-embeddings into
+`Fin d → α` (for any `LinearOrder α`) requires dimension `Fintype.card P ≤ d`.
 
 ### Construction and proof outline
 
@@ -42,41 +43,40 @@ where `f (b_{crownShift p}) (coord p) < f (a_p) (coord p)`. If `coord p₁ = coo
 `f (a_{p₁}) i ≤ f (b_{crownShift p₂}) i < f (a_{p₂}) i ≤ f (b_{crownShift p₁}) i < f (a_{p₁}) i`.
 Hence `coord : Fin n → Fin d` is injective, proving `n ≤ d`.
 
-For arbitrary finite `P`, `exists_execution_dim_lower_bound` and `charronBost_dim_lower_bound`
-handle `Fintype.card P = 0` (`Execution.empty`, `0 ≤ d`) and `Fintype.card P = 1` (two sequential
-internal events on the unique process forcing `1 ≤ d`) directly, and transport `crownFin` along
-`Fin (Fintype.card P) ≃ P` when `2 ≤ Fintype.card P`. Combining with Fidge–Mattern vector clocks
-(`Execution.vc`) yields the sharp dimension characterization `exists_orderEmbedding_clock_iff`:
-every execution on `P` admits a `d`-coordinate `ℕ`-vector clock iff `Fintype.card P ≤ d`.
+For arbitrary finite `P`, `exists_unicast_execution_dim_lower_bound` and
+`unicast_clock_dim_lower_bound` handle `Fintype.card P = 0` (`Execution.empty`, `0 ≤ d`) and
+`Fintype.card P = 1` (two sequential internal events on the unique process forcing `1 ≤ d`)
+directly, and transport `crownFin` along `Fin (Fintype.card P) ≃ P` when `2 ≤ Fintype.card P`.
+Combining with Mattern vector clocks (`Execution.vc`, [Mattern1989]) yields
+`exists_unicast_orderEmbedding_clock_iff`: every unicast execution on `P` admits a `d`-coordinate
+`ℕ`-vector clock iff `Fintype.card P ≤ d`.
 
 ## Main definitions
 
 * `Cslib.Distributed.VectorClock.crownShift`: cyclic fixed-point-free permutation on `Fin n` for
   `2 ≤ n`.
 * `Cslib.Distributed.VectorClock.crownStep`, `Cslib.Distributed.VectorClock.crownFin`:
-  Charron-Bost's explicit crown execution on `Fin n` for `2 ≤ n`.
+  explicit 4-block crown execution on `Fin n` for `2 ≤ n`.
 * `Cslib.Distributed.VectorClock.crownPhase1`, `Cslib.Distributed.VectorClock.crownPhase2`: Phase-1
   events `a_p` and Phase-2 events `b_q` of `crownFin`.
 
 ## Main results
 
 * `Cslib.Distributed.VectorClock.crownFin_happensBeforeLe_iff`: exact crown causality
-  `a_p ≼ b_q ↔ q ≠ crownShift hn p`.
+  `a_p ≼ b_q ↔ q ≠ crownShift hn p` in `crownFin`.
 * `Cslib.Distributed.VectorClock.crownFin_dim_lower_bound`: any order-embedding of `crownFin n hn`
   into `Fin d → α` forces `n ≤ d`.
-* `Cslib.Distributed.VectorClock.exists_execution_dim_lower_bound`: for every finite `P`, there is
-  a single execution on `P` forcing `Fintype.card P ≤ d` for every product order-embedding into
-  `Fin d → α`.
-* `Cslib.Distributed.VectorClock.charronBost_dim_lower_bound`: Charron-Bost's `Fintype.card P ≤ d`
-  dimension lower bound over arbitrary `[LinearOrder α]`.
-* `Cslib.Distributed.VectorClock.exists_orderEmbedding_clock_iff`: sharp `Fintype.card P ≤ d`
-  characterization for `Fin d → ℕ` vector clocks.
+* `Cslib.Distributed.VectorClock.exists_unicast_execution_dim_lower_bound`: crown-execution step
+  constructing a single `Execution P` that forces `Fintype.card P ≤ d` for any product
+  order-embedding into `Fin d → α`.
+* `Cslib.Distributed.VectorClock.unicast_clock_dim_lower_bound`: crown-execution step proving
+  `Fintype.card P ≤ d` for `Fin d → α` logical clocks across `Execution P`.
+* `Cslib.Distributed.VectorClock.exists_unicast_orderEmbedding_clock_iff`: sharp
+  `Fintype.card P ≤ d` characterization for `Fin d → ℕ` vector clocks across `Execution P`.
 
 ## References
 
 * [B. Charron-Bost, *Concerning the size of logical clocks in distributed systems*][CharronBost1991]
-* [C. J. Fidge, *Timestamps in Message-Passing Systems That Preserve the Partial
-  Ordering*][Fidge1988]
 * [F. Mattern, *Virtual Time and Global States of Distributed Systems*][Mattern1989]
 -/
 
@@ -89,7 +89,7 @@ universe u v
 /-! ### Cyclic derangement and explicit crown execution on `Fin n` (`2 ≤ n`) -/
 
 /-- Cyclic shift `(p + 1) mod n` on `Fin n` (`2 ≤ n`), used as the fixed-point-free bijection in
-Charron-Bost's crown execution. -/
+the crown execution `crownFin`. -/
 @[expose] def crownShift {n : ℕ} (hn : 2 ≤ n) (p : Fin n) : Fin n :=
   ⟨(p.val + 1) % n, Nat.mod_lt _ (by omega)⟩
 
@@ -120,7 +120,7 @@ theorem crownShift_injective {n : ℕ} (hn : 2 ≤ n) : Function.Injective (crow
     omega
   · omega
 
-/-- Step `i` (`0 ≤ i < 2 * n + 2 * (n * n)`) of Charron-Bost's crown execution on `Fin n`:
+/-- Step `i` (`0 ≤ i < 2 * n + 2 * (n * n)`) of the 4-block crown execution `crownFin` on `Fin n`:
 * `[0, n)`: Phase-1 initial internal step `a_p` on each `p`,
 * `[n, n + n²)`: send from `p = (i - n) / n` to `q = (i - n) % n` if `q ∉ {p, crownShift p}`,
   else internal step on `p`,
@@ -200,8 +200,8 @@ private theorem crownStep_send_at {n : ℕ} (hn : 2 ≤ n) {m : ℕ} (hm : m < n
   dsimp only at hcond
   simp only [eq_true hcond, ↓reduceIte]
 
-/-- Charron-Bost's explicit crown execution on `Fin n` (`2 ≤ n`), containing `2 * n + 2 * (n * n)`
-events. -/
+/-- Explicit 4-block unicast crown execution on `Fin n` (`2 ≤ n`), containing
+`2 * n + 2 * (n * n)` events (a crown-poset step after [CharronBost1991] toward #7203). -/
 @[expose] def crownFin (n : ℕ) (hn : 2 ≤ n) : Execution (Fin n) where
   steps := List.ofFn (crownStep n hn)
   recv_valid := by
@@ -306,8 +306,9 @@ private theorem crownAllowed_preserved {n : ℕ} {hn : 2 ≤ n} {p : Fin n}
     rw [hy_act, ← hp_eq]
     exact hcond.2
 
-/-- **Exact crown causality in `crownFin`** ([CharronBost1991]): Phase-1 event `a_p` causally
-precedes or equals Phase-2 event `b_q` iff `q ≠ crownShift hn p`. -/
+/-- Crown-poset causality step in `crownFin` (toward #7203, after [CharronBost1991], not the
+uninspected paper endpoint): Phase-1 event `a_p` causally precedes or equals Phase-2 event `b_q`
+iff `q ≠ crownShift hn p`. -/
 theorem crownFin_happensBeforeLe_iff {n : ℕ} (hn : 2 ≤ n) (p q : Fin n) :
     (crownFin n hn).HappensBeforeLe (crownPhase1 hn p) (crownPhase2 hn q) ↔
       q ≠ crownShift hn p := by
@@ -406,8 +407,9 @@ theorem crownFin_happensBeforeLe_iff {n : ℕ} (hn : 2 ≤ n) (p q : Fin n) :
 
 /-! ### Dimension lower bound and sharp characterization -/
 
-/-- Any coordinatewise order-embedding of `crownFin n hn` into `Fin d → α` (for any
-`LinearOrder α`) requires `n ≤ d`. -/
+/-- Crown-execution dimension step on `Fin n` (toward #7203, after [CharronBost1991], not the
+uninspected paper endpoint): any coordinatewise order-embedding of `crownFin n hn` into
+`Fin d → α` (for any `LinearOrder α`) satisfies `n ≤ d`. -/
 theorem crownFin_dim_lower_bound {n : ℕ} (hn : 2 ≤ n) {α : Type v} [LinearOrder α] {d : ℕ}
     (f : (crownFin n hn).Event → (Fin d → α))
     (hf : ∀ e₁ e₂, (crownFin n hn).HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) :
@@ -446,12 +448,12 @@ theorem crownFin_dim_lower_bound {n : ℕ} (hn : 2 ≤ n) {α : Type v} [LinearO
       (lt_trans (lt_of_le_of_lt hle₁₂ hlt₂) (lt_of_le_of_lt hle₂₁ hlt₁))
   simpa only [Fintype.card_fin] using Fintype.card_le_of_injective coord hinj
 
-/-- **Single-execution dimension lower bound** ([CharronBost1991] for `2 ≤ Fintype.card P`): for
-every finite process type `P`, there exists a single causally well-formed execution `E : Execution P`
-such that any order-embedding of `E.Event` into `Fin d → α` (for any `LinearOrder α`) forces
-`Fintype.card P ≤ d` (using `Execution.empty` when `|P| = 0`, two sequential internal events when
-`|P| = 1`, and Charron-Bost's crown execution `crownFin` when `2 ≤ |P|`). -/
-theorem exists_execution_dim_lower_bound (P : Type u) [Fintype P] :
+/-- Single-execution dimension lower-bound step over finite unicast traces `Execution P` (toward
+#7203, after [CharronBost1991], whose primary text was not inspected; not the cited endpoint):
+for every finite `P`, there exists `E : Execution P` such that any order-embedding of `E.Event`
+into `Fin d → α` (for any `LinearOrder α`) forces `Fintype.card P ≤ d` (via `Execution.empty` at
+`|P| = 0`, two sequential internal events at `|P| = 1`, and `crownFin` for `2 ≤ |P|`). -/
+theorem exists_unicast_execution_dim_lower_bound (P : Type u) [Fintype P] :
     ∃ E : Execution P, ∀ {α : Type v} [LinearOrder α] {d : ℕ}
       (f : E.Event → (Fin d → α)),
       (∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) →
@@ -481,28 +483,28 @@ theorem exists_execution_dim_lower_bound (P : Type u) [Fintype P] :
     intro e₁ e₂
     rw [← hf, Execution.map_happensBeforeLe_iff equiv.injective]
 
-/-- **Charron-Bost's dimension lower bound** ([CharronBost1991] for `2 ≤ Fintype.card P`;
-degenerate cases `|P| ≤ 1` handled directly): if every causally well-formed execution on `P` admits
-a `d`-dimensional logical clock into `Fin d → α` (for a `LinearOrder α`) characterizing
+/-- Clock-dimension lower-bound step over finite unicast executions `Execution P` (toward #7203,
+after [CharronBost1991], whose primary text was not inspected; not the cited endpoint): if every
+`E : Execution P` admits an order-embedding into `Fin d → α` (for a `LinearOrder α`) characterizing
 `HappensBeforeLe`, then `Fintype.card P ≤ d`. -/
-theorem charronBost_dim_lower_bound {P : Type u} [Fintype P] {α : Type v} [LinearOrder α] {d : ℕ}
-    (h : ∀ E : Execution P, ∃ f : E.Event → (Fin d → α),
+theorem unicast_clock_dim_lower_bound {P : Type u} [Fintype P] {α : Type v} [LinearOrder α]
+    {d : ℕ} (h : ∀ E : Execution P, ∃ f : E.Event → (Fin d → α),
       ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) :
     Fintype.card P ≤ d := by
-  obtain ⟨E, hE⟩ := exists_execution_dim_lower_bound P
+  obtain ⟨E, hE⟩ := exists_unicast_execution_dim_lower_bound P
   obtain ⟨f, hf⟩ := h E
   exact hE f hf
 
-/-- **Sharp vector-clock dimension characterization** ([Fidge1988], [Mattern1989],
-[CharronBost1991]): every causally well-formed execution on `P` admits an exact order-embedding
-into `Fin d → ℕ` iff `Fintype.card P ≤ d` (trivial at `|P| = 0`, 1-dimensional sequential counter
-at `|P| = 1`, and Charron-Bost's crown lower bound paired with `Execution.vc` for `2 ≤ |P|`). -/
-theorem exists_orderEmbedding_clock_iff {P : Type u} [Fintype P] {d : ℕ} :
+/-- Sharp `Fin d → ℕ` clock-dimension step over finite unicast executions `Execution P` (toward
+#7203, combining `unicast_clock_dim_lower_bound` after [CharronBost1991] with Mattern's
+`Execution.vc` [Mattern1989]; not claiming [CharronBost1991]'s uninspected endpoint): every
+`E : Execution P` admits an order-embedding into `Fin d → ℕ` iff `Fintype.card P ≤ d`. -/
+theorem exists_unicast_orderEmbedding_clock_iff {P : Type u} [Fintype P] {d : ℕ} :
     (∀ E : Execution P, ∃ f : E.Event → (Fin d → ℕ),
       ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) ↔
       Fintype.card P ≤ d := by
   constructor
-  · exact charronBost_dim_lower_bound
+  · exact unicast_clock_dim_lower_bound
   · intro hd E
     let _ : DecidableEq P := Classical.decEq P
     let equiv : P ≃ Fin (Fintype.card P) := Fintype.equivFin P

@@ -11,14 +11,14 @@ import CslibFrontier.Computability.Distributed.VectorClock.LowerBound
 import Mathlib.Algebra.Order.Field.Rat
 import Mathlib.Data.Fin.VecNotation
 
-/-! Lamport scalar clocks, Fidge–Mattern vector clocks, consistent cuts, and Charron-Bost's
-dimension lower bound (checked as a `module` client with ordinary imports): `decide`-validated
-causal execution checks on `Fin 3` and `Fin 4`, Lamport false-causality concurrent pairs,
-tie-broken `lamportTotalOrder`, Fidge–Mattern exact causal & concurrent characterizations and
-`O(1)` single-coordinate tests, consistent vs inconsistent cuts with Mattern's frontier condition,
-explicit `decide`-checked Charron-Bost crown executions on `Fin 3` and `Fin 4`, and client
-instantiations of `not_exists_1d_characterization`, `charronBost_dim_lower_bound`, and
-`exists_orderEmbedding_clock_iff`. -/
+/-! Lamport scalar clocks, Mattern vector clocks, consistent cuts, and crown-execution
+clock-dimension lower-bound steps (checked as a `module` client with ordinary imports):
+`decide`-validated causal execution checks on `Fin 3` and `Fin 4`, Lamport false-causality
+concurrent pairs, tie-broken `lamportTotalOrder`, Mattern exact causal & concurrent
+characterizations and `O(1)` single-coordinate tests, consistent vs inconsistent cuts with
+Mattern's frontier condition, explicit `decide`-checked crown executions on `Fin 3` and `Fin 4`,
+and client instantiations of `not_exists_1d_characterization`, `unicast_clock_dim_lower_bound`, and
+`exists_unicast_orderEmbedding_clock_iff`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.VectorClock
@@ -145,7 +145,7 @@ example :
       (crownFin 4 h4).Concurrent (crownPhase1 h4 p) (crownPhase2 h4 (crownShift h4 p))) :=
   by decide
 
-/-! ### Theorem-level client checks (incompleteness, Charron-Bost, sharp threshold, universes) -/
+/-! ### Theorem-level client checks (incompleteness, crown dimension step, universes) -/
 
 -- No 1D rational clock on `Fin 3`, no 2D clock on `crownFin 3`, no 3D clock on `crownFin 4`.
 example : ∃ E : Execution (Fin 3), ∀ f : E.Event → ℚ,
@@ -165,22 +165,28 @@ example : ¬ ∃ f : (crownFin 4 (by decide)).Event → (Fin 3 → ℚ),
   have h := crownFin_dim_lower_bound (by decide) f hf
   omega
 
--- Sharp `exists_orderEmbedding_clock_iff` across `Fin 0`, `Fin 1`, `Fin 3`, `Fin 4`, and `Type 1`.
+-- `unicast_clock_dim_lower_bound` and `exists_unicast_orderEmbedding_clock_iff` across universes.
+example : ¬ ∀ E : Execution (Fin 3), ∃ f : E.Event → (Fin 2 → ℚ),
+    ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ := by
+  intro h
+  have hle := unicast_clock_dim_lower_bound h
+  omega
+
 example : ∀ E : Execution (Fin 0), ∃ f : E.Event → (Fin 0 → ℕ),
     ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ :=
-  exists_orderEmbedding_clock_iff.mpr (by simp)
+  exists_unicast_orderEmbedding_clock_iff.mpr (by simp)
 
 example : (∀ E : Execution (Fin 1), ∃ f : E.Event → (Fin 0 → ℕ),
     ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂) ↔ False := by
-  rw [exists_orderEmbedding_clock_iff]
+  rw [exists_unicast_orderEmbedding_clock_iff]
   decide
 
 example : ∀ E : Execution (Fin 4), ∃ f : E.Event → (Fin 4 → ℕ),
     ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ :=
-  exists_orderEmbedding_clock_iff.mpr (by decide)
+  exists_unicast_orderEmbedding_clock_iff.mpr (by decide)
 
 example : ∀ E : Execution (ULift.{1} (Fin 3)), ∃ f : E.Event → (Fin 3 → ℕ),
     ∀ e₁ e₂, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ :=
-  exists_orderEmbedding_clock_iff.mpr (by simp)
+  exists_unicast_orderEmbedding_clock_iff.mpr (by simp)
 
 end CslibFrontierTests.Distributed.VectorClock
