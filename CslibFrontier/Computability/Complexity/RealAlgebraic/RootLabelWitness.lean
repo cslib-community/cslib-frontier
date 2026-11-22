@@ -13,6 +13,7 @@ public import Mathlib.Data.ZMod.Basic
 import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ModularArithmetic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List.Size
 
 /-!
 # Bounded derivative-sign witnesses
@@ -84,6 +85,24 @@ theorem decodeRootLabel_encodeRootLabel {D N : ℕ} (hD : 0 < D) (L : List (Fin 
       funext t
       exact Prod.ext (Fin.ext (Nat.mod_eq_of_lt t.1.isLt)) (decodeSign_encodeSign t.2)
     _ = L := List.map_id L
+
+/-- The direct encoding of a bounded label has bit length linear in its number of
+entries and in the binary size of the derivative bound. -/
+theorem length_encRootLabelCode_encodeRootLabel_le {D N : ℕ}
+    (L : List (Fin D × SignType)) (hL : L.length ≤ N) :
+    (encRootLabelCode (encodeRootLabel L)).length ≤ N * (4 * D.size + 7) := by
+  have hentry (t : RootLabelTestCode) (ht : t ∈ encodeRootLabel L) :
+      (encRootLabelTestCode t).length ≤ 2 * D.size + 3 := by
+    obtain ⟨⟨i, s⟩, _, rfl⟩ := List.mem_map.mp ht
+    have hi := Nat.size_le_size i.isLt.le
+    have hs : (encodeSign s).size ≤ 2 := by cases s <;> decide
+    simp only [encRootLabelTestCode_apply, encRootLabelTestCodeFields, length_encPair,
+      encNat_apply, Nat.size_eq_bits_len]
+    omega
+  have hcode := length_encList_le encRootLabelTestCode (encodeRootLabel L) hentry
+  rw [show 2 * (2 * D.size + 3) + 1 = 4 * D.size + 7 by omega] at hcode
+  rw [encodeRootLabel, List.length_map] at hcode
+  exact hcode.trans (Nat.mul_le_mul_right _ hL)
 
 /-- Convert the bounded prefix into the positive orders read by the sparse label evaluator. -/
 def rootLabelCodeOrders (D N : ℕ) (data : List RootLabelTestCode) : List ℕ :=

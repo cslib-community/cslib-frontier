@@ -118,6 +118,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SparseOrbit
 import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.NineQuarters
 import CslibFrontier.Computability.Circuit.Boolean.ArithmeticRing
 import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
@@ -140,6 +141,7 @@ import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
+import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -12689,3 +12691,67 @@ register_result "nexp-bounded-acceptance-complete" where
     many-one reductions. Source check: outside-fleet agent check (reviewer-codex-edemaine) on \
     PR #5591 at 929cb9c76428: \
     https://github.com/cslib-community/cslib-frontier/pull/5591#issuecomment-7071385084."
+
+register_result "gaspers-cubic-switched-cutwidth" where
+  title := "Cutwidth and bisection bounds for cubic graphs via median-switched Gaussian sweeps"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Gaspers2026,
+      theorem := "Corollary 1.2 (adapted; pathwidth proof via Theorems 1.1(a) and 8.1)",
+      locator := "arXiv:2611.05146v1, §1.1, p. 1 (PDF p. 3) and §8, p. 45 (PDF p. 47); \
+        Zenodo companion v1, doi:10.5281/zenodo.23883489" }
+  ]
+  theorems := [
+    Cslib.Circuits.Frontier.Switched.exists_width_le_switchedCoefficient,
+    Cslib.Circuits.Frontier.Switched.cubicLayoutBound_switched,
+    Cslib.Circuits.Frontier.Switched.exists_ncard_edgeCut_le,
+    Cslib.Circuits.Frontier.layoutBound_switched
+  ]
+  scope := "Adapts Corollary 1.2 of Gaspers (2026), whose underlying pathwidth proof comes \
+    from Theorems 1.1(a) and 8.1. Formalizes two existential (non-constructive) endpoints \
+    with constant c₃ = (3 / (4π)) arccos(5 / 6) ≈ 0.139822: (1) the direct per-vertex \
+    cutwidth and bisection bounds for finite loopless 3-regular multigraphs (parallel edges \
+    allowed; exists_width_le_switchedCoefficient, exists_ncard_edgeCut_le, and the \
+    simple-graph specialization cubicLayoutBound_switched), and (2) the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) (layoutBound_switched), obtained via saturated \
+    compression (LayoutBound.of_cubic). Adapts the certificate-free CubicPathwidth.C3 \
+    geometry, bipartite connector lemma, and switched interval-bag layout from Zenodo release \
+    v1 (MIT license, Serge Gaspers). Differs from Gaspers (2026) in that only the per-vertex \
+    cutwidth and bisection bounds for 3-regular multigraphs and the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) are formalized (not Corollary 1.2's full subcubic \
+    per-vertex statement, the deterministic n^(2+o(1)) algorithm, or higher-degree Δ ≥ 4 / \
+    mixed-degree / exact exponential algorithm results). The direct multigraph \
+    interval-to-cutwidth bridge (including parallel edges), rational lower bounds in \
+    Switched/Coefficient.lean, concentration proof via unitKernelRow, and downstream \
+    fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
+    are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
+    (main.tex) and compiled PDF on 2026-11-22."
+
+register_result "odonnell-degree-one-weight-one-literals" where
+  title := "Boolean functions with all Fourier weight on degree one are the literals"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 1.19(a)",
+      locator := "arXiv:2105.10386v1, §1.7, printed p. 37" }
+  ]
+  theorems := [Cslib.BitString.levelWeight_one_signVal_eq_one_iff]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), W¹[f] = 1 if and only if f x = b ⊕ x i for some coordinate i \
+    and bit b; these literals are the book's ±χ_S with |S| = 1. The book asks only for the \
+    forward direction; the converse is included. Parts (b) and (c) of the exercise are not \
+    covered by this entry."
+
+register_result "odonnell-unbiased-noise-stability-dictators" where
+  title := "Dictators maximize the noise stability of unbiased Boolean functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 2.50",
+      locator := "arXiv:2105.10386v1, §2.4, printed p. 56" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_signVal_le_of_expect_eq_zero,
+    Cslib.BitString.noiseStability_signVal_eq_iff_of_expect_eq_zero]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), with 𝔼 x, signVal (f x) = 0: Stab_ρ[f] ≤ ρ for 0 ≤ ρ ≤ 1, \
+    the closed interval containing the book's 0 < ρ < 1; and for 0 < ρ < 1, Stab_ρ[f] = ρ if \
+    and only if f x = b ⊕ x i for some coordinate i and bit b, the book's ±χ_i. The equality \
+    case fails at both endpoints."
