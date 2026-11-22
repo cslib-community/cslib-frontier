@@ -715,12 +715,12 @@ abbrev SteinerEdge (c : Circuit σ n m) : Type :=
 instance (c : Circuit σ n m) : Finite (SteinerEdge c) := inferInstance
 
 /-- Source of a Steiner edge: `j`-th support node of its signal. -/
-noncomputable def steinerSrc (c : Circuit σ n m) (π : Layout (Node c)) :
+private noncomputable def steinerSrc (c : Circuit σ n m) (π : Layout (Node c)) :
     SteinerEdge c → Node c
   | ⟨w, ⟨j, hj⟩⟩ => supportNode c π w ⟨j, by omega⟩
 
 /-- Target of a Steiner edge: `(j + 1)`-st support node of its signal. -/
-noncomputable def steinerTgt (c : Circuit σ n m) (π : Layout (Node c)) :
+private noncomputable def steinerTgt (c : Circuit σ n m) (π : Layout (Node c)) :
     SteinerEdge c → Node c
   | ⟨w, ⟨j, hj⟩⟩ => supportNode c π w ⟨j + 1, by omega⟩
 
@@ -734,7 +734,7 @@ section GraphProps
 
 variable {c : Circuit σ n m} {π : Layout (Node c)}
 
-theorem pi_steinerSrc_lt_tgt (e : SteinerEdge c) :
+private theorem pi_steinerSrc_lt_tgt (e : SteinerEdge c) :
     π (steinerSrc c π e) < π (steinerTgt c π e) := by
   rcases e with ⟨w, ⟨j, hj⟩⟩
   rw [steinerSrc, steinerTgt, pi_supportNode_lt_iff]
@@ -744,11 +744,13 @@ theorem steinerGraph_loopless : (steinerGraph c π).Loopless := by
   intro e h
   exact (ne_of_lt (pi_steinerSrc_lt_tgt e)) (congrArg π h)
 
-theorem steinerSrc_mem_support (e : SteinerEdge c) : steinerSrc c π e ∈ support c e.1 := by
+private theorem steinerSrc_mem_support (e : SteinerEdge c) :
+    steinerSrc c π e ∈ support c e.1 := by
   rcases e with ⟨w, ⟨j, hj⟩⟩
   exact supportNode_mem c π w _
 
-theorem steinerTgt_mem_support (e : SteinerEdge c) : steinerTgt c π e ∈ support c e.1 := by
+private theorem steinerTgt_mem_support (e : SteinerEdge c) :
+    steinerTgt c π e ∈ support c e.1 := by
   rcases e with ⟨w, ⟨j, hj⟩⟩
   exact supportNode_mem c π w _
 
@@ -904,7 +906,7 @@ variable {U : Type*}
 
 open Classical in
 /-- Each reachable input `i` is read at the first node of its support in `π`-order. -/
-noncomputable def steinerSite (c : Circuit σ n m) (π : Layout (Node c)) (i : Fin n) :
+private noncomputable def steinerSite (c : Circuit σ n m) (π : Layout (Node c)) (i : Fin n) :
     Option (Node c) :=
   if hi : Reach c (.input i) then
     some (supportNode c π (.input i hi) ⟨0, (ncard_pos (toFinite _)).mpr
@@ -968,7 +970,7 @@ private noncomputable def wireValAt (c : Circuit σ n m) (I : Interpretation σ 
 1. All Steiner edges of the same signal incident to `u` agree with `canonicalEdge`.
 2. Any input read at `u` (`steinerSite c π i = some u`) matches `x i` on its outgoing edge.
 3. Gate nodes evaluate their operation; output nodes check membership in `Acc o`. -/
-def SteinerConstraint (c : Circuit σ n m) (I : Interpretation σ U) (Acc : Fin m → Set U)
+private def SteinerConstraint (c : Circuit σ n m) (I : Interpretation σ U) (Acc : Fin m → Set U)
     (π : Layout (Node c)) (u : Node c) (x : Fin n → U) (α : SteinerEdge c → U) : Prop :=
   (∀ e : SteinerEdge c, (steinerSrc c π e = u ∨ steinerTgt c π e = u) →
     ∀ (hu : u ∈ support c e.1) (h2 : 2 ≤ (support c e.1).ncard),
@@ -1056,7 +1058,7 @@ variable {c : Circuit σ n m} {I : Interpretation σ U} {Acc : Fin m → Set U} 
   unfold steinerNetwork
   rfl
 
-theorem steinerSite_eq_some {i : Fin n} {u : Node c} (h : steinerSite c π i = some u) :
+private theorem steinerSite_eq_some {i : Fin n} {u : Node c} (h : steinerSite c π i = some u) :
     ∃ hi : Reach c (.input i), u ∈ support c (.input i hi) := by
   unfold steinerSite at h
   split_ifs at h with hi

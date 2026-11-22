@@ -15,7 +15,6 @@ public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.Logb
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
@@ -57,7 +56,7 @@ unconditional theorem families using zero Gaussian measure theory:
    (`eventually_four_div_lt_innerSize_of_nondeterministicDecides`).
 5. **Quadratic-form correlation**
    (`CslibFrontier/Computability/Circuit/Frontier/Compiler/GateSweep/QuadForm.lean`, re-exported
-   here): Exponentially small correlation against `Matrix.symmHardForm` below
+   here): Exponentially small correlation against `Cslib.Circuits.Frontier.symmHardForm` below
    `quadFormGateSweepCoefficient r k₀` and `(log₂ r - log₂ log₂ r - 2 - ε) n`.
 
 ## Main definitions
@@ -131,42 +130,8 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
         norm_num
       push_cast at hrhs ⊢
       linarith
-  · set ℓ := Nat.log 2 r
-    have hℓ2 : 2 ≤ ℓ := by
-      have : Nat.log 2 4 ≤ Nat.log 2 r := Nat.log_mono_right hr4
-      have h4 : Nat.log 2 4 = 2 := by decide
-      omega
-    have hpow_ℓ : 2 ^ ℓ ≤ r := Nat.pow_log_le_self 2 (by omega)
-    set k₀ := Nat.log 2 (r / ℓ)
+  · obtain ⟨k₀, _, hk₀_pow, hlog⟩ := exists_mul_two_pow_le_and_logb_sub_logb_le hr4
     refine ⟨k₀, ?_⟩
-    have hdiv_pos : 0 < r / ℓ := by
-      rw [Nat.div_pos_iff]
-      refine ⟨by omega, ?_⟩
-      have hlt : ℓ < 2 ^ ℓ := ℓ.lt_two_pow_self
-      omega
-    have hk₀_le_r : 2 ^ k₀ * ℓ ≤ r := by
-      have h := Nat.pow_log_le_self 2 (show r / ℓ ≠ 0 by omega)
-      exact (Nat.mul_le_mul_right ℓ h).trans (Nat.div_mul_le_self r ℓ)
-    have hr_lt_succ : r < 2 ^ (k₀ + 1) * ℓ := by
-      have h : r / ℓ < 2 ^ (k₀ + 1) := by
-        simpa [k₀, Nat.succ_eq_add_one] using Nat.lt_pow_succ_log_self (b := 2) (by decide) (r / ℓ)
-      have hdiv := Nat.div_add_mod r ℓ
-      have hmod : r % ℓ < ℓ := Nat.mod_lt r (by omega)
-      nlinarith
-    have hℓ_le_log : (ℓ : ℝ) ≤ Real.logb 2 r := by
-      rw [← Real.logb_two_pow ℓ]
-      exact Real.logb_le_logb_of_le (by norm_num) (by positivity) (by exact_mod_cast hpow_ℓ)
-    have hlog_r_le : Real.logb 2 r ≤ (k₀ : ℝ) + 1 + Real.logb 2 ℓ := by
-      have hr_le_real : (r : ℝ) ≤ (2 : ℝ) ^ (k₀ + 1) * ℓ := by exact_mod_cast hr_lt_succ.le
-      calc Real.logb 2 r
-          ≤ Real.logb 2 ((2 : ℝ) ^ (k₀ + 1) * ℓ) :=
-            Real.logb_le_logb_of_le (by norm_num) (by positivity) hr_le_real
-        _ = (k₀ : ℝ) + 1 + Real.logb 2 ℓ := by
-            rw [Real.logb_mul (by positivity) (by positivity), Real.logb_two_pow]
-            push_cast
-            ring
-    have hll_mono : Real.logb 2 ℓ ≤ Real.logb 2 (Real.logb 2 r) :=
-      Real.logb_le_logb_of_le (by norm_num) (by positivity) hℓ_le_log
     have hk₀_alg : (k₀ : ℝ) ≤ (r - 1 : ℝ) * gateSweepCoefficient r k₀ := by
       unfold gateSweepCoefficient
       have hd_pos : (0 : ℝ) < (r : ℝ) + (2 : ℝ) ^ k₀ - k₀ - 1 := by
@@ -174,21 +139,7 @@ theorem exists_log_sub_log_log_le_mul_gateSweepCoefficient {r : ℕ} (hr : 2 ≤
         have h2 : (4 : ℝ) ≤ r := by exact_mod_cast hr4
         linarith
       rw [mul_div_assoc', le_div_iff₀ hd_pos]
-      have hk₀_le_ℓ : k₀ ≤ ℓ := by
-        by_contra hgt
-        push Not at hgt
-        have : r < 2 ^ k₀ * ℓ := by
-          have h : r < 2 ^ (ℓ + 1) := by
-            simpa [ℓ, Nat.succ_eq_add_one] using Nat.lt_pow_succ_log_self (b := 2) (by decide) r
-          have h2 : 2 ^ (ℓ + 1) ≤ 2 ^ k₀ := Nat.pow_le_pow_right (by decide) hgt
-          nlinarith
-        omega
-      have hk₀_pow_le_r : (k₀ : ℝ) * (2 : ℝ) ^ k₀ ≤ r := by
-        have hnat : k₀ * 2 ^ k₀ ≤ r := by
-          calc k₀ * 2 ^ k₀ ≤ ℓ * 2 ^ k₀ := Nat.mul_le_mul_right _ hk₀_le_ℓ
-            _ = 2 ^ k₀ * ℓ := mul_comm _ _
-            _ ≤ r := hk₀_le_r
-        exact_mod_cast hnat
+      have hk₀_pow_r : (k₀ : ℝ) * (2 : ℝ) ^ k₀ ≤ r := by exact_mod_cast hk₀_pow
       have hr4_r : (4 : ℝ) ≤ r := by exact_mod_cast hr4
       have hk₀_nn : (0 : ℝ) ≤ k₀ := Nat.cast_nonneg k₀
       nlinarith [sq_nonneg (k₀ : ℝ)]

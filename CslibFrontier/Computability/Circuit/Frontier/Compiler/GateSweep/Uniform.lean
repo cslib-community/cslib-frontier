@@ -14,9 +14,8 @@ import CslibFrontier.Computability.Circuit.Frontier.Layouts.Scores
 import CslibFrontier.Foundations.Data.Finset.Expect
 import CslibFrontier.Foundations.Data.Nat.Card
 import CslibFrontier.Foundations.Data.Set.Card
-import Mathlib.Algebra.BigOperators.Balance
+import CslibFrontier.Foundations.Probability.EfronStein
 import Mathlib.Algebra.BigOperators.Field
-import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
@@ -28,7 +27,7 @@ import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 
 /-!
-# Discrete uniform gate sweeps and bounded-difference concentration
+# Discrete uniform gate sweeps and unit-fanout forest grouping
 
 This file constructs low-width layouts on `Compiler.Node c` and balanced two-colorings for
 quadratic-form correlation using only finite uniform averages (`𝔼`) over `κ → Fin M`:
@@ -38,12 +37,9 @@ quadratic-form correlation using only finite uniform averages (`𝔼`) over `κ 
   `α^k + (1 - α)^k` caps every threshold straddle probability `1 - (j/M)^k - (1 - j/M)^k` at the
   midpoint value `1 - 2^{1 - k}`, and discrete secant lines bound `1 - 2^{1 - k}` above at
   `(k₀, k₀ + 1)`.
-* **Finite product concentration** (`expect_sub_expect_sq_le`, `exists_forall_abs_sub_expect_le`).
-  Orthogonal fiber splitting on product types (`Fintype.expect_add_sq_of_expect_fiber_eq_zero`)
-  bounds the variance of any function on `κ → α` by the sum of squared coordinate oscillations, and
-  averaging the sum of squared deviations over finitely many observables produces a single sample
-  simultaneously within `√(∑_{i, u} c_{i, u}^2)` of every expectation.
-* **Uniform bucket layouts** (`exists_layout_signalWidth_le`). Sorting `Node c` by uniform bucket
+* **Uniform bucket layouts** (`exists_layout_signalWidth_le`). Combining coordinate independence
+  with `Fintype.exists_forall_abs_sub_expect_le`
+  (`CslibFrontier/Foundations/Probability/EfronStein.lean`) and sorting `Node c` by uniform bucket
   scores `Node c → Fin M` bounds `signalWidth c π` by
   `∑_w (1 - 2^{1 - |support w|}) + (r + 1) |Node c| / M + (r + 1) √(M |Node c|)`.
 * **Unit-fanout forest grouping** (`exists_layout_signalWidth_reuse_le`). At fan-in two, bottom-up
@@ -149,35 +145,12 @@ theorem four_mul_one_sub_two_pow_le : ∀ k : ℕ, 4 * ((1 : ℝ) - (1 / 2 : ℝ
     change 4 * ((1 : ℝ) - (1 / 2 : ℝ) ^ (m + 3)) ≤ (m + 4 : ℕ)
     linarith
 
-/-! ### Product expectations and bounded-difference variance -/
+/-! ### Product indicator expectations on finite buckets -/
 
 section Concentration
 
-/-- Independent coordinates have multiplicative uniform expectations. -/
-theorem expect_prod_apply {κ α : Type*} [Fintype κ] [DecidableEq κ] [Fintype α] [Nonempty α]
-    (S : Finset κ) (g : κ → α → ℝ) :
-    (𝔼 ω : κ → α, ∏ u ∈ S, g u (ω u)) = ∏ u ∈ S, 𝔼 a : α, g u a := by
-  induction S using Finset.induction_on with
-  | empty => simp
-  | @insert u₀ S hu₀ ih =>
-    rw [← Fintype.expect_expect_update (fun ω : κ → α => ∏ u ∈ insert u₀ S, g u (ω u)) u₀]
-    have hinner (ω : κ → α) :
-        (𝔼 a : α, ∏ u ∈ insert u₀ S, g u (Function.update ω u₀ a u)) =
-          (∏ u ∈ S, g u (ω u)) * 𝔼 a : α, g u₀ a := by
-      have hprod (a : α) :
-          ∏ u ∈ insert u₀ S, g u (Function.update ω u₀ a u) =
-            (∏ u ∈ S, g u (ω u)) * g u₀ a := by
-        rw [Finset.prod_insert hu₀, Function.update_self, mul_comm]
-        congr 1
-        refine Finset.prod_congr rfl fun u hu => ?_
-        have hne : u ≠ u₀ := fun heq => hu₀ (heq ▸ hu)
-        rw [Function.update_of_ne hne]
-      simp_rw [hprod, ← Finset.mul_expect]
-    simp_rw [hinner, mul_comm _ (𝔼 a : α, g u₀ a), ← Finset.mul_expect]
-    rw [ih, Finset.prod_insert hu₀]
-
 /-- The uniform expectation that all coordinates in `S` satisfy `p` is `(𝔼 a, 1[p a]) ^ |S|`. -/
-theorem expect_all_apply {κ α : Type*} [Fintype κ] [DecidableEq κ] [Fintype α] [Nonempty α]
+private theorem expect_all_apply {κ α : Type*} [Fintype κ] [DecidableEq κ] [Fintype α] [Nonempty α]
     (S : Finset κ) (p : α → Prop) [DecidablePred p] :
     (𝔼 ω : κ → α, if ∀ u ∈ S, p (ω u) then (1 : ℝ) else 0) =
       (𝔼 a : α, if p a then (1 : ℝ) else 0) ^ S.card := by
@@ -191,10 +164,30 @@ theorem expect_all_apply {κ α : Type*} [Fintype κ] [DecidableEq κ] [Fintype 
       by_cases h1 : p (ω u₀) <;> by_cases h2 : ∀ u ∈ S, p (ω u) <;>
         simp [h1, h2]
   simp_rw [hboole]
-  rw [expect_prod_apply S (fun _ a => if p a then (1 : ℝ) else 0), Finset.prod_const]
+  clear hboole
+  rw [← Finset.prod_const]
+  induction S using Finset.induction_on with
+  | empty => simp
+  | @insert u₀ S hu₀ ih =>
+    rw [← Fintype.expect_expect_update
+      (fun ω : κ → α => ∏ u ∈ insert u₀ S, if p (ω u) then (1 : ℝ) else 0) u₀]
+    have hinner (ω : κ → α) :
+        (𝔼 a : α, ∏ u ∈ insert u₀ S, if p (Function.update ω u₀ a u) then (1 : ℝ) else 0) =
+          (∏ u ∈ S, if p (ω u) then (1 : ℝ) else 0) * 𝔼 a : α, if p a then (1 : ℝ) else 0 := by
+      have hprod (a : α) :
+          (∏ u ∈ insert u₀ S, if p (Function.update ω u₀ a u) then (1 : ℝ) else 0) =
+            (∏ u ∈ S, if p (ω u) then (1 : ℝ) else 0) * (if p a then (1 : ℝ) else 0) := by
+        rw [Finset.prod_insert hu₀, Function.update_self, mul_comm]
+        congr 1
+        refine Finset.prod_congr rfl fun u hu => ?_
+        have hne : u ≠ u₀ := fun heq => hu₀ (heq ▸ hu)
+        rw [Function.update_of_ne hne]
+      simp_rw [hprod, ← Finset.mul_expect]
+    simp_rw [hinner, mul_comm _ (𝔼 a : α, if p a then (1 : ℝ) else 0), ← Finset.mul_expect]
+    rw [ih, Finset.prod_insert hu₀]
 
 /-- Uniform probability on `Fin M` of falling strictly below `j ≤ M`. -/
-theorem expect_fin_lt {M j : ℕ} (hj : j ≤ M) :
+private theorem expect_fin_lt {M j : ℕ} (hj : j ≤ M) :
     (𝔼 a : Fin M, if (a : ℕ) < j then (1 : ℝ) else 0) = (j : ℝ) / M := by
   rw [Fintype.expect_eq_sum_div_card, Finset.sum_boole, Fintype.card_fin]
   have hcard : (Finset.univ.filter fun a : Fin M => (a : ℕ) < j).card = j := by
@@ -211,7 +204,7 @@ theorem expect_fin_lt {M j : ℕ} (hj : j ≤ M) :
   rw [hcard]
 
 /-- Uniform probability on `Fin M` of falling at or above `j ≤ M`. -/
-theorem expect_fin_ge {M : ℕ} [NeZero M] {j : ℕ} (hj : j ≤ M) :
+private theorem expect_fin_ge {M : ℕ} [NeZero M] {j : ℕ} (hj : j ≤ M) :
     (𝔼 a : Fin M, if j ≤ (a : ℕ) then (1 : ℝ) else 0) = 1 - (j : ℝ) / M := by
   have hcompl (a : Fin M) :
       (if j ≤ (a : ℕ) then (1 : ℝ) else 0) = 1 - if (a : ℕ) < j then (1 : ℝ) else 0 := by
@@ -224,7 +217,7 @@ theorem expect_fin_ge {M : ℕ} [NeZero M] {j : ℕ} (hj : j ≤ M) :
   rw [Finset.expect_sub_distrib, Fintype.expect_const, expect_fin_lt hj]
 
 /-- Uniform probability on `Fin M` of hitting bucket `j < M`. -/
-theorem expect_fin_eq {M j : ℕ} (hj : j < M) :
+private theorem expect_fin_eq {M j : ℕ} (hj : j < M) :
     (𝔼 a : Fin M, if (a : ℕ) = j then (1 : ℝ) else 0) = 1 / (M : ℝ) := by
   rw [Fintype.expect_eq_sum_div_card, Finset.sum_boole, Fintype.card_fin]
   have hflt : (Finset.univ.filter fun a : Fin M => (a : ℕ) = j) = {⟨j, hj⟩} := by
@@ -232,163 +225,6 @@ theorem expect_fin_eq {M j : ℕ} (hj : j < M) :
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
     exact ⟨fun h => Fin.ext h, fun h => congrArg Fin.val h⟩
   rw [hflt, Finset.card_singleton, Nat.cast_one]
-
-private theorem expect_sub_expect_sq_le_fin {α : Type*} [Fintype α] [Nonempty α] :
-    ∀ (N : ℕ) (f : (Fin N → α) → ℝ) (c : Fin N → ℝ),
-      (∀ i, 0 ≤ c i) →
-      (∀ ω i a b, |f (Function.update ω i a) - f (Function.update ω i b)| ≤ c i) →
-      (𝔼 ω : Fin N → α, (f ω - 𝔼 ω', f ω') ^ 2) ≤ ∑ i : Fin N, c i ^ 2
-  | 0, f, c, _, _ => by
-    have hc : ∀ ω : Fin 0 → α, f ω = f default :=
-      fun ω => congrArg f (Subsingleton.elim ω default)
-    have hmean : (𝔼 ω' : Fin 0 → α, f ω') = f default := by
-      simp_rw [hc]
-      exact Fintype.expect_const _
-    have hzero : ∀ ω : Fin 0 → α, (f ω - 𝔼 ω', f ω') ^ 2 = 0 := fun ω => by
-      rw [hc ω, hmean, sub_self, zero_pow two_ne_zero]
-    simp_rw [hzero]
-    rw [Fintype.expect_const]
-    exact Finset.sum_nonneg fun i _ => sq_nonneg (c i)
-  | N + 1, f, c, hc, hf => by
-    let μ : ℝ := 𝔼 ω', f ω'
-    let h : (Fin N → α) → ℝ := fun y => 𝔼 a : α, f (Fin.snoc y a)
-    have hμ : (𝔼 y : Fin N → α, h y) = μ := Fintype.expect_fin_snoc f
-    let φ : (Fin N → α) → ℝ := fun y => h y - μ
-    let ψ : (Fin N → α) × α → ℝ := fun p => f (Fin.snoc p.1 p.2) - h p.1
-    have hfib : ∀ y : Fin N → α, (𝔼 a : α, ψ (y, a)) = 0 :=
-      Fintype.expect_sub_expect_fiber fun p : (Fin N → α) × α => f (Fin.snoc p.1 p.2)
-    have hrew : (𝔼 ω : Fin (N + 1) → α, (f ω - μ) ^ 2) =
-        𝔼 p : (Fin N → α) × α, (φ p.1 + ψ p) ^ 2 := by
-      rw [← Fintype.expect_fin_snoc fun ω => (f ω - μ) ^ 2, Fintype.expect_prod_type]
-      refine Finset.expect_congr rfl fun y _ => Finset.expect_congr rfl fun a _ => ?_
-      dsimp only [φ, ψ, h]
-      ring
-    rw [hrew, Fintype.expect_add_sq_of_expect_fiber_eq_zero φ hfib,
-      Fintype.expect_comp_fst fun y => φ y ^ 2, Fin.sum_univ_castSucc]
-    have hosc_h : ∀ (y : Fin N → α) (i : Fin N) (a₁ a₂ : α),
-        |h (Function.update y i a₁) - h (Function.update y i a₂)| ≤ c i.castSucc := by
-      intro y i a₁ a₂
-      have hsnoc (y' : Fin N → α) (a₀ a : α) :
-          Fin.snoc (α := fun _ => α) (Function.update y' i a₀) a =
-            Function.update (Fin.snoc (α := fun _ => α) y' a) i.castSucc a₀ := by
-        ext k
-        refine Fin.lastCases ?_ (fun j => ?_) k
-        · simp only [Fin.snoc_last, Function.update_of_ne (Fin.castSucc_ne_last i).symm]
-        · simp only [Fin.snoc_castSucc]
-          by_cases hj : j = i
-          · subst hj
-            simp only [Function.update_self]
-          · simp only [Function.update_of_ne hj,
-              Function.update_of_ne (Fin.castSucc_inj.not.mpr hj), Fin.snoc_castSucc]
-      have hdiff : h (Function.update y i a₁) - h (Function.update y i a₂) =
-          𝔼 a : α, (f (Function.update (Fin.snoc (α := fun _ => α) y a) i.castSucc a₁) -
-            f (Function.update (Fin.snoc (α := fun _ => α) y a) i.castSucc a₂)) := by
-        dsimp only [h]
-        rw [← Finset.expect_sub_distrib]
-        refine Finset.expect_congr rfl fun a _ => ?_
-        rw [hsnoc, hsnoc]
-      rw [hdiff]
-      refine (Finset.abs_expect_le _ _).trans ?_
-      exact Finset.expect_le Finset.univ_nonempty fun a _ =>
-        hf (Fin.snoc (α := fun _ => α) y a) i.castSucc a₁ a₂
-    have hterm1 : (𝔼 y : Fin N → α, φ y ^ 2) ≤ ∑ i : Fin N, c i.castSucc ^ 2 := by
-      have heq_φ : φ = fun y => h y - 𝔼 y', h y' := by
-        funext y
-        dsimp only [φ]
-        rw [hμ]
-      rw [heq_φ]
-      exact expect_sub_expect_sq_le_fin N h (fun i => c i.castSucc)
-        (fun i => hc i.castSucc) hosc_h
-    have hterm2 : (𝔼 p : (Fin N → α) × α, ψ p ^ 2) ≤ c (Fin.last N) ^ 2 := by
-      refine Finset.expect_le Finset.univ_nonempty fun p _ => ?_
-      have hlast (b : α) :
-          Fin.snoc (α := fun _ => α) p.1 b =
-            Function.update (Fin.snoc (α := fun _ => α) p.1 p.2) (Fin.last N) b := by
-        ext k
-        refine Fin.lastCases ?_ (fun j => ?_) k
-        · simp only [Fin.snoc_last, Function.update_self]
-        · simp only [Fin.snoc_castSucc, Function.update_of_ne (Fin.castSucc_ne_last j)]
-      have hψ_eq : ψ p = 𝔼 b : α,
-          (f (Function.update (Fin.snoc (α := fun _ => α) p.1 p.2) (Fin.last N) p.2) -
-            f (Function.update (Fin.snoc (α := fun _ => α) p.1 p.2) (Fin.last N) b)) := by
-        dsimp only [ψ, h]
-        rw [Finset.expect_sub_distrib, Fintype.expect_const]
-        congr 1
-        · exact congrArg f (hlast p.2)
-        · exact Finset.expect_congr rfl fun b _ => congrArg f (hlast b)
-      have habs : |ψ p| ≤ c (Fin.last N) := by
-        rw [hψ_eq]
-        exact (Finset.abs_expect_le _ _).trans
-          (Finset.expect_le Finset.univ_nonempty fun b _ =>
-            hf (Fin.snoc (α := fun _ => α) p.1 p.2) (Fin.last N) p.2 b)
-      exact sq_le_sq.mpr (by rwa [abs_of_nonneg (hc (Fin.last N))])
-    exact add_le_add hterm1 hterm2
-
-/-- **Bounded-difference variance bound.** On any finite product `κ → α`, a function whose
-oscillation in coordinate `u` is at most `c u ≥ 0` has variance at most `∑ u, (c u)^2`. -/
-theorem expect_sub_expect_sq_le {κ α : Type*} [Fintype κ] [DecidableEq κ] [Fintype α] [Nonempty α]
-    (f : (κ → α) → ℝ) (c : κ → ℝ) (hc : ∀ u, 0 ≤ c u)
-    (hf : ∀ ω u a b, |f (Function.update ω u a) - f (Function.update ω u b)| ≤ c u) :
-    (𝔼 ω : κ → α, (f ω - 𝔼 ω', f ω') ^ 2) ≤ ∑ u : κ, c u ^ 2 := by
-  let e : κ ≃ Fin (Fintype.card κ) := Fintype.equivFin κ
-  let f' : (Fin (Fintype.card κ) → α) → ℝ := fun x => f (fun u => x (e u))
-  let c' : Fin (Fintype.card κ) → ℝ := fun i => c (e.symm i)
-  have hmean : (𝔼 x, f' x) = 𝔼 ω, f ω := by
-    dsimp only [f']
-    exact Fintype.expect_equiv (e.symm.arrowCongr (Equiv.refl α)) _ _ fun _ => rfl
-  have hsq : (𝔼 x, (f' x - 𝔼 x', f' x') ^ 2) = 𝔼 ω, (f ω - 𝔼 ω', f ω') ^ 2 := by
-    simp_rw [hmean]
-    exact Fintype.expect_equiv (e.symm.arrowCongr (Equiv.refl α))
-      (fun x => (f' x - 𝔼 ω', f ω') ^ 2) (fun ω => (f ω - 𝔼 ω', f ω') ^ 2) fun _ => rfl
-  have hosc' : ∀ x i a b,
-      |f' (Function.update x i a) - f' (Function.update x i b)| ≤ c' i := by
-    intro x i a b
-    have hupd (a₀ : α) :
-        (fun u => Function.update x i a₀ (e u)) =
-          Function.update (fun u => x (e u)) (e.symm i) a₀ := by
-      ext u
-      by_cases hu : u = e.symm i
-      · subst hu
-        simp only [e.apply_symm_apply, Function.update_self]
-      · have hei : e u ≠ i := fun h => hu (e.eq_symm_apply.mpr h)
-        simp only [Function.update_of_ne hei, Function.update_of_ne hu]
-    dsimp only [f', c']
-    rw [hupd, hupd]
-    exact hf _ _ a b
-  rw [← hsq, ← e.symm.sum_comp (fun u => c u ^ 2)]
-  exact expect_sub_expect_sq_le_fin (Fintype.card κ) f' c' (fun i => hc (e.symm i)) hosc'
-
-/-- **Simultaneous bounded-difference realization.** Averaging the sum of squared deviations over a
-finite family `f : ι → (κ → α) → ℝ` yields a single sample `ω` at which every `f i ω` deviates from
-its expectation by at most `√(∑ i, ∑ u, (c i u)^2)`. -/
-theorem exists_forall_abs_sub_expect_le {ι κ α : Type*} [Fintype ι] [Fintype κ] [DecidableEq κ]
-    [Fintype α] [Nonempty α] (f : ι → (κ → α) → ℝ) (c : ι → κ → ℝ)
-    (hc : ∀ i u, 0 ≤ c i u)
-    (hf : ∀ i ω u a b, |f i (Function.update ω u a) - f i (Function.update ω u b)| ≤ c i u) :
-    ∃ ω : κ → α, ∀ i : ι,
-      |f i ω - 𝔼 ω', f i ω'| ≤ √(∑ j : ι, ∑ u : κ, c j u ^ 2) := by
-  let Φ : (κ → α) → ℝ := fun ω => ∑ j : ι, (f j ω - 𝔼 ω', f j ω') ^ 2
-  let B : ℝ := ∑ j : ι, ∑ u : κ, c j u ^ 2
-  have hexp_sum : (𝔼 ω : κ → α, Φ ω) = ∑ j : ι, 𝔼 ω : κ → α, (f j ω - 𝔼 ω', f j ω') ^ 2 := by
-    simp only [Φ, Fintype.expect_eq_sum_div_card]
-    rw [Finset.sum_comm, Finset.sum_div]
-  have hexp_le : (𝔼 ω : κ → α, Φ ω) ≤ B := by
-    rw [hexp_sum]
-    exact Finset.sum_le_sum fun j _ => expect_sub_expect_sq_le (f j) (c j) (hc j) (hf j)
-  have hex : ∃ ω : κ → α, Φ ω ≤ B := by
-    by_contra! hgt
-    have hlt : B < 𝔼 ω : κ → α, Φ ω := by
-      calc B = 𝔼 _ω : κ → α, B := (Fintype.expect_const B).symm
-        _ < 𝔼 ω : κ → α, Φ ω :=
-          Finset.expect_lt_expect (fun ω _ => (hgt ω).le)
-            ⟨Classical.arbitrary (κ → α), Finset.mem_univ _, hgt _⟩
-    linarith
-  obtain ⟨ω, hω⟩ := hex
-  dsimp only [Φ, B] at hω
-  refine ⟨ω, fun i => Real.le_sqrt_of_sq_le ?_⟩
-  rw [sq_abs]
-  exact (Finset.single_le_sum (f := fun j => (f j ω - 𝔼 ω', f j ω') ^ 2)
-    (fun j _ => sq_nonneg _) (Finset.mem_univ i)).trans hω
 
 /-- Changing a predicate on a subset `T` changes the cardinality of a filtered finset by at most
 `#T`. -/
@@ -557,7 +393,7 @@ private theorem pieceRoot_eq {V : Type*} [Fintype V] [DecidableEq V] (parent : V
 /-- **Bottom-up forest partitioning.** Every directed forest on `V` in which each vertex has at most
 two incoming edges (`parent v = some u` with `rank v < rank u`) decomposes into pieces
 `piece : V → V` of size at most `2 B + 1` severing at most `|V| / (B + 1)` edges. -/
-theorem exists_forest_pieces {V : Type*} [Fintype V] [DecidableEq V]
+private theorem exists_forest_pieces {V : Type*} [Fintype V] [DecidableEq V]
     (parent : V → Option V) (rank : V → ℕ)
     (hrank : ∀ v u, parent v = some u → rank v < rank u)
     (hdeg : ∀ u : V, (Finset.univ.filter fun v => parent v = some u).card ≤ 2) (B : ℕ) :
@@ -880,7 +716,7 @@ theorem exists_layout_signalWidth_of_piece (c : Circuit σ n m) {r : ℕ} (hfan 
     rw [Finset.sum_add_distrib, ← Finset.sum_div] at hsum1
     have hdiv := div_le_div_of_nonneg_right hinc (Nat.cast_nonneg M)
     linarith
-  obtain ⟨ω, hω⟩ := exists_forall_abs_sub_expect_le f (fun _ u => ((T u).card : ℝ))
+  obtain ⟨ω, hω⟩ := Fintype.exists_forall_abs_sub_expect_le f (fun _ u => ((T u).card : ℝ))
     (fun _ _ => Nat.cast_nonneg _) hosc
   let score : Node c → ℝ := fun v => ((ω (piece v) : ℕ) : ℝ)
   obtain ⟨π, hπ⟩ := Layout.exists_threshold score
@@ -1212,7 +1048,7 @@ theorem exists_node_cut_margin (c : Circuit σ n m) {r : ℕ} (hfan : c.FanInAtM
           have hvu : v ≠ u := fun heq => hnu (heq ▸ hv)
           rw [Function.update_of_ne hvu, Function.update_of_ne hvu])
     | k + 3, hk => exact absurd hk (by omega)
-  obtain ⟨ω, hω⟩ := exists_forall_abs_sub_expect_le f (fun _ u => (deg u : ℝ))
+  obtain ⟨ω, hω⟩ := Fintype.exists_forall_abs_sub_expect_le f (fun _ u => (deg u : ℝ))
     (fun _ _ => Nat.cast_nonneg _) hosc
   have hdev : √(∑ _j : Fin 3, ∑ u : Node c, (deg u : ℝ) ^ 2) ≤
       (r + 1 : ℝ) * √(3 * (Nat.card (Node c) : ℝ)) := by

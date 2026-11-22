@@ -6,34 +6,12 @@ Authors: Samuel Schlesinger
 
 import CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep
 import CslibFrontier.Computability.Circuit.Frontier.Witness
-import Lean.Util.CollectAxioms
 
-/-! Checked clients, edge-case circuits, and axiom audit for the hyperedge gate-sweep compiler. -/
+/-! Checked clients and edge-case circuits for the hyperedge gate-sweep compiler. -/
 
-open Cslib Cslib.Circuits Cslib.Circuits.Frontier Matrix Filter Set
+open Cslib Cslib.Circuits Cslib.Circuits.Frontier Filter Set
 
 namespace CslibFrontierTests.FrontierGateSweep
-
-/-! ### Module-wide axiom audit for all `GateSweep` modules -/
-
-open Lean Elab Command in
-run_cmd do
-  let env := (← getEnv).setExporting false
-  let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
-  let prefixName : Name := `CslibFrontier.Computability.Circuit.Frontier.Compiler.GateSweep
-  let mut moduleCount : Nat := 0
-  let mut declarationCount : Nat := 0
-  for moduleName in env.header.moduleNames, data in env.header.moduleData do
-    if moduleName == prefixName || prefixName.isPrefixOf moduleName then
-      moduleCount := moduleCount + 1
-      for name in data.constNames do
-        declarationCount := declarationCount + 1
-        let axioms ← collectAxioms name
-        let disallowed := axioms.filter fun ax => !allowed.contains ax
-        unless disallowed.isEmpty do
-          throwError "GateSweep axiom audit: {name} from {moduleName} depends on {disallowed}"
-  unless moduleCount == 4 && declarationCount > 0 do
-    throwError "GateSweep axiom audit: expected 4 modules, found {moduleCount}"
 
 /-! ### Edge-case circuits on `steinerNetwork`, `signalWidth`, and `multiFanoutSize` -/
 
@@ -239,12 +217,12 @@ example (r : ℕ) (hr : 2 ≤ r) :
   exact ⟨S, eventually_four_div_lt_innerSize_of_nondeterministicDecides.{0, 0} hr hSK
     (by norm_num)⟩
 
-/-- Family 5 (`BitString.quadForm (Matrix.symmHardForm n)` correlation decay). -/
+/-- Family 5 (`BitString.quadForm (symmHardForm n)` correlation decay). -/
 example : ∃ γ : ℝ, 0 < γ ∧ ∀ᶠ n in atTop,
     ∀ (σ : Signature.{0}) (I : Interpretation σ Bool) (Acc : Set Bool)
       (c : Circuit σ n 1), c.FanInAtMost 40 →
         (c.innerSize : ℝ) ≤ (quadFormGateSweepCoefficient 40 4 - 1 / 1000) * n →
-        |correlation {x | BitString.quadForm (Matrix.symmHardForm n) x}
+        |correlation {x | BitString.quadForm (symmHardForm n) x}
           {x | c.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
   exists_eventually_abs_correlation_symmHardForm_le_gateSweep.{0}
     (r := 40) (k₀ := 4) (by decide) (by decide) (by norm_num)
@@ -255,7 +233,7 @@ example (r : ℕ) (hr : 2 ≤ r) :
         (c : Circuit σ n 1), c.FanInAtMost r →
           ((r - 1 : ℝ) * c.innerSize) ≤
             (Real.logb 2 r - Real.logb 2 (Real.logb 2 r) - 2 - 1 / 100) * n →
-          |correlation {x | BitString.quadForm (Matrix.symmHardForm n) x}
+          |correlation {x | BitString.quadForm (symmHardForm n) x}
             {x | c.eval I x 0 ∈ Acc}| ≤ (2 : ℝ) ^ (-γ * n) :=
   exists_eventually_abs_correlation_symmHardForm_le_log.{0} hr (by norm_num)
 

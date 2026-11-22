@@ -44,12 +44,18 @@ and columns `y ∩ U` (`Matrix.add_blockRank_le_cutRank_add_transpose`). If ther
 ## Main definitions
 
 * `Matrix.SubmatrixRobust M t`: every square block of `M` with `k` rows has rank at least `k - t`.
+* `Matrix.DisjointBlockRobust M t`: every square block of `M` on disjoint row and column sets with
+  `k` rows has rank at least `k - t`.
 
 ## Main results
 
 * `Matrix.SubmatrixRobust.min_le`: every block of a robust matrix has nearly full rank.
+* `Matrix.DisjointBlockRobust.min_le`, `Matrix.DisjointBlockRobust.min_le_cutRank_add`: every
+  disjoint block (and every cut) of a disjoint-block-robust matrix has nearly full rank.
 * `Matrix.exists_submatrixRobust_of_lt`, `Matrix.exists_submatrixRobust`: robust matrices over
   `𝔽₂` exist, by counting.
+* `Matrix.exists_disjointBlockRobust_of_lt`, `Matrix.exists_disjointBlockRobust`: upper-triangular
+  matrices over `𝔽₂` with disjoint-block-robust polar matrices exist, by counting.
 * `Matrix.add_blockRank_le_cutRank_add_transpose`: the cut rank of a bilinear form.
 * `Matrix.SubmatrixRobust.le_cutRank_add`: bisections of a robust bilinear form have nearly full
   cut rank.
@@ -84,6 +90,34 @@ theorem SubmatrixRobust.min_le [Finite m] [Finite n] {M : Matrix m n K} {t : ℕ
   have h := hM S' T' (hS'c.trans hT'c.symm)
   rw [hS'c] at h
   exact h.trans (Nat.add_le_add_right (M.blockRank_mono hS' hT') t)
+
+/-- `M` is *disjoint-block-robust* with deficiency `t`: every square block `S × T` of `M` on
+disjoint index sets `S` and `T` with `k` rows and `k` columns has rank at least `k - t`. -/
+@[nolint unusedArguments]
+def DisjointBlockRobust [Finite ι] (M : Matrix ι ι K) (t : ℕ) : Prop :=
+  ∀ (S T : Set ι), Disjoint S T → S.ncard = T.ncard → S.ncard ≤ M.blockRank S T + t
+
+/-- A larger deficiency is weaker. -/
+theorem DisjointBlockRobust.mono [Finite ι] {M : Matrix ι ι K} {t t' : ℕ}
+    (hM : M.DisjointBlockRobust t) (ht : t ≤ t') : M.DisjointBlockRobust t' :=
+  fun S T hST hcard => (hM S T hST hcard).trans (Nat.add_le_add_left ht _)
+
+/-- Every disjoint block of a disjoint-block-robust matrix has rank at least its smaller side minus
+the deficiency. -/
+theorem DisjointBlockRobust.min_le [Finite ι] {M : Matrix ι ι K} {t : ℕ}
+    (hM : M.DisjointBlockRobust t) {S T : Set ι} (hST : Disjoint S T) :
+    min S.ncard T.ncard ≤ M.blockRank S T + t := by
+  obtain ⟨S', hS', hS'c⟩ := Set.exists_subset_card_eq (min_le_left S.ncard T.ncard)
+  obtain ⟨T', hT', hT'c⟩ := Set.exists_subset_card_eq (min_le_right S.ncard T.ncard)
+  have h := hM S' T' (hST.mono hS' hT') (hS'c.trans hT'c.symm)
+  rw [hS'c] at h
+  exact h.trans (Nat.add_le_add_right (M.blockRank_mono hS' hT') t)
+
+/-- Every cut `U` of a disjoint-block-robust matrix has cut rank at least `min |U| |Uᶜ| - t`. -/
+theorem DisjointBlockRobust.min_le_cutRank_add [Finite ι] {M : Matrix ι ι K} {t : ℕ}
+    (hM : M.DisjointBlockRobust t) (U : Set ι) :
+    min U.ncard Uᶜ.ncard ≤ M.cutRank U + t :=
+  hM.min_le disjoint_compl_right
 
 /-! ### Existence by counting -/
 
@@ -310,6 +344,235 @@ theorem exists_submatrixRobust (k : ℕ) :
   have h := Nat.lt_succ_sqrt' k
   have : (2 * Nat.sqrt k + 1 + 1) ^ 2 = 4 * (Nat.sqrt k + 1) ^ 2 := by ring
   rw [this]
+  rw [Nat.succ_eq_add_one] at h
+  omega
+
+private abbrev UpperIdx (n : ℕ) : Type :=
+  {p : Fin n × Fin n // p.1 < p.2}
+
+private def toUpper (u : UpperIdx k → ZMod 2) : Matrix (Fin k) (Fin k) (ZMod 2) :=
+  Matrix.of fun i j => if h : i < j then u ⟨(i, j), h⟩ else 0
+
+private def polarUpper (u : UpperIdx k → ZMod 2) : Matrix (Fin k) (Fin k) (ZMod 2) :=
+  toUpper u + (toUpper u)ᵀ
+
+private def ordPair {i j : Fin k} (hne : i ≠ j) : UpperIdx k :=
+  ⟨(min i j, max i j), min_lt_max.mpr hne⟩
+
+private theorem polarUpper_apply_of_ne (u : UpperIdx k → ZMod 2) {i j : Fin k}
+    (hne : i ≠ j) : polarUpper u i j = u (ordPair hne) := by
+  simp only [polarUpper, toUpper, Matrix.add_apply, Matrix.transpose_apply, Matrix.of_apply]
+  by_cases hij : i < j
+  · have hnji : ¬ j < i := lt_asymm hij
+    simp only [hij, hnji, ↓reduceDIte, add_zero]
+    congr 1
+    exact Subtype.ext (Prod.ext (min_eq_left hij.le).symm (max_eq_right hij.le).symm)
+  · have hji : j < i := lt_of_le_of_ne (not_lt.mp hij) hne.symm
+    simp only [hij, hji, ↓reduceDIte, zero_add]
+    congr 1
+    exact Subtype.ext (Prod.ext (min_eq_right hji.le).symm (max_eq_left hji.le).symm)
+
+private theorem ordPair_eq_iff {i₁ j₁ i₂ j₂ : Fin k} (h₁ : i₁ ≠ j₁) (h₂ : i₂ ≠ j₂)
+    (heq : ordPair h₁ = ordPair h₂) :
+    (i₁ = i₂ ∧ j₁ = j₂) ∨ (i₁ = j₂ ∧ j₁ = i₂) := by
+  have hval : (min i₁ j₁, max i₁ j₁) = (min i₂ j₂, max i₂ j₂) := congrArg Subtype.val heq
+  obtain ⟨hmin, hmax⟩ := Prod.mk.inj hval
+  rcases le_total i₁ j₁ with le₁ | le₁ <;> rcases le_total i₂ j₂ with le₂ | le₂
+  · rw [min_eq_left le₁, min_eq_left le₂] at hmin
+    rw [max_eq_right le₁, max_eq_right le₂] at hmax
+    exact Or.inl ⟨hmin, hmax⟩
+  · rw [min_eq_left le₁, min_eq_right le₂] at hmin
+    rw [max_eq_right le₁, max_eq_left le₂] at hmax
+    exact Or.inr ⟨hmin, hmax⟩
+  · rw [min_eq_right le₁, min_eq_left le₂] at hmin
+    rw [max_eq_left le₁, max_eq_right le₂] at hmax
+    exact Or.inr ⟨hmax, hmin⟩
+  · rw [min_eq_right le₁, min_eq_right le₂] at hmin
+    rw [max_eq_left le₁, max_eq_left le₂] at hmax
+    exact Or.inl ⟨hmax, hmin⟩
+
+open Classical in
+private noncomputable def spannedUpper (S T T' : Finset (Fin k)) :
+    Finset (UpperIdx k → ZMod 2) :=
+  {u | ∀ j ∈ T, colVec (polarUpper u) ↑S j ∈
+    Submodule.span (ZMod 2) (colVec (polarUpper u) ↑S '' ↑T')}
+
+private theorem card_spannedUpper_mul_le {S T T' : Finset (Fin k)}
+    (hST : Disjoint S T) (hT'T : T' ⊆ T) :
+    #(spannedUpper S T T') * 2 ^ (#S * #(T \ T')) ≤
+      2 ^ (#(T \ T') * #T') * 2 ^ Fintype.card (UpperIdx k) := by
+  classical
+  set D := T \ T'
+  have hSD : Disjoint S D := hST.mono_right sdiff_subset
+  let toW : {p : Fin k × Fin k // p ∈ S ×ˢ D} → UpperIdx k
+    | ⟨⟨i, j⟩, hp⟩ =>
+      ordPair (Finset.disjoint_coe.mpr hSD |>.ne_of_mem (mem_product.mp hp).1 (mem_product.mp hp).2)
+  have htoW_inj : Function.Injective toW := by
+    rintro ⟨⟨i₁, j₁⟩, hp₁⟩ ⟨⟨i₂, j₂⟩, hp₂⟩ heq
+    obtain ⟨hi₁, hj₁⟩ := mem_product.mp hp₁
+    obtain ⟨hi₂, hj₂⟩ := mem_product.mp hp₂
+    rcases ordPair_eq_iff _ _ heq with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+    · rfl
+    · exact absurd hj₂ (Finset.disjoint_left.mp hSD hi₁)
+  let W : Finset (UpperIdx k) := (S ×ˢ D).attach.image toW
+  have hcardW : #W = #S * #D := by
+    rw [card_image_of_injective _ htoW_inj, card_attach, card_product]
+  let Z : Finset (UpperIdx k) := Wᶜ
+  have hcardZ : #Z + #S * #D = Fintype.card (UpperIdx k) := by
+    rw [← hcardW]
+    exact card_compl_add_card W
+  let Φ : (UpperIdx k → ZMod 2) → (D → T' → ZMod 2) × (Z → ZMod 2) :=
+    fun u => (fun j => spanCoeff (polarUpper u) S T' j.val, fun p => u p.val)
+  have hinj : Set.InjOn Φ (spannedUpper S T T') := by
+    intro u₁ hu₁ u₂ hu₂ h
+    obtain ⟨hc, hz⟩ := Prod.mk.inj h
+    have h₁ := (mem_filter.mp hu₁).2
+    have h₂ := (mem_filter.mp hu₂).2
+    funext q
+    by_cases hqZ : q ∈ Z
+    · exact congrFun hz ⟨q, hqZ⟩
+    · have hqW : q ∈ W := by simpa [Z] using hqZ
+      obtain ⟨⟨⟨i, j⟩, hp⟩, -, rfl⟩ := mem_image.mp hqW
+      obtain ⟨hiS, hjD⟩ := mem_product.mp hp
+      have hjT : j ∈ T := (mem_sdiff.mp hjD).1
+      have hne_ij : i ≠ j := Finset.disjoint_coe.mpr hSD |>.ne_of_mem hiS hjD
+      have eq₁ := polarUpper_apply_of_ne u₁ hne_ij
+      have eq₂ := polarUpper_apply_of_ne u₂ hne_ij
+      change u₁ (ordPair hne_ij) = u₂ (ordPair hne_ij)
+      rw [← eq₁, ← eq₂]
+      have e₁ := congrFun (spanCoeff_spec (h₁ j hjT)) ⟨i, hiS⟩
+      have e₂ := congrFun (spanCoeff_spec (h₂ j hjT)) ⟨i, hiS⟩
+      have hcj : spanCoeff (polarUpper u₁) S T' j = spanCoeff (polarUpper u₂) S T' j :=
+        congrFun hc ⟨j, hjD⟩
+      simp only [Finset.sum_apply, Pi.smul_apply, smul_eq_mul, colVec] at e₁ e₂
+      rw [← e₁, ← e₂, hcj]
+      refine Finset.sum_congr rfl fun l _ => ?_
+      congr 1
+      have hlT : l.val ∈ T := hT'T l.prop
+      have hne_il : i ≠ l.val := Finset.disjoint_coe.mpr hST |>.ne_of_mem hiS hlT
+      have hlZ : ordPair hne_il ∈ Z := by
+        rw [Finset.mem_compl]
+        intro hmemW
+        obtain ⟨⟨⟨i', j'⟩, hp'⟩, -, heq'⟩ := mem_image.mp hmemW
+        obtain ⟨hi'S, hj'D⟩ := mem_product.mp hp'
+        rcases ordPair_eq_iff _ _ heq' with ⟨_, hlj⟩ | ⟨hij', _⟩
+        · exact (mem_sdiff.mp (hlj ▸ hj'D)).2 l.prop
+        · exact Finset.disjoint_left.mp hST (hij' ▸ hi'S) hlT
+      rw [polarUpper_apply_of_ne u₁ hne_il, polarUpper_apply_of_ne u₂ hne_il]
+      exact congrFun hz ⟨ordPair hne_il, hlZ⟩
+  have hcard := card_le_card_of_injOn Φ (fun _ _ => mem_univ _) hinj
+  rw [card_univ, Fintype.card_prod, Fintype.card_fun, Fintype.card_fun, Fintype.card_fun,
+    ZMod.card, Fintype.card_coe, Fintype.card_coe, Fintype.card_coe] at hcard
+  calc #(spannedUpper S T T') * 2 ^ (#S * #D)
+      ≤ (2 ^ #T') ^ #D * 2 ^ #Z * 2 ^ (#S * #D) := Nat.mul_le_mul_right _ hcard
+    _ = 2 ^ (#D * #T') * 2 ^ Fintype.card (UpperIdx k) := by
+        rw [mul_assoc, ← pow_add, hcardZ, ← pow_mul, mul_comm #T']
+
+private theorem card_spannedUpper_mul_two_pow_sq_le {t : ℕ} {S T T' : Finset (Fin k)}
+    (hST_disj : Disjoint S T) (hT'T : T' ⊆ T) (hlt : #T' + t < #S) (hST : #S = #T) :
+    #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ Fintype.card (UpperIdx k) := by
+  have hsplit := card_sdiff_add_card_eq_card hT'T
+  set d := #(T \ T')
+  have hd : t + 1 ≤ d := by omega
+  have H := card_spannedUpper_mul_le hST_disj hT'T
+  rw [hST, ← hsplit] at H
+  have hpow : 2 ^ ((t + 1) ^ 2) ≤ 2 ^ (d * d) :=
+    Nat.pow_le_pow_right (by norm_num) (by nlinarith)
+  have key : #(spannedUpper S T T') * 2 ^ (d * d) * 2 ^ (d * #T') ≤
+      2 ^ Fintype.card (UpperIdx k) * 2 ^ (d * #T') := by
+    calc #(spannedUpper S T T') * 2 ^ (d * d) * 2 ^ (d * #T')
+        = #(spannedUpper S T T') * 2 ^ ((d + #T') * d) := by
+          rw [mul_assoc, ← pow_add]
+          congr 2
+          ring
+      _ ≤ 2 ^ (d * #T') * 2 ^ Fintype.card (UpperIdx k) := H
+      _ = _ := mul_comm _ _
+  calc #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2)
+      ≤ #(spannedUpper S T T') * 2 ^ (d * d) := Nat.mul_le_mul_left _ hpow
+    _ ≤ _ := Nat.le_of_mul_le_mul_right key (by positivity)
+
+open Classical in
+private noncomputable def deficientUpperOn (t : ℕ) (S T : Finset (Fin k)) :
+    Finset (UpperIdx k → ZMod 2) :=
+  {u | Disjoint S T ∧ #S = #T ∧ (polarUpper u).blockRank ↑S ↑T + t < #S}
+
+private theorem card_deficientUpperOn_mul_le (t : ℕ) (S T : Finset (Fin k)) :
+    #(deficientUpperOn t S T) * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ Fintype.card (UpperIdx k) := by
+  classical
+  let 𝒯 := T.powerset.filter fun T' => Disjoint S T ∧ #T' + t < #S ∧ #S = #T
+  have hsub : deficientUpperOn t S T ⊆ 𝒯.biUnion fun T' => spannedUpper S T T' := by
+    intro u hu
+    obtain ⟨hdisj, hST, hdef⟩ := (mem_filter.mp hu).2
+    obtain ⟨T', hT', hcard, hspan⟩ := exists_spanning_columns (polarUpper u) S T
+    refine mem_biUnion.mpr ⟨T', mem_filter.mpr ⟨mem_powerset.mpr hT', hdisj, by omega, hST⟩, ?_⟩
+    exact mem_filter.mpr ⟨mem_univ _, hspan⟩
+  have hone : ∀ T' ∈ 𝒯, #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2) ≤
+      2 ^ Fintype.card (UpperIdx k) := fun T' hT' => by
+    obtain ⟨hT'T, hdisj, hlt, hST⟩ := mem_filter.mp hT'
+    exact card_spannedUpper_mul_two_pow_sq_le hdisj (mem_powerset.mp hT'T) hlt hST
+  have h𝒯 : #𝒯 ≤ 2 ^ k := by
+    calc #𝒯 ≤ #T.powerset := card_filter_le _ _
+      _ = 2 ^ #T := card_powerset T
+      _ ≤ 2 ^ k := Nat.pow_le_pow_right (by norm_num) (card_le_univ T |>.trans (by simp))
+  calc #(deficientUpperOn t S T) * 2 ^ ((t + 1) ^ 2)
+      ≤ (∑ T' ∈ 𝒯, #(spannedUpper S T T')) * 2 ^ ((t + 1) ^ 2) :=
+        Nat.mul_le_mul_right _ ((card_le_card hsub).trans card_biUnion_le)
+    _ = ∑ T' ∈ 𝒯, #(spannedUpper S T T') * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
+    _ ≤ ∑ _T' ∈ 𝒯, 2 ^ Fintype.card (UpperIdx k) := Finset.sum_le_sum hone
+    _ = #𝒯 * 2 ^ Fintype.card (UpperIdx k) := by rw [sum_const, smul_eq_mul]
+    _ ≤ 2 ^ k * 2 ^ Fintype.card (UpperIdx k) := Nat.mul_le_mul_right _ h𝒯
+
+/-- **Polar matrices of upper-triangular forms are disjoint-block-robust, by counting.** If
+`3 k < (t + 1) ^ 2`, some `k × k` matrix `Q` over `𝔽₂` has `(Q + Qᵀ).DisjointBlockRobust t`. -/
+theorem exists_disjointBlockRobust_of_lt {t : ℕ} (ht : 3 * k < (t + 1) ^ 2) :
+    ∃ Q : Matrix (Fin k) (Fin k) (ZMod 2), (Q + Qᵀ).DisjointBlockRobust t := by
+  classical
+  set U := Fintype.card (UpperIdx k)
+  let pairs : Finset (Finset (Fin k) × Finset (Fin k)) := univ ×ˢ univ
+  let bad := pairs.biUnion fun p => deficientUpperOn t p.1 p.2
+  have hbad : #bad * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) := by
+    calc #bad * 2 ^ ((t + 1) ^ 2)
+        ≤ (∑ p ∈ pairs, #(deficientUpperOn t p.1 p.2)) * 2 ^ ((t + 1) ^ 2) :=
+          Nat.mul_le_mul_right _ card_biUnion_le
+      _ = ∑ p ∈ pairs, #(deficientUpperOn t p.1 p.2) * 2 ^ ((t + 1) ^ 2) := Finset.sum_mul ..
+      _ ≤ ∑ _p ∈ pairs, 2 ^ k * 2 ^ U :=
+          Finset.sum_le_sum fun p _ => card_deficientUpperOn_mul_le t p.1 p.2
+      _ = 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) := by
+          rw [sum_const, smul_eq_mul, card_product, card_univ, Fintype.card_finset,
+            Fintype.card_fin]
+  have hlt : #bad < Fintype.card (UpperIdx k → ZMod 2) := by
+    rw [Fintype.card_fun, ZMod.card]
+    change #bad < 2 ^ U
+    by_contra hge
+    push Not at hge
+    have h₁ : 2 ^ U * 2 ^ ((t + 1) ^ 2) ≤ 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) :=
+      (Nat.mul_le_mul_right _ hge).trans hbad
+    have h₂ : 2 ^ k * 2 ^ k * (2 ^ k * 2 ^ U) < 2 ^ U * 2 ^ ((t + 1) ^ 2) := by
+      rw [← pow_add, ← pow_add, ← pow_add, ← pow_add]
+      exact Nat.pow_lt_pow_right (by norm_num) (by omega)
+    omega
+  obtain ⟨u, -, hu⟩ := exists_mem_notMem_of_card_lt_card hlt
+  refine ⟨toUpper u, fun S T hST hcard => ?_⟩
+  by_contra hcon
+  push Not at hcon
+  apply hu
+  refine mem_biUnion.mpr ⟨(S.toFinset, T.toFinset), mem_product.mpr ⟨mem_univ _, mem_univ _⟩, ?_⟩
+  refine mem_filter.mpr ⟨mem_univ _, ?_, ?_, ?_⟩
+  · rwa [← Finset.disjoint_coe, Set.coe_toFinset, Set.coe_toFinset]
+  · rw [← Set.ncard_eq_toFinset_card', ← Set.ncard_eq_toFinset_card']
+    exact hcard
+  · simp only [Set.coe_toFinset, polarUpper]
+    rw [← Set.ncard_eq_toFinset_card']
+    exact hcon
+
+/-- **Disjoint-block-robust polar matrices exist.** For every `k`, some `k × k` matrix `Q` over `𝔽₂`
+has `(Q + Qᵀ).DisjointBlockRobust (2 ⌊√k⌋ + 1)`. -/
+theorem exists_disjointBlockRobust (k : ℕ) :
+    ∃ Q : Matrix (Fin k) (Fin k) (ZMod 2), (Q + Qᵀ).DisjointBlockRobust (2 * Nat.sqrt k + 1) := by
+  refine exists_disjointBlockRobust_of_lt ?_
+  have h := Nat.lt_succ_sqrt' k
+  have hsq : (2 * Nat.sqrt k + 1 + 1) ^ 2 = 4 * (Nat.sqrt k + 1) ^ 2 := by ring
+  rw [hsq]
   rw [Nat.succ_eq_add_one] at h
   omega
 
