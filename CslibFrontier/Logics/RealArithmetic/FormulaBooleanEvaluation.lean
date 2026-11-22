@@ -290,6 +290,27 @@ theorem formulaWordGateValues_getD_zero (word : List Bool) (termSign : List Bool
   formulaWordGateValues_getD_of_prefix (Formula.ofWord word) [] []
     (by simpa only [List.nil_append, List.append_nil] using formulaWordTokens_eq word) termSign
 
+/-- A finite gate signature covering the formula word's tokens gives the term-sign value
+of the total formula view if its sign at every comparison agrees with the requested term's
+sign. This adapts `LeanCanny.ETR.FormulaBooleanCircuitSource.value_signature` to the
+frontier token view, which only requests signs at comparison gates. -/
+theorem formulaWordGateValuesWithAnswers_getD_zero_of_signature {n : ℕ} (word : List Bool)
+    (signature : Fin n → SignType) (termSign : List Bool → SignType)
+    (hn : (formulaWordTokens word).length ≤ n)
+    (hsign : ∀ index (hi : index < (formulaWordTokens word).length) request,
+      formulaWordComparisonRequest word index = some request →
+      signature ⟨index, hi.trans_le hn⟩ = termSign request.termWord) :
+    (formulaWordGateValuesWithAnswers word fun index =>
+      if hi : index < n then formulaWordComparisonAnswer word index (signature ⟨index, hi⟩)
+      else false).getD 0 false =
+        (Formula.ofWord word).evalTermSigns (termSign ∘ encTerm word.length) := by
+  rw [formulaWordGateValuesWithAnswers_eq_of_comparisonAnswers word _ termSign ?_,
+    formulaWordGateValues_getD_zero]
+  intro index hi request hrequest
+  rw [dite_eq_left (hi.trans_le hn), formulaWordComparisonAnswer, hrequest]
+  change decide (signature ⟨index, hi.trans_le hn⟩ = request.requestedSign) = _
+  rw [hsign index hi request hrequest]
+
 private theorem evalTermSigns_eq_true_iff_of_token_signs {n : ℕ} (p : Formula n)
     (termSign : Term n → SignType) (x : Fin n → ℝ)
     (hsign : ∀ t, .inr (.inl t) ∈ encFormula_tokens n p ∨
