@@ -3193,6 +3193,9 @@ public import CslibFrontier.Computability.Distributed.OrientedCycle.LCL.Linear
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Linial
 public import CslibFrontier.Computability.Distributed.OrientedCycle.MIS
 public import CslibFrontier.Computability.Distributed.OrientedCycle.RoundComplexity
+public import CslibFrontier.Computability.Distributed.RingElection.Anonymous
+public import CslibFrontier.Computability.Distributed.RingElection.ChangRoberts
+public import CslibFrontier.Computability.Distributed.RingElection.Peterson
 public import CslibFrontier.Computability.GenericRAM.Algebraic
 public import CslibFrontier.Computability.GenericRAM.Defs
 public import CslibFrontier.Computability.GenericRAM.Native

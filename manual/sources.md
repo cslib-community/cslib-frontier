@@ -109,6 +109,11 @@ Andris Ambainis, Michele Mosca, Alain Tapp and Ronald de Wolf. *Private Quantum 
 
 Alexandr Andoni, Piotr Indyk. “Near-Optimal Hashing Algorithms for Approximate Nearest Neighbor in High Dimensions.” *Communications of the ACM* 51(1), 117–122, 2008. https://doi.org/10.1145/1327452.1327494 . Inspected in the author-hosted copy (https://people.csail.mit.edu/indyk/p117-andoni.pdf). Section 2.4, "Strategy 1", p. 119, states: "It is shown in [25, 19] that the first strategy, with L′ = 3L, yields a solution to the randomized c-approximate R-near neighbor problem". Here [25] is Indyk–Motwani, STOC 1998 ([indykmotwani98](#indykmotwani98)), and [19] is Gionis–Indyk–Motwani, "Similarity search in high dimensions via hashing", VLDB 1999. The same page takes `L = Θ(n^ρ)` with `ρ = ln(1/P₁)/ln(1/P₂)`. Cited as an exposition of the rule that stops the LSH query after `3L` candidates; the rule itself is credited to [25, 19].
 
+<a id="angluin1980b"></a>
+## angluin1980b
+
+Dana Angluin. "Local and Global Properties in Networks of Processors." *Proceedings of the Twelfth Annual ACM Symposium on Theory of Computing (STOC 1980)*, 82–93, 1980. https://doi.org/10.1145/800141.804655 . The library's key is `Angluin1980b` (distinguished from `Angluin1980`). Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the conference proceedings PDF was not directly inspected, so internal theorem and page locators are not claimed. Cited in [RingElection/Anonymous.lean](../CslibFrontier/Computability/Distributed/RingElection/Anonymous.lean) for rotational symmetry preservation and the impossibility of deterministic leader election on anonymous rings of size `n ≥ 2` (both bidirectional and unidirectional synchronous rounds and rotation-symmetric asynchronous FIFO schedules, even when nodes know the ring size `n`).
+
 <a id="anshelevichdktwr08"></a>
 ## anshelevichdktwr08
 
@@ -456,6 +461,11 @@ Amit Chakrabarti. *Data Stream Algorithms: Lecture Notes*. Dartmouth College, la
 ## changkannan06
 
 Kevin L. Chang and Ravi Kannan. "The Space Complexity of Pass-Efficient Algorithms for Clustering." *Proceedings of the Seventeenth Annual ACM-SIAM Symposium on Discrete Algorithms (SODA 2006)*, 1157–1166. https://doi.org/10.1145/1109557.1109685 . Checked against the SODA text on 2026-11-13: Section 5.1, the proof of Theorem 5.1 (stated on p. 1164), on p. 1165, which simulates an `ℓ`-pass algorithm with memory `M(A)` by "a total of 2ℓ − 1 messages of size at most M(A)", Alice and Bob alternately continuing each pass on their halves of the stream. The journal version (SIAM J. Comput., 2009, retitled) was not inspected.
+
+<a id="changroberts1979"></a>
+## changroberts1979
+
+Ernest Chang and Rosemary Roberts. "An Improved Algorithm for Decentralized Extrema-Finding in Circular Configurations of Processes." *Communications of the ACM* 22(5), 281–283, 1979. https://doi.org/10.1145/359104.359108 . The library's key is `ChangRoberts1979`. Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the article PDF was not directly inspected, so internal theorem and page locators are not claimed. Formalized in [RingElection/ChangRoberts.lean](../CslibFrontier/Computability/Distributed/RingElection/ChangRoberts.lean) over an asynchronous FIFO unidirectional ring `Fin n` with simultaneous initiation by all `n` nodes and termination upon the maximum-UID node receiving its own identifier back (omitting an optional `n`-message elected-announcement pass around the ring), proving unique-maximum election, the tight `n(n + 1) / 2` worst-case message bound, and the exact `n H_n` average-case message count over uniform random permutations.
 
 <a id="charikar02"></a>
 ## charikar02
@@ -1746,6 +1756,11 @@ Christos H. Papadimitriou. "On the Complexity of the Parity Argument and Other I
 ## pedersen1991
 
 Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifiable Secret Sharing." *Advances in Cryptology — CRYPTO '91*, LNCS 576, 129–140, Springer, 1992. https://doi.org/10.1007/3-540-46766-1_9 . Publisher's PDF, https://link.springer.com/content/pdf/10.1007/3-540-46766-1_9.pdf , fetched on 2026-11-18 UTC (SHA-256 `79c0634a04b7bc869715770519eca9dcfcb3011012dbff054b9487b187558b18`): a 12-page scan of the complete printed pp. 129–140 (PDF page = printed page − 128). Read on 2026-11-18: Section 2 (p. 130: primes `q | p − 1`, `G_q` the order-`q` subgroup of `Z_p^*`, `g` a generator) and all of Section 3 (p. 131): `g` and `h` are chosen so that nobody knows `log_g h`, by a trusted center or a coin-flipping protocol; the commitment is `E(s, t) = g^s h^t` for `s ∈ Z_q` and random `t ∈ Z_q`; Theorem 3.1 states that for uniform `t` the commitment is uniform on `G_q` (first sentence) and that `s ≠ s'` with `E(s, t) = E(s', t')` gives `t ≠ t' mod q` and `log_g h = (s − s')/(t' − t) mod q` (second sentence). The theorem states no game or computational assumption, and the first sentence needs `h ≠ 1`, which the condition on `log_g h` implies. Sections 4–6 were not checked.
+
+<a id="peterson1982"></a>
+## peterson1982
+
+Gary L. Peterson. "An $O(n \log n)$ Unidirectional Algorithm for the Circular Extrema Problem." *ACM Transactions on Programming Languages and Systems* 4(4), 758–762, 1982. https://doi.org/10.1145/69622.357194 . The library's key is `Peterson1982`. Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the journal PDF was not directly inspected, so internal theorem and page locators are not claimed. Formalized in [RingElection/Peterson.lean](../CslibFrontier/Computability/Distributed/RingElection/Peterson.lean) over an asynchronous FIFO unidirectional ring `Fin n` with injective UIDs, two-hop phase comparisons `(nnid, ntid, tid)` retaining strict local peaks, global-maximum preservation, per-phase active-node halving `2 · active_{k + 1} ≤ active_k`, unique leader election, and the `2 n ⌊log₂ n⌋ + n` asynchronous message bound.
 
 <a id="pighizzini2009"></a>
 ## pighizzini2009
