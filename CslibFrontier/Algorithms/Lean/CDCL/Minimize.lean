@@ -122,7 +122,7 @@ def minimizeRedundant (log : LRATLog φ) (T : XTrail) (C : Clause ℕ) (lit : Li
     else
       let root := Assign.ofTrail (XTrail.trail (XTrail.root T))
       fun v => root.assigned v
-  redundant log (T.reasons n) (clauseVars C n) deep (T.length + 1) lit C ⟨Array.replicate n none⟩
+  redundant log (T.reasons n) (clauseVars C n) deep (T.length + 1) lit C ⟨Array.replicate n 0⟩
 
 /-! ### The minimized clause is a RUP clause -/
 
@@ -489,7 +489,7 @@ theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTr
       fun v => root.assigned v
   have hspec := redundant_spec (log := log₀) (reason := T.reasons n) (inC := clauseVars C n)
     (deep := deep) (fuel := T.length + 1) (lit := L.lit) (C := C)
-    (memo := ⟨Array.replicate n none⟩) fun w hw => by
+    (memo := ⟨Array.replicate n 0⟩) fun w hw => by
       simp only [Assign.value, Array.getD_eq_getD_getElem?, Array.getElem?_replicate] at hw
       split at hw <;> simp at hw
   -- a literal of the learned clause is kept or removed

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.DecisionTree.Basic
+public import CslibFrontier.Computability.RandomizedCost
 public import CslibFrontier.Probability.Minimax
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Basic.NNReal.Basic
@@ -53,6 +54,8 @@ correctness (`RandomizedDecisionTree.errorProb_mapTree_le`).
 
 ## Main definitions
 
+* `Cslib.DecisionTree.randomizedCost`: deterministic decision trees as a `Cslib.RandomizedCost`
+  model.
 * `Cslib.RandomizedDecisionTree`: randomized decision trees, as finitely supported distributions
   over decision trees, with `RandomizedDecisionTree.depth`, `RandomizedDecisionTree.errorProb` and
   `RandomizedDecisionTree.Computes`.
@@ -97,6 +100,12 @@ finitely supported probability distribution over decision trees. It draws a tree
 distribution and runs it. -/
 abbrev RandomizedDecisionTree (ι β : Type*) : Type _ :=
   StdSimplex ℝ (DecisionTree ι β)
+
+/-- Deterministic decision trees as a `RandomizedCost` model with evaluation `DecisionTree.eval`
+and worst-case cost `DecisionTree.depth`. -/
+def DecisionTree.randomizedCost (ι β : Type*) :
+    RandomizedCost (DecisionTree ι β) (ι → Bool) β :=
+  ⟨DecisionTree.eval, DecisionTree.depth⟩
 
 namespace DecisionTree
 
@@ -281,21 +290,20 @@ ensure that a feasible tree exists. -/
 -- Finiteness restricts the public domain; `sInf` itself does not require it.
 @[nolint unusedArguments]
 noncomputable def randomizedComplexity [Finite ι] (ε : ℝ≥0) (f : (ι → Bool) → β) : ℕ :=
-  sInf {d | ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth ≤ d}
+  (DecisionTree.randomizedCost ι β).simplexComplexity ε (fun x z => z = f x)
 
 variable [Finite ι]
 
 theorem randomizedComplexity_le_depth (h : μ.Computes ε f) : randomizedComplexity ε f ≤ μ.depth :=
-  Nat.sInf_le_of_le h
+  RandomizedCost.simplexComplexity_le_maxCost h
 
 /-- For `ε ≥ 0` the randomized complexity is attained: some randomized decision tree of depth
 `R_ε(f)` computes `f` with error `ε`. -/
 theorem exists_computes_depth_eq_randomizedComplexity (f : (ι → Bool) → β) :
     ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth = randomizedComplexity ε f :=
-  Nat.exists_eq_sInf_of_exists depth
-    ⟨StdSimplex.single (DecisionTree.exists_computes_depth_eq_complexity f).choose,
-      computes_single (DecisionTree.exists_computes_depth_eq_complexity f).choose_spec.1
-        ε.coe_nonneg⟩
+  RandomizedCost.exists_simplexComplexity_eq (C := DecisionTree.randomizedCost ι β)
+    (R := fun x z => z = f x) (ε := ε)
+    (let ⟨t, ht, _⟩ := DecisionTree.exists_computes_depth_eq_complexity f; ⟨t, ht⟩)
 
 theorem randomizedComplexity_le_iff :
     randomizedComplexity ε f ≤ d ↔ ∃ μ : RandomizedDecisionTree ι β, μ.Computes ε f ∧ μ.depth ≤ d :=
@@ -311,7 +319,7 @@ theorem le_randomizedComplexity_iff :
 theorem randomizedComplexity_antitone (hεε' : ε ≤ ε') :
     randomizedComplexity ε' f ≤ randomizedComplexity ε f :=
   Nat.sInf_mono_of_exists (exists_computes_depth_eq_randomizedComplexity (ε := ε) f)
-    fun _ hμ => hμ.mono hεε'
+    fun _ hμ => Computes.mono hμ hεε'
 
 /-- With error `0` randomness does not help: `R_0(f) = D(f)`. The cost here is the worst case over
 the coins, unlike the expected number of queries of zero-error (Las Vegas) complexity. -/

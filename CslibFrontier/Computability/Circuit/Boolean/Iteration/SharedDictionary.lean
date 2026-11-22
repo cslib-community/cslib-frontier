@@ -129,7 +129,7 @@ def hitRecord (index : ℕ) (payload : BitString n) : BitString (w + n + 1) :=
 
 /-- The time field of a hit record. -/
 def hitIndex (record : BitString (w + n + 1)) : BitVec w :=
-  word fun bit => record (Fin.castAdd n bit).succ
+  BitString.equivBitVec fun bit => record (Fin.castAdd n bit).succ
 
 /-- The payload field of a hit record. -/
 def hitPayload (record : BitString (w + n + 1)) : BitString n :=
@@ -143,7 +143,7 @@ def hitPayload (record : BitString (w + n + 1)) : BitString n :=
 @[simp] theorem hitIndex_hitRecord (index : ℕ) (payload : BitString n) :
     hitIndex (hitRecord (w := w) index payload) = BitVec.ofNat w index := by
   simpa only [hitIndex, hitRecord, Fin.cons_succ, Fin.append_left] using
-    word_getLsbD (BitVec.ofNat w index)
+    BitString.equivBitVec_getLsbD (BitVec.ofNat w index)
 
 /-- Reading `hitPayload` from `hitRecord index payload` recovers `payload`. -/
 @[simp] theorem hitPayload_hitRecord (index : ℕ) (payload : BitString n) :
@@ -199,7 +199,7 @@ theorem synthesis_finishHit (c : Circuit signature n n) (s : Set (BooleanFunctio
   · let src := s ∪ wires chosen
     have hi : ∀ bit : Fin w, (fun x => (hitIndex (chosen x)).getLsbD bit.val) ∈ src := by
       intro bit
-      simp only [hitIndex, getLsbD_word]
+      simp only [hitIndex, BitString.getLsbD_equivBitVec]
       exact Or.inr ⟨_, rfl⟩
     have hpay : wires (fun x => hitPayload (chosen x)) ⊆ src := by
       rintro _ ⟨bit, rfl⟩

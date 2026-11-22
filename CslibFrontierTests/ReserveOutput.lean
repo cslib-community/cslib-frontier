@@ -278,43 +278,22 @@ example : ∃ (HP : FourthRootHierarchyParams 16 1 16 32 8)
     sourceExponent := 0
     midpointExponent := 0
     terminalExponent := 0
-    lastBin := 1
     source_in_horizon := le_rfl
     midpoint_le_source := le_rfl
     sourceSuffix := [1]
     midpointSuffix := [2, 3]
     terminalSuffix := [4]
-    binExponent := fun _ => 0
+    cutoffs := CutoffProfile.explicit
+    bins := BinSchedule.const 1 0 (cap := 0) le_rfl
     bins_in_horizon := by intros; exact le_rfl
+    preparation_one := by intros; rfl
     kernel := fun _ _ => 0
     kernel_nonneg := by intros; exact le_rfl
     kernel_row_mass := by intro x; simp [Matrix.mulVec]
     kernel_rate := by intros; exact (rate_pos 0).le
-    binCutoff := polynomialSwitch4 (1 / 2) 1
-    cutoff_one := fun _ hv => polynomialSwitch4_of_ge (by norm_num) hv
-    preparationCutoff := fun _ _ => 1
-    requestGate := fun _ => 1
-    requestRank := 66
-    preparation_one := by intros; rfl
-    requestGate_nonneg := by intros; norm_num
-    requestGate_le_one := by intros; exact le_rfl
-    gateThreshold := 1
-    gateThreshold_pos := by norm_num
-    gate_one := by intros; rfl
-    rank_bound := by norm_num
-    cutoff_monotone := monotone_polynomialSwitch4 (by norm_num)
-    cutoff_zero := fun _ hv => polynomialSwitch4_of_le (by norm_num) hv
-    cutoff_range := fun v =>
-      ⟨polynomialSwitch4_nonneg _ _ v, polynomialSwitch4_le_one _ _ v⟩
-    rates_antitone := by
-      intro i j hij
-      exact (le_rfl : rate 0 ≤ rate 0)
-    rate_ratio := by intro i; norm_num [rate]
-    densityCap := 0
-    densityCap_nonneg := le_rfl
-    kernel_cap := by intros; simp
-    correctionRank := 6
+    kernel_cap := by intros; simp [BinSchedule.const]
     kernel_cover := by intros; exact Or.inl rfl
+    correctionRank := 6
     usageExponent := 1
     terminal_le_usage := by decide
     terminal_in_horizon := le_rfl

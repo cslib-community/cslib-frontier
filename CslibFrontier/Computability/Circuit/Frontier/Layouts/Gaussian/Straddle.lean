@@ -74,20 +74,24 @@ def straddleEvent (q : ℝ) (R : ℕ) (t : ℝ) (v : V) : Set (V → ℝ) :=
 
 variable {G} {q : ℝ} {R : ℕ} {ρ₀ : ℝ}
 
+/-- Whether the edge scores on `S` straddle a threshold `t` is a measurable event. -/
+theorem measurableSet_straddlesOn [Finite E] (q : ℝ) (R : ℕ) (t : ℝ) (S : Set E) :
+    MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
+  have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
+      (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
+      (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by
+    ext ω
+    simp [StraddlesOn]
+  rw [hset]
+  exact ((toFinite S).measurableSet_biUnion fun f _ =>
+      measurable_edgeScore q R f measurableSet_Iio).inter
+    ((toFinite S).measurableSet_biUnion fun f _ =>
+      measurable_edgeScore q R f measurableSet_Ici)
+
 /-- Whether a vertex straddles a threshold is a measurable event. -/
 theorem measurableSet_straddleEvent [Finite E] (q : ℝ) (R : ℕ) (t : ℝ) (v : V) :
-    MeasurableSet (straddleEvent G q R t v) := by
-  have : straddleEvent G q R t v = ⋃ e ∈ G.incidenceSet v,
-      ({ω | edgeScore G q R ω e < t} ∩
-        ⋃ e' ∈ G.incidenceSet v, {ω | t ≤ edgeScore G q R ω e'}) := by
-    ext ω
-    simp only [straddleEvent, Multigraph.EdgeStraddles, mem_iUnion, mem_inter_iff, exists_prop,
-      mem_ofPred_eq]
-  rw [this]
-  exact (toFinite _).measurableSet_biUnion fun e _ =>
-    (measurableSet_lt (measurable_edgeScore q R e) measurable_const).inter
-      ((toFinite _).measurableSet_biUnion fun e' _ =>
-        measurableSet_le measurable_const (measurable_edgeScore q R e'))
+    MeasurableSet (straddleEvent G q R t v) :=
+  measurableSet_straddlesOn q R t (G.incidenceSet v)
 
 /-- **Locality.** Whether `v` straddles a threshold depends only on the coordinates of the
 sample in the closed ball of radius `R + 1` around `v`. -/
@@ -152,7 +156,7 @@ private theorem four_mul_measureReal_straddleEvent_le [Finite E] {v : V} {s : Fi
     simp only [indicator_apply, Pi.one_apply]
     rw [Finset.sum_boole]
     split_ifs with hω
-    · obtain ⟨e, he, hlt, e', he', hle⟩ := hω
+    · obtain ⟨⟨e, he, hlt⟩, ⟨e', he', hle⟩⟩ := hω
       rw [← hs] at he he'
       have h4 : 4 ≤ (s.offDiag.filter fun p => ω ∈ B p).card := by
         exact four_le_card_filter_offDiag hcard (edgeScore G q R ω) he he' hlt hle
