@@ -312,8 +312,7 @@ without them.
   set alone, and the projected solutions that `ENUMERATION` counts.
 * `Cslib.Logic.PL.VeriPB.sameVars`: two lists name the same set of variables (`epreserved` and
   `EQUIENUMERABLE`).
-* `Cslib.Logic.PL.VeriPB.presChangeCheck`, `Cslib.Logic.PL.VeriPB.presGoals`: the check of
-  `preserved_add` and `preserved_rm`, and its goals.
+* `Cslib.Logic.PL.VeriPB.presChangeCheck`: the check of `preserved_add` and `preserved_rm`.
 
 ## Main results
 
@@ -1613,7 +1612,7 @@ private def orLit (l : Literal ℕ) (c : PBConstr) : PBConstr := ⟨(c.degree, l
 /-- **The goals of `preserved_add x : C` and `preserved_rm x : C`** (§5.10): `#1` is `x ⇒ C`, that
 is `¬x ∨ C`, and `#2` is `x ⇐ C`, that is `x ∨ ¬C`, as CakePB's `change_pres_subgoals`; together
 they say `x ⇔ C`. -/
-def presGoals (x : ℕ) (c : PBConstr) : List PBConstr :=
+private def presGoals (x : ℕ) (c : PBConstr) : List PBConstr :=
   [orLit (x, false) c.normalize, orLit (x, true) c.negate]
 
 /-- **The check of `preserved_add x : C` and `preserved_rm x : C`** with the preserved set `P`, as
