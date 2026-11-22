@@ -139,6 +139,16 @@ set_option linter.hashCommand false in
 #guard formulaWordTokenAt (encFormula 0 (.eqZero (.const 0))) (2 ^ 80) == .inl () &&
   formulaWordTokenAt (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) 0 == .inl ()
 
+-- Comparison queries retain different payloads and the distinction between zero and negative.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 1 (.and (.eqZero (.var 0)) (.ltZero (.const (-2))))
+  decide (formulaWordComparisonRequest word 1 = some ⟨encTerm 1 (.var 0), false⟩) &&
+    decide (formulaWordComparisonRequest word 2 = some ⟨encTerm 1 (.const (-2)), true⟩) &&
+    (formulaWordComparisonRequest word 0).isNone &&
+    (formulaWordComparisonRequest word (2 ^ 80)).isNone &&
+    (formulaWordComparisonRequest [] 0).isNone
+
 -- The left subtree stops at the right child of the conjunction.
 set_option linter.hashCommand false in
 #guard
