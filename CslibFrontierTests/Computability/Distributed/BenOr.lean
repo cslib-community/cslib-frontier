@@ -9,15 +9,15 @@ module
 
 import CslibFrontier.Computability.Distributed.BenOr.Liveness
 
-/-! Ben-Or's randomized asynchronous binary consensus (checked as a `module` client with ordinary
-imports): threshold values (`majorityThreshold`), `decide`-checked runs on `Fin 3, t = 1` and
-`Fin 5, t = 2` covering the 1-phase unanimous fast path without coin use, split-input adversarial
-schedules rescued by a lucky coin flip, single-process Stage-2 decision locking all estimates for
-the next phase, dynamic mid-stage crashes (`CrashSchedule` and `crashRun` with post-decision crash
-preserving uniform agreement), failure at `n = 2, t = 1` (`2 * t = n`), deterministic static-coin
-non-termination (`exists_nonterminating_of_fixed_coin`), dot-notation checks, and probabilistic
-termination tail bounds under both `commonCoinLaw` (`(1 / 2) ^ k`) and `localCoinLaw`
-(`(1 - (1 / 2) ^ n) ^ k`). -/
+/-! Quorum-phase safety and pre-coin phase-scheduler termination step for Ben-Or's binary consensus
+(checked as a `module` client with ordinary imports): threshold values (`majorityThreshold`),
+`decide`-checked runs on `Fin 3, t = 1` and `Fin 5, t = 2` covering the 1-phase unanimous fast path
+without coin use, split-input phase schedules rescued by a lucky coin flip, single-process Stage-2
+decision locking all estimates for the next phase, phased mid-stage crashes (`CrashSchedule` and
+`crashRun` with post-decision crash preserving uniform agreement), failure at `n = 2, t = 1`
+(`2 * t = n`), deterministic static-coin non-termination (`exists_nonterminating_of_fixed_coin`),
+dot-notation checks, and pre-coin phase-scheduler tail bounds under both `localCoinLaw`
+(`(1 - (1 / 2) ^ n) ^ k`) and the separate `commonCoinLaw` variant (`(1 / 2) ^ k`). -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.BenOr

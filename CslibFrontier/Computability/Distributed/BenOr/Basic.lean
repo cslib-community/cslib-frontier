@@ -13,52 +13,59 @@ public import Mathlib.Data.Fintype.Basic
 public import Mathlib.Data.Fintype.Card
 
 /-!
-# Ben-Or's randomized asynchronous binary consensus: model and deterministic safety
+# Quorum-phase model and deterministic safety for Ben-Or's binary consensus
 
 Fischer, Lynch, and Paterson (`Cslib.FLP.Consensus.ge_one_not_exists`) proved that no deterministic
 asynchronous consensus protocol can tolerate even a single crash fault on two or more processes.
-Ben-Or [BenOr1983] circumvented this impossibility for `2 * t < Fintype.card P` by organizing
-asynchronous message passing into tagged two-stage phases (`report` and `propose`) with quorums of
-size `n - t` (`n = Fintype.card P`), falling back to a random coin flip when Stage 2 delivers no
-concrete proposal.
+Ben-Or ([BenOr1983], §3, Protocol A, printed p. 28) introduced a two-stage binary consensus
+protocol for `2 * t < Fintype.card P` using quorums of size `n - t` (`n = Fintype.card P`) and a
+Stage-2 coin flip when no concrete proposal arrives.
 
-This module defines Ben-Or's crash-fault binary consensus protocol, connects quorum-schedule
-executions to executions with dynamic mid-stage process crashes, proves that deterministic safety
-(Stage-1 proposal uniqueness, 1-phase unanimous validity without coin use, single-phase estimate
-lock-in, cross-phase uniform agreement, and input integrity) holds unconditionally for **every**
-coin sequence, and exhibits an explicit non-terminating execution on `Fin 3, t = 1` for every
-static deterministic coin fallback. Companion module
-`CslibFrontier.Computability.Distributed.BenOr.Liveness` proves probability-1 termination under
-both a common fair coin and independent local fair coins.
+This module formalizes **quorum-phase deterministic safety** after [BenOr1983], §3, Protocol A
+(printed p. 28; compare Theorem 1(ii)–(iii) on printed p. 29): it defines the two-stage phase
+transition over per-recipient `n - t` quorums (`PhaseSchedule.Valid`), connects quorum-phase runs to
+phased dynamic mid-stage crashes (`CrashSchedule.Valid`, `crashRun`), proves that deterministic
+safety (Stage-1 proposal uniqueness, 1-phase unanimous validity without coin use, single-phase
+estimate lock-in, cross-phase uniform agreement, and input integrity) holds unconditionally for
+**every** coin sequence, and exhibits an explicit non-terminating execution on `Fin 3, t = 1` for
+every static deterministic coin fallback.
 
-## Asynchronous phase-quorum model and non-halting write-once decisions
+**Model scope (#7120):** `PhaseSchedule` and `CrashSchedule` group execution by synchronous phase
+boundaries over `n - t` Stage-1/Stage-2 sender sets, rather than modeling the primitive
+message-buffer and arbitrary cross-round step-interleaving scheduler of [BenOr1983], §2 (printed
+pp. 27–28). Companion module `CslibFrontier.Computability.Distributed.BenOr.Liveness` proves a
+**pre-coin phase-scheduler termination step** (`probRun`) toward Theorem 1(i) of [BenOr1983] (and
+for a separate common-coin variant), while termination against full §2 asynchronous schedulers
+remains open in #7120.
 
-Messages carry their phase number `r : ℕ` and stage tag (`report` or `propose`). Because at most
-`t` processes crash, at least `n - t` correct processes complete every stage; each active process
-waits for `n - t` distinct senders' messages for its current `(r, stage)` before advancing,
-buffering future-phase messages and ignoring late messages from completed stages. Arbitrary
-asynchronous message delays and mid-broadcast crashes are therefore captured by a per-recipient
-quorum pair `PhaseSchedule P` (`q1`, `q2 : P → Finset P`) satisfying `PhaseSchedule.Valid t`
-(`n - t ≤ (q1 p).card` and `n - t ≤ (q2 p).card`).
+## Quorum-phase abstraction and non-halting write-once decisions
 
-Each process maintains `ProcState` (`est : Bool`, write-once `decided : Option Bool`) and continues
-participating in subsequent phases after deciding so slower processes still receive `n - t`
-messages (matching the non-halting convention of asynchronous phase-based Ben-Or presentations).
-`CrashSchedule` and `crashRun_eq_run` verify explicitly that dynamic mid-stage crashes—where
-processes in `crashed1 r ⊆ crashed2 r` stop sending and freeze their local states—coincide on all
-surviving processes with `run` on a valid `PhaseSchedule`, yielding uniform agreement even across
-processes that crash immediately after deciding (`crashRun_agreement`).
+In [BenOr1983], §3, Protocol A (printed p. 28), messages carry their round number `r` and stage tag
+(`(1, r, x_P)` in step 1; `(2, r, v, D)` or `(2, r, ?)` in step 2), and each process waits for
+`n - t` messages of the matching `(stage, r)` tag before advancing. Here a single phase is modeled
+by a per-recipient quorum pair `PhaseSchedule P` (`q1`, `q2 : P → Finset P`) satisfying
+`PhaseSchedule.Valid t` (`n - t ≤ (q1 p).card` and `n - t ≤ (q2 p).card`).
 
-In each phase `r` on state `st : P → ProcState` with `n = Fintype.card P`:
+Each process maintains `ProcState` (`est : Bool`, write-once `decided : Option Bool`, matching §2
+printed p. 27) and continues executing subsequent phases after deciding (`step 4` of Protocol A,
+printed p. 28) so slower processes still collect `n - t` messages. `CrashSchedule` and
+`crashRun_eq_run` verify that phased mid-stage crashes—where processes in `crashed1 r ⊆ crashed2 r`
+stop sending and freeze their local states—coincide on all surviving processes with `run` on a
+valid `PhaseSchedule`, giving uniform agreement even across processes that crash immediately after
+deciding (`crashRun_agreement`).
 
-1. **Stage 1 (`stage1Proposal`):** process `j` collects reports from `q1 j`. If at least
-   `majorityThreshold n = n / 2 + 1` senders in `q1 j` reported `b`, `j` proposes `some b`;
-   otherwise `j` proposes `none`.
-2. **Stage 2 (`stage2Update`):** process `p` collects Stage-2 proposals from `q2 p`.
-   - **Adopt:** if at least `1` sender in `q2 p` proposed `some b`, set next estimate `est := b`;
-     otherwise (all proposals in `q2 p` are `none`) set `est := coins r p`.
-   - **Decide:** if `decided = none` and at least `t + 1` senders in `q2 p` proposed `some b`, set
-     `decided := some b`.
+In each phase `r` on state `st : P → ProcState` with `n = Fintype.card P` (matching steps 1–3 of
+Protocol A, [BenOr1983], §3, printed p. 28, with `0`-indexed `r : ℕ`):
+
+1. **Stage 1 (`stage1Proposal`, Protocol A steps 1–2):** process `j` collects reports from `q1 j`.
+   If strictly more than `n / 2` (`majorityThreshold n = n / 2 + 1`) senders in `q1 j` reported
+   `b`, `j` proposes `some b` (`(2, r, b, D)`); otherwise `j` proposes `none` (`(2, r, ?)`).
+2. **Stage 2 (`stage2Update`, Protocol A step 3):** process `p` collects Stage-2 proposals from
+   `q2 p`.
+   - **Adopt (step 3(a)):** if at least `1` sender in `q2 p` proposed `some b`, set next estimate
+     `est := b`; otherwise (step 3(c): all proposals in `q2 p` are `none`) set `est := coins r p`.
+   - **Decide (step 3(b)):** if `decided = none` and strictly more than `t` (`t + 1`) senders in
+     `q2 p` proposed `some b`, set `decided := some b`.
 
 ## Main definitions
 
@@ -559,16 +566,18 @@ theorem phaseStep_allDecided_of_est_eq {P : Type*} [Fintype P] {t : ℕ} {sched 
     subst hdb
     exact phaseStep_decided_stable hd
 
-/-- **Unanimous validity:** if all processes start with input `b`, every process decides `b` after
-phase `0` (`r = 1`), without depending on any coin value. -/
+/-- **Quorum-phase unanimous validity** (quorum-phase counterpart of Theorem 1(ii), [BenOr1983],
+§3, printed p. 29): if all processes start with input `b`, every process decides `b` after phase
+`0` (`r = 1`), without depending on any coin value. -/
 theorem run_validity {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSchedule P}
     (ht : 2 * t < Fintype.card P) (hv₀ : (sched 0).Valid t) (coins : ℕ → P → Bool)
     {inp : P → Bool} {b : Bool} (hinp : ∀ p, inp p = b) (p : P) :
     (run t sched coins inp 1 p).decided = some b :=
   (phaseStep_of_est_eq ht hv₀ (coins 0) hinp p).2 rfl
 
-/-- **Next-phase global decision:** once any process `p` has decided `b` by phase `r`, every
-process `q` has decided `b` by phase `r + 1`. -/
+/-- **Quorum-phase next-phase global decision** (quorum-phase counterpart of Theorem 1(iii),
+[BenOr1983], §3, printed p. 29): once any process `p` has decided `b` by phase `r`, every process
+`q` has decided `b` by phase `r + 1`. -/
 theorem run_decide_next_phase {P : Type*} [Fintype P] {t : ℕ} {sched : ℕ → PhaseSchedule P}
     (ht : 2 * t < Fintype.card P) {r : ℕ} (hv : ∀ k ≤ r, (sched k).Valid t)
     {coins : ℕ → P → Bool} {inp : P → Bool} {p : P} {b : Bool}
