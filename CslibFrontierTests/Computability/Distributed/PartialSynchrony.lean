@@ -156,6 +156,18 @@ example {S M : Type} (π : PartialSyncProtocol (Fin 2) Bool S M) :
     ¬ π.SolvesOmissionPartialSync 1 :=
   not_solvesOmissionPartialSync π (by decide) (by decide)
 
+-- Weak-unanimity omission lower bound (`not_omissionPartialSync_weakUnanimity`, Theorem 4.3).
+example {S M : Type} (π : PartialSyncProtocol (Fin 2) Bool S M)
+    (hag : ∀ deliver x r₁ r₂ i j v₁ v₂, (∃ gst, IsGST deliver ∅ gst) →
+      π.omissionDecision deliver x r₁ i = some v₁ →
+      π.omissionDecision deliver x r₂ j = some v₂ → v₁ = v₂)
+    (hwu : ∀ deliver x v, (∃ gst, IsGST deliver ∅ gst) → (∀ i, x i = v) →
+      ∀ r i w, π.omissionDecision deliver x r i = some w → w = v)
+    (hterm : ∀ F : Finset (Fin 2), F.card ≤ 1 → ∀ deliver gst x,
+      IsGST deliver F gst → ∀ i ∉ F, ∃ r, (π.omissionDecision deliver x r i).isSome = true) :
+    False :=
+  not_omissionPartialSync_weakUnanimity π (by decide) (by decide) hag hwu hterm
+
 -- Direct synchronous `GST = 0` special-case impossibility for fixed-round `R` agreement, validity,
 -- and termination at `deliver = fun _ _ _ => true`.
 example {S M : Type} (π : PartialSyncProtocol (Fin 3) Bool S M) (R : ℕ)

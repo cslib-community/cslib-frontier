@@ -33,37 +33,48 @@ when deterministic partial-synchrony consensus is solvable
 
 * `Cslib.Distributed.PartialSynchrony.exists_honest_rotatingLeader`: among any `t + 1` consecutive
   views under `F.card ≤ t < Fintype.card P`, at least one view has a correct `rotatingLeader`.
-* `Cslib.Distributed.PartialSynchrony.dls_terminates_in_honest_view`,
-  `Cslib.Distributed.PartialSynchrony.dls_terminates_after_gst`: once `GST` holds, an honest-leader
-  view decides for all correct processes at `6 * (v* + 1)`, yielding uniform bounded termination by
-  round `gst + 6 * (t + 2)` (`O(t)` rounds after `GST`, cf.
+* `Cslib.Distributed.PartialSynchrony.byzQuorum_terminates_in_honest_view`,
+  `Cslib.Distributed.PartialSynchrony.byzQuorum_terminates_after_gst`: once `GST` holds, an
+  honest-leader view decides for all correct processes at `6 * (v* + 1)`, yielding uniform bounded
+  termination by round `gst + 6 * (t + 2)` (`O(t)` rounds after `GST`, cf.
   [Dwork, Lynch and Stockmeyer, §3.2.3, Remark 1, p. 302][DworkLynchStockmeyer1988]).
 * `Cslib.Distributed.PartialSynchrony.solvesByzantinePartialSync_byzQuorumProtocol`:
   `byzQuorumProtocol` solves unauthenticated Byzantine partial-synchrony consensus whenever
-  `3 * t < Fintype.card P`.
+  `3 * t < Fintype.card P` (witnessing the existence half of
+  [Theorem 3.3, p. 302][DworkLynchStockmeyer1988] via a finite-state view-locking protocol).
 * `Cslib.Distributed.PartialSynchrony.omission_terminates_in_honest_view`,
   `Cslib.Distributed.PartialSynchrony.omission_terminates_after_gst`,
   `Cslib.Distributed.PartialSynchrony.solvesOmissionPartialSync_omissionQuorumProtocol`:
   `omissionQuorumProtocol` terminates by round `gst + 3 * (t + 2)` and solves crash/omission
-  partial-synchrony consensus whenever `2 * t < Fintype.card P`.
+  partial-synchrony consensus whenever `2 * t < Fintype.card P` (witnessing the existence half of
+  [Theorem 3.1, p. 297][DworkLynchStockmeyer1988] via a finite-state view-locking protocol).
 * `Cslib.Distributed.PartialSynchrony.not_partialSync_of_le_three_t`: synchronous `GST = 0`
   reduction from `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement` refuting
   fixed-round `R` agreement, validity, and termination at `deliver = fun _ _ _ => true` for
   `2 ≤ Fintype.card P ≤ 3 * t`.
-* `Cslib.Distributed.PartialSynchrony.not_solvesOmissionPartialSync`,
-  `Cslib.Distributed.PartialSynchrony.not_solvesByzantinePartialSync`: full impossibility of
-  eventual partial-synchrony consensus for `2 ≤ Fintype.card P ≤ 2 * t` (crash/omission,
-  [Theorem 4.3][DworkLynchStockmeyer1988]) and `2 ≤ Fintype.card P ≤ 3 * t` (unauthenticated
-  Byzantine, [Theorem 4.4][DworkLynchStockmeyer1988]) over any `[Nontrivial V]`.
+* `Cslib.Distributed.PartialSynchrony.not_omissionPartialSync_weakUnanimity`,
+  `Cslib.Distributed.PartialSynchrony.not_solvesOmissionPartialSync`: crash/omission impossibility
+  for `2 ≤ Fintype.card P ≤ 2 * t` over any `[Nontrivial V]`, proved under weak unanimity (`F = ∅`,
+  `∃ gst, IsGST deliver ∅ gst`) by healing the pre-`GST` two-group partition after `R₀`, `R₁`, and
+  `max R₀ R₁` ([Theorem 4.3, pp. 305–306][DworkLynchStockmeyer1988] in the §3.1 basic round model).
+* `Cslib.Distributed.PartialSynchrony.not_solvesByzantinePartialSync`: unauthenticated Byzantine
+  impossibility for `2 ≤ Fintype.card P ≤ 3 * t` over any `[Nontrivial V]`, reducing correct-input
+  validity at `GST = 0` to synchronous covering
+  ([Pease, Shostak and Lamport][PeaseShostakLamport1980];
+  [Fischer, Lynch and Merritt][FischerLynchMerritt1985]), matching the unauthenticated "only if"
+  reduction noted in [Dwork, Lynch and Stockmeyer, §1.2, p. 291][DworkLynchStockmeyer1988].
 * `Cslib.Distributed.PartialSynchrony.exists_solvesByzantinePartialSync_iff`,
   `Cslib.Distributed.PartialSynchrony.exists_solvesOmissionPartialSync_iff`: sharp characterizations
   `Fintype.card P ≤ 1 ∨ 3 * t < Fintype.card P` and `Fintype.card P ≤ 1 ∨ 2 * t < Fintype.card P`
-  (circumventing asynchronous FLP impossibility via eventual `GST` without randomness).
+  ([Table I, p. 291][DworkLynchStockmeyer1988], circumventing asynchronous FLP impossibility via
+  eventual `GST` without randomness).
 
 ## References
 
 * [C. Dwork, N. Lynch, L. Stockmeyer, *Consensus in the presence of partial
   synchrony*][DworkLynchStockmeyer1988]
+* [M. Pease, R. Shostak, L. Lamport, *Reaching agreement in the presence of
+  faults*][PeaseShostakLamport1980]
 * [M. J. Fischer, N. A. Lynch, M. Merritt, *Easy impossibility proofs for distributed consensus
   problems*][FischerLynchMerritt1985]
 -/
@@ -275,11 +286,11 @@ private theorem subround0_proper_complete {F : Finset P}
       have hle := Finset.card_le_card hsub
       omega
 
-/-- **Single-honest-view termination (`dls_terminates_in_honest_view`):** when
+/-- **Single-honest-view termination (`byzQuorum_terminates_in_honest_view`):** when
 `3 * t < Fintype.card P`, `F.card ≤ t`, the view coordinator `leader v*` is correct (`∉ F`), and
 all 6 subrounds `6 * v* .. 6 * v* + 5` of view `v*` deliver every message between correct
 processes, every correct process `i ∉ F` has decided (`isSome = true`) at `6 * (v* + 1)`. -/
-theorem dls_terminates_in_honest_view {F : Finset P}
+theorem byzQuorum_terminates_in_honest_view {F : Finset P}
     (hprocs : ∀ p : P, p ∈ procs) (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t)
     {deliver : ℕ → P → P → Bool} {adv : ℕ → P → P → Option (ByzViewMsg V)} (x : P → V)
     {vStar : ℕ} (hl : leader vStar ∉ F)
@@ -556,10 +567,11 @@ theorem dls_terminates_in_honest_view {F : Finset P}
   cases ((byzQuorumProtocol P V procs leader t).byzantineState
       F deliver adv x (6 * vStar + 5) i).decided <;> rfl
 
-/-- **Post-GST bounded termination (`dls_terminates_after_gst`):** under `rotatingLeader`, once
-`IsGST deliver F gst` holds with `3 * t < Fintype.card P` and `F.card ≤ t`, every correct process
-`i ∉ F` has decided by round `gst + 6 * (t + 2)` (`O(t)` rounds after `GST`). -/
-theorem dls_terminates_after_gst {F : Finset P}
+/-- **Post-GST bounded termination (`byzQuorum_terminates_after_gst`):** under `rotatingLeader`,
+once `IsGST deliver F gst` holds with `3 * t < Fintype.card P` and `F.card ≤ t`, every correct
+process `i ∉ F` has decided by round `gst + 6 * (t + 2)` (`O(t)` rounds after `GST`, cf.
+[Dwork, Lynch and Stockmeyer, §3.2.3, Remark 1, p. 302][DworkLynchStockmeyer1988]). -/
+theorem byzQuorum_terminates_after_gst {F : Finset P}
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P)
     (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t)
     {deliver : ℕ → P → P → Bool} {gst : ℕ} (hgst : IsGST deliver F gst)
@@ -570,29 +582,31 @@ theorem dls_terminates_after_gst {F : Finset P}
   let v₀ := (gst + 5) / 6
   obtain ⟨vStar, hv₀_le, hvStar_le, hl⟩ :=
     exists_honest_rotatingLeader hprocs fallback hF (by omega) v₀
-  have hdec := dls_terminates_in_honest_view (rotatingLeader procs fallback) hprocs hn hF
+  have hdec := byzQuorum_terminates_in_honest_view (rotatingLeader procs fallback) hprocs hn hF
     (adv := adv) x hl (fun r hr_ge _ j hj i hi => hgst r (by omega) j hj i hi)
   intro i hi
   obtain ⟨val, hval⟩ := Option.isSome_iff_exists.1 (hdec i hi)
-  have hval' := dls_irrevocable (rotatingLeader procs fallback) F deliver adv x
+  have hval' := byzQuorum_irrevocable (rotatingLeader procs fallback) F deliver adv x
     (r₁ := 6 * (vStar + 1)) (r₂ := gst + 6 * (t + 2)) (by omega) i val hval
   rw [hval']
   rfl
 
 /-- `byzQuorumProtocol` with `rotatingLeader` solves unauthenticated Byzantine partial-synchrony
-consensus whenever `3 * t < Fintype.card P`. -/
+consensus whenever `3 * t < Fintype.card P` (witnessing the existence half of
+[Dwork, Lynch and Stockmeyer, Theorem 3.3, p. 302][DworkLynchStockmeyer1988] in the §3.1 basic round
+model via a finite-state 6-subround view-locking protocol). -/
 theorem solvesByzantinePartialSync_byzQuorumProtocol
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (hn : 3 * t < Fintype.card P) :
     (byzQuorumProtocol P V procs (rotatingLeader procs fallback) t).SolvesByzantinePartialSync
       t where
   irrevocable F _ deliver adv x _ _ hr i _ val hdec :=
-    dls_irrevocable (rotatingLeader procs fallback) F deliver adv x hr i val hdec
+    byzQuorum_irrevocable (rotatingLeader procs fallback) F deliver adv x hr i val hdec
   agreement _ hF deliver adv x _ _ _ _ _ _ _ _ h₁ h₂ :=
-    dls_agreement (rotatingLeader procs fallback) hprocs hn hF deliver adv x h₁ h₂
+    byzQuorum_agreement (rotatingLeader procs fallback) hprocs hn hF deliver adv x h₁ h₂
   validity _ hF deliver adv _ _ hv r i _ _ hw :=
-    dls_validity (rotatingLeader procs fallback) hprocs hn hF deliver adv hv r i hw
+    byzQuorum_validity (rotatingLeader procs fallback) hprocs hn hF deliver adv hv r i hw
   termination _ hF _ gst adv x hgst i hi :=
-    ⟨gst + 6 * (t + 2), dls_terminates_after_gst hprocs fallback hn hF hgst adv x i hi⟩
+    ⟨gst + 6 * (t + 2), byzQuorum_terminates_after_gst hprocs fallback hn hF hgst adv x i hi⟩
 
 end ByzLiveness
 
@@ -732,7 +746,9 @@ theorem omission_terminates_after_gst {F : Finset P}
   rfl
 
 /-- `omissionQuorumProtocol` with `rotatingLeader` solves crash/omission partial-synchrony consensus
-whenever `2 * t < Fintype.card P`. -/
+whenever `2 * t < Fintype.card P` (witnessing the existence half of
+[Dwork, Lynch and Stockmeyer, Theorem 3.1, p. 297][DworkLynchStockmeyer1988] in the §3.1 basic round
+model via a finite-state 3-subround view-locking protocol). -/
 theorem solvesOmissionPartialSync_omissionQuorumProtocol
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (hn : 2 * t < Fintype.card P) :
     (omissionQuorumProtocol P V procs (rotatingLeader procs fallback) t).SolvesOmissionPartialSync
@@ -827,10 +843,19 @@ theorem not_partialSync_of_le_three_t {P V S M : Type*}
     · simp only [↓reduceIte, decide_true]
 
 /-- **Unbounded unauthenticated Byzantine impossibility (`not_solvesByzantinePartialSync`,
-[Dwork, Lynch and Stockmeyer, Theorem 4.4, p. 306][DworkLynchStockmeyer1988]):** when
+[Dwork, Lynch and Stockmeyer, §1.2 and Table I, p. 291][DworkLynchStockmeyer1988]):** when
 `2 ≤ Fintype.card P ≤ 3 * t` and `V` has at least two values, no deterministic protocol solves
 `SolvesByzantinePartialSync t` (even with run-dependent unbounded termination rounds and infinite
-message spaces). Reuses `Cslib.Distributed.Byzantine.Protocol.state_eq_coverState` at `GST = 0`. -/
+message spaces).
+
+As noted in [Dwork, Lynch and Stockmeyer, §1.2, p. 291][DworkLynchStockmeyer1988], for
+unauthenticated Byzantine faults with correct-input validity (`∀ i ∉ F, x i = v`) the `2 ≤ |P| ≤ 3t`
+lower bound reduces at `GST = 0` (`deliver = fun _ _ _ => true`) to the completely synchronous
+bound of [Pease, Shostak and Lamport][PeaseShostakLamport1980], proved here via the synchronous
+covering simulation `Cslib.Distributed.Byzantine.Protocol.state_eq_coverState` of
+[Fischer, Lynch and Merritt][FischerLynchMerritt1985] (distinct from DLS Theorem 4.4, p. 306, which
+establishes `2 ≤ N ≤ 3t` for *authenticated* Byzantine faults and *weak unanimity* via pre-`GST`
+partition delay and is not formalized here). -/
 theorem not_solvesByzantinePartialSync {P V S M : Type*}
     [Fintype P] [DecidableEq P] [Nontrivial V]
     (π : PartialSyncProtocol P V S M) {t : ℕ}
@@ -934,18 +959,54 @@ theorem not_solvesByzantinePartialSync {P V S M : Type*}
     v₁ v₀ hdec_a hdec_c
   exact hne hag.symm
 
-/-- **Crash/omission lower bound (`not_solvesOmissionPartialSync`,
-[Dwork, Lynch and Stockmeyer, Theorem 4.3, p. 305][DworkLynchStockmeyer1988]):** when
-`2 ≤ Fintype.card P ≤ 2 * t` and `V` has at least two values, no deterministic protocol solves
-`SolvesOmissionPartialSync t`. Before `GST`, a network partition isolates two groups `A` and `Aᶜ`
-of size `≤ t` until `A` decides `v₀` and `Aᶜ` decides `v₁` on unanimous-looking histories. -/
-theorem not_solvesOmissionPartialSync {P V S M : Type*}
+/-- Prefix indistinguishability on a closed group `S : P → Prop` for `omissionState`: if `x₁` and
+`x₂` agree on `S`, and before round `N` the delivery schedules `d₁` and `d₂` agree on every
+recipient `i` in `S` and deliver to `i` only from senders in `S`, then `omissionState` agrees on `S`
+for all `r ≤ N`. -/
+private theorem omissionState_eq_of_prefix {P V State Msg : Type*}
+    (π : PartialSyncProtocol P V State Msg)
+    {d₁ d₂ : ℕ → P → P → Bool} {x₁ x₂ : P → V} {S : P → Prop} {N : ℕ}
+    (hx : ∀ i, S i → x₁ i = x₂ i)
+    (hd : ∀ r < N, ∀ j i, S i → d₁ r j i = d₂ r j i ∧ (d₂ r j i = true → S j)) :
+    ∀ r ≤ N, ∀ i, S i → π.omissionState d₁ x₁ r i = π.omissionState d₂ x₂ r i
+  | 0, _, i, hi => by simp only [PartialSyncProtocol.omissionState, hx i hi]
+  | r + 1, hr, i, hi => by
+    have hr_lt : r < N := by omega
+    simp only [PartialSyncProtocol.omissionState]
+    congr 1
+    · exact omissionState_eq_of_prefix π hx hd r (by omega) i hi
+    · funext j
+      obtain ⟨hdeq, hclosed⟩ := hd r hr_lt j i hi
+      rw [hdeq]
+      cases hd₂ : d₂ r j i
+      · simp only [Bool.false_eq_true, ↓reduceIte]
+      · simp only [↓reduceIte,
+          omissionState_eq_of_prefix π hx hd r (by omega) j (hclosed hd₂)]
+
+/-- **Weak-unanimity crash/omission lower bound (`not_omissionPartialSync_weakUnanimity`,
+[Dwork, Lynch and Stockmeyer, Theorem 4.3, pp. 305–306][DworkLynchStockmeyer1988]):** in the §3.1
+basic round model, when `2 ≤ Fintype.card P ≤ 2 * t` and `V` has at least two values, no
+deterministic protocol achieves post-`GST` termination against `≤ t` omission faults together with
+failure-free (`F = ∅`, `∃ gst, IsGST deliver ∅ gst`) agreement and weak unanimity.
+
+Matches the partition-and-healing proof of Theorem 4.3: partitioning `P` into `A` and `Aᶜ` of size
+`≤ t` forces `a ∈ A` to decide at some round `R₀` on all-`v₀` inputs (which must equal `v₀` by
+healing the partition after `R₀` so `IsGST _ ∅ R₀` holds and invoking weak unanimity) and `b ∉ A` to
+decide `v₁` at some round `R₁` on all-`v₁` inputs (healing after `R₁`), contradicting failure-free
+agreement on the mixed-input schedule that heals at `max R₀ R₁`. -/
+theorem not_omissionPartialSync_weakUnanimity {P V S M : Type*}
     [Fintype P] [Nontrivial V]
     (π : PartialSyncProtocol P V S M) {t : ℕ}
-    (h2 : 2 ≤ Fintype.card P) (h2t : Fintype.card P ≤ 2 * t) :
-    ¬ π.SolvesOmissionPartialSync t := by
+    (h2 : 2 ≤ Fintype.card P) (h2t : Fintype.card P ≤ 2 * t)
+    (hag : ∀ deliver x r₁ r₂ i j v₁ v₂, (∃ gst, IsGST deliver ∅ gst) →
+      π.omissionDecision deliver x r₁ i = some v₁ →
+      π.omissionDecision deliver x r₂ j = some v₂ → v₁ = v₂)
+    (hwu : ∀ deliver x v, (∃ gst, IsGST deliver ∅ gst) → (∀ i, x i = v) →
+      ∀ r i w, π.omissionDecision deliver x r i = some w → w = v)
+    (hterm : ∀ F : Finset P, F.card ≤ t → ∀ deliver gst x,
+      IsGST deliver F gst → ∀ i ∉ F, ∃ r, (π.omissionDecision deliver x r i).isSome = true) :
+    False := by
   classical
-  intro h
   obtain ⟨v₀, v₁, hne⟩ := exists_pair_ne V
   let n := Fintype.card P
   let k := n / 2
@@ -991,10 +1052,14 @@ theorem not_solvesOmissionPartialSync {P V S M : Type*}
   have hbA : b ∉ A := by
     simp only [b, A, Finset.mem_filter, Finset.mem_univ, Equiv.apply_symm_apply, true_and]
     omega
-  have haB : a ∉ B := by simp only [B, Finset.mem_sdiff, haA, not_true_eq_false, and_false,
-    not_false_eq_true]
+  have haB : a ∉ B := by
+    simp only [B, Finset.mem_sdiff, haA, not_true_eq_false, and_false, not_false_eq_true]
   -- Partitioned schedule: deliver within `A` and within `Aᶜ`, drop across `A ↔ Aᶜ`.
   let partDeliver : ℕ → P → P → Bool := fun _ j i => decide (j ∈ A ↔ i ∈ A)
+  let healAt (T : ℕ) : ℕ → P → P → Bool := fun r j i => if r < T then partDeliver r j i else true
+  have hgst_heal : ∀ T, IsGST (healAt T) ∅ T := fun T r hr _ _ _ _ => by
+    have hlt : ¬ r < T := by omega
+    simp only [healAt, hlt, ↓reduceIte]
   have hgstB : IsGST partDeliver B 0 := by
     intro r _ j hj i hi
     simp only [B, Finset.mem_sdiff, Finset.mem_univ, true_and, not_not] at hj hi
@@ -1002,69 +1067,69 @@ theorem not_solvesOmissionPartialSync {P V S M : Type*}
   have hgstA : IsGST partDeliver A 0 := by
     intro r _ j hj i hi
     simp only [partDeliver, hj, hi, decide_true]
-  -- Unanimous `v₀` with `B` faulty: `a ∈ A` decides `v₀` at round `R₀`.
-  obtain ⟨R₀, hR₀⟩ := h.termination B hB_le partDeliver 0 (fun _ => v₀) hgstB a haB
+  -- Scenario A (`B` faulty, all inputs `v₀`): `a ∈ A` decides at `R₀`; healing at `R₀` yields `v₀`.
+  obtain ⟨R₀, hR₀⟩ := hterm B hB_le partDeliver 0 (fun _ => v₀) hgstB a haB
   obtain ⟨w₀, hw₀⟩ := Option.isSome_iff_exists.1 hR₀
-  have hw₀_eq : w₀ = v₀ := h.validity partDeliver (fun _ => v₀) v₀ (fun _ => rfl) R₀ a w₀ hw₀
-  subst w₀
-  -- Unanimous `v₁` with `A` faulty: `b ∉ A` decides `v₁` at round `R₁`.
-  obtain ⟨R₁, hR₁⟩ := h.termination A hA_le partDeliver 0 (fun _ => v₁) hgstA b hbA
-  obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.1 hR₁
-  have hw₁_eq : w₁ = v₁ := h.validity partDeliver (fun _ => v₁) v₁ (fun _ => rfl) R₁ b w₁ hw₁
-  subst w₁
-  -- Hybrid failure-free (`F = ∅`) schedule healing the partition at `G = max R₀ R₁`.
-  let G := max R₀ R₁
-  let hybDeliver : ℕ → P → P → Bool := fun r j i => if r < G then partDeliver r j i else true
-  let xMix : P → V := fun i => if i ∈ A then v₀ else v₁
-  have hstate : ∀ r ≤ G,
-      (∀ i ∈ A,
-        π.omissionState hybDeliver xMix r i = π.omissionState partDeliver (fun _ => v₀) r i) ∧
-      (∀ i ∉ A,
-        π.omissionState hybDeliver xMix r i = π.omissionState partDeliver (fun _ => v₁) r i) := by
-    intro r hr
-    induction r with
-    | zero =>
-      refine ⟨fun i hi => ?_, fun i hi => ?_⟩ <;>
-        simp only [PartialSyncProtocol.omissionState, xMix, hi, ↓reduceIte]
-    | succ r ih =>
-      obtain ⟨ihA, ihB⟩ := ih (by omega)
-      have hr_lt : r < G := by omega
-      refine ⟨fun i hi => ?_, fun i hi => ?_⟩
-      · simp only [PartialSyncProtocol.omissionState, hybDeliver, hr_lt, ↓reduceIte]
-        congr 1
-        · exact ihA i hi
-        · funext j
-          by_cases hj : j ∈ A
-          · have hp : partDeliver r j i = true := by simp only [partDeliver, hj, hi, decide_true]
-            rw [hp]
-            simp only [↓reduceIte]
-            rw [ihA j hj]
-          · have hp : partDeliver r j i = false := by
-              simp only [partDeliver, hj, hi, false_iff, not_true_eq_false, decide_false]
-            rw [hp]
-            simp only [Bool.false_eq_true, ↓reduceIte]
-      · simp only [PartialSyncProtocol.omissionState, hybDeliver, hr_lt, ↓reduceIte]
-        congr 1
-        · exact ihB i hi
-        · funext j
-          by_cases hj : j ∈ A
-          · have hp : partDeliver r j i = false := by
-              simp only [partDeliver, hj, hi, true_iff, decide_false]
-            rw [hp]
-            simp only [Bool.false_eq_true, ↓reduceIte]
-          · have hp : partDeliver r j i = true := by simp only [partDeliver, hj, hi, decide_true]
-            rw [hp]
-            simp only [↓reduceIte]
-            rw [ihB j hj]
-  have hdec_a : π.omissionDecision hybDeliver xMix R₀ a = some v₀ := by
-    simp only [PartialSyncProtocol.omissionDecision, (hstate R₀ (le_max_left R₀ R₁)).1 a haA]
+  have hw₀_heal : π.omissionDecision (healAt R₀) (fun _ => v₀) R₀ a = some w₀ := by
+    change π.output a (π.omissionState (healAt R₀) (fun _ => v₀) R₀ a) = some w₀
+    rw [omissionState_eq_of_prefix π (d₁ := healAt R₀) (d₂ := partDeliver)
+      (x₁ := fun _ => v₀) (x₂ := fun _ => v₀) (S := fun _ => True) (fun _ _ => rfl)
+      (fun r hr j i _ => ⟨by simp only [healAt, hr, ↓reduceIte], fun _ => trivial⟩) R₀ le_rfl a
+      trivial]
     exact hw₀
-  have hdec_b : π.omissionDecision hybDeliver xMix R₁ b = some v₁ := by
-    simp only [PartialSyncProtocol.omissionDecision, (hstate R₁ (le_max_right R₀ R₁)).2 b hbA]
+  have hw₀_eq : w₀ = v₀ :=
+    hwu (healAt R₀) (fun _ => v₀) v₀ ⟨R₀, hgst_heal R₀⟩ (fun _ => rfl) R₀ a w₀ hw₀_heal
+  subst w₀
+  -- Scenario B (`A` faulty, all inputs `v₁`): `b ∉ A` decides at `R₁`; healing at `R₁` yields `v₁`.
+  obtain ⟨R₁, hR₁⟩ := hterm A hA_le partDeliver 0 (fun _ => v₁) hgstA b hbA
+  obtain ⟨w₁, hw₁⟩ := Option.isSome_iff_exists.1 hR₁
+  have hw₁_heal : π.omissionDecision (healAt R₁) (fun _ => v₁) R₁ b = some w₁ := by
+    change π.output b (π.omissionState (healAt R₁) (fun _ => v₁) R₁ b) = some w₁
+    rw [omissionState_eq_of_prefix π (d₁ := healAt R₁) (d₂ := partDeliver)
+      (x₁ := fun _ => v₁) (x₂ := fun _ => v₁) (S := fun _ => True) (fun _ _ => rfl)
+      (fun r hr j i _ => ⟨by simp only [healAt, hr, ↓reduceIte], fun _ => trivial⟩) R₁ le_rfl b
+      trivial]
     exact hw₁
-  have hag := h.agreement ∅ (Nat.zero_le t) hybDeliver xMix R₀ R₁
-    a (Finset.notMem_empty a) b (Finset.notMem_empty b) v₀ v₁ hdec_a hdec_b
-  exact hne hag
+  have hw₁_eq : w₁ = v₁ :=
+    hwu (healAt R₁) (fun _ => v₁) v₁ ⟨R₁, hgst_heal R₁⟩ (fun _ => rfl) R₁ b w₁ hw₁_heal
+  subst w₁
+  -- Scenario C (`F = ∅`, mixed inputs `xMix`, healing at `G = max R₀ R₁`).
+  let G := max R₀ R₁
+  let xMix : P → V := fun i => if i ∈ A then v₀ else v₁
+  have hdec_a : π.omissionDecision (healAt G) xMix R₀ a = some v₀ := by
+    change π.output a (π.omissionState (healAt G) xMix R₀ a) = some v₀
+    rw [omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
+      (x₁ := xMix) (x₂ := fun _ => v₀) (S := fun i => i ∈ A)
+      (fun i hi => by simp only [xMix, hi, ↓reduceIte])
+      (fun r hr j i hi => ⟨by simp only [healAt, G, hr, ↓reduceIte], fun hp => by
+        simp only [partDeliver, hi, iff_true, decide_eq_true_eq] at hp; exact hp⟩)
+      R₀ (le_max_left R₀ R₁) a haA]
+    exact hw₀
+  have hdec_b : π.omissionDecision (healAt G) xMix R₁ b = some v₁ := by
+    change π.output b (π.omissionState (healAt G) xMix R₁ b) = some v₁
+    rw [omissionState_eq_of_prefix π (d₁ := healAt G) (d₂ := partDeliver)
+      (x₁ := xMix) (x₂ := fun _ => v₁) (S := fun i => i ∉ A)
+      (fun i hi => by simp only [xMix, hi, ↓reduceIte])
+      (fun r hr j i hi => ⟨by simp only [healAt, G, hr, ↓reduceIte], fun hp => by
+        simp only [partDeliver, hi, iff_false, decide_eq_true_eq] at hp; exact hp⟩)
+      R₁ (le_max_right R₀ R₁) b hbA]
+    exact hw₁
+  exact hne (hag (healAt G) xMix R₀ R₁ a b v₀ v₁ ⟨G, hgst_heal G⟩ hdec_a hdec_b)
+
+/-- **Crash/omission lower bound (`not_solvesOmissionPartialSync`,
+[Dwork, Lynch and Stockmeyer, Theorem 4.3, pp. 305–306][DworkLynchStockmeyer1988]):** when
+`2 ≤ Fintype.card P ≤ 2 * t` and `V` has at least two values, no deterministic protocol solves
+`SolvesOmissionPartialSync t` (immediate from `not_omissionPartialSync_weakUnanimity`). -/
+theorem not_solvesOmissionPartialSync {P V S M : Type*}
+    [Fintype P] [Nontrivial V]
+    (π : PartialSyncProtocol P V S M) {t : ℕ}
+    (h2 : 2 ≤ Fintype.card P) (h2t : Fintype.card P ≤ 2 * t) :
+    ¬ π.SolvesOmissionPartialSync t := fun h =>
+  not_omissionPartialSync_weakUnanimity π h2 h2t
+    (fun deliver x r₁ r₂ i j v₁ v₂ _ => h.agreement ∅ (Nat.zero_le t) deliver x r₁ r₂
+      i (Finset.notMem_empty i) j (Finset.notMem_empty j) v₁ v₂)
+    (fun deliver x v _ => h.validity deliver x v)
+    h.termination
 
 /-! ### Sharp resiliency characterizations -/
 

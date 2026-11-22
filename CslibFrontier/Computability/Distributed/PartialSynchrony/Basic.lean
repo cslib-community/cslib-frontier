@@ -102,12 +102,12 @@ an arbitrary `[DecidableEq V]` domain:
   quorum uniqueness under `3 * t < Fintype.card P`.
 * `Cslib.Distributed.PartialSynchrony.voterCerts_sound`: unforgeability of unauthenticated view
   certificates (`|F| ≤ t`).
-* `Cslib.Distributed.PartialSynchrony.dls_lock_preservation`: once `val₀` is decided in view `v₀`,
-  at least `n - 2 * t` correct processes hold locks on `val₀` at views `≥ v₀` across all higher
-  views and no correct process ever Stage-2 votes for `val ≠ val₀`.
-* `Cslib.Distributed.PartialSynchrony.dls_irrevocable`, `dls_agreement`, `dls_validity`:
-  unconditional pre-GST irrevocability, global agreement, and strong correct-input validity for
-  `byzQuorumProtocol`.
+* `Cslib.Distributed.PartialSynchrony.byzQuorum_lock_preservation`: once `val₀` is decided in view
+  `v₀`, at least `n - 2 * t` correct processes hold locks on `val₀` at views `≥ v₀` across all
+  higher views and no correct process ever Stage-2 votes for `val ≠ val₀`.
+* `Cslib.Distributed.PartialSynchrony.byzQuorum_irrevocable`, `byzQuorum_agreement`,
+  `byzQuorum_validity`: unconditional pre-GST irrevocability, global agreement, and strong
+  correct-input validity for `byzQuorumProtocol`.
 * `Cslib.Distributed.PartialSynchrony.omission_irrevocable`, `omission_agreement`,
   `omission_validity`: unconditional pre-GST irrevocability, global agreement, and strong unanimity
   for `omissionQuorumProtocol`.
@@ -774,9 +774,12 @@ theorem filterMap_fst_filter_length {P V : Type*}
     | some val => { st with decided := st.decided.or (some val) }
     | none => st
 
-/-- Unauthenticated 6-subround rotating-coordinator Byzantine quorum-locking consensus protocol
-(`3 * t < Fintype.card P`, inspired by
-[Dwork, Lynch and Stockmeyer, §3.2.3][DworkLynchStockmeyer1988]). `procs` enumerates `P`
+/-- Original finite-state 6-subround rotating-coordinator unauthenticated Byzantine quorum-locking
+consensus protocol (`3 * t < Fintype.card P`) for the basic round model of
+[Dwork, Lynch and Stockmeyer, §3.1][DworkLynchStockmeyer1988] (replacing Algorithm 3's alternating
+trying/lock-release phases, monotone `PROPER`-set piggybacking, and continuous Srikanth–Toueg
+broadcast in [§3.2.3][DworkLynchStockmeyer1988] with a two-round `t + 1` / `n - t` status and
+input-properness relay plus echo, vote/lock, and commit quorums). `procs` enumerates `P`
 (`∀ p : P, p ∈ procs`) so quorum thresholds and candidate selection are computable without
 `[Fintype V]` or `Classical.choice`. -/
 @[expose] def byzQuorumProtocol (P V : Type*) [DecidableEq P] [DecidableEq V]
@@ -846,7 +849,7 @@ private theorem byzState_decided_unchanged_of_ne_five (F : Finset P)
   · simp only [h4]; cases findQuorumVal (V := V) procs _ _ <;> rfl
 
 /-- Decisions of `byzQuorumProtocol` are write-once across all rounds. -/
-theorem dls_irrevocable (F : Finset P) (deliver : ℕ → P → P → Bool)
+theorem byzQuorum_irrevocable (F : Finset P) (deliver : ℕ → P → P → Bool)
     (adv : ℕ → P → P → Option (ByzViewMsg V)) (x : P → V) {r₁ r₂ : ℕ} (hr : r₁ ≤ r₂)
     (i : P) (val : V)
     (hdec : (byzQuorumProtocol P V procs leader t).byzantineDecision F deliver adv x r₁ i =
@@ -1277,14 +1280,14 @@ private theorem honest_echo_accepted {F : Finset P} {deliver : ℕ → P → P �
         exact ⟨prop, hme, hacc.2⟩
       | _ => simp only [reduceCtorEq] at hme
 
-/-- **Cross-view lock preservation (`dls_lock_preservation`):** suppose `3 * t < Fintype.card P`,
-`F.card ≤ t`, and a set `L₀ ⊆ Finset.univ \ F` of at least `n - 2 * t` correct processes holds
-`locked = some ⟨v₀, val₀⟩` at the end of view `v₀` (`6 * (v₀ + 1)`). Then across all views
-`v ≥ v₀` and all rounds `r`:
+/-- **Cross-view lock preservation (`byzQuorum_lock_preservation`):** suppose
+`3 * t < Fintype.card P`, `F.card ≤ t`, and a set `L₀ ⊆ Finset.univ \ F` of at least `n - 2 * t`
+correct processes holds `locked = some ⟨v₀, val₀⟩` at the end of view `v₀` (`6 * (v₀ + 1)`). Then
+across all views `v ≥ v₀` and all rounds `r`:
 1. Every Stage-2 vote `⟨v, val⟩ ∈ votedViews` with `v₀ ≤ v` has `val = val₀`.
 2. At the end of every view `v ≥ v₀` (`6 * (v + 1)`), every `q ∈ L₀` holds `locked = some lk` with
    `v₀ ≤ lk.view` and `lk.val = val₀`. -/
-theorem dls_lock_preservation [Fintype P] {F : Finset P} {deliver : ℕ → P → P → Bool}
+theorem byzQuorum_lock_preservation [Fintype P] {F : Finset P} {deliver : ℕ → P → P → Bool}
     {adv : ℕ → P → P → Option (ByzViewMsg V)} {x : P → V}
     (hprocs : ∀ p : P, p ∈ procs) (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t)
     {v₀ : ℕ} {val₀ : V} {L₀ : Finset P}
@@ -1428,16 +1431,16 @@ private theorem first_decision_round {F : Finset P} {deliver : ℕ → P → P �
     | some w =>
       have hw : (byzQuorumProtocol P V procs leader t).byzantineDecision
           F deliver adv x (r + 1) i = some w :=
-        dls_irrevocable leader F deliver adv x (Nat.le_succ r) i w hprev
+        byzQuorum_irrevocable leader F deliver adv x (Nat.le_succ r) i w hprev
       have heq : w = val := Option.some.inj (hw.symm.trans h)
       subst heq
       obtain ⟨m, hm_lt, hmn, hms⟩ := first_decision_round r i hprev
       exact ⟨m, Nat.lt_succ_of_lt hm_lt, hmn, hms⟩
 
-/-- **Unconditional pre-GST global agreement (`dls_agreement`):** for `3 * t < Fintype.card P` and
-`F.card ≤ t`, no two processes ever decide distinct values in `byzQuorumProtocol` (even under
+/-- **Unconditional pre-GST global agreement (`byzQuorum_agreement`):** for `3 * t < Fintype.card P`
+and `F.card ≤ t`, no two processes ever decide distinct values in `byzQuorumProtocol` (even under
 arbitrary pre-GST message loss and without `GST` ever holding). -/
-theorem dls_agreement [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈ procs)
+theorem byzQuorum_agreement [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈ procs)
     (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t)
     (deliver : ℕ → P → P → Bool) (adv : ℕ → P → P → Option (ByzViewMsg V)) (x : P → V)
     {r₁ r₂ : ℕ} {i j : P} {v₁ v₂ : V}
@@ -1463,12 +1466,12 @@ theorem dls_agreement [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈ proc
   obtain ⟨h₂', hh₂'⟩ := Finset.card_pos.1 (lt_of_lt_of_le (by omega) hwit₂)
   simp only [Finset.mem_filter] at hh₁' hh₂'
   rcases le_total u₁ u₂ with hle | hle
-  · have hpres := (dls_lock_preservation leader hprocs hn hF
+  · have hpres := (byzQuorum_lock_preservation leader hprocs hn hF
       (Finset.filter_subset _ _) hL₁
       (fun q hq => (Finset.mem_filter.1 hq).2) (u₂ - u₁)).1
       (6 * (u₂ + 1)) h₂' v₂ (by rw [Nat.add_sub_of_le hle]; exact hh₂'.2)
     exact hpres.symm
-  · have hpres := (dls_lock_preservation leader hprocs hn hF
+  · have hpres := (byzQuorum_lock_preservation leader hprocs hn hF
       (Finset.filter_subset _ _) hL₂
       (fun q hq => (Finset.mem_filter.1 hq).2) (u₁ - u₂)).1
       (6 * (u₁ + 1)) h₁' v₁ (by rw [Nat.add_sub_of_le hle]; exact hh₁'.2)
@@ -1537,10 +1540,10 @@ private theorem properReport_unanimous {F : Finset P} {deliver : ℕ → P → P
     simp only [List.mem_toFinset, List.mem_filter, decide_eq_true_eq] at hh
     exact hhonest_val h hhF w hh.2
 
-/-- **Unconditional strong validity (`dls_validity`):** when `3 * t < Fintype.card P`, `F.card ≤ t`,
-and every correct process starts with `val₀` (`∀ h ∉ F, x h = val₀`), no process ever decides any
-value `w ≠ val₀` in `byzQuorumProtocol` (even without `GST`). -/
-theorem dls_validity [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈ procs)
+/-- **Unconditional strong validity (`byzQuorum_validity`):** when `3 * t < Fintype.card P`,
+`F.card ≤ t`, and every correct process starts with `val₀` (`∀ h ∉ F, x h = val₀`), no process ever
+decides any value `w ≠ val₀` in `byzQuorumProtocol` (even without `GST`). -/
+theorem byzQuorum_validity [Fintype P] {F : Finset P} (hprocs : ∀ p : P, p ∈ procs)
     (hn : 3 * t < Fintype.card P) (hF : F.card ≤ t)
     (deliver : ℕ → P → P → Bool) (adv : ℕ → P → P → Option (ByzViewMsg V))
     {x : P → V} {val₀ : V} (hx : ∀ h ∉ F, x h = val₀) :
@@ -1709,9 +1712,12 @@ structure OmissionViewState (V : Type*) where
     | some val => { st with decided := st.decided.or (some val) }
     | none => st
 
-/-- 3-subround rotating-coordinator crash/omission quorum-locking consensus protocol
-(`2 * t < Fintype.card P`, inspired by
-[Dwork, Lynch and Stockmeyer, §3.2.1][DworkLynchStockmeyer1988]). -/
+/-- Original finite-state 3-subround rotating-coordinator crash/omission quorum-locking consensus
+protocol (`2 * t < Fintype.card P`) for the basic round model of
+[Dwork, Lynch and Stockmeyer, §3.1][DworkLynchStockmeyer1988] (replacing Algorithm 1's alternating
+trying/lock-release phases and monotone `PROPER`-set piggybacking in
+[§3.2.1][DworkLynchStockmeyer1988] with single-lock status reporting, proposal/locking, and
+`n - t` acknowledgments). -/
 @[expose] def omissionQuorumProtocol (P V : Type*) [DecidableEq P] [DecidableEq V]
     (procs : List P) (leader : ℕ → P) (t : ℕ) :
     PartialSyncProtocol P V (OmissionViewState V) (OmissionViewMsg V) where
