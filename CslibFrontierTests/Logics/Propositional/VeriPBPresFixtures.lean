@@ -78,6 +78,13 @@ qed : 10;
 qed;
 "
 
+/-- `red x5 + ~x1 >= 1 : x5 -> x1`, whose witness moves `x5`: it maps the constraint and both
+definitions of `x5 ⇔ x1` to trivially true ones, so it is accepted exactly when `x5` is not
+preserved. -/
+def moveX5 : String := "red 1 x5 1 ~x1 >= 1 : x5 -> x1 : subproof
+qed;
+"
+
 /-- For `pres4Rm`: log the solution `x1 ~x2 x3 x4 x5`, excluding its projection by `7`, then
 remove `x5` by `preserved_rm x5 : x1 >= 1`, whose goals are refuted with `5` and `6`; the one
 logged projection gives `ENUMERATION_PARTIAL 1`. VeriPB and CakePB accept. -/

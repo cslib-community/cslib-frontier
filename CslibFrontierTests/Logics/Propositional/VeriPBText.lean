@@ -63,8 +63,10 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   compared with VeriPB and CakePB, and the order checks `eord_def` and `eord_loaded`
   (§5.11.3), which neither tool implements;
 * changing the preserved set (§5.10, §5.11.4): `preserved_add` and `preserved_rm` with their
-  goals proved from the core set, `epreserved`, `solx` and `EQUIENUMERABLE` before and after a
-  change, and a partial enumeration across a removal, each compared with VeriPB and CakePB;
+  goals proved from the core set, `epreserved`, `solx`, `red` witnesses and `EQUIENUMERABLE`
+  before and after a change, labelled `qed`, and a partial enumeration across a removal, each
+  compared with VeriPB and CakePB, and the public `presChangeCheck` and `presChangeCheck_sound`
+  under the ordinary imports of this module;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -1810,6 +1812,20 @@ qed;
 -- A solution logged before `preserved_rm` still counts for the input's preserved set: all three
 -- accept.
 #guard checkOPB pres4Rm enumAfterRm == some (.enumPartial 1)
+-- The witnesses of `red` must leave the *current* preserved set alone. Moving `x5` is accepted
+-- before `preserved_add x5` and rejected after it; on `pres4Rm`, it is rejected before
+-- `preserved_rm x5` and accepted after it. All three agree.
+#guard checkOPB pres4 (presProof 4 (defX5 ++ moveX5)) == some .noClaim
+#guard (checkOPB pres4 (presProof 4 (defX5 ++ addX5 ++ moveX5))).isNone
+#guard (checkOPB pres4Rm (presProof 6 moveX5)).isNone
+#guard checkOPB pres4Rm (presProof 6 (rmX5 ++ moveX5)) == some .noClaim
+-- The subproof may close with `qed preserved_add;`, but not with the label of the other rule:
+-- all three accept the first and reject the second.
+#guard checkOPB pres4 (presProof 4 (defX5 ++ addX5.replace "qed;\n" "qed preserved_add;\n")) ==
+  some .noClaim
+#guard (checkOPB pres4
+  (presProof 4 (defX5 ++ addX5.replace "qed;\n" "qed preserved_rm;\n"))).isNone
+
 /-- An `EQUIENUMERABLE` output of `pres4Rm` itself, after the steps `steps`. -/
 def presEnumOut (steps : String) : String :=
   "pseudo-Boolean proof version 3.0\nf 6;\n" ++ steps ++
@@ -1837,7 +1853,7 @@ qed;
 #guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n"))
   pres4Rm).isNone
 
-/-! ### The order and dominance API under ordinary imports
+/-! ### The order, dominance and preserved-set API under ordinary imports
 
 This module imports `Text`, and with it `Redundance`, by ordinary imports: the checks below use
 only the public API, through `#guard`, exposed bodies and the soundness theorems. -/
@@ -1878,6 +1894,28 @@ def symDom (pres : Option (List ℕ)) (core : List (ℕ × PBConstr)) : Option �
 #guard symDom (some [0]) symDb == none
 -- Without the core goal of `1`, the check is the same.
 #guard symDom none [] == some 5
+
+/-- `x1 ⇒ x0` and `x0 ⇒ x1`, as the core constraints `1` and `2`. -/
+def presCore : List (ℕ × PBConstr) :=
+  [(1, ⟨[(1, (1, false)), (1, (0, true))], 1⟩), (2, ⟨[(1, (1, true)), (1, (0, false))], 1⟩)]
+
+/-- `preserved_add x1 : x0 >= 1` or `preserved_rm x1 : x0 >= 1` over the preserved set `P`, with
+`C` given by `c`: the goals `#1` and `#2`, negated as `3` and `5`, are refuted with `1` and
+`2`. -/
+def presX1 (P : List ℕ) (c : PBConstr) : Option ℕ :=
+  presChangeCheck presCore 3 P 1 c
+    [.goal (.hash 1) [.pol [.id 3, .id 1, .add]] 4, .goal (.hash 2) [.pol [.id 5, .id 2, .add]] 6]
+
+#guard presX1 [0, 1] ⟨[(1, (0, true))], 1⟩ == some 7
+-- `C` must avoid `x1` and stay in the preserved set.
+#guard presX1 [0, 1] ⟨[(1, (1, true))], 1⟩ == none
+#guard presX1 [1] ⟨[(1, (0, true))], 1⟩ == none
+
+-- An accepted change makes `x ⇔ C` on every solution of the core set.
+example {core : List (ℕ × PBConstr)} {n n' : ℕ} {P : List ℕ} {x : ℕ} {c : PBConstr}
+    {items : List RedItem} (h : presChangeCheck core n P x c items = some n') (τ : ℕ → Bool)
+    (hτ : AllHold τ core) : τ x = true ↔ c.Holds τ :=
+  (presChangeCheck_sound h).2 τ hτ
 
 -- An accepted `dom` step maps a solution violating its constraint strictly down the order.
 example {σ : ℕ → Bool} {L : LoadedOrder} {pres : Option (List ℕ)} {obj : Option Objective}
