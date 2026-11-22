@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSchedule
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Machine
 import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler.Replay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.NondeterministicQueryMachine.Retain
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 
 /-!
 # Justesen source loop for scheduler requests
@@ -36,6 +37,8 @@ prepared field in its state and uses it to start each scan on the original input
   initializers agree at any requested source.
 * `Cslib.Complexity.STCON.justesenSeedScheduler_observations_inSpace`:
   query, halt and acceptance in linear workspace in the encoded state.
+* `Cslib.Complexity.STCON.justesenSeedScheduler_next_inSpace`:
+  a scheduler transition in linear workspace in the encoded state and read/selector input.
 * `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_replay`: re-entering the fixed
   scheduler agrees with the scheduler initialized for the original word.
 * `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerScan_existsUnique_firstHalting`:
@@ -47,8 +50,16 @@ prepared field in its state and uses it to start each scan on the original input
   first-halting and parsed replies agree with the mathematical reference callback.
 * `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_replay_correct`:
   the unique successful replay returns the least min-isolating seed and decides reachability.
+* `Cslib.Complexity.STCON.configurationJustesenSeedSchedulerEntry_inSpace`:
+  construct the original-word entry within the logarithmic workspace budget.
 * `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_haltsWithin_clock`:
   a common polynomial selector clock for every branch.
+* `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_length_run_le_log`:
+  logarithmic encoded state length on every selector prefix.
+* `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_exists_routines`:
+  compile the retained scheduler on the original word with logarithmic space and polynomial time.
+* `Cslib.Complexity.STCON.configurationJustesenSeedScheduler_acceptCount`:
+  the native accepting count is one exactly on reachable instances and zero otherwise.
 -/
 
 public section
@@ -149,12 +160,58 @@ theorem justesenSeedScheduler_observations_inSpace {k : ℕ} {State : Type} [Fin
   · exact congrArg encBool (congrFun hhalted state)
   · exact congrArg encBool (congrFun haccept state)
 
+open NondeterministicQueryMachine in
+/-- A step of the fixed scheduler uses linear workspace in the encoded state and read/selector
+input. If it enters a scan, the scan uses the field stored in that state. -/
+theorem justesenSeedScheduler_next_inSpace {k : ℕ} {State : Type} [Fintype State]
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    let E := encPair encJustesenSeedSchedulerState encReadChoice
+    ComputableInSpace (justesenSeedScheduler ntm c).next E encJustesenSeedSchedulerState
+      (fun p => (E p).length) := by
+  let setup := configurationSeedSearchSetup ntm c []
+  let scan := justesenSeedSchedulerScan ntm c
+  let encState := SeedSchedulerMachine.encState encJustesenSourceLoopState
+  have hstart := justesenSourceLoopEntryOfRequest_budget
+    (fst encSeedScanRequest encFieldContext) (snd encSeedScanRequest encFieldContext)
+  obtain ⟨_, hnext, hhalt, hreply⟩ := justesenSourceLoop_parts_inSpace ntm c
+    ⟨configurationJustesenSubdivisionContext ntm c [] 0, 0, 0⟩ 0
+  have hstep := SeedSchedulerMachine.next_withContext_inSpace encFieldContext
+    encJustesenSourceLoopState setup scan (fun p => justesenSourceLoopEntryOfRequest p.1 p.2)
+    SourceRoundLoop.reply hstart hhalt hreply hnext
+  have hstate := fst encJustesenSeedSchedulerState encReadChoice
+  have hfield := budget_comp_linear (fst encFieldContext encState) hstate
+  have hinner := budget_comp_linear (snd encFieldContext encState) hstate
+  have hinput := snd encJustesenSeedSchedulerState encReadChoice
+  have hnextInner := budget_comp_linear hstep (budget_prod hinner (budget_prod hfield hinput))
+  exact (budget_prod hfield hnextInner).of_enc_eq fun ⟨⟨_, _⟩, _⟩ => rfl
+
 /-- Enter candidate zero with the setup and retained field computed on the original word. -/
 noncomputable def configurationJustesenSeedSchedulerEntry {k : ℕ} {State : Type}
     [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) :
     JustesenSeedSchedulerState :=
   let field := configurationFieldContext ntm c w
   (field, (justesenSeedSchedulerFor ntm c (configurationSeedSearchSetup ntm c w) field).init)
+
+/-- The fixed scheduler's original-word entry uses logarithmic workspace and charges its
+encoded output, including the retained field. -/
+theorem configurationJustesenSeedSchedulerEntry_inSpace {k : ℕ} {State : Type}
+    [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ComputableInSpace (configurationJustesenSeedSchedulerEntry ntm c)
+      encBits encJustesenSeedSchedulerState (fun w => Nat.log2 w.length + 1) := by
+  have hbudget (w : List Bool) : Nat.log2 (encBits w).length ≤ Nat.log2 w.length + 1 := by
+    simpa only [encBits_apply] using Nat.le_succ (Nat.log2 w.length)
+  have hsetup := ((configurationSeedSearchSetup_inLogSpace ntm c).inSpace_of_length_log
+    (by simpa only [encBits_apply] using length_configurationSeedSearchSetup_le_log ntm c)).mono_le
+      hbudget
+  have hfield := ((configurationFieldContext_inLogSpace ntm c).inSpace_of_length_log
+    (by simpa only [encBits_apply] using length_configurationFieldContext_le_log ntm c)).mono_le
+      hbudget
+  have hstart := justesenSourceLoopEntryOfRequest_budget
+    (fst encSeedScanRequest encFieldContext) (snd encSeedScanRequest encFieldContext)
+  have hinit := SeedSchedulerMachine.init_withContext_budget encFieldContext
+    encJustesenSourceLoopState (justesenSeedSchedulerScan ntm c)
+    (fun p => justesenSourceLoopEntryOfRequest p.1 p.2) SourceRoundLoop.reply hstart hsetup hfield
+  exact budget_prod hfield hinit
 
 /-- Every selector replay from an original-word entry retains the field and agrees with
 the scheduler initialized directly for that word, including rejected replays. -/
@@ -197,7 +254,7 @@ private theorem justesenSeedSchedulerScan_withInit_of_valid {k : ℕ} {State : T
   rcases f with ⟨⟨saved, rank, source⟩, cursor, answer⟩
   change saved = setup at hs
   subst saved
-  have hrank := hv.1
+  have hrank := hv.seed_lt
   change rank < setup.parameters.search.seedLimit at hrank
   rw [configurationSeedScheduler_seedLimit ntm c w,
     (configurationSeedSearchSetup_endpoints ntm c w).1] at hrank
@@ -427,6 +484,53 @@ theorem configurationJustesenSeedScheduler_replay_correct
   · intro other hother hr
     exact hunique ⟨(hhalt other).mp hother, hreply other ▸ hr⟩ ⟨hfirst, hresult⟩
 
+/-- Every selector prefix of the fixed retained-field scheduler fits in logarithmically
+many bits in the original input length, including replays that reject. -/
+theorem configurationJustesenSeedScheduler_length_run_le_log {k : ℕ} {State : Type}
+    [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    ∃ C, ∀ w bits : List Bool, (encJustesenSeedSchedulerState
+      ((justesenSeedScheduler ntm c).replay w bits
+        (configurationJustesenSeedSchedulerEntry ntm c w))).length ≤
+          C * (Nat.log2 w.length + 1) := by
+  obtain ⟨F, hfield⟩ := length_configurationFieldContext_le_log ntm c
+  obtain ⟨A, hsetup⟩ := length_configurationSeedSearchSetup_le_log ntm c
+  obtain ⟨B, hscan⟩ := configurationJustesenSourceLoop_length_run_le_log ntm c
+  refine ⟨2 * F + 24 * A + B + 22, fun w bits => ?_⟩
+  let setup := configurationSeedSearchSetup ntm c w
+  let field := configurationFieldContext ntm c w
+  let bound := Nat.log2 w.length + 1
+  let n := setup.parameters.search.subdivision.vertexCount
+  let scan := justesenSeedSchedulerScan ntm c
+  let start := fun r => justesenSourceLoopEntryOfRequest r field
+  have hends := configurationSeedSearchSetup_endpoints_lt_vertexCount ntm c w
+  have hroot := fun j hj => configurationSeedSearchSetup_originalSourceID_lt_vertexCount
+    ntm c w (position := j) hj
+  have hcap (f : SeedSchedulerFrame) (hs : f.request.setup = setup)
+      (hv : f.Valid)
+      (_ : f.needsScan = true) (choices : List Bool) :
+      (encJustesenSourceLoopState (scan.replay w choices (start f.request))).length ≤
+        B * bound := by
+    obtain ⟨seed, source, _, _, hreenter⟩ :=
+      justesenSeedSchedulerScan_withInit_of_valid ntm c w f hs hv
+    have h := hscan w seed source ⟨setup.targetID, hends.2⟩ n le_rfl choices
+    rw [← hreenter] at h
+    exact h
+  have hmachine := SeedSchedulerMachine.length_run_le setup scan start SourceRoundLoop.reply
+    encJustesenSourceLoopState w (B * bound) hends.1 hroot hcap bits
+  rw [configurationJustesenSeedScheduler_replay ntm c w bits]
+  change (encPair encFieldContext (SeedSchedulerMachine.encState encJustesenSourceLoopState)
+    (field, (justesenSeedSchedulerFor ntm c setup field).run w bits)).length ≤ _
+  rw [length_encPair]
+  have hF : (encFieldContext field).length ≤ F * bound := hfield w
+  have hA : (encSeedSearchSetup setup).length ≤ A * bound := hsetup w
+  have hM : (SeedSchedulerMachine.encState encJustesenSourceLoopState
+      ((justesenSeedSchedulerFor ntm c setup field).run w bits)).length ≤
+        24 * (encSeedSearchSetup setup).length + B * bound + 21 := hmachine
+  have hconst : 22 ≤ 22 * bound := Nat.le_mul_of_pos_right _ (Nat.succ_pos _)
+  change _ ≤ (2 * F + 24 * A + B + 22) * bound
+  simp only [Nat.add_mul, Nat.mul_assoc]
+  omega
+
 /-- Charge the full-fuel scan and one return selector at each designated or indexed frame. -/
 noncomputable def configurationJustesenSeedSchedulerClock {k : ℕ} {State : Type} [Fintype State]
     (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) : ℕ :=
@@ -477,5 +581,86 @@ theorem configurationJustesenSeedScheduler_haltsWithin_clock {k : ℕ} {State : 
     (justesenSeedSchedulerFor ntm c setup field).halted at hhalt
   rw [hhalt]
   exact hscheduler bits hlen
+
+open NondeterministicQueryMachine in
+/-- Compile the fixed retained-field scheduler on the original input. All native
+branches use logarithmic visited-cell space and stop within a uniform polynomial clock. -/
+theorem configurationJustesenSeedScheduler_exists_routines {k : ℕ} {State : Type}
+    [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ) :
+    let M := justesenSeedScheduler ntm c
+    let entry := configurationJustesenSeedSchedulerEntry ntm c
+    let S := fun w : List Bool => Nat.log2 w.length + 1
+    ∃ R : Routines M entry encBits S, ∃ L d, ∀ w,
+      R.machine.RunsInSpace w (L * S w) ∧ R.machine.RunsInTime w (polyClock d w.length) := by
+  intro M entry S
+  obtain ⟨hq, hh, ha⟩ := justesenSeedScheduler_observations_inSpace ntm c
+  obtain ⟨C, hprefix⟩ := configurationJustesenSeedScheduler_length_run_le_log ntm c
+  have hsize : ∀ w bits, (encJustesenSeedSchedulerState
+      ((M.withInit (entry w)).run (encBits w) bits)).length ≤ C * S w := by
+    intro w bits
+    simpa only [run_withInit, encBits_apply] using hprefix w bits
+  obtain ⟨R⟩ : Nonempty (Routines M entry encBits S) :=
+    M.exists_routines hq (justesenSeedScheduler_next_inSpace ntm c) hh ha entry S
+      (fun w => by simp only [encBits_apply, S, le_refl])
+      (configurationJustesenSeedSchedulerEntry_inSpace ntm c) ⟨C, hsize⟩
+  obtain ⟨L, d, hbounds⟩ := R.exists_logSpace_polyClock
+    (time := configurationJustesenSeedSchedulerClock ntm c)
+    (fun w => by simpa only [encBits_apply] using
+      configurationJustesenSeedScheduler_haltsWithin_clock ntm c w)
+  exact ⟨R, L, d, fun w => by simpa only [encBits_apply] using hbounds w⟩
+
+open Classical NondeterministicQueryMachine in
+/-- The compiled scheduler has one accepting occurrence when the configuration target is
+reachable, and zero otherwise, at any clock sufficient for all native branches. -/
+theorem configurationJustesenSeedScheduler_acceptCount {k : ℕ} {State : Type}
+    [Fintype State] (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    (R : Routines (justesenSeedScheduler ntm c) (configurationJustesenSeedSchedulerEntry ntm c)
+      encBits (fun w => Nat.log2 w.length + 1))
+    (w : List Bool) {clock : ℕ} (hclock : R.machine.RunsInTime w clock) :
+    (Native.countingMachine R.I R.P R.F R.C).acceptCount clock (R.machine.initCfg w) =
+      if configurationInstance ntm c w ∈ STCON then 1 else 0 := by
+  let I := configurationInstance ntm c w
+  let M := justesenSeedScheduler ntm c
+  let entry := configurationJustesenSeedSchedulerEntry ntm c w
+  let reply (trace : List Bool) := SeedSchedulerMachine.reply (M.replay w trace entry).2
+  obtain ⟨answer, bits, _, _, _, hreach, hfirst, hreply, hunique⟩ :=
+    configurationJustesenSeedScheduler_replay_correct ntm c w
+  have haccept (trace : List Bool) : M.accept (M.replay w trace entry) = true ↔
+      ∃ a, reply trace = some (some a) ∧ a.reachable = true := by
+    let final := M.replay w trace entry
+    exact SeedSchedulerMachine.machine_accept_iff (configurationSeedSearchSetup ntm c [])
+      (justesenSeedSchedulerScan ntm c) (fun r => justesenSourceLoopEntryOfRequest r final.1)
+      SourceRoundLoop.reply final.2
+  have htrace (trace : List Bool) :
+      (M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true) ↔
+        trace = bits ∧ I ∈ STCON := by
+    rw [haccept]
+    constructor
+    · rintro ⟨hhalt, a, ha, hhit⟩
+      have hsome : (reply trace).isSome := by simp [ha]
+      have heq := hunique trace hhalt hsome
+      subst trace
+      have ha' : a = answer := by
+        have h : reply bits = some (some answer) := hreply
+        simpa only [h, Option.some.injEq] using ha.symm
+      exact ⟨rfl, hreach.mp (ha' ▸ hhit)⟩
+    · rintro ⟨rfl, hmem⟩
+      exact ⟨hfirst, answer, hreply, hreach.mpr hmem⟩
+  have hset : {trace : List Bool |
+      M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true} =
+        if I ∈ STCON then {bits} else ∅ := by
+    ext trace
+    rw [Set.mem_ofPred_eq, htrace]
+    by_cases h : I ∈ STCON <;> simp [h]
+  rw [← Nat.cast_inj (R := ℕ∞)]
+  calc
+    _ = {trace : List Bool |
+        M.FirstHalting w trace entry ∧ M.accept (M.replay w trace entry) = true}.encard :=
+      R.acceptCount_eq_encard_firstHalting w hclock
+    _ = _ := by
+      rw [hset]
+      change (if I ∈ STCON then ({bits} : Set (List Bool)) else ∅).encard =
+        ↑(if I ∈ STCON then (1 : ℕ) else 0)
+      by_cases hmem : I ∈ STCON <;> simp [hmem]
 
 end Cslib.Complexity.STCON

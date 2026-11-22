@@ -9,9 +9,11 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 public import Mathlib.Topology.Connected.PathConnected
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.PathTransport
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
 import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.SeparatedStarObstacles
+import Mathlib.Analysis.Normed.Module.Basic
 import Mathlib.Topology.Algebra.Affine
 import Mathlib.Topology.MetricSpace.Bounded
 
@@ -20,7 +22,10 @@ import Mathlib.Topology.MetricSpace.Bounded
 
 The protected set consists of the original centers and the literal supports of all frozen
 reference spokes. The existing strip bounds separate the stars horizontally. Compactness
-gives common vertical bounds, so the complement is path connected.
+gives common vertical bounds, so the complement is path connected. A free subdivision
+vertex can therefore move to a vacant point in the complement while every frozen spoke
+retains its literal route. Successive moves place all subdivision vertices at their
+reference positions, using a temporary outside point when a target is occupied.
 -/
 
 public section
@@ -42,6 +47,11 @@ noncomputable def frozenReferenceObstacle (I : FixedRotationInput) : Set ℂ :=
 private theorem original_mem_iff_lt {I : FixedRotationInput} (hI : Valid I) (v : ℕ) :
     v ∈ I.graph.vertices ↔ v < I.graph.vertices.length :=
   (iff_of_eq (congrArg (fun vs : List ℕ => v ∈ vs) hI.1)).trans List.mem_range
+
+private theorem original_mem_subdivision {I : FixedRotationInput} (hI : Valid I)
+    {v : ℕ} (hv : v ∈ I.graph.vertices) : v ∈ (subdivisionGraph I).vertices := by
+  change v ∈ List.range (subdivisionSize I)
+  exact List.mem_range.mpr (((original_mem_iff_lt hI v).mp hv).trans_le (Nat.le_add_right _ _))
 
 /-- Membership in the frozen obstacle is membership in an original center or in an
 indexed frozen spoke. Both orientations use their actual stored route supports. -/
@@ -171,11 +181,8 @@ private theorem vertex_mem_obstacle_iff {I : FixedRotationInput} (hI : Valid I)
     fun w hw => (original_mem_iff_lt hI w).mpr (hI.2.1 w hw)
   constructor
   · rintro (⟨w, hw, heq⟩ | ⟨d, hd, hp⟩)
-    · have hw' : w ∈ (subdivisionGraph I).vertices := by
-        change w ∈ List.range (subdivisionSize I)
-        exact List.mem_range.mpr (((original_mem_iff_lt hI w).mp hw).trans_le
-          (Nat.le_add_right _ _))
-      have hvw : v = w := hinj hv hw' (heq.trans (hcenter w hw).symm)
+    · have hvw : v = w :=
+        hinj hv (original_mem_subdivision hI hw) (heq.trans (hcenter w hw).symm)
       exact Or.inl (hvw.symm ▸ hw)
     · rw [← hroute d hd] at hp
       obtain ⟨i, t, ht, heq⟩ := ((D.route (subdivisionDart I d).1).mem_support_iff _).mp hp
@@ -225,5 +232,160 @@ theorem referencePoint_mem_frozenReferenceObstacle_iff {I : FixedRotationInput}
   vertex_mem_obstacle_iff hI (referenceDrawing_vertices_injective hI)
     (fun e i _ ht _ hw heq => referenceDrawing_vertex_contacts hI e i ht hw heq)
     (fun _ _ => rfl) (fun _ _ => rfl) hv
+
+/-- Move an unfrozen subdivision vertex to a vacant point outside the frozen reference
+obstacle. Other declared vertices stay fixed, and all frozen routes remain literal. -/
+theorem exists_move_unfrozen_reference_vertex {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing (subdivisionGraph I)} (hD : D.IsEmbedding)
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1)
+    {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices) (hfree : ¬ IsFrozenReferenceVertex I v)
+    {b : ℂ} (hb : b ∉ frozenReferenceObstacle I)
+    (hvacant : ∀ w ∈ (subdivisionGraph I).vertices, w ≠ v → b ≠ D.vertex w) :
+    ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧ E.vertex v = b ∧
+      (∀ w ∈ (subdivisionGraph I).vertices, w ≠ v → E.vertex w = D.vertex w) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 := by
+  let keep : Set (Fin (subdivisionGraph I).edges.length) :=
+    {e | ∃ d : Dart I.graph, e = (subdivisionDart I d).1 ∧
+      (I.orders.getD d.vertex none).isSome}
+  have hs : D.vertex v ∉ frozenReferenceObstacle I :=
+    fun h => hfree ((vertex_mem_frozenReferenceObstacle_iff hI hD hcenter hroute hv).mp h)
+  have hkeep : ∀ e ∈ keep, (D.route e).support ⊆ frozenReferenceObstacle I := by
+    rintro e ⟨d, rfl, hd⟩ z hz
+    rw [hroute d hd] at hz
+    exact (mem_frozenReferenceObstacle_iff hI).mpr (Or.inr ⟨d, hd, hz⟩)
+  obtain ⟨E, hE, hposition, hother, hkept⟩ :=
+    hD.exists_vertex_move_in_compl (subdivisionGraph_endpoints_declared hI) v hv
+      (frozenReferenceObstacle_isCompact I).isClosed
+      (frozenReferenceObstacle_compl_isPathConnected hI) hs hb hvacant keep hkeep
+  exact ⟨E, hE, hposition, hother, fun d hd =>
+    (hkept _ ⟨d, rfl, hd⟩).trans (hroute d hd)⟩
+
+private theorem frozen_vertex_at_reference {I : FixedRotationInput}
+    {D : PolygonalDrawing (subdivisionGraph I)}
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1)
+    {v : ℕ} (hv : IsFrozenReferenceVertex I v) : D.vertex v = referencePoint I v := by
+  rcases hv with hv | ⟨d, hd, rfl⟩
+  · exact hcenter v hv
+  · have he := congrArg (fun p : Route => p.endpoint (!d.2)) (hroute d hd)
+    have hleaf : Dart.vertex (G := subdivisionGraph I) ((subdivisionDart I d).1, !d.2) =
+        I.graph.vertices.length + d.index := (subdivisionDart_endpoints I d).2
+    rw [D.endpoint_eq, (referenceDrawing I).endpoint_eq, hleaf] at he
+    exact he
+
+-- If a target is occupied, relocate its unique occupant before placing the intended vertex.
+private theorem place_reference_vertex {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing (subdivisionGraph I)} (hD : D.IsEmbedding)
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1)
+    {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices) :
+    ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧ E.vertex v = referencePoint I v ∧
+      (∀ w ∈ (subdivisionGraph I).vertices, D.vertex w = referencePoint I w →
+        E.vertex w = referencePoint I w) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 := by
+  classical
+  by_cases hvpos : D.vertex v = referencePoint I v
+  · exact ⟨D, hD, hvpos, fun _ _ h => h, hroute⟩
+  have hvfree : ¬ IsFrozenReferenceVertex I v :=
+    fun hf => hvpos (frozen_vertex_at_reference hcenter hroute hf)
+  have hvout : referencePoint I v ∉ frozenReferenceObstacle I :=
+    fun h => hvfree ((referencePoint_mem_frozenReferenceObstacle_iff hI hv).mp h)
+  have clear : ∃ F : PolygonalDrawing (subdivisionGraph I), F.IsEmbedding ∧
+      (∀ w ∈ (subdivisionGraph I).vertices, w ≠ v → referencePoint I v ≠ F.vertex w) ∧
+      (∀ w ∈ (subdivisionGraph I).vertices, D.vertex w = referencePoint I w →
+        F.vertex w = referencePoint I w) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        F.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 := by
+    by_cases hcollision : ∃ w ∈ (subdivisionGraph I).vertices, w ≠ v ∧
+        referencePoint I v = D.vertex w
+    · obtain ⟨w, hw, hwv, heq⟩ := hcollision
+      have hwfree : ¬ IsFrozenReferenceVertex I w := by
+        intro hf
+        apply hvout
+        rw [heq]
+        exact (vertex_mem_frozenReferenceObstacle_iff hI hD hcenter hroute hw).mpr hf
+      have hwrong : D.vertex w ≠ referencePoint I w := by
+        intro h
+        exact hwv (referenceDrawing_vertices_injective hI hw hv (h.symm.trans heq.symm))
+      let occupied := D.vertex '' {u | u ∈ (subdivisionGraph I).vertices}
+      let barred := insert (referencePoint I v) occupied
+      have hbarred : barred.Finite :=
+        ((subdivisionGraph I).vertices.finite_toSet.image D.vertex).insert _
+      obtain ⟨z, hz⟩ := (Set.ne_univ_iff_exists_notMem _).mp
+        (((frozenReferenceObstacle_isCompact I).union hbarred.isCompact).ne_univ)
+      have hzout : z ∉ frozenReferenceObstacle I := fun h => hz (Or.inl h)
+      have hzne : z ≠ referencePoint I v :=
+        fun h => hz (Or.inr (Set.mem_insert_iff.mpr (Or.inl h)))
+      have hzfree (u : ℕ) (hu : u ∈ (subdivisionGraph I).vertices) : z ≠ D.vertex u :=
+        fun h => hz (Or.inr (Set.mem_insert_iff.mpr (Or.inr ⟨u, hu, h.symm⟩)))
+      obtain ⟨F, hF, hFpos, hFother, hFroute⟩ :=
+        exists_move_unfrozen_reference_vertex hI hD hcenter hroute hw hwfree hzout
+          (fun u hu _ => hzfree u hu)
+      refine ⟨F, hF, ?_, ?_, hFroute⟩
+      · intro u hu _ hpoint
+        by_cases huw : u = w
+        · subst u
+          exact hzne (hFpos.symm.trans hpoint.symm)
+        · have huold := hpoint.trans (hFother u hu huw)
+          exact huw (hD.vertices_injective hu hw (huold.symm.trans heq))
+      · intro u hu hpos
+        by_cases huw : u = w
+        · subst u
+          exact (hwrong hpos).elim
+        · exact (hFother u hu huw).trans hpos
+    · exact ⟨D, hD, fun w hw hwv h => hcollision ⟨w, hw, hwv, h⟩, fun _ _ h => h, hroute⟩
+  obtain ⟨F, hF, htarget, hplaced, hFroute⟩ := clear
+  have hFcenter (w : ℕ) (hw : w ∈ I.graph.vertices) : F.vertex w = referencePoint I w :=
+    hplaced w (original_mem_subdivision hI hw) (hcenter w hw)
+  obtain ⟨E, hE, hEpos, hEother, hEroute⟩ :=
+    exists_move_unfrozen_reference_vertex hI hF hFcenter hFroute hv hvfree hvout htarget
+  refine ⟨E, hE, hEpos, ?_, hEroute⟩
+  intro w hw hpos
+  by_cases hwv : w = v
+  · subst w
+    exact hEpos
+  · exact (hEother w hw hwv).trans (hplaced w hw hpos)
+
+/-- Place every declared subdivision vertex at its reference point while retaining the
+literal frozen routes. If a target is occupied, its occupant is still out of position, so it
+can be moved to a temporary point without moving any already placed vertex. -/
+theorem exists_subdivision_embedding_at_reference {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing (subdivisionGraph I)} (hD : D.IsEmbedding)
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1) :
+    ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
+      (∀ w ∈ (subdivisionGraph I).vertices, E.vertex w = referencePoint I w) ∧
+      ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+        E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 := by
+  have place (vs : List ℕ) (hvs : ∀ w ∈ vs, w ∈ (subdivisionGraph I).vertices) :
+      ∃ E : PolygonalDrawing (subdivisionGraph I), E.IsEmbedding ∧
+        (∀ w ∈ vs, E.vertex w = referencePoint I w) ∧
+        (∀ w ∈ I.graph.vertices, E.vertex w = referencePoint I w) ∧
+        ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+          E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 := by
+    induction vs with
+    | nil => exact ⟨D, hD, fun _ hw => (List.not_mem_nil hw).elim, hcenter, hroute⟩
+    | cons v vs ih =>
+      have hrest (w : ℕ) (hw : w ∈ vs) : w ∈ (subdivisionGraph I).vertices :=
+        hvs w (List.mem_cons.mpr (Or.inr hw))
+      obtain ⟨F, hF, hFplaced, hFcenter, hFroute⟩ := ih hrest
+      have hv := hvs v (List.mem_cons.mpr (Or.inl rfl))
+      obtain ⟨E, hE, hEpos, hEplaced, hEroute⟩ :=
+        place_reference_vertex hI hF hFcenter hFroute hv
+      refine ⟨E, hE, ?_, fun w hw =>
+        hEplaced w (original_mem_subdivision hI hw) (hFcenter w hw), hEroute⟩
+      intro w hw
+      rcases List.mem_cons.mp hw with rfl | h
+      · exact hEpos
+      · exact hEplaced w (hrest w h) (hFplaced w h)
+  obtain ⟨E, hE, hV, _, hR⟩ := place (subdivisionGraph I).vertices (fun _ hw => hw)
+  exact ⟨E, hE, hV, hR⟩
 
 end Cslib.Complexity.Graph.RotationRecognition

@@ -8,8 +8,7 @@
   "Cslib.Crypto.MACScheme.BlockwiseEUFCMA": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same).",
   "Cslib.Crypto.ModulusFactoringHard": "#5593: Katz–Lindell section titles were checked against the 3rd-edition table of contents, but the numbered locator is not checked at the source (manual/sources.md says the same).",
   "Cslib.Crypto.QuadraticResiduosityHard": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same).",
-  "Cslib.Crypto.RabinOneWay": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same).",
-  "Cslib.Crypto.SymmetricCipher.RealIdealAE": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same)."
+  "Cslib.Crypto.RabinOneWay": "#5578: Katz–Lindell locators are not checked at the source (manual/sources.md says the same)."
  },
  "headlines": {}
 }
