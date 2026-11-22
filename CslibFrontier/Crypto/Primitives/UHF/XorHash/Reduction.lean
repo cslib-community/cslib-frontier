@@ -22,9 +22,11 @@ import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Foundations.Data.BitString.Basic
 import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 import CslibFrontier.Probability.BitString
+import CslibFrontier.Probability.HashFamily.Collisions
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Probability.PMF.UniformPoint
+import Mathlib.Data.Nat.Choose.Bounds
 
 /-!
 # Computational security of XOR-hash
@@ -36,8 +38,8 @@ through the same word oracle. The ideal random function restricts to a uniform t
 tagged blocks, giving the statistical collision bound. The resulting uniform strict PPT
 reduction proves the single-pair guarantee in Boneh–Shoup v0.6, §7.2.3, Theorem 7.6
 (printed pp. 261–262), including equation (7.12).
-The direct multi-query wrapper retains at most `Q` messages and has its own strict
-oracle PPT and `Q * ℓ` query certificates, a step toward Exercise 7.28.
+For Exercise 7.28, the direct multi-query wrapper retains at most `Q` messages, uses at most
+`Q * ℓ` queries, and incurs an ideal-table loss of at most `Q.choose 2 / |Y|`.
 
 ## Main results
 
@@ -47,6 +49,8 @@ oracle PPT and `Q * ℓ` query certificates, a step toward Exercise 7.28.
 * `Cslib.Crypto.UHF.isOraclePPT_xorHashWordMultiQueryReduction`: the bounded-list wrapper is
   uniform strict oracle PPT.
 * `Cslib.Crypto.UHF.isQueryBounded_xorHashWordMultiQueryReduction`: its `Q * ℓ` query budget.
+* `Cslib.Crypto.UHF.succProbability_multiQueryGame_xorHashWordFamily_le`: the direct
+  multi-query advantage bound with an unordered-pair ideal term.
 -/
 
 public section
@@ -232,15 +236,30 @@ theorem isOraclePPT_xorHashWordCollisionReduction {ℓ blockWidth width : ℕ �
   exact hrun.isOraclePPTOn.bind_with (IsOraclePPTOn.cond hvalid hboth
     (ComputableInPolyTime.const false).isOraclePPTOn)
 
+private def decodeWordMessage (ℓ blockWidth : ℕ) (m : List (List Bool)) :
+    {xs : List (BitString blockWidth) // xs.length ≤ ℓ} :=
+  ⟨(m.take ℓ).map (BitString.ofList blockWidth), by
+    simpa only [List.length_map] using List.length_take_le ℓ m⟩
+
 private theorem decode_encode_xorHashWord {ℓ blockWidth : ℕ}
     {m : List (List Bool)} (hm : xorHashWordValid ℓ blockWidth m = true) :
-    ((m.take ℓ).map (BitString.ofList blockWidth)).map List.ofFn = m := by
+    (decodeWordMessage ℓ blockWidth m).val.map List.ofFn = m := by
   have hv : m.length ≤ ℓ ∧ ∀ b ∈ m, b.length = blockWidth := by
     simpa only [xorHashWordValid, Bool.and_eq_true, decide_eq_true_eq, List.all_eq_true] using hm
-  rw [List.take_of_length_le hv.1, List.map_map]
+  simp only [decodeWordMessage, List.take_of_length_le hv.1, List.map_map]
   calc
     _ = m.map id := List.map_congr_left fun b hb => BitString.ofFn_ofList (hv.2 b hb)
     _ = m := List.map_id m
+
+private theorem eq_of_decodeWordMessage_eq {ℓ blockWidth : ℕ} {m m' : List (List Bool)}
+    (hm : xorHashWordValid ℓ blockWidth m = true) (hm' : xorHashWordValid ℓ blockWidth m' = true)
+    (heq : decodeWordMessage ℓ blockWidth m = decodeWordMessage ℓ blockWidth m') : m = m' :=
+  calc
+    m = (decodeWordMessage ℓ blockWidth m).val.map List.ofFn :=
+      (decode_encode_xorHashWord hm).symm
+    _ = (decodeWordMessage ℓ blockWidth m').val.map List.ofFn :=
+      congrArg (fun x => x.val.map List.ofFn) heq
+    _ = m' := decode_encode_xorHashWord hm'
 
 private theorem run_xorHashWordQueries_of_valid {ℓ blockWidth width : ℕ}
     {m : List (List Bool)} (hm : xorHashWordValid ℓ blockWidth m = true)
@@ -250,12 +269,10 @@ private theorem run_xorHashWordQueries_of_valid {ℓ blockWidth width : ℕ}
         List.ofFn (table (xorHashTaggedWord ℓ (List.ofFn b) i.val))) :
     (xorHashWordQueries ℓ width m).run (fun q => pure (oracle q.2)) =
       pure (List.ofFn (xorHashWordFromTable ℓ blockWidth table m)) := by
-  let msg : {xs : List (BitString blockWidth) // xs.length ≤ ℓ} :=
-    ⟨(m.take ℓ).map (BitString.ofList blockWidth), by
-      simpa only [List.length_map] using List.length_take_le ℓ m⟩
-  simpa only [xorHashWordFromTable, msg, decode_encode_xorHashWord hm] using
-    run_xorHashWordQueries msg List.ofFn
-      (fun (block, i) => table (xorHashTaggedWord ℓ (List.ofFn block) i.val)) oracle h
+  have hrun := run_xorHashWordQueries (decodeWordMessage ℓ blockWidth m) List.ofFn
+    (fun (block, i) => table (xorHashTaggedWord ℓ (List.ofFn block) i.val)) oracle h
+  rw [decode_encode_xorHashWord hm] at hrun
+  exact hrun
 
 /-- With fixed-width matching replies on valid requests, the word reduction checks the
 same event as the bounded-block collision game. -/
@@ -282,9 +299,68 @@ theorem run_xorHashWordCollisionReduction (ℓ blockWidth width : ℕ → ℕ)
     · simp [hfirst, hsecond]
   · simp [hfirst]
 
+private theorem run_xorHashWordMultiQueryReduction (ℓ blockWidth width Q : ℕ → ℕ)
+    (A : ℕ × ℕ → ProbComp (List (List (List Bool)))) (n : ℕ)
+    (table : List Bool → BitString (width n)) (oracle : List Bool → List Bool)
+    (h : ∀ (b : BitString (blockWidth n)) (i : Fin (ℓ n)),
+      oracle (xorHashTaggedWord (ℓ n) (List.ofFn b) i.val) =
+        List.ofFn (table (xorHashTaggedWord (ℓ n) (List.ofFn b) i.val))) :
+    (xorHashWordMultiQueryReduction ℓ blockWidth width Q A n []).run
+      (fun q => pure (oracle q.2)) = (do
+        let gs ← A (n, n)
+        let ms := (gs.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
+        return decide (∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧
+          xorHashWordFromTable (ℓ n) (blockWidth n) table m =
+            xorHashWordFromTable (ℓ n) (blockWidth n) table m')) := by
+  let digest := xorHashWordFromTable (ℓ n) (blockWidth n) table
+  have hmap (ms : List (List (List Bool)))
+      (hm : ∀ m ∈ ms, xorHashWordValid (ℓ n) (blockWidth n) m = true) :
+      (ms.mapM (xorHashWordQueries (ℓ n) (width n))).run (fun q => pure (oracle q.2)) =
+        pure (ms.map (List.ofFn ∘ digest)) := by
+    induction ms with
+    | nil => rfl
+    | cons m ms ih =>
+      simp only [List.mapM_cons, ProbOracleComp.run_bind, ProbOracleComp.run_pure,
+        run_xorHashWordQueries_of_valid (hm m List.mem_cons_self) table oracle h, pure_bind,
+        ih (fun m hm' => hm m (List.mem_cons_of_mem _ hm')), List.map_cons,
+        Function.comp_def, digest]
+  simp only [xorHashWordMultiQueryReduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
+  refine bind_congr fun gs => ?_
+  let ms := (gs.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
+  change (do
+    let ds ← (ms.mapM (xorHashWordQueries (ℓ n) (width n))).run (fun q => pure (oracle q.2))
+    pure (hasDistinctCollision (ds.zip ms))) = _
+  rw [hmap ms (fun m hm => (List.mem_filter.mp hm).2), pure_bind]
+  apply congrArg (pure : Bool → ProbComp Bool)
+  rw [Bool.eq_iff_iff]
+  rw [List.zip_map_left, List.zip_eq_zipWith, List.zipWith_self, List.map_map]
+  simp only [hasDistinctCollision, List.any_eq_true, Bool.and_eq_true, beq_iff_eq, bne_iff_ne,
+    decide_eq_true_eq]
+  constructor
+  · rintro ⟨a, ha, b, hb, heq, hne⟩
+    obtain ⟨m, hm, rfl⟩ := List.mem_map.mp ha
+    obtain ⟨m', hm', rfl⟩ := List.mem_map.mp hb
+    exact ⟨m, hm, m', hm', hne, List.ofFn_injective heq⟩
+  · rintro ⟨m, hm, m', hm', hne, heq⟩
+    exact ⟨_, List.mem_map.mpr ⟨m, hm, rfl⟩, _, List.mem_map.mpr ⟨m', hm', rfl⟩,
+      congrArg List.ofFn heq, hne⟩
+
 private theorem taggedRequest_length {ℓ blockWidth : ℕ} (p : BitString blockWidth × Fin ℓ) :
     (xorHashTaggedWord ℓ (List.ofFn p.1) p.2.val).length = ℓ + blockWidth := by
   rw [length_xorHashTaggedWord p.2.isLt.le, List.length_ofFn]
+
+private theorem prfOracle_xorHashTaggedWord {ℓ blockWidth width : ℕ}
+    (family : List Bool → List Bool → List Bool) (key : List Bool)
+    (hlength : ∀ req, req.length = ℓ + blockWidth → (family key req).length = width)
+    (block : BitString blockWidth) (i : Fin ℓ) :
+    let req := xorHashTaggedWord ℓ (List.ofFn block) i.val
+    prfOracle family (ℓ + blockWidth) key req =
+      List.ofFn (BitString.ofList width (family key req)) := by
+  let req := xorHashTaggedWord ℓ (List.ofFn block) i.val
+  have hreq : req.length = ℓ + blockWidth := taggedRequest_length (block, i)
+  change prfOracle family (ℓ + blockWidth) key req =
+    List.ofFn (BitString.ofList width (family key req))
+  simp only [prfOracle, hreq, ite_true, BitString.ofFn_ofList (hlength req hreq)]
 
 /-- With the security parameter as public setup, running the reduction in the real PRF game gives
 exactly the computational collision game's law. The length hypothesis is the PRF's
@@ -300,23 +376,57 @@ theorem eval_prfRealGame_xorHashWordCollisionReduction {ℓ blockWidth width : �
         (fun _ => xorHashWordFamily ℓ blockWidth width family) A n := by
   let table (key : BitString n) (req : List Bool) :=
     BitString.ofList (width n) (family (List.ofFn key) req)
-  have hlookup (key : BitString n) (block : BitString (blockWidth n)) (i : Fin (ℓ n)) :
-      let req := xorHashTaggedWord (ℓ n) (List.ofFn block) i.val
-      prfOracle family (ℓ n + blockWidth n) (List.ofFn key) req =
-        List.ofFn (table key req) := by
-    let req := xorHashTaggedWord (ℓ n) (List.ofFn block) i.val
-    have hreq : req.length = ℓ n + blockWidth n := taggedRequest_length (block, i)
-    have hreply := hlength (List.ofFn key) req (by simpa only [List.length_ofFn] using hreq)
-    simp only [List.length_ofFn] at hreply
-    change prfOracle family (ℓ n + blockWidth n) (List.ofFn key) req = List.ofFn (table key req)
-    simp only [prfOracle, hreq, ite_true, table, BitString.ofFn_ofList hreply]
   have hreal (key : BitString n) := run_xorHashWordCollisionReduction ℓ blockWidth width
-    A n [] (table key) (prfOracle family (ℓ n + blockWidth n) (List.ofFn key)) (hlookup key)
+    A n [] (table key) (prfOracle family (ℓ n + blockWidth n) (List.ofFn key))
+    (prfOracle_xorHashTaggedWord family (List.ofFn key)
+      (by simpa only [List.length_ofFn] using hlength (List.ofFn key)))
   simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList, BitString.uniformList,
     PMF.bind_map, Function.comp_def, hreal, collisionGame, ProbComp.eval_pure,
     Game.withSetup_pure, ProbComp.eval_uniform, table, xorHashWordFamily]
   rw [PMF.bind_comm]
   rfl
+
+/-- For adversaries whose supported lists fit the cap, the real PRF game has the same
+law as the full multi-query collision game. Malformed messages are ignored in both games. -/
+theorem eval_prfRealGame_xorHashWordMultiQueryReduction {ℓ blockWidth width Q : ℕ → ℕ}
+    (family : List Bool → List Bool → List Bool)
+    (hlength : ∀ key query, query.length = ℓ key.length + blockWidth key.length →
+      (family key query).length = width key.length)
+    (A : ℕ × ℕ → ProbComp (List (List (List Bool)))) (n : ℕ)
+    (hQ : ∀ ms ∈ (ProbComp.eval (A (n, n))).support, ms.length ≤ Q n) :
+    ProbComp.eval (prfRealGame (fun k => ℓ k + blockWidth k) family
+      (xorHashWordMultiQueryReduction ℓ blockWidth width Q A) n) =
+      multiQueryGame (fun k => pure k) (fun _ k => xorHashWordValid (ℓ k) (blockWidth k))
+        (fun _ => xorHashWordFamily ℓ blockWidth width family) A n := by
+  let table (key : BitString n) (req : List Bool) :=
+    BitString.ofList (width n) (family (List.ofFn key) req)
+  have hreal (key : BitString n) := run_xorHashWordMultiQueryReduction ℓ blockWidth width Q
+    A n (table key) (prfOracle family (ℓ n + blockWidth n) (List.ofFn key))
+    (prfOracle_xorHashTaggedWord family (List.ofFn key)
+      (by simpa only [List.length_ofFn] using hlength (List.ofFn key)))
+  simp only [prfRealGame, ProbComp.eval_bind, BitString.eval_sampleList, BitString.uniformList,
+    PMF.bind_map, Function.comp_def, hreal, multiQueryGame, ProbComp.eval_pure,
+    Game.withSetup_pure, ProbComp.eval_uniform, table, xorHashWordFamily]
+  rw [PMF.bind_comm]
+  refine Probability.PMF.bind_congr_on_support _ _ _ fun ms hms => ?_
+  rw [List.take_of_length_le (hQ ms hms)]
+  apply congrArg (fun f => (PMF.uniformOfFintype (BitString n)).bind f)
+  funext key
+  let valid := xorHashWordValid (ℓ n) (blockWidth n)
+  let digest := xorHashWordFromTable (ℓ n) (blockWidth n) (table key)
+  have hevent :
+      (∃ m ∈ ms.filter valid, ∃ m' ∈ ms.filter valid, m ≠ m' ∧ digest m = digest m') ↔
+        ∃ m ∈ ms, ∃ m' ∈ ms, m ≠ m' ∧ valid m = true ∧ valid m' = true ∧
+          digest m = digest m' := by
+    simp only [List.mem_filter]
+    constructor
+    · rintro ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩
+      exact ⟨m, hm, m', hm', hne, hv, hv', heq⟩
+    · rintro ⟨m, hm, m', hm', hne, hv, hv', heq⟩
+      exact ⟨m, ⟨hm, hv⟩, m', ⟨hm', hv'⟩, hne, heq⟩
+  apply congrArg PMF.pure
+  apply Bool.eq_iff_iff.mpr
+  exact decide_eq_true_iff.trans (hevent.trans decide_eq_true_iff.symm)
 
 private def taggedRequestEmbedding (ℓ blockWidth : ℕ) :
     BitString blockWidth × Fin ℓ ↪ BitString (ℓ + blockWidth) where
@@ -332,19 +442,23 @@ private def taggedRequestEmbedding (ℓ blockWidth : ℕ) :
     exact Prod.ext (List.ofFn_injective (congrArg Prod.fst hpair))
       (congrArg (fun v : List Bool × Fin ℓ => v.2) hpair)
 
+private theorem isUniversalHash_taggedRequest (ℓ blockWidth width : ℕ) :
+    IsUniversalHash (PMF.uniformOfFintype (BitString (ℓ + blockWidth) → BitString width))
+      (fun f m => xorHash (fun p => f (taggedRequestEmbedding ℓ blockWidth p)) m)
+      (Fintype.card (BitString width) : ℝ≥0∞)⁻¹ := by
+  let seed := PMF.uniformOfFintype (BitString (ℓ + blockWidth) → BitString width)
+  let e := taggedRequestEmbedding ℓ blockWidth
+  refine IsUniversalHash.precompose_seed seed (fun f p => f (e p)) ?_
+  simp only [seed, Probability.PMF.uniformOfFintype_pi_map_comp_embedding e]
+  exact isDeltaUniversalHash_xorHash.isUniversalHash
+
 private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
     (ℓ blockWidth width : ℕ → ℕ)
     (A : ℕ × ℕ → ProbComp (CollisionGuess (List (List Bool)))) (n : ℕ) :
     ProbComp.eval (prfIdealGame (fun k => ℓ k + blockWidth k) width
       (xorHashWordCollisionReduction ℓ blockWidth width A) n) true ≤
       (Fintype.card (BitString (width n)) : ℝ≥0∞)⁻¹ := by
-  let seed := PMF.uniformOfFintype (BitString (ℓ n + blockWidth n) → BitString (width n))
-  let e := taggedRequestEmbedding (ℓ n) (blockWidth n)
-  have hU : IsUniversalHash seed (fun f m => xorHash (fun p => f (e p)) m)
-      (Fintype.card (BitString (width n)) : ℝ≥0∞)⁻¹ := by
-    refine IsUniversalHash.precompose_seed seed (fun f p => f (e p)) ?_
-    simp only [seed, Probability.PMF.uniformOfFintype_pi_map_comp_embedding e]
-    exact isDeltaUniversalHash_xorHash.isUniversalHash
+  have hU := isUniversalHash_taggedRequest (ℓ n) (blockWidth n) (width n)
   have hrun (f : BitString (ℓ n + blockWidth n) → BitString (width n)) :=
     run_xorHashWordCollisionReduction ℓ blockWidth width A n []
       (fun q => f (BitString.ofList (ℓ n + blockWidth n) q))
@@ -357,15 +471,10 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
   · by_cases h₂ : xorHashWordValid (ℓ n) (blockWidth n) guess.second = true
     · by_cases hne : guess.first = guess.second
       · simp [hne]
-      · let decode (m : List (List Bool)) : {xs : List (BitString (blockWidth n)) //
-            xs.length ≤ ℓ n} :=
-          ⟨(m.take (ℓ n)).map (BitString.ofList (blockWidth n)), by
-            simpa only [List.length_map] using List.length_take_le (ℓ n) m⟩
+      · let decode := decodeWordMessage (ℓ n) (blockWidth n)
         have hdecoded : decode guess.first ≠ decode guess.second := by
           intro heq
-          apply hne
-          simpa only [decode, decode_encode_xorHashWord h₁, decode_encode_xorHashWord h₂] using
-            congrArg (fun m => m.val.map List.ofFn) heq
+          exact hne (eq_of_decodeWordMessage_eq h₁ h₂ heq)
         rw [Probability.PMF.bind_pure_decide_apply_true]
         have hdistinct : (guess.first ≠ guess.second) = True :=
           propext ⟨fun _ => trivial, fun _ => hne⟩
@@ -373,6 +482,42 @@ private theorem eval_prfIdealGame_xorHashWordCollisionReduction_le
         exact hU (decode guess.first) (decode guess.second) hdecoded
     · simp [h₂]
   · simp [h₁]
+
+private theorem eval_prfIdealGame_xorHashWordMultiQueryReduction_le
+    (ℓ blockWidth width Q : ℕ → ℕ)
+    (A : ℕ × ℕ → ProbComp (List (List (List Bool)))) (n : ℕ) :
+    ProbComp.eval (prfIdealGame (fun k => ℓ k + blockWidth k) width
+      (xorHashWordMultiQueryReduction ℓ blockWidth width Q A) n) true ≤
+      ((Q n).choose 2 : ℕ) * (Fintype.card (BitString (width n)) : ℝ≥0∞)⁻¹ := by
+  classical
+  have hU := isUniversalHash_taggedRequest (ℓ n) (blockWidth n) (width n)
+  let seed := PMF.uniformOfFintype (BitString (ℓ n + blockWidth n) → BitString (width n))
+  have hrun (f : BitString (ℓ n + blockWidth n) → BitString (width n)) :=
+    run_xorHashWordMultiQueryReduction ℓ blockWidth width Q A n
+      (fun q => f (BitString.ofList (ℓ n + blockWidth n) q))
+      (randomFunctionOracle (ℓ n + blockWidth n) f)
+      (fun b i => by simp only [randomFunctionOracle, taggedRequest_length (b, i), ite_true])
+  simp only [prfIdealGame, ProbComp.eval_bind, ProbComp.eval_uniform, hrun, ProbComp.eval_pure]
+  rw [PMF.bind_comm]
+  refine Probability.PMF.bind_apply_le_on_support _ fun gs _ => ?_
+  rw [Probability.PMF.bind_pure_decide_apply_true]
+  let ms := (gs.take (Q n)).filter (xorHashWordValid (ℓ n) (blockWidth n))
+  let decode := decodeWordMessage (ℓ n) (blockWidth n)
+  let ds := ms.map decode
+  refine (seed.toOuterMeasure.mono ?_).trans
+    ((hU.toOuterMeasure_not_injOn_le ds.toFinset).trans ?_)
+  · intro f hf hinj
+    obtain ⟨m, hm, m', hm', hne, heq⟩ := hf
+    have hdm : decode m ∈ ds.toFinset := List.mem_toFinset.mpr (List.mem_map_of_mem hm)
+    have hdm' : decode m' ∈ ds.toFinset := List.mem_toFinset.mpr (List.mem_map_of_mem hm')
+    have hdecoded := hinj hdm hdm' heq
+    have hv := (List.mem_filter.mp hm).2
+    have hv' := (List.mem_filter.mp hm').2
+    exact hne (eq_of_decodeWordMessage_eq hv hv' hdecoded)
+  · gcongr
+    refine ds.toFinset_card_le.trans ?_
+    rw [List.length_map]
+    exact (List.length_filter_le _ _).trans (List.length_take_le _ _)
 
 /-- The concrete bound (7.12) of Boneh–Shoup v0.6, §7.2.3, p. 261, for the explicit
 word distinguisher. The ideal-table contribution is the reciprocal of the digest cardinality. -/
@@ -404,6 +549,42 @@ theorem succProbability_xorHashWordFamily_le {ℓ blockWidth width : ℕ → ℕ
   refine (Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_
   rw [add_comm (Game.succProbability I)]
   exact add_le_add le_rfl hideal
+
+/-- Boneh–Shoup v0.6, Exercise 7.28, printed p. 285. A `Q`-message adversary's collision success
+is at most the advantage of the direct word PRF wrapper plus `Q² / (2 |Y|)`. The wrapper
+uses at most `Q * ℓ` calls and is strict oracle PPT for a strict PPT adversary and
+unary polynomial-time schedules. Its ideal-table bound counts unordered pairs. -/
+theorem succProbability_multiQueryGame_xorHashWordFamily_le
+    {ℓ blockWidth width Q : ℕ → ℕ}
+    (family : List Bool → List Bool → List Bool)
+    (hlength : ∀ key query, query.length = ℓ key.length + blockWidth key.length →
+      (family key query).length = width key.length)
+    (A : ℕ × ℕ → ProbComp (List (List (List Bool)))) (n : ℕ)
+    (hQ : ∀ ms ∈ (ProbComp.eval (A (n, n))).support, ms.length ≤ Q n) :
+    Game.succProbability
+        (multiQueryGame (fun k => pure k) (fun _ k => xorHashWordValid (ℓ k) (blockWidth k))
+          (fun _ => xorHashWordFamily ℓ blockWidth width family) A n) ≤
+      Game.advantage
+        (ProbComp.eval (prfRealGame (fun k => ℓ k + blockWidth k) family
+          (xorHashWordMultiQueryReduction ℓ blockWidth width Q A) n))
+        (ProbComp.eval (prfIdealGame (fun k => ℓ k + blockWidth k) width
+          (xorHashWordMultiQueryReduction ℓ blockWidth width Q A) n)) +
+      ((Q n : ℝ≥0) ^ 2 / 2) * ((2 : ℝ≥0) ^ width n)⁻¹ := by
+  let I : Game := ProbComp.eval (prfIdealGame (fun k => ℓ k + blockWidth k) width
+    (xorHashWordMultiQueryReduction ℓ blockWidth width Q A) n)
+  have hideal : I.succProbability ≤ ((Q n).choose 2 : ℕ) * ((2 : ℝ≥0) ^ width n)⁻¹ := by
+    apply ENNReal.coe_le_coe.mp
+    rw [Game.coe_succProbability_ennreal, ENNReal.coe_mul, ENNReal.coe_natCast,
+      ENNReal.coe_inv (pow_ne_zero _ two_ne_zero), ENNReal.coe_pow, ENNReal.coe_ofNat]
+    simpa only [I, BitString.card, Nat.cast_pow, Nat.cast_ofNat] using
+      eval_prfIdealGame_xorHashWordMultiQueryReduction_le ℓ blockWidth width Q A n
+  have hchoose : ((Q n).choose 2 : ℝ≥0) ≤ (Q n : ℝ≥0) ^ 2 / 2 := by
+    simpa using Nat.choose_le_pow_div (α := ℝ≥0) 2 (Q n)
+  rw [← eval_prfRealGame_xorHashWordMultiQueryReduction family hlength A n hQ]
+  refine (Game.succProbability_le_add_of_advantage_le (g₁ := I) le_rfl).trans ?_
+  rw [add_comm I.succProbability]
+  refine add_le_add le_rfl (hideal.trans ?_)
+  gcongr
 
 /-- Boneh–Shoup v0.6, Theorem 7.6, §7.2.3, printed pp. 261–262, for word PRFs with
 `n`-bit keys, fixed-width bit blocks, and a fixed-width unary position prefix. If

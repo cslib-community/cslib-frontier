@@ -36,7 +36,7 @@ The prediction game reveals one digest and rejects a prediction for the queried 
 namespace Cslib.Crypto.UHF.Tests
 
 open Cslib.Probability
-open scoped ENNReal
+open scoped ENNReal NNReal
 
 private def hash (_ : Unit) (m : Fin 3) : Bool := decide (m = 0)
 
@@ -236,6 +236,33 @@ example :
       (B (fun _ => 4) A 0 []).run (fun _ => pure [true]) = pure true ∧
       (B (fun _ => 4) A 0 []).IsQueryBounded 8 :=
   ⟨rfl, rfl, isQueryBounded_xorHashWordMultiQueryReduction _ _ _ _ _ _ _⟩
+
+/-- The direct bound applies to two valid one-block messages and three-bit digests. -/
+example :
+    let ℓ : ℕ → ℕ := fun _ => 2
+    let blockWidth : ℕ → ℕ := fun _ => 1
+    let width : ℕ → ℕ := fun _ => 3
+    let Q : ℕ → ℕ := fun _ => 2
+    let A : ℕ × ℕ → ProbComp (List (List (List Bool))) :=
+      fun _ => pure [[[false]], [[true]]]
+    let F : List Bool → List Bool → List Bool := fun _ _ => [false, false, false]
+    let B := xorHashWordMultiQueryReduction ℓ blockWidth width Q A
+    Game.succProbability
+        (multiQueryGame (fun n => pure n) (fun _ n => xorHashWordValid (ℓ n) (blockWidth n))
+          (fun _ => xorHashWordFamily ℓ blockWidth width F) A 0) ≤
+      Game.advantage (ProbComp.eval (prfRealGame (fun n => ℓ n + blockWidth n) F B 0))
+        (ProbComp.eval (prfIdealGame (fun n => ℓ n + blockWidth n) width B 0)) + 1 / 4 := by
+  intro ℓ blockWidth width Q A F B
+  have hquarter : ((Q 0 : ℝ≥0) ^ 2 / 2) * ((2 : ℝ≥0) ^ width 0)⁻¹ = 1 / 4 := by
+    norm_num [Q, width]
+  have hcap : ∀ ms ∈ (ProbComp.eval (A (0, 0))).support, ms.length ≤ Q 0 := by
+    intro ms hms
+    simp only [A, ProbComp.eval_pure, PMF.mem_support_pure_iff] at hms
+    subst ms
+    decide
+  simpa only [hquarter] using
+    succProbability_multiQueryGame_xorHashWordFamily_le (ℓ := ℓ) (blockWidth := blockWidth)
+      (width := width) F (fun _ _ _ => rfl) A 0 hcap
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

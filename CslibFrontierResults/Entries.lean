@@ -11031,6 +11031,24 @@ register_result "xor-hash-computational-universality" where
     The reciprocal of the digest-space cardinality is negligible. The explicit wrapper \
     preserves the real collision law and has ideal success at most that reciprocal."
 
+register_result "xor-hash-multi-query-security-bound" where
+  title := "Direct multi-query XOR-hash security bound"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.28",
+      locator := "v0.6, printed p. 285; construction from Figure 7.2 and Theorem 7.6" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_xorHashWordFamily_le,
+    Cslib.Crypto.UHF.isQueryBounded_xorHashWordMultiQueryReduction,
+    Cslib.Crypto.UHF.isOraclePPT_xorHashWordMultiQueryReduction
+  ]
+  scope := "Word-PRF model of Theorem 7.6. A supported adversary output contains at most Q \
+    messages of which only valid, distinct messages can contribute a collision. The direct \
+    wrapper checks at most Q entries and makes at most Q times the block cap in oracle calls. \
+    Its strict oracle PPT certificate uses unary polynomial-time parameter schedules and the \
+    adversary's strict PPT certificate. The bound is PRF advantage plus Q²/(2|Y|)."
+
 register_result "computational-difference-unpredictability-implies-universal-hashing" where
   title := "Computational difference unpredictability implies computational universal hashing"
   topic := "cryptography"
