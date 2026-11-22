@@ -88,6 +88,8 @@ import CslibFrontier.Computability.QueryComplexity.Randomized.Nisan
 import CslibFrontier.Computability.QueryComplexity.YaoExpected
 import CslibFrontier.Computability.Complexity.Problems.SharpCycle
 import CslibFrontier.Computability.Complexity.Problems.StronglyConnected.Completeness
+import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
+import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 
 import CslibFrontier.Computability.QueryComplexity.AdjacentPair
 import CslibFrontier.Crypto.Computational.Stretch.Prefix
@@ -12725,3 +12727,76 @@ register_result "gaspers-cubic-switched-cutwidth" where
     fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
     are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
     (main.tex) and compiled PDF on 2026-11-22."
+
+register_result "fischer-lynch-interactive-consistency-round-lower-bound" where
+  title := "No deterministic synchronous protocol solves t-resilient interactive consistency in \
+    at most t rounds"
+  topic := "distributed computing"
+  sources := [
+    { paper := FischerLynch1982,
+      theorem := "Theorem 5",
+      locator := "§3 and §6, printed pp. 184–186" }
+  ]
+  theorems := [
+    Cslib.Distributed.Byzantine.InteractiveProtocol.not_solvesInteractiveConsistency_of_rounds_le
+  ]
+  scope := "For any finite process type P with DecidableEq P, nontrivial input type V \
+    (Nontrivial V), state type S, message type M, fault bound t : ℕ, fixed decision round R : ℕ \
+    with R ≤ t and t + 2 ≤ Fintype.card P, and deterministic synchronous complete-network \
+    protocol π : InteractiveProtocol P V S M (unrestricted send and update functions with no \
+    encoding or local computation bound), ¬ π.SolvesInteractiveConsistency t R: against a fixed \
+    set F : Finset P of at most t faulty senders sending arbitrary recipient-dependent messages \
+    adv : ℕ → P → P → M, correct processes cannot both agree on a common output vector P → V \
+    and recover every correct process's private input at its own coordinate after R rounds. The \
+    bound t + 2 ≤ Fintype.card P makes explicit the two-nonfaulty-processes hypothesis implicit \
+    in the paper's m = 0 base case and invocation of Pease–Shostak–Lamport (n ≥ 3t + 1 for \
+    t ≥ 1, §5 Theorem 3); at n = 2, t = 1 (Fin 2), interactive consistency is solvable in R = 1 \
+    round, whereas for 3 ≤ n ≤ 3t and t ≥ 1 Theorem 3 rules out tolerating t faults in any \
+    number of rounds. Companion declarations in the same module—the Boolean consensus round \
+    lower bound Protocol.not_solvesByzantineAgreement_of_rounds_le (adaptation to \
+    Cslib.Distributed.Byzantine.Protocol for 2 ≤ Fintype.card P and R ≤ t), the majority \
+    adapter InteractiveProtocol.solvesByzantineAgreement_toByzantineAgreement, and the \
+    two-parameter characterization exists_solvesByzantineAgreement_iff_full (library synthesis \
+    with Pease–Shostak–Lamport, Lamport–Shostak–Pease, and Fischer–Lynch–Merritt)—are kept \
+    distinct from Theorem 5. Source check: outside-fleet agent review (reviewer-codex-edemaine) \
+    on PR #7150 at 5b7e3dc4e661: \
+    https://github.com/cslib-community/cslib-frontier/pull/7150#pullrequestreview-6011267968."
+
+register_result "dolev-strong-authenticated-broadcast" where
+  title := "Dolev–Strong (t + 1)-round authenticated broadcast with quadratic chain-transmission \
+    bound"
+  topic := "distributed computing"
+  sources := [
+    { paper := DolevStrong1983,
+      theorem := "Theorem 3",
+      locator := "§4, printed pp. 662–663 (authenticated model in §§1–2 and §4, pp. 656–662)" }
+  ]
+  theorems := [
+    Cslib.Distributed.Byzantine.dolevStrong_solvesAuthenticatedBroadcast,
+    Cslib.Distributed.Byzantine.dolevStrong_correctMessagesSent_le
+  ]
+  scope := "For any finite linearly ordered process type P (Fintype P, LinearOrder P), value \
+    type V with DecidableEq V, designated sender dealer : P, fallback default v₀ : V, fault \
+    threshold t : ℕ, and decision round R ≥ t + 1 (with no n > 3t bound, including t ≥ |P| - 1): \
+    dolevStrong_solvesAuthenticatedBroadcast proves that dolevStrong P V dealer v₀ t satisfies \
+    AuthProtocol.SolvesAuthenticatedBroadcast t R (well-signed honest emissions plus agreement \
+    and correct-dealer validity across all deterministic runs with a static set F : Finset P of \
+    at most t faulty senders under AuthProtocol.Unforgeable), and \
+    dolevStrong_correctMessagesSent_le bounds AuthProtocol.correctMessagesSent F adv input R \
+    ≤ 2 * (Fintype.card P - F.card) * (Fintype.card P - 1). Model and cost scope vs. §4 \
+    Theorem 3: there is no random sampling or computational signature assumption; \
+    AuthProtocol.Unforgeable models unforgeability by value-level execution provenance \
+    (permitting faulty coalitions to splice or reorder signatures on a value once those correct \
+    signers have signed that value, rather than enforcing syntactic nested-label provenance \
+    (((v)p₁)p₂⋯)pᵢ); dolevStrong accepts dealer-rooted exact-phase-length Nodup chains \
+    (c.signers.getLast? = some dealer, c.signers.length = r + 1), excludes existing chain \
+    signers from forwarding recipients (dst ∉ c.signers), caps extracted values at two per \
+    process in deterministic sender (LinearOrder P) and message-list order, and freezes after \
+    t + 1 rounds; and dolevStrong_correctMessagesSent_le counts point-to-point SignedChain \
+    transmissions emitted by correct processes (at most two per directed edge leaving a correct \
+    process via dolevStrong_sum_send_length_le_two, and at most two relayed values per correct \
+    process via dolevStrong_sum_toRelay_length_eq), without bounding signature bit-length or \
+    total point-to-point traffic by two messages per process. Theorem 4's (t + 2)-round \
+    O(n + t²) message optimization is not formalized here (tracked under #7115). Source check: \
+    outside-fleet agent review (reviewer-codex-edemaine) on PR #7150 at 5b7e3dc4e661: \
+    https://github.com/cslib-community/cslib-frontier/pull/7150#pullrequestreview-6011267968."
