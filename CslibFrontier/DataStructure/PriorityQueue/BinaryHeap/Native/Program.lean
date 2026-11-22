@@ -277,6 +277,30 @@ private theorem method_src_eq_argument (i : Fin 5) (j : Fin (certificates i).k) 
     (he : j.val = a.val) : Backend.src family (.inl i) j = argument a :=
   Backend.src_eq_of_val_eq family (.inl i) (.inl 2) he
 
+private theorem src_reg_lt_four {n : ℕ} {L : Memory.Layout n} {x : Data registers}
+    (hl : ∀ i : Fin 4, x.regs (argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i)
+    (t : Fin 5) (j : Fin (family (.inl t)).k) (hj : j.val < 4) :
+    x.regs (Backend.src family (.inl t) j) = layoutWords ⟨n, L⟩ ⟨j.val, hj⟩ :=
+  (congrArg x.regs (method_src_eq_argument t j ((⟨j.val, hj⟩ : Fin 4).castAdd 2) rfl)).trans
+    (hl ⟨j.val, hj⟩)
+
+private theorem method_update_word {n v k : ℕ} {L : Memory.Layout n} {x : Data registers}
+    (hl : ∀ i : Fin 4, x.regs (argument (i.castAdd 2)) = layoutWords ⟨n, L⟩ i)
+    (hv : x.regs code.argV = v) (hk : x.regs code.argK = k)
+    (t : Fin 5) (ht : (family (.inl t)).k = 6) :
+    ∀ j : Fin (family (.inl t)).k,
+      x.regs (Backend.src family (.inl t) j) =
+        updateWords ((⟨n, L⟩, v), k) ⟨j.val, by have := j.isLt; omega⟩ := by
+  rintro ⟨jval, hjlt⟩
+  rcases (show jval = 0 ∨ jval = 1 ∨ jval = 2 ∨ jval = 3 ∨ jval = 4 ∨ jval = 5 by omega) with
+      rfl | rfl | rfl | rfl | rfl | rfl
+  · exact src_reg_lt_four hl t ⟨0, hjlt⟩ (by simp)
+  · exact src_reg_lt_four hl t ⟨1, hjlt⟩ (by simp)
+  · exact src_reg_lt_four hl t ⟨2, hjlt⟩ (by simp)
+  · exact src_reg_lt_four hl t ⟨3, hjlt⟩ (by simp)
+  · exact (congrArg x.regs (method_src_eq_argument t ⟨4, hjlt⟩ 4 rfl)).trans hv
+  · exact (congrArg x.regs (method_src_eq_argument t ⟨5, hjlt⟩ 5 rfl)).trans hk
+
 /-- The existing PQ calling convention delivers the actual selected body's live words; layouts
 and operation payloads are runtime values in the same fixed bank. No prepare step is assumed. -/
 theorem method_arguments {n K : ℕ} (L : Memory.Layout n) (x : Data registers)
@@ -288,62 +312,28 @@ theorem method_arguments {n K : ℕ} (L : Memory.Layout n) (x : Data registers)
   cases o with
   | isEmpty =>
     change x.regs ∘ Backend.src family (.inl 0) = layoutWords ⟨n, L⟩
-    funext j
-    change Fin 4 at j
-    fin_cases j <;>
-      first
-      | exact (congrArg x.regs (method_src_eq_argument 0 _ (0 : Fin 6) rfl)).trans (hl 0)
-      | exact (congrArg x.regs (method_src_eq_argument 0 _ (1 : Fin 6) rfl)).trans (hl 1)
-      | exact (congrArg x.regs (method_src_eq_argument 0 _ (2 : Fin 6) rfl)).trans (hl 2)
-      | exact (congrArg x.regs (method_src_eq_argument 0 _ (3 : Fin 6) rfl)).trans (hl 3)
+    exact funext fun j => src_reg_lt_four hl 0 j j.isLt
   | getKey v =>
     rcases ha with ⟨_, _, _, hv⟩
     change x.regs ∘ Backend.src family (.inl 1) = indexWords (⟨n, L⟩, v.val)
-    funext j
-    change Fin 5 at j
-    fin_cases j <;>
-      first
-      | exact (congrArg x.regs (method_src_eq_argument 1 _ (0 : Fin 6) rfl)).trans (hl 0)
-      | exact (congrArg x.regs (method_src_eq_argument 1 _ (1 : Fin 6) rfl)).trans (hl 1)
-      | exact (congrArg x.regs (method_src_eq_argument 1 _ (2 : Fin 6) rfl)).trans (hl 2)
-      | exact (congrArg x.regs (method_src_eq_argument 1 _ (3 : Fin 6) rfl)).trans (hl 3)
-      | exact (congrArg x.regs (method_src_eq_argument 1 _ (4 : Fin 6) rfl)).trans (hv)
+    funext ⟨jval, hjlt⟩
+    have hj5 : jval < 5 := hjlt
+    rcases (show jval = 0 ∨ jval = 1 ∨ jval = 2 ∨ jval = 3 ∨ jval = 4 by omega) with
+        rfl | rfl | rfl | rfl | rfl
+    · exact src_reg_lt_four hl 1 ⟨0, hjlt⟩ (by simp)
+    · exact src_reg_lt_four hl 1 ⟨1, hjlt⟩ (by simp)
+    · exact src_reg_lt_four hl 1 ⟨2, hjlt⟩ (by simp)
+    · exact src_reg_lt_four hl 1 ⟨3, hjlt⟩ (by simp)
+    · exact (congrArg x.regs (method_src_eq_argument 1 ⟨4, hjlt⟩ 4 rfl)).trans hv
   | insert v k =>
     rcases ha with ⟨_, _, _, hv, hk⟩
-    change x.regs ∘ Backend.src family (.inl 2) = updateWords ((⟨n, L⟩, v.val), k)
-    funext j
-    change Fin 6 at j
-    fin_cases j <;>
-      first
-      | exact (congrArg x.regs (method_src_eq_argument 2 _ (0 : Fin 6) rfl)).trans (hl 0)
-      | exact (congrArg x.regs (method_src_eq_argument 2 _ (1 : Fin 6) rfl)).trans (hl 1)
-      | exact (congrArg x.regs (method_src_eq_argument 2 _ (2 : Fin 6) rfl)).trans (hl 2)
-      | exact (congrArg x.regs (method_src_eq_argument 2 _ (3 : Fin 6) rfl)).trans (hl 3)
-      | exact (congrArg x.regs (method_src_eq_argument 2 _ (4 : Fin 6) rfl)).trans (hv)
-      | exact (congrArg x.regs (method_src_eq_argument 2 _ (5 : Fin 6) rfl)).trans (hk)
+    exact funext (method_update_word hl hv hk 2 rfl)
   | decreaseKey v k =>
     rcases ha with ⟨_, _, _, hv, hk⟩
-    change x.regs ∘ Backend.src family (.inl 3) = updateWords ((⟨n, L⟩, v.val), k)
-    funext j
-    change Fin 6 at j
-    fin_cases j <;>
-      first
-      | exact (congrArg x.regs (method_src_eq_argument 3 _ (0 : Fin 6) rfl)).trans (hl 0)
-      | exact (congrArg x.regs (method_src_eq_argument 3 _ (1 : Fin 6) rfl)).trans (hl 1)
-      | exact (congrArg x.regs (method_src_eq_argument 3 _ (2 : Fin 6) rfl)).trans (hl 2)
-      | exact (congrArg x.regs (method_src_eq_argument 3 _ (3 : Fin 6) rfl)).trans (hl 3)
-      | exact (congrArg x.regs (method_src_eq_argument 3 _ (4 : Fin 6) rfl)).trans (hv)
-      | exact (congrArg x.regs (method_src_eq_argument 3 _ (5 : Fin 6) rfl)).trans (hk)
+    exact funext (method_update_word hl hv hk 3 rfl)
   | extractMin =>
     change x.regs ∘ Backend.src family (.inl 4) = layoutWords ⟨n, L⟩
-    funext j
-    change Fin 4 at j
-    fin_cases j <;>
-      first
-      | exact (congrArg x.regs (method_src_eq_argument 4 _ (0 : Fin 6) rfl)).trans (hl 0)
-      | exact (congrArg x.regs (method_src_eq_argument 4 _ (1 : Fin 6) rfl)).trans (hl 1)
-      | exact (congrArg x.regs (method_src_eq_argument 4 _ (2 : Fin 6) rfl)).trans (hl 2)
-      | exact (congrArg x.regs (method_src_eq_argument 4 _ (3 : Fin 6) rfl)).trans (hl 3)
+    exact funext fun j => src_reg_lt_four hl 4 j j.isLt
 
 private noncomputable def finish {n : ℕ} (o : IndexedMinPQ.Op n)
     (y : Data registers) : Data registers :=
