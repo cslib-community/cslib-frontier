@@ -87,8 +87,10 @@ module documentation, a manual page or a PR title), is in one of two states. Whe
 docstring the citation appears does not matter. Original mathematics and useful named steps are
 not cited results, and nothing here asks them to invent a cited endpoint.
 
-- **Registered.** A `register_result` entry in
-  [`CslibFrontierResults/Entries.lean`](../CslibFrontierResults/Entries.lean), the collection
+- **Registered.** A `register_result` entry under `CslibFrontierResults/` (existing entries in
+  [`CslibFrontierResults/Entries.lean`](../CslibFrontierResults/Entries.lean), and new entries in
+  topic modules under `CslibFrontierResults/Entries/`, aggregated into
+  [`CslibFrontierResults.lean`](../CslibFrontierResults.lean) by `lake exe mk_all`), the collection
   behind the [results inventory](../results/README.md), names the source theorem and lists this
   theorem as stating it.
 - **A step.** It is presented as an intermediate step under

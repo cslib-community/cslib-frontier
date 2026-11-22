@@ -12,6 +12,8 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.CuckooHashing.Analy
 public import CslibFrontier.DataStructure.WordRAM.Randomized.StateTransition
 public import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -134,10 +136,6 @@ open Cslib.DataStructure.WordRAM Cslib.DataStructure.WordRAM.Randomized
 open Cslib.DataStructure.HashFamily.WordRAM
 open scoped ENNReal
 
-/-- Linear arithmetic over the memory layout: `omega`, or `wram_omega` when the goal needs the
-layout definitions unfolded. -/
-local macro "layout_omega" : tactic => `(tactic| first | omega | wram_omega)
-
 /-! ### Section 1: Memory layout, slot encoding, and representation invariants -/
 
 /-- Base address of the hash pair region `[base + 20, t1Base base c_exp n_max)`. -/
@@ -224,13 +222,6 @@ def TableSlotsRep {U M : ℕ} (t1Addr t2Addr : ℕ) (tbl : PureTable U (2 ^ M))
   (∀ b : Fin (2 ^ M), mem (t1Addr + b.val) = encodeSlot (tbl.t1 b)) ∧
   (∀ b : Fin (2 ^ M), mem (t2Addr + b.val) = encodeSlot (tbl.t2 b))
 
-private theorem TableSlotsRep.congr {U M t1Addr t2Addr : ℕ} {tbl : PureTable U (2 ^ M)}
-    {mem mem' : ℕ → ℕ} (h : TableSlotsRep t1Addr t2Addr tbl mem)
-    (h1 : ∀ b < 2 ^ M, mem' (t1Addr + b) = mem (t1Addr + b))
-    (h2 : ∀ b < 2 ^ M, mem' (t2Addr + b) = mem (t2Addr + b)) :
-    TableSlotsRep t1Addr t2Addr tbl mem' :=
-  ⟨fun b => (h1 b.val b.isLt).trans (h.1 b), fun b => (h2 b.val b.isLt).trans (h.2 b)⟩
-
 /-- Static header constants stored at `base + 0 .. 4` and `base + 6 .. 10`. -/
 @[expose]
 def HeaderConstsRep (base c_exp n_max U : ℕ) (mem : ℕ → ℕ) : Prop :=
@@ -245,24 +236,6 @@ def HeaderConstsRep (base c_exp n_max U : ℕ) (mem : ℕ → ℕ) : Prop :=
   mem (base + 9) = keysBase base c_exp n_max ∧
   mem (base + 10) = valsBase base c_exp n_max
 
-private theorem HeaderConstsRep.congr {base c_exp n_max U : ℕ} {mem mem' : ℕ → ℕ}
-    (h : HeaderConstsRep base c_exp n_max U mem)
-    (heq : ∀ k ≤ 10, k ≠ 5 → mem' (base + k) = mem (base + k)) :
-    HeaderConstsRep base c_exp n_max U mem' := by
-  rcases h with ⟨h0, h1, h2, h3, h4, h6, h7, h8, h9, h10⟩
-  have h0' := heq 0 (by decide) (by decide)
-  rw [Nat.add_zero] at h0'
-  exact ⟨h0'.trans h0,
-    (heq 1 (by decide) (by decide)).trans h1,
-    (heq 2 (by decide) (by decide)).trans h2,
-    (heq 3 (by decide) (by decide)).trans h3,
-    (heq 4 (by decide) (by decide)).trans h4,
-    (heq 6 (by decide) (by decide)).trans h6,
-    (heq 7 (by decide) (by decide)).trans h7,
-    (heq 8 (by decide) (by decide)).trans h8,
-    (heq 9 (by decide) (by decide)).trans h9,
-    (heq 10 (by decide) (by decide)).trans h10⟩
-
 /-- Representation of the insertion-order arrays `insKeys` and `insVals` at `keysBase` and
 `valsBase` realizing abstract dictionary state `s : Dictionary.State U`. -/
 @[expose]
@@ -276,20 +249,6 @@ def KeysValsRep (base c_exp n_max U V : ℕ) (ks : List (Fin U)) (s : Dictionary
     mem (keysBase base c_exp n_max + idx) = (ks[idx]).val ∧
     s (ks[idx]) = some (mem (valsBase base c_exp n_max + idx))) ∧
   Dictionary.ValuesBounded V s
-
-private theorem KeysValsRep.congr {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
-    {s : Dictionary.State U}
-    {mem mem' : ℕ → ℕ} (h : KeysValsRep base c_exp n_max U V ks s mem)
-    (h5 : mem' (base + 5) = mem (base + 5))
-    (hk : ∀ idx < ks.length,
-      mem' (keysBase base c_exp n_max + idx) = mem (keysBase base c_exp n_max + idx))
-    (hv : ∀ idx < ks.length,
-      mem' (valsBase base c_exp n_max + idx) = mem (valsBase base c_exp n_max + idx)) :
-    KeysValsRep base c_exp n_max U V ks s mem' := by
-  rcases h with ⟨hnodup, hlen, hm5, hdom, hkv, hvb⟩
-  refine ⟨hnodup, hlen, h5.trans hm5, hdom, fun idx hidx => ?_, hvb⟩
-  obtain ⟨hki, hvi⟩ := hkv idx hidx
-  exact ⟨(hk idx hidx).trans hki, by rw [hv idx hidx]; exact hvi⟩
 
 private theorem KeysValsRep.card_dom_eq {base c_exp n_max U V : ℕ} {ks : List (Fin U)}
     {s : Dictionary.State U} {mem : ℕ → ℕ} (h : KeysValsRep base c_exp n_max U V ks s mem) :
@@ -401,37 +360,11 @@ theorem RepWithKeys.supported {w base c_exp n_max U V : ℕ} {ks : List (Fin U)}
       extractSeed (hashBase base) c_exp n_max U (tableBits n_max) x.mem :=
     extractSeed_congr_of_block_footprint hmem
   have hle_sp := le_space c_exp n_max
-  have hhdr' : HeaderConstsRep base c_exp n_max U x'.mem :=
-    hhdr.congr fun k hk _ => hmem (base + k) (by
-      simp only [Block.mem_footprint, Block.Owns]; omega)
-  have hhash' : HashPairRep (hashBase base) c_exp n_max U (tableBits n_max)
-      (extractSeed (hashBase base) c_exp n_max U (tableBits n_max) x'.mem) x'.mem := by
-    rw [hθ_eq]
-    exact hhash.congr_of_footprint fun a ha1 ha2 =>
-      hmem a (by simp only [Block.mem_footprint, Block.Owns, hashBase, space] at *; omega)
   have hlen_le : ks.length ≤ n_max := hkv.2.1
-  have hkv' : KeysValsRep base c_exp n_max U V ks s x'.mem :=
-    hkv.congr
-      (hmem (base + 5) (by simp only [Block.mem_footprint, Block.Owns]; omega))
-      (fun idx hidx => hmem (keysBase base c_exp n_max + idx) (by
-        simp only [Block.mem_footprint, Block.Owns, keysBase, t2Base, t1Base, hashBase, space]
-        omega))
-      (fun idx hidx => hmem (valsBase base c_exp n_max + idx) (by
-        simp only [Block.mem_footprint, Block.Owns, valsBase, keysBase, t2Base, t1Base, hashBase,
-          space]
-        omega))
-  have hslots' :
-      TableSlotsRep (t1Base base c_exp n_max) (t2Base base c_exp n_max) tbl x'.mem :=
-    hslots.congr
-      (fun b hb => hmem (t1Base base c_exp n_max + b) (by
-        simp only [Block.mem_footprint, Block.Owns, t1Base, hashBase, space, tableSize]
-        omega))
-      (fun b hb => hmem (t2Base base c_exp n_max + b) (by
-        simp only [Block.mem_footprint, Block.Owns, t2Base, t1Base, hashBase, space, tableSize]
-        omega))
-  refine ⟨hbdd, hreg0.trans h0, hhdr', hhash', hkv', tbl, ?_, hslots'⟩
-  rw [hθ_eq]
-  exact hreplay
+  have hts : tableSize n_max = 2 ^ tableBits n_max := rfl
+  exact ⟨hbdd, by regs_frame, by struct_frame hhdr,
+    hθ_eq ▸ hhash.congr_of_footprint (by mem_frame),
+    by struct_frame hkv, tbl, hθ_eq ▸ hreplay, by struct_frame hslots⟩
 
 theorem Rep.supported {w base c_exp n_max U V : ℕ}
     {s : Dictionary.State U} {x x' : Data 19}
@@ -512,10 +445,9 @@ private theorem allocSpan_execWithin {w base c_exp n_max U : ℕ} {x : Data 19}
   wram_exec [hfr]
   wram_call (computeScaleCode_execWithin (c_exp := c_exp) (n_max := n_max) hfit_sp hfit_ev)
     with d ⟨hd_mem, hd_low, -, -, -, -, -, hd_13⟩
-  have hd_0 : d.regs 0 = base := (hd_low 0 (by decide)).trans (by wram_simp)
+  have hd_0 : d.regs 0 = base := by regs_frame
   wram_exec [hd_0, hd_13]
-  exact ⟨hd_mem, by wram_simp [hd_0], by wram_simp,
-    by wram_simp [hd_low 3 (by decide), h3], by wram_simp [hd_low 4 (by decide), h4]⟩
+  exact ⟨hd_mem, by regs_frame, by wram_simp, by regs_frame, by regs_frame⟩
 
 /-- Subprogram storing the static header constants `base + 0 .. 10`, saving `reg 1` (`frontierReg`)
 at `base + 19`, and setting `(reg 0, reg 1, reg 2, reg 3) = (hashBase base, n_max, U, M)`. -/
@@ -576,9 +508,9 @@ private theorem writeHeaderAndAdvanceCode_exec {w base c_exp n_max U : ℕ} {x :
       (∀ a, (a < base ∨ base + 20 ≤ a) → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
   unfold writeHeaderAndAdvanceCode
-  wram_exec (disch := layout_omega) [h0, h1, h3, h4, h6, h8, h9, h10, h11]
+  wram_exec [h0, h1, h3, h4, h6, h8, h9, h10, h11]
   refine ⟨by wram_simp [hashBase], by wram_simp, by wram_simp, by wram_simp, ?_, by wram_simp,
-    by wram_simp, fun a ha => by wram_simp⟩
+    by wram_simp, fun a ha => by mem_frame⟩
   refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩ <;> wram_simp <;> rfl
 
 /-- Post-state of `restoreAfterHashInitCode`. -/
@@ -602,7 +534,7 @@ private theorem restoreAfterHashInitCode_exec {w base c_exp n_max : ℕ} {d : Da
     Exec w restoreAfterHashInitCode d (restoreAfterHashInitData base c_exp n_max d) 5 := by
   have hle_sp := le_space c_exp n_max
   unfold restoreAfterHashInitCode restoreAfterHashInitData
-  wram_exec (disch := layout_omega) [h0, hm19, hashBase, Nat.add_sub_cancel]
+  wram_exec [h0, hm19, hashBase, Nat.add_sub_cancel]
 
 @[simp]
 private theorem restoreAfterHashInitData_mem (base c_exp n_max : ℕ) (d : Data 19) :
@@ -705,8 +637,7 @@ private theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
       hfit_sp hfit_ev
   obtain ⟨d2, he_wh, hd2_0, hd2_1, hd2_2, hd2_3, hd2_hdr, hd2_m5, hd2_m19, hd2_frame⟩ :=
     writeHeaderAndAdvanceCode_exec (w := w) (base := base) (c_exp := c_exp) (n_max := n_max)
-      (U := U) (x := d1) ((hd1_low 0 (by decide)).trans hb) ((hd1_low 1 (by decide)).trans hfr)
-      ((hd1_low 3 (by decide)).trans h3) ((hd1_low 4 (by decide)).trans h4)
+      (U := U) (x := d1) (by regs_frame) (by regs_frame) (by regs_frame) (by regs_frame)
       hd1_6 hd1_8 hd1_9 hd1_10 hd1_11 hfit_end
   obtain ⟨d3, ⟨t_it, ht_it, he_it⟩, hd3_tab, hd3_0, hd3_frame⟩ :=
     initTableHashPairCode_execWithin (w := w) (hashBase := hashBase base) (c_exp := c_exp)
@@ -727,7 +658,7 @@ private theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
       ExecCodeDist w restoreAfterHashInitCode z
         (PMF.pure (restoreAfterHashInitData base c_exp n_max z)) 5 := fun z hz =>
     ExecCodeDist.of_exec (restoreAfterHashInitCode_exec (hres_supp z hz).1
-      ((hout z hz _ (Or.inl (by wram_omega))).trans hd2_m19) hfit_end)
+      (by have := hout z hz; mem_frame) hfit_end)
   let μ_init : PMF (Data 19) := μ_res.map (restoreAfterHashInitData base c_exp n_max)
   have hfull_dist :
       ExecCodeDist w (initSetup c_exp n_max) x₁ μ_init (setupSteps c_exp n_max U) :=
@@ -744,24 +675,16 @@ private theorem initSetup_spec {w base c_exp n_max U V : ℕ} {x₁ : Data 19}
     rw [PMF.mem_support_map_iff] at hy
     obtain ⟨z₀, hz₀, rfl⟩ := hy
     have hz₀_out := hout z₀ hz₀
-    have hzero : ∀ a, t1Base base c_exp n_max ≤ a → a < keysBase base c_exp n_max →
-        z₀.mem a = 0 := fun a h1 h2 =>
-      (hz₀_out a (Or.inr (by wram_omega))).trans ((hd2_frame a (Or.inr (by wram_omega))).trans
-        ((congrFun hd1_mem a).trans
-          (hz a (by simp only [Block.mem_footprint, Block.Owns]; wram_omega))))
-    refine ⟨restoreAfterHashInitData_regs_one base c_exp n_max z₀,
+    have hrmem : (restoreAfterHashInitData base c_exp n_max z₀).mem = z₀.mem := rfl
+    exact ⟨restoreAfterHashInitData_regs_one base c_exp n_max z₀,
       ⟨hy_bdd, restoreAfterHashInitData_regs_zero base c_exp n_max z₀,
-        hd2_hdr.congr fun k hk _ => hz₀_out _ (Or.inl (by wram_omega)), (hres_supp z₀ hz₀).2.1,
-        ⟨List.nodup_nil, Nat.zero_le _, (hz₀_out _ (Or.inl (by wram_omega))).trans hd2_m5,
+        by struct_frame hd2_hdr, (hres_supp z₀ hz₀).2.1,
+        ⟨List.nodup_nil, Nat.zero_le _, by mem_frame,
           fun u => by simp [Dictionary.dom_empty], fun _ h => by simp at h,
           Dictionary.valuesBounded_empty U V⟩,
         PureTable.empty U (2 ^ tableBits n_max), rfl,
-        fun b => hzero _ (by omega) (by have := b.isLt; wram_omega),
-        fun b => hzero _ (by wram_omega) (by have := b.isLt; wram_omega)⟩, fun a ha => ?_⟩
-    have ha' := ha
-    simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha'
-    exact (hz₀_out a (by wram_omega)).trans
-      ((hd2_frame a (by omega)).trans (congrFun hd1_mem a))
+        by mem_frame, by mem_frame⟩,
+      by mem_frame⟩
 
 /-! ### Section 3: Base-shifted hash wrappers, `probeKeyCode`, and `queryCode` -/
 
@@ -800,7 +723,7 @@ private theorem shiftToHashBaseCode_exec {w base : ℕ} {x : Data 19}
     (hfit_hb : Fits w (hashBase base)) :
     Exec w shiftToHashBaseCode x ((x.set 15 20).set 0 (hashBase base)) 2 := by
   unfold shiftToHashBaseCode
-  wram_exec (disch := layout_omega) [h0]
+  wram_exec [h0]
   rfl
 
 private theorem unshiftFromHashBaseCode_exec {w base : ℕ} {x : Data 19}
@@ -809,7 +732,7 @@ private theorem unshiftFromHashBaseCode_exec {w base : ℕ} {x : Data 19}
     (hfit_base : Fits w base) :
     Exec w unshiftFromHashBaseCode x ((x.set 15 20).set 0 base) 2 := by
   unfold unshiftFromHashBaseCode
-  wram_exec (disch := layout_omega) [h0, hashBase, Nat.add_sub_cancel]
+  wram_exec [h0, hashBase, Nat.add_sub_cancel]
 
 /-- Evaluates `h₁(u)` with `reg 0 = base`, `reg 1 = u.val`, placing
 `(evalHash1 θ u).val` in `reg 2` and restoring `reg 0 = base`. -/
@@ -861,10 +784,10 @@ private theorem evalHash1AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
       (∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
   unfold evalHash1AtBaseCode evalHashAtBaseSteps shiftToHashBaseCode unshiftFromHashBaseCode
-  wram_exec (disch := layout_omega) [h0]
+  wram_exec [h0]
   wram_call (evalHash1Code_execWithin (θ := θ) u hrep (by wram_simp [hashBase])
     (by wram_simp [h1]) hw (by wram_omega)) with s2 ⟨hs2_0, -, hs2_2, hs2_rep, hs2_frame⟩
-  wram_exec (disch := layout_omega) [hs2_0, hashBase, Nat.add_sub_cancel]
+  wram_exec [hs2_0, hashBase, Nat.add_sub_cancel]
   exact ⟨by wram_simp, by wram_simp [hs2_2], hs2_rep,
     congrArg (extractSeed (hashBase base) c_exp n_max U (tableBits n_max)) hs2_frame,
     fun a _ => congrFun hs2_frame a⟩
@@ -886,10 +809,10 @@ private theorem evalHash2AtBaseCode_execWithin {w base c_exp n_max U : ℕ}
       (∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) → y.mem a = x.mem a) := by
   have hle_sp := le_space c_exp n_max
   unfold evalHash2AtBaseCode evalHashAtBaseSteps shiftToHashBaseCode unshiftFromHashBaseCode
-  wram_exec (disch := layout_omega) [h0]
+  wram_exec [h0]
   wram_call (evalHash2Code_execWithin (θ := θ) u hrep (by wram_simp [hashBase])
     (by wram_simp [h1]) hw (by wram_omega)) with s2 ⟨hs2_0, -, hs2_2, hs2_rep, hs2_frame⟩
-  wram_exec (disch := layout_omega) [hs2_0, hashBase, Nat.add_sub_cancel]
+  wram_exec [hs2_0, hashBase, Nat.add_sub_cancel]
   exact ⟨by wram_simp, by wram_simp [hs2_2], hs2_rep,
     congrArg (extractSeed (hashBase base) c_exp n_max U (tableBits n_max)) hs2_frame,
     fun a _ => congrFun hs2_frame a⟩
@@ -1058,10 +981,8 @@ private theorem probeCheckOccupiedCode_execWithin {w base c_exp n_max U : ℕ}
     exact Option.some.inj hkey_idx
   unfold probeCheckOccupiedCode loadHeaderCode storeHeaderConstCode storeHeaderCode
   by_cases hku : e.key = u <;>
-    wram_exec (disch := layout_omega)
-      [h0, h17, hm9, hm11, hmem_key, hks_eq, hku, Fin.val_inj, Nat.add_sub_cancel] <;>
-    exact ⟨by wram_simp [h0], by wram_simp [hku], by wram_simp [hku],
-      fun a ha13 ha14 => by wram_simp⟩
+    wram_exec [h0, h17, hm9, hm11, hmem_key, hks_eq, hku, Fin.val_inj, Nat.add_sub_cancel] <;>
+    exact ⟨by regs_frame, by wram_simp [hku], by wram_simp [hku], by mem_frame⟩
 
 private theorem probeTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff tableBase : ℕ}
     {hashCode : Code .exact 19}
@@ -1116,33 +1037,26 @@ private theorem probeTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff 
   have hhu_lt := (h u).isLt
   have hhp := le_hashPairSpace c_exp n_max
   unfold probeTableSlotCode probeTableSlotSteps loadHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm11]
-  wram_call (hhash_exec _ hrep_hash (by wram_simp [h0]) (by wram_simp))
+  wram_exec [h0, hm11]
+  wram_call (hhash_exec _ hrep_hash (by regs_frame) (by wram_simp))
     with s2 ⟨hs2_0, hs2_2, hs2_hash, hs2_seed, hs2_frame⟩
-  have hfr : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) → s2.mem a = x.mem a :=
-    hs2_frame
-  wram_exec -split (disch := layout_omega) [hs2_0, hs2_2, hfr (base + tablePtrOff) (by wram_omega),
-    hm_ptr, (hfr (tableBase + (h u).val) (by wram_omega)).trans (hslot_mem (h u))]
+  wram_exec -split [hs2_0, hs2_2, (by mem_frame : s2.mem (base + tablePtrOff) = tableBase),
+    (by mem_frame : s2.mem (tableBase + (h u).val) = encodeSlot (slotFn (h u)))]
   cases hslot_eq : slotFn (h u) with
   | none =>
-    wram_exec (disch := layout_omega) [encodeSlot_none]
-    exact ⟨by wram_simp [hs2_0], hs2_hash, hs2_seed, hfr _ (by wram_omega),
-      hfr _ (by wram_omega), fun a ha _ _ => hfr a ha⟩
+    wram_exec [encodeSlot_none]
+    exact ⟨by regs_frame, hs2_hash, hs2_seed, by mem_frame, by mem_frame, by mem_frame⟩
   | some e =>
     obtain ⟨hidx_lt, hkey_idx⟩ := hslot_valid e hslot_eq
-    wram_exec (disch := layout_omega) [encodeSlot_some]
-    wram_call (probeCheckOccupiedCode_execWithin (c_exp := c_exp) (by wram_simp [hs2_0])
-      (by wram_simp [encodeSlot_some]) ((hfr _ (by wram_omega)).trans hm9)
-      ((hfr _ (by wram_omega)).trans hm11) hidx_lt hlen_le hkey_idx
-      ((hfr _ (by wram_omega)).trans (hmem_keys e.idx hidx_lt)) hfit_end)
+    wram_exec [encodeSlot_some]
+    wram_call (probeCheckOccupiedCode_execWithin (c_exp := c_exp) (by regs_frame)
+      (by wram_simp [encodeSlot_some]) (by mem_frame) (by mem_frame) hidx_lt hlen_le hkey_idx
+      (by mem_frame) hfit_end)
       with s7 ⟨hs7_0, hs7_13, hs7_14, hs7_frame⟩
-    exact ⟨by omega, hs7_0,
-      hs2_hash.congr_of_ge_hashBase fun a ha => hs7_frame a (by wram_omega) (by wram_omega),
-      (extractSeed_congr_of_ge_hashBase fun a ha =>
-        hs7_frame a (by wram_omega) (by wram_omega)).trans hs2_seed,
-      by wram_simp [hs7_13, hfr (base + 13) (by wram_omega)],
-      by wram_simp [hs7_14, hfr (base + 14) (by wram_omega)],
-      fun a ha ha13 ha14 => (hs7_frame a ha13 ha14).trans (hfr a ha)⟩
+    exact ⟨by omega, hs7_0, hs2_hash.congr_of_ge_hashBase (by mem_frame),
+      (extractSeed_congr_of_ge_hashBase (by mem_frame)).trans hs2_seed,
+      by wram_simp [hs7_13, hs2_frame (base + 13) (by wram_omega)],
+      by wram_simp [hs7_14, hs2_frame (base + 14) (by wram_omega)], by mem_frame⟩
 
 /-- Every entry in `tbl` comes from `ks` at its recorded index `e.idx`. -/
 private def TableIdxValid {U m : ℕ} (ks : List (Fin U)) (tbl : PureTable U m) : Prop :=
@@ -1206,37 +1120,29 @@ private theorem probeKeyCode_execWithin {w base c_exp n_max U : ℕ}
   have hhp := le_hashPairSpace c_exp n_max
   have hts : tableSize n_max = 2 ^ tableBits n_max := rfl
   unfold probeKeyCode probeKeySteps storeHeaderConstCode storeHeaderCode loadHeaderCode
-  wram_exec (disch := layout_omega) [h0]
+  wram_exec [h0]
   refine WP.name fun s1 hs1 => ?_
-  have hs1_frame : ∀ a, a ≠ base + 13 → s1.mem a = x.mem a := fun a ha => by
-    subst hs1; wram_simp
-  have hs1_13 : s1.mem (base + 13) = 0 := by subst hs1; wram_simp
+  have hs1_13 : s1.mem (base + 13) = 0 := by mem_frame
   have hs1_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) s1.mem =
       extractSeed (hashBase base) c_exp n_max U (tableBits n_max) x.mem :=
-    extractSeed_congr_of_ge_hashBase fun a ha => hs1_frame a (by wram_omega)
+    extractSeed_congr_of_ge_hashBase (by mem_frame)
   wram_call (probeTableSlotCode_execWithin (tablePtrOff := 7)
       (tableBase := t1Base base c_exp n_max) (θ := θ) (h := evalHash1 θ) (slotFn := tbl.t1)
       (ks := ks) (u := u)
       (fun d hd h0d h1d => evalHash1AtBaseCode_execWithin hd h0d h1d hw hfit_end)
-      (hrep_hash.congr_of_ge_hashBase fun a ha => hs1_frame a (by wram_omega))
-      (by subst hs1; wram_simp [h0]) (by decide)
-      ((hs1_frame _ (by omega)).trans hm7) (by wram_omega) (by wram_omega)
-      ((hs1_frame _ (by omega)).trans hm9) ((hs1_frame _ (by omega)).trans hm11)
-      (fun b => (hs1_frame _ (by wram_omega)).trans (hslots.1 b))
+      (hrep_hash.congr_of_ge_hashBase (by mem_frame))
+      (by regs_frame) (by decide) (by mem_frame) (by wram_omega) (by wram_omega)
+      (by mem_frame) (by mem_frame) (by mem_frame [TableSlotsRep])
       (fun e he => htiv e (Or.inl ⟨evalHash1 θ u, he⟩)) hlen_le
-      (fun idx hlt => (hs1_frame _ (by wram_omega)).trans (hmem_keys idx hlt)) hfit_end)
+      (by mem_frame) hfit_end)
     with s2 ⟨hs2_0, hs2_hash, hs2_seed, hs2_13, hs2_14, hs2_frame⟩
-  have hfr2 : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-      a ≠ base + 13 → a ≠ base + 14 → s2.mem a = x.mem a :=
-    fun a ha ha13 ha14 => (hs2_frame a ha ha13 ha14).trans (hs1_frame a ha13)
   rw [hs1_13] at hs2_13
   by_cases hfound1 : ∃ e₁, tbl.t1 (evalHash1 θ u) = some e₁ ∧ e₁.key = u
   · obtain ⟨e₁, ht1, hk1⟩ := hfound1
     simp only [ht1, hk1, ↓reduceIte] at hs2_13 hs2_14
-    wram_exec (disch := layout_omega) [hs2_0, hs2_13]
-    refine ⟨by wram_simp [hs2_0],
-      hhdr.congr fun k hk _ => hfr2 _ (by wram_omega) (by omega) (by omega),
-      hs2_hash, hs2_seed.trans hs1_seed, ?_, hfr2⟩
+    wram_exec [hs2_0, hs2_13]
+    refine ⟨by regs_frame, by struct_frame hhdr, hs2_hash, hs2_seed.trans hs1_seed, ?_,
+      by mem_frame⟩
     simp only [lookupEntry, ht1, hk1, ↓reduceIte]
     exact ⟨hs2_13, hs2_14⟩
   · have hs2_13_eq : s2.mem (base + 13) = 0 := by
@@ -1244,27 +1150,18 @@ private theorem probeKeyCode_execWithin {w base c_exp n_max U : ℕ}
       cases ht1 : tbl.t1 (evalHash1 θ u) with
       | none => rfl
       | some e₁ => simp only [show e₁.key ≠ u from fun h => hfound1 ⟨e₁, ht1, h⟩, ↓reduceIte]
-    wram_exec (disch := layout_omega) [hs2_0, hs2_13_eq]
+    wram_exec [hs2_0, hs2_13_eq]
     wram_call (probeTableSlotCode_execWithin (tablePtrOff := 8)
         (tableBase := t2Base base c_exp n_max) (θ := θ) (h := evalHash2 θ) (slotFn := tbl.t2)
         (ks := ks) (u := u)
         (fun d hd h0d h1d => evalHash2AtBaseCode_execWithin hd h0d h1d hw hfit_end)
-        hs2_hash (by wram_simp [hs2_0]) (by decide)
-        ((hfr2 _ (by wram_omega) (by omega) (by omega)).trans hm8) (by wram_omega)
-        (by wram_omega)
-        ((hfr2 _ (by wram_omega) (by omega) (by omega)).trans hm9)
-        ((hfr2 _ (by wram_omega) (by omega) (by omega)).trans hm11)
-        (fun b => (hfr2 _ (by wram_omega) (by wram_omega) (by wram_omega)).trans (hslots.2 b))
+        hs2_hash (by regs_frame) (by decide) (by mem_frame) (by wram_omega) (by wram_omega)
+        (by mem_frame) (by mem_frame) (by mem_frame [TableSlotsRep])
         (fun e he => htiv e (Or.inr ⟨evalHash2 θ u, he⟩)) hlen_le
-        (fun idx hlt => (hfr2 _ (by wram_omega) (by wram_omega) (by wram_omega)).trans
-          (hmem_keys idx hlt)) hfit_end)
+        (by mem_frame) hfit_end)
       with s5 ⟨hs5_0, hs5_hash, hs5_seed, hs5_13, hs5_14, hs5_frame⟩
-    have hfr5 : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-        a ≠ base + 13 → a ≠ base + 14 → s5.mem a = x.mem a :=
-      fun a ha ha13 ha14 => (hs5_frame a ha ha13 ha14).trans (hfr2 a ha ha13 ha14)
-    refine ⟨by omega, hs5_0,
-      hhdr.congr fun k hk _ => hfr5 _ (by wram_omega) (by omega) (by omega),
-      hs5_hash, hs5_seed.trans (hs2_seed.trans hs1_seed), ?_, hfr5⟩
+    refine ⟨by omega, hs5_0, by struct_frame hhdr,
+      hs5_hash, hs5_seed.trans (hs2_seed.trans hs1_seed), ?_, by mem_frame⟩
     have hlookup_eq : lookupEntry (evalHash1 θ) (evalHash2 θ) tbl u =
         (match tbl.t2 (evalHash2 θ u) with
          | some e₂ => if e₂.key = u then some e₂ else none
@@ -1335,41 +1232,25 @@ theorem queryCode_execWithin {w base c_exp n_max U V : ℕ}
   have hhp := le_hashPairSpace c_exp n_max
   unfold queryCode querySteps queryFoundBranchCode storeHeaderCode loadHeaderCode
   refine WP.exists_execWithin (WP.bounded hx_bdd ?_)
-  wram_exec (disch := layout_omega) [h0, h3]
+  wram_exec [h0, h3]
   refine WP.name fun s1 hs1 => ?_
-  have hs1_frame : ∀ a, a ≠ base + 11 → s1.mem a = x.mem a := fun a ha => by
-    subst hs1; wram_simp
   wram_call (probeKeyCode_execWithin (ks := ks) (tbl := tbl) (u := u)
-      (hhdr.congr fun k hk _ => hs1_frame _ (by omega))
-      (hhash.congr_of_ge_hashBase fun a ha => hs1_frame a (by wram_omega))
-      (hslots.congr (fun b _ => hs1_frame _ (by wram_omega))
-        (fun b _ => hs1_frame _ (by wram_omega)))
+      (by struct_frame hhdr) (hhash.congr_of_ge_hashBase (by mem_frame)) (by struct_frame hslots)
       (pureReplay_tableIdxValid hnodup hreplay) hlen_le
-      (fun idx hlt => (hs1_frame _ (by wram_omega)).trans (hkv_idx idx hlt).1)
-      (by subst hs1; wram_simp [h0]) (by subst hs1; wram_simp) hw hfit_end)
+      (fun idx hlt => by have := (hkv_idx idx hlt).1; mem_frame)
+      (by regs_frame) (by mem_frame) hw hfit_end)
     with s2 ⟨hs2_0, hs2_hdr, hs2_hash, hs2_seed, hs2_lookup, hs2_frame⟩
-  have hfr : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-      a ≠ base + 11 → a ≠ base + 13 → a ≠ base + 14 → s2.mem a = x.mem a :=
-    fun a ha ha11 ha13 ha14 => (hs2_frame a ha ha13 ha14).trans (hs1_frame a ha11)
   have hs2_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x.mem s2.mem := by
-    intro a ha
-    simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha
-    exact hfr a (by wram_omega) (by omega) (by omega) (by omega)
+    mem_frame
   have hs2_seed_x : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) s2.mem =
       extractSeed (hashBase base) c_exp n_max U (tableBits n_max) x.mem :=
-    hs2_seed.trans (extractSeed_congr_of_ge_hashBase fun a ha => hs1_frame a (by wram_omega))
-  have hs2_kv : KeysValsRep base c_exp n_max U V ks s s2.mem :=
-    hkv.congr (hfr _ (by wram_omega) (by omega) (by omega) (by omega))
-      (fun idx _ => hfr _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega))
-      (fun idx _ => hfr _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega))
+    hs2_seed.trans (extractSeed_congr_of_ge_hashBase (by mem_frame))
+  have hs2_kv : KeysValsRep base c_exp n_max U V ks s s2.mem := by struct_frame hkv
   -- Both query branches leave memory at `s2.mem`; restate the seed-indexed facts there.
   have hrep2 : ∀ y : Data 19, y.Bounded w → y.regs 0 = base → y.mem = s2.mem →
       RepWithKeys w base c_exp n_max U V ks s y := fun y hb hy0 hym =>
     ⟨hb, hy0, hym ▸ hs2_hdr, hym ▸ hs2_seed_x ▸ hs2_hash, hym ▸ hs2_kv, tbl,
-      hym ▸ hs2_seed_x ▸ hreplay,
-      hym ▸ hslots.congr
-        (fun b _ => hfr _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega))
-        (fun b _ => hfr _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega))⟩
+      hym ▸ hs2_seed_x ▸ hreplay, hym ▸ (by struct_frame hslots : TableSlotsRep _ _ tbl s2.mem)⟩
   by_cases hmem : u ∈ ks
   · obtain ⟨idx, hlt, hks_idx⟩ := List.mem_iff_getElem.mp hmem
     have hlkp := pureReplay_lookupEntry_of_mem hnodup hreplay hlt
@@ -1378,17 +1259,17 @@ theorem queryCode_execWithin {w base c_exp n_max U V : ℕ}
     have hsu : s u = some (s2.mem (valsBase base c_exp n_max + idx)) :=
       hks_idx ▸ (hs2_kv.2.2.2.2.1 idx hlt).2
     have hv_lt : s2.mem (valsBase base c_exp n_max + idx) < V := hvb u _ hsu
-    wram_exec (disch := layout_omega) [hs2_0, hs2_lookup.1, hs2_lookup.2, hs2_hdr.2.2.2.2.2.2.2.2.2]
+    wram_exec [hs2_0, hs2_lookup.1, hs2_lookup.2, hs2_hdr.2.2.2.2.2.2.2.2.2]
     exact fun hb => ⟨by omega, by wram_simp [hsu, encodeOptionNat],
-      hrep2 _ hb (by wram_simp [hs2_0]) rfl, hs2_seed_x, hs2_mod⟩
+      hrep2 _ hb (by regs_frame) rfl, hs2_seed_x, hs2_mod⟩
   · have hlkp := pureReplay_lookupEntry_of_notMem hnodup hreplay hmem
     rw [hlkp] at hs2_lookup
     have hsu : s u = none := by
       rw [← Dictionary.notMem_dom_iff]
       exact fun h => hmem ((hdom_iff u).mpr h)
-    wram_exec (disch := layout_omega) [hs2_0, hs2_lookup]
+    wram_exec [hs2_0, hs2_lookup]
     exact fun hb => ⟨by omega, by wram_simp [hsu, encodeOptionNat],
-      hrep2 _ hb (by wram_simp [hs2_0]) rfl, hs2_seed_x, hs2_mod⟩
+      hrep2 _ hb (by regs_frame) rfl, hs2_seed_x, hs2_mod⟩
 
 /-! ### Section 4: Bounded cuckoo eviction loop (`putTableSlotCode`, `evictLoopCode`) -/
 
@@ -1532,44 +1413,36 @@ private theorem putTableSlotCode_execWithin {w base c_exp n_max U tablePtrOff ta
     · rw [Function.update_of_ne hb, hm' b hb]; exact hslots b
   unfold putTableSlotCode putTableSlotSteps putSlotSwapCode putDisplacedBranchCode
     storeHeaderConstCode storeHeaderCode loadHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm11]
-  wram_call (hhash_exec _ hrep_hash (by wram_simp [h0]) (by wram_simp))
+  wram_exec [h0, hm11]
+  wram_call (hhash_exec _ hrep_hash (by regs_frame) (by wram_simp))
     with s2 ⟨hs2_0, hs2_2, hs2_hash, hs2_seed, hs2_frame⟩
-  have hfr : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) → s2.mem a = x.mem a :=
-    hs2_frame
   have hne : ∀ b : Fin (2 ^ tableBits n_max), b ≠ h e.key →
       tableBase + b.val ≠ tableBase + (h e.key).val := fun b hb hbe => hb (Fin.ext (by omega))
   cases hold : slotFn (h e.key) with
   | none =>
-    wram_exec (disch := layout_omega) [hs2_0, hs2_2, (hfr _ (by wram_omega)).trans hm_ptr,
-      (hfr _ (by wram_omega)).trans hm12, (hfr _ (by wram_omega)).trans (hslots (h e.key)),
+    wram_exec [hs2_0, hs2_2, (by mem_frame : s2.mem (base + tablePtrOff) = tableBase),
+      (by mem_frame : s2.mem (base + 12) = e.idx),
+      (by mem_frame : s2.mem (tableBase + (h e.key).val) = encodeSlot (slotFn (h e.key))),
       hold, encodeSlot_none]
-    exact ⟨by wram_simp [hs2_0],
-      hs2_hash.congr_of_footprint fun a ha1 ha2 => by wram_simp (disch := layout_omega),
-      (extractSeed_congr_of_footprint fun a ha1 ha2 => by
-        wram_simp (disch := layout_omega)).trans hs2_seed,
-      hupd _ (by wram_simp (disch := layout_omega)) fun b hb => by
-        have := hne b hb
-        wram_simp (disch := layout_omega) [hfr (tableBase + b.val) (Or.inr (by wram_omega))],
-      by wram_simp, fun a ha _ _ ha16 hne => by wram_simp [hfr a ha]⟩
+    exact ⟨by regs_frame, hs2_hash.congr_of_footprint (by mem_frame),
+      (extractSeed_congr_of_footprint (by mem_frame)).trans hs2_seed,
+      hupd _ (by mem_frame) fun b hb => by have := hne b hb; mem_frame,
+      by mem_frame, by mem_frame⟩
   | some e_old =>
     obtain ⟨hidx_lt, hkey_idx⟩ := hvalid_slot e_old hold
     have hks_eq : ks[e_old.idx] = e_old.key := by
       rw [List.getElem?_eq_getElem hidx_lt] at hkey_idx
       exact Option.some.inj hkey_idx
-    wram_exec (disch := layout_omega) [hs2_0, hs2_2, (hfr _ (by wram_omega)).trans hm_ptr,
-      (hfr _ (by wram_omega)).trans hm12, (hfr _ (by wram_omega)).trans (hslots (h e.key)),
-      hold, encodeSlot_some, (hfr _ (by wram_omega)).trans hm9,
-      (hfr _ (by wram_omega)).trans (hmem_keys e_old.idx hidx_lt), hks_eq, Nat.add_sub_cancel]
-    exact ⟨by wram_simp [hs2_0],
-      hs2_hash.congr_of_footprint fun a ha1 ha2 => by wram_simp (disch := layout_omega),
-      (extractSeed_congr_of_footprint fun a ha1 ha2 => by
-        wram_simp (disch := layout_omega)).trans hs2_seed,
-      hupd _ (by wram_simp (disch := layout_omega)) fun b hb => by
-        have := hne b hb
-        wram_simp (disch := layout_omega) [hfr (tableBase + b.val) (Or.inr (by wram_omega))],
-      ⟨by wram_simp, by wram_simp, by wram_simp⟩,
-      fun a ha ha11 ha12 ha16 hne => by wram_simp [hfr a ha]⟩
+    wram_exec [hs2_0, hs2_2, (by mem_frame : s2.mem (base + tablePtrOff) = tableBase),
+      (by mem_frame : s2.mem (base + 12) = e.idx),
+      (by mem_frame : s2.mem (tableBase + (h e.key).val) = encodeSlot (slotFn (h e.key))),
+      hold, encodeSlot_some, (by mem_frame : s2.mem (base + 9) = keysBase base c_exp n_max),
+      (by mem_frame : s2.mem (keysBase base c_exp n_max + e_old.idx) = ks[e_old.idx].val),
+      hks_eq, Nat.add_sub_cancel]
+    exact ⟨by regs_frame, hs2_hash.congr_of_footprint (by mem_frame),
+      (extractSeed_congr_of_footprint (by mem_frame)).trans hs2_seed,
+      hupd _ (by mem_frame) fun b hb => by have := hne b hb; mem_frame,
+      ⟨by mem_frame, by mem_frame, by mem_frame⟩, by mem_frame⟩
 
 /-- Decrements `remFuel = mem[base + 15]` by `1`. -/
 @[expose]
@@ -1650,89 +1523,53 @@ private theorem evictRoundBodyCode_execWithin {w base c_exp n_max U fuel : ℕ}
       (fun e₁ he₁ => htiv e₁ (Or.inl ⟨evalHash1 θ e.key, he₁⟩)) hlen_le hmem_keys hfit_end)
     with s1 ⟨hs1_0, hs1_hash, hs1_seed, hs1_t1, hs1_out, hs1_frame⟩
   have htiv1 : TableIdxValid ks (putT1 (evalHash1 θ) tbl e).1 := htiv.putT1 he
-  have hfr1 : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-      a ≠ base + 11 → a ≠ base + 12 → a ≠ base + 16 →
-      (a < t1Base base c_exp n_max ∨ keysBase base c_exp n_max ≤ a) → s1.mem a = x.mem a :=
-    fun a ha ha11 ha12 ha16 hnot => hs1_frame a ha ha11 ha12 ha16 (by wram_omega)
   have hs1_slots : TableSlotsRep (t1Base base c_exp n_max) (t2Base base c_exp n_max)
       (putT1 (evalHash1 θ) tbl e).1 s1.mem :=
-    ⟨hs1_t1, fun b => (hs1_frame _ (by wram_omega) (by wram_omega) (by wram_omega)
-      (by wram_omega) (by have := b.isLt; wram_omega)).trans (hslots.2 b)⟩
+    ⟨hs1_t1, by mem_frame [TableSlotsRep]⟩
   cases hold1 : tbl.t1 (evalHash1 θ e.key) with
   | none =>
     rw [hold1] at hs1_out
-    wram_exec (disch := layout_omega) [hs1_0, hs1_out, Nat.add_sub_cancel,
-      (hfr1 _ (by wram_omega) (by omega) (by omega) (by omega) (by wram_omega)).trans hm15]
+    wram_exec [hs1_0, hs1_out, Nat.add_sub_cancel, (by mem_frame : s1.mem (base + 15) = fuel + 1)]
     have hres_eq : res = ((putT1 (evalHash1 θ) tbl e).1, none) := by
       dsimp only [res, pureEvictRound, putT1]
       rw [hold1]
     rw [hres_eq]
-    exact ⟨by wram_simp [hs1_0],
-      hhdr.congr fun k hk _ => by
-        wram_simp (disch := layout_omega)
-          [hfr1 (base + k) (by wram_omega) (by omega) (by omega) (by omega) (by wram_omega)],
-      hs1_hash.congr_of_ge_hashBase fun a ha => by wram_simp (disch := layout_omega),
-      (extractSeed_congr_of_ge_hashBase fun a ha => by
-        wram_simp (disch := layout_omega)).trans hs1_seed,
-      hs1_slots.congr (fun b _ => by wram_simp (disch := layout_omega))
-        (fun b _ => by wram_simp (disch := layout_omega)),
-      htiv1, by wram_simp, by wram_simp [hs1_out],
-      fun a ha ha11 ha12 ha15 ha16 hnot => by wram_simp [hfr1 a ha ha11 ha12 ha16 hnot]⟩
+    exact ⟨by regs_frame, by struct_frame hhdr, hs1_hash.congr_of_ge_hashBase (by mem_frame),
+      (extractSeed_congr_of_ge_hashBase (by mem_frame)).trans hs1_seed,
+      by struct_frame hs1_slots, htiv1, by mem_frame, by mem_frame, by mem_frame⟩
   | some e₁ =>
     rw [hold1] at hs1_out
     obtain ⟨hs1_16, hs1_11, hs1_12⟩ := hs1_out
     have he₁_valid := htiv e₁ (Or.inl ⟨evalHash1 θ e.key, hold1⟩)
     have h2_lt := (evalHash2 θ e₁.key).isLt
-    wram_exec (disch := layout_omega) [hs1_0, hs1_16]
+    wram_exec [hs1_0, hs1_16]
     wram_call (putTableSlotCode_execWithin (tablePtrOff := 8)
         (tableBase := t2Base base c_exp n_max) (θ := θ) (h := evalHash2 θ)
         (slotFn := (putT1 (evalHash1 θ) tbl e).1.t2) (ks := ks) (e := e₁)
         (fun d hd h0d h1d => evalHash2AtBaseCode_execWithin hd h0d h1d hw hfit_end)
-        hs1_hash (by wram_simp [hs1_0]) (by decide)
-        ((hfr1 _ (by wram_omega) (by omega) (by omega) (by omega) (by wram_omega)).trans hm8)
-        (by wram_omega) (by wram_omega)
-        ((hfr1 _ (by wram_omega) (by omega) (by omega) (by omega) (by wram_omega)).trans hm9)
+        hs1_hash (by regs_frame) (by decide)
+        (by mem_frame) (by wram_omega) (by wram_omega) (by mem_frame)
         hs1_11 hs1_12 (by omega) hs1_slots.2
         (fun e₂ he₂ => htiv1 e₂ (Or.inr ⟨evalHash2 θ e₁.key, he₂⟩)) hlen_le
-        (fun idx hlt => (hfr1 _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-          (by wram_omega)).trans (hmem_keys idx hlt)) hfit_end)
+        (by mem_frame) hfit_end)
       with s4 ⟨hs4_0, hs4_hash, hs4_seed, hs4_t2, hs4_out, hs4_frame⟩
-    have hfr4 : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-        a ≠ base + 11 → a ≠ base + 12 → a ≠ base + 16 →
-        (a < t1Base base c_exp n_max ∨ keysBase base c_exp n_max ≤ a) → s4.mem a = x.mem a :=
-      fun a ha ha11 ha12 ha16 hnot => (hs4_frame a ha ha11 ha12 ha16 (by wram_omega)).trans
-        (hfr1 a ha ha11 ha12 ha16 hnot)
-    wram_exec (disch := layout_omega) [hs4_0, Nat.add_sub_cancel,
-      (hfr4 _ (by wram_omega) (by omega) (by omega) (by omega) (by wram_omega)).trans hm15]
+    wram_exec [hs4_0, Nat.add_sub_cancel, (by mem_frame : s4.mem (base + 15) = fuel + 1)]
     have hres_eq : res = putT2 (evalHash2 θ) (putT1 (evalHash1 θ) tbl e).1 e₁ := by
       dsimp only [res, pureEvictRound, putT1]
       rw [hold1]
     rw [hres_eq]
-    refine ⟨by wram_simp [hs4_0],
-      hhdr.congr fun k hk _ => by
-        wram_simp (disch := layout_omega)
-          [hfr4 (base + k) (by wram_omega) (by omega) (by omega) (by omega) (by wram_omega)],
-      hs4_hash.congr_of_ge_hashBase fun a ha => by wram_simp (disch := layout_omega),
-      (extractSeed_congr_of_ge_hashBase fun a ha => by
-        wram_simp (disch := layout_omega)).trans (hs4_seed.trans hs1_seed),
-      ⟨fun b => ?_, fun b => (by wram_simp (disch := layout_omega) :
-        _ = s4.mem (t2Base base c_exp n_max + b.val)).trans (hs4_t2 b)⟩,
-      htiv1.putT2 he₁_valid, by wram_simp, ?_,
-      fun a ha ha11 ha12 ha15 ha16 hnot => by wram_simp [hfr4 a ha ha11 ha12 ha16 hnot]⟩
-    · have hb_lt := b.isLt
-      wram_simp (disch := layout_omega) [hs4_frame (t1Base base c_exp n_max + b.val)
-        (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)]
-      exact hs1_slots.1 b
+    refine ⟨by regs_frame, by struct_frame hhdr, hs4_hash.congr_of_ge_hashBase (by mem_frame),
+      (extractSeed_congr_of_ge_hashBase (by mem_frame)).trans (hs4_seed.trans hs1_seed),
+      ⟨by mem_frame, by mem_frame⟩, htiv1.putT2 he₁_valid, by mem_frame, ?_, by mem_frame⟩
     · dsimp only [putT2]
       cases hold2 : (putT1 (evalHash1 θ) tbl e).1.t2 (evalHash2 θ e₁.key) with
       | none =>
         rw [hold2] at hs4_out
-        wram_simp [hs4_out]
+        mem_frame
       | some e₂ =>
         rw [hold2] at hs4_out
         have he₂_valid := htiv1 e₂ (Or.inr ⟨evalHash2 θ e₁.key, hold2⟩)
-        exact ⟨by wram_simp [hs4_out.1], by wram_simp [hs4_out.2.1], by wram_simp [hs4_out.2.2],
-          he₂_valid.1, he₂_valid.2⟩
+        exact ⟨by mem_frame, by mem_frame, by mem_frame, he₂_valid.1, he₂_valid.2⟩
 
 /-- Synchronizes the loop continuation condition of `evictLoopCode`:
 computes `reg 17 = mem[base + 16] * mem[base + 15]` (`activeFlag * remFuel`) and `reg 18 = 0`, so
@@ -1761,8 +1598,8 @@ private theorem syncEvictCondCode_exec {w base c_exp n_max act fuel : ℕ} {x : 
   have hfit_prod : Fits w (act * fuel) :=
     hfit_fuel.of_le ((Nat.mul_le_mul_right fuel hact).trans_eq (Nat.one_mul fuel))
   unfold syncEvictCondCode loadHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm15, hm16]
-  exact ⟨by wram_simp [h0], by wram_simp, by wram_simp, rfl⟩
+  wram_exec [h0, hm15, hm16]
+  exact ⟨by regs_frame, by wram_simp, by wram_simp, rfl⟩
 
 /-- Inner loop of `evictLoopCode`: repeats `evictRoundBodyCode` followed by `syncEvictCondCode`
 while `0 < reg 17` (`activeFlag = 1 ∧ 0 < remFuel`). -/
@@ -1861,14 +1698,9 @@ private theorem evictLoopInner_execWithin {w base c_exp n_max U : ℕ}
         rw [← hs2_mem] at hs1_hdr hs1_hash hs1_slots hs1_11 hs1_12 hs1_15 hs1_16 hs1_seed hs1_frame
         obtain ⟨y, he_rec, hy_0, hy_hdr, hy_hash, hy_seed, hy_res, hy_frame⟩ :=
           evictLoopInner_execWithin hlen_le hw hfit_end fuel hs1_hdr hs1_hash hs1_slots hs1_tiv
-            he' (fun idx hlt => (hs1_frame _ (by wram_omega) (by wram_omega) (by wram_omega)
-              (by wram_omega) (by wram_omega) (Or.inr (Nat.le_add_right _ _))).trans
-              (hmem_keys idx hlt))
-            hs2_0 hs2_17 hs2_18 hs1_11 hs1_12 hs1_15 hs1_16 hfit_fuel
+            he' (by mem_frame) hs2_0 hs2_17 hs2_18 hs1_11 hs1_12 hs1_15 hs1_16 hfit_fuel
         refine ⟨y, ((he_bd.seq he_sync.within).loop_iter hcond he_rec).mono ?_, hy_0, hy_hdr,
-          hy_hash, hy_seed.trans hs1_seed, hy_res, fun a ha ha11 ha12 ha15 ha16 hnot =>
-            (hy_frame a ha ha11 ha12 ha15 ha16 hnot).trans
-              (hs1_frame a ha ha11 ha12 ha15 ha16 hnot)⟩
+          hy_hash, hy_seed.trans hs1_seed, hy_res, by mem_frame⟩
         change _ ≤ (1 + evictRounds (evalHash1 θ) (evalHash2 θ) fuel tbl' e') *
           evictIterSteps c_exp n_max U + 2
         rw [Nat.add_mul, Nat.one_mul]
@@ -1998,16 +1830,13 @@ private theorem clearTablesCode_exec {w base c_exp n_max U : ℕ} {x : Data 19}
   have hkb_eq : keysBase base c_exp n_max = t1Base base c_exp n_max + 2 * tableSize n_max := by
     wram_omega
   unfold clearTablesCode clearTablesSteps loadHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm7, hm9]
+  wram_exec [h0, hm7, hm9]
   wram_call (zeroRangeLoop_exec (2 * tableSize n_max) (t1Base base c_exp n_max) (by wram_simp)
     (by wram_simp [hkb_eq]) (by wram_simp) (by wram_simp) (by rw [← hkb_eq]; wram_omega))
     with y ⟨hy_0, hy_zero, hy_frame⟩
   rw [← hkb_eq] at hy_zero hy_frame
-  exact ⟨by omega, hy_0.trans (by wram_simp [h0]),
-    hhdr.congr fun k hk _ => hy_frame _ (Or.inl (by wram_omega)),
-    ⟨fun b => hy_zero _ (by omega) (by have := b.isLt; wram_omega),
-      fun b => hy_zero _ (by wram_omega) (by have := b.isLt; wram_omega)⟩,
-    hy_frame⟩
+  exact ⟨by omega, by regs_frame, by struct_frame hhdr,
+    ⟨by mem_frame, by mem_frame⟩, by mem_frame⟩
 
 /-- Index-based replay of `rem` remaining keys of `ks` starting at index `i` from `tbl`. -/
 private def pureReplayFrom {U m : ℕ} (h₁ h₂ : Fin U → Fin m) (maxLoop : ℕ) (ks : List (Fin U)) :
@@ -2080,8 +1909,8 @@ private theorem syncReplayCondCode_exec {w base c_exp n_max idx allocCount act :
   have hle_sp := le_space c_exp n_max
   unfold syncReplayCondCode loadHeaderCode
   by_cases hact : act = 0 <;>
-    wram_exec (disch := layout_omega) [h0, hm5, hm16, hm17, hact] <;>
-    exact ⟨by wram_simp [h0], by wram_simp [hact], by wram_simp, rfl⟩
+    wram_exec [h0, hm5, hm16, hm17, hact] <;>
+    exact ⟨by regs_frame, by wram_simp [hact], by wram_simp, rfl⟩
 
 /-- Setup prefix of one replay iteration at index `i = mem[base + 17]`:
 loads `i`, stores `mem[base + 12] ← i`, loads `u_i = mem[keysBase + i]`, stores
@@ -2125,9 +1954,9 @@ private theorem replayIterSetupCode_exec {w base c_exp n_max U idx : ℕ}
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
   unfold replayIterSetupCode loadHeaderCode storeHeaderConstCode storeHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm17, hm9, hm4, hmem_keys idx hlt]
-  exact ⟨by wram_simp [h0], by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
-    fun a ha11 ha12 ha15 ha16 ha17 => by wram_simp⟩
+  wram_exec [h0, hm17, hm9, hm4, hmem_keys idx hlt]
+  exact ⟨by regs_frame, by wram_simp, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+    by mem_frame⟩
 
 /-- Main loop of `replayLoopCode`. -/
 @[expose]
@@ -2208,29 +2037,15 @@ private theorem replayLoopInner_execWithin {w base c_exp n_max U : ℕ}
     have hle_hp := le_hashPairSpace c_exp n_max
     obtain ⟨s1, he_setup, hs1_0, hs1_11, hs1_12, hs1_15, hs1_16, hs1_17, hs1_frame⟩ :=
       replayIterSetupCode_exec hhdr h0 hm17 hlt hlen_le hmem_keys hfit_end
-    have hs1_hb : ∀ a, hashBase base ≤ a → s1.mem a = x.mem a := fun a ha =>
-      hs1_frame a (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
     obtain ⟨s2, he_ev, hs2_0, hs2_hdr, hs2_hash, hs2_seed, hs2_res, hs2_frame⟩ :=
       evictLoopCode_execWithin (e := ⟨ks[idx], idx⟩)
-        (hhdr.congr fun k hk _ =>
-          hs1_frame _ (by omega) (by omega) (by omega) (by omega) (by omega))
-        (hrep_hash.congr_of_ge_hashBase hs1_hb)
-        (hslots.congr (fun b _ => hs1_hb _ (by wram_omega)) (fun b _ => hs1_hb _ (by wram_omega)))
-        htiv ⟨hlt, List.getElem?_eq_getElem hlt⟩ hlen_le
-        (fun j hj => (hs1_hb _ (by wram_omega)).trans (hmem_keys j hj))
-        hs1_0 hs1_11 hs1_12 hs1_15 hs1_16 hfit_ev hw hfit_end
-    have hs2_seed_x := hs2_seed.trans (extractSeed_congr_of_ge_hashBase hs1_hb)
-    have hfr2 : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-        a ≠ base + 11 → a ≠ base + 12 → a ≠ base + 15 → a ≠ base + 16 → a ≠ base + 17 →
-        (a < t1Base base c_exp n_max ∨ keysBase base c_exp n_max ≤ a) → s2.mem a = x.mem a :=
-      fun a ha ha11 ha12 ha15 ha16 ha17 hnot =>
-        (hs2_frame a ha ha11 ha12 ha15 ha16 hnot).trans (hs1_frame a ha11 ha12 ha15 ha16 ha17)
-    have hs2_5 : s2.mem (base + 5) = ks.length :=
-      (hfr2 _ (by wram_omega) (by omega) (by omega) (by omega) (by omega) (by omega)
-        (by wram_omega)).trans hm5
-    have hs2_17 : s2.mem (base + 17) = idx + 1 :=
-      (hs2_frame _ (by wram_omega) (by omega) (by omega) (by omega) (by omega)
-        (by wram_omega)).trans hs1_17
+        (by struct_frame hhdr) (hrep_hash.congr_of_ge_hashBase (by mem_frame))
+        (by struct_frame hslots) htiv ⟨hlt, List.getElem?_eq_getElem hlt⟩ hlen_le
+        (by mem_frame) hs1_0 hs1_11 hs1_12 hs1_15 hs1_16 hfit_ev hw hfit_end
+    have hs2_seed_x :=
+      hs2_seed.trans (extractSeed_congr_of_ge_hashBase (mem := x.mem) (by mem_frame))
+    have hs2_5 : s2.mem (base + 5) = ks.length := by mem_frame
+    have hs2_17 : s2.mem (base + 17) = idx + 1 := by mem_frame
     obtain ⟨s3, he_sync, hs3_0, hs3_16, hs3_17, hs3_mem⟩ :=
       syncReplayCondCode_exec (c_exp := c_exp) (n_max := n_max) hs2_0 hs2_5 rfl hs2_17 hfit_end
     have he_body := he_setup.within.seq (he_ev.seq he_sync.within)
@@ -2251,25 +2066,19 @@ private theorem replayLoopInner_execWithin {w base c_exp n_max U : ℕ}
       refine ⟨s3, (he_body.loop_iter hcond (ExecWithin.loop_exit hcond3)).mono
         (by rw [Nat.add_mul, Nat.one_mul]; omega), hs3_0, ?_⟩
       rw [hs3_mem]
-      exact ⟨hs2_hdr, hs2_hash, hs2_seed_x, hs2_res, hfr2⟩
+      exact ⟨hs2_hdr, hs2_hash, hs2_seed_x, hs2_res, by mem_frame⟩
     | some tbl' =>
       rw [hev_eq] at hs2_res
       obtain ⟨hs2_16_0, hs2_slots, hs2_tiv⟩ := hs2_res
       rw [hs2_16_0] at hs3_16
       simp only [↓reduceIte] at hs3_16
-      rw [← hs3_mem] at hs2_hdr hs2_hash hs2_slots hs2_5 hs2_16_0 hs2_17 hs2_seed_x hfr2
+      rw [← hs3_mem] at hs2_hdr hs2_hash hs2_slots hs2_5 hs2_16_0 hs2_17 hs2_seed_x
       obtain ⟨y, he_rec, hy_0, hy_hdr, hy_hash, hy_seed, hy_res, hy_frame⟩ :=
         replayLoopInner_execWithin hlen_le hfit_ev hw hfit_end rem (idx + 1) hs2_hdr hs2_hash
           hs2_slots hs2_tiv (by omega) hs2_5 hs2_16_0 hs2_17
-          (fun j hj => (hfr2 _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-            (by wram_omega) (by wram_omega) (Or.inr (Nat.le_add_right _ _))).trans
-            (hmem_keys j hj))
-          hs3_0 hs3_16 hs3_17
+          (by mem_frame) hs3_0 hs3_16 hs3_17
       exact ⟨y, (he_body.loop_iter hcond he_rec).mono (by rw [Nat.add_mul, Nat.one_mul]; omega),
-        hy_0, hy_hdr, hy_hash, hy_seed.trans hs2_seed_x, hy_res,
-        fun a ha ha11 ha12 ha15 ha16 ha17 hnot =>
-          (hy_frame a ha ha11 ha12 ha15 ha16 ha17 hnot).trans
-            (hfr2 a ha ha11 ha12 ha15 ha16 ha17 hnot)⟩
+        hy_0, hy_hdr, hy_hash, hy_seed.trans hs2_seed_x, hy_res, by mem_frame⟩
 
 private theorem replayLoopCode_execWithin {w base c_exp n_max U : ℕ}
     {θ : Seed c_exp n_max U (tableBits n_max)} {ks : List (Fin U)} {x : Data 19}
@@ -2304,32 +2113,26 @@ private theorem replayLoopCode_execWithin {w base c_exp n_max U : ℕ}
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
   unfold replayLoopCode replayLoopSteps storeHeaderConstCode storeHeaderCode
-  wram_exec (disch := layout_omega) [h0]
+  wram_exec [h0]
   refine WP.name fun s2 hs2 => ?_
-  have hs2_frame : ∀ a, a ≠ base + 16 → a ≠ base + 17 → s2.mem a = x.mem a :=
-    fun a ha16 ha17 => by subst hs2; wram_simp
-  have hs2_16 : s2.mem (base + 16) = 0 := by subst hs2; wram_simp
-  have hs2_17 : s2.mem (base + 17) = 0 := by subst hs2; wram_simp
-  have hs2_5 : s2.mem (base + 5) = ks.length := (hs2_frame _ (by omega) (by omega)).trans hm5
-  have hs2_hb : ∀ a, hashBase base ≤ a → s2.mem a = x.mem a := fun a ha =>
-    hs2_frame a (by wram_omega) (by wram_omega)
+  have hs2_16 : s2.mem (base + 16) = 0 := by mem_frame
+  have hs2_17 : s2.mem (base + 17) = 0 := by mem_frame
+  have hs2_5 : s2.mem (base + 5) = ks.length := by mem_frame
   obtain ⟨s3, he_sync, hs3_0, hs3_16, hs3_17, hs3_mem⟩ :=
     syncReplayCondCode_exec (c_exp := c_exp) (n_max := n_max) (x := s2)
-      (by subst hs2; wram_simp [h0]) hs2_5 hs2_16 hs2_17 hfit_end
+      (by regs_frame) hs2_5 hs2_16 hs2_17 hfit_end
   simp only [↓reduceIte] at hs3_16
-  rw [← hs3_mem] at hs2_frame hs2_16 hs2_17 hs2_5 hs2_hb
   refine WP.of_execWithin he_sync.within ?_
   wram_call (replayLoopInner_execWithin hlen_le hfit_ev hw hfit_end ks.length 0
-      (hhdr.congr fun k hk _ => hs2_frame _ (by omega) (by omega))
-      (hrep_hash.congr_of_ge_hashBase hs2_hb)
-      (hslots.congr (fun b _ => hs2_hb _ (by wram_omega)) (fun b _ => hs2_hb _ (by wram_omega)))
-      (fun _ h => False.elim (not_entryIn_empty _ h)) (Nat.zero_add _) hs2_5 hs2_16 hs2_17
-      (fun j hj => (hs2_hb _ (by wram_omega)).trans (hmem_keys j hj)) hs3_0 hs3_16 hs3_17)
+      (by struct_frame hhdr) (hrep_hash.congr_of_ge_hashBase (by mem_frame))
+      (by struct_frame hslots)
+      (fun _ h => False.elim (not_entryIn_empty _ h)) (Nat.zero_add _)
+      (by mem_frame) (by mem_frame) (by mem_frame)
+      (by mem_frame) hs3_0 hs3_16 hs3_17)
     with y ⟨hy_0, hy_hdr, hy_hash, hy_seed, hy_res, hy_frame⟩
   rw [pureReplayFrom_eq_pureReplay] at hy_res
-  refine ⟨?_, hy_0, hy_hdr, hy_hash, hy_seed.trans (extractSeed_congr_of_ge_hashBase hs2_hb),
-    hy_res, fun a ha ha11 ha12 ha15 ha16 ha17 hnot =>
-      (hy_frame a ha ha11 ha12 ha15 ha16 ha17 hnot).trans (hs2_frame a ha16 ha17)⟩
+  refine ⟨?_, hy_0, hy_hdr, hy_hash,
+    hy_seed.trans (extractSeed_congr_of_ge_hashBase (by mem_frame)), hy_res, by mem_frame⟩
   have := Nat.mul_le_mul_right (replayIterSteps c_exp n_max U) hlen_le
   omega
 
@@ -2352,8 +2155,8 @@ private theorem syncRehashCondCode_exec {w base c_exp n_max act : ℕ} {x : Data
       y.mem = x.mem := by
   have hle_sp := le_space c_exp n_max
   unfold syncRehashCondCode loadHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm16]
-  exact ⟨by wram_simp [h0], by wram_simp, by wram_simp, rfl⟩
+  wram_exec [h0, hm16]
+  exact ⟨by regs_frame, by wram_simp, by wram_simp, rfl⟩
 
 /-- One rehash attempt: resamples `(h₁, h₂)` without rebuilding `HashPairTableRep`, clears `T₁` and
 `T₂`, replays all `allocCount` keys from `insKeys`, and synchronizes `(Cond.lt 18 17)`. -/
@@ -2425,10 +2228,8 @@ private theorem rehashDetTail_execWithin {w base c_exp n_max U V : ℕ}
   obtain ⟨s1, he_clr, hs1_0, hs1_hdr, hs1_slots, hs1_frame⟩ :=
     clearTablesCode_exec hz1_hdr hz1_0 hfit_end
   obtain ⟨s2, he_rep, hs2_0, hs2_hdr, hs2_hash, hs2_seed, hs2_res, hs2_frame⟩ :=
-    replayLoopCode_execWithin hs1_hdr
-      (hhash.congr_of_footprint fun a _ ha => hs1_frame a (Or.inl ha)) hs1_slots
-      ((hs1_frame _ (Or.inl (by wram_omega))).trans hm5) hlen_le
-      (fun j hj => (hs1_frame _ (Or.inr (Nat.le_add_right _ _))).trans (hkv_idx j hj).1)
+    replayLoopCode_execWithin hs1_hdr (hhash.congr_of_footprint (by mem_frame)) hs1_slots
+      (by mem_frame) hlen_le (fun j hj => by have := (hkv_idx j hj).1; mem_frame)
       hs1_0 hfit_ev hw hfit_end
   obtain ⟨y, he_sync, hy_0, hy_17, hy_18, hy_mem⟩ :=
     syncRehashCondCode_exec (c_exp := c_exp) (n_max := n_max) hs2_0 rfl hfit_end
@@ -2438,26 +2239,10 @@ private theorem rehashDetTail_execWithin {w base c_exp n_max U V : ℕ}
     (he_clr.within.seq (he_rep.seq he_sync.within)).mono (by omega)
   rw [← hy_mem] at hs2_hdr hs2_hash hs2_seed hs2_res hs2_frame hy_17
   have hy_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem = θ₁ :=
-    hs2_seed.trans (extractSeed_congr_of_footprint fun a _ ha => hs1_frame a (Or.inl ha))
-  have hfr : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-      a ≠ base + 11 → a ≠ base + 12 → a ≠ base + 15 → a ≠ base + 16 → a ≠ base + 17 →
-      (a < t1Base base c_exp n_max ∨ keysBase base c_exp n_max ≤ a) → y.mem a = z1.mem a :=
-    fun a ha ha11 ha12 ha15 ha16 ha17 hnot =>
-      (hs2_frame a ha ha11 ha12 ha15 ha16 ha17 hnot).trans (hs1_frame a hnot)
+    hs2_seed.trans (extractSeed_congr_of_footprint (by mem_frame))
   have hy_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x₀.mem y.mem := by
-    intro a ha
-    have ha' := ha
-    simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha'
-    exact (hfr a (by wram_omega) (by omega) (by omega) (by omega) (by omega) (by omega)
-      (by wram_omega)).trans (hz1_mod a ha)
-  have hy_kv : KeysValsRep base c_exp n_max U V ks s y.mem :=
-    hz1_kv.congr
-      (hfr _ (by wram_omega) (by omega) (by omega) (by omega) (by omega) (by omega)
-        (by wram_omega))
-      (fun idx _ => hfr _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega) (by wram_omega) (Or.inr (Nat.le_add_right _ _)))
-      (fun idx _ => hfr _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega) (by wram_omega) (by wram_omega))
+    mem_frame
+  have hy_kv : KeysValsRep base c_exp n_max U V ks s y.mem := by struct_frame hz1_kv
   have hy_hash : HashPairRep (hashBase base) c_exp n_max U (tableBits n_max)
       (extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem) y.mem := by
     rw [hy_seed]; exact hs2_hash
@@ -2561,14 +2346,9 @@ private theorem rehashAttemptCode_execCodeDist {w base c_exp n_max U V : ℕ}
         (extractSeed (hashBase base) c_exp n_max U (tableBits n_max) z1.mem) z1.mem := by
     intro z1 hz1
     obtain ⟨hz1_0, hz1_hash, hz1_frame⟩ := hres_supp z1 hz1
-    refine ⟨⟨hres_dist.bounded hz_bdd z1 hz1, hz1_0,
-      hz_hdr.congr fun k hk _ => hz1_frame _ (Or.inl (by wram_omega)), hz1_hash.1,
-      hz_kv.congr (hz1_frame _ (Or.inl (by wram_omega)))
-        (fun idx _ => hz1_frame _ (Or.inr (by wram_omega)))
-        (fun idx _ => hz1_frame _ (Or.inr (by wram_omega))), fun a ha => ?_⟩, hz1_hash⟩
-    have ha' := ha
-    simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha'
-    exact (hz1_frame a (by wram_omega)).trans (hz_mod a ha)
+    have hle_hp := le_hashPairSpace c_exp n_max
+    exact ⟨⟨hres_dist.bounded hz_bdd z1 hz1, hz1_0,
+      by struct_frame hz_hdr, hz1_hash.1, by struct_frame hz_kv, by mem_frame⟩, hz1_hash⟩
   choose! tailFn h_exec h_seed h_inv h_iff h_good using fun z1 (hz1 : z1 ∈ μ_res.support) =>
     rehashDetTail_execWithin (hz1_inv z1 hz1).1 (hz1_inv z1 hz1).2 hfit_ev hw hfit_end
   let μ_att : PMF (Data 19) := μ_res.map tailFn
@@ -2809,8 +2589,8 @@ private theorem insertOverwriteBranchCode_exec {w base c_exp n_max idx v : ℕ} 
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
   unfold insertOverwriteBranchCode loadHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm10, hm14, hm18]
-  exact ⟨by wram_simp [h0], by wram_simp, by wram_simp, fun a hne => by wram_simp⟩
+  wram_exec [h0, hm10, hm14, hm18]
+  exact ⟨by regs_frame, by wram_simp, by wram_simp, by mem_frame⟩
 
 /-- Setup prefix of `insertNewKeyBranchCode` when `u ∉ dom s`
 (`foundFlag = 0`, `idx = ks.length < n_max`):
@@ -2861,11 +2641,9 @@ private theorem insertNewKeySetupCode_exec {w base c_exp n_max U idx u_val v : �
   have hle_sp := le_space c_exp n_max
   have hle_hp := le_hashPairSpace c_exp n_max
   unfold insertNewKeySetupCode loadHeaderCode storeHeaderConstCode storeHeaderCode
-  wram_exec (disch := layout_omega) [h0, hm5, hm9, hm11, hm10, hm18, hm4]
-  exact ⟨by wram_simp [h0], by wram_simp, by wram_simp (disch := layout_omega) [hm11],
-    by wram_simp (disch := layout_omega), by wram_simp, by wram_simp,
-    by wram_simp (disch := layout_omega), by wram_simp (disch := layout_omega),
-    fun a ha5 ha12 ha15 ha16 hak hav => by wram_simp⟩
+  wram_exec [h0, hm5, hm9, hm11, hm10, hm18, hm4]
+  exact ⟨by regs_frame, by mem_frame, by mem_frame, by mem_frame, by mem_frame, by mem_frame,
+    by mem_frame, by mem_frame, by mem_frame⟩
 
 /-- Negative branch of `insertCode` when `u ∉ dom s` (`foundFlag = mem[base + 13] = 0`):
 appends `(u, v)` at `idx = allocCount`, runs `evictLoopCode`, and if `0 < mem[base + 16]`
@@ -3072,33 +2850,20 @@ private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : 
   obtain ⟨s1, he_setup, hs1_0, hs1_5, hs1_11, hs1_12, hs1_15, hs1_16, hs1_knew, hs1_vnew,
       hs1_frame⟩ :=
     insertNewKeySetupCode_exec hhdr h0 hkv.2.2.1 hm11 hm18 hlen_lt hfit_end
-  have hin_hp : ∀ a, hashBase base ≤ a → a < hashBase base + hashPairSpace c_exp n_max →
-      s1.mem a = x.mem a := fun a hlo hhi =>
-    hs1_frame a (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-      (by wram_omega)
   have hs1_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) s1.mem = θ_mem :=
-    extractSeed_congr_of_footprint hin_hp
+    extractSeed_congr_of_footprint (by mem_frame)
   have hs1_kv :
       KeysValsRep base c_exp n_max U V (ks ++ [u]) (Function.update s u (some v)) s1.mem :=
-    hkv.insert_of_notMem hv hu_notMem hlen_lt hs1_5
-      (fun j hj => hs1_frame _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by omega) (by wram_omega)) hs1_knew
-      (fun j hj => hs1_frame _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega) (by omega)) hs1_vnew
+    hkv.insert_of_notMem hv hu_notMem hlen_lt hs1_5 (by mem_frame) hs1_knew
+      (by mem_frame) hs1_vnew
   have hs1_tiv : TableIdxValid (ks ++ [u]) tbl := by
     intro e he
     obtain ⟨hlt, hget⟩ := pureReplay_tableIdxValid hkv.1 hreplay e he
     exact ⟨by simp; omega, by rw [List.getElem?_append_left hlt]; exact hget⟩
   obtain ⟨s2, ⟨t_ev, ht_ev, he_ev⟩, hs2_0, hs2_hdr, hs2_hash, hs2_seed, hs2_res, hs2_frame⟩ :=
     evictLoopCode_execWithin (ks := ks ++ [u]) (e := ⟨u, ks.length⟩)
-      (hhdr.congr fun k hk _ => hs1_frame _ (by omega) (by omega) (by omega) (by omega)
-        (by wram_omega) (by wram_omega))
-      (hhash.congr_of_footprint hin_hp)
-      (hslots.congr
-        (fun b hb => hs1_frame _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-          (by wram_omega) (by wram_omega))
-        (fun b hb => hs1_frame _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-          (by wram_omega) (by wram_omega)))
+      (by struct_frame hhdr) (hhash.congr_of_footprint (by mem_frame))
+      (by struct_frame hslots)
       hs1_tiv ⟨by simp, by simp⟩ hs1_kv.2.1 (fun idx hidx => (hs1_kv.2.2.2.2.1 idx hidx).1)
       hs1_0 hs1_11 hs1_12 hs1_15 hs1_16 hfit_ev hw hfit_end
   have e_ld16 := loadHeaderCode_exec (w := w) (dst := 16) (off := 16) (x := s2)
@@ -3106,22 +2871,12 @@ private theorem insertNewKeyBranchCode_execCodeDist {w base c_exp n_max U V v : 
   set s3 := ((s2.set 15 16).set 16 (base + 16)).set 16 (s2.mem (base + 16))
   set s4 := s3.set 15 0
   have e_c0 : Exec w (.op (.const 15 0) : Code .exact 19) s3 s4 1 := Exec.const hfit_0
-  have hs4_0 : s4.regs 0 = base := by simp +decide [s4, s3, hs2_0]
+  have hs4_0 : s4.regs 0 = base := by regs_frame
   have hs4_kv :
-      KeysValsRep base c_exp n_max U V (ks ++ [u]) (Function.update s u (some v)) s4.mem :=
-    hs1_kv.congr
-      (hs2_frame _ (by wram_omega) (by omega) (by omega) (by omega) (by omega) (by wram_omega))
-      (fun idx _ => hs2_frame _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega) (Or.inr (Nat.le_add_right _ _)))
-      (fun idx _ => hs2_frame _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega) (by wram_omega))
+      KeysValsRep base c_exp n_max U V (ks ++ [u]) (Function.update s u (some v)) s4.mem := by
+    struct_frame hs1_kv
   have hs4_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x₀.mem s4.mem := by
-    intro a ha
-    have ha' := ha
-    simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha'
-    exact ((hs2_frame a (by wram_omega) (by omega) (by omega) (by omega) (by omega)
-      (by wram_omega)).trans (hs1_frame a (by omega) (by omega) (by omega) (by omega)
-        (by wram_omega) (by wram_omega))).trans (hmod a ha)
+    mem_frame
   have hs4_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) s4.mem = θ_mem :=
     hs2_seed.trans hs1_seed
   cases hev_eq : pureEvict (evalHash1 θ_mem) (evalHash2 θ_mem) (maxEvictions n_max) tbl
@@ -3237,57 +2992,35 @@ private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     h0 (by decide) (by decide) (by fits) (by fits)
   set s1 := (((x.set 15 11).set 16 (base + 11)).write (base + 11) (x.regs 3))
   have e_st18 := storeHeaderCode_exec (w := w) (base := base) (off := 18) (src := 4) (x := s1)
-    (by simp +decide [s1, h0]) (by decide) (by decide) (by fits) (by fits)
+    (by regs_frame) (by decide) (by decide) (by fits) (by fits)
   set s2 := (((s1.set 15 18).set 16 (base + 18)).write (base + 18) (s1.regs 4))
-  have hs2_frame : ∀ a, a ≠ base + 11 → a ≠ base + 18 → s2.mem a = x.mem a :=
-    fun a ha11 ha18 => by wram_simp [s2, s1]
   have hs2_11 : s2.mem (base + 11) = u.val := by wram_simp [s2, s1, h3]
   have hs2_18 : s2.mem (base + 18) = v := by wram_simp [s2, s1, h4]
-  have hs2_hb : ∀ a, hashBase base ≤ a → s2.mem a = x.mem a := fun a ha =>
-    hs2_frame a (by wram_omega) (by wram_omega)
   obtain ⟨s3, ⟨t_probe, ht_probe, he_probe⟩, hs3_0, hs3_hdr, hs3_hash, hs3_seed, hs3_lookup,
       hs3_frame⟩ :=
     probeKeyCode_execWithin (x := s2) (ks := ks) (tbl := tbl) (u := u)
-      (hhdr.congr fun k hk _ => hs2_frame _ (by omega) (by omega))
-      (hhash.congr_of_ge_hashBase hs2_hb)
-      (hslots.congr (fun b _ => hs2_hb _ (by wram_omega)) (fun b _ => hs2_hb _ (by wram_omega)))
-      (pureReplay_tableIdxValid hkv.1 hreplay) hlen_le
-      (fun idx hlt => (hs2_hb _ (by wram_omega)).trans (hkv.2.2.2.2.1 idx hlt).1)
-      (by simp +decide [s2, s1, h0]) hs2_11 hw hfit_end
-  have hfr3 : ∀ a, (a < hashBase base + 40 ∨ hashBase base + 47 ≤ a) →
-      a ≠ base + 11 → a ≠ base + 13 → a ≠ base + 14 → a ≠ base + 18 → s3.mem a = x.mem a :=
-    fun a ha ha11 ha13 ha14 ha18 => (hs3_frame a ha ha13 ha14).trans (hs2_frame a ha11 ha18)
+      (by struct_frame hhdr) (hhash.congr_of_ge_hashBase (by mem_frame))
+      (by struct_frame hslots) (pureReplay_tableIdxValid hkv.1 hreplay) hlen_le
+      (fun idx hlt => by have := (hkv.2.2.2.2.1 idx hlt).1; mem_frame)
+      (by regs_frame) hs2_11 hw hfit_end
   have hs3_seed_x : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) s3.mem = θ_mem :=
-    hs3_seed.trans (extractSeed_congr_of_ge_hashBase hs2_hb)
+    hs3_seed.trans (extractSeed_congr_of_ge_hashBase (by mem_frame))
   have hs3_slots :
-      TableSlotsRep (t1Base base c_exp n_max) (t2Base base c_exp n_max) tbl s3.mem :=
-    hslots.congr
-      (fun b _ => hfr3 _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega))
-      (fun b _ => hfr3 _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega))
-  have hs3_kv : KeysValsRep base c_exp n_max U V ks s s3.mem :=
-    hkv.congr (hfr3 _ (by wram_omega) (by omega) (by omega) (by omega) (by omega))
-      (fun idx _ => hfr3 _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega))
-      (fun idx _ => hfr3 _ (by wram_omega) (by wram_omega) (by wram_omega) (by wram_omega)
-        (by wram_omega))
-  have hs3_11 : s3.mem (base + 11) = u.val :=
-    (hs3_frame _ (by wram_omega) (by omega) (by omega)).trans hs2_11
-  have hs3_18 : s3.mem (base + 18) = v :=
-    (hs3_frame _ (by wram_omega) (by omega) (by omega)).trans hs2_18
+      TableSlotsRep (t1Base base c_exp n_max) (t2Base base c_exp n_max) tbl s3.mem := by
+    struct_frame hslots
+  have hs3_kv : KeysValsRep base c_exp n_max U V ks s s3.mem := by struct_frame hkv
+  have hs3_11 : s3.mem (base + 11) = u.val := by mem_frame
+  have hs3_18 : s3.mem (base + 18) = v := by mem_frame
   have e_ld13 := loadHeaderCode_exec (w := w) (dst := 16) (off := 13) (x := s3)
     hs3_0 (by fits) (by fits)
   set s4 := ((s3.set 15 13).set 16 (base + 13)).set 16 (s3.mem (base + 13))
   set s5 := s4.set 15 0
   have e_c0 : Exec w (.op (.const 15 0) : Code .exact 19) s4 s5 1 := Exec.const hfit_0
-  have hs5_0 : s5.regs 0 = base := by simp +decide [s5, s4, hs3_0]
+  have hs5_0 : s5.regs 0 = base := by regs_frame
   have hs5_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) s5.mem = θ_mem :=
     hs3_seed_x
   have hs5_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x.mem s5.mem := by
-    intro a ha
-    simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha
-    exact hfr3 a (by wram_omega) (by omega) (by omega) (by omega) (by omega)
+    mem_frame
   by_cases hu : u ∈ Dictionary.dom s
   · have hu_ks : u ∈ ks := (hkv.2.2.2.1 u).mpr hu
     obtain ⟨idx, hidx_lt, hks_idx⟩ := List.mem_iff_getElem.mp hu_ks
@@ -3303,15 +3036,10 @@ private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
         hs5_0 hs3_hdr.2.2.2.2.2.2.2.2.2 hs3_14 hs3_18 (by omega) hfit_end
     have hall := e_st11.seq (e_st18.seq (he_probe.seq (e_ld13.seq (e_c0.seq
       (he_ov.branch_pos (neg := insertNewKeyBranchCode c_exp n_max) hcond)))))
-    have hin_lt_t1 : ∀ a < t1Base base c_exp n_max, y.mem a = s3.mem a :=
-      fun a ha => hy_frame a (by wram_omega)
     have hy_seed : extractSeed (hashBase base) c_exp n_max U (tableBits n_max) y.mem = θ_mem :=
-      (extractSeed_congr_of_footprint fun a _ hhi => hin_lt_t1 a hhi).trans hs3_seed_x
-    have hy_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x.mem y.mem :=
-      fun a ha => (hy_frame a (by
-        have ha' := ha
-        simp only [Block.mem_footprint, Block.Owns, not_and_or, not_le] at ha'
-        wram_omega)).trans (hs5_mod a ha)
+      (extractSeed_congr_of_footprint (by mem_frame)).trans hs3_seed_x
+    have hy_mod : Modifies (Block.mk base (space c_exp n_max)).footprint x.mem y.mem := by
+      mem_frame
     have hstep_eq : stepKeys ks (.insert u v) = ks := by
       simp [stepKeys, hu_ks]
     rw [hstep_eq]
@@ -3325,14 +3053,11 @@ private theorem insertCode_execCodeDist {w base c_exp n_max U V v : ℕ}
     · intro z hz
       rw [PMF.support_pure, Set.mem_singleton_iff] at hz
       subst hz
-      exact ⟨hy_2, ⟨hall.bounded hx_bdd, hy_0,
-        hs3_hdr.congr fun k hk _ => hin_lt_t1 _ (by wram_omega),
-        hy_seed ▸ hs3_hash.congr_of_footprint fun a _ hhi => hin_lt_t1 a hhi,
-        hs3_kv.insert_of_mem hpre.2 hidx_lt hks_idx (hin_lt_t1 _ (by wram_omega))
-          (fun j hj => hy_frame _ (by wram_omega)) hy_val (fun j _ hne => hy_frame _ (by omega)),
-        tbl, hy_seed ▸ hreplay,
-        hs3_slots.congr (fun b hb => hy_frame _ (by wram_omega))
-          (fun b hb => hy_frame _ (by wram_omega))⟩, hy_mod⟩
+      exact ⟨hy_2, ⟨hall.bounded hx_bdd, hy_0, by struct_frame hs3_hdr,
+        hy_seed ▸ hs3_hash.congr_of_footprint (by mem_frame),
+        hs3_kv.insert_of_mem hpre.2 hidx_lt hks_idx (by mem_frame)
+          (by mem_frame) hy_val (by mem_frame),
+        tbl, hy_seed ▸ hreplay, by struct_frame hs3_slots⟩, hy_mod⟩
   · have hu_ks : u ∉ ks := fun h => hu ((hkv.2.2.2.1 u).mp h)
     have hstep_eq : stepKeys ks (.insert u v) = ks ++ [u] := by
       simp [stepKeys, hu_ks]

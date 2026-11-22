@@ -11,6 +11,7 @@ public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Model
 public import CslibFrontier.DataStructure.VanEmdeBoas.WordRAM.Program
 public import CslibFrontier.DataStructure.VanEmdeBoas.Insert
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Tactic.UpdateSimp
 
 /-!
 # Native van Emde Boas insertion descent
@@ -76,14 +77,14 @@ private theorem writeBounds_update_min_max {mem : ℕ → ℕ} {base m M key : �
      if M < displaced then Function.update m₁ (base + 2) displaced else m₁) =
       writeBounds mem base (some (min m key, max M key)) := by
   funext a
-  simp only [writeBounds, Function.update_apply, ite_apply]
+  dsimp only [writeBounds]
   rcases eq_or_ne a base with rfl | h0
-  · split_ifs <;> omega
+  · update_simp; exact hpres
   rcases eq_or_ne a (base + 1) with rfl | h1
-  · split_ifs <;> omega
+  · update_simp; split_ifs <;> omega
   rcases eq_or_ne a (base + 2) with rfl | h2
-  · split_ifs <;> omega
-  split_ifs <;> omega
+  · update_simp; split_ifs <;> omega
+  update_simp
 
 /-- An occupied node's displaced key `max m key` has valid cluster coordinates and lies in the
 parent record interval whenever `key < universeSize (d + 1)`. -/
@@ -97,9 +98,9 @@ private theorem insert_descent_safe {d base m M key : ℕ} {s : Tree d}
   have hm_lt : m < universeSize (d + 1) := ht.contains_lt (ht.contains_minimum rfl)
   have hdisp : max m key < universeSize d * universeSize d := by
     simpa only [universeSize_succ] using max_lt hm_lt hkey
-  have hi : max m key / universeSize d < universeSize d :=
-    (Nat.div_lt_iff_lt_mul (universeSize_pos d)).mpr hdisp
-  refine ⟨hi, Nat.mod_lt _ (universeSize_pos d), ?_⟩
+  have hpos := universeSize_pos d
+  have hi : max m key / universeSize d < universeSize d := by stride_omega
+  refine ⟨hi, Nat.mod_lt _ hpos, ?_⟩
   simpa only [Nat.add_assoc] using Nat.add_le_add_left (cluster_end_le_span d hi) base
 
 /-- Execute the header-check and extrema-update prefix of `insertBody` on an occupied record with
@@ -133,8 +134,7 @@ private theorem exists_execWithin_insertBody_occupied {w base key m M : ℕ} {s 
       dsimp only [m₁]; rw [ite_eq_right hc]; wram_simp
   · rintro y₁ T₁ ⟨hT₁, hy₁, hm₁⟩
     have hy₁_M : y₁.mem (base + 2) = M := by
-      rw [hm₁]; dsimp only [m₁]
-      split_ifs <;> simp [hM]
+      rw [hm₁]; update_simp; exact hM
     have hy₁_p := hy₁.p_eq; have hy₁_x := hy₁.x_eq
     have hy₁_2 := hy₁.two_eq; have hy₁_run := hy₁.runFlag_eq
     wram_exec -split [hy₁_p, hy₁_x, hy₁_2, hy₁_M]
