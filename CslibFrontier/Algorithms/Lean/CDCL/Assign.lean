@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Lean.CDCL.System
+public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 
 /-! # Assignments indexed by variable
 
@@ -441,9 +442,10 @@ theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective
     (dedupKey key xs).Nodup :=
   (dedupKey_spec hkey xs).2
 
-/-- **The index of a literal**: `2 * v + 1` for `v` and `2 * v` for `¬v`. It keys the removal of
-repeated literals (`dedupLits`) and indexes the watch lists. -/
-def litKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 1 else 0
+/-- **The index of a literal**, its word code `2 * v + 1` for `v` and `2 * v` for `¬v`
+(`Cslib.Algorithms.WordRAM.ClauseCode.litCode`). It keys the removal of repeated literals
+(`dedupLits`), indexes the watch lists, and is how the watch store holds literals. -/
+abbrev litKey (l : Literal ℕ) : ℕ := Cslib.Algorithms.WordRAM.ClauseCode.litCode l
 
 /-- The key of the negation of `l`, computed without building the negation. -/
 def negKey (l : Literal ℕ) : ℕ := 2 * l.1 + if l.2 then 0 else 1
@@ -452,10 +454,49 @@ theorem litKey_negate (l : Literal ℕ) : litKey l.negate = negKey l := by
   obtain ⟨v, b⟩ := l
   cases b <;> rfl
 
-theorem litKey_injective : Function.Injective litKey := by
-  intro ⟨v, x⟩ ⟨w, y⟩ h
-  simp only [litKey] at h
-  cases x <;> cases y <;> simp at h ⊢ <;> omega
+theorem litKey_injective : Function.Injective litKey :=
+  Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy_injective Function.injective_id
+
+/-- **The literal of a key**: the variable is the key divided by two, and the literal is positive
+when the key is odd. It inverts `litKey` (`litOfKey_litKey`, `litKey_litOfKey`), so every number is
+the key of exactly one literal. -/
+def litOfKey (n : ℕ) : Literal ℕ := (n / 2, n % 2 == 1)
+
+@[simp] theorem litOfKey_litKey (l : Literal ℕ) : litOfKey (litKey l) = l := by
+  obtain ⟨v, b⟩ := l
+  cases b
+  · simp only [litOfKey, Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy, id, Bool.toNat_false]
+    ext <;> simp
+  · simp only [litOfKey, Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy, id, Bool.toNat_true]
+    ext <;> simp
+    omega
+
+@[simp] theorem litKey_litOfKey (n : ℕ) : litKey (litOfKey n) = n := by
+  simp only [litOfKey, Cslib.Algorithms.WordRAM.ClauseCode.litCodeBy, id]
+  rcases Nat.mod_two_eq_zero_or_one n with h | h <;> simp [h] <;> omega
+
+/-- The key of the negation of a literal is its key with the low bit flipped. -/
+theorem litOfKey_negKey (l : Literal ℕ) : litOfKey (negKey l) = l.negate := by
+  rw [← litKey_negate, litOfKey_litKey]
+
+/-- **Whether the literal of the key `c` is true**, read on the key, without building the
+literal. -/
+def Assign.holdsKey (A : Assign) (c : ℕ) : Bool :=
+  match A.vals.getD (c / 2) 0 with
+  | 0 => false
+  | 1 => !(c % 2 == 1)
+  | _ => c % 2 == 1
+
+/-- **Whether the literal of the key `c` is false**, read on the key. -/
+def Assign.isFalseKey (A : Assign) (c : ℕ) : Bool :=
+  match A.vals.getD (c / 2) 0 with
+  | 0 => false
+  | 1 => c % 2 == 1
+  | _ => !(c % 2 == 1)
+
+theorem Assign.holdsKey_eq (A : Assign) (c : ℕ) : A.holdsKey c = A.holds (litOfKey c) := rfl
+
+theorem Assign.isFalseKey_eq (A : Assign) (c : ℕ) : A.isFalseKey c = A.isFalse (litOfKey c) := rfl
 
 /-- Removing repeated literals, in linear time. -/
 abbrev dedupLits (c : Clause ℕ) : Clause ℕ := dedupKey litKey c

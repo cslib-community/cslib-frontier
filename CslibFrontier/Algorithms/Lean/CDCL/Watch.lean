@@ -13,10 +13,13 @@ public import CslibFrontier.Algorithms.Lean.CDCL.Assign
 
 The watch store of the CDCL solver: an array of numbered clauses without repetitions, each an
 array of at least two literals, whose first two literals are its watches, and an array of watch
-lists indexed by literal (`litKey`). A watch list is an array of *watchers* (`Watcher`): the
-position of a clause and a *blocker*, a literal of the clause. As in MiniSat, a watcher whose
-blocker is true is skipped without reading its clause. The invariants are stated on lists: the
-literals of a clause (`Array.toList`) and the watch list read backwards (`watchList`), so that a
+lists indexed by literal (`litKey`). A watch list holds *watchers* (`Watcher`): the position of a
+clause and a *blocker*, a literal of the clause. As in MiniSat, a watcher whose blocker is true is
+skipped without reading its clause. A watch list is an array of numbers, two per watcher, the
+position of the clause and the key of the blocker (`litKey`, the word code `2 * v + b` of
+`Cslib.Algorithms.WordRAM.ClauseCode.litCode`), so that it holds no pointers. The invariants are
+stated on lists: the literals of a clause (`Array.toList`) and the watchers of a watch list read
+backwards (`watchList`, decoding the numbers with `unpackWatchers` and `litOfKey`), so that a
 watcher pushed at the end of the array is the head of the list.
 
 Moving a watch, as in MiniSat, writes into the clause's array in place: its first two literals
@@ -48,7 +51,9 @@ namespace Cslib.Algorithms.Lean.CDCL
 open Cslib.Logic.PL
 
 /-- **A watcher**: a clause of the store, by position, and its *blocker*, a literal of the clause.
-When the blocker is true, the clause is satisfied and is skipped without being read. -/
+When the blocker is true, the clause is satisfied and is skipped without being read. The store
+holds a watcher as two numbers of its watch list (`Watches`), and the invariants read them back as
+watchers (`unpackWatchers`). -/
 structure Watcher where
   /-- The position of the clause in the store. -/
   clause : ℕ
@@ -58,30 +63,65 @@ structure Watcher where
 /-- The positions of the clauses of a list of watchers. -/
 abbrev clauseIds (L : List Watcher) : List ℕ := L.map Watcher.clause
 
-/-- **The watch lists**: for each index (`litKey`), an array of watchers. -/
-abbrev Watches : Type := Array (Array Watcher)
+/-- **The watch lists**: for each index (`litKey`), an array of numbers, two for each watcher: the
+position of its clause, then the key of its blocker (`litKey`). Small numbers are unboxed at run
+time, so a watch list holds no pointers, and keeping or adding a watcher allocates nothing. -/
+abbrev Watches : Type := Array (Array ℕ)
 
-/-- The watch list at index `i`, as a list, empty past the end of the array. The list is the array
-read backwards, so that adding a watcher at the end of the array (`Array.push`, in place) adds it
-at the head of the list, and the solver visits the array from its end. The invariants are stated
-on these lists. -/
-@[expose] def watchList (W : Watches) (i : ℕ) : List Watcher := (W.getD i #[]).toList.reverse
+/-- **The watchers of a watch list read backwards**: two numbers each, the key of the blocker and
+then the position of the clause (`litOfKey`). A number left over at the end is not read. -/
+@[expose] def unpackWatchers : List ℕ → List Watcher
+  | b :: k :: rest => ⟨k, litOfKey b⟩ :: unpackWatchers rest
+  | _ => []
+
+@[simp] theorem unpackWatchers_cons_cons (b k : ℕ) (rest : List ℕ) :
+    unpackWatchers (b :: k :: rest) = ⟨k, litOfKey b⟩ :: unpackWatchers rest := rfl
+
+/-- The watchers of an array of numbers read backwards: pushing a watcher, its clause then its
+blocker, adds it in front. -/
+@[simp] theorem unpackWatchers_push (a : Array ℕ) (k b : ℕ) :
+    unpackWatchers ((a.push k).push b).toList.reverse = ⟨k, litOfKey b⟩ ::
+      unpackWatchers a.toList.reverse := by
+  simp
+
+/-- A number alone is not a watcher. -/
+theorem unpackWatchers_of_length_le_one {A : List ℕ} (h : A.length ≤ 1) :
+    unpackWatchers A = [] := by
+  match A, h with
+  | [], _ => rfl
+  | [_], _ => rfl
+
+/-- The watchers of two lists of numbers, the first of even length. -/
+theorem unpackWatchers_append : ∀ {A : List ℕ} (B : List ℕ), A.length % 2 = 0 →
+    unpackWatchers (A ++ B) = unpackWatchers A ++ unpackWatchers B
+  | [], _, _ => rfl
+  | [_], _, h => by simp at h
+  | b :: k :: A, B, h => by
+    simp only [List.cons_append, unpackWatchers_cons_cons, List.cons.injEq, true_and]
+    exact unpackWatchers_append B (by simp at h; omega)
+
+/-- The watch list at index `i`, as a list of watchers, empty past the end of the array. The list
+is the array read backwards, so that adding a watcher at the end of the array (`Array.push`, in
+place) adds it at the head of the list, and the solver visits the array from its end. The
+invariants are stated on these lists. -/
+@[expose] def watchList (W : Watches) (i : ℕ) : List Watcher :=
+  unpackWatchers (W.getD i #[]).toList.reverse
 
 /-- Applying `f` to the watch list at index `i`, growing the array if needed. The list is taken out
 of the array first (`Array.modify`), so that `f` updates it in place. -/
 @[expose, inline]
-def modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) : Watches :=
+def modifyWatch (W : Watches) (i : ℕ) (f : Array ℕ → Array ℕ) : Watches :=
   let W' := if i < W.size then W else W ++ Array.replicate (i + 1 - W.size) #[]
   W'.modify i f
 
-/-- Adding the watcher `k` to the watch list at index `i`, at the end of its array, growing the
-array of lists if needed. -/
-@[expose] def addWatch (W : Watches) (i : ℕ) (k : Watcher) : Watches :=
-  modifyWatch W i (·.push k)
+/-- Adding the watcher of the clause at position `k` with the blocker of key `b` to the watch list
+at index `i`, at the end of its array, growing the array of lists if needed. -/
+@[expose] def addWatch (W : Watches) (i k b : ℕ) : Watches :=
+  modifyWatch W i fun a => (a.push k).push b
 
 /-- Replacing the watch list at index `i`, growing the array if needed. -/
 @[expose]
-def setWatch (W : Watches) (i : ℕ) (L : Array Watcher) : Watches :=
+def setWatch (W : Watches) (i : ℕ) (L : Array ℕ) : Watches :=
   modifyWatch W i fun _ => L
 
 theorem getD_grow (W : Watches) (i j : ℕ) :
@@ -102,7 +142,7 @@ theorem i_lt_size_grow (W : Watches) (i : ℕ) :
   · assumption
   · simp; omega
 
-theorem getD_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) (j : ℕ) :
+theorem getD_modifyWatch (W : Watches) (i : ℕ) (f : Array ℕ → Array ℕ) (j : ℕ) :
     (modifyWatch W i f).getD j #[] = if j = i then f (W.getD i #[]) else W.getD j #[] := by
   unfold modifyWatch
   have hlt := i_lt_size_grow W i
@@ -116,7 +156,7 @@ theorem getD_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Wa
   · rename_i hne
     simp [Ne.symm hne]
 
-theorem size_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) :
+theorem size_modifyWatch (W : Watches) (i : ℕ) (f : Array ℕ → Array ℕ) :
     (modifyWatch W i f).size = max W.size (i + 1) := by
   unfold modifyWatch
   split <;> simp <;> omega
@@ -132,7 +172,7 @@ theorem watches_ext {W W' : Watches} (hs : W.size = W'.size)
   exact this
 
 /-- Modifying the same watch list twice is modifying it once. -/
-theorem modifyWatch_modifyWatch (W : Watches) (i : ℕ) (f g : Array Watcher → Array Watcher) :
+theorem modifyWatch_modifyWatch (W : Watches) (i : ℕ) (f g : Array ℕ → Array ℕ) :
     modifyWatch (modifyWatch W i f) i g = modifyWatch W i (g ∘ f) := by
   apply watches_ext
   · simp only [size_modifyWatch]; omega
@@ -142,7 +182,7 @@ theorem modifyWatch_modifyWatch (W : Watches) (i : ℕ) (f g : Array Watcher →
 
 /-- Modifying two different watch lists, in either order. -/
 theorem modifyWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j)
-    (f g : Array Watcher → Array Watcher) :
+    (f g : Array ℕ → Array ℕ) :
     modifyWatch (modifyWatch W i f) j g = modifyWatch (modifyWatch W j g) i f := by
   apply watches_ext
   · simp only [size_modifyWatch]; omega
@@ -153,28 +193,29 @@ theorem modifyWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j)
     · simp [hk, hij]
 
 /-- Adding a watcher to a list just replaced is replacing it with the longer array. -/
-theorem addWatch_setWatch (W : Watches) (i : ℕ) (L : Array Watcher) (k : Watcher) :
-    addWatch (setWatch W i L) i k = setWatch W i (L.push k) :=
+theorem addWatch_setWatch (W : Watches) (i : ℕ) (L : Array ℕ) (k b : ℕ) :
+    addWatch (setWatch W i L) i k b = setWatch W i ((L.push k).push b) :=
   modifyWatch_modifyWatch W i _ _
 
 /-- Replacing a watch list and adding a watcher to another, in either order. -/
-theorem addWatch_setWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j) (L : Array Watcher)
-    (k : Watcher) : addWatch (setWatch W i L) j k = setWatch (addWatch W j k) i L :=
+theorem addWatch_setWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j) (L : Array ℕ)
+    (k b : ℕ) : addWatch (setWatch W i L) j k b = setWatch (addWatch W j k b) i L :=
   modifyWatch_comm W hij _ _
 
 /-- Replacing a watch list twice. -/
-theorem setWatch_setWatch (W : Watches) (i : ℕ) (L L' : Array Watcher) :
+theorem setWatch_setWatch (W : Watches) (i : ℕ) (L L' : Array ℕ) :
     setWatch (setWatch W i L) i L' = setWatch W i L' :=
   modifyWatch_modifyWatch W i _ _
 
-@[simp] theorem watchList_addWatch (W : Watches) (i : ℕ) (k : Watcher) (j : ℕ) :
-    watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j := by
+@[simp] theorem watchList_addWatch (W : Watches) (i k b : ℕ) (j : ℕ) :
+    watchList (addWatch W i k b) j =
+      if j = i then ⟨k, litOfKey b⟩ :: watchList W i else watchList W j := by
   unfold watchList addWatch
   rw [getD_modifyWatch]
   split <;> simp
 
-theorem mem_watchList_addWatch {W : Watches} {i j : ℕ} {k x : Watcher}
-    (h : x ∈ watchList (addWatch W i k) j) : x = k ∨ x ∈ watchList W j := by
+theorem mem_watchList_addWatch {W : Watches} {i j k b : ℕ} {x : Watcher}
+    (h : x ∈ watchList (addWatch W i k b) j) : x = ⟨k, litOfKey b⟩ ∨ x ∈ watchList W j := by
   rw [watchList_addWatch] at h
   split at h
   · rename_i hj
@@ -183,20 +224,21 @@ theorem mem_watchList_addWatch {W : Watches} {i j : ℕ} {k x : Watcher}
   · exact .inr h
 
 /-- A watcher of a list is still on it after one is added. -/
-theorem mem_clauseIds_addWatch {W : Watches} {i j k : ℕ} {x : Watcher}
-    (h : k ∈ clauseIds (watchList W j)) : k ∈ clauseIds (watchList (addWatch W i x) j) := by
+theorem mem_clauseIds_addWatch {W : Watches} {i j k k' b : ℕ}
+    (h : k ∈ clauseIds (watchList W j)) : k ∈ clauseIds (watchList (addWatch W i k' b) j) := by
   rw [watchList_addWatch]
   split
   · rename_i hj; subst hj; exact List.mem_cons_of_mem _ h
   · exact h
 
 /-- The clause of the watcher added is on the list it is added to. -/
-theorem mem_clauseIds_addWatch_self (W : Watches) (i : ℕ) (x : Watcher) :
-    x.clause ∈ clauseIds (watchList (addWatch W i x) i) := by
+theorem mem_clauseIds_addWatch_self (W : Watches) (i k b : ℕ) :
+    k ∈ clauseIds (watchList (addWatch W i k b) i) := by
   simp [clauseIds]
 
-@[simp] theorem watchList_setWatch (W : Watches) (i : ℕ) (L : Array Watcher) (j : ℕ) :
-    watchList (setWatch W i L) j = if j = i then L.toList.reverse else watchList W j := by
+@[simp] theorem watchList_setWatch (W : Watches) (i : ℕ) (L : Array ℕ) (j : ℕ) :
+    watchList (setWatch W i L) j =
+      if j = i then unpackWatchers L.toList.reverse else watchList W j := by
   unfold watchList setWatch
   rw [getD_modifyWatch]
   split <;> rfl
@@ -341,14 +383,15 @@ theorem findFree_none {A : Assign} {c : Array (Literal ℕ)} :
       · simp at h
     · omega
 
-/-- **Visiting a watcher** when its watched literal `u` has become false under the assignment `A`:
-it is skipped if its blocker is true; otherwise its clause is read, by position. Inlined, so that
+/-- **Visiting a watcher**, of the clause at position `k` with the blocker of key `b`, when its
+watched literal `u` has become false under the assignment `A`: it is skipped if its blocker is true
+(read on the key, `Assign.holdsKey`); otherwise its clause is read, by position. Inlined, so that
 the outcome is matched on without being built. -/
 @[expose, inline]
-def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watcher) : Visit :=
-  if A.holds w.blocker then .skip
-  else if hk : w.clause < S.clauses.size then
-    let c := S.clauses[w.clause].2
+def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (k b : ℕ) : Visit :=
+  if A.holdsKey b then .skip
+  else if hk : k < S.clauses.size then
+    let c := S.clauses[k].2
     if h2 : 2 ≤ c.size then
       let w₁ := c[0]
       let w₂ := c[1]
@@ -359,8 +402,8 @@ def WatchStore.visit (S : WatchStore) (A : Assign) (u : Literal ℕ) (w : Watche
           match hj : findFree A c (c.size - 2) 2 with
           | some j => .move j (c[j]'(findFree_some hj).1) other
           | none =>
-            if A.isFalse other then .conflict S.clauses[w.clause].1
-            else .unit other S.clauses[w.clause].1
+            if A.isFalse other then .conflict S.clauses[k].1
+            else .unit other S.clauses[k].1
       else .drop
     else .drop
   else .drop
@@ -374,7 +417,7 @@ when the store is not shared. -/
   let clauses := S.clauses
   let watches := S.watches
   ⟨clauses.modify k (fun e => (e.1, ((e.2.setIfInBounds 0 o).setIfInBounds 1 x).setIfInBounds j u)),
-    addWatch watches (litKey x) ⟨k, o⟩⟩
+    addWatch watches (litKey x) k (litKey o)⟩
 
 /-- The other watched literal of a clause watching `u` with watched literals `w₁` and `w₂`. -/
 @[expose] def otherWatch (u w₁ w₂ : Literal ℕ) : Literal ℕ := if w₁ = u then w₂ else w₁
@@ -406,10 +449,16 @@ theorem toList_eq_cons_cons {α : Type} {c : Array α} (h : 2 ≤ c.size) :
   match l, h with
   | a :: b :: rest, _ => rfl
 
-/-- **The visit meets its specification**, under an assignment agreeing with the trail. -/
+/-- **The visit meets its specification**, under an assignment agreeing with the trail, for the
+watcher read back from the two numbers. -/
 theorem WatchStore.visit_spec (S : WatchStore) {A : Assign} {M : Trail} (hA : A.Agrees M)
-    (u : Literal ℕ) (w : Watcher) : VisitSpec S M u w (S.visit A u w) := by
+    (u : Literal ℕ) (k b : ℕ) : VisitSpec S M u ⟨k, litOfKey b⟩ (S.visit A u k b) := by
   unfold visit
+  rw [Assign.holdsKey_eq]
+  generalize hw : (⟨k, litOfKey b⟩ : Watcher) = w
+  have hwk : k = w.clause := by rw [← hw]
+  have hwb : litOfKey b = w.blocker := by rw [← hw]
+  rw [hwk, hwb]
   by_cases hb : A.holds w.blocker = true
   · simp only [hb, ↓reduceIte, VisitSpec]
     exact (hA.holds_iff _).1 hb
@@ -506,8 +555,8 @@ the other as blocker. -/
     let k := S.clauses.size
     let clauses := S.clauses
     let watches := S.watches
-    ⟨clauses.push (id, c.toArray), addWatch (addWatch watches (litKey w₁) ⟨k, w₂⟩) (litKey w₂)
-      ⟨k, w₁⟩⟩
+    ⟨clauses.push (id, c.toArray), addWatch (addWatch watches (litKey w₁) k (litKey w₂)) (litKey w₂)
+      k (litKey w₁)⟩
   | _ => S
 
 /-- Adding a clause of the database, without repetitions, whose first watched literal is not
@@ -582,7 +631,7 @@ theorem WatchStore.Inv.addClause {F : List (ℕ × Clause ℕ)} {M : Trail} {Q :
 theorem WatchStore.inv_empty (M : Trail) (Q : List (Literal ℕ)) :
     (⟨#[], #[]⟩ : WatchStore).Inv [] M Q :=
   ⟨by simp, by simp, by simp, fun e he => by simp at he, fun k hk => by simp at hk,
-    fun i x hx => by simp [watchList] at hx, by simp⟩
+    fun i x hx => by simp [watchList, unpackWatchers] at hx, by simp⟩
 
 /-- A clause with its literals that are not false under the assignment `A` first, so that they are
 the ones watched. -/
