@@ -18,14 +18,21 @@ import Mathlib.Data.List.Perm.Basic
 
 This module formalizes concurrent invocation/response histories over multiple typed shared objects,
 real-time operation precedence, **linearizability**, **sequential consistency**, and the fundamental
-locality and nonblocking theorems of [HerlihyWing1990] (§§2.1–2.2, §§3.1–3.3, pp. 467–472).
+locality and nonblocking theorems of [HerlihyWing1990] (§§2.1–2.2, §§3.1–3.3, pp. 467–472) with the
+amended L2 condition of [SelaHerlihyPetrank2021] (§4, Definition 4.1, p. 6; §§5.2–5.3,
+Theorems 5.1–5.2, pp. 7–9).
 
 Unlike upstream `Cslib.DistributedConsistency` (which axiomatizes single-object consistency
 declaratively via visibility and arbitration relations on abstract event sets), this module models
 operational finite sequences of invocation and response events across an arbitrary family of typed
 objects `x : Obj` (`Op x`, `Resp x`), supporting incomplete execution prefixes via response-append
 completion extensions (`History.IsExtension`) and per-object subhistory projections
-(`History.objSubhistory`, written `H | x` in [HerlihyWing1990]).
+(`History.objSubhistory`, written `H | x` in [HerlihyWing1990]). In `IsLinearizable`,
+`History.prec H e₀ e₁` sees invocations `e₁` pending in `H` and enforces real-time precedence on all
+operations completed in the extension `H'` (`History.IsCompletedOp H'`, equivalent to `<_{H'} ⊆ <_S`
+by `History.prec_append_resp_iff`), matching Definition 4.1 of [SelaHerlihyPetrank2021] rather than
+the literal printed L2 of [HerlihyWing1990] (which restricts `<_H` to operations completed in `H`
+and fails both locality and nonblocking).
 
 ## Main definitions
 
@@ -55,8 +62,9 @@ completion extensions (`History.IsExtension`) and per-object subhistory projecti
   histories ([HerlihyWing1990], §2.1, p. 468).
 * `Cslib.Distributed.ConcurrentObjects.IsLinearizable`,
   `Cslib.Distributed.ConcurrentObjects.IsSequentiallyConsistent`: Herlihy–Wing linearizability
-  ([HerlihyWing1990], §2.2, p. 469) and sequential consistency (extending [HerlihyWing1990], §3.3,
-  p. 472 to incomplete histories via `History.IsExtension` and `History.complete`).
+  ([HerlihyWing1990], §2.2, p. 469; amended L2 of [SelaHerlihyPetrank2021], §4, Definition 4.1,
+  p. 6) and sequential consistency (extending [HerlihyWing1990], §3.3, p. 472 to incomplete
+  histories via `History.IsExtension` and `History.complete`).
 * `Cslib.Distributed.ConcurrentObjects.RegOp`,
   `Cslib.Distributed.ConcurrentObjects.RegResp`,
   `Cslib.Distributed.ConcurrentObjects.registerSeqSpec`: sequential atomic read/write register
@@ -76,11 +84,11 @@ completion extensions (`History.IsExtension`) and per-object subhistory projecti
 * `Cslib.Distributed.ConcurrentObjects.isLinearizable_iff_forall_obj`: **Herlihy–Wing Theorem 1
   (Locality)** — a well-formed history `H` is linearizable if and only if for every object `x`, its
   object subhistory `History.objSubhistory H x` is linearizable ([HerlihyWing1990], §3.1, Theorem 1,
-  pp. 470–471).
+  pp. 470–471; [SelaHerlihyPetrank2021], §5.2, Theorem 5.1, pp. 7–9).
 * `Cslib.Distributed.ConcurrentObjects.exists_linearizable_append_resp_of_total`: **Herlihy–Wing
-  Theorem 2 (Nonblocking)** — any pending invocation of a total operation in a well-formed
-  linearizable history admits a matching response whose append remains linearizable
-  ([HerlihyWing1990], §3.2, Theorem 2, pp. 471–472).
+  Theorem 2 (Nonblocking)** — any pending invocation of a total operation in a linearizable history
+  admits a matching response whose append remains linearizable ([HerlihyWing1990], §3.2, Theorem 2,
+  pp. 471–472; [SelaHerlihyPetrank2021], §5.3, Theorem 5.2, p. 9).
 * `Cslib.Distributed.ConcurrentObjects.exists_sequentiallyConsistent_not_linearizable`: explicit
   well-formed single-register history that is sequentially consistent but not linearizable
   (register counterpart of `H_7` in [HerlihyWing1990], §3.3, p. 472).
@@ -93,6 +101,8 @@ completion extensions (`History.IsExtension`) and per-object subhistory projecti
 
 * [M. P. Herlihy, J. M. Wing, *Linearizability: A Correctness Condition for Concurrent
   Objects*][HerlihyWing1990]
+* [G. Sela, M. Herlihy, E. Petrank, *Brief Announcement: Linearizability: A
+  Typo*][SelaHerlihyPetrank2021]
 -/
 
 public section
@@ -1268,10 +1278,18 @@ def History.IsLegal {P Obj : Type*} {Op Resp : Obj → Type*} [DecidableEq Obj]
     (spec : ∀ x, SeqSpec P Op Resp x) (S : History P Op Resp) : Prop :=
   ∀ x, History.objSubhistory S x ∈ (spec x).allowed
 
-/-- **Linearizability** ([HerlihyWing1990], §2.2, p. 469): history `H` can be extended by appending
-zero or more responses to a well-formed history `H'` such that:
+/-- **Linearizability** ([HerlihyWing1990], §2.2, p. 469, with the amended L2 condition of
+[SelaHerlihyPetrank2021], §4, Definition 4.1, p. 6): history `H` can be extended by appending zero
+or more responses to a well-formed history `H'` such that:
 * **L1:** `complete(H')` is equivalent to some legal sequential history `S`, and
-* **L2:** real-time precedence `<_H` on the operations of `complete(H')` is preserved by `<_S`. -/
+* **L2:** real-time precedence `<_H` (`History.prec H`) on all operations completed in `H'`
+  (`History.IsCompletedOp H'`, equivalently `<_{H'} ⊆ <_S` by `History.prec_append_resp_iff`) is
+  preserved by `<_S`.
+
+Unlike the literal printed L2 in [HerlihyWing1990] (which restricts `<_H` to operations already
+completed in `H` and fails locality and nonblocking; see [SelaHerlihyPetrank2021], §§3.2–3.3,
+pp. 5–6), `History.prec H e₀ e₁` sees invocations `e₁` pending in `H` and `IsLinearizable` enforces
+precedence across all operations completed in the extension `H'`. -/
 @[expose]
 def IsLinearizable {P Obj : Type*} {Op Resp : Obj → Type*} [DecidableEq P] [DecidableEq Obj]
     (spec : ∀ x, SeqSpec P Op Resp x) (H : History P Op Resp) : Prop :=
@@ -2071,7 +2089,8 @@ private theorem isCompletedOp_complete_iff {P Obj : Type*} {Op Resp : Obj → Ty
     omega
 
 /-- Restricting a linearizable history `H` to any single object `x` preserves linearizability
-("only if" direction of [HerlihyWing1990], §3.1, Theorem 1, p. 470). -/
+("only if" direction of [HerlihyWing1990], §3.1, Theorem 1, p. 470; [SelaHerlihyPetrank2021], §5.2,
+Theorem 5.1, p. 7). -/
 theorem IsLinearizable.objSubhistory {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] [DecidableEq Obj] {spec : ∀ x, SeqSpec P Op Resp x}
     {H : History P Op Resp} (hlin : IsLinearizable spec H) (x : Obj) :
@@ -2373,8 +2392,9 @@ private theorem procSubhistory_flatMap_eq_single [DecidableEq P] [DecidableEq Ob
 end LocalityCompositionHelpers
 
 /-- **Herlihy–Wing Theorem 1 (Locality / Compositionality of Linearizability)**
-([HerlihyWing1990], §3.1, Theorem 1, pp. 470–471): a well-formed concurrent history `H` over typed
-objects `Obj` is linearizable if and only if for every object `x : Obj`, its object subhistory
+([HerlihyWing1990], §3.1, Theorem 1, pp. 470–471; amended L2 proof of [SelaHerlihyPetrank2021],
+§5.2, Theorem 5.1, pp. 7–9): a well-formed concurrent history `H` over typed objects `Obj` is
+linearizable if and only if for every object `x : Obj`, its object subhistory
 `History.objSubhistory H x` (`H | x`) is linearizable. -/
 theorem isLinearizable_iff_forall_obj {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] [DecidableEq Obj] (spec : ∀ x, SeqSpec P Op Resp x)
@@ -3363,9 +3383,10 @@ theorem History.flush_resp_from_extension {P Obj : Type*} {Op Resp : Obj → Typ
   exact hprecS e₀ e₁ hc₀_HR hc₁_HR hpr_H
 
 /-- **Herlihy–Wing Theorem 2 (Nonblocking Property of Linearizability)**
-([HerlihyWing1990], §3.2, Theorem 2, pp. 471–472): if process `p` has a pending invocation of a
-total operation `op : Op x` in a linearizable history `H`, then there exists a response `res :
-Resp x` such that `H ++ [Event.resp p x res]` is also linearizable. -/
+([HerlihyWing1990], §3.2, Theorem 2, pp. 471–472; amended L2 proof of [SelaHerlihyPetrank2021],
+§5.3, Theorem 5.2, p. 9): if process `p` has a pending invocation of a total operation `op : Op x`
+in a linearizable history `H`, then there exists a response `res : Resp x` such that
+`H ++ [Event.resp p x res]` is also linearizable. -/
 theorem exists_linearizable_append_resp_of_total {P Obj : Type*} {Op Resp : Obj → Type*}
     [DecidableEq P] [DecidableEq Obj] {spec : ∀ y, SeqSpec P Op Resp y}
     {H : History P Op Resp} {p : P} {x : Obj} {op : Op x}
