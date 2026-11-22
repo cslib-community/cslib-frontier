@@ -44,6 +44,7 @@ import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Hoza
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
 import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
 import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.Membership
@@ -814,6 +815,19 @@ register_result "fagin" where
     existential second-order definable iff it is isomorphism-closed and its query language is \
     in NP under the explicit structure encoding encStructure. No further hypotheses: empty \
     universes and nullary relations are included."
+
+register_result "hoza-nl-eq-ul" where
+  title := "Hoza: NL equals UL"
+  topic := "space complexity"
+  sources := [
+    { paper := Hoza2026NLUL, theorem := "Theorem 1.1",
+      locator := "ECCC TR26-323, 20 November 2026, Section 1" }
+  ]
+  theorems := [Cslib.Complexity.NL_eq_UL]
+  scope := "Unconditional class equality for arbitrary injective binary input encodings. \
+    The native multi-tape machines read the original input in place and charge visited work-tape \
+    cells on all computation prefixes. A single finite counting machine per language has one \
+    accepting occurrence on members and zero on nonmembers at a sufficient all-branch clock."
 
 register_result "savitch" where
   title := "Savitch: NPSPACE equals PSPACE"
