@@ -6923,6 +6923,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Convolution
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateOperators
 public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateSampling
 public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
+public import CslibFrontier.Foundations.BooleanAnalysis.DNFWidth
 public import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
 public import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
@@ -8647,6 +8648,7 @@ public import CslibFrontier.Logics.Propositional.CNF.Simplification
 public import CslibFrontier.Logics.Propositional.CNF.SparseDesignCounter
 public import CslibFrontier.Logics.Propositional.CNF.SparseParityCounter
 public import CslibFrontier.Logics.Propositional.CNF.StdSat
+public import CslibFrontier.Logics.Propositional.CNF.Tautology
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF.Exact
 public import CslibFrontier.Logics.Propositional.CNF.ThreeCNF.Exact.PolyTime
