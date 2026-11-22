@@ -289,10 +289,6 @@ table for trinomial step `t`. -/
 @[expose] def reducedTableBits (t : ℕ) : ℕ :=
   (2 * reducedChunkBits t) * 2 ^ (2 * reducedChunkBits t)
 
-private theorem two_mul_le_two_pow : ∀ c : ℕ, 2 * c ≤ 2 ^ c
-  | 0 => by decide
-  | c + 1 => by have := @Nat.lt_two_pow_self c; rw [pow_succ']; omega
-
 /-- Whenever `b' ≤ 3 * b`, the Four-Russians table bit count satisfies
 `reducedTableBits (reducedTrinomialStep w₀ b b') ≤ max 8 (2 ^ (b / 2)) = o(2 ^ b)`. -/
 theorem reducedTableBits_le {w₀ b b' : ℕ} (hb' : b' ≤ 3 * b) :
@@ -307,10 +303,14 @@ theorem reducedTableBits_le {w₀ b b' : ℕ} (hb' : b' ≤ 3 * b) :
       rw [reducedChunkBits, show t - 1 = 2 + (t - 3) by omega, pow_add]; rfl
     have hc_pos := reducedChunkBits_pos t
     have h3c : 3 * reducedChunkBits t ≤ b / 2 := by unfold reducedTargetBits at hlt; omega
+    have h2c : 2 * reducedChunkBits t ≤ 2 ^ reducedChunkBits t := by
+      rcases reducedChunkBits t with _ | c
+      · decide
+      · have := @Nat.lt_two_pow_self c; rw [pow_succ']; omega
     refine (le_trans ?_ (Nat.pow_le_pow_right two_pos h3c)).trans (le_max_right 8 _)
     calc reducedTableBits t
         ≤ 2 ^ reducedChunkBits t * 2 ^ (2 * reducedChunkBits t) :=
-          Nat.mul_le_mul_right _ (two_mul_le_two_pow _)
+          Nat.mul_le_mul_right _ h2c
       _ = 2 ^ (3 * reducedChunkBits t) := by
           rw [← pow_add, show reducedChunkBits t + 2 * reducedChunkBits t =
             3 * reducedChunkBits t by ring]
@@ -371,7 +371,8 @@ theorem reducedTableWords_le {t w : ℕ} (hc : 2 * reducedChunkBits t ≤ w) :
 @[expose] def getLimb (c a m : ℕ) : ℕ :=
   (a >>> (m * c)) &&& (2 ^ c - 1)
 
-private theorem getLimb_eq_zero_of_lt {c a m : ℕ} (ha : a < 2 ^ (m * c)) :
+/-- Above bit `m * c`, the `m`-th `c`-bit limb of `a < 2 ^ (m * c)` is `0`. -/
+theorem getLimb_eq_zero_of_lt {c a m : ℕ} (ha : a < 2 ^ (m * c)) :
     getLimb c a m = 0 := by
   rw [getLimb, Nat.shiftRight_eq_div_pow, Nat.div_eq_of_lt ha, Nat.zero_and]
 
@@ -437,16 +438,6 @@ theorem getLimb_xor_shiftLeft_of_ne {c a val s m : ℕ}
     exact getLimb_eq_zero_of_lt
       (hval.trans_le (Nat.pow_le_pow_right two_pos (Nat.le_mul_of_pos_left c (by omega))))
 
-/-- Bitwise decomposition of `idx < 2 ^ (2 * c)` into word index `idx >>> p < 2 ^ (2 * c - p)` and
-within-word entry index `idx &&& (2 ^ p - 1) < 2 ^ p` for `p = reducedPackShift t w`. -/
-theorem reducedPackIndex_props {t w idx : ℕ} (hidx : idx < 2 ^ (2 * reducedChunkBits t)) :
-    let p := reducedPackShift t w
-    idx >>> p < reducedTableWords t w ∧
-    idx &&& (2 ^ p - 1) < 2 ^ p := by
-  refine ⟨?_, Nat.and_lt_two_pow idx (Nat.sub_lt (Nat.two_pow_pos _) one_pos)⟩
-  rw [reducedTableWords, Nat.shiftRight_eq_div_pow]
-  exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)])
-
 /-- Pack `n` limbs `f 0, …, f (n - 1)` of `c` bits each into a single natural number
 `< 2 ^ (n * c)`. -/
 @[expose] def packLimbs (c : ℕ) : ℕ → (ℕ → ℕ) → ℕ
@@ -506,9 +497,8 @@ theorem packLimbs_getLimb {c : ℕ} (hc : 0 < c) (n : ℕ) {a : ℕ} (ha : a < 2
   · rw [getLimb_packLimbs_of_ge c _ (not_lt.mp hm), getLimb_eq_zero_of_lt
       (ha.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right c (not_lt.mp hm))))]
 
-theorem packLimbs_xor {c : ℕ} (hc : 0 < c) (n : ℕ) (f g : ℕ → ℕ) :
+theorem packLimbs_xor {c : ℕ} (n : ℕ) (f g : ℕ → ℕ) :
     packLimbs c n (fun i => f i ^^^ g i) = packLimbs c n f ^^^ packLimbs c n g := by
-  let _ := hc
   induction n with
   | zero => simp [packLimbs]
   | succ n ih =>
@@ -519,11 +509,10 @@ theorem getLimb_zero_of_lt {c val : ℕ} (hval : val < 2 ^ c) :
     getLimb c val 0 = val := by
   rw [getLimb, Nat.zero_mul, Nat.shiftRight_zero, Nat.and_two_pow_sub_one_of_lt_two_pow hval]
 
-theorem packLimbs_update_xor {c : ℕ} (hc : 0 < c) {n i v : ℕ} (f : ℕ → ℕ)
+theorem packLimbs_update_xor {c n i v : ℕ} (f : ℕ → ℕ)
     (hi : i < n) (hv : v < 2 ^ c) :
     packLimbs c n (Function.update f i (f i ^^^ v)) =
       packLimbs c n f ^^^ (v <<< (i * c)) := by
-  let _ := hc
   induction n with
   | zero => omega
   | succ n ih =>
@@ -537,7 +526,7 @@ theorem packLimbs_update_xor {c : ℕ} (hc : 0 < c) {n i v : ℕ} (f : ℕ → �
 
 /-- Updating two consecutive limbs `i` and `i + 1` of `f` by XORing `v &&& (2 ^ c - 1)` and
 `v >>> c` (where `v < 2 ^ (2 * c)`) XORs `packLimbs c n f` with `v <<< (i * c)`. -/
-theorem packLimbs_update_pair {c : ℕ} (hc : 0 < c) {n i v : ℕ} (f : ℕ → ℕ)
+theorem packLimbs_update_pair {c n i v : ℕ} (f : ℕ → ℕ)
     (hi : i + 1 < n) (hv : v < 2 ^ (2 * c)) :
     packLimbs c n
       (Function.update (Function.update f i (f i ^^^ (v &&& (2 ^ c - 1))))
@@ -547,9 +536,9 @@ theorem packLimbs_update_pair {c : ℕ} (hc : 0 < c) {n i v : ℕ} (f : ℕ → 
   have hv_hi : v >>> c < 2 ^ c := by
     rw [Nat.shiftRight_eq_div_pow]; exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, ← two_mul])
   let g := Function.update f i (f i ^^^ (v &&& (2 ^ c - 1)))
-  have hupd := packLimbs_update_xor hc g hi hv_hi
+  have hupd := packLimbs_update_xor g hi hv_hi
   rw [show g (i + 1) = f (i + 1) from Function.update_of_ne (Nat.succ_ne_self i) _ f] at hupd
-  rw [hupd, packLimbs_update_xor hc f (Nat.lt_of_succ_lt hi) hv_lo, Nat.xor_assoc]
+  rw [hupd, packLimbs_update_xor f (Nat.lt_of_succ_lt hi) hv_lo, Nat.xor_assoc]
   congr 1
   rw [Nat.succ_mul, Nat.add_comm (i * c) c, Nat.shiftLeft_add, ← Nat.shiftLeft_xor_distrib,
     and_xor_shiftRight_shiftLeft]
@@ -669,8 +658,9 @@ theorem packLimbs_and_mask_succ (c b' n : ℕ) (f : ℕ → ℕ) :
 
 theorem shiftRight_lt_reducedTableWords {t w idx : ℕ}
     (hidx : idx < 2 ^ (2 * reducedChunkBits t)) :
-    idx >>> reducedPackShift t w < reducedTableWords t w :=
-  (reducedPackIndex_props hidx).1
+    idx >>> reducedPackShift t w < reducedTableWords t w := by
+  rw [reducedTableWords, Nat.shiftRight_eq_div_pow]
+  exact Nat.div_lt_of_lt_mul (by rwa [← pow_add, Nat.add_sub_of_le (reducedPackShift_le t w)])
 
 theorem shiftRight_add_one_le (idx p : ℕ) :
     (idx + 1) >>> p ≤ (idx >>> p) + 1 := by
