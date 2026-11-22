@@ -46,7 +46,7 @@ in the context (see "Hypotheses and leaves"); the trusted step is the same, on a
   `¬P` as `imp P falsum`, `True` as `imp falsum falsum`, and `P ↔ Q` as
   `and (imp P Q) (imp Q P)`.
 * `a ≠ b` is read as `¬a = b`, which it unfolds to at reducible transparency, so a hypothesis
-  `h : a ≠ b` fixes the atom `a = b`.
+  `h : a ≠ b` fixes the atom `a = b`. A β-redex `(fun x => P x) a` is read as `P a`.
 * Every other subterm is an atom: an equation `f x = y`, an order fact `n < 3`, a dependent `∀`
   or `∃`, a definition other than `≠` that unfolds to connectives, such as `Xor' p q`. Atoms are
   numbered from `0` in order of first occurrence, left to right, in the goal and then in the
@@ -233,9 +233,9 @@ private inductive Shape where
 private instance : Inhabited Shape := ⟨.falsum⟩
 
 /-- Reads a proposition as a formula over its atoms. `a ≠ b` is read as `¬a = b`, which it
-unfolds to at reducible transparency. -/
+unfolds to at reducible transparency, and a β-redex `(fun x => P x) a` as `P a`. -/
 private partial def reify (e : Expr) : AtomM Shape := do
-  let e := e.consumeMData
+  let e := e.consumeMData.headBeta
   match e.getAppFnArgs with
   | (``False, #[]) => return .falsum
   | (``True, #[]) => return .verum

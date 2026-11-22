@@ -520,4 +520,9 @@ example (p : Prop) (a : ℕ) : a ≠ a → p := by
 example (p : Prop) (a : ℕ) (h : a ≠ a) : p := by
   lrat_tauto
 
+/-- A β-redex is reduced before it is read, so it is a formula over the atoms `a ∈ s` and
+`a ∈ t`. -/
+example (s t : Set ℕ) (a : ℕ) : (fun x => x ∈ s → x ∈ t) a ↔ ¬a ∈ s ∨ a ∈ t := by
+  lrat_tauto
+
 end CslibFrontierTests.LRATTautoTactic
