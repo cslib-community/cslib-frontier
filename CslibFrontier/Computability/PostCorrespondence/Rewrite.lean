@@ -1,14 +1,13 @@
 /-
 Copyright (c) 2026 Samuel Schlesinger. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
-Authors: Samuel Schlesinger
+Authors: Samuel Schlesinger, Christian Reitwiessner
 -/
 
 module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.PostCorrespondence.Basic
-public import Mathlib.Logic.Relation
 
 /-!
 # String rewriting and the modified correspondence problem
@@ -48,33 +47,6 @@ namespace Cslib.PostCorrespondence
 open Relation
 
 variable {α : Type*}
-
-/-- One rewriting step with a set `R` of dominoes, read as a semi-Thue system: an occurrence of the
-top word of a domino of `R` is replaced by its bottom word. -/
-@[expose] def Rewrites (R : Domino α → Prop) (u v : List α) : Prop :=
-  ∃ p d s, R d ∧ u = p ++ d.top ++ s ∧ v = p ++ d.bottom ++ s
-
-theorem Rewrites.append_left {R : Domino α → Prop} {u v : List α} (h : Rewrites R u v)
-    (w : List α) : Rewrites R (w ++ u) (w ++ v) := by
-  obtain ⟨p, d, s, hd, rfl, rfl⟩ := h
-  exact ⟨w ++ p, d, s, hd, by simp only [List.append_assoc],
-    by simp only [List.append_assoc]⟩
-
-theorem Rewrites.append_right {R : Domino α → Prop} {u v : List α} (h : Rewrites R u v)
-    (w : List α) : Rewrites R (u ++ w) (v ++ w) := by
-  obtain ⟨p, d, s, hd, rfl, rfl⟩ := h
-  exact ⟨p, d, s ++ w, hd, by simp only [List.append_assoc],
-    by simp only [List.append_assoc]⟩
-
-theorem reflTransGen_rewrites_append_left {R : Domino α → Prop} {u v : List α}
-    (h : ReflTransGen (Rewrites R) u v) (w : List α) :
-    ReflTransGen (Rewrites R) (w ++ u) (w ++ v) :=
-  ReflTransGen.lift (w ++ ·) (fun _ _ (h : Rewrites R _ _) => h.append_left w) _ _ h
-
-theorem reflTransGen_rewrites_append_right {R : Domino α → Prop} {u v : List α}
-    (h : ReflTransGen (Rewrites R) u v) (w : List α) :
-    ReflTransGen (Rewrites R) (u ++ w) (v ++ w) :=
-  ReflTransGen.lift (· ++ w) (fun _ _ (h : Rewrites R _ _) => h.append_right w) _ _ h
 
 /-- A sequence of dominoes, each of which is in `R` or has equal top and bottom, rewrites its top
 concatenation to its bottom concatenation. -/
