@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperser4n.Normal
 
 /-!
-# Case 5b and Lemma 4.2 (`State.Valid.exists_step`) for `4n - 10d` gate elimination
+# Case 5b and Lemma 4.2 (`State.Valid.exists_step`) for `4n - 9d` gate elimination
 
 In a normal state `S` with `d < S.a`, `S.gates` is nonempty (`State.Valid.exists_gate_of_normal`),
 and its minimal gate `G` reads no other gates (`State.exists_minGate`) and is non-affine.
@@ -21,8 +21,8 @@ and its minimal gate `G` reads no other gates (`State.exists_minGate`) and is no
   `gates` unchanged and strictly decreasing `auxIn G`.
 * Once `G` reads two distinct unpaired parameters `t₁, t₂ ∈ S.unpaired`, `S.out` cannot read `G`,
   so some gate `K ≠ G` reads `G`. Pair creation `(PC)` (`State.addPair ⟨t₁, α, t₂, β⟩`) makes `G`
-  constant `γ` on `Z(P')` and turns `t₁, t₂` from weight `6` into paired (`Δq = +1`, `ΔW = -8`).
-  Deleting `G` and then `K` yields `Δm = 0, Δs = -2, Δa = -1, ΔW ≤ -10 = 10 Δa`
+  constant `γ` on `Z(P')` and turns `t₁, t₂` from weight `5` into paired (`Δq = +1`, `ΔW = -7`).
+  Deleting `G` and then `K` yields `Δm = 0, Δs = -2, Δa = -1, ΔW ≤ -9 = 9 Δa`
   (`State.Valid.step_of_pairCreation`).
 
 Combining with Cases 1–5a gives Lemma 4.2 (`State.Valid.exists_step`).
@@ -47,7 +47,7 @@ Combining with Cases 1–5a gives Lemma 4.2 (`State.Valid.exists_step`).
   5b state, pair creation followed by deleting `G` and a gate `K` reading it.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.State.Valid.step_of_pairCreation`: Case 5b `(PC)`.
 * `Cslib.Circuits.Boolean.AffineDisperser4n.State.Valid.exists_step`: Lemma 4.2, every valid
-  state with `d < S.a` admits a step reducing `m + s` with `Δa ∈ {0, -1, -2}` and `ΔW ≤ 10 Δa`.
+  state with `d < S.a` admits a step reducing `m + s` with `Δa ∈ {0, -1, -2}` and `ΔW ≤ 9 Δa`.
 
 ## References
 
@@ -311,7 +311,7 @@ theorem Valid.preparation_swap_auxIn {S : State n} {f : BooleanFunction n} (hS :
 
 /-- Pair creation `(PC)` on two distinct unpaired inputs `t₁, t₂` of a gate `G` computing
 `((t₁ ⊕ α) ∧ (t₂ ⊕ β)) ⊕ γ`, followed by deleting `G` (now constant `γ`) and a gate `K` reading
-`G`, is a valid step with `Δm = 0`, `Δs = -2`, `Δa = -1`, and `ΔW ≤ -10`. -/
+`G`, is a valid step with `Δm = 0`, `Δs = -2`, `Δa = -1`, and `ΔW ≤ -9`. -/
 theorem Valid.step_pairCreation_of {S : State n} {f : BooleanFunction n} (hS : S.Valid f)
     {G t₁ t₂ : ℕ} (hG : G ∈ S.gates) (htne : t₁ ≠ t₂) (hGt₁ : (S.gate G).Reads t₁)
     (hGt₂ : (S.gate G).Reads t₂) (ht₁unp : t₁ ∈ S.unpaired) (ht₂unp : t₂ ∈ S.unpaired)
@@ -328,7 +328,7 @@ theorem Valid.step_pairCreation_of {S : State n} {f : BooleanFunction n} (hS : S
   have hpc : S.AddPairOK pr := ⟨ht₁unp, ht₂unp, htne⟩
   let S₁ := S.addPair pr
   have hS₁ : S₁.Valid f := Valid.addPair hS hpc
-  have hW₁ : S₁.W + 8 = S.W := Valid.addPair_W_eq hS hpc ht₁deg ht₂deg
+  have hW₁ : S₁.W + 7 = S.W := Valid.addPair_W_eq hS hpc ht₁deg ht₂deg
   have hconstG : ∀ val, S₁.EqnsHold val → S₁.Locus val → (S₁.gate G).eval val = γ :=
     fun val _ hlocus => by
       have hholds := (ZeroPair.holds_iff_and_eq_false pr val).1
@@ -393,7 +393,7 @@ theorem Valid.step_pairCreation_of {S : State n} {f : BooleanFunction n} (hS : S
 
 /-- When the minimal gate `G` is non-affine and reads two distinct parameters `t₁, t₂`, pair
 creation `(PC)` plus deleting `G` and a gate reading `G` gives a valid step with `Δm = 0`,
-`Δs = -2`, `Δa = -1`, and `ΔW ≤ -10`. -/
+`Δs = -2`, `Δa = -1`, and `ΔW ≤ -9`. -/
 theorem Valid.step_of_pairCreation {S : State n} {f : BooleanFunction n} {d : ℕ}
     (hS : S.Valid f) (hf : IsAffineDisperser f d) (ha : d < S.a) (hN : S.Normal)
     {G t₁ t₂ : ℕ} (hG : G ∈ S.gates) (hnotaff : ¬ IsAffineOp (S.gate G).op)
@@ -491,9 +491,10 @@ private theorem Valid.exists_step_aux {f : BooleanFunction n} {d : ℕ} (hf : Is
             exact Valid.step_of_pairCreation hS hf ha hN hG hnotaff htne hGt₁ hGt₂
               (hmem_par t₁ hGt₁) (hmem_par t₂ hGt₂)
 
-/-- Lemma 4.2 (label per issue `#4322`, unverified against [MishraSanthanam2027]): if `S` is a
-valid state for a `d`-affine disperser `f` and `d < S.a`, then there is a valid step from `S`
-strictly reducing `m + s` with `Δa ∈ {0, -1, -2}` and `ΔW ≤ 10 Δa`. -/
+/-- Lemma 4.2 (framework per issue `#4322`, unverified against [MishraSanthanam2027]; tightened
+here from `ΔW ≤ 10 Δa` to `ΔW ≤ 9 Δa`): if `S` is a valid state for a `d`-affine disperser `f`
+and `d < S.a`, then there is a valid step from `S` strictly reducing `m + s` with
+`Δa ∈ {0, -1, -2}` and `ΔW ≤ 9 Δa`. -/
 theorem Valid.exists_step {S : State n} {f : BooleanFunction n} {d : ℕ} (hS : S.Valid f)
     (hf : IsAffineDisperser f d) (ha : d < S.a) : ∃ S', Step f S S' :=
   let k₂ := if hne : S.gates.Nonempty then S.auxIn (S.gates.min' hne) else 0

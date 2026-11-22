@@ -149,7 +149,6 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
           (i * rChunk w₀ b b')) ∧
     (∀ a, (a < prodBase ∨ prodBase + 2 * rLimbs w₀ b b' ≤ a) → s'.mem a = s₀.mem a) := by
   intro hp env prog s'
-  have hc_pos : 0 < rChunk w₀ b b' := reducedChunkBits_pos _
   have hpow2c : Fits w (2 ^ (2 * rChunk w₀ b b')) := Nat.pow_lt_pow_right one_lt_two hc_lt
   have hpowc : Fits w (2 ^ rChunk w₀ b b') :=
     hpow2c.of_le (Nat.pow_le_pow_right two_pos (by omega))
@@ -259,7 +258,7 @@ private theorem innerClmulLoop_spec {w w₀ b b' k hashBase prodBase i uLimb rVa
             rcases eq_or_ne d (i + m) with rfl | hne0
             · rw [Function.update_self]; exact Nat.xor_lt_two_pow (hprod_s _ hd) hlo_lt
             · rw [Function.update_of_ne hne0]; exact hprod_s d hd
-        · rw [packLimbs_congr hs₁_fn, packLimbs_update_pair hc_pos f (by omega) hcl_lt,
+        · rw [packLimbs_congr hs₁_fn, packLimbs_update_pair f (by omega) hcl_lt,
             hpack_s, Nat.xor_assoc]
           change P₀ ^^^ (clmul uLimb (truncLimbs (rChunk w₀ b b') m rVal) <<<
               (i * rChunk w₀ b b') ^^^
@@ -540,8 +539,9 @@ private theorem reduceAddLoop_spec {w w₀ b b' k hashBase scratchBase PVal : �
             dsimp only at hhigh
             rw [Nat.add_sub_of_le hm_ge,
               show 2 * rHalf w₀ b b' + (m - rHalf w₀ b b') = rHalf w₀ b b' + m by omega,
-              getLimb_eq_zero_of_lt (d := 4 * rHalf w₀ b b' + (m - rHalf w₀ b b')) hP_lt (
-                by omega),
+              getLimb_eq_zero_of_lt (m := 4 * rHalf w₀ b b' + (m - rHalf w₀ b b'))
+                (hP_lt.trans_le (Nat.pow_le_pow_right two_pos
+                  (Nat.mul_le_mul_right _ (by omega)))),
               Nat.xor_zero] at hhigh
             have hval_eq : (s.mem (scratchBase + accWords + m) ^^^
                 s.mem (scratchBase + accWords + (rHalf w₀ b b' + m))) ^^^

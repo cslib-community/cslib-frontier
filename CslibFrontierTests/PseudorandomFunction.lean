@@ -37,7 +37,8 @@ example (n : ℕ) :
     ProbComp.eval (prfIdealGame id id repeatQuery n) = PMF.uniformOfFintype Bool ∧
       ProbComp.eval (Prod.fst <$> (OracleComp.interpret
         (OracleComp.sumHandler (fun k => StateT.lift (ProbComp.unifFin k))
-          (fun request => cachedRandomFunctionOracle n n request.2)) (repeatQuery n [])).run []) =
+          (fun request => cachedRandomFunctionOracle (·.length == n) n request.2))
+            (repeatQuery n [])).run []) =
         PMF.uniformOfFintype Bool := by
   have h : ProbComp.eval (prfIdealGame id id repeatQuery n) = PMF.uniformOfFintype Bool := by
     simp only [prfIdealGame, id_eq, ProbOracleComp.run, ProbComp.eval_bind, ProbComp.eval_uniform,
@@ -49,12 +50,13 @@ example (n : ℕ) :
 
 -- Malformed words neither sample an answer nor alter even a preassigned cache.
 example (cache : List (List Bool × List Bool)) :
-    cachedRandomFunctionOracle 2 2 [] cache = pure ([], cache) := by
+    cachedRandomFunctionOracle (·.length == 2) 2 [] cache = pure ([], cache) := by
   simp [cachedRandomFunctionOracle]
 
 -- Duplicate preassigned keys use their first entry and do not resample.
-example : cachedRandomFunctionOracle 1 1 [false] [([false], [true]), ([false], [false])] =
-    pure ([true], [([false], [true]), ([false], [false])]) := by
+example : cachedRandomFunctionOracle (·.length == 1) 1 [false]
+    [([false], [true]), ([false], [false])] =
+      pure ([true], [([false], [true]), ([false], [false])]) := by
   simp [cachedRandomFunctionOracle, memoize]
 
 -- A purported family must produce valid-width answers, even if it has a trivial evaluator.

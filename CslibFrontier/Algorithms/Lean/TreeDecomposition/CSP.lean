@@ -14,7 +14,6 @@ public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagAssignment
 public import CslibFrontier.Logics.Propositional.CSP.PrimalGraph
 public import Mathlib.Data.Finset.Card
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 import CslibFrontier.Algorithms.Lean.TimeM.Simps
 
@@ -241,11 +240,11 @@ theorem time_projectUpdateM_le (q : ℕ) (v : V) (d : ℕ) (LB LP : List V) (m :
   | cons u LP ih =>
     by_cases huv : u = v
     · simp only [projectUpdateM, huv, ite_true, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        List.length_cons]
-      nlinarith
+        List.length_cons, Nat.succ_mul]
+      omega
     · simp only [projectUpdateM, huv, ite_false, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure,
-        time_lookupM, List.length_cons]
-      nlinarith
+        time_lookupM, List.length_cons, Nat.succ_mul]
+      omega
 
 /-- Build a length-`n` array table entry by entry in `TimeM ℕ`. -/
 @[expose] def tableLoopM {β : Type} : ℕ → (ℕ → TimeM ℕ β) → TimeM ℕ (Array β)
@@ -376,22 +375,15 @@ private theorem dpAlgFold_bool (k : ℕ) (g : ℕ → Bool) :
   | zero => rfl
   | succ k ih =>
     simp only [dpAlgFold, ih]
-    by_cases h : g k = true
-    · simp only [h, Bool.or_true]
-      exact (decide_eq_true_iff.2 ⟨k, Nat.lt_succ_self k, h⟩).symm
-    · have hf : g k = false := Bool.eq_false_iff.2 h
-      simp only [hf, Bool.or_false]
-      by_cases hex : ∃ d < k, g d = true
-      · have hex' : ∃ d < k + 1, g d = true := by
-          obtain ⟨d, hdk, hfd⟩ := hex
-          exact ⟨d, Nat.lt_succ_of_lt hdk, hfd⟩
-        rw [decide_eq_true_iff.2 hex, decide_eq_true_iff.2 hex']
-      · have hex' : ¬∃ d < k + 1, g d = true := by
-          rintro ⟨d, hdk, hfd⟩
-          rcases Nat.lt_succ_iff_lt_or_eq.1 hdk with hlt | rfl
-          · exact hex ⟨d, hlt, hfd⟩
-          · exact h hfd
-        rw [decide_eq_false_iff_not.2 hex, decide_eq_false_iff_not.2 hex']
+    rw [← Bool.decide_eq_true (b := g k), ← Bool.decide_or]
+    refine decide_eq_decide.2 ⟨?_, ?_⟩
+    · rintro (⟨d, hdk, hfd⟩ | hk)
+      · exact ⟨d, Nat.lt_succ_of_lt hdk, hfd⟩
+      · exact ⟨k, Nat.lt_succ_self k, hk⟩
+    · rintro ⟨d, hdk, hfd⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.1 hdk with hlt | rfl
+      · exact Or.inl ⟨d, hlt, hfd⟩
+      · exact Or.inr hfd
 
 private noncomputable def dpSpec {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
     (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) (U : Finset V) :
@@ -444,26 +436,6 @@ arity `F.vars.length`. -/
 @[expose] def dpNodeCost (w : ℕ) (F : CSP Rel V) : ℕ :=
   F.length + F.vars.length * (2 * w + 6) + (w + 1) * (w + 2) + 4
 
-private theorem maxBagCard_introduce_child (v : V) (child : NiceTree V) :
-    child.maxBagCard ≤ (NiceTree.introduce v child).maxBagCard := by
-  simp only [NiceTree.maxBagCard]
-  exact le_max_right _ _
-
-private theorem maxBagCard_forget_child (v : V) (child : NiceTree V) :
-    child.maxBagCard ≤ (NiceTree.forget v child).maxBagCard := by
-  simp only [NiceTree.maxBagCard]
-  exact le_max_right _ _
-
-private theorem maxBagCard_join_left (left right : NiceTree V) :
-    left.maxBagCard ≤ (NiceTree.join left right).maxBagCard := by
-  simp only [NiceTree.maxBagCard]
-  exact (le_max_left _ _).trans (le_max_right _ _)
-
-private theorem maxBagCard_join_right (left right : NiceTree V) :
-    right.maxBagCard ≤ (NiceTree.join left right).maxBagCard := by
-  simp only [NiceTree.maxBagCard]
-  exact (le_max_right _ _).trans (le_max_right _ _)
-
 private theorem width_le_of_maxBagCard_le {S T : NiceTree V}
     (h : S.maxBagCard ≤ T.maxBagCard) : S.width ≤ T.width := by
   change S.maxBagCard - 1 ≤ T.maxBagCard - 1
@@ -475,204 +447,170 @@ private theorem dpNodeCost_mono {w w' : ℕ} (h : w ≤ w') (F : CSP Rel V) :
   unfold dpNodeCost
   gcongr
 
+omit [DecidableEq V] in
+private theorem treeCost_mono {q w₁ w₂ : ℕ} (hq : 0 < q) (hw : w₁ ≤ w₂) (F : CSP Rel V) :
+    q ^ (w₁ + 1) * dpNodeCost w₁ F ≤ q ^ (w₂ + 1) * dpNodeCost w₂ F :=
+  Nat.mul_le_mul (Nat.pow_le_pow_right hq (Nat.add_le_add_right hw 1)) (dpNodeCost_mono hw F)
+
+private theorem time_dpTreeM_forget_step {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
+    (v : V) (child : NiceTree V) (F : CSP Rel V)
+    (childTbl : Array β) (hval : (NiceTree.forget v child).LocalValid) :
+    (memM v F.vars).time + (tableLoopM (q ^ ((bagList child).erase v).length) fun m =>
+      if (memM v F.vars).ret then
+        sumLoopM A.zero A.add q fun d => do
+          let idx ← projectUpdateM q v d ((bagList child).erase v) m (bagList child)
+          pure (childTbl.getD idx A.zero)
+      else do
+        let idx ← projectUpdateM q v 0 ((bagList child).erase v) m (bagList child)
+        pure (childTbl.getD idx A.zero)).time ≤
+      q ^ ((NiceTree.forget v child).width + 1) *
+        dpNodeCost (NiceTree.forget v child).width F := by
+  let W := (NiceTree.forget v child).width
+  have hcw : child.width ≤ W := width_le_of_maxBagCard_le (le_max_right _ _)
+  have hlenChild : (bagList child).length ≤ W + 1 :=
+    (length_bagList_le hval.2).trans (Nat.add_le_add_right hcw 1)
+  have hlen : ((bagList child).erase v).length ≤ W := by
+    have h1 : ((bagList child).erase v).length = (NiceTree.forget v child).bag.card := by
+      simpa only [bagList] using length_bagList (T := .forget v child) hval
+    have hcard : (NiceTree.forget v child).bag.card + 1 = child.bag.card :=
+      Finset.card_erase_add_one hval.1
+    have h2 := length_bagList hval.2
+    omega
+  have hinner : ∀ m d : ℕ, (do
+      let idx ← projectUpdateM q v d ((bagList child).erase v) m (bagList child)
+      pure (childTbl.getD idx A.zero)).time ≤ (W + 1) * (W + 2) := fun m d => by
+    simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero]
+    exact (time_projectUpdateM_le q v d _ _ _).trans (Nat.mul_le_mul hlenChild (by omega))
+  have hloop := time_tableLoopM_le (n := q ^ ((bagList child).erase v).length)
+    (B := q * ((W + 1) * (W + 2) + 1))
+    (f := fun m =>
+      if (memM v F.vars).ret then
+        sumLoopM A.zero A.add q fun d => do
+          let idx ← projectUpdateM q v d ((bagList child).erase v) m (bagList child)
+          pure (childTbl.getD idx A.zero)
+      else do
+        let idx ← projectUpdateM q v 0 ((bagList child).erase v) m (bagList child)
+        pure (childTbl.getD idx A.zero))
+    fun m _ => by
+      split_ifs
+      · exact time_sumLoopM_le A.zero A.add fun d _ => hinner m d
+      · exact (hinner m 0).trans ((Nat.le_mul_of_pos_left _ hq).trans
+          (Nat.mul_le_mul_left q (Nat.le_succ _)))
+  have hstep1 : q ^ ((bagList child).erase v).length * (q * ((W + 1) * (W + 2) + 1) + 1) ≤
+      q ^ (W + 1) * ((W + 1) * (W + 2) + 2) := by
+    calc q ^ ((bagList child).erase v).length * (q * ((W + 1) * (W + 2) + 1) + 1)
+        ≤ q ^ ((bagList child).erase v).length * (q * ((W + 1) * (W + 2) + 1) + q) := by
+          gcongr
+          exact hq
+      _ = q ^ (((bagList child).erase v).length + 1) * ((W + 1) * (W + 2) + 2) := by
+          rw [Nat.pow_succ]; ring
+      _ ≤ q ^ (W + 1) * ((W + 1) * (W + 2) + 2) := by gcongr
+  have hvars : F.vars.length ≤ q ^ (W + 1) * F.vars.length :=
+    Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ hq)
+  rw [time_memM]
+  refine (Nat.add_le_add hvars (hloop.trans hstep1)).trans ?_
+  rw [← Nat.mul_add]
+  refine Nat.mul_le_mul_left _ ?_
+  unfold dpNodeCost
+  have h2 := Nat.le_mul_of_pos_right F.vars.length
+    (by omega : 0 < 2 * (NiceTree.forget v child).width + 6)
+  dsimp only [W]
+  omega
+
 private theorem time_dpTreeM_le_aux {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
     (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) :
     ∀ {T : NiceTree V}, T.LocalValid →
       (dpTreeM A q hq sem F F.vars T).time ≤
         T.size * (q ^ (T.width + 1) * dpNodeCost T.width F)
   | .leaf, _ => by
-    have hsize : (NiceTree.leaf : NiceTree V).size = 1 := rfl
     simp only [dpTreeM, TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_checkNilScopeM]
-    rw [hsize, Nat.one_mul]
-    have hqpow : 1 ≤ q ^ ((NiceTree.leaf : NiceTree V).width + 1) :=
-      Nat.one_le_pow _ _ hq
+    have hqpow : 1 ≤ q ^ ((NiceTree.leaf : NiceTree V).width + 1) := Nat.one_le_pow _ _ hq
     have hcost : F.length + 1 ≤ dpNodeCost (NiceTree.leaf : NiceTree V).width F := by
-      unfold dpNodeCost
-      omega
-    calc F.length + 1 + 0
-        = 1 * (F.length + 1) := by omega
-      _ ≤ q ^ ((NiceTree.leaf : NiceTree V).width + 1) *
-            dpNodeCost (NiceTree.leaf : NiceTree V).width F := Nat.mul_le_mul hqpow hcost
+      unfold dpNodeCost; omega
+    have hsize : (NiceTree.leaf : NiceTree V).size = 1 := rfl
+    rw [hsize, Nat.one_mul]
+    calc F.length + 1 + 0 = 1 * (F.length + 1) := by omega
+      _ ≤ _ := Nat.mul_le_mul hqpow hcost
   | .introduce v child, hval => by
-    have ih := time_dpTreeM_le_aux A q hq sem F hval.2
     have hcw : child.width ≤ (NiceTree.introduce v child).width :=
-      width_le_of_maxBagCard_le (maxBagCard_introduce_child v child)
-    have hih : (dpTreeM A q hq sem F F.vars child).time ≤
-        child.size * (q ^ ((NiceTree.introduce v child).width + 1) *
-          dpNodeCost (NiceTree.introduce v child).width F) :=
-      ih.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul
-        (Nat.pow_le_pow_right hq (Nat.add_le_add_right hcw 1)) (dpNodeCost_mono hcw F)))
+      width_le_of_maxBagCard_le (le_max_right _ _)
+    have hih := (time_dpTreeM_le_aux A q hq sem F hval.2).trans
+      (Nat.mul_le_mul_left _ (treeCost_mono hq hcw F))
     have hlen : (v :: bagList child).length ≤ (NiceTree.introduce v child).width + 1 := by
-      simpa [bagList] using length_bagList_le (T := .introduce v child) hval
+      simpa only [bagList] using length_bagList_le (T := .introduce v child) hval
     have hloop := time_tableLoopM_le (n := q ^ (v :: bagList child).length)
       (B := F.length + F.vars.length * (2 * ((NiceTree.introduce v child).width + 1) + 3) + 1)
       (f := fun m => do
         let ok ← checkIntroScopeM q hq sem v (v :: bagList child) m F
         TimeM.tick 1
         pure (if ok then (dpTreeM A q hq sem F F.vars child).ret.getD (m / q) A.zero else A.zero))
-      (fun m _ => by
+      fun m _ => by
         simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_checkIntroScopeM]
         gcongr
-        omega)
-    have hqpow : q ^ (v :: bagList child).length ≤
-        q ^ ((NiceTree.introduce v child).width + 1) :=
-      Nat.pow_le_pow_right hq hlen
-    have hlin : 2 * ((NiceTree.introduce v child).width + 1) + 3 ≤
-        2 * (NiceTree.introduce v child).width + 6 := by omega
+        omega
     have hstep : q ^ (v :: bagList child).length *
           (F.length + F.vars.length * (2 * ((NiceTree.introduce v child).width + 1) + 3) + 1 + 1) ≤
         q ^ ((NiceTree.introduce v child).width + 1) *
           dpNodeCost (NiceTree.introduce v child).width F := by
-      refine Nat.mul_le_mul hqpow ?_
+      refine Nat.mul_le_mul (Nat.pow_le_pow_right hq hlen) ?_
       unfold dpNodeCost
-      have hmul := Nat.mul_le_mul_left F.vars.length hlin
+      have hmul := Nat.mul_le_mul_left F.vars.length
+        (by omega : 2 * ((NiceTree.introduce v child).width + 1) + 3 ≤
+          2 * (NiceTree.introduce v child).width + 6)
       omega
     have hsize : (NiceTree.introduce v child).size = child.size + 1 := rfl
     simp only [dpTreeM, TimeM.time_bind]
     rw [hsize, Nat.add_mul, Nat.one_mul]
     exact Nat.add_le_add hih (hloop.trans hstep)
   | .forget v child, hval => by
-    have ih := time_dpTreeM_le_aux A q hq sem F hval.2
     have hcw : child.width ≤ (NiceTree.forget v child).width :=
-      width_le_of_maxBagCard_le (maxBagCard_forget_child v child)
-    have hih : (dpTreeM A q hq sem F F.vars child).time ≤
-        child.size * (q ^ ((NiceTree.forget v child).width + 1) *
-          dpNodeCost (NiceTree.forget v child).width F) :=
-      ih.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul
-        (Nat.pow_le_pow_right hq (Nat.add_le_add_right hcw 1)) (dpNodeCost_mono hcw F)))
-    have hlenChild : (bagList child).length ≤ (NiceTree.forget v child).width + 1 :=
-      (length_bagList_le hval.2).trans (Nat.add_le_add_right hcw 1)
-    have hlen : ((bagList child).erase v).length ≤ (NiceTree.forget v child).width := by
-      have h1 : ((bagList child).erase v).length = ((NiceTree.forget v child).bag).card := by
-        simpa [bagList] using length_bagList (T := .forget v child) hval
-      have hv : v ∈ child.bag := hval.1
-      have hcard : ((NiceTree.forget v child).bag).card + 1 = child.bag.card :=
-        Finset.card_erase_add_one hv
-      have h2 := length_bagList hval.2
-      omega
-    have hinner : ∀ m d : ℕ, (do
-        let idx ← projectUpdateM q v d ((bagList child).erase v) m (bagList child)
-        pure ((dpTreeM A q hq sem F F.vars child).ret.getD idx A.zero)).time ≤
-        ((NiceTree.forget v child).width + 1) * ((NiceTree.forget v child).width + 2) := by
-      intro m d
-      simp only [TimeM.time_bind, TimeM.time_pure, Nat.add_zero]
-      exact (time_projectUpdateM_le q v d _ _ _).trans (Nat.mul_le_mul hlenChild (by omega))
-    have hbranch : ∀ hU : Bool, ∀ m : ℕ, (if hU = true then
-        sumLoopM A.zero A.add q fun d => do
-          let idx ← projectUpdateM q v d ((bagList child).erase v) m (bagList child)
-          pure ((dpTreeM A q hq sem F F.vars child).ret.getD idx A.zero)
-        else do
-          let idx ← projectUpdateM q v 0 ((bagList child).erase v) m (bagList child)
-          pure ((dpTreeM A q hq sem F F.vars child).ret.getD idx A.zero)).time ≤
-        q * (((NiceTree.forget v child).width + 1) *
-          ((NiceTree.forget v child).width + 2) + 1) := by
-      intro hU m
-      split_ifs
-      · exact time_sumLoopM_le A.zero A.add fun d _ => hinner m d
-      · exact (hinner m 0).trans ((Nat.le_mul_of_pos_left _ hq).trans
-          (Nat.mul_le_mul_left q (Nat.le_succ _)))
-    have hqpow : q ^ ((bagList child).erase v).length * q ≤
-        q ^ ((NiceTree.forget v child).width + 1) := by
-      rw [← Nat.pow_succ]
-      exact Nat.pow_le_pow_right hq (Nat.add_le_add_right hlen 1)
-    have hstep1 : (q ^ ((bagList child).erase v).length) *
-        (q * (((NiceTree.forget v child).width + 1) *
-          ((NiceTree.forget v child).width + 2) + 1) + 1) ≤
-        q ^ ((NiceTree.forget v child).width + 1) *
-          (((NiceTree.forget v child).width + 1) *
-            ((NiceTree.forget v child).width + 2) + 2) := by
-      have h1 : q * (((NiceTree.forget v child).width + 1) *
-            ((NiceTree.forget v child).width + 2) + 1) + 1 ≤
-          q * (((NiceTree.forget v child).width + 1) *
-            ((NiceTree.forget v child).width + 2) + 2) := by
-        nlinarith
-      calc (q ^ ((bagList child).erase v).length) *
-            (q * (((NiceTree.forget v child).width + 1) *
-              ((NiceTree.forget v child).width + 2) + 1) + 1)
-          ≤ q ^ ((bagList child).erase v).length *
-              (q * (((NiceTree.forget v child).width + 1) *
-                ((NiceTree.forget v child).width + 2) + 2)) := Nat.mul_le_mul_left _ h1
-        _ = (q ^ ((bagList child).erase v).length * q) *
-              (((NiceTree.forget v child).width + 1) *
-                ((NiceTree.forget v child).width + 2) + 2) := by ring
-        _ ≤ q ^ ((NiceTree.forget v child).width + 1) *
-              (((NiceTree.forget v child).width + 1) *
-                ((NiceTree.forget v child).width + 2) + 2) := Nat.mul_le_mul_right _ hqpow
-    have hvars : F.vars.length ≤ q ^ ((NiceTree.forget v child).width + 1) * F.vars.length :=
-      Nat.le_mul_of_pos_left _ (Nat.one_le_pow _ _ hq)
-    have htotal : F.vars.length + (q ^ ((bagList child).erase v).length) *
-        (q * (((NiceTree.forget v child).width + 1) *
-          ((NiceTree.forget v child).width + 2) + 1) + 1) ≤
-        q ^ ((NiceTree.forget v child).width + 1) *
-          dpNodeCost (NiceTree.forget v child).width F := by
-      calc F.vars.length + _
-          ≤ q ^ ((NiceTree.forget v child).width + 1) * F.vars.length +
-            q ^ ((NiceTree.forget v child).width + 1) *
-              (((NiceTree.forget v child).width + 1) *
-                ((NiceTree.forget v child).width + 2) + 2) := Nat.add_le_add hvars hstep1
-        _ = q ^ ((NiceTree.forget v child).width + 1) *
-              (F.vars.length + (((NiceTree.forget v child).width + 1) *
-                ((NiceTree.forget v child).width + 2) + 2)) := by ring
-        _ ≤ q ^ ((NiceTree.forget v child).width + 1) *
-              dpNodeCost (NiceTree.forget v child).width F := by
-            refine Nat.mul_le_mul_left _ ?_
-            unfold dpNodeCost
-            nlinarith
+      width_le_of_maxBagCard_le (le_max_right _ _)
+    have hih := (time_dpTreeM_le_aux A q hq sem F hval.2).trans
+      (Nat.mul_le_mul_left _ (treeCost_mono hq hcw F))
+    have hstep := time_dpTreeM_forget_step A q hq v child F
+      (dpTreeM A q hq sem F F.vars child).ret hval
     have hsize : (NiceTree.forget v child).size = child.size + 1 := rfl
-    simp only [dpTreeM, TimeM.time_bind, time_memM]
+    simp only [dpTreeM, TimeM.time_bind]
     rw [hsize, Nat.add_mul, Nat.one_mul]
-    exact Nat.add_le_add hih ((Nat.add_le_add_left
-      (time_tableLoopM_le fun m _ => hbranch _ m) _).trans htotal)
+    exact Nat.add_le_add hih hstep
   | .join left right, hval => by
-    have ihL := time_dpTreeM_le_aux A q hq sem F hval.2.2.1
-    have ihR := time_dpTreeM_le_aux A q hq sem F hval.2.2.2
     have hlw : left.width ≤ (NiceTree.join left right).width :=
-      width_le_of_maxBagCard_le (maxBagCard_join_left left right)
+      width_le_of_maxBagCard_le (le_trans (le_max_left _ _) (le_max_right _ _))
     have hrw : right.width ≤ (NiceTree.join left right).width :=
-      width_le_of_maxBagCard_le (maxBagCard_join_right left right)
-    have ihL' := ihL.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul
-      (Nat.pow_le_pow_right hq (Nat.add_le_add_right hlw 1)) (dpNodeCost_mono hlw F)))
-    have ihR' := ihR.trans (Nat.mul_le_mul_left _ (Nat.mul_le_mul
-      (Nat.pow_le_pow_right hq (Nat.add_le_add_right hrw 1)) (dpNodeCost_mono hrw F)))
+      width_le_of_maxBagCard_le (le_trans (le_max_right _ _) (le_max_right _ _))
+    have ihL' := (time_dpTreeM_le_aux A q hq sem F hval.2.2.1).trans
+      (Nat.mul_le_mul_left _ (treeCost_mono hq hlw F))
+    have ihR' := (time_dpTreeM_le_aux A q hq sem F hval.2.2.2).trans
+      (Nat.mul_le_mul_left _ (treeCost_mono hq hrw F))
     have hlenL : (bagList left).length ≤ (NiceTree.join left right).width + 1 :=
       (length_bagList_le hval.2.2.1).trans (Nat.add_le_add_right hlw 1)
     have hlenR : (bagList right).length ≤ (NiceTree.join left right).width + 1 :=
       (length_bagList_le hval.2.2.2).trans (Nat.add_le_add_right hrw 1)
-    have hqpow : q ^ (bagList left).length ≤ q ^ ((NiceTree.join left right).width + 1) :=
-      Nat.pow_le_pow_right hq hlenL
     have hstep : q ^ (bagList left).length *
           (((NiceTree.join left right).width + 1) * ((NiceTree.join left right).width + 2) + 2) ≤
         q ^ ((NiceTree.join left right).width + 1) *
           dpNodeCost (NiceTree.join left right).width F := by
-      refine Nat.mul_le_mul hqpow ?_
-      unfold dpNodeCost
-      omega
-    have hsize : (NiceTree.join left right).size = left.size + right.size + 1 := by
-      simp only [NiceTree.size, NiceTree.sizePred]
-      omega
-    simp only [dpTreeM, TimeM.time_bind]
-    rw [hsize, Nat.add_mul, Nat.add_mul, Nat.one_mul]
-    have hloop : (tableLoopM (q ^ (bagList left).length) fun m => do
+      refine Nat.mul_le_mul (Nat.pow_le_pow_right hq hlenL) ?_
+      unfold dpNodeCost; omega
+    have hloop := time_tableLoopM_le (n := q ^ (bagList left).length)
+      (B := ((NiceTree.join left right).width + 1) * ((NiceTree.join left right).width + 2) + 1)
+      (f := fun m => do
         let mr ← projectM q (bagList left) m (bagList right)
         TimeM.tick 1
         pure (A.mul ((dpTreeM A q hq sem F F.vars left).ret.getD m A.zero)
-          ((dpTreeM A q hq sem F F.vars right).ret.getD mr A.zero))).time ≤
-        q ^ (bagList left).length *
-          (((NiceTree.join left right).width + 1) * ((NiceTree.join left right).width + 2) + 2) :=
-      time_tableLoopM_le fun m _ => by
+          ((dpTreeM A q hq sem F F.vars right).ret.getD mr A.zero)))
+      fun m _ => by
         simp only [TimeM.time_bind, TimeM.time_tick, TimeM.time_pure, time_projectM]
-        have hmul : (bagList right).length * ((bagList left).length + 1) ≤
-            ((NiceTree.join left right).width + 1) * ((NiceTree.join left right).width + 2) :=
-          Nat.mul_le_mul hlenR (Nat.add_le_add_right hlenL 1)
+        have hmul := Nat.mul_le_mul hlenR
+          (by omega : (bagList left).length + 1 ≤ (NiceTree.join left right).width + 2)
         omega
-    calc (dpTreeM A q hq sem F F.vars left).time +
-          ((dpTreeM A q hq sem F F.vars right).time +
-            (tableLoopM (q ^ (bagList left).length) _).time)
-        ≤ left.size * (q ^ ((left.join right).width + 1) * dpNodeCost (left.join right).width F) +
-            (right.size * (q ^ ((left.join right).width + 1) *
-              dpNodeCost (left.join right).width F) +
-              q ^ ((left.join right).width + 1) * dpNodeCost (left.join right).width F) :=
-          Nat.add_le_add ihL' (Nat.add_le_add ihR' (hloop.trans hstep))
+    have hsize : (NiceTree.join left right).size = left.size + right.size + 1 := by
+      simp only [NiceTree.size, NiceTree.sizePred]; omega
+    simp only [dpTreeM, TimeM.time_bind]
+    rw [hsize, Nat.add_mul, Nat.add_mul, Nat.one_mul]
+    calc _ ≤ left.size * _ + (right.size * _ + q ^ ((left.join right).width + 1) *
+          dpNodeCost (left.join right).width F) :=
+        Nat.add_le_add ihL' (Nat.add_le_add ihR' (hloop.trans hstep))
       _ = _ := by ring
 
 theorem time_cspCountTreeM_le (q : ℕ) (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
@@ -716,22 +654,20 @@ private theorem dpSpec_congr {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
       · simp [hc]
     rw [hAll, dpSpec_congr A q hq sem F U hval.2 hbag]
   | .forget v child, hval, α₁, α₂, h => by
-    simp only [dpSpec]
-    by_cases hvU : v ∈ U
-    · simp only [hvU, ↓reduceIte]
-      refine dpAlgFold_congr fun d _ => ?_
-      by_cases hd : d < q
-      · simp only [hd, ↓reduceDIte]
-        refine dpSpec_congr A q hq sem F U hval.2 fun u hu => ?_
+    have hupd (d : Fin q) :
+        dpSpec A q hq sem F U child (Function.update α₁ v d) =
+          dpSpec A q hq sem F U child (Function.update α₂ v d) :=
+      dpSpec_congr A q hq sem F U hval.2 fun u hu => by
         by_cases huv : u = v
         · simp [huv]
         · simp [huv, h u (Finset.mem_erase.2 ⟨huv, hu⟩)]
+    simp only [dpSpec]
+    split_ifs with hvU
+    · refine dpAlgFold_congr fun d _ => ?_
+      by_cases hd : d < q
+      · simp only [hd, ↓reduceDIte, hupd]
       · simp [hd]
-    · simp only [hvU, ↓reduceIte]
-      refine dpSpec_congr A q hq sem F U hval.2 fun u hu => ?_
-      by_cases huv : u = v
-      · simp [huv]
-      · simp [huv, h u (Finset.mem_erase.2 ⟨huv, hu⟩)]
+    · exact hupd ⟨0, hq⟩
   | .join left right, hval, α₁, α₂, h => by
     simp only [dpSpec]
     have hL : ∀ u ∈ left.bag, α₁ u = α₂ u := h
@@ -746,10 +682,8 @@ private theorem getD_dpTreeM {β : Type} (A : DPAlg β) (q : ℕ) (hq : 0 < q)
         (dpTreeM A q hq sem F F.vars T).ret.getD m A.zero =
           dpSpec A q hq sem F F.vars.toFinset T (ofRadixFin q hq (bagList T) m)
   | .leaf, _, m, hm => by
-    have hm0 : m = 0 := by
-      simp only [bagList, List.length_nil, Nat.pow_zero] at hm
-      omega
-    subst hm0
+    simp only [bagList, List.length_nil, Nat.pow_zero, Nat.lt_one_iff] at hm
+    subst hm
     simp only [dpTreeM, time_simps, Array.getD_eq_getD_getElem?, List.getElem?_toArray,
       List.getElem?_cons_zero, Option.getD_some, dpSpec]
   | .introduce v child, hval, m, hm => by
@@ -845,61 +779,20 @@ private theorem dpSpec_dpCountAlg_eq {q : ℕ} (hq : 0 < q) (sem : Rel → List 
       @CSP.specDPCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩ sem F U T α
   | .leaf, α => by
     dsimp only [dpSpec, CSP.specDPCount, dpCountAlg]
-    by_cases h : ∀ c ∈ F, c.scope = [] → c.eval sem (fun _ => ⟨0, hq⟩) = true
-    · have h1 :
-          (F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩)) = true := by
-        rw [List.all_eq_true]
-        intro x hx
-        by_cases hx2 : x.scope = []
-        · rw [Bool.or_eq_true]
-          exact Or.inr (h x hx hx2)
-        · simp [hx2]
-      rw [h1, ite_eq_left rfl, ite_eq_left h]
-    · have h0 :
-          (F.all fun c => !decide (c.scope = []) || c.eval sem (fun _ => ⟨0, hq⟩)) = false := by
-        by_contra hnt
-        rw [Bool.not_eq_false, List.all_eq_true] at hnt
-        apply h
-        intro c hc hc2
-        have hc' := hnt c hc
-        simp only [hc2, decide_true, Bool.not_true, Bool.false_or] at hc'
-        exact hc'
-      rw [h0, ite_eq_right Bool.false_ne_true, ite_eq_right h]
+    exact if_congr (by simp [List.all_eq_true, imp_iff_not_or]) rfl rfl
   | .introduce v child, α => by
     dsimp only [dpSpec, CSP.specDPCount]
-    by_cases h : ∀ c ∈ F, c.scope.toFinset ⊆ insert v child.bag → v ∈ c.scope → c.eval sem α = true
-    · have h1 : (F.all fun c => !(decide (c.scope.toFinset ⊆ insert v child.bag) &&
-          decide (v ∈ c.scope)) || c.eval sem α) = true := by
-        rw [List.all_eq_true]
-        intro c hc
-        by_cases hcb : c.scope.toFinset ⊆ insert v child.bag
-        · by_cases hvc : v ∈ c.scope
-          · simp [hcb, hvc, h c hc hcb hvc]
-          · simp [hvc]
-        · simp [hcb]
-      rw [h1, ite_eq_left rfl, ite_eq_left h, dpSpec_dpCountAlg_eq hq sem F U child α]
-    · have h0 : (F.all fun c => !(decide (c.scope.toFinset ⊆ insert v child.bag) &&
-          decide (v ∈ c.scope)) || c.eval sem α) = false := by
-        by_contra hnt
-        rw [Bool.not_eq_false, List.all_eq_true] at hnt
-        apply h
-        intro c hc hcb hvc
-        have hc' := hnt c hc
-        simp only [hcb, decide_true, hvc, Bool.and_self, Bool.not_true, Bool.false_or] at hc'
-        exact hc'
-      rw [h0, ite_eq_right Bool.false_ne_true, ite_eq_right h]
-      rfl
+    rw [dpSpec_dpCountAlg_eq hq sem F U child α]
+    exact if_congr (by simp [List.all_eq_true, imp_iff_not_or, or_assoc]) rfl rfl
   | .forget v child, α => by
     dsimp only [dpSpec, CSP.specDPCount]
-    by_cases hvU : v ∈ U
-    · rw [ite_eq_left hvU, ite_eq_left hvU]
-      dsimp only [dpCountAlg]
+    split_ifs with hvU
+    · dsimp only [dpCountAlg]
       rw [dpAlgFold_nat, ← Fin.sum_univ_eq_sum_range]
       refine Finset.sum_congr rfl fun d _ => ?_
       rw [dite_eq_left d.isLt, Fin.eta]
       exact dpSpec_dpCountAlg_eq hq sem F U child _
-    · rw [ite_eq_right hvU, ite_eq_right hvU]
-      exact dpSpec_dpCountAlg_eq hq sem F U child _
+    · exact dpSpec_dpCountAlg_eq hq sem F U child _
   | .join left right, α => by
     dsimp only [dpSpec, CSP.specDPCount]
     rw [dpSpec_dpCountAlg_eq hq sem F U left α, dpSpec_dpCountAlg_eq hq sem F U right α]
@@ -926,35 +819,15 @@ private theorem dpSpec_dpDecideAlg_eq {q : ℕ} (hq : 0 < q) (sem : Rel → List
         !decide (v ∈ c.scope) || c.eval sem α <;> simp
   | .forget v child, α => by
     dsimp only [dpSpec, CSP.specDPDecide]
-    by_cases hvU : v ∈ U
-    · rw [ite_eq_left hvU, ite_eq_left hvU]
-      have hfold : (dpAlgFold dpDecideAlg.zero dpDecideAlg.add q fun d =>
-          if hd : d < q then
-            dpSpec dpDecideAlg q hq sem F U child (Function.update α v ⟨d, hd⟩)
-          else dpDecideAlg.zero) =
-        (dpAlgFold false (· || ·) q fun d =>
-          if hd : d < q then
-            @CSP.specDPDecide _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
-              sem F U child (Function.update α v ⟨d, hd⟩)
-          else false) :=
-        dpAlgFold_congr fun d _ => by
-          by_cases hd : d < q
-          · rw [dite_eq_left hd, dite_eq_left hd, dpSpec_dpDecideAlg_eq]
-          · rw [dite_eq_right hd, dite_eq_right hd]
-            rfl
-      rw [hfold, dpAlgFold_bool]
+    split_ifs with hvU
+    · rw [show dpAlgFold dpDecideAlg.zero dpDecideAlg.add = dpAlgFold false (· || ·) from rfl,
+        dpAlgFold_bool]
       congr 1
       simp only [eq_iff_iff]
-      constructor
-      · rintro ⟨d, hd, htrue⟩
-        rw [dite_eq_left hd] at htrue
-        exact ⟨⟨d, hd⟩, htrue⟩
-      · rintro ⟨d, htrue⟩
-        refine ⟨d.1, d.isLt, ?_⟩
-        rw [dite_eq_left d.isLt, Fin.eta]
-        exact htrue
-    · rw [ite_eq_right hvU, ite_eq_right hvU]
-      exact dpSpec_dpDecideAlg_eq hq sem F U child _
+      refine ⟨fun ⟨d, hd, h⟩ => ⟨⟨d, hd⟩, ?_⟩, fun ⟨d, h⟩ => ⟨d.1, d.isLt, ?_⟩⟩
+      · simpa only [dite_eq_left hd, dpSpec_dpDecideAlg_eq] using h
+      · simpa only [dite_eq_left d.isLt, Fin.eta, dpSpec_dpDecideAlg_eq] using h
+    · exact dpSpec_dpDecideAlg_eq hq sem F U child _
   | .join left right, α => by
     dsimp only [dpSpec, CSP.specDPDecide]
     rw [dpSpec_dpDecideAlg_eq hq sem F U left α, dpSpec_dpDecideAlg_eq hq sem F U right α]
@@ -965,20 +838,16 @@ theorem getD_cspCountTreeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) �
     (hm : m < q ^ (bagList T).length) :
     (cspCountTreeM q hq sem F F.vars T).ret.getD m 0 =
       @CSP.specDPCount _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
-        sem F F.vars.toFinset T (ofRadixFin q hq (bagList T) m) := by
-  have hret := getD_dpTreeM dpCountAlg q hq sem F hval hm
-  rw [dpSpec_dpCountAlg_eq] at hret
-  exact hret
+        sem F F.vars.toFinset T (ofRadixFin q hq (bagList T) m) :=
+  (getD_dpTreeM dpCountAlg q hq sem F hval hm).trans (dpSpec_dpCountAlg_eq hq sem F _ _ _)
 
 theorem getD_cspDecideTreeM {q : ℕ} (hq : 0 < q) (sem : Rel → List (Fin q) → Bool)
     (F : CSP Rel V) {T : NiceTree V} (hval : T.LocalValid) {m : ℕ}
     (hm : m < q ^ (bagList T).length) :
     (cspDecideTreeM q hq sem F F.vars T).ret.getD m false =
       @CSP.specDPDecide _ _ (Fin q) _ inferInstance ⟨⟨0, hq⟩⟩
-        sem F F.vars.toFinset T (ofRadixFin q hq (bagList T) m) := by
-  have hret := getD_dpTreeM dpDecideAlg q hq sem F hval hm
-  rw [dpSpec_dpDecideAlg_eq] at hret
-  exact hret
+        sem F F.vars.toFinset T (ofRadixFin q hq (bagList T) m) :=
+  (getD_dpTreeM dpDecideAlg q hq sem F hval hm).trans (dpSpec_dpDecideAlg_eq hq sem F _ _ _)
 
 end Correctness
 
@@ -1136,23 +1005,17 @@ theorem time_cspCountRootedM_le [LinearOrder V] [Fintype V] (q : ℕ) (hq : 0 < 
     (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) {n : ℕ}
     (R : F.primalGraph.RootedTreeDecomposition n) :
     (cspCountRootedM q hq sem F R).time ≤
-      (3 * R.width + 5) * (Fintype.card V + 1) * (q ^ (R.width + 1) * dpNodeCost R.width F) := by
-  have ht := time_cspCountNiceM_le q hq sem F R.toNiceTreePruned
-  have hw := R.toNiceTreePruned_width_le
-  have hs := R.toNiceTreePruned_size_le
-  refine ht.trans (Nat.mul_le_mul hs (Nat.mul_le_mul ?_ (dpNodeCost_mono hw F)))
-  exact Nat.pow_le_pow_right hq (Nat.add_le_add_right hw 1)
+      (3 * R.width + 5) * (Fintype.card V + 1) * (q ^ (R.width + 1) * dpNodeCost R.width F) :=
+  (time_cspCountNiceM_le q hq sem F R.toNiceTreePruned).trans
+    (Nat.mul_le_mul R.toNiceTreePruned_size_le (treeCost_mono hq R.toNiceTreePruned_width_le F))
 
 theorem time_cspDecideRootedM_le [LinearOrder V] [Fintype V] (q : ℕ) (hq : 0 < q)
     (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) {n : ℕ}
     (R : F.primalGraph.RootedTreeDecomposition n) :
     (cspDecideRootedM q hq sem F R).time ≤
-      (3 * R.width + 5) * (Fintype.card V + 1) * (q ^ (R.width + 1) * dpNodeCost R.width F) := by
-  have ht := time_cspDecideNiceM_le q hq sem F R.toNiceTreePruned
-  have hw := R.toNiceTreePruned_width_le
-  have hs := R.toNiceTreePruned_size_le
-  refine ht.trans (Nat.mul_le_mul hs (Nat.mul_le_mul ?_ (dpNodeCost_mono hw F)))
-  exact Nat.pow_le_pow_right hq (Nat.add_le_add_right hw 1)
+      (3 * R.width + 5) * (Fintype.card V + 1) * (q ^ (R.width + 1) * dpNodeCost R.width F) :=
+  (time_cspDecideNiceM_le q hq sem F R.toNiceTreePruned).trans
+    (Nat.mul_le_mul R.toNiceTreePruned_size_le (treeCost_mono hq R.toNiceTreePruned_width_le F))
 
 /-- Exact model count on a rooted tree decomposition of `F.activePrimalGraph` via
 `toNiceTreePruned`. -/
@@ -1187,12 +1050,10 @@ theorem time_cspCountActiveRootedM_le [LinearOrder V] (q : ℕ) (hq : 0 < q)
     (cspCountActiveRootedM q hq sem F R).time ≤
       (3 * R.width + 5) * (F.vars.toFinset.card + 1) *
         (q ^ (R.width + 1) * dpNodeCost R.width F) := by
-  have ht := time_cspCountActiveNiceM_le q hq sem F R.toNiceTreePruned
-  have hw := R.toNiceTreePruned_width_le
   have hs := R.toNiceTreePruned_size_le
   rw [Fintype.card_coe] at hs
-  refine ht.trans (Nat.mul_le_mul hs (Nat.mul_le_mul ?_ (dpNodeCost_mono hw F)))
-  exact Nat.pow_le_pow_right hq (Nat.add_le_add_right hw 1)
+  exact (time_cspCountActiveNiceM_le q hq sem F R.toNiceTreePruned).trans
+    (Nat.mul_le_mul hs (treeCost_mono hq R.toNiceTreePruned_width_le F))
 
 theorem time_cspDecideActiveRootedM_le [LinearOrder V] (q : ℕ) (hq : 0 < q)
     (sem : Rel → List (Fin q) → Bool) (F : CSP Rel V) {n : ℕ}
@@ -1200,12 +1061,10 @@ theorem time_cspDecideActiveRootedM_le [LinearOrder V] (q : ℕ) (hq : 0 < q)
     (cspDecideActiveRootedM q hq sem F R).time ≤
       (3 * R.width + 5) * (F.vars.toFinset.card + 1) *
         (q ^ (R.width + 1) * dpNodeCost R.width F) := by
-  have ht := time_cspDecideActiveNiceM_le q hq sem F R.toNiceTreePruned
-  have hw := R.toNiceTreePruned_width_le
   have hs := R.toNiceTreePruned_size_le
   rw [Fintype.card_coe] at hs
-  refine ht.trans (Nat.mul_le_mul hs (Nat.mul_le_mul ?_ (dpNodeCost_mono hw F)))
-  exact Nat.pow_le_pow_right hq (Nat.add_le_add_right hw 1)
+  exact (time_cspDecideActiveNiceM_le q hq sem F R.toNiceTreePruned).trans
+    (Nat.mul_le_mul hs (treeCost_mono hq R.toNiceTreePruned_width_le F))
 
 end Wrappers
 
@@ -1247,30 +1106,17 @@ theorem modelCount_semFin {q : ℕ} (hq : 0 < q) (sem : Rel → List D → Bool)
   classical
   let _ : Inhabited (Fin q) := ⟨⟨0, hq⟩⟩
   unfold CSP.modelCount CSP.modelCountOn
-  refine Finset.card_bij (fun σ _ v => e.symm (σ v)) ?_ ?_ ?_
+  refine Finset.card_bij (fun σ _ v => e.symm (σ v)) ?_ (fun _ _ _ _ h => funext fun v =>
+      e.symm.injective (congrFun h v)) ?_
   · intro σ hσ
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hσ ⊢
     rw [eval_semFin] at hσ
-    refine Eq.trans ?_ hσ
-    refine CSP.eval_congr fun v hv => ?_
-    have hvF : v ∈ F.vars.toFinset := List.mem_toFinset.2 hv
-    simp [hvF]
-  · intro σ₁ _ σ₂ _ hEq
-    funext v
-    exact e.symm.injective (congrFun hEq v)
+    exact (CSP.eval_congr fun v hv => by simp [List.mem_toFinset.2 hv]).trans hσ
   · intro τ hτ
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hτ
-    refine ⟨fun v => e (τ v), Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, ?_⟩
-    · rw [eval_semFin]
-      have hcongr : CSP.eval sem
-          (fun v => e.symm (if h : v ∈ F.vars.toFinset then e (τ ⟨v, h⟩) else default)) F =
-          CSP.eval sem (fun v => if h : v ∈ F.vars.toFinset then τ ⟨v, h⟩ else default) F := by
-        refine CSP.eval_congr fun v hv => ?_
-        have hvF : v ∈ F.vars.toFinset := List.mem_toFinset.2 hv
-        simp [hvF]
-      exact hcongr.trans hτ
-    · funext v
-      simp
+    refine ⟨fun v => e (τ v), Finset.mem_filter.2 ⟨Finset.mem_univ _, ?_⟩, funext fun v => by simp⟩
+    rw [eval_semFin]
+    exact (CSP.eval_congr fun v hv => by simp [List.mem_toFinset.2 hv]).trans hτ
 
 theorem ret_cspCountNiceM_equiv (sem : Rel → List D → Bool) {F : CSP Rel V}
     (N : F.primalGraph.NiceTreeDecomposition) (e : D ≃ Fin (Fintype.card D)) :

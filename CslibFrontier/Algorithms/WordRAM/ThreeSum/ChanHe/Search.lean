@@ -14,6 +14,7 @@ import Mathlib.Tactic.NormNum
 
 import CslibFrontier.Computability.GenericRAM.Signed.Fits
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.PreservesMask
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
@@ -100,8 +101,8 @@ def program : Code .standard 64 :=
     stop ← limit + one; answer ← one; found ← zero ]) (.loop (.lt cursor stop) body)
 
 /-- The five upper caller registers survive the complete native search. -/
-theorem preserves_caller (i : Fin 64) (hi : 59 ≤ i.val) : program.Preserves i := by
-  fin_cases i <;> norm_num at hi <;> decide
+theorem preserves_caller (i : Fin 64) (hi : 59 ≤ i.val) : program.Preserves i :=
+  Code.preserves_of_writeEnd (by decide) hi
 
 private abbrev Fixed (i : Fin 64) : Prop := (28 ≤ i.val ∧ i.val ≤ 35) ∨ (40 ≤ i.val ∧ i.val ≤ 46)
 

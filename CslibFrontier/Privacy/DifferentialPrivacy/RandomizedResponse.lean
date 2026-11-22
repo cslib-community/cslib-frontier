@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Privacy.DifferentialPrivacy.Hamming
+public import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
 public import CslibFrontier.Languages.Probabilistic.Vector
 public import Mathlib.Analysis.SpecialFunctions.Log.Basic
 import CslibFrontier.Tactic.ENNRealToReal
@@ -46,11 +47,15 @@ expected number of "Yes" answers is `n / 4 + (number of true "Yes") / 2`
   `Cslib.Privacy.differentiallyPrivate_randomizedResponse_iff`: exactly `(ln 3, 0)`-private.
 * `Cslib.Privacy.differentiallyPrivate_randomizedResponseSurvey`: the survey is
   `(ln 3, 0)`-private for Hamming adjacency.
+* `Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponse`,
+  `Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponseSurvey`: order-`α` Rényi
+  differential privacy [Mironov2017, Proposition 5].
 * `Cslib.Privacy.sum_eval_randomizedResponseSurvey_mul_estimator`: the unbiased estimator.
 
 ## References
 
 * [DworkRoth2014]
+* [Mironov2017]
 -/
 
 open scoped ENNReal
@@ -121,6 +126,75 @@ theorem differentiallyPrivate_randomizedResponseSurvey (n : ℕ) :
   simp only [eval_randomizedResponseSurvey]
   exact DifferentiallyPrivate.pi (M := fun _ truth => ProbComp.eval (randomizedResponse truth))
     (Real.log_nonneg (by norm_num)) fun _ => differentiallyPrivate_randomizedResponse
+
+private theorem renyiMoment_randomizedResponse_ne {α : ℝ} {x y : Bool} (hxy : x ≠ y) :
+    Probability.renyiMoment α (ProbComp.eval (randomizedResponse x))
+      (ProbComp.eval (randomizedResponse y)) =
+      ENNReal.ofReal ((3 / 4) * (3 : ℝ) ^ (α - 1) + (1 / 4) * (3 : ℝ) ^ (1 - α)) := by
+  have hc34 : (3 : ℝ≥0∞) / 4 = ENNReal.ofReal (3 / 4) := by ennreal_to_real
+  have hc14 : (1 : ℝ≥0∞) / 4 = ENNReal.ofReal (1 / 4) := by ennreal_to_real
+  have hdiv1 : ((3 : ℝ≥0∞) / 4) / (1 / 4) = ENNReal.ofReal 3 := by
+    rw [hc34, hc14, ← ENNReal.ofReal_div_of_pos (by norm_num)]
+    norm_num
+  have hdiv2 : ((1 : ℝ≥0∞) / 4) / (3 / 4) = ENNReal.ofReal (1 / 3) := by
+    rw [hc14, hc34, ← ENNReal.ofReal_div_of_pos (by norm_num)]
+    norm_num
+  have hrpow1 : (ENNReal.ofReal 3) ^ (α - 1) = ENNReal.ofReal ((3 : ℝ) ^ (α - 1)) :=
+    ENNReal.ofReal_rpow_of_pos (by norm_num)
+  have hrpow2 : (ENNReal.ofReal (1 / 3)) ^ (α - 1) = ENNReal.ofReal ((3 : ℝ) ^ (1 - α)) := by
+    rw [ENNReal.ofReal_rpow_of_pos (by norm_num), one_div, Real.inv_rpow (by norm_num),
+      ← Real.rpow_neg (by norm_num)]
+    exact congrArg (fun e => ENNReal.ofReal ((3 : ℝ) ^ e)) (by ring)
+  rw [Probability.renyiMoment, tsum_fintype, Fintype.sum_bool]
+  cases x <;> cases y
+  · exact absurd rfl hxy
+  · simp only [eval_randomizedResponse_apply, Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte]
+    rw [hdiv2, hdiv1, hrpow2, hrpow1, hc14, hc34,
+      ← ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 1 / 4),
+      ← ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 3 / 4),
+      ← ENNReal.ofReal_add (by positivity) (by positivity)]
+    exact congrArg ENNReal.ofReal (add_comm _ _)
+  · simp only [eval_randomizedResponse_apply, Bool.false_eq_true, Bool.true_eq_false, ↓reduceIte]
+    rw [hdiv1, hdiv2, hrpow1, hrpow2, hc34, hc14,
+      ← ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 3 / 4),
+      ← ENNReal.ofReal_mul (by norm_num : (0 : ℝ) ≤ 1 / 4),
+      ← ENNReal.ofReal_add (by positivity) (by positivity)]
+  · exact absurd rfl hxy
+
+/-- Randomized response satisfies
+`(α, log ((3 / 4) · 3 ^ (α - 1) + (1 / 4) · 3 ^ (1 - α)) / (α - 1))`-Rényi differential privacy
+for every `1 < α` [Mironov2017, Proposition 5]. -/
+theorem renyiDifferentiallyPrivate_randomizedResponse {α : ℝ} (hα : 1 < α) :
+    RenyiDifferentiallyPrivate (fun _ _ => True)
+      (fun truth => ProbComp.eval (randomizedResponse truth)) α
+      (Real.log ((3 / 4) * (3 : ℝ) ^ (α - 1) + (1 / 4) * (3 : ℝ) ^ (1 - α)) / (α - 1)) := by
+  set M : ℝ := (3 / 4) * (3 : ℝ) ^ (α - 1) + (1 / 4) * (3 : ℝ) ^ (1 - α)
+  have hM0 : 0 < M := by positivity
+  have hM1 : 1 ≤ M := by
+    have h1 := Probability.PMF.one_le_renyiMoment hα
+      (ProbComp.eval (randomizedResponse true)) (ProbComp.eval (randomizedResponse false))
+    rw [renyiMoment_randomizedResponse_ne (by decide : true ≠ false)] at h1
+    exact ENNReal.one_le_ofReal.mp h1
+  have hε_nn : 0 ≤ Real.log M / (α - 1) :=
+    div_nonneg (Real.log_nonneg hM1) (sub_pos.mpr hα).le
+  refine ⟨hα, hε_nn, fun x y _ => ?_⟩
+  by_cases hxy : x = y
+  · subst hxy
+    simp
+  · rw [Probability.PMF.renyiDiv_le_ofReal_iff hα _ _ hε_nn,
+      renyiMoment_randomizedResponse_ne hxy,
+      mul_div_cancel₀ _ (sub_pos.mpr hα).ne', Real.exp_log hM0]
+
+/-- The `n`-respondent randomized-response survey satisfies the same order-`α` Rényi differential
+privacy bound under `HammingAdjacent` for every `1 < α`. -/
+theorem renyiDifferentiallyPrivate_randomizedResponseSurvey (n : ℕ) {α : ℝ} (hα : 1 < α) :
+    RenyiDifferentiallyPrivate HammingAdjacent
+      (fun x : Fin n → Bool => ProbComp.eval (randomizedResponseSurvey x)) α
+      (Real.log ((3 / 4) * (3 : ℝ) ^ (α - 1) + (1 / 4) * (3 : ℝ) ^ (1 - α)) / (α - 1)) := by
+  simp only [eval_randomizedResponseSurvey]
+  exact RenyiDifferentiallyPrivate.pi (M := fun _ truth => ProbComp.eval (randomizedResponse truth))
+    hα (renyiDifferentiallyPrivate_randomizedResponse hα).2.1
+    fun _ => renyiDifferentiallyPrivate_randomizedResponse hα
 
 /-- The expected number of "Yes" answers is `n / 4 + (number of true "Yes") / 2`
 [DworkRoth2014, §2.3]. -/

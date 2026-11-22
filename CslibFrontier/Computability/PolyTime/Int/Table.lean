@@ -8,10 +8,10 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Foundations.Data.Matrix.RowTable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Int.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
-import Mathlib.Data.List.GetD
 
 /-!
 # Polynomial-time lookup and tabulation on rectangular integer row tables
@@ -65,54 +65,43 @@ def tabulateTable (r c : ℕ) (g : ℕ → ℕ → ℤ) : List (List ℤ) :=
 /-- Tabulating an `r × c` table produces `r` rows. -/
 @[simp]
 lemma length_tabulateTable (r c : ℕ) (g : ℕ → ℕ → ℤ) :
-    (tabulateTable r c g).length = r := by
-  simp [tabulateTable]
+    (tabulateTable r c g).length = r :=
+  (RowTable.wellFormed_tabulate r c g).1
 
 /-- Every row in `tabulateTable r c g` has length `c`. -/
 lemma length_of_mem_tabulateTable {r c : ℕ} {g : ℕ → ℕ → ℤ} {row : List ℤ}
-    (hrow : row ∈ tabulateTable r c g) : row.length = c := by
-  obtain ⟨_, -, rfl⟩ := List.mem_map.mp hrow
-  simp
+    (hrow : row ∈ tabulateTable r c g) : row.length = c :=
+  RowTable.length_of_mem_rows_tabulate hrow
 
 /-- Every tabulated `r × c` table has shape `(r, c)`. -/
 theorem isTableShape_tabulateTable (r c : ℕ) (g : ℕ → ℕ → ℤ) :
     IsTableShape r c (tabulateTable r c g) :=
-  ⟨length_tabulateTable r c g, fun _ hrow => length_of_mem_tabulateTable hrow⟩
+  RowTable.wellFormed_tabulate r c g
 
 /-- Looking up entry `(i, j)` of `tabulateTable r c g` returns `g i j` when `i < r` and `j < c`,
 and `0` otherwise. -/
 lemma rowEntry_tabulateTable (r c : ℕ) (g : ℕ → ℕ → ℤ) (i j : ℕ) :
-    rowEntry (tabulateTable r c g) i j = if i < r ∧ j < c then g i j else 0 := by
-  by_cases hi : i < r <;> by_cases hj : j < c <;>
-    simp [rowEntry, tabulateTable, List.getD_eq_getElem?_getD, hi, hj]
+    rowEntry (tabulateTable r c g) i j = if i < r ∧ j < c then g i j else 0 :=
+  RowTable.entry_tabulate r c g i j
 
 /-- In-bounds lookup on `tabulateTable r c g` returns `g i j`. -/
 lemma rowEntry_tabulateTable_of_lt {r c : ℕ} (g : ℕ → ℕ → ℤ) {i j : ℕ}
     (hi : i < r) (hj : j < c) :
-    rowEntry (tabulateTable r c g) i j = g i j := by
-  rw [rowEntry_tabulateTable, ite_eq_left ⟨hi, hj⟩]
+    rowEntry (tabulateTable r c g) i j = g i j :=
+  RowTable.entry_tabulate_of_lt g hi hj
 
 /-- Outside `i < r ∧ j < c`, an `(r, c)`-shaped table reads as `0`. -/
 lemma rowEntry_eq_zero_of_isTableShape {r c : ℕ} {rows : List (List ℤ)}
     (hrows : IsTableShape r c rows) {i j : ℕ} (h : ¬(i < r ∧ j < c)) :
-    rowEntry rows i j = 0 := by
-  unfold rowEntry
-  rcases Nat.lt_or_ge i rows.length with hi | hi
-  · rw [List.getD_eq_getElem _ _ hi]
-    have hir : i < r := hrows.1 ▸ hi
-    have hlen : rows[i].length = c := hrows.2 _ (List.getElem_mem hi)
-    have hj : rows[i].length ≤ j := by omega
-    exact List.getD_eq_default _ _ hj
-  · rw [List.getD_eq_default _ _ hi, List.getD_nil]
+    rowEntry rows i j = 0 :=
+  RowTable.WellFormed.entry_eq_zero (T := ⟨r, c, rows⟩) hrows h
 
 /-- Every stored entry of a list of rows occurs as `rowEntry rows i j` at valid in-bounds
 indices. -/
 lemma exists_rowEntry_eq_of_mem {rows : List (List ℤ)} {row : List ℤ} {z : ℤ}
     (hrow : row ∈ rows) (hz : z ∈ row) :
-    ∃ i j, i < rows.length ∧ j < row.length ∧ rowEntry rows i j = z := by
-  obtain ⟨i, hi, rfl⟩ := List.getElem_of_mem hrow
-  obtain ⟨j, hj, rfl⟩ := List.getElem_of_mem hz
-  exact ⟨i, j, hi, hj, by simp [rowEntry, List.getD_eq_getElem?_getD, hi, hj]⟩
+    ∃ i j, i < rows.length ∧ j < row.length ∧ rowEntry rows i j = z :=
+  RowTable.exists_entry_eq_of_mem (T := ⟨0, 0, rows⟩) hrow hz
 
 /-- Every stored entry of a list of rows is one of its indexed entries. -/
 lemma exists_rowEntry_eq {rows : List (List ℤ)} {row : List ℤ} {z : ℤ}
@@ -122,39 +111,20 @@ lemma exists_rowEntry_eq {rows : List (List ℤ)} {row : List ℤ} {z : ℤ}
 
 /-- Any predicate holding for `0` and for every stored entry holds for every `rowEntry`. -/
 lemma rowEntry_rel_of_mem {P : ℤ → Prop} (h0 : P 0) {rows : List (List ℤ)}
-    (h : ∀ row ∈ rows, ∀ z ∈ row, P z) (i j : ℕ) : P (rowEntry rows i j) := by
-  unfold rowEntry
-  rcases Nat.lt_or_ge i rows.length with hi | hi
-  · rw [List.getD_eq_getElem _ _ hi]
-    rcases Nat.lt_or_ge j rows[i].length with hj | hj
-    · rw [List.getD_eq_getElem _ _ hj]
-      exact h _ (List.getElem_mem hi) _ (List.getElem_mem hj)
-    · rw [List.getD_eq_default _ _ hj]
-      exact h0
-  · rw [List.getD_eq_default _ _ hi, List.getD_nil]
-    exact h0
+    (h : ∀ row ∈ rows, ∀ z ∈ row, P z) (i j : ℕ) : P (rowEntry rows i j) :=
+  RowTable.entry_rel_of_mem (T := ⟨0, 0, rows⟩) h0 h i j
 
 /-- Two `(r, c)`-shaped tables are equal when their in-bounds entries agree. -/
 theorem eq_of_isTableShape_of_rowEntry_eq {r c : ℕ} {A B : List (List ℤ)}
     (hA : IsTableShape r c A) (hB : IsTableShape r c B)
-    (h : ∀ i < r, ∀ j < c, rowEntry A i j = rowEntry B i j) : A = B := by
-  apply List.ext_getElem (hA.1.trans hB.1.symm)
-  intro i hiA hiB
-  have hi : i < r := hA.1 ▸ hiA
-  have hlenA : A[i].length = c := hA.2 _ (List.getElem_mem hiA)
-  have hlenB : B[i].length = c := hB.2 _ (List.getElem_mem hiB)
-  apply List.ext_getElem (hlenA.trans hlenB.symm)
-  intro j hjA hjB
-  have hj : j < c := hlenA ▸ hjA
-  have hij := h i hi j hj
-  simpa only [rowEntry, List.getD_eq_getElem _ _ hiA, List.getD_eq_getElem _ _ hiB,
-    List.getD_eq_getElem _ _ hjA, List.getD_eq_getElem _ _ hjB] using hij
+    (h : ∀ i < r, ∀ j < c, rowEntry A i j = rowEntry B i j) : A = B :=
+  congrArg RowTable.rows
+    (RowTable.eq_of_wellFormed_of_entry_eq (A := ⟨r, c, A⟩) (B := ⟨r, c, B⟩) hA hB rfl rfl h)
 
 /-- Re-tabulating an `(r, c)`-shaped table from `rowEntry` recovers it unchanged. -/
 lemma tabulateTable_rowEntry {r c : ℕ} {rows : List (List ℤ)} (hrows : IsTableShape r c rows) :
     tabulateTable r c (rowEntry rows) = rows :=
-  eq_of_isTableShape_of_rowEntry_eq (isTableShape_tabulateTable r c _) hrows fun _ hi _ hj =>
-    rowEntry_tabulateTable_of_lt _ hi hj
+  congrArg RowTable.rows (RowTable.tabulate_entry (T := ⟨r, c, rows⟩) hrows)
 
 /-! ### Plain polynomial-time certificates -/
 

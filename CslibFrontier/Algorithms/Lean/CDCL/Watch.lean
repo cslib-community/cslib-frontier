@@ -116,6 +116,57 @@ theorem getD_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Wa
   · rename_i hne
     simp [Ne.symm hne]
 
+theorem size_modifyWatch (W : Watches) (i : ℕ) (f : Array Watcher → Array Watcher) :
+    (modifyWatch W i f).size = max W.size (i + 1) := by
+  unfold modifyWatch
+  split <;> simp <;> omega
+
+/-- Two arrays of watch lists of the same size with the same lists are equal. -/
+theorem watches_ext {W W' : Watches} (hs : W.size = W'.size)
+    (h : ∀ j, W.getD j #[] = W'.getD j #[]) : W = W' := by
+  apply Array.ext hs
+  intro j h₁ h₂
+  have := h j
+  simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_getElem h₁,
+    Array.getElem?_eq_getElem h₂, Option.getD_some] at this
+  exact this
+
+/-- Modifying the same watch list twice is modifying it once. -/
+theorem modifyWatch_modifyWatch (W : Watches) (i : ℕ) (f g : Array Watcher → Array Watcher) :
+    modifyWatch (modifyWatch W i f) i g = modifyWatch W i (g ∘ f) := by
+  apply watches_ext
+  · simp only [size_modifyWatch]; omega
+  · intro j
+    simp only [getD_modifyWatch]
+    split <;> rfl
+
+/-- Modifying two different watch lists, in either order. -/
+theorem modifyWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j)
+    (f g : Array Watcher → Array Watcher) :
+    modifyWatch (modifyWatch W i f) j g = modifyWatch (modifyWatch W j g) i f := by
+  apply watches_ext
+  · simp only [size_modifyWatch]; omega
+  · intro k
+    simp only [getD_modifyWatch]
+    by_cases hk : k = j
+    · subst hk; simp [Ne.symm hij]
+    · simp [hk, hij]
+
+/-- Adding a watcher to a list just replaced is replacing it with the longer array. -/
+theorem addWatch_setWatch (W : Watches) (i : ℕ) (L : Array Watcher) (k : Watcher) :
+    addWatch (setWatch W i L) i k = setWatch W i (L.push k) :=
+  modifyWatch_modifyWatch W i _ _
+
+/-- Replacing a watch list and adding a watcher to another, in either order. -/
+theorem addWatch_setWatch_comm (W : Watches) {i j : ℕ} (hij : i ≠ j) (L : Array Watcher)
+    (k : Watcher) : addWatch (setWatch W i L) j k = setWatch (addWatch W j k) i L :=
+  modifyWatch_comm W hij _ _
+
+/-- Replacing a watch list twice. -/
+theorem setWatch_setWatch (W : Watches) (i : ℕ) (L L' : Array Watcher) :
+    setWatch (setWatch W i L) i L' = setWatch W i L' :=
+  modifyWatch_modifyWatch W i _ _
+
 @[simp] theorem watchList_addWatch (W : Watches) (i : ℕ) (k : Watcher) (j : ℕ) :
     watchList (addWatch W i k) j = if j = i then k :: watchList W i else watchList W j := by
   unfold watchList addWatch
@@ -565,7 +616,13 @@ are not false under `A` are put first. It adds the clauses with
 unchanged for fewer than two literals. -/
 @[expose] def WatchStore.build (A : Assign) : List (ℕ × Clause ℕ) → WatchStore
   | [] => ⟨#[], #[]⟩
-  | e :: F => (build A F).addClause e.1 (watchOrder A e.2.dedup)
+  | e :: F => (build A F).addClause e.1 (watchOrder A (dedupLits e.2))
+
+/-- The literals of a clause without repetitions, removed in linear time (`dedupLits`), are those
+of `List.dedup`, up to order. -/
+theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
+  (List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
+    fun l => by rw [mem_dedupKey litKey_injective, List.mem_dedup]
 
 /-- The watch store built from `F` under an assignment agreeing with the trail `M`, none of whose
 clauses `M` falsifies, satisfies the invariant with every literal of `M` processed: a clause whose
@@ -578,16 +635,16 @@ theorem WatchStore.build_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
   | [], _ => WatchStore.inv_empty M []
   | e :: F, hF => by
     have ih := build_inv hA F fun e' he' => hF e' (List.mem_cons_of_mem _ he')
-    have hperm := watchOrder_perm A e.2.dedup
+    have hperm := (watchOrder_perm A (dedupLits e.2)).trans (dedupLits_perm e.2)
     simp only [build]
-    match hc : watchOrder A e.2.dedup with
+    match hc : watchOrder A (dedupLits e.2) with
     | w₁ :: w₂ :: rest =>
       rw [hc] at hperm
       have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
       refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
         (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
       exact hF e List.mem_cons_self hlen fun l hl =>
-        falsifies_of_watchOrder hA hc hp.1 l (List.mem_dedup.2 hl)
+        falsifies_of_watchOrder hA hc hp.1 l ((mem_dedupKey litKey_injective).2 hl)
     | [] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])

@@ -294,18 +294,17 @@ theorem eval_aeRealGame_cpaToAEAdversary (E : SymmetricCipher) (ctBound : ℕ �
     (hctBound : E.CiphertextLengthLE n (ctBound n)) :
     ProbComp.eval (E.aeRealGame (cpaToAEAdversary ctBound bit adversary) n) =
       ProbComp.eval (E.cpaGame adversary bit n) := by
-  simp only [aeRealGame, cpaGame, symmetricCPAGameOn, ProbOracleComp.run, cpaToAEAdversary,
-    runWith_norm, pmf_norm]
+  simp only [aeRealGame, cpaGame, symmetricCPAGameOn, cpaToAEAdversary, runWith_norm, pmf_norm]
   peel_binds k
-  have hsim := ProbOracleComp.runWith_map_state _
-    (fun q (u : Unit) =>
-      (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
-        E.encrypt n k bit q)).map (·, u))
-    (fun _ => ()) (map_runWith_cpaToAEHandler E ctBound bit n k (hctBound k k_mem))
-    (adversary n []) ((), [])
-  rw [ProbOracleComp.runWith_memoryless] at hsim
-  have hsim' := congrArg (PMF.map Prod.fst) hsim
-  simpa only [pmf_norm, PMF.map, Function.comp_def, PMF.bind_pure] using hsim'
+  have hsim := congrArg (PMF.map Prod.fst) <|
+    ProbOracleComp.runWith_map_state _
+      (fun q (u : Unit) =>
+        (ProbComp.eval (symmetricCPAReplyOn (fun n m₀ m₁ => (m₀.length == n) && (m₁.length == n))
+          E.encrypt n k bit q)).map (·, u))
+      (fun _ => ()) (map_runWith_cpaToAEHandler E ctBound bit n k (hctBound k k_mem))
+      (adversary n []) ((), [])
+  exact (PMF.bind_pure_comp Prod.fst _).trans
+    (by simpa only [runWith_norm, pmf_norm] using hsim)
 
 /-- Against the ideal oracle, one step of `cpaToAEHandler` does not depend on the fixed bit: both
 selectable messages have length `n`, and the ideal oracle encrypts the all-zero message. -/
@@ -482,8 +481,7 @@ private theorem eval_run_aeIdealOracle_true (E : SymmetricCipher) (n : ℕ) (k c
 theorem eval_aeIdealGame_ciToAEAdversary (E : SymmetricCipher) (ctBound : ℕ → ℕ)
     (adversary : CIAdversary) (n : ℕ) :
     ProbComp.eval (E.aeIdealGame (ciToAEAdversary ctBound adversary) n) = PMF.pure false := by
-  simp [aeIdealGame, ciToAEAdversary, eval_run_aeIdealOracle_true,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
+  simp [aeIdealGame, ciToAEAdversary, eval_run_aeIdealOracle_true, runWith_norm, pmf_norm]
 
 /-- The CI winning probability of `adversary` equals the real/ideal advantage of
 `ciToAEAdversary ctBound adversary`, when `ctBound n` bounds the ciphertext lengths of `n`-bit

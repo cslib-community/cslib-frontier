@@ -22,12 +22,12 @@ rational isolating intervals `RootInterval`. It proves soundness, completeness, 
 ordering, exact bijection with the real roots of any squarefree rational polynomial, and an
 explicit `TimeM ℕ` count bound from Mignotte's separation theorem.
 
-**Cost model convention.** `isolateRootsM` runs preprocessing (`trim cs`, `sturmSeqList cs`
-polynomial divisions, `cauchyBoundNat cs`, and `mignotteBisectionDepth cs` including `lcmDens`,
-`clearDenomsList`, `sqNormList`, and `Nat.clog`) outside `TimeM` (`0` ticks), and inside bisection
-and left-root refinement charges only `sturmVariationsM` (`sturmSeqOpCost`) and `evalListM`
-(`t.length`); rational arithmetic (`(u + v) / 2`), subtraction (`vu - vv`), and list
-concatenation (`left ++ right`) are uncharged (`0` ticks).
+**Cost model convention.** `isolateRootsM` runs preprocessing (`CoeffList.trim cs`,
+`sturmSeqList cs` polynomial divisions, `cauchyBoundNat cs`, and `mignotteBisectionDepth cs`
+including `lcmDens`, `clearDenomsList`, `sqNormList`, and `Nat.clog`) outside `TimeM`
+(`0` ticks), and inside bisection and left-root refinement charges only `sturmVariationsM`
+(`sturmSeqOpCost`) and `evalListM` (`t.length`); rational arithmetic (`(u + v) / 2`), subtraction
+(`vu - vv`), and list concatenation (`left ++ right`) are uncharged (`0` ticks).
 
 ## Main definitions
 
@@ -134,11 +134,10 @@ theorem sturmSeqOpCost_le (cs : List ℚ) :
       ((ofCoeffList cs).natDegree + 1) ^ 2 + ((ofCoeffList cs).natDegree + 1) := by
   let d := (ofCoeffList cs).natDegree
   have hlen := sturmSeqList_length_le cs
-  have htrim_len : (trim cs).length ≤ d + 1 := by
-    by_cases h0 : trim cs = []
-    · simp [h0]
-    · rw [show d + 1 = (trim cs).length from by
-        simpa only [d, ofCoeffList_trim] using (isTrimmed_trim cs).natDegree_add_one h0]
+  have htrim_len : (CoeffList.trim cs).length ≤ d + 1 := by
+    by_cases hp : ofCoeffList cs = 0
+    · simp [(CoeffList.trim_eq_nil_iff cs).mpr hp]
+    · exact (CoeffList.length_trim_eq_natDegree_add_one hp).le
   have hsum := List.sum_le_length_nsmul ((sturmSeqList cs).map List.length) (d + 1) fun n hn => by
     obtain ⟨f, hf, rfl⟩ := List.mem_map.mp hn
     exact (sturmSeqList_entry_length_le cs hf).trans htrim_len
@@ -200,12 +199,12 @@ isolating interval `[a, b] ⊆ [u, v]`, strictly separating `u` when `t` vanishe
         let right ← isolateIocM t seq depthBound fuel' m v vm vv
         pure (left ++ right)
 
-/-- Execute Sturm-count real-root isolation on `ofCoeffList cs`. Preprocessing (`trim`,
+/-- Execute Sturm-count real-root isolation on `ofCoeffList cs`. Preprocessing (`CoeffList.trim`,
 `sturmSeqList`, `cauchyBoundNat`, `mignotteBisectionDepth`) and scalar/list control work run outside
 `TimeM` (`0` ticks); bisection and left-root refinement charge `sturmVariationsM` and `evalListM`
 in `TimeM ℕ`. -/
 @[expose] def isolateRootsM (cs : List ℚ) : TimeM ℕ (List RootInterval) :=
-  let t := trim cs
+  let t := CoeffList.trim cs
   if t.isEmpty then
     pure []
   else
@@ -326,10 +325,10 @@ private theorem isolateIocM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Sep
             _ ≤ (fuel' + 1) * ((vu - vv) / 2) * sCost + (vu - vv) * lCost := by rw [hsum_c]; gcongr
 
 theorem eval_rat_eq_zero_iff (cs : List ℚ) (x : ℚ) :
-    evalCoeffList x (trim cs) = 0 ↔
+    evalCoeffList x (CoeffList.trim cs) = 0 ↔
       ((ofCoeffList cs).map (algebraMap ℚ ℝ)).eval (x : ℝ) = 0 := by
-  rw [← ofCoeffList_trim cs, show (x : ℝ) = algebraMap ℚ ℝ x from rfl, Polynomial.eval_map,
-    Polynomial.eval₂_hom, eval_ofCoeffList]
+  rw [← CoeffList.ofCoeffList_trim cs, show (x : ℝ) = algebraMap ℚ ℝ x from rfl,
+    Polynomial.eval_map, Polynomial.eval₂_hom, eval_ofCoeffList]
   exact Rat.cast_eq_zero.symm
 
 theorem card_roots_Ioc_eq {cs : List ℚ} (hsep : (ofCoeffList cs).Separable)
@@ -448,9 +447,9 @@ private theorem refineLeftLoopM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Se
       vu = sturmVariationsList (sturmSeqList cs) u →
       vv = sturmVariationsList (sturmSeqList cs) v →
       vu - vv = 1 →
-      evalCoeffList u (trim cs) = 0 →
+      evalCoeffList u (CoeffList.trim cs) = 0 →
       (v - u : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ depth →
-      let I := (refineLeftLoopM (trim cs) (sturmSeqList cs) fuel u v vu).ret
+      let I := (refineLeftLoopM (CoeffList.trim cs) (sturmSeqList cs) fuel u v vu).ret
       let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
       I.IsIsolatingFor pR ∧ u < I.lower ∧ I.upper ≤ v ∧
         ∀ r : ℝ, ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) ↔
@@ -505,10 +504,11 @@ private theorem refineLeftRootM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Se
     (hvv : vv = sturmVariationsList (sturmSeqList cs) v)
     (hcnt : vu - vv = 1)
     (hwidth : (v - u : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ)) :
-    let I := (refineLeftRootM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs) u v vu).ret
+    let I := (refineLeftRootM (CoeffList.trim cs) (sturmSeqList cs)
+      (mignotteBisectionDepth cs) u v vu).ret
     let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
     I.IsIsolatingFor pR ∧ u ≤ I.lower ∧ I.upper ≤ v ∧
-      (evalCoeffList u (trim cs) = 0 → u < I.lower) ∧
+      (evalCoeffList u (CoeffList.trim cs) = 0 → u < I.lower) ∧
       ∀ r : ℝ, ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) ↔
         ((u : ℝ) < r ∧ r ≤ (v : ℝ) ∧ pR.IsRoot r) := by
   have huniq := unique_root_Ioc_of_card_eq_one hsep huv.le (hvu ▸ hvv ▸ hcnt)
@@ -553,7 +553,7 @@ private theorem IntervalGapOk.lt_of_le {p : ℝ[X]} {I₁ I₂ : RootInterval}
 private def IocSpec (cs : List ℚ) (u v : ℚ) (cnt : ℕ) (L : List RootInterval) : Prop :=
   let pR := (ofCoeffList cs).map (algebraMap ℚ ℝ)
   (∀ I ∈ L, I.IsIsolatingFor pR ∧ u ≤ I.lower ∧ I.upper ≤ v ∧
-      (evalCoeffList u (trim cs) = 0 → u < I.lower)) ∧
+      (evalCoeffList u (CoeffList.trim cs) = 0 → u < I.lower)) ∧
     L.Pairwise (IntervalGapOk pR) ∧
     L.length = cnt ∧
     (∀ I ∈ L, ∀ r : ℝ, ((I.lower : ℝ) ≤ r ∧ r ≤ (I.upper : ℝ) ∧ pR.IsRoot r) →
@@ -591,7 +591,8 @@ private theorem isolateIocM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separa
       vv = sturmVariationsList (sturmSeqList cs) v →
       (v - u : ℝ) ≤ 2 * (cauchyBoundNat cs : ℝ) / (2 : ℝ) ^ depth →
       IocSpec cs u v (vu - vv)
-        (isolateIocM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs) fuel u v vu vv).ret
+        (isolateIocM (CoeffList.trim cs) (sturmSeqList cs)
+          (mignotteBisectionDepth cs) fuel u v vu vv).ret
   | fuel, depth, u, v, vu, vv, hsum, huv, hvu, hvv, hwidth => by
     have hvu_ge : vv ≤ vu := hvu ▸ hvv ▸ sturmVariationsList_antitone hsep huv
     unfold isolateIocM; dsimp only
@@ -637,9 +638,8 @@ private theorem isolateIocM_spec {cs : List ℚ} (hsep : (ofCoeffList cs).Separa
         rwa [show (vu - vm) + (vm - vv) = vu - vv by omega] at hspec
 
 private theorem isEmpty_trim_false {cs : List ℚ} (h0 : ofCoeffList cs ≠ 0) :
-    (trim cs).isEmpty = false :=
-  List.isEmpty_eq_false_iff.mpr fun h =>
-    h0 (by rw [← ofCoeffList_trim cs, h, ofCoeffList_nil])
+    (CoeffList.trim cs).isEmpty = false :=
+  List.isEmpty_eq_false_iff.mpr (mt (CoeffList.trim_eq_nil_iff cs).mp h0)
 
 private theorem isRoot_mem_cauchyIoc {cs : List ℚ} (hsep : (ofCoeffList cs).Separable) {r : ℝ}
     (hr : ((ofCoeffList cs).map (algebraMap ℚ ℝ)).IsRoot r) :
@@ -662,9 +662,10 @@ private theorem isolateRoots_spec_aux {cs : List ℚ} (hsep : (ofCoeffList cs).S
     (Nat.zero_add _) (by have : (0 : ℚ) ≤ b := Nat.cast_nonneg _; linarith) rfl rfl
     (by simp only [b, Rat.cast_neg, sub_neg_eq_add, pow_zero, div_one, Rat.cast_natCast, two_mul,
       le_rfl])
-  have heq : isolateRoots cs = (isolateIocM (trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
-      (mignotteBisectionDepth cs) (-b) b (sturmVariationsList (sturmSeqList cs) (-b))
-      (sturmVariationsList (sturmSeqList cs) b)).ret := by
+  have heq : isolateRoots cs =
+      (isolateIocM (CoeffList.trim cs) (sturmSeqList cs) (mignotteBisectionDepth cs)
+        (mignotteBisectionDepth cs) (-b) b (sturmVariationsList (sturmSeqList cs) (-b))
+        (sturmVariationsList (sturmSeqList cs) b)).ret := by
     simp only [isolateRoots, isolateRootsM, isEmpty_trim_false hsep.ne_zero, Bool.false_eq_true,
       ↓reduceIte, time_simps]
     rfl
@@ -787,13 +788,12 @@ theorem isolateRootsM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Separable
   let k := mignotteBisectionDepth cs
   let cOp := (d + 1) ^ 2 + (d + 1)
   have hte := isEmpty_trim_false hsep.ne_zero
-  have ht_len : (trim cs).length ≤ d + 1 :=
-    ((isTrimmed_trim cs).natDegree_add_one (List.isEmpty_eq_false_iff.mp hte)).symm.trans_le
-      (by rw [ofCoeffList_trim])
+  have ht_len : (CoeffList.trim cs).length ≤ d + 1 :=
+    (CoeffList.length_trim_eq_natDegree_add_one hsep.ne_zero).le
   have hs_le : sCost ≤ cOp := sturmSeqOpCost_le cs
   have hc_le : sturmVariationsList seq (-b) - sturmVariationsList seq b ≤ d :=
     sturmVariationsList_cauchy_sub_le hsep
-  have hrec := isolateIocM_time_le hsep (trim cs) k k (-b) b _ _
+  have hrec := isolateIocM_time_le hsep (CoeffList.trim cs) k k (-b) b _ _
     (by have : (0 : ℚ) ≤ b := Nat.cast_nonneg _; linarith) rfl rfl
   have hsplit : (if sturmVariationsList seq (-b) - sturmVariationsList seq b ≤ 1 then 0
       else k * ((sturmVariationsList seq (-b) - sturmVariationsList seq b) / 2)) ≤ k * (d / 2) := by
@@ -801,10 +801,11 @@ theorem isolateRootsM_time_le {cs : List ℚ} (hsep : (ofCoeffList cs).Separable
     · exact Nat.zero_le _
     · exact Nat.mul_le_mul_left k (by omega)
   simp only [isolateRootsM, hte, Bool.false_eq_true, ↓reduceIte, time_simps]
-  calc sCost + (sCost + (isolateIocM (trim cs) seq k k (-b) b _ _).time)
+  calc sCost + (sCost + (isolateIocM (CoeffList.trim cs) seq k k (-b) b _ _).time)
       ≤ sCost + (sCost + ((if _ ≤ 1 then 0 else _) * sCost +
           (sturmVariationsList seq (-b) - sturmVariationsList seq b) *
-            (2 * (trim cs).length + k * (sCost + (trim cs).length)))) := by gcongr
+            (2 * (CoeffList.trim cs).length +
+              k * (sCost + (CoeffList.trim cs).length)))) := by gcongr
     _ ≤ cOp + (cOp + (k * (d / 2) * cOp + d * (2 * (d + 1) + k * (cOp + (d + 1))))) := by gcongr
     _ = 2 * cOp + k * (d / 2) * cOp + d * (2 * (d + 1) + k * (cOp + (d + 1))) := by ring
 

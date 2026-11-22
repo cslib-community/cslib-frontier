@@ -7,6 +7,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledFeasibility
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantSign
@@ -19,6 +20,7 @@ import CslibFrontier.Computability.Complexity.RealAlgebraic.SignLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseDerivativeTestEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.SparseRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.UnivariateDerivativeEvaluation
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignApproximation
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.DyadicSignProductBounds
@@ -60,6 +62,12 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- A constant source in zero variables has a real zero exactly when its input coefficient is zero.
+example : {z : ℤ | z = 0} ∈ CountingLevel 26 encIntBin := by
+  let C : Controlled (fun z : ℤ => (MvPolynomial.C z : MvPolynomial (Fin 0) ℤ)) encIntBin 0 :=
+    Controlled.constant (ComputableInPolyTime.const 0) id ComputableInPolyTime.id'
+  simpa using C.feasibility_mem Decoder.intBin
 
 -- A cubic degree bound gives a fixed-width witness for the zero source.
 example :
