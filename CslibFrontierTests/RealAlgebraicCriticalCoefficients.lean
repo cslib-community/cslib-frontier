@@ -7,6 +7,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootLabelEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
@@ -57,6 +58,15 @@ open Cslib Cslib.Complexity Cslib.Complexity.RealAlgebraic Turing.MultiTapeTM
 open MvPolynomial MvPolynomial.CriticalSystem MvPolynomial.PurePower
 
 private instance : Fact (Nat.Prime 101) := ⟨by decide⟩
+
+-- The determinant certificate accepts a binary shift and a plain zero-source evaluator.
+example : (fun e : ℕ => criticalLabelDeterminantResidue 101 1 1 0 e [] (fun _ => 0)) ∈
+    CountingFunction 21 encNat encNat :=
+  criticalLabelDeterminantResidue_mem (a := 0) Decoder.nat
+    (p := fun _ => 101) (n := fun _ => 1) (d := fun _ => 1) (b := fun _ => 0)
+    (e := id) (data := fun _ => []) (value := fun _ => 0)
+    (.const 101) (.const 1) (.const 1) (.const 0) (by fun_prop)
+    (.const []) (CountingFunction.of_polyTime (.const 0))
 
 -- The one-variable zero source supports an input-dependent shift and grid point at level 13.
 example : (fun w : ℕ × List ℕ =>

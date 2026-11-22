@@ -31,7 +31,7 @@ open Cslib Cslib.Complexity Turing.MultiTapeTM MvPolynomial MvPolynomial.Critica
 
 /-- All three access programs are constructed from the same source evaluator.
 The Jacobian and lower relations require only one additional function level. -/
-private theorem criticalEvaluationAccess_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+theorem criticalEvaluationAccess_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
     (E : Decoder enc) {p n ell u : α → ℕ} {value : α × List ℕ → ℕ}
     (hp : ComputableInPolyTime p enc encNat) (hn : ComputableInPolyTime n enc encUnary)
     (hell : ComputableInPolyTime ell enc encNat) (hu : ComputableInPolyTime u enc encNat)
