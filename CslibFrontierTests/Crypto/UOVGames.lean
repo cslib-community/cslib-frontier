@@ -27,7 +27,7 @@ namespace CslibFrontierTests.Crypto.UOVGames
 open Cslib Cslib.Crypto Cslib.Crypto.UOV Matrix
 
 /-- The concrete OV polynomial examples use the field with five elements. -/
-instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+local instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 
 /-- With all raw coefficients equal to one, only the vinegar-square and mixed terms remain. -/
 theorem centralMap_two_variables (x : Fin 2 → ZMod 5) :

@@ -19,12 +19,12 @@ instance together with the excluded squared-scalar-one case.
 
 public section
 
-namespace Cslib.Crypto.UOV.Tests
+namespace CslibFrontierTests.Crypto.UOVAttacks
 
-open Probability
+open Cslib Cslib.Crypto Cslib.Crypto.UOV Probability
 
 /-- The concrete attack clients use the field with five elements. -/
-instance : Fact (Nat.Prime 5) := ⟨by decide⟩
+local instance : Fact (Nat.Prime 5) := ⟨by decide⟩
 
 private def square : QuadraticMap (ZMod 5) (ZMod 5) (ZMod 5) := QuadraticMap.sq
 
@@ -82,4 +82,4 @@ example :
       structuredTarget (fun _ : ZMod 5 => (0 : ZMod 5)) (fun _ => (1 : ZMod 5)) 1 0 := by
   decide
 
-end Cslib.Crypto.UOV.Tests
+end CslibFrontierTests.Crypto.UOVAttacks

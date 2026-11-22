@@ -33,8 +33,16 @@ Relating a real adaptive proof transcript to this extracted ledger requires witn
 and semantic certification; the explicit certification reduction is in `Basic`, while the
 full VOLE/random-oracle extraction and runtime certificates remain tracked in issue #7068.
 
+## Main definitions
+
+* `Note`, `Note.balance`, `target`: semantic ACT credit state, effective balance, and two-stage
+  commitment/tag target encoder.
+* `Ledger`, `Ledger.empty`, `Ledger.outstanding`, `Ledger.Conserves`, `Ledger.fund`,
+  `Ledger.spend`: extracted-state credit ledger, conservation predicate, and atomic transitions.
+
 ## Main results
 
+* `Ledger.empty_conserves`: the initial empty ledger conserves credit.
 * `Ledger.fund_conserves`: granting a state adds exactly its effective balance to the budget.
 * `Ledger.spend_conserves`: accepted spending adds only the newly granted refund to the budget.
 * `Ledger.spend_eq_none_of_spent`: even a different state with a used nullifier cannot be spent.
@@ -125,7 +133,8 @@ def spend [DecidableEq Nullifier] [DecidableEq Context] (ledger : Ledger Nullifi
   else none
 
 /-- The empty ledger has no unpaid or granted credit. -/
-@[simp] theorem empty_conserves : (empty : Ledger Nullifier Context).Conserves := rfl
+@[simp] theorem empty_conserves : (empty : Ledger Nullifier Context).Conserves := by
+  simp [Conserves, outstanding, empty]
 
 /-- Registering funding preserves conservation, including when its nullifier was already used. -/
 theorem fund_conserves {ledger : Ledger Nullifier Context} (hledger : ledger.Conserves)

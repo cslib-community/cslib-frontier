@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.QueryCount
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
 import CslibFrontier.Probability.PMF.Bool
 
 /-!
@@ -36,6 +37,17 @@ protocol. In particular, the target EUF-CMA term need not be small for a raw UOV
 chosen-target forgery is different from the random-target one-more assumption. Applying this
 composition to raw ACT-MQ therefore does not establish its structured-target hardness. Adaptive
 VOLE/random-oracle extraction and complete runtime certificates remain tracked in issue #7068.
+
+## Main definitions
+
+* `Payload`, `Token`, `Token.valid`, `issue`: semantic message/opening pairs, certified tokens,
+  verification, and issuance.
+* `RedemptionWitness`, `selectedIssuerRelation`: extracted witness and selected-issuer relation for
+  issuer-hiding redemptions.
+* `ExtractedForger`, `Execution`, `runExtracted`, `extractedAccept`, `extractedExperiment`:
+  extracted-witness adversary, logged execution, fresh-message acceptance test, and experiment.
+* `BindingWitness`, `checkBindingWitness`, `findBindingWitness`, `bindingReduction`,
+  `bindingExperiment`, `targetForger`: explicit target-collision and target-forgery reductions.
 
 ## Main results
 
@@ -135,7 +147,9 @@ def runExtracted (S : Signature.Scheme PK SK Target Sig)
     (fun payload => S.sign keys.2 (target payload.message payload.opening))
   return ⟨keys.1, output, log⟩
 
-private def semanticAccept [DecidableEq Message] (S : Signature.Scheme PK SK Target Sig)
+/-- Whether an extracted execution verifies on a semantic message never queried in `run.log`.
+Invalid or failed replies remain in the log and still disqualify their semantic messages. -/
+def extractedAccept [DecidableEq Message] (S : Signature.Scheme PK SK Target Sig)
     (target : Message → Opening → Target) (run : Execution PK Message Opening Sig) : Bool :=
   run.output.valid S target run.publicKey &&
     decide (run.output.payload.message ∉ run.log.map (fun entry => entry.1.message))
@@ -146,9 +160,7 @@ state, including the refund. -/
 def extractedExperiment [DecidableEq Message] (S : Signature.Scheme PK SK Target Sig)
     (target : Message → Opening → Target) (A : ExtractedForger PK Message Opening Sig) :
     Experiment :=
-  (fun run => run.output.valid S target run.publicKey &&
-    decide (run.output.payload.message ∉ run.log.map (fun entry => entry.1.message))) <$>
-      runExtracted S target A
+  extractedAccept S target <$> runExtracted S target A
 
 /-- Two openings to the same encoded target, with different semantic messages. -/
 structure BindingWitness (Message Opening : Type) where
@@ -186,39 +198,6 @@ def bindingExperiment [DecidableEq Message] [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (target : Message → Opening → Target)
     (A : ExtractedForger PK Message Opening Sig) : Experiment :=
   (fun witness => witness.any (checkBindingWitness target)) <$> bindingReduction S target A
-
-private theorem simulate_encode_runState {Q T R α : Type} (encode : Q → T)
-    (A : ProbOracleComp (fun _ : Q => R) α) (oracle : T → ProbComp R)
-    (log : List (Q × R)) :
-    ((ProbOracleComp.simulate (fun q => ProbOracleComp.query (encode q)) A).runState
-      (fun q seen => (fun reply => (reply, seen ++ [(q, reply)])) <$> oracle q)).run
-        (log.map fun entry => (encode entry.1, entry.2)) =
-      (fun result => (result.1, result.2.map fun entry => (encode entry.1, entry.2))) <$>
-        (A.runState (fun q seen =>
-          (fun reply => (reply, seen ++ [(q, reply)])) <$> oracle (encode q))).run log := by
-  induction A using ProbOracleComp.induction generalizing log with
-  | pure a => simp
-  | sample_bind n cont ih =>
-    simp only [ProbOracleComp.simulate_bind, ProbOracleComp.simulate_sample,
-      ProbOracleComp.runState_bind,
-      ProbOracleComp.runState_sample, StateT.run_bind, StateT.run_lift,
-      bind_assoc, pure_bind, map_bind]
-    exact bind_congr fun value => ih value log
-  | query_bind q cont ih =>
-    simp only [ProbOracleComp.simulate_bind, ProbOracleComp.simulate_query,
-      ProbOracleComp.runState_bind, ProbOracleComp.runState_query, StateT.run_bind]
-    simp only [StateT.run, bind_map_left, map_bind]
-    apply bind_congr
-    intro reply
-    simpa only [StateT.run, List.map_append, List.map_cons, List.map_nil] using
-      ih reply (log ++ [(q, reply)])
-
-private theorem simulate_encode_runLog {Q T R α : Type} (encode : Q → T)
-    (A : ProbOracleComp (fun _ : Q => R) α) (oracle : T → ProbComp R) :
-    (ProbOracleComp.simulate (fun q => ProbOracleComp.query (encode q)) A).runLog oracle =
-      (fun result => (result.1, result.2.map fun entry => (encode entry.1, entry.2))) <$>
-        A.runLog (fun q => oracle (encode q)) :=
-  simulate_encode_runState encode A oracle []
 
 /-- Forward each semantic signing request to the certification target, preserving private coins,
 and output the target and certificate from the extracted candidate. -/
@@ -267,16 +246,16 @@ private theorem targetExperiment_eq [DecidableEq Target] [Inhabited Sig]
   have hsigner : Signer.ofSign S.sign sk = fun _ message => some (S.sign sk message) := by
     funext log message
     exact Signer.ofSign_apply _ _ _ _
-  rw [hsigner, ProbOracleComp.runLogWith_some, simulate_encode_runLog]
+  rw [hsigner, ProbOracleComp.runLogWith_some, ProbOracleComp.runLog_simulate_query]
   simp only [bind_map_left]
   apply bind_congr
   rintro ⟨output, log⟩
   simp only [targetAccept, Token.valid, freshMessage, map_pure, Prod.map, id_eq]
   simp only [List.map_map, Function.comp_def]
 
-private theorem semanticAccept_cases [DecidableEq Message] [DecidableEq Target]
+private theorem extractedAccept_cases [DecidableEq Message] [DecidableEq Target]
     (S : Signature.Scheme PK SK Target Sig) (target : Message → Opening → Target)
-    (run : Execution PK Message Opening Sig) (h : semanticAccept S target run = true) :
+    (run : Execution PK Message Opening Sig) (h : extractedAccept S target run = true) :
     targetAccept S target run = true ∨
       (findBindingWitness target run.output.payload run.log).any (checkBindingWitness target) =
         true := by
@@ -324,6 +303,6 @@ theorem extracted_succProbability_le [DecidableEq Message] [DecidableEq Target] 
   rw [← ENNReal.toNNReal_add (PMF.apply_ne_top _ _) (PMF.apply_ne_top _ _)]
   apply ENNReal.toNNReal_mono (ENNReal.add_ne_top.mpr
     ⟨PMF.apply_ne_top _ _, PMF.apply_ne_top _ _⟩)
-  exact PMF.map_true_le_add _ fun run _ h => semanticAccept_cases S target run h
+  exact PMF.map_true_le_add _ fun run _ h => extractedAccept_cases S target run h
 
 end Cslib.Crypto.AnonymousToken

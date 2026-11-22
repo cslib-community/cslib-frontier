@@ -23,7 +23,7 @@ refuses one of two target values. The one-query collision strategy then succeeds
 one quarter, so silently assuming perfect oracle correctness would give the wrong answer.
 -/
 
-@[expose] public section
+public section
 
 namespace CslibFrontierTests.Crypto.VOLEComposition
 
@@ -66,10 +66,10 @@ def refusesTrue : Signature.Scheme Unit Unit Bool (Option Bool) where
 
 /-- Retaining failed replies gives success `1/4`, rather than the collision probability `1/2`. -/
 theorem collisionAttack_with_failures :
-    Experiment.succProbability (Signature.oneMoreExperiment refusesTrue (fun _ => do
-      let y ← ProbComp.uniform Bool
-      let z ← ProbComp.uniform Bool
-      return fun i : Fin 2 => if i.val = 0 then y else z) 1 Signature.collisionAttack) = 1 / 4 := by
+    Experiment.succProbability
+        (Signature.oneMoreExperiment refusesTrue
+          (fun _ => ProbComp.uniform (Fin 2 → Bool)) 1 Signature.collisionAttack) =
+      1 / 4 := by
   have hfunctional : ∀ pk y z s,
       refusesTrue.verify pk y s = true → refusesTrue.verify pk z s = true → y = z := by
     intro pk y z s hy hz

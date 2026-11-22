@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Foundations.LinearAlgebra.MultivariateQuadratic
 public import CslibFrontier.Languages.Probabilistic.Oracle.RunState
 public import CslibFrontier.Crypto.Protocols.UOV.Games
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
 import CslibFrontier.Probability.PMF.Support
 import Mathlib.Algebra.Module.Torsion.Free
 
@@ -76,17 +77,8 @@ The query is explicit so the same program serves raw and structured preimage gam
 
 /-- The rescaling attack uses at most one external oracle call, independently of its reply. -/
 theorem rescaleAttack_queryBound (a : K) (query : Query) :
-    (rescaleAttack (X := X) a query).IsQueryBounded 1 := by
-  simpa only [rescaleAttack, Nat.add_zero] using
-    (ProbOracleComp.IsQueryBounded.query (spec := fun _ : Query => X) query).bind
-      (fun answer => OracleComp.IsCostBounded.pure (a • answer) 0)
-
-private theorem runLog_rescaleAttack (a : K) (query : Query) (oracle : Query → ProbComp X) :
-    (rescaleAttack a query).runLog oracle =
-      (fun answer => (a • answer, [(query, answer)])) <$> oracle query := by
-  simp only [rescaleAttack, ProbOracleComp.runLog, bind_pure_comp,
-    ProbOracleComp.runState_map, ProbOracleComp.runState_query, StateT.run_map]
-  simp [StateT.run]
+    (rescaleAttack (X := X) a query).IsQueryBounded 1 :=
+  ProbOracleComp.IsQueryBounded.query_bind_pure query (a • ·)
 
 section RawTarget
 
@@ -102,7 +94,7 @@ theorem rescaleAttack_freshTarget (P : QuadraticMap K X Y) (a : K) (y : Y)
     (ProbComp.eval ((rescaleAttack a ((a * a)⁻¹ • y)).runLog oracle)).map
       (fun result => decide (P result.1 = y ∧
         y ∉ result.2.map Prod.fst ∧ result.2.length = 1)) = PMF.pure true := by
-  rw [runLog_rescaleAttack, ProbComp.eval_map, PMF.map_comp]
+  rw [rescaleAttack, ProbOracleComp.runLog_query_bind_pure, ProbComp.eval_map, PMF.map_comp]
   apply PMF.map_eq_pure_iff.mpr
   intro answer hmem
   have hvalid : P (a • answer) = y := by
@@ -145,7 +137,7 @@ theorem rescaleAttack_zeroOpening [DecidableEq Message] [DecidableEq Tail]
         (P result.1 = structuredTarget front tail ((a * a) • message) 0 ∧
           (a * a) • message ∉ result.2.map (fun ((msg, _), _) => msg) ∧
           result.2.length = 1)) = PMF.pure true := by
-  rw [runLog_rescaleAttack, ProbComp.eval_map, PMF.map_comp]
+  rw [rescaleAttack, ProbOracleComp.runLog_query_bind_pure, ProbComp.eval_map, PMF.map_comp]
   apply PMF.map_eq_pure_iff.mpr
   intro answer hmem
   have hvalid : P (a • answer) = structuredTarget front tail ((a * a) • message) 0 := by

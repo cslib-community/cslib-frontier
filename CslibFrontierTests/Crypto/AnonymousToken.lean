@@ -8,6 +8,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
+public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
 
 /-!
 # Clients of extracted anonymous-token certification and credit accounting
@@ -41,12 +42,14 @@ example :
       Experiment.succProbability (bindingExperiment certification target changeOpening) :=
   extracted_succProbability_le certification target changeOpening
 
-example (pk : Unit) : (targetForger target changeOpening pk).IsQueryBounded 1 := by
-  apply targetForger_queryBound
-  change OracleComp.IsCostBounded _ (ProbOracleComp.query _ >>= _) 1
-  simpa using (ProbOracleComp.IsQueryBounded.query (spec := fun _ : Payload Nat Nat => Nat)
-    ⟨0, 1⟩).bind (fun signature => OracleComp.IsCostBounded.pure
-      (⟨⟨1, 0⟩, signature⟩ : Token Nat Nat Nat) 0)
+example (pk : Unit) : (targetForger target changeOpening pk).IsQueryBounded 1 :=
+  targetForger_queryBound target changeOpening pk
+    (ProbOracleComp.IsQueryBounded.query_bind_pure (⟨0, 1⟩ : Payload Nat Nat)
+      fun signature => (⟨⟨1, 0⟩, signature⟩ : Token Nat Nat Nat))
+
+example :
+    extractedAccept certification target
+      ⟨(), ⟨⟨1, 0⟩, 1⟩, [(⟨0, 1⟩, (1 : Nat))]⟩ = true := by decide
 
 example :
     findBindingWitness target (⟨1, 0⟩ : Payload Nat Nat) [(⟨0, 1⟩, (1 : Nat))] =
@@ -83,6 +86,8 @@ private def afterSpend : Credit.Ledger Nat Unit :=
     spent := [7]
     granted := 15
     paid := 5 }
+
+example : (Credit.Ledger.empty : Credit.Ledger Nat Unit).Conserves := by simp
 
 example : funded.spend initialNote 8 5 3 = some afterSpend := by decide
 

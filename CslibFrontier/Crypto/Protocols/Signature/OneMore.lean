@@ -8,8 +8,11 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.Signature.Scheme
+import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunLog
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Probability.PMF.Uniform
 import Mathlib.Data.Fintype.Card
+import Mathlib.Logic.Equiv.Fin.Basic
 
 /-!
 # Random-target and one-more certification games
@@ -30,13 +33,23 @@ These are finite classical program experiments, not assertions of hardness or po
 The source VOLE-IHAT reduction additionally requires proof extraction and random-oracle
 programming; those composition obligations are tracked in issue #7068.
 
+## Main definitions
+
+* `PreimageClaim`: an indexed slot claim and candidate preimage.
+* `targetExperiment`, `multiTargetExperiment`, `oneMoreAccept`, `oneMoreExperiment`: single-target,
+  multi-target, and fixed-budget one-more certification experiments.
+* `liftMultiTarget`: zero-query embedding of a multi-target solver into `oneMoreExperiment`.
+* `signingCorrectnessExperiment`, `collisionAttack`: validation-rate experiment and one-query
+  target-collision strategy.
+
 ## Main results
 
 * `oneMoreAccept_implies_budget_lt`: the winning condition really requires more target slots
   than oracle calls.
 * `eval_oneMore_collisionAttack`: querying one of two targets and reusing its answer wins
   exactly when the targets collide and that answer verifies. Inversion failures remain visible.
-* `succProbability_collisionAttack_uniform`: the collision strategy's success is the signer's
+* `succProbability_collisionAttack_of_uniform`,
+  `succProbability_collisionAttack_uniform`: the collision strategy's success is the signer's
   validation probability divided by the target-space cardinality.
 
 ## References
@@ -155,19 +168,9 @@ def collisionAttack (_ : PK) (targets : Fin 2 → M) :
 
 /-- The collision strategy makes at most one signing call on every path. -/
 theorem collisionAttack_queryBounded (pk : PK) (targets : Fin 2 → M) :
-    (collisionAttack (Sig := Sig) pk targets).IsQueryBounded 1 := by
-  simpa only [collisionAttack, Nat.add_zero] using
-    (ProbOracleComp.IsQueryBounded.query (spec := fun _ : M => Sig) (targets 0)).bind
-      (fun s => OracleComp.IsCostBounded.pure ([⟨0, s⟩, ⟨1, s⟩] :
-        List (PreimageClaim 2 Sig)) 0)
-
-private theorem runLog_collisionAttack (pk : PK) (targets : Fin 2 → M)
-    (oracle : M → ProbComp Sig) :
-    (collisionAttack pk targets).runLog oracle =
-      (fun s => ([⟨0, s⟩, ⟨1, s⟩], [(targets 0, s)])) <$> oracle (targets 0) := by
-  simp only [collisionAttack, ProbOracleComp.runLog, bind_pure_comp,
-    ProbOracleComp.runState_map, ProbOracleComp.runState_query, StateT.run_map]
-  simp [StateT.run]
+    (collisionAttack (Sig := Sig) pk targets).IsQueryBounded 1 :=
+  ProbOracleComp.IsQueryBounded.query_bind_pure (targets 0)
+    fun s => ([⟨0, s⟩, ⟨1, s⟩] : List (PreimageClaim 2 Sig))
 
 /-- For a verifier assigning at most one target to each answer, the one-query collision attack
 succeeds exactly when the two targets agree and the oracle's answer verifies. In particular,
@@ -181,8 +184,8 @@ theorem eval_oneMore_collisionAttack [DecidableEq M] (S : Scheme PK SK M Sig)
         let ys ← targets keys.1
         let s ← S.sign keys.2 (ys 0)
         return decide (ys 0 = ys 1) && S.verify keys.1 (ys 0) s) := by
-  simp only [oneMoreExperiment, runLog_collisionAttack, ProbComp.eval_bind,
-    ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map]
+  simp only [oneMoreExperiment, collisionAttack, ProbOracleComp.runLog_query_bind_pure,
+    ProbComp.eval_bind, ProbComp.eval_map, ProbComp.eval_pure, PMF.bind_map]
   refine PMF.bind_congr_on_support _ _ _ fun keys _ => ?_
   refine PMF.bind_congr_on_support _ _ _ fun ys _ => ?_
   refine PMF.bind_congr_on_support _ _ _ fun s _ => ?_
@@ -195,17 +198,15 @@ theorem eval_oneMore_collisionAttack [DecidableEq M] (S : Scheme PK SK M Sig)
       exact ⟨hfunctional _ _ _ _ hsver, fun h => h ▸ hsver⟩
     simp [oneMoreAccept, hsver, hver]
 
-/-- On two independent uniform targets, the collision strategy succeeds with the signer's
-validation probability divided by `card M`. For UOV targets `M = Fin m → F`, the collision
-factor is `|F|⁻ᵐ`; the separate validation factor retains failed preimage derivations. -/
-theorem succProbability_collisionAttack_uniform [Fintype M] [Nonempty M]
+/-- On any two-slot target sampler whose law is uniform on `Fin 2 → M`, the collision strategy
+succeeds with the signer's validation probability divided by `card M`. -/
+theorem succProbability_collisionAttack_of_uniform [Fintype M] [Nonempty M]
     (S : Scheme PK SK M Sig)
-    (hfunctional : ∀ pk y z s, S.verify pk y s = true → S.verify pk z s = true → y = z) :
-    Experiment.succProbability (oneMoreExperiment S (fun _ => do
-      let y ← ProbComp.uniform M
-      let z ← ProbComp.uniform M
-      return fun i : Fin 2 => if i.val = 0 then y else z) 1 collisionAttack) =
-        (Fintype.card M : ℝ≥0)⁻¹ *
+    (hfunctional : ∀ pk y z s, S.verify pk y s = true → S.verify pk z s = true → y = z)
+    (targets : PK → ProbComp (Fin 2 → M))
+    (htargets : ∀ pk, ProbComp.eval (targets pk) = PMF.uniformOfFintype (Fin 2 → M)) :
+    Experiment.succProbability (oneMoreExperiment S targets 1 collisionAttack) =
+      (Fintype.card M : ℝ≥0)⁻¹ *
         Experiment.succProbability (signingCorrectnessExperiment S
           (fun _ => ProbComp.uniform M)) := by
   classical
@@ -224,8 +225,24 @@ theorem succProbability_collisionAttack_uniform [Fintype M] [Nonempty M]
     rw [PMF.bind_comm]
     simp only [PMF.bind_apply, hcoin]
     simp only [ENNReal.tsum_mul_left, mul_left_comm]
+  have hpair (pk : PK) (sk : SK) :
+      (ProbComp.eval (targets pk)).bind (fun ys =>
+        (ProbComp.eval (S.sign sk (ys 0))).bind fun s =>
+          PMF.pure (decide (ys 0 = ys 1) && S.verify pk (ys 0) s)) =
+      (PMF.uniformOfFintype M).bind fun y =>
+        (PMF.uniformOfFintype M).bind fun z =>
+          (ProbComp.eval (S.sign sk y)).bind fun s =>
+            PMF.pure (decide (y = z) && S.verify pk y s) := by
+    rw [htargets pk, ← Cslib.Probability.PMF.uniformOfFintype_bind_bind_equiv
+      (finTwoArrowEquiv M).symm]
+    rfl
   simp only [signingCorrectnessExperiment, ProbComp.eval_bind, ProbComp.eval_uniform,
-    ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
+    ProbComp.eval_pure]
+  conv_lhs =>
+    arg 1
+    arg 2
+    ext keys
+    rw [hpair keys.1 keys.2]
   unfold Game.succProbability
   conv_lhs =>
     arg 1
@@ -240,5 +257,19 @@ theorem succProbability_collisionAttack_uniform [Fintype M] [Nonempty M]
     erw [hinner]
   simp only [PMF.bind_apply, mul_left_comm, ENNReal.tsum_mul_left]
   simp [ENNReal.toNNReal_mul, ENNReal.toNNReal_inv]
+
+/-- On two independent uniform targets `ProbComp.uniform (Fin 2 → M)`, the collision strategy
+succeeds with the signer's validation probability divided by `card M`. For UOV targets
+`M = Fin m → F`, the collision factor is `|F|⁻ᵐ`; the separate validation factor retains failed
+preimage derivations. -/
+theorem succProbability_collisionAttack_uniform [Fintype M] [Nonempty M]
+    (S : Scheme PK SK M Sig)
+    (hfunctional : ∀ pk y z s, S.verify pk y s = true → S.verify pk z s = true → y = z) :
+    Experiment.succProbability
+        (oneMoreExperiment S (fun _ => ProbComp.uniform (Fin 2 → M)) 1 collisionAttack) =
+      (Fintype.card M : ℝ≥0)⁻¹ *
+        Experiment.succProbability (signingCorrectnessExperiment S
+          (fun _ => ProbComp.uniform M)) :=
+  succProbability_collisionAttack_of_uniform S hfunctional _ fun _ => ProbComp.eval_uniform _
 
 end Cslib.Crypto.Signature
