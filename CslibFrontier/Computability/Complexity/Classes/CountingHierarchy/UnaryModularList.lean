@@ -14,26 +14,25 @@ import CslibFrontier.Computability.Probabilistic.Oracle.Composition
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Replay.Simulation
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ListProd
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 
 /-!
-# Same-level unary modular collection and summation
+# Same-level unary modular collection, sums and products
 
 `unaryModularList` collects polynomially many binary oracle values in order, reducing each
 before appending it. The loop invariant bounds the index, list length and every stored entry
 under every supported reply of an arbitrary stateful handler. `unaryModularList_mem` therefore
 retains one fixed counting oracle at the original level.
 
-`unaryModularSum` reuses this list and the certified binary sum program. The complete reduced
-list has polynomial encoded length because the count is unary and the modulus is binary.
-This construction preserves the counting level and polynomial storage; it does not claim a
-small scalar accumulator-space bound. Its total modulus-zero value is the ordinary natural
-sum. Both operations also have direct plain polynomial-time certificates for plain callbacks,
-without requiring the modulus to be positive.
+`unaryModularSum` and `unaryModularProduct` reuse this list and the certified binary arithmetic
+programs. The reduced list and its sum and product have polynomial encoded lengths because the
+count is unary and the modulus is binary. At modulus zero the evaluators give the ordinary
+natural sum and product.
 
-Adapted from `LeanCanny.CountingHierarchy.UnaryModularList` and the sum in
+Adapted from `LeanCanny.CountingHierarchy.UnaryModularList` and
 `UnaryModularAggregation` at lean-canny commit `970f28a5ecefc1327402ade16c068aa4b1b2c183`.
 -/
 
@@ -210,5 +209,31 @@ theorem unaryModularSum_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
 theorem unaryModularSum_cast (n p : ℕ) (v : ℕ → ℕ) :
     (unaryModularSum n p v : ZMod p) = ∑ i : Fin n, (v i.val : ZMod p) := by
   rw [unaryModularSum_eq, ZMod.natCast_mod, Nat.cast_sum, Finset.sum_range]
+
+/-- Multiply the collected residues and reduce once more. -/
+@[expose] def unaryModularProduct (n p : ℕ) (v : ℕ → ℕ) : ℕ :=
+  (unaryModularList n p v).prod % p
+
+/-- At positive modulus, a unary number of factors uses one fixed oracle at the original
+function level. The intermediate product has at most the sum of the binary factor lengths. -/
+theorem unaryModularProduct_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+    {n p : α → ℕ} {v : α × ℕ → ℕ}
+    (hn : ComputableInPolyTime n enc encUnary)
+    (hp : ComputableInPolyTime p enc encNat) (hpos : ∀ w, 0 < p w)
+    (hv : v ∈ CountingFunction a (encPair enc encNat) encNat) :
+    (fun w => unaryModularProduct (n w) (p w) (fun i => v (w, i))) ∈
+      CountingFunction a enc encNat :=
+  CountingFunction.nat_mod
+    (CountingFunction.map (unaryModularList_mem hn hp hpos hv) ComputableInPolyTime.binary_prod)
+    (CountingFunction.of_polyTime hp)
+
+/-- The evaluator casts to the actual finite product at every modulus. -/
+theorem unaryModularProduct_cast (n p : ℕ) (v : ℕ → ℕ) :
+    (unaryModularProduct n p v : ZMod p) = ∏ i : Fin n, (v i.val : ZMod p) := by
+  have h := List.prod_nat_mod ((List.range n).map v) p
+  rw [← List.prod_toFinset _ List.nodup_range, List.toFinset_range] at h
+  have hmod : unaryModularProduct n p v = (∏ i ∈ Finset.range n, v i) % p := by
+    simpa only [unaryModularProduct, unaryModularList, List.map_map, Function.comp_def] using h.symm
+  rw [hmod, ZMod.natCast_mod, Nat.cast_prod, Finset.prod_range]
 
 end Cslib.Complexity

@@ -12,7 +12,7 @@ import CslibFrontier.Crypto.Negligible.Basic
 import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
-import CslibFrontier.Crypto.Primitives.UHF.XorHash
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
@@ -160,6 +160,16 @@ example (A : ProbComp (CollisionGuess {m : List Bool // m.length ≤ 2})) :
       (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ :=
   (isUniversalHash_iff_eval_collisionExperiment_le _ _).mp
     isDeltaUniversalHash_xorHash.isUniversalHash A
+
+/-- The finite reduction bounds success on short messages and uses at most four table calls. -/
+example (F : Bool → Bool × Fin 2 → BitString 2)
+    (A : ProbComp (CollisionGuess {m : List Bool // m.length ≤ 2})) :
+    ProbComp.eval (collisionExperiment (fun k => xorHash (F k)) A) true ≤
+      (PRF.advantage F (xorHashCollisionReduction A) : ℝ≥0∞) +
+        (Fintype.card (BitString 2) : ℝ≥0∞)⁻¹ ∧
+    (xorHashCollisionReduction (Y := BitString 2) A).IsQueryBounded 4 :=
+  ⟨eval_collisionExperiment_xorHash_le_prfAdvantage F A,
+    isQueryBounded_xorHashCollisionReduction A⟩
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())

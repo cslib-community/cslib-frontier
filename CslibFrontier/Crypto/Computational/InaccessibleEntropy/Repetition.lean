@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Probabilistic.UniformNat
 public import CslibFrontier.Crypto.Computational.InaccessibleEntropy.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString.ReplaceRow
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Eq
 import CslibFrontier.Probability.BitString.List
@@ -415,26 +416,6 @@ theorem repBitAccessibleSet_logb_card_ge_prob (t inLen₀ : ℕ)
 
 /-! ### Planted-coordinate escape reduction (Lemma 5.3(ii)) -/
 
-private theorem computableInPolyTime_replaceRow {α : Type} {encode : α ↪ List Bool}
-    {width count j : α → ℕ} {x word : α → List Bool}
-    (hwidth : ComputableInPolyTime width encode encUnary)
-    (hcount : ComputableInPolyTime count encode encUnary)
-    (hj : ComputableInPolyTime j encode encUnary)
-    (hx : ComputableInPolyTime x encode encBits)
-    (hword : ComputableInPolyTime word encode encBits) :
-    ComputableInPolyTime
-      (fun a => Cslib.BitString.replaceRow (width a) (count a) (j a) (x a) (word a))
-      encode encBits := by
-  unfold Cslib.BitString.replaceRow
-  apply ComputableInPolyTime.flatMapToBitsWithInput
-    (ComputableInPolyTime.unary_range' hcount)
-  have hfst := ComputableInPolyTime.fst encode encUnary
-  have hsnd := ComputableInPolyTime.snd encode encUnary
-  exact ComputableInPolyTime.ite_decide
-    (ComputableInPolyTime.unary_eq' hsnd (hj.comp hfst))
-    (hx.comp hfst)
-    (ComputableInPolyTime.bitsRowWithInput (hwidth.comp hfst) hsnd (hword.comp hfst))
-
 /-- Planted-coordinate escape reduction (`[HHRVW2020]`, Section 5.1.1, Lemma 5.3(ii), pp. 26–27):
 sample an exact dyadic index `idx < dyadicSize (t n)`, plant the single-coordinate challenge
 `xWord.take (inLen₀ n)` into row `idx` of a uniform `(t n * inLen₀ n)`-bit dummy word, run `A`,
@@ -468,7 +449,7 @@ theorem isPPT_repEscapeInverter {t inLen₀ : ℕ → ℕ}
   have h2_n := h0_n.comp h2_p
   have h2_idx := h1_idx.comp h2_q
   have h2_in₀ := hin₀.comp h2_n
-  have hzWord := computableInPolyTime_replaceRow h2_in₀ (ht.comp h2_n) h2_idx
+  have hzWord := ComputableInPolyTime.bitsReplaceRowWithInput h2_in₀ (ht.comp h2_n) h2_idx
     (ComputableInPolyTime.bitsTakeWithInput (h0_x.comp h2_p) h2_in₀)
     (ComputableInPolyTime.snd enc1 encBits)
   have h3_r := ComputableInPolyTime.fst enc2 encBits

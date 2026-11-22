@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Det
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.AcceptCount
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Machine.Nondeterministic
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 
 /-!
 # Padded coin counts as terminal-path counts
@@ -151,33 +152,14 @@ theorem apply_lift (action : Turing.Action k Bool State) (c : Cfg k Bool State i
     (clock : ℤ → Option Bool) (pos : ℤ) :
     (lift (r := r) action).apply (config r c clock pos) =
       config r (action.apply c) clock (pos + 1) := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext j <;> induction j using Fin.lastCases with
-  | last => simp [lift, config, Action.apply]
-  | cast j =>
-    induction j using Fin.addCases with
-    | left i =>
-      simp only [lift, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_left]
-    | right i =>
-      simp only [lift, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_right,
-        SignType.coe_zero, add_zero]
+  tm_step [lift, config]
 
 /-- After the source halts, a tick only advances the clock head. -/
 theorem apply_tick {c : Cfg k Bool State input} (hc : c.state = none)
     (clock : ℤ → Option Bool) (pos : ℤ) :
     (tick (k := k) (r := r) (State := State)).apply (config r c clock pos) =
       config r c clock (pos + 1) := by
-  refine Cfg.ext (by simp [tick, config, hc]) (by simp [tick, config])
-    ?_ ?_ (by simp [tick, config, Action.apply]) <;>
-    funext j <;> induction j using Fin.lastCases with
-  | last => simp [tick, config, Action.apply]
-  | cast j =>
-    induction j using Fin.addCases with
-    | left i =>
-      simp only [tick, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_left,
-        SignType.coe_zero, add_zero]
-    | right i =>
-      simp only [tick, config, Action.apply, Fin.lastCases_castSucc, Fin.addCases_right,
-        SignType.coe_zero, add_zero]
+  tm_step [tick, config, hc]
 
 /-- The fixed-coin step of the source, in the notation of the coin replay. -/
 private theorem step_withCoin_of_state (M : MultiTapePTM k Bool State)
@@ -294,16 +276,7 @@ private theorem start_eq (M : MultiTapePTM k Bool State) (input : List Bool) (τ
         (Function.update (fun _ => []) (Fin.last (k + r)) (List.replicate τ true)) []).withState
         (some (machine M r).initial) =
       config r (Cfg.init M.initial input) (tapeOfList (List.replicate τ true)) 0 := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext j <;> induction j using Fin.lastCases with
-  | last => simp [config, wordsCfg, Cfg.withState]
-  | cast j =>
-    induction j using Fin.addCases with
-    | left i =>
-      simp only [config, wordsCfg, Cfg.withState, Fin.lastCases_castSucc, Fin.addCases_left,
-        Cfg.init, Function.update_of_ne (Fin.castSucc_ne_last _), tapeOfList_nil]
-    | right i =>
-      simp only [config, wordsCfg, Cfg.withState, Fin.lastCases_castSucc, Fin.addCases_right,
-        Function.update_of_ne (Fin.castSucc_ne_last _), tapeOfList_nil]
+  tm_step [config]
 
 /-- **Padded counts from a prepared clock.** If the preparation halts after `time` steps with
 exactly `τ` true cells on the last work tape, every other tape blank and nothing emitted, then

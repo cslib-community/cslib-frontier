@@ -19,6 +19,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Probabilistic.Outpu
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.PrepareInput
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.ExtendTapesView
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.EncLen
 
@@ -184,22 +185,15 @@ private theorem runFrom_oPrepare (mark : Bool) (k₁ : ℕ)
   rw [MultiTapeTM.runFrom_prepareInput mark _ cfg₀.tapes.output
     (by rw [oBuffer_tapes]; simp) (by rw [oBuffer_tapes]; simp) (by rw [oBuffer_tapes]; simp)]
   rw [oBuffer_tapes]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.addCases with
-  | left i => simp [oReady, Function.update_of_ne (Fin.castAdd_ne_natAdd i _)]
-  | right i => fin_cases i <;> simp [oReady]
+  tm_step [oReady, Fin.castAdd_ne_natAdd]
 
 private theorem start_oReady (m₂ : MultiTapePTM k₁ Bool State₁ Operation) (mark : Bool)
     (cfg₀ : Config k₀ Bool State₀ Operation x) :
     Sequential.start (oConsumer m₂ k₀) (oReady mark k₁ cfg₀) =
       oConsumerConfig mark cfg₀
         { tapes := Cfg.init m₂.initial cfg₀.tapes.output, channels := cfg₀.channels } := by
-  refine Config.ext ?_ rfl
-  simp only [Sequential.start, oReady, oConsumerConfig, InputFromTape.config, Config.embed,
-    MultiTapeTM.embed_castAdd, MultiTapeTM.inCfg, Cfg.init, oReserve,
-    MultiTapeTM.embed_natAdd, Cfg.withState]
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext i <;> induction i using Fin.addCases with
-  | left i => induction i using Fin.addCases <;> simp
-  | right i => fin_cases i <;> simp
+  tm_step [oReady, oConsumerConfig, Config.embed, MultiTapeTM.embed_castAdd, oReserve,
+    MultiTapeTM.embed_natAdd]
 
 private theorem runOracleConfigFrom_oSource [DecidableEq Operation]
     (m₁ : MultiTapePTM k₀ Bool State₀ Operation) (k₁ fuel : ℕ) (x : List Bool) :

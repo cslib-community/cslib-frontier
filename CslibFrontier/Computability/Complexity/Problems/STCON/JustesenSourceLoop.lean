@@ -25,6 +25,8 @@ membership tally at the designated target.
 
 ## Main results
 
+* `Cslib.Complexity.STCON.justesenSourceLoop_parts_inSpace`: query, transition, halt and
+  verdict decoding certificates under the framed loop encoding.
 * `Cslib.Complexity.STCON.configurationJustesenSourceLoop_haltsWithin_clock`: every
   branch at a valid initialized entry halts within the common polynomial clock.
 * `Cslib.Complexity.STCON.configurationJustesenSourceLoop_length_run_le_log`: every
@@ -37,6 +39,8 @@ membership tally at the designated target.
   gives the first nonunique radius or the correct subdivision reachability answer.
 * `Cslib.Complexity.STCON.configurationJustesenSourceLoop_existsUnique_firstHalting`:
   a full-fuel loop has exactly one first-halting selector list returning a verdict.
+* `Cslib.Complexity.STCON.configurationJustesenSourceLoop_acceptCount_eq_one`:
+  the compiled full-fuel loop has one accepting branch at any sufficient native clock.
 -/
 
 public section
@@ -45,7 +49,7 @@ namespace Cslib.Complexity.STCON
 
 open Cslib.Code.JustesenFamily Cslib.DoubleCounting
 open _root_.Turing _root_.Turing.DoubleCounting _root_.Turing.NondeterministicQueryMachine
-open _root_.Turing.MultiTapeTM
+open _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
 
 variable {k : ℕ} {State : Type} [Fintype State]
 
@@ -68,6 +72,32 @@ abbrev JustesenSourceLoopState :=
     justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
     (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
     MembershipTally.retainedReply
+
+/-- Query, step, halt and decode the source loop in workspace linear in the encoded argument. -/
+theorem justesenSourceLoop_parts_inSpace (ntm : MultiTapeNTM k Bool State) (c : ℕ)
+    (context : JustesenSourceContext) (limit : ℕ) :
+    let E := encJustesenSourceLoopState
+    let encStep := encPair E encReadChoice
+    let M := justesenSourceLoop ntm c context limit
+    ComputableInSpace M.query E encNat (fun s => (E s).length) ∧
+      ComputableInSpace M.next encStep E (fun p => (encStep p).length) ∧
+      ComputableInSpace M.halted E encBool (fun s => (E s).length) ∧
+      ComputableInSpace SourceRoundLoop.reply E (encOption SourceRoundLoop.encVerdict)
+        (fun s => (E s).length) := by
+  intro E encStep M
+  let encRound := encJustesenRetainedSourceRoundState
+  let encMember := MembershipTally.encRetainedState encJustesenSubdivisionContext
+    encJustesenSubdivisionState
+  let initial := SourceRoundLoop.start context limit
+  let round := justesenRetainedSourceRound ntm c initial
+  let member := justesenSourceMembershipMachine ntm c
+  obtain ⟨hrq, hrn, hrh, hrr⟩ := justesenRetainedSourceRound_parts_inSpace ntm c initial
+  obtain ⟨hq, hn, hh, hr⟩ := justesenSourceMembershipMachine_parts_inSpace ntm c
+  exact SourceRoundLoop.parts_inSpace encJustesenSourceContext encRound encMember
+    initial round justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
+    member justesenSourceMembershipStart MembershipTally.retainedReply
+    justesenRetainedSourceRoundEntry_inSpace justesenSourceMembershipStart_inSpace
+    hrr hr hrq hq hrh hh hrn hn
 
 /-- Zero fuel returns no verdict and never starts a callback. -/
 theorem justesenSourceLoop_run_zero (ntm : MultiTapeNTM k Bool State) (c : ℕ)
@@ -294,13 +324,7 @@ theorem configurationJustesenSourceLoop_correct
       let M := justesenSourceLoop ntm c context n
       ∀ (bits : List Bool) (verdict : ControllerVerdict), M.FirstHalting w bits M.init →
         M.run w bits = .inr (some verdict) →
-        match verdict with
-        | .bad radius =>
-          (∀ j < radius, ∃! transcript, Passes edge source j transcript) ∧
-            ¬ (∃! transcript, Passes edge source radius transcript)
-        | .decided hit =>
-          (∀ radius, ∃! transcript, Passes edge source radius transcript) ∧
-            (hit = true ↔ Relation.ReflTransGen edge source target) := by
+        verdict.Correct edge source target := by
   intro I n seed source target edge context M bits verdict hfirst hresult
   let initial := SourceRoundLoop.start context n
   let round := justesenRetainedSourceRound ntm c initial
@@ -328,7 +352,7 @@ theorem configurationJustesenSourceLoop_correct
       exact (justesenSourceMembership_readReply_correct ntm c w seed source target
         fuel radius selectors hit rest hreply).trans mem_round.symm)
     hscan
-  cases verdict <;> exact hspec
+  exact hspec
 
 /-- Every valid full-fuel source scan has exactly one first-halting selector list
 that returns a verdict. -/
@@ -417,5 +441,52 @@ theorem configurationJustesenSourceLoop_exists_firstHalting
   intro I n seed source target
   exact (configurationJustesenSourceLoop_existsUnique_firstHalting
     ntm c w seed source target).exists
+
+/-- A first-halting run returns a reply exactly when its terminal state carries a verdict. -/
+theorem justesenSourceLoop_firstHalting_reply_iff
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (context : JustesenSourceContext)
+    (fuel : ℕ) (w bits : List Bool) :
+    let M := justesenSourceLoop ntm c context fuel
+    M.FirstHalting w bits M.init ∧ (SourceRoundLoop.reply (M.run w bits)).isSome ↔
+      ∃ verdict, M.FirstHalting w bits M.init ∧ M.run w bits = .inr (some verdict) := by
+  intro M
+  let initial := SourceRoundLoop.start context fuel
+  have haccept := SourceRoundLoop.machine_accept_iff initial
+    (justesenRetainedSourceRound ntm c initial)
+    justesenRetainedSourceRoundEntry justesenRetainedSourceRoundReply
+    (justesenSourceMembershipMachine ntm c) justesenSourceMembershipStart
+    MembershipTally.retainedReply (M.run w bits)
+  exact (and_congr_right fun _ => haccept).trans exists_and_left.symm
+
+/-- At any sufficient native clock, the compiled full-fuel source loop has exactly
+one accepting occurrence across all selector lists. -/
+theorem configurationJustesenSourceLoop_acceptCount_eq_one
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) {α : Type} {enc : α ↪ List Bool}
+    {S : α → ℕ} {contextOf : α → JustesenSourceContext} {limitOf : α → ℕ}
+    {baseline : JustesenSourceContext} {fuel : ℕ}
+    (R : Routines (justesenSourceLoop ntm c baseline fuel)
+      (fun a => (justesenSourceLoop ntm c (contextOf a) (limitOf a)).init) enc S)
+    (a : α) {clock : ℕ} (hclock : R.machine.RunsInTime (enc a) clock) :
+    let w := enc a
+    let I := configurationInstance ntm c w
+    let n := (configurationSeedSearchSetup ntm c w).parameters.search.subdivision.vertexCount
+    ∀ (seed : Fin (2 ^ codeLength I.n (I.n - 1))) (source target : Fin n),
+      contextOf a =
+        ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩ →
+      limitOf a = n →
+      (Native.countingMachine R.I R.P R.F R.C).acceptCount clock (R.machine.initCfg w) = 1 := by
+  intro w I n seed source target hcontext hlimit
+  rw [R.acceptCount_eq_one_iff a hclock]
+  refine (existsUnique_congr fun bits => ?_).mpr
+    (configurationJustesenSourceLoop_existsUnique_firstHalting ntm c w seed source target)
+  let entered := (justesenSourceLoop ntm c baseline fuel).withInit
+    (justesenSourceLoop ntm c (contextOf a) (limitOf a)).init
+  change (entered.FirstHalting w bits entered.init ∧
+    entered.accept (entered.run w bits) = true) ↔ _
+  dsimp only [entered]
+  rw [justesenSourceLoop_withInit, hcontext, hlimit]
+  let context : JustesenSourceContext :=
+    ⟨configurationJustesenSubdivisionContext ntm c w seed.val, source.val, target.val⟩
+  exact justesenSourceLoop_firstHalting_reply_iff ntm c context n w bits
 
 end Cslib.Complexity.STCON

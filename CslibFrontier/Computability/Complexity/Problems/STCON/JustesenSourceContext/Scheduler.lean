@@ -11,7 +11,7 @@ public import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSour
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedScheduler
 
 /-!
-# Source context from a scheduler request
+# Source loop entry from a scheduler request
 
 The scheduler provides the initialized subdivision parameters, a binary seed rank, and a
 source ID. The source scanner combines those with the prepared field context and retains the
@@ -21,6 +21,7 @@ original-source call.
 ## Main definitions
 
 * `Cslib.Complexity.STCON.justesenSourceContextOfRequest`: build the retained source context.
+* `Cslib.Complexity.STCON.justesenSourceRegistersOfRequest`: initialize the loop at full fuel.
 
 ## Main results
 
@@ -28,6 +29,10 @@ original-source call.
   common budget of the two producers.
 * `Cslib.Complexity.STCON.justesenSourceContextOfRequest_adjacency_eq`: the retained adjacency
   agrees with the initializer on the original word.
+* `Cslib.Complexity.STCON.justesenSourceRegistersOfRequest_budget`: full-fuel registers
+  use the same shared budget.
+* `Cslib.Complexity.STCON.justesenSourceRegistersOfRequest_eq`: the scheduler and
+  the original-word initializer give the same initial registers.
 -/
 
 public section
@@ -35,7 +40,8 @@ public section
 namespace Cslib.Complexity.STCON
 
 open Cslib.Code.JustesenFamily
-open _root_.Turing _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
+open _root_.Turing _root_.Turing.DoubleCounting
+open _root_.Turing.MultiTapeTM _root_.Turing.MultiTapeTM.ComputableInSpace
 
 /-- Use the requested source, the designated target, and the supplied field context. -/
 @[expose] def justesenSourceContextOfRequest (r : SeedScanRequest) (field : FieldContext) :
@@ -64,5 +70,41 @@ theorem justesenSourceContextOfRequest_adjacency_eq {k : ℕ} {State : Type} [Fi
         configurationJustesenSubdivisionContext ntm c w rank := by
   simp only [justesenSourceContextOfRequest, configurationJustesenSubdivisionContext,
     (configurationSeedSearchSetup_endpoints ntm c w).1]
+
+/-- Use the prepared request and field to start the loop with one round of fuel per vertex. -/
+@[expose] def justesenSourceRegistersOfRequest (request : SeedScanRequest) (field : FieldContext) :
+    SourceRoundLoop.Registers JustesenSourceContext :=
+  let context := justesenSourceContextOfRequest request field
+  SourceRoundLoop.start context context.size
+
+/-- Form full-fuel registers within the shared budget of the request and field producers. -/
+theorem justesenSourceRegistersOfRequest_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {request : α → SeedScanRequest} {field : α → FieldContext}
+    (hrequest : ComputableInSpace request enc encSeedScanRequest S)
+    (hfield : ComputableInSpace field enc encFieldContext S) :
+    ComputableInSpace (fun a => justesenSourceRegistersOfRequest (request a) (field a))
+      enc (SourceRoundLoop.encRegisters encJustesenSourceContext) S := by
+  have hcontext := justesenSourceContextOfRequest_budget hrequest hfield
+  exact SourceRoundLoop.start_budget encJustesenSourceContext hcontext
+    (encJustesenSourceContext_size_budget hcontext)
+
+/-- At the initialized setup and field, the request gives the original word's full-fuel entry. -/
+theorem justesenSourceRegistersOfRequest_eq {k : ℕ} {State : Type} [Fintype State]
+    (ntm : MultiTapeNTM k Bool State) (c : ℕ) (w : List Bool) (rank source : ℕ) :
+    let setup := configurationSeedSearchSetup ntm c w
+    justesenSourceRegistersOfRequest ⟨setup, rank, source⟩ (configurationFieldContext ntm c w) =
+      SourceRoundLoop.start
+        ⟨configurationJustesenSubdivisionContext ntm c w rank, source, setup.targetID⟩
+        setup.parameters.search.subdivision.vertexCount := by
+  intro setup
+  have hctx :
+      justesenSourceContextOfRequest ⟨setup, rank, source⟩ (configurationFieldContext ntm c w) =
+        ⟨configurationJustesenSubdivisionContext ntm c w rank, source, setup.targetID⟩ := by
+    have h := justesenSourceContextOfRequest_adjacency_eq ntm c w rank source
+    change (⟨(justesenSourceContextOfRequest ⟨setup, rank, source⟩
+      (configurationFieldContext ntm c w)).adjacency, source, setup.targetID⟩ :
+        JustesenSourceContext) = _
+    rw [h]
+  rw [justesenSourceRegistersOfRequest, hctx, configurationJustesenSourceContext_size]
 
 end Cslib.Complexity.STCON

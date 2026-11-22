@@ -15,6 +15,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Mar
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Sequential
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.TransformsTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.Tidy.Defs
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WordsCfg
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import CslibFrontier.Foundations.Data.Fin.Tuple
 
 /-!
@@ -72,9 +74,7 @@ public lemma inCfg_wordsCfg (mark : Symbol) {w : List Symbol} (q : Option State)
       ⟨q, 1, Fin.append (fun j => tapeOfList (ws j))
           ![tapeOfList w, Function.update (fun _ => none) (-1) (some mark)],
         fun _ => 0, o⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext l <;> cases l using Fin.addCases with
-  | left j => simp [inCfg, wordsCfg]
-  | right i => match i with | 0 | 1 => simp [inCfg, wordsCfg]
+  tm_step [inCfg]
 
 /-- Updating the flag tape of an appended family of tapes only changes the flag entry. -/
 public lemma update_append_flag {α : Type*} (ws₀ : Fin k → α) (a b c : α) :
@@ -92,7 +92,7 @@ private lemma oneTapeCfg_flag {input : List Symbol} (write : Option Symbol)
         (⟨some (markWork Symbol write).q₀, ip, Fin.append WS ![vip, flag], fun _ => 0, out⟩ :
           Cfg (k + 2) Symbol MarkWorkState input) =
       ⟨some (markWork Symbol write).q₀, ip, fun _ => flag, fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl ?_ ?_ rfl <;> funext _ <;> simp [oneTapeCfg, Fin.append_right]
+  tm_step [oneTapeCfg]
 
 /-- In two steps, `markFlag k write` writes `write` to cell `-1` of the flag tape and changes
 nothing else: it runs `markWork write` on the flag tape. -/
@@ -117,17 +117,6 @@ private lemma exists_runPath_markFlag {input : List Symbol} (write : Option Symb
   · -- `markWork` takes two steps on one tape, every other tape stays where it is
     have : r.space ≤ 1 * (2 + 1) := r.space_le_mul_time_add_one
     exact (space_map_embedHom_le ..).trans (by omega)
-
-/-- A `wordsCfg` configuration whose last two words are `w` and the empty word, written out. -/
-private lemma wordsCfg_append_words {State' : Type*} {outer : List Symbol} (q : Option State')
-    (ws : Fin k → List Symbol) (w out : List Symbol) :
-    wordsCfg outer q (Fin.append ws ![w, []]) out =
-      ⟨q, 1, Fin.append (fun j => tapeOfList (ws j)) ![tapeOfList w, fun _ => none],
-        fun _ => 0, out⟩ := by
-  refine Cfg.ext rfl rfl
-    ((Fin.comp_append tapeOfList ws ![w, []]).trans (congrArg _ (funext fun i => ?_))) rfl rfl
-  match i with
-  | 0 | 1 => simp
 
 section Flag
 

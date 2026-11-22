@@ -18,7 +18,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Probabilistic.Finite
 import CslibFrontier.Computability.Probabilistic.PPT.PairCapture
-import CslibFrontier.Computability.Probabilistic.Repeat
+import CslibFrontier.Computability.Probabilistic.Vector
 import CslibFrontier.Probability.PMF.Bind
 
 /-!
@@ -420,17 +420,6 @@ private theorem computable_revealKeys {α K : Type} {encIn : α ↪ List Bool} {
           ((ComputableInPolyTime.finFn_apply encK i).comp hks)
   simpa only [← revealKeys_apply] using h
 
-private theorem isPPTOn_replicateFin {α K : Type} {encIn : α ↪ List Bool} {encK : K ↪ List Bool}
-    {sampleKey : α → ProbComp K} (hsampleKey : IsPPTOn encIn encK sampleKey) (n : ℕ) :
-    IsPPTOn encIn (encFinFn n encK) fun a => OracleComp.replicateFin n (sampleKey a) := by
-  obtain ⟨k, State, hfin, machine, c, d, hm⟩ :=
-    hsampleKey.replicate (count := fun _ => n) (ComputableInPolyTime.const n)
-  refine ⟨k, State, hfin, machine, c, d, fun a => ?_⟩
-  rw [← hm a]
-  beta_reduce
-  rw [← OracleComp.map_ofFn_replicateFin, ProbComp.eval_map, PMF.map_comp]
-  rfl
-
 private theorem isPPTOn_nestedEncrypt {α K M : Type} {encIn : α ↪ List Bool}
     {encK : K ↪ List Bool} {encM : M ↪ List Bool} {E : α → Cipher K M M}
     (hencrypt : IsPPTOn (encPair encIn (encPair encK encM)) encM
@@ -557,7 +546,7 @@ theorem isPPT_nestedToSingleAdversary {K M σ : Type} {encK : K ↪ List Bool}
         e1 (encFinEnum (Fin n)) := encNestedRequest_withheld_polyTime encM n h1_req
     have hsk : IsPPTOn e1 (encFinFn n encK)
         fun p => OracleComp.replicateFin n (sampleKey p.1.1) :=
-      (isPPTOn_replicateFin hsampleKey n).preprocess h1_sec
+      (hsampleKey.replicateFin n).preprocess h1_sec
     have h2_sec : ComputableInPolyTime
         (fun p : ((ℕ × Unit) × (NestedRequest M n × σ)) × (Fin n → K) => p.1.1.1)
         e2 encUnary := h1_sec.comp (ComputableInPolyTime.fst _ _)

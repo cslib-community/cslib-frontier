@@ -141,14 +141,6 @@ theorem advantage_twoBlockAdversary [DecidableEq D] (E : Key → Equiv.Perm D)
 
 /-! ### Theorem 4.1 -/
 
-/-- Against a fixed function, querying every block of a list returns the image of the list. -/
-private theorem run_mapM_query (f : D → D) (l : List D) :
-    (l.mapM (ProbOracleComp.query (spec := fun _ : D => D))).run (fun x => pure (f x)) =
-      pure (l.map f) := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => simp [List.mapM_cons, ih]
-
 variable [DecidableEq D]
 
 /-- The block-cipher adversary of the proof of Theorem 4.1 ([BonehShoup2023], p. 106). It draws
@@ -206,7 +198,7 @@ private theorem run_reduction (f : D → D) (ℓ : ℕ) {σ : Type}
   simp only [reduction, ProbOracleComp.run_bind, ProbOracleComp.run_sample]
   refine bind_congr fun b => bind_congr fun p => ?_
   split_ifs
-  · simp [run_mapM_query]
+  · simp [ProbOracleComp.run_mapM_query]
   · rfl
 
 /-- The real block-cipher experiment of `ECB.reduction ℓ A` against a keyed permutation `E` is the
