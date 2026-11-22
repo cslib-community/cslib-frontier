@@ -8,6 +8,7 @@ module
 -- upstream: local-only (tests)
 
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoordinateCoefficients
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -85,7 +86,8 @@ example : (modularMatrixDeterminant 7 2 (fun _ => 1) : ZMod 7) = 0 := by
 
 -- For this coupled polynomial the derivative matrix is [[0,1],[1,6]], with determinant 6.
 example : (criticalJacobianValue 7 2 3 1 [2, 3] inputValue : ZMod 7) = 6 := by
-  rw [criticalJacobianValue_cast inputPolynomial 3 1 [2, 3] inputValue
+  rw [criticalJacobianValue_cast inputPolynomial (fun i => (separatedCenters 3 i : ℕ))
+    3 1 [2, 3] inputValue
     input_degree (by decide) input_correct]
   norm_num [jacobian, criticalLower, inputPolynomial, Matrix.det_fin_two,
     pderiv_pow, pderiv_mul, derivative_two]
@@ -113,5 +115,24 @@ theorem uniform_jacobian_mem :
     (z := fun _ => []) (value := fun _ => 0) (Decoder.pair Decoder.nat Decoder.nat)
     (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop) (by fun_prop)
   exact CountingFunction.of_polyTime (ComputableInPolyTime.const 0)
+
+-- For one coordinate and exponent two, the degree-two coefficient is monic.
+example : criticalCoordinateCoefficientValue 11 1 1 1 0 2 (fun z => z[0]?.getD 0) = 1 := by
+  let : Fact (Nat.Prime 11) := ⟨by decide⟩
+  let : Fact (1 < 11) := ⟨by decide⟩
+  change criticalCoordinateCoefficientValue 11 1 1 1 (0 : Fin 1).val 2 _ = 1
+  rw [criticalCoordinateCoefficientValue_eq 1 (by decide) 1 2 (0 : Fin 1)
+    (X 0) ((totalDegree_X_le 0).trans (by decide)) (by decide) (by decide)
+    (fun z => z[0]?.getD 0) (by intro z; simp only [eval_X, Fin.val_zero])]
+  have hdim : Fintype.card (NormalIndex 1 2) = 2 := by simp [NormalIndex]
+  have hleading (A : Matrix (NormalIndex 1 2) (NormalIndex 1 2) (ZMod 11)) :
+      (A.charpoly.coeff 2).val = 1 := by
+    have hdegree := (Matrix.charpoly_natDegree_eq_dim A).trans hdim
+    calc
+      _ = (A.charpoly.coeff A.charpoly.natDegree).val :=
+        congrArg (fun k => (A.charpoly.coeff k).val) hdegree.symm
+      _ = 1 := by
+        rw [Polynomial.coeff_natDegree, (Matrix.charpoly_monic A).leadingCoeff, ZMod.val_one]
+  exact hleading _
 
 end CslibFrontierTests.RealAlgebraicCriticalEvaluation
