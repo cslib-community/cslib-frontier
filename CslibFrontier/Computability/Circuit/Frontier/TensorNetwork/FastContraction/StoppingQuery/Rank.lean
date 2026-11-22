@@ -177,6 +177,17 @@ theorem descends (m p edges vertices : ℕ) (input : Entry → Bool) :
   | none => simpa only [decoder, operation, he, Sum.elim_inr, id_eq, rank] using h a b
   | some e => simp only [decoder, operation, he, Sum.elim_inl]
 
+/-- Starting at a balanced block has a rank linear in its height and the signed multiplier
+depth, independently of the assignment and the number of summed assignments. -/
+theorem rank_block_root_le (m p edges vertices assignment base level coefficient bit : ℕ) :
+    rank m p edges vertices (FormulaExpansion.root (template m p edges vertices)
+      (.value assignment base level coefficient bit)) ≤
+        13 * (level * (SignedValueGame.height (3 ^ modulusExp m) p +
+          2 * SignedValueGame.rounds p + 11) + 1) + 12 := by
+  have h := template_depth m p edges vertices (.value assignment base level coefficient bit)
+  simpa only [rank, FormulaExpansion.rank, FormulaExpansion.root, nodeRank, productSpan,
+    Nat.reduceAdd] using Nat.add_le_add_left h _
+
 /-- Every play from the output ends within the stated gate budget. This includes arithmetic
 navigation but does not charge native tape instructions or evaluation of a terminal input. -/
 theorem ends_root (m p edges vertices : ℕ) (input : Entry → Bool)

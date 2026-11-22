@@ -7,10 +7,9 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CarrySaveLeafATM
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuardedWord
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.WorkTapeFamily
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterRootLeafRequest
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuardedLeaf
+public import
+  CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterRootLeafRequest
 
 /-!
 # The guarded root call from the outer carry-save tapes
@@ -69,26 +68,18 @@ theorem exists_runner {K : ℕ} {S : Type} [Finite S] (k : ℕ) (src : Fin K)
   choose d hd using exists_word_inO k
   choose l hl using fun b => (hd b).length_le_time
   let cost (b : Bool) (x : Input) := longSize x + shortSize x ^ d b
-  have guarded (b : Bool) := GuardedWord.exists_guarded_runner src child
-    (fun x => active (data k x)) (fun _ => !b) (fun x => encPublic (publicRequest k b x))
-    (cost b) (hd b)
-  choose u R hR runner A hr using guarded
-  let : ∀ b, Finite (R b) := hR
-  obtain ⟨a, Q, hQ, family, hf⟩ := WorkTapeFamily.exists_family u R runner
-  let := hQ
+  let raw (x : Input) : Cslib.CountingLeaf.RawInput :=
+    ⟨encPublic x.template, x.count, x.width, x.path, x.carry, x.bit⟩
+  obtain ⟨a, Q, hQ, leaf, A, hleaf⟩ := GuardedLeaf.exists_runner src child raw
+    (fun x => (encInput_eq x).symm) (fun _ x => active (data k x)) (fun b _ => !b)
+    (fun b x => encPublic (publicRequest k b x)) cost hd
   let D := max (d false) (d true)
   let coeff (b : Bool) := A b + 2 * l b + 16
   let B := max (coeff false) (coeff true)
-  refine ⟨a, _, inferInstance, fun carry b => CarrySaveLeafATM.machine (family b) carry,
-    B + 1, D, ?_⟩
+  refine ⟨a, Q, hQ, leaf, B + 1, D, ?_⟩
   intro host x height unary frontier status b t target atm start time hchild
   let w := encPublic (publicRequest k b x)
-  let n := A b * (cost b x + 1) + (2 * w.length + 16) + t
-  obtain ⟨hh, ha⟩ := hr b host x t hchild
-  have hs := hf b host (encInput x) n
-  have hq := CarrySaveLeafATM.spec (family b) host (encPublic x.template) x.count x.width
-    height x.bit x.path unary frontier status x.carry n (hs.1.mpr hh)
-  obtain ⟨hhalt, hacc⟩ := hq
+  obtain ⟨hhalt, hacc⟩ := hleaf host x height unary frontier status b t hchild
   have hlen := hl b x
   simp only [encBits_apply, word, List.length_append] at hlen
   have hn : w.length ≤ l b * (longSize x + shortSize x ^ d b + 1) := by
@@ -97,13 +88,14 @@ theorem exists_runner {K : ℕ} {S : Type} [Finite S] (k : ℕ) (src : Fin K)
   have hD : d b ≤ D := by cases b <;> first | apply Nat.le_max_left | apply Nat.le_max_right
   have hB : coeff b ≤ B := by cases b <;> first | apply Nat.le_max_left | apply Nat.le_max_right
   have hb := setup_le x w.length (A b) (l b) (d b) D B hn hD hB
-  have clock : x.path.length + 3 + (2 * (encInput x).length + 5) + n ≤ time := by
-    dsimp only [time, n, cost]
+  have clock : x.path.length + 3 + (2 * (encInput x).length + 5) +
+      (A b * (cost b x + 1) + (2 * w.length + 16)) + t ≤ time := by
+    dsimp only [time, cost]
     omega
   refine ⟨hhalt.mono clock, ⟨?_, ?_⟩⟩
   · intro acc
-    exact ha.mp (hs.2.mp (hacc.mp (acc.of_halted_stepCoins hhalt)))
+    exact hacc.mp (acc.of_halted_stepCoins hhalt)
   · intro h
-    exact (hacc.mpr (hs.2.mpr (ha.mpr h))).mono clock
+    exact (hacc.mpr h).mono clock
 
 end Turing.MultiTapeATM.OuterRootLeafRunner

@@ -161,13 +161,9 @@ theorem request_bounds (right claim : Bool) (x : Input)
   cases hs : Signed.source (query right x) with
   | none => simp [hs] at h
   | some coordinate =>
-    have hr := hs
-    unfold Signed.source at hr
-    split at hr
-    · have hb := ConvolutionOperand.run_bounds hr
-      simp only [request, hs, Option.getD_some]
-      simpa only [Signed.ordinary, unpack, query] using hb
-    · simp at hr
+    have hb := Signed.source_bounds hs
+    simp only [request, hs, Option.getD_some]
+    simpa only [query] using hb
 
 /-- The native request preparation is linear in the protected context, with polynomial work
 only on the local signed-product metadata. Both the time and charged workspace obey this bound. -/

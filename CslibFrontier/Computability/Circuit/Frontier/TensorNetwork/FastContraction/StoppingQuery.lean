@@ -377,6 +377,34 @@ private theorem block_root (m p vertices : ℕ) (entry : ℕ → ℕ → Ring p 
         simp [Finset.mem_range.not.mp hv]).symm
     _ = _ := Finset.prod_congr rfl fun vertex hv => ite_eq_left (Finset.mem_range.mp hv)
 
+/-- A balanced product request computes the selected bit of its consecutive vertex block.
+The assignment is a parameter of the entry interpretation; no assignment sum is traversed.
+Vertices outside the network contribute the multiplicative identity. -/
+theorem value_block_root (m p edges vertices : ℕ)
+    (entry : ℕ → ℕ → Ring p (modulus m)) (assignment base level coefficient bit : ℕ) :
+    value m p edges vertices entry
+      (FormulaExpansion.root (template m p edges vertices)
+        (.value assignment base level coefficient bit)) =
+      ((representative m p (InterpolationGrid.blockProduct
+        (fun vertex => if vertex < vertices then entry assignment vertex else 1)
+          base level)).coeff coefficient).val.testBit bit := by
+  exact value_node_root m p edges vertices entry (.value assignment base level coefficient bit)
+
+/-- The full balanced block computes the product of all actual vertices for one assignment.
+Identity padding disappears, including when the vertex set is empty. -/
+theorem value_product_root (m p edges vertices : ℕ)
+    (entry : ℕ → ℕ → Ring p (modulus m)) (assignment coefficient bit : ℕ) :
+    value m p edges vertices entry
+      (FormulaExpansion.root (template m p edges vertices)
+        (.value assignment 0 (Nat.clog 2 vertices) coefficient bit)) =
+      ((representative m p (∏ vertex ∈ Finset.range vertices,
+        entry assignment vertex)).coeff coefficient).val.testBit bit := by
+  rw [value_node_root]
+  change ((representative m p
+    (block m p vertices entry assignment 0 (Nat.clog 2 vertices))).coeff coefficient).val.testBit
+      bit = _
+  rw [block_root]
+
 /-- The output is the requested representative coefficient bit of the full assignment sum
 of vertex products, uniformly for all edge counts, vertex counts and entry values. -/
 theorem value_root (m p edges vertices : ℕ)

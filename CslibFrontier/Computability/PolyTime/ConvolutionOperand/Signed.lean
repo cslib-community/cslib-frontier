@@ -62,6 +62,14 @@ def ordinary (p : Query) : PathInput :=
 def source (p : Query) : Option (ℕ × ℕ) :=
   if live p then run (unpack (ordinary p)) else none
 
+/-- A requested signed operand coordinate lies within the coefficient array and precision. -/
+theorem source_bounds {p : Query} {j i : ℕ} (h : source p = some (j, i)) :
+    j < 2 * p.half ∧ i < p.precision := by
+  unfold source at h
+  split at h
+  · simpa only [ordinary, unpack] using run_bounds h
+  · simp at h
+
 /-- Negative sum leaves complement their conjunction, and negative carry leaves supply one. -/
 def correction (p : Query) : Bool := decide (tag p.path = 1) && (!p.carry || decide (p.bit = 0))
 

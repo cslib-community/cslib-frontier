@@ -4,7 +4,10 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Sam McGuire
 -/
 
-import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Rank
+import
+  CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Rank
+import
+  CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Bounds
 
 /-!
 The stopping compiler is exercised through actual local input routing, padding and a complete
@@ -42,6 +45,31 @@ example : source 0 3 3 16 (.product 5 4 2 3 (.port operandPath false 2 0)) 0 =
 
 example : source 0 3 3 16 (.product 5 4 2 3 (.port operandPath false 2 1)) 0 =
     some (.value 5 8 2 2 1) := rfl
+
+-- A shifted two-vertex block contains one real entry and one identity-padding vertex.
+example (m p edges assignment coefficient bit : ℕ)
+    (entry : ℕ → ℕ → Ring p (modulus m)) :
+    value m p edges 3 entry
+      (FormulaExpansion.root (template m p edges 3)
+        (.value assignment 2 1 coefficient bit)) =
+      entryBit m p entry ⟨assignment, 2, coefficient, bit⟩ := by
+  rw [value_block_root]
+  simp [InterpolationGrid.blockProduct_succ, entryBit]
+
+-- The right operand stays inside the selected eight-vertex block and keeps its assignment.
+example : ProductWellFormed 0 3 16 5 12 3
+    (.product 5 4 2 3 (.port operandPath false 2 1)) := by
+  unfold ProductWellFormed SignedValueGame.WellFormed
+  decide
+
+example : ProductWellFormed 0 3 16 5 12 3 (.value 5 8 2 2 1) := by
+  unfold ProductWellFormed
+  decide
+
+-- Moving the right subblock one vertex further would exceed the original product interval.
+example : ¬ ProductWellFormed 0 3 16 5 12 3 (.value 5 9 2 2 1) := by
+  unfold ProductWellFormed
+  decide
 
 -- Zero precision and an invalid assignment path both compile to explicit constants.
 example : template 0 0 0 0 (.value 0 0 0 0 0) = Formula.const false := rfl

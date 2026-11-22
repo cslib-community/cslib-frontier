@@ -34,20 +34,6 @@ open OuterRootLeafRequest RootSeedChoice
   ⟨outerRootTemplate k states t, encNat (2 ^ (2 * (k + 1) * numBlocks t)),
     encNat (paddedTime t + 1), path, carry, bits⟩
 
-/-- Removing only high zero padding preserves the requested bit index. -/
-theorem ofBits_take_of_lt (bits : List Bool) (w : ℕ) (h : lsbValue bits < w) :
-    ofBits (bits.take (encNat w).length) = lsbValue bits := by
-  rw [ofBits_eq_lsbValue, length_encNat_eq_size]
-  by_cases hl : bits.length ≤ w.size
-  · rw [List.take_of_length_le hl]
-  have ha := lsbValue_append (bits.take w.size) (bits.drop w.size)
-  rw [List.take_append_drop, List.length_take, Nat.min_eq_left (by omega)] at ha
-  by_cases hz : lsbValue (bits.drop w.size) = 0
-  · simpa only [hz, Nat.mul_zero, Nat.add_zero] using ha.symm
-  have hp := Nat.le_mul_of_pos_right (2 ^ w.size) (Nat.pos_of_ne_zero hz)
-  have hw := Nat.lt_size_self w
-  omega
-
 private theorem valid_path_iff {k q : ℕ} (path : List Bool) :
     ScheduleBits.validate k path = true ∧ path.length = 2 * (k + 1) * q ↔
       ∃ n : ℕ, ScheduleBits.rows (List.ofFn (scheduleOfNat k q n)) = path := by

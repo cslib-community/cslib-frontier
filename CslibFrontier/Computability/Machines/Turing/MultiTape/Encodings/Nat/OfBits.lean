@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.Words
 public import CslibFrontier.Foundations.Data.BitString.Binary
 public import CslibFrontier.Foundations.Data.BitString.List
+import Mathlib.Data.Nat.Size
 
 /-!
 # Reading words as numbers through `lsbValue`
@@ -80,5 +81,19 @@ theorem ofBits_ofFn_ofList (word : List Bool) (n : ℕ) (h : word.length ≤ n) 
     ofBits (List.ofFn (Cslib.BitString.ofList n word)) = ofBits word := by
   rw [Cslib.BitString.ofFn_ofList_eq_take, List.take_append, List.take_of_length_le h,
     List.take_replicate, ofBits_append, ofBits_replicate_false, mul_zero, add_zero]
+
+/-- Removing only high zero padding preserves the requested bit index. -/
+theorem ofBits_take_of_lt (bits : List Bool) (w : ℕ) (h : Cslib.BitString.lsbValue bits < w) :
+    ofBits (bits.take (encNat w).length) = Cslib.BitString.lsbValue bits := by
+  rw [ofBits_eq_lsbValue, encNat_apply, Nat.size_eq_bits_len]
+  by_cases hl : bits.length ≤ w.size
+  · rw [List.take_of_length_le hl]
+  have ha := Cslib.BitString.lsbValue_append (bits.take w.size) (bits.drop w.size)
+  rw [List.take_append_drop, List.length_take, Nat.min_eq_left (by omega)] at ha
+  by_cases hz : Cslib.BitString.lsbValue (bits.drop w.size) = 0
+  · simpa only [hz, Nat.mul_zero, Nat.add_zero] using ha.symm
+  have hp := Nat.le_mul_of_pos_right (2 ^ w.size) (Nat.pos_of_ne_zero hz)
+  have hw := Nat.lt_size_self w
+  omega
 
 end Turing.MultiTapeTM

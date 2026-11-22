@@ -1379,6 +1379,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Layered.PolyTime
 public import CslibFrontier.Computability.Circuit.Boolean.Layered.Size
 public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame
 public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame.Formula
+public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame.Formula.Bounded
 public import CslibFrontier.Computability.Circuit.Boolean.LocalValueGame.Machine
 public import CslibFrontier.Computability.Circuit.Boolean.Lookup
 public import CslibFrontier.Computability.Circuit.Boolean.MachineSimulation
@@ -1677,11 +1678,20 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastCon
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedProduct
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedRouting
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedValueGame
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SignedValueGame.Bounds
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SparseProduct
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.SparseProductQuery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Bounds
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Entry
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Product
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.ProductTime
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Rank
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.RawBounds
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.RouteBounds
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.RouteTime
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.Routing
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContraction.StoppingQuery.WordSum
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionDerivation
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionLeaf
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.FastContractionMachine
@@ -3563,6 +3573,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ExtendTapes
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.FramedPrefixInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Game
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuardedLeaf
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuardedWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.GuessVerify
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.InputFromTape
@@ -3621,6 +3632,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SourceWordInput
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StateSimulation
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StoppingLeafRequest
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StoppingLeaves
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StoppingProduct
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.StoppingSum
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TailCall
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TailCallGround
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TruthTable
