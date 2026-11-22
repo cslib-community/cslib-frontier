@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Fr
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Frame.Lookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.OneWorkTape
 public import Mathlib.Data.Fintype.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Tactic.Step
 import Mathlib.Data.Fintype.Prod
 import Mathlib.Basic.Finite.Prod
 import Mathlib.Basic.Finite.Sum
@@ -471,9 +472,7 @@ private lemma seg_run (u v : List Bool) :
   have hn := length_frame_append u v
   have hinit : τ.toTM.initCfg (frame u ++ v) =
       cfgAt (frame u ++ v) (some .copy) (2 * 0 + 1) (tapeOfList (u.take 0)) ((0 : ℕ) : ℤ) [] := by
-    refine Cfg.ext rfl (Fin.ext ?_) (funext fun _ => ?_) rfl rfl
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
-    · simp [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
+    tm_step [MultiTapeNTM.initCfg, Cfg.init, cfgAt]
   have hzip := seg_zip (τ := τ) (u := u) (v := v) τ.q₀ (r := 0) (Nat.zero_le _) []
   simp only [Nat.zero_min, Nat.add_zero, Nat.cast_zero, List.drop_zero, List.nil_append,
     Nat.sub_zero] at hzip

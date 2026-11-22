@@ -40,7 +40,7 @@ example :
       matFrac2x2.entry 0 1 = (1 : ℚ) / 3 ∧
       matFrac2x2.entry 1 0 = (1 : ℚ) / 5 ∧
       matFrac2x2.entry 1 1 = (1 : ℚ) / 7 := by
-  simp only [matFrac2x2, RatTable.entry, List.getD_eq_getElem?_getD,
+  simp only [matFrac2x2, Cslib.RowTable.entry, List.getD_eq_getElem?_getD,
     List.getElem?_cons_zero, List.getElem?_cons_succ, Option.getD_some]
   norm_num
 
@@ -66,7 +66,7 @@ example :
     have h1 : ∑ j : Fin 2, matFrac2x2.toMatrix ⟨1, by decide⟩ j * x j =
         sysFrac2x2.rhs.getD 1 0 := congrFun hx ⟨1, by decide⟩
     rw [Fin.sum_univ_two] at h0 h1
-    simp only [matFrac2x2, sysFrac2x2, RatTable.toMatrix_apply, RatTable.entry,
+    simp only [matFrac2x2, sysFrac2x2, Cslib.RowTable.toMatrix_apply, Cslib.RowTable.entry,
       Fin.val_zero, Fin.val_one, List.getD_eq_getElem?_getD,
       List.getElem?_cons_zero, List.getElem?_cons_succ, Option.getD_some] at h0 h1
     norm_num at h0 h1

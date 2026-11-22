@@ -95,50 +95,45 @@ example (HP : FourthRootHierarchyParams 16 1 16 32 8)
       Environment 5 4 → Matrix Unit Unit ℝ)
     (maximum : ℕ → HierarchyTask.Request HP.k (Fin 4) (ZMod 5) →
       Environment 5 4 → Unit → ℝ) :
-    let cutoff := fun i => routedBinCutoff (polynomialSwitch4 (1 / 2) 1) (fun i => rate ((fun i
-      => i + 1) i)) i (fun _ => 1)
-    let bounded := fun i => boundedRoutedBinCutoff (polynomialSwitch4 (1 / 2) 1) (fun i => rate
-      ((fun i => i + 1) i)) 1 i (fun _ => 1)
+    let c := CutoffProfile.explicit
+    let b := BinSchedule.step 1 1 (cap := 1) (by norm_num)
     let source := gridChannel roles.source 2 [1]
     let mid := gridChannel roles.midpoint 1 [2, 3]
     let terminal := gridChannel roles.terminal 2 [4]
-    let estimated := fun i σ r => incomingChildren HP 1 SingleRegression.identifier 3 (bounded i)
-      (raw i) (prep i) (maximum i) r σ
+    let estimated := fun i σ r => incomingChildren HP 1 SingleRegression.identifier 3
+      (b.bounded c i) (raw i) (prep i) (maximum i) r σ
     let canonical := fun i σ r => canonicalRequestChild HP 1 SingleRegression.identifier base
-      (cutoff i) ((fun _ _ => 1) i) gate 66 r σ
+      (b.cutoff c i) (b.preparationCutoff i) c.requestGate c.requestRank r σ
     let channelsV := fun role b suffix σ v => channels 1 role b suffix σ
       (SingleRegression.identifier v)
     let S := ({σ : Environment 5 4 | source.retains (channels 1) σ (SingleRegression.identifier
       ()) ∧
       terminal.retains (channels 1) σ (SingleRegression.identifier ())} : Finset _)
-    |(𝔼 σ ∈ S, ((∑ i ∈ range (1 + 1), HierarchyTask.rawPositiveSample channelsV
-      0 i .residual source mid terminal (rate ((fun i => i + 1) i)) (estimated i σ) () ()) -
+    |(𝔼 σ ∈ S, ((∑ i ∈ b.activeBins, HierarchyTask.rawPositiveSample channelsV
+      0 i .residual source mid terminal (b.rates i) (estimated i σ) () ()) -
       HierarchyTask.rawNegativeSample channelsV 0 0 .residual source mid terminal
-        (rate ((fun i => i + 1) 0)) (estimated 0 σ) () ())) -
+        (b.rates 0) (estimated 0 σ) () ())) -
       HP.toHierarchyParams.residual (canonicalChannel SingleRegression.identifier (rate 1))
         (canonicalChannel SingleRegression.identifier (rate 1)) (rate 1) base () ()| ≤
-    𝔼 σ ∈ S, ((∑ i ∈ range (1 + 1), HierarchyTask.positiveChildError channelsV
-      0 i .residual source mid terminal (rate ((fun i => i + 1) i))
+    𝔼 σ ∈ S, ((∑ i ∈ b.activeBins, HierarchyTask.positiveChildError channelsV
+      0 i .residual source mid terminal (b.rates i)
       (2 * HP.Q HP.toHierarchyParams.atomCap) (2 * max 1 16)
       (estimated i σ) (canonical i σ) () ()) +
       HierarchyTask.negativeChildError channelsV 0 0 .residual source mid terminal
-        (rate ((fun i => i + 1) 0)) (estimated 0 σ) (canonical 0 σ) () ()) := by
+        (b.rates 0) (estimated 0 σ) (canonical 0 σ) () ()) := by
   exact estimated_residual_bins_mean_error HP 1 SingleRegression.identifier (by norm_num)
     SingleRegression.identifier_injective SourceRegression.horizon roles
-    0 2 1 2 1 (by decide) (by decide) [1] [2, 3] [4] (fun i => i + 1)
-    (by intro i hi; simp only [mem_range] at hi; change i + 1 ≤ 2; omega)
-    base (by intros; exact (rate_pos 1).le)
+    0 2 1 2 (by decide) (by decide) [1] [2, 3] [4]
+    CutoffProfile.explicit (BinSchedule.step 1 1 (cap := 1) (by norm_num))
+    (by
+      intro i hi
+      simp only [BinSchedule.activeBins, BinSchedule.step, mem_range] at hi
+      change i + 1 ≤ 2
+      omega)
+    (by intros; rfl) base (by intros; exact (rate_pos 1).le)
     (by intro x; norm_num [base, Matrix.mulVec, dotProduct, rate]) (by intros; rfl)
-    (polynomialSwitch4 (1 / 2) 1) (fun _ hv => polynomialSwitch4_of_ge (by norm_num) hv)
-    (fun _ _ => 1) gate 66 (by intros; rfl) gate_nonneg gate_le_one
-    (η := 1) (by norm_num) (fun _ hh => gate_one hh) (by norm_num)
-    (monotone_polynomialSwitch4 (by norm_num))
-    (fun _ hh => polynomialSwitch4_of_le (by norm_num) hh)
-    (fun _ => ⟨polynomialSwitch4_nonneg _ _ _, polynomialSwitch4_le_one _ _ _⟩)
-    (fun _ _ hh => rate_antitone (Nat.add_le_add_right hh 1))
-    (fun i => (adjacent_rate_ratio (i + 1)).le) (cap := 1) (by norm_num)
-    (by intros; simp only [base, one_mul]; rfl) 3 raw prep maximum () ()
-    (by intro z; right; norm_num [base, rate])
+    (by intros; simp only [BinSchedule.step, base, one_mul]; rfl)
+    3 raw prep maximum () () (by intro z; right; norm_num [BinSchedule.step, base, rate])
 end SignedMeanRegression
 
 namespace SignedMeanRegression
