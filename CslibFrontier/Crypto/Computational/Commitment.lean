@@ -599,8 +599,8 @@ theorem PseudorandomGenerator.naorGenerableStatefulHiding
 result: for any nonuniform pseudorandom generator (`NonuniformPRG`), `naorCommit generator`
 satisfies `StatefulHiding` against randomized stateful PPT receivers given any polynomially bounded
 auxiliary input family `aux : ℕ → List Bool`. Both games use the same advice.
-Section 2, p. 3 of the author's copy also considers a receiver with prior information about the
-bit. Relating that gain in guessing probability to this hiding game remains open (#6256). -/
+Section 2, p. 3 of the author's copy also compares prediction before and after commitment when
+the bit and the receiver's prior information have a joint law (#6256). -/
 theorem NonuniformPRG.naorStatefulHiding
     {generator : List Bool → List Bool} {length : ℕ → ℕ}
     (hG : NonuniformPRG generator length) :
