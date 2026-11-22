@@ -24,10 +24,10 @@ A comparison against a hardwired full-width threshold can reuse every equality a
 test on the two half-words. Consequently searching a table of forest intervals costs linearly
 in the number of checkpoints plus the size of these two shared decoders.
 
-`transient_window_circuit` specializes this construction to the forest search for a live exponent
-in [Schlesinger2026IteratedFunctions]. It takes a marked state and an input time, signals when the
-target is transient, and in that case outputs the iterate. Its hypothesis is a graph property
-ensuring a nearby marked ancestor before each long transient target.
+`transient_window_circuit` implements Reitwiessner's ancestry and depth test for an input exponent
+[Reitwiessner2026InputTime] using shared half-word tables. It takes a marked state and an input
+time, signals when the target is transient, and in that case outputs the iterate. The graph
+hypothesis supplies a nearby marked ancestor before each long transient target.
 -/
 
 public section

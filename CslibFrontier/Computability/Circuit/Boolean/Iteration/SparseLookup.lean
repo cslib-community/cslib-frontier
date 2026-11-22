@@ -194,38 +194,28 @@ theorem synthesis_tablePayload (s : Set (BooleanFunction a)) (marked : Fin M →
     have h₂ := Nat.pow_le_pow_right (by decide : 0 < 2) hr
     lia
 
+private theorem synthesis_singleLookupOr {k : ℕ} (s : Set (BooleanFunction a))
+    (key : BitString a → BitString n) (hk : wires key ⊆ s) (keys : Fin M → BitString n)
+    (values : Fin M → BitString k) :
+    Synthesis interpretation s (wires (lookupOr keys values ∘ key))
+      (3 * M + 8 * 2 ^ ((n + 1) / 2) + 8 * 2 ^ ((k + 1) / 2)) := by
+  let marked (j : Fin M) : BooleanFunction a := fun x => decide (keys j = key x)
+  have hm := synthesis_tableMatches s key hk keys
+  have hv := synthesis_tablePayload (s ∪ Set.range marked) marked
+    (fun j => Or.inr ⟨j, rfl⟩) values
+  apply (hm.trans hv).mono Set.Subset.rfl ?_ (by lia)
+  rintro _ ⟨i, rfl⟩
+  exact ⟨i, funext fun x => Bool.eq_iff_iff.mpr (by simp [marked, lookupOr])⟩
+
 /-- One query against a fixed table of `n`-bit keys and values. Repeated keys return the
 bitwise OR of their values, and missing keys return the all-false word. -/
 theorem exists_lookupOr (keys values : Fin M → BitString n) :
     ∃ c : Circuit signature n n, c.Computes interpretation (lookupOr keys values) ∧
       c.size ≤ 3 * M + 16 * 2 ^ ((n + 1) / 2) := by
-  let marked (j : Fin M) : BooleanFunction n := fun x => decide (keys j = x)
-  have hm := synthesis_tableMatches (inputs n) id
-    (by rintro _ ⟨i, rfl⟩; exact ⟨i, rfl⟩) keys
-  have hv := synthesis_tablePayload (inputs n ∪ Set.range marked) marked
-    (fun j => Or.inr ⟨j, rfl⟩) values
-  apply Synthesis.exists_circuit_outputs
-  apply (hm.trans hv).mono Set.Subset.rfl ?_ (by lia)
-  rintro _ ⟨i, rfl⟩
-  exact ⟨i, funext fun x => Bool.eq_iff_iff.mpr (by simp [marked, lookupOr])⟩
-
-/-- An arbitrary payload on a finite domain has a De Morgan circuit using at most
-`3 * domain.card + 16 * 2 ^ ⌈n/2⌉` gates. Constants are included in the bound. -/
-theorem exists_sparseLookup (domain : Finset (BitString n))
-    (payload : BitString n → BitString n) :
-    ∃ c : Circuit signature n n, c.ComputesOn interpretation ↑domain payload ∧
-      c.size ≤ 3 * domain.card + 16 * 2 ^ ((n + 1) / 2) := by
-  classical
-  let e := Fintype.equivFin ↥domain
-  let keys (j : Fin (Fintype.card ↥domain)) : BitString n := (e.symm j).val
-  have hinj : Function.Injective keys := Subtype.val_injective.comp e.symm.injective
-  obtain ⟨c, hc, hs⟩ := exists_lookupOr keys (payload ∘ keys)
-  refine ⟨c, ?_, by simpa using hs⟩
-  intro x hx
-  let j := e ⟨x, hx⟩
-  have hj : keys j = x := congrArg Subtype.val (e.symm_apply_apply _)
-  rw [hc x, lookupOr_of_eq (payload ∘ keys) hinj hj]
-  exact congrArg payload hj
+  have h := synthesis_singleLookupOr (inputs n) id
+    (by rintro _ ⟨i, rfl⟩; exact ⟨i, rfl⟩) keys values
+  obtain ⟨c, hc, hs⟩ := h.exists_circuit_outputs
+  exact ⟨c, hc, by lia⟩
 
 /-- Read a hardwired word of any width on a finite domain, given the query wires. The key and
 payload each use two shared half-word tables. -/
@@ -239,17 +229,22 @@ theorem exists_synthesis_sparseLookup {k : ℕ} (domain : Finset (BitString n))
   classical
   let e := Fintype.equivFin ↥domain
   let keys (j : Fin (Fintype.card ↥domain)) : BitString n := (e.symm j).val
-  let marked (j : Fin (Fintype.card ↥domain)) (x : BitString a) := decide (keys j = key x)
-  have hm := synthesis_tableMatches s key hk keys
-  have hv := synthesis_tablePayload (s ∪ Set.range marked) marked (fun j => Or.inr ⟨j, rfl⟩)
-    (payload ∘ keys)
-  refine ⟨fun x => lookupOr keys (payload ∘ keys) (key x), (hm.trans hv).mono Set.Subset.rfl ?_
-    (by simp only [Fintype.card_coe]; lia), ?_⟩
-  · rintro _ ⟨i, rfl⟩
-    exact ⟨i, funext fun x => Bool.eq_iff_iff.mpr (by simp [marked, lookupOr])⟩
+  refine ⟨lookupOr keys (payload ∘ keys) ∘ key, ?_, ?_⟩
+  · simpa only [Fintype.card_coe] using synthesis_singleLookupOr s key hk keys (payload ∘ keys)
   · intro x hx
     have hinj : Function.Injective keys := Subtype.val_injective.comp e.symm.injective
     have hj : keys (e ⟨key x, hx⟩) = key x := congrArg Subtype.val (e.symm_apply_apply _)
     exact (lookupOr_of_eq (payload ∘ keys) hinj hj).trans (congrArg payload hj)
+
+/-- An arbitrary payload on a finite domain has a De Morgan circuit using at most
+`3 * domain.card + 16 * 2 ^ ⌈n/2⌉` gates. Constants are included in the bound. -/
+theorem exists_sparseLookup (domain : Finset (BitString n))
+    (payload : BitString n → BitString n) :
+    ∃ c : Circuit signature n n, c.ComputesOn interpretation ↑domain payload ∧
+      c.size ≤ 3 * domain.card + 16 * 2 ^ ((n + 1) / 2) := by
+  obtain ⟨value, hv, hvalue⟩ := exists_synthesis_sparseLookup domain payload (inputs n) id
+    (by rintro _ ⟨i, rfl⟩; exact ⟨i, rfl⟩)
+  obtain ⟨c, hc, hs⟩ := hv.exists_circuit_outputs
+  exact ⟨c, fun x hx => (hc x).trans (hvalue x hx), by lia⟩
 
 end Cslib.Circuits.Boolean.Iteration

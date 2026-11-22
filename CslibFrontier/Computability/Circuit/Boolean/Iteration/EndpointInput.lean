@@ -21,11 +21,13 @@ import CslibFrontier.Computability.Circuit.Boolean.Word
 
 `input_time_endpoint` builds one circuit for all times encoded by the `m` exponent bits.
 For a size-`s` transition on `n` bits and `N = 2^n` states, its size is
-`O(min(N, √(N (s + (n+1)²))) + n*m)`. The circuit is nonuniform in the transition.
+`O(min(N, √(N (s + (n+1)²))) + n*m)`. This size-dependent bound is an original result of this
+development. The circuit is nonuniform in the transition.
 
 `input_time_endpoint_tradeoff` gives the bound for each window length. The least-rank scan
 returns a checkpoint and the distance already walked. For a transient target, an ancestry
-and depth lookup selects a checkpoint within a short walk of the answer. For a cyclic target,
+and depth lookup implements Reitwiessner's transient selection rule [Reitwiessner2026InputTime].
+It selects a checkpoint within a short walk of the answer. For a cyclic target,
 streaming remainder computes the target phase and a lookup selects the start of its cycle block.
 -/
 
