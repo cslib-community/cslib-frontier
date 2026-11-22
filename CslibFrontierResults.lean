@@ -1,4 +1,5 @@
 import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.FGLSS
+import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.ODonnellNearlyConstantNoise
 import CslibFrontierResults.Registry

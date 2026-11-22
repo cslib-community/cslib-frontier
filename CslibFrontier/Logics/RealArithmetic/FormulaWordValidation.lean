@@ -431,6 +431,21 @@ def formulaWordComparisonRequest (word : List Bool) (index : ℕ) :
     Option FormulaComparisonRequest :=
   comparisonRequest (formulaWordTokenAt word index)
 
+/-- A comparison in the total formula view retains the canonical encoding of a term in
+the word's dimension. -/
+theorem formulaWordComparisonRequest_termWord_exists {word : List Bool} {index : ℕ}
+    {request : FormulaComparisonRequest} (hi : index < (formulaWordTokens word).length)
+    (h : formulaWordComparisonRequest word index = some request) :
+    ∃ t : Term word.length, request.termWord = encTerm word.length t := by
+  have hmem : formulaWordTokenAt word index ∈ formulaWordTokens word := by
+    rw [formulaWordTokenAt, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hi,
+      Option.getD_some]
+    exact List.getElem_mem _
+  rw [formulaWordTokens_eq] at hmem
+  obtain ⟨token, _, htoken⟩ := List.mem_map.mp hmem
+  rw [formulaWordComparisonRequest, ← htoken] at h
+  rcases token with _ | (term | (term | (_ | (_ | _)))) <;> cases h <;> exact ⟨term, rfl⟩
+
 private theorem comparisonRequest_polyTime :
     ComputableInPolyTime comparisonRequest encFormulaToken
       (encOption encFormulaComparisonRequest) := by
