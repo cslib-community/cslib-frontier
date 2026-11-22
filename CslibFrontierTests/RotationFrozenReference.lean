@@ -265,4 +265,22 @@ example :
   · exact frozenReferenceObstacle_compl_isPathConnected valid_bothFixed
   · exact (Set.finite_singleton _).insert _
 
+-- A reverse frozen spoke's leaf is protected. A leaf at a free rotation is off the obstacle.
+example :
+    referencePoint input (input.graph.vertices.length + loopLast.index) ∈
+      frozenReferenceObstacle input := by
+  apply (referencePoint_mem_frozenReferenceObstacle_iff valid_input
+    (v := input.graph.vertices.length + loopLast.index) (by decide +kernel)).mpr
+  exact Or.inr ⟨loopLast, by decide +kernel, rfl⟩
+
+example : referencePoint input 6 ∉ frozenReferenceObstacle input := by
+  intro h
+  have hv := (referencePoint_mem_frozenReferenceObstacle_iff valid_input
+    (by decide +kernel : 6 ∈ (subdivisionGraph input).vertices)).mp h
+  rcases hv with hv | ⟨d, hd, heq⟩
+  · exact (by decide +kernel : 6 ∉ input.graph.vertices) hv
+  · have hfree : ∀ d : Dart input.graph, 6 = input.graph.vertices.length + d.index →
+        (input.orders.getD d.vertex none).isSome = false := by decide +kernel
+    simp only [hfree d heq, Bool.false_eq_true] at hd
+
 end Cslib.Tests.RotationFrozenReference

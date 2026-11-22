@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReference
 public import Mathlib.Topology.Connected.PathConnected
 import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Certificate
+import CslibFrontier.Foundations.Geometry.Polygonal.Germs
 import CslibFrontier.Foundations.Geometry.SeparatedStarObstacles
 import Mathlib.Topology.Algebra.Affine
 import Mathlib.Topology.MetricSpace.Bounded
@@ -145,5 +146,84 @@ theorem frozenReferenceObstacle_compl_isPathConnected {I : FixedRotationInput}
       change (0 : ℝ) ≤ ((referenceOrder I).idxOf v.val : ℝ)
       exact Nat.cast_nonneg _
     linarith only [hnonneg, hv.1]
+
+/-- An original vertex or the occurrence leaf at the end of a frozen reference spoke.
+These are exactly the declared vertex names whose positions belong to the protected set
+in a drawing with the original centers and frozen spokes in place. -/
+@[expose] def IsFrozenReferenceVertex (I : FixedRotationInput) (v : ℕ) : Prop :=
+  v ∈ I.graph.vertices ∨
+    ∃ d : Dart I.graph, (I.orders.getD d.vertex none).isSome ∧
+      v = I.graph.vertices.length + d.index
+
+private theorem vertex_mem_obstacle_iff {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing (subdivisionGraph I)}
+    (hinj : Set.InjOn D.vertex {w | w ∈ (subdivisionGraph I).vertices})
+    (hcontacts : ∀ e (i : Fin (D.route e).segments) (t : ℝ), t ∈ Set.Icc 0 1 →
+      ∀ w ∈ (subdivisionGraph I).vertices, (D.route e).eval i t = D.vertex w →
+        ∃ b, (D.route e).AtEnd i t b ∧ Dart.vertex (e, b) = w)
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1)
+    {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices) :
+    D.vertex v ∈ frozenReferenceObstacle I ↔ IsFrozenReferenceVertex I v := by
+  rw [mem_frozenReferenceObstacle_iff hI, IsFrozenReferenceVertex]
+  have hdeclared : ∀ w ∈ I.graph.incidenceVertices, w ∈ I.graph.vertices :=
+    fun w hw => (original_mem_iff_lt hI w).mpr (hI.2.1 w hw)
+  constructor
+  · rintro (⟨w, hw, heq⟩ | ⟨d, hd, hp⟩)
+    · have hw' : w ∈ (subdivisionGraph I).vertices := by
+        change w ∈ List.range (subdivisionSize I)
+        exact List.mem_range.mpr (((original_mem_iff_lt hI w).mp hw).trans_le
+          (Nat.le_add_right _ _))
+      have hvw : v = w := hinj hv hw' (heq.trans (hcenter w hw).symm)
+      exact Or.inl (hvw.symm ▸ hw)
+    · rw [← hroute d hd] at hp
+      obtain ⟨i, t, ht, heq⟩ := ((D.route (subdivisionDart I d).1).mem_support_iff _).mp hp
+      obtain ⟨b, _, hb⟩ := hcontacts _ i t ht _ hv heq
+      have hends := subdivisionDart_endpoints I d
+      by_cases he : b = d.2
+      · rw [he] at hb
+        have hvd : d.vertex = v := hends.1.symm.trans hb
+        apply Or.inl
+        rw [← hvd]
+        exact RotationSystem.vertex_mem hdeclared d
+      · have htag : b = !d.2 := Bool.eq_not_of_ne he
+        rw [htag] at hb
+        exact Or.inr ⟨d, hd, hb.symm.trans hends.2⟩
+  · rintro (hv' | ⟨d, hd, hv'⟩)
+    · exact Or.inl ⟨v, hv', hcenter v hv'⟩
+    · refine Or.inr ⟨d, hd, ?_⟩
+      let e := (subdivisionDart I d).1
+      let b := !d.2
+      let p := D.route e
+      have hend : p.endpoint b = D.vertex v :=
+        (D.endpoint_eq e b).trans (congrArg D.vertex
+          ((subdivisionDart_endpoints I d).2.trans hv'.symm))
+      have hpoint := p.at_mem_support (p.endSegment b)
+        (Route.endTime_mem b (t := 0) ⟨le_rfl, zero_le_one⟩)
+      rw [p.eval_near_end, zero_smul, add_zero, hend] at hpoint
+      change D.vertex v ∈ (D.route e).support at hpoint
+      rw [hroute d hd] at hpoint
+      exact hpoint
+
+/-- In a subdivision embedding with the frozen spokes and original centers placed, exactly
+the original vertices and the frozen occurrence leaves lie on the protected reference set. -/
+theorem vertex_mem_frozenReferenceObstacle_iff {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing (subdivisionGraph I)} (hD : D.IsEmbedding)
+    (hcenter : ∀ w ∈ I.graph.vertices, D.vertex w = referencePoint I w)
+    (hroute : ∀ d : Dart I.graph, (I.orders.getD d.vertex none).isSome →
+      D.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1)
+    {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices) :
+    D.vertex v ∈ frozenReferenceObstacle I ↔ IsFrozenReferenceVertex I v :=
+  vertex_mem_obstacle_iff hI hD.vertices_injective hD.vertex_contacts hcenter hroute hv
+
+/-- In the reference drawing, the same criterion characterizes which prescribed positions
+are on the protected reference set, independently of crossings among the free routes. -/
+theorem referencePoint_mem_frozenReferenceObstacle_iff {I : FixedRotationInput}
+    (hI : Valid I) {v : ℕ} (hv : v ∈ (subdivisionGraph I).vertices) :
+    referencePoint I v ∈ frozenReferenceObstacle I ↔ IsFrozenReferenceVertex I v :=
+  vertex_mem_obstacle_iff hI (referenceDrawing_vertices_injective hI)
+    (fun e i _ ht _ hw heq => referenceDrawing_vertex_contacts hI e i ht hw heq)
+    (fun _ _ => rfl) (fun _ _ => rfl) hv
 
 end Cslib.Complexity.Graph.RotationRecognition
