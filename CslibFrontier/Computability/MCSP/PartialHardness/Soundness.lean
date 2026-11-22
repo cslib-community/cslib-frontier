@@ -151,8 +151,7 @@ private theorem eventually_log_inputLength_le (Δ k : ℕ) {C ε : ℝ} (hC : 0 
     rcases Nat.eq_zero_or_pos Δ with rfl | h
     · simp
     · have hΔ' : (1 : ℝ) ≤ Δ := by exact_mod_cast h
-      exact Real.log_nonneg <| (by norm_num : (1 : ℝ) ≤ 4 * 1).trans
-        (mul_le_mul_of_nonneg_left (one_le_pow₀ hΔ') (by norm_num))
+      exact Real.log_nonneg (one_le_mul_of_one_le_of_one_le (by norm_num) (one_le_pow₀ hΔ'))
   obtain ⟨L₀, hL₀⟩ := eventually_atTop.1 (eventually_mul_add_le_mul_two_pow
     (2 * C * (1 + 2 * k * Δ ^ 2) * Real.log 2)
     (2 * C * (Real.log (4 * Δ ^ 4) + Δ ^ 2 * Real.log 2)) hε)
@@ -195,9 +194,7 @@ private theorem card_cand_le_exp_mul (hwf : I.WellFormed Δ) (hk : Odd k) (hΔ :
   have hw1 : 1 ≤ w := hwf.weight_pos _ (List.getD_mem 0 v.isLt)
   have hΔ' : (1 : ℝ) ≤ Δ := by exact_mod_cast hΔ
   have hB0 : 0 ≤ B := by
-    have : (1 : ℝ) ≤ 4 * Δ ^ 4 :=
-      (by norm_num : (1 : ℝ) ≤ 4 * 1).trans
-        (mul_le_mul_of_nonneg_left (one_le_pow₀ hΔ') (by norm_num))
+    have : (1 : ℝ) ≤ 4 * Δ ^ 4 := one_le_mul_of_one_le_of_one_le (by norm_num) (one_le_pow₀ hΔ')
     have := Real.log_nonneg this
     have := Real.log_nonneg (one_le_two (α := ℝ))
     positivity
