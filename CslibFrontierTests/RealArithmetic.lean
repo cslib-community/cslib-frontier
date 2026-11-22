@@ -195,6 +195,10 @@ set_option linter.hashCommand false in
     formulaWordGateValuesWithAnswers word (· != 2) == [true, true, false, true, false, true] &&
     formulaWordGateValuesWithAnswers word (fun i => formulaWordComparisonAnswer word i (-1)) ==
       [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 6) word (fun _ => -1) ==
+      [true, true, false, true, false, true] &&
+    formulaWordGateValuesWithSignature (n := 5) word (fun _ => -1) ==
+      [false, true, false, false, false, false] &&
     formulaWordGateValues [] termSign == [false]
 
 -- A huge gate index uses the same suffix offsets as a small one. A child at the gate
