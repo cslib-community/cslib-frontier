@@ -2247,6 +2247,7 @@ public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.FirstOrder.TransitiveClosure.Loop
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Hoza
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.LayeredReachability
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Modular
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.QueryCompiler
 public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Randomized

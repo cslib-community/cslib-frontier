@@ -7,7 +7,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Counting
+public import CslibFrontier.Computability.Complexity.Classes.LogSpace.Modular
 import CslibFrontier.Computability.Complexity.Problems.STCON.JustesenSourceLoop.Scheduler
 
 /-!
@@ -32,6 +32,13 @@ clock must suffice for all branches.
 
 * `Cslib.Complexity.NL_subset_UL`: the compiled Justesen scheduler gives the forward inclusion.
 * `Cslib.Complexity.NL_eq_UL`: Hoza's class equality for every injective binary encoding.
+* `Cslib.Complexity.NL_subset_ModL`: `NL ⊆ ModL k` for every `k ≥ 2`, from the zero-or-one count.
+
+The containments `NL ⊆ ⊕L` and `NL ⊆ Mod_p L` for each fixed prime `p` are due to
+[Applebaum][Applebaum2026], who converts nondeterministic branching programs into parity and
+modular ones in deterministic logspace. `NL_subset_ModL` is a derivation in this library from the
+unambiguous count, for every modulus at least two and for the library's occurrence-count classes
+`ModL k`. It is not presented as the statement of a cited theorem.
 -/
 
 public section
@@ -77,5 +84,13 @@ theorem NL_subset_UL {α : Type} {enc : α ↪ List Bool} : NL enc ⊆ UL enc :=
 injective binary input encoding. -/
 theorem NL_eq_UL {α : Type} (enc : α ↪ List Bool) : NL enc = UL enc :=
   le_antisymm NL_subset_UL UL_subset_NL
+
+/-- **Nondeterministic logarithmic space is within `ModL k`** for every fixed `k ≥ 2`, in every
+injective binary encoding: by `NL = UL` each language in `NL` has a logspace count that is one on
+members and zero on nonmembers, and such a count is its own residue. At `k = 2` this is the
+library's form of `NL ⊆ ⊕L`, a containment due to [Applebaum][Applebaum2026]. -/
+theorem NL_subset_ModL {α : Type} {enc : α ↪ List Bool} {k : ℕ} (hk : 2 ≤ k) :
+    NL enc ⊆ ModL k enc :=
+  (NL_eq_UL enc).subset.trans (UL_subset_ModL hk)
 
 end Cslib.Complexity
