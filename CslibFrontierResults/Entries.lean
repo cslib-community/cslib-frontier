@@ -322,6 +322,7 @@ import CslibFrontier.Crypto.Computational.OneWayToPRG
 import CslibFrontier.Crypto.Computational.OneWayToSignature
 import CslibFrontier.Crypto.Computational.PedersenCommitment
 import CslibFrontier.Crypto.Computational.PedersenCommitment.ProbComp
+import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 import CslibFrontier.Crypto.Computational.PseudorandomFunction.ToPRG
 import CslibFrontier.Crypto.Computational.SchnorrEavesdrop
 import CslibFrontier.Crypto.Computational.SchnorrProtocol
@@ -1858,6 +1859,22 @@ register_result "cryptography-prf" where
     deterministic polynomial-time evaluator, indistinguishable from a random function by \
     uniform adaptive oracle PPT adversaries with full stateful oracle semantics (negligible \
     advantage); via the one-way-to-PRG theorem and the GGM construction. Asymptotic security."
+
+register_result "boolean-prf-circuit-lower-bound" where
+  title := "Boolean pseudorandom function families require at least 2n − 2 gates"
+  topic := "cryptography"
+  sources := [
+    { paper := FanLiYang2022, theorem := "Theorem 7.5",
+      locator := "ECCC TR21-125, rev. 1, §7.1, p. 41. Family complexity is Definition 4.9, p. 28." }
+  ]
+  theorems := [
+    Cslib.Crypto.BooleanPRF.eventually_exists_mem_support_two_mul_sub_two_le_complexity
+  ]
+  scope := "For every Boolean function ensemble indistinguishable from a random function by \
+    uniform strict oracle-PPT adversaries, every sufficiently large n admits a function in its \
+    support of minimum B₂ circuit size at least 2n − 2. This witness belongs to the source's \
+    collection Fₙ supporting the distribution, so its maximum meets the bound. Each gate costs \
+    one, including constants, and wiring is free. Sampling and evaluation may be inefficient."
 
 register_result "goldreich-levin-hard-core" where
   title := "Goldreich–Levin: every one-way function has a hard-core predicate, and one-way \
