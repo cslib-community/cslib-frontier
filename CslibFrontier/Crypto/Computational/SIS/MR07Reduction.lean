@@ -127,7 +127,7 @@ def mr07AmpTrials (m β κ c R : ℕ) : ℕ :=
   12 * (2 * β * m) * (κ + 1) ^ c * (κ + Nat.clog 2 (R + 1) + 2)
 
 /-- Target smoothing-parameter accuracy `ε = 1 / (400 β m² (κ + 1)^c)` for `mr07GIVPReduction`. -/
-noncomputable def mr07Eps (m β κ c : ℕ) : ℝ :=
+@[expose] noncomputable def mr07Eps (m β κ c : ℕ) : ℝ :=
   1 / (400 * (β : ℝ) * (m : ℝ) ^ 2 * ((κ + 1 : ℝ) ^ c))
 
 /-- `mr07Eps m β κ c` is strictly positive whenever `1 ≤ m` and `1 ≤ β`. -/

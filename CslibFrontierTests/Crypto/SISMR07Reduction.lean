@@ -264,6 +264,11 @@ private theorem sisEll2Advantage_pigeonhole_eq_one (κ : ℕ) :
   rw [heval]
   simp
 
+private theorem test_mr07Eps_unfold :
+    mr07Eps 17 5 0 1 = 1 / (400 * 5 * 17 ^ 2 * 1) := by
+  unfold mr07Eps
+  norm_num
+
 private theorem test_mr07GIVPReduction_succProb_ge_concrete :
     let ε := mr07Eps 17 5 0 1
     let φ : Submodule ℤ (EuclideanSpace ℝ (Fin 2)) → ℝ :=
