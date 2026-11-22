@@ -278,6 +278,13 @@ theorem seedSchedulerCandidate_valid {s : SeedSearchSetup} {seed : ℕ} {f : See
     exact ⟨⟨‹_›, rfl, rfl⟩, rfl, rfl⟩
   · contradiction
 
+/-- A frame constructed at a valid indexed root and seed is valid. -/
+theorem seedSchedulerFrame_indexed_valid (s : SeedSearchSetup) {seed position : ℕ}
+    (hseed : seed < s.parameters.search.seedLimit)
+    (hposition : position < s.parameters.search.subdivision.originalCount) (answer : Bool) :
+    (seedSchedulerFrame s seed (some (position, answer)) (s.originalSourceID position)).Valid :=
+  ⟨hseed, hposition, rfl⟩
+
 private theorem seedSchedulerRoot_progress {f g : SeedSchedulerFrame} {position : ℕ}
     {answer : Bool} (hf : f.Valid) (h : seedSchedulerRoot f position answer = .inl g) :
     g.Valid ∧ g.request.setup = f.request.setup ∧ g.request.seed = f.request.seed ∧
@@ -285,7 +292,7 @@ private theorem seedSchedulerRoot_progress {f g : SeedSchedulerFrame} {position 
   dsimp only [seedSchedulerRoot] at h
   split at h
   · cases h
-    exact ⟨⟨hf.1, ‹_›, rfl⟩, rfl, rfl, rfl, rfl⟩
+    exact ⟨seedSchedulerFrame_indexed_valid _ hf.1 ‹_› answer, rfl, rfl, rfl, rfl⟩
   · contradiction
 
 private theorem seedSchedulerNextSeed_progress {f g : SeedSchedulerFrame}
@@ -403,6 +410,20 @@ theorem runSeedSchedulerForFrom_start {m : Type → Type} [AlternativeMonad m] (
   rw [runSeedSchedulerFrom_start]
   rfl
 
+/-- A decided indexed scan advances to the next root or returns the retained designated answer. -/
+theorem seedSchedulerStep_indexed_decided (f : SeedSchedulerFrame) {answer : Bool}
+    (hanswer : f.answer = some answer) (hit : Bool) :
+    let s := f.request.setup
+    let position := f.cursor + 1
+    seedSchedulerStep f (some (.decided hit)) = some
+      (if position < s.parameters.search.subdivision.originalCount then
+        .inl (seedSchedulerFrame s f.request.seed (some (position, answer))
+          (s.originalSourceID position))
+      else .inr (some answer)) := by
+  change seedSchedulerStep f (some (.decided hit)) =
+    some (seedSchedulerRoot f (f.cursor + 1) answer)
+  simp [seedSchedulerStep, hanswer]
+
 /-- A successful native control step preserves the mathematical continuation. A returned
 verdict must agree with the monadic scan when the frame requests one. A terminal step returns
 the current candidate with its retained decision, or exhausts the search. -/
@@ -511,10 +532,11 @@ theorem runSeedSchedulerForFrom_step {m : Type → Type} [AlternativeMonad m] [L
           refine Eq.trans ?_ (seedOutcome ?_)
           · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
           · simpa [seedSchedulerStep, hanswer, hneeds] using hstep
-        | decided _ =>
+        | decided hit =>
           refine Eq.trans ?_ (rootOutcome (f.cursor + 1) answer ?_)
           · simpa only [runFrame, runSeedSchedulerForFrom, hanswer, Option.map_some] using hagree
-          · simpa [seedSchedulerStep, hanswer, hneeds] using hstep
+          · exact Option.some.inj ((seedSchedulerStep_indexed_decided f hanswer hit).symm.trans
+              hstep)
 
 /-- Retained scheduler bits are linear in the setup size, even when a scanner rejects.
 The bound covers all pending scans, including the designated scan with cursor zero. -/

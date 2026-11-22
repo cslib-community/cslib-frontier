@@ -36,13 +36,16 @@ private theorem rootValid (i : ℕ) (hi : i < setup.parameters.search.subdivisio
 
 -- A terminal native transition retains the designated negative answer after a positive reply.
 example (scan : SeedScanRequest → List (Option ControllerVerdict))
-    (hscan : scan ⟨setup, 1, setup.originalSourceID 1⟩ = [some (.decided true)])
-    (hvalid : (seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1)).Valid)
-    (hstep : seedSchedulerStep
-      (seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1))
-      (some (.decided true)) = some (.inr (some false))) :
+    (hscan : scan ⟨setup, 1, setup.originalSourceID 1⟩ = [some (.decided true)]) :
     runSeedSchedulerForFrom setup sourceValid rootValid scan 1 (some (1, false)) =
       [some ⟨1, false⟩] := by
+  let frame := seedSchedulerFrame setup 1 (some (1, false)) (setup.originalSourceID 1)
+  have hvalid : frame.Valid := seedSchedulerFrame_indexed_valid setup (by decide) (by decide) false
+  have hlast :
+      ¬frame.cursor + 1 < frame.request.setup.parameters.search.subdivision.originalCount :=
+    by decide
+  have hstep : seedSchedulerStep frame (some (.decided true)) = some (.inr (some false)) := by
+    simpa only [ite_eq_right hlast] using seedSchedulerStep_indexed_decided frame rfl true
   exact runSeedSchedulerForFrom_step setup sourceValid rootValid scan rfl hvalid rfl hstep
     (by intro value hv _; cases hv; exact hscan)
 
