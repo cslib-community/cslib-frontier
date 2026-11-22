@@ -3468,6 +3468,7 @@ public import CslibFrontier.Computability.LogSpaceDerandomization.ScheduledFineP
 public import CslibFrontier.Computability.LogSpaceDerandomization.ScheduledProductMean
 public import CslibFrontier.Computability.LogSpaceDerandomization.SignedResidualBins
 public import CslibFrontier.Computability.LogSpaceDerandomization.SourceRelease
+public import CslibFrontier.Computability.LogSpaceDerandomization.StageContext
 public import CslibFrontier.Computability.LogSpaceDerandomization.StochasticAtom
 public import CslibFrontier.Computability.LogSpaceDerandomization.TrueSampleMeans
 public import CslibFrontier.Computability.MCSP.AntiChecker
