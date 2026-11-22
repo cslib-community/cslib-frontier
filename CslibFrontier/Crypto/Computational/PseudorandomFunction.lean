@@ -15,6 +15,8 @@ public import CslibFrontier.Foundations.Data.BitString.List
 public import CslibFrontier.Languages.Probabilistic.BitString
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import CslibFrontier.Languages.Probabilistic.RandomOracle
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Languages.Probabilistic.RandomOracle.Probabilistic
 
 /-!
@@ -47,6 +49,8 @@ queries and answers all have `n` bits.
 * `Cslib.Crypto.wordOracle_bitStrings`, `Cslib.Crypto.wordOracle_bitStrings_answer`: agreement of
   `OracleCodec.bitStrings` with `randomFunctionOracle` and `lazyRandomFunctionOracle`.
 * `Cslib.Crypto.prfIdealGame_eq_lazy`: an exact lazy implementation of the ideal experiment.
+* `Cslib.Crypto.PseudorandomFunctionOver.outLen_polyTime`: computing the unary output width
+  from the unary input width schedule.
 
 ## References
 
@@ -189,6 +193,19 @@ structure PseudorandomFunctionOver (inLen outLen : ℕ → ℕ)
     (fun adversary n => ProbComp.eval (prfRealGame inLen family adversary n))
     (fun adversary n => ProbComp.eval (prfIdealGame inLen outLen adversary n))
     (IsOraclePPT encBool)
+
+/-- Evaluate the family at the all-zero key and a valid all-zero query to compute the output width
+in unary. -/
+theorem PseudorandomFunctionOver.outLen_polyTime {inLen outLen : ℕ → ℕ}
+    {family : List Bool → List Bool → List Bool} (h : PseudorandomFunctionOver inLen outLen family)
+    (hinLen : ComputableInPolyTime inLen encUnary encUnary) :
+    ComputableInPolyTime outLen encUnary encUnary := by
+  have hzeros := ComputableInPolyTime.bitsReplicate false
+  have heval := h.polyTime.comp (hzeros.prod (hzeros.comp hinLen))
+  refine (ComputableInPolyTime.length_bits.comp heval).of_enc_eq fun n => ?_
+  have hwidth := h.length_eq (List.replicate n false) (List.replicate (inLen n) false)
+    (by simp only [List.length_replicate])
+  simpa only [List.length_replicate, Function.comp_def] using congrArg encUnary hwidth.symm
 
 /-- A length-preserving pseudorandom function: `PseudorandomFunctionOver id id`, whose keys, valid
 queries and answers all have `n` bits ([BonehShoup2023], Attack Game 4.2 and Definition 4.2,
