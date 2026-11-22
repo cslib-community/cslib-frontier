@@ -31,18 +31,33 @@ for derivatives of order at most `m`: for every `η > 0` there is a `Cᵐ` funct
 The book smooths with a Gaussian, `ψ̃(s) = E[ψ(s + η g)]` (its Exercise 11.38), which gives a
 single `C^∞` function. Here the smoothing variable is instead `h (U₁ + ⋯ + Uₘ)` for independent
 `Uᵢ` uniform on `[0, 1]`, a bounded-support smoothing (cf. its Exercise 11.40); it yields `Cᵐ`
-rather than `C^∞`, which suffices for the applications (`m = 4` for the Invariance Principle),
-and all constants are explicit.
+rather than `C^∞`, which suffices for the applications (`m = 3` for the invariance principle for
+sums and Corollaries 11.59 and 11.61, `m = 4` for Corollaries 11.68 and 11.70), and all constants
+are explicit.
+
+The same smoothing turns the step `1_{s ≤ u}` into the `Cᵐ` function `Real.stepSmoothing m u h`,
+the `m`-fold moving average of a ramp of width `h`: it is `1` on `(-∞, u]`, `0` on
+`[u + (m + 1) h, ∞)`, takes values in `[0, 1]` and has `|φ⁽ᵐ⁾| ≤ 2ᵐ⁻¹ / hᵐ`
+(cf. [O'Donnell, Figure 11.2 and Exercise 11.41(b)][ODonnell2014], whose smoothed step is
+monotone, two-sided around `u` and `C^∞`). Unlike Mathlib's `Real.smoothTransition` and
+`Cslib.smoothSwitch`, which are `C^∞` but come without derivative bounds, it carries the explicit
+bound on `φ⁽ᵐ⁾` that the smoothing arguments need.
 
 ## Main definitions
 
 * `Real.movingAverage`: the moving average `h⁻¹ ∫₀ʰ φ(s + t) dt`.
+* `Real.stepSmoothing`: a `Cᵐ` smoothing of the step `1_{s ≤ u}`.
 
 ## Main results
 
 * `Real.hasDerivAt_movingAverage`: the derivative of a moving average.
 * `Real.continuous_movingAverage`: moving averages of continuous functions are continuous.
 * `Real.contDiff_iterate_movingAverage`: `A_hᵐ φ` is of class `Cᵐ`.
+* `Real.movingAverage_mem_Icc`, `Real.iterate_movingAverage_mem_Icc`: `A_hᵐ φ (s)` lies in
+  `[a, b]` when `φ` does on `[s, s + m h]` (`m = 1` for the first).
+* `Real.stepSmoothing_mem_Icc`, `Real.stepSmoothing_eq_one_of_le`,
+  `Real.stepSmoothing_eq_zero_of_le`, `Real.contDiff_stepSmoothing`,
+  `Real.abs_iteratedDeriv_stepSmoothing_le`: the properties of the smoothed step.
 * `LipschitzWith.movingAverage`: moving averages preserve `c`-Lipschitz functions.
 * `LipschitzWith.abs_movingAverage_sub_le`: `|A_h ψ - ψ| ≤ c h`.
 * `LipschitzWith.abs_iterate_movingAverage_sub_le`: `|A_hᵐ ψ - ψ| ≤ m c h`.
@@ -189,6 +204,33 @@ private theorem abs_iterate_movingAverage_le {M : ℝ} (hM : 0 ≤ M) (j : ℕ) 
     rw [Function.iterate_succ_apply]
     exact ih _ (fun s => abs_inv_mul_integral_le hM fun t _ => hφ _) s
 
+/-- A moving average with window `h > 0` at `s` lies in `[a, b]` when `φ` does on
+`[s, s + h]`. -/
+theorem movingAverage_mem_Icc (hφ : Continuous φ) (hh : 0 < h) {a b s : ℝ}
+    (hab : ∀ t ∈ Icc s (s + h), φ t ∈ Icc a b) : movingAverage h φ s ∈ Icc a b := by
+  have hI := intervalIntegrable_comp_add hφ s 0 h
+  have hmem (t : ℝ) (ht : t ∈ Icc 0 h) : φ (s + t) ∈ Icc a b :=
+    hab _ ⟨le_add_of_nonneg_right ht.1, by linarith [ht.2]⟩
+  have hlo := integral_mono_on hh.le intervalIntegrable_const hI fun t ht => (hmem t ht).1
+  have hhi := integral_mono_on hh.le hI intervalIntegrable_const fun t ht => (hmem t ht).2
+  simp only [integral_const, sub_zero, smul_eq_mul] at hlo hhi
+  rw [movingAverage_def]
+  exact ⟨(le_inv_mul_iff₀ hh).2 hlo, (inv_mul_le_iff₀ hh).2 hhi⟩
+
+/-- The `m`-fold moving average with window `h > 0` at `s` lies in `[a, b]` when `φ` does on
+`[s, s + m h]`: it averages `φ` over that window. -/
+theorem iterate_movingAverage_mem_Icc (hφ : Continuous φ) (hh : 0 < h) {a b : ℝ} (m : ℕ)
+    {s : ℝ} (hab : ∀ t ∈ Icc s (s + m * h), φ t ∈ Icc a b) :
+    (movingAverage h)^[m] φ s ∈ Icc a b := by
+  induction m generalizing φ s with
+  | zero => simpa using hab s (by simp)
+  | succ m ih =>
+    rw [Function.iterate_succ_apply]
+    refine ih (continuous_movingAverage hφ) fun t ht => movingAverage_mem_Icc hφ hh
+      fun r hr => hab r ⟨ht.1.trans hr.1, hr.2.trans ?_⟩
+    push_cast
+    linarith [ht.2]
+
 end Real
 
 open Real
@@ -292,3 +334,79 @@ theorem exists_contDiff_smoothing (hψ : LipschitzWith c ψ) (m : ℕ) {η : ℝ
     field_simp
 
 end LipschitzWith
+
+namespace Real
+
+/-! ### Smoothed steps -/
+
+variable {h : ℝ}
+
+/-- The **smoothed step** `stepSmoothing m u h`: the `m`-fold moving average, with window `h`, of
+the ramp that falls linearly from `1` at `u + m h` to `0` at `u + (m + 1) h`. For `h > 0` it is a
+`Cᵐ` function with values in `[0, 1]`, equal to `1` on `(-∞, u]` and to `0` on
+`[u + (m + 1) h, ∞)`, whose `m`-th derivative is at most `2ᵐ⁻¹ / hᵐ`. This one-sided step is
+the test of the Lévy-distance arguments (cf. [O'Donnell, Exercise 11.41(b)][ODonnell2014], whose
+smoothed step is monotone, two-sided around `u` and `C^∞`). It exists beside Mathlib's
+`Real.smoothTransition` and `Cslib.smoothSwitch` because it comes with the explicit bound on its
+`m`-th derivative. -/
+noncomputable def stepSmoothing (m : ℕ) (u h : ℝ) : ℝ → ℝ :=
+  (movingAverage h)^[m] fun s => max 0 (min 1 ((u + (m + 1) * h - s) / h))
+
+/-- The ramp `s ↦ max 0 (min 1 ((b - s) / h))` is `h⁻¹`-Lipschitz. -/
+private theorem lipschitzWith_ramp (b : ℝ) (hh : 0 < h) :
+    LipschitzWith h⁻¹.toNNReal fun s => max 0 (min 1 ((b - s) / h)) := by
+  have haff : LipschitzWith h⁻¹.toNNReal fun s => (b - s) / h :=
+    LipschitzWith.of_dist_le_mul fun s s' => by
+      rw [Real.dist_eq, Real.dist_eq, Real.coe_toNNReal _ (inv_pos.2 hh).le, div_sub_div_same,
+        abs_div, abs_of_pos hh, show b - s - (b - s') = -(s - s') by ring, abs_neg,
+        div_eq_inv_mul]
+  exact (haff.const_min 1).const_max 0
+
+/-- The ramp takes values in `[0, 1]`. -/
+private theorem ramp_mem_Icc (b s : ℝ) : max 0 (min 1 ((b - s) / h)) ∈ Icc (0 : ℝ) 1 :=
+  ⟨le_max_left _ _, max_le zero_le_one (min_le_left _ _)⟩
+
+/-- A smoothed step with window `h > 0` takes values in `[0, 1]`. -/
+theorem stepSmoothing_mem_Icc (m : ℕ) (u : ℝ) (hh : 0 < h) (s : ℝ) :
+    stepSmoothing m u h s ∈ Icc 0 1 :=
+  iterate_movingAverage_mem_Icc (lipschitzWith_ramp _ hh).continuous hh m
+    fun _ _ => ramp_mem_Icc _ _
+
+/-- A smoothed step with window `h > 0` is `1` on `(-∞, u]`. -/
+theorem stepSmoothing_eq_one_of_le {m : ℕ} {u : ℝ} (hh : 0 < h) {s : ℝ} (hs : s ≤ u) :
+    stepSmoothing m u h s = 1 := by
+  refine le_antisymm (stepSmoothing_mem_Icc m u hh s).2
+    (iterate_movingAverage_mem_Icc (a := 1) (b := 1) (lipschitzWith_ramp _ hh).continuous hh m
+      fun t ht => ?_).1
+  have h1 : 1 ≤ (u + (m + 1) * h - t) / h := by
+    rw [le_div_iff₀ hh]
+    nlinarith [ht.2]
+  simp [min_eq_left h1]
+
+/-- A smoothed step with window `h > 0` is `0` on `[u + (m + 1) h, ∞)`. -/
+theorem stepSmoothing_eq_zero_of_le {m : ℕ} {u : ℝ} (hh : 0 < h) {s : ℝ}
+    (hs : u + (m + 1) * h ≤ s) : stepSmoothing m u h s = 0 := by
+  refine le_antisymm (iterate_movingAverage_mem_Icc (a := 0) (b := 0)
+    (lipschitzWith_ramp _ hh).continuous hh m fun t ht => ?_).2 (stepSmoothing_mem_Icc m u hh s).1
+  have h0 : (u + (m + 1) * h - t) / h ≤ 0 :=
+    div_nonpos_of_nonpos_of_nonneg (by linarith [ht.1]) hh.le
+  simp [min_eq_right (h0.trans zero_le_one), h0]
+
+/-- A smoothed step is of class `Cᵐ`. -/
+theorem contDiff_stepSmoothing (m : ℕ) (u h : ℝ) : ContDiff ℝ m (stepSmoothing m u h) :=
+  contDiff_iterate_movingAverage (by fun_prop) m
+
+/-- The `m`-th derivative of a smoothed step with window `h > 0` is at most `2ᵐ⁻¹ / hᵐ`. -/
+theorem abs_iteratedDeriv_stepSmoothing_le (m : ℕ) (u : ℝ) (hh : 0 < h) (s : ℝ) :
+    |iteratedDeriv m (stepSmoothing m u h) s| ≤ 2 ^ (m - 1) / h ^ m := by
+  obtain _ | k := m
+  · have h01 := stepSmoothing_mem_Icc 0 u hh s
+    rw [iteratedDeriv_zero, zero_tsub, pow_zero, pow_zero, div_one, abs_le]
+    exact ⟨by linarith [h01.1], h01.2⟩
+  refine ((lipschitzWith_ramp _ hh).abs_iteratedDeriv_iterate_movingAverage_le hh
+    (Nat.lt_succ_self k) s).trans_eq ?_
+  rw [Real.coe_toNNReal _ (inv_pos.2 hh).le, Nat.add_sub_cancel]
+  field_simp
+  ring
+
+end Real

@@ -186,8 +186,9 @@ variable [Fintype State] [DecidableEq State] [Fintype Symbol] [Fintype Γ]
 [AkshayGastinKrishnaRoychowdhury2020]): the segments `(s, α, s')` such that a push of `α` on stack
 `i` from `s`, followed by a well-nested run, reaches `s'`. -/
 @[expose] def atomicHoles (i : Fin n) : Finset (AtomicHole State Γ) :=
+  let wr := M.wellNestedPairs
   Finset.univ.filter fun h => ∃ (a : Symbol) (s₁ : State), M.Tr h.src (a, .push i h.sym) s₁ ∧
-    (s₁, h.dst) ∈ M.wellNestedPairs
+    (s₁, h.dst) ∈ wr
 
 theorem mem_atomicHoles {i : Fin n} {s s' : State} {γ : Γ} :
     ⟨s, γ, s'⟩ ∈ M.atomicHoles i ↔
@@ -214,7 +215,8 @@ a hole through a triple `(i, s, s)`. Reflexivity also lets `AddHole` (Algorithm 
 `(i, s, s)` without taking a transition, even from a state with no push; such a hole is realized
 by the empty factor. -/
 @[expose] def holeSegments [DecidableEq Γ] (i : Fin n) : Finset (State × State) :=
-  Relation.reflTransGenFinset fun s s' => ∃ γ, ⟨s, γ, s'⟩ ∈ M.atomicHoles i
+  let ahs := M.atomicHoles i
+  Relation.reflTransGenFinset fun s s' => ∃ γ, ⟨s, γ, s'⟩ ∈ ahs
 
 theorem mem_holeSegments [DecidableEq Γ] {i : Fin n} {s s' : State} :
     (s, s') ∈ M.holeSegments i ↔
@@ -327,9 +329,11 @@ also be removed. Without an open hole of stack `i` there is no successor. -/
   match splitLastHole i μ.holes with
   | none => ∅
   | some (pre, (s₁, s₃), post) =>
+    let hs := M.holeSegments i
+    let ahs := M.atomicHoles i
+    let wr := M.wellNestedPairs
     let ok : State × Γ × State × State → Prop := fun (s₂, γ, s', s'') =>
-      (s₁, s₂) ∈ M.holeSegments i ∧ ⟨s₂, γ, s₃⟩ ∈ M.atomicHoles i ∧
-        (∃ b, M.Tr μ.last (b, .pop i γ) s') ∧ (s', s'') ∈ M.wellNestedPairs
+      (s₁, s₂) ∈ hs ∧ ⟨s₂, γ, s₃⟩ ∈ ahs ∧ (∃ b, M.Tr μ.last (b, .pop i γ) s') ∧ (s', s'') ∈ wr
     (Finset.univ.filter ok).image (fun (s₂, _, _, s'') => ⟨pre ++ ⟨i, s₁, s₂⟩ :: post, s''⟩) ∪
       ((Finset.univ.filter fun t => ok t ∧ t.1 = s₁).image fun (_, _, _, s'') => ⟨pre ++ post, s''⟩)
 

@@ -245,6 +245,36 @@ example :
   · exact budget_const 0 (.refl _)
   · exact budget_finite (fun b : Bool => if b then 3 else 1) hcontext
 
+private theorem runtimeDimension_pos (p : Bool × ℕ) : 0 < runtimeDimension p := by
+  unfold runtimeDimension
+  cases p.1 <;> decide
+
+/-- The binary entry accepts a caller-supplied rank and fuel at either runtime dimension. -/
+example :
+    let enc := encPair encBool (encPair encNat encNat)
+    ComputableInSpace
+      (fun (enabled, rank, fuel) => Runtime.entryRanks edge runtimeStart verdict 1 enabled
+        (runtimeDimension_pos (enabled, 0)) rank (if enabled then 3 else 1) fuel)
+      enc (Runtime.encState encBool (encOption encBool)) (fun p => (enc p).length) := by
+  intro enc
+  have hcontext := fst encBool (encPair encNat encNat)
+  have hdata := snd encBool (encPair encNat encNat)
+  exact Runtime.entryRanks_budget edge runtimeStart verdict 1 encBool (encOption encBool)
+    (fun p => runtimeDimension_pos (p.1, 0)) hcontext
+    (budget_finite (fun b : Bool => if b then 4 else 2) hcontext) (fst' hdata)
+    (budget_finite (fun b : Bool => if b then 3 else 1) hcontext) (snd' hdata)
+
+example (p : Bool × ℕ) :
+    let r := runtimeRegisters p
+    Runtime.entryRanks edge runtimeStart verdict 1 p.1 (runtimeDimension_pos p)
+      r.current.val r.target.val r.fuel = Runtime.entry edge runtimeStart verdict 1 p.1 r :=
+  Runtime.entryRanks_eq_entry edge runtimeStart verdict 1 p.1 (runtimeDimension_pos p)
+    (runtimeRegisters p)
+
+example :
+    Registers.ofRanks (N := 2) (by decide) 5 4 7 = ⟨1, 0, 7⟩ :=
+  rfl
+
 /-- The same native call update works at two dimensions with a runtime clock remainder. -/
 example :
     let enc := encPair encBool encNat
