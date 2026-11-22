@@ -15,10 +15,10 @@ import Mathlib.Data.Fintype.Pi
 /-!
 # Pre-coin phase-scheduler termination step for Ben-Or's binary consensus
 
-This module proves a **pre-coin phase-scheduler probabilistic termination step** for the quorum-phase
-transition of `CslibFrontier.Computability.Distributed.BenOr.Basic` (after [BenOr1983], §3,
-Protocol A, printed p. 28, toward Theorem 1(i) on printed p. 29; termination in Ben-Or's full
-asynchronous scheduler model remains open in #7120).
+This module proves a **pre-coin phase-scheduler probabilistic termination step** for the
+quorum-phase transition of `CslibFrontier.Computability.Distributed.BenOr.Basic` (after
+[BenOr1983], §3, Protocol A, printed p. 28, toward Theorem 1(i) on printed p. 29; termination in
+Ben-Or's full asynchronous scheduler model remains open in #7120).
 
 **Scheduling restriction (#7120):** In [BenOr1983], §2 (printed pp. 27–28), an adversary schedule
 chooses each primitive process step and message delivery using the current configuration and full
