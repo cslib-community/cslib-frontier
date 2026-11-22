@@ -1,2 +1,3 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Registry
