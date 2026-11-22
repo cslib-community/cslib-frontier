@@ -32,12 +32,15 @@ import Mathlib.Data.List.GetD
 
 Library infrastructure for bitwise multi-bit public-key encryption (`bitwiseEncrypt`,
 `bitwiseDecrypt`) and its single-challenge coordinate hybrid reduction step (after
-[KatzLindell2020], Section 12.2.2, locator not verified, and [BonehShoup2023], Section 11.3.2,
-rather than Theorem 12.6's multi-encryption oracle endpoint). Encrypting each bit of a message word
-independently under a single-bit public-key scheme yields a bit-word encryption scheme. Any
-chosen-message adversary against equal-length challenge words of length at most `maxLen n` reduces
-to a single-bit chosen-message adversary (`bitwiseToSingle`) by a hybrid argument across the
-coordinates: the reduction chooses its challenge pair first, samples an index `split` from
+[KatzLindell2020], Section 12.2.2, locator not verified, rather than Theorem 12.6's
+multi-encryption oracle endpoint; cf. [BonehShoup2023], Section 11.3.2, Attack Game 11.2 and
+Theorem 11.1, pp. 438–440, which instead lifts single-challenge to multi-challenge CPA security
+over the same message space `M` as in `LoRCPA/FromSingle.lean`, rather than 1-bit-to-multi-bit
+bitwise encryption `{0, 1} → {0, 1}^ℓ`). Encrypting each bit of a message word independently under
+a single-bit public-key scheme yields a bit-word encryption scheme. Any chosen-message adversary
+against equal-length challenge words of length at most `maxLen n` reduces to a single-bit
+chosen-message adversary (`bitwiseToSingle`) by a hybrid argument across the coordinates: the
+reduction chooses its challenge pair first, samples an index `split` from
 `Fin (dyadicSize (maxLen n))` via `ProbComp.sampleDyadicIndex (maxLen n)` so that sampling runs in
 strict fair-coin polynomial time with zero approximation error, submits `(m₀[split], m₁[split])` to
 the single-bit challenger, and encrypts the prefix `m₁.take split` and suffix `m₀.drop (split + 1)`
@@ -95,7 +98,8 @@ exponentially long public keys and `2⁻ⁿ` per-bit leakage fails `WordINDCPA`.
   Section 12.2.2 (locator not verified).
 * [D. Boneh, V. Shoup, *A Graduate Course in Applied Cryptography*,
   Version 0.6][BonehShoup2023], Section 11.2 (Attack Game 11.1, p. 436) and Section 11.3.2
-  (pp. 439–440).
+  (Attack Game 11.2 and Theorem 11.1, pp. 438–440; multi-challenge hybrid over a fixed message
+  space `M`).
 -/
 
 public section
@@ -717,9 +721,10 @@ theorem INDCPA.wordINDCPA_bitwiseEncrypt_of_publicKey_length_le
   simpa only [heqGame] using hbounded
 
 /-- Single-challenge bitwise reduction step (library infrastructure after [KatzLindell2020],
-Section 12.2.2, locator not verified, and [BonehShoup2023], Section 11.3.2; not Theorem 12.6's
-multi-encryption oracle endpoint): when `keyGen` and `encrypt` are uniform strict PPT, single-bit
-`INDCPA keyGen encrypt` implies `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
+Section 12.2.2, locator not verified, rather than Theorem 12.6's multi-encryption oracle endpoint;
+cf. [BonehShoup2023], Section 11.3.2, which lifts single- to multi-challenge CPA security over one
+message space `M` rather than `{0, 1} → {0, 1}^ℓ`): when `keyGen` and `encrypt` are uniform strict
+PPT, single-bit `INDCPA keyGen encrypt` implies `WordINDCPA keyGen (bitwiseEncrypt encrypt)`. -/
 theorem INDCPA.wordINDCPA_bitwiseEncrypt
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
     {encrypt : ℕ → List Bool → Bool → ProbComp (List Bool)}
