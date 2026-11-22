@@ -81,7 +81,8 @@ representation form `sq_le_two_mul_of_hasDeterminantalRepresentation_permanent` 
 
 ## References
 
-* [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra]
+* [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra], §1–§2, Theorem 1
+  (pp. 249–251)
 * [B. Grenet, *An upper bound for the permanent versus determinant problem*][Grenet2011]
 * [T. Mignon, N. Ressayre, *A quadratic bound for the determinant and permanent
   problem*][MignonRessayre2004]

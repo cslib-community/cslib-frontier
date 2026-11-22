@@ -20,7 +20,9 @@ register_result "determinant-formula-simulation" where
     { paper := Saptharishi2026Survey,
       theorem := "Theorem thm:vp and Section sec:formula-to-dets",
       locator := "chap_vpvnp.tex (Chapter \"Algebraic complexity classes\"), rev. af95c539" },
-    { paper := Valiant1979Algebra, theorem := unverified, locator := unverified }
+    { paper := Valiant1979Algebra,
+      theorem := "Theorem 1",
+      locator := "STOC '79, §1–§2, pp. 249–251" }
   ]
   theorems := [
     Cslib.Circuits.Formula.isProjection_det,
@@ -30,10 +32,14 @@ register_result "determinant-formula-simulation" where
   ]
   scope := "Over every commutative ring K, the formal polynomial computed by any arithmetic \
     formula F : Formula (arithSignature K) n (with Formula.size counting addition, \
-    multiplication and constant nodes and input leaves free) is a plain variable-and-scalar \
+    multiplication and constant nodes and input leaves free, whereas Valiant §1–§2 states \
+    |P_i| + 2 over a field counting binary operations) is a plain variable-and-scalar \
     projection (IsProjection, with no outer scalar multiplier) of (genericMatrix K \
     (F.size + 1)).det, and hence has determinantal complexity at most F.size + 1 without field, \
-    characteristic or nontriviality hypotheses. No uniform machine runtime is claimed."
+    characteristic or nontriviality hypotheses. Proved via the strictly upper-triangular \
+    specialization branching program IsSubstABP and the (N - 1) minor identity (avoiding the \
+    parallel-edge issue in Valiant's original addition step noted and corrected in §1.2 and §2.1 \
+    of Grenet–Kaltofen–Koiran–Portier 2011). No uniform machine runtime is claimed."
 
 register_result "valiant-determinant-projection-universality" where
   title := "Valiant's projection universality: every multivariate polynomial is a projection of \
@@ -46,15 +52,18 @@ register_result "valiant-determinant-projection-universality" where
     { paper := OrzelSrinivasanTavenasYehudayoff2025,
       theorem := "Lemma 4 (determinant part) and §2 dc(f) < ∞ remark",
       locator := "LIPIcs FSTTCS 2025, §1.2 p. 47:4 and §2 p. 47:6" },
-    { paper := Valiant1979Algebra, theorem := unverified, locator := unverified }
+    { paper := Valiant1979Algebra,
+      theorem := "Theorem 1",
+      locator := "STOC '79, §1–§2, pp. 249–251" }
   ]
   theorems := [
     Cslib.Circuits.Arithmetic.exists_isProjection_det
   ]
   scope := "Over every commutative ring K and arbitrary variable index type σ (without \
-    finiteness or decidable-equality hypotheses on σ and without nontriviality on K), every \
-    f : MvPolynomial σ K is a plain variable-and-scalar projection (IsProjection, with no outer \
-    scalar multiplier) of (genericMatrix K m).det for some m : ℕ."
+    finiteness or decidable-equality hypotheses on σ and without nontriviality on K, whereas \
+    Valiant §1–§2 works over a field in F[x_1, …, x_i]), every f : MvPolynomial σ K is a plain \
+    variable-and-scalar projection (IsProjection, with no outer scalar multiplier) of \
+    (genericMatrix K m).det for some m : ℕ."
 
 register_result "valiant-determinantal-universality" where
   title := "Valiant's universality: every multivariate polynomial has finite determinantal \
@@ -67,7 +76,9 @@ register_result "valiant-determinantal-universality" where
     { paper := OrzelSrinivasanTavenasYehudayoff2025,
       theorem := "Lemma 4 (determinant part) and §2 dc(f) < ∞ remark",
       locator := "LIPIcs FSTTCS 2025, §1.2 p. 47:4 and §2 p. 47:6" },
-    { paper := Valiant1979Algebra, theorem := unverified, locator := unverified }
+    { paper := Valiant1979Algebra,
+      theorem := "Theorem 1",
+      locator := "STOC '79, §1–§2, pp. 249–251" }
   ]
   theorems := [
     Cslib.Circuits.Arithmetic.exists_hasDeterminantalRepresentation,

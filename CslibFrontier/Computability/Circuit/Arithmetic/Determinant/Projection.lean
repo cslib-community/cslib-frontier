@@ -57,7 +57,8 @@ polynomials.
 
 ## References
 
-* [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra]
+* [L. G. Valiant, *Completeness classes in algebra*][Valiant1979Algebra], §1–§2, Theorem 1
+  (pp. 249–251)
 * [P. Bürgisser, *Completeness and Reduction in Algebraic Complexity Theory*][Burgisser2000],
   Chapter 2
 * [R. Saptharishi, *A survey of lower bounds in arithmetic circuit
