@@ -19,30 +19,34 @@ import Mathlib.Tactic.Ring
 
 When up to `t` processes with `3 * t < Fintype.card P` suffer Byzantine clock faults—reporting
 arbitrary, recipient-dependent timestamps to different honest processes—averaging all offset
-estimates (`lundeliusLynchAvg`) can be skewed arbitrarily by a single faulty clock. Following the
-fault-tolerant midpoint convergence principle of [Welch and Lynch][WelchLynch1988], each process
-instead sorts its `n = Fintype.card P` midpoint-delay offset estimates (`estDiff`), discards the
-`t` smallest and `t` largest values, and adjusts its clock by the midpoint
-`(s[t] + s[n - 1 - t]) / 2` of the remaining range (`trimmedMidpoint`, `byzantineClockStep`).
+estimates (`lundeliusLynchAvg`) can be skewed arbitrarily by a single faulty clock. Adapting the
+fault-tolerant midpoint convergence step of [Welch and Lynch][WelchLynch1988] to separated
+synchronous resynchronization rounds on drift-free clocks (`hardwareClock c p t = t + c p`, zero
+clock drift; whereas `[WelchLynch1988]` analyzes local-timer-triggered asynchronous periodic
+resynchronization under nonzero bounded hardware clock drift), each process sorts its
+`n = Fintype.card P` midpoint-delay offset estimates (`estDiff`), discards the `t` smallest and `t`
+largest values, and adjusts its clock by the midpoint `(s[t] + s[n - 1 - t]) / 2` of the remaining
+range (`trimmedMidpoint`, `byzantineClockStep`).
 
-This module proves:
+This module proves, in this synchronous drift-free resynchronization setting:
 
 * **Kernel-reducible sorting and permutation invariance (`sortLE_eq_mergeSort`,
   `trimmedMidpoint_eq_of_perm`, `multisetTrimmedMidpoint_coe`):** `sortLE` is `@[expose]` and
   agrees identically with `List.mergeSort (· ≤ ·)`, so `multisetTrimmedMidpoint` and
   `byzantineClockStep` evaluate in the kernel under `decide +kernel` in `module` clients without
   choosing an ordering on `P`.
-* **Honest-interval accuracy (`byzantineSyncOffset_mem_Icc`):** If all honest initial offsets lie
-  in `[lo, hi]` and honest message delays lie in `[d_min, d_max]`, every honest process's updated
-  offset lies in `[lo - (d_max - d_min) / 2, hi + (d_max - d_min) / 2]`.
-* **Per-round skew halving (`byzantineSyncOffset_abs_sub_le`):** If honest initial offsets have
-  skew at most `δ₀` (`∀ p ∉ F, ∀ q ∉ F, |c p - c q| ≤ δ₀`) and honest message delays lie in
-  `[d_min, d_max]`, then after one round of `byzantineClockStep` every pair of honest processes
-  satisfies `|syncOffset p - syncOffset q| ≤ δ₀ / 2 + (d_max - d_min)`.
+* **Honest-interval accuracy (`byzantineSyncOffset_mem_Icc`):** In one synchronous drift-free
+  resynchronization round, if all honest initial offsets lie in `[lo, hi]` and honest message
+  delays lie in `[d_min, d_max]`, every honest process's updated offset lies in
+  `[lo - (d_max - d_min) / 2, hi + (d_max - d_min) / 2]`.
+* **Per-round skew halving (`byzantineSyncOffset_abs_sub_le`):** In one synchronous drift-free
+  resynchronization round, if honest initial offsets have skew at most `δ₀`
+  (`∀ p ∉ F, ∀ q ∉ F, |c p - c q| ≤ δ₀`) and honest message delays lie in `[d_min, d_max]`, every
+  pair of honest processes satisfies `|syncOffset p - syncOffset q| ≤ δ₀ / 2 + (d_max - d_min)`.
 * **Multi-round convergence to the `2 * (d_max - d_min)` envelope
-  (`byzantineSyncOffsetIter_abs_sub_le`):** Iterating `R` resynchronization rounds against
-  round-dependent equivocating Byzantine adversaries contracts initial honest skew `δ₀` to
-  `δ₀ / 2 ^ R + 2 * (1 - 1 / 2 ^ R) * (d_max - d_min)`.
+  (`byzantineSyncOffsetIter_abs_sub_le`):** Iterating `R` separated synchronous drift-free
+  resynchronization rounds against round-dependent equivocating Byzantine adversaries contracts
+  initial honest skew `δ₀` to `δ₀ / 2 ^ R + 2 * (1 - 1 / 2 ^ R) * (d_max - d_min)`.
 
 ## Main definitions
 
@@ -397,10 +401,12 @@ private theorem sorted_endpoints_bounds {xs : List P} (hxs : (xs : Multiset P) =
       exact (hx_honest j hj.2).2
     omega
 
-/-- **Honest-interval accuracy of `byzantineClockStep`** [Welch and Lynch][WelchLynch1988]:
-when `2 * t < Fintype.card P`, `F.card ≤ t`, every honest process's initial offset lies in
-`[lo, hi]`, and honest-to-honest transit delays lie in `[d_min, d_max]`, every honest process's
-updated offset lies in `[lo - (d_max - d_min) / 2, hi + (d_max - d_min) / 2]`. -/
+/-- **Honest-interval accuracy of a synchronous drift-free `byzantineClockStep` round** (adapting
+the midpoint convergence step of [Welch and Lynch][WelchLynch1988] to a separated synchronous
+round on drift-free clocks): when `2 * t < Fintype.card P`, `F.card ≤ t`, every honest process's
+initial offset lies in `[lo, hi]`, and honest-to-honest transit delays lie in `[d_min, d_max]`,
+every honest process's updated offset lies in
+`[lo - (d_max - d_min) / 2, hi + (d_max - d_min) / 2]`. -/
 theorem byzantineSyncOffset_mem_Icc {t : ℕ} (ht : 2 * t < Fintype.card P)
     {F : Finset P} (hF : F.card ≤ t) {d_min d_max lo hi : K}
     (adv : P → P → K) (c : P → K) (δ : P → P → K)
@@ -434,10 +440,12 @@ theorem byzantineSyncOffset_mem_Icc {t : ℕ} (ht : 2 * t < Fintype.card P)
   rw [hmid]
   exact ⟨by linarith, by linarith⟩
 
-/-- **Welch–Lynch Byzantine midpoint convergence bound** [Welch and Lynch][WelchLynch1988]:
-when `3 * t < Fintype.card P`, `F.card ≤ t`, initial honest offsets have skew at most `δ₀`, and
-honest message delays lie in `[d_min, d_max]`, one round of `byzantineClockStep` contracts the
-skew between any two honest processes `p, q ∉ F` to at most `δ₀ / 2 + (d_max - d_min)`. -/
+/-- **Synchronous drift-free Byzantine midpoint convergence step** (adapting the midpoint
+convergence step of [Welch and Lynch][WelchLynch1988] to a separated synchronous resynchronization
+round on drift-free clocks): when `3 * t < Fintype.card P`, `F.card ≤ t`, initial honest offsets
+have skew at most `δ₀`, and honest message delays lie in `[d_min, d_max]`, one round of
+`byzantineClockStep` contracts the skew between any two honest processes `p, q ∉ F` to at most
+`δ₀ / 2 + (d_max - d_min)`. -/
 theorem byzantineSyncOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fintype.card P)
     {F : Finset P} (hF : F.card ≤ t) {d_min d_max δ₀ : K}
     (adv : P → P → K) (c : P → K) (δ : P → P → K)
@@ -540,10 +548,10 @@ theorem byzantineSyncOffset_abs_sub_le {t : ℕ} (ht : 3 * t < Fintype.card P)
   have he : 2 * e = u := by dsimp only [e]; ring
   linarith
 
-/-- **Iterated `R`-round Byzantine resynchronization bound** [Welch and Lynch][WelchLynch1988]:
-after `R` sequential rounds of `byzantineClockStep` with `3 * t < Fintype.card P` and `F.card ≤ t`,
-initial honest skew `δ₀` contracts geometrically to
-`δ₀ / 2 ^ R + 2 * (1 - 1 / 2 ^ R) * (d_max - d_min)`. -/
+/-- **Iterated `R`-round synchronous drift-free Byzantine resynchronization bound** (iterating `R`
+separated synchronous drift-free rounds of the [Welch and Lynch][WelchLynch1988] midpoint
+convergence step): with `3 * t < Fintype.card P` and `F.card ≤ t`, initial honest skew `δ₀`
+contracts geometrically to `δ₀ / 2 ^ R + 2 * (1 - 1 / 2 ^ R) * (d_max - d_min)`. -/
 theorem byzantineSyncOffsetIter_abs_sub_le {t : ℕ} (ht : 3 * t < Fintype.card P)
     {F : Finset P} (hF : F.card ≤ t) {d_min d_max δ₀ : K}
     (adv : ℕ → P → P → K) (c : P → K) (δ : ℕ → P → P → K)

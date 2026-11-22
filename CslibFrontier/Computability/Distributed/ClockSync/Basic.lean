@@ -65,13 +65,9 @@ trimmed-midpoint convergence step in
 
 ## Main results
 
-* `Cslib.Distributed.ClockSync.hardwareClock_arrival`: derivation of `arrivalReading` from
-  `hardwareClock c p t = τ` and arrival real time `t + δ r p q`.
 * `Cslib.Distributed.ClockSync.localView_shift_eq`: time-shift indistinguishability of local views
   across all `r ≤ R` rounds.
 * `Cslib.Distributed.ClockSync.adj_shift_eq`: time-shift invariance of protocol adjustments.
-* `Cslib.Distributed.ClockSync.syncOffset_shift_eq`: a time shift `s` translates synchronized
-  clock offsets by `+ s p`.
 * `Cslib.Distributed.ClockSync.abs_add_estDiff_sub_le`: midpoint-delay estimation approximates
   each sender's hardware offset within `(d_max - d_min) / 2`.
 

@@ -19,27 +19,34 @@ import Mathlib.Tactic.Ring
 # Tight Lundelius–Lynch bounds for clock synchronization
 
 Over a complete network of `n = Fintype.card P` processes with drift-free hardware clocks and
-message transit delays in `[d_min, d_max]` (`d_min ≤ d_max`),
-[Lundelius and Lynch][LundeliusLynch1984] establish that the minimax worst-case clock skew
-achievable by any deterministic message-passing protocol is *exactly*
+message transit delays in `[d_min, d_max]` (`d_min ≤ d_max`), this module establishes for the
+deterministic synchronous full-information `R`-round model (`Protocol P K R`) that the minimax
+worst-case clock skew is *exactly*
 
-`((n - 1) / n) * (d_max - d_min)`.
+`((n - 1) / n) * (d_max - d_min)`,
 
-* **Lower bound (`lundeliusLynch_lower_bound`):** From a base execution `(c₀, δ₀)` with `c₀ ≡ 0`
-  and `δ₀ r i j = d_min` for `i ≤ j`, `d_max` for `i > j` under an enumeration `P ≃ Fin n`,
-  applying `syncOffset_shift_eq` across the `n - 1` prefix shifts `s_m i = u` for `i < m`
-  (`u = d_max - d_min`) keeps every shifted delay inside `{d_min, d_max} ⊆ [d_min, d_max]`.
-  Summing the `n - 1` adjacent bounds from the shifted executions together with the wrap-around
-  bound from the base execution telescopes all protocol adjustments to zero, yielding
-  `(n - 1) * u ≤ n * γ` for every `R`-round protocol achieving skew `γ`.
+formalizing the bound of [Lundelius and Lynch][LundeliusLynch1984] (who consider event-driven
+deterministic message passing on `n ≥ 2` processes; for `n = 1`, `0 ≤ γ` holds trivially from
+`|x - x| = 0`).
+
+* **Lower bound (`lundeliusLynch_lower_bound`):** For `n = 1`, `0 ≤ γ` is immediate; for `n ≥ 2`,
+  starting from `(c₀, δ₀)` with `c₀ ≡ 0` and `δ₀ r i j = d_min` for `i ≤ j`, `d_max` for `i > j`
+  under an enumeration `P ≃ Fin n`, applying `syncOffset_shift_eq` across the `n - 1` prefix shifts
+  `s_m i = u` for `i < m` (`u = d_max - d_min`) keeps every shifted delay inside
+  `{d_min, d_max} ⊆ [d_min, d_max]`. Summing the `n - 1` adjacent bounds from the shifted
+  executions together with the wrap-around bound from the base execution telescopes all protocol
+  adjustments to zero, yielding `(n - 1) * u ≤ n * γ` for every `R`-round `Protocol P K R`
+  achieving skew `γ`.
 * **Matching upper bound (`lundeliusLynchAvg`, `lundeliusLynchAvg_achievesSkew`):** In 1 round,
   each process broadcasts at local clock reading `0` and sets its adjustment to the average of
   `estDiff d_min d_max p arrival q` over all `q : P`. For any `p ≠ q`, the two endpoint terms
   `r = p` and `r = q` contribute error at most `u / 2` each while the remaining `n - 2` terms
   contribute at most `u` each, achieving skew `((n - 1) / n) * u`.
-* **Sharp minimax characterization (`exists_achievesSkew_iff`):** A deterministic protocol (of any
-  round count `R`) achieves skew `γ` if and only if `((n - 1) / n) * (d_max - d_min) ≤ γ`; in
-  particular, multi-round communication (`R > 1`) cannot improve upon 1-round averaging.
+* **Sharp minimax characterization (`exists_achievesSkew_iff`):** Across all round counts `R`, a
+  deterministic synchronous full-information protocol `Protocol P K R` achieves skew `γ` if and
+  only if `((n - 1) / n) * (d_max - d_min) ≤ γ` (trivial `0 ≤ γ` for `n = 1`;
+  [Lundelius and Lynch][LundeliusLynch1984] for `n ≥ 2`); in particular, multi-round communication
+  (`R > 1`) cannot improve upon 1-round averaging.
 
 ## Main definitions
 
@@ -92,9 +99,11 @@ private theorem validDelays_prefixShift {P : Type u} {K : Type v}
     · exact ⟨le_rfl, hd⟩
     · exact ⟨hd, le_rfl⟩
 
-/-- **Lundelius–Lynch tight lower bound** [Lundelius and Lynch][LundeliusLynch1984]: any
-deterministic `R`-round clock synchronization protocol achieving worst-case skew `γ` on a nonempty
-finite network `P` against message transit delays in `[d_min, d_max]` (`d_min ≤ d_max`) satisfies
+/-- **Lundelius–Lynch tight lower bound** (for `2 ≤ Fintype.card P`,
+[Lundelius and Lynch][LundeliusLynch1984]; for `Fintype.card P = 1`, `0 ≤ γ` from `|x - x| = 0`):
+any deterministic synchronous full-information `R`-round protocol `π : Protocol P K R` achieving
+worst-case skew `γ` on a nonempty finite complete network `P` against transit delays in
+`[d_min, d_max]` (`d_min ≤ d_max`) satisfies
 `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ`. -/
 theorem lundeliusLynch_lower_bound {P : Type u} [Fintype P] [Nonempty P]
     {K : Type v} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
@@ -264,10 +273,12 @@ theorem lundeliusLynchAvg_achievesSkew {P : Type u} [Fintype P] [DecidableEq P] 
       div_mul_eq_mul_div, div_le_div_iff_of_pos_right hnK_pos]
     exact (Finset.abs_sum_le_sum_abs _ _).trans hsum_bound
 
-/-- **Lundelius–Lynch minimax characterization** [Lundelius and Lynch][LundeliusLynch1984]:
-there exists a round count `R` and a deterministic `R`-round protocol achieving worst-case clock
-skew `γ` on `P` against transit delays in `[d_min, d_max]` (`d_min ≤ d_max`) if and only if
-`((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ`. -/
+/-- **Minimax skew characterization for synchronous `R`-round protocols**: there exists a round
+count `R` and a deterministic synchronous full-information protocol `π : Protocol P K R` achieving
+worst-case clock skew `γ` on `P` against transit delays in `[d_min, d_max]` (`d_min ≤ d_max`) if
+and only if `((Fintype.card P - 1 : K) / Fintype.card P) * (d_max - d_min) ≤ γ` (trivial `0 ≤ γ`
+for `Fintype.card P = 1`; `lundeliusLynch_lower_bound` and `lundeliusLynchAvg_achievesSkew` after
+[Lundelius and Lynch][LundeliusLynch1984] for `2 ≤ Fintype.card P`). -/
 theorem exists_achievesSkew_iff {P : Type u} [Fintype P] [Nonempty P]
     {K : Type v} [Field K] [LinearOrder K] [IsStrictOrderedRing K]
     {d_min d_max γ : K} (hd : d_min ≤ d_max) :
