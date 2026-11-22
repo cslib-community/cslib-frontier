@@ -50,9 +50,7 @@ private theorem norm_vj (hR : sj ^ 2 = 1 - J ^ 2) (ψ : ℝ) :
     simp only [inner_add_left, inner_add_right, real_inner_smul_left, real_inner_smul_right,
       inner_e, Fin.isValue, Fin.reduceEq, ↓reduceIte]
     linear_combination hR + sj ^ 2 * Real.sin_sq_add_cos_sq ψ
-  rcases sq_eq_one_iff.mp hsq with h' | h'
-  · exact h'
-  · linarith only [h', norm_nonneg (J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2)]
+  nlinarith only [hsq, norm_nonneg (J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2)]
 
 open Classical in
 private theorem rotF_as_integral (ψ : ℝ) :
@@ -168,10 +166,8 @@ theorem rot_mono {ψ₁ ψ₂ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 
 theorem rotF_pi (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2) (hsi : 0 ≤ si) (hsj : 0 ≤ sj)
     (hh : 0 < h) (hIJ : I + J ≤ 0) :
     rotF I J si sj h π = planarProb (Real.arccos I) (Real.arccos J) h := by
-  have hI1 : -1 ≤ I ∧ I ≤ 1 :=
-    abs_le.mp ((sq_le_one_iff_abs_le_one I).mp (by linarith only [hP, sq_nonneg si]))
-  have hJ1 : -1 ≤ J ∧ J ≤ 1 :=
-    abs_le.mp ((sq_le_one_iff_abs_le_one J).mp (by linarith only [hR, sq_nonneg sj]))
+  have hI1 : -1 ≤ I ∧ I ≤ 1 := by constructor <;> nlinarith only [hP, sq_nonneg si]
+  have hJ1 : -1 ≤ J ∧ J ≤ 1 := by constructor <;> nlinarith only [hR, sq_nonneg sj]
   have hcI : Real.cos (Real.arccos I) = I := Real.cos_arccos hI1.1 hI1.2
   have hcJ : Real.cos (Real.arccos J) = J := Real.cos_arccos hJ1.1 hJ1.2
   have hsI : Real.sin (Real.arccos I) = si := by
@@ -191,44 +187,27 @@ theorem rotF_pi (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2) (hsi : 0 ≤
       have hstep {A B sA sB : ℝ} (hpA : sA ^ 2 = 1 - A ^ 2) (hpB : sB ^ 2 = 1 - B ^ 2)
           (hsA : 0 ≤ sA) (hsB : 0 ≤ sB) (hA : A ≤ 0) (hB : 0 ≤ B) (hAB : A + B ≤ 0) :
           sB * A + sA * B ≤ 0 := by
-        have hsq : sA ^ 2 ≤ sB ^ 2 := by
-          rw [hpA, hpB, sub_le_sub_iff_left, sq_le_sq, abs_of_nonneg hB, abs_of_nonpos hA]
-          linarith only [hAB]
-        have hss : sA ≤ sB := (pow_le_pow_iff_left₀ hsA hsB two_ne_zero).mp hsq
-        calc sB * A + sA * B ≤ sB * A + sB * B := by gcongr
-          _ = sB * (A + B) := by ring
-          _ ≤ 0 := mul_nonpos_of_nonneg_of_nonpos hsB hAB
-      rcases le_total I 0 with hI | hI <;> rcases le_total J 0 with hJ | hJ
-      · exact add_nonpos (mul_nonpos_of_nonneg_of_nonpos hsj hI)
-          (mul_nonpos_of_nonneg_of_nonpos hsi hJ)
-      · exact hstep hP hR hsi hsj hI hJ hIJ
+        have hsq : sA ^ 2 ≤ sB ^ 2 := by nlinarith only [hpA, hpB, hA, hB, hAB]
+        nlinarith only [(pow_le_pow_iff_left₀ hsA hsB two_ne_zero).mp hsq, hsB, hB, hAB]
+      rcases le_or_gt I 0 with hI | hI
+      · rcases le_or_gt J 0 with hJ | hJ
+        · exact add_nonpos (mul_nonpos_of_nonneg_of_nonpos hsj hI)
+            (mul_nonpos_of_nonneg_of_nonpos hsi hJ)
+        · exact hstep hP hR hsi hsj hI hJ.le hIJ
       · rw [add_comm]
-        exact hstep hR hP hsj hsi hJ hI (by linarith only [hIJ])
-      · have hI0 : I = 0 := by linarith only [hI, hJ, hIJ]
-        have hJ0 : J = 0 := by linarith only [hI, hJ, hIJ]
-        rw [hI0, hJ0]; simp only [mul_zero, add_zero, le_refl]
+        exact hstep hR hP hsj hsi (by linarith only [hI, hIJ]) hI.le (by linarith only [hIJ])
     have hy0 : 0 < ⟪e 0, y⟫ := by linarith only [hh, h3]
     by_cases hpos : 0 < si + sj
-    · have hsum : (si + sj) * h ≤ (sj * I + si * J) * ⟪e 0, y⟫ := by
-        have ha := mul_nonneg hsj
-          (by linarith only [h1] : (0 : ℝ) ≤ I * ⟪e 0, y⟫ + si * ⟪e 1, y⟫ - h)
-        have hb := mul_nonneg hsi (by
-          linarith only [h2] : (0 : ℝ) ≤ J * ⟪e 0, y⟫ + sj * -1 * ⟪e 1, y⟫ + sj * 0 * ⟪e 2, y⟫ - h)
-        linarith only [ha, hb,
-          show sj * (I * ⟪e 0, y⟫ + si * ⟪e 1, y⟫ - h) +
-            si * (J * ⟪e 0, y⟫ + sj * -1 * ⟪e 1, y⟫ + sj * 0 * ⟪e 2, y⟫ - h) =
-            (sj * I + si * J) * ⟪e 0, y⟫ - (si + sj) * h by ring]
-      linarith only [hsum, mul_pos hpos hh, mul_nonpos_of_nonneg_of_nonpos hy0.le hcomb]
+    · nlinarith only [hh, hy0, hpos, hcomb, mul_nonneg hsj (sub_nonneg.mpr h1),
+        mul_nonneg hsi (sub_nonneg.mpr h2)]
     · have hsi0 : si = 0 := by linarith only [hsi, hsj, hpos]
       have hsj0 : sj = 0 := by linarith only [hsi, hsj, hpos]
       rw [hsi0] at hP; rw [hsj0] at hR
-      have hI2 : I ^ 2 = 1 := by linarith only [hP]
-      have hJ2 : J ^ 2 = 1 := by linarith only [hR]
-      rcases sq_eq_one_iff.mp hI2 with hI' | hI' <;> rcases sq_eq_one_iff.mp hJ2 with hJ' | hJ'
-      · linarith only [hI', hJ', hIJ]
-      · rw [hJ', hsj0] at h2; linarith only [h2, hh, hy0]
-      · rw [hI', hsi0] at h1; linarith only [h1, hh, hy0]
-      · rw [hI', hsi0] at h1; linarith only [h1, hh, hy0]
+      rcases sq_eq_one_iff.mp (by linarith only [hP] : I ^ 2 = 1) with rfl | rfl
+      · rcases sq_eq_one_iff.mp (by linarith only [hR] : J ^ 2 = 1) with rfl | rfl
+        · linarith only [hIJ]
+        · rw [hsj0] at h2; linarith only [h2, hh, hy0]
+      · rw [hsi0] at h1; linarith only [h1, hh, hy0]
   have h01 : ⟪e 0, e 1⟫ = 0 := by simpa using inner_e 0 1
   have h00 : ⟪e 0, e 0⟫ = 1 := by simpa using inner_e 0 0
   have h11 : ⟪e 1, e 1⟫ = 1 := by simpa using inner_e 1 1

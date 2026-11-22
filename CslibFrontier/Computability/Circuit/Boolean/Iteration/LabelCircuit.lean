@@ -192,21 +192,13 @@ private theorem labelCost_le (n s M L : ℕ) (hL : 0 < L) (hLN : L ≤ 2 ^ n) (h
       50 * (n + 4) ^ 2) + (2 * L + 1) * (4 * labelWidth n) + 2 ≤ 6000 * (P * (L + N / L + 1)) := by
     have h3L : 2 * L + 1 ≤ 3 * L := by omega
     have hw : 4 * labelWidth n ≤ 24 * (n + 1) := by unfold labelWidth; omega
-    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 2400 * (P * L) :=
-      (Nat.mul_le_mul h3L (by omega : 50 * (n + 4) ^ 2 ≤ 800 * P)).trans_eq (by ring)
-    have e2 : (2 * L + 1) * (30 * n + 27) ≤ 171 * (P * L) :=
-      (Nat.mul_le_mul h3L (by omega : 30 * n + 27 ≤ 57 * P)).trans_eq (by ring)
-    have e3 : (2 * L + 1) * (4 * labelWidth n) ≤ 72 * (P * L) :=
-      (Nat.mul_le_mul h3L (hw.trans (by omega : 24 * (n + 1) ≤ 24 * P))).trans_eq (by ring)
-    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * (P * L) := by
-      have : P * 1 ≤ P * L := Nat.mul_le_mul_left P hL
-      omega
-    have hPL : P * L ≤ P * (L + N / L + 1) := Nat.mul_le_mul_left P (by omega)
-    omega
-  linarith only [hdict, hrest, Nat.zero_le (L * s), Nat.zero_le (P * (L + N / L + 1)),
-    show 2 * L * s = 2 * (L * s) by ring,
-    show 20000 * (L * s + P * (L + N / L + 1)) =
-      20000 * (L * s) + 20000 * (P * (L + N / L + 1)) by ring]
+    have e1 : (2 * L + 1) * (50 * (n + 4) ^ 2) ≤ 3 * L * (800 * P) := Nat.mul_le_mul h3L (by omega)
+    have e2 : (2 * L + 1) * (30 * n + 27) ≤ 3 * L * (57 * P) := Nat.mul_le_mul h3L (by omega)
+    have e3 : (2 * L + 1) * (4 * labelWidth n) ≤ 3 * L * (24 * P) :=
+      Nat.mul_le_mul h3L (hw.trans (by omega))
+    have e4 : 50 * (n + 4) ^ 2 + 2 ≤ 802 * P := by omega
+    nlinarith only [e1, e2, e3, e4, hL, Nat.mul_le_mul_left P (show L ≤ L + N / L + 1 by omega)]
+  nlinarith only [hdict, hrest, Nat.zero_le (L * s)]
 
 /-- **Labels of periodic states.** For every `0 < L ≤ 2 ^ n`, some circuit of size at most
 `20000 * powerBudget n c.size (2 ^ n) L` computes the canonical label of every periodic state. -/
