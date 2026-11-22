@@ -1630,6 +1630,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Sweep
 public import CslibFrontier.Computability.Circuit.Frontier.Ledger.Unconditional
+public import CslibFrontier.Computability.Circuit.Frontier.Linear.DirectedShift
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.LowerBound
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
 public import CslibFrontier.Computability.Circuit.Frontier.LowerBound
