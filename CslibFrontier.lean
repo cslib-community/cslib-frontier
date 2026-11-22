@@ -2417,6 +2417,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.PolyTime
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Prenex
 public import CslibFrontier.Computability.Complexity.Classes.Space.TQBF.Reduction
 public import CslibFrontier.Computability.Complexity.Classes.Space.Time
+public import CslibFrontier.Computability.Complexity.Classes.Space.Unambiguous
 public import CslibFrontier.Computability.Complexity.Classes.Sparse
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.BoundedTruthTable
 public import CslibFrontier.Computability.Complexity.Classes.Sparse.Conjunctive
@@ -3853,6 +3854,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Out
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.PaddedClock
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Program
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Sequential
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Verdict
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Counting.Verifier
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Deterministic
