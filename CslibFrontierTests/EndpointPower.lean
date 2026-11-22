@@ -19,6 +19,11 @@ example : IsEndpointCheckpoint Nat.succ (fun i => 3 - i) 2 1 := by
   unfold IsEndpointCheckpoint Function.Injective
   decide
 
+-- With ranks 2, 1, 1 the right endpoint qualifies even though the first minimum is interior.
+example : IsEndpointCheckpoint Nat.succ (fun i => if i = 0 then 2 else 1) 2 0 := by
+  unfold IsEndpointCheckpoint Function.Injective
+  decide
+
 -- Tied ranks qualify a simple window, but a repeated state still disqualifies it.
 example : IsEndpointCheckpoint Nat.succ (fun _ => (0 : ℕ)) 2 0 := by
   unfold IsEndpointCheckpoint Function.Injective

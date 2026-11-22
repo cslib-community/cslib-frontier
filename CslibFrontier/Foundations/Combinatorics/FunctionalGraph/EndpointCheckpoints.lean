@@ -20,8 +20,10 @@ the state itself, are distinct and either endpoint has minimum rank. An orbit wi
 prefix of length `2 * L` then reaches a mark in fewer than `L` steps. More precisely, the
 index of *any* minimum in the prefix determines the mark by a single comparison.
 
-The endpoint selection rule is the closed syncmer rule [Edgar2021Syncmers, Fig. 1], applied here
-to states along an orbit. Ranks may tie. The size of the set of marks depends on the ranking.
+The selection rule adapts Edgar's closed syncmers to orbit windows
+[Edgar, Methods, “Closed syncmers”, and Fig. 1][Edgar2021Syncmers]. Edgar breaks ties on the
+left. Here either endpoint may be tied for the minimum. The size of the mark set depends
+on the ranking.
 -/
 
 public section
