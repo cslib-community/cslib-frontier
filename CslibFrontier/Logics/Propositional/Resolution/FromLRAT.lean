@@ -84,8 +84,9 @@ def resolveOn (l : Literal ℕ) (d₀ d₁ : Clause ℕ) : Clause ℕ :=
 /-- **The resolution chain of a RUP step**, following unit propagation along the hints from the
 literals `t` assumed true, as `Cslib.Logic.PL.CNF.propagateHints` does, by the residual of each
 hinted clause (`Cslib.Logic.PL.Clause.residual`): the lines it adds, latest first, and the line
-it derives, every literal of which is false under `t`; `none` if propagation fails. After the rest of the chain derives a line from `l :: t`, where `l` is the literal the
-current hinted clause propagates, that line is resolved with the line of the hinted clause on the
+it derives, every literal of which is false under `t`; `none` if propagation fails. After the
+rest of the chain derives a line from `l :: t`, where `l` is the literal the current hinted clause
+propagates, that line is resolved with the line of the hinted clause on the
 variable of `l` when it contains the negation of `l` and `l` is new; otherwise either it or the
 hinted clause's line is already false under `t`. -/
 def rupChain (db : List LRATEntry) : List (Literal ℕ) → List ℕ → Option (List (Clause ℕ) × Clause ℕ)
