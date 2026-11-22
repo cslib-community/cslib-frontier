@@ -50,21 +50,21 @@ theorem exec_setup {w L t Q AA BB D V K : ℕ} (x : Data registers) (η : OutStr
       Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
       Reg.childUsed, Reg.childStars, Reg.childPower, BoxTable.Reg.values,
       BoxTable.Reg.count, Fin.mk.injEq]
-  obtain ⟨y, hy, hyt, hym, hyf⟩ :=
-    exec_push (F := V + K) (n := 0) (k := 0) (c := 0) (u := 0) (e := 0) (p := 1) v
-    (by simp [v, v1, v0, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
-      Reg.childUsed, Reg.childStars, Reg.childPower, Reg.five, Reg.answer])
-    (by simp [v, v1, Reg.top, Reg.depth, Reg.childCode,
-      Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, v1, Reg.depth, Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, v1, Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by simp [v, Reg.childStars, Reg.childPower]) (by simp [v])
-    (by simp [v, v1, v0, Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth,
-      Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower])
-    (by regs_frame) (hfit.of_le (by omega))
-  have he : ExecWithin w setup x y 26 := hu.seq (hv.seq hy)
-  refine ⟨y, he, ?_, hyt, ?_, ?_, ?_⟩
+  obtain ⟨y, hy_exec, hyt, hstack, hym, _, hyf⟩ :=
+    WordStack.push_exec (baseAddr := V + K) (cap := 1) (prefixTaskSpec η)
+      Reg.stack Reg.top Reg.cursor Reg.five BoxTable.Reg.one pushFields [] [] v
+      (by decide) (by decide) (by decide) (by decide)
+      (by simp +decide [v, v1, v0])
+      (by simp +decide [v, v1])
+      (by simp +decide [v, v1, v0])
+      (by regs_frame)
+      (fun i => by
+        match i with
+        | 0 | 2 | 3 | 4 => simp +decide [v, v1, pushFields, usedFrom, starsFrom]
+        | 1 => simp +decide [v, v1, pushFields, prefixCode_nil])
+      trivial (by decide) (hfit.of_le (by omega))
+  have he : ExecWithin w setup x y 26 := hu.seq (hv.seq hy_exec.within)
+  refine ⟨y, he, ?_, hyt, ?_, hstack, ?_⟩
   · constructor
     · regs_frame
     · regs_frame
@@ -76,21 +76,17 @@ theorem exec_setup {w L t Q AA BB D V K : ℕ} (x : Data registers) (η : OutStr
     · regs_frame
     · regs_frame
     · rw [hyf _ (by decide)]
-      simp [v, v1, v0, Reg.stack, Reg.top, Reg.depth, Reg.childCode,
-        Reg.childUsed, Reg.childStars, Reg.childPower, Reg.five, Reg.answer]
+      simp +decide [v, v1, v0]
     · rw [hyf _ (by decide)]
-      simp [v, v1, v0, Reg.five, Reg.answer, Reg.stack, Reg.top, Reg.depth,
-        Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower]
+      simp +decide [v, v1, v0]
     · regs_frame
     · regs_frame
     · regs_frame
     · regs_frame
   · rw [hyf _ (by decide)]
-    simp [v, v1, v0, Reg.answer, Reg.stack, Reg.five, Reg.top, Reg.depth,
-      Reg.childCode, Reg.childUsed, Reg.childStars, Reg.childPower, Signed.encode]
-  · rw [hym]
-    simpa only [List.length_nil, prefixCode_nil, usedFrom, starsFrom, pow_zero] using
-      (show StackMemory η (V + K) [] v.mem from trivial).push []
-  · simpa only [v, v1, v0, Data.set_mem, um] using hym
+    simp +decide [v, v1, v0, Signed.encode]
+  · dsimp only [RecordSpec.write, prefixTaskSpec] at hym
+    simpa only [writeTask, List.length_nil, prefixCode_nil, usedFrom, starsFrom, pow_zero,
+      v, v1, v0, Data.set_mem, um] using hym
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxQuery

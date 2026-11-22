@@ -565,7 +565,13 @@ are not false under `A` are put first. It adds the clauses with
 unchanged for fewer than two literals. -/
 @[expose] def WatchStore.build (A : Assign) : List (ℕ × Clause ℕ) → WatchStore
   | [] => ⟨#[], #[]⟩
-  | e :: F => (build A F).addClause e.1 (watchOrder A e.2.dedup)
+  | e :: F => (build A F).addClause e.1 (watchOrder A (dedupLits e.2))
+
+/-- The literals of a clause without repetitions, removed in linear time (`dedupLits`), are those
+of `List.dedup`, up to order. -/
+theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
+  (List.perm_ext_iff_of_nodup (nodup_dedupKey litKey_injective c) (List.nodup_dedup c)).2
+    fun l => by rw [mem_dedupKey litKey_injective, List.mem_dedup]
 
 /-- The watch store built from `F` under an assignment agreeing with the trail `M`, none of whose
 clauses `M` falsifies, satisfies the invariant with every literal of `M` processed: a clause whose
@@ -578,16 +584,16 @@ theorem WatchStore.build_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
   | [], _ => WatchStore.inv_empty M []
   | e :: F, hF => by
     have ih := build_inv hA F fun e' he' => hF e' (List.mem_cons_of_mem _ he')
-    have hperm := watchOrder_perm A e.2.dedup
+    have hperm := (watchOrder_perm A (dedupLits e.2)).trans (dedupLits_perm e.2)
     simp only [build]
-    match hc : watchOrder A e.2.dedup with
+    match hc : watchOrder A (dedupLits e.2) with
     | w₁ :: w₂ :: rest =>
       rw [hc] at hperm
       have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
       refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
         (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
       exact hF e List.mem_cons_self hlen fun l hl =>
-        falsifies_of_watchOrder hA hc hp.1 l (List.mem_dedup.2 hl)
+        falsifies_of_watchOrder hA hc hp.1 l ((mem_dedupKey litKey_injective).2 hl)
     | [] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])

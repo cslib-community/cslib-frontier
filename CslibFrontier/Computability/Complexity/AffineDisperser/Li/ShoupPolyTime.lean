@@ -205,8 +205,7 @@ private theorem polyTrim_eq_take (p : List Bool) :
     have hb := foldl_trimStep_bounds p 0 0 le_rfl
     rw [List.foldl_append, List.foldl_cons, List.foldl_nil, trimStep, hb.1, Nat.zero_add]
     cases b
-    · have hpf : polyTrim (p ++ [false]) = polyTrim p := by simp [polyTrim, List.foldr_append]
-      simp only [Bool.false_eq_true, ↓reduceIte, hpf, ih]
+    · simp only [Bool.false_eq_true, ↓reduceIte, polyTrim_append_false, ih]
       exact (List.take_append_of_le_length (by omega)).symm
     · simp only [↓reduceIte, polyTrim_append_true]
       simpa only [List.length_append, List.length_singleton] using
@@ -350,7 +349,7 @@ private theorem length_polyGcdStep_le (a b : List Bool) {n : ℕ}
     (polyGcdStep (a, b)).1.length ≤ n ∧ (polyGcdStep (a, b)).2.length ≤ n := by
   unfold polyGcdStep; dsimp only; split_ifs
   · exact ⟨ha, hb⟩
-  · exact ⟨hb, (polyDivMod_iterate_bounds a (polyTrim b) a.length).2.1.trans ha⟩
+  · exact ⟨hb, (length_polyMod_le a b).trans ha⟩
 
 /-- `polyGcd` is computable in polynomial time. -/
 theorem computableInPolyTime_polyGcd :
@@ -359,7 +358,7 @@ theorem computableInPolyTime_polyGcd :
   have hstep : ComputableInPolyTime (fun x : Bool × List Bool × List Bool => polyGcdStep x.2)
       (encPair encBool (encPair encBits encBits)) (encPair encBits encBits) := by
     unfold polyGcdStep; fun_prop
-  refine (fst encBits encBits).comp (iterateWith_spec
+  exact (fst encBits encBits).comp (iterateWith_spec
     (step := fun (_ : Bool) x => polyGcdStep x)
     (invariant := fun p _ st =>
       st.1.length ≤ max p.1.length p.2.length ∧ st.2.length ≤ max p.1.length p.2.length)
@@ -498,8 +497,7 @@ private theorem length_berlekampStep_le (g : List Bool) :
   · exact hgt
   · have hv := length_kernelVecBits (gt.length - 2) (berlekampMatrix gt)
     let w := false :: kernelVecBits (gt.length - 2) (berlekampMatrix gt)
-    have hgcd : (polyGcd gt w).length ≤ max gt.length w.length :=
-      (polyGcd_iterate_bounds gt w (gt.length + w.length + 1)).1
+    have hgcd : (polyGcd gt w).length ≤ max gt.length w.length := length_polyGcd_le gt w
     simp only [w, List.length_cons, hv] at hgcd; omega
   · exact hgt
 
@@ -519,10 +517,8 @@ private theorem length_polyMod_lt {u f : List Bool} (hf : (polyTrim f).isEmpty =
     (polyOfBits_ne_zero_iff_polyTrim.mpr (List.isEmpty_eq_false_iff.mp hf))).2.1
 
 private theorem length_polyMul_le' (a b : List Bool) :
-    (polyMul a b).length ≤ a.length + b.length := by
-  unfold polyMul; split_ifs
-  · simp
-  · exact (length_polyTrim_le _).trans (by simp)
+    (polyMul a b).length ≤ a.length + b.length :=
+  (length_polyMul_le a b).trans (Nat.sub_le _ _)
 
 private theorem polyTime_primeGeThree :
     ComputableInPolyTime (fun q : ℕ => decide (q.Prime ∧ 3 ≤ q)) encUnary encBool := by

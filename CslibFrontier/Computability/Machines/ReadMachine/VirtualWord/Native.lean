@@ -55,8 +55,8 @@ open MultiTapeTM MultiTapeTM.Universal ComputableInSpace
 @[expose] def machine (d : Desc) : QueryMachine SCfg where
   init := init d
   query s := s.inputPos - 1
-  next p := (stepWith d p.1 (input p.1 p.2)).1
-  emit p := ((stepWith d p.1 (input p.1 p.2)).2.map outputBit).toList
+  next := fun (s, b) => (stepWith d s (input s b)).1
+  emit := fun (s, b) => ((stepWith d s (input s b)).2.map outputBit).toList
   halted s := s.state.isNone
   finish _ := []
 
@@ -114,12 +114,6 @@ theorem output_eq (d : Desc) (x : List Bool) (t : ℕ) :
     rw [he, ih, Function.iterate_succ_apply']
     simp only [stepOut, List.map_append, Option.toList_map, run_eq, run]
 
-/-- The configuration field view reuses the existing encoding byte for byte. -/
-private theorem fields_inSpace : ComputableInSpace
-    (fun s : SCfg => (s.state, s.inputPos, s.workTapes)) eCfg eCfgFields
-    (fun s => (eCfg s).length) :=
-  of_inO (.of_eq fun _ => rfl)
-
 /-- All five components of an arbitrary fixed description have native certificates. The
 transition table is a fixed machine constant; it is not an oracle or a substitution premise. -/
 theorem components_inSpace (d : Desc) :
@@ -130,7 +124,8 @@ theorem components_inSpace (d : Desc) :
       (fun p => (encPair eCfg (encOption encBool) p).length) ∧
     ComputableInSpace (machine d).halted eCfg encBool (fun s => (eCfg s).length) ∧
     ComputableInSpace (machine d).finish eCfg encBits (fun s => (eCfg s).length) := by
-  have hpos := fields_inSpace.snd'.fst'
+  have hid := budget_id (enc := eCfg) (.refl _)
+  have hpos := eCfg_inputPos_budget hid
   have hp := fst eCfg (encOption encBool)
   have hb := snd eCfg (encOption encBool)
   have hzero := budget_natIsZero (budget_comp_linear hpos hp)
@@ -157,7 +152,7 @@ theorem components_inSpace (d : Desc) :
       (budget_comp_linear hbit (budget_optionGetD 0 hstep.snd')))
     (budget_const [] (.refl _))
   have hhalt := budget_finite (encC := encBool) Bool.not
-    (budget_optionIsSome fields_inSpace.fst')
+    (budget_optionIsSome (eCfg_state_budget hid))
   refine ⟨budget_natPred hpos, hstep.fst', hemit.of_enc_eq ?_,
     hhalt.of_enc_eq ?_, budget_const [] (.refl _)⟩
   · intro p
@@ -251,27 +246,29 @@ derived here, not assumed. Constants are uniform across supplied runtime headers
 theorem computableInSpace {k : ℕ} {S β : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm : MultiTapeTM k Bool S) (encOut : β ↪ List Bool) (f : Simulation.Input → β)
     (T W : Simulation.Input → ℕ)
-    (hhalt : ∀ p, (tm.runFrom (tm.initCfg (word p.val.2 p.val.1.1 p.val.1.2.1))
-      (T p)).state = none)
+    (hhalt : ∀ p, (tm.runFrom
+      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) (T p)).state = none)
     (hpre : ∀ p, ∀ j < T p, (tm.runFrom
-      (tm.initCfg (word p.val.2 p.val.1.1 p.val.1.2.1)) j).state ≠ none)
+      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) j).state ≠ none)
     (hout : ∀ p, encOut (f p) = (tm.runFrom
-      (tm.initCfg (word p.val.2 p.val.1.1 p.val.1.2.1)) (T p)).output)
-    (hspace : ∀ p, tm.RunsInSpace (word p.val.2 p.val.1.1 p.val.1.2.1) (W p)) :
+      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) (T p)).output)
+    (hspace : ∀ p, tm.RunsInSpace (word p.val.original p.val.data.cut p.val.data.suffix) (W p)) :
     ∃ time c, ComputableInTimeAndSpace f Simulation.encInput encOut time
-      (fun p => c * (budget eS tm (word p.val.2 p.val.1.1 p.val.1.2.1).length (W p) +
-        (encData p.val.1).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
+      (fun p => c * (budget eS tm
+        (word p.val.original p.val.data.cut p.val.data.suffix).length (W p) +
+        (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   obtain ⟨hq, hn, he, hh, hf⟩ := components_inSpace (desc eS eBit tm)
   apply Simulation.computableInSpace (machine (desc eS eBit tm)) eCfg
     hq hn he hh hf encOut f T (fun p =>
-      budget eS tm (word p.val.2 p.val.1.1 p.val.1.2.1).length (W p))
+      budget eS tm (word p.val.original p.val.data.cut p.val.data.suffix).length (W p))
   · intro p
     rw [halted_native, hhalt]
     rfl
   · intro p j hj
     rw [halted_native]
     have h := hpre p j hj
-    generalize (tm.runFrom (tm.initCfg (word p.val.2 p.val.1.1 p.val.1.2.1)) j).state = q at *
+    generalize (tm.runFrom
+      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) j).state = q at *
     cases q <;> simp_all only [Option.isNone_some, ne_eq, not_true_eq_false]
   · intro p
     rw [output_native]
@@ -284,14 +281,16 @@ selected internally. No time bound, output-length bound or substitution certific
 theorem computableInSpace_of_computes {k : ℕ} {S β : Type} [Fintype S] (eS : S ↪ ℕ)
     (tm : MultiTapeTM k Bool S) (encOut : β ↪ List Bool) (f : Simulation.Input → β)
     (W : Simulation.Input → ℕ)
-    (hcomp : ∀ p, tm.Computes (word p.val.2 p.val.1.1 p.val.1.2.1) (encOut (f p)))
-    (hspace : ∀ p, tm.RunsInSpace (word p.val.2 p.val.1.1 p.val.1.2.1) (W p)) :
+    (hcomp : ∀ p,
+      tm.Computes (word p.val.original p.val.data.cut p.val.data.suffix) (encOut (f p)))
+    (hspace : ∀ p, tm.RunsInSpace (word p.val.original p.val.data.cut p.val.data.suffix) (W p)) :
     ∃ time c, ComputableInTimeAndSpace f Simulation.encInput encOut time
-      (fun p => c * (budget eS tm (word p.val.2 p.val.1.1 p.val.1.2.1).length (W p) +
-        (encData p.val.1).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
+      (fun p => c * (budget eS tm
+        (word p.val.original p.val.data.cut p.val.data.suffix).length (W p) +
+        (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   classical
   have hex (p : Simulation.Input) : ∃ t, (tm.runFrom
-      (tm.initCfg (word p.val.2 p.val.1.1 p.val.1.2.1)) t).state = none := by
+      (tm.initCfg (word p.val.original p.val.data.cut p.val.data.suffix)) t).state = none := by
     obtain ⟨t, ht, _⟩ := hcomp p
     exact ⟨t, ht⟩
   apply computableInSpace eS tm encOut f (fun p => Nat.find (hex p)) W
@@ -321,24 +320,25 @@ by `budget_le`. Runtime header preparation is still a separate obligation. -/
 theorem of_logSpace {β : Type} {f : List Bool → β} {encOut : β ↪ List Bool}
     (hf : ComputableInLogSpace f encBits encOut) :
     ∃ time c a C, ComputableInTimeAndSpace
-      (fun p : Simulation.Input => f (word p.val.2 p.val.1.1 p.val.1.2.1))
+      (fun p : Simulation.Input => f (word p.val.original p.val.data.cut p.val.data.suffix))
       Simulation.encInput encOut time
-      (fun p => c * (C * (a * (Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1) +
-        Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1) +
-        (encData p.val.1).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
+      (fun p => c * (C * (a *
+        (Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 1) +
+        Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 1) +
+        (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   classical
   obtain ⟨_, a, k, S, _, tm, htm⟩ := hf
   let : Fintype S := Fintype.ofFinite S
   let eS : S ↪ ℕ := (Fintype.equivFin S).toEmbedding.trans Fin.valEmbedding
   obtain ⟨time, c, hc⟩ := computableInSpace_of_computes eS tm encOut
-    (fun p : Simulation.Input => f (word p.val.2 p.val.1.1 p.val.1.2.1))
-    (fun p => a * (Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1))
+    (fun p : Simulation.Input => f (word p.val.original p.val.data.cut p.val.data.suffix))
+    (fun p => a * (Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 1))
     (fun p => (htm _).1) (fun p => (htm _).2.2)
   obtain ⟨C, hC⟩ := budget_le eS tm
   refine ⟨time, c, a, C, hc.mono (fun _ => le_rfl) fun p => ?_⟩
   apply Nat.mul_le_mul_left
-  have h := hC (word p.val.2 p.val.1.1 p.val.1.2.1).length
-    (a * (Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1))
+  have h := hC (word p.val.original p.val.data.cut p.val.data.suffix).length
+    (a * (Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 1))
   omega
 
 end Turing.VirtualWord.Native

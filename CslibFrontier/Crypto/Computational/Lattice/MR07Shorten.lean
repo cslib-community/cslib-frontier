@@ -487,15 +487,13 @@ theorem ratOrthoScale_sq_bounds {sqS sqV : ℚ} (hS : 0 < sqS) (hV : 0 < sqV) :
 /-- `m × (m + 1)` `RatTable` whose rows are `{S j : j ≠ i}` ordered by `i.succAbove`. -/
 @[expose] def omitRowTable {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ) (i : Fin (m + 1)) :
     Cslib.LinearAlgebra.RatTable :=
-  ⟨m, m + 1, List.ofFn fun a : Fin m => List.ofFn fun k : Fin (m + 1) => S (i.succAbove a) k⟩
+  Cslib.RowTable.ofMatrix (Matrix.of fun a k => S (i.succAbove a) k)
 
 /-- Entry evaluation of `omitRowTable S i`. -/
 theorem omitRowTable_toMatrix_apply {m : ℕ} (S : Fin (m + 1) → Fin (m + 1) → ℚ)
     (i : Fin (m + 1)) (a : Fin m) (k : Fin (m + 1)) :
     (omitRowTable S i).toMatrix a k = S (i.succAbove a) k := by
-  simp only [omitRowTable, Cslib.LinearAlgebra.RatTable.toMatrix_apply,
-    Cslib.LinearAlgebra.RatTable.entry, List.getD_eq_getElem?_getD,
-    List.getElem?_ofFn, a.isLt, k.isLt, ↓reduceDIte, Option.getD_some]
+  simp [omitRowTable]
 
 /-- Executable rational orthogonal target `t = ρ • v ∈ ℚ^{m+1}` computed via `ratKernelBasis` on
 `omitRowTable S (maxSqNormIndex S)` and scaled by `ratOrthoScale`. -/
