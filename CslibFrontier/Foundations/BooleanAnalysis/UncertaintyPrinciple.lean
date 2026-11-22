@@ -22,7 +22,8 @@ the exercise, here `dens {x | f x ≠ 0}`, and the Fourier sparsity `sparsity(f�
 its Definition 3.9, a count. (Read with the fractional sparsity for `f̂` too, the claim would fail
 for every character once `n ≥ 1`.) Multiplying by `2 ^ n` gives the counting form
 `2 ^ n ≤ |supp f| · |supp f̂|` (`BitString.two_pow_card_le_card_mul_card_fourierCoeff_ne_zero`).
-The equality cases, part (d) of the exercise, are not formalized.
+The equality cases, part (d) of the exercise, are not formalized. The notes to the book's §3.6
+credit the uncertainty principle to Matolcsi and Szűcs (1973) [O'Donnell, §3.6][ODonnell2014].
 
 The proof takes `M = max_x |f(x)|`. Each coefficient has `|f̂(S)| ≤ 𝔼 |f| ≤ dens(G) M`, where `G`
 is the support of `f`, and `M ≤ ∑_{S ∈ F} |f̂(S)|` by Fourier inversion, where `F` is the support
