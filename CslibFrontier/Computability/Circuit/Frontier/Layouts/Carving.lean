@@ -599,6 +599,27 @@ private theorem endIn_mem {V E : Type*} {G : Multigraph V E} {Y : Set V} {e : E}
     · exfalso; exact hs hv
     · rfl
 
+/-- If `Y` is split into disjoint parts `Y₁` and `Y₂`, the cut edges of `Y` whose endpoint in `Y`
+lies in `Y₂` are those of `G.edgeCut Y` whose endpoint in `Y` does not lie in `Y₁`. -/
+private theorem ncard_edgeCut_endIn_eq_sub {V E : Type*} [Finite E] {G : Multigraph V E}
+    {Y Y₁ Y₂ : Set V} (hdisj : Disjoint Y₁ Y₂) (hunion : Y₁ ∪ Y₂ = Y) :
+    ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) =
+      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
+  have hd : Disjoint {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}
+      {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} :=
+    disjoint_left.mpr fun _ h1 h2 => disjoint_left.mp hdisj h1.2 h2.2
+  have hu : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁} ∪ {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} =
+      G.edgeCut Y := by
+    ext e
+    refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
+    have hm : endIn G Y e ∈ Y₁ ∪ Y₂ := hunion ▸ (endIn_mem he).1
+    rcases hm with h1 | h2
+    exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
+  have hn := ncard_union_eq hd (toFinite _) (toFinite _)
+  rw [hu] at hn
+  rw [hn, Nat.cast_add]
+  ring
+
 /-- Decompose `G.edgeCut Y₁` for a subset `Y₁ ⊆ Y` into internal edges of `Y` crossing `Y₁` and
 boundary edges of `Y` whose `Y`-endpoint lies in `Y₁`. -/
 private theorem ncard_edgeCut_sub_eq {V E : Type*} [Finite E] {G : Multigraph V E} {Y Y₁ : Set V}
@@ -1178,24 +1199,8 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
     dsimp [bWt]
     by_cases hB : ω ∈ inSide B <;> simp [S_Q, hB]
   have hbdry_X₂ : ({e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℝ) =
-      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) := by
-    have hd : Disjoint {e ∈ G.edgeCut X | endIn G X e ∈ X₁}
-        {e ∈ G.edgeCut X | endIn G X e ∈ X₂} :=
-      disjoint_left.mpr fun e h1 h2 => disjoint_left.mp hdisjX h1.2 h2.2
-    have hu : {e ∈ G.edgeCut X | endIn G X e ∈ X₁} ∪ {e ∈ G.edgeCut X | endIn G X e ∈ X₂} =
-        G.edgeCut X := by
-      ext e
-      refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
-      have hm : endIn G X e ∈ X₁ ∪ X₂ := hunionX ▸ (endIn_mem he).1
-      rcases hm with h1 | h2
-      exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
-    have hn := ncard_union_eq hd (toFinite _) (toFinite _)
-    rw [hu] at hn
-    have hcast : (({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard +
-        {e ∈ G.edgeCut X | endIn G X e ∈ X₂}.ncard : ℕ) : ℝ) = ((G.edgeCut X).ncard : ℝ) :=
-      congrArg Nat.cast hn.symm
-    push_cast at hcast
-    linarith only [hcast]
+      ((G.edgeCut X).ncard : ℝ) - ({e ∈ G.edgeCut X | endIn G X e ∈ X₁}.ncard : ℝ) :=
+    ncard_edgeCut_endIn_eq_sub hdisjX hunionX
   have hb_abs : |∑ B : cmp.blocks, bWt B * (inSide B).indicator 1 ω -
       1 / 2 * ((G.edgeCut X).ncard : ℝ)| < c := by
     have hmean : ∑ B : cmp.blocks, bWt B * P.real (inSide B) =
@@ -1565,23 +1570,8 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
     simp only [one_mul] at hlt
     rwa [← hE₁_sum, hmeanE] at hlt
   have hE₂_eq : ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℝ) =
-      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) := by
-    have hd : Disjoint {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}
-        {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} :=
-      disjoint_left.mpr fun _ h1 h2 => disjoint_left.mp hdisjY h1.2 h2.2
-    have hu : {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁} ∪ {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂} =
-        G.edgeCut Y := by
-      ext e
-      refine ⟨by rintro (h | h) <;> exact h.1, fun he => ?_⟩
-      have hm : endIn G Y e ∈ Y₁ ∪ Y₂ := hunionY ▸ (endIn_mem he).1
-      rcases hm with h1 | h2
-      exacts [Or.inl ⟨he, h1⟩, Or.inr ⟨he, h2⟩]
-    have hn := ncard_union_eq hd (toFinite _) (toFinite _)
-    rw [hu] at hn
-    have hcast : (({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard +
-        {e ∈ G.edgeCut Y | endIn G Y e ∈ Y₂}.ncard : ℕ) : ℝ) = ((G.edgeCut Y).ncard : ℝ) :=
-      congrArg Nat.cast hn.symm
-    push_cast at hcast; linarith only [hcast]
+      ((G.edgeCut Y).ncard : ℝ) - ({e ∈ G.edgeCut Y | endIn G Y e ∈ Y₁}.ncard : ℝ) :=
+    ncard_edgeCut_endIn_eq_sub hdisjY hunionY
   -- Internal cut of `Y` between `Y₁` and `Y₂` injects into `{v ∈ Y | G.EdgeStraddles ... 0 v}`.
   have hint_cut_le : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard ≤
       {v : V | v ∈ Y ∧ ω ∈ As v}.ncard := by
