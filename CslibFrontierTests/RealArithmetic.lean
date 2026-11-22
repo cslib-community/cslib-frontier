@@ -12,6 +12,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
+import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
 
@@ -80,6 +81,18 @@ example :
 def sentence : Formula 0 :=
   .or (.ltZero (.add (.const (-37)) (.const 12)))
     (.and (.eqZero (.mul (.const 0) (.const 91))) (.not .false))
+
+-- The two comparison payloads survive formula-token decoding as the original term words.
+example : formulaTokensDecoder.decode (encFormula 2
+    (.and (.eqZero (.var 1)) (.ltZero (.const (-2))))) =
+    some [.inr (.inr (.inr (.inr (.inl ())))), .inr (.inl (encTerm 2 (.var 1))),
+      .inr (.inr (.inl (encTerm 2 (.const (-2)))))] := by
+  rw [formulaTokensDecoder_decode_encFormula]
+  rfl
+
+-- The falsity tag carries no payload.
+example : formulaTokensDecoder.decode (frame [false, true]) = none := by
+  decide +kernel
 
 -- An asymmetric two-block formula checks that existential coordinates come first.
 example : (Formula.eqZero (n := 2) (.var 0)).existsForallSolutionSet

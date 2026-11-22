@@ -50,6 +50,19 @@ abbrev encTermToken : TermToken ↪ List Bool :=
 @[expose] def TermToken.ofFin {n : ℕ} : (ℤ ⊕ Fin n ⊕ Unit ⊕ Unit) → TermToken :=
   Sum.map id (Sum.map Fin.val id)
 
+/-- A prefix formula token. The alternatives are falsity, equality to zero, strict inequality
+to zero, negation, conjunction, and disjunction. Comparison tokens carry a complete term word. -/
+abbrev FormulaToken := Unit ⊕ List Bool ⊕ List Bool ⊕ Unit ⊕ Unit ⊕ Unit
+
+/-- Encode the formula constructor tags followed by the term word or empty payload. -/
+abbrev encFormulaToken : FormulaToken ↪ List Bool :=
+  encSum encUnit (encSum encBits (encSum encBits (encSum encUnit (encSum encUnit encUnit))))
+
+/-- Keep a typed formula token's constructor and encode any comparison term as a word. -/
+@[expose] def FormulaToken.encodeTerms {n : ℕ} :
+    (Unit ⊕ Term n ⊕ Term n ⊕ Unit ⊕ Unit ⊕ Unit) → FormulaToken :=
+  Sum.map id (Sum.map (encTerm n) (Sum.map (encTerm n) id))
+
 /-- Preserving variable ranks preserves every bit of a term's encoding. -/
 theorem encTerm_rename {n m : ℕ} (f : Fin n → Fin m)
     (hf : ∀ i, (f i).val = i.val) (t : Term n) :
