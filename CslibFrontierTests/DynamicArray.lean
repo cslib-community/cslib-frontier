@@ -145,6 +145,22 @@ example : ∃ ready y traces, Exec 8 DynamicArray.WordRAM.initProgram blank read
       blank_bounded adaptiveClient_valid
   exact ⟨ready, y, traces, hi, he, hy, hb, hspace (by decide)⟩
 
+/-- Operation-specific `amortized` certificate from `repTwo_boundedRep` (`potential = 30`) runs
+`adaptiveClient` across the `module` boundary within `3 * 52 + 2 * 6 + 30 = 198` instructions. -/
+example : ∃ y traces,
+    DataStructure.Executes ((DynamicArray.WordRAM.implementation 8).ExecOp 8) adaptiveClient
+      repTwoState (10, 11) y traces ∧
+    DynamicArray.WordRAM.BoundedRep 8 [10, 20, 11, 22, 43] y ∧
+    DataStructure.total DynamicProgram.OperationTrace.instructions traces +
+      DynamicArray.WordRAM.potential [10, 20, 11, 22, 43] y ≤ 198 := by
+  have hv : (DynamicArray.WordRAM.spec 8).ValidHistory [10, 20]
+      ((DynamicArray.WordRAM.spec 8).clientHistory [10, 20] adaptiveClient) := by
+    change (Fits 8 11 ∧ Fits 8 20) ∧ (Fits 8 22 ∧ Fits 8 28) ∧
+      (0 < 4 ∧ Fits 8 0) ∧ (Fits 8 43 ∧ Fits 8 36) ∧ (2 < 5 ∧ Fits 8 2) ∧ True
+    decide
+  exact (DynamicArray.WordRAM.amortized (by decide : Fits 8 1)).exists_executes
+    adaptiveClient repTwo_boundedRep hv
+
 /-- `run_appendAll` across five elements (`1 → 2 → 4 → 8` doublings) guarantees total charged
 instructions `≤ 15 + 5 * 52 = 275` and `frontier < 20`. -/
 example : ∃ ready y traces, Exec 8 DynamicArray.WordRAM.initProgram blank ready 15 ∧

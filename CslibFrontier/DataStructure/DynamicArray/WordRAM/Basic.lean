@@ -169,7 +169,7 @@ private theorem Rep.frontier_add_two_cap_le {vs : List ℕ} {x : Data 12} (h : R
   omega
 
 /-- The natural-valued credit used to pay for allocation and copying. -/
-def potential (vs : List ℕ) (x : Data 12) : ℕ := 15 * (2 * vs.length - x.regs cap)
+@[expose] def potential (vs : List ℕ) (x : Data 12) : ℕ := 15 * (2 * vs.length - x.regs cap)
 
 /-- The exact copy contract lifts to a larger register file without charging a meta-level call. -/
 private theorem copy_exec {w : ℕ} (x : Data 12) (h1 : Fits w 1)
@@ -328,7 +328,7 @@ abbrev spec (w : ℕ) : DataStructure.StateTransitionSpec :=
   if dest = zero then [ ⟪program⟫ ] else [ ⟪getProgram⟫ ] ]
 
 /-- Register calling convention for `dispatch`. -/
-def implementation (w : ℕ) : DynamicProgram (spec w) 12 where
+@[expose] def implementation (w : ℕ) : DynamicProgram (spec w) 12 where
   code := dispatch
   output := temp
   input i := i == dest || i == arg
@@ -343,10 +343,10 @@ def implementation (w : ℕ) : DynamicProgram (spec w) 12 where
   resultType_eq o := by cases o <;> rfl
 
 @[simp] theorem decode_append (w v : ℕ) (regs : Fin 12 → ℕ) :
-    (implementation w).decode (.append v) regs = some () := by rfl
+    (implementation w).decode (.append v) regs = some () := rfl
 
 @[simp] theorem decode_get (w i : ℕ) (regs : Fin 12 → ℕ) :
-    (implementation w).decode (.get i) regs = some (regs temp) := by rfl
+    (implementation w).decode (.get i) regs = some (regs temp) := rfl
 
 /-- Bounded-word doubling-array representation for `DynamicCertificate`. -/
 structure BoundedRep (w : ℕ) (vs : List ℕ) (x : Data 12) : Prop where
@@ -354,7 +354,7 @@ structure BoundedRep (w : ℕ) (vs : List ℕ) (x : Data 12) : Prop where
   rep : Rep vs x
 
 /-- Amortized instruction charge per operation, including dispatch and final halt. -/
-def charge : Op → ℕ
+@[expose] def charge : Op → ℕ
   | .append _ => 52
   | .get _ => 6
 
@@ -437,7 +437,7 @@ theorem dispatch_exec {w : ℕ} (h1 : Fits w 1) {vs : List ℕ} {x : Data 12}
       omega
 
 /-- Semantic realization certificate for the bounded-word dynamic array. -/
-def certificate {w : ℕ} (h1 : Fits w 1) : DynamicCertificate (implementation w) w :=
+@[expose] def certificate {w : ℕ} (h1 : Fits w 1) : DynamicCertificate (implementation w) w :=
   DynamicCertificate.ofFn
     (rep := BoundedRep w)
     (bounded := fun h => h.bounded)
