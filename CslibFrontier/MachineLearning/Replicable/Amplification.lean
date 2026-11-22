@@ -16,7 +16,6 @@ public import CslibFrontier.Probability.Collision
 public import CslibFrontier.Probability.PMF.Uniform
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.MachineLearning.Replicable.BiasEstimation
-import CslibFrontier.Probability.Concentration
 import CslibFrontier.Probability.IID.Event
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.EventBind
@@ -332,17 +331,19 @@ private theorem pairedOutput_amplifyFinite [Fintype α] [Nonempty α] [LinearOrd
     pmf_norm]
   pmf_swap
 
-private theorem empFreq_concentrates [Finite α] [DecidableEq α] (q : PMF α) (k : ℕ) [NeZero k]
+private theorem empFreq_concentrates [DecidableEq α] (q : PMF α) (k : ℕ) [NeZero k]
     {δ : ℝ} (hδ : 0 ≤ δ) (y : α) :
     ((Probability.PMF.iid q k).toOuterMeasure
       {v : Fin k → α | δ < |empFreq k v y - (q y).toReal|}).toReal ≤
       2 * Real.exp (-2 * (k : ℝ) * δ ^ 2) := by
-  let _ : Fintype α := Fintype.ofFinite α
   let f : α → ℝ := fun z => if z = y then 1 else 0
   have hfreq (v : Fin k → α) : empFreq k v y = empiricalMean f v := by
     simp only [empFreq, empiricalMean, f, Finset.card_filter, Nat.cast_sum]
     congr 1; exact Finset.sum_congr rfl fun j _ => by split_ifs <;> simp
-  have hexp : (q y).toReal = distExpectation q f := by simp [distExpectation, f]
+  have hexp : (q y).toReal = distExpectation q f := by
+    rw [distExpectation, tsum_eq_single y]
+    · simp [f]
+    · intro z hz; simp [f, hz]
   have hf : ∀ z ∈ q.support, f z ∈ Set.Icc (0 : ℝ) 1 := fun z _ => by
     dsimp only [f]; split_ifs <;> simp
   have hconc := boundedMean_concentrates q f hf k hδ
@@ -709,28 +710,16 @@ private theorem strictMajorityCandidate_fail_le [DecidableEq α] (μ : PMF α) (
       {zs : Fin k₂ → α |
         strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩) ≠ yStar}).toReal ≤
       2 * Real.exp (-2 * (k₂ : ℝ) * ((c - 1 / 2) / 2) ^ 2) := by
-  let δ_maj : ℝ := (c - 1 / 2) / 2
-  let q : PMF Bool := μ.map fun z => decide (z = yStar)
-  have hsub : {zs : Fin k₂ → α | strictMajorityCandidate zs (zs ⟨0, NeZero.pos k₂⟩) ≠ yStar} ⊆
-      (fun zs : Fin k₂ → α => fun j => decide (zs j = yStar)) ⁻¹'
-        {bs : Fin k₂ → Bool | δ_maj < |empFreq k₂ bs true - (q true).toReal|} := by
-    intro zs hzs
-    have hnot : 2 * (Finset.univ.filter fun j : Fin k₂ => zs j = yStar).card ≤ k₂ :=
-      not_lt.mp fun hlt => hzs (strictMajorityCandidate_eq_of_lt_two_mul zs _ yStar hlt)
-    have hcard : (Finset.univ.filter fun j : Fin k₂ => decide (zs j = yStar) = true).card =
-        (Finset.univ.filter fun j : Fin k₂ => zs j = yStar).card := by congr 1
-    have hemp : empFreq k₂ (fun j => decide (zs j = yStar)) true ≤ 1 / 2 := by
-      rw [empFreq, hcard, div_le_div_iff₀ (Nat.cast_pos.mpr (NeZero.pos k₂)) two_pos, one_mul]
-      exact_mod_cast (by linarith : (Finset.univ.filter fun j => zs j = yStar).card * 2 ≤ k₂)
-    have hq : (q true).toReal = (μ yStar).toReal :=
-      congrArg ENNReal.toReal (Probability.PMF.map_decide_eq_apply_true μ yStar)
-    have hgap : δ_maj < (q true).toReal - empFreq k₂ (fun j => decide (zs j = yStar)) true := by
-      dsimp only [δ_maj]; linarith
-    exact hgap.trans_le ((le_abs_self _).trans_eq (abs_sub_comm _ _))
-  refine (Probability.PMF.toOuterMeasure_toReal_mono _ hsub).trans ?_
-  rw [← PMF.toOuterMeasure_map_apply,
-    (Probability.PMF.iid_map μ (fun z => decide (z = yStar)) k₂).symm]
-  exact empFreq_concentrates q k₂ (by dsimp only [δ_maj]; linarith) true
+  refine (Probability.PMF.toOuterMeasure_toReal_mono _
+    (t := {zs : Fin k₂ → α | (c - 1 / 2) / 2 < |empFreq k₂ zs yStar - (μ yStar).toReal|})
+    fun zs hzs => ?_).trans (empFreq_concentrates μ k₂ (by linarith) yStar)
+  have hnot : 2 * (Finset.univ.filter fun j : Fin k₂ => zs j = yStar).card ≤ k₂ :=
+    not_lt.mp fun hlt => hzs (strictMajorityCandidate_eq_of_lt_two_mul zs _ yStar hlt)
+  have hemp : empFreq k₂ zs yStar ≤ 1 / 2 := by
+    rw [empFreq, div_le_div_iff₀ (Nat.cast_pos.mpr (NeZero.pos k₂)) two_pos, one_mul]
+    exact_mod_cast (by linarith : (Finset.univ.filter fun j => zs j = yStar).card * 2 ≤ k₂)
+  exact (by linarith : (c - 1 / 2) / 2 < (μ yStar).toReal - empFreq k₂ zs yStar).trans_le
+    ((le_abs_self _).trans_eq (abs_sub_comm _ _))
 
 private theorem trialRunMarginal_single_fail [DecidableEq α] (A : Algorithm X Ω α m) (D : PMF X)
     (r : Ω) {a δ : ℝ} (hδ : 0 ≤ δ) (ha_half : 1 / 2 + δ < a) (k₁ k₂ : ℕ)

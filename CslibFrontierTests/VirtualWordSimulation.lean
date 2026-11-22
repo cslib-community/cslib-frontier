@@ -23,6 +23,11 @@ namespace Cslib.Complexity.VirtualWordSimulationTest
 
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace VirtualWord
 
+-- `Simulation.encState` reproduces the exact former pair encoding (`rfl`).
+example {σ : Type} (enc : σ ↪ List Bool) (rt : Runtime.State) (s : σ) :
+    Simulation.encState enc ⟨rt, s⟩ = encPair Runtime.encState enc (rt, s) :=
+  rfl
+
 /-- Copy symbols until the first missing symbol, retaining an unbounded binary cursor. -/
 @[expose] def copier : QueryMachine (ℕ × Bool) where
   init := (0, false)
@@ -72,22 +77,24 @@ theorem copier_run (w : List Bool) {k : ℕ} (hk : k ≤ w.length + 1) :
 /-- One actual compiled native transducer handles every valid runtime header and unbounded word.
 Its saved counter contributes logarithmically in the virtual width, beside the charged header. -/
 theorem native_copier : ∃ time c, ComputableInTimeAndSpace
-    (fun p : Simulation.Input => copier.output (word p.val.2 p.val.1.1 p.val.1.2.1)
-      ((word p.val.2 p.val.1.1 p.val.1.2.1).length + 1))
+    (fun p : Simulation.Input =>
+      copier.output (word p.val.original p.val.data.cut p.val.data.suffix)
+        ((word p.val.original p.val.data.cut p.val.data.suffix).length + 1))
     Simulation.encInput encBits time
-    (fun p => c * (2 * (Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 2) + 2 +
-      (encData p.val.1).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
+    (fun p => c * (2 *
+      (Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 2) + 2 +
+      (encData p.val.data).length + Nat.log2 (Simulation.encInput p).length + 1)) := by
   obtain ⟨hq, hn, he, hh, hf⟩ := outer_components
   refine Simulation.computableInSpace copier (encPair encNat encBool) hq hn he hh hf encBits
-    _ (fun p => (word p.val.2 p.val.1.1 p.val.1.2.1).length + 1)
-    (fun p => 2 * (Nat.log2 (word p.val.2 p.val.1.1 p.val.1.2.1).length + 2) + 2)
+    _ (fun p => (word p.val.original p.val.data.cut p.val.data.suffix).length + 1)
+    (fun p => 2 * (Nat.log2 (word p.val.original p.val.data.cut p.val.data.suffix).length + 2) + 2)
     ?_ ?_ (fun _ => rfl) ?_
   · intro p
     rw [copier_run _ le_rfl]
     simp [copier]
   · intro p k hk
     rw [copier_run _ (by omega)]
-    simp [copier, show ¬(word p.val.2 p.val.1.1 p.val.1.2.1).length < k by omega]
+    simp [copier, show ¬(word p.val.original p.val.data.cut p.val.data.suffix).length < k by omega]
   · intro p k hk
     rw [copier_run _ hk, length_encPair]
     have hb := length_encNat_le_log2_add_two hk
@@ -96,38 +103,39 @@ theorem native_copier : ∃ time c, ComputableInTimeAndSpace
 
 -- A suffix differs from the physical tail at that address; copying observes the virtual symbol.
 example : (Simulation.machine copier).output
-    (Runtime.encInput ((2, [true, false], 9), [true, false, false, true, true]))
-    (2 * (encData (2, [true, false], 9)).length + 2 + 5) =
+    (Runtime.encInput ⟨⟨2, [true, false], 9⟩, [true, false, false, true, true]⟩)
+    (2 * (encData ⟨2, [true, false], 9⟩).length + 2 + 5) =
       [true, false, true, false] ++ encNat 5 := by decide
 
 -- The virtual end is none even if the physical tail still has a symbol there.
 example : Simulation.symbol copier
-    (Evaluator.loaded ((1, [], 0), [false, true]), (1, false)) (some true) = none := by decide
+    ⟨Evaluator.loaded ⟨⟨1, [], 0⟩, [false, true]⟩, (1, false)⟩ (some true) = none := by decide
 
 -- Some false remains present, rather than ending the outer computation.
 example : Simulation.symbol copier
-    (Evaluator.loaded ((0, [false], 0), []), (0, false)) none = some false := by decide
+    ⟨Evaluator.loaded ⟨⟨0, [false], 0⟩, []⟩, (0, false)⟩ none = some false := by decide
 
 -- Empty virtual input: one EOF transition, then the binary final-address continuation.
-example : (Simulation.machine copier).output (Runtime.encInput ((0, [], 0), [true]))
-    (2 * (encData (0, [], 0)).length + 3) = encNat 1 := by decide
+example : (Simulation.machine copier).output (Runtime.encInput ⟨⟨0, [], 0⟩, [true]⟩)
+    (2 * (encData ⟨0, [], 0⟩).length + 3) = encNat 1 := by decide
 
 -- An arbitrary saved outer cursor resumes without resetting either it or the loaded header.
 example : ((Simulation.machine copier).step
-    (Runtime.encInput ((2, [true], 0), [false, false, false])))^[2]
-    (Evaluator.loaded ((2, [true], 0), [false, false, false]), (2, false)) =
-      (Evaluator.loaded ((2, [true], 0), [false, false, false]), (4, true)) := by decide
+    (Runtime.encInput ⟨⟨2, [true], 0⟩, [false, false, false]⟩))^[2]
+    ⟨Evaluator.loaded ⟨⟨2, [true], 0⟩, [false, false, false]⟩, (2, false)⟩ =
+      ⟨Evaluator.loaded ⟨⟨2, [true], 0⟩, [false, false, false]⟩, (4, true)⟩ := by decide
 
 -- A halted noninitial state is fixed, including its header and original-word offset.
-example : (Simulation.machine copier).step (Runtime.encInput ((0, [], 0), []))
-    (Evaluator.loaded ((0, [], 0), []), (1000, true)) =
-      (Evaluator.loaded ((0, [], 0), []), (1000, true)) := by decide
+example : (Simulation.machine copier).step (Runtime.encInput ⟨⟨0, [], 0⟩, []⟩)
+    ⟨Evaluator.loaded ⟨⟨0, [], 0⟩, []⟩, (1000, true)⟩ =
+      ⟨Evaluator.loaded ⟨⟨0, [], 0⟩, []⟩, (1000, true)⟩ := by decide
 
 /-- Unbounded counter states are simulated for every valid runtime header and every clock. -/
 theorem run_client (p : Simulation.Input) (k : ℕ) :
     (Simulation.machine copier).run (Simulation.encInput p)
-      (2 * (encData p.val.1).length + 2 + k) =
-      (Evaluator.loaded p.val, copier.run (word p.val.2 p.val.1.1 p.val.1.2.1) k) :=
+      (2 * (encData p.val.data).length + 2 + k) =
+      ⟨Evaluator.loaded p.val,
+        copier.run (word p.val.original p.val.data.cut p.val.data.suffix) k⟩ :=
   Simulation.run_loaded copier p.val p.property k
 
 end Cslib.Complexity.VirtualWordSimulationTest

@@ -382,9 +382,9 @@ theorem happensBefore_imp_lamportTotalOrder [LinearOrder P] {E : Execution P}
 
 end Execution
 
-/-- **Scalar incompleteness of one-dimensional clocks**: whenever at least two processes exist
-(`2 ≤ Fintype.card P`), there is a causally well-formed execution on `P` admitting *no*
-order-embedding into any `LinearOrder α`. -/
+/-- **Scalar incompleteness of one-dimensional clocks** (original two-process communication-free
+counterexample witnessing [Lamport1978], p. 560): whenever `2 ≤ Fintype.card P`, there is a
+causally well-formed execution on `P` admitting *no* order-embedding into any `LinearOrder α`. -/
 theorem not_exists_1d_characterization {P : Type u} [Fintype P] (hP : 2 ≤ Fintype.card P) :
     ∃ E : Execution P, ∀ {α : Type v} [LinearOrder α] (f : E.Event → α),
       ¬ ∀ e₁ e₂ : E.Event, E.HappensBeforeLe e₁ e₂ ↔ f e₁ ≤ f e₂ := by

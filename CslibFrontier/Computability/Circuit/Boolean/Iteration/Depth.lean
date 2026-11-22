@@ -95,7 +95,7 @@ theorem depth_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL : 0 < L
     (hcover : ∀ x, Repeats (c.eval interpretation) x L ∨
       ∃ t < 2 * L, ∃ j, (c.eval interpretation)^[t] x = cp j) :
     ∃ out : Circuit signature n (n + 2),
-      (∀ x, word (out.eval interpretation x) =
+      (∀ x, BitString.equivBitVec (out.eval interpretation x) =
         BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x)) ∧
       out.size ≤ depthCost n c.size M L := by
   let f := c.eval interpretation
@@ -143,16 +143,19 @@ theorem depth_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL : 0 < L
   have hc3 (b : Bool) : (fun _ : BitString n => b) ∈ s3 := Or.inl (Or.inl (Or.inl (hc b)))
   let flags := fun x (j : Fin (K + 1)) => result x j 0
   let corrected := fun (j : Fin (K + 1)) x =>
-    word (fun bit : Fin W => result x j bit.succ) + BitVec.ofNat W j.val
+    BitString.equivBitVec (fun bit : Fin W => result x j bit.succ) + BitVec.ofNat W j.val
   have hcorrect := Synthesis.iUnion (fun j => wordWires (corrected j)) (fun _ => 12 * W + 1)
-    fun j => Synthesis.word_add (s := s3) (fun x => word fun bit : Fin W => result x j bit.succ)
+    fun j => Synthesis.word_add (s := s3)
+      (fun x => BitString.equivBitVec fun bit : Fin W => result x j bit.succ)
       (fun _ => BitVec.ofNat W j.val)
-      (fun bit => by simpa only [getLsbD_word] using hresult j bit.succ) fun _ => hc3 _
+      (fun bit => by simpa only [BitString.getLsbD_equivBitVec] using hresult j bit.succ)
+      fun _ => hc3 _
   let s4 := s3 ∪ ⋃ j, wordWires (corrected j)
-  let selected := fun x => word (chooseRecord (flags x)
+  let selected := fun x => BitString.equivBitVec (chooseRecord (flags x)
     (fun j (bit : Fin W) => (corrected j x).getLsbD bit.val) (fun _ => false) (K + 1))
   have hselected : Synthesis interpretation s4 (wordWires selected) ((K + 1) * (4 * W)) := by
-    simpa only [selected, wordWires, getLsbD_word] using synthesis_chooseRecord s4 flags
+    simpa only [selected, wordWires, BitString.getLsbD_equivBitVec] using
+      synthesis_chooseRecord s4 flags
       (fun x j bit => (corrected j x).getLsbD bit.val) (fun _ _ => false)
       (fun j => Or.inl (hresult j 0)) (fun j bit => Or.inr (Set.mem_iUnion.mpr ⟨j, bit, rfl⟩))
       fun _ => Or.inl (hc3 false)
@@ -167,7 +170,7 @@ theorem depth_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL : 0 < L
     (hcorrect.trans ((hselected.union hshort).trans hfinal)))))
   obtain ⟨out, ho, hs⟩ := h.exists_circuit_outputs
   refine ⟨out, fun x => ?_, hs.trans ?_⟩
-  · rw [ho x, word_getLsbD]
+  · rw [ho x, BitString.equivBitVec_getLsbD]
     by_cases hK : transientDepth f x ≤ K
     · have he : equal x last = true := decide_eq_true ((iterate_eq_projection_iff f x K).mpr hK)
       simp only [he, ite_true]
@@ -183,19 +186,20 @@ theorem depth_from_checkpoints (c : Circuit signature n n) (L : ℕ) (hL : 0 < L
           exact decide_eq_true ⟨i, hi.symm, rfl⟩
       obtain ⟨j, -, hj, hchosen⟩ := chooseRecord_spec (flags x)
         (fun j (bit : Fin W) => (corrected j x).getLsbD bit.val) (fun _ => false) (K + 1) hex
-      change word (chooseRecord _ _ _ _) = _
-      rw [hchosen, word_getLsbD]
+      change BitString.equivBitVec (chooseRecord _ _ _ _) = _
+      rw [hchosen, BitString.equivBitVec_getLsbD]
       obtain ⟨i, hi, -⟩ := (decide_eq_true_iff.mp hj : ∃ i, cp i = _ ∧ stored i 0 = true)
-      have hrecord : (word fun bit : Fin W => result x j bit.succ) =
+      have hrecord : (BitString.equivBitVec fun bit : Fin W => result x j bit.succ) =
           BitVec.ofNat W (transientDepth f (f^[j.val] x)) := by
-        rw [← word_getLsbD (BitVec.ofNat W _)]
+        rw [← BitString.equivBitVec_getLsbD (BitVec.ofNat W _)]
         congr 1 with bit : 1
         change lookupOr cp stored _ bit.succ = _
         rw [lookupOr_of_eq stored hcp hi]
         simp only [stored, depthBits, Fin.cons_succ, hi]
         rfl
       have hjμ : j.val ≤ transientDepth f x := by have := j.isLt; omega
-      change word (fun bit : Fin W => result x j bit.succ) + BitVec.ofNat W j.val = _
+      change BitString.equivBitVec (fun bit : Fin W => result x j bit.succ) +
+        BitVec.ofNat W j.val = _
       rw [hrecord, transientDepth_iterate, ← BitVec.ofNat_add, Nat.sub_add_cancel hjμ]
   · simp only [Finset.sum_const, Finset.card_univ, Fintype.card_fin, smul_eq_mul] at hs ⊢
     have hps' : project.size ≤ 40000 * powerBudget n c.size (2 ^ n) L := by simpa using hps
@@ -239,7 +243,7 @@ bits. -/
 theorem checkpoint_depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 < L)
     (hLN : L ≤ 2 ^ n) :
     ∃ out : Circuit signature n (n + 2),
-      (∀ x, word (out.eval interpretation x) =
+      (∀ x, BitString.equivBitVec (out.eval interpretation x) =
         BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x)) ∧
       out.size ≤ 50000 * powerBudget n c.size (2 ^ n) L := by
   obtain ⟨M, cp, hcp, hM, hcov⟩ := exists_checkpoints_fin (c.eval interpretation) hL
@@ -251,7 +255,7 @@ theorem checkpoint_depth_circuit (c : Circuit signature n n) (L : ℕ) (hL : 0 <
 `n + 2` bits. -/
 theorem checkpoint_depth_optimized (c : Circuit signature n n) :
     ∃ out : Circuit signature n (n + 2),
-      (∀ x, word (out.eval interpretation x) =
+      (∀ x, BitString.equivBitVec (out.eval interpretation x) =
         BitVec.ofNat (n + 2) (transientDepth (c.eval interpretation) x)) ∧
       (out.size : ℝ) ≤ 150000 * optimizedBudget n c.size (2 ^ n) := by
   obtain ⟨L, hL, hLN, hopt⟩ := exists_powerBudget_le_optimizedBudget n c.size (2 ^ n) le_rfl

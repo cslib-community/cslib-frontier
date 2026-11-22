@@ -1285,7 +1285,7 @@ private theorem innerClmulStep_exec {base w w₀ b b' k r_val acc_val i m : ℕ}
         rcases eq_or_ne d (i + m) with rfl | hne0
         · rw [Function.update_self]; wram_simp
         · rw [Function.update_of_ne hne0]; wram_simp]
-    exact packLimbs_update_pair hc_pos _ him1_lt hcl_lt
+    exact packLimbs_update_pair _ him1_lt hcl_lt
 
 private theorem outerClmulStep_exec {base w w₀ b b' k r_val acc_val i : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -1357,13 +1357,6 @@ private theorem clmulLimbsCode_exec {base w w₀ b b' k r_val acc_val : ℕ}
   rw [truncLimbs_of_lt hacc_lt] at hy_pack
   exact ⟨y, hy_exec, hy_inv.1,
     fun d hd => by rw [← hy_pack, getLimb_packLimbs_of_lt c hd (hy_lt d hd)], hy_mem⟩
-
-theorem getLimb_eq_zero_of_lt {c n d P : ℕ} (hP : P < 2 ^ (n * c)) (hd : n ≤ d) :
-    getLimb c P d = 0 := by
-  dsimp only [getLimb]
-  rw [Nat.shiftRight_eq_div_pow,
-    Nat.div_eq_of_lt (hP.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right c hd))),
-    Nat.zero_and]
 
 /-- Step `m < 2 * L₀` of trinomial reduction and seed addition (`6` instructions):
 loads limb `m` of coefficient `coeffIdx` from memory, reduces the product limbs in `prodReg`
@@ -1447,7 +1440,8 @@ private theorem reduceAddStep_exec {base w w₀ b b' k r_val P_val : ℕ}
     wram_exec [h0, ← hoff, hmem_eq, hp_m, hp_3, ← hv1, hp_2, hred_eq, hnew_eq]
   on_goal 2 =>
     have hzero4 : getLimb c P_val (4 * L₀ + (m - L₀)) = 0 :=
-      getLimb_eq_zero_of_lt (n := 2 * L) hP_lt (by change 2 * (2 * L₀) ≤ _; omega)
+      getLimb_eq_zero_of_lt (hP_lt.trans_le (Nat.pow_le_pow_right two_pos
+        (Nat.mul_le_mul_right c (by change 2 * (2 * L₀) ≤ _; omega))))
     have hhigh : getLimb c (reduceTrinomialCode t P_val) (L₀ + (m - L₀)) =
         (getLimb c P_val (L₀ + (m - L₀)) ^^^ getLimb c P_val (4 * L₀ + (m - L₀))) ^^^
           getLimb c P_val (2 * L₀ + (m - L₀)) :=

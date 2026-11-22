@@ -10,12 +10,14 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Unary
 public import CslibFrontier.Computability.Probabilistic.Oracle
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash
+public import CslibFrontier.Languages.Probabilistic.Oracle.QueryCount
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import Cslib.Foundations.Data.BitString
 public import Mathlib.Algebra.Ring.BooleanRing
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Probabilistic.Fold
 import CslibFrontier.Foundations.Data.BitString.List.Operations
+import CslibFrontier.Languages.Probabilistic.Traverse.SupportWith
 
 /-!
 # Word-oracle evaluation of XOR-hash
@@ -35,6 +37,10 @@ This is an evaluation step toward Theorem 7.6 (#5790).
 
 * `Cslib.Crypto.UHF.isOraclePPTOn_xorHashWordQueries`: the uniform evaluation certificate.
 * `Cslib.Crypto.UHF.run_xorHashWordQueries`: agreement with the finite XOR hash.
+* `Cslib.Crypto.UHF.isQueryBounded_xorHashWordQueries`: the evaluator uses at most one call per
+  retained block.
+* `Cslib.Crypto.UHF.length_le_of_mem_support_xorHashWordQueries`: the digest width bounds every
+  supported result, including for arbitrary oracle replies.
 -/
 
 public section
@@ -57,6 +63,43 @@ also have bounded processing cost. -/
   requests.foldlM (fun acc request =>
     (fun reply => List.zipWith Bool.xor acc (reply.take acc.length)) <$>
       ProbOracleComp.query ((), request)) (List.replicate width false)
+
+/-- The word evaluator makes at most `ℓ` calls for any input and any oracle replies. -/
+theorem isQueryBounded_xorHashWordQueries (ℓ width : ℕ) (blocks : List (List Bool)) :
+    (xorHashWordQueries ℓ width blocks).IsQueryBounded ℓ := by
+  let step (acc request : List Bool) : WordOracleComp Unit (List Bool) :=
+    (fun reply => List.zipWith Bool.xor acc (reply.take acc.length)) <$>
+      ProbOracleComp.query ((), request)
+  have hstep (acc request : List Bool) : (step acc request).IsQueryBounded 1 :=
+    (OracleComp.isCostBounded_map_iff _ _ _).mpr (ProbOracleComp.IsQueryBounded.query _)
+  unfold xorHashWordQueries
+  refine (OracleComp.IsCostBounded.foldlM hstep _ _).mono ?_
+  simpa only [List.length_map, List.length_zipIdx, Nat.mul_one] using
+    List.length_take_le ℓ blocks
+
+/-- The accumulator can only shrink, so even a malformed oracle cannot expand the digest. -/
+theorem length_le_of_mem_support_xorHashWordQueries {ℓ width : ℕ}
+    {blocks : List (List Bool)} {out : List Bool}
+    (hout : out ∈ OracleComp.support (xorHashWordQueries ℓ width blocks)) :
+    out.length ≤ width := by
+  let step (acc request : List Bool) : WordOracleComp Unit (List Bool) :=
+    (fun reply => List.zipWith Bool.xor acc (reply.take acc.length)) <$>
+      ProbOracleComp.query ((), request)
+  have hfold (requests : List (List Bool)) (acc : List Bool)
+      (h : out ∈ OracleComp.support (requests.foldlM step acc)) :
+      out.length ≤ acc.length := by
+    induction requests generalizing acc with
+    | nil =>
+      have heq : out = acc := by
+        simpa only [List.foldlM_nil, OracleComp.supportWith_pure, Set.mem_singleton_iff] using h
+      rw [heq]
+    | cons req rest ih =>
+      rw [List.foldlM_cons] at h
+      obtain ⟨next, hnext, hrest⟩ := OracleComp.mem_supportWith_bind_iff.mp h
+      obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
+      exact (ih _ hrest).trans (by simp [List.length_zipWith])
+  unfold xorHashWordQueries at hout
+  simpa only [List.length_replicate] using hfold _ _ hout
 
 /-- The evaluator is strict oracle PPT with unary block cap and digest width, followed
 by the framed list of blocks. The certificate covers arbitrary oracle reply lengths. -/

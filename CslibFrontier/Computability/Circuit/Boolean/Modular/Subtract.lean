@@ -18,6 +18,7 @@ discards the final carry, so underflow wraps modulo `2 ^ w` instead of truncated
 
 ## Main definitions
 
+* `Cslib.Circuits.Boolean.Modular.subtractInputs`: complemented-word and carry input stage.
 * `Cslib.Circuits.Boolean.Modular.subtract`: the modular subtraction circuit.
 
 ## Main results
@@ -40,7 +41,7 @@ open BitString
 variable {w : ℕ}
 
 /-- Keep the first word, complement the second word in parallel, and append a true carry. -/
-private def subtractInputs (w : ℕ) : Circuit signature (w + w) (w + w + 1) :=
+@[expose] def subtractInputs (w : ℕ) : Circuit signature (w + w) (w + w + 1) :=
   ((Circuit.wiring signature (Fin.castAdd w)).append
     (Circuit.pi fun i : Fin w => (Formula.input (Fin.natAdd w i)).not.toCircuit)).append
       (Circuit.oneGate (.const true) Fin.elim0)
@@ -60,18 +61,15 @@ private theorem depth_subtractInputs_le (w : ℕ) : (subtractInputs w).depth ≤
   circuit_bound [subtractInputs]
 
 /-- Discard the carry-out after adding the first word, the second word's complement and one. -/
-def subtract (w : ℕ) : Circuit signature (w + w) w :=
+@[expose] def subtract (w : ℕ) : Circuit signature (w + w) w :=
   (Circuit.wiring signature (fun i : Fin w => i.castSucc)).comp
     ((carryLookahead w).comp (subtractInputs w))
 
 private theorem val_not (b : BitString w) :
     (BitString.equivFin w (fun i => !b i) : ℕ) = 2 ^ w - 1 - (BitString.equivFin w b : ℕ) := by
-  have h : word (fun i => !b i) = ~~~word b := by
-    apply BitVec.eq_of_getLsbD_eq
-    intro i hi
-    simp only [getLsbD_word _ ⟨i, hi⟩, BitVec.getLsbD_not, hi, decide_true, Bool.true_and]
-  have hv := congrArg BitVec.toNat h
-  simpa only [toNat_word_eq_equivFin, BitVec.toNat_not] using hv
+  have h : (fun i => !b i) = bᶜ := funext fun i => by rw [Pi.compl_apply]; cases b i <;> rfl
+  rw [h, ← toNat_equivBitVec_eq_equivFin, equivBitVec_compl, BitVec.toNat_not,
+    toNat_equivBitVec_eq_equivFin]
 
 /-- Modular subtraction, expressed without a truncated natural subtraction of the inputs. -/
 theorem val_eval_subtract (a b : BitString w) :
