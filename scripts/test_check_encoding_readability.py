@@ -186,6 +186,21 @@ class RuleTests(unittest.TestCase):
         both = "".join(theorem(n, outer) for n in "abc") + "".join(theorem(n) for n in "xyz")
         self.assertEqual(violations(both), {outer: ["a", "b", "c"], TERM: ["x", "y", "z"]})
 
+    def test_dependent_pairs_are_combinators(self) -> None:
+        def sigma(name: str, term: str) -> str:
+            return (f"theorem {name} (f : (Σ n, Fin n) → Bool) :\n"
+                    f"    ComputableInPolyTime f ({term}) encBool := sorry\n\n")
+        # A combinator as the index encoding, or `encSigma` inside one, makes it compound. The
+        # family's bound name is reported as `?1`.
+        index = "encSigma (encList encBool) (fun n => encFinEnum (Fin n))"
+        self.assertEqual(violations("".join(sigma(n, index) for n in "abc")),
+                         {index.replace(" n", " ?1"): ["a", "b", "c"]})
+        inner = "encList (encSigma encUnary (fun n => encFinEnum (Fin n)))"
+        self.assertEqual(violations("".join(sigma(n, inner) for n in "abc")),
+                         {inner.replace(" n", " ?1"): ["a", "b", "c"]})
+        flat = "encSigma encUnary (fun n => encFinEnum (Fin n))"
+        self.assertEqual(violations("".join(sigma(n, flat) for n in "abcde")), {})
+
     def test_combinators_are_defined(self) -> None:
         root = pathlib.Path(c.ROOT, "CslibFrontier/Computability/Machines/Turing/MultiTape/Encodings")
         source = "\n".join(p.read_text() for p in root.rglob("*.lean"))

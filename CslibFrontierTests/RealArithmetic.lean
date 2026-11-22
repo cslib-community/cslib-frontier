@@ -125,6 +125,53 @@ set_option linter.hashCommand false in
 #guard normalizeFormulaWord (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) ==
   encFormula 0 .false
 
+-- Indices follow the formula's prefix order and retain the exact comparison payloads.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 2 (.and (.eqZero (.var 1)) (.ltZero (.const (-2))))
+  formulaWordTokenAt word 1 == .inr (.inl (encTerm 2 (.var 1))) &&
+    formulaWordTokenAt word 2 == .inr (.inr (.inl (encTerm 2 (.const (-2)))))
+
+-- Out-of-range binary indices and malformed formula words give the falsity token.
+set_option linter.hashCommand false in
+#guard formulaWordTokenAt (encFormula 0 (.eqZero (.const 0))) (2 ^ 80) == .inl () &&
+  formulaWordTokenAt (encList encFormulaToken [.inr (.inr (.inr (.inl ())))]) 0 == .inl ()
+
+-- The left subtree stops at the right child of the conjunction.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 0 (.and (.not (.eqZero (.const 0))) (.or .false (.ltZero (.const (-1)))))
+  formulaSubtreeSizeAt word 0 == some 6 && formulaSubtreeSizeAt word 1 == some 2 &&
+    formulaSubtreeSizeAt word 3 == some 3 && (formulaSubtreeSizeAt word (2 ^ 80)).isNone
+
+-- The total view of the empty word is one falsity token.
+set_option linter.hashCommand false in
+#guard formulaSubtreeSizeAt [] 0 == some 1 && (formulaSubtreeSizeAt [] 1).isNone
+
+-- Both binary connectives skip their first subtree, and negation has only one child.
+set_option linter.hashCommand false in
+#guard
+  let word := encFormula 0 (.and (.not (.eqZero (.const 0))) (.or .false (.ltZero (.const (-1)))))
+  formulaWordChildIndices word 0 == [1, 3] && formulaWordChildIndices word 1 == [2] &&
+    formulaWordChildIndices word 3 == [4, 5] && formulaWordChildIndices word 5 == []
+
+-- Neither the malformed formula view nor an oversized index yields a child.
+set_option linter.hashCommand false in
+#guard formulaWordChildIndices [] 0 == [] &&
+  formulaWordChildIndices (encFormula 0 (.not .false)) (2 ^ 80) == []
+
+-- The same negative sign makes the equality false and the strict inequality true.
+-- Connectives read their own child indices, including the skipped left subtree at the root.
+set_option linter.hashCommand false in
+#guard
+  let term : Term 0 := .const (-1)
+  let word := encFormula 0 (.and (.not (.eqZero term)) (.or .false (.ltZero term)))
+  let termSign := fun bits => if bits == encTerm 0 term then (-1 : SignType) else 0
+  let gate := fun index => formulaWordGateValue word index termSign
+  let value := fun index => index == 1 || index == 3 || index == 5
+  gate 0 value && !gate 0 (· == 1) && gate 1 value && !gate 2 value &&
+    gate 3 value && !gate 4 value && gate 5 value && !gate (2 ^ 80) value
+
 -- The total view preserves the existential semantics of a satisfiable formula.
 example :
     (Formula.ofWord (encFormula 0 (.eqZero (.const 0)))).solutionSet.Nonempty := by

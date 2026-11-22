@@ -28,6 +28,7 @@ import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
 import CslibFrontier.Probability.BitString
 import CslibFrontier.Probability.BitString.List
+import CslibFrontier.Probability.BitString.UniformSplit
 import CslibFrontier.Probability.IID
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.StatisticalDistance.Product
@@ -228,17 +229,6 @@ private theorem dist_binaryZModLaw_le {s width q : ℕ} [NeZero q]
         div_le_div₀ (by positivity) hlt.le (by positivity) (pow_le_pow_right₀ (by norm_num) hw)
     _ = 1 / 2 ^ s := by rw [pow_add, div_mul_eq_div_div, div_self (by positivity)]
 
-private theorem uniformList_map_listRows_binaryValue (count width : ℕ) :
-    (Cslib.BitString.uniformList (count * width)).map
-      (fun w => (Cslib.BitString.listRows count width w).map Cslib.BitString.binaryValue) =
-    (PMF.iid ((Cslib.BitString.uniformList width).map Cslib.BitString.binaryValue) count).map
-      List.ofFn := by
-  rw [show (fun w => (Cslib.BitString.listRows count width w).map Cslib.BitString.binaryValue) =
-      List.map Cslib.BitString.binaryValue ∘ Cslib.BitString.listRows count width from rfl,
-    ← PMF.map_comp, Cslib.BitString.uniformList_listRows, PMF.map_comp,
-    Cslib.BitString.uniformList, PMF.map_comp, PMF.iid_map, PMF.iid_uniformOfFintype, PMF.map_comp]
-  congr 1; funext rows; simp [Function.comp_def]
-
 private theorem uniformList_map_parseNaorReingoldTape (count expWidth hashLen : ℕ) :
     (Cslib.BitString.uniformList (expWidth + (count * expWidth + hashLen))).map
       (parseNaorReingoldTape count expWidth hashLen) =
@@ -247,26 +237,25 @@ private theorem uniformList_map_parseNaorReingoldTape (count expWidth hashLen : 
         List.ofFn).bind fun αs =>
         (Cslib.BitString.uniformList hashLen).map fun seed => (α₀, αs, seed) := by
   unfold parseNaorReingoldTape
-  rw [PMF.map]
-  dsimp only [Function.comp_def]
-  rw [Cslib.BitString.uniformList_bind_split expWidth (count * expWidth + hashLen)
-    (fun front rest => PMF.pure
-      (Cslib.BitString.binaryValue front,
-        (Cslib.BitString.listRows count expWidth (rest.take (count * expWidth))).map
-          Cslib.BitString.binaryValue,
-        (rest.drop (count * expWidth)).take hashLen)), PMF.bind_map]
-  congr 1 with front : 1
-  dsimp only [Function.comp_apply]
-  rw [Cslib.BitString.uniformList_bind_split (count * expWidth) hashLen
-    (fun mid back => PMF.pure
+  dsimp only
+  rw [Cslib.BitString.uniformList_map_split3 expWidth (count * expWidth) hashLen
+    (fun front mid back =>
       (Cslib.BitString.binaryValue front,
         (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue,
         back.take hashLen)),
-    ← uniformList_map_listRows_binaryValue count expWidth, PMF.bind_map]
-  simp only [Function.comp_def, PMF.map]
+    ← Cslib.BitString.uniformList_map_listRows count expWidth Cslib.BitString.binaryValue]
+  simp only [PMF.bind_map, Function.comp_def]
+  congr 1 with front : 1
   congr 1 with mid : 1
-  refine PMF.bind_congr_on_support _ _ _ fun back hback => ?_
-  rw [List.take_of_length_le (Cslib.BitString.length_of_mem_support_uniformList hback).le]
+  rw [show (fun s₃ : List Bool =>
+      (Cslib.BitString.binaryValue front,
+        (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue,
+        s₃.take hashLen)) =
+      (fun seed =>
+        (Cslib.BitString.binaryValue front,
+          (Cslib.BitString.listRows count expWidth mid).map Cslib.BitString.binaryValue, seed)) ∘
+        List.take hashLen from rfl,
+    ← PMF.map_comp, Cslib.BitString.uniformList_take le_rfl]
 
 private theorem advantage_evalNaorReingoldTape_uniform_le (inLen outLen : ℕ → ℕ)
     (desc : ℕ → F.Desc) (bound : F.Desc → ℕ) (expWidth : ℕ → ℕ)

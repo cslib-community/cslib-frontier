@@ -155,14 +155,19 @@ alias ⟨_, IsTrimmed.trim_eq⟩ := trim_eq_self_iff
 @[simp] theorem trim_trim (p : List R) : trim (trim p) = trim p :=
   (isTrimmed_trim p).trim_eq
 
-/-- Trimming never increases list length. -/
-theorem length_trim_le (p : List R) : (trim p).length ≤ p.length := by
+/-- `trim p` is a sublist of `p`. -/
+theorem trim_sublist (p : List R) : (trim p).Sublist p := by
   induction p with
-  | nil => simp
+  | nil => exact List.Sublist.slnil
   | cons a p ih =>
     rw [trim_cons]
-    split_ifs <;> simp
-    omega
+    split_ifs
+    · exact List.nil_sublist _
+    · exact ih.cons_cons a
+
+/-- Trimming never increases list length. -/
+theorem length_trim_le (p : List R) : (trim p).length ≤ p.length :=
+  (trim_sublist p).length_le
 
 /-- `trim` commutes with any map that preserves and reflects `0`. -/
 theorem trim_map {S : Type*} [Zero S] [DecidableEq S] (f : R → S)
@@ -274,6 +279,15 @@ variable [DecidableEq R]
 theorem trim_eq_of_ofCoeffList_eq {p q : List R} (h : ofCoeffList p = ofCoeffList q) :
     trim p = trim q :=
   (isTrimmed_trim p).eq_of_ofCoeffList_eq (isTrimmed_trim q) (by simp [h])
+
+/-- For `ofCoeffList p ≠ 0`, `(trim p).length = (ofCoeffList p).natDegree + 1`. -/
+theorem length_trim_eq_natDegree_add_one {p : List R} (hp : ofCoeffList p ≠ 0) :
+    (trim p).length = (ofCoeffList p).natDegree + 1 := by
+  have hne : trim p ≠ [] := mt (trim_eq_nil_iff p).mp hp
+  have hpos := List.length_pos_of_ne_nil hne
+  have hdeg := (isTrimmed_trim p).natDegree_ofCoeffList hne
+  rw [ofCoeffList_trim] at hdeg
+  omega
 
 /-- Vanishing of coefficients at and above `n` bounds `(trim p).length ≤ n`. -/
 theorem length_trim_le_of_coeff_eq_zero {p : List R} {n : ℕ}

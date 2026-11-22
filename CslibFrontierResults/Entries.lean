@@ -8,6 +8,7 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 import CslibFrontierResults.Registry
 import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
+import CslibFrontier.Algorithms.Reachability.MinIsolation.Generator.Certificate
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
 import CslibFrontier.Computability.Complexity.Reduction.LinearApproximation
 import CslibFrontier.Computability.PCP.TwoProverGame.Anchoring
@@ -44,6 +45,7 @@ import CslibFrontier.Probability.SmallBias.Degree
 import CslibFrontier.Foundations.Combinatorics.Expander.Visits
 import CslibFrontier.Foundations.Combinatorics.Expander.HittingProduct
 import CslibFrontier.Foundations.Combinatorics.Expander.VisitCount
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Hoza
 import CslibFrontier.Computability.Complexity.Classes.Padding.Tally
 import CslibFrontier.Computability.Complexity.Problems.Bipartite.LogSpace
 import CslibFrontier.Computability.Complexity.Problems.BoundedSTCON.Membership
@@ -147,6 +149,9 @@ import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
 import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
+import CslibFrontier.Foundations.BooleanAnalysis.SmallSetExpansion
+import CslibFrontier.Foundations.BooleanAnalysis.MajorityFourier
+import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 
 import CslibFrontier.Foundations.BooleanAnalysis.LevelOneInequality
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
@@ -520,6 +525,10 @@ import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
 import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
+import CslibFrontier.Privacy.DifferentialPrivacy.RandomizedResponse
+import CslibFrontier.Privacy.DifferentialPrivacy.Renyi
+import CslibFrontier.Probability.Azuma
+import CslibFrontier.Probability.Renyi
 
 /-!
 # Collected results
@@ -831,6 +840,33 @@ register_result "fagin" where
     existential second-order definable iff it is isomorphism-closed and its query language is \
     in NP under the explicit structure encoding encStructure. No further hypotheses: empty \
     universes and nullary relations are included."
+
+register_result "hoza-min-isolating-weight-generator" where
+  title := "Hoza: a native log-space min-isolating weight generator"
+  topic := "space complexity"
+  sources := [
+    { paper := Hoza2026NLUL, theorem := "Theorem 1.3",
+      locator := "ECCC TR26-323, §1.2, printed and PDF p. 2" }
+  ]
+  theorems := [Cslib.Reachability.Hoza.generatedWeight_certified]
+  scope := "Rectangular layered digraphs on Fin (n + 1) × Fin w with edges advancing one layer. \
+    Path weights sum internal vertices. The seed has logarithmic length and gives polynomially \
+    bounded natural weights. Some seed min-isolates all reachable pairs in each graph. One finite \
+    deterministic multitape machine evaluates every canonical binary dimension, coordinate and \
+    seed request within logarithmic visited-cell workspace."
+
+register_result "hoza-nl-eq-ul" where
+  title := "Hoza: NL equals UL"
+  topic := "space complexity"
+  sources := [
+    { paper := Hoza2026NLUL, theorem := "Theorem 1.1",
+      locator := "ECCC TR26-323, 20 November 2026, Section 1" }
+  ]
+  theorems := [Cslib.Complexity.NL_eq_UL]
+  scope := "Unconditional class equality for arbitrary injective binary input encodings. \
+    The native multi-tape machines read the original input in place and charge visited work-tape \
+    cells on all computation prefixes. A single finite counting machine per language has one \
+    accepting occurrence on members and zero on nonmembers at a sufficient all-branch clock."
 
 register_result "savitch" where
   title := "Savitch: NPSPACE equals PSPACE"
@@ -11020,6 +11056,24 @@ register_result "xor-hash-computational-universality" where
     The reciprocal of the digest-space cardinality is negligible. The explicit wrapper \
     preserves the real collision law and has ideal success at most that reciprocal."
 
+register_result "xor-hash-multi-query-security-bound" where
+  title := "Direct multi-query XOR-hash security bound"
+  topic := "cryptography"
+  sources := [
+    { paper := BonehShoup2023, theorem := "Exercise 7.28",
+      locator := "v0.6, printed p. 285; construction from Figure 7.2 and Theorem 7.6" }
+  ]
+  theorems := [
+    Cslib.Crypto.UHF.succProbability_multiQueryGame_xorHashWordFamily_le,
+    Cslib.Crypto.UHF.isQueryBounded_xorHashWordMultiQueryReduction,
+    Cslib.Crypto.UHF.isOraclePPT_xorHashWordMultiQueryReduction
+  ]
+  scope := "Word-PRF model of Theorem 7.6. A supported adversary output contains at most Q \
+    messages of which only valid, distinct messages can contribute a collision. The direct \
+    wrapper checks at most Q entries and makes at most Q times the block cap in oracle calls. \
+    Its strict oracle PPT certificate uses unary polynomial-time parameter schedules and the \
+    adversary's strict PPT certificate. The bound is PRF advantage plus Q²/(2|Y|)."
+
 register_result "computational-difference-unpredictability-implies-universal-hashing" where
   title := "Computational difference unpredictability implies computational universal hashing"
   topic := "cryptography"
@@ -12610,6 +12664,92 @@ register_result "odonnell-transitive-symmetric-influence" where
     Monotone is for Bool's order false < true; under true ↦ −1 this is the book's \
     coordinatewise order on inputs and outputs."
 
+register_result "odonnell-noise-stability-by-level" where
+  title := "Noise stability as a sum over Fourier levels"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 2.49",
+      locator := "arXiv:2105.10386v1, §2.4, printed p. 56" }
+  ]
+  theorems := [
+    Cslib.BitString.noiseStability_eq_sum_levelWeight]
+  scope := "For a real function f on a finite cube and any real ρ, Stab_ρ[f] = Σ_k ρ^k W^k[f], \
+    with W^k[f] = levelWeight k f. This is the level form of the theorem; its form over sets, Σ_S \
+    ρ^|S| f̂(S)², is the earlier noiseStability_eq_sum and is not listed here. Outside [−1, 1], \
+    noiseStability is the polynomial extension of the noise operator."
+
+register_result "odonnell-majority-fourier-coefficients" where
+  title := "The Fourier coefficients of majority"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 5.19",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 122" }
+  ]
+  theorems := [
+    Cslib.BitString.fourierCoeff_signVal_majority_of_even,
+    Cslib.BitString.fourierCoeff_signVal_majority_of_card_eq]
+  scope := "For n = 2m + 1, majority n read as signs through signVal (true ↦ −1) is the book's \
+    Maj_n. Its coefficient is 0 on sets of even size and (−1)^j C(m, j)/C(2m, 2j) · C(2m, m)/4^m \
+    on sets of size 2j + 1, which is the book's formula with k = 2j + 1. Odd n only, as in the \
+    book."
+
+register_result "odonnell-majority-complementary-levels" where
+  title := "Complementary levels of majority"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 5.20",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 123" }
+  ]
+  theorems := [
+    Cslib.BitString.fourierCoeff_signVal_majority_of_card_add_card,
+    Cslib.BitString.card_mul_levelWeight_signVal_majority]
+  scope := "For n = 2m + 1 and majority read as signs, the coefficients on S and T with |S| + |T| \
+    = n + 1 agree up to the sign (−1)^m, and (n − k + 1) W^{n−k+1} = k W^k for odd k = 2j + 1 ≤ n. \
+    The weight identity is the book's W^{n−k+1} = k/(n − k + 1) W^k multiplied out and stated for \
+    odd k only; for even k both levels carry no weight."
+
+register_result "odonnell-majority-level-weights-decrease" where
+  title := "The level weights of majority decrease in n"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 5.21",
+      locator := "arXiv:2105.10386v1, §5.3, printed p. 123" }
+  ]
+  theorems := [
+    Cslib.BitString.levelWeight_signVal_majority_succ_lt]
+  scope := "For odd k = 2j + 1 ≤ n = 2m + 1, W^k[Maj_{n+2}] < W^k[Maj_n], with majority read as \
+    signs. This is the one-step form; strict decrease along all odd n ≥ k follows by induction and \
+    is not stated separately."
+
+register_result "odonnell-majority-noise-stability-decreases" where
+  title := "The noise stability of majority decreases in n"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Theorem 5.18 (monotonicity in n)",
+      locator := "arXiv:2105.10386v1, §5.2, printed p. 121" }
+  ]
+  theorems := [
+    Cslib.BitString.noiseStability_signVal_majority_succ_lt]
+  scope := "Only the monotonicity claim: for 0 < ρ < 1 and n = 2m + 1, Stab_ρ[Maj_{n+2}] < \
+    Stab_ρ[Maj_n], with majority read as signs. This one-step strict form gives the book's \
+    decrease along odd n for ρ ∈ (0, 1); at ρ = 0 every Stab_0[Maj_n] is 0. The bounds (2/π) \
+    arcsin ρ ≤ Stab_ρ[Maj_n] ≤ (2/π) arcsin ρ + O(1/(√(1 − ρ²) √n)) are not covered."
+
+register_result "odonnell-majority-largest-coefficients" where
+  title := "The largest Fourier coefficients of majority"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 5.21 (without the asymptotic)",
+      locator := "arXiv:2105.10386v1, §5.6, printed p. 136" }
+  ]
+  theorems := [
+    Cslib.BitString.abs_fourierCoeff_signVal_majority_le_singleton,
+    Cslib.BitString.abs_fourierCoeff_signVal_majority_le_of_card_le]
+  scope := "For n = 2m + 1 and majority read as signs, every coefficient is at most the \
+    coefficient C(2m, m)/4^m on a singleton in absolute value, and the odd coefficients decrease \
+    in size for odd |S| ≤ |T| ≤ m + 2, which contains the book's range |T| ≤ (n − 1)/2 = m. The \
+    asymptotic Maĵ_n({1}) ∼ √(2/(nπ)) is not covered."
+
 register_result "odonnell-reverse-two-point-inequality-positive-exponents" where
   title := "Reverse two-point inequality for positive exponents"
   topic := "analysis of Boolean functions"
@@ -13180,6 +13320,36 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
     outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
     https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
 
+register_result "odonnell-small-set-expansion" where
+  title := "Small-Set Expansion Theorem"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Small-Set Expansion Theorem",
+      locator := "arXiv:2105.10386v1, §9.5, printed p. 264" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_indicator_le]
+  scope := "Uniform cube on any finite coordinate type, any set A given by its indicator \
+    A.indicator 1 with volume α = 𝔼 1_A, and 0 ≤ ρ ≤ 1 including both endpoints: \
+    Stab_ρ[1_A] ≤ α^(2/(1 + ρ)), the probability that a uniform x and a ρ-correlated y both lie \
+    in A. The source's equivalent conditional form for α > 0 (x uniform on A) is not stated. \
+    Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7349 at \
+    d9c6f83d6736: \
+    https://github.com/cslib-community/cslib-frontier/pull/7349#pullrequestreview-6010792242."
+
+register_result "odonnell-small-set-expansion-one-third" where
+  title := "Small subsets are noise-sensitive at ρ = 1/3"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Corollary 9.8",
+      locator := "arXiv:2105.10386v1, §9.2, printed p. 254" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_one_third_indicator_le]
+  scope := "Uniform cube on any finite coordinate type and any set A given by its indicator \
+    A.indicator 1 with volume α = 𝔼 1_A: Stab_{1/3}[1_A] ≤ α^(3/2). The source's equivalent \
+    conditional form for α > 0 (x uniform on A, Pr[y ∈ A] ≤ α^(1/2)) is not stated. Source \
+    check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7349 at d9c6f83d6736: \
+    https://github.com/cslib-community/cslib-frontier/pull/7349#pullrequestreview-6010792242."
+
 register_result "btree-rank-comparison-lower-bound" where
   title := "Comparison lower bound for B-tree rank search"
   topic := "algorithms"
@@ -13304,6 +13474,150 @@ register_result "odonnell-level-one-inequality" where
     α ≤ 1/2, for f with values in [−1, 1] and α = 𝔼|f| (the setting of the source's proof), and \
     for a Boolean function read as 0 or 1 with α its mean. The sharp constant 2 of Remark 5.28 \
     is not covered."
+
+register_result "azuma-hoeffding-seq-process" where
+  title := "Azuma–Hoeffding exponential moment and tail inequalities for sequential PMF processes"
+  topic := "probability"
+  sources := [
+    { paper := Azuma1967,
+      theorem := "Lemma 2 (proof, display (2.4)), property [G], and Remark 1",
+      locator := "§1 (property [G], p. 357; Remark 1, p. 358) and §2 (proof of Lemma 2, \
+        display (2.4), pp. 358–359)" },
+    { paper := Hoeffding1963,
+      theorem := "Theorem 2 (eq. (2.6)) and martingale extension (eq. (2.18))",
+      locator := "§2, printed pp. 16, 18 (PDF pp. 5, 7); §4, eqs. (4.16)–(4.17), printed \
+        pp. 22–23 (PDF pp. 11–12)" }
+  ]
+  theorems := [
+    Cslib.Probability.PMF.seqProcess_mul_exp_le,
+    Cslib.Probability.PMF.seqProcess_ge_le,
+    Cslib.Probability.PMF.seqProcess_le_le,
+    Cslib.Probability.PMF.seqProcess_abs_sub_ge_le
+  ]
+  scope := "Finite-horizon sequential PMF adaptation of Azuma's iterated conditional \
+    exponential-moment bound (display (2.4)) over trajectory laws \
+    seqProcess step n : PMF (Fin n → α) on an arbitrary outcome type α without Fintype or \
+    caller-supplied MeasurableSpace, with fixed-time tail corollaries measured via \
+    (toOuterMeasure …).toReal. At each step k < n and supported prefix \
+    h ∈ (seqProcess step k).support, centering the next value by its conditional mean preserves \
+    its history-dependent interval width b - a ≤ c k (bounded by a deterministic step width \
+    c k : ℝ), the library's one-step centered Hoeffding bound supplies Azuma's conditional [G] \
+    factor with parameter c k / 2, and nonpositive supermartingale drift yields the s ≥ 0 moment \
+    bound (with submartingale and martingale fixed-time tails derived from it). Covers all ε ≥ 0 \
+    (including ∑ k < n, c k ^ 2 = 0, where division by zero in ℝ gives exp 0 = 1); general \
+    measure-theoretic filtrations and predictable random step widths without a deterministic \
+    envelope c k are not covered. Source check: outside-fleet agent scan check \
+    (reviewer-codex-edemaine) of Azuma (1967) J-STAGE scan and Hoeffding (1963) JSTOR PDF \
+    (SHA-256 3021bcc097ef23a99a84d0eef8dcce2fd835c71df79a105727d3e03f8f0b8930) on PR #7481 \
+    (https://github.com/cslib-community/cslib-frontier/pull/7481#pullrequestreview-6012948226)."
+
+register_result "renyi-divergence-properties" where
+  title := "Nonnegativity, data processing, adaptive composition, and hockey-stick conversion \
+    for discrete Rényi divergence"
+  topic := "probability"
+  sources := [
+    { paper := Mironov2017,
+      theorem := "Definition 3, Post-processing, Proposition 1, Proposition 3, and Appendix A",
+      locator := "arXiv:1702.07476v3, §III (Definition 3, Post-processing, Proposition 1), \
+        §IV (Proposition 3), and Appendix A" },
+    { paper := Renyi1961,
+      theorem := "Definition of order-α information (eq. (3.3))",
+      locator := "§3, eq. (3.3), printed p. 554" }
+  ]
+  theorems := [
+    Cslib.Probability.PMF.one_le_renyiMoment,
+    Cslib.Probability.PMF.renyiMoment_bind_le,
+    Cslib.Probability.PMF.renyiDiv_bind_le,
+    Cslib.Probability.PMF.renyiDiv_map_le,
+    Cslib.Probability.PMF.renyiDiv_bind_pair_le,
+    Cslib.Probability.PMF.hockeyStick_le_of_renyiDiv_le
+  ]
+  scope := "Discrete distributions PMF X over arbitrary types X without Fintype or \
+    MeasurableSpace, for finite orders 1 < α (1 ≤ α in renyiMoment_bind_le), with ℝ≥0∞-valued \
+    renyiDiv in natural logarithms taking value ⊤ on off-support atoms (p x ≠ 0, q x = 0). \
+    Rényi (1961, §3, eq. (3.3), printed p. 554) defines order-α information for finite \
+    distributions with positive reference masses in log₂ (swapping the paper's letters to (p, q) \
+    and multiplying by ln 2 yields the finite natural-log expression), while Mironov (2017) \
+    supplies the modern properties registered here: nonnegativity, data processing, adaptive \
+    two-stage composition (renyiDiv_bind_pair_le on the joint transcript (x, y) under support \
+    assumptions x ∈ p.support), and hockey-stick conversion (hockeyStick_le_of_renyiDiv_le for \
+    all 0 < δ, extending 0 < δ < 1 trivially when δ ≥ 1). PMF.renyiDiv covers finite 1 < α; \
+    InformationTheory.klDiv is a separate KL definition, and this module supplies neither an \
+    α → 1 limit theorem nor an α = ∞ max-divergence endpoint. Source check: arXiv:1702.07476v3 \
+    (renyi.tex SHA-256 3b43d215025874ad33c3ad5ff9b75360a3f815909f016bdf93508dafb5a44fef) and \
+    outside-fleet agent check (reviewer-codex-edemaine) of both Mironov (2017) and Rényi (1961) \
+    on PR #7481 \
+    (https://github.com/cslib-community/cslib-frontier/pull/7481#pullrequestreview-6012987466)."
+
+register_result "mironov-renyi-differential-privacy" where
+  title := "Post-processing, adaptive sequential composition, and approximate-DP conversion for \
+    Rényi differential privacy"
+  topic := "differential privacy"
+  sources := [
+    { paper := Mironov2017,
+      theorem := "Definition 4, Post-processing, Proposition 1, and Proposition 3",
+      locator := "arXiv:1702.07476v3, §III (Definition 4, Post-processing, Proposition 1) and \
+        §IV (Proposition 3)" }
+  ]
+  theorems := [
+    Cslib.Privacy.RenyiDifferentiallyPrivate.bind,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.map,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.bind_pair,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.adaptiveComposition,
+    Cslib.Privacy.RenyiDifferentiallyPrivate.differentiallyPrivate
+  ]
+  scope := "Mechanisms M : D → PMF R over arbitrary domain and output types relative to an \
+    arbitrary adjacency relation Adj : D → D → Prop, with 1 < α and 0 ≤ ε enforced in \
+    RenyiDifferentiallyPrivate. Sequential composition (bind_pair for two stages, \
+    adaptiveComposition for k rounds with round-dependent budgets ε i ≥ 0) releases the full \
+    joint/list transcript; differentiallyPrivate converts (α, ε)-RDP to \
+    (ε + log (1 / δ) / (α - 1), ofReal δ)-DP for all 0 < δ (extending 0 < δ < 1 by the trivial \
+    range δ ≥ 1). Source check: arXiv:1702.07476v3 and outside-fleet agent check \
+    (reviewer-codex-edemaine) on PR #7481."
+
+register_result "bun-steinke-pure-dp-to-rdp" where
+  title := "Pure (ε, 0)-differential privacy implies (α, α ε² / 2)-Rényi differential privacy"
+  topic := "differential privacy"
+  sources := [
+    { paper := BunSteinke2016,
+      theorem := "Proposition 3.3 (and Proposition 1.4)",
+      locator := "arXiv:1605.02065v1, §1.2.1 (Proposition 1.4) and §3.1 (Proposition 3.3, label \
+        prop:EpsSquared)" },
+    { paper := Mironov2017,
+      theorem := "Section V (citing Bun–Steinke; cf. Lemma 1 with coefficient 2)",
+      locator := "arXiv:1702.07476v3, §V" }
+  ]
+  theorems := [
+    Cslib.Privacy.DifferentiallyPrivate.renyiDifferentiallyPrivate_of_pure
+  ]
+  scope := "Any pure (ε, 0)-differentially private discrete mechanism M : D → PMF R (0 ≤ ε) \
+    under a symmetric adjacency relation Adj satisfies (α, α ε² / 2)-Rényi differential privacy \
+    for every finite order 1 < α (matching (ε² / 2)-zCDP on finite orders). Symmetry of Adj \
+    supplies the two-sided max-divergence premise of Bun–Steinke Proposition 3.3; derived via \
+    the library's ε tanh (ε / 2) + (α - 1) ε² / 2 privacy-loss refinement \
+    (DifferentiallyPrivate.renyiDifferentiallyPrivate_tanh). Source check: arXiv:1605.02065v1 \
+    (main.tex SHA-256 5bf5affdf21fa0b5fe2bdd6c1056220c58ceed1cf8ea18b3234eb271c9728dcc) and \
+    outside-fleet agent check (reviewer-codex-edemaine) on PR #7481 at 94e42f6e1a9d."
+
+register_result "mironov-randomized-response-rdp" where
+  title := "Order-α Rényi differential privacy of binary randomized response"
+  topic := "differential privacy"
+  sources := [
+    { paper := Mironov2017,
+      theorem := "Proposition 5",
+      locator := "arXiv:1702.07476v3, §VI-A (Proposition 5)" }
+  ]
+  theorems := [
+    Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponse,
+    Cslib.Privacy.renyiDifferentiallyPrivate_randomizedResponseSurvey
+  ]
+  scope := "Specializes Mironov's binary randomized response (parameter p ∈ (0, 1)) to the \
+    fair-coin protocol randomizedResponse : Bool → ProbComp Bool (truthful answer probability \
+    p = 3 / 4 under ProbComp.eval, adjacency True on Bool), establishing \
+    (α, log ((3/4) · 3^(α - 1) + (1/4) · 3^(1 - α)) / (α - 1))-RDP for every 1 < α, together \
+    with the n-respondent product survey randomizedResponseSurvey under HammingAdjacent. \
+    Source check: arXiv:1702.07476v3 and outside-fleet agent check (reviewer-codex-edemaine) on \
+    PR #7481 at 94e42f6e1a9d."
 
 register_result "odonnell-hamming-ball-degree-one-limit" where
   title := "Mean and degree-one weight of Hamming balls tend to their Gaussian limits"

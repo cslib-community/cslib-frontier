@@ -88,41 +88,6 @@ private lemma extract_isDrainAction (F : Finset P) (xs : ωSequence (Action P M 
   rw [xs.get_extract hi']
   exact hdrain (k₀ + i) (Nat.le_add_right k₀ i)
 
-/-- Extending any state `s₀` reached from `π.start` in one transition with
-`exists_fair_omegaExecution F s₀` produces an `AdmissibleRun F` whose suffix from index `1` onward
-uses only `IsDrainAction F` steps. -/
-private lemma admissibleRun_of_first_step (F : Finset P) {a₀ : Action P M V}
-    {s₀ : State P S M V} (htr₀ : π.lts.Tr π.start a₀ s₀) :
-    ∃ ss xs, π.AdmissibleRun F ss xs ∧ ss 1 = s₀ ∧
-      ∀ j, 1 ≤ j → IsDrainAction F (xs j) := by
-  obtain ⟨ss', xs', h0, hexec, hfair, hdrain'⟩ := π.exists_fair_omegaExecution F s₀
-  obtain ⟨ss₁, hω, hstart, hat, hdrop⟩ :=
-    hexec.append (LTS.MTr.single π.lts htr₀) h0
-  refine ⟨ss₁, [a₀] ++ω xs', ⟨hstart, hω, ?_⟩, hat, fun j hj => ?_⟩
-  · intro e hdest m he
-    by_cases hm0 : m = 0
-    · subst hm0
-      by_cases hdel0 : ([a₀] ++ω xs') 0 = .deliver e
-      · exact ⟨0, le_rfl, hdel0⟩
-      · have he1 : e ∈ (ss₁ 1).msgs := π.tr_notDelivered_mem he hdel0 (hω 0)
-        have he' : e ∈ (ss' 0).msgs := by
-          have h := congrArg (fun f : ωSequence (State P S M V) => f 0) hdrop
-          simp only [get_drop, add_zero] at h
-          exact h ▸ he1
-        obtain ⟨j, _, hj⟩ := hfair e hdest 0 he'
-        exact ⟨j + 1, Nat.zero_le _, hj⟩
-    · have hm1 : 1 ≤ m := by omega
-      have he' : e ∈ (ss' (m - 1)).msgs := by
-        have h := congrArg (fun f : ωSequence (State P S M V) => f (m - 1)) hdrop
-        have hidx : 1 + (m - 1) = m := Nat.add_sub_cancel' hm1
-        simp only [get_drop, List.length_singleton, hidx] at h
-        exact h ▸ he
-      obtain ⟨j, _, hj⟩ := hfair e hdest (m - 1) he'
-      exact ⟨j + 1, by omega, hj⟩
-  · have hjeq : j = (j - 1) + 1 := by omega
-    rw [hjeq]
-    exact hdrain' (j - 1)
-
 omit [Fintype P] in
 /-- Along any finite sequence of `IsDrainAction F` transitions:
 1. `history.length` does not change;
@@ -195,6 +160,14 @@ private def SimAfterRead (B : Finset P) (s₁ : State P S M V) (b₀ : P)
     s.history = [⟨b₀, .read, 0, .doneRead stp_s r⟩] ∧
     u.history = s₁.history ++ [⟨b₀, .read, s₁.step, .doneRead stp_u r⟩]))
 
+omit [Fintype P] [DecidableEq P] [DecidableEq M] in
+private lemma matchCompletion_read_cases (resp : Option (OpResp V)) :
+    (∀ step, matchCompletion .read resp step = none) ∨ ∃ r, resp = some (.readRet r) := by
+  rcases resp with _ | (r | _)
+  · exact Or.inl fun _ => rfl
+  · exact Or.inr ⟨r, rfl⟩
+  · exact Or.inl fun _ => rfl
+
 private lemma simAfterRead_init {B : Finset P} {s₁ : State P S M V} {b₀ : P} (hb₀ : b₀ ∈ B)
     (hproc₁ : ∀ p ∈ B, s₁.proc p = π.start.proc p)
     (hmsg₁ : ∀ e : Envelope P M, e.dest ∈ B → π.start.msgs.count e ≤ s₁.msgs.count e) :
@@ -214,22 +187,12 @@ private lemma simAfterRead_init {B : Finset P} {s₁ : State P S M V} {b₀ : P}
     simp only [doInvoke, Function.update_of_ne hpb]
     rw [hproc₁ p hp]
     exact ⟨rfl, rfl⟩
-  · cases hsp : (π.onInvoke b₀ (π.init b₀) .read).resp with
-    | none =>
-      left
-      simp [doInvoke, start, hb₀_st, hsp, invokePending, matchCompletion]
-    | some rsp =>
-      cases rsp with
-      | writeAck =>
-        left
+  · rcases matchCompletion_read_cases (π.onInvoke b₀ (π.init b₀) .read).resp with hnone | ⟨r, hsp⟩
+    · left
+      simp [doInvoke, start, hb₀_st, invokePending, hnone]
+    · right
+      refine ⟨r, 0, s₁.step, ?_, ?_, ?_, ?_⟩ <;>
         simp [doInvoke, start, hb₀_st, hsp, invokePending, matchCompletion]
-      | readRet r =>
-        right
-        refine ⟨r, 0, s₁.step, ?_, ?_, ?_, ?_⟩
-        · simp [doInvoke, start, hsp, invokePending, matchCompletion]
-        · simp [doInvoke, hb₀_st, hsp, invokePending, matchCompletion]
-        · simp [doInvoke, start, hsp, matchCompletion]
-        · simp [doInvoke, hb₀_st, hsp, matchCompletion]
 
 omit [Fintype P] in
 private lemma simAfterRead_mTr {A B : Finset P} (hcover : ∀ p : P, p ∈ A ∨ p ∈ B)
@@ -282,46 +245,20 @@ private lemma simAfterRead_mTr {A B : Finset P} (hcover : ∀ p : P, p ∈ A ∨
         · by_cases hbe : e.dest = b₀
           · subst hbe
             rcases hb₀_cases with ⟨hsp, hup, hsh, huh⟩ | ⟨r, stp_s, stp_u, hsp, hup, hsh, huh⟩
-            · cases hrsp : (π.onRecv e.dest (s.proc e.dest).state e.src e.body).resp with
-              | none =>
-                left
-                simp [doDeliver, hd_st, hsp, hup, hsh, huh, hrsp, deliverPending, deliverHistory,
-                  matchCompletion]
-              | some rsp =>
-                cases rsp with
-                | writeAck =>
-                  left
+            · rcases matchCompletion_read_cases
+                  (π.onRecv e.dest (s.proc e.dest).state e.src e.body).resp with hnone | ⟨r, hrsp⟩
+              · left
+                simp [doDeliver, hd_st, hsp, hup, hsh, huh, deliverPending, deliverHistory, hnone]
+              · right
+                refine ⟨r, s.step, u.step, ?_, ?_, ?_, ?_⟩ <;>
                   simp [doDeliver, hd_st, hsp, hup, hsh, huh, hrsp, deliverPending,
-                    deliverHistory, matchCompletion]
-                | readRet r =>
-                  right
-                  refine ⟨r, s.step, u.step, ?_, ?_, ?_, ?_⟩
-                  · simp [doDeliver, hsp, hrsp, deliverPending, matchCompletion]
-                  · simp [doDeliver, hd_st, hup, hrsp, deliverPending, matchCompletion]
-                  · simp [doDeliver, hsp, hsh, hrsp, deliverHistory, matchCompletion]
-                  · simp [doDeliver, hd_st, hup, huh, hrsp, deliverHistory, matchCompletion,
-                      List.set_append_right]
+                    deliverHistory, matchCompletion, List.set_append_right]
             · right
-              refine ⟨r, stp_s, stp_u, ?_, ?_, ?_, ?_⟩
-              · simp [doDeliver, deliverPending, hsp]
-              · simp [doDeliver, deliverPending, hup]
-              · simp [doDeliver, deliverHistory, hsp, hsh]
-              · simp [doDeliver, deliverHistory, hup, huh]
-          · rcases hb₀_cases with ⟨hsp, hup, hsh, huh⟩ | ⟨r, stp_s, stp_u, hsp, hup, hsh, huh⟩
-            · obtain ⟨hsp_d, hup_d⟩ := hother_pend e.dest hedB hbe
-              left
-              refine ⟨?_, ?_, ?_, ?_⟩
-              · simp [doDeliver, Function.update_of_ne (Ne.symm hbe), hsp]
-              · simp [doDeliver, Function.update_of_ne (Ne.symm hbe), hup]
-              · simp [doDeliver, deliverHistory, hsp_d, hsh]
-              · simp [doDeliver, deliverHistory, hup_d, huh]
-            · obtain ⟨hsp_d, hup_d⟩ := hother_pend e.dest hedB hbe
-              right
-              refine ⟨r, stp_s, stp_u, ?_, ?_, ?_, ?_⟩
-              · simp [doDeliver, Function.update_of_ne (Ne.symm hbe), hsp]
-              · simp [doDeliver, Function.update_of_ne (Ne.symm hbe), hup]
-              · simp [doDeliver, deliverHistory, hsp_d, hsh]
-              · simp [doDeliver, deliverHistory, hup_d, huh]
+              refine ⟨r, stp_s, stp_u, ?_, ?_, ?_, ?_⟩ <;>
+                simp [doDeliver, deliverPending, deliverHistory, hsp, hup, hsh, huh]
+          · obtain ⟨hsp_d, hup_d⟩ := hother_pend e.dest hedB hbe
+            simpa only [doDeliver, Function.update_of_ne (Ne.symm hbe), deliverHistory,
+              hsp_d, hup_d] using hb₀_cases
       obtain ⟨yl, u', hyl, hsim_end⟩ := ih hrest hsim'
       exact ⟨.deliver e :: yl, u', LTS.MTr.stepL htr_u hyl, hsim_end⟩
 
@@ -333,24 +270,11 @@ private lemma read_eq_init_of_singleton_linearizable {v₀ r : V} {b₀ : P} {st
     r = v₀ := by
   obtain ⟨seq, hnd, hcomp, _, hvalid⟩ := hlin
   obtain ⟨hin_bounds, _⟩ := (seqValid_iff_registerValAfter v₀ _ seq).mp hvalid
-  have hmem0 : 0 ∈ seq := hcomp 0 (by simp) rfl
-  have hall0 : ∀ x ∈ seq, x = 0 := by
-    intro x hx
-    have hlt : x < 1 := by simpa using (hin_bounds x hx).1
-    omega
-  have hseq_eq : seq = [0] := by
-    cases seq with
-    | nil => cases hmem0
-    | cons x xs =>
-      have hx0 : x = 0 := hall0 x List.mem_cons_self
-      subst hx0
-      cases xs with
-      | nil => rfl
-      | cons y ys =>
-        have hy0 : y = 0 := hall0 y (List.mem_cons_of_mem 0 List.mem_cons_self)
-        subst hy0
-        exact False.elim ((List.nodup_cons.mp hnd).1 List.mem_cons_self)
-  subst hseq_eq
+  have hperm : seq.Perm [0] :=
+    (List.perm_ext_iff_of_nodup hnd (by decide)).mpr fun x =>
+      ⟨fun hx => by have := (hin_bounds x hx).1; simp at this ⊢; omega,
+       fun hx => (List.mem_singleton.mp hx) ▸ hcomp 0 (by simp) rfl⟩
+  rw [List.perm_singleton.mp hperm] at hvalid
   simpa [seqValid] using hvalid
 
 omit [Fintype P] [DecidableEq P] [DecidableEq M] in
@@ -368,31 +292,18 @@ private lemma not_linearizable_write_then_stale_read {v₀ v₁ : V} (hne : v₁
   obtain ⟨hin_bounds, _⟩ := (seqValid_iff_registerValAfter v₀ hist seq).mp hvalid
   have h0 : 0 ∈ seq := hcomp 0 (by simp) rfl
   have h1 : 1 ∈ seq := hcomp 1 (by simp) rfl
-  have hpr01 : prec hist 0 1 := ⟨by simp [hist], by simp [hist], stp₁, rfl, hlt⟩
-  have hidx01 : seq.idxOf 0 < seq.idxOf 1 := hprec_ord 0 h0 1 h1 hpr01
-  have hall01 : ∀ x ∈ seq, x = 0 ∨ x = 1 := by
-    intro x hx
-    have hx_lt : x < 2 := by simpa [hist] using (hin_bounds x hx).1
-    omega
-  have hseq_eq : seq = [0, 1] := by
-    rcases seq with _ | ⟨x, _ | ⟨y, _ | ⟨z, zs⟩⟩⟩
-    · cases h0
-    · simp only [List.mem_singleton] at h0 h1
-      omega
-    · rcases hall01 x List.mem_cons_self with rfl | rfl <;>
-        rcases hall01 y (List.mem_cons_of_mem _ List.mem_cons_self) with rfl | rfl
-      · exact False.elim ((List.nodup_cons.mp hnd).1 List.mem_cons_self)
-      · rfl
-      · simp at hidx01
-      · exact False.elim ((List.nodup_cons.mp hnd).1 List.mem_cons_self)
-    · rcases hall01 x List.mem_cons_self with rfl | rfl <;>
-        rcases hall01 y (List.mem_cons_of_mem _ List.mem_cons_self) with rfl | rfl <;>
-        rcases hall01 z
-          (List.mem_cons_of_mem _ (List.mem_cons_of_mem _ List.mem_cons_self)) with rfl | rfl <;>
-        simp [List.nodup_cons] at hnd
-  subst hseq_eq
-  have hv : v₀ = v₁ := by simpa [seqValid] using hvalid
-  exact hne hv.symm
+  have hidx01 : seq.idxOf 0 < seq.idxOf 1 :=
+    hprec_ord 0 h0 1 h1 ⟨by simp, by simp, stp₁, rfl, hlt⟩
+  have hperm : seq.Perm [0, 1] :=
+    (List.perm_ext_iff_of_nodup hnd (by decide)).mpr fun x =>
+      ⟨fun hx => by have := (hin_bounds x hx).1; simp [hist] at this ⊢; omega,
+       by simp only [List.mem_cons, List.not_mem_nil, or_false]; rintro (rfl | rfl) <;> assumption⟩
+  obtain ⟨a, b, rfl⟩ := List.length_eq_two.mp hperm.length_eq
+  have hab : (a = 0 ∧ b = 1) ∨ (a = 1 ∧ b = 0) := by simp at h0 h1; omega
+  rcases hab with ⟨rfl, rfl⟩ | ⟨rfl, rfl⟩
+  · have hv : v₀ = v₁ := by simpa [seqValid] using hvalid
+    exact hne hv.symm
+  · simp at hidx01
 
 private lemma exists_completed_drain_of_invoke {t : ℕ} {v₀ : V}
     (hImpl : π.ImplementsAtomicRegister v₀ t) (F : Finset P) (hF : F.card ≤ t)
@@ -403,13 +314,13 @@ private lemma exists_completed_drain_of_invoke {t : ℕ} {v₀ : V}
       (∀ a ∈ xl, IsDrainAction F a) ∧
       s.history[0].status.isCompleted = true := by
   let s_init := π.doInvoke c kind π.start
-  have htr₀ : π.lts.Tr π.start (.invoke c kind) s_init := ⟨rfl, rfl⟩
-  obtain ⟨ss, xs, ha, hss1, hdrain⟩ := π.admissibleRun_of_first_step F htr₀
-  have hi1 : 0 < (ss 1).history.length := by simp [hss1, s_init, doInvoke, start]
-  have hc1 : (ss 1).history[0].caller ∉ F := by simpa [hss1, s_init, doInvoke, start] using hc
-  obtain ⟨k, hk_lt, hk_ge, hk_comp⟩ := hImpl.terminates F hF ss xs ha 1 0 hi1 hc1
-  exact ⟨ss k, xs.extract 1 k, hk_lt, π.admissibleRun_reachable ha k,
-    by simpa [hss1, s_init] using ha.2.1.extract_mTr hk_ge,
+  have hr₀ : π.Reachable s_init := ⟨[.invoke c kind], LTS.MTr.single π.lts ⟨rfl, rfl⟩⟩
+  obtain ⟨ss, xs, k₀, ha, hss0, hdrain⟩ := hr₀.exists_admissibleRun F
+  have hi0 : 0 < (ss k₀).history.length := by simp [hss0, s_init, doInvoke, start]
+  have hc0 : (ss k₀).history[0].caller ∉ F := by simpa [hss0, s_init, doInvoke, start] using hc
+  obtain ⟨k, hk_lt, hk_ge, hk_comp⟩ := hImpl.terminates F hF ss xs ha k₀ 0 hi0 hc0
+  exact ⟨ss k, xs.extract k₀ k, hk_lt, π.admissibleRun_reachable ha k,
+    by simpa [hss0, s_init] using ha.2.1.extract_mTr hk_ge,
     extract_isDrainAction F xs hdrain, hk_comp⟩
 
 /-- **Partition impossibility for asynchronous linearizable registers** (formalizing the
@@ -437,40 +348,28 @@ theorem not_implementsAtomicRegister_of_partition {t : ℕ}
       have : i < 1 := by simpa [s₁_init, doInvoke, start] using hi
       omega
     subst hi0
-    simp only [s₁_init, doInvoke, start, List.nil_append, List.getElem_singleton] at hr ⊢
-    cases hsp : (π.onInvoke a₀ (π.init a₀) (.write v₁)).resp with
-    | none => simp [hsp, matchCompletion, OpStatus.respStep?] at hr
-    | some rsp =>
-      cases rsp <;> simp [hsp, matchCompletion, OpStatus.respStep?] at hr
-      omega
+    rcases hsp : (π.onInvoke a₀ (π.init a₀) (.write v₁)).resp with _ | (_ | _) <;>
+      simp [s₁_init, doInvoke, start, hsp, matchCompletion, OpStatus.respStep?] at hr ⊢
+    omega
   obtain ⟨hlen₁, hresp₁, hproc₁_B, hmsg₁_B⟩ :=
     π.mTr_drain_preserves hm₁ hdrain₁ hresp_s₁_init
-  have hs₁_len : s₁.history.length = 1 := by
-    simpa [s₁_init, doInvoke, start] using hlen₁
+  obtain ⟨rec0, hs₁_eq⟩ : ∃ rec0, s₁.history = [rec0] :=
+    List.length_eq_one_iff.mp (by simpa [s₁_init, doInvoke, start] using hlen₁)
   have hs₁_rec : ∃ stp₁ < s₁.step, s₁.history = [⟨a₀, .write v₁, 0, .doneWrite stp₁⟩] := by
     obtain ⟨hc0, hk0, hinv0⟩ :=
       π.mTr_history_entry_preserves hm₁ (by simp [doInvoke, start]) hk₁_lt
     simp only [doInvoke, start, List.nil_append, List.getElem_singleton] at hc0 hk0 hinv0
-    have hlin₁ := hImpl.linearizable s₁ hreach_s₁
-    obtain ⟨seq₁, _, hcomp₁, _, hvalid₁⟩ := hlin₁
+    obtain ⟨seq₁, _, hcomp₁, _, hvalid₁⟩ := hImpl.linearizable s₁ hreach_s₁
     obtain ⟨hin₁, _⟩ := (seqValid_iff_registerValAfter v₀ s₁.history seq₁).mp hvalid₁
-    have h0_in : 0 ∈ seq₁ := hcomp₁ 0 hk₁_lt hk₁_comp
-    have helig0 : s₁.history[0].isEligible := (hin₁ 0 h0_in).2
+    have helig0 : s₁.history[0].isEligible := (hin₁ 0 (hcomp₁ 0 hk₁_lt hk₁_comp)).2
     cases hst0 : s₁.history[0].status with
-    | pending =>
-      simp [hst0, OpStatus.isCompleted, OpStatus.respStep?] at hk₁_comp
-    | doneRead sr vr =>
-      simp [OpRecord.isEligible, hk0, hst0] at helig0
+    | pending => simp [hst0, OpStatus.isCompleted, OpStatus.respStep?] at hk₁_comp
+    | doneRead _ _ => simp [OpRecord.isEligible, hk0, hst0] at helig0
     | doneWrite stp₁ =>
-      have hstp_lt : stp₁ < s₁.step := hresp₁ 0 hk₁_lt stp₁ (by simp [hst0, OpStatus.respStep?])
-      refine ⟨stp₁, hstp_lt, ?_⟩
-      rcases hlist : s₁.history with _ | ⟨rec0, _ | _⟩
-      · simp [hlist] at hs₁_len
-      · simp only [hlist, List.getElem_cons_zero] at hc0 hk0 hinv0 hst0
-        cases rec0
-        subst hc0 hk0 hinv0 hst0
-        rfl
-      · simp [hlist] at hs₁_len
+      refine ⟨stp₁, hresp₁ 0 hk₁_lt stp₁ (by simp [hst0, OpStatus.respStep?]), ?_⟩
+      rw [hs₁_eq]; congr 1
+      simp only [hs₁_eq, List.getElem_cons_zero] at hc0 hk0 hinv0 hst0
+      ext <;> assumption
   obtain ⟨stp₁, hstp₁_lt, hs₁_hist⟩ := hs₁_rec
   have hs₁_procB : ∀ p ∈ B, s₁.proc p = π.start.proc p := by
     intro p hp
@@ -578,38 +477,29 @@ private def unmapULiftState.{w} {P S M V : Type*} (u : State P (ULift.{w} S) M V
   history := u.history
   step := u.step
 
+private lemma unmap_proc_update.{w} {P S V : Type*} [DecidableEq P]
+    (proc : P → ProcState (ULift.{w} S) V) (q : P) (st : S) (pend : Option (PendingOp V)) (p : P) :
+    ProcState.mk ((Function.update proc q (ProcState.mk (.up st) pend) p).state).down
+        (Function.update proc q (ProcState.mk (.up st) pend) p).pending =
+      Function.update (fun r => ProcState.mk (proc r).state.down (proc r).pending)
+        q (ProcState.mk st pend) p := by
+  by_cases hp : p = q <;> [subst hp; skip] <;> simp [*]
+
 private lemma unmap_tr.{w} {P S M V : Type*} [DecidableEq P] [DecidableEq M]
     {π : Protocol P S M V} {u u' : State P (ULift.{w} S) M V} {a : Action P M V}
     (htr : (uliftStateProtocol.{w} π).lts.Tr u a u') :
     π.lts.Tr (unmapULiftState u) a (unmapULiftState u') := by
   cases a with
   | stutter =>
-    obtain rfl := htr
-    rfl
+    obtain rfl := htr; rfl
   | invoke caller kind =>
     obtain ⟨hpend, rfl⟩ := htr
     refine ⟨hpend, ?_⟩
-    ext1
-    · rfl
-    · funext p
-      simp only [unmapULiftState, Protocol.doInvoke, uliftStateProtocol]
-      by_cases hp : p = caller
-      · subst hp; simp
-      · simp [hp]
-    · rfl
-    · rfl
+    ext1 <;> [rfl; (funext p; exact unmap_proc_update u.proc caller _ _ p); rfl; rfl]
   | deliver e =>
     obtain ⟨hmem, rfl⟩ := htr
     refine ⟨hmem, ?_⟩
-    ext1
-    · rfl
-    · funext p
-      simp only [unmapULiftState, Protocol.doDeliver, uliftStateProtocol]
-      by_cases hp : p = e.dest
-      · subst hp; simp
-      · simp [hp]
-    · rfl
-    · rfl
+    ext1 <;> [rfl; (funext p; exact unmap_proc_update u.proc e.dest _ _ p); rfl; rfl]
 
 private lemma unmap_mTr.{w} {P S M V : Type*} [DecidableEq P] [DecidableEq M]
     {π : Protocol P S M V} {u u' : State P (ULift.{w} S) M V} {xl : List (Action P M V)}

@@ -62,26 +62,32 @@ private theorem eval_partialProduct (i j : Fin w) (a b : BitString w) :
       h, ↓reduceIte, ↓reduceDIte, Formula.eval_const]
 
 /-- The circuit word agrees with the corresponding truncated `BitVec` shift. -/
-private theorem word_eval_partialProduct (i : Fin w) (a b : BitString w) :
-    word ((partialProduct w i).eval interpretation (Fin.append a b)) =
-      if b i then word a <<< i.val else 0 := by
-  apply BitVec.eq_of_getLsbD_eq
-  intro j hj
-  rw [getLsbD_word _ ⟨j, hj⟩, eval_partialProduct]
-  by_cases h : i.val ≤ j
-  · have hji : j - i.val < w := by omega
-    have hbit := getLsbD_word a ⟨j - i.val, hji⟩
-    cases b i <;> simp_all
-  · have hij : j < i.val := Nat.lt_of_not_ge h
-    cases b i <;> simp_all
+private theorem equivBitVec_eval_partialProduct (i : Fin w) (a b : BitString w) :
+    BitString.equivBitVec ((partialProduct w i).eval interpretation (Fin.append a b)) =
+      if b i then BitString.equivBitVec a <<< i.val else 0 := by
+  cases hb : b i
+  · have hzero : (partialProduct w i).eval interpretation (Fin.append a b) = 0 :=
+      funext fun j => by simp [eval_partialProduct, hb, Bool.zero_eq_false]
+    rw [hzero, BitString.equivBitVec_zero]
+    rfl
+  · simp only [↓reduceIte]
+    apply BitVec.eq_of_getLsbD_eq
+    intro j hj
+    rw [BitString.getLsbD_equivBitVec _ ⟨j, hj⟩, eval_partialProduct, hb]
+    by_cases h : i.val ≤ j
+    · have hji : j - i.val < w := by omega
+      have hbit := BitString.getLsbD_equivBitVec a ⟨j - i.val, hji⟩
+      simp_all
+    · have hij : j < i.val := Nat.lt_of_not_ge h
+      simp_all
 
 /-- Unsigned value of one shifted partial product, including overflow truncation. -/
 theorem val_eval_partialProduct (i : Fin w) (a b : BitString w) :
     (BitString.equivFin w ((partialProduct w i).eval interpretation (Fin.append a b)) : ℕ) =
       if b i then ((BitString.equivFin w a : ℕ) * 2 ^ i.val) % 2 ^ w else 0 := by
-  rw [← toNat_word_eq_equivFin, word_eval_partialProduct]
+  rw [← BitString.toNat_equivBitVec_eq_equivFin, equivBitVec_eval_partialProduct]
   split_ifs
-  · rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, toNat_word_eq_equivFin]
+  · rw [BitVec.toNat_shiftLeft, Nat.shiftLeft_eq, BitString.toNat_equivBitVec_eq_equivFin]
   · rfl
 
 /-- Exactly one gate per output bit, including the false low positions. -/
