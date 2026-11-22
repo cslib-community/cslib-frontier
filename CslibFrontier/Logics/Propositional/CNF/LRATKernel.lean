@@ -20,9 +20,9 @@ clause searches the list of all clauses, and testing whether a literal is false 
 trail. `Cslib.Logic.PL.CNF.checkLRATKernel` checks the same certificates with data the kernel
 reduces quickly:
 
-* the clause database is a binary trie keyed by the bits of the clause number, least significant
-  bit first (`Cslib.Logic.PL.CNF.ClauseTrie`), so that looking up, adding and deleting a clause
-  take a number of reduction steps proportional to the number's bit length;
+* the clause database is a binary trie keyed by the digits of the clause number in bijective
+  base 2, least significant first (`Cslib.Logic.PL.CNF.ClauseTrie`), so that looking up, adding
+  and deleting a clause take a number of reduction steps proportional to the number's length;
 * the trail of a step is a bitmask, a natural number with the literal `(v, b)` at bit `2 v + b`,
   its word code (`Cslib.Algorithms.WordRAM.ClauseCode.litCode`). Testing a literal is
   `Nat.testBit`, a shift right and a conjunction, and setting it is a disjunction with a shifted
@@ -31,7 +31,7 @@ reduces quickly:
 
 The checker uses structural recursion only, and no `Array`. Looking up and deleting recurse on
 the trie. Adding a clause may build the path to its number, so it recurses on a bound on the
-number's bit length instead: the number itself.
+number's length instead: the number itself.
 
 As in `checkLRATFast`, the trail is indexed by literal rather than by variable: the reference
 checker's trail holds both polarities of a variable when the added clause contains both, which
@@ -71,86 +71,100 @@ namespace CNF
 /-! ### The clause database -/
 
 /-- **A clause database as a binary trie** keyed by clause number. The number `0` is stored at the
-root; a positive number `n` is stored in the subtrie `zero` if it is even and `one` if it is odd,
-under the key `n / 2`. So a number is found by reading its bits from the least significant one.
-An absent subtrie is a `leaf`. -/
+root, and the number `n + 1` in the subtrie `zero` if `n` is even and `one` if `n` is odd, under
+the key `n / 2`. So a number is found by reading the digits `1` and `2` of its bijective base-2
+numeral, least significant first, and the trie has a node for every number of its paths. An
+absent subtrie is a `leaf`. -/
 inductive ClauseTrie where
   /-- The empty trie. -/
   | leaf
-  /-- The clause numbered `0`, if any, and the subtries of the even and odd positive numbers. -/
+  /-- The clause numbered `0`, if any, and the subtries of the numbers `n + 1` with `n` even and
+  `n` odd. -/
   | node (val : Option (Clause ℕ)) (zero one : ClauseTrie)
 
 namespace ClauseTrie
 
-/-- The clause stored under the number `0`. -/
-def val : ClauseTrie → Option (Clause ℕ)
-  | leaf => none
-  | node v _ _ => v
-
-/-- The subtrie of the even positive numbers. -/
-def zero : ClauseTrie → ClauseTrie
-  | leaf => leaf
-  | node _ z _ => z
-
-/-- The subtrie of the odd numbers. -/
-def one : ClauseTrie → ClauseTrie
-  | leaf => leaf
-  | node _ _ o => o
-
-/-- The clause stored under the number `n`. -/
+/-- The clause stored under the number `n`. The number is matched against `0` and `n + 1`, which
+the kernel reduces faster than a test `n = 0`. -/
 def get : ClauseTrie → ℕ → Option (Clause ℕ)
   | leaf, _ => none
-  | node v z o, n => if n = 0 then v else if n % 2 = 0 then z.get (n / 2) else o.get (n / 2)
+  | node v _ _, 0 => v
+  | node _ z o, n + 1 => if n % 2 = 0 then z.get (n / 2) else o.get (n / 2)
 
-private theorem get_node (v : Option (Clause ℕ)) (z o : ClauseTrie) (n : ℕ) :
-    (node v z o).get n = if n = 0 then v else if n % 2 = 0 then z.get (n / 2)
-      else o.get (n / 2) := rfl
-
-/-- Reading a trie by the first bit of the number, whether or not the trie is a `leaf`. -/
-private theorem get_eq (t : ClauseTrie) (n : ℕ) :
-    t.get n = if n = 0 then t.val else if n % 2 = 0 then t.zero.get (n / 2)
-      else t.one.get (n / 2) := by
-  cases t
-  · simp only [val, zero, one]
-    split_ifs <;> rfl
-  · rfl
-
-/-- Store `x` under the number `n`, which has at most `fuel` bits. The recursion is on `fuel`,
+/-- Store `x` under the number `n`, which has at most `fuel` digits. The recursion is on `fuel`,
 since the path to `n` may not exist yet. -/
 def setAux (x : Option (Clause ℕ)) : ℕ → ClauseTrie → ℕ → ClauseTrie
-  | 0, t, n => if n = 0 then node x t.zero t.one else t
-  | fuel + 1, t, n =>
-    if n = 0 then node x t.zero t.one
-    else if n % 2 = 0 then node t.val (setAux x fuel t.zero (n / 2)) t.one
-    else node t.val t.zero (setAux x fuel t.one (n / 2))
+  | _, leaf, 0 => node x leaf leaf
+  | _, node _ z o, 0 => node x z o
+  | 0, t, _ + 1 => t
+  | fuel + 1, leaf, n + 1 =>
+    if n % 2 = 0 then node none (setAux x fuel leaf (n / 2)) leaf
+    else node none leaf (setAux x fuel leaf (n / 2))
+  | fuel + 1, node v z o, n + 1 =>
+    if n % 2 = 0 then node v (setAux x fuel z (n / 2)) o
+    else node v z (setAux x fuel o (n / 2))
 termination_by structural fuel => fuel
 
 /-- Store `x` under the number `n`: `some c` adds the clause `c`, and `none` deletes it. -/
 def insert (t : ClauseTrie) (n : ℕ) (x : Option (Clause ℕ)) : ClauseTrie := setAux x n t n
 
+/-- The clause stored under `0`, and the two subtries, of a node or a `leaf`. -/
+private def val : ClauseTrie → Option (Clause ℕ)
+  | leaf => none
+  | node v _ _ => v
+
+private def zero : ClauseTrie → ClauseTrie
+  | leaf => leaf
+  | node _ z _ => z
+
+private def one : ClauseTrie → ClauseTrie
+  | leaf => leaf
+  | node _ _ o => o
+
+private theorem get_zero (t : ClauseTrie) : t.get 0 = t.val := by
+  cases t <;> rfl
+
+private theorem get_succ (t : ClauseTrie) (n : ℕ) :
+    t.get (n + 1) = if n % 2 = 0 then t.zero.get (n / 2) else t.one.get (n / 2) := by
+  cases t
+  · simp only [zero, one]
+    split_ifs <;> rfl
+  · rfl
+
 private theorem get_setAux (x : Option (Clause ℕ)) :
     ∀ (fuel : ℕ) (t : ClauseTrie) (n m : ℕ), n ≤ fuel →
       (setAux x fuel t n).get m = if m = n then x else t.get m := by
+  -- storing under `0` replaces the root
+  have h0 (fuel : ℕ) (t : ClauseTrie) (m : ℕ) :
+      (setAux x fuel t 0).get m = if m = 0 then x else t.get m := by
+    have hs : setAux x fuel t 0 = node x t.zero t.one := by
+      cases fuel <;> cases t <;> rfl
+    rw [hs]
+    rcases m with _ | m
+    · rfl
+    · simp only [get, get_succ t m, Nat.add_one_ne_zero, ↓reduceIte]
   intro fuel
   induction fuel with
   | zero =>
     intro t n m hn
     obtain rfl : n = 0 := by omega
-    simp only [setAux, ↓reduceIte, get_node, get_eq t m]
-    split_ifs <;> rfl
+    exact h0 0 t m
   | succ fuel ih =>
     intro t n m hn
-    rw [get_eq t m]
-    by_cases h0 : n = 0
-    · subst h0
-      simp only [setAux, ↓reduceIte, get_node]
+    rcases n with _ | n
+    · exact h0 _ t m
+    have hs : setAux x (fuel + 1) t (n + 1) =
+        if n % 2 = 0 then node t.val (setAux x fuel t.zero (n / 2)) t.one
+        else node t.val t.zero (setAux x fuel t.one (n / 2)) := by
+      cases t <;> rfl
+    have hf : n / 2 ≤ fuel := by omega
+    rw [hs]
+    rcases m with _ | m
+    · simp only [Nat.zero_ne_add_one, ↓reduceIte, get_zero]
       split_ifs <;> rfl
-    · have hf : n / 2 ≤ fuel := by omega
-      by_cases h2 : n % 2 = 0
-      · simp only [setAux, h0, h2, ↓reduceIte, get_node, ih _ _ _ hf]
-        split_ifs <;> first | rfl | (exfalso; omega)
-      · simp only [setAux, h0, h2, ↓reduceIte, get_node, ih _ _ _ hf]
-        split_ifs <;> first | rfl | (exfalso; omega)
+    · rw [get_succ t m]
+      split_ifs <;> simp only [get, ih _ _ _ hf] <;> split_ifs <;>
+        first | rfl | (exfalso; omega)
 
 /-- **Reading a trie after storing `x` under `n`.** -/
 theorem get_insert (t : ClauseTrie) (n : ℕ) (x : Option (Clause ℕ)) (m : ℕ) :
