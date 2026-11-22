@@ -272,7 +272,9 @@ private theorem frozen_vertex_at_reference {I : FixedRotationInput}
   rcases hv with hv | ⟨d, hd, rfl⟩
   · exact hcenter v hv
   · have he := congrArg (fun p : Route => p.endpoint (!d.2)) (hroute d hd)
-    rw [D.endpoint_eq, (referenceDrawing I).endpoint_eq, (subdivisionDart_endpoints I d).2] at he
+    have hleaf : Dart.vertex (G := subdivisionGraph I) ((subdivisionDart I d).1, !d.2) =
+        I.graph.vertices.length + d.index := (subdivisionDart_endpoints I d).2
+    rw [D.endpoint_eq, (referenceDrawing I).endpoint_eq, hleaf] at he
     exact he
 
 -- If a target is occupied, relocate its unique occupant before placing the intended vertex.
