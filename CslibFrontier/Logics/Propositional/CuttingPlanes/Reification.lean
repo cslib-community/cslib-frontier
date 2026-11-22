@@ -16,7 +16,52 @@ import Mathlib.Tactic.Ring
 /-!
 # Cutting planes under reifications
 
-TODO
+Theorem 1 of [Demirović, McCreesh, McIlree, Nordström, Oertel and
+Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024] (Appendix A) says that a proof can
+reason "as if reifications were not present": a derivation of `D` from the restriction `F↾ρ` of
+`F` by a partial assignment `ρ` lifts to a derivation of `⋀_{ℓ ∈ ρ} ℓ ⇒ D` from `F`, with `O(n)`
+lines per line. This file proves the cutting-planes case.
+
+The partial assignment is `τ` on a finite set `S` of variables. The restriction
+`Cslib.Logic.PL.Ineq.restrict` substitutes its values (equation (27)), and the implication with
+reification coefficient `K` is `D↾ρ + K • guard S τ`, where `Cslib.Logic.PL.Ineq.guard` sums the
+literals that `ρ` makes false. At an assignment extending `ρ` it holds exactly when `D` does
+(`Cslib.Logic.PL.Ineq.holds_restrict_add_guard`); elsewhere a false literal adds `K`. The lifting
+(`Cslib.Logic.PL.CuttingPlanes.IsProof.lift`) follows the paper's proof:
+
+* a line of `F↾ρ` or an axiom is lifted by Lemma 2, adding `(K - sᵥ) ℓ̄ᵥ` for each `v ∈ S`
+  (`Cslib.Logic.PL.CuttingPlanes.IsProof.lemma2`);
+* sums and multiples are lifted line by line;
+* a division by `c` first weakens the guard to the multiple `c (K + 1)`, so that `c` divides it,
+  and then divides (`Cslib.Logic.PL.Ineq.div_restrict_add_guard`).
+
+**Deviations from the paper.** The cutting planes system here (`Cslib.Logic.PL.CuttingPlanes`) has
+no saturation, so the reification coefficient grows along the proof instead of being saturated
+back to the degree; any coefficient above a line's degree gives the same implication. The paper's
+Theorem 1 also covers RUP steps (its Case 6), which are not cutting-planes steps and are not
+covered here. The size bound is explicit: at most `3 |S| + 1` lines per line.
+
+Wrapping (§2.2) is the case `ρ = {z ↦ 1}`: a derivation of `D` from `C` gives one of `z ⇒ D` from
+`z ⇒ C` (`Cslib.Logic.PL.CuttingPlanes.DerivableInSize.wrap`).
+
+## Main definitions
+
+* `Cslib.Logic.PL.Ineq.restrict`, `Cslib.Logic.PL.Ineq.guard`: restriction by a partial assignment,
+  and its guard.
+
+## Main results
+
+* `Cslib.Logic.PL.CuttingPlanes.IsProof.lemma2`: Lemma 2 of the paper.
+* `Cslib.Logic.PL.CuttingPlanes.IsProof.lift`, `Cslib.Logic.PL.CuttingPlanes.DerivableInSize.lift`:
+  Theorem 1 for cutting planes.
+* `Cslib.Logic.PL.CuttingPlanes.DerivableInSize.wrap`: wrapping under a reification.
+* `Cslib.Logic.PL.Ineq.holds_restrict_add_guard`: the lifted lines mean the implications.
+
+## References
+
+* [E. Demirović, C. McCreesh, M. J. McIlree, J. Nordström, A. Oertel, K. Sidorov, *Pseudo-Boolean
+  Reasoning About States and Transitions to Certify Dynamic Programming and Decision Diagram
+  Algorithms*][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024]
 -/
 
 public section
@@ -161,6 +206,23 @@ theorem div_restrict_add_guard {I : Ineq V} {c : ℕ} (hc : 0 < c)
     push_cast
     nlinarith
 
+theorem restrict_of_coeff_eq_zero {I : Ineq V} (h : ∀ v ∈ S, I.coeff v = 0) :
+    I.restrict S τ = I := by
+  ext w
+  · rw [coeff_restrict]; split_ifs with hw
+    · exact (h w hw).symm
+    · rfl
+  · simp only [restrict]
+    rw [Finset.sum_eq_zero fun v hv => by rw [h v hv, zero_mul], sub_zero]
+
+theorem restrict_guard : (guard S τ).restrict S τ = 0 := by
+  ext w
+  · rw [coeff_restrict, coeff_guard]; split_ifs <;> simp_all
+  · simp only [restrict, bound_guard, coeff_guard, bound_zero]
+    rw [Finset.sum_congr rfl fun v hv => show (if v ∈ S then (if τ v then -1 else 1) else 0) *
+      (τ v).toInt = -(τ v).toInt by cases τ v <;> simp [hv]]
+    simp
+
 /-! ### Semantics -/
 
 omit [DecidableEq V] in
@@ -235,11 +297,13 @@ theorem IsProof.literal {ls : List (Ineq V)} (h : IsProof Γ ls) (l : Literal V)
   cases b
   exacts [h.leOne v, h.nonneg v]
 
+omit [DecidableEq V] in
 /-- Weakening a line by `m v` copies of `ℓ̄ᵥ` for every `v ∈ S`, in at most `3 |S|` lines. -/
 theorem IsProof.addOffLits {ls : List (Ineq V)} (h : IsProof Γ ls) {I : Ineq V} (hI : I ∈ ls)
     (m : V → ℕ) (hm : ∀ v ∈ S, 0 < m v) :
     ∃ ext, IsProof Γ (ext ++ ls) ∧ I + ∑ v ∈ S, m v • offLit τ v ∈ ext ++ ls ∧
       ext.length ≤ 3 * #S := by
+  classical
   induction S using Finset.induction_on with
   | empty => exact ⟨[], h, by simpa using hI, le_rfl⟩
   | @insert a S ha ih =>
@@ -263,13 +327,15 @@ theorem IsProof.lemma2 {ls : List (Ineq V)} (h : IsProof Γ ls) {I : Ineq V} (hI
   refine ⟨ext, hp, ?_, hlen⟩
   rwa [add_sum_offLit I _ fun v hv => (offCoeff_lt τ I hv).le] at hmem
 
-/-- **Theorem 1 of the paper, for cutting planes**: a cutting planes proof from the restriction
-`Γ↾ρ` lifts to one from `Γ` with at most `3 |S| + 1` lines per line, in which every line `D` of the
-first proof appears as `D↾ρ + K • guard`, the implication `⋀_{ℓ ∈ ρ} ℓ ⇒ D↾ρ` with some
-reification coefficient `K`. The lines of `Γ↾ρ` and the axioms are lifted by Lemma 2, addition and
-multiplication line by line, and a division after weakening the guard to a multiple of the
-divisor. Unlike the paper, the reification coefficient is not saturated, which cutting planes
-cannot do. -/
+/-- **Lifting a cutting planes proof under a partial assignment.** This is not the full
+Theorem 1 of the paper but its cutting-planes cases (Cases 1–5): RUP steps (Case 6) are not
+covered, and the reification coefficient is not saturated, which cutting planes cannot do.
+
+A cutting planes proof from the restriction `Γ↾ρ` lifts to one from `Γ` with at most
+`3 |S| + 1` lines per line, in which every line `D` of the first proof appears as
+`D↾ρ + K • guard`, the implication `⋀_{ℓ ∈ ρ} ℓ ⇒ D↾ρ` with some reification coefficient `K`.
+The lines of `Γ↾ρ` and the axioms are lifted by Lemma 2, addition and multiplication line by line,
+and a division after weakening the guard to a multiple of the divisor. -/
 theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ) ls) :
     ∃ ls', IsProof Γ ls' ∧ ls'.length ≤ (3 * #S + 1) * ls.length ∧
       ∀ D ∈ ls, ∃ K : ℕ, D.restrict S τ + K • guard S τ ∈ ls' := by
@@ -363,7 +429,8 @@ theorem IsProof.lift {ls : List (Ineq V)} (h : IsProof (Ineq.restrict S τ '' Γ
       · obtain ⟨K', hK'⟩ := hall D hD
         exact ⟨K', List.mem_cons_of_mem _ (List.mem_append_right _ hK')⟩
 
-/-- **Theorem 1 for cutting planes, as derivability**: if `D` has a derivation of at most `s` lines
+/-- **Lifting a derivation under a partial assignment**, the cutting-planes cases of Theorem 1
+(see `Cslib.Logic.PL.CuttingPlanes.IsProof.lift`): if `D` has a derivation of at most `s` lines
 from `Γ↾ρ`, then `D↾ρ + K • guard` has one of at most `(3 |S| + 1) s` lines from `Γ`, for some
 reification coefficient `K`. -/
 theorem DerivableInSize.lift {D : Ineq V} {s : ℕ}
@@ -373,6 +440,22 @@ theorem DerivableInSize.lift {D : Ineq V} {s : ℕ}
   obtain ⟨ls', hp', hlen', hall⟩ := hp.lift (S := S) (τ := τ)
   obtain ⟨K, hK⟩ := hall D hD
   exact ⟨K, ls', hp', hK, hlen'.trans (Nat.mul_le_mul_left _ hlen)⟩
+
+/-- **Wrapping** (§2.2 of the paper): a derivation of `D` from `C` gives one of `z ⇒ D` from
+`z ⇒ C`, for a variable `z` in neither, with four lines per line. Here `z ⇒ C` is
+`C + K₀ (1 - x_z) ≥ 0`, for any reification coefficient `K₀`. This is Theorem 1 for
+`ρ = {z ↦ 1}`. -/
+theorem DerivableInSize.wrap {C D : Ineq V} {z : V} {s : ℕ} (hC : C.coeff z = 0)
+    (hD : D.coeff z = 0) (K₀ : ℕ) (h : DerivableInSize {C} D s) :
+    ∃ K : ℕ, DerivableInSize {C + K₀ • guard {z} (fun _ => true)}
+      (D + K • guard {z} (fun _ => true)) (4 * s) := by
+  have hΓ : Ineq.restrict {z} (fun _ => true) '' {C + K₀ • guard {z} (fun _ => true)} = {C} := by
+    rw [Set.image_singleton, restrict_add, restrict_nsmul, restrict_guard, smul_zero, add_zero,
+      restrict_of_coeff_eq_zero (by simpa using hC)]
+  rw [← hΓ] at h
+  obtain ⟨K, hK⟩ := h.lift
+  rw [restrict_of_coeff_eq_zero (by simpa using hD), Finset.card_singleton] at hK
+  exact ⟨K, hK⟩
 
 end CuttingPlanes
 

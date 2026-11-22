@@ -18,7 +18,57 @@ import Mathlib.Tactic.Linarith
 /-!
 # Reification by redundance
 
-TODO
+Proof-producing combinators for the method of [Demirović, McCreesh, McIlree, Nordström, Oertel
+and Sidorov][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024], which certifies dynamic programs
+with VeriPB proofs about states and transitions: an extension variable `z` *reifies* a constraint
+`C`, `z ⇔ C`, and the proof reasons about implications `⋀ R ⇒ C` (§2.1 of the paper;
+`Cslib.Logic.PL.PBConstr.impl`). Each combinator emits steps of the kernel checker
+`Cslib.Logic.PL.VeriPB.checkRed`, and each has a lemma that the checker accepts them. No checker
+rule is added.
+
+* **Reification** (§2.2). `reifyFwd z C` is `red z ⇒ C : z ↦ 0` and `reifyBwd z C` is
+  `red ¬z ⇒ ¬C : z ↦ 1`, each with an empty subproof, as the kernel format requires (CakePB
+  rejects `red` without one). For `z` fresh, every goal is autoproven: `C|ω` and the objective goal
+  are trivially true, `ω` touches no constraint of the database, and for the second step the goal
+  of `z ⇒ C` is weakly syntactically implied by `¬(C ⇒ z)`
+  (`Cslib.Logic.PL.PBConstr.weakImplies_reify`, proved through the linear forms of normalized
+  constraints). So `Cslib.Logic.PL.VeriPB.runTop_reify` derives both halves for every `C` not
+  mentioning `z` that is not a contradiction after normalization. That last hypothesis is needed:
+  for a contradiction of slack above `1`, `negate` truncates its degree and the autoproof fails.
+* **Wrapping and unwrapping** (§2.2). `resolveGuard a b K` adds `K` times the clause `b` to the
+  implication `a`: from `r ⇒ C` and `s ⇒ r` it derives `s ⇒ C`, and from `r ⇒ C` and `r` it
+  unwraps `C`. Lifting a whole derivation under a guard is Theorem 1, in
+  `CslibFrontier.Logics.Propositional.CuttingPlanes.Reification`.
+* **Fusion resolution** (§3.2). `fusion R C p q A A' n` derives `⋀ R ⇒ C ≥ min(A, A')` from
+  `⋀ R ∧ r ⇒ C ≥ A` and `⋀ R ∧ ¬r ⇒ C ≥ A'` by a `pbc` subproof: two cutting-planes steps and a
+  RUP step with hints. Its acceptance is checked on examples, not proved in general.
+
+The knapsack proofs of the paper's milestone use these combinators: its layer states
+`S^i_{w,p}` reify sums by `reify`, and its transitions are guard resolutions and RUP steps.
+
+## Main definitions
+
+* `Cslib.Logic.PL.PBConstr.impl`: the implication `⋀ R ⇒ C`.
+* `Cslib.Logic.PL.VeriPB.State.fresh`: a variable occurs nowhere in the checker state.
+* `Cslib.Logic.PL.VeriPB.reifyFwd`, `Cslib.Logic.PL.VeriPB.reifyBwd`,
+  `Cslib.Logic.PL.VeriPB.reify`: the reification steps.
+* `Cslib.Logic.PL.VeriPB.resolveGuard`, `Cslib.Logic.PL.VeriPB.fusion`: wrapping, unwrapping and
+  fusion resolution.
+
+## Main results
+
+* `Cslib.Logic.PL.PBConstr.holds_impl`: the meaning of `⋀ R ⇒ C`.
+* `Cslib.Logic.PL.VeriPB.stepTop_red_of_covered`: a `red` step whose goals are all autoproven is
+  accepted.
+* `Cslib.Logic.PL.VeriPB.stepTop_reifyFwd`, `Cslib.Logic.PL.VeriPB.stepTop_reifyBwd`,
+  `Cslib.Logic.PL.VeriPB.runTop_reify`: the reification is accepted for a fresh variable.
+* `Cslib.Logic.PL.VeriPB.runStep_resolveGuard`: a guard resolution is accepted.
+
+## References
+
+* [E. Demirović, C. McCreesh, M. J. McIlree, J. Nordström, A. Oertel, K. Sidorov, *Pseudo-Boolean
+  Reasoning About States and Transitions to Certify Dynamic Programming and Decision Diagram
+  Algorithms*][DemirovicMcCreeshMcIlreeNordstromOertelSidorov2024]
 -/
 
 @[expose] public section
@@ -652,13 +702,15 @@ and for each constraint `D` of the goal set (the database, or the core set in
 strengthening-to-core mode), `ω` sets every literal of `D` it touches true or `¬C` weakly
 syntactically implies `D|ω`. -/
 theorem stepTop_red_of_covered {F : List PBConstr} {obj : Option Objective} {s : State}
-    {c : PBConstr} {ω : Witness} (hp : presFree s.pres ω = true)
+    {c : PBConstr} {ω : Witness} {sub : Option (List RedItem)} (hsub : sub.getD [] = [])
+    (hp : presFree s.pres ω = true)
     (hord : ∀ L, s.order = some L → L.untouched ω = true)
     (h1 : (Witness.substC ω c).normalize.degree = 0)
     (hobj : ∀ f, s.obj = some f → (objGoal f ω).normalize.degree = 0)
     (hgs : ∀ e ∈ (if s.tcb then s.core else s.db),
       Witness.touchedTrue ω e.2 = true ∨ weakImplies c.negate (Witness.substC ω e.2) = true) :
-    stepTop F obj s (.red c ω none none) = some (s.addStrengthened s.next c) := by
+    stepTop F obj s (.red c ω sub none) =
+      some (s.addStrengthened (if sub.isSome then s.next + 1 else s.next) c) := by
   have hok : redOk s.obj s.order s.db (if s.tcb then s.core else s.db) ω c false
       ((s.next, c.negate) :: s.db) [] none = true := by
     simp only [redOk, visible, List.filter_nil, List.map_nil, Bool.false_or, Bool.and_eq_true]
@@ -676,7 +728,7 @@ theorem stepTop_red_of_covered {F : List PBConstr} {obj : Option Objective} {s :
         | none => rfl
         | some f => simp [goalCovered, objuCovered, hobj f hf]
       · rcases hgs e he with h | h <;> simp [goalCovered, h]
-  simp [stepTop, redCheckP, hp, redCheckOn, runGoals, hok]
+  simp [stepTop, redCheckP, hp, hsub, redCheckOn, runGoals, hok]
 
 
 /-! ### Reification -/
@@ -692,11 +744,12 @@ def State.fresh (s : State) (z : ℕ) : Bool :=
   (s.db ++ s.core).all (fun e => !e.2.vars.contains z) && s.avoidsVar z
 
 /-- `red z ⇒ C : z ↦ 0`: introduce half of the reification of `C` by `z`. -/
-def reifyFwd (z : ℕ) (c : PBConstr) : TopStep := .red (impl [(z, true)] c) [(z, .zero)] none none
+def reifyFwd (z : ℕ) (c : PBConstr) : TopStep :=
+  .red (impl [(z, true)] c) [(z, .zero)] (some []) none
 
 /-- `red C ⇒ z : z ↦ 1`, with `C ⇒ z` written `¬z ⇒ ¬C`: the other half. -/
 def reifyBwd (z : ℕ) (c : PBConstr) : TopStep :=
-  .red (impl [(z, false)] c.negate) [(z, .one)] none none
+  .red (impl [(z, false)] c.negate) [(z, .one)] (some []) none
 
 /-- **The reification `z ⇔ C`** (§2.2 of the paper): `z ⇒ C`, then `C ⇒ z`. -/
 def reify (z : ℕ) (c : PBConstr) : List TopStep := [reifyFwd z c, reifyBwd z c]
@@ -727,12 +780,13 @@ private theorem avoidsVar_parts {s : State} {z : ℕ} {w : WVal} (h : s.avoidsVa
 /-- **`z ⇒ C` is accepted** for a fresh `z` not in `C`: the step adds it at the next number. -/
 theorem stepTop_reifyFwd {F : List PBConstr} {obj : Option Objective} {s : State} {z : ℕ}
     {c : PBConstr} (hs : s.fresh z = true) (hc : z ∉ c.vars) :
-    stepTop F obj s (reifyFwd z c) = some (s.addStrengthened s.next (impl [(z, true)] c)) := by
+    stepTop F obj s (reifyFwd z c) =
+      some (s.addStrengthened (s.next + 1) (impl [(z, true)] c)) := by
   simp only [State.fresh, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true',
     Bool.eq_false_iff, ne_eq, List.contains_iff_mem] at hs
   obtain ⟨hdb, hv⟩ := hs
   obtain ⟨hp, hord, hobj⟩ := avoidsVar_parts (w := .zero) hv
-  refine stepTop_red_of_covered hp hord (substC_zero_impl_pos hc) hobj fun e he => ?_
+  refine stepTop_red_of_covered rfl hp hord (substC_zero_impl_pos hc) hobj fun e he => ?_
   refine Or.inl (touchedTrue_of_not_mem (hdb e ?_))
   split at he <;> simp [he]
 
@@ -743,9 +797,9 @@ theorem stepTop_reifyBwd {F : List PBConstr} {obj : Option Objective} {s : State
     (hnc : ¬ c.normalize.IsContradiction)
     (hdb : ∀ e ∈ s.db ++ s.core, z ∈ e.2.vars → e.2 = (impl [(z, true)] c).normalize) :
     stepTop F obj s (reifyBwd z c) =
-      some (s.addStrengthened s.next (impl [(z, false)] c.negate)) := by
+      some (s.addStrengthened (s.next + 1) (impl [(z, false)] c.negate)) := by
   obtain ⟨hp, hord, hobj⟩ := avoidsVar_parts (w := .one) hs
-  refine stepTop_red_of_covered hp hord (substC_one_impl_neg (not_mem_vars_negate hc)) hobj
+  refine stepTop_red_of_covered rfl hp hord (substC_one_impl_neg (not_mem_vars_negate hc)) hobj
     fun e he => ?_
   have he' : e ∈ s.db ++ s.core := by split at he <;> simp [he]
   by_cases hz : z ∈ e.2.vars
@@ -758,14 +812,14 @@ theorem runTop_reify {F : List PBConstr} {obj : Option Objective} {s : State} {z
     {c : PBConstr} (hs : s.fresh z = true) (hc : z ∉ c.vars)
     (hnc : ¬ c.normalize.IsContradiction) :
     runTop F obj s (reify z c) =
-      some ((s.addStrengthened s.next (impl [(z, true)] c)).addStrengthened (s.next + 1)
+      some ((s.addStrengthened (s.next + 1) (impl [(z, true)] c)).addStrengthened (s.next + 3)
         (impl [(z, false)] c.negate)) := by
   have hs' := hs
   simp only [State.fresh, Bool.and_eq_true, List.all_eq_true, Bool.not_eq_true',
     Bool.eq_false_iff, ne_eq, List.contains_iff_mem] at hs'
   obtain ⟨hdb, hv⟩ := hs'
   simp only [reify, runTop, stepTop_reifyFwd hs hc]
-  rw [stepTop_reifyBwd (s := s.addStrengthened s.next (impl [(z, true)] c)) hv hc hnc]
+  rw [stepTop_reifyBwd (s := s.addStrengthened (s.next + 1) (impl [(z, true)] c)) hv hc hnc]
   · rfl
   · intro e he hz
     simp only [State.addStrengthened, List.mem_append, List.mem_cons] at he
@@ -777,6 +831,31 @@ theorem runTop_reify {F : List PBConstr} {obj : Option Objective} {s : State} {z
         · rfl
         · exact absurd hz (hdb e (List.mem_append_right _ he))
       · exact absurd hz (hdb e (List.mem_append_right _ he))
+
+/-! ### Wrapping, unwrapping and fusion -/
+
+/-- **Resolving a guard**: `pol a b K * +`, the constraint `a` plus `K` times the constraint `b`.
+For `a` the implication `r ⇒ C` with reification coefficient `K` and `b` the clause `¬s ∨ r`
+(`s ⇒ r`), it derives `s ⇒ C`; for `b` the unit clause `r`, it unwraps `C` (§2.2 of the paper). -/
+def resolveGuard (a b K : ℕ) : Step := .pol [.id a, .id b, .mul K, .add]
+
+/-- **A guard resolution is accepted** when both constraints exist and `K` is positive: it adds
+`c₁ + K c₂`, normalized, at the next number. -/
+theorem runStep_resolveGuard {db : List (ℕ × PBConstr)} {n a b K : ℕ} {c₁ c₂ : PBConstr}
+    (ha : lookup db a = some c₁) (hb : lookup db b = some c₂) (hK : 0 < K) :
+    runStep db n (resolveGuard a b K) = some ((n, c₁.add (c₂.mul K)) :: db, n + 1) := by
+  obtain ⟨K, rfl⟩ : ∃ k, K = k + 1 := ⟨K - 1, by omega⟩
+  simp [runStep, resolveGuard, polEval, ha, hb]
+
+/-- **Fusion resolution under implications** (§3.2 of the paper): from `p`, the implication
+`⋀ R ∧ r ⇒ C ≥ A`, and `q`, the implication `⋀ R ∧ ¬r ⇒ C ≥ A'`, derive `⋀ R ⇒ c`, for `c` the
+constraint `C ≥ min(A, A')`, by contradiction. With `¬(⋀ R ⇒ c)` numbered `n`, the next number,
+the constraint `p` plus it, divided by `A`, is `¬r` under the guard; likewise `q` gives `r`; and
+`0 ≥ 1` follows by RUP along these three. -/
+def fusion (R : List (Literal ℕ)) (c : PBConstr) (p q A A' n : ℕ) : Step :=
+  .pbc (impl R c)
+    [.pol [.id p, .id n, .add, .div A], .pol [.id q, .id n, .add, .div A'],
+      .rup ⟨[], 1⟩ [.id n, .id (n + 1), .id (n + 2)]] (n + 3)
 
 end VeriPB
 
