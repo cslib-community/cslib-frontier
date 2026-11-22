@@ -76,12 +76,6 @@ theorem havoc_mem (c : Code B r) (x : Data r) (v : Fin r → ℕ) (m : ℕ → �
     (x.havoc c v m).mem = m := by
   rfl
 
-/-- A memory cell after the run. -/
-@[wram_simps]
-theorem havoc_mem_apply (c : Code B r) (x : Data r) (v : Fin r → ℕ) (m : ℕ → ℕ) (a : ℕ) :
-    (x.havoc c v m).mem a = m a := by
-  rfl
-
 /-- Data is the data after a run that changes nothing. -/
 theorem havoc_self (c : Code B r) (x : Data r) : x.havoc c x.regs x.mem = x := by
   ext j

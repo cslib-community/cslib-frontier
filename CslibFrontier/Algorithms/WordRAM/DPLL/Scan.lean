@@ -168,17 +168,12 @@ theorem unitCode_eq (π : List (Literal ℕ)) (c : Clause ℕ) (o : Option ℕ) 
   · simp [Clause.unit?, codeOn_litCode]
   · simp [Clause.unit?]
 
-theorem map_findSome? {α β γ : Type*} (f : α → Option β) (g : β → γ) (l : List α) :
-    (l.findSome? f).map g = l.findSome? fun x => (f x).map g := by
-  induction l with
-  | nil => rfl
-  | cons a l ih => simp only [List.findSome?_cons]; cases f a <;> simp [ih]
-
 theorem unitLiteral?_map (φ : CNF ℕ) (π : List (Literal ℕ)) :
     (unitLiteral? φ π).map litCode = φ.findSome? (unitCode π) := by
-  rw [unitLiteral?, map_findSome?]
+  rw [unitLiteral?, List.map_findSome?]
   congr 1
   funext c
+  simp only [Function.comp_apply]
   cases h : Clause.unit? (notFalse π c) with
   | none => simp [unitCode, h]
   | some l => by_cases hl : l ∈ π <;> simp [unitCode, h, hl]
