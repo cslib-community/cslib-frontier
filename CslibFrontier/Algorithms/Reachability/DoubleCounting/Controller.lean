@@ -197,6 +197,30 @@ inductive ControllerVerdict where
   | decided (reachable : Bool)
   deriving DecidableEq, Repr
 
+/-- A verdict identifies the first nonunique round or decides reachability
+when all rounds have unique passing transcripts. -/
+abbrev ControllerVerdict.Correct {n : ℕ} (r : Fin n → Fin n → Prop) (s target : Fin n) :
+    ControllerVerdict → Prop
+  | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
+  | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target)
+
+/-- Two verdicts satisfying the exact controller specification agree. -/
+theorem ControllerVerdict.Correct.eq {n : ℕ} {r : Fin n → Fin n → Prop} {s target : Fin n}
+    {a b : ControllerVerdict} (ha : a.Correct r s target) (hb : b.Correct r s target) : a = b := by
+  cases a with
+  | bad i =>
+    cases b with
+    | bad j =>
+      congr 1
+      exact le_antisymm (le_of_not_gt fun h => hb.2 (ha.1 j h))
+        (le_of_not_gt fun h => ha.2 (hb.1 i h))
+    | decided hit => exact (ha.2 (hb.1 i)).elim
+  | decided hit =>
+    cases b with
+    | bad j => exact (hb.2 (ha.1 j)).elim
+    | decided answer =>
+      exact congrArg ControllerVerdict.decided (Bool.eq_iff_iff.mpr (ha.2.trans hb.2.symm))
+
 /-- Run the fuel-bounded controller with a supplied round and final membership action. -/
 @[expose] def runRoundsWith {m : Type → Type} [Monad m]
     (nextRound : ℕ → ℕ → Tally → m RoundUpdate) (member : ℕ → ℕ → Tally → m Bool) :
@@ -241,6 +265,13 @@ private theorem round_stable_of_size_le {n : ℕ} {r : Fin n → Fin n → Prop}
   · simpa using h
   · simpa using h.trans (Nat.le_succ (k + 1))
 
+/-- A change in the expected count means the next radius is below the vertex count. -/
+theorem radius_succ_lt_of_expected_count_ne {n : ℕ} {r : Fin n → Fin n → Prop}
+    {s : Fin n} {k : ℕ} (h : (expected r s (k + 1)).count ≠ (expected r s k).count) :
+    k + 1 < n := by
+  by_contra! hsize
+  exact h (by simp [expected, round_stable_of_size_le hsize])
+
 private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n : ℕ}
     {r : Fin n → Fin n → Prop} {s target : Fin n}
     {edge : Fin n → Fin n → m Bool} {member : MembershipScan m n}
@@ -250,9 +281,7 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
     (fuel k : ℕ) (hbound : n ≤ k + fuel) (hpos : 0 < fuel)
     (hgood : ∀ j ≤ k, ∃! w, Passes r s j w) :
     ∃ verdict, runRounds edge member target fuel k (expected r s k) = pure (some verdict) ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
-      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target) := by
+      verdict.Correct r s target := by
   classical
   induction fuel generalizing k with
   | zero => omega
@@ -275,9 +304,7 @@ private theorem runRounds_correct {m : Type → Type} [Monad m] [LawfulMonad m] 
           have hr := reachableWithin_subset_setOf_reflTransGen (mem_round.mp hv)
           exact (existsUnique_passes_iff.mp hk) v (mem_round.mpr (hstable ▸ hr))
         · simp only [decide_eq_true_eq, mem_round, hstable, Set.mem_ofPred_eq]
-      · have hsize : k + 1 < n := by
-          by_contra! h
-          exact hs (by simp [expected, round_stable_of_size_le h])
+      · have hsize := radius_succ_lt_of_expected_count_ne hs
         have hgood' (j : ℕ) (hj : j ≤ k + 1) : ∃! w, Passes r s j w := by
           rcases Nat.eq_or_lt_of_le hj with rfl | hj
           · exact hb.mp hbad
@@ -296,9 +323,7 @@ theorem runController_correct {m : Type → Type} [Monad m] [LawfulMonad m] {n :
     (hm : ∀ k, (∃! w, Passes r s k w) → ∀ v,
       member k (expected r s k) v = pure (by classical exact decide (v ∈ round r s k))) :
     ∃ verdict, runController edge member target = pure (some verdict) ∧
-      match verdict with
-      | .bad j => (∀ i < j, ∃! w, Passes r s i w) ∧ ¬ (∃! w, Passes r s j w)
-      | .decided b => (∀ j, ∃! w, Passes r s j w) ∧ (b = true ↔ ReflTransGen r s target) := by
+      verdict.Correct r s target := by
   have hgood (j : ℕ) (hj : j ≤ 0) : ∃! w, Passes r s j w :=
     (Nat.eq_zero_of_le_zero hj).symm ▸ existsUnique_passes_zero r s
   rw [runController, ← expected_zero r s]

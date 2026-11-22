@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.WordRAM.Multiword.Bank
 public import CslibFrontier.Computability.WordRAM.Multiword.Transfer
 public import CslibFrontier.Computability.WordRAM.Multiword.Shift
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Scalar operations and variable shifts on multiword banks
@@ -141,7 +142,7 @@ theorem exec_shift {w : ℕ} (hw : 2 ≤ w) (a b d : Fin n) (hda : d ≠ a)
   refine ⟨y, ?_, encodes_update hx d _ hyb hyv ?_, hyf.1.trans huf.1⟩
   · simpa only [shift, length_regs] using heu.within.seq hey
   · intro i hi hid
-    rw [hyp i (by dsimp [IsDigit]; omega) hid, hup' i hi]
+    rw [hyp i (by wram_omega) hid, hup' i hi]
 
 end Cslib.WordRAM.Multiword.Bank
 
