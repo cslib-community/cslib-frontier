@@ -8595,6 +8595,7 @@ public import CslibFrontier.Probability.AdaptiveWeights
 public import CslibFrontier.Probability.ApproxEq
 public import CslibFrontier.Probability.ApproximateCounting
 public import CslibFrontier.Probability.ApproximateCounting.Relative
+public import CslibFrontier.Probability.Azuma
 public import CslibFrontier.Probability.BernoulliComparison
 public import CslibFrontier.Probability.BilinearFingerprint
 public import CslibFrontier.Probability.BinaryKL
@@ -8676,6 +8677,7 @@ public import CslibFrontier.Probability.HashFamily.Uniform
 public import CslibFrontier.Probability.HashFamily.UniformOffset
 public import CslibFrontier.Probability.HashIsolation
 public import CslibFrontier.Probability.Hellinger
+public import CslibFrontier.Probability.HockeyStick
 public import CslibFrontier.Probability.HypothesisSelection.LeCamBirge
 public import CslibFrontier.Probability.HypothesisSelection.Likelihood
 public import CslibFrontier.Probability.HypothesisSelection.Tournament
@@ -8783,6 +8785,7 @@ public import CslibFrontier.Probability.PMF.TotalProbability
 public import CslibFrontier.Probability.PMF.TwoBranch
 public import CslibFrontier.Probability.PMF.Uniform
 public import CslibFrontier.Probability.PMF.UniformBound
+public import CslibFrontier.Probability.PMF.UniformBridge
 public import CslibFrontier.Probability.PMF.UniformCollisionInsert
 public import CslibFrontier.Probability.PMF.UniformExtend
 public import CslibFrontier.Probability.PMF.UniformIndex

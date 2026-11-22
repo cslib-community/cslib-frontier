@@ -47,9 +47,9 @@ The reduction samples the input labels uniformly and evaluates the gadget step b
 `Δ`, so it makes one query, at its label, at the tweak of the hot position and the new input bit.
 With the keyed oracle the answer is that hash plus the new bit's offset, which gives the
 ciphertext exactly (`realGame_reduction`). With a uniformly random function every query is at a
-fresh tweak, so every ciphertext is uniform given what came before (`idealGame_reduction`). The
-random-function side resamples the function at a query point that the function itself chooses,
-using `Cslib.Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate`.
+fresh tweak (`isTweakUnique_reduction`), so `CCR.idealFreshGame_eq_prfIdealGame_of_isTweakUnique`
+replaces the random function by fresh uniform answers per query, making every ciphertext uniform
+given what came before (`idealGame_reduction`).
 
 The reduction makes `n` queries (`isQueryBounded_reduction`) at pairwise distinct tweaks
 (`isTweakUnique_reduction`). In particular it never asks the same `(X, τ)` with both bits, which
@@ -142,18 +142,6 @@ private theorem interpret_oracleSteps {m : Type → Type*} [Monad m] [LawfulMona
   | succ n ih =>
     simp only [oracleSteps, interp_norm, ih, pure_bind]
     rfl
-
-/-- The reduction's evaluation reads `f` only at the tweaks of the steps it runs. -/
-private theorem runSteps_congr (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T)
-    (f f' : CCR.Query L T → L) (n : ℕ) (x : Fin (n + 1) → Bool) (A : Fin (n + 1) → L)
-    (h : ∀ q : CCR.Query L T, (∃ t < n, ∃ j, q.tweak = tw t j) → f q = f' q) :
-    runSteps H tw f n x A = runSteps H tw f' n x A := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    have hprev := ih (Fin.init x) (Fin.init A) fun q ⟨t, ht, j, hj⟩ => h q ⟨t, by omega, j, hj⟩
-    simp only [runSteps]
-    rw [hprev, h _ ⟨n, by omega, Fin.init x, rfl⟩]
 
 /-- The reduction's evaluation makes one oracle query per doubling step. -/
 private theorem isQueryBounded_oracleSteps (H : L → T → L)
@@ -336,66 +324,41 @@ theorem realGame_reduction [Module (ZMod 2) L] [Fintype Key] [Nonempty Key] (H :
   have hX : e X = fun t => X t + bitOffset (δ k) (x t) := rfl
   simp only [Function.comp_apply, hX, CCR.keyed, runSteps_oracle]
 
-variable [DecidableEq L] [Fintype T] [DecidableEq T]
-
-/-- With a uniformly random function, the reduction's ciphertexts are uniform, when different
-steps use different tweaks. -/
-private theorem uniformOfFintype_bind_runSteps {β : Type} (H : L → T → L)
-    (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T) (n : ℕ)
-    (htw : ∀ t t' j j', t < n → t' < n → tw t j = tw t' j' → t = t')
-    (x : Fin (n + 1) → Bool) (A : Fin (n + 1) → L) (g : (Fin n → L) → PMF β) :
-    ((PMF.uniformOfFintype (CCR.Query L T → L)).bind fun f => g (runSteps H tw f n x A).1) =
+/-- Against the fresh uniform oracle, the ciphertexts produced by `oracleSteps` are uniform on
+`Fin n → L`. -/
+private theorem eval_run_oracleSteps_bind_fst {β : Type} (H : L → T → L)
+    (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T) (n : ℕ) (x : Fin (n + 1) → Bool)
+    (A : Fin (n + 1) → L) (g : (Fin n → L) → PMF β) :
+    (ProbComp.eval ((oracleSteps H tw n x A).run fun _ => ProbComp.uniform L)).bind
+        (fun steps => g steps.1) =
       (PMF.uniformOfFintype (Fin n → L)).bind g := by
   induction n generalizing β with
   | zero =>
-    have hg : ∀ f : CCR.Query L T → L, g (runSteps H tw f 0 x A).1 = g Fin.elim0 :=
-      fun _ => congrArg g (funext fun i => i.elim0)
     have hu : ∀ c : Fin 0 → L, g c = g Fin.elim0 := fun c => congrArg g (funext fun i => i.elim0)
-    simp only [hg, PMF.bind_const]
+    simp only [oracleSteps, ProbOracleComp.run_pure, ProbComp.eval_pure, PMF.pure_bind]
     rw [show (PMF.uniformOfFintype (Fin 0 → L)).bind g =
         (PMF.uniformOfFintype (Fin 0 → L)).bind fun _ => g Fin.elim0 from congrArg _ (funext hu),
       PMF.bind_const]
   | succ n ih =>
-    have htw' : ∀ t t' j j', t < n → t' < n → tw t j = tw t' j' → t = t' :=
-      fun t t' j j' ht ht' => htw t t' j j' (by omega) (by omega)
-    let prev : (CCR.Query L T → L) → (Fin n → L) × ((Fin (n + 1) → Bool) → L) := fun f =>
-      runSteps H tw f n (Fin.init x) (Fin.init A)
-    -- The query of the last step.
-    let p : (CCR.Query L T → L) → CCR.Query L T := fun f =>
-      ⟨(prev f).2 (Fin.init x), tw n (Fin.init x), x (Fin.last (n + 1))⟩
-    let s : (CCR.Query L T → L) → L := fun f => A (Fin.last (n + 1)) +
-      ∑ j ∈ Finset.univ.erase (Fin.init x), H ((prev f).2 j) (tw n j)
-    have hprev : ∀ f v, prev (Function.update f (p f) v) = prev f := fun f v =>
-      runSteps_congr H tw _ _ n _ _ fun q ⟨t, ht, j, hj⟩ => Function.update_of_ne (fun hq => by
-        have := htw t n j (Fin.init x) (by omega) (by omega)
-          (hj.symm.trans (congrArg CCR.Query.tweak hq))
-        omega) _ _
-    have hp : ∀ f v, p (Function.update f (p f) v) = p f := fun f v => by
-      simp only [p, hprev]
-    have hs : ∀ f v, s (Function.update f (p f) v) = s f := fun f v => by
-      simp only [s, hprev]
-    have hrun : ∀ f, (runSteps H tw f (n + 1) x A).1 = Fin.snoc (prev f).1 (s f + f (p f)) :=
-      fun f => by
-        simp only [runSteps, prev, s, p]
-        congr 1
-        abel
-    calc ((PMF.uniformOfFintype (CCR.Query L T → L)).bind fun f =>
-          g (runSteps H tw f (n + 1) x A).1)
-        = (PMF.uniformOfFintype (CCR.Query L T → L)).bind fun f =>
-            (PMF.uniformOfFintype L).bind fun v =>
-              g (Fin.snoc (prev f).1 (s f + v)) := by
-          rw [← Cslib.Probability.PMF.uniformOfFintype_bind_bind_adaptiveUpdate p hp]
-          refine congrArg _ (funext fun f => congrArg _ (funext fun v => ?_))
-          rw [hrun, hprev, hs, hp, Function.update_self]
-      _ = (PMF.uniformOfFintype (CCR.Query L T → L)).bind fun f =>
-            (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc (prev f).1 c) := by
-          refine congrArg _ (funext fun f => ?_)
-          conv_rhs => rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.addLeft (s f)),
-            PMF.bind_map]
-          rfl
+    simp only [oracleSteps, ProbOracleComp.run_bind, ProbOracleComp.run_query,
+      ProbOracleComp.run_pure, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+      PMF.bind_bind, PMF.pure_bind]
+    calc _
+        = (ProbComp.eval ((oracleSteps H tw n (Fin.init x) (Fin.init A)).run
+            fun _ => ProbComp.uniform L)).bind fun prev =>
+              (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc prev.1 c) := by
+          refine congrArg _ (funext fun prev => ?_)
+          let s := A (Fin.last (n + 1)) +
+            ∑ j ∈ Finset.univ.erase (Fin.init x), H (prev.2 j) (tw n j)
+          conv_rhs =>
+            rw [← Cslib.Probability.PMF.uniformOfFintype_map_equiv (Equiv.addLeft s),
+              PMF.bind_map]
+          refine congrArg _ (funext fun r => congrArg (fun c => g (Fin.snoc prev.1 c)) ?_)
+          simp only [Equiv.coe_addLeft, s]
+          abel
       _ = (PMF.uniformOfFintype (Fin n → L)).bind fun ct =>
             (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c) :=
-          ih htw' (Fin.init x) (Fin.init A) fun ct =>
+          ih (Fin.init x) (Fin.init A) fun ct =>
             (PMF.uniformOfFintype L).bind fun c => g (Fin.snoc ct c)
       _ = (PMF.uniformOfFintype (Fin (n + 1) → L)).bind g := by
           let e : (Fin n → L) × L ≃ (Fin (n + 1) → L) × Unit :=
@@ -403,17 +366,21 @@ private theorem uniformOfFintype_bind_runSteps {β : Type} (H : L → T → L)
               (Equiv.prodPUnit _).symm
           exact Cslib.Probability.PMF.uniformOfFintype_bind_bind_fst_equiv e g
 
+variable [DecidableEq L] [Fintype T] [DecidableEq T]
+
 /-- **Ideal side**: against a uniformly random function, the reduction plays the simulated
 experiment, when different doubling steps use different tweaks. -/
 theorem idealGame_reduction (H : L → T → L) (tw : (t : ℕ) → (Fin (t + 1) → Bool) → T) (n : ℕ)
     (htw : ∀ t t' j j', t < n → t' < n → tw t j = tw t' j' → t = t')
     (x : Fin (n + 1) → Bool) (D : OneHotView L n → ProbComp Bool) :
     ProbComp.eval (PRF.idealExperiment (reduction H tw n x D)) = simGame n D := by
-  simp only [PRF.idealExperiment, simGame, simulate, ProbComp.eval_bind, ProbComp.eval_uniform,
-    eval_run_reduction, ProbComp.eval_pure, PMF.bind_bind, PMF.pure_bind]
-  rw [PMF.bind_comm]
-  refine congrArg _ (funext fun A => ?_)
-  exact uniformOfFintype_bind_runSteps H tw n htw x A fun ct => ProbComp.eval (D (A, ct))
+  rw [← CCR.idealFreshGame_eq_prfIdealGame_of_isTweakUnique
+    (isTweakUnique_reduction H tw n htw x D)]
+  simp only [CCR.idealFreshGame, reduction, simGame, simulate, ProbOracleComp.run_bind,
+    ProbOracleComp.run_sample, ProbComp.eval_bind, ProbComp.eval_uniform, ProbComp.eval_pure,
+    PMF.bind_bind, PMF.pure_bind]
+  exact congrArg _ (funext fun A =>
+    eval_run_oracleSteps_bind_fst H tw n x A fun ct => ProbComp.eval (D (A, ct)))
 
 /-- **Obliviousness of the binary-to-one-hot gadget**: for every distinguisher `D`, the advantage
 between the real view of the garbled gadget on index `x` and the simulated view equals the

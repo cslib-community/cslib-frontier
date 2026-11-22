@@ -11,7 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Analysis.Complex.Trigonometric
 public import Mathlib.Data.Fintype.Pi
 public import CslibFrontier.Probability.BoundedDifferences
-import CslibFrontier.Probability.PMF.Uniform
+import CslibFrontier.Probability.PMF.UniformBridge
 import Mathlib.Algebra.BigOperators.Ring.Finset
 
 /-!
@@ -79,39 +79,19 @@ theorem sum_exp_mul_sum_mul_sub_half (a : ι → ℝ) (s : ℝ) :
   rw [← Fintype.prod_sum (fun i (c : Bool) => exp (s * (a i * ((c.toNat : ℝ) - 1 / 2)))),
     prod_congr rfl fun i _ => hcoord i, prod_mul_distrib, prod_const, card_univ]
 
-/-- The fraction of bit strings in an event is its probability under independent uniform bits. -/
-private theorem card_filter_eq_two_pow_mul_toOuterMeasure (P : (ι → Bool) → Prop)
-    [DecidablePred P] :
-    (#{x : ι → Bool | P x} : ℝ) = 2 ^ Fintype.card ι *
-      ((Probability.PMF.pi fun _ : ι => Probability.PMF.uniformOfFintype Bool).toOuterMeasure
-        {x | P x}).toReal := by
-  rw [Probability.PMF.pi_uniformOfFintype,
-    Probability.PMF.toOuterMeasure_uniformOfFintype_toReal, Fintype.card_fun, Fintype.card_bool]
-  have h : (0 : ℝ) < 2 ^ Fintype.card ι := by positivity
-  push_cast
-  field_simp
-  rfl
-
 /-- **McDiarmid's inequality for random bit strings**, in counting form: if `f` has bounded
 differences `c`, at most an `exp (-2 t² / ∑ i, c i ^ 2)` fraction of the bit strings `x` have
 `f x ≥ 𝔼 y, f y + t`. This is `HasBoundedDifferences.pi_ge_mean_add` for independent uniform
-bits. -/
+bits, bridged through `Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le`. -/
 theorem card_filter_expect_add_le_le {f : (ι → Bool) → ℝ} {c : ι → ℝ}
     (hf : Probability.HasBoundedDifferences (α := fun _ : ι => Bool) f c) {t : ℝ} (ht : 0 ≤ t) :
     (#{x : ι → Bool | (𝔼 y, f y) + t ≤ f x} : ℝ) ≤
       2 ^ Fintype.card ι * exp (-(2 * t ^ 2 / ∑ i, c i ^ 2)) := by
   have h := hf.pi_ge_mean_add (fun _ => Probability.PMF.uniformOfFintype Bool) ht
-  have hmean : ∑ y : ι → Bool,
-      ((Probability.PMF.pi fun _ : ι => Probability.PMF.uniformOfFintype Bool) y).toReal * f y =
-        𝔼 y, f y := by
-    rw [Probability.PMF.pi_uniformOfFintype, Fintype.expect_eq_sum_div_card, sum_div]
-    refine sum_congr rfl fun y _ => ?_
-    rw [Probability.PMF.uniformOfFintype_apply, ENNReal.toReal_inv, ENNReal.toReal_natCast]
-    ring
-  rw [hmean] at h
+  rw [Probability.PMF.sum_pi_uniformOfFintype_toReal_mul] at h
   simp only [neg_mul, neg_div] at h
-  rw [card_filter_eq_two_pow_mul_toOuterMeasure]
-  exact mul_le_mul_of_nonneg_left h (by positivity)
+  simpa only [Fintype.card_bool, Nat.cast_ofNat] using
+    Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le _ h
 
 /-- The centred weighted bit sum has bounded differences `|a i|`. -/
 private theorem hasBoundedDifferences_sum_mul_sub_half (a : ι → ℝ) :
@@ -143,8 +123,8 @@ theorem card_filter_le_sum_mul_sub_half_le (a : ι → ℝ) {t : ℝ} (ht : 0 �
     (fun _ => Probability.PMF.uniformOfFintype Bool) ht
   rw [sum_pi_uniform_mul_sum_mul_sub_half, zero_add] at h
   simp only [sq_abs, neg_mul, neg_div] at h
-  rw [card_filter_eq_two_pow_mul_toOuterMeasure]
-  exact mul_le_mul_of_nonneg_left h (by positivity)
+  simpa only [Fintype.card_bool, Nat.cast_ofNat] using
+    Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le _ h
 
 /-- **Hoeffding's inequality for weighted bit sums.** At most a `2 exp (-2 t² / ∑ i, a i ^ 2)`
 fraction of the bit strings `x` have a centred weighted sum `∑ i, a i * (x i - 1 / 2)` of
@@ -156,8 +136,9 @@ theorem card_filter_le_abs_sum_mul_sub_half_le (a : ι → ℝ) {t : ℝ} (ht : 
     (fun _ => Probability.PMF.uniformOfFintype Bool) ht
   rw [sum_pi_uniform_mul_sum_mul_sub_half] at h
   simp only [sub_zero, sq_abs, neg_mul, neg_div] at h
-  rw [card_filter_eq_two_pow_mul_toOuterMeasure]
-  nlinarith [exp_pos (-(2 * t ^ 2 / ∑ i, a i ^ 2)), (by positivity : (0 : ℝ) < 2 ^ Fintype.card ι)]
+  have hcard := Probability.PMF.card_filter_pi_le_of_toOuterMeasure_le _ h
+  simp only [Fintype.card_bool, Nat.cast_ofNat] at hcard
+  linarith
 
 /-- The signed indicator weights of `R`: `1` (if `c = true`) or `-1` (if `c = false`) on `R`, and
 `0` elsewhere. -/
