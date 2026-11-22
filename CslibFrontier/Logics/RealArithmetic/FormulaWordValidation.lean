@@ -39,6 +39,8 @@ The indexed gate operation adapts the local wire evaluation of
 `LeanCanny.ETR.FormulaBooleanCircuitCorrect` at the same revision. It reads comparison signs
 from a supplied term-word interpretation and connective operands from supplied wire values.
 Comparison requests retain the exact term word and the required sign.
+The Boolean part of gate evaluation has a polynomial-time certificate given the comparison
+answer and access to the operand values.
 -/
 
 public section
@@ -482,20 +484,74 @@ theorem formulaWordComparisonRequest_of_prefix {n : ℕ} {word : List Bool} (p :
   unfold formulaWordComparisonRequest
   cases p <;> rw [formulaWordTokenAt_append h] <;> rfl
 
+private abbrev notToken : FormulaToken := .inr (.inr (.inr (.inl ())))
+private abbrev andToken : FormulaToken := .inr (.inr (.inr (.inr (.inl ()))))
+private abbrev orToken : FormulaToken := .inr (.inr (.inr (.inr (.inr ()))))
+
+private def gateValueWithAnswer (token : FormulaToken) (children : List ℕ)
+    (answer : Bool) (value : ℕ → Bool) : Bool :=
+  let left := value (children.getD 0 0)
+  let right := value (children.getD 1 0)
+  if (comparisonRequest token).isSome then answer
+  else if token = notToken then children.length == 1 && !left
+  else if token = andToken then children.length == 2 && (left && right)
+  else if token = orToken then children.length == 2 && (left || right)
+  else false
+
+/-- Evaluate an indexed gate with a supplied comparison answer. Connectives read the
+supplied child values, and falsity and positions outside the token stream give `false`. -/
+def formulaWordGateValueWithAnswer (word : List Bool) (index : ℕ)
+    (answer : Bool) (value : ℕ → Bool) : Bool :=
+  gateValueWithAnswer (formulaWordTokenAt word index) (formulaWordChildIndices word index)
+    answer value
+
+/-- Evaluate the Boolean part of a gate in polynomial time from a raw word, binary position,
+comparison answer, and a certified reader of values at binary positions. -/
+theorem formulaWordGateValueWithAnswer_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index : α → ℕ} {answer : α → Bool} {value : α → ℕ → Bool}
+    (hword : ComputableInPolyTime word input encBits)
+    (hindex : ComputableInPolyTime index input encNat)
+    (hanswer : ComputableInPolyTime answer input encBool)
+    (hvalue : ComputableInPolyTime (fun p : α × ℕ => value p.1 p.2)
+      (encPair input encNat) encBool) :
+    ComputableInPolyTime (fun a => formulaWordGateValueWithAnswer (word a) (index a)
+      (answer a) (value a)) input encBool := by
+  have ht := formulaWordTokenAt_polyTime.comp (hword.prod hindex)
+  have hc := formulaWordChildIndices_polyTime.comp (hword.prod hindex)
+  have hl := hvalue.comp (id'.prod (listGetD_binary 0 hc (const 0)))
+  have hr := hvalue.comp (id'.prod (listGetD_binary 0 hc (const 1)))
+  have hlen := (length_list encNat).comp hc
+  have hone := unary_beq' hlen (const 1)
+  have htwo := unary_beq' hlen (const 2)
+  have hnot := bool_and' hone (bool_not.comp hl)
+  have hand := bool_and' htwo (bool_and' hl hr)
+  have hor := bool_and' htwo (bool_or' hl hr)
+  have hcomparison := optionIsSome (comparisonRequest_polyTime.comp ht)
+  have hnotTag := ht.decide_eq' (const notToken)
+  have handTag := ht.decide_eq' (const andToken)
+  have horTag := ht.decide_eq' (const orToken)
+  exact hcomparison.ite' hanswer
+    (ite_decide hnotTag hnot (ite_decide handTag hand (ite_decide horTag hor (const false))))
+
 /-- Evaluate one Boolean gate of the total formula view. Comparison gates ask for the sign
 of their encoded term. Connectives read the supplied values at their child indices.
 Falsity and positions outside the token stream return `false`. -/
 def formulaWordGateValue (word : List Bool) (index : ℕ)
     (termSign : List Bool → SignType) (value : ℕ → Bool) : Bool :=
   let token := formulaWordTokenAt word index
-  match comparisonRequest token with
-  | some request => decide (termSign request.termWord = request.requestedSign)
-  | none =>
-    match token, formulaWordChildIndices word index with
-    | .inr (.inr (.inr (.inl _))), [child] => !(value child)
-    | .inr (.inr (.inr (.inr (.inl _)))), [left, right] => value left && value right
-    | .inr (.inr (.inr (.inr (.inr _)))), [left, right] => value left || value right
-    | _, _ => false
+  let answer := (comparisonRequest token).any fun request =>
+    decide (termSign request.termWord = request.requestedSign)
+  gateValueWithAnswer token (formulaWordChildIndices word index) answer value
+
+/-- Computing the comparison answer from the indexed request recovers the gate's value
+under the supplied term signs. -/
+theorem formulaWordGateValueWithAnswer_eq (word : List Bool) (index : ℕ)
+    (termSign : List Bool → SignType) (value : ℕ → Bool) :
+    formulaWordGateValueWithAnswer word index
+      ((formulaWordComparisonRequest word index).any fun request =>
+        decide (termSign request.termWord = request.requestedSign)) value =
+      formulaWordGateValue word index termSign value := by
+  rw [formulaWordGateValueWithAnswer, formulaWordGateValue, formulaWordComparisonRequest]
 
 /-- A gate at the start of an encoded subformula reads the exact term payload for a
 comparison, or combines the values at the starts of its immediate operands. -/
