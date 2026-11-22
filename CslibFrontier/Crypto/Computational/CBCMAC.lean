@@ -54,9 +54,12 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
    distinguisher (`PseudorandomFunction.prefixFreePRF_cbcMac`), via the certified reduction
    `cbcMacToPrfDistinguisher` and concrete game-hop bound `advantage_cbcMac_le`. Specializing to
    fixed `ℓ n`-block messages (`0 < ℓ n`) gives standard `PseudorandomFunctionOver` security
-   (`PseudorandomFunction.prfOver_cbcMac`) and `MACScheme` `SUFCMA`/`EUFCMA` security
-   (`PseudorandomFunction.sufCma_cbcFixedBlockMAC`,
-   `PseudorandomFunction.eufCma_cbcFixedBlockMAC`).
+   (`PseudorandomFunction.prfOver_cbcMac`) and `MACScheme` `SUFCMA` security
+   (`PseudorandomFunction.sufCma_cbcFixedBlockMAC`, with `EUFCMA` via `MACScheme.SUFCMA.eufCma`).
+   Conversely, without prefix-freeness or length-prepending, the 1-query length-extension forger
+   `cbcExtensionForger` ([BonehShoup2023], Section 6.4.3, pp. 230–231) breaks variable-length
+   `MACSUFCMAOn` and `PseudorandomFunctionOn` for every length-preserving family
+   (`not_macSufCmaOn_cbcMacFamily`, `not_prfOn_cbcMacFamily`).
 2. **Length-prepended CBC-MAC is a variable-length PRF and adaptive MAC** ([BonehShoup2023],
    Section 6.4.1 Theorem 6.3, pp. 226–229, Section 6.6.1 Method 1 via Section 6.6 Theorem 6.8,
    pp. 235–236, and Section 6.3 Theorem 6.2, p. 224):
@@ -65,13 +68,12 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
    `L n < 2 ^ n`, which holds eventually for every unary polynomial-time schedule `L`. Under
    `PseudorandomFunction family` and `ComputableInPolyTime L encUnary encUnary` alone,
    `lengthPrependedCbcMacFamily family` is a full variable-length computational PRF on
-   `lpBlockValid L` (`PseudorandomFunction.prfOn_lengthPrependedCbcMac`) and satisfies both strong
-   and ordinary adaptive chosen-message unforgeability on `lpBlockValid L`
-   (`PseudorandomFunction.macSufCmaOn_lengthPrependedCbcMac`,
-   `PseudorandomFunction.macEufCmaOn_lengthPrependedCbcMac`), as well as `MACScheme.SUFCMA` and
-   `MACScheme.EUFCMA` at any unary polynomial-time block-count schedule `k` including `k n = 0`
-   (`PseudorandomFunction.sufCma_lengthPrependedBlockMAC`,
-   `PseudorandomFunction.eufCma_lengthPrependedBlockMAC`).
+   `lpBlockValid L` (`PseudorandomFunction.prfOn_lengthPrependedCbcMac`) and satisfies adaptive
+   chosen-message unforgeability on `lpBlockValid L`
+   (`PseudorandomFunction.macSufCmaOn_lengthPrependedCbcMac`, equivalent to `MACEUFCMAOn` via
+   `macSufCmaOn_iff_macEufCmaOn`), as well as `MACScheme.SUFCMA` at any unary polynomial-time
+   block-count schedule `k` including `k n = 0`
+   (`PseudorandomFunction.sufCma_lengthPrependedBlockMAC`).
 
 ## Deviations from [BonehShoup2023] Theorems 6.2, 6.3, and 6.8
 
@@ -97,9 +99,9 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   Definition 4.5 (printed p. 152) and Section 6.4 (p. 226) require all queries of a prefix-free PRF
   adversary to lie in `X_{>0}^{≤ ℓ}` with no query a proper prefix of another (repeated identical
   queries permitted). Because invalid word queries are answered with `[]` in both worlds without
-  reaching CBC-MAC, `IsPrefixFreeOn` imposes no-proper-prefix only among valid queries along runs
-  against deterministic oracles rejecting invalid words with `[]`. On adversaries whose queries all
-  lie in `cbcBlockValid ℓ n`, the two conditions coincide.
+  reaching CBC-MAC, `IsPrefixFreeOn valid outLen` imposes no-proper-prefix among valid queries along
+  runs against deterministic oracles that map valid queries to `outLen`-bit words and invalid words
+  to `[]`. On adversaries whose queries all lie in `cbcBlockValid ℓ n`, the two conditions coincide.
 * **Little-endian block-count block.** `prependLengthWord` writes `v = msg.length / n` as
   `BitString.lowBits n v`, matching `List.ofFn (blockCountBlock h v)` where
   [BonehShoup2023], Section 6.6.1, Method 1 (p. 235) writes an `n`-bit binary representation of `v`.
@@ -119,9 +121,9 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   `lengthPrependedToPrfDistinguisher`: certified word-oracle PRF reductions.
 * `macSigningPairOracleOn`, `macSigningOracleOn`, `macSufCmaGameOn`, `macEufCmaGameOn`,
   `MACSUFCMAOn`, `MACEUFCMAOn`, `macLogHandlerOn`, `macToPrfOnDistinguisher`,
-  `lengthPrependedMacToPrfDistinguisher`, `cbcFixedBlockMAC`,
+  `lengthPrependedMacToPrfDistinguisher`, `cbcExtensionForger`, `cbcFixedBlockMAC`,
   `cbcFixedBlockMacToPrfDistinguisher`, `lengthPrependedBlockMAC`: domain-restricted and
-  `MACScheme` adaptive chosen-message security games and certified reductions.
+  `MACScheme` adaptive chosen-message security games, certified reductions, and extension forger.
 
 ## Main results
 
@@ -137,21 +139,20 @@ length-preserving keyed block-function family (`PseudorandomFunction`), completi
   `PseudorandomFunction.prfOver_lengthPrependedCbcMac`: certified reduction, concrete advantage
   bound, and variable-length / fixed-block PRF security for length-prepended CBC-MAC
   ([BonehShoup2023], Theorems 6.3 and 6.8, pp. 226–229 and 235–236).
-* `eval_macSufCmaGameOn_eq_macEufCmaGameOn`, `isOraclePPT_macToPrfOnDistinguisher`,
-  `succProbability_macSufCmaGameOn_le`, `isOraclePPT_lengthPrependedMacToPrfDistinguisher`,
+* `eval_macSufCmaGameOn_eq_macEufCmaGameOn`, `macSufCmaOn_iff_macEufCmaOn`,
+  `isOraclePPT_macToPrfOnDistinguisher`, `succProbability_macSufCmaGameOn_le`,
+  `PseudorandomFunctionOn.macSufCmaOn`, `isOraclePPT_lengthPrependedMacToPrfDistinguisher`,
   `succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le`,
-  `succProbability_macEufCmaGameOn_lengthPrependedCbcMac_le`,
-  `PseudorandomFunction.macSufCmaOn_lengthPrependedCbcMac`,
-  `PseudorandomFunction.macEufCmaOn_lengthPrependedCbcMac`: certified forger-to-PRF reductions,
-  concrete forgery bounds, and adaptive `SUFCMA`/`EUFCMA` security on variable-length whole-block
+  `PseudorandomFunction.macSufCmaOn_lengthPrependedCbcMac`: certified forger-to-PRF reductions,
+  concrete forgery bounds, and adaptive `MACSUFCMAOn` security on variable-length whole-block
   messages ([BonehShoup2023], Theorems 6.2, 6.3, and 6.8).
+* `isOraclePPT_cbcExtensionForger`, `eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger`,
+  `not_macSufCmaOn_cbcMacFamily`, `not_prfOn_cbcMacFamily`: 1-query length-extension forgery and
+  PRF insecurity of unmodified zero-IV CBC-MAC ([BonehShoup2023], Section 6.4.3, pp. 230–231).
 * `isOraclePPT_cbcFixedBlockMacToPrfDistinguisher`,
   `succProbability_sufCmaGame_cbcFixedBlockMAC_le`,
   `PseudorandomFunction.sufCma_cbcFixedBlockMAC`,
-  `PseudorandomFunction.eufCma_cbcFixedBlockMAC`,
-  `PseudorandomFunction.sufCma_lengthPrependedBlockMAC`,
-  `PseudorandomFunction.eufCma_lengthPrependedBlockMAC`: `MACScheme` `SUFCMA` and `EUFCMA`
-  corollaries.
+  `PseudorandomFunction.sufCma_lengthPrependedBlockMAC`: `MACScheme` `SUFCMA` corollaries.
 
 ## References
 
@@ -372,14 +373,6 @@ theorem ofFn_blockCountBlock {n L : ℕ} (h : L < 2 ^ n) (k : Fin (L + 1)) :
     exact Fin.ext (val_equivFin_testBit hk).symm
   rw [hsymm, BitString.lowBits_eq_ofFn]
 
-private theorem listRows_eq_map_ofFn_padBlocks (n L : ℕ) (x : List Bool) :
-    BitString.listRows (L / n) n x = (BitString.padBlocks n L x).map List.ofFn := by
-  refine List.ext_getElem (by simp) fun i h₁ h₂ => ?_
-  refine List.ext_getElem (by simp [BitString.listRows]) fun j hj₁ hj₂ => ?_
-  simp only [BitString.listRows, List.getElem_map, List.getElem_range]
-  rw [BitString.getElem_listRow (by simpa using hj₂), List.getElem_ofFn,
-    BitString.padBlocks_getElem_apply n L x i (by simpa using h₁) ⟨j, by simpa using hj₂⟩]
-
 private theorem foldl_cbcStep_map_ofFn {n : ℕ} {f : List Bool → List Bool}
     {g : BitString n → BitString n}
     (hfg : ∀ x : BitString n, (f (List.ofFn x)).take n = List.ofFn (g x))
@@ -403,7 +396,7 @@ private theorem cbcMacWord_eq_ofFn_cbcMacBlocks {n : ℕ} {f : List Bool → Lis
   have hzero : List.replicate n false = List.ofFn (0 : BitString n) := by
     refine List.ext_getElem (by simp) fun i _ _ => ?_
     simp [OfNat.ofNat, Zero.zero]
-  rw [cbcMacWord, listRows_eq_map_ofFn_padBlocks, hzero]
+  rw [cbcMacWord, BitString.listRows_eq_map_ofFn_padBlocks, hzero]
   exact foldl_cbcStep_map_ofFn hfg 0 _
 
 /-! ### Section 2: Domain-Restricted PRF Games and Prefix-Free Adversaries -/
@@ -586,27 +579,30 @@ noncomputable def wordQueryRunDist {α : Type} (oracle : List Bool → List Bool
     (wordQueryRunDist oracle (cont (oracle request.2))).map fun (a, log) =>
       (a, request.2 :: log)
 
-/-- `IsPrefixFreeOn valid program` holds when, against every deterministic word oracle that answers
-invalid words with `[]`, every supported query log of `program` satisfies `WordPrefixFree valid`
-([BonehShoup2023], Definition 4.5, printed p. 152). -/
+/-- `IsPrefixFreeOn valid outLen program` holds when, against every deterministic word oracle that
+maps valid words to `outLen`-bit replies and invalid words to `[]`, every supported query log of
+`program` satisfies `WordPrefixFree valid` ([BonehShoup2023], Definition 4.5, printed p. 152). -/
 @[expose]
-def IsPrefixFreeOn {α : Type} (valid : List Bool → Bool)
+def IsPrefixFreeOn {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
     (program : WordOracleComp Unit α) : Prop :=
-  ∀ oracle : List Bool → List Bool, (∀ w, valid w = false → oracle w = []) →
+  ∀ oracle : List Bool → List Bool,
+    (∀ w, valid w = false → oracle w = []) →
+    (∀ w, valid w = true → (oracle w).length = outLen) →
     ∀ result ∈ (wordQueryRunDist oracle program).support,
       WordPrefixFree valid result.2
 
-/-- Uniform strict oracle-PPT distinguishers whose queries are prefix-free on `valid n` at every
-security parameter `n` ([BonehShoup2023], Definition 4.5, printed p. 152). -/
+/-- Uniform strict oracle-PPT distinguishers whose queries are prefix-free on `valid n` with
+`outLen n`-bit valid replies at every security parameter `n` ([BonehShoup2023], Definition 4.5,
+printed p. 152). -/
 @[expose]
-def IsPrefixFreeOraclePPT (valid : ℕ → List Bool → Bool) (adversary : OracleDistinguisher) :
-    Prop :=
-  IsOraclePPT encBool adversary ∧ ∀ n, IsPrefixFreeOn (valid n) (adversary n [])
+def IsPrefixFreeOraclePPT (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
+    (adversary : OracleDistinguisher) : Prop :=
+  IsOraclePPT encBool adversary ∧ ∀ n, IsPrefixFreeOn (valid n) (outLen n) (adversary n [])
 
 /-- Prefix-free uniform computational pseudorandom function over `valid` ([BonehShoup2023],
 Section 4.6.1, Definition 4.5, printed p. 152, and Section 6.4, printed p. 226): deterministic
 polynomial-time evaluation, output length `outLen`, and indistinguishability against
-`IsPrefixFreeOraclePPT valid`. -/
+`IsPrefixFreeOraclePPT valid outLen`. -/
 structure PrefixFreePseudorandomFunctionOn (valid : ℕ → List Bool → Bool) (outLen : ℕ → ℕ)
     (family : List Bool → List Bool → List Bool) : Prop where
   /-- Deterministic polynomial-time evaluation from `(key, query)`. -/
@@ -619,14 +615,14 @@ structure PrefixFreePseudorandomFunctionOn (valid : ℕ → List Bool → Bool) 
   secure : Game.Indistinguishable
     (fun adversary n => ProbComp.eval (prfRealGameOn valid family adversary n))
     (fun adversary n => ProbComp.eval (prfIdealGameOn valid outLen adversary n))
-    (IsPrefixFreeOraclePPT valid)
+    (IsPrefixFreeOraclePPT valid outLen)
 
 /-- Every program is prefix-free on a fixed-length domain, since equal-length prefixes are equal. -/
-theorem isPrefixFreeOn_of_fixedLength {α : Type} {valid : List Bool → Bool}
+theorem isPrefixFreeOn_of_fixedLength {α : Type} {valid : List Bool → Bool} {outLen : ℕ}
     (heqLen : ∀ x y, valid x = true → valid y = true → x.length = y.length)
     (program : WordOracleComp Unit α) :
-    IsPrefixFreeOn valid program := by
-  intro _ _ _ _ x _ hx y _ hy hxy hpre
+    IsPrefixFreeOn valid outLen program := by
+  intro _ _ _ _ _ x _ hx y _ hy hxy hpre
   exact hxy (hpre.eq_of_length (heqLen x y hx hy))
 
 private theorem length_snd_le_of_mem_support_wordQueryRunDist {α : Type}
@@ -655,10 +651,10 @@ private theorem length_snd_le_of_mem_support_wordQueryRunDist {α : Type}
       omega
 
 /-- Every program making at most one query is prefix-free on every domain. -/
-theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → Bool)
+theorem isPrefixFreeOn_of_isQueryBounded_one {α : Type} (valid : List Bool → Bool) (outLen : ℕ)
     {program : WordOracleComp Unit α} (hq : program.IsQueryBounded 1) :
-    IsPrefixFreeOn valid program := by
-  intro oracle _ result hmem x hx _ y hy _ hxy
+    IsPrefixFreeOn valid outLen program := by
+  intro oracle _ _ result hmem x hx _ y hy _ hxy
   have hlen := length_snd_le_of_mem_support_wordQueryRunDist oracle hq hmem
   rcases result with ⟨_, _ | ⟨w, _ | ⟨w', _⟩⟩⟩
   · cases hx
@@ -689,7 +685,8 @@ private theorem padBlocks_encodeBlockList {n : ℕ} (hn : 0 < n) (bs : List (Bit
     exact List.length_ofFn
   have hdiv : (encodeBlockList bs).length / n = bs.length := by
     rw [length_encodeBlockList, Nat.mul_div_cancel _ hn]
-  have hlhs := listRows_eq_map_ofFn_padBlocks n (encodeBlockList bs).length (encodeBlockList bs)
+  have hlhs :=
+    BitString.listRows_eq_map_ofFn_padBlocks n (encodeBlockList bs).length (encodeBlockList bs)
   rw [hdiv] at hlhs
   have hflat : encodeBlockList bs = (bs.map List.ofFn).flatten := List.flatMap_def
   have hlhs' : BitString.listRows bs.length n (bs.map List.ofFn).flatten =
@@ -1092,7 +1089,7 @@ private theorem cbcQueryRun_length_le_of_isQueryBounded {n ℓ q : ℕ}
 
 private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn : 0 < n)
     {program : WordOracleComp Unit Bool} (hQ : program.IsQueryBounded Q)
-    (hpf : IsPrefixFreeOn (cbcBlockValid ℓ n) program)
+    (hpf : IsPrefixFreeOn (cbcBlockValid ℓ n) n program)
     {ω : ProbOracleComp.Coins ((cbcInputCodec n (ℓ n) hn).adapt program)}
     (hω : ω ∈ (ProbOracleComp.coinLaw ((cbcInputCodec n (ℓ n) hn).adapt program)).support) :
     CBCAdmissible Q (ProbOracleComp.fixCoins ((cbcInputCodec n (ℓ n) hn).adapt program) ω) := by
@@ -1111,7 +1108,14 @@ private theorem cbcAdmissible_fixCoins_adapt {ℓ : ℕ → ℕ} {n Q : ℕ} (hn
     cases hdec : (cbcInputCodec n (ℓ n) hn).decodeQuery ((), w)
     · rfl
     · simp [hdec] at hw
-  have hwordPf := hpf (cbcOracleWord hn o) horacleInvalid res hres
+  have horacleLen (w : List Bool) (hw : cbcBlockValid ℓ n w = true) :
+      (cbcOracleWord hn o w).length = n := by
+    unfold cbcOracleWord
+    rw [cbcBlockValid_eq_isSome_cbcInputCodec hn] at hw
+    cases hdec : (cbcInputCodec n (ℓ n) hn).decodeQuery ((), w) with
+    | none => simp [hdec] at hw
+    | some q => exact List.length_ofFn
+  have hwordPf := hpf (cbcOracleWord hn o) horacleInvalid horacleLen res hres
   intro x hx y hy hxy hpre
   have hxValid : cbcBlockValid ℓ n ((cbcInputCodec n (ℓ n) hn).encodeQuery x).2 = true := by
     rw [cbcBlockValid_eq_isSome_cbcInputCodec hn,
@@ -1507,7 +1511,7 @@ theorem advantage_cbcMac_le {family : List Bool → List Bool → List Bool}
       (family key query).length = key.length)
     (ℓ : ℕ → ℕ) (adversary : OracleDistinguisher) {n Q : ℕ}
     (hQ : (adversary n []).IsQueryBounded Q)
-    (hpf : IsPrefixFreeOn (cbcBlockValid ℓ n) (adversary n [])) :
+    (hpf : IsPrefixFreeOn (cbcBlockValid ℓ n) n (adversary n [])) :
     Game.advantage
         (ProbComp.eval (prfRealGameOn (cbcBlockValid ℓ) (cbcMacFamily family) adversary n))
         (ProbComp.eval (prfIdealGameOn (cbcBlockValid ℓ) id adversary n)) ≤
@@ -1918,11 +1922,11 @@ theorem PseudorandomFunction.prfOver_cbcMac {family : List Bool → List Bool �
   secure adversary hadversary := by
     have hinLen : ComputableInPolyTime (fun n => ℓ n * n) encUnary encUnary := by
       polytime
-    have hadvPf : IsPrefixFreeOraclePPT (cbcBlockValid ℓ)
+    have hadvPf : IsPrefixFreeOraclePPT (cbcBlockValid ℓ) id
         (restrictLengthDistinguisher (fun n => ℓ n * n) adversary) := by
       refine ⟨isOraclePPT_restrictLengthDistinguisher hinLen hadversary, fun n => ?_⟩
       rw [restrictLengthDistinguisher_eq_simulate]
-      intro oracle _ res hres x hx _ y hy _ hxy hpre
+      intro oracle _ _ res hres x hx _ y hy _ hxy hpre
       have hxLen := mem_wordQueryRunDist_restrictLengthQuery oracle (adversary n []) hres x hx
       have hyLen := mem_wordQueryRunDist_restrictLengthQuery oracle (adversary n []) hres y hy
       exact hxy (hpre.eq_of_length (hxLen.trans hyLen.symm))
@@ -2042,7 +2046,8 @@ def MACSUFCMAOn (valid : ℕ → List Bool → Bool)
     (IsOraclePPT (encPair encBits encBits))
 
 /-- Ordinary (fresh-message) existential unforgeability under adaptive chosen-message attack on
-message domain `valid`. -/
+message domain `valid` ([BonehShoup2023], Attack Game 6.1 and Definition 6.2, printed pp. 218–219,
+fresh-message form). -/
 @[expose]
 def MACEUFCMAOn (valid : ℕ → List Bool → Bool)
     (tagFamily : List Bool → List Bool → List Bool) : Prop :=
@@ -2084,6 +2089,16 @@ theorem eval_macSufCmaGameOn_eq_macEufCmaGameOn (valid : ℕ → List Bool → B
       simp [rep]
     rw [hmem]
   · simp [Bool.eq_false_iff.mpr htag]
+
+/-- Because `tagFamily` is deterministic with a unique valid tag per `(sk, msg)`, strong and
+ordinary adaptive chosen-message unforgeability on `valid` coincide. -/
+theorem macSufCmaOn_iff_macEufCmaOn (valid : ℕ → List Bool → Bool)
+    (tagFamily : List Bool → List Bool → List Bool) :
+    MACSUFCMAOn valid tagFamily ↔ MACEUFCMAOn valid tagFamily := by
+  constructor <;> intro hsec adversary hadversary <;>
+    refine (hsec adversary hadversary).congr fun n => ?_ <;> dsimp only
+  · rw [eval_macSufCmaGameOn_eq_macEufCmaGameOn]
+  · rw [← eval_macSufCmaGameOn_eq_macEufCmaGameOn]
 
 /-- Open stateful handler forwarding `valid n`-admissible MAC signing requests to the external
 oracle (truncating replies to `n` bits) and logging queried messages; invalid requests receive `[]`
@@ -2507,21 +2522,21 @@ theorem succProbability_macSufCmaGameOn_le {valid : ℕ → List Bool → Bool}
   exact htri.trans (add_le_add le_rfl
     (succProbability_prfIdealGameOn_macToPrfOnDistinguisher_le valid adversary n))
 
-/-- Helper step after [BonehShoup2023], Section 6.3, proof of Theorem 6.2 (printed p. 224), not the
-standalone Theorem 6.2 endpoint: fresh-message form of `succProbability_macSufCmaGameOn_le`. -/
-theorem succProbability_macEufCmaGameOn_le {valid : ℕ → List Bool → Bool}
+/-- Helper step after [BonehShoup2023], Section 6.3, Theorem 6.2 (printed p. 224), not the
+standalone Theorem 6.2 endpoint (see `Cslib.Crypto.PseudorandomFunction.sufCma_prfMAC`): any
+`PseudorandomFunctionOn valid id` with polynomial-time domain predicate `valid` satisfies
+`MACSUFCMAOn valid`. -/
+theorem PseudorandomFunctionOn.macSufCmaOn {valid : ℕ → List Bool → Bool}
+    (hvalid : ComputableInPolyTime (fun p : ℕ × List Bool => valid p.1 p.2)
+      (encPair encUnary encBits) encBool)
     {tagFamily : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query : List Bool, valid key.length query = true →
-      (tagFamily key query).length = key.length)
-    (adversary : Forger) (n : ℕ) :
-    Game.succProbability (ProbComp.eval (macEufCmaGameOn valid tagFamily adversary n)) ≤
-      Game.advantage
-        (ProbComp.eval
-          (prfRealGameOn valid tagFamily (macToPrfOnDistinguisher valid adversary) n))
-        (ProbComp.eval (prfIdealGameOn valid id (macToPrfOnDistinguisher valid adversary) n)) +
-      (1 : ℝ≥0) / 2 ^ n := by
-  rw [← eval_macSufCmaGameOn_eq_macEufCmaGameOn]
-  exact succProbability_macSufCmaGameOn_le hlen adversary n
+    (hprf : PseudorandomFunctionOn valid id tagFamily) :
+    MACSUFCMAOn valid tagFamily := by
+  apply Game.Indistinguishable.of_negligible_succProbability
+  intro adversary hadversary
+  have hadv := hprf.secure (macToPrfOnDistinguisher valid adversary)
+    (isOraclePPT_macToPrfOnDistinguisher hvalid hadversary)
+  negligible using fun n => succProbability_macSufCmaGameOn_le hprf.length_eq adversary n
 
 /-- Certified reduction from an adaptive variable-length MAC forger against length-prepended
 CBC-MAC (`lpBlockValid L`) to a length-preserving PRF distinguisher ([BonehShoup2023], Theorems
@@ -2570,26 +2585,6 @@ theorem succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le
   rw [Nat.cast_add, Nat.cast_one] at hprf
   exact hmac.trans (add_le_add hprf le_rfl)
 
-/-- Fresh-message `EUFCMA` form of `succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le`. -/
-theorem succProbability_macEufCmaGameOn_lengthPrependedCbcMac_le
-    {family : List Bool → List Bool → List Bool}
-    (hlen : ∀ key query : List Bool, query.length = key.length →
-      (family key query).length = key.length)
-    (L : ℕ → ℕ) (adversary : Forger) {n Q : ℕ}
-    (hL : L n < 2 ^ n) (hQ : (adversary n []).IsQueryBounded Q) :
-    Game.succProbability
-        (ProbComp.eval
-          (macEufCmaGameOn (lpBlockValid L) (lengthPrependedCbcMacFamily family) adversary n)) ≤
-      Game.advantage
-        (ProbComp.eval
-          (prfRealGame id family (lengthPrependedMacToPrfDistinguisher L adversary) n))
-        (ProbComp.eval
-          (prfIdealGame id id (lengthPrependedMacToPrfDistinguisher L adversary) n)) +
-      ((Q : ℝ≥0) + 1) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / 2 ^ n +
-      (1 : ℝ≥0) / 2 ^ n := by
-  rw [← eval_macSufCmaGameOn_eq_macEufCmaGameOn]
-  exact succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le hlen L adversary hL hQ
-
 /-- **Variable-length length-prepended CBC-MAC is strongly unforgeable (`MACSUFCMAOn`)**
 ([BonehShoup2023], Section 6.3 Theorem 6.2, Section 6.4.1 Theorem 6.3, and Section 6.6.1 Method 1
 via Section 6.6 Theorem 6.8, printed pp. 224, 226–229, and 235–236): for any
@@ -2599,42 +2594,152 @@ messages of `0` to `L n` blocks (empty message included). -/
 theorem PseudorandomFunction.macSufCmaOn_lengthPrependedCbcMac
     {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
     {L : ℕ → ℕ} (hL : ComputableInPolyTime L encUnary encUnary) :
-    MACSUFCMAOn (lpBlockValid L) (lengthPrependedCbcMacFamily family) := by
-  apply Game.Indistinguishable.of_negligible_succProbability
-  intro adversary hadversary
-  obtain ⟨c, d, hbounds⟩ := hadversary.query_bounds
-  let Q : ℕ → ℕ := fun n => c * (n + 2) ^ d
-  have hQ (n : ℕ) : (adversary n []).IsQueryBounded (Q n) := by
-    simpa only [Q, List.length_nil, Nat.add_zero] using (hbounds n []).1
-  have hprf := hF.secure (lengthPrependedMacToPrfDistinguisher L adversary)
-    (isOraclePPT_lengthPrependedMacToPrfDistinguisher hL hadversary)
-  have hev : ∀ᶠ n in Filter.atTop,
-      Game.succProbability
-        (ProbComp.eval
-          (macSufCmaGameOn (lpBlockValid L) (lengthPrependedCbcMacFamily family) adversary n)) ≤
-      Game.advantage
-        (ProbComp.eval
-          (prfRealGame id family (lengthPrependedMacToPrfDistinguisher L adversary) n))
-        (ProbComp.eval
-          (prfIdealGame id id (lengthPrependedMacToPrfDistinguisher L adversary) n)) +
-      ((Q n : ℝ≥0) + 1) ^ 2 * ((L n : ℝ≥0) + 1) ^ 2 / 2 ^ n +
-      (1 : ℝ≥0) / 2 ^ n := by
-    filter_upwards [hL.polynomiallyBounded.eventually_lt_two_pow] with n hLn
-    exact succProbability_macSufCmaGameOn_lengthPrependedCbcMac_le hF.length_eq L adversary hLn
-      (hQ n)
-  negligible eventually hev
+    MACSUFCMAOn (lpBlockValid L) (lengthPrependedCbcMacFamily family) :=
+  (hF.prfOn_lengthPrependedCbcMac hL).macSufCmaOn (computableInPolyTime_lpBlockValid hL)
 
-/-- **Variable-length length-prepended CBC-MAC satisfies `MACEUFCMAOn`** ([BonehShoup2023],
-Section 6.3 Theorem 6.2, Section 6.4.1 Theorem 6.3, and Section 6.6.1 Method 1 via Section 6.6
-Theorem 6.8, printed pp. 224, 226–229, and 235–236). -/
-theorem PseudorandomFunction.macEufCmaOn_lengthPrependedCbcMac
-    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
-    {L : ℕ → ℕ} (hL : ComputableInPolyTime L encUnary encUnary) :
-    MACEUFCMAOn (lpBlockValid L) (lengthPrependedCbcMacFamily family) := by
-  intro adversary hadversary
-  refine (hF.macSufCmaOn_lengthPrependedCbcMac hL adversary hadversary).congr fun n => ?_
-  dsimp only
+/-! ### Length-Extension Attack on Unmodified Zero-IV CBC-MAC -/
+
+/-- Classic 1-query length-extension forger against unmodified zero-IV CBC-MAC ([BonehShoup2023],
+Section 6.4.3, printed pp. 230–231): sign the 1-block zero message `0^n`, receive `t = F_k(0^n)`,
+and output the fresh 2-block forgery `(0^n ++ t, t)`. -/
+@[expose]
+def cbcExtensionForger : Forger := fun n _ =>
+  (fun tag => (List.replicate n false ++ tag, tag)) <$>
+    (List.take n <$> ProbOracleComp.query ((), List.replicate n false))
+
+/-- `cbcExtensionForger` is uniform strict oracle PPT. -/
+theorem isOraclePPT_cbcExtensionForger :
+    IsOraclePPT (encPair encBits encBits) cbcExtensionForger := by
+  have hq : IsOraclePPTOn (encPair encUnary encBits) encBits
+      (fun p : ℕ × List Bool =>
+        List.take p.1 <$> ProbOracleComp.query ((), List.replicate p.1 false)) :=
+    IsOraclePPTOn.query_take () (by polytime) (by fun_prop)
+  unfold cbcExtensionForger
+  exact (hq.map_with (by polytime)).isOraclePPT
+
+private theorem zipWith_xor_self : ∀ l : List Bool,
+    List.zipWith xor l l = List.replicate l.length false
+  | [] => rfl
+  | b :: bs => by
+    simp only [List.zipWith_cons_cons, bne_self_eq_false, List.length_cons, List.replicate_succ,
+      List.cons.injEq, true_and]
+    exact zipWith_xor_self bs
+
+private theorem cbcMacFamily_zero_append_tag {family : List Bool → List Bool → List Bool}
+    (hlen : ∀ key query : List Bool, query.length = key.length →
+      (family key query).length = key.length)
+    {n : ℕ} (hn : 0 < n) {sk : List Bool} (hsk : sk.length = n) :
+    let tag := cbcMacFamily family sk (List.replicate n false)
+    cbcMacFamily family sk (List.replicate n false ++ tag) = tag := by
+  intro tag
+  have htagLen : tag.length = n := by
+    dsimp only [tag]
+    rw [length_cbcMacFamily hlen, hsk]
+  have hrows1 : BitString.listRows (n / n) n (List.replicate n false) =
+      [List.replicate n false] := by
+    rw [Nat.div_self hn]
+    have hflat : BitString.listRows 1 n [List.replicate n false].flatten =
+        [List.replicate n false] :=
+      BitString.listRows_flatten [List.replicate n false] (by simp)
+    simpa using hflat
+  have hfamLen : (family sk (List.replicate n false)).length = n :=
+    hsk ▸ hlen sk _ (by simp [hsk])
+  have htag1 : tag = family sk (List.replicate n false) := by
+    simp only [tag, cbcMacFamily, hsk, cbcMacWord, List.length_replicate, hrows1,
+      List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.take_of_length_le hfamLen.le]
+  have hrows2 : BitString.listRows ((List.replicate n false ++ tag).length / n) n
+      (List.replicate n false ++ tag) = [List.replicate n false, tag] := by
+    have hdiv2 : (List.replicate n false ++ tag).length / n = 2 := by
+      rw [List.length_append, List.length_replicate, htagLen, ← Nat.two_mul,
+        Nat.mul_div_cancel _ hn]
+    rw [hdiv2]
+    have hflat : BitString.listRows 2 n [List.replicate n false, tag].flatten =
+        [List.replicate n false, tag] :=
+      BitString.listRows_flatten [List.replicate n false, tag] (by simp [htagLen])
+    simpa using hflat
+  rw [cbcMacFamily, hsk, cbcMacWord, hrows2]
+  simp only [List.foldl_cons, List.foldl_nil, zipWith_xor_self, List.length_replicate,
+    ← htag1, List.take_of_length_le htagLen.le, htagLen]
+
+/-- Helper step of [BonehShoup2023], Section 6.4.3 (printed pp. 230–231): at every `n ≥ 1`,
+`cbcExtensionForger` wins `macSufCmaGameOn (lpBlockValid (fun _ => 2)) (cbcMacFamily family)` with
+probability `1`. -/
+theorem eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger
+    {family : List Bool → List Bool → List Bool}
+    (hlen : ∀ key query : List Bool, query.length = key.length →
+      (family key query).length = key.length)
+    {n : ℕ} (hn : 0 < n) :
+    ProbComp.eval
+      (macSufCmaGameOn (lpBlockValid (fun _ => 2)) (cbcMacFamily family) cbcExtensionForger n) =
+    PMF.pure true := by
   rw [eval_macSufCmaGameOn_eq_macEufCmaGameOn]
+  have hval1 : lpBlockValid (fun _ => 2) n (List.replicate n false) = true := by
+    simp only [lpBlockValid, List.length_replicate, Nat.mod_self, beq_self_eq_true, Bool.true_and,
+      decide_eq_true_eq]
+    omega
+  simp only [macEufCmaGameOn, cbcExtensionForger, Functor.map_map, OracleComp.interpret_map,
+    StateT.run_map, ProbOracleComp.interpret_query, ProbComp.eval_bind, ProbComp.eval_map,
+    ProbComp.eval_pure, BitString.eval_sampleList, PMF.bind_map, Function.comp_def]
+  dsimp only [StateT.run, macSigningOracleOn]
+  simp only [hval1, ↓reduceIte, ProbComp.eval_pure, PMF.pure_bind]
+  trans PMF.bind (BitString.uniformList n) (fun _ => PMF.pure true)
+  · refine PMF.bind_congr_on_support _ _ _ fun sk hsk => ?_
+    have hskLen : sk.length = n := BitString.length_of_mem_support_uniformList hsk
+    have htagLen : (cbcMacFamily family sk (List.replicate n false)).length = n := by
+      rw [length_cbcMacFamily hlen, hskLen]
+    have htake : (cbcMacFamily family sk (List.replicate n false)).take n =
+        cbcMacFamily family sk (List.replicate n false) :=
+      List.take_of_length_le htagLen.le
+    rw [htake]
+    have hval2 : lpBlockValid (fun _ => 2) n
+        (List.replicate n false ++ cbcMacFamily family sk (List.replicate n false)) = true := by
+      have hlen2 : (List.replicate n false ++
+          cbcMacFamily family sk (List.replicate n false)).length = 2 * n := by
+        rw [List.length_append, List.length_replicate, htagLen, Nat.two_mul]
+      simp [lpBlockValid, hlen2, Nat.mul_mod_left]
+    have hne : List.replicate n false ++ cbcMacFamily family sk (List.replicate n false) ≠
+        List.replicate n false := by
+      intro hEq
+      have hlenEq := congrArg List.length hEq
+      rw [List.length_append, List.length_replicate, htagLen] at hlenEq
+      omega
+    have hforge := cbcMacFamily_zero_append_tag hlen hn hskLen
+    simp [hval2, hne, hforge]
+  · exact PMF.bind_const _ _
+
+/-- **Unmodified zero-IV CBC-MAC is an insecure variable-length MAC** ([BonehShoup2023], Section
+6.4.3, printed pp. 230–231): for every length-preserving `family` (including any
+`PseudorandomFunction`), `cbcMacFamily family` fails `MACSUFCMAOn (lpBlockValid (fun _ => 2))` (and
+hence `MACEUFCMAOn` by `macSufCmaOn_iff_macEufCmaOn`). -/
+theorem not_macSufCmaOn_cbcMacFamily {family : List Bool → List Bool → List Bool}
+    (hlen : ∀ key query : List Bool, query.length = key.length →
+      (family key query).length = key.length) :
+    ¬ MACSUFCMAOn (lpBlockValid (fun _ => 2)) (cbcMacFamily family) := by
+  intro hsec
+  have hneg := hsec cbcExtensionForger isOraclePPT_cbcExtensionForger
+  have hev : ∀ᶠ n in Filter.atTop,
+      (1 : ℝ≥0) ≤ Game.advantage
+        (ProbComp.eval
+          (macSufCmaGameOn (lpBlockValid (fun _ => 2)) (cbcMacFamily family) cbcExtensionForger n))
+        (PMF.pure false) := by
+    filter_upwards [Filter.eventually_ge_atTop 1] with n hn
+    rw [eval_macSufCmaGameOn_cbcMacFamily_cbcExtensionForger hlen hn, Game.advantage_pure_false,
+      Game.succProbability]
+    simp
+  have h1 : Negligible (fun _ : ℕ => (1 : ℝ≥0)) := negligible_of_eventually_le hneg hev
+  rcases Filter.eventually_atTop.mp ((h1 0).eventually (gt_mem_nhds zero_lt_one)) with ⟨N, hN⟩
+  have hlt := hN N le_rfl
+  norm_num at hlt
+
+/-- **Unmodified zero-IV CBC-MAC is not a variable-length pseudorandom function**
+([BonehShoup2023], Section 6.4.3, printed p. 231): for every length-preserving `family`,
+`cbcMacFamily family` fails `PseudorandomFunctionOn (lpBlockValid (fun _ => 2)) id`. -/
+theorem not_prfOn_cbcMacFamily {family : List Bool → List Bool → List Bool}
+    (hlen : ∀ key query : List Bool, query.length = key.length →
+      (family key query).length = key.length) :
+    ¬ PseudorandomFunctionOn (lpBlockValid (fun _ => 2)) id (cbcMacFamily family) := fun hprf =>
+  not_macSufCmaOn_cbcMacFamily hlen
+    (hprf.macSufCmaOn (computableInPolyTime_lpBlockValid (ComputableInPolyTime.const 2)))
 
 /-! ### `MACScheme` Instances for Fixed-Block-Count Schedules -/
 
@@ -2794,10 +2899,10 @@ theorem succProbability_sufCmaGame_cbcFixedBlockMAC_le (ℓ : ℕ → ℕ)
   have hMRestQ : (restrictLengthDistinguisher (fun m => ℓ m * m) M n []).IsQueryBounded (Q + 1) :=
     isQueryBounded_restrictLengthDistinguisher _ M
       (isQueryBounded_macToPrfOnDistinguisher _ adversary hQ)
-  have hMRestPf : IsPrefixFreeOn (cbcBlockValid ℓ n)
+  have hMRestPf : IsPrefixFreeOn (cbcBlockValid ℓ n) n
       (restrictLengthDistinguisher (fun m => ℓ m * m) M n []) := by
     rw [restrictLengthDistinguisher_eq_simulate]
-    intro oracle _ res hres x hx _ y hy _ hxy hpre
+    intro oracle _ _ res hres x hx _ y hy _ hxy hpre
     have hxLen := mem_wordQueryRunDist_restrictLengthQuery oracle (M n []) hres x hx
     have hyLen := mem_wordQueryRunDist_restrictLengthQuery oracle (M n []) hres y hy
     exact hxy (hpre.eq_of_length (hxLen.trans hyLen.symm))
@@ -2836,15 +2941,6 @@ theorem PseudorandomFunction.sufCma_cbcFixedBlockMAC
     exact succProbability_sufCmaGame_cbcFixedBlockMAC_le ℓ hℓ hF.polyTime hF.length_eq adversary
       hn (hpos n) (hQ n)
   negligible eventually hev
-
-/-- **Fixed-block-count basic CBC-MAC is `EUFCMA`-secure** ([BonehShoup2023], Section 6.3 Theorem
-6.2 and Section 6.4.1 Theorem 6.3, printed pp. 224 and 226–229, specialized to fixed positive block
-count `ℓ n`). -/
-theorem PseudorandomFunction.eufCma_cbcFixedBlockMAC
-    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
-    {ℓ : ℕ → ℕ} (hℓ : ComputableInPolyTime ℓ encUnary encUnary) (hpos : ∀ n, 0 < ℓ n) :
-    (cbcFixedBlockMAC ℓ hℓ family hF.polyTime).EUFCMA :=
-  (hF.sufCma_cbcFixedBlockMAC hℓ hpos).eufCma
 
 /-- Deterministic `MACScheme` authenticating `k n * n`-bit (`k n`-block, `k n = 0` permitted)
 messages via length-prepended CBC-MAC `lengthPrependedCbcMacFamily family`. -/
@@ -2915,13 +3011,5 @@ theorem PseudorandomFunction.sufCma_lengthPrependedBlockMAC
     exact succProbability_macSufCmaGameOn_le
       (fun key query _ => length_lengthPrependedCbcMacFamily hF.length_eq key query) adversary n
   negligible using hle
-
-/-- **`lengthPrependedBlockMAC` is `EUFCMA`-secure** at every unary polynomial-time block-count
-schedule `k`. -/
-theorem PseudorandomFunction.eufCma_lengthPrependedBlockMAC
-    {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
-    {k : ℕ → ℕ} (hk : ComputableInPolyTime k encUnary encUnary) :
-    (lengthPrependedBlockMAC k hk family hF.polyTime).EUFCMA :=
-  (hF.sufCma_lengthPrependedBlockMAC hk).eufCma
 
 end Cslib.Crypto
