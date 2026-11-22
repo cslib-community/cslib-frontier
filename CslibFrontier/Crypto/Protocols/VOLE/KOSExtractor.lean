@@ -11,9 +11,11 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.HashFamily
 public import Mathlib.Algebra.Field.Defs
 public import Mathlib.Algebra.Module.LinearMap.Defs
+import CslibFrontier.Probability.HashFamily.Collisions
 import CslibFrontier.Probability.PMF.Event
 import Mathlib.Data.Finset.Card
 import Mathlib.Data.Finset.Powerset
+import Mathlib.Data.List.Nodup
 import Mathlib.MeasureTheory.OuterMeasure.Basic
 import Mathlib.Tactic.Module
 
@@ -21,8 +23,8 @@ import Mathlib.Tactic.Module
 # KOS consistency affine extractor and exact binomial loss
 
 Section 10.6 of the FAEST v3.0 specification ([BaumEtAl2026FAEST], Lemma 10.26 and Corollary 10.27,
-pp. 97–99) establishes consistency of the `VOLEHash` check via an explicit affine-line extractor
-`E_{KOS,S}(H, ũ, ṽ)` over a materialized finite set `S` of candidate `(Δ, q)` openings:
+pp. 97–99) analyzes the `VOLEHash` consistency check through an explicit affine-line extractor
+`E_{KOS,S}(H, ũ, ṽ)` over a finite collection `S` of candidate `(Δ, q)` openings:
 
 * Given a linear hash evaluation `h : V →ₗ[F] W` and hashed target line `target = (ũ, ṽ)`, the
   extractor filters the accepted openings `S_{h, ũ, ṽ} = {(Δ, q) ∈ S | h q = Δ • ũ + ṽ}`:
@@ -35,28 +37,37 @@ pp. 97–99) establishes consistency of the `VOLEHash` check via an explicit aff
   responses, as in Corollary 10.27's `S_t = {(Δ, Resp_t(Δ)) | Resp_t(Δ) ≠ ⊥}`), any accepted
   opening `(Δ₂, q₂) ∈ S` missed by the extracted line yields an explicit failure witness
   (`KOSFailureWitness` / `kosFailureWitness`): three openings `(Δ₀, q₀), (Δ₁, q₁), (Δ₂, q₂) ∈ S`
-  with pairwise distinct challenges whose nonzero affine collinearity defect
+  with pairwise distinct challenges (`HasKOSBadTriple`, matching Bad event 2 on p. 98) whose
+  nonzero affine collinearity defect
   `kosAffineDefect p₀ p₁ p₂ = (Δ₁ - Δ₀) • (q₂ - q₀) - (Δ₂ - Δ₀) • (q₁ - q₀) ≠ 0` is mapped to `0`
   by `h`.
 * Because `kosAffineDefect` only changes sign under permutations of its three inputs, unordered
   3-element index subsets of `responses` canonically cover all bad triples. For any `ε`-universal
   linear hash family (`Cslib.Probability.IsUniversalHash`), the union bound over
-  `powersetCard 3` yields the exact binomial failure bound `ε * (responses.length.choose 3)` on
-  response graphs (`toOuterMeasure_kosExtract_graph_failure_le`), and
-  `ε * (responses.length.choose 2 + responses.length.choose 3)` on arbitrary opening lists
-  (`toOuterMeasure_kosExtract_failure_le`), preserving exact binomial coefficients without cubic
-  slack.
+  `powersetCard 3` gives the abstract response-graph step `ε * (responses.length.choose 3)`
+  (`toOuterMeasure_kosExtract_graph_failure_le`), and combining with
+  `IsUniversalHash.toOuterMeasure_not_injOn_le` gives the abstract general-list step
+  `ε * (responses.length.choose 2 + responses.length.choose 3)`
+  (`toOuterMeasure_kosExtract_failure_le`).
 
-## Execution shape and scope
+## Source correspondence and scope
 
-`kosExtract` stores the generic extractor control and caller-supplied linear hash evaluator once,
-evaluates `h` once per entry while filtering `responses` (`kosExtract_eq_of_eqOn_snd`), scans the
-accepted list once for a second distinct challenge, and performs at most one field inversion and
-two vector scalar multiplications. Following Lemma 10.26 (p. 97), the attacker and extractor may be
-computationally unbounded and `responses` may have exponential length (up to `2^{λ - w_grind}` in
-FAEST), so `kosExtract` is not claimed to run in polynomial time in a security parameter. Concrete
-`VOLEHash` universality, BAVC selective-opening reconstruction (#5302), Lemma 10.19's response
-graph, QuickSilver v3, and ROM/QROM signature reductions remain open under #4987.
+These theorems formalize the abstract `IsUniversalHash` steps of Lemma 10.26 and Corollary 10.27,
+not FAEST's concrete `VOLEHash` endpoints:
+
+* Lemma 10.26's statement (p. 97) writes the relaxed cubic bound `(|S|³ / 6 + |S|² / 2) ε` over a
+  finite set `S`, whereas its proof (p. 98) derives the sharper binomial sum
+  `(choose |S| 2 + choose |S| 3) ε` before relaxing; similarly Corollary 10.27's statement writes
+  `|S_t|³ / 6 · ε_v` after eliminating Bad event 1. The theorems here retain the exact binomial
+  coefficients.
+* `responses : List (F × V)` counts list positions (`responses.length`), matching the source's set
+  cardinality `|S|` on any duplicate-free enumeration (`responses.Nodup`) while remaining valid as
+  an upper bound when duplicates are present.
+* Following Lemma 10.26 (p. 97), the attacker and extractor may be computationally unbounded and
+  `responses` may have exponential length (up to `2^{λ - w_grind}` in FAEST), so `kosExtract` is
+  not claimed to run in polynomial time in a security parameter. Concrete `VOLEHash` universality,
+  BAVC selective-opening reconstruction (#5302), Lemma 10.19's response graph, QuickSilver v3, and
+  ROM/QROM signature reductions remain open under #4987.
 
 ## Main definitions
 
@@ -70,23 +81,24 @@ graph, QuickSilver v3, and ROM/QROM signature reductions remain open under #4987
 * `Cslib.Crypto.Protocols.VOLE.KOSFailureWitness` and `kosFailureWitness`: explicit computable
   non-collinear triple witness from any failed graph extraction.
 * `Cslib.Crypto.Protocols.VOLE.HasKOSBadPair`,
-  `Cslib.Crypto.Protocols.VOLE.HasKOSBadTriple`: bad-pair (Bad event 1) and bad-triple (Bad event 2)
-  predicates on `h` and `responses`.
+  `Cslib.Crypto.Protocols.VOLE.HasKOSBadTriple`: bad-pair (Bad event 1) and distinct-challenge
+  bad-triple (Bad event 2) predicates on `h` and `responses`.
 
 ## Main results
 
+* `Cslib.Crypto.Protocols.VOLE.KOSLine.eq_of_eval_eq`: two `KOSLine`s agreeing at two distinct
+  field elements are equal.
 * `Cslib.Crypto.Protocols.VOLE.kosExtract_eval_eq_of_not_hasKOSBadTriple`: outside
   `HasKOSBadTriple h responses`, every accepted opening of a response graph lies on the extracted
   affine line.
 * `Cslib.Crypto.Protocols.VOLE.not_hasKOSBadTriple_of_length_le_two`: lists of at most two openings
   have no bad triples.
 * `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_hasKOSBadTriple_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_kosExtract_graph_failure_le`: exact
-  `ε * (responses.length.choose 3)` `IsUniversalHash` bound on response graphs.
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_kosExtract_graph_failure_le`: abstract response-graph
+  `ε * (responses.length.choose 3)` step toward Corollary 10.27.
 * `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_hasKOSBadPair_le`,
-  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_kosExtract_failure_le`: exact
-  `ε * ((responses.length.choose 2) + (responses.length.choose 3))` Lemma 10.26 bound on arbitrary
-  opening lists.
+  `Cslib.Crypto.Protocols.VOLE.toOuterMeasure_kosExtract_failure_le`: abstract
+  `ε * ((responses.length.choose 2) + (responses.length.choose 3))` step of Lemma 10.26.
 
 ## References
 
@@ -120,6 +132,25 @@ namespace KOSLine
 @[expose] def eval {F V : Type*} [SMul F V] [Add V] (line : KOSLine V) (delta : F) : V :=
   delta • line.slope + line.intercept
 
+/-- Two affine lines over a vector space that agree at two distinct points `Δ₀ ≠ Δ₁` are equal. -/
+theorem eq_of_eval_eq {F V : Type*} [Field F] [AddCommGroup V] [Module F V]
+    {line₁ line₂ : KOSLine V} {Δ₀ Δ₁ : F} (hne : Δ₀ ≠ Δ₁)
+    (h₀ : line₁.eval Δ₀ = line₂.eval Δ₀) (h₁ : line₁.eval Δ₁ = line₂.eval Δ₁) :
+    line₁ = line₂ := by
+  have hd : Δ₀ - Δ₁ ≠ 0 := sub_ne_zero.mpr hne
+  have hsub : (Δ₀ - Δ₁) • (line₁.slope - line₂.slope) = 0 := by
+    calc
+      (Δ₀ - Δ₁) • (line₁.slope - line₂.slope)
+          = (line₁.eval Δ₀ - line₁.eval Δ₁) - (line₂.eval Δ₀ - line₂.eval Δ₁) := by
+            simp only [KOSLine.eval]
+            module
+      _ = 0 := by rw [h₀, h₁, sub_self]
+  have hslope : line₁.slope = line₂.slope :=
+    sub_eq_zero.mp ((smul_eq_zero.mp hsub).resolve_left hd)
+  have hinter : line₁.intercept = line₂.intercept := by
+    simpa [KOSLine.eval, hslope] using h₀
+  ext <;> assumption
+
 end KOSLine
 
 /-- `responses` is the graph of a partial response function (`S_t` in [BaumEtAl2026FAEST],
@@ -129,20 +160,8 @@ def IsResponseGraph {F V : Type*} (responses : List (F × V)) : Prop :=
 
 /-- Any opening list with pairwise distinct challenges satisfies `IsResponseGraph`. -/
 theorem IsResponseGraph.of_nodup_fst {F V : Type*} {responses : List (F × V)}
-    (h : (responses.map Prod.fst).Nodup) : IsResponseGraph responses := by
-  induction responses with
-  | nil =>
-    intro p₁ hp₁
-    cases hp₁
-  | cons p rest ih =>
-    rw [List.map_cons, List.nodup_cons] at h
-    intro p₁ hp₁ p₂ hp₂ heq
-    simp only [List.mem_cons] at hp₁ hp₂
-    rcases hp₁ with rfl | hp₁ <;> rcases hp₂ with rfl | hp₂
-    · rfl
-    · exact False.elim (h.1 ( heq ▸ List.mem_map_of_mem hp₂))
-    · exact False.elim (h.1 (heq.symm ▸ List.mem_map_of_mem hp₁))
-    · exact ih h.2 hp₁ hp₂ heq
+    (h : (responses.map Prod.fst).Nodup) : IsResponseGraph responses :=
+  fun _ hp₁ _ hp₂ heq => congrArg Prod.snd (List.inj_on_of_nodup_map h hp₁ hp₂ heq)
 
 section Algebraic
 
@@ -199,6 +218,12 @@ private theorem map_kosAffineDefect_eq_zero_of_collinear (h : V →ₗ[F] W) {ta
   simp only [kosAffineDefect, map_sub, map_smul, h₀, h₁, h₂, KOSLine.eval]
   module
 
+/-- Three openings lying on a single `KOSLine` have zero `kosAffineDefect`. -/
+theorem kosAffineDefect_eq_zero_of_eval_eq {line : KOSLine V} {p₀ p₁ p₂ : F × V}
+    (h₀ : line.eval p₀.1 = p₀.2) (h₁ : line.eval p₁.1 = p₁.2) (h₂ : line.eval p₂.1 = p₂.2) :
+    kosAffineDefect p₀ p₁ p₂ = 0 :=
+  map_kosAffineDefect_eq_zero_of_collinear LinearMap.id h₀.symm h₁.symm h₂.symm
+
 private theorem kosAffineDefect_swap₁₂ (p₀ p₁ p₂ : F × V) :
     kosAffineDefect p₀ p₂ p₁ = -kosAffineDefect p₀ p₁ p₂ := by
   simp only [kosAffineDefect]
@@ -209,60 +234,109 @@ private theorem kosAffineDefect_swap₀₁ (p₀ p₁ p₂ : F × V) :
   simp only [kosAffineDefect]
   module
 
-private theorem kosAffineDefect_eq_zero_of_eq₀₁ {p₀ p₁ p₂ : F × V} (h : p₀ = p₁) :
-    kosAffineDefect p₀ p₁ p₂ = 0 := by
-  subst h
-  simp [kosAffineDefect]
-
-private theorem kosAffineDefect_eq_zero_of_eq₀₂ {p₀ p₁ p₂ : F × V} (h : p₀ = p₂) :
-    kosAffineDefect p₀ p₁ p₂ = 0 := by
-  subst h
-  simp [kosAffineDefect]
-
-private theorem kosAffineDefect_eq_zero_of_eq₁₂ {p₀ p₁ p₂ : F × V} (h : p₁ = p₂) :
-    kosAffineDefect p₀ p₁ p₂ = 0 := by
-  subst h
-  simp [kosAffineDefect]
-
-/-- Bad-triple predicate ([BaumEtAl2026FAEST], Lemma 10.26, Bad event 2, p. 98): three openings in
-`responses` have a nonzero `kosAffineDefect` that `h` maps to `0`. -/
-def HasKOSBadTriple (h : V →ₗ[F] W) (responses : List (F × V)) : Prop :=
+/-- Bad-triple predicate (step corresponding to Bad event 2 in [BaumEtAl2026FAEST], Lemma 10.26,
+p. 98): three openings in `responses` at pairwise distinct challenges have a nonzero
+`kosAffineDefect` mapped to `0` by `h`. -/
+@[expose] def HasKOSBadTriple (h : V →ₗ[F] W) (responses : List (F × V)) : Prop :=
   ∃ p₀ ∈ responses, ∃ p₁ ∈ responses, ∃ p₂ ∈ responses,
+    p₀.1 ≠ p₁.1 ∧ p₀.1 ≠ p₂.1 ∧ p₁.1 ≠ p₂.1 ∧
     kosAffineDefect p₀ p₁ p₂ ≠ 0 ∧ h (kosAffineDefect p₀ p₁ p₂) = 0
 
-/-- Lists of at most two openings cannot contain three pairwise distinct elements and therefore
+/-- Lists of at most two openings cannot contain three pairwise distinct challenges and therefore
 never satisfy `HasKOSBadTriple`. -/
 theorem not_hasKOSBadTriple_of_length_le_two (h : V →ₗ[F] W) {responses : List (F × V)}
     (hlen : responses.length ≤ 2) : ¬ HasKOSBadTriple h responses := by
-  rintro ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hdef, _⟩
+  rintro ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hne₀₁, hne₀₂, hne₁₂, _, _⟩
   obtain ⟨i₀, rfl⟩ := List.mem_iff_get.mp hp₀
   obtain ⟨i₁, rfl⟩ := List.mem_iff_get.mp hp₁
   obtain ⟨i₂, rfl⟩ := List.mem_iff_get.mp hp₂
-  have hne₀₁ : i₀.val ≠ i₁.val :=
-    fun heq => hdef (kosAffineDefect_eq_zero_of_eq₀₁ (by rw [Fin.ext heq]))
-  have hne₀₂ : i₀.val ≠ i₂.val :=
-    fun heq => hdef (kosAffineDefect_eq_zero_of_eq₀₂ (by rw [Fin.ext heq]))
-  have hne₁₂ : i₁.val ≠ i₂.val :=
-    fun heq => hdef (kosAffineDefect_eq_zero_of_eq₁₂ (by rw [Fin.ext heq]))
+  have hi₀₁ : i₀.val ≠ i₁.val := fun heq => hne₀₁ (by rw [Fin.ext heq])
+  have hi₀₂ : i₀.val ≠ i₂.val := fun heq => hne₀₂ (by rw [Fin.ext heq])
+  have hi₁₂ : i₁.val ≠ i₂.val := fun heq => hne₁₂ (by rw [Fin.ext heq])
   have := i₀.isLt
   have := i₁.isLt
   have := i₂.isLt
   omega
 
-/-- Executable, total KOS affine-line extractor ([BaumEtAl2026FAEST], §10.6, Lemma 10.26 and
-Corollary 10.27, pp. 97–99). Scans `responses` once to collect openings satisfying
-`h p.2 = target.eval p.1`, then handles `0`, `1`, and `≥ 2` distinct accepted challenges
-explicitly. -/
-@[expose] def kosExtract [DecidableEq F] [DecidableEq W]
-    (h : V → W) (responses : List (F × V)) (target : KOSLine W) : KOSLine V :=
+/-- Shared accepted-opening selector for `kosExtract` and `kosFailureWitness`: filters `responses`
+to openings satisfying `h p.2 = target.eval p.1` and searches the tail for a second distinct
+challenge. -/
+private def selectAccepted [DecidableEq F] [DecidableEq W]
+    (h : V → W) (responses : List (F × V)) (target : KOSLine W) :
+    Option ((F × V) × Option (F × V)) :=
   match responses.filter (fun p => decide (h p.2 = target.eval p.1)) with
-  | [] => ⟨0, 0⟩
-  | p₀ :: rest =>
-    match rest.find? (fun p => p.1 ≠ p₀.1) with
-    | none => ⟨0, p₀.2⟩
-    | some p₁ =>
-      let slope := (p₁.1 - p₀.1)⁻¹ • (p₁.2 - p₀.2)
-      ⟨slope, p₀.2 - p₀.1 • slope⟩
+  | [] => none
+  | p₀ :: rest => some (p₀, rest.find? (fun p => p.1 ≠ p₀.1))
+
+omit [AddCommGroup V] [Module F V] in
+private theorem selectAccepted_eq_none [DecidableEq F] [DecidableEq W]
+    {h : V → W} {responses : List (F × V)} {target : KOSLine W}
+    (hsel : selectAccepted h responses target = none) :
+    ∀ p ∈ responses, h p.2 ≠ target.eval p.1 := by
+  intro p hp heq
+  have hmem : p ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) :=
+    List.mem_filter.mpr ⟨hp, decide_eq_true heq⟩
+  unfold selectAccepted at hsel
+  split at hsel
+  · rename_i hfilt
+    rw [hfilt] at hmem
+    cases hmem
+  · cases hsel
+
+omit [AddCommGroup V] [Module F V] in
+private theorem selectAccepted_eq_some_none [DecidableEq F] [DecidableEq W]
+    {h : V → W} {responses : List (F × V)} {target : KOSLine W} {p₀ : F × V}
+    (hsel : selectAccepted h responses target = some (p₀, none)) :
+    p₀ ∈ responses ∧ h p₀.2 = target.eval p₀.1 ∧
+      ∀ p ∈ responses, h p.2 = target.eval p.1 → p.1 = p₀.1 := by
+  unfold selectAccepted at hsel
+  split at hsel
+  · cases hsel
+  · rename_i q₀ rest hfilt
+    obtain ⟨rfl, hfind⟩ := Prod.mk.inj (Option.some.inj hsel)
+    have hp₀_acc : q₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
+      rw [hfilt]
+      exact List.mem_cons_self
+    obtain ⟨hp₀_mem, hp₀_dec⟩ := List.mem_filter.mp hp₀_acc
+    refine ⟨hp₀_mem, of_decide_eq_true hp₀_dec, fun p hp hhash => ?_⟩
+    have hp_acc : p ∈ q₀ :: rest := by
+      rw [← hfilt]
+      exact List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
+    rcases List.mem_cons.mp hp_acc with rfl | hrest
+    · rfl
+    · simpa using List.find?_eq_none.mp hfind p hrest
+
+omit [AddCommGroup V] [Module F V] in
+private theorem selectAccepted_eq_some_some [DecidableEq F] [DecidableEq W]
+    {h : V → W} {responses : List (F × V)} {target : KOSLine W} {p₀ p₁ : F × V}
+    (hsel : selectAccepted h responses target = some (p₀, some p₁)) :
+    p₀ ∈ responses ∧ h p₀.2 = target.eval p₀.1 ∧
+      p₁ ∈ responses ∧ h p₁.2 = target.eval p₁.1 ∧ p₁.1 ≠ p₀.1 := by
+  unfold selectAccepted at hsel
+  split at hsel
+  · cases hsel
+  · rename_i q₀ rest hfilt
+    obtain ⟨rfl, hfind⟩ := Prod.mk.inj (Option.some.inj hsel)
+    have hp₀_acc : q₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
+      rw [hfilt]
+      exact List.mem_cons_self
+    have hp₁_acc : p₁ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
+      rw [hfilt]
+      exact List.mem_cons_of_mem q₀ (List.mem_of_find?_eq_some hfind)
+    obtain ⟨hp₀_mem, hp₀_dec⟩ := List.mem_filter.mp hp₀_acc
+    obtain ⟨hp₁_mem, hp₁_dec⟩ := List.mem_filter.mp hp₁_acc
+    exact ⟨hp₀_mem, of_decide_eq_true hp₀_dec, hp₁_mem, of_decide_eq_true hp₁_dec,
+      by simpa using List.find?_some hfind⟩
+
+/-- Executable, total KOS affine-line extractor ([BaumEtAl2026FAEST], §10.6, Lemma 10.26 and
+Corollary 10.27, pp. 97–99). Selects accepted openings via `selectAccepted` and handles `0`, `1`,
+and `≥ 2` distinct accepted challenges via `interpolateKOSLine`. -/
+def kosExtract [DecidableEq F] [DecidableEq W]
+    (h : V → W) (responses : List (F × V)) (target : KOSLine W) : KOSLine V :=
+  match selectAccepted h responses target with
+  | none => ⟨0, 0⟩
+  | some (p₀, none) => ⟨0, p₀.2⟩
+  | some (p₀, some p₁) => interpolateKOSLine p₀ p₁
 
 /-- `kosExtract` reads `h` only at the response vectors `p.2` for `p ∈ responses`. -/
 theorem kosExtract_eq_of_eqOn_snd [DecidableEq F] [DecidableEq W]
@@ -272,13 +346,19 @@ theorem kosExtract_eq_of_eqOn_snd [DecidableEq F] [DecidableEq W]
   have hfilt : responses.filter (fun p => decide (h₁ p.2 = target.eval p.1)) =
       responses.filter (fun p => decide (h₂ p.2 = target.eval p.1)) :=
     List.filter_congr fun p hp => by simp [heq p hp]
-  simp only [kosExtract, hfilt]
+  simp only [kosExtract, selectAccepted, hfilt]
 
 @[simp]
 theorem kosExtract_nil [DecidableEq F] [DecidableEq W]
     (h : V → W) (target : KOSLine W) :
-    kosExtract h ([] : List (F × V)) target = ⟨0, 0⟩ :=
+    kosExtract h ([] : List (F × V)) target = ⟨0, 0⟩ := by
   rfl
+
+/-- On a single accepted opening `p₀`, `kosExtract` returns the constant line `⟨0, p₀.2⟩`. -/
+theorem kosExtract_singleton_of_eq [DecidableEq F] [DecidableEq W]
+    {h : V → W} {p₀ : F × V} {target : KOSLine W} (h₀ : h p₀.2 = target.eval p₀.1) :
+    kosExtract h [p₀] target = ⟨0, p₀.2⟩ := by
+  simp [kosExtract, selectAccepted, h₀]
 
 /-- Explicit computable failure witness from any failed extraction on a response graph
 ([BaumEtAl2026FAEST], Lemma 10.26 proof, p. 98). -/
@@ -308,90 +388,52 @@ def kosFailureWitness [DecidableEq F] [DecidableEq W]
     {target : KOSLine W} {p : F × V} (hp : p ∈ responses) (hhash : h p.2 = target.eval p.1)
     (hfail : (kosExtract h responses target).eval p.1 ≠ p.2) :
     KOSFailureWitness h responses target :=
-  match hacc : responses.filter (fun q => decide (h q.2 = target.eval q.1)) with
-  | [] =>
+  match hsel : selectAccepted h responses target with
+  | none => False.elim (selectAccepted_eq_none hsel p hp hhash)
+  | some (p₀, none) =>
     False.elim <| by
-      have hmem : p ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) :=
-        List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
-      rw [hacc] at hmem
-      cases hmem
-  | p₀ :: rest =>
-    match hfind : rest.find? (fun q => q.1 ≠ p₀.1) with
-    | none =>
-      False.elim <| by
-        have hp₀_acc : p₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-          rw [hacc]
-          exact List.mem_cons_self
-        have hp₀_mem : p₀ ∈ responses := (List.mem_filter.mp hp₀_acc).1
-        have hp_acc : p ∈ p₀ :: rest := by
-          rw [← hacc]
-          exact List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
-        have hp_eq_fst : p.1 = p₀.1 := by
-          rcases List.mem_cons.mp hp_acc with rfl | hrest
-          · rfl
-          · have hnone := List.find?_eq_none.mp hfind p hrest
-            simpa using hnone
-        have hp_eq_snd : p.2 = p₀.2 := hgraph hp hp₀_mem hp_eq_fst
-        have heval : (kosExtract h responses target).eval p.1 = p₀.2 := by
-          unfold kosExtract
-          rw [hacc]
-          dsimp only
-          rw [hfind]
-          simp [KOSLine.eval]
-        exact hfail (heval.trans hp_eq_snd.symm)
-    | some p₁ =>
-      have hp₀_acc : p₀ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-        rw [hacc]
-        exact List.mem_cons_self
-      have hp₁_rest : p₁ ∈ rest := List.mem_of_find?_eq_some hfind
-      have hp₁_acc : p₁ ∈ responses.filter (fun q => decide (h q.2 = target.eval q.1)) := by
-        rw [hacc]
-        exact List.mem_cons_of_mem p₀ hp₁_rest
-      have hp₀_filt := List.mem_filter.mp hp₀_acc
-      have hp₁_filt := List.mem_filter.mp hp₁_acc
-      have hne₁₀ : p₁.1 ≠ p₀.1 := by
-        simpa using List.find?_some hfind
-      have hext_eq : kosExtract h responses target = interpolateKOSLine p₀ p₁ := by
-        unfold kosExtract
-        rw [hacc]
-        dsimp only
-        rw [hfind]
-        rfl
-      have hfail' : (interpolateKOSLine p₀ p₁).eval p.1 ≠ p.2 := by
-        rwa [← hext_eq]
-      have hne₀₂ : p₀.1 ≠ p.1 := by
-        intro heq
-        apply hfail'
-        rw [← heq, interpolateKOSLine_eval_left]
-        exact hgraph hp₀_filt.1 hp heq
-      have hne₁₂ : p₁.1 ≠ p.1 := by
-        intro heq
-        apply hfail'
-        rw [← heq, interpolateKOSLine_eval_right hne₁₀]
-        exact hgraph hp₁_filt.1 hp heq
-      have hdef : kosAffineDefect p₀ p₁ p ≠ 0 :=
-        mt (interpolateKOSLine_eval_eq_iff hne₁₀ p).mpr hfail'
-      have h₀ : h p₀.2 = target.eval p₀.1 := of_decide_eq_true hp₀_filt.2
-      have h₁ : h p₁.2 = target.eval p₁.1 := of_decide_eq_true hp₁_filt.2
-      { p₀ := p₀
-        p₁ := p₁
-        p₂ := p
-        p₀_mem := hp₀_filt.1
-        p₁_mem := hp₁_filt.1
-        p₂_mem := hp
-        challenge_ne₀₁ := hne₁₀.symm
-        challenge_ne₀₂ := hne₀₂
-        challenge_ne₁₂ := hne₁₂
-        hash_p₀ := h₀
-        hash_p₁ := h₁
-        hash_p₂ := hhash
-        defect_ne_zero := hdef
-        map_defect_eq_zero := map_kosAffineDefect_eq_zero_of_collinear h h₀ h₁ hhash }
+      obtain ⟨hp₀_mem, _, hall⟩ := selectAccepted_eq_some_none hsel
+      have hp_eq_fst : p.1 = p₀.1 := hall p hp hhash
+      have hp_eq_snd : p.2 = p₀.2 := hgraph hp hp₀_mem hp_eq_fst
+      have heval : (kosExtract h responses target).eval p.1 = p₀.2 := by
+        simp [kosExtract, hsel, KOSLine.eval]
+      exact hfail (heval.trans hp_eq_snd.symm)
+  | some (p₀, some p₁) =>
+    let ⟨hp₀_mem, h₀, hp₁_mem, h₁, hne₁₀⟩ := selectAccepted_eq_some_some hsel
+    have hext_eq : kosExtract h responses target = interpolateKOSLine p₀ p₁ := by
+      simp [kosExtract, hsel]
+    have hfail' : (interpolateKOSLine p₀ p₁).eval p.1 ≠ p.2 := by
+      rwa [← hext_eq]
+    have hne₀₂ : p₀.1 ≠ p.1 := by
+      intro heq
+      apply hfail'
+      rw [← heq, interpolateKOSLine_eval_left]
+      exact hgraph hp₀_mem hp heq
+    have hne₁₂ : p₁.1 ≠ p.1 := by
+      intro heq
+      apply hfail'
+      rw [← heq, interpolateKOSLine_eval_right hne₁₀]
+      exact hgraph hp₁_mem hp heq
+    have hdef : kosAffineDefect p₀ p₁ p ≠ 0 :=
+      mt (interpolateKOSLine_eval_eq_iff hne₁₀ p).mpr hfail'
+    { p₀ := p₀
+      p₁ := p₁
+      p₂ := p
+      p₀_mem := hp₀_mem
+      p₁_mem := hp₁_mem
+      p₂_mem := hp
+      challenge_ne₀₁ := hne₁₀.symm
+      challenge_ne₀₂ := hne₀₂
+      challenge_ne₁₂ := hne₁₂
+      hash_p₀ := h₀
+      hash_p₁ := h₁
+      hash_p₂ := hhash
+      defect_ne_zero := hdef
+      map_defect_eq_zero := map_kosAffineDefect_eq_zero_of_collinear h h₀ h₁ hhash }
 
-/-- **Deterministic KOS affine extraction** ([BaumEtAl2026FAEST], §10.6, Lemma 10.26 and
-Corollary 10.27, pp. 97–99): on a response graph `responses`, if no triple in `responses` has a
-nonzero `kosAffineDefect` mapped to `0` by `h`, then every opening `p ∈ responses` accepted by
-`target` lies on `kosExtract h responses target`. -/
+/-- Deterministic extraction step of [BaumEtAl2026FAEST], §10.6, Lemma 10.26 and Corollary 10.27
+(pp. 97–99): on a response graph `responses`, if `HasKOSBadTriple h responses` does not hold, then
+every opening `p ∈ responses` accepted by `target` lies on `kosExtract h responses target`. -/
 theorem kosExtract_eval_eq_of_not_hasKOSBadTriple [DecidableEq F] [DecidableEq W]
     (h : V →ₗ[F] W) {responses : List (F × V)} (hgraph : IsResponseGraph responses)
     (hnobad : ¬ HasKOSBadTriple h responses) (target : KOSLine W) {p : F × V}
@@ -400,6 +442,7 @@ theorem kosExtract_eval_eq_of_not_hasKOSBadTriple [DecidableEq F] [DecidableEq W
   by_contra hfail
   let w := kosFailureWitness h hgraph hp hhash hfail
   exact hnobad ⟨w.p₀, w.p₀_mem, w.p₁, w.p₁_mem, w.p₂, w.p₂_mem,
+    w.challenge_ne₀₁, w.challenge_ne₀₂, w.challenge_ne₁₂,
     w.defect_ne_zero, w.map_defect_eq_zero⟩
 
 end Algebraic
@@ -409,10 +452,11 @@ section ProbabilityBounds
 variable {Seed F V W : Type*} [Field F]
   [AddCommGroup V] [Module F V] [AddCommGroup W] [Module F W]
 
-/-- Bad-pair predicate ([BaumEtAl2026FAEST], Lemma 10.26, Bad event 1, p. 98): two openings in
-`responses` share the same challenge `Δ` with distinct response vectors `q₀ ≠ q₁` whose hashes
-collide. Impossible when `IsResponseGraph responses` holds. -/
-def HasKOSBadPair (h : V → W) (responses : List (F × V)) : Prop :=
+omit [Field F] [AddCommGroup V] [Module F V] [AddCommGroup W] [Module F W] in
+/-- Bad-pair predicate (step corresponding to Bad event 1 in [BaumEtAl2026FAEST], Lemma 10.26,
+p. 98): two openings in `responses` share the same challenge `Δ` with distinct response vectors
+`q₀ ≠ q₁` whose hashes collide. Impossible when `IsResponseGraph responses` holds. -/
+@[expose] def HasKOSBadPair (h : V → W) (responses : List (F × V)) : Prop :=
   ∃ p₀ ∈ responses, ∃ p₁ ∈ responses, p₀.1 = p₁.1 ∧ p₀.2 ≠ p₁.2 ∧ h p₀.2 = h p₁.2
 
 private theorem kosAffineDefect_index_perm_eq_or_neg (responses : List (F × V))
@@ -446,17 +490,6 @@ private theorem kosAffineDefect_index_perm_eq_or_neg (responses : List (F × V))
     simp only [kosAffineDefect]
     module
 
-private noncomputable def choosePair {α : Type*} [DecidableEq α] {P : Finset α}
-    (hcard : P.card = 2) : α × α :=
-  let j₀ := Classical.choose (Finset.card_eq_two.mp hcard)
-  let j₁ := Classical.choose (Classical.choose_spec (Finset.card_eq_two.mp hcard))
-  (j₀, j₁)
-
-private theorem choosePair_spec {α : Type*} [DecidableEq α] {P : Finset α} (hcard : P.card = 2) :
-    (choosePair hcard).1 ≠ (choosePair hcard).2 ∧
-      P = {(choosePair hcard).1, (choosePair hcard).2} :=
-  Classical.choose_spec (Classical.choose_spec (Finset.card_eq_two.mp hcard))
-
 private noncomputable def chooseTriple {α : Type*} [DecidableEq α] {T : Finset α}
     (hcard : T.card = 3) : α × α × α :=
   let j₀ := Classical.choose (Finset.card_eq_three.mp hcard)
@@ -472,73 +505,35 @@ private theorem chooseTriple_spec {α : Type*} [DecidableEq α] {T : Finset α} 
     (Classical.choose_spec (Classical.choose_spec (Finset.card_eq_three.mp hcard)))).2.2.2
 
 omit [Field F] [AddCommGroup V] [Module F V] [AddCommGroup W] [Module F W] in
-/-- **Bad-pair `IsUniversalHash` union bound** ([BaumEtAl2026FAEST], §10.6, Lemma 10.26, Bad
-event 1, p. 98): for any `ε`-universal hash family `h`, `HasKOSBadPair (h s) responses` holds with
-seed probability at most `ε * (responses.length.choose 2)`. -/
+/-- Bad-pair union-bound step of [BaumEtAl2026FAEST], §10.6, Lemma 10.26 (Bad event 1, p. 98),
+derived from `IsUniversalHash.toOuterMeasure_not_injOn_le`: for any `ε`-universal hash family `h`,
+`HasKOSBadPair (h s) responses` holds with seed probability at most
+`ε * (responses.length.choose 2)`. -/
 theorem toOuterMeasure_hasKOSBadPair_le
     {seed : PMF Seed} {h : Seed → V → W} {ε : ℝ≥0∞}
     (hh : IsUniversalHash seed h ε) (responses : List (F × V)) :
     seed.toOuterMeasure {s | HasKOSBadPair (h s) responses} ≤
       ε * (responses.length.choose 2 : ℝ≥0∞) := by
   classical
-  let pairs : Finset (Finset (Fin responses.length)) :=
-    (Finset.univ : Finset (Fin responses.length)).powersetCard 2
-  let badPairSet : {P // P ∈ pairs} → Set Seed := fun ⟨P, hP⟩ =>
-    let u := choosePair (Finset.mem_powersetCard.mp hP).2
-    {s | (responses.get u.1).2 ≠ (responses.get u.2).2 ∧
-      h s (responses.get u.1).2 = h s (responses.get u.2).2}
-  have hcover : {s | HasKOSBadPair (h s) responses} ⊆
-      ⋃ P ∈ pairs.attach, badPairSet P := by
-    rintro s ⟨p₀, hp₀, p₁, hp₁, _, hqne, hcoll⟩
-    obtain ⟨i₀, rfl⟩ := List.mem_iff_get.mp hp₀
-    obtain ⟨i₁, rfl⟩ := List.mem_iff_get.mp hp₁
-    have hi₀₁ : i₀ ≠ i₁ := fun heq => hqne (by rw [heq])
-    let P : Finset (Fin responses.length) := {i₀, i₁}
-    have hPcard : P.card = 2 := Finset.card_eq_two.mpr ⟨i₀, i₁, hi₀₁, rfl⟩
-    have hP : P ∈ pairs := Finset.mem_powersetCard.mpr ⟨Finset.subset_univ _, hPcard⟩
-    refine Set.mem_iUnion₂.mpr ⟨⟨P, hP⟩, Finset.mem_attach _ _, ?_⟩
-    obtain ⟨hu_ne, hPeq⟩ := choosePair_spec (Finset.mem_powersetCard.mp hP).2
-    set u := choosePair (Finset.mem_powersetCard.mp hP).2
-    have hm₀ : u.1 ∈ ({i₀, i₁} : Finset (Fin responses.length)) := by
-      change u.1 ∈ P
-      rw [hPeq]
-      simp
-    have hm₁ : u.2 ∈ ({i₀, i₁} : Finset (Fin responses.length)) := by
-      change u.2 ∈ P
-      rw [hPeq]
-      simp
-    simp only [Finset.mem_insert, Finset.mem_singleton] at hm₀ hm₁
-    change (responses.get u.1).2 ≠ (responses.get u.2).2 ∧
-      h s (responses.get u.1).2 = h s (responses.get u.2).2
-    rcases hm₀ with h₁ | h₁ <;> rcases hm₁ with h₂ | h₂
-    · exact False.elim (hu_ne (h₁.trans h₂.symm))
-    · rw [h₁, h₂]
-      exact ⟨hqne, hcoll⟩
-    · rw [h₁, h₂]
-      exact ⟨hqne.symm, hcoll.symm⟩
-    · exact False.elim (hu_ne (h₁.trans h₂.symm))
-  have hterm (P : {P // P ∈ pairs}) (_ : P ∈ pairs.attach) :
-      seed.toOuterMeasure (badPairSet P) ≤ ε := by
-    let u := choosePair (Finset.mem_powersetCard.mp P.2).2
-    by_cases hne : (responses.get u.1).2 = (responses.get u.2).2
-    · have hemp : badPairSet P = ∅ := Set.eq_empty_iff_forall_notMem.mpr fun _ hs => hs.1 hne
-      simp [hemp]
-    · refine (seed.toOuterMeasure.mono ?_).trans (hh _ _ hne)
-      intro s hs
-      exact hs.2
+  let S : Finset V := (responses.map Prod.snd).toFinset
+  have hsub : {s | HasKOSBadPair (h s) responses} ⊆ {s | ¬ Set.InjOn (h s) S} := by
+    rintro s ⟨p₀, hp₀, p₁, hp₁, _, hqne, hcoll⟩ hinj
+    exact hqne (hinj (List.mem_toFinset.mpr (List.mem_map_of_mem hp₀))
+      (List.mem_toFinset.mpr (List.mem_map_of_mem hp₁)) hcoll)
+  have hcard : S.card ≤ responses.length := by
+    simpa [S] using List.toFinset_card_le (responses.map Prod.snd)
+  have hchoose : (S.card.choose 2 : ℝ≥0∞) ≤ (responses.length.choose 2 : ℝ≥0∞) := by
+    exact_mod_cast Nat.choose_le_choose 2 hcard
   calc
     seed.toOuterMeasure {s | HasKOSBadPair (h s) responses}
-        ≤ seed.toOuterMeasure (⋃ P ∈ pairs.attach, badPairSet P) :=
-        seed.toOuterMeasure.mono hcover
-    _ ≤ ∑ P ∈ pairs.attach, seed.toOuterMeasure (badPairSet P) :=
-        MeasureTheory.measure_biUnion_finset_le pairs.attach badPairSet
-    _ ≤ ∑ _P ∈ pairs.attach, ε := Finset.sum_le_sum hterm
-    _ = ε * (responses.length.choose 2 : ℝ≥0∞) := by
-        simp [pairs, Finset.card_powersetCard, mul_comm]
+        ≤ seed.toOuterMeasure {s | ¬ Set.InjOn (h s) S} := seed.toOuterMeasure.mono hsub
+    _ ≤ (S.card.choose 2 : ℕ) * ε := hh.toOuterMeasure_not_injOn_le S
+    _ ≤ (responses.length.choose 2 : ℝ≥0∞) * ε := by gcongr
+    _ = ε * (responses.length.choose 2 : ℝ≥0∞) := mul_comm _ _
 
-/-- **Bad-triple `IsUniversalHash` union bound** ([BaumEtAl2026FAEST], §10.6, Lemma 10.26, Bad
-event 2, p. 98): for any `ε`-universal linear hash family `H`, `HasKOSBadTriple (H s) responses`
-holds with seed probability at most `ε * (responses.length.choose 3)`. -/
+/-- Bad-triple union-bound step of [BaumEtAl2026FAEST], §10.6, Lemma 10.26 (Bad event 2, p. 98):
+for any `ε`-universal linear hash family `H`, `HasKOSBadTriple (H s) responses` holds with seed
+probability at most `ε * (responses.length.choose 3)`. -/
 theorem toOuterMeasure_hasKOSBadTriple_le
     {seed : PMF Seed} {H : Seed → V →ₗ[F] W} {ε : ℝ≥0∞}
     (hH : IsUniversalHash seed (fun s v => H s v) ε) (responses : List (F × V)) :
@@ -554,16 +549,13 @@ theorem toOuterMeasure_hasKOSBadTriple_le
     {s | repDefect T ≠ 0 ∧ H s (repDefect T) = 0}
   have hcover : {s | HasKOSBadTriple (H s) responses} ⊆
       ⋃ T ∈ triples.attach, badSet T := by
-    rintro s ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hdef, hzero⟩
+    rintro s ⟨p₀, hp₀, p₁, hp₁, p₂, hp₂, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
     obtain ⟨i₀, rfl⟩ := List.mem_iff_get.mp hp₀
     obtain ⟨i₁, rfl⟩ := List.mem_iff_get.mp hp₁
     obtain ⟨i₂, rfl⟩ := List.mem_iff_get.mp hp₂
-    have hi₀₁ : i₀ ≠ i₁ :=
-      fun heq => hdef (kosAffineDefect_eq_zero_of_eq₀₁ (by rw [heq]))
-    have hi₀₂ : i₀ ≠ i₂ :=
-      fun heq => hdef (kosAffineDefect_eq_zero_of_eq₀₂ (by rw [heq]))
-    have hi₁₂ : i₁ ≠ i₂ :=
-      fun heq => hdef (kosAffineDefect_eq_zero_of_eq₁₂ (by rw [heq]))
+    have hi₀₁ : i₀ ≠ i₁ := fun heq => hne₀₁ (by rw [heq])
+    have hi₀₂ : i₀ ≠ i₂ := fun heq => hne₀₂ (by rw [heq])
+    have hi₁₂ : i₁ ≠ i₂ := fun heq => hne₁₂ (by rw [heq])
     let T : Finset (Fin responses.length) := {i₀, i₁, i₂}
     have hTcard : T.card = 3 :=
       Finset.card_eq_three.mpr ⟨i₀, i₁, i₂, hi₀₁, hi₀₂, hi₁₂, rfl⟩
@@ -606,11 +598,12 @@ theorem toOuterMeasure_hasKOSBadTriple_le
     _ = ε * (responses.length.choose 3 : ℝ≥0∞) := by
         simp [triples, Finset.card_powersetCard, mul_comm]
 
-/-- **Response-graph KOS extraction bound** ([BaumEtAl2026FAEST], §10.6, Lemma 10.26 and
-Corollary 10.27 abstract graph step, pp. 97–99): when `responses` is a response graph and `H` is an
-`ε`-universal linear hash family, the probability over `s ← seed` that there exists any hashed line
-`target` and accepted opening `p ∈ responses` missed by `kosExtract (H s) responses target` is at
-most `ε * (responses.length.choose 3)`. -/
+/-- Abstract response-graph step toward [BaumEtAl2026FAEST], §10.6, Corollary 10.27 (pp. 98–99),
+not the concrete `VOLEHash` / Lemma 10.19 endpoint (which remains open under #4987): when
+`responses` is a response graph and `H` is an `ε`-universal linear hash family, the probability
+over `s ← seed` that there exists any hashed line `target` and accepted opening `p ∈ responses`
+missed by `kosExtract (H s) responses target` is at most `ε * (responses.length.choose 3)`,
+matching `choose |S_t| 3 · ε` on a duplicate-free enumeration of `S_t`. -/
 theorem toOuterMeasure_kosExtract_graph_failure_le [DecidableEq F] [DecidableEq W]
     {seed : PMF Seed} {H : Seed → V →ₗ[F] W} {ε : ℝ≥0∞}
     (hH : IsUniversalHash seed (fun s v => H s v) ε)
@@ -626,9 +619,12 @@ theorem toOuterMeasure_kosExtract_graph_failure_le [DecidableEq F] [DecidableEq 
   by_contra hnobad
   exact hfail (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph hnobad target hp hhash)
 
-/-- **General KOS extraction bound** ([BaumEtAl2026FAEST], §10.6, Lemma 10.26, pp. 97–98): on an
-arbitrary finite opening list `responses` (without assuming `IsResponseGraph`), extraction fails
-with probability at most `ε * (responses.length.choose 2 + responses.length.choose 3)`. -/
+/-- Abstract universal-hash step of [BaumEtAl2026FAEST], §10.6, Lemma 10.26 (pp. 97–98), not the
+concrete `VOLEHash` instantiation (tracked in #4987): on an arbitrary finite opening list
+`responses` (without assuming `IsResponseGraph`), extraction fails with probability at most
+`ε * (responses.length.choose 2 + responses.length.choose 3)`. On a duplicate-free enumeration
+`responses.Nodup` of `S`, `responses.length = |S|`, matching the proof's binomial bound before
+Lemma 10.26's cubic relaxation `(|S|³ / 6 + |S|² / 2) ε`. -/
 theorem toOuterMeasure_kosExtract_failure_le [DecidableEq F] [DecidableEq W]
     {seed : PMF Seed} {H : Seed → V →ₗ[F] W} {ε : ℝ≥0∞}
     (hH : IsUniversalHash seed (fun s v => H s v) ε) (responses : List (F × V)) :
@@ -656,7 +652,7 @@ theorem toOuterMeasure_kosExtract_failure_le [DecidableEq F] [DecidableEq W]
           (of_decide_eq_true hp₁'.2).trans
             (hfst ▸ (of_decide_eq_true hp₂'.2).symm)⟩
       have hext_acc : kosExtract (H s) responses target = kosExtract (H s) accepted target := by
-        simp [kosExtract, accepted, List.filter_filter]
+        simp [kosExtract, selectAccepted, accepted, List.filter_filter]
       have hp_acc : p ∈ accepted := List.mem_filter.mpr ⟨hp, decide_eq_true hhash⟩
       have hfail_acc : (kosExtract (H s) accepted target).eval p.1 ≠ p.2 := by
         rwa [← hext_acc]
@@ -664,9 +660,9 @@ theorem toOuterMeasure_kosExtract_failure_le [DecidableEq F] [DecidableEq W]
         by_contra hnobad
         exact hfail_acc
           (kosExtract_eval_eq_of_not_hasKOSBadTriple (H s) hgraph_acc hnobad target hp_acc hhash)
-      rcases hbad_acc with ⟨q₀, hq₀, q₁, hq₁, q₂, hq₂, hdef, hzero⟩
+      rcases hbad_acc with ⟨q₀, hq₀, q₁, hq₁, q₂, hq₂, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
       exact ⟨q₀, (List.mem_filter.mp hq₀).1, q₁, (List.mem_filter.mp hq₁).1,
-        q₂, (List.mem_filter.mp hq₂).1, hdef, hzero⟩
+        q₂, (List.mem_filter.mp hq₂).1, hne₀₁, hne₀₂, hne₁₂, hdef, hzero⟩
   calc
     seed.toOuterMeasure
         {s | ∃ (target : KOSLine W) (p : F × V),
