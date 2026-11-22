@@ -1591,11 +1591,13 @@ public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Basic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.EdgeScores
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Sample
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Straddle
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.General
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Kernel
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Local
+public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Matching
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Median
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiGaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.MultiOrder
@@ -3144,8 +3146,10 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.Controlled
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoefficients
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalCoefficientEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalFeasibilityWitness
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalJacobianEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalLabelDeterminantSign
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalNumericEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalParameterEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalPolynomialEvaluation
@@ -3224,6 +3228,8 @@ public import CslibFrontier.Computability.DecisionTree.SpectralNorm
 public import CslibFrontier.Computability.DecisionTree.Switching
 public import CslibFrontier.Computability.DecisionTree.SwitchingProbability
 public import CslibFrontier.Computability.DecisionTree.Symmetric
+public import CslibFrontier.Computability.Distributed.ApproxAgreement.Protocol
+public import CslibFrontier.Computability.Distributed.ApproxAgreement.TrimmedMidpoint
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Basic
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Bracha
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Impossibility
@@ -3233,6 +3239,8 @@ public import CslibFrontier.Computability.Distributed.Byzantine.Basic
 public import CslibFrontier.Computability.Distributed.Byzantine.NodeBound
 public import CslibFrontier.Computability.Distributed.Byzantine.OralMessages
 public import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
+public import CslibFrontier.Computability.Distributed.DijkstraScholten.Basic
+public import CslibFrontier.Computability.Distributed.DijkstraScholten.Correctness
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Basic
 public import CslibFrontier.Computability.Distributed.OrientedCycle.ColeVishkin
 public import CslibFrontier.Computability.Distributed.OrientedCycle.Graph
@@ -5784,6 +5792,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 public import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+public import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Basic
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.Credit
 public import CslibFrontier.Crypto.Protocols.AnonymousToken.RandomTarget
@@ -5989,6 +5998,7 @@ public import CslibFrontier.Crypto.Protocols.VOLE.BatchMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Circuit
 public import CslibFrontier.Crypto.Protocols.VOLE.CircuitPrivacy
 public import CslibFrontier.Crypto.Protocols.VOLE.CircuitSound
+public import CslibFrontier.Crypto.Protocols.VOLE.KOSExtractor
 public import CslibFrontier.Crypto.Protocols.VOLE.MaskedMulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.MulCheck
 public import CslibFrontier.Crypto.Protocols.VOLE.Native
@@ -6535,6 +6545,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.CoordinateSampling
 public import CslibFrontier.Foundations.BooleanAnalysis.CoveringProduct
 public import CslibFrontier.Foundations.BooleanAnalysis.Decomposition
 public import CslibFrontier.Foundations.BooleanAnalysis.Degree
+public import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.EdgeIsoperimetry
 public import CslibFrontier.Foundations.BooleanAnalysis.FiberWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.Fibers
