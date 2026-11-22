@@ -638,20 +638,6 @@ end Legality
 
 section Run
 
-private theorem run_iterate_replyStep_det (k : ℕ) (reqs : List (List Bool))
-    (O : Unit × List Bool → List Bool) {m : ℕ} (hm : m ≤ reqs.length) :
-    ProbOracleComp.run (OracleComp.iterate m (replyStep k reqs) []) (fun q => pure (O q)) =
-      pure ((reqs.take m).map fun req => (O ((), req)).take (k + 2)) := by
-  induction m with
-  | zero => simp
-  | succ m ih =>
-    have hmlt : m < reqs.length := hm
-    rw [OracleComp.iterate_succ, ProbOracleComp.run_bind, ih hmlt.le, pure_bind]
-    simp only [replyStep, replyStepWord, ProbOracleComp.run_map, ProbOracleComp.run_query,
-      map_pure, List.length_map, List.length_take_of_le hmlt.le, List.getD_eq_getElem?_getD,
-      List.getElem?_eq_getElem hmlt, Option.getD_some, List.take_add_one, Option.toList_some,
-      List.map_append, List.map_singleton]
-
 private theorem uniformList_map_simBaseLabels (k : ℕ) (f : ValidCircuit) :
     (BitString.uniformList ((f.1.n + f.1.q) * (k + 2))).map
         (fun coins => (simBaseLabels k coins :
@@ -1405,6 +1391,63 @@ private theorem slotTweak_injective (k : ℕ) (f : ValidCircuit) (hk : 8 * f.1.q
   subst hss
   rfl
 
+/-- **The real view is the typed real view.** For a query `(f, x)` with `x` of `f.n` bits, the
+real view at parameter `k` is the words of the typed view, on `x`, of the typed garbling of
+`toCircuit f`. -/
+private theorem eval_prvView (k : ℕ) (query : Query ValidCircuit)
+    (hx : query.input.length = query.fn.1.n) :
+    ProbComp.eval ((scheme hash).prvView k query) =
+      (ProbComp.eval (FreeXOR.garble (toCircuit query.fn) fullInterpretation
+        (fun key t => CCR.atLevel hash k (key, false) t)
+        (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k))).map
+        fun G => viewWord k _ (freeCircuit query.fn)
+          (G.view (BitString.ofList query.fn.1.n query.input)) := by
+  have hcoins : (scheme hash).coins k query.fn =
+      (k + 1) + (query.fn.1.n + query.fn.1.q) * (k + 2) := rfl
+  have hfun : (fun a : Scheme.Garbled =>
+      (⟨a.fn, (scheme hash).encode a.encInfo query.input, a.decInfo⟩ : PrvView)) ∘
+        (scheme hash).gb k query.fn =
+      (fun p : BitString (k + 1) × (Wire query.fn.1.n (toCircuit query.fn).size →
+          BitString (k + 1) × Bool) =>
+        viewWord k _ (freeCircuit query.fn) ((garbleWith (toCircuit query.fn)
+          fullInterpretation (fun key t => CCR.atLevel hash k (key, false) t)
+          (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k) p.1
+          p.2).view (BitString.ofList query.fn.1.n query.input))) ∘
+        (fun coins => (HalfGates.offsetKey k coins,
+          (baseLabels k coins : Wire query.fn.1.n (toCircuit query.fn).size → _))) := by
+    funext coins
+    simp only [Function.comp_apply]
+    rw [gb_eq_encodeGarbled]
+    simp only [viewWord, encodeGarbled, Garbled.view, PrvView.mk.injEq, true_and, and_true]
+    exact PointPermute.projectiveEncode_labelBits (n := query.fn.1.n) _ hx
+  simp only [Scheme.prvView, garble, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
+    Scheme.eval_garble, ProbComp.eval_uniform, hcoins, PMF.map_comp]
+  have hunif : (BitString.uniformList ((k + 1) + (query.fn.1.n + query.fn.1.q) *
+      (k + 2))).map (fun coins => (HalfGates.offsetKey k coins,
+        (baseLabels k coins : Wire query.fn.1.n (toCircuit query.fn).size → _))) =
+      PMF.uniformOfFintype (BitString (k + 1) ×
+        (Wire query.fn.1.n (toCircuit query.fn).size → BitString (k + 1) × Bool)) := by
+    rw [BitString.uniformList_add, PMF.map_bind]
+    calc _ = (BitString.uniformList (k + 1)).bind fun front =>
+          ((BitString.uniformList ((query.fn.1.n + query.fn.1.q) * (k + 2))).map
+            (fun back => (simBaseLabels k back :
+              Wire query.fn.1.n (toCircuit query.fn).size → _))).map
+              fun B => (BitString.ofList (k + 1) front, B) := by
+          refine Probability.PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
+          have hlen := BitString.length_of_mem_support_uniformList hfront
+          rw [PMF.map_comp, PMF.map_comp]
+          congr 1
+          funext back
+          refine Prod.ext (BitString.ofList_append_of_le hlen.ge _) (funext fun w => ?_)
+          simp [baseLabels, simBaseLabels, baseWord, PointPermute.simLabel, BitString.listRow,
+            List.drop_left' hlen]
+      _ = _ := by
+          rw [uniformList_map_simBaseLabels, ← Cslib.Probability.PMF.uniformOfFintype_prod,
+            ← BitString.uniformList_ofList, PMF.bind_map]
+          rfl
+  rw [hfun, ← PMF.map_comp, hunif, ← Cslib.Probability.PMF.uniformOfFintype_prod]
+  simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
+
 private theorem eval_prvSimExperiment_true {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
     (k : ℕ) (S : PrvSimulator XorTopology)
     (hq : ∀ query state, (query, state) ∈ (ProbComp.eval ((B k).choose ())).support →
@@ -1418,67 +1461,19 @@ private theorem eval_prvSimExperiment_true {σ : Type} (B : ℕ → PrvSimAdvers
             (BitString.ofList query.fn.1.n query.input)
             (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
         else ProbComp.eval ((B k).guess state none) := by
-  simp only [prvSimExperiment, ProbComp.eval_bind]
-  refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨query, state⟩ hmem => ?_
-  have hin : (scheme hash).inLen query.fn = query.fn.1.n := rfl
-  dsimp only
-  by_cases hx : query.input.length = query.fn.1.n
-  · simp only [hin, hx, hq query state hmem hx, and_self, ↓reduceIte, ProbComp.eval_bind,
-      FreeXOR.realGame]
-    have hprv : ProbComp.eval ((scheme hash).prvView k query) =
-        (ProbComp.eval (FreeXOR.garble (toCircuit query.fn) fullInterpretation
-          (fun key t => CCR.atLevel hash k (key, false) t)
-          (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k))).map
-          fun G => viewWord k _ (freeCircuit query.fn)
-            (G.view (BitString.ofList query.fn.1.n query.input)) := by
-      have hcoins : (scheme hash).coins k query.fn =
-          (k + 1) + (query.fn.1.n + query.fn.1.q) * (k + 2) := rfl
-      have hfun : (fun a : Scheme.Garbled =>
-          (⟨a.fn, (scheme hash).encode a.encInfo query.input, a.decInfo⟩ : PrvView)) ∘
-            (scheme hash).gb k query.fn =
-          (fun p : BitString (k + 1) × (Wire query.fn.1.n (toCircuit query.fn).size →
-              BitString (k + 1) × Bool) =>
-            viewWord k _ (freeCircuit query.fn) ((garbleWith (toCircuit query.fn)
-              fullInterpretation (fun key t => CCR.atLevel hash k (key, false) t)
-              (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k) p.1
-              p.2).view (BitString.ofList query.fn.1.n query.input))) ∘
-            (fun coins => (HalfGates.offsetKey k coins,
-              (baseLabels k coins : Wire query.fn.1.n (toCircuit query.fn).size → _))) := by
-        funext coins
-        simp only [Function.comp_apply]
-        rw [gb_eq_encodeGarbled]
-        simp only [viewWord, encodeGarbled, Garbled.view, PrvView.mk.injEq, true_and, and_true]
-        exact PointPermute.projectiveEncode_labelBits (n := query.fn.1.n) _ hx
-      simp only [Scheme.prvView, garble, bind_pure_comp, ProbComp.eval_map, ProbComp.eval_bind,
-        Scheme.eval_garble, ProbComp.eval_uniform, hcoins, PMF.map_comp]
-      have hunif : (BitString.uniformList ((k + 1) + (query.fn.1.n + query.fn.1.q) *
-          (k + 2))).map (fun coins => (HalfGates.offsetKey k coins,
-            (baseLabels k coins : Wire query.fn.1.n (toCircuit query.fn).size → _))) =
-          PMF.uniformOfFintype (BitString (k + 1) ×
-            (Wire query.fn.1.n (toCircuit query.fn).size → BitString (k + 1) × Bool)) := by
-        rw [BitString.uniformList_add, PMF.map_bind]
-        calc _ = (BitString.uniformList (k + 1)).bind fun front =>
-              ((BitString.uniformList ((query.fn.1.n + query.fn.1.q) * (k + 2))).map
-                (fun back => (simBaseLabels k back :
-                  Wire query.fn.1.n (toCircuit query.fn).size → _))).map
-                  fun B => (BitString.ofList (k + 1) front, B) := by
-              refine Probability.PMF.bind_congr_on_support _ _ _ fun front hfront => ?_
-              have hlen := BitString.length_of_mem_support_uniformList hfront
-              rw [PMF.map_comp, PMF.map_comp]
-              congr 1
-              funext back
-              refine Prod.ext (BitString.ofList_append_of_le hlen.ge _) (funext fun w => ?_)
-              simp [baseLabels, simBaseLabels, baseWord, PointPermute.simLabel, BitString.listRow,
-                List.drop_left' hlen]
-          _ = _ := by
-              rw [uniformList_map_simBaseLabels, ← Cslib.Probability.PMF.uniformOfFintype_prod,
-                ← BitString.uniformList_ofList, PMF.bind_map]
-              rfl
-      rw [hfun, ← PMF.map_comp, hunif, ← Cslib.Probability.PMF.uniformOfFintype_prod]
-      simp only [PMF.map_bind, PMF.map_comp, Function.comp_def]
-    rw [hprv, PMF.bind_map]
-    rfl
-  · simp only [hin, hx, false_and, ↓reduceIte]
+  simp only [FreeXOR.realGame, ProbComp.eval_bind]
+  exact eval_prvSimExperiment_eq_bind (scheme hash) phiXor k S (B k) true
+    (fun q => 8 * q.fn.1.q ≤ 2 ^ k) hq
+    (fun query (G : FreeXOR.Garbled (toCircuit query.fn).topology (freeCircuit query.fn)
+        (BitString (k + 1))) =>
+      viewWord k _ (freeCircuit query.fn) (G.view (BitString.ofList query.fn.1.n query.input)))
+    (fun query => ProbComp.eval (FreeXOR.garble (toCircuit query.fn) fullInterpretation
+      (fun key t => CCR.atLevel hash k (key, false) t)
+      (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)))
+    (fun query _ _ hx => by
+      change query.input.length = query.fn.1.n at hx
+      simp only [ite_true]
+      exact eval_prvView hash k query hx)
 
 private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdversary ValidCircuit σ)
     (k : ℕ)
@@ -1493,23 +1488,27 @@ private theorem eval_prvSimExperiment_false {σ : Type} (B : ℕ → PrvSimAdver
             (BitString.ofList query.fn.1.n query.input)
             (fun V => (B k).guess state (some (viewWord k _ (freeCircuit query.fn) V)))
         else ProbComp.eval ((B k).guess state none) := by
-  simp only [prvSimExperiment, ProbComp.eval_bind]
-  refine Probability.PMF.bind_congr_on_support _ _ _ fun ⟨query, state⟩ hmem => ?_
-  have hin : (scheme hash).inLen query.fn = query.fn.1.n := rfl
-  dsimp only
-  by_cases hx : query.input.length = query.fn.1.n
-  · have hy : BitString.ofList query.fn.1.m (query.fn.1.evalCirc query.input) =
-        (toCircuit query.fn).eval fullInterpretation
-          (BitString.ofList query.fn.1.n query.input) := by
-      have h := eval_toCircuit query.fn (BitString.ofList query.fn.1.n query.input)
-      rw [BitString.ofFn_ofList hx] at h
-      rw [← h, BitString.ofList_ofFn]
-    simp only [hin, hx, hq query state hmem hx, and_self, ↓reduceIte, Bool.false_eq_true,
-      ProbComp.eval_bind, FreeXOR.simGame]
-    rw [show (scheme hash).ev query.fn query.input = query.fn.1.evalCirc query.input from rfl,
-      eval_simWord, hy, PMF.bind_map]
-    rfl
-  · simp only [hin, hx, false_and, ↓reduceIte]
+  simp only [FreeXOR.simGame, ProbComp.eval_bind]
+  exact eval_prvSimExperiment_eq_bind (scheme hash) phiXor k (simWord hash k) (B k) false
+    (fun q => 8 * q.fn.1.q ≤ 2 ^ k) hq
+    (fun query (V : FreeXOR.View (toCircuit query.fn).topology (freeCircuit query.fn)
+        (BitString (k + 1))) =>
+      viewWord k _ (freeCircuit query.fn) V)
+    (fun query => ProbComp.eval (FreeXOR.simulate (toCircuit query.fn).topology
+      (freeCircuit query.fn) (fun key t => CCR.atLevel hash k (key, false) t)
+      (slotTweak (toCircuit query.fn).topology (freeCircuit query.fn) k)
+      ((toCircuit query.fn).eval fullInterpretation (BitString.ofList query.fn.1.n query.input))))
+    (fun query _ _ hx => by
+      change query.input.length = query.fn.1.n at hx
+      have hy : BitString.ofList query.fn.1.m (query.fn.1.evalCirc query.input) =
+          (toCircuit query.fn).eval fullInterpretation
+            (BitString.ofList query.fn.1.n query.input) := by
+        have h := eval_toCircuit query.fn (BitString.ofList query.fn.1.n query.input)
+        rw [BitString.ofFn_ofList hx] at h
+        rw [← h, BitString.ofList_ofFn]
+      simp only [Bool.false_eq_true, ite_false]
+      rw [show (scheme hash).ev query.fn query.input = query.fn.1.evalCirc query.input from rfl,
+        eval_simWord, hy])
 
 private theorem eval_realExperiment_prvSimReduction {σ : Type}
     (B : ℕ → PrvSimAdversary ValidCircuit σ) (k : ℕ) :
