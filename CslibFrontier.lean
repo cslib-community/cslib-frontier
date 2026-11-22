@@ -4668,6 +4668,7 @@ public import CslibFrontier.Computability.Probabilistic.UniformNat.ModIndex
 public import CslibFrontier.Computability.Probabilistic.Vector
 public import CslibFrontier.Computability.Program.Assemble
 public import CslibFrontier.Computability.Program.Blocks
+public import CslibFrontier.Computability.Program.Randomized
 public import CslibFrontier.Computability.Program.Structured
 public import CslibFrontier.Computability.Program.WP
 public import CslibFrontier.Computability.PropertyTesting.DenseGraph.Basic
