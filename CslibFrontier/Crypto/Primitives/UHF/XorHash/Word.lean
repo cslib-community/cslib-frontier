@@ -13,7 +13,9 @@ public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Languages.Probabilistic.Oracle.Run
 public import Cslib.Foundations.Data.BitString
 public import Mathlib.Algebra.Ring.BooleanRing
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Probabilistic.Fold
+import CslibFrontier.Foundations.Data.BitString.List.Operations
 
 /-!
 # Word-oracle evaluation of XOR-hash
@@ -62,17 +64,15 @@ theorem isOraclePPTOn_xorHashWordQueries :
     IsOraclePPTOn (encPair (encPair encUnary encUnary) (encList encBits)) encBits
       (fun p : (ℕ × ℕ) × List (List Bool) => xorHashWordQueries p.1.1 p.1.2 p.2) := by
   let input := encPair (encPair encUnary encUnary) (encList encBits)
-  have hbits := bits_encList_polyTime encBool
-  have hrep {α : Type} {enc : α ↪ List Bool} {n : α → ℕ} (hn : ComputableInPolyTime n enc encUnary)
-      (bit : Bool) : ComputableInPolyTime (fun a => List.replicate (n a) bit) enc encBits :=
-    hbits.2.comp (ComputableInPolyTime.replicate hn (ComputableInPolyTime.const bit))
   have hrequest : ComputableInPolyTime
       (fun p : ((ℕ × ℕ) × List (List Bool)) × (List Bool × ℕ) =>
         xorHashTaggedWord p.1.1.1 p.2.1 p.2.2)
       (encPair input (encPair encBits encUnary)) encBits := by
     unfold xorHashTaggedWord
     exact ComputableInPolyTime.bitsAppend
-      (ComputableInPolyTime.bitsAppend (hrep (by fun_prop) true) (hrep (by fun_prop) false))
+      (ComputableInPolyTime.bitsAppend
+        ((ComputableInPolyTime.bitsReplicate true).comp (by fun_prop))
+        ((ComputableInPolyTime.bitsReplicate false).comp (by fun_prop)))
       (by fun_prop)
   have hrequests : ComputableInPolyTime
       (fun p : (ℕ × ℕ) × List (List Bool) =>
@@ -80,16 +80,6 @@ theorem isOraclePPTOn_xorHashWordQueries :
       input (encList encBits) :=
     ComputableInPolyTime.mapWithInput
       ((ComputableInPolyTime.zipIdx encBits).comp (by fun_prop)) hrequest
-  have hxor : ComputableInPolyTime (fun p : List Bool × List Bool =>
-        List.zipWith Bool.xor p.1 p.2) (encPair encBits encBits) encBits := by
-    have hzip := (ComputableInPolyTime.zip encBool encBool).comp
-      ((hbits.1.comp (ComputableInPolyTime.fst encBits encBits)).prod
-        (hbits.1.comp (ComputableInPolyTime.snd encBits encBits)))
-    have hx : ComputableInPolyTime (fun p : Bool × Bool => Bool.xor p.1 p.2)
-        (encPair encBool encBool) encBool := ComputableInPolyTime.of_finite _
-    have hcur : Function.curry (fun p : Bool × Bool => Bool.xor p.1 p.2) = Bool.xor := rfl
-    simpa only [Function.comp_def, List.map_zip_eq_zipWith, hcur] using
-      hbits.2.comp ((ComputableInPolyTime.map hx).comp hzip)
   have hstep : IsOraclePPTOn (encPair encBits encBits) encBits
       (fun p : List Bool × List Bool =>
         (fun reply => List.zipWith Bool.xor p.1 (reply.take p.1.length)) <$>
@@ -99,13 +89,12 @@ theorem isOraclePPTOn_xorHashWordQueries :
       (input := encPair encBits encBits) (by fun_prop) (by fun_prop)
     have hpost : ComputableInPolyTime (fun p : (List Bool × List Bool) × List Bool =>
         List.zipWith Bool.xor p.1.1 p.2) (encPair (encPair encBits encBits) encBits) encBits :=
-      hxor.comp (by fun_prop : ComputableInPolyTime (fun p => (p.1.1, p.2))
-        (encPair (encPair encBits encBits) encBits) (encPair encBits encBits))
+      ComputableInPolyTime.bitsZipWithInput Bool.xor (by fun_prop) (by fun_prop)
     simpa only [Functor.map_map, Function.comp_def] using hquery.map_with
       (f := fun (p : List Bool × List Bool) reply => List.zipWith Bool.xor p.1 reply) hpost
   unfold xorHashWordQueries
-  refine IsOraclePPTOn.foldlM_of_bounded_growth [] hrequests (hrep (by fun_prop) false)
-    hstep (growth := 0) ?_
+  refine IsOraclePPTOn.foldlM_of_bounded_growth [] hrequests
+    ((ComputableInPolyTime.bitsReplicate false).comp (by fun_prop)) hstep (growth := 0) ?_
   intro acc request next hnext
   obtain ⟨reply, -, rfl⟩ := OracleComp.mem_supportWith_map_iff.mp hnext
   simpa only [encBits_apply, List.length_zipWith, Nat.add_zero] using
@@ -132,14 +121,6 @@ theorem xorHashTaggedWord_injective (ℓ : ℕ) :
   simp only [xorHashTaggedWord, List.take_left' (prefixLength _), List.count_append] at htag
   exact Prod.ext hblock (Fin.ext (by simpa [List.count_replicate] using htag))
 
-private theorem zipWith_xor_ofFn {width : ℕ} (a b : BitString width) :
-    List.zipWith Bool.xor (List.ofFn a) (List.ofFn b) = List.ofFn (a + b) := by
-  apply List.ext_getElem (by simp)
-  intro i hi hi'
-  simp only [List.getElem_zipWith, List.getElem_ofFn]
-  change _ = a ⟨i, _⟩ + b ⟨i, _⟩
-  rw [Bool.add_eq_xor]
-
 private theorem run_wordFold {α : Type} {width : ℕ} (request : α → List Bool)
     (f : α → BitString width) (table : List Bool → List Bool) (xs : List α)
     (h : ∀ x ∈ xs, table (request x) = List.ofFn (f x)) (acc : BitString width) :
@@ -154,7 +135,7 @@ private theorem run_wordFold {α : Type} {width : ℕ} (request : α → List Bo
     have htake := List.take_of_length_le (List.length_ofFn (f := f x)).le
     simp only [List.map_cons, List.foldlM_cons, ProbOracleComp.run_bind,
       ProbOracleComp.run_map, ProbOracleComp.run_query, h x (List.mem_cons_self ..), map_pure,
-      pure_bind, List.length_ofFn, htake, zipWith_xor_ofFn, List.sum_cons]
+      pure_bind, List.length_ofFn, htake, ← BitString.ofFn_add acc (f x), List.sum_cons]
     rw [ih (fun y hy => h y (List.mem_cons_of_mem _ hy)), add_assoc]
 
 /-- With matching fixed-width replies on valid tagged requests, the word evaluator returns the
