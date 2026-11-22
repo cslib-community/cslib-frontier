@@ -290,21 +290,28 @@ theorem formulaWordGateValues_getD_zero (word : List Bool) (termSign : List Bool
   formulaWordGateValues_getD_of_prefix (Formula.ofWord word) [] []
     (by simpa only [List.nil_append, List.append_nil] using formulaWordTokens_eq word) termSign
 
+/-- Evaluate the total formula view using a finite sign signature indexed by gate. A
+comparison beyond the signature receives `false`. -/
+def formulaWordGateValuesWithSignature {n : ℕ} (word : List Bool)
+    (signature : Fin n → SignType) : List Bool :=
+  formulaWordGateValuesWithAnswers word fun index =>
+    if hi : index < n then formulaWordComparisonAnswer word index (signature ⟨index, hi⟩)
+    else false
+
 /-- A finite gate signature covering the formula word's tokens gives the term-sign value
 of the total formula view if its sign at every comparison agrees with the requested term's
 sign. This adapts `LeanCanny.ETR.FormulaBooleanCircuitSource.value_signature` to the
 frontier token view, which only requests signs at comparison gates. -/
-theorem formulaWordGateValuesWithAnswers_getD_zero_of_signature {n : ℕ} (word : List Bool)
+theorem formulaWordGateValuesWithSignature_getD_zero {n : ℕ} (word : List Bool)
     (signature : Fin n → SignType) (termSign : List Bool → SignType)
     (hn : (formulaWordTokens word).length ≤ n)
     (hsign : ∀ index (hi : index < (formulaWordTokens word).length) request,
       formulaWordComparisonRequest word index = some request →
       signature ⟨index, hi.trans_le hn⟩ = termSign request.termWord) :
-    (formulaWordGateValuesWithAnswers word fun index =>
-      if hi : index < n then formulaWordComparisonAnswer word index (signature ⟨index, hi⟩)
-      else false).getD 0 false =
-        (Formula.ofWord word).evalTermSigns (termSign ∘ encTerm word.length) := by
-  rw [formulaWordGateValuesWithAnswers_eq_of_comparisonAnswers word _ termSign ?_,
+    (formulaWordGateValuesWithSignature word signature).getD 0 false =
+      (Formula.ofWord word).evalTermSigns (termSign ∘ encTerm word.length) := by
+  rw [formulaWordGateValuesWithSignature,
+    formulaWordGateValuesWithAnswers_eq_of_comparisonAnswers word _ termSign ?_,
     formulaWordGateValues_getD_zero]
   intro index hi request hrequest
   rw [dite_eq_left (hi.trans_le hn), formulaWordComparisonAnswer, hrequest]
@@ -357,5 +364,32 @@ theorem formulaWordGateValues_getD_zero_eq_true_iff (word : List Bool)
   rcases ht with ht | ht
   · exact .inl (List.mem_map_of_mem ht)
   · exact .inr (List.mem_map_of_mem ht)
+
+/-- A gate signature matching the real sign of every requested term gives the truth of the
+total formula view at that point. This is the token-view version of
+`LeanCanny.ETR.FormulaBooleanCircuitSource.signature_holds` at the revision cited above. -/
+theorem formulaWordGateValuesWithSignature_getD_zero_eq_true_iff {n : ℕ} (word : List Bool)
+    (signature : Fin n → SignType) (x : Fin word.length → ℝ)
+    (hn : (formulaWordTokens word).length ≤ n)
+    (hsign : ∀ index (hi : index < (formulaWordTokens word).length) request (t : Term word.length),
+      formulaWordComparisonRequest word index = some request →
+      request.termWord = encTerm word.length t →
+      signature ⟨index, hi.trans_le hn⟩ = SignType.sign (t.eval x)) :
+    (formulaWordGateValuesWithSignature word signature).getD 0 false = true ↔
+      x ∈ (Formula.ofWord word).solutionSet := by
+  let termSign := Function.extend (encTerm word.length) (fun t => SignType.sign (t.eval x))
+    (fun _ => 0)
+  have hterm (t : Term word.length) :
+      termSign (encTerm word.length t) = SignType.sign (t.eval x) :=
+    (encTerm word.length).injective.extend_apply _ _ t
+  have hagrees (index : ℕ) (hi : index < (formulaWordTokens word).length)
+      (request : FormulaComparisonRequest) (hrequest : formulaWordComparisonRequest word index =
+        some request) : signature ⟨index, hi.trans_le hn⟩ = termSign request.termWord := by
+    obtain ⟨t, hword⟩ := formulaWordComparisonRequest_termWord_exists hi hrequest
+    rw [hword, hterm]
+    exact hsign index hi request t hrequest hword
+  rw [formulaWordGateValuesWithSignature_getD_zero word signature termSign hn hagrees,
+    ← formulaWordGateValues_getD_zero]
+  exact formulaWordGateValues_getD_zero_eq_true_iff word termSign x fun t _ => hterm t
 
 end Cslib.Logic.RealArithmetic
