@@ -113,7 +113,7 @@ by the clause; the saved phase of `x₁` is still `false`. -/
 private def beforeRestart : CDCL.WExec [[(0, true), (1, true)]] :=
   let S₀ := CDCL.WExec.init [[(0, true), (1, true)]] {}
   let S := S₀.decide 0 S₀.order
-  { S with exec := S.exec.propagate (1, []) (1, true), queue := [] }
+  { S with exec := S.exec.propagate (1, []) (1, true), qhead := 2 }
 
 /-- The decision is `¬x₀`, and the clause `x₀ ∨ x₁` then forces `x₁`. -/
 example : CDCL.Trail.lits beforeRestart.M = [(1, true), (0, false)] := by decide +kernel
@@ -225,7 +225,7 @@ clauses leaves `r` in the database, and it is decided. -/
 example : (CDCL.solveWith {} rootSat).2.simplified = 1 ∧
     (CDCL.solveWith {} rootSat).2.decisions = 0 ∧
     (CDCL.solveWith { removeSatisfied := false } rootSat).2.decisions = 1 := by
-  decide
+  decide +kernel
 
 /-- The learned clause and the clauses met are bumped by the increment `2 ^ 40`, the others not. -/
 example : ((CDCL.Reduction.init 3 3).learn [3, 1] 5 6 false).act.score =
