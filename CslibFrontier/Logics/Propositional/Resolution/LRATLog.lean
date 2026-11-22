@@ -595,7 +595,7 @@ def finish (log : LRATLog φ) (i : ℕ) (_h : log.clause? i = some []) : Array L
 theorem checkLRAT_finish {log : LRATLog φ} {i : ℕ} (h : log.clause? i = some []) :
     φ.checkLRAT (log.finish i h) = true := by
   rw [checkLRAT, finish, List.toList_toArray, log.run]
-  simp [checkLRATAux, propagateHints_cons, find?_of_clause? h]
+  simp [checkLRATAux, propagateHints_cons, find?_of_clause? h, Clause.residual]
 
 end LRATLog
 
