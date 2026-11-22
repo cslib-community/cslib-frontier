@@ -29,6 +29,7 @@ import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Target collision-resistant hashing from inaccessible entropy and one-way functions
@@ -638,13 +639,11 @@ theorem ShrinkingCollisionGrid.targetCollisionResistant_rompelCompression
   intro adversary hadversary
   obtain ⟨goodIdx, hgood_lt, hneg_rand⟩ := G.exists_good_candidate _
     (isPPT_rompelCompressionInverter G hadversary)
-  have hloss_pb :=
-    (dyadicSize_polynomiallyBounded.comp G.polyTime_gridCount.polynomiallyBounded).mul
-      (dyadicSize_polynomiallyBounded.comp
-        (computableInPolyTime_rompelCascadeSteps G).polynomiallyBounded)
-  refine negligible_of_le (hneg_rand.polynomiallyBounded_mul hloss_pb) fun n => ?_
-  simpa only [randomCollisionGame, Nat.cast_mul] using
-    succProbability_targetCollisionGame_rompelCompression_le G adversary (hgood_lt n)
+  have := G.polyTime_gridCount.polynomiallyBounded
+  have := (computableInPolyTime_rompelCascadeSteps G).polynomiallyBounded
+  negligible using fun n => by
+    simpa only [randomCollisionGame] using
+      succProbability_targetCollisionGame_rompelCompression_le G adversary (hgood_lt n)
 
 /-! ### Unrestricted `KeyedHashFamily` and `OneWay` UOWHF endpoints -/
 

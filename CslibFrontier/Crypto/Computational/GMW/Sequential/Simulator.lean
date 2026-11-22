@@ -1170,11 +1170,9 @@ theorem AdvicePRG.gmwSeqView_negligible {α : Type} {enc : α ↪ List Bool}
   have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
     ((computableInPolyTime_totalLen hf).polyBounded.comp
       ⟨_, ha, fun _ => le_rfl⟩).polynomiallyBounded
-  negligible using fun n => by
-    simpa only [ProbComp.eval_bind] using
-      gmwSeqView_advantage_le generator length f k hV
-        (fun m a _ view => adversary m a (z' n) view)
-        n (a n) (w n) (z n) (hw_sat n)
+  negligible using fun n =>
+    gmwSeqView_advantage_le generator length f k hV
+      (fun m a _ view => adversary m a (z' n) view) n (a n) (w n) (z n) (hw_sat n)
 
 /-- **Zero-knowledge simulation of the sequentially amplified GMW protocol.** For any uniform strict
 oracle PPT malicious verifier `Vstar` and any deterministic polynomial-time families of instances

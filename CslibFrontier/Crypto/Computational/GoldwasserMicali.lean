@@ -47,6 +47,7 @@ import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.FieldTheory.Finite.Basic
 import Mathlib.NumberTheory.LegendreSymbol.QuadraticReciprocity
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Goldwasser–Micali public-key encryption
@@ -737,9 +738,7 @@ theorem indistinguishable_publicKeyGame {setup : ℕ → PMF ModulusDesc}
       Encryption.Adversary.IsPPT := by
   intro adversary hA
   have hD := hQR (qrDistinguisher adversary) (isPPTOn_qrDistinguisher hA)
-  refine negligible_of_le ((hD.add hD).add (negligible_const_div_two_pow 10)) fun n => ?_
-  dsimp only [Pi.add_apply]; rw [← two_mul]
-  exact advantage_publicKeyGame_le_qr (hsize n) adversary
+  negligible using fun n => advantage_publicKeyGame_le_qr (hsize n) adversary
 
 /-! ### Blum-modulus Goldwasser–Micali: IND-CPA from quadratic residuosity alone -/
 
@@ -981,8 +980,7 @@ theorem indcpa_blumGoldwasserMicali {gen : ℕ → ProbComp ModulusDesc}
     Encryption.INDCPA (blumKeyGen gen) encrypt := by
   intro adversary hA
   have hD := hQR (blumQRDistinguisher adversary) (isPPTOn_blumQRDistinguisher hA)
-  exact negligible_of_le (hD.add (negligible_const_div_two_pow 20)) fun n =>
-    advantage_blumGame_le_qr (hblum n) (hsize n) adversary
+  negligible using fun n => advantage_blumGame_le_qr (hblum n) (hsize n) adversary
 
 /-! ### Multi-bit bitwise Goldwasser–Micali encryption and IND-CPA -/
 
@@ -1277,15 +1275,7 @@ theorem indistinguishable_publicKeyWordGame {maxLen : ℕ → ℕ}
       Encryption.WordAdversary.IsPPT := by
   intro adversary hA
   have hD := hQR (qrWordDistinguisher maxLen adversary) (isPPTOn_qrWordDistinguisher hmax hA)
-  obtain ⟨c, d, hlen⟩ := hmax.isPPTOn.length_le
-  have hpoly : PolynomiallyBounded maxLen := PolynomiallyBounded.of_forall_le c d fun n => by
-    simpa only [encUnary_apply, List.length_replicate] using
-      hlen n (maxLen n) (by simp [ProbComp.eval_pure])
-  have htail := (negligible_const_div_two_pow 10).polynomiallyBounded_mul hpoly
-  refine negligible_of_le ((hD.add hD).add htail) fun n => ?_
-  dsimp only [Pi.add_apply]; rw [← two_mul]
-  refine (advantage_publicKeyWordGame_le_qr maxLen (hsize n) adversary).trans (le_of_eq ?_)
-  congr 1; ring
+  negligible using fun n => advantage_publicKeyWordGame_le_qr maxLen (hsize n) adversary
 
 /-! ### Necessity of `J_N(z) = +1`: polynomial-time Jacobi-symbol attack on `jacobiNegSet` -/
 
