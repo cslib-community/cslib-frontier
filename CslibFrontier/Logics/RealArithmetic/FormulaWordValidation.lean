@@ -416,7 +416,8 @@ enc_structure encFormulaComparisonRequest : FormulaComparisonRequest where
   isStrict : encBool
 
 /-- The sign that makes the requested comparison true. -/
-def FormulaComparisonRequest.requestedSign (request : FormulaComparisonRequest) : SignType :=
+@[expose] def FormulaComparisonRequest.requestedSign
+    (request : FormulaComparisonRequest) : SignType :=
   if request.isStrict then -1 else 0
 
 private def comparisonRequest : FormulaToken → Option FormulaComparisonRequest
