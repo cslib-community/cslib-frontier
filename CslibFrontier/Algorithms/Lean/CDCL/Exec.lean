@@ -653,9 +653,11 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
       hl₀ (by rw [trail_level, vars_append]; exact List.mem_append_left _ h)
     have hlM : l.1 ∉ Trail.vars (XTrail.trail M₀) := fun h =>
       hl₀ (by rw [trail_level, vars_append]; exact List.mem_append_right _ h)
-    have hcurA' : (cur.unassign [l.1]).Agrees (XTrail.trail N' ++ [⟨d, true⟩]) :=
-      Assign.Agrees.drop (N := [⟨l, false⟩]) hcurA fun v hv => by
-        rw [show v = l.1 by simpa [Trail.vars] using hv]; exact hl
+    -- `cur.clear l.1` is `cur.unassign [l.1]`, with no list built
+    have hcurA' : (cur.clear l.1).Agrees (XTrail.trail N' ++ [⟨d, true⟩]) :=
+      (Assign.Agrees.drop (N := [⟨l, false⟩]) hcurA fun v hv => by
+        rw [show v = l.1 by simpa [Trail.vars] using hv]; exact hl :
+        (cur.unassign [l.1]).Agrees (XTrail.trail N' ++ [⟨d, true⟩]))
     if hs : m.seen.assigned l.1 = true then
       if hp : m.path = 1 then
         m.learned log l false hm hs hp hints hh (hA (mem_lits_cons.2 (.inl rfl))) hlM
@@ -674,8 +676,8 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
                 hRfalse y hy hne
               rw [trail_level, lits_append, List.mem_append] at this
               exact this
-          analyzeGo log d M₀ A N' hA' (cur.unassign [l.1]) hcurA'
-            (Marks.absorb (cur.unassign [l.1]) ⟨m.seen, m.out, m.path - 1, m.vars⟩ R) hspec.1
+          analyzeGo log d M₀ A N' hA' (cur.clear l.1) hcurA'
+            (Marks.absorb (cur.clear l.1) ⟨m.seen, m.out, m.path - 1, m.vars⟩ R) hspec.1
             (by
               rw [hspec.1.path_eq]
               calc 1 ≤ m.path - 1 := by omega
@@ -696,7 +698,7 @@ def analyzeGo (log : LRATLog φ) (d : Literal ℕ) (M₀ : XTrail) (A : Trail) :
                 · exact .inr (.inr ⟨hspec.2.2.1 _ hys, hy⟩))
             hreasons.tail hdec' hnd'
     else
-      analyzeGo log d M₀ A N' hA' (cur.unassign [l.1]) hcurA' m
+      analyzeGo log d M₀ A N' hA' (cur.clear l.1) hcurA' m
         (hm.pass (e := ⟨l, false⟩) (by simpa using hs)) hpath hints
         (hh.mono fun y hy => by
           rcases hy with hy | ⟨hys, hy⟩
