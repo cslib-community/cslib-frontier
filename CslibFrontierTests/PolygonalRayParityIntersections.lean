@@ -8,6 +8,8 @@ module
 -- upstream: local-only (ordinary straight-observation parity clients)
 
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
+import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
+import CslibFrontier.Foundations.Geometry.Polygonal.Segment
 import CslibFrontier.Foundations.Geometry.SegmentSign
 import Mathlib.Logic.Equiv.Fin.Rotate
 import Mathlib.Tactic.FinCases
@@ -526,5 +528,37 @@ example : (openSegment ℝ (⟨0, -2⟩ : ℂ) ⟨0, 2⟩ ∩
     apply Complex.ext <;> simp [AffineMap.lineMap_apply_module']
     ring
   exact ⟨0, hzero 2, hzero 1⟩
+
+private def excursionStem : Route := Route.line ⟨4, 2⟩ 0
+
+private def excursionSquare : Route where
+  bends := 3
+  point i := if i.val = 1 then ⟨2, 0⟩ else if i.val = 2 then ⟨2, 2⟩ else
+    if i.val = 3 then ⟨0, 2⟩ else 0
+
+-- The connector contributes at the interior observation, but its retracing cancels it.
+example :
+    let p := (excursionStem.concat excursionSquare).concat excursionStem.reverse
+    excursionStem.rayParity 1 ⟨1, 1⟩ = true ∧
+      p.rayParity 1 ⟨1, 1⟩ = true ∧ p.rayParity 1 ⟨3, 1⟩ = false := by
+  classical
+  dsimp only
+  simp only [Route.rayParity_closed_excursion excursionStem excursionSquare rfl rfl]
+  let bit (a b z : ℂ) : Bool := if RayCrosses a b z then true else 0
+  have stemBit (z : ℂ) : excursionStem.rayParity 1 z = bit ⟨4, 2⟩ 0 z := by
+    unfold Route.rayParity rayParity
+    change (∑ i : Fin 1, if RayCrosses (1 * excursionStem.point i.castSucc)
+      (1 * excursionStem.point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_one, one_mul]
+    rfl
+  have squareBits (z : ℂ) : excursionSquare.rayParity 1 z =
+      bit 0 ⟨2, 0⟩ z + bit ⟨2, 0⟩ ⟨2, 2⟩ z + bit ⟨2, 2⟩ ⟨0, 2⟩ z + bit ⟨0, 2⟩ 0 z := by
+    unfold Route.rayParity rayParity
+    change (∑ i : Fin 4, if RayCrosses (1 * excursionSquare.point i.castSucc)
+      (1 * excursionSquare.point i.succ) (1 * z) then (true : Bool) else 0) = _
+    simp only [Fin.sum_univ_four, one_mul]
+    rfl
+  norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept]
+  exact Bool.zero_eq_false
 
 end CslibFrontierTests.PolygonalRayParityIntersections
