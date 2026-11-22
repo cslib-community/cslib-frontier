@@ -309,6 +309,7 @@ import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 import CslibFrontier.Crypto.Computational.MerkleTree.Binding
+import CslibFrontier.Crypto.Computational.Commitment.Guessing
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
@@ -2054,6 +2055,21 @@ register_result "random-functions-average-case-hard" where
     circuit with at most S gates (inputs not counted) agrees with f on fewer than a \
     1/2 + 1/S fraction of the inputs (strict, as in the draft). Outside-fleet source check: \
     PR #6269, pullrequestreview-5947274913."
+
+register_result "naor-single-bit-commitment" where
+  title := "Guessing and binding in Naor's single-bit commitment from a uniform PRG"
+  topic := "cryptography"
+  sources := [
+    { paper := Naor1991, theorem := "Theorem 3.1",
+      locator := "Section 3, p. 6 of the author's February 25, 2001 copy. Protocol on p. 5, \
+        generator convention in Section 2, p. 4." }
+  ]
+  theorems := [Cslib.Crypto.PseudorandomGenerator.naorCommit_guessing_and_binding]
+  scope := "The uniform pseudorandom generator supplies the protocol's 3n-bit prefix for n > 0 \
+    and emits one bit at zero for strict expansion. Every randomized uniform strict-PPT receiver \
+    chooses its own challenge and saved state and has negligible advantage over one half in \
+    guessing the fair committed bit. For every n > 0, an honest uniform 3n-bit challenge permits \
+    two accepted openings of the same commitment to opposite bits with probability below 2⁻ⁿ."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
