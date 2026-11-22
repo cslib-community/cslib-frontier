@@ -192,8 +192,9 @@ private theorem pingPong_deterministic_steps (q : ReactiveNode 3 PingPong) (b : 
   rw [h3,
     runFrom_steps_pure_step (pingPongSystem q allowAll) κ extra rfl
       (by simp [TokenState.next, pingPongSystem, allowAll]) rfl
-      (update_state3_0 q s₂ κ allowAll),
-    steps_of_output_isSome _ extra rfl, Machine.runFrom_pure]
+      (update_state3_0 q s₂ κ allowAll)]
+  dsimp only [steps]
+  rw [OracleComp.iterate_eq_pure extra _ _ (step_of_output_isSome _ rfl), Machine.runFrom_pure]
   rfl
 
 /-- 3-node ping-pong with `allowAll` halts in 4 steps with `some true`, and extra fuel leaves
@@ -237,8 +238,9 @@ theorem pingPong_denyForward_run (κ : ℕ) (z : List Bool) (extra : ℕ) :
       rfl (update_state3_1 pongNode () κ denyTo2),
     runFrom_steps_pure_step (pingPongSystem pongNode denyTo2) κ extra rfl
       (by simp [TokenState.next, TokenState.initialFor, pingPongSystem, denyTo2])
-      rfl (update_state3_0 pongNode () κ denyTo2),
-    steps_of_output_isSome _ extra rfl, Machine.runFrom_pure]
+      rfl (update_state3_0 pongNode () κ denyTo2)]
+  dsimp only [steps]
+  rw [OracleComp.iterate_eq_pure extra _ _ (step_of_output_isSome _ rfl), Machine.runFrom_pure]
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure]
   rfl
 
@@ -262,8 +264,9 @@ theorem pingPong_underfueled_run (κ : ℕ) (z : List Bool) :
       (init_pingPong pongNode () rfl κ allowAll),
       pingPong_prefix2 pongNode () κ 1 z,
       runFrom_steps_pure_step (pingPongSystem pongNode allowAll) κ 0 rfl (by simp)
-        rfl (update_state3_2 pongNode () () κ allowAll),
-      steps_zero, Machine.runFrom_pure]
+        rfl (update_state3_2 pongNode () () κ allowAll)]
+    dsimp only [steps]
+    rw [OracleComp.iterate_zero, Machine.runFrom_pure]
     simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure]
     rfl
   refine ⟨hpush, ?_⟩
@@ -299,8 +302,9 @@ theorem pingPong_coinNode_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
     congr 1; funext b
     rw [update_state3_2 coinNode () () κ allowAll,
       runFrom_steps_pure_step (pingPongSystem coinNode allowAll) κ extra rfl (by simp)
-        rfl (update_state3_0 coinNode () κ allowAll),
-      steps_of_output_isSome _ extra rfl, Machine.runFrom_pure]
+        rfl (update_state3_0 coinNode () κ allowAll)]
+    dsimp only [steps]
+    rw [OracleComp.iterate_eq_pure extra _ _ (step_of_output_isSome _ rfl), Machine.runFrom_pure]
     rfl
   rw [hrun]
   simp only [Machine.closeProgram_bind, Machine.closeProgram_sample, Machine.closeProgram_pure,
@@ -386,8 +390,9 @@ theorem haltingPeer_step4_state (κ : ℕ) (z : List Bool) :
         (by simp [TokenState.next, TokenState.initialFor, peerSystem, allowAll])
         rfl (update_state2_0 haltingPeer 0 1 1 κ),
       runFrom_steps_succ_of_mem_halted _ κ 0 rfl
-        (by simp [TokenState.next, TokenState.initialFor, peerSystem, allowAll]),
-      steps_zero, Machine.runFrom_pure]
+        (by simp [TokenState.next, TokenState.initialFor, peerSystem, allowAll])]
+  dsimp only [steps]
+  rw [OracleComp.iterate_zero, Machine.runFrom_pure]
   rfl
 
 /-- End-to-end halted-recipient check: on step 5, `resumeCountEnv` receives the second `resume` and
@@ -397,8 +402,9 @@ theorem haltingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
   rw [pushExec, ProbComp.eval_map,
     eval_pushRun_of_init_pure _ κ z (5 + extra) (state2 haltingPeer 0 0 κ)
       (init_peerSystem haltingPeer 0 rfl κ),
-    show 5 + extra = 4 + (extra + 1) by omega, steps_add, Machine.runFrom_bind,
-    haltingPeer_step4_state]
+    show 5 + extra = 4 + (extra + 1) by omega]
+  dsimp only [steps]
+  rw [steps_add, Machine.runFrom_bind, haltingPeer_step4_state]
   change PMF.map (fun r => r.getD false) (((TokenState.output ∘ Prod.fst) <$> Machine.closeProgram
     ((SSP.parFin ((peerSystem haltingPeer).node κ)).runFrom
       (steps (peerSystem haltingPeer) (extra + 1)
@@ -406,8 +412,9 @@ theorem haltingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
           halted := {1}, output := none })
       (state2 haltingPeer 1 1 κ))).eval) = _
   rw [runFrom_steps_pure_step (peerSystem haltingPeer) κ extra rfl (by simp)
-        rfl (update_state2_0 haltingPeer 1 2 1 κ),
-      steps_of_output_isSome _ extra rfl, Machine.runFrom_pure]
+        rfl (update_state2_0 haltingPeer 1 2 1 κ)]
+  dsimp only [steps]
+  rw [OracleComp.iterate_eq_pure extra _ _ (step_of_output_isSome _ rfl), Machine.runFrom_pure]
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure,
     PMF.pure_map]
   rfl
@@ -427,8 +434,9 @@ theorem replyingPeer_exec (κ : ℕ) (z : List Bool) (extra : ℕ) :
       rfl (update_state2_1 replyingPeer 0 0 1 κ),
     runFrom_steps_pure_step (peerSystem replyingPeer) κ extra rfl
       (by simp [TokenState.next, TokenState.initialFor, peerSystem, allowAll])
-      rfl (update_state2_0 replyingPeer 0 0 1 κ),
-    steps_of_output_isSome _ extra rfl, Machine.runFrom_pure]
+      rfl (update_state2_0 replyingPeer 0 0 1 κ)]
+  dsimp only [steps]
+  rw [OracleComp.iterate_eq_pure extra _ _ (step_of_output_isSome _ rfl), Machine.runFrom_pure]
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure,
     PMF.pure_map]
   rfl
@@ -453,8 +461,9 @@ theorem yieldingPeer_step4_state (κ : ℕ) (z : List Bool) :
         rfl (update_state2_0 yieldingPeer 0 1 1 κ),
       runFrom_steps_pure_step (peerSystem yieldingPeer) κ 0 rfl
         (by simp [TokenState.next, TokenState.initialFor, peerSystem, allowAll])
-        rfl (update_state2_1 yieldingPeer 1 1 2 κ),
-      steps_zero, Machine.runFrom_pure]
+        rfl (update_state2_1 yieldingPeer 1 1 2 κ)]
+  dsimp only [steps]
+  rw [OracleComp.iterate_zero, Machine.runFrom_pure]
   rfl
 
 /-! ### Structural & Query-Bound Checks -/
@@ -495,8 +504,9 @@ example (κ : ℕ) (z : List Bool) :
   rw [pushExec, ProbComp.eval_map,
     eval_pushRun_of_init_pure κParamSystem κ z 1 (κInitState κ) (fun _ => rfl),
     runFrom_steps_pure_step κParamSystem κ 0 rfl (by simp [TokenState.initialFor])
-      rfl (update_κInitState κ),
-    steps_zero, Machine.runFrom_pure]
+      rfl (update_κInitState κ)]
+  dsimp only [steps]
+  rw [OracleComp.iterate_zero, Machine.runFrom_pure]
   simp only [Machine.closeProgram_pure, map_pure, Function.comp_apply, ProbComp.eval_pure,
     PMF.pure_map, TokenState.next, κParamSystem, TokenState.initialFor, κInitState]
   simp

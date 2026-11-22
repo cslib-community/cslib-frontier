@@ -14,7 +14,7 @@ public import CslibFrontier.Crypto.Protocols.UC.Execution
 
 This file defines the vocabulary and pure single-token scheduler transition for a push-style
 execution of interactive machines, modeled after the single-token activation model of
-§3.1.2 of [Canetti2020] (JACM pp. 28:23–28:24, 28:33).
+[Canetti2020], §3.1.2 (JACM pp. 28:23–28:24) and §3.3.2, "Deleting ITIs" (JACM p. 28:33).
 
 In this library's single-token push reading:
 - A system has a fixed finite set of `m` nodes addressed by index `Fin m` rather than dynamically
@@ -25,7 +25,8 @@ In this library's single-token push reading:
   execution prefix and decides only whether a proposed write is allowed.
 - Returning control to the initial node on `Outcome.yield` or on a non-initial node's
   `Outcome.halt` is a library convention (whereas returning to the initial node on a disallowed
-  write and ignoring activations of halted non-initial nodes follow [Canetti2020] §3.1.2).
+  write follows [Canetti2020] §3.1.2, and ignoring activations of halted non-initial nodes follows
+  [Canetti2020] §3.3.2, "Deleting ITIs").
 
 The operational runner built on this vocabulary lives in
 `CslibFrontier.Crypto.Protocols.UC.PushExecution`. The relation to the pull-style execution of
@@ -52,8 +53,8 @@ The operational runner built on this vocabulary lives in
 
 ## References
 
-* [R. Canetti, *Universally Composable Security*][Canetti2020], §3.1.2
-  (JACM pp. 28:23–28:24, 28:33).
+* [R. Canetti, *Universally Composable Security*][Canetti2020], §3.1.2 (JACM pp. 28:23–28:24)
+  and §3.3.2, "Deleting ITIs" (JACM p. 28:33).
 -/
 
 public section
@@ -156,9 +157,9 @@ structure TokenState (m : ℕ) (Msg : Type) where
   running. -/
   output : Option Bool
 
-/-- Library infrastructure (no cited result): the initial scheduler state for initial node `i` and
-auxiliary input `z`: `i` is activated with `.start z`, the delivered log and halted set are empty,
-and no output has been produced. -/
+/-- Library construction (no cited definition): the initial scheduler state for initial node `i`
+and auxiliary input `z`: `i` is activated with `.start z`, the delivered log and halted set are
+empty, and no output has been produced. -/
 @[expose] def TokenState.initialFor {m : ℕ} {Msg : Type} (i : Fin m) (z : List Bool) :
     TokenState m Msg where
   target := i
@@ -167,10 +168,10 @@ and no output has been produced. -/
   halted := ∅
   output := none
 
-/-- Library infrastructure for the pure scheduler transition applying the active node `ts.target`'s
-`Outcome` in push system `S` (in this library's push reading of §3.1.2 of [Canetti2020],
-JACM pp. 28:23–28:24, 28:33; narrower in fixed index addressing, eager initialization, forced
-sender-revealing writes, and a log-based control function):
+/-- Library construction (no cited definition): pure scheduler transition applying the active node
+`ts.target`'s `Outcome` in push system `S` (in this library's push reading of [Canetti2020], §3.1.2
+(JACM pp. 28:23–28:24) and §3.3.2, "Deleting ITIs" (JACM p. 28:33); narrower in fixed index
+addressing, eager initialization, forced sender-revealing writes, and a log-based control function):
 - `write r t p` allowed by `S.control`: the envelope `e` is appended to `ts.log` and `r` is
   activated next with `.deliver e` (step 1a, §3.1.2 of [Canetti2020], JACM p. 28:24).
 - `write r t p` disallowed by `S.control`: the write is not carried out and the initial node is
@@ -179,8 +180,8 @@ sender-revealing writes, and a log-based control function):
 - `halt b` by the initial node: execution ends with `output := some b` (§3.1.2 of [Canetti2020],
   JACM p. 28:23).
 - `halt b` by a non-initial node: `ts.target` is recorded in `ts.halted` (so later activations
-  perform no operation per §3.1.2 of [Canetti2020], JACM p. 28:33) and the initial node is activated
-  next with `.resume` (library convention). -/
+  perform no operation per §3.3.2, "Deleting ITIs", of [Canetti2020], JACM p. 28:33) and the initial
+  node is activated next with `.resume` (library convention). -/
 @[expose] def TokenState.next {m : ℕ} {Msg : Type} (S : PushSystem m Msg)
     (ts : TokenState m Msg) : Outcome m Msg → TokenState m Msg
   | .write r t p =>

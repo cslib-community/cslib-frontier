@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Crypto.Protocols.SSP.Basic
 public import CslibFrontier.Crypto.Protocols.UC.Reactive
+public import CslibFrontier.Languages.Probabilistic.Iteration
 
 /-!
 # Single-Token Push Execution for UC Interactive Machines
@@ -17,8 +18,9 @@ This file defines the fuel-bounded single-token push runtime over a `PushSystem`
 nodes, running the scheduler `steps` against the parallel composition `SSP.parFin (S.node κ)` of
 the system's nodes.
 
-The operational model follows the single-token activation model of §3.1.2 of [Canetti2020]
-(JACM pp. 28:23–28:24, 28:33), with the following library conventions:
+The operational model follows the single-token activation model of [Canetti2020], §3.1.2
+(JACM pp. 28:23–28:24) and §3.3.2, "Deleting ITIs" (JACM p. 28:33), with the following library
+conventions:
 - All `m` nodes are fixed in advance and initialized eagerly via `SSP.parFin`.
 - `fuel` counts scheduler steps (including steps whose target is already in `ts.halted`, which
   make no network query and return control to `S.initial`), not node activations or running time.
@@ -31,7 +33,7 @@ proved here.
 ## Main definitions
 
 * `step`: one scheduler step of a push system.
-* `steps`: `fuel` scheduler steps composed sequentially.
+* `steps`: `fuel` scheduler steps, defined directly via `OracleComp.iterate`.
 * `pushRun`: fuel-bounded push execution returning `Option Bool`.
 * `pushExec`: fuel-bounded push execution returning `Bool` (fuel exhaustion read as `false`).
 
@@ -39,7 +41,7 @@ proved here.
 
 * `step_of_output_isSome`, `step_of_mem_halted`, `step_of_not_mem_halted`: `@[simp]` equations
   for each branch of `step`.
-* `steps_zero`, `steps_succ`, `steps_add`, `steps_of_output_isSome`: structural laws for `steps`.
+* `steps_add`: sequential composition law for `OracleComp.iterate fuel (step S)`.
 * `runFrom_steps_succ_of_not_mem_halted`, `runFrom_steps_succ_of_mem_halted`: single-step
   operational unfolding of `steps` against `SSP.parFin`.
 * `isQueryBounded_step`, `isQueryBounded_steps`, `isQueryBounded_pushRun`: query-count bounds for
@@ -49,8 +51,8 @@ proved here.
 
 ## References
 
-* [R. Canetti, *Universally Composable Security*][Canetti2020], §3.1.2
-  (JACM pp. 28:23–28:24, 28:33).
+* [R. Canetti, *Universally Composable Security*][Canetti2020], §3.1.2 (JACM pp. 28:23–28:24)
+  and §3.3.2, "Deleting ITIs" (JACM p. 28:33).
 -/
 
 public section
@@ -59,13 +61,14 @@ namespace Cslib.Crypto.Protocols.UC.Push
 
 variable {m : ℕ} {Msg : Type}
 
-/-- Library infrastructure for one scheduler step of a push system `S` from state `ts`, in this
-library's push reading of §3.1.2 of [Canetti2020] (JACM pp. 28:23–28:24, 28:33). A finished run
-(`ts.output.isSome`) is left unchanged with no network query. A halted target performs no operation
-and the initial node is activated next with `.resume` (§3.1.2 of [Canetti2020], JACM p. 28:33),
-costing one unit of fuel and making no network query (a library convention). Otherwise `ts.target`
-is activated with `ts.delivery` (one query to the network, ending the activation at its outcome) and
-`TokenState.next` applies its outcome. -/
+/-- Library construction (no cited definition): one scheduler step of a push system `S` from state
+`ts`, in this library's push reading of [Canetti2020], §3.1.2 (JACM pp. 28:23–28:24) and §3.3.2,
+"Deleting ITIs" (JACM p. 28:33). A finished run (`ts.output.isSome`) is left unchanged with no
+network query. A halted target performs no operation and the initial node is activated next with
+`.resume` (§3.3.2, "Deleting ITIs", of [Canetti2020], JACM p. 28:33), costing one unit of fuel and
+making no network query (a library convention). Otherwise `ts.target` is activated with
+`ts.delivery` (one query to the network, ending the activation at its outcome) and `TokenState.next`
+applies its outcome. -/
 @[expose] def step (S : PushSystem m Msg) (ts : TokenState m Msg) :
     ProbOracleComp (SSP.sessionSpec m (netSpec (Delivery m Msg) (Outcome m Msg)))
       (TokenState m Msg) :=
@@ -101,58 +104,44 @@ network once and applies `TokenState.next`. -/
       return ts.next S a) := by
   simp [step, ho, hh]
 
-/-- Library infrastructure (no cited result): `fuel` scheduler steps of a push system `S` starting
-from `ts`. Fuel counts scheduler steps (including steps on halted targets, which make no network
-query), not node activations or running time (a library convention). -/
-@[expose] def steps (S : PushSystem m Msg) : ℕ → TokenState m Msg →
+/-- Library construction (no cited definition): `fuel` scheduler steps of a push system `S`
+starting from `ts`, defined via `OracleComp.iterate`. Fuel counts scheduler steps (including steps
+on halted targets, which make no network query), not node activations or running time (a library
+convention). -/
+abbrev steps (S : PushSystem m Msg) (fuel : ℕ) :
+    TokenState m Msg →
     ProbOracleComp (SSP.sessionSpec m (netSpec (Delivery m Msg) (Outcome m Msg)))
-      (TokenState m Msg)
-  | 0, ts => pure ts
-  | f + 1, ts => do
-    let ts' ← step S ts
-    steps S f ts'
-
-/-- Library infrastructure (no cited result): zero scheduler steps return the current state. -/
-@[simp] theorem steps_zero (S : PushSystem m Msg) (ts : TokenState m Msg) :
-    steps S 0 ts = pure ts := rfl
-
-/-- Library infrastructure (no cited result): unfolding one scheduler step from `steps`. -/
-theorem steps_succ (S : PushSystem m Msg) (f : ℕ) (ts : TokenState m Msg) :
-    steps S (f + 1) ts = step S ts >>= steps S f := rfl
+      (TokenState m Msg) :=
+  OracleComp.iterate fuel (step S)
 
 /-- Library infrastructure (no cited result): running two prefix lengths in sequence is running
 their sum. -/
 theorem steps_add (S : PushSystem m Msg) (a b : ℕ) (ts : TokenState m Msg) :
-    steps S (a + b) ts = steps S a ts >>= steps S b := by
+    OracleComp.iterate (a + b) (step S) ts =
+      OracleComp.iterate a (step S) ts >>= OracleComp.iterate b (step S) := by
   induction a generalizing ts with
-  | zero => simp [steps_zero]
+  | zero => simp [OracleComp.iterate_zero]
   | succ a ih =>
-    rw [Nat.succ_add, steps_succ, steps_succ, bind_assoc]
+    rw [Nat.succ_add, OracleComp.iterate_succ_bind, OracleComp.iterate_succ_bind, bind_assoc]
     exact bind_congr fun ts' => ih ts'
 
-/-- Library infrastructure (no cited result): once the initial node has halted, further scheduler
-steps change nothing. -/
-@[simp] theorem steps_of_output_isSome (S : PushSystem m Msg) (f : ℕ)
-    {ts : TokenState m Msg} (h : ts.output.isSome) : steps S f ts = pure ts := by
-  induction f with
-  | zero => rfl
-  | succ f ih => rw [steps_succ, step_of_output_isSome S h, pure_bind, ih]
-
 /-- Library construction (no cited definition): the single-token execution of a push system, in
-this library's push reading of §3.1.2 of [Canetti2020] (JACM pp. 28:23–28:24, 28:33), narrower in
-having a fixed node set initialized eagerly, nodes addressed by index, every write forced and
-sender-revealing, a control function over the delivered log, and an activation that ends without a
-write returning control to the initial node (a library convention). The result is the initial node's
-output bit, or `none` if it has not halted within `fuel` steps (a library convention). The relation
-to the pull execution of `CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here. -/
+this library's push reading of [Canetti2020], §3.1.2 (JACM pp. 28:23–28:24) and §3.3.2, "Deleting
+ITIs" (JACM p. 28:33), narrower in having a fixed node set initialized eagerly, nodes addressed by
+index, every write forced and sender-revealing, a control function over the delivered log, and an
+activation that ends without a write returning control to the initial node (a library convention).
+The result is the initial node's output bit, or `none` if it has not halted within `fuel` steps
+(a library convention). The relation to the pull execution of
+`CslibFrontier.Crypto.Protocols.UC.Execution` is not proved here. -/
 @[expose] def pushRun (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     ProbComp (Option Bool) :=
   TokenState.output <$>
     (SSP.parFin (S.node κ)).run (steps S fuel (TokenState.initialFor S.initial z))
 
 /-- Library construction (no cited definition): the output bit of a push execution, in this
-library's push reading of §3.1.2 of [Canetti2020] (JACM pp. 28:23–28:24, 28:33), narrower as in
-`pushRun` and with fuel exhaustion read as `false` (a library convention). -/
+library's push reading of [Canetti2020], §3.1.2 (JACM pp. 28:23–28:24) and §3.3.2, "Deleting ITIs"
+(JACM p. 28:33), narrower as in `pushRun` and with fuel exhaustion read as `false` (a library
+convention). -/
 @[expose] def pushExec (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) (fuel : ℕ) :
     ProbComp Bool :=
   (fun r => r.getD false) <$> pushRun S κ z fuel
@@ -173,11 +162,11 @@ theorem isQueryBounded_step (S : PushSystem m Msg) (ts : TokenState m Msg) :
 /-- Library infrastructure (no cited result): a run of `fuel` scheduler steps makes at most
 `fuel` network queries (activating nodes at most `fuel` times). -/
 theorem isQueryBounded_steps (S : PushSystem m Msg) (fuel : ℕ) (ts : TokenState m Msg) :
-    (steps S fuel ts).IsQueryBounded fuel := by
+    (OracleComp.iterate fuel (step S) ts).IsQueryBounded fuel := by
   induction fuel generalizing ts with
   | zero => exact OracleComp.IsCostBounded.pure ts 0
   | succ f ih =>
-    rw [steps_succ, Nat.add_comm]
+    rw [OracleComp.iterate_succ_bind, Nat.add_comm]
     exact (isQueryBounded_step S ts).bind fun ts' => ih ts'
 
 /-- Library infrastructure (no cited result): when every node of `S` at security parameter `κ`
@@ -201,7 +190,8 @@ theorem runFrom_steps_succ_of_not_mem_halted (S : PushSystem m Msg) (κ f : ℕ)
       (((S.node κ ts.target).handle ts.delivery).run (s ts.target)) >>= fun x =>
         (SSP.parFin (S.node κ)).runFrom (steps S f (ts.next S x.1))
           (Function.update s ts.target x.2) := by
-  rw [steps_succ, step_of_not_mem_halted S ho hh, bind_assoc]
+  dsimp only [steps]
+  rw [OracleComp.iterate_succ_bind, step_of_not_mem_halted S ho hh, bind_assoc]
   simp only [pure_bind, Machine.runFrom_bind, Machine.runFrom_query, SSP.parFin_handle,
     bind_map_left]
 
@@ -213,7 +203,8 @@ theorem runFrom_steps_succ_of_mem_halted (S : PushSystem m Msg) (κ f : ℕ)
     (SSP.parFin (S.node κ)).runFrom (steps S (f + 1) ts) s =
       (SSP.parFin (S.node κ)).runFrom
         (steps S f { ts with target := S.initial, delivery := .resume }) s := by
-  rw [steps_succ, step_of_mem_halted S ho hh, pure_bind]
+  dsimp only [steps]
+  rw [OracleComp.iterate_succ_bind, step_of_mem_halted S ho hh, pure_bind]
 
 /-- Library infrastructure (no cited result): the output distribution of `pushRun` binds the
 joint initial-state distribution `(SSP.parFin (S.node κ)).init.eval` into the closed `fuel`-step
@@ -249,8 +240,9 @@ theorem eval_pushRun_of_init_pure (S : PushSystem m Msg) (κ : ℕ) (z : List Bo
 (node initial states are sampled and discarded). -/
 theorem eval_pushRun_zero (S : PushSystem m Msg) (κ : ℕ) (z : List Bool) :
     (pushRun S κ z 0).eval = PMF.pure none := by
-  simp only [eval_pushRun, steps_zero, Machine.runFrom_pure, Machine.closeProgram_pure,
-    map_pure, Function.comp_apply, TokenState.initialFor, ProbComp.eval_pure]
+  simp only [eval_pushRun, OracleComp.iterate_zero, Machine.runFrom_pure,
+    Machine.closeProgram_pure, map_pure, Function.comp_apply, TokenState.initialFor,
+    ProbComp.eval_pure]
   exact PMF.bind_const _ _
 
 end Cslib.Crypto.Protocols.UC.Push
