@@ -663,12 +663,13 @@ theorem SeedSchedulerFrame.Valid.length_le {f : SeedSchedulerFrame} (hf : f.Vali
       f.request.setup.originalSourceID j <
         f.request.setup.parameters.search.subdivision.vertexCount) :
     (encSeedSchedulerFrame f).length ≤ 12 * (encSeedSearchSetup f.request.setup).length + 9 := by
-  obtain ⟨hi, hphase⟩ := hf
-  split at hphase
-  · exact length_encSeedSchedulerFrame_le _ _ _ _ _ hi.le
-      (hphase.1 ▸ Nat.zero_le _) (hphase.2 ▸ hsource.le)
-  · exact length_encSeedSchedulerFrame_le _ _ _ _ _ hi.le
-      hphase.1.le (hphase.2 ▸ (hroot _ hphase.1).le)
+  have hcursor : f.cursor ≤ f.request.setup.parameters.search.subdivision.originalCount := by
+    have hphase := hf.2
+    split at hphase
+    · exact hphase.1 ▸ Nat.zero_le _
+    · exact hphase.1.le
+  exact length_encSeedSchedulerFrame_le _ _ _ _ _ hf.seed_lt.le hcursor
+    (hf.source_lt hsource hroot).le
 
 private theorem scanFrame_bounds (s : SeedSearchSetup)
     (hlimit : s.parameters.search.seedLimit = 2 ^ s.parameters.search.seedWidth)
