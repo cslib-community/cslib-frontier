@@ -3297,6 +3297,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.CriticalRootL
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.DyadicSignEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Factorial
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientEvaluation
+public import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientSign
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.GridEnumeration
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.IndexedPowerProduct
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.ModularMatrixDeterminant

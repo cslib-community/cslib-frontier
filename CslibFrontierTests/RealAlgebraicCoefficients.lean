@@ -11,6 +11,7 @@ public import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledCoe
 import CslibFrontier.Computability.Complexity.RealAlgebraic.ControlledSigns
 import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientEvaluation
+import CslibFrontier.Computability.Complexity.RealAlgebraic.FormulaGateCoefficientSign
 import Mathlib.Tactic.FinCases
 
 /-! Extraction covers zero variables, absent coefficients, mixed terms and actual certificates. -/
@@ -39,6 +40,17 @@ example (i j : ℕ) :
     (by decide)
   exact formulaWordGateCoefficientResidue_eq_val [] 0 (fun _ => 0) i j (fun _ => [])
     hradix hdegree (fun _ _ k => Fin.elim0 k)
+
+-- The sign certificate accepts a coordinate evaluator implemented by zero padding.
+open Cslib.Logic.RealArithmetic in
+example :
+    (fun word : List Bool => (((formulaWordGatePolynomial word 0 (fun _ => 0)).coeff 0).coeff
+      0).sign) ∈ CountingFunction 8 encBits encIntBin := by
+  exact formulaWordGateCoefficientSign_mem Decoder.bits (fun _ _ => 0)
+    (inner := fun _ => 0) (outer := fun _ => 0) (massExponent := fun _ => 0)
+    (pointCutoff := fun _ => 0) (point := fun _ => [])
+    .id' (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0) (.const 0)
+    (.const []) (by simp) (by simp) (by simp) (by simp)
 
 -- Defaulting absent exponent entries to zero selects the constant term.
 example : multivariateCoefficientResidue 5 1 [] (fun z =>
