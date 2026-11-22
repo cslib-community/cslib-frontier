@@ -156,8 +156,9 @@ namespace Cslib.Logic.PL.VeriPB.Text
 `String.toNat?` and the other `String` operations that the kernel cannot evaluate, so that
 `decide` can check concrete texts. -/
 
-/-- The pieces of a list of characters between the characters satisfying `p`. -/
-private def splitChars (p : Char → Bool) : List Char → List (List Char)
+/-- The pieces of a list of characters between the characters satisfying `p`. The DIMACS graph
+reader `Cslib.Logic.PL.VeriPB.Graph.parseDIMACSGraph` splits its lines with it too. -/
+def splitChars (p : Char → Bool) : List Char → List (List Char)
   | [] => [[]]
   | c :: cs =>
     if p c then [] :: splitChars p cs
