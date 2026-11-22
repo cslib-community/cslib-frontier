@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Analysis.Convex.ExtendedFormulation.Correlation
 public import Mathlib.Combinatorics.SimpleGraph.Clique
+import CslibFrontier.Tactic.FinIndex
 import Mathlib.Data.Fin.Tuple.Basic
 import Mathlib.Tactic.FinCases
 
@@ -114,14 +115,12 @@ private def corrGadgetVEquivSum (n : ℕ) :
 private def corrPairSuccEquiv (n : ℕ) : CorrPairIdx (n + 1) ≃ CorrPairIdx n ⊕ Fin n where
   toFun e :=
     if h : e.snd = Fin.last n then
-      Sum.inr ⟨e.fst.1, by have := e.lt; rw [h] at this; exact this⟩
+      Sum.inr ⟨e.fst.1, by have := e.lt; fin_index⟩
     else
       Sum.inl ⟨e.fst.castPred (Fin.ne_last_of_lt (lt_of_lt_of_le e.lt (Fin.le_last _))),
-        e.snd.castPred h, by
-          simpa only [Fin.lt_def, Fin.coe_castPred] using e.lt⟩
+        e.snd.castPred h, by have := e.lt; fin_index⟩
   invFun
-    | Sum.inl e => ⟨e.fst.castSucc, e.snd.castSucc, by
-        simpa only [Fin.lt_def, Fin.val_castSucc] using e.lt⟩
+    | Sum.inl e => ⟨e.fst.castSucc, e.snd.castSucc, by have := e.lt; fin_index⟩
     | Sum.inr i => ⟨i.castSucc, Fin.last n, Fin.castSucc_lt_last i⟩
   left_inv e := by
     dsimp only
