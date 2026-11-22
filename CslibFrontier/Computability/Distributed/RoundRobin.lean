@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Init
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Data.List.Dedup
 
