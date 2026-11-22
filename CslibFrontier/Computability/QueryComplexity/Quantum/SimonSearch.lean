@@ -129,10 +129,10 @@ theorem simonSolve_eq {zs : Fin m × Fin n → Bool} {s : Fin n → Bool}
 
 /-- The outcomes of Simon's algorithm on which the post-processing outputs `s`. -/
 def simonFound (m : ℕ) (s : Fin n → Bool) : Finset (Fin N × Bool × SimonWork m n) :=
-  univ.filter fun p => simonSolve p.2.2.1 = s
+  univ.filter fun (_, _, w) => simonSolve w.xs = s
 
-@[simp] theorem mem_simonFound {s : Fin n → Bool} {p : Fin N × Bool × SimonWork m n} :
-    p ∈ simonFound m s ↔ simonSolve p.2.2.1 = s := by
+@[simp] theorem mem_simonFound {s : Fin n → Bool} {i : Fin N} {b : Bool} {w : SimonWork m n} :
+    (i, b, w) ∈ simonFound m s ↔ simonSolve w.xs = s := by
   simp [simonFound]
 
 /-! ### The analysis -/
@@ -178,13 +178,14 @@ probability at most `(2^n - 1) / 2^m`. -/
 theorem measureProb_not_simonDetermines_le (E : Fin N ≃ (Fin n → Bool) × Fin n) (i₀ : Fin N)
     {X : Fin N → Bool} {s : Fin n → Bool} (hX : SimonPromise (simonFun E X) s) (hs : s ≠ 0) :
     measureProb (run (simonAlg m E i₀) (simonInit i₀) X (m * n))
-        (univ.filter fun p => ¬SimonDetermines p.2.2.1 s) ≤
+        (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s) ≤
       (2 ^ n - 1) / 2 ^ m := by
   classical
   set Z : Finset (Fin m × Fin n → Bool) := univ.filter fun zs => ¬SimonDetermines zs s with hZ
-  have hfilt : (univ.filter fun p : Fin N × Bool × SimonWork m n => ¬SimonDetermines p.2.2.1 s) =
-      univ.filter fun p => p.2.2.1 ∈ Z := by
-    ext p
+  have hfilt : (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s :
+        Finset (Fin N × Bool × SimonWork m n)) =
+      univ.filter fun (_, _, w) => w.xs ∈ Z := by
+    ext ⟨i, b, w⟩
     simp [hZ]
   -- the row matrices orthogonal to `s` that do not determine `s`
   set T : Finset (Fin m × Fin n → Bool) := univ.filter fun zs => ∃ w : Fin n → Bool,
@@ -274,15 +275,15 @@ theorem le_measureProb_simonFound (E : Fin N ≃ (Fin n → Bool) × Fin n) (i�
   by_cases hs : s = 0
   · subst hs
     have hf := (simonPromise_zero_iff _).mp hX
-    refine hfail (simonAccept m n) (fun p hp => ?_)
+    refine hfail (simonAccept m n) (fun ⟨i, b, w⟩ hp => ?_)
       (measureProb_simonAlg_le_of_injective (m := m) E i₀ hf)
     rw [mem_compl, mem_simonFound] at hp
     by_contra hacc
-    refine hp (simonSolve_eq fun w => ⟨fun hw => Or.inl ?_, ?_⟩)
-    · by_contra hw0
-      exact hacc (mem_simonAccept.mpr ⟨w, hw0, hw⟩)
+    refine hp (simonSolve_eq fun u => ⟨fun hu => Or.inl ?_, ?_⟩)
+    · by_contra hu0
+      exact hacc (mem_simonAccept.mpr ⟨u, hu0, hu⟩)
     · rintro (rfl | rfl) <;> exact fun r => by simp [Bool.zero_eq_false]
-  · refine hfail (univ.filter fun p => ¬SimonDetermines p.2.2.1 s) (fun p hp => ?_)
+  · refine hfail (univ.filter fun (_, _, w) => ¬SimonDetermines w.xs s) (fun ⟨i, b, w⟩ hp => ?_)
       (measureProb_not_simonDetermines_le (m := m) E i₀ hX hs)
     rw [mem_compl, mem_simonFound] at hp
     exact mem_filter.mpr ⟨mem_univ _, fun hd => hp (simonSolve_eq hd)⟩

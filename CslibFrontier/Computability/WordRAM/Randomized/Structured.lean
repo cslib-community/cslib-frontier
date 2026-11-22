@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+import CslibFrontier.Computability.Program.Randomized
 public import CslibFrontier.Computability.WordRAM.Compile
 public import CslibFrontier.Computability.WordRAM.Randomized.Defs
 import CslibFrontier.Tactic.SuppCases
@@ -25,8 +26,9 @@ worst-case instruction budget `T`, and a worst-case `rand`-call budget `R` (`IsQ
 supporting Hoare-style rules for data instructions, `rand`, sequencing, branches, and potential
 loops (`ExecRandWithin.loop_potential`).
 
-Every structured randomized execution refines `Code.assemble` (`ExecRand.runRand_assemble`) and
-compiles via `Code.program out` to a flat `Program B r` establishing `RandHaltsWithin`,
+WordRAM instantiates the exact randomized assembly theorem of `Cslib.Program.ExecRand` with
+its bounded uniform draw. Every structured randomized execution refines `Code.assemble`
+(`ExecRand.runRand_assemble`). Compiling with `Code.program out` establishes `RandHaltsWithin`,
 `RandCallsBounded`, and the memory postcondition `P` directly on `RandCfg.halted`
 (`ExecRandWithin.program`).
 
@@ -558,22 +560,74 @@ section Compile
 
 variable {w : ℕ} {p : Program B r}
 
-private theorem runRand_step_jump {pc t k : ℕ} {x : Data r}
-    (hp : p[pc]? = some (.jump t)) :
-    runRand w p (k + 1) (.running ⟨pc, x⟩) = runRand w p k (.running ⟨t, x⟩) := by
-  rw [runRand_succ, stepRand_jump (s := ⟨pc, x⟩) hp, pure_bind]
+private def evalGenericOp (w : ℕ) : GenericOp B r → Data r → Option (ProbComp (Data r))
+  | .inl op, x => (op.eval w x).map pure
+  | .inr (dst, src), x =>
+    if Fits w (x.regs src) then
+      some ((fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
+    else none
 
-private theorem runRand_step_branch_pos {pc t k : ℕ} {c : Cond r} {x : Data r}
-    (hp : p[pc]? = some (.branch c t)) (hc : c.Holds x) :
-    runRand w p (k + 1) (.running ⟨pc, x⟩) = runRand w p k (.running ⟨t, x⟩) := by
-  rw [runRand_succ, stepRand_branch (s := ⟨pc, x⟩) hp]
-  simp only [hc, ↓reduceIte, pure_bind]
+private abbrev randomizedFlatMachine (w : ℕ) (B : Basis) (r : ℕ) :
+    Cslib.Program.RandomizedFlatMachine (evalGenericOp w) (flatMachine w B r) where
+  Config := RandCfg r
+  running pc x := .running ⟨pc, x⟩
+  step := stepRand w
+  step_op := by
+    intro p pc op x m hp h
+    cases op with
+    | inl op =>
+      cases he : op.eval w x with
+      | none => simp [evalGenericOp, he] at h
+      | some y =>
+        simp only [evalGenericOp, he, Option.map_some, Option.some.injEq] at h
+        subst m
+        simpa using stepRand_op (s := ⟨pc, x⟩) hp he
+    | inr regs =>
+      obtain ⟨dst, src⟩ := regs
+      by_cases hfit : Fits w (x.regs src)
+      · simp only [evalGenericOp, hfit, ↓reduceIte, Option.some.injEq] at h
+        subst m
+        rw [stepRand_rand_of_fits (s := ⟨pc, x⟩) hp hfit, Functor.map_map]
+        rfl
+      · simp [evalGenericOp, hfit] at h
+  step_goto hp := stepRand_jump hp
+  step_jumpIf_pos := by
+    intro p pc target cond x hp h
+    change cond.Holds x at h
+    simpa only [h, ↓reduceIte] using stepRand_branch (w := w) (s := ⟨pc, x⟩) hp
+  step_jumpIf_neg := by
+    intro p pc target cond x hp h
+    change ¬cond.Holds x at h
+    simpa only [h, ↓reduceIte] using stepRand_branch (w := w) (s := ⟨pc, x⟩) hp
 
-private theorem runRand_step_branch_neg {pc t k : ℕ} {c : Cond r} {x : Data r}
-    (hp : p[pc]? = some (.branch c t)) (hc : ¬c.Holds x) :
-    runRand w p (k + 1) (.running ⟨pc, x⟩) = runRand w p k (.running ⟨pc + 1, x⟩) := by
-  rw [runRand_succ, stepRand_branch (s := ⟨pc, x⟩) hp]
-  simp only [hc, ↓reduceIte, pure_bind]
+private theorem run_generic (p : Program B r) (T : ℕ) (cfg : RandCfg r) :
+    (randomizedFlatMachine w B r).run p T cfg = runRand w p T cfg := by
+  induction T generalizing cfg with
+  | zero => rw [Cslib.Program.RandomizedFlatMachine.run_zero, runRand_zero]
+  | succ T ih =>
+    rw [Cslib.Program.RandomizedFlatMachine.run_succ, runRand_succ]
+    exact congrArg (stepRand w p cfg >>= ·) (funext ih)
+
+private theorem ExecRand.toGeneric {c : Code B r} {x : Data r}
+    {m : ProbComp (Data r × ℕ)} (h : ExecRand w c x m) :
+    Cslib.Program.ExecRand (I := instructionSet w B r) (evalGenericOp w) c.toGeneric x m := by
+  induction h with
+  | @op o x y h =>
+    have he := Cslib.Program.ExecRand.op (I := instructionSet w B r)
+      (evalRand := evalGenericOp w) (o := .inl o) (x := x) (m := pure y)
+      (by simp [evalGenericOp, h])
+    simpa [Code.toGeneric] using he
+  | @rand dst src x h =>
+    have he := Cslib.Program.ExecRand.op (I := instructionSet w B r)
+      (evalRand := evalGenericOp w) (o := .inr (dst, src)) (x := x)
+      (m := (fun k => x.set dst k.val) <$> ProbComp.unifFin (x.regs src))
+      (by simp [evalGenericOp, h])
+    simpa only [Code.toGeneric, ← bind_pure_comp, bind_assoc, pure_bind] using he
+  | seq _ _ ih₁ ih₂ => exact .seq ih₁ ih₂
+  | branch_pos h _ ih => exact .branch_pos h ih
+  | branch_neg h _ ih => exact .branch_neg h ih
+  | loop_exit h => exact .loop_exit h
+  | loop_iter h _ _ ihb ihl => exact .loop_iter h ihb ihl
 
 /-- **Randomized assembly is exact.** Running a flat program `p` containing `c.assemble pc` at `pc`
 for `T` steps (where every path of `m` uses at most `T` steps) is equal in `ProbComp` to sampling
@@ -584,143 +638,11 @@ theorem ExecRand.runRand_assemble {c : Code B r} {x : Data r} {m : ProbComp (Dat
     runRand w p T (.running ⟨pc, x⟩) = (do
       let z ← m
       runRand w p (T - z.2) (.running ⟨pc + c.size, z.1⟩)) := by
-  induction h generalizing pc T with
-  | @op o x y ho =>
-    have h1 : 1 ≤ T := hT (y, 1) rfl
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_succ, stepRand_op (s := ⟨pc, x⟩) hp.head ho, pure_bind]
-    simp only [Code.size, pure_bind, Nat.add_sub_cancel]
-  | @rand dst src x hfit =>
-    have h1 : 1 ≤ T := by
-      refine hT (x.set dst 0, 1) ?_
-      exact OracleComp.mem_supportWith_bind_iff.mpr ⟨0, ProbComp.mem_support_unifFin _ _, rfl⟩
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_succ, stepRand_rand_of_fits (s := ⟨pc, x⟩) hp.head hfit, bind_assoc, bind_assoc]
-    refine congrArg (ProbComp.unifFin (x.regs src) >>= ·) (funext fun sample => ?_)
-    simp only [Code.size, pure_bind, Nat.add_sub_cancel]
-  | @seq c₁ c₂ x m₁ m₂ _ _ ih₁ ih₂ =>
-    have hT₁ : ∀ z₁ ∈ m₁.support, z₁.2 ≤ T := by
-      intro z₁ hz₁
-      obtain ⟨z₂, hz₂⟩ := ProbComp.support_nonempty (m₂ z₁.1)
-      have hmem : (z₂.1, z₁.2 + z₂.2) ∈
-          (m₁ >>= fun z₁ => m₂ z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2)).support :=
-        OracleComp.mem_supportWith_bind_iff.mpr
-          ⟨z₁, hz₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂, hz₂, rfl⟩⟩
-      have := hT _ hmem
-      omega
-    rw [ih₁ hp.append_left hT₁, bind_assoc]
-    refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-    have hT₂ : ∀ z₂ ∈ (m₂ z₁.1).support, z₂.2 ≤ T - z₁.2 := by
-      intro z₂ hz₂
-      have hmem : (z₂.1, z₁.2 + z₂.2) ∈
-          (m₁ >>= fun z₁ => m₂ z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2)).support :=
-        OracleComp.mem_supportWith_bind_iff.mpr
-          ⟨z₁, hz₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂, hz₂, rfl⟩⟩
-      have := hT _ hmem
-      omega
-    have hc₂ : p.Contains (pc + c₁.size) (c₂.assemble (pc + c₁.size)) := by
-      simpa using hp.append_right
-    rw [ih₂ z₁ hz₁ hc₂ hT₂, bind_assoc]
-    refine OracleComp.bind_congr_on_support fun z₂ _ => ?_
-    simp only [pure_bind, Code.size, Nat.sub_sub, Nat.add_assoc]
-  | @branch_pos cond pos neg x m hc _ ih =>
-    obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty m
-    have h1 : 1 ≤ T := by
-      have := hT (z₀.1, z₀.2 + 1) (OracleComp.mem_supportWith_map_iff.mpr ⟨z₀, hz₀, rfl⟩)
-      omega
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_step_branch_pos hp.head hc]
-    have hc' := (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).cons_tail
-    rw [Code.length_assemble, show pc + 1 + neg.size + 1 = pc + neg.size + 2 by omega] at hc'
-    have hTm : ∀ z ∈ m.support, z.2 ≤ k := by
-      intro z hz
-      have := hT (z.1, z.2 + 1) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
-      omega
-    rw [ih hc' hTm, ← bind_pure_comp, bind_assoc]
-    refine OracleComp.bind_congr_on_support fun z _ => ?_
-    simp only [pure_bind, Code.size, Nat.add_sub_add_right]
-    rw [show pc + neg.size + 2 + pos.size = pc + (neg.size + pos.size + 2) by omega]
-  | @branch_neg cond pos neg x m hc _ ih =>
-    obtain ⟨z₀, hz₀⟩ := ProbComp.support_nonempty m
-    have h2 : 2 ≤ T := by
-      have := hT (z₀.1, z₀.2 + 2) (OracleComp.mem_supportWith_map_iff.mpr ⟨z₀, hz₀, rfl⟩)
-      omega
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_step_branch_neg hp.head hc]
-    have hTm : ∀ z ∈ m.support, z.2 ≤ k := by
-      intro z hz
-      have := hT (z.1, z.2 + 2) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
-      omega
-    rw [ih hp.cons_tail.append_left hTm, ← bind_pure_comp, bind_assoc]
-    refine OracleComp.bind_congr_on_support fun z hz => ?_
-    have hk : 1 ≤ k - z.2 := by
-      have := hT (z.1, z.2 + 2) (OracleComp.mem_supportWith_map_iff.mpr ⟨z, hz, rfl⟩)
-      omega
-    have hrem : k - z.2 = (k + 1 - (z.2 + 2)) + 1 := by omega
-    have hj : p[pc + 1 + neg.size]? = some (.jump (pc + neg.size + pos.size + 2)) := by
-      simpa using (hp.cons_tail.append_right (q₁ := neg.assemble (pc + 1))).head
-    simp only [pure_bind, Code.size]
-    rw [hrem, runRand_step_jump hj]
-    rw [show pc + neg.size + pos.size + 2 = pc + (neg.size + pos.size + 2) by omega]
-  | @loop_exit cond body x hc =>
-    have h2 : 2 ≤ T := hT (x, 2) rfl
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 2 := ⟨T - 2, by omega⟩
-    rw [show k + 2 = (k + 1) + 1 by omega, runRand_step_branch_neg hp.head hc,
-      runRand_step_jump hp.cons_tail.head]
-    simp only [pure_bind, Code.size, show k + 1 + 1 - 2 = k by omega, Nat.add_assoc]
-  | @loop_iter cond body x mb ml hc _ _ ihb ihl =>
-    obtain ⟨z₁₀, hz₁₀⟩ := ProbComp.support_nonempty mb
-    obtain ⟨z₂₀, hz₂₀⟩ := ProbComp.support_nonempty (ml z₁₀.1)
-    have h2 : 2 ≤ T := by
-      have hmem : (z₂₀.1, z₁₀.2 + z₂₀.2 + 2) ∈
-          (mb >>= fun z₁ => ml z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2 + 2)).support :=
-        OracleComp.mem_supportWith_bind_iff.mpr
-          ⟨z₁₀, hz₁₀, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂₀, hz₂₀, rfl⟩⟩
-      have := hT _ hmem
-      omega
-    obtain ⟨k, rfl⟩ : ∃ k, T = k + 1 := ⟨T - 1, by omega⟩
-    rw [runRand_step_branch_pos hp.head hc]
-    have hTb : ∀ z₁ ∈ mb.support, z₁.2 ≤ k := by
-      intro z₁ hz₁
-      obtain ⟨z₂, hz₂⟩ := ProbComp.support_nonempty (ml z₁.1)
-      have hmem : (z₂.1, z₁.2 + z₂.2 + 2) ∈
-          (mb >>= fun z₁ => ml z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2 + 2)).support :=
-        OracleComp.mem_supportWith_bind_iff.mpr
-          ⟨z₁, hz₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂, hz₂, rfl⟩⟩
-      have := hT _ hmem
-      omega
-    have hbody_contains : p.Contains (pc + 2) (body.assemble (pc + 2)) := by
-      simpa [Nat.add_assoc] using hp.cons_tail.cons_tail.append_left
-    rw [ihb hbody_contains hTb, bind_assoc]
-    refine OracleComp.bind_congr_on_support fun z₁ hz₁ => ?_
-    obtain ⟨z₂_any, hz₂_any⟩ := ProbComp.support_nonempty (ml z₁.1)
-    have hk_rem : 1 ≤ k - z₁.2 := by
-      have hmem : (z₂_any.1, z₁.2 + z₂_any.2 + 2) ∈
-          (mb >>= fun z₁ => ml z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2 + 2)).support :=
-        OracleComp.mem_supportWith_bind_iff.mpr
-          ⟨z₁, hz₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂_any, hz₂_any, rfl⟩⟩
-      have := hT _ hmem
-      omega
-    have hrem : k - z₁.2 = (k - z₁.2 - 1) + 1 := by omega
-    have hj : p[pc + 2 + body.size]? = some (.jump pc) := by
-      simpa using hp.cons_tail.cons_tail.append_right.head
-    rw [hrem, runRand_step_jump hj]
-    have hTl : ∀ z₂ ∈ (ml z₁.1).support, z₂.2 ≤ k - z₁.2 - 1 := by
-      intro z₂ hz₂
-      have hmem : (z₂.1, z₁.2 + z₂.2 + 2) ∈
-          (mb >>= fun z₁ => ml z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2 + 2)).support :=
-        OracleComp.mem_supportWith_bind_iff.mpr
-          ⟨z₁, hz₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂, hz₂, rfl⟩⟩
-      have := hT _ hmem
-      omega
-    rw [ihl z₁ hz₁ hp hTl, bind_assoc]
-    refine OracleComp.bind_congr_on_support fun z₂ hz₂ => ?_
-    have hmem : (z₂.1, z₁.2 + z₂.2 + 2) ∈
-        (mb >>= fun z₁ => ml z₁.1 >>= fun z₂ => pure (z₂.1, z₁.2 + z₂.2 + 2)).support :=
-      OracleComp.mem_supportWith_bind_iff.mpr
-        ⟨z₁, hz₁, OracleComp.mem_supportWith_bind_iff.mpr ⟨z₂, hz₂, rfl⟩⟩
-    have := hT _ hmem
-    simp only [pure_bind, show k - z₁.2 - 1 - z₂.2 = k + 1 - (z₁.2 + z₂.2 + 2) by omega]
+  have hp' : Cslib.Program.Contains p pc (c.toGeneric.assemble (flatMachine w B r) pc) := by
+    rw [Code.assemble_toGeneric]
+    exact hp
+  simpa only [run_generic, Code.size_toGeneric] using
+    h.toGeneric.runRand_assemble (randomizedFlatMachine w B r) hp' hT
 
 /-- Compiling `c` with `Code.program out` maps every `(y, n)` of `m` to `.halted (y.regs out) y`
 once `T ≥ n + 1` on every path. -/

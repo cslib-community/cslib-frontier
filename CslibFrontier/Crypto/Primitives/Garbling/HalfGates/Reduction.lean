@@ -941,17 +941,11 @@ private theorem isOraclePPTOn_reductionStep :
       colourWord p.1.param (p.2.labels.getD (rightArg p.1 p.2.labels) [])) E encBool :=
     ComputableInPolyTime.bitsGetDWithInput hb
       (ComputableInPolyTime.unary_add' hk (ComputableInPolyTime.const 1)) false
-  have hreqG : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
-      p.2.labels.getD (leftArg p.1 p.2.labels) [] ++
-        (tweakWord p.1.param (p.2.labels.length - p.1.inputCount) false ++
-          [colourWord p.1.param (p.2.labels.getD (rightArg p.1 p.2.labels) []) ^^
-            p.1.wireValues.getD (rightArg p.1 p.2.labels) false])) E encBits := by
-    polytime
-  have hreqE : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
-      p.2.labels.getD (rightArg p.1 p.2.labels) [] ++
-        (tweakWord p.1.param (p.2.labels.length - p.1.inputCount) true ++
-          [p.1.wireValues.getD (leftArg p.1 p.2.labels) false])) E encBits := by
-    polytime
+  have hreqG := ha.bitsAppend ((tweakWord_polyTime hk hg (.const false)).bitsAppend
+    ((Eq.ndrec (motive := fun g => ComputableInPolyTime g E encBool)
+      (ComputableInPolyTime.bool_xor.comp (hcolour.prod hvb)) rfl).bitsCons (.const [])))
+  have hreqE := hb.bitsAppend ((tweakWord_polyTime hk hg (.const true)).bitsAppend
+    (hva.bitsCons (.const [])))
   have hnil : ComputableInPolyTime (fun _ : GateLoopData × GateLoopState =>
       ([] : List (List Bool))) E (encList encBits) := ComputableInPolyTime.const _
   have hxorLabel : ComputableInPolyTime (fun p : GateLoopData × GateLoopState =>
@@ -985,10 +979,11 @@ computed in polynomial time. -/
 private theorem isOraclePPTOn_reductionStep_comp {γ : Type} {encIn : γ ↪ List Bool}
     {d : γ → GateLoopData} (hd : ComputableInPolyTime d encIn encGateLoopData) :
     IsOraclePPTOn (encPair encIn encGateLoopState) encGateLoopState
-      (fun p : γ × GateLoopState => reductionStep hash (d p.1) p.2) :=
-  (isOraclePPTOn_reductionStep hf).preprocess
+      (fun p : γ × GateLoopState => reductionStep hash (d p.1) p.2) := by
+  have h := (isOraclePPTOn_reductionStep hf).preprocess
     ((hd.comp (ComputableInPolyTime.fst encIn encGateLoopState)).prod
       (ComputableInPolyTime.snd encIn encGateLoopState))
+  exact Eq.ndrec (motive := IsOraclePPTOn _ _) h rfl
 
 /-- A step of the gate loop grows its encoded state by at most `8 (k + 2) + 8` bits. -/
 private theorem length_encGateLoopState_le_of_mem_support {d : GateLoopData}
@@ -1033,7 +1028,9 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
   have hbody := bodyWith_gateData_polyTime hn hgates hrow
   have henc : ComputableInPolyTime (fun z : (ℕ × ℕ × ℕ × ℕ) × List Bool => PointPermute.encFn z)
       PointPermute.encFn encBits := .of_eq fun _ => rfl
-  have hF := henc.comp ((hk.prod (hn.prod (hm.prod hq))).prod hbody)
+  have hF := Eq.ndrec (motive := fun g => ComputableInPolyTime g encIn encBits)
+    (henc.comp ((hk.prod (hn.prod (hm.prod hq))).prod hbody))
+    (funext fun _ => congrArg PointPermute.encFn rfl)
   have hX : ComputableInPolyTime (fun x => ((List.range (f x).n).map fun i =>
       BitString.listRow (k x + 2) i (coins x)).flatten) encIn encBits := by
     polytime [BitString.listRow]
@@ -1043,11 +1040,10 @@ private theorem reductionView_polyTime {γ : Type} {encIn : γ ↪ List Bool} {k
       (encPair encUnary (encPair encUnary (encPair encUnary (encPair (encList encBits) encBits))))
       encBits := by
     polytime [colourWord]
-  have hs : ComputableInPolyTime (fun x => (f x).n + (f x).gateList.length - (f x).m) encIn
-      encUnary :=
-    ComputableInPolyTime.unary_sub.comp ((ComputableInPolyTime.unary_add' hn hq).prod hm)
-  exact encPrvView_mk_polyTime hF hX (hrange.comp
-    (hk.prod (hm.prod (hs.prod ((encGateLoopState_labels_polyTime hst).prod hws)))))
+  have hs := ComputableInPolyTime.unary_sub.comp ((ComputableInPolyTime.unary_add' hn hq).prod hm)
+  exact encPrvView_mk_polyTime hF hX (Eq.ndrec (motive := fun g =>
+    ComputableInPolyTime g encIn encBits) (hrange.comp (hk.prod (hm.prod (hs.prod
+      ((encGateLoopState_labels_polyTime hst).prod hws))))) rfl)
 
 variable {σ : Type} {encσ : σ ↪ List Bool} {B : ℕ → PrvSimAdversary XorAndCircuit σ}
   (hB : TwoStage.IsPPT encUnit (encQuery XorAndCircuit encXorAndCircuit) (encOption encPrvView)
@@ -1115,7 +1111,9 @@ private theorem isOraclePPTOn_prvSimGuess :
     (hd.comp hfst) (hws.comp hfst) (hcoins.comp hfst) (ComputableInPolyTime.snd E encGateLoopState)
   have hprep := (hk.comp hfst).prod ((hstate.comp hfst).prod
     ((ComputableInPolyTime.optionSome encPrvView).comp hview))
-  exact hloop.bind_with (hB.guess.preprocess hprep).isOraclePPTOn
+  have hguess := (hB.guess.preprocess hprep).isOraclePPTOn (Operation := Unit)
+  exact hloop.bind_with (Eq.ndrec (motive := IsOraclePPTOn (Operation := Unit)
+    (encPair E encGateLoopState) encBool) hguess rfl)
 
 include hf hB in
 /-- **Efficiency of the reduction.** For every hash family computed in polynomial time and every
