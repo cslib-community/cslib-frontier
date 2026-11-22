@@ -9,6 +9,7 @@ module
 
 import CslibFrontier.Computability.WordRAM.MemoryView
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
+import CslibFrontier.Computability.WordRAM.SymbolicExec.StructFrame
 
 public import CslibFrontier.Init
 public import CslibFrontier.Algorithms.WordRAM.Schoening.Scan
@@ -145,17 +146,8 @@ theorem Frame.congr {φ : CNF (Fin n)} {C A : ℕ} {M : ℕ → ℕ} {x y : Data
     (h : Frame φ C A M x) (hz : y.regs zero = x.regs zero) (ho : y.regs one = x.regs one)
     (hc : y.regs cBeg = x.regs cBeg) (ha : y.regs aBase = x.regs aBase)
     (hn : y.regs nReg = x.regs nReg) (hmem : ∀ a, a < A ∨ A + n ≤ a → y.mem a = x.mem a) :
-    Frame φ C A M y where
-  zero_eq := hz.trans h.zero_eq
-  one_eq := ho.trans h.one_eq
-  cBeg_eq := hc.trans h.cBeg_eq
-  aBase_eq := ha.trans h.aBase_eq
-  nReg_eq := hn.trans h.nReg_eq
-  clauses := by
-    have hs := h.span
-    ram_keep h.clauses using hmem
-  span := h.span
-  rest a ha := (hmem a (Or.inr ha)).trans (h.rest a ha)
+    Frame φ C A M y := by
+  struct_frame h
 
 /-- The frame with the memory after the assignment taken as it is. -/
 theorem Frame.self {φ : CNF (Fin n)} {C A : ℕ} {M : ℕ → ℕ} {x : Data 24} (h : Frame φ C A M x) :
@@ -168,17 +160,8 @@ theorem Frame.of_mem_lt {φ : CNF (Fin n)} {C A : ℕ} {M : ℕ → ℕ} {x y : 
     (h : Frame φ C A M x) (hz : y.regs zero = x.regs zero) (ho : y.regs one = x.regs one)
     (hc : y.regs cBeg = x.regs cBeg) (ha : y.regs aBase = x.regs aBase)
     (hn : y.regs nReg = x.regs nReg) (hmem : ∀ a < A, y.mem a = x.mem a) :
-    Frame φ C A y.mem y where
-  zero_eq := hz.trans h.zero_eq
-  one_eq := ho.trans h.one_eq
-  cBeg_eq := hc.trans h.cBeg_eq
-  aBase_eq := ha.trans h.aBase_eq
-  nReg_eq := hn.trans h.nReg_eq
-  clauses := by
-    have hs := h.span
-    ram_keep h.clauses using hmem
-  span := h.span
-  rest _ _ := rfl
+    Frame φ C A y.mem y := by
+  struct_frame h
 
 /-- Code that writes none of the frame registers keeps the frame registers. -/
 def PreservesFrame (c : Code .standard 24) : Prop :=
@@ -202,9 +185,8 @@ private theorem Frame.set {φ : CNF (Fin n)} {C A : ℕ} {M : ℕ → ℕ} {x : 
     (hi : i ∉ ({zero, one, cBeg, aBase, nReg} : Finset (Fin 24))) (v : ℕ) :
     Frame φ C A M (x.set i v) := by
   simp only [Finset.mem_insert, Finset.mem_singleton, not_or] at hi
-  obtain ⟨h0, h1, h2, h3, h4⟩ := hi
-  exact h.congr (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
-    fun _ _ => rfl
+  obtain ⟨_, _, _, _, _⟩ := hi
+  struct_frame h
 
 /-! ### The random initial assignment -/
 
@@ -260,9 +242,7 @@ private theorem initLoop_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ}
           if i.val < j + 1 then σ' i else τ i) hc hbody (fun y ⟨k, hk, hy⟩ => by
       subst hy
       have hYc : (Y k).regs cnt = j + 1 := by wram_simp [Y]
-      have h := initLoop_law hw hA d (Y k)
-        (hx.congr (by wram_simp [Y]) (by wram_simp [Y]) (by wram_simp [Y])
-          (by wram_simp [Y]) (by wram_simp [Y]) (fun a ha => by wram_simp [Y]))
+      have h := initLoop_law hw hA d (Y k) (by dsimp only [Y]; struct_frame hx)
         (by rw [hYc]; omega)
         (fun i hi => by
           rw [hYc] at hi
@@ -392,9 +372,7 @@ theorem flip_law {φ : CNF (Fin n)} {C A w : ℕ} {M : ℕ → ℕ} (hw : Fits w
       refine WP.exists_execWithin ?_
       unfold flipRest
       wram_exec [x₂, hx.one_eq, hx.aBase_eq, hlit, litCode_shiftRight, hσ l.1]
-      refine ⟨⟨hx.congr (by wram_simp [x₂]) (by wram_simp [x₂]) (by wram_simp [x₂])
-        (by wram_simp [x₂]) (by wram_simp [x₂]) (fun a ha => by wram_simp [x₂]), fun i hi => ?_⟩,
-        ?_⟩
+      refine ⟨⟨by dsimp only [x₂]; struct_frame hx, fun i hi => ?_⟩, ?_⟩
       · dsimp only [x₂]
         simp only [Data.set_mem, Data.write_mem, Function.update_apply]
         split_ifs
