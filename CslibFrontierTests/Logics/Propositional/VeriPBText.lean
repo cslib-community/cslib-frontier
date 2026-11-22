@@ -63,8 +63,8 @@ by the VeriPB tool, version 3.0.2 (commit `f50be284`, run as `veripb --elaborate
   compared with VeriPB and CakePB, and the order checks `eord_def` and `eord_loaded`
   (§5.11.3), which neither tool implements;
 * changing the preserved set (§5.10, §5.11.4): `preserved_add` and `preserved_rm` with their
-  goals proved from the core set, `epreserved`, `solx` before and after a change, and a partial
-  enumeration across a removal, each compared with VeriPB and CakePB;
+  goals proved from the core set, `epreserved`, `solx` and `EQUIENUMERABLE` before and after a
+  change, and a partial enumeration across a removal, each compared with VeriPB and CakePB;
 
 and rejections: wrong lower and upper bounds, a logged solution violating a constraint or leaving
 an objective variable unassigned, a `red` step raising the objective, an upper bound or `SAT`
@@ -1810,6 +1810,32 @@ qed;
 -- A solution logged before `preserved_rm` still counts for the input's preserved set: all three
 -- accept.
 #guard checkOPB pres4Rm enumAfterRm == some (.enumPartial 1)
+/-- An `EQUIENUMERABLE` output of `pres4Rm` itself, after the steps `steps`. -/
+def presEnumOut (steps : String) : String :=
+  "pseudo-Boolean proof version 3.0\nf 6;\n" ++ steps ++
+    "output EQUIENUMERABLE FILE;\nconclusion NONE;\nend pseudo-Boolean proof;\n"
+
+/-- For `pres4Rm`, after `rmX5`: `preserved_add x5 : x1 >= 1` adds `x5` back, its goals negated
+as `11` and `13` and refuted with `5` and `6`. -/
+def readdX5 : String := "preserved_add x5 : 1 x1 >= 1 : subproof
+proofgoal #1
+pol 11 5 +;
+qed : 12;
+proofgoal #2
+pol 13 6 +;
+qed : 14;
+qed;
+"
+
+-- `EQUIENUMERABLE` with the input as the output: accepted with no change of the preserved set.
+-- Removing `x5` and adding it back leaves the core set, the preserved set (as `epreserved`
+-- checks) and the output text the same, so only the change itself is rejected. VeriPB and CakePB
+-- accept both: they compare only the final preserved sets.
+#guard (checkOPBOutput pres4Rm (presEnumOut "") pres4Rm).isSome
+#guard checkOPB pres4Rm (presProof 6 (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n")) ==
+  some .noClaim
+#guard (checkOPBOutput pres4Rm (presEnumOut (rmX5 ++ readdX5 ++ "epreserved x1 x3 x5;\n"))
+  pres4Rm).isNone
 
 /-! ### The order and dominance API under ordinary imports
 

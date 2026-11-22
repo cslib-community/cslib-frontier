@@ -66,6 +66,18 @@ qed : 12;
 qed;
 "
 
+/-- For `pres4Rm`: `preserved_rm x5 : x1 >= 1`, goal `#1`, `x5 ⇒ x1`, negated as `7`, and goal
+`#2`, `x5 ⇐ x1`, negated as `9`, refuted with the input constraints `5` and `6`. -/
+def rmX5 : String := "preserved_rm x5 : 1 x1 >= 1 : subproof
+proofgoal #1
+pol 7 5 +;
+qed : 8;
+proofgoal #2
+pol 9 6 +;
+qed : 10;
+qed;
+"
+
 /-- For `pres4Rm`: log the solution `x1 ~x2 x3 x4 x5`, excluding its projection by `7`, then
 remove `x5` by `preserved_rm x5 : x1 >= 1`, whose goals are refuted with `5` and `6`; the one
 logged projection gives `ENUMERATION_PARTIAL 1`. VeriPB and CakePB accept. -/
