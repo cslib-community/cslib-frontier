@@ -19,7 +19,9 @@ public import CslibFrontier.Probability.Uniform
 public import Mathlib.Order.ConditionallyCompleteLattice.Basic
 import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
+import CslibFrontier.Tactic.Fits
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Regime-switched Word-RAM cuckoo hash family
@@ -186,12 +188,12 @@ def singleHashSpace (c_exp n_max : ℕ) : ℕ :=
 /-- Word-RAM memory footprint of the two-block hash pair `(h₁, h₂)` at `hashBase`:
 `singleHashSpace c_exp n_max` words at `hashBase` for `h₁` followed by
 `singleHashSpace c_exp n_max` words at `hash2Base hashBase c_exp n_max` for `h₂`. -/
-@[expose]
+@[expose, wram_arith]
 def hashPairSpace (c_exp n_max : ℕ) : ℕ :=
   2 * singleHashSpace c_exp n_max
 
 /-- Base address of the second hash instance `h₂`. -/
-@[expose]
+@[expose, wram_arith]
 def hash2Base (hashBase c_exp n_max : ℕ) : ℕ :=
   hashBase + singleHashSpace c_exp n_max
 
@@ -242,13 +244,11 @@ private theorem singleHashSpace_of_not_lt {c_exp n_max : ℕ}
 
 theorem le_hashPairSpace (c_exp n_max : ℕ) :
     49 ≤ hashPairSpace c_exp n_max := by
-  have := le_singleHashSpace c_exp n_max
-  dsimp only [hashPairSpace]
-  omega
+  wram_omega [le_singleHashSpace c_exp n_max]
 
 /-- Constant upper bound `24 * doubleTabMinB c_exp + 26` on `cuckooK n_max` throughout the small
 regime `n_max < doubleTabThreshold c_exp`. -/
-@[expose]
+@[expose, wram_arith]
 def cuckooKBound (c_exp : ℕ) : ℕ :=
   24 * doubleTabMinB c_exp + 26
 
@@ -444,9 +444,8 @@ private theorem hashPair_in_footprints {hashBase c_exp n_max : ℕ} {mem mem' : 
     (∀ a, hashBase ≤ a → a < hashBase + singleHashSpace c_exp n_max → mem' a = mem a) ∧
     (∀ a, hash2Base hashBase c_exp n_max ≤ a →
       a < hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max → mem' a = mem a) :=
-  ⟨fun a hge hlt => hm a hge (by dsimp only [hashPairSpace]; omega),
-   fun a hge hlt => hm a (by dsimp only [hash2Base] at hge; omega)
-     (by dsimp only [hash2Base, hashPairSpace] at hlt ⊢; omega)⟩
+  ⟨fun a hge hlt => hm a hge (by wram_omega),
+   fun a hge hlt => hm a (by wram_omega) (by wram_omega)⟩
 
 /-- An address outside `[hashBase, hashBase + hashPairSpace c_exp n_max)` lies outside both
 constituent `singleHashSpace c_exp n_max`-word blocks. -/
@@ -455,9 +454,21 @@ private theorem hashPair_out_of_footprint {hashBase c_exp n_max a : ℕ}
     (a < hashBase ∨ hashBase + singleHashSpace c_exp n_max ≤ a) ∧
     (a < hash2Base hashBase c_exp n_max ∨
       hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max ≤ a) :=
-  ⟨ha.imp id (by dsimp only [hashPairSpace]; omega),
-   ha.imp (by dsimp only [hash2Base]; omega)
-     (by dsimp only [hash2Base, hashPairSpace]; omega)⟩
+  ⟨ha.imp id (by wram_omega), ha.imp (by wram_omega) (by wram_omega)⟩
+
+/-- Preserving memory outside the second block preserves every word of the first block. -/
+private theorem block1_in_of_block2_out {hashBase c_exp n_max : ℕ} {mem mem' : ℕ → ℕ}
+    (hm : ∀ a, (a < hash2Base hashBase c_exp n_max ∨
+      hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max ≤ a) → mem' a = mem a) :
+    ∀ a, hashBase ≤ a → a < hashBase + singleHashSpace c_exp n_max → mem' a = mem a :=
+  fun a _ _ => hm a (Or.inl (by wram_omega))
+
+/-- Preserving memory outside the first block preserves every word of the second block. -/
+private theorem block2_in_of_block1_out {hashBase c_exp n_max : ℕ} {mem mem' : ℕ → ℕ}
+    (hm : ∀ a, (a < hashBase ∨ hashBase + singleHashSpace c_exp n_max ≤ a) → mem' a = mem a) :
+    ∀ a, hash2Base hashBase c_exp n_max ≤ a →
+      a < hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max → mem' a = mem a :=
+  fun a _ _ => hm a (Or.inr (by wram_omega))
 
 theorem HashPairTableRep.congr_of_footprint {hashBase c_exp n_max U M : ℕ} {mem mem' : ℕ → ℕ}
     (htab : HashPairTableRep hashBase c_exp n_max U M mem)
@@ -559,13 +570,9 @@ private theorem hashPairSpace_fits {w hashBase c_exp n_max : ℕ}
     (hfit : Fits w (hashBase + hashPairSpace c_exp n_max)) :
     Fits w 1 ∧ Fits w hashBase ∧ Fits w (singleHashSpace c_exp n_max) ∧
       Fits w (hashBase + singleHashSpace c_exp n_max) ∧
-      Fits w (hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max) := by
-  have := le_singleHashSpace c_exp n_max
-  exact ⟨hfit.of_le (by dsimp only [hashPairSpace]; omega),
-    hfit.of_le (by omega),
-    hfit.of_le (by dsimp only [hashPairSpace]; omega),
-    hfit.of_le (by dsimp only [hashPairSpace]; omega),
-    hfit.of_le (by dsimp only [hash2Base, hashPairSpace]; omega)⟩
+      Fits w (hash2Base hashBase c_exp n_max + singleHashSpace c_exp n_max) :=
+  ⟨by wram_omega [le_singleHashSpace c_exp n_max], by fits, by wram_omega,
+   by wram_omega, by wram_omega⟩
 
 theorem copyWordsLoop_exec {w : ℕ} (len src dst : ℕ) {x : Data 19}
     (hsrc : x.regs 3 = src) (hdst : x.regs 4 = dst)
@@ -582,8 +589,8 @@ theorem copyWordsLoop_exec {w : ℕ} (len src dst : ℕ) {x : Data 19}
     exact ⟨x, Exec.loop_exit hc, fun _ _ => rfl, fun _ hj => by omega, fun _ _ => rfl⟩
   | succ len ih =>
     have hc : (Cond.lt (4 : Fin 19) 5).Holds x := by simp [Cond.Holds, hdst, hend]
-    have hfit_src1 : Fits w (src + 1) := hfit_end.of_le (by omega)
-    have hfit_dst1 : Fits w (dst + 1) := hfit_end.of_le (by omega)
+    have hfit_src1 : Fits w (src + 1) := by fits
+    have hfit_dst1 : Fits w (dst + 1) := by fits
     refine WP.Exact.exists_exec (WP.Exact.loop_iter hc ?_)
     unfold copyWordsBody
     wram_exec [hsrc, hdst, hone]
@@ -628,7 +635,7 @@ def initTableHashPairCode (c_exp n_max : ℕ) : Code .exact 19 :=
     .op (.copy 0 0)
 
 /-- Instruction bound for `initTableHashPairCode`. -/
-@[expose]
+@[expose, wram_arith]
 def initTableHashPairSteps (c_exp n_max U M : ℕ) : ℕ :=
   KWise.initTableSteps n_max U M + 6 * singleHashSpace c_exp n_max + 8
 
@@ -658,27 +665,26 @@ theorem initTableHashPairCode_execWithin {w hashBase c_exp n_max U M : ℕ} {x :
       hash2Base hashBase c_exp n_max from rfl]
     wram_call ((copyWordsLoop_exec (singleHashSpace c_exp n_max) hashBase
       (hash2Base hashBase c_exp n_max) (by wram_simp [hy_kw0]) (by wram_simp) (by wram_simp)
-      (by wram_simp) (by dsimp only [hash2Base]; omega) hfit_end).imp
+      (by wram_simp) (by wram_omega) hfit_end).imp
       fun _ ⟨he, hp⟩ => ⟨he.within, hp⟩)
       with y ⟨hy_regs, hy_copy, hy_frame⟩
+    have hframe_b1 := block1_in_of_block2_out hy_frame
     have htab1_y : SingleTableRep hashBase c_exp n_max U M y.mem := by
       have htab1 : SingleTableRep hashBase c_exp n_max U M y_kw.mem := by
         unfold SingleTableRep; rwa [decide_eq_true hlt]
-      exact htab1.congr_of_footprint fun a _ ha2 =>
-        (hy_frame a (Or.inl (by dsimp only [hash2Base]; omega))).trans (by wram_simp)
+      exact htab1.congr_of_footprint fun a ha1 ha2 => (hframe_b1 a ha1 ha2).trans (by wram_simp)
     have htab2_y : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M y.mem :=
       htab1_y.of_copy_from_hashBase fun j hj =>
         (hy_copy j hj).trans <| by
           wram_simp
-          exact (hy_frame (hashBase + j) (Or.inl (by dsimp only [hash2Base]; omega))).trans
-            (by wram_simp) |>.symm
-    refine ⟨by dsimp only [initTableHashPairSteps]; omega, ⟨htab1_y, htab2_y⟩,
+          exact ((hframe_b1 (hashBase + j) (Nat.le_add_right _ _)
+            (Nat.add_lt_add_left hj _)).trans (by wram_simp)).symm
+    refine ⟨by wram_omega, ⟨htab1_y, htab2_y⟩,
       (hy_regs 0 ⟨by decide, by decide, by decide⟩).trans (by wram_simp [hy_kw0]),
       fun a ha => ?_⟩
     obtain ⟨ha1, ha2⟩ := hashPair_out_of_footprint ha
     exact (hy_frame a ha2).trans ((by wram_simp : _ = y_kw.mem a).trans (hy_kw_out a (hsp ▸ ha1)))
-  · have : 1 ≤ initTableHashPairSteps c_exp n_max U M := by
-      dsimp only [initTableHashPairSteps]; omega
+  · have : 1 ≤ initTableHashPairSteps c_exp n_max U M := by wram_omega
     wram_exec [h0]
     refine ⟨?_, by wram_simp [h0], fun _ _ => rfl⟩
     unfold HashPairTableRep SingleTableRep
@@ -729,7 +735,7 @@ theorem unshiftFromHash2BaseCode_exec {w hashBase c_exp n_max : ℕ} {x : Data 1
   have : singleHashSpace c_exp n_max ≤ hash2Base hashBase c_exp n_max := Nat.le_add_left _ _
   unfold unshiftFromHash2BaseCode unshiftFromHash2BaseData
   wram_exec [h0, show hash2Base hashBase c_exp n_max - singleHashSpace c_exp n_max =
-    hashBase by dsimp only [hash2Base]; omega]
+    hashBase by wram_omega]
 
 /-- Program resampling a single regime-switched hash block at `reg 0 = base`. -/
 @[expose]
@@ -767,7 +773,7 @@ def resampleSingleSteps (c_exp n_max : ℕ) : ℕ :=
       (DoubleTabulation.provableB n_max)
 
 /-- Exact instruction count of `resampleHashPairCode c_exp n_max M`. -/
-@[expose]
+@[expose, wram_arith]
 def resampleHashPairSteps (c_exp n_max : ℕ) : ℕ :=
   2 * resampleSingleSteps c_exp n_max + 4
 
@@ -808,8 +814,8 @@ theorem resampleSingleCode_execRand {w base c_exp n_max U M : ℕ} {x : Data 19}
       (resampleSingleComp base c_exp n_max U M x) := by
   unfold resampleSingleCode resampleSingleComp
   split_ifs with hlt
-  · have := add_cuckooK_lt_singleHashSpace hlt
-    have hfit_end : Fits w (base + 8 + cuckooK n_max) := hfit_space.of_le (by omega)
+  · have hfit_end : Fits w (base + 8 + cuckooK n_max) := by
+      fits [add_cuckooK_lt_singleHashSpace hlt]
     have htab_kw : KWise.TableRep base (KWise.chunkBits n_max) U M (cuckooK n_max) x.mem := by
       unfold SingleTableRep at htab
       rwa [decide_eq_true hlt] at htab
@@ -817,14 +823,11 @@ theorem resampleSingleCode_execRand {w base c_exp n_max U M : ℕ} {x : Data 19}
   · have hfit_dt : Fits w (base + DoubleTabulation.space (DoubleTabulation.provableC c_exp)
         (DoubleTabulation.provableD c_exp) (DoubleTabulation.provableB n_max)) :=
       singleHashSpace_of_not_lt hlt ▸ hfit_space
-    have hpow_b_le := DoubleTabulation.two_pow_provableB_le_space c_exp n_max
-    have hfit_mask_b : Fits w (2 ^ DoubleTabulation.provableB n_max - 1) :=
-      hfit_dt.of_le (by omega)
-    have hfit_mask_M : Fits w (2 ^ M - 1) :=
-      hfit_q.of_le ((Nat.sub_le _ 1).trans
-        (Nat.pow_le_pow_right (by decide) (Probability.le_trinomialDeg U M)))
-    have hfit_1 : Fits w 1 :=
-      hfit_space.of_le (by have := le_singleHashSpace c_exp n_max; omega)
+    have hfit_mask_b : Fits w (2 ^ DoubleTabulation.provableB n_max - 1) := by
+      fits [DoubleTabulation.two_pow_provableB_le_space c_exp n_max]
+    have hfit_mask_M : Fits w (2 ^ M - 1) := by
+      fits [Nat.pow_le_pow_right two_pos (Probability.le_trinomialDeg U M)]
+    have hfit_1 : Fits w 1 := by fits [le_singleHashSpace c_exp n_max]
     exact (DoubleTabulation.resampleCode_execRand hbase hfit_dt
       hfit_mask_b hfit_mask_M hfit_1).rename injective_cast12To19
 
@@ -918,10 +921,8 @@ theorem resampleHashPairCode_execRand {w hashBase c_exp n_max U M : ℕ} {x : Da
   refine WP.Rand.execRand ?_
   wram_rand_call (resampleSingleCode_execRand htab.1 h0 hfit_h1 hfit_q) with y1 n1 hz1
   · obtain ⟨-, hz1_0, -, -, hz1_frame⟩ := mem_support_resampleSingleComp htab.1 h0 hz1
-    have htab2_z1 : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M y1.mem :=
-      htab.2.congr_of_footprint (fun a ha1 _ =>
-        hz1_frame a (Or.inr (by dsimp only [hash2Base] at ha1; omega)))
-    wram_rand_call (resampleSecondBlockCode_execRand htab2_z1 hz1_0 hfit_space hfit_q)
+    wram_rand_call (resampleSecondBlockCode_execRand
+      (htab.2.congr_of_footprint (block2_in_of_block1_out hz1_frame)) hz1_0 hfit_space hfit_q)
   · rfl
 
 theorem mem_support_resampleHashPairComp {hashBase c_exp n_max U M : ℕ} {x : Data 19}
@@ -936,25 +937,17 @@ theorem mem_support_resampleHashPairComp {hashBase c_exp n_max U M : ℕ} {x : D
   supp_cases hz with ⟨z1, hz1, z2, hz2, rfl⟩
   obtain ⟨ht1, -, htab1_z1, hseed1_z1, hframe1⟩ :=
     mem_support_resampleSingleComp htab.1 h0 hz1
-  have htab2_z1 : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M z1.1.mem :=
-    htab.2.congr_of_footprint (fun a ha1 _ =>
-      hframe1 a (Or.inr (by dsimp only [hash2Base] at ha1; omega)))
   obtain ⟨ht2, hz2_0, htab2_z2, hseed2_z2, hframe2⟩ :=
-    mem_support_resampleSecondBlockComp htab2_z1 hz2
-  have hframe_block1 : ∀ a, hashBase ≤ a → a < hashBase + singleHashSpace c_exp n_max →
-      z2.1.mem a = z1.1.mem a :=
-    fun a _ ha2 => hframe2 a (Or.inl (by dsimp only [hash2Base]; omega))
+    mem_support_resampleSecondBlockComp
+      (htab.2.congr_of_footprint (block2_in_of_block1_out hframe1)) hz2
+  have hframe_block1 := block1_in_of_block2_out hframe2
   have htab1_z2 : SingleTableRep hashBase c_exp n_max U M z2.1.mem :=
     htab1_z1.congr_of_footprint hframe_block1
-  have hextract1_eq :
-      extractSingleSeed hashBase c_exp n_max U M z2.1.mem =
-        extractSingleSeed hashBase c_exp n_max U M z1.1.mem :=
-    extractSingleSeed_congr_of_footprint hframe_block1
   have hseed1_z2 : SingleSeedRep hashBase c_exp n_max U M
       (extractSingleSeed hashBase c_exp n_max U M z2.1.mem) z2.1.mem := by
-    rw [hextract1_eq]
+    rw [extractSingleSeed_congr_of_footprint hframe_block1]
     exact hseed1_z1.congr_of_footprint hframe_block1
-  refine ⟨by dsimp only [resampleHashPairSteps]; omega, hz2_0,
+  refine ⟨by wram_omega, hz2_0,
     ⟨⟨htab1_z2, htab2_z2⟩, ⟨hseed1_z2, hseed2_z2⟩⟩,
     fun a ha => ?_⟩
   obtain ⟨ha1, ha2⟩ := hashPair_out_of_footprint ha
@@ -1002,12 +995,9 @@ private theorem map_pair_extractSingleSeed_eval_resampleSecondBlockComp
     refine PMF.map_congr_on_support _ _ _ fun z hz => ?_
     rw [ProbComp.support_eval] at hz
     obtain ⟨-, -, -, -, hframe⟩ := mem_support_resampleSingleComp (x := d0) htab2 hd0_0 hz
-    have h1 : extractSingleSeed hashBase c_exp n_max U M z.1.mem =
-        extractSingleSeed hashBase c_exp n_max U M d.mem :=
-      extractSingleSeed_congr_of_footprint (fun a _ ha2 =>
-        hframe a (Or.inl (by dsimp only [hash2Base]; omega)))
     dsimp only [Function.comp_apply, unshiftFromHash2BaseData, Data.set]
-    rw [h1]
+    exact congrArg (·, _)
+      (extractSingleSeed_congr_of_footprint (block1_in_of_block2_out hframe))
   rw [hcongr, ← PMF.map_comp,
     map_extractSingleSeed_eval_resampleSingleComp
       (hash2Base hashBase c_exp n_max) c_exp n_max U M d0]
@@ -1038,9 +1028,6 @@ private theorem map_pair_extractSingleSeed_eval_resampleHashPairComp
     refine PMF.bind_congr_on_support _ _ _ fun z1 hz1 => ?_
     rw [ProbComp.support_eval] at hz1
     obtain ⟨-, -, -, -, hframe1⟩ := mem_support_resampleSingleComp htab.1 h0 hz1
-    have htab2_z1 : SingleTableRep (hash2Base hashBase c_exp n_max) c_exp n_max U M z1.1.mem :=
-      htab.2.congr_of_footprint (fun a ha1 _ =>
-        hframe1 a (Or.inr (by dsimp only [hash2Base] at ha1; omega)))
     have hd : (do
         let z2 ← resampleSecondBlockComp hashBase c_exp n_max U M z1.1
         pure (z2.1, z1.2 + z2.2)) =
@@ -1048,7 +1035,8 @@ private theorem map_pair_extractSingleSeed_eval_resampleHashPairComp
           resampleSecondBlockComp hashBase c_exp n_max U M z1.1 :=
       bind_pure_comp _ _
     rw [hd, ProbComp.eval_map, PMF.map_comp]
-    exact map_pair_extractSingleSeed_eval_resampleSecondBlockComp htab2_z1
+    exact map_pair_extractSingleSeed_eval_resampleSecondBlockComp
+      (htab.2.congr_of_footprint (block2_in_of_block1_out hframe1))
   rw [hcongr]
   have hbind :
       (resampleSingleComp hashBase c_exp n_max U M x).eval.bind
@@ -1106,7 +1094,7 @@ def evalSingleSteps (c_exp n_max U M : ℕ) : ℕ :=
     DoubleTabulation.evalSteps (DoubleTabulation.provableC c_exp) (DoubleTabulation.provableD c_exp)
 
 /-- Step bound for `evalHash1Code c_exp n_max` and `evalHash2Code c_exp n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def evalHashSteps (c_exp n_max U M : ℕ) : ℕ :=
   evalSingleSteps c_exp n_max U M + 4
 
@@ -1115,7 +1103,7 @@ all `n_max : ℕ` whenever `U ≤ max n_max 4 ^ c_exp` and
 `M ≤ max c_exp 1 * Nat.clog 2 (max n_max 4) + 5` (`evalHashSteps_le`); below
 `doubleTabThreshold c_exp` it uses `cuckooK n_max ≤ cuckooKBound c_exp`
 (`cuckooK_le_cuckooKBound_of_lt`). -/
-@[expose]
+@[expose, wram_arith]
 def evalHashBound (c_exp : ℕ) : ℕ :=
   DoubleTabulation.provableEvalBound c_exp (cuckooKBound c_exp) + 4
 
@@ -1167,13 +1155,13 @@ theorem evalSingleCode_execWithin {w base c_exp n_max U M : ℕ}
   · have hfit_dt : Fits w (base + DoubleTabulation.space (DoubleTabulation.provableC c_exp)
         (DoubleTabulation.provableD c_exp) (DoubleTabulation.provableB n_max)) :=
       singleHashSpace_of_not_lt hlt ▸ hfit_space
-    have hpow_b_le := DoubleTabulation.two_pow_provableB_le_space c_exp n_max
-    have hfit_pow_b : Fits w (2 ^ DoubleTabulation.provableB n_max) := hfit_dt.of_le (by omega)
     have hfit_q := KWise.fits_two_pow_trinomialDeg hw
-    have hfit_pow_M : Fits w (2 ^ M) :=
-      hfit_q.of_le (Nat.pow_le_pow_right (by decide) (Probability.le_trinomialDeg U M))
-    have hfit_u : Fits w u.val :=
-      hfit_q.of_le (le_trans (le_of_lt u.isLt) (Probability.le_two_pow_trinomialDeg U M))
+    have hfit_pow_b : Fits w (2 ^ DoubleTabulation.provableB n_max) := by
+      fits [DoubleTabulation.two_pow_provableB_le_space c_exp n_max]
+    have hfit_pow_M : Fits w (2 ^ M) := by
+      fits [Nat.pow_le_pow_right two_pos (Probability.le_trinomialDeg U M)]
+    have hfit_u : Fits w u.val := by
+      fits [u.isLt, Probability.le_two_pow_trinomialDeg U M]
     unfold SingleSeed SingleSeedRep evalSingle at *
     revert θ₀ hseed; rw [decide_eq_false hlt]; intro θ₀ hseed
     refine WP.exists_execWithin ?_
@@ -1198,7 +1186,7 @@ theorem evalHash1Code_execWithin {w hashBase c_exp n_max U M : ℕ}
   obtain ⟨_, _, _, hfit_h1, _⟩ := hashPairSpace_fits hfit_space
   obtain ⟨y, he, hy0, hy1, hy2, hymem⟩ :=
     evalSingleCode_execWithin u hrep.1.1 hrep.2.1 h0 h1 hw hfit_h1
-  exact ⟨y, he.mono (by dsimp only [evalHashSteps]; omega), hy0, hy1, hy2, hymem ▸ hrep, hymem⟩
+  exact ⟨y, he.mono (by wram_omega), hy0, hy1, hy2, hymem ▸ hrep, hymem⟩
 
 theorem evalHash2Code_execWithin {w hashBase c_exp n_max U M : ℕ}
     {θ : Seed c_exp n_max U M} (u : Fin U) {x : Data 19}
@@ -1222,7 +1210,7 @@ theorem evalHash2Code_execWithin {w hashBase c_exp n_max U M : ℕ}
     (by wram_simp [shiftToHash2BaseData]) (by wram_simp [shiftToHash2BaseData, h1]) hw hfit_h2)
     with d1 ⟨hd1_0, hd1_1, hd1_2, hd1_mem⟩
   wram_call ⟨_, (unshiftFromHash2BaseCode_exec hd1_0 hfit_space).within, rfl⟩ with y rfl
-  exact ⟨by dsimp only [evalHashSteps]; omega, by wram_simp [unshiftFromHash2BaseData],
+  exact ⟨by wram_omega, by wram_simp [unshiftFromHash2BaseData],
     by wram_simp [unshiftFromHash2BaseData, hd1_1],
     by wram_simp [unshiftFromHash2BaseData, hd1_2, evalHash2],
     hd1_mem ▸ hrep, hd1_mem⟩

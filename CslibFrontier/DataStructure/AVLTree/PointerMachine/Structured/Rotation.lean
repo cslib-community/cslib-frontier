@@ -247,4 +247,18 @@ theorem rotate_correct (right : Bool) (zero maxSucc : M.Op) (encode : ℕ → M.
       List.getElem?_modify_ne _ _ (Ne.symm hz.1)]
     exact rf z hz.2.1.1 hz.1 fun e => hz.2.1.2.2 (root_mem_addresses e)
 
+/-! Frames of `rotate`, for the programs that call it. -/
+
+@[simp] theorem rotate_keepsSize (right : Bool) (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (rotate (regs := regs) right zero maxSucc field).KeepsSize := by
+  simp [rotate, Op.creates]
+
+theorem rotate_dataDests (right : Bool) (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (rotate (regs := regs) right zero maxSucc field).dataDests ⊆ [1, 2] := by
+  simp [rotate, Op.dataDest]
+
+@[simp] theorem rotate_fieldDests (right : Bool) (zero maxSucc : M.Op) (field : Fin (extra + 1)) :
+    (rotate (regs := regs) right zero maxSucc field).fieldDests = [field, field] := by
+  simp [rotate, Op.fieldDest]
+
 end Cslib.DataStructure.AVLTree.PointerMachine.Structured

@@ -219,7 +219,6 @@ private theorem brute_bound_aux (C K₀ N c : ℕ) (hc : 1 ≤ c) :
   have e : (C + 3) * (B + 1) = C * B + 3 * B + (C + 3) := by ring
   omega
 
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- The brute force at the end of an interval runs within time exponential in the description,
 the input and the certificate length. The certificate length is first written in unary, and every
 certificate of that length is tried with the polynomial-time simulation. -/
@@ -306,7 +305,6 @@ private theorem horizon_le (k C : ℕ) (x : List Bool) :
       ring
     omega
 
-attribute [local fun_prop] ComputableInPolyTime.fst' ComputableInPolyTime.snd' in
 /-- **The verifier of the exponential lazy diagonal is computable**, within the cost of its tests
 plus the cost of the branch taken: the simulation, or the brute force at the end of an interval. -/
 private theorem exists_computableInO_verifier (k : ℕ) :

@@ -65,15 +65,8 @@ private theorem eval_sampleModNat_eq_card_mul_inv (w m i : ℕ) :
       ((Finset.univ.filter (fun x : Fin (2 ^ w) => x.val % m = i)).card : ℝ≥0∞) *
         ((2 : ℝ≥0∞) ^ w)⁻¹ := by
   rw [ProbComp.eval_sampleModNat, PMF.map_apply, tsum_fintype]
-  simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat]
-  calc ∑ x : Fin (2 ^ w), (if i = x.val % m then ((2 : ℝ≥0∞) ^ w)⁻¹ else 0)
-      = ∑ x : Fin (2 ^ w), (if x.val % m = i then ((2 : ℝ≥0∞) ^ w)⁻¹ else 0) :=
-        Finset.sum_congr rfl fun x _ => by
-          by_cases hx : x.val % m = i
-          · simp [hx]
-          · have hx' : i ≠ x.val % m := Ne.symm hx
-            simp [hx, hx']
-    _ = _ := by rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
+  simp only [PMF.uniformOfFintype_apply, Fintype.card_fin, Nat.cast_pow, Nat.cast_ofNat,
+    eq_comm (a := i), ← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul]
 
 /-- Pointwise lower bound on `sampleModNat w m`: every residue `i < m` has probability at least
 `(1 - m / 2 ^ w) / m`. -/
@@ -88,8 +81,9 @@ theorem le_eval_sampleModNat_toReal {w m i : ℕ} (hi : i < m) :
     card_div_le_filter_mod_eq hi
   have hpmf : (ProbComp.eval (ProbComp.sampleModNat w m) i).toReal =
       ((Finset.univ.filter (fun x : Fin (2 ^ w) => x.val % m = i)).card : ℝ) / (2 : ℝ) ^ w := by
-    rw [eval_sampleModNat_eq_card_mul_inv, ENNReal.toReal_mul, ENNReal.toReal_natCast,
-      ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat, div_eq_mul_inv]
+    rw [eval_sampleModNat_eq_card_mul_inv]
+    ennreal_to_real
+    exact (div_eq_mul_inv _ _).symm
   rw [hpmf]
   have hQ_ineq : (2 : ℝ) ^ w - m ≤ (Q : ℝ) * m := by
     have hrem : 2 ^ w < (Q + 1) * m := by
@@ -113,8 +107,6 @@ residue `i < m`, `m` times its probability is at least `1 - m / 2 ^ w`. -/
 theorem one_le_mul_eval_sampleModNat_add {w m i : ℕ} (hi : i < m) :
     1 ≤ (m : ℝ≥0∞) * ProbComp.eval (ProbComp.sampleModNat w m) i + m / 2 ^ w := by
   have hmR : (0 : ℝ) < m := by exact_mod_cast (Nat.zero_le i).trans_lt hi
-  have hdiv : (m : ℝ≥0∞) / 2 ^ w ≠ ⊤ :=
-    ENNReal.div_ne_top (ENNReal.natCast_ne_top _) (pow_ne_zero _ two_ne_zero)
   ennreal_to_real
   have hcancel :
       (m : ℝ) * ((1 - (m : ℝ) / (2 : ℝ) ^ w) * (m : ℝ)⁻¹) = 1 - (m : ℝ) / (2 : ℝ) ^ w := by
