@@ -89,32 +89,26 @@ theorem length_simPropWords (k : ℕ) (t : Topo) (free : List Bool) (coins : Lis
 theorem length_le_of_mem_simPropWords (k : ℕ) (t : Topo) (free : List Bool)
     (coins : List Bool) (s : ℕ) :
     ∀ w ∈ simPropWords k t free coins s, w.length ≤ k + 2 := by
-  induction s with
-  | zero =>
+  fun_induction simPropWords k t free coins s with
+  | case1 =>
     intro w hw
-    simp only [simPropWords, List.mem_ofFn] at hw
-    obtain ⟨i, rfl⟩ := hw
+    obtain ⟨i, rfl⟩ := List.mem_ofFn.mp hw
     simp [PointPermute.length_simLabel]
-  | succ s ih =>
-    rw [simPropWords]
-    by_cases hsq : s < t.q
-    · rw [dite_eq_left hsq]
-      intro w hw
-      rcases List.mem_append.mp hw with hw | hw
-      · exact ih w hw
-      · rw [List.mem_singleton.mp hw]
-        split
-        · have ha :
-              ((simPropWords k t free coins s).getD (t.A ⟨s, hsq⟩ - 1) []).length ≤ k + 2 := by
-            rw [List.getD_eq_getElem?_getD]
-            cases h : (simPropWords k t free coins s)[t.A ⟨s, hsq⟩ - 1]? with
-            | none => simp
-            | some v => exact ih v (List.mem_of_getElem? h)
-          rw [List.length_zipWith]
-          omega
-        · simp [PointPermute.length_simLabel]
-    · rw [dite_eq_right hsq]
-      exact ih
+  | case2 s hsq ws ih =>
+    intro w hw
+    rcases List.mem_append.mp hw with hw | hw
+    · exact ih w hw
+    · rw [List.mem_singleton.mp hw]
+      split
+      · have ha : (ws.getD (t.A ⟨s, hsq⟩ - 1) []).length ≤ k + 2 := by
+          rw [List.getD_eq_getElem?_getD]
+          cases h : ws[t.A ⟨s, hsq⟩ - 1]? with
+          | none => simp
+          | some v => exact ih v (List.mem_of_getElem? h)
+        rw [List.length_zipWith]
+        omega
+      · simp [PointPermute.length_simLabel]
+  | case3 => assumption
 
 /-- On a valid circuit `f` and any flag list `free` agreeing with `isXorGate f.1` on `Fin f.1.q`,
 the first `n + s` words of `simPropWords` are the typed propagated `simBaseLabels`. -/
