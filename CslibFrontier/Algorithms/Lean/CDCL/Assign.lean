@@ -442,6 +442,29 @@ theorem nodup_dedupKey {α : Type} {key : α → ℕ} (hkey : Function.Injective
     (dedupKey key xs).Nodup :=
   (dedupKey_spec hkey xs).2
 
+theorem dedupKeyGo_of_nodup {α : Type} {key : α → ℕ} (hkey : Function.Injective key) :
+    ∀ (xs : List α) (m : Array Bool) (acc : List α), xs.Nodup →
+      (∀ x ∈ xs, m.getD (key x) false = false) → dedupKeyGo key xs m acc = acc.reverse ++ xs
+  | [], _, _, _, _ => by simp [dedupKeyGo]
+  | x :: xs, m, acc, hnd, hm => by
+    rw [dedupKeyGo, ite_eq_right (by simp [hm x List.mem_cons_self])]
+    rw [dedupKeyGo_of_nodup hkey xs _ (x :: acc) (List.nodup_cons.1 hnd).2 fun y hy => ?_]
+    · simp
+    · have hne : key x ≠ key y := fun h => (List.nodup_cons.1 hnd).1 (hkey h ▸ hy)
+      have := hm y (List.mem_cons_of_mem _ hy)
+      simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds] at this ⊢
+      rw [ite_eq_right hne]
+      exact this
+
+/-- **A list without repetitions is its own removal of repetitions**, with an injective key. -/
+theorem dedupKey_of_nodup {α : Type} {key : α → ℕ} (hkey : Function.Injective key) {xs : List α}
+    (h : xs.Nodup) : dedupKey key xs = xs := by
+  unfold dedupKey
+  rw [dedupKeyGo_of_nodup hkey xs _ [] h fun x _ => ?_]
+  · simp
+  · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
+    split <;> simp
+
 /-- **The index of a literal**, its word code `2 * v + 1` for `v` and `2 * v` for `¬v`
 (`Cslib.Algorithms.WordRAM.ClauseCode.litCode`). It keys the removal of repeated literals
 (`dedupLits`), indexes the watch lists, and is how the watch store holds literals. -/

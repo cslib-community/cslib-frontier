@@ -474,7 +474,7 @@ of the derived literals, oldest first, and then the hints of the learned clause 
 This is what `Cslib.Algorithms.Lean.CDCL.Learned.minimize` logs, with no check at run time. -/
 theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTrail.trail T))
     (hreasons : Reasons log₀ T) (hnd : (Trail.vars (XTrail.trail T)).Nodup) (recursive : Bool) :
-    let C := dedupLits L.clause
+    let C := L.clause
     let r := minimizeRedundant log₀ T C L.lit recursive
     propagateHints log₀.db ((L.lit :: C.filter fun y => y != L.lit && !r.1.contains y).map
       Std.Sat.Literal.negate) (derivedHints T r.2 ++ L.hints) = true := by
@@ -522,7 +522,7 @@ theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTr
       rcases hz' z hz hzl with hC | hm'
       · -- `z` is on a variable of the learned clause, hence one of its literals
         obtain ⟨y, hy, hyz⟩ := mem_of_clauseVars hC
-        have hyL := (mem_dedupKey litKey_injective).1 hy
+        have hyL := hy
         have hyl : y ≠ L.lit := fun h => L.undef (by
           rw [← h, hyz]
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hzT)
@@ -537,7 +537,7 @@ theorem Learned.propagateHints_minimized {T : XTrail} (L : Learned log₀ A (XTr
         obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hx
         by_cases hyl : y = L.lit
         · exact hτ _ (List.mem_map.2 ⟨y, hyl ▸ List.mem_cons_self, rfl⟩)
-        rcases hD y ((mem_dedupKey litKey_injective).2 hy) with h' | ⟨-, h'⟩
+        rcases hD y hy with h' | ⟨-, h'⟩
         · exact hτ _ (List.mem_map.2 ⟨y, h', rfl⟩)
         · refine hd _ ?_
           have hyT := L.false_below y hy hyl
@@ -565,7 +565,7 @@ clause is kept if nothing is redundant. -/
 def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreasons : Reasons log₀ T)
     (hnd : (Trail.vars (XTrail.trail T)).Nodup) (recursive : Bool := true) :
     Learned log₀ A (XTrail.trail T) :=
-  let C := dedupLits L.clause
+  let C := L.clause
   let r := minimizeRedundant log₀ T C L.lit recursive
   if r.1.isEmpty then L
   else
@@ -573,13 +573,15 @@ def Learned.minimize {T : XTrail} (L : Learned log₀ A (XTrail.trail T)) (hreas
     have hsub : ∀ y ∈ D, y ∈ L.clause := fun y hy => by
       rcases List.mem_cons.1 hy with rfl | hy
       · exact L.mem
-      · exact (mem_dedupKey litKey_injective).1 (List.mem_filter.1 hy).1
+      · exact (List.mem_filter.1 hy).1
     { L with
       clause := D
       hints := derivedHints T r.2 ++ L.hints
       rup := L.propagateHints_minimized hreasons hnd recursive
       vars_mem := fun l hl => L.vars_mem l (hsub l hl)
       mem := List.mem_cons_self
-      false_below := fun y hy hne => L.false_below y (hsub y hy) hne }
+      false_below := fun y hy hne => L.false_below y (hsub y hy) hne
+      nodup := List.nodup_cons.2 ⟨fun h => by simp at h, L.nodup.filter _⟩
+      head := rfl }
 
 end Cslib.Algorithms.Lean.CDCL

@@ -301,6 +301,8 @@ structure Marks.Inv (m : Marks) (Cur M₀ : Trail) (V : List ℕ) : Prop where
   path_eq : m.path = Cur.countP fun e => m.seen.assigned e.lit.1
   seen_iff : ∀ v, m.seen.assigned v = true ↔ v ∈ m.vars
   vars_mem : ∀ v ∈ m.vars, v ∈ V
+  vars_nodup : m.vars.Nodup
+  out_nodup : m.out.Nodup
 
 theorem Marks.inv_empty (Cur M₀ : Trail) (V : List ℕ) : Marks.empty.Inv Cur M₀ V where
   out_below := by simp [Marks.empty]
@@ -310,6 +312,8 @@ theorem Marks.inv_empty (Cur M₀ : Trail) (V : List ℕ) : Marks.empty.Inv Cur 
     simp [Marks.empty, Assign.assigned]
   seen_iff _ := by simp [Marks.empty, Assign.assigned]
   vars_mem := by simp [Marks.empty]
+  vars_nodup := List.nodup_nil
+  out_nodup := List.nodup_nil
 
 /-- Seeing the variable `v` adds one to the count of the seen variables of a trail assigning each
 variable once, if it is one of its variables. -/
@@ -384,6 +388,9 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
         rcases List.mem_cons.1 hv with rfl | hv
         · exact hV y List.mem_cons_self
         · exact hm.vars_mem v hv
+      have hvnd : (y.1 :: m.vars).Nodup :=
+        List.nodup_cons.2 ⟨fun h => by rw [← hm.seen_iff, hs'] at h; exact absurd h (by simp),
+          hm.vars_nodup⟩
       have hfin : ∀ (m' : Marks), m'.seen = m.seen.set y.1 (some true) →
           (∀ z ∈ m.out, z ∈ m'.out) → m'.Inv Cur M₀ V →
           (m'.absorb cur R).Inv Cur M₀ V ∧
@@ -402,7 +409,7 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
         have hyv : y.1 ∈ Trail.vars Cur := by
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hyc
         refine hfin _ rfl (fun z hz => hz) ⟨hm.out_below, fun z hz => hmono _ (hm.out_seen z hz),
-          fun z hz hzs => ?_, ?_, hseen_iff, hvars⟩
+          fun z hz hzs => ?_, ?_, hseen_iff, hvars, hvnd, hm.out_nodup⟩
         · rw [Assign.assigned_set] at hzs
           split at hzs
           · rename_i hzy
@@ -418,7 +425,9 @@ theorem Marks.absorb_spec {cur : Assign} {Cur M₀ : Trail} {V : List ℕ} (hcur
         have hyv : y.1 ∉ Trail.vars Cur := fun h => hdisj h (by
           simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits hyM)
         refine hfin _ rfl (fun z hz => List.mem_cons_of_mem _ hz) ⟨fun z hz => ?_,
-          fun z hz => ?_, fun z hz hzs => ?_, ?_, hseen_iff, hvars⟩
+          fun z hz => ?_, fun z hz hzs => ?_, ?_, hseen_iff, hvars, hvnd,
+          List.nodup_cons.2 ⟨fun h => by rw [hm.out_seen y h] at hs'; exact absurd hs' (by simp),
+            hm.out_nodup⟩⟩
         · rcases List.mem_cons.1 hz with rfl | hz
           · exact hyM
           · exact hm.out_below z hz
@@ -483,6 +492,12 @@ structure Learned (log : LRATLog φ) (A M₀ : Trail) where
   can clear it and use it again: it has values only for variables of `A`. -/
   marks : Assign
   marks_none : ∀ v, v ∉ Trail.vars A → marks.value v = none
+  /-- The learned clause has no repeated literal, so that the solver need not remove repetitions. -/
+  nodup : clause.Nodup
+  /-- The asserting literal comes first, the literal the watch store watches first. -/
+  head : clause.head? = some lit
+  /-- The variables met are listed once each, so that bumping them need not remove repetitions. -/
+  seen_nodup : seen.Nodup
 
 namespace Learned
 
@@ -540,6 +555,11 @@ def Marks.learned (log : LRATLog φ) {A M₀ Cur : Trail} (m : Marks) (l : Liter
   above := by simpa using hlA
   marks := cur
   marks_none := hcur
+  nodup := List.nodup_cons.2 ⟨fun h => hlM (by
+      simpa [Std.Sat.Literal.negate] using Trail.mem_vars_of_mem_lits (hm.out_below _ h)),
+    hm.out_nodup⟩
+  head := rfl
+  seen_nodup := hm.vars_nodup
 
 /-- The trail split at a decision, the current level first. -/
 theorem trail_level (N M₀ : XTrail) (d : Literal ℕ) :

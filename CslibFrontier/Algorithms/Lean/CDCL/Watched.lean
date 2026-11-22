@@ -571,12 +571,26 @@ theorem WExec.start_procInv {S : WExec φ} (h : S.Inv) {t : Literal ℕ} (ht : t
   assign := h.assign
   occurs := h.occurs
 
+/-- **Removing the literal `t` from a queue**, as `List.erase` does (`eraseLit_eq`), comparing
+literals directly. The literals queued while `t` was processed come before it, so this reads only
+them: unlike `List.erase`, it builds no accumulator. -/
+@[expose] def eraseLit : List (Literal ℕ) → Literal ℕ → List (Literal ℕ)
+  | [], _ => []
+  | a :: as, t => if Assign.litEq a t then as else a :: eraseLit as t
+
+theorem eraseLit_eq : ∀ (q : List (Literal ℕ)) (t : Literal ℕ), eraseLit q t = q.erase t
+  | [], _ => rfl
+  | a :: as, t => by
+    rw [eraseLit, List.erase_cons, Assign.litEq_eq_decide, eraseLit_eq as t]
+    simp only [decide_eq_true_eq, beq_iff_eq]
+
 /-- Finishing the processing of `t`: removing it from the queue. -/
 @[expose]
-def WExec.finish (S : WExec φ) (t : Literal ℕ) : WExec φ := { S with queue := S.queue.erase t }
+def WExec.finish (S : WExec φ) (t : Literal ℕ) : WExec φ := { S with queue := eraseLit S.queue t }
 
 theorem WExec.finish_inv {S : WExec φ} {t : Literal ℕ} (h : S.ProcInv t []) :
     (S.finish t).Inv ∧ (S.finish t).measure < S.measure := by
+  rw [show S.finish t = { S with queue := S.queue.erase t } by rw [WExec.finish, eraseLit_eq]]
   have hprocessed : ∀ x, Processed S.M (S.queue.erase t) x → Processed S.M S.queue x ∨ x = t :=
     fun x ⟨hx, hxq⟩ => by
       by_cases hxt : x = t
@@ -616,7 +630,7 @@ theorem WExec.finish_inv {S : WExec φ} {t : Literal ℕ} (h : S.ProcInv t []) :
       · exact h.covered _ he w₁ w₂ rest hc h₁ h₂
       · exact hsupp k hk w₁ w₂ rest hc (.inr h₂)
     · exact hsupp k hk w₁ w₂ rest hc (.inl h₁)
-  · simp only [WExec.measure, WExec.finish]
+  · simp only [WExec.measure]
     have := List.length_erase_of_mem h.t_mem
     have : 0 < S.queue.length := List.length_pos_of_mem h.t_mem
     omega
@@ -1230,6 +1244,25 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
     (learnedWatched C l).Perm (dedupLits C) :=
   (List.perm_cons_erase ((mem_dedupKey litKey_injective).2 hl)).symm
 
+/-- A learned clause has no repetitions. -/
+theorem Learned.dedupLits_clause {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
+    dedupLits L.clause = L.clause :=
+  dedupKey_of_nodup litKey_injective L.nodup
+
+/-- A learned clause has no repetitions and its asserting literal first, so it is already the
+clause to watch. -/
+theorem Learned.learnedWatched_eq {log : LRATLog φ} {A M₀ : Trail} (L : Learned log A M₀) :
+    learnedWatched L.clause L.lit = L.clause := by
+  rw [learnedWatched, L.dedupLits_clause]
+  have hh := L.head
+  revert hh
+  generalize L.clause = C
+  rcases C with _ | ⟨a, rest⟩
+  · simp
+  · intro hh
+    cases Option.some.inj hh
+    rw [List.erase_cons_head]
+
 /-- The activities `A` after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
 @[expose] def bumpedWith (o : Options) (A : Activity) (vs : List ℕ) : Activity :=
   if o.vsids then A.bump vs else A
@@ -1237,18 +1270,20 @@ theorem learnedWatched_perm {C : Clause ℕ} {l : Literal ℕ} (hl : l ∈ C) :
 /-- The activities after a conflict meeting the variables `vs`: bumped, if VSIDS is on. -/
 @[expose] def WExec.bumped (S : WExec φ) (vs : List ℕ) : Activity := bumpedWith S.opts S.act vs
 
-/-- The activities `A` and the variable order `H` after a conflict meeting the variables `vs`, with
-VSIDS: the variables are bumped, and those in the heap move up (`VarOrder.bump`). -/
+/-- The activities `A` and the variable order `H` after a conflict meeting the variables `vs`,
+listed once each, with VSIDS: the variables are bumped, and those in the heap move up
+(`VarOrder.bumpDistinct`). -/
 @[expose] def bumpOrderWith (o : Options) (A : Activity) (H : VarOrder) (vs : List ℕ) :
     Activity × VarOrder :=
-  if o.vsids then VarOrder.bump A H vs else (A, H)
+  if o.vsids then VarOrder.bumpDistinct A H vs else (A, H)
 
 /-- The activities bumped with the order are those of `bumpedWith`. -/
-theorem bumpOrderWith_fst (o : Options) (A : Activity) (H : VarOrder) (vs : List ℕ) :
-    (bumpOrderWith o A H vs).1 = bumpedWith o A vs := by
+theorem bumpOrderWith_fst (o : Options) (A : Activity) (H : VarOrder) {vs : List ℕ}
+    (hvs : vs.Nodup) : (bumpOrderWith o A H vs).1 = bumpedWith o A vs := by
   unfold bumpOrderWith bumpedWith
   split
-  · exact VarOrder.bump_fst A H vs 19
+  · rw [VarOrder.bumpDistinct_eq A H hvs]
+    exact VarOrder.bump_fst A H vs 19
   · rfl
 
 /-- The literal of an entry of the solver's trail. -/
@@ -1458,13 +1493,13 @@ are built once, read by the backjump and cleared after it. -/
   let phase := savedWith opts phase U
   let occurs := occurs.mark (L.clause.map Prod.fst)
   let level := level - U.countP fun x => x.entry.decision
-  let k := (dedupLits L.clause).length
+  let k := L.clause.length
   let stats := stats.learn k₀ k
   if 2 ≤ k then
     -- a learned clause's number is the log's next one, beyond the clauses of `φ`
     -- (`Learned.isLearntId_id`): it counts as learned, with no test of `φ.length`
     let red := reducedWith opts red L.used L.id (L.id + 1) true
-    let store := store.addClause L.id (learnedWatched L.clause L.lit)
+    let store := store.addClause L.id L.clause
     ⟨exec.afterConflictWith L j.2, assign, occurs, store, [L.lit], short, A, order,
       phase, red, level, simpAssigns, opts, stats, afterJumpMarks sp L marks rfl⟩
   else
@@ -1545,7 +1580,8 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
       T.occurs = S.occurs.mark (L.clause.map Prod.fst) → T.OrderInv := by
     intro hv T hTo hTa hTe hTocc
     have hS' := hS.order hv
-    simp only [reorderedWith, bumpOrderWith, hv, ↓reduceIte, XTrail.vars_eq] at hTo hTa
+    simp only [reorderedWith, bumpOrderWith, hv, ↓reduceIte, XTrail.vars_eq,
+      VarOrder.bumpDistinct_eq _ _ L.seen_nodup] at hTo hTa
     -- bumping keeps the heap and its variables; the variables undone are inserted
     have hk := VarOrder.bump_spec L.seen 19 hS'.wf hS'.pos
     obtain ⟨hwf₂, hp₂, hs₂, hm₂⟩ := VarOrder.addAll_spec (VarOrder.bump S.act S.order L.seen).1
@@ -1589,16 +1625,16 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
   rw [show (jumpMarks sp L).assigned = jumpMarked sp L from rfl, ← hUdef, ← hKdef]
   split
   · rename_i hlen
-    have hperm := learnedWatched_perm (C := L.clause) L.mem
-    have hlen' : 2 ≤ (learnedWatched L.clause L.lit).length := hperm.length_eq ▸ hlen
-    obtain ⟨y, rest, hc⟩ : ∃ y rest, learnedWatched L.clause L.lit = L.lit :: y :: rest := by
-      match h : learnedWatched L.clause L.lit, hlen' with
-      | a :: y :: rest, _ =>
-        exact ⟨y, rest, by simp only [learnedWatched, List.cons.injEq] at h; rw [← h.1]⟩
-    have hnd : (L.lit :: y :: rest).Nodup :=
-      hc ▸ hperm.nodup_iff.2 (nodup_dedupKey litKey_injective _)
-    have hmem : ∀ l, l ∈ L.lit :: y :: rest ↔ l ∈ L.clause := fun l => by
-      rw [← hc, hperm.mem_iff, mem_dedupKey litKey_injective]
+    obtain ⟨y, rest, hc⟩ : ∃ y rest, L.clause = L.lit :: y :: rest := by
+      have hh := L.head
+      revert hh hlen
+      generalize L.clause = C
+      rcases C with _ | ⟨a, _ | ⟨y, rest⟩⟩ <;> intro hlen hh
+      · simp at hlen
+      · simp at hlen
+      · cases Option.some.inj hh; exact ⟨y, rest, rfl⟩
+    have hnd : (L.lit :: y :: rest).Nodup := hc ▸ L.nodup
+    have hmem : ∀ l, l ∈ L.lit :: y :: rest ↔ l ∈ L.clause := fun l => by rw [hc]
     refine ⟨⟨hspec.1, ?_, fun e' he' => ?_, fun e' he' hl => ?_, List.nodup_singleton _,
       fun x hx => by rw [List.mem_singleton] at hx; subst hx; exact hlitM', hqueue,
       fun hv => horder hv _ rfl rfl rfl rfl, hassign, hoccurs⟩, ?_⟩
@@ -1608,11 +1644,11 @@ theorem WExec.afterConflict_spec {S : WExec φ} (hS : S.Inv) {e : ℕ × Clause 
     · exact hdb' ▸ List.mem_cons_of_mem _ (hS.short_mem e' he')
     · rw [hdb'] at he'
       rcases List.mem_cons.1 he' with rfl | he'
-      · simp only at hl; rw [length_dedupLits] at hlen; omega
+      · simp only at hl; rw [List.dedup_eq_self.2 L.nodup] at hl; omega
       · exact hS.short_covers e' he' hl
     · simpa [WExec.measure] using hmeasure
   · rename_i hlen
-    rw [length_dedupLits] at hlen
+    have hlen : L.clause.dedup.length < 2 := by rw [List.dedup_eq_self.2 L.nodup]; omega
     refine ⟨⟨hspec.1, ?_, fun e' he' => ?_, fun e' he' hl => ?_, List.nodup_singleton _,
       fun x hx => by rw [List.mem_singleton] at hx; subst hx; exact hlitM', hqueue,
       fun hv => horder hv _ rfl rfl rfl rfl, hassign, hoccurs⟩, ?_⟩
@@ -2129,7 +2165,7 @@ theorem WExec.afterConflict_learnts (S : WExec φ) (sp : Split) (L : S.exec.Lear
       if isLearntId φ.length L.id then S.red.learnts + 1 else S.red.learnts := by
   unfold WExec.afterConflict
   dsimp only
-  rw [ite_eq_left hk, L.isLearntId_id]
+  rw [ite_eq_left (L.dedupLits_clause ▸ hk), L.isLearntId_id]
   simp only [reducedWith, hred, ite_true, Reduction.learn]
   split <;> rfl
 
@@ -2223,7 +2259,7 @@ a restarted state has fewer conflicts than that. -/
         | .none => L₀
         | .basic => L₀.minimize hbelow hnd (recursive := false)
         | .recursive => L₀.minimize hbelow hnd (recursive := true)
-      let k₀ := (dedupLits L₀.clause).length
+      let k₀ := L₀.clause.length
       have hspec := WExec.afterConflict_spec hT₁ he hconf hsp L k₀
       .move (T₁.afterConflict sp L k₀) hspec.1 (by
         have : T₁.measure = T.measure := rfl
