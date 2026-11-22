@@ -52,9 +52,9 @@ register_result "lokam-random-matrix-rigidity-finite-field" where
     #{A | (|n| - r) ^ 2 / (4 * Nat.log |K| |n| + 6) ≤ A.rigidity r} / Fintype.card (Matrix n n K) \
     with integer floor division and explicit exponential error. The probability tends to 1 \
     whenever |n| - r → ∞, the floor is positive once 4 * Nat.log |K| |n| + 6 ≤ (|n| - r) ^ 2, \
-    and it yields Lokam's positive Ω((n - r)² / log n) order for fixed field size and \
-    r ≤ (1 - ε) n (fixed ε > 0), or whenever (|n| - r)² / (log_|K| |n| + 1) → ∞ (whereas slower \
-    growth such as |K| = 2, |n| = 2^(k²), r = |n| - k leaves ⌊k² / (4k² + 6)⌋ = 0). Lokam's \
+    and for fixed field size and r ≤ (1 - ε) n (fixed ε > 0) it yields Lokam's positive \
+    Ω((n - r)² / log n) order (whereas slower growth such as |K| = 2, |n| = 2^(k²), r = |n| - k \
+    leaves ⌊k² / (4k² + 6)⌋ = 0). Lokam's \
     Zariski-open infinite-field remark and Open Question 2.1 are outside this entry; Valiant1977 \
     was cited through Lokam §2.1 and not inspected directly. Outside-fleet source check \
     (reviewer-codex-edemaine): \

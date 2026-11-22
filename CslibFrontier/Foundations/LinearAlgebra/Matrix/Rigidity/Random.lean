@@ -49,11 +49,11 @@ counting proof for `m × n` and `n × n` matrices over any finite field `K` of s
    `(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)` for a `> 1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋` fraction of
    matrices (`Matrix.one_sub_inv_pow_lt_card_sq_div_log_le_rigidity`); this fraction tends to `1`
    whenever `|n| - r → ∞`, the integer floor is positive once
-   `4 ⌊log_q |n|⌋ + 6 ≤ (|n| - r) ^ 2`, and for fixed `K` and `r ≤ (1 - ε) |n|` (fixed `ε > 0`)—or
-   whenever `(|n| - r) ^ 2 / (log_q |n| + 1) → ∞`—it has order `Ω((|n| - r) ^ 2 / log_q |n|)`. For
-   fixed dimensions and large fields (`|K| > 4 · 2 ^ (|m| |n|)`), almost all matrices attain the
-   exact upper bound `(|m| - r) (|n| - r)` (`Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`,
-   original to this library).
+   `4 ⌊log_q |n|⌋ + 6 ≤ (|n| - r) ^ 2`, and for a fixed finite field `K` and `r ≤ (1 - ε) |n|`
+   (fixed `ε > 0`) it has order `Ω((|n| - r) ^ 2 / log |n|)`. For fixed dimensions and large fields
+   (`|K| > 4 · 2 ^ (|m| |n|)`), almost all matrices attain the exact upper bound
+   `(|m| - r) (|n| - r)` (`Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`, original to this
+   library).
 
 ## Main results
 
@@ -65,9 +65,8 @@ counting proof for `m × n` and `n × n` matrices over any finite field `K` of s
   uniformly random `m × n` matrix over `K`.
 * `Matrix.one_sub_inv_pow_lt_card_sq_div_log_le_rigidity`: random `n × n` matrices over `K` have
   rigidity at least `(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)` with probability
-  `> 1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋`, giving order `Ω((|n| - r) ^ 2 / log_q |n|)` for fixed `K` and
-  `r ≤ (1 - ε) |n|` (`ε > 0`), or whenever `(|n| - r) ^ 2 / (log_q |n| + 1) → ∞` ([Valiant1977];
-  [Lokam2009], §2.1, pp. 11–12).
+  `> 1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋`, giving order `Ω((|n| - r) ^ 2 / log |n|)` for fixed `K` and
+  `r ≤ (1 - ε) |n|` (`ε > 0`) ([Valiant1977]; [Lokam2009], §2.1, pp. 11–12).
 * `Matrix.exists_div_log_le_rigidity`: existence corollary showing some `m × n` matrix over `K` has
   rigidity at least `(|m| - r) (|n| - r) / (⌊log_q (|m| |n|)⌋ + 2)`.
 * `Matrix.one_sub_lt_card_rigidity_eq_mul_sub_div`: over large finite fields (original to this
@@ -630,9 +629,8 @@ end DecidableIndex
 [Lokam2009], §2.1, pp. 11–12). Over a finite field `K` of size `q`, strictly more than a
 `1 - q ^ -⌊(|n| - r) ^ 2 / 2⌋` fraction of all `n × n` matrices have rigidity at least
 `(|n| - r) ^ 2 / (4 ⌊log_q |n|⌋ + 6)`. The fraction tends to `1` whenever `|n| - r → ∞`; the
-integer floor is positive once `4 ⌊log_q |n|⌋ + 6 ≤ (|n| - r) ^ 2`, and has order
-`Ω((|n| - r) ^ 2 / log_q |n|)` when `K` is fixed and `r ≤ (1 - ε) |n|` for fixed `ε > 0` (or more
-generally whenever `(|n| - r) ^ 2 / (log_q |n| + 1) → ∞`). -/
+integer floor is positive once `4 ⌊log_q |n|⌋ + 6 ≤ (|n| - r) ^ 2`, and for a fixed finite field
+`K` and `r ≤ (1 - ε) |n|` (fixed `ε > 0`) has order `Ω((|n| - r) ^ 2 / log |n|)`. -/
 theorem one_sub_inv_pow_lt_card_sq_div_log_le_rigidity [DecidableEq n] (r : ℕ) :
     1 - ((Fintype.card K : ℝ)⁻¹) ^ ((Fintype.card n - r) ^ 2 / 2) <
       (#{A : Matrix n n K |
