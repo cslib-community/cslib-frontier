@@ -12,7 +12,7 @@ public import CslibFrontier.Computability.Circuit.WireNumber
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Primitives
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.List
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sigma
 public import CslibFrontier.Init
 import Mathlib.Data.List.GetD
 import CslibFrontier.Tactic.EncLen
@@ -401,15 +401,11 @@ abbrev encCode {Op : Type} (encOp : Op ↪ List Bool) : (List (Op × List ℕ) �
 variable {σ : Signature}
 
 /-- **Binary encoding of circuits** with `m` outputs over an arbitrary signature `σ` equipped with
-`encOp : σ.Op ↪ List Bool`: the input count `n` in unary, followed by the code of the circuit
-(`encCode encOp`). -/
+`encOp : σ.Op ↪ List Bool`: the dependent pair (`Turing.MultiTapeTM.encSigma`) of the input count
+`n` in unary and the circuit, which is encoded by its code (`encCode encOp`). -/
 def encCircuit (encOp : σ.Op ↪ List Bool) (m : ℕ) : (Σ n, Circuit σ n m) ↪ List Bool :=
-  ⟨fun c => encPair encUnary (encCode encOp) (c.1, c.2.code), by
-    rintro ⟨n, c⟩ ⟨n', c'⟩ h
-    obtain ⟨hn, hc⟩ := Prod.ext_iff.1 ((encPair encUnary (encCode encOp)).injective h)
-    dsimp only at hn hc
-    subst hn
-    rw [Circuit.code_injective hc]⟩
+  encSigma encUnary fun n =>
+    (⟨code, code_injective⟩ : Circuit σ n m ↪ _).trans (encCode encOp)
 
 /-- Unfolding formula for `encCircuit encOp m c`. -/
 theorem encCircuit_apply (encOp : σ.Op ↪ List Bool) (c : Σ n, Circuit σ n m) :
