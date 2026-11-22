@@ -75,6 +75,21 @@ or say that you looked and found nothing to remove. A review without an answer t
 incomplete. Do not use a zero reference count alone to remove expected mathematical API
 ([Check the API through its callers](workflow.md#check-the-api-through-its-callers)).
 
+**Automation must pay for itself.** When a change to a tactic, `simp` set, `fun_prop` rule or
+other automation is justified by the client code it removes, check that claim against the diff.
+
+- **Count both sides.** Compare what the change adds to the automation, its tests and supporting
+  lemmas with what it removes from clients, and have the PR description state the split. Net
+  growth is a finding unless the PR names a benefit other than length, such as a class of goals
+  that no longer needs manual plumbing, robustness against unfolding, or a measured speedup.
+- **Name each branch's callers.** For each new branch or feature of the automation, name the
+  callers that use it. A branch that recognises one definition's shape, one constant or one
+  module's hypotheses, and serves only that family of callers, belongs in a lemma those callers
+  apply, not in the automation. Ask the author to replace it with the lemma, or to show callers
+  outside the family that need it.
+- **Finish the migration.** Sibling sites of the pattern the automation now handles are migrated
+  in the same change. A migration that neither shortens nor clarifies a proof is left out.
+
 **Name the first real property.** For each new definition, construction or transcribed algorithm,
 say what its first non-trivial property is (signatures verify under the transcribed signer, the
 padding is block-aligned, no revealed node is an ancestor of the hidden leaf, the simulator's

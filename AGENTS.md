@@ -180,7 +180,9 @@ to reach a count. A review does the following, in this order.
    it parallel a neighbouring API? Name what you asked the author to delete, merge or make
    private, or say that you looked and found nothing to remove. A review without an answer to
    this question is incomplete. A zero reference count alone does not justify removing expected
-   mathematical API.
+   mathematical API. Automation justified by the code it removes must shrink the diff overall,
+   and each new branch must serve callers beyond one definition or module
+   ([details](policy/review.md#review-cycle)).
 3. **Name the first real property.** For each new definition, construction or transcribed
    algorithm, say what its first non-trivial property is (signatures verify, the padding is
    block-aligned, the simulator's output is close) and whether this PR proves it. Unfoldings,
