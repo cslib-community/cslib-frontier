@@ -246,14 +246,10 @@ private noncomputable def stepCases (M : Λ → Stmt Γ Λ σ) :
 omit [Fintype K] [Finite Λ] [Finite σ] [∀ k, Finite (Γ k)] in
 private theorem stepCases_eq (M : Λ → Stmt Γ Λ σ) (Ls : List (Option Λ))
     (c : Cfg Γ Λ σ) (h : c.l ∈ Ls) : stepCases M Ls c = stepTotal M c := by
-  induction Ls with
-  | nil => simp at h
-  | cons l Ls ih =>
-    classical
-    simp only [stepCases]
-    split_ifs with hl
-    · rfl
-    · exact ih ((List.mem_cons.mp h).resolve_left hl)
+  fun_induction stepCases M Ls c with
+  | case1 => simp at h
+  | case2 => rfl
+  | case3 l Ls c hl ih => exact ih ((List.mem_cons.mp h).resolve_left hl)
 
 private theorem stepCases_computableInDegree (M : Λ → Stmt Γ Λ σ) (Ls : List (Option Λ)) :
     ∀ {α : Type} {input : α ↪ List Bool} {cfg : α → Cfg Γ Λ σ},
