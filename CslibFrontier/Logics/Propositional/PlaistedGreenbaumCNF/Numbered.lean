@@ -128,7 +128,7 @@ def plaistedGreenbaumNumberedVar (A : Proposition (Fin n)) (j : ℕ) :
 /-- The traversal from `k` at polarity `pol`, renamed by a map sending the atoms to themselves and
 the numbers from `k` on to the subformulas they are given, is the definitional clauses of the
 Plaisted–Greenbaum transformation at `pol` before the renamed accumulator, up to order. -/
-theorem perm_relabel_plaistedGreenbaumClauses (A : Proposition (Fin n)) (pol : Bool) (k : ℕ)
+private theorem perm_relabel_plaistedGreenbaumClauses (A : Proposition (Fin n)) (pol : Bool) (k : ℕ)
     (acc : CNF ℕ) (g : ℕ → Fin n ⊕ Proposition (Fin n)) (hatom : ∀ i : Fin n, g i = .inl i)
     (hlabel : ∀ j (B : Proposition (Fin n)),
       A.plaistedGreenbaumLabels[j]? = some B → g (k + j) = .inr B) :
@@ -187,7 +187,7 @@ theorem perm_relabel_plaistedGreenbaumNumberedCNF (A : Proposition (Fin n)) :
 /-- Under an assignment satisfying the clauses of the traversal at polarity `pol`, the
 accumulator holds, and if the variable of the proposition has the value `pol`, so does the
 proposition at the atoms. -/
-theorem eval_plaistedGreenbaumClauses {σ : ℕ → Bool} (A : Proposition (Fin n)) (pol : Bool)
+private theorem eval_plaistedGreenbaumClauses {σ : ℕ → Bool} (A : Proposition (Fin n)) (pol : Bool)
     (k : ℕ) (acc : CNF ℕ) (h : (A.plaistedGreenbaumClauses pol k acc).clauses.eval σ = true) :
     acc.eval σ = true ∧
       (σ (A.plaistedGreenbaumClauses pol k acc).var = pol →
