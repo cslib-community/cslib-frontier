@@ -38,9 +38,11 @@ register_result "boneh-shoup-mac-verification-queries" where
     without winning. Both reductions sufToVqForger and M.vqToSufForger carry uniform strict \
     IsOraclePPT certificates (isOraclePPT_sufToVqForger, M.isOraclePPT_vqToSufForger) and \
     signing-query preservation (M.isQueryBounded_vqToSufForger). Sampling the planted \
-    verification-query index from fair coins via ProbComp.sampleModIndex (width n) (Qv n) adds \
-    the dyadic residue bias Qv n / 2 ^ width n, which vanishes when Qv n = 0 or \
-    Qv n ∣ 2 ^ width n."
+    verification-query index from fair coins via ProbComp.sampleModIndex (width n) (Qv n) gives \
+    the general modular-sampling bias upper bound + Qv n / 2 ^ width n \
+    (succProbability_sufCmaVqGame_le_mul_add); when Qv n = 0 or Qv n ∣ 2 ^ width n, \
+    sampleModIndex is exact uniform below Qv n and succProbability_sufCmaVqGame_le_mul proves \
+    the bound with no additive error term."
 
 register_result "boneh-shoup-prf-mac-verification-queries" where
   title := "A pseudorandom function yields a MAC secure under verification queries without Q_v \

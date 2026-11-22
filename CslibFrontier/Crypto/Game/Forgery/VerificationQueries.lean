@@ -916,8 +916,8 @@ theorem eval_vqForgeExperiment_le_mul_sampleModIndex_add {PK SK M Sig : Type} [I
 /-- Finite query-bounded exact dyadic `sampleModIndex` step toward [BonehShoup2023], Section 6.2,
 Theorem 6.1 (pp. 221–223), without machine running-time certificates (not the cited computational
 result; see `Cslib.Crypto.MACScheme.succProbability_sufCmaVqGame_le_mul`): when `Q_v = 0` or `Q_v`
-divides `2 ^ width`, `ProbComp.sampleModIndex width Q_v` is unbiased below `Q_v`, so the additive
-bias term `Q_v / 2 ^ width` vanishes. -/
+divides `2 ^ width`, `ProbComp.sampleModIndex width Q_v` is unbiased below `Q_v`, giving the
+exact factor-`Q_v` bound with no additive error term. -/
 theorem eval_vqForgeExperiment_le_mul_sampleModIndex_of_dvd {PK SK M Sig : Type} [Inhabited M]
     [Inhabited Sig] [DecidableEq M] [DecidableEq Sig]
     (keyGen : ProbComp (PK × SK)) (signer : Signer SK M Sig)
