@@ -63,15 +63,16 @@ namespace Cslib.Circuits.Boolean.Iteration
 variable {n a m w : ℕ}
 
 /-- A word with one more bit, read from the least significant end. -/
-private theorem word_succ (bits : BitString (m + 1)) :
-    word bits = (word fun i : Fin m => bits i.succ).concat (bits 0) := by
+private theorem equivBitVec_succ (bits : BitString (m + 1)) :
+    BitString.equivBitVec bits =
+      (BitString.equivBitVec fun i : Fin m => bits i.succ).concat (bits 0) := by
   apply BitVec.eq_of_getLsbD_eq
   intro i hi
-  rw [getLsbD_word bits ⟨i, hi⟩, BitVec.getLsbD_concat]
+  rw [BitString.getLsbD_equivBitVec bits ⟨i, hi⟩, BitVec.getLsbD_concat]
   rcases i with _ | i
   · rfl
   · simp only [Nat.add_one_ne_zero, ↓reduceIte, Nat.add_sub_cancel]
-    rw [getLsbD_word _ ⟨i, by omega⟩]
+    rw [BitString.getLsbD_equivBitVec _ ⟨i, by omega⟩]
     rfl
 
 /-! ### Streaming remainders -/
@@ -109,14 +110,15 @@ private theorem toNat_remainderStep (d r : BitVec w) (b : Bool) (hd : 0 < d.toNa
 remainder is the value of the bits modulo `d`. -/
 theorem toNat_streamRemainder (d : BitVec w) (bits : BitString m) (hd : 0 < d.toNat)
     (hw : 2 * d.toNat ≤ 2 ^ w) :
-    (streamRemainder d bits).toNat = (word bits).toNat % d.toNat := by
+    (streamRemainder d bits).toNat = (BitString.equivBitVec bits).toNat % d.toNat := by
   induction m with
   | zero =>
-    have h : (word bits).toNat = 0 := by simpa using (word bits).isLt
+    have h : (BitString.equivBitVec bits).toNat = 0 := by
+      simpa using (BitString.equivBitVec bits).isLt
     simp [streamRemainder, h]
   | succ m ih =>
     rw [streamRemainder, toNat_remainderStep d _ _ hd hw (by rw [ih]; exact Nat.mod_lt _ hd), ih,
-      word_succ, BitVec.toNat_concat]
+      equivBitVec_succ, BitVec.toNat_concat]
     simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod, Nat.mul_comm]
 
 /-- One step of long division: a subtraction, a comparison and a selection. -/
@@ -166,19 +168,19 @@ the number modulo the modulus whenever the modulus is nonzero. The circuit is to
 claimed about its output for the zero modulus. -/
 theorem bounded_modulus_remainder (m k : ℕ) :
     ∃ out : Circuit signature (m + k) k,
-      (∀ x, 0 < (word fun i : Fin k => x (Fin.natAdd m i)).toNat →
-        (word (out.eval interpretation x)).toNat =
-          (word fun i : Fin m => x (Fin.castAdd k i)).toNat %
-            (word fun i : Fin k => x (Fin.natAdd m i)).toNat) ∧
+      (∀ x, 0 < (BitString.equivBitVec fun i : Fin k => x (Fin.natAdd m i)).toNat →
+        (BitString.equivBitVec (out.eval interpretation x)).toNat =
+          (BitString.equivBitVec fun i : Fin m => x (Fin.castAdd k i)).toNat %
+            (BitString.equivBitVec fun i : Fin k => x (Fin.natAdd m i)).toNat) ∧
       out.size ≤ 1 + m * (22 * (k + 1) + 3) := by
-  let d := fun x : BitString (m + k) => word fun i : Fin k => x (Fin.natAdd m i)
+  let d := fun x : BitString (m + k) => BitString.equivBitVec fun i : Fin k => x (Fin.natAdd m i)
   let bits := fun x : BitString (m + k) => fun i : Fin m => x (Fin.castAdd k i)
   let wide := fun x => (d x).setWidth (k + 1)
   let src := inputs (m + k) ∪ {fun _ : BitString (m + k) => false}
   have hz : (fun _ : BitString (m + k) => false) ∈ src := Or.inr rfl
   have hd : wordWires d ⊆ src := by
     rintro _ ⟨i, rfl⟩
-    simpa only [d, getLsbD_word] using
+    simpa only [d, BitString.getLsbD_equivBitVec] using
       (show (fun x : BitString (m + k) => x (Fin.natAdd m i)) ∈ src from Or.inl ⟨_, rfl⟩)
   have hw := wordWires_setWidth_subset (v := k + 1) hd hz
   have hs := synthesis_streamRemainder src wide bits (fun i => hw ⟨i, rfl⟩)
@@ -200,10 +202,11 @@ theorem bounded_modulus_remainder (m k : ℕ) :
     rw [ho x]
     funext i
     simp only [BitVec.getLsbD_setWidth, i.isLt, decide_true, Bool.true_and]
-  have hk : (word fun i : Fin k => (result x).getLsbD i.val) = (result x).setWidth k := by
+  have hk : (BitString.equivBitVec fun i : Fin k => (result x).getLsbD i.val) =
+      (result x).setWidth k := by
     apply BitVec.eq_of_getLsbD_eq
     intro i hi
-    rw [getLsbD_word _ ⟨i, hi⟩, BitVec.getLsbD_setWidth]
+    rw [BitString.getLsbD_equivBitVec _ ⟨i, hi⟩, BitVec.getLsbD_setWidth]
     simp [hi]
   rw [he, hk, BitVec.toNat_setWidth, hr, Nat.mod_eq_of_lt ((Nat.mod_lt _ hpos).trans (d x).isLt)]
 
@@ -222,7 +225,7 @@ theorem toNat_subMod (a b d : BitVec w) (hd : 0 < d.toNat) (hw : 2 * d.toNat ≤
     (subMod a b d).toNat = (a.toNat + d.toNat - b.toNat % d.toNat) % d.toNat := by
   have hra := toNat_streamRemainder d (fun i : Fin w => a.getLsbD i.val) hd hw
   have hrb := toNat_streamRemainder d (fun i : Fin w => b.getLsbD i.val) hd hw
-  rw [word_getLsbD] at hra hrb
+  rw [BitString.equivBitVec_getLsbD] at hra hrb
   rw [Nat.add_sub_mod_mod_eq_ite _ _ _ hd, subMod]
   have hal := Nat.mod_lt a.toNat hd
   have hbl := Nat.mod_lt b.toNat hd

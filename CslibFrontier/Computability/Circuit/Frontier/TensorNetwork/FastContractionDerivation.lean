@@ -56,7 +56,7 @@ public section
 
 namespace Cslib.Circuits.Frontier.FastContraction
 
-open ChildCursor Cslib.GenericRAM Cslib.GenericRAM.StackRecursion
+open ChildCursor Cslib.Algorithms.StackRecursion
 
 variable {T : Type} (ev : T → List Bool → List ℕ)
   (mk : Call T → State → ℕ × DescribedNetwork (VertexDesc T))

@@ -7,15 +7,18 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.GenericRAM.Native.StackRecursion
+public import CslibFrontier.Algorithms.Recursion.StackScheme
 public import CslibFrontier.Foundations.Data.Nat.RecursionTree
+import Mathlib.Algebra.BigOperators.Intervals
+import Mathlib.Algebra.Order.BigOperators.Group.Finset
 
 /-!
 # Derivations of stack recursions from their recursion trees
 
-A derivation `Cslib.GenericRAM.StackRecursion.Scheme.Eval` of a recursion scheme records the
+A derivation `Cslib.Algorithms.StackRecursion.Scheme.Eval` of a recursion scheme records the
 value of a node with its number of nodes and its stack depth. This file builds derivations from
-a description of the recursion tree, and reads off what a clocked run returns.
+a description of the recursion tree, and reads off what a clocked run returns, without reference
+to any machine model.
 
 **Counted children** (`Scheme.Loop.counted`). A call whose accumulators `acc c` ask for the
 children `child c` for `c < bound`, and then stop, runs its loop through the children's
@@ -36,14 +39,14 @@ small to vouch for the run.
 
 ## Main results
 
-* `Cslib.GenericRAM.StackRecursion.Scheme.Loop.counted`: the loop over counted children.
-* `Cslib.GenericRAM.StackRecursion.Scheme.exists_eval_of_measure`: derivations by well-founded
+* `Cslib.Algorithms.StackRecursion.Scheme.Loop.counted`: the loop over counted children.
+* `Cslib.Algorithms.StackRecursion.Scheme.exists_eval_of_measure`: derivations by well-founded
   recursion.
-* `Cslib.GenericRAM.StackRecursion.Scheme.exists_eval_of_counted`: derivations with the node count
+* `Cslib.Algorithms.StackRecursion.Scheme.exists_eval_of_counted`: derivations with the node count
   of the recursion tree.
-* `Cslib.GenericRAM.StackRecursion.Scheme.exists_eval_of_height`: derivations with their height
+* `Cslib.Algorithms.StackRecursion.Scheme.exists_eval_of_height`: derivations with their height
   alone.
-* `Cslib.GenericRAM.StackRecursion.Scheme.value_of_run_eq_some`: a returned value satisfies the
+* `Cslib.Algorithms.StackRecursion.Scheme.value_of_run_eq_some`: a returned value satisfies the
   invariant.
 
 ## References
@@ -53,7 +56,7 @@ small to vouch for the run.
 
 public section
 
-namespace Cslib.GenericRAM.StackRecursion.Scheme
+namespace Cslib.Algorithms.StackRecursion.Scheme
 
 open Finset
 
@@ -92,7 +95,7 @@ theorem Loop.counted {x : X} {acc : ℕ → A} {child : ℕ → X} {val : ℕ �
 `I.node`, all satisfying `I.value`, such that a leaf has its leaf value, and a call has counted
 children: from the accumulators `acc c`, starting at `start`, it asks for `child c` for `c < cnt`
 and then stops, absorbing the children's values; the frames satisfy `I.frame`, the children
-satisfy `I.node` and are smaller in the measure `μ`; and its value is the `finish` of the last
+satisfies `I.node` and are smaller in the measure `μ`; and its value is the `finish` of the last
 accumulator. Then every node has a derivation of its value. `exists_eval_of_counted` adds the node
 count. -/
 theorem exists_eval_of_measure (μ : X → ℕ) (value : X → Y)
@@ -224,12 +227,12 @@ theorem value_of_run_eq_some {J : Type} {fuel : J → ℕ} {root : J → X} {a :
     {N H : ℕ} (he : R.Eval I (root a) y N H) (hrun : R.run fuel root a = some y') :
     I.value y' := by
   obtain ⟨-, -, ⟨x, hr, -⟩ | ⟨z, hr, hz⟩⟩ := he.good_iterate (fuel a)
-  · simp only [run] at hrun
+  · simp only [run, State.returned] at hrun
     rw [hr] at hrun
     simp at hrun
-  · simp only [run] at hrun
+  · simp only [run, State.returned] at hrun
     rw [hr] at hrun
     cases hrun
     exact hz
 
-end Cslib.GenericRAM.StackRecursion.Scheme
+end Cslib.Algorithms.StackRecursion.Scheme

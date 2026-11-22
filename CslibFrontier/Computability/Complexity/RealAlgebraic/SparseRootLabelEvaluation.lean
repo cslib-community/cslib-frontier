@@ -29,6 +29,14 @@ namespace Cslib.Complexity.RealAlgebraic
 
 open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
 
+/-- The uniform derivative norm allowance is computable from binary bounds. -/
+theorem iterateDerivativeNormExponent_polyTime {α : Type} {enc : α ↪ List Bool}
+    {D b : α → ℕ} (hD : ComputableInPolyTime D enc encNat)
+    (hb : ComputableInPolyTime b enc encNat) :
+    ComputableInPolyTime (fun w => Polynomial.iterateDerivativeNormExponent (D w) (b w))
+      enc encNat :=
+  binary_add' hb (binary_mul' (unary_to_binary.comp (binary_size.comp hD)) hD)
+
 /-- The shared sparse-label precision is computable in polynomial time from binary bounds. -/
 @[fun_prop] theorem sparseRootLabelPrecision_polyTime {α : Type} {enc : α ↪ List Bool}
     {D b : α → ℕ} (hD : ComputableInPolyTime D enc encNat)
@@ -37,14 +45,13 @@ open Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInPolyTime
       enc encNat := by
   have hdegree := binary_add' hD hD
   have hdegreeSize := unary_to_binary.comp (binary_size.comp hdegree)
-  have hDSize := unary_to_binary.comp (binary_size.comp hD)
-  have hnorm := binary_add' hb (binary_mul' hDSize hD)
+  have hnorm := iterateDerivativeNormExponent_polyTime hD hb
   have hlower := binary_add'
     (binary_mul' (binary_add' hdegreeSize (binary_max' hb (binary_add' hnorm (.const 1))))
       hdegree) (.const 1)
   have hupper := binary_add' hnorm (binary_mul' hD (binary_add' hb (.const 1)))
-  simpa only [Polynomial.sparseRootLabelPrecision, Polynomial.iterateDerivativeNormExponent,
-    Polynomial.algebraicValuePrecision, Function.comp_apply] using binary_max' hlower hupper
+  simpa only [Polynomial.sparseRootLabelPrecision, Polynomial.algebraicValuePrecision,
+    Function.comp_apply] using binary_max' hlower hupper
 
 /-- Evaluate the sparse root label from the qualifying residue, addressed source coefficients,
 binary derivative orders and addressed target residues. The qualifying test is included in

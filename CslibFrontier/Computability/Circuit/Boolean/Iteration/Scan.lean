@@ -193,13 +193,14 @@ theorem chooseFirst_spec {α : Type*} (flags : Fin R → Bool) (records : Fin R 
 
 /-- The first flagged position in `w` bits, or zero if none is flagged. -/
 def firstIndex (flags : Fin R → Bool) : BitVec w :=
-  word (chooseFirst flags (fun j bit => (BitVec.ofNat w j.val).getLsbD bit.val) fun _ => false)
+  BitString.equivBitVec
+    (chooseFirst flags (fun j bit => (BitVec.ofNat w j.val).getLsbD bit.val) fun _ => false)
 
 /-- If `j` is the first flagged position, `firstIndex` returns `j.val` as a `w`-bit word. -/
 theorem firstIndex_spec (flags : Fin R → Bool) (j : Fin R) (hj : flags j = true)
     (hfirst : ∀ i : Fin R, i.val < j.val → flags i = false) :
     firstIndex (w := w) flags = BitVec.ofNat w j.val := by
-  rw [firstIndex, chooseFirst_spec flags _ _ j hj hfirst, word_getLsbD]
+  rw [firstIndex, chooseFirst_spec flags _ _ j hj hfirst, BitString.equivBitVec_getLsbD]
 
 /-- The first flagged position among `R` available flags costs four gates per position and
 bit. -/
@@ -210,6 +211,6 @@ theorem synthesis_firstIndex (s : Set (BooleanFunction a)) (flags : BitString a 
   have h := synthesis_chooseRecord (w := w) s (fun x j => flags x j.rev)
     (fun _ j bit => (BitVec.ofNat w j.rev.val).getLsbD bit.val) (fun _ _ => false)
     (fun j => hf j.rev) (fun _ _ => hc _) fun _ => hc false
-  simpa only [wordWires, firstIndex, chooseFirst, getLsbD_word] using h
+  simpa only [wordWires, firstIndex, chooseFirst, BitString.getLsbD_equivBitVec] using h
 
 end Cslib.Circuits.Boolean.Iteration
