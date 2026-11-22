@@ -1927,6 +1927,8 @@ public import CslibFrontier.Computability.Circuit.Rational.Runtime.Parameters
 public import CslibFrontier.Computability.Circuit.Rational.Runtime.Point
 public import CslibFrontier.Computability.Circuit.Rational.SmallExpansion
 public import CslibFrontier.Computability.Circuit.Rational.Wronskian
+public import CslibFrontier.Computability.Circuit.Rectifier.Basic
+public import CslibFrontier.Computability.Circuit.Rectifier.ComplementSeparation
 public import CslibFrontier.Computability.Circuit.ReedMullerDecoding
 public import CslibFrontier.Computability.Circuit.Replication
 public import CslibFrontier.Computability.Circuit.ReplicationDepth
@@ -6891,6 +6893,7 @@ public import CslibFrontier.Foundations.Combinatorics.BalancedSchedules
 public import CslibFrontier.Foundations.Combinatorics.BinaryTreeCover
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import CslibFrontier.Foundations.Combinatorics.Bregman
+public import CslibFrontier.Foundations.Combinatorics.BrownMatrix
 public import CslibFrontier.Foundations.Combinatorics.BudgetTuples
 public import CslibFrontier.Foundations.Combinatorics.CentralBinomial
 public import CslibFrontier.Foundations.Combinatorics.CompositionMoment
@@ -7023,6 +7026,7 @@ public import CslibFrontier.Foundations.Combinatorics.PerfectHashFamily.LinearHa
 public import CslibFrontier.Foundations.Combinatorics.PessimisticEstimator
 public import CslibFrontier.Foundations.Combinatorics.PowersetTail
 public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
+public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown

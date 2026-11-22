@@ -452,6 +452,11 @@ L. M. Brégman. "Some properties of nonnegative matrices and their permanents." 
 
 Andrei Z. Broder. “On the Resemblance and Containment of Documents.” *Proceedings of Compression and Complexity of Sequences 1997* (SEQUENCES 1997), IEEE, 21–29. https://doi.org/10.1109/SEQUEN.1997.666900 . DOI and metadata as reported by search indexes; neither the DOI nor the full text was resolved in this pass (no connection to the publisher). The manual credits it with the MinHash identity `Pr[min σ(A) = min σ(B)] = |A ∩ B|/|A ∪ B|` for a uniform permutation, which secondary sources attribute to it.
 
+<a id="brown1966"></a>
+## brown1966
+
+William G. Brown. "On Graphs That Do Not Contain a Thomsen Graph." *Canadian Mathematical Bulletin* 9(3), 281–285, 1966. https://doi.org/10.4153/CMB-1966-036-2 . Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [1], p. 3); the 1966 article was not inspected directly. [BrownMatrix.lean](../CslibFrontier/Foundations/Combinatorics/BrownMatrix.lean) constructs the explicit unit-sphere incidence matrix `Cslib.brownMatrix` over `(ℤ/pℤ)^3` for primes `p ≡ 3 (mod 4)` and proves directly from elementary field and cross-product identities that every row has weight `p(p - 1)`, the matrix has weight `p^4(p - 1)`, and the matrix is `3`-rectangle-free (`K_{3,3}`-free).
+
 <a id="bs23"></a>
 ## bs23
 
@@ -1464,6 +1469,11 @@ William B. Johnson, Joram Lindenstrauss. “Extensions of Lipschitz Mappings int
 
 Jake Januzelli, Mike Rosulek, Lawrence Roy. "Lower Bounds for Garbled Circuits from Shannon-Type Information Inequalities." *Advances in Cryptology – CRYPTO 2025*, 2025. Full version: Cryptology ePrint Archive, Paper 2025/876, https://eprint.iacr.org/2025/876 . Bibliographic metadata from the ePrint record; the paper's numbered lemmas were not checked against the full text. Cited at topic level as motivation for the generic one-world conditional-entropy transfer and Fano size bound; the paper's multi-world gate-specific Shannon-type inequalities and single-gate random-oracle model are not formalized.
 
+<a id="juknasergeev2013"></a>
+## juknasergeev2013
+
+Stasys Jukna and Igor Sergeev. "Complexity of Linear Boolean Operators." *Foundations and Trends in Theoretical Computer Science* 9(1), 1–123, 2013. https://doi.org/10.1561/0400000063 . Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [2], pp. 1, 3); the monograph was not inspected directly. Cited by [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) as background for rectifier (`OR`) circuits.
+
 <a id="kabanetscai2000"></a>
 ## kabanetscai2000
 
@@ -1573,6 +1583,11 @@ Ker-I Ko. *On the Complexity of Learning Minimum Time-Bounded Turing Machines*. 
 ## kobayashi1985
 
 Kojiro Kobayashi. "On proving time constructibility of functions." *Theoretical Computer Science* 35, 215–225, 1985. https://doi.org/10.1016/0304-3975(85)90015-5 . Bibliographic metadata checked through Crossref; the article body was not inspected in this pass. The manual cites it, as [Pighizzini 2009](#pighizzini2009) §4 does, as an independent proof of the `n log n` bound.
+
+<a id="kollarronyaiszabo1996"></a>
+## kollarronyaiszabo1996
+
+János Kollár, Lajos Rónyai and Tibor Szabó. "Norm-Graphs and Bipartite Turán Numbers." *Combinatorica* 16(3), 399–406, 1996. https://doi.org/10.1007/BF01261323 . Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [4], p. 3); the article was not inspected directly. Cited in [Rectifier/ComplementSeparation.lean](../CslibFrontier/Computability/Circuit/Rectifier/ComplementSeparation.lean) only to note that Sergeev's Theorem 1(i) projective norm-graph instantiation remains open under [#7622](https://github.com/cslib-community/cslib-frontier/issues/7622).
 
 <a id="kortevygen18"></a>
 ## kortevygen18
@@ -1748,6 +1763,11 @@ Jennifer Lundelius and Nancy Lynch. "An Upper and Lower Bound for Clock Synchron
 ## lundyannakakis1994
 
 Carsten Lund and Mihalis Yannakakis. "On the Hardness of Approximating Minimization Problems." *Journal of the ACM* 41(5), 960–981, 1994. https://doi.org/10.1145/185675.306789 . Bibliographic metadata checked via search records only; primary text uninspected and internal theorem locators unverified (no numbered paper theorems claimed). Cited for the constant-factor and logarithmic Set Cover inapproximability reductions from Label Cover using set-system partition gadgets.
+
+<a id="lupanov1956"></a>
+## lupanov1956
+
+O. B. Lupanov. "On Rectifier and Switching-and-Rectifier Schemes" (in Russian). *Doklady Akademii Nauk SSSR* 111(6), 1171–1174, 1956. Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [5], pp. 1, 3); the Russian original was not inspected. Cited by [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) as historical attribution for the rectifier `(m, n)`-circuit model.
 
 <a id="lynchshvartsman1997"></a>
 ## lynchshvartsman1997
@@ -1938,6 +1958,11 @@ John Nash. "Non-Cooperative Games." *Annals of Mathematics* 54(2), 286–295, 19
 ## nayakwu99
 
 Ashwin Nayak and Felix Wu. *The Quantum Query Complexity of Approximating the Median and Related Statistics*. STOC '99, 384–393, 1999. https://doi.org/10.1145/301250.301349 ; open version arXiv:quant-ph/9804066v2, https://arxiv.org/abs/quant-ph/9804066v2 . Bibliographic metadata taken from `references.bib` (`NayakWu1999`). The arXiv v2 LaTeX source (`main.tex`) was inspected on 2026-11-11 UTC for the Section 1 problem definitions (`ε`-approximate median, `Δ`-approximate `k`-th smallest element with its relaxed input-membership remark, and `Δ`-approximate count), Theorem 1.5 (`Ω(√(n/Δ) + √(k(n-k))/Δ)` for `k`-th smallest), Corollary 1.6 (`Ω(1/ε)` and `Ω(min {1/ε, n})` for approximate median), Theorem 1.11 (`Ω(√(n/Δ) + √(t(n-t))/Δ)` for approximate counting), and the Section 2 partial-function reductions (`Proof of Theorem 1.5`). Nayak and Wu prove the underlying threshold bound by the polynomial method (Corollary 1.2); the library derives the reductions from `one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight` ([AmbainisAdversary/WeightLayers](../CslibFrontier/Computability/QueryComplexity/Quantum/AmbainisAdversary/WeightLayers.lean)).
+
+<a id="nechiporuk1970"></a>
+## nechiporuk1970
+
+E. I. Nechiporuk. "On the Topological Principles of Self-Correction" (in Russian). *Problemy Kibernetiki* 21, 5–102, 1970 (English translation in *Systems Theory Research* 21, 1–99, 1970). Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [6], pp. 1, 3); neither the Russian original nor the translation was inspected directly. [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) proves the `K`-rectangle-free rectifier lower bound `|A| ≤ (K - 1)^2 · OR(A)` and its `2`-free consequence `OR(A) = OR_d(A) = |A|` (`1 ≤ d`) quoted on pp. 1 and 3 of [sergeev2014orcomplement](#sergeev2014orcomplement).
 
 <a id="nisan07"></a>
 ## nisan07
@@ -2245,6 +2270,11 @@ James Schummer and Rakesh V. Vohra. "Strategy-proof Location on a Network." *Jou
 ## schummervohra07
 
 James Schummer and Rakesh V. Vohra. "Mechanism Design without Money." Chapter 10 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 243–265. A university-hosted PDF of the book was consulted on 2026-11-08 for §10.3 (the definition of blocking coalitions and the core, Definition 10.5, Theorems 10.6 and 10.7, pp. 253–255). Its core uses weak blocking, the strict core of the housing-market modules. Its claim on p. 255 that the core and the strict core coincide under strict preferences is refuted by a checked three-agent market in `CslibFrontierTests/HousingMarket.lean`.
+
+<a id="sergeev2014orcomplement"></a>
+## sergeev2014orcomplement
+
+Igor S. Sergeev. "On Relative OR-Complexity of Boolean Matrices and Their Complements." arXiv:1407.4626v1 [cs.CC], July 17, 2014. https://arxiv.org/abs/1407.4626v1 ; PDF https://arxiv.org/pdf/1407.4626v1 (mirror https://igorssergeev.github.io/papers/1407.4626v1.pdf ). Inspected the 3-page arXiv v1 PDF (SHA-256 `7e489989a639a6959543c812843d8b3a1c53c39e66ee8fa20d57063d931b44a6`, pp. 1–3) on 2026-11-22 UTC: rectifier `(m, n)`-circuit model, `OR(A)`, `OR_d(A)`, `k`-rectangle-freeness, Nechiporuk's `2`-free consequence `OR(Ā) = OR_2(Ā) = |Ā|`, and Theorem 1(i) on p. 1; Theorem 1(ii), Lemma 1 (`|A| ≥ 2 n^{3/2} → Ω((|A|/n)^4)` `2`-rectangles), the `n = C(m, 2)` `2`-rectangle lift `B` (noting the p. 2 line-above-Lemma-2 misprint "in `B`" for "in `A`"), Lemma 2 (`k`-free `A` implies `(C(k - 1, 2) + 1)`-free `B`), and Lemma 3 statement on p. 2; and the proof of Lemma 3 (depth-`3` circuit for `B̄` and Nechiporuk lower bound `OR(B) ≥ |B| / K^2`, noting that Lemma 3 writes `Ω((|A| / (k n))^4)` by reusing Lemma 1's dimension letter `n` after setting `n = C(m, 2)` for an `m × m` matrix `A`, whereas Lemma 1 on `A` gives `|B| = Ω((|A| / m)^4)` and `OR(B) = Ω((|A| / (k m))^4)`, which is the bound yielding both Theorem 1(i) and Theorem 1(ii)) and the Theorem 1(ii) instantiation via Brown's `3`-free `m × m` matrix (`m = p^3`, `p ≡ 3 (mod 4)` prime, `n = C(p^3, 2)`) on p. 3. Formalized in [RectangleFreeMatrix.lean](../CslibFrontier/Foundations/Combinatorics/RectangleFreeMatrix.lean) (Lemmas 1–2), [BrownMatrix.lean](../CslibFrontier/Foundations/Combinatorics/BrownMatrix.lean) (Brown's `3`-free unit-sphere matrix of exact weight `p^4(p - 1)`), [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) (`RectifierCircuit`, `orComplexity`, `orDepthComplexity`, and Nechiporuk's `K`-free bound `|A| ≤ (K - 1)^2 · OR(A)`), and [Rectifier/ComplementSeparation.lean](../CslibFrontier/Computability/Circuit/Rectifier/ComplementSeparation.lean) (Lemma 3 and Theorem 1(ii)). Theorem 1(i)'s projective norm-graph instantiation ([kollarronyaiszabo1996](#kollarronyaiszabo1996)) remains open under [#7622](https://github.com/cslib-community/cslib-frontier/issues/7622).
 
 <a id="shalevshwartzbendavid14"></a>
 ## shalevshwartzbendavid14
