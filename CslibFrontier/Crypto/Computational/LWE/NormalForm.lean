@@ -20,40 +20,44 @@ import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Uniform
 
 /-!
-# LWE Normal Form reduction
+# Finite probability bounds for LWE normal-form sample transformations
 
 Decision and search LWE in normal form — where the secret is drawn from the error distribution —
-reduce to their standard uniform-secret variants, losing the probability that a uniform `n × n`
-matrix over `ZMod q` is singular.
+relate to their standard uniform-secret variants via Peikert's leading-block transformation,
+losing at most the probability that a uniform `n × n` matrix over `ZMod q` is singular.
 
-Given `n + m` samples `[A * s + e | A]`, the reduction splits `A` into a top `n × n` block `A₁`
-and a bottom block `A₂`. When `A₁` is invertible it outputs the `m` samples
+Given `n + m` samples `[A * s + e | A]`, the sample transformation splits `A` into a top `n × n`
+block `A₁` and a bottom block `A₂`. When `A₁` is invertible it outputs the `m` samples
 `[A' * e₁ + e₂ | A']` with `A' = -A₂ A₁⁻¹`, whose secret is the top error vector `e₁`; the
 uniform secret `s` cancels. Otherwise it gives up. The loss is the probability that a uniform
 `n × n` matrix is singular.
 
-The reduction provides finite bounds on the distinguishing advantage and success probability.
-Because `gaussInv?` currently computes the matrix inverse using an adjugate matrix rather than a
-polynomial-time algorithm, the asymptotic PPT (`IsPPTOn`) statement is not formalized.
+These theorems are finite probability steps toward Peikert's normal-form hardness reductions
+(#3673): they operate on framed bit-word `ProbComp` callers over uniform secrets and prime
+`ZMod q`, whereas `gaussInv?` computes the matrix inverse via determinants and adjugates rather
+than a polynomial-time algorithm, leaving `IsPPTOn` reduction certificates open.
 
 ## Main definitions
 
-* `Cslib.Crypto.PrimeLWE.reduceNormalDecision`: The reduction algorithm for Decision LWE.
-* `Cslib.Crypto.PrimeLWE.reduceNormalSearch`: The reduction algorithm for Search LWE.
+* `Cslib.Crypto.PrimeLWE.reduceNormalDecision`: Finite sample-transformation caller for Decision
+  LWE.
+* `Cslib.Crypto.PrimeLWE.reduceNormalSearch`: Finite sample-transformation and secret-recovery
+  caller for Search LWE.
 
 ## Main results
 
-* `Cslib.Crypto.PrimeLWE.decisionNormalForm`: the advantage against error-secret decision LWE
-  is at most the reduction's advantage against decision LWE plus the singularity probability.
-* `Cslib.Crypto.PrimeLWE.searchNormalForm`: the same bound for search LWE.
+* `Cslib.Crypto.PrimeLWE.decisionNormalForm`: finite step bounding the error-secret decision-LWE
+  advantage by `reduceNormalDecision`'s uniform-secret advantage plus the singularity probability.
+* `Cslib.Crypto.PrimeLWE.searchNormalForm`: the corresponding finite step for search LWE.
 
 ## References
 
 * [O. Regev, *On lattices, learning with errors, random linear codes, and cryptography*][Regev2009]
   (May 2, 2009 author PDF).
 * [C. Peikert, *A Decade of Lattice Cryptography*][Peikert2016] (February 17, 2016 author PDF),
-  Section 4.2.1, unnumbered "Normal form" paragraph (printed p. 23), for the reduction from
-  `m`-sample error-secret LWE to `(n + m)`-sample uniform-secret LWE and its singular-block loss.
+  Section 4.2.1, unnumbered "Normal form" paragraph (printed p. 23), for the error-secret sample
+  transformation from `n + m` uniform-secret samples to `m` error-secret samples and its
+  singular-block loss.
 -/
 
 public section
@@ -112,31 +116,31 @@ def topVec {m n q : ℕ} (b : Fin (n + m) → ZMod q) : Fin n → ZMod q :=
 def bottomVec {m n q : ℕ} (b : Fin (n + m) → ZMod q) : Fin m → ZMod q :=
   fun i => b (Fin.natAdd n i)
 
-/-- Transform a sample into an error-secret sample. -/
-def transform {m n q : ℕ} [Fact (Nat.Prime q)]
+/-- Transform a sample into an error-secret sample using a computed inverse `inv` of the top
+block. -/
+def transform {m n q : ℕ}
+    (inv : Matrix (Fin n) (Fin n) (ZMod q))
     (A : Matrix (Fin (n + m)) (Fin n) (ZMod q))
     (b : Fin (n + m) → ZMod q) :
     Matrix (Fin m) (Fin n) (ZMod q) × (Fin m → ZMod q) :=
-  let A1 := topBlock A
   let A2 := bottomBlock A
   let b1 := topVec b
   let b2 := bottomVec b
-  let A' := match gaussInv? A1 with
-  | none => 0
-  | some inv => - (A2 * inv)
+  let A' := -(A2 * inv)
   let b' := b2 + A' *ᵥ b1
   (A', b')
 
-/-- Transform an augmented matrix. -/
-def transformAugmented {m n q : ℕ} [Fact (Nat.Prime q)]
+/-- Transform an augmented matrix using a computed inverse `inv` of its top block. -/
+def transformAugmented {m n q : ℕ}
+    (inv : Matrix (Fin n) (Fin n) (ZMod q))
     (Ab : Matrix (Fin (n + m)) (Fin (n + 1)) (ZMod q)) :
     Matrix (Fin m) (Fin (n + 1)) (ZMod q) :=
   let A := fun i j => Ab i (Fin.succ j)
   let b := fun (i : Fin (n + m)) => Ab i (0 : Fin (n + 1))
-  let (A', b') := transform A b
+  let (A', b') := transform inv A b
   fun i => Fin.cons (b' i) (A' i)
 
-/-- The Normal Form reduction for Decision LWE. -/
+/-- Finite sample-transformation caller for Decision LWE in normal form. -/
 def reduceNormalDecision {n m q : ℕ} [Fact (Nat.Prime q)]
     (adversary : List Bool → ProbComp Bool)
     (word : List Bool) : ProbComp Bool := do
@@ -146,12 +150,12 @@ def reduceNormalDecision {n m q : ℕ} [Fact (Nat.Prime q)]
   match gaussInv? A1 with
   | none =>
     pure false
-  | some _ =>
-    let Ab' := transformAugmented Ab
+  | some inv =>
+    let Ab' := transformAugmented inv Ab
     let word' := encMatrix m (n + 1) q Ab'
     adversary word'
 
-/-- The Normal Form reduction for Search LWE. -/
+/-- Finite sample-transformation caller for Search LWE in normal form. -/
 def reduceNormalSearch {n m q : ℕ} [Fact (Nat.Prime q)]
     (adversary : List Bool → ProbComp (List Bool))
     (word : List Bool) : ProbComp (List Bool) := do
@@ -163,7 +167,7 @@ def reduceNormalSearch {n m q : ℕ} [Fact (Nat.Prime q)]
   | none =>
     pure []
   | some inv =>
-    let Ab' := transformAugmented Ab
+    let Ab' := transformAugmented inv Ab
     let word' := encMatrix m (n + 1) q Ab'
     let guessWord ← adversary word'
     let e1 := decodeZModVec n q guessWord
@@ -226,7 +230,7 @@ private theorem publicMatrix_head {k : ℕ} (A : Matrix (Fin k) (Fin n) (ZMod q)
 
 private theorem transformAugmented_publicMatrix (A : Matrix (Fin (n + m)) (Fin n) (ZMod q))
     (s : Fin n → ZMod q) (e : Fin (n + m) → ZMod q) (h : (topBlock A).det ≠ 0) :
-    transformAugmented (publicMatrix A s e) =
+    transformAugmented (topBlock A)⁻¹ (publicMatrix A s e) =
       publicMatrix (-(bottomBlock A * (topBlock A)⁻¹)) (topVec e) (bottomVec e) := by
   have hu : IsUnit (topBlock A).det := isUnit_iff_ne_zero.mpr h
   have key : bottomVec (A *ᵥ s + e) + (-(bottomBlock A * (topBlock A)⁻¹)) *ᵥ topVec (A *ᵥ s + e) =
@@ -236,8 +240,7 @@ private theorem transformAugmented_publicMatrix (A : Matrix (Fin (n + m)) (Fin n
     rw [Matrix.mulVec_add, Matrix.mulVec_mulVec, Matrix.neg_mul, Matrix.mul_assoc,
       Matrix.nonsing_inv_mul _ hu, Matrix.mul_one, Matrix.neg_mulVec]
     abel
-  simp only [transformAugmented, transform, publicMatrix_tail, publicMatrix_head,
-    (gaussInv?_eq_some_inv _).mp h]
+  simp only [transformAugmented, transform, publicMatrix_tail, publicMatrix_head]
   funext i
   simp only [publicMatrix]
   rw [key]

@@ -21,40 +21,44 @@ import CslibFrontier.Probability.Product.Reindex
 import CslibFrontier.Tactic.PMFSwap
 
 /-!
-# Search to decision for prime-modulus LWE
+# Finite probability bound toward search-to-decision for prime-modulus LWE
 
-Regev's reduction recovers the LWE secret with a decision distinguisher `D`. To test whether a
-guess `g` equals coordinate `j` of the secret `s`, it takes a fresh `m`-row sample `[b | A]`,
-re-randomizes the secret to `s + s'` with a uniform `s'` (`b ↦ b + A *ᵥ s'`), and adds `r` to
-column `j` of `A` and `(g + s' j) • r` to `b` for a uniform `r`. When `g = s j` the result is a
-fresh LWE sample; otherwise its first column is uniform and independent of the rest, so the
-result is a uniform matrix. Each trial therefore accepts with `D`'s acceptance probability on
-real samples or on uniform matrices, independently of all other trials.
+Using Regev's coordinate transformation, a decision distinguisher `D` yields a finite-budget
+secret-recovery procedure over prime `ZMod q`. To test whether a guess `g` equals coordinate `j`
+of the secret `s`, it takes a fresh `m`-row sample `[b | A]`, re-randomizes the secret to `s + s'`
+with a uniform `s'` (`b ↦ b + A *ᵥ s'`), and adds `r` to column `j` of `A` and `(g + s' j) • r` to
+`b` for a uniform `r`. When `g = s j` the result is a fresh LWE sample; otherwise its first column
+is uniform and independent of the rest, so the result is a uniform matrix. Each trial therefore
+accepts with `D`'s acceptance probability on real samples or on uniform matrices, independently of
+all other trials.
 
-The reduction runs `N` such trials for every coordinate `j` and guess `g`, each on its own block of
-`m` samples, and `N` trials of `D` on uniform matrices. For each `j` it outputs the guess whose
+The procedure runs `N` such trials for every coordinate `j` and guess `g`, each on its own block of
+`m` samples, and `N` trials of `D` on uniform matrices. For each `j` it outputs a guess whose
 acceptance count is farthest from the uniform count. Hoeffding's inequality and a union bound over
 the `n * q + 1` estimators bound its failure probability.
 
-The reduction is concrete: it samples exactly uniform elements of `ZMod q`, which a fair-coin
-machine cannot do for odd `q`, so no `IsPPT` certificate or asymptotic `SearchLWE → DecisionLWE`
-statement is given here.
+This theorem and `reduceSearchToDecision` are finite steps toward Regev's polynomial-time
+search-to-decision reduction (#3673): the procedure samples exact uniform elements of `ZMod q`
+(which a fair-coin machine cannot sample exactly for odd primes `q`) and selects maximizing guesses
+via noncomputable `guessSecret`, so no `IsPPTOn` certificate or asymptotic `SearchLWE → DecisionLWE`
+implication is proved here.
 
 ## Main definitions
 
 * `Cslib.Crypto.PrimeLWE.lweSelfReduceDistinguisher`: shift coordinate `j` by a guess, then run
   the distinguisher.
 * `Cslib.Crypto.PrimeLWE.rerandomizeSecret`: move the secret of a sample from `s` to `s + s'`.
-* `Cslib.Crypto.PrimeLWE.reduceSearchToDecision`: the search reduction on
-  `searchSamples n q N m = (n * q + 1) * N * m` samples.
+* `Cslib.Crypto.PrimeLWE.reduceSearchToDecision`: finite-budget search procedure on
+  `searchSamples n q N m = (n * q + 1) * N * m` samples (a finite step toward Regev's reduction).
 
 ## Main results
 
 * `Cslib.Crypto.PrimeLWE.lweSelfReduce_real`, `Cslib.Crypto.PrimeLWE.lweSelfReduce_ideal`: a
   correct guess preserves an LWE sample; a wrong guess makes it uniform.
-* `Cslib.Crypto.PrimeLWE.searchToDecision`: the reduction recovers the secret with probability at
-  least `1 - (n * q + 1) * 2 * exp (-N * ε ^ 2 / 8)`, where `ε` is the distinguisher's
-  decision-LWE advantage with `m` samples.
+* `Cslib.Crypto.PrimeLWE.searchToDecision`: finite probability step showing that
+  `reduceSearchToDecision` recovers the uniform secret in `searchGame` with probability at least
+  `1 - (n * q + 1) * 2 * exp (-N * ε ^ 2 / 8)`, where `ε` is the distinguisher's `m`-sample
+  decision-LWE advantage.
 
 ## References
 
@@ -537,11 +541,12 @@ theorem pi_estimatorLaw_guessSecret_ne_le {n m q : ℕ} [Fact (Nat.Prime q)] (N 
         push_cast
         ring
 
-/-! ### The search reduction -/
+/-! ### Finite-budget search procedure -/
 
-/-- Regev's search-to-decision reduction on `searchSamples n q N m` samples: decode the sample,
-run `N` trials of every estimator on its own `m`-row blocks, each with the decision adversary
-on encoded matrices, and output the guessed secret. -/
+/-- Finite-budget search procedure on `searchSamples n q N m` samples (a finite step toward Regev's
+search-to-decision reduction): decode the sample, run `N` trials of every estimator on its own
+`m`-row blocks, each with the decision adversary on encoded matrices, and output a maximizing
+guessed secret. -/
 noncomputable def reduceSearchToDecision {n m q : ℕ} [Fact (Nat.Prime q)] (N : ℕ)
     (adversary : List Bool → ProbComp Bool) (word : List Bool) : ProbComp (List Bool) := do
   let X ← runTrials (N := N) (fun M => adversary (encMatrix m (n + 1) q M))
@@ -563,9 +568,10 @@ private theorem searchGame_reduceSearchToDecision {n m q : ℕ} [Fact (Nat.Prime
   rw [← sampleLaw_bind_runTrials]
   simp only [sampleLaw, pmf_norm]
 
-/-- **Search to decision for prime-modulus LWE.** From a decision-LWE adversary with advantage
-`ε` on `m` samples, `reduceSearchToDecision` finds the secret from `(n * q + 1) * N * m` samples
-with probability at least `1 - (n * q + 1) * 2 * exp (-N * ε ^ 2 / 8)`. -/
+/-- **Finite probability step toward search-to-decision for prime-modulus LWE.** From a
+decision-LWE adversary with advantage `ε` on `m` samples, `reduceSearchToDecision` recovers the
+uniform secret in `searchGame` from `(n * q + 1) * N * m` samples with probability at least
+`1 - (n * q + 1) * 2 * exp (-N * ε ^ 2 / 8)`. -/
 theorem searchToDecision {n m q : ℕ} [Fact (Nat.Prime q)] {noise : PMF (ZMod q)}
     (adversary : List Bool → ProbComp Bool) (N : ℕ) :
     1 - (n * q + 1) * (2 * Real.exp (-(N * (Game.advantage

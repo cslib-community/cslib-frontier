@@ -1750,7 +1750,7 @@ Torben Pryds Pedersen. "Non-Interactive and Information-Theoretic Secure Verifia
 <a id="peikert2016"></a>
 ## peikert2016
 
-Chris Peikert. *A Decade of Lattice Cryptography*. Foundations and Trends in Theoretical Computer Science 10(4), 283–424, 2016. https://doi.org/10.1561/0400000074 ; author PDF dated February 17, 2016 at https://web.eecs.umich.edu/~cpeikert/pubs/lattice-survey.pdf . Consulted in the February 17, 2016 author PDF: Section 4.2.1, unnumbered "Normal form" paragraph, printed p. 23, for the reduction from error-secret (normal-form) LWE on `m` samples to uniform-secret LWE on `n + m` samples by inverting the top `n × n` block, losing the singular-block probability (`NormalForm.lean` formalizes the finite game inequalities on framed-integer encodings without certifying polynomial-time inversion).
+Chris Peikert. *A Decade of Lattice Cryptography*. Foundations and Trends in Theoretical Computer Science 10(4), 283–424, 2016. https://doi.org/10.1561/0400000074 ; author PDF dated February 17, 2016 at https://web.eecs.umich.edu/~cpeikert/pubs/lattice-survey.pdf . Consulted in the February 17, 2016 author PDF: Section 4.2.1, unnumbered "Normal form" paragraph, printed p. 23, for the sample transformation from `(n + m)`-sample uniform-secret LWE to `m`-sample error-secret (normal-form) LWE by inverting the top `n × n` block, losing the singular-block probability (`NormalForm.lean` formalizes these finite probability steps on framed-integer `ProbComp` callers toward the hardness reductions in #3673, without certifying polynomial-time inversion).
 
 <a id="pighizzini2009"></a>
 ## pighizzini2009
@@ -1810,7 +1810,7 @@ Oded Regev. *Lattices in Computer Science*, Lecture 3: "CVP Algorithm" (scribe: 
 <a id="regev2009"></a>
 ## regev2009
 
-Oded Regev. "On lattices, learning with errors, random linear codes, and cryptography." *Journal of the ACM* 56(6), Article 34 (1–40), 2009. https://doi.org/10.1145/1568318.1568324 ; author PDF dated May 2, 2009 at https://cims.nyu.edu/~regev/papers/qcrypto.pdf . Consulted in the May 2, 2009 author PDF: Lemma 4.1 (pp. 30–31, non-negligible fraction of good secrets from uniform-secret advantage) and Lemma 4.2 (p. 31, efficient search from an all-secret distinguisher for prime `2 ≤ p ≤ poly(n)`). `SearchToDecision.lean` formalizes a quantitative finite-parameter adaptation for arbitrary prime `q` using a fixed-batch distinguisher's absolute averaged acceptance gap, fresh per-trial secret re-randomization over `(n * q + 1) * N * m` samples, and an explicit Hoeffding bound, without an `IsPPTOn` certificate.
+Oded Regev. "On lattices, learning with errors, random linear codes, and cryptography." *Journal of the ACM* 56(6), Article 34 (1–40), 2009. https://doi.org/10.1145/1568318.1568324 ; author PDF dated May 2, 2009 at https://cims.nyu.edu/~regev/papers/qcrypto.pdf . Consulted in the May 2, 2009 author PDF: Lemma 4.1 (pp. 30–31, non-negligible fraction of good secrets from uniform-secret advantage) and Lemma 4.2 (p. 31, efficient search from an all-secret distinguisher for prime `2 ≤ p ≤ poly(n)`). `SearchToDecision.lean` formalizes a finite probability step toward Regev's reduction (#3673) over arbitrary prime `q`, using a fixed-batch distinguisher's absolute averaged acceptance gap, fresh per-trial secret re-randomization over `(n * q + 1) * N * m` samples, noncomputable argmax selection, and an explicit Hoeffding bound, without an `IsPPTOn` certificate.
 
 <a id="reingold2008"></a>
 ## reingold2008

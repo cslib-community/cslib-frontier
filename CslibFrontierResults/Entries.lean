@@ -6,8 +6,6 @@ Authors: Christian Reitwiessner, Samuel Schlesinger
 
 -- upstream: local-only (result registry collection)
 import CslibFrontierResults.Registry
-import CslibFrontier.Crypto.Computational.LWE.NormalForm
-import CslibFrontier.Crypto.Computational.LWE.SearchToDecision
 import CslibFrontier.Computability.PCP.TwoProverGame.AveragedAnswerMarginals
 import CslibFrontier.Computability.PCP.TwoProverGame.CheckedAnswerRegister
 import CslibFrontier.Algorithms.Lean.Knapsack.ApproximationSchemes
@@ -5926,64 +5924,6 @@ register_result "sperner-2d-ppad-completeness" where
     as in discrete Brouwer; two-dimensional discrete Brouwer, three-dimensional Sperner \
     completeness and d-dimensional circuit Sperner are not formalized."
 
-register_result "lwe-normal-form-decision" where
-  title := "Decision LWE normal-form reduction from error secret to uniform secret"
-  topic := "cryptography"
-  sources := [
-    { paper := Peikert2016, theorem := "Normal form",
-      locator := "Section 4.2.1, p. 23 (February 17, 2016 author PDF)" }
-  ]
-  theorems := [
-    Cslib.Crypto.PrimeLWE.decisionNormalForm
-  ]
-  scope := "Finite inequality over prime ZMod q bounding an m-sample error-secret \
-    Decision LWE distinguisher's advantage (realEnsembleErrorSecret vs uniformEnsemble) by \
-    the (n + m)-sample uniform-secret Decision LWE advantage of reduceNormalDecision D \
-    (realEnsemble vs uniformEnsemble) plus the singularity probability Pr[det A = 0] of a \
-    uniform n × n matrix over ZMod q, on framed-integer matrix encodings (encMatrix). \
-    Uses determinant/adjugate inversion (gaussInv?); native polynomial-time inversion and \
-    asymptotic IsPPTOn closure remain open (#3673 M07)."
-
-register_result "lwe-normal-form-search" where
-  title := "Search LWE normal-form reduction from error secret to uniform secret"
-  topic := "cryptography"
-  sources := [
-    { paper := Peikert2016, theorem := "Normal form",
-      locator := "Section 4.2.1, p. 23 (February 17, 2016 author PDF)" }
-  ]
-  theorems := [
-    Cslib.Crypto.PrimeLWE.searchNormalForm
-  ]
-  scope := "Finite inequality over prime ZMod q bounding an m-sample error-secret \
-    Search LWE solver's success probability (searchGameErrorSecret) by the (n + m)-sample \
-    uniform-secret Search LWE success probability of reduceNormalSearch (searchGame) plus \
-    the singularity probability Pr[det A = 0] of a uniform n × n matrix over ZMod q, on \
-    framed-integer matrix and vector encodings (encMatrix, encZModVec). Uses \
-    determinant/adjugate inversion (gaussInv?); native polynomial-time inversion and \
-    asymptotic IsPPTOn closure remain open (#3673 M07)."
-
-register_result "lwe-search-to-decision" where
-  title := "Concrete search-to-decision reduction for prime-modulus LWE"
-  topic := "cryptography"
-  sources := [
-    { paper := Regev2009, theorem := "Lemmas 4.1 & 4.2",
-      locator := "pp. 30–31 (May 2, 2009 author PDF)" }
-  ]
-  theorems := [
-    Cslib.Crypto.PrimeLWE.searchToDecision
-  ]
-  scope := "Quantitative finite adaptation over arbitrary prime ZMod q and noise law: \
-    given a fixed-batch m-sample Decision LWE distinguisher with absolute averaged \
-    acceptance gap ε = Game.advantage (over a uniform secret), reduceSearchToDecision \
-    recovers the secret in searchGame from a fresh sample budget of \
-    searchSamples n q N m = (n * q + 1) * N * m framed-integer matrix samples (encMatrix) \
-    with probability at least 1 - (n * q + 1) * (2 * exp (-N * ε ^ 2 / 8)), via fresh \
-    per-trial secret re-randomization, Hoeffding's inequality, and a union bound. \
-    Unlike Regev Lemma 4.1 (non-negligible fraction of good secrets) and Lemma 4.2 \
-    (strong all-secret distinguisher with prime 2 ≤ p ≤ poly(n) and efficient recovery), \
-    exact uniform ZMod q sampling and noncomputable argmax selection leave native \
-    IsPPTOn security open (#3673 M07)."
-
 register_result "branching-vector-recurrence" where
   title := "Search-tree branching-vector recurrences and separated node-work bounds"
   topic := "exact exponential algorithms"
@@ -6140,7 +6080,6 @@ register_result "tsp-polytope-extension-complexity" where
     padded directed-to-undirected 3-split, corrPolytope K (Fin p) projects linearly from a face \
     of tspPolytope K V whenever |V| >= 69 with p = Nat.sqrt (|V| / 69), giving (3/2 : F)^p <= r \
     for every extended formulation of tspPolytope K V with r inequalities."
-
 register_result "sturm-real-root-counting" where
   title := "Sturm's theorem for separable real polynomials"
   topic := "algebraic complexity"
