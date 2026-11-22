@@ -20,6 +20,9 @@ use the [Operator's Manual](../README.md), [AGENTS.md](../../AGENTS.md) and
   available conversations show about human-directed automated development, with its
   [methods](methods.md), [timings](timings.md), [case studies](case-studies.md),
   [transcript excerpts](transcripts.md) and [study design](study-design.md).
+- [NL = UL postmortem](postmortems/nl-ul/postmortem.tex): a dated record (22 November 2026) of
+  how issue #6747 formalized Hoza's NL = UL in two days, with its routes, costs and lessons.
+  The LaTeX source, the compiled PDF and the collection script are in the same directory.
 - [Paper plan](paper-plan.md): the earlier academic framing of the survey. It is kept as
   editorial context and is not part of the book.
 
