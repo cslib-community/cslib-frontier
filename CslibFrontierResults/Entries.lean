@@ -8797,8 +8797,8 @@ register_result "merkle-damgard-collision-resistance" where
     part of this entry."
 
 register_result "davies-meyer-ideal-cipher-collision-resistance" where
-  title := "Davies–Meyer is collision resistant in the ideal cipher model: a deterministic \
-    adaptive finder making Q queries finds a collision with probability at most \
+  title := "Davies–Meyer is collision resistant in the ideal cipher model: an adaptive \
+    finder making Q queries finds a collision with probability at most \
     (Q + 1)(Q + 2)/|X|"
   topic := "cryptography"
   sources := [
@@ -8810,22 +8810,22 @@ register_result "davies-meyer-ideal-cipher-collision-resistance" where
     Cslib.IdealCipher.daviesMeyer_collisionGame_le
   ]
   scope := "The ideal cipher is a family of independent uniform permutations Π_k of a finite \
-    nonempty block set X, one for each key of a finite key set K. A CollisionFinder is an \
-    oracle program (OracleComp) over the cipher's forward replies Π_k(a) and inverse replies \
-    Π_k⁻¹(b) that outputs two inputs. It is adaptive but has no private sampling operation, so \
-    the declarations quantify over deterministic adaptive finders; IsQueryBounded A Q bounds \
-    its queries of both kinds by Q on every path, with no bound on running time. The book's \
-    adversary may be randomized; averaging the bound over its coins would extend it, but no \
-    private-coin version is proved. collisionGame samples the cipher, runs the finder, and \
-    evaluates the compression function on its two outputs directly with the sampled \
+    nonempty block set X, one for each key of a finite key set K. A CollisionFinder is a \
+    randomized adaptive oracle program (ProbOracleComp) with private uniform finite coin \
+    draws (ProbComp.unifOracle) and forward/inverse ideal-cipher queries Π_k(a), Π_k⁻¹(b) \
+    that outputs two candidate inputs; ProbOracleComp.IsQueryBounded A Q bounds its external \
+    ideal-cipher queries of both kinds by Q on every path regardless of coin choices, with no \
+    bound on local running time. collisionGame samples the cipher, runs the randomized finder, \
+    and evaluates the compression function on its two outputs directly with the sampled \
     permutations, accepting distinct inputs with equal digests; these two digest evaluations \
-    are not queries of the finder. The proof's program daviesMeyerCollisionProgram instead \
-    appends two forward queries on the outputs, which gives Q + 2 queries (the book's \
-    'reasonable' adversary with q′ = q + 2). daviesMeyer Π (k, x) = Π_k(x) + x is the book's \
-    h_DM(x, y) = E(y, x) ⊕ x with its arguments swapped, which is a bijection of the input \
-    space, for any group structure + on X: XOR on {0,1}^n, and also modular addition as in \
-    SHA256 (p. 304). daviesMeyer_collisionGame_mul_le is the book's bound (Q + 2)(Q + 1)/|X|, \
-    and daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|."
+    are not queries of the finder. Fixing private coins via ProbOracleComp.coinLaw reduces \
+    each coin-fixed execution to daviesMeyerCollisionProgram, which appends two forward \
+    queries on the outputs to give Q + 2 queries (the book's 'reasonable' adversary with \
+    q′ = q + 2). daviesMeyer Π (k, x) = Π_k(x) + x is the book's h_DM(x, y) = E(y, x) ⊕ x \
+    with its arguments swapped, which is a bijection of the input space, for any group \
+    structure + on X: XOR on {0,1}^n, and also modular addition as in SHA256 (p. 304). \
+    daviesMeyer_collisionGame_mul_le is the book's bound (Q + 2)(Q + 1)/|X|, and \
+    daviesMeyer_collisionGame_le is the same bound written 2·C(Q + 2, 2)/|X|."
 
 register_result "davies-meyer-insecure-variants" where
   title := "The Davies–Meyer variants h₄ and h₅ have two-query collision finders that always \
