@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Complexity.Reduction
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Option
 import CslibFrontier.Computability.Complexity.Classes.NP.Witness
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Captured
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.List
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
@@ -218,10 +219,8 @@ theorem mem_FNP_iff_exists_bounded : R ∈ FNP enc ↔
     exact ⟨p, V, hV, fun a w => ⟨fun h => ⟨hp a w h, (hR a w).1 h⟩, fun h => (hR a w).2 h.2⟩⟩
   · rintro ⟨p, V, hV, hR⟩
     refine ⟨⟨p, fun a w h => ((hR a w).1 h).1⟩,
-      fun x => decide (x.2.length ≤ p.eval (enc x.1).length) && V x, ?_, fun a w => ?_⟩
-    · exact bool_and' (unary_le' (length_bits.comp (snd enc encBits))
-        ((unary_eval p).comp ((encoding_length enc).comp (fst enc encBits)))) hV
-    · simp only [hR a w, Bool.and_eq_true, decide_eq_true_eq]
+      fun x => decide (x.2.length ≤ p.eval (enc x.1).length) && V x, by fun_prop, fun a w => ?_⟩
+    simp only [hR a w, Bool.and_eq_true, decide_eq_true_eq]
 
 /-- A polynomial-time solver of a total relation in `FNP` puts it in `FPSearch`. -/
 theorem mem_FPSearch_of_total (hR : R ∈ FNP enc) {g : α → List Bool}
@@ -255,10 +254,8 @@ theorem verifierSearch_mem_FNP {p : Polynomial ℕ} {V : α × List Bool → Boo
     (hV : ComputableInPolyTime V (encPair enc encBits) encBool) :
     verifierSearch enc p V ∈ FNP enc := by
   refine mem_FNP.mpr ⟨⟨p, fun a w h => h.1.le⟩,
-    fun x => decide (x.2.length = p.eval (enc x.1).length) && V x, ?_, fun a w => ?_⟩
-  · exact (bool_and' (decide_eq' (length_bits.comp (snd enc encBits))
-      ((unary_eval p).comp ((encoding_length enc).comp (fst enc encBits)))) hV)
-  · simp only [verifierSearch, Bool.and_eq_true, decide_eq_true_eq]
+    fun x => decide (x.2.length = p.eval (enc x.1).length) && V x, by fun_prop, fun a w => ?_⟩
+  simp only [verifierSearch, Bool.and_eq_true, decide_eq_true_eq]
 
 /-- A verifier verifies exactly the domain of its search problem. -/
 theorem IsVerifier.searchDomain_eq {p : Polynomial ℕ} {V : α × List Bool → Bool} {A : Set α}
@@ -324,13 +321,7 @@ theorem searchSum_mem_FNP (hR : R ∈ FNP enc) (hS : S ∈ FNP enc) : searchSum 
       have := hq a u h
       simp only [List.length_cons]
       omega
-  · have htail : ComputableInPolyTime (fun x : α × List Bool => (x.1, x.2.tail))
-        (encPair enc encBits) (encPair enc encBits) :=
-      (fst enc encBits).prod (bitsTail.comp (snd enc encBits))
-    refine (bool_and' (bool_not.comp ?_)
-      (ite' (encC := encBool) ?_ (hV.comp htail) (hW.comp htail)))
-    · fun_prop
-    · fun_prop
+  · fun_prop
   · match w with
     | [] => simp
     | true :: u => simp [hRV]
