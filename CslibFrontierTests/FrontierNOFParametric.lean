@@ -70,26 +70,35 @@ example (σ : Signature.{0}) (I : Interpretation σ Bool) (F : Formula σ 24)
   obtain ⟨p, hrun, -, hdepth⟩ := hprot z
   exact ⟨p, hrun, hdepth⟩
 
-example (σ : Signature.{0}) (I : Interpretation σ Bool) (F : Formula σ 16)
-    (hfan : F.FanInAtMost 2) :
-    let r := 4 * F.leafSize / 16 + 1
-    ∃ X : Fin (r + 1) → Finset (Fin 16),
+example (σ : Signature.{0}) (I : Interpretation σ Bool) :
+    let F : Formula σ 64 := .input 0
+    ∃ X : Fin 2 → Finset (Fin 64),
       Pairwise (fun j₁ j₂ => Disjoint (X j₁) (X j₂)) ∧
-      (∀ j : Fin (r + 1), (X j).card = 16 / (4 * r)) ∧
-      ∀ z : Fin 16 → Bool, ∃ p : NOF.Protocol (fun j : Fin (r + 1) => X j → Bool) Bool,
+      (∀ j : Fin 2, (X j).card = 16) ∧
+      ∀ z : Fin 64 → Bool, ∃ p : NOF.Protocol (fun j : Fin 2 => X j → Bool) Bool,
         (∀ y, p.run y = F.eval I (embedBlocks X z y)) ∧
-        p.depth ≤ 2 * r + 1 :=
-  exists_nof_protocol_of_formula (by omega) I F hfan
+        p.depth ≤ 3 := by
+  intro F
+  have h := exists_nof_protocol_of_formula (n := 64) (by omega) I F trivial
+  have hleaf : F.leafSize = 1 := rfl
+  dsimp only at h
+  rwa [hleaf] at h
 
-example (σ : Signature.{0}) (n : ℕ) (I : Interpretation σ Bool) (F : Formula σ n)
-    (hfan : F.FanInAtMost 2) (f : (Fin n → Bool) → Bool) (hcomp : F.Computes I f)
-    (hdisc : ∀ (k q : ℕ), 2 ≤ k → ∀ X : Fin k → Finset (Fin n),
-      Pairwise (fun j₁ j₂ => Disjoint (X j₁) (X j₂)) →
-      (∀ j : Fin k, (X j).card = q) →
-      ∀ z : Fin n → Bool,
-        NOF.discrepancy (PMF.uniformOfFintype (∀ j : Fin k, X j → Bool))
-          (fun y => f (embedBlocks X z y)) ^ (2 ^ k) ≤ (1 - 2 / (2 : ℝ) ^ k) ^ q) :
-    n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize :=
-  mul_log_le_leafSize_of_universal_discrepancy I hfan hcomp hdisc
+example (n : ℕ) :
+    ∃ f : (Fin n → Bool) → Bool,
+      ∀ {σ : Signature.{0}} (I : Interpretation σ Bool) {F : Formula σ n},
+        F.FanInAtMost 2 → F.Computes I f → n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize :=
+  exists_function_mul_log_le_leafSize n
+
+example :
+    ∃ f : (Fin 65536 → Bool) → Bool,
+      ∀ {σ : Signature.{0}} (I : Interpretation σ Bool) {F : Formula σ 65536},
+        F.FanInAtMost 2 → F.Computes I f → 16384 ≤ F.leafSize := by
+  obtain ⟨f, hf⟩ := exists_function_mul_log_le_leafSize 65536
+  refine ⟨f, fun {_σ} I {_F} hfan hcomp => ?_⟩
+  have h := hf I hfan hcomp
+  have hlog : Nat.log 2 65536 = 16 := by decide
+  rw [hlog] at h
+  omega
 
 end CslibFrontierTests.FrontierNOFParametric

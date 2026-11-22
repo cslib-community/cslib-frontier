@@ -10,10 +10,13 @@ module
 public import CslibFrontier.Computability.Circuit.Formula
 public import CslibFrontier.Computability.Communication.NOF.Discrepancy
 public import CslibFrontier.Probability.PMF
+import CslibFrontier.Computability.Communication.NOF.GeneralizedInnerProduct
+import CslibFrontier.Foundations.Combinatorics.Hoeffding
 import Mathlib.Algebra.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Analysis.SpecialFunctions.ExpDeriv
 import Mathlib.Combinatorics.Hall.Finite
+import Mathlib.Data.Fintype.Powerset
 import Mathlib.Data.Nat.Log
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -22,13 +25,13 @@ import Mathlib.Tactic.Ring
 /-!
 # Read-`r` and fan-in-two formula compilation to multiparty NOF protocols
 
-Every fan-in-two formula `F : Formula σ n` in which each variable appears at most `r` times
+Every fan-in-two Boolean formula `F : Formula σ n` in which each variable appears at most `r` times
 (`Formula.ReadAtMost r`) compiles to a low-depth deterministic `(r + 1)`-party number-on-forehead
-(`NOF.Protocol`) protocol on balanced disjoint blocks of variables, yielding unconditional
-`Ω(n log n)` leaf-size lower bounds for general fan-in-two formulas against partition-universal
-`NOF` discrepancy (`Cslib.Communication.NOF.discrepancy`).
+(`NOF.Protocol`) protocol on balanced disjoint blocks of variables, yielding `Ω(n log n)` leaf-size
+lower bounds for general fan-in-two Boolean formulas from balanced multiparty `NOF` discrepancy
+(`Cslib.Communication.NOF.discrepancy`) as well as unconditionally via Hoeffding's inequality.
 
-The compilation combines three deterministic ingredients:
+The development combines four ingredients:
 
 1. **Exact Hall balance theorem** (`exists_nof_partition_of_bag_card_le`,
    `exists_disjoint_blocks_avoiding_bags`). Given `r + 1` bags `W_0, …, W_r ⊆ Fin n` such that
@@ -44,16 +47,24 @@ The compilation combines three deterministic ingredients:
    assigning each piece to the lightest of `r + 1` bags keeps every bag below
    `(F.leafSize + 2 r B) / (r + 1)`.
 
-3. **General fan-in-two formulas (`s_F = Ω(n log n)`)** (`exists_nof_protocol_of_formula`,
-   `one_le_two_pow_mul_nof_discrepancy_of_formula`,
+3. **General fan-in-two Boolean formulas and balanced NOF discrepancy**
+   (`exists_nof_protocol_of_formula`, `one_le_two_pow_mul_nof_discrepancy_of_formula`,
    `two_mul_le_two_pow_mul_nof_discrepancy_of_formula`,
-   `mul_log_le_leafSize_of_universal_discrepancy`). For an *arbitrary* fan-in-two formula `F` over
-   any signature `σ`, setting `r = 4 * F.leafSize / n + 1` leaves at least `(3 n + 1) / 4` inputs
-   that are read at most `r` times, while chopping at `B = n / 8` compiles `F` to an `(r + 1)`-party
-   NOF protocol of **`≤ 2 r + 1` (`O(r)`) bits** on pairwise disjoint blocks of size
-   `n / (4 r)`. Against any function family satisfying the Babai–Nisan–Szegedy cube discrepancy
-   bound across balanced partitions, this forces `n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize` (even
-   for distributional correlation `2 γ > 0` under the uniform input distribution).
+   `mul_log_le_leafSize_of_balanced_discrepancy`). For an *arbitrary* fan-in-two formula `F` over
+   any signature `σ` and Boolean interpretation `I`, setting `r = 4 * F.leafSize / n + 1` leaves at
+   least `(3 n + 1) / 4` inputs read at most `r` times, while chopping at `B = n / 8` compiles `F`
+   to an `(r + 1)`-party NOF protocol of **`≤ 2 r + 1` (`O(r)`) bits** on pairwise disjoint blocks
+   of size `n / (4 r)`. Conditionally on the Babai–Nisan–Szegedy cube discrepancy bound across the
+   balanced regime `1 ≤ r`, `4 r + 6 ≤ log₂ n` (`q = n / (4 r)`), this forces
+   `n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize`.
+
+4. **Probabilistic existence and unconditional `Ω(n log n)` formula lower bound**
+   (`exists_balanced_nof_discrepancy`, `exists_function_mul_log_le_leafSize`). Applying Hoeffding's
+   inequality (`Cslib.BitString.card_filter_le_abs_sum_mul_signVal_le`) and a union bound over all
+   balanced block tuples and cylinder intersections establishes that for every `n`, a Boolean
+   function `f : (Fin n → Bool) → Bool` satisfies the balanced BNS cube discrepancy bound and
+   therefore requires `n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize` for every fan-in-two Boolean
+   formula over any signature `σ`.
 
 ## Main definitions
 
@@ -65,28 +76,31 @@ The compilation combines three deterministic ingredients:
 
 * `Cslib.Circuits.Frontier.exists_nof_partition_of_bag_card_le`: exact `n / (r * (r + 1))` Hall
   balance theorem for `(r + 1)`-party NOF input assignment.
-* `Cslib.Circuits.Frontier.exists_nof_protocol_of_readAtMost`: read-`r` fan-in-two formula to
-  `(r + 1)`-party `NOF.Protocol` compiler.
-* `Cslib.Circuits.Frontier.exists_nof_protocol_of_formula`: general fan-in-two formula compilation
-  to a `(2 r + 1)`-bit `(r + 1)`-party `NOF.Protocol` at `r = 4 * F.leafSize / n + 1`.
+* `Cslib.Circuits.Frontier.exists_nof_protocol_of_readAtMost`: read-`r` fan-in-two Boolean formula
+  to `(r + 1)`-party `NOF.Protocol` compiler.
+* `Cslib.Circuits.Frontier.exists_nof_protocol_of_formula`: general fan-in-two Boolean formula
+  compilation to a `(2 r + 1)`-bit `(r + 1)`-party `NOF.Protocol` at `r = 4 * F.leafSize / n + 1`.
 * `Cslib.Circuits.Frontier.one_le_two_pow_mul_nof_discrepancy_of_formula`,
   `Cslib.Circuits.Frontier.two_mul_le_two_pow_mul_nof_discrepancy_of_formula`: exact and
   distributional discrepancy bounds wired into `Cslib.Communication.NOF.discrepancy`.
-* `Cslib.Circuits.Frontier.mul_log_le_leafSize_of_universal_discrepancy`: unconditional
-  `Ω(n log n)` fan-in-two formula leaf-size lower bound against partition-universal NOF cube
-  discrepancy.
+* `Cslib.Circuits.Frontier.mul_log_le_leafSize_of_balanced_discrepancy`: conditional `Ω(n log n)`
+  fan-in-two Boolean formula leaf-size lower bound from balanced NOF cube discrepancy.
+* `Cslib.Circuits.Frontier.exists_balanced_nof_discrepancy`,
+  `Cslib.Circuits.Frontier.exists_function_mul_log_le_leafSize`: probabilistic existence of balanced
+  NOF-hard functions and unconditional `Ω(n log n)` fan-in-two Boolean formula lower bound.
 
 The exact `n / (r * (r + 1))` Hall balance theorem, the greedy `(r + 1)`-bag subtree-chopping
-compiler for arbitrary fan-in-two formulas, and the `Ω(n log n)` leaf-size bound over arbitrary
-basis signatures against partition-universal NOF cube discrepancy are original to this library,
-building on multiparty NOF discrepancy [ChandraFurstLipton1983], [BabaiNisanSzegedy1992],
-[Jukna2012] and classical De Morgan formula lower bounds [Khrapchenko1971].
+compiler for arbitrary fan-in-two Boolean formulas, and the balanced NOF cube discrepancy reduction
+and Hoeffding existence bound over arbitrary basis signatures are original to this library, building
+on multiparty NOF discrepancy [ChandraFurstLipton1983], [BabaiNisanSzegedy1992], [Jukna2012],
+Hoeffding's inequality [Hoeffding1963], and classical formula lower bounds [Khrapchenko1971].
 
 ## References
 
 * [L. Babai, N. Nisan and M. Szegedy, *Multiparty protocols, pseudorandom generators for logspace,
   and time-space trade-offs*][BabaiNisanSzegedy1992]
 * [A. K. Chandra, M. L. Furst and R. J. Lipton, *Multi-party protocols*][ChandraFurstLipton1983]
+* [W. Hoeffding, *Probability inequalities for sums of bounded random variables*][Hoeffding1963]
 * [S. Jukna, *Boolean Function Complexity: Advances and Frontiers*][Jukna2012]
 * [V. M. Khrapchenko, *Complexity of the realization of a linear function in the class of
   Π-schemes*][Khrapchenko1971]
@@ -116,11 +130,11 @@ open Finset Cslib.Circuits Cslib.Communication Cslib.Probability
 /-! ### Part 1: Exact Hall balance theorem for `(r + 1)`-party NOF partitions -/
 
 /-- **Subset-restricted Hall balance.** Given a pool `L : Finset (Fin n)` of candidate inputs and
-`r + 1` bags `bags : Fin (r + 1) → Finset (Fin n)` (`1 ≤ r`) such that every `i ∈ L` belongs to at
-most `r` bags and each bag contains at most `cap` elements of `L`, whenever `(r + 1) * q ≤ L.card`
-and `cap + r * q ≤ L.card` there exist `r + 1` pairwise disjoint blocks `X j ⊆ L` of exact size `q`
+`r + 1` bags `bags : Fin (r + 1) → Finset (Fin n)` such that every `i ∈ L` belongs to at most `r`
+bags and each bag contains at most `cap` elements of `L`, whenever `(r + 1) * q ≤ L.card` and
+`cap + r * q ≤ L.card` there exist `r + 1` pairwise disjoint blocks `X j ⊆ L` of exact size `q`
 with `Disjoint (X j) (bags j)` for every player `j`. -/
-theorem exists_disjoint_blocks_avoiding_bags {n r cap q : ℕ} (_hr : 1 ≤ r) (L : Finset (Fin n))
+theorem exists_disjoint_blocks_avoiding_bags {n r cap q : ℕ} (L : Finset (Fin n))
     (bags : Fin (r + 1) → Finset (Fin n))
     (hread : ∀ i ∈ L, (Finset.univ.filter fun j : Fin (r + 1) => i ∈ bags j).card ≤ r)
     (hcap : ∀ j : Fin (r + 1), (L ∩ bags j).card ≤ cap)
@@ -226,7 +240,7 @@ theorem exists_nof_partition_of_bag_card_le {n r : ℕ} (hr : 1 ≤ r)
           (Nat.add_mul_div_right (r * n) (r * q) (Nat.succ_pos r)).symm
       _ ≤ ((r + 1) * n) / (r + 1) := Nat.div_le_div_right h1
       _ = n := Nat.mul_div_right n (Nat.succ_pos r)
-  obtain ⟨X, hdisj, hX⟩ := exists_disjoint_blocks_avoiding_bags hr Finset.univ bags
+  obtain ⟨X, hdisj, hX⟩ := exists_disjoint_blocks_avoiding_bags Finset.univ bags
     (fun i _ => hread i) (fun j => by simpa using hcap j) hq_tot hq_cap
   have hexists_avoid : ∀ i : Fin n, ∃ j : Fin (r + 1), i ∉ bags j := fun i => by
     have hlt : (Finset.univ.filter fun j : Fin (r + 1) => i ∈ bags j).card <
@@ -820,7 +834,7 @@ private theorem sum_leafAt_le_leafCount {n m : ℕ} (L : Finset (Fin n)) (T : Ch
 every `i ∈ L` read at most `r` times, chopping budget `1 ≤ B`, and block size `q` satisfying
 `(r + 1) * q ≤ L.card` and `(F.leafSize + 2 * r * B) / (r + 1) + r * q ≤ L.card`, `F` compiles to a
 deterministic `(r + 1)`-party `NOF.Protocol` of depth `≤ F.leafSize / (B + 1) + 1`. -/
-theorem exists_nof_protocol_on_subset {σ : Signature} {n r B q : ℕ} (hr : 1 ≤ r) (hB : 1 ≤ B)
+theorem exists_nof_protocol_on_subset {σ : Signature} {n r B q : ℕ} (hB : 1 ≤ B)
     (I : Interpretation σ Bool) (F : Formula σ n) (hfan : F.FanInAtMost 2)
     (L : Finset (Fin n)) (hread : ∀ i ∈ L, F.leafSizeIn {i} ≤ r)
     (hq_tot : (r + 1) * q ≤ L.card)
@@ -871,7 +885,7 @@ theorem exists_nof_protocol_on_subset {σ : Signature} {n r B q : ℕ} (hr : 1 �
     exact hcard_le_sum.trans (hsum_le_final.trans (by
       have hrw : r * (2 * B) = 2 * r * B := by ring
       rwa [hrw] at hfinal_le))
-  obtain ⟨X, hdisj, hX⟩ := exists_disjoint_blocks_avoiding_bags hr L bags hbag_read hbag_cap
+  obtain ⟨X, hdisj, hX⟩ := exists_disjoint_blocks_avoiding_bags L bags hbag_read hbag_cap
     hq_tot hq_cap
   have havoid : ∀ j : Fin (r + 1), ∀ i ∈ X j, wBag j i = 0 := by
     intro j i hiX
@@ -932,7 +946,7 @@ theorem exists_nof_protocol_of_readAtMost {σ : Signature} {n r : ℕ} (hr : 1 �
     have h1 : 2 * (2 * r * B) ≤ n := by linarith
     have h2 : 2 * ((r * q) * (r + 1)) ≤ n := by nlinarith
     nlinarith
-  obtain ⟨X, hdisj, hX, hprot⟩ := exists_nof_protocol_on_subset hr hB I F hfan Finset.univ
+  obtain ⟨X, hdisj, hX, hprot⟩ := exists_nof_protocol_on_subset hB I F hfan Finset.univ
     (fun i _ => hread i) hq_tot hq_cap
   have hdiv_bound : F.leafSize / (B + 1) ≤ 4 * r ^ 2 := by
     have hn_lt : n < 4 * r * (B + 1) := by
@@ -1002,7 +1016,7 @@ theorem exists_nof_protocol_of_formula {σ : Signature} {n : ℕ} (hn8 : 8 ≤ n
     have h8B : 8 * B ≤ n := Nat.mul_div_le n 8
     have hlight_ge : 3 * n < 4 * light.card := by omega
     exact div_succ_add_le (by nlinarith)
-  obtain ⟨X, hdisj, hX, hprot⟩ := exists_nof_protocol_on_subset hr hB I F hfan light
+  obtain ⟨X, hdisj, hX, hprot⟩ := exists_nof_protocol_on_subset hB I F hfan light
     (fun i hi => (Finset.mem_filter.mp hi).2) hq_tot hq_cap
   have hdepth2r : F.leafSize / (B + 1) + 1 ≤ 2 * r + 1 := by
     have hn_lt : n < 8 * (B + 1) := by
@@ -1169,52 +1183,22 @@ theorem two_mul_le_two_pow_mul_nof_discrepancy_of_formula {σ : Signature} {n : 
   refine ⟨X, zOf w₀, hdisj, hcard, h2γ.trans ?_⟩
   exact mul_le_mul_of_nonneg_right (pow_le_pow_right₀ one_le_two hp_depth) NOF.discrepancy_nonneg
 
-/-- Elementary exponential step matching Babai–Nisan–Szegedy [BabaiNisanSzegedy1992]: from
-`1 ≤ 2 ^ c * D` and `D ^ (2 ^ k) ≤ (1 - 2 / 2 ^ k) ^ q`, deduce `2 * q ≤ 4 ^ k * c`. -/
-private theorem two_mul_le_four_pow_mul_of_cube_discrepancy {k q c : ℕ} (hk : k ≠ 0) {D : ℝ}
-    (h1 : 1 ≤ (2 : ℝ) ^ c * D) (hcube : D ^ (2 ^ k) ≤ (1 - 2 / (2 : ℝ) ^ k) ^ q) :
-    2 * q ≤ 4 ^ k * c := by
-  have hpow : ∀ {b t : ℝ} (j : ℕ), 0 ≤ b → b ≤ Real.exp t → b ^ j ≤ Real.exp (j * t) :=
-    fun j hb hbt => (pow_le_pow_left₀ hb hbt j).trans_eq (Real.exp_nat_mul _ j).symm
-  have h0 : 0 ≤ 1 - 2 / (2 : ℝ) ^ k := by
-    rw [sub_nonneg, div_le_one (by positivity)]
-    exact le_self_pow₀ one_le_two hk
-  have hexp := hpow q h0 (Real.one_sub_le_exp_neg _)
-  have htwo := hpow (c * 2 ^ k) zero_le_two (by linarith [Real.add_one_le_exp 1] : 2 ≤ Real.exp 1)
-  have hbase : (1 : ℝ) ≤ 2 ^ (c * 2 ^ k) * (1 - 2 / (2 : ℝ) ^ k) ^ q := by
-    calc (1 : ℝ) = 1 ^ (2 ^ k) := (one_pow _).symm
-      _ ≤ ((2 : ℝ) ^ c * D) ^ (2 ^ k) := pow_le_pow_left₀ zero_le_one h1 _
-      _ = 2 ^ (c * 2 ^ k) * D ^ (2 ^ k) := by rw [mul_pow, pow_mul]
-      _ ≤ 2 ^ (c * 2 ^ k) * (1 - 2 / (2 : ℝ) ^ k) ^ q :=
-        mul_le_mul_of_nonneg_left hcube (by positivity)
-  have he : (1 : ℝ) ≤ Real.exp ((c * 2 ^ k : ℕ) * 1 + q * -(2 / (2 : ℝ) ^ k)) := by
-    calc (1 : ℝ) ≤ 2 ^ (c * 2 ^ k) * (1 - 2 / (2 : ℝ) ^ k) ^ q := hbase
-      _ ≤ Real.exp ((c * 2 ^ k : ℕ) * 1) * Real.exp (q * -(2 / (2 : ℝ) ^ k)) :=
-        mul_le_mul htwo hexp (pow_nonneg h0 _) (Real.exp_pos _).le
-      _ = _ := (Real.exp_add _ _).symm
-  have h2 := Real.one_le_exp_iff.mp he
-  push_cast at h2
-  have h3 : (q : ℝ) * (2 / (2 : ℝ) ^ k) ≤ (2 : ℝ) ^ k * c := by linarith
-  rw [mul_div_assoc', div_le_iff₀ (by positivity)] at h3
-  have h4 : (4 : ℝ) ^ k = (2 : ℝ) ^ k * (2 : ℝ) ^ k := by rw [← mul_pow]; norm_num
-  have hreal : 2 * (q : ℝ) ≤ (4 : ℝ) ^ k * c := by rw [h4]; linarith
-  exact_mod_cast hreal
-
-/-- **Unconditional `s_F = Ω(n log n)` formula lower bound from partition-universal NOF cube
-discrepancy.** Let `f : (Fin n → Bool) → Bool` satisfy the Babai–Nisan–Szegedy cube bound
-`disc(f|_{X, z}) ^ (2 ^ k) ≤ (1 - 2 / 2 ^ k) ^ q` on every `k`-tuple (`k ≥ 2`) of pairwise
-disjoint variable blocks `X` of size `q`. Then *every* fan-in-two formula `F : Formula σ n` over
-*any* signature `σ` and interpretation `I` computing `f` satisfies
-`n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize` (`s_F = Ω(n log n)`). -/
-theorem mul_log_le_leafSize_of_universal_discrepancy {σ : Signature} {n : ℕ}
+/-- **Conditional `Ω(n log n)` formula leaf-size lower bound from balanced NOF cube discrepancy.**
+Let `f : (Fin n → Bool) → Bool` satisfy the Babai–Nisan–Szegedy cube discrepancy bound
+`disc(f|_{X, false}) ^ (2 ^ (r + 1)) ≤ (1 - 2 / 2 ^ (r + 1)) ^ (n / (4 * r))` across the balanced
+regime `1 ≤ r`, `4 * r + 6 ≤ Nat.log 2 n` on pairwise disjoint variable blocks `X` of size
+`n / (4 * r)`. Then every fan-in-two Boolean formula `F : Formula σ n` over any signature `σ` and
+interpretation `I` computing `f` satisfies `n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize`. -/
+theorem mul_log_le_leafSize_of_balanced_discrepancy {σ : Signature} {n : ℕ}
     (I : Interpretation σ Bool) {F : Formula σ n} (hfan : F.FanInAtMost 2)
     {f : (Fin n → Bool) → Bool} (hcomp : F.Computes I f)
-    (hdisc : ∀ (k q : ℕ) (_hk : 2 ≤ k) (X : Fin k → Finset (Fin n)),
-      Pairwise (fun j₁ j₂ => Disjoint (X j₁) (X j₂)) →
-      (∀ j : Fin k, (X j).card = q) →
-      ∀ z : Fin n → Bool,
-        NOF.discrepancy (PMF.uniformOfFintype (∀ j : Fin k, X j → Bool))
-          (fun y => f (embedBlocks X z y)) ^ (2 ^ k) ≤ (1 - 2 / (2 : ℝ) ^ k) ^ q) :
+    (hdisc : ∀ (r : ℕ), 1 ≤ r → 4 * r + 6 ≤ Nat.log 2 n →
+      ∀ X : Fin (r + 1) → Finset (Fin n),
+        Pairwise (fun j₁ j₂ => Disjoint (X j₁) (X j₂)) →
+        (∀ j : Fin (r + 1), (X j).card = n / (4 * r)) →
+        NOF.discrepancy (PMF.uniformOfFintype (∀ j : Fin (r + 1), X j → Bool))
+          (fun y => f (embedBlocks X (fun _ => false) y)) ^ (2 ^ (r + 1)) ≤
+          (1 - 2 / (2 : ℝ) ^ (r + 1)) ^ (n / (4 * r))) :
     n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize := by
   rcases le_or_gt (Nat.log 2 n) 12 with hlog12 | hlog_gt
   · have : Nat.log 2 n - 12 = 0 := by omega
@@ -1222,33 +1206,38 @@ theorem mul_log_le_leafSize_of_universal_discrepancy {σ : Signature} {n : ℕ}
   · have hn_ne0 : n ≠ 0 := by
       rintro rfl
       simp at hlog_gt
-    have hn_ge : 2 ^ 13 ≤ n :=
-      (Nat.pow_le_pow_right (by omega) (show 13 ≤ Nat.log 2 n by omega)).trans
-        (Nat.pow_log_le_self 2 hn_ne0)
-    have hn8 : 8 ≤ n := by omega
     set r := 4 * F.leafSize / n + 1
     have hr_def : r = 4 * F.leafSize / n + 1 := rfl
-    by_cases hrn : 8 * r ≤ n
-    · obtain ⟨X, hdisj, hcard, h1⟩ :=
+    have hr1 : 1 ≤ r := Nat.succ_pos _
+    by_cases hr_log : 4 * r + 6 ≤ Nat.log 2 n
+    · exfalso
+      have hn_pow : 2 ^ (4 * r + 6) ≤ n :=
+        (Nat.pow_le_pow_right (by omega) hr_log).trans (Nat.pow_log_le_self 2 hn_ne0)
+      have hr_pow : r ≤ 2 ^ r := Nat.lt_two_pow_self.le
+      have hr_pow4 : r ≤ 2 ^ (4 * r) :=
+        hr_pow.trans (Nat.pow_le_pow_right (by omega) (by omega : r ≤ 4 * r))
+      have h8r_le : 8 * r ≤ n := by
+        calc 8 * r ≤ 64 * 2 ^ (4 * r) := by omega
+          _ = 2 ^ (4 * r + 6) := by rw [pow_add]; norm_num; ring
+          _ ≤ n := hn_pow
+      have hn8 : 8 ≤ n := by omega
+      obtain ⟨X, hdisj, hcard, h1⟩ :=
         one_le_two_pow_mul_nof_discrepancy_of_formula hn8 I hfan hcomp
       set q := n / (4 * r)
-      have hcube := hdisc (r + 1) q (Nat.succ_le_succ (Nat.succ_pos _)) X hdisj hcard
-        (fun _ => false)
-      have hbns := two_mul_le_four_pow_mul_of_cube_discrepancy (Nat.succ_ne_zero r)
+      have hcube := hdisc r hr1 hr_log X hdisj hcard
+      have hbns := NOF.two_mul_le_four_pow_mul_of_cube_discrepancy (Nat.succ_ne_zero r)
         (h1 fun _ => false) hcube
       have h4r_pos : 0 < 4 * r := by positivity
-      have hq_ge2 : 2 ≤ q := (Nat.le_div_iff_mul_le h4r_pos).mpr (by linarith)
+      have hq_ge2 : 2 ≤ q := (Nat.le_div_iff_mul_le h4r_pos).mpr (by omega)
       have hn_lt_q : n < 4 * r * (q + 1) := by
         have hdm : 4 * r * q + n % (4 * r) = n := Nat.div_add_mod n (4 * r)
         have hmod := Nat.mod_lt n h4r_pos
         nlinarith
       have hn_le_6rq : n ≤ 3 * r * (2 * q) := by nlinarith
-      have hr_pow : r ≤ 2 ^ r := Nat.lt_two_pow_self.le
       have hr_sq : r * r ≤ 4 ^ r := by
         calc r * r ≤ 2 ^ r * 2 ^ r := Nat.mul_le_mul hr_pow hr_pow
           _ = 4 ^ r := by rw [← mul_pow]; norm_num
       have hpoly_lt : 3 * r * (2 * r + 1) < 16 * 4 ^ r := by
-        have h1_le : 1 ≤ r := Nat.succ_pos _
         have hlin : 3 * r * (2 * r + 1) ≤ 9 * (r * r) := by nlinarith
         have h4pos : 1 ≤ 4 ^ r := Nat.one_le_pow r 4 (by omega)
         nlinarith
@@ -1266,33 +1255,398 @@ theorem mul_log_le_leafSize_of_universal_discrepancy {σ : Signature} {n : ℕ}
             rw [show (16 : ℕ) = 2 ^ 4 by norm_num, h4 r, h4 (r + 1), ← pow_add, ← pow_add]
             congr 1
             omega
-      have hlog_lt : Nat.log 2 n < 4 * r + 6 :=
-        Nat.log_lt_of_lt_pow hn_ne0 hn_lt_pow
-      have hlog_sub : Nat.log 2 n - 12 ≤ 4 * (4 * F.leafSize / n) := by omega
+      exact (Nat.log_lt_of_lt_pow hn_ne0 hn_lt_pow).not_ge hr_log
+    · have hlog_sub : Nat.log 2 n - 12 ≤ 4 * (4 * F.leafSize / n) := by omega
       calc n * (Nat.log 2 n - 12)
           ≤ n * (4 * (4 * F.leafSize / n)) := Nat.mul_le_mul_left n hlog_sub
         _ = 4 * (n * (4 * F.leafSize / n)) := by ring
         _ ≤ 4 * (4 * F.leafSize) := Nat.mul_le_mul_left 4 (Nat.mul_div_le (4 * F.leafSize) n)
         _ = 16 * F.leafSize := by ring
-    · have hdiv_ge : n / 8 ≤ 4 * F.leafSize / n := by omega
-      have hlog_le_n : Nat.log 2 n ≤ n / 8 := by
-        have hk13 : 13 ≤ Nat.log 2 n := by omega
-        have h8k : ∀ k : ℕ, 13 ≤ k → 8 * k ≤ 2 ^ k := by
-          intro k hk
-          obtain ⟨d, rfl⟩ : ∃ d, k = 13 + d := ⟨k - 13, by omega⟩
-          induction d with
-          | zero => norm_num
-          | succ d ih =>
-            have ih' := ih (by omega)
-            rw [show 13 + (d + 1) = (13 + d) + 1 by omega, pow_succ]
+
+/-! ### Part 5: Probabilistic existence of balanced NOF-hard Boolean functions via Hoeffding -/
+
+private theorem embedBlocks_injective {k n : ℕ} {U : Type*} {X : Fin k → Finset (Fin n)}
+    (hdisj : Pairwise fun j₁ j₂ => Disjoint (X j₁) (X j₂)) (z : Fin n → U) :
+    Function.Injective (embedBlocks X z) := by
+  intro y₁ y₂ heq
+  funext j u
+  have h := congrFun heq u.1
+  rwa [embedBlocks_of_mem hdisj z y₁ u.2, embedBlocks_of_mem hdisj z y₂ u.2] at h
+
+private theorem card_bad_cylinder_le {k n : ℕ} {X : Fin k → Finset (Fin n)}
+    (hdisj : Pairwise fun j₁ j₂ => Disjoint (X j₁) (X j₂)) (z₀ : Fin n → Bool)
+    (φ : ∀ j : Fin k, NOF.View (fun j' => X j' → Bool) j → Bool) {t : ℝ} (ht : 0 < t) :
+    ((Finset.univ.filter fun f : (Fin n → Bool) → Bool =>
+        t ≤ |∑ y with y ∈ NOF.cylinderIntersection φ,
+          ((PMF.uniformOfFintype (∀ j : Fin k, X j → Bool)) y).toReal *
+            BitString.signVal (f (embedBlocks X z₀ y))|).card : ℝ) ≤
+      2 * (Fintype.card ((Fin n → Bool) → Bool) : ℝ) *
+        Real.exp (-(t ^ 2 * (Fintype.card (∀ j : Fin k, X j → Bool) : ℝ) / 2)) := by
+  classical
+  let Ω := Fin n → Bool
+  let Y := ∀ j : Fin k, X j → Bool
+  let C : Finset Y := Finset.univ.filter (· ∈ NOF.cylinderIntersection φ)
+  have hY_pos : (0 : ℝ) < Fintype.card Y := by exact_mod_cast Fintype.card_pos (α := Y)
+  rcases C.eq_empty_or_nonempty with hC0 | hCne
+  · have hemp : (Finset.univ.filter fun f : Ω → Bool =>
+        t ≤ |∑ y with y ∈ NOF.cylinderIntersection φ,
+          ((PMF.uniformOfFintype Y) y).toReal * BitString.signVal (f (embedBlocks X z₀ y))|) =
+        ∅ := by
+      ext f
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
+      change ¬(t ≤ |∑ y ∈ C,
+        ((PMF.uniformOfFintype Y) y).toReal * BitString.signVal (f (embedBlocks X z₀ y))|)
+      rw [hC0, Finset.sum_empty, abs_zero, not_le]
+      exact ht
+    change ((Finset.univ.filter fun f : Ω → Bool =>
+      t ≤ |∑ y with y ∈ NOF.cylinderIntersection φ,
+        ((PMF.uniformOfFintype Y) y).toReal * BitString.signVal (f (embedBlocks X z₀ y))|).card :
+        ℝ) ≤ _
+    rw [hemp, Finset.card_empty, Nat.cast_zero]
+    positivity
+  · let emb : Y ↪ Ω := ⟨embedBlocks X z₀, embedBlocks_injective hdisj z₀⟩
+    let a : Ω → ℝ := fun x => if x ∈ C.map emb then (Fintype.card Y : ℝ)⁻¹ else 0
+    have hν : ∀ y : Y, ((PMF.uniformOfFintype Y) y).toReal = (Fintype.card Y : ℝ)⁻¹ :=
+      fun y => by simp [PMF.uniformOfFintype_apply]
+    have hsum_eq : ∀ f : Ω → Bool, (∑ x : Ω, a x * BitString.signVal (f x)) =
+        ∑ y ∈ C, ((PMF.uniformOfFintype Y) y).toReal *
+          BitString.signVal (f (embedBlocks X z₀ y)) := by
+      intro f
+      simp only [a, ite_mul, zero_mul, Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_map,
+        emb, Function.Embedding.coeFn_mk, hν]
+    have hsq : ∑ x : Ω, a x ^ 2 = (C.card : ℝ) * ((Fintype.card Y : ℝ)⁻¹) ^ 2 := by
+      have hite : ∀ x : Ω, a x ^ 2 = if x ∈ C.map emb then ((Fintype.card Y : ℝ)⁻¹) ^ 2 else 0 :=
+        fun x => by dsimp only [a]; split_ifs <;> simp
+      simp only [hite, Finset.sum_ite_mem, Finset.univ_inter, Finset.sum_const, Finset.card_map,
+        nsmul_eq_mul]
+    have hC_pos : (0 : ℝ) < C.card := by exact_mod_cast hCne.card_pos
+    have hC_le : (C.card : ℝ) ≤ Fintype.card Y := by exact_mod_cast Finset.card_le_univ C
+    have hsq_pos : 0 < ∑ x : Ω, a x ^ 2 := by rw [hsq]; positivity
+    have hsq_le : ∑ x : Ω, a x ^ 2 ≤ (Fintype.card Y : ℝ)⁻¹ := by
+      rw [hsq, sq, ← mul_assoc]
+      calc (C.card : ℝ) * (Fintype.card Y : ℝ)⁻¹ * (Fintype.card Y : ℝ)⁻¹
+          ≤ (Fintype.card Y : ℝ) * (Fintype.card Y : ℝ)⁻¹ * (Fintype.card Y : ℝ)⁻¹ := by gcongr
+        _ = (Fintype.card Y : ℝ)⁻¹ := by rw [mul_inv_cancel₀ hY_pos.ne', one_mul]
+    have hexp_ge : t ^ 2 * (Fintype.card Y : ℝ) / 2 ≤ t ^ 2 / (2 * ∑ x : Ω, a x ^ 2) := by
+      have hlhs : t ^ 2 * (Fintype.card Y : ℝ) / 2 = t ^ 2 / (2 * (Fintype.card Y : ℝ)⁻¹) := by
+        field_simp
+      rw [hlhs]
+      exact div_le_div_of_nonneg_left (sq_nonneg t) (by positivity) (by linarith)
+    have hhoeff := Cslib.BitString.card_filter_le_abs_sum_mul_signVal_le a ht.le
+    have hcard_fn : (2 : ℝ) ^ Fintype.card Ω = Fintype.card (Ω → Bool) := by
+      have : Fintype.card (Ω → Bool) = 2 ^ Fintype.card Ω := by simp
+      exact_mod_cast this.symm
+    have hfilt : (Finset.univ.filter fun f : Ω → Bool =>
+          t ≤ |∑ y ∈ C, ((PMF.uniformOfFintype Y) y).toReal *
+            BitString.signVal (f (embedBlocks X z₀ y))|) =
+        Finset.univ.filter (fun f : Ω → Bool => t ≤ |∑ x : Ω, a x * BitString.signVal (f x)|) := by
+      ext f
+      simp only [Finset.mem_filter, Finset.mem_univ, true_and, hsum_eq]
+    change ((Finset.univ.filter fun f : Ω → Bool =>
+      t ≤ |∑ y ∈ C, ((PMF.uniformOfFintype Y) y).toReal *
+        BitString.signVal (f (embedBlocks X z₀ y))|).card : ℝ) ≤ _
+    rw [hfilt]
+    calc ((Finset.univ.filter fun f : Ω → Bool =>
+          t ≤ |∑ x : Ω, a x * BitString.signVal (f x)|).card : ℝ)
+        ≤ 2 * 2 ^ Fintype.card Ω * Real.exp (-(t ^ 2 / (2 * ∑ x : Ω, a x ^ 2))) := hhoeff
+      _ = 2 * (Fintype.card (Ω → Bool) : ℝ) *
+          Real.exp (-(t ^ 2 / (2 * ∑ x : Ω, a x ^ 2))) := by rw [hcard_fn]
+      _ ≤ 2 * (Fintype.card (Ω → Bool) : ℝ) *
+          Real.exp (-(t ^ 2 * (Fintype.card Y : ℝ) / 2)) := by gcongr
+
+private theorem balanced_exponent_bound {n r : ℕ} (hr : 1 ≤ r) (hn_ne0 : n ≠ 0)
+    (hr_log : 4 * r + 6 ≤ Nat.log 2 n) :
+    let q := n / (4 * r)
+    let m := q / 4 + 1
+    2 * m + 1 ≤ (r + 1) * q ∧
+      (n + 1) + (1 + n * (r + 1) + (r + 1) * 2 ^ (r * q)) ≤
+        2 ^ ((r + 1) * q - (2 * m + 1)) := by
+  intro q m
+  have hn_pow : 2 ^ (4 * r + 6) ≤ n :=
+    (Nat.pow_le_pow_right (by omega) hr_log).trans (Nat.pow_log_le_self 2 hn_ne0)
+  have hr_pow : r < 2 ^ (2 * r) :=
+    Nat.lt_two_pow_self.trans_le (Nat.pow_le_pow_right (by omega) (by omega : r ≤ 2 * r))
+  have h4r_le : 4 * r ≤ 2 ^ (2 * r + 2) := by
+    rw [pow_add]
+    norm_num
+    omega
+  have hmul : 4 * r * 2 ^ (2 * r + 4) ≤ n :=
+    calc 4 * r * 2 ^ (2 * r + 4)
+        ≤ 2 ^ (2 * r + 2) * 2 ^ (2 * r + 4) := Nat.mul_le_mul_right _ h4r_le
+      _ = 2 ^ (4 * r + 6) := by rw [← pow_add]; congr 1; omega
+      _ ≤ n := hn_pow
+  have h4r_pos : 0 < 4 * r := by positivity
+  have hq_pow : 2 ^ (2 * r + 4) ≤ q := (Nat.le_div_iff_mul_le h4r_pos).mpr (by linarith)
+  have h2r_lt : 2 * r < 2 ^ (2 * r) := Nat.lt_two_pow_self
+  have hpow_ge : 16 * (2 * r + 1) ≤ 2 ^ (2 * r + 4) := by
+    rw [pow_add]
+    norm_num
+    omega
+  have hq_ge : 2 * r + 28 ≤ q := by omega
+  have hm_def : m = q / 4 + 1 := rfl
+  have hadd_rq : (r + 1) * q = r * q + q := by ring
+  have h2m_le : 2 * m + 1 ≤ (r + 1) * q := by omega
+  have hE_ge : r * q + r + 10 ≤ (r + 1) * q - (2 * m + 1) := by omega
+  refine ⟨h2m_le, ?_⟩
+  have h1024 : 1024 * 2 ^ r * 2 ^ (r * q) ≤ 2 ^ ((r + 1) * q - (2 * m + 1)) := by
+    calc 1024 * 2 ^ r * 2 ^ (r * q)
+        = 2 ^ (r * q + r + 10) := by rw [pow_add, pow_add]; norm_num; ring
+      _ ≤ 2 ^ ((r + 1) * q - (2 * m + 1)) := Nat.pow_le_pow_right (by omega) hE_ge
+  have hn_lt : n < 4 * r * (q + 1) := by
+    have hdm : 4 * r * q + n % (4 * r) = n := Nat.div_add_mod n (4 * r)
+    have hmod := Nat.mod_lt n h4r_pos
+    nlinarith
+  have hn_le_rq : n ≤ 8 * (r * q) := by nlinarith
+  have hrq_lt : r * q < 2 ^ (r * q) := Nat.lt_two_pow_self
+  have hnB : n ≤ 8 * 2 ^ (r * q) := by omega
+  have hrA : r + 1 ≤ 2 ^ r := Nat.lt_two_pow_self
+  have hA_pos : 1 ≤ 2 ^ r := Nat.one_le_pow r 2 (by omega)
+  have hB_pos : 1 ≤ 2 ^ (r * q) := Nat.one_le_pow (r * q) 2 (by omega)
+  have hterm1 : n * (r + 1) ≤ (8 * 2 ^ (r * q)) * 2 ^ r := Nat.mul_le_mul hnB hrA
+  have hterm2 : (r + 1) * 2 ^ (r * q) ≤ 2 ^ r * 2 ^ (r * q) := Nat.mul_le_mul_right _ hrA
+  have hterm3 : n ≤ 8 * (2 ^ r * 2 ^ (r * q)) := by nlinarith
+  have hsum_le : (n + 1) + (1 + n * (r + 1) + (r + 1) * 2 ^ (r * q)) ≤
+      1024 * 2 ^ r * 2 ^ (r * q) := by nlinarith
+  exact hsum_le.trans h1024
+
+/-- **Probabilistic existence of Boolean functions with exponentially small balanced NOF
+discrepancy.** By Hoeffding's inequality (`Cslib.BitString.card_filter_le_abs_sum_mul_signVal_le`)
+and a union bound over balanced block tuples `X : Fin (r + 1) → Finset (Fin n)` and `(r + 1)`-party
+cylinder tests `φ`, for every `n : ℕ` there exists `f : (Fin n → Bool) → Bool` satisfying the
+Babai–Nisan–Szegedy cube discrepancy bound across the balanced regime `1 ≤ r`,
+`4 * r + 6 ≤ Nat.log 2 n`. -/
+theorem exists_balanced_nof_discrepancy (n : ℕ) :
+    ∃ f : (Fin n → Bool) → Bool,
+      ∀ (r : ℕ), 1 ≤ r → 4 * r + 6 ≤ Nat.log 2 n →
+        ∀ X : Fin (r + 1) → Finset (Fin n),
+          Pairwise (fun j₁ j₂ => Disjoint (X j₁) (X j₂)) →
+          (∀ j : Fin (r + 1), (X j).card = n / (4 * r)) →
+          NOF.discrepancy (PMF.uniformOfFintype (∀ j : Fin (r + 1), X j → Bool))
+            (fun y => f (embedBlocks X (fun _ => false) y)) ^ (2 ^ (r + 1)) ≤
+            (1 - 2 / (2 : ℝ) ^ (r + 1)) ^ (n / (4 * r)) := by
+  classical
+  rcases eq_or_ne n 0 with rfl | hn_ne0
+  · refine ⟨fun _ => false, fun _ _ hr_log => ?_⟩
+    simp at hr_log
+  · let ℱ := (Fin n → Bool) → Bool
+    let z₀ : Fin n → Bool := fun _ => false
+    let Rset : Finset ℕ := (Finset.Icc 1 n).filter fun r => 4 * r + 6 ≤ Nat.log 2 n
+    let goodX (r : ℕ) : Finset (Fin (r + 1) → Finset (Fin n)) :=
+      Finset.univ.filter fun X =>
+        Pairwise (fun j₁ j₂ => Disjoint (X j₁) (X j₂)) ∧
+          ∀ j : Fin (r + 1), (X j).card = n / (4 * r)
+    let tOf (r : ℕ) : ℝ := (1 / 2 : ℝ) ^ ((n / (4 * r)) / 4 + 1)
+    let badCyl {r : ℕ} (X : Fin (r + 1) → Finset (Fin n))
+        (φ : ∀ j : Fin (r + 1), NOF.View (fun j' => X j' → Bool) j → Bool) : Finset ℱ :=
+      Finset.univ.filter fun f : ℱ =>
+        tOf r ≤ |∑ y with y ∈ NOF.cylinderIntersection φ,
+          ((PMF.uniformOfFintype (∀ j : Fin (r + 1), X j → Bool)) y).toReal *
+            BitString.signVal (f (embedBlocks X z₀ y))|
+    let badR (r : ℕ) : Finset ℱ :=
+      (goodX r).biUnion fun X => Finset.univ.biUnion fun φ => badCyl X φ
+    let badTotal : Finset ℱ := Rset.biUnion badR
+    have hbadR_le : ∀ r ∈ Rset,
+        ((badR r).card : ℝ) ≤ (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (n + 1))⁻¹ := by
+      intro r hrR
+      have hrIcc := (Finset.mem_filter.mp hrR).1
+      have hr_log : 4 * r + 6 ≤ Nat.log 2 n := (Finset.mem_filter.mp hrR).2
+      have hr1 : 1 ≤ r := (Finset.mem_Icc.mp hrIcc).1
+      set q := n / (4 * r)
+      set m := q / 4 + 1
+      obtain ⟨h2m_le', hE_bound'⟩ := balanced_exponent_bound hr1 hn_ne0 hr_log
+      have h2m_le : 2 * m + 1 ≤ (r + 1) * q := h2m_le'
+      set E := (r + 1) * q - (2 * m + 1)
+      have hE_bound : (n + 1) + (1 + n * (r + 1) + (r + 1) * 2 ^ (r * q)) ≤ 2 ^ E := hE_bound'
+      have ht_pos : 0 < tOf r := by dsimp only [tOf]; positivity
+      have hbadX_le : ∀ X ∈ goodX r,
+          ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) ≤
+            (2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
+              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
+        intro X hX
+        obtain ⟨hdisj, hcard'⟩ := (Finset.mem_filter.mp hX).2
+        have hcard : ∀ j : Fin (r + 1), (X j).card = q := hcard'
+        have hcard_Y : Fintype.card (∀ j : Fin (r + 1), X j → Bool) = 2 ^ ((r + 1) * q) := by
+          rw [Fintype.card_pi]
+          have hterm : ∀ j : Fin (r + 1), Fintype.card (X j → Bool) = 2 ^ q :=
+            fun j => by simp [hcard j]
+          simp only [hterm, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+          rw [← pow_mul, mul_comm]
+        have hcard_view : ∀ i : Fin (r + 1),
+            Fintype.card (NOF.View (fun j => X j → Bool) i) = 2 ^ (r * q) := by
+          intro i
+          unfold NOF.View
+          rw [Fintype.card_pi]
+          have hterm : ∀ j : {j : Fin (r + 1) // j ≠ i}, Fintype.card (X j.1 → Bool) = 2 ^ q :=
+            fun j => by simp [hcard j.1]
+          simp only [hterm, Finset.prod_const, Finset.card_univ]
+          have hcompl : Fintype.card {j : Fin (r + 1) // j ≠ i} = r := by
+            rw [Fintype.card_subtype]
+            have heq : (Finset.univ.filter fun j : Fin (r + 1) => j ≠ i) =
+                Finset.univ.erase i := by
+              ext j; simp [Finset.mem_erase]
+            rw [heq, Finset.card_erase_of_mem (Finset.mem_univ i), Finset.card_fin]
             omega
-        have hk_pow : 2 ^ Nat.log 2 n ≤ n := Nat.pow_log_le_self 2 hn_ne0
-        have := h8k (Nat.log 2 n) hk13
-        omega
-      calc n * (Nat.log 2 n - 12)
-          ≤ n * (n / 8) := Nat.mul_le_mul_left n (by omega)
-        _ ≤ n * (4 * F.leafSize / n) := Nat.mul_le_mul_left n hdiv_ge
-        _ ≤ 4 * F.leafSize := Nat.mul_div_le (4 * F.leafSize) n
-        _ ≤ 16 * F.leafSize := by omega
+          rw [hcompl, ← pow_mul, mul_comm]
+        have hcard_phi :
+            Fintype.card (∀ i : Fin (r + 1), NOF.View (fun j => X j → Bool) i → Bool) =
+              2 ^ ((r + 1) * 2 ^ (r * q)) := by
+          rw [Fintype.card_pi]
+          have hterm : ∀ i : Fin (r + 1),
+              Fintype.card (NOF.View (fun j => X j → Bool) i → Bool) = 2 ^ (2 ^ (r * q)) :=
+            fun i => by simp [hcard_view i]
+          simp only [hterm, Finset.prod_const, Finset.card_univ, Fintype.card_fin]
+          rw [← pow_mul, mul_comm]
+        have ht_exp : tOf r ^ 2 * ((2 ^ ((r + 1) * q) : ℕ) : ℝ) / 2 = (2 : ℝ) ^ E := by
+          have hE_def : E = (r + 1) * q - (2 * m + 1) := rfl
+          have hsplit : (r + 1) * q = E + (2 * m + 1) := by omega
+          rw [Nat.cast_pow, Nat.cast_ofNat, hsplit, pow_add]
+          change ((1 / 2 : ℝ) ^ m) ^ 2 * ((2 : ℝ) ^ E * (2 : ℝ) ^ (2 * m + 1)) / 2 = (2 : ℝ) ^ E
+          rw [← pow_mul, mul_comm m 2, one_div, inv_pow, pow_succ]
+          have hne : (2 : ℝ) ^ (2 * m) ≠ 0 := by positivity
+          field_simp
+        have hexp_bound : Real.exp (-((2 : ℝ) ^ E)) ≤ ((2 : ℝ) ^ (2 ^ E))⁻¹ := by
+          have h2e : (2 : ℝ) ≤ Real.exp 1 := by linarith [Real.add_one_le_exp 1]
+          have hpow : (2 : ℝ) ^ (2 ^ E) ≤ Real.exp (2 ^ E : ℕ) :=
+            (pow_le_pow_left₀ zero_le_two h2e (2 ^ E)).trans_eq (by simp)
+          rw [show (2 : ℝ) ^ E = ((2 ^ E : ℕ) : ℝ) by norm_cast, Real.exp_neg]
+          exact inv_anti₀ (by positivity) hpow
+        have hcyl_le : ∀ φ, ((badCyl X φ).card : ℝ) ≤
+            2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹ := by
+          intro φ
+          have hc := card_bad_cylinder_le hdisj z₀ φ ht_pos
+          rw [hcard_Y, ht_exp] at hc
+          exact hc.trans (mul_le_mul_of_nonneg_left hexp_bound (by positivity))
+        have hbi : ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) ≤
+            ∑ φ, ((badCyl X φ).card : ℝ) := by
+          exact_mod_cast Finset.card_biUnion_le
+        calc ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ)
+            ≤ ∑ φ, ((badCyl X φ).card : ℝ) := hbi
+          _ ≤ ∑ _φ, (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) :=
+              Finset.sum_le_sum fun φ _ => hcyl_le φ
+          _ = (Fintype.card (∀ i : Fin (r + 1), NOF.View (fun j => X j → Bool) i → Bool) : ℝ) *
+                (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
+              rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+          _ = (2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
+                (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
+              rw [hcard_phi, Nat.cast_pow, Nat.cast_ofNat]
+      have hcard_goodX : ((goodX r).card : ℝ) ≤ (2 : ℝ) ^ (n * (r + 1)) := by
+        have hle : (goodX r).card ≤ Fintype.card (Fin (r + 1) → Finset (Fin n)) :=
+          Finset.card_le_univ _
+        have htot : Fintype.card (Fin (r + 1) → Finset (Fin n)) = 2 ^ (n * (r + 1)) := by
+          simp [← pow_mul]
+        exact_mod_cast hle.trans_eq htot
+      have hbiR : ((badR r).card : ℝ) ≤
+          ∑ X ∈ goodX r, ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) := by
+        exact_mod_cast Finset.card_biUnion_le
+      set K := 1 + n * (r + 1) + (r + 1) * 2 ^ (r * q)
+      have hK_inv : (2 : ℝ) ^ K * ((2 : ℝ) ^ (2 ^ E))⁻¹ ≤ ((2 : ℝ) ^ (n + 1))⁻¹ := by
+        have hpow_le : (2 : ℝ) ^ ((n + 1) + K) ≤ (2 : ℝ) ^ (2 ^ E) :=
+          pow_le_pow_right₀ one_le_two hE_bound
+        rw [pow_add] at hpow_le
+        have hposE : (0 : ℝ) < (2 : ℝ) ^ (2 ^ E) := by positivity
+        have hposN : (0 : ℝ) < (2 : ℝ) ^ (n + 1) := by positivity
+        rw [← div_eq_mul_inv, div_le_iff₀ hposE]
+        calc (2 : ℝ) ^ K = ((2 : ℝ) ^ (n + 1))⁻¹ * ((2 : ℝ) ^ (n + 1) * (2 : ℝ) ^ K) := by
+              rw [← mul_assoc, inv_mul_cancel₀ hposN.ne', one_mul]
+          _ ≤ ((2 : ℝ) ^ (n + 1))⁻¹ * (2 : ℝ) ^ (2 ^ E) :=
+              mul_le_mul_of_nonneg_left hpow_le (by positivity)
+      calc ((badR r).card : ℝ)
+          ≤ ∑ X ∈ goodX r, ((Finset.univ.biUnion fun φ => badCyl X φ).card : ℝ) := hbiR
+        _ ≤ ∑ _X ∈ goodX r, ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
+              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) :=
+            Finset.sum_le_sum fun X hX => hbadX_le X hX
+        _ = ((goodX r).card : ℝ) * ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
+              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) := by
+            rw [Finset.sum_const, nsmul_eq_mul]
+        _ ≤ (2 : ℝ) ^ (n * (r + 1)) * ((2 : ℝ) ^ ((r + 1) * 2 ^ (r * q)) *
+              (2 * (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (2 ^ E))⁻¹)) :=
+            mul_le_mul_of_nonneg_right hcard_goodX (by positivity)
+        _ = (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ K * ((2 : ℝ) ^ (2 ^ E))⁻¹) := by
+            dsimp only [K]
+            rw [pow_add, pow_add, pow_one]
+            ring
+        _ ≤ (Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (n + 1))⁻¹ :=
+            mul_le_mul_of_nonneg_left hK_inv (by positivity)
+    have hR_card : (Rset.card : ℝ) < (2 : ℝ) ^ (n + 1) := by
+      have hsub : Rset.card ≤ (Finset.Icc 1 n).card := Finset.card_filter_le _ _
+      have hicc : (Finset.Icc 1 n).card = n := by simp
+      have hlt : n < 2 ^ (n + 1) :=
+        Nat.lt_two_pow_self.trans (Nat.pow_lt_pow_right (by omega) (Nat.lt_succ_self n))
+      exact_mod_cast (hsub.trans_eq hicc).trans_lt hlt
+    have htot_lt : (badTotal.card : ℝ) < Fintype.card ℱ := by
+      have hbi : (badTotal.card : ℝ) ≤ ∑ r ∈ Rset, ((badR r).card : ℝ) := by
+        exact_mod_cast Finset.card_biUnion_le
+      have hℱ_pos : (0 : ℝ) < Fintype.card ℱ := by exact_mod_cast Fintype.card_pos (α := ℱ)
+      have hposN : (0 : ℝ) < (2 : ℝ) ^ (n + 1) := by positivity
+      calc (badTotal.card : ℝ)
+          ≤ ∑ r ∈ Rset, ((badR r).card : ℝ) := hbi
+        _ ≤ ∑ _r ∈ Rset, ((Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (n + 1))⁻¹) :=
+            Finset.sum_le_sum fun r hr => hbadR_le r hr
+        _ = (Rset.card : ℝ) * ((Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (n + 1))⁻¹) := by
+            rw [Finset.sum_const, nsmul_eq_mul]
+        _ < (2 : ℝ) ^ (n + 1) * ((Fintype.card ℱ : ℝ) * ((2 : ℝ) ^ (n + 1))⁻¹) :=
+            mul_lt_mul_of_pos_right hR_card (by positivity)
+        _ = Fintype.card ℱ := by
+            rw [mul_comm ((Fintype.card ℱ : ℝ)), ← mul_assoc, mul_inv_cancel₀ hposN.ne', one_mul]
+    have hcard_lt : badTotal.card < (Finset.univ : Finset ℱ).card := by
+      rw [Finset.card_univ]
+      exact_mod_cast htot_lt
+    obtain ⟨f, -, hf_good⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard_lt
+    refine ⟨f, fun r hr1 hr_log X hdisj hcard => ?_⟩
+    have hr_le_n : r ≤ n := by
+      have hlog_le : Nat.log 2 n ≤ n := Nat.log_le_self 2 n
+      omega
+    have hrR : r ∈ Rset :=
+      Finset.mem_filter.mpr ⟨Finset.mem_Icc.mpr ⟨hr1, hr_le_n⟩, hr_log⟩
+    have hX_good : X ∈ goodX r :=
+      Finset.mem_filter.mpr ⟨Finset.mem_univ X, hdisj, hcard⟩
+    have hdisc_le : NOF.discrepancy (PMF.uniformOfFintype (∀ j : Fin (r + 1), X j → Bool))
+        (fun y => f (embedBlocks X z₀ y)) ≤ tOf r := by
+      refine ciSup_le fun φ => ?_
+      by_contra hgt
+      have hle : tOf r ≤ |∑ y with y ∈ NOF.cylinderIntersection φ,
+          ((PMF.uniformOfFintype (∀ j : Fin (r + 1), X j → Bool)) y).toReal *
+            BitString.signVal (f (embedBlocks X z₀ y))| := le_of_not_ge hgt
+      have hmem_cyl : f ∈ badCyl X φ := Finset.mem_filter.mpr ⟨Finset.mem_univ f, hle⟩
+      have hmem_R : f ∈ badR r :=
+        Finset.mem_biUnion.mpr ⟨X, hX_good, Finset.mem_biUnion.mpr ⟨φ, Finset.mem_univ φ, hmem_cyl⟩⟩
+      exact hf_good (Finset.mem_biUnion.mpr ⟨r, hrR, hmem_R⟩)
+    set q := n / (4 * r)
+    set m := q / 4 + 1
+    have hexp_q : q ≤ m * 2 ^ (r + 1) := by
+      have h4_le : 4 ≤ 2 ^ (r + 1) :=
+        calc 4 = 2 ^ 2 := by norm_num
+          _ ≤ 2 ^ (r + 1) := Nat.pow_le_pow_right (by omega) (by omega)
+      have hq4 : q ≤ m * 4 := by omega
+      exact hq4.trans (Nat.mul_le_mul_left m h4_le)
+    have hhalf_le : (1 / 2 : ℝ) ≤ 1 - 2 / (2 : ℝ) ^ (r + 1) := by
+      have h4 : (4 : ℝ) ≤ (2 : ℝ) ^ (r + 1) := by
+        calc (4 : ℝ) = (2 : ℝ) ^ 2 := by norm_num
+          _ ≤ (2 : ℝ) ^ (r + 1) := pow_le_pow_right₀ one_le_two (by omega)
+      have hdiv : 2 / (2 : ℝ) ^ (r + 1) ≤ 1 / 2 := by
+        rw [div_le_div_iff₀ (by positivity) (by norm_num)]
+        linarith
+      linarith
+    calc NOF.discrepancy (PMF.uniformOfFintype (∀ j : Fin (r + 1), X j → Bool))
+          (fun y => f (embedBlocks X z₀ y)) ^ (2 ^ (r + 1))
+        ≤ tOf r ^ (2 ^ (r + 1)) :=
+          pow_le_pow_left₀ NOF.discrepancy_nonneg hdisc_le (2 ^ (r + 1))
+      _ = (1 / 2 : ℝ) ^ (m * 2 ^ (r + 1)) := by
+          change ((1 / 2 : ℝ) ^ m) ^ (2 ^ (r + 1)) = _
+          rw [← pow_mul]
+      _ ≤ (1 / 2 : ℝ) ^ q := pow_le_pow_of_le_one (by norm_num) (by norm_num) hexp_q
+      _ ≤ (1 - 2 / (2 : ℝ) ^ (r + 1)) ^ q := pow_le_pow_left₀ (by norm_num) hhalf_le q
+
+/-- **Unconditional `Ω(n log n)` fan-in-two Boolean formula leaf-size lower bound.** For every
+`n : ℕ`, there exists `f : (Fin n → Bool) → Bool` such that *every* fan-in-two Boolean formula
+`F : Formula σ n` over *any* signature `σ` and interpretation `I` computing `f` satisfies
+`n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize`. -/
+theorem exists_function_mul_log_le_leafSize (n : ℕ) :
+    ∃ f : (Fin n → Bool) → Bool,
+      ∀ {σ : Signature} (I : Interpretation σ Bool) {F : Formula σ n},
+        F.FanInAtMost 2 → F.Computes I f → n * (Nat.log 2 n - 12) ≤ 16 * F.leafSize := by
+  obtain ⟨f, hf⟩ := exists_balanced_nof_discrepancy n
+  exact ⟨f, fun {_σ} I {_F} hfan hcomp =>
+    mul_log_le_leafSize_of_balanced_discrepancy I hfan hcomp hf⟩
 
 end Cslib.Circuits.Frontier
