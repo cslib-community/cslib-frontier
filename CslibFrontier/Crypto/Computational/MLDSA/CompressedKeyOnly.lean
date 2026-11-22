@@ -143,12 +143,12 @@ def compressedForgeryLowPart (d : ℕ) (pk : PublicKey P) (σ : CompressedSignat
       negacyclicMul σ.c (publicKeyLowPart P d pk i) j
 
 /-- The self-target candidate read from a compressed-verification forgery. -/
-def SelfTargetCandidate.ofCompressedForgery (d : ℕ) (pk : PublicKey P) (msg : List Bool)
+@[expose] def SelfTargetCandidate.ofCompressedForgery (d : ℕ) (pk : PublicKey P) (msg : List Bool)
     (σ : CompressedSignature P) : SelfTargetCandidate P :=
   ⟨msg, compressedForgeryLowPart P d pk σ, σ.z, σ.c⟩
 
 /-- The conservative self-target radius from Dilithium v3.1 equation (7). -/
-def compressedSelfTargetRadius (d : ℕ) : ℕ :=
+@[expose] def compressedSelfTargetRadius (d : ℕ) : ℕ :=
   max (P.γ₁ - P.β) (2 * P.γ₂ + 1 + P.τ * 2 ^ (d - 1))
 
 variable {P}

@@ -69,25 +69,25 @@ def forestLabelWord (low high : BitString n → Fin (Nat.card (BitString n)))
 
 /-- Unpack the lower subtree rank word from a forest label record. -/
 def forestLowWord (r : BitString (n + 1 + (n + 1))) : BitVec (n + 1) :=
-  word fun i : Fin (n + 1) => r (Fin.castAdd (n + 1) i)
+  BitString.equivBitVec fun i : Fin (n + 1) => r (Fin.castAdd (n + 1) i)
 
 /-- Unpack the upper subtree rank word from a forest label record. -/
 def forestHighWord (r : BitString (n + 1 + (n + 1))) : BitVec (n + 1) :=
-  word fun i : Fin (n + 1) => r (Fin.natAdd (n + 1) i)
+  BitString.equivBitVec fun i : Fin (n + 1) => r (Fin.natAdd (n + 1) i)
 
 /-- Unpacking the lower word from `forestLabelWord low high x` yields `low x` as an `(n + 1)`-bit
 vector. -/
 @[simp] theorem forestLowWord_bits (low high : BitString n → Fin (Nat.card (BitString n)))
     (x : BitString n) :
     forestLowWord (forestLabelWord low high x) = BitVec.ofNat (n + 1) (low x).val := by
-  simp [forestLowWord, forestLabelWord, word_getLsbD]
+  simp [forestLowWord, forestLabelWord, BitString.equivBitVec_getLsbD]
 
 /-- Unpacking the upper word from `forestLabelWord low high x` yields `high x` as an `(n + 1)`-bit
 vector. -/
 @[simp] theorem forestHighWord_bits (low high : BitString n → Fin (Nat.card (BitString n)))
     (x : BitString n) :
     forestHighWord (forestLabelWord low high x) = BitVec.ofNat (n + 1) (high x).val := by
-  simp only [forestHighWord, forestLabelWord, Fin.append_right, word_getLsbD]
+  simp only [forestHighWord, forestLabelWord, Fin.append_right, BitString.equivBitVec_getLsbD]
 
 private theorem forestLowWord_toNat (low high : BitString n → Fin (Nat.card (BitString n)))
     (x : BitString n) :
@@ -136,7 +136,7 @@ def forestAnchorLabels (r : BitString (n + (n + 1 + (n + 1)) + (n + 3))) :
 
 /-- Unpack the `(n + 3)`-bit transient depth word from an anchor record. -/
 def forestAnchorDepth (r : BitString (n + (n + 1 + (n + 1)) + (n + 3))) : BitVec (n + 3) :=
-  word fun i : Fin (n + 3) => r (Fin.natAdd (n + (n + 1 + (n + 1))) i)
+  BitString.equivBitVec fun i : Fin (n + 3) => r (Fin.natAdd (n + (n + 1 + (n + 1))) i)
 
 /-- Unpacking the state field of `forestAnchorWord f low high x` recovers `x`. -/
 @[simp] theorem forestAnchorState_bits (f : BitString n → BitString n)
@@ -157,7 +157,7 @@ def forestAnchorDepth (r : BitString (n + (n + 1 + (n + 1)) + (n + 3))) : BitVec
 @[simp] theorem forestAnchorDepth_bits (f : BitString n → BitString n)
     (low high : BitString n → Fin (Nat.card (BitString n))) (x : BitString n) :
     forestAnchorDepth (forestAnchorWord f low high x) = depthWord f x := by
-  simp only [forestAnchorDepth, forestAnchorWord, Fin.append_right, word_getLsbD]
+  simp only [forestAnchorDepth, forestAnchorWord, Fin.append_right, BitString.equivBitVec_getLsbD]
 
 /-- Gate bound for a shared fixed-dictionary lookup with `M` keys and `Q` queries of `v`-bit
 records. -/

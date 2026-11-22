@@ -99,29 +99,31 @@ theorem advance_add (a b S T : ℕ) :
 variable {k : ℕ}
 
 /-- The `k`-bit modulus word in the first `k` coordinates. -/
-def leftWord (x : BitString (k + k)) : BitVec k := word fun i => x (Fin.castAdd k i)
+def leftWord (x : BitString (k + k)) : BitVec k :=
+  BitString.equivBitVec fun i => x (Fin.castAdd k i)
 
 /-- The `k`-bit counter state word in the last `k` coordinates. -/
-def rightWord (x : BitString (k + k)) : BitVec k := word fun i => x (Fin.natAdd k i)
+def rightWord (x : BitString (k + k)) : BitVec k :=
+  BitString.equivBitVec fun i => x (Fin.natAdd k i)
 
 /-- Pack a `k`-bit modulus word and a `k`-bit counter state word into `BitString (k + k)`. -/
 def pack (a b : BitVec k) : BitString (k + k) :=
-  Fin.append (fun i : Fin k => a.getLsbD i.val) (fun i : Fin k => b.getLsbD i.val)
+  Fin.append (BitString.equivBitVec.symm a) (BitString.equivBitVec.symm b)
 
 /-- Extracting the left word of `pack a b` recovers `a`. -/
 @[simp] theorem leftWord_pack (a b : BitVec k) : leftWord (pack a b) = a := by
-  simp only [leftWord, pack, Fin.append_left, word_getLsbD]
+  simp only [leftWord, pack, Fin.append_left, Equiv.apply_symm_apply]
 
 /-- Extracting the right word of `pack a b` recovers `b`. -/
 @[simp] theorem rightWord_pack (a b : BitVec k) : rightWord (pack a b) = b := by
-  simp only [rightWord, pack, Fin.append_right, word_getLsbD]
+  simp only [rightWord, pack, Fin.append_right, Equiv.apply_symm_apply]
 
 /-- Repacking the left and right words of `x` recovers `x`. -/
 @[simp] theorem pack_words (x : BitString (k + k)) : pack (leftWord x) (rightWord x) = x := by
   funext bit
   induction bit using Fin.addCases with
-  | left i => simp only [pack, leftWord, Fin.append_left, getLsbD_word]
-  | right i => simp only [pack, rightWord, Fin.append_right, getLsbD_word]
+  | left i => simp only [pack, leftWord, Fin.append_left, Equiv.symm_apply_apply]
+  | right i => simp only [pack, rightWord, Fin.append_right, Equiv.symm_apply_apply]
 
 /-- The `T`-step modular counter map on `BitString (k + k)`. -/
 def power (T : ℕ) (x : BitString (k + k)) : BitString (k + k) :=
@@ -290,10 +292,10 @@ theorem exists_linear_circuit (k : ℕ) :
   have hc (v : Bool) : (fun _ : BitString (k + k) => v) ∈ src := by
     cases v <;> simp [src, constants]
   have ha (i : Fin k) : (fun x => (a x).getLsbD i.val) ∈ src := by
-    simpa only [a, leftWord, getLsbD_word] using
+    simpa only [a, leftWord, BitString.getLsbD_equivBitVec] using
       (show (fun x : BitString (k + k) => x (Fin.castAdd k i)) ∈ src from Or.inl ⟨_, rfl⟩)
   have hb (i : Fin k) : (fun x => (b x).getLsbD i.val) ∈ src := by
-    simpa only [b, rightWord, getLsbD_word] using
+    simpa only [b, rightWord, BitString.getLsbD_equivBitVec] using
       (show (fun x : BitString (k + k) => x (Fin.natAdd k i)) ∈ src from Or.inl ⟨_, rfl⟩)
   have hconst : Synthesis interpretation (inputs (k + k)) constants 2 :=
     (Synthesis.const false).union (Synthesis.const true)
@@ -310,13 +312,14 @@ theorem exists_linear_circuit (k : ℕ) :
       left
       exact ⟨Fin.castAdd k i, by
         funext x
-        simp only [power, pack, Fin.append_left, leftWord, getLsbD_word]⟩
+        simp only [power, pack, Fin.append_left, leftWord, Equiv.symm_apply_apply]⟩
     | right i =>
       right
       refine ⟨i, ?_⟩
       funext x
       simp only [power, pack, Fin.append_right]
       rw [← stepValue_spec]
+      rfl
   exact hs.exists_circuit_outputs
 
 end ModulusCounter
@@ -346,7 +349,7 @@ def counterNextBits (x : BitString (k + k)) : BitString k :=
 theorem counterModulus_eq_of_eq {x y : BitString (k + k)}
     (h : (fun i => x (Fin.castAdd k i)) = fun i => y (Fin.castAdd k i)) :
     counterModulus x = counterModulus y :=
-  congrArg (fun z => (word z).toNat) h
+  congrArg (fun z => (BitString.equivBitVec z).toNat) h
 
 /-- `counterStep k` preserves the modulus stored in the first `k` coordinates. -/
 theorem counterStep_preserve_modulus (x : BitString (k + k)) :

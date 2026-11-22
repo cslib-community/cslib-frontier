@@ -37,7 +37,7 @@ The right-hand list is only an output specification, not allocated workspace. -/
 theorem LocalSelfReductionQuery.runtime_evaluate {x y : List Bool}
     (h : LocalSelfReductionQuery x y) (δ : Bool × Bool → Bool) :
     let d := localQueryAccessData x.length (y.drop (x.length - Nat.clog 2 x.length)) 0
-    VirtualWord.Evaluator.machine δ |>.output (VirtualWord.Runtime.encInput (d, x))
+    VirtualWord.Evaluator.machine δ |>.output (VirtualWord.Runtime.encInput ⟨d, x⟩)
       (2 * (VirtualWord.encData d).length + 2 + 2 * VirtualWord.Evaluator.width d) =
         [(y ++ y).foldl (fun a b => δ (a, b)) false] := by
   dsimp only

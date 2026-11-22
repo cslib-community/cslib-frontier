@@ -7,6 +7,7 @@ Authors: Christian Reitwiessner, Erik Demaine
 module
 -- upstream: local-only (test driver)
 
+import CslibFrontier.Computability.Complexity.Classes.LogSpace.Hoza
 import CslibFrontier.Computability.Complexity.Classes.LogSpace.QueryCompiler
 import Mathlib.Tactic.FinCases
 
@@ -50,6 +51,11 @@ example : ({true} : Set Bool) ∈ UL encBool ∧ ({true} : Set Bool) ∈ NL encB
     · intro a
       cases a <;> decide
   exact ⟨hUL, UL_subset_NL hUL⟩
+
+/-- A deterministic logspace language gets an unambiguous witness in its original encoding. -/
+example {α : Type} {enc : α ↪ List Bool} {A : Set α} (h : A ∈ L enc) : A ∈ UL enc := by
+  rw [← NL_eq_UL enc]
+  exact L_subset_NL h
 
 private def haltedInput : NondeterministicQueryMachine Bool where
   init := false

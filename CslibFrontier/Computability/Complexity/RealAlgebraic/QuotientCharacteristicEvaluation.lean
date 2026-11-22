@@ -8,12 +8,15 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Init
+public import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.ModularArithmetic
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.QuotientTraceEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CharacteristicCoefficients
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.PowMod
 import CslibFrontier.Foundations.Data.MvPolynomial.Degrees
+import Mathlib.LinearAlgebra.Matrix.Charpoly.Coeff
 
 /-!
-# Characteristic coefficients of pure-power quotients from polynomial evaluations
+# Characteristic coefficients and determinants of pure-power quotients
 
 `quotientCharacteristicValue` composes the constructed modular power-trace evaluator with
 trace-to-characteristic reconstruction. Uniform `F_a` evaluation access to the objective,
@@ -26,11 +29,11 @@ At a sufficiently large prime, canonical grid-point evaluations of those polynom
 for correctness against the characteristic polynomial of the actual normal-monomial
 multiplication matrix. The degree budget is needed only for positive powers through the
 dimension. Coefficient specialization before evaluation gives the reduction of the source
-characteristic coefficient over any commutative coefficient ring. This component assumes
-polynomial evaluation access. Controlled critical systems and real-truth bounds build on it.
+characteristic coefficient over any commutative coefficient ring. The signed constant
+coefficient gives the determinant at the same counting level.
 
-Adapted from `LeanCanny.CountingHierarchy.QuotientCharacteristicEvaluation` and
-`QuotientCharacteristicSpecialization` at lean-canny commit
+Adapted from `LeanCanny.CountingHierarchy.QuotientCharacteristicEvaluation`,
+`QuotientCharacteristicSpecialization`, and `QuotientDeterminantEvaluation` at lean-canny commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`, as a component of the real-counting development
 tracked by [#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
@@ -157,5 +160,64 @@ theorem quotientCharacteristicValue_eq_specialization
     (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v,
     Matrix.charpoly_map, Polynomial.coeff_map] at h
   exact h
+
+/-- Evaluate the integer-residue determinant by signing the constant characteristic coefficient. -/
+@[expose] noncomputable def quotientDeterminantValue (p n ell B : ℕ)
+    (v J : List ℕ → ℕ) (r : ℕ → List ℕ → ℕ) : ℕ :=
+  (powMod p (modularSub p 0 1) (ell ^ n) *
+    quotientCharacteristicValue p n ell B 0 v J r) % p
+
+/-- The sign correction preserves the counting level of the characteristic-coefficient
+evaluator. -/
+theorem quotientDeterminantValue_mem {α : Type} {enc : α ↪ List Bool} {a : ℕ}
+    (E : Decoder enc) {p n ell B : α → ℕ}
+    {v J : α × List ℕ → ℕ} {r : α × (ℕ × List ℕ) → ℕ}
+    (hp : ComputableInPolyTime p enc encNat)
+    (hn : ComputableInPolyTime n enc encUnary)
+    (hell : ComputableInPolyTime ell enc encNat)
+    (hB : ComputableInPolyTime B enc encNat)
+    (hv : v ∈ CountingFunction a (encPair enc (encList encNat)) encNat)
+    (hJ : J ∈ CountingFunction a (encPair enc (encList encNat)) encNat)
+    (hr : r ∈ CountingFunction a (encPair enc (encPair encNat (encList encNat))) encNat) :
+    (fun w => quotientDeterminantValue (p w) (n w) (ell w) (B w)
+      (fun z => v (w, z)) (fun z => J (w, z)) (fun i z => r (w, i, z))) ∈
+        CountingFunction (a + 8) enc encNat := by
+  have hcoeff := quotientCharacteristicValue_mem E hp hn hell hB (.const 0) hv hJ hr
+  have hsign := computableInPolyTime_powMod hp (modularSub_polyTime hp (.const 0) (.const 1))
+    (ComputableInPolyTime.binary_pow' hell hn)
+  exact CountingFunction.nat_mod
+    (CountingFunction.nat_mul (CountingFunction.of_polyTime hsign) hcoeff)
+    (CountingFunction.of_polyTime hp)
+
+/-- At a prime satisfying the quotient coefficient cutoffs, specialized polynomial evaluation
+recovers the image of the original multiplication determinant. -/
+theorem quotientDeterminantValue_cast
+    {S : Type*} [CommRing S] {p n B : ℕ} [Fact p.Prime] (φ : S →+* ZMod p)
+    (d : ℕ) (hd : 1 ≤ d)
+    (r : Fin n → MvPolynomial (Fin n) S) (hr : ∀ i, (r i).totalDegree ≤ d)
+    (v : MvPolynomial (Fin n) S)
+    (hdeg : ∀ k, 1 ≤ k → k ≤ (d + 1) ^ n →
+      (v ^ k * jacobian (d + 1) r).totalDegree ≤ B)
+    (hcut : (d + 1) * (B + 1) + 1 < p)
+    (hdegree : (d + 1) ^ n * (d + 1) ^ n < p - 1)
+    (value Jvalue : List ℕ → ℕ) (rvalue : ℕ → List ℕ → ℕ)
+    (hvalue : ∀ s < p ^ n, (value (gridPoint p n s) : ZMod p) =
+      eval (fun i : Fin n => (((gridPoint p n s)[i.val]?.getD 0 : ℕ) : ZMod p)) (v.map φ))
+    (hJvalue : ∀ s < p ^ n, (Jvalue (gridPoint p n s) : ZMod p) =
+      eval (fun i : Fin n => (((gridPoint p n s)[i.val]?.getD 0 : ℕ) : ZMod p))
+        ((jacobian (d + 1) r).map φ))
+    (hrvalue : ∀ i : Fin n, ∀ s < p ^ n, (rvalue i.val (gridPoint p n s) : ZMod p) =
+      eval (fun j : Fin n => (((gridPoint p n s)[j.val]?.getD 0 : ℕ) : ZMod p)) ((r i).map φ)) :
+    (quotientDeterminantValue p n (d + 1) B value Jvalue rvalue : ZMod p) =
+      φ (multiplicationMatrix (by omega : 1 ≤ d + 1) r
+        (fun i => (hr i).trans_lt (Nat.lt_succ_self d)) v).det := by
+  have hdim : Fintype.card (NormalIndex n (d + 1)) = (d + 1) ^ n := by simp [NormalIndex]
+  have hp : p.Prime := Fact.out
+  rw [quotientDeterminantValue, ZMod.natCast_mod, Nat.cast_mul,
+    powMod_of_ne_zero hp.ne_zero, ZMod.natCast_mod, Nat.cast_pow,
+    modularSub_cast hp.pos, Nat.cast_zero, Nat.cast_one, zero_sub,
+    quotientCharacteristicValue_eq_specialization φ d hd r hr v hdeg hcut hdegree
+      value Jvalue rvalue hvalue hJvalue hrvalue, ZMod.natCast_zmod_val,
+    Matrix.det_eq_sign_charpoly_coeff, map_mul, map_pow, map_neg, map_one, hdim]
 
 end Cslib.Complexity.RealAlgebraic

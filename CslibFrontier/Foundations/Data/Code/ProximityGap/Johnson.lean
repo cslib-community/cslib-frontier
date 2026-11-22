@@ -185,68 +185,44 @@ private theorem degZ₂_mul {R : Type*} [CommRing R] [IsDomain R] {f g : R[X][X]
 private theorem degZ₂_le_iff {R : Type*} [CommSemiring R] {f : R[X][X]} {B : ℕ} :
     degZ₂ f ≤ B ↔ ∀ a, (f.coeff a).natDegree ≤ B := by
   rw [degZ₂, natDegree_le_iff_coeff_eq_zero]
-  constructor
-  · intro h a
-    rw [natDegree_le_iff_coeff_eq_zero]
-    intro t ht
-    have ht0 := h t ht
-    have hcoeff := congrArg (fun p : R[X] => p.coeff a) ht0
-    simpa [coeff_coeff_swap] using hcoeff
-  · intro h t ht
-    ext a
-    rw [coeff_coeff_swap, coeff_zero]
-    exact coeff_eq_zero_of_natDegree_lt ((h a).trans_lt ht)
+  refine ⟨fun h a => natDegree_le_iff_coeff_eq_zero.2 fun t ht => by
+    simpa [coeff_coeff_swap] using congrArg (fun p : R[X] => p.coeff a) (h t ht),
+    fun h t ht => by
+      ext a; rw [coeff_coeff_swap, coeff_zero]
+      exact coeff_eq_zero_of_natDegree_lt ((h a).trans_lt ht)⟩
 
 private theorem degZ₂_C {R : Type*} [CommSemiring R] (p : R[X]) :
-    degZ₂ (C p) = p.natDegree := by
-  refine le_antisymm ?_ ?_
-  · rw [degZ₂_le_iff]
-    intro a
-    rw [coeff_C]
-    split_ifs
-    · exact le_rfl
-    · simp
-  · have h := degZ₂_le_iff.1 (le_refl (degZ₂ (C p))) 0
-    simpa using h
+    degZ₂ (C p) = p.natDegree :=
+  le_antisymm (degZ₂_le_iff.2 fun a => by rw [coeff_C]; split_ifs <;> simp)
+    (by simpa using degZ₂_le_iff.1 (le_refl (degZ₂ (C p))) 0)
 
 private theorem degZ₂_X {R : Type*} [CommSemiring R] :
-    degZ₂ (X : R[X][X]) = 0 := by
-  rw [Nat.eq_zero_of_le_zero (degZ₂_le_iff.2 fun a => by
-    rw [coeff_X]
-    split_ifs <;> simp)]
+    degZ₂ (X : R[X][X]) = 0 :=
+  Nat.eq_zero_of_le_zero (degZ₂_le_iff.2 fun a => by rw [coeff_X]; split_ifs <;> simp)
 
 private theorem degZ₂_hasseDeriv_le {R : Type*} [CommSemiring R] (j : ℕ) (f : R[X][X]) :
-    degZ₂ (hasseDeriv j f) ≤ degZ₂ f := by
-  rw [degZ₂_le_iff]
-  intro a
-  rw [hasseDeriv_coeff]
-  have h1 := degZ₂_le_iff.1 (le_refl (degZ₂ f)) (a + j)
-  have hmul : (((a + j).choose j : R[X]) * f.coeff (a + j)).natDegree ≤
-      (f.coeff (a + j)).natDegree := by
-    refine natDegree_mul_le.trans ?_
-    rw [show (((a + j).choose j : ℕ) : R[X]) = C (((a + j).choose j : ℕ) : R) by simp,
-      natDegree_C, zero_add]
-  exact hmul.trans h1
+    degZ₂ (hasseDeriv j f) ≤ degZ₂ f :=
+  degZ₂_le_iff.2 fun a => by
+    rw [hasseDeriv_coeff,
+      show (((a + j).choose j : ℕ) : R[X]) = C (((a + j).choose j : ℕ) : R) by simp]
+    exact natDegree_C_mul_le _ _ |>.trans (degZ₂_le_iff.1 le_rfl (a + j))
 
 private theorem degZ₂_derivative_le {R : Type*} [CommSemiring R] (f : R[X][X]) :
-    degZ₂ f.derivative ≤ degZ₂ f := by
-  rw [← hasseDeriv_one']
-  exact degZ₂_hasseDeriv_le 1 f
+    degZ₂ f.derivative ≤ degZ₂ f :=
+  hasseDeriv_one' (f := f) ▸ degZ₂_hasseDeriv_le 1 f
 
 private theorem natDegree_eval_C_le_degZ₂ {R : Type*} [CommSemiring R] (f : R[X][X]) (x : R) :
     (f.eval (C x)).natDegree ≤ degZ₂ f := by
   rw [eval_eq_sum_range]
-  refine (natDegree_sum_le _ _).trans (Finset.sup_le fun a _ => ?_)
-  refine natDegree_mul_le.trans ?_
+  refine (natDegree_sum_le _ _).trans (Finset.sup_le fun a _ => natDegree_mul_le.trans ?_)
   rw [← C_pow, natDegree_C, add_zero]
   exact degZ₂_le_iff.1 le_rfl a
 
 private theorem degZ₂_taylor_C_le {R : Type*} [CommRing R] (f : R[X][X]) (x : R) :
-    degZ₂ (taylor (C x) f) ≤ degZ₂ f := by
-  rw [degZ₂_le_iff]
-  intro a
-  rw [taylor_coeff]
-  exact (natDegree_eval_C_le_degZ₂ _ x).trans (degZ₂_hasseDeriv_le a f)
+    degZ₂ (taylor (C x) f) ≤ degZ₂ f :=
+  degZ₂_le_iff.2 fun a => by
+    rw [taylor_coeff]
+    exact (natDegree_eval_C_le_degZ₂ _ x).trans (degZ₂_hasseDeriv_le a f)
 
 /-- `Z`-degree of `Q ∈ R[Z][X][Y]`. -/
 private noncomputable def degZ {R : Type*} [CommSemiring R] (Q : R[X][X][X]) : ℕ :=
@@ -255,17 +231,12 @@ private noncomputable def degZ {R : Type*} [CommSemiring R] (Q : R[X][X][X]) : �
 private theorem degZ_le_iff {R : Type*} [CommSemiring R] {Q : R[X][X][X]} {B : ℕ} :
     degZ Q ≤ B ↔ ∀ a b, ((Q.coeff b).coeff a).natDegree ≤ B := by
   rw [degZ, natDegree_le_iff_coeff_eq_zero]
-  constructor
-  · intro h a b
-    rw [natDegree_le_iff_coeff_eq_zero]
-    intro t ht
-    have ht0 := h t ht
-    have hcoeff := congrArg (fun p : R[X][X] => (p.coeff b).coeff a) ht0
-    simpa [coeff_coeff_coeff_toOuterZ] using hcoeff
-  · intro h t ht
-    ext b a
-    rw [coeff_coeff_coeff_toOuterZ, coeff_zero, coeff_zero]
-    exact coeff_eq_zero_of_natDegree_lt ((h a b).trans_lt ht)
+  refine ⟨fun h a b => natDegree_le_iff_coeff_eq_zero.2 fun t ht => by
+    simpa [coeff_coeff_coeff_toOuterZ] using
+      congrArg (fun p : R[X][X] => (p.coeff b).coeff a) (h t ht),
+    fun h t ht => by
+      ext b a; rw [coeff_coeff_coeff_toOuterZ, coeff_zero, coeff_zero]
+      exact coeff_eq_zero_of_natDegree_lt ((h a b).trans_lt ht)⟩
 
 private theorem degZ_mul {R : Type*} [CommRing R] [IsDomain R] {A B : R[X][X][X]}
     (hA : A ≠ 0) (hB : B ≠ 0) :
@@ -367,34 +338,23 @@ private theorem DegBound.derivative_coeff_le {R : Type*} [CommRing R] (db : DegB
 
 private theorem DegBound.resultant_le {R : Type*} [CommRing R] (db : DegBound R)
     {f g : R[X]} (m n : ℕ) {Bf Bg : ℕ}
-    (hf : ∀ i, db.deg (f.coeff i) ≤ Bf)
-    (hg : ∀ i, db.deg (g.coeff i) ≤ Bg) :
+    (hf : ∀ i, db.deg (f.coeff i) ≤ Bf) (hg : ∀ i, db.deg (g.coeff i) ≤ Bg) :
     db.deg (Polynomial.resultant f g m n) ≤ m * Bg + n * Bf := by
-  have hzsmul : ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x := by
-    intro s x
-    rcases Int.units_eq_one_or s with rfl | rfl
-    · simp
-    · simp [Units.smul_def, db.neg]
   rw [Polynomial.resultant, Matrix.det_apply]
   refine db.sum_le _ _ fun σ _ => ?_
-  rw [hzsmul]
-  have hentry : ∀ j : Fin (m + n),
-      db.deg (Polynomial.sylvester f g m n (σ j) j) ≤ j.addCases (fun _ => Bg) (fun _ => Bf) := by
-    intro j
-    rw [Polynomial.sylvester]
-    dsimp only [Matrix.of_apply]
-    refine Fin.addCases (fun j₁ => ?_) (fun j₂ => ?_) j
-    · simp only [Fin.addCases_left]
-      split_ifs
-      · exact hg _
-      · simp [db.zero]
-    · simp only [Fin.addCases_right]
-      split_ifs
-      · exact hf _
-      · simp [db.zero]
-  refine (db.prod_le Finset.univ _ _ fun j _ => hentry j).trans ?_
-  rw [Fin.sum_univ_add]
-  simp [Fin.addCases_left, Fin.addCases_right]
+  have hz : ∀ (s : ℤˣ) (x : R), db.deg (s • x) = db.deg x := fun s x => by
+    rcases Int.units_eq_one_or s with rfl | rfl <;> simp [Units.smul_def, db.neg]
+  rw [hz]
+  let bnd : Fin (m + n) → ℕ := Fin.addCases (fun _ => Bg) (fun _ => Bf)
+  refine (db.prod_le Finset.univ _ bnd fun j _ => ?_).trans_eq ?_
+  · induction j using Fin.addCases with
+    | left j =>
+      simp only [bnd, Polynomial.sylvester, Matrix.of_apply, Fin.addCases_left]
+      split_ifs <;> [exact hg _; exact db.zero ▸ Nat.zero_le _]
+    | right j =>
+      simp only [bnd, Polynomial.sylvester, Matrix.of_apply, Fin.addCases_right]
+      split_ifs <;> [exact hf _; exact db.zero ▸ Nat.zero_le _]
+  · simp [bnd, Fin.sum_univ_add]
 
 private theorem DegBound.leadingCoeff_mul_resultant_derivative_le {R : Type*} [CommRing R]
     (db : DegBound R) {f : R[X]} (hf_deg : 1 ≤ f.natDegree) {B : ℕ}
@@ -402,17 +362,12 @@ private theorem DegBound.leadingCoeff_mul_resultant_derivative_le {R : Type*} [C
     db.deg (f.leadingCoeff *
         Polynomial.resultant f f.derivative f.natDegree f.derivative.natDegree) ≤
       2 * f.natDegree * B := by
-  have hf'_deg : f.derivative.natDegree ≤ f.natDegree - 1 := Polynomial.natDegree_derivative_le f
+  have hf'_deg := Polynomial.natDegree_derivative_le f
   have hres := db.resultant_le f.natDegree f.derivative.natDegree hf (db.derivative_coeff_le hf)
-  rw [← add_mul] at hres
-  refine (db.mul_le _ _).trans ?_
-  have hlc : db.deg f.leadingCoeff ≤ B := hf f.natDegree
-  have hsum : 1 + (f.natDegree + f.derivative.natDegree) ≤ 2 * f.natDegree := by omega
-  calc db.deg f.leadingCoeff +
-          db.deg (Polynomial.resultant f f.derivative f.natDegree f.derivative.natDegree)
-      ≤ B + (f.natDegree + f.derivative.natDegree) * B := Nat.add_le_add hlc hres
-    _ = (1 + (f.natDegree + f.derivative.natDegree)) * B := by ring
-    _ ≤ 2 * f.natDegree * B := Nat.mul_le_mul_right B hsum
+  refine (db.mul_le _ _).trans <| (Nat.add_le_add (hf f.natDegree) hres).trans ?_
+  rw [← add_mul, show B + (f.natDegree + f.derivative.natDegree) * B =
+    (1 + (f.natDegree + f.derivative.natDegree)) * B by ring]
+  exact Nat.mul_le_mul_right B (by omega)
 
 /-- Shared root-counting and resultant helpers. -/
 private theorem card_filter_eval_eq_zero_le {R : Type*} [CommRing R] [IsDomain R]
@@ -485,37 +440,34 @@ private theorem coeff_coeff_coeff_polyOfTable (M : Finset (ℕ × ℕ)) (B : ℕ
         if ht : t < B + 1 then c (⟨(a, b), h⟩, ⟨t, ht⟩) else 0
       else 0 := by
   rw [polyOfTable, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
-  have hterm : ∀ p : M,
+  have hterm (p : M) :
       (((C (C (∑ u : Fin (B + 1), C (c (p, u)) * X ^ (u : ℕ)) * X ^ p.1.1) *
           X ^ p.1.2).coeff b).coeff a).coeff t =
-        if p.1 = (a, b) then
-          if ht : t < B + 1 then c (p, ⟨t, ht⟩) else 0
-        else 0 := by
-    intro p
-    by_cases hpb : p.1.2 = b
-    · by_cases hpa : p.1.1 = a
-      · rw [ite_eq_left (Prod.ext hpa hpb), hpa, hpb, coeff_C_mul, coeff_X_pow_self, mul_one,
-          coeff_C_mul, coeff_X_pow_self, mul_one, finsetSum_coeff]
-        simp only [coeff_C_mul, coeff_X_pow, mul_ite, mul_one, mul_zero]
-        by_cases ht : t < B + 1
-        · rw [dite_eq_left ht, Finset.sum_eq_single ⟨t, ht⟩]
-          · simp
-          · intro u _ hne; exact ite_eq_right (fun h => hne (Fin.ext h.symm))
-          · intro h; exact absurd (mem_univ _) h
-        · rw [dite_eq_right ht]
-          exact Finset.sum_eq_zero fun u _ => ite_eq_right (by omega)
-      · rw [ite_eq_right (fun h => hpa (congrArg Prod.fst h)), hpb, coeff_C_mul, coeff_X_pow_self,
-          mul_one, coeff_C_mul, coeff_X_pow, ite_eq_right (Ne.symm hpa), mul_zero, coeff_zero]
-    · rw [ite_eq_right (fun h => hpb (congrArg Prod.snd h)), coeff_C_mul, coeff_X_pow,
-        ite_eq_right (Ne.symm hpb), mul_zero, coeff_zero, coeff_zero]
+        if p.1 = (a, b) then if ht : t < B + 1 then c (p, ⟨t, ht⟩) else 0 else 0 := by
+    by_cases hpe : p.1 = (a, b)
+    · have hpa : p.1.1 = a := congrArg Prod.fst hpe
+      have hpb : p.1.2 = b := congrArg Prod.snd hpe
+      simp only [hpe, ↓reduceIte, coeff_C_mul_X_pow, finsetSum_coeff]
+      by_cases ht : t < B + 1
+      · simp only [ht, ↓reduceDIte]
+        rw [Finset.sum_eq_single ⟨t, ht⟩
+          (fun u _ hne => ite_eq_right fun h => hne (Fin.ext h.symm))
+          (fun h => absurd (mem_univ _) h)]
+        simp only [↓reduceIte]
+      · simp only [ht, ↓reduceDIte]
+        exact Finset.sum_eq_zero fun u _ => ite_eq_right (by omega)
+    · rw [ite_eq_right hpe, coeff_C_mul_X_pow]
+      split_ifs with hpb
+      · rw [coeff_C_mul_X_pow, ite_eq_right fun hpa => hpe (Prod.ext hpa.symm hpb.symm),
+          coeff_zero]
+      · simp only [coeff_zero]
   simp_rw [hterm]
   by_cases hab : (a, b) ∈ M
-  · rw [dite_eq_left hab, Finset.sum_eq_single ⟨(a, b), hab⟩]
-    · simp
-    · intro p _ hne; exact ite_eq_right fun h => hne (Subtype.ext h)
-    · intro h; exact absurd (mem_attach M _) h
+  · rw [dite_eq_left hab, Finset.sum_eq_single ⟨(a, b), hab⟩
+      (fun _ _ hne => ite_eq_right fun h => hne (Subtype.ext h))
+      (fun h => absurd (mem_attach M _) h)]; simp
   · rw [dite_eq_right hab]
-    exact Finset.sum_eq_zero fun p _ => ite_eq_right (fun (h : p.1 = (a, b)) => hab (h ▸ p.2))
+    exact Finset.sum_eq_zero fun p _ => ite_eq_right fun h : p.1 = (a, b) => hab (h ▸ p.2)
 
 private theorem polyOfTable_eq_zero_iff (M : Finset (ℕ × ℕ)) (B : ℕ)
     (c : (M × Fin (B + 1)) → F) :
@@ -577,33 +529,25 @@ private theorem natDegree_coeff_shift_polyOfTable_le {d D B r : ℕ}
       B + r * maxYDeg d D := by
   rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff]
   refine (natDegree_sum_le _ _).trans (Finset.sup_le fun p _ => ?_)
-  dsimp only [Function.comp_apply]
   set cz : F[X] := ∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)
-  have hcz_deg : cz.natDegree ≤ B := by
-    refine (natDegree_sum_le _ _).trans (Finset.sup_le fun t _ => ?_)
-    refine natDegree_mul_le.trans ?_
-    rw [natDegree_C, zero_add, natDegree_X_pow]
-    omega
-  have hmono : C (C cz * X ^ p.1.1) * X ^ p.1.2 =
-      monomial p.1.2 (monomial p.1.1 cz) := by
+  have hcz_deg : cz.natDegree ≤ B := (natDegree_sum_le _ _).trans (Finset.sup_le fun t _ =>
+    (natDegree_C_mul_X_pow_le _ _).trans (by omega))
+  have hmono : C (C cz * X ^ p.1.1) * X ^ p.1.2 = monomial p.1.2 (monomial p.1.1 cz) := by
     rw [C_mul_X_pow_eq_monomial, C_mul_X_pow_eq_monomial]
-  rw [hmono, coeff_coeff_shift_monomial]
-  refine natDegree_mul_le.trans ?_
-  have h1 : (((p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz *
-      (C x) ^ (p.1.1 - u))).natDegree ≤ B := by
-    have hre : (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) =
-        cz * C ((p.1.1.choose u : F) * (p.1.2.choose v : F) * x ^ (p.1.1 - u)) := by
-      simp only [map_mul, map_pow, map_natCast]
-      ring
-    rw [hre]
-    exact natDegree_mul_le.trans (by rw [natDegree_C, add_zero]; exact hcz_deg)
-  have h2 : (w ^ (p.1.2 - v)).natDegree ≤ r * maxYDeg d D := by
-    refine natDegree_pow_le.trans ?_
-    have hp2 : p.1.2 ≤ maxYDeg d D := Finset.le_sup (f := Prod.snd) p.2
-    calc (p.1.2 - v) * w.natDegree ≤ p.1.2 * r := Nat.mul_le_mul (Nat.sub_le _ _) hw
-      _ ≤ maxYDeg d D * r := Nat.mul_le_mul_right r hp2
-      _ = r * maxYDeg d D := Nat.mul_comm _ _
-  exact Nat.add_le_add h1 h2
+  have hshift_c : (((shift (C x) w (C (C cz * X ^ p.1.1) * X ^ p.1.2)).coeff v).coeff u) =
+      (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) *
+        w ^ (p.1.2 - v) := by
+    rw [hmono, coeff_coeff_shift_monomial]
+  change ((((shift (C x) w (C (C cz * X ^ p.1.1) * X ^ p.1.2)).coeff v).coeff u).natDegree) ≤ _
+  rw [hshift_c]
+  refine natDegree_mul_le.trans (Nat.add_le_add ?_ (natDegree_pow_le.trans ?_))
+  · have hre : (p.1.1.choose u : F[X]) * (p.1.2.choose v : F[X]) * cz * (C x) ^ (p.1.1 - u) =
+        C ((p.1.1.choose u : F) * (p.1.2.choose v : F) * x ^ (p.1.1 - u)) * cz := by
+      simp only [map_mul, map_pow, map_natCast]; ring
+    exact hre ▸ (natDegree_C_mul_le _ _).trans hcz_deg
+  · calc (p.1.2 - v) * w.natDegree ≤ p.1.2 * r := Nat.mul_le_mul (Nat.sub_le _ _) hw
+      _ ≤ r * maxYDeg d D :=
+        mul_comm _ r ▸ Nat.mul_le_mul_right r (Finset.le_sup (f := Prod.snd) p.2)
 
 /-- Step 1 (Siegel interpolation in `F[Z][X][Y]`): zero-denominator multiplicity-`m` interpolant
 with explicit `Z`-degree bound `siegelZDeg n m d D r`. -/
@@ -621,84 +565,59 @@ private theorem exists_siegel_interpolant [DecidableEq F] {ι : Type*} [Fintype 
   set B := siegelZDeg (Fintype.card ι) m d D r
   set D_Y := maxYDeg d D
   set R_eq := Fintype.card ι * (m * (m + 1) / 2)
-  set C_mon := #M
-  -- Define the `F`-linear map encoding all `(i, (u, v), t)` shift-vanishing equations.
-  let entry : (M × Fin (B + 1)) → (ι × multPairs m × Fin (B + r * D_Y + 1)) → F :=
-    fun pt eq =>
-      (((shift (C (α eq.1)) (curveWord u eq.1)
-          (C (C (X ^ (pt.2 : ℕ)) * X ^ pt.1.1.1) * X ^ pt.1.1.2)).coeff eq.2.1.1.2).coeff
-        eq.2.1.1.1).coeff (eq.2.2 : ℕ)
+  let entry : (M × Fin (B + 1)) → (ι × multPairs m × Fin (B + r * D_Y + 1)) → F := fun pt eq =>
+    (((shift (C (α eq.1)) (curveWord u eq.1)
+        (C (C (X ^ (pt.2 : ℕ)) * X ^ pt.1.1.1) * X ^ pt.1.1.2)).coeff eq.2.1.1.2).coeff
+      eq.2.1.1.1).coeff (eq.2.2 : ℕ)
   let Φ : ((M × Fin (B + 1)) → F) →ₗ[F] ((ι × multPairs m × Fin (B + r * D_Y + 1)) → F) :=
     { toFun := fun c eq => ∑ pt : M × Fin (B + 1), c pt * entry pt eq
-      map_add' := fun c₁ c₂ => by
-        funext eq
-        simp [add_mul, Finset.sum_add_distrib]
-      map_smul' := fun a c => by
-        funext eq
-        simp [smul_eq_mul, mul_assoc, Finset.mul_sum] }
+      map_add' := fun _ _ => funext fun _ => by simp [add_mul, Finset.sum_add_distrib]
+      map_smul' := fun _ _ => funext fun _ => by simp [smul_eq_mul, mul_assoc, Finset.mul_sum] }
   have hΦ_eq : ∀ c eq, Φ c eq =
       (((shift (C (α eq.1)) (curveWord u eq.1) (polyOfTable M B c)).coeff eq.2.1.1.2).coeff
-        eq.2.1.1.1).coeff (eq.2.2 : ℕ) := by
-    intro c eq
+        eq.2.1.1.1).coeff (eq.2.2 : ℕ) := fun c eq => by
     change ∑ pt : M × Fin (B + 1), c pt * entry pt eq = _
     rw [polyOfTable, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff,
       Fintype.sum_prod_type]
-    have hattach : ∀ f : M → F, ∑ p : M, f p = ∑ p ∈ M.attach, f p := fun _ => rfl
-    rw [hattach]
     refine Finset.sum_congr rfl fun p _ => ?_
     have hsplit :
         C (C (∑ t : Fin (B + 1), C (c (p, t)) * X ^ (t : ℕ)) * X ^ p.1.1) * X ^ p.1.2 =
         ∑ t : Fin (B + 1),
           C (C (C (c (p, t)))) * (C (C (X ^ (t : ℕ)) * X ^ p.1.1) * X ^ p.1.2) := by
-      rw [map_sum, Finset.sum_mul, map_sum, Finset.sum_mul]
-      refine Finset.sum_congr rfl fun t _ => ?_
-      simp only [map_mul, mul_assoc]
+      simp only [map_sum, Finset.sum_mul, map_mul, mul_assoc]
     rw [hsplit, map_sum, finsetSum_coeff, finsetSum_coeff, finsetSum_coeff]
     refine Finset.sum_congr rfl fun t _ => ?_
     have hshiftC : shift (C (α eq.1)) (curveWord u eq.1) (C (C (C (c (p, t))))) =
         C (C (C (c (p, t)))) := by
-      rw [shift_apply, map_C, taylor_C]
-      change C (taylor (C (α eq.1)) (C (C (c (p, t))))) = _
-      rw [taylor_C]
+      rw [shift_apply, map_C, taylor_C]; change C (taylor (C (α eq.1)) (C (C _))) = _; rw [taylor_C]
     rw [map_mul, hshiftC, coeff_C_mul, coeff_C_mul, coeff_C_mul]
-  -- Dimension count: 1-line Siegel inequality via `Nat.lt_mul_div_succ`.
-  have hgap : 0 < C_mon - R_eq := Nat.sub_pos_of_lt hinterp
-  have hsiegel : R_eq * r * D_Y < (C_mon - R_eq) * (B + 1) := by
-    simpa [B, siegelZDeg, R_eq, C_mon, D_Y] using Nat.lt_mul_div_succ (R_eq * r * D_Y) hgap
-  have hcard_lt :
-      Fintype.card (ι × multPairs m × Fin (B + r * D_Y + 1)) <
+  have hsiegel : R_eq * r * D_Y < (#M - R_eq) * (B + 1) := by
+    simpa [B, siegelZDeg, R_eq, D_Y] using
+      Nat.lt_mul_div_succ (R_eq * r * D_Y) (Nat.sub_pos_of_lt hinterp)
+  have hcard_lt : Fintype.card (ι × multPairs m × Fin (B + r * D_Y + 1)) <
       Fintype.card (M × Fin (B + 1)) := by
     simp only [Fintype.card_prod, Fintype.card_coe, Fintype.card_fin, card_multPairs]
     have h1 : Fintype.card ι * (m * (m + 1) / 2 * (B + r * D_Y + 1)) =
-        R_eq * (B + 1) + R_eq * r * D_Y := by
-      change Fintype.card ι * (m * (m + 1) / 2 * (B + r * D_Y + 1)) =
-        (Fintype.card ι * (m * (m + 1) / 2)) * (B + 1) +
-        (Fintype.card ι * (m * (m + 1) / 2)) * r * D_Y
-      ring
-    have h2 : C_mon * (B + 1) = R_eq * (B + 1) + (C_mon - R_eq) * (B + 1) := by
+        R_eq * (B + 1) + R_eq * r * D_Y := by dsimp only [R_eq]; ring
+    have h2 : #M * (B + 1) = R_eq * (B + 1) + (#M - R_eq) * (B + 1) := by
       rw [← add_mul, Nat.add_sub_of_le hinterp.le]
-    change Fintype.card ι * (m * (m + 1) / 2 * (B + r * D_Y + 1)) < C_mon * (B + 1)
     omega
-  have hker : LinearMap.ker Φ ≠ ⊥ :=
-    LinearMap.ker_ne_bot_of_finrank_lt (by
-      rwa [Module.finrank_fintype_fun_eq_card, Module.finrank_fintype_fun_eq_card])
-  obtain ⟨c, hc_mem, hc_ne⟩ := (Submodule.ne_bot_iff _).1 hker
-  have hc_ker : Φ c = 0 := LinearMap.mem_ker.1 hc_mem
+  obtain ⟨c, hc_mem, hc_ne⟩ := (Submodule.ne_bot_iff _).1 <|
+    LinearMap.ker_ne_bot_of_finrank_lt (f := Φ) (by
+      simpa only [Module.finrank_fintype_fun_eq_card] using hcard_lt)
   refine ⟨polyOfTable M B c, (not_iff_not.2 (polyOfTable_eq_zero_iff M B c)).2 hc_ne,
     weightedDegree_polyOfTable_le d D B c, natDegree_polyOfTable_le d D B c,
     degZ_polyOfTable_le M B c, fun i u₀ v₀ huv => ?_⟩
-  ext t
-  rw [coeff_zero]
+  ext t; rw [coeff_zero]
   by_cases ht : t < B + r * D_Y + 1
-  · have h0 : Φ c (i, ⟨(u₀, v₀), mem_multPairs.2 huv⟩, ⟨t, ht⟩) = 0 :=
-      congrFun hc_ker (i, ⟨(u₀, v₀), mem_multPairs.2 huv⟩, ⟨t, ht⟩)
-    rwa [hΦ_eq] at h0
-  · refine coeff_eq_zero_of_natDegree_lt ?_
-    have hdeg : (((shift (C (α i)) (curveWord u i) (polyOfTable M B c)).coeff v₀).coeff
-        u₀).natDegree ≤ B + r * D_Y :=
-      natDegree_coeff_shift_polyOfTable_le c (α i) (curveWord u i)
-        (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)) u₀ v₀
-    omega
+  · have hz := congrFun (LinearMap.mem_ker.1 hc_mem)
+      (i, (⟨(u₀, v₀), mem_multPairs.2 huv⟩ : multPairs m), (⟨t, ht⟩ : Fin (B + r * D_Y + 1)))
+    have hΦ := hΦ_eq c (i, (⟨(u₀, v₀), mem_multPairs.2 huv⟩ : multPairs m),
+      (⟨t, ht⟩ : Fin (B + r * D_Y + 1)))
+    exact hΦ.symm.trans hz
+  · have hdeg := natDegree_coeff_shift_polyOfTable_le c (α i) (curveWord u i)
+      (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)) u₀ v₀
+    exact coeff_eq_zero_of_natDegree_lt (by dsimp only [M, B, D_Y] at *; omega)
 
 end Step1Siegel
 
@@ -808,6 +727,38 @@ private theorem ceil_div_le_card_of_sum_le {ι : Type*} {W : ι → ℕ} {M B_W 
   have h3 : (B_W + M - 1) / M < #A + 1 := (Nat.div_lt_iff_lt_mul hM).2 h2
   omega
 
+/-- Helper: a single weighted close point forces `1 ≤ W_tot` and `1 ≤ D` under the interpolation
+condition `|ι| * (m * (m + 1) / 2) < #(Sudan.monomials d D)`. -/
+private theorem pos_params_of_interpolation {ι : Type*} [Fintype ι] {W : ι → ℕ}
+    {k m d D M W_tot B_W : ℕ} (hk : 1 ≤ k) (hm : 1 ≤ m) (hM : 0 < M)
+    (hW_le : ∀ i, W i ≤ M) (hW_sum : ∑ i, W i ≤ W_tot)
+    (hk_le_t : k ≤ (B_W + M - 1) / M)
+    (hinterp : Fintype.card ι * (m * (m + 1) / 2) < #(Sudan.monomials d D))
+    {A : Finset ι} (hA : B_W ≤ ∑ i ∈ A, W i) :
+    1 ≤ W_tot ∧ 1 ≤ D := by
+  have hB_pos : 1 ≤ B_W := by
+    by_contra h0
+    have hdiv : (B_W + M - 1) / M = 0 := by
+      rw [show B_W = 0 by omega, zero_add]; exact Nat.div_eq_of_lt (by omega)
+    omega
+  have hW_tot_pos : 1 ≤ W_tot :=
+    hB_pos.trans (hA.trans ((Finset.sum_le_sum_of_subset (Finset.subset_univ _)).trans hW_sum))
+  have hcard_pos : 1 ≤ Fintype.card ι :=
+    (hk.trans hk_le_t).trans ((ceil_div_le_card_of_sum_le hM hW_le hA).trans (card_le_univ _))
+  have hD_pos : 1 ≤ D := by
+    by_contra h0
+    have htri : 1 ≤ m * (m + 1) / 2 := by
+      have : 2 ≤ m * (m + 1) := by nlinarith
+      omega
+    have hmon0 : #(Sudan.monomials d 0) ≤ 1 := by
+      refine (card_le_card (t := {(0, 0)}) fun p hp => mem_singleton.2 ?_).trans (by simp)
+      obtain ⟨h1, h2, _⟩ := Sudan.mem_monomials.1 hp
+      exact Prod.ext (by omega) (by omega)
+    rw [show D = 0 by omega] at hinterp
+    have := Nat.mul_pos hcard_pos htri
+    omega
+  exact ⟨hW_tot_pos, hD_pos⟩
+
 /-- Step 2 (UFD factorization in `F[Z][X][Y]` and pigeonhole onto a single irreducible factor `R`).
 -/
 private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [DecidableEq F]
@@ -838,146 +789,74 @@ private theorem exists_irreducible_factor_pigeonhole {ι : Type*} [Fintype ι] [
         B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z),
           W i) := by
   classical
-  set d := k - 1
-  set D_Y := maxYDeg d D
-  set B_Z := siegelZDeg (Fintype.card ι) m d D r
-  set t := (B_W + M - 1) / M
-  -- Derive `1 ≤ B_W`, `1 ≤ W_tot`, `1 ≤ Fintype.card ι`, and `1 ≤ D`.
-  have hT_nonempty : T.Nonempty := Finset.card_pos.1 (Nat.zero_lt_of_lt hT)
-  obtain ⟨z₀, hz₀⟩ := hT_nonempty
+  set d := k - 1; set D_Y := maxYDeg d D; set B_Z := siegelZDeg (Fintype.card ι) m d D r
+  obtain ⟨z₀, hz₀⟩ := Finset.card_pos.1 (Nat.zero_lt_of_lt hT)
   obtain ⟨v₀, _, hv₀⟩ := hclose z₀ hz₀
-  have hB_W_pos : 1 ≤ B_W := by
-    by_contra h0
-    have hBW0 : B_W = 0 := by omega
-    have ht0 : t = 0 := by
-      simp only [t, hBW0, zero_add]
-      exact Nat.div_eq_of_lt (by omega)
-    omega
-  have hW_tot_pos : 1 ≤ W_tot := by
-    have hle : B_W ≤ ∑ i : ι, W i :=
-      hv₀.trans (Finset.sum_le_sum_of_subset (Finset.subset_univ _))
-    omega
-  have hcard_pos : 1 ≤ Fintype.card ι := by
-    have ht_le := ceil_div_le_card_of_sum_le hM hW_le hv₀
-    have hsub : #(Finset.univ.filter fun i => (∑ j : Fin (r + 1), z₀ ^ (j : ℕ) * u j i) = v₀ i) ≤
-        Fintype.card ι := card_le_univ _
-    omega
-  have hD_pos : 1 ≤ D := by
-    by_contra h0
-    have hD0 : D = 0 := by omega
-    have htri : 1 ≤ m * (m + 1) / 2 := by
-      have h2 : 2 ≤ m * (m + 1) := by nlinarith
-      omega
-    have hmon0 : #(Sudan.monomials d 0) ≤ 1 := by
-      have hsub : Sudan.monomials d 0 ⊆ {(0, 0)} := by
-        intro p hp
-        have hmem := Sudan.mem_monomials.1 hp
-        rw [mem_singleton]
-        exact Prod.ext (by omega) (by omega)
-      exact (card_le_card hsub).trans (by simp)
-    have h1 : 1 ≤ Fintype.card ι * (m * (m + 1) / 2) := Nat.mul_pos hcard_pos htri
-    rw [hD0] at hinterp
-    omega
-  -- Step 1: obtain Siegel interpolant `Q`.
+  obtain ⟨hW_tot_pos, hD_pos⟩ :=
+    pos_params_of_interpolation hk hm hM hW_le hW_sum hk_le_t hinterp hv₀
   obtain ⟨Q, hQ0, hQwd, hQdeg, hQdegZ, hQvan⟩ := exists_siegel_interpolant α u hinterp
-  -- Factor `Q` in the UFD `F[Z][X][Y]`.
-  obtain ⟨c, fs, hc0, hfs_prop, hQ_eq⟩ := exists_eq_C_mul_prod_irreducible_of_ufd hQ0
-  have hfs_ne : ∀ R ∈ fs.toFinset, R ≠ 0 := fun R hR =>
-    (hfs_prop R (Multiset.mem_toFinset.1 hR)).1.ne_zero
+  obtain ⟨c, fs, _, hfs_prop, hQ_eq⟩ := exists_eq_C_mul_prod_irreducible_of_ufd hQ0
   have hsum_deg : ∑ R ∈ fs.toFinset, R.natDegree ≤ D_Y := by
-    rw [← Polynomial.natDegree_prod _ _ hfs_ne]
-    have hdvd : fs.toFinset.prod id ∣ Q :=
-      (Multiset.toFinset_prod_dvd_prod fs).trans ⟨C c, by rw [hQ_eq, mul_comm]⟩
-    exact (Polynomial.natDegree_le_of_dvd hdvd hQ0).trans hQdeg
-  -- Non-vanishing specializations `T_nz ⊆ T`.
-  let T_nz := T.filter (fun z => evZ₂ z Q ≠ 0)
+    rw [← Polynomial.natDegree_prod _ _ fun R hR =>
+      (hfs_prop R (Multiset.mem_toFinset.1 hR)).1.ne_zero]
+    exact (Polynomial.natDegree_le_of_dvd
+      ((Multiset.toFinset_prod_dvd_prod fs).trans ⟨C c, by rw [hQ_eq, mul_comm]⟩) hQ0).trans hQdeg
+  let T_nz := T.filter fun z => evZ₂ z Q ≠ 0
   have hT_nz_card : #T - B_Z ≤ #T_nz := by
-    have hsplit : #T = #T_nz + #(T.filter fun z => evZ₂ z Q = 0) := by
-      rw [add_comm]
-      have h := Finset.card_filter_add_card_filter_not (s := T) (p := fun z => evZ₂ z Q = 0)
-      simpa [T_nz] using h.symm
+    have h := Finset.card_filter_add_card_filter_not (s := T) (p := fun z => evZ₂ z Q = 0)
     have hbad := (card_filter_evZ₂_eq_zero_le hQ0 T).trans hQdegZ
+    change #(T.filter fun z => evZ₂ z Q = 0) + #T_nz = #T at h
     omega
-  -- Every `z ∈ T_nz` lands in `T_R` for some `R ∈ fs.toFinset`.
   let T_of : F[X][X][X] → Finset F := fun R =>
     T.filter fun z => ∃ P : F[X], P.natDegree ≤ d ∧ (evZ₂ z R).eval P = 0 ∧
       B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z), W i
-  have hcover : T_nz ⊆ fs.toFinset.biUnion T_of := by
-    intro z hz
-    rw [mem_filter] at hz
-    obtain ⟨hzT, hQz_ne⟩ := hz
+  have hcover : T_nz ⊆ fs.toFinset.biUnion T_of := fun z hz => by
+    obtain ⟨hzT, hQz_ne⟩ := mem_filter.1 hz
     obtain ⟨v, hv_rs, hv_agree⟩ := hclose z hzT
     obtain ⟨P, hP_deg, rfl⟩ := mem_reedSolomon.1 hv_rs
     have hP_natDeg : P.natDegree ≤ d := by
       by_cases hP0 : P = 0
       · simp [hP0]
-      · have hlt : P.natDegree < k := (Polynomial.natDegree_lt_iff_degree_lt hP0).2 hP_deg
-        omega
-    have hagree_eq :
-        Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z) =
-        Finset.univ.filter (fun i => (∑ j : Fin (r + 1), z ^ (j : ℕ) * u j i) = P.eval (α i)) := by
-      ext i
-      simp only [mem_filter, mem_univ, true_and, eval_curveWord, eq_comm]
+      · have := (Polynomial.natDegree_lt_iff_degree_lt hP0).2 hP_deg; omega
     have hW_P : B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z),
         W i := by
-      rwa [hagree_eq]
-    have hcard_P : t ≤ #(Finset.univ.filter fun i => P.eval (α i) = (curveWord u i).eval z) :=
-      ceil_div_le_card_of_sum_le hM hW_le hW_P
-    have hQz_interp : IsInterpolant α (fun i => (curveWord u i).eval z) m d D (evZ₂ z Q) := by
-      refine ⟨hQz_ne, Polynomial.Bivariate.weightedDegree_le_iff.1
-        ((weightedDegree_evZ₂_le z Q).trans hQwd), fun i => ?_⟩
-      have hmap := (hQvan i).map (evZ z)
-      have hαi : evZ z (C (α i)) = α i := by simp [evZ]
-      have hwi : evZ z (curveWord u i) = (curveWord u i).eval z := rfl
-      simpa [evZ₂, evZ₁, hαi, hwi] using hmap
-    have heval0 : (evZ₂ z Q).eval P = 0 :=
-      hQz_interp.eval_eq_zero hα hP_natDeg (hroot.trans_le (Nat.mul_le_mul_left m hcard_P))
-    -- Strip `C c`, whose specialization `evZ₁ z c` is nonzero in `F[X]`.
-    have hc_ev_ne : evZ₁ z c ≠ 0 := by
-      intro h0
-      apply hQz_ne
+      simpa only [eval_curveWord, eq_comm] using hv_agree
+    have hQz_interp : IsInterpolant α (fun i => (curveWord u i).eval z) m d D (evZ₂ z Q) :=
+      ⟨hQz_ne,
+        Polynomial.Bivariate.weightedDegree_le_iff.1 ((weightedDegree_evZ₂_le z Q).trans hQwd),
+        fun i => by simpa [evZ₂, evZ₁, evZ] using (hQvan i).map (evZ z)⟩
+    have heval0 : (evZ₂ z Q).eval P = 0 := hQz_interp.eval_eq_zero hα hP_natDeg
+      (hroot.trans_le (Nat.mul_le_mul_left m (ceil_div_le_card_of_sum_le hM hW_le hW_P)))
+    have hc_ev_ne : evZ₁ z c ≠ 0 := fun h0 => hQz_ne <| by
       rw [hQ_eq, map_mul, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_C, h0, map_zero, zero_mul]
-    have hfs_ev0 : (fs.prod.map (evZ₁ z)).eval P = 0 := by
-      rw [hQ_eq, map_mul, eval_mul, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_C, eval_C]
-        at heval0
-      exact (mul_eq_zero.1 heval0).resolve_left hc_ev_ne
-    obtain ⟨R, hR_mem, hp0⟩ := exists_mem_eval_map_eq_zero (evZ₁ z) fs P hfs_ev0
+    rw [hQ_eq, map_mul, eval_mul, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_C, eval_C]
+      at heval0
+    obtain ⟨R, hR_mem, hp0⟩ :=
+      exists_mem_eval_map_eq_zero (evZ₁ z) fs P ((mul_eq_zero.1 heval0).resolve_left hc_ev_ne)
     exact mem_biUnion.2 ⟨R, Multiset.mem_toFinset.2 hR_mem,
       mem_filter.2 ⟨hzT, P, hP_natDeg, hp0, hW_P⟩⟩
-  -- Pigeonhole across `R ∈ fs.toFinset`.
   let B_of : F[X][X][X] → ℕ := fun R =>
     2 * R.natDegree * (D + B_Z) + W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y)
   have hsum_B : ∑ R ∈ fs.toFinset, B_of R < #T_nz := by
     have h1 : ∑ R ∈ fs.toFinset, B_of R =
         (∑ R ∈ fs.toFinset, R.natDegree) *
           (2 * (D + B_Z) + W_tot * D_Y * (4 * D * B_Z + r * D_Y)) := by
-      rw [Finset.sum_mul]
-      refine Finset.sum_congr rfl fun R _ => ?_
-      dsimp only [B_of]
-      ring
+      rw [Finset.sum_mul]; exact Finset.sum_congr rfl fun R _ => by dsimp only [B_of]; ring
     have h2 : ∑ R ∈ fs.toFinset, B_of R ≤
-        2 * D_Y * (D + B_Z) + W_tot * D_Y ^ 2 * (4 * D * B_Z + r * D_Y) := by
-      rw [h1]
-      calc (∑ R ∈ fs.toFinset, R.natDegree) *
-              (2 * (D + B_Z) + W_tot * D_Y * (4 * D * B_Z + r * D_Y))
-          ≤ D_Y * (2 * (D + B_Z) + W_tot * D_Y * (4 * D * B_Z + r * D_Y)) :=
-            Nat.mul_le_mul_right _ hsum_deg
-        _ = 2 * D_Y * (D + B_Z) + W_tot * D_Y ^ 2 * (4 * D * B_Z + r * D_Y) := by ring
+        2 * D_Y * (D + B_Z) + W_tot * D_Y ^ 2 * (4 * D * B_Z + r * D_Y) :=
+      h1 ▸ (Nat.mul_le_mul_right _ hsum_deg).trans_eq (by ring)
     have h3 : B_Z + (2 * D_Y * (D + B_Z) + W_tot * D_Y ^ 2 * (4 * D * B_Z + r * D_Y)) < #T := by
       simpa [johnsonCurveBound, D_Y, B_Z, add_assoc] using hT
     omega
-  have hsum_T : #T_nz ≤ ∑ R ∈ fs.toFinset, #(T_of R) :=
-    (card_le_card hcover).trans Finset.card_biUnion_le
-  have hex_R : ∃ R ∈ fs.toFinset, B_of R < #(T_of R) :=
-    Finset.exists_lt_of_sum_lt (hsum_B.trans_le hsum_T)
-  obtain ⟨R, hR_fin, hR_card⟩ := hex_R
-  have hR_mem : R ∈ fs := Multiset.mem_toFinset.1 hR_fin
+  obtain ⟨R, hR_fin, hR_card⟩ :=
+    Finset.exists_lt_of_sum_lt <|
+      hsum_B.trans_le ((card_le_card hcover).trans Finset.card_biUnion_le)
+  have hR_mem := Multiset.mem_toFinset.1 hR_fin
   obtain ⟨hR_irred, hR_deg⟩ := hfs_prop R hR_mem
   have hR_dvd : R ∣ Q := (Multiset.dvd_prod hR_mem).trans ⟨C c, by rw [hQ_eq, mul_comm]⟩
   have hR_deg_le : R.natDegree ≤ D_Y := (Polynomial.natDegree_le_of_dvd hR_dvd hQ0).trans hQdeg
-  have hDY_pos : 1 ≤ D_Y := hR_deg.trans hR_deg_le
   exact ⟨R, T_of R, hR_irred, hR_deg, hR_deg_le, (weightedDegree_le_of_dvd hQ0 hR_dvd).trans hQwd,
-    (degZ_le_of_dvd hQ0 hR_dvd).trans hQdegZ, hDY_pos, hD_pos, hW_tot_pos,
+    (degZ_le_of_dvd hQ0 hR_dvd).trans hQdegZ, hR_deg.trans hR_deg_le, hD_pos, hW_tot_pos,
     Finset.filter_subset _ _, hR_card, fun z hz => (mem_filter.1 hz).2⟩
 
 end Step2FactorPigeonhole
@@ -1015,103 +894,65 @@ private theorem exists_separable_contraction_and_bezout {d D B_Z : ℕ}
   let E := FractionRing (F[X][X])
   let ι_E : F[X][X] →+* E := algebraMap (F[X][X]) E
   have hι_E_inj : Function.Injective ι_E := IsFractionRing.injective (F[X][X]) E
-  have hR_prim : R.IsPrimitive := hR_irred.isPrimitive (by omega)
   have hR_E_irred : Irreducible (R.map ι_E) :=
-    (hR_prim.irreducible_iff_irreducible_map_fraction_map (K := E)).1 hR_irred
-  -- Transfer `ExpChar F q` to `ExpChar E q`.
+    ((hR_irred.isPrimitive (by omega)).irreducible_iff_irreducible_map_fraction_map).1 hR_irred
   obtain ⟨q, hExpF⟩ := ExpChar.exists F
-  have hF_to_E_inj :
-      Function.Injective (ι_E.comp (Polynomial.C.comp Polynomial.C : F →+* F[X][X])) :=
+  have hF_to_E : Function.Injective
+      (ι_E.comp (Polynomial.C.comp Polynomial.C : F →+* F[X][X])) :=
     hι_E_inj.comp (Polynomial.C_injective.comp Polynomial.C_injective)
-  have hExpE : ExpChar E q := expChar_of_injective_ringHom hF_to_E_inj q
-  have hsc : Polynomial.HasSeparableContraction q (R.map ι_E) :=
-    hR_E_irred.hasSeparableContraction q
-  obtain ⟨S_E, hS_E_sep, e_sep, hS_E_exp⟩ := hsc
+  have hExpE : ExpChar E q := expChar_of_injective_ringHom hF_to_E q
+  obtain ⟨S_E, hS_E_sep, e_sep, hS_E_exp⟩ := hR_E_irred.hasSeparableContraction q
   set μ := q ^ e_sep
-  have hq_pos : 0 < q := by
-    cases hExpF with
-    | zero => omega
-    | prime hp => exact hp.pos
-  have hμ_pos : 1 ≤ μ := Nat.one_le_pow e_sep q hq_pos
+  have hμ_pos : 1 ≤ μ := Nat.one_le_pow e_sep q (by
+    cases hExpF with | zero => omega | prime hp => exact hp.pos)
   have hμ_ne : μ ≠ 0 := by omega
   have hμ_char : μ = 1 ∨ ∃ (p e : ℕ), CharP F p ∧ p.Prime ∧ μ = p ^ e := by
     cases hExpF with
-    | zero =>
-      left
-      simp [μ]
-    | prime hp =>
-      right
-      exact ⟨q, e_sep, inferInstance, hp, rfl⟩
-  -- Pull contraction directly back to `F[Z][X][Y]` with zero denominators.
+    | zero => exact Or.inl (by simp [μ])
+    | prime hp => exact Or.inr ⟨q, e_sep, inferInstance, hp, rfl⟩
   set S : F[X][X][X] := Polynomial.contract μ R
-  have hR_coeff_zero : ∀ b, ¬ μ ∣ b → R.coeff b = 0 := by
-    intro b hb
-    apply hι_E_inj
-    rw [map_zero, ← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hb]
   have hexp_S : Polynomial.expand (F[X][X]) μ S = R := by
     ext b : 2
     rw [Polynomial.coeff_expand hμ_pos]
     split_ifs with hdiv
     · rw [Polynomial.coeff_contract hμ_ne, Nat.div_mul_cancel hdiv]
-    · exact (hR_coeff_zero b hdiv).symm
+    · exact (hι_E_inj (by
+        rw [map_zero, ← coeff_map, ← hS_E_exp, coeff_expand_eq_zero_of_not_dvd hμ_pos S_E hdiv])
+        ).symm
   have hS_map : S.map ι_E = S_E := by
     ext b
     rw [coeff_map, Polynomial.coeff_contract hμ_ne, ← coeff_map, ← hS_E_exp,
       Polynomial.coeff_expand_mul hμ_pos]
   have hdeg_mul : μ * S.natDegree = R.natDegree := by
     rw [← hexp_S, Polynomial.natDegree_expand, mul_comm]
-  have hS_deg : 1 ≤ S.natDegree := by
-    by_contra h0
-    have hS0 : S.natDegree = 0 := by omega
-    rw [hS0, mul_zero] at hdeg_mul
-    omega
-  have hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + (μ * d) * b ≤ D := by
-    intro a b hab
-    have hcoeff : ((R.coeff (b * μ)).coeff a) ≠ 0 := by
-      rwa [Polynomial.coeff_contract hμ_ne] at hab
-    have hle := (le_weightedDegree (d := d) hcoeff).trans hR_wd
-    have heq : a + d * (b * μ) = a + (μ * d) * b := by ring
-    omega
+  have hS_deg : 1 ≤ S.natDegree := Nat.pos_of_ne_zero fun h0 => by
+    rw [h0, mul_zero] at hdeg_mul; omega
+  have hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + (μ * d) * b ≤ D := fun a b hab => by
+    rw [Polynomial.coeff_contract hμ_ne] at hab
+    have hle := (le_weightedDegree (d := d) hab).trans hR_wd
+    linarith [show a + d * (b * μ) = a + (μ * d) * b by ring]
   have hμd_le : μ * d ≤ D := by
-    have hS0 : S ≠ 0 := fun h => by simp [h] at hS_deg
-    have hlc : S.coeff S.natDegree ≠ 0 := leadingCoeff_ne_zero.2 hS0
-    have hex : ∃ a, (S.coeff S.natDegree).coeff a ≠ 0 := by
-      by_contra hall
-      push Not at hall
-      exact hlc (by ext a : 2; simpa using hall a)
-    rcases hex with ⟨a, ha⟩
+    have hlc : S.coeff S.natDegree ≠ 0 := leadingCoeff_ne_zero.2 fun h => by simp [h] at hS_deg
+    obtain ⟨a, ha⟩ : ∃ a, (S.coeff S.natDegree).coeff a ≠ 0 := by
+      by_contra hall; push Not at hall; exact hlc (by ext a : 2; simpa using hall a)
     have h1 := hS_wd a S.natDegree ha
     have h2 : μ * d * 1 ≤ μ * d * S.natDegree := Nat.mul_le_mul_left _ hS_deg
     omega
-  have hS_degZ : degZ S ≤ B_Z := by
-    rw [degZ_le_iff]
-    intro a b
-    rw [Polynomial.coeff_contract hμ_ne]
-    exact degZ_le_iff.1 hR_degZ a (b * μ)
-  -- Resultant `Δ = Res_Y(S, S')` is nonzero in `F[Z][X]`.
+  have hS_degZ : degZ S ≤ B_Z := degZ_le_iff.2 fun a b => by
+    rw [Polynomial.coeff_contract hμ_ne]; exact degZ_le_iff.1 hR_degZ a (b * μ)
   set Δ : F[X][X] := Polynomial.resultant S S.derivative S.natDegree S.derivative.natDegree
-  have hΔ_ne : Δ ≠ 0 := by
-    have hcop : IsCoprime (S.map ι_E) (S.derivative.map ι_E) := by
-      rwa [← Polynomial.derivative_map, hS_map]
-    exact resultant_ne_zero_of_isCoprime_map ι_E hι_E_inj hcop
+  have hΔ_ne : Δ ≠ 0 := resultant_ne_zero_of_isCoprime_map ι_E hι_E_inj
+    (by rwa [← Polynomial.derivative_map, hS_map])
   obtain ⟨A_bez, B_bez, _, _, hbez⟩ :=
     Polynomial.exists_mul_add_mul_eq_C_resultant S S.derivative le_rfl le_rfl (Or.inl (by omega))
-  -- Degree bounds on `S.leadingCoeff * Δ` in both `X` and `Z`.
-  have hS_coeff_degX : ∀ b, (S.coeff b).natDegree ≤ D := by
-    intro b
-    rw [natDegree_le_iff_coeff_eq_zero]
-    intro a ha
-    by_contra hne
-    have hle := hS_wd a b hne
-    omega
-  have hS_coeff_degZ : ∀ b, degZ₂ (S.coeff b) ≤ B_Z := fun b =>
-    (degZ₂_coeff_le_degZ S b).trans hS_degZ
-  have hH_degX : (S.leadingCoeff * Δ).natDegree ≤ 2 * S.natDegree * D :=
-    (DegBound.natDegree F[X]).leadingCoeff_mul_resultant_derivative_le hS_deg hS_coeff_degX
-  have hH_degZ : degZ₂ (S.leadingCoeff * Δ) ≤ 2 * S.natDegree * B_Z :=
-    (DegBound.degZ₂ F).leadingCoeff_mul_resultant_derivative_le hS_deg hS_coeff_degZ
-  exact ⟨μ, S, A_bez, B_bez, Δ, hμ_char, hμ_pos, hexp_S, hS_deg, hdeg_mul, hμd_le, hS_wd,
-    hS_degZ, hΔ_ne, hbez, hH_degX, hH_degZ⟩
+  have hS_coeff_degX : ∀ b, (S.coeff b).natDegree ≤ D := fun b =>
+    natDegree_le_iff_coeff_eq_zero.2 fun a ha =>
+      by_contra fun hne => by have := hS_wd a b hne; omega
+  exact ⟨μ, S, A_bez, B_bez, Δ, hμ_char, hμ_pos, hexp_S, hS_deg, hdeg_mul, hμd_le, hS_wd, hS_degZ,
+    hΔ_ne, hbez,
+    (DegBound.natDegree F[X]).leadingCoeff_mul_resultant_derivative_le hS_deg hS_coeff_degX,
+    (DegBound.degZ₂ F).leadingCoeff_mul_resultant_derivative_le hS_deg
+      (fun b => (degZ₂_coeff_le_degZ S b).trans hS_degZ)⟩
 
 end Step3SeparableContraction
 
@@ -1119,6 +960,24 @@ section Step4ShiftAndFactor
 
 variable {F : Type*} [Field F] [DecidableEq F]
 variable {ι : Type*} [Fintype ι]
+
+private theorem exists_eval_C_ne_zero {F : Type*} [Field F] {H : F[X][X]} (hH : H ≠ 0)
+    {T : Finset F} (hT : H.natDegree < #T) :
+    ∃ x₀ ∈ T, H.eval (C x₀) ≠ 0 := by
+  have hex_j : ∃ j, (Bivariate.swap H).coeff j ≠ 0 := by
+    by_contra hall; push Not at hall
+    exact (map_ne_zero_iff _ Bivariate.swap.injective).2 hH (by ext j : 2; simpa using hall j)
+  obtain ⟨j, hj_ne⟩ := hex_j
+  have hdeg : ((Bivariate.swap H).coeff j).natDegree ≤ H.natDegree :=
+    natDegree_le_iff_coeff_eq_zero.2 fun a ha => by
+      rw [coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
+  obtain ⟨x₀, hx₀, hne⟩ := exists_eval_ne_zero_of_natDegree_lt_card hj_ne (hdeg.trans_lt hT)
+  refine ⟨x₀, hx₀, fun hH0 => hne ?_⟩
+  have hc := congrArg (fun p : F[X] => p.coeff j) hH0
+  rw [eval_eq_sum_range, finsetSum_coeff, coeff_zero] at hc
+  rw [eval_eq_sum_range' (Nat.lt_succ_of_le hdeg), ← hc]
+  exact Finset.sum_congr rfl fun a _ => by
+    rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swap, mul_comm]
 
 /-- Step 4: Pick a good shift point `x₀ ∈ T_R` with `(S.leadingCoeff * Δ)(Z, x₀) ≠ 0`, and
 pigeonhole onto a primitive irreducible factor `F_* ∈ F[Z][Y]` of `S₀(Z, Y) = S(Z, x₀, Y)`. -/
@@ -1167,138 +1026,62 @@ private theorem exists_good_shift_and_factor
   classical
   set s := S.natDegree
   have hs_le_dR : s ≤ R.natDegree := by
-    have : 1 * s ≤ μ * s := Nat.mul_le_mul_right s hμ_pos
-    omega
+    have := Nat.mul_le_mul_right s hμ_pos; omega
   set H : F[X][X] := S.leadingCoeff * Δ
-  have hS0 : S ≠ 0 := fun h => by simp [s, h] at hS_deg
-  have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 hS0) hΔ_ne
-  -- Pick `x₀ ∈ T_R` with `H.eval (C x₀) ≠ 0`.
-  have hx₀ : ∃ x₀ ∈ T_R, H.eval (C x₀) ≠ 0 := by
-    have hswap_ne : Bivariate.swap H ≠ 0 :=
-      (map_ne_zero_iff _ Bivariate.swap.injective).2 hH_ne
-    have hex_j : ∃ j, (Bivariate.swap H).coeff j ≠ 0 := by
-      by_contra hall
-      push Not at hall
-      exact hswap_ne (by ext j : 2; simpa using hall j)
-    rcases hex_j with ⟨j, hj_ne⟩
-    set hj : F[X] := (Bivariate.swap H).coeff j
-    have hdeg_hj : hj.natDegree ≤ 2 * s * D := by
-      rw [natDegree_le_iff_coeff_eq_zero]
-      intro a ha
-      rw [coeff_coeff_swap]
-      have hH0 : H.coeff a = 0 := coeff_eq_zero_of_natDegree_lt (hH_degX.trans_lt ha)
-      rw [hH0, coeff_zero]
-    have hlt : hj.natDegree < #T_R := by
-      have h2 : 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
-      omega
-    obtain ⟨x₀, hx₀_TR, hx₀_ne⟩ := exists_eval_ne_zero_of_natDegree_lt_card hj_ne hlt
-    refine ⟨x₀, hx₀_TR, fun hH0 => hx₀_ne ?_⟩
-    have hc := congrArg (fun p : F[X] => p.coeff j) hH0
-    rw [eval_eq_sum_range, finsetSum_coeff, coeff_zero] at hc
-    have hhj_le : hj.natDegree ≤ H.natDegree := by
-      rw [natDegree_le_iff_coeff_eq_zero]
-      intro a ha
-      rw [coeff_coeff_swap, coeff_eq_zero_of_natDegree_lt ha, coeff_zero]
-    rw [eval_eq_sum_range' (Nat.lt_succ_of_le hhj_le), ← hc]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    rw [← C_pow, mul_comm (H.coeff a), coeff_C_mul, coeff_coeff_swap, mul_comm]
-  obtain ⟨x₀, _, hHx₀_ne⟩ := hx₀
-  have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := by
-    intro h0
-    apply hHx₀_ne
-    simp [H, h0]
-  have hΔ_x₀_ne : Δ.eval (C x₀) ≠ 0 := by
-    intro h0
-    apply hHx₀_ne
-    simp [H, h0]
-  -- Define `S₀ = S(Z, x₀, Y)` and `γ = S₀'`.
+  have hH_ne : H ≠ 0 := mul_ne_zero (leadingCoeff_ne_zero.2 fun h => by simp [s, h] at hS_deg) hΔ_ne
+  obtain ⟨x₀, _, hHx₀_ne⟩ := exists_eval_C_ne_zero hH_ne (hH_degX.trans_lt (by
+    have h1 : 2 * s * D ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
+    exact lt_of_le_of_lt (h1.trans (Nat.le_add_right _ _)) hTR_card))
+  have hlc_x₀_ne : S.leadingCoeff.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
+  have hΔ_x₀_ne : Δ.eval (C x₀) ≠ 0 := fun h0 => hHx₀_ne (by simp [H, h0])
   let φx₀ : F[X][X] →+* F[X] := Polynomial.evalRingHom (C x₀)
   set S₀ : F[X][X] := S.map φx₀
-  set γ : F[X][X] := S₀.derivative
-  have hS₀_deg : S₀.natDegree = s := by
-    refine le_antisymm Polynomial.natDegree_map_le ?_
-    refine le_natDegree_of_ne_zero ?_
-    rw [coeff_map]
-    exact hlc_x₀_ne
+  have hS₀_deg : S₀.natDegree = s := le_antisymm Polynomial.natDegree_map_le
+    (le_natDegree_of_ne_zero (by rw [coeff_map]; exact hlc_x₀_ne))
   have hS₀_ne : S₀ ≠ 0 := fun h => by simp [h] at hS₀_deg; omega
-  have hS₀_lc : S₀.leadingCoeff = S.leadingCoeff.eval (C x₀) := by
-    rw [Polynomial.leadingCoeff, hS₀_deg, coeff_map]
-    rfl
-  have hS₀_degZ : degZ₂ S₀ ≤ B_Z := by
-    rw [degZ₂_le_iff]
-    intro b
+  have hS₀_degZ : degZ₂ S₀ ≤ B_Z := degZ₂_le_iff.2 fun b => by
     rw [coeff_map]
-    exact (natDegree_eval_C_le_degZ₂ (S.coeff b) x₀).trans
-      ((degZ₂_coeff_le_degZ S b).trans hS_degZ)
-  have hbez₀ : ∃ A₀ B₀ : F[X][X], S₀ * A₀ + γ * B₀ = C (Δ.eval (C x₀)) := by
-    refine ⟨A_bez.map φx₀, B_bez.map φx₀, ?_⟩
-    have hmap := congrArg (Polynomial.map φx₀) hbez
-    rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_mul, Polynomial.map_C,
-      ← Polynomial.derivative_map] at hmap
-    exact hmap
-  -- Filter `T'_R ⊆ T_R` where `H(z, x₀) ≠ 0`.
-  let T'_R := T_R.filter (fun z => (H.eval (C x₀)).eval z ≠ 0)
+    exact (natDegree_eval_C_le_degZ₂ (S.coeff b) x₀).trans ((degZ₂_coeff_le_degZ S b).trans hS_degZ)
+  have hbez₀ : ∃ A₀ B₀ : F[X][X], S₀ * A₀ + S₀.derivative * B₀ = C (Δ.eval (C x₀)) :=
+    ⟨A_bez.map φx₀, B_bez.map φx₀, by
+      simpa only [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C,
+        ← Polynomial.derivative_map, φx₀, coe_evalRingHom] using congrArg (Polynomial.map φx₀) hbez⟩
+  let T'_R := T_R.filter fun z => (H.eval (C x₀)).eval z ≠ 0
   have hT'_card : #T_R - 2 * s * B_Z ≤ #T'_R := by
-    have hsplit : #T_R = #T'_R + #(T_R.filter fun z => (H.eval (C x₀)).eval z = 0) := by
-      rw [add_comm]
-      have h := Finset.card_filter_add_card_filter_not (s := T_R)
-        (p := fun z => (H.eval (C x₀)).eval z = 0)
-      simpa [T'_R] using h.symm
-    have hbad : #(T_R.filter fun z => (H.eval (C x₀)).eval z = 0) ≤ 2 * s * B_Z :=
-      (card_filter_eval_eq_zero_le hHx₀_ne T_R).trans
-        ((natDegree_eval_C_le_degZ₂ H x₀).trans hH_degZ)
+    have h := Finset.card_filter_add_card_filter_not (s := T_R)
+      (p := fun z => (H.eval (C x₀)).eval z = 0)
+    have hbad := (card_filter_eval_eq_zero_le hHx₀_ne T_R).trans
+      ((natDegree_eval_C_le_degZ₂ H x₀).trans hH_degZ)
+    change #(T_R.filter fun z => (H.eval (C x₀)).eval z = 0) + #T'_R = #T_R at h
     omega
-  -- Factor `S₀` in the UFD `F[Z][Y]` via `Polynomial.Bivariate.exists_eq_C_mul_prod_irreducible`.
-  obtain ⟨c₀, gs, hc₀_ne, hgs_prop, hS₀_eq, _⟩ :=
+  obtain ⟨c₀, gs, _, hgs_prop, hS₀_eq, _⟩ :=
     Polynomial.Bivariate.exists_eq_C_mul_prod_irreducible hS₀_ne
-  have hgs_ne : ∀ G ∈ gs.toFinset, G ≠ 0 := fun G hG =>
-    (hgs_prop G (Multiset.mem_toFinset.1 hG)).1.ne_zero
   have hgs_card : #gs.toFinset ≤ s := by
+    have hdvd : ∏ G ∈ gs.toFinset, G ∣ S₀ :=
+      (Multiset.toFinset_prod_dvd_prod gs).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩
     calc #gs.toFinset = ∑ _G ∈ gs.toFinset, 1 := by simp
       _ ≤ ∑ G ∈ gs.toFinset, G.natDegree :=
-        Finset.sum_le_sum fun G hG => (hgs_prop G (Multiset.mem_toFinset.1 hG)).2.2
-      _ = (∏ G ∈ gs.toFinset, G).natDegree := (Polynomial.natDegree_prod _ _ hgs_ne).symm
-      _ ≤ S₀.natDegree :=
-        Polynomial.natDegree_le_of_dvd
-          ((Multiset.toFinset_prod_dvd_prod gs).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩) hS₀_ne
-      _ = s := hS₀_deg
-  -- Helper: `(evZ₂ z S).eval (P ^ μ) = 0` gives `(S₀.map (evZ z)).eval ((P ^ μ).eval x₀) = 0`.
-  have hS₀_map_evZ : ∀ z, S₀.map (evZ z) = (evZ₂ z S).map (Polynomial.evalRingHom x₀) := by
-    intro z
+          Finset.sum_le_sum fun G hG => (hgs_prop G (Multiset.mem_toFinset.1 hG)).2.2
+      _ = (∏ G ∈ gs.toFinset, G).natDegree := (Polynomial.natDegree_prod _ _ fun G hG =>
+          (hgs_prop G (Multiset.mem_toFinset.1 hG)).1.ne_zero).symm
+      _ ≤ s := hS₀_deg ▸ Polynomial.natDegree_le_of_dvd hdvd hS₀_ne
+  have hS₀_map_evZ (z : F) : S₀.map (evZ z) = (evZ₂ z S).map (Polynomial.evalRingHom x₀) := by
     rw [Polynomial.map_map, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_map]
-    congr 1
-    apply Polynomial.ringHom_ext'
-    · apply Polynomial.ringHom_ext'
-      · ext c
-        simp [evZ, evZ₁, φx₀]
-      · simp [evZ, evZ₁, φx₀]
+    congr 1; apply Polynomial.ringHom_ext'
+    · apply Polynomial.ringHom_ext' <;> [ext c; skip] <;> simp [evZ, evZ₁, φx₀]
     · simp [evZ, evZ₁, φx₀]
-  -- Cover `T'_R` by the factors `G ∈ gs.toFinset`.
-  let T_ofG : F[X][X] → Finset F := fun G =>
-    T'_R.filter fun z =>
-      ∃ P : F[X], P.natDegree ≤ d ∧
-        (evZ₂ z S).eval (P ^ μ) = 0 ∧
-        (G.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 ∧
-        (γ.map (evZ z)).eval ((P ^ μ).eval x₀) ≠ 0 ∧
-        B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z), W i
-  have hcover' : T'_R ⊆ gs.toFinset.biUnion T_ofG := by
-    intro z hz
-    have hz_mem := mem_filter.1 hz
-    obtain ⟨hz_TR, hHz_ne⟩ := hz_mem
-    have hlc_z_ne : (S.leadingCoeff.eval (C x₀)).eval z ≠ 0 := by
-      intro h0
-      apply hHz_ne
-      simp [H, h0]
-    have hΔ_z_ne : (Δ.eval (C x₀)).eval z ≠ 0 := by
-      intro h0
-      apply hHz_ne
-      simp [H, h0]
+  let T_ofG : F[X][X] → Finset F := fun G => T'_R.filter fun z =>
+    ∃ P : F[X], P.natDegree ≤ d ∧ (evZ₂ z S).eval (P ^ μ) = 0 ∧
+      (G.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 ∧
+      (S₀.derivative.map (evZ z)).eval ((P ^ μ).eval x₀) ≠ 0 ∧
+      B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z), W i
+  have hcover' : T'_R ⊆ gs.toFinset.biUnion T_ofG := fun z hz => by
+    obtain ⟨hz_TR, hHz_ne⟩ := mem_filter.1 hz
     obtain ⟨P, hP_deg, hR_eval0, hW_P⟩ := hTR_mem z hz_TR
     have hS_eval0 : (evZ₂ z S).eval (P ^ μ) = 0 := by
       have hmap : evZ₂ z R = Polynomial.expand F[X] μ (evZ₂ z S) := by
         rw [← hexp_S, evZ₂, Polynomial.coe_mapRingHom, Polynomial.map_expand]
-      rw [hmap, Polynomial.expand_eval] at hR_eval0
-      exact hR_eval0
+      rwa [hmap, Polynomial.expand_eval] at hR_eval0
     set yz : F := (P ^ μ).eval x₀
     have hS₀_eval0 : (S₀.map (evZ z)).eval yz = 0 := by
       rw [hS₀_map_evZ z, Polynomial.eval_map]
@@ -1307,71 +1090,52 @@ private theorem exists_good_shift_and_factor
       rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
       change (evZ₂ z S).eval₂ (Polynomial.evalRingHom x₀) (Polynomial.evalRingHom x₀ (P ^ μ)) = 0
       rw [← hhom, hS_eval0, map_zero]
-    have hγ_eval_ne : (γ.map (evZ z)).eval yz ≠ 0 := by
+    have hγ_eval_ne : (S₀.derivative.map (evZ z)).eval yz ≠ 0 := fun hγ0 => by
       obtain ⟨A₀, B₀, hAB⟩ := hbez₀
-      have hmap := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval yz) hAB
-      rw [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_mul, Polynomial.map_C,
-        eval_add, eval_mul, eval_mul, eval_C, hS₀_eval0, zero_mul, zero_add] at hmap
-      intro hγ0
-      rw [hγ0, zero_mul] at hmap
-      exact hΔ_z_ne hmap.symm
-    -- Strip `C c₀`, whose leading-coefficient factor is nonzero at `z`.
-    have hc₀_z_ne : c₀.eval z ≠ 0 := by
-      have hlc_prod : S₀.leadingCoeff = c₀ * gs.prod.leadingCoeff := by
-        rw [hS₀_eq, Polynomial.leadingCoeff_mul, Polynomial.leadingCoeff_C]
-      intro h0
-      apply hlc_z_ne
-      rw [← hS₀_lc, hlc_prod, eval_mul, h0, zero_mul]
-    have hgs_eval0 : (gs.prod.map (evZ z)).eval yz = 0 := by
-      rw [hS₀_eq, Polynomial.map_mul, Polynomial.map_C, eval_mul, eval_C] at hS₀_eval0
-      exact (mul_eq_zero.1 hS₀_eval0).resolve_left hc₀_z_ne
-    obtain ⟨G, hG_mem, hv0⟩ := exists_mem_eval_map_eq_zero (evZ z) gs yz hgs_eval0
+      have hm := congrArg (fun p : F[X][X] => (p.map (evZ z)).eval yz) hAB
+      simp only [Polynomial.map_add, Polynomial.map_mul, Polynomial.map_C, eval_add, eval_mul,
+        eval_C, hS₀_eval0, zero_mul, zero_add, hγ0] at hm
+      exact hHz_ne (by
+        have hΔ0 : (Δ.eval (C x₀)).eval z = 0 := by simpa only [evZ, coe_evalRingHom] using hm.symm
+        simp only [H, eval_mul, hΔ0, mul_zero])
+    have hc₀_z_ne : c₀.eval z ≠ 0 := fun h0 => hHz_ne <| by
+      have hlc : S.leadingCoeff.eval (C x₀) = c₀ * gs.prod.leadingCoeff := by
+        calc S.leadingCoeff.eval (C x₀) = S₀.coeff S₀.natDegree := by
+              rw [hS₀_deg, coeff_map]; rfl
+          _ = c₀ * gs.prod.leadingCoeff := by
+              change S₀.leadingCoeff = _
+              rw [hS₀_eq, Polynomial.leadingCoeff_mul, Polynomial.leadingCoeff_C]
+      simp only [H, eval_mul, hlc, eval_mul, h0, zero_mul]
+    rw [hS₀_eq, Polynomial.map_mul, Polynomial.map_C, eval_mul, eval_C] at hS₀_eval0
+    obtain ⟨G, hG_mem, hv0⟩ :=
+      exists_mem_eval_map_eq_zero (evZ z) gs yz ((mul_eq_zero.1 hS₀_eval0).resolve_left hc₀_z_ne)
     exact mem_biUnion.2 ⟨G, Multiset.mem_toFinset.2 hG_mem,
       mem_filter.2 ⟨hz, P, hP_deg, hS_eval0, hv0, hγ_eval_ne, hW_P⟩⟩
-  -- Pigeonhole over `G ∈ gs.toFinset` (`#gs.toFinset ≤ s`).
   set B_step := W_tot * D_Y * (4 * D * B_Z + r * D_Y)
-  have hT'_gt : s * B_step < #T'_R := by
-    have h1 : 2 * s * B_Z + s * B_step ≤
-        2 * R.natDegree * (D + B_Z) + W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) := by
-      have ha : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
-      have hb : s * B_step ≤ W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) := by
-        dsimp only [B_step]
-        have hmul : s * (W_tot * D_Y * (4 * D * B_Z + r * D_Y)) =
-            W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) := by ring
-        rw [hmul]
-        exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs_le_dR))
-      omega
-    omega
   have hsum_G : ∑ _G ∈ gs.toFinset, B_step < ∑ G ∈ gs.toFinset, #(T_ofG G) := by
-    have h1 : ∑ _G ∈ gs.toFinset, B_step ≤ s * B_step := by
-      rw [Finset.sum_const, smul_eq_mul]
-      exact Nat.mul_le_mul_right B_step hgs_card
-    have h2 : #T'_R ≤ ∑ G ∈ gs.toFinset, #(T_ofG G) :=
+    have h1 : 2 * s * B_Z ≤ 2 * R.natDegree * (D + B_Z) := by nlinarith
+    have h2 : s * B_step ≤ W_tot * R.natDegree * D_Y * (4 * D * B_Z + r * D_Y) := by
+      rw [show s * B_step = W_tot * s * D_Y * (4 * D * B_Z + r * D_Y) by dsimp [B_step]; ring]
+      exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ (Nat.mul_le_mul_left _ hs_le_dR))
+    have h3 : ∑ _G ∈ gs.toFinset, B_step ≤ s * B_step := by
+      rw [Finset.sum_const, smul_eq_mul]; exact Nat.mul_le_mul_right B_step hgs_card
+    have h4 : #T'_R ≤ ∑ G ∈ gs.toFinset, #(T_ofG G) :=
       (card_le_card hcover').trans Finset.card_biUnion_le
     omega
   obtain ⟨Fstar, hF_fin, hF_card⟩ := Finset.exists_lt_of_sum_lt hsum_G
-  have hF_mem : Fstar ∈ gs := Multiset.mem_toFinset.1 hF_fin
+  have hF_mem := Multiset.mem_toFinset.1 hF_fin
   obtain ⟨hF_irred, hF_prim, hF_deg1⟩ := hgs_prop Fstar hF_mem
   have hF_dvd : Fstar ∣ S₀ := (Multiset.dvd_prod hF_mem).trans ⟨C c₀, by rw [hS₀_eq, mul_comm]⟩
-  have hF_deg_le : Fstar.natDegree ≤ s :=
-    (Polynomial.natDegree_le_of_dvd hF_dvd hS₀_ne).trans hS₀_deg.le
   have hF_degZ : degZ₂ Fstar ≤ B_Z := by
-    rcases hF_dvd with ⟨Q', hQ'⟩
-    have hF0 : Fstar ≠ 0 := hF_irred.ne_zero
+    obtain ⟨Q', hQ'⟩ := hF_dvd
     have hQ'0 : Q' ≠ 0 := fun h => hS₀_ne (by rw [hQ', h, mul_zero])
-    have hmul := degZ₂_mul hF0 hQ'0
-    rw [← hQ'] at hmul
-    omega
-  refine ⟨x₀, Fstar, T_ofG Fstar, hS₀_deg, hS₀_degZ, hΔ_x₀_ne, hbez₀, hF_irred, hF_prim,
-    hF_deg1, hF_deg_le, hF_degZ, hF_dvd,
-    (Finset.filter_subset _ _).trans (Finset.filter_subset _ _), hF_card, fun z hz => ?_⟩
-  have hz1 := mem_filter.1 hz
-  have hz2 := mem_filter.1 hz1.1
-  have hlc_z_ne : (S.leadingCoeff.eval (C x₀)).eval z ≠ 0 := fun h0 =>
-    hz2.2 (by simp [H, h0])
-  have hΔ_z_ne : (Δ.eval (C x₀)).eval z ≠ 0 := fun h0 =>
-    hz2.2 (by simp [H, h0])
-  exact ⟨hlc_z_ne, hΔ_z_ne, hz1.2⟩
+    have hmul := degZ₂_mul hF_irred.ne_zero hQ'0
+    rw [← hQ'] at hmul; omega
+  exact ⟨x₀, Fstar, T_ofG Fstar, hS₀_deg, hS₀_degZ, hΔ_x₀_ne, hbez₀, hF_irred, hF_prim, hF_deg1,
+    (Polynomial.natDegree_le_of_dvd hF_dvd hS₀_ne).trans hS₀_deg.le, hF_degZ, hF_dvd,
+    (Finset.filter_subset _ _).trans (Finset.filter_subset _ _), hF_card, fun z hz =>
+    let hz1 := mem_filter.1 hz; let hz2 := mem_filter.1 hz1.1
+    ⟨fun h0 => hz2.2 (by simp [H, h0]), fun h0 => hz2.2 (by simp [H, h0]), hz1.2⟩⟩
 
 end Step4ShiftAndFactor
 
@@ -1481,52 +1245,35 @@ private theorem eval_map_shifted_eq_sum {A : Type*} [CommRing A]
     ((S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom).map (Polynomial.mapRingHom ψ)).eval W =
       ∑ a ∈ range (D + 1), (shiftedCoeff S x₀ a).eval₂ (C.comp ψ) W * X ^ a := by
   set Sshift : F[X][X][X] := S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom
-  have hdeg_map : (Sshift.map (Polynomial.mapRingHom ψ)).natDegree < S.natDegree + 1 := by
-    refine Nat.lt_succ_of_le (Polynomial.natDegree_map_le.trans Polynomial.natDegree_map_le)
-  rw [eval_eq_sum_range' hdeg_map]
-  have hinner : ∀ b,
-      ((Sshift.map (Polynomial.mapRingHom ψ)).coeff b) =
+  rw [eval_eq_sum_range' (Nat.lt_succ_of_le
+    (Polynomial.natDegree_map_le.trans Polynomial.natDegree_map_le))]
+  have hinner (b : ℕ) : (Sshift.map (Polynomial.mapRingHom ψ)).coeff b =
       ∑ a ∈ range (D + 1), C (ψ ((shiftedCoeff S x₀ a).coeff b)) * X ^ a := by
-    intro b
-    have hSc : Sshift.coeff b = taylor (C x₀) (S.coeff b) := by
-      rw [coeff_map]
-      rfl
+    have hSc : Sshift.coeff b = taylor (C x₀) (S.coeff b) := by rw [coeff_map]; rfl
+    have hdegX : ((Sshift.coeff b).map ψ).natDegree < D + 1 := Nat.lt_succ_of_le <|
+      Polynomial.natDegree_map_le.trans <| natDegree_le_iff_coeff_eq_zero.2 fun a ha =>
+        by_contra fun hne => by
+          have := shiftedCoeff_weighted_le hS_wd (a := a) (b := b)
+            (by rw [coeff_shiftedCoeff, ← hSc]; exact hne)
+          omega
     rw [coeff_map]
     change (Sshift.coeff b).map ψ = _
-    have hdegX : ((Sshift.coeff b).map ψ).natDegree < D + 1 := by
-      refine Nat.lt_succ_of_le (Polynomial.natDegree_map_le.trans ?_)
-      rw [natDegree_le_iff_coeff_eq_zero]
-      intro a ha
-      by_contra hne
-      have hne' : (shiftedCoeff S x₀ a).coeff b ≠ 0 := by
-        rw [coeff_shiftedCoeff, ← hSc]
-        exact hne
-      have hle := shiftedCoeff_weighted_le hS_wd hne'
-      omega
     rw [Polynomial.as_sum_range' _ (D + 1) hdegX]
-    refine Finset.sum_congr rfl fun a _ => ?_
-    rw [coeff_map, ← C_mul_X_pow_eq_monomial, coeff_shiftedCoeff, hSc]
-  calc ∑ b ∈ range (S.natDegree + 1),
-          (Sshift.map (Polynomial.mapRingHom ψ)).coeff b * W ^ b
+    exact Finset.sum_congr rfl fun a _ => by
+      rw [coeff_map, ← C_mul_X_pow_eq_monomial, coeff_shiftedCoeff, hSc]
+  calc ∑ b ∈ range (S.natDegree + 1), (Sshift.map (Polynomial.mapRingHom ψ)).coeff b * W ^ b
       = ∑ b ∈ range (S.natDegree + 1),
-          (∑ a ∈ range (D + 1), C (ψ ((shiftedCoeff S x₀ a).coeff b)) * X ^ a) * W ^ b := by
-        refine Finset.sum_congr rfl fun b _ => by rw [hinner b]
-    _ = ∑ b ∈ range (S.natDegree + 1),
-          ∑ a ∈ range (D + 1), (C (ψ ((shiftedCoeff S x₀ a).coeff b)) * W ^ b) * X ^ a := by
-        refine Finset.sum_congr rfl fun b _ => ?_
-        rw [Finset.sum_mul]
-        refine Finset.sum_congr rfl fun a _ => by ring
+          ∑ a ∈ range (D + 1), (C (ψ ((shiftedCoeff S x₀ a).coeff b)) * W ^ b) * X ^ a :=
+        Finset.sum_congr rfl fun b _ => by
+          rw [hinner b, Finset.sum_mul]; exact Finset.sum_congr rfl fun _ _ => by ring
     _ = ∑ a ∈ range (D + 1),
           ∑ b ∈ range (S.natDegree + 1), (C (ψ ((shiftedCoeff S x₀ a).coeff b)) * W ^ b) * X ^ a :=
         Finset.sum_comm
-    _ = ∑ a ∈ range (D + 1), (shiftedCoeff S x₀ a).eval₂ (C.comp ψ) W * X ^ a := by
-        refine Finset.sum_congr rfl fun a _ => ?_
-        rw [← Finset.sum_mul]
-        congr 1
-        have hdeg_a : (shiftedCoeff S x₀ a).natDegree < S.natDegree + 1 :=
-          Nat.lt_succ_of_le (natDegree_shiftedCoeff_le S x₀ a)
-        rw [eval₂_eq_sum_range' (C.comp ψ) hdeg_a W]
-        rfl
+    _ = ∑ a ∈ range (D + 1), (shiftedCoeff S x₀ a).eval₂ (C.comp ψ) W * X ^ a :=
+        Finset.sum_congr rfl fun a _ => by
+          rw [← Finset.sum_mul,
+            eval₂_eq_sum_range' (C.comp ψ) (Nat.lt_succ_of_le (natDegree_shiftedCoeff_le S x₀ a)) W]
+          rfl
 
 /-- Shifting `S(Z, X, P(X))` by `x₀` after mapping `F[Z] →+* A` matches evaluating `Sshift` at
 `taylor (ψ (C x₀)) P`. -/
@@ -1540,15 +1287,14 @@ private theorem taylor_eval_map_eq_sum {A : Type*} [CommRing A]
   have hcomm : τ.comp (Polynomial.mapRingHom ψ) =
       (Polynomial.mapRingHom ψ).comp (Polynomial.taylorAlgHom (C x₀)).toRingHom := by
     apply Polynomial.ringHom_ext'
-    · apply RingHom.ext
-      intro p
+    · apply RingHom.ext; intro p
       simp only [RingHom.comp_apply, Polynomial.coe_mapRingHom, Polynomial.map_C, τ,
         AlgHom.toRingHom_eq_coe, RingHom.coe_coe]
-      change taylor (ψ (C x₀)) (C (ψ p)) = Polynomial.map ψ (taylor (C x₀) (C p))
+      change taylor (ψ (C x₀)) (C (ψ p)) = (taylor (C x₀) (C p)).map ψ
       rw [taylor_C, taylor_C, Polynomial.map_C]
     · simp only [RingHom.comp_apply, Polynomial.coe_mapRingHom, Polynomial.map_X, τ,
         AlgHom.toRingHom_eq_coe, RingHom.coe_coe]
-      change taylor (ψ (C x₀)) X = Polynomial.map ψ (taylor (C x₀) X)
+      change taylor (ψ (C x₀)) X = (taylor (C x₀) X).map ψ
       rw [taylor_X, taylor_X, Polynomial.map_add, Polynomial.map_X, Polynomial.map_C]
   have h1 : τ ((S.map (Polynomial.mapRingHom ψ)).eval P) =
       ((S.map (Polynomial.taylorAlgHom (C x₀)).toRingHom).map (Polynomial.mapRingHom ψ)).eval
@@ -1601,6 +1347,39 @@ private theorem recPoly_succ (S : F[X][X][X]) (x₀ : F) (s n : ℕ) :
   rw [Finset.sum_attach (Icc 1 n) (fun k => C (recPoly S x₀ s k) * X ^ k)]
   rfl
 
+/-- Degree bound on coefficients of `U ^ j` when `U.coeff 0 = 0` and
+`deg (U.coeff k) ≤ (2 * k - 1) * B` for all `k ≥ 1`. -/
+private theorem deg_pow_coeff_le {R : Type*} [CommRing R] (db : DegBound R)
+    {U : R[X]} {B : ℕ} (hU0 : U.coeff 0 = 0)
+    (hUk : ∀ k, 1 ≤ k → U.coeff k ≠ 0 → db.deg (U.coeff k) ≤ (2 * k - 1) * B) :
+    ∀ j, 1 ≤ j → ∀ t, (U ^ j).coeff t ≠ 0 →
+      j ≤ t ∧ db.deg ((U ^ j).coeff t) ≤ (2 * t - j) * B := by
+  intro j
+  induction j with
+  | zero => intro hj; omega
+  | succ j ihj =>
+    intro _ t hne
+    cases j with
+    | zero =>
+      rw [pow_one] at hne ⊢
+      have ht : 1 ≤ t := Nat.pos_of_ne_zero fun h0 => by subst h0; exact hne hU0
+      exact ⟨ht, hUk t ht hne⟩
+    | succ j =>
+      have ht_ge : j + 2 ≤ t := by_contra fun hlt =>
+        hne (coeff_pow_eq_zero_of_lt_of_coeff_zero hU0 (j + 2) t (by omega))
+      refine ⟨ht_ge, ?_⟩
+      rw [pow_succ, coeff_mul]
+      refine db.sum_le _ _ fun x hx => ?_
+      have hxsum : x.1 + x.2 = t := Finset.mem_antidiagonal.1 hx
+      by_cases h1 : (U ^ (j + 1)).coeff x.1 = 0
+      · rw [h1, zero_mul, db.zero]; exact Nat.zero_le _
+      · by_cases h2 : U.coeff x.2 = 0
+        · rw [h2, mul_zero, db.zero]; exact Nat.zero_le _
+        · have hx2 : 1 ≤ x.2 := Nat.pos_of_ne_zero fun h0 => h2 (h0 ▸ hU0)
+          have hIH1 := ihj (by omega) x.1 h1
+          refine (db.mul_le _ _).trans <| (Nat.add_le_add hIH1.2 (hUk x.2 hx2 h2)).trans_eq ?_
+          rw [← add_mul]; congr 1; omega
+
 /-- Generic degree bound for `recPoly` under any `DegBound` on `F[Z][Y]`. -/
 private theorem deg_recPoly_le (db : DegBound F[X][X])
     {S : F[X][X][X]} {x₀ : F} {s B : ℕ}
@@ -1614,98 +1393,40 @@ private theorem deg_recPoly_le (db : DegBound F[X][X])
     cases n with
     | zero => omega
     | succ m =>
-      -- Bound coefficients of `(recU S x₀ s m) ^ j` using the strong IH on `1 ≤ k ≤ m`.
-      have hUpow : ∀ j t,
-          (j = 0 → db.deg (((recU S x₀ s m) ^ j).coeff t) = 0) ∧
-          (1 ≤ j → (((recU S x₀ s m) ^ j).coeff t ≠ 0 →
-            j ≤ t ∧ db.deg (((recU S x₀ s m) ^ j).coeff t) ≤ (2 * t - j) * B)) := by
-        intro j
-        induction j with
-        | zero =>
-          intro t
-          refine ⟨fun _ => ?_, fun h => by omega⟩
-          rw [pow_zero, coeff_one]
-          split_ifs <;> simp [db.zero, db.one]
-        | succ j ihj =>
-          intro t
-          refine ⟨fun h => by omega, fun _ hne => ?_⟩
-          cases j with
-          | zero =>
-            rw [pow_one, coeff_recU] at hne ⊢
-            split_ifs at hne ⊢ with ht
-            · exact ⟨ht.1, ih t (by omega) ht.1⟩
-            · exact absurd rfl hne
-          | succ j =>
-            have ht_ge : j + 2 ≤ t := by
-              by_contra hlt
-              exact hne (coeff_pow_eq_zero_of_lt_of_coeff_zero (coeff_recU_zero S x₀ s m)
-                (j + 2) t (by omega))
-            refine ⟨ht_ge, ?_⟩
-            rw [pow_succ, coeff_mul]
-            refine db.sum_le _ _ fun x hx => ?_
-            have hxsum : x.1 + x.2 = t := Finset.mem_antidiagonal.1 hx
-            by_cases h1 : ((recU S x₀ s m) ^ (j + 1)).coeff x.1 = 0
-            · rw [h1, zero_mul, db.zero]; exact Nat.zero_le _
-            · by_cases h2 : (recU S x₀ s m).coeff x.2 = 0
-              · rw [h2, mul_zero, db.zero]; exact Nat.zero_le _
-              · have hIH1 := (ihj x.1).2 (by omega) h1
-                have hIH2 : 1 ≤ x.2 ∧ db.deg ((recU S x₀ s m).coeff x.2) ≤ (2 * x.2 - 1) * B := by
-                  rw [coeff_recU] at h2 ⊢
-                  split_ifs at h2 ⊢ with hx2
-                  · exact ⟨hx2.1, ih x.2 (by omega) hx2.1⟩
-                  · exact absurd rfl h2
-                refine (db.mul_le _ _).trans ?_
-                have hadd' := Nat.add_le_add hIH1.2 hIH2.2
-                have heq : (2 * x.1 - (j + 1)) * B + (2 * x.2 - 1) * B =
-                    (2 * t - (j + 1 + 1)) * B := by
-                  rw [← add_mul]
-                  congr 1
-                  omega
-                exact hadd'.trans_eq heq
+      have hUpow := deg_pow_coeff_le db (coeff_recU_zero S x₀ s m) (B := B) fun k hk hne => by
+        rw [coeff_recU] at hne ⊢
+        split_ifs at hne ⊢ with hkm
+        · exact ih k (by omega) hkm.1
+        · exact absurd rfl hne
       rw [recPoly_succ, db.neg]
-      refine db.sum_le _ _ fun a ha => ?_
+      refine db.sum_le _ _ fun a ha => db.sum_le _ _ fun j _ => ?_
       have ha_le : a ≤ m + 1 := Nat.lt_succ_iff.1 (mem_range.1 ha)
-      refine db.sum_le _ _ fun j _ => ?_
       split_ifs with hskip
       · rw [db.zero]; exact Nat.zero_le _
-      · have h2aj : 2 ≤ 2 * a + j := by omega
-        by_cases hj0 : j = 0
+      · by_cases hj0 : j = 0
         · subst hj0
           by_cases han : a = m + 1
           · subst han
             have hcoeff : ((recU S x₀ s m) ^ 0).coeff 0 = 1 := by simp
             rw [Nat.sub_self, hcoeff, mul_one]
-            refine (db.mul_le _ _).trans ?_
-            have h1 := hS (m + 1) 0
-            have h2 := (db.pow_le _ (2 * (m + 1) + 0 - 2)).trans
-              (Nat.mul_le_mul_left _ hγ)
-            have heq : B + (2 * (m + 1) + 0 - 2) * B = (2 * (m + 1) - 1) * B := by
-              calc B + (2 * (m + 1) + 0 - 2) * B
-                  = (1 + (2 * (m + 1) + 0 - 2)) * B := by ring
-                _ = (2 * (m + 1) - 1) * B := by congr 1; omega
-            omega
-          · have hcoeff : ((recU S x₀ s m) ^ 0).coeff (m + 1 - a) = 0 := by
-              rw [pow_zero, coeff_one, ite_eq_right (by omega)]
-            rw [hcoeff, mul_zero, db.zero]
+            refine (db.mul_le _ _).trans <|
+              (Nat.add_le_add (hS (m + 1) 0) ((db.pow_le _ _).trans
+                (Nat.mul_le_mul_left _ hγ))).trans_eq ?_
+            have : B + (2 * (m + 1) + 0 - 2) * B = (1 + (2 * (m + 1) + 0 - 2)) * B := by ring
+            rw [this]; congr 1; omega
+          · rw [pow_zero, coeff_one, ite_eq_right (by omega), mul_zero, db.zero]
             exact Nat.zero_le _
         · by_cases hU0 : ((recU S x₀ s m) ^ j).coeff (m + 1 - a) = 0
-          · rw [hU0, mul_zero, db.zero]
-            exact Nat.zero_le _
-          · have hUdeg := (hUpow j (m + 1 - a)).2 (by omega) hU0
-            refine (db.mul_le _ _).trans ?_
-            refine (Nat.add_le_add (db.mul_le _ _) le_rfl).trans ?_
+          · rw [hU0, mul_zero, db.zero]; exact Nat.zero_le _
+          · have hUdeg := hUpow j (by omega) (m + 1 - a) hU0
+            refine (db.mul_le _ _).trans <| (Nat.add_le_add (db.mul_le _ _) le_rfl).trans ?_
             have h1 := hS a j
             have h2 := (db.pow_le _ (2 * a + j - 2)).trans (Nat.mul_le_mul_left _ hγ)
-            have h3 := hUdeg.2
-            have heq : B + (2 * a + j - 2) * B + (2 * (m + 1 - a) - j) * B =
-                (2 * (m + 1) - 1) * B := by
-              calc B + (2 * a + j - 2) * B + (2 * (m + 1 - a) - j) * B
-                  = (1 + (2 * a + j - 2) + (2 * (m + 1 - a) - j)) * B := by ring
-                _ = (2 * (m + 1) - 1) * B := by
-                    congr 1
-                    have := hUdeg.1
-                    omega
-            omega
+            have hle := Nat.add_le_add (Nat.add_le_add h1 h2) hUdeg.2
+            refine hle.trans_eq ?_
+            calc B + (2 * a + j - 2) * B + (2 * (m + 1 - a) - j) * B
+                = (1 + (2 * a + j - 2) + (2 * (m + 1 - a) - j)) * B := by ring
+              _ = (2 * (m + 1) - 1) * B := by congr 1; have := hUdeg.1; omega
 
 private theorem degZ₂_recPoly_le {S : F[X][X][X]} {x₀ : F} {s B_Z : ℕ}
     (hS_degZ : degZ S ≤ B_Z) :
@@ -1726,6 +1447,30 @@ private theorem natDegree_recPoly_le {S : F[X][X][X]} {x₀ : F} {s : ℕ}
       Polynomial.natDegree_map_le.trans hS_deg
     omega
 
+private theorem eval₂_shifted_comp_mul_X_coeff {A : Type*} [CommRing A]
+    (S : F[X][X][X]) (x₀ : F) {s : ℕ} (hS_deg : S.natDegree ≤ s)
+    (φ : F[X][X] →+* A) (g : A) (U : A[X]) {a n : ℕ} (han : a ≤ n) :
+    (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U)) *
+      (C (g ^ 2) * X) ^ a).coeff n =
+      ∑ j ∈ range (s + 1),
+        φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) * (U ^ j).coeff (n - a) := by
+  rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow', ite_eq_left han,
+    eval₂_add_eq_sum_hasseDeriv (C.comp (φ.comp C)) _
+      ((natDegree_shiftedCoeff_le S x₀ a).trans hS_deg) (C (φ X)) (C g * U),
+    Finset.sum_mul, finsetSum_coeff]
+  refine Finset.sum_congr rfl fun j _ => ?_
+  have hev : (hasseDeriv j (shiftedCoeff S x₀ a)).eval₂ (C.comp (φ.comp C)) (C (φ X)) =
+      C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) := by
+    rw [← Polynomial.hom_eval₂ _ (φ.comp C) (C : A →+* A[X]) (φ X)]
+    congr 1
+    simpa only [Polynomial.eval₂_C_X] using
+      (Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) C φ X).symm
+  rw [hev, mul_pow, ← C_pow,
+    show C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) * (C (g ^ j) * U ^ j) * C ((g ^ 2) ^ a) =
+      C (φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j)) * U ^ j by
+      rw [pow_add, pow_mul, map_mul, map_mul]; ring,
+    coeff_C_mul]
+
 /-- Specialization uniqueness: for any domain homomorphism `φ : F[Z][Y] →+* A` with `φ S₀ = 0`
 and `φ γ ≠ 0`, any polynomial `W ∈ A[X]` solving `∑_a S̃_a(W) X^a = 0` with `W(0) = φ Y`
 satisfies `(φ γ)^(2 n - 1) * W.coeff n = φ (N_n)` for every `n ≥ 1`. -/
@@ -1743,12 +1488,10 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
   set S₀ := S.map (Polynomial.evalRingHom (C x₀))
   set γ := S₀.derivative
   set g : A := φ γ
-  -- Define `U_W(T) = ∑_{k=1}^{deg W} g^(2k-1) W_k T^k`, so `W(g² T) = φ(Y) + g U_W(T)`.
   set U_W : A[X] := ∑ k ∈ Icc 1 W.natDegree, C (g ^ (2 * k - 1) * W.coeff k) * X ^ k
   have hU_W_zero : U_W.coeff 0 = 0 := by
     rw [coeff_sum_Icc_C_mul_X_pow, ite_eq_right (by omega)]
-  have hU_W_coeff : ∀ k, 1 ≤ k → U_W.coeff k = g ^ (2 * k - 1) * W.coeff k := by
-    intro k hk1
+  have hU_W_coeff : ∀ k, 1 ≤ k → U_W.coeff k = g ^ (2 * k - 1) * W.coeff k := fun k hk1 => by
     rw [coeff_sum_Icc_C_mul_X_pow]
     split_ifs with hk
     · rfl
@@ -1757,38 +1500,24 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
     ext k
     rw [Polynomial.comp_C_mul_X_coeff, coeff_add, coeff_C_mul]
     cases k with
-    | zero =>
-      rw [pow_zero, mul_one, coeff_C_zero, hU_W_zero, mul_zero, add_zero, hW0]
+    | zero => rw [pow_zero, mul_one, coeff_C_zero, hU_W_zero, mul_zero, add_zero, hW0]
     | succ k =>
-      rw [coeff_C_succ, zero_add, hU_W_coeff (k + 1) (by omega)]
-      have hexp : g * (g ^ (2 * (k + 1) - 1) * W.coeff (k + 1)) =
-          W.coeff (k + 1) * (g ^ 2) ^ (k + 1) := by
-        rw [← pow_mul, mul_comm (W.coeff (k + 1)), ← mul_assoc, ← pow_succ']
-        congr 2
-      exact hexp.symm
-  -- Apply `.comp (C (g ^ 2) * X)` to `hWeq`.
-  have hcomp0 :
-      ∑ a ∈ range (D + 1),
-        ((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
-          (C (g ^ 2) * X) ^ a = 0 := by
+      rw [coeff_C_succ, zero_add, hU_W_coeff (k + 1) (by omega), ← pow_mul,
+        mul_comm (W.coeff (k + 1)), ← mul_assoc, ← pow_succ']
+      rfl
+  have hcomp0 : ∑ a ∈ range (D + 1),
+      ((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
+        (C (g ^ 2) * X) ^ a = 0 := by
     have hc := congrArg (fun p : A[X] => p.comp (C (g ^ 2) * X)) hWeq
     rw [Polynomial.zero_comp, Polynomial.sum_comp] at hc
     refine (Finset.sum_congr rfl fun a _ => ?_).symm.trans hc
-    rw [Polynomial.mul_comp, Polynomial.pow_comp, Polynomial.X_comp]
+    rw [Polynomial.mul_comp, Polynomial.pow_comp, Polynomial.X_comp, ← hW_comp]
     congr 1
-    rw [← hW_comp]
-    have hcomp_eval₂ : ∀ (p : F[X][X]),
-        (p.eval₂ (C.comp (φ.comp C)) W).comp (C (g ^ 2) * X) =
-        p.eval₂ (C.comp (φ.comp C)) (W.comp (C (g ^ 2) * X)) := by
-      intro p
-      have hfc : (Polynomial.compRingHom (C (g ^ 2) * X)).comp (C.comp (φ.comp C)) =
-          C.comp (φ.comp C) := RingHom.ext fun c => by simp [Polynomial.compRingHom]
-      have hhom := Polynomial.hom_eval₂ p (C.comp (φ.comp C))
-        (Polynomial.compRingHom (C (g ^ 2) * X)) W
-      rw [hfc] at hhom
-      exact hhom
-    exact hcomp_eval₂ (shiftedCoeff S x₀ a)
-  -- Strong induction on `n ≥ 1`.
+    have hfc : (Polynomial.compRingHom (C (g ^ 2) * X)).comp (C.comp (φ.comp C)) =
+        C.comp (φ.comp C) := RingHom.ext fun c => by simp [Polynomial.compRingHom]
+    have hhom := Polynomial.hom_eval₂ (shiftedCoeff S x₀ a) (C.comp (φ.comp C))
+      (Polynomial.compRingHom (C (g ^ 2) * X)) W
+    rw [hfc] at hhom; exact hhom
   intro n
   induction n using Nat.strongRecOn with
   | ind n ih =>
@@ -1798,107 +1527,65 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
     | succ m =>
       have hc0 := congrArg (fun p : A[X] => p.coeff (m + 1)) hcomp0
       rw [coeff_zero, finsetSum_coeff] at hc0
-      set term : ℕ → A := fun a =>
-        ∑ j ∈ range (s + 1),
-          φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-            (U_W ^ j).coeff (m + 1 - a)
-      have hterm : ∀ a ≤ m + 1,
-          (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
-            (C (g ^ 2) * X) ^ a).coeff (m + 1) = term a := by
-        intro a han
-        rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow', ite_eq_left han]
-        have ha_deg : (shiftedCoeff S x₀ a).natDegree ≤ s :=
-          (natDegree_shiftedCoeff_le S x₀ a).trans hS_deg
-        rw [eval₂_add_eq_sum_hasseDeriv (C.comp (φ.comp C)) (shiftedCoeff S x₀ a) ha_deg
-          (C (φ X)) (C g * U_W), Finset.sum_mul, finsetSum_coeff]
-        refine Finset.sum_congr rfl fun j _ => ?_
-        have hev : (hasseDeriv j (shiftedCoeff S x₀ a)).eval₂ (C.comp (φ.comp C)) (C (φ X)) =
-            C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) := by
-          have hhom := Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) (φ.comp C)
-            (C : A →+* A[X]) (φ X)
-          rw [← hhom]
-          congr 1
-          have hhom2 := Polynomial.hom_eval₂ (hasseDeriv j (shiftedCoeff S x₀ a)) C φ X
-          rw [Polynomial.eval₂_C_X] at hhom2
-          exact hhom2.symm
-        rw [hev, mul_pow, ← C_pow]
-        have hre : C (φ (hasseDeriv j (shiftedCoeff S x₀ a))) * (C (g ^ j) * U_W ^ j) *
-            C ((g ^ 2) ^ a) =
-            C (φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j)) * U_W ^ j := by
-          rw [pow_add, pow_mul, map_mul, map_mul]
-          ring
-        rw [hre, coeff_C_mul]
+      set term : ℕ → A := fun a => ∑ j ∈ range (s + 1),
+        φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) * (U_W ^ j).coeff (m + 1 - a)
       have hmin_eq : ∑ a ∈ range (min D (m + 1) + 1), term a = 0 := by
         have hsub : ∑ a ∈ range (min D (m + 1) + 1),
             (((shiftedCoeff S x₀ a).eval₂ (C.comp (φ.comp C)) (C (φ X) + C g * U_W)) *
-              (C (g ^ 2) * X) ^ a).coeff (m + 1) = 0 := by
-          refine (Finset.sum_subset
-            (Finset.range_mono (Nat.succ_le_succ (min_le_left _ _))) ?_).trans hc0
-          intro a ha ha_not
-          rw [mem_range] at ha ha_not
-          rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow', ite_eq_right (by omega)]
-        rw [← hsub]
-        refine Finset.sum_congr rfl fun a ha => (hterm a (by rw [mem_range] at ha; omega)).symm
-      have hsum_eq : ∑ a ∈ range (m + 2), term a = 0 := by
-        refine (Finset.sum_subset
-          (Finset.range_mono (Nat.succ_le_succ (min_le_right _ _))) ?_).symm.trans hmin_eq
-        intro a ha ha_not
-        rw [mem_range] at ha ha_not
-        refine Finset.sum_eq_zero fun j _ => ?_
-        rw [shiftedCoeff_eq_zero_of_gt hS_wd (by omega), map_zero, map_zero, zero_mul, zero_mul]
-      -- Match `U_W` with `(recU S x₀ s m).map φ` on coefficients `0..m`.
+              (C (g ^ 2) * X) ^ a).coeff (m + 1) = 0 :=
+          (Finset.sum_subset (Finset.range_mono (Nat.succ_le_succ (min_le_left _ _)))
+            fun a ha ha_not => by
+              rw [mem_range] at ha ha_not
+              rw [mul_pow, ← C_pow, ← mul_assoc, coeff_mul_X_pow',
+                ite_eq_right (by omega : ¬ a ≤ m + 1)]).trans hc0
+        exact (Finset.sum_congr rfl fun a ha =>
+          eval₂_shifted_comp_mul_X_coeff S x₀ hS_deg φ g U_W
+            (by rw [mem_range] at ha; omega)).symm.trans hsub
+      have hsum_eq : ∑ a ∈ range (m + 2), term a = 0 :=
+        (Finset.sum_subset (Finset.range_mono (Nat.succ_le_succ (min_le_right _ _)))
+          fun a ha ha_not => Finset.sum_eq_zero fun j _ => by
+            rw [mem_range] at ha ha_not
+            rw [shiftedCoeff_eq_zero_of_gt hS_wd (by omega),
+              map_zero, map_zero, zero_mul, zero_mul]).symm.trans hmin_eq
       set U_map : A[X] := (recU S x₀ s m).map φ
-      have hU_map_zero : U_map.coeff 0 = 0 := by
-        rw [coeff_map, coeff_recU_zero, map_zero]
-      have hagree : ∀ k ≤ m, U_W.coeff k = U_map.coeff k := by
-        intro k hk
+      have hU_map_zero : U_map.coeff 0 = 0 := by rw [coeff_map, coeff_recU_zero, map_zero]
+      have hagree : ∀ k ≤ m, U_W.coeff k = U_map.coeff k := fun k hk => by
         rw [coeff_map, coeff_recU]
         by_cases hk1 : 1 ≤ k
-        · rw [ite_eq_left ⟨hk1, hk⟩, hU_W_coeff k hk1]
-          exact ih k (by omega) hk1
+        · rw [ite_eq_left ⟨hk1, hk⟩, hU_W_coeff k hk1]; exact ih k (by omega) hk1
         · have hk0 : k = 0 := by omega
-          subst hk0
-          rw [ite_eq_right (by omega), hU_W_zero, map_zero]
+          subst hk0; rw [ite_eq_right (by omega), hU_W_zero, map_zero]
       have hsplit : ∀ a ∈ range (m + 2), ∀ j ∈ range (s + 1),
-          φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) *
-            (U_W ^ j).coeff (m + 1 - a) =
+          φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j) * (U_W ^ j).coeff (m + 1 - a) =
           (if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) +
           g ^ 2 * φ (if (a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1) then 0
             else hasseDeriv j (shiftedCoeff S x₀ a) * γ ^ (2 * a + j - 2) *
-              ((recU S x₀ s m) ^ j).coeff (m + 1 - a)) := by
-        intro a ha j _
+              ((recU S x₀ s m) ^ j).coeff (m + 1 - a)) := fun a ha j _ => by
         have ha_le : a ≤ m + 1 := Nat.lt_succ_iff.1 (mem_range.1 ha)
         by_cases h00 : a = 0 ∧ j = 0
         · rcases h00 with ⟨rfl, rfl⟩
-          rw [Nat.sub_zero, pow_zero U_W, coeff_one, ite_eq_right (by omega), mul_zero]
-          simp only [zero_ne_one, and_false, ↓reduceIte, and_self, true_or, map_zero, mul_zero,
-            add_zero]
+          simp [coeff_one]
         · by_cases h01 : a = 0 ∧ j = 1
           · rcases h01 with ⟨rfl, rfl⟩
             simp only [and_self, ↓reduceIte, or_true, map_zero, mul_zero, add_zero, Nat.sub_zero,
-              pow_one, mul_zero, zero_add]
-            rw [shiftedCoeff_zero, hasseDeriv_one', hU_W_coeff (m + 1) (by omega)]
+              pow_one, shiftedCoeff_zero, hasseDeriv_one', hU_W_coeff (m + 1) (by omega),
+              mul_zero, zero_add]
             change g * g * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) = _
             ring
-          · have hnot : ¬ ((a = 0 ∧ j = 0) ∨ (a = 0 ∧ j = 1)) := by tauto
-            rw [ite_eq_right h01, zero_add, ite_eq_right hnot]
-            have h2aj : 2 ≤ 2 * a + j := by omega
-            have hpow_split : g ^ (2 * a + j) = g ^ 2 * g ^ (2 * a + j - 2) := by
+          · rw [ite_eq_right h01, zero_add, ite_eq_right (by tauto : ¬ ((a = 0 ∧ j = 0) ∨ _))]
+            have hpow : g ^ (2 * a + j) = g ^ 2 * g ^ (2 * a + j - 2) := by
               rw [← pow_add]; congr 1; omega
             have hUeq : (U_W ^ j).coeff (m + 1 - a) =
                 φ (((recU S x₀ s m) ^ j).coeff (m + 1 - a)) := by
               rw [← coeff_map, Polynomial.map_pow]
-              by_cases hj0 : j = 0
-              · subst hj0; simp
+              rcases eq_or_ne j 0 with rfl | hj0
+              · simp
               · exact coeff_pow_eq_of_coeff_eq_of_coeff_zero hU_W_zero hU_map_zero hagree j
                   (by omega) (m + 1 - a) (by omega)
-            rw [hpow_split, hUeq, map_mul, map_mul, map_pow]
-            change _ = g ^ 2 * (φ (hasseDeriv j (shiftedCoeff S x₀ a)) * g ^ (2 * a + j - 2) *
-              φ (((recU S x₀ s m) ^ j).coeff (m + 1 - a)))
-            ring
-      have hsum_split :
-          (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
-            if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) +
+            rw [hpow, hUeq, map_mul, map_mul, map_pow]
+            change _ = g ^ 2 * (φ _ * g ^ (2 * a + j - 2) * φ _); ring
+      have hsum_split : (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
+          if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) +
           g ^ 2 * φ (-recPoly S x₀ s (m + 1)) = 0 := by
         rw [recPoly_succ, neg_neg, map_sum, Finset.mul_sum]
         simp_rw [map_sum, Finset.mul_sum, ← Finset.sum_add_distrib]
@@ -1907,20 +1594,15 @@ private theorem coeff_eq_map_recPoly {A : Type*} [CommRing A] [IsDomain A]
       have hmain : (∑ a ∈ range (m + 2), ∑ j ∈ range (s + 1),
           if a = 0 ∧ j = 1 then g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) else 0) =
           g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1)) := by
-        rw [Finset.sum_eq_single 0]
-        · rw [Finset.sum_eq_single 1]
-          · simp
-          · intro j _ hj1; simp [hj1]
-          · intro h; exact absurd (mem_range.2 (by omega)) h
-        · intro a _ ha0
-          refine Finset.sum_eq_zero fun j _ => by simp [ha0]
-        · intro h; exact absurd (mem_range.2 (by omega)) h
+        rw [Finset.sum_eq_single 0 (fun a _ ha0 => Finset.sum_eq_zero fun _ _ => by simp [ha0])
+          (fun h => absurd (mem_range.2 (by omega)) h),
+          Finset.sum_eq_single 1 (fun j _ hj1 => by simp [hj1])
+          (fun h => absurd (mem_range.2 (by omega)) h)]
+        simp
       rw [hmain, map_neg] at hsum_split
       have hfac : g ^ 2 * (g ^ (2 * (m + 1) - 1) * W.coeff (m + 1) -
-          φ (recPoly S x₀ s (m + 1))) = 0 := by
-        linear_combination hsum_split
-      have hg2 : g ^ 2 ≠ 0 := pow_ne_zero 2 hγ_ne
-      exact sub_eq_zero.1 ((mul_eq_zero.1 hfac).resolve_left hg2)
+          φ (recPoly S x₀ s (m + 1))) = 0 := by linear_combination hsum_split
+      exact sub_eq_zero.1 ((mul_eq_zero.1 hfac).resolve_left (pow_ne_zero 2 hγ_ne))
 
 end Step5Recurrence
 
@@ -1967,41 +1649,30 @@ private theorem deg_evalMismatchPoly_le (db : DegBound F[X][X])
     (hrec : ∀ k, 1 ≤ k → db.deg (recPoly S x₀ s k) ≤ (2 * k - 1) * B) :
     db.deg (evalMismatchPoly S x₀ s μ d a w) ≤
       if μ * d = 0 then max Bx Bw else 2 * (μ * d) * B + Bw := by
-  let γ := (S.map (Polynomial.evalRingHom (C x₀))).derivative
-  change db.deg γ ≤ B at hγ
+  set γ := (S.map (Polynomial.evalRingHom (C x₀))).derivative
   rw [evalMismatchPoly]
   split_ifs with h0
   · exact (db.sub_le _ _).trans (max_le (hX.trans (le_max_left _ _)) (hw.trans (le_max_right _ _)))
-  · refine (db.sub_le _ _).trans (max_le ?_ ?_)
-    · refine (db.add_le _ _).trans (max_le ?_ ?_)
-      · refine (db.mul_le _ _).trans ?_
-        have h2 : db.deg (γ ^ (2 * (μ * d) - 1)) ≤ (2 * (μ * d) - 1) * B :=
-          (db.pow_le _ _).trans (Nat.mul_le_mul_left _ hγ)
-        have hle : B + (2 * (μ * d) - 1) * B = 2 * (μ * d) * B := by
-          calc B + (2 * (μ * d) - 1) * B = (1 + (2 * (μ * d) - 1)) * B := by ring
-            _ = 2 * (μ * d) * B := by congr 1; omega
-        change db.deg X + db.deg (γ ^ (2 * (μ * d) - 1)) ≤ 2 * (μ * d) * B + Bw
-        omega
-      · refine db.sum_le _ _ fun k hk => ?_
-        have hk1 : 1 ≤ k := (mem_Icc.1 hk).1
-        have hkle : k ≤ μ * d := (mem_Icc.1 hk).2
-        refine (db.mul_le _ _).trans ?_
-        rw [hCC, add_zero]
-        refine (db.mul_le _ _).trans ?_
-        have h1 := hrec k hk1
-        have h2 := (db.pow_le _ (2 * (μ * d - k))).trans (Nat.mul_le_mul_left _ hγ)
-        have hle : (2 * k - 1) * B + 2 * (μ * d - k) * B ≤ 2 * (μ * d) * B := by
-          rw [← add_mul]
-          exact Nat.mul_le_mul_right B (by omega)
-        change db.deg (recPoly S x₀ s k) + db.deg (γ ^ (2 * (μ * d - k))) ≤ 2 * (μ * d) * B + Bw
-        omega
-    · refine (db.mul_le _ _).trans ?_
-      have h2 : db.deg (γ ^ (2 * (μ * d) - 1)) ≤ (2 * (μ * d) - 1) * B :=
-        (db.pow_le _ _).trans (Nat.mul_le_mul_left _ hγ)
+  · have hγp (e : ℕ) : db.deg (γ ^ e) ≤ e * B := (db.pow_le _ _).trans (Nat.mul_le_mul_left _ hγ)
+    have hmul_sub : B + (2 * (μ * d) - 1) * B = 2 * (μ * d) * B := by
+      calc B + (2 * (μ * d) - 1) * B = (1 + (2 * (μ * d) - 1)) * B := by ring
+        _ = 2 * (μ * d) * B := by congr 1; omega
+    refine (db.sub_le _ _).trans (max_le ((db.add_le _ _).trans (max_le ?_ ?_)) ?_)
+    · exact (db.mul_le _ _).trans (by
+        have h1 := hγp (2 * (μ * d) - 1)
+        exact (Nat.add_le_add (hX.trans hBx) h1).trans (by omega))
+    · refine db.sum_le _ _ fun k hk => (db.mul_le _ _).trans ?_
+      rw [hCC, add_zero]
+      refine (db.mul_le _ _).trans ?_
+      have hk_mem := mem_Icc.1 hk
+      have h1 := hrec k hk_mem.1; have h2 := hγp (2 * (μ * d - k))
+      have hle : (2 * k - 1) * B + 2 * (μ * d - k) * B ≤ 2 * (μ * d) * B := by
+        rw [← add_mul]; exact Nat.mul_le_mul_right B (by omega)
+      exact (Nat.add_le_add h1 h2).trans (hle.trans (Nat.le_add_right _ _))
+    · have h1 := hγp (2 * (μ * d) - 1)
       have hle : (2 * (μ * d) - 1) * B ≤ 2 * (μ * d) * B :=
         Nat.mul_le_mul_right B (by omega)
-      change db.deg (C (w ^ μ)) + db.deg (γ ^ (2 * (μ * d) - 1)) ≤ 2 * (μ * d) * B + Bw
-      omega
+      exact (db.mul_le _ _).trans ((Nat.add_le_add hw (h1.trans hle)).trans_eq (add_comm _ _))
 
 /-- Evaluating `evalMismatchPoly` under any hom `φ : F[Z][Y] →+* A` matching the recurrence
 coefficients of a polynomial `W ∈ A[X]` of degree `≤ μ * d`. -/
@@ -2020,41 +1691,198 @@ private theorem map_evalMismatchPoly {A : Type*} [CommRing A]
   set g := φ γ
   rw [evalMismatchPoly]
   split_ifs with h0
-  · rw [pow_zero, one_mul, map_sub, C_pow, map_pow]
-    have hW_C : W = C (φ X) := by
-      rw [Polynomial.eq_C_of_natDegree_eq_zero (p := W) (by omega), hW0]
-    rw [hW_C, eval_C]
-  · rw [map_sub, map_add, map_mul, map_pow, map_sum, map_mul, C_pow, map_pow, map_pow]
-    have hWeval : g ^ (2 * (μ * d) - 1) * W.eval (φ (C (C (a - x₀)))) =
+  · rw [pow_zero, one_mul, map_sub, C_pow, map_pow,
+      Polynomial.eq_C_of_natDegree_eq_zero (p := W) (by omega), hW0, eval_C]
+  · have hWeval : g ^ (2 * (μ * d) - 1) * W.eval (φ (C (C (a - x₀)))) =
         φ X * g ^ (2 * (μ * d) - 1) +
           ∑ k ∈ Icc 1 (μ * d),
             φ (recPoly S x₀ s k) * g ^ (2 * (μ * d - k)) * φ (C (C ((a - x₀) ^ k))) := by
-      rw [eval_eq_sum_range' (Nat.lt_succ_of_le hW_deg), Finset.mul_sum]
-      rw [Finset.range_eq_Ico, Finset.sum_eq_sum_Ico_succ_bot (Nat.zero_lt_succ (μ * d))]
-      rw [pow_zero, mul_one, hW0, mul_comm (g ^ _)]
-      congr 1
-      have hIco : Finset.Ico 1 (μ * d + 1) = Icc 1 (μ * d) := by
-        ext k; simp only [mem_Ico, mem_Icc, Nat.lt_succ_iff]
-      rw [hIco]
-      refine Finset.sum_congr rfl fun k hk => ?_
-      have hk1 : 1 ≤ k := (mem_Icc.1 hk).1
-      have hkle : k ≤ μ * d := (mem_Icc.1 hk).2
-      have hpow_g : g ^ (2 * (μ * d) - 1) = g ^ (2 * (μ * d - k)) * g ^ (2 * k - 1) := by
-        rw [← pow_add]; congr 1; omega
-      have hpow_a : φ (C (C (a - x₀))) ^ k = φ (C (C ((a - x₀) ^ k))) := by
-        rw [← map_pow, ← C_pow, ← C_pow]
-      rw [hpow_g, hpow_a, ← hWk k hk]
+      rw [eval_eq_sum_range' (Nat.lt_succ_of_le hW_deg), Finset.mul_sum, Finset.range_eq_Ico,
+        Finset.sum_eq_sum_Ico_succ_bot (Nat.zero_lt_succ (μ * d)), pow_zero, mul_one, hW0,
+        mul_comm (g ^ _), show Finset.Ico 1 (μ * d + 1) = Icc 1 (μ * d) by ext; simp]
+      refine congrArg _ (Finset.sum_congr rfl fun k hk => ?_)
+      have ⟨hk1, hkle⟩ := mem_Icc.1 hk
+      rw [show g ^ (2 * (μ * d) - 1) = g ^ (2 * (μ * d - k)) * g ^ (2 * k - 1) by
+          rw [← pow_add]; congr 1; omega,
+        show φ (C (C (a - x₀))) ^ k = φ (C (C ((a - x₀) ^ k))) by rw [← map_pow, ← C_pow, ← C_pow],
+        ← hWk k hk]
       ring
+    rw [map_sub, map_add, map_mul, map_pow, map_sum, map_mul, C_pow, map_pow, map_pow]
     have hsum_map :
         ∑ k ∈ Icc 1 (μ * d),
           φ (recPoly S x₀ s k * γ ^ (2 * (μ * d - k)) * C (C ((a - x₀) ^ k))) =
         ∑ k ∈ Icc 1 (μ * d),
-          φ (recPoly S x₀ s k) * g ^ (2 * (μ * d - k)) * φ (C (C ((a - x₀) ^ k))) := by
-      refine Finset.sum_congr rfl fun k _ => ?_
-      rw [map_mul, map_mul, map_pow]
+          φ (recPoly S x₀ s k) * g ^ (2 * (μ * d - k)) * φ (C (C ((a - x₀) ^ k))) :=
+      Finset.sum_congr rfl fun k _ => by rw [map_mul, map_mul, map_pow]
     rw [hsum_map]
     change φ X * g ^ (2 * (μ * d) - 1) + _ - φ (C w) ^ μ * g ^ (2 * (μ * d) - 1) = _
     linear_combination -hWeval
+
+private theorem spec_recPoly_at_point {S : F[X][X][X]} {x₀ : F} {w D μ : ℕ}
+    (hS_deg : 1 ≤ S.natDegree)
+    (hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + w * b ≤ D)
+    {z : F} {P : F[X]} (hS_eval0 : (evZ₂ z S).eval (P ^ μ) = 0)
+    (hγ_ne : ((S.map (Polynomial.evalRingHom (C x₀))).derivative.map (evZ z)).eval
+      ((P ^ μ).eval x₀) ≠ 0) :
+    ∀ n, 1 ≤ n →
+      (((S.map (Polynomial.evalRingHom (C x₀))).derivative.map (evZ z)).eval
+        ((P ^ μ).eval x₀)) ^ (2 * n - 1) * (taylor x₀ (P ^ μ)).coeff n =
+      ((recPoly S x₀ S.natDegree n).map (evZ z)).eval ((P ^ μ).eval x₀) := by
+  let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) ((P ^ μ).eval x₀)
+  have hφz_eq : ∀ f : F[X][X], φz f = (f.map (evZ z)).eval ((P ^ μ).eval x₀) := fun f => by
+    simp [φz, Polynomial.eval_map]
+  have hWeq : ∑ a ∈ range (D + 1),
+      (shiftedCoeff S x₀ a).eval₂ (C.comp (φz.comp C)) (taylor x₀ (P ^ μ)) * X ^ a = 0 := by
+    rw [show φz.comp C = evZ z from RingHom.ext fun p => by simp [φz]]
+    have ht := taylor_eval_map_eq_sum (evZ z) S x₀ hS_wd (P ^ μ)
+    rw [show (evZ z) (C x₀) = x₀ by simp [evZ]] at ht
+    change _ = 0; rw [← ht]
+    change taylor x₀ ((evZ₂ z S).eval (P ^ μ)) = 0
+    rw [hS_eval0, map_zero]
+  intro n hn
+  have hrec := coeff_eq_map_recPoly hS_deg le_rfl hS_wd φz (by rwa [hφz_eq])
+    (by rw [taylor_coeff_zero]; simp [φz]) hWeq n hn
+  change (φz _ ^ (2 * n - 1)) * (taylor x₀ (P ^ μ)).coeff n = φz _ at hrec
+  rwa [hφz_eq, hφz_eq] at hrec
+
+private theorem exists_pow_eq_poly_of_not_dvd {L : Type*} [Field L] [IsAlgClosed L]
+    {μ d : ℕ} (hμ_pos : 1 ≤ μ)
+    (hμ_char : μ = 1 ∨ ∃ (p e : ℕ), CharP L p ∧ p.Prime ∧ μ = p ^ e)
+    {Ψ : L[X]} (hΨ_deg : Ψ.natDegree ≤ μ * d) (hndiv : ∀ k, ¬ μ ∣ k → Ψ.coeff k = 0) :
+    ∃ Ptilde : L[X], Ptilde.natDegree ≤ d ∧ Ptilde ^ μ = Ψ := by
+  classical
+  rcases hμ_char with rfl | ⟨p, e, _, hp, rfl⟩
+  · exact ⟨Ψ, by simpa only [one_mul] using hΨ_deg, pow_one Ψ⟩
+  · have : Fact p.Prime := ⟨hp⟩
+    choose c hc using fun m : Fin (d + 1) =>
+      IsAlgClosed.exists_pow_nat_eq (Ψ.coeff (m.1 * p ^ e)) (pow_pos hp.pos e)
+    refine ⟨Polynomial.ofFn (d + 1) c,
+      Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos d) c), ?_⟩
+    rw [← Polynomial.map_iterateFrobenius_expand p (Polynomial.ofFn (d + 1) c) e]
+    ext k
+    rw [coeff_map, iterateFrobenius_def, Polynomial.coeff_expand (pow_pos hp.pos e)]
+    split_ifs with hdiv
+    · by_cases hm : k / p ^ e < d + 1
+      · rw [Polynomial.ofFn_coeff_eq_val_of_lt c hm, hc ⟨k / p ^ e, hm⟩, Nat.div_mul_cancel hdiv]
+      · rw [Polynomial.ofFn_coeff_eq_zero_of_ge c (by omega), zero_pow (by omega)]
+        have hmul : (d + 1) * p ^ e ≤ k := (Nat.le_div_iff_mul_le hμ_pos).1 (by omega)
+        have hadd : p ^ e * d + p ^ e = (d + 1) * p ^ e := by ring
+        exact (coeff_eq_zero_of_natDegree_lt (by omega)).symm
+    · rw [zero_pow (by omega), hndiv k hdiv]
+
+private theorem resultant_evalMismatch_natDegree_le {ι : Type*} [DecidableEq F]
+    {r d D B_Z D_Y μ : ℕ} {S : F[X][X][X]} {Fstar : F[X][X]} {x₀ : F}
+    {u : Fin (r + 1) → (ι → F)} (α : ι → F) (i : ι)
+    (hμ_pos : 1 ≤ μ) (hS_deg : 1 ≤ S.natDegree) (hDY_pos : 1 ≤ D_Y) (hD_pos : 1 ≤ D)
+    (hμs_le : μ * S.natDegree ≤ D_Y) (hμd_le : μ * d ≤ D) (hS_degZ : degZ S ≤ B_Z)
+    (hF_deg_le : Fstar.natDegree ≤ S.natDegree) (hF_degZ : degZ₂ Fstar ≤ B_Z) :
+    let Ei := evalMismatchPoly S x₀ S.natDegree μ d (α i) (curveWord u i)
+    (Polynomial.resultant Fstar Ei Fstar.natDegree Ei.natDegree).natDegree ≤
+      4 * D * D_Y * B_Z + r * D_Y ^ 2 := by
+  intro Ei
+  have hs_le_DY : S.natDegree ≤ D_Y := (Nat.le_mul_of_pos_left _ hμ_pos).trans hμs_le
+  have hF_le_DY : Fstar.natDegree ≤ D_Y := hF_deg_le.trans hs_le_DY
+  have hμF_sq : Fstar.natDegree * (μ * r) ≤ r * D_Y ^ 2 := by
+    have h1 : μ * Fstar.natDegree ≤ D_Y := (Nat.mul_le_mul_left μ hF_deg_le).trans hμs_le
+    calc Fstar.natDegree * (μ * r) = r * (μ * Fstar.natDegree) := by ring
+      _ ≤ r * D_Y := Nat.mul_le_mul_left r h1
+      _ ≤ r * (D_Y * D_Y) := Nat.mul_le_mul_left r (Nat.le_mul_of_pos_right D_Y hDY_pos)
+      _ = r * D_Y ^ 2 := by ring
+  have hw_degZ : degZ₂ (C ((curveWord u i) ^ μ)) ≤ μ * r := by
+    rw [degZ₂_C]
+    exact natDegree_pow_le.trans (Nat.mul_le_mul_left μ
+      (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)))
+  have hγ_degZ : degZ₂ (S.map (Polynomial.evalRingHom (C x₀))).derivative ≤ B_Z :=
+    (degZ₂_derivative_le _).trans (by
+      rw [← shiftedCoeff_zero]; exact (degZ₂_shiftedCoeff_le S x₀ 0).trans hS_degZ)
+  have hEi_degZ := deg_evalMismatchPoly_le (DegBound.degZ₂ F) (s := S.natDegree) (μ := μ)
+    (d := d) degZ₂_X.le (Nat.zero_le B_Z)
+    (fun c => by change degZ₂ (C (C c)) = 0; rw [degZ₂_C, natDegree_C])
+    (α i) (curveWord u i) hw_degZ hγ_degZ (degZ₂_recPoly_le hS_degZ)
+  have hγ_degY : (S.map (Polynomial.evalRingHom (C x₀))).derivative.natDegree ≤ S.natDegree :=
+    (Polynomial.natDegree_derivative_le _).trans
+      ((Nat.sub_le _ _).trans Polynomial.natDegree_map_le)
+  have hEi_degY := deg_evalMismatchPoly_le (DegBound.natDegree F[X]) (S := S) (x₀ := x₀)
+    (s := S.natDegree) (μ := μ) (d := d) natDegree_X_le hS_deg (fun c => natDegree_C _)
+    (α i) (curveWord u i) (by change (C (curveWord u i ^ μ)).natDegree ≤ 0; rw [natDegree_C])
+    hγ_degY (natDegree_recPoly_le le_rfl)
+  have hres := (DegBound.natDegree F).resultant_le Fstar.natDegree Ei.natDegree
+    (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hEi_degZ)
+  split_ifs at hres hEi_degZ hEi_degY with h0
+  · rw [Nat.zero_max] at hres; rw [Nat.max_zero] at hEi_degY
+    have h1 : 1 ≤ 4 * D * D_Y := by
+      have := Nat.mul_le_mul (show 1 ≤ 4 * D by omega) hDY_pos; simpa using this
+    have h2 : Ei.natDegree * B_Z ≤ 4 * D * D_Y * B_Z :=
+      Nat.mul_le_mul_right B_Z (hEi_degY.trans h1)
+    exact hres.trans ((Nat.add_le_add hμF_sq h2).trans_eq (add_comm _ _))
+  · have ha : Fstar.natDegree * (2 * (μ * d) * B_Z) ≤ 2 * D * D_Y * B_Z :=
+      (Nat.mul_le_mul hF_le_DY
+        (Nat.mul_le_mul_right B_Z (show 2 * (μ * d) ≤ 2 * D by omega))).trans_eq (by ring)
+    have h2 : Ei.natDegree * B_Z ≤ 2 * D * D_Y * B_Z := Nat.mul_le_mul_right B_Z <|
+      hEi_degY.trans (by rw [add_zero]; exact Nat.mul_le_mul (by omega) hs_le_DY)
+    rw [mul_add] at hres
+    exact hres.trans (by linarith [ha, hμF_sq, h2])
+
+private theorem map_recPoly_dvd_of_kill {ι : Type*} [Fintype ι] [DecidableEq F]
+    {α : ι → F} {r d D B_Z D_Y W_tot B_W μ : ℕ}
+    {W : ι → ℕ} {u : Fin (r + 1) → (ι → F)}
+    {S : F[X][X][X]} {Fstar : F[X][X]} {x₀ : F} {T'' : Finset F}
+    (hμ_char : μ = 1 ∨ ∃ (p e : ℕ), CharP F p ∧ p.Prime ∧ μ = p ^ e)
+    (hS_deg : 1 ≤ S.natDegree) (hs_le_DY : S.natDegree ≤ D_Y) (hW_tot_pos : 1 ≤ W_tot)
+    (hS_wd : ∀ a b, ((S.coeff b).coeff a) ≠ 0 → a + (μ * d) * b ≤ D) (hS_degZ : degZ S ≤ B_Z)
+    (hF_irred : Irreducible Fstar) (hF_prim : Fstar.IsPrimitive)
+    (hF_deg1 : 1 ≤ Fstar.natDegree) (hF_deg_le : Fstar.natDegree ≤ S.natDegree)
+    (hF_degZ : degZ₂ Fstar ≤ B_Z)
+    (hT''_card : W_tot * D_Y * (4 * D * B_Z + r * D_Y) < #T'')
+    (hT''_mem : ∀ z ∈ T'', ∃ P : F[X], P.natDegree ≤ d ∧ (evZ₂ z S).eval (P ^ μ) = 0 ∧
+      (Fstar.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 ∧
+      ((S.map (Polynomial.evalRingHom (C x₀))).derivative.map (evZ z)).eval
+        ((P ^ μ).eval x₀) ≠ 0 ∧
+      B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z), W i)
+    {n : ℕ} (hn1 : 1 ≤ n) (hnD : n ≤ D) (hcond : μ * d < n ∨ ¬ μ ∣ n) :
+    Fstar.map (algebraMap F[X] (FractionRing F[X])) ∣
+      (recPoly S x₀ S.natDegree n).map (algebraMap F[X] (FractionRing F[X])) := by
+  let K := FractionRing F[X]
+  let ι_K : F[X] →+* K := algebraMap F[X] K
+  set Nn := recPoly S x₀ S.natDegree n
+  by_cases hNn0 : Nn = 0
+  · rw [hNn0, Polynomial.map_zero]; exact dvd_zero _
+  · set Res_n : F[X] := Polynomial.resultant Fstar Nn Fstar.natDegree Nn.natDegree
+    have hRes_van : ∀ z ∈ T'', Res_n.eval z = 0 := fun z hz => by
+      obtain ⟨P, hP_deg, hS_ev0, hF_ev0, hγ_ev_ne, _⟩ := hT''_mem z hz
+      have hrec := spec_recPoly_at_point hS_deg hS_wd hS_ev0 hγ_ev_ne n hn1
+      have hW0 : (taylor x₀ (P ^ μ)).coeff n = 0 := by
+        rcases hcond with hgt | hndiv
+        · exact coeff_eq_zero_of_natDegree_lt (by
+            rw [natDegree_taylor]
+            exact (natDegree_pow_le.trans (Nat.mul_le_mul_left μ hP_deg)).trans_lt hgt)
+        · rcases hμ_char with rfl | ⟨p, e, _, hp, rfl⟩
+          · exact absurd (one_dvd n) hndiv
+          · have ht_pow : taylor x₀ (P ^ p ^ e) = (taylor x₀ P) ^ p ^ e :=
+              map_pow (Polynomial.taylorAlgHom x₀) P (p ^ e)
+            rw [ht_pow]
+            exact coeff_pow_prime_pow_eq_zero_of_not_dvd hp (taylor x₀ P) hndiv
+      rw [hW0, mul_zero] at hrec
+      exact eval_resultant_eq_zero_of_common_root (Or.inl (by omega)) hF_ev0 hrec.symm
+    have hNn_degZ : degZ₂ Nn ≤ (2 * n - 1) * B_Z := degZ₂_recPoly_le hS_degZ n hn1
+    have hres := (DegBound.natDegree F).resultant_le Fstar.natDegree Nn.natDegree
+      (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hNn_degZ)
+    have h1 : Fstar.natDegree * ((2 * n - 1) * B_Z) ≤ 2 * D * D_Y * B_Z :=
+      (Nat.mul_le_mul (hF_deg_le.trans hs_le_DY)
+        (Nat.mul_le_mul_right B_Z (show 2 * n - 1 ≤ 2 * D by omega))).trans_eq (by ring)
+    have h2 : Nn.natDegree * B_Z ≤ 2 * D * D_Y * B_Z := Nat.mul_le_mul_right B_Z <|
+      (natDegree_recPoly_le le_rfl n hn1).trans (Nat.mul_le_mul (by omega) hs_le_DY)
+    have hlt : Res_n.natDegree < #T'' := by
+      have htot : 1 * D_Y * (4 * D * B_Z) ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) :=
+        Nat.mul_le_mul (Nat.mul_le_mul_right D_Y hW_tot_pos) (Nat.le_add_right _ _)
+      have : Res_n.natDegree ≤ 4 * D * D_Y * B_Z :=
+        hres.trans ((Nat.add_le_add h1 h2).trans_eq (by ring))
+      linarith [show 4 * D * D_Y * B_Z = 1 * D_Y * (4 * D * B_Z) by ring]
+    by_contra hndvd
+    exact resultant_ne_zero_of_isCoprime_map ι_K (IsFractionRing.injective F[X] K)
+      (((hF_prim.irreducible_iff_irreducible_map_fraction_map (K := K)).1 hF_irred
+        ).coprime_iff_not_dvd.2 hndvd)
+      (Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' Res_n T'' hRes_van hlt)
 
 /-- Step 6: Resultant-kill excess and non-`μ`-divisible recurrence polynomials, lift to
 `L := AlgebraicClosure (FractionRing F[Z])`, truncate to a polynomial root `Ψ_trunc`, extract
@@ -2106,344 +1934,103 @@ private theorem exists_lifted_poly_and_mismatch_bound {ι : Type*} [Fintype ι] 
           P.eval (α i) = (curveWord u i).eval z → res.eval z = 0) := by
   classical
   set s := S.natDegree
-  set S₀ := S.map (Polynomial.evalRingHom (C x₀))
-  set γ := S₀.derivative
-  have hs_le_DY : s ≤ D_Y := by
-    have : 1 * s ≤ μ * s := Nat.mul_le_mul_right s hμ_pos
-    omega
-  -- Helper: for any `z : F` and witness `P : F[X]` with `S(z, X, P ^ μ) = 0` and
-  -- `γ(z, (P ^ μ)(x₀)) ≠ 0`, specialization uniqueness holds.
-  have hspec_z : ∀ (z : F) (P : F[X]),
-      (evZ₂ z S).eval (P ^ μ) = 0 →
-      (γ.map (evZ z)).eval ((P ^ μ).eval x₀) ≠ 0 →
-      ∀ n, 1 ≤ n →
-        ((γ.map (evZ z)).eval ((P ^ μ).eval x₀)) ^ (2 * n - 1) *
-          (taylor x₀ (P ^ μ)).coeff n =
-        ((recPoly S x₀ s n).map (evZ z)).eval ((P ^ μ).eval x₀) := by
-    intro z P hS_eval0 hγ_z_ne n hn1
-    set yz : F := (P ^ μ).eval x₀
-    let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) yz
-    have hφz_eq : ∀ f : F[X][X], φz f = (f.map (evZ z)).eval yz := fun f => by
-      simp [φz, Polynomial.eval_map]
-    have hφz_C : φz.comp C = evZ z :=
-      RingHom.ext fun p => by simp [φz]
-    have hφz_X : φz X = yz := by simp [φz]
-    have hγ_φz : φz γ ≠ 0 := by rwa [hφz_eq]
-    have hW0 : (taylor x₀ (P ^ μ)).coeff 0 = φz X := by
-      rw [taylor_coeff_zero, hφz_X]
-    have hWeq : ∑ a ∈ range (D + 1),
-        (shiftedCoeff S x₀ a).eval₂ (C.comp (φz.comp C)) (taylor x₀ (P ^ μ)) * X ^ a = 0 := by
-      rw [hφz_C]
-      have hx₀ : (evZ z) (C x₀) = x₀ := by simp [evZ]
-      have ht := taylor_eval_map_eq_sum (evZ z) S x₀ hS_wd (P ^ μ)
-      rw [hx₀] at ht
-      change _ = 0
-      rw [← ht]
-      change taylor x₀ ((evZ₂ z S).eval (P ^ μ)) = 0
-      rw [hS_eval0, map_zero]
-    have hrec := coeff_eq_map_recPoly hS_deg le_rfl hS_wd φz hγ_φz hW0 hWeq n hn1
-    change (φz γ) ^ (2 * n - 1) * (taylor x₀ (P ^ μ)).coeff n = φz (recPoly S x₀ s n) at hrec
-    rw [hφz_eq, hφz_eq] at hrec
-    exact hrec
-  -- Resultant kill over `K := FractionRing F[X]`.
-  let K := FractionRing F[X]
-  let ι_K : F[X] →+* K := algebraMap F[X] K
-  have hι_K_inj : Function.Injective ι_K := IsFractionRing.injective F[X] K
-  have hF_K_irred : Irreducible (Fstar.map ι_K) :=
-    (hF_prim.irreducible_iff_irreducible_map_fraction_map (K := K)).1 hF_irred
-  have hkill : ∀ n, 1 ≤ n → n ≤ D → (μ * d < n ∨ ¬ μ ∣ n) →
-      Fstar.map ι_K ∣ (recPoly S x₀ s n).map ι_K := by
-    intro n hn1 hnD hcond
-    set Nn := recPoly S x₀ s n
-    by_cases hNn0 : Nn = 0
-    · rw [hNn0, Polynomial.map_zero]; exact dvd_zero _
-    · -- Every `z ∈ T''` annihilates `Nn` at `yz`.
-      have hvan : ∀ z ∈ T'', ∃ yz : F, (Fstar.map (evZ z)).eval yz = 0 ∧
-          (Nn.map (evZ z)).eval yz = 0 := by
-        intro z hz
-        obtain ⟨P, hP_deg, hS_ev0, hF_ev0, hγ_ev_ne, _⟩ := hT''_mem z hz
-        refine ⟨(P ^ μ).eval x₀, hF_ev0, ?_⟩
-        have hrec := hspec_z z P hS_ev0 hγ_ev_ne n hn1
-        have hW_coeff0 : (taylor x₀ (P ^ μ)).coeff n = 0 := by
-          rcases hcond with hgt | hndiv
-          · refine coeff_eq_zero_of_natDegree_lt ?_
-            rw [natDegree_taylor]
-            have hpow_deg : (P ^ μ).natDegree ≤ μ * d :=
-              natDegree_pow_le.trans (Nat.mul_le_mul_left μ hP_deg)
-            omega
-          · rcases hμ_char with rfl | ⟨p, e, hcp, hp, rfl⟩
-            · exact absurd (one_dvd n) hndiv
-            · have ht_pow : taylor x₀ (P ^ (p ^ e)) = (taylor x₀ P) ^ (p ^ e) := by
-                exact map_pow (Polynomial.taylorAlgHom x₀) P (p ^ e)
-              rw [ht_pow]
-              exact coeff_pow_prime_pow_eq_zero_of_not_dvd hp (taylor x₀ P) hndiv
-        rw [hW_coeff0, mul_zero] at hrec
-        exact hrec.symm
-      set Res_n : F[X] := Polynomial.resultant Fstar Nn Fstar.natDegree Nn.natDegree
-      have hRes_van : ∀ z ∈ T'', Res_n.eval z = 0 := fun z hz => by
-        obtain ⟨yz, hF0, hN0⟩ := hvan z hz
-        exact eval_resultant_eq_zero_of_common_root (Or.inl (by omega)) hF0 hN0
-      have hRes_deg : Res_n.natDegree ≤ 4 * D * D_Y * B_Z := by
-        have hNn_degZ : degZ₂ Nn ≤ (2 * n - 1) * B_Z := degZ₂_recPoly_le hS_degZ n hn1
-        have hNn_degY : Nn.natDegree ≤ (2 * n - 1) * s := natDegree_recPoly_le le_rfl n hn1
-        have hres := (DegBound.natDegree F).resultant_le Fstar.natDegree Nn.natDegree
-          (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hNn_degZ)
-        have h1 : Fstar.natDegree * ((2 * n - 1) * B_Z) ≤ (2 * D) * D_Y * B_Z := by
-          have ha : Fstar.natDegree ≤ D_Y := hF_deg_le.trans hs_le_DY
-          have hb : 2 * n - 1 ≤ 2 * D := by omega
-          calc Fstar.natDegree * ((2 * n - 1) * B_Z)
-              ≤ D_Y * ((2 * D) * B_Z) :=
-                Nat.mul_le_mul ha (Nat.mul_le_mul_right B_Z hb)
-            _ = 2 * D * D_Y * B_Z := by ring
-        have h2 : Nn.natDegree * B_Z ≤ 2 * D * D_Y * B_Z := by
-          have hb : Nn.natDegree ≤ 2 * D * D_Y := by
-            calc Nn.natDegree ≤ (2 * n - 1) * s := hNn_degY
-              _ ≤ (2 * D) * D_Y := Nat.mul_le_mul (by omega) hs_le_DY
-          exact Nat.mul_le_mul_right B_Z hb
-        exact hres.trans (calc Fstar.natDegree * ((2 * n - 1) * B_Z) + Nn.natDegree * B_Z
-            ≤ 2 * D * D_Y * B_Z + 2 * D * D_Y * B_Z := Nat.add_le_add h1 h2
-          _ = 4 * D * D_Y * B_Z := by ring)
-      have hlt : Res_n.natDegree < #T'' := by
-        have h1 : 1 * D_Y * (4 * D * B_Z) ≤ W_tot * D_Y * (4 * D * B_Z + r * D_Y) :=
-          Nat.mul_le_mul (Nat.mul_le_mul_right D_Y hW_tot_pos) (Nat.le_add_right _ _)
-        linarith
-      have hRes_zero : Res_n = 0 :=
-        Polynomial.eq_zero_of_natDegree_lt_card_of_eval_eq_zero' Res_n T'' hRes_van hlt
-      by_contra hndvd
-      exact resultant_ne_zero_of_isCoprime_map ι_K hι_K_inj
-        (hF_K_irred.coprime_iff_not_dvd.2 hndvd) hRes_zero
-  -- Lift into `L := AlgebraicClosure K`.
-  let L := AlgebraicClosure K
-  let ι_L : K →+* L := algebraMap K L
+  set γ := (S.map (Polynomial.evalRingHom (C x₀))).derivative
+  have hs_le_DY : s ≤ D_Y := (Nat.le_mul_of_pos_left s hμ_pos).trans (hdeg_mul.trans_le hR_deg_le)
+  let K := FractionRing F[X]; let L := AlgebraicClosure K
+  let ι_K : F[X] →+* K := algebraMap F[X] K; let ι_L : K →+* L := algebraMap K L
   let j_L : F[X] →+* L := ι_L.comp ι_K
+  have hι_K_inj : Function.Injective ι_K := IsFractionRing.injective F[X] K
   have hj_L_inj : Function.Injective j_L := (RingHom.injective ι_L).comp hι_K_inj
-  have hF_L_deg : (Fstar.map j_L).degree ≠ 0 := by
-    have hF0 : Fstar ≠ 0 := hF_irred.ne_zero
-    have hmap0 : Fstar.map j_L ≠ 0 := (Polynomial.map_ne_zero_iff hj_L_inj).2 hF0
-    rw [Polynomial.degree_eq_natDegree hmap0, Polynomial.natDegree_map_eq_of_injective hj_L_inj]
-    exact fun h => by
-      have : Fstar.natDegree = 0 := by exact_mod_cast h
-      omega
+  have hF_L_deg : (Fstar.map j_L).degree ≠ 0 := fun h => by
+    have hm0 : Fstar.map j_L ≠ 0 := (Polynomial.map_ne_zero_iff hj_L_inj).2 hF_irred.ne_zero
+    rw [Polynomial.degree_eq_natDegree hm0, Polynomial.natDegree_map_eq_of_injective hj_L_inj] at h
+    have : Fstar.natDegree = 0 := by exact_mod_cast h
+    omega
   obtain ⟨ystar, hystar⟩ := IsAlgClosed.exists_root (Fstar.map j_L) hF_L_deg
   let φstar : F[X][X] →+* L := Polynomial.eval₂RingHom j_L ystar
-  have hφstar_eq : ∀ f : F[X][X], φstar f = (f.map j_L).eval ystar := fun f => by
+  have hφstar_eq (f : F[X][X]) : φstar f = (f.map j_L).eval ystar := by
     simp [φstar, Polynomial.eval_map]
-  have hφstar_C : φstar.comp C = j_L :=
-    RingHom.ext fun p => by simp [φstar]
-  have hφstar_F : φstar Fstar = 0 := by rw [hφstar_eq]; exact hystar
-  have hφstar_S₀ : φstar S₀ = 0 := by
-    rcases hF_dvd with ⟨Q', hQ'⟩
-    rw [hQ', map_mul, hφstar_F, zero_mul]
-  have hφstar_γ : φstar γ ≠ 0 := by
+  have hφstar_dvd_zero {g : F[X][X]} (hd : Fstar.map ι_K ∣ g.map ι_K) : φstar g = 0 := by
+    rcases hd with ⟨qK, hqK⟩
+    have hm := congrArg (Polynomial.map ι_L) hqK
+    rw [Polynomial.map_mul, Polynomial.map_map, Polynomial.map_map] at hm
+    rw [hφstar_eq, hm, eval_mul, hystar, zero_mul]
+  have hφstar_γ : φstar γ ≠ 0 := fun h0 => by
     obtain ⟨A₀, B₀, hAB⟩ := hbez₀
-    have hmap := congrArg φstar hAB
-    rw [map_add, map_mul, map_mul, hφstar_S₀, zero_mul, zero_add] at hmap
-    intro h0
-    rw [h0, zero_mul] at hmap
-    have hj0 : j_L (Δ.eval (C x₀)) = 0 := by
-      simpa [φstar] using hmap.symm
-    exact hΔ_x₀_ne (hj_L_inj (by rw [hj0, map_zero]))
-  have hφstar_kill : ∀ n, 1 ≤ n → n ≤ D → (μ * d < n ∨ ¬ μ ∣ n) →
-      φstar (recPoly S x₀ s n) = 0 := by
-    intro n hn1 hnD hcond
-    rcases hkill n hn1 hnD hcond with ⟨qK, hqK⟩
-    have hmapL : (recPoly S x₀ s n).map j_L = Fstar.map j_L * qK.map ι_L := by
-      have h1 := congrArg (Polynomial.map ι_L) hqK
-      rw [Polynomial.map_mul, Polynomial.map_map, Polynomial.map_map] at h1
-      exact h1
-    rw [hφstar_eq, hmapL, eval_mul, hystar, zero_mul]
-  -- Truncated power series `Ψ_trunc ∈ L[X]` of degree `≤ μ * d`.
+    have hF0 : φstar Fstar = 0 := by rw [hφstar_eq]; exact hystar
+    rcases hF_dvd with ⟨Q', hQ'⟩
+    have hS0 : φstar (S.map (Polynomial.evalRingHom (C x₀))) = 0 := by
+      rw [hQ', map_mul, hF0, zero_mul]
+    have hm := congrArg φstar hAB
+    simp only [map_add, map_mul, hS0, zero_mul, zero_add, h0] at hm
+    exact hΔ_x₀_ne (hj_L_inj (by simpa [φstar] using hm.symm))
   set gstar : L := φstar γ
-  set Ψ_trunc : L[X] :=
-    C ystar + ∑ k ∈ Icc 1 (μ * d),
-      C (φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1)) * X ^ k
-  have hΨ_deg : Ψ_trunc.natDegree ≤ μ * d := by
-    refine (natDegree_add_le _ _).trans (max_le ?_ ?_)
-    · rw [natDegree_C]; exact Nat.zero_le _
-    · refine (natDegree_sum_le _ _).trans (Finset.sup_le fun k hk => ?_)
-      refine natDegree_mul_le.trans ?_
-      rw [natDegree_C, zero_add, natDegree_X_pow]
-      exact (mem_Icc.1 hk).2
+  set Ψ_trunc : L[X] := C ystar + ∑ k ∈ Icc 1 (μ * d),
+    C (φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1)) * X ^ k
+  have hΨ_deg : Ψ_trunc.natDegree ≤ μ * d :=
+    (natDegree_add_le _ _).trans <| max_le (by simp) <| (natDegree_sum_le _ _).trans <|
+      Finset.sup_le fun k hk => natDegree_mul_le.trans (by
+        rw [natDegree_C, zero_add, natDegree_X_pow]; exact (mem_Icc.1 hk).2)
   have hΨ_coeff0 : Ψ_trunc.coeff 0 = ystar := by
     rw [coeff_add, coeff_C_zero, coeff_sum_Icc_C_mul_X_pow, ite_eq_right (by omega), add_zero]
-  have hΨ_coeff : ∀ k, 1 ≤ k →
-      Ψ_trunc.coeff k =
-        if k ≤ μ * d then φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1) else 0 := by
-    intro k hk1
+  have hΨ_coeff (k : ℕ) (hk1 : 1 ≤ k) : Ψ_trunc.coeff k =
+      if k ≤ μ * d then φstar (recPoly S x₀ s k) / gstar ^ (2 * k - 1) else 0 := by
     rw [coeff_add, coeff_C, ite_eq_right (by omega), zero_add, coeff_sum_Icc_C_mul_X_pow]
     simp [hk1]
-  -- Extract Frobenius `μ`-th root `Ptilde ∈ L[X]` with `Ptilde.natDegree ≤ d` and `Ptilde^μ = Ψ`.
-  have hΨ_not_dvd : ∀ k, ¬ μ ∣ k → Ψ_trunc.coeff k = 0 := by
-    intro k hndiv
-    have hk1 : 1 ≤ k := by
-      by_contra h0
-      have hk0 : k = 0 := by omega
-      subst hk0
-      exact hndiv (dvd_zero μ)
-    rw [hΨ_coeff k hk1]
-    split_ifs with hkle
-    · rw [hφstar_kill k hk1 (hkle.trans hμd_le) (Or.inr hndiv), zero_div]
-    · rfl
   have hμ_char_L : μ = 1 ∨ ∃ (p e : ℕ), CharP L p ∧ p.Prime ∧ μ = p ^ e := by
-    rcases hμ_char with rfl | ⟨p, e, hcp, hp, rfl⟩
+    rcases hμ_char with rfl | ⟨p, e, _, hp, rfl⟩
     · exact Or.inl rfl
-    · right
-      have hFL_inj : Function.Injective (j_L.comp C) := hj_L_inj.comp Polynomial.C_injective
-      exact ⟨p, e, charP_of_injective_ringHom hFL_inj p, hp, rfl⟩
-  have hroot_ex : ∃ Ptilde : L[X], Ptilde.natDegree ≤ d ∧ Ptilde ^ μ = Ψ_trunc := by
-    rcases hμ_char_L with hμ1 | ⟨p, e, hcp, hp, hμpe⟩
-    · refine ⟨Ψ_trunc, by rw [hμ1, one_mul] at hΨ_deg; exact hΨ_deg, by rw [hμ1, pow_one]⟩
-    · have : Fact p.Prime := ⟨hp⟩
-      have hroot_c : ∀ m : Fin (d + 1), ∃ c : L, c ^ μ = Ψ_trunc.coeff (m.1 * μ) := fun m =>
-        IsAlgClosed.exists_pow_nat_eq (Ψ_trunc.coeff (m.1 * μ)) (by omega)
-      choose c hc using hroot_c
-      refine ⟨Polynomial.ofFn (d + 1) c,
-        Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos d) c), ?_⟩
-      rw [hμpe, ← Polynomial.map_iterateFrobenius_expand p (Polynomial.ofFn (d + 1) c) e]
-      ext k
-      rw [coeff_map, iterateFrobenius_def, Polynomial.coeff_expand (pow_pos hp.pos e), ← hμpe]
-      split_ifs with hdiv
-      · by_cases hm : k / μ < d + 1
-        · rw [Polynomial.ofFn_coeff_eq_val_of_lt c hm, hc ⟨k / μ, hm⟩, Nat.div_mul_cancel hdiv]
-        · rw [Polynomial.ofFn_coeff_eq_zero_of_ge c (by omega), zero_pow (by omega)]
-          refine (coeff_eq_zero_of_natDegree_lt ?_).symm
-          have hmul : (d + 1) * μ ≤ k := (Nat.le_div_iff_mul_le hμ_pos).1 (by omega)
-          have hadd : μ * d + μ = (d + 1) * μ := by ring
-          omega
-      · rw [zero_pow (by omega), hΨ_not_dvd k hdiv]
-  obtain ⟨Ptilde, hPtilde_deg, hPtilde_pow⟩ := hroot_ex
-  -- Shift back by `- x₀`.
-  set x₀L : L := j_L (C x₀)
-  set Pstar : L[X] := taylor (-x₀L) Ptilde
-  have hPstar_deg : Pstar.natDegree ≤ d := by
-    rw [natDegree_taylor]
-    exact hPtilde_deg
-  have hPstar_pow : Pstar ^ μ = taylor (-x₀L) Ψ_trunc := by
-    rw [← hPtilde_pow]
-    exact (map_pow (Polynomial.taylorAlgHom (-x₀L)) Ptilde μ).symm
-  -- Define `Istar := {i | Pstar.eval (j_L (C (α i))) = j_L (curveWord u i)}`.
+    · have hFL_inj : Function.Injective (j_L.comp C) := hj_L_inj.comp Polynomial.C_injective
+      exact Or.inr ⟨p, e, charP_of_injective_ringHom hFL_inj p, hp, rfl⟩
+  obtain ⟨Ptilde, hPtilde_deg, hPtilde_pow⟩ := exists_pow_eq_poly_of_not_dvd hμ_pos hμ_char_L
+    hΨ_deg fun k hndiv => by
+      have hk1 : 1 ≤ k := Nat.pos_of_ne_zero fun h0 => hndiv (h0 ▸ dvd_zero μ)
+      rw [hΨ_coeff k hk1]
+      split_ifs with hkle
+      · rw [hφstar_dvd_zero (map_recPoly_dvd_of_kill hμ_char hS_deg hs_le_DY hW_tot_pos hS_wd
+          hS_degZ hF_irred hF_prim hF_deg1 hF_deg_le hF_degZ hT''_card hT''_mem hk1
+          (hkle.trans hμd_le) (Or.inr hndiv)), zero_div]
+      · rfl
+  set Pstar : L[X] := taylor (-j_L (C x₀)) Ptilde
   let Istar : Finset ι := Finset.univ.filter fun i =>
     Pstar.eval (j_L (C (α i))) = j_L (curveWord u i)
-  refine ⟨Pstar, Istar, hPstar_deg, fun i hi => (mem_filter.1 hi).2, fun i hi_not => ?_⟩
-  -- For `i ∉ Istar`, `φstar (E_i) ≠ 0`, so `Res_Y(Fstar, E_i) ≠ 0` with controlled `Z`-degree!
+  refine ⟨Pstar, Istar, by rwa [natDegree_taylor], fun i hi => (mem_filter.1 hi).2,
+    fun i hi_not => ?_⟩
   set Ei : F[X][X] := evalMismatchPoly S x₀ s μ d (α i) (curveWord u i)
-  have hφstar_Ei_eq :
-      φstar Ei =
-        gstar ^ (if μ * d = 0 then 0 else 2 * (μ * d) - 1) *
-          ((Pstar.eval (j_L (C (α i)))) ^ μ - (j_L (curveWord u i)) ^ μ) := by
-    have hWk : ∀ k ∈ Icc 1 (μ * d), gstar ^ (2 * k - 1) * Ψ_trunc.coeff k =
-        φstar (recPoly S x₀ s k) := by
-      intro k hk
-      rw [hΨ_coeff k (mem_Icc.1 hk).1, ite_eq_left (mem_Icc.1 hk).2]
-      exact mul_div_cancel₀ _ (pow_ne_zero _ hφstar_γ)
-    have hmap := map_evalMismatchPoly (α i) (curveWord u i) φstar hΨ_deg
-      (by rw [hΨ_coeff0]; simp [φstar]) hWk
-    have hsub : φstar (C (C (α i - x₀))) = j_L (C (α i)) - x₀L := by
-      simp [φstar, x₀L, map_sub]
-    have hev : Ψ_trunc.eval (j_L (C (α i)) - x₀L) = (Pstar.eval (j_L (C (α i)))) ^ μ := by
-      rw [← eval_pow, hPstar_pow, Polynomial.taylor_eval, sub_eq_add_neg]
-    have hCw : φstar (C (curveWord u i)) = j_L (curveWord u i) := by simp [φstar]
-    change φstar Ei = gstar ^ (if μ * d = 0 then 0 else 2 * (μ * d) - 1) *
-      (Ψ_trunc.eval (φstar (C (C (α i - x₀)))) - (φstar (C (curveWord u i))) ^ μ) at hmap
-    rw [hsub, hev, hCw] at hmap
-    exact hmap
   have hφstar_Ei_ne : φstar Ei ≠ 0 := by
-    rw [hφstar_Ei_eq]
-    refine mul_ne_zero (pow_ne_zero _ hφstar_γ) ?_
-    intro hsub0
-    apply hi_not
-    rw [mem_filter]
-    exact ⟨mem_univ i, eq_of_pow_eq_of_char_pow hμ_char_L (sub_eq_zero.1 hsub0)⟩
-  have hEi_ne : Ei ≠ 0 := fun h0 => hφstar_Ei_ne (by rw [h0, map_zero])
-  have hnot_dvd : ¬ (Fstar.map ι_K ∣ Ei.map ι_K) := by
-    rintro ⟨qK, hqK⟩
-    apply hφstar_Ei_ne
-    have hmapL : Ei.map j_L = Fstar.map j_L * qK.map ι_L := by
-      have h1 := congrArg (Polynomial.map ι_L) hqK
-      rw [Polynomial.map_mul, Polynomial.map_map, Polynomial.map_map] at h1
-      exact h1
-    rw [hφstar_eq, hmapL, eval_mul, hystar, zero_mul]
+    have hmap := map_evalMismatchPoly (α i) (curveWord u i) φstar hΨ_deg
+      (by rw [hΨ_coeff0]; simp [φstar]) fun k hk => by
+        rw [hΨ_coeff k (mem_Icc.1 hk).1, ite_eq_left (mem_Icc.1 hk).2]
+        exact mul_div_cancel₀ _ (pow_ne_zero _ hφstar_γ)
+    have hPstar_pow : Pstar ^ μ = taylor (-j_L (C x₀)) Ψ_trunc := by
+      rw [← hPtilde_pow]; exact (map_pow (Polynomial.taylorAlgHom (-j_L (C x₀))) Ptilde μ).symm
+    rw [show φstar (C (C (α i - x₀))) = j_L (C (α i)) - j_L (C x₀) by simp [φstar, map_sub],
+      show φstar (C (curveWord u i)) = j_L (curveWord u i) by simp [φstar],
+      show Ψ_trunc.eval (j_L (C (α i)) - j_L (C x₀)) = (Pstar.eval (j_L (C (α i)))) ^ μ by
+        rw [← eval_pow, hPstar_pow, Polynomial.taylor_eval, sub_eq_add_neg]] at hmap
+    rw [hmap]
+    exact mul_ne_zero (pow_ne_zero _ hφstar_γ) fun h0 =>
+      hi_not (mem_filter.2 ⟨mem_univ i, eq_of_pow_eq_of_char_pow hμ_char_L (sub_eq_zero.1 h0)⟩)
   have hcop : IsCoprime (Fstar.map ι_K) (Ei.map ι_K) :=
-    hF_K_irred.coprime_iff_not_dvd.2 hnot_dvd
-  set res_i : F[X] := Polynomial.resultant Fstar Ei Fstar.natDegree Ei.natDegree
-  have hres_ne : res_i ≠ 0 := resultant_ne_zero_of_isCoprime_map ι_K hι_K_inj hcop
-  have hres_deg : res_i.natDegree ≤ 4 * D * D_Y * B_Z + r * D_Y ^ 2 := by
-    have hw_degZ : degZ₂ (C ((curveWord u i) ^ μ)) ≤ μ * r := by
-      rw [degZ₂_C]
-      exact natDegree_pow_le.trans (Nat.mul_le_mul_left μ
-        (Nat.le_of_lt_succ (Polynomial.ofFn_natDegree_lt (Nat.succ_pos r) _)))
-    have hγ_degZ : degZ₂ γ ≤ B_Z := (degZ₂_derivative_le _).trans (by
-      change degZ₂ (S.map (Polynomial.evalRingHom (C x₀))) ≤ B_Z
-      rw [← shiftedCoeff_zero]
-      exact (degZ₂_shiftedCoeff_le S x₀ 0).trans hS_degZ)
-    have hEi_degZ := deg_evalMismatchPoly_le (DegBound.degZ₂ F) (s := s) (μ := μ) (d := d)
-      degZ₂_X.le (Nat.zero_le B_Z)
-      (fun c => by change degZ₂ (C (C c)) = 0; rw [degZ₂_C, natDegree_C])
-      (α i) (curveWord u i) hw_degZ hγ_degZ (degZ₂_recPoly_le hS_degZ)
-    have hγ_degY : γ.natDegree ≤ s :=
-      (Polynomial.natDegree_derivative_le S₀).trans
-        ((Nat.sub_le _ _).trans Polynomial.natDegree_map_le)
-    have hEi_degY := deg_evalMismatchPoly_le (DegBound.natDegree F[X]) (s := s) (μ := μ) (d := d)
-      natDegree_X_le hS_deg (fun c => natDegree_C _) (α i) (curveWord u i)
-      (by change (C (curveWord u i ^ μ)).natDegree ≤ 0; rw [natDegree_C])
-      hγ_degY (natDegree_recPoly_le le_rfl)
-    have hres := (DegBound.natDegree F).resultant_le Fstar.natDegree Ei.natDegree
-      (degZ₂_le_iff.1 hF_degZ) (degZ₂_le_iff.1 hEi_degZ)
-    have hF_le_DY : Fstar.natDegree ≤ D_Y := hF_deg_le.trans hs_le_DY
-    have hμs_le_DY : μ * Fstar.natDegree ≤ D_Y := by
-      have : μ * Fstar.natDegree ≤ μ * s := Nat.mul_le_mul_left μ hF_deg_le
-      omega
-    have hμF_sq : Fstar.natDegree * (μ * r) ≤ r * D_Y ^ 2 := by
-      calc Fstar.natDegree * (μ * r) = r * (μ * Fstar.natDegree) := by ring
-        _ ≤ r * D_Y := Nat.mul_le_mul_left r hμs_le_DY
-        _ ≤ r * (D_Y * D_Y) := Nat.mul_le_mul_left r (Nat.le_mul_of_pos_right D_Y hDY_pos)
-        _ = r * D_Y ^ 2 := by ring
-    change (Polynomial.resultant Fstar Ei Fstar.natDegree Ei.natDegree).natDegree ≤ _
-    split_ifs at hres hEi_degZ hEi_degY with h0
-    · rw [Nat.zero_max] at hres
-      rw [Nat.max_zero] at hEi_degY
-      have h2 : Ei.natDegree * B_Z ≤ 4 * D * D_Y * B_Z := by
-        have h1 : 1 ≤ 4 * D * D_Y := by
-          calc 1 = 1 * 1 := by ring
-            _ ≤ (4 * D) * D_Y := Nat.mul_le_mul (by omega) hDY_pos
-        exact Nat.mul_le_mul_right B_Z (hEi_degY.trans h1)
-      exact hres.trans ((Nat.add_le_add hμF_sq h2).trans_eq (add_comm _ _))
-    · have h1 : Fstar.natDegree * (2 * (μ * d) * B_Z + μ * r) ≤
-          2 * D * D_Y * B_Z + r * D_Y ^ 2 := by
-        rw [mul_add]
-        have ha : Fstar.natDegree * (2 * (μ * d) * B_Z) ≤ 2 * D * D_Y * B_Z := by
-          calc Fstar.natDegree * (2 * (μ * d) * B_Z)
-              ≤ D_Y * (2 * D * B_Z) :=
-                Nat.mul_le_mul hF_le_DY (Nat.mul_le_mul_right B_Z (by omega))
-            _ = 2 * D * D_Y * B_Z := by ring
-        exact Nat.add_le_add ha hμF_sq
-      have h2 : Ei.natDegree * B_Z ≤ 2 * D * D_Y * B_Z := by
-        have h2a : Ei.natDegree ≤ 2 * D * D_Y := by
-          calc Ei.natDegree ≤ 2 * (μ * d) * s + 0 := hEi_degY
-            _ ≤ 2 * D * D_Y := by rw [add_zero]; exact Nat.mul_le_mul (by omega) hs_le_DY
-        exact Nat.mul_le_mul_right B_Z h2a
-      exact hres.trans (by linarith)
-  refine ⟨res_i, hres_ne, hres_deg, fun z _ P hP_deg hS_ev0 hF_ev0 hγ_ev_ne hagree => ?_⟩
-  set yz : F := (P ^ μ).eval x₀
-  let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) yz
-  have hφz_eq : ∀ f : F[X][X], φz f = (f.map (evZ z)).eval yz := fun f => by
+    ((hF_prim.irreducible_iff_irreducible_map_fraction_map (K := K)).1 hF_irred
+      ).coprime_iff_not_dvd.2 fun hd => hφstar_Ei_ne (hφstar_dvd_zero hd)
+  refine ⟨Polynomial.resultant Fstar Ei Fstar.natDegree Ei.natDegree,
+    resultant_ne_zero_of_isCoprime_map ι_K hι_K_inj hcop,
+    resultant_evalMismatch_natDegree_le α i hμ_pos hS_deg hDY_pos hD_pos
+      (hdeg_mul.trans_le hR_deg_le) hμd_le hS_degZ hF_deg_le hF_degZ,
+    fun z _ P hP_deg hS_ev0 hF_ev0 hγ_ev_ne hagree => ?_⟩
+  let φz : F[X][X] →+* F := Polynomial.eval₂RingHom (evZ z) ((P ^ μ).eval x₀)
+  have hφz_eq (f : F[X][X]) : φz f = (f.map (evZ z)).eval ((P ^ μ).eval x₀) := by
     simp [φz, Polynomial.eval_map]
-  have hWz_deg : (taylor x₀ (P ^ μ)).natDegree ≤ μ * d := by
-    rw [natDegree_taylor]
-    exact natDegree_pow_le.trans (Nat.mul_le_mul_left μ hP_deg)
-  have hWz_0 : (taylor x₀ (P ^ μ)).coeff 0 = φz X := by
-    rw [taylor_coeff_zero]; simp [φz, yz]
-  have hWz_k : ∀ k ∈ Icc 1 (μ * d),
-      (φz γ) ^ (2 * k - 1) * (taylor x₀ (P ^ μ)).coeff k = φz (recPoly S x₀ s k) := by
-    intro k hk
-    have hrec := hspec_z z P hS_ev0 hγ_ev_ne k (mem_Icc.1 hk).1
-    rw [hφz_eq, hφz_eq]
-    exact hrec
-  have hEi_z0 : (Ei.map (evZ z)).eval yz = 0 := by
-    rw [← hφz_eq, map_evalMismatchPoly (α i) (curveWord u i) φz hWz_deg hWz_0 hWz_k]
-    have hsub : φz (C (C (α i - x₀))) = α i - x₀ := by simp [φz, evZ]
-    have hCw : φz (C (curveWord u i)) = (curveWord u i).eval z := by simp [φz, evZ]
-    rw [hsub, hCw, Polynomial.taylor_eval, sub_add_cancel, eval_pow, hagree, sub_self, mul_zero]
+  have hEi_z0 : (Ei.map (evZ z)).eval ((P ^ μ).eval x₀) = 0 := by
+    rw [← hφz_eq, map_evalMismatchPoly (α i) (curveWord u i) φz (W := taylor x₀ (P ^ μ))
+      (by rw [natDegree_taylor]; exact natDegree_pow_le.trans (Nat.mul_le_mul_left μ hP_deg))
+      (by rw [taylor_coeff_zero]; simp [φz]) fun k hk => by
+        have hrec := spec_recPoly_at_point hS_deg hS_wd hS_ev0 hγ_ev_ne k (mem_Icc.1 hk).1
+        rwa [← hφz_eq, ← hφz_eq] at hrec]
+    rw [show φz (C (C (α i - x₀))) = α i - x₀ by simp [φz, evZ],
+      show φz (C (curveWord u i)) = (curveWord u i).eval z by simp [φz, evZ],
+      Polynomial.taylor_eval, sub_add_cancel, eval_pow, hagree, sub_self, mul_zero]
   exact eval_resultant_eq_zero_of_common_root (Or.inl (by omega)) hF_ev0 hEi_z0
 
 end Step6ResultantKillAndLift
@@ -2451,6 +2038,44 @@ end Step6ResultantKillAndLift
 section Step7DoubleCountAndLagrange
 
 variable {F : Type*} [Field F]
+
+private theorem weighted_double_count_le {ι α : Type*} [Fintype ι]
+    {W : ι → ℕ} {W_tot B_W bad : ℕ} (T : Finset α) (Istar : Finset ι)
+    (agree : α → ι → Prop) [∀ z i, Decidable (agree z i)]
+    (hW_sum : ∑ i, W i ≤ W_tot) (hT : W_tot * bad < #T)
+    (hlo : ∀ z ∈ T, B_W ≤ ∑ i ∈ Finset.univ.filter (agree z), W i)
+    (hbad : ∀ i ∉ Istar, #(T.filter fun z => agree z i) ≤ bad) :
+    B_W ≤ ∑ i ∈ Istar, W i := by
+  classical
+  have hswap : ∑ z ∈ T, ∑ i ∈ Finset.univ.filter (agree z), W i =
+      ∑ i : ι, #(T.filter fun z => agree z i) * W i := by
+    calc _ = ∑ z ∈ T, ∑ i : ι, if agree z i then W i else 0 :=
+            Finset.sum_congr rfl fun z _ => Finset.sum_filter _ _
+      _ = ∑ i : ι, ∑ z ∈ T, if agree z i then W i else 0 := Finset.sum_comm
+      _ = ∑ i : ι, #(T.filter fun z => agree z i) * W i := Finset.sum_congr rfl fun i _ => by
+            rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul]
+  have hlo' : #T * B_W ≤ ∑ i : ι, #(T.filter fun z => agree z i) * W i :=
+    (by rw [Finset.sum_const, smul_eq_mul] : ∑ _z ∈ T, B_W = #T * B_W) ▸
+      (Finset.sum_le_sum hlo).trans_eq hswap
+  have hpart_in : ∑ i ∈ Istar, #(T.filter fun z => agree z i) * W i ≤ #T * ∑ i ∈ Istar, W i := by
+    rw [Finset.mul_sum]
+    exact Finset.sum_le_sum fun i _ => Nat.mul_le_mul_right _ (card_filter_le _ _)
+  have hpart_out : ∑ i ∈ Finset.univ \ Istar, #(T.filter fun z => agree z i) * W i ≤
+      W_tot * bad :=
+    (Finset.sum_le_sum fun i hi =>
+      Nat.mul_le_mul_right (W i) (hbad i (mem_sdiff.1 hi).2)).trans <| by
+      rw [← Finset.mul_sum, mul_comm bad]
+      exact Nat.mul_le_mul_right bad
+        ((Finset.sum_le_sum_of_subset (subset_univ _)).trans hW_sum)
+  have hsplit : ∑ i : ι, #(T.filter fun z => agree z i) * W i =
+      (∑ i ∈ Finset.univ \ Istar, #(T.filter fun z => agree z i) * W i) +
+        ∑ i ∈ Istar, #(T.filter fun z => agree z i) * W i :=
+    (Finset.sum_sdiff (subset_univ Istar)).symm
+  have hlt : #T * B_W < #T * ((∑ i ∈ Istar, W i) + 1) := by
+    calc #T * B_W ≤ #T * ∑ i ∈ Istar, W i + W_tot * bad := by omega
+      _ < #T * ∑ i ∈ Istar, W i + #T := Nat.add_lt_add_left hT _
+      _ = #T * ((∑ i ∈ Istar, W i) + 1) := by ring
+  exact Nat.lt_succ_iff.1 (Nat.lt_of_mul_lt_mul_left hlt)
 
 /-- Step 7: Weighted double-counting shows `B_W ≤ ∑ i ∈ Istar, W i`, giving `k ≤ #Istar`, and
 Lagrange interpolation on a `k`-element subset `J ⊆ Istar` pulls `Pstar ∈ L[X]` down to `r + 1`
@@ -2491,156 +2116,68 @@ private theorem exists_correlatedAgreement_of_lifted_poly {ι : Type*} [Fintype 
       ∃ v : Fin (r + 1) → (ι → F), (∀ j, v j ∈ reedSolomon α k) ∧
         ∀ i ∈ D', ∀ j, u j i = v j i := by
   classical
-  let K := FractionRing F[X]
-  let L := AlgebraicClosure K
+  let K := FractionRing F[X]; let L := AlgebraicClosure K
   let j_L : F[X] →+* L := (algebraMap K L).comp (algebraMap F[X] K)
   have hj_L_inj : Function.Injective j_L :=
     (RingHom.injective (algebraMap K L)).comp (IsFractionRing.injective F[X] K)
-  -- Pick a witness polynomial `P_z` for each `z ∈ T''`.
-  have hchoose : ∀ z : T'', ∃ P : F[X], P.natDegree ≤ d ∧
-      (evZ₂ z.1 S).eval (P ^ μ) = 0 ∧
-      (Fstar.map (evZ z.1)).eval ((P ^ μ).eval x₀) = 0 ∧
-      ((S.map (Polynomial.evalRingHom (C x₀))).derivative.map (evZ z.1)).eval
-        ((P ^ μ).eval x₀) ≠ 0 ∧
-      B_W ≤ ∑ i ∈ Finset.univ.filter (fun i => P.eval (α i) = (curveWord u i).eval z.1), W i :=
-    fun z => hT''_mem z.1 z.2
-  choose P_of hP_deg hS_ev hF_ev hγ_ev hW_agree using hchoose
-  let P_z : F → F[X] := fun z => if hz : z ∈ T'' then P_of ⟨z, hz⟩ else 0
-  have hPz_eq : ∀ z (hz : z ∈ T''), P_z z = P_of ⟨z, hz⟩ := fun z hz => by
-    simp only [P_z, hz, ↓reduceDIte]
-  -- Weighted double-counting across `(z, i) ∈ T'' × ι`.
-  let agreePred : F → ι → Prop := fun z i => (P_z z).eval (α i) = (curveWord u i).eval z
-  have hsum_lo : #T'' * B_W ≤ ∑ z ∈ T'', ∑ i ∈ Finset.univ.filter (agreePred z), W i := by
-    calc #T'' * B_W = ∑ _z ∈ T'', B_W := by rw [Finset.sum_const, smul_eq_mul]
-      _ ≤ ∑ z ∈ T'', ∑ i ∈ Finset.univ.filter (agreePred z), W i :=
-        Finset.sum_le_sum fun z hz => by
-          have h := hW_agree ⟨z, hz⟩
-          simpa only [agreePred, hPz_eq z hz] using h
-  have hsum_swap :
-      ∑ z ∈ T'', ∑ i ∈ Finset.univ.filter (agreePred z), W i =
-        ∑ i : ι, #(T''.filter fun z => agreePred z i) * W i := by
-    have h1 : ∑ z ∈ T'', ∑ i ∈ Finset.univ.filter (agreePred z), W i =
-        ∑ z ∈ T'', ∑ i : ι, if agreePred z i then W i else 0 :=
-      Finset.sum_congr rfl fun z _ => Finset.sum_filter _ _
-    rw [h1, Finset.sum_comm]
-    refine Finset.sum_congr rfl fun i _ => ?_
-    rw [← Finset.sum_filter, Finset.sum_const, smul_eq_mul]
-  have hbad_card : ∀ i ∉ Istar,
-      #(T''.filter fun z => agreePred z i) ≤ D_Y * (4 * D * B_Z + r * D_Y) := by
-    intro i hi_not
-    obtain ⟨res, hres_ne, hres_deg, hres_van⟩ := hIstar_bad i hi_not
-    have hvan : ∀ z ∈ T''.filter fun z => agreePred z i, res.eval z = 0 := by
-      intro z hz
-      obtain ⟨hzT, hagree⟩ := mem_filter.1 hz
-      have hagree' : (P_of ⟨z, hzT⟩).eval (α i) = (curveWord u i).eval z := by
-        simpa only [agreePred, hPz_eq z hzT] using hagree
-      exact hres_van z hzT (P_of ⟨z, hzT⟩) (hP_deg ⟨z, hzT⟩) (hS_ev ⟨z, hzT⟩)
-        (hF_ev ⟨z, hzT⟩) (hγ_ev ⟨z, hzT⟩) hagree'
-    have hle := card_filter_eval_eq_zero_le hres_ne (T''.filter fun z => agreePred z i)
-    rw [Finset.filter_true_of_mem hvan] at hle
-    have hring : 4 * D * D_Y * B_Z + r * D_Y ^ 2 = D_Y * (4 * D * B_Z + r * D_Y) := by ring
-    omega
-  have hsum_hi :
-      ∑ i : ι, #(T''.filter fun z => agreePred z i) * W i ≤
-        #T'' * (∑ i ∈ Istar, W i) + W_tot * D_Y * (4 * D * B_Z + r * D_Y) := by
-    have hsplit : ∑ i : ι, #(T''.filter fun z => agreePred z i) * W i =
-        (∑ i ∈ Finset.univ \ Istar, #(T''.filter fun z => agreePred z i) * W i) +
-          ∑ i ∈ Istar, #(T''.filter fun z => agreePred z i) * W i :=
-      (Finset.sum_sdiff (subset_univ Istar)).symm
-    have hpart_in : ∑ i ∈ Istar, #(T''.filter fun z => agreePred z i) * W i ≤
-        #T'' * ∑ i ∈ Istar, W i := by
-      rw [Finset.mul_sum]
-      exact Finset.sum_le_sum fun i _ => Nat.mul_le_mul_right (W i) (card_filter_le _ _)
-    have hpart_out :
-        ∑ i ∈ Finset.univ \ Istar, #(T''.filter fun z => agreePred z i) * W i ≤
-          W_tot * D_Y * (4 * D * B_Z + r * D_Y) := by
-      calc ∑ i ∈ Finset.univ \ Istar, #(T''.filter fun z => agreePred z i) * W i
-          ≤ ∑ i ∈ Finset.univ \ Istar, (D_Y * (4 * D * B_Z + r * D_Y)) * W i :=
-            Finset.sum_le_sum fun i hi =>
-              Nat.mul_le_mul_right (W i) (hbad_card i (mem_sdiff.1 hi).2)
-        _ = (D_Y * (4 * D * B_Z + r * D_Y)) * ∑ i ∈ Finset.univ \ Istar, W i :=
-            (Finset.mul_sum _ _ _).symm
-        _ ≤ (D_Y * (4 * D * B_Z + r * D_Y)) * ∑ i : ι, W i :=
-            Nat.mul_le_mul_left _ (Finset.sum_le_sum_of_subset (subset_univ _))
-        _ ≤ (D_Y * (4 * D * B_Z + r * D_Y)) * W_tot := Nat.mul_le_mul_left _ hW_sum
-        _ = W_tot * D_Y * (4 * D * B_Z + r * D_Y) := by ring
-    omega
-  have hT''_pos : 0 < #T'' := Nat.zero_lt_of_lt hT''_card
-  have hW_Istar : B_W ≤ ∑ i ∈ Istar, W i := by
-    have hlt : #T'' * B_W < #T'' * ((∑ i ∈ Istar, W i) + 1) := by
-      calc #T'' * B_W
-          ≤ #T'' * (∑ i ∈ Istar, W i) + W_tot * D_Y * (4 * D * B_Z + r * D_Y) := by
-            rw [hsum_swap] at hsum_lo
-            exact hsum_lo.trans hsum_hi
-        _ < #T'' * (∑ i ∈ Istar, W i) + #T'' := Nat.add_lt_add_left hT''_card _
-        _ = #T'' * ((∑ i ∈ Istar, W i) + 1) := by ring
-    have hlt' := Nat.lt_of_mul_lt_mul_left hlt
-    omega
-  -- Extract a `k`-element subset `J ⊆ Istar` and interpolate `P_j ∈ F[X]` on `J`.
-  have hcard_Istar : k ≤ #Istar := hk_le_t.trans (ceil_div_le_card_of_sum_le hM hW_le hW_Istar)
-  obtain ⟨J, hJ_sub, hJ_card⟩ := Finset.exists_subset_card_eq hcard_Istar
+  choose P_of hP_deg hS_ev hF_ev hγ_ev hW_agree using fun z : T'' => hT''_mem z.1 z.2
+  let agree : F → ι → Prop := fun z i =>
+    (if hz : z ∈ T'' then P_of ⟨z, hz⟩ else 0).eval (α i) = (curveWord u i).eval z
+  have hW_Istar : B_W ≤ ∑ i ∈ Istar, W i :=
+    weighted_double_count_le T'' Istar agree hW_sum (by rwa [← mul_assoc])
+      (fun z hz => by simpa only [agree, hz, ↓reduceDIte] using hW_agree ⟨z, hz⟩)
+      fun i hi_not => by
+        obtain ⟨res, hres_ne, hres_deg, hres_van⟩ := hIstar_bad i hi_not
+        have hle := card_filter_eval_eq_zero_le hres_ne (T''.filter fun z => agree z i)
+        rw [Finset.filter_true_of_mem fun z hz => by
+          obtain ⟨hzT, hag⟩ := mem_filter.1 hz
+          exact hres_van z hzT _ (hP_deg ⟨z, hzT⟩) (hS_ev ⟨z, hzT⟩) (hF_ev ⟨z, hzT⟩)
+            (hγ_ev ⟨z, hzT⟩) (by simpa only [agree, hzT, ↓reduceDIte] using hag)] at hle
+        exact hle.trans (hres_deg.trans_eq (by ring))
+  obtain ⟨J, hJ_sub, hJ_card⟩ := Finset.exists_subset_card_eq
+    (hk_le_t.trans (ceil_div_le_card_of_sum_le hM hW_le hW_Istar))
   let Pj : Fin (r + 1) → F[X] := fun j => Lagrange.interpolate J α (u j)
   let v : Fin (r + 1) → (ι → F) := fun j i => (Pj j).eval (α i)
-  have hPj_deg : ∀ j, (Pj j).degree < k := fun j =>
-    hJ_card ▸ Lagrange.degree_interpolate_lt _ hα.injOn
-  have hv_rs : ∀ j, v j ∈ reedSolomon α k := fun j => mem_reedSolomon.2 ⟨Pj j, hPj_deg j, rfl⟩
-  have hPj_eval_J : ∀ j, ∀ i ∈ J, (Pj j).eval (α i) = u j i := fun j _ hi =>
-    Lagrange.eval_interpolate_at_node _ hα.injOn hi
-  -- Assemble `P_FZ ∈ F[Z][X]` and compare with `Pstar ∈ L[X]` on `J`.
+  have hPj_deg (j) : (Pj j).degree < k := hJ_card ▸ Lagrange.degree_interpolate_lt _ hα.injOn
   let P_FZ : F[X][X] := ∑ j : Fin (r + 1), (Pj j).map C * C (X ^ (j : ℕ))
   let P_L : L[X] := P_FZ.map j_L
-  have hP_FZ_eval : ∀ i : ι, P_FZ.eval (C (α i)) = curveWord v i := by
-    intro i
-    rw [curveWord, Polynomial.ofFn_eq_sum_monomial]
-    simp only [P_FZ, eval_finsetSum, eval_mul, eval_C, v]
-    refine Finset.sum_congr rfl fun j _ => ?_
-    have hhom := (Polynomial.hom_eval₂ (Pj j) (RingHom.id F) Polynomial.C (α i)).symm
-    rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-    rw [Polynomial.eval_map, hhom, Polynomial.C_mul_X_pow_eq_monomial]
-  have hP_L_eval : ∀ i : ι, P_L.eval (j_L (C (α i))) = j_L (curveWord v i) := by
-    intro i
+  have hP_L_eval (i : ι) : P_L.eval (j_L (C (α i))) = j_L (curveWord v i) := by
+    have hFZ : P_FZ.eval (C (α i)) = curveWord v i := by
+      rw [curveWord, Polynomial.ofFn_eq_sum_monomial]
+      simp only [P_FZ, eval_finsetSum, eval_mul, eval_C, v]
+      refine Finset.sum_congr rfl fun j _ => ?_
+      have hhom := (Polynomial.hom_eval₂ (Pj j) (RingHom.id F) Polynomial.C (α i)).symm
+      rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
+      rw [Polynomial.eval_map, hhom, Polynomial.C_mul_X_pow_eq_monomial]
     have hhom := (Polynomial.hom_eval₂ P_FZ (RingHom.id F[X]) j_L (C (α i))).symm
     rw [RingHom.comp_id, Polynomial.eval₂_id] at hhom
-    rw [Polynomial.eval_map, hhom, hP_FZ_eval i]
+    rw [Polynomial.eval_map, hhom, hFZ]
+  have hP_L_deg_lt : P_L.degree < k := Polynomial.degree_map_le.trans_lt <|
+    (degree_sum_le _ _).trans_lt <| (Finset.sup_lt_iff (WithBot.bot_lt_coe _)).2 fun j _ =>
+      (degree_mul_le _ _).trans_lt <|
+        (add_le_add Polynomial.degree_map_le degree_C_le).trans_lt (by simpa using hPj_deg j)
   have hPstar_deg_lt : Pstar.degree < k := by
-    by_cases h0 : Pstar = 0
-    · rw [h0, degree_zero]
-      exact WithBot.bot_lt_coe k
-    · rw [Polynomial.degree_eq_natDegree h0]
-      exact Nat.cast_lt.2 (by omega)
-  have hP_L_deg_lt : P_L.degree < k := by
-    refine Polynomial.degree_map_le.trans_lt ?_
-    refine (degree_sum_le _ _).trans_lt ?_
-    rw [Finset.sup_lt_iff (WithBot.bot_lt_coe _)]
-    intro j _
-    refine (degree_mul_le _ _).trans_lt ?_
-    refine (add_le_add Polynomial.degree_map_le degree_C_le).trans_lt ?_
-    rw [add_zero]
-    exact hPj_deg j
-  have hPstar_eq : Pstar = P_L := by
-    apply sub_eq_zero.1
-    by_contra hne
-    have hsub_deg : (Pstar - P_L).natDegree < k :=
-      (Polynomial.natDegree_lt_iff_degree_lt hne).2
-        ((degree_sub_le _ _).trans_lt (max_lt hPstar_deg_lt hP_L_deg_lt))
+    rcases eq_or_ne Pstar 0 with rfl | h0
+    · exact WithBot.bot_lt_coe k
+    · rw [Polynomial.degree_eq_natDegree h0]; exact Nat.cast_lt.2 (by omega)
+  have hPstar_eq : Pstar = P_L := sub_eq_zero.1 <| by_contra fun hne => by
+    have hdeg := (Polynomial.natDegree_lt_iff_degree_lt hne).2
+      ((degree_sub_le _ _).trans_lt (max_lt hPstar_deg_lt hP_L_deg_lt))
     let f_pts : ι → L := fun i => j_L (C (α i))
-    have hf_inj : Function.Injective f_pts := hj_L_inj.comp (Polynomial.C_injective.comp hα)
-    have hvan : ∀ x ∈ J.image f_pts, (Pstar - P_L).eval x = 0 := by
-      intro x hx
+    have hcard := card_filter_eval_eq_zero_le hne (J.image f_pts)
+    have hvan : ∀ x ∈ J.image f_pts, (Pstar - P_L).eval x = 0 := fun x hx => by
       obtain ⟨i, hiJ, rfl⟩ := mem_image.1 hx
-      rw [eval_sub, hIstar_agree i (hJ_sub hiJ), hP_L_eval i]
-      have hcw : curveWord u i = curveWord v i :=
-        congrArg (Polynomial.ofFn (r + 1)) (funext fun j => (hPj_eval_J j i hiJ).symm)
-      rw [hcw, sub_self]
-    have hcard_le := card_filter_eval_eq_zero_le hne (J.image f_pts)
-    rw [Finset.filter_true_of_mem hvan, card_image_of_injective J hf_inj, hJ_card] at hcard_le
+      have hcw : curveWord u i = curveWord v i := congrArg (Polynomial.ofFn (r + 1)) <|
+        funext fun j => (Lagrange.eval_interpolate_at_node _ hα.injOn hiJ).symm
+      rw [eval_sub, hIstar_agree i (hJ_sub hiJ), hP_L_eval i, hcw, sub_self]
+    have hf_inj : Function.Injective f_pts := hj_L_inj.comp (Polynomial.C_injective.comp hα)
+    rw [Finset.filter_true_of_mem hvan, card_image_of_injective J hf_inj, hJ_card] at hcard
     omega
-  refine ⟨Istar, hW_Istar, v, hv_rs, fun i hi j => ?_⟩
-  have hev := hIstar_agree i hi
-  rw [hPstar_eq, hP_L_eval i] at hev
-  have hcw : curveWord v i = curveWord u i := hj_L_inj hev
-  have hc := congrArg (fun p : F[X] => p.coeff (j : ℕ)) hcw
-  simpa only [curveWord, Polynomial.ofFn_coeff_eq_val_of_lt _ j.2] using hc.symm
+  refine ⟨Istar, hW_Istar, v, fun j => mem_reedSolomon.2 ⟨Pj j, hPj_deg j, rfl⟩, fun i hi j => ?_⟩
+  have hcw : curveWord v i = curveWord u i :=
+    hj_L_inj (by rw [← hP_L_eval i, ← hPstar_eq, hIstar_agree i hi])
+  simpa only [curveWord, Polynomial.ofFn_coeff_eq_val_of_lt _ j.2] using
+    (congrArg (fun p : F[X] => p.coeff (j : ℕ)) hcw).symm
 
 end Step7DoubleCountAndLagrange
 
@@ -2671,32 +2208,95 @@ private theorem sqrt_rate_bounds {n k : ℕ} {ρ : ℝ} (hρ : ρ = (k : ℝ) / 
     0 < ρ ∧ ρ ≤ 1 ∧ 0 < Real.sqrt ρ ∧ Real.sqrt ρ ≤ 1 ∧ Real.sqrt ρ ^ 2 = ρ ∧
     (1 : ℝ) ≤ 1 / Real.sqrt ρ ∧ 1 / Real.sqrt ρ ≤ 1 / ρ ∧ 1 / Real.sqrt ρ ≤ (n : ℝ) := by
   subst hρ
-  have hn : 1 ≤ n := hk.trans hkn
-  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
-  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
-  have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
-  have h1_le_k : (1 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
-  have hρ_pos : 0 < (k : ℝ) / (n : ℝ) := by positivity
-  have hρ_le_one : (k : ℝ) / (n : ℝ) ≤ 1 := (div_le_one hnR).2 (by exact_mod_cast hkn)
-  have hsqρ_pos : 0 < Real.sqrt ((k : ℝ) / (n : ℝ)) := Real.sqrt_pos.2 hρ_pos
-  have hsqρ_le_one : Real.sqrt ((k : ℝ) / (n : ℝ)) ≤ 1 := Real.sqrt_le_one.2 hρ_le_one
-  have hsqρ_sq : Real.sqrt ((k : ℝ) / (n : ℝ)) ^ 2 = (k : ℝ) / (n : ℝ) := Real.sq_sqrt hρ_pos.le
-  have h1_le_invsq : (1 : ℝ) ≤ 1 / Real.sqrt ((k : ℝ) / (n : ℝ)) :=
-    (one_le_div hsqρ_pos).2 hsqρ_le_one
-  have hinvsq_le_invρ : 1 / Real.sqrt ((k : ℝ) / (n : ℝ)) ≤ 1 / ((k : ℝ) / (n : ℝ)) := by
-    rw [div_le_div_iff₀ hsqρ_pos hρ_pos, one_mul, one_mul]
-    calc (k : ℝ) / (n : ℝ) = Real.sqrt ((k : ℝ) / (n : ℝ)) * Real.sqrt ((k : ℝ) / (n : ℝ)) := by
-          rw [← sq, hsqρ_sq]
-      _ ≤ Real.sqrt ((k : ℝ) / (n : ℝ)) := mul_le_of_le_one_right hsqρ_pos.le hsqρ_le_one
-  have hinvsq_le_n : 1 / Real.sqrt ((k : ℝ) / (n : ℝ)) ≤ (n : ℝ) := by
-    refine le_of_sq_le_sq ?_ hnR.le
-    rw [div_pow, one_pow, hsqρ_sq, one_div_div, div_le_iff₀ hkR]
-    calc (n : ℝ) = (n : ℝ) * 1 := (mul_one _).symm
-      _ ≤ (n : ℝ) * ((n : ℝ) * (k : ℝ)) :=
-        mul_le_mul_of_nonneg_left (one_le_mul_of_one_le_of_one_le h1_le_n h1_le_k) hnR.le
-      _ = (n : ℝ) ^ 2 * (k : ℝ) := by ring
-  exact ⟨hρ_pos, hρ_le_one, hsqρ_pos, hsqρ_le_one, hsqρ_sq,
-    h1_le_invsq, hinvsq_le_invρ, hinvsq_le_n⟩
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hk.trans hkn
+  have hkR : (0 : ℝ) < k := by exact_mod_cast hk
+  have hρ_pos : 0 < (k : ℝ) / n := by positivity
+  have hρ_le_one : (k : ℝ) / n ≤ 1 := (div_le_one hnR).2 (by exact_mod_cast hkn)
+  have hsq_pos : 0 < Real.sqrt ((k : ℝ) / n) := Real.sqrt_pos.2 hρ_pos
+  have hsq_le : Real.sqrt ((k : ℝ) / n) ≤ 1 := Real.sqrt_le_one.2 hρ_le_one
+  have hsq_sq : Real.sqrt ((k : ℝ) / n) ^ 2 = (k : ℝ) / n := Real.sq_sqrt hρ_pos.le
+  refine ⟨hρ_pos, hρ_le_one, hsq_pos, hsq_le, hsq_sq, (one_le_div hsq_pos).2 hsq_le, ?_, ?_⟩
+  · rw [div_le_div_iff₀ hsq_pos hρ_pos, one_mul, one_mul]
+    calc (k : ℝ) / n = Real.sqrt ((k : ℝ) / n) * Real.sqrt ((k : ℝ) / n) := by rw [← sq, hsq_sq]
+      _ ≤ Real.sqrt ((k : ℝ) / n) := mul_le_of_le_one_right hsq_pos.le hsq_le
+  · refine le_of_sq_le_sq ?_ hnR.le
+    rw [div_pow, one_pow, hsq_sq, one_div_div, div_le_iff₀ hkR]
+    have : (1 : ℝ) ≤ (n : ℝ) * k := one_le_mul_of_one_le_of_one_le
+      (by exact_mod_cast hk.trans hkn) (by exact_mod_cast hk)
+    nlinarith
+
+private theorem johnson_monomial_gap {n k m : ℕ} (hk : 1 ≤ k) (hkn : k ≤ n) (hm : 1 ≤ m) :
+    let m' := m + 1
+    let t₀ := ⌈(1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k)⌉₊
+    let D := m' * t₀ - 1
+    n * (m' * (m' + 1) / 2) < #(Sudan.monomials (k - 1) D) ∧
+      (5 / 8) * (n : ℝ) < ((#(Sudan.monomials (k - 1) D) - n * (m' * (m' + 1) / 2) : ℕ) : ℝ) := by
+  set m' := m + 1
+  set t₀ := ⌈(1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k)⌉₊
+  set D := m' * t₀ - 1
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hk.trans hkn
+  have hkR : (0 : ℝ) < k := by exact_mod_cast hk
+  have hmR : (0 : ℝ) < m := by exact_mod_cast hm
+  have hm'R : (0 : ℝ) < m' := by positivity
+  have h1_le_t₀ : 1 ≤ t₀ := by
+    have hsq : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
+      Real.le_sqrt (by norm_num) (by positivity) |>.2 (by
+        have h1 : (1 : ℝ) ≤ n := by exact_mod_cast hk.trans hkn
+        have h2 : (1 : ℝ) ≤ k := by exact_mod_cast hk
+        nlinarith)
+    have hle : (1 : ℝ) ≤ (t₀ : ℝ) := hsq.trans (by
+      calc Real.sqrt ((n : ℝ) * k) ≤ (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) :=
+            le_mul_of_one_le_left (Real.sqrt_nonneg _)
+              (by linarith [show (0 : ℝ) ≤ 1 / (2 * m) by positivity])
+        _ ≤ (t₀ : ℝ) := Nat.le_ceil _)
+    exact_mod_cast hle
+  have hD_succ : D + 1 = m' * t₀ := by
+    have : 1 ≤ m' * t₀ := Nat.mul_pos (by omega) h1_le_t₀; omega
+  have hmt_sq_lower :
+      ((m' : ℝ) * (m' + 1) + 5 / 4) * ((n : ℝ) * k) < ((m' : ℝ) * t₀) ^ 2 := by
+    have hmul : (m' : ℝ) * (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) ≤
+        (m' : ℝ) * t₀ := by
+      have := mul_le_mul_of_nonneg_left (Nat.le_ceil _ : _ ≤ (t₀ : ℝ)) hm'R.le; linarith
+    have hsq := pow_le_pow_left₀ (by positivity) hmul 2
+    rw [mul_pow, Real.sq_sqrt (by positivity)] at hsq
+    have hcoeff : (m' : ℝ) * (m' + 1) + 5 / 4 < ((m' : ℝ) * (1 + 1 / (2 * (m : ℝ)))) ^ 2 := by
+      have hm'_cast : (m' : ℝ) = (m : ℝ) + 1 := by exact_mod_cast rfl
+      rw [hm'_cast, mul_pow]
+      have hdiff : ((m : ℝ) + 1) ^ 2 * (1 + 1 / (2 * m)) ^ 2 -
+          (((m : ℝ) + 1) * (m + 1 + 1) + 5 / 4) = (6 * m + 1) / (4 * m ^ 2) := by
+        field_simp; ring
+      linarith [show (0 : ℝ) < (6 * m + 1) / (4 * m ^ 2) by positivity]
+    exact (mul_lt_mul_of_pos_right hcoeff (by positivity)).trans_le hsq
+  set R_eq := n * (m' * (m' + 1) / 2); set C_mon := #(Sudan.monomials (k - 1) D)
+  have h2Req : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * (m' + 1)) := by
+    exact_mod_cast (by
+      have := Nat.mul_le_mul_left n (Nat.div_mul_le_self (m' * (m' + 1)) 2)
+      linarith [show 2 * R_eq = n * (m' * (m' + 1) / 2 * 2) by ring] :
+        2 * R_eq ≤ n * (m' * (m' + 1)))
+  have hgap : (R_eq : ℝ) + (5 / 8) * n < C_mon := by
+    rcases Nat.eq_or_lt_of_le hk with rfl | hk2
+    · have hC : (C_mon : ℝ) = ((m' : ℝ) * t₀) ^ 2 := by
+        exact_mod_cast (by rw [show C_mon = #(Sudan.monomials 0 D) from rfl,
+          card_monomials_zero, hD_succ] : C_mon = (m' * t₀) ^ 2)
+      rw [hC]; simp only [Nat.cast_one, mul_one] at hmt_sq_lower; linarith
+    · have hsq_lt : (m' * t₀) ^ 2 < 2 * (k - 1) * C_mon := calc
+        (m' * t₀) ^ 2 = (D + 1) * (D + 1) := by rw [sq, hD_succ]
+        _ < (D + 1) * (D + 2) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
+        _ ≤ 2 * (k - 1) * C_mon :=
+          Sudan.add_one_mul_add_two_le_two_mul_mul_card_monomials (by omega) D
+      have hdR_pos : (0 : ℝ) < ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (show 0 < k - 1 by omega)
+      have hd_le_k : ((k - 1 : ℕ) : ℝ) ≤ k := by exact_mod_cast Nat.sub_le k 1
+      have hstep : (2 * (R_eq : ℝ) + (5 / 4) * n) * ((k - 1 : ℕ) : ℝ) <
+          (2 * (C_mon : ℝ)) * ((k - 1 : ℕ) : ℝ) := calc
+        _ ≤ (((m' : ℝ) * (m' + 1) + 5 / 4) * n) * ((k - 1 : ℕ) : ℝ) := by gcongr; linarith
+        _ ≤ (((m' : ℝ) * (m' + 1) + 5 / 4) * n) * k := by gcongr
+        _ = ((m' : ℝ) * (m' + 1) + 5 / 4) * ((n : ℝ) * k) := by ring
+        _ < ((m' : ℝ) * t₀) ^ 2 := hmt_sq_lower
+        _ < 2 * ((k - 1 : ℕ) : ℝ) * C_mon := by exact_mod_cast hsq_lt
+        _ = (2 * (C_mon : ℝ)) * ((k - 1 : ℕ) : ℝ) := by ring
+      linarith [lt_of_mul_lt_mul_right hstep hdR_pos.le]
+  have hinterp : R_eq < C_mon := by exact_mod_cast (show (R_eq : ℝ) < C_mon by linarith)
+  exact ⟨hinterp, by rw [Nat.cast_sub hinterp.le]; linarith⟩
 
 /-- Quantitative gap and degree bounds for `johnson_curve_params_bound`. -/
 private theorem johnson_curve_params_gap {n k e m r : ℕ}
@@ -2714,246 +2314,111 @@ private theorem johnson_curve_params_gap {n k e m r : ℕ}
     (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ ∧
     (maxYDeg (k - 1) D : ℝ) ≤ 5 * (m' : ℝ) / Real.sqrt ρ ∧
     (siegelZDeg n m' (k - 1) D r : ℝ) ≤ 6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ := by
-  set ρ : ℝ := (k : ℝ) / (n : ℝ)
-  set m' : ℕ := m + 1
-  set t₀ : ℕ := ⌈(1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ))⌉₊
-  set D : ℕ := m' * t₀ - 1
+  intro ρ m' t₀ D
   obtain ⟨hρ_pos, _, hsqρ_pos, _, hsqρ_sq, _⟩ :=
-    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / (n : ℝ)) hk hkn
-  have hn : 1 ≤ n := hk.trans hkn
-  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
-  have hkR : (0 : ℝ) < (k : ℝ) := by positivity
-  have hmR : (0 : ℝ) < (m : ℝ) := by positivity
-  have hm'R : (0 : ℝ) < (m' : ℝ) := by positivity
-  have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hn
-  have h1_le_k : (1 : ℝ) ≤ (k : ℝ) := by exact_mod_cast hk
-  have h1_le_m : (1 : ℝ) ≤ (m : ℝ) := by exact_mod_cast hm
-  have h2_le_m' : (2 : ℝ) ≤ (m' : ℝ) := by exact_mod_cast (show 2 ≤ m' by omega)
-  have hsqnk_eq : Real.sqrt ((n : ℝ) * (k : ℝ)) = (n : ℝ) * Real.sqrt ρ := by
+    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / n) hk hkn
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hk.trans hkn
+  have hkR : (0 : ℝ) < k := by exact_mod_cast hk
+  have hmR : (0 : ℝ) < m := by exact_mod_cast hm
+  have hm'R : (0 : ℝ) < m' := by positivity
+  have hsqnk_eq : Real.sqrt ((n : ℝ) * k) = (n : ℝ) * Real.sqrt ρ := by
     rw [Real.sqrt_eq_iff_eq_sq (by positivity) (by positivity), mul_pow, hsqρ_sq]
-    dsimp only [ρ]
-    field_simp
-  have hsqnk_ge_one : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * (k : ℝ)) := by
-    rw [Real.le_sqrt (by norm_num) (by positivity)]
-    nlinarith
-  have hmul_he : (e : ℝ) ≤ (n : ℝ) - (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ)) := by
+    dsimp only [ρ]; field_simp
+  have hmul_he : (e : ℝ) ≤ n - (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) := by
     have h1 := (div_le_iff₀ hnR).1 he
     rw [hsqnk_eq]
-    have h2 : (1 - Real.sqrt ρ - Real.sqrt ρ / (2 * (m : ℝ))) * (n : ℝ) =
-        (n : ℝ) - (1 + 1 / (2 * (m : ℝ))) * ((n : ℝ) * Real.sqrt ρ) := by
-      field_simp
-      ring
-    linarith
+    linarith [show (1 - Real.sqrt ρ - Real.sqrt ρ / (2 * m)) * n =
+      n - (1 + 1 / (2 * m)) * (n * Real.sqrt ρ) by field_simp; ring]
   have he_le_n : e ≤ n := by
-    have hpos : 0 < (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ)) := by positivity
-    have hlt : (e : ℝ) < (n : ℝ) := by linarith
+    have hlt : (e : ℝ) < n := by
+      linarith [show (0 : ℝ) < (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) by positivity]
     exact_mod_cast hlt.le
-  have ht₀_le_sub : t₀ ≤ n - e := by
-    refine Nat.ceil_le.2 ?_
-    rw [Nat.cast_sub he_le_n]
-    linarith
+  have ht₀_le_sub : t₀ ≤ n - e :=
+    Nat.ceil_le.2 (by rw [Nat.cast_sub he_le_n]; linarith)
   have hk_le_t₀ : k ≤ t₀ := by
-    have h1 : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * (k : ℝ)) := by
-      rw [Real.le_sqrt (by positivity) (by positivity)]
-      have hknR : (k : ℝ) ≤ (n : ℝ) := by exact_mod_cast hkn
-      rw [sq]
-      exact mul_le_mul_of_nonneg_right hknR hkR.le
-    have h2 : Real.sqrt ((n : ℝ) * (k : ℝ)) ≤
-        (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ)) := by
-      have h1_le : (1 : ℝ) ≤ 1 + 1 / (2 * (m : ℝ)) := by
-        have : (0 : ℝ) ≤ 1 / (2 * (m : ℝ)) := by positivity
-        linarith
-      simpa only [one_mul] using mul_le_mul_of_nonneg_right h1_le (Real.sqrt_nonneg _)
+    have hknR : (k : ℝ) ≤ n := by exact_mod_cast hkn
+    have h1 : (k : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
+      (Real.le_sqrt (by positivity) (by positivity)).2
+        (by rw [sq]; exact mul_le_mul_of_nonneg_right hknR hkR.le)
+    have h2 : Real.sqrt ((n : ℝ) * k) ≤
+        (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k) :=
+      le_mul_of_one_le_left (Real.sqrt_nonneg _)
+        (by linarith [show (0 : ℝ) ≤ 1 / (2 * (m : ℝ)) by positivity])
     have h3 : (k : ℝ) ≤ (t₀ : ℝ) := (h1.trans h2).trans (Nat.le_ceil _)
     exact_mod_cast h3
-  have hk_le_sub : k ≤ n - e := hk_le_t₀.trans ht₀_le_sub
-  have ht₀_pos : 1 ≤ t₀ := hk.trans hk_le_t₀
-  have hD_succ : D + 1 = m' * t₀ := by
-    have h1 : 1 ≤ m' * t₀ := Nat.mul_pos (by omega) ht₀_pos
-    omega
   have hroot : D < m' * (n - e) := by
-    have h1 : m' * t₀ ≤ m' * (n - e) := Nat.mul_le_mul_left m' ht₀_le_sub
-    omega
-  have ht₀_upper : (t₀ : ℝ) ≤ (5 / 2) * Real.sqrt ((n : ℝ) * (k : ℝ)) := by
-    have hlt := Nat.ceil_lt_add_one (a := (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ)))
+    have : 1 ≤ m' * t₀ := Nat.mul_pos (by omega) (hk.trans hk_le_t₀)
+    have := Nat.mul_le_mul_left m' ht₀_le_sub; omega
+  obtain ⟨hinterp, hdiff_lower⟩ := johnson_monomial_gap hk hkn hm
+  have hD_upper : (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ := by
+    have hsq1 : (1 : ℝ) ≤ Real.sqrt ((n : ℝ) * k) :=
+      (Real.le_sqrt (by norm_num) (by positivity)).2 (by
+        have h1 : (1 : ℝ) ≤ n := by exact_mod_cast hk.trans hkn
+        have h2 : (1 : ℝ) ≤ k := by exact_mod_cast hk
+        nlinarith)
+    have hlt := Nat.ceil_lt_add_one (a := (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * k))
       (by positivity)
     have hhalf : 1 + 1 / (2 * (m : ℝ)) ≤ 3 / 2 := by
-      have : 1 / (2 * (m : ℝ)) ≤ 1 / 2 := by
-        rw [div_le_div_iff₀ (by positivity) (by norm_num)]
-        linarith
+      have : (1 : ℝ) ≤ m := by exact_mod_cast hm
+      have : 1 / (2 * (m : ℝ)) ≤ 1 / 2 :=
+        (div_le_div_iff₀ (by positivity) (by norm_num)).2 (by linarith)
       linarith
-    have hmul := mul_le_mul_of_nonneg_right hhalf (Real.sqrt_nonneg ((n : ℝ) * (k : ℝ)))
-    linarith [hlt, hmul, hsqnk_ge_one]
-  have hmt_sq_lower :
-      ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * ((n : ℝ) * (k : ℝ)) < ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := by
-    have hm'_cast : (m' : ℝ) = (m : ℝ) + 1 := by exact_mod_cast rfl
-    have hceil : (1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ)) ≤ (t₀ : ℝ) :=
-      Nat.le_ceil _
-    have hmul : ((m' : ℝ) * (1 + 1 / (2 * (m : ℝ)))) * Real.sqrt ((n : ℝ) * (k : ℝ)) ≤
-        (m' : ℝ) * (t₀ : ℝ) := by
-      have := mul_le_mul_of_nonneg_left hceil hm'R.le
-      linarith
-    have hsq :
-        (((m' : ℝ) * (1 + 1 / (2 * (m : ℝ)))) * Real.sqrt ((n : ℝ) * (k : ℝ))) ^ 2 ≤
-          ((m' : ℝ) * (t₀ : ℝ)) ^ 2 :=
-      pow_le_pow_left₀ (by positivity) hmul 2
-    rw [mul_pow, Real.sq_sqrt (by positivity)] at hsq
-    have hcoeff : (m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4 <
-        ((m' : ℝ) * (1 + 1 / (2 * (m : ℝ)))) ^ 2 := by
-      rw [hm'_cast]
-      have hdiff : ((m : ℝ) + 1) ^ 2 * (1 + 1 / (2 * (m : ℝ))) ^ 2 -
-          (((m : ℝ) + 1) * (((m : ℝ) + 1) + 1) + 5 / 4) =
-          (6 * (m : ℝ) + 1) / (4 * (m : ℝ) ^ 2) := by
-        field_simp
-        ring
-      have hpos : 0 < (6 * (m : ℝ) + 1) / (4 * (m : ℝ) ^ 2) := by positivity
-      rw [mul_pow]
-      linarith
-    have hlt := mul_lt_mul_of_pos_right hcoeff (show (0 : ℝ) < (n : ℝ) * (k : ℝ) by positivity)
-    linarith
-  set R_eq : ℕ := n * (m' * (m' + 1) / 2)
-  set C_mon : ℕ := #(Sudan.monomials (k - 1) D)
-  have h2Req_le : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * ((m' : ℝ) + 1)) := by
-    have hnat : 2 * R_eq ≤ n * (m' * (m' + 1)) := by
-      have hdiv : (m' * (m' + 1) / 2) * 2 ≤ m' * (m' + 1) := Nat.div_mul_le_self _ 2
-      have hmul := Nat.mul_le_mul_left n hdiv
-      dsimp only [R_eq]
-      linarith
-    have hcast : ((2 * R_eq : ℕ) : ℝ) ≤ ((n * (m' * (m' + 1)) : ℕ) : ℝ) := by exact_mod_cast hnat
-    push_cast at hcast
-    exact hcast
-  have hgap_R : (R_eq : ℝ) + (5 / 8) * (n : ℝ) < (C_mon : ℝ) := by
+    have ht_up : (t₀ : ℝ) ≤ (5 / 2) * Real.sqrt ((n : ℝ) * k) := by
+      linarith [mul_le_mul_of_nonneg_right hhalf (Real.sqrt_nonneg ((n : ℝ) * k))]
+    have hD_le : (D : ℝ) ≤ (m' : ℝ) * t₀ := by exact_mod_cast (show D ≤ m' * t₀ by omega)
+    have := mul_le_mul_of_nonneg_left ht_up hm'R.le
+    rw [hsqnk_eq] at this; linarith
+  have hDY_upper : (maxYDeg (k - 1) D : ℝ) ≤ 5 * (m' : ℝ) / Real.sqrt ρ := by
     rcases Nat.eq_or_lt_of_le hk with rfl | hk2
-    · have hC_cast : (C_mon : ℝ) = ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := by
-        have hC_eq : C_mon = (m' * t₀) ^ 2 := by
-          dsimp only [C_mon]
-          rw [Nat.sub_self, card_monomials_zero, hD_succ]
-        exact_mod_cast hC_eq
-      rw [hC_cast]
-      have h1 : ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ) < ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := by
-        simpa only [Nat.cast_one, mul_one] using hmt_sq_lower
-      linarith
-    · have hsq_lt : (m' * t₀) ^ 2 < 2 * (k - 1) * C_mon := calc
-        (m' * t₀) ^ 2 = (D + 1) * (D + 1) := by rw [sq, hD_succ]
-        _ < (D + 1) * (D + 2) := Nat.mul_lt_mul_of_pos_left (by omega) (by omega)
-        _ ≤ 2 * (k - 1) * C_mon :=
-          Sudan.add_one_mul_add_two_le_two_mul_mul_card_monomials (by omega) D
-      have hsq_ltR : ((m' : ℝ) * (t₀ : ℝ)) ^ 2 < 2 * ((k - 1 : ℕ) : ℝ) * (C_mon : ℝ) := by
-        exact_mod_cast hsq_lt
-      have hdR_pos : (0 : ℝ) < ((k - 1 : ℕ) : ℝ) := by
-        exact_mod_cast (show 0 < k - 1 by omega)
-      have hd_le_k : ((k - 1 : ℕ) : ℝ) ≤ (k : ℝ) := by exact_mod_cast Nat.sub_le k 1
-      have hstep :
-          (2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ) <
-            2 * ((k - 1 : ℕ) : ℝ) * (C_mon : ℝ) := by
-        calc (2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ)
-            ≤ (((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ)) * ((k - 1 : ℕ) : ℝ) := by
-              gcongr; linarith
-          _ ≤ (((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * (n : ℝ)) * (k : ℝ) := by gcongr
-          _ = ((m' : ℝ) * ((m' : ℝ) + 1) + 5 / 4) * ((n : ℝ) * (k : ℝ)) := by ring
-          _ < ((m' : ℝ) * (t₀ : ℝ)) ^ 2 := hmt_sq_lower
-          _ < 2 * ((k - 1 : ℕ) : ℝ) * (C_mon : ℝ) := hsq_ltR
-      have hcancel : 2 * (R_eq : ℝ) + (5 / 4) * (n : ℝ) < 2 * (C_mon : ℝ) :=
-        lt_of_mul_lt_mul_right (by linarith) hdR_pos.le
-      linarith
-  have hinterp : R_eq < C_mon := by
-    have hlt : (R_eq : ℝ) < (C_mon : ℝ) := by linarith
-    exact_mod_cast hlt
-  have hdiff_lower : (5 / 8) * (n : ℝ) < ((C_mon - R_eq : ℕ) : ℝ) := by
-    rw [Nat.cast_sub hinterp.le]
-    linarith
-  set D_Y : ℕ := maxYDeg (k - 1) D
-  set B_Z : ℕ := siegelZDeg n m' (k - 1) D r
-  have hD_upper : (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ := by
-    have hD_le : (D : ℝ) ≤ (m' : ℝ) * (t₀ : ℝ) := by
-      have : D ≤ m' * t₀ := by omega
-      exact_mod_cast this
-    have h1 := mul_le_mul_of_nonneg_left ht₀_upper hm'R.le
-    rw [hsqnk_eq] at h1
-    linarith
-  have hDY_upper : (D_Y : ℝ) ≤ 5 * (m' : ℝ) / Real.sqrt ρ := by
-    rcases Nat.eq_or_lt_of_le hk with rfl | hk2
-    · have hle : (D_Y : ℝ) ≤ (D : ℝ) := by
-        have h0 : D_Y ≤ D := by
-          dsimp only [D_Y]
-          rw [Nat.sub_self]
-          exact maxYDeg_zero_le D
-        exact_mod_cast h0
+    · have hle : (maxYDeg (1 - 1) D : ℝ) ≤ D := by exact_mod_cast maxYDeg_zero_le D
       have hρ1 : (n : ℝ) * Real.sqrt ρ = 1 / Real.sqrt ρ := by
         rw [eq_div_iff hsqρ_pos.ne', mul_assoc, ← sq, hsqρ_sq]
-        dsimp only [ρ]
-        rw [Nat.cast_one]
-        field_simp
-      have hD_upper' : (D : ℝ) ≤ (5 / 2) * (m' : ℝ) * (1 / Real.sqrt ρ) := by
-        rw [mul_assoc ((5 / 2) * (m' : ℝ)), hρ1] at hD_upper
-        exact hD_upper
-      have hpos : (0 : ℝ) ≤ (m' : ℝ) / Real.sqrt ρ := by positivity
-      have hrew : (5 / 2) * (m' : ℝ) * (1 / Real.sqrt ρ) = (5 / 2) * ((m' : ℝ) / Real.sqrt ρ) := by
-        ring
-      have hrew2 : 5 * (m' : ℝ) / Real.sqrt ρ = 5 * ((m' : ℝ) / Real.sqrt ρ) := by ring
+        dsimp only [ρ]; push_cast; field_simp
+      have : (0 : ℝ) ≤ (m' : ℝ) / Real.sqrt ρ := by positivity
+      have heq : (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ = (5 / 2) * ((m' : ℝ) / Real.sqrt ρ) := by
+        rw [mul_assoc ((5 / 2) * (m' : ℝ)), hρ1]; ring
+      have heq2 : 5 * (m' : ℝ) / Real.sqrt ρ = 5 * ((m' : ℝ) / Real.sqrt ρ) := by ring
       linarith
-    · have hmul_nat : (k - 1) * D_Y ≤ D := mul_maxYDeg_le (k - 1) D
-      have hmul_R : ((k - 1 : ℕ) : ℝ) * (D_Y : ℝ) ≤ (D : ℝ) := by exact_mod_cast hmul_nat
+    · have hmulR : ((k - 1 : ℕ) : ℝ) * (maxYDeg (k - 1) D : ℝ) ≤ D := by
+        exact_mod_cast mul_maxYDeg_le (k - 1) D
       have hk_half : (k : ℝ) / 2 ≤ ((k - 1 : ℕ) : ℝ) := by
-        have hnat : k ≤ 2 * (k - 1) := by omega
-        have hcast : (k : ℝ) ≤ 2 * ((k - 1 : ℕ) : ℝ) := by exact_mod_cast hnat
+        have : (k : ℝ) ≤ 2 * ((k - 1 : ℕ) : ℝ) := by exact_mod_cast (show k ≤ 2 * (k - 1) by omega)
         linarith
-      have h1 : ((k : ℝ) / 2) * (D_Y : ℝ) ≤ (5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ := by
-        have h0 : ((k : ℝ) / 2) * (D_Y : ℝ) ≤ ((k - 1 : ℕ) : ℝ) * (D_Y : ℝ) :=
-          mul_le_mul_of_nonneg_right hk_half (by positivity)
-        exact h0.trans (hmul_R.trans hD_upper)
-      have h2 : (D_Y : ℝ) ≤ 5 * (m' : ℝ) * ((n : ℝ) / (k : ℝ)) * Real.sqrt ρ := by
-        rw [← mul_le_mul_iff_right₀ (show (0 : ℝ) < (k : ℝ) / 2 by positivity)]
-        have hrhs :
-            (5 * (m' : ℝ) * ((n : ℝ) / (k : ℝ)) * Real.sqrt ρ) * ((k : ℝ) / 2) =
-              (5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ := by
-          field_simp
-        linarith
-      have hsimp : 5 * (m' : ℝ) * ((n : ℝ) / (k : ℝ)) * Real.sqrt ρ =
-          5 * (m' : ℝ) / Real.sqrt ρ := by
-        rw [eq_div_iff hsqρ_pos.ne']
-        have hsq : Real.sqrt ρ * Real.sqrt ρ = (k : ℝ) / (n : ℝ) := by
-          rw [← sq, hsqρ_sq]
-        calc 5 * (m' : ℝ) * ((n : ℝ) / (k : ℝ)) * Real.sqrt ρ * Real.sqrt ρ
-            = 5 * (m' : ℝ) * ((n : ℝ) / (k : ℝ)) * (Real.sqrt ρ * Real.sqrt ρ) := by ring
-          _ = 5 * (m' : ℝ) * ((n : ℝ) / (k : ℝ)) * ((k : ℝ) / (n : ℝ)) := by rw [hsq]
-          _ = 5 * (m' : ℝ) := by field_simp
-      linarith
-  have hBZ_upper : (B_Z : ℝ) ≤ 6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ := by
+      have h1 : (k : ℝ) / 2 * (maxYDeg (k - 1) D : ℝ) ≤ (5 / 2) * m' * n * Real.sqrt ρ :=
+        (mul_le_mul_of_nonneg_right hk_half (by positivity)).trans (hmulR.trans hD_upper)
+      rw [le_div_iff₀ hsqρ_pos]
+      have h2 := mul_le_mul_of_nonneg_right h1 hsqρ_pos.le
+      have hsqeq : (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ * Real.sqrt ρ = (5 / 2) * m' * k := by
+        calc (5 / 2) * (m' : ℝ) * n * Real.sqrt ρ * Real.sqrt ρ
+            = (5 / 2) * (m' : ℝ) * n * (Real.sqrt ρ ^ 2) := by ring
+          _ = (5 / 2) * m' * k := by rw [hsqρ_sq]; dsimp only [ρ]; field_simp
+      exact le_of_mul_le_mul_left (by linarith) hkR
+  have hBZ_upper :
+      (siegelZDeg n m' (k - 1) D r : ℝ) ≤ 6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ := by
+    set R_eq := n * (m' * (m' + 1) / 2); set C_mon := #(Sudan.monomials (k - 1) D)
     have hdiff_pos : (0 : ℝ) < ((C_mon - R_eq : ℕ) : ℝ) := by linarith
-    have hdiv_le : (B_Z : ℝ) ≤ (r : ℝ) * ((R_eq : ℝ) * (D_Y : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) := by
+    have hdiv_le : (siegelZDeg n m' (k - 1) D r : ℝ) ≤
+        (r : ℝ) * ((R_eq : ℝ) * (maxYDeg (k - 1) D : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) := by
       rw [le_div_iff₀ hdiff_pos]
-      have hnat : B_Z * (C_mon - R_eq) ≤ R_eq * r * D_Y := by
-        dsimp only [B_Z, siegelZDeg]
-        exact Nat.div_mul_le_self _ _
-      have hcast : ((B_Z * (C_mon - R_eq) : ℕ) : ℝ) ≤ ((R_eq * r * D_Y : ℕ) : ℝ) := by
-        exact_mod_cast hnat
-      push_cast at hcast
-      linarith
-    have hReq_upper : (R_eq : ℝ) ≤ (3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2 := by
-      have hm'1 : (m' : ℝ) + 1 ≤ (3 / 2) * (m' : ℝ) := by linarith
-      have hprod : (m' : ℝ) * ((m' : ℝ) + 1) ≤ (3 / 2) * (m' : ℝ) ^ 2 := by
-        calc (m' : ℝ) * ((m' : ℝ) + 1)
-            ≤ (m' : ℝ) * ((3 / 2) * (m' : ℝ)) := mul_le_mul_of_nonneg_left hm'1 hm'R.le
-          _ = (3 / 2) * (m' : ℝ) ^ 2 := by ring
-      have hmul := mul_le_mul_of_nonneg_left hprod hnR.le
-      linarith [h2Req_le, hmul]
-    have hnum_upper : (r : ℝ) * ((R_eq : ℝ) * (D_Y : ℝ)) ≤
-        (r : ℝ) * (((3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2) * (5 * (m' : ℝ) / Real.sqrt ρ)) :=
-      mul_le_mul_of_nonneg_left
-        (mul_le_mul hReq_upper hDY_upper (by positivity) (by positivity)) (by positivity)
-    have hfrac_le :
-        ((r : ℝ) * ((R_eq : ℝ) * (D_Y : ℝ))) / ((C_mon - R_eq : ℕ) : ℝ) ≤
-          ((r : ℝ) * (((3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2) * (5 * (m' : ℝ) / Real.sqrt ρ))) /
-            ((5 / 8) * (n : ℝ)) :=
-      div_le_div₀ (by positivity) hnum_upper (by positivity) hdiff_lower.le
-    have hEq :
-        ((r : ℝ) * (((3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2) * (5 * (m' : ℝ) / Real.sqrt ρ))) /
-          ((5 / 8) * (n : ℝ)) = 6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ := by
-      field_simp
-      ring
-    exact hdiv_le.trans (hfrac_le.trans_eq hEq)
-  exact ⟨hk_le_sub, hinterp, hroot, hD_upper, hDY_upper, hBZ_upper⟩
+      have hcast : ((siegelZDeg n m' (k - 1) D r * (C_mon - R_eq) : ℕ) : ℝ) ≤
+          ((R_eq * r * maxYDeg (k - 1) D : ℕ) : ℝ) := by
+        exact_mod_cast Nat.div_mul_le_self (R_eq * r * maxYDeg (k - 1) D) (C_mon - R_eq)
+      push_cast at hcast; linarith
+    have hReq_up : (R_eq : ℝ) ≤ (3 / 4) * (n : ℝ) * (m' : ℝ) ^ 2 := by
+      have h2Req : 2 * (R_eq : ℝ) ≤ (n : ℝ) * ((m' : ℝ) * (m' + 1)) := by
+        exact_mod_cast (by
+          have := Nat.mul_le_mul_left n (Nat.div_mul_le_self (m' * (m' + 1)) 2)
+          linarith [show 2 * R_eq = n * (m' * (m' + 1) / 2 * 2) by ring] :
+            2 * R_eq ≤ n * (m' * (m' + 1)))
+      have hm2 : (2 : ℝ) ≤ m' := by exact_mod_cast (show 2 ≤ m' by omega)
+      nlinarith
+    have hfrac : (r : ℝ) * ((R_eq : ℝ) * (maxYDeg (k - 1) D : ℝ)) / ((C_mon - R_eq : ℕ) : ℝ) ≤
+        (r : ℝ) * ((3 / 4 * n * (m' : ℝ) ^ 2) * (5 * m' / Real.sqrt ρ)) / (5 / 8 * n) :=
+      div_le_div₀ (by positivity)
+        (mul_le_mul_of_nonneg_left (mul_le_mul hReq_up hDY_upper (by positivity) (by positivity))
+          (by positivity)) (by positivity) hdiff_lower.le
+    exact hdiv_le.trans (hfrac.trans_eq (by field_simp; ring))
+  exact ⟨hk_le_t₀.trans ht₀_le_sub, hinterp, hroot, hD_upper, hDY_upper, hBZ_upper⟩
 
 end ParameterHelpers
 
@@ -2988,112 +2453,76 @@ theorem johnson_curve_params_bound {n k e m r : ℕ}
     D < m' * (n - e) ∧
     (johnsonCurveBound n m' (k - 1) D r n : ℝ) ≤
       1800 * (r : ℝ) * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ((k : ℝ) / (n : ℝ)) := by
+  intro m' t₀ D
   obtain ⟨hk_le_sub, hinterp, hroot, hD_upper, hDY_upper, hBZ_upper⟩ :=
     johnson_curve_params_gap (r := r) hk hkn hm he
-  set ρ : ℝ := (k : ℝ) / (n : ℝ)
-  set m' : ℕ := m + 1
-  set t₀ : ℕ := ⌈(1 + 1 / (2 * (m : ℝ))) * Real.sqrt ((n : ℝ) * (k : ℝ))⌉₊
-  set D : ℕ := m' * t₀ - 1
-  set D_Y : ℕ := maxYDeg (k - 1) D
-  set B_Z : ℕ := siegelZDeg n m' (k - 1) D r
+  set ρ := (k : ℝ) / n
   obtain ⟨hρ_pos, _, hsqρ_pos, _, hsqρ_sq, h1_le_invsq, hinvsq_le_invρ, hinvsq_le_n⟩ :=
-    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / (n : ℝ)) hk hkn
-  have h1_le_n : (1 : ℝ) ≤ (n : ℝ) := by exact_mod_cast hk.trans hkn
-  have hnR : (0 : ℝ) < (n : ℝ) := by positivity
-  have hrR : (0 : ℝ) < (r : ℝ) := by positivity
-  have h1_le_r : (1 : ℝ) ≤ (r : ℝ) := by exact_mod_cast hr
+    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / n) hk hkn
+  have hnR : (0 : ℝ) < n := by exact_mod_cast hk.trans hkn
+  have h1_le_n : (1 : ℝ) ≤ n := by exact_mod_cast hk.trans hkn
+  have h1_le_r : (1 : ℝ) ≤ r := by exact_mod_cast hr
   have h1_le_m' : (1 : ℝ) ≤ (m' : ℝ) := by exact_mod_cast (show 1 ≤ m' by omega)
   have h1_le_invρ : (1 : ℝ) ≤ 1 / ρ := h1_le_invsq.trans hinvsq_le_invρ
   have h1_le_n2 : (1 : ℝ) ≤ (n : ℝ) ^ 2 := one_le_pow₀ h1_le_n
   have hn_le_n2 : (n : ℝ) ≤ (n : ℝ) ^ 2 := by nlinarith
-  have hm'pow : ∀ a ≤ 6, (m' : ℝ) ^ a ≤ (m' : ℝ) ^ 6 := fun a ha => pow_le_pow_right₀ h1_le_m' ha
-  set U : ℝ := (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 / ρ
-  have hU_nn : 0 ≤ U := by positivity
-  have hU_eq : U = (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by dsimp only [U]; ring
-  have ht1 : (B_Z : ℝ) ≤ 6 * (r : ℝ) * U := by
-    rw [hU_eq]
-    have hm'3 := hm'pow 3 (by norm_num)
-    calc (B_Z : ℝ) ≤ 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) := by
-          linarith [hBZ_upper, show 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) =
-            6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ by ring]
-      _ ≤ 6 * (r : ℝ) * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
-      _ = 6 * (r : ℝ) * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by ring
-  have ht2 : 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * (r : ℝ) * U := by
-    rw [hU_eq]
-    have hprod : (D_Y : ℝ) * (D : ℝ) ≤
-        (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) :=
-      mul_le_mul hDY_upper hD_upper (by positivity) (by positivity)
-    have hsimp : (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) =
-        (25 / 2) * (m' : ℝ) ^ 2 * (n : ℝ) := by field_simp; ring
-    have hm'2 := hm'pow 2 (by norm_num)
-    have hmono : (m' : ℝ) ^ 2 * ((n : ℝ) * 1) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by
-      gcongr
-    have hbase : 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by
-      linarith
-    calc 2 * (D_Y : ℝ) * (D : ℝ) ≤ 25 * 1 * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by linarith
-      _ ≤ 25 * (r : ℝ) * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by gcongr
-  have ht3 : 2 * (D_Y : ℝ) * (B_Z : ℝ) ≤ 60 * (r : ℝ) * U := by
-    rw [hU_eq]
-    have hprod : (D_Y : ℝ) * (B_Z : ℝ) ≤
-        (5 * (m' : ℝ) / Real.sqrt ρ) * (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ) :=
-      mul_le_mul hDY_upper hBZ_upper (by positivity) (by positivity)
-    have hsimp : (5 * (m' : ℝ) / Real.sqrt ρ) * (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ) =
-        30 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by
-      rw [div_mul_div_comm, ← sq, hsqρ_sq]; ring
-    have hm'4 := hm'pow 4 (by norm_num)
-    have hmono : (m' : ℝ) ^ 4 * (1 * (1 / ρ)) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by
-      gcongr
-    calc 2 * (D_Y : ℝ) * (B_Z : ℝ) ≤ 60 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by linarith
-      _ ≤ 60 * (r : ℝ) * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
-      _ = 60 * (r : ℝ) * ((m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)) := by ring
-  have ht4 : 4 * (n : ℝ) * (D_Y : ℝ) ^ 2 * (D : ℝ) * (B_Z : ℝ) ≤ 1500 * (r : ℝ) * U := by
-    have hDY2 : (D_Y : ℝ) ^ 2 ≤ (5 * (m' : ℝ) / Real.sqrt ρ) ^ 2 :=
-      pow_le_pow_left₀ (by positivity) hDY_upper 2
-    have hDB : (D : ℝ) * (B_Z : ℝ) ≤
-        ((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) * (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ) :=
-      mul_le_mul hD_upper hBZ_upper (by positivity) (by positivity)
+  have hm'p (a : ℕ) (ha : a ≤ 6) : (m' : ℝ) ^ a ≤ (m' : ℝ) ^ 6 := pow_le_pow_right₀ h1_le_m' ha
+  set D_Y := maxYDeg (k - 1) D; set B_Z := siegelZDeg n m' (k - 1) D r
+  set U := (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ)
+  have hm'2 := hm'p 2 (by norm_num); have hm'3 := hm'p 3 (by norm_num)
+  have hm'4 := hm'p 4 (by norm_num)
+  have ht1 : (B_Z : ℝ) ≤ 6 * r * U := calc
+    _ ≤ 6 * r * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) := by
+        linarith [hBZ_upper, show 6 * (r : ℝ) * ((m' : ℝ) ^ 3 * (1 * (1 / Real.sqrt ρ))) =
+          6 * r * (m' : ℝ) ^ 3 / Real.sqrt ρ by ring]
+    _ ≤ 6 * r * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
+    _ = 6 * r * U := by ring
+  have ht2 : 2 * (D_Y : ℝ) * D ≤ 25 * r * U := by
+    have hprod := mul_le_mul hDY_upper hD_upper (by positivity) (by positivity)
+    rw [show (5 * (m' : ℝ) / Real.sqrt ρ) * ((5 / 2) * m' * n * Real.sqrt ρ) =
+      (25 / 2) * (m' : ℝ) ^ 2 * (n * 1) by field_simp; ring] at hprod
+    have hmono : (m' : ℝ) ^ 2 * ((n : ℝ) * 1) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by gcongr
+    calc 2 * (D_Y : ℝ) * D ≤ 25 * 1 * U := by linarith
+      _ ≤ 25 * (r : ℝ) * U := by gcongr
+  have ht3 : 2 * (D_Y : ℝ) * B_Z ≤ 60 * r * U := by
+    have hprod := mul_le_mul hDY_upper hBZ_upper (by positivity) (by positivity)
+    rw [div_mul_div_comm, show Real.sqrt ρ * Real.sqrt ρ = ρ from by rw [← sq, hsqρ_sq]] at hprod
+    have hmono : (m' : ℝ) ^ 4 * (1 * (1 / ρ)) ≤ (m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ)) := by gcongr
+    have hmono' : 60 * (r : ℝ) * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) ≤
+        60 * (r : ℝ) * ((m' : ℝ) ^ 6 * ((n : ℝ) ^ 2 * (1 / ρ))) := by gcongr
+    calc 2 * (D_Y : ℝ) * B_Z ≤ 60 * r * ((m' : ℝ) ^ 4 * (1 * (1 / ρ))) := by
+          linarith [show 2 * ((5 * (m' : ℝ) * (6 * r * m' ^ 3)) / ρ) =
+            60 * r * (m' ^ 4 * (1 * (1 / ρ))) by ring]
+      _ ≤ 60 * r * U := hmono'.trans_eq (by dsimp only [U]; ring)
+  have ht4 : 4 * (n : ℝ) * (D_Y : ℝ) ^ 2 * D * B_Z ≤ 1500 * r * U := by
     have hmul := mul_le_mul_of_nonneg_left
-      (mul_le_mul hDY2 hDB (by positivity) (by positivity))
-      (show (0 : ℝ) ≤ 4 * (n : ℝ) by positivity)
-    have hrhs : 4 * (n : ℝ) * ((5 * (m' : ℝ) / Real.sqrt ρ) ^ 2 *
-        (((5 / 2) * (m' : ℝ) * (n : ℝ) * Real.sqrt ρ) *
-          (6 * (r : ℝ) * (m' : ℝ) ^ 3 / Real.sqrt ρ))) = 1500 * (r : ℝ) * U := by
+      (mul_le_mul (pow_le_pow_left₀ (by positivity) hDY_upper 2)
+        (mul_le_mul hD_upper hBZ_upper (by positivity) (by positivity))
+        (by positivity) (by positivity))
+      (show (0 : ℝ) ≤ 4 * n by positivity)
+    have hrhs : 4 * (n : ℝ) * ((5 * m' / Real.sqrt ρ) ^ 2 * (((5 / 2) * m' * n * Real.sqrt ρ) *
+        (6 * r * m' ^ 3 / Real.sqrt ρ))) = 1500 * r * U := by
       dsimp only [U]; rw [div_pow, hsqρ_sq]; field_simp; ring
     linarith
-  have ht5 : (n : ℝ) * (D_Y : ℝ) ^ 2 * ((r : ℝ) * (D_Y : ℝ)) ≤ 125 * (r : ℝ) * U := by
-    have hDY3 : (D_Y : ℝ) ^ 3 ≤ (5 * (m' : ℝ) / Real.sqrt ρ) ^ 3 :=
-      pow_le_pow_left₀ (by positivity) hDY_upper 3
-    have hmul := mul_le_mul_of_nonneg_left hDY3 hnR.le
-    have hsimp : (n : ℝ) * (5 * (m' : ℝ) / Real.sqrt ρ) ^ 3 =
-        125 * ((m' : ℝ) ^ 3 * ((n : ℝ) * (1 / Real.sqrt ρ)) * (1 / ρ)) := by
-      have hcube : Real.sqrt ρ ^ 3 = ρ * Real.sqrt ρ := by rw [pow_succ, hsqρ_sq]
-      rw [div_pow, hcube]; field_simp; ring
+  have ht5 : (n : ℝ) * (D_Y : ℝ) ^ 2 * ((r : ℝ) * D_Y) ≤ 125 * r * U := by
+    have hDY3 := mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hDY_upper 3) hnR.le
+    rw [div_pow, show Real.sqrt ρ ^ 3 = ρ * Real.sqrt ρ by rw [pow_succ, hsqρ_sq]] at hDY3
     have hn_inv : (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) ^ 2 := by
-      calc (n : ℝ) * (1 / Real.sqrt ρ) ≤ (n : ℝ) * (n : ℝ) :=
-            mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le
-        _ = (n : ℝ) ^ 2 := by ring
-    have hm'3 := hm'pow 3 (by norm_num)
-    have hmono : (m' : ℝ) ^ 3 * ((n : ℝ) * (1 / Real.sqrt ρ)) * (1 / ρ) ≤
-        (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by gcongr
-    have hbase : (n : ℝ) * (D_Y : ℝ) ^ 3 ≤ 125 * U := by rw [hU_eq]; linarith
-    have hscaled := mul_le_mul_of_nonneg_left hbase hrR.le
-    linarith
-  have hjb_cast : (johnsonCurveBound n m' (k - 1) D r n : ℝ) =
-      (B_Z : ℝ) + 2 * (D_Y : ℝ) * (D : ℝ) + 2 * (D_Y : ℝ) * (B_Z : ℝ) +
-        4 * (n : ℝ) * (D_Y : ℝ) ^ 2 * (D : ℝ) * (B_Z : ℝ) +
-        (n : ℝ) * (D_Y : ℝ) ^ 2 * ((r : ℝ) * (D_Y : ℝ)) := by
-    simp only [johnsonCurveBound, D_Y, B_Z]
-    push_cast
-    ring
-  have hrU_nn : 0 ≤ (r : ℝ) * U := by positivity
+      nlinarith [mul_le_mul_of_nonneg_left hinvsq_le_n hnR.le]
+    have hbase : (n : ℝ) * (D_Y : ℝ) ^ 3 ≤ 125 * U := by
+      have hmono : (m' : ℝ) ^ 3 * (n * (1 / Real.sqrt ρ)) * (1 / ρ) ≤
+          (m' : ℝ) ^ 6 * (n : ℝ) ^ 2 * (1 / ρ) := by gcongr
+      linarith [show (n : ℝ) * ((5 * m') ^ 3 / (ρ * Real.sqrt ρ)) =
+        125 * ((m' : ℝ) ^ 3 * (n * (1 / Real.sqrt ρ)) * (1 / ρ)) by field_simp; ring]
+    linarith [mul_le_mul_of_nonneg_left hbase (show (0 : ℝ) ≤ r by positivity)]
   refine ⟨hk_le_sub, hinterp, hroot, ?_⟩
-  rw [hjb_cast]
-  have hm'_eq : ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ρ = U := by
-    dsimp only [U, m']
-    push_cast
-    rfl
-  rw [show 1800 * (r : ℝ) * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ρ = 1800 * (r : ℝ) * U by
-    rw [← hm'_eq]; ring]
+  have hcast : (johnsonCurveBound n m' (k - 1) D r n : ℝ) =
+      (B_Z : ℝ) + 2 * D_Y * D + 2 * D_Y * B_Z + 4 * n * D_Y ^ 2 * D * B_Z +
+        n * D_Y ^ 2 * (r * D_Y) := by
+    simp only [johnsonCurveBound, D_Y, B_Z]; push_cast; ring
+  rw [hcast, show 1800 * (r : ℝ) * ((m + 1 : ℝ) ^ 6) * ((n : ℝ) ^ 2) / ((k : ℝ) / n) =
+    1800 * r * U by dsimp only [U, m', ρ]; push_cast; ring]
+  have : 0 ≤ (r : ℝ) * U := by positivity
   linarith
 
 /-- Quantitative Guruswami–Sudan parameter packaging for affine lines (`r = 1`), specializing
@@ -3126,57 +2555,38 @@ theorem exists_multiplicity_of_eta {n k e : ℕ} {η : ℝ}
         1 - Real.sqrt ((k : ℝ) / (n : ℝ)) -
           Real.sqrt ((k : ℝ) / (n : ℝ)) / (2 * (m : ℝ)) ∧
       ((m + 1 : ℝ) ^ 6) ≤ 64 / (η ^ 6) := by
-  set ρ : ℝ := (k : ℝ) / (n : ℝ)
-  obtain ⟨hρ_pos, _, hsqρ_pos, hsqρ_le_one, _⟩ :=
-    sqrt_rate_bounds (rfl : ρ = (k : ℝ) / (n : ℝ)) hk hkn
-  have hη_lt_one : η < 1 := by
-    have he_nn : (0 : ℝ) ≤ (e : ℝ) / (n : ℝ) := by positivity
-    linarith
-  set η' : ℝ := min η (Real.sqrt ρ / 2)
+  set ρ := (k : ℝ) / n
+  obtain ⟨_, _, hsqρ_pos, hsqρ_le_one, _⟩ := sqrt_rate_bounds (rfl : ρ = (k : ℝ) / n) hk hkn
+  set η' := min η (Real.sqrt ρ / 2)
   have hη'_pos : 0 < η' := lt_min hη (by positivity)
-  have hη'_le_η : η' ≤ η := min_le_left _ _
-  have hη'_le_half : η' ≤ Real.sqrt ρ / 2 := min_le_right _ _
-  set m : ℕ := ⌈Real.sqrt ρ / (2 * η')⌉₊
-  have hx_ge_one : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η') := by
-    rw [one_le_div (by positivity)]
-    linarith
-  have hm : 1 ≤ m := by
-    exact_mod_cast hx_ge_one.trans (Nat.le_ceil _)
-  have hmR : (0 : ℝ) < (m : ℝ) := by positivity
-  have hfrac_le_η : Real.sqrt ρ / (2 * (m : ℝ)) ≤ η := by
+  set m := ⌈Real.sqrt ρ / (2 * η')⌉₊
+  have hx1 : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η') :=
+    (one_le_div (by positivity)).2 (by linarith [min_le_right η (Real.sqrt ρ / 2)])
+  have hm : 1 ≤ m := by exact_mod_cast hx1.trans (Nat.le_ceil _)
+  have hfrac : Real.sqrt ρ / (2 * m) ≤ η := by
     have hceil : Real.sqrt ρ / (2 * η') ≤ (m : ℝ) := Nat.le_ceil _
-    have h1 : Real.sqrt ρ / (2 * (m : ℝ)) ≤ η' := by
-      rw [div_le_iff₀ (by positivity)] at hceil ⊢
-      linarith
-    exact h1.trans hη'_le_η
-  have he' : (e : ℝ) / (n : ℝ) ≤ 1 - Real.sqrt ρ - Real.sqrt ρ / (2 * (m : ℝ)) := by linarith
+    have : Real.sqrt ρ / (2 * m) ≤ η' :=
+      (div_le_iff₀ (by positivity)).2 (by linarith [(div_le_iff₀ (by positivity)).1 hceil])
+    exact this.trans (min_le_left _ _)
   have hm1_le : (m : ℝ) + 1 ≤ 2 / η := by
     by_cases hle : η ≤ Real.sqrt ρ / 2
     · have hη'_eq : η' = η := min_eq_left hle
       have hlt : (m : ℝ) < Real.sqrt ρ / (2 * η) + 1 := by
         have h0 := Nat.ceil_lt_add_one (a := Real.sqrt ρ / (2 * η')) (by positivity)
-        change (m : ℝ) < _ at h0
-        rwa [hη'_eq] at h0
-      have hx1 : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := by rwa [hη'_eq] at hx_ge_one
-      have hm_lt : (m : ℝ) + 1 < 3 * (Real.sqrt ρ / (2 * η)) := by linarith
-      have h32 : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η := by
+        change (m : ℝ) < _ at h0; rwa [hη'_eq] at h0
+      have hx1' : (1 : ℝ) ≤ Real.sqrt ρ / (2 * η) := by rwa [hη'_eq] at hx1
+      have : 3 * (Real.sqrt ρ / (2 * η)) ≤ 2 / η := by
         rw [show 3 * (Real.sqrt ρ / (2 * η)) = (3 / 2 * Real.sqrt ρ) / η by ring]
         exact div_le_div_of_nonneg_right (by linarith) hη.le
-      exact hm_lt.le.trans h32
-    · have hη'_eq : η' = Real.sqrt ρ / 2 := min_eq_right (le_of_not_ge hle)
-      have hx1 : Real.sqrt ρ / (2 * η') = 1 := by
-        rw [hη'_eq]
-        field_simp
-      have hm1 : m = 1 := by
-        dsimp only [m]
-        rw [hx1]
-        norm_num
-      rw [hm1, Nat.cast_one, show (1 : ℝ) + 1 = 2 by norm_num, le_div_iff₀ hη]
       linarith
-  have hpow : ((m + 1 : ℝ) ^ 6) ≤ 64 / (η ^ 6) := by
-    calc ((m + 1 : ℝ) ^ 6) ≤ (2 / η) ^ 6 := pow_le_pow_left₀ (by positivity) hm1_le 6
-      _ = 64 / (η ^ 6) := by rw [div_pow]; norm_num
-  exact ⟨m, hm, he', hpow⟩
+    · have hη'_eq : η' = Real.sqrt ρ / 2 := min_eq_right (le_of_not_ge hle)
+      have hm1 : m = 1 := by
+        dsimp only [m]; rw [hη'_eq, show Real.sqrt ρ / (2 * (Real.sqrt ρ / 2)) = 1 by field_simp]
+        norm_num
+      rw [hm1, Nat.cast_one, le_div_iff₀ hη]
+      linarith [show (0 : ℝ) ≤ (e : ℝ) / n by positivity]
+  refine ⟨m, hm, by linarith, (pow_le_pow_left₀ (by positivity) hm1_le 6).trans_eq ?_⟩
+  rw [div_pow]; norm_num
 
 /-- **Positive-characteristic-safe separable contraction in `F[Z][X][Y]`.**
 
@@ -3363,17 +2773,12 @@ theorem exists_weighted_correlatedAgreement_line_johnson {F ι : Type*} [Field F
     ∃ D' : Finset ι, B_W ≤ ∑ i ∈ D', W i ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v₁ ∈ reedSolomon α k,
         ∀ i ∈ D', u₀ i = v₀ i ∧ u₁ i = v₁ i := by
-  let u : Fin 2 → (ι → F) := ![u₀, u₁]
-  have hcurve : ∀ z : F, (∑ j : Fin 2, z ^ (j : ℕ) • u j) = u₀ + z • u₁ := by
-    intro z
-    simp only [Fin.sum_univ_two, Fin.val_zero, pow_zero, one_smul, Fin.val_one, pow_one, u,
-      Matrix.cons_val_zero, Matrix.cons_val_one]
   obtain ⟨D', hD', v, hv_rs, hagree⟩ :=
     exists_weighted_correlatedAgreement_curve_johnson (r := 1) hα hk hm hM hW_le hW_sum hk_le_t
-      hinterp hroot u T hT (fun z hz => by rw [hcurve z]; exact hclose z hz)
-  refine ⟨D', hD', v 0, hv_rs 0, v 1, hv_rs 1, fun i hi => ⟨?_, ?_⟩⟩
-  · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
-  · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
+      hinterp hroot ![u₀, u₁] T hT fun z hz => by
+        simpa only [show (∑ j : Fin 2, z ^ (j : ℕ) • ![u₀, u₁] j) = u₀ + z • u₁ by
+          simp [Fin.sum_univ_two]] using hclose z hz
+  exact ⟨D', hD', v 0, hv_rs 0, v 1, hv_rs 1, fun i hi => ⟨hagree i hi 0, hagree i hi 1⟩⟩
 
 /-- **Explicit-parameter unweighted correlated-agreement step on affine lines**
 (step toward [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 5.1], accepted JACM 2023 manuscript).
@@ -3395,17 +2800,12 @@ theorem exists_correlatedAgreement_line_johnson {F ι : Type*} [Field F] [Fintyp
     ∃ D' : Finset ι, Fintype.card ι - e ≤ #D' ∧
       ∃ v₀ ∈ reedSolomon α k, ∃ v₁ ∈ reedSolomon α k,
         ∀ i ∈ D', u₀ i = v₀ i ∧ u₁ i = v₁ i := by
-  let u : Fin 2 → (ι → F) := ![u₀, u₁]
-  have hcurve : ∀ z : F, (∑ j : Fin 2, z ^ (j : ℕ) • u j) = u₀ + z • u₁ := by
-    intro z
-    simp only [Fin.sum_univ_two, Fin.val_zero, pow_zero, one_smul, Fin.val_one, pow_one, u,
-      Matrix.cons_val_zero, Matrix.cons_val_one]
   obtain ⟨D', hD', v, hv_rs, hagree⟩ :=
-    exists_correlatedAgreement_curve_johnson (r := 1) hα hk hm hk_le hinterp hroot u T hT
-      (fun z hz => by rw [hcurve z]; exact hclose z hz)
-  refine ⟨D', hD', v 0, hv_rs 0, v 1, hv_rs 1, fun i hi => ⟨?_, ?_⟩⟩
-  · simpa only [u, Matrix.cons_val_zero] using hagree i hi 0
-  · simpa only [u, Matrix.cons_val_one, Matrix.cons_val_zero] using hagree i hi 1
+    exists_correlatedAgreement_curve_johnson (r := 1) hα hk hm hk_le hinterp hroot ![u₀, u₁] T hT
+      fun z hz => by
+        simpa only [show (∑ j : Fin 2, z ^ (j : ℕ) • ![u₀, u₁] j) = u₀ + z • u₁ by
+          simp [Fin.sum_univ_two]] using hclose z hz
+  exact ⟨D', hD', v 0, hv_rs 0, v 1, hv_rs 1, fun i hi => ⟨hagree i hi 0, hagree i hi 1⟩⟩
 
 /-- **Proximity gap for affine lines up to the Johnson bound (explicit-constant variant)**
 (original quantitative variant of [BenSassonCarmonIshaiKoppartySaraf2020, Theorem 1.4], accepted

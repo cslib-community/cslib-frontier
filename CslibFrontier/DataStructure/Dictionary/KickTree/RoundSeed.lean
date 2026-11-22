@@ -25,6 +25,8 @@ import CslibFrontier.Probability.StatisticalDistance.Coupling
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Case A unbalanced Feistel transfer and concrete Double-Tabulation round-seed parameters
@@ -287,11 +289,12 @@ theorem dist_caseA_restrict_le {Top ι₀ ι₁ : Type*}
 /-! ## Section 2: Concrete Double-Tabulation + `oddMulModWord` parameters and failure bounds -/
 
 /-- Number of composed 3-round Naor–Reingold blocks `18 * (c + 2) = O(c)` in Case B. -/
+@[wram_arith]
 def nrRounds (c : ℕ) : ℕ := 18 * (c + 2)
 
 theorem nrRounds_eq (c : ℕ) : nrRounds c = 18 * (c + 2) := by unfold nrRounds; rfl
 
-theorem one_le_nrRounds (c : ℕ) : 1 ≤ nrRounds c := by unfold nrRounds; omega
+theorem one_le_nrRounds (c : ℕ) : 1 ≤ nrRounds c := by wram_omega
 
 /-- Logarithmic independence order `κ = 8 * (c + 3) * ⌈log₂ (max n 2)⌉ = Θ(c log n)`. -/
 def quotientPermInd (c n : ℕ) : ℕ := 8 * (c + 3) * Nat.clog 2 (max n 2)
@@ -306,18 +309,21 @@ theorem quotientPermRedBits_eq (c n : ℕ) :
     quotientPermRedBits c n = (c + 5) * Nat.clog 2 (max n 4) := by unfold quotientPermRedBits; rfl
 
 /-- Double-tabulation character bit-width `b = max 1 (⌊log₂ n⌋ / 4)`. -/
+@[wram_arith]
 def quotientPermCharBits (n : ℕ) : ℕ := max 1 (Nat.log 2 n / 4)
 
 theorem quotientPermCharBits_eq (n : ℕ) :
     quotientPermCharBits n = max 1 (Nat.log 2 n / 4) := by unfold quotientPermCharBits; rfl
 
 /-- Number of input characters `c_tab = 8 * (c + 5)` for the shared top-level table. -/
+@[wram_arith]
 def quotientPermChars (c : ℕ) : ℕ := 8 * (c + 5)
 
 theorem quotientPermChars_eq (c : ℕ) :
     quotientPermChars c = 8 * (c + 5) := by unfold quotientPermChars; rfl
 
 /-- Code repetition parameter `q_tab = 4 * c + 11` in `DoubleTabulation.card_not_isKUnique_le`. -/
+@[wram_arith]
 def quotientPermRep (c : ℕ) : ℕ := 4 * c + 11
 
 theorem quotientPermRep_eq (c : ℕ) :
@@ -376,11 +382,9 @@ private theorem clog_max_le_eight_mul_charBits_aux {c n : ℕ} (hn : quotientPer
   have hmin_pos := one_le_quotientPermMinB c
   have hlog : 4 * quotientPermMinB c ≤ Nat.log 2 n :=
     Nat.le_log_of_pow_le (by decide) hn
-  have hb_min : quotientPermMinB c ≤ quotientPermCharBits n := by
-    unfold quotientPermCharBits; omega
+  have hb_min : quotientPermMinB c ≤ quotientPermCharBits n := by wram_omega
   have h4n : 4 ≤ n := (four_le_quotientPermThreshold c).trans hn
-  have hlog_ub : Nat.log 2 n + 1 ≤ 8 * quotientPermCharBits n := by
-    unfold quotientPermCharBits; omega
+  have hlog_ub : Nat.log 2 n + 1 ≤ 8 * quotientPermCharBits n := by wram_omega
   have hn_pow : max n 4 ≤ 2 ^ (8 * quotientPermCharBits n) := by
     rw [max_eq_left h4n]
     exact (Nat.lt_pow_succ_log_self (by decide) n).le.trans
@@ -416,8 +420,8 @@ private theorem threshold_charBits_bounds {c n : ℕ} (hn : quotientPermThreshol
     calc quotientPermInd c n = 8 * (c + 3) * Nat.clog 2 (max n 2) := rfl
       _ ≤ 8 * (c + 5) * (8 * quotientPermCharBits n) := Nat.mul_le_mul (by omega) hclog2
       _ = 8 * quotientPermChars c * quotientPermCharBits n := by unfold quotientPermChars; ring
-  have hc_ge : 40 ≤ quotientPermChars c := by unfold quotientPermChars; omega
-  have hq_ge : 11 ≤ quotientPermRep c := by unfold quotientPermRep; omega
+  have hc_ge : 40 ≤ quotientPermChars c := by wram_omega
+  have hq_ge : 11 ≤ quotientPermRep c := by wram_omega
   have hD_ge : 44 * quotientPermChars c ≤ quotientPermCodeExp c := by
     unfold quotientPermCodeExp; nlinarith
   have hmin_eq : 4 * (quotientPermCodeExp c) ^ 2 ≤ quotientPermCharBits n := hb_min
@@ -436,7 +440,7 @@ theorem prob_not_isKUnique_quotientPerm_le {c n : ℕ} (hn : quotientPermThresho
   have hκ_pos : 0 < quotientPermInd c n := by
     have : 1 ≤ Nat.clog 2 (max n 2) := Nat.clog_pos (by decide) (by omega)
     unfold quotientPermInd; positivity
-  have hq1 : 4 * (c + 2) + 1 ≤ quotientPermRep c - 1 := by unfold quotientPermRep; omega
+  have hq1 : 4 * (c + 2) + 1 ≤ quotientPermRep c - 1 := by wram_omega
   have hD_eq : quotientPermCodeExp c = (4 * quotientPermChars c + 1) * quotientPermRep c + 1 := rfl
   have hd_eq : quotientPermInter c = 2 * quotientPermRep c * quotientPermChars c := rfl
   generalize quotientPermChars c = c_tab at *
@@ -577,8 +581,7 @@ theorem nr_contraction_quotientPerm_le {c n a' : ℕ} (hn : quotientPermThreshol
       (3 * (quotientPermInd c n : ℝ) ^ 2 / (2 ^ nrHalfLow a' : ℝ)) ^ (nrRounds c) ≤
       1 / (8 * (n : ℝ) ^ (c + 2)) := by
   obtain ⟨_, hn_pow, hκ_le, hc_ge, _, hb_44c, _⟩ := threshold_charBits_bounds hn
-  have hb_lo : quotientPermCharBits n ≤ nrHalfLow a' := by
-    unfold nrHalfLow; omega
+  have hb_lo : quotientPermCharBits n ≤ nrHalfLow a' := by wram_omega
   generalize quotientPermChars c = c_tab at *
   generalize quotientPermCharBits n = b_char at *
   generalize quotientPermInd c n = κ at *
@@ -647,8 +650,7 @@ theorem quotientPermInd_le_self_of_threshold {c n : ℕ} (hn : quotientPermThres
   have hmin_pos := one_le_quotientPermMinB c
   have hlog : 4 * quotientPermMinB c ≤ Nat.log 2 n :=
     Nat.le_log_of_pow_le (by decide : 1 < 2) hn
-  have hb_log : 4 * quotientPermCharBits n ≤ Nat.log 2 n := by
-    unfold quotientPermCharBits; omega
+  have hb_log : 4 * quotientPermCharBits n ≤ Nat.log 2 n := by wram_omega
   obtain ⟨h4n, _, hκ_le, hc_ge, _, hb_44c, _⟩ := threshold_charBits_bounds hn
   have hκ_ge : 2 ≤ quotientPermInd c n := by
     have : 1 ≤ Nat.clog 2 (max n 2) := Nat.clog_pos (by decide) (by omega)

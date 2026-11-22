@@ -11,7 +11,7 @@ public import CslibFrontier.Init
 public import Mathlib.Data.List.Forall2
 
 /-!
-# Splitting aligned lists
+# Composing and splitting aligned lists
 
 Two lists aligned by `List.Forall₂ R` can be cut at matching positions: a cut of one side, as an
 append or around a middle element, gives a cut of the other side with the same lengths, and the
@@ -19,6 +19,8 @@ parts stay aligned. Proofs that keep several lists aligned with one another, suc
 hole triples and runs of a search, split them all around the element that changes.
 
 ## Main results
+
+* `List.Forall₂.trans`: compose alignments through a transitive triple of relations.
 
 * `List.Forall₂.split_right`, `List.Forall₂.split_right_cons`, `List.Forall₂.split_left_cons`:
   cutting one side cuts the other.
@@ -31,6 +33,16 @@ public section
 namespace List.Forall₂
 
 variable {α β : Type*} {R : α → β → Prop}
+
+/-- Composing alignments pointwise composes their element relations. -/
+theorem trans {γ : Type*} {S : β → γ → Prop} {T : α → γ → Prop} [Trans R S T]
+    {a : List α} {b : List β} {c : List γ} (hab : Forall₂ R a b) (hbc : Forall₂ S b c) :
+    Forall₂ T a c := by
+  induction hab generalizing c with
+  | nil => cases hbc; exact .nil
+  | cons h _ ih =>
+    cases hbc with
+    | cons h' hs => exact .cons (Trans.trans h h') (ih hs)
 
 /-- An alignment with an append on the right is an append of alignments. -/
 theorem split_right {l : List α} {pre post : List β} (h : Forall₂ R l (pre ++ post)) :

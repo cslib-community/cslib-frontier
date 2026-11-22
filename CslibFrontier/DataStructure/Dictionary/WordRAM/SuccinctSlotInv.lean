@@ -8,6 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctLayout
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Slab/Tail Slot-Store Invariant for Succinct Dictionaries
@@ -67,78 +69,78 @@ theorem one_le_n_max_of_bucketBits_pos {n_max : ℕ} (hb : 0 < bucketBits n_max)
   simp [bucketBits] at hb
 
 /-- `GlobalMeta` index `4 + 3 * b` holding `q_b` (number of full slabs in bucket `b`). -/
-@[expose]
+@[expose, wram_arith]
 def gmQIdx (b : ℕ) : ℕ :=
   4 + 3 * b
 
 /-- `GlobalMeta` index `4 + 3 * b + 1` holding `r_b` (number of tail items in bucket `b`). -/
-@[expose]
+@[expose, wram_arith]
 def gmRIdx (b : ℕ) : ℕ :=
   4 + 3 * b + 1
 
 /-- `GlobalMeta` index `4 + 3 * b + 2` holding `slabTop_b` (physical slab index of the top slab
 `s = q_b - 1` of bucket `b`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabTopIdx (b : ℕ) : ℕ :=
   4 + 3 * b + 2
 
 /-- Base index `4 + 3 * numBuckets n_max` of the `slabDir` table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabDirBase (n_max : ℕ) : ℕ :=
   4 + 3 * numBuckets n_max
 
 /-- `GlobalMeta` index of `slabDir(b, s)` (`s < dirSlabsPerBucket n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabDirIdx (n_max b s : ℕ) : ℕ :=
   gmSlabDirBase n_max + b * dirSlabsPerBucket n_max + s
 
 /-- Base index of the `tailPtr` table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmTailPtrBase (n_max : ℕ) : ℕ :=
   gmSlabDirBase n_max + numBuckets n_max * dirSlabsPerBucket n_max
 
 /-- `GlobalMeta` index of flat tail descriptor `d < maxTailItems n_max`. -/
-@[expose]
+@[expose, wram_arith]
 def gmTailPtrFlatIdx (n_max d : ℕ) : ℕ :=
   gmTailPtrBase n_max + d
 
 /-- `GlobalMeta` index of `tailPtr(b, r)` (`r < tailCapPerBucket n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmTailPtrIdx (n_max b r : ℕ) : ℕ :=
   gmTailPtrFlatIdx n_max (b * tailCapPerBucket n_max + r)
 
 /-- Base index of the `tailOwner` table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmTailOwnerBase (n_max : ℕ) : ℕ :=
   gmTailPtrBase n_max + maxTailItems n_max
 
 /-- `GlobalMeta` index of `tailOwner(t)` (`t < maxTailItems n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmTailOwnerIdx (n_max t : ℕ) : ℕ :=
   gmTailOwnerBase n_max + t
 
 /-- Base index of the per-physical-slab metadata table in `GlobalMeta`. -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabMetaBase (n_max : ℕ) : ℕ :=
   gmTailOwnerBase n_max + maxTailItems n_max
 
 /-- `GlobalMeta` index of `slabOwnerB(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabOwnerBIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p
 
 /-- `GlobalMeta` index of `slabOwnerS(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabOwnerSIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p + 1
 
 /-- `GlobalMeta` index of `slabBelow(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabBelowIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p + 2
 
 /-- `GlobalMeta` index of `slabAbove(p)` (`p < maxFullSlabs n_max`). -/
-@[expose]
+@[expose, wram_arith]
 def gmSlabAboveIdx (n_max p : ℕ) : ℕ :=
   gmSlabMetaBase n_max + 4 * p + 3
 
@@ -153,20 +155,17 @@ theorem gmSlabMetaBase_add_eq_globalMetaLen {n_max : ℕ} (hb : 0 < bucketBits n
 theorem gmQIdx_lt {n_max b : ℕ} (hb : 0 < bucketBits n_max) (hb_lt : b < numBuckets n_max) :
     gmQIdx b < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmQIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  omega
+  wram_omega
 
 theorem gmRIdx_lt {n_max b : ℕ} (hb : 0 < bucketBits n_max) (hb_lt : b < numBuckets n_max) :
     gmRIdx b < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmRIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  omega
+  wram_omega
 
 theorem gmSlabTopIdx_lt {n_max b : ℕ} (hb : 0 < bucketBits n_max) (hb_lt : b < numBuckets n_max) :
     gmSlabTopIdx b < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabTopIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase gmSlabDirBase
-  omega
+  wram_omega
 
 theorem gmSlabDirIdx_lt {n_max b s : ℕ} (hb : 0 < bucketBits n_max)
     (hb_lt : b < numBuckets n_max) (hs_lt : s < dirSlabsPerBucket n_max) :
@@ -176,15 +175,13 @@ theorem gmSlabDirIdx_lt {n_max b s : ℕ} (hb : 0 < bucketBits n_max)
     have h1 : (b + 1) * dirSlabsPerBucket n_max ≤ numBuckets n_max * dirSlabsPerBucket n_max :=
       Nat.mul_le_mul_right _ hb_lt
     nlinarith
-  unfold gmSlabDirIdx gmSlabMetaBase gmTailOwnerBase gmTailPtrBase
-  omega
+  wram_omega
 
 theorem gmTailPtrFlatIdx_lt {n_max d : ℕ} (hb : 0 < bucketBits n_max)
     (hd_lt : d < maxTailItems n_max) :
     gmTailPtrFlatIdx n_max d < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase
-  omega
+  wram_omega
 
 /-- The flat tail descriptor `b * tailCapPerBucket n_max + r` of a bucket `b < numBuckets n_max`
 and a position `r < tailCapPerBucket n_max` indexes the `maxTailItems n_max` tail tables. -/
@@ -204,36 +201,31 @@ theorem gmTailOwnerIdx_lt {n_max t : ℕ} (hb : 0 < bucketBits n_max)
     (ht_lt : t < maxTailItems n_max) :
     gmTailOwnerIdx n_max t < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmTailOwnerIdx gmSlabMetaBase
-  omega
+  wram_omega
 
 theorem gmSlabOwnerBIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabOwnerBIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabOwnerBIdx
-  omega
+  wram_omega
 
 theorem gmSlabOwnerSIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabOwnerSIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabOwnerSIdx
-  omega
+  wram_omega
 
 theorem gmSlabBelowIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabBelowIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabBelowIdx
-  omega
+  wram_omega
 
 theorem gmSlabAboveIdx_lt {n_max p : ℕ} (hb : 0 < bucketBits n_max)
     (hp_lt : p < maxFullSlabs n_max) :
     gmSlabAboveIdx n_max p < globalMetaLen n_max := by
   rw [← gmSlabMetaBase_add_eq_globalMetaLen hb]
-  unfold gmSlabAboveIdx
-  omega
+  wram_omega
 
 /-- Number of items currently stored in bucket `b` according to `gm : ℕ → ℕ`. -/
 @[expose]
@@ -583,13 +575,11 @@ theorem TailBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {r_fn r_fn' : �
       gm' (gmTailPtrIdx n_max b r) = gm (gmTailPtrIdx n_max b r) := by
     intro b hb r hr
     have hd := mul_tailCapPerBucket_add_lt_maxTailItems hb hr
-    exact hmeta _ (by unfold gmTailPtrIdx gmTailPtrFlatIdx; omega)
-      (by unfold gmTailPtrIdx gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase; omega)
+    exact hmeta _ (by wram_omega) (by wram_omega)
   have hown_eq : ∀ t < n_tails, gm' (gmTailOwnerIdx n_max t) = gm (gmTailOwnerIdx n_max t) := by
     intro t ht
     have ht_max := lt_of_lt_of_le ht htail.ntails_le
-    exact hmeta _ (by unfold gmTailOwnerIdx gmTailOwnerBase; omega)
-      (by unfold gmTailOwnerIdx gmSlabMetaBase; omega)
+    exact hmeta _ (by wram_omega) (by wram_omega)
   have hnt : gm' 1 = n_tails := h1.trans htail.ntails_eq
   rw [hnt]
   refine ⟨hnt, htail.ntails_le, ?_, ?_, ?_, ?_⟩
@@ -610,8 +600,7 @@ theorem TailBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {r_fn r_fn' : �
     dsimp only
     rw [hown_eq t ht, hr_fn _ hb]
     refine ⟨hb, hr, Eq.trans ?_ hptr⟩
-    exact hmeta _ (by unfold gmTailPtrFlatIdx; omega)
-      (by unfold gmTailPtrFlatIdx gmSlabMetaBase gmTailOwnerBase; omega)
+    exact hmeta _ (by wram_omega) (by wram_omega)
 
 theorem q_le_nslabs_of_slabBijection {n_max : ℕ} {gm q_fn : ℕ → ℕ} {n_slabs : ℕ}
     (hslab : SlabBijection n_max gm q_fn n_slabs) {b : ℕ} (hb : b < numBuckets n_max) :
@@ -634,8 +623,8 @@ theorem q_le_nslabs_of_slabBijection {n_max : ℕ} {gm q_fn : ℕ → ℕ} {n_sl
 theorem slabPtrOf_congr_of_slabMeta {n_max : ℕ} {gm gm' : ℕ → ℕ} (h0 : gm' 0 = gm 0)
     (hmeta : ∀ idx, gmSlabMetaBase n_max ≤ idx → gm' idx = gm idx) (b s : ℕ) :
     slabPtrOf n_max gm' b s = slabPtrOf n_max gm b s :=
-  slabPtrOf_congr h0 (fun p _ => hmeta _ (by unfold gmSlabOwnerBIdx; omega))
-    (fun p _ => hmeta _ (by unfold gmSlabOwnerSIdx; omega)) b s
+  slabPtrOf_congr h0 (fun p _ => hmeta _ (by wram_omega))
+    (fun p _ => hmeta _ (by wram_omega)) b s
 
 /-- `SlabBijection` reads `gm` only through the slab count `gm 0`, the per-bucket slab counts
 `q_fn`, the `slabTop`/`slabDir` entries, and the per-slab metadata above `gmSlabMetaBase n_max`, so
@@ -650,13 +639,13 @@ theorem SlabBijection.congr {n_max : ℕ} {gm gm' : ℕ → ℕ} {q_fn q_fn' : �
     SlabBijection n_max gm' q_fn' (gm' 0) := by
   have hptr := slabPtrOf_congr_of_slabMeta h0 hmeta
   have hB_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabOwnerBIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerBIdx; omega
+    fun _ => by wram_omega
   have hS_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabOwnerSIdx n_max p :=
-    fun _ => by unfold gmSlabOwnerSIdx; omega
+    fun _ => by wram_omega
   have hBel_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabBelowIdx n_max p :=
-    fun _ => by unfold gmSlabBelowIdx; omega
+    fun _ => by wram_omega
   have hAbv_ge : ∀ p, gmSlabMetaBase n_max ≤ gmSlabAboveIdx n_max p :=
-    fun _ => by unfold gmSlabAboveIdx; omega
+    fun _ => by wram_omega
   have hn : gm' 0 = n_slabs := h0.trans hslab.nslabs_eq
   rw [hn]
   refine ⟨hn, hslab.nslabs_le, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩

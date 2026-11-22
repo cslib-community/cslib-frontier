@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.PrefixSums.WordRAM.Tree
 public import CslibFrontier.Computability.WordRAM.Compile
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Fixed Word-RAM point updates for aggregation trees
@@ -192,7 +193,7 @@ theorem updateLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i < 2 ^
         · rw [hzframe b (Or.inl (by omega)), updateNext_mem, Function.update_self, hroot]
           omega
         · intro a ha₁ ha₂
-          exact hzframe a (Or.inr (by simp only [Tree.words]; omega))
+          exact hzframe a (Or.inr (by wram_omega))
       · intro a ha'
         rw [hzframe a (by
           simp only [Tree.words, pow_succ] at ha' ⊢; omega), updateNext_mem]
@@ -207,7 +208,7 @@ theorem updateLoop_spec (t : Tree h) (hx : Entry b (2 ^ h) i δ x) (hi : i < 2 ^
         · rw [hzframe b (Or.inl (by omega)), updateNext_mem, Function.update_self, hroot]
           omega
         · intro a ha₁ ha₂
-          exact hzframe a (Or.inl (by simp only [Tree.words] at ha₂; omega))
+          exact hzframe a (Or.inl (by wram_omega [ha₂]))
       · intro a ha'
         rw [hzframe a (by
           simp only [Tree.words, pow_succ] at ha' ⊢; omega), updateNext_mem]

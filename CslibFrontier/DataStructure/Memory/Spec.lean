@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Heap
 public import CslibFrontier.DataStructure.StateTransition
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Word-addressed memory as a state-transition specification
@@ -198,7 +199,7 @@ theorem mem_step_of_lt_frontier (s : State) (o : Op) {a : ℕ} (ha : a < s.front
   | write b v =>
     have hab : a ≠ b := fun h => hw v (h ▸ rfl)
     exact Function.update_of_ne hab v s.mem
-  | alloc k => exact clear_of_not_owns (by simp only [Block.Owns]; omega)
+  | alloc k => exact clear_of_not_owns (by wram_omega)
   | allocDirty => rfl
 
 /-! ## Word fit -/
