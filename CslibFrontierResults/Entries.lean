@@ -141,6 +141,7 @@ import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
 import CslibFrontier.Foundations.BooleanAnalysis.Hypercontractivity.ReverseTwoPoint
 import CslibFrontier.Foundations.BooleanAnalysis.ReverseHypercontractivity
+import CslibFrontier.Foundations.BooleanAnalysis.DegreeOneWeight
 import CslibFrontier.Computability.Circuit.NNF.Negation.Separation
 import CslibFrontier.Computability.Communication.CliqueIndependentSet
 import CslibFrontier.Computability.Communication.AhoUllmanYannakakis
@@ -12727,6 +12728,35 @@ register_result "gaspers-cubic-switched-cutwidth" where
     are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
     (main.tex) and compiled PDF on 2026-11-22."
 
+register_result "odonnell-degree-one-weight-one-literals" where
+  title := "Boolean functions with all Fourier weight on degree one are the literals"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Exercise 1.19(a)",
+      locator := "arXiv:2105.10386v1, §1.7, printed p. 37" }
+  ]
+  theorems := [Cslib.BitString.levelWeight_one_signVal_eq_one_iff]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), W¹[f] = 1 if and only if f x = b ⊕ x i for some coordinate i \
+    and bit b; these literals are the book's ±χ_S with |S| = 1. The book asks only for the \
+    forward direction; the converse is included. Parts (b) and (c) of the exercise are not \
+    covered by this entry."
+
+register_result "odonnell-unbiased-noise-stability-dictators" where
+  title := "Dictators maximize the noise stability of unbiased Boolean functions"
+  topic := "analysis of Boolean functions"
+  sources := [
+    { paper := ODonnell2014, theorem := "Proposition 2.50",
+      locator := "arXiv:2105.10386v1, §2.4, printed p. 56" }
+  ]
+  theorems := [Cslib.BitString.noiseStability_signVal_le_of_expect_eq_zero,
+    Cslib.BitString.noiseStability_signVal_eq_iff_of_expect_eq_zero]
+  scope := "For every f : (ι → Bool) → Bool over a finite coordinate type ι, read as signs \
+    through signVal (false ↦ 1), with 𝔼 x, signVal (f x) = 0: Stab_ρ[f] ≤ ρ for 0 ≤ ρ ≤ 1, \
+    the closed interval containing the book's 0 < ρ < 1; and for 0 < ρ < 1, Stab_ρ[f] = ρ if \
+    and only if f x = b ⊕ x i for some coordinate i and bit b, the book's ±χ_i. The equality \
+    case fails at both endpoints."
+
 register_result "dijkstra-k-state-self-stabilizing-token-ring" where
   title := "Dijkstra's K-state self-stabilizing token ring under a central daemon"
   topic := "distributed computing"
@@ -12754,16 +12784,18 @@ register_result "dijkstra-k-state-self-stabilizing-token-ring" where
     and dijkstraRing n K fires one privileged machine per transition. SelfStabilizing lts \
     Legitimate requires forward closure (requirement (2) on p. 643), absence of terminal states \
     (implying requirement (1)), and WellFounded (CorruptedStep lts Legitimate) (finite-step \
-    convergence from every initial state under arbitrary enabled moves; source conditions \
-    (3)–(4) on p. 643 are requirements of Dijkstra's legitimate-state specification that lie \
-    outside the generic SelfStabilizing predicate's scope, while n-step clockwise privilege \
-    circulation is proved in dijkstraRing_token_circulates). Proves Note 1 on p. 644 for \
-    2 ≤ n, 2 ≤ K, and n - 1 ≤ K (K ≥ N). CACM p. 643 excludes a distributed daemon and EWD391's \
-    later section considers separate reads and adjustments, so the simultaneous atomic-subset \
-    model dijkstraDistRing and its closure/convergence/iff theorems, together with the explicit \
-    K * (n * (n - 1) / 2) + K bound (dijkstraRing_mTr_legitimate_of_le) and periodic converse \
-    (dijkstraRing_not_selfStabilizing_of_lt_pred, dijkstraRing_selfStabilizing_iff), are \
-    original to this formalization; p. 644's 4-state and 3-state bidirectional rings and \
-    EWD391's fair-command composite-ring endpoint remain open under #7291. Source check: \
-    outside-fleet agent review (reviewer-codex-edemaine) on PR #7337 at 6c70b685b657: \
+    convergence from every initial state under arbitrary enabled moves; source conditions (3), \
+    that each privilege occurs in some legitimate state, and (4), mutual reachability of all \
+    legitimate states, on p. 643 are requirements of Dijkstra's legitimate-state specification \
+    that lie outside the generic SelfStabilizing predicate's scope, while n-step clockwise \
+    privilege circulation is proved in dijkstraRing_token_circulates). Proves Note 1 on p. 644 \
+    for 2 ≤ n, 2 ≤ K, and n - 1 ≤ K (K ≥ N). CACM p. 643 excludes a distributed daemon and \
+    EWD391's later section considers separate reads and adjustments, so the simultaneous \
+    atomic-subset model dijkstraDistRing and its closure/convergence/iff theorems, together with \
+    the explicit K * (n * (n - 1) / 2) + K bound (dijkstraRing_mTr_legitimate_of_le) and \
+    periodic converse (dijkstraRing_not_selfStabilizing_of_lt_pred, \
+    dijkstraRing_selfStabilizing_iff), are original to this formalization; p. 644's 4-state and \
+    3-state bidirectional rings and EWD391's fair-command composite-ring endpoint remain open \
+    under #7291. Source check: outside-fleet agent review (reviewer-codex-edemaine) on PR #7337 \
+    at 6c70b685b657: \
     https://github.com/cslib-community/cslib-frontier/pull/7337#pullrequestreview-6011167278."

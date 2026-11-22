@@ -27,11 +27,11 @@ configurations, `SelfStabilizing lts Legitimate` requires:
    ruling out infinite executions that remain outside `Legitimate` under any adversarial enabled
    schedule without fairness assumptions.
 
-Source conditions (3) and (4) on p. 643 of [Dijkstra][Dijkstra1974] (mutual reachability among
-legitimate states and absence of illegitimate-looking subcycles within `Legitimate`) are
-requirements of Dijkstra's legitimate-state specification that lie outside the scope of this
-generic `SelfStabilizing` predicate and are stated separately by concrete protocol modules where
-applicable.
+Source conditions (3) and (4) on p. 643 of [Dijkstra][Dijkstra1974]—that each privilege occurs in
+some legitimate state (3) and that every pair of legitimate states is mutually reachable by a path
+of transitions (4)—are requirements of Dijkstra's legitimate-state specification that lie outside
+the scope of this generic `SelfStabilizing` predicate and are stated separately by concrete
+protocol modules where applicable.
 
 From `SelfStabilizing`, every infinite execution `lts.OmegaExecution ss μs` enters `Legitimate` at
 some step `k₀` and remains in `Legitimate` at all steps `k ≥ k₀`
