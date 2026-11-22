@@ -20,17 +20,18 @@ import Mathlib.Tactic.Linarith
 /-!
 # Carving decompositions, branch decompositions, and binary partition trees
 
-A *carving decomposition* of a multigraph `G : Multigraph V E` (Seymour and Thomas, 1994) is an
+A *carving decomposition* of a multigraph `G : Multigraph V E`
+([Seymour and Thomas][SeymourThomas1994]) is an
 unrooted tree `T` of maximum degree at most `3` whose leaves (`deg ≤ 1`) are in bijection with `V`.
 Deleting an oriented edge `(u, v)` of `T` splits `T` into two subtrees
 (`SimpleGraph.IsTree.treeSide`) and induces a vertex cut of `G`; the width of the decomposition is
 the largest size of an induced edge cut `G.edgeCut S`, and `G.carvingWidth` is the minimum width
 over finite index trees.
 
-A *branch decomposition* of `G` (Robertson and Seymour, 1991) is an unrooted subcubic tree `T`
-whose leaves are in bijection with the edge set `E`. Deleting an edge of `T` splits `E` into
-`(A, Aᶜ)` and induces the *middle set* `G.middleSet A` of vertices incident to both `A` and `Aᶜ`;
-the minimum width is `G.branchwidth`.
+A *branch decomposition* of `G` ([Robertson and Seymour][RobertsonSeymour1991]) is an unrooted
+subcubic tree `T` whose leaves are in bijection with the edge set `E`. Deleting an edge of `T`
+splits `E` into `(A, Aᶜ)` and induces the *middle set* `G.middleSet A` of vertices incident to both
+`A` and `Aᶜ`; the minimum width is `G.branchwidth`.
 
 Recursive separator constructions build rooted binary partition trees (`BinTree α`). We prove the
 exact equivalence between unrooted `SubcubicLeafTree α` decompositions and rooted `BinTree α`
@@ -63,8 +64,9 @@ classical inequality `G.branchwidth ≤ G.carvingWidth` on every finite loopless
 
 ## References
 
-* N. Robertson and P. D. Seymour, *Graph Minors. X. Obstructions to Tree-Decomposition* (1991)
-* P. D. Seymour and R. Thomas, *Call routing and the ratcatcher* (1994)
+* [N. Robertson and P. D. Seymour, *Graph Minors. X. Obstructions to
+  Tree-Decomposition*][RobertsonSeymour1991]
+* [P. D. Seymour and R. Thomas, *Call routing and the ratcatcher*][SeymourThomas1994]
 -/
 
 public section

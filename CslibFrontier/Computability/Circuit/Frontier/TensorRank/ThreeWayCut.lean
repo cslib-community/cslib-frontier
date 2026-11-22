@@ -79,7 +79,7 @@ open Cslib.Circuits.Frontier.Gaussian Cslib.Circuits.Frontier.Multigraph
 
 /-- The `3`-way planar Gaussian half-edge mismatch coefficient on cubic blocks:
 `(3 / 2) * gaussianCoefficient + (1 / 2) * (1 - √((1 + 2√2 / 3) / 2)) ≈ 0.217728`. -/
-@[expose] noncomputable def threeWayCapCoefficient : ℝ :=
+noncomputable def threeWayCapCoefficient : ℝ :=
   3 / 2 * gaussianCoefficient + 1 / 2 * (1 - √((1 + 2 * √2 / 3) / 2))
 
 /-- The parametric `3`-way mismatch bound at adjacent kernel correlation `ρ₀`. -/
@@ -570,103 +570,26 @@ private theorem gaussTie_not_injective_zero :
     gaussTie.real {τ : Fin 3 → ℝ | ¬Function.Injective τ} = 0 := by
   have hpair (c₁ c₂ : Fin 3) (hne : c₁ ≠ c₂) :
       gaussTie.real {τ : Fin 3 → ℝ | τ c₁ = τ c₂} = 0 := by
-    let u : EuclideanSpace ℝ (Fin 3) :=
-      WithLp.toLp 2 fun i => if i = c₁ then 1 / √2 else if i = c₂ then -1 / √2 else 0
+    let e₁ : EuclideanSpace ℝ (Fin 3) := EuclideanSpace.single c₁ 1
+    let e₂ : EuclideanSpace ℝ (Fin 3) := EuclideanSpace.single c₂ 1
+    let u : EuclideanSpace ℝ (Fin 3) := (1 / √2 : ℝ) • (e₁ - e₂)
+    have hon := EuclideanSpace.orthonormal_single (𝕜 := ℝ) (ι := Fin 3)
+    have hsub_sq : ‖e₁ - e₂‖ ^ 2 = 2 := by
+      rw [@norm_sub_sq_real (EuclideanSpace ℝ (Fin 3)) _ _ e₁ e₂, hon.1 c₁, hon.1 c₂, hon.2 hne]
+      norm_num
     have hu : ‖u‖ = 1 := by
-      rw [EuclideanSpace.norm_eq, Fin.sum_univ_three]
-      dsimp [u]
-      fin_cases c₁ <;> fin_cases c₂
-      · exact absurd rfl hne
-      · change √(|if (0 : Fin 3) = 0 then 1 / √2 else if (0 : Fin 3) = 1 then -1 / √2 else 0| ^ 2 +
-            |if (1 : Fin 3) = 0 then 1 / √2 else if (1 : Fin 3) = 1 then -1 / √2 else 0| ^ 2 +
-            |if (2 : Fin 3) = 0 then 1 / √2 else if (2 : Fin 3) = 1 then -1 / √2 else 0| ^ 2) = 1
-        simp only [Fin.isValue, ↓reduceIte, one_ne_zero,
-          show (2 : Fin 3) ≠ 0 by decide, show (2 : Fin 3) ≠ 1 by decide]
-        rw [sq_abs, sq_abs, sq_abs]; ring_nf
-        rw [inv_pow, sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)]; norm_num
-      · change √(|if (0 : Fin 3) = 0 then 1 / √2 else if (0 : Fin 3) = 2 then -1 / √2 else 0| ^ 2 +
-            |if (1 : Fin 3) = 0 then 1 / √2 else if (1 : Fin 3) = 2 then -1 / √2 else 0| ^ 2 +
-            |if (2 : Fin 3) = 0 then 1 / √2 else if (2 : Fin 3) = 2 then -1 / √2 else 0| ^ 2) = 1
-        simp only [Fin.isValue, ↓reduceIte, show (1 : Fin 3) ≠ 0 by decide,
-          show (1 : Fin 3) ≠ 2 by decide, show (2 : Fin 3) ≠ 0 by decide]
-        rw [sq_abs, sq_abs, sq_abs]; ring_nf
-        rw [inv_pow, sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)]; norm_num
-      · change √(|if (0 : Fin 3) = 1 then 1 / √2 else if (0 : Fin 3) = 0 then -1 / √2 else 0| ^ 2 +
-            |if (1 : Fin 3) = 1 then 1 / √2 else if (1 : Fin 3) = 0 then -1 / √2 else 0| ^ 2 +
-            |if (2 : Fin 3) = 1 then 1 / √2 else if (2 : Fin 3) = 0 then -1 / √2 else 0| ^ 2) = 1
-        simp only [Fin.isValue, ↓reduceIte, zero_ne_one,
-          show (2 : Fin 3) ≠ 1 by decide, show (2 : Fin 3) ≠ 0 by decide]
-        rw [sq_abs, sq_abs, sq_abs]; ring_nf
-        rw [inv_pow, sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)]; norm_num
-      · exact absurd rfl hne
-      · change √(|if (0 : Fin 3) = 1 then 1 / √2 else if (0 : Fin 3) = 2 then -1 / √2 else 0| ^ 2 +
-            |if (1 : Fin 3) = 1 then 1 / √2 else if (1 : Fin 3) = 2 then -1 / √2 else 0| ^ 2 +
-            |if (2 : Fin 3) = 1 then 1 / √2 else if (2 : Fin 3) = 2 then -1 / √2 else 0| ^ 2) = 1
-        simp only [Fin.isValue, ↓reduceIte, zero_ne_one,
-          show (0 : Fin 3) ≠ 2 by decide, show (2 : Fin 3) ≠ 1 by decide]
-        rw [sq_abs, sq_abs, sq_abs]; ring_nf
-        rw [inv_pow, sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)]; norm_num
-      · change √(|if (0 : Fin 3) = 2 then 1 / √2 else if (0 : Fin 3) = 0 then -1 / √2 else 0| ^ 2 +
-            |if (1 : Fin 3) = 2 then 1 / √2 else if (1 : Fin 3) = 0 then -1 / √2 else 0| ^ 2 +
-            |if (2 : Fin 3) = 2 then 1 / √2 else if (2 : Fin 3) = 0 then -1 / √2 else 0| ^ 2) = 1
-        simp only [Fin.isValue, ↓reduceIte, show (0 : Fin 3) ≠ 2 by decide,
-          show (1 : Fin 3) ≠ 2 by decide, show (1 : Fin 3) ≠ 0 by decide]
-        rw [sq_abs, sq_abs, sq_abs]; ring_nf
-        rw [inv_pow, sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)]; norm_num
-      · change √(|if (0 : Fin 3) = 2 then 1 / √2 else if (0 : Fin 3) = 1 then -1 / √2 else 0| ^ 2 +
-            |if (1 : Fin 3) = 2 then 1 / √2 else if (1 : Fin 3) = 1 then -1 / √2 else 0| ^ 2 +
-            |if (2 : Fin 3) = 2 then 1 / √2 else if (2 : Fin 3) = 1 then -1 / √2 else 0| ^ 2) = 1
-        simp only [Fin.isValue, ↓reduceIte,
-          show (0 : Fin 3) ≠ 2 by decide, zero_ne_one, show (1 : Fin 3) ≠ 2 by decide]
-        rw [sq_abs, sq_abs, sq_abs]; ring_nf
-        rw [inv_pow, sq_sqrt (by norm_num : (0 : ℝ) ≤ 2)]; norm_num
-      · exact absurd rfl hne
+      have hdiff : ‖e₁ - e₂‖ = √2 := by rw [← sqrt_sq (norm_nonneg _), hsub_sq]
+      rw [norm_smul, hdiff, Real.norm_of_nonneg (by positivity)]
+      exact one_div_mul_cancel (by positivity)
     have hsub : {τ : Fin 3 → ℝ | τ c₁ = τ c₂} ⊆
         {τ : Fin 3 → ℝ | ⟪u, WithLp.toLp 2 τ⟫ = 0} := by
       intro τ hτ
-      simp only [mem_ofPred_eq, PiLp.inner_apply, RCLike.inner_apply, conj_trivial] at hτ ⊢
-      rw [Fin.sum_univ_three]
-      dsimp [u]
-      fin_cases c₁ <;> fin_cases c₂
-      · exact absurd rfl hne
-      · change τ 0 * (if (0 : Fin 3) = 0 then 1 / √2 else if (0 : Fin 3) = 1 then -1 / √2 else 0) +
-          τ 1 * (if (1 : Fin 3) = 0 then 1 / √2 else if (1 : Fin 3) = 1 then -1 / √2 else 0) +
-          τ 2 * (if (2 : Fin 3) = 0 then 1 / √2 else if (2 : Fin 3) = 1 then -1 / √2 else 0) = 0
-        simp only [Fin.isValue, ↓reduceIte, one_ne_zero, show (2 : Fin 3) ≠ 0 by decide,
-          show (2 : Fin 3) ≠ 1 by decide]
-        change τ 0 = τ 1 at hτ; rw [hτ]; ring
-      · change τ 0 * (if (0 : Fin 3) = 0 then 1 / √2 else if (0 : Fin 3) = 2 then -1 / √2 else 0) +
-          τ 1 * (if (1 : Fin 3) = 0 then 1 / √2 else if (1 : Fin 3) = 2 then -1 / √2 else 0) +
-          τ 2 * (if (2 : Fin 3) = 0 then 1 / √2 else if (2 : Fin 3) = 2 then -1 / √2 else 0) = 0
-        simp only [Fin.isValue, ↓reduceIte, show (1 : Fin 3) ≠ 0 by decide,
-          show (1 : Fin 3) ≠ 2 by decide, show (2 : Fin 3) ≠ 0 by decide]
-        change τ 0 = τ 2 at hτ; rw [hτ]; ring
-      · change τ 0 * (if (0 : Fin 3) = 1 then 1 / √2 else if (0 : Fin 3) = 0 then -1 / √2 else 0) +
-          τ 1 * (if (1 : Fin 3) = 1 then 1 / √2 else if (1 : Fin 3) = 0 then -1 / √2 else 0) +
-          τ 2 * (if (2 : Fin 3) = 1 then 1 / √2 else if (2 : Fin 3) = 0 then -1 / √2 else 0) = 0
-        simp only [Fin.isValue, ↓reduceIte, zero_ne_one, show (2 : Fin 3) ≠ 1 by decide,
-          show (2 : Fin 3) ≠ 0 by decide]
-        change τ 1 = τ 0 at hτ; rw [hτ]; ring
-      · exact absurd rfl hne
-      · change τ 0 * (if (0 : Fin 3) = 1 then 1 / √2 else if (0 : Fin 3) = 2 then -1 / √2 else 0) +
-          τ 1 * (if (1 : Fin 3) = 1 then 1 / √2 else if (1 : Fin 3) = 2 then -1 / √2 else 0) +
-          τ 2 * (if (2 : Fin 3) = 1 then 1 / √2 else if (2 : Fin 3) = 2 then -1 / √2 else 0) = 0
-        simp only [Fin.isValue, ↓reduceIte, show (0 : Fin 3) ≠ 2 by decide, zero_ne_one,
-          show (2 : Fin 3) ≠ 1 by decide]
-        change τ 1 = τ 2 at hτ; rw [hτ]; ring
-      · change τ 0 * (if (0 : Fin 3) = 2 then 1 / √2 else if (0 : Fin 3) = 0 then -1 / √2 else 0) +
-          τ 1 * (if (1 : Fin 3) = 2 then 1 / √2 else if (1 : Fin 3) = 0 then -1 / √2 else 0) +
-          τ 2 * (if (2 : Fin 3) = 2 then 1 / √2 else if (2 : Fin 3) = 0 then -1 / √2 else 0) = 0
-        simp only [Fin.isValue, ↓reduceIte, show (0 : Fin 3) ≠ 2 by decide,
-          show (1 : Fin 3) ≠ 2 by decide, show (1 : Fin 3) ≠ 0 by decide]
-        change τ 2 = τ 0 at hτ; rw [hτ]; ring
-      · change τ 0 * (if (0 : Fin 3) = 2 then 1 / √2 else if (0 : Fin 3) = 1 then -1 / √2 else 0) +
-          τ 1 * (if (1 : Fin 3) = 2 then 1 / √2 else if (1 : Fin 3) = 1 then -1 / √2 else 0) +
-          τ 2 * (if (2 : Fin 3) = 2 then 1 / √2 else if (2 : Fin 3) = 1 then -1 / √2 else 0) = 0
-        simp only [Fin.isValue, ↓reduceIte, show (0 : Fin 3) ≠ 2 by decide, zero_ne_one,
-          show (1 : Fin 3) ≠ 2 by decide]
-        change τ 2 = τ 1 at hτ; rw [hτ]; ring
-      · exact absurd rfl hne
+      change τ c₁ = τ c₂ at hτ
+      rw [mem_ofPred_eq]
+      dsimp only [u, e₁, e₂]
+      rw [real_inner_smul_left, inner_sub_left, EuclideanSpace.inner_single_left,
+        EuclideanSpace.inner_single_left]
+      simp [hτ]
     exact le_antisymm ((ENNReal.toReal_mono (measure_ne_top _ _) (measure_mono hsub)).trans_eq
       (measureReal_pi_gaussianReal_inner_eq_zero hu)) measureReal_nonneg
   have hcov : {τ : Fin 3 → ℝ | ¬Function.Injective τ} ⊆

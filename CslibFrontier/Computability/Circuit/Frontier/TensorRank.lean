@@ -83,11 +83,16 @@ open Cslib.Circuits Cslib.Circuits.Arithmetic.MatrixMultiplication Cslib.Tensor
 
 /-- An input `3`-coloring `p : Fin n → Fin 3` is *balanced* when each color class has size at least
 `n / 3`. -/
-@[expose] def BalancedTripartition (n : ℕ) (p : Fin n → Fin 3) : Prop :=
+def BalancedTripartition (n : ℕ) (p : Fin n → Fin 3) : Prop :=
   ∀ c : Fin 3, n / 3 ≤ {i : Fin n | p i = c}.ncard
 
+/-- Characterization of `BalancedTripartition`: every fiber has size at least `n / 3`. -/
+theorem balancedTripartition_iff (n : ℕ) (p : Fin n → Fin 3) :
+    BalancedTripartition n p ↔ ∀ c : Fin 3, n / 3 ≤ {i : Fin n | p i = c}.ncard := by
+  rfl
+
 /-- Reassemble a full input `Fin n → U` from partial assignments on the three fibers of `p`. -/
-@[expose] def mergeTripartition {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
+def mergeTripartition {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
     (x₀ : {i : Fin n // p i = 0} → U)
     (x₁ : {i : Fin n // p i = 1} → U)
     (x₂ : {i : Fin n // p i = 2} → U) (i : Fin n) : U :=
@@ -102,12 +107,21 @@ open Cslib.Circuits Cslib.Circuits.Arithmetic.MatrixMultiplication Cslib.Tensor
 
 /-- The `0-1` order-three tensor over `K` induced by `S : Set (Fin n → U)` under an input
 tripartition `p : Fin n → Fin 3`. -/
-@[expose] noncomputable def partitionThreeTensor (K : Type*) [Zero K] [One K]
+noncomputable def partitionThreeTensor (K : Type*) [Zero K] [One K]
     {n : ℕ} {U : Type*} (p : Fin n → Fin 3) (S : Set (Fin n → U)) :
     Tensor K ({i : Fin n // p i = 0} → U) ({i : Fin n // p i = 1} → U)
       ({i : Fin n // p i = 2} → U) :=
   open Classical in
   fun x₀ x₁ x₂ => if mergeTripartition p x₀ x₁ x₂ ∈ S then 1 else 0
+
+/-- Evaluation of `partitionThreeTensor K p S` on partial assignments `(x₀, x₁, x₂)`. -/
+theorem partitionThreeTensor_apply (K : Type*) [Zero K] [One K] {n : ℕ} {U : Type*}
+    (p : Fin n → Fin 3) (S : Set (Fin n → U))
+    (x₀ : {i : Fin n // p i = 0} → U) (x₁ : {i : Fin n // p i = 1} → U)
+    (x₂ : {i : Fin n // p i = 2} → U) :
+    partitionThreeTensor K p S x₀ x₁ x₂ =
+      open Classical in if mergeTripartition p x₀ x₁ x₂ ∈ S then 1 else 0 := by
+  rfl
 
 /-- A subset `S ⊆ (Fin n → U)` is *`3`-tensor hard* at CP-rank `r` over `K` if for *every* balanced
 input tripartition `p`, `partitionThreeTensor K p S` does not have CP-rank `≤ r`. -/
@@ -115,19 +129,22 @@ input tripartition `p`, `partitionThreeTensor K p S` does not have CP-rank `≤ 
     (r : ℕ) (S : Set (Fin n → U)) : Prop :=
   ∀ p : Fin n → Fin 3, BalancedTripartition n p → ¬Tensor.Rank r (partitionThreeTensor K p S)
 
-private theorem mergeTripartition_apply_zero {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
+/-- `mergeTripartition` reads `x₀` on fiber `0`. -/
+@[simp] theorem mergeTripartition_apply_zero {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
     (x₀ : {i : Fin n // p i = 0} → U) (x₁ : {i : Fin n // p i = 1} → U)
     (x₂ : {i : Fin n // p i = 2} → U) {i : Fin n} (h0 : p i = 0) :
     mergeTripartition p x₀ x₁ x₂ i = x₀ ⟨i, h0⟩ := by
   simp [mergeTripartition, h0]
 
-private theorem mergeTripartition_apply_one {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
+/-- `mergeTripartition` reads `x₁` on fiber `1`. -/
+@[simp] theorem mergeTripartition_apply_one {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
     (x₀ : {i : Fin n // p i = 0} → U) (x₁ : {i : Fin n // p i = 1} → U)
     (x₂ : {i : Fin n // p i = 2} → U) {i : Fin n} (h1 : p i = 1) :
     mergeTripartition p x₀ x₁ x₂ i = x₁ ⟨i, h1⟩ := by
   simp [mergeTripartition, h1]
 
-private theorem mergeTripartition_apply_two {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
+/-- `mergeTripartition` reads `x₂` on fiber `2`. -/
+@[simp] theorem mergeTripartition_apply_two {n : ℕ} {U : Type*} (p : Fin n → Fin 3)
     (x₀ : {i : Fin n // p i = 0} → U) (x₁ : {i : Fin n // p i = 1} → U)
     (x₂ : {i : Fin n // p i = 2} → U) {i : Fin n} (h2 : p i = 2) :
     mergeTripartition p x₀ x₁ x₂ i = x₂ ⟨i, h2⟩ := by

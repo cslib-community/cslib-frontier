@@ -70,7 +70,7 @@ bisecting symmetrically at deeper levels. -/
 
 /-- The cubic carving-width coefficient: the infimum of `carvingAt t` over nonpositive thresholds
 `t ≤ 0`. -/
-@[expose] noncomputable def carvingCoefficient : ℝ :=
+noncomputable def carvingCoefficient : ℝ :=
   ⨅ t : {t : ℝ // t ≤ 0}, carvingAt t.1
 
 /-- `carvingAt t` is bounded below by `(1 / 2) * gaussianCoefficient` for every `t ≤ 0`. -/
@@ -616,7 +616,7 @@ private theorem carvingAt_gt_on_Icc {a b t : ℝ} (ht : t ∈ Icc a b) (hb0 : b 
     exact mul_le_mul (by linarith) hprod (mul_nonneg he0 (by norm_num)) (by linarith)
 
 /-- For every threshold `t < -3 / 10`, `138 / 1000 < carvingAt t` (`> carvingCoefficient`). -/
-theorem carvingAt_gt_of_lt_neg_three_tenths {t : ℝ} (ht : t < -3 / 10) :
+private theorem carvingAt_gt_of_lt_neg_three_tenths {t : ℝ} (ht : t < -3 / 10) :
     138 / 1000 < carvingAt t := by
   rcases le_or_gt t (-23 / 10) with h23 | h23
   · obtain ⟨hp_lo, hp_hi⟩ := gaussianCoefficient_bounds

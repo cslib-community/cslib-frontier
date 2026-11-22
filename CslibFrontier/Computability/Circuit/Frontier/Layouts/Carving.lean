@@ -107,7 +107,7 @@ private theorem edgeStraddles_iff_ncard [Finite E] {G : Multigraph V E} {v : V}
         {e ∈ G.incidenceSet v | score e < t}.ncard ≤ 2 := by
   have hsum := ncard_lt_add_ncard_ge hv score t
   constructor
-  · rintro ⟨e, he, hlt, e', he', hge⟩
+  · rintro ⟨⟨e, he, hlt⟩, ⟨e', he', hge⟩⟩
     have h1 : 1 ≤ {f ∈ G.incidenceSet v | score f < t}.ncard :=
       (ncard_pos (toFinite _)).mpr ⟨e, he, hlt⟩
     have h2 : 1 ≤ {f ∈ G.incidenceSet v | t ≤ score f}.ncard :=
@@ -118,7 +118,91 @@ private theorem edgeStraddles_iff_ncard [Finite E] {G : Multigraph V E} {v : V}
       (by omega : 0 < {f ∈ G.incidenceSet v | score f < t}.ncard)
     obtain ⟨e', he', hge⟩ := (ncard_pos (toFinite _)).mp
       (by omega : 0 < {f ∈ G.incidenceSet v | t ≤ score f}.ncard)
-    exact ⟨e, he, hlt, e', he', hge⟩
+    exact ⟨⟨e, he, hlt⟩, ⟨e', he', hge⟩⟩
+
+/-- **Restricted single-threshold cut-to-straddle injection.** Let `D : Set V` consist of vertices
+of degree `3` in `G`, and let `S : Set V` agree with `lowSide G score t` on `D`. Every cut edge of
+`S` with both endpoints in `D` maps injectively to a straddling endpoint in `D \ S` (if
+`score e < t`) or in `D ∩ S` (if `t ≤ score e`). -/
+private theorem ncard_edgeCut_inter_le_straddles [Finite V] [Finite E] {G : Multigraph V E}
+    {D S : Set V} (hD : ∀ v ∈ D, (G.incidenceSet v).ncard = 3) (score : E → ℝ) (t : ℝ)
+    (hS : ∀ v ∈ D, v ∈ S ↔ v ∈ lowSide G score t) :
+    {e ∈ G.edgeCut S | G.src e ∈ D ∧ G.tgt e ∈ D}.ncard ≤
+      {v ∈ D | v ∉ S ∧ G.EdgeStraddles score t v}.ncard +
+        {v ∈ D | v ∈ S ∧ G.EdgeStraddles score t v}.ncard := by
+  classical
+  set Ec := {e ∈ G.edgeCut S | G.src e ∈ D ∧ G.tgt e ∈ D}
+  have hpart : Ec ⊆ {e ∈ Ec | score e < t} ∪ {e ∈ Ec | t ≤ score e} := fun e he => by
+    rcases lt_or_ge (score e) t with h | h
+    · exact Or.inl ⟨he, h⟩
+    · exact Or.inr ⟨he, h⟩
+  refine ((ncard_le_ncard hpart (toFinite _)).trans (ncard_union_le _ _)).trans
+    (Nat.add_le_add ?_ ?_)
+  · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ S then G.tgt e else G.src e)
+      ?_ ?_ (toFinite _)
+    · rintro e ⟨⟨he, hsD, htD⟩, hlt⟩
+      rw [mem_edgeCut] at he
+      set w := if G.src e ∈ S then G.tgt e else G.src e
+      have hw : w ∈ D ∧ w ∉ S ∧ e ∈ G.incidenceSet w := by
+        dsimp [w]
+        split_ifs with hs
+        · exact ⟨htD, fun ht => he (iff_of_true hs ht), Or.inr rfl⟩
+        · exact ⟨hsD, hs, Or.inl rfl⟩
+      have hge1 : 1 ≤ {f ∈ G.incidenceSet w | score f < t}.ncard :=
+        (ncard_pos (toFinite _)).mpr ⟨e, hw.2.2, hlt⟩
+      have hlt2 : {f ∈ G.incidenceSet w | score f < t}.ncard < 2 := by
+        have := mt (hS w hw.1).mpr hw.2.1
+        simp only [lowSide, mem_ofPred_eq, not_le] at this
+        exact this
+      exact ⟨hw.1, hw.2.1, (edgeStraddles_iff_ncard (hD w hw.1) score t).mpr ⟨hge1, by omega⟩⟩
+    · rintro e₁ ⟨⟨he₁, hs₁, ht₁⟩, hlt₁⟩ e₂ ⟨⟨he₂, _, _⟩, hlt₂⟩ heq
+      dsimp only at heq
+      set w := if G.src e₁ ∈ S then G.tgt e₁ else G.src e₁
+      have hw1 : w ∈ D ∧ w ∉ S ∧ e₁ ∈ G.incidenceSet w := by
+        rw [mem_edgeCut] at he₁
+        dsimp [w]
+        split_ifs with hs
+        · exact ⟨ht₁, fun ht => he₁ (iff_of_true hs ht), Or.inr rfl⟩
+        · exact ⟨hs₁, hs, Or.inl rfl⟩
+      have hw2 : e₂ ∈ G.incidenceSet w := by
+        rw [heq]
+        split_ifs <;> [exact Or.inr rfl; exact Or.inl rfl]
+      have hle1 : {f ∈ G.incidenceSet w | score f < t}.ncard ≤ 1 := by
+        have := mt (hS w hw1.1).mpr hw1.2.1
+        simp only [lowSide, mem_ofPred_eq, not_le] at this
+        omega
+      exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hw1.2.2, hlt₁⟩ _ ⟨hw2, hlt₂⟩
+  · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ S then G.src e else G.tgt e)
+      ?_ ?_ (toFinite _)
+    · rintro e ⟨⟨he, hsD, htD⟩, hge⟩
+      rw [mem_edgeCut] at he
+      set u := if G.src e ∈ S then G.src e else G.tgt e
+      have hu : u ∈ D ∧ u ∈ S ∧ e ∈ G.incidenceSet u := by
+        dsimp [u]
+        split_ifs with hs
+        · exact ⟨hsD, hs, Or.inl rfl⟩
+        · exact ⟨htD, by tauto, Or.inr rfl⟩
+      have hsum := ncard_lt_add_ncard_ge (hD u hu.1) score t
+      have hge1 : 1 ≤ {f ∈ G.incidenceSet u | t ≤ score f}.ncard :=
+        (ncard_pos (toFinite _)).mpr ⟨e, hu.2.2, hge⟩
+      have hge2 : 2 ≤ {f ∈ G.incidenceSet u | score f < t}.ncard := (hS u hu.1).mp hu.2.1
+      exact ⟨hu.1, hu.2.1, (edgeStraddles_iff_ncard (hD u hu.1) score t).mpr ⟨by omega, by omega⟩⟩
+    · rintro e₁ ⟨⟨he₁, hs₁, ht₁⟩, hge₁⟩ e₂ ⟨⟨he₂, _, _⟩, hge₂⟩ heq
+      dsimp only at heq
+      set u := if G.src e₁ ∈ S then G.src e₁ else G.tgt e₁
+      have hu1 : u ∈ D ∧ u ∈ S ∧ e₁ ∈ G.incidenceSet u := by
+        rw [mem_edgeCut] at he₁
+        dsimp [u]
+        split_ifs with hs
+        · exact ⟨hs₁, hs, Or.inl rfl⟩
+        · exact ⟨ht₁, by tauto, Or.inr rfl⟩
+      have hu2 : e₂ ∈ G.incidenceSet u := by
+        rw [heq]
+        split_ifs <;> [exact Or.inl rfl; exact Or.inr rfl]
+      have hsum := ncard_lt_add_ncard_ge (hD u hu1.1) score t
+      have hge2 : 2 ≤ {f ∈ G.incidenceSet u | score f < t}.ncard := (hS u hu1.1).mp hu1.2.1
+      have hle1 : {f ∈ G.incidenceSet u | t ≤ score f}.ncard ≤ 1 := by omega
+      exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hu1.2.2, hge₁⟩ _ ⟨hu2, hge₂⟩
 
 /-- **Zero-window single-threshold cut bound.** On a cubic multigraph, the cut of
 `lowSide G score t` is at most the number of vertices straddling `t`. -/
@@ -127,82 +211,8 @@ private theorem ncard_edgeCut_lowSide_le [Finite V] [Finite E] {G : Multigraph V
     (G.edgeCut (lowSide G score t)).ncard ≤
       {v : V | v ∉ lowSide G score t ∧ G.EdgeStraddles score t v}.ncard +
         {v : V | v ∈ lowSide G score t ∧ G.EdgeStraddles score t v}.ncard := by
-  classical
-  set P := lowSide G score t
-  have hpart : G.edgeCut P ⊆
-      {e ∈ G.edgeCut P | score e < t} ∪ {e ∈ G.edgeCut P | t ≤ score e} := fun e he => by
-    rcases lt_or_ge (score e) t with h | h
-    · exact Or.inl ⟨he, h⟩
-    · exact Or.inr ⟨he, h⟩
-  refine ((ncard_le_ncard hpart (toFinite _)).trans (ncard_union_le _ _)).trans
-    (Nat.add_le_add ?_ ?_)
-  · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ P then G.tgt e else G.src e)
-      ?_ ?_ (toFinite _)
-    · rintro e ⟨he, hlt⟩
-      rw [mem_edgeCut] at he
-      have hw : (if G.src e ∈ P then G.tgt e else G.src e) ∉ P ∧
-          e ∈ G.incidenceSet (if G.src e ∈ P then G.tgt e else G.src e) := by
-        split_ifs with hs
-        · exact ⟨fun ht => he (iff_of_true hs ht), Or.inr rfl⟩
-        · exact ⟨hs, Or.inl rfl⟩
-      set w := if G.src e ∈ P then G.tgt e else G.src e
-      have hge1 : 1 ≤ {f ∈ G.incidenceSet w | score f < t}.ncard :=
-        (ncard_pos (toFinite _)).mpr ⟨e, hw.2, hlt⟩
-      have hlt2 : {f ∈ G.incidenceSet w | score f < t}.ncard < 2 := by
-        have := hw.1; simp only [P, lowSide, mem_ofPred_eq, not_le] at this; exact this
-      exact ⟨hw.1, (edgeStraddles_iff_ncard (h3 w) score t).mpr ⟨hge1, by omega⟩⟩
-    · rintro e₁ ⟨he₁, hlt₁⟩ e₂ ⟨he₂, hlt₂⟩ heq
-      dsimp only at heq
-      set w := if G.src e₁ ∈ P then G.tgt e₁ else G.src e₁
-      have hw1 : w ∉ P ∧ e₁ ∈ G.incidenceSet w := by
-        rw [mem_edgeCut] at he₁
-        dsimp only [w]
-        split_ifs with hs
-        · exact ⟨fun ht => he₁ (iff_of_true hs ht), Or.inr rfl⟩
-        · exact ⟨hs, Or.inl rfl⟩
-      have hw2 : e₂ ∈ G.incidenceSet w := by
-        rw [heq]
-        rw [mem_edgeCut] at he₂
-        split_ifs with hs
-        · exact Or.inr rfl
-        · exact Or.inl rfl
-      have hle1 : {f ∈ G.incidenceSet w | score f < t}.ncard ≤ 1 := by
-        have := hw1.1; simp only [P, lowSide, mem_ofPred_eq, not_le] at this; omega
-      exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hw1.2, hlt₁⟩ _ ⟨hw2, hlt₂⟩
-  · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ P then G.src e else G.tgt e)
-      ?_ ?_ (toFinite _)
-    · rintro e ⟨he, hge⟩
-      rw [mem_edgeCut] at he
-      have hu : (if G.src e ∈ P then G.src e else G.tgt e) ∈ P ∧
-          e ∈ G.incidenceSet (if G.src e ∈ P then G.src e else G.tgt e) := by
-        split_ifs with hs
-        · exact ⟨hs, Or.inl rfl⟩
-        · exact ⟨by tauto, Or.inr rfl⟩
-      set u := if G.src e ∈ P then G.src e else G.tgt e
-      have hsum := ncard_lt_add_ncard_ge (h3 u) score t
-      have hge1 : 1 ≤ {f ∈ G.incidenceSet u | t ≤ score f}.ncard :=
-        (ncard_pos (toFinite _)).mpr ⟨e, hu.2, hge⟩
-      have hge2 : 2 ≤ {f ∈ G.incidenceSet u | score f < t}.ncard := hu.1
-      exact ⟨hu.1, (edgeStraddles_iff_ncard (h3 u) score t).mpr ⟨by omega, by omega⟩⟩
-    · rintro e₁ ⟨he₁, hge₁⟩ e₂ ⟨he₂, hge₂⟩ heq
-      dsimp only at heq
-      set u := if G.src e₁ ∈ P then G.src e₁ else G.tgt e₁
-      have hu1 : u ∈ P ∧ e₁ ∈ G.incidenceSet u := by
-        rw [mem_edgeCut] at he₁
-        dsimp only [u]
-        split_ifs with hs
-        · exact ⟨hs, Or.inl rfl⟩
-        · exact ⟨by tauto, Or.inr rfl⟩
-      have hu2 : e₂ ∈ G.incidenceSet u := by
-        rw [heq]
-        rw [mem_edgeCut] at he₂
-        split_ifs with hs
-        · exact Or.inl rfl
-        · exact Or.inr rfl
-      have hsum := ncard_lt_add_ncard_ge (h3 u) score t
-      have hge2 : 2 ≤ {f ∈ G.incidenceSet u | score f < t}.ncard := hu1.1
-      have hle1 : {f ∈ G.incidenceSet u | t ≤ score f}.ncard ≤ 1 := by omega
-      exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hu1.2, hge₁⟩ _ ⟨hu2, hge₂⟩
+  simpa using ncard_edgeCut_inter_le_straddles (D := univ) (S := lowSide G score t)
+    (fun v _ => h3 v) score t (fun _ _ => Iff.rfl)
 
 /-- Disjoint partition of straddling vertices across any set `P`. -/
 private theorem ncard_straddle_split [Finite V] {G : Multigraph V E} (P : Set V)
@@ -1241,101 +1251,21 @@ private theorem bisect_compressed_zero {V E : Type*} [Finite V] [Finite E] {G : 
             exact (Finset.mem_filter.mp hB).2.2
         _ = 2 * Lset.card := by simp [Nat.mul_comm]
     have h33_bound : E_33.ncard ≤ {B : cmp.blocks | ω ∈ stradQ B}.ncard := by
-      set E_lt := {e ∈ E_33 | edgeScore Q q R (fstProj ω) e < 0}
-      set E_ge := {e ∈ E_33 | 0 ≤ edgeScore Q q R (fstProj ω) e}
-      have hsplit : E_33 ⊆ E_lt ∪ E_ge := fun e he => by
-        rcases lt_or_ge (edgeScore Q q R (fstProj ω) e) 0 with h | h
-        exacts [Or.inl ⟨he, h⟩, Or.inr ⟨he, h⟩]
-      have hdisjS : Disjoint {B : cmp.blocks | B ∉ S_Q ∧ ω ∈ stradQ B}
-          {B : cmp.blocks | B ∈ S_Q ∧ ω ∈ stradQ B} :=
-        disjoint_left.mpr fun _ h1 h2 => h1.1 h2.1
-      have hsumS : {B : cmp.blocks | B ∉ S_Q ∧ ω ∈ stradQ B}.ncard +
-          {B : cmp.blocks | B ∈ S_Q ∧ ω ∈ stradQ B}.ncard ≤
-          {B : cmp.blocks | ω ∈ stradQ B}.ncard := by
-        rw [← ncard_union_eq hdisjS (toFinite _) (toFinite _)]
-        exact ncard_le_ncard (by rintro _ (h | h) <;> exact h.2) (toFinite _)
-      refine ((ncard_le_ncard hsplit (toFinite _)).trans (ncard_union_le _ _)).trans
-        ((Nat.add_le_add ?_ ?_).trans hsumS)
-      · refine ncard_le_ncard_of_injOn
-          (fun e => if Q.src e ∈ S_Q then Q.tgt e else Q.src e) ?_ ?_ (toFinite _)
-        · rintro e ⟨⟨heCut, hs3, ht3⟩, hlt⟩
-          rw [mem_edgeCut] at heCut
-          set wB := if Q.src e ∈ S_Q then Q.tgt e else Q.src e
-          have hw_deg : (Q.incidenceSet wB).ncard = 3 := by
-            dsimp [wB]; split_ifs <;> assumption
-          have hw_not : wB ∉ S_Q ∧ e ∈ Q.incidenceSet wB := by
-            dsimp [wB]
-            split_ifs with hs
-            · exact ⟨fun ht => heCut (iff_of_true hs ht), Or.inr rfl⟩
-            · exact ⟨hs, Or.inl rfl⟩
-          have hw_lt2 : {f ∈ Q.incidenceSet wB | edgeScore Q q R (fstProj ω) f < 0}.ncard < 2 := by
-            have := hw_not.1
-            simp only [S_Q, inSide, hw_deg, ↓reduceIte, mem_ofPred_eq, lowSide, not_le] at this
-            exact this
-          have hw_ge1 : 1 ≤ {f ∈ Q.incidenceSet wB | edgeScore Q q R (fstProj ω) f < 0}.ncard :=
-            (ncard_pos (toFinite _)).mpr ⟨e, hw_not.2, hlt⟩
-          refine ⟨hw_not.1, ?_⟩
-          simp only [stradQ, hw_deg, ↓reduceIte, mem_preimage, straddleEvent, mem_ofPred_eq]
-          exact (edgeStraddles_iff_ncard hw_deg _ 0).mpr ⟨hw_ge1, by omega⟩
-        · rintro e₁ ⟨⟨hc1, hs1, ht1⟩, hlt₁⟩ e₂ ⟨⟨hc2, _, _⟩, hlt₂⟩ heq
-          dsimp only at heq
-          set wB := if Q.src e₁ ∈ S_Q then Q.tgt e₁ else Q.src e₁
-          have hw_deg : (Q.incidenceSet wB).ncard = 3 := by
-            dsimp [wB]; split_ifs <;> assumption
-          have hw1 : wB ∉ S_Q ∧ e₁ ∈ Q.incidenceSet wB := by
-            rw [mem_edgeCut] at hc1; dsimp [wB]
-            split_ifs with hs
-            · exact ⟨fun ht => hc1 (iff_of_true hs ht), Or.inr rfl⟩
-            · exact ⟨hs, Or.inl rfl⟩
-          have hw2 : e₂ ∈ Q.incidenceSet wB := by
-            rw [heq]; rw [mem_edgeCut] at hc2
-            split_ifs <;> [exact Or.inr rfl; exact Or.inl rfl]
-          have hle1 : {f ∈ Q.incidenceSet wB | edgeScore Q q R (fstProj ω) f < 0}.ncard ≤ 1 := by
-            have := hw1.1
-            simp only [S_Q, inSide, hw_deg, ↓reduceIte, mem_ofPred_eq, lowSide, not_le] at this
-            omega
-          exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hw1.2, hlt₁⟩ _ ⟨hw2, hlt₂⟩
-      · refine ncard_le_ncard_of_injOn
-          (fun e => if Q.src e ∈ S_Q then Q.src e else Q.tgt e) ?_ ?_ (toFinite _)
-        · rintro e ⟨⟨heCut, hs3, ht3⟩, hge⟩
-          rw [mem_edgeCut] at heCut
-          set uB := if Q.src e ∈ S_Q then Q.src e else Q.tgt e
-          have hu_deg : (Q.incidenceSet uB).ncard = 3 := by
-            dsimp [uB]; split_ifs <;> assumption
-          have hu_in : uB ∈ S_Q ∧ e ∈ Q.incidenceSet uB := by
-            dsimp [uB]
-            split_ifs with hs
-            · exact ⟨hs, Or.inl rfl⟩
-            · exact ⟨by tauto, Or.inr rfl⟩
-          have hu_ge2 : 2 ≤ {f ∈ Q.incidenceSet uB | edgeScore Q q R (fstProj ω) f < 0}.ncard := by
-            have := hu_in.1
-            simpa [S_Q, inSide, hu_deg, lowSide] using this
-          have hsum := ncard_lt_add_ncard_ge hu_deg (edgeScore Q q R (fstProj ω)) 0
-          have hge1 : 1 ≤ {f ∈ Q.incidenceSet uB | 0 ≤ edgeScore Q q R (fstProj ω) f}.ncard :=
-            (ncard_pos (toFinite _)).mpr ⟨e, hu_in.2, hge⟩
-          refine ⟨hu_in.1, ?_⟩
-          simp only [stradQ, hu_deg, ↓reduceIte, mem_preimage, straddleEvent, mem_ofPred_eq]
-          exact (edgeStraddles_iff_ncard hu_deg _ 0).mpr ⟨by omega, by omega⟩
-        · rintro e₁ ⟨⟨hc1, hs1, ht1⟩, hge₁⟩ e₂ ⟨⟨hc2, _, _⟩, hge₂⟩ heq
-          dsimp only at heq
-          set uB := if Q.src e₁ ∈ S_Q then Q.src e₁ else Q.tgt e₁
-          have hu_deg : (Q.incidenceSet uB).ncard = 3 := by
-            dsimp [uB]; split_ifs <;> assumption
-          have hu1 : uB ∈ S_Q ∧ e₁ ∈ Q.incidenceSet uB := by
-            rw [mem_edgeCut] at hc1; dsimp [uB]
-            split_ifs with hs
-            · exact ⟨hs, Or.inl rfl⟩
-            · exact ⟨by tauto, Or.inr rfl⟩
-          have hu2 : e₂ ∈ Q.incidenceSet uB := by
-            rw [heq]; rw [mem_edgeCut] at hc2
-            split_ifs <;> [exact Or.inl rfl; exact Or.inr rfl]
-          have hu_ge2 : 2 ≤ {f ∈ Q.incidenceSet uB | edgeScore Q q R (fstProj ω) f < 0}.ncard := by
-            have := hu1.1
-            simpa [S_Q, inSide, hu_deg, lowSide] using this
-          have hsum := ncard_lt_add_ncard_ge hu_deg (edgeScore Q q R (fstProj ω)) 0
-          have hle1 : {f ∈ Q.incidenceSet uB | 0 ≤ edgeScore Q q R (fstProj ω) f}.ncard ≤ 1 := by
-            omega
-          exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hu1.2, hge₁⟩ _ ⟨hu2, hge₂⟩
+      set D3 : Set cmp.blocks := {B | (Q.incidenceSet B).ncard = 3}
+      have hcut := ncard_edgeCut_inter_le_straddles (G := Q) (D := D3) (S := S_Q)
+        (fun _ h => h) (edgeScore Q q R (fstProj ω)) 0 fun B hB => by
+          simp only [D3, mem_ofPred_eq] at hB
+          simp [S_Q, inSide, hB, lowSide]
+      have hdisjS : Disjoint
+          {B ∈ D3 | B ∉ S_Q ∧ Q.EdgeStraddles (edgeScore Q q R (fstProj ω)) 0 B}
+          {B ∈ D3 | B ∈ S_Q ∧ Q.EdgeStraddles (edgeScore Q q R (fstProj ω)) 0 B} :=
+        disjoint_left.mpr fun _ h1 h2 => h1.2.1 h2.2.1
+      refine hcut.trans ?_
+      rw [← ncard_union_eq hdisjS (toFinite _) (toFinite _)]
+      refine ncard_le_ncard ?_ (toFinite _)
+      rintro B (⟨hB, -, hstrad⟩ | ⟨hB, -, hstrad⟩) <;>
+        · simp only [D3, mem_ofPred_eq] at hB
+          simpa [stradQ, hB, straddleEvent] using hstrad
     exact ((ncard_le_ncard hcover (toFinite _)).trans (ncard_union_le _ _)).trans
       (Nat.add_le_add hlow_bound h33_bound)
   -- Bound `{B | ω ∈ stradQ B}.ncard` via `hωS`.
@@ -1655,85 +1585,22 @@ private theorem bisect_subset_zero {V E : Type*} [Finite V] [Finite E] {G : Mult
   -- Internal cut of `Y` between `Y₁` and `Y₂` injects into `{v ∈ Y | G.EdgeStraddles ... 0 v}`.
   have hint_cut_le : ((G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}).ncard ≤
       {v : V | v ∈ Y ∧ ω ∈ As v}.ncard := by
-    set Eint := Subtype.val '' (G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁}
     rw [← ncard_image_of_injective _ Subtype.val_injective]
-    set E_lt := {e ∈ Eint | edgeScore G q R ω e < 0}
-    set E_ge := {e ∈ Eint | 0 ≤ edgeScore G q R ω e}
-    have hsplit : Eint ⊆ E_lt ∪ E_ge := fun e he => by
-      rcases lt_or_ge (edgeScore G q R ω e) 0 with h | h
-      exacts [Or.inl ⟨he, h⟩, Or.inr ⟨he, h⟩]
-    have hdS : Disjoint {v : V | v ∈ Y ∧ v ∉ L0 ∧ ω ∈ As v}
-        {v : V | v ∈ Y ∧ v ∈ L0 ∧ ω ∈ As v} :=
+    have hsub : Subtype.val '' (G.induce Y).edgeCut {x : Y | x.1 ∈ Y₁} ⊆
+        {e ∈ G.edgeCut L0 | G.src e ∈ Y ∧ G.tgt e ∈ Y} := by
+      rintro _ ⟨⟨e, hsY, htY⟩, heCut, rfl⟩
+      change ¬(G.src e ∈ Y₁ ↔ G.tgt e ∈ Y₁) at heCut
+      simp only [Y₁, mem_inter_iff, hsY, htY, true_and] at heCut
+      exact ⟨heCut, hsY, htY⟩
+    have hcut := ncard_edgeCut_inter_le_straddles (G := G) (D := Y) (S := L0)
+      (fun v _ => h3 v) (edgeScore G q R ω) 0 (fun _ _ => Iff.rfl)
+    have hdS : Disjoint
+        {v ∈ Y | v ∉ L0 ∧ G.EdgeStraddles (edgeScore G q R ω) 0 v}
+        {v ∈ Y | v ∈ L0 ∧ G.EdgeStraddles (edgeScore G q R ω) 0 v} :=
       disjoint_left.mpr fun _ h1 h2 => h1.2.1 h2.2.1
-    have hsumS : {v : V | v ∈ Y ∧ v ∉ L0 ∧ ω ∈ As v}.ncard +
-        {v : V | v ∈ Y ∧ v ∈ L0 ∧ ω ∈ As v}.ncard ≤ {v : V | v ∈ Y ∧ ω ∈ As v}.ncard := by
-      rw [← ncard_union_eq hdS (toFinite _) (toFinite _)]
-      exact ncard_le_ncard (by rintro _ (h | h) <;> exact ⟨h.1, h.2.2⟩) (toFinite _)
-    refine ((ncard_le_ncard hsplit (toFinite _)).trans (ncard_union_le _ _)).trans
-      ((Nat.add_le_add ?_ ?_).trans hsumS)
-    · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ L0 then G.tgt e else G.src e)
-        ?_ ?_ (toFinite _)
-      · rintro _ ⟨⟨⟨e, hsY, htY⟩, heCut, rfl⟩, hlt⟩
-        change ¬(G.src e ∈ Y₁ ↔ G.tgt e ∈ Y₁) at heCut
-        simp only [Y₁, mem_inter_iff, hsY, htY, true_and] at heCut
-        set w := if G.src e ∈ L0 then G.tgt e else G.src e
-        have hwY : w ∈ Y ∧ w ∉ L0 ∧ e ∈ G.incidenceSet w := by
-          dsimp [w]
-          split_ifs with hs
-          · exact ⟨htY, fun ht => heCut (iff_of_true hs ht), Or.inr rfl⟩
-          · exact ⟨hsY, hs, Or.inl rfl⟩
-        have h1 : 1 ≤ {f ∈ G.incidenceSet w | edgeScore G q R ω f < 0}.ncard :=
-          (ncard_pos (toFinite _)).mpr ⟨e, hwY.2.2, hlt⟩
-        have hlt2 : {f ∈ G.incidenceSet w | edgeScore G q R ω f < 0}.ncard < 2 := by
-          have := hwY.2.1; simp only [L0, lowSide, mem_ofPred_eq, not_le] at this; exact this
-        exact ⟨hwY.1, hwY.2.1, (edgeStraddles_iff_ncard (h3 w) _ 0).mpr ⟨h1, by omega⟩⟩
-      · rintro _ ⟨⟨⟨e₁, hs1, ht1⟩, hc1, rfl⟩, hlt₁⟩ _ ⟨⟨⟨e₂, _, _⟩, hc2, rfl⟩, hlt₂⟩ heq
-        dsimp only at heq
-        change ¬(G.src e₁ ∈ Y₁ ↔ G.tgt e₁ ∈ Y₁) at hc1
-        simp only [Y₁, mem_inter_iff, hs1, ht1, true_and] at hc1
-        set w := if G.src e₁ ∈ L0 then G.tgt e₁ else G.src e₁
-        have hw1 : w ∉ L0 ∧ e₁ ∈ G.incidenceSet w := by
-          dsimp [w]
-          split_ifs with hs
-          · exact ⟨fun ht => hc1 (iff_of_true hs ht), Or.inr rfl⟩
-          · exact ⟨hs, Or.inl rfl⟩
-        have hw2 : e₂ ∈ G.incidenceSet w := by
-          rw [heq]; split_ifs <;> [exact Or.inr rfl; exact Or.inl rfl]
-        have hle1 : {f ∈ G.incidenceSet w | edgeScore G q R ω f < 0}.ncard ≤ 1 := by
-          have := hw1.1; simp only [L0, lowSide, mem_ofPred_eq, not_le] at this; omega
-        exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hw1.2, hlt₁⟩ _ ⟨hw2, hlt₂⟩
-    · refine ncard_le_ncard_of_injOn (fun e => if G.src e ∈ L0 then G.src e else G.tgt e)
-        ?_ ?_ (toFinite _)
-      · rintro _ ⟨⟨⟨e, hsY, htY⟩, heCut, rfl⟩, hge⟩
-        change ¬(G.src e ∈ Y₁ ↔ G.tgt e ∈ Y₁) at heCut
-        simp only [Y₁, mem_inter_iff, hsY, htY, true_and] at heCut
-        set u := if G.src e ∈ L0 then G.src e else G.tgt e
-        have huY : u ∈ Y ∧ u ∈ L0 ∧ e ∈ G.incidenceSet u := by
-          dsimp [u]
-          split_ifs with hs
-          · exact ⟨hsY, hs, Or.inl rfl⟩
-          · exact ⟨htY, by tauto, Or.inr rfl⟩
-        have hsum := ncard_lt_add_ncard_ge (h3 u) (edgeScore G q R ω) 0
-        have hge2 : 2 ≤ {f ∈ G.incidenceSet u | edgeScore G q R ω f < 0}.ncard := huY.2.1
-        have hge1 : 1 ≤ {f ∈ G.incidenceSet u | 0 ≤ edgeScore G q R ω f}.ncard :=
-          (ncard_pos (toFinite _)).mpr ⟨e, huY.2.2, hge⟩
-        exact ⟨huY.1, huY.2.1, (edgeStraddles_iff_ncard (h3 u) _ 0).mpr ⟨by omega, by omega⟩⟩
-      · rintro _ ⟨⟨⟨e₁, hs1, ht1⟩, hc1, rfl⟩, hge₁⟩ _ ⟨⟨⟨e₂, _, _⟩, hc2, rfl⟩, hge₂⟩ heq
-        dsimp only at heq
-        change ¬(G.src e₁ ∈ Y₁ ↔ G.tgt e₁ ∈ Y₁) at hc1
-        simp only [Y₁, mem_inter_iff, hs1, ht1, true_and] at hc1
-        set u := if G.src e₁ ∈ L0 then G.src e₁ else G.tgt e₁
-        have hu1 : u ∈ L0 ∧ e₁ ∈ G.incidenceSet u := by
-          dsimp [u]
-          split_ifs with hs
-          · exact ⟨hs, Or.inl rfl⟩
-          · exact ⟨by tauto, Or.inr rfl⟩
-        have hu2 : e₂ ∈ G.incidenceSet u := by
-          rw [heq]; split_ifs <;> [exact Or.inl rfl; exact Or.inr rfl]
-        have hsum := ncard_lt_add_ncard_ge (h3 u) (edgeScore G q R ω) 0
-        have hge2 : 2 ≤ {f ∈ G.incidenceSet u | edgeScore G q R ω f < 0}.ncard := hu1.1
-        have hle1 : {f ∈ G.incidenceSet u | 0 ≤ edgeScore G q R ω f}.ncard ≤ 1 := by omega
-        exact (ncard_le_one (toFinite _)).mp hle1 _ ⟨hu1.2, hge₁⟩ _ ⟨hu2, hge₂⟩
+    refine ((ncard_le_ncard hsub (toFinite _)).trans hcut).trans ?_
+    rw [← ncard_union_eq hdS (toFinite _) (toFinite _)]
+    exact ncard_le_ncard (by rintro _ (h | h) <;> exact ⟨h.1, h.2.2⟩) (toFinite _)
   have hstrad_Y : ({v : V | v ∈ Y ∧ ω ∈ As v}.ncard : ℝ) ≤
       straddleBound ρ₀ * (Y.ncard : ℝ) + c := by
     have hnot0 : ¬c ≤ |∑ v ∈ Fv, (1 : ℝ) * (As v).indicator 1 ω -

@@ -9,8 +9,6 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Straddle
 public import CslibFrontier.Foundations.Probability.Gaussian.OffMedian
-import CslibFrontier.Foundations.Analysis.SpecialFunctions.Arccos
-import CslibFrontier.Foundations.Geometry.Euclidean.Angle.Cap
 import CslibFrontier.Foundations.MeasureTheory.Constructions.BorelSpace.Order
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
 
@@ -67,28 +65,8 @@ theorem measureReal_straddleEvent_le_of_ncard_eq_three [Finite E] (hloop : G.Loo
   set s : Finset E := {e₀, e₁, e₂}
   have hs : (s : Set E) = G.incidenceSet v := by simp [s, hinc]
   have hcard : s.card = 3 := by rw [← ncard_coe_finset, hs, hv]
-  have hoff : (s.offDiag.card : ℝ) = 6 := by
-    rw [Finset.offDiag_card, hcard]; norm_num
   have hunit (e : E) : ‖edgeVector G q R e‖ = 1 := norm_edgeVector hloop hdeg hq (by linarith) hρ e
-  have hcap (e : E) (he : e ∈ s) : √((1 + ρ₀) / 2) ≤
-      ⟪edgeVector G q R e, unitKernelRow G.toSimpleGraph q R v⟫ :=
-    le_inner_edgeVector hloop hdeg hq hρ₀ hρ (by rw [← hs]; exact he)
-  have hpair (p : E × E) (hp : p ∈ s.offDiag) :
-      ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ ∈ Icc 0 1 := by
-    obtain ⟨h1, h2, -⟩ := Finset.mem_offDiag.mp hp
-    refine ⟨?_, (real_inner_le_norm _ _).trans_eq (by rw [hunit, hunit, one_mul])⟩
-    have := InnerProductGeometry.two_mul_sq_sub_one_le_inner (norm_unitKernelRow q R v)
-      (hunit p.1) (hunit p.2) (sqrt_nonneg _) (hcap _ h1) (hcap _ h2)
-    rw [sq_sqrt (by linarith)] at this
-    linarith
-  have havg : 6 * ((1 + 3 * ρ₀) / 4) ≤
-      ∑ p ∈ s.offDiag, ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ := by
-    have h := InnerProductGeometry.le_sum_offDiag_inner (norm_unitKernelRow q R v)
-      (s := s) (y := edgeVector G q R) (fun e _ => hunit e) (sqrt_nonneg ((1 + ρ₀) / 2)) hcap
-    rw [hcard, sq_sqrt (by linarith)] at h
-    linarith
-  have hjensen := Real.sum_arccos_le_card_mul_arccos s.offDiag hpair (by rw [hoff]; exact havg)
-  rw [hoff] at hjensen
+  have hjensen := sum_arccos_edgeVector_offDiag_le hloop hdeg hq hρ₀ hρ hs hcard
   have hshep (p : E × E) : (Measure.pi fun _ : V => gaussianReal 0 1).real
       {ω | t ∈ Ι (edgeScore G q R ω p.1) (edgeScore G q R ω p.2)} ≤
         exp (-t ^ 2 / 2) * (arccos ⟪edgeVector G q R p.1, edgeVector G q R p.2⟫ / π) :=

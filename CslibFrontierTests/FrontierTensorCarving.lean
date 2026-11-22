@@ -6,12 +6,14 @@ Authors: Samuel Schlesinger
 
 module
 
-public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving
-public import CslibFrontier.Computability.Circuit.Frontier.TensorRank
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Carving
+import CslibFrontier.Computability.Circuit.Frontier.TensorRank
 import Mathlib.Algebra.Field.ZMod
 
 /-! Checked clients for cubic multigraph carving-width / branchwidth and `3`-tensor CP-rank
 fan-in-`2` circuit lower bounds (`3.041n`). -/
+
+set_option linter.privateModule false
 
 open Cslib Cslib.Circuits Cslib.Circuits.Arithmetic.MatrixMultiplication
 open Cslib.Circuits.Frontier Cslib.Tensor Set
@@ -104,14 +106,25 @@ example : ∃ N₀ : ℕ, ∀ (V E : Type) [Finite V] [Finite E] (G : Multigraph
 /-! ### Strassen rank extraction and concrete `ThreeTensorHard` witnesses (`ZMod 2` and `ℚ`) -/
 
 example {n : ℕ} (C : Circuit (arithSignature ℚ) (n * n + n * n) (n * n))
+    (hC : ComputesMatMul ℚ C) :
+    Rank (2 * C.program.cost ArithOp.mulCost) (Tensor.mm n n n : Tensor ℚ _ _ _) :=
+  rank_mm_two_mul_mulCost hC
+
+example {n : ℕ} (C : Circuit (arithSignature ℚ) (n * n + n * n) (n * n))
     (hC : ComputesMatMul ℚ C) : Rank (2 * C.size) (Tensor.mm n n n : Tensor ℚ _ _ _) :=
   rank_mm_two_mul_size hC
+
+example : TensorRank.BalancedTripartition 3 id := by
+  rw [TensorRank.balancedTripartition_iff]
+  intro c
+  have h : {i : Fin 3 | id i = c} = {c} := by ext i; simp
+  rw [h, Set.ncard_singleton]
 
 private instance : Fact (Nat.Prime 2) := ⟨Nat.prime_two⟩
 
 /-- Explicit finite-`n` counting check (`n = 11`, `U = Bool`, `r = 1`) for
 `exists_threeTensorHard`. -/
-public theorem count_fin11_bool :
+private theorem count_fin11_bool :
     3 ^ 11 * (3 * Fintype.card Bool ^ 11 + 1) ^ (3 * 1 * Fintype.card Bool ^ (11 / 3 + 2)) <
       2 ^ (Fintype.card Bool ^ 11) := by
   simp only [Fintype.card_bool]

@@ -136,6 +136,27 @@ private def cross3 (a b : Fin 3 → ℝ) : Fin 3 → ℝ :=
 private theorem normSq3_nonneg (u : Fin 3 → ℝ) : 0 ≤ normSq3 u := by
   dsimp [normSq3]; positivity
 
+private theorem normSq3_pos_of_ne_zero {x : Fin 3 → ℝ} (hx : x ≠ 0) : 0 < normSq3 x := by
+  by_contra hle
+  have h0 : normSq3 x = 0 := le_antisymm (not_lt.mp hle) (normSq3_nonneg x)
+  dsimp [normSq3] at h0
+  have hs0 := sq_nonneg (x 0)
+  have hs1 := sq_nonneg (x 1)
+  have hs2 := sq_nonneg (x 2)
+  have hx0 : x 0 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs1, hs2]) hs0)
+  have hx1 : x 1 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs0, hs2]) hs1)
+  have hx2 : x 2 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs0, hs1]) hs2)
+  apply hx
+  ext i; fin_cases i <;> assumption
+
+private theorem normSq3_inv_sqrt_mul {x : Fin 3 → ℝ} (hx : 0 < normSq3 x) :
+    normSq3 (fun i => (√(normSq3 x))⁻¹ * x i) = 1 := by
+  have hsq : (√(normSq3 x)) ^ 2 = normSq3 x := sq_sqrt hx.le
+  dsimp [normSq3] at hsq hx ⊢
+  have hne : √(x 0 ^ 2 + x 1 ^ 2 + x 2 ^ 2) ≠ 0 := (sqrt_pos.mpr hx).ne'
+  field_simp [hne]
+  linarith only [hsq]
+
 /-- Vector triple product consequence: if `c · a = 0` and `c · b = 0`, then
 `‖c‖ ^ 2 * (v · (a × b)) ^ 2 = (c · v) ^ 2 * ‖a × b‖ ^ 2`. -/
 private theorem mul_sq_dot3_cross3_eq {c v a b : Fin 3 → ℝ} (hca : dot3 c a = 0)
@@ -279,22 +300,17 @@ private theorem measurePreserving_householder {u : Fin 3 → ℝ} (hu : normSq3 
     (measurePreserving_toLp_pi_gaussianReal (Fin 3)).map_eq]
   exact stdGaussian_map_inner_pi hr_norm hr_orth
 
-private theorem gaussianReal_singleton_zero (c : ℝ) : gaussianReal 0 1 {c} = 0 := by
-  refine le_antisymm ?_ bot_le
-  calc gaussianReal 0 1 {c} ≤ ENNReal.ofReal (√(2 * π * (1 : ℝ≥0)))⁻¹ * volume ({c} : Set ℝ) :=
-        gaussianReal_le_ofReal_mul_volume 0 one_ne_zero {c}
-    _ = 0 := by simp
+private theorem p3Measure_eval_eq_zero (i : Fin 3) : P3Measure {x : Fin 3 → ℝ | x i = 0} = 0 := by
+  have hmap : (P3Measure.map fun x : Fin 3 → ℝ => x i) = gaussianReal 0 1 := by
+    simpa using (measurePreserving_eval (fun _ : Fin 3 => gaussianReal 0 1) i).map_eq
+  rw [show {x : Fin 3 → ℝ | x i = 0} = (fun x : Fin 3 → ℝ => x i) ⁻¹' {0} from rfl,
+    ← Measure.map_apply (by fun_prop) (measurableSet_singleton 0), hmap]
+  exact @measure_singleton _ _ (gaussianReal 0 1) (nullSingletonClass_gaussianReal one_ne_zero) 0
 
 private theorem p3Measure_singleton_zero : P3Measure {0} = 0 := by
   have hsub : ({0} : Set (Fin 3 → ℝ)) ⊆ {x | x 0 = 0} :=
     fun x hx => by simp [mem_singleton_iff.mp hx]
-  have hmap : (P3Measure.map fun x : Fin 3 → ℝ => x 0) = gaussianReal 0 1 := by
-    simpa using (measurePreserving_eval (fun _ : Fin 3 => gaussianReal 0 1) 0).map_eq
-  have h0 : P3Measure {x : Fin 3 → ℝ | x 0 = 0} = 0 := by
-    rw [show {x : Fin 3 → ℝ | x 0 = 0} = (fun x : Fin 3 → ℝ => x 0) ⁻¹' {0} from rfl,
-      ← Measure.map_apply (by fun_prop) (measurableSet_singleton 0), hmap]
-    exact gaussianReal_singleton_zero 0
-  exact le_antisymm ((measure_mono hsub).trans (le_of_eq h0)) bot_le
+  exact le_antisymm ((measure_mono hsub).trans (le_of_eq (p3Measure_eval_eq_zero 0))) bot_le
 
 private theorem p3Measure_prod_cross3_eq_zero :
     (P3Measure.prod P3Measure) {ab : (Fin 3 → ℝ) × (Fin 3 → ℝ) | cross3 ab.1 ab.2 = 0} = 0 := by
@@ -308,13 +324,7 @@ private theorem p3Measure_prod_cross3_eq_zero :
     measurableSet_eq_fun (by fun_prop) measurable_const
   rw [Measure.prod_apply hm]
   have hae : (fun a : Fin 3 → ℝ => P3Measure {b | a 0 * b 1 - a 1 * b 0 = 0}) =ᵐ[P3Measure] 0 := by
-    have h0 : P3Measure {a : Fin 3 → ℝ | a 0 = 0} = 0 := by
-      have hmap : (P3Measure.map fun x : Fin 3 → ℝ => x 0) = gaussianReal 0 1 := by
-        simpa using (measurePreserving_eval (fun _ : Fin 3 => gaussianReal 0 1) 0).map_eq
-      rw [show {a : Fin 3 → ℝ | a 0 = 0} = (fun x : Fin 3 → ℝ => x 0) ⁻¹' {0} from rfl,
-        ← Measure.map_apply (by fun_prop) (measurableSet_singleton 0), hmap]
-      exact gaussianReal_singleton_zero 0
-    filter_upwards [compl_mem_ae_iff.mpr h0] with a ha0
+    filter_upwards [compl_mem_ae_iff.mpr (p3Measure_eval_eq_zero 0)] with a ha0
     change a 0 ≠ 0 at ha0
     let w : EuclideanSpace ℝ (Fin 3) := WithLp.toLp 2 ![-a 1, a 0, 0]
     have hw : w ≠ 0 := by
@@ -461,14 +471,8 @@ private theorem p3Measure_cone_eq {κ : ℝ} (hκ0 : 0 < κ) (hκ1 : κ ≤ 1) :
       have hs1 := sq_nonneg (x 1)
       have h1_le : x 1 ^ 2 ≤ 0 := by linarith only [hx, hs2]
       exact sq_eq_zero_iff.mp (le_antisymm h1_le hs1)
-    have hm1 : P3Measure {x : Fin 3 → ℝ | x 1 = 0} = 0 := by
-      have hmap : (P3Measure.map fun x : Fin 3 → ℝ => x 1) = gaussianReal 0 1 := by
-        simpa using (measurePreserving_eval (fun _ : Fin 3 => gaussianReal 0 1) 1).map_eq
-      rw [show {x : Fin 3 → ℝ | x 1 = 0} = (fun x : Fin 3 → ℝ => x 1) ⁻¹' {0} from rfl,
-        ← Measure.map_apply (by fun_prop) (measurableSet_singleton 0), hmap]
-      exact gaussianReal_singleton_zero 0
     have hzero : P3Measure {x : Fin 3 → ℝ | x ≠ 0 ∧ (1 : ℝ) ^ 2 * normSq3 x ≤ (x 0) ^ 2} = 0 :=
-      le_antisymm ((measure_mono hsub).trans (le_of_eq hm1)) bot_le
+      le_antisymm ((measure_mono hsub).trans (le_of_eq (p3Measure_eval_eq_zero 1))) bot_le
     rw [Measure.real, hzero]
     simp
   · -- Nondegenerate cap `0 < κ < 1`: cylindrical integration via `split3`.
@@ -528,7 +532,9 @@ private theorem p3Measure_cone_eq {κ : ℝ} (hκ0 : 0 < κ) (hκ1 : κ ≤ 1) :
     have hslice : ∀ᵐ x₀ ∂gaussianReal 0 1,
         (∫ z, ConeP.indicator 1 (x₀, z) ∂μ2) =
           1 - exp (-((c * |x₀|) ^ 2) / 2) := by
-      filter_upwards [compl_mem_ae_iff.mpr (gaussianReal_singleton_zero 0)] with x₀ hx₀
+      have hg0 : gaussianReal 0 1 ({0} : Set ℝ) = 0 :=
+        @measure_singleton _ _ (gaussianReal 0 1) (nullSingletonClass_gaussianReal one_ne_zero) 0
+      filter_upwards [compl_mem_ae_iff.mpr hg0] with x₀ hx₀
       change x₀ ≠ 0 at hx₀
       have ha_pos : 0 < c * |x₀| := mul_pos hc_pos (abs_pos.mpr hx₀)
       let D : Set (ℝ × ℝ) := {z | z.1 ^ 2 + z.2 ^ 2 ≤ (c * |x₀|) ^ 2}
@@ -695,27 +701,10 @@ private theorem p3Measure_prod_cross3_cone_eq {v : Fin 3 → ℝ} (hv : normSq3 
       (∫ ab, Joint.indicator 1 (ab, x) ∂M2) = M2.real A0 := by
     filter_upwards [compl_mem_ae_iff.mpr p3Measure_singleton_zero] with x hx0
     change x ≠ 0 at hx0
-    have hnx_pos : 0 < normSq3 x := by
-      by_contra hle
-      have h0 : normSq3 x = 0 := le_antisymm (not_lt.mp hle) (normSq3_nonneg x)
-      dsimp [normSq3] at h0
-      have hs0 := sq_nonneg (x 0)
-      have hs1 := sq_nonneg (x 1)
-      have hs2 := sq_nonneg (x 2)
-      have hx0' : x 0 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs1, hs2]) hs0)
-      have hx1' : x 1 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs0, hs2]) hs1)
-      have hx2' : x 2 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs0, hs1]) hs2)
-      apply hx0
-      ext i; fin_cases i <;> assumption
+    have hnx_pos : 0 < normSq3 x := normSq3_pos_of_ne_zero hx0
     set s := (√(normSq3 x))⁻¹
     let ux : Fin 3 → ℝ := fun i => s * x i
-    have hux : normSq3 ux = 1 := by
-      dsimp [ux, normSq3, s]
-      have hsq : (√(normSq3 x)) ^ 2 = normSq3 x := sq_sqrt hnx_pos.le
-      dsimp [normSq3] at hsq hnx_pos
-      have hne : (√(x 0 ^ 2 + x 1 ^ 2 + x 2 ^ 2)) ≠ 0 := (sqrt_pos.mpr hnx_pos).ne'
-      field_simp [hne]
-      linarith only [hsq]
+    have hux : normSq3 ux = 1 := normSq3_inv_sqrt_mul hnx_pos
     have hind_x : (fun ab => Joint.indicator (1 : (((Fin 3 → ℝ) × (Fin 3 → ℝ)) × (Fin 3 → ℝ)) → ℝ)
           (ab, x)) =
         (Prod.map (householder ux) (householder ux) ⁻¹' A0).indicator
@@ -773,27 +762,10 @@ private theorem p3Measure_prod_cross3_cone_eq {v : Fin 3 → ℝ} (hv : normSq3 
     filter_upwards [compl_mem_ae_iff.mpr p3Measure_prod_cross3_eq_zero] with ⟨a, b⟩ hc
     change cross3 a b ≠ 0 at hc
     set C := cross3 a b
-    have hnC_pos : 0 < normSq3 C := by
-      by_contra hle
-      have h0 : normSq3 C = 0 := le_antisymm (not_lt.mp hle) (normSq3_nonneg C)
-      dsimp [normSq3] at h0
-      have hs0 := sq_nonneg (C 0)
-      have hs1 := sq_nonneg (C 1)
-      have hs2 := sq_nonneg (C 2)
-      have hC0 : C 0 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs1, hs2]) hs0)
-      have hC1 : C 1 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs0, hs2]) hs1)
-      have hC2 : C 2 = 0 := sq_eq_zero_iff.mp (le_antisymm (by linarith only [h0, hs0, hs1]) hs2)
-      apply hc
-      ext i; fin_cases i <;> assumption
+    have hnC_pos : 0 < normSq3 C := normSq3_pos_of_ne_zero hc
     set s := (√(normSq3 C))⁻¹
     let uC : Fin 3 → ℝ := fun i => s * C i
-    have huC : normSq3 uC = 1 := by
-      dsimp [uC, normSq3, s]
-      have hsq : (√(normSq3 C)) ^ 2 = normSq3 C := sq_sqrt hnC_pos.le
-      dsimp [normSq3] at hsq hnC_pos
-      have hne : (√(C 0 ^ 2 + C 1 ^ 2 + C 2 ^ 2)) ≠ 0 := (sqrt_pos.mpr hnC_pos).ne'
-      field_simp [hne]
-      linarith only [hsq]
+    have huC : normSq3 uC = 1 := normSq3_inv_sqrt_mul hnC_pos
     let ConeX : Set (Fin 3 → ℝ) := {x | x ≠ 0 ∧ κ ^ 2 * normSq3 x ≤ (x 0) ^ 2}
     have hConeXm : MeasurableSet ConeX := by
       have hm1 : MeasurableSet {x : Fin 3 → ℝ | x ≠ 0} := isClosed_singleton.measurableSet.compl
@@ -1238,13 +1210,7 @@ theorem measureReal_stdGaussian_prod_convex_zero_le
       mul_le_mul_of_nonneg_right hcy0_le (normSq3_nonneg vx)
     linarith only [hκ_sq, hle1, hcs, hle2]
   let vUnit : Fin 3 → ℝ := fun k => (√(normSq3 vx))⁻¹ * vx k
-  have hvUnit : normSq3 vUnit = 1 := by
-    dsimp [vUnit, normSq3]
-    have hsq : (√(normSq3 vx)) ^ 2 = normSq3 vx := sq_sqrt hvx_pos.le
-    dsimp [normSq3] at hsq hvx_pos
-    have hne : (√(vx 0 ^ 2 + vx 1 ^ 2 + vx 2 ^ 2)) ≠ 0 := (sqrt_pos.mpr hvx_pos).ne'
-    field_simp [hne]
-    linarith only [hsq]
+  have hvUnit : normSq3 vUnit = 1 := normSq3_inv_sqrt_mul hvx_pos
   have hsqrt_vx_le_one : √(normSq3 vx) ≤ 1 := by
     rw [← sqrt_one]; exact sqrt_le_sqrt hvx_le
   have hinv_ge_one : 1 ≤ (√(normSq3 vx))⁻¹ :=

@@ -8,9 +8,12 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.Exponent
+public import Cslib.Computability.Circuit.Simulation
 import CslibFrontier.Computability.Circuit.Program
+import CslibFrontier.Computability.Circuit.Simulation
 import Mathlib.Algebra.Polynomial.Eval.Defs
 import Mathlib.Algebra.Polynomial.Roots
+import Mathlib.Data.Fintype.Prod
 
 /-!
 # Strassen bi-homogeneous rank extraction from matrix-multiplication circuits
@@ -18,9 +21,12 @@ import Mathlib.Algebra.Polynomial.Roots
 Converse to Strassen's block recursion (`admissibleExponent_of_rank`): over any infinite integral
 domain `K` (in particular any characteristic-zero field), an arithmetic circuit
 `C : Circuit (arithSignature K) (n * n + n * n) (n * n)` computing `n × n` matrix multiplication
-yields a bilinear algorithm of rank at most `2 * C.size` for `Tensor.mm n n n`
-(`rank_mm_two_mul_size`, [Strassen][Strassen1973];
-[Bürgisser, Clausen and Shokrollahi][BurgisserClausenShokrollahi1997], Chapter 14).
+yields a bilinear algorithm of rank at most `2 * C.program.cost ArithOp.mulCost` — and hence at
+most `2 * C.size` — for `Tensor.mm n n n` (`rank_mm_two_mul_mulCost`, `rank_mm_two_mul_size`,
+[Strassen][Strassen1973b];
+[Bürgisser, Clausen and Shokrollahi][BurgisserClausenShokrollahi1997], Chapter 14). Here
+`ArithOp.mulCost` counts all `.mul` gates in division-free `arithSignature K` circuits (including
+multiplications by constants, which Strassen's nonscalar count omits).
 
 Feeding `(s • A, t • B)` in the bivariate polynomial ring `K[t][s]` isolates the `(1, 1)`
 bi-homogeneous component of every wire, where each `.mul` gate contributes at most two rank-one
@@ -32,6 +38,9 @@ over any characteristic-zero field `K` and every `τ > omega K`, there exists `c
 
 * `Cslib.Circuits.Arithmetic.MatrixMultiplication.two_le_omega`: over a nontrivial commutative
   semiring `K`, `2 ≤ omega K`.
+* `Cslib.Circuits.Arithmetic.MatrixMultiplication.rank_mm_two_mul_mulCost`: `ComputesMatMul K C`
+  implies `Tensor.Rank (2 * C.program.cost ArithOp.mulCost) (Tensor.mm n n n)` over an infinite
+  integral domain `K`.
 * `Cslib.Circuits.Arithmetic.MatrixMultiplication.rank_mm_two_mul_size`: `ComputesMatMul K C`
   implies `Tensor.Rank (2 * C.size) (Tensor.mm n n n)` over an infinite integral domain `K`.
 * `Cslib.Circuits.Arithmetic.MatrixMultiplication.exists_rank_mm_le_rpow`: for every `τ > omega K`
@@ -39,7 +48,7 @@ over any characteristic-zero field `K` and every `τ > omega K`, there exists `c
 
 ## References
 
-* [V. Strassen, *Vermeidung von Divisionen*][Strassen1973]
+* [V. Strassen, *Vermeidung von Divisionen*][Strassen1973b]
 * [P. Bürgisser, M. Clausen, M. A. Shokrollahi, *Algebraic Complexity
   Theory*][BurgisserClausenShokrollahi1997], Chapter 14
 -/
@@ -143,8 +152,10 @@ private theorem trace_gate_add {K : Type*} [CommSemiring K] {m p : ℕ}
     (hadd : ∀ args, I .add args = args 0 + args 1) (inp : Fin m → Biv K) (k : Fin C.size)
     (hop : (C.program.lines k).op = .add) :
     C.program.trace I inp (.gate k) =
-      C.program.trace I inp ((C.program.lines k).wires (hop ▸ (0 : Fin 2))) +
-        C.program.trace I inp ((C.program.lines k).wires (hop ▸ (1 : Fin 2))) := by
+      C.program.trace I inp
+          ((C.program.lines k).wires (Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0)) +
+        C.program.trace I inp
+          ((C.program.lines k).wires (Fin.cast (congrArg (ArithOp.arity K) hop.symm) 1)) := by
   rw [C.program.trace_gate]
   revert hop
   generalize C.program.lines k = ln
@@ -159,8 +170,10 @@ private theorem trace_gate_mul {K : Type*} [CommSemiring K] {m p : ℕ}
     (hmul : ∀ args, I .mul args = args 0 * args 1) (inp : Fin m → Biv K) (k : Fin C.size)
     (hop : (C.program.lines k).op = .mul) :
     C.program.trace I inp (.gate k) =
-      C.program.trace I inp ((C.program.lines k).wires (hop ▸ (0 : Fin 2))) *
-        C.program.trace I inp ((C.program.lines k).wires (hop ▸ (1 : Fin 2))) := by
+      C.program.trace I inp
+          ((C.program.lines k).wires (Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0)) *
+        C.program.trace I inp
+          ((C.program.lines k).wires (Fin.cast (congrArg (ArithOp.arity K) hop.symm) 1)) := by
   rw [C.program.trace_gate]
   revert hop
   generalize C.program.lines k = ln
@@ -186,10 +199,10 @@ private theorem trace_gate_const {K : Type*} [CommSemiring K] {m p : ℕ}
 
 /-- Wire-by-wire structural invariants of `C.program.trace` on `bivMatInputs A B`:
 `(0, 0)` is constant, `(1, 0)` is linear in `A`, `(0, 1)` is linear in `B`, and `(1, 1)` is a
-`K`-linear combination of `2 * C.size` fixed bilinear products. -/
+`K`-linear combination of `2 * C.program.cost ArithOp.mulCost` fixed bilinear products. -/
 private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
     (C : Circuit (arithSignature K) (n * n + n * n) (n * n)) :
-    ∃ (α β : Fin (2 * C.size) → Fin n × Fin n → K),
+    ∃ (α β : Fin (2 * C.program.cost ArithOp.mulCost) → Fin n × Fin n → K),
       ∀ w : Wire (n * n + n * n) C.size,
         (∃ c₀ : K, ∀ A B : Fin n × Fin n → K,
           bivCoeff 0 0 (C.program.trace
@@ -203,7 +216,7 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
           bivCoeff 0 1 (C.program.trace
             (arithInterpretationWith K (Polynomial.C ∘ Polynomial.C))
             (bivMatInputs A B) w) = ∑ y, fB y * B y) ∧
-        (∃ γ : Fin (2 * C.size) → K, ∀ A B : Fin n × Fin n → K,
+        (∃ γ : Fin (2 * C.program.cost ArithOp.mulCost) → K, ∀ A B : Fin n × Fin n → K,
           bivCoeff 1 1 (C.program.trace
             (arithInterpretationWith K (Polynomial.C ∘ Polynomial.C))
             (bivMatInputs A B) w) =
@@ -237,8 +250,8 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
           simp [bivCoeff, Pi.single_apply]
     · intro k ih
       rcases hop : (C.program.lines k).op with _ | _ | c
-      · let s0 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (0 : Fin 2)
-        let s1 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (1 : Fin 2)
+      · let s0 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0
+        let s1 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 1
         obtain ⟨⟨c0, hc0⟩, ⟨fA0, hfA0⟩, ⟨fB0, hfB0⟩⟩ := ih s0
         obtain ⟨⟨c1, hc1⟩, ⟨fA1, hfA1⟩, ⟨fB1, hfB1⟩⟩ := ih s1
         have htr (A B) : C.program.trace I (bivMatInputs A B) (.gate k) =
@@ -252,8 +265,8 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
           ⟨fB0 + fB1, fun A B => by
             rw [htr, bivCoeff_add, hfB0, hfB1, ← Finset.sum_add_distrib]
             exact Finset.sum_congr rfl fun y _ => by simp [Pi.add_apply, add_mul]⟩⟩
-      · let s0 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (0 : Fin 2)
-        let s1 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (1 : Fin 2)
+      · let s0 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0
+        let s1 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 1
         obtain ⟨⟨c0, hc0⟩, ⟨fA0, hfA0⟩, ⟨fB0, hfB0⟩⟩ := ih s0
         obtain ⟨⟨c1, hc1⟩, ⟨fA1, hfA1⟩, ⟨fB1, hfB1⟩⟩ := ih s1
         have htr (A B) : C.program.trace I (bivMatInputs A B) (.gate k) =
@@ -279,24 +292,34 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
   choose c₀ hc₀ using fun w => (hlin w).1
   choose fA hfA using fun w => (hlin w).2.1
   choose fB hfB using fun w => (hlin w).2.2
-  let slot (b : Fin 2) (k : Fin C.size) : Fin (2 * C.size) := finProdFinEquiv (b, k)
-  let α : Fin (2 * C.size) → Fin n × Fin n → K := fun ν =>
-    let p := finProdFinEquiv.symm ν
-    match h : (C.program.lines p.2).op with
-    | .mul =>
-      if p.1 = 0 then fA ((C.program.lines p.2).wires (h ▸ 0))
-      else fA ((C.program.lines p.2).wires (h ▸ 1))
-    | _ => 0
-  let β : Fin (2 * C.size) → Fin n × Fin n → K := fun ν =>
-    let p := finProdFinEquiv.symm ν
-    match h : (C.program.lines p.2).op with
-    | .mul =>
-      if p.1 = 0 then fB ((C.program.lines p.2).wires (h ▸ 1))
-      else fB ((C.program.lines p.2).wires (h ▸ 0))
-    | _ => 0
+  let MulGate := {k : Fin C.size // (C.program.lines k).op = .mul}
+  set m := C.program.cost ArithOp.mulCost
+  have hcard_mul : Fintype.card MulGate = m := by
+    rw [Fintype.card_subtype]
+    dsimp only [m]
+    rw [Program.cost_eq_sum]
+    have hop_cost (k : Fin C.size) :
+        ArithOp.mulCost (C.program.lines k).op =
+          if (C.program.lines k).op = .mul then 1 else 0 := by
+      cases (C.program.lines k).op <;> simp [ArithOp.mulCost]
+    simp_rw [hop_cost]
+    rw [Finset.sum_boole, Nat.cast_id]
+  have hcard : Fintype.card (Fin 2 × MulGate) = 2 * m := by
+    rw [Fintype.card_prod, Fintype.card_fin, hcard_mul]
+  let e : (Fin 2 × MulGate) ≃ Fin (2 * m) := Fintype.equivFinOfCardEq hcard
+  let mulArg (g : MulGate) (i : Fin 2) : Fin (ArithOp.arity K (C.program.lines g.1).op) :=
+    Fin.cast (congrArg (ArithOp.arity K) g.2.symm) i
+  let α : Fin (2 * m) → Fin n × Fin n → K := fun ν =>
+    let p := e.symm ν
+    if p.1 = 0 then fA ((C.program.lines p.2.1).wires (mulArg p.2 0))
+    else fA ((C.program.lines p.2.1).wires (mulArg p.2 1))
+  let β : Fin (2 * m) → Fin n × Fin n → K := fun ν =>
+    let p := e.symm ν
+    if p.1 = 0 then fB ((C.program.lines p.2.1).wires (mulArg p.2 1))
+    else fB ((C.program.lines p.2.1).wires (mulArg p.2 0))
   refine ⟨α, β, fun w => ⟨⟨c₀ w, hc₀ w⟩, ⟨fA w, hfA w⟩, ⟨fB w, hfB w⟩, ?_⟩⟩
   refine C.program.wire_induction
-    (P := fun w => ∃ γ : Fin (2 * C.size) → K, ∀ A B : Fin n × Fin n → K,
+    (P := fun w => ∃ γ : Fin (2 * m) → K, ∀ A B : Fin n × Fin n → K,
       bivCoeff 1 1 (C.program.trace I (bivMatInputs A B) w) =
         ∑ ν, γ ν * ((∑ x, α ν x * A x) * (∑ y, β ν y * B y))) ?_ ?_ w
   · intro idx
@@ -309,8 +332,8 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
       simp [bivCoeff]
   · intro k ih
     rcases hop : (C.program.lines k).op with _ | _ | c
-    · let s0 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (0 : Fin 2)
-      let s1 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (1 : Fin 2)
+    · let s0 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 0
+      let s1 := Fin.cast (congrArg (ArithOp.arity K) hop.symm) 1
       obtain ⟨γ0, hγ0⟩ := ih s0
       obtain ⟨γ1, hγ1⟩ := ih s1
       have htr (A B) : C.program.trace I (bivMatInputs A B) (.gate k) =
@@ -320,8 +343,8 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
       refine ⟨γ0 + γ1, fun A B => ?_⟩
       rw [htr, bivCoeff_add, hγ0, hγ1, ← Finset.sum_add_distrib]
       exact Finset.sum_congr rfl fun ν _ => by simp [Pi.add_apply, add_mul]
-    · let s0 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (0 : Fin 2)
-      let s1 : Fin (ArithOp.arity K (C.program.lines k).op) := hop ▸ (1 : Fin 2)
+    · let s0 := mulArg ⟨k, hop⟩ 0
+      let s1 := mulArg ⟨k, hop⟩ 1
       let w0 := (C.program.lines k).wires s0
       let w1 := (C.program.lines k).wires s1
       have htr (A B) : C.program.trace I (bivMatInputs A B) (.gate k) =
@@ -330,56 +353,38 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
         trace_gate_mul C I (fun _ => rfl) (bivMatInputs A B) k hop
       obtain ⟨γ0, hγ0⟩ := ih s0
       obtain ⟨γ1, hγ1⟩ := ih s1
-      have hα0 : α (slot 0 k) = fA w0 := by
-        dsimp only [α, slot, w0, s0]
-        rw [finProdFinEquiv.symm_apply_apply]
-        dsimp only
-        split
-        · next h =>
-          have hh : h = hop := Subsingleton.elim _ _
-          subst hh; simp
-        · next _ hne => exact absurd hop hne
-      have hβ0 : β (slot 0 k) = fB w1 := by
-        dsimp only [β, slot, w1, s1]
-        rw [finProdFinEquiv.symm_apply_apply]
-        dsimp only
-        split
-        · next h =>
-          have hh : h = hop := Subsingleton.elim _ _
-          subst hh; simp
-        · next _ hne => exact absurd hop hne
-      have hα1 : α (slot 1 k) = fA w1 := by
-        dsimp only [α, slot, w1, s1]
-        rw [finProdFinEquiv.symm_apply_apply]
-        dsimp only
-        split
-        · next h =>
-          have hh : h = hop := Subsingleton.elim _ _
-          subst hh; simp
-        · next _ hne => exact absurd hop hne
-      have hβ1 : β (slot 1 k) = fB w0 := by
-        dsimp only [β, slot, w0, s0]
-        rw [finProdFinEquiv.symm_apply_apply]
-        dsimp only
-        split
-        · next h =>
-          have hh : h = hop := Subsingleton.elim _ _
-          subst hh; simp
-        · next _ hne => exact absurd hop hne
-      refine ⟨c₀ w0 • γ1 + c₀ w1 • γ0 + Pi.single (slot 0 k) 1 + Pi.single (slot 1 k) 1,
+      let slot0 : Fin (2 * m) := e (0, ⟨k, hop⟩)
+      let slot1 : Fin (2 * m) := e (1, ⟨k, hop⟩)
+      have hα0 : α slot0 = fA w0 := by
+        dsimp only [α, slot0, w0, s0]
+        rw [e.symm_apply_apply]
+        simp
+      have hβ0 : β slot0 = fB w1 := by
+        dsimp only [β, slot0, w1, s1]
+        rw [e.symm_apply_apply]
+        simp
+      have hα1 : α slot1 = fA w1 := by
+        dsimp only [α, slot1, w1, s1]
+        rw [e.symm_apply_apply]
+        simp
+      have hβ1 : β slot1 = fB w0 := by
+        dsimp only [β, slot1, w0, s0]
+        rw [e.symm_apply_apply]
+        simp
+      refine ⟨c₀ w0 • γ1 + c₀ w1 • γ0 + Pi.single slot0 1 + Pi.single slot1 1,
         fun A B => ?_⟩
       rw [htr, bivCoeff_mul_11, hc₀ w0, hc₀ w1, hfA w0, hfB w1, hfA w1, hfB w0, hγ0, hγ1]
       simp only [Pi.add_apply, Pi.smul_apply, smul_eq_mul, add_mul, Finset.sum_add_distrib,
         mul_assoc, ← Finset.mul_sum]
-      have hs0_sum : (∑ ν, (Pi.single (slot 0 k) (1 : K) : Fin (2 * C.size) → K) ν *
+      have hs0_sum : (∑ ν, (Pi.single slot0 (1 : K) : Fin (2 * m) → K) ν *
           ((∑ x, α ν x * A x) * ∑ y, β ν y * B y)) =
           (∑ x, fA w0 x * A x) * ∑ y, fB w1 y * B y := by
-        rw [Fintype.sum_eq_single (slot 0 k) (fun ν hne => by simp [Pi.single_eq_of_ne hne])]
+        rw [Fintype.sum_eq_single slot0 (fun ν hne => by simp [Pi.single_eq_of_ne hne])]
         simp [hα0, hβ0]
-      have hs1_sum : (∑ ν, (Pi.single (slot 1 k) (1 : K) : Fin (2 * C.size) → K) ν *
+      have hs1_sum : (∑ ν, (Pi.single slot1 (1 : K) : Fin (2 * m) → K) ν *
           ((∑ x, α ν x * A x) * ∑ y, β ν y * B y)) =
           (∑ x, fA w1 x * A x) * ∑ y, fB w0 y * B y := by
-        rw [Fintype.sum_eq_single (slot 1 k) (fun ν hne => by simp [Pi.single_eq_of_ne hne])]
+        rw [Fintype.sum_eq_single slot1 (fun ν hne => by simp [Pi.single_eq_of_ne hne])]
         simp [hα1, hβ1]
       rw [hs0_sum, hs1_sum]
       ring
@@ -390,22 +395,25 @@ private theorem exists_biv_wire_decomp {K : Type*} [CommRing K] {n : ℕ}
       rw [htr, (bivCoeff_const c).2.2.2]
       simp
 
-/-- **Strassen `(1, 1)` bi-homogeneous rank extraction.** Over any infinite integral domain `K`
-(in particular any characteristic-zero field), an arithmetic circuit of size `s` computing `n × n`
-matrix multiplication yields a bilinear algorithm of rank at most `2 * s` for `Tensor.mm n n n`. -/
-theorem rank_mm_two_mul_size {K : Type*} [CommRing K] [IsDomain K] [Infinite K] {n : ℕ}
+/-- **Strassen `(1, 1)` bi-homogeneous rank extraction (multiplication count).** Over any infinite
+integral domain `K` (in particular any characteristic-zero field), an arithmetic circuit computing
+`n × n` matrix multiplication with `m = C.program.cost ArithOp.mulCost` multiplication gates
+yields a bilinear algorithm of rank at most `2 * m` for `Tensor.mm n n n`. Here `ArithOp.mulCost`
+counts all `.mul` gates in division-free `arithSignature K` circuits. -/
+theorem rank_mm_two_mul_mulCost {K : Type*} [CommRing K] [IsDomain K] [Infinite K] {n : ℕ}
     {C : Circuit (arithSignature K) (n * n + n * n) (n * n)} (hC : ComputesMatMul K C) :
-    Rank (2 * C.size) (mm n n n : Tensor K _ _ _) := by
+    Rank (2 * C.program.cost ArithOp.mulCost) (mm n n n : Tensor K _ _ _) := by
+  set m := C.program.cost ArithOp.mulCost
   obtain ⟨α, β, hwire⟩ := exists_biv_wire_decomp C
   choose γ hγ using fun c : Fin n × Fin n => (hwire (C.outputs (finProdFinEquiv c))).2.2.2
-  let Mα : Matrix (Fin (2 * C.size)) (Fin n × Fin n) K := Matrix.of α
-  let Mβ : Matrix (Fin (2 * C.size)) (Fin n × Fin n) K := Matrix.of β
-  let Mγ : Matrix (Fin n × Fin n) (Fin (2 * C.size)) K := Matrix.of γ
+  let Mα : Matrix (Fin (2 * m)) (Fin n × Fin n) K := Matrix.of α
+  let Mβ : Matrix (Fin (2 * m)) (Fin n × Fin n) K := Matrix.of β
+  let Mγ : Matrix (Fin n × Fin n) (Fin (2 * m)) K := Matrix.of γ
   refine ⟨Mα, Mβ, Mγ, Tensor.ext_of_bil fun A B => ?_⟩
   funext c
   rw [bil_restrict, bil_mm]
-  have hunit (u w : Fin (2 * C.size) → K) :
-      (unit (2 * C.size) : Tensor K _ _ _).bil u w = fun ν => u ν * w ν := by
+  have hunit (u w : Fin (2 * m) → K) :
+      (unit (2 * m) : Tensor K _ _ _).bil u w = fun ν => u ν * w ν := by
     funext ν
     simp [Tensor.bil, unit_apply, ite_and, ite_mul]
   rw [hunit]
@@ -423,27 +431,31 @@ theorem rank_mm_two_mul_size {K : Type*} [CommRing K] [IsDomain K] [Infinite K] 
     rw [Finset.mul_sum, Finset.mul_sum]
     refine Finset.sum_congr rfl fun j _ => ?_
     ring
-  have poly_eq {p q : Polynomial K} (h : ∀ x : K, p.eval x = q.eval x) : p = q := by
-    by_contra hne
-    have hfin := Polynomial.finite_setOfPred_isRoot (sub_ne_zero.mpr hne)
-    have huniv : {x : K | (p - q).IsRoot x} = Set.univ :=
-      Set.eq_univ_of_forall fun x => by simp [Polynomial.IsRoot, h x]
-    rw [huniv] at hfin
-    exact Set.infinite_univ hfin
   have hcoeff1_eval (t₀ : K) : (P.coeff 1).eval t₀ = t₀ * val := by
     have hpoly : P.map (Polynomial.evalRingHom t₀) = Polynomial.C (t₀ * val) * Polynomial.X := by
-      refine poly_eq fun s₀ => ?_
+      refine Polynomial.funext fun s₀ => ?_
       rw [Polynomial.eval_map]
       change evalBiv s₀ t₀ P = _
       rw [heval s₀ t₀, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_X, mul_comm]
     have hc1 := congrArg (fun q : Polynomial K => q.coeff 1) hpoly
     simpa [Polynomial.coeff_map] using hc1
   have hp1 : P.coeff 1 = Polynomial.C val * Polynomial.X := by
-    refine poly_eq fun t₀ => ?_
+    refine Polynomial.funext fun t₀ => ?_
     rw [hcoeff1_eval, Polynomial.eval_mul, Polynomial.eval_C, Polynomial.eval_X, mul_comm]
   dsimp only [bivCoeff]
   rw [hp1]
   simp
+
+/-- **Strassen `(1, 1)` bi-homogeneous rank extraction (circuit size).** Over any infinite integral
+domain `K` (in particular any characteristic-zero field), an arithmetic circuit of size `s`
+computing `n × n` matrix multiplication yields a bilinear algorithm of rank at most `2 * s` for
+`Tensor.mm n n n`. -/
+theorem rank_mm_two_mul_size {K : Type*} [CommRing K] [IsDomain K] [Infinite K] {n : ℕ}
+    {C : Circuit (arithSignature K) (n * n + n * n) (n * n)} (hC : ComputesMatMul K C) :
+    Rank (2 * C.size) (mm n n n : Tensor K _ _ _) := by
+  have hcost : C.program.cost ArithOp.mulCost ≤ C.size := by
+    simpa using C.program.cost_le_mul (b := 1) fun op => by cases op <;> simp [ArithOp.mulCost]
+  exact (rank_mm_two_mul_mulCost hC).mono (Nat.mul_le_mul_left 2 hcost)
 
 /-- **From `omega K` to bilinear rank of square matrix multiplication.** Over a characteristic-zero
 field `K`, for every `τ > omega K` there exists `c > 0` such that for all `D ≥ 1`, `Tensor.mm D D D`
