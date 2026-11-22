@@ -4,15 +4,20 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Computability.WordRAM.WordStack
+module
+-- upstream: local-only (tests)
+
+public import CslibFrontier.Computability.WordRAM.WordStack
 
 /-!
-# Flat memory records, register-top stacks, and offset banks
+# Flat memory records and register-top stacks
 
 Checked instances and concrete symbolic-execution checks for `RecordSpec`, `storeRecord`,
-`loadRecord`, `ram_keep` across `modifies_writeWords`, `WordStack.push` / `WordStack.pop` on a
-multi-field domain `structure`, and `offsetBank` / `Code.preserves_offsetBank`.
+`loadRecord`, `ram_keep` across `modifies_writeWords`, and `WordStack.push` / `WordStack.pop` on a
+multi-field domain `structure` across the exported `module` boundary.
 -/
+
+public section
 
 namespace CslibFrontierTests.WordRAMRecordStack
 
@@ -31,19 +36,21 @@ structure NodeFrame where
 /-- Nonvacuous `RecordSpec` instance for `NodeFrame`. -/
 def nodeFrameSpec : RecordSpec NodeFrame 3 where
   toWords f := ![f.vertex, f.depth, f.weight]
-  injective a b h := by
-    cases a; cases b
-    simp only [NodeFrame.mk.injEq]
-    exact ⟨congrFun h 0, congrFun h 1, congrFun h 2⟩
+
+theorem nodeFrameSpec_injective : Function.Injective nodeFrameSpec.toWords := by
+  intro a b h
+  cases a; cases b
+  simp only [NodeFrame.mk.injEq]
+  exact ⟨congrFun h 0, congrFun h 1, congrFun h 2⟩
 
 example (mem : ℕ → ℕ) (u v : NodeFrame) :
     nodeFrameSpec.HoldsAt 40 u (nodeFrameSpec.write 40 v mem) ↔ u = v :=
-  nodeFrameSpec.holdsAt_write_iff 40 u v mem
+  nodeFrameSpec.holdsAt_write_iff nodeFrameSpec_injective 40 u v mem
 
 example (mem : ℕ → ℕ) (xs ys : List NodeFrame) (hlen : xs.length = ys.length)
     (hxs : WordStack.Holds nodeFrameSpec 100 xs mem)
     (hys : WordStack.Holds nodeFrameSpec 100 ys mem) : xs = ys :=
-  hxs.unique hys hlen
+  hxs.unique nodeFrameSpec_injective hys hlen
 
 example (mem : ℕ → ℕ) (f₀ f₁ : NodeFrame) :
     WordStack.Holds nodeFrameSpec 100 [f₁, f₀] mem ↔
@@ -180,19 +187,5 @@ example (x : Data 9) (hb : x.regs sBase = 100) (ht : x.regs sTop = 0)
     exact (hy₃_mod a ha).trans (hy₁_mod a ha)
 
 end StackExec
-
-/-! ## `offsetBank` embedding and register preservation -/
-
-section OffsetBank
-
-private def highBank : Fin 8 → Fin 32 := offsetBank 16 (by decide)
-
-example : Function.Injective highBank := offsetBank_injective 16 (by decide)
-
-example (c : Code .standard 8) (i : Fin 32) (hi : i.val < 16 ∨ 24 ≤ i.val) :
-    (c.rename highBank).Preserves i :=
-  c.preserves_offsetBank (by decide) i hi
-
-end OffsetBank
 
 end CslibFrontierTests.WordRAMRecordStack

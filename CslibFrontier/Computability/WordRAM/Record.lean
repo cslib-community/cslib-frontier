@@ -20,8 +20,8 @@ frames as `k` consecutive words at an address `addr`. This module provides:
 * `writeWords`, the multi-word memory update writing `k` consecutive words from `addr`, proved
   to realize those words on `Block.mk addr k` and to satisfy `Modifies (Block.mk addr k).footprint`
   for frame preservation via `ram_keep`;
-* `RecordSpec α k`, a typed `k`-word layout specification with injective word encoding, whose
-  `HoldsAt` assertion specializes `Block.Realizes` directly;
+* `RecordSpec α k`, a typed `k`-word layout specification whose `HoldsAt` assertion specializes
+  `Block.Realizes` directly, taking injectivity of `toWords` only on uniqueness lemmas;
 * `storeCursor`, `storeRecord`, `loadCursor`, and `loadRecord`, structured `Code .standard r`
   routines that step an address cursor by one across `k` field registers in exact instruction
   counts (`2 * k - 1` from an initialized cursor, `2 * k` from a base-address register), together
@@ -139,16 +139,10 @@ theorem modifies_writeWords (mem : ℕ → ℕ) (addr : ℕ) {k : ℕ} (words : 
 
 /-! ## Typed fixed-width record specifications -/
 
-@[expose] section Spec
-
 /-- Specification of a fixed-width flat `k`-word memory layout for values of type `α`. -/
 structure RecordSpec (α : Type*) (k : ℕ) where
   /-- The `k` consecutive words representing a record value. -/
   toWords : α → Fin k → ℕ
-  /-- Distinct values have distinct `k`-word encodings. -/
-  injective : Function.Injective toWords
-
-end Spec
 
 namespace RecordSpec
 
@@ -167,21 +161,24 @@ theorem holdsAt_iff (R : RecordSpec α k) (addr : ℕ) (v : α) (mem : ℕ → �
     R.HoldsAt addr v mem ↔ ∀ i : Fin k, mem (addr + i.val) = R.toWords v i :=
   Iff.rfl
 
-/-- At most one value of `α` can hold at `addr` in a given memory. -/
-theorem HoldsAt.unique {R : RecordSpec α k} {addr : ℕ} {u v : α} {mem : ℕ → ℕ}
+/-- At most one value of `α` can hold at `addr` in a given memory when `R.toWords` is injective. -/
+theorem HoldsAt.unique {R : RecordSpec α k} (hinj : Function.Injective R.toWords)
+    {addr : ℕ} {u v : α} {mem : ℕ → ℕ}
     (hu : R.HoldsAt addr u mem) (hv : R.HoldsAt addr v mem) : u = v :=
-  R.injective (funext fun i => (hu i).symm.trans (hv i))
+  hinj (funext fun i => (hu i).symm.trans (hv i))
 
 /-- Writing `v` at `addr` establishes `R.HoldsAt addr v`. -/
 theorem holdsAt_write (R : RecordSpec α k) (addr : ℕ) (v : α) (mem : ℕ → ℕ) :
     R.HoldsAt addr v (R.write addr v mem) :=
   Block.realizes_writeWords mem addr (R.toWords v)
 
-/-- After writing `v` at `addr`, `R.HoldsAt addr u` holds if and only if `u = v`. -/
-@[simp]
-theorem holdsAt_write_iff (R : RecordSpec α k) (addr : ℕ) (u v : α) (mem : ℕ → ℕ) :
+/-- After writing `v` at `addr`, `R.HoldsAt addr u` holds if and only if `u = v` when `R.toWords`
+is injective. -/
+theorem holdsAt_write_iff (R : RecordSpec α k) (hinj : Function.Injective R.toWords)
+    (addr : ℕ) (u v : α) (mem : ℕ → ℕ) :
     R.HoldsAt addr u (R.write addr v mem) ↔ u = v :=
-  ⟨fun hu => hu.unique (R.holdsAt_write addr v mem), fun h => h ▸ R.holdsAt_write addr v mem⟩
+  ⟨fun hu => hu.unique hinj (R.holdsAt_write addr v mem),
+    fun h => h ▸ R.holdsAt_write addr v mem⟩
 
 end RecordSpec
 

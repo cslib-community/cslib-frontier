@@ -11,7 +11,6 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Zer
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Prepare
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Control
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Dispatch
-import CslibFrontier.Computability.WordRAM.Record
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
@@ -82,9 +81,8 @@ theorem exec_stage_zero {w p k A B a b out scratch frames frame : ℕ}
   · intro d hd hds hdf
     exact (memory d hds hdf).trans (houtside d hd)
 
-/-- The actual first positive-depth controller iteration includes frame loading via
-`loadRecord_exec_self`, depth comparison, computed child pointers, phase dispatch, clearing
-and both operand loops. -/
+/-- The actual first positive-depth controller iteration includes frame loading, depth
+comparison, computed child pointers, phase dispatch, clearing and both operand loops. -/
 theorem exec_step_entry {w p k A B a b out scratch frames frame : ℕ}
     (x : Data 64) (u v : ℕ → ℤ)
     (hx : NodeReady p (k + 1) a b out scratch frames frame x)
@@ -107,15 +105,11 @@ theorem exec_step_entry {w p k A B a b out scratch frames frame : ℕ}
       ∀ d, (d < out ∨ out + 4 ^ (k + 1) * p ≤ d) →
         (d < scratch ∨ scratch + 2 * (4 ^ k * p) ≤ d) →
         (d < frame + 6 ∨ frame + 14 ≤ d) → y.mem d = x.mem d := by
-  have hload : loadFrame = loadRecord Reg.frame Reg.address Reg.one field := rfl
   refine WP.exists_execWithin ?_
   unfold step
-  rw [hload]
-  refine WP.seq (WP.of_exec_spec
-    (loadRecord_exec_self Reg.frame Reg.address Reg.one field x
-      (by decide) (by decide) (by decide) (by decide) hx.one_eq
-      (by simpa only [hx.frame_eq] using hx.frame_words)
-      (by rw [hx.frame_eq]; exact haddr.of_le (by unfold addressBound; omega))) ?_)
+  refine WP.seq (WP.of_spec (exec_loadCurrent x hx.one_eq
+    (by rw [hx.frame_eq]; exact haddr.of_le (by unfold addressBound; omega))
+    (by simpa only [hx.frame_eq] using hx.frame_words)) ?_)
   rintro s ⟨sm, sr⟩
   have sh : NodeHeader p (k + 1) a b out scratch frames frame s :=
     hx.toNodeHeader.of_regs_eq_cursors (fun i hi _ => sr i hi)

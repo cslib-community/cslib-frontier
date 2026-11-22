@@ -106,8 +106,10 @@ theorem Holds.push_write {R : RecordSpec α k} {base : ℕ} {items : List α} {m
   ⟨R.holdsAt_write _ v mem,
     h.frame fun _ _ ha => writeWords_of_not_owns (by simp only [Block.Owns]; omega)⟩
 
-/-- At a fixed stack height, the memory contents uniquely determine the logical stack list. -/
-theorem Holds.unique {R : RecordSpec α k} {base : ℕ} {items₁ items₂ : List α} {mem : ℕ → ℕ}
+/-- At a fixed stack height, injective record encoding uniquely determines the logical stack list
+from memory. -/
+theorem Holds.unique {R : RecordSpec α k} (hinj : Function.Injective R.toWords)
+    {base : ℕ} {items₁ items₂ : List α} {mem : ℕ → ℕ}
     (h₁ : Holds R base items₁ mem) (h₂ : Holds R base items₂ mem)
     (hlen : items₁.length = items₂.length) : items₁ = items₂ := by
   induction items₁ generalizing items₂ with
@@ -120,7 +122,7 @@ theorem Holds.unique {R : RecordSpec α k} {base : ℕ} {items₁ items₂ : Lis
     | nil => simp at hlen
     | cons v₂ rest₂ =>
       have hrest_len : rest₁.length = rest₂.length := by simpa using hlen
-      have hv : v₁ = v₂ := h₁.1.unique (hrest_len ▸ h₂.1)
+      have hv : v₁ = v₂ := h₁.1.unique hinj (hrest_len ▸ h₂.1)
       rw [hv, ih h₁.2 h₂.2 hrest_len]
 
 /-- `Holds R base items mem` is equivalent to each slot `idx < items.length` holding the
