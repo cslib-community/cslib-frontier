@@ -63,12 +63,27 @@ example :
 example (k : ZMod 5) (x : Fin 0 → ZMod 5) : coeffPolyHash k x = 0 := by
   simp [coeffPolyHash]
 
+/-- Allowing the zero-block and one-block messages defeats universality. -/
+example : ¬ IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+    (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) =>
+      coeffPolyHash k (fun i : Fin m.val.length => m.val[i])) (1 / 5) :=
+  not_isUniversalHash_coeffPolyHash_variableLength _ le_rfl (by norm_num)
+
 /-- Sampling the point from all of `ZMod 5` gives the full-field specialization. -/
 example :
     IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
       (fun k (x : Fin 2 → ZMod 5) => coeffPolyHash k x)
       (1 / Fintype.card (ZMod 5)) := by
   simpa using isUniversalHash_coeffPolyHash (F := ZMod 5) 2
+
+/-- The one-block family is `1 / 5`-universal, while a fixed difference occurs at every key. -/
+example :
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => polyHash k m) (1 / 5) ∧
+    ¬ IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 5))
+      (fun k (m : {m : List (ZMod 5) // m.length ≤ 1}) => polyHash k m) (1 / 5) := by
+  exact ⟨by simpa using isUniversalHash_polyHash (F := ZMod 5) 1,
+    not_isDeltaUniversalHash_polyHash _ le_rfl (by norm_num)⟩
 
 /-- A one-coefficient hash never collides. After multiplication by the key, each
 specified difference has probability at most one over the field size. -/
@@ -98,5 +113,30 @@ example : ∀ k : ZMod 8, polyHash k [4, 4, 0] = polyHash k [0, 0, 0] := by deci
 example : ¬ IsUniversalHash (PMF.pure (1 : ZMod 8))
     (fun k (m : {m : List (ZMod 8) // m.length ≤ 3}) => polyHash k m) (1 / 2) :=
   not_isUniversalHash_polyHash_zmod_pow_two 2 (by omega) _ (by norm_num)
+
+local instance : Fact (Nat.Prime 11) := ⟨by decide⟩
+
+/-- The one-block hash reduces 20 modulo 11 and then modulo 9, and its difference
+bound is `8/9`. -/
+example :
+    xpolyHashMod (p := 11) (N := 9) 2 [8] = 0 ∧
+    IsDeltaUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 1}) => xpolyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, ?_⟩
+  have h := isDeltaUniversalHash_xpolyHashMod (p := 11) (N := 9) (by decide) 1
+  norm_num at h
+  exact h
+
+/-- The empty digest is zero, and the last block is added after reducing the prefix hash.
+The two-block family has collision bound `8/9`. -/
+example :
+    polyHashMod (p := 11) (N := 9) 2 [] = 0 ∧
+    polyHashMod (p := 11) (N := 9) 2 [8, 8] = 8 ∧
+    IsUniversalHash (PMF.uniformOfFintype (ZMod 11))
+      (fun k (m : {m : List (ZMod 9) // m.length ≤ 2}) => polyHashMod k m.val) (8 / 9) := by
+  refine ⟨by decide, by decide, ?_⟩
+  have h := isUniversalHash_polyHashMod (p := 11) (N := 9) (by decide) 2
+  norm_num at h
+  exact h
 
 end CslibFrontierTests.HashFamilyPolynomial

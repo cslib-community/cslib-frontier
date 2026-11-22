@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Crypto.Computational.MLDSA.Signing
+public import CslibFrontier.Crypto.Computational.MLDSA.ResponseBinding
 public import CslibFrontier.Probability.RejectionSampling
 import CslibFrontier.Probability.PMF.Bind
 
@@ -32,6 +33,7 @@ public section
 namespace Cslib.Crypto.MLDSA
 
 open Cslib.Probability
+open scoped ENNReal
 
 variable (P : Params)
 
@@ -102,6 +104,19 @@ private theorem sub_mem_mask {v z : Fin P.ℓ → Fin P.n → ZMod P.q}
 noncomputable def signingMaskLaw (hγ : 0 < P.γ₁) : PMF (Fin P.ℓ → Fin P.n → ZMod P.q) :=
   PMF.uniformOfFinset (maskSet P) (mask_nonempty P hγ)
 
+private theorem mask_card [NeZero P.q] (hγ : 0 < P.γ₁) (hq : 2 * P.γ₁ < P.q) :
+    (maskSet P).card = (2 * P.γ₁) ^ (P.ℓ * P.n) := by
+  rw [intervalVectors_card P (by lia) (by lia)]
+  congr 1
+  lia
+
+/-- Every individual ideal mask has probability at most the reciprocal of the full FIPS box. -/
+theorem signingMaskLaw_apply_le [NeZero P.q] (hγ : 0 < P.γ₁) (hq : 2 * P.γ₁ < P.q) (y) :
+    signingMaskLaw P hγ y ≤ ((2 * P.γ₁ : ℕ) ^ (P.ℓ * P.n) : ℝ≥0∞)⁻¹ := by
+  classical
+  simp only [signingMaskLaw, PMF.uniformOfFinset_apply, mask_card P hγ hq, Nat.cast_pow]
+  split <;> simp
+
 /-- The signing attempt with an ideal, coefficientwise uniform mask and the given fresh
 challenge. On success it emits the high bits of the original commitment `A y` and the
 signature returned by Algorithm 7's two rejection stages. -/
@@ -130,6 +145,54 @@ noncomputable def simulateFreshSigningAttempt (d ω : ℕ) (hβ : P.β < P.γ₁
   (PMF.sampleWithRatio z ((2 * (P.γ₁ - P.β) - 1) ^ m) ((2 * P.γ₁) ^ m)
     (pow_pos (by lia) _)).map fun oz => oz.bind (finishSimulated P d ω pk c)
 
+/-- Every accepted public simulation has the requested challenge, a short response, an
+encodable hint, and the very commitment that the verifier recovers. This holds for every full
+public key, including a uniformly sampled vector in the Module-LWE hybrid. -/
+theorem simulateFreshSigningAttempt_support (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
+    (hγq : 4 * P.γ₂ < P.q) (d ω : ℕ) (hβ : P.β < P.γ₁) (pk : PublicKey P)
+    (c : Fin P.n → ZMod P.q) {t : AttemptTranscript P}
+    (ht : some t ∈ (simulateFreshSigningAttempt P d ω hβ pk c).support) :
+    t.signature.c = c ∧ ResponseShort P t.signature.z ∧ hintWeight P t.signature.h ≤ ω ∧
+      t.signature.recover d pk = t.commitment := by
+  let : NeZero P.q := ⟨by have := hP.one_lt_q; lia⟩
+  obtain ⟨oz, ho, he⟩ := (PMF.mem_support_map_iff ..).1 ht
+  rcases oz with _ | z
+  · cases he
+  change finishSimulated P d ω pk c z = some t at he
+  obtain ⟨b, _, hb⟩ := (PMF.mem_support_bind_iff ..).1 ho
+  cases b with
+  | false => simp at hb
+  | true =>
+    obtain ⟨z', hz', he'⟩ := (PMF.mem_support_map_iff ..).1 hb
+    obtain rfl := Option.some.inj he'
+    have hz := (mem_response_iff P hq z').1 ((PMF.mem_support_uniformOfFinset_iff ..).1 hz')
+    let r := verifierCommitment P pk z' c
+    let ct₀ := fun i => negacyclicMul c (publicKeyLowPart P d pk i)
+    let h := fun i => makeHintVec P.q P.γ₂ (-ct₀ i) (r i + ct₀ i)
+    change (do
+      guard (LowBitsShort P r)
+      guard (LowProductShort P ct₀ ∧ hintWeight P h ≤ ω)
+      return ⟨highBitsVec P r, ⟨z', h, c⟩⟩ : Option (AttemptTranscript P)) = some t at he
+    by_cases hl : LowBitsShort P r
+    · by_cases hh : LowProductShort P ct₀ ∧ hintWeight P h ≤ ω
+      · have hout : (⟨highBitsVec P r, ⟨z', h, c⟩⟩ : AttemptTranscript P) = t := by
+          simpa [guard, hl, hh] using he
+        subst t
+        refine ⟨rfl, hz, hh.2, ?_⟩
+        funext i
+        simp only [CompressedSignature.recover,
+          compressedVerifierCommitment_eq_verifierCommitment_add_lowPart, Pi.add_apply]
+        rw [useHintVec_makeHintVec hP.γ₂_pos hP.two_mul_γ₂_dvd hγq (z := -ct₀ i)
+          (r := r i + ct₀ i) (fun j => by
+            simpa only [Pi.neg_apply, Int.abs_eq_natAbs, ZMod.natAbs_valMinAbs_neg]
+              using (hh.1 i j).le)]
+        funext j
+        simp only [highBitsVec, Pi.add_apply, Pi.neg_apply]
+        congr 1
+        ring
+      · simp [guard, hl, hh] at he
+    · simp [guard, hl] at he
+
 /-- For every fresh sparse challenge, the complete accepted transcript and the probability of
 an abort agree with the public simulator. A distribution of challenges independent of the mask
 can bind this equality pointwise, retaining the challenge and any commitment-digest bytes. -/
@@ -149,17 +212,13 @@ theorem freshSigningAttempt_eq_simulate (hP : P.Valid) (hq : 2 * P.γ₁ < P.q)
     sub_mem_mask P ((mem_response_iff P hq z).1 hz) hv
   have hgate := PMF.shiftReject_eq_sampleWithRatio (hB := mask_nonempty P (by lia)) hpre
     (response_nonempty P hβ)
-  have hm : (maskSet P).card = (2 * P.γ₁) ^ (P.ℓ * P.n) := by
-    rw [intervalVectors_card P (by lia) (by lia)]
-    congr 1
-    lia
   have hr : (responseSet P).card = (2 * (P.γ₁ - P.β) - 1) ^ (P.ℓ * P.n) := by
     rw [intervalVectors_card P (by lia) (by lia)]
     congr 1
     lia
   unfold simulateFreshSigningAttempt
-  simp only [← hm, ← hr, ← hgate, PMF.shiftReject, PMF.map_comp, Function.comp_def,
-    freshSigningAttempt, signingMaskLaw]
+  simp only [← mask_card P (by lia) hq, ← hr, ← hgate, PMF.shiftReject, PMF.map_comp,
+    Function.comp_def, freshSigningAttempt, signingMaskLaw]
   congr 1 with y : 1
   let w := moduleSISMap sk.A y
   let r := w - fun i => negacyclicMul c (sk.s₂ i)

@@ -95,14 +95,15 @@ sets out the human acceptance test and distinguishes live checks from dated hist
 
 ## Check the statement readers will see
 
-Readers see the library statement itself: its module documentation, its declaration in the API documentation and any entry of the [results inventory](../../results/README.md) that lists it. When changing a named theorem's model, encoding, bound or hypotheses, update that documentation and the entry's scope note in [Entries.lean](../../CslibFrontierResults/Entries.lean). Inspect changed rendered pages and declaration links.
+Readers see the library statement itself: its module documentation, its declaration in the API documentation and any entry of the [results inventory](../../results/README.md) that lists it. Place new `register_result` entries in topic modules under `CslibFrontierResults/Entries/` and regenerate [CslibFrontierResults.lean](../../CslibFrontierResults.lean) with `lake exe mk_all` so concurrent pull requests do not collide on [Entries.lean](../../CslibFrontierResults/Entries.lean); when changing a named theorem's model, encoding, bound or hypotheses, update that documentation and the entry's scope note in whichever module under `CslibFrontierResults/` defines it. Inspect changed rendered pages and declaration links.
 
 The axiom audit checks allowed dependencies of declarations stored in imported CslibFrontier modules. The results registry checks that each listed theorem exists, is public and is a proposition. Neither replaces reading the model and comparing it to the advertised mathematics. See [assurance](../design-and-assurance/assurance.md).
 
 ## Make the handoff reviewable
 
-Before approval, inspect the CI **Parallel-definition**, **Duplicate-statement** and **Repeated-proof-block**
-notices for the reviewed revision. Follow the source links, compare both declarations or proof
+Before approval, inspect the CI **Parallel-definition**, **Duplicate-statement**,
+**Repeated-proof-block** and **High-fan-in module impact** notices for the reviewed revision.
+Follow the source links, compare both declarations or proof
 blocks, and record reuse, generalization or the concrete reason to retain both. Link existing
 resolutions instead of repeating them. Skipped or incomplete scans need an explicit coverage
 assessment and targeted source checks, following [the review cycle](../../AGENTS.md#review-cycle).

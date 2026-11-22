@@ -131,6 +131,20 @@ def callback (N : QueryMachine τ) (baseRequest : Query Context → τ)
 /-- Caller and suspended-callee states, with the caller framed while a call is active. -/
 abbrev encCallback := QueryMachine.encWithCalls (encCaller encContext) encT
 
+/-- Read the returned subdivision answer. States that have yet to return give `false`. -/
+@[expose] def callbackVerdict :
+    (Query Context ⊕ Bool) ⊕ ((Query Context ⊕ Bool) × τ) → Bool :=
+  Sum.elim (Sum.elim (fun _ => false) id) (fun _ => false)
+
+/-- Decoding the returned Boolean uses linear native workspace in the callback state. -/
+theorem callbackVerdict_inSpace :
+    ComputableInSpace callbackVerdict (encCallback encContext encT) encBool
+      (fun s => (encCallback encContext encT s).length) := by
+  have hcaller : ComputableInSpace (Sum.elim (fun _ => false) id) (encCaller encContext) encBool
+      (fun s => (encCaller encContext s).length) :=
+    sumElim (budget_const false (.refl _)) (budget_id (.refl _))
+  exact sumElim hcaller (budget_const false (.refl _))
+
 /-- Running the supplied read-only callee returns the subdivision answer after its own
 first-halting time plus call entry and return. No answer bit is assumed in the initial query. -/
 theorem callback_runFrom (N : QueryMachine τ) (baseRequest : Query Context → τ)
@@ -142,6 +156,32 @@ theorem callback_runFrom (N : QueryMachine τ) (baseRequest : Query Context → 
       .inl (.inr (edgeQuery q (weight q) (answer (N.runFrom w (baseRequest q) T)))) :=
   QueryMachine.withCalls_runFrom_call caller N (request baseRequest) (resume weight answer)
     w (.inl q) (baseRequest q) T rfl rfl hpre hhalt
+
+/-- The pending subdivision caller first halts two steps after its callee's first halt. -/
+theorem callback_first_halt (N : QueryMachine τ) (baseRequest : Query Context → τ)
+    (weight : Query Context → ℕ) (answer : τ → Bool) (w : List Bool) (q : Query Context)
+    (T : ℕ)
+    (hpre : ∀ i < T, N.halted (N.runFrom w (baseRequest q) i) = false)
+    (hhalt : N.halted (N.runFrom w (baseRequest q) T) = true) :
+    (∀ t < T + 2, (callback N baseRequest weight answer).halted
+      ((callback N baseRequest weight answer).runFrom w (.inl (.inl q)) t) = false) ∧
+    (callback N baseRequest weight answer).halted
+      ((callback N baseRequest weight answer).runFrom w (.inl (.inl q)) (T + 2)) = true := by
+  constructor
+  · intro t ht
+    cases t with
+    | zero => rfl
+    | succ i =>
+      rw [show i + 1 = 1 + i by omega, QueryMachine.runFrom_add]
+      change (callback N baseRequest weight answer).halted
+        ((callback N baseRequest weight answer).runFrom w
+          (.inr (.inl q, baseRequest q)) i) = false
+      unfold callback
+      rw [QueryMachine.withCalls_runFrom_subroutine_prefix _ _ _ _ _ _ _ i
+        (fun j hj => hpre j (by omega))]
+      rfl
+  · rw [callback_runFrom _ _ _ _ _ _ _ hpre hhalt]
+    rfl
 
 private theorem edgeQuery_budget {α : Type} {encA : α ↪ List Bool} {S : α → ℕ}
     {q : α → Query Context} {weight : α → ℕ} {edge : α → Bool}

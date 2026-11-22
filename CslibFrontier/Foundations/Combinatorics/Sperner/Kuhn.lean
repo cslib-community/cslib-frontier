@@ -685,7 +685,7 @@ theorem IsHypergridSperner.pos {n : ℕ} {N : Fin n → ℕ} {c : (Fin n → ℕ
   exact (hc N (fun _ => le_rfl) a).2 rfl ha.symm
 
 /-- A finite set with a fixed-point-free involution has even cardinality. -/
-private theorem even_card_of_involution {α : Type*} {T : Finset α} (g : α → α)
+theorem even_card_of_involution {α : Type*} {T : Finset α} (g : α → α)
     (hmem : ∀ x ∈ T, g x ∈ T) (hinv : ∀ x ∈ T, g (g x) = x) (hne : ∀ x ∈ T, g x ≠ x) :
     Even #T := by
   rw [← ZMod.natCast_eq_zero_iff_even, card_eq_sum_ones, Nat.cast_sum, Nat.cast_one]

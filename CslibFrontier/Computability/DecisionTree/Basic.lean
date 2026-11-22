@@ -12,6 +12,7 @@ public import Mathlib.Data.Finset.Card
 public import Mathlib.Data.Fintype.Card
 public import Mathlib.Logic.Function.Const
 public import Mathlib.Order.Lattice.Nat
+import CslibFrontier.Foundations.Data.ENat.IInf
 
 /-!
 # Decision trees
@@ -282,29 +283,23 @@ variable [Finite ι]
 
 theorem complexity_le_depth {f : (ι → Bool) → β} {t : DecisionTree ι β} (ht : t.Computes f) :
     complexity f ≤ t.depth :=
-  Nat.sInf_le ⟨t, ht, le_rfl⟩
+  Nat.sInf_le_of_le ht
 
 /-- Some decision tree computing `f` has depth exactly its decision tree complexity. -/
 theorem exists_computes_depth_eq_complexity (f : (ι → Bool) → β) :
     ∃ t : DecisionTree ι β, t.Computes f ∧ t.depth = complexity f := by
   have := Fintype.ofFinite ι
-  obtain ⟨t, ht, hd⟩ := exists_computes f
-  obtain ⟨t', ht', hd'⟩ := Nat.sInf_mem (s := {d | ∃ t : DecisionTree ι β, t.Computes f ∧
-    t.depth ≤ d}) ⟨_, t, ht, hd⟩
-  exact ⟨t', ht', le_antisymm hd' (complexity_le_depth ht')⟩
+  exact Nat.exists_eq_sInf_of_exists depth ⟨(exists_computes f).choose,
+    (exists_computes f).choose_spec.1⟩
 
 theorem complexity_le_iff {f : (ι → Bool) → β} {d : ℕ} :
-    complexity f ≤ d ↔ ∃ t : DecisionTree ι β, t.Computes f ∧ t.depth ≤ d := by
-  refine ⟨fun h => ?_, fun ⟨t, ht, hd⟩ => (complexity_le_depth ht).trans hd⟩
-  obtain ⟨t, ht, hd⟩ := exists_computes_depth_eq_complexity f
-  exact ⟨t, ht, hd.trans_le h⟩
+    complexity f ≤ d ↔ ∃ t : DecisionTree ι β, t.Computes f ∧ t.depth ≤ d :=
+  Nat.sInf_le_iff_of_exists (exists_computes_depth_eq_complexity f)
 
 /-- Lower bounds on decision tree complexity are lower bounds on the depth of every tree. -/
 theorem le_complexity_iff {f : (ι → Bool) → β} {d : ℕ} :
-    d ≤ complexity f ↔ ∀ t : DecisionTree ι β, t.Computes f → d ≤ t.depth := by
-  refine ⟨fun h t ht => h.trans (complexity_le_depth ht), fun h => ?_⟩
-  obtain ⟨t, ht, hd⟩ := exists_computes_depth_eq_complexity f
-  exact (h t ht).trans hd.le
+    d ≤ complexity f ↔ ∀ t : DecisionTree ι β, t.Computes f → d ≤ t.depth :=
+  Nat.le_sInf_iff_of_exists (exists_computes_depth_eq_complexity f)
 
 /-- A function has decision tree complexity zero exactly when it is constant. -/
 theorem complexity_eq_zero_iff {f : (ι → Bool) → β} : complexity f = 0 ↔ Function.IsConst f := by

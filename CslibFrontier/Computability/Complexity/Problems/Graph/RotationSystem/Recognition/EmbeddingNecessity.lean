@@ -9,6 +9,10 @@ module
 
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.Moves
 public import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRegularization
+import CslibFrontier.Computability.Complexity.Problems.Graph.PolygonalDrawing.VertexPlacement
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.FrozenReferencePaths
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.ReferenceRecut
+import CslibFrontier.Computability.Complexity.Problems.Graph.RotationSystem.Recognition.SubdivisionEmbedding
 import CslibFrontier.Foundations.Geometry.FiniteLineAvoidance
 import CslibFrontier.Foundations.Geometry.Polygonal.ComplexMul
 import CslibFrontier.Foundations.Geometry.Polygonal.RouteParity
@@ -19,12 +23,16 @@ import Mathlib.Data.Fintype.Card
 import Mathlib.Tactic.FinCases
 
 /-!
-# Necessity for embeddings already at the reference positions
+# Embedding necessity for the fixed-rotation query
 
-The supplied embedding is already at the reference vertices and has LITERAL frozen routes.
-`query_eq_true_of_positioned_frozen_embedding` constructs comparison routes, a common axis
-and switch bits internally, and derives the actual frozen independent-pair equations.
-It does not position an arbitrary embedding or assume any motion or parity provider.
+`query_eq_true_of_positioned_frozen_embedding` starts with an embedding at the reference
+vertices with literal frozen routes. It constructs comparison routes, a common axis and
+switch bits to derive the frozen independent-pair equations.
+`query_eq_true_of_rotation_embedding` constructs that positioned subdivision from an
+original polygonal embedding realizing the prescribed rotations.
+When there are no frozen subdivision edges, `query_eq_true_of_unfrozen_embedding`
+places the vertices at the reference points. `query_eq_true_of_unfrozen_original_embedding`
+first constructs the embedding of the indexed subdivision.
 
 Auxiliary two-piece routes have reciprocal closed-node exclusions for independent pairs,
 even when the two original drawings overlap. A common complex multiplier makes all actual
@@ -32,8 +40,8 @@ pieces nonhorizontal. Indexed segment-pair events are identified with actual con
 before the regularization bijection converts their parity to the reference rank bit.
 Both loop ends, parallel occurrences, isolates and declared vertex stars are retained.
 
-This is original finite polygonal geometry. Arbitrary frozen placement, move realization,
-Hanani–Tutte and the full query/source recognition criterion remain open under
+This is original finite polygonal geometry. Move realization, Hanani–Tutte and the
+converse recognition direction remain open under
 [#3091](https://github.com/cslib-community/cslib-frontier/issues/3091).
 -/
 
@@ -363,17 +371,13 @@ private def cycleStart (u : ℂ) (p q : Route) : Fin p.segments ⊕ Fin q.segmen
 private def cycleFinish (u : ℂ) (p q : Route) : Fin p.segments ⊕ Fin q.segments → ℂ :=
   Sum.elim (fun i => u * p.point i.succ) (fun i => u * q.point i.succ)
 
-private noncomputable def routeRay (u : ℂ) (p : Route) (z : ℂ) : Bool :=
-  rayParity (fun i : Fin p.segments => u * p.point i.castSucc)
-    (fun i => u * p.point i.succ) (fun _ => true) (u * z)
-
 private noncomputable def cycleRay (u : ℂ) (p q : Route) (z : ℂ) : Bool :=
   rayParity (cycleStart u p q) (cycleFinish u p q) (fun _ => true) (u * z)
 
 private theorem cycleRay_eq (u : ℂ) (p q : Route) (z : ℂ) :
-    cycleRay u p q z = routeRay u p z + routeRay u q z := by
+    cycleRay u p q z = p.rayParity u z + q.rayParity u z := by
   classical
-  unfold cycleRay routeRay
+  unfold cycleRay Route.rayParity
   dsimp only [cycleStart, cycleFinish, Sum.elim_inl, Sum.elim_inr, rayParity]
   exact Fintype.sum_sum_type _
 
@@ -963,5 +967,48 @@ theorem query_eq_true_of_positioned_frozen_embedding {I : FixedRotationInput} (h
     simpa only [readMove, helt, hflt, eb.1, eb.2, fb.1, fb.2, dite_true,
       moves, index, add_assoc] using hrow
   exact (query_eq_true_iff_exists_frozen_moves I).mpr ⟨hI, moves, hfrozen, hequations⟩
+
+/-- An actual embedding of the twice-subdivided graph makes the query accept when no
+subdivision edge is frozen. The reference vertex positions are attained internally. -/
+theorem query_eq_true_of_unfrozen_embedding {I : FixedRotationInput} (hI : Valid I)
+    (hF : (frozenGraph I).edges = [])
+    (D : PolygonalDrawing (subdivisionGraph I)) (hD : D.IsEmbedding) : query I = true := by
+  obtain ⟨E, hE, hV, _, _, _, _⟩ := hD.exists_vertex_placement
+    (subdivisionGraph_endpoints_declared hI)
+    (referenceDrawing I).vertex (referenceDrawing_vertices_injective hI)
+  apply query_eq_true_of_positioned_frozen_embedding hI E hE hV
+  intro e he
+  let i : Fin (subdivide I).length :=
+    ⟨e.val, by simpa only [subdivisionGraph, List.length_map] using e.isLt⟩
+  have hem : (subdivide I)[i].endpoints ∈ (frozenGraph I).edges :=
+    List.mem_map.mpr ⟨_, List.mem_filter.mpr ⟨List.getElem_mem _, he⟩, rfl⟩
+  rw [hF] at hem
+  exact (List.not_mem_nil hem).elim
+
+/-- An actual embedding of the original listed graph makes the query accept when no
+subdivision edge is frozen. The proof subdivides the indexed routes and places all
+subdivision vertices at the reference points. -/
+theorem query_eq_true_of_unfrozen_original_embedding {I : FixedRotationInput} (hI : Valid I)
+    (hF : (frozenGraph I).edges = [])
+    (D : PolygonalDrawing I.graph) (hD : D.IsEmbedding) : query I = true := by
+  obtain ⟨E, hE, _⟩ := exists_subdivision_embedding hI D hD
+  exact query_eq_true_of_unfrozen_embedding hI hF E hE
+
+/-- An embedding of the original graph that realizes the prescribed rotations makes the
+fixed-rotation query accept. The proof places all subdivision vertices and restores the
+literal frozen routes before deriving the move equations. -/
+theorem query_eq_true_of_rotation_embedding {I : FixedRotationInput} (hI : Valid I)
+    {D : PolygonalDrawing I.graph} (hD : D.IsEmbedding) {r : RotationSystem I.graph}
+    (hReal : D.Realizes r) (hfixed : Realizes I r) : query I = true := by
+  obtain ⟨E, hE, hcenter, hfrozen⟩ :=
+    exists_subdivision_embedding_with_frozen_reference_routes hI hD hReal hfixed
+  have hspoke (d : Dart I.graph) (hd : (I.orders.getD d.vertex none).isSome) :
+      E.route (subdivisionDart I d).1 = (referenceDrawing I).route (subdivisionDart I d).1 :=
+    hfrozen _ ((frozen_iff_exists_subdivisionDart I _).mpr ⟨d, rfl, hd⟩)
+  obtain ⟨F, hF, hpos, hroute⟩ := exists_subdivision_embedding_at_reference hI hE hcenter hspoke
+  apply query_eq_true_of_positioned_frozen_embedding hI F hF hpos
+  intro e he
+  obtain ⟨d, rfl, hd⟩ := (frozen_iff_exists_subdivisionDart I e).mp he
+  exact hroute d hd
 
 end Cslib.Complexity.Graph.RotationRecognition

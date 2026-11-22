@@ -40,6 +40,11 @@ private def unpad : List Bool → Option (List Bool)
   | true :: x => some x
   | false :: x => unpad x
 
+/-- Decode a measured SHAKE256 address. A missing address, SHAKE128 tag or missing delimiter
+has no SHAKE256 input. -/
+def shake256QueryInput {a : ℕ} (addr : Option (BitString (a + 2))) : Option (List Bool) :=
+  addr.bind fun v => if v 0 then unpad (List.ofFn fun i : Fin (a + 1) => v i.succ) else none
+
 private theorem unpad_word (k : ℕ) (x : List Bool) :
     unpad (List.replicate k false ++ true :: x) = some x := by
   induction k with
@@ -53,6 +58,27 @@ def queryTable (H : Xofs) (a bytes : ℕ) (address : BitString (a + 2)) : BitStr
   | none => 0
   | some x => BitString.ofList (8 * bytes)
       (Keccak.bytesToBitsLE ((if address 0 then H.h256 else H.h128).read x bytes))
+
+/-- When the SHAKE128 streams agree, unequal coherent responses identify a successfully
+decoded SHAKE256 address whose two raw byte reads differ. -/
+theorem shake256QueryInput_of_queryTable_ne {a b : ℕ} {H G : Xofs} (h128 : H.h128 = G.h128)
+    {addr : Option (BitString (a + 2))}
+    (hit : addr.any (fun v => decide (H.queryTable a b v ≠ G.queryTable a b v)) = true) :
+    ∃ raw, shake256QueryInput addr = some raw ∧ H.h256.read raw b ≠ G.h256.read raw b := by
+  obtain _ | v := addr
+  · contradiction
+  change decide (_ ≠ _) = true at hit
+  replace hit := of_decide_eq_true hit
+  simp only [queryTable] at hit
+  cases h : unpad (List.ofFn fun i : Fin (a + 1) => v i.succ) with
+  | none => exact (hit (by rw [h])).elim
+  | some raw =>
+    rw [h] at hit
+    cases tag : v 0 with
+    | false => exact (hit (by simp only [tag, Bool.false_eq_true, ↓reduceIte, h128])).elim
+    | true =>
+      exact ⟨raw, by simp only [shake256QueryInput, Option.bind_some, tag, ↓reduceIte, h],
+        fun eq => hit (by simp only [tag, ↓reduceIte, eq])⟩
 
 /-- A coherent query at each encodable raw word reads the very stream used by FIPS, at
 the full device response length. Shorter reads use its prefix. -/

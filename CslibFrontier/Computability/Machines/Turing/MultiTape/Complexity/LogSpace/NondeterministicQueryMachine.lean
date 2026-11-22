@@ -109,6 +109,13 @@ def withInit (s : σ) : NondeterministicQueryMachine σ := { M with init := s }
 theorem withInit_init : M.withInit M.init = M := rfl
 
 @[simp]
+theorem init_withInit (s : σ) : (M.withInit s).init = s := rfl
+
+@[simp]
+theorem firstHalting_withInit (s : σ) :
+    (M.withInit s).FirstHalting = M.FirstHalting := rfl
+
+@[simp]
 theorem step_withInit (s : σ) : (M.withInit s).step = M.step := rfl
 
 @[simp]
@@ -124,9 +131,42 @@ theorem replay_cons (choice : Bool) (choices : List Bool) (s : σ) :
     M.replay input (choice :: choices) s =
       M.replay input choices (M.step input s choice) := rfl
 
+/-- A nonempty first-halting trace starts live, then first halts along its remaining choices. -/
+theorem firstHalting_cons_iff (choice : Bool) (choices : List Bool) (s : σ) :
+    M.FirstHalting input (choice :: choices) s ↔
+      M.halted s = false ∧ M.FirstHalting input choices (M.step input s choice) := by
+  constructor
+  · rintro ⟨hh, hproper⟩
+    refine ⟨hproper 0 (by simp), hh, ?_⟩
+    intro n hn
+    simpa [List.take_succ_cons, replay_cons] using hproper (n + 1) (by simpa using hn)
+  · rintro ⟨hlive, hh, hproper⟩
+    refine ⟨hh, ?_⟩
+    intro n hn
+    cases n with
+    | zero => exact hlive
+    | succ n => simpa [List.take_succ_cons, replay_cons] using hproper n (by simpa using hn)
+
 theorem replay_append (choices more : List Bool) (s : σ) :
     M.replay input (choices ++ more) s = M.replay input more (M.replay input choices s) :=
   List.foldl_append
+
+/-- A wrapper that forwards the callee's live steps on the same input also forwards a replay
+whose strict prefixes remain live. The final callee state may be halted. -/
+theorem replay_map_of_live {τ : Type*} (callee : NondeterministicQueryMachine τ)
+    (wrap : τ → σ)
+    (hstep : ∀ s bit, callee.halted s = false →
+      M.step input (wrap s) bit = wrap (callee.step input s bit))
+    (bits : List Bool) (s : τ)
+    (hlive : ∀ n < bits.length, callee.halted (callee.replay input (bits.take n) s) = false) :
+    M.replay input bits (wrap s) = wrap (callee.replay input bits s) := by
+  induction bits generalizing s with
+  | nil => rfl
+  | cons bit bits ih =>
+    have hs : callee.halted s = false := hlive 0 (by simp)
+    rw [M.replay_cons, callee.replay_cons, hstep s bit hs, ih]
+    intro n hn
+    simpa only [List.take_succ_cons, callee.replay_cons] using hlive (n + 1) (by simpa using hn)
 
 @[simp]
 theorem run_nil : M.run input [] = M.init := rfl
@@ -150,6 +190,21 @@ theorem run_append_of_halted {choices : List Bool}
     (h : M.halted (M.run input choices) = true) (more : List Bool) :
     M.run input (choices ++ more) = M.run input choices := by
   rw [run_append, M.replay_of_halted input h]
+
+/-- A live replay that halts on one additional choice first halts at that choice. -/
+theorem firstHalting_append_singleton (choices : List Bool) (choice : Bool) {s : σ}
+    (hlive : M.halted (M.replay input choices s) = false)
+    (hhalt : M.halted (M.replay input (choices ++ [choice]) s) = true) :
+    M.FirstHalting input (choices ++ [choice]) s := by
+  refine ⟨hhalt, fun n hn => ?_⟩
+  have hle : n ≤ choices.length := by simpa using hn
+  rw [List.take_append_of_le_length hle]
+  by_contra h
+  have hprefix := Bool.eq_true_of_not_eq_false h
+  have heq := M.replay_append input (choices.take n) (choices.drop n) s
+  rw [List.take_append_drop, M.replay_of_halted input hprefix] at heq
+  rw [heq, hprefix] at hlive
+  contradiction
 
 /-- A replay ending halted has a unique prefix that first halts at its end. That prefix
 reaches the same state as the full replay. If the starting state is halted, the prefix is

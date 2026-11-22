@@ -71,4 +71,26 @@ theorem partialTraceRight_reindex_prodComm (A : Matrix (ι × κ) (ι × κ) R) 
     Equiv.prodComm_symm, Equiv.prodComm_apply]
   rfl
 
+/-- A trace-preserving Kraus operation on the second system leaves the first marginal unchanged.
+This is `partialTraceLeft_kraus` after exchanging the two systems. -/
+theorem partialTraceRight_kraus [DecidableEq ι] {α : Type*} (s : Finset α)
+    (K : α → Matrix κ κ ℂ) (hK : ∑ a ∈ s, (K a)ᴴ * K a = 1)
+    (ρ : Matrix (ι × κ) (ι × κ) ℂ) :
+    partialTraceRight
+      (∑ a ∈ s, ((1 : Matrix ι ι ℂ) ⊗ₖ K a) * ρ * ((1 : Matrix ι ι ℂ) ⊗ₖ K a)ᴴ) =
+      partialTraceRight ρ := by
+  let e := reindexAlgEquiv ℂ ℂ (Equiv.prodComm ι κ)
+  have htrace (A : Matrix (ι × κ) (ι × κ) ℂ) :
+      partialTraceLeft (e A) = partialTraceRight A := by
+    simp only [← partialTraceRight_reindex_prodComm]
+    rfl
+  have hswap (A : Matrix κ κ ℂ) : e ((1 : Matrix ι ι ℂ) ⊗ₖ A) =
+      A ⊗ₖ (1 : Matrix ι ι ℂ) := by
+    ext i j
+    exact mul_comm _ _
+  have hstar (A : Matrix (ι × κ) (ι × κ) ℂ) : e Aᴴ = (e A)ᴴ := rfl
+  rw [← htrace, ← htrace ρ, map_sum]
+  simp only [map_mul, hstar, hswap]
+  exact partialTraceLeft_kraus s K hK (e ρ)
+
 end Cslib.Quantum

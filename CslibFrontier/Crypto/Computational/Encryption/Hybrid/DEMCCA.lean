@@ -12,9 +12,8 @@ public import CslibFrontier.Crypto.Computational.Encryption.Authenticated
 public import CslibFrontier.Crypto.Encoding
 public import CslibFrontier.Languages.Probabilistic.Oracle.Substitution
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Pair.Projections
-import CslibFrontier.Languages.Probabilistic.Norm
+import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Simulation
-import CslibFrontier.Languages.Probabilistic.Oracle.Substitution.RunWith
 import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Computability.Probabilistic.Oracle.Substitution
 import CslibFrontier.Tactic.PPT
@@ -25,11 +24,11 @@ import CslibFrontier.Tactic.PPT
 This intermediate experiment uses the symmetric cipher's actual key distribution. Its
 distinguished encapsulation component is redirected to that key before and after the challenge.
 Its security is the DEM hop of [BonehShoup2023], Exercise 12.5(a): a step toward that exercise,
-not the exercise itself. `Cslib.Crypto.Encryption.hybrid_indcca2On` adds the two KEM hops. The
-exercise stays open (#5686): the premise `SymmetricCipher.OneTimeINDCCA` decrypts every word other
-than the challenge, whereas the source's 1CCA security (Definition 9.6, printed p. 363) rests on
-Attack Game 9.2, whose decryption queries lie in the cipher's ciphertext space `C`
-(printed p. 362).
+not the exercise itself. `Cslib.Crypto.Encryption.hybrid_indcca2On` adds the two KEM hops. On the
+DEM side, `SymmetricCipher.ctSpace` models the ciphertext space `C` and `OneTimeINDCCA` answers
+decryption queries outside `C` with the rejection `[]` (`decrypt_eq_none_of_ctSpace_eq_false`), so
+on an efficiently recognizable `C` it matches Attack Game 9.2 (Definition 9.6, printed pp. 362–363).
+The full exercise stays open on the KEM side (#5293, #5686).
 
 ## Main definitions
 
@@ -210,11 +209,8 @@ private theorem eval_run_substituted_phase {α : Type}
       (handler request))
     (fun _ : Unit => state) (fun request s => by
       have h := congrArg ProbComp.eval (hstep request)
-      rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbComp.eval_pure] at h
-      simpa only [PMF.pure_map] using h.symm) program ()
-  rw [ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_simulate, ← hsim,
-    ProbOracleComp.eval_run_interpret_eq_runWith]
-  simp only [ProbComp.eval_pure]
+      simpa only [runWith_norm, pmf_norm] using h.symm) program ()
+  simpa only [runWith_norm, pmf_norm] using hsim.symm
 
 private theorem eval_run_hybridDEMContinuation (E : SymmetricCipher)
     (decaps : ℕ → List Bool → List Bool → Option (List Bool))
@@ -304,9 +300,8 @@ theorem eval_hybridDEMGame (E : SymmetricCipher)
       ProbComp.eval (E.ccaOneTimeGame
         (hybridToOneTimeCCAAdversary E keyGen encaps decaps ctBound decBound adversary) bit n) := by
   symm
-  simp only [pmf_norm, hybridDEMGame, SymmetricCipher.ccaOneTimeGame, hybridToOneTimeCCAAdversary,
-    ProbOracleComp.eval_run_interpret_eq_runWith, ProbOracleComp.runWith_bind,
-    ProbOracleComp.runWith_sample]
+  simp only [hybridDEMGame, SymmetricCipher.ccaOneTimeGame, hybridToOneTimeCCAAdversary,
+    runWith_norm, pmf_norm]
   rw [PMF.bind_comm]
   apply PMF.bind_congr_on_support
   intro keys _
@@ -496,15 +491,16 @@ theorem isPPTOn_hybridDEMGame (E : SymmetricCipher)
       (hct n) (hdec n)).symm
 
 /-- One-time symmetric CCA security of `E` makes the two DEM intermediate games `hybridDEMGame`
-indistinguishable with loss one: a step toward [BonehShoup2023], Exercise 12.5(a), not the cited
-result, which also needs the two KEM hops and a 1CCA premise restricted to the cipher's
-ciphertext space, where `E.OneTimeINDCCA` decrypts every word other than the challenge (#5686).
+indistinguishable with loss one: the DEM hop toward [BonehShoup2023], Exercise 12.5(a), not the
+cited result, which also needs the two KEM hops (#5293, #5686).
 
 `Cslib.Crypto.Encryption.hybrid_indcca2On` composes this hop with the two KEM hops. The source's
 1CCA security (Definition 9.6, printed p. 363) rests on Attack Game 9.2, whose decryption queries
-lie in the ciphertext space `C` (printed p. 362). `SymmetricCipher` declares no ciphertext space,
-and the one-time oracle decrypts every word other than the challenge, so a cipher that is 1CCA
-secure on `C` but leaks on some word outside `C` does not satisfy `OneTimeINDCCA`. -/
+lie in the ciphertext space `C` (printed p. 362). Here `SymmetricCipher.ctSpace` represents `C`,
+and `decrypt_eq_none_of_ctSpace_eq_false` forces rejection (`[] = encOption encBits none`) on words
+outside `C`; when `E.ctSpace` is efficiently recognizable, an adversary can simulate those
+rejections itself, so `OneTimeINDCCA` matches the source's 1CCA game on `C`. Note that `ctSpace`
+defaults to `fun _ _ => true` (accepting every word) unless specialized on a cipher. -/
 theorem _root_.Cslib.Crypto.SymmetricCipher.OneTimeINDCCA.indistinguishable_hybridDEMGame
     {E : SymmetricCipher} (hsecure : E.OneTimeINDCCA)
     {keyGen : ℕ → ProbComp (List Bool × List Bool)}
