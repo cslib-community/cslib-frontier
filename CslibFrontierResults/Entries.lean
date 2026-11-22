@@ -118,6 +118,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SparseOrbit
 import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.NineQuarters
 import CslibFrontier.Computability.Circuit.Boolean.ArithmeticRing
 import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
@@ -12689,3 +12690,38 @@ register_result "nexp-bounded-acceptance-complete" where
     many-one reductions. Source check: outside-fleet agent check (reviewer-codex-edemaine) on \
     PR #5591 at 929cb9c76428: \
     https://github.com/cslib-community/cslib-frontier/pull/5591#issuecomment-7071385084."
+
+register_result "gaspers-cubic-switched-cutwidth" where
+  title := "Cutwidth and bisection bounds for cubic graphs via median-switched Gaussian sweeps"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Gaspers2026,
+      theorem := "Corollary 1.2 (adapted; pathwidth proof via Theorems 1.1(a) and 8.1)",
+      locator := "arXiv:2611.05146v1, §1.1, p. 1 (PDF p. 3) and §8, p. 45 (PDF p. 47); \
+        Zenodo companion v1, doi:10.5281/zenodo.23883489" }
+  ]
+  theorems := [
+    Cslib.Circuits.Frontier.Switched.exists_width_le_switchedCoefficient,
+    Cslib.Circuits.Frontier.Switched.cubicLayoutBound_switched,
+    Cslib.Circuits.Frontier.Switched.exists_ncard_edgeCut_le,
+    Cslib.Circuits.Frontier.layoutBound_switched
+  ]
+  scope := "Adapts Corollary 1.2 of Gaspers (2026), whose underlying pathwidth proof comes \
+    from Theorems 1.1(a) and 8.1. Formalizes two existential (non-constructive) endpoints \
+    with constant c₃ = (3 / (4π)) arccos(5 / 6) ≈ 0.139822: (1) the direct per-vertex \
+    cutwidth and bisection bounds for finite loopless 3-regular multigraphs (parallel edges \
+    allowed; exists_width_le_switchedCoefficient, exists_ncard_edgeCut_le, and the \
+    simple-graph specialization cubicLayoutBound_switched), and (2) the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) (layoutBound_switched), obtained via saturated \
+    compression (LayoutBound.of_cubic). Adapts the certificate-free CubicPathwidth.C3 \
+    geometry, bipartite connector lemma, and switched interval-bag layout from Zenodo release \
+    v1 (MIT license, Serge Gaspers). Differs from Gaspers (2026) in that only the per-vertex \
+    cutwidth and bisection bounds for 3-regular multigraphs and the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) are formalized (not Corollary 1.2's full subcubic \
+    per-vertex statement, the deterministic n^(2+o(1)) algorithm, or higher-degree Δ ≥ 4 / \
+    mixed-degree / exact exponential algorithm results). The direct multigraph \
+    interval-to-cutwidth bridge (including parallel edges), rational lower bounds in \
+    Switched/Coefficient.lean, concentration proof via unitKernelRow, and downstream \
+    fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
+    are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
+    (main.tex) and compiled PDF on 2026-11-22."
