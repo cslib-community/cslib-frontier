@@ -135,6 +135,6 @@ slot is allocated for it. -/
 example : (Assign.unassign ⟨#[]⟩ [1000000]).vals.size = 0 := by decide
 
 /-- Unassigning a variable within the array clears it and keeps the size. -/
-example : (Assign.unassign ⟨#[some true, some false]⟩ [1]).vals = #[some true, none] := by decide
+example : (Assign.unassign ⟨#[2, 1]⟩ [1]).vals = #[2, 0] := by decide
 
 end CslibFrontierTests.Algorithms.Lean.CDCL.VSIDS
