@@ -811,6 +811,67 @@ theorem falsifies_of_watchOrder {A : Assign} {M : Trail} (hA : A.Agrees M) {c re
   rw [Bool.not_eq_true', ← Bool.not_eq_true, hA.isFalse_iff] at this
   exact this hw
 
+/-- **The false literal assigned last, first**: if the first literal of `c` is false, the false
+literal of `c` with the greatest position `P` of its variable (the first among ties) is moved to
+the front. -/
+@[expose] def latestFirst (P : Array ℕ) (A : Assign) : Clause ℕ → Clause ℕ
+  | [] => []
+  | y :: ys =>
+    if A.isFalse y then
+      let best := ys.foldl (fun b z => if P.getD b.1 0 < P.getD z.1 0 then z else b) y
+      best :: (y :: ys).erase best
+    else y :: ys
+
+/-- The literal chosen by a fold that keeps either its accumulator or the next element is the
+first element or one of the others. -/
+private theorem foldl_choose_mem {α : Type} (f : α → α → α) (hf : ∀ b z, f b z = b ∨ f b z = z) :
+    ∀ (ys : List α) (y : α), ys.foldl f y ∈ y :: ys
+  | [], y => List.mem_cons_self
+  | z :: ys, y => by
+    rw [List.foldl_cons]
+    have hm := foldl_choose_mem f hf ys (f y z)
+    rcases List.mem_cons.1 hm with h' | h'
+    · rw [h']
+      rcases hf y z with h | h <;> rw [h]
+      · exact List.mem_cons_self
+      · exact List.mem_cons_of_mem _ List.mem_cons_self
+    · exact List.mem_cons_of_mem _ (List.mem_cons_of_mem _ h')
+
+theorem latestFirst_perm (P : Array ℕ) (A : Assign) : ∀ c : Clause ℕ, (latestFirst P A c).Perm c
+  | [] => List.Perm.refl _
+  | y :: ys => by
+    rw [latestFirst]
+    split
+    · exact (List.perm_cons_erase (foldl_choose_mem _ (fun b z => by split <;> simp) ys y)).symm
+    · exact List.Perm.refl _
+
+/-- **The order of the watches at a rebuild**: `watchOrder`, the literals that are not false first,
+then, after the first, the false literal assigned last, as MiniSat's watches would be after the
+propagations, so that a clause with a single literal that is not false watches the literal false
+at the highest level. The positions `P` of the variables on the trail affect only the order. -/
+@[expose] def watchOrderAt (P : Array ℕ) (A : Assign) (c : Clause ℕ) : Clause ℕ :=
+  match watchOrder A c with
+  | w :: rest => w :: latestFirst P A rest
+  | [] => []
+
+theorem watchOrderAt_perm (P : Array ℕ) (A : Assign) (c : Clause ℕ) :
+    (watchOrderAt P A c).Perm c := by
+  unfold watchOrderAt
+  split
+  · rename_i w rest h
+    exact ((latestFirst_perm P A rest).cons w).trans (h ▸ watchOrder_perm A c)
+  · rename_i h
+    exact h ▸ watchOrder_perm A c
+
+theorem watchOrderAt_head {P : Array ℕ} {A : Assign} {c rest : Clause ℕ} {w : Literal ℕ}
+    (h : watchOrderAt P A c = w :: rest) : ∃ rest', watchOrder A c = w :: rest' := by
+  unfold watchOrderAt at h
+  split at h
+  · rename_i w' rest' h'
+    obtain ⟨rfl, -⟩ := List.cons.inj h
+    exact ⟨rest', h'⟩
+  · simp at h
+
 /-- The literals of a clause without repetitions, removed in linear time (`dedupLits`), are those
 of `List.dedup`, up to order. -/
 theorem dedupLits_perm (c : Clause ℕ) : (dedupLits c).Perm c.dedup :=
@@ -864,13 +925,13 @@ theorem dedupWith_spec (m : Array Bool) (c : Clause ℕ) (hm : ∀ y, m.getD (li
 
 /-- The watch store of `F`, as `WatchStore.build`, removing repetitions with the marks `m`, which
 are returned cleared. -/
-@[expose] def WatchStore.buildWith (A : Assign) :
+@[expose] def WatchStore.buildWith (P : Array ℕ) (A : Assign) :
     List (ℕ × Clause ℕ) → Array Bool → WatchStore × Array Bool
   | [], m => (⟨#[], #[]⟩, m)
   | e :: F, m =>
-    let r := buildWith A F m
+    let r := buildWith P A F m
     let d := dedupWith r.2 e.2
-    (r.1.addClause e.1 (watchOrder A d.1), d.2)
+    (r.1.addClause e.1 (watchOrderAt P A d.1), d.2)
 
 /-- One past the greatest literal code of `F`: the size of the marks for its repetitions. -/
 @[expose] def keyBound (F : List (ℕ × Clause ℕ)) : ℕ :=
@@ -882,29 +943,31 @@ are not false under `A` are put first. It adds the clauses with
 `Cslib.Algorithms.Lean.CDCL.WatchStore.addClause`, as learning does, which leaves the store
 unchanged for fewer than two literals. Repetitions are removed with one array of marks for all the
 clauses (`Cslib.Algorithms.Lean.CDCL.dedupWith`). -/
-@[expose] def WatchStore.build (A : Assign) (F : List (ℕ × Clause ℕ)) : WatchStore :=
-  (WatchStore.buildWith A F (Array.replicate (keyBound F) false)).1
+@[expose] def WatchStore.build (P : Array ℕ) (A : Assign) (F : List (ℕ × Clause ℕ)) : WatchStore :=
+  (WatchStore.buildWith P A F (Array.replicate (keyBound F) false)).1
 
-theorem WatchStore.buildWith_inv {A : Assign} {M : Trail} (hA : A.Agrees M) :
+theorem WatchStore.buildWith_inv (P : Array ℕ) {A : Assign} {M : Trail} (hA : A.Agrees M) :
     ∀ (F : List (ℕ × Clause ℕ)) (m : Array Bool), (∀ y, m.getD (litKey y) false = false) →
     (∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) →
-    (WatchStore.buildWith A F m).1.Inv F M [] ∧
-      ∀ y, (WatchStore.buildWith A F m).2.getD (litKey y) false = false
+    (WatchStore.buildWith P A F m).1.Inv F M [] ∧
+      ∀ y, (WatchStore.buildWith P A F m).2.getD (litKey y) false = false
   | [], m, hm, _ => ⟨WatchStore.inv_empty M [], hm⟩
   | e :: F, m, hm, hF => by
-    obtain ⟨ih, hm'⟩ := buildWith_inv hA F m hm fun e' he' => hF e' (List.mem_cons_of_mem _ he')
+    obtain ⟨ih, hm'⟩ := buildWith_inv P hA F m hm fun e' he' =>
+      hF e' (List.mem_cons_of_mem _ he')
     have hd := dedupWith_spec _ e.2 hm'
-    have hperm := (watchOrder_perm A _).trans hd.1
+    have hperm := (watchOrderAt_perm P A _).trans hd.1
     simp only [buildWith]
     refine ⟨?_, hd.2⟩
-    match hc : watchOrder A (dedupWith (buildWith A F m).2 e.2).1 with
+    match hc : watchOrderAt P A (dedupWith (buildWith P A F m).2 e.2).1 with
     | w₁ :: w₂ :: rest =>
       rw [hc] at hperm
       have hlen : 2 ≤ e.2.dedup.length := by simp [← hperm.length_eq]
       refine ih.addClause (id := e.1) (C := e.2) (hperm.nodup_iff.2 (List.nodup_dedup e.2))
         (fun l => by rw [hperm.mem_iff, List.mem_dedup]) fun hp => ?_
+      obtain ⟨rest', hc'⟩ := watchOrderAt_head hc
       exact hF e List.mem_cons_self hlen fun l hl =>
-        falsifies_of_watchOrder hA hc hp.1 l (hd.1.mem_iff.2 (List.mem_dedup.2 hl))
+        falsifies_of_watchOrder hA hc' hp.1 l (hd.1.mem_iff.2 (List.mem_dedup.2 hl))
     | [] =>
       rw [hc] at hperm
       exact ih.consShort e (by simp [← hperm.length_eq])
@@ -917,10 +980,10 @@ clauses `M` falsifies, satisfies the invariant with every literal of `M` process
 **first** watched literal is false has every literal false. (Its second watched literal may be
 false while the clause is still open, as in a binary clause with one false and one unassigned
 literal.) -/
-theorem WatchStore.build_inv {A : Assign} {M : Trail} (hA : A.Agrees M) (F : List (ℕ × Clause ℕ))
-    (hF : ∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) :
-    (WatchStore.build A F).Inv F M [] :=
-  (WatchStore.buildWith_inv hA F _ (fun y => by
+theorem WatchStore.build_inv (P : Array ℕ) {A : Assign} {M : Trail} (hA : A.Agrees M)
+    (F : List (ℕ × Clause ℕ)) (hF : ∀ e ∈ F, 2 ≤ e.2.dedup.length → ¬ Trail.Falsifies M e.2) :
+    (WatchStore.build P A F).Inv F M [] :=
+  (WatchStore.buildWith_inv P hA F _ (fun y => by
     simp only [Array.getD_eq_getD_getElem?, Array.getElem?_replicate]
     split <;> simp) hF).1
 

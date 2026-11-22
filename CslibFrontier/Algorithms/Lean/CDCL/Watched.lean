@@ -513,7 +513,7 @@ theorem lt_varSlots {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) : v < varSlots
 
 /-- The initial state, with the options `o`. -/
 @[expose] def WExec.init (φ : CNF ℕ) (o : Options) : WExec φ :=
-  ⟨Exec.init φ, ⟨#[]⟩, Assign.marks φ.vars, WatchStore.build ⟨#[]⟩ φ.lratDB, 0,
+  ⟨Exec.init φ, ⟨#[]⟩, Assign.marks φ.vars, WatchStore.build #[] ⟨#[]⟩ φ.lratDB, 0,
     φ.lratDB.filter fun e => e.2.dedup.length < 2,
     Activity.init (varSlots φ), WExec.initOrder φ o,
     Phases.init (varSlots φ), Reduction.init φ.length o.learntsDivisor, 0, 0, o, {},
@@ -521,7 +521,7 @@ theorem lt_varSlots {φ : CNF ℕ} {v : ℕ} (hv : v ∈ φ.vars) : v < varSlots
 
 theorem WExec.init_inv (φ : CNF ℕ) (o : Options) : (WExec.init φ o).Inv where
   exec := Exec.init_inv φ
-  store := WatchStore.build_inv Assign.agrees_nil φ.lratDB fun e _ hlen hf => by
+  store := WatchStore.build_inv #[] Assign.agrees_nil φ.lratDB fun e _ hlen hf => by
     obtain ⟨l, hl⟩ := List.exists_mem_of_length_pos (by omega : 0 < e.2.dedup.length)
     simpa [Trail.lits] using hf l (List.mem_dedup.1 hl)
   short_mem e he := (List.mem_filter.1 he).1
@@ -2395,6 +2395,16 @@ theorem WExec.Inv.withBookkeeping {S : WExec φ} (h : S.Inv) (red : Reduction) (
   ⟨h.exec, h.store, h.short_mem, h.short_covers, h.queue_nodup, h.queue_trail, h.queue_above,
     h.order, h.assign, h.occurs⟩
 
+/-- **The positions of the variables on the trail**, one past each, `0` for a variable not on it,
+in an array of `n` slots. They order the watches of a rebuilt store (`watchOrderAt`). -/
+@[expose] def ATrail.positions (T : ATrail) (n : ℕ) : Array ℕ :=
+  go 0 T.size (Array.replicate n 0)
+where
+  /-- The positions of the variables of the `k` entries from position `i` up, set in `P`. -/
+  go : ℕ → ℕ → Array ℕ → Array ℕ
+  | _, 0, P => P
+  | i, k + 1, P => go (i + 1) k (P.setIfInBounds (T.lits.getD i 0 / 2) (i + 1))
+
 /-- **Forgetting clauses**: the clauses numbered `ids` are forgotten, and the watch store, the
 short clauses and the marks of the variables occurring in the database are rebuilt. Reduction and
 simplification both use it, each with its own bookkeeping. -/
@@ -2403,7 +2413,7 @@ simplification both use it, each with its own bookkeeping. -/
   { S with
     exec := exec
     occurs := Assign.marks exec.clauses.vars
-    store := WatchStore.build S.assign exec.db
+    store := WatchStore.build (S.exec.tr.positions S.assign.vals.size) S.assign exec.db
     short := S.short.filter fun e => !ids.contains e.1 }
 
 /-- Forgetting clauses at an empty queue with no false clause, when `Exec.forget` keeps its
@@ -2425,9 +2435,10 @@ theorem WExec.Inv.forgetRebuilt {S : WExec φ} (hS : S.Inv) (hq : S.queue = [])
       obtain ⟨c, hc, b, hb⟩ := CNF.mem_vars.1 ((Assign.assigned_marks _ v).1 hv')
       exact CNF.mem_vars.2 ⟨c, hsub c hc, b, hb⟩), hS.assign,
     fun v => Assign.assigned_marks _ v⟩, fun c hc => hnoconf c (hsub c hc), rfl⟩
-  · change (WatchStore.build S.assign (S.exec.forget ids).db).Inv _ S.M S.queue
+  · change (WatchStore.build (S.exec.tr.positions S.assign.vals.size) S.assign
+      (S.exec.forget ids).db).Inv _ S.M S.queue
     rw [hq]
-    exact WatchStore.build_inv hS.assign _ fun e he _ =>
+    exact WatchStore.build_inv _ hS.assign _ fun e he _ =>
       hnoconf e.2 (List.mem_map.2 ⟨e, (hdb e he).1, rfl⟩)
   · obtain ⟨he, hid⟩ := List.mem_filter.1 he
     exact Exec.mem_forget_db.2 ⟨hS.short_mem e he, by simpa using hid⟩
