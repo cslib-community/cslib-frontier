@@ -41,13 +41,15 @@ when deterministic partial-synchrony consensus is solvable
 * `Cslib.Distributed.PartialSynchrony.solvesByzantinePartialSync_byzQuorumProtocol`:
   `byzQuorumProtocol` solves unauthenticated Byzantine partial-synchrony consensus whenever
   `3 * t < Fintype.card P` (witnessing the existence half of
-  [Theorem 3.3, p. 302][DworkLynchStockmeyer1988] via a finite-state view-locking protocol).
+  [Theorem 3.3, p. 302][DworkLynchStockmeyer1988] via a six-subround rotating-coordinator
+  view-locking protocol).
 * `Cslib.Distributed.PartialSynchrony.omission_terminates_in_honest_view`,
   `Cslib.Distributed.PartialSynchrony.omission_terminates_after_gst`,
   `Cslib.Distributed.PartialSynchrony.solvesOmissionPartialSync_omissionQuorumProtocol`:
   `omissionQuorumProtocol` terminates by round `gst + 3 * (t + 2)` and solves crash/omission
   partial-synchrony consensus whenever `2 * t < Fintype.card P` (witnessing the existence half of
-  [Theorem 3.1, p. 297][DworkLynchStockmeyer1988] via a finite-state view-locking protocol).
+  [Theorem 3.1, p. 297][DworkLynchStockmeyer1988] via a three-subround rotating-coordinator
+  view-locking protocol).
 * `Cslib.Distributed.PartialSynchrony.not_partialSync_of_le_three_t`: synchronous `GST = 0`
   reduction from `Cslib.Distributed.Byzantine.Protocol.not_solvesByzantineAgreement` refuting
   fixed-round `R` agreement, validity, and termination at `deliver = fun _ _ _ => true` for
@@ -594,7 +596,7 @@ theorem byzQuorum_terminates_after_gst {F : Finset P}
 /-- `byzQuorumProtocol` with `rotatingLeader` solves unauthenticated Byzantine partial-synchrony
 consensus whenever `3 * t < Fintype.card P` (witnessing the existence half of
 [Dwork, Lynch and Stockmeyer, Theorem 3.3, p. 302][DworkLynchStockmeyer1988] in the §3.1 basic round
-model via a finite-state 6-subround view-locking protocol). -/
+model via a six-subround rotating-coordinator view-locking protocol). -/
 theorem solvesByzantinePartialSync_byzQuorumProtocol
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (hn : 3 * t < Fintype.card P) :
     (byzQuorumProtocol P V procs (rotatingLeader procs fallback) t).SolvesByzantinePartialSync
@@ -748,7 +750,7 @@ theorem omission_terminates_after_gst {F : Finset P}
 /-- `omissionQuorumProtocol` with `rotatingLeader` solves crash/omission partial-synchrony consensus
 whenever `2 * t < Fintype.card P` (witnessing the existence half of
 [Dwork, Lynch and Stockmeyer, Theorem 3.1, p. 297][DworkLynchStockmeyer1988] in the §3.1 basic round
-model via a finite-state 3-subround view-locking protocol). -/
+model via a three-subround rotating-coordinator view-locking protocol). -/
 theorem solvesOmissionPartialSync_omissionQuorumProtocol
     (hprocs : ∀ p : P, p ∈ procs) (fallback : P) (hn : 2 * t < Fintype.card P) :
     (omissionQuorumProtocol P V procs (rotatingLeader procs fallback) t).SolvesOmissionPartialSync

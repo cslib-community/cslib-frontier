@@ -12747,15 +12747,15 @@ register_result "dwork-lynch-stockmeyer-omission-partial-synchrony-consensus" wh
     adversarial pre-stabilization delivery deliver : ℕ → P → P → Bool and reliable \
     correct-to-correct delivery IsGST deliver F gst from an unknown round gst onward) over any \
     finite process type P ([Fintype P]) and value type V: (1) for 2 * t < Fintype.card P and \
-    [DecidableEq P] [DecidableEq V], the original finite-state 3-subround rotating-coordinator \
+    [DecidableEq P] [DecidableEq V], the original three-subround rotating-coordinator \
     view-locking protocol omissionQuorumProtocol achieves unconditional write-once \
     irrevocability, agreement across correct processes, strong unanimity (∀ i, x i = v), and \
     post-GST decision by round gst + 3 * (t + 2) (omission_terminates_after_gst, \
     solvesOmissionPartialSync_omissionQuorumProtocol, witnessing the existence half of \
-    Theorem 3.1 via a finite-state view-locking construction in place of Algorithm 1's \
-    alternating trying/lock-release phases and monotone PROPER-set piggybacking); (2) for \
-    2 ≤ Fintype.card P ≤ 2 * t and [Nontrivial V], no deterministic protocol achieves post-GST \
-    termination against ≤ t omission faults together with failure-free (F = ∅, \
+    Theorem 3.1 via a three-subround rotating-coordinator view-locking construction in place of \
+    Algorithm 1's alternating trying/lock-release phases and monotone PROPER-set piggybacking); \
+    (2) for 2 ≤ Fintype.card P ≤ 2 * t and [Nontrivial V], no deterministic protocol achieves \
+    post-GST termination against ≤ t omission faults together with failure-free (F = ∅, \
     ∃ gst, IsGST deliver ∅ gst) agreement and weak unanimity \
     (not_omissionPartialSync_weakUnanimity, healing the two-group partition after R₀, R₁, and \
     max R₀ R₁ as in Theorem 4.3, pp. 305–306, with immediate corollary \
@@ -12765,7 +12765,9 @@ register_result "dwork-lynch-stockmeyer-omission-partial-synchrony-consensus" wh
     Table I, p. 291). Models the Section 3.1 basic round model directly; the real-time \
     step-group simulations for synchronous processors with eventual or unknown Δ \
     (Theorems 4.1–4.2, pp. 303–305) and partially synchronous processors \
-    (Sections 5–6, pp. 306–322) are out of scope."
+    (Sections 5–6, pp. 306–322) are out of scope. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7394 at b118ef3313b5: \
+    https://github.com/cslib-community/cslib-frontier/pull/7394#pullrequestreview-6011300049."
 
 register_result "dwork-lynch-stockmeyer-byzantine-partial-synchrony-consensus" where
   title := "Deterministic unauthenticated Byzantine consensus under partial synchrony requires \
@@ -12785,16 +12787,16 @@ register_result "dwork-lynch-stockmeyer-byzantine-partial-synchrony-consensus" w
   ]
   scope := "Formalized in the Section 3.1 basic round model (PartialSyncProtocol P V S M, \
     IsGST deliver F gst) over any finite process type P ([Fintype P] [DecidableEq P]) and value \
-    type V: (1) for 3 * t < Fintype.card P and [DecidableEq V], the original finite-state \
-    6-subround rotating-coordinator view-locking protocol byzQuorumProtocol (using a two-round \
+    type V: (1) for 3 * t < Fintype.card P and [DecidableEq V], the original six-subround \
+    rotating-coordinator view-locking protocol byzQuorumProtocol (using a two-round \
     t + 1 / n - t unauthenticated status and input-properness relay followed by n - t echo, \
     vote/lock, and commit quorums) achieves unconditional write-once irrevocability, agreement \
     across correct processes, strong correct-input validity (∀ i ∉ F, x i = v, implying strong \
     unanimity ∀ i, x i = v), and post-GST decision by round gst + 6 * (t + 2) \
     (byzQuorum_terminates_after_gst, solvesByzantinePartialSync_byzQuorumProtocol, witnessing \
     the existence half of Theorem 3.3 and Remark 1's O(t) post-GST round complexity via a \
-    finite-state view-locking construction in place of Algorithm 3's alternating \
-    trying/lock-release phases, monotone PROPER-set piggybacking, and continuous \
+    six-subround rotating-coordinator view-locking construction in place of Algorithm 3's \
+    alternating trying/lock-release phases, monotone PROPER-set piggybacking, and continuous \
     Srikanth–Toueg broadcast); (2) for 2 ≤ Fintype.card P ≤ 3 * t and [Nontrivial V], \
     specializing to GST = 0 (deliver = fun _ _ _ => true) embeds synchronous \
     Cslib.Distributed.Byzantine.Protocol (PartialSyncProtocol.toSyncProtocol), refuting both \
@@ -12812,4 +12814,6 @@ register_result "dwork-lynch-stockmeyer-byzantine-partial-synchrony-consensus" w
     step-group simulations for synchronous processors with eventual or unknown Δ \
     (Theorems 4.1–4.2, pp. 303–305), authenticated Byzantine protocols and Theorem 4.4 \
     (§3.2.2, p. 298, and §4.3, p. 306), and partially synchronous processors \
-    (Sections 5–6, pp. 306–322) are out of scope."
+    (Sections 5–6, pp. 306–322) are out of scope. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7394 at b118ef3313b5: \
+    https://github.com/cslib-community/cslib-frontier/pull/7394#pullrequestreview-6011300049."

@@ -52,9 +52,9 @@ established in `CslibFrontier.Computability.Distributed.PartialSynchrony.Livenes
 In [Dwork, Lynch and Stockmeyer, §§3.2.1–3.2.3][DworkLynchStockmeyer1988], Algorithms 1–3 alternate
 trying phases with explicit lock-release phases and piggyback monotone `PROPER` sets on every
 message, using a continuous Srikanth–Toueg echo broadcast across all subsequent rounds in the
-unauthenticated Byzantine case (Algorithm 3, Figure 1, p. 301). Here we formalize two finite-state
-(`deriving @[expose] DecidableEq`), rotating-coordinator view-based quorum-locking protocols over
-an arbitrary `[DecidableEq V]` domain:
+unauthenticated Byzantine case (Algorithm 3, Figure 1, p. 301). Here we formalize two original
+three- and six-subround rotating-coordinator view-based quorum-locking protocols over an arbitrary
+`[DecidableEq V]` domain:
 
 * `byzQuorumProtocol` (`3 * t < Fintype.card P`, 6 subrounds per view, unauthenticated channels):
   Subrounds 0–1 perform a two-round raw/certified status and input-properness relay using the
@@ -552,7 +552,7 @@ inductive ByzViewMsg (V : Type*) where
   | idle
   deriving @[expose] DecidableEq
 
-/-- Ghost-free finite local state of a process running `byzQuorumProtocol`. -/
+/-- Local state of a process running `byzQuorumProtocol`. -/
 structure ByzViewState (V : Type*) where
   /-- Process's initial input value. -/
   input : V
@@ -774,7 +774,7 @@ theorem filterMap_fst_filter_length {P V : Type*}
     | some val => { st with decided := st.decided.or (some val) }
     | none => st
 
-/-- Original finite-state 6-subround rotating-coordinator unauthenticated Byzantine quorum-locking
+/-- Original six-subround rotating-coordinator unauthenticated Byzantine quorum-locking
 consensus protocol (`3 * t < Fintype.card P`) for the basic round model of
 [Dwork, Lynch and Stockmeyer, §3.1][DworkLynchStockmeyer1988] (replacing Algorithm 3's alternating
 trying/lock-release phases, monotone `PROPER`-set piggybacking, and continuous Srikanth–Toueg
@@ -1628,7 +1628,7 @@ inductive OmissionViewMsg (V : Type*) where
   | idle
   deriving @[expose] DecidableEq
 
-/-- Ghost-free finite local state of a process running `omissionQuorumProtocol`. -/
+/-- Local state of a process running `omissionQuorumProtocol`. -/
 structure OmissionViewState (V : Type*) where
   /-- Process's initial input value. -/
   input : V
@@ -1712,7 +1712,7 @@ structure OmissionViewState (V : Type*) where
     | some val => { st with decided := st.decided.or (some val) }
     | none => st
 
-/-- Original finite-state 3-subround rotating-coordinator crash/omission quorum-locking consensus
+/-- Original three-subround rotating-coordinator crash/omission quorum-locking consensus
 protocol (`2 * t < Fintype.card P`) for the basic round model of
 [Dwork, Lynch and Stockmeyer, §3.1][DworkLynchStockmeyer1988] (replacing Algorithm 1's alternating
 trying/lock-release phases and monotone `PROPER`-set piggybacking in
