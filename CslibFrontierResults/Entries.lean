@@ -503,6 +503,7 @@ import CslibFrontier.Probability.Minimax.Dantzig
 import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 import CslibFrontier.Foundations.Probability.InvarianceSums
 import CslibFrontier.Foundations.Probability.Multilinear.InvarianceLevy
+import CslibFrontier.Computability.Distributed.ByzantineGraph.Connectivity
 import CslibFrontier.Computability.Distributed.Byzantine.DolevStrong
 import CslibFrontier.Computability.Distributed.Byzantine.RoundBound
 import CslibFrontier.Computability.Distributed.SelfStabilization.DijkstraRing
@@ -11641,6 +11642,40 @@ register_result "dolev-strong-authenticated-broadcast" where
     O(n + t²) message optimization is not formalized here (tracked under #7115). Source check: \
     outside-fleet agent review (reviewer-codex-edemaine) on PR #7150 at 5b7e3dc4e661: \
     https://github.com/cslib-community/cslib-frontier/pull/7150#pullrequestreview-6011267968."
+
+register_result "fischer-lynch-merritt-vertex-separator-impossibility" where
+  title := "No synchronous Boolean Byzantine agreement across a vertex separator of size at most 2t"
+  topic := "distributed computing"
+  sources := [
+    { paper := FischerLynchMerritt1985,
+      theorem := "Theorem 1",
+      locator := "PODC '85, §3, p. 61, and §3.2, pp. 62–63" }
+  ]
+  theorems := [
+    Cslib.Distributed.ByzantineGraph.GraphProtocol.not_solvesByzantineAgreement_of_isVertexSeparator
+  ]
+  scope := "For any process type P with DecidableEq P, undirected communication graph \
+    G : SimpleGraph P, state type S, message type M, fault threshold t : ℕ, fixed decision \
+    round R : ℕ, deterministic synchronous edge-indexed protocol π : GraphProtocol G S M, \
+    vertices u v : P, and finite vertex separator C : Finset P (G.IsVertexSeparator u v C, \
+    so u ≠ v, u ∉ C, v ∉ C, and no G-walk from u to v avoids C) with C.card ≤ 2 * t, \
+    ¬ π.SolvesByzantineAgreement t R (Boolean inputs P → Bool, static faulty set F : Finset P \
+    with F.card ≤ t injecting arbitrary edge messages adv : ℕ → ∀ j i : P, G.Adj j i → M, \
+    equivalent to rushing adversaries via GraphProtocol.SolvesByzantineAgreement.adaptive, \
+    requiring Boolean agreement across correct processes and unanimous-input validity after \
+    R rounds). Proved via the split-cut two-sheeted covering network P × Bool of §3.2 \
+    (pp. 62–63). Fischer, Lynch, and Merritt state Theorem 1 over directed graphs in an \
+    axiomatic behavior model (Locality and Fault axioms, §2, pp. 60–61) with arbitrary \
+    termination (CHOOSE on behaviors, §3, p. 61) and both parts of graph inadequacy (n ≤ 3m \
+    in §3.1 and connectivity ≤ 2m in §3.2); Lean restricts here to undirected SimpleGraph P \
+    and deterministic synchronous round-by-round protocols with a uniform fixed decision \
+    round R. The companion 2 ≤ |P| ≤ 3t bound is GraphProtocol.not_solvesByzantineAgreement \
+    in ByzantineGraph.Basic, and Dolev's designated-sender broadcast characterization \
+    (Dolev1982) remains separate under #7121. Source check: outside-fleet agent review \
+    (reviewer-codex-edemaine) on PR #7157 at a90c2643e5e0 and 782aaaf8ef37: \
+    https://github.com/cslib-community/cslib-frontier/pull/7157#pullrequestreview-6009403669 \
+    and \
+    https://github.com/cslib-community/cslib-frontier/pull/7157#pullrequestreview-6010628288."
 
 register_result "low-individual-degree-projective-self-improvement" where
   title := "Projective self-improvement for symmetric low-individual-degree strategies"
