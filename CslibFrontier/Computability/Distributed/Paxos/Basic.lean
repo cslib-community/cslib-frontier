@@ -14,23 +14,26 @@ public import Mathlib.Data.Finset.Powerset
 public import Mathlib.Order.Prod.Lex.Basic
 
 /-!
-# Lamport's Single-Decree Paxos (Synod) Protocol and Unconditional Quorum Safety
+# Crash-Stop Single-Decree Synod Protocol Step
 
-This module formalizes Lamport's **Single-Decree Synod** consensus protocol (§2 of [Lamport1998];
-§2 of [Lamport2001]) over abstract intersecting quorum systems (`QuorumSystem`) and an asynchronous
-message-passing labelled transition system (`Cslib.LTS`) allowing arbitrary message reordering,
-duplication, packet loss/omission, and **crash-stop** node failures.
+This module formalizes a **crash-stop intermediate step** towards Lamport's Single-Decree Synod
+consensus protocol (§2 of [Lamport1998]; §2 of [Lamport2001]), and **not** the crash-recovery cited
+results of those papers. Over abstract intersecting quorum systems (`QuorumSystem`), we model the
+four Synod phases (`Phase1a`/`1b`/`2a`/`2b`) as a ghost-free asynchronous message-passing labelled
+transition system (`Cslib.LTS`) allowing arbitrary message reordering, duplication, packet
+loss/omission, and permanent **crash-stop** node failures (`crashed : Bool`).
 
-**Scope and model notes:** Only single-decree consensus (§2) is formalized here; §3 Multi-Paxos
-state-machine / ledger replication remains open. Nodes suffer permanent crash-stop faults
-(`crashed : Bool`) rather than crash-recovery with persistent stable storage ([Lamport1998] §1.3,
-§2.3; [Lamport2001] §2.1, §2.5), while `.prepare p r` resets per-round proposer fields. Phase 2b
-uses [Lamport2001] §2.2's `mb ≤ b` voting guard (`allowsVote`, updating `maxBal := some b`) rather
-than [Lamport1998] §2.3 step (4)'s `b = nextBal[q]`.
+**Step scope and model deviations:** In [Lamport1998] (§1.3, §2.3, Appendix A2 `Forget`) and
+[Lamport2001] (§2.1, §2.5), nodes may fail by stopping and later restart using persistent stable
+storage (`lastTried`, `maxBal`, `maxVoted`) while losing volatile per-round state; here crashes are
+permanent (`crashed : Bool`), while `.prepare p r` resets per-round proposer fields (`proposed`,
+`promised`, `maxVote`). Phase 2b uses [Lamport2001] §2.2's `mb ≤ b` voting guard (`allowsVote`,
+updating `maxBal := some b`) rather than [Lamport1998] §2.3 step (4)'s `b = nextBal[q]`. Section 3
+Multi-Paxos state-machine / ledger replication also remains open.
 
 The protocol state (`SynodState`) is completely ghost-free: proposers, acceptors, and learners store
 only the operational registers read by protocol transitions, and packet drops genuinely erase
-messages from the live network buffer `msgs`. Safety invariants (Lamport's `P2^c` / `B3`
+messages from the live network buffer `msgs`. Safety invariants (the crash-stop `P2^c` / `B3`
 quorum-witness condition on `Phase2a` proposals and `P1^a` promise–vote monotonicity) are proved
 inductively over a non-dropping shadow execution (`traceMsgs`) and projected onto all reachable
 states via network monotonicity.
@@ -53,8 +56,8 @@ states via network monotonicity.
 * `Cslib.Distributed.Paxos.initState`: initial global configuration for proposer input assignment
   `inputs`.
 * `Cslib.Distributed.Paxos.SynodAction`, `Cslib.Distributed.Paxos.synodEnabled`,
-  `Cslib.Distributed.Paxos.synodStep`, `Cslib.Distributed.Paxos.synodLts`: asynchronous Synod
-  transitions and `Cslib.LTS` semantics with reordering, duplication, `.drop`, `.crash*`, and
+  `Cslib.Distributed.Paxos.synodStep`, `Cslib.Distributed.Paxos.synodLts`: asynchronous crash-stop
+  Synod transitions and `Cslib.LTS` semantics with reordering, duplication, `.drop`, `.crash*`, and
   `.stutter`.
 * `Cslib.Distributed.Paxos.Reachable`, `Cslib.Distributed.Paxos.traceMsgs`: reachable states and
   packets emitted along an execution trace.
@@ -63,15 +66,15 @@ states via network monotonicity.
 
 ## Main results
 
-* `Cslib.Distributed.Paxos.phase2a_unique_of_ballot`: at most one value is ever proposed in
-  `Phase2a` for any ballot `b`.
-* `Cslib.Distributed.Paxos.chosenAt_implies_higher_phase2a_eq`: Lamport's inductive ballot-choice
-  invariant—once a quorum has voted `(b, v)`, every `Phase2a(b', v')` emitted in the trace with
-  `b ≤ b'` satisfies `v' = v`.
-* `Cslib.Distributed.Paxos.paxos_agreement`: global learner agreement across any two learners and
-  any two ballots in any reachable state.
-* `Cslib.Distributed.Paxos.paxos_validity`: nontriviality/validity—any value learned by a learner in
-  a reachable state equals some proposer's initial input.
+* `Cslib.Distributed.Paxos.phase2a_unique_of_ballot_crashStop`: crash-stop step showing at most one
+  value is ever proposed in `Phase2a` for any ballot `b`.
+* `Cslib.Distributed.Paxos.chosenAt_implies_higher_phase2a_eq_crashStop`: crash-stop step for
+  Lamport's inductive ballot-choice invariant—once a quorum has voted `(b, v)`, every
+  `Phase2a(b', v')` emitted in the trace with `b ≤ b'` satisfies `v' = v`.
+* `Cslib.Distributed.Paxos.paxos_agreement_crashStop`: crash-stop global learner agreement step
+  across any two learners and any two ballots in any reachable state.
+* `Cslib.Distributed.Paxos.paxos_validity_crashStop`: crash-stop nontriviality/validity step—any
+  value learned by a learner in a reachable state equals some proposer's initial input.
 
 ## References
 
@@ -1268,10 +1271,10 @@ private lemma synodCoreInv_of_mTr {inputs : Proposer → V}
 
 /-! ### Main safety theorems -/
 
-/-- **Single-proposal per ballot:** along any Synod execution trace, at most one value is ever
-proposed in `Phase2a` for any given ballot `b` ([Lamport1998] §2.1 `B1`, §2.2–§2.3;
-[Lamport2001] §2.2, §2.5). -/
-theorem phase2a_unique_of_ballot {inputs : Proposer → V}
+/-- Crash-stop helper step towards single-proposal per ballot in [Lamport1998] §2.1 (`B1`),
+§2.2–§2.3 and [Lamport2001] §2.2, §2.5 (not the crash-recovery cited protocol): along any execution
+trace of `synodLts`, at most one value is ever proposed in `Phase2a` for any given ballot `b`. -/
+theorem phase2a_unique_of_ballot_crashStop {inputs : Proposer → V}
     {xl : List (SynodAction Proposer Acceptor Learner V)}
     {s : SynodState Proposer Acceptor Learner V}
     (hmtr : (synodLts qs).MTr (initState inputs) xl s)
@@ -1309,10 +1312,11 @@ private lemma phase2aBelow_card_lt {msgs : Finset (Msg Proposer Acceptor V)}
     | phase2a b'' _ => exact decide_eq_true ((of_decide_eq_true hm.2).trans hlt)
     | _ => cases hm.2
 
-/-- **Lamport's inductive ballot-choice invariant (`P2^b` / §2.1 Lemma):** if a quorum
-`Q ∈ qs.quorums` has voted `(b, v)` in Phase 2b, then every `Phase2a(b', v')` emitted in the trace
-with `b ≤ b'` satisfies `v' = v` ([Lamport1998] §2.1 Lemma; [Lamport2001] §2.2 `P2^b`–`P2^c`). -/
-theorem chosenAt_implies_higher_phase2a_eq {inputs : Proposer → V}
+/-- Crash-stop intermediate step towards the inductive ballot-choice invariant of [Lamport1998]
+§2.1 (Lemma) and [Lamport2001] §2.2 (`P2^b`–`P2^c`), and **not** the crash-recovery cited result:
+along any crash-stop `synodLts` execution, if a quorum `Q ∈ qs.quorums` has voted `(b, v)` in Phase
+2b, then every `Phase2a(b', v')` emitted in the trace with `b ≤ b'` satisfies `v' = v`. -/
+theorem chosenAt_implies_higher_phase2a_eq_crashStop {inputs : Proposer → V}
     {xl : List (SynodAction Proposer Acceptor Learner V)}
     {s : SynodState Proposer Acceptor Learner V}
     (hmtr : (synodLts qs).MTr (initState inputs) xl s)
@@ -1352,10 +1356,11 @@ theorem chosenAt_implies_higher_phase2a_eq {inputs : Proposer → V}
           hcard ▸ phase2aBelow_card_lt hvt_2a hvt_lt
         exact ih _ hlt_card vt.ballot vt.value rfl hvt_2a hb_le_vt
 
-/-- **Global learner agreement:** in any reachable Synod state, any two values `v₁, v₂` learned by
-any two learners `l₁, l₂` at any two ballots `b₁, b₂` satisfy `v₁ = v₂`
-([Lamport1998] §2.1 Theorem 1, Appendix A2; [Lamport2001] §2.2 `P2`, §2.3). -/
-theorem paxos_agreement {inputs : Proposer → V}
+/-- Crash-stop intermediate step towards Single-Decree Synod agreement in [Lamport1998] §2.1
+(Theorem 1, Appendix A2) and [Lamport2001] §2.2 (`P2`), §2.3, and **not** the crash-recovery cited
+result: in any reachable crash-stop Synod state, any two values `v₁, v₂` learned by any two
+learners `l₁, l₂` at any two ballots `b₁, b₂` satisfy `v₁ = v₂`. -/
+theorem paxos_agreement_crashStop {inputs : Proposer → V}
     {s : SynodState Proposer Acceptor Learner V}
     (hr : Reachable qs inputs s)
     {l₁ l₂ : Learner} {b₁ b₂ : Ballot Proposer} {v₁ v₂ : V}
@@ -1379,11 +1384,11 @@ theorem paxos_agreement {inputs : Proposer → V}
   · obtain ⟨Q₂, hQ₂, hall₂⟩ := hc₂
     obtain ⟨a₂, ha₂⟩ := qs.quorum_nonempty hQ₂
     have h2a₂ := (hinv.phase2b_inv a₂ b₂ v₂ (hall₂ a₂ ha₂)).2
-    exact (chosenAt_implies_higher_phase2a_eq qs hmtr hc₁ h2a₂ hle).symm
+    exact (chosenAt_implies_higher_phase2a_eq_crashStop qs hmtr hc₁ h2a₂ hle).symm
   · obtain ⟨Q₁, hQ₁, hall₁⟩ := hc₁
     obtain ⟨a₁, ha₁⟩ := qs.quorum_nonempty hQ₁
     have h2a₁ := (hinv.phase2b_inv a₁ b₁ v₁ (hall₁ a₁ ha₁)).2
-    exact chosenAt_implies_higher_phase2a_eq qs hmtr hc₂ h2a₁ hle
+    exact chosenAt_implies_higher_phase2a_eq_crashStop qs hmtr hc₂ h2a₁ hle
 
 private def LearnerRegInv (s : SynodState Proposer Acceptor Learner V) : Prop :=
   ∀ l : Learner,
@@ -1470,8 +1475,9 @@ private lemma learnerRegInv_tr :
       exact hinv l
   | stutter => obtain ⟨_, rfl⟩ := htr; exact hinv l
 
-/-- In any reachable Synod state, learner `l`'s operational `learned` register holds `some v` if and
-only if `l` has learned `v` at some ballot `b`. -/
+/-- Crash-stop Synod learner-register characterization: in any reachable crash-stop Synod state,
+learner `l`'s operational `learned` register holds `some v` if and only if `l` has learned `v` at
+some ballot `b`. -/
 theorem Reachable.learned_eq_some_iff {qs : QuorumSystem Acceptor} {inputs : Proposer → V}
     {s : SynodState Proposer Acceptor Learner V} (hr : Reachable qs inputs s)
     {l : Learner} {v : V} :
@@ -1484,12 +1490,14 @@ theorem Reachable.learned_eq_some_iff {qs : QuorumSystem Acceptor} {inputs : Pro
   | none => exact absurd hlearn (hreg.2 hcur b v)
   | some v₀ =>
     obtain ⟨b₀, hlearn₀⟩ := hreg.1 v₀ hcur
-    have heq : v₀ = v := paxos_agreement qs ⟨xl, hmtr⟩ hlearn₀ hlearn
+    have heq : v₀ = v := paxos_agreement_crashStop qs ⟨xl, hmtr⟩ hlearn₀ hlearn
     exact heq ▸ rfl
 
-/-- **Paxos validity (nontriviality):** in any reachable Synod state, any value `v` learned by any
-learner `l` equals some proposer's initial input ([Lamport1998]; [Lamport2001]). -/
-theorem paxos_validity {inputs : Proposer → V}
+/-- Crash-stop intermediate step towards Single-Decree Synod nontriviality/validity in
+[Lamport1998] §1.2 and [Lamport2001] §2.1, and **not** the crash-recovery cited result: in any
+reachable crash-stop Synod state, any value `v` learned by any learner `l` equals some proposer's
+initial input. -/
+theorem paxos_validity_crashStop {inputs : Proposer → V}
     {s : SynodState Proposer Acceptor Learner V}
     (hr : Reachable qs inputs s)
     {l : Learner} {v : V}

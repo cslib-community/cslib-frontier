@@ -14,68 +14,67 @@ import Mathlib.Data.Finset.Max
 import Mathlib.Data.Finset.Sort
 
 /-!
-# Paxos Duelling-Proposers Livelock, Sole-Leader Liveness, and Disjoint-Quorum Impossibility
+# Crash-Stop Synod Livelock, Conditional Sole-Leader Step, and Split-Brain Impossibility
 
-While Lamport's Single-Decree Synod protocol guarantees unconditional safety across arbitrary
-asynchronous schedules (`paxos_agreement`, `paxos_validity`), the Fischer–Lynch–Paterson
-impossibility theorem (`Cslib.FLP`) precludes deterministic fault-tolerant termination over
-unrestricted asynchronous schedules. This module formalizes both sides of Synod liveness together
-with the necessity of quorum intersection ([Lamport1998]; [Lamport2001]):
+This module formalizes liveness and quorum-intersection results for the **crash-stop** Single-Decree
+Synod model of `CslibFrontier.Computability.Distributed.Paxos.Basic` as intermediate steps towards
+[Lamport1998] and [Lamport2001] (and **not** the crash-recovery or timeout-based leader-election
+endpoints of those papers), together with an original asynchronous split-brain impossibility
+theorem motivating quorum intersection:
 
-1. **Duelling-Proposers Livelock (`exists_duelling_proposers_livelock`):** On `Fin 3` acceptors
-   (`t = 1` majority quorums) and `Fin 2` proposers with distinct inputs (`inputs 0 ≠ inputs 1`), an
-   explicit crash-free, drop-free, stutter-free infinite execution alternates `Phase1a` prepares so
-   each proposer's `Phase2a` accept request is preempted before `Phase2b` can fire, preventing any
-   acceptor from voting and any learner from deciding ([Lamport2001] §2.4; cf. [Lamport1998] §2.4).
-2. **Conditional Single-Distinguished-Leader Liveness (`paxos_liveness_of_sole_leader`):**
-   Formalizes the conditional single-distinguished-proposer 4-phase progress step ([Lamport2001]
-   §2.4; cf. [Lamport1998] §2.1 Theorem 2 and §2.4): from any reachable Synod state, assuming an
-   already-selected live leader `p` prepares a ballot `b = ⟨r, p⟩` strictly exceeding all previously
-   seen or promised ballots (`BallotsBelow`), no ballot strictly greater than `b` is subsequently
-   prepared, and ballot-`b` packets among `p`, one live quorum `Q ∈ qs.quorums`, and a live learner
-   `l` are delivered without loss, `l` learns a decree value across the four phases
-   (`1a → 1b → 2a → 2b`), even alongside arbitrary concurrent deliveries or drops of older ballots
-   `< b` (`exists_sole_leader_execution` constructs an explicit 4-phase execution). Leader election,
-   NACK `nextBal[q]` ballot-bumping, and [Lamport1998] §2.4's real-time hourglass timeout bounds are
-   not modeled here.
-3. **Disjoint-Quorum Split-Brain Impossibility (`not_synod_safe_of_disjoint_quorums`):** Formalizes
-   via `AsyncQuorumProtocol` the standard asynchronous partition / split-brain argument motivating
-   quorum intersection in [Lamport1998] §1.2 and §2.1 (`B2`) and [Lamport2001] §2.2 (rather than a
-   numbered theorem statement of those papers): over any nontrivial value type `[Nontrivial V]`, no
-   deterministic asynchronous message-passing protocol can guarantee agreement and uniform validity
-   while allowing independent single-quorum progress on two disjoint subsets `Q₁, Q₂`
-   (`Disjoint Q₁ Q₂`, in particular whenever `2 ≤ Fintype.card P ≤ 2 * t`). Conversely,
-   `synodQuorumProtocol` satisfies both safety and single-quorum progress for every `QuorumSystem P`
-   (hence whenever `2 * t < Fintype.card P`).
+1. **Duelling-Proposers Livelock (`exists_duelling_proposers_livelock`):** Crash-free livelock
+   witness after the two-proposer scenario of [Lamport2001] §2.4 (and [Lamport1998] §2.4): on
+   `Fin 3` acceptors (`t = 1` majority quorums) and `Fin 2` proposers with distinct inputs
+   (`inputs 0 ≠ inputs 1`), an explicit crash-free, drop-free, stutter-free infinite execution
+   alternates `Phase1a` prepares so each proposer's `Phase2a` accept request is preempted before
+   `Phase2b` can fire, preventing any acceptor from voting and any learner from deciding.
+2. **Conditional Sole-Leader Progress Step (`paxos_liveness_of_sole_leader_crashStop`):**
+   Conditional crash-stop 4-phase progress step towards [Lamport2001] §2.4 and [Lamport1998] §2.1
+   Theorem 2 / §2.4 (and **not** a complete leader-election or timeout-based liveness result): from
+   any reachable crash-stop Synod state, assuming an already-selected live leader `p` prepares a
+   ballot `b = ⟨r, p⟩` strictly exceeding all previously seen or promised ballots (`BallotsBelow`),
+   no ballot strictly greater than `b` is subsequently prepared, and ballot-`b` packets among `p`,
+   one live quorum `Q ∈ qs.quorums`, and a live learner `l` are delivered without loss, `l` learns
+   a decree value across `1a → 1b → 2a → 2b` alongside arbitrary deliveries or drops of older
+   ballots `< b` (`exists_sole_leader_execution_crashStop` constructs an explicit 4-phase
+   execution). Leader election, NACK `nextBal[q]` ballot-bumping, persistent-storage crash
+   recovery, and [Lamport1998] §2.4's real-time hourglass timeout bounds remain open.
+3. **Disjoint-Quorum Split-Brain Impossibility (`not_synod_safe_of_disjoint_quorums`):** Original
+   asynchronous partition / split-brain impossibility over `AsyncQuorumProtocol` (motivating the
+   quorum-intersection condition `B2` of [Lamport1998] §§1.2, 2.1 and [Lamport2001] §2.2, rather
+   than formalizing a numbered theorem of those papers): over `[Nontrivial V]`, no deterministic
+   asynchronous message-passing protocol guarantees agreement and uniform validity while allowing
+   independent single-quorum progress on disjoint subsets `Q₁, Q₂` (`Disjoint Q₁ Q₂`, in particular
+   whenever `2 ≤ Fintype.card P ≤ 2 * t`). Conversely, crash-stop `synodQuorumProtocol` satisfies
+   both safety and single-quorum progress for every `QuorumSystem P`
+   (`synodQuorumProtocol_safeSingleQuorum_crashStop`).
 
 ## Main definitions
 
 * `Cslib.Distributed.Paxos.majorityQuorumsFin3`: strict-majority quorum system on `Fin 3` (`t = 1`).
-* `Cslib.Distributed.Paxos.duellingInputs`, `Cslib.Distributed.Paxos.duellingCycle`: two-proposer
-  input vector and 11-step alternating-preemption cycle on `Fin 3`.
 * `Cslib.Distributed.Paxos.Msg.ballot`, `Cslib.Distributed.Paxos.BallotsBelow`,
   `Cslib.Distributed.Paxos.LiveAndLossless`: ballot extractor, fresh-ballot dominance predicate, and
-  live cohort / lossless ballot-delivery hypothesis for sole-leader liveness.
+  live cohort / lossless ballot-delivery hypothesis for conditional sole-leader progress.
 * `Cslib.Distributed.Paxos.Packet`, `Cslib.Distributed.Paxos.NodeProcState`,
   `Cslib.Distributed.Paxos.NetState`, `Cslib.Distributed.Paxos.NetAction`,
   `Cslib.Distributed.Paxos.AsyncQuorumProtocol`: general asynchronous crash-tolerant message-passing
   protocol model for single-quorum progress analysis.
 * `Cslib.Distributed.Paxos.SynodNodeState`, `Cslib.Distributed.Paxos.synodQuorumProtocol`:
-  co-located Single-Decree Synod instantiated as an `AsyncQuorumProtocol`.
+  co-located crash-stop Single-Decree Synod instantiated as an `AsyncQuorumProtocol`.
 
 ## Main results
 
-* `Cslib.Distributed.Paxos.exists_duelling_proposers_livelock`: explicit non-terminating
+* `Cslib.Distributed.Paxos.exists_duelling_proposers_livelock`: explicit crash-free non-terminating
   duelling-proposers execution on `Fin 3` acceptors and `Fin 2` proposers with distinct inputs.
-* `Cslib.Distributed.Paxos.paxos_liveness_of_sole_leader`: universal 4-phase learner termination
-  under a live sole leader at a fresh highest ballot.
-* `Cslib.Distributed.Paxos.exists_sole_leader_execution`: constructive 4-phase execution from any
-  reachable state (with `[Finite Acceptor]`).
+* `Cslib.Distributed.Paxos.paxos_liveness_of_sole_leader_crashStop`: conditional crash-stop 4-phase
+  learner termination step under a live sole leader at a fresh highest ballot.
+* `Cslib.Distributed.Paxos.exists_sole_leader_execution_crashStop`: constructive 4-phase execution
+  witness from any reachable crash-stop state (with `[Finite Acceptor]`).
 * `Cslib.Distributed.Paxos.not_synod_safe_of_disjoint_quorums`: split-brain impossibility for any
   `AsyncQuorumProtocol` admitting progress on disjoint subsets `Q₁, Q₂`.
 * `Cslib.Distributed.Paxos.not_safeSingleQuorum_of_card_le_two_mul`: impossibility of `t`-crash
   single-quorum progress when `2 ≤ Fintype.card P ≤ 2 * t`.
-* `Cslib.Distributed.Paxos.synodQuorumProtocol_safeSingleQuorum`: positive counterpart showing
+* `Cslib.Distributed.Paxos.synodQuorumProtocol_safeSingleQuorum_crashStop`: crash-stop step showing
   `synodQuorumProtocol qs` achieves `SafeConsensus` and `CanDecideIn Q` for every `Q ∈ qs.quorums`.
 
 ## References
@@ -97,17 +96,11 @@ least `2`). -/
 @[expose] def majorityQuorumsFin3 : QuorumSystem (Fin 3) :=
   majorityQuorums (P := Fin 3) (t := 1) (by decide)
 
-/-- Two-proposer input assignment mapping proposer `0` to `v₀` and proposer `1` to `v₁`. -/
-@[expose] def duellingInputs {V : Type*} (v₀ v₁ : V) : Fin 2 → V
+private def duellingInputs {V : Type*} (v₀ v₁ : V) : Fin 2 → V
   | 0 => v₀
   | 1 => v₁
 
-/-- One 11-step duelling-proposers round `k` on `Fin 3` acceptors and `Fin 2` proposers:
-proposer `0` prepares `⟨k, 0⟩`, collects promises from majority quorum `{0, 1}`, and proposes `v₀`;
-proposer `1` immediately prepares `⟨k, 1⟩ > ⟨k, 0⟩`, preempting `{0, 1}` before
-`Phase2a(⟨k, 0⟩, v₀)` is delivered (so acceptor `0` ignores it), and then proposes its own input,
-which round `k + 1` will in turn preempt. -/
-@[expose] def duellingCycle {Learner V : Type*} (v₀ : V) (k : ℕ) :
+private def duellingCycle {Learner V : Type*} (v₀ : V) (k : ℕ) :
     List (SynodAction (Fin 2) (Fin 3) Learner V) :=
   let b₀ : Ballot (Fin 2) := ⟨k, 0⟩
   let b₁ : Ballot (Fin 2) := ⟨k, 1⟩
@@ -573,12 +566,13 @@ private lemma learned_none_of_mTr {Proposer Acceptor Learner V : Type*}
   by_contra h₁
   exact LTS.mtrInv_of_trInv htr_inv _ _ _ hmtr h₁ h₂
 
-/-- **Duelling-proposers non-termination:** over any nontrivial value domain `[Nontrivial V]`,
-Single-Decree Synod on `Fin 3` acceptors (`majorityQuorumsFin3`) and `Fin 2` proposers admits an
-explicit crash-free, drop-free, stutter-free infinite execution with distinct proposer inputs
-(`inputs 0 ≠ inputs 1`) in which both proposers prepare and propose in every round `k : ℕ`, yet
-alternating `Phase1a` prepares perpetually preempt `Phase2b` so no acceptor ever votes and no
-learner ever decides ([Lamport1998]; [Lamport2001]). -/
+/-- Crash-free livelock witness after the two-proposer scenario of [Lamport2001] §2.4 and
+[Lamport1998] §2.4 in the crash-stop Single-Decree Synod model (not a cited theorem endpoint): over
+any nontrivial value domain `[Nontrivial V]`, `synodLts` on `Fin 3` acceptors
+(`majorityQuorumsFin3`) and `Fin 2` proposers admits an explicit crash-free, drop-free,
+stutter-free infinite execution with distinct proposer inputs (`inputs 0 ≠ inputs 1`) in which both
+proposers prepare and propose in every round `k : ℕ`, yet alternating `Phase1a` prepares
+perpetually preempt `Phase2b` so no acceptor ever votes and no learner ever decides. -/
 theorem exists_duelling_proposers_livelock {Learner V : Type*}
     [DecidableEq Learner] [DecidableEq V] [Nontrivial V] :
     ∃ (inputs : Fin 2 → V) (ss : ωSequence (SynodState (Fin 2) (Fin 3) Learner V))
@@ -995,16 +989,17 @@ private lemma learner_received_mono {l : Learner}
       · exact hsub
     | _ => exact hsub
 
-/-- **Conditional single-distinguished-leader liveness ([Lamport2001] §2.4; cf. [Lamport1998] §2.1
-Theorem 2 and §2.4):** assuming an already-selected sole leader `p` (without modeling leader
-election, NACK `nextBal[q]` ballot-bumping, or real-time timeout bounds), from any reachable Synod
-state `ss 0`, if live proposer `p` issues `prepare p r` at step `0` with ballot `b = ⟨r, p⟩`
-strictly exceeding all ballots previously present or promised (`BallotsBelow (ss 0) b`), no ballot
-strictly greater than `b` is subsequently prepared, and ballot-`b` packets among `p`, one live
-quorum `Q ∈ qs.quorums`, and live learner `l` are delivered without loss
-(`LiveAndLossless b p Q l ss xs`), then `l` eventually learns a decree value `v` at ballot `b`
-(and `((ss k).learners l).learned = some v`). -/
-theorem paxos_liveness_of_sole_leader {inputs : Proposer → V}
+/-- Conditional crash-stop 4-phase progress step towards [Lamport2001] §2.4 and [Lamport1998] §2.1
+Theorem 2 / §2.4, and **not** the crash-recovery or timeout-based leader-election liveness result:
+assuming an already-selected sole leader `p` (without modeling leader election, NACK `nextBal[q]`
+ballot-bumping, persistent-storage crash recovery, or real-time timeout bounds), from any reachable
+crash-stop Synod state `ss 0`, if live proposer `p` issues `prepare p r` at step `0` with ballot
+`b = ⟨r, p⟩` strictly exceeding all ballots previously present or promised
+(`BallotsBelow (ss 0) b`), no ballot strictly greater than `b` is subsequently prepared, and
+ballot-`b` packets among `p`, one live quorum `Q ∈ qs.quorums`, and live learner `l` are delivered
+without loss (`LiveAndLossless b p Q l ss xs`), then `l` eventually learns a decree value `v` at
+ballot `b` (and `((ss k).learners l).learned = some v`). -/
+theorem paxos_liveness_of_sole_leader_crashStop {inputs : Proposer → V}
     {ss : ωSequence (SynodState Proposer Acceptor Learner V)}
     {xs : ωSequence (SynodAction Proposer Acceptor Learner V)}
     (hr₀ : Reachable qs inputs (ss 0))
@@ -1621,13 +1616,14 @@ private noncomputable def soleLeaderStateSeq (qs : QuorumSystem Acceptor) (b : B
   | c + 1 => (soleLeaderSweep b p Q l (soleLeaderStateSeq qs b p Q l s₁ c)).foldl
       (synodStep qs) (soleLeaderStateSeq qs b p Q l s₁ c)
 
-/-- Constructive non-vacuity witness for `paxos_liveness_of_sole_leader`: from any reachable state
-`s₀` over a finite acceptor set `[Finite Acceptor]`, given live proposer `p`, live quorum
-`Q ∈ qs.quorums`, and live learner `l`, there exists a fresh round `r` and a valid infinite
-execution starting from `s₀` (preparing `⟨r, p⟩` at step `0` and then repeatedly sweeping ballot-`b`
-deliveries across `p`, `Q`, and `l`) satisfying `LiveAndLossless` in which `l` learns a value `v` at
-ballot `⟨r, p⟩`. -/
-theorem exists_sole_leader_execution [Finite Acceptor] {inputs : Proposer → V}
+/-- Crash-stop constructive non-vacuity witness for `paxos_liveness_of_sole_leader_crashStop` (a
+step towards [Lamport2001] §2.4 and [Lamport1998] §2.1 Theorem 2, not the crash-recovery cited
+protocol): from any reachable crash-stop state `s₀` over `[Finite Acceptor]`, given live proposer
+`p`, live quorum `Q ∈ qs.quorums`, and live learner `l`, there exists a fresh round `r` and a valid
+infinite execution starting from `s₀` (preparing `⟨r, p⟩` at step `0` and then repeatedly sweeping
+ballot-`b` deliveries across `p`, `Q`, and `l`) satisfying `LiveAndLossless` in which `l` learns a
+value `v` at ballot `⟨r, p⟩`. -/
+theorem exists_sole_leader_execution_crashStop [Finite Acceptor] {inputs : Proposer → V}
     {s₀ : SynodState Proposer Acceptor Learner V}
     (hr₀ : Reachable qs inputs s₀)
     {p : Proposer} {Q : Finset Acceptor} {l : Learner}
@@ -1810,7 +1806,7 @@ theorem exists_sole_leader_execution [Finite Acceptor] {inputs : Proposer → V}
           ⟨Msg.phase2b a b v, Finset.mem_toList.mpr (hts_msgs n hm), ?_⟩
         simp only [true_and, haQ, ↓reduceIte, List.mem_singleton] }
   obtain ⟨k, v, hlearnedAt, hlearned⟩ :=
-    paxos_liveness_of_sole_leader qs hr₀ hexec hQ rfl hbelow hno_higher hlive
+    paxos_liveness_of_sole_leader_crashStop qs hr₀ hexec hQ rfl hbelow hno_higher hlive
   exact ⟨r, ss, xs, k, v, rfl, hexec, rfl, hbelow, hno_higher, hlive, hlearnedAt, hlearned⟩
 
 end SoleLeader
@@ -2018,12 +2014,12 @@ private lemma replay_group_mTr {Q : Finset P} {s₀ s₁ u₀ : NetState P S M V
 
 end AsyncQuorumProtocol
 
-/-- **Disjoint-quorum split-brain impossibility:** formalizes via `AsyncQuorumProtocol` the standard
-asynchronous partition / split-brain argument motivating quorum intersection in [Lamport1998] §1.2
-and §2.1 (`B2`) and [Lamport2001] §2.2 (rather than a numbered theorem statement of those papers).
-Over any nontrivial value domain `[Nontrivial V]`, if subsets `Q₁, Q₂ : Finset P` are disjoint
-(`Disjoint Q₁ Q₂`), no deterministic asynchronous message-passing protocol `π` can simultaneously
-guarantee `SafeConsensus` and single-quorum progress (`CanDecideIn`) on both `Q₁` and `Q₂`. -/
+/-- Original asynchronous partition / split-brain impossibility over `AsyncQuorumProtocol`
+(motivating the quorum-intersection condition `B2` of [Lamport1998] §§1.2, 2.1 and [Lamport2001]
+§2.2, rather than formalizing a numbered theorem of those papers): over any nontrivial value domain
+`[Nontrivial V]`, if subsets `Q₁, Q₂ : Finset P` are disjoint (`Disjoint Q₁ Q₂`), no deterministic
+asynchronous message-passing protocol `π` can simultaneously guarantee `SafeConsensus` and
+single-quorum progress (`CanDecideIn`) on both `Q₁` and `Q₂`. -/
 theorem not_synod_safe_of_disjoint_quorums {P S L M V : Type*}
     [DecidableEq P] [DecidableEq M] [Nontrivial V]
     (π : AsyncQuorumProtocol P S L M V) {Q₁ Q₂ : Finset P} (hdisj : Disjoint Q₁ Q₂) :
@@ -2065,10 +2061,10 @@ theorem not_synod_safe_of_disjoint_quorums {P S L M V : Type*}
   have heq : v₁ = v₂ := (hsafe inp u₂ hreach_u₂).1 q₁ q₂ v₁ v₂ hu₂_q₁ hu₂_q₂
   exact hne heq
 
-/-- **Split-brain impossibility at `2 ≤ |P| ≤ 2t`:** over any nontrivial value domain
-`[Nontrivial V]`, when `2 ≤ Fintype.card P ≤ 2 * t`, no `AsyncQuorumProtocol` can guarantee
-`SafeConsensus` together with single-quorum progress on every `(n - t)`-element subset (i.e.,
-progress tolerating `t` process crashes). -/
+/-- Original split-brain impossibility corollary at `2 ≤ |P| ≤ 2t` over `AsyncQuorumProtocol`: over
+any nontrivial value domain `[Nontrivial V]`, when `2 ≤ Fintype.card P ≤ 2 * t`, no
+`AsyncQuorumProtocol` can guarantee `SafeConsensus` together with single-quorum progress on every
+`(n - t)`-element subset (i.e., progress tolerating `t` process crashes). -/
 theorem not_safeSingleQuorum_of_card_le_two_mul {P S L M V : Type*}
     [Fintype P] [DecidableEq P] [DecidableEq M] [Nontrivial V] {t : ℕ}
     (hcard₂ : 2 ≤ Fintype.card P) (hle : Fintype.card P ≤ 2 * t)
@@ -2453,12 +2449,12 @@ private lemma netToSynod_reach {P V : Type*} [Fintype P] [LinearOrder P] [Decida
     exact ⟨[], LTS.MTr.refl⟩
   exact hgen hmtr hr₀ (fun _ => rfl)
 
-/-- **Positive counterpart for `synodQuorumProtocol`:** for every quorum system
+/-- Crash-stop step for co-located `synodQuorumProtocol` (a crash-stop step towards [Lamport1998]
+§2 and [Lamport2001] §2, not the crash-recovery cited protocol): for every quorum system
 `qs : QuorumSystem P` over a finite, linearly ordered process set `P` (in particular
 `majorityQuorums hmaj` whenever `2 * t < Fintype.card P`), `synodQuorumProtocol qs` satisfies both
-`SafeConsensus` and single-quorum progress `CanDecideIn Q` on every quorum `Q ∈ qs.quorums`
-([Lamport1998]; [Lamport2001]). -/
-theorem synodQuorumProtocol_safeSingleQuorum {P V : Type*} [Fintype P] [LinearOrder P]
+`SafeConsensus` and single-quorum progress `CanDecideIn Q` on every quorum `Q ∈ qs.quorums`. -/
+theorem synodQuorumProtocol_safeSingleQuorum_crashStop {P V : Type*} [Fintype P] [LinearOrder P]
     [DecidableEq V] (qs : QuorumSystem P) :
     (synodQuorumProtocol (V := V) qs).SafeConsensus ∧
       ∀ Q ∈ qs.quorums, (synodQuorumProtocol (V := V) qs).CanDecideIn Q := by
@@ -2471,9 +2467,9 @@ theorem synodQuorumProtocol_safeSingleQuorum {P V : Type*} [Fintype P] [LinearOr
       rw [hout p₂] at h₂
       obtain ⟨b₁, hl₁⟩ := hr.learned_eq_some_iff.mp h₁
       obtain ⟨b₂, hl₂⟩ := hr.learned_eq_some_iff.mp h₂
-      exact paxos_agreement qs hr hl₁ hl₂
+      exact paxos_agreement_crashStop qs hr hl₁ hl₂
     · rw [hout p] at hpv
-      exact paxos_validity qs hr hpv
+      exact paxos_validity_crashStop qs hr hpv
   · intro Q hQ v
     obtain ⟨p₀, hp₀Q⟩ := qs.quorum_nonempty hQ
     let b : Ballot P := ⟨0, p₀⟩

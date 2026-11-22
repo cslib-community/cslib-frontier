@@ -9,17 +9,18 @@ module
 
 import CslibFrontier.Computability.Distributed.Paxos.Liveness
 
-/-! Lamport's Single-Decree Paxos / Synod protocol (checked as a `module` client with ordinary
+/-! Crash-stop Single-Decree Synod protocol step (checked as a `module` client with ordinary
 imports): strict-majority quorum checks on `Fin 3` (`t = 1`), computable `decide`-checked execution
 traces for (a) single-ballot consensus with packet loss, duplicate redelivery, and an acceptor
 crash, (b) mid-flight ballot preemption `b₁ < b₂` where quorum intersection forces proposer `1` to
 carry proposer `0`'s chosen value forward into `b₂`, and (c) a 2-round (22-step) finite prefix of
-duelling proposers (`duellingCycle`), together with instantiations of safety (`paxos_agreement`,
-`paxos_validity`, `phase2a_unique_of_ballot`, `chosenAt_implies_higher_phase2a_eq`), infinite
-duelling-proposers livelock (`exists_duelling_proposers_livelock`), sole-leader liveness
-(`paxos_liveness_of_sole_leader`, `exists_sole_leader_execution`), disjoint-quorum split-brain
-impossibility (`not_synod_safe_of_disjoint_quorums`, `not_safeSingleQuorum_of_card_le_two_mul`),
-and the positive `synodQuorumProtocol_safeSingleQuorum` counterpart. -/
+duelling proposers, together with instantiations of crash-stop safety (`paxos_agreement_crashStop`,
+`paxos_validity_crashStop`, `phase2a_unique_of_ballot_crashStop`,
+`chosenAt_implies_higher_phase2a_eq_crashStop`), infinite duelling-proposers livelock
+(`exists_duelling_proposers_livelock`), conditional sole-leader progress
+(`paxos_liveness_of_sole_leader_crashStop`, `exists_sole_leader_execution_crashStop`),
+disjoint-quorum split-brain impossibility (`not_synod_safe_of_disjoint_quorums`,
+`not_safeSingleQuorum_of_card_le_two_mul`), and `synodQuorumProtocol_safeSingleQuorum_crashStop`. -/
 set_option linter.privateModule false
 
 namespace CslibFrontierTests.Distributed.Paxos
@@ -108,7 +109,7 @@ theorem trace1_reachable : Reachable majorityQuorumsFin3 trace1Inputs trace1End 
   ⟨trace1Actions, mTr_of_validTrace _ _ _ trace1_valid⟩
 
 example : ∃ p : Fin 2, trace1Inputs p = 42 :=
-  paxos_validity majorityQuorumsFin3 trace1_reachable trace1_learners_decide.1
+  paxos_validity_crashStop majorityQuorumsFin3 trace1_reachable trace1_learners_decide.1
 
 /-! ### Trace (b): Preempted mid-flight ballot `b₁ < b₂` with quorum-intersection carry-over -/
 
@@ -184,8 +185,8 @@ theorem preempt_b1_votes_emitted :
         preemptActions := by
   decide
 
-/-- Exercise `phase2a_unique_of_ballot`, `chosenAt_implies_higher_phase2a_eq`, and
-`paxos_agreement` on the preempted trace. -/
+/-- Exercise `phase2a_unique_of_ballot_crashStop`, `chosenAt_implies_higher_phase2a_eq_crashStop`,
+and `paxos_agreement_crashStop` on the preempted trace. -/
 example (v : Bool)
     (hm : Msg.phase2a ⟨0, 1⟩ v ∈
       traceMsgs majorityQuorumsFin3 (initState (Learner := Fin 2) preemptInputs) preemptActions) :
@@ -199,10 +200,11 @@ example (v : Bool)
     · rw [Finset.mem_singleton.mp ha1]
       exact preempt_b1_votes_emitted.2
   have hle : (⟨0, 0⟩ : Ballot (Fin 2)) ≤ ⟨0, 1⟩ := by decide
-  have heq := chosenAt_implies_higher_phase2a_eq majorityQuorumsFin3 preempt_mtr hchosen hm hle
+  have heq :=
+    chosenAt_implies_higher_phase2a_eq_crashStop majorityQuorumsFin3 preempt_mtr hchosen hm hle
   have h2a_mem := mem_traceMsgs_of_mem_msgs majorityQuorumsFin3 preempt_mtr
     preempt_carry_over_props.1
-  have _ : v = true := phase2a_unique_of_ballot majorityQuorumsFin3 preempt_mtr hm h2a_mem
+  have _ : v = true := phase2a_unique_of_ballot_crashStop majorityQuorumsFin3 preempt_mtr hm h2a_mem
   exact heq
 
 example :
@@ -216,17 +218,32 @@ example :
     · decide
     · rw [Finset.mem_singleton.mp ha2]; decide
 
-/-! ### Trace (c): Finite 2-round prefix of duelling proposers (`duellingCycle`) -/
+/-! ### Trace (c): Finite 2-round prefix of duelling proposers -/
+
+def testDuellingCycle (k : ℕ) : List (SynodAction (Fin 2) (Fin 3) Unit Bool) :=
+  let b₀ : Ballot (Fin 2) := ⟨k, 0⟩
+  let b₁ : Ballot (Fin 2) := ⟨k, 1⟩
+  [ .prepare 0 k
+  , .recvPhase1a 0 b₀
+  , .recvPhase1a 1 b₀
+  , .recvPhase1b 0 0 b₀ none
+  , .recvPhase1b 0 1 b₀ none
+  , .prepare 1 k
+  , .recvPhase1a 0 b₁
+  , .recvPhase1a 1 b₁
+  , .recvPhase2a 0 b₀ true
+  , .recvPhase1b 1 0 b₁ none
+  , .recvPhase1b 1 1 b₁ none ]
 
 def duellingPrefixActions : List (SynodAction (Fin 2) (Fin 3) Unit Bool) :=
-  duellingCycle true 0 ++ duellingCycle true 1
+  testDuellingCycle 0 ++ testDuellingCycle 1
 
 def duellingPrefixEnd : SynodState (Fin 2) (Fin 3) Unit Bool :=
-  runTrace majorityQuorumsFin3 (initState (duellingInputs true false)) duellingPrefixActions
+  runTrace majorityQuorumsFin3 (initState preemptInputs) duellingPrefixActions
 
 theorem duellingPrefix_valid :
     validTrace majorityQuorumsFin3
-      (initState (Learner := Unit) (duellingInputs true false)) duellingPrefixActions = true := by
+      (initState (Learner := Unit) preemptInputs) duellingPrefixActions = true := by
   decide
 
 theorem duellingPrefix_no_decision :
@@ -288,13 +305,13 @@ example :
       LiveAndLossless ⟨r, 0⟩ 0 {0, 1} () ss xs ∧
       (ss k).LearnedAt majorityQuorumsFin3 () ⟨r, 0⟩ v ∧
       ((ss k).learners ()).learned = some v :=
-  exists_sole_leader_execution majorityQuorumsFin3
+  exists_sole_leader_execution_crashStop majorityQuorumsFin3
     ⟨duellingPrefixActions, mTr_of_validTrace _ _ _ duellingPrefix_valid⟩
     (by decide) (by decide) (by decide) (by decide)
 
 -- Split-brain impossibility on disjoint subsets and for `2 ≤ |P| ≤ 2t`:
 example {S L M : Type*} [DecidableEq M] (π : AsyncQuorumProtocol (Fin 4) S L M Bool) :
-    ¬ (π.SafeConsensus ∧ π.CanDecideIn {0, 1} ∧ π.CanDecideIn {2, 3}) :=
+  ¬ (π.SafeConsensus ∧ π.CanDecideIn {0, 1} ∧ π.CanDecideIn {2, 3}) :=
   not_synod_safe_of_disjoint_quorums π (by decide)
 
 example {S L M : Type*} [DecidableEq M] (π : AsyncQuorumProtocol (Fin 2) S L M Bool) :
@@ -305,17 +322,17 @@ example {S L M : Type*} [DecidableEq M] (π : AsyncQuorumProtocol (Fin 4) S L M 
     ¬ (π.SafeConsensus ∧ ∀ Q : Finset (Fin 4), 4 - 2 ≤ Q.card → π.CanDecideIn Q) :=
   not_safeSingleQuorum_of_card_le_two_mul (t := 2) (by simp) (by simp) π
 
--- Positive counterpart on strict-majority quorums (`Fin 3, t = 1` and `Fin 5, t = 2`):
+-- Crash-stop counterpart on strict-majority quorums (`Fin 3, t = 1` and `Fin 5, t = 2`):
 example :
     (synodQuorumProtocol (V := Bool) majorityQuorumsFin3).SafeConsensus ∧
       ∀ Q ∈ majorityQuorumsFin3.quorums,
         (synodQuorumProtocol (V := Bool) majorityQuorumsFin3).CanDecideIn Q :=
-  synodQuorumProtocol_safeSingleQuorum majorityQuorumsFin3
+  synodQuorumProtocol_safeSingleQuorum_crashStop majorityQuorumsFin3
 
 example :
     let qs := majorityQuorums (P := Fin 5) (t := 2) (by decide)
     (synodQuorumProtocol (V := ℕ) qs).SafeConsensus ∧
       ∀ Q ∈ qs.quorums, (synodQuorumProtocol (V := ℕ) qs).CanDecideIn Q :=
-  synodQuorumProtocol_safeSingleQuorum _
+  synodQuorumProtocol_safeSingleQuorum_crashStop _
 
 end CslibFrontierTests.Distributed.Paxos
