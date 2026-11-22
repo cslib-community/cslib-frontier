@@ -5699,6 +5699,7 @@ public import CslibFrontier.Crypto.Primitives.UHF.Difference
 public import CslibFrontier.Crypto.Primitives.UHF.Finite
 public import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 public import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
+public import CslibFrontier.Crypto.Primitives.UHF.XorHash
 public import CslibFrontier.Crypto.Protocols.BCS.Basic
 public import CslibFrontier.Crypto.Protocols.BCS.Interactive
 public import CslibFrontier.Crypto.Protocols.BCS.ROM
@@ -7299,6 +7300,7 @@ public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseLinear
 public import CslibFrontier.Foundations.Geometry.Polyhedra.PiecewiseQuadratic
 public import CslibFrontier.Foundations.Geometry.Polyhedra.Polytope
 public import CslibFrontier.Foundations.Geometry.SegmentSign
+public import CslibFrontier.Foundations.Geometry.StarConvexEscape
 public import CslibFrontier.Foundations.GroupTheory.Perm.CycleSurgery
 public import CslibFrontier.Foundations.GroupTheory.Perm.Doubled
 public import CslibFrontier.Foundations.GroupTheory.Perm.Fin
@@ -8793,3 +8795,5 @@ public import CslibFrontier.Tactic.Space
 public import CslibFrontier.Tactic.SuppCases
 public import CslibFrontier.Tactic.SuppCases.Init
 public import CslibFrontier.Tactic.Synthesis
+public import CslibFrontier.Tactic.WramOmega
+public import CslibFrontier.Tactic.WramOmega.Init

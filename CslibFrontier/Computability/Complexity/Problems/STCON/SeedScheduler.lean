@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Problems.STCON.SeedSearchSetup
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.DoubleCounting.SourceRoundLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
@@ -40,6 +41,8 @@ certificates for subsequent native loop compilation.
   designated frame and check whether to call the scanner under the caller's workspace budget.
 * `seedSchedulerStep_noReply_inSpace`: skip a designated root or reject a missing verdict
   in space linear in the frame's encoded length.
+* `seedSchedulerStep_inSpace`: process every optional verdict in space linear in the
+  paired frame and verdict encoding.
 * `seedSchedulerStep_progress`: each continuing transition stays in bounds and advances
   the seed or the source phase.
 * `runSeedSchedulerFor_eq`: agreement with the indexed search, including list multiplicity.
@@ -256,6 +259,58 @@ theorem seedSchedulerStep_noReply_inSpace :
     cases ha : f.answer with
     | none => simp [seedSchedulerStep, ha]
     | some answer => cases hs : f.needsScan <;> simp [seedSchedulerStep, ha, hs]
+
+private theorem seedSchedulerStep_bad_inSpace :
+    let E := encPair encSeedSchedulerFrame encNat
+    ComputableInSpace (fun p => seedSchedulerStep p.1 (some (.bad p.2)))
+      E encSeedSchedulerStepResult (fun p => (E p).length) := by
+  have hframe := fst encSeedSchedulerFrame encNat
+  have hrequest := encSeedSchedulerFrame_request_budget hframe
+  have hsetup := encSeedScanRequest_setup_budget hrequest
+  have hseed := budget_natSucc (encSeedScanRequest_seed_budget hrequest)
+  have hcand := seedSchedulerCandidate_budget hsetup hseed
+  have htag := of_inO (ComputableInO.inl encSeedSchedulerFrame (encOption encBool))
+  have hnext := budget_comp_linear (optionElim (.inr none) htag) hcand
+  have hskip := budget_comp_linear seedSchedulerStep_noReply_inSpace hframe
+  exact (budget_ite (SeedSchedulerFrame.needsScan_budget hframe)
+    (budget_optionSome hnext) hskip).of_enc_eq fun p => by
+      cases ha : p.1.answer with
+      | none => simp [seedSchedulerStep, seedSchedulerStep.nextSeed,
+          SeedSchedulerFrame.needsScan, ha]
+      | some answer =>
+        cases hs : p.1.needsScan <;> simp [seedSchedulerStep, seedSchedulerStep.nextSeed, ha, hs]
+
+private theorem seedSchedulerStep_decided_inSpace :
+    let E := encPair encSeedSchedulerFrame encBool
+    ComputableInSpace (fun p => seedSchedulerStep p.1 (some (.decided p.2)))
+      E encSeedSchedulerStepResult (fun p => (E p).length) := by
+  let E := encPair encSeedSchedulerFrame encBool
+  have hframe := fst encSeedSchedulerFrame encBool
+  have hfirst := seedSchedulerRoot_budget hframe (budget_const 0 (.refl _))
+    (snd encSeedSchedulerFrame encBool)
+  have hretained := fst E encBool
+  have hindexedFrame := budget_comp_linear hframe hretained
+  have hcursor := budget_natSucc (encSeedSchedulerFrame_cursor_budget hindexedFrame)
+  have hnext := seedSchedulerRoot_budget hindexedFrame hcursor (snd E encBool)
+  have hid := budget_id (enc := E) (.refl _)
+  have hinput := budget_prod hid (encSeedSchedulerFrame_answer_budget hframe)
+  exact (budget_comp_linear
+    (optionElimSnd (budget_optionSome hfirst) (budget_optionSome hnext)) hinput).of_enc_eq
+    fun p => by
+      cases ha : p.1.answer with
+      | none => simp [seedSchedulerStep, ha]
+      | some answer => cases hs : p.1.needsScan <;> simp [seedSchedulerStep, ha, hs]
+
+/-- Process an optional source verdict in workspace linear in the paired frame and reply. -/
+theorem seedSchedulerStep_inSpace :
+    let E := encPair encSeedSchedulerFrame
+      (encOption _root_.Turing.DoubleCounting.SourceRoundLoop.encVerdict)
+    ComputableInSpace (fun p => seedSchedulerStep p.1 p.2)
+      E encSeedSchedulerStepResult (fun p => (E p).length) := by
+  exact (_root_.Turing.DoubleCounting.SourceRoundLoop.verdictElimSnd_inSpace
+    seedSchedulerStep_noReply_inSpace seedSchedulerStep_bad_inSpace
+    seedSchedulerStep_decided_inSpace).of_enc_eq fun
+    | (_, none) | (_, some (.bad _)) | (_, some (.decided _)) => rfl
 
 /-- The seed is below its exclusive limit. The designated phase uses cursor zero and the
 designated source. An indexed phase uses a bounded cursor and its corresponding source. -/

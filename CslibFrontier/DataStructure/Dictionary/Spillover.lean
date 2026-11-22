@@ -16,6 +16,8 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Pătrașcu Power-of-Two Spillover Representation
@@ -76,7 +78,7 @@ def memBits (X r_sp : ℕ) : ℕ :=
   Nat.log 2 (X / r_sp)
 
 /-- Spillover universe size `K = ⌈X / 2 ^ M⌉` for universe `X` and parameter `r_sp`. -/
-@[expose]
+@[expose, wram_arith]
 def spillUniv (X r_sp : ℕ) : ℕ :=
   (X + 2 ^ memBits X r_sp - 1) / 2 ^ memBits X r_sp
 
@@ -114,8 +116,7 @@ theorem spillUniv_mul_two_pow_lt (X r_sp : ℕ) :
     spillUniv X r_sp * 2 ^ memBits X r_sp < X + 2 ^ memBits X r_sp := by
   have hP : 0 < 2 ^ memBits X r_sp := Nat.two_pow_pos _
   have hle := Nat.div_mul_le_self (X + 2 ^ memBits X r_sp - 1) (2 ^ memBits X r_sp)
-  dsimp only [spillUniv]
-  omega
+  wram_omega
 
 theorem spillUniv_pos {X : ℕ} (hX : 1 ≤ X) (r_sp : ℕ) : 0 < spillUniv X r_sp := by
   by_contra h

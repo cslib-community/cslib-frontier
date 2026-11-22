@@ -89,6 +89,17 @@ example : quotientCharacteristicValue 101 0 2 0 0 (fun _ => 1) (fun _ => 1)
   have hdim : Fintype.card (NormalIndex 0 2) = 1 := by simp [NormalIndex]
   simpa [Matrix.charpoly_one, hdim, ZMod.val_neg_one] using h
 
+-- In the same rank-one quotient, the sign correction turns the coefficient into determinant 1.
+example : (quotientDeterminantValue 101 0 2 0 (fun _ => 1) (fun _ => 1)
+    (fun _ _ => 0) : ZMod 101) = 1 := by
+  have h := quotientDeterminantValue_cast (p := 101) (n := 0) (B := 0)
+    (Int.castRingHom (ZMod 101)) 1 (by decide) (fun _ => 0) (by simp)
+    (1 : MvPolynomial (Fin 0) ℤ)
+    (by intro k _ _; simp [jacobian, Matrix.det_isEmpty]) (by decide) (by decide)
+    (fun _ => 1) (fun _ => 1) (fun _ _ => 0)
+    (by simp) (by simp [jacobian, Matrix.det_isEmpty]) (by simp)
+  simpa only [map_one, Matrix.det_one] using h
+
 -- The relation X₀² = 102 changes to X₀² = 1 modulo 101. Multiplication by X₀
 -- has constant characteristic coefficient -102 over ℤ, which reduces to 100.
 example : quotientCharacteristicValue 101 1 2 3 0

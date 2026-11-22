@@ -104,6 +104,17 @@ example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {frame : α → Se
       enc encSeedSchedulerStepResult S :=
   budget_comp_linear seedSchedulerStep_noReply_inSpace hframe
 
+open ComputableInSpace in
+/-- The frame and source-loop verdict can arrive from separate producers at a shared budget. -/
+example {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
+    {frame : α → SeedSchedulerFrame} {reply : α → Option ControllerVerdict}
+    (hframe : ComputableInSpace frame enc encSeedSchedulerFrame S)
+    (hreply : ComputableInSpace reply enc
+      (encOption Turing.DoubleCounting.SourceRoundLoop.encVerdict) S) :
+    ComputableInSpace (fun a => seedSchedulerStep (frame a) (reply a))
+      enc encSeedSchedulerStepResult S :=
+  budget_comp_linear seedSchedulerStep_inSpace (budget_prod hframe hreply)
+
 private def rejecting (_ : SeedSchedulerFrame) :
     OptionT (StateM ℕ) (Option ControllerVerdict) :=
   OptionT.mk fun t => (none, t + 1)
