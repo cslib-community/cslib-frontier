@@ -808,9 +808,7 @@ theorem eventually_gateSweep_lt_mul_innerSize {r : ℕ} (hr : 2 ≤ r) (k₀ : �
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ n 1), c.FanInAtMost r → c.Decides I Acc (S n) →
         ((r - 1 : ℝ) * gateSweepCoefficient r k₀ - ε) * n < (r - 1) * c.innerSize := by
-  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := sub_pos.mpr (by exact_mod_cast hr)
   filter_upwards [eventually_gateSweep_lt_innerSize.{u, v} hr k₀ hSK
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)] with n hn σ I Acc c hfan hdec
   have hlt := mul_lt_mul_of_pos_left (hn σ I Acc c hfan hdec) hr1_pos
@@ -1008,9 +1006,7 @@ theorem exists_eventually_agreement_le_log {r : ℕ} (hr : 2 ≤ r) {ε : ℝ} (
             (Real.logb 2 r - Real.logb 2 (Real.logb 2 r) - 1 - ε) * n →
           agreement (S n) {x | c.eval I x 0 ∈ Acc} ≤ 1 / 2 + b n + Real.exp (-(γ * n)) := by
   obtain ⟨k₀, hk₀⟩ := exists_log_sub_log_log_le_mul_gateSweepCoefficient hr
-  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := sub_pos.mpr (by exact_mod_cast hr)
   obtain ⟨γ, hγ, H⟩ := exists_eventually_agreement_le_gateSweep.{u, v} hr k₀
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)
   refine ⟨γ, hγ, fun U _ _ S K b hbias hK => ?_⟩
@@ -1378,9 +1374,7 @@ theorem eventually_four_mul_div_lt_mul_innerSize_of_nondeterministicDecides {r :
     ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
       (c : Circuit σ (n + k) 1), c.FanInAtMost r → c.NondeterministicDecides I Acc (S n) →
         (4 * (r - 1 : ℝ) / (r + 1 : ℝ) - ε) * n < (r - 1) * c.innerSize := by
-  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := by
-    have : (2 : ℝ) ≤ r := by exact_mod_cast hr
-    linarith
+  have hr1_pos : (0 : ℝ) < (r : ℝ) - 1 := sub_pos.mpr (by exact_mod_cast hr)
   filter_upwards [eventually_four_div_lt_innerSize_of_nondeterministicDecides.{u, v} hr hSK
     (ε := ε / (r - 1 : ℝ)) (div_pos hε hr1_pos)] with n hn k σ I Acc c hfan hndec
   have hlt := mul_lt_mul_of_pos_left (hn k σ I Acc c hfan hndec) hr1_pos
