@@ -65,7 +65,6 @@ matched-edge branch-and-bound bound (`rrwilliams0/circuit-lb-4.6155n`).
   disagreement energy and optimal cost.
 * `Cslib.Circuits.Frontier.twoVertexEnergy`, `Cslib.Circuits.Frontier.twoVertexCost`: two-vertex
   matched-edge energy and optimal cost.
-* `Cslib.Circuits.Frontier.StraddlesOn`: set-straddling predicate shared by the matched-pair events.
 * `Cslib.Circuits.Frontier.Multigraph.IsMatching`: pairwise vertex-disjoint edge set.
 * `Cslib.Circuits.Frontier.Multigraph.matchedVertices`: vertices incident to a matching edge.
 * `Cslib.Circuits.Frontier.Multigraph.PairStraddlesAny`,
@@ -224,19 +223,6 @@ theorem exists_twoVertexCost_lt_starCost_add :
     twoVertexCost true false false false <
       starCost true false true + starCost false false true := by
   decide
-
-/-- Scores `score` *straddle* threshold `t` on a set `S`: some element of `S` scores below `t`
-and some element of `S` scores at least `t`. -/
-def StraddlesOn {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α) (S : Set ι) : Prop :=
-  (∃ f ∈ S, score f < t) ∧ (∃ f ∈ S, t ≤ score f)
-
-/-- Whether `score` straddles `t` on `S` depends only on the values of `score` on `S`. -/
-theorem straddlesOn_congr {ι α : Type*} [LinearOrder α] {score score' : ι → α} {t : α}
-    {S : Set ι} (h : ∀ f ∈ S, score f = score' f) :
-    StraddlesOn score t S ↔ StraddlesOn score' t S := by
-  constructor <;> rintro ⟨⟨f, hf, hlt⟩, ⟨g, hg, hle⟩⟩
-  · exact ⟨⟨f, hf, by rwa [← h f hf]⟩, ⟨g, hg, by rwa [← h g hg]⟩⟩
-  · exact ⟨⟨f, hf, by rwa [h f hf]⟩, ⟨g, hg, by rwa [h g hg]⟩⟩
 
 private theorem straddlesOn_pair_iff {ι α : Type*} [LinearOrder α] (score : ι → α) (t : α)
     (a b : ι) : StraddlesOn score t {a, b} ↔ decide (score a < t) ≠ decide (score b < t) := by
@@ -399,6 +385,42 @@ private theorem pairKey_eq_of_eq_pair {α : Type*} [LinearOrder α] (score : E �
     exact hcd_case c' d' hc' hd' hcd' (score a') (score b')
   · exact (hab' rfl).elim
 
+private theorem matchingKey_endpoint [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
+    {M : Set E} (hM : G.IsMatching M)
+    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) (score : E → α)
+    {e : E} (he : e ∈ M) {v u : V} (hev : e ∈ G.incidenceSet v) (heu : e ∈ G.incidenceSet u)
+    (hopp : (G.src e = v ∧ u = G.tgt e) ∨ (G.src e ≠ v ∧ u = G.src e))
+    {a b c d : E}
+    (hv : G.incidenceSet v \ {e} = {a, b})
+    (hu : G.incidenceSet u \ {e} = {c, d}) :
+    G.matchingKey M score v = pairKey (score a) (score b) (score c) (score d) := by
+  have hex : ∃ f ∈ M, f ∈ G.incidenceSet v := ⟨e, he, hev⟩
+  have huniq : hex.choose = e :=
+    eq_of_mem_isMatching hM hex.choose_spec.1 he hex.choose_spec.2 hev
+  have hnv : (G.incidenceSet v \ {e}).ncard = 2 :=
+    ncard_sdiff_singleton_eq_two (h3 v) hev
+  have hnu : (G.incidenceSet u \ {e}).ncard = 2 :=
+    ncard_sdiff_singleton_eq_two (h3 u) heu
+  classical
+  have hmate : (if G.src e = v then G.tgt e else G.src e) = u := by
+    rcases hopp with ⟨hs, rfl⟩ | ⟨hs, rfl⟩ <;> simp [hs]
+  have hh : (G.incidenceSet v \ {hex.choose}).ncard = 2 ∧
+      (G.incidenceSet
+        (if G.src hex.choose = v then G.tgt hex.choose else G.src hex.choose) \
+        {hex.choose}).ncard = 2 := by
+    rw [huniq, hmate]
+    exact ⟨hnv, hnu⟩
+  simp only [matchingKey, hex, ↓reduceDIte, hh]
+  have hp := (ncard_eq_two.mp hh.1).choose_spec.choose_spec
+  have hq := (ncard_eq_two.mp hh.2).choose_spec.choose_spec
+  have h1 : G.incidenceSet v \ {e} =
+      {(ncard_eq_two.mp hh.1).choose, (ncard_eq_two.mp hh.1).choose_spec.choose} := by
+    simpa only [huniq] using hp.2
+  have h2 : G.incidenceSet u \ {e} =
+      {(ncard_eq_two.mp hh.2).choose, (ncard_eq_two.mp hh.2).choose_spec.choose} := by
+    simpa only [huniq, hmate] using hq.2
+  exact (pairKey_eq_of_eq_pair score hv h1 hp.1 hu h2 hq.1).symm
+
 private theorem matchingKey_matched [Finite E] {α : Type*} [LinearOrder α] [Inhabited α]
     {M : Set E} (hM : G.IsMatching M) (hloop : G.Loopless)
     (h3 : ∀ v, (G.incidenceSet v).ncard = 3) (score : E → α)
@@ -406,49 +428,10 @@ private theorem matchingKey_matched [Finite E] {α : Type*} [LinearOrder α] [In
     (hsrc : G.incidenceSet (G.src e) \ {e} = {a, b})
     (htgt : G.incidenceSet (G.tgt e) \ {e} = {c, d}) :
     G.matchingKey M score (G.src e) = pairKey (score a) (score b) (score c) (score d) ∧
-      G.matchingKey M score (G.tgt e) = pairKey (score c) (score d) (score a) (score b) := by
-  have hex_s : ∃ f ∈ M, f ∈ G.incidenceSet (G.src e) := ⟨e, he, Or.inl rfl⟩
-  have hex_t : ∃ f ∈ M, f ∈ G.incidenceSet (G.tgt e) := ⟨e, he, Or.inr rfl⟩
-  have huniq_s : hex_s.choose = e :=
-    eq_of_mem_isMatching hM hex_s.choose_spec.1 he hex_s.choose_spec.2 (Or.inl rfl)
-  have huniq_t : hex_t.choose = e :=
-    eq_of_mem_isMatching hM hex_t.choose_spec.1 he hex_t.choose_spec.2 (Or.inr rfl)
-  have hns : (G.incidenceSet (G.src e) \ {e}).ncard = 2 :=
-    ncard_sdiff_singleton_eq_two (h3 _) (Or.inl rfl)
-  have hnt : (G.incidenceSet (G.tgt e) \ {e}).ncard = 2 :=
-    ncard_sdiff_singleton_eq_two (h3 _) (Or.inr rfl)
-  classical
-  constructor
-  · have hhs : (G.incidenceSet (G.src e) \ {hex_s.choose}).ncard = 2 ∧
-        (G.incidenceSet
-          (if G.src hex_s.choose = G.src e then G.tgt hex_s.choose else G.src hex_s.choose) \
-          {hex_s.choose}).ncard = 2 := by
-      simp only [huniq_s, ↓reduceIte]; exact ⟨hns, hnt⟩
-    simp only [matchingKey, hex_s, ↓reduceDIte, hhs]
-    have hp := (ncard_eq_two.mp hhs.1).choose_spec.choose_spec
-    have hq := (ncard_eq_two.mp hhs.2).choose_spec.choose_spec
-    have h1 : G.incidenceSet (G.src e) \ {e} =
-        {(ncard_eq_two.mp hhs.1).choose, (ncard_eq_two.mp hhs.1).choose_spec.choose} := by
-      simpa only [huniq_s] using hp.2
-    have h2 : G.incidenceSet (G.tgt e) \ {e} =
-        {(ncard_eq_two.mp hhs.2).choose, (ncard_eq_two.mp hhs.2).choose_spec.choose} := by
-      simpa only [huniq_s, ↓reduceIte] using hq.2
-    exact (pairKey_eq_of_eq_pair score hsrc h1 hp.1 htgt h2 hq.1).symm
-  · have hht : (G.incidenceSet (G.tgt e) \ {hex_t.choose}).ncard = 2 ∧
-        (G.incidenceSet
-          (if G.src hex_t.choose = G.tgt e then G.tgt hex_t.choose else G.src hex_t.choose) \
-          {hex_t.choose}).ncard = 2 := by
-      simp only [huniq_t, hloop e, ↓reduceIte]; exact ⟨hnt, hns⟩
-    simp only [matchingKey, hex_t, ↓reduceDIte, hht]
-    have hp := (ncard_eq_two.mp hht.1).choose_spec.choose_spec
-    have hq := (ncard_eq_two.mp hht.2).choose_spec.choose_spec
-    have h1 : G.incidenceSet (G.tgt e) \ {e} =
-        {(ncard_eq_two.mp hht.1).choose, (ncard_eq_two.mp hht.1).choose_spec.choose} := by
-      simpa only [huniq_t] using hp.2
-    have h2 : G.incidenceSet (G.src e) \ {e} =
-        {(ncard_eq_two.mp hht.2).choose, (ncard_eq_two.mp hht.2).choose_spec.choose} := by
-      simpa only [huniq_t, hloop e, ↓reduceIte] using hq.2
-    exact (pairKey_eq_of_eq_pair score htgt h1 hp.1 hsrc h2 hq.1).symm
+      G.matchingKey M score (G.tgt e) = pairKey (score c) (score d) (score a) (score b) :=
+  ⟨matchingKey_endpoint hM h3 score he (Or.inl rfl) (Or.inr rfl) (Or.inl ⟨rfl, rfl⟩) hsrc htgt,
+    matchingKey_endpoint hM h3 score he (Or.inr rfl) (Or.inl rfl)
+      (Or.inr ⟨hloop e, rfl⟩) htgt hsrc⟩
 
 private theorem matchingKey_unmatched {α : Type*} [LinearOrder α] [Inhabited α]
     {M : Set E} (h3 : ∀ v, (G.incidenceSet v).ncard = 3) (score : E → α)
@@ -472,7 +455,7 @@ private theorem starCost_eq_ite_edgeStraddles {α : Type*} [LinearOrder α]
   have hiff : G.EdgeStraddles score t v ↔
       ¬(decide (score e₀ < t) = decide (score e₁ < t) ∧
         decide (score e₁ < t) = decide (score e₂ < t)) := by
-    simp only [EdgeStraddles, hs, mem_insert_iff, mem_singleton_iff]
+    simp only [EdgeStraddles, StraddlesOn, hs, mem_insert_iff, mem_singleton_iff]
     by_cases h0 : score e₀ < t <;> by_cases h1 : score e₁ < t <;> by_cases h2 : score e₂ < t <;>
       simp [h0, h1, h2, not_lt.mp]
   simp only [starCost]

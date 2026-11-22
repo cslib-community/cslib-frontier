@@ -97,10 +97,10 @@ private theorem k4Graph_edgeStraddles_all :
     ∀ v : Fin 4, k4Graph.EdgeStraddles k4Score 0 v := by
   intro v
   fin_cases v
-  · exact ⟨0, Or.inl rfl, by norm_num [k4Score], 3, Or.inl rfl, by norm_num [k4Score]⟩
-  · exact ⟨0, Or.inr rfl, by norm_num [k4Score], 4, Or.inl rfl, by norm_num [k4Score]⟩
-  · exact ⟨1, Or.inl rfl, by norm_num [k4Score], 4, Or.inr rfl, by norm_num [k4Score]⟩
-  · exact ⟨1, Or.inr rfl, by norm_num [k4Score], 3, Or.inr rfl, by norm_num [k4Score]⟩
+  · exact ⟨⟨0, Or.inl rfl, by norm_num [k4Score]⟩, ⟨3, Or.inl rfl, by norm_num [k4Score]⟩⟩
+  · exact ⟨⟨0, Or.inr rfl, by norm_num [k4Score]⟩, ⟨4, Or.inl rfl, by norm_num [k4Score]⟩⟩
+  · exact ⟨⟨1, Or.inl rfl, by norm_num [k4Score]⟩, ⟨4, Or.inr rfl, by norm_num [k4Score]⟩⟩
+  · exact ⟨⟨1, Or.inr rfl, by norm_num [k4Score]⟩, ⟨3, Or.inr rfl, by norm_num [k4Score]⟩⟩
 
 example : k4Graph.matchingCost k4Matching k4Score 0 = 2 ∧
     {v | k4Graph.EdgeStraddles k4Score 0 v}.ncard = 4 := by

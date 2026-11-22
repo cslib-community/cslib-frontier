@@ -178,19 +178,6 @@ private theorem edgeScore_congr_of_outer (hloop : G.Loopless) (q : ℝ) (R : ℕ
       (by exact_mod_cast Nat.le_succ (R + 1))
   · exact edgeScore_congr hf.1 fun z hz => hω z (closedBall_tgt_subset_src hloop e R hz)
 
-private theorem measurableSet_straddlesOn [Finite E] (q : ℝ) (R : ℕ) (t : ℝ) (S : Set E) :
-    MeasurableSet {ω | StraddlesOn (edgeScore G q R ω) t S} := by
-  have hset : {ω | StraddlesOn (edgeScore G q R ω) t S} =
-      (⋃ f ∈ S, {ω | edgeScore G q R ω f < t}) ∩
-      (⋃ f ∈ S, {ω | t ≤ edgeScore G q R ω f}) := by
-    ext ω
-    simp [StraddlesOn]
-  rw [hset]
-  exact ((toFinite S).measurableSet_biUnion fun f _ =>
-      measurable_edgeScore q R f measurableSet_Iio).inter
-    ((toFinite S).measurableSet_biUnion fun f _ =>
-      measurable_edgeScore q R f measurableSet_Ici)
-
 private theorem measurableSet_pairAnyEvent [Finite E] (M : Set E) (q : ℝ) (R : ℕ) (t : ℝ)
     (e : E) : MeasurableSet (pairAnyEvent G M q R t e) := by
   classical
