@@ -7610,6 +7610,7 @@ public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSmooth
 public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 public import CslibFrontier.Foundations.Probability.Gaussian.OrnsteinUhlenbeck
 public import CslibFrontier.Foundations.Probability.Gaussian.Periodization
+public import CslibFrontier.Foundations.Probability.Gaussian.Plackett
 public import CslibFrontier.Foundations.Probability.Gaussian.Poisson
 public import CslibFrontier.Foundations.Probability.Gaussian.PolynomialDense
 public import CslibFrontier.Foundations.Probability.Gaussian.Projection

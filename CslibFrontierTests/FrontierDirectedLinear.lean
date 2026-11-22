@@ -89,8 +89,14 @@ example (P : Set Bool) [DecidablePred (· ∈ P)] :
 /-! ### 3. Non-vacuity witness for `exists_pos_shifted_inCut_ratio_lt` -/
 
 /-- Concrete `(4 / 5)`-correlated Gaussian scores on `dirTheta` satisfying every hypothesis of
-`DirectedShift.exists_pos_shifted_inCut_ratio_lt` (including `P(M_u = M_v) = 0` and
-`HasDerivAt c 0 0`). -/
+`DirectedShift.exists_pos_shifted_inCut_ratio_lt` (including `c 0 < 1 / 2` and `HasDerivAt c 0 0`),
+plus the tie-cusp witness `DirectedShift.tie_mem_edgeCut_shiftedCut`. -/
+example {M : Bool → ℝ} {d : ℝ} (hsrc : 0 < dirTheta.divergence false)
+    (htgt : ¬ 0 < dirTheta.divergence true) (htie : M false = M true)
+    (hlo : -d < M false) (hhi : M false ≤ d) :
+    (0 : Fin 3) ∈ dirTheta.edgeCut (DirectedShift.shiftedCut dirTheta M d) :=
+  DirectedShift.tie_mem_edgeCut_shiftedCut dirTheta M hsrc htgt htie hlo hhi
+
 example :
     let P := correlatedGaussian (4 / 5)
     let M : ℝ × ℝ → Bool → ℝ := fun p v => if v then p.2 else p.1
@@ -123,33 +129,6 @@ example :
     simp only [hin0, hed0, ncard_empty, mul_zero, CharP.cast_eq_zero, zero_add, mem_univ,
       ↓reduceIte, Fintype.sum_bool] at htot
     omega
-  -- Atom-free adjacent scores `P(p.1 = p.2) = 0`:
-  have hatom_pair : P.real {p : ℝ × ℝ | p.1 = p.2} = 0 := by
-    have hm : MeasurableSet {p : ℝ × ℝ | p.1 = p.2} :=
-      measurableSet_eq_fun measurable_fst measurable_snd
-    rw [measureReal_def, ENNReal.toReal_eq_zero_iff]
-    refine Or.inl ?_
-    rw [show P = correlatedGaussian (4 / 5) from rfl, correlatedGaussian_def,
-      Measure.map_apply (by fun_prop) hm, Measure.prod_apply (hm.preimage (by fun_prop))]
-    have hzero (x : ℝ) :
-        gaussianReal 0 1 {y : ℝ | x = 4 / 5 * x + √(1 - (4 / 5 : ℝ) ^ 2) * y} = 0 := by
-      have hsq : √(1 - (4 / 5 : ℝ) ^ 2) = 3 / 5 := by
-        rw [show (1 : ℝ) - (4 / 5) ^ 2 = (3 / 5) ^ 2 by norm_num, sqrt_sq (by norm_num)]
-      have hsub : {y : ℝ | x = 4 / 5 * x + √(1 - (4 / 5 : ℝ) ^ 2) * y} ⊆ {x / 3} := by
-        intro y hy
-        rw [mem_ofPred_eq, hsq] at hy
-        rw [mem_singleton_iff]
-        linarith
-      have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-      exact measure_mono_null hsub (measure_singleton _)
-    simp [hzero]
-  have hatom (e : Fin 3) : P.real {ω | M ω (dirTheta.src e) = M ω (dirTheta.tgt e)} = 0 := by
-    fin_cases e
-    · exact hatom_pair
-    · exact hatom_pair
-    · convert hatom_pair using 2
-      ext p
-      exact eq_comm
   -- Marginal cdf `Φ`:
   have hFm (v : Bool) (t : ℝ) : P.real {ω | M ω v ≤ t} = cdf (gaussianReal 0 1) t := by
     cases v
@@ -275,7 +254,7 @@ example :
   have hFderiv : HasDerivAt (cdf (gaussianReal 0 1)) (gaussianPDFReal 0 1 0) 0 :=
     hasDerivAt_cdf_gaussianReal 0 one_ne_zero 0
   exact DirectedShift.exists_pos_shifted_inCut_ratio_lt dirTheta dirTheta_loopless dirTheta_cubic
-    M (fun v => by cases v <;> (dsimp [M]; fun_prop)) hatom
+    M (fun v => by cases v <;> (dsimp [M]; fun_prop))
     (by rw [cdf_gaussianReal_zero_zero one_ne_zero]; norm_num)
     (fun t => by rw [cdf_gaussianReal_neg one_ne_zero]; ring)
     hFm hFderiv (gaussianPDFReal_pos 0 1 0 one_ne_zero) hc0 hcderiv
