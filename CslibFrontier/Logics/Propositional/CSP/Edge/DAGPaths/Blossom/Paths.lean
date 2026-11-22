@@ -52,9 +52,10 @@ theorem blossomArcs_map_occurrence (ss : List (Occurrence F × Occurrence F))
     (ts : List ℕ) (pivot : ℕ) (hl : ts.length = ss.length) :
     (blossomArcs ss ts pivot).map Arc.occurrence = Walk.edgesOf ss := by
   fun_induction blossomArcs ss ts pivot with
-  | case1 => simp [Walk.edgesOf]
+  | case1 => simp [Walk.edgesOf] -- no steps
+  -- steps but no timestamps
   | case2 ss _ hss => exact absurd (List.eq_nil_of_length_eq_zero (by simpa using hl.symm)) hss
-  | case3 input output ss t ts pivot ih =>
+  | case3 input output ss t ts pivot ih => -- (input, output) :: ss, t :: ts
     simp only [List.map_cons, Walk.edgesOf_cons]
     rw [ih (by simpa using hl)]
 
@@ -66,9 +67,10 @@ theorem blossomArcs_get_mem {ss : List (Occurrence F × Occurrence F)} {ts : Lis
     (⟨input, stamp, decide (j < pivot)⟩ : Arc F) ∈ blossomArcs ss ts pivot ∧
       (⟨output, stamp, decide (pivot ≤ j + 1)⟩ : Arc F) ∈ blossomArcs ss ts pivot := by
   fun_induction blossomArcs ss ts pivot generalizing j with
-  | case1 => simp at hj
+  | case1 => simp at hj -- no steps
+  -- steps but no timestamps
   | case2 ss _ hss => exact absurd (List.eq_nil_of_length_eq_zero (by simpa using hl.symm)) hss
-  | case3 input output ss t ts pivot ih =>
+  | case3 input output ss t ts pivot ih => -- (input, output) :: ss, t :: ts
     cases j with
     | zero => simp
     | succ j =>
@@ -93,7 +95,7 @@ theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List �
       a = ⟨input, stamp, decide (j < pivot)⟩ ∨
         a = ⟨output, stamp, decide (pivot ≤ j + 1)⟩ := by
   fun_induction blossomArcs ss ts pivot with
-  | case3 input output ss t ts pivot ih =>
+  | case3 input output ss t ts pivot ih => -- (input, output) :: ss, t :: ts
     simp only [List.mem_cons] at ha
     rcases ha with rfl | rfl | ha
     · exact ⟨0, by simp, Or.inl rfl⟩
@@ -104,7 +106,7 @@ theorem blossomArcs_mem {ss : List (Occurrence F × Occurrence F)} {ts : List �
         Bool.decide_congr (by omega)
       exact ⟨j + 1, by simpa using Nat.succ_lt_succ hj, by simpa only [List.getElem_cons_succ,
         Nat.succ_eq_add_one, hpa, hpb] using he⟩
-  | _ => simp at ha
+  | _ => simp at ha -- no steps or no timestamps
 
 /-- A finite lookup of the timestamp at an actual blossom incidence. -/
 @[expose] def blossomTime (w : Walk F) (times : List ℕ) (pivot : ℕ)

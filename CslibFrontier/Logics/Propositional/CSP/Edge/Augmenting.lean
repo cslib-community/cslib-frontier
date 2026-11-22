@@ -130,20 +130,20 @@ theorem repair_spec (h : EdgeInstance F) {sem : Rel → List Bool → Bool}
       hammingDist f g' + 2 * k = hammingDist f g ∧ k ≤ fuel ∧
       (hammingDist f g ≤ fuel → defects g' ⊆ defects f) := by
   fun_induction repair sem f fuel g with
-  | case1 g =>
+  | case1 g => -- fuel exhausted
     refine ⟨hg, le_rfl, by simp, le_rfl, ?_⟩
     intro hd
     have he : f = g := hammingDist_eq_zero.mp (by omega)
     subst g
     exact Subset.rfl
-  | case2 n g hs =>
+  | case2 n g hs => -- no repair move
     refine ⟨hg, le_rfl, by simp, Nat.zero_le _, ?_⟩
     intro _ v hvg
     by_contra hvf
     obtain ⟨a, ha⟩ := exists_repairMove hM hf hg
       (mt mem_defects.mpr hvf) (mem_defects.mp hvg)
     exact findPair_none hs a.1 a.2 ha
-  | case3 n g o p hs g' k hrep ih =>
+  | case3 n g o p hs g' k hrep ih => -- repair move (o, p): flip and recurse
     obtain ⟨hc, hne, ho, hp, hcf, hcg, hv⟩ := findPair_spec hs
     have hrec := ih hv
     rw [hrep] at hrec

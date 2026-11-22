@@ -105,7 +105,7 @@ private theorem Clause.eval_orChainAux_iff (fresh : ℕ → W) (σ : W → Bool)
       Clause.eval σ (carry :: rest) = true ∧
         ∀ i < rest.length - 2, σ (fresh (j + i)) = Clause.eval σ (carry :: rest.take (i + 1)) := by
   induction j, carry, rest using Clause.orChainAux.induct fresh with
-  | case1 j carry b c d rest ih =>
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a gate
     have hgate : (CNF.eval σ [[(carry.1, !carry.2), (fresh j, true)],
         [(b.1, !b.2), (fresh j, true)], [carry, b, (fresh j, false)]] = true) ↔
         σ (fresh j) = (Literal.eval σ carry || Literal.eval σ b) := by
@@ -142,7 +142,7 @@ private theorem Clause.eval_orChainAux_iff (fresh : ℕ → W) (σ : W → Bool)
       refine ⟨hj, by rw [hj, Bool.or_assoc, hcl], fun i hi' => ?_⟩
       rw [show j + 1 + i = j + (i + 1) by omega, hi (i + 1) (by omega), hj]
       simp only [List.take_succ_cons, Clause.eval_cons, Bool.or_assoc]
-  | case2 j carry rest hrest =>
+  | case2 j carry rest hrest => -- at most two literals after carry
     rw [Clause.orChainAux]
     · simp [Nat.sub_eq_zero_of_le (Clause.length_le_two_of_short hrest)]
     · exact hrest
@@ -164,7 +164,7 @@ private theorem Clause.length_le_three_of_mem_orChainAux (fresh : ℕ → W) (j 
     (carry : Literal W) (rest : Clause W) :
     ∀ d ∈ Clause.orChainAux fresh j carry rest, d.length ≤ 3 := by
   fun_induction Clause.orChainAux fresh j carry rest with
-  | case1 j carry b c d rest ih =>
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a gate
     intro e he
     simp only [List.mem_cons] at he
     rcases he with rfl | rfl | rfl | he
@@ -172,7 +172,7 @@ private theorem Clause.length_le_three_of_mem_orChainAux (fresh : ℕ → W) (j 
     · simp
     · simp
     · exact ih e he
-  | case2 j carry rest hrest =>
+  | case2 j carry rest hrest => -- at most two literals after carry
     intro e he
     obtain rfl := List.mem_singleton.mp he
     simp only [List.length_cons]
@@ -193,7 +193,7 @@ private theorem Clause.mem_vars_orChainAux (fresh : ℕ → W) (j : ℕ) (carry 
     x ∈ (Clause.orChainAux fresh j carry rest).vars →
       (∃ b, (x, b) ∈ carry :: rest) ∨ ∃ i < rest.length - 2, x = fresh (j + i) := by
   fun_induction Clause.orChainAux fresh j carry rest with
-  | case1 j carry b c d rest ih =>
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a gate
     intro hx
     obtain ⟨e, he, s, hs⟩ := CNF.mem_vars.1 hx
     simp only [List.mem_cons] at he
@@ -220,7 +220,7 @@ private theorem Clause.mem_vars_orChainAux (fresh : ℕ → W) (j : ℕ) (carry 
         · exact .inl ⟨t, List.mem_cons_of_mem _ (List.mem_cons_of_mem _ ht)⟩
       · exact .inr ⟨i + 1, by simp only [List.length_cons] at hi ⊢; omega,
           by rw [show j + (i + 1) = j + 1 + i by omega]⟩
-  | case2 j carry rest hrest =>
+  | case2 j carry rest hrest => -- at most two literals after carry
     intro hx
     obtain ⟨e, he, s, hs⟩ := CNF.mem_vars.1 hx
     rw [List.mem_singleton] at he
@@ -241,7 +241,7 @@ private theorem Clause.vars_subset_orChainAux (fresh : ℕ → W) (j : ℕ) (car
     (rest : Clause W) {x : W} {b : Bool} (h : (x, b) ∈ carry :: rest) :
     x ∈ (Clause.orChainAux fresh j carry rest).vars := by
   fun_induction Clause.orChainAux fresh j carry rest with
-  | case1 j carry b' c d rest ih =>
+  | case1 j carry b' c d rest ih => -- b' :: c :: d :: rest: emit a gate
     rw [CNF.mem_vars]
     simp only [List.mem_cons] at h
     rcases h with rfl | rfl | h
@@ -249,6 +249,7 @@ private theorem Clause.vars_subset_orChainAux (fresh : ℕ → W) (j : ℕ) (car
     · exact ⟨[carry, (x, b), (fresh j, false)], by simp, b, by simp⟩
     · obtain ⟨e, he, s, hs⟩ := CNF.mem_vars.1 (ih (by simp only [List.mem_cons]; tauto))
       exact ⟨e, by simp only [List.mem_cons]; tauto, s, hs⟩
+  -- at most two literals after carry
   | case2 => exact CNF.mem_vars.2 ⟨_, List.mem_singleton_self _, b, h⟩
 
 /-- Every variable of a clause is a variable of its chain. -/
@@ -262,10 +263,10 @@ private theorem Clause.length_orChainAux (fresh : ℕ → W) (j : ℕ) (carry : 
     (rest : Clause W) :
     (Clause.orChainAux fresh j carry rest).length = 3 * (rest.length - 2) + 1 := by
   fun_induction Clause.orChainAux fresh j carry rest with
-  | case1 j carry b c d rest ih =>
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a gate
     simp only [List.length_cons, ih]
     omega
-  | case2 j carry rest hrest =>
+  | case2 j carry rest hrest => -- at most two literals after carry
     have := Clause.length_le_two_of_short hrest
     rw [List.length_singleton]
     omega
@@ -285,11 +286,11 @@ private theorem Clause.length_vars_orChainAux (fresh : ℕ → W) (j : ℕ) (car
     (Clause.orChainAux fresh j carry rest).vars.length =
       (rest.length + 1) + 6 * (rest.length - 2) := by
   fun_induction Clause.orChainAux fresh j carry rest with
-  | case1 j carry b c d rest ih =>
+  | case1 j carry b c d rest ih => -- b :: c :: d :: rest: emit a gate
     rw [CNF.length_vars] at ih ⊢
     simp only [List.map_cons, List.sum_cons, List.length_cons, List.length_nil] at ih ⊢
     omega
-  | case2 j carry rest hrest =>
+  | case2 j carry rest hrest => -- at most two literals after carry
     have := Clause.length_le_two_of_short hrest
     simp only [CNF.length_vars, List.map_cons, List.map_nil, List.sum_cons, List.sum_nil,
       List.length_cons]

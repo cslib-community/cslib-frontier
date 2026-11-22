@@ -266,14 +266,14 @@ theorem mem_countingLeafWords_iff_isLeafWord {θ : ℕ → ℕ} (hθ : ∀ j, 1 
     (ψ : ClauseSet V) (w : List Bool) :
     w ∈ countingLeafWords θ ψ ↔ (countingTreeRule θ).tree.IsLeafWord ψ w := by
   fun_induction countingLeafWords θ ψ generalizing w with
-  | case1 ψ h ch ih₀ ih₁ =>
+  | case1 ψ hsplit ch ih₀ ih₁ => -- not sparse, flower ≥ 2: branch
     cases w with
-    | nil => simpa [BinaryBranching.IsLeafWord, countingTreeRule] using h.1
+    | nil => simpa [BinaryBranching.IsLeafWord, countingTreeRule] using hsplit.1
     | cons b u =>
-      cases b <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, h.1, ch, ih₀, ih₁]
-  | case2 ψ h =>
+      cases b <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, hsplit.1, ch, ih₀, ih₁]
+  | case2 ψ hleaf => -- leaf
     have hs : Sparse θ ψ := of_not_not fun hs =>
-      h ⟨hs, two_le_card_flower_of_heavy hθ (choice_chooseBranch hs).1⟩
+      hleaf ⟨hs, two_le_card_flower_of_heavy hθ (choice_chooseBranch hs).1⟩
     cases w <;> simp [BinaryBranching.IsLeafWord, countingTreeRule, hs]
 
 /-- When `∀ j, 1 ≤ j → 2 ≤ θ j`, every address `w ∈ countingLeafWords θ ψ` is a leaf word of

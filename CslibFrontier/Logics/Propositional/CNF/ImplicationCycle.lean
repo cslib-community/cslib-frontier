@@ -65,8 +65,8 @@ private theorem eval_implication (σ : V → Bool) (a b : V) :
 private theorem path_le_first (σ : V → Bool) (first current : V) (rest : List V)
     (h : (implicationPath first current rest).eval σ = true) : σ current ≤ σ first := by
   fun_induction implicationPath first current rest with
-  | case1 current => exact (eval_implication σ current first).1 (by simpa using h)
-  | case2 current next rest ih =>
+  | case1 current => exact (eval_implication σ current first).1 (by simpa using h) -- []
+  | case2 current next rest ih => -- next :: rest
     simp only [eval_cons, Bool.and_eq_true] at h
     exact le_trans ((eval_implication σ current next).1 h.1) (ih h.2)
 
@@ -74,8 +74,8 @@ private theorem path_each_le_first (σ : V → Bool) (first current : V) (rest :
     (h : (implicationPath first current rest).eval σ = true) :
     ∀ x ∈ current :: rest, σ x ≤ σ first := by
   fun_induction implicationPath first current rest with
-  | case1 current => simpa using path_le_first σ first current [] h
-  | case2 current next rest ih =>
+  | case1 current => simpa using path_le_first σ first current [] h -- []
+  | case2 current next rest ih => -- next :: rest
     intro x hx
     rcases List.mem_cons.1 hx with rfl | hx
     · exact path_le_first σ first x (next :: rest) h
@@ -85,8 +85,8 @@ private theorem root_le_path (σ : V → Bool) (root first current : V) (rest : 
     (hr : σ root ≤ σ current) (h : (implicationPath first current rest).eval σ = true) :
     ∀ x ∈ current :: rest, σ root ≤ σ x := by
   fun_induction implicationPath first current rest with
-  | case1 => simpa using hr
-  | case2 current next rest ih =>
+  | case1 => simpa using hr -- []
+  | case2 current next rest ih => -- next :: rest
     intro x hx
     rcases List.mem_cons.1 hx with rfl | hx
     · exact hr

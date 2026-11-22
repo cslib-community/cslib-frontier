@@ -99,8 +99,8 @@ reserved for the caller; an empty boundary is the true nullary parity table. -/
 theorem length_parityChainTail (fresh first : ℕ) (rest : List ℕ) :
     (parityChainTail fresh first rest).length = max 1 (rest.length - 1) := by
   fun_induction parityChainTail fresh first rest with
-  | case4 => simp only [List.length_cons] at *; omega
-  | _ => rfl
+  | case4 => simp only [List.length_cons] at *; omega -- b :: c :: d :: rest: chain step
+  | _ => rfl -- at most two boundary entries left
 
 /-- Linear constraint count, including empty and short boundaries. -/
 theorem length_parityChain (fresh : ℕ) (scope : List ℕ) :
@@ -115,11 +115,11 @@ theorem parityChainTail_width (fresh first : ℕ) (rest : List ℕ)
     c.rel.arity = c.scope.length ∧ c.scope.length ≤ 3 ∧
       ∃ n ≤ 3, c.rel = evenTable n := by
   fun_induction parityChainTail fresh first rest with
-  | case4 _ _ _ _ _ _ ih =>
+  | case4 _ _ _ _ _ _ ih => -- b :: c :: d :: rest: chain step
     rcases List.mem_cons.mp hc with rfl | hc
     · exact ⟨rfl, by simp, 3, le_rfl, rfl⟩
     · exact ih hc
-  | _ =>
+  | _ => -- at most two boundary entries left
     obtain rfl := List.mem_singleton.mp hc
     exact ⟨rfl, by simp, _, by omega, rfl⟩
 
@@ -143,7 +143,7 @@ theorem parityChainTail_sound (fresh first : ℕ) (rest : List ℕ) (σ : ℕ �
     (h : (parityChainTail fresh first rest).eval sem σ = true) :
     wordParity ((first :: rest).map σ) = false := by
   fun_induction parityChainTail fresh first rest with
-  | case4 fresh first b c d rest ih =>
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
     have hh : (evenTable 3).sem ([first, b, fresh].map σ) = true ∧
         (parityChainTail (fresh + 1) fresh (c :: d :: rest)).eval sem σ = true := by
       simpa only [CSP.eval, List.all_cons, Bool.and_eq_true, Constraint.eval] using h
@@ -156,7 +156,7 @@ theorem parityChainTail_sound (fresh first : ℕ) (rest : List ℕ) (σ : ℕ �
       simpa using ht
     change (σ first ^^ (σ b ^^ wordParity ((c :: d :: rest).map σ))) = false
     rwa [← he]
-  | _ =>
+  | _ => -- at most two boundary entries left
     exact (sem_evenTable _ _).mp (by simpa only [CSP.eval, List.all_cons, List.all_nil,
       Bool.and_true, Constraint.eval] using h) |>.2
 
@@ -177,7 +177,7 @@ theorem parityChainTail_complete (fresh first : ℕ) (rest : List ℕ) (σ : ℕ
       (∀ v, v < fresh ∨ fresh + (rest.length - 2) ≤ v → τ v = σ v) ∧
       (parityChainTail fresh first rest).eval sem τ = true := by
   fun_induction parityChainTail fresh first rest generalizing σ with
-  | case4 fresh first b c d rest ih =>
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
     let σ' := Function.update σ fresh (σ first ^^ σ b)
     have hfirst := hbound first (by simp)
     have hb := hbound b (by simp)
@@ -218,7 +218,7 @@ theorem parityChainTail_complete (fresh first : ℕ) (rest : List ℕ) (σ : ℕ
       simp only [List.map_cons, List.map_nil, wordParity_cons, wordParity_nil,
         Bool.xor_false, htfirst, htb, htfresh]
       cases σ first <;> cases σ b <;> rfl
-  | _ =>
+  | _ => -- at most two boundary entries left
     refine ⟨σ, fun _ _ => rfl, ?_⟩
     simp only [CSP.eval, List.all_cons, List.all_nil, Bool.and_true, Constraint.eval]
     exact (sem_evenTable _ _).mpr ⟨rfl, hparity⟩
@@ -246,13 +246,13 @@ theorem count_vars_parityChainTail (fresh first : ℕ) (rest : List ℕ) (v : �
     (parityChainTail fresh first rest).vars.count v = (first :: rest).count v +
       if fresh ≤ v ∧ v < fresh + (rest.length - 2) then 2 else 0 := by
   fun_induction parityChainTail fresh first rest with
-  | case4 fresh first b c d rest ih =>
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
     change ([first, b, fresh] ++ (parityChainTail (fresh + 1) fresh
       (c :: d :: rest)).vars).count v = _
     rw [List.count_append, ih]
     simp only [List.count_cons, List.count_nil, List.length_cons]
     split_ifs <;> simp_all only [beq_iff_eq] <;> omega
-  | _ => simp [CSP.vars]
+  | _ => simp [CSP.vars] -- at most two boundary entries left
 
 /-- Every old boundary occurrence is retained once, and every new auxiliary occurs twice. -/
 theorem count_vars_parityChain (fresh : ℕ) (scope : List ℕ) (v : ℕ) :
@@ -286,7 +286,7 @@ theorem parityChainTail_scopes_nodup (fresh first : ℕ) (rest : List ℕ)
     (constraint : Constraint Table ℕ) (hc : constraint ∈ parityChainTail fresh first rest) :
     constraint.scope.Nodup := by
   fun_induction parityChainTail fresh first rest with
-  | case4 fresh first b c d rest ih =>
+  | case4 fresh first b c d rest ih => -- b :: c :: d :: rest: chain step
     rcases List.mem_cons.mp hc with rfl | hc
     · have hfirst := hbound first (by simp)
       have hb := hbound b (by simp)
@@ -305,7 +305,7 @@ theorem parityChainTail_scopes_nodup (fresh first : ℕ) (rest : List ℕ)
         · omega
         · exact (hbound v (List.mem_cons_of_mem first
             (List.mem_cons_of_mem b hv))).trans (Nat.lt_succ_self fresh)
-  | _ =>
+  | _ => -- at most two boundary entries left
     obtain rfl := List.mem_singleton.mp hc
     exact hnd
 

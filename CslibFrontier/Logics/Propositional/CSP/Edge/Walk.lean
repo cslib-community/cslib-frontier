@@ -151,8 +151,8 @@ theorem flipSteps_eq_flipOn (f : OccurrenceLabeling F Bool)
     (s : List (Occurrence F × Occurrence F)) (hs : (edgesOf s).Nodup) :
     flipSteps f s = flipOn (edgesOf s).toFinset f := by
   fun_induction flipSteps f s with
-  | case1 => simp [edgesOf]
-  | case2 f o p s ih =>
+  | case1 => simp [edgesOf] -- []
+  | case2 f o p s ih => -- (o, p) :: s
     change (o :: p :: edgesOf s).Nodup at hs
     simp only [List.nodup_cons, List.mem_cons, not_or] at hs
     rw [ih hs.2.2]
@@ -276,8 +276,8 @@ theorem IsWalk.defects_flip (h : EdgeInstance F) {w : Walk F} (hw : w.IsWalk)
   rw [flip, edges, ← flipSteps_eq_flipOn f s hw.2]
   change defects (flipSteps f s) = defects f ∆ {v} ∆ {finishFrom v s}
   fun_induction flipSteps f s generalizing v with
-  | case1 => simp [finishFrom]
-  | case2 f o p s ih =>
+  | case1 => simp [finishFrom] -- []
+  | case2 f o p s ih => -- (o, p) :: s
     obtain ⟨hl, hn⟩ := hw
     change (o :: p :: edgesOf s).Nodup at hn
     simp only [List.nodup_cons, List.mem_cons, not_or] at hn

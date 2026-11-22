@@ -233,16 +233,16 @@ private theorem unitPropagateWithTrailAux_eq_of_le {n m : ℕ} {φ : CNF V}
     (hn : φ.length ≤ n) (hm : φ.length ≤ m) :
     unitPropagateWithTrailAux n φ = unitPropagateWithTrailAux m φ := by
   fun_induction unitPropagateWithTrailAux n φ generalizing m with
-  | case1 φ =>
+  | case1 φ => -- fuel exhausted
     obtain rfl : φ = [] := List.eq_nil_of_length_eq_zero (Nat.eq_zero_of_le_zero hn)
     exact (unitPropagateWithTrailAux_of_none (φ := []) rfl).symm
-  | case2 k φ h => exact (unitPropagateWithTrailAux_of_none h).symm
-  | case3 k φ l h res ih =>
-    have hpos : 0 < φ.length := List.length_pos_of_mem (mem_of_findUnit?_eq_some h)
+  | case2 k φ hnone => exact (unitPropagateWithTrailAux_of_none hnone).symm -- no unit clause
+  | case3 k φ l hunit res ih => -- unit clause [l]: propagate
+    have hpos : 0 < φ.length := List.length_pos_of_mem (mem_of_findUnit?_eq_some hunit)
     obtain ⟨m', rfl⟩ := Nat.exists_eq_succ_of_ne_zero (by omega : m ≠ 0)
     have hlt : (φ.restrict l.1 l.2).length < φ.length :=
-      length_restrict_lt (mem_of_findUnit?_eq_some h) List.mem_cons_self
-    simp [unitPropagateWithTrailAux, h, res, ih (by omega) (by omega : _ ≤ m')]
+      length_restrict_lt (mem_of_findUnit?_eq_some hunit) List.mem_cons_self
+    simp [unitPropagateWithTrailAux, hunit, res, ih (by omega) (by omega : _ ≤ m')]
 
 private theorem unitPropagateWithTrail_of_none {φ : CNF V} (h : φ.findUnit? = none) :
     φ.unitPropagateWithTrail = ([], φ) :=

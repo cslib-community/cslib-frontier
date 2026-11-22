@@ -31,10 +31,10 @@ variable {V : Type*} [DecidableEq V]
 theorem updates_of_notMem {σ : V → Bool} {vs : List V} {x : V} (hx : x ∉ vs) (bs : List Bool) :
     updates σ vs bs x = σ x := by
   fun_induction updates σ vs bs with
-  | case1 σ v vs b bs ih =>
+  | case1 σ v vs b bs ih => -- v :: vs, b :: bs
     simp only [List.mem_cons, not_or] at hx
     rw [ih hx.2, Function.update_of_ne hx.1]
-  | case2 => rfl
+  | case2 => rfl -- a list is exhausted
 
 /-- Updating distinct variables by as many values sets them to these values. -/
 theorem map_updates {σ : V → Bool} {vs : List V} (hvs : vs.Nodup) {bs : List Bool}

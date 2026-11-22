@@ -265,9 +265,9 @@ private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List
     (hasg : ∀ l, isTrue asg l = false) (cert : List LRAT.IntAction) :
     checkLRATFastAux db asg cert = checkLRATAux L cert := by
   fun_induction checkLRATFastAux db asg cert generalizing L with
-  | case1 | case4 => rfl
-  | case2 db asg => exact (propagateFast_eq hdb _ asg [] (by simp [hasg])).1
-  | case3 db asg id c hints rest cl neg r ih =>
+  | case1 | case4 => rfl -- no actions, addRat
+  | case2 db asg => exact (propagateFast_eq hdb _ asg [] (by simp [hasg])).1 -- addEmpty
+  | case3 db asg id c hints rest cl neg r ih => -- addRup
     have hp := propagateFast_eq hdb hints.toList (assignAll asg neg) neg
       (fun l => by rw [isTrue_assignAll, hasg, Bool.false_or])
     simp only [checkLRATAux]
@@ -275,7 +275,7 @@ private theorem checkLRATFastAux_eq {db : Array (Option (Clause ℕ))} {L : List
     · exact hp.1
     refine ih (fun n => ?_) hp.2
     rw [getD_setGrow, hdb, List.lookup_cons_eq_ite]
-  | case5 db asg ids rest ih =>
+  | case5 db asg ids rest ih => -- del
     refine ih (fun n => ?_) hasg
     rw [getD_deleteAll, hdb, List.lookup_filter_not_contains]
 

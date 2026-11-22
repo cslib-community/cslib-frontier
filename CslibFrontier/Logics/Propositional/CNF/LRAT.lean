@@ -296,11 +296,11 @@ theorem CNF.false_of_propagateWith {lookup : ℕ → Option (Clause ℕ)} {σ : 
     have hl'e : Literal.eval σ l' = true := by simp [Literal.eval, hl'σ]
     exact ⟨l', hl', hl'e, fun hm => by simpa [hl'e] using htrail _ hm⟩
   fun_induction propagateWith lookup trail hs with
-  | case1 | case2 | case5 => simp at h
-  | case3 trail x hs c hc hr =>
+  | case1 | case2 | case5 => simp at h -- no hints, unknown clause, non-unit residual
+  | case3 trail x hs c hc hr => -- residual empty: conflict
     obtain ⟨l', hl', -, hl't⟩ := key htrail hc
     exact hl't (Clause.residual_eq_empty_iff.1 hr l' hl')
-  | case4 trail x hs c hc l hr ih =>
+  | case4 trail x hs c hc l hr ih => -- residual unit l: propagate
     obtain ⟨l', hl', hl'e, hl't⟩ := key htrail hc
     -- the literal that holds is the propagated one
     obtain ⟨-, -, hoth⟩ := Clause.residual_eq_unit_iff.1 hr
@@ -340,16 +340,16 @@ theorem CNF.false_of_checkLRATAux {σ : ℕ → Bool} {db : List (ℕ × Clause 
     (hdb : ∀ e ∈ db, e.2.eval σ = true) {cert : List LRAT.IntAction}
     (h : checkLRATAux db cert = true) : False := by
   fun_induction checkLRATAux db cert with
-  | case1 | case4 => simp at h
-  | case2 => exact false_of_propagateHints hdb (trail := []) (by simp) h
-  | case3 db id c hints rest ih =>
+  | case1 | case4 => simp at h -- no actions, addRat
+  | case2 => exact false_of_propagateHints hdb (trail := []) (by simp) h -- addEmpty
+  | case3 db id c hints rest ih => -- addRup
     rw [Bool.and_eq_true] at h
     refine ih ?_ h.2
     intro e he
     rcases List.mem_cons.1 he with rfl | he
     · exact eval_of_propagateHints hdb h.1
     · exact hdb e he
-  | case5 db ids rest ih => exact ih (fun e he => hdb e (List.mem_filter.1 he).1) h
+  | case5 db ids rest ih => exact ih (fun e he => hdb e (List.mem_filter.1 he).1) h -- del
 
 /-- **A formula with an accepted LRAT certificate is unsatisfiable.** -/
 theorem CNF.not_satisfiable_of_checkLRAT {φ : CNF ℕ} {cert : Array LRAT.IntAction}
