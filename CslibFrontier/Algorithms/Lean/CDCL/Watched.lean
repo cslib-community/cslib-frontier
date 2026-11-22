@@ -1155,6 +1155,21 @@ theorem Assign.unassignEntries_eq (A : Assign) (M : XTrail) :
     rw [ih]
     simp [Assign.unassign, Trail.vars, XTrail.trail, XEntry.var_entry]
 
+/-- **Assigning a level** of the trail on top of `A`: the decision `d`, then the entries `M`
+above it, oldest first, without listing their trail: what `Assign.assignTrail` does on
+`XTrail.trail M ++ [⟨d, true⟩]` (`Assign.assignLevel_eq`). -/
+@[expose] def Assign.assignLevel (A : Assign) (d : Literal ℕ) : XTrail → Assign
+  | [] => A.assign d
+  | e :: M => (Assign.assignLevel A d M).assign e.lit
+
+theorem Assign.assignLevel_eq (A : Assign) (d : Literal ℕ) (M : XTrail) :
+    A.assignLevel d M = A.assignTrail (XTrail.trail M ++ [⟨d, true⟩]) := by
+  induction M with
+  | nil => simp [Assign.assignLevel, Assign.assignTrail]
+  | cons e M ih =>
+    rw [Assign.assignLevel, ih, XTrail.trail_cons, List.cons_append, Assign.assignTrail_cons,
+      XEntry.lit_entry]
+
 /-- **Saving the phases of the literals of the entries `M`**, folding over them in order: what
 `Phases.save` does on their trail (`Phases.saveEntries_eq`), without listing them. -/
 @[expose] def Phases.saveEntries (P : Phases) (M : XTrail) : Phases :=
@@ -2120,8 +2135,10 @@ a restarted state has fewer conflicts than that. -/
       have hT₁ : T₁.Inv := hT.dropMarks
       let L₀ := analyze T₁.exec.log sp.decision sp.below
         (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]) sp.above (fun _ h => h)
-        (marks.1.assignTrail (XTrail.trail sp.above ++ [⟨sp.decision, true⟩]))
-        (Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
+        (marks.1.assignLevel sp.decision sp.above)
+        (by
+          rw [Assign.assignLevel_eq]
+          exact Assign.agrees_assignTrail marks.2 _ (hT.exec.split_level_nodup hsp)) e.1 e.2
         (hT.exec.db_log e he) (hT.exec.split_reasons hsp)
         (XTrail.split_eq_some hsp).2 (XTrail.falsifies_of_split hsp hconf)
         (hT.exec.split_cur hsp he hconf) (hT.exec.split_nodup hsp)
