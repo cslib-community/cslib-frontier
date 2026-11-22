@@ -10,9 +10,10 @@ module
 import CslibFrontier.Computability.Complexity.Classes.ExistsReal
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
+public meta import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
-import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
+import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
 
@@ -77,7 +78,7 @@ example :
   rw [hnone] at h
   cases h
 
--- The grammar includes strict inequality and disjunction, negative coefficients and negation.
+/-- A closed test formula with strict inequality, disjunction, and negation. -/
 def sentence : Formula 0 :=
   .or (.ltZero (.add (.const (-37)) (.const 12)))
     (.and (.eqZero (.mul (.const 0) (.const 91))) (.not .false))
@@ -93,6 +94,25 @@ example : formulaTokensDecoder.decode (encFormula 2
 -- The falsity tag carries no payload.
 example : formulaTokensDecoder.decode (frame [false, true]) = none := by
   decide +kernel
+
+-- The validator accepts a complete tree with two different term payloads.
+example : validFormulaWord (encFormula 2
+    (.and (.eqZero (.var 1)) (.ltZero (.const (-2))))) = true :=
+  validFormulaWord_encFormula _
+
+-- The conjunction tag is framed correctly but lacks both child formulas.
+set_option linter.hashCommand false in
+#guard !(validFormulaWord
+  (encList encFormulaToken [.inr (.inr (.inr (.inr (.inl ()))))]))
+
+-- The equality is a leaf in the formula tree, but its payload is an incomplete term.
+set_option linter.hashCommand false in
+#guard !(validFormulaWord
+  (encList encFormulaToken [.inr (.inl (encList encTermToken [.inr (.inr (.inl ()))]))]))
+
+-- Two complete formulas cannot appear in one encoded word.
+set_option linter.hashCommand false in
+#guard !(validFormulaWord (encList encFormulaToken [.inl (), .inl ()]))
 
 -- An asymmetric two-block formula checks that existential coordinates come first.
 example : (Formula.eqZero (n := 2) (.var 0)).existsForallSolutionSet
