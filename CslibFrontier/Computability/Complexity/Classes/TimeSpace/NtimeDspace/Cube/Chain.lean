@@ -227,11 +227,14 @@ private theorem chn_psi (a : Fin (g * g) → Fin (g * g) → ℕ) (ι : Rect g �
   dsimp only [trRect]
   by_cases h1 : B = B₁
   · subst h1
-    simp [chnTr_node, chn_node_lt_iff, hA, hB, lt_asymm hA, hA.ne, hA.ne']
+    simp only [↓reduceIte, chnTr_node, chn_node_lt_iff, hB, hA, and_true, true_or, hA.ne,
+      or_false, lt_asymm hA, and_false, hA.ne', or_self, iff_false, not_true_eq_false,
+      MergeProof.swapLabel_swapLabel]
     rfl
   · by_cases h2 : B = B₂
     · subst h2
-      simp [h1, chnTr_node, chn_node_lt_iff, hA, lt_asymm hA, lt_asymm hB, hA.ne, hA.ne']
+      simp only [h1, ↓reduceIte, chnTr_node, chn_node_lt_iff, lt_asymm hB, hA, and_true, or_self,
+        hA.ne, and_self, or_false, iff_true, lt_asymm hA, hA.ne']
       rfl
     · simp [h1, h2]
 

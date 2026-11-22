@@ -23,7 +23,7 @@ and `CarryFits D`. Here the hypotheses are checked at the two scales that matter
 * `D = SqrtLog`. Both hypotheses hold (`scale_sqrtLog`, `Exact.carryFits_sqrtLog`) and so does
   Theorem 2.3 at this scale (`cubeBlockBits`), so the general endpoints give back Theorem 1.1 and
   Theorem 7.1 for `PPTIME` and `BPTIME` unconditionally; the test module
-  `CslibFrontierTests/NtimeDspace/Endpoints.lean` checks this, so the hypotheses of
+  `CslibFrontierTests.NtimeDspace.Endpoints` checks this, so the hypotheses of
   `CountingAt.lean` are not vacuous.
 * `D(n) = n / log n`, the target scale of the remark. The hypotheses hold for
   `DivLog n = n / (log₂ n + 1) + log₂ n + 1` (`scale_divLog`, `carryFits_divLog`), and Theorem 2.3
