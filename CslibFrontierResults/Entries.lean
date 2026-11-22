@@ -118,6 +118,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SparseOrbit
 import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.NineQuarters
 import CslibFrontier.Computability.Circuit.Boolean.ArithmeticRing
 import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
@@ -309,6 +310,7 @@ import CslibFrontier.Crypto.Computational.LubyRackoff
 import CslibFrontier.Crypto.Computational.MAC
 import CslibFrontier.Crypto.Computational.MerkleDamgard.LengthStrengthened
 import CslibFrontier.Crypto.Computational.MerkleTree.Binding
+import CslibFrontier.Crypto.Computational.Commitment.Guessing
 import CslibFrontier.Crypto.Computational.NaorYungUOWHF
 import CslibFrontier.Crypto.Computational.Nonuniform.ZeroKnowledge
 import CslibFrontier.Crypto.Computational.OneTimeSignature.ContainmentFree
@@ -2054,6 +2056,21 @@ register_result "random-functions-average-case-hard" where
     circuit with at most S gates (inputs not counted) agrees with f on fewer than a \
     1/2 + 1/S fraction of the inputs (strict, as in the draft). Outside-fleet source check: \
     PR #6269, pullrequestreview-5947274913."
+
+register_result "naor-single-bit-commitment" where
+  title := "Guessing and binding in Naor's single-bit commitment from a uniform PRG"
+  topic := "cryptography"
+  sources := [
+    { paper := Naor1991, theorem := "Theorem 3.1",
+      locator := "Section 3, p. 6 of the author's February 25, 2001 copy. Protocol on p. 5, \
+        generator convention in Section 2, p. 4." }
+  ]
+  theorems := [Cslib.Crypto.PseudorandomGenerator.naorCommit_guessing_and_binding]
+  scope := "The uniform pseudorandom generator supplies the protocol's 3n-bit prefix for n > 0 \
+    and emits one bit at zero for strict expansion. Every randomized uniform strict-PPT receiver \
+    chooses its own challenge and saved state and has negligible advantage over one half in \
+    guessing the fair committed bit. For every n > 0, an honest uniform 3n-bit challenge permits \
+    two accepted openings of the same commitment to opposite bits with probability below 2⁻ⁿ."
 
 register_result "naor-yung-uowhf" where
   title := "Naor–Yung: one-way permutations yield universal one-way hash functions"
@@ -12673,3 +12690,38 @@ register_result "nexp-bounded-acceptance-complete" where
     many-one reductions. Source check: outside-fleet agent check (reviewer-codex-edemaine) on \
     PR #5591 at 929cb9c76428: \
     https://github.com/cslib-community/cslib-frontier/pull/5591#issuecomment-7071385084."
+
+register_result "gaspers-cubic-switched-cutwidth" where
+  title := "Cutwidth and bisection bounds for cubic graphs via median-switched Gaussian sweeps"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Gaspers2026,
+      theorem := "Corollary 1.2 (adapted; pathwidth proof via Theorems 1.1(a) and 8.1)",
+      locator := "arXiv:2611.05146v1, §1.1, p. 1 (PDF p. 3) and §8, p. 45 (PDF p. 47); \
+        Zenodo companion v1, doi:10.5281/zenodo.23883489" }
+  ]
+  theorems := [
+    Cslib.Circuits.Frontier.Switched.exists_width_le_switchedCoefficient,
+    Cslib.Circuits.Frontier.Switched.cubicLayoutBound_switched,
+    Cslib.Circuits.Frontier.Switched.exists_ncard_edgeCut_le,
+    Cslib.Circuits.Frontier.layoutBound_switched
+  ]
+  scope := "Adapts Corollary 1.2 of Gaspers (2026), whose underlying pathwidth proof comes \
+    from Theorems 1.1(a) and 8.1. Formalizes two existential (non-constructive) endpoints \
+    with constant c₃ = (3 / (4π)) arccos(5 / 6) ≈ 0.139822: (1) the direct per-vertex \
+    cutwidth and bisection bounds for finite loopless 3-regular multigraphs (parallel edges \
+    allowed; exists_width_le_switchedCoefficient, exists_ncard_edgeCut_le, and the \
+    simple-graph specialization cubicLayoutBound_switched), and (2) the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) (layoutBound_switched), obtained via saturated \
+    compression (LayoutBound.of_cubic). Adapts the certificate-free CubicPathwidth.C3 \
+    geometry, bipartite connector lemma, and switched interval-bag layout from Zenodo release \
+    v1 (MIT license, Serge Gaspers). Differs from Gaspers (2026) in that only the per-vertex \
+    cutwidth and bisection bounds for 3-regular multigraphs and the connected subcubic \
+    cycle-rank bound LayoutBound 3 (2 * c₃) are formalized (not Corollary 1.2's full subcubic \
+    per-vertex statement, the deterministic n^(2+o(1)) algorithm, or higher-degree Δ ≥ 4 / \
+    mixed-degree / exact exponential algorithm results). The direct multigraph \
+    interval-to-cutwidth bridge (including parallel edges), rational lower bounds in \
+    Switched/Coefficient.lean, concentration proof via unitKernelRow, and downstream \
+    fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear lower bounds \
+    are original to this library. Source checked against arXiv:2611.05146v1 LaTeX source \
+    (main.tex) and compiled PDF on 2026-11-22."
