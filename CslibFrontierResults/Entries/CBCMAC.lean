@@ -41,9 +41,7 @@ register_result "cbc-mac-prefix-free-prf" where
     advantage_cbcMac_le gives Adv ≤ PRFadv[cbcMacToPrfDistinguisher ℓ A, F] + Q² ℓ(n)² / 2^n \
     at parameter n for any distinguisher making at most Q queries and satisfying \
     IsPrefixFreeOn (cbcBlockValid ℓ n) n, carrying twice equation (6.7)'s (Q ℓ)² / (2 |X|) \
-    collision constant from abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le. \
-    Outside-fleet source check: \
-    https://github.com/cslib-community/cslib-frontier/pull/7563#pullrequestreview-6015088271"
+    collision constant from abs_cbcUniformFunctionSuccess_sub_cbcIdealSuccess_le."
 
 register_result "cbc-mac-fixed-block-prf-and-mac" where
   title := "Fixed-block-count basic CBC-MAC is a pseudorandom function and strongly unforgeable MAC"
@@ -70,8 +68,7 @@ register_result "cbc-mac-fixed-block-prf-and-mac" where
     (isOraclePPT_cbcFixedBlockMacToPrfDistinguisher). Concrete bound: \
     succProbability_sufCmaGame_cbcFixedBlockMAC_le gives \
     PRFadv + (Q + 1)² ℓ(n)² / 2^n + 1 / 2^n at parameter n under the finite hypotheses 0 < n, \
-    0 < ℓ(n), and at most Q signing queries. Outside-fleet source check: \
-    https://github.com/cslib-community/cslib-frontier/pull/7563#pullrequestreview-6015088271"
+    0 < ℓ(n), and at most Q signing queries."
 
 register_result "length-prepended-cbc-mac-prf-and-mac" where
   title := "Length-prepended CBC-MAC is a variable-length pseudorandom function and SUF-CMA MAC"
@@ -109,6 +106,4 @@ register_result "length-prepended-cbc-mac-prf-and-mac" where
     where both concrete bounds require L(n) < 2^n and at most Q queries at the parameter n being \
     bounded; the asymptotic proofs derive L(n) < 2^n eventually from polynomial boundedness of L. \
     lengthPrependedBlockMAC packages any fixed unary polytime block-count schedule k (including \
-    k n = 0) as a verified-correct MACScheme with SUFCMA security (and EUFCMA via .eufCma). \
-    Outside-fleet source check: \
-    https://github.com/cslib-community/cslib-frontier/pull/7563#pullrequestreview-6015088271"
+    k n = 0) as a verified-correct MACScheme with SUFCMA security (and EUFCMA via .eufCma)."
