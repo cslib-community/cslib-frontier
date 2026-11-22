@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.Cubic
 public import CslibFrontier.Computability.Circuit.Frontier.Layouts.VertexGaussian
 public import CslibFrontier.Computability.Circuit.Frontier.Linear.LowerBound
-public import CslibFrontier.Foundations.Probability.Gaussian.Plackett
+public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantMono
 public import Mathlib.Algebra.CharZero.Infinite
 import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
 import CslibFrontier.Foundations.Analysis.SpecialFunctions.ExpBounds
@@ -51,14 +51,20 @@ biases `∑_{B ∈ P_d} σ(B)` positively, reducing `inCut P_d = (|edgeCut P_d| 
   edges for `M_u = M_v ∈ (-d, d]` (`tie_mem_edgeCut_shiftedCut`), producing a linear cusp that can
   cancel the shift gain.
 * **Unconditional shifted `VertexGaussian` bound (`4.2170 N`)**: Gaussian vertex scores `Z_B` have
-  zero tie mass, adjacent correlation approaching `2√2 / 3`, and satisfy Plackett monotonicity in
-  correlation (`measureReal_correlatedGaussian_gt_and_le_anti`). Maximizing over the 4-type cubic
-  degree-balance polytope (`x₃⁺, x₁⁺, x₁⁻, x₃⁻`) attains its exact global maximum
+  zero tie mass, adjacent correlation approaching `2√2 / 3`, and satisfy bivariate quadrant
+  correlation antitonicity (`measureReal_correlatedGaussian_gt_and_le_anti`). Maximizing over the
+  4-type cubic degree-balance polytope (`x₃⁺, x₁⁺, x₁⁻, x₃⁻`) attains its exact global maximum
   `p_{+-} + p_{-+} / 2` on balanced `(1, 2)` / `(2, 1)` bipartite graphs. Evaluating at `d = 1 / 20`
   lifts the pure `VertexGaussian` linear-map bound from `≈ 4.0815 N` to
   **`(4217 / 1000 - ε) N = (4.217 - ε) N`**
   (`eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular`), uniformly over fields and
   for explicit Cauchy matrices over characteristic zero and prime fields `ZMod q`.
+
+These results are original to this library. They improve the *vertex-Gaussian* linear-map bound
+(`≈ 4.0815 N` to `4.217 N`) via one-way `inCut` demands and odd-parity threshold shifts, whereas
+`CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional` already reaches `≈ 4.57597 N`
+via undirected median-switched layouts (whose discrete tie atoms incur the linear cusp of
+`tie_mem_edgeCut_shiftedCut`).
 
 ## Main results
 
@@ -68,8 +74,9 @@ biases `∑_{B ∈ P_d} σ(B)` positively, reducing `inCut P_d = (|edgeCut P_d| 
 * `Cslib.Circuits.Frontier.Compiler.ncard_readIn_block_le_outCut`,
   `Cslib.Circuits.Frontier.Compiler.ncard_outputs_block_le_inCut`: sharpened directed terminal caps
   `|X(B)| ≤ deg⁺(B) ≤ 3` and `|Y(B)| ≤ deg⁻(B) ≤ 3`.
-* `Cslib.Circuits.Frontier.Multigraph.two_mul_ncard_inCut_add_sum_divergence`: discrete divergence
-  identity `2 |inCut P| + ∑_{v ∈ P} σ(v) = |edgeCut P|`.
+* `Cslib.Circuits.Frontier.Multigraph.two_mul_ncard_inCut_add_sum_divergence`,
+  `Cslib.Circuits.Frontier.Multigraph.sum_divergence`: discrete divergence identity
+  `2 |inCut P| + ∑_{v ∈ P} σ(v) = |edgeCut P|` and zero total divergence `∑_v σ(v) = 0`.
 * `Cslib.Circuits.Frontier.DirectedShift.exists_pos_shifted_inCut_ratio_lt`: smooth divergence shift
   theorem.
 * `Cslib.Circuits.Frontier.DirectedShift.sum_measureReal_inCut_vertexScore_le`: 4-type cubic
@@ -156,40 +163,16 @@ theorem two_mul_ncard_inCut_add_sum_divergence [Fintype V] [Finite E] (hloop : G
       by_cases hv : v ∈ P
       · simp only [hv, ↓reduceIte, divergence, hout_v, hin_v, true_and]
       · simp only [hv, ↓reduceIte, false_and, Finset.sum_const_zero, sub_zero]
-    have hsrc : (∑ v : V, ∑ e : E, if v ∈ P ∧ G.src e = v then (1 : ℤ) else 0) =
-        ∑ e : E, if G.src e ∈ P then 1 else 0 := by
+    have hswap (f : E → V) : (∑ v : V, ∑ e : E, if v ∈ P ∧ f e = v then (1 : ℤ) else 0) =
+        ∑ e : E, if f e ∈ P then 1 else 0 := by
       rw [Finset.sum_comm]
       refine Finset.sum_congr rfl fun e _ => ?_
-      rw [Finset.sum_boole]
-      by_cases h : G.src e ∈ P
-      · have hflt : (Finset.univ.filter fun v : V => v ∈ P ∧ G.src e = v) = {G.src e} := by
-          ext v
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-          exact ⟨fun hv => hv.2.symm, fun hv => ⟨hv ▸ h, hv.symm⟩⟩
-        simp [h, hflt]
-      · have hflt : (Finset.univ.filter fun v : V => v ∈ P ∧ G.src e = v) = ∅ := by
-          ext v
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
-          rintro ⟨hvP, rfl⟩
-          exact h hvP
-        simp [h, hflt]
-    have htgt : (∑ v : V, ∑ e : E, if v ∈ P ∧ G.tgt e = v then (1 : ℤ) else 0) =
-        ∑ e : E, if G.tgt e ∈ P then 1 else 0 := by
-      rw [Finset.sum_comm]
-      refine Finset.sum_congr rfl fun e _ => ?_
-      rw [Finset.sum_boole]
-      by_cases h : G.tgt e ∈ P
-      · have hflt : (Finset.univ.filter fun v : V => v ∈ P ∧ G.tgt e = v) = {G.tgt e} := by
-          ext v
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.mem_singleton]
-          exact ⟨fun hv => hv.2.symm, fun hv => ⟨hv ▸ h, hv.symm⟩⟩
-        simp [h, hflt]
-      · have hflt : (Finset.univ.filter fun v : V => v ∈ P ∧ G.tgt e = v) = ∅ := by
-          ext v
-          simp only [Finset.mem_filter, Finset.mem_univ, true_and, Finset.notMem_empty, iff_false]
-          rintro ⟨hvP, rfl⟩
-          exact h hvP
-        simp [h, hflt]
+      have heq (v : V) :
+          (if v ∈ P ∧ f e = v then (1 : ℤ) else 0) =
+            if f e = v then (if f e ∈ P then 1 else 0) else 0 := by
+        by_cases hfv : f e = v <;> simp [hfv]
+      simp_rw [heq]
+      simp only [Finset.sum_ite_eq, Finset.mem_univ, ↓reduceIte]
     have hout_c : ((G.outCut P).ncard : ℤ) =
         ∑ e : E, if G.src e ∈ P ∧ G.tgt e ∉ P then 1 else 0 := by
       rw [ncard_eq_toFinset_card', Finset.sum_boole]
@@ -202,11 +185,22 @@ theorem two_mul_ncard_inCut_add_sum_divergence [Fintype V] [Finite E] (hloop : G
       congr 2
       ext e
       simp [mem_toFinset]
-    rw [hsplit, hsrc, htgt, hout_c, hin_c, ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
+    rw [hsplit, hswap G.src, hswap G.tgt, hout_c, hin_c,
+      ← Finset.sum_sub_distrib, ← Finset.sum_sub_distrib]
     refine Finset.sum_congr rfl fun e _ => ?_
     by_cases hs : G.src e ∈ P <;> by_cases ht : G.tgt e ∈ P <;> simp [hs, ht]
   have htot := G.ncard_edgeCut_eq_add P
   omega
+
+/-- In any finite loopless multigraph, the vertex divergences sum to zero: `∑ v, σ(v) = 0`. -/
+theorem sum_divergence [Fintype V] [Finite E] (hloop : G.Loopless) :
+    ∑ v : V, G.divergence v = 0 := by
+  have hz := G.two_mul_ncard_inCut_add_sum_divergence hloop (univ : Set V)
+  have hin0 : G.inCut (univ : Set V) = ∅ := by ext e; simp
+  have hed0 : G.edgeCut (univ : Set V) = ∅ := by ext e; simp
+  simp only [hin0, hed0, ncard_empty, mul_zero, CharP.cast_eq_zero, zero_add, mem_univ,
+    ↓reduceIte] at hz
+  exact hz
 
 end Divergence
 
@@ -521,12 +515,7 @@ theorem sum_measureReal_inCut_shiftedCut_le {Ω V E : Type*} [MeasurableSpace Ω
     exact hI
   -- Evaluate `∑_v σ(v) P(v ∈ P_d) = (1 / 2 - q) ∑_v |σ(v)| + (1 / 2) ∑_v σ(v)`.
   have hsum_zero : (∑ v : V, (G.divergence v : ℝ)) = 0 := by
-    have hz := G.two_mul_ncard_inCut_add_sum_divergence hloop (univ : Set V)
-    have hin0 : G.inCut (univ : Set V) = ∅ := by ext e; simp
-    have hed0 : G.edgeCut (univ : Set V) = ∅ := by ext e; simp
-    simp only [hin0, hed0, ncard_empty, mul_zero, CharP.cast_eq_zero, zero_add, mem_univ,
-      ↓reduceIte] at hz
-    exact_mod_cast hz
+    exact_mod_cast G.sum_divergence hloop
   have hdiv_eval :
       (∑ v : V, (G.divergence v : ℝ) * P.real {ω | v ∈ shiftedCut G (M ω) d}) =
         (1 - 2 * q) / 2 * (∑ v : V, |(G.divergence v : ℝ)|) := by
@@ -561,7 +550,7 @@ theorem sum_measureReal_inCut_shiftedCut_le {Ω V E : Type*} [MeasurableSpace Ω
     ring
   linarith [hmean_eq, hdiv_eval, hprod, hrew]
 
-/-- **Smooth divergence shift theorem (revised Theorem 1.4).** On a nonempty finite loopless cubic
+/-- **Smooth divergence shift theorem.** On a nonempty finite loopless cubic
 multigraph `G`, let `M : Ω → V → ℝ` have symmetric marginal cdf `F` (`F 0 = 1 / 2`,
 `F t + F (-t) = 1`, `HasDerivAt F f₀ 0` with `0 < f₀`) and smooth symmetric crossing rate `c(d)` at
 `d = 0` (`HasDerivAt c 0 0` with `c 0 < 1 / 2` — which holds for atom-free adjacent scores
@@ -711,7 +700,7 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
     have hmS : MeasurableSet {p : ℝ × ℝ | tu < p.1 ∧ p.2 ≤ tv} :=
       (measurableSet_Ioi.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
     rw [hev, measureReal_pi_inner_prod_eq_correlatedGaussian hu hv hmS]
-    have hanti := measureReal_correlatedGaussian_gt_and_le_anti hρ0 hρe_lo hρe_hi tu tv
+    have hanti := measureReal_correlatedGaussian_gt_and_le_anti (by linarith) hρe_lo hρe_hi tu tv
     refine hanti.trans_eq ?_
     by_cases hs : 0 < Q.divergence (Q.src e) <;> by_cases ht : 0 < Q.divergence (Q.tgt e) <;>
       simp only [tu, tv, wt, p_dd, p_pm, p_mp, hs, ht, ↓reduceIte]
@@ -768,12 +757,7 @@ theorem sum_measureReal_inCut_vertexScore_le {V E : Type*} [Fintype V] [Fintype 
     linarith [hcast, hlinR]
   -- Total divergence is `0`, so `2 * (e_pm - e_mp) = ∑_v |σ(v)| ≥ |V|`:
   have hsum_zero : (∑ v : V, (Q.divergence v : ℝ)) = 0 := by
-    have hz := Q.two_mul_ncard_inCut_add_sum_divergence hloop (univ : Set V)
-    have hin0 : Q.inCut (univ : Set V) = ∅ := by ext e; simp
-    have hed0 : Q.edgeCut (univ : Set V) = ∅ := by ext e; simp
-    simp only [hin0, hed0, ncard_empty, mul_zero, CharP.cast_eq_zero, zero_add, mem_univ,
-      ↓reduceIte] at hz
-    exact_mod_cast hz
+    exact_mod_cast Q.sum_divergence hloop
   have hflux_ge : h / 2 ≤ e_pm - e_mp := by
     have hsplit_abs (v : V) :
         2 * (if 0 < Q.divergence v then (Q.divergence v : ℝ) else 0) - (Q.divergence v : ℝ) =
@@ -1430,50 +1414,37 @@ theorem eventually_4217_div_1000_sub_mul_lt_innerSize_of_isTotallyRegular {ε : 
         ((ncard_le_ncard (fun e he => (Q.edgeCut_eq_inCut_union_outCut {B}) ▸ Or.inl he)
           (toFinite _)).trans ((Q.edgeCut_singleton hQloop B).symm ▸ (hQ3 B).le)))
     rwa [ncard_coe_finset] at hcard
-  have hdev_B : P.real (Gaussian.deviation B_unread c_dev) ≤
-      (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 := by
+  have hdev_term (blk : Fin N → cmp.blocks)
+      (hmult : ∀ B : cmp.blocks, (Finset.univ.filter fun i : Fin N => blk i = B).card ≤ 3)
+      (pred : cmp.blocks → ℝ → Prop) (hmp : ∀ B, MeasurableSet {x | pred B x}) :
+      P.real (Gaussian.deviation (fun i => Gaussian.vertexEvent Q qk R (pred (blk i)) (blk i))
+          c_dev) ≤
+        (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 := by
     have hov (i : Fin N) :
         (Finset.univ.filter fun j : Fin N =>
-          ¬Disjoint (Gaussian.closedBall Q.toSimpleGraph (bin i) (R + 1))
-            (Gaussian.closedBall Q.toSimpleGraph (bin j) (R + 1))).card ≤ 3 * D_ov := by
-      refine (Finset.card_le_mul_card_image_of_maps_to (f := bin)
+          ¬Disjoint (Gaussian.closedBall Q.toSimpleGraph (blk i) (R + 1))
+            (Gaussian.closedBall Q.toSimpleGraph (blk j) (R + 1))).card ≤ 3 * D_ov := by
+      refine (Finset.card_le_mul_card_image_of_maps_to (f := blk)
         (t := Finset.univ.filter fun w : cmp.blocks =>
-          ¬Disjoint (Gaussian.closedBall Q.toSimpleGraph (bin i) (R + 1))
+          ¬Disjoint (Gaussian.closedBall Q.toSimpleGraph (blk i) (R + 1))
             (Gaussian.closedBall Q.toSimpleGraph w (R + 1)))
         (fun j hj => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hj).2⟩)
         3 fun B _ => ?_).trans
         (Nat.mul_le_mul_left 3 (Gaussian.card_not_disjoint_closedBall_le hQdeg (by norm_num) R _))
       exact (Finset.card_le_card fun j hj =>
-        Finset.mem_filter.mpr ⟨Finset.mem_univ j, (Finset.mem_filter.mp hj).2⟩).trans (hbin_mult B)
-    have hd := Gaussian.measureReal_deviation_le (A := B_unread)
-      (fun i => Gaussian.measurableSet_vertexEvent qk R (measurableSet_Ioi (a := thr (bin i)))
-        (bin i))
-      (fun i => Gaussian.closedBall Q.toSimpleGraph (bin i) (R + 1))
-      (fun i => Gaussian.dependsOn_vertexEvent qk R (fun x => thr (bin i) < x) (bin i))
+        Finset.mem_filter.mpr ⟨Finset.mem_univ j, (Finset.mem_filter.mp hj).2⟩).trans (hmult B)
+    have hd := Gaussian.measureReal_deviation_le
+      (fun i => Gaussian.measurableSet_vertexEvent qk R (hmp (blk i)) (blk i))
+      (fun i => Gaussian.closedBall Q.toSimpleGraph (blk i) (R + 1))
+      (fun i => Gaussian.dependsOn_vertexEvent qk R (pred (blk i)) (blk i))
       hov hc_dev_pos
     rwa [Fintype.card_fin] at hd
+  have hdev_B : P.real (Gaussian.deviation B_unread c_dev) ≤
+      (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 :=
+    hdev_term bin hbin_mult (fun B x => thr B < x) fun _ => measurableSet_Ioi
   have hdev_C : P.real (Gaussian.deviation C_out c_dev) ≤
-      (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 := by
-    have hov (o : Fin N) :
-        (Finset.univ.filter fun o' : Fin N =>
-          ¬Disjoint (Gaussian.closedBall Q.toSimpleGraph (bout o) (R + 1))
-            (Gaussian.closedBall Q.toSimpleGraph (bout o') (R + 1))).card ≤ 3 * D_ov := by
-      refine (Finset.card_le_mul_card_image_of_maps_to (f := bout)
-        (t := Finset.univ.filter fun w : cmp.blocks =>
-          ¬Disjoint (Gaussian.closedBall Q.toSimpleGraph (bout o) (R + 1))
-            (Gaussian.closedBall Q.toSimpleGraph w (R + 1)))
-        (fun j hj => Finset.mem_filter.mpr ⟨Finset.mem_univ _, (Finset.mem_filter.mp hj).2⟩)
-        3 fun B _ => ?_).trans
-        (Nat.mul_le_mul_left 3 (Gaussian.card_not_disjoint_closedBall_le hQdeg (by norm_num) R _))
-      exact (Finset.card_le_card fun j hj =>
-        Finset.mem_filter.mpr ⟨Finset.mem_univ j, (Finset.mem_filter.mp hj).2⟩).trans (hbout_mult B)
-    have hd := Gaussian.measureReal_deviation_le (A := C_out)
-      (fun o => Gaussian.measurableSet_vertexEvent qk R (measurableSet_Iic (a := thr (bout o)))
-        (bout o))
-      (fun o => Gaussian.closedBall Q.toSimpleGraph (bout o) (R + 1))
-      (fun o => Gaussian.dependsOn_vertexEvent qk R (fun x => x ≤ thr (bout o)) (bout o))
-      hov hc_dev_pos
-    rwa [Fintype.card_fin] at hd
+      (N : ℝ) * ((3 * D_ov : ℕ) : ℝ) / c_dev ^ 2 :=
+    hdev_term bout hbout_mult (fun B x => x ≤ thr B) fun _ => measurableSet_Iic
   -- Union bound `< 1` gives a good sample `ω₀`:
   have hsum_lt_one : P.real (Gaussian.deviation A_in c_dev ∪
       Gaussian.deviation B_unread c_dev ∪ Gaussian.deviation C_out c_dev) < 1 := by

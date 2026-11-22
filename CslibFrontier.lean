@@ -7773,12 +7773,12 @@ public import CslibFrontier.Foundations.Probability.Gaussian.NoiseSmooth
 public import CslibFrontier.Foundations.Probability.Gaussian.OffCenterTail
 public import CslibFrontier.Foundations.Probability.Gaussian.OrnsteinUhlenbeck
 public import CslibFrontier.Foundations.Probability.Gaussian.Periodization
-public import CslibFrontier.Foundations.Probability.Gaussian.Plackett
 public import CslibFrontier.Foundations.Probability.Gaussian.Poisson
 public import CslibFrontier.Foundations.Probability.Gaussian.PolynomialDense
 public import CslibFrontier.Foundations.Probability.Gaussian.Projection
 public import CslibFrontier.Foundations.Probability.Gaussian.Quadrant
 public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
+public import CslibFrontier.Foundations.Probability.Gaussian.QuadrantMono
 public import CslibFrontier.Foundations.Probability.Gaussian.Quantile
 public import CslibFrontier.Foundations.Probability.Gaussian.Quotient
 public import CslibFrontier.Foundations.Probability.Gaussian.Real

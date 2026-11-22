@@ -6,44 +6,55 @@ Authors: Samuel Schlesinger
 
 module
 -- upstream: candidate (Mathlib, a new file `Mathlib/Probability/Distributions/Gaussian/`
--- `Plackett.lean`)
+-- `QuadrantMono.lean`)
 
 public import CslibFrontier.Foundations.Probability.Gaussian.Quadrant
 public import Mathlib.Analysis.InnerProductSpace.PiL2
 import CslibFrontier.Foundations.Probability.Gaussian.Borell
 import CslibFrontier.Foundations.Probability.Gaussian.Multivariate
-import CslibFrontier.Foundations.Probability.Gaussian.Real
+import CslibFrontier.Foundations.Probability.Gaussian.Quantile
 
 /-!
-# Plackett monotonicity and threshold crossing identities for correlated Gaussians
+# Correlation monotonicity and threshold crossing identities for Gaussian quadrants
 
-For `ρ ∈ [0, 1]`, increasing the correlation increases every lower-quadrant probability
-`P_ρ[z ≤ a ∧ z' ≤ b]` (`measureReal_correlatedGaussian_le_and_le_mono`) and decreases every
-asymmetric threshold-crossing probability `P_ρ[a < z ∧ z' ≤ b]`
+For `ρ ∈ [-1, 1]`, increasing the correlation increases every lower-quadrant probability
+`P_ρ[z ≤ a ∧ z' ≤ b]` (`measureReal_correlatedGaussian_le_and_le_mono`), equivalently `Λ_ρ(α, β)` is
+monotone in `ρ` on `[-1, 1]` (`monotoneOn_gaussianQuadrant`), and decreases every asymmetric
+threshold-crossing probability `P_ρ[a < z ∧ z' ≤ b]`
 (`measureReal_correlatedGaussian_gt_and_le_anti`).
 
-Rather than differentiating bivariate Gaussian integrals with respect to `ρ`, we couple both pairs
-in `EuclideanSpace ℝ (Fin 1 ⊕ Fin 2)` with shared first coordinate `√ρ₁ ω₀`. Conditioned on `ω₀`,
-the `ρ₁`-pair becomes independent (`gaussianQuadrant 0 α β = α β`), while the `ρ₂`-pair has
+On `[0, 1]`, rather than differentiating bivariate Gaussian integrals with respect to `ρ`, we couple
+both pairs in `EuclideanSpace ℝ (Fin 1 ⊕ Fin 2)` with shared first coordinate `√ρ₁ ω₀`. Conditioned
+on `ω₀`, the `ρ₁`-pair becomes independent (`gaussianQuadrant 0 α β = α β`), while the `ρ₂`-pair has
 residual correlation `r = (ρ₂ - ρ₁) / (1 - ρ₁) ∈ [0, 1]`, which dominates `α β` slice by slice via
-`mul_le_gaussianQuadrant`.
+`mul_le_gaussianQuadrant` ([O'Donnell, Exercise 11.19(c)][ODonnell2014]). Reflection in the second
+coordinate (`gaussianQuadrant_neg`, [O'Donnell, Exercise 11.19(b)][ODonnell2014]) transfers
+monotonicity to `[-1, 0]`, and transitivity through `0` covers `[-1, 1]`.
 
-We also record the decomposition `P_ρ[a < z ∧ z' ≤ b] = Φ b - P_ρ[z ≤ a ∧ z' ≤ b]`, the negation
-symmetry `P_ρ[-d < z ∧ z' ≤ -d] = P_ρ[d < z ∧ z' ≤ d]`, and the box-excess inequality
+We also record the double-reflection identity `Λ_ρ(1 - α, 1 - β) = 1 - α - β + Λ_ρ(α, β)`
+(`gaussianQuadrant_one_sub_one_sub`), the crossing decomposition
+`P_ρ[a < z ∧ z' ≤ b] = Φ b - P_ρ[z ≤ a ∧ z' ≤ b]`, the negation symmetry
+`P_ρ[-d < z ∧ z' ≤ -d] = P_ρ[d < z ∧ z' ≤ d]`, and the box-excess inequality
 `2 P_ρ[d < z ∧ z' ≤ d] ≤ P_ρ[d < z ∧ z' ≤ -d] + P_ρ[-d < z ∧ z' ≤ d]` for `0 ≤ d`.
 
 ## Main results
 
 * `ProbabilityTheory.measureReal_pi_inner_prod_eq_correlatedGaussian`: joint law of two unit
   projections under `Measure.pi (gaussianReal 0 1)`.
-* `ProbabilityTheory.measureReal_correlatedGaussian_le_and_le_mono`: Plackett quadrant monotonicity
-  on `[0, 1]`.
+* `ProbabilityTheory.measureReal_correlatedGaussian_le_and_le_mono`,
+  `ProbabilityTheory.monotoneOn_gaussianQuadrant`: correlation monotonicity of bivariate Gaussian
+  quadrants on `[-1, 1]`.
 * `ProbabilityTheory.measureReal_correlatedGaussian_gt_and_le`,
   `ProbabilityTheory.measureReal_correlatedGaussian_gt_and_le_anti`: crossing decomposition and
-  antitonicity in correlation.
-* `ProbabilityTheory.measureReal_correlatedGaussian_gt_neg_le_neg`,
-  `ProbabilityTheory.two_mul_correlatedGaussian_gt_le_diag_le`: diagonal symmetry and box-excess
-  inequality for shifted thresholds.
+  correlation antitonicity on `[-1, 1]`.
+* `ProbabilityTheory.gaussianQuadrant_one_sub_one_sub`,
+  `ProbabilityTheory.measureReal_correlatedGaussian_gt_neg_le_neg`,
+  `ProbabilityTheory.two_mul_correlatedGaussian_gt_le_diag_le`: double reflection, diagonal
+  symmetry, and box-excess inequality for shifted thresholds.
+
+## References
+
+* [R. O'Donnell, *Analysis of Boolean Functions*][ODonnell2014], Exercise 11.19(b)–(c).
 -/
 
 public section
@@ -70,9 +81,7 @@ theorem measureReal_pi_inner_prod_eq_correlatedGaussian {ι : Type*} [Fintype ι
     ← stdGaussian_map_inner_prod_eq_correlatedGaussian hu hv,
     map_measureReal_apply hmp hS]
 
-/-- **Plackett quadrant monotonicity on `[0, 1]`.** Increasing the correlation `0 ≤ ρ₁ ≤ ρ₂ ≤ 1`
-increases the lower-quadrant probability `P_ρ[z ≤ a ∧ z' ≤ b]` for all `a, b ∈ ℝ`. -/
-theorem measureReal_correlatedGaussian_le_and_le_mono {ρ₁ ρ₂ : ℝ}
+private theorem measureReal_correlatedGaussian_le_and_le_mono_nonneg {ρ₁ ρ₂ : ℝ}
     (hρ₁ : 0 ≤ ρ₁) (h12 : ρ₁ ≤ ρ₂) (hρ₂ : ρ₂ ≤ 1) (a b : ℝ) :
     (correlatedGaussian ρ₁).real {p | p.1 ≤ a ∧ p.2 ≤ b} ≤
       (correlatedGaussian ρ₂).real {p | p.1 ≤ a ∧ p.2 ≤ b} := by
@@ -182,6 +191,61 @@ theorem measureReal_correlatedGaussian_le_and_le_mono {ρ₁ ρ₂ : ℝ}
   exact mul_le_gaussianQuadrant hr0 hr1 (cdf_nonneg _ _) (cdf_le_one _ _)
     (cdf_nonneg _ _) (cdf_le_one _ _)
 
+private theorem measureReal_correlatedGaussian_le_and_le_mono_nonpos {ρ₁ ρ₂ : ℝ}
+    (hρ₁ : -1 ≤ ρ₁) (h12 : ρ₁ ≤ ρ₂) (hρ₂ : ρ₂ ≤ 0) (a b : ℝ) :
+    (correlatedGaussian ρ₁).real {p | p.1 ≤ a ∧ p.2 ≤ b} ≤
+      (correlatedGaussian ρ₂).real {p | p.1 ≤ a ∧ p.2 ≤ b} := by
+  have hneg (ρ : ℝ) (hρ : |ρ| ≤ 1) :
+      (correlatedGaussian ρ).real {p | p.1 ≤ a ∧ p.2 ≤ b} =
+        Φ a - (correlatedGaussian (-ρ)).real {p | p.1 ≤ a ∧ p.2 ≤ -b} := by
+    conv_lhs => rw [← gaussianQuadrant_cdf_cdf, ← neg_neg ρ]
+    rw [gaussianQuadrant_neg (by rwa [abs_neg]) (cdf_nonneg _ a) (cdf_le_one _ a),
+      ← cdf_gaussianReal_neg one_ne_zero b, gaussianQuadrant_cdf_cdf]
+  rw [hneg ρ₁ (abs_le.mpr ⟨hρ₁, h12.trans (hρ₂.trans zero_le_one)⟩),
+    hneg ρ₂ (abs_le.mpr ⟨hρ₁.trans h12, hρ₂.trans zero_le_one⟩)]
+  have hm := measureReal_correlatedGaussian_le_and_le_mono_nonneg
+    (neg_nonneg.mpr hρ₂) (neg_le_neg h12) (by linarith) a (-b)
+  linarith
+
+/-- **Correlation monotonicity of bivariate Gaussian quadrants.** Increasing `-1 ≤ ρ₁ ≤ ρ₂ ≤ 1`
+increases the lower-quadrant probability `P_ρ[z ≤ a ∧ z' ≤ b]` for all `a, b ∈ ℝ`. -/
+theorem measureReal_correlatedGaussian_le_and_le_mono {ρ₁ ρ₂ : ℝ}
+    (hρ₁ : -1 ≤ ρ₁) (h12 : ρ₁ ≤ ρ₂) (hρ₂ : ρ₂ ≤ 1) (a b : ℝ) :
+    (correlatedGaussian ρ₁).real {p | p.1 ≤ a ∧ p.2 ≤ b} ≤
+      (correlatedGaussian ρ₂).real {p | p.1 ≤ a ∧ p.2 ≤ b} := by
+  rcases le_total 0 ρ₁ with h01 | h10
+  · exact measureReal_correlatedGaussian_le_and_le_mono_nonneg h01 h12 hρ₂ a b
+  · rcases le_total ρ₂ 0 with h20 | h02
+    · exact measureReal_correlatedGaussian_le_and_le_mono_nonpos hρ₁ h12 h20 a b
+    · exact (measureReal_correlatedGaussian_le_and_le_mono_nonpos hρ₁ h10 le_rfl a b).trans
+        (measureReal_correlatedGaussian_le_and_le_mono_nonneg le_rfl h02 hρ₂ a b)
+
+/-- `ρ ↦ Λ_ρ(α, β)` is monotone on `[-1, 1]` for all `α, β ∈ ℝ`. -/
+theorem monotoneOn_gaussianQuadrant (α β : ℝ) :
+    MonotoneOn (fun ρ => gaussianQuadrant ρ α β) (Icc (-1) 1) := by
+  intro ρ₁ hρ₁ ρ₂ hρ₂ h12
+  dsimp only
+  rw [gaussianQuadrant_eq_clamp_left ρ₁, gaussianQuadrant_eq_clamp_right ρ₁,
+    gaussianQuadrant_eq_clamp_left ρ₂, gaussianQuadrant_eq_clamp_right ρ₂]
+  set α' := max (min α 1) 0
+  set β' := max (min β 1) 0
+  have hα0 : 0 ≤ α' := le_max_right _ _
+  have hα1 : α' ≤ 1 := max_le (min_le_right _ _) zero_le_one
+  have hβ0 : 0 ≤ β' := le_max_right _ _
+  have hβ1 : β' ≤ 1 := max_le (min_le_right _ _) zero_le_one
+  rcases hα0.eq_or_lt with h0 | hα0'
+  · rw [← h0, gaussianQuadrant_zero_left, gaussianQuadrant_zero_left]
+  rcases hα1.eq_or_lt with h1 | hα1'
+  · rw [h1, gaussianQuadrant_one_left (abs_le.mpr hρ₁) hβ0 hβ1,
+      gaussianQuadrant_one_left (abs_le.mpr hρ₂) hβ0 hβ1]
+  rcases hβ0.eq_or_lt with h0 | hβ0'
+  · rw [← h0, gaussianQuadrant_zero_right, gaussianQuadrant_zero_right]
+  rcases hβ1.eq_or_lt with h1 | hβ1'
+  · rw [h1, gaussianQuadrant_one_right _ hα0 hα1, gaussianQuadrant_one_right _ hα0 hα1]
+  rw [← cdf_gaussianQuantile ⟨hα0', hα1'⟩, ← cdf_gaussianQuantile ⟨hβ0', hβ1'⟩,
+    gaussianQuadrant_cdf_cdf, gaussianQuadrant_cdf_cdf]
+  exact measureReal_correlatedGaussian_le_and_le_mono hρ₁.1 h12 hρ₂.2 _ _
+
 /-- Decomposition `P_ρ[a < z ∧ z' ≤ b] = Φ b - P_ρ[z ≤ a ∧ z' ≤ b]` for `|ρ| ≤ 1`. -/
 theorem measureReal_correlatedGaussian_gt_and_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (a b : ℝ) :
     (correlatedGaussian ρ).real {p | a < p.1 ∧ p.2 ≤ b} =
@@ -201,160 +265,70 @@ theorem measureReal_correlatedGaussian_gt_and_le {ρ : ℝ} (hρ : |ρ| ≤ 1) (
     (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
   rw [← hdiff, measureReal_sdiff hsub hmeas, hsnd]
 
-/-- **Plackett antitonicity of crossing probabilities.** Increasing `0 ≤ ρ₁ ≤ ρ₂ ≤ 1` *decreases*
-`P_ρ[a < z ∧ z' ≤ b]` for all thresholds `a, b ∈ ℝ`. -/
+/-- **Correlation antitonicity of crossing probabilities.** Increasing `-1 ≤ ρ₁ ≤ ρ₂ ≤ 1`
+*decreases* `P_ρ[a < z ∧ z' ≤ b]` for all thresholds `a, b ∈ ℝ`. -/
 theorem measureReal_correlatedGaussian_gt_and_le_anti {ρ₁ ρ₂ : ℝ}
-    (hρ₁ : 0 ≤ ρ₁) (h12 : ρ₁ ≤ ρ₂) (hρ₂ : ρ₂ ≤ 1) (a b : ℝ) :
+    (hρ₁ : -1 ≤ ρ₁) (h12 : ρ₁ ≤ ρ₂) (hρ₂ : ρ₂ ≤ 1) (a b : ℝ) :
     (correlatedGaussian ρ₂).real {p | a < p.1 ∧ p.2 ≤ b} ≤
       (correlatedGaussian ρ₁).real {p | a < p.1 ∧ p.2 ≤ b} := by
-  rw [measureReal_correlatedGaussian_gt_and_le (abs_le.mpr ⟨by linarith, hρ₂⟩),
-    measureReal_correlatedGaussian_gt_and_le (abs_le.mpr ⟨by linarith, h12.trans hρ₂⟩)]
+  rw [measureReal_correlatedGaussian_gt_and_le (abs_le.mpr ⟨hρ₁.trans h12, hρ₂⟩),
+    measureReal_correlatedGaussian_gt_and_le (abs_le.mpr ⟨hρ₁, h12.trans hρ₂⟩)]
   linarith [measureReal_correlatedGaussian_le_and_le_mono hρ₁ h12 hρ₂ a b]
+
+/-- **Double reflection** ([O'Donnell, Exercise 11.19(b)][ODonnell2014]):
+`Λ_ρ(1 - α, 1 - β) = 1 - α - β + Λ_ρ(α, β)` for `|ρ| ≤ 1` and `α, β ∈ [0, 1]`. -/
+theorem gaussianQuadrant_one_sub_one_sub {ρ : ℝ} (hρ : |ρ| ≤ 1) {α β : ℝ}
+    (hα0 : 0 ≤ α) (hα1 : α ≤ 1) (hβ0 : 0 ≤ β) (hβ1 : β ≤ 1) :
+    gaussianQuadrant ρ (1 - α) (1 - β) = 1 - α - β + gaussianQuadrant ρ α β := by
+  have h1 := gaussianQuadrant_neg (ρ := -ρ) (by rwa [abs_neg])
+    (sub_nonneg.mpr hα1) (sub_le_self 1 hα0) (1 - β)
+  have h2 := gaussianQuadrant_neg_eq_sub_one_sub_left hρ (1 - α) hβ0 hβ1
+  rw [neg_neg, sub_sub_cancel] at h1
+  rw [sub_sub_cancel] at h2
+  linarith
 
 /-- Symmetry `P_ρ[-d < z ∧ z' ≤ -d] = P_ρ[d < z ∧ z' ≤ d]` for `|ρ| ≤ 1`. -/
 theorem measureReal_correlatedGaussian_gt_neg_le_neg {ρ : ℝ} (hρ : |ρ| ≤ 1) (d : ℝ) :
     (correlatedGaussian ρ).real {p | -d < p.1 ∧ p.2 ≤ -d} =
       (correlatedGaussian ρ).real {p | d < p.1 ∧ p.2 ≤ d} := by
-  rw [measureReal_correlatedGaussian_gt_and_le hρ, measureReal_correlatedGaussian_gt_and_le hρ]
-  have hneg : (correlatedGaussian ρ).real {p | p.1 ≤ -d ∧ p.2 ≤ -d} =
-      (correlatedGaussian ρ).real {p | d ≤ p.1 ∧ d ≤ p.2} := by
-    have hm : MeasurableSet {p : ℝ × ℝ | p.1 ≤ -d ∧ p.2 ≤ -d} :=
-      (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
-    conv_lhs => rw [← correlatedGaussian_map_neg hρ,
-      map_measureReal_apply (f := fun p : ℝ × ℝ => -p) measurable_neg hm]
-    congr 1
-    ext p
-    simp
-  have hae1 : ∀ᵐ p ∂correlatedGaussian ρ, p.1 ≠ d := by
-    refine ae_of_ae_map (p := (· ≠ d)) measurable_fst.aemeasurable ?_
-    rw [correlatedGaussian_map_fst]
-    have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-    exact measure_eq_zero_iff_ae_notMem.mp (measure_singleton d)
-  have hae2 : ∀ᵐ p ∂correlatedGaussian ρ, p.2 ≠ d := by
-    refine ae_of_ae_map (p := (· ≠ d)) measurable_snd.aemeasurable ?_
-    rw [correlatedGaussian_map_snd hρ]
-    have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-    exact measure_eq_zero_iff_ae_notMem.mp (measure_singleton d)
-  have hstrict : (correlatedGaussian ρ).real {p | d ≤ p.1 ∧ d ≤ p.2} =
-      (correlatedGaussian ρ).real {p | d < p.1 ∧ d < p.2} := by
-    refine measureReal_congr (Filter.eventuallyEqSet_iff.mpr ((hae1.and hae2).mono fun p hp => ?_))
-    simp only [mem_ofPred_eq, lt_iff_le_and_ne, ne_eq]
-    exact ⟨fun h => ⟨⟨h.1, hp.1.symm⟩, ⟨h.2, hp.2.symm⟩⟩, fun h => ⟨h.1.1, h.2.1⟩⟩
-  have hu : {p : ℝ × ℝ | d < p.1 ∧ d < p.2} = ({p | p.1 ≤ d} ∪ {p | p.2 ≤ d})ᶜ := by
-    ext p
-    simp
-  have h1m : MeasurableSet {p : ℝ × ℝ | p.1 ≤ d} := measurableSet_Iic.preimage measurable_fst
-  have h2m : MeasurableSet {p : ℝ × ℝ | p.2 ≤ d} := measurableSet_Iic.preimage measurable_snd
-  have hp1 : (correlatedGaussian ρ).real {p | p.1 ≤ d} = Φ d := by
-    have h := map_measureReal_apply (μ := correlatedGaussian ρ) measurable_fst
-      (measurableSet_Iic (a := d))
-    rw [correlatedGaussian_map_fst, ← cdf_eq_real] at h
-    exact h.symm
-  have hp2 : (correlatedGaussian ρ).real {p | p.2 ≤ d} = Φ d := by
-    have h := map_measureReal_apply (μ := correlatedGaussian ρ) measurable_snd
-      (measurableSet_Iic (a := d))
-    rw [correlatedGaussian_map_snd hρ, ← cdf_eq_real] at h
-    exact h.symm
-  have hunion : (correlatedGaussian ρ).real ({p | p.1 ≤ d} ∪ {p | p.2 ≤ d}) =
-      2 * Φ d - (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ d} := by
-    have h := measureReal_union_add_inter (μ := correlatedGaussian ρ)
-      (s := {p : ℝ × ℝ | p.1 ≤ d}) h2m
-    change (correlatedGaussian ρ).real ({p | p.1 ≤ d} ∪ {p | p.2 ≤ d}) +
-        (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ d} = _ at h
-    linarith [h, hp1, hp2]
-  rw [hneg, hstrict, hu, probReal_compl_eq_one_sub (h1m.union h2m), hunion,
-    cdf_gaussianReal_neg one_ne_zero]
+  rw [measureReal_correlatedGaussian_gt_and_le hρ, measureReal_correlatedGaussian_gt_and_le hρ,
+    ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf, cdf_gaussianReal_neg one_ne_zero d,
+    gaussianQuadrant_one_sub_one_sub hρ (cdf_nonneg _ d) (cdf_le_one _ d)
+      (cdf_nonneg _ d) (cdf_le_one _ d)]
   ring
 
-/-- Exact convex-excess identity `p_{+-} + p_{-+} - 2 p_{dd} ≥ 0` for `0 ≤ d` and `|ρ| ≤ 1`:
-`p_{+-} + p_{-+} - 2 p_{dd} = P_ρ[-d < z ≤ d ∧ -d < z' ≤ d] ≥ 0`. -/
+/-- Box-excess inequality `2 P_ρ[d < z ∧ z' ≤ d] ≤ P_ρ[d < z ∧ z' ≤ -d] + P_ρ[-d < z ∧ z' ≤ d]`
+for `0 ≤ d` and `|ρ| ≤ 1` (the difference equals `P_ρ[-d < z ≤ d ∧ -d < z' ≤ d] ≥ 0`). -/
 theorem two_mul_correlatedGaussian_gt_le_diag_le {ρ d : ℝ} (hρ : |ρ| ≤ 1) (hd : 0 ≤ d) :
     2 * (correlatedGaussian ρ).real {p | d < p.1 ∧ p.2 ≤ d} ≤
       (correlatedGaussian ρ).real {p | d < p.1 ∧ p.2 ≤ -d} +
         (correlatedGaussian ρ).real {p | -d < p.1 ∧ p.2 ≤ d} := by
-  rw [measureReal_correlatedGaussian_gt_and_le hρ d d,
-    measureReal_correlatedGaussian_gt_and_le hρ d (-d),
-    measureReal_correlatedGaussian_gt_and_le hρ (-d) d]
-  have hsymm : (correlatedGaussian ρ).real {p | p.1 ≤ -d ∧ p.2 ≤ d} =
-      (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} := by
-    rw [← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf, gaussianQuadrant_comm hρ]
-  have hcdf : Φ (-d) + Φ d = 1 := by
-    rw [cdf_gaussianReal_neg one_ne_zero]
-    ring
-  have hbox : 0 ≤ 1 - 2 * Φ d + 2 * (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ d} -
-      2 * (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} := by
-    have hsub1 : {p : ℝ × ℝ | p.1 ≤ d ∧ p.2 ≤ -d} ⊆ {p | p.1 ≤ d ∧ p.2 ≤ d} :=
+  have hstrip (a : ℝ) : (correlatedGaussian ρ).real {p | p.1 ≤ a ∧ -d < p.2 ∧ p.2 ≤ d} =
+      gaussianQuadrant ρ (Φ a) (Φ d) - gaussianQuadrant ρ (Φ a) (Φ (-d)) := by
+    have hsub : {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ -d} ⊆ {p | p.1 ≤ a ∧ p.2 ≤ d} :=
       fun _ hp => ⟨hp.1, hp.2.trans (by linarith)⟩
-    have hm_dd : MeasurableSet {p : ℝ × ℝ | p.1 ≤ d ∧ p.2 ≤ -d} :=
+    have hm : MeasurableSet {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ -d} :=
       (measurableSet_Iic.preimage measurable_fst).inter (measurableSet_Iic.preimage measurable_snd)
-    have hdiff1 : {p : ℝ × ℝ | p.1 ≤ d ∧ p.2 ≤ d} \ {p | p.1 ≤ d ∧ p.2 ≤ -d} =
-        {p | p.1 ≤ d ∧ -d < p.2 ∧ p.2 ≤ d} := by
+    have hdiff : {p : ℝ × ℝ | p.1 ≤ a ∧ p.2 ≤ d} \ {p | p.1 ≤ a ∧ p.2 ≤ -d} =
+        {p | p.1 ≤ a ∧ -d < p.2 ∧ p.2 ≤ d} := by
       ext p
       simp only [Set.mem_sdiff, mem_ofPred_eq]
       exact ⟨fun ⟨⟨h1, h2⟩, hn⟩ => ⟨h1, lt_of_not_ge fun hle => hn ⟨h1, hle⟩, h2⟩,
         fun ⟨h1, hgt, h2⟩ => ⟨⟨h1, h2⟩, fun ⟨_, hle⟩ => not_lt_of_ge hle hgt⟩⟩
-    have hs1 : (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ -d < p.2 ∧ p.2 ≤ d} =
-        (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ d} -
-          (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ p.2 ≤ -d} := by
-      rw [← hdiff1, measureReal_sdiff hsub1 hm_dd]
-    have hae2 : ∀ᵐ p ∂correlatedGaussian ρ, p.2 ≠ -d ∧ p.2 ≠ d := by
-      have := nullSingletonClass_gaussianReal (μ := 0) (v := 1) one_ne_zero
-      refine Filter.Eventually.and ?_ ?_
-      · refine ae_of_ae_map (p := (· ≠ -d)) measurable_snd.aemeasurable ?_
-        rw [correlatedGaussian_map_snd hρ]
-        exact measure_eq_zero_iff_ae_notMem.mp (measure_singleton (-d))
-      · refine ae_of_ae_map (p := (· ≠ d)) measurable_snd.aemeasurable ?_
-        rw [correlatedGaussian_map_snd hρ]
-        exact measure_eq_zero_iff_ae_notMem.mp (measure_singleton d)
-    have hneg_strip : (correlatedGaussian ρ).real {p | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} ≤
-        (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ -d < p.2 ∧ p.2 ≤ d} := by
-      have hm_strip : MeasurableSet {p : ℝ × ℝ | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} :=
-        (measurableSet_Ioi.preimage measurable_fst).inter
-          ((measurableSet_Ioi.preimage measurable_snd).inter
-            (measurableSet_Iic.preimage measurable_snd))
-      have heq_neg : (correlatedGaussian ρ).real {p | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} =
-          (correlatedGaussian ρ).real {p | p.1 < -d ∧ -d ≤ p.2 ∧ p.2 < d} := by
-        conv_lhs => rw [← correlatedGaussian_map_neg hρ,
-          map_measureReal_apply (f := fun p : ℝ × ℝ => -p) measurable_neg hm_strip]
-        congr 1
-        ext p
-        simp only [mem_preimage, mem_ofPred_eq, Prod.fst_neg, Prod.snd_neg]
-        constructor <;> rintro ⟨h1, h2, h3⟩ <;> exact ⟨by linarith, by linarith, by linarith⟩
-      have hae_eq : (correlatedGaussian ρ).real {p | p.1 < -d ∧ -d ≤ p.2 ∧ p.2 < d} =
-          (correlatedGaussian ρ).real {p | p.1 < -d ∧ -d < p.2 ∧ p.2 ≤ d} := by
-        refine measureReal_congr (Filter.eventuallyEqSet_iff.mpr (hae2.mono fun p hp => ?_))
-        simp only [mem_ofPred_eq]
-        exact ⟨fun ⟨h1, h2, h3⟩ => ⟨h1, lt_of_le_of_ne h2 hp.1.symm, h3.le⟩,
-          fun ⟨h1, h2, h3⟩ => ⟨h1, h2.le, lt_of_le_of_ne h3 hp.2⟩⟩
-      rw [heq_neg, hae_eq]
-      exact measureReal_mono fun p hp => ⟨hp.1.le.trans (by linarith), hp.2⟩
-    have htot_strip : (correlatedGaussian ρ).real {p | p.1 ≤ d ∧ -d < p.2 ∧ p.2 ≤ d} +
-        (correlatedGaussian ρ).real {p | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} = 2 * Φ d - 1 := by
-      have hun : {p : ℝ × ℝ | p.1 ≤ d ∧ -d < p.2 ∧ p.2 ≤ d} ∪
-          {p | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} = {p | p.2 ≤ d} \ {p | p.2 ≤ -d} := by
-        ext p
-        simp only [mem_union, mem_ofPred_eq, Set.mem_sdiff, not_le]
-        exact ⟨fun h => h.elim (fun h1 => ⟨h1.2.2, h1.2.1⟩) (fun h2 => ⟨h2.2.2, h2.2.1⟩),
-          fun ⟨h1, h2⟩ => (le_or_gt p.1 d).imp (fun ha => ⟨ha, h2, h1⟩) (fun ha => ⟨ha, h2, h1⟩)⟩
-      have hdisj : Disjoint {p : ℝ × ℝ | p.1 ≤ d ∧ -d < p.2 ∧ p.2 ≤ d}
-          {p | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} :=
-        disjoint_left.mpr fun _ h1 h2 => not_lt_of_ge h1.1 h2.1
-      have hm2 : MeasurableSet {p : ℝ × ℝ | d < p.1 ∧ -d < p.2 ∧ p.2 ≤ d} :=
-        (measurableSet_Ioi.preimage measurable_fst).inter
-          ((measurableSet_Ioi.preimage measurable_snd).inter
-            (measurableSet_Iic.preimage measurable_snd))
-      have hp_le (t : ℝ) : (correlatedGaussian ρ).real {p | p.2 ≤ t} = Φ t := by
-        have h := map_measureReal_apply (μ := correlatedGaussian ρ) measurable_snd
-          (measurableSet_Iic (a := t))
-        rw [correlatedGaussian_map_snd hρ, ← cdf_eq_real] at h
-        exact h.symm
-      have hsub_p : {p : ℝ × ℝ | p.2 ≤ -d} ⊆ {p | p.2 ≤ d} :=
-        fun _ (hp : _ ≤ -d) => hp.trans (by linarith)
-      rw [← measureReal_union hdisj hm2, hun,
-        measureReal_sdiff hsub_p (measurableSet_Iic.preimage measurable_snd),
-        hp_le d, hp_le (-d), cdf_gaussianReal_neg one_ne_zero]
-      ring
-    linarith [hs1, hneg_strip, htot_strip]
-  linarith [hsymm, hcdf, hbox]
+    rw [← hdiff, measureReal_sdiff hsub hm, ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf]
+  have hmono : gaussianQuadrant ρ (Φ (-d)) (Φ d) - gaussianQuadrant ρ (Φ (-d)) (Φ (-d)) ≤
+      gaussianQuadrant ρ (Φ d) (Φ d) - gaussianQuadrant ρ (Φ d) (Φ (-d)) := by
+    rw [← hstrip (-d), ← hstrip d]
+    exact measureReal_mono fun _ hp => ⟨hp.1.trans (by linarith), hp.2⟩
+  rw [measureReal_correlatedGaussian_gt_and_le hρ d d,
+    measureReal_correlatedGaussian_gt_and_le hρ d (-d),
+    measureReal_correlatedGaussian_gt_and_le hρ (-d) d,
+    ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf, ← gaussianQuadrant_cdf_cdf]
+  rw [gaussianQuadrant_comm hρ (Φ (-d)) (Φ d)] at hmono ⊢
+  rw [cdf_gaussianReal_neg one_ne_zero d,
+    gaussianQuadrant_one_sub_one_sub hρ (cdf_nonneg _ d) (cdf_le_one _ d)
+      (cdf_nonneg _ d) (cdf_le_one _ d)] at hmono
+  rw [cdf_gaussianReal_neg one_ne_zero d]
+  linarith [hmono]
 
 end ProbabilityTheory

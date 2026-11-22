@@ -4,16 +4,21 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
+
+public import CslibFrontier.Computability.Circuit.Frontier.Linear.DirectedShift
+public import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
 import CslibFrontier.Computability.Circuit.Frontier.Layouts.Gaussian.Coefficient
-import CslibFrontier.Computability.Circuit.Frontier.Linear.DirectedShift
-import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
 import CslibFrontier.Foundations.Probability.Gaussian.QuadrantDeriv
 import CslibFrontier.Foundations.Probability.Gaussian.Real
+import Mathlib.Analysis.Calculus.Deriv.Prod
 import Mathlib.Analysis.Real.Pi.Bounds
 import Mathlib.Analysis.SpecialFunctions.Trigonometric.Bounds
 
 /-! Checked clients and non-vacuity witnesses for unbalanced linear-map cut demands and directed
 Gaussian divergence shifts (`4.2170 N`). -/
+
+public section
 
 open Cslib.Circuits Cslib.Circuits.Frontier Matrix MeasureTheory ProbabilityTheory Real Set Filter
 
@@ -23,7 +28,7 @@ namespace CslibFrontierTests.FrontierDirectedLinear
 
 /-- Shifted `VertexGaussian` (`> 4.2170 N`) strictly beats unshifted `VertexGaussian`
 (`1 + 1 / degreeCoefficient 3 ≈ 4.0815 N`). -/
-example : 1 + 1 / Gaussian.degreeCoefficient 3 < 4217 / 1000 := by
+theorem unshifted_lt_shifted_coeff : 1 + 1 / Gaussian.degreeCoefficient 3 < 4217 / 1000 := by
   have hcos : 2 * √2 / 3 ≤ cos (338 / 1000) := by
     have hs2_hi : √2 < 1414214 / 1000000 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
     have hlo := one_sub_sq_div_two_le_cos (x := 338 / 1000)
@@ -59,6 +64,28 @@ example (a b : ℝ) :
   have hs2_lo : (7 / 5 : ℝ) < √2 := (lt_sqrt (by norm_num)).mpr (by norm_num)
   have hs2_hi : √2 < 3 / 2 := (sqrt_lt' (by norm_num)).mpr (by norm_num)
   exact measureReal_correlatedGaussian_le_and_le_mono (by norm_num) (by linarith) (by linarith) a b
+
+example (a b : ℝ) :
+    (correlatedGaussian (-4 / 5)).real {p | p.1 ≤ a ∧ p.2 ≤ b} ≤
+      (correlatedGaussian (1 / 2)).real {p | p.1 ≤ a ∧ p.2 ≤ b} :=
+  measureReal_correlatedGaussian_le_and_le_mono (by norm_num) (by norm_num) (by norm_num) a b
+
+example (a b : ℝ) :
+    (correlatedGaussian (1 / 2)).real {p | a < p.1 ∧ p.2 ≤ b} ≤
+      (correlatedGaussian (-4 / 5)).real {p | a < p.1 ∧ p.2 ≤ b} :=
+  measureReal_correlatedGaussian_gt_and_le_anti (by norm_num) (by norm_num) (by norm_num) a b
+
+example (α β : ℝ) :
+    gaussianQuadrant (-4 / 5) α β ≤ gaussianQuadrant (1 / 2) α β :=
+  monotoneOn_gaussianQuadrant α β (by norm_num) (by norm_num) (by norm_num)
+
+example :
+    gaussianQuadrant (-1 / 2) (2 / 3) (3 / 4) =
+      1 - 1 / 3 - 1 / 4 + gaussianQuadrant (-1 / 2) (1 / 3) (1 / 4) := by
+  have h := gaussianQuadrant_one_sub_one_sub (ρ := -1 / 2) (α := 1 / 3) (β := 1 / 4)
+    (by norm_num) (by norm_num) (by norm_num) (by norm_num) (by norm_num)
+  norm_num at h ⊢
+  exact h
 
 /-! ### 2. Concrete directed cubic theta multigraph (with antiparallel 2-cycles) -/
 
@@ -122,12 +149,8 @@ example :
     unfold Multigraph.divergence
     omega
   have hdiv_t : ¬ 0 < dirTheta.divergence true := by
-    have htot := dirTheta.two_mul_ncard_inCut_add_sum_divergence dirTheta_loopless (univ : Set Bool)
-    have hin0 : dirTheta.inCut (univ : Set Bool) = ∅ := by ext e; simp
-    have hed0 : dirTheta.edgeCut (univ : Set Bool) = ∅ :=
-      Set.eq_empty_iff_forall_notMem.mpr fun _ he => he (iff_of_true trivial trivial)
-    simp only [hin0, hed0, ncard_empty, mul_zero, CharP.cast_eq_zero, zero_add, mem_univ,
-      ↓reduceIte, Fintype.sum_bool] at htot
+    have htot := dirTheta.sum_divergence dirTheta_loopless
+    rw [Fintype.sum_bool] at htot
     omega
   -- Marginal cdf `Φ`:
   have hFm (v : Bool) (t : ℝ) : P.real {ω | M ω v ≤ t} = cdf (gaussianReal 0 1) t := by
@@ -144,38 +167,28 @@ example :
         1 - 2 * P.real {p | p.1 ≤ d ∧ p.2 ≤ -d} := by
     have hset : {ω : ℝ × ℝ | e ∈ dirTheta.edgeCut (DirectedShift.shiftedCut dirTheta (M ω) d)} =
         {p | d < p.1 ∧ p.2 ≤ -d} ∪ {p | p.1 ≤ d ∧ -d < p.2} := by
+      have hiff_cut (a b : ℝ) :
+          ¬((a ≤ d) ↔ (b ≤ -d)) ↔ (d < a ∧ b ≤ -d) ∨ (a ≤ d ∧ -d < b) :=
+        ⟨fun h => (le_or_gt a d).elim
+            (fun h1 => Or.inr ⟨h1, lt_of_not_ge fun h2 => h ⟨fun _ => h2, fun _ => h1⟩⟩)
+            (fun h1 => Or.inl ⟨h1, le_of_not_gt fun h2 =>
+              h ⟨fun ha => absurd ha (not_le.mpr h1), fun hb => absurd hb (not_le.mpr h2)⟩⟩),
+          fun h hiff => h.elim (fun ⟨h1, h2⟩ => not_le.mpr h1 (hiff.mpr h2))
+            (fun ⟨h1, h2⟩ => not_le.mpr h2 (hiff.mp h1))⟩
       ext p
       fin_cases e
       · change ¬((p.1 ≤ if 0 < dirTheta.divergence false then d else -d) ↔
-            (p.2 ≤ if 0 < dirTheta.divergence true then d else -d)) ↔
-            (d < p.1 ∧ p.2 ≤ -d) ∨ (p.1 ≤ d ∧ -d < p.2)
+            (p.2 ≤ if 0 < dirTheta.divergence true then d else -d)) ↔ _
         simp only [hdiv_f, hdiv_t, ↓reduceIte]
-        exact ⟨fun h => (le_or_gt p.1 d).elim
-            (fun h1 => Or.inr ⟨h1, lt_of_not_ge fun h2 => h ⟨fun _ => h2, fun _ => h1⟩⟩)
-            (fun h1 => Or.inl ⟨h1, le_of_not_gt fun h2 =>
-              h ⟨fun ha => absurd ha (not_le.mpr h1), fun hb => absurd hb (not_le.mpr h2)⟩⟩),
-          fun h hiff => h.elim (fun ⟨h1, h2⟩ => not_le.mpr h1 (hiff.mpr h2))
-            (fun ⟨h1, h2⟩ => not_le.mpr h2 (hiff.mp h1))⟩
+        exact hiff_cut p.1 p.2
       · change ¬((p.1 ≤ if 0 < dirTheta.divergence false then d else -d) ↔
-            (p.2 ≤ if 0 < dirTheta.divergence true then d else -d)) ↔
-            (d < p.1 ∧ p.2 ≤ -d) ∨ (p.1 ≤ d ∧ -d < p.2)
+            (p.2 ≤ if 0 < dirTheta.divergence true then d else -d)) ↔ _
         simp only [hdiv_f, hdiv_t, ↓reduceIte]
-        exact ⟨fun h => (le_or_gt p.1 d).elim
-            (fun h1 => Or.inr ⟨h1, lt_of_not_ge fun h2 => h ⟨fun _ => h2, fun _ => h1⟩⟩)
-            (fun h1 => Or.inl ⟨h1, le_of_not_gt fun h2 =>
-              h ⟨fun ha => absurd ha (not_le.mpr h1), fun hb => absurd hb (not_le.mpr h2)⟩⟩),
-          fun h hiff => h.elim (fun ⟨h1, h2⟩ => not_le.mpr h1 (hiff.mpr h2))
-            (fun ⟨h1, h2⟩ => not_le.mpr h2 (hiff.mp h1))⟩
+        exact hiff_cut p.1 p.2
       · change ¬((p.2 ≤ if 0 < dirTheta.divergence true then d else -d) ↔
-            (p.1 ≤ if 0 < dirTheta.divergence false then d else -d)) ↔
-            (d < p.1 ∧ p.2 ≤ -d) ∨ (p.1 ≤ d ∧ -d < p.2)
-        simp only [hdiv_f, hdiv_t, ↓reduceIte]
-        exact ⟨fun h => (le_or_gt p.1 d).elim
-            (fun h1 => Or.inr ⟨h1, lt_of_not_ge fun h2 => h ⟨fun _ => h1, fun _ => h2⟩⟩)
-            (fun h1 => Or.inl ⟨h1, le_of_not_gt fun h2 =>
-              h ⟨fun hb => absurd hb (not_le.mpr h2), fun ha => absurd ha (not_le.mpr h1)⟩⟩),
-          fun h hiff => h.elim (fun ⟨h1, h2⟩ => not_le.mpr h1 (hiff.mp h2))
-            (fun ⟨h1, h2⟩ => not_le.mpr h2 (hiff.mpr h1))⟩
+            (p.1 ≤ if 0 < dirTheta.divergence false then d else -d)) ↔ _
+        simp only [hdiv_f, hdiv_t, ↓reduceIte, Iff.comm]
+        exact hiff_cut p.1 p.2
     have hdisj : Disjoint {p : ℝ × ℝ | d < p.1 ∧ p.2 ≤ -d} {p | p.1 ≤ d ∧ -d < p.2} :=
       disjoint_left.mpr fun _ h1 h2 => not_lt_of_ge h2.1 h1.1
     have hm2 : MeasurableSet {p : ℝ × ℝ | p.1 ≤ d ∧ -d < p.2} :=
