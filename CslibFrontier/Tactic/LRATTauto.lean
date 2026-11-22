@@ -7,9 +7,9 @@ Authors: Matthew Doty
 module
 -- upstream: candidate
 
-public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
+public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 public import CslibFrontier.Logics.Propositional.CNF.LRATKernel
-public meta import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
+public meta import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Numbered
 public meta import CslibFrontier.Algorithms.Lean.CDCL.Watched
 public meta import CslibFrontier.Logics.Propositional.CNF.LRATFast
 public meta import Mathlib.Util.AtomM
@@ -108,21 +108,21 @@ kernel checks every certificate; the tactic then fails, or shows a wrong assignm
 
 * `↔` is encoded by writing each side twice, so a goal that nests `↔` to depth `d` has up to
   `2 ^ d` copies of its innermost subformulas.
-* The kernel check takes most of the time. With the CDCL solver's certificates, trimmed, the
-  kernel checked the pigeonhole formulas for six pigeons in five holes and seven in six
-  (certificates of 131 and 507 steps) in about 6 and 26 to 29 seconds, the chain of 320
-  implications (962 clauses, one step) in about 2 seconds, and the distributivity of `∧` over `∨`
-  on six disjunctions (32 steps) and the associativity of `↔` on six atoms (68 steps) in about 2
-  seconds each. On goals with few steps most of that time goes to reading the formula, so the
-  time grows with the number of clauses as well as with the number of steps and the length of
-  the clauses the hints name. Against the numbered Tseitin transformation, the
-  Plaisted–Greenbaum transformation halves the clauses and cut the kernel time by about a third
-  on the chain and distributivity families, by 5% to 27% on `↔` and by 8% to 17% on the
-  pigeonhole formulas for five and six pigeons. For seven pigeons, whose trimmed certificate grew
-  from 461 to 507 steps, two runs took 26 and 29 seconds against 27. The final step, in which the
-  kernel checks that the goal is the value of `A` under `v`, took under 0.3 seconds on each of
-  these goals, finding each atom by a binary search on its number. The benchmark script
-  `LRATTautoBench` in the repository's scripts measures these families.
+* The kernel check takes most of the time. With the CDCL solver's certificates, trimmed, the kernel
+  checked the pigeonhole formulas for six pigeons in five holes and seven in six (certificates of
+  131 and 507 steps) in about 6 and 26 to 29 seconds, the chain of 320 implications (962 clauses,
+  one step) in about 2 seconds, and the distributivity of `∧` over `∨` on six disjunctions (32
+  steps) and the associativity of `↔` on six atoms (68 steps) in about 2 seconds each. On goals with
+  few steps most of that time goes to reading the formula, so the time grows with the number of
+  clauses as well as with the number of steps and the length of the clauses the hints name. Against
+  a numbered Tseitin transformation, which the tactic used before, the Plaisted–Greenbaum
+  transformation halves the clauses and cut the kernel time by about a third on the chain and
+  distributivity families, by 5% to 27% on `↔` and by 8% to 17% on the pigeonhole formulas for five
+  and six pigeons. For seven pigeons, whose trimmed certificate grew from 461 to 507 steps, two runs
+  took 26 and 29 seconds against 27. The final step, in which the kernel checks that the goal is the
+  value of `A` under `v`, took under 0.3 seconds on each of these goals, finding each atom by a
+  binary search on its number. The benchmark script `LRATTautoBench` in the repository's scripts
+  measures these families.
 * The solver runs in Lean's interpreter, and its work counts toward `maxHeartbeats`; it takes a
   small fraction of the time of the kernel check, but on the larger formulas enough heartbeats
   that `set_option maxHeartbeats` must be raised.

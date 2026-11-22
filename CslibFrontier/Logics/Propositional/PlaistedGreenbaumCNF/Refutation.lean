@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Logics.Propositional.CNF.LRAT
-public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
+public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Numbered
 
 /-! # Tautologies from LRAT refutations
 
@@ -27,8 +27,8 @@ evaluation; only finding the certificate does, and that step is untrusted.
 
 Only the direction from a model of `¬A` to a model of the transformation is used here. On the
 goals of `lrat_tauto`'s benchmarks the Plaisted–Greenbaum transformation has about half the
-clauses of the Tseitin transformation (`Cslib.Logic.PL.Proposition.tseitinNumberedCNF`), and its
-certificates check faster in the kernel.
+clauses of the Tseitin transformation (`Cslib.Logic.PL.Proposition.tseitinCNF`), and its
+certificates checked faster in the kernel than those for a numbered Tseitin transformation.
 
 ## Main results
 

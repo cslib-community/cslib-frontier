@@ -7,7 +7,7 @@ Authors: Matthew Doty
 module
 -- upstream: local-only (tests)
 
-import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
+import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 import Mathlib.Data.Fin.VecNotation
 
 /-!
@@ -21,7 +21,7 @@ the transformation in DIMACS form, without its deletion steps.
 
 set_option linter.privateModule false
 
-namespace CslibFrontierTests.Logics.Propositional.TseitinCNF.Refutation
+namespace CslibFrontierTests.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 
 open Cslib.Logic.PL Cslib.Logic.PL.Proposition
 open Std.Tactic.BVDecide (LRAT.IntAction)
@@ -66,4 +66,4 @@ example : (neg contraposition).plaistedGreenbaumNumberedCNF.checkLRAT
     (cert.set! 0 (.addRup 13 #[-9, 10] #[1, 3])) = false := by
   decide
 
-end CslibFrontierTests.Logics.Propositional.TseitinCNF.Refutation
+end CslibFrontierTests.Logics.Propositional.PlaistedGreenbaumCNF.Refutation

@@ -8398,6 +8398,8 @@ public import CslibFrontier.Logics.Propositional.ParitySystem.Tseitin
 public import CslibFrontier.Logics.Propositional.Pigeonhole
 public import CslibFrontier.Logics.Propositional.Pigeonhole.Extension
 public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF
+public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Numbered
+public import CslibFrontier.Logics.Propositional.PlaistedGreenbaumCNF.Refutation
 public import CslibFrontier.Logics.Propositional.PseudoBoolean
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.CuttingPlanes
 public import CslibFrontier.Logics.Propositional.PseudoBoolean.Output
@@ -8439,8 +8441,6 @@ public import CslibFrontier.Logics.Propositional.Semantics
 public import CslibFrontier.Logics.Propositional.SigmaThree
 public import CslibFrontier.Logics.Propositional.Tseitin
 public import CslibFrontier.Logics.Propositional.TseitinCNF
-public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
-public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
 public import CslibFrontier.Logics.RealArithmetic.Basic
 public import CslibFrontier.Logics.RealArithmetic.Encoding
 public import CslibFrontier.Logics.SecondOrder.Basic
