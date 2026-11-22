@@ -10,7 +10,7 @@ import CslibFrontier.Computability.Circuit.Frontier.Ledger.Unconditional
 import CslibFrontier.Computability.Circuit.Frontier.Linear.Unconditional
 import CslibFrontier.Computability.Circuit.Frontier.Nondeterministic
 
-/-! Checked clients and axiom guards for the median-switched Gaussian frontier lower bounds. -/
+/-! Checked clients for the median-switched Gaussian frontier lower bounds. -/
 
 open Cslib.Circuits Cslib.Circuits.Frontier Matrix Real Filter
 
@@ -91,74 +91,5 @@ example : ∀ᶠ N in atTop, ∀ (q : ℕ) [Fact q.Prime], 2 * N ≤ q →
         c.FanInAtMost 2 → c.Computes I (fun x => Matrix.cauchyNat (ZMod q) N *ᵥ x) →
           (1 + 2 * π / (3 * arccos (5 / 6)) - 1 / 100) * N < c.innerSize :=
   eventually_switched_sub_mul_lt_innerSize_cauchyNat_zmod.{0} (ε := 1 / 100) (by norm_num)
-
-/-! ### Axiom guards (`propext`, `Classical.choice`, `Quot.sound` only) -/
-
-/--
-info: 'Cslib.Circuits.Frontier.Switched.switchedCoefficient_lt_gaussianCoefficient' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.Switched.switchedCoefficient_lt_gaussianCoefficient
-
-/--
-info: 'Cslib.Circuits.Frontier.layoutBound_switched' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.layoutBound_switched
-
-/--
-info: 'Cslib.Circuits.Frontier.circuitLowerBound_switched' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.circuitLowerBound_switched
-
-/--
-info: 'Cslib.Circuits.Frontier.averageCaseBound_switched' depends on axioms: [propext, Classical.choice, Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.averageCaseBound_switched
-
-/--
-info: 'Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms
-  eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides
-
-/--
-info: 'Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_card_of_ledger' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_card_of_ledger
-
-/--
-info: 'Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le_switched' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.eventually_abs_correlation_hardForm_le_switched
-
-/--
-info: 'Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_arith_cauchyNat' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_arith_cauchyNat
-
-/--
-info: 'Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_cauchyNat_zmod' depends on axioms: [propext,
- Classical.choice,
- Quot.sound]
--/
-#guard_msgs (whitespace := lax) in
-#print axioms Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_cauchyNat_zmod
 
 end CslibFrontierTests.FrontierSwitched

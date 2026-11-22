@@ -53,7 +53,8 @@ For the explicit Cauchy matrices `1 / (i - (N + j))` this gives, for fan-in two:
   median edge-score bound `s > (L - ε) N` (`L ≈ 4.5625`) at fan-in two.
 * `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular`:
   median-switched Gaussian bound `s > (L₃ - ε) N` (`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`)
-  at fan-in two [Gaspers2026], including arithmetic Cauchy circuits over characteristic zero and
+  at fan-in two (via `layoutBound_switched`), original to this library, including arithmetic
+  Cauchy circuits over characteristic zero and
   prime-field Cauchy circuits over `ZMod q`.
 
 ## References
@@ -177,8 +178,8 @@ theorem eventually_gaussian_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} 
 
 /-- **Median-switched Gaussian lower bound for linear maps of fan-in two (`L₃ ≈ 4.575972`).**
 Every large fan-in-two circuit with linear capacity computing `x ↦ M x` for a totally regular
-`N × N` matrix `M` has more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` inner gates
-[Gaspers2026]. -/
+`N × N` matrix `M` has more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` inner gates. Original to
+this library (instantiating the frontier framework with `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] (σ : Signature.{v}) (I : Interpretation σ F)
       (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N), M.IsTotallyRegular →
@@ -192,7 +193,8 @@ theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular {ε : ℝ} 
     hN F σ I M c hM hfan hc hcap
 
 /-- **Median-switched Gaussian lower bound for linear maps over finite fields**, for every basis
-of fan-in at most two: `s > (1 + 2π / (3 arccos (5 / 6)) - ε) N` [Gaspers2026]. -/
+of fan-in at most two: `s > (1 + 2π / (3 arccos (5 / 6)) - ε) N`. Original to this library (via
+`layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_finite {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Finite F] (σ : Signature.{v})
       (I : Interpretation σ F) (M : Matrix (Fin N) (Fin N) F) (c : Circuit σ N N),
@@ -206,7 +208,8 @@ theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_finite {ε 
     hN F σ I M c hM hfan hc
 
 /-- **Median-switched Gaussian lower bound for linear maps over infinite fields**, for every basis
-of fan-in-two polynomial operations: `s > (1 + 2π / (3 arccos (5 / 6)) - ε) N` [Gaspers2026]. -/
+of fan-in-two polynomial operations: `s > (1 + 2π / (3 arccos (5 / 6)) - ε) N`. Original to this
+library (via `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomial
     {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [Infinite F] (σ : Signature.{v})
@@ -223,8 +226,8 @@ theorem eventually_switched_sub_mul_lt_innerSize_of_isTotallyRegular_isPolynomia
 
 /-- **Arithmetic circuits for the Cauchy maps (`4.57597 N`).** Over every field of characteristic
 zero, in particular `ℚ`, `ℝ`, and `ℂ`, every arithmetic circuit computing `cauchyNat F N *ᵥ x`
-uses more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` additions and multiplications [Gaspers2026].
-Constants are free. -/
+uses more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` additions and multiplications. Constants are
+free. Original to this library (via `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize_arith_cauchyNat {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ N in atTop, ∀ (F : Type u) [Field F] [CharZero F] (c : Circuit (arithSignature F) N N),
       c.Computes (arithInterpretation F) (fun x => cauchyNat F N *ᵥ x) →
@@ -238,8 +241,8 @@ theorem eventually_switched_sub_mul_lt_innerSize_arith_cauchyNat {ε : ℝ} (hε
 
 /-- **The Cauchy maps over prime fields (`4.57597 N`).** For all large `N` and every prime
 `q ≥ 2 N`, every circuit of fan-in at most two over any basis on `ZMod q` computing
-`cauchyNat (ZMod q) N *ᵥ x` has more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` inner gates
-[Gaspers2026]. -/
+`cauchyNat (ZMod q) N *ᵥ x` has more than `(1 + 2π / (3 arccos (5 / 6)) - ε) N` inner gates.
+Original to this library (via `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize_cauchyNat_zmod {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ N in atTop, ∀ (q : ℕ) [Fact q.Prime], 2 * N ≤ q → ∀ (σ : Signature.{v})
       (I : Interpretation σ (ZMod q)) (c : Circuit σ N N), c.FanInAtMost 2 →

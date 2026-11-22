@@ -44,7 +44,7 @@ namespace Cslib.Circuits.Frontier.Switched
 /-- `F s α = P(s W < α)` for a standard normal `W`. -/
 def lawLt (s α : ℝ) : ℝ := (gaussianReal 0 1).real {w | s * w < α}
 
-theorem lawLt_neg (s β : ℝ) :
+private theorem lawLt_neg (s β : ℝ) :
     (gaussianReal 0 1).real {w | -s * w < β} = lawLt s β := by
   have hm : Measurable fun w : ℝ => -w := measurable_neg
   have hs : MeasurableSet {w : ℝ | s * w < β} := measurableSet_lt (by fun_prop) measurable_const
@@ -56,7 +56,7 @@ theorem lawLt_neg (s β : ℝ) :
   simp [neg_mul, mul_neg]
 
 /-- Down-set ∩ up-set: `P(A ∩ B) = max (P A + P B - 1) 0`. -/
-theorem prob_down_up {s₀ s₁ α β : ℝ} (h0 : 0 ≤ s₀) (h1 : 0 ≤ s₁) :
+private theorem prob_down_up {s₀ s₁ α β : ℝ} (h0 : 0 ≤ s₀) (h1 : 0 ≤ s₁) :
     (gaussianReal 0 1).real {w | s₀ * w < α ∧ -s₁ * w < β} =
       max (lawLt s₀ α + lawLt s₁ β - 1) 0 := by
   set γ := gaussianReal 0 1
@@ -96,7 +96,7 @@ variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
   [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
 
 /-- Law of a linear form, normalized. -/
-theorem prob_inner_lt (r : E) (α : ℝ) :
+private theorem prob_inner_lt (r : E) (α : ℝ) :
     (stdGaussian E).real {x | ⟪r, x⟫ < α} = lawLt ‖r‖ α := by
   by_cases hr : r = 0
   · subst hr
@@ -118,7 +118,7 @@ theorem prob_inner_lt (r : E) (α : ℝ) :
     simp [hrx]
 
 /-- The planar conditional probability at the pivot level `z`. -/
-theorem planar_slice {γ₀ γ₁ h z : ℝ} (h0 : 0 ≤ Real.sin γ₀) (h1 : 0 ≤ Real.sin γ₁) :
+private theorem planar_slice {γ₀ γ₁ h z : ℝ} (h0 : 0 ≤ Real.sin γ₀) (h1 : 0 ≤ Real.sin γ₁) :
     (gaussianReal 0 1).real (Prod.mk z ⁻¹' planarSet γ₀ γ₁ h) =
       if z < h then max (lawLt (Real.sin γ₀) (h - Real.cos γ₀ * z) +
         lawLt (Real.sin γ₁) (h - Real.cos γ₁ * z) - 1) 0 else 0 := by
@@ -133,7 +133,7 @@ theorem planar_slice {γ₀ γ₁ h z : ℝ} (h0 : 0 ≤ Real.sin γ₀) (h1 : 0
       simp [planarSet, hz]
     rw [this, measureReal_empty]
 
-theorem planarProb_eq_integral (γ₀ γ₁ h : ℝ) :
+private theorem planarProb_eq_integral (γ₀ γ₁ h : ℝ) :
     planarProb γ₀ γ₁ h =
       ∫ z, (gaussianReal 0 1).real (Prod.mk z ⁻¹' planarSet γ₀ γ₁ h) ∂gaussianReal 0 1 := by
   rw [planarProb, normal2]

@@ -44,7 +44,6 @@ Adapted from the MIT-licensed Lean 4 companion of [Gaspers2026]
 
 noncomputable section
 
-
 namespace Cslib.Circuits.Frontier.Switched
 
 section FrontierDefs
@@ -87,47 +86,55 @@ end FrontierDefs
 
 end Cslib.Circuits.Frontier.Switched
 
+end
+
+end
+
 namespace Cslib.Circuits.Frontier.Switched.Layout
+
+noncomputable section
 
 variable {n : ℕ} (G : SimpleGraph (Fin n)) (y : Fin n → ℝ)
 
 open Classical in
 /-- Number of lower vertices, `L = #{y ≤ 0}`. -/
-def lowerCount : ℕ := (Finset.univ.filter fun u => y u ≤ 0).card
+private def lowerCount : ℕ := (Finset.univ.filter fun u => y u ≤ 0).card
 
 /-- `U' = U \ D`. -/
-def Up : Finset (Fin n) := innerFrontier G y 0 \ crossFull G y
+private def Up : Finset (Fin n) := innerFrontier G y 0 \ crossFull G y
 
 /-- `W' = W \ D`. -/
-def Wp : Finset (Fin n) := outerFrontier G y 0 \ crossFull G y
+private def Wp : Finset (Fin n) := outerFrontier G y 0 \ crossFull G y
 
 open Classical in
 /-- Neighbors of `u` in `W'`. -/
-def ends (u : Fin n) : Finset (Fin n) := (Wp G y).filter fun w => G.Adj u w
+private def ends (u : Fin n) : Finset (Fin n) := (Wp G y).filter fun w => G.Adj u w
 
 open Classical in
 /-- Connector items: vertices of `U'` with a neighbor in `W'`. -/
-def items : Finset (Fin n) := (Up G y).filter fun u => (ends G y u).Nonempty
+private def items : Finset (Fin n) := (Up G y).filter fun u => (ends G y u).Nonempty
 
 open Classical in
-theorem mem_inner {u : Fin n} : u ∈ innerFrontier G y 0 ↔ y u ≤ 0 ∧ ∃ w, G.Adj u w ∧ 0 < y w := by
+private theorem mem_inner {u : Fin n} :
+    u ∈ innerFrontier G y 0 ↔ y u ≤ 0 ∧ ∃ w, G.Adj u w ∧ 0 < y w := by
   simp [innerFrontier]
 
 open Classical in
-theorem mem_outer {w : Fin n} : w ∈ outerFrontier G y 0 ↔ 0 < y w ∧ ∃ u, G.Adj u w ∧ y u ≤ 0 := by
+private theorem mem_outer {w : Fin n} :
+    w ∈ outerFrontier G y 0 ↔ 0 < y w ∧ ∃ u, G.Adj u w ∧ y u ≤ 0 := by
   simp [outerFrontier]
 
 open Classical in
-theorem mem_crossFull {x : Fin n} :
+private theorem mem_crossFull {x : Fin n} :
     x ∈ crossFull G y ↔ G.degree x = 3 ∧ ∀ z, G.Adj x z → (y x ≤ 0 ↔ 0 < y z) := by
   simp [crossFull]
 
 open Classical in
-theorem ends_subset (u : Fin n) : ends G y u ⊆ Wp G y := Finset.filter_subset _ _
+private theorem ends_subset (u : Fin n) : ends G y u ⊆ Wp G y := Finset.filter_subset _ _
 
 open Classical in
 /-- An item has at most two neighbors in `W'`: three would force it into `D`. -/
-theorem ends_card_le (hG : (∀ v, G.degree v ≤ 3)) {u : Fin n} (hu : u ∈ Up G y) :
+private theorem ends_card_le (hG : (∀ v, G.degree v ≤ 3)) {u : Fin n} (hu : u ∈ Up G y) :
     (ends G y u).card ≤ 2 := by
   obtain ⟨huU, huD⟩ := Finset.mem_sdiff.mp hu
   have hsub' : ends G y u ⊆ G.neighborFinset u := by
@@ -155,14 +162,14 @@ theorem ends_card_le (hG : (∀ v, G.degree v ≤ 3)) {u : Fin n} (hu : u ∈ Up
 variable (l : List (Fin n))
 
 /-- Position of `w` in the connector order. -/
-def pos (w : Fin n) : ℕ := l.idxOf w
+private def pos (w : Fin n) : ℕ := l.idxOf w
 
 /-- `|W'|`. -/
-def K : ℕ := (Wp G y).card
+private def K : ℕ := (Wp G y).card
 
 open Classical in
 /-- Last time of a lower vertex. -/
-def lowEnd (v : Fin n) : ℕ :=
+private def lowEnd (v : Fin n) : ℕ :=
   if v ∈ crossFull G y then lowerCount y + K G y + 1
   else if v ∈ innerFrontier G y 0 then
     (if (ends G y v).Nonempty then lowerCount y + 1 + (ends G y v).sup (pos l)
@@ -171,31 +178,31 @@ def lowEnd (v : Fin n) : ℕ :=
 
 open Classical in
 /-- First time of an upper vertex. -/
-def upStart (v : Fin n) : ℕ :=
+private def upStart (v : Fin n) : ℕ :=
   if v ∈ crossFull G y then lowerCount y
   else if v ∈ outerFrontier G y 0 then lowerCount y + 1 + pos l v
   else (insert v (G.neighborFinset v)).inf' (Finset.insert_nonempty _ _) (rank y) + K G y + 2
 
 open Classical in
 /-- Auxiliary definition `start` in the switched layout. -/
-def start (v : Fin n) : ℕ := if y v ≤ 0 then rank y v else upStart G y l v
+private def start (v : Fin n) : ℕ := if y v ≤ 0 then rank y v else upStart G y l v
 
 open Classical in
 /-- Auxiliary definition `finish` in the switched layout. -/
-def finish (v : Fin n) : ℕ := if y v ≤ 0 then lowEnd G y l v else rank y v + K G y + 2
+private def finish (v : Fin n) : ℕ := if y v ≤ 0 then lowEnd G y l v else rank y v + K G y + 2
 
 /-! ## Basic facts -/
 
 open Classical in
-theorem lower_iff (v : Fin n) : rank y v < lowerCount y ↔ y v ≤ 0 :=
+private theorem lower_iff (v : Fin n) : rank y v < lowerCount y ↔ y v ≤ 0 :=
   rank_lt_lowerCount_iff y v
 
 open Classical in
-theorem crossFull_nbr {x z : Fin n} (hx : x ∈ crossFull G y) (hz : G.Adj x z) :
+private theorem crossFull_nbr {x z : Fin n} (hx : x ∈ crossFull G y) (hz : G.Adj x z) :
     (y x ≤ 0 ↔ 0 < y z) := ((mem_crossFull G y).mp hx).2 z hz
 
 open Classical in
-theorem crossFull_exists_nbr {x : Fin n} (hx : x ∈ crossFull G y) : ∃ z, G.Adj x z := by
+private theorem crossFull_exists_nbr {x : Fin n} (hx : x ∈ crossFull G y) : ∃ z, G.Adj x z := by
   have h3 := ((mem_crossFull G y).mp hx).1
   have : (G.neighborFinset x).Nonempty := by
     rw [← Finset.card_pos, G.card_neighborFinset_eq_degree, h3]
@@ -205,7 +212,7 @@ theorem crossFull_exists_nbr {x : Fin n} (hx : x ∈ crossFull G y) : ∃ z, G.A
 
 open Classical in
 /-- A lower vertex outside `U` has only lower neighbors. -/
-theorem nbr_lower_of_not_inner {v z : Fin n} (hv : y v ≤ 0)
+private theorem nbr_lower_of_not_inner {v z : Fin n} (hv : y v ≤ 0)
     (hU : v ∉ innerFrontier G y 0) (hz : G.Adj v z) : y z ≤ 0 := by
   by_contra h
   push Not at h
@@ -213,7 +220,7 @@ theorem nbr_lower_of_not_inner {v z : Fin n} (hv : y v ≤ 0)
 
 open Classical in
 /-- An upper vertex outside `W` has only upper neighbors. -/
-theorem nbr_upper_of_not_outer {v z : Fin n} (hv : 0 < y v)
+private theorem nbr_upper_of_not_outer {v z : Fin n} (hv : 0 < y v)
     (hW : v ∉ outerFrontier G y 0) (hz : G.Adj v z) : 0 < y z := by
   by_contra h
   push Not at h
@@ -226,30 +233,31 @@ variable (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
 include hl
 
 open Classical in
-theorem length_eq : l.length = K G y := by
+private theorem length_eq : l.length = K G y := by
   rw [K, ← hl.2.1, List.toFinset_card_of_nodup hl.1]
 
 open Classical in
-theorem pos_lt {w : Fin n} (hw : w ∈ Wp G y) : pos l w < K G y := by
+private theorem pos_lt {w : Fin n} (hw : w ∈ Wp G y) : pos l w < K G y := by
   have hwl : w ∈ l := List.mem_toFinset.mp (hl.2.1 ▸ hw)
   rw [← length_eq hl]
   exact List.idxOf_lt_length_of_mem hwl
 
 open Classical in
-theorem mem_prefix_iff {w : Fin n} (hw : w ∈ Wp G y) (k : ℕ) :
+private theorem mem_prefix_iff {w : Fin n} (hw : w ∈ Wp G y) (k : ℕ) :
     w ∈ (l.take k).toFinset ↔ pos l w < k := by
   have hwl : w ∈ l := List.mem_toFinset.mp (hl.2.1 ▸ hw)
   rw [List.mem_toFinset]
   exact List.mem_take_iff_idxOf_lt hwl
 
 open Classical in
-theorem prefix_subset (k : ℕ) : (l.take k).toFinset ⊆ Wp G y := by
+private theorem prefix_subset (k : ℕ) : (l.take k).toFinset ⊆ Wp G y := by
   intro w hw
   rw [← hl.2.1]
   exact List.mem_toFinset.mpr (List.mem_of_mem_take (List.mem_toFinset.mp hw))
 
 open Classical in
-theorem lowEnd_le (v : Fin n) (hv : y v ≤ 0) : lowEnd G y l v ≤ lowerCount y + K G y + 1 := by
+private theorem lowEnd_le (v : Fin n) (hv : y v ≤ 0) :
+    lowEnd G y l v ≤ lowerCount y + K G y + 1 := by
   unfold lowEnd
   split_ifs with hD hU hne
   · exact le_rfl
@@ -282,18 +290,18 @@ section Members
 variable {G y l}
 
 open Classical in
-theorem mem_bag {t : ℕ} {v : Fin n} :
+private theorem mem_bag {t : ℕ} {v : Fin n} :
     v ∈ intervalBag (start G y l) (finish G y l) t ↔
       start G y l v ≤ t ∧ t ≤ finish G y l v := by
   simp [intervalBag]
 
 open Classical in
-theorem upper_rank {v : Fin n} (hv : ¬ y v ≤ 0) : lowerCount y ≤ rank y v :=
+private theorem upper_rank {v : Fin n} (hv : ¬ y v ≤ 0) : lowerCount y ≤ rank y v :=
   not_lt.mp fun h => hv ((lower_iff y v).mp h)
 
 open Classical in
 /-- Inner phase. -/
-theorem mem_inner_phase {t : ℕ} (ht : t < lowerCount y) {v : Fin n}
+private theorem mem_inner_phase {t : ℕ} (ht : t < lowerCount y) {v : Fin n}
     (hv : v ∈ intervalBag (start G y l) (finish G y l) t) :
     rank y v = t ∨ (rank y v < t ∧ ∃ z, G.Adj v z ∧ t ≤ rank y z) := by
   rw [mem_bag] at hv
@@ -338,7 +346,7 @@ theorem mem_inner_phase {t : ℕ} (ht : t < lowerCount y) {v : Fin n}
 
 open Classical in
 /-- Outer phase. -/
-theorem mem_outer_phase (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
+private theorem mem_outer_phase (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
     {i : ℕ} (hi : lowerCount y ≤ i) {v : Fin n}
     (hv : v ∈ intervalBag (start G y l) (finish G y l) (i + K G y + 2)) :
     rank y v = i ∨ (i < rank y v ∧ ∃ z, G.Adj v z ∧ rank y z ≤ i) := by
@@ -375,7 +383,7 @@ theorem mem_outer_phase (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
 
 open Classical in
 /-- Connector phase. -/
-theorem mem_conn_phase (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
+private theorem mem_conn_phase (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
     {k : ℕ} (hk : k ≤ K G y + 1) {v : Fin n}
     (hv : v ∈ intervalBag (start G y l) (finish G y l) (lowerCount y + k)) :
     v ∈ crossFull G y ∨ (v ∈ Up G y ∧ k = 0) ∨
@@ -438,7 +446,7 @@ end Members
 /-! ## Cardinality comparisons with `lowerZero` and `upperZero` -/
 
 open Classical in
-theorem card_D_Up : (crossFull G y).card + (Up G y).card ≤ lowerZero G y := by
+private theorem card_D_Up : (crossFull G y).card + (Up G y).card ≤ lowerZero G y := by
   have hsplit := Finset.card_filter_add_card_filter_not (s := crossFull G y) (fun x => 0 < y x)
   have hsub : Up G y ∪ (crossFull G y).filter (fun x => ¬ 0 < y x) ⊆ innerFrontier G y 0 := by
     intro x hx
@@ -458,7 +466,7 @@ theorem card_D_Up : (crossFull G y).card + (Up G y).card ≤ lowerZero G y := by
   omega
 
 open Classical in
-theorem card_D_Wp : (crossFull G y).card + K G y ≤ upperZero G y := by
+private theorem card_D_Wp : (crossFull G y).card + K G y ≤ upperZero G y := by
   have hsplit := Finset.card_filter_add_card_filter_not (s := crossFull G y) (fun x => y x ≤ 0)
   have hsub : Wp G y ∪ (crossFull G y).filter (fun x => ¬ y x ≤ 0) ⊆ outerFrontier G y 0 := by
     intro x hx
@@ -487,13 +495,13 @@ section Facts
 variable {G y l}
 
 open Classical in
-theorem lowEnd_ge_L {u : Fin n} (hU : u ∈ innerFrontier G y 0) :
+private theorem lowEnd_ge_L {u : Fin n} (hU : u ∈ innerFrontier G y 0) :
     lowerCount y ≤ lowEnd G y l u := by
   unfold lowEnd
   split_ifs <;> omega
 
 open Classical in
-theorem lowEnd_ge_nbr {u z : Fin n} (hu : y u ≤ 0) (hz : G.Adj u z) (hz0 : y z ≤ 0) :
+private theorem lowEnd_ge_nbr {u z : Fin n} (hu : y u ≤ 0) (hz : G.Adj u z) (hz0 : y z ≤ 0) :
     rank y z ≤ lowEnd G y l u := by
   have hzL := (lower_iff y z).mpr hz0
   by_cases hU : u ∈ innerFrontier G y 0
@@ -506,7 +514,8 @@ theorem lowEnd_ge_nbr {u z : Fin n} (hu : y u ≤ 0) (hz : G.Adj u z) (hz0 : y z
     exact Finset.le_sup (Finset.mem_insert_of_mem ((G.mem_neighborFinset u z).mpr hz))
 
 open Classical in
-theorem start_le_finish (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) (v : Fin n) :
+private theorem start_le_finish (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
+    (v : Fin n) :
     start G y l v ≤ finish G y l v := by
   by_cases hlow : y v ≤ 0
   · simp only [start, finish, hlow, ↓reduceIte]
@@ -528,7 +537,7 @@ theorem start_le_finish (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) 
       omega
 
 open Classical in
-theorem finish_le (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) (v : Fin n) :
+private theorem finish_le (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) (v : Fin n) :
     finish G y l v ≤ n + K G y + 1 := by
   have hLn : lowerCount y ≤ n := by
     unfold lowerCount
@@ -542,7 +551,7 @@ theorem finish_le (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) (v : F
     omega
 
 open Classical in
-theorem upStart_le_nbr (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
+private theorem upStart_le_nbr (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
     {v z : Fin n} (hz : G.Adj v z) (hz0 : ¬ y z ≤ 0) :
     upStart G y l v ≤ rank y z + K G y + 2 := by
   have hzL := upper_rank hz0
@@ -558,7 +567,7 @@ theorem upStart_le_nbr (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
 
 open Classical in
 /-- A crossing edge `u v` with `u` lower and `v` upper shares a time. -/
-theorem crossing_edge (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
+private theorem crossing_edge (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
     {u v : Fin n} (huv : G.Adj u v) (hu : y u ≤ 0) (hv : ¬ y v ≤ 0) :
     ∃ t, start G y l u ≤ t ∧ t ≤ finish G y l u ∧ start G y l v ≤ t ∧ t ≤ finish G y l v := by
   have huL := (lower_iff y u).mpr hu
@@ -591,7 +600,7 @@ theorem crossing_edge (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
       omega
 
 open Classical in
-theorem edge_meet (hy : Function.Injective y)
+private theorem edge_meet (hy : Function.Injective y)
     (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) {u v : Fin n} (huv : G.Adj u v) :
     ∃ t, start G y l u ≤ t ∧ t ≤ finish G y l u ∧ start G y l v ≤ t ∧ t ≤ finish G y l v := by
   have hne : rank y u ≠ rank y v := fun h => G.ne_of_adj huv (rank_injective hy h)
@@ -639,7 +648,7 @@ variable {G y l}
 open Classical in
 /-- Inner phase: at most one entering vertex plus an inner frontier at a
 negative level. -/
-theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 ≤ w)
+private theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 ≤ w)
     (hin : ∀ t : ℝ, t < 0 → ((innerFrontier G y t).card : ℝ) ≤ w)
     {t : ℕ} (ht : t < lowerCount y) :
     ((intervalBag (start G y l) (finish G y l) t).card : ℝ) ≤ w + 1 := by
@@ -682,7 +691,7 @@ theorem inner_bag_card (hy : Function.Injective y) {w : ℝ} (hw0 : 0 ≤ w)
 open Classical in
 /-- Outer phase: at most one leaving vertex plus an outer frontier at a
 positive level. -/
-theorem outer_bag_card (hy : Function.Injective y)
+private theorem outer_bag_card (hy : Function.Injective y)
     (hl : Connector.Good (Wp G y) (items G y) (ends G y) l) {w : ℝ}
     (hout : ∀ t : ℝ, 0 < t → ((outerFrontier G y t).card : ℝ) ≤ w)
     {i : ℕ} (hi : lowerCount y ≤ i) (hin : i < n) :
@@ -716,7 +725,7 @@ theorem outer_bag_card (hy : Function.Injective y)
 
 open Classical in
 /-- Connector phase: `|D| + max(|U'|, |W'|) + 2`. -/
-theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
+private theorem conn_bag_card (hl : Connector.Good (Wp G y) (items G y) (ends G y) l)
     {k : ℕ} (hk : k ≤ K G y + 1) :
     (intervalBag (start G y l) (finish G y l) (lowerCount y + k)).card ≤
       max (lowerZero G y) (upperZero G y) + 2 := by
@@ -799,7 +808,8 @@ open Classical in
 inside `[0, T]` meeting on every edge of `G`, with every bag having size at most `w + 2`
 provided every negative-level inner frontier, positive-level outer frontier, and both level-zero
 connector loads are at most `w`. -/
-theorem exists_intervals_of_loads {n : ℕ} (G : SimpleGraph (Fin n)) (hG : ∀ v, G.degree v ≤ 3)
+public theorem exists_intervals_of_loads {n : ℕ} (G : SimpleGraph (Fin n))
+    (hG : ∀ v, G.degree v ≤ 3)
     (y : Fin n → ℝ) (hy : Function.Injective y) (w : ℕ)
     (hin : ∀ t : ℝ, t < 0 → (innerFrontier G y t).card ≤ w)
     (hout : ∀ t : ℝ, 0 < t → (outerFrontier G y t).card ≤ w)
@@ -836,5 +846,7 @@ theorem exists_intervals_of_loads {n : ℕ} (G : SimpleGraph (Fin n)) (hG : ∀ 
             ((w + 1 : ℕ) : ℝ) := by
           push_cast; exact h
         exact (Nat.cast_le (α := ℝ).mp h').trans (by omega)
+
+end
 
 end Cslib.Circuits.Frontier.Switched.Layout

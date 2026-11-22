@@ -21,7 +21,7 @@ Adapted from the MIT-licensed Lean 4 companion of [Gaspers2026]
   Exponential Algorithms*][Gaspers2026]
 -/
 
-@[expose] public section
+public section
 
 noncomputable section
 open scoped Real RealInnerProductSpace Topology
@@ -35,15 +35,15 @@ open Cslib.Circuits.Frontier.Switched.Ideal
 variable {I J si sj h : ℝ}
 
 /-- The value of the moving projection. -/
-def vjVal (ψ : ℝ) (y : E3) : ℝ :=
+private def vjVal (ψ : ℝ) (y : E3) : ℝ :=
   J * ⟪e 0, y⟫ + sj * Real.cos ψ * ⟪e 1, y⟫ + sj * Real.sin ψ * ⟪e 2, y⟫
 
-theorem vjVal_eq_inner (ψ : ℝ) (y : E3) :
+private theorem vjVal_eq_inner (ψ : ℝ) (y : E3) :
     vjVal (J := J) (sj := sj) ψ y =
       ⟪J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2, y⟫ := by
   simp [vjVal, inner_add_left, real_inner_smul_left]
 
-theorem norm_vj (hR : sj ^ 2 = 1 - J ^ 2) (ψ : ℝ) :
+private theorem norm_vj (hR : sj ^ 2 = 1 - J ^ 2) (ψ : ℝ) :
     ‖J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2‖ = 1 := by
   have hsq : ‖J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2‖ ^ 2 = 1 := by
     rw [← real_inner_self_eq_norm_sq]
@@ -54,7 +54,7 @@ theorem norm_vj (hR : sj ^ 2 = 1 - J ^ 2) (ψ : ℝ) :
   nlinarith [norm_nonneg (J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2)]
 
 open Classical in
-theorem rotF_as_integral (ψ : ℝ) :
+private theorem rotF_as_integral (ψ : ℝ) :
     rotF I J si sj h ψ = ∫ y, ((if (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ lowSet I J si sj h ψ then
       (1 : ℝ) else 0) - (if (⟪e 0, y⟫, ⟪e 1, y⟫, ⟪e 2, y⟫) ∈ highSet I J si sj h ψ then 1 else 0))
       ∂stdGaussian E3 := by
@@ -82,7 +82,7 @@ theorem rotF_as_integral (ψ : ℝ) :
   rfl
 
 /-- `rotF` is continuous in the angle. -/
-theorem continuous_rotF (hR : sj ^ 2 = 1 - J ^ 2) :
+private theorem continuous_rotF (hR : sj ^ 2 = 1 - J ^ 2) :
     Continuous fun ψ => rotF I J si sj h ψ := by
   classical
   rw [continuous_iff_continuousAt]

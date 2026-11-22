@@ -46,10 +46,10 @@ def normal2 : Measure (ℝ × ℝ) := (gaussianReal 0 1).prod (gaussianReal 0 1)
 instance : IsProbabilityMeasure normal2 := by unfold normal2; infer_instance
 
 /-- The polar-coordinate radial weight `r · φ(r) · φ(0)` for the planar standard Gaussian. -/
-def radial (r : ℝ) : ℝ := r * (gaussianPDFReal 0 1 r * gaussianPDFReal 0 1 0)
+private def radial (r : ℝ) : ℝ := r * (gaussianPDFReal 0 1 r * gaussianPDFReal 0 1 0)
 
 /-- Rotational symmetry of the standard bivariate Gaussian density. -/
-theorem density_polar (r t : ℝ) :
+private theorem density_polar (r t : ℝ) :
     gaussianPDFReal 0 1 (r * Real.cos t) * gaussianPDFReal 0 1 (r * Real.sin t) =
       gaussianPDFReal 0 1 r * gaussianPDFReal 0 1 0 := by
   simp only [gaussianPDFReal, NNReal.coe_one, mul_one, sub_zero, ne_eq,
@@ -61,7 +61,7 @@ theorem density_polar (r t : ℝ) :
   ring
 
 /-- Density formula for integration against `normal2`. -/
-theorem integral_normal2 (f : ℝ × ℝ → ℝ) :
+private theorem integral_normal2 (f : ℝ × ℝ → ℝ) :
     (∫ z, f z ∂normal2) =
       ∫ z, (gaussianPDFReal 0 1 z.1 * gaussianPDFReal 0 1 z.2) * f z := by
   rw [normal2, gaussianReal_of_var_ne_zero 0 (by norm_num : (1 : NNReal) ≠ 0),
@@ -73,7 +73,7 @@ theorem integral_normal2 (f : ℝ × ℝ → ℝ) :
   · exact ae_of_all _ fun z => ENNReal.mul_lt_top gaussianPDF_lt_top gaussianPDF_lt_top
 
 /-- Any function depending only on angle factors under the product Gaussian. -/
-theorem integral_angular (f : ℝ × ℝ → ℝ) (g : ℝ → ℝ)
+private theorem integral_angular (f : ℝ × ℝ → ℝ) (g : ℝ → ℝ)
     (h : ∀ r, 0 < r → ∀ t ∈ Ioo (-Real.pi) Real.pi,
       f (r * Real.cos t, r * Real.sin t) = g t) :
     (∫ z, f z ∂normal2) =
@@ -92,7 +92,7 @@ theorem integral_angular (f : ℝ × ℝ → ℝ) (g : ℝ → ℝ)
     _ = _ := setIntegral_prod_mul _ _ _ _
 
 /-- The radial integral of `normal2` equals `1 / (2π)`. -/
-theorem radial_integral : (∫ r in Ioi 0, radial r) = 1 / (2 * Real.pi) := by
+private theorem radial_integral : (∫ r in Ioi 0, radial r) = 1 / (2 * Real.pi) := by
   have h := integral_angular (fun _ => 1) (fun _ => 1) (by intros; rfl)
   have hangle : (∫ _t in Ioo (-Real.pi) Real.pi, (1 : ℝ)) = 2 * Real.pi := by
     rw [setIntegral_const, smul_eq_mul, mul_one, Real.volume_real_Ioo,
@@ -132,7 +132,7 @@ theorem stdGaussian_map_inner_unit_sq {E : Type*} [NormedAddCommGroup E] [InnerP
 
 
 /-- Iterated polar coordinates for the planar standard Gaussian. -/
-theorem integral_normal2_polar {f : ℝ × ℝ → ℝ}
+private theorem integral_normal2_polar {f : ℝ × ℝ → ℝ}
     (hf : IntegrableOn (fun p : ℝ × ℝ => radial p.1 * f (p.1 * Real.cos p.2, p.1 * Real.sin p.2))
       (Ioi 0 ×ˢ Ioo (-π) π)) :
     ∫ z, f z ∂normal2 =
@@ -155,20 +155,20 @@ theorem integral_normal2_polar {f : ℝ × ℝ → ℝ}
 /-! ## Angular free sets -/
 
 /-- At ratio `k = h/r`, angle `t` is free when all three projections are below `k`. -/
-def FreeAngle (γ₀ γ₁ k t : ℝ) : Prop :=
+private def FreeAngle (γ₀ γ₁ k t : ℝ) : Prop :=
   Real.cos t < k ∧ Real.cos (t - γ₀) < k ∧ Real.cos (t + γ₁) < k
 
 open Classical in
 /-- Auxiliary definition `freeInd` in the switched Gaussian sweep. -/
-def freeInd (γ₀ γ₁ k t : ℝ) : ℝ := if FreeAngle γ₀ γ₁ k t then 1 else 0
+private def freeInd (γ₀ γ₁ k t : ℝ) : ℝ := if FreeAngle γ₀ γ₁ k t then 1 else 0
 
-theorem freeInd_nonneg (γ₀ γ₁ k t : ℝ) : 0 ≤ freeInd γ₀ γ₁ k t := by
+private theorem freeInd_nonneg (γ₀ γ₁ k t : ℝ) : 0 ≤ freeInd γ₀ γ₁ k t := by
   unfold freeInd; split_ifs <;> norm_num
 
-theorem freeInd_le_one (γ₀ γ₁ k t : ℝ) : freeInd γ₀ γ₁ k t ≤ 1 := by
+private theorem freeInd_le_one (γ₀ γ₁ k t : ℝ) : freeInd γ₀ γ₁ k t ≤ 1 := by
   unfold freeInd; split_ifs <;> norm_num
 
-theorem measurable_freeInd (γ₀ γ₁ k : ℝ) : Measurable (freeInd γ₀ γ₁ k) := by
+private theorem measurable_freeInd (γ₀ γ₁ k : ℝ) : Measurable (freeInd γ₀ γ₁ k) := by
   unfold freeInd FreeAngle
   refine Measurable.ite ?_ measurable_const measurable_const
   rw [Set.ofPred_and, Set.ofPred_and]
@@ -176,7 +176,7 @@ theorem measurable_freeInd (γ₀ γ₁ k : ℝ) : Measurable (freeInd γ₀ γ�
     ((measurableSet_lt (by fun_prop) measurable_const).inter
       (measurableSet_lt (by fun_prop) measurable_const))
 
-theorem freeInd_periodic (γ₀ γ₁ k : ℝ) : Function.Periodic (freeInd γ₀ γ₁ k) (2 * π) := by
+private theorem freeInd_periodic (γ₀ γ₁ k : ℝ) : Function.Periodic (freeInd γ₀ γ₁ k) (2 * π) := by
   intro t
   have h1 : Real.cos (t + 2 * π) = Real.cos t := Real.cos_add_two_pi t
   have h2 : Real.cos (t + 2 * π - γ₀) = Real.cos (t - γ₀) := by
@@ -188,7 +188,7 @@ theorem freeInd_periodic (γ₀ γ₁ k : ℝ) : Function.Periodic (freeInd γ�
   unfold freeInd
   by_cases hh : FreeAngle γ₀ γ₁ k t <;> simp [hh, e]
 
-theorem intervalIntegrable_of_bdd {f : ℝ → ℝ} (hf : Measurable f) (h0 : ∀ t, 0 ≤ f t)
+private theorem intervalIntegrable_of_bdd {f : ℝ → ℝ} (hf : Measurable f) (h0 : ∀ t, 0 ≤ f t)
     (h1 : ∀ t, f t ≤ 1) (a b : ℝ) : IntervalIntegrable f volume a b := by
   rw [intervalIntegrable_iff]
   refine Measure.integrableOn_of_bounded (M := 1) ?_ hf.aestronglyMeasurable ?_
@@ -198,7 +198,7 @@ theorem intervalIntegrable_of_bdd {f : ℝ → ℝ} (hf : Measurable f) (h0 : �
     exact h1 t
 
 /-- `cos u < cos c` for `u` strictly between `c` and `2π - c`. -/
-theorem cos_lt_cos_of_mem {c u : ℝ} (hc : 0 ≤ c) (_hcπ : c ≤ π) (h1 : c < u)
+private theorem cos_lt_cos_of_mem {c u : ℝ} (hc : 0 ≤ c) (_hcπ : c ≤ π) (h1 : c < u)
     (h2 : u < 2 * π - c) : Real.cos u < Real.cos c := by
   rcases le_or_gt u π with hu | hu
   · exact Real.cos_lt_cos_of_nonneg_of_le_pi hc hu h1
@@ -208,13 +208,13 @@ theorem cos_lt_cos_of_mem {c u : ℝ} (hc : 0 ≤ c) (_hcπ : c ≤ π) (h1 : c 
     exact Real.cos_lt_cos_of_nonneg_of_le_pi hc (by linarith) (by linarith)
 
 /-- `cos c ≤ cos u` for `|u| ≤ c ≤ π`. -/
-theorem cos_le_cos_of_abs_le {c u : ℝ} (hcπ : c ≤ π) (h : |u| ≤ c) :
+private theorem cos_le_cos_of_abs_le {c u : ℝ} (hcπ : c ≤ π) (h : |u| ≤ c) :
     Real.cos c ≤ Real.cos u := by
   rw [← Real.cos_abs u]
   exact Real.cos_le_cos_of_nonneg_of_le_pi (abs_nonneg u) hcπ h
 
 /-- The integral of an interval indicator inside the window. -/
-theorem integral_indicator_Ioo {a b p q : ℝ} (hap : a ≤ p) (hqb : q ≤ b) :
+private theorem integral_indicator_Ioo {a b p q : ℝ} (hap : a ≤ p) (hqb : q ≤ b) :
     ∫ t in a..b, (Ioo p q).indicator (fun _ => (1 : ℝ)) t = max (q - p) 0 := by
   rcases le_or_gt q p with hqp | hpq
   · rw [Ioo_eq_empty (not_lt.mpr hqp), indicator_empty, intervalIntegral.integral_zero,
@@ -229,9 +229,9 @@ theorem integral_indicator_Ioo {a b p q : ℝ} (hap : a ≤ p) (hqb : q ≤ b) :
       max_eq_left (by linarith : (0 : ℝ) ≤ q - p)]
 
 /-- The free measure over one period. -/
-def angMeasure (γ₀ γ₁ k : ℝ) : ℝ := ∫ t in (-π)..π, freeInd γ₀ γ₁ k t
+private def angMeasure (γ₀ γ₁ k : ℝ) : ℝ := ∫ t in (-π)..π, freeInd γ₀ γ₁ k t
 
-theorem angMeasure_shift (γ₀ γ₁ k s : ℝ) :
+private theorem angMeasure_shift (γ₀ γ₁ k s : ℝ) :
     angMeasure γ₀ γ₁ k = ∫ t in s..s + 2 * π, freeInd γ₀ γ₁ k t := by
   rw [angMeasure, ← (freeInd_periodic γ₀ γ₁ k).intervalIntegral_add_eq (-π) s]
   congr 1
@@ -239,7 +239,8 @@ theorem angMeasure_shift (γ₀ γ₁ k s : ℝ) :
 
 /-- **Lower bound.** For `γ₀, γ₁ ∈ [0, π]` and `c = arccos k` with `k ≤ 1`, the
 free measure is at least `(2π - 6c)₊`. -/
-theorem angMeasure_ge {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁) (h1' : γ₁ ≤ π)
+private theorem angMeasure_ge {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
+    (h1' : γ₁ ≤ π)
     (hk : k ≤ 1) : max (2 * π - 6 * Real.arccos k) 0 ≤ angMeasure γ₀ γ₁ k := by
   set c := Real.arccos k with hcdef
   have hc0 : 0 ≤ c := Real.arccos_nonneg k
@@ -323,7 +324,7 @@ theorem angMeasure_ge {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ 
     linarith
 
 /-- **Equilateral upper bound.** -/
-theorem angMeasure_eq_le {k : ℝ} (hk : k ≤ 1) :
+private theorem angMeasure_eq_le {k : ℝ} (hk : k ≤ 1) :
     angMeasure (2 * π / 3) (2 * π / 3) k ≤ max (2 * π - 6 * Real.arccos k) 0 := by
   set c := Real.arccos k with hcdef
   have hcπ : c ≤ π := Real.arccos_le_pi k
@@ -424,19 +425,19 @@ theorem measurableSet_planarSet (γ₀ γ₁ h : ℝ) : MeasurableSet (planarSet
     ((measurableSet_lt (by fun_prop) measurable_const).inter
       (measurableSet_lt (by fun_prop) measurable_const))
 
-theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ radial r := by
+private theorem radial_nonneg {r : ℝ} (hr : 0 ≤ r) : 0 ≤ radial r := by
   unfold radial
   have := gaussianPDFReal_nonneg 0 1 r
   have := gaussianPDFReal_nonneg 0 1 0
   positivity
 
-theorem integrableOn_radial : IntegrableOn radial (Ioi 0) := by
+private theorem integrableOn_radial : IntegrableOn radial (Ioi 0) := by
   apply Integrable.of_integral_ne_zero
   rw [radial_integral]
   have := Real.pi_pos
   positivity
 
-theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
+private theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
     (r * Real.cos t, r * Real.sin t) ∈ planarSet γ₀ γ₁ h ↔ FreeAngle γ₀ γ₁ (h / r) t := by
   have e1 : Real.cos γ₀ * (r * Real.cos t) + Real.sin γ₀ * (r * Real.sin t) =
       r * Real.cos (t - γ₀) := by rw [Real.cos_sub]; ring
@@ -447,7 +448,7 @@ theorem planarSet_polar {γ₀ γ₁ h r t : ℝ} (hr : 0 < r) :
   simp only [mul_comm]
 
 /-- Polar form of the planar probability. -/
-theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
+private theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
     planarProb γ₀ γ₁ h = ∫ r in Ioi 0, radial r * angMeasure γ₀ γ₁ (h / r) := by
   classical
   set f : ℝ × ℝ → ℝ := (planarSet γ₀ γ₁ h).indicator (fun _ => 1)
@@ -483,7 +484,7 @@ theorem planarProb_polar (γ₀ γ₁ h : ℝ) :
   simp only [f, indicator, freeInd, planarSet_polar hr]
 
 /-- Free measure comparison at every radius. -/
-theorem angMeasure_compare {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
+private theorem angMeasure_compare {γ₀ γ₁ k : ℝ} (h0 : 0 ≤ γ₀) (h0' : γ₀ ≤ π) (h1 : 0 ≤ γ₁)
     (h1' : γ₁ ≤ π) : angMeasure (2 * π / 3) (2 * π / 3) k ≤ angMeasure γ₀ γ₁ k := by
   rcases le_or_gt k 1 with hk | hk
   · exact (angMeasure_eq_le hk).trans (angMeasure_ge h0 h0' h1 h1' hk)

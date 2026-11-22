@@ -118,6 +118,7 @@ import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.SparseOrbit
 import CslibFrontier.Computability.Circuit.Arithmetic.MatrixMultiplication.NineQuarters
 import CslibFrontier.Computability.Circuit.Boolean.ArithmeticRing
 import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
+import CslibFrontier.Computability.Circuit.Frontier.Layouts.Switched
 import CslibFrontier.Computability.Circuit.Boolean.BitBlastCompiler
 import CslibFrontier.Computability.Circuit.Boolean.FiniteSimulation
 import CslibFrontier.Computability.Circuit.Boolean.BarringtonClass
@@ -12562,3 +12563,32 @@ register_result "odonnell-invariance-boolean-cube-levy-distance" where
     (Remark 11.66) is open and tracked in roadmap/pseudorandomness.md. Source check: \
     outside-fleet agent review (jetski-rev-5600) on PR #5600 at 8de640fb945c: \
     https://github.com/cslib-community/cslib-frontier/pull/5600#pullrequestreview-5906848015."
+
+register_result "gaspers-cubic-switched-cutwidth" where
+  title := "Cutwidth and bisection bounds for cubic graphs via median-switched Gaussian sweeps"
+  topic := "circuit complexity"
+  sources := [
+    { paper := Gaspers2026,
+      theorem := "Theorem 1.1(a), Corollary 1.2, and Theorem 8.1",
+      locator := "arXiv:2611.05146v1, §1.1, p. 1 (PDF p. 3) and §8, p. 45 (PDF p. 47); \
+        Zenodo companion v1, doi:10.5281/zenodo.23883489" }
+  ]
+  theorems := [
+    Cslib.Circuits.Frontier.Switched.exists_width_le_switchedCoefficient,
+    Cslib.Circuits.Frontier.Switched.cubicLayoutBound_switched,
+    Cslib.Circuits.Frontier.Switched.exists_ncard_edgeCut_le,
+    Cslib.Circuits.Frontier.layoutBound_switched
+  ]
+  scope := "Existential (non-constructive) cutwidth and bisection bounds with constant \
+    c₃ = (3 / (4π)) arccos(5 / 6) ≈ 0.139822 for finite loopless 3-regular multigraphs \
+    (parallel edges allowed), lifted via saturated compression (LayoutBound.of_cubic) to \
+    LayoutBound 3 (2 * c₃) for connected subcubic multigraphs. Adapts the certificate-free \
+    CubicPathwidth.C3 geometry, bipartite connector lemma, and switched interval-bag layout \
+    from Zenodo release v1 (MIT license, Serge Gaspers). Differs from Gaspers (2026) in that \
+    only the existential subcubic bound is formalized (not the deterministic n^(2+o(1)) \
+    algorithm or higher-degree Δ ≥ 4 / mixed-degree / exact exponential algorithm results). \
+    The direct multigraph interval-to-cutwidth bridge (including parallel edges), rational \
+    lower bounds in Switched/Coefficient.lean, concentration proof via unitKernelRow, and \
+    downstream fan-in-two circuit, nondeterministic, ledger, correlation, and Cauchy linear \
+    lower bounds are original to this library. Source checked against arXiv:2611.05146v1 \
+    LaTeX source (main.tex) and compiled PDF on 2026-11-22."

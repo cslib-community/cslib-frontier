@@ -261,6 +261,79 @@ private theorem norm_row {n : ℕ} (H : SimpleGraph (Fin n)) (q : ℝ) (R : ℕ)
     ‖unitKernelRow H q R v‖ = 1 :=
   norm_unitKernelRow (G := H) q R v
 
+private theorem measurableSet_exists_guard {α Ω : Type*} [Countable α] [MeasurableSpace Ω]
+    {P : α → Prop} {S : α → Set Ω} (hS : ∀ a, MeasurableSet (S a)) :
+    MeasurableSet {x | ∃ a, P a ∧ x ∈ S a} := by
+  classical
+  have heq : {x | ∃ a, P a ∧ x ∈ S a} = ⋃ a, if P a then S a else ∅ := by
+    ext x; simp only [mem_ofPred_eq, mem_iUnion]
+    refine ⟨fun ⟨a, hp, hx⟩ => ⟨a, by simp [hp, hx]⟩, fun ⟨a, ha⟩ => ?_⟩
+    by_cases hp : P a
+    · exact ⟨a, hp, by simpa [hp] using ha⟩
+    · simp [hp] at ha
+  rw [heq]
+  exact MeasurableSet.iUnion fun a => by
+    by_cases hp : P a
+    · rw [ite_eq_left hp]; exact hS a
+    · rw [ite_eq_right hp]; exact MeasurableSet.empty
+
+private theorem measurableSet_forall_guard {α Ω : Type*} [Countable α] [MeasurableSpace Ω]
+    {P : α → Prop} {S : α → Set Ω} (hS : ∀ a, MeasurableSet (S a)) :
+    MeasurableSet {x | ∀ a, P a → x ∈ S a} := by
+  classical
+  have heq : {x | ∀ a, P a → x ∈ S a} = ⋂ a, if P a then S a else univ := by
+    ext x; simp only [mem_ofPred_eq, mem_iInter]
+    refine ⟨fun h a => ?_, fun h a hp => ?_⟩
+    · by_cases hp : P a <;> simp [hp, h]
+    · have ha := h a; simpa [hp] using ha
+  rw [heq]
+  exact MeasurableSet.iInter fun a => by
+    by_cases hp : P a
+    · rw [ite_eq_left hp]; exact hS a
+    · rw [ite_eq_right hp]; exact MeasurableSet.univ
+
+open Classical in
+private theorem measurableSet_crossHi_of_meas {n : ℕ} {Ω : Type*} [MeasurableSpace Ω]
+    (H : SimpleGraph (Fin n)) (f : Fin n → Ω → ℝ) (hm : ∀ v, Measurable (f v)) (v : Fin n) :
+    MeasurableSet {x : Ω | 0 < f v x ∧ H.degree v = 3 ∧
+      ∀ z, H.Adj v z → (f v x ≤ 0 ↔ 0 < f z x)} := by
+  by_cases hd : H.degree v = 3
+  · have heq : {x : Ω | 0 < f v x ∧ H.degree v = 3 ∧
+          ∀ z, H.Adj v z → (f v x ≤ 0 ↔ 0 < f z x)} =
+        {x : Ω | 0 < f v x} ∩ {x : Ω | ∀ z, H.Adj v z → x ∈ {y | f z y ≤ 0}} := by
+      ext x; simp only [mem_inter_iff, mem_ofPred_eq, hd, true_and]
+      constructor
+      · rintro ⟨hpos, hall⟩; exact ⟨hpos, fun z hz =>
+          not_lt.mp fun hlt => (not_le.mpr hpos) ((hall z hz).mpr hlt)⟩
+      · rintro ⟨hpos, hall⟩; exact ⟨hpos, fun z hz =>
+          ⟨fun h => absurd h (not_le.mpr hpos), fun h => absurd h (not_lt.mpr (hall z hz))⟩⟩
+    rw [heq]
+    exact (measurableSet_lt measurable_const (hm v)).inter
+      (measurableSet_forall_guard fun z => measurableSet_le (hm z) measurable_const)
+  · have : {x : Ω | 0 < f v x ∧ H.degree v = 3 ∧
+        ∀ z, H.Adj v z → (f v x ≤ 0 ↔ 0 < f z x)} = ∅ := by ext x; simp [hd]
+    rw [this]; exact MeasurableSet.empty
+
+open Classical in
+private theorem measurableSet_crossLo_of_meas {n : ℕ} {Ω : Type*} [MeasurableSpace Ω]
+    (H : SimpleGraph (Fin n)) (f : Fin n → Ω → ℝ) (hm : ∀ v, Measurable (f v)) (v : Fin n) :
+    MeasurableSet {x : Ω | f v x ≤ 0 ∧ H.degree v = 3 ∧
+      ∀ z, H.Adj v z → (f v x ≤ 0 ↔ 0 < f z x)} := by
+  by_cases hd : H.degree v = 3
+  · have heq : {x : Ω | f v x ≤ 0 ∧ H.degree v = 3 ∧
+          ∀ z, H.Adj v z → (f v x ≤ 0 ↔ 0 < f z x)} =
+        {x : Ω | f v x ≤ 0} ∩ {x : Ω | ∀ z, H.Adj v z → x ∈ {y | 0 < f z y}} := by
+      ext x; simp only [mem_inter_iff, mem_ofPred_eq, hd, true_and]
+      constructor
+      · rintro ⟨hle, hall⟩; exact ⟨hle, fun z hz => (hall z hz).mp hle⟩
+      · rintro ⟨hle, hall⟩; exact ⟨hle, fun z hz => ⟨fun _ => hall z hz, fun _ => hle⟩⟩
+    rw [heq]
+    exact (measurableSet_le (hm v) measurable_const).inter
+      (measurableSet_forall_guard fun z => measurableSet_lt measurable_const (hm z))
+  · have : {x : Ω | f v x ≤ 0 ∧ H.degree v = 3 ∧
+        ∀ z, H.Adj v z → (f v x ≤ 0 ↔ 0 < f z x)} = ∅ := by ext x; simp [hd]
+    rw [this]; exact MeasurableSet.empty
+
 open Classical in
 private theorem measureReal_innerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
     (hdeg : ∀ v, H.degree v ≤ 3) {q : ℝ} {R : ℕ} {ρ : ℝ} (hρ0 : 0 < ρ) (hρs : ρ ≤ rStar)
@@ -278,18 +351,8 @@ private theorem measureReal_innerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   have hmeas : MeasurableSet {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ t ∧
       ∃ w, H.Adj v w ∧ t < ⟪unitKernelRow H q R w, x⟫} := by
     rw [Set.ofPred_and]
-    refine (measurableSet_le (hm v) measurable_const).inter ?_
-    rw [show {x : E | ∃ w, H.Adj v w ∧ t < ⟪unitKernelRow H q R w, x⟫} =
-        ⋃ w, if H.Adj v w then {x : E | t < ⟪unitKernelRow H q R w, x⟫} else ∅ by
-      ext x; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨w, hw, hlt⟩; exact ⟨w, by simp [hw, hlt]⟩
-      · rintro ⟨w, hw⟩; by_cases h : H.Adj v w
-        · simp only [h, ite_true, mem_ofPred_eq] at hw; exact ⟨w, h, hw⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hw]
-    exact MeasurableSet.iUnion fun w => by
-      by_cases h : H.Adj v w
-      · rw [ite_eq_left h]; exact measurableSet_lt measurable_const (hm w)
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_le (hm v) measurable_const).inter
+      (measurableSet_exists_guard fun w => measurableSet_lt measurable_const (hm w))
   change (Measure.pi fun _ : Fin n => gaussianReal 0 1).real
       {ω | WithLp.toLp 2 ω ∈ {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ t ∧
         ∃ w, H.Adj v w ∧ t < ⟪unitKernelRow H q R w, x⟫}} ≤ _
@@ -303,18 +366,8 @@ private theorem measureReal_innerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   have hmeas' : MeasurableSet {x : E | -t ≤ ⟪unitKernelRow H q R v, x⟫ ∧
       ∃ w, H.Adj v w ∧ ⟪unitKernelRow H q R w, x⟫ < -t} := by
     rw [Set.ofPred_and]
-    refine (measurableSet_le measurable_const (hm v)).inter ?_
-    rw [show {x : E | ∃ w, H.Adj v w ∧ ⟪unitKernelRow H q R w, x⟫ < -t} =
-        ⋃ w, if H.Adj v w then {x : E | ⟪unitKernelRow H q R w, x⟫ < -t} else ∅ by
-      ext x; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨w, hw, hlt⟩; exact ⟨w, by simp [hw, hlt]⟩
-      · rintro ⟨w, hw⟩; by_cases h : H.Adj v w
-        · simp only [h, ite_true, mem_ofPred_eq] at hw; exact ⟨w, h, hw⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hw]
-    exact MeasurableSet.iUnion fun w => by
-      by_cases h : H.Adj v w
-      · rw [ite_eq_left h]; exact measurableSet_lt (hm w) measurable_const
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_le measurable_const (hm v)).inter
+      (measurableSet_exists_guard fun w => measurableSet_lt (hm w) measurable_const)
   rw [hrefl, measureReal_neg_preimage_stdGaussian hmeas']
   have hsub : {x : E | -t ≤ ⟪unitKernelRow H q R v, x⟫ ∧
         ∃ w, H.Adj v w ∧ ⟪unitKernelRow H q R w, x⟫ < -t} ⊆
@@ -345,18 +398,8 @@ private theorem measureReal_outerFrontier_le {n : ℕ} (H : SimpleGraph (Fin n))
   have hmeas : MeasurableSet {x : E | t < ⟪unitKernelRow H q R v, x⟫ ∧
       ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ t} := by
     rw [Set.ofPred_and]
-    refine (measurableSet_lt measurable_const (hm v)).inter ?_
-    rw [show {x : E | ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ t} =
-        ⋃ u, if H.Adj u v then {x : E | ⟪unitKernelRow H q R u, x⟫ ≤ t} else ∅ by
-      ext x; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨u, hu, hle⟩; exact ⟨u, by simp [hu, hle]⟩
-      · rintro ⟨u, hu⟩; by_cases h : H.Adj u v
-        · simp only [h, ite_true, mem_ofPred_eq] at hu; exact ⟨u, h, hu⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hu]
-    exact MeasurableSet.iUnion fun u => by
-      by_cases h : H.Adj u v
-      · rw [ite_eq_left h]; exact measurableSet_le (hm u) measurable_const
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_lt measurable_const (hm v)).inter
+      (measurableSet_exists_guard fun u => measurableSet_le (hm u) measurable_const)
   change (Measure.pi fun _ : Fin n => gaussianReal 0 1).real
       {ω | WithLp.toLp 2 ω ∈ {x : E | t < ⟪unitKernelRow H q R v, x⟫ ∧
         ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ t}} ≤ _
@@ -393,45 +436,11 @@ private theorem measureReal_lowerZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
   have hm1 : MeasurableSet {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧
       ∃ w, H.Adj v w ∧ 0 < ⟪unitKernelRow H q R w, x⟫} := by
     rw [Set.ofPred_and]
-    refine (measurableSet_le (hm v) measurable_const).inter ?_
-    rw [show {x : E | ∃ w, H.Adj v w ∧ 0 < ⟪unitKernelRow H q R w, x⟫} =
-        ⋃ w, if H.Adj v w then {x : E | 0 < ⟪unitKernelRow H q R w, x⟫} else ∅ by
-      ext x; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨w, hw, hlt⟩; exact ⟨w, by simp [hw, hlt]⟩
-      · rintro ⟨w, hw⟩; by_cases h : H.Adj v w
-        · simp only [h, ite_true, mem_ofPred_eq] at hw; exact ⟨w, h, hw⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hw]
-    exact MeasurableSet.iUnion fun w => by
-      by_cases h : H.Adj v w
-      · rw [ite_eq_left h]; exact measurableSet_lt measurable_const (hm w)
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_le (hm v) measurable_const).inter
+      (measurableSet_exists_guard fun w => measurableSet_lt measurable_const (hm w))
   have hm2 : MeasurableSet {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧ H.degree v = 3 ∧
-      ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} := by
-    by_cases hd : H.degree v = 3
-    · rw [show {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧ H.degree v = 3 ∧
-            ∀ z, H.Adj v z →
-              (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} =
-          {x : E | 0 < ⟪unitKernelRow H q R v, x⟫} ∩
-            ⋂ z, if H.Adj v z then {x : E | ⟪unitKernelRow H q R z, x⟫ ≤ 0} else univ by
-        ext x; simp only [mem_inter_iff, mem_iInter, mem_ofPred_eq, hd, true_and]; constructor
-        · rintro ⟨hpos, hall⟩
-          refine ⟨hpos, fun z => ?_⟩
-          by_cases hz : H.Adj v z
-          · simp only [hz, ite_true, mem_ofPred_eq]
-            exact not_lt.mp fun hlt => (not_le.mpr hpos) ((hall z hz).mpr hlt)
-          · simp [hz]
-        · rintro ⟨hpos, hall⟩
-          refine ⟨hpos, fun z hz => ?_⟩
-          have hzt := hall z; simp only [hz, ite_true, mem_ofPred_eq] at hzt
-          exact ⟨fun h => absurd h (not_le.mpr hpos), fun h => absurd h (not_lt.mpr hzt)⟩]
-      exact (measurableSet_lt measurable_const (hm v)).inter (MeasurableSet.iInter fun z => by
-        by_cases hz : H.Adj v z
-        · rw [ite_eq_left hz]; exact measurableSet_le (hm z) measurable_const
-        · rw [ite_eq_right hz]; exact MeasurableSet.univ)
-    · have heq : {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧ H.degree v = 3 ∧
-          ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} =
-          ∅ := by ext x; simp [hd]
-      rw [heq]; exact MeasurableSet.empty
+      ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} :=
+    measurableSet_crossHi_of_meas H (fun w x => ⟪unitKernelRow H q R w, x⟫) hm v
   change (Measure.pi fun _ : Fin n => gaussianReal 0 1).real
       {ω | WithLp.toLp 2 ω ∈ {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧
         ∃ w, H.Adj v w ∧ 0 < ⟪unitKernelRow H q R w, x⟫}} +
@@ -486,44 +495,11 @@ private theorem measureReal_upperZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
   have hm1 : MeasurableSet {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧
       ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ 0} := by
     rw [Set.ofPred_and]
-    refine (measurableSet_lt measurable_const (hm v)).inter ?_
-    rw [show {x : E | ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ 0} =
-        ⋃ u, if H.Adj u v then {x : E | ⟪unitKernelRow H q R u, x⟫ ≤ 0} else ∅ by
-      ext x; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨u, hu, hle⟩; exact ⟨u, by simp [hu, hle]⟩
-      · rintro ⟨u, hu⟩; by_cases h : H.Adj u v
-        · simp only [h, ite_true, mem_ofPred_eq] at hu; exact ⟨u, h, hu⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hu]
-    exact MeasurableSet.iUnion fun u => by
-      by_cases h : H.Adj u v
-      · rw [ite_eq_left h]; exact measurableSet_le (hm u) measurable_const
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_lt measurable_const (hm v)).inter
+      (measurableSet_exists_guard fun u => measurableSet_le (hm u) measurable_const)
   have hm2 : MeasurableSet {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧ H.degree v = 3 ∧
-      ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} := by
-    by_cases hd : H.degree v = 3
-    · rw [show {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧ H.degree v = 3 ∧
-            ∀ z, H.Adj v z →
-              (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} =
-          {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0} ∩
-            ⋂ z, if H.Adj v z then {x : E | 0 < ⟪unitKernelRow H q R z, x⟫} else univ by
-        ext x; simp only [mem_inter_iff, mem_iInter, mem_ofPred_eq, hd, true_and]; constructor
-        · rintro ⟨hle, hall⟩
-          refine ⟨hle, fun z => ?_⟩
-          by_cases hz : H.Adj v z
-          · simp only [hz, ite_true, mem_ofPred_eq]; exact (hall z hz).mp hle
-          · simp [hz]
-        · rintro ⟨hle, hall⟩
-          refine ⟨hle, fun z hz => ?_⟩
-          have hzt := hall z; simp only [hz, ite_true, mem_ofPred_eq] at hzt
-          exact ⟨fun _ => hzt, fun _ => hle⟩]
-      exact (measurableSet_le (hm v) measurable_const).inter (MeasurableSet.iInter fun z => by
-        by_cases hz : H.Adj v z
-        · rw [ite_eq_left hz]; exact measurableSet_lt measurable_const (hm z)
-        · rw [ite_eq_right hz]; exact MeasurableSet.univ)
-    · have heq : {x : E | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧ H.degree v = 3 ∧
-          ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} =
-          ∅ := by ext x; simp [hd]
-      rw [heq]; exact MeasurableSet.empty
+      ∀ z, H.Adj v z → (⟪unitKernelRow H q R v, x⟫ ≤ 0 ↔ 0 < ⟪unitKernelRow H q R z, x⟫)} :=
+    measurableSet_crossLo_of_meas H (fun w x => ⟪unitKernelRow H q R w, x⟫) hm v
   change (Measure.pi fun _ : Fin n => gaussianReal 0 1).real
       {ω | WithLp.toLp 2 ω ∈ {x : E | 0 < ⟪unitKernelRow H q R v, x⟫ ∧
         ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ 0}} +
@@ -540,18 +516,8 @@ private theorem measureReal_upperZero_vertex_le {n : ℕ} (H : SimpleGraph (Fin 
   have hm1' : MeasurableSet {x : E | ⟪unitKernelRow H q R v, x⟫ < 0 ∧
       ∃ u, H.Adj u v ∧ 0 ≤ ⟪unitKernelRow H q R u, x⟫} := by
     rw [Set.ofPred_and]
-    refine (measurableSet_lt (hm v) measurable_const).inter ?_
-    rw [show {x : E | ∃ u, H.Adj u v ∧ 0 ≤ ⟪unitKernelRow H q R u, x⟫} =
-        ⋃ u, if H.Adj u v then {x : E | 0 ≤ ⟪unitKernelRow H q R u, x⟫} else ∅ by
-      ext x; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨u, hu, hle⟩; exact ⟨u, by simp [hu, hle]⟩
-      · rintro ⟨u, hu⟩; by_cases h : H.Adj u v
-        · simp only [h, ite_true, mem_ofPred_eq] at hu; exact ⟨u, h, hu⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hu]
-    exact MeasurableSet.iUnion fun u => by
-      by_cases h : H.Adj u v
-      · rw [ite_eq_left h]; exact measurableSet_le measurable_const (hm u)
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_lt (hm v) measurable_const).inter
+      (measurableSet_exists_guard fun u => measurableSet_le measurable_const (hm u))
   have h1 : (stdGaussian E).real {x | 0 < ⟪unitKernelRow H q R v, x⟫ ∧
         ∃ u, H.Adj u v ∧ ⟪unitKernelRow H q R u, x⟫ ≤ 0} ≤
       (stdGaussian E).real {x | ⟪unitKernelRow H q R v, x⟫ ≤ 0 ∧ ∃ i, 0 ≤ ⟪b i, x⟫} := by
@@ -700,33 +666,13 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
   have hm_in : ∀ t v, MeasurableSet (inEv t v) := fun t v => by
     have hm := measurable_vertexScore H q R
     dsimp only [inEv]; rw [Set.ofPred_and]
-    refine (measurableSet_le (hm v) measurable_const).inter ?_
-    rw [show {ω | ∃ w, H.Adj v w ∧ t < vertexScore H q R ω w} =
-        ⋃ w, if H.Adj v w then {ω | t < vertexScore H q R ω w} else ∅ by
-      ext ω; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨w, hw, h⟩; exact ⟨w, by simp [hw, h]⟩
-      · rintro ⟨w, hw⟩; by_cases h : H.Adj v w
-        · simp only [h, ite_true, mem_ofPred_eq] at hw; exact ⟨w, h, hw⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hw]
-    exact MeasurableSet.iUnion fun w => by
-      by_cases h : H.Adj v w
-      · rw [ite_eq_left h]; exact measurableSet_lt measurable_const (hm w)
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_le (hm v) measurable_const).inter
+      (measurableSet_exists_guard fun w => measurableSet_lt measurable_const (hm w))
   have hm_out : ∀ t v, MeasurableSet (outEv t v) := fun t v => by
     have hm := measurable_vertexScore H q R
     dsimp only [outEv]; rw [Set.ofPred_and]
-    refine (measurableSet_lt measurable_const (hm v)).inter ?_
-    rw [show {ω | ∃ u, H.Adj u v ∧ vertexScore H q R ω u ≤ t} =
-        ⋃ u, if H.Adj u v then {ω | vertexScore H q R ω u ≤ t} else ∅ by
-      ext ω; simp only [mem_ofPred_eq, mem_iUnion]; constructor
-      · rintro ⟨u, hu, h⟩; exact ⟨u, by simp [hu, h]⟩
-      · rintro ⟨u, hu⟩; by_cases h : H.Adj u v
-        · simp only [h, ite_true, mem_ofPred_eq] at hu; exact ⟨u, h, hu⟩
-        · simp only [h, ite_false, mem_empty_iff_false] at hu]
-    exact MeasurableSet.iUnion fun u => by
-      by_cases h : H.Adj u v
-      · rw [ite_eq_left h]; exact measurableSet_le (hm u) measurable_const
-      · rw [ite_eq_right h]; exact MeasurableSet.empty
+    exact (measurableSet_lt measurable_const (hm v)).inter
+      (measurableSet_exists_guard fun u => measurableSet_le (hm u) measurable_const)
   have hm_cell : ∀ a b v, MeasurableSet (cellEv a b v) := fun a b v =>
     (measurableSet_lt measurable_const (measurable_vertexScore H q R v)).inter
       (measurableSet_le (measurable_vertexScore H q R v) measurable_const)
@@ -734,55 +680,12 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
     measurableSet_le (measurable_vertexScore H q R v) measurable_const
   have hm_tailHi : ∀ v, MeasurableSet (tailHiEv v) := fun v =>
     measurableSet_lt measurable_const (measurable_vertexScore H q R v)
-  have hm_crossHi : ∀ v, MeasurableSet (crossHiEv v) := fun v => by
-    by_cases hd : H.degree v = 3
-    · have heq : crossHiEv v = {ω | 0 < vertexScore H q R ω v} ∩
-          ⋂ z, if H.Adj v z then {ω | vertexScore H q R ω z ≤ 0} else univ := by
-        ext ω; simp only [crossHiEv, mem_inter_iff, mem_iInter, mem_ofPred_eq, hd, true_and]
-        constructor
-        · rintro ⟨hpos, hall⟩
-          refine ⟨hpos, fun z => ?_⟩
-          by_cases hz : H.Adj v z
-          · simp only [hz, ite_true, mem_ofPred_eq]
-            exact not_lt.mp fun hlt => (not_le.mpr hpos) ((hall z hz).mpr hlt)
-          · simp [hz]
-        · rintro ⟨hpos, hall⟩
-          refine ⟨hpos, fun z hz => ?_⟩
-          have hzt := hall z; simp only [hz, ite_true, mem_ofPred_eq] at hzt
-          exact ⟨fun h => absurd h (not_le.mpr hpos), fun h => absurd h (not_lt.mpr hzt)⟩
-      rw [heq]
-      refine (measurableSet_lt measurable_const (measurable_vertexScore H q R v)).inter
-        (MeasurableSet.iInter fun z => by
-          by_cases hz : H.Adj v z
-          · rw [ite_eq_left hz]
-            exact measurableSet_le (measurable_vertexScore H q R z) measurable_const
-          · rw [ite_eq_right hz]; exact MeasurableSet.univ)
-    · have heq : crossHiEv v = ∅ := by ext ω; simp [crossHiEv, hd]
-      rw [heq]; exact MeasurableSet.empty
-  have hm_crossLo : ∀ v, MeasurableSet (crossLoEv v) := fun v => by
-    by_cases hd : H.degree v = 3
-    · have heq : crossLoEv v = {ω | vertexScore H q R ω v ≤ 0} ∩
-          ⋂ z, if H.Adj v z then {ω | 0 < vertexScore H q R ω z} else univ := by
-        ext ω; simp only [crossLoEv, mem_inter_iff, mem_iInter, mem_ofPred_eq, hd, true_and]
-        constructor
-        · rintro ⟨hle, hall⟩
-          refine ⟨hle, fun z => ?_⟩
-          by_cases hz : H.Adj v z
-          · simp only [hz, ite_true, mem_ofPred_eq]; exact (hall z hz).mp hle
-          · simp [hz]
-        · rintro ⟨hle, hall⟩
-          refine ⟨hle, fun z hz => ?_⟩
-          have hzt := hall z; simp only [hz, ite_true, mem_ofPred_eq] at hzt
-          exact ⟨fun _ => hzt, fun _ => hle⟩
-      rw [heq]
-      refine (measurableSet_le (measurable_vertexScore H q R v) measurable_const).inter
-        (MeasurableSet.iInter fun z => by
-          by_cases hz : H.Adj v z
-          · rw [ite_eq_left hz]
-            exact measurableSet_lt measurable_const (measurable_vertexScore H q R z)
-          · rw [ite_eq_right hz]; exact MeasurableSet.univ)
-    · have heq : crossLoEv v = ∅ := by ext ω; simp [crossLoEv, hd]
-      rw [heq]; exact MeasurableSet.empty
+  have hm_crossHi : ∀ v, MeasurableSet (crossHiEv v) :=
+    measurableSet_crossHi_of_meas H (fun v ω => vertexScore H q R ω v)
+      (measurable_vertexScore H q R)
+  have hm_crossLo : ∀ v, MeasurableSet (crossLoEv v) :=
+    measurableSet_crossLo_of_meas H (fun v ω => vertexScore H q R ω v)
+      (measurable_vertexScore H q R)
   set pBound : ℝ := (D : ℝ) / (ε ^ 2 * n)
   let negGrid : ℕ → ℝ := fun i => -((i + 1 : ℕ) : ℝ) * δ
   let posGrid : ℕ → ℝ := fun i => ((i + 1 : ℕ) : ℝ) * δ
@@ -862,33 +765,61 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
   have hcard_eq_ncard : ∀ (A : Fin n → Set (Fin n → ℝ)) (s : Finset (Fin n)),
       (∀ v, v ∈ s ↔ ω ∈ A v) → (s.card : ℝ) = ({v | ω ∈ A v}.ncard : ℝ) := fun A s hs => by
     congr 1; rw [← Set.ncard_coe_finset]; congr 1; ext v; exact hs v
+  have tail_le : ∀ (s : Finset (Fin n)) (ev : Fin n → Set (Fin n → ℝ)),
+      s ⊆ (Finset.univ.filter fun v => ω ∈ ev v) →
+      ω ∉ deviation ev c →
+      (∀ v x, x ∈ ev v → T ≤ |⟪unitKernelRow H q R v, WithLp.toLp 2 x⟫|) →
+      (s.card : ℝ) < switchedBound ρ T ε M * n := by
+    intro s ev hsub hdev habs
+    have hc := ncard_lt_of_notMem_deviation hdev
+    have hmean : ∑ v : Fin n, P.real (ev v) ≤ n * (1 / T ^ 2) := by
+      calc ∑ v : Fin n, P.real (ev v)
+          ≤ ∑ _v : Fin n, (1 / T ^ 2 : ℝ) := Finset.sum_le_sum fun v _ =>
+            (measureReal_mono (fun x hx => habs v x hx) (measure_ne_top _ _)).trans
+              (measureReal_le_abs_le (norm_row H q R v) hT)
+        _ = n * (1 / T ^ 2) := by simp
+    have hcard : (s.card : ℝ) ≤ ({v | ω ∈ ev v}.ncard : ℝ) := by
+      calc (s.card : ℝ)
+          ≤ ((Finset.univ.filter fun v => ω ∈ ev v).card : ℝ) :=
+            Nat.cast_le.mpr (Finset.card_le_card hsub)
+        _ = ({v | ω ∈ ev v}.ncard : ℝ) := hcard_eq_ncard ev _ fun v => by simp
+    have hmax := mul_le_mul_of_nonneg_right
+      (le_max_left (1 / T ^ 2 + ε) (kappa ρ + (T / M) / √(2 * π) + 2 * ε)) hn0.le
+    change _ ≤ switchedBound ρ T ε M * n at hmax
+    linarith
+  have grid_le : ∀ (s s₀ : Finset (Fin n)) (a b : ℝ) (ev : Fin n → Set (Fin n → ℝ)),
+      b = a + δ → s ⊆ s₀ ∪ cellSet y a b → (∀ v, v ∈ s₀ ↔ ω ∈ ev v) →
+      ω ∉ deviation ev c → ω ∉ deviation (cellEv a b) c →
+      (∀ v, P.real (ev v) ≤ kappa ρ) →
+      (s.card : ℝ) < switchedBound ρ T ε M * n := by
+    intro s s₀ a b ev hadd hsub hs₀ hdevE hdevC hEm
+    have hdev1 := ncard_lt_of_notMem_deviation hdevE
+    have hdev2 := ncard_lt_of_notMem_deviation hdevC
+    have hm1 : ∑ v : Fin n, P.real (ev v) ≤ n * kappa ρ := by
+      calc _ ≤ ∑ _v : Fin n, kappa ρ := Finset.sum_le_sum fun v _ => hEm v
+        _ = n * kappa ρ := by simp
+    have hm2 : ∑ v : Fin n, P.real (cellEv a b v) ≤ n * (δ / √(2 * π)) := by
+      rw [hadd]
+      calc _ ≤ ∑ _v : Fin n, (δ / √(2 * π)) := Finset.sum_le_sum fun v _ =>
+            measureReal_cell_le H q R v a hδpos.le
+        _ = n * (δ / √(2 * π)) := by simp
+    have hcard_sum : (s.card : ℝ) ≤ (s₀.card : ℝ) + ((cellSet y a b).card : ℝ) := by
+      exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
+    have he1 := hcard_eq_ncard ev s₀ hs₀
+    have he2 := hcard_eq_ncard (cellEv a b) (cellSet y a b) fun v => by simp [cellSet, cellEv, y]
+    have hmax := mul_le_mul_of_nonneg_right
+      (le_max_right (1 / T ^ 2 + ε) (kappa ρ + (T / M) / √(2 * π) + 2 * ε)) hn0.le
+    change _ ≤ switchedBound ρ T ε M * n at hmax
+    linarith
   refine ⟨y, hinj, ?_, ?_, ?_, ?_⟩
   · intro t ht
     by_cases htT : t ≤ -T
-    · have hsub : innerFrontier H y t ⊆ Finset.univ.filter fun v => ω ∈ tailLoEv v := by
-        intro v hv
-        simp only [innerFrontier, Finset.mem_filter, Finset.mem_univ, true_and] at hv
+    · refine tail_le (innerFrontier H y t) tailLoEv (fun v hv => ?_) htLo (fun v x hx => ?_)
+      · simp only [innerFrontier, Finset.mem_filter, Finset.mem_univ, true_and] at hv
         simp only [tailLoEv, Finset.mem_filter, Finset.mem_univ, true_and, mem_ofPred_eq]
         exact hv.1.trans htT
-      have hc := ncard_lt_of_notMem_deviation htLo
-      have hmean : ∑ v : Fin n, P.real (tailLoEv v) ≤ n * (1 / T ^ 2) := by
-        calc ∑ v : Fin n, P.real (tailLoEv v)
-            ≤ ∑ _v : Fin n, (1 / T ^ 2 : ℝ) := Finset.sum_le_sum fun v _ => by
-              refine (measureReal_mono (fun x hx => ?_) (measure_ne_top _ _)).trans
-                (measureReal_le_abs_le (norm_row H q R v) hT)
-              simp only [tailLoEv, vertexScore, mem_ofPred_eq] at hx ⊢
-              rw [abs_of_neg (by linarith)]; linarith
-          _ = n * (1 / T ^ 2) := by simp
-      have hcard : ((innerFrontier H y t).card : ℝ) ≤ ({v | ω ∈ tailLoEv v}.ncard : ℝ) := by
-        calc ((innerFrontier H y t).card : ℝ)
-            ≤ ((Finset.univ.filter fun v => ω ∈ tailLoEv v).card : ℝ) :=
-              Nat.cast_le.mpr (Finset.card_le_card hsub)
-          _ = ({v | ω ∈ tailLoEv v}.ncard : ℝ) :=
-              hcard_eq_ncard tailLoEv _ fun v => by simp
-      have hmax := mul_le_mul_of_nonneg_right
-        (le_max_left (1 / T ^ 2 + ε) (kappa ρ + (T / M) / √(2 * π) + 2 * ε)) hn0.le
-      change _ ≤ switchedBound ρ T ε M * n at hmax
-      linarith
+      · simp only [tailLoEv, vertexScore, mem_ofPred_eq] at hx
+        rw [abs_of_neg (by linarith)]; linarith
     · have htgt : -T < t := not_le.mp htT
       set i : ℕ := ⌊-t / δ⌋₊
       have hiM : i < M := by
@@ -898,8 +829,7 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
           linarith
         exact (Nat.floor_lt (div_nonneg (by linarith) hδpos.le)).mpr hlt
       have hlo : negGrid i ≤ t := by
-        have h1 : -t / δ < (i : ℝ) + 1 := Nat.lt_floor_add_one _
-        have h2 := mul_lt_mul_of_pos_right h1 hδpos
+        have h2 := mul_lt_mul_of_pos_right (Nat.lt_floor_add_one (-t / δ)) hδpos
         rw [div_mul_cancel₀ _ hδpos.ne'] at h2
         simp only [negGrid]; push_cast; linarith
       have hhi : t ≤ -(i : ℝ) * δ := by
@@ -907,61 +837,20 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
         have h2 := mul_le_mul_of_nonneg_right h1 hδpos.le
         rw [div_mul_cancel₀ _ hδpos.ne'] at h2
         linarith
-      have hsub := innerFrontier_subset_grid H y hlo hhi
-      have hni := hneg i hiM
-      have hdev1 := ncard_lt_of_notMem_deviation hni.1
-      have hdev2 := ncard_lt_of_notMem_deviation hni.2
-      have hm1 : ∑ v : Fin n, P.real (inEv (negGrid i) v) ≤ n * kappa ρ := by
-        calc _ ≤ ∑ _v : Fin n, kappa ρ := Finset.sum_le_sum fun v _ =>
-              measureReal_innerFrontier_le H hdeg hρ0 hρs hadj v (by
-                simp only [negGrid]; nlinarith [hδpos.le])
-          _ = n * kappa ρ := by simp
-      have hm2 : ∑ v : Fin n, P.real (cellEv (negGrid i) (-(i : ℝ) * δ) v) ≤
-          n * (δ / √(2 * π)) := by
-        have hadd : -(i : ℝ) * δ = negGrid i + δ := by
-          simp only [negGrid]; push_cast; ring
-        rw [hadd]
-        calc _ ≤ ∑ _v : Fin n, (δ / √(2 * π)) := Finset.sum_le_sum fun v _ =>
-              measureReal_cell_le H q R v (negGrid i) hδpos.le
-          _ = n * (δ / √(2 * π)) := by simp
-      have hcard_sum : ((innerFrontier H y t).card : ℝ) ≤
-          ((innerFrontier H y (negGrid i)).card : ℝ) +
-            ((cellSet y (negGrid i) (-(i : ℝ) * δ)).card : ℝ) := by
-        exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
-      have he1 := hcard_eq_ncard (inEv (negGrid i)) (innerFrontier H y (negGrid i)) fun v => by
-        simp [innerFrontier, inEv, y]
-      have he2 := hcard_eq_ncard (cellEv (negGrid i) (-(i : ℝ) * δ))
-        (cellSet y (negGrid i) (-(i : ℝ) * δ)) fun v => by simp [cellSet, cellEv, y]
-      have hmax := mul_le_mul_of_nonneg_right
-        (le_max_right (1 / T ^ 2 + ε) (kappa ρ + (T / M) / √(2 * π) + 2 * ε)) hn0.le
-      change _ ≤ switchedBound ρ T ε M * n at hmax
-      linarith
+      exact grid_le (innerFrontier H y t) (innerFrontier H y (negGrid i)) (negGrid i)
+        (-(i : ℝ) * δ) (inEv (negGrid i)) (by simp only [negGrid]; push_cast; ring)
+        (innerFrontier_subset_grid H y hlo hhi) (fun v => by simp [innerFrontier, inEv, y])
+        (hneg i hiM).1 (hneg i hiM).2 fun v =>
+          measureReal_innerFrontier_le H hdeg hρ0 hρs hadj v (by
+            simp only [negGrid]; nlinarith [hδpos.le])
   · intro t ht
     by_cases htT : T < t
-    · have hsub : outerFrontier H y t ⊆ Finset.univ.filter fun v => ω ∈ tailHiEv v := by
-        intro v hv
-        simp only [outerFrontier, Finset.mem_filter, Finset.mem_univ, true_and] at hv
+    · refine tail_le (outerFrontier H y t) tailHiEv (fun v hv => ?_) htHi (fun v x hx => ?_)
+      · simp only [outerFrontier, Finset.mem_filter, Finset.mem_univ, true_and] at hv
         simp only [tailHiEv, Finset.mem_filter, Finset.mem_univ, true_and, mem_ofPred_eq]
         exact htT.trans hv.1
-      have hc := ncard_lt_of_notMem_deviation htHi
-      have hmean : ∑ v : Fin n, P.real (tailHiEv v) ≤ n * (1 / T ^ 2) := by
-        calc ∑ v : Fin n, P.real (tailHiEv v)
-            ≤ ∑ _v : Fin n, (1 / T ^ 2 : ℝ) := Finset.sum_le_sum fun v _ => by
-              refine (measureReal_mono (fun x hx => ?_) (measure_ne_top _ _)).trans
-                (measureReal_le_abs_le (norm_row H q R v) hT)
-              simp only [tailHiEv, vertexScore, mem_ofPred_eq] at hx ⊢
-              exact hx.le.trans (le_abs_self _)
-          _ = n * (1 / T ^ 2) := by simp
-      have hcard : ((outerFrontier H y t).card : ℝ) ≤ ({v | ω ∈ tailHiEv v}.ncard : ℝ) := by
-        calc ((outerFrontier H y t).card : ℝ)
-            ≤ ((Finset.univ.filter fun v => ω ∈ tailHiEv v).card : ℝ) :=
-              Nat.cast_le.mpr (Finset.card_le_card hsub)
-          _ = ({v | ω ∈ tailHiEv v}.ncard : ℝ) :=
-              hcard_eq_ncard tailHiEv _ fun v => by simp
-      have hmax := mul_le_mul_of_nonneg_right
-        (le_max_left (1 / T ^ 2 + ε) (kappa ρ + (T / M) / √(2 * π) + 2 * ε)) hn0.le
-      change _ ≤ switchedBound ρ T ε M * n at hmax
-      linarith
+      · simp only [tailHiEv, vertexScore, mem_ofPred_eq] at hx
+        exact hx.le.trans (le_abs_self _)
     · have htle : t ≤ T := not_lt.mp htT
       by_cases htEq : t = T
       · rw [htEq]
@@ -999,39 +888,16 @@ theorem exists_good_labeling {n : ℕ} (H : SimpleGraph (Fin n)) (hdeg : ∀ v, 
           have h2 := mul_le_mul_of_nonneg_right h1 hδpos.le
           rwa [div_mul_cancel₀ _ hδpos.ne'] at h2
         have hhi : t ≤ posGrid i := by
-          have h1 : t / δ < (i : ℝ) + 1 := Nat.lt_floor_add_one _
-          have h2 := mul_lt_mul_of_pos_right h1 hδpos
+          have h2 := mul_lt_mul_of_pos_right (Nat.lt_floor_add_one (t / δ)) hδpos
           rw [div_mul_cancel₀ _ hδpos.ne'] at h2
           simp only [posGrid]; push_cast; linarith
-        have hsub := outerFrontier_subset_grid H y hlo hhi
-        have hni := hpos i hiM
-        have hdev1 := ncard_lt_of_notMem_deviation hni.1
-        have hdev2 := ncard_lt_of_notMem_deviation hni.2
-        have hm1 : ∑ v : Fin n, P.real (outEv (posGrid i) v) ≤ n * kappa ρ := by
-          calc _ ≤ ∑ _v : Fin n, kappa ρ := Finset.sum_le_sum fun v _ =>
-                measureReal_outerFrontier_le H hdeg hρ0 hρs hadj v (by
-                  simp only [posGrid]; positivity)
-            _ = n * kappa ρ := by simp
-        have hm2 : ∑ v : Fin n, P.real (cellEv ((i : ℝ) * δ) (posGrid i) v) ≤
-            n * (δ / √(2 * π)) := by
-          have hadd : posGrid i = (i : ℝ) * δ + δ := by
-            simp only [posGrid]; push_cast; ring
-          rw [hadd]
-          calc _ ≤ ∑ _v : Fin n, (δ / √(2 * π)) := Finset.sum_le_sum fun v _ =>
-                measureReal_cell_le H q R v ((i : ℝ) * δ) hδpos.le
-            _ = n * (δ / √(2 * π)) := by simp
-        have hcard_sum : ((outerFrontier H y t).card : ℝ) ≤
-            ((outerFrontier H y (posGrid i)).card : ℝ) +
-              ((cellSet y ((i : ℝ) * δ) (posGrid i)).card : ℝ) := by
-          exact_mod_cast (Finset.card_le_card hsub).trans (Finset.card_union_le _ _)
-        have he1 := hcard_eq_ncard (outEv (posGrid i)) (outerFrontier H y (posGrid i)) fun v => by
-          simp [outerFrontier, outEv, y, SimpleGraph.adj_comm]
-        have he2 := hcard_eq_ncard (cellEv ((i : ℝ) * δ) (posGrid i))
-          (cellSet y ((i : ℝ) * δ) (posGrid i)) fun v => by simp [cellSet, cellEv, y]
-        have hmax := mul_le_mul_of_nonneg_right
-          (le_max_right (1 / T ^ 2 + ε) (kappa ρ + (T / M) / √(2 * π) + 2 * ε)) hn0.le
-        change _ ≤ switchedBound ρ T ε M * n at hmax
-        linarith
+        exact grid_le (outerFrontier H y t) (outerFrontier H y (posGrid i)) ((i : ℝ) * δ)
+          (posGrid i) (outEv (posGrid i)) (by simp only [posGrid]; push_cast; ring)
+          (outerFrontier_subset_grid H y hlo hhi)
+          (fun v => by simp [outerFrontier, outEv, y, SimpleGraph.adj_comm])
+          (hpos i hiM).1 (hpos i hiM).2 fun v =>
+            measureReal_outerFrontier_le H hdeg hρ0 hρs hadj v (by
+              simp only [posGrid]; positivity)
   · have hd1 := ncard_lt_of_notMem_deviation hin0
     have hd2 := ncard_lt_of_notMem_deviation hcrHi
     have hsum : ∑ v : Fin n, P.real (inEv 0 v) + ∑ v : Fin n, P.real (crossHiEv v) ≤

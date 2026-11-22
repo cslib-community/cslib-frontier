@@ -42,7 +42,7 @@ variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
 def Fv (v : Fin 3 → E) (h : ℝ) : ℝ :=
   (stdGaussian E).real {x | ∀ i, ⟪v i, x⟫ < h} - (stdGaussian E).real {x | ∀ i, h ≤ ⟪v i, x⟫}
 
-theorem Fv_gram {E' : Type*} [NormedAddCommGroup E'] [InnerProductSpace ℝ E']
+private theorem Fv_gram {E' : Type*} [NormedAddCommGroup E'] [InnerProductSpace ℝ E']
     [FiniteDimensional ℝ E'] [MeasurableSpace E'] [BorelSpace E'] (v : Fin 3 → E) (v' : Fin 3 → E')
     (hg : ∀ i j, ⟪v i, v j⟫ = ⟪v' i, v' j⟫) (h : ℝ) : Fv v h = Fv v' h := by
   have hl : MeasurableSet {z : Fin 3 → ℝ | ∀ i, z i < h} := by
@@ -58,7 +58,8 @@ theorem Fv_gram {E' : Type*} [NormedAddCommGroup E'] [InnerProductSpace ℝ E']
   rw [e1, e2]
 
 omit [BorelSpace E] in
-theorem Fv_perm (v : Fin 3 → E) (σ : Equiv.Perm (Fin 3)) (h : ℝ) : Fv (v ∘ σ) h = Fv v h := by
+private theorem Fv_perm (v : Fin 3 → E) (σ : Equiv.Perm (Fin 3)) (h : ℝ) :
+    Fv (v ∘ σ) h = Fv v h := by
   unfold Fv
   congr 2
   · ext x; simp only [Set.mem_ofPred_eq, Function.comp]
@@ -67,10 +68,10 @@ theorem Fv_perm (v : Fin 3 → E) (σ : Equiv.Perm (Fin 3)) (h : ℝ) : Fv (v �
     exact ⟨fun H i => by simpa using H (σ.symm i), fun H i => H (σ i)⟩
 
 /-- The canonical triple with pivot `e₀`. -/
-def canT (I J si sj ψ : ℝ) : Fin 3 → E3 :=
+private def canT (I J si sj ψ : ℝ) : Fin 3 → E3 :=
   ![I • e 0 + si • e 1, J • e 0 + (sj * Real.cos ψ) • e 1 + (sj * Real.sin ψ) • e 2, e 0]
 
-theorem rotF_eq_Fv (I J si sj h ψ : ℝ) :
+private theorem rotF_eq_Fv (I J si sj h ψ : ℝ) :
     Rot.rotF I J si sj h ψ = Fv (canT I J si sj ψ) h := by
   unfold Rot.rotF Fv
   congr 2
@@ -82,12 +83,12 @@ theorem rotF_eq_Fv (I J si sj h ψ : ℝ) :
     simp [Fin.forall_fin_succ, canT, inner_add_left, real_inner_smul_left]
 
 /-- The Gram entries of the canonical triple. -/
-def canGram (I J si sj ψ : ℝ) : Fin 3 → Fin 3 → ℝ :=
+private def canGram (I J si sj ψ : ℝ) : Fin 3 → Fin 3 → ℝ :=
   ![![I ^ 2 + si ^ 2, I * J + si * sj * Real.cos ψ, I],
     ![I * J + si * sj * Real.cos ψ, J ^ 2 + sj ^ 2, J],
     ![I, J, 1]]
 
-theorem inner_canT (I J si sj ψ : ℝ) (i j : Fin 3) :
+private theorem inner_canT (I J si sj ψ : ℝ) (i j : Fin 3) :
     ⟪canT I J si sj ψ i, canT I J si sj ψ j⟫ = canGram I J si sj ψ i j := by
   have hc := Real.sin_sq_add_cos_sq ψ
   have e00 : ⟪e 0, e 0⟫ = 1 := by simpa using inner_e 0 0
@@ -107,7 +108,7 @@ theorem inner_canT (I J si sj ψ : ℝ) (i j : Fin 3) :
 
 omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
 /-- Every unit triple is Gram-equivalent to a canonical one (pivot `v₂`). -/
-theorem canonical (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) :
+private theorem canonical (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) :
     ∃ ψ, 0 ≤ ψ ∧ ψ ≤ π ∧
       (Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2) * Real.sqrt (1 - ⟪v 1, v 2⟫ ^ 2) = 0 → ψ = π) ∧
       ∀ i j, ⟪v i, v j⟫ = canGram ⟪v 0, v 2⟫ ⟪v 1, v 2⟫ (Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2))
@@ -182,12 +183,12 @@ theorem canonical (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) :
 local notation "eqP" h => planarProb (2 * π / 3) (2 * π / 3) h
 
 omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
-theorem unit_inner_sq {a b : E} (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) : ⟪a, b⟫ ^ 2 ≤ 1 := by
+private theorem unit_inner_sq {a b : E} (ha : ‖a‖ = 1) (hb : ‖b‖ = 1) : ⟪a, b⟫ ^ 2 ≤ 1 := by
   have := abs_real_inner_le_norm a b; rw [ha, hb, mul_one] at this
   nlinarith [abs_nonneg ⟪a, b⟫, sq_abs ⟪a, b⟫]
 
 /-- `Fv` of a unit triple equals the rotation family at its canonical angle. -/
-theorem Fv_eq_rotF (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) (h : ℝ) :
+private theorem Fv_eq_rotF (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) (h : ℝ) :
     ∃ ψ, 0 ≤ ψ ∧ ψ ≤ π ∧
       (Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2) * Real.sqrt (1 - ⟪v 1, v 2⟫ ^ 2) = 0 → ψ = π) ∧
       Real.sqrt (1 - ⟪v 0, v 2⟫ ^ 2) * Real.sqrt (1 - ⟪v 1, v 2⟫ ^ 2) * Real.cos ψ =
@@ -203,7 +204,7 @@ theorem Fv_eq_rotF (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) (h : ℝ) :
     exact Fv_gram v _ (fun i j => by rw [inner_canT]; exact hg i j) h
 
 /-- **Case A** (pivot `v₂`): if `⟨v₀,v₂⟩ + ⟨v₁,v₂⟩ ≤ 0` the bound holds. -/
-theorem caseA (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
+private theorem caseA (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
     (hyz : ⟪v 0, v 2⟫ + ⟪v 1, v 2⟫ ≤ 0) : (eqP h) ≤ Fv v h := by
   obtain ⟨ψ, h0, hπ, hπ', -, hF⟩ := Fv_eq_rotF v hv h
   set y := ⟪v 0, v 2⟫
@@ -238,10 +239,10 @@ theorem caseA (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < 
     nlinarith
 
 /-- The deviation potential: sum of the two largest deviations `1 - cos`. -/
-def Pot (v : Fin 3 → E) : ℝ :=
+private def Pot (v : Fin 3 → E) : ℝ :=
   2 - (⟪v 0, v 1⟫ + ⟪v 0, v 2⟫ + ⟪v 1, v 2⟫) + max ⟪v 0, v 1⟫ (max ⟪v 0, v 2⟫ ⟪v 1, v 2⟫)
 
-theorem norm_canT {I J si sj ψ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
+private theorem norm_canT {I J si sj ψ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
     (i : Fin 3) :
     ‖canT I J si sj ψ i‖ = 1 := by
   have h := inner_canT I J si sj ψ i i
@@ -251,7 +252,7 @@ theorem norm_canT {I J si sj ψ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 
   nlinarith [norm_nonneg (canT I J si sj ψ i)]
 
 /-- **The move.** Lower the largest correlation `⟨v₀,v₁⟩` to `⟨v₀,v₂⟩ + ⟨v₁,v₂⟩ - 1`. -/
-theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
+private theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
     (_hxy : ⟪v 0, v 2⟫ ≤ ⟪v 0, v 1⟫) (hxz : ⟪v 1, v 2⟫ ≤ ⟪v 0, v 1⟫)
     (hpos : 0 < ⟪v 0, v 2⟫ + ⟪v 1, v 2⟫) (hy : ⟪v 0, v 2⟫ ^ 2 < 1) (hz : ⟪v 1, v 2⟫ ^ 2 < 1) :
     ∃ w : Fin 3 → E3, (∀ i, ‖w i‖ = 1) ∧
@@ -303,7 +304,7 @@ theorem move (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h
     rw [hcos']; simp only [c']; field_simp; linarith
 
 /-- All three vectors equal. -/
-theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
+private theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
     (h01 : ⟪v 0, v 1⟫ = 1) (h02 : ⟪v 0, v 2⟫ = 1) (h12 : ⟪v 1, v 2⟫ = 1) : (eqP h) ≤ Fv v h := by
   have hvv : ∀ i, ⟪v i, v i⟫ = 1 := fun i => by rw [real_inner_self_eq_norm_sq, hv i]; norm_num
   have e00 : ⟪e 0, e 0⟫ = 1 := by simpa using inner_e 0 0
@@ -359,7 +360,7 @@ theorem allEqual (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0
   linarith
 
 omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
-theorem Pot_nonneg (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) : 0 ≤ Pot v := by
+private theorem Pot_nonneg (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) : 0 ≤ Pot v := by
   have h1 : ⟪v 0, v 1⟫ ≤ 1 := by nlinarith [unit_inner_sq (hv 0) (hv 1)]
   have h2 : ⟪v 0, v 2⟫ ≤ 1 := by nlinarith [unit_inner_sq (hv 0) (hv 2)]
   have h3 : ⟪v 1, v 2⟫ ≤ 1 := by nlinarith [unit_inner_sq (hv 1) (hv 2)]
@@ -369,23 +370,23 @@ theorem Pot_nonneg (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) : 0 ≤ Pot v :
 
 omit [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasurableSpace E]
   [BorelSpace E] in
-theorem swap12_apply (v : Fin 3 → E) :
+private theorem swap12_apply (v : Fin 3 → E) :
     (v ∘ Equiv.swap (1 : Fin 3) 2) 0 = v 0 ∧ (v ∘ Equiv.swap (1 : Fin 3) 2) 1 = v 2 ∧
       (v ∘ Equiv.swap (1 : Fin 3) 2) 2 = v 1 := by
   refine ⟨?_, ?_, ?_⟩ <;> simp [Function.comp, Equiv.swap_apply_def]
 
 omit [NormedAddCommGroup E] [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasurableSpace E]
   [BorelSpace E] in
-theorem rot3_apply (v : Fin 3 → E) :
+private theorem rot3_apply (v : Fin 3 → E) :
     (v ∘ finRotate 3) 0 = v 1 ∧ (v ∘ finRotate 3) 1 = v 2 ∧ (v ∘ finRotate 3) 2 = v 0 := by
   refine ⟨rfl, rfl, rfl⟩
 
 omit [InnerProductSpace ℝ E] [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
-theorem unit_comp (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) (σ : Equiv.Perm (Fin 3)) :
+private theorem unit_comp (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) (σ : Equiv.Perm (Fin 3)) :
     ∀ i, ‖(v ∘ σ) i‖ = 1 := fun i => hv (σ i)
 
 /-- Case A at any vertex. -/
-theorem caseA_any (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
+private theorem caseA_any (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h)
     (H : ⟪v 0, v 1⟫ + ⟪v 0, v 2⟫ ≤ 0 ∨ ⟪v 0, v 1⟫ + ⟪v 1, v 2⟫ ≤ 0 ∨
       ⟪v 0, v 2⟫ + ⟪v 1, v 2⟫ ≤ 0) : (eqP h) ≤ Fv v h := by
   rcases H with H | H | H
@@ -402,7 +403,7 @@ theorem caseA_any (v : Fin 3 → E) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 
   · exact caseA v hv hh H
 
 /-- The core step for a triple whose largest correlation is `⟨w₀,w₁⟩`. -/
-theorem core_step (w : Fin 3 → E) (hw : ∀ i, ‖w i‖ = 1) {h : ℝ} (hh : 0 < h) {n : ℕ}
+private theorem core_step (w : Fin 3 → E) (hw : ∀ i, ‖w i‖ = 1) {h : ℝ} (hh : 0 < h) {n : ℕ}
     (ih : ∀ v : Fin 3 → E3, (∀ i, ‖v i‖ = 1) → 2 * (2 / 3 : ℝ) ^ n ≤ Pot v → (eqP h) ≤ Fv v h)
     (hxy : ⟪w 0, w 2⟫ ≤ ⟪w 0, w 1⟫) (hxz : ⟪w 1, w 2⟫ ≤ ⟪w 0, w 1⟫)
     (s1 : 0 < ⟪w 0, w 1⟫ + ⟪w 0, w 2⟫) (s2 : 0 < ⟪w 0, w 1⟫ + ⟪w 1, w 2⟫)
@@ -466,7 +467,7 @@ theorem core_step (w : Fin 3 → E) (hw : ∀ i, ‖w i‖ = 1) {h : ℝ} (hh : 
     _ ≤ Pot w' := hgrow
 
 /-- **Induction on the potential.** -/
-theorem eq_pot {h : ℝ} (hh : 0 < h) : ∀ n : ℕ, ∀ v : Fin 3 → E3, (∀ i, ‖v i‖ = 1) →
+private theorem eq_pot {h : ℝ} (hh : 0 < h) : ∀ n : ℕ, ∀ v : Fin 3 → E3, (∀ i, ‖v i‖ = 1) →
     2 * (2 / 3 : ℝ) ^ n ≤ Pot v → (eqP h) ≤ Fv v h := by
   intro n
   induction n with
@@ -522,7 +523,7 @@ theorem eq_pot {h : ℝ} (hh : 0 < h) : ∀ n : ℕ, ∀ v : Fin 3 → E3, (∀ 
         real_inner_comm (v 0) (v 2)]
 
 /-- **EQ in `ℝ³`.** -/
-theorem eqMin_E3 (v : Fin 3 → E3) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h) :
+private theorem eqMin_E3 (v : Fin 3 → E3) (hv : ∀ i, ‖v i‖ = 1) {h : ℝ} (hh : 0 < h) :
     (eqP h) ≤ Fv v h := by
   have hP0 := Pot_nonneg v hv
   rcases hP0.eq_or_lt with hP | hP

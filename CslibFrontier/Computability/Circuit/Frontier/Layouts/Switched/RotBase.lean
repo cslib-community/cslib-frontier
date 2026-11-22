@@ -52,7 +52,7 @@ theorem hasDerivAt_Phi (x : ℝ) : HasDerivAt Phi (phi x) x := by
     continuous_phi.continuousAt
   simpa using this.const_add (1 / 2)
 
-theorem gaussianReal_Iic_zero : (gaussianReal 0 1).real (Iic 0) = 1 / 2 := by
+private theorem gaussianReal_Iic_zero : (gaussianReal 0 1).real (Iic 0) = 1 / 2 := by
   have h := gaussianReal_map_neg (μ := (0 : ℝ)) (v := 1)
   rw [neg_zero] at h
   have e : (gaussianReal 0 1).real (Ici 0) =
@@ -72,7 +72,7 @@ theorem gaussianReal_Iic_eq (x : ℝ) : (gaussianReal 0 1).real (Iic x) = Phi x 
   rw [Phi, ← hsub, ← hI, ← hI, gaussianReal_Iic_zero]
   ring
 
-theorem gaussianReal_Iio_eq (x : ℝ) : (gaussianReal 0 1).real (Iio x) = Phi x := by
+private theorem gaussianReal_Iio_eq (x : ℝ) : (gaussianReal 0 1).real (Iio x) = Phi x := by
   rw [← gaussianReal_Iic_eq]
   let _ := nullSingletonClass_gaussianReal (μ := 0) (by norm_num : (1 : NNReal) ≠ 0)
   exact measureReal_congr Iio_ae_eq_Iic
@@ -96,7 +96,7 @@ theorem lawGe_eq_Phi {s α : ℝ} (hs : 0 < s) :
 
 open Cslib.Circuits.Frontier.Switched.Ideal
 
-theorem inner_e_apply (i : Fin 3) (y : E3) : ⟪e i, y⟫ = y i := by
+private theorem inner_e_apply (i : Fin 3) (y : E3) : ⟪e i, y⟫ = y i := by
   simp [e, EuclideanSpace.inner_single_left]
 
 theorem fubini3 {S : Set (ℝ × ℝ × ℝ)} (hS : MeasurableSet S) :

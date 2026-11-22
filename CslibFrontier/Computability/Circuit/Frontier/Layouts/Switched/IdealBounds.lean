@@ -36,15 +36,15 @@ open MeasureTheory ProbabilityTheory Set
 namespace Cslib.Circuits.Frontier.Switched
 namespace Ideal
 
-theorem cos_two_pi_div_three : Real.cos (2 * π / 3) = -1 / 2 := by
+private theorem cos_two_pi_div_three : Real.cos (2 * π / 3) = -1 / 2 := by
   have : 2 * π / 3 = π - π / 3 := by ring
   rw [this, Real.cos_pi_sub, Real.cos_pi_div_three]; ring
 
-theorem sin_two_pi_div_three : Real.sin (2 * π / 3) = Real.sqrt 3 / 2 := by
+private theorem sin_two_pi_div_three : Real.sin (2 * π / 3) = Real.sqrt 3 / 2 := by
   have : 2 * π / 3 = π - π / 3 := by ring
   rw [this, Real.sin_pi_sub, Real.sin_pi_div_three]
 
-theorem inner_neg_u (j : Fin 3) (y : E3) :
+private theorem inner_neg_u (j : Fin 3) (y : E3) :
     ⟪-u j, y⟫ = d₁ j * ⟪e 1, y⟫ + d₂ j * ⟪e 2, y⟫ := by
   simp [u, inner_add_left, real_inner_smul_left]
 
@@ -69,7 +69,7 @@ theorem idealResidual (h : ℝ) :
 def idealProb (r t : ℝ) : ℝ :=
   (stdGaussian E3).real {y | t ≤ ⟪e 0, y⟫ ∧ ∃ j, ⟪bstar r j, y⟫ ≤ t}
 
-theorem half_ge_zero {v : E3} (hv : ‖v‖ = 1) (t : ℝ) :
+private theorem half_ge_zero {v : E3} (hv : ‖v‖ = 1) (t : ℝ) :
     (stdGaussian E3).real {y | t ≤ ⟪v, y⟫} = (gaussianReal 0 1).real (Ici t) := by
   have hvv : ⟪v, v⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hv]; norm_num
   rw [← stdGaussian_map_inner_unit_sq hvv, map_measureReal_apply (by fun_prop) measurableSet_Ici]
@@ -94,7 +94,7 @@ theorem gaussianReal_Ici_zero : (gaussianReal 0 1).real (Ici 0) = 1 / 2 := by
   linarith
 
 /-- If all neighbor labels exceed `t ≥ 0`, so does the root label. -/
-theorem root_of_all {r t : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (ht : 0 ≤ t) {y : E3}
+private theorem root_of_all {r t : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (ht : 0 ≤ t) {y : E3}
     (hall : ∀ j, t < ⟪bstar r j, y⟫) : t ≤ ⟪e 0, y⟫ := by
   have hs := sum_bstar r y
   rw [Fin.sum_univ_three] at hs
@@ -105,7 +105,7 @@ theorem root_of_all {r t : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (ht : 0 ≤ t) {y :
   nlinarith
 
 /-- `idealProb r t = P(t ≤ Y₀) - P(all Y_j > t)` for `t ≥ 0`. -/
-theorem idealProb_eq {r t : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (ht : 0 ≤ t) :
+private theorem idealProb_eq {r t : ℝ} (hr : 0 < r) (hr1 : r ≤ 1) (ht : 0 ≤ t) :
     idealProb r t = (gaussianReal 0 1).real (Ici t) -
       (stdGaussian E3).real {y | ∀ j, t < ⟪bstar r j, y⟫} := by
   have hO : MeasurableSet {y : E3 | ∀ j, t < ⟪bstar r j, y⟫} := by

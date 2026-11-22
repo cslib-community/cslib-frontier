@@ -21,7 +21,7 @@ Adapted from the MIT-licensed Lean 4 companion of [Gaspers2026]
   Exponential Algorithms*][Gaspers2026]
 -/
 
-@[expose] public section
+public section
 
 noncomputable section
 open scoped Real RealInnerProductSpace Topology
@@ -31,9 +31,9 @@ namespace Cslib.Circuits.Frontier.Switched
 namespace Rot
 
 /-- Standard normal law. -/
-abbrev γ1 : Measure ℝ := gaussianReal 0 1
+private abbrev γ1 : Measure ℝ := gaussianReal 0 1
 
-theorem integrable_abs_gaussian : Integrable (fun x : ℝ => |x|) γ1 := by
+private theorem integrable_abs_gaussian : Integrable (fun x : ℝ => |x|) γ1 := by
   have := (memLp_id_gaussianReal (μ := 0) (v := 1) 1).integrable le_rfl
   simpa [Real.norm_eq_abs] using this.norm
 
@@ -76,47 +76,47 @@ private theorem swap3 {f : ℝ → ℝ → ℝ → ℝ}
         filter_upwards with θ
         exact integral_prod _ (hθint θ)
 
-theorem continuous_Phi : Continuous Phi :=
+private theorem continuous_Phi : Continuous Phi :=
   continuous_iff_continuousAt.mpr fun x => (hasDerivAt_Phi x).continuousAt
 
-theorem Phi_mem (x : ℝ) : 0 ≤ Phi x ∧ Phi x ≤ 1 := by
+private theorem Phi_mem (x : ℝ) : 0 ≤ Phi x ∧ Phi x ≤ 1 := by
   rw [← gaussianReal_Iic_eq]
   exact ⟨measureReal_nonneg, measureReal_le_one⟩
 
 variable {I J si sj h : ℝ}
 
-theorem measurable_indA : Measurable fun p : ℝ × ℝ => indA I si h p.1 p.2 := by
+private theorem measurable_indA : Measurable fun p : ℝ × ℝ => indA I si h p.1 p.2 := by
   unfold indA
   refine Measurable.ite ?_ measurable_const measurable_const
   rw [Set.ofPred_and]
   exact (measurableSet_lt measurable_fst measurable_const).inter
     (measurableSet_lt (by fun_prop) measurable_const)
 
-theorem measurable_indB : Measurable fun p : ℝ × ℝ => indB I si h p.1 p.2 := by
+private theorem measurable_indB : Measurable fun p : ℝ × ℝ => indB I si h p.1 p.2 := by
   unfold indB
   refine Measurable.ite ?_ measurable_const measurable_const
   rw [Set.ofPred_and]
   exact (measurableSet_le measurable_const measurable_fst).inter
     (measurableSet_le measurable_const (by fun_prop))
 
-theorem indA_mem (x₀ x₁ : ℝ) : 0 ≤ indA I si h x₀ x₁ ∧ indA I si h x₀ x₁ ≤ 1 := by
+private theorem indA_mem (x₀ x₁ : ℝ) : 0 ≤ indA I si h x₀ x₁ ∧ indA I si h x₀ x₁ ≤ 1 := by
   unfold indA; split_ifs <;> norm_num
-theorem indB_mem (x₀ x₁ : ℝ) : 0 ≤ indB I si h x₀ x₁ ∧ indB I si h x₀ x₁ ≤ 1 := by
+private theorem indB_mem (x₀ x₁ : ℝ) : 0 ≤ indB I si h x₀ x₁ ∧ indB I si h x₀ x₁ ≤ 1 := by
   unfold indB; split_ifs <;> norm_num
 
 /-- The integrand of `rotF` on the product of the first two coordinates. -/
-def rotIntegrand (ψ : ℝ) (p : ℝ × ℝ) : ℝ :=
+private def rotIntegrand (ψ : ℝ) (p : ℝ × ℝ) : ℝ :=
   indA I si h p.1 p.2 * Phi (beta J sj h ψ p.1 p.2) -
     indB I si h p.1 p.2 * (1 - Phi (beta J sj h ψ p.1 p.2))
 
-theorem measurable_rotIntegrand (ψ : ℝ) :
+private theorem measurable_rotIntegrand (ψ : ℝ) :
     Measurable (rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ) := by
   unfold rotIntegrand
   have hb : Measurable fun p : ℝ × ℝ => Phi (beta J sj h ψ p.1 p.2) :=
     (continuous_Phi.comp (by unfold beta; fun_prop)).measurable
   exact (measurable_indA.mul hb).sub (measurable_indB.mul (measurable_const.sub hb))
 
-theorem integrable_rotIntegrand (ψ : ℝ) :
+private theorem integrable_rotIntegrand (ψ : ℝ) :
     Integrable (rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ) (γ1.prod γ1) := by
   refine (integrable_const (2 : ℝ)).mono' (measurable_rotIntegrand ψ).aestronglyMeasurable
     (ae_of_all _ fun p => ?_)
@@ -128,7 +128,7 @@ theorem integrable_rotIntegrand (ψ : ℝ) :
   constructor <;> nlinarith
 
 /-- `rotF` as a product integral. -/
-theorem rotF_eq {ψ : ℝ} (hs : 0 < sj * Real.sin ψ) :
+private theorem rotF_eq {ψ : ℝ} (hs : 0 < sj * Real.sin ψ) :
     rotF I J si sj h ψ =
       ∫ p, rotIntegrand (I := I) (J := J) (si := si) (sj := sj) (h := h) ψ p ∂(γ1.prod γ1) := by
   unfold rotF
@@ -154,7 +154,8 @@ theorem rotF_eq {ψ : ℝ} (hs : 0 < sj * Real.sin ψ) :
   rfl
 
 /-- The inner computation at a fixed angle: nonpositive. -/
-theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2) (hsi : 0 < si)
+private theorem inner_nonpos {θ : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
+    (hsi : 0 < si)
     (hsj : 0 < sj) (hh : 0 < h) (hθ0 : 0 < θ) (hθπ : θ < π)
     (hcond : I + J ≤ 1 + (I * J + si * sj * Real.cos θ)) :
     ∫ x₀, (∫ x₁, (indA I si h x₀ x₁ + indB I si h x₀ x₁) *

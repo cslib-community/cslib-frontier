@@ -60,7 +60,8 @@ fan-in two `s > (L - ε) n` with `L = 1 + π / (3 arccos ((1 + 2√2)/4)) ≈ 4.
 * `Cslib.Circuits.Frontier.eventually_gaussian_sub_mul_lt_innerSize_of_nondeterministicDecides`:
   the Gaussian `(L - ε) n` frontier lower bound for nondeterministic circuits of fan-in two.
 * `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides`:
-  the median-switched Gaussian `(L₃ - ε) n` frontier lower bound (`L₃ ≈ 4.575972`) [Gaspers2026].
+  the median-switched Gaussian `(L₃ - ε) n` frontier lower bound (`L₃ ≈ 4.575972`), original to
+  this library (via `layoutBound_switched`, adapting the layout constant of [Gaspers2026]).
 
 ## References
 
@@ -315,7 +316,8 @@ theorem eventually_gaussian_sub_mul_lt_innerSize_of_nondeterministicDecides
 two.** Under the hypotheses of `eventually_two_sub_mul_lt_mul_innerSize_of_nondeterministicDecides`,
 for every `ε > 0` and all large `n`, every circuit of fan-in at most two with any number of witness
 inputs deciding `S_n` nondeterministically, over any basis and interpretation on `U`, has more than
-`(L₃ - ε) n` inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972` [Gaspers2026]. -/
+`(L₃ - ε) n` inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. Original to this
+library (instantiating the frontier framework with `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize_of_nondeterministicDecides
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (k : ℕ) (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)

@@ -34,14 +34,26 @@ corresponding fan-in-two circuit lower bound is
 
 `L = 1 + 1 / (2 c₃) = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.5759720 ≥ 457597 / 100000`.
 
-The switched sweep follows [Gaspers2026] (Theorem `C3`): score the vertices of the underlying
-simple graph `H = G.toSimpleGraph` (of maximum degree at most `3`) by the Gaussian vertex scores
+The switched sweep adapts [Gaspers2026] (Theorem 1.1(a) / Corollary 1.2, §1.1, p. 1 / PDF p. 3;
+proved as Theorem 8.1, §8, p. 45 / PDF p. 47 of arXiv:2611.05146v1, companion release
+`doi:10.5281/zenodo.23883489`): score the vertices of the underlying simple graph
+`H = G.toSimpleGraph` (of maximum degree at most `3`) by the Gaussian vertex scores
 `y v = ⟪unitKernelRow H q R v, ω⟫`, glue inner frontiers below level zero to outer frontiers
 above level zero using a bipartite connector order across level zero
 (`Cslib.Circuits.Frontier.Switched.Layout.exists_intervals_of_loads`), and convert the resulting
 vertex interval decomposition of width `w` to a linear edge-cut layout of width `≤ w + 1` via
 `Cslib.Circuits.Frontier.Switched.exists_width_le_of_intervals` (Makedon–Sudborough
 `cw ≤ pw + 2`, proved here directly for loopless cubic multigraphs including parallel edges).
+
+**Scope difference from [Gaspers2026].** The paper states Corollary 1.2 (`bw(G) ≤ cw(G) ≤
+c₃ n + o(n)`) for simple graphs of maximum degree at most `3`, and also computes the
+decomposition in deterministic time `n^{2 + o(1)}`. Here we formalize the *existential*
+(non-constructive) edge-cut layout and bisection bounds directly for finite loopless 3-regular
+*multigraphs* (parallel edges allowed, `exists_width_le_switchedCoefficient`,
+`exists_ncard_edgeCut_le`) and lift them via the saturated compression quotient
+(`LayoutBound.of_cubic`) to the cycle-rank layout bound `layoutBound_switched : LayoutBound 3
+(2 * switchedCoefficient)` for connected subcubic multigraphs. Algorithmic construction and
+higher-degree (`Δ ≥ 4`) / mixed-degree bounds are not formalized here.
 
 ## Main results
 

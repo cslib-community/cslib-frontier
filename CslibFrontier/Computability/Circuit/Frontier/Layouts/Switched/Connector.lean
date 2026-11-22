@@ -44,7 +44,7 @@ variable {α β : Type*} [DecidableEq α]
 def covered (P : Finset β) (ends : β → Finset α) (X : Finset α) : ℕ :=
   (P.filter fun p => ends p ⊆ X).card
 
-theorem covered_mono (P : Finset β) (ends : β → Finset α) {X Y : Finset α}
+private theorem covered_mono (P : Finset β) (ends : β → Finset α) {X Y : Finset α}
     (h : X ⊆ Y) : covered P ends X ≤ covered P ends Y := by
   apply Finset.card_le_card
   intro p hp
@@ -53,7 +53,7 @@ theorem covered_mono (P : Finset β) (ends : β → Finset α) {X Y : Finset α}
 
 /-- An item with at most two endpoints, one inside `Y` and one, `y`, outside,
 lies inside `insert y Y`. -/
-theorem ends_subset_insert {s Y : Finset α} (hs : s.card ≤ 2) {x y : α}
+private theorem ends_subset_insert {s Y : Finset α} (hs : s.card ≤ 2) {x y : α}
     (hx : x ∈ s) (hxY : x ∈ Y) (hy : y ∈ s) (hyY : y ∉ Y) : s ⊆ insert y Y := by
   intro z hz
   by_contra hzn
@@ -71,11 +71,11 @@ theorem ends_subset_insert {s Y : Finset α} (hs : s.card ≤ 2) {x y : α}
   omega
 
 /-- `Y` is closed in `Q` when no item meets both `Y` and `Q \ Y`. -/
-def Closed (P : Finset β) (ends : β → Finset α) (Q Y : Finset α) : Prop :=
+private def Closed (P : Finset β) (ends : β → Finset α) (Q Y : Finset α) : Prop :=
   ∀ p ∈ P, ends p ⊆ Y ∨ ends p ⊆ Q \ Y
 
 /-- Adding an outside endpoint of an item that meets `Y` covers a new item. -/
-theorem covered_insert_gt (P : Finset β) (ends : β → Finset α) {Y : Finset α} {y : α}
+private theorem covered_insert_gt (P : Finset β) (ends : β → Finset α) {Y : Finset α} {y : α}
     {p : β} (hp : p ∈ P) (hnot : ¬ ends p ⊆ Y) (hin : ends p ⊆ insert y Y) :
     covered P ends Y < covered P ends (insert y Y) := by
   apply Finset.card_lt_card
@@ -91,7 +91,7 @@ theorem covered_insert_gt (P : Finset β) (ends : β → Finset α) {Y : Finset 
 
 /-- In a connected instance, a greedy connected prefix covers at least `j - 1`
 items after `j` additions. -/
-theorem connected_chain (Q : Finset α) (P : Finset β) (ends : β → Finset α)
+private theorem connected_chain (Q : Finset α) (P : Finset β) (ends : β → Finset α)
     (hsub : ∀ p ∈ P, ends p ⊆ Q) (htwo : ∀ p ∈ P, (ends p).card ≤ 2)
     (hconn : ∀ Y ⊆ Q, Y.Nonempty → Y ≠ Q → ¬ Closed P ends Q Y) :
     ∀ k ≤ Q.card, ∃ l : List α, l.Nodup ∧ l.length = k ∧ (∀ x ∈ l, x ∈ Q) ∧
@@ -171,7 +171,7 @@ def Good (Q : Finset α) (P : Finset β) (ends : β → Finset α) (l : List α)
   l.Nodup ∧ l.toFinset = Q ∧ ∀ j ≤ Q.card,
     (j : ℤ) - covered P ends (l.take j).toFinset ≤ max 0 ((Q.card : ℤ) - P.card) + 1
 
-theorem covered_filter_le (P : Finset β) (ends : β → Finset α) (q : β → Prop)
+private theorem covered_filter_le (P : Finset β) (ends : β → Finset α) (q : β → Prop)
     [DecidablePred q] (X : Finset α) :
     covered (P.filter q) ends X ≤ covered P ends X := by
   apply Finset.card_le_card

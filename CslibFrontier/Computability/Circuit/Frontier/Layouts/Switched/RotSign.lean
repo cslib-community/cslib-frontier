@@ -37,7 +37,8 @@ namespace Cslib.Circuits.Frontier.Switched
 namespace Rot
 
 /-- The polynomial identity behind `D ≥ 0`. -/
-theorem rot_identity {I J si sj c sn : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2 = 1 - J ^ 2)
+private theorem rot_identity {I J si sj c sn : ℝ} (hP : si ^ 2 = 1 - I ^ 2)
+    (hR : sj ^ 2 = 1 - J ^ 2)
     (hS : sn ^ 2 + c ^ 2 = 1) :
     si ^ 2 * sj ^ 2 * sn ^ 2 - I * (1 - I) * sj ^ 2 * sn ^ 2 +
       ((1 - J) * si - (1 - I) * sj * c) * (I * sj * c - J * si) =
@@ -78,7 +79,7 @@ theorem D_nonneg {I J si sj c sn h : ℝ} (hP : si ^ 2 = 1 - I ^ 2) (hR : sj ^ 2
   exact nonneg_of_mul_nonneg_left this hk
 
 /-- Product of three densities as one exponential. -/
-theorem phi3_eq (u v w : ℝ) :
+private theorem phi3_eq (u v w : ℝ) :
     phi u * phi v * phi w =
       (Real.sqrt (2 * π))⁻¹ ^ 3 * Real.exp (-(u ^ 2 + v ^ 2 + w ^ 2) / 2) := by
   rw [phi_eq, phi_eq, phi_eq]
@@ -87,7 +88,8 @@ theorem phi3_eq (u v w : ℝ) :
     rw [← Real.exp_add, ← Real.exp_add]; ring_nf
   rw [this]; ring
 
-theorem phi3_le_of {u v w u' v' w' : ℝ} (h : u ^ 2 + v ^ 2 + w ^ 2 ≤ u' ^ 2 + v' ^ 2 + w' ^ 2) :
+private theorem phi3_le_of {u v w u' v' w' : ℝ}
+    (h : u ^ 2 + v ^ 2 + w ^ 2 ≤ u' ^ 2 + v' ^ 2 + w' ^ 2) :
     phi u' * phi v' * phi w' ≤ phi u * phi v * phi w := by
   rw [phi3_eq, phi3_eq]
   apply mul_le_mul_of_nonneg_left _ (by positivity)

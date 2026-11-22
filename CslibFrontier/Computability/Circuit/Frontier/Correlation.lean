@@ -99,8 +99,8 @@ uniformity.
   `eventually_abs_correlation_hardForm_le_switched`,
   `exists_eventually_abs_correlation_hardForm_le_of_lt_switched`,
   `exists_eventually_abs_correlation_hardForm_le_2787`: the improved median-switched Gaussian
-  correlation threshold `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`≥ 278798 / 100000`)
-  [Gaspers2026].
+  correlation threshold `c₃* = 1 + π / (3 arccos (5 / 6)) ≈ 2.787986` (`≥ 278798 / 100000`),
+  original to this library (via `layoutBound_switched`).
 
 ## References
 
@@ -342,10 +342,10 @@ private theorem switched_rate_eq (c : ℝ) :
   rw [h4, h']
 
 /-- **Exponentially small correlation below `c₃* n ≈ 2.787986 n` gates.** Using the
-median-switched Gaussian layout bound `layoutBound_switched` [Gaspers2026], under the same cut-rank
+median-switched Gaussian layout bound `layoutBound_switched`, under the same cut-rank
 hypothesis on `Q_n + Q_nᵀ`, for every `c ≥ 1/2` and every `γ < (c₃* - c)/(2 L₃)`, every circuit
 of fan-in at most two with at most `c n` inner gates has correlation at most `2^{-γ n}` with the
-quadratic form of `Q_n`. -/
+quadratic form of `Q_n`. Original to this library. -/
 theorem eventually_abs_correlation_quadForm_le_switched {c γ : ℝ} (hc : 1 / 2 ≤ c)
     (hγ : γ < (1 + π / (3 * arccos (5 / 6)) - c) /
       (2 * (1 + 2 * π / (3 * arccos (5 / 6)))))

@@ -179,7 +179,8 @@ theorem averageCaseBound_four : AverageCaseBound.{u, v} 4 := by
 /-- **The median-switched Gaussian frontier lower bound for fan-in two.** Under the hypotheses of
 `eventually_gaussian_sub_mul_lt_innerSize`, for every `ε > 0` and all large `n`, every circuit of
 fan-in at most two deciding `S_n`, over any basis and interpretation on `U`, has more than
-`(L₃ - ε) n` inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972` [Gaspers2026]. -/
+`(L₃ - ε) n` inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. Original to this
+library (instantiating the frontier framework with `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_innerSize
     (hSK : DenseRectangleFree S K) {ε : ℝ} (hε : 0 < ε) :
     ∀ᶠ n in atTop, ∀ (σ : Signature.{v}) (I : Interpretation σ U) (Acc : Set U)
@@ -218,8 +219,8 @@ theorem eventually_183_div_40_sub_mul_lt_innerSize
     (Nat.cast_nonneg n)
 
 /-- **Circuits of fan-in two deciding dense rectangle-free sets need `(L₃ - ε) n` gates**, by
-median-switched Gaussian vertex-score layouts [Gaspers2026], where
-`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. -/
+median-switched Gaussian vertex-score layouts (`layoutBound_switched`), where
+`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. Original to this library. -/
 theorem circuitLowerBound_switched :
     CircuitLowerBound.{u, v} (1 + 2 * π / (3 * arccos (5 / 6))) := by
   have h := circuitLowerBound_of_layoutBound.{u, v}
@@ -237,7 +238,7 @@ theorem circuitLowerBound_183_div_40 : CircuitLowerBound.{u, v} (183 / 40) :=
   circuitLowerBound_switched.mono Switched.circuitCoefficient_ge_183_div_40
 
 /-- **Circuits of fan-in two below `(L₃ - ε) n` gates barely beat guessing** on sets of small
-bias on large rectangles, by median-switched Gaussian vertex-score layouts [Gaspers2026]. -/
+bias on large rectangles, by `layoutBound_switched`. Original to this library. -/
 theorem averageCaseBound_switched :
     AverageCaseBound.{u, v} (1 + 2 * π / (3 * arccos (5 / 6))) := by
   have h := averageCaseBound_of_layoutBound.{u, v}

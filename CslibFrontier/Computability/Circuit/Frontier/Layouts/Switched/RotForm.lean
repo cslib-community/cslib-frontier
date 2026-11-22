@@ -122,7 +122,7 @@ theorem slice_high {ψ : ℝ} (hs : 0 < sj * Real.sin ψ) (x₀ x₁ : ℝ) :
 theorem phi_eq (x : ℝ) : phi x = (Real.sqrt (2 * π))⁻¹ * Real.exp (-x ^ 2 / 2) := by
   simp [phi, gaussianPDFReal]
 
-theorem hasDerivAt_phi (x : ℝ) : HasDerivAt phi (-x * phi x) x := by
+private theorem hasDerivAt_phi (x : ℝ) : HasDerivAt phi (-x * phi x) x := by
   have h1 : HasDerivAt (fun x : ℝ => -x ^ 2 / 2) (-x) x :=
     ((hasDerivAt_pow 2 x).neg.div_const 2).congr_deriv (by push_cast; ring)
   have h2 := (h1.exp).const_mul ((Real.sqrt (2 * π))⁻¹)
@@ -172,7 +172,7 @@ variable {I J si sj h}
 /-- The angular derivative of the normalized threshold. -/
 def dbeta (θ x₀ x₁ : ℝ) : ℝ := x₁ - beta J sj h θ x₀ x₁ * Real.cos θ / Real.sin θ
 
-theorem hasDerivAt_beta {θ : ℝ} (hsj : 0 < sj) (hθ : Real.sin θ ≠ 0) (x₀ x₁ : ℝ) :
+private theorem hasDerivAt_beta {θ : ℝ} (hsj : 0 < sj) (hθ : Real.sin θ ≠ 0) (x₀ x₁ : ℝ) :
     HasDerivAt (fun θ => beta J sj h θ x₀ x₁) (dbeta (J := J) (sj := sj) (h := h) θ x₀ x₁) θ := by
   have hN : HasDerivAt (fun θ => h - J * x₀ - sj * Real.cos θ * x₁) (sj * Real.sin θ * x₁) θ :=
     ((((Real.hasDerivAt_cos θ).const_mul sj).mul_const x₁).const_sub (h - J * x₀)).congr_deriv

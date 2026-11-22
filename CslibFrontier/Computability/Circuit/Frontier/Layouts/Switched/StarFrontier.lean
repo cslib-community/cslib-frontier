@@ -42,7 +42,7 @@ open Cslib.Circuits.Frontier.Switched.Ideal
 variable {E : Type*} [NormedAddCommGroup E] [InnerProductSpace ℝ E]
   [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E]
 
-theorem prob_exists_le_eq (v : Fin 3 → E) (θ : ℝ) :
+private theorem prob_exists_le_eq (v : Fin 3 → E) (θ : ℝ) :
     (stdGaussian E).real {x | ∃ j, ⟪v j, x⟫ ≤ θ} =
       1 - (stdGaussian E).real {x | ⟪-v 0, x⟫ < -θ ∧ ⟪-v 1, x⟫ < -θ ∧ ⟪-v 2, x⟫ < -θ} := by
   have hm : MeasurableSet {x : E | ⟪-v 0, x⟫ < -θ ∧ ⟪-v 1, x⟫ < -θ ∧ ⟪-v 2, x⟫ < -θ} := by
@@ -61,7 +61,7 @@ theorem prob_exists_le_eq (v : Fin 3 → E) (θ : ℝ) :
   rw [hcompl, measureReal_compl hm, probReal_univ]
 
 /-- The conditional comparison at one level. -/
-theorem exists_le_compare {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1) (θ : ℝ) :
+private theorem exists_le_compare {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1) (θ : ℝ) :
     (stdGaussian E).real {x | ∃ j, ⟪w j, x⟫ ≤ θ} ≤
       (stdGaussian E3).real {y | ∃ j, ⟪u j, y⟫ ≤ θ} := by
   rw [prob_exists_le_eq w, prob_exists_le_eq u]
@@ -74,7 +74,7 @@ theorem s_pos {r : ℝ} (hr : 0 < r) (hr1 : r < 1) : 0 < Ideal.s r := by
   unfold Ideal.s
   exact Real.sqrt_pos.mpr (by nlinarith)
 
-theorem measurableSet_starSet {F : Type*} [NormedAddCommGroup F] [InnerProductSpace ℝ F]
+private theorem measurableSet_starSet {F : Type*} [NormedAddCommGroup F] [InnerProductSpace ℝ F]
     [MeasurableSpace F] [BorelSpace F] (v : Fin 3 → F) (r t : ℝ) :
     MeasurableSet {p : ℝ × F | t ≤ p.1 ∧ ∃ j, ⟪v j, p.2⟫ ≤ (t - r * p.1) / Ideal.s r} := by
   rw [Set.ofPred_and, Set.ofPred_exists]
@@ -91,7 +91,7 @@ theorem integrable_cond {F : Type*} [NormedAddCommGroup F] [InnerProductSpace �
   exact measureReal_le_one
 
 /-- **Comparison with the ideal star.** -/
-theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1)
+private theorem compare_ideal {a : E} (ha : ‖a‖ = 1) {w : Fin 3 → E} (hw : ∀ j, ‖w j‖ = 1)
     (horth : ∀ j, ⟪a, w j⟫ = 0) {r t : ℝ} (hr : 0 < r) (hr1 : r < 1) :
     (stdGaussian E).real {x | t ≤ ⟪a, x⟫ ∧ ∃ j, ⟪w j, x⟫ ≤ (t - r * ⟪a, x⟫) / Ideal.s r} ≤
       idealProb r t := by
@@ -177,6 +177,64 @@ theorem prob_inner_eq {a : E} (ha : ‖a‖ = 1) (t : ℝ) :
   let _ := nullSingletonClass_gaussianReal (μ := 0) (by norm_num : (1 : NNReal) ≠ 0)
   simp [Measure.real]
 
+omit [FiniteDimensional ℝ E] [MeasurableSpace E] [BorelSpace E] in
+/-- Given a unit vector `a` and `d` unit vectors `b i` with `0 ≤ ⟪a, b i⟫` and at least one
+index with `⟪a, b i⟫ < 1`, constructs normalized orthogonal residuals `W i` (`⟪a, W i⟫ = 0`) and
+a `Fin 3` padding `pick` through indices with `⟪a, b i⟫ < 1`. -/
+theorem exists_unit_residuals {d : ℕ} {a : E} {b : Fin d → E}
+    (ha : ‖a‖ = 1) (hb : ∀ i, ‖b i‖ = 1) (hab : ∀ i, 0 ≤ ⟪a, b i⟫)
+    (hI : ∃ i, ⟪a, b i⟫ < 1) :
+    ∃ (W : Fin d → E) (pick : Fin 3 → Fin d),
+      (∀ i, ⟪a, b i⟫ < 1 → 0 < Real.sqrt (1 - ⟪a, b i⟫ ^ 2)) ∧
+      (∀ i, ⟪a, b i⟫ < 1 → ‖W i‖ = 1) ∧
+      (∀ i, ⟪a, W i⟫ = 0) ∧
+      (∀ i x, ⟪a, b i⟫ < 1 →
+        ⟪b i, x⟫ = ⟪a, b i⟫ * ⟪a, x⟫ + Real.sqrt (1 - ⟪a, b i⟫ ^ 2) * ⟪W i, x⟫) ∧
+      (∀ j, ⟪a, b (pick j)⟫ < 1) ∧
+      (∀ (i : Fin d) (hi : i.val < 3), ⟪a, b i⟫ < 1 → pick ⟨i.val, hi⟩ = i) := by
+  obtain ⟨i₀, hi₀⟩ := hI
+  have haa : ⟪a, a⟫ = 1 := by rw [real_inner_self_eq_norm_sq, ha]; norm_num
+  have hc : ∀ i, -1 ≤ ⟪a, b i⟫ ∧ ⟪a, b i⟫ ≤ 1 := fun i => by
+    have := abs_real_inner_le_norm a (b i)
+    rw [ha, hb i, mul_one] at this
+    exact abs_le.mp this
+  let R : Fin d → E := fun i => remainder a (b i)
+  have hRorth : ∀ i, ⟪a, R i⟫ = 0 := fun i => by
+    simp only [R, remainder, inner_sub_right, real_inner_smul_right, haa, mul_one, sub_self]
+  have hRnorm : ∀ i, ‖R i‖ = Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := fun i => by
+    have hbb : ⟪b i, b i⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hb i]; norm_num
+    have hsq : ‖R i‖ ^ 2 = 1 - ⟪a, b i⟫ ^ 2 := by
+      rw [← real_inner_self_eq_norm_sq]
+      simp only [R, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
+        real_inner_smul_right, haa, hbb, real_inner_comm (b i) a]
+      ring
+    rw [← hsq, Real.sqrt_sq (norm_nonneg _)]
+  let W : Fin d → E := fun i => (‖R i‖)⁻¹ • R i
+  have hSpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := fun i hi =>
+    Real.sqrt_pos.mpr (by nlinarith [hc i, hab i])
+  have hRpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < ‖R i‖ := fun i hi => by
+    rw [hRnorm]; exact hSpos i hi
+  let pick : Fin 3 → Fin d := fun j =>
+    if h : j.val < d then (if ⟪a, b ⟨j.val, h⟩⟫ < 1 then ⟨j.val, h⟩ else i₀) else i₀
+  refine ⟨W, pick, hSpos, ?_, ?_, ?_, ?_, ?_⟩
+  · intro i hi
+    simp only [W, norm_smul, norm_inv, norm_norm]
+    exact inv_mul_cancel₀ (hRpos i hi).ne'
+  · intro i
+    simp only [W, real_inner_smul_right, hRorth, mul_zero]
+  · intro i x hi
+    rw [inner_decomp haa (b i) x, inner_remainder_of_orth (hRorth i)]
+    simp only [W, real_inner_smul_left, ← hRnorm i]
+    field_simp [(hRpos i hi).ne']
+  · intro j
+    simp only [pick]
+    split_ifs with h1 h2
+    · exact h2
+    · exact hi₀
+    · exact hi₀
+  · intro i hi hgi
+    simp [pick, i.isLt, hgi]
+
 /-- **G2: the star frontier bound.** For any unit vector `a` and at most three unit vectors
 `b : Fin d → E` with `⟪a, b i⟫ ≥ r` (`0 < r ≤ rStar`), and every `t ≥ 0`,
 `P(⟪a, x⟫ ≥ t ∧ ∃ i, ⟪b i, x⟫ ≤ t) ≤ kappa r`. -/
@@ -197,37 +255,8 @@ theorem starFrontier {r : ℝ} (hr : 0 < r) (hrs : r ≤ rStar) {a : E} {d : ℕ
     rw [ha, hb i, mul_one] at this
     exact abs_le.mp this
   by_cases hI : ∃ i, ⟪a, b i⟫ < 1
-  · obtain ⟨i₀, hi₀⟩ := hI
-    -- unit residuals
-    set R : Fin d → E := fun i => remainder a (b i)
-    have haa : ⟪a, a⟫ = 1 := by rw [real_inner_self_eq_norm_sq, ha]; norm_num
-    have hRorth : ∀ i, ⟪a, R i⟫ = 0 := fun i => by
-      simp only [R, remainder, inner_sub_right, real_inner_smul_right, haa, mul_one, sub_self]
-    have hRnorm : ∀ i, ‖R i‖ = Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := fun i => by
-      have hbb : ⟪b i, b i⟫ = 1 := by rw [real_inner_self_eq_norm_sq, hb i]; norm_num
-      have hsq : ‖R i‖ ^ 2 = 1 - ⟪a, b i⟫ ^ 2 := by
-        rw [← real_inner_self_eq_norm_sq]
-        simp only [R, remainder, inner_sub_left, inner_sub_right, real_inner_smul_left,
-          real_inner_smul_right, haa, hbb, real_inner_comm (b i) a]
-        ring
-      rw [← hsq, Real.sqrt_sq (norm_nonneg _)]
-    set W : Fin d → E := fun i => (‖R i‖)⁻¹ • R i
-    have hRpos : ∀ i, ⟪a, b i⟫ < 1 → 0 < ‖R i‖ := fun i hi => by
-      rw [hRnorm]; exact Real.sqrt_pos.mpr (by nlinarith [hc i, hab i])
-    have hWnorm : ∀ i, ⟪a, b i⟫ < 1 → ‖W i‖ = 1 := fun i hi => by
-      simp only [W, norm_smul, norm_inv, norm_norm]
-      exact inv_mul_cancel₀ (hRpos i hi).ne'
-    have hWorth : ∀ i, ⟪a, W i⟫ = 0 := fun i => by
-      simp only [W, real_inner_smul_right, hRorth, mul_zero]
-    -- the padded family indexed by `Fin 3`
-    let pick : Fin 3 → Fin d := fun j =>
-      if h : j.val < d then (if ⟪a, b ⟨j.val, h⟩⟫ < 1 then ⟨j.val, h⟩ else i₀) else i₀
-    have hpick : ∀ j, ⟪a, b (pick j)⟫ < 1 := fun j => by
-      simp only [pick]
-      split_ifs with h1 h2
-      · exact h2
-      · exact hi₀
-      · exact hi₀
+  · obtain ⟨W, pick, hSpos, hWnorm, hWorth, hdecomp, hpick, hpick_eq⟩ :=
+      exists_unit_residuals ha hb (fun i => hr.le.trans (hab i)) hI
     set w : Fin 3 → E := fun j => W (pick j)
     have hw : ∀ j, ‖w j‖ = 1 := fun j => hWnorm _ (hpick j)
     have hworth : ∀ j, ⟪a, w j⟫ = 0 := fun j => hWorth _
@@ -239,18 +268,11 @@ theorem starFrontier {r : ℝ} (hr : 0 < r) (hrs : r ≤ rStar) {a : E} {d : ℕ
       by_cases hgood : ⟪a, b i⟫ < 1
       · right
         refine ⟨hZ, ⟨i.val, by omega⟩, ?_⟩
-        have hpi : pick ⟨i.val, by omega⟩ = i := by
-          simp [pick, i.isLt, hgood]
-        have hdec : ⟪b i, x⟫ = ⟪a, b i⟫ * ⟪a, x⟫ + ‖R i‖ * ⟪W i, x⟫ := by
-          rw [inner_decomp haa (b i) x, inner_remainder_of_orth (hRorth i)]
-          simp only [W, real_inner_smul_left]
-          field_simp [(hRpos i hgood).ne']
-        simp only [w, hpi]
-        have hle : ⟪W i, x⟫ ≤ (t - ⟪a, b i⟫ * ⟪a, x⟫) / ‖R i‖ := by
-          rw [le_div_iff₀ (hRpos i hgood)]; linarith
-        refine hle.trans ?_
-        rw [hRnorm]
-        exact coupling_ineq hr (hab i) hgood ht hZ
+        simp only [w, hpick_eq i (by omega) hgood]
+        have hdec := hdecomp i x hgood
+        have hle : ⟪W i, x⟫ ≤ (t - ⟪a, b i⟫ * ⟪a, x⟫) / Real.sqrt (1 - ⟪a, b i⟫ ^ 2) := by
+          rw [le_div_iff₀ (hSpos i hgood)]; linarith
+        exact hle.trans (coupling_ineq hr (hab i) hgood ht hZ)
       · left
         have h1 : ⟪a, b i⟫ = 1 := le_antisymm (hc i).2 (not_lt.mp hgood)
         have hbi := eq_of_inner_eq_one ha (hb i) h1

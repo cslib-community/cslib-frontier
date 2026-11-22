@@ -47,7 +47,8 @@ fixed `m` cost nothing in the leading term.
   fan-in two.
 * `Cslib.Circuits.Frontier.eventually_switched_sub_mul_lt_card_of_ledger`,
   `eventually_switched_sub_mul_lt_card_of_aggregates`: the median-switched Gaussian `(L₃ - ε) n`
-  bounds (`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`) [Gaspers2026].
+  bounds (`L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`), original to this library (via
+  `layoutBound_switched`).
 
 ## References
 
@@ -153,7 +154,8 @@ theorem eventually_gaussian_sub_mul_lt_card_of_aggregates
 /-- **The median-switched Gaussian frontier lower bound with a ledger, at ordinary fan-in two.**
 Under the hypotheses of `eventually_two_sub_mul_lt_mul_card_of_ledger`, every circuit deciding
 `S_n` whose ordinary gates have fan-in at most two has more than `(L₃ - ε) n` ordinary inner gates,
-where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972` [Gaspers2026]. -/
+where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`. Original to this library (instantiating
+the frontier ledger framework with `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_card_of_ledger
     (hSK : DenseRectangleFree S K)
     {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :
@@ -174,8 +176,8 @@ theorem eventually_switched_sub_mul_lt_card_of_ledger
 /-- **The median-switched Gaussian frontier lower bound with aggregate gates, at ordinary fan-in
 two.** Under the hypotheses of `eventually_switched_sub_mul_lt_card_of_ledger`, every circuit
 deciding `S_n` with `k` aggregating special gates satisfying `k log |T| ≤ β(n)` has more than
-`(L₃ - ε) n` ordinary inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`
-[Gaspers2026]. -/
+`(L₃ - ε) n` ordinary inner gates, where `L₃ = 1 + 2π / (3 arccos (5 / 6)) ≈ 4.575972`.
+Original to this library (via `layoutBound_switched`). -/
 theorem eventually_switched_sub_mul_lt_card_of_aggregates
     (hSK : DenseRectangleFree S K)
     {β : ℕ → ℝ} (hβ : β =o[atTop] fun n => (n : ℝ)) {ε : ℝ} (hε : 0 < ε) :

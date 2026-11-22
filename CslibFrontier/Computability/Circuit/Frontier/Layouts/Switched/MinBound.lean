@@ -50,7 +50,7 @@ theorem inner_decomp {w : E} (hw : ⟪w, w⟫ = 1) (v x : E) :
   ring
 
 /-- Bivariate orthant via Sheppard with a repeated vector. -/
-theorem bivariate_orthant {p q : E} (hp : ⟪p, p⟫ = 1) (hq : ⟪q, q⟫ = 1) :
+private theorem bivariate_orthant {p q : E} (hp : ⟪p, p⟫ = 1) (hq : ⟪q, q⟫ = 1) :
     (stdGaussian E).real {x | 0 < ⟪p, x⟫ ∧ 0 < ⟪q, x⟫} =
       1 / 2 - Real.arccos ⟪p, q⟫ / (2 * π) := by
   have hpn : ‖p‖ = 1 := by have := real_inner_self_eq_norm_sq p; nlinarith [norm_nonneg p]
@@ -66,7 +66,7 @@ theorem bivariate_orthant {p q : E} (hp : ⟪p, p⟫ = 1) (hq : ⟪q, q⟫ = 1) 
   ring
 
 /-- The closed bivariate orthant has the same probability. -/
-theorem bivariate_orthant_le {p q : E} (hp : ⟪p, p⟫ = 1) (hq : ⟪q, q⟫ = 1) :
+private theorem bivariate_orthant_le {p q : E} (hp : ⟪p, p⟫ = 1) (hq : ⟪q, q⟫ = 1) :
     (stdGaussian E).real {x | 0 ≤ ⟪p, x⟫ ∧ 0 ≤ ⟪q, x⟫} =
       1 / 2 - Real.arccos ⟪p, q⟫ / (2 * π) := by
   rw [← bivariate_orthant hp hq]
