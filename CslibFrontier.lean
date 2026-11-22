@@ -3224,6 +3224,8 @@ public import CslibFrontier.Computability.DecisionTree.SpectralNorm
 public import CslibFrontier.Computability.DecisionTree.Switching
 public import CslibFrontier.Computability.DecisionTree.SwitchingProbability
 public import CslibFrontier.Computability.DecisionTree.Symmetric
+public import CslibFrontier.Computability.Distributed.ApproxAgreement.Protocol
+public import CslibFrontier.Computability.Distributed.ApproxAgreement.TrimmedMidpoint
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Basic
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Bracha
 public import CslibFrontier.Computability.Distributed.AsyncByzantine.Impossibility
