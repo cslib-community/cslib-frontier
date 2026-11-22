@@ -16,6 +16,8 @@ public import CslibFrontier.Foundations.Data.Nat.IterLog
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+public import CslibFrontier.Tactic.WramOmega.Init
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Parameterized Bit-Packed Word-RAM Memory Layout for `k`-Kick Tree Slot Tables
@@ -165,38 +167,38 @@ tail-cubby arrays. -/
   if p.quotiented then fullQuotBits p.U p.nMax else keyBits p.U
 
 /-- Word offset of the bit-packed `Quotients` array relative to `base`. -/
-@[expose] def offQuot (p : KickTreeParams) : ℕ := p.hSpace
+@[expose, wram_arith] def offQuot (p : KickTreeParams) : ℕ := p.hSpace
 
 /-- Word size of the bit-packed `Quotients` array (`p.nMax` entries). -/
-@[expose] def quotWords (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def quotWords (p : KickTreeParams) : ℕ :=
   packedWords p.nMax (quotBits p) p.w
 
 /-- Word offset of the bit-packed `Values` array relative to `base`. -/
-@[expose] def offVal (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def offVal (p : KickTreeParams) : ℕ :=
   offQuot p + quotWords p
 
 /-- Word size of the bit-packed `Values` array (`p.nMax` entries). -/
-@[expose] def valWords (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def valWords (p : KickTreeParams) : ℕ :=
   packedWords p.nMax (valBits p.V) p.w
 
 /-- Number of 1-bit entries in `Occupancy` (`4 * p.nMax`: primary slot occupancy in
 `0 .. p.nMax - 1` plus up to `3 * p.nMax` free-slot bitmap bits). -/
-@[expose] def occLen (p : KickTreeParams) : ℕ := 4 * p.nMax
+@[expose, wram_arith] def occLen (p : KickTreeParams) : ℕ := 4 * p.nMax
 
 /-- Word offset of the bit-packed `Occupancy` bitmap relative to `base`. -/
-@[expose] def offOcc (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def offOcc (p : KickTreeParams) : ℕ :=
   offVal p + valWords p
 
 /-- Word size of the bit-packed `Occupancy` bitmap. -/
-@[expose] def occWords (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def occWords (p : KickTreeParams) : ℕ :=
   packedWords (occLen p) 1 p.w
 
 /-- Word offset of the 1-bit per-slot `Elevated` (`depth ≥ 1`) bitmap relative to `base`. -/
-@[expose] def offElev (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def offElev (p : KickTreeParams) : ℕ :=
   offOcc p + occWords p
 
 /-- Word size of the 1-bit per-slot `Elevated` bitmap (`p.nMax` entries). -/
-@[expose] def elevWords (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def elevWords (p : KickTreeParams) : ℕ :=
   packedWords p.nMax 1 p.w
 
 /-- Bit width `max (Nat.iterLog (p.k + 1) p.nMax) 1` of each entry in `SlotMeta` (matching the
@@ -208,15 +210,15 @@ tail-cubby arrays. -/
 @[expose] def metaLen (p : KickTreeParams) : ℕ := p.cMeta * p.nMax
 
 /-- Word offset of the bit-packed `SlotMeta` array relative to `base`. -/
-@[expose] def offMeta (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def offMeta (p : KickTreeParams) : ℕ :=
   offElev p + elevWords p
 
 /-- Word size of the bit-packed `SlotMeta` array. -/
-@[expose] def metaWords (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def metaWords (p : KickTreeParams) : ℕ :=
   packedWords (metaLen p) (metaBits p) p.w
 
 /-- Total word footprint `[base, base + totalSpace p)` of the layout. -/
-@[expose] def totalSpace (p : KickTreeParams) : ℕ :=
+@[expose, wram_arith] def totalSpace (p : KickTreeParams) : ℕ :=
   offMeta p + metaWords p
 
 /-! ### 2. Space bound theorems -/
@@ -224,34 +226,32 @@ tail-cubby arrays. -/
 /-- Total space decomposition identity. -/
 theorem totalSpace_eq (p : KickTreeParams) :
     totalSpace p =
-      p.hSpace + quotWords p + valWords p + occWords p + elevWords p + metaWords p := by
-  unfold totalSpace offMeta offElev offOcc offVal offQuot
-  omega
+      p.hSpace + quotWords p + valWords p + occWords p + elevWords p + metaWords p := by wram_omega
 
 /-- The `Quotients` block ends at or before `totalSpace p`. -/
 theorem quot_end_le_totalSpace (p : KickTreeParams) :
     offQuot p + quotWords p ≤ totalSpace p := by
-  rw [totalSpace_eq]; unfold offQuot; omega
+  rw [totalSpace_eq]; wram_omega
 
 /-- The `Values` block ends at or before `totalSpace p`. -/
 theorem val_end_le_totalSpace (p : KickTreeParams) :
     offVal p + valWords p ≤ totalSpace p := by
-  rw [totalSpace_eq]; unfold offVal offQuot; omega
+  rw [totalSpace_eq]; wram_omega
 
 /-- The `Occupancy` block ends at or before `totalSpace p`. -/
 theorem occ_end_le_totalSpace (p : KickTreeParams) :
     offOcc p + occWords p ≤ totalSpace p := by
-  rw [totalSpace_eq]; unfold offOcc offVal offQuot; omega
+  rw [totalSpace_eq]; wram_omega
 
 /-- The `Elevated` block ends at or before `totalSpace p`. -/
 theorem elev_end_le_totalSpace (p : KickTreeParams) :
     offElev p + elevWords p ≤ totalSpace p := by
-  rw [totalSpace_eq]; unfold offElev offOcc offVal offQuot; omega
+  rw [totalSpace_eq]; wram_omega
 
 /-- The `SlotMeta` block ends at or before `totalSpace p`. -/
 theorem meta_end_le_totalSpace (p : KickTreeParams) :
     offMeta p + metaWords p ≤ totalSpace p := by
-  rw [totalSpace_eq]; unfold offMeta offElev offOcc offVal offQuot; omega
+  rw [totalSpace_eq]; wram_omega
 
 /-- Succinct word-space bound for the 0-indexed `k`-kick tree dynamic dictionary:
 `⌈(OPT(U, V, n_max) + C * n_max * max (Nat.iterLog (k + 1) n_max) 1) / w⌉ + C₀`. -/
@@ -433,7 +433,7 @@ theorem valAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem
   · have hlt1 : wordOffset (valBits p.V) p.w idx + 1 < valWords p :=
       wordOffset_add_one_lt_packedWords hw hidx
     have hbound := val_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offVal p := by unfold offVal offQuot; omega
+    have hoff : p.hSpace ≤ offVal p := by wram_omega
     exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
   · rfl
 
@@ -445,7 +445,7 @@ theorem occAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {mem
   · have hlt1 : wordOffset 1 p.w idx + 1 < occWords p :=
       wordOffset_add_one_lt_packedWords hw hidx
     have hbound := occ_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offOcc p := by unfold offOcc offVal offQuot; omega
+    have hoff : p.hSpace ≤ offOcc p := by wram_omega
     exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
   · rfl
 
@@ -457,7 +457,7 @@ theorem elevAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {me
   · have hlt1 : wordOffset 1 p.w idx + 1 < elevWords p :=
       wordOffset_add_one_lt_packedWords hw hidx
     have hbound := elev_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offElev p := by unfold offElev offOcc offVal offQuot; omega
+    have hoff : p.hSpace ≤ offElev p := by wram_omega
     exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
   · rfl
 
@@ -469,7 +469,7 @@ theorem metaAt_zero_of_init {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {me
   · have hlt1 : wordOffset (metaBits p) p.w idx + 1 < metaWords p :=
       wordOffset_add_one_lt_packedWords hw hidx
     have hbound := meta_end_le_totalSpace p
-    have hoff : p.hSpace ≤ offMeta p := by unfold offMeta offElev offOcc offVal offQuot; omega
+    have hoff : p.hSpace ≤ offMeta p := by wram_omega
     exact readPacked_zero (hzero _ (by omega) (by omega)) (hzero _ (by omega) (by omega))
   · rfl
 
@@ -486,32 +486,32 @@ theorem arrays_congr_of_eq_on {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) {
   · funext idx; unfold quotAt; split_ifs with hidx
     · have hbound := quot_end_le_totalSpace p
       exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by unfold offQuot at ha1; omega)
-          (by dsimp [quotWords] at hbound; omega)) hidx
+        heq a (by wram_omega [ha1])
+          (by wram_omega [hbound])) hidx
     · rfl
   · funext idx; unfold valAt; split_ifs with hidx
     · have hbound := val_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offVal p := by unfold offVal offQuot; omega
+      have hoff : p.hSpace ≤ offVal p := by wram_omega
       exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by dsimp [valWords] at hbound; omega)) hidx
+        heq a (by omega) (by wram_omega [hbound])) hidx
     · rfl
   · funext idx; unfold occAt; split_ifs with hidx
     · have hbound := occ_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offOcc p := by unfold offOcc offVal offQuot; omega
+      have hoff : p.hSpace ≤ offOcc p := by wram_omega
       exact readPacked_congr (N := occLen p) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by dsimp [occWords] at hbound; omega)) hidx
+        heq a (by omega) (by wram_omega [hbound])) hidx
     · rfl
   · funext idx; unfold elevAt; split_ifs with hidx
     · have hbound := elev_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offElev p := by unfold offElev offOcc offVal offQuot; omega
+      have hoff : p.hSpace ≤ offElev p := by wram_omega
       exact readPacked_congr (N := p.nMax) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by dsimp [elevWords] at hbound; omega)) hidx
+        heq a (by omega) (by wram_omega [hbound])) hidx
     · rfl
   · funext idx; unfold metaAt; split_ifs with hidx
     · have hbound := meta_end_le_totalSpace p
-      have hoff : p.hSpace ≤ offMeta p := by unfold offMeta offElev offOcc offVal offQuot; omega
+      have hoff : p.hSpace ≤ offMeta p := by wram_omega
       exact readPacked_congr (N := metaLen p) hw (fun a ⟨ha1, ha2⟩ =>
-        heq a (by omega) (by dsimp [metaWords] at hbound; omega)) hidx
+        heq a (by omega) (by wram_omega [hbound])) hidx
     · rfl
 
 /-- Congruence for bounded logical arrays agreeing on their allocated word range. -/
@@ -537,13 +537,13 @@ theorem writeQuotMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (m
       writeQuotMem base p mem idx val a = mem a := fun a ha =>
     writePacked_outside hw mem hidx val ha
   refine ⟨readPacked_writePacked_bounded hw hidx hval mem,
-    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by unfold offVal at ha1; omega)),
+    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by wram_omega [ha1])),
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ =>
-      hout a (by unfold offOcc offVal at ha1; omega)),
+      hout a (by wram_omega [ha1])),
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ =>
-      hout a (by unfold offElev offOcc offVal at ha1; omega)),
+      hout a (by wram_omega [ha1])),
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ =>
-      hout a (by unfold offMeta offElev offOcc offVal at ha1; omega)),
+      hout a (by wram_omega [ha1])),
     hout⟩
 
 /-- Exact array update and cross-array frame law for `writeValMem`. -/
@@ -560,12 +560,12 @@ theorem writeValMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (me
       writeValMem base p mem idx val a = mem a := fun a ha =>
     writePacked_outside hw mem hidx val ha
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offVal; dsimp [quotWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_writePacked_bounded hw hidx hval mem,
-    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by unfold offOcc at ha1; omega)),
-    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by unfold offElev offOcc at ha1; omega)),
+    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by wram_omega [ha1])),
+    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by wram_omega [ha1])),
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ =>
-      hout a (by unfold offMeta offElev offOcc at ha1; omega)),
+      hout a (by wram_omega [ha1])),
     hout⟩
 
 /-- Exact array update and cross-array frame law for `writeOccMem`. -/
@@ -582,13 +582,13 @@ theorem writeOccMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (me
       writeOccMem base p mem idx val a = mem a := fun a ha =>
     writePacked_outside hw mem hidx val ha
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offOcc offVal; dsimp [quotWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offOcc; dsimp [valWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_writePacked_bounded hw hidx hval mem,
-    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by unfold offElev at ha1; omega)),
+    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by wram_omega [ha1])),
     readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ =>
-      hout a (by unfold offMeta offElev at ha1; omega)),
+      hout a (by wram_omega [ha1])),
     hout⟩
 
 /-- Exact array update and cross-array frame law for `writeElevMem`. -/
@@ -606,13 +606,13 @@ theorem writeElevMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (m
       writeElevMem base p mem idx val a = mem a := fun a ha =>
     writePacked_outside hw mem hidx val ha
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offElev offOcc offVal; dsimp [quotWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offElev offOcc; dsimp [valWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offElev; dsimp [occWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_writePacked_bounded hw hidx hval mem,
-    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by unfold offMeta at ha1; omega)),
+    readPacked_bounded_congr hw (fun a ⟨ha1, _⟩ => hout a (by wram_omega [ha1])),
     hout⟩
 
 /-- Exact array update and cross-array frame law for `writeMetaMem`. -/
@@ -630,13 +630,13 @@ theorem writeMetaMem_effects {base : ℕ} (p : KickTreeParams) (hw : 0 < p.w) (m
       writeMetaMem base p mem idx val a = mem a := fun a ha =>
     writePacked_outside hw mem hidx val ha
   refine ⟨readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offMeta offElev offOcc offVal; dsimp [quotWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offMeta offElev offOcc; dsimp [valWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offMeta offElev; dsimp [occWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_bounded_congr hw (fun a ⟨ha1, ha2⟩ =>
-      hout a (by unfold offMeta; dsimp [elevWords]; omega)),
+      hout a (by wram_omega)),
     readPacked_writePacked_bounded hw hidx hval mem,
     hout⟩
 

@@ -14,6 +14,7 @@ public import CslibFrontier.Computability.WordRAM.Multiword.CircuitRun
 public import CslibFrontier.Computability.WordRAM.Compile
 import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.FinCases
+import CslibFrontier.Tactic.WramOmega
 
 /-!
 # Checked constant-instruction most-significant-bit execution
@@ -219,8 +220,7 @@ private theorem output_add_fits {w x : ℕ} (hx0 : 0 < x) (hx : x < 2 ^ w) :
         clusterSize w)) &&& (2 ^ clusterSize w - 1)) = x.log2 at he
   have hl : x.log2 < w := (Nat.log2_lt (by omega)).mpr hx
   have hfit : x.log2 < 2 ^ w := hl.trans Nat.lt_two_pow_self
-  unfold Fits
-  omega
+  fits
 
 /-- Every executed node satisfies the concrete multiword compiler's admissibility
 contract. Only the additions and shift counts require physical-word bounds. -/
@@ -437,7 +437,7 @@ theorem exec_scalarCode {w : ℕ} (hw : 3 ≤ w) (x : Data (Bank.capacity 44 + 4
     (by dsimp [Workspace.IsDigit, Bank.inputReg]; omega)
     (Bank.digit_regs 0) (Bank.nodup_regs 0) u (by rwa [hin])
   have htbank := Bank.encodes_update hu (0 : Fin 44) _ htb htv
-    (fun i hi hid => htp i (by dsimp [Workspace.IsDigit]; omega) hid)
+    (fun i hi hid => htp i (by wram_omega) hid)
   rw [hin] at htbank
   have hnot : (Bank.inputReg : Fin (Bank.capacity 44 + 4)) ∉ Bank.regs (0 : Fin 44) := by
     intro hi
