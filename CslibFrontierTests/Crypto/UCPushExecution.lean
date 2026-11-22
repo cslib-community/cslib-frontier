@@ -3,6 +3,9 @@ Copyright (c) 2026 Karn Seth. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Karn Seth
 -/
+module
+-- upstream: local-only (test)
+
 import CslibFrontier.Crypto.Protocols.UC.PushExecution
 
 /-!
@@ -30,6 +33,8 @@ End-to-end concrete witnesses exercising `Cslib.Crypto.Protocols.UC.Push`:
 * **Structural checks**: concrete checks of `steps_add`, `isQueryBounded_steps`,
   `eval_pushRun_zero`, and `κ`-dependent reactive nodes.
 -/
+
+set_option linter.privateModule false
 
 namespace CslibFrontierTests.Crypto.UCPushExecution
 

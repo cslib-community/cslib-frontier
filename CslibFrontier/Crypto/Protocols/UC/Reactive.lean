@@ -14,7 +14,7 @@ public import CslibFrontier.Crypto.Protocols.UC.Execution
 
 This file defines the vocabulary and pure single-token scheduler transition for a push-style
 execution of interactive machines, modeled after the single-token activation model of
-§3.1.2 of [Canetti2020] (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34).
+§3.1.2 of [Canetti2020] (JACM pp. 28:23–28:24, 28:33).
 
 In this library's single-token push reading:
 - A system has a fixed finite set of `m` nodes addressed by index `Fin m` rather than dynamically
@@ -53,15 +53,16 @@ The operational runner built on this vocabulary lives in
 ## References
 
 * [R. Canetti, *Universally Composable Security*][Canetti2020], §3.1.2
-  (JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34).
+  (JACM pp. 28:23–28:24, 28:33).
 -/
 
 public section
 
 namespace Cslib.Crypto.Protocols.UC.Push
 
-/-- The tape an external write targets (§3.1.2 of [Canetti2020], JACM p. 28:23, ePrint p. 24:
-"`t` is a tape name out of `{input, subroutine-output, backdoor}`"). -/
+/-- Library construction (no cited definition): the tape an external write targets (§3.1.2 of
+[Canetti2020], JACM p. 28:23: "`t` is a tape name out of `{input, subroutine-output, backdoor}`").
+-/
 inductive TapeName where
   | input
   | subroutineOutput
@@ -72,9 +73,9 @@ instance : Fintype TapeName where
   elems := {.input, .subroutineOutput, .backdoor}
   complete t := by cases t <;> simp
 
-/-- A message in flight between the nodes `Fin m` of a push system. The runner fills in `sender`,
-so the recipient always learns it (the reveal-sender-id flag `r` of §3.1.2 of [Canetti2020],
-JACM p. 28:23, ePrint p. 24, is fixed to `1`). -/
+/-- Library construction (no cited definition): a message in flight between the nodes `Fin m` of a
+push system. The runner fills in `sender`, so the recipient always learns it (the reveal-sender-id
+flag `r` of §3.1.2 of [Canetti2020], JACM p. 28:23, is fixed to `1`). -/
 structure Envelope (m : ℕ) (Msg : Type) where
   /-- The node that emitted the write. -/
   sender : Fin m
@@ -86,8 +87,8 @@ structure Envelope (m : ℕ) (Msg : Type) where
   payload : Msg
   deriving DecidableEq
 
-/-- What activates a node: the initial node's auxiliary input, a delivered envelope, or a return
-of control to the initial node. -/
+/-- Library construction (no cited definition): what activates a node: the initial node's auxiliary
+input, a delivered envelope, or a return of control to the initial node. -/
 inductive Delivery (m : ℕ) (Msg : Type) where
   /-- The initial activation of the initial node with auxiliary input `input`. -/
   | start (input : List Bool)
@@ -98,10 +99,10 @@ inductive Delivery (m : ℕ) (Msg : Type) where
   | resume
   deriving DecidableEq
 
-/-- How an activation ends in this library's single-token push reading: one external write
-(ending the activation and, if allowed, activating its recipient; §3.1.2 of [Canetti2020],
-JACM p. 28:24, ePrint p. 24), ending without a write (`yield`), or halting with an output bit
-(`halt`). -/
+/-- Library construction (no cited definition): how an activation ends in this library's
+single-token push reading: one external write (ending the activation and, if allowed, activating its
+recipient; §3.1.2 of [Canetti2020], JACM p. 28:24), ending without a write (`yield`), or halting
+with an output bit (`halt`). -/
 inductive Outcome (m : ℕ) (Msg : Type) where
   /-- Perform one external write to `recipient`'s `tape` with `payload`. -/
   | write (recipient : Fin m) (tape : TapeName) (payload : Msg)
@@ -109,27 +110,28 @@ inductive Outcome (m : ℕ) (Msg : Type) where
   library convention. -/
   | yield
   /-- Halt the active node with output bit `output`; if this is the initial node the execution
-  ends with `output` (§3.1.2 of [Canetti2020], JACM p. 28:23, ePrint p. 24), otherwise the node
-  is recorded as halted and control returns to the initial node by library convention. -/
+  ends with `output` (§3.1.2 of [Canetti2020], JACM p. 28:23), otherwise the node is recorded as
+  halted and control returns to the initial node by library convention. -/
   | halt (output : Bool)
   deriving DecidableEq
 
-/-- A reactive node in a fixed `m`-node push system: a closed interactive machine (no oracle
-calls) whose activations take a `Delivery` and return an `Outcome`. -/
+/-- Library construction (no cited definition): a reactive node in a fixed `m`-node push system: a
+closed interactive machine (no oracle calls) whose activations take a `Delivery` and return an
+`Outcome`. -/
 abbrev ReactiveNode (m : ℕ) (Msg : Type) : Type 1 :=
   Machine OracleSpec.empty (netSpec (Delivery m Msg) (Outcome m Msg))
 
 /-- Library construction (no cited definition): a control function over the log of previously
 delivered envelopes, returning `true` to allow a proposed write or `false` to disallow it
-(narrower than §3.1.2 of [Canetti2020], JACM p. 28:23, ePrint p. 24, where the control function
-reads the entire execution prefix and may be extended to redirect writes). -/
+(narrower than §3.1.2 of [Canetti2020], JACM p. 28:23, where the control function reads the entire
+execution prefix and may be extended to redirect writes). -/
 abbrev ControlFunction (m : ℕ) (Msg : Type) : Type :=
   List (Envelope m Msg) → Envelope m Msg → Bool
 
 /-- Library construction (no cited definition): a push system comprising a fixed family of `m`
 reactive nodes indexed by security parameter and node index, a distinguished initial node, and a
 control function (a library reading of the pair `(I, C)` of §3.1.2 of [Canetti2020], JACM
-p. 28:23, ePrint p. 24, with the node set fixed in advance rather than dynamically invoked). -/
+p. 28:23, with the node set fixed in advance rather than dynamically invoked). -/
 structure PushSystem (m : ℕ) (Msg : Type) : Type 1 where
   /-- The reactive node at index `i` for security parameter `κ`. -/
   node : ℕ → Fin m → ReactiveNode m Msg
@@ -138,9 +140,9 @@ structure PushSystem (m : ℕ) (Msg : Type) : Type 1 where
   /-- The control function deciding whether each external write is allowed. -/
   control : ControlFunction m Msg
 
-/-- The scheduler's bookkeeping for a single-token push run: who is activated next and with what
-delivery, the log of delivered envelopes, the set of halted non-initial nodes, and the initial
-node's output bit once it has halted. -/
+/-- Library construction (no cited definition): the scheduler's bookkeeping for a single-token push
+run: who is activated next and with what delivery, the log of delivered envelopes, the set of
+halted non-initial nodes, and the initial node's output bit once it has halted. -/
 structure TokenState (m : ℕ) (Msg : Type) where
   /-- The node holding the activation token next. -/
   target : Fin m
@@ -154,8 +156,9 @@ structure TokenState (m : ℕ) (Msg : Type) where
   running. -/
   output : Option Bool
 
-/-- The initial scheduler state for initial node `i` and auxiliary input `z`: `i` is activated
-with `.start z`, the delivered log and halted set are empty, and no output has been produced. -/
+/-- Library infrastructure (no cited result): the initial scheduler state for initial node `i` and
+auxiliary input `z`: `i` is activated with `.start z`, the delivered log and halted set are empty,
+and no output has been produced. -/
 @[expose] def TokenState.initialFor {m : ℕ} {Msg : Type} (i : Fin m) (z : List Bool) :
     TokenState m Msg where
   target := i
@@ -166,18 +169,18 @@ with `.start z`, the delivered log and halted set are empty, and no output has b
 
 /-- Library infrastructure for the pure scheduler transition applying the active node `ts.target`'s
 `Outcome` in push system `S` (in this library's push reading of §3.1.2 of [Canetti2020],
-JACM pp. 28:22–28:24, 28:33; ePrint pp. 23–24, 34; narrower in fixed index addressing, eager
-initialization, forced sender-revealing writes, and a log-based control function):
+JACM pp. 28:23–28:24, 28:33; narrower in fixed index addressing, eager initialization, forced
+sender-revealing writes, and a log-based control function):
 - `write r t p` allowed by `S.control`: the envelope `e` is appended to `ts.log` and `r` is
-  activated next with `.deliver e` (step 1a, §3.1.2 of [Canetti2020], JACM p. 28:24, ePrint p. 24).
+  activated next with `.deliver e` (step 1a, §3.1.2 of [Canetti2020], JACM p. 28:24).
 - `write r t p` disallowed by `S.control`: the write is not carried out and the initial node is
-  activated next with `.resume` (§3.1.2 of [Canetti2020], JACM p. 28:23, ePrint p. 24).
+  activated next with `.resume` (§3.1.2 of [Canetti2020], JACM p. 28:23).
 - `yield`: the initial node is activated next with `.resume` (library convention).
 - `halt b` by the initial node: execution ends with `output := some b` (§3.1.2 of [Canetti2020],
-  JACM p. 28:23, ePrint p. 24).
+  JACM p. 28:23).
 - `halt b` by a non-initial node: `ts.target` is recorded in `ts.halted` (so later activations
-  perform no operation per §3.1.2 of [Canetti2020], JACM p. 28:33, ePrint p. 34) and the initial
-  node is activated next with `.resume` (library convention). -/
+  perform no operation per §3.1.2 of [Canetti2020], JACM p. 28:33) and the initial node is activated
+  next with `.resume` (library convention). -/
 @[expose] def TokenState.next {m : ℕ} {Msg : Type} (S : PushSystem m Msg)
     (ts : TokenState m Msg) : Outcome m Msg → TokenState m Msg
   | .write r t p =>
