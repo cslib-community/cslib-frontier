@@ -166,6 +166,8 @@ theorem polarizeCode_code {n m : ℕ} (C₀ C₁ : Circuit signature n m) (lam e
 
 open Turing.MultiTapeTM ComputableInPolyTime
 
+attribute [local irreducible] Turing.MultiTapeTM.ComputableInPolyTime
+
 /-- The exclusive-or chain is polynomial-time, with a binary input count and a unary length. -/
 theorem computableInPolyTime_xorChainCode {α : Type} {enc : α ↪ List Bool} (c : Bool)
     {N j : α → ℕ} (hN : ComputableInPolyTime N enc encNat)
