@@ -943,11 +943,6 @@ theorem realizes_demoteSlabGen :
       (fun _ _ => 0) := by
   have hloop := realizes_demoteLoopGen
   have hpop := realizes_gmPopSlabGen
-  refine Realizes.congr (p := fun d : DictParams × (ℕ × ℕ) => do
-      let k0 ← pure 0
-      let _ ← demoteLoopGenProg ((d, k0), dpSlabSize d.1)
-      gmPopSlabGenProg d) ?_
-    (fun d => by simp only [demoteSlabGenProg, pure_bind])
   realizeDictWith [demoteSlabGenPre_mk, iterationSafe_demoteStepGenProg_mk,
     demoteLoopGenProg_mk, gmPopSlabGenPre_mk, gmPopSlabGenProg_mk]
   · exact (iterate_demoteStepProg_spec hw h.2.2 (slabSize n_max) 0 s

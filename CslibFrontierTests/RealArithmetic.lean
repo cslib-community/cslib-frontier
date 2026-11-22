@@ -235,6 +235,14 @@ example :
     rcases request with ⟨_, strict⟩
     cases strict <;> simp [Option.any, FormulaComparisonRequest.requestedSign]
 
+-- A raw formula word and a framed sign list are ordinary inputs to the space certificate.
+example :
+    ComputableInPolySpace (fun p : List Bool × List SignType =>
+      formulaWordGateValuesWithSignature p.1 (fun index : Fin p.2.length => p.2[index.val]))
+      (encPair encBits (encList encSign)) encBits :=
+  formulaWordGateValuesWithSignature_polySpace (ComputableInPolyTime.fst _ _)
+    (ComputableInPolyTime.snd _ _)
+
 -- A malformed word has no comparison terms, so its sign reader can be arbitrary.
 example (termSign : List Bool → SignType) (x : Fin 0 → ℝ) :
     (formulaWordGateValues [] termSign).getD 0 false = true ↔
