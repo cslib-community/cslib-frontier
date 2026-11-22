@@ -571,18 +571,30 @@ theorem WExec.start_procInv {S : WExec φ} (h : S.Inv) {t : Literal ℕ} (ht : t
   assign := h.assign
   occurs := h.occurs
 
+/-- Removing the literal `t` from `q`, after the literals `acc`, reversed, passed before it. -/
+@[expose] def eraseLitGo : List (Literal ℕ) → Literal ℕ → List (Literal ℕ) → List (Literal ℕ)
+  | [], _, acc => acc.reverse
+  | a :: as, t, acc => if Assign.litEq a t then acc.reverseAux as else eraseLitGo as t (a :: acc)
+
 /-- **Removing the literal `t` from a queue**, as `List.erase` does (`eraseLit_eq`), comparing
 literals directly. The literals queued while `t` was processed come before it, so this reads only
-them: unlike `List.erase`, it builds no accumulator. -/
-@[expose] def eraseLit : List (Literal ℕ) → Literal ℕ → List (Literal ℕ)
-  | [], _ => []
-  | a :: as, t => if Assign.litEq a t then as else a :: eraseLit as t
+them. A visit of one watch list can queue any number of literals before `t`, so the removal is
+tail-recursive: the literals before `t` are pushed on an accumulator and put back in front of the
+rest by `List.reverseAux`, which is tail-recursive too, and the stack stays constant. -/
+@[expose] def eraseLit (q : List (Literal ℕ)) (t : Literal ℕ) : List (Literal ℕ) :=
+  eraseLitGo q t []
 
-theorem eraseLit_eq : ∀ (q : List (Literal ℕ)) (t : Literal ℕ), eraseLit q t = q.erase t
-  | [], _ => rfl
-  | a :: as, t => by
-    rw [eraseLit, List.erase_cons, Assign.litEq_eq_decide, eraseLit_eq as t]
-    simp only [decide_eq_true_eq, beq_iff_eq]
+theorem eraseLitGo_eq : ∀ (q : List (Literal ℕ)) (t : Literal ℕ) (acc : List (Literal ℕ)),
+    eraseLitGo q t acc = acc.reverse ++ q.erase t
+  | [], _, acc => by simp [eraseLitGo]
+  | a :: as, t, acc => by
+    rw [eraseLitGo, List.erase_cons, Assign.litEq_eq_decide]
+    by_cases h : a = t
+    · simp [h, List.reverseAux_eq]
+    · simp [h, eraseLitGo_eq as t (a :: acc)]
+
+theorem eraseLit_eq (q : List (Literal ℕ)) (t : Literal ℕ) : eraseLit q t = q.erase t := by
+  simp [eraseLit, eraseLitGo_eq]
 
 /-- Finishing the processing of `t`: removing it from the queue. -/
 @[expose]
