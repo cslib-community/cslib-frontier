@@ -5105,6 +5105,7 @@ public import CslibFrontier.Computability.WordRAM.PointerMachine.Scalar
 public import CslibFrontier.Computability.WordRAM.PointerMachine.Simulation
 public import CslibFrontier.Computability.WordRAM.Power
 public import CslibFrontier.Computability.WordRAM.Power.Rename
+public import CslibFrontier.Computability.WordRAM.PreservesMask
 public import CslibFrontier.Computability.WordRAM.RAM
 public import CslibFrontier.Computability.WordRAM.RAMInput
 public import CslibFrontier.Computability.WordRAM.Randomized.Defs

@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BoxProduct.State
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Actual span capture and complete box-ABI restoration
@@ -134,8 +135,6 @@ private theorem exec_restoreBoxArguments {w L m t N Q AA BB : ℕ} (x : Data 160
   all_goals simp [y, v₁, v, Data.comap_regs, eA, eB, eL, eM, eT, eH, eSpan,
     eD, eR, eV, eK, eS]
 
-set_option maxRecDepth 4096 in
--- The fixed caller frame check unfolds the existing 32-member 160-register protocol.
 /-- Actual checked span arithmetic and complete box argument restoration, including the
 saved query cursors and real temporary-to-grouped copy arguments. -/
 theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
@@ -178,9 +177,10 @@ theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
       QueriedProduct.outputBase QueriedProduct.groupedBase QueriedProduct.originalBase
     omega
   obtain ⟨v, hv, vn, vs, vo, vd, vl, vm⟩ := exec_batchArguments u uq un uo ub.results fq
-  have vp : QueriedProduct.Parameters L m N Q v := up.of_frame (by
-    intro i hi
-    exact hv.regs_eq (by decide +revert))
+  have vp : QueriedProduct.Parameters L m N Q v := up.of_frame (fun i hi =>
+    hv.regs_eq (Code.preserves_of_preservesAllPred (by
+      simp only [QueriedProduct.parameterRegisters, Finset.mem_insert, Finset.mem_singleton]
+      rfl) i hi))
   have vb : Parameters L m t N Q v := by
     exact ⟨(hv.regs_eq (by decide)).trans ub.threshold,
       (hv.regs_eq (by decide)).trans ub.directory, (hv.regs_eq (by decide)).trans ub.records,
@@ -193,7 +193,10 @@ theorem exec_tileArguments {w L m t N Q j a b : ℕ} (x : Data 160)
   obtain ⟨y, hy, ym, yc, yi, yt, yV, yK, yA, yB⟩ :=
     exec_restoreBoxArguments v vp vb vA vB hfit
   have he : ExecWithin w tileArguments x y 44 := hu.seq (hv.seq hy)
-  refine ⟨y, he, hp.of_frame (by intro i hi; exact he.regs_eq (by decide +revert)),
+  refine ⟨y, he, hp.of_frame (fun i hi =>
+    he.regs_eq (Code.preserves_of_preservesAllPred (by
+      simp only [QueriedProduct.parameterRegisters, Finset.mem_insert, Finset.mem_singleton]
+      rfl) i hi)),
     ?_, ym.trans (vm.trans um), ?_, yc, yi, yt, yV, yK, yA, yB, ?_, ?_, ?_, ?_, ?_⟩
   · exact ⟨(he.regs_eq (by decide)).trans hb.threshold,
       (he.regs_eq (by decide)).trans hb.directory, (he.regs_eq (by decide)).trans hb.records,

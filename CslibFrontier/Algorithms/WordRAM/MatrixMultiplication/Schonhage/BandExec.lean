@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandAll
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandTables
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandCost
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Complete native shared-band execution
@@ -24,9 +25,6 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ba
 public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
-
--- Static frame checks reduce the fixed parameter bank and finite native table code.
-set_option maxRecDepth 4096
 
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
@@ -115,7 +113,9 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
   obtain ⟨s, hes, hsmem, hsr⟩ := exec_saveInput h hhp hfit
   have hsp : HeaderPost L m N s := headerPost_reframe hhp (by
     intro i hi
-    have hp : ∀ i ∈ headerRegisters, 7 ≤ i.val := by decide
+    have hp : ∀ j ∈ headerRegisters, 7 ≤ j.val := by
+      simp only [headerRegisters, Finset.forall_mem_insert, Finset.mem_singleton, forall_eq]
+      decide
     exact hsr i (hp i hi))
   obtain ⟨c, hec, hcp, hcmem⟩ := exec_countCode s hsp hfit
   have htableParams : TableParameters L m (inverseBase L m N) (tableBase L m N) c :=
@@ -127,8 +127,11 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
   have htp : BandParameters L m N t := parameters_reframe hcp (by
     intro i hi
     apply het.regs_eq
-    have hp : ∀ i ∈ parameterRegisters, tablesCode.Preserves i := by
-      simp +decide only []
+    have hp : ∀ j ∈ parameterRegisters, tablesCode.Preserves j :=
+      Code.preserves_of_preservesAllPred (by
+        simp only [parameterRegisters, headerRegisters, Finset.mem_union,
+          Finset.mem_insert, Finset.mem_singleton]
+        rfl)
     exact hp i hi)
   have hinv : inverseBase L m N ≤ catalogueBase L m N := by
     unfold catalogueBase tableBase
@@ -171,7 +174,10 @@ theorem exec {w L m N : ℕ} (hw : 0 < w) (hm : m ≤ L) (x : Data 96)
   obtain ⟨y, hey, hymem, hyr⟩ := exec_restoreInput r hrp.toHeaderPost hfit
   have hyp : BandParameters L m N y := parameters_reframe hrp (by
     intro i hi
-    have hp : ∀ i ∈ parameterRegisters, 7 ≤ i.val := by decide
+    have hp : ∀ j ∈ parameterRegisters, 7 ≤ j.val := by
+      simp only [parameterRegisters, headerRegisters, Finset.forall_mem_union,
+        Finset.forall_mem_insert, Finset.mem_singleton, forall_eq]
+      decide
     exact hyr i (hp i hi))
   have hrestore (a : ℕ) (ha : inputEnd m N ≤ a) : y.mem a = r.mem a := by
     rw [hymem, ArrayCopy.copyPrefix_outside (by omega)]

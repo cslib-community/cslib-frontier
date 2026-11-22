@@ -24,11 +24,15 @@ public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
 
--- Static preservation checks reduce the finite persistent-register set.
-set_option maxRecDepth 4096
-
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
+
+private theorem ne_band_of_mem {i : Fin 96} (hi : i ∈ parameterRegisters) : i ≠ band := by
+  have hp : ∀ j ∈ parameterRegisters, j ≠ band := by
+    simp only [parameterRegisters, headerRegisters, Finset.forall_mem_union,
+      Finset.forall_mem_insert, Finset.mem_singleton, forall_eq]
+    decide
+  exact hp i hi
 
 /-- Catalogue blocks are ordered by band index, without duplicating them per tile. -/
 theorem catalogue_address_lt {L m N β γ p : ℕ} (side : Bool) (hβγ : β < γ)
@@ -82,10 +86,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
     ExecWithin.const (fits_zero _)
   have hp : BandParameters L m N start := parameters_reframe hx (by
     intro i hi
-    have hne : i ≠ band := by
-      have hp : ∀ i ∈ parameterRegisters, i ≠ band := by decide
-      exact hp i hi
-    simp only [start, Data.set_regs, Function.update_of_ne hne])
+    simp only [start, Data.set_regs, Function.update_of_ne (ne_band_of_mem hi)])
   let P (j : ℕ) (y : Data 96) : Prop := BandParameters L m N y ∧
     (∀ β < j, ∀ p < 10 ^ L,
       y.mem (catalogueAddress L m N side β p) =
@@ -129,8 +130,7 @@ theorem exec_encodeBands {w L m N : ℕ} (hw : 0 < w) (side : Bool) (x : Data 96
     refine ⟨z, he.seq hz, ?_, hzb⟩
     · refine ⟨parameters_reframe htp ?_, ?_, ?_⟩
       · intro i hi
-        have hp : ∀ i ∈ parameterRegisters, i ≠ band := by decide
-        simp only [z, Data.set_regs, Function.update_of_ne (hp i hi)]
+        simp only [z, Data.set_regs, Function.update_of_ne (ne_band_of_mem hi)]
       · intro γ hγ p hp
         change t.mem _ = _
         by_cases hγβ : γ = β

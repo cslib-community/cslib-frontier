@@ -12,6 +12,7 @@ public import CslibFrontier.Computability.WordRAM.Multiword.Circuit
 public import CslibFrontier.Computability.WordRAM.Multiword.Compile
 public import CslibFrontier.Computability.WordRAM.Multiword.CircuitRun
 public import CslibFrontier.Computability.WordRAM.Compile
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.FinCases
 import CslibFrontier.Tactic.WramOmega
@@ -112,12 +113,13 @@ def ops (s : ℕ) : Fin 44 → Operation 44 :=
 /-- Slot zero is the supplied input. -/
 private theorem values_input (s x : ℕ) : values s x 0 = x := rfl
 
--- Reducing both 44-entry vectors in the last finite cases exceeds the default depth.
-set_option maxRecDepth 2048 in
 /-- Every executed source node agrees with its pure arithmetic expression. -/
 theorem eval_ops (s x : ℕ) (i : Fin 44) (hi : i ≠ 0) :
     (ops s i).eval (values s x) = values s x i := by
-  fin_cases i <;> first | exact (hi rfl).elim | rfl
+  fin_cases i <;> first
+    | exact (hi rfl).elim
+    | simp [ops, values, Operation.eval, clusterMarkers, clusterSummary, powerFlags,
+        powerCount, smallMSB]
 
 /-- All source operands precede their destination, including the unused constant
 placeholder at zero. Hence each executed destination is fresh. -/
@@ -387,22 +389,19 @@ theorem exec_code {w z : ℕ} (hw : 2 ≤ w) (hz : z < 2 ^ w) :
   by_cases hw2 : w = 2
   · subst w
     have hdiv : Fits 2 (z / 2) := (show Fits 2 z from hz).of_le (Nat.div_le_self z 2)
-    have he : ∃ y, Exec 2 twoBitCode (Data.init [z]) y 4 ∧ y.regs output = z / 2 ∧
+    have hmem : (Data.init [z] : Data (Bank.capacity 44 + 4)).mem 1 = z := rfl
+    have he : ∃ y, ExecWithin 2 twoBitCode (Data.init [z]) y 4 ∧ y.regs output = z / 2 ∧
         y.mem = (Data.init [z] : Data (Bank.capacity 44 + 4)).mem := by
-      let y : Data (Bank.capacity 44 + 4) :=
-        ((((Data.init [z]).set Bank.inputReg 1).set Bank.inputReg z).set zeroTest 2).set
-          output (z / 2)
-      refine ⟨y, ?_, ?_, rfl⟩
-      · ram_eval [twoBitCode, y, Data.init, Bank.inputReg, zeroTest, output, hdiv]
-        simp [hdiv]
-      · simp [y]
+      unfold twoBitCode
+      wram_exec [hmem, hdiv]
+      wram_simp
     obtain ⟨y, he, hy, hm⟩ := he
     have hlog : z / 2 = z.log2 := by
       have hz4 : z < 4 := hz
       interval_cases z <;> rfl
     refine ⟨y, ?_, hy.trans hlog, hm⟩
     change ExecWithin 2 twoBitCode (Data.init [z]) y 200000
-    exact he.within.mono (by decide)
+    exact he.mono (by decide)
   · obtain ⟨u, heu, hu, hum, huz⟩ := Bank.exec_input hw hz (0 : Fin 44)
     obtain ⟨y, hey, hy, hym⟩ := exec_finishCode (by omega) hz u hu huz
     refine ⟨y, ?_, hy, hym.trans hum⟩

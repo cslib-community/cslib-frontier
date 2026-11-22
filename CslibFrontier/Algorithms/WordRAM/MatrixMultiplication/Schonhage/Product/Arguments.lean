@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Transfer
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Computing each tile's actual kernel arguments
@@ -26,8 +27,6 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
 open Cslib.WordRAM
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-set_option maxRecDepth 4096 in
--- The fixed 160-register footprint check simplifies a 32-member persistent register set.
 /-- Actual tile-index arithmetic and kernel-argument setup cost twenty-one instructions.
 Only the two real offset words are read. Every unsigned arithmetic fit follows from the
 original allocation bound and the computed span bounds. -/
@@ -115,7 +114,10 @@ public theorem exec_tileArguments {w L m N Q t a b : ℕ} (x : Data 160)
   have yp : Parameters L m N Q y := hp.of_frame (by
     intro i hi
     apply he.regs_eq
-    have h : ∀ i ∈ parameterRegisters, tileArguments.Preserves i := by decide +kernel
+    have h : ∀ j ∈ parameterRegisters, tileArguments.Preserves j :=
+      Code.preserves_of_preservesAllPred (by
+        simp only [parameterRegisters, Finset.mem_insert, Finset.mem_singleton]
+        rfl)
     exact h i hi)
   refine ⟨y, he, yp, rfl, ?_⟩
   simp +decide [y, Data.comap_regs, hx, B, H, C, bank,

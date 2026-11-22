@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Pruned.Codes
 public import CslibFrontier.Computability.WordRAM.Power
 public import CslibFrontier.Computability.WordRAM.Signed.Arithmetic
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Fixed native code for pruned tensor queries
@@ -359,11 +360,12 @@ def program : Code .standard registers := ram[
   ⟪header⟫; ⟪powers⟫; ⟪parameters⟫; ⟪work⟫ ]
 
 /-- The same program is used at every word width; it never reads the physical word size. -/
-theorem not_readsWidth : ¬program.ReadsWidth := by decide
+theorem not_readsWidth : ¬program.ReadsWidth :=
+  Code.not_readsWidth_of_readsWidthBool rfl
 
-set_option maxRecDepth 4096 in
--- Flattening the fixed nested controller also expands its two signed arithmetic kernels.
 /-- A fixed bound on both control code and all arithmetic blocks, including the final halt. -/
-theorem program_length_le : (program.program output).length ≤ 4096 := by decide
+theorem program_length_le : (program.program output).length ≤ 4096 := by
+  simp only [Code.program, List.length_append, Code.length_assemble, List.length_singleton]
+  decide +kernel
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.PrunedQuery

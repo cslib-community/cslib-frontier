@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandRead
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Complete native padded-band preparation
@@ -24,9 +25,6 @@ public section
 
 namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandPreparation
 
--- The static frame checks reduce finite programs over 96 registers and their parameter sets.
-set_option maxRecDepth 4096
-
 open Cslib.WordRAM Cslib.WordRAM.Signed
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
@@ -38,14 +36,19 @@ theorem band_input_le_snapshot (L m N : ℕ) : 2 + 7 ^ L ≤ snapshotBase L m N 
   omega
 
 private theorem split_preserves_parameters :
-    ∀ i ∈ parameterRegisters, splitCode.Preserves i := by
-  simp only [parameterRegisters, headerRegisters, splitCode, splitHead, splitBody,
-    Code.Preserves, Op.dest, Op.bin]
-  decide
+    ∀ i ∈ parameterRegisters, splitCode.Preserves i :=
+  Code.preserves_of_preservesAllPred (by
+    simp only [parameterRegisters, headerRegisters, Finset.mem_union,
+      Finset.mem_insert, Finset.mem_singleton]
+    rfl)
 
 private theorem prepare_preserves_parameters (side : Bool) :
     ∀ i ∈ parameterRegisters, (prepareBody side).Preserves i := by
-  cases side <;> simp +decide only []
+  cases side <;>
+    exact Code.preserves_of_preservesAllPred (by
+      simp only [parameterRegisters, headerRegisters, Finset.mem_union,
+        Finset.mem_insert, Finset.mem_singleton]
+      rfl)
 
 /-- The entire input band is materialized with charged initialization, digit/index work,
 padding and loop control. No cell outside the depth header and the band input is changed. -/
@@ -70,9 +73,11 @@ theorem exec_prepareBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
   have hsp : BandParameters L m N start := parameters_reframe hx (by
     intro i hi
     apply hs.regs_eq
-    have hp : ∀ i ∈ parameterRegisters, prepareHead.Preserves i := by
-      simp only [parameterRegisters, headerRegisters, prepareHead, Code.Preserves, Op.dest]
-      decide
+    have hp : ∀ j ∈ parameterRegisters, prepareHead.Preserves j :=
+      Code.preserves_of_preservesAllPred (by
+        simp only [parameterRegisters, headerRegisters, Finset.mem_union,
+          Finset.mem_insert, Finset.mem_singleton]
+        rfl)
     exact hp i hi)
   let P (j : ℕ) (y : Data 96) : Prop := BandParameters L m N y ∧ y.regs band = β ∧
     y.mem 1 = L ∧
@@ -150,9 +155,7 @@ theorem exec_prepareBand {w L m N : ℕ} (side : Bool) (β : ℕ) (x : Data 96)
     refine ⟨z, he, ?_, hzindex⟩
     · refine ⟨parameters_reframe hy.1 (fun j hj =>
         he.regs_eq (prepare_preserves_parameters side j hj)), ?_, ?_, ?_, ?_⟩
-      · exact (he.regs_eq (by
-          cases side <;>
-            simp +decide only [])).trans hy.2.1
+      · exact (he.regs_eq (by cases side <;> decide)).trans hy.2.1
       · rw [hzmem, Function.update_of_ne (by omega : 1 ≠ i + 2)]
         exact hy.2.2.1
       · intro a ha

@@ -110,14 +110,14 @@ public theorem Parameters.of_frame {L m N Q : ℕ} {x y : Data 160}
     Parameters L m N Q y := by
   regs_frame
 
-set_option maxRecDepth 2048 in
--- Simplifying the fixed 32-member register set unfolds its finite membership expressions.
 /-- Existing native callees operate below register 96, leaving this caller protocol intact. -/
 public theorem Parameters.reframe {L m N Q : ℕ} {x y : Data 160}
     (hx : Parameters L m N Q x) (h : ∀ i, 96 ≤ i.val → y.regs i = x.regs i) :
     Parameters L m N Q y := hx.of_frame (by
   intro i hi
-  have hs : ∀ i ∈ parameterRegisters, 96 ≤ i.val := by decide
+  have hs : ∀ j ∈ parameterRegisters, 96 ≤ j.val := by
+    simp only [parameterRegisters, Finset.forall_mem_insert, Finset.mem_singleton, forall_eq]
+    decide
   exact h i (hs i hi))
 
 /-- Assigning a working register does not change any persistent parameter. -/
