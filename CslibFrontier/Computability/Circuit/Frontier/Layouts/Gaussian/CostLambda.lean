@@ -779,7 +779,7 @@ theorem u2CubicPairBound_gaussian :
   set c : ℝ := ε * h
   have hcpos : 0 < c := mul_pos hε hhpos
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
-  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq_three_halves hloop h3
+  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq hloop h3
   let grid (i : ℕ) : ℝ := -T + i * δ
   let winEv (i : ℕ) : E → Set (V → ℝ) :=
     edgeScoreEvent G q R fun x => grid i ≤ x ∧ x < grid i + δ

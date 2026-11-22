@@ -218,17 +218,6 @@ theorem dependsOn_pairBothEvent (hloop : G.Loopless) (M : Set E) (q : ℝ) (R : 
     exact G.pairStraddlesBoth_congr fun f hf => edgeScore_congr_of_outer hloop q R hf hω
   · rfl
 
-/-- Handshaking identity `(3 / 2) |V|` for a loopless cubic multigraph. -/
-theorem card_edges_eq_three_halves [Fintype E] (hloop : G.Loopless)
-    (h3 : ∀ v, (G.incidenceSet v).ncard = 3) :
-    (Fintype.card E : ℝ) = 3 / 2 * Fintype.card V := by
-  have hsum := G.sum_ncard_incidenceSet hloop
-  simp only [h3, Finset.sum_const, Finset.card_univ, smul_eq_mul] at hsum
-  have hR : ((Fintype.card V * 3 : ℕ) : ℝ) = ((2 * Nat.card E : ℕ) : ℝ) := by exact_mod_cast hsum
-  rw [← Nat.card_eq_fintype_card (α := E)]
-  push_cast at hR
-  linarith
-
 private theorem vertexOverlap_three_le_succ (R : ℕ) :
     (vertexOverlap 3 R : ℝ) ≤ (vertexOverlap 3 (R + 1) : ℕ) := by
   refine Nat.cast_le.mpr ?_
@@ -262,7 +251,7 @@ theorem measureReal_deviation_closedBall_src_le [Fintype E] (hloop : G.Loopless)
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
   refine (measureReal_deviation_le hm (fun e => closedBall G.toSimpleGraph (G.src e) (R + 2)) hd
     (fun e => card_not_disjoint_closedBall_src_le hdeg (R + 1) e) hc).trans_eq ?_
-  rw [card_edges_eq_three_halves hloop h3]
+  rw [card_edges_eq hloop h3]
 
 /-- Concentration bound for `edgeScoreEvent G q R p` in a loopless cubic multigraph. -/
 theorem measureReal_deviation_edgeScoreEvent_le [Fintype E] (hloop : G.Loopless)
@@ -271,13 +260,10 @@ theorem measureReal_deviation_edgeScoreEvent_le [Fintype E] (hloop : G.Loopless)
     (Measure.pi fun _ : V => gaussianReal 0 1).real (deviation (edgeScoreEvent G q R p) c) ≤
       3 / 2 * Fintype.card V * ((vertexOverlap 3 (R + 1) : ℕ) : ℝ) / c ^ 2 := by
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
-  have hdep : ∀ e, DependsOn (· ∈ edgeScoreEvent G q R p e)
-      (closedBall G.toSimpleGraph (G.src e) (R + 1)) := fun e ω ω' hω => by
-    simp only [edgeScoreEvent, mem_ofPred_eq, edgeScore_congr (Or.inl rfl) hω]
   refine (measureReal_deviation_le (fun e => measurable_edgeScore q R e hp)
-    (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) hdep
+    (fun e => closedBall G.toSimpleGraph (G.src e) (R + 1)) (dependsOn_edgeScoreEvent q R p)
     (fun e => card_not_disjoint_closedBall_src_le hdeg R e) hc).trans ?_
-  rw [card_edges_eq_three_halves hloop h3]
+  rw [card_edges_eq hloop h3]
   have hmono := vertexOverlap_three_le_succ R
   gcongr
 
@@ -296,7 +282,7 @@ theorem twelve_mul_ncard_edgeScore_tail_le [Fintype E] (hloop : G.Loopless)
   have hmean_t : ∑ e, P.real (edgeScoreEvent G q R p e) ≤ 3 / 2 * h * (1 / T ^ 2) := by
     refine (Finset.sum_le_sum fun e _ => (measureReal_mono (μ := P) fun ω' hω' =>
       hp _ hω').trans (measureReal_le_abs_le (hunit e) hT)).trans_eq ?_
-    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, card_edges_eq_three_halves hloop h3]
+    rw [Finset.sum_const, Finset.card_univ, nsmul_eq_mul, card_edges_eq hloop h3]
   have hmul : 12 * (3 / 2 * h * (1 / T ^ 2)) = h * (18 / T ^ 2) := by field_simp; ring
   have hset : {e | ω ∈ edgeScoreEvent G q R p e} = {e | p (edgeScore G q R ω e)} := rfl
   rw [hset] at hcount
@@ -326,7 +312,7 @@ theorem exists_good_matching_sample_of_mean [Fintype E] (hloop : G.Loopless)
   set c : ℝ := ε * h
   have hcpos : 0 < c := mul_pos hε hhpos
   have hdeg : G.MaxDegreeLE 3 := fun v => (h3 v).le
-  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq_three_halves hloop h3
+  have hE : (Fintype.card E : ℝ) = 3 / 2 * h := card_edges_eq hloop h3
   let grid (i : ℕ) : ℝ := -T + i * δ
   let winEv (i : ℕ) : E → Set (V → ℝ) :=
     edgeScoreEvent G q R fun x => grid i ≤ x ∧ x < grid i + δ
