@@ -1,2 +1,3 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Registry

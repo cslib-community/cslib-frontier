@@ -430,7 +430,7 @@ Andrei Z. Broder. “On the Resemblance and Containment of Documents.” *Procee
 <a id="bs23"></a>
 ## bs23
 
-Dan Boneh and Victor Shoup. *A Graduate Course in Applied Cryptography*, version 0.6, January 2023. https://crypto.stanford.edu/~dabo/cryptobook/BonehShoup_0_6.pdf . Title, authors and edition verified from the primary PDF during independent source review on 2026-11-02. Detailed textbook locator claims remain attributed to the Lean source docstrings; no complete textbook correspondence audit was performed.
+Dan Boneh and Victor Shoup. *A Graduate Course in Applied Cryptography*, version 0.6, January 2023. https://crypto.stanford.edu/~dabo/cryptobook/BonehShoup_0_6.pdf . Title, authors and edition verified from the primary PDF during independent source review on 2026-11-02. For `CslibFrontier.Crypto.Computational.CBCMAC`, checked on 2026-11-22 against `BonehShoup_0_6.pdf` (SHA-256 `67bc4507f7558c99f0ecc331651da224f0a73b2453fdd8ff5e67c8d4e56cc7dd`): Section 4.4.1 (Attack Game 4.2 and Definition 4.2, printed pp. 132–133), Section 4.6.1 (Definition 4.5, printed p. 152), Section 6.1 (Attack Game 6.1 and Definition 6.2, printed pp. 218–219), Section 6.3 (Theorem 6.2, printed p. 224), Section 6.4.1 (Figure 6.3a, Theorem 6.3, and equation (6.7), printed pp. 226–229), Section 6.4.3 (CBC extension attack, printed pp. 230–231), and Sections 6.6–6.6.1 (Theorem 6.8 and Method 1, printed pp. 235–236). Other detailed textbook locator claims remain attributed to the Lean source docstrings; no complete textbook correspondence audit was performed.
 
 <a id="bt06"></a>
 ## bt06

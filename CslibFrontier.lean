@@ -5246,6 +5246,7 @@ public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Experi
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Protocol
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Static
 public import CslibFrontier.Crypto.Computational.Basic
+public import CslibFrontier.Crypto.Computational.CBCMAC
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
