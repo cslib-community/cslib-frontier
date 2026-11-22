@@ -71,12 +71,6 @@ private theorem fin_add_one_eq_zero {n : ℕ} [NeZero n] (hn : 1 < n) {i : Fin n
     (h : i.1 + 1 = n) : i + 1 = 0 :=
   Fin.ext (by rw [fin_val_add_one_eq_ite hn, ite_eq_left h, Fin.val_zero])
 
-private theorem fin_add_one_ne_zero {n : ℕ} [NeZero n] {i : Fin n}
-    (h : i.1 + 1 < n) : i + 1 ≠ 0 := fun h0 => by
-  have := congrArg Fin.val h0
-  rw [Fin.val_add_one_of_lt' h, Fin.val_zero] at this
-  omega
-
 private theorem finCongr_add_one {a b : ℕ} (hab : a = b) [NeZero a] [NeZero b] (k : Fin a) :
     finCongr hab (k + 1) = finCongr hab k + 1 := by
   subst hab
