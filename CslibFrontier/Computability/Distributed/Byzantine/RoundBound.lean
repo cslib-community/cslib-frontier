@@ -519,13 +519,14 @@ private theorem solvesByzantineAgreement_reindex {P Q S S' M M' : Type*}
 /-- Protocols sharing `send` and `update` whose initial states agree at every process visit
 identical states at every round. -/
 private theorem state_eq_of_init_eq {P S M : Type*} [DecidableEq P]
-    {π₁ π₂ : Protocol P S M} (hsend : π₁.send = π₂.send) (hupd : π₁.update = π₂.update)
-    {x₁ x₂ : P → Bool} (hinit : ∀ i, π₁.init i (x₁ i) = π₂.init i (x₂ i))
+    (π₁ π₂ : Protocol P S M) (x₁ x₂ : P → Bool)
+    (hsend : π₁.send = π₂.send) (hupd : π₁.update = π₂.update)
+    (hinit : ∀ i, π₁.init i (x₁ i) = π₂.init i (x₂ i))
     (F : Finset P) (adv : ℕ → P → P → M) :
     ∀ r, π₁.state F adv x₁ r = π₂.state F adv x₂ r
   | 0 => funext hinit
   | r + 1 => by
-    have ih := state_eq_of_init_eq hsend hupd hinit F adv r
+    have ih := state_eq_of_init_eq π₁ π₂ x₁ x₂ hsend hupd hinit F adv r
     funext i
     simp only [Protocol.state, ih, hsend, hupd]
 
@@ -562,6 +563,18 @@ from `Protocol.state` on `π`'s underlying synchronous message-passing transitio
     { init := fun i _ => π.init i (inp i), send := π.send,
       update := π.update, output := fun _ _ => false }
     F adv (fun _ => false)
+
+/-- Any Boolean `Protocol` sharing `π.send` and `π.update` whose per-process initial state on `x`
+matches `π.init · (inp ·)` visits the exact same state `π.state F adv inp r` at every round `r`. -/
+private theorem protocol_state_eq (πB : Protocol P S M) (x : P → Bool) (inp : P → V)
+    (hsend : πB.send = π.send) (hupd : πB.update = π.update)
+    (hinit : ∀ i, πB.init i (x i) = π.init i (inp i))
+    (F : Finset P) (adv : ℕ → P → P → M) (r : ℕ) :
+    πB.state F adv x r = π.state F adv inp r :=
+  Protocol.state_eq_of_init_eq πB
+    { init := fun i _ => π.init i (inp i), send := π.send,
+      update := π.update, output := fun _ _ => false }
+    x (fun _ => false) hsend hupd hinit F adv r
 
 /-- Output vector computed by process `i` after `R` rounds. -/
 @[expose] def decision (F : Finset P) (adv : ℕ → P → P → M) (inp : P → V) (R : ℕ) (i : P) :
@@ -614,7 +627,7 @@ theorem not_solvesInteractiveConsistency_of_rounds_le [Fintype P] [Nontrivial V]
   }
   have hstate (F : Finset P) (adv : ℕ → P → P → M) (x : P → Bool) :
       π₀.state F adv x R = π.state F adv (fun j => if x j then v₁ else v₀) R :=
-    Protocol.state_eq_of_init_eq rfl rfl (fun _ => rfl) F adv R
+    π.protocol_state_eq π₀ x (fun j => if x j then v₁ else v₀) rfl rfl (fun _ => rfl) F adv R
   have hR_solves := h.mono hR
   refine π₀.not_agreement_and_zero_unanimity (R := R) (by omega) ?_ (p₀ := p₀) ?_
   · intro F hF adv x i hi j hj
@@ -645,21 +658,27 @@ coordinates in `π`'s output vector are `true`, producing a Boolean consensus `P
   update := π.update
   output i s := decide (Fintype.card P < 2 * (Finset.univ.filter fun q => π.output i s q).card)
 
+private theorem toByzantineAgreement_decision (F : Finset P) (adv : ℕ → P → P → M)
+    (x : P → Bool) (R : ℕ) (i : P) :
+    π.toByzantineAgreement.decision F adv x R i =
+      decide (Fintype.card P <
+        2 * (Finset.univ.filter fun q => π.decision F adv x R i q).card) := by
+  rw [Protocol.decision,
+    π.protocol_state_eq π.toByzantineAgreement x x rfl rfl (fun _ => rfl) F adv R]
+  rfl
+
 /-- When `2 * t < Fintype.card P`, strict majority over an `R`-round interactive consistency
 protocol's output vector solves Boolean Byzantine agreement in the same `R` rounds. -/
 theorem solvesByzantineAgreement_toByzantineAgreement {t R : ℕ}
     (ht : 2 * t < Fintype.card P) (h : π.SolvesInteractiveConsistency t R) :
     π.toByzantineAgreement.SolvesByzantineAgreement t R where
   agreement F hF adv x i hi j hj := by
-    rw [Protocol.decision, Protocol.decision,
-      Protocol.state_eq_of_init_eq rfl rfl (fun _ => rfl) F adv R]
-    have hvec := h.agreement F hF adv x i hi j hj
+    rw [π.toByzantineAgreement_decision, π.toByzantineAgreement_decision]
     exact congrArg
-      (fun vec => decide (Fintype.card P < 2 * (Finset.univ.filter fun q => vec q).card)) hvec
+      (fun vec => decide (Fintype.card P < 2 * (Finset.univ.filter fun q => vec q).card))
+      (h.agreement F hF adv x i hi j hj)
   validity F hF adv x v hv i hi := by
-    rw [Protocol.decision, Protocol.state_eq_of_init_eq rfl rfl (fun _ => rfl) F adv R]
-    change decide
-      (Fintype.card P < 2 * (Finset.univ.filter fun q => π.decision F adv x R i q).card) = v
+    rw [π.toByzantineAgreement_decision]
     set ones := Finset.univ.filter fun q => π.decision F adv x R i q
     cases v with
     | false =>
