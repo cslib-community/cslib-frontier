@@ -10,6 +10,7 @@ public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Data.Polynomial.BivariateCoeffNorm1
 public import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public import Mathlib.Algebra.Polynomial.Bivariate
+import CslibFrontier.Foundations.Algebra.Polynomial.BivariateKronecker
 import CslibFrontier.Foundations.Data.MvPolynomial.Substitution
 
 /-!
@@ -19,7 +20,8 @@ This adapts the per-gate polynomial in `LeanCanny.ETR.FormulaAtomPolynomials.fam
 at lean-canny revision `970f28a5ecefc1327402ade16c068aa4b1b2c183` to the frontier term
 source. Evaluating both variables recovers the original term evaluated at the specialized
 coordinates. The term budget bounds both degrees of the substituted polynomial and the growth
-of its coefficient norm.
+of its coefficient norm. With a radix above the inner degree bound, Kronecker substitution
+recovers a bivariate coefficient by reading one univariate coefficient.
 -/
 
 public section
@@ -73,5 +75,30 @@ theorem formulaWordGatePolynomial_bivariateCoeffNorm1_le (word : List Bool) (ind
   rw [formulaWordGatePolynomial, mul_pow]
   exact (Polynomial.bivariateCoeffNorm1_aeval_le _ coordinates hM hcoordinates).trans
     (Nat.mul_le_mul hnorm (Nat.pow_le_pow_right hM hdegree))
+
+/-- A radix larger than the gate-term budget times the coordinate inner degree bound
+lets a univariate substitution recover the gate's coefficient at inner index `i`
+and outer index `j`, for `i < radix`. This is the polynomial identity used by
+`LeanCanny.ETR.BivariateTermReader.coefficient_eq` at the revision above. -/
+theorem coeff_aeval_kronecker_formulaWordGateTerm (word : List Bool) (index : ℕ)
+    (coordinates : Fin word.length → Polynomial (Polynomial ℤ)) {inner radix : ℕ}
+    (hinner : ∀ k, (Polynomial.Bivariate.swap (coordinates k)).natDegree ≤ inner)
+    (hradix : max word.length (encTerm 0 (.const 0)).length * inner < radix)
+    (i j : ℕ) (hi : i < radix) :
+    (MvPolynomial.aeval (fun k => (coordinates k).eval (Polynomial.X ^ radix))
+      (formulaWordGateTerm word index).toPolynomial).coeff (i + radix * j) =
+        ((formulaWordGatePolynomial word index coordinates).coeff j).coeff i := by
+  let specialize : Polynomial (Polynomial ℤ) →ₐ[ℤ] Polynomial ℤ :=
+    (Polynomial.aeval (R := Polynomial ℤ) (Polynomial.X ^ radix)).restrictScalars ℤ
+  change (MvPolynomial.aeval (fun k => specialize (coordinates k))
+    (formulaWordGateTerm word index).toPolynomial).coeff (i + radix * j) = _
+  rw [← MvPolynomial.comp_aeval_apply (φ := specialize)]
+  change ((formulaWordGatePolynomial word index coordinates).eval
+    (Polynomial.X ^ radix)).coeff (i + radix * j) = _
+  let outerDegree : Fin word.length → ℕ := fun k => (coordinates k).natDegree
+  have houter (k : Fin word.length) : (coordinates k).natDegree ≤ Finset.univ.sup outerDegree :=
+    Finset.le_sup (f := outerDegree) (Finset.mem_univ k)
+  have hdegree := (formulaWordGatePolynomial_degree_bounds word index coordinates houter hinner).2
+  exact Polynomial.Bivariate.coeff_eval_X_pow _ (hdegree.trans_lt hradix) i j hi
 
 end Cslib.Logic.RealArithmetic
