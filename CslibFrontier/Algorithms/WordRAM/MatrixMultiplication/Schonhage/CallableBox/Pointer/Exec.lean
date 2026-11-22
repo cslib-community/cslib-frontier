@@ -12,6 +12,7 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Ca
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.CallableBox.Exec
 import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Flat
 import CslibFrontier.Computability.WordRAM.Call
+import CslibFrontier.Computability.WordRAM.RegisterFrame
 import CslibFrontier.Computability.WordRAM.Width
 
 /-!
@@ -35,21 +36,18 @@ open CallableProduct
 @[expose] def timeBound (m t : ℕ) {N : ℕ} (qs : List (Fin N × Fin N)) : ℕ :=
   coreTime m t qs + 2 + 7 * (QueriedProduct.inputEnd m N qs.length + 1) + 7 * qs.length + 14
 
-private theorem preserves_rename {r s : ℕ} {f : Fin r → Fin s} {i : Fin s}
-    (hi : ∀ j, f j ≠ i) (c : Code .standard r) : (c.rename f).Preserves i := by
-  induction c with
-  | op o => cases o <;> simp [Code.rename, Op.rename, Code.Preserves, Op.dest, hi]
-  | _ => simp_all [Code.rename, Code.Preserves]
-
 private theorem pointer_registers_preserved :
     program.Preserves Reg.left ∧ program.Preserves Reg.right ∧ program.Preserves Reg.queries := by
   have hg : gather.Preserves Reg.left ∧ gather.Preserves Reg.right ∧
       gather.Preserves Reg.queries := by decide
-  have hc (i : Fin 173) (hi : 163 ≤ i.val) (r : Fin 163) : callableBank r ≠ i :=
-    fun h => by have := congrArg Fin.val h; change r.val = i.val at this; omega
   simp only [program, core, setupLayout, Code.Preserves, hg,
-    preserves_rename (hc Reg.left (by decide)), preserves_rename (hc Reg.right (by decide)),
-    preserves_rename (hc Reg.queries (by decide)), and_self]
+    fun c : Code .standard 163 =>
+      c.preserves_rename_of_forall_ne callableBank Reg.left (callableBank_ne_of_le (by decide)),
+    fun c : Code .standard 163 =>
+      c.preserves_rename_of_forall_ne callableBank Reg.right (callableBank_ne_of_le (by decide)),
+    fun c : Code .standard 163 =>
+      c.preserves_rename_of_forall_ne callableBank Reg.queries (callableBank_ne_of_le (by decide)),
+    and_self]
 
 /-- Execute fixed pointer code from actual external readback, without a solver certificate. -/
 theorem exec {W b m t N s r q : ℕ}
