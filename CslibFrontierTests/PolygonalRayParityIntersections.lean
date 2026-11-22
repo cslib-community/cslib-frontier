@@ -549,13 +549,15 @@ example :
     unfold Route.rayParity rayParity
     change (∑ i : Fin 1, if RayCrosses (1 * excursionStem.point i.castSucc)
       (1 * excursionStem.point i.succ) (1 * z) then (true : Bool) else 0) = _
-    simp only [Fin.sum_univ_one, one_mul] <;> rfl
+    simp only [Fin.sum_univ_one, one_mul]
+    rfl
   have squareBits (z : ℂ) : excursionSquare.rayParity 1 z =
       bit 0 ⟨2, 0⟩ z + bit ⟨2, 0⟩ ⟨2, 2⟩ z + bit ⟨2, 2⟩ ⟨0, 2⟩ z + bit ⟨0, 2⟩ 0 z := by
     unfold Route.rayParity rayParity
     change (∑ i : Fin 4, if RayCrosses (1 * excursionSquare.point i.castSucc)
       (1 * excursionSquare.point i.succ) (1 * z) then (true : Bool) else 0) = _
-    simp only [Fin.sum_univ_four, one_mul] <;> rfl
+    simp only [Fin.sum_univ_four, one_mul]
+    rfl
   norm_num [stemBit, squareBits, bit, RayCrosses, horizontalIntercept]
   exact Bool.zero_eq_false
 
