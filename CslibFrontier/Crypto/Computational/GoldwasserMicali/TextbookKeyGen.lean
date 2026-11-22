@@ -7,14 +7,16 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Gcd
 public import CslibFrontier.Crypto.Computational.GoldwasserMicali
-public import CslibFrontier.Probability.DDGTree.Rejection
+public import CslibFrontier.Foundations.Data.Nat.ChineseRemainder
 public import CslibFrontier.Probability.StatisticalDistance.CloseTo
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Basic
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.Binary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.BinaryDiv
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Nat.ChineseRemainder
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Plain
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
@@ -28,6 +30,7 @@ import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Foundations.Data.ZMod.CRTUnits
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.RejectionSampling
+import CslibFrontier.Probability.DDGTree.Rejection
 import CslibFrontier.Probability.Option
 import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Bind
@@ -35,7 +38,6 @@ import CslibFrontier.Probability.PMF.BindFailure
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.EventBind
 import CslibFrontier.Probability.PMF.Uniform
-import CslibFrontier.Tactic.EncLen
 import CslibFrontier.Tactic.PolyTime
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.FieldTheory.Finite.Basic
@@ -45,24 +47,25 @@ import Mathlib.FieldTheory.Finite.Basic
 
 Formalizes the strict-PPT textbook Goldwasser–Micali key generator over general distinct odd primes
 `p ≠ q` (`ModulusDesc`, without restricting to Blum moduli `p ≡ q ≡ 3 (mod 4)`) and its single-bit
-and bitwise multi-bit chosen-plaintext security from `QuadraticResiduosityHard` alone (after
-[KatzLindell2020], Section 15.4.4, Construction 15.28 and Theorem 15.29, locator not verified;
-pending primary-source verification of [KatzLindell2020] Sections 15.4.3–15.4.4 for registry
-enrollment):
+and bitwise multi-bit chosen-plaintext security steps toward #5293 from `QuadraticResiduosityHard`
+alone, parameterized by a modulus generator `gen : ℕ → ProbComp ModulusDesc` (native prime-pair
+modulus generation remains tracked in #5293 §3; after [KatzLindell2020], Section 15.4.4,
+Construction 15.28 and Theorem 15.29, locator not verified, #5578):
 
-* **Per-prime rejection sampling** (`isNonresidueModPrime`, `qnrRejectionSpec`,
-  `sampleNonresidueModPrime`): for an odd prime `p`, Euler's criterion tests non-squareness in
-  `(ZMod p)ˣ` via `a ^ ((p - 1) / 2) mod p == p - 1` (`isNonresidueModPrime_eq_true_iff`). Because
-  `(p - 1) / 2` of the `(p - 1)` units are quadratic nonresidues and `2 ^ (p.size - 1) ≤ p - 1`, a
-  single `(encNat p).length`-bit fair-coin block accepts with probability at least `1 / 4` and has
-  zero conditional modular bias. Running `3 * (n + 1)` blocks (`sampleNonresidueModPrime`) fails
-  with probability at most `(27 / 64) ^ (n + 1) ≤ 1 / 2 ^ (n + 1)` and is uniformly strict PPT.
-* **Polynomial-time Fermat-inverse CRT** (`crtCombineNat`, `textbookPublicKey`, `textbookKeyGen`):
-  for distinct odd primes `p ≠ q`, `powMod p q (p - 2)` and `powMod q p (q - 2)` invert `q mod p`
-  and `p mod q` by Fermat's little theorem without signed extended-GCD arithmetic. Combining
-  per-prime nonresidues yields the canonical representative of `(ZMod.unitsChineseRemainder _).symm`
-  in `positiveNonresidues p q` (`QNR_N^{+1}`; `crtCombineNat_eq_unitsChineseRemainder_symm_val`,
-  `KeyDesc.ofNonresidues`).
+* **Per-prime rejection sampling** (`isNonresidueModPrime`, `sampleNonresidueModPrime`): for an odd
+  prime `p`, Euler's criterion tests non-squareness in `(ZMod p)ˣ` via
+  `a ^ ((p - 1) / 2) mod p == p - 1` (`isNonresidueModPrime_eq_true_iff`). Because `(p - 1) / 2` of
+  the `(p - 1)` units are quadratic nonresidues and `2 ^ (p.size - 1) ≤ p - 1`, a single
+  `(encNat p).length`-bit fair-coin block accepts with probability at least `1 / 4` and has zero
+  conditional modular bias. Running `3 * (n + 1)` blocks (`sampleNonresidueModPrime`) fails with
+  probability at most `(27 / 64) ^ (n + 1) ≤ 1 / 2 ^ (n + 1)`
+  (`toOuterMeasure_not_isNonresidueModPrime_le`) and is uniformly strict PPT
+  (`isPPTOn_sampleNonresidueModPrime`).
+* **Polynomial-time Chinese remainder recombination** (`textbookPublicKey`, `textbookKeyGen`):
+  recombining `(z_p % p, z_q)` modulo `(p, q)` via `Cslib.crtCombine` and `BinaryGcd.modInv p q`
+  produces a residue `< p * q` matching `(ZMod.unitsChineseRemainder _).symm` in
+  `positiveNonresidues p q` (`QNR_N^{+1}`; `crtCombine_modInv_eq_unitsChineseRemainder_symm_val`,
+  `exists_posNonresidue_crtCombine`, `KeyDesc.ofNonresidues`).
 * **Statistical closeness and correctness**: for every modulus sampler `gen : ℕ → ProbComp
   ModulusDesc`, `(ProbComp.eval (textbookKeyGen gen n)).map Prod.fst` is within `1 / 2 ^ n`
   statistical distance (`CloseTo`) of the exact uniform law `publicKeyLaw`
@@ -71,7 +74,7 @@ enrollment):
   `decryptWord_encryptWord_of_isNonresidueModPrime`), and key generation produces a valid `KeyDesc`
   with probability at least `1 - 1 / 2 ^ n` (`toOuterMeasure_not_exists_keyDesc_textbookKeyGen_le`,
   `closeTo_decrypt_encrypt_textbookKeyGen`, `closeTo_decryptWord_encryptWord_textbookKeyGen`).
-* **Single-bit and multi-bit IND-CPA from `QuadraticResiduosityHard` alone**: combining
+* **Single-bit and multi-bit IND-CPA steps from `QuadraticResiduosityHard` alone**: combining
   `closeTo_textbookKeyGen_publicKeyLaw` with `advantage_publicKeyGame_le_qr` and
   `advantage_publicKeyWordGame_le_qr` proves quantitative bounds with factor-`2` QR loss
   independent of message length (`advantage_textbookGame_le_qr`,
@@ -83,26 +86,24 @@ enrollment):
 
 * `Cslib.Crypto.GoldwasserMicali.isNonresidueModPrime`: Euler-criterion nonresidue test modulo an
   odd prime.
-* `Cslib.Crypto.GoldwasserMicali.qnrRejectionSpec`,
-  `Cslib.Crypto.GoldwasserMicali.sampleNonresidueModPrime`: fair-bit block-rejection specification
-  and `3 * (n + 1)`-trial strict-PPT nonresidue sampler.
-* `Cslib.Crypto.GoldwasserMicali.crtCombineNat`,
-  `Cslib.Crypto.GoldwasserMicali.textbookPublicKey`,
-  `Cslib.Crypto.GoldwasserMicali.textbookKeyGen`: Fermat-inverse CRT combiner, public-key encoder,
-  and textbook Goldwasser–Micali key generator.
+* `Cslib.Crypto.GoldwasserMicali.sampleNonresidueModPrime`: `3 * (n + 1)`-trial fair-bit
+  block-rejection strict-PPT nonresidue sampler.
+* `Cslib.Crypto.GoldwasserMicali.textbookPublicKey`,
+  `Cslib.Crypto.GoldwasserMicali.textbookKeyGen`: CRT public-key encoder (`Cslib.crtCombine` with
+  `BinaryGcd.modInv`) and textbook Goldwasser–Micali key generator.
 * `Cslib.Crypto.GoldwasserMicali.KeyDesc.ofNonresidues`: valid `KeyDesc` constructed from accepted
-  per-prime nonresidues.
+  per-prime nonresidues (`@[expose]`, `KeyDesc.ofNonresidues_toModulusDesc`,
+  `KeyDesc.ofNonresidues_z`).
 
 ## Main results
 
-* `Cslib.Crypto.GoldwasserMicali.isNonresidueModPrime_eq_true_iff`: Euler's criterion characterizes
-  non-square units modulo an odd prime.
-* `Cslib.Crypto.GoldwasserMicali.natCast_crtCombineNat_fst`,
-  `Cslib.Crypto.GoldwasserMicali.natCast_crtCombineNat_snd`,
-  `Cslib.Crypto.GoldwasserMicali.crtCombineNat_eq_unitsChineseRemainder_symm_val`: residue and
-  unit-CRT characterizations of `crtCombineNat`.
+* `Cslib.Crypto.GoldwasserMicali.isNonresidueModPrime_eq_true_iff`,
+  `Cslib.Crypto.GoldwasserMicali.toOuterMeasure_not_isNonresidueModPrime_le`: Euler's criterion
+  characterization and `1 / 2 ^ (n + 1)` rejection-failure bound for `sampleNonresidueModPrime`.
+* `Cslib.Crypto.GoldwasserMicali.crtCombine_modInv_eq_unitsChineseRemainder_symm_val`,
+  `Cslib.Crypto.GoldwasserMicali.exists_posNonresidue_crtCombine`: unit-CRT and
+  `positiveNonresidues` characterizations of `Cslib.crtCombine` with `BinaryGcd.modInv`.
 * `Cslib.Crypto.GoldwasserMicali.computableInPolyTime_isNonresidueModPrime`,
-  `Cslib.Crypto.GoldwasserMicali.computableInPolyTime_crtCombineNat`,
   `Cslib.Crypto.GoldwasserMicali.isPPTOn_sampleNonresidueModPrime`,
   `Cslib.Crypto.GoldwasserMicali.isPPTOn_textbookKeyGen`: polynomial-time and uniform strict-PPT
   certificates.
@@ -141,18 +142,15 @@ open scoped ENNReal NNReal Cslib.Probability.PMF
 @[expose] def isNonresidueModPrime (p a : ℕ) : Bool :=
   decide (0 < a) && decide (a < p) && (powMod p a ((p - 1) / 2) == p - 1)
 
-/-- Fair-bit block-rejection specification for sampling a quadratic nonresidue modulo `p`: each
-trial reads `(encNat p).length` (`= p.size`) fair bits, decodes `BitString.binaryValue`, and
-accepts values passing `isNonresidueModPrime p`. -/
-def qnrRejectionSpec (p : ℕ) : BlockRejectionSpec ℕ where
+private def qnrRejectionSpec (p : ℕ) : BlockRejectionSpec ℕ where
   width := (encNat p).length
   attempt w :=
     let a := BitString.binaryValue w
     if isNonresidueModPrime p a then some a else none
 
 /-- Capped strict-PPT sampler for a quadratic nonresidue modulo `p` at security parameter `n`:
-run `3 * (n + 1)` independent `(encNat p).length`-bit rejection trials of `qnrRejectionSpec p`,
-returning `1` if all trials reject. -/
+run `3 * (n + 1)` independent `(encNat p).length`-bit fair-coin rejection blocks testing
+`isNonresidueModPrime p ∘ BitString.binaryValue`, returning `1` if all blocks reject. -/
 noncomputable def sampleNonresidueModPrime (n p : ℕ) : ProbComp ℕ :=
   ProbComp.sampleBlockCapped (qnrRejectionSpec p) 1 (3 * (n + 1))
 
@@ -165,9 +163,6 @@ theorem isNonresidueModPrime_eq_true_iff {p : ℕ} [Fact p.Prime] (hp : 2 < p) (
   have hp0 : p ≠ 0 := hp_prime.ne_zero
   have h1p : Fact (1 < p) := ⟨by omega⟩
   have hhalf : (p - 1) / 2 = p / 2 := by
-    have := Nat.odd_iff.mp (hp_prime.odd_of_ne_two (by omega))
-    omega
-  have hodd : p / 2 * 2 = p - 1 := by
     have := Nat.odd_iff.mp (hp_prime.odd_of_ne_two (by omega))
     omega
   have hneg1 : (-1 : ZMod p).val = p - 1 := by
@@ -200,35 +195,26 @@ theorem isNonresidueModPrime_eq_true_iff {p : ℕ} [Fact p.Prime] (hp : 2 < p) (
       intro h1
       obtain ⟨r, hr⟩ := (ZMod.euler_criterion_units p u).mpr h1
       exact hnotsq ⟨r, by rw [← hr, sq]⟩
-    have hsq1 : ((u ^ (p / 2) : (ZMod p)ˣ) : ZMod p) ^ 2 = 1 := by
-      rw [← Units.val_pow_eq_pow_val, ← pow_mul, hodd, ZMod.units_pow_card_sub_one_eq_one,
-        Units.val_one]
-    have hm1 : ((u ^ (p / 2) : (ZMod p)ˣ) : ZMod p) = -1 := by
-      rcases sq_eq_one_iff.mp hsq1 with h1 | hm1
-      · exact False.elim (hne1 (Units.ext h1))
+    have hm1 : (u.val : ZMod p) ^ (p / 2) = -1 := by
+      rcases ZMod.pow_div_two_eq_neg_one_or_one p u.ne_zero with h1 | hm1
+      · exact False.elim (hne1 (Units.ext (by rwa [Units.val_pow_eq_pow_val])))
       · exact hm1
     have hmod : ((u.val.val ^ (p / 2) % p : ℕ) : ZMod p) = -1 := by
-      rw [ZMod.natCast_mod, Nat.cast_pow, ZMod.natCast_zmod_val, ← Units.val_pow_eq_pow_val, hm1]
+      rw [ZMod.natCast_mod, Nat.cast_pow, ZMod.natCast_zmod_val, hm1]
     have hval := congrArg ZMod.val hmod
     rwa [ZMod.val_natCast_of_lt (Nat.mod_lt _ (by omega)), hneg1] at hval
 
-/-! ### Explicit polynomial-time Fermat-inverse Chinese remaindering -/
+/-! ### Polynomial-time Chinese remainder recombination (`Cslib.crtCombine` + `BinaryGcd.modInv`) -/
 
-/-- Explicit polynomial-time Chinese remainder combination modulo `p * q` via Fermat's little
-theorem: for distinct primes `p ≠ q` with `2 < p` and `2 < q`, `powMod p q (p - 2)` and
-`powMod q p (q - 2)` invert `q mod p` and `p mod q` without signed extended-GCD arithmetic. -/
-@[expose] def crtCombineNat (p q z_p z_q : ℕ) : ℕ :=
-  (z_p * q * powMod p q (p - 2) + z_q * p * powMod q p (q - 2)) % (p * q)
-
-/-- Encoded Goldwasser–Micali public key `⟨p * q, crtCombineNat p q z_p z_q⟩` built from prime
-factors `(p, q)` and per-prime residues `(z_p, z_q)`. -/
+/-- Encoded Goldwasser–Micali public key `⟨p * q, crtCombine p q (z_p % p) z_q (modInv p q)⟩` built
+from prime factors `(p, q)` and per-prime residues `(z_p, z_q)`. -/
 @[expose] def textbookPublicKey (p q z_p z_q : ℕ) : List Bool :=
-  encPair encNat encNat (p * q, crtCombineNat p q z_p z_q)
+  encPair encNat encNat (p * q, crtCombine p q (z_p % p) z_q (BinaryGcd.modInv p q))
 
 /-- Textbook Goldwasser–Micali key generation (after [KatzLindell2020], Section 15.4.4,
-Construction 15.28, locator not verified): draw `d ← gen n`, independently sample `z_p` and `z_q`
-via capped fair-bit rejection sampling (`sampleNonresidueModPrime`), and output
-`pk = ⟨d.p * d.q, crtCombineNat d.p d.q z_p z_q⟩` and `sk = ⟨d.p, d.q⟩`. -/
+Construction 15.28, locator not verified, #5578): draw `d ← gen n`, independently sample `z_p` and
+`z_q` via capped fair-bit rejection sampling (`sampleNonresidueModPrime`), and output
+`pk = textbookPublicKey d.p d.q z_p z_q` and `sk = ⟨d.p, d.q⟩`. -/
 noncomputable def textbookKeyGen (gen : ℕ → ProbComp ModulusDesc) (n : ℕ) :
     ProbComp (List Bool × List Bool) := do
   let d ← gen n
@@ -246,79 +232,77 @@ theorem exists_of_mem_support_textbookKeyGen {gen : ℕ → ProbComp ModulusDesc
   supp_cases hkeys [textbookKeyGen] with ⟨d, hd, z_p, _, z_q, _, rfl⟩
   exact ⟨d, hd, z_p, z_q, rfl⟩
 
-private theorem crtCombineNat_comm (p q z_p z_q : ℕ) :
-    crtCombineNat p q z_p z_q = crtCombineNat q p z_q z_p := by
-  simp only [crtCombineNat, add_comm, mul_comm p q]
-
-/-- Modulo `p`, `crtCombineNat p q z_p z_q` reduces to `z_p` for distinct primes `p ≠ q` with
-`2 ≤ p`. -/
-theorem natCast_crtCombineNat_fst {p q : ℕ} [Fact p.Prime] (hq : Nat.Prime q) (hpq : p ≠ q)
-    (hp2 : 2 ≤ p) (z_p z_q : ℕ) :
-    ((crtCombineNat p q z_p z_q : ℕ) : ZMod p) = (z_p : ZMod p) := by
-  have hp_prime : Nat.Prime p := Fact.out
-  unfold crtCombineNat
-  rw [← ZMod.natCast_mod (_ % (p * q)) p, Nat.mod_mod_of_dvd _ (dvd_mul_right p q),
-    ZMod.natCast_mod, powMod_of_ne_zero hp_prime.ne_zero]
-  push_cast
-  rw [ZMod.natCast_self, mul_zero, zero_mul, add_zero, ZMod.natCast_mod, Nat.cast_pow, mul_assoc,
-    ← pow_succ', show p - 2 + 1 = p - 1 by omega]
-  have hq0 : (q : ZMod p) ≠ 0 := by
-    rw [Ne, ZMod.natCast_eq_zero_iff]
-    intro hdvd
-    rcases (Nat.dvd_prime hq).mp hdvd with rfl | rfl
-    · exact hp_prime.ne_one rfl
-    · exact hpq rfl
-  rw [ZMod.pow_card_sub_one_eq_one hq0, mul_one]
-
-/-- Modulo `q`, `crtCombineNat p q z_p z_q` reduces to `z_q` for distinct primes `p ≠ q` with
-`2 ≤ q`. -/
-theorem natCast_crtCombineNat_snd {p q : ℕ} [Fact q.Prime] (hp : Nat.Prime p) (hpq : p ≠ q)
-    (hq2 : 2 ≤ q) (z_p z_q : ℕ) :
-    ((crtCombineNat p q z_p z_q : ℕ) : ZMod q) = (z_q : ZMod q) := by
-  rw [crtCombineNat_comm]
-  exact natCast_crtCombineNat_fst hp hpq.symm hq2 z_q z_p
-
 /-- On canonical natural representatives of `(u_p, u_q) : (ZMod d.p)ˣ × (ZMod d.q)ˣ`,
-`crtCombineNat d.p d.q` computes the canonical natural representative of
-`(ZMod.unitsChineseRemainder hcop).symm (u_p, u_q)`. -/
-theorem crtCombineNat_eq_unitsChineseRemainder_symm_val (d : ModulusDesc)
+`crtCombine d.p d.q (u_p.val.val % d.p) u_q.val.val (BinaryGcd.modInv d.p d.q)` computes the
+canonical natural representative of `(ZMod.unitsChineseRemainder hcop).symm (u_p, u_q)`. -/
+theorem crtCombine_modInv_eq_unitsChineseRemainder_symm_val (d : ModulusDesc)
     (hcop : d.p.Coprime d.q) (u_p : (ZMod d.p)ˣ) (u_q : (ZMod d.q)ˣ) :
-    crtCombineNat d.p d.q u_p.val.val u_q.val.val =
+    crtCombine d.p d.q (u_p.val.val % d.p) u_q.val.val (BinaryGcd.modInv d.p d.q) =
       ((ZMod.unitsChineseRemainder hcop).symm (u_p, u_q)).val.val := by
+  have : Fact d.p.Prime := ⟨d.prime_p⟩
+  have : Fact d.q.Prime := ⟨d.prime_q⟩
   let u := (ZMod.unitsChineseRemainder hcop).symm (u_p, u_q)
-  have hlt : crtCombineNat d.p d.q u_p.val.val u_q.val.val < d.p * d.q :=
-    Nat.mod_lt _ (Nat.mul_pos d.prime_p.pos d.prime_q.pos)
-  rw [← ZMod.val_natCast_of_lt hlt]
-  refine congrArg ZMod.val ((ZMod.chineseRemainder hcop).injective ?_)
-  rw [map_natCast]
   have hu : ZMod.unitsChineseRemainder hcop u = (u_p, u_q) :=
     (ZMod.unitsChineseRemainder hcop).apply_symm_apply (u_p, u_q)
-  have h1 : (ZMod.chineseRemainder hcop u.val).1 = u_p.val := by
-    rw [← ZMod.coe_unitsChineseRemainder_fst hcop u, hu]
-  have h2 : (ZMod.chineseRemainder hcop u.val).2 = u_q.val := by
-    rw [← ZMod.coe_unitsChineseRemainder_snd hcop u, hu]
-  refine Prod.ext ?_ ?_
-  · rw [Prod.fst_natCast, natCast_crtCombineNat_fst d.prime_q d.ne_pq d.two_lt_p.le,
-      ZMod.natCast_zmod_val, h1]
-  · rw [Prod.snd_natCast, natCast_crtCombineNat_snd d.prime_p d.ne_pq d.two_lt_q.le,
-      ZMod.natCast_zmod_val, h2]
+  have h1 : u.val.val % d.p = u_p.val.val := by
+    have hc : (ZMod.chineseRemainder hcop u.val).1 = u_p.val := by
+      rw [← ZMod.coe_unitsChineseRemainder_fst hcop u, hu]
+    rw [← ZMod.natCast_zmod_val u.val, map_natCast, Prod.fst_natCast] at hc
+    simpa only [ZMod.val_natCast] using congrArg ZMod.val hc
+  have h2 : u.val.val % d.q = u_q.val.val := by
+    have hc : (ZMod.chineseRemainder hcop u.val).2 = u_q.val := by
+      rw [← ZMod.coe_unitsChineseRemainder_snd hcop u, hu]
+    rw [← ZMod.natCast_zmod_val u.val, map_natCast, Prod.snd_natCast] at hc
+    simpa only [ZMod.val_natCast] using congrArg ZMod.val hc
+  have hinv : (BinaryGcd.modInv d.p d.q : ZMod d.q) * d.p = 1 := by
+    have hm := BinaryGcd.mul_modInv_modEq_one d.prime_q.pos hcop
+    rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm] at hm
+    exact hm
+  exact crtCombine_eq u.val.val_lt
+    ((Nat.mod_eq_of_lt u_p.val.val_lt).trans h1.symm) h2.symm _ hinv
+
+/-- Combining accepted per-prime nonresidues `(z_p, z_q)` via `Cslib.crtCombine` and
+`BinaryGcd.modInv` yields the canonical natural representative of an element of
+`positiveNonresidues d.p d.q` (`QNR_N^{+1}`). -/
+theorem exists_posNonresidue_crtCombine (d : ModulusDesc) {z_p z_q : ℕ}
+    (hp : isNonresidueModPrime d.p z_p = true) (hq : isNonresidueModPrime d.q z_q = true) :
+    ∃ u ∈ @positiveNonresidues d.p d.q ⟨d.prime_p⟩ ⟨d.prime_q⟩,
+      u.val.val = crtCombine d.p d.q (z_p % d.p) z_q (BinaryGcd.modInv d.p d.q) := by
+  have : Fact d.p.Prime := ⟨d.prime_p⟩
+  have : Fact d.q.Prime := ⟨d.prime_q⟩
+  obtain ⟨u_p, hnsq_p, rfl⟩ := (isNonresidueModPrime_eq_true_iff d.two_lt_p z_p).mp hp
+  obtain ⟨u_q, hnsq_q, rfl⟩ := (isNonresidueModPrime_eq_true_iff d.two_lt_q z_q).mp hq
+  have hcop : d.p.Coprime d.q := (Nat.coprime_primes d.prime_p d.prime_q).mpr d.ne_pq
+  let u := (ZMod.unitsChineseRemainder hcop).symm (u_p, u_q)
+  refine ⟨u, ?_, (crtCombine_modInv_eq_unitsChineseRemainder_symm_val d hcop u_p u_q).symm⟩
+  rw [mem_positiveNonresidues_iff_unitsChineseRemainder d.p d.q hcop d.two_lt_p d.two_lt_q u,
+    (ZMod.unitsChineseRemainder hcop).apply_symm_apply]
+  exact ⟨hnsq_p, hnsq_q⟩
 
 /-- Construct a valid `KeyDesc` (`z ∈ QNR_N^{+1}`) from `d : ModulusDesc` and any pair `(z_p, z_q)`
 passing `isNonresidueModPrime`. -/
+@[expose]
 def KeyDesc.ofNonresidues (d : ModulusDesc) {z_p z_q : ℕ}
     (hp : isNonresidueModPrime d.p z_p = true) (hq : isNonresidueModPrime d.q z_q = true) :
     KeyDesc where
   toModulusDesc := d
-  z := crtCombineNat d.p d.q z_p z_q
-  exists_posNonresidue := by
-    obtain ⟨u_p, hnsq_p, rfl⟩ := (isNonresidueModPrime_eq_true_iff d.two_lt_p z_p).mp hp
-    obtain ⟨u_q, hnsq_q, rfl⟩ := (isNonresidueModPrime_eq_true_iff d.two_lt_q z_q).mp hq
-    have hcop : d.p.Coprime d.q := (Nat.coprime_primes d.prime_p d.prime_q).mpr d.ne_pq
-    let u := (ZMod.unitsChineseRemainder hcop).symm (u_p, u_q)
-    refine ⟨u, ?_, (crtCombineNat_eq_unitsChineseRemainder_symm_val d hcop u_p u_q).symm⟩
-    rw [mem_positiveNonresidues_iff_unitsChineseRemainder d.p d.q hcop d.two_lt_p d.two_lt_q u,
-      (ZMod.unitsChineseRemainder hcop).apply_symm_apply]
-    exact ⟨hnsq_p, hnsq_q⟩
+  z := crtCombine d.p d.q (z_p % d.p) z_q (BinaryGcd.modInv d.p d.q)
+  exists_posNonresidue := exists_posNonresidue_crtCombine d hp hq
+
+/-- Underlying modulus descriptor of `KeyDesc.ofNonresidues d hp hq`. -/
+@[simp]
+theorem KeyDesc.ofNonresidues_toModulusDesc (d : ModulusDesc) {z_p z_q : ℕ}
+    (hp : isNonresidueModPrime d.p z_p = true) (hq : isNonresidueModPrime d.q z_q = true) :
+    (KeyDesc.ofNonresidues d hp hq).toModulusDesc = d :=
+  rfl
+
+/-- Public nonresidue `z` of `KeyDesc.ofNonresidues d hp hq`. -/
+@[simp]
+theorem KeyDesc.ofNonresidues_z (d : ModulusDesc) {z_p z_q : ℕ}
+    (hp : isNonresidueModPrime d.p z_p = true) (hq : isNonresidueModPrime d.q z_q = true) :
+    (KeyDesc.ofNonresidues d hp hq).z =
+      crtCombine d.p d.q (z_p % d.p) z_q (BinaryGcd.modInv d.p d.q) :=
+  rfl
 
 /-! ### Polynomial-time and uniform strict-PPT certificates -/
 
@@ -337,21 +321,6 @@ theorem computableInPolyTime_isNonresidueModPrime {α : Type} {input : α ↪ Li
   unfold isNonresidueModPrime
   exact ComputableInPolyTime.bool_and.comp
     ((ComputableInPolyTime.bool_and.comp (hpos.prod hlt)).prod heq)
-
-/-- `crtCombineNat` is computable in polynomial time on binary naturals. -/
-theorem computableInPolyTime_crtCombineNat {α : Type} {input : α ↪ List Bool}
-    {p q z_p z_q : α → ℕ} (hp : ComputableInPolyTime p input encNat)
-    (hq : ComputableInPolyTime q input encNat)
-    (hzp : ComputableInPolyTime z_p input encNat)
-    (hzq : ComputableInPolyTime z_q input encNat) :
-    ComputableInPolyTime (fun x => crtCombineNat (p x) (q x) (z_p x) (z_q x)) input encNat := by
-  have hN := ComputableInPolyTime.binary_mul' hp hq
-  have hinv_q := computableInPolyTime_powMod hp hq (.binary_sub' hp (.const 2))
-  have hinv_p := computableInPolyTime_powMod hq hp (.binary_sub' hq (.const 2))
-  have hterm1 := ComputableInPolyTime.binary_mul' (.binary_mul' hzp hq) hinv_q
-  have hterm2 := ComputableInPolyTime.binary_mul' (.binary_mul' hzq hp) hinv_p
-  unfold crtCombineNat
-  exact .binary_mod' (.binary_add' hterm1 hterm2) hN
 
 /-- `sampleNonresidueModPrime` is uniformly strict PPT for a unary security parameter and binary
 modulus. -/
@@ -403,7 +372,8 @@ theorem isPPTOn_textbookKeyGen {gen : ℕ → ProbComp ModulusDesc}
   have hzp₃ := (ComputableInPolyTime.snd E₁ encNat).comp hf₃
   have hzq₃ := ComputableInPolyTime.snd E₂ encNat
   have hN₃ := ComputableInPolyTime.binary_mul' hp₃ hq₃
-  have hcrt₃ := computableInPolyTime_crtCombineNat hp₃ hq₃ hzp₃ hzq₃
+  have hcrt₃ := ComputableInPolyTime.crtCombine' hp₃ hq₃ (.binary_mod' hzp₃ hp₃) hzq₃
+    (.binary_modInv' hp₃ hq₃)
   have hpk₃ : ComputableInPolyTime
       (fun w : ((ℕ × ModulusDesc) × ℕ) × ℕ =>
         textbookPublicKey w.1.1.2.p w.1.1.2.q w.1.2 w.2) E₃ encBits :=
@@ -551,10 +521,7 @@ private theorem acceptProb_qnrRejectionSpec {p : ℕ} [Fact p.Prime] (hp : 2 < p
         obtain ⟨u, hu, rfl⟩ := (isNonresidueModPrime_eq_true_iff hp a).mp hnr
         exact ha (Finset.mem_image.mpr ⟨u, mem_primeNonresidues.mpr hu, rfl⟩)
       · rfl
-  have htotal := (qnrRejectionSpec p).singleLaw.tsum_coe
-  rw [Probability.tsum_option_eq, add_comm] at htotal
-  have hacc := (ENNReal.eq_sub_of_add_eq (qnrRejectionSpec p).rejectProb_ne_top htotal).symm
-  exact hacc.trans hsum
+  exact (qnrRejectionSpec p).acceptProb_eq_tsum_some.trans hsum
 
 private theorem singleLaw_qnrRejectionSpec_some {p : ℕ} [Fact p.Prime] (hp : 2 < p) (a : ℕ) :
     (qnrRejectionSpec p).singleLaw (some a) =
@@ -619,39 +586,17 @@ private theorem rejectProb_pow_three_mul_le {p : ℕ} [Fact p.Prime] (hp : 2 < p
     _ = ((1 / 2 ^ (n + 1) : ℝ≥0) : ℝ≥0∞) := by
         rw [← ENNReal.coe_pow, one_div_pow]
 
-private theorem closeTo_runCapped {α : Type} {spec : BlockRejectionSpec α} {target : PMF α}
-    (h : ∀ a, spec.singleLaw (some a) = spec.acceptProb * target a)
-    (fallback : α) (t : ℕ) :
-    CloseTo (spec.runCapped fallback t) target (spec.rejectProb ^ t) := by
-  set r := spec.rejectProb ^ t
-  have hr1 : r ≤ 1 := pow_le_one₀ zero_le spec.rejectProb_le_one
-  have hpt (a : α) : (1 - r) * target a ≤ spec.runCapped fallback t a := by
-    rw [← spec.runTrials_some_of_singleLaw h t a, BlockRejectionSpec.runCapped, PMF.map_apply]
-    refine le_trans ?_ (le_tsum _ (some a))
-    simp
-  refine CloseTo.symm fun E => ?_
-  have hdom : (1 - r) * target.toOuterMeasure E ≤ (spec.runCapped fallback t).toOuterMeasure E := by
-    rw [PMF.toOuterMeasure_apply, PMF.toOuterMeasure_apply, ← ENNReal.tsum_mul_left]
-    refine tsum_le_tsum fun a => ?_
-    by_cases ha : a ∈ E
-    · simp only [Set.indicator_of_mem ha]
-      exact hpt a
-    · simp [Set.indicator_of_notMem ha]
-  calc
-    target.toOuterMeasure E
-      = (1 - r) * target.toOuterMeasure E + r * target.toOuterMeasure E := by
-        rw [← add_mul, tsub_add_cancel_of_le hr1, one_mul]
-    _ ≤ (spec.runCapped fallback t).toOuterMeasure E + r :=
-        add_le_add hdom (mul_le_of_le_one_right zero_le (PMF.toOuterMeasure_le_one target E))
-
 private theorem closeTo_sampleNonresidueModPrime {p : ℕ} [Fact p.Prime] (hp : 2 < p) (n : ℕ) :
     CloseTo (ProbComp.eval (sampleNonresidueModPrime n p)) (primeNonresidueLaw p hp)
       ((1 / 2 ^ (n + 1) : ℝ≥0) : ℝ≥0∞) := by
   rw [sampleNonresidueModPrime, ProbComp.eval_sampleBlockCapped]
-  exact (closeTo_runCapped (singleLaw_qnrRejectionSpec_some hp) 1 (3 * (n + 1))).mono
-    (rejectProb_pow_three_mul_le hp n)
+  exact ((qnrRejectionSpec p).closeTo_runCapped (singleLaw_qnrRejectionSpec_some hp) 1
+    (3 * (n + 1))).mono (rejectProb_pow_three_mul_le hp n)
 
-private theorem toOuterMeasure_not_isNonresidueModPrime_le {p : ℕ} [Fact p.Prime] (hp : 2 < p)
+/-- At security parameter `n`, `sampleNonresidueModPrime n p` fails to output a quadratic
+nonresidue modulo `p` (`isNonresidueModPrime p a = false`) with probability at most
+`1 / 2 ^ (n + 1)`. -/
+theorem toOuterMeasure_not_isNonresidueModPrime_le {p : ℕ} [Fact p.Prime] (hp : 2 < p)
     (n : ℕ) :
     (ProbComp.eval (sampleNonresidueModPrime n p)).toOuterMeasure
       {a | isNonresidueModPrime p a = false} ≤ ((1 / 2 ^ (n + 1) : ℝ≥0) : ℝ≥0∞) := by
@@ -718,7 +663,8 @@ theorem closeTo_textbookKeyGen_publicKeyLaw (gen : ℕ → ProbComp ModulusDesc)
           (fun u_p : primeNonresidues d.p =>
             (PMF.uniformOfFintype (primeNonresidues d.q)).map fun u_q : primeNonresidues d.q =>
               encPair encNat encNat
-                (d.p * d.q, crtCombineNat d.p d.q u_p.1.val.val u_q.1.val.val)) =
+                (d.p * d.q, crtCombine d.p d.q (u_p.1.val.val % d.p) u_q.1.val.val
+                  (BinaryGcd.modInv d.p d.q))) =
           (fun u_p : primeNonresidues d.p =>
             (PMF.uniformOfFintype (primeNonresidues d.q)).bind fun u_q : primeNonresidues d.q =>
               PMF.pure (encPair encNat encNat (d.p * d.q, (e (u_p, u_q)).1.val.val))) := by
@@ -726,7 +672,7 @@ theorem closeTo_textbookKeyGen_publicKeyLaw (gen : ℕ → ProbComp ModulusDesc)
         rw [PMF.map]
         congr 1; funext u_q
         rw [Function.comp_apply,
-          crtCombineNat_eq_unitsChineseRemainder_symm_val d hcop u_p.1 u_q.1]
+          crtCombine_modInv_eq_unitsChineseRemainder_symm_val d hcop u_p.1 u_q.1]
         rfl
       rw [hbody, Probability.PMF.uniformOfFintype_bind_bind_equiv e
         (fun z => PMF.pure (encPair encNat encNat (d.p * d.q, z.1.val.val)))]
@@ -822,50 +768,6 @@ theorem toOuterMeasure_not_exists_keyDesc_textbookKeyGen_le
     _ = ((1 / 2 ^ n : ℝ≥0) : ℝ≥0∞) := by
         rw [ENNReal.tsum_mul_right, PMF.tsum_coe, one_mul]
 
-private theorem closeTo_pure_of_bad_le {α β : Type} (μ : PMF α) (f : α → PMF β)
-    (good : Set α) (b : β) {ε : ℝ≥0∞} (hbad : μ.toOuterMeasure goodᶜ ≤ ε)
-    (hgood : ∀ a ∈ good, ∀ x ∈ (f a).support, x = b) :
-    CloseTo (μ.bind f) (PMF.pure b) ε := by
-  have hf_eq (a : α) (ha : a ∈ good) : f a = PMF.pure b := by
-    ext x
-    by_cases hxb : x = b
-    · subst hxb
-      rw [PMF.pure_apply, ite_eq_left rfl]
-      have htot := (f a).tsum_coe
-      rw [tsum_eq_single x] at htot
-      · exact htot
-      · intro y hy
-        by_contra hne
-        exact hy (hgood a ha y ((PMF.mem_support_iff _ _).mpr hne))
-    · rw [PMF.pure_apply, ite_eq_right hxb, PMF.apply_eq_zero_iff]
-      intro hmem
-      exact hxb (hgood a ha x hmem)
-  intro E
-  rw [PMF.toOuterMeasure_bind_apply]
-  calc
-    ∑' a, μ a * (f a).toOuterMeasure E
-      ≤ ∑' a, (good.indicator (fun a => μ a * (PMF.pure b).toOuterMeasure E) a +
-          goodᶜ.indicator μ a) := by
-        refine tsum_le_tsum fun a => ?_
-        by_cases ha : a ∈ good
-        · have hna : a ∉ goodᶜ := fun h => h ha
-          simp only [Set.indicator_of_mem ha, Set.indicator_of_notMem hna, add_zero, hf_eq a ha,
-            le_rfl]
-        · have hca : a ∈ goodᶜ := ha
-          simp only [Set.indicator_of_notMem ha, Set.indicator_of_mem hca, zero_add]
-          exact mul_le_of_le_one_right zero_le (PMF.toOuterMeasure_le_one (f a) E)
-    _ = ∑' a, good.indicator (fun a => μ a * (PMF.pure b).toOuterMeasure E) a +
-        μ.toOuterMeasure goodᶜ := by
-        rw [tsum_add, ← PMF.toOuterMeasure_apply]
-    _ ≤ (PMF.pure b).toOuterMeasure E + ε := by
-        refine add_le_add ?_ hbad
-        calc
-          ∑' a, good.indicator (fun a => μ a * (PMF.pure b).toOuterMeasure E) a
-            ≤ ∑' a, μ a * (PMF.pure b).toOuterMeasure E :=
-              tsum_le_tsum fun a => Set.indicator_le_self _ _ a
-          _ = (PMF.pure b).toOuterMeasure E := by
-              rw [ENNReal.tsum_mul_right, μ.tsum_coe, one_mul]
-
 private theorem closeTo_roundTrip_textbookKeyGen {Msg : Type}
     (encProg : ℕ → List Bool → Msg → ProbComp (List Bool))
     (decFn : List Bool → List Bool → Msg)
@@ -882,18 +784,26 @@ private theorem closeTo_roundTrip_textbookKeyGen {Msg : Type}
   let good : Set (List Bool × List Bool) :=
     {keys | ∃ k : KeyDesc,
       keys = (encPair encNat encNat (k.modulus, k.z), encPair encNat encNat (k.p, k.q))}
-  rw [ProbComp.eval_bind]
-  refine closeTo_pure_of_bad_le (ProbComp.eval (textbookKeyGen gen n))
+  rw [ProbComp.eval_bind, closeTo_pure_iff]
+  refine (Probability.PMF.toOuterMeasure_bind_failure_le
+    (ProbComp.eval (textbookKeyGen gen n))
     (fun keys => ProbComp.eval (do let ct ← encProg n keys.1 msg; return decFn keys.2 ct))
-    good msg (toOuterMeasure_not_exists_keyDesc_textbookKeyGen_le gen n) ?_
-  rintro keys ⟨k, hkeq⟩ out hout
-  obtain ⟨hpk, hsk⟩ := Prod.ext_iff.mp hkeq
-  rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hout
-  obtain ⟨ct, hct, hout_eq⟩ := hout
-  rw [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hout_eq
-  rw [hout_eq, hsk]
-  rw [hpk] at hct
-  exact hcorrect k hct
+    good {msg}ᶜ 0 ?_).trans ?_
+  · rintro keys _ ⟨k, hkeq⟩
+    obtain ⟨hpk, hsk⟩ := Prod.ext_iff.mp hkeq
+    rw [nonpos_iff_eq_zero, PMF.toOuterMeasure_apply, tsum_eq_zero_iff]
+    intro out
+    by_cases hm : out ∈ ({msg}ᶜ : Set Msg)
+    · rw [Set.indicator_of_mem hm, PMF.apply_eq_zero_iff]
+      intro hout
+      rw [ProbComp.eval_bind, PMF.mem_support_bind_iff] at hout
+      obtain ⟨ct, hct, hout_eq⟩ := hout
+      rw [ProbComp.eval_pure, PMF.support_pure, Set.mem_singleton_iff] at hout_eq
+      rw [hpk] at hct
+      exact hm (by rw [hout_eq, hsk, hcorrect k hct]; rfl)
+    · exact Set.indicator_of_notMem hm _
+  · rw [add_zero]
+    exact toOuterMeasure_not_exists_keyDesc_textbookKeyGen_le gen n
 
 /-- Statistical round-trip decryption correctness for 1-bit Goldwasser–Micali under
 `textbookKeyGen gen`: for every message bit `m`, generating keys and encrypting `m` decrypts to
@@ -950,13 +860,14 @@ theorem advantage_textbookGame_le_qr {gen : ℕ → ProbComp ModulusDesc} {n : �
   exact (h4.trans (add_le_add (add_le_add le_rfl (advantage_publicKeyGame_le_qr hsize adversary))
     le_rfl)).trans_eq (by ring)
 
-/-- Single-bit IND-CPA step for textbook Goldwasser–Micali encryption (`textbookKeyGen gen`,
-`encrypt`) from `QuadraticResiduosityHard` alone (after [KatzLindell2020], Section 15.4.4,
-Construction 15.28 and Theorem 15.29, locator not verified; pending primary-source verification for
-registry enrollment). Let `gen` draw distinct odd `n`-bit primes (`ModulusDesc`, with no Blum
-restriction). If quadratic residuosity is hard relative to `gen`, then `(textbookKeyGen gen,
-encrypt)` satisfies `Encryption.INDCPA` against all uniform strict-PPT adversaries. Neither
-indistinguishability of keys from an ideal law nor computability of `gen` is assumed. -/
+/-- Single-bit IND-CPA step toward #5293 for textbook Goldwasser–Micali encryption
+(`textbookKeyGen gen`, `encrypt`) from `QuadraticResiduosityHard` alone, parameterized by a modulus
+generator `gen : ℕ → ProbComp ModulusDesc` (native modulus generation tracked in #5293 §3; after
+[KatzLindell2020], Section 15.4.4, Construction 15.28 and Theorem 15.29, locator not verified,
+#5578). Let `gen` draw distinct odd `n`-bit primes (`ModulusDesc`, with no Blum restriction). If
+quadratic residuosity is hard relative to `gen`, then `(textbookKeyGen gen, encrypt)` satisfies
+`Encryption.INDCPA` against all uniform strict-PPT adversaries. Neither indistinguishability of keys
+from an ideal law nor computability of `gen` is assumed. -/
 theorem indcpa_textbookGoldwasserMicali {gen : ℕ → ProbComp ModulusDesc}
     (hsize : ∀ n, ∀ d ∈ (ProbComp.eval (gen n)).support, n ≤ d.p.size ∧ n ≤ d.q.size)
     (hQR : QuadraticResiduosityHard fun n => ProbComp.eval (gen n)) :
@@ -975,20 +886,20 @@ theorem length_textbookPublicKey_le {p q B : ℕ} (hp_pos : 0 < p) (hq_pos : 0 <
   have hmul : p * q < 2 ^ (2 * B) := by
     calc p * q < 2 ^ B * 2 ^ B := Nat.mul_lt_mul'' (Nat.size_le.mp hp) (Nat.size_le.mp hq)
       _ = 2 ^ (2 * B) := by rw [two_mul, pow_add]
-  have hlt : crtCombineNat p q z_p z_q < p * q :=
-    Nat.mod_lt _ (Nat.mul_pos hp_pos hq_pos)
+  have hlt : crtCombine p q (z_p % p) z_q (BinaryGcd.modInv p q) < p * q :=
+    crtCombine_lt (Nat.mod_lt _ hp_pos) hq_pos _ _
   have hsizeN : (p * q).bits.length ≤ 2 * B :=
     Nat.size_eq_bits_len _ ▸ Nat.size_le.mpr hmul
-  have hsizeZ : (crtCombineNat p q z_p z_q).bits.length ≤ 2 * B :=
+  have hsizeZ : (crtCombine p q (z_p % p) z_q (BinaryGcd.modInv p q)).bits.length ≤ 2 * B :=
     Nat.size_eq_bits_len _ ▸ Nat.size_le.mpr (lt_trans hlt hmul)
   simp only [textbookPublicKey, encPair_apply, List.length_append, length_frame, encNat_apply]
   omega
 
 /-- Quantitative multi-bit IND-CPA step for `(textbookKeyGen gen, encryptWord)` on bounded-length
-words (after [KatzLindell2020], Section 15.4.4, locator not verified): via lossy quadratic-residue
-public keys, bitwise encryption of equal-length words of length at most `maxLen n` reduces to
-`QuadraticResiduosityHard` with **factor-`2` loss** (independent of `maxLen n`) plus
-`(10 * maxLen n + 2) / 2 ^ n`. -/
+words (after [KatzLindell2020], Section 15.4.4, locator not verified, #5578): via lossy
+quadratic-residue public keys, bitwise encryption of equal-length words of length at most
+`maxLen n` reduces to `QuadraticResiduosityHard` with **factor-`2` loss** (independent of
+`maxLen n`) plus `(10 * maxLen n + 2) / 2 ^ n`. -/
 theorem advantage_textbookWordGame_le_qr (maxLen : ℕ → ℕ) {gen : ℕ → ProbComp ModulusDesc} {n : ℕ}
     (hsize : ∀ d ∈ (ProbComp.eval (gen n)).support, n ≤ d.p.size ∧ n ≤ d.q.size)
     (adversary : Encryption.WordAdversary) :
@@ -1014,11 +925,12 @@ theorem advantage_textbookWordGame_le_qr (maxLen : ℕ → ℕ) {gen : ℕ → P
     (advantage_publicKeyWordGame_le_qr maxLen hsize adversary)) le_rfl)).trans_eq ?_
   ring
 
-/-- Multi-bit IND-CPA step for textbook bitwise Goldwasser–Micali encryption (`textbookKeyGen gen`,
-`encryptWord`) from `QuadraticResiduosityHard` alone (after [KatzLindell2020], Section 15.4.4,
-Construction 15.28 and Theorem 15.29, locator not verified; pending primary-source verification for
-registry enrollment). Let `gen` draw distinct odd primes (`ModulusDesc`, with no Blum restriction)
-whose bit-lengths are at least `n` and at most `sizeBound n` for a polynomially bounded function
+/-- Multi-bit IND-CPA step toward #5293 for textbook bitwise Goldwasser–Micali encryption
+(`textbookKeyGen gen`, `encryptWord`) from `QuadraticResiduosityHard` alone, parameterized by a
+modulus generator `gen : ℕ → ProbComp ModulusDesc` (native modulus generation tracked in #5293 §3;
+after [KatzLindell2020], Section 15.4.4, Construction 15.28 and Theorem 15.29, locator not
+verified, #5578). Let `gen` draw distinct odd primes (`ModulusDesc`, with no Blum restriction) whose
+bit-lengths are at least `n` and at most `sizeBound n` for a polynomially bounded function
 `sizeBound` (for example `fun n => n + c`, or the output cap of any uniform strict-PPT `gen`). If
 quadratic residuosity is hard relative to `gen`, then `(textbookKeyGen gen, encryptWord)` satisfies
 `Encryption.WordINDCPA` against all uniform strict-PPT word adversaries, with factor-`2` QR
@@ -1030,50 +942,21 @@ theorem wordINDCPA_textbookGoldwasserMicali {gen : ℕ → ProbComp ModulusDesc}
       d.p.size ≤ sizeBound n ∧ d.q.size ≤ sizeBound n)
     (hQR : QuadraticResiduosityHard fun n => ProbComp.eval (gen n)) :
     Encryption.WordINDCPA (textbookKeyGen gen) encryptWord := by
-  intro adversary hadversary
   have hpkBound : PolynomiallyBounded (fun n => 6 * sizeBound n + 1) := by fun_prop
-  obtain ⟨ck, dk, hpkPoly⟩ := polynomiallyBounded_iff_le.mp hpkBound
-  obtain ⟨ca, da, hchooseLen⟩ := hadversary.choose.on.length_le
-  let maxLen (n : ℕ) : ℕ := ca * (2 * n + 2 * (ck * (n + 1) ^ dk) + 4) ^ da
-  have hmax : ComputableInPolyTime maxLen encUnary encUnary := by
-    dsimp only [maxLen]; fun_prop
-  have hmaxPoly : PolynomiallyBounded maxLen := hmax.polynomiallyBounded
+  refine Encryption.wordINDCPA_of_indcpaOn_validBoundedWords hpkBound
+    (fun n keys hkeys => by
+      obtain ⟨d, hd, z_p, z_q, rfl⟩ := exists_of_mem_support_textbookKeyGen hkeys
+      exact length_textbookPublicKey_le d.prime_p.pos d.prime_q.pos
+        (hupper n d hd).1 (hupper n d hd).2 z_p z_q)
+    fun maxLen hmax adversary hadversary => ?_
   have hD := hQR (qrWordDistinguisher maxLen adversary)
     (isPPTOn_qrWordDistinguisher hmax hadversary)
   have htail :=
-    ((negligible_const_div_two_pow 10).polynomiallyBounded_mul hmaxPoly).add
+    ((negligible_const_div_two_pow 10).polynomiallyBounded_mul hmax.polynomiallyBounded).add
       (negligible_const_div_two_pow 2)
-  have hbounded : Negligible (fun n => Encryption.advantage
-      (Encryption.gameOn (validBoundedWords maxLen) (textbookKeyGen gen) encryptWord adversary)
-      n) := by
-    refine negligible_of_le ((hD.add hD).add htail) fun n => ?_
-    dsimp only [Pi.add_apply]; rw [← two_mul]
-    refine (advantage_textbookWordGame_le_qr maxLen (hsize n) adversary).trans (le_of_eq ?_)
-    congr 1; push_cast; ring
-  have heqGame (bit : Bool) (n : ℕ) :
-      ProbComp.eval (Encryption.gameOn (fun _ _ m₀ m₁ => m₀.length == m₁.length)
-        (textbookKeyGen gen) encryptWord adversary bit n) =
-      ProbComp.eval (Encryption.gameOn (validBoundedWords maxLen)
-        (textbookKeyGen gen) encryptWord adversary bit n) := by
-    simp only [Encryption.gameOn, pmf_norm, apply_ite ProbComp.eval]
-    refine Probability.PMF.bind_congr_on_support _ _ _ fun keys hkeys =>
-      Probability.PMF.bind_congr_on_support _ _ _ fun choice hchoice => ?_
-    have hpkLen : keys.1.length ≤ 6 * sizeBound n + 1 := by
-      obtain ⟨d, hd, z_p, z_q, rfl⟩ := exists_of_mem_support_textbookKeyGen hkeys
-      exact length_textbookPublicKey_le d.prime_p.pos d.prime_q.pos
-        (hupper n d hd).1 (hupper n d hd).2 z_p z_q
-    have hmsgLen : (ChoiceOut.msg₀ choice).length ≤ maxLen n := by
-      have hout := hchooseLen (n, keys.1) choice hchoice
-      have hk : keys.1.length ≤ ck * (n + 1) ^ dk := hpkLen.trans (hpkPoly n)
-      have hin : (encPair encUnary encBits (n, keys.1)).length + 1 ≤
-          2 * n + 2 * (ck * (n + 1) ^ dk) + 4 := by
-        enc_len
-      have hm₀ : (ChoiceOut.msg₀ choice).length ≤ (encChoiceOut encBits choice).length := by
-        dsimp only [ChoiceOut.msg₀, ChoiceOut.msgs]; enc_len
-      exact hm₀.trans (hout.trans (Nat.mul_le_mul_left ca (Nat.pow_le_pow_left hin da)))
-    simp only [validBoundedWords, decide_eq_true hmsgLen, Bool.and_true]
-  refine hbounded.congr fun n => ?_
-  dsimp only [Encryption.advantage]
-  rw [heqGame false n, heqGame true n]
+  refine negligible_of_le ((hD.add hD).add htail) fun n => ?_
+  dsimp only [Pi.add_apply]; rw [← two_mul]
+  refine (advantage_textbookWordGame_le_qr maxLen (hsize n) adversary).trans (le_of_eq ?_)
+  congr 1; push_cast; ring
 
 end Cslib.Crypto.GoldwasserMicali

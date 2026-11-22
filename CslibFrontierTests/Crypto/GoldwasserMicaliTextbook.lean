@@ -26,7 +26,8 @@ Ordinary-import `module` client tests for
   `p ≡ q ≡ 1 (mod 4)` (`¬ IsBlumModulus 5 13`), so `-1 = 64 = 8 ^ 2 (mod 65)` is a quadratic
   residue and `blumKeyGen` fails decryption with probability `1` on `m = true` (every supported
   ciphertext of `encrypt n (blumPublicKey 65) true` decrypts under `sk = ⟨5, 13⟩` to `false`),
-  whereas `textbookKeyGen` produces `z ∈ QNR_65^{+1}` (`crtCombineNat 5 13 3 2 = 28`), decrypts
+  whereas `textbookKeyGen` produces `z ∈ QNR_65^{+1}`
+  (`crtCombine 5 13 (3 % 5) 2 (BinaryGcd.modInv 5 13) = 28`), decrypts
   both single bits and arbitrary bit words deterministically on accepted trials, and achieves
   `≤ 1 / 2 ^ n` statistical distance from `publicKeyLaw` and `≤ 1 / 2 ^ n` round-trip decryption
   failure at every `n : ℕ`;
@@ -58,6 +59,13 @@ private def d65 : ModulusDesc := ⟨5, 13, by norm_num, by norm_num, by decide, 
 
 private noncomputable def constNonBlumGen : ℕ → ProbComp ModulusDesc := fun _ => pure d65
 
+private theorem crtCombine_5_13_eq_28 :
+    crtCombine 5 13 (3 % 5) 2 (BinaryGcd.modInv 5 13) = 28 :=
+  crtCombine_eq (by decide) (by decide) (by decide) _ <| by
+    have h := BinaryGcd.mul_modInv_modEq_one (m := 13) (a := 5) (by decide) (by decide)
+    rw [← ZMod.natCast_eq_natCast_iff, Nat.cast_mul, Nat.cast_one, mul_comm] at h
+    exact h
+
 /-- `(5, 13)` is a valid `ModulusDesc` that is **not** a Blum modulus (`5 % 4 = 1`, `13 % 4 = 1`),
 and `isNonresidueModPrime` enforces `0 < a < p` and Euler's criterion (rejecting `0`, `1`, the
 square `-1 ≡ 4 (mod 5)`, `p = 5`, and out-of-range `7 ≡ 2 (mod 5)` while accepting `2` and `3`). -/
@@ -72,11 +80,11 @@ theorem nonBlum_boundary_checks_65 :
     isNonresidueModPrime 5 7 = false ∧
     isNonresidueModPrime 13 2 = true ∧
     isNonresidueModPrime 13 12 = false ∧
-    crtCombineNat 5 13 3 2 = 28 ∧
+    crtCombine 5 13 (3 % 5) 2 (BinaryGcd.modInv 5 13) = 28 ∧
     28 % 5 = 3 ∧
     28 % 13 = 2 := by
   refine ⟨?_, by decide, by decide, by decide, by decide, by decide, by decide, by decide,
-    by decide, by decide, by decide, by decide, by decide⟩
+    by decide, by decide, crtCombine_5_13_eq_28, by decide, by decide⟩
   change ¬ IsBlumModulus 5 13
   rintro ⟨⟨_, h5⟩, _⟩
   omega
@@ -129,10 +137,28 @@ theorem textbookKeyGen_succeeds_65 (n : ℕ) (m : Bool) (bits : List Bool) :
    closeTo_textbookKeyGen_publicKeyLaw constNonBlumGen n,
    closeTo_decryptWord_encryptWord_textbookKeyGen constNonBlumGen n bits⟩
 
-/-- Concrete check of `length_textbookPublicKey_le` on `(5, 13)` (`5.size ≤ 4`, `13.size ≤ 4`). -/
-theorem length_textbookPublicKey_65_le (z_p z_q : ℕ) :
-    (textbookPublicKey 5 13 z_p z_q).length ≤ 25 :=
-  length_textbookPublicKey_le (B := 4) (by decide) (by decide) (by decide) (by decide) z_p z_q
+/-- Concrete check of `length_textbookPublicKey_le`, `KeyDesc.ofNonresidues` projections and
+`KeyDesc.decryptNat_ciphertext` under ordinary `module` import, `crtCombine_lt`, and
+`toOuterMeasure_not_isNonresidueModPrime_le` on `(5, 13)`. -/
+theorem ofNonresidues_and_bound_checks_65 (n : ℕ) (z_p z_q : ℕ) {r : ℕ} (hr : r.Coprime 65)
+    (m : Bool) :
+    (textbookPublicKey 5 13 z_p z_q).length ≤ 25 ∧
+    (KeyDesc.ofNonresidues d65 (z_p := 3) (z_q := 2) (by decide) (by decide)).toModulusDesc = d65 ∧
+    (KeyDesc.ofNonresidues d65 (z_p := 3) (z_q := 2) (by decide) (by decide)).z = 28 ∧
+    decryptNat 5 13
+      (ciphertext 65 (crtCombine 5 13 (3 % 5) 2 (BinaryGcd.modInv 5 13)) m r) = m ∧
+    crtCombine 5 13 (z_p % 5) z_q (BinaryGcd.modInv 5 13) < 65 ∧
+    (ProbComp.eval (sampleNonresidueModPrime n 5)).toOuterMeasure
+      {a | isNonresidueModPrime 5 a = false} ≤ ((1 / 2 ^ (n + 1) : ℝ≥0) : ℝ≥0∞) := by
+  have : Fact (Nat.Prime 5) := ⟨by norm_num⟩
+  let k := KeyDesc.ofNonresidues d65 (z_p := 3) (z_q := 2) (by decide) (by decide)
+  exact ⟨length_textbookPublicKey_le (B := 4) (by decide) (by decide) (by decide) (by decide)
+      z_p z_q,
+    by simp,
+    (KeyDesc.ofNonresidues_z d65 _ _).trans crtCombine_5_13_eq_28,
+    k.decryptNat_ciphertext hr m,
+    crtCombine_lt (Nat.mod_lt _ (by decide)) (by decide) _ _,
+    toOuterMeasure_not_isNonresidueModPrime_le (by decide) n⟩
 
 /-! ### Single-bit and multi-bit textbook Goldwasser–Micali security clients -/
 
