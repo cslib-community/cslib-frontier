@@ -11,7 +11,8 @@ import CslibFrontier.Logics.Propositional.Pigeonhole
 
 A file with comments, a clause split across lines and the SATLIB ending `%` is read with the
 DIMACS variable `v` as the variable `v - 1`. Reading what `CNF.toDIMACS` writes gives the formula
-back, on PHP(4, 3) and on formulas with an empty clause and a repeated literal. Malformed files
+back (`CNF.ofDIMACS_toDIMACS`), run here on PHP(4, 3) and on formulas with an empty clause and a
+repeated literal. Windows line endings are read. Malformed files
 are rejected: no header, a literal beyond the header's variables, a wrong number of clauses, an
 unterminated clause, and a token that is not an integer.
 -/
@@ -35,7 +36,14 @@ private def php43 : CNF ℕ := (CNF.pigeonhole 4 3).relabel fun x => 3 * x.1.val
 #guard CNF.ofDIMACS (CNF.toDIMACS [[(0, true), (0, true)], [], [(4, false)]]) =
   .ok [[(0, true), (0, true)], [], [(4, false)]]
 
--- The written header: one more variable than the greatest, and the number of clauses.
+-- Windows line endings.
+#guard CNF.ofDIMACS "p cnf 2 1\r\n1 -2 0\r\n" = .ok [[(0, true), (1, false)]]
+
+-- The written text: the header gives one more variable than the greatest, and the number of
+-- clauses.
+#guard CNF.toDIMACS [[(0, true), (2, false)], []] = "p cnf 3 2\n1 -3 0\n0\n"
+#guard CNF.toDIMACS [] = "p cnf 0 0\n"
+
 #guard (CNF.toDIMACS [[(0, true), (2, false)]]).startsWith "p cnf 3 1\n"
 
 -- Malformed files.
