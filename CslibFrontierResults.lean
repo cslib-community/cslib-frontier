@@ -2,5 +2,6 @@ import CslibFrontierResults.Entries
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.MatrixRigidity
+import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.SergeevMonotoneShift
 import CslibFrontierResults.Registry

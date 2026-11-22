@@ -365,15 +365,8 @@ private lemma duellingCycle_step {Learner V : Type*} [DecidableEq Learner] [Deci
     duelling_recv_two_1b 1 v₁ k s9 (hs9_eq ▸ hs8_p1) (hs9_eq ▸ hs8_1b0) (hs9_eq ▸ hs8_1b1)
   set s11 := ([SynodAction.recvPhase1b 1 0 b₁ none, .recvPhase1b 1 1 b₁ none] :
     List (SynodAction (Fin 2) (Fin 3) Learner V)).foldl (synodStep majorityQuorumsFin3) s9
-  have hmTr : (synodLts majorityQuorumsFin3).MTr s (duellingCycle v₀ k) s11 := by
-    have heq_acts : duellingCycle (Learner := Learner) v₀ k =
-        [.prepare 0 k, .recvPhase1a 0 b₀, .recvPhase1a 1 b₀] ++
-          [.recvPhase1b 0 0 b₀ none, .recvPhase1b 0 1 b₀ none] ++
-          [.prepare 1 k, .recvPhase1a 0 b₁, .recvPhase1a 1 b₁] ++
-          [.recvPhase2a 0 b₀ v₀] ++
-          [.recvPhase1b 1 0 b₁ none, .recvPhase1b 1 1 b₁ none] := rfl
-    rw [heq_acts]
-    exact LTS.MTr.comp _
+  have hmTr : (synodLts majorityQuorumsFin3).MTr s (duellingCycle v₀ k) s11 :=
+    LTS.MTr.comp _
       (LTS.MTr.comp _
         (LTS.MTr.comp _ (LTS.MTr.comp _ mtr1 mtr2) mtr3)
         (LTS.MTr.single _ tr9))
@@ -388,17 +381,16 @@ private lemma duellingCycle_step {Learner V : Type*} [DecidableEq Learner] [Deci
     rw [hs11_acc8, hs8_a2, hs5_acc, hs3_a2]
     exact hb.a2_vote
   have hs11_eq : (duellingCycle (Learner := Learner) v₀ k).foldl
-      (synodStep majorityQuorumsFin3) s = s11 := rfl
+      (synodStep majorityQuorumsFin3) s = s11 := by
+    simp only [duellingCycle, List.foldl_cons, List.foldl_nil]; rfl
   dsimp only []
   rw [hs11_eq]
-  refine ⟨hmTr, ?_,
-    hs11_sub (hs9_eq ▸ hs8_sub (hs5_sub hs3_1a0)),
-    hs11_sub (hs9_eq ▸ hs8_1a1),
-    hs11_sub (hs9_eq ▸ hs8_sub hs5_2a0),
-    hs11_2a1⟩
+  have hs11_sub8 : s8.msgs ⊆ s11.msgs := hs9_eq.subst (motive := (·.msgs ⊆ s11.msgs)) hs11_sub
+  refine ⟨hmTr, ?_, hs11_sub8 (hs8_sub (hs5_sub hs3_1a0)), hs11_sub8 hs8_1a1,
+    hs11_sub8 (hs8_sub hs5_2a0), hs11_2a1⟩
   exact
-    { p0_in := hs11_p0 ▸ hs5_p0.1
-      p0_live := hs11_p0 ▸ hs5_p0.2.1
+    { p0_in := (congrArg ProposerState.input hs11_p0).trans hs5_p0.1
+      p0_live := (congrArg ProposerState.crashed hs11_p0).trans hs5_p0.2.1
       p0_round := by rw [hs11_p0, hs5_p0.2.2]; exact Nat.lt_succ_self k
       p1_in := hs11_p1.1
       p1_live := hs11_p1.2.1
@@ -540,7 +532,7 @@ private lemma proposers_synodStep_cases {Proposer Acceptor Learner V : Type*}
     · exact Or.inl (ite_eq_right hpq)
   | recvPhase1a _ _ | recvPhase2a _ _ _ =>
     dsimp only [synodStep, synodStepCore]
-    split_ifs <;> exact Or.inl rfl
+    split <;> exact Or.inl rfl
   | recvPhase1b q a b mv =>
     dsimp only [synodStep, synodStepCore]
     rcases eq_or_ne q p with rfl | hqp
@@ -564,9 +556,8 @@ private lemma proposers_synodStep_cases {Proposer Acceptor Learner V : Type*}
       | none => exact Or.inl rfl
       | some _ =>
         dsimp only []
-        split_ifs
-        · exact Or.inl (ite_eq_right (Ne.symm hqp))
-        · exact Or.inl (ite_eq_right (Ne.symm hqp))
+        split
+        · split <;> exact Or.inl (ite_eq_right (Ne.symm hqp))
         · exact Or.inl rfl
   | crashProposer q =>
     dsimp only [synodStep, synodStepCore]
@@ -600,7 +591,7 @@ private lemma acceptors_synodStep_cases {Proposer Acceptor Learner V : Type*}
   | recvPhase1b q _ _ _ =>
     dsimp only [synodStep, synodStepCore]; cases (s.proposers q).round
     · exact Or.inl rfl
-    · dsimp only []; split_ifs <;> exact Or.inl rfl
+    · dsimp only []; (repeat split) <;> exact Or.inl rfl
   | recvPhase2a a' b v =>
     dsimp only [synodStep, synodStepCore]
     by_cases hal : allowsVote (s.acceptors a').maxBal b = true
@@ -635,11 +626,11 @@ private lemma learners_synodStep_cases {Proposer Acceptor Learner V : Type*}
         (synodStep qs s act).learners l = { s.learners l with crashed := true }) := by
   cases act with
   | recvPhase1a _ _ | recvPhase2a _ _ _ =>
-    dsimp only [synodStep, synodStepCore]; split_ifs <;> exact Or.inl rfl
+    dsimp only [synodStep, synodStepCore]; split <;> exact Or.inl rfl
   | recvPhase1b q _ _ _ =>
     dsimp only [synodStep, synodStepCore]; cases (s.proposers q).round
     · exact Or.inl rfl
-    · dsimp only []; split_ifs <;> exact Or.inl rfl
+    · dsimp only []; (repeat split) <;> exact Or.inl rfl
   | recvPhase2b l₀ a b v =>
     dsimp only [synodStep, synodStepCore]
     rcases eq_or_ne l l₀ with rfl | hll
@@ -1171,7 +1162,7 @@ private noncomputable def soleLeaderSweep (b : Ballot Proposer) (p : Proposer)
     (Q : Finset Acceptor) (l : Learner)
     (u : SynodState Proposer Acceptor Learner V) :
     List (SynodAction Proposer Acceptor Learner V) :=
-  u.msgs.toList.flatMap (soleLeaderMsgActs b p Q l) ++ [.stutter]
+  u.msgs.toList.flatMap (soleLeaderMsgActs (Learner := Learner) b p Q l) ++ [.stutter]
 
 omit [DecidableEq Learner] [DecidableEq V] in
 private lemma soleLeaderSweep_pos (b : Ballot Proposer) (p : Proposer)
@@ -1956,10 +1947,10 @@ private lemma applyResult_noop_sim {P V : Type*} [DecidableEq P] [DecidableEq V]
     (∀ q, (u.proc q).out = (u.proc q).state.learn.learned) ∧
       netToSynod u = netToSynod s := by
   refine ⟨out_preserved_of_nonlearn hout rfl, ?_⟩
-  rw [netToSynod_applyResult s dest _ (netToSynod s).msgs
-    (by simp only [netToSynod, Finset.image_empty, Finset.union_empty])]
-  exact SynodState.ext rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
-    (ite_self_field _ dest rfl)
+  exact (netToSynod_applyResult s dest ⟨_, ∅, none⟩ (netToSynod s).msgs
+    (by simp only [netToSynod, Finset.image_empty, Finset.union_empty])).trans
+    (SynodState.ext rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
+      (ite_self_field _ dest rfl))
 
 private lemma netToSynod_acc_update {P V : Type*} [DecidableEq P] [DecidableEq V]
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
@@ -1971,9 +1962,9 @@ private lemma netToSynod_acc_update {P V : Type*} [DecidableEq P] [DecidableEq V
         outgoing := out, decideVal := none } s) =
       { (netToSynod s) with
         msgs := msgs'
-        acceptors := fun x => if x = dest then ast else ((netToSynod s).acceptors x) } := by
-  rw [netToSynod_applyResult s dest _ msgs' hmsgs]
-  exact SynodState.ext rfl (ite_self_field _ dest rfl) rfl (ite_self_field _ dest rfl)
+        acceptors := fun x => if x = dest then ast else ((netToSynod s).acceptors x) } :=
+  (netToSynod_applyResult s dest ⟨_, out, none⟩ msgs' hmsgs).trans
+    (SynodState.ext rfl (ite_self_field _ dest rfl) rfl (ite_self_field _ dest rfl))
 
 private lemma netToSynod_prop_update {P V : Type*} [DecidableEq P] [DecidableEq V]
     (s : NetState P (SynodNodeState P V) (Msg P P V) V)
@@ -1985,9 +1976,9 @@ private lemma netToSynod_prop_update {P V : Type*} [DecidableEq P] [DecidableEq 
         outgoing := out, decideVal := none } s) =
       { (netToSynod s) with
         msgs := msgs'
-        proposers := fun x => if x = dest then pst else ((netToSynod s).proposers x) } := by
-  rw [netToSynod_applyResult s dest _ msgs' hmsgs]
-  exact SynodState.ext rfl rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
+        proposers := fun x => if x = dest then pst else ((netToSynod s).proposers x) } :=
+  (netToSynod_applyResult s dest ⟨_, out, none⟩ msgs' hmsgs).trans
+    (SynodState.ext rfl rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl))
 
 private lemma netToSynod_acc_recv_sim {P V : Type*} [LinearOrder P] [DecidableEq V]
     (qs : QuorumSystem P)
@@ -2122,7 +2113,7 @@ private lemma netToSynod_step {P V : Type*} [Fintype P] [LinearOrder P] [Decidab
           rcases eq_or_ne q dest with rfl | hqd
           · simp only [↓reduceIte]; rw [hout q]; cases (s.proc q).state.learn.learned <;> rfl
           · simp only [hqd, ↓reduceIte]; exact hout q
-        · rw [netToSynod_applyResult s dest _ (netToSynod s).msgs
+        · rw [netToSynod_applyResult s dest ⟨_, ∅, _⟩ (netToSynod s).msgs
             (by simp only [netToSynod, Finset.image_empty, Finset.union_empty])]
           refine SynodState.ext rfl (ite_self_field _ dest rfl) (ite_self_field _ dest rfl)
             (funext fun x => ?_)
@@ -2441,10 +2432,10 @@ theorem synodQuorumProtocol_safeSingleQuorum_crashStop {P V : Type*} [Fintype P]
         · exact hin_r x hx_r
     let xl : List (NetAction P ℕ (Msg P P V)) :=
       [act₀] ++
-        (qList.map fun a => .deliver ⟨p₀, a, Msg.phase1a b⟩) ++
-        (qList.map fun a => .deliver ⟨a, p₀, Msg.phase1b a b none⟩) ++
-        (qList.map fun a => .deliver ⟨p₀, a, Msg.phase2a b v⟩) ++
-        (qList.map fun a => .deliver ⟨a, p₀, Msg.phase2b a b v⟩)
+        (qList.map fun a => NetAction.deliver (L := ℕ) ⟨p₀, a, Msg.phase1a b⟩) ++
+        (qList.map fun a => NetAction.deliver (L := ℕ) ⟨a, p₀, Msg.phase1b a b none⟩) ++
+        (qList.map fun a => NetAction.deliver (L := ℕ) ⟨p₀, a, Msg.phase2a b v⟩) ++
+        (qList.map fun a => NetAction.deliver (L := ℕ) ⟨a, p₀, Msg.phase2b a b v⟩)
     have hmtr_all : π.lts.MTr s₀ xl s₅ :=
       LTS.MTr.comp π.lts
         (LTS.MTr.comp π.lts
