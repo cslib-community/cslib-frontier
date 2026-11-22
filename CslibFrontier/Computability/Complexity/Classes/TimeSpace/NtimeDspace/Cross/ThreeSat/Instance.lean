@@ -20,8 +20,7 @@ An instance of Corollary 7.2 is a 3-CNF formula `φ` on `n` variables with `m �
 which every variable occurs, together with a bit position `j` (as in the paper, before Theorem 2.3:
 an integer is computed when each of its bits is computed from its position). It is written as the
 framed binary digits of `j` followed by the slot encoding `encSlots φ` (`encInstance`); the encoding
-is injective
-(`encInstance_injective`) and carries no information about satisfiability.
+is injective (`encInstance_injective`) and carries no information about satisfiability.
 
 `prime_window` is the size condition on the primes of the residue form of Theorem 2.3 used for the
 Chinese remainder step: for every `c`, once `s` is large, the primes `p` with
@@ -56,8 +55,8 @@ def encInstance (a : Instance) : List Bool := frame (encNat a.j) ++ encSlots a.�
 theorem length_le_length_enc {n : ℕ} (φ : CNF (Fin n)) : φ.length ≤ (encSlots φ).length := by
   rw [length_enc]; nlinarith
 
-theorem slot_injective {n : ℕ} {o o' : Option (Literal (Fin n))} (h : slot o = slot o') : o =
-    o' := by
+theorem slot_injective {n : ℕ} {o o' : Option (Literal (Fin n))}
+    (h : slot o = slot o') : o = o' := by
   rcases o with _ | ⟨i, b⟩ <;> rcases o' with _ | ⟨i', b'⟩
   · rfl
   · simp only [slot] at h; omega
@@ -112,7 +111,8 @@ def instEnc : Instance ↪ List Bool := ⟨encInstance, encInstance_injective⟩
 theorem ib_frame_odd {x y : List Bool} {k : ℕ} (hk : k < x.length) :
     ib (frame x ++ y) (2 * k + 1) = (x[k]).toNat := by
   rw [ib_some]
-  rw [List.getElem?_append_left (by simp; omega), getElem?_frame_lt (by omega), if_neg (by omega)]
+  rw [List.getElem?_append_left (by simp; omega), getElem?_frame_lt (by omega),
+      ite_eq_right (by omega)]
   congr 2
   omega
 
@@ -130,7 +130,7 @@ theorem bitsNum_frame_encNat (j : ℕ) (y : List Bool) :
 
 theorem prod_window_mono {H X X' : ℕ} (h : X ≤ X') :
     ∏ p ∈ primesWindow H X, p ≤ ∏ p ∈ (Ioc H X').filter Nat.Prime, p := by
-  refine prod_le_prod_of_subset_of_one_le' ?_ fun p hp _ => ?_
+  refine prod_le_prod_of_subset_of_one_le ?_ fun p hp _ => ?_
   · intro p hp
     simp only [primesWindow, mem_filter, mem_Ioc] at hp ⊢
     exact ⟨⟨hp.1.1, hp.1.2.trans h⟩, hp.2⟩
@@ -159,7 +159,7 @@ theorem prime_window (c : ℕ) : ∃ s₁, ∀ s, s₁ ≤ s →
     have h1 : Nat.log 2 s ≤ Nat.log 2 (2 * X) := Nat.log_mono_right (by omega)
     have h2X : Nat.log 2 (2 * X) = Nat.log 2 X + 1 := by
       rw [mul_comm, Nat.log_mul_base (by norm_num) (by omega)]
-    show Nat.log 2 s + 1 ≤ 2 * (X.log2 + 1)
+    change Nat.log 2 s + 1 ≤ 2 * (X.log2 + 1)
     rw [Nat.log2_eq_log_two]
     omega
   have hL1 : 1 ≤ L := by omega
@@ -210,7 +210,7 @@ theorem prime_window (c : ℕ) : ∃ s₁, ∀ s, s₁ ≤ s →
   · -- `H ≤ 1`: the prime product bound with `H = 2`, and the window only grows
     have h43 := prime_prod_lower_bound_nat X 2 hEven (by omega) le_rfl
     have hsub : ∏ p ∈ primesWindow 2 X, p ≤ ∏ p ∈ (Ioc H s).filter Nat.Prime, p := by
-      refine prod_le_prod_of_subset_of_one_le' ?_ fun p hp _ => ?_
+      refine prod_le_prod_of_subset_of_one_le ?_ fun p hp _ => ?_
       · intro p hp
         simp only [primesWindow, mem_filter, mem_Ioc] at hp ⊢
         exact ⟨⟨by omega, hp.1.2.trans hXs⟩, hp.2⟩

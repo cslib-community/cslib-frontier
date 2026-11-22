@@ -301,8 +301,8 @@ theorem val_isEncT (h : FIn G w env F K fw ar v args) (hn : Val w env nT n) (hb 
     (val_ite hall (val_eqT (val_add (val_cardT hW hc (val_const 0)) (val_cardT hW hc hq)) hb)
       (val_const 0)) (val_eqT hb (val_const 0))).congr ?_
   rw [ite_ind, ite_and_toNat, ← ite_decide_toNat]
-  by_cases hv : validN (budAt K ar fw v n) (codeWidth (budAt K ar fw v n)) (slotN K ar fw v args n)
-      = 1
+  by_cases hv : validN (budAt K ar fw v n) (codeWidth (budAt K ar fw v n))
+      (slotN K ar fw v args n) = 1
   · rw [ite_eq_left hv]
     refine if_congr ?_ rfl rfl
     unfold IsEncC
@@ -645,7 +645,7 @@ theorem tm_firstArrT {d : ℕ} (hA : NetAcc G w env N) (hT : NetTiers G w L env 
       Val w E (mul (firstDigT N KT qT t) (pow2 (mul t fwT))) (firstDigit G K k * 2 ^ (k * fw)) :=
     fun hE ht => val_mul (val_firstDigT (hA.up hE) (hK.up hE) (hq.up hE) ht)
       (val_pow2 (val_mul ht (hfw.up hE)))
-  show Tm w L d (foldT (mul qT qT) (const 0) fun acc t =>
+  change Tm w L d (foldT (mul qT qT) (const 0) fun acc t =>
     add acc (mul (firstDigT N KT qT t) (pow2 (mul t fwT)))) env
   refine tm_foldT_st (N := 2 * K * (2 * K)) (val_mul hq hq) (t_mul tq tq (by norm_num))
     (by norm_num) (tcst (k := 0) (by norm_num) le_rfl hL) hd32 (fun pre _ k hk => ?_)

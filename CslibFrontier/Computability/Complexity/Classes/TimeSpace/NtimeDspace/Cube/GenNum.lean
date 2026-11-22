@@ -162,8 +162,8 @@ theorem numExt_of_trInv {A B : ℕ} {st : St} (h : Num.TrInv A B st) : S.NumExt 
 
 theorem trInv_of_numExt {A B : ℕ} {up : Bool} {x y m : Label} {lo hi : ℕ}
     {T : Multiset (HPlace × ℕ)}
-    {c : ℤ} (h : S.NumExt A B (.tr up x y m lo hi T c)) : Num.TrInv A B (.tr up x y m lo hi T c) :=
-        h
+    {c : ℤ} (h : S.NumExt A B (.tr up x y m lo hi T c)) : Num.TrInv A B
+        (.tr up x y m lo hi T c) := h
 
 theorem numExt_rangeSt {A B : ℕ} (mk : ℕ → St) (mkR : ℕ → ℕ → St) (lo hi : ℕ)
     (hmk : ∀ f, S.NumExt A B (mk f)) (hmkR : ∀ a b, S.NumExt A B (mkR a b)) :
@@ -238,8 +238,8 @@ theorem numExt_child {D A B : ℕ} (he : 2 * S.K = 2 ^ 2 ^ D)
       have hch : S.gen.child (.rng (j :: rest) v args ξ lo hi) i =
           if i = 0 then rangeSt (S.factorSt rest j v args ξ) (.rng (j :: rest) v args ξ) lo
               ((lo + hi) / 2)
-          else rangeSt (S.factorSt rest j v args ξ) (.rng (j :: rest) v args ξ) ((lo + hi) / 2)
-              hi :=
+          else rangeSt (S.factorSt rest j v args ξ) (.rng (j :: rest) v args ξ)
+              ((lo + hi) / 2) hi :=
         rfl
       rw [hch]
       split_ifs
@@ -287,8 +287,8 @@ namespace Num
 
 theorem res_zero (P : ℕ) : AGen.res P 0 = 0 := by simp [AGen.res]
 
-theorem testBit_res_nat (P n k : ℕ) (hk : k < P) : (AGen.res P (n : ℤ)).testBit k = n.testBit
-    k := by
+theorem testBit_res_nat (P n k : ℕ) (hk : k < P) : (AGen.res P (n : ℤ)).testBit k =
+    n.testBit k := by
   have : AGen.res P (n : ℤ) = n % 2 ^ P := by
     unfold AGen.res
     have e : ((n % 2 ^ P : ℕ) : ℤ) = (n : ℤ) % 2 ^ P := by push_cast; rfl
@@ -303,8 +303,8 @@ power `2^P`. -/
 def litBitN (z k : ℕ) : Bool :=
   if z % 2 = 0 then (z / 2).testBit k else !((z - 1) / 2).testBit k
 
-theorem litBitN_eq {P k : ℕ} (hk : k < P) (v : ℤ) : litBitN (zz v) k = (AGen.res P v).testBit
-    k := by
+theorem litBitN_eq {P k : ℕ} (hk : k < P) (v : ℤ) : litBitN (zz v) k =
+    (AGen.res P v).testBit k := by
   rcases le_or_gt 0 v with hv | hv
   · obtain ⟨n, rfl⟩ := Int.eq_ofNat_of_zero_le hv
     have hz : zz (n : ℤ) = 2 * n := by simp [zz]
@@ -480,7 +480,7 @@ theorem cube_local (hS : S.Good) {D A B : ℕ} (he : 2 * S.K = 2 ^ 2 ^ D)
     intro st h
     obtain ⟨e0, e1, e2, e3, e4⟩ := tr_agree S h
     have e0' : 7 ≤ stGet (S.code st) 0 ∧ stGet (S.code st) 0 ≤ 9 := by
-      show 7 ≤ getF (S.code st) 0 ∧ getF (S.code st) 0 ≤ 9
+      change 7 ≤ getF (S.code st) 0 ∧ getF (S.code st) 0 ≤ 9
       omega
     have h25 : ¬ (2 ≤ stGet (S.code st) 0 ∧ stGet (S.code st) 0 ≤ 5) := by omega
     have h6 : stGet (S.code st) 0 ≠ 6 := by omega
@@ -528,8 +528,8 @@ theorem cube_local (hS : S.Good) {D A B : ℕ} (he : 2 * S.K = 2 ^ 2 ^ D)
       have hch : S.gen.child (.rng0 v args lo hi) i =
           if i = 0 then Setup.rangeSt (fun f => .lit (S.factor0 v args f)) (.rng0 v args) lo
               ((lo + hi) / 2)
-          else Setup.rangeSt (fun f => .lit (S.factor0 v args f)) (.rng0 v args) ((lo + hi) / 2)
-              hi := rfl
+          else Setup.rangeSt (fun f => .lit (S.factor0 v args f)) (.rng0 v args)
+              ((lo + hi) / 2) hi := rfl
       have e : f0 v args = fun f => S.code (.lit (S.factor0 v args f)) :=
         funext fun f => hf0 v hv args f
       have hc : S.code (.rng0 v args lo hi) = NatList.enc [6, S.cacheC [], v, args, lo, hi] := rfl
@@ -552,8 +552,7 @@ theorem cube_local (hS : S.Good) {D A B : ℕ} (he : 2 * S.K = 2 ^ 2 ^ D)
 
 /-- **The numeric generator agrees with the formula** on the states of `CubeInv D A B`, for a good
 setup with `2K = 2^(2^D)`, a weight bound `A ≥ 12 (Φ₀ / 2^D) + 1`, a fuel `B ≥ w(A) + 2`, and codes
-`f0`
-of the leaf factors of the first clique at the nodes `v < 2K`. -/
+`f0` of the leaf factors of the first clique at the nodes `v < 2K`. -/
 theorem cube_agrees (hS : S.Good) {D A B : ℕ} (he : 2 * S.K = 2 ^ 2 ^ D)
     (hA : 12 * (S.C₀.potential / 2 ^ D) + 1 ≤ A) (hB : codeWidth A + 2 ≤ B) {f0 : ℕ → ℕ → ℕ → ℕ}
     (hf0 : ∀ v < 2 * S.K, ∀ x f, f0 v x f = S.code (.lit (S.factor0 v x f))) :

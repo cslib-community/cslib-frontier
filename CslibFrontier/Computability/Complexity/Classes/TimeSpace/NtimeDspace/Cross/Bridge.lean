@@ -56,10 +56,11 @@ theorem sum_map_drop {α : Type*} (L : List α) (f : α → ℕ) (r : ℕ) :
 
 /-- If a sum of naturals over `s` is `1`, some term is positive, every term is at most `1`, and at
 most one term is positive. -/
-theorem of_sum_eq_one {ι : Type*} [DecidableEq ι] {s : Finset ι} {c : ι → ℕ}
+theorem of_sum_eq_one {ι : Type*} {s : Finset ι} {c : ι → ℕ}
     (h : ∑ j ∈ s, c j = 1) :
     (∃ j ∈ s, 0 < c j) ∧ (∀ j ∈ s, c j ≤ 1) ∧
       ∀ j ∈ s, ∀ j' ∈ s, 0 < c j → 0 < c j' → j = j' := by
+  classical
   refine ⟨?_, fun j hj => h ▸ Finset.single_le_sum (fun _ _ => Nat.zero_le _) hj, ?_⟩
   · obtain ⟨j, hj, hne⟩ := Finset.exists_ne_zero_of_sum_ne_zero (h ▸ one_ne_zero)
     exact ⟨j, hj, Nat.pos_of_ne_zero hne⟩

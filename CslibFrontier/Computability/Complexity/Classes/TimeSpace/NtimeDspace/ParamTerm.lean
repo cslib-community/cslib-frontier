@@ -52,8 +52,8 @@ def limitT : Term :=
       (add (mul (const 2) (kpT k s c xT)) (const 1)))
     (spT k s c xT)) (const 1)) (spT k s c xT)
 def startPT : Term :=
-  div (add (mul (mul (spT k s c xT) (kpT k s c xT)) (sub (spT k s c xT) (const 9))) (const 1))
-      (const 2)
+  div (add (mul (mul (spT k s c xT) (kpT k s c xT)) (sub (spT k s c xT) (const 9)))
+      (const 1)) (const 2)
 def radixPT : Term :=
   add (add (add (edgesNT k s c xT) (qpT k s c xT)) (lgNT k s c xT)) (const 3)
 
@@ -72,19 +72,22 @@ abbrev clk (c x : ℕ) : ℕ := c * x + c
 abbrev edgesN (k s t : ℕ) : ℕ := 2 * (numBlocks t * (3 * k + 1) * Turing.MultiTapePTM.letterBits k s
     (blockLength t))
 
+omit hx in
 theorem denote_clockT : (clockT c xT).denote w env = clk c x := by simp [clockT, hxv]
+omit hxv in
 theorem StableAt.clockT : StableAt w (clockT c xT) env :=
   (((stableAt_const _ _).mul hx).add (stableAt_const _ _))
 
 theorem denote_blockLenT : (blockLenT c xT).denote w env = blockLength (clk c x) := by
-  rw [blockLenT, denote_clogT ((StableAt.clockT hx hxv).add (stableAt_const _ _))
-    (by simp), denote_add, denote_clockT hx hxv, denote_const]
+  rw [blockLenT, denote_clogT ((StableAt.clockT hx).add (stableAt_const _ _))
+    (by simp), denote_add, denote_clockT hxv, denote_const]
   rfl
+omit hxv in
 theorem StableAt.blockLenT : StableAt w (blockLenT c xT) env :=
-  StableAt.clogT ((StableAt.clockT hx hxv).add (stableAt_const _ _)) (by simp)
+  StableAt.clogT ((StableAt.clockT hx).add (stableAt_const _ _)) (by simp)
 
 theorem denote_numBlocksT : (numBlocksT c xT).denote w env = numBlocks (clk c x) := by
-  rw [numBlocksT, denote_ceilDivT, denote_clockT hx hxv, denote_blockLenT hx hxv, numBlocks,
+  rw [numBlocksT, denote_ceilDivT, denote_clockT hxv, denote_blockLenT hx hxv, numBlocks,
     Nat.ceilDiv_eq_add_pred_div]
 theorem StableAt.numBlocksT : StableAt w (numBlocksT c xT) env := fun extra => by
   rw [denote_numBlocksT (hx.extend extra) (by rw [hx extra, hxv]), denote_numBlocksT hx hxv]
@@ -92,7 +95,6 @@ theorem StableAt.numBlocksT : StableAt w (numBlocksT c xT) env := fun extra => b
 theorem denote_edgesNT : (edgesNT k s c xT).denote w env = edgesN k s (clk c x) := by
   simp only [edgesNT, denote_mul, denote_const, denote_numBlocksT hx hxv, denote_blockLenT hx hxv,
     edgesN, Turing.MultiTapePTM.letterBits]
-  try ring
 theorem StableAt.edgesNT : StableAt w (edgesNT k s c xT) env := fun extra => by
   rw [denote_edgesNT (hx.extend extra) (by rw [hx extra, hxv]), denote_edgesNT hx hxv]
 
@@ -102,7 +104,7 @@ theorem denote_lgNT : (lgNT k s c xT).denote w env = (edgesN k s (clk c x)).log2
   rcases Nat.eq_zero_or_pos (edgesN k s (clk c x)) with h0 | hpos
   · rw [h0, lgNT, log2T, denote_sumT _ _ env (fun _ => 0) (fun acc i => by
       simp only [denote_lt, denote_const, divPowT_denote _ _ _ _ (stableAt_const _ _), hN.cons₂,
-        hNv, h0, Nat.zero_div, lt_irrefl, if_false])]
+        hNv, h0, Nat.zero_div, lt_irrefl, ite_false])]
     simp
   · rw [lgNT, log2T_denote _ _ env hN (by rw [hNv]; exact hpos) (by
       rw [hNv]; exact Nat.lt_two_pow_self.trans (Nat.pow_lt_pow_right (by norm_num) (by omega))),

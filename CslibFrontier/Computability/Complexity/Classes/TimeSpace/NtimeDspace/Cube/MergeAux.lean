@@ -82,11 +82,12 @@ theorem prod_hor_form {g : ℕ} (e : Fin g → Fin g → Fin g → Prop) [∀ A 
 
 /-! ### Sums over product sets -/
 
-theorem sum_piFinset_prod {ι α β M : Type*} [Fintype ι] [DecidableEq ι] [DecidableEq α]
-    [DecidableEq β] [AddCommMonoid M] (s : ι → Finset α) (t : ι → Finset β)
+theorem sum_piFinset_prod {ι α β M : Type*} [Fintype ι] [DecidableEq ι] [AddCommMonoid M]
+    (s : ι → Finset α) (t : ι → Finset β)
     (F : (ι → α × β) → M) :
     ∑ x ∈ Fintype.piFinset (fun i => s i ×ˢ t i), F x =
       ∑ k ∈ Fintype.piFinset s, ∑ c ∈ Fintype.piFinset t, F fun i => (k i, c i) := by
+  classical
   refine Eq.trans ?_ (Finset.sum_product' (Fintype.piFinset s) (Fintype.piFinset t)
     (fun k c => F fun i => (k i, c i)))
   refine Finset.sum_nbij' (fun x => (fun i => (x i).1, fun i => (x i).2))
@@ -153,7 +154,7 @@ theorem pack_congr {L a : ℕ} {s₁ s₂ : ℕ → Label} (h : ∀ s ∈ Ioo 0 
     Finset.sum_congr rfl fun s hs => by simp only [h s hs]
   simp only [pack, h1, h2]
 
-theorem sum_valid_unpack {L : ℕ} (hL : 2 ≤ L) {I : Type*} [Fintype I] [DecidableEq I]
+theorem sum_valid_unpack {L : ℕ} (hL : 2 ≤ L) {I : Type*} [Fintype I]
     (σ : I → ℕ) (hσ : Function.Injective σ) (hσI : univ.image σ = Ioo 0 L)
     (S : I → Finset Label) (w : I → ℕ) (hw : ∀ i, ∀ m ∈ S i, labelWt m ≤ w i)
     (F : I → Label → ℤ) (hF : ∀ i m, F i m ≠ 0 → m ∈ S i) :

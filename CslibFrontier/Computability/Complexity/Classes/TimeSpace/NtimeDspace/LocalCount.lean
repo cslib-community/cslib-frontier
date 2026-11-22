@@ -50,12 +50,12 @@ theorem Bounded.wf {W N : ℕ} {n : NCfg k} (h : Bounded s W N n) : WF (s := s) 
 theorem bounded_nStep {W : ℕ} {n : NCfg k} (h : Bounded s W w.length n) (bit : Bool) :
     Bounded s (W + 1) w.length (nStep e machine w n bit) := by
   refine ⟨stc_lt e _, trc_lt _, ?_, fun h' => ?_, fun h' => ?_, fun h' => ?_, fun h' => ?_⟩
-  · show moveInputPosNat _ _ _ ≤ _
+  · change moveInputPosNat _ _ _ ≤ _
     rw [moveInputPosNat_eq]; exact min_le_left _ _
   · exact (NTape.step_bound (h.heads h') (h.left h') (h.right h') _).1
   · exact (NTape.step_bound (h.heads h') (h.left h') (h.right h') _).2.1
   · exact (NTape.step_bound (h.heads h') (h.left h') (h.right h') _).2.2
-  · show moveNat _ _ ≤ _
+  · change moveNat _ _ ≤ _
     have := h.rho h'
     cases ((machine.coinAction (stOf e n.st) (inputAt w n.ip)
       (fun h => cellOf (n.tapes h).1) bit).workTapes h').2 <;> simp only [moveNat] <;> omega
@@ -92,14 +92,14 @@ theorem bounded_nStart {b : ℕ} (input : List Bool) (J : Option (Fin k) → ℤ
     Bounded s (3 * b) input.length (nStart e b input J cIn wIn) := by
   refine ⟨hst, trc_lt _, inputPosOfCoord_le _ _, fun h => cc_lt _, fun h => ?_, fun h => ?_,
     fun h => ?_⟩
-  · show packDigits 3 _ (b + cIn.2.1 (some h)) < _
+  · change packDigits 3 _ (b + cIn.2.1 (some h)) < _
     refine lt_of_lt_of_le (packDigits_lt (by norm_num) _ _ fun i _ => cc_lt _)
       (Nat.pow_le_pow_right (by norm_num) ?_)
     have := hoff h; omega
-  · show packDigits 3 _ (wIn h).length < _
+  · change packDigits 3 _ (wIn h).length < _
     exact lt_of_lt_of_le (packDigits_lt (by norm_num) _ _ fun i _ => cc_lt _)
       (Nat.pow_le_pow_right (by norm_num) (hlen h))
-  · show b + cIn.2.1 (some h) ≤ 3 * b
+  · change b + cIn.2.1 (some h) ≤ 3 * b
     have := hoff h; omega
 
 /-! ### The replay term -/

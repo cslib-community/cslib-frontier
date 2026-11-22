@@ -40,13 +40,13 @@ theorem sum_testBit_eq_mod (A : ℕ) : ∀ m : ℕ,
   | zero => simp [Nat.mod_one]
   | succ m ih =>
     rw [Finset.sum_range_succ', pow_zero, mul_one]
-    have h : ∀ r, (A.testBit (r + 1)).toNat * 2 ^ (r + 1) = 2 * ((A / 2).testBit r).toNat * 2 ^
-        r := by
+    have h : ∀ r, (A.testBit (r + 1)).toNat * 2 ^ (r + 1) = 2 *
+        ((A / 2).testBit r).toNat * 2 ^ r := by
       intro r
       rw [Nat.testBit_succ, pow_succ]; ring
     simp only [h, mul_assoc, ← Finset.mul_sum, ih (A / 2)]
     rw [pow_succ', Nat.mod_mul]
-    rcases Nat.mod_two_eq_zero_or_one A with h2 | h2 <;> simp [Nat.testBit_zero, h2] <;> omega
+    rcases Nat.mod_two_eq_zero_or_one A with h2 | h2 <;> simp [Nat.testBit_zero, h2]; omega
 
 theorem lsbValue_ofFn_testBit (m A : ℕ) :
     Cslib.BitString.lsbValue (List.ofFn fun i : Fin m => A.testBit i) = A % 2 ^ m := by
@@ -64,7 +64,7 @@ theorem getD_filter_range_eq_sum (p : ℕ → Bool) (N i : ℕ) :
   set l := (List.range N).filter p
   have hnodup : l.Nodup := (List.nodup_range).filter _
   have hidx : ∀ j, j < N → p j = true → l.idxOf j = (List.range j).countP p := fun j hj hp => by
-    rw [idxOf_filter_range, if_pos ⟨hj, hp⟩]
+    rw [idxOf_filter_range, ite_eq_left ⟨hj, hp⟩]
   by_cases hi : i < l.length
   · rw [List.getD_eq_getElem _ _ hi]
     have hmem : l[i] ∈ l := List.getElem_mem hi
@@ -75,9 +75,9 @@ theorem getD_filter_range_eq_sum (p : ℕ → Bool) (N i : ℕ) :
         rw [← hidx _ hN hm.2]
         have := List.get_idxOf hnodup ⟨i, hi⟩
         simpa using this
-      rw [if_pos ⟨hm.2, hc⟩]
+      rw [ite_eq_left ⟨hm.2, hc⟩]
     · intro j hj hne
-      rw [if_neg]
+      rw [ite_eq_right]
       rintro ⟨hp, hc⟩
       apply hne
       have hjm : j ∈ l := List.mem_filter.mpr ⟨List.mem_range.mpr (Finset.mem_range.mp hj), hp⟩
@@ -88,7 +88,7 @@ theorem getD_filter_range_eq_sum (p : ℕ → Bool) (N i : ℕ) :
     · intro h; exact absurd (Finset.mem_range.mpr hN) h
   · rw [List.getD_eq_default _ _ (by omega)]
     refine (Finset.sum_eq_zero fun j hj => ?_).symm
-    rw [if_neg]
+    rw [ite_eq_right]
     rintro ⟨hp, hc⟩
     have hjm : j ∈ l := List.mem_filter.mpr ⟨List.mem_range.mpr (Finset.mem_range.mp hj), hp⟩
     have := List.idxOf_lt_length_of_mem hjm

@@ -42,14 +42,14 @@ variable {w : List Bool} {B : ℕ}
 theorem denote_callT1 {q : Prog} (hq : Prog'.closed 1 q = true) {a : ℕ} {env : List ℕ}
     (_ha : a < env.length) :
     (callT1 q (lvl a)).denote w env = q.eval w [(lvl a).denote w env] := by
-  show Prog.eval w (.letIn _ q) env = _
+  change Prog.eval w (.letIn _ q) env = _
   simp only [Prog.eval]
   exact Prog'.eval_append q [(lvl a).denote w env] env hq
 
 theorem bnd_callT1 {q : Prog} (hq : Prog'.closed 1 q = true) {a : ℕ} {env : List ℕ}
     (_ha : a < env.length) (h : q.Bounded w B [(lvl a).denote w env]) :
     (callT1 q (lvl a)).Bnd w B env := by
-  show Prog.Bounded w B (.letIn _ q) env
+  change Prog.Bounded w B (.letIn _ q) env
   simp only [Prog.Bounded]
   exact ⟨trivial, (Prog'.bounded_append B q [(lvl a).denote w env] env hq).mpr h⟩
 
@@ -200,7 +200,7 @@ theorem RunHyp.main_spec (h : RunHyp Q w n t ℓ V X k0) {rootP XP : Prog}
     intro env hn h0 x m
     rw [foldAcc_eq _ env (fun acc _ => gStep Q w n acc) (fun acc k => ?_), foldl_range_iterate]
     rw [denote_stepT Q (by lvl_disch) (by lvl_disch)]
-    try simp (disch := lvl_disch) only [lvl_cons, denote_lvl_acc, hn, gStep]
+    simp (disch := lvl_disch) only [lvl_cons, denote_lvl_acc, hn, gStep]
   have hS0 : mkF 1 k0 1 1 = (initState k0).code := (initState_code k0).symm
   have hfin := h.iterate_final
   have hfinal : (finalState (t.value.testBit k0).toNat).code =
@@ -231,7 +231,7 @@ theorem RunHyp.main_spec (h : RunHyp Q w n t ℓ V X k0) {rootP XP : Prog}
       simp (disch := lvl_disch) only [denote_pow2, lvl_cons, denote_lvl_let,
         denote_callT1 hXP, hXv.1, hl0, denote_const, denote_callT1 hroot, hrootv.1, denote_mkT]
       refine ⟨bnd_pow2 _ _ _ _ trivial (by
-        simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_callT1 hXP, hXv.1, hl0]
+        simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let]
         exact hpow), trivial, hpow, fun k hk => ?_⟩
       have hacc : foldAcc w (fun acc _ => stepT Q (lvl 0) acc) [mkF 1 k0 1 1, 1, X, k0, n]
           (mkF 1 k0 1 1) k = (run Q w n k0 k).code := by
@@ -322,7 +322,7 @@ theorem sumProduct_decidable {α : Type} {encA : α ↪ List Bool} (t : α → S
     omega
   · have hv : (mainT Q rootP XP 1).eval (encA a) [(encA a).length] =
         ((t a).value.testBit (k0 a)).toNat := (key a).1
-    rw [hv, Set.mem_setOf_eq]
+    rw [hv, Set.mem_ofPred_eq]
     cases (t a).value.testBit (k0 a) <;> simp
 
 end Cslib.Complexity.NtimeDspace.SumProduct

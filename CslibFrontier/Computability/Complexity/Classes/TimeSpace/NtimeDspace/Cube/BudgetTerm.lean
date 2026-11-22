@@ -178,8 +178,8 @@ theorem tm_powC {g : Term} (hg : Tm w L 1 g env) (hL : 16 ≤ L) :
 
 /-- The fixed inputs as terms with known values: the array `ar`, the node count `q`, the field
 width `fw`, the side `g` of the grid and the choice code `i`. -/
-structure Inp (w : List Bool) (env : List ℕ) (arT qT fwT gT iT : Term) (ar q fw g i : ℕ) : Prop
-    where
+structure Inp (w : List Bool) (env : List ℕ) (arT qT fwT gT iT : Term)
+    (ar q fw g i : ℕ) : Prop where
   vA : Val w arT env ar
   vq : Val w qT env q
   vfw : Val w fwT env fw
@@ -201,8 +201,8 @@ structure Tiers (w : List Bool) (L : ℕ) (env : List ℕ) (arT qT fwT gT iT : T
 
 variable {arT qT fwT gT iT : Term} {ar q fw g i : ℕ}
 
-theorem Inp.ext' (h : Inp w env arT qT fwT gT iT ar q fw g i) {env' : List ℕ} (he : Ext L env' env)
-    :
+theorem Inp.ext' (h : Inp w env arT qT fwT gT iT ar q fw g i) {env' : List ℕ}
+    (he : Ext L env' env) :
     Inp w env' arT qT fwT gT iT ar q fw g i :=
   ⟨h.vA.ext' he, h.vq.ext' he, h.vfw.ext' he, h.vg.ext' he, h.vi.ext' he⟩
 
@@ -223,8 +223,8 @@ theorem tm_digT {x t : Term} {dx dt : ℕ} (hfwT : Tm w L 1 fwT env) (hfw : Val 
     (hfwL : fw < L) (hL : 16 ≤ L) (hx : Tm w L dx x env) (hdx : dx ≤ 32) (ht : Tm w L dt t env)
     (hdt : dt + 1 ≤ 32) : Tm w L 1 (digT fwT x t) env :=
   t_mod (t_divPowT (tc hL (by norm_num)) hx (t_mul ht hfwT (by omega)) hdt hdx)
-    (t_pow2 hfwT (by norm_num) (fun pre _ => by rw [hfw pre]; omega) (by norm_num) (by omega))
-        Pos.pow2'
+    (t_pow2 hfwT (by norm_num) (fun pre _ => by rw [hfw pre]; omega) (by norm_num)
+        (by omega)) Pos.pow2'
 
 /-- The budget of `{u, v}` read from the array (`budgetN`). -/
 def budT (arT qT fwT u v : Term) : Term :=
@@ -298,8 +298,8 @@ theorem tm_diagT {x : Term} {dx : ℕ} (h : Inp w env arT qT fwT gT iT ar q fw g
     Tm w L 2 (diagT arT qT fwT gT x) env := by
   have := t.hL
   have hq := fun k (hk : k + 1 ≤ 128) => tm_qdT t h.vg hx k hk
-  have hn : ∀ k k', k + 1 ≤ 128 → k' + 1 ≤ 128 → Tm w L 3 (nodeT gT (qdT gT x k) (qdT gT x k'))
-      env :=
+  have hn : ∀ k k', k + 1 ≤ 128 → k' + 1 ≤ 128 → Tm w L 3
+      (nodeT gT (qdT gT x k) (qdT gT x k')) env :=
     fun k k' hk
         hk' => t_add (t_mul (hq k hk) t.tg (by norm_num)) (hq k' hk') (by have := t.hL; omega)
       (by norm_num)
@@ -665,8 +665,8 @@ theorem tm_choiceValidT (h : Inp w env arT qT fwT gT iT ar q fw g i)
   exact tm_andT (tm_eqI (t_divPowT (tc t.hL (by norm_num)) t.ti (tm_choiceWidthT t.tg t.tfw t.hL)
       (by norm_num) le_rfl) (tc t.hL (by norm_num)) le_rfl (by norm_num) t.hL)
     (tm_everyT (tm_powC t.tg t.hL 4 (by norm_num))
-      (fun e he x hx => tm_fieldOkT (h.ext' he) (t.ext' he) hx (by norm_num)) t.hL (by norm_num))
-          t.hL
+      (fun e he x hx => tm_fieldOkT (h.ext' he) (t.ext' he) hx (by norm_num)) t.hL
+          (by norm_num)) t.hL
 
 open Classical in
 /-- **The validity term decides `ValidChoiceCode`** for the array of a clique on `g × g` nodes

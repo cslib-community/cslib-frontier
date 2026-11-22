@@ -240,8 +240,8 @@ lemma halt_le_clock {T : ℕ} (hT : (run d xs T).state = none)
 /-- The run within the budget is the run of the simulation up to a step, all of whose
 configurations are within the budget. -/
 lemma budgetStep_iterate' (i : ℕ) : ∃ j ≤ i,
-    (budgetStep d xs b)^[i] (init d, []) = (run d xs j, ((stepOut d xs)^[j] (init d, [])).2.take 2)
-        ∧
+    (budgetStep d xs b)^[i] (init d, []) =
+        (run d xs j, ((stepOut d xs)^[j] (init d, [])).2.take 2) ∧
       ∀ m < j, (eCfg (run d xs (m + 1))).length ≤ b := by
   induction i with
   | zero => exact ⟨0, le_rfl, rfl, fun m hm => absurd hm (Nat.not_lt_zero m)⟩

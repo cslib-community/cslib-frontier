@@ -90,7 +90,7 @@ theorem denote_contCellT {bT : Term} (n r : Term) {env : List ℕ} (hb : StableA
     (contCellT k s bT n r).denote w env =
       contCell k s (bT.denote w env) (n.denote w env) (r.denote w env) := by
   simp only [contCellT, contCell, denote_ite, denote_lt, denote_ccountT hb, denote_const,
-    denote_mod, denote_div, denote_sub, divPowT_denote _ _ _ _ (stableAt_const _ _)]
+    denote_mod, denote_sub, divPowT_denote _ _ _ _ (stableAt_const _ _)]
   split_ifs <;> first | rfl | omega
 
 theorem denote_portOfT {σT cT : Term} (iT i'T δT : Term) {env : List ℕ}

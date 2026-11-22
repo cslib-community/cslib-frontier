@@ -10,8 +10,8 @@ module
 public import CslibFrontier.Computability.Complexity.Classes.CountingSimulation.BlockNetworks
 public import CslibFrontier.Computability.Complexity.Classes.Hierarchy.Space
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram
-public import Mathlib.Data.Real.Archimedean
-public import Mathlib.Data.Real.Basic
+public import Mathlib.Algebra.Order.Archimedean.Real.Basic
+public import Mathlib.Basic.Real.Basic
 public import Mathlib.LinearAlgebra.Lagrange
 public import Mathlib.Probability.Moments.SubGaussian
 public import Mathlib.Probability.ProbabilityMassFunction.Integrals
@@ -46,14 +46,18 @@ theorem blockNetworkOf_eq (x : List Bool) (t σ : ℕ) :
   unfold blockNetworkOf
   exact explicitBlockNetwork_eq_explicitNetworkNum e (blockLength t) machine x σ
 
+omit [DecidableEq State] in
 theorem numEdges_blockNetworkOf (x : List Bool) (t σ : ℕ) :
     (blockNetworkOf machine e (x, t, σ)).2.numEdges =
       2 * (numBlocks t * (3 * k + 1) * letterBits k s (blockLength t)) := by
+  classical
   rw [blockNetworkOf_eq]; rfl
 
+omit [DecidableEq State] in
 theorem length_vertices_blockNetworkOf (x : List Bool) (t σ : ℕ) :
     (blockNetworkOf machine e (x, t, σ)).2.vertices.length =
       numBlocks t * (3 * k + 2) + numBlocks t * (3 * k + 1) * letterBits k s (blockLength t) := by
+  classical
   rw [blockNetworkOf_eq]; simp [explicitNetworkNum, explicitVerticesNum]
 
 /-- **Vertex `v` of the network**: its ports and its table. -/

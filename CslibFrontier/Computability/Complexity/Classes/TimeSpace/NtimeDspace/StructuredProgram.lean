@@ -262,17 +262,17 @@ theorem decidable_of_exec {α : Type} {enc : α ↪ List Bool} (L : Set α) (s :
   · refine ⟨(s.length + 2, final a), run.trans (reaches_lt hlt (finalBound a) ?_), ?_,
       finalBound a⟩
     · have pos := (decides a).mpr mem
-      rw [if_neg (by simp only [Expr.eval_reg, Expr.eval_const]; omega)]
+      rw [ite_eq_right (by simp only [Expr.eval_reg, Expr.eval_const]; omega)]
       exact Reaches.refl _
     · simp only [show s.length + 2 = s.length + 1 + 1 by omega, hyes, indicator, mem,
-        if_true]
+        ite_true]
       rfl
   · refine ⟨(s.length + 1, final a), run.trans (reaches_lt hlt (finalBound a) ?_), ?_,
       finalBound a⟩
     · have npos := (decides a).not.mpr mem
-      rw [if_pos (by simp only [Expr.eval_reg, Expr.eval_const]; omega)]
+      rw [ite_eq_left (by simp only [Expr.eval_reg, Expr.eval_const]; omega)]
       exact Reaches.refl _
-    · simp only [hno, indicator, mem, if_false]
+    · simp only [hno, indicator, mem, ite_false]
       rfl
 
 end Cslib.Complexity.NtimeDspace.Structured

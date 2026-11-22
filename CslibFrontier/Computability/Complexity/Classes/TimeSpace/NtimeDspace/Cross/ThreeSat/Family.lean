@@ -103,20 +103,20 @@ def threeSatFamily : LogspaceNetFamily where
   length_le w s h := h.trans (Nat.pow_le_pow_right (by omega) (by norm_num))
   edges_le w s _ := by
     have := rawW_m_le w s
-    show 6 * (rawW w s).m ≤ 10 * (s + 1)
+    change 6 * (rawW w s).m ≤ 10 * (s + 1)
     omega
   verts_le w s _ := by
     have h1 := rawW_m_le w s
     have h2 : s + 2 ≤ (s + 2) ^ 10 := Nat.le_self_pow (by norm_num) _
     have h3 : 8 * (s + 2) ≤ (s + 2) ^ 10 := by
-      have : 8 ≤ (s + 2) ^ 9 := (Nat.pow_le_pow_left (show 2 ≤ s + 2 by omega) 9).trans'
-          (by norm_num)
+      have : 8 ≤ (s + 2) ^ 9 := (Nat.pow_le_pow_left (show 2 ≤ s + 2 by omega)
+          9).trans' (by norm_num)
       calc 8 * (s + 2) ≤ (s + 2) ^ 9 * (s + 2) := Nat.mul_le_mul_right _ this
         _ = (s + 2) ^ 10 := by ring
     omega
   deg_le w s _ v := (Raw.net_degree_le ℤ v).trans (by omega)
   eval_mem w s _ v x _ := by
-    show (0 : ℤ) ≤ (if _ then 1 else 0) ∧ (if _ then 1 else 0 : ℤ) ≤ ((s + 2) ^ 10 : ℕ)
+    change (0 : ℤ) ≤ (if _ then 1 else 0) ∧ (if _ then 1 else 0 : ℤ) ≤ ((s + 2) ^ 10 : ℕ)
     have : (1 : ℤ) ≤ ((s + 2) ^ 10 : ℕ) := by exact_mod_cast Nat.one_le_pow _ _ (by omega)
     split_ifs <;> constructor <;> omega
   ports_nodup w s _ v := Raw.nodup_net_ports ℤ v

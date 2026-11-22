@@ -151,8 +151,7 @@ theorem stepF_code (st : State) (hshape : st.frames ≠ [] → st.path ≠ []) :
       simp only [hP, hP', ite_true, ite_false]
       by_cases h0 : qt (enc π) < 1
       · have e : qt (enc π) = 0 := by omega
-        simp only [h0, e, ite_true, code_eq, Bool.toNat_false]
-        congr 1
+        simp only [e, ite_true, code_eq, Bool.toNat_false]
         by_cases hb : 0 < qb v (enc π) <;> simp [hb]
       · have e0 : qt (enc π) ≠ 0 := by omega
         by_cases h3 : qt (enc π) < 3
@@ -162,7 +161,7 @@ theorem stepF_code (st : State) (hshape : st.frames ≠ [] → st.path ≠ []) :
         · have e : ¬ (qt (enc π) = 1 ∨ qt (enc π) = 2) := by omega
           by_cases h4 : qt (enc π) < 4
           · have e3 : qt (enc π) = 3 := by omega
-            simp [h0, e0, h3, h4, e3, code_eq, pushF_eq', consF_enc]
+            simp [e3, code_eq, pushF_eq', consF_enc]
           · have e3 : qt (enc π) ≠ 3 := by omega
             simp only [h0, e0, h3, e, h4, e3, ite_false, code_eq, Bool.toNat_false]
     · have hP' : qp (enc π) ≤ v := by omega
@@ -186,7 +185,7 @@ theorem stepF_code (st : State) (hshape : st.frames ≠ [] → st.path ≠ []) :
           simp [h0, this.1, this.2, code_eq]
         · by_cases h1 : qt (enc ρ) < 2
           · have e : qt (enc ρ) = 1 := by omega
-            simp only [h0, h1, ite_true, ite_false, e]
+            simp only [ite_true, e]
             unfold sumRetF
             by_cases ha : i + 1 < 2 ^ qa (enc ρ)
             · simp [ha, code_eq, pushF_eq', consF_enc]
@@ -195,7 +194,7 @@ theorem stepF_code (st : State) (hshape : st.frames ≠ [] → st.path ≠ []) :
               · simp [ha, hb, code_eq]
           · by_cases h2 : qt (enc ρ) < 3
             · have e : qt (enc ρ) = 2 := by omega
-              simp only [h0, h1, h2, ite_true, ite_false, e]
+              simp only [ite_true, e]
               unfold prodRetF
               by_cases hi : 0 < i
               · simp [hi, show i ≠ 0 by omega, advF_eq]

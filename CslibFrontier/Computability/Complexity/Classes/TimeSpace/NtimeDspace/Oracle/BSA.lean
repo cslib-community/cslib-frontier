@@ -41,8 +41,8 @@ and "accepts `x` in space `b`" means that every configuration it reaches, descri
 its input head position in binary and its visited work cells, has a description of at most `b`
 bits. It gives the two properties the remark uses: a query is answerable in space linear in its
 length, and every machine deciding a language in linear space, with any number of tapes, is
-described
-(`acceptsWithin_desc_iff`). The condition `2^|w| ≤ b` only pads the budget, so that decoding
+described (`acceptsWithin_desc_iff`). The condition `2^|w| ≤ b` only pads the budget, so that
+decoding
 the description `w`, which Complexitylib does within polynomial (not linear) bounds, fits in space
 `O(b)`; a fixed machine meets it for all long enough budgets.
 
@@ -137,7 +137,7 @@ theorem acceptsWithin_desc_iff {k : ℕ} {State : Type} [Fintype State] (eS : St
       rfl
     · refine (length_eCfg_le_space _ _ (j + 1)).trans (le_trans ?_ hb)
       have hsp := space_le_of_runsInSpace hs (j + 1)
-      rw [← simSpace_desc] at hsp
+      rw [← simSpace_desc (eS := eS) (eY := eBit)] at hsp
       simp only [cfgBudget, List.length_map]
       gcongr
 

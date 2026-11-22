@@ -170,8 +170,8 @@ theorem centralBinom_le_prod_primes (n H : ℕ) (hn : 0 < n) (hH : 1 ≤ H) :
     simp only [mem_filter] at ha hb
     omega
   have hdecomp : ∏ p ∈ primesUpTo (2 * n), p ^ (centralBinom n).factorization p =
-      (∏ p ∈ (primesUpTo (2 * n)).filter (· ≤ Nat.sqrt (2 * n)), p ^ (centralBinom n).factorization
-          p) *
+      (∏ p ∈ (primesUpTo (2 * n)).filter (· ≤ Nat.sqrt (2 * n)), p ^
+          (centralBinom n).factorization p) *
       ∏ p ∈ (primesUpTo (2 * n)).filter (fun p => Nat.sqrt (2 * n) < p), p ^
           (centralBinom n).factorization p := by
     conv_lhs => rw [hdec, prod_union hd]
@@ -208,8 +208,8 @@ theorem prime_prod_lower_bound_nat (X H : ℕ) (hXeven : Even X) (hX : 2 ≤ X) 
   calc 4 ^ n ≤ (2 * n + 1) * centralBinom n := h4
     _ ≤ (2 * n + 1) * ((2 * n) ^ Nat.sqrt (2 * n) * H ^ H * ∏ p ∈ primesWindow H (2 * n), p) :=
         Nat.mul_le_mul_left _ hbinom
-    _ = (2 * n + 1) * (2 * n) ^ Nat.sqrt (2 * n) * H ^ H * ∏ p ∈ primesWindow H (2 * n),
-        p := by ring
+    _ = (2 * n + 1) * (2 * n) ^ Nat.sqrt (2 * n) * H ^ H * ∏ p ∈ primesWindow H
+        (2 * n), p := by ring
 
 /-- **The prime product bound (real logarithmic form)**:
 For every even `X ≥ 2` and every `H ≥ 2`,

@@ -47,7 +47,7 @@ theorem copiesWidth_eq (C : Clique) (nodes : ℕ → ℕ) (g : ℕ) :
 
 theorem argW_ne (C : Clique) (w u : Fin C.q) (h : u ≠ w) :
     argW C w u = codeWidth (budget C.a w u) := by
-  unfold argW; rw [dif_pos ⟨u.isLt, w.isLt⟩, if_neg (fun e => h (Fin.ext e))]
+  unfold argW; rw [dite_eq_left ⟨u.isLt, w.isLt⟩, ite_eq_right (fun e => h (Fin.ext e))]
 
 theorem argW_self (C : Clique) (w : ℕ) : argW C w w = 0 := by
   unfold argW; split_ifs with h1 h2 <;> first | rfl | exact absurd rfl h2
@@ -62,12 +62,12 @@ theorem fieldOf_eq (C : Clique) (v u : Fin C.q) (h : u ≠ v) (args : ℕ) :
 
 theorem decodeArgs_eq (C : Clique) (v u : Fin C.q) (args : ℕ) :
     decodeArgs C v args u =
-      if u = v then (0, 0) else (decodeLabel (budget C.a v u) (fieldOf C v u args)).getD
-          (0, 0) := by
+      if u = v then (0, 0) else (decodeLabel (budget C.a v u)
+          (fieldOf C v u args)).getD (0, 0) := by
   unfold decodeArgs fieldOf
   by_cases h : u = v
   · simp [h]
-  · simp only [h, if_false]
+  · simp only [h, ite_false]
     cases decodeLabel _ _ <;> rfl
 
 theorem labelWt_decodeArgs_le (C : Clique) (v u : Fin C.q) (args : ℕ) :
@@ -93,10 +93,10 @@ variable (C : Clique) (w : Fin C.q) (lab : Fin C.q → Label)
 include hlab
 
 theorem argCode_digits : ∀ j < C.q, (fun u => if hu : u < C.q then
-    (if u = w.val then 0 else labelCode (budget C.a w ⟨u, hu⟩) (lab ⟨u, hu⟩)) else 0) j < 2 ^ argW C
-        w j := by
+    (if u = w.val then 0 else labelCode (budget C.a w ⟨u, hu⟩) (lab ⟨u, hu⟩)) else 0) j < 2 ^
+        argW C w j := by
   intro j hj
-  simp only [dif_pos hj]
+  simp only [dite_eq_left hj]
   split_ifs with hjw
   · positivity
   · have hne : (⟨j, hj⟩ : Fin C.q) ≠ w := fun e => hjw (congrArg Fin.val e)
@@ -110,11 +110,11 @@ theorem argCode_lt : argCode C w lab < 2 ^ argWidth C w :=
 theorem dig_argCode (u : Fin C.q) (h : u ≠ w) :
     Radix.dig (argW C w) (argCode C w lab) u = labelCode (budget C.a w u) (lab u) := by
   rw [argCode, Radix.dig_enc _ _ _ (argCode_digits C w lab hlab) u u.isLt]
-  simp only [dif_pos u.isLt, if_neg (fun e => h (Fin.ext e))]
+  simp only [dite_eq_left u.isLt, ite_eq_right (fun e => h (Fin.ext e))]
 
 theorem decodeArgs_argCode (u : Fin C.q) (h : u ≠ w) : decodeArgs C w (argCode C w lab) u = lab
     u := by
-  rw [decodeArgs_eq, if_neg h, fieldOf_eq C w u h, dig_argCode C w lab hlab u h,
+  rw [decodeArgs_eq, ite_eq_right h, fieldOf_eq C w u h, dig_argCode C w lab hlab u h,
     decode_labelCode (hlab u h)]
   rfl
 
@@ -123,8 +123,8 @@ end ArgCode
 /-! ### Codes of copies -/
 
 /-- The code of the copies `s p` held by the nodes `nodes p`. -/
-noncomputable def copiesCode (C : Clique) (nodes : ℕ → ℕ) (g : ℕ) (s : Fin g → Fin C.q → Label) :
-    ℕ :=
+noncomputable def copiesCode (C : Clique) (nodes : ℕ → ℕ) (g : ℕ)
+    (s : Fin g → Fin C.q → Label) : ℕ :=
   Radix.enc (fun p => argWidth C (nodes p))
     (fun p => if hp : p < g ∧ nodes p < C.q then argCode C ⟨nodes p, hp.2⟩ (s ⟨p, hp.1⟩) else 0) g
 
@@ -139,7 +139,7 @@ theorem copiesCode_digits (s : Fin g → Fin C.q → Label)
     ∀ j < g, (fun p => if hp : p < g ∧ nodes p < C.q then argCode C ⟨nodes p, hp.2⟩ (s ⟨p, hp.1⟩)
       else 0) j < 2 ^ argWidth C (nodes j) := by
   intro j hj
-  simp only [dif_pos (And.intro hj (hn j hj))]
+  simp only [dite_eq_left (And.intro hj (hn j hj))]
   exact argCode_lt C _ _ fun u hu => hs ⟨j, hj⟩ u fun e => hu (Fin.ext e)
 
 theorem slice_copiesCode (s : Fin g → Fin C.q → Label)
@@ -147,7 +147,7 @@ theorem slice_copiesCode (s : Fin g → Fin C.q → Label)
       labelWt (s p u) ≤ budget C.a ⟨nodes p, hn p p.isLt⟩ u) (p : Fin g) :
     slice C nodes (copiesCode C nodes g s) p = argCode C ⟨nodes p, hn p p.isLt⟩ (s p) := by
   rw [slice_eq, copiesCode, Radix.dig_enc _ _ _ (copiesCode_digits C nodes g hn s hs) p p.isLt,
-    dif_pos (And.intro p.isLt (hn p p.isLt))]
+    dite_eq_left (And.intro p.isLt (hn p p.isLt))]
 
 theorem copiesCode_lt (s : Fin g → Fin C.q → Label)
     (hs : ∀ (p : Fin g) (u : Fin C.q), u.val ≠ nodes p →
@@ -160,10 +160,10 @@ theorem copyAt_copiesCode (s : Fin g → Fin C.q → Label)
       labelWt (s p u) ≤ budget C.a ⟨nodes p, hn p p.isLt⟩ u) (p : Fin g) (u : Fin C.q) :
     copyAt C nodes (copiesCode C nodes g s) p u = if u.val = nodes p then (0, 0) else s p u := by
   unfold copyAt
-  rw [dif_pos ⟨hn p p.isLt, u.isLt⟩, slice_copiesCode C nodes g hn s hs]
+  rw [dite_eq_left ⟨hn p p.isLt, u.isLt⟩, slice_copiesCode C nodes g hn s hs]
   by_cases hu : u.val = nodes p
-  · rw [if_pos hu, decodeArgs_eq, if_pos (Fin.ext hu)]
-  · rw [if_neg hu, decodeArgs_argCode C _ _ (fun u' hu' => hs p u' fun e => hu' (Fin.ext e)) u
+  · rw [ite_eq_left hu, decodeArgs_eq, ite_eq_left (Fin.ext hu)]
+  · rw [ite_eq_right hu, decodeArgs_argCode C _ _ (fun u' hu' => hs p u' fun e => hu' (Fin.ext e)) u
       (fun e => hu (congrArg Fin.val e))]
 
 theorem copiesValid_copiesCode (s : Fin g → Fin C.q → Label)
@@ -177,7 +177,7 @@ theorem copiesValid_copiesCode (s : Fin g → Fin C.q → Label)
   simp only at hw
   subst hw
   refine ⟨s ⟨p, hp⟩ u, ?_, hs ⟨p, hp⟩ u fun e => huw (Fin.ext e)⟩
-  show decodeLabel _ (fieldOf C _ u _) = _
+  change decodeLabel _ (fieldOf C _ u _) = _
   rw [fieldOf_eq C _ u huw, slice_copiesCode C nodes g hn s hs' ⟨p, hp⟩,
     dig_argCode C _ _ (fun u' hu' => hs' ⟨p, hp⟩ u' fun e => hu' (Fin.ext e)) u huw,
     decode_labelCode (hs' ⟨p, hp⟩ u fun e => huw (Fin.ext e))]
@@ -188,10 +188,12 @@ theorem copiesCode_copyAt (ξ : ℕ) (hξ : ξ < 2 ^ copiesWidth C nodes g)
   rw [copiesCode]
   conv_rhs => rw [← Radix.enc_dig g _ ξ hξ]
   refine Radix.enc_congr fun j hj => ?_
-  rw [dif_pos (And.intro hj (hn j hj)), ← slice_eq, argCode]
-  conv_rhs => rw [← Radix.enc_dig C.q (argW C (nodes j)) (slice C nodes ξ j) (Nat.mod_lt _ (by positivity))]
+  rw [dite_eq_left (And.intro hj (hn j hj)), ← slice_eq, argCode]
+  conv_rhs =>
+    rw [← Radix.enc_dig C.q (argW C (nodes j)) (slice C nodes ξ j)
+      (Nat.mod_lt _ (by positivity))]
   refine Radix.enc_congr fun u hu => ?_
-  rw [dif_pos hu]
+  rw [dite_eq_left hu]
   split_ifs with huw
   · simp only [Radix.dig, huw, argW_self, pow_zero, Nat.mod_one]
   · have hne : (⟨u, hu⟩ : Fin C.q) ≠ ⟨nodes j, hn j hj⟩ := fun e => huw (congrArg Fin.val e)
@@ -200,7 +202,7 @@ theorem copiesCode_copyAt (ξ : ℕ) (hξ : ξ < 2 ^ copiesWidth C nodes g)
         (fieldOf C ⟨nodes j, hn j hj⟩ ⟨u, hu⟩ (slice C nodes ξ j)) = some l := hl
     have hc : copyAt C nodes ξ j u = l := by
       unfold copyAt
-      rw [dif_pos ⟨hn j hj, hu⟩, decodeArgs_eq, if_neg hne, hl']
+      rw [dite_eq_left ⟨hn j hj, hu⟩, decodeArgs_eq, ite_eq_right hne, hl']
       rfl
     simp only [hc]
     rw [(labelCode_decode (Nat.mod_lt _ (by positivity)) hl').2]
@@ -210,11 +212,11 @@ theorem copyAt_mem (ξ : ℕ) (hv : CopiesValid C nodes g ξ) (p : Fin g) (u : F
     copyAt C nodes ξ p u ∈ (if u.val = nodes p then {((0 : Multiset ℕ), (0 : Multiset ℕ))}
       else labelsEq (budget C.a ⟨nodes p, hn p p.isLt⟩ u)) := by
   unfold copyAt
-  rw [dif_pos ⟨hn p p.isLt, u.isLt⟩, decodeArgs_eq]
+  rw [dite_eq_left ⟨hn p p.isLt, u.isLt⟩, decodeArgs_eq]
   by_cases hu : u.val = nodes p
-  · rw [if_pos (Fin.ext hu), if_pos hu]; exact mem_singleton_self _
+  · rw [ite_eq_left (Fin.ext hu), ite_eq_left hu]; exact mem_singleton_self _
   · have hne : u ≠ ⟨nodes p, hn p p.isLt⟩ := fun e => hu (congrArg Fin.val e)
-    rw [if_neg hne, if_neg hu]
+    rw [ite_eq_right hne, ite_eq_right hu]
     obtain ⟨l, hl, hw⟩ := hv p p.isLt ⟨nodes p, hn p p.isLt⟩ u rfl hne
     have hl' : decodeLabel (budget C.a ⟨nodes p, hn p p.isLt⟩ u)
         (fieldOf C ⟨nodes p, hn p p.isLt⟩ u (slice C nodes ξ p)) = some l := hl
@@ -228,8 +230,8 @@ theorem sum_copies (n : Fin g → Fin C.q) (hnn : ∀ p, (n p).val = nodes p.val
     ∑ ξ ∈ range (2 ^ copiesWidth C nodes g),
         (if CopiesValid C nodes g ξ then H (fun p u => copyAt C nodes ξ p u) else 0) =
       ∑ s ∈ Fintype.piFinset (fun p => Fintype.piFinset fun u =>
-        if u = n p then {((0 : Multiset ℕ), (0 : Multiset ℕ))} else labelsEq (budget C.a (n p) u)),
-            H s := by
+        if u = n p then {((0 : Multiset ℕ), (0 : Multiset ℕ))} else labelsEq
+            (budget C.a (n p) u)), H s := by
   have hn' : ∀ p : Fin g, n p = ⟨nodes p, hn p p.isLt⟩ := fun p => Fin.ext (hnn p)
   rw [← Finset.sum_filter]
   refine Finset.sum_nbij' (fun ξ p u => copyAt C nodes ξ p u) (copiesCode C nodes g) ?_ ?_ ?_ ?_
@@ -247,7 +249,7 @@ theorem sum_copies (n : Fin g → Fin C.q) (hnn : ∀ p, (n p).val = nodes p.val
         labelWt (s p u) = budget C.a ⟨nodes p, hn p p.isLt⟩ u := by
       intro p u hu
       have := hs p u
-      rw [if_neg (fun e => hu (by rw [e, hnn])), hn' p] at this
+      rw [ite_eq_right (fun e => hu (by rw [e, hnn])), hn' p] at this
       exact mem_labelsEq.mp this
     exact mem_filter.mpr ⟨mem_range.mpr (copiesCode_lt C nodes g hn s fun p u
         hu => (hs1 p u hu).le),
@@ -261,13 +263,13 @@ theorem sum_copies (n : Fin g → Fin C.q) (hnn : ∀ p, (n p).val = nodes p.val
         labelWt (s p u) ≤ budget C.a ⟨nodes p, hn p p.isLt⟩ u := by
       intro p u hu
       have := hs p u
-      rw [if_neg (fun e => hu (by rw [e, hnn])), hn' p] at this
+      rw [ite_eq_right (fun e => hu (by rw [e, hnn])), hn' p] at this
       exact (mem_labelsEq.mp this).le
     funext p u
     rw [copyAt_copiesCode C nodes g hn s hs0 p u]
     split_ifs with hu
     · have := hs p u
-      rw [if_pos (Fin.ext (hu.trans (hnn p).symm))] at this
+      rw [ite_eq_left (Fin.ext (hu.trans (hnn p).symm))] at this
       exact (mem_singleton.mp this).symm
     · rfl
 

@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.ProgPieces
-public import Mathlib.Data.Real.Archimedean
-public import Mathlib.Data.Real.Basic
+public import Mathlib.Algebra.Order.Archimedean.Real.Basic
+public import Mathlib.Basic.Real.Basic
 public import Mathlib.LinearAlgebra.Lagrange
 public import Mathlib.Probability.Moments.SubGaussian
 public import Mathlib.Probability.ProbabilityMassFunction.Integrals

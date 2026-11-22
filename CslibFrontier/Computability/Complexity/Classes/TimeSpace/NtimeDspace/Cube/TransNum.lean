@@ -210,8 +210,8 @@ theorem srcLenN_eq : srcLenN B up.toNat (lcode x) (lcode y) (lcode m) =
 
 theorem srcList_getD {k : ℕ} (hk : k < (srcList up x y m).length) (t : HPlace × ℕ) :
     (srcList up x y m).getD k t =
-      (placeOf up (srcPlN B (lcode x) (lcode y) k), srcTyN B up.toNat (lcode x) (lcode y) (lcode m)
-          k) := by
+      (placeOf up (srcPlN B (lcode x) (lcode y) k), srcTyN B up.toNat (lcode x) (lcode y)
+          (lcode m) k) := by
   have c1 := cardN_msCode (bitsAt_lcode_fst x) hx.1
   have c2 := cardN_msCode (bitsAt_lcode_fst y) hy.1
   have k1 := kthN_msCode (bitsAt_lcode_fst x) hx.1
@@ -301,8 +301,8 @@ def trWN (B up X Y M lo hi Tc : ℕ) : ℕ := srcWtN B up X Y M lo hi + tWtN B T
 theorem trWN_eq {B : ℕ} (up : Bool) {x y m : Label} (hx : LFits B x) (hy : LFits B y)
     (hm : LFits B m) (lo hi : ℕ) {T : Multiset (HPlace × ℕ)} (hT : ∀ s ∈ T, ValidPl up s.1)
     (hf : TFits B up T) :
-    trWN B up.toNat (lcode x) (lcode y) (lcode m) lo hi (tcode up T) = tWt (srcSub up x y m lo hi)
-        T := by
+    trWN B up.toNat (lcode x) (lcode y) (lcode m) lo hi (tcode up T) = tWt
+        (srcSub up x y m lo hi) T := by
   rw [trWN, srcWtN_eq up hx hy hm, tWtN_eq hT hf, tWt]
 
 
@@ -324,8 +324,8 @@ theorem tpart_loc3 (up : Bool) (σ₀ σ₁ σ₂ : Multiset ℕ) {k : ℕ} (hk 
   simp only [loc3, tpart_add_eq, tpart_located_eq]
   interval_cases k <;> cases up <;> simp [placeOf]
 
-theorem loc3_valid (up : Bool) (σ₀ σ₁ σ₂ : Multiset ℕ) : ∀ s ∈ loc3 up σ₀ σ₁ σ₂, ValidPl up
-    s.1 := by
+theorem loc3_valid (up : Bool) (σ₀ σ₁ σ₂ : Multiset ℕ) : ∀ s ∈ loc3 up σ₀ σ₁ σ₂,
+    ValidPl up s.1 := by
   intro s hs
   simp only [loc3, located, Multiset.mem_add, Multiset.mem_map] at hs
   rcases hs with (⟨i, -, rfl⟩ | ⟨i, -, rfl⟩) | ⟨i, -, rfl⟩
@@ -543,8 +543,7 @@ theorem count_tpart_rest (up : Bool) (T T₁ : Multiset (HPlace × ℕ)) {k p : 
 
 /-- **The fit of a transport state** to the weight bound `A` and the fuel `B`: the weights of its
 labels and targets total at most `A ≥ 1`, codes of weight-`A` labels have at most `B` bits, and
-every
-target has a place of the half-routing. -/
+every target has a place of the half-routing. -/
 structure TrFit (A B : ℕ) (up : Bool) (x y m : Label) (T : Multiset (HPlace × ℕ)) : Prop where
   one_le : 1 ≤ A
   width_le : codeWidth A ≤ B
@@ -616,12 +615,12 @@ def restCnt (B Tc p j k : ℕ) : ℕ → ℕ := fun e =>
   countN B (getF Tc k) 0 e - if k = p ∧ e = j then 1 else 0
 
 /-- **The pivot test** on codes (`PivotValid`): the pivot index is canonical, the pivot position
-lies
-in the interval, the target lies in `T`, `T₁ ≤ T - {t}` part by part, the pivot condition holds,
+lies in the interval, the target lies in `T`, `T₁ ≤ T - {t}` part by part, the pivot condition
+holds,
 and the exponents lie in `[-W, W]`. -/
 def PivOkN (B up X Y M lo hi Tc W i : ℕ) : Prop :=
-  (i < 2 ^ pivWidth W ∧ PartOkN B W (Radix.dig (pivW W) i 2) ∧ PartOkN B W (Radix.dig (pivW W) i 3)
-      ∧
+  (i < 2 ^ pivWidth W ∧ PartOkN B W (Radix.dig (pivW W) i 2) ∧ PartOkN B W
+      (Radix.dig (pivW W) i 3) ∧
       PartOkN B W (Radix.dig (pivW W) i 4)) ∧
     Radix.dig (pivW W) i 0 < min (hi - lo) (srcLenN B up X Y M - lo) ∧
     0 < countN B (getF Tc (Radix.dig (pivW W) i 1 % 3)) 0 (Radix.dig (pivW W) i 1 / 3) ∧
@@ -642,8 +641,8 @@ theorem tpart_pivT₁ (up : Bool) (W i : ℕ) {k : ℕ} (hk : k < 3) :
 
 /-- Under canonical fields, the fields hold the codes of the parts of `T₁`. -/
 theorem canon_facts {B W i : ℕ} (hW : W ≠ 0) (hWB : codeWidth W ≤ B)
-    (hc : ∀ k < 3, labelCode W (fldMs W (Radix.dig (pivW W) i (k + 2)), 0) = Radix.dig (pivW W) i
-        (k + 2))
+    (hc : ∀ k < 3, labelCode W (fldMs W (Radix.dig (pivW W) i (k + 2)), 0) = Radix.dig
+        (pivW W) i (k + 2))
     {k : ℕ} (hk : k < 3) :
     BitsAt (Radix.dig (pivW W) i (k + 2)) 0 (msCode (fldMs W (Radix.dig (pivW W) i (k + 2)))) ∧
       (msCode (fldMs W (Radix.dig (pivW W) i (k + 2)))).length ≤ B := by
@@ -699,8 +698,8 @@ theorem pivOkN_iff {A B : ℕ} {up : Bool} {x y m : Label} {T : Multiset (HPlace
       (pivW W) i (k + 2)) →
       (pivT₁ up W i ≤ T - {(placeOf up (Radix.dig (pivW W) i 1 % 3), Radix.dig (pivW W) i 1 / 3)} ↔
         ∀ k < 3, leCntN B (Radix.dig (pivW W) i (k + 2)) 0
-            (restCnt B (tcode up T) (Radix.dig (pivW W) i 1 % 3) (Radix.dig (pivW W) i 1 / 3) k) =
-            1) := by
+            (restCnt B (tcode up T) (Radix.dig (pivW W) i 1 % 3)
+                (Radix.dig (pivW W) i 1 / 3) k) = 1) := by
     intro hW0 hc
     rw [le_sub_iff_parts (T₁ := pivT₁ up W i) (loc3_valid _ _ _ _) hp]
     refine forall₂_congr fun k hk => ?_
@@ -710,8 +709,8 @@ theorem pivOkN_iff {A B : ℕ} {up : Bool} {x y m : Label} {T : Multiset (HPlace
     rw [restCnt, countN_msCode (bitsAt_part up T hk) (hTf _ hk)]
   -- the pivot condition
   have hpc : Radix.dig (pivW W) i 0 < l.length → W ≠ 0 →
-      (∀ k < 3, labelCode W (fldMs W (Radix.dig (pivW W) i (k + 2)), 0) = Radix.dig (pivW W) i
-      (k + 2)) →
+      (∀ k < 3, labelCode W (fldMs W (Radix.dig (pivW W) i (k + 2)), 0) = Radix.dig
+          (pivW W) i (k + 2)) →
       ((2 * tWt (l.take (Radix.dig (pivW W) i 0)) (pivT₁ up W i) < W ∧
         W ≤ 2 * (tWt (l.take (Radix.dig (pivW W) i 0)) (pivT₁ up W i) + lwt
             (l.getD (Radix.dig (pivW W) i 0)
@@ -729,20 +728,20 @@ theorem pivOkN_iff {A B : ℕ} {up : Bool} {x y m : Label} {T : Multiset (HPlace
       rw [srcLenN_eq up hx hy hm] at this; omega
     have e1 : tWt (l.take (Radix.dig (pivW W) i 0)) (pivT₁ up W i) = pivL1N B up.toNat (lcode x)
         (lcode y) (lcode m) lo W i := by
-      rw [tWt, hl, take_srcSub up x y m hν'.le, ← srcWtN_eq up hx hy hm, pivT₁, sum_lwt_loc3,
-          pivL1N]
+      rw [tWt, hl, take_srcSub up x y m hν'.le, ← srcWtN_eq up hx hy hm, pivT₁,
+          sum_lwt_loc3, pivL1N]
       obtain ⟨b0, l0⟩ : BitsAt (Radix.dig (pivW W) i 2) 0
           (msCode (fldMs W (Radix.dig (pivW W) i 2))) ∧
-          (msCode (fldMs W (Radix.dig (pivW W) i 2))).length ≤ B := canon_facts hW0 hWB hc (k := 0)
-              (by omega)
+          (msCode (fldMs W (Radix.dig (pivW W) i 2))).length ≤ B := canon_facts hW0 hWB hc
+              (k := 0) (by omega)
       obtain ⟨b1, l1⟩ : BitsAt (Radix.dig (pivW W) i 3) 0
           (msCode (fldMs W (Radix.dig (pivW W) i 3))) ∧
-          (msCode (fldMs W (Radix.dig (pivW W) i 3))).length ≤ B := canon_facts hW0 hWB hc (k := 1)
-              (by omega)
+          (msCode (fldMs W (Radix.dig (pivW W) i 3))).length ≤ B := canon_facts hW0 hWB hc
+              (k := 1) (by omega)
       obtain ⟨b2, l2⟩ : BitsAt (Radix.dig (pivW W) i 4) 0
           (msCode (fldMs W (Radix.dig (pivW W) i 4))) ∧
-          (msCode (fldMs W (Radix.dig (pivW W) i 4))).length ≤ B := canon_facts hW0 hWB hc (k := 2)
-              (by omega)
+          (msCode (fldMs W (Radix.dig (pivW W) i 4))).length ≤ B := canon_facts hW0 hWB hc
+              (k := 2) (by omega)
       rw [wtN_msCode b0 l0, wtN_msCode b1 l1, wtN_msCode b2 l2]
       omega
     have e2 : lwt (l.getD (Radix.dig (pivW W) i 0)
@@ -839,8 +838,7 @@ theorem restN_eq {A B : ℕ} {up : Bool} {x y m : Label} {T T₁ : Multiset (HPl
 /-! ### The children of a transport sum -/
 
 /-- **The child of a transport sum** (`tr`, kind `7`) at the pivot index `i`: the code of the
-product
-`trm` if the index is valid, else the code of `zero`. -/
+product `trm` if the index is valid, else the code of `zero`. -/
 def trChildN (B e i : ℕ) : ℕ :=
   let up := getF e 1; let X := getF e 2; let Y := getF e 3; let M := getF e 4
   let lo := getF e 5; let hi := getF e 6; let Tc := getF e 7
@@ -931,7 +929,7 @@ theorem gen_child_tr (S : Setup) (up : Bool) (x y m : Label) (lo hi : ℕ) (T : 
           (c - (decodePivot up (tWt (srcSub up x y m lo hi) T) i).2.2.2.1 -
             (decodePivot up (tWt (srcSub up x y m lo hi) T) i).2.2.2.2)
       else .zero := by
-  show (if _ then _ else _) = _
+  change (if _ then _ else _) = _
   split_ifs
   · generalize decodePivot up (tWt (srcSub up x y m lo hi) T) i = d
     obtain ⟨ν, t, T₁, c₁, c₀⟩ := d
@@ -978,8 +976,8 @@ theorem trChildN_code (S : Setup) {A B : ℕ} {up : Bool} {x y m : Label} {lo hi
     rw [plOfN_eq up hp, ← hm3 0 (by omega), ← hm3 1 (by omega), ← hm3 2 (by omega),
       ← hr3 0 (by omega), ← hr3 1 (by omega), ← hr3 2 (by omega), zzSubN_eq, zzSubN_eq, zzAddN_eq,
       unzz_zz]
-    rw [show c - ((Radix.dig (pivW W) i 5 : ℕ) - (W : ℤ)) - ((Radix.dig (pivW W) i 6 : ℕ) - (W : ℤ))
-        =
+    rw [show c - ((Radix.dig (pivW W) i 5 : ℕ) - (W : ℤ)) -
+        ((Radix.dig (pivW W) i 6 : ℕ) - (W : ℤ)) =
       c + ((2 * W : ℕ) : ℤ) - ((Radix.dig (pivW W) i 5 + Radix.dig (pivW W) i 6 : ℕ) :
           ℤ) by push_cast; ring]
     rfl
@@ -1011,8 +1009,7 @@ theorem trmChildN_code (S : Setup) (up : Bool) (x y m : Label) (lo pos hi : ℕ)
 /-! ### The rule coefficients -/
 
 /-- **The coefficient `[z^c] R(s, t)`** of a half-rule, for a source of type `i` at the place of
-index
-`ps` and a target of type `j` at the place of index `pt`: `0` at the same place; between the
+index `ps` and a target of type `j` at the place of index `pt`: `0` at the same place; between the
 corners,
 `χ z^{-d}` (below the cut) and `(1 - z^{-2}) χ z^{-d}` (above); between the cut and the corner `x`
 (above) or `v` (below), `(1 - z²) χ z^d` and `χ z^d`; between the cut and the copying corner,
@@ -1033,8 +1030,8 @@ theorem coeff_CT (s n e : ℤ) :
     (LaurentPolynomial.C s * LaurentPolynomial.T n : Lp).coeff e = if n = e then s else 0 := by
   rw [← LaurentPolynomial.single_eq_C_mul_T, AddMonoidAlgebra.coeff_single, Finsupp.single_apply]
 
-theorem coeff_cubeC (i j : ℕ) (e : ℤ) : (Cube.C i j).coeff e = if (d i j : ℤ) = e then chi i
-    j else 0 :=
+theorem coeff_cubeC (i j : ℕ) (e : ℤ) : (Cube.C i j).coeff e = if (d i j : ℤ) =
+    e then chi i j else 0 :=
   coeff_CT _ _ _
 
 theorem coeff_bar_cubeC (i j : ℕ) (e : ℤ) :
@@ -1180,8 +1177,8 @@ theorem trrChildN_code (S : Setup) {A B : ℕ} {up : Bool} {x y m : Label} {pos 
     have key : (hRule up ((srcList up x y m).getD pos (placeOf up k, t2)).1
         ((srcList up x y m).getD pos (placeOf up k, t2)).2 (placeOf up k) t2).coeff c₀ =
         ruleZ up (if pos < (srcList up x y m).length then srcPlN B (lcode x) (lcode y) pos else k)
-          (if pos < (srcList up x y m).length then srcTyN B up.toNat (lcode x) (lcode y) (lcode m)
-              pos
+          (if pos < (srcList up x y m).length then srcTyN B up.toNat (lcode x)
+              (lcode y) (lcode m) pos
             else t2) k t2 c₀ := by
       by_cases hp : pos < (srcList up x y m).length
       · rw [srcList_getD up hf.lx hf.ly hf.lm hp, ite_eq_left hp, ite_eq_left hp]
@@ -1237,15 +1234,15 @@ theorem trInv_child (S : Setup) {A B : ℕ} {st : St} (h : TrInv A B st) (i : �
     · exact Or.inr (Or.inl rfl)
   | trm up x y m lo pos hi t T₁ T₂ c₁ c₀ c₂ =>
     left
-    show TrInv A B (if i = 0 then .tr up x y m lo pos T₁ c₁ else .trr up x y m pos hi t T₂ c₀ c₂)
+    change TrInv A B (if i = 0 then .tr up x y m lo pos T₁ c₁ else .trr up x y m pos hi t T₂ c₀ c₂)
     split_ifs
     · exact h.1
     · exact ⟨h.2.1, h.2.2⟩
   | trr up x y m pos hi t T₂ c₀ c₂ =>
     by_cases hi0 : i = 0
-    · exact Or.inr (Or.inr ⟨_, by show (if i = 0 then _ else _) = _; rw [ite_eq_left hi0]⟩)
+    · exact Or.inr (Or.inr ⟨_, by change (if i = 0 then _ else _) = _; rw [ite_eq_left hi0]⟩)
     · left
-      show TrInv A B (if i = 0 then _ else .tr up x y m (pos + 1) hi T₂ c₂)
+      change TrInv A B (if i = 0 then _ else .tr up x y m (pos + 1) hi T₂ c₂)
       rw [ite_eq_right hi0]
       exact h.1
   | _ => exact (h : False).elim
@@ -1273,7 +1270,7 @@ theorem trLeafN_tr {up : Bool} {x y m : Label} {lo hi : ℕ} {T : Multiset (HPla
     · rintro ⟨rfl, rfl⟩
       exact ⟨tpart_zero _ _, tpart_zero _ _, tpart_zero _ _, rfl⟩
   rw [trLeafN, f0, f7, f8, hc 0 (by omega), hc 1 (by omega), hc 2 (by omega)]
-  show _ = (if _ then _ else _)
+  change _ = (if _ then _ else _)
   split_ifs with h1 h2 h2
   · rfl
   · exact absurd (key.mp h1) h2
@@ -1293,7 +1290,7 @@ theorem tr_agree {st : St} (h : TrInv A B st) :
     obtain ⟨f0, f1, f2, f3, f4, f5, f6, f7, -⟩ := fields_tr S up x y m lo hi T c
     refine ⟨Or.inl f0, ?_, ?_, trLeafN_tr S h c, fun i => ?_⟩
     · rw [trTagN, f0, ite_eq_left rfl, f5, f6]
-      show _ = AGen.kindTag (if lo < hi then .sum else .leaf)
+      change _ = AGen.kindTag (if lo < hi then .sum else .leaf)
       split_ifs <;> rfl
     · rw [trWidthN, f0, ite_eq_left rfl, f1, f2, f3, f4, f5, f6, f7,
         trWN_eq up h.lx h.ly h.lm lo hi h.valid h.tf]

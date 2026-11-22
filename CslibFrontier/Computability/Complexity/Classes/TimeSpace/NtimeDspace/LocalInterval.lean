@@ -44,10 +44,10 @@ theorem NTape.read_sub (t : NTape) (c rho : ℕ) : t.read ((c : ℤ) - rho) = re
   by_cases h1 : rho < c
   · have : (c : ℤ) - rho = Int.ofNat (c - rho - 1 + 1) := by
       simp only [Int.ofNat_eq_natCast]; omega
-    rw [this, if_neg h0, if_pos h1]; rfl
+    rw [this, ite_eq_right h0, ite_eq_left h1]; rfl
   · have : (c : ℤ) - rho = Int.negSucc (rho - c - 1) := by
       rw [Int.negSucc_eq]; omega
-    rw [this, if_neg h0, if_neg h1]; rfl
+    rw [this, ite_eq_right h0, ite_eq_right h1]; rfl
 
 theorem sign_cast (d : SignType) : ((d : ℤ)) = (sgnCode d : ℤ) - 1 := by
   cases d <;> rfl
@@ -122,8 +122,8 @@ theorem condN_iff {R : ℕ} (hR : 0 < R) {n : NCfg k} (hf : Fits R n) (b : ℕ)
   · rintro ⟨hs, ht, ⟨hi1, hi2⟩, hh, hw⟩
     refine ⟨hs, ht, ⟨hi1, hin.mpr hi2⟩, fun h hk => ?_, fun h hk c hc => ?_⟩
     · have := hh ⟨h, hk⟩
-      rw [hoff ⟨h, hk⟩, hdc ⟨h, hk⟩, show 3 + 4 * h + 3 = 3 + 4 * ((⟨h, hk⟩ : Fin k) : ℕ) +
-          3 from rfl,
+      rw [hoff ⟨h, hk⟩, hdc ⟨h, hk⟩, show 3 + 4 * h + 3 = 3 + 4 *
+          ((⟨h, hk⟩ : Fin k) : ℕ) + 3 from rfl,
         drho]
       exact ⟨this.1, (hrho ⟨h, hk⟩).mpr this.2⟩
     · have := (hw ⟨h, hk⟩).2 c hc

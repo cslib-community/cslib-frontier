@@ -62,12 +62,12 @@ theorem enc_lt (n : ℕ) : ∀ (w d : ℕ → ℕ), (∀ j < n, d j < 2 ^ w j) �
 
 theorem dig_zero (w : ℕ → ℕ) (x : ℕ) : dig w x 0 = x % 2 ^ w 0 := by simp [dig]
 
-theorem dig_succ' (w : ℕ → ℕ) (x k : ℕ) : dig w x (k + 1) = dig (fun j => w (j + 1)) (x / 2 ^ w 0)
-    k := by
+theorem dig_succ' (w : ℕ → ℕ) (x k : ℕ) : dig w x (k + 1) = dig (fun j => w (j + 1))
+    (x / 2 ^ w 0) k := by
   unfold dig; rw [off_succ', pow_add, Nat.div_div_eq_div_mul]
 
-theorem dig_enc (n : ℕ) : ∀ (w d : ℕ → ℕ), (∀ j < n, d j < 2 ^ w j) → ∀ k < n, dig w (enc w d n) k =
-    d k := by
+theorem dig_enc (n : ℕ) : ∀ (w d : ℕ → ℕ), (∀ j < n, d j < 2 ^ w j) → ∀ k < n, dig w
+    (enc w d n) k = d k := by
   induction n with
   | zero => intro w d _ k hk; omega
   | succ n ih =>
@@ -75,8 +75,8 @@ theorem dig_enc (n : ℕ) : ∀ (w d : ℕ → ℕ), (∀ j < n, d j < 2 ^ w j) 
     have h0 := hd 0 (by omega)
     rcases k with _ | k
     · rw [dig_zero, enc_succ', Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt h0]
-    · rw [dig_succ', enc_succ', Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt h0,
-        zero_add]
+    · rw [dig_succ', enc_succ', Nat.add_mul_div_left _ _ (by positivity),
+        Nat.div_eq_of_lt h0, zero_add]
       exact ih _ _ (fun j hj => hd (j + 1) (by omega)) k (by omega)
 
 theorem enc_dig (n : ℕ) : ∀ (w : ℕ → ℕ) (x : ℕ), x < 2 ^ off w n → enc w (dig w x) n = x := by
@@ -105,8 +105,8 @@ def ValidPl (up : Bool) (p : HPlace) : Prop := ∃ k < 3, p = placeOf up k
 theorem placeIdx_lt (up : Bool) (p : HPlace) : placeIdx up p < 3 := by
   unfold placeIdx; split_ifs <;> omega
 
-theorem placeOf_placeIdx {up : Bool} {p : HPlace} (h : ValidPl up p) : placeOf up (placeIdx up p) =
-    p := by
+theorem placeOf_placeIdx {up : Bool} {p : HPlace} (h : ValidPl up p) : placeOf up
+    (placeIdx up p) = p := by
   obtain ⟨k, hk, rfl⟩ := h
   interval_cases k <;> cases up <;> simp [placeOf, placeIdx]
 
@@ -136,8 +136,8 @@ noncomputable def pivDigits (up : Bool) (W ν : ℕ) (t : HPlace × ℕ) (T₁ :
   else if j ≤ 4 then labelCode W (partOf up T₁ (j - 2), 0)
   else if j = 5 then (c₁ + W).toNat else (c₀ + W).toNat
 
-theorem pivotCode_eq (up : Bool) (W ν : ℕ) (t : HPlace × ℕ) (T₁ : Multiset (HPlace × ℕ)) (c₁ c₀ : ℤ)
-    :
+theorem pivotCode_eq (up : Bool) (W ν : ℕ) (t : HPlace × ℕ)
+    (T₁ : Multiset (HPlace × ℕ)) (c₁ c₀ : ℤ) :
     pivotCode up W ν t T₁ c₁ c₀ = Radix.enc (pivW W) (pivDigits up W ν t T₁ c₁ c₀) 7 := by
   simp only [pivotCode, pivWidths, Radix.enc, Radix.off, sum_range_succ, range_zero, sum_empty,
     pivW, pivDigits, partOf]
@@ -162,7 +162,7 @@ theorem decodePivot_eq (up : Bool) (W i : ℕ) : decodePivot up W i =
   have o : ∀ k, Radix.off (pivW W) k = ∑ j ∈ range k, pivW W j := fun k => rfl
   have h0 : Radix.dig (pivW W) i 0 = i / 2 ^ 0 % 2 ^ Nat.size W := by simp [Radix.dig, pivW]
   have h1 : Radix.dig (pivW W) i 1 = i / 2 ^ Nat.size W % 2 ^ Nat.size (3 * W + 3) := by
-    simp [Radix.dig, o, sum_range_succ, pivW]
+    simp [Radix.dig, o, pivW]
   have h2 : Radix.dig (pivW W) i 2 =
       i / 2 ^ (Nat.size W + Nat.size (3 * W + 3) + 0 * codeWidth W) % 2 ^ codeWidth W := by
     simp [Radix.dig, o, sum_range_succ, pivW]
@@ -205,11 +205,11 @@ theorem filter_places {up : Bool} (T₁ : Multiset (HPlace × ℕ)) (hT : ∀ s 
     rw [Multiset.filter_cons, Multiset.filter_cons, Multiset.filter_cons, ← Multiset.singleton_add]
     conv_rhs => rw [← ih]
     interval_cases k
-    · rw [if_pos ha, if_neg (hne 1 (by omega) (by omega)), if_neg
+    · rw [ite_eq_left ha, ite_eq_right (hne 1 (by omega) (by omega)), ite_eq_right
         (hne 2 (by omega) (by omega))]; abel
-    · rw [if_pos ha, if_neg (hne 0 (by omega) (by omega)), if_neg
+    · rw [ite_eq_left ha, ite_eq_right (hne 0 (by omega) (by omega)), ite_eq_right
         (hne 2 (by omega) (by omega))]; abel
-    · rw [if_pos ha, if_neg (hne 0 (by omega) (by omega)), if_neg
+    · rw [ite_eq_left ha, ite_eq_right (hne 0 (by omega) (by omega)), ite_eq_right
         (hne 1 (by omega) (by omega))]; abel
 
 theorem wt_partOf_le {up : Bool} (T₁ : Multiset (HPlace × ℕ)) (k : ℕ) :
@@ -238,9 +238,9 @@ theorem decode_pivotCode (up : Bool) {W ν : ℕ} {t : HPlace × ℕ} {T₁ : Mu
   have hb : ∀ j < 7, pivDigits up W ν t T₁ c₁ c₀ j < 2 ^ pivW W j := by
     intro j hj
     interval_cases j
-    · show ν < 2 ^ Nat.size W
+    · change ν < 2 ^ Nat.size W
       exact lt_of_le_of_lt hν (Nat.lt_size_self W)
-    · show placeIdx up t.1 + 3 * t.2 < 2 ^ Nat.size (3 * W + 3)
+    · change placeIdx up t.1 + 3 * t.2 < 2 ^ Nat.size (3 * W + 3)
       exact lt_of_lt_of_le (by omega) (Nat.lt_size_self _).le
     · exact labelCode_lt (hlw 0)
     · exact labelCode_lt (hlw 1)
@@ -262,7 +262,8 @@ theorem decode_pivotCode (up : Bool) {W ν : ℕ} {t : HPlace × ℕ} {T₁ : Mu
   have e6 : pivDigits up W ν t T₁ c₁ c₀ 6 = (c₀ + W).toNat := rfl
   rw [e0, e1, e2, e3, e4, e5, e6]
   have hlab : ∀ k, decodeLabel W (labelCode W (partOf up T₁ k, 0)) = some (partOf up T₁ k, 0) :=
-    fun k => decode_labelCode (by simp only [labelWt, wt_zero, add_zero]; exact (wt_partOf_le _ _).trans hw)
+    fun k => decode_labelCode (by
+      simp only [labelWt, wt_zero, add_zero]; exact (wt_partOf_le _ _).trans hw)
   rw [hlab 0, hlab 1, hlab 2]
   simp only [located_partOf]
   rw [filter_places T₁ hT]

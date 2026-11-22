@@ -14,8 +14,7 @@ public import Mathlib.LinearAlgebra.Matrix.Rank
 # Limits of the method: pieces of the crossing over OR and AND, and over the integers
 
 This file formalizes the two lower bounds of `separating-ntime-from-space.tex`, §8 ("Limits and open
-problems"), on
-the number of bits through which pieces of the crossing must factor.
+problems"), on the number of bits through which pieces of the crossing must factor.
 
 Following §8, a function `Γ` of two arguments *factors through `c` bits* if
 `Γ(z, z') = ∑_{θ ∈ {0,1}^c} φ(z, θ) φ'(z', θ)`, and *over OR and AND* if the same holds with `⋁`
@@ -70,8 +69,7 @@ namespace Cslib.Complexity.NtimeDspace.Cube
 open Finset
 
 /-- `Γ` *factors through `c` bits* (`separating-ntime-from-space.tex`, §8): `Γ z z' = ∑_θ φ z θ * φ'
-z' θ` over
-`θ ∈ {0,1}^c`. -/
+z' θ` over `θ ∈ {0,1}^c`. -/
 def FactorsThrough {α β : Type*} (Γ : α → β → ℤ) (c : ℕ) : Prop :=
   ∃ φ : α → (Fin c → Bool) → ℤ, ∃ φ' : β → (Fin c → Bool) → ℤ,
     ∀ z z', Γ z z' = ∑ θ, φ z θ * φ' z' θ
@@ -177,7 +175,7 @@ theorem prop_boolean {lam N : ℕ}
 /-! ### The integer bound -/
 
 /-- Subadditivity of the rank of matrices over a field. -/
-theorem rank_add_le {m n K : Type*} [Fintype m] [Fintype n] [Field K] (A B : Matrix m n K) :
+theorem rank_add_le {m n K : Type*} [Fintype n] [Field K] (A B : Matrix m n K) :
     (A + B).rank ≤ A.rank + B.rank := by
   unfold Matrix.rank
   rw [Matrix.mulVecLin_add]
@@ -185,7 +183,7 @@ theorem rank_add_le {m n K : Type*} [Fintype m] [Fintype n] [Field K] (A B : Mat
     (Submodule.finrank_add_le_finrank_add_finrank _ _)
 
 /-- Subadditivity of the rank over a finite sum. -/
-theorem rank_sum_le {ι m n K : Type*} [Fintype m] [Fintype n] [Field K] (s : Finset ι)
+theorem rank_sum_le {ι m n K : Type*} [Fintype n] [Field K] (s : Finset ι)
     (M : ι → Matrix m n K) : (∑ i ∈ s, M i).rank ≤ ∑ i ∈ s, (M i).rank := by
   classical
   induction s using Finset.induction_on with
@@ -196,7 +194,7 @@ theorem rank_sum_le {ι m n K : Type*} [Fintype m] [Fintype n] [Field K] (s : Fi
 
 /-- A function that factors through `c` bits has rank at most `2^c` over `ℚ`: its matrix is the
 product of a matrix with `2^c` columns and one with `2^c` rows. -/
-theorem rank_le_of_factorsThrough {α β : Type*} [Fintype α] [Fintype β] {Γ : α → β → ℤ} {c : ℕ}
+theorem rank_le_of_factorsThrough {α β : Type*} [Fintype β] {Γ : α → β → ℤ} {c : ℕ}
     (hΓ : FactorsThrough Γ c) : (Matrix.of fun z z' => (Γ z z' : ℚ)).rank ≤ 2 ^ c := by
   obtain ⟨φ, φ', h⟩ := hΓ
   have hmul : (Matrix.of fun z z' => (Γ z z' : ℚ)) =

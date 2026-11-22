@@ -195,7 +195,7 @@ theorem two_pow_lt_Qt (h2H : 2 ≤ H)
       · rintro ⟨-, ⟨h1, h2, h3⟩, -⟩; exact ⟨⟨h1, h2⟩, h3⟩
       · rintro ⟨⟨h1, h2⟩, h3⟩; exact ⟨h2, ⟨h1, h2, h3⟩, hall x ⟨h1, h2, h3⟩⟩
     rwa [this]
-  · push_neg at hall
+  · push Not at hall
     classical
     let q := Nat.find hall
     have hq : cand H X q ∧ E + 1 ≤ rank H X q := Nat.find_spec hall
@@ -383,8 +383,8 @@ theorem kq_eq {Z : ℕ} (hW : 1 ≤ W) (hK : X + 1 ≤ 2 ^ (W - 1))
 theorem fac_eq_Qm {p m : ℕ} (h : m ≠ grp H X r p) : fac H X E r res p m = Qm H X E r m := by
   simp [fac, h]
 
-theorem fac_lt (hW : 1 ≤ W) (hr : 1 ≤ r) (hXr : X ^ r < 2 ^ W) {p : ℕ} (hp : p ∈ selSet H X E)
-    (m : ℕ) :
+theorem fac_lt (hW : 1 ≤ W) (hr : 1 ≤ r) (hXr : X ^ r < 2 ^ W) {p : ℕ}
+    (hp : p ∈ selSet H X E) (m : ℕ) :
     fac H X E r res p m < 2 ^ W := by
   unfold fac
   split_ifs with h
@@ -407,7 +407,7 @@ theorem prod_fac (hg : E / r < g) {p : ℕ} (hp : p ∈ selSet H X E) :
     rw [Qt_eq_prod_Qm hg, ← mul_prod_erase _ _ hgp, ← mul_assoc, Nat.mul_div_cancel' (dvd_Qm hp)]
   rw [← mul_prod_erase _ _ hgp, hrest, hQt,
     Nat.mul_div_cancel_left _ (sel_prime (mem_selSet.mp hp).2).pos]
-  simp only [fac, gp, if_true]
+  simp only [fac, gp, ite_true]
   ring
 
 theorem sum_two_pow_add_one : ∀ J : ℕ, ∑ i ∈ range J, 2 ^ i + 1 = 2 ^ J

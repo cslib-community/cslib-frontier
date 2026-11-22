@@ -46,8 +46,8 @@ def setupOf (s : ℕ) {V : ℕ} (G : Cross.EdgeNet ℤ (Fin V)) (P : ℕ) : Setu
 every network with at most `(s+2)^C₁` vertices, at most `C₁ (s+1)` edges and degrees at most
 `C₁ (log₂ s + 1)`, every precision, and every `ℓ ≤ C₁ (log₂ s + 1)`, the setup of size `s` is good
 and the formula has cost at most `C · (s / ⌊√⌊log₂ s⌋⌋ + 1)` for every fuel. -/
-theorem formula_cost (C₁ : ℕ) : ∃ C s₀ : ℕ, ∀ s, s₀ ≤ s → ∀ {V : ℕ} (G : Cross.EdgeNet ℤ (Fin V))
-    (P ℓ : ℕ),
+theorem formula_cost (C₁ : ℕ) : ∃ C s₀ : ℕ, ∀ s, s₀ ≤ s → ∀ {V : ℕ}
+    (G : Cross.EdgeNet ℤ (Fin V)) (P ℓ : ℕ),
     V ≤ (s + 2) ^ C₁ → G.M ≤ C₁ * (s + 1) → (∀ v, (G.ports v).length ≤ C₁ * (Nat.log 2 s + 1)) →
     ℓ ≤ C₁ * (Nat.log 2 s + 1) →
     (setupOf s G P).Good ∧
@@ -138,7 +138,7 @@ theorem formula_cost (C₁ : ℕ) : ∃ C s₀ : ℕ, ∀ s, s₀ ≤ s → ∀ 
     have : cA * s = 2 * C₁ * s + (2 * C₁ + 1) * s + s + s := by rw [← hcA]; ring
     omega
   have hnf : ∀ v, (setupOf s G P).nFac0 v ≤ 1 + V + G.M := fun v => by
-    show 1 + (if v < (setupOf s G P).K then V else G.M) ≤ 1 + V + G.M
+    change 1 + (if v < (setupOf s G P).K then V else G.M) ≤ 1 + V + G.M
     split_ifs <;> omega
   generalize setupOf s G P = S at hK hK1 h2K hKq hq hfw hΦ hnf ⊢
   generalize hΦ₀ : S.C₀.potential = Φ₀ at hΦ
@@ -188,7 +188,7 @@ theorem formula_cost (C₁ : ℕ) : ∃ C s₀ : ℕ, ∀ s, s₀ ≤ s → ∀ 
   have hcw : choiceWidth (2 ^ 2 ^ (e - 1)) S.fw = 2 * q₀ ^ 2 * S.fw := by
     have hg2 : (2 ^ 2 ^ (e - 1)) ^ 2 = q₀ := by
       rw [← pow_mul, ← hq₀, ← hh, ← pow_succ]; congr 2; omega
-    show 2 * (2 ^ 2 ^ (e - 1)) ^ 4 * S.fw = _
+    change 2 * (2 ^ 2 ^ (e - 1)) ^ 4 * S.fw = _
     rw [show (2 ^ 2 ^ (e - 1)) ^ 4 = ((2 ^ 2 ^ (e - 1)) ^ 2) ^ 2 by ring, hg2]
   rw [hcw] at hd
   have htot : tr.cost ℓ ≤ e * (2 * q₀ ^ 2 * S.fw + ℓ) + Λ + 2 * ℓ +

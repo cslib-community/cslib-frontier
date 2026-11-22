@@ -14,8 +14,8 @@ public import Mathlib.Analysis.SpecialFunctions.Log.Base
 # Consequences of Propositions 8.1 and 8.2
 
 This file formalizes the three consequences that `separating-ntime-from-space.tex`, §8, draws from
-Proposition 8.1
-(`prop_boolean`) and Proposition 8.2 (`prop_barrier`). Here `log N` is `Real.logb 2 N`, and the
+Proposition 8.1 (`prop_boolean`) and Proposition 8.2 (`prop_barrier`). Here `log N` is `Real.logb 2
+N`, and the
 numbers of bits `r i`, `c i` are those of `Limits.lean` (`FactorsThroughOr`, `FactorsThrough`).
 
 * After Proposition 8.1, "some Boolean piece has `r_i² + c_i² ≥ ½(r_i + c_i)² ≥ 8λ² − o(λ²)`"

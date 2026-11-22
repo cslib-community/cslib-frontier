@@ -362,8 +362,8 @@ private theorem packDir_unpackDir (hL : 1 ≤ L) (τ : Multiset ℕ) :
 /-- **Packing ((eq:pack)).** For `2 ≤ L`, packing is a bijection from the stream tuples (streams
 `1, …, L - 1`) whose packed requests weigh at most `a` onto the valid labels of weight `a`, with
 inverse `unpack`. -/
-theorem unpack_pack {a : ℕ} (hL : 2 ≤ L) (streams : ℕ → Label)
-    (ha : labelWt (packDir L (fun s => (streams s).1), packDir L fun s => (streams s).2) ≤ a)
+theorem unpack_pack {a : ℕ} (_hL : 2 ≤ L) (streams : ℕ → Label)
+    (_ha : labelWt (packDir L (fun s => (streams s).1), packDir L fun s => (streams s).2) ≤ a)
     {s : ℕ} (hs : s ∈ Finset.Ioo 0 L) : unpack L (pack L a streams) s = streams s := by
   have hs' := Finset.mem_Ioo.mp hs
   have hpk : ∀ f : ℕ → Multiset ℕ, unpackDir L (packDir L f) s = f s := by
@@ -380,7 +380,7 @@ theorem unpack_pack {a : ℕ} (hL : 2 ≤ L) (streams : ℕ → Label)
     simp
   simp only [unpack, pack, unpackDir_add, hpk, hz, add_zero]
 
-theorem pack_valid {a : ℕ} (hL : 2 ≤ L) (streams : ℕ → Label)
+theorem pack_valid {a : ℕ} (_hL : 2 ≤ L) (streams : ℕ → Label)
     (ha : labelWt (packDir L (fun s => (streams s).1), packDir L fun s => (streams s).2) ≤ a) :
     validLabel L (pack L a streams) ∧ labelWt (pack L a streams) = a := by
   refine ⟨⟨fun t ht h0 => ?_, fun t ht => mod_ne_zero_of_mem_packDir L ht⟩, ?_⟩

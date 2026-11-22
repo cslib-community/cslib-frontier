@@ -155,7 +155,7 @@ theorem bd_colAT (hq : Prog'.closed 3 q = true) (hc : c.Good w s env) (hcb : c.G
             by_cases h : sdig s.W s.g b = a <;> simp [h]
         have := val_ite (val_selT hc' hp) hin (val_const 0 _)
         exact (this extra).trans (by simp [hsv])
-      · show (ite (selT c p) _ (const 0)).denote w _ = _
+      · change (ite (selT c p) _ (const 0)).denote w _ = _
         rw [denote_ite, val_selT hc' hp extra]
         simp [hsv]
   · calc _ ≤ ∑ _p ∈ range (s.X + 1), s.W ^ s.g := sum_le_sum fun p _ => by
@@ -251,7 +251,7 @@ theorem bd_kqT (hq : Prog'.closed 3 q = true) (hc : c.Good w s env) (hcb : c.Goo
       refine fun extra => (this extra).trans ?_
       simp [F1, hs']
     · refine fun extra => ?_
-      show (ite (selT c p) _ (const 0)).denote w _ = _
+      change (ite (selT c p) _ (const 0)).denote w _ = _
       rw [denote_ite, val_selT hc' hp extra]
       simp [F1, hs']
   have hF2 : FVal w (fun p => selT c p) env (fun p => if sel s.H s.X s.E p then 1 else 0) :=
@@ -412,7 +412,7 @@ def grpSize (X W : ℕ) : ℕ := W / (Nat.log 2 X + 1)
 /-- The number of groups `E / r + 1`. -/
 def numGroups (X E W : ℕ) : ℕ := E / grpSize X W + 1
 
-theorem pow_grpSize_lt {X W : ℕ} (hX : 1 ≤ X) (hpos : 1 ≤ grpSize X W) :
+theorem pow_grpSize_lt {X W : ℕ} (_hX : 1 ≤ X) (hpos : 1 ≤ grpSize X W) :
     X ^ grpSize X W < 2 ^ W := by
   have h1 : X < 2 ^ (Nat.log 2 X + 1) := Nat.lt_pow_succ_log_self (by norm_num) X
   calc X ^ grpSize X W < (2 ^ (Nat.log 2 X + 1)) ^ grpSize X W :=
@@ -468,7 +468,7 @@ theorem exists_bitsProg (q Hq Xq Eq Wq : Prog) (hq : Prog'.closed 3 q = true)
     fun p hp => hres p hp.1.2.2 hp.1.1 hp.1.2.1
   have hR : ResOK w q sc M := fun p hp =>
     ⟨(hcorrect p hp).2, by
-      show q.eval w [τ, n, p] < p
+      change q.eval w [τ, n, p] < p
       rw [(hcorrect p hp).1]; exact Nat.mod_lt _ (sel_prime hp).pos⟩
   -- the values of the program
   have hτ : Val w (lvl 2) env τ := val_lvl (by simp [env])

@@ -66,8 +66,8 @@ theorem foldl_one_sub_le (F : ℕ → ℕ) : ∀ k, (List.range k).foldl (fun x 
 
 theorem val_everyE {n : Term} {test : Term → Term} {N : ℕ} {P : ℕ → Prop} [DecidablePred P]
     (hn : Val w env n N)
-    (hv : ∀ pre x k, k < N → Val w (x :: k :: (pre ++ env)) (test (lvl (pre ++ env).length))
-        (ind (P k))) :
+    (hv : ∀ pre x k, k < N → Val w (x :: k :: (pre ++ env))
+        (test (lvl (pre ++ env).length)) (ind (P k))) :
     Val w env (everyE n test) (ind (∀ k < N, P k)) := by
   have hs := val_sumT (body := fun k => sub (const 1) (test k)) (g := fun k => 1 - ind (P k)) hn
     fun pre x k hk => val_sub (val_const 1) (hv pre x k hk)
@@ -86,8 +86,8 @@ theorem val_everyE {n : Term} {test : Term → Term} {N : ℕ} {P : ℕ → Prop
 
 theorem tm_everyE {n : Term} {test : Term → Term} {N dn : ℕ} {P : ℕ → Prop} [DecidablePred P]
     (hn : Val w env n N) (tn : Tm w L dn n env) (hdn1 : 1 ≤ dn) (hdn : dn ≤ 32)
-    (hv : ∀ pre x k, k < N → Val w (x :: k :: (pre ++ env)) (test (lvl (pre ++ env).length))
-        (ind (P k)))
+    (hv : ∀ pre x k, k < N → Val w (x :: k :: (pre ++ env))
+        (test (lvl (pre ++ env).length)) (ind (P k)))
     (ht : ∀ pre x k, Small L pre → k < N → x < 2 ^ (dn * L) → Ext L (x :: k :: (pre ++ env)) env →
       Tm w L 1 (test (lvl (pre ++ env).length)) (x :: k :: (pre ++ env)))
     (hL : 1 ≤ L) : Tm w L 1 (everyE n test) env := by
@@ -167,8 +167,8 @@ theorem tm_argLabT {dv dx du : ℕ} (har : Val w env arT ar) (hq : Val w env qT 
     Tm w L 1 (argLabT arT qT fwT v x u) env := by
   obtain ⟨tb, tW, tf⟩ := tm_fld har hq hfw hv hx hu tA tq tfw tv tx tu hdv hdu hdx hL hfwL hW
   have hb := (val_budT har.toExact hq.toExact hfw.toExact hv.toExact hu.toExact).toNum
-  have tval := tm_validT hb (val_codeWidthT hb) (val_fldT har hq hfw hv hx hu) tb tW tf
-      (by norm_num)
+  have tval := tm_validT hb (val_codeWidthT hb) (val_fldT har hq hfw hv hx hu) tb tW
+      tf (by norm_num)
     (by omega) hW
   have t1 : Tm w L 1 (const 1) env := t_one (by omega)
   have t3 : Tm w L 1 (const 3) env := t_const (lit_lt_two_pow (by norm_num) (by omega))
@@ -198,8 +198,8 @@ theorem budgetN_le_of_arr {q fw Φ : ℕ} {b : ℕ → ℕ → ℕ} (hb : ArrFit
 theorem codeWidth_budgetN_path (S : Setup) (hS : S.Good) {chs : List ℕ} (hp : S.PathOK chs)
     {e : ℕ} (he : 2 * S.K = 2 ^ 2 ^ e) {B : ℕ} (hB : codeWidth (S.C₀.potential / 2 ^ e) + 2 ≤ B)
     (a b : ℕ) :
-    codeWidth (budgetN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q S.fw a
-        b) ≤ B := by
+    codeWidth (budgetN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q
+        S.fw a b) ≤ B := by
   refine le_trans (codeWidth_mono (budgetN_le_of_arr (Φ := S.C₀.potential / 2 ^ e)
     (fits_path S hS hp).arr (fun u v huv hv => ?_) a b)) (by omega)
   rw [extN, dite_eq_left ⟨by omega, hv⟩]
@@ -218,8 +218,8 @@ def copyBodyT (arT qT fwT : Term) (nodes : Term → Term) (ξ p u : Term) : Term
 
 /-- **All copies decode to labels of exact weight** (`copiesOkN`), as `0`/`1`. -/
 def copiesOkT (arT qT fwT gT : Term) (nodes : Term → Term) (ξ : Term) : Term :=
-  everyE
-      gT fun p => ite (lt (nodes p) qT) (everyE qT fun u => copyBodyT arT qT fwT nodes ξ p u) (const 1)
+  everyE gT fun p =>
+    ite (lt (nodes p) qT) (everyE qT fun u => copyBodyT arT qT fwT nodes ξ p u) (const 1)
 
 /-- The condition of the copy of `nodes p` for `u`. -/
 def CopyOk (ar q fw : ℕ) (Nd : ℕ → ℕ) (Ξ p u : ℕ) : Prop :=
@@ -443,8 +443,8 @@ theorem tm_consE' {x l : Term} {X Lc dx dl d : ℕ} (hx : Val w env x X) (hl : V
 
 /-- **The tier of a list code** with entries of tier at most `15`, from a bound on its value
 (`d ≤ 90`). -/
-theorem tm_encE' {d : ℕ} (hd1 : 1 ≤ d) (hd : d ≤ 90) (hL : 2 ≤ L) : ∀ {ts : List Term}
-    {vs : List ℕ},
+theorem tm_encE' {d : ℕ} (hd1 : 1 ≤ d) (hd : d ≤ 90) (hL : 2 ≤ L) : ∀
+    {ts : List Term} {vs : List ℕ},
     List.Forall₂ (fun t v => Val w env t v ∧ ∃ dt, 1 ≤ dt ∧ dt ≤ 15 ∧ Tm w L dt t env) ts vs →
     NatList.enc vs < 2 ^ (d * L) → Tm w L d (encE ts) env
   | [], [], _, _ => ((t_one (by omega) : Tm w L 1 (const 1) env)).mono hd1
@@ -521,14 +521,14 @@ structure EIn (S : Setup) (w : List Bool) (L : ℕ) (env : List ℕ) (nT fwT BT 
 /-- The digit bound for the budget array of a clique on a valid path, under `EIn`. -/
 theorem EIn.codeWidth_budgetN {S : Setup} {nT fwT BT : Term} {st : St} {B : ℕ}
     (h : EIn S w L env nT fwT BT st B) {chs : List ℕ} (hp : S.PathOK chs) (a b : ℕ) :
-    codeWidth (budgetN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q S.fw a
-        b) ≤ B :=
+    codeWidth (budgetN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q
+        S.fw a b) ≤ B :=
   let ⟨_, he, hB⟩ := h.hB
   codeWidth_budgetN_path S h.hS hp he hB a b
 
 theorem EIn.field {S : Setup} {nT fwT BT : Term} {st : St} {B : ℕ} {l : List ℕ}
-    (h : EIn S w L env nT fwT BT st B) (hl : S.code st = NatList.enc l) (k : ℕ) (hk : k < l.length)
-        :
+    (h : EIn S w L env nT fwT BT st B) (hl : S.code st = NatList.enc l) (k : ℕ)
+        (hk : k < l.length) :
     Val w env (stGetT nT k) (l.getD k 0) ∧ Tm w L 1 (stGetT nT k) env := by
   have hv := h.vn; rw [hl] at hv
   refine ⟨(val_stGetT hv k).congr ?_, tm_stGetT hv h.tn le_rfl (by norm_num)
@@ -751,13 +751,13 @@ def clChildT (fwT nT iT : Term) : Term :=
         (eqT iT (const 0))
         (ite (eqT (validT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (const 0) (const 1))
             (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (const 0) (const 1)))
-            (mod iT (pow2 (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (const 0)
-                (const 1))))))
+            (mod iT (pow2 (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT
+                (const 0) (const 1))))))
             (const 1))
-          (eqT (labelWtT (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (const 0)
-              (const 1)))
-            (mod iT (pow2 (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (const 0)
-                (const 1))))))
+          (eqT (labelWtT (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT
+              (const 0) (const 1)))
+            (mod iT (pow2 (codeWidthT (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT
+                (const 0) (const 1))))))
             (budT (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (const 0) (const 1)))
           (const 0)))
       (encE [const 3, stGetT nT 1, stGetT nT 2, iT]) zeroCT)
@@ -807,15 +807,15 @@ theorem val_lastChildT' {S : Setup} {nT bT : Term} {chs : List ℕ} {i b : ℕ}
 /-- The tier of the child of a last label, from the bound on the child code. -/
 theorem tm_lastChildT {S : Setup} {nT fwT BT bT : Term} {chs : List ℕ} {i b B : ℕ}
     (h : EIn S w L env nT fwT BT (.last chs i) B) (hb : Val w env bT b) (tb : Tm w L 1 bT env)
-    (hc : S.code (S.gen.child (.last chs i) b) < 2 ^ (1 * L)) : Tm w L 1 (lastChildT nT bT)
-        env := by
+    (hc : S.code (S.gen.child (.last chs i) b) < 2 ^ (1 * L)) : Tm w L 1
+        (lastChildT nT bT) env := by
   have hL := h.hL
   have f1 : Val w env (stGetT nT 1) (NatList.enc chs) ∧ Tm w L 1 (stGetT nT 1) env :=
     h.field (code_last S chs i) 1 (by simp)
   have f2 : Val w env (stGetT nT 2) (S.cacheC chs) ∧ Tm w L 1 (stGetT nT 2) env :=
     h.field (code_last S chs i) 2 (by simp)
-  have f3 : Val w env (stGetT nT 3) i ∧ Tm w L 1 (stGetT nT 3) env := h.field (code_last S chs i) 3
-      (by simp)
+  have f3 : Val w env (stGetT nT 3) i ∧ Tm w L 1 (stGetT nT 3) env := h.field
+      (code_last S chs i) 3 (by simp)
   have hc' : NatList.enc [4, NatList.enc chs, S.cacheC chs, b, i] < 2 ^ (1 * L) := hc
   exact tm_encE' le_rfl (by norm_num) (by omega) (.cons ⟨val_const 4, 1, le_rfl, by norm_num,
     t_const (lit16 (by norm_num) (by omega))⟩ (.cons ⟨f1.1, 1, le_rfl, by norm_num, f1.2⟩
@@ -836,8 +836,8 @@ def rStreamT (gT B B' : Term) : Term :=
   add (add (const 1) gT) (add (sumT B fun b => sub (sub gT (const 1)) b) (sub (sub B' B) (const 1)))
 
 /-- The quadruple index of a rectangle. -/
-def quadIdxT (gT A₁ A₂ B₁ B₂ : Term) : Term := add (mul (add (mul (add (mul A₁ gT) A₂) gT) B₁) gT)
-    B₂
+def quadIdxT (gT A₁ A₂ B₁ B₂ : Term) : Term := add
+    (mul (add (mul (add (mul A₁ gT) A₂) gT) B₁) gT) B₂
 
 /-- The node `A·g + B`. -/
 def ndT (gT A B : Term) : Term := add (mul A gT) B
@@ -855,12 +855,12 @@ def psiBodyT (BT fwT arT qT gT iT rowT v : Term) (cp : Term → Term → Term) (
   ite rowT
     (ite (eqT v A₁)
       (ite (leT (add (mul (const 2) (labelWtT BT (mB A₂))) Q) (add (mul (const 2) H) D))
-        (trRootT BT true (cp B₁ (ndT gT A₂ B₂)) (cp B₂ (ndT gT A₂ B₁)) (mB A₂) (zzSubT D Cs))
-            zeroCT)
+        (trRootT BT true (cp B₁ (ndT gT A₂ B₂)) (cp B₂ (ndT gT A₂ B₁)) (mB A₂)
+            (zzSubT D Cs)) zeroCT)
       (ite (eqT v A₂)
         (ite (leT (add (mul (const 2) (labelWtT BT (mB A₁))) Q) (add (mul (const 2) H) D))
-          (trRootT BT false (swapT BT (cp B₁ (ndT gT A₁ B₂))) (swapT BT (cp B₂ (ndT gT A₁ B₁)))
-              (mB A₁)
+          (trRootT BT false (swapT BT (cp B₁ (ndT gT A₁ B₂)))
+              (swapT BT (cp B₂ (ndT gT A₁ B₁))) (mB A₁)
             (zzSubT Cs Q)) zeroCT)
         (litCT (const 2))))
     (ite (eqT v B₁)
@@ -934,8 +934,8 @@ theorem val_psiT {A₁ A₂ B₁ B₂ : Term} {a₁ a₂ b₁ b₂ : ℕ} (hB : 
           (val_ite (val_lt (val_add (val_mul (val_const 2) (val_labelWtT hB (mB _ _ h1))) hQ)
               (val_add (val_add (val_mul (val_const 2) hH) hD) (val_const 1)))
             (val_trRootT false hB (val_swapT hB (hcp _ _ _ _ h3 (nd _ _ _ _ h1 h4)))
-              (val_swapT hB (hcp _ _ _ _ h4 (nd _ _ _ _ h1 h3))) (mB _ _ h1) (val_zzSubT hC hQ))
-                  val_zeroCT)
+              (val_swapT hB (hcp _ _ _ _ h4 (nd _ _ _ _ h1 h3))) (mB _ _ h1)
+                  (val_zzSubT hC hQ)) val_zeroCT)
           l2))
       (val_ite (val_eqT hv h3)
         (val_ite (val_lt (val_add hD (val_mul (val_const 2) (val_labelWtT hB (mA _ _ h4))))
@@ -975,8 +975,8 @@ def factorGT (BT fwT rC cR arT qT gT iT v ξ : Term) (cp : Term → Term → Ter
           (ite (eqT (cp (mod t2 gT) (ite (orientT arT qT fwT gT iT)
               (add (mul (div t2 gT) gT) (mod t2 gT))
               (add (mul (mod t2 gT) gT) (div t2 gT))))
-            (unpackT BT (packLT gT) (add (const 1) (mod t2 gT)) (th (div t2 gT)))) (const 2)
-                (const 0))))
+            (unpackT BT (packLT gT) (add (const 1) (mod t2 gT)) (th (div t2 gT))))
+                (const 2) (const 0))))
         (psiT BT fwT arT qT gT iT (orientT arT qT fwT gT iT) v cp th (qdT gT t3 3) (qdT gT t3 2)
           (qdT gT t3 1) (qdT gT t3 0))))
 
@@ -1027,10 +1027,10 @@ the node `v`, the argument code `x` and the code of copies `ξ`. -/
 def factorT (fwT BT chC c v x ξ f : Term) : Term :=
   ite (eqT (pQT c) (mul (sqrtT (pQT c)) (sqrtT (pQT c))))
     (factorGT BT fwT (tlE chC) (tlE c) (pAT c) (pQT c) (sqrtT (pQT c)) (stGetT chC 0) v ξ
-      (fun p
-          u => argLabT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v p)
-        (sliceT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v) ξ
-            p) u)
+      (fun p u =>
+        argLabT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v p)
+        (sliceT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c))
+            (stGetT chC 0) v) ξ p) u)
       (fun o => argLabT (cAT c) (cQT c) fwT v x o) f)
     zeroCT
 
@@ -1080,11 +1080,13 @@ def rngChildT (fwT BT nT b : Term) : Term :=
   ite (eqT b (const 0))
     (rangeT (factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4) (stGetT nT 5))
       (fun a
-          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4, stGetT nT 5, a, b'])
+          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4,
+              stGetT nT 5, a, b'])
       (stGetT nT 6) (div (add (stGetT nT 6) (stGetT nT 7)) (const 2)))
     (rangeT (factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4) (stGetT nT 5))
       (fun a
-          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4, stGetT nT 5, a, b'])
+          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4,
+              stGetT nT 5, a, b'])
       (div (add (stGetT nT 6) (stGetT nT 7)) (const 2)) (stGetT nT 7))
 
 theorem val_rngChildT {fwT BT nT b : Term} {fw Bv n bv : ℕ} (hfw : Val w env fwT fw)
@@ -1099,18 +1101,20 @@ theorem val_rngChildT {fwT BT nT b : Term} {fw Bv n bv : ℕ} (hfw : Val w env f
         (.cons (g 1) (.cons (g 2) (.cons (g 3) (.cons (g 4)
       (.cons (g 5) (.cons hlo (.cons hhi .nil))))))))
   refine (val_ite (val_eqT hb (val_const 0))
-    (val_rangeT (mk := factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4)
-        (stGetT nT 5))
+    (val_rangeT (mk := factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3)
+        (stGetT nT 4) (stGetT nT 5))
       (mkR := fun a
-          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4, stGetT nT 5, a, b'])
+          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4,
+              stGetT nT 5, a, b'])
       (MK := factorN fw Bv (stGet n 1) (stGet n 2) (stGet n 3) (stGet n 4) (stGet n 5))
       (MKR := fun a
           b => NatList.enc [5, stGet n 1, stGet n 2, stGet n 3, stGet n 4, stGet n 5, a, b])
       (g 6) hmid (hmk _ _ (g 6)) (hmkR _ _ _ _ (g 6) hmid))
-    (val_rangeT (mk := factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4)
-        (stGetT nT 5))
+    (val_rangeT (mk := factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3)
+        (stGetT nT 4) (stGetT nT 5))
       (mkR := fun a
-          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4, stGetT nT 5, a, b'])
+          b' => encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4,
+              stGetT nT 5, a, b'])
       (MK := factorN fw Bv (stGet n 1) (stGet n 2) (stGet n 3) (stGet n 4) (stGet n 5))
       (MKR := fun a
           b => NatList.enc [5, stGet n 1, stGet n 2, stGet n 3, stGet n 4, stGet n 5, a, b])
@@ -1140,8 +1144,8 @@ def entChildT (fwT KT VT MT : Term) (f0T : Term → Term → Term → Term) (nT 
 theorem val_entChildT {fwT KT VT MT nT ξ : Term} {f0T : Term → Term → Term → Term}
     {f0 : ℕ → ℕ → ℕ → ℕ} {fw K Vv M n Ξ : ℕ} (hfw : Val w env fwT fw) (hK : Val w env KT K)
     (hV : Val w env VT Vv) (hM : Val w env MT M) (hn : Val w env nT n) (hξ : Val w env ξ Ξ)
-    (hf0 : ∀ a b c A B C, Val w env a A → Val w env b B → Val w env c C → Val w env (f0T a b c)
-        (f0 A B C)) :
+    (hf0 : ∀ a b c A B C, Val w env a A → Val w env b B → Val w env c C → Val w env
+        (f0T a b c) (f0 A B C)) :
     Val w env (entChildT fwT KT VT MT f0T nT ξ) (entChildN fw K Vv M f0 n Ξ) := by
   have g := fun k => val_stGetT hn k
   have hnF := val_add (val_const 1) (val_ite (val_lt (g 3) hK) hV hM)
@@ -1209,8 +1213,8 @@ theorem val_eWidthT (hfw : Val w env fwT fw) (hn : Val w env nT n) :
 
 theorem val_eChildT (hfw : Val w env fwT fw) (hB : Val w env BT Bv) (hK : Val w env KT K)
     (hV : Val w env VT Vv) (hM : Val w env MT M) (hn : Val w env nT n) (hi : Val w env iT i)
-    (hf0 : ∀ a b c A B C, Val w env a A → Val w env b B → Val w env c C → Val w env (f0T a b c)
-        (f0 A B C)) :
+    (hf0 : ∀ a b c A B C, Val w env a A → Val w env b B → Val w env c C → Val w env
+        (f0T a b c) (f0 A B C)) :
     Val w env (eChildT fwT BT KT VT MT f0T nT iT) (eChild fw Bv K Vv M f0 n i) :=
   (val_ite (val_eqT (val_stGetT hn 0) (val_const 2)) (val_clChildT hn hfw hi)
     (val_ite (val_eqT (val_stGetT hn 0) (val_const 3)) (val_lastChildT hn hi)
@@ -1224,8 +1228,8 @@ section DispatchTiers
 variable {S : Setup} {nT fwT BT : Term} {B D : ℕ}
 
 /-- **The tier of the kind tag** on the reachable entry states: `1`. -/
-theorem tm_eTagT {st : St} (h : EIn S w L env nT fwT BT st B) (hst : EntrySt st) (hinv : S.Inv D st)
-    :
+theorem tm_eTagT {st : St} (h : EIn S w L env nT fwT BT st B) (hst : EntrySt st)
+    (hinv : S.Inv D st) :
     Tm w L 1 (eTagT BT fwT nT) env := by
   have hL := h.hL
   have c2 : Tm w L 1 (const 2) env := t_small (by norm_num) (by omega)
@@ -1241,7 +1245,8 @@ theorem tm_eTagT {st : St} (h : EIn S w L env nT fwT BT st B) (hst : EntrySt st)
     have f0 := h.field (code_last S chs j) 0 (by simp)
     exact tm_ite2v (val_eqT f0.1 (val_const 2)) (t_eqT' f0.2 c2 (by omega))
         (fun h0 => by simp at h0)
-      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega)) (fun h0 => by simp at h0)
+      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega))
+          (fun h0 => by simp at h0)
         (fun _ => c2))
   | ent chs v args =>
     have f0 := h.field (code_ent S chs v args) 0 (by simp)
@@ -1253,7 +1258,8 @@ theorem tm_eTagT {st : St} (h : EIn S w L env nT fwT BT st B) (hst : EntrySt st)
     have f0 := h.field (code_rng S chs v args ξ lo hi) 0 (by simp)
     exact tm_ite2v (val_eqT f0.1 (val_const 2)) (t_eqT' f0.2 c2 (by omega))
         (fun h0 => by simp at h0)
-      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega)) (fun h0 => by simp at h0)
+      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega))
+          (fun h0 => by simp at h0)
         (fun _ => c2))
   | _ => exact hst.elim
 
@@ -1276,7 +1282,8 @@ theorem tm_eWidthT {st : St} (h : EIn S w L env nT fwT BT st B) (hst : EntrySt s
     have f0 := h.field (code_last S chs j) 0 (by simp)
     exact tm_ite2v (val_eqT f0.1 (val_const 2)) (t_eqT' f0.2 c2 (by omega))
         (fun h0 => by simp at h0)
-      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega)) (fun h0 => by simp at h0)
+      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega))
+          (fun h0 => by simp at h0)
         (fun _ => c0))
   | ent chs v args =>
     have f0 := h.field (code_ent S chs v args) 0 (by simp)
@@ -1288,7 +1295,8 @@ theorem tm_eWidthT {st : St} (h : EIn S w L env nT fwT BT st B) (hst : EntrySt s
     have f0 := h.field (code_rng S chs v args ξ lo hi) 0 (by simp)
     exact tm_ite2v (val_eqT f0.1 (val_const 2)) (t_eqT' f0.2 c2 (by omega))
         (fun h0 => by simp at h0)
-      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega)) (fun h0 => by simp at h0)
+      (fun _ => tm_ite2v (val_eqT f0.1 (val_const 4)) (t_eqT' f0.2 c4 (by omega))
+          (fun h0 => by simp at h0)
         (fun _ => c0))
   | _ => exact hst.elim
 

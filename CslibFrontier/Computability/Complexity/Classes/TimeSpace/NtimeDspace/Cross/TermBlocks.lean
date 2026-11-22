@@ -48,8 +48,8 @@ section Blocks
 def sliceT (x off len : Term) : Term := mod (div x (pow2 off)) (pow2 len)
 
 @[simp] theorem denote_sliceT (x off len : Term) (env : List ℕ) :
-    (sliceT x off len).denote w env = x.denote w env / 2 ^ off.denote w env % 2 ^ len.denote w
-        env := by
+    (sliceT x off len).denote w env = x.denote w env / 2 ^ off.denote w env % 2 ^
+        len.denote w env := by
   simp [sliceT]
 
 theorem stableAt_pow2 {a : Term} {env : List ℕ} (h : StableAt w a env) : StableAt w (pow2 a) env :=
@@ -104,7 +104,7 @@ theorem eq_of_digits {n a b : ℕ} (ha : a < 2 ^ n) (hb : b < 2 ^ n)
 
 /-- A number below `2^n` is the number of its digits. -/
 theorem bitsNum_digits {n a : ℕ} (ha : a < 2 ^ n) : bitsNum n (fun i => a / 2 ^ i % 2) = a :=
-  eq_of_digits (bitsNum_lt _ _) ha fun i hi => by rw [bitsNum_digit, if_pos hi, Nat.mod_mod]
+  eq_of_digits (bitsNum_lt _ _) ha fun i hi => by rw [bitsNum_digit, ite_eq_left hi, Nat.mod_mod]
 
 theorem bitsNum_zero (n : ℕ) : bitsNum n (fun _ => 0) = 0 := by simp [bitsNum]
 
@@ -124,8 +124,8 @@ theorem denote_ofBitsT (n : Term) (g : Term → Term) (env : List ℕ) (b : ℕ 
 theorem ofBitsT_lt (n : Term) (g : Term → Term) (env : List ℕ) :
     (ofBitsT n g).denote w env < 2 ^ n.denote w env := by
   simp only [ofBitsT, sumT, denote_foldT, denote_const]
-  suffices ∀ k, foldAcc w (fun acc i => add acc (mul (bit (g i) (const 0)) (pow2 i))) env 0 k < 2 ^
-      k from
+  suffices ∀ k, foldAcc w (fun acc i => add acc (mul (bit (g i) (const 0)) (pow2 i))) env
+      0 k < 2 ^ k from
     this _
   intro k
   induction k with
@@ -156,15 +156,15 @@ theorem firstNat_spec (N : ℕ) (p : ℕ → Bool) (k : ℕ) (hk : k ≤ N) :
       rfl
     rw [hs]
     by_cases hlt : firstNat N p k < N
-    · rw [if_pos hlt]
+    · rw [ite_eq_left hlt]
       obtain ⟨hk1, hk2⟩ := h1 hlt
       refine ⟨fun _ => ⟨by omega, hk2⟩, Or.inr hlt, fun j hj => h3 j (by omega)⟩
-    · rw [if_neg hlt]
+    · rw [ite_eq_right hlt]
       have heq : firstNat N p k = N := by omega
       by_cases hp : p k = true
-      · rw [if_pos hp]
+      · rw [ite_eq_left hp]
         refine ⟨fun _ => ⟨by omega, hp⟩, Or.inr (by omega), fun j hj => h3 j (by omega)⟩
-      · rw [if_neg hp]
+      · rw [ite_eq_right hp]
         refine ⟨fun h => absurd h hlt, h2, fun j hj => ?_⟩
         rcases Nat.lt_or_ge j k with hjk | hjk
         · exact h3 j (by omega)
@@ -203,7 +203,7 @@ theorem find?_finRange (N : ℕ) (p : Fin N → Bool) :
   | none =>
     rw [List.find?_eq_none] at hf
     have : ∀ i < N, q i = false := fun i hi => by
-      simp only [q, dif_pos hi]
+      simp only [q, dite_eq_left hi]
       simpa using hf ⟨i, hi⟩ (List.mem_finRange _)
     rw [firstNat_eq_N N q this]; simp
   | some b =>
@@ -211,13 +211,13 @@ theorem find?_finRange (N : ℕ) (p : Fin N → Bool) :
     obtain ⟨hb, i, hi, hib, hbefore⟩ := hf
     have hbv : firstNat N q N = b := by
       rw [firstNat_eq_iff N q b b.2]
-      refine ⟨by simp only [q, dif_pos b.2]; exact hb, fun k hk => ?_⟩
+      refine ⟨by simp only [q, dite_eq_left b.2]; exact hb, fun k hk => ?_⟩
       have hkN : k < N := hk.trans b.2
-      simp only [q, dif_pos hkN]
+      simp only [q, dite_eq_left hkN]
       have hib' : i = b := by rw [← hib]; simp
       have := hbefore k (by omega)
       simpa using this
-    rw [hbv, if_pos b.2]; rfl
+    rw [hbv, ite_eq_left b.2]; rfl
 
 /-- `findT n test`: the first `i < n` whose test is positive, or `n`. -/
 def findT (n : Term) (test : Term → Term) : Term :=
@@ -249,20 +249,20 @@ theorem denote_anyT (n : Term) (test : Term → Term) (env : List ℕ) (Pr : ℕ
   · obtain ⟨i, hi, hp⟩ := h
     have hpos : 0 < ∑ k ∈ range (n.denote w env), if Pr k then 1 else 0 :=
       Finset.sum_pos' (fun _ _ => Nat.zero_le _) ⟨i, mem_range.mpr hi, by simp [hp]⟩
-    simp only [hpos, if_true]
-    exact (if_pos ⟨i, hi, hp⟩).symm
+    simp only [hpos, ite_true]
+    exact (ite_eq_left ⟨i, hi, hp⟩).symm
   · have h0 : ∑ k ∈ range (n.denote w env), (if Pr k then 1 else 0) = 0 :=
-      Finset.sum_eq_zero fun i hi => if_neg fun hp => h ⟨i, mem_range.mp hi, hp⟩
-    simp only [h0, lt_irrefl, if_false]
-    exact (if_neg h).symm
+      Finset.sum_eq_zero fun i hi => ite_eq_right fun hp => h ⟨i, mem_range.mp hi, hp⟩
+    simp only [h0, lt_irrefl, ite_false]
+    exact (ite_eq_right h).symm
 
 /-- A sum over `k < n` whose body is known only for `k < n`. -/
 theorem denote_sumT_lt (n : Term) (body : Term → Term) (env : List ℕ) (c : ℕ → ℕ)
     (hb : ∀ acc k, k < n.denote w env → (body (lvl env.length)).denote w (acc :: k :: env) = c k) :
     (sumT n body).denote w env = ∑ k ∈ range (n.denote w env), c k := by
   simp only [sumT, denote_foldT, denote_const]
-  suffices ∀ j ≤ n.denote w env, foldAcc w (fun acc i => add acc (body i)) env 0 j = ∑ k ∈ range j,
-      c k from
+  suffices ∀ j ≤ n.denote w env, foldAcc w (fun acc i => add acc (body i)) env 0 j = ∑ k ∈
+      range j, c k from
     this _ le_rfl
   intro j hj
   induction j with
@@ -306,9 +306,9 @@ theorem allT_denote_lt' (n : Term) (test : Term → Term) (env : List ℕ) (Pr :
   rw [allT, denote_eqT, denote_sumT_lt _ _ env (fun i => if Pr i then 0 else 1) (fun acc i hi => by
     simp only [denote_sub, denote_const, ht acc i hi]; split_ifs <;> rfl), denote_const]
   by_cases hall : ∀ i < n.denote w env, Pr i
-  · rw [if_pos hall, if_pos (Finset.sum_eq_zero fun i
-      hi => if_pos (hall i (Finset.mem_range.mp hi)))]
-  · rw [if_neg hall, if_neg]
+  · rw [ite_eq_left hall, ite_eq_left (Finset.sum_eq_zero fun i
+      hi => ite_eq_left (hall i (Finset.mem_range.mp hi)))]
+  · rw [ite_eq_right hall, ite_eq_right]
     obtain ⟨i, hi, hni⟩ : ∃ i < n.denote w env, ¬ Pr i := by
       by_contra h; exact hall fun i hi => by_contra fun hp => h ⟨i, hi, hp⟩
     intro hzero
@@ -317,15 +317,16 @@ theorem allT_denote_lt' (n : Term) (test : Term → Term) (env : List ℕ) (Pr :
 
 /-- A fold whose step is known only below the count. -/
 theorem foldAcc_eq_lt (f : Term → Term → Term) (env : List ℕ) (step : ℕ → ℕ → ℕ) (init N : ℕ)
-    (hstep : ∀ acc k, k < N → (f (lvl (env.length + 1)) (lvl env.length)).denote w (acc :: k :: env)
-        =
+    (hstep : ∀ acc k, k < N → (f (lvl (env.length + 1)) (lvl env.length)).denote w
+        (acc :: k :: env) =
       step acc k) : foldAcc w f env init N = (List.range N).foldl step init := by
   suffices ∀ j ≤ N, foldAcc w f env init j = (List.range j).foldl step init from this N le_rfl
   intro j hj
   induction j with
   | zero => rfl
   | succ j
-      ih => rw [foldAcc_succ, hstep _ _ (by omega), ih (by omega), List.range_succ, List.foldl_append]; rfl
+      ih => rw [foldAcc_succ, hstep _ _ (by omega), ih (by omega), List.range_succ,
+          List.foldl_append]; rfl
 
 theorem foldl_max_eq_sup (g : ℕ → ℕ) (init N : ℕ) :
     (List.range N).foldl (fun acc k => max acc (g k)) init = max init ((range N).sup g) := by

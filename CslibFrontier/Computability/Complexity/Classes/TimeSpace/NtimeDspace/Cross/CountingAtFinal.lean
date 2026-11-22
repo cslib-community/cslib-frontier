@@ -22,9 +22,9 @@ and `CarryFits D`. Here the hypotheses are checked at the two scales that matter
 
 * `D = SqrtLog`. Both hypotheses hold (`scale_sqrtLog`, `Exact.carryFits_sqrtLog`) and so does
   Theorem 2.3 at this scale (`cubeBlockBits`), so the general endpoints give back Theorem 1.1 and
-  Theorem 7.1 for `PPTIME` and `BPTIME` unconditionally, with the statements of
-  `GeneralFinal.lean` and `CountingFinal.lean` (`ntime_subset_dspace_sqrtLog_viaAt`, …). In
-  particular the hypotheses of `CountingAt.lean` are not vacuous.
+  Theorem 7.1 for `PPTIME` and `BPTIME` unconditionally; the test module
+  `CslibFrontierTests/NtimeDspace/Endpoints.lean` checks this, so the hypotheses of
+  `CountingAt.lean` are not vacuous.
 * `D(n) = n / log n`, the target scale of the remark. The hypotheses hold for
   `DivLog n = n / (log₂ n + 1) + log₂ n + 1` (`scale_divLog`, `carryFits_divLog`), and Theorem 2.3
   at this scale is the same whether written with `DivLog` or with `n / (log₂ n + 1) + 1`
@@ -47,23 +47,6 @@ namespace Cslib.Complexity.NtimeDspace.Crossing
 open NtimeDspace.Cross Cslib.Complexity _root_.Turing.MultiTapeTM
 
 /-! ### `D = SqrtLog`: the existing endpoints by the general route -/
-
-/-- Theorem 1.1 (`ntime_subset_dspace_sqrtLog_general`) by the route at a general scale. -/
-theorem ntime_subset_dspace_sqrtLog_viaAt (t : ℕ → ℕ) (ht : ∀ n, n ≤ t n) :
-    NTIME encBits t ⊆ DSPACE encBits (fun n => t n / Nat.sqrt (t n).log2 + 1) :=
-  ntime_subset_dspace_of_blockBitsAt scale_sqrtLog Exact.carryFits_sqrtLog cubeBlockBits t ht
-
-/-- Theorem 7.1 for `PPTIME` (`pptime_subset_dspace_sqrtLog_general`) by the route at a general
-scale. -/
-theorem pptime_subset_dspace_sqrtLog_viaAt (t : ℕ → ℕ) (ht : ∀ n, n ≤ t n) :
-    PPTIME encBits t ⊆ DSPACE encBits (fun n => t n / Nat.sqrt (t n).log2 + 1) :=
-  pptime_subset_dspace_of_blockBitsAt scale_sqrtLog Exact.carryFits_sqrtLog cubeBlockBits t ht
-
-/-- Theorem 7.1 for `BPTIME` (`bptime_subset_dspace_sqrtLog_general`) by the route at a general
-scale. -/
-theorem bptime_subset_dspace_sqrtLog_viaAt (t : ℕ → ℕ) (ht : ∀ n, n ≤ t n) :
-    BPTIME encBits t ⊆ DSPACE encBits (fun n => t n / Nat.sqrt (t n).log2 + 1) :=
-  bptime_subset_dspace_of_blockBitsAt scale_sqrtLog Exact.carryFits_sqrtLog cubeBlockBits t ht
 
 /-! ### `D = n / log n`: the target of the remark -/
 

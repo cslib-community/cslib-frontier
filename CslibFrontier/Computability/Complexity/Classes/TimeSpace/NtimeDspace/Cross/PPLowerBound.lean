@@ -30,11 +30,12 @@ Writing this against `PPSimulation` ensures that pipeline refactors cannot break
 
 * `pptime_lower_bound_of_simulation`: the lower bound for any probabilistic machine from
 `PPSimulation`.
-* `exists_dspace_linear_pptime_lower_bound`: Corollary 1.2 (iv) lower bound statement.
 
 ## References
 
-* The paper (`separating-ntime-from-space.tex`), §1, Corollary 1.2 (iv) (`cor:sep`).
+* [C. Cruz, *Separating Nondeterministic Time from Deterministic Space*][Cruz2026], §1,
+  Corollary 1.2 (iv). The endpoint is
+  `Cslib.Complexity.exists_mem_DSPACE_id_pptime_lower_bound`.
 -/
 
 @[expose] public section
@@ -126,8 +127,8 @@ theorem pptime_lower_bound_of_simulation (h : PPSimulation) {k : ℕ} {State : T
     refine maxOnLength_le fun x hx => ?_
     have := hall x hx
     refine Nat.find_le ⟨this, ?_⟩
-    have hle : Nat.find (hex x) ≤ n * r / (4 * c + 4) ∨ n * r / (4 * c + 4) ≤ Nat.find (hex x) :=
-        le_total _ _
+    have hle : Nat.find (hex x) ≤ n * r / (4 * c + 4) ∨ n * r / (4 * c + 4) ≤ Nat.find
+        (hex x) := le_total _ _
     rcases hle with h1 | h2
     · have hfind := Nat.find_spec (hex x)
       have hprob := ptm.eval_runClosed_eq_of_halted x h1 hfind.1
@@ -162,44 +163,11 @@ theorem pptime_lower_bound_of_simulation (h : PPSimulation) {k : ℕ} {State : T
     have := Nat.mul_le_mul_left c hlog
     simp only [hf]
     nlinarith
-  show c * f n + c ≤ n
+  change c * f n + c ≤ n
   omega
 
 /-- Unconditional proof of `PPSimulation` from the crossing simulation of Theorem 7.1. -/
 theorem ppSimulation : PPSimulation := fun _t ht _ hA =>
   pptime_decided Crossing.cubeClockedBits ht hA
 
-/-- **Corollary 1.2 (iv), PP Lower Bound**:
-There is a language in `DSPACE[n]` such that every probabilistic machine deciding it
-or its complement with unbounded error (every coin branch halting) has a constant `C ≥ 1`
-such that, for all large `n`, it runs for more than `n · ⌊√⌊log₂ n⌋⌋ / C` steps on some
-input of length `n`. -/
-theorem exists_dspace_linear_pptime_lower_bound :
-    ∃ L : Set (List Bool), L ∈ DSPACE encBits (fun n => n) ∧
-      ∀ (k : ℕ) (State : Type) [Finite State] (ptm : MultiTapePTM k Bool State)
-        (B : Set (List Bool)), (B = L ∨ B = Lᶜ) →
-        (∀ x, ∃ T,
-          (∀ final ∈ (ProbComp.eval (ptm.runClosedConfigFrom T (ptm.initialConfig x))).support,
-            final.tapes.state = none) ∧
-          (x ∈ B ↔ 1 / 2 < ProbComp.eval (ptm.runClosed T x) [true])) →
-        ∃ C, 1 ≤ C ∧ ∀ᶠ n in atTop,
-          ∃ x : List Bool, x.length = n ∧
-            ¬ (∀ final ∈ (ProbComp.eval (ptm.runClosedConfigFrom (n * Nat.sqrt n.log2 / C)
-                (ptm.initialConfig x))).support,
-                final.tapes.state = none) :=
-  ⟨hardLanguage, hardLanguage_mem_DSPACE, fun _ _ _ ptm _ hB hdec =>
-    pptime_lower_bound_of_simulation ppSimulation ptm hB hdec⟩
-
 end Cslib.Complexity.NtimeDspace.Cross
-
-namespace Cslib.Complexity.NtimeDspace.Crossing
-
-/-- **Corollary 1.2 (iv), PP Lower Bound**:
-There is a language in `DSPACE[n]` such that every probabilistic machine deciding it
-or its complement with unbounded error (every coin branch halting) has a constant `C ≥ 1`
-such that, for all large `n`, it runs for more than `n · ⌊√⌊log₂ n⌋⌋ / C` steps on some
-input of length `n`. -/
-abbrev exists_dspace_linear_pptime_lower_bound :=
-  NtimeDspace.Cross.exists_dspace_linear_pptime_lower_bound
-
-end Cslib.Complexity.NtimeDspace.Crossing

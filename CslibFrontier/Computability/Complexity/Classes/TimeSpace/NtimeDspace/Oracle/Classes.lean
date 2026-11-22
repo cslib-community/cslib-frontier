@@ -189,8 +189,8 @@ variable (M : OracleTM k State) (A : Set (List Bool))
 def IsOracleFree : Prop := ∀ q i w, ∃ b, M.tr q i w = .step b none
 
 /-- The ordinary action of an instruction; a query is replaced by halting. -/
-def _root_.Cslib.Complexity.NtimeDspace.Oracle.OAction.action : OAction k State → Turing.Action k
-    Bool State
+def _root_.Cslib.Complexity.NtimeDspace.Oracle.OAction.action : OAction k State →
+    Turing.Action k Bool State
   | .step a _ => a
   | .ask _ _ => ⟨0, fun _ => (none, 0), none, none⟩
 

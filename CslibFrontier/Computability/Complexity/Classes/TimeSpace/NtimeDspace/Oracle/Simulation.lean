@@ -24,8 +24,7 @@ universal configuration together with the query tape (`OracleTM.simQM`): each st
 bit under the simulated input head, takes a universal step of a description of `M`, and decides the
 query when `M` queries (`OracleTM.simNext`). Its parts are computable within linear space
 (`Cslib.Complexity.NtimeDspace.Oracle.SimComp`), it follows `M` (`OracleTM.rel_run`), and its states
-have size
-linear in the space of `M` plus `log₂ n` (`OracleTM.length_encSim_run_le`), so
+have size linear in the space of `M` plus `log₂ n` (`OracleTM.length_encSim_run_le`), so
 `Turing.QueryMachine.computableInSpace` runs it within space `O(s)`.
 
 ## Main results

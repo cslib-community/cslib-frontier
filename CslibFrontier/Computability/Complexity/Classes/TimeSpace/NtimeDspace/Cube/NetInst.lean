@@ -19,8 +19,7 @@ The terms of `NetTerms.lean` read a network `G : EdgeNet ℤ (Fin V)` through th
 with the value contract `NetAcc` and the tier contract `NetTiers`. This module gives the instance
 for a family with logspace access (`LogspaceNetFamily`,
 `CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/NetFamily.lean`): every
-accessor
-runs the corresponding closed program of the family (`callT1`, `callT2`, `callT3`) on its
+accessor runs the corresponding closed program of the family (`callT1`, `callT2`, `callT3`) on its
 arguments and a term `sT` for the size `s`. The tiers come from the space bound of
 Definition 2.1 (b): on arguments in range every value arising in a program is at most
 `(s + 2)^C`, which is at most `2^(128 L)`, and the results are below `(s + 2)^(C+1) < 2^L`, once
@@ -90,7 +89,7 @@ theorem Val.cons1 {t : Term} {n : ℕ} (h : Val w E t n) (x : ℕ) : Val w (x ::
 theorem denote_callT1v (hq : Prog'.closed 1 q = true) (ha : Val w E a A) :
     (callT1 q a).denote w E = q.eval w [A] := by
   have e1 : (a E.length).eval w E = A := ha.2
-  show Prog.eval w (.letIn _ q) E = _
+  change Prog.eval w (.letIn _ q) E = _
   simp only [Prog.eval, e1]
   exact Prog'.eval_append q [A] E hq
 
@@ -98,7 +97,7 @@ theorem denote_callT2v (hq : Prog'.closed 2 q = true) (ha : Val w E a A) (hb : V
     (callT2 q a b).denote w E = q.eval w [A, Bv] := by
   have e1 : (b E.length).eval w E = Bv := hb.2
   have e2 : (a (E.length + 1)).eval w (Bv :: E) = A := (ha.cons1 Bv).2
-  show Prog.eval w (.letIn _ (.letIn _ q)) E = _
+  change Prog.eval w (.letIn _ (.letIn _ q)) E = _
   simp only [Prog.eval, e1, e2]
   exact Prog'.eval_append q [A, Bv] E hq
 
@@ -107,7 +106,7 @@ theorem denote_callT3v (hq : Prog'.closed 3 q = true) (ha : Val w E a A) (hb : V
   have e1 : (c E.length).eval w E = Cv := hc.2
   have e2 : (b (E.length + 1)).eval w (Cv :: E) = Bv := (hb.cons1 Cv).2
   have e3 : (a (E.length + 2)).eval w (Bv :: Cv :: E) = A := ((ha.cons1 Cv).cons1 Bv).2
-  show Prog.eval w (.letIn _ (.letIn _ (.letIn _ q))) E = _
+  change Prog.eval w (.letIn _ (.letIn _ (.letIn _ q))) E = _
   simp only [Prog.eval, e1, e2, e3]
   exact Prog'.eval_append q [A, Bv, Cv] E hq
 
@@ -128,7 +127,7 @@ theorem bnd_callT2v {B : ℕ} (hq : Prog'.closed 2 q = true) (hb : b.Bnd w B E) 
     (callT2 q a b).Bnd w B E := by
   have e1 : (b E.length).eval w E = Bv := hbv.2
   have e2 : (a (E.length + 1)).eval w (Bv :: E) = A := (hav.cons1 Bv).2
-  show Prog.Bounded w B (.letIn _ (.letIn _ q)) E
+  change Prog.Bounded w B (.letIn _ (.letIn _ q)) E
   simp only [Prog.Bounded, e1, e2]
   exact ⟨hb, ha, (Prog'.bounded_append B q [A, Bv] E hq).mpr hqb⟩
 
@@ -138,7 +137,7 @@ theorem bnd_callT3v {B : ℕ} (hq : Prog'.closed 3 q = true) (hc : c.Bnd w B E) 
   have e1 : (c E.length).eval w E = Cv := hcv.2
   have e2 : (b (E.length + 1)).eval w (Cv :: E) = Bv := (hbv.cons1 Cv).2
   have e3 : (a (E.length + 2)).eval w (Bv :: Cv :: E) = A := ((hav.cons1 Cv).cons1 Bv).2
-  show Prog.Bounded w B (.letIn _ (.letIn _ (.letIn _ q))) E
+  change Prog.Bounded w B (.letIn _ (.letIn _ (.letIn _ q))) E
   simp only [Prog.Bounded, e1, e2, e3]
   exact ⟨hc, hb, ha, (Prog'.bounded_append B q [A, Bv, Cv] E hq).mpr hqb⟩
 
@@ -147,7 +146,7 @@ theorem tm_callT1 {d : ℕ} (hq : Prog'.closed 1 q = true) (ta : Tm w L d a E) (
     Tm w L 1 (callT1 q a) E := fun pre hp => by
   refine ⟨?_, by rw [denote_callT1v hq (ha.ext pre), one_mul]; exact hv⟩
   have e1 : (a (pre ++ E).length).eval w (pre ++ E) = A := (ha.ext pre).2
-  show Prog.Bounded w _ (.letIn _ q) (pre ++ E)
+  change Prog.Bounded w _ (.letIn _ q) (pre ++ E)
   simp only [Prog.Bounded, e1]
   exact ⟨(ta pre hp).1, (Prog'.bounded_append _ q [A] (pre ++ E) hq).mpr hqb⟩
 

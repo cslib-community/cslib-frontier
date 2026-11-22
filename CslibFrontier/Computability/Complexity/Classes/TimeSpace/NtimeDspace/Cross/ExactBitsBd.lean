@@ -192,7 +192,7 @@ theorem grp_le (H X r v : ℕ) : grp H X r v ≤ v := (Nat.div_le_self _ _).tran
 
 theorem Qm_pos (H X E r m : ℕ) : 1 ≤ Qm H X E r m := by
   unfold Qm
-  refine Finset.one_le_prod' fun x _ => ?_
+  refine Finset.one_le_prod fun x _ => ?_
   split_ifs with h
   · exact (sel_prime h.1).one_lt.le
   · exact le_rfl
@@ -289,7 +289,7 @@ theorem bd_facT (hq : Prog'.closed 3 q = true) (hc : c.Good w s env) (hcb : c.Go
   subst hkg
   have := fac_lt (res := resOf w q s) (by have := hs.hW; omega) hs.hr hs.hXr hsS
     (grp s.H s.X s.r v)
-  simp only [fac, if_true] at this
+  simp only [fac, ite_true] at this
   exact this.le.trans hs.two_pow_le
 
 theorem bd_pwT {x e : Term} {a b k : ℕ} (hx : Val w x env a) (he : Val w e env b)
@@ -302,7 +302,7 @@ theorem bd_pwT {x e : Term} {a b k : ℕ} (hx : Val w x env a) (he : Val w e env
   exact (Nat.pow_le_pow_right ha (by omega)).trans hk
 
 theorem bd_digT (hc : c.Good w s env) (hcb : c.GoodB w M env) (hs : Sizes s M) {u m : Term}
-    {a b : ℕ} (hu : Val w u env a) (hm : Val w m env b) (hbu : Bd w M u env) (hbm : Bd w M m env)
+    {a b : ℕ} (_hu : Val w u env a) (hm : Val w m env b) (hbu : Bd w M u env) (hbm : Bd w M m env)
     (hb : b ≤ s.g) : Bd w M (digT c u m) env :=
   bd_mod (bd_div hbu (bd_pwT hc.2.2.2.2.2.1 hm hcb.2.2.2.2.2.1 hbm hb hs.Wg_le
     (by have := hs.hW; omega) (hb.trans hs.g_le))) hcb.2.2.2.2.2.1

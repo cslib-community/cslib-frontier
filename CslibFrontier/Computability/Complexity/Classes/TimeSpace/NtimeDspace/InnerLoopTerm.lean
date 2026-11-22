@@ -89,10 +89,10 @@ theorem allT_denote (n : Term) (test : Term → Term) (env : List ℕ) (Pr : ℕ
   rw [allT, denote_eqT, denote_sumT _ _ env (fun i => if Pr i then 0 else 1) (fun acc i => by
     simp only [denote_sub, denote_const, ht]; split_ifs <;> rfl), denote_const]
   by_cases hall : ∀ i < n.denote w env, Pr i
-  · rw [if_pos hall, if_pos (Finset.sum_eq_zero fun i
-      hi => if_pos (hall i (Finset.mem_range.mp hi)))]
-  · rw [if_neg hall, if_neg]
-    push_neg at hall
+  · rw [ite_eq_left hall, ite_eq_left (Finset.sum_eq_zero fun i
+      hi => ite_eq_left (hall i (Finset.mem_range.mp hi)))]
+  · rw [ite_eq_right hall, ite_eq_right]
+    push Not at hall
     obtain ⟨i, hi, hni⟩ := hall
     intro hzero
     have := (Finset.sum_eq_zero_iff.mp hzero) i (Finset.mem_range.mpr hi)

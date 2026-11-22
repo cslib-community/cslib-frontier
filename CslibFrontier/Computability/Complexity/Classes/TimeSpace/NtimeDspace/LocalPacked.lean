@@ -59,12 +59,12 @@ def headsOf (tapes : Fin k → NTape) : ℕ :=
 theorem headsOf_digit {tapes : Fin k → NTape} (ht : ∀ h, (tapes h).1 < 3) (h : Fin k) :
     headsOf tapes / 3 ^ (h : ℕ) % 3 = (tapes h).1 := by
   unfold headsOf
-  rw [packDigits_div_pow_mod (by norm_num) _ _ (fun i hi => by rw [dif_pos hi]; exact ht _),
-    if_pos h.isLt, dif_pos h.isLt]
+  rw [packDigits_div_pow_mod (by norm_num) _ _ (fun i hi => by rw [dite_eq_left hi]; exact ht _),
+    ite_eq_left h.isLt, dite_eq_left h.isLt]
 
 theorem headsOf_lt (tapes : Fin k → NTape) (ht : ∀ h, (tapes h).1 < 3) :
     headsOf tapes < 3 ^ k :=
-  packDigits_lt (by norm_num) _ _ fun i hi => by rw [dif_pos hi]; exact ht _
+  packDigits_lt (by norm_num) _ _ fun i hi => by rw [dite_eq_left hi]; exact ht _
 
 variable {e machine} in
 theorem actOf_keyOf {st inc bit : ℕ} {tapes : Fin k → NTape} (hst : st < s + 1) (hinc : inc < 3)
@@ -120,7 +120,7 @@ theorem fW_key {key : ℕ} (hkey : key < keyCount k s) (h : Fin k) :
   have hm : (key + keyCount k s * h) % keyCount k s = key := by
     rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hkey]
   unfold fW
-  rw [dif_pos (by rw [hd]; exact h.isLt)]
+  rw [dite_eq_left (by rw [hd]; exact h.isLt)]
   simp only [hm, hd]
 
 theorem fM_key {key : ℕ} (hkey : key < keyCount k s) (h : Fin k) :
@@ -131,7 +131,7 @@ theorem fM_key {key : ℕ} (hkey : key < keyCount k s) (h : Fin k) :
   have hm : (key + keyCount k s * h) % keyCount k s = key := by
     rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hkey]
   unfold fM
-  rw [dif_pos (by rw [hd]; exact h.isLt)]
+  rw [dite_eq_left (by rw [hd]; exact h.isLt)]
   simp only [hm, hd]
 
 /-! ### The step in codes -/
@@ -187,8 +187,8 @@ theorem keyAt_lt {input : List Bool} {n : NCfg k} (hn : WF (s := s) n) (bit : Bo
 
 theorem actOf_keyAt {input : List Bool} {n : NCfg k} (hn : WF (s := s) n) (bit : Bool) :
     actOf e machine (keyAt (s := s) input n bit) =
-      machine.coinAction (stOf e n.st) (inputAt input n.ip) (fun h => cellOf (n.tapes h).1)
-          bit := by
+      machine.coinAction (stOf e n.st) (inputAt input n.ip)
+          (fun h => cellOf (n.tapes h).1) bit := by
   unfold keyAt
   rw [actOf_keyOf hn.st (cc_lt _) (by cases bit <;> simp) hn.heads, cellOf_cc]
   cases bit <;> rfl

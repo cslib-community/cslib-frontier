@@ -51,7 +51,7 @@ theorem dropF_zero_of (k : ℕ) : dropF k 0 = 0 := by
   induction k with
   | zero => rfl
   | succ k
-      ih => simp only [dropF, Function.iterate_succ_apply', tlF_zero] at ih ⊢; rw [ih, tlF_zero]
+      ih => simp only [dropF, Function.iterate_succ_apply'] at ih ⊢; rw [ih, tlF_zero]
 
 theorem dropF_enc_ge (l : List ℕ) (k : ℕ) (hk : l.length < k) : dropF k (enc l) = 0 := by
   obtain ⟨j, rfl⟩ : ∃ j, k = l.length + 1 + j := ⟨k - l.length - 1, by omega⟩
@@ -81,7 +81,7 @@ theorem lengthF_enc (l : List ℕ) : lengthF (enc l) = l.length := by
     constructor
     · rintro ⟨-, h2⟩
       by_contra hk
-      push_neg at hk
+      push Not at hk
       rcases hk.lt_or_eq with hlt | heq
       · rw [dropF_enc_ge l k hlt] at h2; omega
       · rw [← heq, dropF_enc l _ le_rfl, List.drop_length, enc_nil] at h2; omega
@@ -142,7 +142,7 @@ def getT (e m : Term) : Term := letT (dropT e m) fun d => hdT d
 
 variable {w : List Bool} {B : ℕ}
 
-theorem denote_dropT {a b : ℕ} {env : List ℕ} (ha : a < env.length) (hb : b < env.length) :
+theorem denote_dropT {a b : ℕ} {env : List ℕ} (_ha : a < env.length) (_hb : b < env.length) :
     (dropT (lvl a) (lvl b)).denote w env = dropF ((lvl b).denote w env) ((lvl a).denote w env) := by
   rw [dropT, denote_foldT, foldAcc_eq _ env (fun acc _ => tlF acc) (fun acc k => ?_),
     foldl_range_iterate]
@@ -173,7 +173,7 @@ theorem denote_lengthT {a : ℕ} {env : List ℕ} (ha : a < env.length) :
       (fun acc k => ?_)]
   · exact foldl_count _ _
   · simp (disch := lvl_disch) only [denote_letT, denote_dropT, lvl_cons, denote_lvl_let,
-      denote_lvl_index, denote_lvl_acc, denote_ite_lt, denote_add, denote_const]
+      denote_lvl_acc, denote_ite_lt, denote_add, denote_const]
     rfl
 
 theorem denote_getT {a b : ℕ} {env : List ℕ} (ha : a < env.length) (hb : b < env.length) :
@@ -199,7 +199,7 @@ theorem denote_pathStateT {childP : Prog} (hc : Prog'.closed 3 childP = true) {s
   rw [foldAcc_eq _ _ (fun acc k => childFun childP w ((lvl l).denote w env) acc
     (getF ((lvl e).denote w env) (lengthF ((lvl e).denote w env) - 1 - k))) (fun acc k => ?_)]
   simp (disch := lvl_disch) only [denote_letT, denote_sub, denote_const, denote_getT,
-    denote_callT3 hc, lvl_cons, denote_lvl_let, denote_lvl_index, denote_lvl_acc, childFun]
+    denote_callT3 hc, lvl_cons, denote_lvl_let, denote_lvl_acc, childFun]
   rw [Nat.sub_right_comm]
 
 /-! ### Value bounds -/
@@ -227,7 +227,7 @@ theorem tOnes_drop_bound (ν : List ℕ) (i : ℕ) :
     | cons x t =>
       exact le_max_of_le_left ((two_pow_tOnesF_le x t).trans (h ▸ hle i hge))
 
-theorem bnd_dropT {a b : ℕ} {env : List ℕ} (ha : a < env.length) (hb : b < env.length)
+theorem bnd_dropT {a b : ℕ} {env : List ℕ} (_ha : a < env.length) (_hb : b < env.length)
     {ν : List ℕ} (he : (lvl a).denote w env = enc ν) (hB : max (enc ν) 8 ≤ B)
     (hk : (lvl b).denote w env ≤ B) : (dropT (lvl a) (lvl b)).Bnd w B env := by
   rw [dropT, bnd_foldT]
@@ -254,14 +254,14 @@ theorem bnd_lengthT {a : ℕ} {env : List ℕ} (ha : a < env.length) {ν : List 
     rw [denote_const, foldAcc_eq _ env (fun acc j => if 2 ≤ dropF j ((lvl a).denote w env)
       then acc + 1 else acc) (fun acc j => by
         simp (disch := lvl_disch) only [denote_letT, denote_dropT, lvl_cons, denote_lvl_let,
-          denote_lvl_index, denote_lvl_acc, denote_ite_lt, denote_add, denote_const]; rfl),
+          denote_lvl_acc, denote_ite_lt, denote_add, denote_const]; rfl),
       foldl_count]
     exact (Finset.card_filter_le _ _).trans (by simp)
   simp only [denote_const] at hacc
   refine bnd_ite_of (by simp; omega) ?_ (by simp)
   simp only [bnd_add, bnd_lvl, bnd_const, true_and]
   refine ⟨by omega, ?_⟩
-  simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons, denote_lvl_acc, denote_const]
+  simp (disch := lvl_disch) only [lvl_cons, denote_lvl_acc, denote_const]
   rw [he] at hk
   omega
 
@@ -294,8 +294,8 @@ theorem bnd_pathStateT {childP : Prog} (hc : Prog'.closed 3 childP = true) {s e 
   rw [bnd_letT]
   refine ⟨bnd_getT (by simp; omega) (by simp) (by
       simp (disch := lvl_disch) only [lvl_cons]; exact hev) (by omega) (by
-      simp (disch := lvl_disch) only [denote_lvl_let, denote_sub, denote_const, lvl_cons,
-        denote_lvl_index]; omega), ?_⟩
+      simp (disch := lvl_disch) only [denote_lvl_let, denote_sub, denote_const,
+          lvl_cons]; omega), ?_⟩
   refine bnd_callT3 hc (by simp) (by simp) (by simp; omega) ?_
   -- The accumulator is the state of a suffix and the symbol is the next entry.
   have hacc := foldl_path_enc (childFun childP w ((lvl l).denote w env)) ((lvl s).denote w env) ν k
@@ -310,11 +310,11 @@ theorem bnd_pathStateT {childP : Prog} (hc : Prog'.closed 3 childP = true) {s e 
     rw [foldAcc_eq _ _ (fun acc k => childFun childP w ((lvl l).denote w env) acc
       (getF (enc ν) (ν.length - 1 - k))) (fun acc j => by
         simp (disch := lvl_disch) only [denote_letT, denote_sub, denote_const, denote_getT,
-          denote_callT3 hc, lvl_cons, denote_lvl_let, denote_lvl_index, denote_lvl_acc, childFun,
+          denote_callT3 hc, lvl_cons, denote_lvl_let, denote_lvl_acc, childFun,
           hev]
         rw [Nat.sub_right_comm]), hacc]
-  simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_lvl_acc, denote_lvl_index,
-    denote_getT, denote_sub, denote_const, hev]
+  simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_lvl_acc, denote_getT, denote_sub,
+      denote_const, hev]
   rw [hfold, getF_enc ν _ (by omega)]
   rw [getElem!_pos ν _ (by omega)] at hj
   convert hj using 3

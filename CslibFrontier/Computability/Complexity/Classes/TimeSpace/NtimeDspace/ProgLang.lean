@@ -287,8 +287,8 @@ theorem loop_post (body : Stmt) (f n : ℕ) (acc : ℕ → ℕ) (Frame : List �
     intro k r hk hn ha hi hF hb
     obtain ⟨r', e', hn', ha', hi', hF', hb'⟩ := step k (by omega) r hn ha hi hF hb
     obtain ⟨r'', e'', ha'', hF'', hb''⟩ := ih (k + 1) r' (by omega) hn' ha' hi' hF' hb'
-    exact ⟨r'', .loop_step hb (by simp only [Expr.eval_reg]; rw [hn, hi]; omega) e' hb' e'', ha'',
-        hF'', hb''⟩
+    exact ⟨r'', .loop_step hb (by simp only [Expr.eval_reg]; rw [hn, hi]; omega) e' hb' e'',
+        ha'', hF'', hb''⟩
 
 /-- **The compiler is correct.** -/
 theorem compile_correct (hB : 2 ≤ B) : ∀ (P : Prog) (env envRegs : List ℕ) (dst f : ℕ)
@@ -427,13 +427,13 @@ theorem compile_correct (hB : 2 ≤ B) : ∀ (P : Prog) (env envRegs : List ℕ)
       (by omega)
     have hc : (Expr.reg f).eval r1 = c.eval w env := by simp only [Expr.eval_reg]; exact v1
     by_cases h : 0 < c.eval w env
-    · have hbt : t.Bounded w B env := by have := hbd.2; rw [if_pos h] at this; exact this
+    · have hbt : t.Bounded w B env := by have := hbd.2; rw [ite_eq_left h] at this; exact this
       obtain ⟨r2, e2, l2, v2, fr2, b2⟩ := iht env envRegs dst (f + 1) r1 env1 (by omega)
         (by omega) b1 hbt
       refine ⟨r2, .seq e1 (.ite_yes b1 (by simp [hc, h]) e2 b2), by simp [l1, l2], ?_,
         fun j hj hjd => by rw [fr2 j (by omega) hjd, fr1 j (by omega) (by omega)], b2⟩
       rw [v2]; simp [Prog.eval, h]
-    · have hbe : e.Bounded w B env := by have := hbd.2; rw [if_neg h] at this; exact this
+    · have hbe : e.Bounded w B env := by have := hbd.2; rw [ite_eq_right h] at this; exact this
       obtain ⟨r2, e2, l2, v2, fr2, b2⟩ := ihe env envRegs dst (f + 1) r1 env1 (by omega)
         (by omega) b1 hbe
       refine ⟨r2, .seq e1 (.ite_no b1 (by simp [hc, h]) e2), by simp [l1, l2], ?_,
@@ -600,7 +600,7 @@ theorem exec_weaken {w : List Bool} {Inv Inv' : List ℕ → Prop} {s : Stmt} {r
 theorem encList_le_of_LeB {K : ℕ} {r : List ℕ} (h : LeB (2 ^ K) r) :
     (encList encNat r).length ≤ r.length * (2 * K + 3) := by
   rw [length_encList]
-  refine (List.sum_le_card_nsmul _ (2 * K + 3) fun x hx => ?_).trans (by simp)
+  refine (List.sum_le_length_nsmul _ (2 * K + 3) fun x hx => ?_).trans (by simp)
   obtain ⟨y, hy, rfl⟩ := List.mem_map.mp hx
   have hsize : (encNat y).length ≤ K + 1 := by
     rw [length_encNat_eq_size, Nat.size_le]

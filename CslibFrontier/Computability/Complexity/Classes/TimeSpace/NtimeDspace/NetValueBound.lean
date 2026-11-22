@@ -75,13 +75,13 @@ theorem portAtT_le (qT bT σT eT iT : Term) (env : List ℕ) :
   unfold portAtT
   refine sumT_le _ _ env _ (fun acc j hj => ?_)
   simp only [denote_mul, denote_lvl_index]
-  have hX : (portPredT k qT (letterBitsT k s bT) σT eT (lvl env.length)).denote w (acc :: j :: env)
-      ≤ 1 :=
+  have hX : (portPredT k qT (letterBitsT k s bT) σT eT (lvl env.length)).denote w
+      (acc :: j :: env) ≤ 1 :=
     lt_le_one _ _ _
   have hY := eqT_le_one (w := w) (portCountT k qT (letterBitsT k s bT) σT eT (lvl env.length)) iT
     (acc :: j :: env)
-  have hXY : (portPredT k qT (letterBitsT k s bT) σT eT (lvl env.length)).denote w (acc :: j :: env)
-      *
+  have hXY : (portPredT k qT (letterBitsT k s bT) σT eT (lvl env.length)).denote w
+      (acc :: j :: env) *
       (eqT (portCountT k qT (letterBitsT k s bT) σT eT (lvl env.length)) iT).denote w
           (acc :: j :: env) ≤ 1 := by
     nlinarith
@@ -95,6 +95,7 @@ theorem condT_le_one (bT JpT JmT stO trO : Term) (offO dC cellO : Term → Term)
     (mul_le_one (lt_le_one _ _ _) (eqT_le_one _ _ _)) (mul_le_one (allT_le_one _ _ _)
       (allT_le_one _ _ _))))
 
+omit [DecidableEq State] in
 theorem intervalEntryT_le (RT NT qT bT σT : Term) (L : Term → Term) (iT : Term) (env : List ℕ) :
     (intervalEntryT (k := k) (s := s) e machine RT NT qT bT σT L iT).denote w env ≤
       2 ^ bT.denote w env := by
@@ -107,6 +108,7 @@ theorem intervalEntryT_le (RT NT qT bT σT : Term) (L : Term → Term) (iT : Ter
       exact condT_le_one _ _ _ _ _ _ _ _ _ _ _
   · exact Nat.zero_le _
 
+omit [DecidableEq State] in
 theorem oldEntryT_le (RT NT qT bT σT : Term) (L : Term → Term) (vT : Term) (env : List ℕ) :
     (oldEntryT k s e machine RT NT qT bT σT L vT).denote w env ≤ 2 ^ bT.denote w env := by
   have h1 : 1 ≤ 2 ^ bT.denote w env := Nat.one_le_two_pow
@@ -115,6 +117,7 @@ theorem oldEntryT_le (RT NT qT bT σT : Term) (L : Term → Term) (vT : Term) (e
     (ite_le (le_trans (mul_le_one (lt_le_one _ _ _) (eqT_le_one _ _ _)) h1)
         (by rw [denote_const]; exact h1))
 
+omit [DecidableEq State] in
 theorem weightNT_le (RT NT qT bT σT eT A : Term) (env : List ℕ) :
     (weightNT k s e machine RT NT qT bT σT eT A).denote w env ≤ 2 ^ bT.denote w env := by
   have h1 : 1 ≤ 2 ^ bT.denote w env := Nat.one_le_two_pow

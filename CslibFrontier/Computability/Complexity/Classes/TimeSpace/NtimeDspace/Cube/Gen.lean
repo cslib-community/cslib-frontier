@@ -160,8 +160,8 @@ structure Agrees (gn : GenFun) (e : St → ℕ) (inv : St → Prop) (P : ℕ) : 
   tag : ∀ st, inv st → gn.tag (e st) = kindTag (g.kind st)
   prec : ∀ st, inv st → gn.prec (e st) = P
   param : ∀ st, inv st → g.kind st = .sum → gn.param (e st) = g.width st
-  bit : ∀ st, inv st → g.kind st = .leaf → ∀ k < P, gn.bit (e st) k = (res P (g.leafVal st)).testBit
-      k
+  bit : ∀ st, inv st → g.kind st = .leaf → ∀ k < P, gn.bit (e st) k =
+      (res P (g.leafVal st)).testBit k
   child : ∀ st, inv st → ∀ i, gn.child (e st) i = e (g.child st i)
 
 theorem leafValue_eq {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ} (h : g.Agrees gn e inv P)
@@ -174,8 +174,8 @@ theorem leafValue_eq {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ
     have hP : (0 : ℤ) < 2 ^ P := by positivity
     have h1 := Int.emod_lt_of_pos (g.leafVal st) hP
     have h0 := Int.emod_nonneg (g.leafVal st) hP.ne'
-    have e : (((g.leafVal st % 2 ^ P).toNat : ℕ) : ℤ) = g.leafVal st % 2 ^ P := Int.toNat_of_nonneg
-        h0
+    have e : (((g.leafVal st % 2 ^ P).toNat : ℕ) : ℤ) = g.leafVal st % 2 ^ P :=
+        Int.toNat_of_nonneg h0
     have : (((g.leafVal st % 2 ^ P).toNat : ℕ) : ℤ) < ((2 ^ P : ℕ) : ℤ) := by push_cast; omega
     exact_mod_cast this
   rcases Nat.lt_or_ge k P with hkP | hkP
@@ -185,8 +185,8 @@ theorem leafValue_eq {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ
       Nat.testBit_eq_false_of_lt (lt_of_lt_of_le hlt (Nat.pow_le_pow_right (by norm_num) hkP))]
 
 /-- **The numeric unfolding has the value of the unfolding of `g`.** -/
-theorem value_agrees {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ} (h : g.Agrees gn e inv P)
-    :
+theorem value_agrees {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ}
+    (h : g.Agrees gn e inv P) :
     ∀ n st, inv st → (gn.tree n (e st)).value = (g.tree P n st).value := by
   intro n
   induction n with
@@ -200,8 +200,8 @@ theorem value_agrees {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ
         show ¬ (0 = 2) by omega, show ¬ (0 = 3) by omega, ite_false, SPTree.value]
       rw [leafValue_eq g h hinv hk]
     · rw [hk] at ht; simp only [kindTag] at ht
-      simp only [GenFun.tree, tree, hk, ht, ite_true, h.prec st hinv, h.param st hinv hk,
-          SPTree.value]
+      simp only [GenFun.tree, tree, hk, ht, ite_true, h.prec st hinv, h.param st hinv
+          hk, SPTree.value]
       congr 1
       refine Finset.sum_congr rfl fun i hi => ?_
       rw [h.child st hinv i]

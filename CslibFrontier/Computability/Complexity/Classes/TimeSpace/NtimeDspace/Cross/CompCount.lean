@@ -62,7 +62,7 @@ theorem canonFrom_of_halted {c : Cfg k Bool S input} (h : c.state = none) (v : L
     CanonFrom m c v ↔ ∀ b ∈ v, b = false := by
   induction v with
   | nil => simp [CanonFrom]
-  | cons b v ih => simp [CanonFrom, h, MultiTapeTM.step_of_halt h, ih]
+  | cons b v ih => simp [CanonFrom, h, ih]
 
 end Canon
 
@@ -108,7 +108,7 @@ theorem compCount_eq_of_halted {m : MultiTapePTM k Bool S} {x : List Bool} {τ�
     tauto
   by_cases hP : CanonFrom m (Cfg.init m.initial x) (List.ofFn u) ∧ c.state = none ∧
       c.output = out
-  · rw [if_pos (decide_eq_true hP)]
+  · rw [ite_eq_left (decide_eq_true hP)]
     rw [Complexity.acceptCount_congr (W := fun p => decide (∀ b ∈ p.2, b = false))
       (fun v => by
         rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq, key v]
@@ -118,7 +118,7 @@ theorem compCount_eq_of_halted {m : MultiTapePTM k Bool S} {x : List Bool} {τ�
     unfold Complexity.acceptCount
     rw [← BitString.card_filter_not_any d]
     exact congrArg Finset.card (Finset.filter_congr fun w _ => hw w)
-  · rw [if_neg (fun h => hP (of_decide_eq_true h))]
+  · rw [ite_eq_right (fun h => hP (of_decide_eq_true h))]
     rw [Complexity.acceptCount_congr (W := fun _ => false)
       (fun v => by
         rw [Bool.eq_iff_iff, decide_eq_true_eq, key v]
@@ -294,12 +294,12 @@ theorem compCount_flip (x : List Bool) (τ : ℕ) :
   refine Complexity.acceptCount_congr (fun v => ?_) τ
   rw [Bool.eq_iff_iff, decide_eq_true_eq, decide_eq_true_eq, init_flip, stepCoins_flip,
     canonFrom_flip]
-  show _ ∧ _ ∧ (m.stepCoins v (Cfg.init m.initial x)).output.map not = [true] ↔ _
+  change _ ∧ _ ∧ (m.stepCoins v (Cfg.init m.initial x)).output.map not = [true] ↔ _
   rw [map_not_eq_true_iff]
   rfl
 
-theorem haltsWithin_flip {x : List Bool} {T : ℕ} : HaltsWithin (flip m) x T ↔ HaltsWithin m x
-    T := by
+theorem haltsWithin_flip {x : List Bool} {T : ℕ} : HaltsWithin (flip m) x T ↔
+    HaltsWithin m x T := by
   unfold HaltsWithin
   simp only [init_flip, stepCoins_flip]
   rfl

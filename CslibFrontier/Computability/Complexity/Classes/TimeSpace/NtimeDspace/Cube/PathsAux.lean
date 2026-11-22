@@ -55,7 +55,7 @@ theorem two_mul_potential_mergeStep {g : ℕ} (a : Fin (g * g) → Fin (g * g) �
       (g - 1) ^ 2 * ∑ p : Pairs g, rowBudget a (fun r => (ι r).1) p.1.1 p.1.2 := rfl
   have hcol : (colChild g a T ι).potential =
       (g - 1) ^ 2 * ∑ p : Pairs g, colBudget a (fun r => (ι r).1) p.1.1 p.1.2 := by
-    show (g - 1) ^ 2 * ∑ p : Pairs g, (colChild g a T ι).a p.1.1 p.1.2 = _
+    change (g - 1) ^ 2 * ∑ p : Pairs g, (colChild g a T ι).a p.1.1 p.1.2 = _
     congr 1
     exact Finset.sum_congr rfl fun p _ => colChild_a a T ι (fun r => (hk r).1) p.2.le
   set R := ∑ p : Pairs g, rowBudget a (fun r => (ι r).1) p.1.1 p.1.2
@@ -490,7 +490,7 @@ theorem desc_le (fw : ℕ) : ∀ k ≤ π.e, π.desc fw k ≤
       have : 2 ^ 2 ^ k ≤ 2 ^ 2 ^ (π.e - 1) :=
         Nat.pow_le_pow_right (by norm_num) (Nat.pow_le_pow_right (by norm_num) (by omega))
       gcongr
-    show choiceWidth (2 ^ 2 ^ k) fw + π.ℓ + π.desc fw k ≤ _
+    change choiceWidth (2 ^ 2 ^ k) fw + π.ℓ + π.desc fw k ≤ _
     rw [Nat.succ_mul]
     omega
 
@@ -714,7 +714,7 @@ theorem factor_ok (π : BudPar) (hq : S.C₀.q = 2 ^ 2 ^ π.e)
   have hk := fun r (m : Label) => wt_m_le (S.clique rest) hsq hv.1 r (m := m)
   have z : FacOK S π rest.length .zero := ⟨trivial, Nat.zero_le _⟩
   have lt : ∀ z, FacOK S π rest.length (.lit z) := fun _ => ⟨trivial, Nat.zero_le _⟩
-  show FacOK S π rest.length _
+  change FacOK S π rest.length _
   unfold factorSt
   rw [S.parentGrid_eq_some i hsq]
   dsimp only
@@ -955,19 +955,19 @@ theorem budgeted (π : BudPar) (hq : S.C₀.q = 2 ^ 2 ^ π.e)
         (S.prod_rng0 π hinv 1).2⟩
     | .trm up x y m lo pos hi t T₁ T₂ c₁ c₀ c₂, hinv, _ =>
       refine ⟨hinv.1, hinv.2, ?_, ?_⟩
-      · show trB π.ℓ _ + π.ℓ ≤ 2 * π.ℓ + trB π.ℓ _
+      · change trB π.ℓ _ + π.ℓ ≤ 2 * π.ℓ + trB π.ℓ _
         have := trB_mono π.ℓ _ _ (le_max_left (tWt (srcSub up x y m lo pos) T₁)
           (tWt (srcSub up x y m (pos + 1) hi) T₂))
         omega
-      · show π.ℓ + trB π.ℓ _ + π.ℓ ≤ 2 * π.ℓ + trB π.ℓ _
+      · change π.ℓ + trB π.ℓ _ + π.ℓ ≤ 2 * π.ℓ + trB π.ℓ _
         have := trB_mono π.ℓ _ _ (le_max_right (tWt (srcSub up x y m lo pos) T₁)
           (tWt (srcSub up x y m (pos + 1) hi) T₂))
         omega
     | .trr up x y m pos hi t T₂ c₀ c₂, hinv, _ =>
       refine ⟨trivial, hinv, ?_, ?_⟩
-      · show 0 + π.ℓ ≤ π.ℓ + trB π.ℓ _
+      · change 0 + π.ℓ ≤ π.ℓ + trB π.ℓ _
         omega
-      · show trB π.ℓ _ + π.ℓ ≤ π.ℓ + trB π.ℓ _
+      · change trB π.ℓ _ + π.ℓ ≤ π.ℓ + trB π.ℓ _
         omega
     | .ent (j :: rest) v args, _, hk =>
       exfalso
@@ -1084,8 +1084,8 @@ theorem part_tr {ℓ Wm R L s cA c' C₁ q₀ : ℕ} (hWR : Wm * R ^ 2 ≤ (48 *
   exact_mod_cast this
 
 theorem clog_D0 {s L C₁ V M : ℕ} (hsL' : s < 2 ^ (L + 1)) (hL1 : 1 ≤ L) (hsC : C₁ ≤ s)
-    (hV : V ≤ (s + 2) ^ C₁) (hM : M ≤ C₁ * (s + 1)) : Nat.clog 2 (1 + V + M) ≤ (3 * C₁ + 8) *
-        L := by
+    (hV : V ≤ (s + 2) ^ C₁) (hM : M ≤ C₁ * (s + 1)) : Nat.clog 2 (1 + V + M) ≤
+        (3 * C₁ + 8) * L := by
   apply Nat.clog_le_of_le_pow
   have hs2 : s + 2 ≤ 2 ^ (L + 2) := by rw [pow_succ, pow_succ] at *; omega
   have hb : (s + 2) ^ (C₁ + 2) ≤ 2 ^ ((L + 2) * (C₁ + 2)) := by

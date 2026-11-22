@@ -81,14 +81,14 @@ theorem inControl_codes (b : ℕ) (initial : State) (L : ℕ → ℕ) (i : ℕ) 
       trc (inControlNum (k := k) e b initial L i).2.2 = inTr k s b L i := by
   unfold inControlNum inSt inOff inTr
   by_cases hi : i = 0
-  · simp only [hi, if_true]
-    exact ⟨by first | rfl | trivial, fun _ => by first | rfl | trivial, by first | rfl | trivial⟩
-  · simp only [hi, if_false]
+  · simp only [hi, ite_true]
+    exact ⟨by trivial, fun _ => by trivial, by rfl⟩
+  · simp only [hi, ite_false]
     unfold controlDataOfNum
     by_cases hc : L (i - 1) < controlCount k s b
-    · simp only [hc, if_true]; exact decodeControlData_codes e b _
-    · simp only [hc, if_false]
-      exact ⟨by first | rfl | trivial, fun _ => by first | rfl | trivial, by first | rfl | trivial⟩
+    · simp only [hc, ite_true]; exact decodeControlData_codes e b _
+    · simp only [hc, ite_false]
+      exact ⟨by rfl, fun _ => by trivial, by rfl⟩
 
 /-! ### Window cells -/
 

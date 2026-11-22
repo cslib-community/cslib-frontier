@@ -71,7 +71,7 @@ def call4 (q : Prog) (a b c d : Term) : Term :=
 theorem val_call4 {q : Prog} (hq : Prog'.closed 4 q = true) {a b c d : Term} {x y z u : ℕ}
     (ha : Val w a env x) (hb : Val w b env y) (hc : Val w c env z) (hd : Val w d env u) :
     Val w (call4 q a b c d) env (q.eval w [x, y, z, u]) := fun extra => by
-  show Prog.eval w (.letIn _ (.letIn _ (.letIn _ (.letIn _ q)))) _ = _
+  change Prog.eval w (.letIn _ (.letIn _ (.letIn _ (.letIn _ q)))) _ = _
   simp only [Prog.eval]
   have e1 : (d (extra ++ env).length).eval w (extra ++ env) = u := hd extra
   rw [e1]
@@ -89,7 +89,7 @@ theorem bd_call4 {q : Prog} (hq : Prog'.closed 4 q = true) {a b c d : Term} {x y
     (ha : Val w a env x) (hb : Val w b env y) (hc : Val w c env z) (hd : Val w d env u)
     (hba : Bd w M a env) (hbb : Bd w M b env) (hbc : Bd w M c env) (hbd : Bd w M d env)
     (h : q.Bounded w M [x, y, z, u]) : Bd w M (call4 q a b c d) env := fun extra => by
-  show Prog.Bounded w M (.letIn _ (.letIn _ (.letIn _ (.letIn _ q)))) _
+  change Prog.Bounded w M (.letIn _ (.letIn _ (.letIn _ (.letIn _ q)))) _
   simp only [Prog.Bounded]
   have e1 : (d (extra ++ env).length).eval w (extra ++ env) = u := hd extra
   have e2 : (c ((extra ++ env).length + 1)).eval w (u :: (extra ++ env)) = z := hc (u :: extra)

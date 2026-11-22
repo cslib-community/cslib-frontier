@@ -115,8 +115,8 @@ theorem foldl_sumMod_zero (P : ℕ) (g : ℕ → ℕ) (n : ℕ) :
 theorem foldl_prodMod_one (P : ℕ) (g : ℕ → ℕ) (n : ℕ) :
     (((List.range n).foldl (fun acc k : ℕ => (acc * g k) % P) 1 : ℕ) : ZMod P) =
       ∏ k ∈ Finset.range n, (g k : ZMod P) := by
-  suffices ∀ init : ℕ, (((List.range n).foldl (fun acc k : ℕ => (acc * g k) % P) init : ℕ) : ZMod P)
-      =
+  suffices ∀ init : ℕ, (((List.range n).foldl (fun acc k : ℕ => (acc * g k) % P) init
+      : ℕ) : ZMod P) =
       (init : ZMod P) * ∏ k ∈ Finset.range n, (g k : ZMod P) by simpa using this 1
   induction n with
   | zero => intro init; simp
@@ -132,7 +132,7 @@ theorem foldl_prodMod_one (P : ℕ) (g : ℕ → ℕ) (n : ℕ) :
 
 @[simp] theorem denote_lvl_index (env : List ℕ) (acc k : ℕ) :
     (lvl env.length).denote w (acc :: k :: env) = k := by
-  simp [denote_lvl, Nat.add_assoc, Nat.add_sub_cancel_left]
+  simp [denote_lvl, Nat.add_assoc]
 
 @[simp] theorem denote_lvl_acc (env : List ℕ) (acc k : ℕ) :
     (lvl (env.length + 1)).denote w (acc :: k :: env) = acc := by

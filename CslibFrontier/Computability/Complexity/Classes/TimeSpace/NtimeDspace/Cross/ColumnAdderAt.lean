@@ -354,14 +354,4 @@ theorem clockedCountingAt_of_clockedBitsAt {D : ℕ → ℕ} (hlog : ∀ n, n.lo
   · rw [bounded_closeAt _ 3 [τ, w.length, b] rfl]
     exact hbd.bnd
 
-/-! ### The case `D = SqrtLog` -/
-
-/-- At `D = SqrtLog` the general column adder gives back `clockedBits_of_blockBits`. -/
-theorem clockedBits_of_blockBits_viaAt (h : BlockBits) : ClockedBits :=
-  clockedBitsAt_of_blockBitsAt log2_add_one_le_sqrtLog carryFits_sqrtLog h
-
-/-- At `D = SqrtLog` the general count test gives back `clockedCounting_of_clockedBits`. -/
-theorem clockedCounting_of_clockedBits_viaAt (h : ClockedBits) : ClockedCounting :=
-  clockedCountingAt_of_clockedBitsAt log2_add_one_le_sqrtLog h
-
 end Cslib.Complexity.NtimeDspace.Cross.Exact

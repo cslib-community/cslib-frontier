@@ -94,7 +94,7 @@ private theorem chn_node_lt_iff {A B A' B' : Fin g} :
   · simp [h, node_lt_node h]
   · simp only [lt_irrefl, false_or, true_and]
     rw [Fin.lt_def, Fin.lt_def]
-    show A.val * g + B.val < A.val * g + B'.val ↔ B.val < B'.val
+    change A.val * g + B.val < A.val * g + B'.val ↔ B.val < B'.val
     omega
   · have h' := node_lt_node h B' B
     simp only [lt_asymm h, h.ne', false_and, or_false, iff_false]
@@ -112,7 +112,7 @@ private theorem chn_trNode_node (A B : Fin g) : trNode (node A B) = node B A := 
   · exact Fin.ext h2
 
 private theorem chn_trNode_trNode (w : Fin (g * g)) : trNode (trNode w) = w := by
-  show trNode (node _ _) = w
+  change trNode (node _ _) = w
   rw [chn_trNode_node]
   exact Fin.ext (Nat.div_add_mod' w.val g)
 
@@ -126,7 +126,7 @@ private theorem chn_budget_of_le {n : ℕ} (a : Fin n → Fin n → ℕ) {u v : 
 
 private theorem chn_budget_tr (a : Fin (g * g) → Fin (g * g) → ℕ) (u v : Fin (g * g)) :
     budget (trBudget a) u v = budget a (trNode u) (trNode v) := by
-  show budget a (trNode (min u v)) (trNode (max u v)) = _
+  change budget a (trNode (min u v)) (trNode (max u v)) = _
   rcases le_total u v with h | h
   · rw [min_eq_left h, max_eq_right h]
   · rw [min_eq_right h, max_eq_left h, chn_budget_comm]
@@ -240,7 +240,7 @@ private theorem chn_psi (a : Fin (g * g) → Fin (g * g) → ℕ) (ι : Rect g �
 theorem colChild_T (a : Fin (g * g) → Fin (g * g) → ℕ)
     (T : Fin (g * g) → (Fin (g * g) → Label) → ℤ) (ι : Rect g → ℤ × ℤ) (hk : ∀ r, Even (ι r).1)
     (B : Fin g) (Θ : Fin g → Label) : (colChild g a T ι).T B Θ = colTable a T ι B Θ := by
-  show rowTable (trBudget a) (trTable T) _ B Θ = _
+  change rowTable (trBudget a) (trTable T) _ B Θ = _
   unfold rowTable colTable
   by_cases hv : ∀ B', B' ≠ B → validLabel (packL g) (Θ B')
   swap
@@ -250,15 +250,15 @@ theorem colChild_T (a : Fin (g * g) → Fin (g * g) → ℕ)
     (fun ξ h => chn_untr_mem a B h) (fun ξ _ => chn_untr_tr B ξ) (fun ξ _ => chn_tr_untr B ξ) ?_
   intro ξ _
   congr 1
-  congr 1
-  congr 1
-  · refine Finset.prod_congr rfl fun A _ => ?_
-    simp only [trTable, chn_trNode_node]
-    rfl
-  · refine Finset.prod_congr rfl fun A _ => Finset.prod_congr rfl fun A' _ => ?_
-    simp [chnTr_node, chn_node_lt_iff]
-  · refine Finset.prod_congr rfl fun B' _ => Finset.prod_congr rfl fun A _ => ?_
-    simp [chnTr_node, chn_node_lt_iff]
+  · congr 1
+    · congr 1
+      · refine Finset.prod_congr rfl fun A _ => ?_
+        simp only [trTable, chn_trNode_node]
+        rfl
+      · refine Finset.prod_congr rfl fun A _ => Finset.prod_congr rfl fun A' _ => ?_
+        simp [chnTr_node, chn_node_lt_iff]
+    · refine Finset.prod_congr rfl fun B' _ => Finset.prod_congr rfl fun A _ => ?_
+      simp [chnTr_node, chn_node_lt_iff]
   · exact Fintype.prod_equiv chnRectEquiv _ _ fun r => chn_psi a ι hk B Θ ξ r
 
 /-- The budgets of the column clique are the column budgets (for even grades, on pairs
@@ -266,13 +266,13 @@ theorem colChild_T (a : Fin (g * g) → Fin (g * g) → ℕ)
 theorem colChild_a (a : Fin (g * g) → Fin (g * g) → ℕ) (T : Fin (g * g) → (Fin (g * g) → Label) → ℤ)
     (ι : Rect g → ℤ × ℤ) (hk : ∀ r, Even (ι r).1) {B B' : Fin g} (hBB : B ≤ B') :
     (colChild g a T ι).a B B' = colBudget a (fun r => (ι r).1) B B' := by
-  show rowBudget (trBudget a) _ B B' = _
+  change rowBudget (trBudget a) _ B B' = _
   have hd : ∀ r, -(ι r).1 / 2 = -((ι r).1 / 2) := fun r =>
     Int.neg_ediv_of_dvd (even_iff_two_dvd.mp (hk r))
   unfold rowBudget colBudget
   congr 2
   · refine Finset.sum_congr rfl fun A _ => ?_
-    show budget a (trNode (node B A)) (trNode (node B' A)) = _
+    change budget a (trNode (node B A)) (trNode (node B' A)) = _
     rw [chn_trNode_node, chn_trNode_node, chn_budget_of_le]
     rcases hBB.lt_or_eq with h | rfl
     · exact (node_lt_node_right A h).le
@@ -380,8 +380,8 @@ private theorem chn_code (a : Fin (g * g) → Fin (g * g) → ℕ) (fw : ℕ) (h
     rw [← pow_succ']
     congr 1
     omega
-  have hb : ∀ r, 0 ≤ (ι r).1 + (2 : ℤ) ^ (fw - 1) ∧ (ι r).1 + (2 : ℤ) ^ (fw - 1) < 2 * 2 ^ (fw - 1)
-      ∧
+  have hb : ∀ r, 0 ≤ (ι r).1 + (2 : ℤ) ^ (fw - 1) ∧ (ι r).1 + (2 : ℤ) ^ (fw - 1) < 2
+      * 2 ^ (fw - 1) ∧
       0 ≤ (ι r).2 + (2 : ℤ) ^ (fw - 1) ∧ (ι r).2 + (2 : ℤ) ^ (fw - 1) < 2 * 2 ^ (fw - 1) := by
     intro r
     have hr := Fintype.mem_piFinset.mp hι r
@@ -430,9 +430,9 @@ private theorem chn_code (a : Fin (g * g) → Fin (g * g) → ℕ) (fw : ℕ) (h
       rw [dite_eq_right hn, dite_eq_left hex,
         chn_rectIdx_inj (by have := hex.choose_spec; omega : rectIdx hex.choose = rectIdx r)]
     refine Prod.ext ?_ ?_
-    · show field fw _ _ = _
+    · change field fw _ _ = _
       rw [hfield _ (by omega), e1, Int.toNat_of_nonneg (hb r).1, add_sub_cancel_right]
-    · show field fw _ _ = _
+    · change field fw _ _ = _
       rw [hfield _ (by omega), e2, Int.toNat_of_nonneg (hb r).2.2.1, add_sub_cancel_right]
 
 /-! ### The orientation and the child -/
@@ -480,7 +480,7 @@ theorem value_childAt (fw : ℕ) (C : Clique) (hg : 1 ≤ Nat.sqrt C.q)
     fun ι hι => chn_code _ fw hfw0 hfw hι
   rw [← Clique.value_recast C _ hsq]
   refine hm.trans ?_
-  show ∑ ι ∈ choices _, (mergeStep _ (C.recast _ hsq).a (C.recast _ hsq).T ι).value = _
+  change ∑ ι ∈ choices _, (mergeStep _ (C.recast _ hsq).a (C.recast _ hsq).T ι).value = _
   simp only [hchild]
   rw [← Finset.sum_filter]
   symm

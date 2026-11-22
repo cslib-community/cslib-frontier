@@ -222,7 +222,7 @@ theorem expE_le (C s : ℕ) : CubeCounting.expE C s ≤ 2 ^ ((3 * C + 5) * (Nat.
 theorem denote_iteCall {c a : Term} {q : Prog} (hq : Prog'.closed 1 q = true) (env : List ℕ) :
     (ite c (call1 q a) (const 0)).denote w env =
       if 0 < c.denote w env then q.eval w [a.denote w env] else 0 := by
-  show (Prog.ite (c env.length) (Prog.letIn (a env.length) q) (Prog.const 0)).eval w env = _
+  change (Prog.ite (c env.length) (Prog.letIn (a env.length) q) (Prog.const 0)).eval w env = _
   simp only [Prog.eval]
   rw [show q.eval w ((a env.length).eval w env :: env) = q.eval w [(a env.length).eval w env] from
     Prog'.eval_append q [_] env hq]
@@ -232,7 +232,7 @@ theorem bnd_iteCall {c a : Term} {q : Prog} (hq : Prog'.closed 1 q = true) {env 
     (hc : c.Bnd w M env)
     (ht : 0 < c.denote w env → a.Bnd w M env ∧ q.Bounded w M [a.denote w env]) :
     (ite c (call1 q a) (const 0)).Bnd w M env := by
-  show Prog.Bounded w M (.ite (c env.length) (.letIn (a env.length) q) (.const 0)) env
+  change Prog.Bounded w M (.ite (c env.length) (.letIn (a env.length) q) (.const 0)) env
   simp only [Prog.Bounded]
   refine ⟨hc, ?_⟩
   split_ifs with h
@@ -256,14 +256,14 @@ theorem bounded_evalProg (T : Cube.Num.CubeT) (par : ℕ) :
 /-- The parameter `[s, P, B, fw, K, H]` of a logspace family over `[s, |w|, j]`, with `P = j + 1`
 and `B = H = c · SqrtLog s`. -/
 def famParT (c : ℕ) : Term :=
-  Cube.Num.encE [lvl 2, add (lvl 0) (const 1), bLT c (lvl 2), fwT (lvl 2), kT (lvl 2), bLT c
-      (lvl 2)]
+  Cube.Num.encE [lvl 2, add (lvl 0) (const 1), bLT c (lvl 2), fwT (lvl 2), kT
+      (lvl 2), bLT c (lvl 2)]
 
 /-- The term of Theorem 2.3 over `[s, |w|, j]`: `0` for `j ≥ E`, else the evaluator at the
 parameter of the family. -/
 def famTopT (F : LogspaceNetFamily) (c : ℕ) : Term :=
-  ite (lt (lvl 0) (expT' F.C (lvl 2))) (call1 (evalProg (Cube.Num.famCubeT F)) (famParT c))
-      (const 0)
+  ite (lt (lvl 0) (expT' F.C (lvl 2))) (call1 (evalProg (Cube.Num.famCubeT F))
+      (famParT c)) (const 0)
 
 /-- **The program of Theorem 2.3**, closed over `[s, |w|, j]`. -/
 def famProg (F : LogspaceNetFamily) (c : ℕ) : Prog := closeAt 3 (famTopT F c 3)
@@ -399,11 +399,13 @@ section Block
 variable {k s : ℕ} {State : Type} [DecidableEq State] {machine : MultiTapePTM k Bool State}
   {e : State ≃ Fin s}
 
+omit [DecidableEq State] in
 /-- The vertex functions of a block network are at most `2^(blockLength τ) ≤ 2(τ + 2)`. -/
 theorem blockNet_eval_le {w : List Bool} {τ σ : ℕ} (hd : NetTerm.RowsFirst machine e w τ σ)
     (v : Fin (blockNetworkOf machine e (w, τ, σ)).2.vertices.length) (l : List Bool)
     (hl : l.length = ((Cube.Num.blockNet machine e w τ σ hd).ports v).length) :
     |(Cube.Num.blockNet machine e w τ σ hd).eval v l| ≤ 2 * (τ + 2) := by
+  classical
   have h1 := NetTerm.denote_evalAtT_bits (machine := machine) (e := e) (nT := const w.length)
     (τT := const τ) (σT := const σ) (env := []) (t := τ) (σ := σ) (p := 0)
     (stableAt_const _ _) rfl (stableAt_const _ _) rfl (stableAt_const _ _) rfl hd

@@ -58,7 +58,7 @@ theorem size_mod_two_pow_succ (x m : ℕ) :
     (x % 2 ^ (m + 1)).size = if x.testBit m then m + 1 else (x % 2 ^ m).size := by
   have hsplit : x % 2 ^ (m + 1) = x % 2 ^ m + 2 ^ m * (x.testBit m).toNat := by
     rw [Nat.pow_succ, Nat.mod_mul, Nat.testBit_eq_decide_div_mod_eq]
-    rcases Nat.mod_two_eq_zero_or_one (x / 2 ^ m) with h | h <;> simp [h, Nat.mul_comm]
+    rcases Nat.mod_two_eq_zero_or_one (x / 2 ^ m) with h | h <;> simp [h]
   have hlt : x % 2 ^ m < 2 ^ m := Nat.mod_lt _ (by positivity)
   split_ifs with hb
   · rw [hsplit, hb, Bool.toNat_true, Nat.mul_one]
@@ -76,20 +76,21 @@ theorem foldl_sizeStep (x : ℕ) : ∀ m, (List.range m).foldl (sizeStep x) 0 = 
 theorem sizeF_eq (x : ℕ) : sizeF x = x.size := by
   rw [sizeF, foldl_sizeStep, Nat.mod_eq_of_lt Nat.lt_two_pow_self]
 
-theorem foldl_tOnesStep {e n : ℕ} (hset : ∀ i < n, e.testBit i = true) (hclr : e.testBit n = false)
-    :
+theorem foldl_tOnesStep {e n : ℕ} (hset : ∀ i < n, e.testBit i = true)
+    (hclr : e.testBit n = false) :
     ∀ m, (List.range m).foldl (tOnesStep e) 0 = min m n
   | 0 => by simp
   | m + 1 => by
     rw [List.range_succ, List.foldl_append, foldl_tOnesStep hset hclr m]
     simp only [List.foldl_cons, List.foldl_nil, tOnesStep]
     rcases Nat.lt_trichotomy m n with h | h | h
-    · rw [min_eq_left h.le, if_neg (lt_irrefl m), if_neg (lt_irrefl m), if_pos (hset m h)]
+    · rw [min_eq_left h.le, ite_eq_right (lt_irrefl m), ite_eq_right (lt_irrefl m),
+        ite_eq_left (hset m h)]
       omega
     · subst h
-      rw [min_self, if_neg (lt_irrefl m), if_neg (lt_irrefl m), hclr]
+      rw [min_self, ite_eq_right (lt_irrefl m), ite_eq_right (lt_irrefl m), hclr]
       simp
-    · rw [min_eq_right h.le, if_pos h]
+    · rw [min_eq_right h.le, ite_eq_left h]
       omega
 
 theorem tOnesF_enc_cons (x : ℕ) (l : List ℕ) : tOnesF (enc (x :: l)) = x.size := by
@@ -186,7 +187,7 @@ theorem denote_consT {a b : ℕ} {env : List ℕ} (ha : a < env.length) (hb : b 
 
 /-! ### Value bounds -/
 
-theorem bnd_tOnesT {a : ℕ} {env : List ℕ} (ha : a < env.length)
+theorem bnd_tOnesT {a : ℕ} {env : List ℕ} (_ha : a < env.length)
     (hB : (lvl a).denote w env ≤ B) : (tOnesT (lvl a)).Bnd w B env := by
   rw [tOnesT, bnd_foldT]
   refine ⟨trivial, Nat.zero_le _, hB, fun k hk => ?_⟩
@@ -196,7 +197,7 @@ theorem bnd_tOnesT {a : ℕ} {env : List ℕ} (ha : a < env.length)
   simp only [denote_lvl_index, denote_const, bnd_lvl, bnd_const, true_and]
   omega
 
-theorem bnd_sizeT {a : ℕ} {env : List ℕ} (ha : a < env.length)
+theorem bnd_sizeT {a : ℕ} {env : List ℕ} (_ha : a < env.length)
     (hB : (lvl a).denote w env ≤ B) : (sizeT (lvl a)).Bnd w B env := by
   rw [sizeT, bnd_foldT]
   refine ⟨trivial, Nat.zero_le _, hB, fun k hk => bnd_ite_of (by simp) ?_ trivial⟩

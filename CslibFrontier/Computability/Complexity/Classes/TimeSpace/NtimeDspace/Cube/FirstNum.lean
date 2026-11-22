@@ -420,8 +420,8 @@ variable {V : ℕ} (G : EdgeNet ℤ (Fin V)) (K : ℕ)
 `b(b+1)/2` of a (vertex group, test group) pair of width `b`, `0` elsewhere. -/
 def firstDigit (t : ℕ) : ℕ :=
   if t / (2 * K) < K ∧ K ≤ t % (2 * K) then
-    widthC G K (t / (2 * K)) (t % (2 * K) - K) * (widthC G K (t / (2 * K)) (t % (2 * K) - K) + 1) /
-        2
+    widthC G K (t / (2 * K)) (t % (2 * K) - K) *
+        (widthC G K (t / (2 * K)) (t % (2 * K) - K) + 1) / 2
   else 0
 
 theorem firstDigit_eq {t : ℕ} (ht : t < 2 * K * (2 * K)) :
@@ -613,8 +613,8 @@ theorem factor0C_eq (S : Setup) (hK : 1 ≤ S.K) (hC : Fits S.fw S.C₀.a) (hnn 
       · rw [ite_eq_left (hte.trans ht), ite_eq_left ht]
         have hu := vgroup_lt (G := S.G) hK (S.G.u e)
         have hw := vgroup_lt (G := S.G) hK (S.G.w e)
-        have h1 : tbitC S.G S.K (arrN (2 * S.K) S.fw (extN (firstBudget S.G S.K))) S.fw v args e
-            false =
+        have h1 : tbitC S.G S.K (arrN (2 * S.K) S.fw (extN (firstBudget S.G S.K))) S.fw
+            v args e false =
             heBit S.G S.K (labelOfNode S.K (fun u : Fin (2 * S.K) =>
               if h : v < S.C₀.q then decodeArgs S.C₀ ⟨v, h⟩ args
                   ⟨u.val, by simp [Setup.C₀, firstClique]⟩
@@ -637,8 +637,8 @@ theorem factor0C_eq (S : Setup) (hK : 1 ≤ S.K) (hC : Fits S.fw S.C₀.a) (hnn 
                 (rfl : true = true), wN_fin,
             vgroupC_eq, bitAt, hΘ (vgroup S.G S.K (S.G.w e)) (by omega) (by omega),
             decEnc_labOf (slotN_lt _)]
-        change (if tbitC S.G S.K (arrN (2 * S.K) S.fw (extN (firstBudget S.G S.K))) S.fw v args e
-            false =
+        change (if tbitC S.G S.K (arrN (2 * S.K) S.fw (extN (firstBudget S.G S.K))) S.fw
+            v args e false =
           tbitC S.G S.K (arrN (2 * S.K) S.fw (extN (firstBudget S.G S.K))) S.fw v args e true
           then (1 : ℤ) else 0) = _
         rw [h1, h2]

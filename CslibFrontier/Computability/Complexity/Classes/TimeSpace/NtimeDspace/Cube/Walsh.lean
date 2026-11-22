@@ -17,8 +17,8 @@ import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube
 # The Walsh–Hadamard shape of Lemma 5.1
 
 This file formalizes the remark after Lemma 5.1 (`separating-ntime-from-space.tex`, §5.1, "The lemma
-has a familiar
-shape"). Throughout, types are restricted to `i, j < 2^b`, a matrix is a function of two types,
+has a familiar shape"). Throughout, types are restricted to `i, j < 2^b`, a matrix is a function of
+two types,
 and the Walsh–Hadamard matrix is `𝓗(i, j) = chi i j = (-1)^{⟨i,j⟩}`.
 
 * "The matrix `(C_{i,j})` is the tensor product over the bit positions `e < b` of the matrices

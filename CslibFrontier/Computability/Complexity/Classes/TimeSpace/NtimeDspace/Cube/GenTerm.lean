@@ -74,8 +74,8 @@ theorem val_litBitT {z k : Term} {Z Kv : ℕ} (hz : Val w env z Z) (hk : Val w e
     Val w env (litBitT z k) (litBitN Z Kv).toNat := by
   refine (val_ite (val_eqT (val_mod hz (val_const 2)) (val_const 0))
     (val_bit (val_div hz (val_const 2)) hk)
-    (val_sub (val_const 1) (val_bit (val_div (val_sub hz (val_const 1)) (val_const 2)) hk))).congr
-        ?_
+    (val_sub (val_const 1) (val_bit (val_div (val_sub hz (val_const 1))
+        (val_const 2)) hk))).congr ?_
   unfold litBitN
   simp only [ite_ind]
   split_ifs
@@ -106,8 +106,8 @@ theorem val_rng0ChildT {f0T : Term → Term → Term → Term} {f0 : ℕ → ℕ
       (hf0 _ _ _ _ _ _ (g 2) (g 3) hlo)
       (val_encE (w := w) (env := env) (.cons (val_const 6) (.cons (g 1) (.cons (g 2) (.cons (g 3)
         (.cons hlo (.cons hhi .nil)))))))
-  refine (val_ite (val_eqT hb (val_const 0)) (hR _ _ _ _ (g 4) hmid) (hR _ _ _ _ hmid (g 5))).congr
-      ?_
+  refine (val_ite (val_eqT hb (val_const 0)) (hR _ _ _ _ (g 4) hmid)
+      (hR _ _ _ _ hmid (g 5))).congr ?_
   unfold rng0ChildN
   simp only [ite_ind]
 
@@ -214,8 +214,8 @@ def f0T (T : CubeT) (a b c : Term) : Term := litCT (mul (const 2) (factor0T (fir
 
 /-- The code of the root `cl []`: the empty path and the budget array of the first clique. -/
 def initT (T : CubeT) : Term :=
-  encE [const 2, const 1, encE [encE [mul (const 2) T.KT, firstArrT T.N T.KT (mul (const 2) T.KT)
-      T.fwT]]]
+  encE [const 2, const 1, encE [encE [mul (const 2) T.KT, firstArrT T.N T.KT
+      (mul (const 2) T.KT) T.fwT]]]
 
 section Inputs
 
@@ -282,8 +282,8 @@ theorem above_one (pre : List ℕ) (par : ℕ) : Above [par] (pre ++ [par]) := �
 /-- **The programs compute the numeric generator** at every state code. -/
 theorem cubeProg_toFun (S : Setup) (hT : CubeIn S.G w par T S.P B S.fw S.K H) :
     (cubeProg T).toFun w par = cubeFun S.P B S.fw S.K S.V S.G.M (f0C S.G S.K S.fw) := by
-  have e2 : ∀ (t : Term) (st : ℕ), (Exact.closeAt 2 (t 2)).eval w [st, par] = t.denote w
-      [st, par] :=
+  have e2 : ∀ (t : Term) (st : ℕ), (Exact.closeAt 2 (t 2)).eval w [st, par] =
+      t.denote w [st, par] :=
     fun t st => eval_close t [st, par]
   have e3 : ∀ (t : Term) (a b : ℕ), (Exact.closeAt 3 (t 3)).eval w [a, b, par] =
       t.denote w [a, b, par] := fun t a b => eval_close t [a, b, par]
@@ -304,9 +304,9 @@ theorem cubeProg_toFun (S : Setup) (hT : CubeIn S.G w par T S.P B S.fw S.K H) :
     have := (e3 (cubeBitT T.BT (lvl 1) (lvl 2)) k st).trans (val_cubeBitT (hT.vB.up hE)
       (val_lvl_at (e := [k, st, par]) (l := 1) (by simp))
       (val_lvl_at (e := [k, st, par]) (l := 2) (by simp))).2
-    show decide (0 < (Exact.closeAt 3 (cubeBitT T.BT (lvl 1) (lvl 2) 3)).eval w [k, st, par]) = _
+    change decide (0 < (Exact.closeAt 3 (cubeBitT T.BT (lvl 1) (lvl 2) 3)).eval w [k, st, par]) = _
     rw [this]
-    show decide (0 < (cubeBit B st k).toNat) = cubeBit B st k
+    change decide (0 < (cubeBit B st k).toNat) = cubeBit B st k
     cases cubeBit B st k <;> rfl
   · funext st i
     have hE := above_one [st, i] par

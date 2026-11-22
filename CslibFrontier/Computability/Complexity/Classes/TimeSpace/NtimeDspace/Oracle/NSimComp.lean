@@ -22,8 +22,8 @@ If the oracle `A` is decidable within linear space, then `NTIME^A[n] ⊆ SPACE[n
 `T = c₁ n + c₂`, try every choice number `r < B^T` (`B` the number of instructions of `M`) one at
 a time, each time simulating `T` steps of the choice run with universal steps
 (`Cslib.Complexity.NtimeDspace.Oracle.OracleNTM.istep`), and accept when one of them halts with
-output `[true]`
-(`Cslib.Complexity.NtimeDspace.Oracle.OracleNTM.accepts_iff_exists_choice`). The counter `r` takes
+output `[true]` (`Cslib.Complexity.NtimeDspace.Oracle.OracleNTM.accepts_iff_exists_choice`). The
+counter `r` takes
 `O(T)` bits and
 a simulated configuration `O(T + log n)` bits, so the whole search runs in space `O(n)`.
 -/

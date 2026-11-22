@@ -74,10 +74,10 @@ theorem lastNat_spec (d k : ℕ) (p : ℕ → Bool) :
     rw [lastNat_succ]
     by_cases hk : p k = true
     · right
-      rw [if_pos hk]
+      rw [ite_eq_left hk]
       exact ⟨by omega, hk, fun i h1 h2 => by omega⟩
     · have hk' : p k = false := by simpa using hk
-      simp only [hk', Bool.false_eq_true, if_false]
+      simp only [hk', Bool.false_eq_true, ite_false]
       rcases ih with ⟨h1, h2⟩ | ⟨h1, h2, h3⟩
       · left
         refine ⟨h1, fun i hi => ?_⟩
@@ -137,8 +137,8 @@ theorem next_spec {t : ℕ} (h : d.hasNext t = true) :
       ∀ t', t < t' → t' < d.next t → d.same t t' = false := by
   simp only [hasNext, Bool.and_eq_true, decide_eq_true_eq] at h
   obtain ⟨-, hlt⟩ := h
-  obtain ⟨h1, -, h3⟩ := firstNat_spec (3 * d.m) (fun t' => decide (t < t') && d.same t t') (3 * d.m)
-      le_rfl
+  obtain ⟨h1, -, h3⟩ := firstNat_spec (3 * d.m) (fun t' => decide (t < t') && d.same t t')
+      (3 * d.m) le_rfl
   obtain ⟨-, hp⟩ := h1 hlt
   simp only [Bool.and_eq_true, decide_eq_true_eq, same_iff] at hp
   refine ⟨hp.1, hlt, hp.2.1, hp.2.2, fun t' ht1 ht2 => ?_⟩
@@ -274,7 +274,7 @@ theorem mem_portsN_lt {v i : ℕ} (hv : v < 7 * d.m) (h : i ∈ d.portsN v) : i 
   unfold portsN at h
   split_ifs at h with h1 h2 h3 h4
   · simp at h; omega
-  · simp only [List.mem_append, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at h
+  · simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at h
     have := (prev_spec h3).1; omega
   · simp at h; omega
   · simp at h
@@ -286,21 +286,21 @@ theorem portsN_length_le (v : ℕ) : (d.portsN v).length ≤ 3 := by
 theorem nodup_portsN {v : ℕ} (hv : v < 7 * d.m) : (d.portsN v).Nodup := by
   unfold portsN
   split_ifs with h1 h2 h3 h4
-  · simp <;> omega
+  · simp
   · have := (prev_spec h3).1
-    simp <;> omega
-  · simp <;> omega
+    simp; omega
+  · simp; omega
   · simp
   · simp
 
 /-- **Incidences.** Edge `i` is a port of `v` exactly when `v` is one of its ends. -/
-theorem mem_portsN_iff {v i : ℕ} (hv : v < 7 * d.m) (hi : i < 6 * d.m) :
+theorem mem_portsN_iff {v i : ℕ} (_hv : v < 7 * d.m) (hi : i < 6 * d.m) :
     i ∈ d.portsN v ↔ d.uN i = v ∨ d.wN i = v := by
   unfold portsN uN wN
   by_cases hvm : v < d.m
-  · simp only [hvm, if_true, List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false]
+  · simp only [hvm, ite_true, List.mem_cons, List.not_mem_nil, or_false]
     constructor
-    · intro h; left; rw [if_pos (by omega)]; omega
+    · intro h; left; rw [ite_eq_left (by omega)]; omega
     · rintro (h | h)
       · split_ifs at h with h1 <;> omega
       · split_ifs at h with h1 h2
@@ -308,19 +308,20 @@ theorem mem_portsN_iff {v i : ℕ} (hv : v < 7 * d.m) (hi : i < 6 * d.m) :
         · have := (next_spec h2).1; omega
         · omega
   · by_cases hv4 : v < 4 * d.m
-    · simp only [hvm, hv4, if_false, if_true, List.mem_append, List.mem_cons, List.mem_singleton,
+    · simp only [hvm, hv4, ite_false, ite_true, List.mem_append, List.mem_cons,
         List.not_mem_nil, or_false]
       constructor
       · rintro ((h | h) | h)
-        · right; rw [if_pos (by omega)]; omega
-        · left; rw [if_neg (by omega)]; omega
+        · right; rw [ite_eq_left (by omega)]; omega
+        · left; rw [ite_eq_right (by omega)]; omega
         · split_ifs at h with h3
           · simp only [List.mem_singleton] at h
             right
             have hvt : v - d.m < 3 * d.m := by omega
             obtain ⟨hn, hnext⟩ := next_prev h3 hvt
             have hp := (prev_spec h3).1
-            rw [if_neg (by omega), show i - 3 * d.m = d.prev (v - d.m) by omega, if_pos hn, hnext]
+            rw [ite_eq_right (by omega), show i - 3 * d.m = d.prev (v - d.m) by omega,
+                ite_eq_left hn, hnext]
             omega
           · simp at h
       · rintro (h | h)
@@ -333,24 +334,25 @@ theorem mem_portsN_iff {v i : ℕ} (hv : v < 7 * d.m) (hi : i < 6 * d.m) :
             have hp := prev_next h2
             have hnt : d.next (i - 3 * d.m) = v - d.m := by omega
             rw [hnt] at hp
-            rw [if_pos hp.1, hp.2]
+            rw [ite_eq_left hp.1, hp.2]
             simp only [List.mem_singleton]
             omega
           · omega
-    · simp only [hvm, hv4, if_false]
+    · simp only [hvm, hv4, ite_false]
       constructor
       · intro h
         split_ifs at h with h4
         · simp at h
         · simp only [List.mem_singleton] at h
-          right; rw [if_neg (by omega), show i - 3 * d.m = v - 4 * d.m by omega, if_neg h4]; omega
+          right; rw [ite_eq_right (by omega), show i - 3 * d.m = v - 4 * d.m by omega,
+              ite_eq_right h4]; omega
       · rintro (h | h)
         · split_ifs at h with h1 <;> omega
         · split_ifs at h with h1 h2
           · omega
           · have := (next_spec h2).2.1; omega
           · have ht : i - 3 * d.m = v - 4 * d.m := by omega
-            rw [← ht, if_neg h2]
+            rw [← ht, ite_eq_right h2]
             simp only [List.mem_singleton]
             omega
 
@@ -400,8 +402,8 @@ theorem nodup_net_ports (R : Type) [Zero R] [One R] (v : Fin (7 * d.m)) :
   rw [← map_val_ports R v] at h
   exact h.of_map _
 
-theorem net_degree_le (R : Type) [Zero R] [One R] (v : Fin (7 * d.m)) : ((d.net R).ports v).length ≤
-    3 := by
+theorem net_degree_le (R : Type) [Zero R] [One R] (v : Fin (7 * d.m)) :
+    ((d.net R).ports v).length ≤ 3 := by
   have h := portsN_length_le (d := d) v
   rw [← map_val_ports R v, List.length_map] at h
   exact h
@@ -432,7 +434,7 @@ theorem all_evalN_iff (y : ℕ → Bool) :
     refine
         ⟨fun t ht hp => ?_, fun c hc => ?_, fun t ht hn => ?_, fun t ht hp => ?_, fun t ht hn => ?_⟩
     · have := h (t / 3) (by omega)
-      simp only [evalN, portsN, show t / 3 < d.m by omega, if_true, clauseOK, List.map_cons,
+      simp only [evalN, portsN, show t / 3 < d.m by omega, ite_true, clauseOK, List.map_cons,
         List.map_nil, Bool.and_eq_true, List.all_eq_true, List.mem_range] at this
       have h1 := this.1 (t % 3) (Nat.mod_lt _ (by norm_num))
       rw [show 3 * (t / 3) + t % 3 = t by omega, hp, Bool.false_or, Bool.not_eq_true'] at h1
@@ -440,29 +442,29 @@ theorem all_evalN_iff (y : ℕ → Bool) :
         show 3 * (t / 3) + t % 3 = t by omega] at h1
       exact h1
     · have := h c (by omega)
-      simp only [evalN, portsN, hc, if_true, clauseOK, List.map_cons, List.map_nil,
+      simp only [evalN, portsN, hc, ite_true, clauseOK, List.map_cons, List.map_nil,
           Bool.and_eq_true,
         List.any_eq_true, List.mem_range, beq_iff_eq] at this
       obtain ⟨j, hj, hp, hs⟩ := this.2
       exact ⟨j, hj, hp, by rw [← hs, getD_three _ _ _ _ hj y (3 * c) rfl rfl rfl]⟩
     · have := h (d.m + t) (by omega)
       simp only [evalN, portsN, show ¬ d.m + t < d.m by omega, show d.m + t < 4 * d.m by omega,
-        if_true, if_false, Nat.add_sub_cancel_left, occOK, hn, Bool.not_true, Bool.false_or,
+        ite_true, ite_false, Nat.add_sub_cancel_left, occOK, hn, Bool.not_true, Bool.false_or,
         Bool.and_eq_true, beq_iff_eq] at this
       simpa using this.1
     · have := h (d.m + t) (by omega)
       simp only [evalN, portsN, show ¬ d.m + t < d.m by omega, show d.m + t < 4 * d.m by omega,
-        if_true, if_false, Nat.add_sub_cancel_left, occOK, hp, Bool.not_true, Bool.false_or,
+        ite_true, ite_false, Nat.add_sub_cancel_left, occOK, hp, Bool.not_true, Bool.false_or,
         Bool.and_eq_true, beq_iff_eq] at this
       simpa using this.2
     · have := h (4 * d.m + t) (by omega)
       simp only [evalN, portsN, show ¬ 4 * d.m + t < d.m by omega,
-        show ¬ 4 * d.m + t < 4 * d.m by omega, if_false, Nat.add_sub_cancel_left, sinkOK, hn,
+        show ¬ 4 * d.m + t < 4 * d.m by omega, ite_false, Nat.add_sub_cancel_left, sinkOK, hn,
         Bool.false_or, Bool.false_eq_true] at this
       simpa using this
   · intro hg v hv
     by_cases h1 : v < d.m
-    · simp only [evalN, portsN, h1, if_true, clauseOK, List.map_cons, List.map_nil,
+    · simp only [evalN, portsN, h1, ite_true, clauseOK, List.map_cons, List.map_nil,
         Bool.and_eq_true, List.all_eq_true, List.any_eq_true, List.mem_range, beq_iff_eq,
         Bool.or_eq_true, Bool.not_eq_true']
       refine ⟨fun j hj => ?_, ?_⟩
@@ -473,7 +475,7 @@ theorem all_evalN_iff (y : ℕ → Bool) :
       · obtain ⟨j, hj, hp, hs⟩ := hg.clause v h1
         exact ⟨j, hj, hp, by rw [getD_three _ _ _ _ hj y (3 * v) rfl rfl rfl, hs]⟩
     · by_cases h4 : v < 4 * d.m
-      · simp only [evalN, portsN, h1, h4, if_true, if_false, occOK, Bool.and_eq_true,
+      · simp only [evalN, portsN, h1, h4, ite_true, ite_false, occOK, Bool.and_eq_true,
           Bool.or_eq_true, Bool.not_eq_true', beq_iff_eq]
         refine ⟨?_, ?_⟩
         · by_cases hn : d.hasNext (v - d.m) = true
@@ -482,7 +484,7 @@ theorem all_evalN_iff (y : ℕ → Bool) :
         · by_cases hp : d.hasPrev (v - d.m) = true
           · right; simpa [hp] using hg.prv _ (by omega) hp
           · left; simpa using hp
-      · simp only [evalN, portsN, h1, h4, if_false, sinkOK, Bool.or_eq_true, Bool.not_eq_true']
+      · simp only [evalN, portsN, h1, h4, ite_false, sinkOK, Bool.or_eq_true, Bool.not_eq_true']
         by_cases hn : d.hasNext (v - 4 * d.m) = true
         · exact Or.inl hn
         · right
@@ -490,8 +492,8 @@ theorem all_evalN_iff (y : ℕ → Bool) :
           simpa [hn'] using hg.sink _ (by omega) hn'
 
 /-- The first slot holding variable `k`, or `3m`. -/
-def firstOcc (d : Raw) (k : ℕ) : ℕ := firstNat (3 * d.m) (fun t => d.pres t && d.var t == k)
-    (3 * d.m)
+def firstOcc (d : Raw) (k : ℕ) : ℕ := firstNat (3 * d.m)
+    (fun t => d.pres t && d.var t == k) (3 * d.m)
 
 /-- An assignment of the variables `< N`, as a function on numbers. -/
 def extA {N : ℕ} (a : Fin N → Bool) (k : ℕ) : Bool := if h : k < N then a ⟨k, h⟩ else false
@@ -531,8 +533,8 @@ theorem GoodN.chain' {y : ℕ → Bool} (hg : d.GoodN y) {t t' : ℕ} (ht : t < 
 theorem firstOcc_spec {k : ℕ} (h : ∃ t < 3 * d.m, d.pres t = true ∧ d.var t = k) :
     d.firstOcc k < 3 * d.m ∧ d.pres (d.firstOcc k) = true ∧ d.var (d.firstOcc k) = k := by
   obtain ⟨t, ht, hp, hv⟩ := h
-  obtain ⟨h1, h2, h3⟩ := firstNat_spec (3 * d.m) (fun t => d.pres t && d.var t == k) (3 * d.m)
-      le_rfl
+  obtain ⟨h1, h2, h3⟩ := firstNat_spec (3 * d.m) (fun t => d.pres t && d.var t == k)
+      (3 * d.m) le_rfl
   rcases h2 with h2 | h2
   · have := h3 t (by omega)
     simp [hp, hv] at this
@@ -582,7 +584,7 @@ theorem value_net (R : Type) [CommRing R] (N : ℕ)
     refine ⟨j, hj, hp, ?_⟩
     have hvN := hvar _ (by omega) hp
     obtain ⟨f1, f2, f3⟩ := firstOcc_spec (hocc _ hvN)
-    simp only [extA, dif_pos hvN]
+    simp only [extA, dite_eq_left hvN]
     rw [hx.chain' f1 (by omega) f2 hp f3, hs]
   · -- satisfying assignments give consistent edge bits
     intro a ha
@@ -590,24 +592,25 @@ theorem value_net (R : Type) [CommRing R] (N : ℕ)
     replace ha := ha.2
     refine ⟨mem_univ _, ?_⟩
     have hext : ∀ e < 6 * d.m, ext (fun e : Fin (6 * d.m) => if (e : ℕ) < 3 * d.m then
-        d.pres e && extA a (d.var e) else d.hasNext (e - 3 * d.m) && extA a (d.var (e - 3 * d.m))) e
-            =
+        d.pres e && extA a (d.var e) else d.hasNext (e - 3 * d.m) && extA a
+            (d.var (e - 3 * d.m))) e =
         if e < 3 * d.m then d.pres e && extA a (d.var e)
         else d.hasNext (e - 3 * d.m) && extA a (d.var (e - 3 * d.m)) := fun e he => by
       simp [ext, he]
     refine
         ⟨fun t ht hp => ?_, fun c hc => ?_, fun t ht hn => ?_, fun t ht hp => ?_, fun t ht hn => ?_⟩
-    · rw [hext t (by omega), if_pos ht, hp, Bool.false_and]
+    · rw [hext t (by omega), ite_eq_left ht, hp, Bool.false_and]
     · obtain ⟨j, hj, hp, hs⟩ := ha c hc
-      exact ⟨j, hj, hp, by rw [hext _ (by omega), if_pos (by omega), hp, Bool.true_and, hs]⟩
-    · rw [hext t (by omega), hext (3 * d.m + t) (by omega), if_pos ht, if_neg (by omega),
+      exact ⟨j, hj, hp, by rw [hext _ (by omega), ite_eq_left (by omega), hp, Bool.true_and, hs]⟩
+    · rw [hext t (by omega), hext (3 * d.m + t) (by omega), ite_eq_left ht, ite_eq_right (by omega),
         Nat.add_sub_cancel_left, hn, hasNext_pres hn]
     · obtain ⟨h1, h2, -⟩ := prev_spec hp
       obtain ⟨hn, -⟩ := next_prev hp ht
       rw [same_iff] at h2
-      rw [hext t (by omega), hext (3 * d.m + d.prev t) (by omega), if_pos ht, if_neg (by omega),
+      rw [hext t (by omega), hext (3 * d.m + d.prev t) (by omega), ite_eq_left ht,
+          ite_eq_right (by omega),
         Nat.add_sub_cancel_left, hn, hasPrev_pres hp, h2.2]
-    · rw [hext (3 * d.m + t) (by omega), if_neg (by omega), Nat.add_sub_cancel_left, hn,
+    · rw [hext (3 * d.m + t) (by omega), ite_eq_right (by omega), Nat.add_sub_cancel_left, hn,
         Bool.false_and]
   · -- left inverse
     intro x hx
@@ -616,41 +619,42 @@ theorem value_net (R : Type) [CommRing R] (N : ℕ)
     funext e
     have he := e.2
     by_cases h3 : (e : ℕ) < 3 * d.m
-    · rw [if_pos h3]
+    · rw [ite_eq_left h3]
       by_cases hp : d.pres e = true
       · have hvN := hvar _ h3 hp
         obtain ⟨f1, f2, f3⟩ := firstOcc_spec (hocc _ hvN)
-        simp only [hp, Bool.true_and, extA, dif_pos hvN]
+        simp only [hp, Bool.true_and, extA, dite_eq_left hvN]
         rw [hx.chain' f1 h3 f2 hp f3]
         simp [ext]
       · have hp' : d.pres e = false := by simpa using hp
         rw [hp', Bool.false_and]
         have := hx.empty e h3 hp'
-        simp only [ext, dif_pos he] at this
+        simp only [ext, dite_eq_left he] at this
         exact this.symm
-    · rw [if_neg h3]
+    · rw [ite_eq_right h3]
       have ht : (e : ℕ) - 3 * d.m < 3 * d.m := by omega
       have hee : 3 * d.m + ((e : ℕ) - 3 * d.m) = e := by omega
       by_cases hn : d.hasNext (e - 3 * d.m) = true
       · have hp := hasNext_pres hn
         have hvN := hvar _ ht hp
         obtain ⟨f1, f2, f3⟩ := firstOcc_spec (hocc _ hvN)
-        simp only [hn, Bool.true_and, extA, dif_pos hvN]
+        simp only [hn, Bool.true_and, extA, dite_eq_left hvN]
         rw [hx.chain' f1 ht f2 hp f3, hx.nxt _ ht hn, hee]
         simp [ext]
       · have hn' : d.hasNext (e - 3 * d.m) = false := by simpa using hn
         rw [hn', Bool.false_and]
         have := hx.sink _ ht hn'
         rw [hee] at this
-        simp only [ext, dif_pos he] at this
+        simp only [ext, dite_eq_left he] at this
         exact this.symm
   · -- right inverse
     intro a _
     funext k
     obtain ⟨f1, f2, f3⟩ := firstOcc_spec (hocc k k.2)
-    simp only [ext, dif_pos (show d.firstOcc k < 6 * d.m by omega), if_pos f1, f2, Bool.true_and,
+    simp only [ext, dite_eq_left (show d.firstOcc k < 6 * d.m by omega), ite_eq_left f1,
+        f2, Bool.true_and,
         f3,
-      extA, dif_pos k.2]
+      extA, dite_eq_left k.2]
 
 end Raw
 

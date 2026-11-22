@@ -79,7 +79,7 @@ theorem path_state {gn : GenFun} {e : St → ℕ} {inv : St → Prop} {P : ℕ} 
     obtain ⟨-, hnode⟩ := gn.node_tree n (e st₀) π hπ
     rw [hnode, hst] at hi
     have hc : gn.stateAt (e st₀) (i :: π) = e (g.child st i) := by
-      show gn.child (gn.stateAt (e st₀) π) i = _
+      change gn.child (gn.stateAt (e st₀) π) i = _
       rw [hst, h.child st hinv]
     have ht := h.tag st hinv
     rcases hm : n - π.length with _ | m
@@ -196,12 +196,12 @@ theorem ein (hI : CubeIn S.G w par T S.P B S.fw S.K H) (hE : Ext L E [par]) {nT 
 
 end CubeTiers
 
-theorem code_enc (S : Setup) (st : St) : ∃ l : List ℕ, S.code st = NatList.enc l ∧ 0 <
-    l.length := by
+theorem code_enc (S : Setup) (st : St) : ∃ l : List ℕ, S.code st = NatList.enc l ∧ 0
+    < l.length := by
   cases st <;> exact ⟨_, rfl, by simp⟩
 
-theorem entrySt_of_tag {st : St} (S : Setup) (h : 2 ≤ stGet (S.code st) 0 ∧ stGet (S.code st) 0 ≤ 5)
-    :
+theorem entrySt_of_tag {st : St} (S : Setup)
+    (h : 2 ≤ stGet (S.code st) 0 ∧ stGet (S.code st) 0 ≤ 5) :
     EntrySt st := by
   rw [stGet_code_zero S] at h
   cases st <;> first | trivial | simp at h
@@ -237,8 +237,8 @@ theorem tm_tr_info (S : Setup) {A Bv de : ℕ} {B e : Term} {env : List ℕ} {st
   have vf : ∀ k, Val w env (getV e (const k))
       (getF (S.code st) k) := fun k => val_getV he (val_const k)
   have tf : ∀ k ≤ 13, Tm w L de (getV e (const k)) env := fun k hk =>
-    tm_getV he te (by omega) (val_const k) (t_const (small_lt_two_pow hk hL)) (by norm_num)
-        (by omega)
+    tm_getV he te (by omega) (val_const k) (t_const (small_lt_two_pow hk hL))
+        (by norm_num) (by omega)
   have t0 : Tm w L 1 (const 0) env := t_small (by norm_num) (by omega)
   have k7 : Tm w L 1 (const 7) env := t_const (small_lt_two_pow (by norm_num) hL)
   have c7 := t_eqT' (tf 0 (by norm_num)) k7 (by omega)
@@ -253,8 +253,8 @@ theorem tm_tr_info (S : Setup) {A Bv de : ℕ} {B e : Term} {env : List ℕ} {st
         (by norm_num) (by omega)) t0 le_rfl (by norm_num) (by omega) hBL) t0 (by omega)
     refine tm_val (t_mul c7 (t_mul (cc 0 (by norm_num))
         (t_mul (cc 1 (by norm_num)) (t_mul (cc 2 (by norm_num))
-      (t_eqT' (tf 8 (by norm_num)) t0 (by omega)) (by norm_num)) (by norm_num)) (by norm_num))
-          (by norm_num))
+      (t_eqT' (tf 8 (by norm_num)) t0 (by omega)) (by norm_num)) (by norm_num))
+          (by norm_num)) (by norm_num))
       (val_trLeafT hB he) ?_
     rw [one_mul]; unfold trLeafN; split_ifs
     exacts [Nat.one_lt_two_pow (by omega), Nat.two_pow_pos _]

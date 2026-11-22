@@ -132,36 +132,30 @@ theorem closed_two_add {q : Prog} {m : ℕ} (h : Prog'.closed m q = true) (k : �
 theorem tagT_closed : Prog'.closed 2 (G.tagT 2) = true := by
   simp [tagT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT, callT1, callT2, callT3,
     Term.letT, Term.foldT, Term.ite, Term.lt, Term.lvl, Term.const, Term.add, Term.sub, Term.div,
-    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.tag_closed, closed_two_add
-        G.init_closed,
+    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.tag_closed,
+        closed_two_add G.init_closed,
     closed_two_add G.child_closed, closed_two_add G.fuel_closed]
 
 theorem precT_closed : Prog'.closed 2 (G.precT 2) = true := by
-  simp [tagT, precT, paramT, bitT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT,
+  simp [precT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT,
       callT1, callT2, callT3,
     Term.letT, Term.foldT, Term.ite, Term.lt, Term.lvl, Term.const, Term.add, Term.sub, Term.div,
-    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.tag_closed, closed_two_add
-        G.init_closed,
-    closed_two_add G.child_closed, closed_two_add G.fuel_closed, closed_two_add G.prec_closed,
-    closed_two_add G.param_closed, closed_two_add G.bit_closed]
+    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.init_closed,
+    closed_two_add G.child_closed, closed_two_add G.fuel_closed, closed_two_add G.prec_closed]
 
 theorem paramT_closed : Prog'.closed 2 (G.paramT 2) = true := by
-  simp [tagT, precT, paramT, bitT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT,
+  simp [paramT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT,
       callT1, callT2, callT3,
     Term.letT, Term.foldT, Term.ite, Term.lt, Term.lvl, Term.const, Term.add, Term.sub, Term.div,
-    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.tag_closed, closed_two_add
-        G.init_closed,
-    closed_two_add G.child_closed, closed_two_add G.fuel_closed, closed_two_add G.prec_closed,
-    closed_two_add G.param_closed, closed_two_add G.bit_closed]
+    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.tag_closed,
+        closed_two_add G.init_closed,
+    closed_two_add G.child_closed, closed_two_add G.fuel_closed, closed_two_add G.param_closed]
 
 theorem bitT_closed : Prog'.closed 3 (G.bitT 3) = true := by
-  simp [tagT, precT, paramT, bitT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT,
-      callT1, callT2, callT3,
+  simp [bitT, stateT, pathStateT, lengthT, dropT, getT, tlT, hdT, tOnesT, callT1, callT3,
     Term.letT, Term.foldT, Term.ite, Term.lt, Term.lvl, Term.const, Term.add, Term.sub, Term.div,
-    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.tag_closed, closed_two_add
-        G.init_closed,
-    closed_two_add G.child_closed, closed_two_add G.fuel_closed, closed_two_add G.prec_closed,
-    closed_two_add G.param_closed, closed_two_add G.bit_closed]
+    Term.mod, Term.bit, Term.mul, pow2, Prog'.closed, closed_two_add G.init_closed,
+    closed_two_add G.child_closed, closed_two_add G.bit_closed]
 
 /-- The explicit queries of the generated recursion. -/
 def queries : Queries where
@@ -206,45 +200,44 @@ theorem param_aux (t q : ℕ) : (if t < 4 then (if 0 < t then (if t < 2 then q e
 
 theorem queries_tag (π : List ℕ) :
     G.queries.tag.eval w [enc π, n] = ((G.toFun w n).genQ (G.fuel₀ w n) (G.init₀ w n) π).tag := by
-  show (G.tagT).denote w [enc π, n] = _
+  change (G.tagT).denote w [enc π, n] = _
   simp (disch := lvl_disch) only [tagT, denote_letT, G.denote_stateT, denote_lengthT,
     denote_callT1 G.fuel_closed, denote_callT2 G.tag_closed, denote_ite_lt, denote_const,
-    lvl_cons, denote_lvl_let, lvl1_two, lvl0_two, lvl0_one, G.state_enc, lengthF_enc]
+    lvl_cons, denote_lvl_let, lvl1_two, lvl0_one, G.state_enc, lengthF_enc]
   by_cases hlt : π.length < G.fuel.eval w [n]
-  · simp only [GenFun.genQ, fuel₀, hlt, if_true]
+  · simp only [GenFun.genQ, fuel₀, hlt, ite_true]
     exact tag_aux _
-  · simp only [GenFun.genQ, fuel₀, hlt, if_false]
+  · simp only [GenFun.genQ, fuel₀, hlt, ite_false]
 
 theorem queries_prec (π : List ℕ) :
     G.queries.prec.eval w [enc π, n] = ((G.toFun w n).genQ (G.fuel₀ w n) (G.init₀ w n) π).prec := by
-  show (G.precT).denote w [enc π, n] = _
+  change (G.precT).denote w [enc π, n] = _
   simp (disch := lvl_disch) only [precT, denote_letT, G.denote_stateT, denote_lengthT,
     denote_callT1 G.fuel_closed, denote_callT2 G.prec_closed, denote_ite_lt, denote_const,
-    lvl_cons, denote_lvl_let, lvl1_two, lvl0_two, lvl0_one, G.state_enc, lengthF_enc]
+    lvl_cons, denote_lvl_let, lvl1_two, lvl0_one, G.state_enc, lengthF_enc]
   by_cases hlt : π.length < G.fuel.eval w [n]
-  · simp only [GenFun.genQ, fuel₀, hlt, if_true, toFun]
-  · simp only [GenFun.genQ, fuel₀, hlt, if_false]
+  · simp only [GenFun.genQ, fuel₀, hlt, ite_true, toFun]
+  · simp only [GenFun.genQ, fuel₀, hlt, ite_false]
 
 theorem queries_param (π : List ℕ) :
     G.queries.param.eval w [enc π, n] =
       ((G.toFun w n).genQ (G.fuel₀ w n) (G.init₀ w n) π).param := by
-  show (G.paramT).denote w [enc π, n] = _
+  change (G.paramT).denote w [enc π, n] = _
   simp (disch := lvl_disch) only [paramT, denote_letT, G.denote_stateT, denote_lengthT,
     denote_callT1 G.fuel_closed, denote_callT2 G.tag_closed, denote_callT2 G.param_closed,
-    denote_ite_lt, denote_const, lvl_cons, denote_lvl_let, lvl1_two, lvl0_two, lvl0_one,
-        G.state_enc,
+    denote_ite_lt, denote_const, lvl_cons, denote_lvl_let, lvl1_two, lvl0_one, G.state_enc,
     lengthF_enc]
   by_cases hlt : π.length < G.fuel.eval w [n]
-  · simp only [GenFun.genQ, fuel₀, hlt, if_true]
+  · simp only [GenFun.genQ, fuel₀, hlt, ite_true]
     exact param_aux _ _
-  · simp only [GenFun.genQ, fuel₀, hlt, if_false]
+  · simp only [GenFun.genQ, fuel₀, hlt, ite_false]
 
 theorem queries_bit (k : ℕ) (π : List ℕ) :
     (0 < G.queries.bit.eval w [k, enc π, n]) ↔
       (G.toFun w n).genLB (G.init₀ w n) π k = true := by
-  show (0 < (G.bitT).denote w [k, enc π, n]) ↔ _
+  change (0 < (G.bitT).denote w [k, enc π, n]) ↔ _
   simp (disch := lvl_disch) only [bitT, denote_letT, G.denote_stateT, denote_callT3 G.bit_closed,
-    lvl_cons, denote_lvl_let, lvl2_three, lvl1_three, lvl0_three, lvl0_one, G.state_enc]
+    lvl_cons, denote_lvl_let, lvl2_three, lvl0_one]
   simp only [lvl1_two, G.state_enc]
   simp [GenFun.genLB, toFun, init₀]
 
@@ -267,76 +260,71 @@ theorem bnd_stateT {B : ℕ} {π : List ℕ} (h : G.PathBounded (w := w) n B π)
   refine ⟨bnd_callT1 G.init_closed (by simp) (by rw [lvl0_two]; exact h.init), ?_⟩
   refine bnd_pathStateT G.child_closed (by simp) (by simp) (by simp)
     (by rw [lvl_cons (by simp), lvl1_two]) h.code fun j hj => ?_
-  simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one, denote_lvl_let, denote_callT1
-      G.init_closed]
+  simp (disch := lvl_disch) only [lvl_cons, lvl0_one, denote_lvl_let, denote_callT1 G.init_closed]
   have := h.child j hj
   rw [← G.stateAtF_eq] at this
   exact this
 
 theorem bnd_queries_tag {B : ℕ} {π : List ℕ} (h : G.PathBounded (w := w) n B π) (h4 : 4 ≤ B) :
     G.queries.tag.Bounded w B [enc π, n] := by
-  show (G.tagT).Bnd w B [enc π, n]
+  change (G.tagT).Bnd w B [enc π, n]
   rw [tagT, bnd_letT]
   refine ⟨bnd_stateT h, ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_lengthT (by simp) (by rw [lvl_cons (by simp), lvl1_two]) h.code, ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_callT1 G.fuel_closed (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one]; exact h.fuel), ?_⟩
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one]; exact h.fuel), ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_callT2 G.tag_closed (by simp) (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one, denote_lvl_let, G.denote_stateT,
-        lvl1_two,
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one, denote_lvl_let, G.denote_stateT, lvl1_two,
       G.state_enc]
     exact h.tag), ?_⟩
   refine bnd_ite_of (by simp) (bnd_ite_of (by simp; omega) (bnd_ite_of (by simp) trivial
     (by simp)) (by simp)) (by simp)
 
-theorem bnd_queries_prec {B : ℕ} {π : List ℕ} (h : G.PathBounded (w := w) n B π) (h4 : 4 ≤ B) :
+theorem bnd_queries_prec {B : ℕ} {π : List ℕ} (h : G.PathBounded (w := w) n B π) (_h4 : 4 ≤ B) :
     G.queries.prec.Bounded w B [enc π, n] := by
-  show (G.precT).Bnd w B [enc π, n]
+  change (G.precT).Bnd w B [enc π, n]
   rw [precT, bnd_letT]
   refine ⟨bnd_stateT h, ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_lengthT (by simp) (by rw [lvl_cons (by simp), lvl1_two]) h.code, ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_callT1 G.fuel_closed (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one]; exact h.fuel), ?_⟩
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one]; exact h.fuel), ?_⟩
   refine bnd_ite_of (by simp) (bnd_callT2 G.prec_closed (by simp) (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one, denote_lvl_let, G.denote_stateT,
-        lvl1_two,
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one, denote_lvl_let, G.denote_stateT, lvl1_two,
       G.state_enc]
     exact h.prec)) (by simp)
 
 theorem bnd_queries_param {B : ℕ} {π : List ℕ} (h : G.PathBounded (w := w) n B π) (h4 : 4 ≤ B) :
     G.queries.param.Bounded w B [enc π, n] := by
-  show (G.paramT).Bnd w B [enc π, n]
+  change (G.paramT).Bnd w B [enc π, n]
   rw [paramT, bnd_letT]
   refine ⟨bnd_stateT h, ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_lengthT (by simp) (by rw [lvl_cons (by simp), lvl1_two]) h.code, ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_callT1 G.fuel_closed (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one]; exact h.fuel), ?_⟩
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one]; exact h.fuel), ?_⟩
   rw [bnd_letT]
   refine ⟨bnd_callT2 G.tag_closed (by simp) (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one, denote_lvl_let, G.denote_stateT,
-        lvl1_two,
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one, denote_lvl_let, G.denote_stateT, lvl1_two,
       G.state_enc]
     exact h.tag), ?_⟩
   refine bnd_ite_of (by simp) (bnd_ite_of (by simp; omega) (bnd_ite_of (by simp)
     (bnd_ite_of (by simp; omega) ?_ (bnd_ite_of (by simp; omega) ?_ (by simp))) (by simp))
     (by simp)) (by simp)
   all_goals exact bnd_callT2 G.param_closed (by simp) (by simp) (by
-    simp (disch := lvl_disch) only [lvl_cons, lvl0_two, lvl0_one, denote_lvl_let, G.denote_stateT,
-        lvl1_two,
+    simp (disch := lvl_disch) only [lvl_cons, lvl0_one, denote_lvl_let, G.denote_stateT, lvl1_two,
       G.state_enc]
     exact h.param)
 
 theorem bnd_queries_bit {B k : ℕ} {π : List ℕ} (h : G.PathBounded (w := w) n B π)
     (hb : G.bit.Bounded w B [k, (G.toFun w n).stateAt (G.init₀ w n) π, n]) :
     G.queries.bit.Bounded w B [k, enc π, n] := by
-  show (G.bitT).Bnd w B [k, enc π, n]
+  change (G.bitT).Bnd w B [k, enc π, n]
   rw [bitT, bnd_letT]
   refine ⟨?_, ?_⟩
   · rw [stateT, bnd_letT]
@@ -357,8 +345,7 @@ end GenProg
 
 open SPTree in
 /-- **Proposition 3.2 for generated recursions.** A sum–product recursion generated by closed
-programs
-is evaluated bitwise in time `2^(C·X)` and space `C·X`. -/
+programs is evaluated bitwise in time `2^(C·X)` and space `C·X`. -/
 theorem gen_decidable {α : Type} {encA : α ↪ List Bool} (G : GenProg) (k0 : α → ℕ)
     (rootP XP : Prog) (hroot : Prog'.closed 1 rootP = true) (hXP : Prog'.closed 1 XP = true)
     (ℓ V X : α → ℕ) (hℓ : ∀ a, 1 ≤ ℓ a)

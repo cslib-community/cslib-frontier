@@ -49,7 +49,7 @@ theorem lastNum_eq (p : ℕ → Bool) (i : ℕ) :
     rw [hfold, List.range_succ_eq_map, List.find?_cons]
     by_cases hp : p i
     · simp [hp, optCode]
-    · simp only [hp, Nat.add_sub_cancel, Nat.sub_zero, if_false, Bool.false_eq_true]
+    · simp only [hp, Nat.add_sub_cancel, Nat.sub_zero, ite_false, Bool.false_eq_true]
       rw [List.find?_map, ih]
       congr 1
       have h1 : ((fun x => p (i - x)) ∘ Nat.succ) = fun j => p (i - 1 - j) := by

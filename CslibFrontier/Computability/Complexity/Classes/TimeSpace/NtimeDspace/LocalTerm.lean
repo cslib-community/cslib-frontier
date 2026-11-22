@@ -46,7 +46,7 @@ theorem denote_tabT (f : ℕ → ℕ) (N : ℕ) (x : Term) (env : List ℕ) :
     simp only [tabT, denote_ite, denote_eqT, denote_const, ih]
     by_cases h : x.denote w env = N
     · simp [h]
-    · simp only [h, if_false, Nat.lt_irrefl, if_false]
+    · simp only [h, ite_false, Nat.lt_irrefl, ite_false]
       by_cases h' : x.denote w env < N
       · simp [h', show x.denote w env < N + 1 by omega]
       · simp [h', show ¬ x.denote w env < N + 1 by omega]
@@ -84,14 +84,15 @@ theorem comp_tape (n : NCfg k) (h : Fin k) (f : ℕ) (hf : f < 4) :
   have hd : (3 + 4 * (h : ℕ) + f - 3) / 4 = h := by omega
   have hm : (3 + 4 * (h : ℕ) + f - 3) % 4 = f := by omega
   unfold comp
-  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_pos (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
+      dite_eq_left (by omega)]
   have hfin : (⟨(3 + 4 * (h : ℕ) + f - 3) / 4, by omega⟩ : Fin k) = h := Fin.ext hd
   simp only [hm, hfin]
 
 theorem digit_cpack {R : ℕ} (hR : 0 < R) {n : NCfg k} (hf : Fits R n) {i : ℕ}
     (hi : i < width k) : cpack R n / R ^ i % R = comp n i := by
   unfold cpack
-  rw [packDigits_div_pow_mod hR _ _ hf, if_pos hi]
+  rw [packDigits_div_pow_mod hR _ _ hf, ite_eq_left hi]
 
 /-! ### Numeric functions of a packed configuration -/
 
@@ -112,7 +113,7 @@ def keyN (k s : ℕ) (w : List Bool) (R a bit : ℕ) : ℕ :=
 /-- A table lookup: `f x` below `N`, and `0` from `N` on. -/
 def tabF (f : ℕ → ℕ) (N x : ℕ) : ℕ := if x < N then f x else 0
 
-theorem tabF_of_lt {f : ℕ → ℕ} {N x : ℕ} (h : x < N) : tabF f N x = f x := if_pos h
+theorem tabF_of_lt {f : ℕ → ℕ} {N x : ℕ} (h : x < N) : tabF f N x = f x := ite_eq_left h
 
 /-- Digit `i` after one step, from the packed configuration `a`. -/
 def compN (w : List Bool) (R N a bit i : ℕ) : ℕ :=
@@ -136,7 +137,7 @@ theorem inN_eq (w : List Bool) (ip : ℕ) : inN w ip = cc (inputAt w ip) := by
   unfold inN inputAt
   by_cases h : ip = 0
   · simp [h]
-  · simp only [h, if_false, ProgLang.Prog.inputValue]
+  · simp only [h, ite_false, ProgLang.Prog.inputValue]
     rcases w[ip - 1]? with _ | _ | _ <;> rfl
 
 variable {e machine}
@@ -166,7 +167,7 @@ theorem compN_cpack {R : ℕ} (hR : 0 < R) {n : NCfg k} (hf : Fits R n) (hn : WF
     refine Finset.sum_congr rfl fun h hh => ?_
     have hk : h < k := Finset.mem_range.mp hh
     beta_reduce
-    rw [dif_pos hk, show 3 + 4 * h = 3 + 4 * ((⟨h, hk⟩ : Fin k) : ℕ) from rfl, dhead]
+    rw [dite_eq_left hk, show 3 + 4 * h = 3 + 4 * ((⟨h, hk⟩ : Fin k) : ℕ) from rfl, dhead]
   have hkey : keyN k s w R (cpack R n) bit.toNat = keyAt (s := s) w n bit := by
     unfold keyN keyAt
     rw [d0, d1, inN_eq, hheads]
@@ -183,13 +184,14 @@ theorem compN_cpack {R : ℕ} (hR : 0 < R) {n : NCfg k} (hf : Fits R n) (hn : WF
   by_cases h1 : i = 1
   · subst h1; simp [comp, d1]
   by_cases h2 : i = 2
-  · subst h2; simp [comp, d2]; exact tabF_of_lt h9
+  · subst h2; simp only [OfNat.ofNat_ne_zero, ↓reduceIte, OfNat.ofNat_ne_one, d2,
+      comp]; exact tabF_of_lt h9
   have hh : (i - 3) / 4 < k := by unfold width at hi; omega
   set h : Fin k := ⟨(i - 3) / 4, hh⟩
   have hi' : i = 3 + 4 * (h : ℕ) + (i - 3) % 4 := by simp only [h]; omega
   rw [hi', comp_tape _ h _ (Nat.mod_lt _ (by norm_num))]
   rw [← hi']
-  simp only [h0, h1, h2, if_false]
+  simp only [h0, h1, h2, ite_false]
   have ht : ((digN R (cpack R n) (3 + 4 * ((i - 3) / 4)),
       digN R (cpack R n) (3 + 4 * ((i - 3) / 4) + 1),
       digN R (cpack R n) (3 + 4 * ((i - 3) / 4) + 2)) : NTape) = n.tapes h := by

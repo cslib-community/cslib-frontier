@@ -101,8 +101,8 @@ theorem tm_rangeT {mk : Term → Term} {mkR : Term → Term → Term} {lo hi : T
     (hmk : Lo < Hi → Hi = Lo + 1 → (mk lo).denote w env < 2 ^ (d * L) → Tm w L d (mk lo) env)
     (hmkR : Lo < Hi → (mkR lo hi).denote w env < 2 ^ (d * L) → Tm w L d (mkR lo hi) env)
     (hd1 : 1 ≤ d) (hd : d ≤ 29) (hL : 2 ≤ L)
-    (hv : (rangeT mk mkR lo hi).denote w env < 2 ^ (d * L)) : Tm w L d (rangeT mk mkR lo hi)
-        env := by
+    (hv : (rangeT mk mkR lo hi).denote w env < 2 ^ (d * L)) : Tm w L d
+        (rangeT mk mkR lo hi) env := by
   unfold rangeT at hv ⊢
   refine tm_iteD (val_lt hlo hhi) (t_lt tlo thi (by omega)) (fun h hb => ?_)
     (fun _ hb => tm_lit2 hd1 hd hL hb) hv
@@ -136,7 +136,7 @@ theorem q_le_first (S : Setup) : ∀ chs, S.PathOK chs → (S.clique chs).q ≤ 
   | [], _ => le_rfl
   | i :: rest, ⟨hp, _, hsq, _⟩ => by
     have hq' : (S.clique (i :: rest)).q = Nat.sqrt (S.clique rest).q := by
-      show (childAt S.fw (S.clique rest) i).q = _
+      change (childAt S.fw (S.clique rest) i).q = _
       unfold childAt; rw [dite_eq_left hsq]; exact mergeStep_q _ _ _
     rw [hq']
     exact (Nat.sqrt_le_self _).trans (q_le_first S rest hp)
@@ -174,8 +174,8 @@ theorem SizeOK.of_lt {S : Setup} (hS : S.Good) {e : ℕ} (he : 2 * S.K = 2 ^ 2 ^
 theorem tm_lastChildD {S : Setup} {nT fwT BT bT : Term} {chs : List ℕ} {i b B d : ℕ}
     (h : EIn S w L env nT fwT BT (.last chs i) B) (hb : Val w env bT b) (tb : Tm w L 1 bT env)
     (hd1 : 1 ≤ d) (hd : d ≤ 29)
-    (hc : S.code (S.gen.child (.last chs i) b) < 2 ^ (d * L)) : Tm w L d (lastChildT nT bT)
-        env := by
+    (hc : S.code (S.gen.child (.last chs i) b) < 2 ^ (d * L)) : Tm w L d
+        (lastChildT nT bT) env := by
   have hL := h.hL
   have f1 : Val w env (stGetT nT 1) (NatList.enc chs) ∧ Tm w L 1 (stGetT nT 1) env :=
     h.field (code_last S chs i) 1 (by simp)
@@ -250,8 +250,8 @@ theorem tm_clChildT {S : Setup} {nT fwT BT iT : Term} {chs : List ℕ} {i B D d 
         (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q S.fw
         (Nat.sqrt (S.clique chs).q) i :=
       ⟨vA.toExact, vq.toExact, h.vfw.toExact, vs.toExact, hI.toExact⟩
-    have tie : Tiers w L env (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT (sqrtT (cQT (stGetT nT 2)))
-        iT
+    have tie : Tiers w L env (cAT (stGetT nT 2)) (cQT (stGetT nT 2)) fwT
+        (sqrtT (cQT (stGetT nT 2))) iT
         S.fw (Nat.sqrt (S.clique chs).q) :=
       ⟨tA.mono (by norm_num), tq, h.tfw, ts, tI.mono (by norm_num), hL, h.hfw, Nat.sqrt_pos.mpr hq1⟩
     refine tm_iteD (val_choiceValidT inp).toNum (tm_choiceValidT inp tie) (fun _ hb' => ?_)
@@ -433,8 +433,8 @@ theorem tm_psiBodyT (hB : Val w env BT Bv) (tB : Tm w L 1 BT env) (hBL : Bv ≤ 
       exact tm_trRootD false hB (hcp _ _ _ _ h1 n1) (swv (hcp _ _ _ _ h2 n2) (hCL _ _)) vm
         (val_zzSubT vC vQ) tB (tcp _ _ _ _ h1 n1 t1 tn1)
         (swt (hcp _ _ _ _ h2 n2) (tcp _ _ _ _ h2 n2 t2 tn2) (hCL _ _)) tm
-        (tm_zzSubT tC tQ (by omega) (by norm_num)) (lb_of_le (hCL _ _) hΦ) (sww _ (hCL _ _))
-            (mw _ _)
+        (tm_zzSubT tC tQ (by omega) (by norm_num)) (lb_of_le (hCL _ _) hΦ)
+            (sww _ (hCL _ _)) (mw _ _)
         hd1 hd (by omega) hBL hb
 
 /-- **The tier of a rectangle factor** (`psiT`), under a bound on its value (`d ≤ 29`). The copies
@@ -577,8 +577,8 @@ theorem tm_factorGT (hB : Val w env BT Bv) (tB : Tm w L 1 BT env) (hBL : Bv ≤ 
 end Factor
 
 /-- **The tier of a factor state of an entry** (`factorT`) at a valid path `j :: rest`, under a
-bound
-on its value (`d ≤ 29`): the path code `chC`, the cache `c`, the node `v`, the argument code `x`,
+bound on its value (`d ≤ 29`): the path code `chC`, the cache `c`, the node `v`, the argument code
+`x`,
 the copies `ξ` and the factor index `f` have tier `1`. The labels of the copies and of the
 arguments, their weights and the grid of the parent are derived from the path. -/
 theorem tm_factorT {S : Setup} {fwT BT chC c v x ξ f : Term} {j : ℕ} {rest : List ℕ}
@@ -635,8 +635,8 @@ theorem tm_factorT {S : Setup} {fwT BT chC c v x ξ f : Term} {j : ℕ} {rest : 
   have hcp : ∀ p u P U, Val w env p P → Val w env u U →
       Val w env (argLabT (pAT c) (pQT c) fwT
           (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v p)
-        (sliceT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v) ξ
-            p) u)
+        (sliceT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c))
+            (stGetT chC 0) v) ξ p) u)
       (lcode (argLab (S.clique rest) (Setup.holders (Nat.sqrt (S.clique rest).q) V
         (orientN (arrN (S.clique rest).q S.fw (extN (S.clique rest).a)) (S.clique rest).q S.fw
           (Nat.sqrt (S.clique rest).q) j) P)
@@ -650,8 +650,8 @@ theorem tm_factorT {S : Setup} {fwT BT chC c v x ξ f : Term} {j : ℕ} {rest : 
   have tcp : ∀ p u P U, Val w env p P → Val w env u U → Tm w L 1 p env → Tm w L 3 u env →
       Tm w L 1 (argLabT (pAT c) (pQT c) fwT
         (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v p)
-        (sliceT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c)) (stGetT chC 0) v) ξ
-            p)
+        (sliceT (pAT c) (pQT c) fwT (holdT (pAT c) (pQT c) fwT (sqrtT (pQT c))
+            (stGetT chC 0) v) ξ p)
         u) env :=
     fun p u P U hp hu tp tu => tm_argLabT vpA vpq hfw (hn [] p P hp.toExact).toNum
       (val_sliceT vpA.toExact vpq.toExact hfw.toExact hn hξ.toExact hp.toExact).toNum hu
@@ -711,19 +711,19 @@ theorem tm_rngChildT {S : Setup} {nT fwT BT iT : Term} {chs : List ℕ} {v args 
       Tm w L da a env → Tm w L db b env →
       (encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4, stGetT nT 5, a, b]).denote
         w env < 2 ^ (d * L) →
-      Tm w L d (encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4, stGetT nT 5, a,
-          b])
+      Tm w L d (encE [const 5, stGetT nT 1, stGetT nT 2, stGetT nT 3, stGetT nT 4,
+          stGetT nT 5, a, b])
         env :=
     fun ha hb ta tb hv => tm_encD hd1 hd (by omega)
       (.cons ⟨val_const 5, 1, t_const (lit16 (by norm_num) (by omega))⟩ (.cons ⟨f1.1, 1, f1.2⟩
       (.cons ⟨f2.1, 1, f2.2⟩ (.cons ⟨f3.1, 1, f3.2⟩ (.cons ⟨f4.1, 1, f4.2⟩ (.cons ⟨f5.1, 1, f5.2⟩
       (.cons ⟨ha, _, ta⟩ (.cons ⟨hb, _, tb⟩ .nil)))))))) hv
   have mk : ∀ {a : Term} {A' : ℕ}, Val w env a A' → Tm w L 1 a env →
-      (factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4) (stGetT nT 5)
-          a).denote
+      (factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4)
+          (stGetT nT 5) a).denote
         w env < 2 ^ (d * L) →
-      Tm w L d (factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4) (stGetT nT 5)
-          a)
+      Tm w L d (factorT fwT BT (stGetT nT 1) (stGetT nT 2) (stGetT nT 3) (stGetT nT 4)
+          (stGetT nT 5) a)
         env :=
     fun ha ta hv => tm_factorT h.hS hp hZ h.vfw h.tfw h.vB h.tB hL h.hfw h.hBL he hB f1.1 f1.2 f2.1
       f2.2 f3.1 f3.2 f4.1 f4.2 f5.1 f5.2 ha ta hd1 hd hv

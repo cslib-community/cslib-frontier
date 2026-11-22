@@ -34,9 +34,8 @@ directly (the count is at most `2^n ≤ 2^{3m}`).
 This file takes this residue form of Theorem 2.3 as the explicit hypothesis `Theorem41`, for
 **every** family with logspace access (Definition 2.1, `LogspaceNetFamily`), with
 `H(s) = (2(⌊log₂ s⌋ + 1))^c`, at most `(2 log s + 2)^c`. Everything else is proved here;
-`CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/ThreeSat/Unconditional.lean`
-discharges the hypothesis with `Net.networkCounting` and
-states Corollary 7.2 unconditionally (`cor_9_4_unconditional`).
+the module `Cross.ThreeSat.Unconditional` discharges the hypothesis with `Net.networkCounting`
+and states Corollary 7.2 unconditionally (`cor_9_4_unconditional`).
 
 ## Main definitions
 
@@ -66,8 +65,7 @@ open NtimeDspace.ProgLang NtimeDspace.ProgTerm Term NtimeDspace.Cross.Exact Fins
 family of networks with logspace access: a closed program `R` on `[s, |w|, p]` and constants `c, C,
 s₀` such that, for every description `w`
 of a network `G` of the family at size `s ≥ s₀` and every prime `p` with `(2 (log₂ s + 1))^c < p ≤
-s`,
-`R` computes `Z(G) mod p` with every value arising in its evaluation at most `2^(C·SqrtLog s)`
+s`, `R` computes `Z(G) mod p` with every value arising in its evaluation at most `2^(C·SqrtLog s)`
 (space `O(s/√log s)` and time `2^{O(s/√log s)}`). -/
 def Theorem41 : Prop :=
   ∀ F : LogspaceNetFamily, ∃ (R : Prog) (c C s₀ : ℕ), Prog'.closed 3 R = true ∧
@@ -92,8 +90,8 @@ theorem foldl_pow (x c : ℕ) : (List.range c).foldl (fun acc _ => acc * x) 1 = 
   | zero => rfl
   | succ c ih => rw [List.range_succ, List.foldl_append, ih]; simp [pow_succ]
 
-theorem val_powC {b : Term} {x : ℕ} (c : ℕ) (hb : Val w b env x) : Val w (powC b c) env
-    (x ^ c) := by
+theorem val_powC {b : Term} {x : ℕ} (c : ℕ) (hb : Val w b env x) : Val w (powC b c)
+    env (x ^ c) := by
   have := val_foldT (f := fun acc _ => mul acc b) (val_const c env) (val_const 1 env)
     (fun acc _ => acc * x) fun pre u u' p q hu _ => val_mul hu (hb.ext pre)
   rwa [foldl_pow] at this
@@ -120,8 +118,8 @@ def Eprog : Prog := closeAt 1 (div (lvl 0) (const 2) 1)
 /-- The window bound `(2 (log₂ s + 1))^(c+1)`. -/
 abbrev hW (c s : ℕ) : ℕ := (2 * (Nat.log 2 s + 1)) ^ (c + 1)
 
-theorem Hprog_spec (c : ℕ) {s : ℕ} (hs : 1 ≤ s) (hM : s + 1 ≤ M) (hH : hW c s ≤ M) (hc : c + 1 ≤ M)
-    :
+theorem Hprog_spec (c : ℕ) {s : ℕ} (hs : 1 ≤ s) (hM : s + 1 ≤ M) (hH : hW c s ≤ M)
+    (hc : c + 1 ≤ M) :
     (Hprog c).eval w [s] = hW c s ∧ (Hprog c).Bounded w M [s] := by
   have hb := val_mul (val_const 2 [s]) (val_bitLenT (val_s1 (w := w) (s := s)) hs)
   refine run_closeAt rfl (val_powC (c + 1) hb) (bd_powC (c + 1) hb ?_ (by omega) hH hc)
@@ -132,7 +130,7 @@ theorem Hprog_spec (c : ℕ) {s : ℕ} (hs : 1 ≤ s) (hM : s + 1 ≤ M) (hH : h
   exact bd_mul (bd_const (by omega) _) (bd_bitLenT val_s1 (bd_lvl _ _) hM) (val_const 2 _)
     (val_bitLenT val_s1 hs) (by omega)
 
-theorem Xprog_spec {s : ℕ} (hM : s ≤ M) : Xprog.eval w [s] = s ∧ Xprog.Bounded w M [s] :=
+theorem Xprog_spec {s : ℕ} (_hM : s ≤ M) : Xprog.eval w [s] = s ∧ Xprog.Bounded w M [s] :=
   run_closeAt rfl val_s1 (bd_lvl _ _)
 
 theorem Eprog_spec {s : ℕ} (hM : 2 ≤ M) : Eprog.eval w [s] = s / 2 ∧ Eprog.Bounded w M [s] :=
@@ -156,8 +154,8 @@ def jT : Term := TermBlocks.ofBitsT ljT fun k => input (add (mul (const 2) k) (c
 def szT : Term := add (mul (const 8) mmT) (const K')
 
 /-- **The decider**, on `[|w|]`: `0` if the bit position has more digits than `3m + 1`, and
-otherwise
-bit `j` of the count, by the program `Pb` of the Chinese remainder step at size `s = 8m + K'`. -/
+otherwise bit `j` of the count, by the program `Pb` of the Chinese remainder step at size `s = 8m +
+K'`. -/
 def deciderT : Term := ite (lt lbT ljT) (const 0) (call3 Pb (szT K') (lvl 0) jT)
 
 /-- The decider as a program closed in `[|w|]`. -/
@@ -230,14 +228,15 @@ theorem pow_four_le {n L : ℕ} (hn : n < 2 ^ L) : 64 * (n + 2) ^ 4 ≤ 2 ^ (4 *
   have h2 : 2 ≤ 2 ^ (L + 1) := by
     have := Nat.one_le_two_pow (n := L); rw [pow_succ]; omega
   have hn2 : n + 2 ≤ 2 ^ (L + 1) := by rw [pow_succ]; omega
-  calc 64 * (n + 2) ^ 4 ≤ 2 ^ 6 * (2 ^ (L + 1)) ^ 4 := Nat.mul_le_mul (by norm_num) (Nat.pow_le_pow_left hn2 4)
+  calc 64 * (n + 2) ^ 4 ≤ 2 ^ 6 * (2 ^ (L + 1)) ^ 4 :=
+        Nat.mul_le_mul (by norm_num) (Nat.pow_le_pow_left hn2 4)
     _ = 2 ^ (4 * L + 10) := by rw [← pow_mul, ← pow_add]; ring_nf
 
 /-- **Corollary 7.2, for every bit position**, conditionally on the residue form of Theorem 2.3
 for every family (`Theorem41`): one machine, fixed before the instance, decides from the encoding
 of `(φ, j)` whether bit `j` of the number of satisfying assignments of `φ` is `1`, in simultaneous
-space
-`C · (SqrtLog m + log₂ |input| + 1)` and time `2^{C · (SqrtLog m + log₂ |input| + 1)}`, where `m` is
+space `C · (SqrtLog m + log₂ |input| + 1)` and time `2^{C · (SqrtLog m + log₂ |input| + 1)}`, where
+`m` is
 the number of clauses of `φ`. -/
 theorem cor_9_4_bits (h41 : Theorem41) :
     ∃ C, DecidableInTimeAndSpace BitLanguage instEnc (fun a => 2 ^ (C * bud a))
@@ -328,7 +327,7 @@ theorem cor_9_4_bits (h41 : Theorem41) :
       have hb' : (decider Pb K').Bounded w Mf [n] := hb
       refine ⟨hb', ?_⟩
       rw [he']
-      simp only [BitLanguage, Set.mem_setOf_eq, Nat.one_le_iff_ne_zero, ne_eq, not_true_eq_false,
+      simp only [BitLanguage, Set.mem_ofPred_eq, Nat.one_le_iff_ne_zero, ne_eq, not_true_eq_false,
         false_iff, Bool.not_eq_true]
       apply Nat.testBit_eq_false_of_lt
       have hsz : (encNat a.j).length = Nat.size a.j := by rw [encNat_apply, Nat.size_eq_bits_len]
@@ -447,7 +446,7 @@ theorem cor_9_4_bits (h41 : Theorem41) :
       have hb' : (decider Pb K').Bounded w Mf [n] := hb
       refine ⟨hb', ?_⟩
       rw [he', ← Nat.toNat_testBit]
-      simp only [BitLanguage, Set.mem_setOf_eq]
+      simp only [BitLanguage, Set.mem_ofPred_eq]
       cases (numModels a.φ).testBit a.j <;> simp
   exact decidable_of_prog_len BitLanguage (decider Pb K') bud (fun a => C₂ * bud a) C₂
     (fun a => by unfold bud; omega) (fun a => by
@@ -485,8 +484,8 @@ theorem bud_le (a : Instance) (h : a.j ≤ 3 * a.φ.length) : bud a ≤ 11 * Sqr
   have hlog := log2_add_one_le_sqrtLog a.φ.length
   have hmL : a.φ.length < 2 ^ (a.φ.length.log2 + 1) := Nat.lt_log2_self
   have hl64 : (instEnc a).length < 2 ^ (2 * a.φ.length.log2 + 8) := by
-    have hsq : a.φ.length ^ 2 < (2 ^ (a.φ.length.log2 + 1)) ^ 2 := Nat.pow_lt_pow_left hmL
-        (by norm_num)
+    have hsq : a.φ.length ^ 2 < (2 ^ (a.φ.length.log2 + 1)) ^ 2 := Nat.pow_lt_pow_left
+        hmL (by norm_num)
     have e : 2 ^ (2 * a.φ.length.log2 + 8) = 64 * (2 ^ (a.φ.length.log2 + 1)) ^ 2 := by
       rw [← pow_mul, show (64 : ℕ) = 2 ^ 6 by rfl, ← pow_add]; ring_nf
     rw [e]
@@ -503,8 +502,8 @@ theorem bud_le (a : Instance) (h : a.j ≤ 3 * a.φ.length) : bud a ≤ 11 * Sqr
 /-- **Corollary 7.2** (paper `cor:3sat`), conditionally on the residue form of Theorem 2.3 for
 every family (`Theorem41`). There are a constant `C` and one machine, fixed before the instance,
 that given the encoding of a 3-CNF formula `φ` with `m ≥ 2` clauses in which every variable occurs
-and of a bit
-position `j ≤ 3m` (the count is at most `2^{3m}`, so these are all its bits) decides whether bit
+and of a bit position `j ≤ 3m` (the count is at most `2^{3m}`, so these are all its bits) decides
+whether bit
 `j` of the number of satisfying assignments of `φ` is `1`, in space `C · SqrtLog m` and time
 `2^{C · SqrtLog m}`, where `SqrtLog m = ⌊m / ⌊√⌊log₂ m⌋⌋⌋ + 1 = O(m/√log m)`. -/
 theorem cor_9_4 (h41 : Theorem41) :

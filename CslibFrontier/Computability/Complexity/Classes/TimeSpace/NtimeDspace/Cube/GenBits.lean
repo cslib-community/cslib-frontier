@@ -57,7 +57,7 @@ namespace SPTree
 at most the cost. -/
 theorem elen_valid_le {ℓ : ℕ} (hℓ : 2 ≤ ℓ) (t : SPTree) : ∀ π : List ℕ, Valid t π →
     elen π + 2 * (node t π).cost ℓ ≤ 2 * t.cost ℓ + 1 ∧ ∀ i ∈ π, Nat.size i ≤ t.cost ℓ
-  | [], _ => ⟨by show 1 + 2 * t.cost ℓ ≤ 2 * t.cost ℓ + 1; omega, by simp⟩
+  | [], _ => ⟨by change 1 + 2 * t.cost ℓ ≤ 2 * t.cost ℓ + 1; omega, by simp⟩
   | i :: π, ⟨hπ, hi⟩ => by
     obtain ⟨ih1, ih2⟩ := elen_valid_le hℓ t π hπ
     have hc := cost_child ℓ hi
@@ -163,12 +163,12 @@ theorem cube_bit (hI : CubeIn S.G w par T S.P B S.fw S.K L) (hG : CubeTiers S w 
     tm_sub (tm_mul t128 hG.tH (by norm_num) (by norm_num)) t1
   have hrootv : (rootProg T).eval w [par] = j ∧ (rootProg T).Bounded w (2 ^ (X + 1)) [par] := by
     refine ⟨(Exact.eval_closeAt _ 1 [par] rfl).trans ?_, ?_⟩
-    · show (sub T.PT (const 1)).denote w [par] = j
+    · change (sub T.PT (const 1)).denote w [par] = j
       rw [denote_sub, hI.vP.2, denote_const]; omega
     · rw [hX1]; exact (Exact.bounded_closeAt _ 1 [par] rfl).mpr tR.bnd
   have hXv : (budgetProg T).eval w [par] = X ∧ (budgetProg T).Bounded w (2 ^ (X + 1)) [par] := by
     refine ⟨(Exact.eval_closeAt _ 1 [par] rfl).trans ?_, ?_⟩
-    · show (sub (mul (const 128) T.HT) (const 1)).denote w [par] = X
+    · change (sub (mul (const 128) T.HT) (const 1)).denote w [par] = X
       rw [denote_sub, denote_mul, hI.vH.2, denote_const, denote_const]; exact hXdef.symm
     · rw [hX1]; exact (Exact.bounded_closeAt _ 1 [par] rfl).mpr tX.bnd
   -- the tree
@@ -176,8 +176,8 @@ theorem cube_bit (hI : CubeIn S.G w par T S.P B S.fw S.K L) (hG : CubeTiers S w 
   have hprec : ∀ st, ((cubeProg T).toFun w par).prec st = S.P := fun st => by rw [hfun]; rfl
   have hcost : ((cubeProg T).tree w par).cost ℓ ≤ c := by
     rw [cubeProg_cost S hG.hS hG.he hG.hA hG.hB hG.hnn hI ℓ]; exact hc L
-  have hnode : ∀ π, SPTree.Valid ((cubeProg T).tree w par) π → SPTree.node ((cubeProg T).tree w par)
-      π =
+  have hnode : ∀ π, SPTree.Valid ((cubeProg T).tree w par) π → SPTree.node
+      ((cubeProg T).tree w par) π =
       ((cubeProg T).toFun w par).tree ((cubeProg T).fuel₀ w par - π.length)
         (((cubeProg T).toFun w par).stateAt ((cubeProg T).init₀ w par) π) :=
     fun π hπ => (((cubeProg T).toFun w par).node_tree _ _ π hπ).2
@@ -222,7 +222,7 @@ theorem cube_bit (hI : CubeIn S.G w par T S.P B S.fw S.K L) (hG : CubeTiers S w 
     (by rw [hV, hP, add_assoc]; exact Nat.le_add_right _ _)
     (by
       have h34 := Nat.mul_le_mul_left 34 hcost
-      show 34 * ((cubeProg T).tree w par).cost ℓ + 2 * V.size + 16 ≤ X
+      change 34 * ((cubeProg T).tree w par).cost ℓ + 2 * V.size + 16 ≤ X
       omega)
     hrootv hXv hpaths
     (fun π k hπ _ hk => by

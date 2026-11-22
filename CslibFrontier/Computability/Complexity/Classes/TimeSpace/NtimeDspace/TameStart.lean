@@ -63,8 +63,8 @@ theorem tm_startCompT {bT NT JpT JmT stI trI : Term} {offI cellI : Term → Term
   have hpos : Tm w L 8 (add bT (offI (add (div (sub i (const 3)) (const 4)) (const 1)))) env' := by
     have := hoff.app he (hie)
     tame1
-  have hposV : Le w L (add bT (offI (add (div (sub i (const 3)) (const 4)) (const 1)))) (3 * b)
-      env' := by
+  have hposV : Le w L (add bT (offI (add (div (sub i (const 3)) (const 4)) (const 1))))
+      (3 * b) env' := by
     intro pre hp
     have h1 := hoffV _ (Ext.trans ⟨pre, hp, rfl⟩ he)
         (add (div (sub i (const 3)) (const 4)) (const 1))

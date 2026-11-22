@@ -197,7 +197,7 @@ theorem PrecLe.child {B : ℕ} {t : SPTree} {i : ℕ} (h : t.PrecLe B) (hi : t.V
   | leaf => exact hi.elim
   | sum P w f => exact h.2 i hi
   | prod P a b =>
-    show (if i = 0 then a else b).PrecLe B
+    change (if i = 0 then a else b).PrecLe B
     split_ifs; exacts [h.2.1, h.2.2]
   | shift P σ a => exact h.2
 

@@ -34,10 +34,12 @@ variable {k s c : ℕ} {State : Type} [DecidableEq State] {machine : MultiTapePT
 
 theorem paddedTime_le_edgesN (k s t : ℕ) : paddedTime t ≤ edgesN k s t := by
   unfold paddedTime edgesN MultiTapePTM.letterBits
-  calc numBlocks t * blockLength t ≤ numBlocks t * blockLength t * (2 * (3 * k + 1) * (s + k + 4)) :=
+  calc numBlocks t * blockLength t
+        ≤ numBlocks t * blockLength t * (2 * (3 * k + 1) * (s + k + 4)) :=
         Nat.le_mul_of_pos_right _ (by positivity)
     _ = 2 * (numBlocks t * (3 * k + 1) * ((s + k + 4) * blockLength t)) := by ring
 
+omit [DecidableEq State] in
 theorem contraction_lt_two_pow [Finite State] (hc : 2 ≤ c) (σ : ℕ)
     (hσ : σ < scheduleCount (k + 1) (clk c w.length)) :
     (blockNetworkOf machine e (w, clk c w.length, σ)).2.contraction ≤

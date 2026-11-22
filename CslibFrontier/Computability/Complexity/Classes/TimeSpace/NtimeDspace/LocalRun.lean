@@ -45,7 +45,7 @@ theorem stc_lt (st : Option State) : stc e st < s + 1 := Fin.isLt _
 
 theorem stOf_stc (st : Option State) : stOf e (stc e st) = st := by
   unfold stOf stc stateOfFin
-  rw [dif_pos (Fin.isLt _)]
+  rw [dite_eq_left (Fin.isLt _)]
   simp only [Fin.eta, Equiv.symm_apply_apply]
 
 theorem stc_inj {st st' : Option State} (h : stc e st = stc e st') : st = st' := by
@@ -56,7 +56,7 @@ def cellOf (n : ℕ) : Option Bool := if h : n < 3 then cellEquiv.symm ⟨n, h�
 
 theorem cellOf_cc (c : Option Bool) : cellOf (cc c) = c := by
   unfold cellOf cc
-  rw [dif_pos (Fin.isLt _)]
+  rw [dite_eq_left (Fin.isLt _)]
   simp
 
 /-- The code of an output track. -/
@@ -150,14 +150,13 @@ theorem crep_run {b : ℕ} {Jw : Fin k → ℤ} (input : List Bool) :
     refine ih _ _ (h.step h1 input bit) fun h' => ?_
     have := hrho h'
     simp only [List.length_cons] at this
-    show coins.length ≤ moveNat (n.rho h') _
+    change coins.length ≤ moveNat (n.rho h') _
     cases ((machine.coinAction (stOf e n.st) (inputAt input n.ip)
       (fun h => cellOf (n.tapes h).1) bit).workTapes h').2 <;> simp only [moveNat] <;> omega
 
 /-! ### The start and the condition -/
 
 variable (e) in
-
 /-- The numeric start of an interval. -/
 def nStart (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ) (cIn : ControlData k State)
     (wIn : Fin k → List (Option Bool)) : NCfg k where
@@ -217,7 +216,7 @@ theorem stepData_iff (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ)
     machine.LocalIntervalStepData b input J δ cIn wIn cOut wOut coins ↔
       NCond e b J δ cOut wOut (nRun e machine input coins (nStart e b input J cIn wIn)) := by
   have hr := crep_run (machine := machine) input coins _ _ (crep_start (e := e) b input J cIn wIn)
-    (fun h => by show coins.length ≤ b + _; omega)
+    (fun h => by change coins.length ≤ b + _; omega)
   set l := machine.localRun input coins (localStartData b input J cIn wIn)
   set n := nRun e machine input coins (nStart e b input J cIn wIn)
   unfold LocalIntervalStepData NCond
@@ -226,7 +225,7 @@ theorem stepData_iff (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ)
       cOut.2.1 (some h) ↔
       (n.rho h : ℤ) = b * (1 + δ (some h)) + cOut.2.1 (some h)) := by
     intro h
-    show l.workTapePos h = _ ↔ _
+    change l.workTapePos h = _ ↔ _
     rw [hr.pos h]
     constructor <;> intro hh <;> linarith
   constructor
@@ -254,13 +253,13 @@ theorem ofFn_symm_equivFin (m : ℕ) (x : Fin (2 ^ m)) :
     rw [show Cslib.BitString.equivFin m z = x by simp [z]] at this
     rw [this, packDigits, ← Fin.sum_univ_eq_sum_range]
     refine Finset.sum_congr rfl fun i _ => ?_
-    rw [dif_pos i.isLt]
+    rw [dite_eq_left i.isLt]
   refine List.ext_getElem (by simp [coinsOf]) fun i h1 h2 => ?_
   have hi : i < m := by simpa using h1
   simp only [List.getElem_ofFn, coinsOf, List.getElem_map, List.getElem_range]
   rw [Nat.testBit_eq_decide_div_mod_eq, hx,
-    packDigits_div_pow_mod (by norm_num) _ _ (fun j _ => by split_ifs <;> simp [Bool.toNat_le])]
-  rw [if_pos hi, dif_pos hi]
+    packDigits_div_pow_mod (by norm_num) _ _ (fun j _ => by split_ifs; simp [Bool.toNat_le])]
+  rw [ite_eq_left hi, dite_eq_left hi]
   cases z ⟨i, hi⟩ <;> rfl
 
 theorem countP_range_eq_card (n : ℕ) (f : ℕ → Bool) :

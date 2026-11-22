@@ -355,8 +355,8 @@ def rowTermN (ar q fw g i x : ℕ) : ℕ := (2 * diagN ar q fw g x + digitN fw i
     / 2
 
 /-- The share `(H_R - k_R/2)^+` of the columns. -/
-def colTermN (ar q fw g i x : ℕ) : ℕ := (2 * diagN ar q fw g x + 2 ^ (fw - 1) - digitN fw i (2 * x))
-    / 2
+def colTermN (ar q fw g i x : ℕ) : ℕ := (2 * diagN ar q fw g x + 2 ^ (fw - 1) - digitN
+    fw i (2 * x)) / 2
 
 /-- **The row budget** `A^row_{u v}` (`rowBudget`), from the array and the choice code `i`. -/
 def rowBN (ar q fw g i u v : ℕ) : ℕ :=
@@ -519,16 +519,16 @@ def RectOkN (ar q fw g i x : ℕ) : Prop :=
     2 ^ (fw - 1) ≤ digitN fw i (2 * x + 1) + 3 * diagN ar q fw g x)
 
 /-- The two fields of a non-rectangle hold the offset `2^(fw-1)` (the value `0`). -/
-def PadOkN (fw i x : ℕ) : Prop := digitN fw i (2 * x) = 2 ^ (fw - 1) ∧ digitN fw i (2 * x + 1) = 2 ^
-    (fw - 1)
+def PadOkN (fw i x : ℕ) : Prop := digitN fw i (2 * x) = 2 ^ (fw - 1) ∧ digitN fw i
+    (2 * x + 1) = 2 ^ (fw - 1)
 
 /-- The two fields at the quadruple index `x` are valid. -/
-def FieldOkN (ar q fw g i x : ℕ) : Prop := if IsRectN g x then RectOkN ar q fw g i x else PadOkN fw
-    i x
+def FieldOkN (ar q fw g i x : ℕ) : Prop := if IsRectN g x then RectOkN ar q fw g i
+    x else PadOkN fw i x
 
 /-- **A valid choice code** (`ValidChoiceCode`), from the array. -/
-def ValidN (ar q fw g i : ℕ) : Prop := i < 2 ^ choiceWidth g fw ∧ ∀ x < g ^ 4, FieldOkN ar q fw g i
-    x
+def ValidN (ar q fw g i : ℕ) : Prop := i < 2 ^ choiceWidth g fw ∧ ∀ x < g ^ 4,
+    FieldOkN ar q fw g i x
 
 instance (ar q fw g i x : ℕ) : Decidable (RectOkN ar q fw g i x) := by
   unfold RectOkN; infer_instance
@@ -548,12 +548,12 @@ theorem choiceDigit_decode (t : ℕ) :
   unfold choiceDigit
   by_cases h1 : ∃ r : Rect g, 2 * rectIdx r = t
   · rw [dite_eq_left h1, ite_eq_left ⟨h1.choose, by have := h1.choose_spec; omega⟩]
-    show (field fw i (2 * rectIdx h1.choose) + 2 ^ (fw - 1)).toNat = _
+    change (field fw i (2 * rectIdx h1.choose) + 2 ^ (fw - 1)).toNat = _
     rw [h1.choose_spec, field_eq_digitN, sub_add_cancel, Int.toNat_natCast]
   · rw [dite_eq_right h1]
     by_cases h2 : ∃ r : Rect g, 2 * rectIdx r + 1 = t
     · rw [dite_eq_left h2, ite_eq_left ⟨h2.choose, by have := h2.choose_spec; omega⟩]
-      show (field fw i (2 * rectIdx h2.choose + 1) + 2 ^ (fw - 1)).toNat = _
+      change (field fw i (2 * rectIdx h2.choose + 1) + 2 ^ (fw - 1)).toNat = _
       rw [h2.choose_spec, field_eq_digitN, sub_add_cancel, Int.toNat_natCast]
     · rw [dite_eq_right h2, ite_eq_right (fun ⟨r, hr⟩ => by
         rcases Nat.even_or_odd' t with ⟨m, hm | hm⟩

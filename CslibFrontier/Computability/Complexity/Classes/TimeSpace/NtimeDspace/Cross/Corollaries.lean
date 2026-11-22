@@ -23,8 +23,8 @@ counter).
 * Theorem 1.1 as a class inclusion: `NTIME[t] ⊆ DSPACE[t / √log t]`
   (`ntime_subset_dspace_sqrtLog_of_general`).
 * Corollary 1.2 (i): for space-constructible `t(n) ≥ n`, `NTIME[t] ⊊ DSPACE[t]`,
-  `NTIME[t] ⊊ NSPACE[t]` and `NTIME[t] ≠ NSPACE[t]` (`ntime_ssubset_dspace_of_general`,
-  `ntime_ssubset_nspace_of_general`, `ntime_ne_nspace_of_general`). `NSPACE` is Complexitylib's
+  and `NTIME[t] ⊊ NSPACE[t]` (`ntime_ssubset_dspace_of_general`,
+  `ntime_ssubset_nspace_of_general`). `NSPACE` is Complexitylib's
   (`Cslib.Complexity.NSPACE`): one finite-state binary nondeterministic machine, every computation
   prefix within `c₁ * s n + c₂` work cells, every branch halting. Deterministic machines are
   nondeterministic ones (`DSPACE_subset_NSPACE`, through `MultiTapeTM.toMultiTapeNTM`).
@@ -41,10 +41,9 @@ counter).
 * The same inclusion and Corollary 1.2 (i) at any scale `D` with `Scale D`, from
   `GeneralSimulationAt D` (`ntime_subset_dspace_of_generalAt`, `ntime_ssubset_dspace_of_generalAt`,
   `ntime_ssubset_nspace_of_generalAt`); other scales, such as `D = RootLog 3`, give other bounds.
-* At `t(n) = n`, the statements of `Crossing.ntime_subset_dspace_sqrtLog`,
-  `Crossing.ntime_decidable_sqrtLog` and `Crossing.ntime_ssubset_dspace`
-  (`CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/Theorem.lean`)
-  follow from `GeneralSimulation` (`ntime_subset_dspace_sqrtLog_linear`, …), as a sanity check.
+
+The unconditional endpoints are in the module
+`CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace`.
 
 ## Models
 
@@ -117,13 +116,6 @@ theorem ntime_ssubset_nspace_of_general (h : GeneralSimulation) {t : ℕ → ℕ
     (hsc : SpaceConstructible t) (ht : ∀ n, n ≤ t n) : NTIME encBits t ⊂ NSPACE encBits t :=
   lt_of_lt_of_le (ntime_ssubset_dspace_of_general h hsc ht) DSPACE_subset_NSPACE
 
-/-- **Corollary 1.2 (i):** `NTIME[t] ≠ NSPACE[t]` for every space-constructible `t(n) ≥ n`. -/
-theorem ntime_ne_nspace_of_general (h : GeneralSimulation) {t : ℕ → ℕ}
-    (hsc : SpaceConstructible t) (ht : ∀ n, n ≤ t n) : NTIME encBits t ≠ NSPACE encBits t :=
-  (ntime_ssubset_nspace_of_general h hsc ht).ne
-
-/-! ### At a general scale -/
-
 /-- Theorem 1.1 at a scale `D`, as a class inclusion: `NTIME[t] ⊆ DSPACE[D ∘ t]` for every
 `t(n) ≥ n`. -/
 theorem ntime_subset_dspace_of_generalAt {D : ℕ → ℕ} (h : GeneralSimulationAt D) {t : ℕ → ℕ}
@@ -139,7 +131,8 @@ theorem ntime_ssubset_dspace_of_generalAt {D : ℕ → ℕ} (hD : Scale D) (h : 
     NTIME encBits t ⊂ DSPACE encBits t :=
   lt_of_le_of_lt (ntime_subset_dspace_of_generalAt h ht)
     (DSPACE_ssubset_DSPACE hsc
-        (fun n => (Nat.log2_le_self n).trans (ht n)) fun c => (tendsto_atTop_mono ht tendsto_id).eventually (hD.sublinear c))
+        (fun n => (Nat.log2_le_self n).trans (ht n))
+        fun c => (tendsto_atTop_mono ht tendsto_id).eventually (hD.sublinear c))
 
 /-- Corollary 1.2 (i) at a scale `D`, nondeterministic space: `NTIME[t] ⊊ NSPACE[t]`. -/
 theorem ntime_ssubset_nspace_of_generalAt {D : ℕ → ℕ} (hD : Scale D) (h : GeneralSimulationAt D)
@@ -289,7 +282,7 @@ theorem ntime_lower_bound_of_general (h : GeneralSimulation) {k : ℕ} {State : 
     have := Nat.mul_le_mul_left c hlog
     simp only [hf]
     nlinarith
-  show c * f n + c ≤ n
+  change c * f n + c ≤ n
   omega
 
 /-- **Corollary 1.2 (iii).** There is a language in `DSPACE[n]` such that every nondeterministic
@@ -304,26 +297,5 @@ theorem exists_dspace_linear_ntime_lower_bound (h : GeneralSimulation) :
           ∃ x : List Bool, x.length = n ∧ ¬ ntm.RunsInTime x (n * Nat.sqrt n.log2 / C) :=
   ⟨hardLanguage, hardLanguage_mem_DSPACE, fun _ _ _ ntm _ hB hdec =>
     ntime_lower_bound_of_general h ntm hB hdec⟩
-
-/-! ### The linear case, against
-`CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/Theorem.lean` -/
-
-/-- `Crossing.ntime_decidable_sqrtLog` from `GeneralSimulation`. -/
-theorem ntime_decidable_sqrtLog_linear (h : GeneralSimulation) {A : Set (List Bool)}
-    (hA : A ∈ NTIME encBits (fun n => n)) :
-    ∃ C, DecidableInTimeAndSpace A encBits
-      (fun a => 2 ^ (C * (a.length / Nat.sqrt a.length.log2 + 1)))
-      (fun a => C * (a.length / Nat.sqrt a.length.log2 + 1)) :=
-  h (fun n => n) (fun _ => le_rfl) hA
-
-/-- `Crossing.ntime_subset_dspace_sqrtLog` from `GeneralSimulation`. -/
-theorem ntime_subset_dspace_sqrtLog_linear (h : GeneralSimulation) :
-    NTIME encBits (fun n => n) ⊆ DSPACE encBits (fun n => n / Nat.sqrt n.log2 + 1) :=
-  ntime_subset_dspace_sqrtLog_of_general h (fun _ => le_rfl)
-
-/-- `Crossing.ntime_ssubset_dspace` from `GeneralSimulation`. -/
-theorem ntime_ssubset_dspace_linear (h : GeneralSimulation) :
-    NTIME encBits (fun n => n) ⊂ DSPACE encBits (fun n => n) :=
-  ntime_ssubset_dspace_of_general h spaceConstructible_id (fun _ => le_rfl)
 
 end Cslib.Complexity.NtimeDspace.Cross

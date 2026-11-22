@@ -37,6 +37,7 @@ theorem wCode_le (x : Option (Option Bool)) : wCode x ≤ 3 := by
   | none => simp [wCode]
   | some c => have := cc_lt c; simp only [wCode]; omega
 
+omit [DecidableEq State] in
 /-- The machine's tables have entries at most `s + 3`. -/
 theorem tables_le (x : ℕ) : fSt e machine x ≤ s + 3 ∧ fIn e machine x ≤ s + 3 ∧
     fOut e machine x ≤ s + 3 ∧ fEmit x ≤ s + 3 ∧ fW e machine x ≤ s + 3 ∧ fM e machine x ≤ s +

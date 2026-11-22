@@ -8,8 +8,8 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Tame
-public import Mathlib.Data.Real.Archimedean
-public import Mathlib.Data.Real.Basic
+public import Mathlib.Algebra.Order.Archimedean.Real.Basic
+public import Mathlib.Basic.Real.Basic
 public import Mathlib.LinearAlgebra.Lagrange
 public import Mathlib.Probability.Moments.SubGaussian
 public import Mathlib.Probability.ProbabilityMassFunction.Integrals
@@ -41,15 +41,15 @@ theorem tm_ite_cond {c t e : Term} {dc d : ℕ} (hc : Tm w L dc c env) (hcs : St
     intro pre hp
     have hcv : 0 < c.denote w (pre ++ env) := by rw [hcs pre]; exact h
     refine ⟨⟨(hc pre hp).1, ?_⟩, ?_⟩
-    · exact (if_pos (show 0 < ProgLang.Prog.eval w (c (pre ++ env).length)
+    · exact (ite_eq_left (show 0 < ProgLang.Prog.eval w (c (pre ++ env).length)
         (pre ++ env) from hcv)).symm ▸ (htm pre hp).1
-    · simp only [denote_ite, if_pos hcv]; exact (htm pre hp).2
+    · simp only [denote_ite, ite_eq_left hcv]; exact (htm pre hp).2
   · intro pre hp
     have hcv : ¬ 0 < c.denote w (pre ++ env) := by rw [hcs pre]; exact h
     refine ⟨⟨(hc pre hp).1, ?_⟩, ?_⟩
-    · exact (if_neg (show ¬ 0 < ProgLang.Prog.eval w (c (pre ++ env).length)
+    · exact (ite_eq_right (show ¬ 0 < ProgLang.Prog.eval w (c (pre ++ env).length)
         (pre ++ env) from hcv)).symm ▸ (he pre hp).1
-    · simp only [denote_ite, if_neg hcv]; exact (he pre hp).2
+    · simp only [denote_ite, ite_eq_right hcv]; exact (he pre hp).2
 
 /-- Retier a stable term by its value. -/
 theorem tm_retier {t : Term} {d d' : ℕ} (h : Tm w L d t env) (hs : StableAt w t env)

@@ -123,7 +123,7 @@ theorem msCode_zero : msCode 0 = [true] := by
   simp [msCode, distinctWts, gamma]
 
 theorem lcode_zero : lcode (0, 0) = 3 := by
-  show ofBits (msCode 0 ++ msCode 0) = 3
+  change ofBits (msCode 0 ++ msCode 0) = 3
   rw [msCode_zero]; rfl
 
 /-- The code of a label has at most `B` bits. -/
@@ -143,8 +143,8 @@ theorem codeWidth_mono {a b : ℕ} (h : a ≤ b) : codeWidth a ≤ codeWidth b :
   · omega
   · exact Nat.add_le_add_right (Nat.sqrt_le_sqrt (by omega)) 2
 
-theorem lb_of_le {B Φ : ℕ} {l : Label} (hl : labelWt l ≤ Φ) (hB : codeWidth Φ + 2 ≤ B) : LB B
-    l := by
+theorem lb_of_le {B Φ : ℕ} {l : Label} (hl : labelWt l ≤ Φ)
+    (hB : codeWidth Φ + 2 ≤ B) : LB B l := by
   unfold LB
   by_cases h0 : labelWt l = 0
   · rw [eq_zero_of_labelWt h0]; simp only [msCode_zero, List.length_singleton]; omega
@@ -161,8 +161,8 @@ theorem lcode_mod (l : Label) : lcode l % 2 ^ (msCode l.1).length = mcode l.1 :=
   rw [lcode_eq, Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt (mcode_lt _)]
 
 theorem lcode_div (l : Label) : lcode l / 2 ^ (msCode l.1).length = mcode l.2 := by
-  rw [lcode_eq, Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt (mcode_lt _),
-      Nat.zero_add]
+  rw [lcode_eq, Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt
+      (mcode_lt _), Nat.zero_add]
 
 theorem bits1 (l : Label) : BitsAt (lcode l) 0 (msCode l.1) :=
   (bitsAt_append.mp (bitsAt_ofBits (msCode l.1 ++ msCode l.2))).1
@@ -215,7 +215,7 @@ theorem swapN_lcode {B : ℕ} {l : Label} (h : LB B l) : swapN B (lcode l) = lco
   exact (lcode_eq (swapLabel l)).symm
 
 theorem labelWt_swap (l : Label) : labelWt (swapLabel l) = labelWt l := by
-  show wt l.2 + wt l.1 = wt l.1 + wt l.2; omega
+  change wt l.2 + wt l.1 = wt l.1 + wt l.2; omega
 
 theorem count_unpackDir {L s : ℕ} (hs : s < L) (σ : Multiset ℕ) (k : ℕ) :
     (unpackDir L σ s).count k = σ.count (L * k + s) := by
@@ -250,10 +250,10 @@ theorem wt_unpackDir_le (L : ℕ) (σ : Multiset ℕ) (s : ℕ) : wt (unpackDir 
 theorem labelWt_unpack_le (L : ℕ) (l : Label) (s : ℕ) : labelWt (unpack L l s) ≤ labelWt l := by
   have := wt_unpackDir_le L l.1 s
   have := wt_unpackDir_le L l.2 s
-  show wt (unpackDir L l.1 s) + wt (unpackDir L l.2 s) ≤ wt l.1 + wt l.2; omega
+  change wt (unpackDir L l.1 s) + wt (unpackDir L l.2 s) ≤ wt l.1 + wt l.2; omega
 
-theorem mem_unpackDir_le {L s e : ℕ} {σ : Multiset ℕ} (h : e ∈ unpackDir L σ s) : ∃ t ∈ σ, e ≤
-    t := by
+theorem mem_unpackDir_le {L s e : ℕ} {σ : Multiset ℕ} (h : e ∈ unpackDir L σ s) : ∃ t
+    ∈ σ, e ≤ t := by
   unfold unpackDir at h
   obtain ⟨t, ht, rfl⟩ := Multiset.mem_map.mp h
   exact ⟨t, (Multiset.mem_filter.mp ht).1, Nat.div_le_self t L⟩
@@ -318,8 +318,8 @@ def labOkN (B L c : ℕ) : Prop :=
 
 instance (B L c : ℕ) : Decidable (labOkN B L c) := by unfold labOkN; infer_instance
 
-theorem labOkN_lcode {B L : ℕ} {l : Label} (h : LB B l) : labOkN B L (lcode l) ↔ validLabel L
-    l := by
+theorem labOkN_lcode {B L : ℕ} {l : Label} (h : LB B l) : labOkN B L (lcode l) ↔
+    validLabel L l := by
   unfold labOkN validLabel
   rw [msFoldN_msCode (bits1 l) (by unfold LB at h; omega), msEnd_lcode h,
     msFoldN_msCode (bits2 l) (by unfold LB at h; omega)]
@@ -617,7 +617,7 @@ def psiN (B fw ar q g i : ℕ) (row : Bool) (v : ℕ) (cp : ℕ → ℕ → ℕ)
 theorem split_eq {g fw i : ℕ} (r : Rect g) :
     (decodeChoice g fw i r).2 = (digitN fw i (2 * rectIdx r + 1) : ℤ) -
         ((2 ^ (fw - 1) : ℕ) : ℤ) := by
-  show field fw i (2 * rectIdx r + 1) = _
+  change field fw i (2 * rectIdx r + 1) = _
   rw [field_eq_digitN]; push_cast; rfl
 
 theorem rStreamN_lt {g B B' : ℕ} (h : B < B') (h' : B' < g) : rStreamN g B B' < packL g := by
@@ -650,8 +650,8 @@ theorem code_psiG (S : Setup) {B fw g i Φ : ℕ} {a : Fin (g * g) → Fin (g * 
   · rw [dite_eq_right h, ite_eq_right h, code_lit, zz_one]
   rw [dite_eq_left h, ite_eq_left h]
   dsimp only
-  have hH : diagWt a ⟨((⟨A₁, by omega⟩, ⟨A₂, h.2.2.1⟩), (⟨B₁, by omega⟩, ⟨B₂, h.2.2.2⟩)), h.1,
-      h.2.1⟩ =
+  have hH : diagWt a ⟨((⟨A₁, by omega⟩, ⟨A₂, h.2.2.1⟩),
+      (⟨B₁, by omega⟩, ⟨B₂, h.2.2.2⟩)), h.1, h.2.1⟩ =
       diagN (arrN (g * g) fw (extN a)) (g * g) fw g (((A₁ * g + A₂) * g + B₁) * g + B₂) :=
     (diagN_eq hf _).symm
   have hk : (decodeChoice g fw i
@@ -808,8 +808,8 @@ theorem orientN_recast {g fw i : ℕ} (C : Clique) (hsq : C.q = g * g) (h : Fits
     intro n hn; subst hn; rfl
   exact (e _ hsq).symm.trans (orientN_eq (h.recast _ hsq) he)
 
-theorem validN_recast {g fw i : ℕ} (C : Clique) (hsq : C.q = g * g) (h : Fits fw C.a) (hfw : 1 ≤ fw)
-    :
+theorem validN_recast {g fw i : ℕ} (C : Clique) (hsq : C.q = g * g) (h : Fits fw C.a)
+    (hfw : 1 ≤ fw) :
     ValidN (arrN C.q fw (extN C.a)) C.q fw g i ↔ ValidChoiceCode (C.recast _ hsq).a fw i := by
   have e : ∀ n (hn : C.q = n),
       ValidN (arrN n fw (extN (q := n) (C.recast n hn).a)) n fw g i ↔
@@ -912,7 +912,7 @@ theorem clTagN_eq (chs : List ℕ) : clTagN (S.code (.cl chs)) = AGen.kindTag
     (S.gen.kind (.cl chs)) := by
   rw [code_cl]
   simp only [clTagN, stGet_cons_zero, stGet_cons_succ, cQ_eq]
-  show _ = AGen.kindTag (if (S.clique chs).q = 2 then Kind.sum else
+  change _ = AGen.kindTag (if (S.clique chs).q = 2 then Kind.sum else
     if 4 ≤ (S.clique chs).q ∧ (S.clique chs).q = Nat.sqrt (S.clique chs).q * Nat.sqrt
         (S.clique chs).q
     then .sum else .leaf)
@@ -927,7 +927,8 @@ theorem clWidthN_eq (chs : List ℕ) (hf : Fits S.fw (S.clique chs).a) :
     clWidthN S.fw (S.code (.cl chs)) = S.gen.width (.cl chs) := by
   rw [code_cl]
   simp only [clWidthN, stGet_cons_zero, stGet_cons_succ, cQ_eq, cA_eq]
-  show _ = if h : (S.clique chs).q = 2 then codeWidth ((S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩)
+  change _ = if h : (S.clique chs).q = 2
+    then codeWidth ((S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩)
     else choiceWidth (Nat.sqrt (S.clique chs).q) S.fw
   by_cases h : (S.clique chs).q = 2
   · rw [ite_eq_left h, dite_eq_left h]
@@ -951,18 +952,19 @@ theorem clChildN_eq (hS : S.Good) {chs : List ℕ} (hp : S.PathOK chs) (i : ℕ)
   have hf := fits_path S hS hp
   rw [code_cl]
   simp only [clChildN, stGet_cons_zero, stGet_cons_succ, cQ_eq, cA_eq]
-  show _ = S.code (if h : (S.clique chs).q = 2 then
+  change _ = S.code (if h : (S.clique chs).q = 2 then
       match decodeLabel ((S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩) i with
       | some
-          l => if labelWt l = (S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩ then .last chs i else .zero
+          l => if labelWt l = (S.clique chs).a ⟨0, by omega⟩ ⟨1,
+              by omega⟩ then .last chs i else .zero
       | none => .zero
     else if h : (S.clique chs).q = Nat.sqrt (S.clique chs).q * Nat.sqrt (S.clique chs).q then
       if ValidChoiceCode ((S.clique chs).recast _ h).a S.fw i then .cl (i :: chs) else .zero
     else .zero)
   by_cases h2 : (S.clique chs).q = 2
   · rw [ite_eq_left h2, dite_eq_left h2]
-    have hb : budgetN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q S.fw 0 1
-        =
+    have hb : budgetN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a))
+        (S.clique chs).q S.fw 0 1 =
         (S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩ :=
       budgetN_ext_lt hf (u := ⟨0, by omega⟩) (v := ⟨1, by omega⟩) (Fin.mk_lt_mk.mpr (by norm_num))
     rw [hb]
@@ -1005,7 +1007,7 @@ theorem clChildN_eq (hS : S.Good) {chs : List ℕ} (hp : S.PathOK chs) (i : ℕ)
       by_cases hv : ValidChoiceCode ((S.clique chs).recast _ hsq).a S.fw i
       · rw [ite_eq_left (hV.mpr hv), ite_eq_left hv]
         have hq' : (S.clique (i :: chs)).q = Nat.sqrt (S.clique chs).q := by
-          show (childAt S.fw (S.clique chs) i).q = _
+          change (childAt S.fw (S.clique chs) i).q = _
           unfold childAt; rw [dite_eq_left hsq]; exact mergeStep_q _ _ _
         have ha' : arrN (S.clique (i :: chs)).q S.fw (extN (S.clique (i :: chs)).a) =
             childN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q S.fw
@@ -1015,10 +1017,10 @@ theorem clChildN_eq (hS : S.Good) {chs : List ℕ} (hp : S.PathOK chs) (i : ℕ)
         have hc : S.cacheC (i :: chs) = consF (NatList.enc [Nat.sqrt (S.clique chs).q,
             childN (arrN (S.clique chs).q S.fw (extN (S.clique chs).a)) (S.clique chs).q S.fw
               (Nat.sqrt (S.clique chs).q) i]) (S.cacheC chs) := by
-          show NatList.enc (S.arrAt (i :: chs) :: S.cacheL chs) = consF _
+          change NatList.enc (S.arrAt (i :: chs) :: S.cacheL chs) = consF _
               (NatList.enc (S.cacheL chs))
           rw [consF_enc]
-          show NatList.enc (NatList.enc [(S.clique (i :: chs)).q,
+          change NatList.enc (NatList.enc [(S.clique (i :: chs)).q,
             arrN (S.clique (i :: chs)).q S.fw (extN (S.clique (i :: chs)).a)] :: S.cacheL chs) = _
           rw [ha', hq']
         rw [code_cl, hc, consF_enc]
@@ -1121,7 +1123,7 @@ theorem entWidthN_eq (hS : S.Good) {chs : List ℕ} (hp : S.PathOK chs) (v args 
     rfl
   | cons i rest =>
     obtain ⟨hp', -, h, hvc⟩ := hp
-    show _ = S.xiWidth rest i v
+    change _ = S.xiWidth rest i v
     rw [code_ent]
     simp only [entWidthN, stGet_cons_zero, stGet_cons_succ, pQ_eq, pA_eq]
     rw [ite_eq_right (enc_cons_ne_one i rest), ite_eq_left h]
@@ -1155,7 +1157,8 @@ theorem entChildN_eq (hS : S.Good) {f0 : ℕ → ℕ → ℕ → ℕ}
     have hch : S.gen.child (.ent (i :: rest) v args) ξ =
         if CopiesValid (S.clique rest) (Setup.holders (Nat.sqrt (S.clique rest).q) v
           (orientRow ((S.clique rest).recast _ h).a
-            fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q) ξ
+            fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+              (Nat.sqrt (S.clique rest).q) ξ
         then .rng (i :: rest) v args ξ 0 (nFac (Nat.sqrt (S.clique rest).q)) else .zero := by
       simp only [Setup.gen, hpg]
     rw [hch]
@@ -1165,10 +1168,12 @@ theorem entChildN_eq (hS : S.Good) {f0 : ℕ → ℕ → ℕ → ℕ}
       orientN_recast (S.clique rest) h hfP (fun r => ValidChoiceCode.even hvc r)]
     have hC := copiesOkN_iff (S.clique rest) hfP (Setup.holders (Nat.sqrt (S.clique rest).q) v
       (orientRow ((S.clique rest).recast _ h).a
-        fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q) ξ
+        fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+          (Nat.sqrt (S.clique rest).q) ξ
     by_cases hc : CopiesValid (S.clique rest) (Setup.holders (Nat.sqrt (S.clique rest).q) v
         (orientRow ((S.clique rest).recast _ h).a
-          fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q) ξ
+          fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+            (Nat.sqrt (S.clique rest).q) ξ
     · rw [ite_eq_left (hC.mpr hc), ite_eq_left hc]; rfl
     · rw [ite_eq_right (mt hC.mp hc), ite_eq_right hc]; rfl
 
@@ -1193,8 +1198,8 @@ theorem rngChildN_eq (hS : S.Good) {e : ℕ} (he : 2 * S.K = 2 ^ 2 ^ e) {B : ℕ
   have hch : S.gen.child (.rng (i :: rest) v args ξ lo hi) b =
       if b = 0 then Setup.rangeSt (S.factorSt rest i v args ξ) (.rng (i :: rest) v args ξ) lo
           ((lo + hi) / 2)
-      else Setup.rangeSt (S.factorSt rest i v args ξ) (.rng (i :: rest) v args ξ) ((lo + hi) / 2)
-          hi := rfl
+      else Setup.rangeSt (S.factorSt rest i v args ξ) (.rng (i :: rest) v args ξ)
+          ((lo + hi) / 2) hi := rfl
   have e : (fun f => S.code (S.factorSt rest i v args ξ f)) =
       factorN S.fw B (NatList.enc (i :: rest)) (S.cacheC (i :: rest)) v args ξ :=
     funext fun f => code_factorSt S hS he hB rest i hp v args ξ f
@@ -1235,8 +1240,8 @@ theorem entry_agree (hS : S.Good) {e : ℕ} (he : 2 * S.K = 2 ^ 2 ^ e) {B : ℕ}
     (hB : codeWidth (S.C₀.potential / 2 ^ e) + 2 ≤ B)
     {f0 : ℕ → ℕ → ℕ → ℕ} (hf0 : ∀ v x f, f0 v x f = S.code (.lit (S.factor0 v x f))) {D : ℕ}
     (st : St) (hst : EntrySt st) (hinv : S.Inv D st) :
-    eTag B S.fw (S.code st) = AGen.kindTag (S.gen.kind st) ∧ eWidth S.fw (S.code st) = S.gen.width
-        st ∧
+    eTag B S.fw (S.code st) = AGen.kindTag (S.gen.kind st) ∧ eWidth S.fw (S.code st) =
+        S.gen.width st ∧
       (∀ i, eChild S.fw B S.K S.V S.G.M f0 (S.code st) i = S.code (S.gen.child st i)) ∧
       S.gen.leafVal st = 0 := by
   cases st with

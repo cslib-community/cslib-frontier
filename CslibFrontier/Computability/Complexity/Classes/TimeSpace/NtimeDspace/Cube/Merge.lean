@@ -229,8 +229,8 @@ theorem trNode_eq (w : Fin (g * g)) : trNode w = node (colOf w) (rowOf w) := rfl
 @[simp] theorem trNode_trNode (w : Fin (g * g)) : trNode (trNode w) = w := by
   rw [trNode_eq w]; simp
 
-theorem budget_comm {n : ℕ} (a : Fin n → Fin n → ℕ) (u v : Fin n) : budget a u v = budget a v
-    u := by
+theorem budget_comm {n : ℕ} (a : Fin n → Fin n → ℕ) (u v : Fin n) : budget a u v =
+    budget a v u := by
   simp only [budget, min_comm, max_comm]
 
 theorem budget_of_lt {n : ℕ} (a : Fin n → Fin n → ℕ) {u v : Fin n} (h : u < v) :
@@ -255,12 +255,12 @@ theorem labelAt_of_gt {q : ℕ} (θ : Pairs q → Label) {u v : Fin q} (h : v < 
     labelAt θ v u = θ ⟨(v, u), h⟩ := by
   rw [labelAt, dite_eq_right (not_lt.mpr h.le), dite_eq_left h]
 
-@[simp] theorem labelAt_self {q : ℕ} (θ : Pairs q → Label) (v : Fin q) : labelAt θ v v =
-    (0, 0) := by
+@[simp] theorem labelAt_self {q : ℕ} (θ : Pairs q → Label) (v : Fin q) : labelAt θ v
+    v = (0, 0) := by
   simp [labelAt]
 
-theorem labelAt_comm {q : ℕ} (θ : Pairs q → Label) (u v : Fin q) : labelAt θ v u = labelAt θ u
-    v := by
+theorem labelAt_comm {q : ℕ} (θ : Pairs q → Label) (u v : Fin q) : labelAt θ v u =
+    labelAt θ u v := by
   rcases lt_trichotomy u v with h | rfl | h
   · rw [labelAt_of_lt θ h, labelAt_of_gt θ h]
   · rfl
@@ -401,7 +401,7 @@ theorem value_eq_copies (a : Fin (g * g) → Fin (g * g) → ℕ)
     (T : Fin (g * g) → (Fin (g * g) → Label) → ℤ) :
     (⟨g * g, a, T⟩ : Clique).value =
       ∑ X ∈ copiesX a, tProd T X * horTest X * vertTest X * diagTest X := by
-  show ∑ θ ∈ Fintype.piFinset (fun p : Pairs (g * g) => labelsEq (a p.1.1 p.1.2)),
+  change ∑ θ ∈ Fintype.piFinset (fun p : Pairs (g * g) => labelsEq (a p.1.1 p.1.2)),
     ∏ v, T v (labelAt θ v) = _
   refine Finset.sum_bij_ne_zero (fun θ _ _ => fun A B u => labelAt θ (node A B) u) ?_ ?_ ?_ ?_
   · intro θ hθ _
@@ -449,8 +449,8 @@ theorem value_eq_copies (a : Fin (g * g) → Fin (g * g) → ℕ)
       simp only [this]
       exact ht
   · intro θ _ _
-    have hcomm : ∀ A B A' B', labelAt θ (node A B) (node A' B') = labelAt θ (node A' B')
-        (node A B) :=
+    have hcomm : ∀ A B A' B', labelAt θ (node A B) (node A' B') = labelAt θ
+        (node A' B') (node A B) :=
       fun A B A' B' => labelAt_comm θ _ _
     have h1 : horTest (fun A B u => labelAt θ (node A B) u) = 1 :=
       prod_eq_one fun A _ => prod_eq_one fun B _ => prod_eq_one fun B' _ =>
@@ -459,7 +459,8 @@ theorem value_eq_copies (a : Fin (g * g) → Fin (g * g) → ℕ)
       prod_eq_one fun p _ => prod_eq_one fun B _ => ite_eq_left (hcomm _ _ _ _)
     have h3 : diagTest (fun A B u => labelAt θ (node A B) u) = 1 :=
       prod_eq_one fun r _ => ite_eq_left ((crossing_views _ _ _ _).mpr
-        ⟨by rw [swapLabel_swapLabel]; exact hcomm _ _ _ _, by rw [swapLabel_swapLabel]; exact hcomm _ _ _ _⟩)
+        ⟨by rw [swapLabel_swapLabel]; exact hcomm _ _ _ _,
+            by rw [swapLabel_swapLabel]; exact hcomm _ _ _ _⟩)
     rw [h1, h2, h3, tProd, prod_nodes]
     ring
 
@@ -592,7 +593,7 @@ def rowLabels (k : Rect g → ℤ) : Finset (Pairs g → Label) :=
 theorem rowChild_value (ι : Rect g → ℤ × ℤ) :
     (rowChild g a T ι).value = ∑ Θ ∈ rowLabels a (fun r => (ι r).1), ∑ X ∈ copiesX a,
       if (∀ p, validLabel (packL g) (Θ p)) then ∏ A, rowF a T ι A (labelAt Θ A) (X A) else 0 := by
-  show ∑ Θ ∈ rowLabels a (fun r => (ι r).1), ∏ A : Fin g, rowTable a T ι A (labelAt Θ A) = _
+  change ∑ Θ ∈ rowLabels a (fun r => (ι r).1), ∏ A : Fin g, rowTable a T ι A (labelAt Θ A) = _
   refine Finset.sum_congr rfl fun Θ _ => ?_
   rw [Finset.prod_congr rfl fun A _ => rowTable_eq a T ι A (labelAt Θ A), Finset.prod_univ_sum]
   refine Finset.sum_congr rfl fun X _ => ?_
@@ -960,13 +961,13 @@ open MergeProof
 theorem merge (hg : 1 ≤ g) (a : Fin (g * g) → Fin (g * g) → ℕ)
     (T : Fin (g * g) → (Fin (g * g) → Label) → ℤ) (o : (Rect g → ℤ) → Bool) :
     (⟨g * g, a, T⟩ : Clique).value =
-      ∑ ι ∈ choices a, (if o (fun r => (ι r).1) then rowChild g a T ι else colChild g a T
-          ι).value := by
+      ∑ ι ∈ choices a, (if o (fun r => (ι r).1) then rowChild g a T ι else colChild g a
+          T ι).value := by
   rw [value_eq_sum_Zk]
   unfold choices
   rw [sum_piFinset_prod]
   refine Finset.sum_congr rfl fun k hk => ?_
-  show Zk a T k = ∑ c ∈ splits a, (if o k then rowChild g a T (fun r => (k r, c r))
+  change Zk a T k = ∑ c ∈ splits a, (if o k then rowChild g a T (fun r => (k r, c r))
     else colChild g a T (fun r => (k r, c r))).value
   by_cases h : o k
   · simp only [h, ite_true]

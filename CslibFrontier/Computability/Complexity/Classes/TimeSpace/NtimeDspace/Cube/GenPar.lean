@@ -73,8 +73,8 @@ theorem tm_parFieldT {l : List ℕ} (hl : l.length ≤ 14) (hs : ∀ x ∈ l, x 
     (enc_lt_of_mem hl hs).trans_le (Nat.pow_le_pow_right (by norm_num) (by omega))
   have v0 : Val w [NatList.enc l] (lvl 0) (NatList.enc l) := val_lvl_at (by simp)
   have t0 : Tm w L 29 (lvl 0) [NatList.enc l] := tm_lvl (by simp) hp
-  refine tm_val (tm_stGetT v0 t0 (by norm_num) (by norm_num) (by omega) j hj) (val_parFieldT l hj)
-      ?_
+  refine tm_val (tm_stGetT v0 t0 (by norm_num) (by norm_num) (by omega) j hj)
+      (val_parFieldT l hj) ?_
   rw [one_mul, List.getD_eq_getElem?_getD, List.getElem?_eq_getElem hj, Option.getD_some]
   exact hs _ (List.getElem_mem hj)
 
@@ -142,6 +142,7 @@ def blockCubeT : CubeT :=
 
 variable {machine e} {τ σ P B fw K H : ℕ}
 
+omit [DecidableEq State] in
 /-- **The input values for a block network**, at the parameter with `n = |w|`. -/
 theorem blockCube_in (hd : RowsFirst machine e w τ σ) :
     CubeIn (blockNet machine e w τ σ hd) w (blockPar w.length τ σ P B fw K H)
@@ -155,6 +156,7 @@ theorem blockCube_in (hd : RowsFirst machine e w τ σ) :
     val_parFieldT [w.length, τ, σ, P, B, fw, K, H] (j := 6) (by simp),
     val_parFieldT [w.length, τ, σ, P, B, fw, K, H] (j := 7) (by simp)⟩
 
+omit [DecidableEq State] in
 /-- **The tiers of the inputs for a block network**, at clocks `τ ≥ 2` with `|w| ≤ τ`, when the
 eight fields are below `2^L`, `16 ≤ L` and `blockBudget k s · (⌊log₂ τ⌋ + 1) ≤ L`. -/
 theorem blockCube_tiers (hd : RowsFirst machine e w τ σ) (hτ2 : 2 ≤ τ) (hwτ : w.length ≤ τ)
@@ -167,6 +169,7 @@ theorem blockCube_tiers (hd : RowsFirst machine e w τ σ) (hτ2 : 2 ≤ τ) (hw
       Tm w L 1 (blockCubeT machine e).fwT [blockPar w.length τ σ P B fw K H] ∧
       Tm w L 1 (blockCubeT machine e).KT [blockPar w.length τ σ P B fw K H] ∧
       Tm w L 1 (blockCubeT machine e).HT [blockPar w.length τ σ P B fw K H] := by
+  classical
   have t := fun j (hj : j < 8) => tm_parFieldT (w := w) (l := [w.length, τ, σ, P, B, fw, K, H])
     (by simp) hs (by omega) (j := j) (by simpa using hj)
   have v := fun j (hj : j < 8) => val_parFieldT (w := w) [w.length, τ, σ, P, B, fw, K, H] (j := j)

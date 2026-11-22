@@ -15,8 +15,7 @@ public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspa
 
 Terms (`ProgTerm.Term`) that read the network `(rawW w s).net` of
 `CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/ThreeSat/Net.lean` from
-the
-input word `w`, given a term for the size `s`:
+the input word `w`, given a term for the size `s`:
 
 * the decoding `lenT`, `offT`, `nT`, `widT`, `mT`, `svT` (`rawW`);
 * the slot functions `presT`, `varT`, `signT`, `sameT`, `nextT`, `hasNextT`, `prevT`, `hasPrevT`;
@@ -301,7 +300,7 @@ theorem val_hasNextT (hs : Val w sT env s) (ht : Val w tT env t) :
 
 theorem val_prevT (hs : Val w sT env s) (ht : Val w tT env t) :
     Val w (prevT sT tT) env ((rawW w s).prev t) :=
-  val_lastT ht ht fun pre u q hu => val_sameT (hs.ext pre) (ht.ext pre) hu
+  val_lastT ht ht fun pre _u _q hu => val_sameT (hs.ext pre) (ht.ext pre) hu
 
 theorem val_hasPrevT (hs : Val w sT env s) (ht : Val w tT env t) :
     Val w (hasPrevT sT tT) env ((rawW w s).hasPrev t).toNat := by

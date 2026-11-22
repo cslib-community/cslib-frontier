@@ -45,8 +45,8 @@ theorem mem_choices_grade {g : ℕ} {a : Fin (g * g) → Fin (g * g) → ℕ} {�
   exact ⟨he, abs_le.mpr ⟨h1, h2⟩⟩
 
 theorem mergeStep_q {g : ℕ} (a : Fin (g * g) → Fin (g * g) → ℕ)
-    (T : Fin (g * g) → (Fin (g * g) → Label) → ℤ) (ι : Rect g → ℤ × ℤ) : (mergeStep g a T ι).q =
-        g := by
+    (T : Fin (g * g) → (Fin (g * g) → Label) → ℤ) (ι : Rect g → ℤ × ℤ) :
+        (mergeStep g a T ι).q = g := by
   unfold mergeStep; split_ifs <;> rfl
 
 theorem potential_mergeStep {g : ℕ} (a : Fin (g * g) → Fin (g * g) → ℕ)
@@ -56,11 +56,11 @@ theorem potential_mergeStep {g : ℕ} (a : Fin (g * g) → Fin (g * g) → ℕ)
   have E := energy_le a (fun r => (ι r).1) hk
   unfold mergeStep
   split_ifs
-  · show (g - 1) ^ 2 * ∑ p : Pairs g, rowBudget a (fun r => (ι r).1) p.1.1 p.1.2 ≤
+  · change (g - 1) ^ 2 * ∑ p : Pairs g, rowBudget a (fun r => (ι r).1) p.1.1 p.1.2 ≤
       (g * g - 1) ^ 2 * ∑ p : Pairs (g * g), a p.1.1 p.1.2
     refine le_trans ?_ E
     exact Nat.mul_le_mul_left _ (Nat.le_add_right _ _)
-  · show (g - 1) ^ 2 * ∑ p : Pairs g, (colChild g a T ι).a p.1.1 p.1.2 ≤
+  · change (g - 1) ^ 2 * ∑ p : Pairs g, (colChild g a T ι).a p.1.1 p.1.2 ≤
       (g * g - 1) ^ 2 * ∑ p : Pairs (g * g), a p.1.1 p.1.2
     rw [sum_congr rfl fun p _ => colChild_a a T ι (fun r => (hk r).1) (le_of_lt p.2)]
     refine le_trans ?_ E
@@ -71,9 +71,10 @@ theorem potential_childAt (fw : ℕ) (C : Clique) (i : ℕ)
     (childAt fw C i).potential ≤ C.potential := by
   have e : childAt fw C i = mergeStep (Nat.sqrt C.q) (C.recast _ h).a (C.recast _ h).T
       (decodeChoice (Nat.sqrt C.q) fw i) := by
-    simp only [childAt, dif_pos h]
+    simp only [childAt, dite_eq_left h]
   rw [e]
-  calc _ ≤ (⟨_, (C.recast _ h).a, (C.recast _ h).T⟩ : Clique).potential := potential_mergeStep _ _ _ hv.1
+  calc _ ≤ (⟨_, (C.recast _ h).a,
+      (C.recast _ h).T⟩ : Clique).potential := potential_mergeStep _ _ _ hv.1
     _ = (C.recast _ h).potential := rfl
     _ = C.potential := Clique.potential_recast C _ h
 
@@ -98,7 +99,8 @@ theorem diagWt_le_potential (C : Clique) {g : ℕ} (h : C.q = g * g) (r : Rect g
   have hg : 2 ≤ g := by have := r.2.1; have := r.1.1.2.isLt; rw [Fin.lt_def] at *; omega
   have h4 : 4 ≤ g * g := by nlinarith
   have h1 : 1 ≤ (g * g - 1) ^ 2 := Nat.one_le_pow _ _ (by omega)
-  calc diagWt (C.recast _ h).a r ≤ ∑ p : Pairs (g * g), (C.recast _ h).a p.1.1 p.1.2 := diag_le_sum _ r
+  calc diagWt (C.recast _ h).a r ≤ ∑ p : Pairs (g * g), (C.recast _ h).a p.1.1 p.1.2 :=
+        diag_le_sum _ r
     _ ≤ (g * g - 1) ^ 2 * ∑ p : Pairs (g * g), (C.recast _ h).a p.1.1 p.1.2 :=
         Nat.le_mul_of_pos_left _ h1
     _ = (C.recast _ h).potential := rfl
@@ -122,8 +124,8 @@ theorem clique_cons (rest : List ℕ) (i : ℕ)
     (h : (S.clique rest).q = Nat.sqrt (S.clique rest).q * Nat.sqrt (S.clique rest).q) :
     S.clique (i :: rest) = mergeStep (Nat.sqrt (S.clique rest).q) ((S.clique rest).recast _ h).a
       ((S.clique rest).recast _ h).T (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i) := by
-  show childAt S.fw (S.clique rest) i = _
-  simp only [childAt, dif_pos h]
+  change childAt S.fw (S.clique rest) i = _
+  simp only [childAt, dite_eq_left h]
 
 theorem clique_nil : S.clique [] = S.C₀ := rfl
 
@@ -197,8 +199,8 @@ noncomputable def rankEnt (S : Setup) : List ℕ → ℕ → ℕ → ℕ
 
 /-- The rank of a clique state with `n` levels below it. -/
 noncomputable def rankCl (S : Setup) : ℕ → List ℕ → ℕ
-  | 0,
-      chs => 1 + ∑ i ∈ range (2 ^ S.gen.width (.cl chs)), (rankEnt S chs 0 i + rankEnt S chs 1 i + 1)
+  | 0, chs => 1 + ∑ i ∈ range (2 ^ S.gen.width (.cl chs)),
+      (rankEnt S chs 0 i + rankEnt S chs 1 i + 1)
   | n + 1, chs => 1 + ∑ i ∈ range (2 ^ S.gen.width (.cl chs)),
       (rankEnt S chs 0 i + rankEnt S chs 1 i + 1 + rankCl S n (i :: chs))
 
@@ -225,11 +227,11 @@ theorem rangeSt_cases (mk : ℕ → St) (mkR : ℕ → ℕ → St) (lo hi : ℕ)
       (lo + 2 ≤ hi ∧ rangeSt mk mkR lo hi = mkR lo hi) := by
   unfold rangeSt
   by_cases h1 : hi ≤ lo
-  · exact Or.inl ⟨h1, if_pos h1⟩
-  · rw [if_neg h1]
+  · exact Or.inl ⟨h1, ite_eq_left h1⟩
+  · rw [ite_eq_right h1]
     by_cases h2 : hi = lo + 1
-    · exact Or.inr (Or.inl ⟨h2, if_pos h2⟩)
-    · exact Or.inr (Or.inr ⟨by omega, if_neg h2⟩)
+    · exact Or.inr (Or.inl ⟨h2, ite_eq_left h2⟩)
+    · exact Or.inr (Or.inr ⟨by omega, ite_eq_right h2⟩)
 
 theorem mean_rangeSt (mk : ℕ → St) (mkR : ℕ → ℕ → St) (F : ℕ → ℤ) (hmk : ∀ f, S.mean (mk f) = F f)
     (hR : ∀ a b, S.mean (mkR a b) = ∏ f ∈ Ico a b, F f) {lo hi : ℕ} (h : lo ≤ hi) :
@@ -241,8 +243,8 @@ theorem mean_rangeSt (mk : ℕ → St) (mkR : ℕ → ℕ → St) (F : ℕ → �
 
 /-- The halves of a range. -/
 theorem prod_halves (F : ℕ → ℤ) {lo hi : ℕ} (h : lo ≤ hi) :
-    ∏ f ∈ Ico lo hi, F f = (∏ f ∈ Ico lo ((lo + hi) / 2), F f) * ∏ f ∈ Ico ((lo + hi) / 2) hi, F
-        f :=
+    ∏ f ∈ Ico lo hi, F f = (∏ f ∈ Ico lo ((lo + hi) / 2), F f) * ∏ f ∈ Ico
+        ((lo + hi) / 2) hi, F f :=
   (prod_Ico_consecutive F (by omega) (by omega)).symm
 
 /-! ### Factor states -/
@@ -315,8 +317,8 @@ theorem two_pow_cases (k : ℕ) : 2 ^ 2 ^ k = 2 ∨
 theorem mean_cl (chs : List ℕ) (hc : (S.clique chs).q = 2 ∨ (4 ≤ (S.clique chs).q ∧
     (S.clique chs).q = Nat.sqrt (S.clique chs).q * Nat.sqrt (S.clique chs).q)) :
     S.mean (.cl chs) = (S.clique chs).value := by
-  show (if _ then _ else _) = _
-  rw [if_pos hc]
+  change (if _ then _ else _) = _
+  rw [ite_eq_left hc]
 
 theorem rankCl_gt_last (k : ℕ) (chs : List ℕ) (i : ℕ) (hi : i < 2 ^ S.gen.width (.cl chs)) :
     rankEnt S chs 0 i + rankEnt S chs 1 i + 1 < rankCl S k chs := by
@@ -346,15 +348,15 @@ theorem sound_cl (hS : S.Good) {D : ℕ} (hD : 2 * S.K = 2 ^ 2 ^ D) (chs : List 
   rcases two_pow_cases (D - chs.length) with h2 | ⟨h4, hsq⟩
   · have hq2 : (S.clique chs).q = 2 := hq.trans h2
     have hw : S.gen.width (.cl chs) = codeWidth ((S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩) := by
-      show (if h : _ then _ else _) = _
-      rw [dif_pos hq2]
+      change (if h : _ then _ else _) = _
+      rw [dite_eq_left hq2]
     have hch : ∀ i, S.gen.child (.cl chs) i =
         (decodeLabel ((S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩) i).elim .zero fun l =>
           if labelWt l = (S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩ then .last chs
               i else .zero := by
       intro i
-      show (if h : _ then _ else _) = _
-      rw [dif_pos hq2]
+      change (if h : _ then _ else _) = _
+      rw [dite_eq_left hq2]
       cases decodeLabel _ i <;> rfl
     refine ⟨?_, fun i hi => ?_⟩
     · rw [mean_cl S chs (Or.inl hq2), value_two _ hq2, hw]
@@ -366,13 +368,17 @@ theorem sound_cl (hS : S.Good) {D : ℕ} (hD : 2 * S.K = 2 ^ 2 ^ D) (chs : List 
         split_ifs <;> rfl
     · rw [hch]
       rcases decodeLabel ((S.clique chs).a ⟨0, by omega⟩ ⟨1, by omega⟩) i with _ | l
-      · exact
-          ⟨trivial, by show 0 < rankCl S (D - chs.length) chs; have := rankCl_gt_last S (D - chs.length) chs i hi; omega⟩
+      · exact ⟨trivial,
+              by
+                change 0 < rankCl S (D - chs.length) chs
+                have := rankCl_gt_last S (D - chs.length) chs i hi; omega⟩
       · simp only [Option.elim]
         split_ifs
         · exact ⟨⟨hp, hq2⟩, rankCl_gt_last S (D - chs.length) chs i hi⟩
-        · exact
-            ⟨trivial, by show 0 < rankCl S (D - chs.length) chs; have := rankCl_gt_last S (D - chs.length) chs i hi; omega⟩
+        · exact ⟨trivial,
+                by
+                  change 0 < rankCl S (D - chs.length) chs
+                  have := rankCl_gt_last S (D - chs.length) chs i hi; omega⟩
   · rw [← hq] at h4 hsq
     have hq2 : (S.clique chs).q ≠ 2 := by omega
     have hk : 1 ≤ D - chs.length := by
@@ -380,16 +386,16 @@ theorem sound_cl (hS : S.Good) {D : ℕ} (hD : 2 * S.K = 2 ^ 2 ^ D) (chs : List 
       rw [show D - chs.length = 0 by omega] at hq
       omega
     have hw : S.gen.width (.cl chs) = choiceWidth (Nat.sqrt (S.clique chs).q) S.fw := by
-      show (if h : _ then _ else _) = _
-      rw [dif_neg hq2]
+      change (if h : _ then _ else _) = _
+      rw [dite_eq_right hq2]
     have hch : ∀ i, S.gen.child (.cl chs) i =
         if ValidChoiceCode ((S.clique chs).recast _ hsq).a S.fw i then .cl
             (i :: chs) else .zero := by
       intro i
-      show (if h : _ then _ else _) = _
-      rw [dif_neg hq2, dif_pos hsq]
-    have hpath : ∀ i, ValidChoiceCode ((S.clique chs).recast _ hsq).a S.fw i → S.PathOK
-        (i :: chs) :=
+      change (if h : _ then _ else _) = _
+      rw [dite_eq_right hq2, dite_eq_left hsq]
+    have hpath : ∀ i, ValidChoiceCode ((S.clique chs).recast _ hsq).a S.fw i →
+        S.PathOK (i :: chs) :=
       fun i hv => ⟨hp, h4, hsq, hv⟩
     refine ⟨?_, fun i hi => ?_⟩
     · rw [mean_cl S chs (Or.inr ⟨h4, hsq⟩),
@@ -406,11 +412,13 @@ theorem sound_cl (hS : S.Good) {D : ℕ} (hD : 2 * S.K = 2 ^ 2 ^ D) (chs : List 
       split_ifs with hv
       · obtain ⟨hq', hl'⟩ := S.q_path hD (i :: chs) (hpath i hv)
         refine ⟨⟨hpath i hv, hq', hl'⟩, ?_⟩
-        show rankCl S (D - (i :: chs).length) (i :: chs) < rankCl S (D - chs.length) chs
+        change rankCl S (D - (i :: chs).length) (i :: chs) < rankCl S (D - chs.length) chs
         rw [show D - chs.length = (D - (i :: chs).length) + 1 by simp; omega]
         exact rankCl_gt_cl S _ chs i hi
-      · exact
-          ⟨trivial, by show 0 < rankCl S (D - chs.length) chs; have := rankCl_gt_last S (D - chs.length) chs i hi; omega⟩
+      · exact ⟨trivial,
+              by
+                change 0 < rankCl S (D - chs.length) chs
+                have := rankCl_gt_last S (D - chs.length) chs i hi; omega⟩
 
 /-! ### Product states -/
 
@@ -440,8 +448,8 @@ theorem sound_last (D : ℕ) (chs : List ℕ) (i : ℕ) (hinv : S.Inv D (.last c
     S.ProdOK D (.last chs i) := by
   obtain ⟨hp, hq⟩ := hinv
   refine ⟨rfl, ⟨hp, by omega⟩, ⟨hp, by omega⟩, ?_, ?_⟩
-  · show rankEnt S chs 0 i < rankEnt S chs 0 i + rankEnt S chs 1 i + 1; omega
-  · show rankEnt S chs 1 i < rankEnt S chs 0 i + rankEnt S chs 1 i + 1; omega
+  · change rankEnt S chs 0 i < rankEnt S chs 0 i + rankEnt S chs 1 i + 1; omega
+  · change rankEnt S chs 1 i < rankEnt S chs 0 i + rankEnt S chs 1 i + 1; omega
 
 theorem mean_rangeSt0 (v args lo hi : ℕ) (h : lo ≤ hi) :
     S.mean (rangeSt (fun f => .lit (S.factor0 v args f)) (.rng0 v args) lo hi) =
@@ -450,8 +458,8 @@ theorem mean_rangeSt0 (v args lo hi : ℕ) (h : lo ≤ hi) :
 
 theorem rank_rangeSt0 (D v args lo hi : ℕ) (R : ℕ) (h0 : hi - lo < R) :
     S.rank D (rangeSt (fun f => .lit (S.factor0 v args f)) (.rng0 v args) lo hi) < R :=
-  S.rank_rangeSt_lt D _ _ lo hi R (by omega) (fun _ => by show 0 < R; omega)
-    (fun _ => by show hi - lo < R; exact h0)
+  S.rank_rangeSt_lt D _ _ lo hi R (by omega) (fun _ => by change 0 < R; omega)
+    (fun _ => by change hi - lo < R; exact h0)
 
 theorem inv_rangeSt0 (D v args lo hi : ℕ) :
     S.Inv D (rangeSt (fun f => .lit (S.factor0 v args f)) (.rng0 v args) lo hi) :=
@@ -468,7 +476,7 @@ theorem sound_ent0 (D v args : ℕ) (hinv : S.Inv D (.ent [] v args)) : S.ProdOK
   rw [ProdOK, c0, c1, hr]
   refine ⟨?_, S.inv_rangeSt0 D v args _ _, S.inv_rangeSt0 D v args _ _,
     S.rank_rangeSt0 D v args _ _ _ (by omega), S.rank_rangeSt0 D v args _ _ _ (by omega)⟩
-  show cEntry S.C₀ v args = _
+  change cEntry S.C₀ v args = _
   rw [S.ent0 v args hv, S.mean_rangeSt0 v args _ _ (Nat.zero_le _),
     S.mean_rangeSt0 v args _ _ (Nat.div_le_self _ _),
     prod_Ico_consecutive _ (Nat.zero_le _) (Nat.div_le_self _ _), range_eq_Ico]
@@ -484,7 +492,7 @@ theorem sound_rng0 (D v args lo hi : ℕ) (hinv : S.Inv D (.rng0 v args lo hi)) 
   rw [ProdOK, c0, c1, hr]
   refine ⟨?_, S.inv_rangeSt0 D v args _ _, S.inv_rangeSt0 D v args _ _,
     S.rank_rangeSt0 D v args _ _ _ (by omega), S.rank_rangeSt0 D v args _ _ _ (by omega)⟩
-  show ∏ f ∈ Ico lo hi, S.factor0 v args f = _
+  change ∏ f ∈ Ico lo hi, S.factor0 v args f = _
   rw [S.mean_rangeSt0 v args _ _ (by omega), S.mean_rangeSt0 v args _ _ (by omega),
     prod_halves _ (by omega)]
 
@@ -501,8 +509,8 @@ theorem sound_rng (D : ℕ) (i : ℕ) (rest : List ℕ) (v args ξ lo hi : ℕ)
   have hr : ∀ a b, S.rank D (.rng (i :: rest) v args ξ a b) = (b - a) + 1 +
       ∑ f ∈ range (nFac (Nat.sqrt (S.clique rest).q)),
         rkF (rankEnt S rest) (S.factorSt rest i v args ξ f) := fun _ _ => rfl
-  have hm : ∀ a b, a ≤ b → S.mean (rangeSt (S.factorSt rest i v args ξ) (.rng (i :: rest) v args ξ)
-      a b) =
+  have hm : ∀ a b, a ≤ b → S.mean (rangeSt (S.factorSt rest i v args ξ)
+      (.rng (i :: rest) v args ξ) a b) =
       ∏ f ∈ Ico a b, S.meanBase (S.factorSt rest i v args ξ f) := fun a b hab =>
     S.mean_rangeSt _ _ _ (fun f => S.mean_factorSt rest i v args ξ f h) (fun _ _ => rfl) hab
   have hinvR : ∀ a b, b ≤ hi →
@@ -530,7 +538,7 @@ theorem sound_rng (D : ℕ) (i : ℕ) (rest : List ℕ) (v args ξ lo hi : ℕ)
   rw [ProdOK, c0, c1]
   refine ⟨?_, hinvR _ _ (by omega), hinvR _ _ le_rfl, hrk _ _ le_rfl (by omega) (by omega) ?_,
     hrk _ _ (by omega) (by omega) le_rfl ?_⟩
-  · show ∏ f ∈ Ico lo hi, S.meanBase (S.factorSt rest i v args ξ f) = _
+  · change ∏ f ∈ Ico lo hi, S.meanBase (S.factorSt rest i v args ξ f) = _
     rw [hm _ _ (by omega), hm _ _ (by omega), prod_halves _ (by omega)]
   · intro e; simp at e; omega
   · intro e; simp at e; omega
@@ -541,16 +549,16 @@ theorem sound_trm (D : ℕ) (up : Bool) (x y m : Label) (lo pos hi : ℕ) (t : H
     S.ProdOK D (.trm up x y m lo pos hi t T₁ T₂ c₁ c₀ c₂) := by
   obtain ⟨h1, h2, h3, h4, h5⟩ := hinv
   refine ⟨rfl, ⟨h1, by omega, h4⟩, ⟨h2, h3, h5⟩, ?_, ?_⟩
-  · show 4 * (pos - lo) + 3 < 4 * (hi - lo) + 2; omega
-  · show 4 * (hi - pos) + 1 < 4 * (hi - lo) + 2; omega
+  · change 4 * (pos - lo) + 3 < 4 * (hi - lo) + 2; omega
+  · change 4 * (hi - pos) + 1 < 4 * (hi - lo) + 2; omega
 
 theorem sound_trr (D : ℕ) (up : Bool) (x y m : Label) (pos hi : ℕ) (t : HPlace × ℕ)
     (T₂ : Multiset (HPlace × ℕ)) (c₀ c₂ : ℤ) (hinv : S.Inv D (.trr up x y m pos hi t T₂ c₀ c₂)) :
     S.ProdOK D (.trr up x y m pos hi t T₂ c₀ c₂) := by
   obtain ⟨h1, h2, h3⟩ := hinv
   refine ⟨rfl, trivial, ⟨by omega, h2, h3⟩, ?_, ?_⟩
-  · show 0 < 4 * (hi - pos) + 1; omega
-  · show 4 * (hi - (pos + 1)) + 3 < 4 * (hi - pos) + 1; omega
+  · change 0 < 4 * (hi - pos) + 1; omega
+  · change 4 * (hi - (pos + 1)) + 3 < 4 * (hi - pos) + 1; omega
 
 /-! ### Sum states -/
 
@@ -571,14 +579,14 @@ theorem sound_tr (D : ℕ) (up : Bool) (x y m : Label) (lo hi : ℕ) (T : Multis
       if PivotValid up x y m lo hi T i then trmOf (decodePivot up (tWt (srcSub up x y m lo hi) T) i)
       else .zero := by
     intro i
-    show (if _ then _ else _) = _
+    change (if _ then _ else _) = _
     split_ifs
     · generalize decodePivot up (tWt (srcSub up x y m lo hi) T) i = d
       obtain ⟨ν, t, T₁, c₁, c₀⟩ := d
       rfl
     · rfl
   refine ⟨?_, fun i hi' => ?_⟩
-  · show Setup.trMean up x y m lo hi T c = _
+  · change Setup.trMean up x y m lo hi T c = _
     rw [trMean_pivot up x y m T c hlt hhi hT]
     refine sum_congr rfl fun i _ => ?_
     rw [hch]
@@ -590,17 +598,18 @@ theorem sound_tr (D : ℕ) (up : Bool) (x y m : Label) (lo hi : ℕ) (T : Multis
       have hl := length_srcSub up x y m hhi hle
       generalize decodePivot up (tWt (srcSub up x y m lo hi) T) i = d at h1 h2 h3 ⊢
       refine
-          ⟨⟨by omega, by omega, hhi, fun s hs => hT s (Multiset.mem_of_le (h3.trans tsub_le_self) hs),
+          ⟨⟨by omega, by omega, hhi,
+              fun s hs => hT s (Multiset.mem_of_le (h3.trans tsub_le_self) hs),
         fun s hs => hT s (Multiset.mem_of_le (tsub_le_self.trans tsub_le_self) hs)⟩, ?_⟩
-      show 4 * (hi - lo) + 2 < 4 * (hi - lo) + 3
+      change 4 * (hi - lo) + 2 < 4 * (hi - lo) + 3
       omega
-    · exact ⟨trivial, by show 0 < 4 * (hi - lo) + 3; omega⟩
+    · exact ⟨trivial, by change 0 < 4 * (hi - lo) + 3; omega⟩
 
 theorem leaf_tr (D : ℕ) (up : Bool) (x y m : Label) (lo hi : ℕ) (T : Multiset (HPlace × ℕ)) (c : ℤ)
     (hinv : S.Inv D (.tr up x y m lo hi T c)) (hlt : ¬ lo < hi) :
     S.mean (.tr up x y m lo hi T c) = S.gen.leafVal (.tr up x y m lo hi T c) := by
   obtain ⟨hle, -, -⟩ := hinv
-  show Setup.trMean up x y m lo hi T c = if T = 0 ∧ c = 0 then 1 else 0
+  change Setup.trMean up x y m lo hi T c = if T = 0 ∧ c = 0 then 1 else 0
   rw [show hi = lo by omega, trMean_empty]
 
 theorem parentGrid_eq (rest : List ℕ) (i : ℕ)
@@ -610,7 +619,7 @@ theorem parentGrid_eq (rest : List ℕ) (i : ℕ)
       orientRow ((S.clique rest).recast _ h).a
         fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1⟩ := by
   unfold parentGrid
-  simp only [dif_pos h]
+  simp only [dite_eq_left h]
 
 open Classical in
 theorem sound_ent (D : ℕ) (i : ℕ) (rest : List ℕ) (v args : ℕ)
@@ -631,12 +640,14 @@ theorem sound_ent (D : ℕ) (i : ℕ) (rest : List ℕ) (v args : ℕ)
     simp only [Setup.gen, hpg]
   have hw : S.gen.width (.ent (i :: rest) v args) = copiesWidth (S.clique rest)
       (holders (Nat.sqrt (S.clique rest).q) v (orientRow ((S.clique rest).recast _ h).a
-        fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q) := by
+        fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+          (Nat.sqrt (S.clique rest).q) := by
     simp only [Setup.gen, Setup.xiWidth, hpg]
   have hch : ∀ ξ, S.gen.child (.ent (i :: rest) v args) ξ =
       if CopiesValid (S.clique rest) (holders (Nat.sqrt (S.clique rest).q) v
         (orientRow ((S.clique rest).recast _ h).a
-          fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q) ξ
+          fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+            (Nat.sqrt (S.clique rest).q) ξ
       then .rng (i :: rest) v args ξ 0 (nFac (Nat.sqrt (S.clique rest).q)) else .zero := by
     intro ξ
     simp only [Setup.gen, hpg]
@@ -646,15 +657,17 @@ theorem sound_ent (D : ℕ) (i : ℕ) (rest : List ℕ) (v args : ℕ)
       if Setup.ArgsValid (S.clique (i :: rest)) v args (packL (Nat.sqrt (S.clique rest).q)) then
         ∑ ξ ∈ range (2 ^ copiesWidth (S.clique rest)
           (holders (Nat.sqrt (S.clique rest).q) v (orientRow ((S.clique rest).recast _ h).a
-            fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q)),
+            fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+              (Nat.sqrt (S.clique rest).q)),
           if CopiesValid (S.clique rest) (holders (Nat.sqrt (S.clique rest).q) v
             (orientRow ((S.clique rest).recast _ h).a
-              fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1)) (Nat.sqrt (S.clique rest).q) ξ
+              fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1))
+                (Nat.sqrt (S.clique rest).q) ξ
           then ∏ f ∈ range (nFac (Nat.sqrt (S.clique rest).q)), S.meanBase
               (S.factorSt rest i v args ξ f)
           else 0
       else 0 := by
-    show cEntry (S.clique (i :: rest)) v args = _
+    change cEntry (S.clique (i :: rest)) v args = _
     have hC0 := S.clique_cons rest i h
     unfold mergeStep at hC0
     have hf : ∀ ξ f, S.meanBase (S.factorSt rest i v args ξ f) = fval (S.clique rest)
@@ -668,7 +681,7 @@ theorem sound_ent (D : ℕ) (i : ℕ) (rest : List ℕ) (v args : ℕ)
     revert hC0
     cases orientRow ((S.clique rest).recast _ h).a
         fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1 <;>
-      intro hC0 <;> simp only [Bool.false_eq_true, if_false, if_true] at hC0 <;> rw [hC0]
+      intro hC0 <;> simp only [Bool.false_eq_true, ite_false, ite_true] at hC0 <;> rw [hC0]
     · exact ent_col rest (S.clique rest) h _ hkk ⟨v, hv⟩ args
     · exact ent_row rest (S.clique rest) h _ ⟨v, hv⟩ args
   constructor
@@ -676,11 +689,11 @@ theorem sound_ent (D : ℕ) (i : ℕ) (rest : List ℕ) (v args : ℕ)
     rw [hk] at hks
     split_ifs at hks with hav
     refine ⟨?_, fun ξ hξ => ?_⟩
-    · rw [hmean, if_pos hav, hw]
+    · rw [hmean, ite_eq_left hav, hw]
       refine sum_congr rfl fun ξ _ => ?_
       rw [hch]
       split_ifs
-      · show _ = ∏ f ∈ Ico 0 _, _
+      · change _ = ∏ f ∈ Ico 0 _, _
         rw [range_eq_Ico]
       · rfl
     · have hξ' : ξ < 2 ^ S.xiWidth rest i v := hξ
@@ -689,18 +702,18 @@ theorem sound_ent (D : ℕ) (i : ℕ) (rest : List ℕ) (v args : ℕ)
       · have hg : 1 ≤ Nat.sqrt (S.clique rest).q := by omega
         have hn : 2 ≤ nFac (Nat.sqrt (S.clique rest).q) := by unfold nFac; nlinarith
         refine ⟨⟨hp, hv, by omega, le_rfl⟩, ?_⟩
-        show nFac (Nat.sqrt (S.clique rest).q) - 0 + 1 + _ < 2 + ∑ ξ ∈ range
+        change nFac (Nat.sqrt (S.clique rest).q) - 0 + 1 + _ < 2 + ∑ ξ ∈ range
             (2 ^ S.xiWidth rest i v), _
         have := Finset.single_le_sum (f := fun ξ => nFac (Nat.sqrt (S.clique rest).q) + 1 +
             ∑ f ∈ range (nFac (Nat.sqrt (S.clique rest).q)),
               rkF (rankEnt S rest) (S.factorSt rest i v args ξ f))
           (fun _ _ => Nat.zero_le _) (mem_range.mpr hξ')
         omega
-      · exact ⟨trivial, by show 0 < 2 + _; omega⟩
+      · exact ⟨trivial, by change 0 < 2 + _; omega⟩
   · intro hkl
     rw [hk] at hkl
     split_ifs at hkl with hav
-    rw [hmean, if_neg hav]
+    rw [hmean, ite_eq_right hav]
     rfl
 
 /-! ### Local soundness and the value -/
@@ -719,7 +732,7 @@ theorem gen_sound (hS : S.Good) {D : ℕ} (hD : 2 * S.K = 2 ^ 2 ^ D) :
     | tr up x y m lo hi T c =>
       by_cases hlt : lo < hi
       · exact S.sound_tr D up x y m lo hi T c hinv hlt
-      · have : S.gen.kind (.tr up x y m lo hi T c) = .leaf := if_neg hlt
+      · have : S.gen.kind (.tr up x y m lo hi T c) = .leaf := ite_eq_right hlt
         rw [this] at hk; cases hk
     | rng chs => cases hk
     | _ => cases hk
@@ -773,14 +786,14 @@ theorem gen_sound (hS : S.Good) {D : ℕ} (hD : 2 * S.K = 2 ^ 2 ^ D) :
       split_ifs at hk with h1 h2
       have hn : ¬ ((S.clique chs).q = 2 ∨ (4 ≤ (S.clique chs).q ∧
           (S.clique chs).q = Nat.sqrt (S.clique chs).q * Nat.sqrt (S.clique chs).q)) := by tauto
-      exact if_neg hn
+      exact ite_eq_right hn
     | ent chs v args =>
       cases chs with
       | nil => cases hk
       | cons i rest => exact (S.sound_ent D i rest v args hinv).2 hk
     | tr up x y m lo hi T c =>
       by_cases hlt : lo < hi
-      · have : S.gen.kind (.tr up x y m lo hi T c) = .sum := if_pos hlt
+      · have : S.gen.kind (.tr up x y m lo hi T c) = .sum := ite_eq_left hlt
         rw [this] at hk; cases hk
       · exact S.leaf_tr D up x y m lo hi T c hinv hlt
     | _ => cases hk

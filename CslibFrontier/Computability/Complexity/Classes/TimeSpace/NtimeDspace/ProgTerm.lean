@@ -155,7 +155,7 @@ theorem foldAcc_pow2 (env : List ℕ) (k : ℕ) :
   | zero => rfl
   | succ k ih =>
     rw [foldAcc_succ]
-    simp [denote_lvl, Nat.add_assoc, Nat.add_sub_cancel_left, Nat.add_sub_add_left, ih, pow_succ]
+    simp [denote_lvl, Nat.add_assoc, Nat.add_sub_add_left, ih, pow_succ]
 
 @[simp] theorem denote_pow2 (e : Term) (env : List ℕ) :
     (pow2 e).denote w env = 2 ^ e.denote w env := by
@@ -167,7 +167,7 @@ theorem bnd_pow2 (e : Term) (env : List ℕ) (he : e.Bnd w B env)
     (Nat.lt_two_pow_self).le.trans hb
   simp only [pow2, bnd_foldT, bnd_const, bnd_mul, bnd_lvl, true_and]
   refine ⟨he, (Nat.one_le_two_pow).trans hb, hle, fun k hk => ?_⟩
-  simp only [denote_lvl_cons, List.length_cons, le_refl, Nat.le_succ, ite_true, denote_const,
+  simp only [denote_lvl_cons, List.length_cons, le_refl, ite_true, denote_const,
     foldAcc_pow2]
   rw [← pow_succ]
   have hk' : 2 ^ (k + 1) ≤ B := (Nat.pow_le_pow_right (by norm_num) hk).trans hb

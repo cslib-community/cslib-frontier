@@ -44,8 +44,8 @@ namespace Cslib.Complexity.NtimeDspace.Cross
 open NtimeDspace.ProgLang Finset NtimeDspace.SumProduct
 
 /-- **Theorem 2.3** (bit form): for every family of networks with logspace access, one closed
-program
-over `[s, |w|, j]` computes bit `j` of `Z(G)` for every description `w` of a network `G` of the
+program over `[s, |w|, j]` computes bit `j` of `Z(G)` for every description `w` of a network `G` of
+the
 family
 at size `s ≥ s₀`, with every value of its evaluation below `2^(C · SqrtLog s)`. -/
 def CubeCounting : Prop :=

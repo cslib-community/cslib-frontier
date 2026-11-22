@@ -190,9 +190,8 @@ lemma run_copy : ∀ (rest : List Bool) (p : ℕ) (hp : p + 1 < x.length + 2) (Q
 lemma step_back (Q : List Bool) :
     (machine f R hf hR).step A (C f R .back (⟨x.length + 1, by omega⟩ : Fin (x.length + 2)) Q) =
       C f R (.ones ⟨0, hR⟩) (⟨x.length, by omega⟩ : Fin (x.length + 2)) Q := by
-  rw
-      [step_C hf hR A
-      inputSymbol_right fun _ => rfl, show (-1 : SignType) = .neg from rfl, moveInputPos_neg_of_ne_left _ (by simp)]
+  rw [step_C hf hR A inputSymbol_right fun _ => rfl, show (-1 : SignType) = .neg from rfl,
+    moveInputPos_neg_of_ne_left _ (by simp)]
   simp
 
 /-- The ones of one cell inside the input. -/

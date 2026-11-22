@@ -162,8 +162,8 @@ theorem cube_bit_size (C₁ : ℕ) (hC₁ : 2 ≤ C₁) : ∃ c₀ s₀ : ℕ, �
         (formulaBitT T).Bnd w (2 ^ (128 * L)) [par] := by
   obtain ⟨Cf, sf, hfc⟩ := formula_cost C₁
   obtain ⟨Cs, ss, hss⟩ := state_size C₁
-  refine ⟨Cf + Cs + C₁ + 5000 * (4 * C₁ + 4) + 16, sf + ss + 2 ^ 192 + 48 * (4 * C₁ + 3) ^ 2 + C₁ +
-      1,
+  refine ⟨Cf + Cs + C₁ + 5000 * (4 * C₁ + 4) + 16, sf + ss + 2 ^ 192 + 48 *
+      (4 * C₁ + 3) ^ 2 + C₁ + 1,
     ?_⟩
   intro s hs L hL V G P hV hM hdeg hev hnn hP1 hPℓ w par T hI hN tP tB tfw tK tH
   obtain ⟨h2K, hq3, hlq, hDl, hlD, hl192, hΦ, hfw⟩ :=
@@ -270,7 +270,7 @@ theorem cube_bit_size (C₁ : ℕ) (hC₁ : 2 ≤ C₁) : ∃ c₀ s₀ : ℕ, �
     calc Cf * F < c₀ * F := Nat.mul_lt_mul_of_pos_right (by omega) (by omega)
       _ ≤ L := hLF
   have hPL : P < 2 ^ L := hPℓ.trans_lt (Nat.pow_lt_pow_right (by norm_num) hℓL)
-  exact cube_bit (S := setupOf s G P) (j := P - 1) hI hG (show P = P - 1 + 1 by omega) hPL hℓ hPℓ
-      hcost hcL
+  exact cube_bit (S := setupOf s G P) (j := P - 1) hI hG (show P = P - 1 + 1 by omega) hPL
+      hℓ hPℓ hcost hcL
 
 end Cslib.Complexity.NtimeDspace.Cube.Num

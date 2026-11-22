@@ -186,8 +186,8 @@ def clauseBlock (W : ℕ) {n : ℕ} (C : List (Literal (Fin n))) : List Bool :=
 theorem enc_eq {n : ℕ} (φ : CNF (Fin n)) :
     encSlots φ = List.replicate n true ++ false :: φ.flatMap (clauseBlock (width n)) := rfl
 
-theorem length_clauseBlock (W : ℕ) {n : ℕ} (C : List (Literal (Fin n))) : (clauseBlock W C).length =
-    3 * W := by
+theorem length_clauseBlock (W : ℕ) {n : ℕ} (C : List (Literal (Fin n))) :
+    (clauseBlock W C).length = 3 * W := by
   simp [clauseBlock, List.length_flatMap]; ring
 
 theorem length_enc {n : ℕ} (φ : CNF (Fin n)) : (encSlots φ).length = n + 1 + φ.length *
@@ -216,7 +216,7 @@ theorem slot_lt {n : ℕ} (o : Option (Literal (Fin n))) : slot o < 2 ^ width n 
     | some l =>
       obtain ⟨i, b⟩ := l
       have := i.2
-      cases b <;> simp [slot] <;> omega
+      cases b <;> simp [slot]; omega
   refine h.trans_lt ?_
   rw [width, Nat.log2_eq_log_two]
   exact Nat.lt_pow_succ_log_self (by norm_num) _
@@ -235,7 +235,7 @@ theorem lenW_eq {w : List Bool} (hw : w.length ≤ bnd s) : lenW w s = w.length 
 
 theorem getElem?_frame_lt {i : ℕ} (hi : i < 2 * x.length) :
     (frame x)[i]? = some (if i % 2 = 0 then true else x[i / 2]'(by omega)) := by
-  rw [List.getElem?_eq_getElem (by simp; omega), getElem_frame, dif_pos hi]
+  rw [List.getElem?_eq_getElem (by simp; omega), getElem_frame, dite_eq_left hi]
 
 theorem offW_eq (hw : (frame x ++ encSlots φ).length ≤ bnd s) :
     offW (frame x ++ encSlots φ) s = 2 * x.length + 1 := by
@@ -247,11 +247,11 @@ theorem offW_eq (hw : (frame x ++ encSlots φ).length ≤ bnd s) :
   · rw [ib_some (b := false)]
     · simp
     · rw [List.getElem?_append_left (by simp), List.getElem?_eq_getElem (by simp),
-        getElem_frame, dif_neg (by omega)]
+        getElem_frame, dite_eq_right (by omega)]
   · rcases Nat.mod_two_eq_zero_or_one i with h | h
     · rw [ib_some (b := true)]
       · simp [h]
-      · rw [List.getElem?_append_left (by simp; omega), getElem?_frame_lt hi, if_pos h]
+      · rw [List.getElem?_append_left (by simp; omega), getElem?_frame_lt hi, ite_eq_left h]
     · simp [h]
 
 theorem getElem?_after (k : ℕ) :
@@ -288,8 +288,8 @@ theorem mW_eq (hw : (frame x ++ encSlots φ).length ≤ bnd s) (hm : φ.length �
   rw [this, Nat.mul_div_cancel _ (by positivity)]
   exact min_eq_left hm
 
-theorem svW_eq (hw : (frame x ++ encSlots φ).length ≤ bnd s) {c j : ℕ} (hc : c < φ.length)
-    (hj : j < 3) :
+theorem svW_eq (hw : (frame x ++ encSlots φ).length ≤ bnd s) {c j : ℕ}
+    (hc : c < φ.length) (hj : j < 3) :
     svW (frame x ++ encSlots φ) s (3 * c + j) = slot (φ[c])[j]? := by
   rw [svW, widW_eq hw, nW_eq hw, offW_eq hw]
   conv_rhs => rw [← bitsNum_digits (slot_lt (φ[c])[j]?)]
@@ -336,7 +336,7 @@ theorem value_net_enc (R : Type) [CommRing R] (x : List Bool) {n : ℕ} (φ : CN
       refine ⟨h, ?_, ?_⟩
       · simp only [Raw.var, hsv t ht, hs]; omega
       · simp only [Raw.sign, hsv t ht, hs]
-        cases ((φ[t / 3]'(by omega))[t % 3]).2 <;> simp <;> omega
+        cases ((φ[t / 3]'(by omega))[t % 3]).2 <;> simp
   have hpres : ∀ t (ht : t < 3 * d.m), t % 3 < (φ[t / 3]'(by omega)).length → d.pres t = true := by
     intro t ht h
     simp [Raw.pres, hsv t ht, List.getElem?_eq_getElem h, slot]
@@ -359,7 +359,7 @@ theorem value_net_enc (R : Type) [CommRing R] (x : List Bool) {n : ℕ} (φ : CN
       have e2 : (3 * c + j) % 3 = j := by omega
       simp only [e1, e2] at hjl hv hsg
       refine ⟨(φ[c])[j], List.getElem_mem _, ?_⟩
-      rw [Raw.extA, dif_pos (by rw [hv]; exact Fin.isLt _)] at hs
+      rw [Raw.extA, dite_eq_left (by rw [hv]; exact Fin.isLt _)] at hs
       rw [← hsg, ← hs]
       congr 1; exact Fin.ext hv.symm
     · intro h c hc
@@ -373,7 +373,7 @@ theorem value_net_enc (R : Type) [CommRing R] (x : List Bool) {n : ℕ} (φ : CN
       obtain ⟨hjl, hv, hsg⟩ := hlit _ ht hp
       simp only [e1, e2] at hjl hv hsg
       refine ⟨j, hj3, hp, ?_⟩
-      rw [Raw.extA, dif_pos (by rw [hv]; exact Fin.isLt _), hsg, ← hal]
+      rw [Raw.extA, dite_eq_left (by rw [hv]; exact Fin.isLt _), hsg, ← hal]
       congr 1; exact Fin.ext hv
   · -- every variable occurs
     obtain ⟨C, hC, l, hl, hlk⟩ := hocc ⟨k, hk⟩

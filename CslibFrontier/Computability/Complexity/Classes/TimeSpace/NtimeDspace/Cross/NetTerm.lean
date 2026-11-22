@@ -60,8 +60,8 @@ abbrev RowsFirst (x : List Bool) (t σ : ℕ) : Prop :=
   (blockNetworkOf machine e (x, t, σ)).2.IsRowsFirstBipartite (blockNetworkOf machine e (x, t, σ)).1
 
 /-- The block network of `(x, t, σ)` as an edge network over `ZMod p`. -/
-noncomputable abbrev blockEdgeNet (p : ℕ) (x : List Bool) (t σ : ℕ) (hd : RowsFirst machine e x t σ)
-    :
+noncomputable abbrev blockEdgeNet (p : ℕ) (x : List Bool) (t σ : ℕ)
+    (hd : RowsFirst machine e x t σ) :
     EdgeNet (ZMod p) (Fin (blockNetworkOf machine e (x, t, σ)).2.vertices.length) :=
   EdgeNet.ofExplicit (ZMod p) _ _ hd
 
@@ -71,6 +71,7 @@ section Facts
 
 variable {machine e} {p : ℕ} {x : List Bool} {t σ : ℕ}
 
+omit [DecidableEq State] in
 theorem length_vertices :
     (blockNetworkOf machine e (x, t, σ)).2.vertices.length = verticesN k s t :=
   length_vertices_blockNetworkOf machine e x t σ
@@ -87,12 +88,15 @@ theorem vertex_eq (v : ℕ) (hv : v < (blockNetworkOf machine e (x, t, σ)).2.ve
   rw [List.getElem?_eq_getElem hv] at h
   exact Option.some.inj h
 
+omit [DecidableEq State] in
 theorem vertex_fst (v : ℕ) (hv : v < (blockNetworkOf machine e (x, t, σ)).2.vertices.length) :
     ((blockNetworkOf machine e (x, t, σ)).2.vertices[v]).1 = netPorts k s t σ v := by
+  classical
   rw [vertex_eq v hv]
 
 variable (hd : RowsFirst machine e x t σ)
 
+omit [DecidableEq State] in
 theorem M_blockEdgeNet : (blockEdgeNet machine e p x t σ hd).M = edgesN k s t :=
   numEdges_blockNetworkOf machine e x t σ
 
@@ -100,23 +104,29 @@ omit [DecidableEq State] in
 theorem ports_blockEdgeNet (v : Fin (blockNetworkOf machine e (x, t, σ)).2.vertices.length) :
     (blockEdgeNet machine e p x t σ hd).ports v = EdgeNet.portsOf _ _ hd v := rfl
 
+omit [DecidableEq State] in
 /-- The ports of `v`, as numbers, are `netPorts k s t σ v`. -/
 theorem map_val_ports (v : Fin (blockNetworkOf machine e (x, t, σ)).2.vertices.length) :
     ((blockEdgeNet machine e p x t σ hd).ports v).map Fin.val = netPorts k s t σ v := by
-  show (EdgeNet.portsOf (blockNetworkOf machine e (x, t, σ)).2 _ hd v).map Fin.val = _
+  classical
+  change (EdgeNet.portsOf (blockNetworkOf machine e (x, t, σ)).2 _ hd v).map Fin.val = _
   rw [EdgeNet.portsOf, List.map_pmap]
   simp only [List.pmap_eq_map, List.map_id']
   exact vertex_fst v.1 v.2
 
+omit [DecidableEq State] in
 /-- The degree of `v`. -/
 theorem length_ports (v : Fin (blockNetworkOf machine e (x, t, σ)).2.vertices.length) :
     ((blockEdgeNet machine e p x t σ hd).ports v).length = (netPorts k s t σ v).length := by
+  classical
   rw [← map_val_ports hd v, List.length_map]
 
+omit [DecidableEq State] in
 /-- The `j`-th port of `v`. -/
 theorem val_get_ports (v : Fin (blockNetworkOf machine e (x, t, σ)).2.vertices.length)
     (j : Fin ((blockEdgeNet machine e p x t σ hd).ports v).length) :
     (((blockEdgeNet machine e p x t σ hd).ports v).get j : ℕ) = (netPorts k s t σ v).getD j 0 := by
+  classical
   have hj : j.1 < (netPorts k s t σ v).length := length_ports hd v ▸ j.2
   rw [List.getD_eq_getElem _ _ hj]
   have h : (((blockEdgeNet machine e p x t σ hd).ports v).map Fin.val)[j.1]'(by simp) =
@@ -142,7 +152,7 @@ omit [DecidableEq State] in
 theorem length_ports_le_maxDegree (v : Fin (blockNetworkOf machine e (x, t, σ)).2.vertices.length) :
     ((blockEdgeNet machine e p x t σ hd).ports v).length ≤
       (blockNetworkOf machine e (x, t, σ)).2.maxDegree := by
-  show (EdgeNet.portsOf (blockNetworkOf machine e (x, t, σ)).2 _ hd v).length ≤ _
+  change (EdgeNet.portsOf (blockNetworkOf machine e (x, t, σ)).2 _ hd v).length ≤ _
   rw [EdgeNet.portsOf, List.length_pmap]
   exact le_foldr_max _ _ v.2
 
@@ -154,10 +164,12 @@ theorem length_ports_le {C t' : ℕ} (hadm : ExplicitAdmissible C t'
     ((blockEdgeNet machine e p x t σ hd).ports v).length ≤ C * Nat.log 2 t' :=
   (length_ports_le_maxDegree hd v).trans hadm.2.2.1
 
+omit [DecidableEq State] in
 /-- The row end of edge `i` is its source `explicitSrcNum`. -/
 theorem val_u (i : Fin (blockEdgeNet machine e p x t σ hd).M) :
     ((blockEdgeNet machine e p x t σ hd).u i : ℕ) =
       explicitSrcNum k (numBlocks t) (letterBits k s (blockLength t)) σ i := by
+  classical
   obtain ⟨hr, hmem⟩ := EdgeNet.rowOf_spec (blockNetworkOf machine e (x, t, σ)).2 _ hd i
   change (EdgeNet.rowOf _ _ hd i : ℕ) = _
   have hr' : (EdgeNet.rowOf _ _ hd i : ℕ) < numBlocks t * (3 * k + 2) := hr
@@ -169,10 +181,12 @@ theorem val_u (i : Fin (blockEdgeNet machine e p x t σ hd).M) :
   · exact h.symm
   · unfold explicitTgtNum at h; omega
 
+omit [DecidableEq State] in
 /-- The column end of edge `i` is its target `explicitTgtNum`. -/
 theorem val_w (i : Fin (blockEdgeNet machine e p x t σ hd).M) :
     ((blockEdgeNet machine e p x t σ hd).w i : ℕ) =
       explicitTgtNum k (numBlocks t) (letterBits k s (blockLength t)) i := by
+  classical
   have hi : (i : ℕ) < edgesN k s t := M_blockEdgeNet (p := p) hd ▸ i.2
   set T := explicitTgtNum k (numBlocks t) (letterBits k s (blockLength t)) i with hT
   have hTlt : T < (blockNetworkOf machine e (x, t, σ)).2.vertices.length := by
@@ -243,8 +257,8 @@ def clkRadixT (nT τT : Term) : Term :=
 def clkArityT (τT σT : Term) : Term → Term := arityNT k s (clkNumBlocksT τT) (clkBlockLenT τT) σT
 
 /-- The ports of a vertex. -/
-def clkPortT (τT σT : Term) : Term → Term → Term := portAtT k s (clkNumBlocksT τT) (clkBlockLenT τT)
-    σT
+def clkPortT (τT σT : Term) : Term → Term → Term := portAtT k s (clkNumBlocksT τT)
+    (clkBlockLenT τT) σT
 
 /-- The weights of a vertex. -/
 def clkWeightT (nT τT σT : Term) : Term → Term → Term :=
@@ -273,8 +287,8 @@ variable (hτ : StableAt w τT env) (hτv : τT.denote w env = t)
 include hτ hτv
 
 theorem denote_clkBlockLenT : (clkBlockLenT τT).denote w env = blockLength t := by
-  rw [clkBlockLenT, denote_clogT (hτ.add (stableAt_const _ _)) (by simp), denote_add, hτv,
-      denote_const]
+  rw [clkBlockLenT, denote_clogT (hτ.add (stableAt_const _ _)) (by simp), denote_add,
+      hτv, denote_const]
   rfl
 
 theorem StableAt.clkBlockLenT : StableAt w (NetTerm.clkBlockLenT τT) env :=
@@ -289,8 +303,8 @@ theorem StableAt.clkNumBlocksT : StableAt w (NetTerm.clkNumBlocksT τT) env := f
   rw [denote_clkNumBlocksT (hτ.extend extra) (by rw [hτ extra, hτv]), denote_clkNumBlocksT hτ hτv]
 
 theorem denote_clkEdgesT : (clkEdgesT k s τT).denote w env = edgesN k s t := by
-  simp only [clkEdgesT, denote_mul, denote_const, denote_clkNumBlocksT hτ hτv, denote_clkBlockLenT
-      hτ hτv,
+  simp only [clkEdgesT, denote_mul, denote_const, denote_clkNumBlocksT hτ hτv,
+      denote_clkBlockLenT hτ hτv,
     edgesN, Turing.MultiTapePTM.letterBits]
 
 theorem StableAt.clkEdgesT : StableAt w (NetTerm.clkEdgesT k s τT) env := fun extra => by
@@ -310,11 +324,13 @@ theorem denote_letterBitsT :
     (letterBitsT k s (clkBlockLenT τT)).denote w env = letterBits k s (blockLength t) := by
   simp [letterBitsT, letterBits, denote_clkBlockLenT hτ hτv]
 
+omit [DecidableEq State] in
 /-- The number of edges. -/
 theorem denote_clkEdgesT_M {p : ℕ} {x : List Bool} (hd : RowsFirst machine e x t σ) :
     (clkEdgesT k s τT).denote w env = (blockEdgeNet machine e p x t σ hd).M := by
   rw [denote_clkEdgesT hτ hτv, M_blockEdgeNet]
 
+omit [DecidableEq State] in
 /-- The number of vertices. -/
 theorem denote_clkVerticesT_length {x : List Bool} :
     (clkVerticesT k s τT).denote w env =
@@ -329,43 +345,48 @@ theorem StableAt.edgeUT {iT : Term} (hi : StableAt w iT env) : StableAt w
     (NetTerm.edgeUT k s τT σT iT) env :=
   StableAt.explicitSrcT k (StableAt.clkNumBlocksT hτ hτv) (stableAt_letterBitsT hτ hτv) hσ hi
 
+omit [DecidableEq State] in
 /-- The row end of edge `i`. -/
 theorem denote_edgeUT {p : ℕ} (hd : RowsFirst machine e w t σ) {iT : Term}
     (hi : StableAt w iT env) {i : ℕ} (hiv : iT.denote w env = i)
     (hiM : i < (blockEdgeNet machine e p w t σ hd).M) :
     (edgeUT k s τT σT iT).denote w env = ((blockEdgeNet machine e p w t σ hd).u ⟨i, hiM⟩ : ℕ) := by
+  classical
   rw [val_u, NetTerm.edgeUT, denote_explicitSrcT k (StableAt.clkNumBlocksT hτ hτv)
-    (stableAt_letterBitsT hτ hτv) hσ hi, denote_clkNumBlocksT hτ hτv, denote_letterBitsT hτ hτv,
-        hσv, hiv]
+    (stableAt_letterBitsT hτ hτv) hσ hi, denote_clkNumBlocksT hτ hτv, denote_letterBitsT
+        hτ hτv, hσv, hiv]
 
 omit hσ hσv in
-theorem StableAt.edgeWT {iT : Term} (hi : StableAt w iT env) : StableAt w (NetTerm.edgeWT k s τT iT)
-    env :=
+theorem StableAt.edgeWT {iT : Term} (hi : StableAt w iT env) : StableAt w
+    (NetTerm.edgeWT k s τT iT) env :=
   fun extra => by
-    rw [NetTerm.edgeWT, denote_explicitTgtT, denote_explicitTgtT, (StableAt.clkNumBlocksT hτ hτv)
-        extra,
+    rw [NetTerm.edgeWT, denote_explicitTgtT, denote_explicitTgtT,
+        (StableAt.clkNumBlocksT hτ hτv) extra,
       (stableAt_letterBitsT hτ hτv) extra, hi extra]
 
-omit hσ hσv in
+omit hσ hσv [DecidableEq State] in
 /-- The column end of edge `i`. -/
 theorem denote_edgeWT {p : ℕ} (hd : RowsFirst machine e w t σ) {iT : Term}
     {i : ℕ} (hiv : iT.denote w env = i)
     (hiM : i < (blockEdgeNet machine e p w t σ hd).M) :
     (edgeWT k s τT iT).denote w env = ((blockEdgeNet machine e p w t σ hd).w ⟨i, hiM⟩ : ℕ) := by
-  rw [val_w, NetTerm.edgeWT, denote_explicitTgtT, denote_clkNumBlocksT hτ hτv, denote_letterBitsT hτ
-      hτv, hiv]
+  classical
+  rw [val_w, NetTerm.edgeWT, denote_explicitTgtT, denote_clkNumBlocksT hτ hτv,
+      denote_letterBitsT hτ hτv, hiv]
 
 omit hσv in
 theorem StableAt.clkArityT {vT : Term} (hv : StableAt w vT env) :
     StableAt w (NetTerm.clkArityT k s τT σT vT) env :=
   StableAt.arityNT (StableAt.clkNumBlocksT hτ hτv) (StableAt.clkBlockLenT hτ hτv) hσ hv
 
+omit [DecidableEq State] in
 /-- The degree of vertex `v`. -/
 theorem denote_clkArityT {p : ℕ} (hd : RowsFirst machine e w t σ) {vT : Term}
     (hvs : StableAt w vT env) {v : Fin (blockNetworkOf machine e (w, t, σ)).2.vertices.length}
     (hvv : vT.denote w env = v) :
     (clkArityT k s τT σT vT).denote w env =
         ((blockEdgeNet machine e p w t σ hd).ports v).length := by
+  classical
   rw [length_ports, clkArityT, denote_arityNT (StableAt.clkNumBlocksT hτ hτv)
       (StableAt.clkBlockLenT hτ hτv)
     hσ hvs, denote_clkNumBlocksT hτ hτv, denote_clkBlockLenT hτ hτv, hσv, hvv]
@@ -378,9 +399,10 @@ theorem StableAt.clkPortT {vT jT : Term} (hv : StableAt w vT env) (hj : StableAt
   have hb := StableAt.clkBlockLenT hτ hτv
   rw [NetTerm.clkPortT, denote_portAtT (hq.extend extra) (hb.extend extra) (hσ.extend extra)
       (hv.extend extra) jT
-    (hj.extend extra), denote_portAtT hq hb hσ hv jT hj, hq extra, hb extra, hσ extra, hv extra, hj
-        extra]
+    (hj.extend extra), denote_portAtT hq hb hσ hv jT hj, hq extra, hb extra, hσ extra, hv
+        extra, hj extra]
 
+omit [DecidableEq State] in
 /-- The `j`-th port of vertex `v`. -/
 theorem denote_clkPortT {p : ℕ} (hd : RowsFirst machine e w t σ) {vT jT : Term}
     (hvs : StableAt w vT env) {v : Fin (blockNetworkOf machine e (w, t, σ)).2.vertices.length}
@@ -389,6 +411,7 @@ theorem denote_clkPortT {p : ℕ} (hd : RowsFirst machine e w t σ) {vT jT : Ter
     (hjv : jT.denote w env = j) :
     (clkPortT k s τT σT vT jT).denote w env =
       (((blockEdgeNet machine e p w t σ hd).ports v).get j : ℕ) := by
+  classical
   rw [val_get_ports, clkPortT, denote_portAtT (StableAt.clkNumBlocksT hτ hτv)
       (StableAt.clkBlockLenT hτ hτv)
     hσ hvs jT hjs, denote_clkNumBlocksT hτ hτv, denote_clkBlockLenT hτ hτv, hσv, hvv, hjv]
@@ -412,9 +435,10 @@ theorem StableAt.clkRadixT : StableAt w (NetTerm.clkRadixT s nT τT) env := fun 
 variable (hσ : StableAt w σT env) (hσv : σT.denote w env = σ)
 include hσ hσv
 
-omit hσv in
+omit hσv [DecidableEq State] in
 theorem StableAt.clkWeightT {vT AT : Term} (hv : StableAt w vT env) (hA : StableAt w AT env) :
     StableAt w (NetTerm.clkWeightT k s machine e nT τT σT vT AT) env := fun extra => by
+  classical
   have hq := StableAt.clkNumBlocksT hτ hτv
   have hb := StableAt.clkBlockLenT hτ hτv
   have hR := StableAt.clkRadixT (s := s) hn hnv hτ hτv
@@ -429,11 +453,14 @@ theorem StableAt.clkWeightT {vT AT : Term} (hv : StableAt w vT env) (hA : Stable
     denote_weightNT hR hn hq hb hσ hv hA hbpos (by rw [hRv, denote_clkBlockLenT hτ hτv]) hnv,
     hq extra, hb extra, hσ extra, hv extra, hA extra]
 
-omit hσv in
+omit hσv [DecidableEq State] in
 theorem StableAt.evalAtT {pT vT AT : Term} (hp : StableAt w pT env) (hv : StableAt w vT env)
-    (hA : StableAt w AT env) : StableAt w (NetTerm.evalAtT k s machine e nT τT σT pT vT AT) env :=
-  (StableAt.clkWeightT hn hnv hτ hτv hσ hv hA).mod hp
+    (hA : StableAt w AT env) :
+    StableAt w (NetTerm.evalAtT k s machine e nT τT σT pT vT AT) env := by
+  classical
+  exact (StableAt.clkWeightT hn hnv hτ hτv hσ hv hA).mod hp
 
+omit [DecidableEq State] in
 /-- The table of vertex `v` at the bits of `A` on its ports (bit `j` on the `j`-th port), mod
 `p`. -/
 theorem denote_evalAtT {p : ℕ} (hd : RowsFirst machine e w t σ) {pT vT AT : Term}
@@ -444,6 +471,7 @@ theorem denote_evalAtT {p : ℕ} (hd : RowsFirst machine e w t σ) {pT vT AT : T
       ((blockEdgeNet machine e p w t σ hd).eval v
         (List.ofFn fun j : Fin ((blockEdgeNet machine e p w t σ hd).ports v).length =>
           A.testBit j)).val := by
+  classical
   have hq := StableAt.clkNumBlocksT hτ hτv
   have hb := StableAt.clkBlockLenT hτ hτv
   have hR := StableAt.clkRadixT (s := s) hn hnv hτ hτv
@@ -455,6 +483,7 @@ theorem denote_evalAtT {p : ℕ} (hd : RowsFirst machine e w t σ) {pT vT AT : T
     denote_clkNumBlocksT hτ hτv, denote_clkBlockLenT hτ hτv, hσv, hvv, hAv, hpv]
   rfl
 
+omit [DecidableEq State] in
 /-- The table of vertex `v` at bits `bs` on its ports, as the number `lsbValue bs`, mod `p`. -/
 theorem denote_evalAtT_bits {p : ℕ} (hd : RowsFirst machine e w t σ) {pT vT AT : Term}
     (hpv : pT.denote w env = p) (hvs : StableAt w vT env)
@@ -464,10 +493,11 @@ theorem denote_evalAtT_bits {p : ℕ} (hd : RowsFirst machine e w t σ) {pT vT A
     (hAv : AT.denote w env = Cslib.BitString.lsbValue bs) :
     (evalAtT k s machine e nT τT σT pT vT AT).denote w env =
       ((blockEdgeNet machine e p w t σ hd).eval v bs).val := by
+  classical
   have hlt := Cslib.BitString.lsbValue_lt bs
   rw [hbs, length_ports] at hlt
-  rw [denote_evalAtT hn hnv hτ hτv hσ hσv hd hpv hvs hvv hAs hAv, val_eval_ofFn, val_eval hd v bs
-      hbs,
+  rw [denote_evalAtT hn hnv hτ hτv hσ hσv hd hpv hvs hvv hAs hAv, val_eval_ofFn,
+      val_eval hd v bs hbs,
     Nat.mod_eq_of_lt hlt]
 
 end Denote
@@ -505,10 +535,12 @@ variable (hL : 8 ≤ L) (hτ : Tm w L 1 τT env) (hτs : StableAt w τT env) (h�
 include hL hτ hτs hτv ht hcube hconst
 
 
+omit hL hτ hτs hτv ht hconst in
 theorem t_lt_two_pow : t < 2 ^ L := lt_of_le_of_lt (t_le_edgesN k s t) (edgesN_lt hcube)
 
+omit hconst in
 theorem tm_clkBlockLenT : Tm w L 1 (clkBlockLenT τT) env := by
-  have htL := t_lt_two_pow hL hτ hτs hτv ht hcube hconst
+  have htL := t_lt_two_pow hcube
   refine tm_retier (d := 100) ?_ (StableAt.clkBlockLenT hτs hτv) ?_
   · have c1 : (1 : ℕ) < 2 ^ L := lit_lt_two_pow (by norm_num) (by omega)
     have c2 : (2 : ℕ) < 2 ^ L := lit_lt_two_pow (by norm_num) (by omega)
@@ -518,9 +550,10 @@ theorem tm_clkBlockLenT : Tm w L 1 (clkBlockLenT τT) env := by
   · rw [denote_clkBlockLenT hτs hτv, one_mul]
     exact lt_of_le_of_lt (blockLength_le_self t ht) htL
 
+omit hconst in
 theorem tm_clkNumBlocksT : Tm w L 1 (clkNumBlocksT τT) env := by
-  have htL := t_lt_two_pow hL hτ hτs hτv ht hcube hconst
-  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
+  have htL := t_lt_two_pow hcube
+  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
   refine tm_retier (d := 100) ?_ (StableAt.clkNumBlocksT hτs hτv) ?_
   · have c1 : (1 : ℕ) < 2 ^ L := lit_lt_two_pow (by norm_num) (by omega)
     unfold clkNumBlocksT ceilDivT
@@ -535,8 +568,8 @@ theorem tm_clkNumBlocksT : Tm w L 1 (clkNumBlocksT τT) env := by
     omega
 
 theorem tm_clkEdgesT : Tm w L 1 (clkEdgesT k s τT) env := by
-  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
-  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube hconst
+  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
+  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube
   refine tm_retier (d := 16) ?_ (StableAt.clkEdgesT hτs hτv) ?_
   · have c1 : 3 * k + 1 < 2 ^ L := by omega
     have c2 : s + k + 4 < 2 ^ L := by omega
@@ -546,8 +579,8 @@ theorem tm_clkEdgesT : Tm w L 1 (clkEdgesT k s τT) env := by
   · rw [denote_clkEdgesT hτs hτv, one_mul]; exact edgesN_lt hcube
 
 theorem tm_clkVerticesT : Tm w L 1 (clkVerticesT k s τT) env := by
-  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
-  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube hconst
+  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
+  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube
   refine tm_retier (d := 100) ?_ (StableAt.clkVerticesT hτs hτv) ?_
   · have c1 : 3 * k + 2 < 2 ^ L := by omega
     have c2 : s + k + 4 < 2 ^ L := by omega
@@ -561,7 +594,7 @@ theorem tm_clkRadixT (hn : Tm w L 1 nT env) (hns : StableAt w nT env)
     (hnv : nT.denote w env = w.length)
     (hRl : LocalSim.radix (blockLength t) w.length s < 2 ^ L) :
     Tm w L 1 (clkRadixT s nT τT) env := by
-  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
+  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
   have hbs := StableAt.clkBlockLenT hτs hτv
   have hpow : Tm w L 1 (powT (const 3) (mul (const 4) (clkBlockLenT τT))) env := by
     refine t_powT (t_const (lit_lt_two_pow (by omega) (by omega))) (stableAt_const _ _)
@@ -580,6 +613,7 @@ end Clock
 
 set_option maxHeartbeats 1000000 in
 -- Instantiating the accessor lemmas involves many large terms, as in `tm_accessors`.
+omit [DecidableEq State] in
 /-- **Tiers of the network accessors** at the clock `τT` and the input length `nT` (the
 clock-generic form of `tm_accessors`). -/
 theorem tm_clkAccessors {σT : Term} {D0 : ℕ}
@@ -600,6 +634,7 @@ theorem tm_clkAccessors {σT : Term} {D0 : ℕ}
       TmF2 w L (clkPortT k s τT σT) 4 4 1 env ∧
       TmF2v w L (clkWeightT k s machine e nT τT σT) 4 (verticesN k s t) 4 1 env ∧
       TmFv w L (fun e' => pow2 (clkArityT k s τT σT e')) 4 (verticesN k s t) 1 env := by
+  classical
   set n := w.length with hn_def
   set b := blockLength t with hb_def
   have hL2 : 2 ≤ L := by omega
@@ -608,8 +643,8 @@ theorem tm_clkAccessors {σT : Term} {D0 : ℕ}
   have hp3b : 0 < 3 ^ (3 * b) := by positivity
   have hpbk : 0 ≤ b ^ (k + 1) := Nat.zero_le _
   have hconst' : 4 * k + s + 100 < 2 ^ L := hconst
-  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube hconst
-  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
+  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube
+  have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
   have hqs := StableAt.clkNumBlocksT hτs hτv
   have hqv := denote_clkNumBlocksT hτs hτv
   have hbs := StableAt.clkBlockLenT hτs hτv
@@ -628,8 +663,8 @@ theorem tm_clkAccessors {σT : Term} {D0 : ℕ}
   have hRv := denote_clkRadixT (s := s) hNv hτs hτv
   have hRpos : Pos w L (clkRadixT s nT τT) env :=
     Pos.of_stable hRs (by rw [hRv]; unfold LocalSim.radix; positivity)
-  have hinit : LocalSim.stc e (some machine.initial) < 2 ^ L := lt_of_lt_of_le (stc_lt e _)
-      (by omega)
+  have hinit : LocalSim.stc e (some machine.initial) < 2 ^ L := lt_of_lt_of_le
+      (stc_lt e _) (by omega)
   have hwk : width k < 2 ^ L := by omega
   have hW : Le w L (const (width k)) (width k) env := Le.of_stable (stableAt_const _ _) le_rfl
   have hpowR : TmFv w L (fun i => powT (clkRadixT s nT τT) i) 4 (width k) 1 env :=
@@ -686,8 +721,7 @@ theorem tm_clkAccessors {σT : Term} {D0 : ℕ}
     Le.of_stable ((stableAt_const _ _).mul hbs) (by
       rw [letterBitsT, denote_mul, denote_const, hbv]; unfold MultiTapePTM.letterBits; exact le_rfl)
   have hm0' : MultiTapePTM.letterBits k s b < 2 ^ L := lt_trans hm0 Nat.lt_two_pow_self
-  have hm1 := tm_letterBitsT hL hR hRpos hN hq hb hbs hbv hbpos hbp hσ hconst' hinit hwk hW hpowR
-    h3 h3bLe hcr hcc h2b hrun hlet hletLe hm0'
+  have hm1 := tm_letterBitsT hb hbs hconst' hletLe hm0'
   have hpa := tm_pow2_arityNT (mv := verticesN k s t) hL hq hb hσ hqs hbs hσs
     (by rw [hqv, hbv]; exact hdeg) hD0 hconst'
   have hwt := tm_weightNT1 hL hR hRpos hN hq hb hbs hbv hbpos hbp hσ hconst' hinit hwk hW hpowR
@@ -705,10 +739,11 @@ theorem tm_clkAccessors {σT : Term} {D0 : ℕ}
       exact Nat.le_mul_of_pos_right _ (by omega)
     omega
   have hcst : 4 * k + 100 < 2 ^ L := by omega
-  exact ⟨tm_arityNT1 hL hq hb hσ hm1 hcst hEs hE, tm_portAtT1 hL hq hb hσ hm1 hcst hEs hE, hwt, hpa⟩
+  exact ⟨tm_arityNT1 hL hq hσ hm1 hcst hEs hE, tm_portAtT1 hL hq hσ hm1 hcst hEs hE, hwt, hpa⟩
 
 set_option maxHeartbeats 1000000 in
 -- Instantiating the accessor lemmas involves many large terms, as in `tm_accessors`.
+omit [DecidableEq State] in
 /-- **Tiers of the network terms** at the clock `τT` and the input length `nT`, for a stable
 schedule term of tier `1` and a prime term of any tier: the numbers of edges and vertices, the
 degree, the ports and the tables mod `p` have tier `1`, the ends tier `24`. -/
@@ -733,13 +768,14 @@ theorem tm_netTerms {σT pT : Term} {D0 dp : ℕ}
       TmF2 w L (clkPortT k s τT σT) 4 4 1 env ∧
       TmF2v w L (evalAtT k s machine e nT τT σT pT) 4 (verticesN k s t) 4 1 env ∧
       TmFv w L (fun v => pow2 (clkArityT k s τT σT v)) 4 (verticesN k s t) 1 env := by
-  obtain ⟨har, hpo, hwt, hpa⟩ := tm_clkAccessors (e := e) (machine := machine) hL hN hNs hNv hτ hτs
-      hτv ht
+  classical
+  obtain ⟨har, hpo, hwt, hpa⟩ := tm_clkAccessors (e := e) (machine := machine) hL hN hNs
+      hNv hτ hτs hτv ht
     hcube hconst hkey hRw h3b hccv hm0 hσ hσs hD0 hdeg
-  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube hconst
+  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube
   have hbs := StableAt.clkBlockLenT hτs hτv
   have hm : Tm w L 1 (letterBitsT k s (clkBlockLenT τT)) env := by
-    have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
+    have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
     have c1 : s + k + 4 < 2 ^ L := by omega
     refine tm_retier (d := 4) (by unfold letterBitsT; tame) ((stableAt_const _ _).mul hbs) ?_
     rw [denote_letterBitsT hτs hτv, one_mul]
@@ -747,11 +783,12 @@ theorem tm_netTerms {σT pT : Term} {D0 dp : ℕ}
   have hcst : 4 * k + 100 < 2 ^ L := by omega
   refine ⟨tm_clkEdgesT hL hτ hτs hτv ht hcube hconst,
     tm_clkVerticesT hL hτ hτs hτv ht hcube hconst,
-    tm_explicitSrcT (k := k) hL hq hm hσ hcst, tm_explicitTgtT (k := k) hL hq hm hσ hcst, har, hpo,
+    tm_explicitSrcT (k := k) hL hq hm hσ hcst, tm_explicitTgtT (k := k) hL hq hm hcst, har, hpo,
     fun env' he' v A hv hvs hvv hA
         hAs => t_mod_left (hwt env' he' v A hv hvs hvv hA hAs) (hp.ext he'),
     hpa⟩
 
+omit [DecidableEq State] in
 /-- **Tier `1` for the ends** of the edges `i < N`, for a schedule with a rows-first network. -/
 theorem tm_ends1 {σT : Term} {σ : ℕ}
     (hL : 8 ≤ L) (hτ : Tm w L 1 τT env) (hτs : StableAt w τT env) (hτv : τT.denote w env = t)
@@ -761,10 +798,11 @@ theorem tm_ends1 {σT : Term} {σ : ℕ}
     (hd : RowsFirst machine e w t σ) :
     TmFv w L (edgeUT k s τT σT) 16 (edgesN k s t) 1 env ∧
       TmFv w L (edgeWT k s τT) 16 (edgesN k s t) 1 env := by
-  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube hconst
+  classical
+  have hq := tm_clkNumBlocksT hL hτ hτs hτv ht hcube
   have hbs := StableAt.clkBlockLenT hτs hτv
   have hm : Tm w L 1 (letterBitsT k s (clkBlockLenT τT)) env := by
-    have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube hconst
+    have hb := tm_clkBlockLenT hL hτ hτs hτv ht hcube
     have c1 : s + k + 4 < 2 ^ L := by omega
     refine tm_retier (d := 4) (by unfold letterBitsT; tame) ((stableAt_const _ _).mul hbs) ?_
     rw [denote_letterBitsT hτs hτv, one_mul]
@@ -774,8 +812,8 @@ theorem tm_ends1 {σT : Term} {σ : ℕ}
     lt_of_le_of_lt (verticesN_le_edgesN (k := k) (s := s) (t := t))
       (edgesN_lt hcube)
   -- the value of an edge argument
-  have harg : ∀ env', Ext L env' env → ∀ i : Term, StableAt w i env' → Sm w L i (edgesN k s t) env'
-      →
+  have harg : ∀ env', Ext L env' env → ∀ i : Term, StableAt w i env' → Sm w L i
+      (edgesN k s t) env' →
       i.denote w env' < (blockEdgeNet machine e 0 w t σ hd).M := fun env' he' i _ hiv => by
     have := hiv [] Small.nil
     rw [M_blockEdgeNet]
@@ -786,15 +824,15 @@ theorem tm_ends1 {σT : Term} {σ : ℕ}
     refine tm_retier ((tm_explicitSrcT (k := k) hL hq hm hσ hcst).app he' hi)
       (StableAt.edgeUT hτs' hτv' (hσs.extend' he') his) ?_
     have hlt := harg env' he' i his hiv
-    rw [denote_edgeUT hτs' hτv' (hσs.extend' he') (by rw [hσs.extend'_eq he', hσv]) hd his rfl hlt,
-        one_mul]
+    rw [denote_edgeUT hτs' hτv' (hσs.extend' he') (by rw [hσs.extend'_eq he', hσv]) hd his
+        rfl hlt, one_mul]
     have h1 := ((blockEdgeNet machine e 0 w t σ hd).u ⟨_, hlt⟩).2
     have h2 : (blockNetworkOf machine e (w, t, σ)).2.vertices.length < 2 ^ L := by
       rw [length_vertices]; exact hV
     omega
   · have hτs' := hτs.extend' he'
     have hτv' : τT.denote w env' = t := by rw [hτs.extend'_eq he', hτv]
-    refine tm_retier ((tm_explicitTgtT (k := k) hL hq hm hσ hcst).app he' hi)
+    refine tm_retier ((tm_explicitTgtT (k := k) hL hq hm hcst).app he' hi)
       (StableAt.edgeWT hτs' hτv' his) ?_
     have hlt := harg env' he' i his hiv
     rw [denote_edgeWT hτs' hτv' (σ := σ) hd rfl hlt, one_mul]

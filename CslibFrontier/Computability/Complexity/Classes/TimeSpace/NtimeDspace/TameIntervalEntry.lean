@@ -27,9 +27,10 @@ open Term LocalSim _root_.Turing
 variable {w : List Bool} {L : ℕ} {env : List ℕ} {k s : ℕ} {State : Type} [DecidableEq State]
   {e : State ≃ Fin s} {machine : MultiTapePTM k Bool State}
 
+set_option maxHeartbeats 1000000 in
 -- `tame1` tier-rule search over the unfolded program term, with `omega` side goals; measured
 -- ~320912 heartbeats
-set_option maxHeartbeats 1000000 in
+omit [DecidableEq State] in
 theorem tm_intervalEntryT {RT NT qT bT σT iT : Term} {Lf : Term → Term} {b : ℕ} (hL : 8 ≤ L)
     (hR : Tm w L 1 RT env) (hRpos : Pos w L RT env) (hN : Tm w L 1 NT env) (hq : Tm w L 1 qT env)
     (hb : Tm w L 1 bT env) (hbs : StableAt w bT env) (hbv : bT.denote w env = b) (hbpos : 0 < b)
@@ -63,8 +64,8 @@ theorem tm_intervalEntryT {RT NT qT bT σT iT : Term} {Lf : Term → Term} {b : 
     rwa [hbs.extend'_eq he, hbv] at this
   have hsc := tm_startCompT (NT := NT) hL hb hbs hbv hN hJp hJm hstI htrI hoff hoffV hcell h3 h3b
   have hstart := tm_startT (k := k) hL hwk hW hpowR hsc
-  have hcount := tm_intervalCountT (e := e) (machine := machine) hL hR hRpos hb hconst hJp hJm hstO
-      htrO
+  have hcount := tm_intervalCountT (e := e) (machine := machine) hL hR hRpos hb hconst
+      hJp hJm hstO htrO
     hoffO hdC hcellO h2b hrun hstart
   unfold intervalEntryT
   exact (t_ite (by unfold guardT; tame1) hcount

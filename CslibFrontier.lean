@@ -2495,6 +2495,7 @@ public import CslibFrontier.Computability.Complexity.Classes.Time.Verifier
 public import CslibFrontier.Computability.Complexity.Classes.Time.WordRAM
 public import CslibFrontier.Computability.Complexity.Classes.Time.ZeroError
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.Basic
+public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.ArithHelpers
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.BigCounterProgram
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.BudgetAsymptotics
@@ -2532,19 +2533,16 @@ public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspa
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.NetFamily
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.NetTerm
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.PPLowerBound
-public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.PPSeparation
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.PrimeBoundExact
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.Relativization
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ScaleInterface
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.SqrtLogGrowth
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.SqrtLogSublinear
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.TermBlocks
-public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.Theorem
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Access
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.AtScale
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Bounds
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.BoundsAccess
-public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Check
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Decode
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Family
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Instance
@@ -2567,7 +2565,6 @@ public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspa
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.EntryTerm
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.EntryTerm2
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.EntryTerm3
-public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.Examples
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.FirstClique
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.FirstNum
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.FirstTerm

@@ -237,6 +237,7 @@ theorem blockNet_value (hd : RowsFirst machine e w τ σ) :
       ((blockNetworkOf machine e (w, τ, σ)).2.contraction : ℤ) :=
   EdgeNet.value_ofExplicit ℤ _ _ _
 
+omit [DecidableEq State] in
 theorem blockNet_M (hd : RowsFirst machine e w τ σ) :
     (blockNet machine e w τ σ hd).M = edgesN k s τ :=
   M_blockEdgeNet (p := 0) hd
@@ -258,49 +259,54 @@ theorem blockNet_evalNonneg (hd : RowsFirst machine e w τ σ) :
   change (0 : ℤ) ≤ ((ExplicitTensorNetwork.entry _ x : ℕ) : ℤ)
   exact Int.natCast_nonneg _
 
+omit [DecidableEq State] in
 /-- **The value contract** of the block-network terms, when `nT`, `τT` and `σT` have the values
 `|w|`, `τ` and `σ`. -/
 theorem blockNet_acc (hd : RowsFirst machine e w τ σ) (hn : Val w env nT w.length)
     (hτ : Val w env τT τ) (hσ : Val w env σT σ) :
-    NetAcc (blockNet machine e w τ σ hd) w env (blockNetT machine e nT τT σT) where
-  vM := ⟨StableAt.clkEdgesT hτ.1 hτ.2, (denote_clkEdgesT hτ.1 hτ.2).trans (blockNet_M hd).symm⟩
-  vV := ⟨StableAt.clkVerticesT hτ.1 hτ.2, denote_clkVerticesT_length hτ.1 hτ.2⟩
-  vu E hE a i ha hi := by
-    have hτE := hτ.up hE
-    have hσE := hσ.up hE
-    refine ⟨StableAt.edgeUT hτE.1 hτE.2 hσE.1 ha.1, ?_⟩
-    rw [uN_of_lt hi]
-    exact denote_edgeUT hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd ha.1 ha.2 hi
-  vw E hE a i ha hi := by
-    have hτE := hτ.up hE
-    refine ⟨StableAt.edgeWT hτE.1 hτE.2 ha.1, ?_⟩
-    rw [wN_of_lt hi]
-    exact denote_edgeWT hτE.1 hτE.2 (σ := σ) (p := 0) hd ha.2 hi
-  vdeg E hE a x ha hx := by
-    have hτE := hτ.up hE
-    have hσE := hσ.up hE
-    refine ⟨StableAt.clkArityT hτE.1 hτE.2 hσE.1 ha.1, ?_⟩
-    rw [degN_of_lt hx]
-    exact denote_clkArityT hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd ha.1 (v := ⟨x, hx⟩) ha.2
-  vport E hE a b x j ha hb hx hj := by
-    have hτE := hτ.up hE
-    have hσE := hσ.up hE
-    refine ⟨StableAt.clkPortT hτE.1 hτE.2 hσE.1 ha.1 hb.1, ?_⟩
-    rw [degN_of_lt hx] at hj
-    rw [portN_of_lt hx hj]
-    exact denote_clkPortT hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd ha.1 (v := ⟨x, hx⟩) ha.2 hb.1
-      (j := ⟨j, hj⟩) hb.2
-  veval E hE a b x A ha hb hx _ := by
-    have hnE := hn.up hE
-    have hτE := hτ.up hE
-    have hσE := hσ.up hE
-    refine ⟨StableAt.clkWeightT hnE.1 hnE.2 hτE.1 hτE.2 hσE.1 ha.1 hb.1, ?_⟩
-    have h := denote_evalAtT hnE.1 hnE.2 hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd (pT := const 0) rfl
-      ha.1 (v := ⟨x, hx⟩) ha.2 hb.1 hb.2
-    rw [NetTerm.evalAtT, denote_mod, denote_const, Nat.mod_zero] at h
-    rw [evalN_of_lt hx, blockNet_eval_toNat hd]
-    exact h
+    NetAcc (blockNet machine e w τ σ hd) w env (blockNetT machine e nT τT σT) := by
+  classical
+  exact
+    { vM := ⟨StableAt.clkEdgesT hτ.1 hτ.2,
+        (denote_clkEdgesT hτ.1 hτ.2).trans (blockNet_M hd).symm⟩
+      vV := ⟨StableAt.clkVerticesT hτ.1 hτ.2, denote_clkVerticesT_length hτ.1 hτ.2⟩
+      vu E hE a i ha hi := by
+        have hτE := hτ.up hE
+        have hσE := hσ.up hE
+        refine ⟨StableAt.edgeUT hτE.1 hτE.2 hσE.1 ha.1, ?_⟩
+        rw [uN_of_lt hi]
+        exact denote_edgeUT hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd ha.1 ha.2 hi
+      vw E hE a i ha hi := by
+        have hτE := hτ.up hE
+        refine ⟨StableAt.edgeWT hτE.1 hτE.2 ha.1, ?_⟩
+        rw [wN_of_lt hi]
+        exact denote_edgeWT hτE.1 hτE.2 (σ := σ) (p := 0) hd ha.2 hi
+      vdeg E hE a x ha hx := by
+        have hτE := hτ.up hE
+        have hσE := hσ.up hE
+        refine ⟨StableAt.clkArityT hτE.1 hτE.2 hσE.1 ha.1, ?_⟩
+        rw [degN_of_lt hx]
+        exact denote_clkArityT hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd ha.1 (v := ⟨x, hx⟩) ha.2
+      vport E hE a b x j ha hb hx hj := by
+        have hτE := hτ.up hE
+        have hσE := hσ.up hE
+        refine ⟨StableAt.clkPortT hτE.1 hτE.2 hσE.1 ha.1 hb.1, ?_⟩
+        rw [degN_of_lt hx] at hj
+        rw [portN_of_lt hx hj]
+        exact denote_clkPortT hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd ha.1 (v := ⟨x, hx⟩) ha.2 hb.1
+          (j := ⟨j, hj⟩) hb.2
+      veval E hE a b x A ha hb hx _ := by
+        have hnE := hn.up hE
+        have hτE := hτ.up hE
+        have hσE := hσ.up hE
+        refine ⟨StableAt.clkWeightT hnE.1 hnE.2 hτE.1 hτE.2 hσE.1 ha.1 hb.1, ?_⟩
+        have h := denote_evalAtT hnE.1 hnE.2 hτE.1 hτE.2 hσE.1 hσE.2 (p := 0) hd (pT := const 0) rfl
+          ha.1 (v := ⟨x, hx⟩) ha.2 hb.1 hb.2
+        rw [NetTerm.evalAtT, denote_mod, denote_const, Nat.mod_zero] at h
+        rw [evalN_of_lt hx, blockNet_eval_toNat hd]
+        exact h }
 
+omit [DecidableEq State] in
 /-- **The tier contract** of the block-network terms at the clock `τ ≥ 2`, for an input with
 `|w| ≤ τ`, at every budget `L ≥ blockBudget k s · (⌊log₂ τ⌋ + 1)`, when `nT`, `τT` and `σT` have
 the values `|w|`, `τ`, `σ` and tier `1` (in particular `σ < 2^L`). -/
@@ -310,6 +316,7 @@ theorem blockNet_tiers (hd : RowsFirst machine e w τ σ) (hτ2 : 2 ≤ τ) (hw�
     (hτ : Val w env τT τ) (tτ : Tm w L 1 τT env)
     (hσ : Val w env σT σ) (tσ : Tm w L 1 σT env) :
     NetTiers (blockNet machine e w τ σ hd) w L env (blockNetT machine e nT τT σT) := by
+  classical
   obtain ⟨h16, -, -, hcube, hconst, hkey, hRw, h3b, hccv, hm0, hD⟩ :=
     block_facts (k := k) (s := s) hτ2 hwτ hL
   have hL8 : 8 ≤ L := by omega

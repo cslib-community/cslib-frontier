@@ -39,7 +39,7 @@ theorem lt_clog_iff {m i : ℕ} : 2 ^ i < m ↔ i < Nat.clog 2 m := by
 theorem clog_le_self (m : ℕ) : Nat.clog 2 m ≤ m := by
   rcases Nat.lt_or_ge (Nat.clog 2 m) (m + 1) with h | h
   · by_contra hc
-    push_neg at hc
+    push Not at hc
     have := lt_clog_iff.mpr hc
     have : m < 2 ^ m := Nat.lt_two_pow_self
     omega
@@ -55,9 +55,9 @@ theorem denote_clogT {m : Term} {env : List ℕ} (hm : StableAt w m env) (hpos :
     hm.cons₂, denote_lvl_index]
   by_cases h : i < Nat.clog 2 (m.denote w env)
   · have := lt_clog_iff.mpr h
-    rw [if_pos h, if_pos (Nat.div_pos_iff.mpr ⟨by positivity, by omega⟩)]
+    rw [ite_eq_left h, ite_eq_left (Nat.div_pos_iff.mpr ⟨by positivity, by omega⟩)]
   · have : ¬ 2 ^ i < m.denote w env := fun h' => h (lt_clog_iff.mp h')
-    rw [if_neg h, if_neg (by rw [Nat.div_pos_iff]; omega)]
+    rw [ite_eq_right h, ite_eq_right (by rw [Nat.div_pos_iff]; omega)]
 
 theorem StableAt.clogT {m : Term} {env : List ℕ} (hm : StableAt w m env)
     (hpos : 1 ≤ m.denote w env) : StableAt w (clogT m) env := fun extra => by
@@ -112,15 +112,16 @@ theorem denote_primeT {p : Term} {env : List ℕ} (hp : StableAt w p env) :
     allT_denote _ _ env (fun d => ¬ (d + 2) ∣ p.denote w env) (fun acc d => by
       simp only [denote_lt, denote_const, denote_mod, denote_add, denote_lvl_index, hp.cons₂]
       by_cases h : (d + 2) ∣ p.denote w env
-      · rw [if_neg (by rw [Nat.mod_eq_zero_of_dvd h]; omega), if_neg (not_not.mpr h)]
-      · rw [if_pos (Nat.pos_of_ne_zero (fun h0 => h (Nat.dvd_of_mod_eq_zero h0))), if_pos h])]
+      · rw [ite_eq_right (by rw [Nat.mod_eq_zero_of_dvd h]; omega), ite_eq_right (not_not.mpr h)]
+      · rw [ite_eq_left (Nat.pos_of_ne_zero (fun h0 => h (Nat.dvd_of_mod_eq_zero h0))),
+          ite_eq_left h])]
   by_cases h2 : 1 < p.denote w env
-  · rw [if_pos h2, one_mul]
+  · rw [ite_eq_left h2, one_mul]
     by_cases hq : (p.denote w env).Prime
-    · rw [if_pos hq]
-      exact if_pos ((prime_iff_no_small_divisor h2).mpr hq)
-    · rw [if_neg hq]
-      exact if_neg (fun hall => hq ((prime_iff_no_small_divisor h2).mp hall))
-  · rw [if_neg h2, zero_mul, if_neg (fun hq => h2 hq.one_lt)]
+    · rw [ite_eq_left hq]
+      exact ite_eq_left ((prime_iff_no_small_divisor h2).mpr hq)
+    · rw [ite_eq_right hq]
+      exact ite_eq_right (fun hall => hq ((prime_iff_no_small_divisor h2).mp hall))
+  · rw [ite_eq_right h2, zero_mul, ite_eq_right (fun hq => h2 hq.one_lt)]
 
 end Cslib.Complexity.NtimeDspace.ProgTerm

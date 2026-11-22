@@ -23,8 +23,8 @@ coded by the empty string (`w(0) = 0`).
 
 Codes are bit lists, and a code is read as the natural number whose bit `k` is the `k`-th entry
 (`ofBits`). The formula of §6.2 sums over all indices of `len(a)` bits; `sum_codes` says that
-summing
-a function of the decoded label over the indices that decode to a label of exact weight `a` is
+summing a function of the decoded label over the indices that decode to a label of exact weight `a`
+is
 summing it over `Λ(a)`.
 
 ## Main results
@@ -250,9 +250,10 @@ private theorem length_msCode (σ : Multiset ℕ) :
 /-! ### The length bound -/
 
 /-- `r` distinct positive integers add up to at least `r (r + 1) / 2`. -/
-private theorem card_mul_succ_le_sum {ι : Type*} [DecidableEq ι] (S : Finset ι) (f : ι → ℕ)
+private theorem card_mul_succ_le_sum {ι : Type*} (S : Finset ι) (f : ι → ℕ)
     (hf : Set.InjOn f S) (hpos : ∀ x ∈ S, 1 ≤ f x) :
     S.card * (S.card + 1) ≤ 2 * ∑ x ∈ S, f x := by
+  classical
   have e : ∑ x ∈ S, f x = ∑ y ∈ S.image f, y := by rw [Finset.sum_image hf]
   rw [e, ← Finset.card_image_of_injOn hf]
   have hpos' : ∀ y ∈ S.image f, 1 ≤ y := by
@@ -563,7 +564,7 @@ theorem toBits_ofBits (c : List Bool) (w : ℕ) (h : c.length ≤ w) :
 
 theorem ofBits_toBits (w i : ℕ) (h : i < 2 ^ w) : ofBits (toBits w i) = i := by
   induction w generalizing i with
-  | zero => simp at h; subst h; rfl
+  | zero => simp only [pow_zero, Order.lt_one_iff] at h; subst h; rfl
   | succ w ih =>
     rw [toBits, ofBits, ih (i / 2) (by rw [pow_succ] at h; omega), Nat.bit_val, Nat.toNat_testBit]
     simp only [pow_zero, Nat.div_one]
@@ -615,8 +616,8 @@ private theorem parseEntries_eq (n p : ℕ) (G M : ℕ → ℕ) (hG : ∀ ν < n
     congr 2
     ring
 
-theorem parseMs_msCode (σ : Multiset ℕ) (r : List Bool) : parseMs (msCode σ ++ r) = some
-    (σ, r) := by
+theorem parseMs_msCode (σ : Multiset ℕ) (r : List Bool) : parseMs (msCode σ ++ r) =
+    some (σ, r) := by
   have hpe : parseEntries (distinctWts σ).length 0
       (((List.range (distinctWts σ).length).flatMap fun ν =>
         gamma (gapAt (distinctWts σ) ν) ++ gamma (σ.count ((distinctWts σ).getD ν 0 - 1))) ++ r) =
@@ -628,8 +629,8 @@ theorem parseMs_msCode (σ : Multiset ℕ) (r : List Bool) : parseMs (msCode σ 
     rw [sum_gapAt σ (Finset.mem_range.mp hν), zero_add]
   have hl : msCode σ ++ r = gamma ((distinctWts σ).length + 1) ++
       (((List.range (distinctWts σ).length).flatMap fun ν =>
-        gamma (gapAt (distinctWts σ) ν) ++ gamma (σ.count ((distinctWts σ).getD ν 0 - 1))) ++
-            r) := by
+        gamma (gapAt (distinctWts σ) ν) ++ gamma
+            (σ.count ((distinctWts σ).getD ν 0 - 1))) ++ r) := by
     rw [msCode_eq, List.append_assoc]
   rw [parseMs, hl, parseGamma_gamma _ (by omega)]
   simp only [Option.bind_eq_bind, Option.bind_some, Nat.add_sub_cancel, hpe, ← hl]
@@ -659,8 +660,8 @@ def decodeLabel (a i : ℕ) : Option Label :=
     | none => none
     | some (σ₂, r') => if r'.all (· = false) ∧ labelWt (σ₁, σ₂) ≤ a then some (σ₁, σ₂) else none
 
-theorem labelCode_lt {a : ℕ} {l : Label} (hl : labelWt l ≤ a) : labelCode a l < 2 ^ codeWidth
-    a := by
+theorem labelCode_lt {a : ℕ} {l : Label} (hl : labelWt l ≤ a) : labelCode a l < 2 ^
+    codeWidth a := by
   unfold labelCode
   split_ifs with ha
   · positivity

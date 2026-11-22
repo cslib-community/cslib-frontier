@@ -219,8 +219,9 @@ theorem mem_halfEdges {i τ : ℕ} {e : Fin G.M} {b : Bool} :
     decide_eq_true_eq, List.mem_append]
   constructor
   · rintro ⟨e', he', h⟩
-    rcases h with h | h <;> split_ifs at h with hc <;> simp at h <;> obtain ⟨rfl, rfl⟩ := h <;>
-      simp_all
+    rcases h with h | h <;> split_ifs at h with hc <;>
+      simp only [List.mem_cons, Prod.mk.injEq, List.not_mem_nil, or_false] at h <;>
+      obtain ⟨rfl, rfl⟩ := h <;> simp_all
   · rintro ⟨h1, h2⟩
     refine ⟨e, h1, ?_⟩
     cases b <;> simp_all
@@ -333,7 +334,7 @@ theorem eq_zero_of_labelWt {l : Label} (h : labelWt l = 0) : l = (0, 0) := by
   exact Prod.ext (Multiset.card_eq_zero.mp (by omega)) (Multiset.card_eq_zero.mp (by omega))
 
 theorem encLab_mem (x : Fin G.M → Bool) : encLab G K x ∈ (firstClique G K).labelings := by
-  show encLab G K x ∈ Fintype.piFinset fun p : Pairs (2 * K) =>
+  change encLab G K x ∈ Fintype.piFinset fun p : Pairs (2 * K) =>
     labelsEq (firstBudget G K p.1.1 p.1.2)
   rw [Fintype.mem_piFinset]
   intro p
@@ -346,7 +347,7 @@ theorem encLab_mem (x : Fin G.M → Bool) : encLab G K x ∈ (firstClique G K).l
 theorem prod_encLab (hK : 1 ≤ K) (x : Fin G.M → Bool) :
     ∏ w, (firstClique G K).T w (Clique.labelAt (encLab G K x) w) =
       ∏ v, G.eval v ((G.ports v).map x) := by
-  show ∏ w : Fin (2 * K), (if w.val < K then vTable G K w.val (Clique.labelAt (encLab G K x) w)
+  change ∏ w : Fin (2 * K), (if w.val < K then vTable G K w.val (Clique.labelAt (encLab G K x) w)
     else tTable G K (w.val - K) (Clique.labelAt (encLab G K x) w)) = _
   have hT : ∀ w : Fin (2 * K), (if w.val < K then vTable G K w.val (Clique.labelAt (encLab G K x) w)
       else tTable G K (w.val - K) (Clique.labelAt (encLab G K x) w)) =
@@ -423,11 +424,11 @@ theorem eq_encLab_of_ne_zero (hK : 1 ≤ K) {θ : Pairs (2 * K) → Label}
     · exact absurd rfl h
   -- the equality tests of the test groups
   have htest : ∀ e : Fin G.M,
-      heBit G K (pairLabel K θ (vgroup G K (G.u e)) (tgroup G K e)) (vgroup G K (G.u e))
-          (tgroup G K e)
+      heBit G K (pairLabel K θ (vgroup G K (G.u e)) (tgroup G K e))
+          (vgroup G K (G.u e)) (tgroup G K e)
           (e, false) =
-        heBit G K (pairLabel K θ (vgroup G K (G.w e)) (tgroup G K e)) (vgroup G K (G.w e))
-            (tgroup G K e)
+        heBit G K (pairLabel K θ (vgroup G K (G.w e)) (tgroup G K e))
+            (vgroup G K (G.w e)) (tgroup G K e)
           (e, true) := by
     intro e
     have hτ := tgroup_lt hK e
@@ -831,7 +832,7 @@ end Potential
 theorem firstClique_potential (hK : 1 ≤ K) (Δ : ℕ) (hΔ : ∀ v, (G.ports v).length ≤ Δ) :
     (firstClique G K).potential ≤ 64 * (G.M + K * (Δ + 1) + K ^ 3) ^ 2 := by
   set S := G.M + K * (Δ + 1) + K ^ 3
-  show (2 * K - 1) ^ 2 * ∑ p : Pairs (2 * K), firstBudget G K p.1.1 p.1.2 ≤ 64 * S ^ 2
+  change (2 * K - 1) ^ 2 * ∑ p : Pairs (2 * K), firstBudget G K p.1.1 p.1.2 ≤ 64 * S ^ 2
   have hb : ∀ x : Fin (2 * K) × Fin (2 * K), K ^ 4 * firstBudget G K x.1 x.2 ≤
       if x.1.val < K ∧ K ≤ x.2.val then 4 * S ^ 2 else 0 := by
     intro x

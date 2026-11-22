@@ -262,7 +262,7 @@ theorem transportG_eq_of_leading (ψ : P × ℕ → ℤ) (opp : P × ℕ → P �
       omega
   obtain ⟨-, hdiff⟩ := WtGe.prod_sub src F G (fun s => ψ (opp s)) hGw hFG
   have hcoeff : transportG src tgt R = ((src.map G).prod).coeff (Multiset.toFinsupp tgt) := by
-    show ((src.map F).prod).coeff _ = _
+    change ((src.map F).prod).coeff _ = _
     by_contra hne
     have hne' : ((src.map F).prod - (src.map G).prod).coeff (Multiset.toFinsupp tgt) ≠ 0 := by
       rw [AddMonoidAlgebra.coeff_sub, Finsupp.sub_apply, sub_ne_zero]; exact hne
@@ -480,7 +480,7 @@ theorem crossing_iff (V : Corner → Label) :
     have hy := proj .y
     have hx := proj .x
     simp only [targetsOf, Multiset.filter_add, Multiset.map_add, proj_located] at hv hu hy hx
-    simp at hv hu hy hx
+    simp only [↓reduceIte, reduceCtorEq, Multiset.add_zero, Multiset.zero_add] at hv hu hy hx
     exact ⟨hv, hx.symm, hu, hy.symm⟩
   · rintro ⟨h1, h2, h3, h4⟩
     rw [targetsOf, h1, h3, ← h4, ← h2]

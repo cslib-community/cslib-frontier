@@ -74,12 +74,12 @@ theorem take_srcSub {lo hi ν : ℕ} (hν : ν ≤ hi - lo) :
 theorem drop_srcSub {lo hi ν : ℕ} :
     (srcSub up x y m lo hi).drop (ν + 1) = srcSub up x y m (lo + ν + 1) hi := by
   simp only [srcSub, List.drop_take, List.drop_drop]
-  congr 1 <;> first | omega | (congr 1; omega)
+  congr 1; omega
 
 theorem getD_srcSub {lo hi ν : ℕ} (hν : ν < hi - lo) (t : HPlace × ℕ) :
     (srcSub up x y m lo hi).getD ν t = (srcList up x y m).getD (lo + ν) t := by
   simp only [srcSub, List.getD_eq_getElem?_getD, List.getElem?_take, List.getElem?_drop]
-  rw [if_pos hν]
+  rw [ite_eq_left hν]
 
 theorem srcSub_self (lo : ℕ) : srcSub up x y m lo lo = [] := by simp [srcSub]
 
@@ -88,28 +88,28 @@ theorem srcSub_root : srcSub up x y m 0 (srcList up x y m).length = srcList up x
 
 theorem coe_srcList_up : (↑(srcList true x y m) : Multiset (HPlace × ℕ)) =
     located (some Corner.x) x.1 + located (some Corner.y) y.1 + located none m.2 := by
-  simp only [srcList, if_true, ← Multiset.coe_add, ← Multiset.map_coe, Multiset.sort_eq, located]
+  simp only [srcList, ite_true, ← Multiset.coe_add, ← Multiset.map_coe, Multiset.sort_eq, located]
 
 theorem coe_srcList_down : (↑(srcList false x y m) : Multiset (HPlace × ℕ)) =
     located (some Corner.u) x.1 + located (some Corner.v) y.1 + located none m.1 := by
-  simp only [srcList, Bool.false_eq_true, if_false, ← Multiset.coe_add, ← Multiset.map_coe,
+  simp only [srcList, Bool.false_eq_true, ite_false, ← Multiset.coe_add, ← Multiset.map_coe,
     Multiset.sort_eq, located]
 
 theorem trMean_root_up (e : ℤ) :
-    Setup.trMean true x y m 0 (srcList true x y m).length (tgtMs true x y m) e = (nUp x y m).coeff
-        e := by
-  simp only [Setup.trMean, srcSub_root, transportL, coe_srcList_up, nUp, tgtMs, if_true, hRule]
+    Setup.trMean true x y m 0 (srcList true x y m).length (tgtMs true x y m) e =
+        (nUp x y m).coeff e := by
+  simp only [Setup.trMean, srcSub_root, transportL, coe_srcList_up, nUp, tgtMs, ite_true, hRule]
 
 theorem trMean_root_down (e : ℤ) :
     Setup.trMean false x y m 0 (srcList false x y m).length (tgtMs false x y m) e =
       (nDown x y m).coeff e := by
   simp only [Setup.trMean, srcSub_root, transportL, coe_srcList_down, nDown, tgtMs,
-    Bool.false_eq_true, if_false, hRule]
+    Bool.false_eq_true, ite_false, hRule]
 
 theorem tgtMs_valid : ∀ s ∈ tgtMs up x y m, ValidPl up s.1 := by
   intro s hs
   cases up <;>
-  · simp only [tgtMs, Bool.false_eq_true, if_false, if_true, Multiset.mem_add, located,
+  · simp only [tgtMs, Bool.false_eq_true, ite_false, ite_true, Multiset.mem_add, located,
       Multiset.mem_map] at hs
     rcases hs with (⟨i, -, rfl⟩ | ⟨i, -, rfl⟩) | ⟨i, -, rfl⟩
     · exact ⟨0, by omega, by simp [placeOf]⟩
@@ -120,7 +120,7 @@ theorem trMean_empty (lo : ℕ) (T : Multiset (HPlace × ℕ)) (c : ℤ) :
     Setup.trMean up x y m lo lo T c = if T = 0 ∧ c = 0 then 1 else 0 := by
   simp only [Setup.trMean, srcSub_self, transportL_nil]
   by_cases hT : T = 0
-  · simp only [hT, if_true, true_and]
+  · simp only [hT, ite_true, true_and]
     rw [← LaurentPolynomial.T_zero, LaurentPolynomial.T_apply]
     by_cases hc : c = 0 <;> simp [hc, eq_comm]
   · simp [hT]
@@ -143,8 +143,8 @@ def PivOK (l : List (HPlace × ℕ)) (T : Multiset (HPlace × ℕ)) (W : ℕ) (d
 
 theorem pivotValid_iff (up : Bool) (x y m : Label) (lo hi : ℕ) (T : Multiset (HPlace × ℕ)) (i : ℕ) :
     PivotValid up x y m lo hi T i ↔
-      pivCodeX up (tWt (srcSub up x y m lo hi) T) (decodePivot up (tWt (srcSub up x y m lo hi) T) i)
-          = i ∧
+      pivCodeX up (tWt (srcSub up x y m lo hi) T)
+          (decodePivot up (tWt (srcSub up x y m lo hi) T) i) = i ∧
         PivOK (srcSub up x y m lo hi) T (tWt (srcSub up x y m lo hi) T)
           (decodePivot up (tWt (srcSub up x y m lo hi) T) i) := by
   unfold PivotValid
@@ -171,8 +171,8 @@ theorem length_le_tWt (l : List (HPlace × ℕ)) (T : Multiset (HPlace × ℕ)) 
   omega
 
 /-- The summand of the pivot recursion. -/
-noncomputable def pivTerm (up : Bool) (x y m : Label) (lo hi : ℕ) (T : Multiset (HPlace × ℕ))
-    (c : ℤ)
+noncomputable def pivTerm (up : Bool) (x y m : Label) (lo hi : ℕ)
+    (T : Multiset (HPlace × ℕ)) (c : ℤ)
     (d : PivX) : ℤ :=
   Setup.trMean up x y m lo (lo + d.1) d.2.2.1 d.2.2.2.1 *
     (Setup.ruleCoeff up x y m (lo + d.1) d.2.1 d.2.2.2.2 *
@@ -188,8 +188,8 @@ theorem sum_powerset_sub {M : Type*} [AddCommMonoid M] (T : Multiset (HPlace × 
   simp only [Multiset.mem_toFinset, Multiset.mem_powerset, Finset.mem_filter]
   exact ⟨fun h => ⟨h.trans tsub_le_self, h⟩, fun h => h.2⟩
 
-theorem ite_sum {ι M : Type*} [AddCommMonoid M] (p : Prop) [Decidable p] (s : Finset ι) (f : ι → M)
-    :
+theorem ite_sum {ι M : Type*} [AddCommMonoid M] (p : Prop) [Decidable p]
+    (s : Finset ι) (f : ι → M) :
     (if p then ∑ i ∈ s, f i else 0) = ∑ i ∈ s, if p then f i else 0 := by
   split_ifs <;> simp
 
@@ -221,34 +221,34 @@ theorem trMean_pivot (up : Bool) (x y m : Label) {lo hi : ℕ} (T : Multiset (HP
     refine sum_congr rfl fun T₁ _ => ?_
     by_cases h1 : T₁ ≤ T - {t}
     · by_cases h2 : PivotCond l T ν t T₁
-      · rw [if_pos h1, if_pos h2]
+      · rw [ite_eq_left h1, ite_eq_left h2]
         refine sum_congr rfl fun c₁ _ => sum_congr rfl fun c₀ _ => ?_
-        rw [if_pos ⟨h1, h2⟩]
+        rw [ite_eq_left ⟨h1, h2⟩]
         have hν' : ν < hi - lo := by rw [← hlen]; exact mem_range.mp hν
         simp only [pivTerm, Setup.trMean, Setup.ruleCoeff, hl, take_srcSub up x y m hν'.le,
           drop_srcSub, getD_srcSub up x y m hν']
         ring
-      · rw [if_pos h1, if_neg h2]
+      · rw [ite_eq_left h1, ite_eq_right h2]
         symm
-        exact sum_eq_zero fun c₁ _ => sum_eq_zero fun c₀ _ => if_neg (fun h => h2 h.2)
-    · rw [if_neg h1]
+        exact sum_eq_zero fun c₁ _ => sum_eq_zero fun c₀ _ => ite_eq_right (fun h => h2 h.2)
+    · rw [ite_eq_right h1]
       symm
-      exact sum_eq_zero fun c₁ _ => sum_eq_zero fun c₀ _ => if_neg (fun h => h1 h.1)
-  show (transportL l T (hRule up)).coeff c = _
+      exact sum_eq_zero fun c₁ _ => sum_eq_zero fun c₀ _ => ite_eq_right (fun h => h1 h.1)
+  change (transportL l T (hRule up)).coeff c = _
   rw [hR, ← Finset.sum_filter]
   symm
   refine Finset.sum_nbij' (decodePivot up W) (pivCodeX up W) ?_ ?_ ?_ ?_ (fun _ _ => rfl)
   · intro i hmem
     obtain ⟨-, h1, h2, h3, h4, h5, h6⟩ := (pivotValid_iff up x y m lo hi T i).mp
         (mem_filter.mp hmem).2
-    simp only [Sx, mem_filter, mem_product, mem_range, Multiset.mem_toFinset, Multiset.mem_powerset,
-        I,
+    simp only [Sx, mem_filter, mem_product, mem_range, Multiset.mem_toFinset,
+        Multiset.mem_powerset, I,
       mem_Icc]
     rw [abs_le] at h5 h6
     exact ⟨⟨h1, h2, h3.trans tsub_le_self, h5, h6⟩, h3, h4⟩
   · intro d hd
-    simp only [Sx, mem_filter, mem_product, mem_range, Multiset.mem_toFinset, Multiset.mem_powerset,
-        I,
+    simp only [Sx, mem_filter, mem_product, mem_range, Multiset.mem_toFinset,
+        Multiset.mem_powerset, I,
       mem_Icc] at hd
     obtain ⟨⟨h1, h2, -, h5, h6⟩, h3, h4⟩ := hd
     have hT₁ : d.2.2.1 ≤ T := h3.trans tsub_le_self
@@ -264,8 +264,8 @@ theorem trMean_pivot (up : Bool) (x y m : Label) {lo hi : ℕ} (T : Multiset (HP
   · intro i hmem
     exact ((pivotValid_iff up x y m lo hi T i).mp (mem_filter.mp hmem).2).1
   · intro d hd
-    simp only [Sx, mem_filter, mem_product, mem_range, Multiset.mem_toFinset, Multiset.mem_powerset,
-        I,
+    simp only [Sx, mem_filter, mem_product, mem_range, Multiset.mem_toFinset,
+        Multiset.mem_powerset, I,
       mem_Icc] at hd
     obtain ⟨⟨h1, h2, -, h5, h6⟩, h3, h4⟩ := hd
     have hT₁ : d.2.2.1 ≤ T := h3.trans tsub_le_self

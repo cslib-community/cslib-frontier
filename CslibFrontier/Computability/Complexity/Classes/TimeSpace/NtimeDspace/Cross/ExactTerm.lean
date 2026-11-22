@@ -85,7 +85,7 @@ theorem val_add (ha : Val w a env x) (hb : Val w b env y) : Val w (add a b) env 
 theorem bd_add (ha : Bd w M a env) (hb : Bd w M b env) (hva : Val w a env x) (hvb : Val w b env y)
     (h : x + y ≤ M) : Bd w M (add a b) env :=
   fun extra => ⟨ha extra, hb extra, by
-    show a.denote w (extra ++ env) + b.denote w (extra ++ env) ≤ M
+    change a.denote w (extra ++ env) + b.denote w (extra ++ env) ≤ M
     rw [hva extra, hvb extra]; exact h⟩
 
 theorem val_sub (ha : Val w a env x) (hb : Val w b env y) : Val w (sub a b) env (x - y) :=
@@ -100,7 +100,7 @@ theorem val_mul (ha : Val w a env x) (hb : Val w b env y) : Val w (mul a b) env 
 theorem bd_mul (ha : Bd w M a env) (hb : Bd w M b env) (hva : Val w a env x) (hvb : Val w b env y)
     (h : x * y ≤ M) : Bd w M (mul a b) env :=
   fun extra => ⟨ha extra, hb extra, by
-    show a.denote w (extra ++ env) * b.denote w (extra ++ env) ≤ M
+    change a.denote w (extra ++ env) * b.denote w (extra ++ env) ≤ M
     rw [hva extra, hvb extra]; exact h⟩
 
 theorem val_div (ha : Val w a env x) (hb : Val w b env y) : Val w (div a b) env (x / y) :=
@@ -136,7 +136,8 @@ theorem val_ite (hc : Val w c env z) (ht : Val w t env x) (he : Val w e env y) :
 theorem bd_ite (hc : Bd w M c env) (hvc : Val w c env z) (ht : 0 < z → Bd w M t env)
     (he : ¬ 0 < z → Bd w M e env) : Bd w M (ite c t e) env := fun extra => by
   refine ⟨hc extra, ?_⟩
-  show if 0 < c.denote w (extra ++ env) then t.Bnd w M (extra ++ env) else e.Bnd w M (extra ++ env)
+  change if 0 < c.denote w (extra ++ env) then t.Bnd w M (extra ++ env) else e.Bnd w
+      M (extra ++ env)
   rw [hvc extra]
   split_ifs with h
   · exact ht h extra
@@ -295,7 +296,7 @@ theorem val_eqT (ha : Val w a env x) (hb : Val w b env y) :
   refine fun extra => (this extra).trans ?_
   by_cases h : x = y
   · simp [h]
-  · simp only [h, if_false]; split_ifs <;> omega
+  · simp only [h, ite_false]; split_ifs <;> omega
 
 theorem bd_eqT (ha : Bd w M a env) (hb : Bd w M b env) (hva : Val w a env x) (hvb : Val w b env y)
     (hx : x ≤ M) (hy : y ≤ M) (h1 : 1 ≤ M) : Bd w M (eqT a b) env :=
@@ -309,7 +310,7 @@ def call1 (q : Prog) (a : Term) : Term := fun d => .letIn (a d) q
 
 theorem val_call1 {q : Prog} (hq : Prog'.closed 1 q = true) (ha : Val w a env x) :
     Val w (call1 q a) env (q.eval w [x]) := fun extra => by
-  show Prog.eval w (.letIn _ q) _ = _
+  change Prog.eval w (.letIn _ q) _ = _
   simp only [Prog.eval]
   have := Prog'.eval_append (w := w) q [x] (extra ++ env) hq
   rw [← this]
@@ -317,7 +318,7 @@ theorem val_call1 {q : Prog} (hq : Prog'.closed 1 q = true) (ha : Val w a env x)
 
 theorem bd_call1 {q : Prog} (hq : Prog'.closed 1 q = true) (ha : Val w a env x)
     (hba : Bd w M a env) (h : q.Bounded w M [x]) : Bd w M (call1 q a) env := fun extra => by
-  show Prog.Bounded w M (.letIn _ q) _
+  change Prog.Bounded w M (.letIn _ q) _
   simp only [Prog.Bounded]
   refine ⟨hba extra, ?_⟩
   have : (a (extra ++ env).length).eval w (extra ++ env) = x := ha extra
@@ -331,7 +332,7 @@ def call3 (q : Prog) (a b c : Term) : Term :=
 theorem val_call3 {q : Prog} (hq : Prog'.closed 3 q = true) (ha : Val w a env x)
     (hb : Val w b env y) (hc : Val w c env z) :
     Val w (call3 q a b c) env (q.eval w [x, y, z]) := fun extra => by
-  show Prog.eval w (.letIn _ (.letIn _ (.letIn _ q))) _ = _
+  change Prog.eval w (.letIn _ (.letIn _ (.letIn _ q))) _ = _
   simp only [Prog.eval]
   have e1 : (c (extra ++ env).length).eval w (extra ++ env) = z := hc extra
   rw [e1]
@@ -346,7 +347,7 @@ theorem bd_call3 {q : Prog} (hq : Prog'.closed 3 q = true) (ha : Val w a env x)
     (hb : Val w b env y) (hc : Val w c env z) (hba : Bd w M a env) (hbb : Bd w M b env)
     (hbc : Bd w M c env) (h : q.Bounded w M [x, y, z]) : Bd w M (call3 q a b c) env :=
   fun extra => by
-  show Prog.Bounded w M (.letIn _ (.letIn _ (.letIn _ q))) _
+  change Prog.Bounded w M (.letIn _ (.letIn _ (.letIn _ q))) _
   simp only [Prog.Bounded]
   have e1 : (c (extra ++ env).length).eval w (extra ++ env) = z := hc extra
   have e2 : (b ((extra ++ env).length + 1)).eval w (z :: (extra ++ env)) = y := hb (z :: extra)

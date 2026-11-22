@@ -41,8 +41,8 @@ theorem StableAt.extend' {t : Term} (hs : StableAt w t env) {env' : List ℕ} (h
     StableAt w t env' := by
   obtain ⟨p, _, rfl⟩ := he; exact hs.extend p
 
-theorem StableAt.extend'_eq {t : Term} (hs : StableAt w t env) {env' : List ℕ} (he : Ext L env' env)
-    :
+theorem StableAt.extend'_eq {t : Term} (hs : StableAt w t env) {env' : List ℕ}
+    (he : Ext L env' env) :
     t.denote w env' = t.denote w env := by
   obtain ⟨p, _, rfl⟩ := he; exact hs p
 
@@ -133,7 +133,8 @@ theorem t_sumTv {body : Term → Term} {V : ℕ} (hn : Tm w L dn n env)
           · calc _ ≤ k * (2 ^ (db * L) - 1) := hacc
               _ < 2 ^ (dn * L) * 2 ^ (db * L) := by
                   have : k < 2 ^ (dn * L) := by omega
-                  calc k * (2 ^ (db * L) - 1) ≤ k * 2 ^ (db * L) := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
+                  calc k * (2 ^ (db * L) - 1) ≤ k * 2 ^ (db * L) :=
+                        Nat.mul_le_mul_left _ (Nat.sub_le _ _)
                     _ < 2 ^ (dn * L) * 2 ^ (db * L) := Nat.mul_lt_mul_of_pos_right this hbig
               _ = 2 ^ ((dn + db) * L) := by rw [← pow_add, Nat.add_mul]
               _ ≤ 2 ^ (32 * L) := pow_le_pow_tier hd

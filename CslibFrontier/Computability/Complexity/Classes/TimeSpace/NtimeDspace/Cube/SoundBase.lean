@@ -28,39 +28,39 @@ theorem Setup.ent0 (S : Setup) (v args : ℕ) (hv : v < 2 * S.K) :
   have hq : v < S.C₀.q := hv
   have hΘ : ∀ u : Fin (2 * S.K), (if h : v < S.C₀.q then decodeArgs S.C₀ ⟨v, h⟩ args
       ⟨u.val, by simp [Setup.C₀, firstClique]⟩ else (0, 0)) = decodeArgs S.C₀ ⟨v, hq⟩ args u := by
-    intro u; rw [dif_pos hq]; rfl
+    intro u; rw [dite_eq_left hq]; rfl
   unfold cEntry
-  rw [dif_pos hq]
+  rw [dite_eq_left hq]
   unfold Setup.nFac0
   rw [prod_range_add, prod_range_one]
   by_cases hK : v < S.K
-  · rw [if_pos hK]
-    show (if v < S.K then vTable S.G S.K v _ else tTable S.G S.K (v - S.K) _) = _
-    rw [if_pos hK, ← Fin.prod_univ_eq_prod_range]
-    simp only [Setup.factor0, hΘ, if_pos hK, if_true]
+  · rw [ite_eq_left hK]
+    change (if v < S.K then vTable S.G S.K v _ else tTable S.G S.K (v - S.K) _) = _
+    rw [ite_eq_left hK, ← Fin.prod_univ_eq_prod_range]
+    simp only [Setup.factor0, hΘ, ite_eq_left hK, ite_true]
     unfold vTable
     have e : ∀ x : Fin S.V, (if h : 1 + (x : ℕ) - 1 < S.V then
         (if vgroup S.G S.K ⟨1 + (x : ℕ) - 1, h⟩ = v then
           S.G.eval ⟨1 + (x : ℕ) - 1, h⟩ ((S.G.ports ⟨1 + (x : ℕ) - 1, h⟩).map fun e =>
-            heBit S.G S.K (labelOfNode S.K (decodeArgs S.C₀ ⟨v, hq⟩ args) (S.K + tgroup S.G S.K e))
-                v
+            heBit S.G S.K (labelOfNode S.K (decodeArgs S.C₀ ⟨v, hq⟩ args)
+                (S.K + tgroup S.G S.K e)) v
               (tgroup S.G S.K e) (e, decide (S.G.w e = ⟨1 + (x : ℕ) - 1, h⟩))) else 1) else 1) =
         if vgroup S.G S.K x = v then
           S.G.eval x ((S.G.ports x).map fun e =>
-            heBit S.G S.K (labelOfNode S.K (decodeArgs S.C₀ ⟨v, hq⟩ args) (S.K + tgroup S.G S.K e))
-                v
+            heBit S.G S.K (labelOfNode S.K (decodeArgs S.C₀ ⟨v, hq⟩ args)
+                (S.K + tgroup S.G S.K e)) v
               (tgroup S.G S.K e) (e, decide (S.G.w e = x))) else 1 := by
       intro x
       have hx : (⟨1 + (x : ℕ) - 1, by omega⟩ : Fin S.V) = x := Fin.ext (by simp)
-      rw [dif_pos (by omega), hx]
+      rw [dite_eq_left (by omega), hx]
     have e1 : ∀ x : Fin S.V, (1 + (x : ℕ) = 0) =
         False := fun x => by simp only [eq_iff_iff, iff_false]; omega
-    simp only [e1, if_false, e]
+    simp only [e1, ite_false, e]
     split_ifs <;> simp
-  · rw [if_neg hK]
-    show (if v < S.K then vTable S.G S.K v _ else tTable S.G S.K (v - S.K) _) = _
-    rw [if_neg hK, ← Fin.prod_univ_eq_prod_range]
-    simp only [Setup.factor0, hΘ, if_neg hK, if_true]
+  · rw [ite_eq_right hK]
+    change (if v < S.K then vTable S.G S.K v _ else tTable S.G S.K (v - S.K) _) = _
+    rw [ite_eq_right hK, ← Fin.prod_univ_eq_prod_range]
+    simp only [Setup.factor0, hΘ, ite_eq_right hK, ite_true]
     unfold tTable
     have e : ∀ x : Fin S.G.M, (if h : 1 + (x : ℕ) - 1 < S.G.M then
         (if tgroup S.G S.K ⟨1 + (x : ℕ) - 1, h⟩ = v - S.K then
@@ -81,10 +81,10 @@ theorem Setup.ent0 (S : Setup) (v args : ℕ) (hv : v < 2 * S.K) :
                 (vgroup S.G S.K (S.G.w x)) (v - S.K) (x, true) then 1 else 0) else 1 := by
       intro x
       have hx : (⟨1 + (x : ℕ) - 1, by omega⟩ : Fin S.G.M) = x := Fin.ext (by simp)
-      rw [dif_pos (by omega), hx]
+      rw [dite_eq_left (by omega), hx]
     have e1 : ∀ x : Fin S.G.M, (1 + (x : ℕ) = 0) = False := fun x => by
       simp only [eq_iff_iff, iff_false]; omega
-    simp only [e1, if_false, e]
+    simp only [e1, ite_false]
     split_ifs <;> simp
 
 /-! ### Two nodes -/
@@ -130,22 +130,22 @@ theorem value_two' (a : Fin 2 → Fin 2 → ℕ) (T : Fin 2 → (Fin 2 → Label
       funext u
       rw [decodeArgs_eq]
       by_cases hu : u = 0
-      · rw [if_pos hu]; simp [lab0, hu]
+      · rw [ite_eq_left hu]; simp [lab0, hu]
       · have hu1 : u = 1 := by fin_cases u <;> simp_all
         subst hu1
-        rw [if_neg (by simp), hf, hb, hl]
+        rw [ite_eq_right (by simp), hf, hb, hl]
         simp [lab0]
     have h1 : decodeArgs ⟨2, a, T⟩ 1 i = lab1 l := by
       funext u
       rw [decodeArgs_eq]
       by_cases hu : u = 1
-      · rw [if_pos hu]; simp [lab1, hu]
+      · rw [ite_eq_left hu]; simp [lab1, hu]
       · have hu0 : u = 0 := by fin_cases u <;> simp_all
         subst hu0
-        rw [if_neg (by simp), hf', hb', hl]
+        rw [ite_eq_right (by simp), hf', hb', hl]
         simp [lab1]
     unfold cEntry
-    rw [dif_pos (show 0 < 2 by decide), dif_pos (show 1 < 2 by decide)]
+    rw [dite_eq_left (show 0 < 2 by decide), dite_eq_left (show 1 < 2 by decide)]
     exact congrArg₂ _ (congrArg (T 0) h0) (congrArg (T 1) h1)
   have hR : (∑ i ∈ range (2 ^ codeWidth (a 0 1)),
       match decodeLabel (a 0 1) i with
@@ -161,8 +161,8 @@ theorem value_two' (a : Fin 2 → Fin 2 → ℕ) (T : Fin 2 → (Fin 2 → Label
       rw [hent i l (mem_range.mp hi) hd]
   rw [hR, sum_codes_elim]
   unfold Clique.value Clique.labelings
-  refine Finset.sum_nbij' (fun θ => θ ⟨((0 : Fin 2), (1 : Fin 2)), by simp⟩) (fun l _ => l) ?_ ?_ ?_
-      ?_ ?_
+  refine Finset.sum_nbij' (fun θ => θ ⟨((0 : Fin 2), (1 : Fin 2)), by simp⟩)
+      (fun l _ => l) ?_ ?_ ?_ ?_ ?_
   · intro θ hθ
     have := Fintype.mem_piFinset.mp hθ ⟨((0 : Fin 2), (1 : Fin 2)), by simp⟩
     exact this
@@ -191,7 +191,8 @@ theorem value_two (C : Clique) (hq : C.q = 2) :
     C.value = ∑ i ∈ range (2 ^ codeWidth (C.a ⟨0, by omega⟩ ⟨1, by omega⟩)),
       match decodeLabel (C.a ⟨0, by omega⟩ ⟨1, by omega⟩) i with
       | some
-          l => if labelWt l = C.a ⟨0, by omega⟩ ⟨1, by omega⟩ then cEntry C 0 i * cEntry C 1 i else 0
+          l => if labelWt l = C.a ⟨0, by omega⟩ ⟨1,
+              by omega⟩ then cEntry C 0 i * cEntry C 1 i else 0
       | none => 0 := by
   obtain ⟨q, a, T⟩ := C
   simp only at hq

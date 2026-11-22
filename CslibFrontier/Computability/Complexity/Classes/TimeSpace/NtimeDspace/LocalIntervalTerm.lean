@@ -38,7 +38,7 @@ theorem denote_readT (hd L Rt c rho : Term) (env : List ℕ) :
       readN (hd.denote w env, L.denote w env, Rt.denote w env) (c.denote w env)
         (rho.denote w env) := by
   unfold readT readN
-  simp only [denote_ite, denote_eqT, denote_lt, denote_mod, denote_div, denote_const,
+  simp only [denote_ite, denote_eqT, denote_lt, denote_mod, denote_const,
     divPowT_denote _ _ _ _ (stableAt_const _ _), denote_sub]
   by_cases h0 : c.denote w env = rho.denote w env
   · simp [h0]
@@ -51,8 +51,8 @@ theorem ind_mul (p q : Prop) [Decidable p] [Decidable q] :
 theorem ite_iff {P Q : Prop} [Decidable P] [Decidable Q] (h : P ↔ Q) :
     (if P then (1 : ℕ) else 0) = if Q then 1 else 0 := by
   by_cases hp : P
-  · rw [if_pos hp, if_pos (h.mp hp)]
-  · rw [if_neg hp, if_neg (fun hq => hp (h.mpr hq))]
+  · rw [ite_eq_left hp, ite_eq_left (h.mp hp)]
+  · rw [ite_eq_right hp, ite_eq_right (fun hq => hp (h.mpr hq))]
 
 theorem ind_shape (p1 p2 a c p4 p5 : Prop) [Decidable p1] [Decidable p2] [Decidable a]
     [Decidable c] [Decidable p4] [Decidable p5] :
@@ -82,7 +82,7 @@ def condT (k : ℕ) (bT JpT JmT stO trO : Term) (offO dC cellO : Term → Term) 
 open Classical in
 theorem denote_condT (k : ℕ) {bT JpT JmT stO trO R a : Term} {offO dC cellO : Term → Term}
     {OffO DC CellO : ℕ → ℕ} {env : List ℕ} (hb : StableAt w bT env) (hR : StableAt w R env)
-    (ha : StableAt w a env) (hJp : StableAt w JpT env) (hJm : StableAt w JmT env)
+    (ha : StableAt w a env) (_hJp : StableAt w JpT env) (_hJm : StableAt w JmT env)
     (hoff : ImplementsFun w env offO OffO) (hdc : ImplementsFun w env dC DC)
     (hcell : ImplementsFun w env cellO CellO) :
     (condT k bT JpT JmT stO trO offO dC cellO R a).denote w env =

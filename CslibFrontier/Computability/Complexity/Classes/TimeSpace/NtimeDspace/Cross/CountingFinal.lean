@@ -31,18 +31,6 @@ open NtimeDspace.Cross
 /-- The bits of the clocked accept count, by the route of §§3–6. -/
 theorem cubeClockedBits : Exact.ClockedBits := Exact.clockedBits_of_blockBits cubeBlockBits
 
-/-- **Theorem 7.1 for `PPTIME`:** `PPTIME[t] ⊆ DSPACE[t/√log t]` for every `t(n) ≥ n`. -/
-theorem pptime_subset_dspace_sqrtLog_general (t : ℕ → ℕ) (ht : ∀ n, n ≤ t n) :
-    Cslib.Complexity.PPTIME Turing.MultiTapeTM.encBits t ⊆
-      Cslib.Complexity.DSPACE Turing.MultiTapeTM.encBits (fun n => t n / Nat.sqrt (t n).log2 + 1) :=
-  pptime_subset_dspace cubeClockedBits ht
-
-/-- **Theorem 7.1 for `BPTIME`:** `BPTIME[t] ⊆ DSPACE[t/√log t]` for every `t(n) ≥ n`. -/
-theorem bptime_subset_dspace_sqrtLog_general (t : ℕ → ℕ) (ht : ∀ n, n ≤ t n) :
-    Cslib.Complexity.BPTIME Turing.MultiTapeTM.encBits t ⊆
-      Cslib.Complexity.DSPACE Turing.MultiTapeTM.encBits (fun n => t n / Nat.sqrt (t n).log2 + 1) :=
-  bptime_subset_dspace cubeClockedBits ht
-
 /-- **Theorem 7.1 for `⊕TIME`.** -/
 theorem parityTIME_subset_dspace_sqrtLog_general (t : ℕ → ℕ) (ht : ∀ n, n ≤ t n) :
     ParityTIME Turing.MultiTapeTM.encBits t ⊆

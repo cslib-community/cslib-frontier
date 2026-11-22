@@ -70,7 +70,7 @@ theorem denote_edgeTargetT (k : ℕ) {qT σT nT : Term} {env : List ℕ} (hq : S
     denote_firstAfterT k hσ hc hi hd, denote_sub, denote_div, denote_mod, getD_eq_optCode]
   by_cases h1 : nT.denote w env < qT.denote w env
   · by_cases h2 : nT.denote w env + 1 < qT.denote w env <;> simp [h1, h2]
-  · simp only [h1, if_false, Nat.lt_irrefl]
+  · simp only [h1, ite_false, Nat.lt_irrefl]
     split_ifs <;> simp_all
 
 theorem StableAt.edgeTargetT (k : ℕ) {qT σT nT : Term} {env : List ℕ} (hq : StableAt w qT env)
@@ -188,7 +188,7 @@ theorem idxOf_filter_range (p : ℕ → Bool) (x : ℕ) : ∀ n,
     · rw [List.idxOf_append_of_mem hx, ih]
       have hx' := List.mem_filter.mp hx
       have hxn : x < n := List.mem_range.mp hx'.1
-      rw [if_pos ⟨hxn, hx'.2⟩, if_pos ⟨by omega, hx'.2⟩]
+      rw [ite_eq_left ⟨hxn, hx'.2⟩, ite_eq_left ⟨by omega, hx'.2⟩]
     · rw [List.idxOf_append_of_notMem hx, ← List.countP_eq_length_filter]
       have hnot : ¬ (x < n ∧ p x = true) := fun h =>
         hx (List.mem_filter.mpr ⟨List.mem_range.mpr h.1, h.2⟩)
@@ -199,13 +199,21 @@ theorem idxOf_filter_range (p : ℕ → Bool) (x : ℕ) : ∀ n,
         · simp [hp]
       · by_cases hp : p n
         · have : ¬ (x < n + 1 ∧ p x = true) := fun h => hnot ⟨by omega, h.2⟩
-          simp [hp, List.idxOf_cons_ne _ (Ne.symm hxn)]
+          simp only [hp, List.filter_cons_of_pos, List.filter_nil, List.idxOf_cons_ne _
+              (Ne.symm hxn), List.not_mem_nil,
+    not_false_eq_true, List.idxOf_of_notMem, List.length_nil, Nat.succ_eq_add_one, zero_add,
+        Order.lt_add_one_iff,
+    List.countP_cons_of_pos, List.countP_nil, right_eq_ite_iff, and_imp]
           intro h1 h2; exact absurd ⟨lt_of_le_of_ne h1 hxn, h2⟩ hnot
         · have : ¬ (x < n + 1 ∧ p x = true) := fun h => by
             rcases Nat.lt_succ_iff_lt_or_eq.mp h.1 with h1 | h1
             · exact hnot ⟨h1, h.2⟩
             · exact hxn h1
-          simp [hp]
+          simp only [hp, Bool.false_eq_true, not_false_eq_true, List.filter_cons_of_neg,
+              List.filter_nil,
+    List.not_mem_nil, List.idxOf_of_notMem, List.length_nil, add_zero, Order.lt_add_one_iff,
+        List.countP_cons_of_neg,
+    List.countP_nil, right_eq_ite_iff, and_imp]
           intro h1 h2; exact absurd ⟨lt_of_le_of_ne h1 hxn, h2⟩ hnot
 
 /-- The position of `x` in the ports of `v` (their number when `x` is not a port). -/

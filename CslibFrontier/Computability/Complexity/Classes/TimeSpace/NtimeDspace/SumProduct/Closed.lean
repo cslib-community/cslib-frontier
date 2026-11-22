@@ -129,10 +129,10 @@ theorem lvl_denote_cons {a : ℕ} {env : List ℕ} (ha : a < env.length) (x : �
   (ProgTerm.stableAt_lvl ha).cons x
 
 theorem denote_callT2 {q : Prog} (hq : Prog'.closed 2 q = true) {a b : ℕ} {env : List ℕ}
-    (ha : a < env.length) (hb : b < env.length) :
+    (ha : a < env.length) (_hb : b < env.length) :
     (callT2 q (lvl a) (lvl b)).denote w env =
       q.eval w [(lvl a).denote w env, (lvl b).denote w env] := by
-  show Prog.eval w (.letIn _ (.letIn _ q)) env = _
+  change Prog.eval w (.letIn _ (.letIn _ q)) env = _
   simp only [Prog.eval]
   have e1 : (lvl a (env.length + 1)).eval w ((lvl b env.length).eval w env :: env) =
       (lvl a).denote w env := by
@@ -141,10 +141,10 @@ theorem denote_callT2 {q : Prog} (hq : Prog'.closed 2 q = true) {a b : ℕ} {env
   exact Prog'.eval_append q [(lvl a).denote w env, (lvl b).denote w env] env hq
 
 theorem bnd_callT2 {q : Prog} (hq : Prog'.closed 2 q = true) {a b : ℕ} {env : List ℕ}
-    (ha : a < env.length) (hb : b < env.length)
+    (ha : a < env.length) (_hb : b < env.length)
     (h : q.Bounded w B [(lvl a).denote w env, (lvl b).denote w env]) :
     (callT2 q (lvl a) (lvl b)).Bnd w B env := by
-  show Prog.Bounded w B (.letIn _ (.letIn _ q)) env
+  change Prog.Bounded w B (.letIn _ (.letIn _ q)) env
   simp only [Prog.Bounded]
   refine ⟨trivial, trivial, ?_⟩
   have e1 : (lvl a (env.length + 1)).eval w ((lvl b env.length).eval w env :: env) =
@@ -154,10 +154,10 @@ theorem bnd_callT2 {q : Prog} (hq : Prog'.closed 2 q = true) {a b : ℕ} {env : 
   exact (Prog'.bounded_append B q [(lvl a).denote w env, (lvl b).denote w env] env hq).mpr h
 
 theorem denote_callT3 {q : Prog} (hq : Prog'.closed 3 q = true) {a b c : ℕ} {env : List ℕ}
-    (ha : a < env.length) (hb : b < env.length) (hc : c < env.length) :
+    (ha : a < env.length) (hb : b < env.length) (_hc : c < env.length) :
     (callT3 q (lvl a) (lvl b) (lvl c)).denote w env =
       q.eval w [(lvl a).denote w env, (lvl b).denote w env, (lvl c).denote w env] := by
-  show Prog.eval w (.letIn _ (.letIn _ (.letIn _ q))) env = _
+  change Prog.eval w (.letIn _ (.letIn _ (.letIn _ q))) env = _
   simp only [Prog.eval]
   have e1 : (lvl b (env.length + 1)).eval w ((lvl c env.length).eval w env :: env) =
       (lvl b).denote w env := by
@@ -171,10 +171,10 @@ theorem denote_callT3 {q : Prog} (hq : Prog'.closed 3 q = true) {a b c : ℕ} {e
     env hq
 
 theorem bnd_callT3 {q : Prog} (hq : Prog'.closed 3 q = true) {a b c : ℕ} {env : List ℕ}
-    (ha : a < env.length) (hb : b < env.length) (hc : c < env.length)
+    (ha : a < env.length) (hb : b < env.length) (_hc : c < env.length)
     (h : q.Bounded w B [(lvl a).denote w env, (lvl b).denote w env, (lvl c).denote w env]) :
     (callT3 q (lvl a) (lvl b) (lvl c)).Bnd w B env := by
-  show Prog.Bounded w B (.letIn _ (.letIn _ (.letIn _ q))) env
+  change Prog.Bounded w B (.letIn _ (.letIn _ (.letIn _ q))) env
   simp only [Prog.Bounded]
   refine ⟨trivial, trivial, trivial, ?_⟩
   have e1 : (lvl b (env.length + 1)).eval w ((lvl c env.length).eval w env :: env) =

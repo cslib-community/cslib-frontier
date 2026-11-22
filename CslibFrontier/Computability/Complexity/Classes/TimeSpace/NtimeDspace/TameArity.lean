@@ -34,6 +34,7 @@ variable {qT bT σT : Term} (hL : 8 ≤ L) (hq : Tm w L 1 qT env) (hb : Tm w L 1
   (hE : (edgesT k s qT bT).denote w env * (edgesT k s qT bT).denote w env < 2 ^ L)
 include hL hq hb hσ hm1 hconst hEs hE
 
+omit hb in
 theorem tm_arityNT1 : TmF w L (arityNT k s qT bT σT) 4 1 env := by
   have hpc := tm_portCountT (k := k) hL hq hm1 hσ hconst
   refine TmF.retier (d := 20) (fun env' he x hx => ?_) (fun env' he x => ?_)
@@ -46,6 +47,7 @@ theorem tm_arityNT1 : TmF w L (arityNT k s qT bT σT) 4 1 env := by
         (edgesT k s qT bT).denote w env := Nat.le_mul_self _
     rw [one_mul]; omega
 
+omit hb in
 theorem tm_portAtT1 : TmF2 w L (portAtT k s qT bT σT) 4 4 1 env := by
   have hpc := tm_portCountT (k := k) hL hq hm1 hσ hconst
   have hpp := tm_portPredT (k := k) hL hq hm1 hσ hconst

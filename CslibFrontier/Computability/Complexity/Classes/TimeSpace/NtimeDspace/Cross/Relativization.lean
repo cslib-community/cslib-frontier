@@ -47,8 +47,7 @@ The remark's argument, formalized:
 5. *Trying the choice strings one at a time*: `ntime_subset_dspace_oracle`:
    `NTIME^A[n] ⊆ SPACE^A[n]` for every oracle `A` decidable in linear space, in particular for `BSA`
    (`Cslib.Complexity.NtimeDspace.Oracle.NTIMEO_subset_DSPACE`: the choice numbers `r < B^T` are
-   tried one at a
-   time, each by a universal simulation of the choice run).
+   tried one at a time, each by a universal simulation of the choice run).
 
 Hence `relativization_equalities_bsa`: `TIME^BSA[n] = NTIME^BSA[n] = SPACE^BSA[n]` (and
 `relativization_collapse_bsa`: both equal `SPACE[n]`), and `separation_does_not_relativize_bsa`:
@@ -140,8 +139,8 @@ theorem relativization_equalities_bsa :
 
 /-- **Remark 8.3: Theorem 1.1 does not relativize.** Relative to `BSA`, the inclusion
 `NTIME[n] ⊆ SPACE[n/√log n]` of Theorem 1.1 fails: `NTIME^BSA[n] ⊄ SPACE^BSA[n/√log n]`, with
-the bound `n / ⌊√⌊log₂ n⌋⌋ + 1` of
-`Cslib.Complexity.NtimeDspace.Crossing.ntime_subset_dspace_sqrtLog`. -/
+the bound `n / ⌊√⌊log₂ n⌋⌋ + 1` of `Cslib.Complexity.NTIME_subset_DSPACE_div_sqrt_log` at
+`t(n) = n`. -/
 theorem separation_does_not_relativize_bsa :
     ¬ NTIMEO BSA (fun n => n) ⊆ SPACEO BSA (fun n => n / Nat.sqrt n.log2 + 1) := by
   intro h

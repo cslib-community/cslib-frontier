@@ -245,7 +245,7 @@ theorem sizes_eventually (C : ℕ) : ∃ τ₁, ∀ τ, τ₁ ≤ τ → ∀ X, 
       omega
   have hAS : A + 2 ≤ S := by
     have : A + 2 ≤ (C + 1) * (L + 2) + 2 := by
-      show (L + 2) * C + 1 + 2 ≤ _; nlinarith
+      change (L + 2) * C + 1 + 2 ≤ _; nlinarith
     nlinarith
   have hS2 : 2 ≤ S := by omega
   have hτS : τ < 2 ^ S := Nat.lt_log2_self.trans_le
@@ -272,7 +272,7 @@ theorem sizes_eventually (C : ℕ) : ∃ τ₁, ∀ τ, τ₁ ≤ τ → ∀ X, 
       have : r * (4 * A * q) = 2 * (2 * r * A * q) := by ring
       omega
     have hg : numGroups X E S ≤ 4 * A * q := by
-      show E / r + 1 ≤ _
+      change E / r + 1 ≤ _
       have := (Nat.div_lt_iff_lt_mul hr1).mpr (by rw [mul_comm]; exact hErq)
       omega
     set g := numGroups X E S
@@ -286,7 +286,7 @@ theorem sizes_eventually (C : ℕ) : ∃ τ₁, ∀ τ, τ₁ ≤ τ → ∀ X, 
       have h3 := Nat.one_le_two_pow (n := (L + 2) * (4 * A * q))
       rw [pow_succ]; omega
     have hexp : 3 + A + (L + 2) * (4 * A * q) ≤ 7 * S := by
-      have hA : A ≤ (C + 1) * (L + 2) := by show (L + 2) * C + 1 ≤ _; nlinarith
+      have hA : A ≤ (C + 1) * (L + 2) := by change (L + 2) * C + 1 ≤ _; nlinarith
       have h1 : (L + 2) * (4 * A * q) ≤ 4 * (C + 1) * (L + 2) ^ 3 := by
         calc (L + 2) * (4 * A * q) ≤ (L + 2) * (4 * ((C + 1) * (L + 2)) * (L + 2)) := by
               gcongr; omega
@@ -335,8 +335,8 @@ theorem clockedBits_of_clockedResidues (h : ClockedResidues) : ClockedBits := by
   have h8 : 2 ^ (8 * S) ≤ 2 ^ ((C + 8) * S) := Nat.pow_le_pow_right (by norm_num) (by nlinarith)
   have hτS : τ < 2 ^ S := Nat.lt_log2_self.trans_le
     (Nat.pow_le_pow_right (by norm_num) (log2_add_one_le_sqrtLog τ))
-  have h2S : 2 ^ (2 * S + 2) ≤ 2 ^ ((C + 8) * S) := Nat.pow_le_pow_right (by norm_num)
-      (by nlinarith)
+  have h2S : 2 ^ (2 * S + 2) ≤ 2 ^ ((C + 8) * S) := Nat.pow_le_pow_right
+      (by norm_num) (by nlinarith)
   have hsq : (τ + 2) * (τ + 2) ≤ 2 ^ ((C + 8) * S) := by
     have : τ + 2 ≤ 2 ^ (S + 1) := by rw [pow_succ]; omega
     calc (τ + 2) * (τ + 2) ≤ 2 ^ (S + 1) * 2 ^ (S + 1) := Nat.mul_le_mul this this

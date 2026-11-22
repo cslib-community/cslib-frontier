@@ -5,7 +5,6 @@ Authors: Charlie Cruz
 -/
 
 module
--- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cross.ThreeSat.Instance
 

@@ -40,8 +40,7 @@ as `Cross.Exact.Val w t env n` (value `n` in every extension); the two are equiv
 * `val_trRootT`, `tm_trRootT`, `val_argLabT`.
 
 The terms of the state-level functions of `EntryNum.lean` (`psiN`, `factorGN`, `factorN`,
-`clChildN`,
-`entTagN`, `entChildN`, `rngChildN`, …) are compositions of these with the terms of
+`clChildN`, `entTagN`, `entChildN`, `rngChildN`, …) are compositions of these with the terms of
 `BudgetTerm.lean` (`budT`, `argOffT`, `sliceT`, `xiWidT`, `childT`, `choiceValidT`, `orientT`,
 `diagT`, `digT`, `packLT`, `nFacT`) and are not yet written here.
 -/
@@ -164,8 +163,8 @@ theorem tm_hdE_tlE {de : ℕ} {x : ℕ} {l : List ℕ} (he : Val w env e (NatLis
     have : 2 * x.size + 1 < de * L := (Nat.pow_lt_pow_iff_right (by norm_num)).mp (h2.trans_lt hlt)
     rw [Nat.add_mul, one_mul]; omega
   refine ⟨t_mod_left (t_div te (t_pow2v (d := de + 1) (val_add hv (val_const 1))
-    (t_add t1 (t_one (by omega)) (by omega) (by omega)) (by omega) (by omega) (by omega)
-        (by omega)))
+    (t_add t1 (t_one (by omega)) (by omega) (by omega)) (by omega) (by omega)
+        (by omega) (by omega)))
       (t_pow2v (d := de + 1) hv t1 (by omega) (by omega) (by omega) (by omega)),
     t_div te (t_pow2v (d := de + 1) (val_add (val_add hv hv) (val_const 1))
       (t_add (t_add t1 t1 (by omega) (by omega)) (t_one (by omega)) (by omega) (by omega))
@@ -234,8 +233,8 @@ theorem val_swapT (hB : Val w env B Bv) (hc : Val w env c cv) : Val w env (swapT
 
 theorem tm_swapT {l : Label} (hB : Val w env B Bv) (hc : Val w env c (lcode l))
     (tB : Tm w L 1 B env)
-    (tc : Tm w L 1 c env) (hl : LB Bv l) (hL : 4 ≤ L) (hBL : Bv ≤ L) : Tm w L 1 (swapT B c)
-        env := by
+    (tc : Tm w L 1 c env) (hl : LB Bv l) (hL : 4 ≤ L) (hBL : Bv ≤ L) : Tm w L 1
+        (swapT B c) env := by
   have t0 : Tm w L 1 (const 0) env := t_small (by norm_num) (by omega)
   have e1 := val_msEndT hB hc (val_const 0)
   have e2 := val_msEndT hB hc e1
@@ -319,7 +318,9 @@ theorem tm_unpackT {l : Label} {Φ dLt ds : ℕ} (hB : Val w env B Bv) (hLt : Va
   have n1 := tm_ocLenT hB X1 C1 tB tX1 TC1 (by norm_num) hL hBL
   have o2 := tm_ocCodeT hB X2 C2 tB tX2 TC2 (by norm_num) hL hBL
   have p := t_pow2v (d := 2) (val_ocLenT hB X1 C1) n1 (by norm_num)
-    (by have := ocLen_le Bv (topN Bv (lcode l) 0) (fun k => countN Bv (lcode l) 0 (Lv * k + sv)); omega)
+    (by
+      have := ocLen_le Bv (topN Bv (lcode l) 0) (fun k => countN Bv (lcode l) 0 (Lv * k + sv))
+      omega)
     (by norm_num) (by omega)
   refine tm_val (t_add o1 (t_mul p o2 (by norm_num)) (by omega) (by norm_num))
       (val_unpackT hB hLt hs hc) ?_
@@ -420,8 +421,8 @@ theorem val_consE (hx : Val w env x X) (hl : Val w env l Lc) : Val w env (consE 
     (consF X Lc) := by
   have hs := val_sizeE hx
   refine (val_add (val_add (val_sub (val_pow2 hs) (val_const 1)) (val_mul (val_pow2
-    (val_add hs (val_const 1))) hx)) (val_mul (val_pow2 (val_add (val_add hs hs) (val_const 1)))
-        hl)).congr ?_
+    (val_add hs (val_const 1))) hx)) (val_mul
+        (val_pow2 (val_add (val_add hs hs) (val_const 1))) hl)).congr ?_
   rw [consF, sizeF_eq]
 
 theorem val_encE : ∀ {ts : List Term} {vs : List ℕ}, List.Forall₂ (fun t v => Val w env t v) ts vs →
@@ -454,8 +455,8 @@ theorem tm_consE {dx dl d : ℕ} (hx : Val w env x X) (hl : Val w env l Lc) (tx 
     (hv : consF X Lc < 2 ^ (d * L)) : Tm w L d (consE x l) env := by
   obtain ⟨g1, g2, -, g4, -⟩ := consF_ge X Lc hl1
   rw [sizeF_eq] at g2 g4
-  have h2l : 2 ^ (X.size + X.size + 1) ≤ 2 ^ (X.size + X.size + 1) * Lc := Nat.le_mul_of_pos_right _
-      hl1
+  have h2l : 2 ^ (X.size + X.size + 1) ≤ 2 ^ (X.size + X.size + 1) * Lc :=
+      Nat.le_mul_of_pos_right _ hl1
   have hlc : Lc ≤ 2 ^ (X.size + X.size + 1) * Lc := Nat.le_mul_of_pos_left _ (by positivity)
   have tx' := tm_val tx hx (g1.trans_lt hv)
   have tl' := tm_val tl hl ((hlc.trans g4).trans_lt hv)
@@ -468,8 +469,8 @@ theorem tm_consE {dx dl d : ℕ} (hx : Val w env x X) (hl : Val w env l Lc) (tx 
   have p1 := t_pow2v (d := d) (val_add hs (val_const 1)) (t_add ts one (by omega) (by omega))
     (by omega) (by omega) (by omega) hL
   have p2 := t_pow2v (d := d) (val_add (val_add hs hs) (val_const 1))
-    (t_add (t_add ts ts (by omega) (by omega)) one (by omega) (by omega)) (by omega) (by omega)
-        (by omega) hL
+    (t_add (t_add ts ts (by omega) (by omega)) one (by omega) (by omega)) (by omega)
+        (by omega) (by omega) hL
   exact tm_val (t_add (t_add (t_sub p0 one) (t_mul p1 tx' (by omega)) (by omega) (by omega))
     (t_mul p2 tl' (by omega)) (by omega) (by omega)) (val_consE hx hl) hv
 
@@ -495,8 +496,8 @@ def trRootT (B : Term) (up : Bool) (xC yC mC zc : Term) : Term :=
     add (add (cardT B xC (const 0)) (cardT B yC (const 0)))
       (if up then cardT B mC (msEndT B mC (const 0)) else cardT B mC (const 0)),
     encE [div xC (pow2 (msEndT B xC (const 0))), div yC (pow2 (msEndT B yC (const 0))),
-      if up then mod mC (pow2 (msEndT B mC (const 0))) else div mC (pow2 (msEndT B mC (const 0)))],
-          zc]
+      if up then mod mC (pow2 (msEndT B mC (const 0))) else div mC
+          (pow2 (msEndT B mC (const 0)))], zc]
 
 section TrRoot
 
@@ -520,8 +521,8 @@ theorem val_trRootT (up : Bool) (hB : Val w env B Bv) (hx : Val w env xC xv) (hy
     · exact val_mod hm (val_pow2 (e0 hm))
   have len : Val w env (add (add (cardT B xC (const 0)) (cardT B yC (const 0)))
       (if up then cardT B mC (msEndT B mC (const 0)) else cardT B mC (const 0)))
-      (cardN Bv xv 0 + cardN Bv yv 0 + if up then cardN Bv mv (msEnd Bv mv 0) else cardN Bv mv
-          0) := by
+      (cardN Bv xv 0 + cardN Bv yv 0 + if up then cardN Bv mv
+          (msEnd Bv mv 0) else cardN Bv mv 0) := by
     refine val_add (val_add (val_cardT hB hx (val_const 0)) (val_cardT hB hy (val_const 0))) ?_
     cases up
     · exact val_cardT hB hm (val_const 0)
@@ -542,8 +543,8 @@ theorem tm_trRootT (up : Bool) {x y m : Label} {dz d : ℕ} (hB : Val w env B Bv
   have pw : ∀ {c : Term} {l : Label}, Val w env c (lcode l) → Tm w L 1 c env → LB Bv l →
       Tm w L 2 (pow2 (msEndT B c (const 0))) env := fun hc tc hl =>
     t_pow2v (val_msEndT hB hc (val_const 0)) (tm_msEndT hB hc (val_const 0) tB tc t0 le_rfl
-      (by norm_num) hL hBL) (by norm_num) (by rw [msEnd_lcode hl]; unfold LB at hl; omega)
-          (by norm_num)
+      (by norm_num) hL hBL) (by norm_num)
+          (by rw [msEnd_lcode hl]; unfold LB at hl; omega) (by norm_num)
       (by omega)
   have cd : ∀ {c q : Term} {cv qv dq : ℕ}, Val w env c cv → Val w env q qv → Tm w L 1 c env →
       Tm w L dq q env → 1 ≤ dq → dq ≤ 64 → Tm w L 3 (cardT B c q) env :=
@@ -573,8 +574,8 @@ theorem tm_trRootT (up : Bool) {x y m : Label} {dz d : ℕ} (hB : Val w env B Bv
     · exact val_cardT hB hm (val_msEndT hB hm (val_const 0))
   · have hA := t_add (cd hx (val_const 0) tx t0 le_rfl (by norm_num))
       (cd hy (val_const 0) ty t0 le_rfl (by norm_num)) (by omega) (by norm_num)
-    have hC : Tm w L 3 (if up then cardT B mC (msEndT B mC (const 0)) else cardT B mC (const 0))
-        env := by
+    have hC : Tm w L 3 (if up then cardT B mC (msEndT B mC (const 0)) else cardT B mC
+        (const 0)) env := by
       cases up
       · exact cd hm (val_const 0) tm t0 le_rfl (by norm_num)
       · exact cd hm (val_msEndT hB hm (val_const 0)) tm m1 (by norm_num) (by norm_num)
@@ -619,8 +620,8 @@ theorem val_argLabT {arT qT fwT v x u : Term} {ar q fw V X U : ℕ} (har : Val w
   have hb := (val_budT har.toExact hq.toExact hfw.toExact hv.toExact hu.toExact).toNum
   have ho := (val_argOffT har.toExact hq.toExact hfw.toExact hv.toExact hu.toExact).toNum
   have hW := val_codeWidthT hb
-  have hf := val_mod ((val_divPowT (Cross.Exact.val_const 2 env) hx.toExact ho.toExact).toNum)
-      (val_pow2 hW)
+  have hf := val_mod ((val_divPowT (Cross.Exact.val_const 2 env) hx.toExact
+      ho.toExact).toNum) (val_pow2 hW)
   have hval := val_validT hb hW hf
   refine (val_ite (val_lt hv hq) (val_ite (val_lt hu hq) (val_ite (val_eqT hu hv) (val_const 3)
     (val_ite (val_lt (val_const 0) hb) (val_ite (val_eqT hval (val_const 1)) hf (val_const 3))

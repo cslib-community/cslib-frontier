@@ -203,14 +203,17 @@ theorem denote_oldEntryT [DecidableEq State] {RT NT qT bT σT vT : Term} {L : Te
   unfold oldEntryT oldEntryNum
   rw [denote_ite, denote_lt]
   by_cases h1 : vT.denote w env < qT.denote w env
-  · rw [if_pos (by simp [h1]), if_pos h1, intervalEntryT_denote hR hN hq hb hσ hv hL hbpos hRv hNv]
-  · rw [if_neg (by simp [h1]), if_neg h1, denote_ite, denote_eqT]
+  · rw [ite_eq_left (by simp [h1]), ite_eq_left h1, intervalEntryT_denote hR hN hq hb hσ hv
+      hL hbpos hRv hNv]
+  · rw [ite_eq_right (by simp [h1]), ite_eq_right h1, denote_ite, denote_eqT]
     have hd : (add (sub vT qT) (const 1)).denote w env = vT.denote w env - qT.denote w env + 1 := by
       simp
     by_cases h2 : vT.denote w env - qT.denote w env + 1 = qT.denote w env
-    · rw [if_pos (by rw [if_pos (hd.trans h2)]; exact Nat.one_pos), if_pos h2, denote_acceptT _ hb,
+    · rw [ite_eq_left (by rw [ite_eq_left (hd.trans h2)]; exact Nat.one_pos), ite_eq_left h2,
+        denote_acceptT _ hb,
         hL.den (hv.sub hq), denote_sub]
-    · rw [if_neg (by rw [if_neg (fun h => h2 (hd.symm.trans h))]; exact lt_irrefl 0), if_neg h2]
+    · rw [ite_eq_right (by rw [ite_eq_right (fun h => h2 (hd.symm.trans h))]; exact lt_irrefl 0),
+        ite_eq_right h2]
       rfl
 
 /-- **The table entry term computes the table entry of the explicit block network.** -/
@@ -231,15 +234,15 @@ theorem denote_tableEntryT [DecidableEq State] {RT NT qT bT σT vT jT : Term} {e
   unfold tableEntryT tableEntryNum
   rw [denote_ite, denote_lt]
   by_cases h1 : vT.denote w env < qT.denote w env * (3 * k + 2)
-  · rw [if_pos (by simp [h1]), if_pos h1, denote_ite, denote_validT hq hb hσ hv hj]
+  · rw [ite_eq_left (by simp [h1]), ite_eq_left h1, denote_ite, denote_validT hq hb hσ hv hj]
     by_cases h2 : validNum k (qT.denote w env) s (bT.denote w env) (σT.denote w env)
         (explicitPortsNum k (qT.denote w env) (letterBits k s (bT.denote w env)) (σT.denote w env)
           (vT.denote w env)) (jT.denote w env) (vT.denote w env) = true
-    · rw [if_pos (by simp [h2]), if_pos h2,
+    · rw [ite_eq_left (by simp [h2]), ite_eq_left h2,
         denote_oldEntryT hR hN hq hb hσ hv (implementsFun_lettersT hq hm hσ hv hj) hbpos hRv hNv,
         hmv]
-    · rw [if_neg (by simp [h2]), if_neg h2]; rfl
-  · rw [if_neg (by simp [h1]), if_neg h1, denote_eqT, denote_bit, denote_bit]
+    · rw [ite_eq_right (by simp [h2]), ite_eq_right h2]; rfl
+  · rw [ite_eq_right (by simp [h1]), ite_eq_right h1, denote_eqT, denote_bit, denote_bit]
     have hx1 : StableAt w (sub vT (mul qT (const (3 * k + 2)))) env :=
       hv.sub (hq.mul (stableAt_const _ _))
     have hx2 : StableAt w (add (halvesT k qT (letterBitsT k s bT))
@@ -254,8 +257,8 @@ theorem denote_tableEntryT [DecidableEq State] {RT NT qT bT σT vT jT : Term} {e
         (letterBits k s (bT.denote w env)) (σT.denote w env) (vT.denote w env)).idxOf
           (qT.denote w env * (3 * k + 1) * letterBits k s (bT.denote w env) +
             (vT.denote w env - qT.denote w env * (3 * k + 2))))
-    · rw [if_pos h3, h3]; simp
-    · rw [if_neg h3]
+    · rw [ite_eq_left h3, h3]; simp
+    · rw [ite_eq_right h3]
       cases ha : (jT.denote w env).testBit ((explicitPortsNum k (qT.denote w env)
         (letterBits k s (bT.denote w env)) (σT.denote w env) (vT.denote w env)).idxOf
           (vT.denote w env - qT.denote w env * (3 * k + 2))) <;>

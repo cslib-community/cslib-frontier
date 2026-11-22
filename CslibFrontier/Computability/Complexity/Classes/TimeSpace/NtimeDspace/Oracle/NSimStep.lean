@@ -281,7 +281,7 @@ theorem istep_shape (xs : List ℕ) (r j : ℕ) :
       · rw [htm, ← hxs]; exact hpos'
       · rw [htm]; exact hst' hst
       · have := D.length_simNextX_snd eS A z.1 z.2.2.1
-        show (D.simNextX eS A z.1 z.2.2.1).2.length ≤ j + 1
+        change (D.simNextX eS A z.1 z.2.2.1).2.length ≤ j + 1
         omega
       · have hi : (i : ℕ) < z.2.2.1.1.workTapes.length := by rw [hlen]; exact i.isLt
         rw [htm, hws, getD_applyTapes' _ _ hi]

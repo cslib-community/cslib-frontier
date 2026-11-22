@@ -102,8 +102,9 @@ theorem log2T_denote (K c : Term) (env : List ℕ) (hc : StableAt w c env)
       denote_lvl_index, denote_const, hc.cons₂]
     have hne : c.denote w env ≠ 0 := by omega
     by_cases h : i < (c.denote w env).log2
-    · rw [if_pos (Nat.div_pos_iff.mpr ⟨by positivity, (Nat.le_log2 hne).mp h⟩), if_pos h]
-    · rw [if_neg (fun h' => h ((Nat.le_log2 hne).mpr (Nat.div_pos_iff.mp h').2)), if_neg h]
+    · rw [ite_eq_left (Nat.div_pos_iff.mpr ⟨by positivity, (Nat.le_log2 hne).mp h⟩), ite_eq_left h]
+    · rw [ite_eq_right (fun h' => h ((Nat.le_log2 hne).mpr (Nat.div_pos_iff.mp h').2)), ite_eq_right
+        h]
 
 /-- The parser over the word of candidate `c`. -/
 def scanT (B Cap Lb q M K c : Term) : Term :=

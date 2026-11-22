@@ -98,7 +98,7 @@ theorem Setup.factorSt_eq (S : Setup) (rest : List ℕ) (i v args ξ f : ℕ)
         ((S.clique rest).recast _ h).a (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i)
         (orientRow ((S.clique rest).recast _ h).a
           fun r => (decodeChoice (Nat.sqrt (S.clique rest).q) S.fw i r).1) v args ξ f := by
-  simp only [Setup.factorSt, Setup.parentGrid, dif_pos h]
+  simp only [Setup.factorSt, Setup.parentGrid, dite_eq_left h]
   rfl
 
 /-- The meaning of a factor state at the parent `P`. -/
@@ -132,13 +132,14 @@ theorem factorG_shape (rest : List ℕ) (P Cc : Clique) (g : ℕ) (a : Fin (g * 
       ∃ up x y m e, factorG rest P Cc g a ι row v args ξ f =
         .tr up x y m 0 (srcList up x y m).length (tgtMs up x y m) e := by
   by_cases h1 : f < g
-  · exact Or.inr (Or.inr (Or.inl ⟨h1, by simp only [factorG, if_pos h1]⟩))
+  · exact Or.inr (Or.inr (Or.inl ⟨h1, by simp only [factorG, ite_eq_left h1]⟩))
   by_cases h2 : f < g + g * g
-  · exact Or.inr (Or.inl (by simp only [factorG, if_neg h1, if_pos h2]; exact ⟨_, rfl⟩))
+  · exact Or.inr (Or.inl (by simp only [factorG, ite_eq_right h1, ite_eq_left h2]; exact ⟨_, rfl⟩))
   by_cases h3 : f < g + g * g + g * g
-  · exact Or.inr (Or.inl (by simp only [factorG, if_neg h1, if_neg h2, if_pos h3]; exact ⟨_, rfl⟩))
+  · exact Or.inr (Or.inl (by
+      simp only [factorG, ite_eq_right h1, ite_eq_right h2, ite_eq_left h3]; exact ⟨_, rfl⟩))
   unfold factorG
-  simp only [if_neg h1, if_neg h2, if_neg h3]
+  simp only [ite_eq_right h1, ite_eq_right h2, ite_eq_right h3]
   generalize quad g (f - g - g * g - g * g) = qd
   obtain ⟨A₁, A₂, B₁, B₂⟩ := qd
   dsimp only
@@ -176,7 +177,7 @@ theorem holders_lt {g v : ℕ} (hv : v < g) (row : Bool) {p : ℕ} (hp : p < g) 
 
 theorem copyAt_eq (C : Clique) (nodes : ℕ → ℕ) (ξ p : ℕ) (hp : nodes p < C.q) (u : Fin C.q) :
     copyAt C nodes ξ p u = decodeArgs C ⟨nodes p, hp⟩ (slice C nodes ξ p) u := by
-  unfold copyAt; rw [dif_pos ⟨hp, u.isLt⟩]
+  unfold copyAt; rw [dite_eq_left ⟨hp, u.isLt⟩]
 
 theorem prod_rect_dite {M : Type*} [CommMonoid M] {g : ℕ} (ψ : Rect g → M) :
     ∏ r : Rect g, ψ r = ∏ A₁ : Fin g, ∏ A₂ : Fin g, ∏ B₁ : Fin g, ∏ B₂ : Fin g,
@@ -186,7 +187,7 @@ theorem prod_rect_dite {M : Type*} [CommMonoid M] {g : ℕ} (ψ : Rect g → M) 
     if h : x.1.1 < x.1.2 ∧ x.2.1 < x.2.2 then ψ ⟨x, h⟩ else 1
   have e1 : ∏ r : Rect g, ψ r = ∏ r : Rect g, F r.1 := by
     refine Fintype.prod_congr _ _ fun r => ?_
-    simp only [F, dif_pos r.2]
+    simp only [F, dite_eq_left r.2]
   have e2 := Finset.prod_subtype (p := fun x : (Fin g × Fin g) × (Fin g × Fin g) =>
     x.1.1 < x.1.2 ∧ x.2.1 < x.2.2) (F := inferInstance)
         (univ.filter fun x : (Fin g × Fin g) × (Fin g × Fin g) =>
@@ -194,8 +195,8 @@ theorem prod_rect_dite {M : Type*} [CommMonoid M] {g : ℕ} (ψ : Rect g → M) 
   rw [e1, ← e2, Finset.prod_filter]
   have e3 : ∀ x, (if x.1.1 < x.1.2 ∧ x.2.1 < x.2.2 then F x else 1) = F x := fun x => by
     by_cases h : x.1.1 < x.1.2 ∧ x.2.1 < x.2.2
-    · rw [if_pos h]
-    · rw [if_neg h]; simp only [F, dif_neg h]
+    · rw [ite_eq_left h]
+    · rw [ite_eq_right h]; simp only [F, dite_eq_right h]
   simp only [e3, Fintype.prod_prod_type, F]
 
 /-! ### The four blocks of factors -/
@@ -203,20 +204,20 @@ theorem prod_rect_dite {M : Type*} [CommMonoid M] {g : ℕ} (ψ : Rect g → M) 
 section Blocks
 
 variable {g : ℕ} (aP : Fin (g * g) → Fin (g * g) → ℕ) (TP : Fin (g * g) → (Fin (g * g) → Label) → ℤ)
-  (rest : List ℕ) (Cc : Clique) (a : Fin (g * g) → Fin (g * g) → ℕ) (ι : Rect g → ℤ × ℤ)
-      (row : Bool)
+  (rest : List ℕ) (Cc : Clique) (a : Fin (g * g) → Fin (g * g) → ℕ)
+      (ι : Rect g → ℤ × ℤ) (row : Bool)
   (v : Fin g) (args ξ : ℕ)
 
-theorem block_ent (n : Fin g → Fin (g * g)) (hn : ∀ p : Fin g, (n p).val = Setup.holders g v row p)
-    :
+theorem block_ent (n : Fin g → Fin (g * g))
+    (hn : ∀ p : Fin g, (n p).val = Setup.holders g v row p) :
     ∏ x ∈ range g, fval ⟨g * g, aP, TP⟩ (factorG rest ⟨g * g, aP, TP⟩ Cc g a ι row v args ξ x) =
       ∏ B : Fin g, TP (n B) (fun u => copyAt ⟨g * g, aP, TP⟩ (Setup.holders g v row) ξ B u) := by
   rw [← Fin.prod_univ_eq_prod_range]
   refine Fintype.prod_congr _ _ fun B => ?_
   have hx : (B : ℕ) < g := B.isLt
   have hlt : Setup.holders g v row B < g * g := holders_lt v.isLt row hx
-  simp only [factorG, if_pos hx, fval, cEntry]
-  rw [dif_pos hlt]
+  simp only [factorG, ite_eq_left hx, fval, cEntry]
+  rw [dite_eq_left hlt]
   have e : ∀ u : Fin (g * g), copyAt ⟨g * g, aP, TP⟩ (Setup.holders g v row) ξ B u =
       decodeArgs ⟨g * g, aP, TP⟩ ⟨Setup.holders g v row B, hlt⟩
         (slice ⟨g * g, aP, TP⟩ (Setup.holders g v row) ξ B) u :=
@@ -225,8 +226,8 @@ theorem block_ent (n : Fin g → Fin (g * g)) (hn : ∀ p : Fin g, (n p).val = S
   have hnB : (⟨Setup.holders g v row B, hlt⟩ : Fin (g * g)) = n B := Fin.ext (hn B).symm
   rw [hnB]
 
-theorem block_hor (n : Fin g → Fin (g * g)) (hn : ∀ p : Fin g, (n p).val = Setup.holders g v row p)
-    :
+theorem block_hor (n : Fin g → Fin (g * g))
+    (hn : ∀ p : Fin g, (n p).val = Setup.holders g v row p) :
     ∏ x ∈ range (g * g), fval ⟨g * g, aP, TP⟩
         (factorG rest ⟨g * g, aP, TP⟩ Cc g a ι row v args ξ (g + x)) =
       ∏ B : Fin g, ∏ B' : Fin g,
@@ -242,7 +243,7 @@ theorem block_hor (n : Fin g → Fin (g * g)) (hn : ∀ p : Fin g, (n p).val = S
       B := by rw [Nat.add_sub_cancel_left, node_val, nd_div _ _ B'.isLt]
   have hm : (g + (node B B' : ℕ) - g) % g =
       B' := by rw [Nat.add_sub_cancel_left, node_val, nd_mod _ _ B'.isLt]
-  simp only [factorG, if_neg h1, if_pos h2, hd, hm, fval, hn, Fin.lt_def]
+  simp only [factorG, ite_eq_right h1, ite_eq_left h2, hd, hm, fval, hn, Fin.lt_def]
 
 theorem block_vert :
     ∏ x ∈ range (g * g), fval ⟨g * g, aP, TP⟩
@@ -264,7 +265,7 @@ theorem block_vert :
   have hm : (g + g * g + (node o p : ℕ) - g - g * g) % g = p := by
     rw [show g + g * g + (node o p : ℕ) - g - g * g =
         (node o p : ℕ) by omega, node_val, nd_mod _ _ p.isLt]
-  simp only [factorG, if_neg h1, if_neg h2, if_pos h3, hd, hm, fval]
+  simp only [factorG, ite_eq_right h1, ite_eq_right h2, ite_eq_left h3, hd, hm, fval]
 
 theorem block_psi :
     ∏ x ∈ range (g ^ 4), fval ⟨g * g, aP, TP⟩
@@ -289,7 +290,7 @@ theorem block_psi :
     rw [show g + g * g + g * g + (node (node A₁ A₂) (node B₁ B₂) : ℕ) - g - g * g - g * g =
       (node (node A₁ A₂) (node B₁ B₂) : ℕ) by omega, node_val, node_val, node_val]
     exact quad_eq A₁.isLt A₂.isLt B₁.isLt B₂.isLt
-  simp only [factorG, if_neg h1, if_neg h2, if_neg h3, hq]
+  simp only [factorG, ite_eq_right h1, ite_eq_right h2, ite_eq_right h3, hq]
 
 end Blocks
 
@@ -303,11 +304,11 @@ variable {g : ℕ} (aP : Fin (g * g) → Fin (g * g) → ℕ) (TP : Fin (g * g) 
 
 theorem Θof_row (A' : Fin g) : Θof (rowChild g a T ι) v args A' = decodeArgs (rowChild g a T ι) v
     args A' := by
-  unfold Θof; rw [dif_pos ⟨A'.isLt, v.isLt⟩]; rfl
+  unfold Θof; rw [dite_eq_left ⟨A'.isLt, v.isLt⟩]; rfl
 
 theorem Θof_col (A' : Fin g) : Θof (colChild g a T ι) v args A' = decodeArgs (colChild g a T ι) v
     args A' := by
-  unfold Θof; rw [dif_pos ⟨A'.isLt, v.isLt⟩]; rfl
+  unfold Θof; rw [dite_eq_left ⟨A'.isLt, v.isLt⟩]; rfl
 
 theorem psi_row (A₁ A₂ B₁ B₂ : Fin g) :
     fval ⟨g * g, aP, TP⟩ (psiG ⟨g * g, aP, TP⟩ (rowChild g a T ι) g a ι true v args ξ A₁ A₂ B₁ B₂) =
@@ -317,55 +318,57 @@ theorem psi_row (A₁ A₂ B₁ B₂ : Fin g) :
               ⟨((A₁, A₂), (B₁, B₂)), h⟩
       else 1 := by
   by_cases h : A₁ < A₂ ∧ B₁ < B₂
-  · rw [dif_pos h]
-    simp only [psiG, dif_pos (show (A₁ : ℕ) < A₂ ∧ (B₁ : ℕ) < B₂ ∧ (A₂ : ℕ) < g ∧ (B₂ : ℕ) < g from
-      ⟨h.1, h.2, A₂.isLt, B₂.isLt⟩), rowPsi, if_true, Θof_row]
+  · rw [dite_eq_left h]
+    simp only [psiG, dite_eq_left (show (A₁ : ℕ) < A₂ ∧ (B₁ : ℕ) < B₂ ∧ (A₂ : ℕ) < g ∧
+        (B₂ : ℕ) < g from
+      ⟨h.1, h.2, A₂.isLt, B₂.isLt⟩), rowPsi, ite_true, Θof_row]
     by_cases e1 : v = A₁
     · have e1' : (v : ℕ) = A₁ := congrArg Fin.val e1
-      simp only [e1, if_true]
-      split_ifs <;> simp only [fval, trMean_root_up] <;> rfl
+      simp only [e1, ite_true]
+      split_ifs <;> simp only [fval, trMean_root_up]; rfl
     · have e1' : (v : ℕ) ≠ A₁ := fun e => e1 (Fin.ext e)
-      simp only [e1', e1, if_false]
+      simp only [e1', e1, ite_false]
       by_cases e2 : v = A₂
       · have e2' : (v : ℕ) = A₂ := congrArg Fin.val e2
-        simp only [e2, if_true]
-        split_ifs <;> simp only [fval, trMean_root_down] <;> rfl
+        simp only [e2, ite_true]
+        split_ifs <;> simp only [fval, trMean_root_down]; rfl
       · have e2' : (v : ℕ) ≠ A₂ := fun e => e2 (Fin.ext e)
-        simp only [e2', e2, if_false]
+        simp only [e2', e2, ite_false]
         rfl
-  · rw [dif_neg h]
+  · rw [dite_eq_right h]
     simp only [psiG]
-    rw [dif_neg (fun h' => h ⟨h'.1, h'.2.1⟩)]
+    rw [dite_eq_right (fun h' => h ⟨h'.1, h'.2.1⟩)]
     rfl
 
 theorem psi_col (A₁ A₂ B₁ B₂ : Fin g) :
-    fval ⟨g * g, aP, TP⟩ (psiG ⟨g * g, aP, TP⟩ (colChild g a T ι) g a ι false v args ξ A₁ A₂ B₁ B₂)
-        =
+    fval ⟨g * g, aP, TP⟩ (psiG ⟨g * g, aP, TP⟩ (colChild g a T ι) g a ι false v args
+        ξ A₁ A₂ B₁ B₂) =
       if h : A₁ < A₂ ∧ B₁ < B₂ then
         colPsi a ι v (decodeArgs (colChild g a T ι) v args)
           (fun B u => copyAt ⟨g * g, aP, TP⟩ (Setup.holders g v false) ξ B u)
               ⟨((A₁, A₂), (B₁, B₂)), h⟩
       else 1 := by
   by_cases h : A₁ < A₂ ∧ B₁ < B₂
-  · rw [dif_pos h]
-    simp only [psiG, dif_pos (show (A₁ : ℕ) < A₂ ∧ (B₁ : ℕ) < B₂ ∧ (A₂ : ℕ) < g ∧ (B₂ : ℕ) < g from
-      ⟨h.1, h.2, A₂.isLt, B₂.isLt⟩), colPsi, Bool.false_eq_true, if_false, Θof_col]
+  · rw [dite_eq_left h]
+    simp only [psiG, dite_eq_left (show (A₁ : ℕ) < A₂ ∧ (B₁ : ℕ) < B₂ ∧ (A₂ : ℕ) < g ∧
+        (B₂ : ℕ) < g from
+      ⟨h.1, h.2, A₂.isLt, B₂.isLt⟩), colPsi, Bool.false_eq_true, ite_false, Θof_col]
     by_cases e1 : v = B₁
     · have e1' : (v : ℕ) = B₁ := congrArg Fin.val e1
-      simp only [e1, if_true]
-      split_ifs <;> simp only [fval, trMean_root_up] <;> rfl
+      simp only [e1, ite_true]
+      split_ifs <;> simp only [fval, trMean_root_up]; rfl
     · have e1' : (v : ℕ) ≠ B₁ := fun e => e1 (Fin.ext e)
-      simp only [e1', e1, if_false]
+      simp only [e1', e1, ite_false]
       by_cases e2 : v = B₂
       · have e2' : (v : ℕ) = B₂ := congrArg Fin.val e2
-        simp only [e2, if_true]
-        split_ifs <;> simp only [fval, trMean_root_down] <;> rfl
+        simp only [e2, ite_true]
+        split_ifs <;> simp only [fval, trMean_root_down]; rfl
       · have e2' : (v : ℕ) ≠ B₂ := fun e => e2 (Fin.ext e)
-        simp only [e2', e2, if_false]
+        simp only [e2', e2, ite_false]
         rfl
-  · rw [dif_neg h]
+  · rw [dite_eq_right h]
     simp only [psiG]
-    rw [dif_neg (fun h' => h ⟨h'.1, h'.2.1⟩)]
+    rw [dite_eq_right (fun h' => h ⟨h'.1, h'.2.1⟩)]
     rfl
 
 end Psi
@@ -411,7 +414,7 @@ theorem prod_factor_row :
   congr 2
   refine Fintype.prod_congr _ _ fun o => Fintype.prod_congr _ _ fun p => ?_
   rw [Θof_row]
-  simp only [ne_eq, Fin.val_eq_val, if_true]
+  simp only [ne_eq, Fin.val_eq_val, ite_true]
   rfl
 
 theorem prod_factor_col :
@@ -430,7 +433,7 @@ theorem prod_factor_col :
   congr 2
   refine Fintype.prod_congr _ _ fun o => Fintype.prod_congr _ _ fun p => ?_
   rw [Θof_col]
-  simp only [ne_eq, Fin.val_eq_val, Bool.false_eq_true, if_false]
+  simp only [ne_eq, Fin.val_eq_val, Bool.false_eq_true, ite_false]
   rfl
 
 end Prod
@@ -455,14 +458,14 @@ theorem ent_row' (rest : List ℕ) {g : ℕ} (aP : Fin (g * g) → Fin (g * g) �
           else 0
       else 0 := by
   unfold cEntry
-  rw [dif_pos (show (v : ℕ) < (rowChild g aP TP ι).q from v.isLt)]
-  show rowTable aP TP ι v (decodeArgs (rowChild g aP TP ι) v args) = _
+  rw [dite_eq_left (show (v : ℕ) < (rowChild g aP TP ι).q from v.isLt)]
+  change rowTable aP TP ι v (decodeArgs (rowChild g aP TP ι) v args) = _
   unfold rowTable
   by_cases hv : Setup.ArgsValid (rowChild g aP TP ι) v args (packL g)
   · have h' : ∀ A' : Fin g, A' ≠ v → validLabel (packL g)
       (decodeArgs (rowChild g aP TP ι) v args A') :=
       fun A' hA' => hv v A' rfl hA'
-    rw [if_pos h', if_pos hv]
+    rw [ite_eq_left h', ite_eq_left hv]
     simp only [prod_factor_row]
     exact (sum_copies ⟨g * g, aP, TP⟩ (Setup.holders g v true) g
         (fun p hp => holders_lt v.isLt true hp)
@@ -473,7 +476,7 @@ theorem ent_row' (rest : List ℕ) {g : ℕ} (aP : Fin (g * g) → Fin (g * g) �
       fun h => hv fun w u hw hu => by
         obtain rfl : w = v := Fin.ext hw
         exact h u hu
-    rw [if_neg h', if_neg hv]
+    rw [ite_eq_right h', ite_eq_right hv]
 
 open Classical in
 theorem ent_col' (rest : List ℕ) {g : ℕ} (aP : Fin (g * g) → Fin (g * g) → ℕ)
@@ -488,15 +491,15 @@ theorem ent_col' (rest : List ℕ) {g : ℕ} (aP : Fin (g * g) → Fin (g * g) �
           else 0
       else 0 := by
   unfold cEntry
-  rw [dif_pos (show (v : ℕ) < (colChild g aP TP ι).q from v.isLt)]
-  show (colChild g aP TP ι).T v (decodeArgs (colChild g aP TP ι) v args) = _
+  rw [dite_eq_left (show (v : ℕ) < (colChild g aP TP ι).q from v.isLt)]
+  change (colChild g aP TP ι).T v (decodeArgs (colChild g aP TP ι) v args) = _
   refine (colChild_T aP TP ι hk v _).trans ?_
   unfold colTable
   by_cases hv : Setup.ArgsValid (colChild g aP TP ι) v args (packL g)
   · have h' : ∀ A' : Fin g, A' ≠ v → validLabel (packL g)
       (decodeArgs (colChild g aP TP ι) v args A') :=
       fun A' hA' => hv v A' rfl hA'
-    rw [if_pos h', if_pos hv]
+    rw [ite_eq_left h', ite_eq_left hv]
     simp only [prod_factor_col]
     exact (sum_copies ⟨g * g, aP, TP⟩ (Setup.holders g v false) g
         (fun p hp => holders_lt v.isLt false hp)
@@ -507,7 +510,7 @@ theorem ent_col' (rest : List ℕ) {g : ℕ} (aP : Fin (g * g) → Fin (g * g) �
       fun h => hv fun w u hw hu => by
         obtain rfl : w = v := Fin.ext hw
         exact h u hu
-    rw [if_neg h', if_neg hv]
+    rw [ite_eq_right h', ite_eq_right hv]
 
 open Classical in
 /-- **An entry of a row clique**, through the codes of copies. -/
@@ -518,8 +521,8 @@ theorem ent_row (rest : List ℕ) (P : Clique) {g : ℕ} (hP : P.q = g * g) (ι 
         ∑ ξ ∈ range (2 ^ copiesWidth P (Setup.holders g v true) g),
           if CopiesValid P (Setup.holders g v true) g ξ then
             ∏ f ∈ range (nFac g), fval P (factorG rest P
-              (rowChild g (P.recast _ hP).a (P.recast _ hP).T ι) g (P.recast _ hP).a ι true v args ξ
-                  f)
+              (rowChild g (P.recast _ hP).a (P.recast _ hP).T ι) g (P.recast _ hP).a ι
+                  true v args ξ f)
           else 0
       else 0 := by
   obtain ⟨q, aP, TP⟩ := P
@@ -536,8 +539,8 @@ theorem ent_col (rest : List ℕ) (P : Clique) {g : ℕ} (hP : P.q = g * g) (ι 
         ∑ ξ ∈ range (2 ^ copiesWidth P (Setup.holders g v false) g),
           if CopiesValid P (Setup.holders g v false) g ξ then
             ∏ f ∈ range (nFac g), fval P (factorG rest P
-              (colChild g (P.recast _ hP).a (P.recast _ hP).T ι) g (P.recast _ hP).a ι false v args
-                  ξ f)
+              (colChild g (P.recast _ hP).a (P.recast _ hP).T ι) g (P.recast _ hP).a ι
+                  false v args ξ f)
           else 0
       else 0 := by
   obtain ⟨q, aP, TP⟩ := P

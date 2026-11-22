@@ -325,12 +325,12 @@ theorem reaches_call : ∀ (s : SPTree) (π : List ℕ) (k : ℕ) (fr : List Fra
     · refine Reaches.head ?_
       have hq := h.self
       simp only [step, hq, SPTree.info, SPTree.tag, SPTree.prec, SPTree.param, hk, ite_false,
-        ite_true, OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, false_or, false_and]
+        ite_true, OfNat.ofNat_ne_zero, OfNat.ofNat_ne_one, false_or]
       have iha := reaches_call a (0 :: π) (k + σ) (⟨k, 0, 0, 0⟩ :: fr)
         (h.child (i := 0) rfl)
       refine iha.trans (Reaches.head ?_)
       simp only [step, List.tail_cons, hq, SPTree.info, SPTree.tag, ite_false,
-        OfNat.ofNat_ne_one, OfNat.ofNat_ne_zero]
+        OfNat.ofNat_ne_one]
       have : (shift P σ a).value.testBit k = a.value.testBit (k + σ) := by
         simp only [SPTree.value, Nat.testBit_mod_two_pow, Nat.testBit_div_two_pow]
         simp only [show k < P by omega, decide_true, Bool.true_and]
@@ -342,7 +342,7 @@ theorem reaches_call : ∀ (s : SPTree) (π : List ℕ) (k : ℕ) (fr : List Fra
     · refine Reaches.head ?_
       have hq := h.self
       simp only [step, hq, SPTree.info, SPTree.tag, SPTree.prec, hk, ite_false,
-        OfNat.ofNat_ne_zero, one_ne_zero, true_or, ite_true]
+        one_ne_zero, true_or, ite_true]
       have ih : ∀ i < 2 ^ w, ∀ k' fr', Reaches q lb ⟨true, k', fr', i :: π⟩
           ⟨false, ((f i).value.testBit k').toNat, fr', i :: π⟩ :=
         fun i hi k' fr' => reaches_call (f i) (i :: π) k' fr' (h.child (i := i) hi)

@@ -44,8 +44,10 @@ variable (w : List Bool) (s : ℕ)
 theorem lenW_le : lenW w s ≤ (s + 2) ^ 2 + 1 := firstNat_le _ _
 theorem offW_le : offW w s ≤ lenW w s +
     1 := by unfold offW; have := firstNat_le (lenW w s) (fun i => i % 2 == 0 && ib w i != 1); omega
-theorem nW_le : nW w s ≤ lenW w
-    s := by unfold nW; have := firstNat_le (lenW w s - offW w s) (fun k => ib w (offW w s + k) != 1); omega
+theorem nW_le : nW w s ≤ lenW w s := by
+  unfold nW
+  have := firstNat_le (lenW w s - offW w s) (fun k => ib w (offW w s + k) != 1)
+  omega
 
 theorem log_two_mul_add_one_le (n : ℕ) : Nat.log 2 (2 * n + 1) ≤ n := by
   have : 2 * n + 1 < 2 ^ (n + 1) := by
@@ -91,7 +93,7 @@ theorem Sz.lin {s M : ℕ} (h : Sz s M) : 64 * (s + 2) ^ 2 ≤ M := by
   have h1 := h.le; have h2 := h.q2
   nlinarith
 
-theorem Sz.s_le {s M : ℕ} (h : Sz s M) : s + 2 ≤ (s + 2) ^ 2 := by nlinarith
+theorem Sz.s_le {s M : ℕ} (_h : Sz s M) : s + 2 ≤ (s + 2) ^ 2 := by nlinarith
 
 theorem fv_len : FValB w (fun i => Exact.eqT (input i) (const 2)) env (fun i => ib w i == 2) :=
   fun pre u q hu => by
@@ -159,8 +161,8 @@ theorem bd_nT (hs : Val w sT env s) (hbs : Bd w M sT env) (hz : Sz s M) :
   · have hib : ib w (offW w s + q) ≤ 2 := by unfold ib ProgLang.Prog.inputValue; split <;> omega
     exact bd_sub (bd_const (by omega) _) (bd_eqT (bd_input (bd_add ((bd_offT hs hbs hz).ext pre) hbu
       ((val_offT hs).ext pre) hu (by omega))) (bd_const (by omega) _)
-      (val_input (val_add ((val_offT hs).ext pre) hu)) (val_const 1 _) (by omega) (by omega)
-          (by omega))
+      (val_input (val_add ((val_offT hs).ext pre) hu)) (val_const 1 _) (by omega)
+          (by omega) (by omega))
 
 theorem bd_widT (hs : Val w sT env s) (hbs : Bd w M sT env) (hz : Sz s M) :
     Bd w M (widT sT) env := by

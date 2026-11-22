@@ -72,7 +72,7 @@ theorem packDigits_div_pow_mod {R : ℕ} (hR : 0 < R) :
       · simp [hp]
       · simp [hp]
 
-theorem packDigits_lt {R : ℕ} (hR : 0 < R) :
+theorem packDigits_lt {R : ℕ} (_hR : 0 < R) :
     ∀ (m : ℕ) (a : ℕ → ℕ), (∀ i < m, a i < R) → packDigits R a m < R ^ m := by
   intro m
   induction m with
@@ -139,17 +139,17 @@ theorem Rep.moveRight {tape : BiTape Bool} {t : NTape} (h : Rep tape t) :
   rw [BiTape.read_moveRight, h]
   rcases d with (_ | p) | p
   · simp [NTape.read, NTape.moveRight]
-  · show t.2.2 / 3 ^ (p + 1) % 3 = t.2.2 / 3 / 3 ^ p % 3
+  · change t.2.2 / 3 ^ (p + 1) % 3 = t.2.2 / 3 / 3 ^ p % 3
     rw [Nat.div_div_eq_div_mul, pow_succ']
   · cases p with
     | zero =>
-      show t.read 0 = (t.2.1 * 3 + t.1) / 3 ^ 0 % 3
+      change t.read 0 = (t.2.1 * 3 + t.1) / 3 ^ 0 % 3
       simp only [NTape.read, pow_zero, Nat.div_one]
       omega
     | succ p =>
       have : Int.negSucc (p + 1) + 1 = Int.negSucc p := by omega
       rw [this]
-      show t.2.1 / 3 ^ p % 3 = (t.2.1 * 3 + t.1) / 3 ^ (p + 1) % 3
+      change t.2.1 / 3 ^ p % 3 = (t.2.1 * 3 + t.1) / 3 ^ (p + 1) % 3
       rw [pow_succ', ← Nat.div_div_eq_div_mul]
       congr 2
       omega
@@ -160,25 +160,25 @@ theorem Rep.moveLeft {tape : BiTape Bool} {t : NTape} (h : Rep tape t) :
   intro d
   rw [BiTape.read_moveLeft, h]
   rcases d with (_ | p) | p
-  · show t.read (-1) = t.2.1 % 3
-    show t.2.1 / 3 ^ 0 % 3 = t.2.1 % 3
+  · change t.read (-1) = t.2.1 % 3
+    change t.2.1 / 3 ^ 0 % 3 = t.2.1 % 3
     simp
   · cases p with
     | zero =>
-      show t.read 0 = (t.2.2 * 3 + t.1) / 3 ^ 0 % 3
+      change t.read 0 = (t.2.2 * 3 + t.1) / 3 ^ 0 % 3
       simp only [NTape.read, pow_zero, Nat.div_one]
       omega
     | succ p =>
       have : Int.ofNat (p + 1 + 1) - 1 = Int.ofNat (p + 1) := by
         simp only [Int.ofNat_eq_natCast]; omega
       rw [this]
-      show t.2.2 / 3 ^ p % 3 = (t.2.2 * 3 + t.1) / 3 ^ (p + 1) % 3
+      change t.2.2 / 3 ^ p % 3 = (t.2.2 * 3 + t.1) / 3 ^ (p + 1) % 3
       rw [pow_succ', ← Nat.div_div_eq_div_mul]
       congr 2
       omega
   · have : Int.negSucc p - 1 = Int.negSucc (p + 1) := by omega
     rw [this]
-    show t.2.1 / 3 ^ (p + 1) % 3 = t.2.1 / 3 / 3 ^ p % 3
+    change t.2.1 / 3 ^ (p + 1) % 3 = t.2.1 / 3 / 3 ^ p % 3
     rw [Nat.div_div_eq_div_mul, pow_succ']
 
 theorem Rep.write {tape : BiTape Bool} {t : NTape} (h : Rep tape t) (c : Option Bool) :
@@ -218,24 +218,24 @@ theorem rep_ofCells (cells : List (Option Bool)) (pos : ℕ) :
   rw [BiTape.read_ofCells]
   rcases d with (_ | p) | p
   · simp [NTape.read, NTape.ofCells]
-  · show _ = packDigits 3 (fun i => cc (cells.getD (pos + 1 + i) none)) cells.length / 3 ^ p % 3
+  · change _ = packDigits 3 (fun i => cc (cells.getD (pos + 1 + i) none)) cells.length / 3 ^ p % 3
     rw [packDigits_div_pow_mod (by norm_num) _ _ (fun i _ => cc_lt _)]
     have h0 : 0 ≤ (pos : ℤ) + Int.ofNat (p + 1) := by simp only [Int.ofNat_eq_natCast]; omega
     have ht : ((pos : ℤ) + Int.ofNat (p + 1)).toNat = pos + 1 + p := by
       simp only [Int.ofNat_eq_natCast]; omega
-    rw [if_pos h0, ht]
+    rw [ite_eq_left h0, ht]
     split_ifs with hp
     · rfl
     · rw [List.getD_eq_default _ _ (by omega)]; rfl
-  · show _ = packDigits 3 (fun i => cc (cells.getD (pos - 1 - i) none)) pos / 3 ^ p % 3
+  · change _ = packDigits 3 (fun i => cc (cells.getD (pos - 1 - i) none)) pos / 3 ^ p % 3
     rw [packDigits_div_pow_mod (by norm_num) _ _ (fun i _ => cc_lt _)]
     by_cases hp : p < pos
     · have h0 : 0 ≤ (pos : ℤ) + Int.negSucc p := by simp only [Int.negSucc_eq]; omega
       have ht : ((pos : ℤ) + Int.negSucc p).toNat = pos - 1 - p := by
         simp only [Int.negSucc_eq]; omega
-      rw [if_pos h0, ht, if_pos hp]
+      rw [ite_eq_left h0, ht, ite_eq_left hp]
     · have h0 : ¬ 0 ≤ (pos : ℤ) + Int.negSucc p := by simp only [Int.negSucc_eq]; omega
-      rw [if_neg h0, if_neg hp]; rfl
+      rw [ite_eq_right h0, ite_eq_right hp]; rfl
 
 /-- Bounds: the stored numbers grow by at most one digit per step. -/
 theorem NTape.step_bound {t : NTape} {W : ℕ} (h1 : t.1 < 3) (hl : t.2.1 < 3 ^ W)

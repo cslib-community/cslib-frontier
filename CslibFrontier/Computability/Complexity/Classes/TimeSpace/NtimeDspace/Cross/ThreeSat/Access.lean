@@ -71,26 +71,26 @@ variable {d}
 
 theorem length_portsN (v : ℕ) : (d.portsN v).length = d.degNum v := by
   unfold portsN degNum
-  split_ifs with h1 h2 h3 h4 h5 <;> simp_all
+  split_ifs with h1 h2 h3 h4 <;> simp_all
 
 theorem getElem_portsN {v j : ℕ} (hj : j < (d.portsN v).length) :
     (d.portsN v)[j] = d.portNum v j := by
   by_cases h1 : v < d.m
-  · simp only [portsN, portNum, h1, if_true] at hj ⊢
+  · simp only [portsN, portNum, h1, ite_true] at hj ⊢
     have : j < 3 := by simpa using hj
     interval_cases j <;> rfl
   · by_cases h4 : v < 4 * d.m
     · cases hp : d.hasPrev (v - d.m)
-      · simp only [portsN, portNum, h1, h4, hp, if_true, if_false, Bool.false_eq_true,
+      · simp only [portsN, portNum, h1, h4, hp, ite_true, ite_false, Bool.false_eq_true,
           List.append_nil] at hj ⊢
         have : j < 2 := by simpa using hj
         interval_cases j <;> rfl
-      · simp only [portsN, portNum, h1, h4, hp, if_true, if_false, List.cons_append,
+      · simp only [portsN, portNum, h1, h4, hp, ite_true, ite_false, List.cons_append,
           List.nil_append] at hj ⊢
         have : j < 3 := by simpa using hj
         interval_cases j <;> rfl
     · cases hn : d.hasNext (v - 4 * d.m)
-      · simp only [portsN, portNum, h1, h4, hn, if_false, Bool.false_eq_true] at hj ⊢
+      · simp only [portsN, portNum, h1, h4, hn, ite_false, Bool.false_eq_true] at hj ⊢
         have : j < 1 := by simpa using hj
         interval_cases j; rfl
       · simp [portsN, h1, h4, hn] at hj
@@ -106,17 +106,17 @@ theorem funN_eq (v A : ℕ) :
   · have hl : (d.portsN v).length = 3 := by rw [length_portsN]; simp [degNum, h1]
     have hb : bitsAt A 3 = [A.testBit 0, A.testBit 1, A.testBit 2] := by
       simp [bitsAt, List.ofFn_succ]
-    simp only [h1, if_true, clauseOK, clauseN, hl, hb]
+    simp only [h1, ite_true, clauseOK, clauseN, hl, hb]
     simp [List.range_succ, Bool.and_assoc, Bool.or_assoc]
   · by_cases h4 : v < 4 * d.m
-    · simp only [h1, h4, if_false, if_true, occOK, occN]
+    · simp only [h1, h4, ite_false, ite_true, occOK, occN]
       have hl : (d.portsN v).length = 2 + (d.hasPrev (v - d.m)).toNat := by
         rw [length_portsN]; simp [degNum, h1, h4]
       rw [hl, getD_bitsAt (by omega), getD_bitsAt (by omega)]
       cases hp : d.hasPrev (v - d.m)
       · simp
       · rw [getD_bitsAt (by simp)]
-    · simp only [h1, h4, if_false, sinkOK, sinkN]
+    · simp only [h1, h4, ite_false, sinkOK, sinkN]
       have hl : (d.portsN v).length = 1 - (d.hasNext (v - 4 * d.m)).toNat := by
         rw [length_portsN]; simp [degNum, h1, h4]
       cases hn : d.hasNext (v - 4 * d.m)
@@ -235,7 +235,7 @@ theorem val_endWT (hs : Val w sT env s) (hi : Val w iT env i) :
   simp only [Raw.wN]
   by_cases h1 : i < 3 * (rawW w s).m
   · simp [h1]
-  · cases hn : (rawW w s).hasNext (i - 3 * (rawW w s).m) <;> simp [h1, hn]
+  · cases hn : (rawW w s).hasNext (i - 3 * (rawW w s).m) <;> simp [h1]
 
 theorem val_degT' (hs : Val w sT env s) (hv : Val w vT env v) :
     Val w (degT' sT vT) env ((rawW w s).portsN v).length := by
@@ -268,8 +268,8 @@ theorem val_portT' (hs : Val w sT env s) (hv : Val w vT env v) (hj : Val w jT en
       · by_cases j2 : j < 2 <;> simp [h1, h4, j1, j2]
     · simp [h1, h4]
 
-theorem val_impT {pT bT : Term} {p b : Bool} (hp : Val w pT env p.toNat) (hb : Val w bT env b.toNat)
-    :
+theorem val_impT {pT bT : Term} {p b : Bool} (hp : Val w pT env p.toNat)
+    (hb : Val w bT env b.toNat) :
     Val w (impT pT bT) env (p || !b).toNat := by
   have h := val_sub (val_const 1 env) (val_mul (val_sub (val_const 1 env) hp) hb)
   refine fun extra => (h extra).trans ?_

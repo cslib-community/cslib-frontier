@@ -246,7 +246,7 @@ lemma exists_choice_of_accepts {T : ℕ} (hT : M.RunsInTime A x T) (h : M.Accept
   have hB : 2 ≤ B := two_le_nActs
   refine ⟨Nat.ofDigits B ds, ?_, ?_⟩
   · calc Nat.ofDigits B ds < B ^ ds.length := Nat.ofDigits_lt_base_pow_length hB hdsB
-      _ ≤ B ^ T := Nat.pow_le_pow_right (by omega) (by simp [hds]; exact hqT)
+      _ ≤ B ^ T := Nat.pow_le_pow_right (by omega) (by simp only [hds, List.length_ofFn]; exact hqT)
   -- the choice run follows `q`
   have hrun : ∀ j (hj : j ≤ q.length),
       ((M.cstep A)^[j] (Nat.ofDigits B ds, M.initCfg x)).2 = q.toRunPath ⟨j, by omega⟩ ∧

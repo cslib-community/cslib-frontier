@@ -106,8 +106,8 @@ theorem schedule_eventually (k c m : ℕ) (hc : 2 ≤ c) :
   have ht : t = c * (n + 1) := by unfold t clk; ring
   have hkey' : 8 * m * (2 * (k + 1)) * (t / B) * 2 ≤ n + 1 := by
     have h2 : (8 * m * (2 * (k + 1)) * (t / B) * 2) * c ≤ (n + 1) * c := by
-      calc (8 * m * (2 * (k + 1)) * (t / B) * 2) * c = 8 * m * (2 * (k + 1)) * (t / B) * (2 * c) := by
-            ring
+      calc (8 * m * (2 * (k + 1)) * (t / B) * 2) * c
+            = 8 * m * (2 * (k + 1)) * (t / B) * (2 * c) := by ring
         _ ≤ t := hkey
         _ = (n + 1) * c := by rw [ht]; ring
     exact Nat.le_of_mul_le_mul_right h2 (by omega)

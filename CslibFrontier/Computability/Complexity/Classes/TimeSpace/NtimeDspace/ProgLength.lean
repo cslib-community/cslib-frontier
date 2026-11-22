@@ -33,10 +33,10 @@ def lengthStmt : Stmt :=
 
 theorem getD_set_ne' {l : List ℕ} {i j : ℕ} (v : ℕ) (h : j ≠ i) :
     (l.set i v).getD j 0 = l.getD j 0 := by
-  simp [List.getD_eq_getElem?_getD, List.getElem?_set, Ne.symm h]
+  simp [List.getD_eq_getElem?_getD, Ne.symm h]
 
 /-- The loop from position `i` with the flag set ends with register `0` at the length. -/
-theorem lengthLoop_exec {w : List Bool} {B : ℕ} (hn : w.length ≤ B) (hB : 1 ≤ B) :
+theorem lengthLoop_exec {w : List Bool} {B : ℕ} (hn : w.length ≤ B) (_hB : 1 ≤ B) :
     ∀ d (r : List ℕ), w.length = r.getD 0 0 + d → r.getD 1 0 = 1 → 2 ≤ r.length → LeB B r →
       ∃ r', Exec w (LeB B) (.loop (.const 0) (.reg 1)
         (.read (.reg 0) (.assign 0 (.add (.reg 0) (.const 1)))
@@ -57,8 +57,8 @@ theorem lengthLoop_exec {w : List Bool} {B : ℕ} (hn : w.length ≤ B) (hB : 1 
       · exact Nat.zero_le _
     refine ⟨r1, .loop_step hb (by simp only [Expr.eval_reg, Expr.eval_const]; omega)
         (.read_end hb hend (.assign hb)) hb1
-      (.loop_done hb1 (by simp [r1, List.getD_eq_getElem?_getD, List.getElem?_set,
-        show 1 < r.length by omega])), by simp [r1], ?_, ?_, hb1⟩
+      (.loop_done hb1 (by simp [List.getD_eq_getElem?_getD,
+          show 1 < r.length by omega])), by simp [r1], ?_, ?_, hb1⟩
     · rw [show r1.getD 0 0 = r.getD 0 0 from getD_set_ne' _ (by omega)]; omega
     · intro j hj; exact getD_set_ne' _ (by omega)
   | succ d ih =>
@@ -71,7 +71,7 @@ theorem lengthLoop_exec {w : List Bool} {B : ℕ} (hn : w.length ≤ B) (hB : 1 
       · exact hb x hx
       · omega
     have h0 : r1.getD 0 0 = r.getD 0 0 + 1 := by
-      simp [r1, List.getD_eq_getElem?_getD, List.getElem?_set, show 0 < r.length by omega]
+      simp [r1, List.getD_eq_getElem?_getD, show 0 < r.length by omega]
     have h1 : r1.getD 1 0 = 1 := by rw [getD_set_ne' _ (by omega)]; exact hf
     obtain ⟨r', e', l', v', fr', b'⟩ := ih r1 (by omega) h1 (by simp [r1]; omega) hb1
     have hev : (Expr.add (.reg 0) (.const 1)).eval r = r.getD 0 0 + 1 := by
@@ -129,8 +129,8 @@ theorem decidable_of_prog_len {α : Type} {enc : α ↪ List Bool} (L : Set α) 
     obtain ⟨r2, e2, l2, v2, -, b2⟩ := lengthLoop_exec (w := enc a) (len_le a)
         ((hB a).trans' (by norm_num))
       (enc a).length r1
-      (by simp [r1, r0, List.getD_eq_getElem?_getD, List.getElem?_set, List.getElem?_replicate, R])
-      (by simp [r1, r0, List.getD_eq_getElem?_getD, List.getElem?_set, R])
+      (by simp [r1, r0, List.getD_eq_getElem?_getD, R])
+      (by simp [r1, r0, List.getD_eq_getElem?_getD, R])
       (by rw [hlen1]; omega) hb1
     obtain ⟨r3, e3, l3, v3, -, b3⟩ := compile_correct (w := enc a) (B := 2 ^ K a) (hB a)
       P [(enc a).length] [0] 2 3 r2

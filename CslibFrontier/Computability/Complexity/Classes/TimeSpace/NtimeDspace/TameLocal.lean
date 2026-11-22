@@ -45,9 +45,10 @@ theorem tm_tabT (f : ℕ → ℕ) (N : ℕ) {dx : ℕ} (hL : 8 ≤ L) (hN : N < 
     exact (tm_sub (t_const (lit_lt_two_pow (by omega) (by omega)))
       (tm_add (t_lt hx hc (by omega)) (t_lt hc hx (by omega)) le_rfl le_rfl (by omega) (by omega)))
 
+omit [DecidableEq State] in
 theorem tm_stepT {R N : Term} (hL : 8 ≤ L) (hR : Tm w L 1 R env) (hRpos : Pos w L R env)
     (hN : Tm w L 1 N env) (hconst : 4 * k + s + 100 < 2 ^ L)
-    (hwk : width k < 2 ^ L) (hkc : keyCount k s < 2 ^ L) (hkck : keyCount k s * k < 2 ^ L)
+    (hwk : width k < 2 ^ L) (hkc : keyCount k s < 2 ^ L) (_hkck : keyCount k s * k < 2 ^ L)
     (hW : Le w L (const (width k)) (width k) env)
     (hpowR : TmFv w L (fun i => powT R i) 4 (width k) 1 env)
     (hK : Le w L (const k) k env) (hpow3 : TmFv w L (fun h => powT (const 3) h) 4 k 1 env)
@@ -60,6 +61,7 @@ theorem tm_stepT {R N : Term} (hL : 8 ≤ L) (hR : Tm w L 1 R env) (hRpos : Pos 
     TmF2 w L (fun a b => stepT e machine R N a b) 32 1 16 env := by
   tame
 
+omit [DecidableEq State] in
 /-- The replay of `b` coins keeps tier `16`. -/
 theorem tm_runT {R N bT : Term} (hL : 8 ≤ L) (hR : Tm w L 1 R env) (hRpos : Pos w L R env)
     (hN : Tm w L 1 N env) (hb : Tm w L 1 bT env) (hconst : 4 * k + s + 100 < 2 ^ L)
@@ -74,8 +76,8 @@ theorem tm_runT {R N bT : Term} (hL : 8 ≤ L) (hR : Tm w L 1 R env) (hRpos : Po
     (hfW : TmF w L (tabT (fW e machine) (keyCount k s * k)) 16 1 env)
     (hfM : TmF w L (tabT (fM e machine) (keyCount k s * k)) 16 1 env) :
     TmF2 w L (fun x st => runT e machine R N bT x st) 4 32 32 env := by
-  have hstep := tm_stepT (e := e) (machine := machine) hL hR hRpos hN hconst hwk hkc hkck hW hpowR
-      hK
+  have hstep := tm_stepT (e := e) (machine := machine) hL hR hRpos hN hconst hwk hkc
+      hkck hW hpowR hK
     hpow3 hfSt hfIn hfOut hfEmit hfW hfM
   intro env' he x st hx hst
   unfold runT

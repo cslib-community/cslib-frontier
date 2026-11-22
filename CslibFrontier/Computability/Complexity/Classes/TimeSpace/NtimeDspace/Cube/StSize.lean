@@ -297,7 +297,7 @@ theorem fe_rangeSt {π : BudPar} {Ev Kc : ℕ} (hEv : 1 ≤ Ev) (mk : ℕ → St
   unfold rangeSt
   split_ifs
   · intro _
-    show |(1 : ℤ)| ≤ (Ev : ℤ)
+    change |(1 : ℤ)| ≤ (Ev : ℤ)
     simp [hEv]
   · exact hmk lo
   · exact hR
@@ -338,10 +338,10 @@ theorem fe_factorSt (π : BudPar) {Ev Kc : ℕ} (hEv : 1 ≤ Ev) (hKc : 2 * 2 ^ 
       linarith
   have hlit : ∀ (c : Prop) [Decidable c], S.FE π Ev Kc (.lit (if c then 0 else 1)) :=
     fun c _ _ => by
-      show |(if c then (0 : ℤ) else 1)| ≤ (Ev : ℤ)
+      change |(if c then (0 : ℤ) else 1)| ≤ (Ev : ℤ)
       split_ifs <;> simp [hEv]
   have hl1 : S.FE π Ev Kc (.lit 1) := fun _ => by
-    show |(1 : ℤ)| ≤ (Ev : ℤ)
+    change |(1 : ℤ)| ≤ (Ev : ℤ)
     simp [hEv]
   have z : S.FE π Ev Kc .zero := fun _ => trivial
   have hent : ∀ n x, x ≤ ξ → S.FE π Ev Kc (.ent rest n x) := fun n x hx _ =>
@@ -493,7 +493,8 @@ theorem ext_trm (π : BudPar) {Ev Kc : ℕ} (up : Bool) (x y m : Label) (lo pos 
     (he : S.Ext π Ev Kc (.trm up x y m lo pos hi t T₁ T₂ c₁ c₀ c₂)) (b : ℕ) :
     S.Ext π Ev Kc (S.gen.child (.trm up x y m lo pos hi t T₁ T₂ c₁ c₀ c₂) b) := by
   obtain ⟨hw, ht, h1, h0, h2, hv⟩ := he
-  show S.Ext π Ev Kc (if b = 0 then .tr up x y m lo pos T₁ c₁ else .trr up x y m pos hi t T₂ c₀ c₂)
+  change S.Ext π Ev Kc
+    (if b = 0 then .tr up x y m lo pos T₁ c₁ else .trr up x y m pos hi t T₂ c₀ c₂)
   split_ifs
   · exact ⟨hw, h1⟩
   · exact ⟨hw, ht, h0, h2, hv⟩
@@ -661,7 +662,7 @@ theorem code_lt (π : BudPar) (hS : S.Good) (hq : S.C₀.q = 2 ^ 2 ^ π.e)
   have hnfq : ∀ chs, S.ChainOK π.e chs → nFac (Nat.sqrt (S.clique chs).q) ≤ nFac (2 ^ 2 ^ π.e) :=
     fun chs hc => nFac_mono ((Nat.sqrt_le_self _).trans (hqle chs hc))
   have hnf0 : ∀ v, S.nFac0 v ≤ 1 + S.V + S.G.M := fun v => by
-    show 1 + (if v < S.K then S.V else S.G.M) ≤ 1 + S.V + S.G.M
+    change 1 + (if v < S.K then S.V else S.G.M) ≤ 1 + S.V + S.G.M
     split_ifs <;> omega
   have hWT : ∀ l (T : Multiset (HPlace × ℕ)), (T.map lwt).sum ≤ tWt l T := fun _ _ =>
     Nat.le_add_left _ _
@@ -956,7 +957,7 @@ theorem state_size (C₁ : ℕ) : ∃ C s₀ : ℕ, ∀ s, s₀ ≤ s → ∀ {V
     omega
   have hnf : ∀ v, (setupOf s G P).nFac0 v ≤
       1 + (setupOf s G P).V + (setupOf s G P).G.M := fun v => by
-    show 1 + (if v < (setupOf s G P).K then V else G.M) ≤ 1 + V + G.M
+    change 1 + (if v < (setupOf s G P).K then V else G.M) ≤ 1 + V + G.M
     split_ifs <;> omega
   have hev' : ∀ x l, l.length = ((setupOf s G P).G.ports x).length →
       |(setupOf s G P).G.eval x l| ≤ (((s + 2) ^ C₁ : ℕ) : ℤ) := hev

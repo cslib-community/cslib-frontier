@@ -88,8 +88,8 @@ noncomputable def code : St → ℕ
         T₁, tcode up T₂,
       zz c₁, zz c₀, zz c₂]
   | .trr up x y m ν hi t T₂ c₀ c₂ =>
-    SumProduct.NatList.enc [9, up.toNat, lcode x, lcode y, lcode m, ν, hi, tgtNum t, tcode up T₂, zz
-        c₀, zz c₂]
+    SumProduct.NatList.enc [9, up.toNat, lcode x, lcode y, lcode m, ν, hi, tgtNum t, tcode up
+        T₂, zz c₀, zz c₂]
 
 end Setup
 

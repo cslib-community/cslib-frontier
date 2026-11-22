@@ -403,8 +403,8 @@ noncomputable def gen : AGen St where
       match S.parentGrid rest i with
       | none => .zero
       | some ⟨g, _, _, _, row⟩ =>
-        if CopiesValid (S.clique rest) (holders g v row) g ξ then .rng (i :: rest) v args ξ 0
-            (nFac g)
+        if CopiesValid (S.clique rest) (holders g v row) g ξ then .rng (i :: rest) v
+            args ξ 0 (nFac g)
         else .zero
     | .rng (i :: rest) v args ξ lo hi, b =>
       let mid := (lo + hi) / 2
@@ -434,8 +434,8 @@ noncomputable def entryMean (chs : List ℕ) (v args : ℕ) : ℤ :=
   if h : v < C.q then C.T ⟨v, h⟩ (decodeArgs C ⟨v, h⟩ args) else 0
 
 /-- The coefficient `[z^c]` of the transport sum of a source interval. -/
-noncomputable def trMean (up : Bool) (x y m : Label) (lo hi : ℕ) (T : Multiset (HPlace × ℕ)) (c : ℤ)
-    :
+noncomputable def trMean (up : Bool) (x y m : Label) (lo hi : ℕ)
+    (T : Multiset (HPlace × ℕ)) (c : ℤ) :
     ℤ :=
   (transportL (srcSub up x y m lo hi) T (hRule up)).coeff c
 
@@ -455,8 +455,8 @@ noncomputable def meanBase : St → ℤ
   | .ent chs v args => S.entryMean chs v args
   | .tr up x y m lo hi T c => trMean up x y m lo hi T c
   | .trm up x y m lo pos hi t T₁ T₂ c₁ c₀ c₂ =>
-    trMean up x y m lo pos T₁ c₁ * (ruleCoeff up x y m pos t c₀ * trMean up x y m (pos + 1) hi T₂
-        c₂)
+    trMean up x y m lo pos T₁ c₁ * (ruleCoeff up x y m pos t c₀ * trMean up x y m
+        (pos + 1) hi T₂ c₂)
   | .trr up x y m pos hi t T₂ c₀
       c₂ => ruleCoeff up x y m pos t c₀ * trMean up x y m (pos + 1) hi T₂ c₂
   | .rng .. | .rng0 .. => 0

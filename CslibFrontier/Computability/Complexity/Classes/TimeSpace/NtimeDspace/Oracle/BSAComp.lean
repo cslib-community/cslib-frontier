@@ -137,7 +137,7 @@ theorem computableInSpace_BSA : open scoped Classical in
   have hc := (bsaValid_inSpace.prod bsaPad_inSpace)
   have hc' := ComputableInSpace.budget_finite (encC := encBool) (fun p : Bool × Bool => p.1 && p.2)
     (hc.weaken (S₁ := fun q : List Bool => q.length) ⟨2, fun q => by
-      show q.length + q.length ≤ 2 * (q.length + 1); omega⟩)
+      change q.length + q.length ≤ 2 * (q.length + 1); omega⟩)
   have h := ComputableInSpace.ite hc' (ComputableInSpace.of_inO hacc)
     (ComputableInSpace.const (encB := encBool) false)
   refine (h.weaken ⟨300 * (cD + 1) * (cA + 1) + 300, fun q => ?_⟩).of_enc_eq fun q => ?_

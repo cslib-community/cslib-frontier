@@ -5,7 +5,6 @@ Authors: Charlie Cruz
 -/
 
 module
--- upstream: candidate
 
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.FirstClique
 public import CslibFrontier.Computability.Complexity.Classes.TimeSpace.NtimeDspace.Cube.RowCut
@@ -130,8 +129,8 @@ noncomputable def colSplit (V : Corner → Label) (H : ℕ) (k c : ℤ) : ℤ :=
 `-H ≤ c ≤ H + k`. -/
 theorem rowCut_splits (V : Corner → Label) (a b : ℕ) (hx : labelWt (V .x) = a)
     (hv : labelWt (V .v) = a) (hy : labelWt (V .y) = b) (hu : labelWt (V .u) = b) (k : ℤ) :
-    (piece V).coeff k = ∑ c ∈ Icc (-((a + b : ℕ) : ℤ)) ((a + b : ℕ) + k), rowSplit V (a + b) k
-        c := by
+    (piece V).coeff k = ∑ c ∈ Icc (-((a + b : ℕ) : ℤ)) ((a + b : ℕ) + k), rowSplit V
+        (a + b) k c := by
   rw [rowCut V a b hx hv hy hu k]
   unfold rowSplit
   conv_rhs => rw [Finset.sum_comm]
@@ -162,8 +161,8 @@ the splits `-H ≤ c ≤ H - k`. -/
 theorem colCut_splits (V : Corner → Label) (a b : ℕ) (hx : labelWt (V .x) = a)
     (hv : labelWt (V .v) = a) (hy : labelWt (V .y) = b) (hu : labelWt (V .u) = b) (k : ℤ)
     (hk : Even k) :
-    (piece V).coeff k = ∑ c ∈ Icc (-((a + b : ℕ) : ℤ)) ((a + b : ℕ) - k), colSplit V (a + b) k
-        c := by
+    (piece V).coeff k = ∑ c ∈ Icc (-((a + b : ℕ) : ℤ)) ((a + b : ℕ) - k), colSplit V
+        (a + b) k c := by
   rw [colCut V a b hx hv hy hu k hk]
   unfold colSplit
   conv_rhs => rw [Finset.sum_comm]
@@ -452,7 +451,7 @@ noncomputable def oneBitCol (k : ℤ) : Matrix (Bool × Bool) (Bool × Bool) ℚ
 /-- Pulling a matrix back along surjective row and column maps preserves its rank:
 the original matrix is recovered by choosing one representative of each index. -/
 private theorem rank_submatrix_surjective {m n m' n' : Type}
-    [Fintype m] [Fintype n] [Fintype m'] [Fintype n']
+    [Fintype n] [Fintype n']
     (A : Matrix m n ℚ) (r : m' → m) (c : n' → n)
     (hr : Function.Surjective r) (hc : Function.Surjective c) :
     (A.submatrix r c).rank = A.rank := by

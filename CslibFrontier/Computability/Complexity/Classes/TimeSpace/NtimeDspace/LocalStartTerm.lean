@@ -28,7 +28,7 @@ variable {w : List Bool}
 theorem ipAux (P M N : ℕ) :
     (if 0 < (1 - (if P < M then 1 else 0)) * (if P - M < N + 2 then 1 else 0) then P - M
       else 0) = if M ≤ P ∧ P - M < N + 2 then P - M else 0 := by
-  by_cases h1 : P < M <;> by_cases h2 : P - M < N + 2 <;> simp [h1, h2] <;> omega
+  by_cases h1 : P < M <;> by_cases h2 : P - M < N + 2 <;> simp [h1, h2]
 
 theorem denote_ipStartT (bT NT JpT JmT o : Term) (env : List ℕ) :
     (ipStartT bT NT JpT JmT o).denote w env =
@@ -69,13 +69,13 @@ theorem denote_startCompT {bT NT JpT JmT stI trI : Term} {offI cellI : Term → 
   · simp [h1]
   by_cases h2 : i.denote w env = 2
   · simp [h2]
-  simp only [h0, h1, h2, if_false, Nat.lt_irrefl, zero_lt_one, if_true]
+  simp only [h0, h1, h2, ite_false, Nat.lt_irrefl]
   by_cases f0 : (i.denote w env - 3) % 4 = 0
-  · simp [f0, hposv]
+  · simp [f0]
   by_cases f1 : (i.denote w env - 3) % 4 = 1
-  · simp [f0, f1]
+  · simp [f1]
   by_cases f2 : (i.denote w env - 3) % 4 = 2
-  · simp [f0, f1, f2]
+  · simp [f2]
   · simp [f0, f1, f2]
 
 variable {k s : ℕ} {State : Type} {e : State ≃ Fin s}

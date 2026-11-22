@@ -61,11 +61,11 @@ theorem val_primeT {x : Term} {v : ℕ} (hx : Val w x env v) :
   refine fun extra => (this extra).trans ?_
   rw [prod_boole]
   by_cases h1 : 1 < v
-  · rw [if_pos h1, one_mul]
+  · rw [ite_eq_left h1, one_mul]
     by_cases hp : v.Prime
-    · rw [if_pos ((prime_iff_forall h1).mpr hp), if_pos hp]
-    · rw [if_neg (fun h => hp ((prime_iff_forall h1).mp h)), if_neg hp]
-  · rw [if_neg h1, zero_mul, if_neg (fun hp => h1 hp.one_lt)]
+    · rw [ite_eq_left ((prime_iff_forall h1).mpr hp), ite_eq_left hp]
+    · rw [ite_eq_right (fun h => hp ((prime_iff_forall h1).mp h)), ite_eq_right hp]
+  · rw [ite_eq_right h1, zero_mul, ite_eq_right (fun hp => h1 hp.one_lt)]
 
 /-! ### The context -/
 
@@ -124,8 +124,8 @@ theorem val_candT (hc : c.Good w s env) {x : Term} {v : ℕ} (hx : Val w x env v
   unfold cand
   have e : v < s.X + 1 ↔ v ≤ s.X := Nat.lt_succ_iff
   by_cases h1 : s.H < v <;> by_cases h2 : v ≤ s.X <;> by_cases h3 : v.Prime <;>
-    simp only [h1, h2, h3, e, ite_true, ite_false, and_self, and_true, true_and, and_false,
-      false_and, mul_one, mul_zero]
+    simp only [h1, h2, h3, e, ite_true, ite_false, and_self, and_true, and_false,
+      mul_one, mul_zero]
 
 /-- The rank of `x` among the window primes. -/
 def rankT (c : Ctx) (x : Term) : Term := sumT x fun y => candT c y
@@ -236,7 +236,7 @@ def sdigT (c : Ctx) (u : Term) : Term := sumT c.g fun m => digT c u m
 
 theorem val_sdigT (hc : c.Good w s env) {u : Term} {a : ℕ} (hu : Val w u env a) :
     Val w (sdigT c u) env (sdig s.W s.g a) :=
-  val_sumT hc.2.2.2.2.2.2.2.1 fun pre m b hm => val_digT (hc.ext pre) (hu.ext pre) hm
+  val_sumT hc.2.2.2.2.2.2.2.1 fun pre _m _b hm => val_digT (hc.ext pre) (hu.ext pre) hm
 
 /-- The product of the bits of the factors `f m` at the digits of `u`. -/
 def pbitsT (c : Ctx) (f : Term → Term) (u : Term) : Term :=
@@ -279,7 +279,7 @@ theorem val_colAT (hq : Prog'.closed 3 q = true) (hc : c.Good w s env) {i : Term
   · have := val_ite (val_selT hc' hp) (val_const 0 (pre ++ env)) (val_const 0 _)
     refine fun extra => ?_
     have h1 := val_selT hc' hp extra
-    show (ite (selT c p) _ (const 0)).denote w _ = _
+    change (ite (selT c p) _ (const 0)).denote w _ = _
     rw [denote_ite, h1]
     simp [hs]
 
@@ -317,7 +317,7 @@ theorem val_kqT (hq : Prog'.closed 3 q = true) (hc : c.Good w s env) :
         refine fun extra => (this extra).trans ?_
         simp [hs]
       · refine fun extra => ?_
-        show (ite (selT c p) _ (const 0)).denote w _ = _
+        change (ite (selT c p) _ (const 0)).denote w _ = _
         rw [denote_ite, val_selT hc' hp extra]
         simp [hs]
   have h2 := val_sumT (val_add hc.2.2.2.1 (val_const 1 env)) (body := fun p => selT c p)
@@ -331,7 +331,7 @@ def chainT (col : Term → Term) (j : Term) : Term :=
 theorem val_chainT {col : Term → Term} {C : ℕ → ℕ} (hcol : FVal w col env C) {j : Term} {a : ℕ}
     (hj : Val w j env a) : Val w (chainT col j) env (chain C a) :=
   val_foldT hj (val_const 0 env) (fun acc i => (C i + acc) / 2)
-    fun pre u u' p k hu hu' => val_div (val_add (hcol pre u' k hu') hu) (val_const 2 _)
+    fun pre _u u' _p k hu hu' => val_div (val_add (hcol pre u' k hu') hu) (val_const 2 _)
 
 /-- Bit `j` of `∑ col i · 2^i`. -/
 def bitOfT (col : Term → Term) (j : Term) : Term := mod (add (col j) (chainT col j)) (const 2)

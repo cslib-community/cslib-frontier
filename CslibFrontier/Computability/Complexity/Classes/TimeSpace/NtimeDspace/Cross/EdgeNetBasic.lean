@@ -16,8 +16,7 @@ public import Mathlib.Algebra.BigOperators.Ring.Finset
 An *edge network* (`EdgeNet`) has edges `Fin M`, each with two distinct ends `u i`, `w i`, and
 vertices `V` with ordered ports (the edges at the vertex) and tables `eval v`; its value is
 `Z = Σ_x Π_v eval_v(x on the ports of v)`. This module holds only the definition, so that its
-clients
-(`Cube/*`, the 3-CNF network of
+clients (`Cube/*`, the 3-CNF network of
 `CslibFrontier/Computability/Complexity/Classes/TimeSpace/NtimeDspace/Cross/ThreeSat/Net.lean`) can
 import it cheaply.
 -/

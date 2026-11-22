@@ -38,10 +38,10 @@ theorem t_add (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) (hL : 1 ≤ L)
 theorem t_mul (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) (hd : d1 + d2 ≤ 128) :
     Tm w L (d1 + d2) (mul a b) env := tm_mul ha hb le_rfl hd
 
-theorem t_sub (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) : Tm w L d1 (sub a b) env := tm_sub ha
-    hb
-theorem t_div (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) : Tm w L d1 (div a b) env := tm_div ha
-    hb
+theorem t_sub (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) : Tm w L d1 (sub a b)
+    env := tm_sub ha hb
+theorem t_div (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) : Tm w L d1 (div a b)
+    env := tm_div ha hb
 theorem t_mod (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) (hpos : Pos w L b env) :
     Tm w L d2 (mod a b) env := tm_mod ha hb hpos
 theorem t_mod_left (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) : Tm w L d1 (mod a b) env :=
@@ -50,8 +50,8 @@ theorem t_bit (ha : Tm w L d1 a env) (hi : Tm w L d2 i env) (hL : 1 ≤ L) : Tm 
   tm_bit ha hi hL le_rfl
 theorem t_lt (ha : Tm w L d1 a env) (hb : Tm w L d2 b env) (hL : 1 ≤ L) : Tm w L 1 (lt a b) env :=
   tm_lt ha hb hL le_rfl
-theorem t_input (ha : Tm w L d1 a env) (hL : 2 ≤ L) : Tm w L 1 (input a) env := tm_input ha hL
-    le_rfl
+theorem t_input (ha : Tm w L d1 a env) (hL : 2 ≤ L) : Tm w L 1 (input a) env :=
+    tm_input ha hL le_rfl
 theorem t_ite (hc : Tm w L d1 c env) (ht : Tm w L da t env) (he : Tm w L db e env) :
     Tm w L (max da db) (ite c t e) env :=
   tm_ite hc (ht.mono (le_max_left _ _)) (he.mono (le_max_right _ _))
@@ -67,8 +67,8 @@ theorem t_sumMod {body : Term → Term} (hp : Tm w L dp p env) (hpos : Pos w L p
 theorem t_prodMod {body : Term → Term} (hp : Tm w L dp p env) (hpos : Pos w L p env)
     (hn : Tm w L dn n env) (hb : TmF w L body dn db env) (hdp : dp ≤ 32) (hdn : dn ≤ 32)
     (hL : 1 ≤ L) (hdp1 : 1 ≤ dp) (hd : dp + db ≤ 128) : Tm w L dp (prodMod p n body) env := by
-  refine tm_foldT hn hdn (tm_small_const le_rfl hL hdp1 (by omega)) (fun env' he x y hx hy => ?_)
-      hdp
+  refine tm_foldT hn hdn (tm_small_const le_rfl hL hdp1 (by omega))
+      (fun env' he x y hx hy => ?_) hdp
   exact tm_mod (tm_mul hx (hb.app he hy) le_rfl hd) (hp.ext he) (hpos.ext he)
 
 /-- A modular fold keeps just one residue accumulator, including Horner evaluation. -/
@@ -102,7 +102,8 @@ theorem t_sumT {body : Term → Term} (hn : Tm w L dn n env) (hb : TmF w L body 
           · calc _ ≤ k * (2 ^ (db * L) - 1) := hacc
               _ < 2 ^ (dn * L) * 2 ^ (db * L) := by
                   have : k < 2 ^ (dn * L) := by omega
-                  calc k * (2 ^ (db * L) - 1) ≤ k * 2 ^ (db * L) := Nat.mul_le_mul_left _ (Nat.sub_le _ _)
+                  calc k * (2 ^ (db * L) - 1) ≤ k * 2 ^ (db * L) :=
+                        Nat.mul_le_mul_left _ (Nat.sub_le _ _)
                     _ < 2 ^ (dn * L) * 2 ^ (db * L) := Nat.mul_lt_mul_of_pos_right this hbig
               _ = 2 ^ ((dn + db) * L) := by rw [← pow_add, Nat.add_mul]
               _ ≤ 2 ^ (32 * L) := pow_le_pow_tier hd

@@ -37,8 +37,8 @@ def ClockedResiduesAt (D : ℕ → ℕ) : Prop :=
     ∃ (R Hp Xp : Prog) (C τ₀ : ℕ), Prog'.closed 3 R = true ∧ Prog'.closed 1 Hp = true ∧
       Prog'.closed 1 Xp = true ∧
       ∀ (w : List Bool) (τ : ℕ), w.length ≤ τ → τ₀ ≤ τ →
-        2 ^ (paddedTime τ + 1) < ∏ p ∈ (Finset.Ioc (Hp.eval w [τ]) (Xp.eval w [τ])).filter
-            Nat.Prime, p ∧
+        2 ^ (paddedTime τ + 1) < ∏ p ∈ (Finset.Ioc (Hp.eval w [τ])
+            (Xp.eval w [τ])).filter Nat.Prime, p ∧
         2 ≤ Hp.eval w [τ] ∧ Xp.eval w [τ] ≤ (τ + 2) ^ C ∧
         Hp.Bounded w (2 ^ (C * D τ)) [τ] ∧ Xp.Bounded w (2 ^ (C * D τ)) [τ] ∧
         ∀ p, p.Prime → Hp.eval w [τ] < p → p ≤ Xp.eval w [τ] →

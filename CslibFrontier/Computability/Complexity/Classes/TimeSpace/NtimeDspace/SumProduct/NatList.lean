@@ -134,8 +134,8 @@ theorem two_le_enc_cons (x : ℕ) (l : List ℕ) : 2 ≤ enc (x :: l) := by
 
 theorem size_lt_enc_cons (x : ℕ) (l : List ℕ) : x.size < enc (x :: l) := by
   have h := Nat.lt_two_pow_self (n := x.size)
-  have : 2 ^ (2 * x.size + 1) ≤ 2 ^ (2 * x.size + 1) * enc l := Nat.le_mul_of_pos_right _
-      (enc_pos l)
+  have : 2 ^ (2 * x.size + 1) ≤ 2 ^ (2 * x.size + 1) * enc l :=
+      Nat.le_mul_of_pos_right _ (enc_pos l)
   have : 2 ^ x.size ≤ 2 ^ (2 * x.size + 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
   rw [enc_cons]; omega
 

@@ -46,7 +46,7 @@ theorem sv_le_M (hz : Sz s M) : (rawW w s).sv t ≤ M := by dsimp only [rawW]; e
 
 theorem fv_same (hs : Val w sT env s) (ht : Val w tT env t) :
     FValB w (fun i => sameT sT tT i) env ((rawW w s).same t) :=
-  fun pre u q hu => val_sameT (hs.ext pre) (ht.ext pre) hu
+  fun pre _u _q hu => val_sameT (hs.ext pre) (ht.ext pre) hu
 
 theorem fv_next (hs : Val w sT env s) (ht : Val w tT env t) :
     FValB w (fun t' => mul (lt tT t') (sameT sT tT t')) env
@@ -93,6 +93,7 @@ theorem bd_m3T : Bd w M (m3T sT) env := by
   exact bd_mul (bd_const (by omega) _) (bd_mT hs hbs hz) (val_const 3 env) (val_mT hs)
     (by omega)
 
+omit hs hbs in
 theorem m3_le : 3 * (rawW w s).m ≤ M := by
   obtain ⟨hl, hq2, hsq⟩ := hz.facts; have hm := rawW_m_le w s
   omega
@@ -100,12 +101,12 @@ theorem m3_le : 3 * (rawW w s).m ≤ M := by
 theorem bd_nextT (ht : Val w tT env t) (hbt : Bd w M tT env) (htT : t ≤ 22 * (s + 2)) :
     Bd w M (nextT sT tT) env := by
   obtain ⟨hl, hq2, hsq⟩ := hz.facts; have hm := rawW_m_le w s
-  refine bd_findT (val_m3T hs) (bd_m3T hs hbs hz) (m3_le hs hbs hz) (fv_next hs ht)
+  refine bd_findT (val_m3T hs) (bd_m3T hs hbs hz) (m3_le hz) (fv_next hs ht)
     fun pre u q hq hu hbu => ?_
   have hq' : q ≤ 22 * (s + 2) := by omega
   refine bd_mul (bd_lt (hbt.ext pre) hbu) (bd_sameT (hs.ext pre) (hbs.ext pre) hz (ht.ext pre)
-    (hbt.ext pre) htT hu hbu hq') (val_lt (ht.ext pre) hu) (val_sameT (hs.ext pre) (ht.ext pre) hu)
-        ?_
+    (hbt.ext pre) htT hu hbu hq') (val_lt (ht.ext pre) hu)
+        (val_sameT (hs.ext pre) (ht.ext pre) hu) ?_
   have := Bool.toNat_le ((rawW w s).same t q)
   split_ifs <;> omega
 
@@ -170,7 +171,8 @@ theorem bd_endWT (hi : Val w iT env i) (hbi : Bd w M iT env) (him : i < 6 * (raw
   refine bd_ite (bd_lt hbi (bd_m3T hs hbs hz)) (val_lt hi (val_m3T hs))
     (fun _ => bd_add (bd_mT hs hbs hz) hbi (val_mT hs) hi (by omega))
     (fun _ => bd_ite (bd_hasNextT hs hbs hz hj hbj hjT) (val_hasNextT hs hj)
-      (fun hn => bd_add (bd_mT hs hbs hz) (bd_nextT hs hbs hz hj hbj hjT) (val_mT hs) (val_nextT hs hj) ?_)
+      (fun hn => bd_add (bd_mT hs hbs hz) (bd_nextT hs hbs hz hj hbj hjT) (val_mT hs)
+        (val_nextT hs hj) ?_)
       (fun _ => bd_add (bd_m4T hs hbs hz) hbj (val_m4T hs) hj (by omega)))
   have hn' : (rawW w s).hasNext (i - 3 * (rawW w s).m) = true := by simpa using hn
   have := (Raw.next_spec hn').2.1
@@ -208,6 +210,7 @@ theorem bd_portT' (hv : Val w vT env v) (hbv : Bd w M vT env) (hvm : v < 7 * (ra
             (val_prevT hs h1) (by omega))))
       (fun _ => bd_add (bd_m3T hs hbs hz) hb4 (val_m3T hs) h4 (by omega)))
 
+omit hs hbs hz in
 theorem bd_bitT (hA : Bd w M AT env) (k : ℕ) (hk : k ≤ M) : Bd w M (bit AT (const k)) env :=
   bd_bit hA (bd_const hk _)
 
@@ -218,7 +221,7 @@ theorem bd_funT (hv : Val w vT env v) (hbv : Bd w M vT env) (hvm : v < 7 * (rawW
   have h1M : 3 ≤ M := by omega
   have h1 := val_sub hv (val_mT hs); have hb1 := bd_sub hbv (bd_mT hs hbs hz)
   have h4 := val_sub hv (val_m4T hs); have hb4 := bd_sub hbv (bd_m4T hs hbs hz)
-  have hb := fun k (hk : k ≤ 2) => bd_bitT hs hbs hz hbA k (by omega)
+  have hb := fun k (hk : k ≤ 2) => bd_bitT hbA k (by omega)
   have hbv' := fun k => val_bitT hA (env := env) k
   have tl := fun (b : Bool) => Bool.toNat_le b
   refine bd_ite (bd_lt hbv (bd_mT hs hbs hz)) (val_lt hv (val_mT hs)) (fun hc => ?_) (fun _ => ?_)
@@ -235,8 +238,8 @@ theorem bd_funT (hv : Val w vT env v) (hbv : Bd w M vT env) (hvm : v < 7 * (rawW
     have hsg := fun k (hk : k ≤ 2) => bd_signT hs hbs hz (hsl k hk).1 (hsl k hk).2.1 (hsl k hk).2.2
     have hsgv := fun k (hk : k ≤ 2) => val_signT hs (hsl k hk).1
     have himp := fun k (hk : k ≤ 2) => bd_sub (bd_const (k := 1) (by omega) _) (bd_mul (bd_sub
-      (bd_const (k := 1) (by omega) _) (hp k hk)) (hb k hk) (val_sub (val_const 1 env) (hpv k hk))
-          (hbv' k)
+      (bd_const (k := 1) (by omega) _) (hp k hk)) (hb k hk)
+          (val_sub (val_const 1 env) (hpv k hk)) (hbv' k)
       ((mul_le_one' (by omega) (tl _)).trans (by omega)))
     have himpv := fun k (hk : k ≤ 2) => val_impT (hpv k hk) (hbv' k)
     have hhit := fun k (hk : k ≤ 2) => bd_mul (hp k hk) (bd_eqT (hb k hk) (hsg k hk) (hbv' k)
@@ -260,8 +263,8 @@ theorem bd_funT (hv : Val w vT env v) (hbv : Bd w M vT env) (hvm : v < 7 * (rawW
     · exact (Nat.add_le_add (tl _) (Nat.add_le_add (tl _) (tl _))).trans (by omega)
     · exact (mul_le_one' (mul_le_one' (tl _) (mul_le_one' (tl _) (tl _)))
         (by split_ifs <;> omega)).trans (by omega)
-  · refine bd_ite (bd_lt hbv (bd_m4T hs hbs hz)) (val_lt hv (val_m4T hs)) (fun _ => ?_)
-      (fun _ => ?_)
+  · refine bd_ite (bd_lt hbv (bd_m4T hs hbs hz)) (val_lt hv (val_m4T hs))
+      (fun _ => ?_) (fun _ => ?_)
     · -- an occurrence
       have hnx := bd_hasNextT hs hbs hz h1 hb1 (by omega)
       have hpr := bd_hasPrevT hs hbs hz h1 hb1 (by omega)

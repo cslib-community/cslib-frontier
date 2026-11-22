@@ -167,8 +167,8 @@ theorem zeroRun_eq {B c q z : ℕ} (hz : z ≤ B) (h0 : ∀ j < z, c.testBit (q 
   · have := h1 (by omega); rw [s2 _ h] at this; exact Bool.false_ne_true this
 
 /-- `n` bits of `c` from bit `q` on, the first one the most significant. -/
-def readBits (c q n : ℕ) : ℕ := (List.range n).foldl (fun a j => 2 * a + (c.testBit (q + j)).toNat)
-    0
+def readBits (c q n : ℕ) : ℕ := (List.range n).foldl
+    (fun a j => 2 * a + (c.testBit (q + j)).toNat) 0
 
 theorem readBits_succ (c q n : ℕ) :
     readBits c q (n + 1) = 2 * readBits c q n + (c.testBit (q + n)).toNat := by
@@ -178,7 +178,8 @@ theorem readBits_lt (c q n : ℕ) : readBits c q n < 2 ^ n := by
   induction n with
   | zero => simp [readBits]
   | succ n
-      ih => rw [readBits_succ, pow_succ]; cases c.testBit (q + n) <;> simp only [Bool.toNat_false, Bool.toNat_true] <;> omega
+      ih => rw [readBits_succ, pow_succ]; cases c.testBit (q + n) <;> simp only [Bool.toNat_false,
+          Bool.toNat_true] <;> omega
 
 theorem testBit_readBits (c q n i : ℕ) :
     (readBits c q n).testBit i = (decide (i < n) && c.testBit (q + (n - 1 - i))) := by
@@ -432,8 +433,8 @@ def entries (σ : Multiset ℕ) : List (ℕ × ℕ) :=
 theorem pairwise_sort (s : Finset ℕ) : List.Pairwise (· < ·) (s.sort (· ≤ ·)) :=
   (Finset.sortedLT_sort s).pairwise
 
-theorem distinctWts_eq (σ : Multiset ℕ) : distinctWts σ = (σ.toFinset.sort (· ≤ ·)).map
-    (· + 1) := by
+theorem distinctWts_eq (σ : Multiset ℕ) : distinctWts σ =
+    (σ.toFinset.sort (· ≤ ·)).map (· + 1) := by
   unfold distinctWts
   refine List.SortedLT.eq_of_mem_iff (Finset.sortedLT_sort _) ?_ fun x => ?_
   · exact (List.pairwise_map.mpr ((pairwise_sort _).imp fun h => by omega)).sortedLT
@@ -445,8 +446,8 @@ private theorem flatMap_range_eq (h : ℕ → ℕ) : ∀ (ps : List ℕ) (p : �
       entCode p (ps.map fun x => (x, h x))
   | [], p => by simp [entCode]
   | x :: ps, p => by
-    rw [List.length_cons, List.range_succ_eq_map, List.flatMap_cons, List.flatMap_map,
-        List.map_cons,
+    rw [List.length_cons, List.range_succ_eq_map, List.flatMap_cons,
+        List.flatMap_map, List.map_cons,
       entCode, ← flatMap_range_eq h ps x]
     congr 1
     congr 1
@@ -504,7 +505,7 @@ theorem msParse_msCode {B c q : ℕ} {σ : Multiset ℕ} (h : BitsAt c q (msCode
   have hg := gammaN_gamma_of_length (B := B) (by omega : 1 ≤ n + 1) (by omega) h.1
   have h2n := length_entCode_ge 0 ys
   have hnB : n ≤ B := by omega
-  have hN : msN B c q = n := by rw [msN, hg]; show min (n + 1 - 1) B = n; omega
+  have hN : msN B c q = n := by rw [msN, hg]; change min (n + 1 - 1) B = n; omega
   obtain ⟨it1, it2⟩ := iterate_entCode (B := B) (c := c) ys _ 0 hgood.1 hgood.2 h.2 (by omega)
   refine ⟨hN, ?_, ?_⟩
   · simp only [msEnd, ctrl, hN, Nat.min_eq_left hnB, hg]
@@ -725,7 +726,7 @@ def kthN (B c q k d : ℕ) : ℕ :=
 private theorem foldl_kth_stay (k : ℕ) : ∀ (l : List (ℕ × ℕ)) (s : ℕ), k < s →
     l.foldl (fun a e => kthStep k a e.1 e.2) s = s
   | [], _, _ => rfl
-  | e :: l, s, h => by rw [List.foldl_cons, kthStep, if_pos h, foldl_kth_stay k l s h]
+  | e :: l, s, h => by rw [List.foldl_cons, kthStep, ite_eq_left h, foldl_kth_stay k l s h]
 
 private theorem foldl_kth (k : ℕ) : ∀ (l : List (ℕ × ℕ)) (r : ℕ), r ≤ k →
     l.foldl (fun a e => kthStep k a e.1 e.2) r =
@@ -740,24 +741,25 @@ private theorem foldl_kth (k : ℕ) : ∀ (l : List (ℕ × ℕ)) (r : ℕ), r �
     simp only
     rw [hs]
     by_cases hrμ : r < μ
-    · rw [if_pos hrμ, foldl_kth_stay k l _ (by omega), if_pos (by omega),
+    · rw [ite_eq_left hrμ, foldl_kth_stay k l _ (by omega), ite_eq_left (by omega),
         List.getD_append _ _ _ _ (by simpa using hrμ), List.getD_eq_getElem _ _
             (by simpa using hrμ)]
       simp
-    · rw [if_neg hrμ, foldl_kth k l (r - μ) (by omega),
+    · rw [ite_eq_right hrμ, foldl_kth k l (r - μ) (by omega),
         List.getD_append_right _ _ _ _ (by simp only [List.length_replicate]; omega),
         List.length_replicate]
       by_cases h2 : r - μ < (l.flatMap fun e => List.replicate e.2 e.1).length
-      · rw [if_pos h2, if_pos (by omega)]
-      · rw [if_neg h2, if_neg (by omega)]; omega
+      · rw [ite_eq_left h2, ite_eq_left (by omega)]
+      · rw [ite_eq_right h2, ite_eq_right (by omega)]; omega
 
 theorem kthN_msCode {B c q : ℕ} {σ : Multiset ℕ} (h : BitsAt c q (msCode σ))
     (hB : (msCode σ).length ≤ B) (k d : ℕ) : kthN B c q k d = (σ.sort (· ≤ ·)).getD k d := by
   rw [kthN, msFoldN_msCode h hB, foldl_kth k _ k le_rfl, sort_eq_flatMap]
   by_cases hk : k < ((entries σ).flatMap fun e => List.replicate e.2 e.1).length
-  · rw [if_pos hk, if_pos (by omega), List.getD_eq_getElem _ _ hk, List.getD_eq_getElem _ _ hk]
+  · rw [ite_eq_left hk, ite_eq_left (by omega), List.getD_eq_getElem _ _ hk,
+      List.getD_eq_getElem _ _ hk]
     omega
-  · rw [if_neg hk, if_neg (by omega), List.getD_eq_default _ _ (by omega)]
+  · rw [ite_eq_right hk, ite_eq_right (by omega), List.getD_eq_default _ _ (by omega)]
 
 private theorem foldl_all (P : ℕ × ℕ → Prop) [DecidablePred P] : ∀ (l : List (ℕ × ℕ)) (a : ℕ),
     l.foldl (fun a e => if P e then a else 0) a = if ∀ e ∈ l, P e then a else 0
@@ -775,8 +777,8 @@ private theorem foldl_all (P : ℕ × ℕ → Prop) [DecidablePred P] : ∀ (l :
       simp [he]
 
 /-- The test `σ ≤ τ` on two multiset codes: `1` or `0`. -/
-def leN (B c q c' q' : ℕ) : ℕ := msFoldN (fun a e μ => if μ ≤ countN B c' q' e then a else 0) 1 B c
-    q
+def leN (B c q c' q' : ℕ) : ℕ := msFoldN
+    (fun a e μ => if μ ≤ countN B c' q' e then a else 0) 1 B c q
 
 theorem leN_msCode {B c q c' q' : ℕ} {σ τ : Multiset ℕ} (h : BitsAt c q (msCode σ))
     (hB : (msCode σ).length ≤ B) (h' : BitsAt c' q' (msCode τ)) (hB' : (msCode τ).length ≤ B) :
@@ -829,16 +831,16 @@ theorem validN_eq {a i : ℕ} (hi : i < 2 ^ codeWidth a) :
     have h := bitsAt_labelCode ha l
     rw [hcode] at h
     have hlt : i < 2 ^ (msCode l.1 ++ msCode l.2).length := by
-      rw [← hcode, labelCode, if_neg ha]; exact ofBits_lt _
+      rw [← hcode, labelCode, ite_eq_right ha]; exact ofBits_lt _
     rw [bitsAt_append, Nat.zero_add] at h
     have p1 := msParse_msCode h.1 (B := W) (by omega)
     have p2 := msParse_msCode h.2 (B := W) (by omega)
     rw [Nat.zero_add] at p1
-    rw [p1.2.1, p2.2.1, wtN_msCode h.1 (by omega), wtN_msCode h.2 (by omega), if_pos hd,
-      if_pos]
+    rw [p1.2.1, p2.2.1, wtN_msCode h.1 (by omega), wtN_msCode h.2 (by omega), ite_eq_left
+        hd, ite_eq_left]
     refine ⟨by omega, by rw [Nat.min_eq_left (by omega), ← List.length_append]; exact hlt, ?_⟩
     have := hwt; unfold labelWt at this; exact this
-  · rw [if_neg hd, if_neg]
+  · rw [ite_eq_right hd, ite_eq_right]
     rintro ⟨h2, hlt, hwt⟩
     apply hd
     have he1 := msEnd_ge W i (msEnd W i 0)
@@ -851,7 +853,7 @@ theorem validN_eq {a i : ℕ} (hi : i < 2 ^ codeWidth a) :
     rw [p2.2.1] at h2 hlt
     have hb : BitsAt i 0 (msCode σ₁ ++ msCode σ₂) := bitsAt_append.mpr ⟨b1, by rwa [Nat.zero_add]⟩
     have hi' : i = labelCode a (σ₁, σ₂) := by
-      rw [labelCode, if_neg ha]
+      rw [labelCode, ite_eq_right ha]
       refine eq_ofBits_of_bitsAt hb ?_
       rw [List.length_append]; rwa [Nat.min_eq_left h2] at hlt
     rw [wtN_msCode b1 l1, wtN_msCode b2 l2] at hwt
@@ -927,8 +929,7 @@ theorem gammaNum_eq {K x : ℕ} (hx : x < 2 ^ K) : gammaNum K x = ofBits (gamma 
       simp [show ¬ k - z < z + 1 by omega]
 
 /-- **Writing a gamma code**: append the gamma code of `x` at bit `q` of the accumulator `acc`, if
-it
-ends by bit `W`; the new position saturates at `W + 1`. -/
+it ends by bit `W`; the new position saturates at `W + 1`. -/
 def appendN (W acc q x : ℕ) : ℕ × ℕ :=
   (if q + 2 * topBit W x + 1 ≤ W then acc + 2 ^ q * gammaNum W x else acc,
     min (q + 2 * topBit W x + 1) (W + 1))
@@ -938,7 +939,8 @@ theorem appendN_ofBits {W x : ℕ} {l : List Bool} (h : (l ++ gamma x).length �
   rw [List.length_append, length_gamma] at h
   have hxW : x < 2 ^ W := (Nat.lt_pow_succ_log_self (by norm_num) x).trans_le
     (Nat.pow_le_pow_right (by norm_num) (by omega))
-  rw [appendN, topBit_eq hxW, if_pos (by omega), gammaNum_eq hxW, ofBits_append, List.length_append,
+  rw [appendN, topBit_eq hxW, ite_eq_left (by omega), gammaNum_eq hxW, ofBits_append,
+      List.length_append,
     length_gamma]
   simp only [Prod.mk.injEq, true_and]
   omega

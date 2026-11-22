@@ -184,7 +184,7 @@ theorem smallDecider_spec {D : ℕ → ℕ} {Q : Prog} {C s₀ K' : ℕ} (hQc : 
     bd_add (bd_mul (bd_const (by omega) _) hbm (val_const 8 _) hvm (by omega))
       (bd_const (by omega) _) (val_mul (val_const 8 _) hvm) (val_const K' _) (by omega)
   -- the bit, by the bit program for the 3-SAT family at size `s`
-  have hmem : threeSatFamily.Mem w s := by show w.length ≤ bnd s; rw [← hn]; exact hlen0
+  have hmem : threeSatFamily.Mem w s := by change w.length ≤ bnd s; rw [← hn]; exact hlen0
   obtain ⟨hQe, hQb⟩ := hQ w s a.j hmem (by omega)
   have hlen' : (Turing.MultiTapeTM.frame (encNat a.j) ++ encSlots a.φ).length ≤ bnd s := by
     rw [← instEnc_apply, ← hw, ← hn]; exact hlen0
@@ -222,8 +222,8 @@ theorem smallBits_at {D : ℕ → ℕ} (hQ : CubeCountingAt D)
   obtain ⟨N, hN⟩ := hD
   have hlog : ∀ a : SmallInstance, (8 * a.1.φ.length + (s₀ + N)).log2 + 1 ≤
       D (8 * a.1.φ.length + (s₀ + N)) := fun a => hN _ (by omega)
-  have key (a : SmallInstance) := smallDecider_spec hQc hQ (K' := s₀ + N) (by omega) a.1 a.2
-      (hlog a)
+  have key (a : SmallInstance) := smallDecider_spec hQc hQ (K' := s₀ + N) (by omega)
+      a.1 a.2 (hlog a)
   have hlt (a : SmallInstance) : (smallEnc a).length < 2 ^ (4 * D (8 * a.1.φ.length + (s₀ + N))) :=
     lt_two_pow_of_le_bnd (len_le_bnd_of_small a.1 a.2 _) (hlog a)
   have hd1 (a : SmallInstance) : 1 ≤ D (8 * a.1.φ.length + (s₀ + N)) := by
@@ -235,7 +235,7 @@ theorem smallBits_at {D : ℕ → ℕ} (hQ : CubeCountingAt D)
       have h := hlt a
       have hne : (smallEnc a).length ≠ 0 := by
         have := m_le_len a.1; have := a.1.two_le
-        show (instEnc a.1).length ≠ 0; omega
+        change (instEnc a.1).length ≠ 0; omega
       have := (Nat.log2_lt hne).mpr h
       omega)
     (fun a => Nat.mul_pos (by omega) (hd1 a))

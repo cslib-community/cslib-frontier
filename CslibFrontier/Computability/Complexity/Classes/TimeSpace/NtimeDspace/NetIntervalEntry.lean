@@ -153,7 +153,7 @@ theorem intervalEntryT_denote [DecidableEq State] {RT NT qT bT σT iT : Term} {L
   by_cases hg : Lv (iT.denote w env) < controlCount k s (bT.denote w env) ∧
       ∀ h : Fin k, ∀ δ : Fin 3, ¬ Lv (qT.denote w env + (δ + 3 * h + k * 3 * iT.denote w env)) <
         controlCount k s (bT.denote w env)
-  · rw [if_pos hg, if_pos Nat.one_pos, if_pos hg]
+  · rw [ite_eq_left hg, ite_eq_left Nat.one_pos, ite_eq_left hg]
     exact intervalCountT_denote (e := e) (machine := machine) hR hb hN
       (StableAt.digitCountT k hσ (stableAt_const _ _) (stableAt_const _ _) hi)
       (StableAt.digitCountT k hσ (stableAt_const _ _) (stableAt_const _ _) hi)
@@ -183,6 +183,6 @@ theorem intervalEntryT_denote [DecidableEq State] {RT NT qT bT σT iT : Term} {L
       (fun h c hc => by
         simp only [(hdiv h c hc).1, (hdiv h c hc).2]
         rw [outCellsNum_getD _ _ _ _ _ _ _ _ hc])
-  · rw [if_neg hg, if_neg (lt_irrefl 0), if_neg hg]; rfl
+  · rw [ite_eq_right hg, ite_eq_right (lt_irrefl 0), ite_eq_right hg]; rfl
 
 end Cslib.Complexity.NtimeDspace.LocalSim

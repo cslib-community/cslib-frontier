@@ -28,6 +28,7 @@ open Term LocalSim _root_.Turing
 variable {w : List Bool} {L : ℕ} {env : List ℕ} {k s : ℕ} {State : Type} [DecidableEq State]
   {e : State ≃ Fin s} {machine : MultiTapePTM k Bool State}
 
+omit [DecidableEq State] in
 theorem tm_intervalCountT {R NT bT JpT JmT stI trI stO trO : Term}
     {offI cellI offO dC cellO : Term → Term} (hL : 8 ≤ L)
     (hR : Tm w L 1 R env) (hRpos : Pos w L R env) (hb : Tm w L 1 bT env)
@@ -38,8 +39,8 @@ theorem tm_intervalCountT {R NT bT JpT JmT stI trI stO trO : Term}
     (h2b : Tm w L 1 (pow2 bT) env)
     (hrun : TmF2 w L (fun x st => runT e machine R NT bT x st) 4 32 32 env)
     (hstart : Tm w L 20 (startT k R bT NT JpT JmT stI trI offI cellI) env) :
-    Tm w L 32 (intervalCountT e machine R NT bT JpT JmT stI trI stO trO offI cellI offO dC cellO)
-        env := by
+    Tm w L 32 (intervalCountT e machine R NT bT JpT JmT stI trI stO trO offI cellI offO dC
+        cellO) env := by
   unfold intervalCountT
   tame1
 

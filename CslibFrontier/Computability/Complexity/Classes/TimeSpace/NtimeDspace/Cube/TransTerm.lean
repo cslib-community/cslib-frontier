@@ -146,14 +146,14 @@ def srcTyT (B up X Y M k : Term) : Term :=
   ite (lt k (cardT B X (const 0))) (kthT B X (const 0) k (const 0))
     (ite (lt k (add (cardT B X (const 0)) (cardT B Y (const 0))))
       (kthT B Y (const 0) (sub k (cardT B X (const 0))) (const 0))
-      (kthT B M (msgPosT B up M) (sub (sub k (cardT B X (const 0))) (cardT B Y (const 0)))
-          (const 0)))
+      (kthT B M (msgPosT B up M) (sub (sub k (cardT B X (const 0)))
+          (cardT B Y (const 0))) (const 0)))
 
 /-- `srcWtN`. -/
 def srcWtT (B up X Y M lo hi : Term) : Term :=
   sumT (sub hi lo) fun k =>
-    ite (lt (add lo k) (srcLenT B up X Y M)) (add (srcTyT B up X Y M (add lo k)) (const 1))
-        (const 0)
+    ite (lt (add lo k) (srcLenT B up X Y M))
+        (add (srcTyT B up X Y M (add lo k)) (const 1)) (const 0)
 
 /-- `tWtN`. -/
 def tWtT (B Tc : Term) : Term :=
@@ -301,8 +301,8 @@ def pivOkT (B up X Y M lo hi Tc W i : Term) : Term :=
         (trAndT (eqT (leCntT B (pdigT W i 3) (const 0)
           (restCntT B Tc (mod (pdigT W i 1) (const 3)) (div (pdigT W i 1) (const 3)) 1)) (const 1))
         (eqT (leCntT B (pdigT W i 4) (const 0)
-          (restCntT B Tc (mod (pdigT W i 1) (const 3)) (div (pdigT W i 1) (const 3)) 2))
-              (const 1))))
+          (restCntT B Tc (mod (pdigT W i 1) (const 3)) (div (pdigT W i 1) (const 3))
+              2)) (const 1))))
     (trAndT (trAndT (lt (mul (const 2) (pivL1T B up X Y M lo W i)) W)
         (trLeT W (mul (const 2) (add (add (pivL1T B up X Y M lo W i)
           (add (srcTyT B up X Y M (add lo (pdigT W i 0))) (const 1)))
@@ -331,7 +331,8 @@ theorem val_pivWT (hW : Val w env W Wv) (j : ℕ) : Val w env (pivWT W j) (pivW 
 theorem val_pivOffT (hW : Val w env W Wv) : ∀ j, Val w env (pivOffT W j) (Radix.off (pivW Wv) j)
   | 0 => (val_const 0).congr (by simp)
   | j +
-      1 => (val_add (val_pivOffT hW j) (val_pivWT hW j)).congr (by simp [Radix.off, Finset.sum_range_succ])
+      1 => (val_add (val_pivOffT hW j) (val_pivWT hW j)).congr (by simp [Radix.off,
+          Finset.sum_range_succ])
 
 theorem val_pdigT (hW : Val w env W Wv) (hi : Val w env i iv) (j : ℕ) :
     Val w env (pdigT W i j) (Radix.dig (pivW Wv) iv j) :=
@@ -402,8 +403,8 @@ theorem val_restT (hB : Val w env B Bv) (hT : Val w env Tc Tcv) (hp : Val w env 
     (hj : Val w env j jv) (k : ℕ) (hd : Val w env d dv) :
     Val w env (restT B Tc p j k d) (restN Bv Tcv pv jv k dv) :=
   val_ocCodeT hB (val_topT hB (val_getV hT (val_const k)) (val_const 0)) fun pre _ _ hy =>
-    (val_sub (val_sub (val_countT (hB.ext pre) (val_getV (hT.ext pre) (val_const k)) (val_const 0)
-        hy)
+    (val_sub (val_sub (val_countT (hB.ext pre) (val_getV (hT.ext pre) (val_const k))
+        (val_const 0) hy)
       (val_countT (hB.ext pre) (hd.ext pre) (val_const 0) hy))
       (val_ite (val_mul (val_eqT (val_const k) (hp.ext pre)) (val_eqT hy (hj.ext pre)))
         (val_const 1) (val_const 0))).congr (by congr 1; split_ifs <;> simp_all)
@@ -475,8 +476,8 @@ theorem val_zzAddT (hz : Val w env z Z) (ha : Val w env a A) (hb : Val w env b B
     (by unfold zzAddN; split_ifs <;> first | rfl | omega)
 
 theorem val_plOfT (ha : Val w env a A) (hb : Val w env b B') : Val w env (plOfT a b) (plOfN A B') :=
-  (val_iteP (val_eqT hb (val_const 0)) (val_iteP (val_eqT ha (val_const 1)) (val_const 1)
-      (val_const 3))
+  (val_iteP (val_eqT hb (val_const 0)) (val_iteP (val_eqT ha (val_const 1))
+      (val_const 1) (val_const 3))
     (val_iteP (val_eqT hb (val_const 1))
         (val_iteP (val_eqT ha (val_const 1)) (val_const 2) (val_const 4))
       (val_const 0))).congr rfl
@@ -720,8 +721,8 @@ theorem val_trWidthT (hB : Val w env B Bv) (he : Val w env e ev) : Val w env (tr
 theorem val_trLeafT (hB : Val w env B Bv) (he : Val w env e ev) : Val w env (trLeafT B e)
     (trLeafN Bv ev) := by
   have f : ∀ k, Val w env (getV e (const k)) (getF ev k) := fun k => val_getV he (val_const k)
-  have
-      c := fun k => val_eqT (val_cardT hB (val_getV (f 7) (val_const k)) (val_const 0)) (val_const 0)
+  have c := fun k =>
+    val_eqT (val_cardT hB (val_getV (f 7) (val_const k)) (val_const 0)) (val_const 0)
   exact (val_trAndT (val_eqT (f 0) (val_const 7))
       (val_trAndT (c 0) (val_trAndT (c 1) (val_trAndT (c 2)
     (val_eqT (f 8) (val_const 0)))))).congr rfl
@@ -817,8 +818,8 @@ theorem mul_lt_two_pow (hL : 9 ≤ L) {d : ℕ} (hd : d ≤ 32) : d * L < 2 ^ L 
 
 theorem size_le_tier {X d : ℕ} (h : X < 2 ^ (d * L)) : X.size ≤ d * L := Nat.size_le.mpr h
 
-theorem Val.lt_tier {t : Term} {v d : ℕ} (hv : Val w env t v) (ht : Tm w L d t env) : v < 2 ^
-    (d * L) :=
+theorem Val.lt_tier {t : Term} {v d : ℕ} (hv : Val w env t v) (ht : Tm w L d t env) : v
+    < 2 ^ (d * L) :=
   hv.2 ▸ ht.lt
 
 theorem tm_tOnesT (he : Val w env e E) (te : Tm w L de e env) (hde : de ≤ 32) (hL : 9 ≤ L) :
@@ -1147,8 +1148,8 @@ theorem tm_leCntT {c q : Term} {cv qv dc dq : ℕ} {cnt : Term → Term} {C : �
     (hcnt : ValF1 w cnt C env) (tcnt : TmV1 w L cnt 3 env) (hB : Val w env B Bv)
         (hc : Val w env c cv)
     (hq : Val w env q qv) (tB : Tm w L 1 B env) (tc : Tm w L dc c env) (tq : Tm w L dq q env)
-    (hdq1 : 1 ≤ dq) (hdq : dq ≤ 64) (hL : 10 ≤ L) (hBL : Bv ≤ L) : Tm w L 1 (leCntT B c q cnt)
-        env :=
+    (hdq1 : 1 ≤ dq) (hdq : dq ≤ 64) (hL : 10 ≤ L) (hBL : Bv ≤ L) : Tm w L 1
+        (leCntT B c q cnt) env :=
   tm_msFoldT_cl (G := fun a e μ => if μ ≤ C e then a else 0)
     (fun pre _ _ _ _ _ _ hx he hμ => (val_ite (val_lt (hcnt pre _ _ he) hμ) (val_const 0) hx).congr
       (by dsimp only; split_ifs <;> first | rfl | omega))
@@ -1166,12 +1167,12 @@ theorem tm_restCntT (hB : Val w env B Bv) (hT : Val w env Tc Tcv) (tB : Tm w L 1
     (dy : ℕ) : TmV1 w L (restCntT B Tc p j k) dy env := fun E hE y Y hy ty => by
   have t0 : Tm w L 1 (const 0) E := t_small (by norm_num) (by omega)
   have tk : Tm w L 1 (const k) E := t_small hk (by omega)
-  exact (t_sub (tm_countT (hB.extE hE) (val_getV (hT.extE hE) (val_const k)) (val_const 0) hy
-      (tB.ext hE)
+  exact (t_sub (tm_countT (hB.extE hE) (val_getV (hT.extE hE) (val_const k))
+      (val_const 0) hy (tB.ext hE)
     (tm_getV (hT.extE hE) (tT.ext hE) hdT (val_const k) tk (by norm_num) (by omega)) t0 ty le_rfl
     (by norm_num) (by omega) hBL)
-    (t_ite (t_mul (t_eqT' tk (tp.ext hE) (by omega)) (t_eqT' ty (tj.ext hE) (by omega))
-        (by norm_num))
+    (t_ite (t_mul (t_eqT' tk (tp.ext hE) (by omega))
+        (t_eqT' ty (tj.ext hE) (by omega)) (by norm_num))
       (t_one (by omega)) t0)).mono (by norm_num)
 
 
@@ -1220,8 +1221,8 @@ theorem tm_pivOkT {A : ℕ} {up' : Bool} {x y m : Label} {T : Multiset (HPlace �
       hB (vd (k + 2)) (val_const 0) tB (dg (k + 2) hk') t0 le_rfl (by norm_num) hL hBL)
       (t_one (by omega)) (by omega)
   have tlen := tm_srcLenT hB hup hX hY hM tB tup tX tY tM (by omega) hBL
-  have L1 := tm_pivL1T hf hAL hB hup hX hY hM hlo hW hix tB tup tX tY tM tlo tW ti hdlo hWL hcw hL
-      hBL
+  have L1 := tm_pivL1T hf hAL hB hup hX hY hM hlo hW hix tB tup tX tY tM tlo tW ti
+      hdlo hWL hcw hL hBL
   have tk := t_add tlo (dg 0 (by norm_num)) (by omega) (by omega)
   have tty := tm_srcTyT hB hup hX hY hM (val_add hlo (vd 0)) tB tup tX tY tM tk (by omega) hL hBL
   have h7 := off_pivW_le hWL hcw 7 le_rfl
@@ -1268,8 +1269,7 @@ theorem tm_restT (hB : Val w env B Bv) (hT : Val w env Tc Tcv) (hp : Val w env p
       (fun e => sub (sub (countT B (getV Tc (const k)) (const 0) e) (countT B d (const 0) e))
       (ite (mul (eqT (const k) p) (eqT e j)) (const 1) (const 0)))
       (fun e => countN Bv (getF Tcv k) 0 e - countN Bv dv 0 e - if k = pv ∧ e = jv then 1 else 0)
-          env :=
-    fun pre _ _
+          env := fun pre _ _
         hy => (val_sub (val_sub (val_countT (hB.ext pre) (val_getV (hT.ext pre) (val_const k))
       (val_const 0) hy) (val_countT (hB.ext pre) (hd.ext pre) (val_const 0) hy))
       (val_ite (val_mul (val_eqT (val_const k) (hp.ext pre)) (val_eqT hy (hj.ext pre)))
@@ -1282,13 +1282,13 @@ theorem tm_restT (hB : Val w env B Bv) (hT : Val w env Tc Tcv) (hp : Val w env p
   have t0' : Tm w L 1 (const 0) E := t_small (by norm_num) (by omega)
   have tk' : Tm w L 1 (const k) E := t_small hk (by omega)
   exact (t_sub (t_sub (tm_countT (hB.extE hE) (val_getV (hT.extE hE) (val_const k)) (val_const 0) hy
-      (tB.ext hE) (tm_getV (hT.extE hE) (tT.ext hE) hdT (val_const k) tk' (by norm_num) (by omega))
-          t0' ty
+      (tB.ext hE) (tm_getV (hT.extE hE) (tT.ext hE) hdT (val_const k) tk' (by norm_num)
+          (by omega)) t0' ty
       le_rfl (by norm_num) (by omega) hBL)
     (tm_countT (hB.extE hE) (hd.extE hE) (val_const 0) hy (tB.ext hE) (td.ext hE) t0' ty le_rfl
       (by norm_num) (by omega) hBL))
-    (t_ite (t_mul (t_eqT' tk' (tp.ext hE) (by omega)) (t_eqT' ty (tj.ext hE) (by omega))
-        (by norm_num))
+    (t_ite (t_mul (t_eqT' tk' (tp.ext hE) (by omega))
+        (t_eqT' ty (tj.ext hE) (by omega)) (by norm_num))
       (t_one (by omega)) t0')).mono (by norm_num)
 
 end TierPiv
@@ -1319,8 +1319,8 @@ theorem tm_ite_val {d : ℕ} (hc : Val w env c C) (tc : Tm w L dc c env) (ht : 0
         from h')).symm ▸ htm.1
     · simp only [Term.denote_ite, h', ↓reduceIte]; exact htm.2
 
-theorem tm_trZzSubT (ta : Tm w L da a env) (tb : Tm w L db b env) (hd : max da db + 1 ≤ 128)
-    (hL : 2 ≤ L) :
+theorem tm_trZzSubT (ta : Tm w L da a env) (tb : Tm w L db b env)
+    (hd : max da db + 1 ≤ 128) (hL : 2 ≤ L) :
     Tm w L (max da db + 1) (trZzSubT a b) env :=
   (t_ite (t_lt ta tb (by omega)) (t_sub (t_mul (t_small (k := 2) (by norm_num) hL) (t_sub tb ta)
     (by omega)) (t_one (by omega))) (t_mul (t_small (k := 2) (by norm_num) hL) (t_sub ta tb)
@@ -1641,20 +1641,19 @@ theorem tm_trChildT {up : Bool} {x y m : Label} {lo hi : ℕ} {T : Multiset (HPl
           (by omega) (by omega)⟩
       (.cons ⟨val_encV_cons (vm 2) (val_encV_cons (vm 3) (val_encV_cons (vm 4) val_encV_nil)), 13,
         by norm_num, inner1⟩
-      (.cons ⟨val_encV_cons (vr 0 2) (val_encV_cons (vr 1 3) (val_encV_cons (vr 2 4) val_encV_nil)),
-          7,
+      (.cons ⟨val_encV_cons (vr 0 2) (val_encV_cons (vr 1 3)
+          (val_encV_cons (vr 2 4) val_encV_nil)), 7,
         by norm_num, inner2⟩
       (.cons
           ⟨val_trZzSubT (vd 5) vWr,
-          _, by omega, tm_trZzSubT (dg 5 (by norm_num)) tW (by omega) (by omega)⟩
-      (.cons
+          _, by omega, tm_trZzSubT (dg 5 (by norm_num)) tW (by omega) (by omega)⟩ (.cons
           ⟨val_trZzSubT (vd 6) vWr,
           _, by omega, tm_trZzSubT (dg 6 (by norm_num)) tW (by omega) (by omega)⟩
       (.cons ⟨val_zzAddT (vf 8) (val_mul (val_const 2) vWr) (val_add (vd 5) (vd 6)), _, by omega,
-        tm_zzAddT (tf 8 (by norm_num)) (t_mul (t_small (k := 2) (by norm_num) (by omega)) tW
-            (by norm_num))
-          (t_add (dg 5 (by norm_num)) (dg 6 (by norm_num)) (by omega) (by omega)) (by omega)
-              (by omega)⟩
+        tm_zzAddT (tf 8 (by norm_num)) (t_mul (t_small (k := 2) (by norm_num) (by omega))
+            tW (by norm_num))
+          (t_add (dg 5 (by norm_num)) (dg 6 (by norm_num)) (by omega) (by omega))
+              (by omega) (by omega)⟩
         .nil)))))))))))))) hbound).2
   · exact (val_tm_encV' (d := dc) (by omega) hdc1 (by omega)
       (.cons ⟨val_const 0, 1, by norm_num, t_small (by norm_num) (by omega)⟩ .nil)
@@ -1755,12 +1754,11 @@ theorem tm_trrChildT {up : Bool} {x y m : Label} {pos hi : ℕ} {t : HPlace × �
       (tf 5 (by norm_num)) (by omega) hL hBL) td8
     have tps := t_ite (t_lt (tf 5 (by norm_num)) tl (by omega)) (tm_srcPlT hB (vf 2) (vf 3) tB
       (tf 2 (by norm_num)) (tf 3 (by norm_num)) (tf 5 (by norm_num)) hL hBL) tpt
-    have vr := val_ruleT (vf 1) (val_iteP (val_lt (vf 5) hl) (val_srcPlT hB (vf 2) (vf 3) (vf 5))
-        vpt)
+    have vr := val_ruleT (vf 1) (val_iteP (val_lt (vf 5) hl)
+        (val_srcPlT hB (vf 2) (vf 3) (vf 5)) vpt)
       va vpt vjt (vf 9)
     exact (val_tm_encV' (d := dc) (by omega) hdc1 (by omega) (.cons (K 1 (by norm_num))
-      (.cons
-          ⟨vr,
+      (.cons ⟨vr,
           1, by norm_num, tm_ruleT va vjt (tf 1 (by norm_num)) tps ta tpt td8 (tf 9 (by norm_num))
         (by omega) hL⟩ .nil)) hbound).2
   · have h0 : ¬ iv = 0 := fun hn => hp (by rw [ite_eq_left hn]; exact Nat.one_pos)
@@ -1831,8 +1829,8 @@ theorem tm_tr_agree {st : St} (h : TrInv A Bv st) (hB : Val w env B Bv) (tB : Tm
         (by norm_num) (by omega)) t0 le_rfl (by norm_num) (by omega) hBL) t0 (by omega)
     refine tm_val (t_mul c7 (t_mul (cc 0 (by norm_num))
         (t_mul (cc 1 (by norm_num)) (t_mul (cc 2 (by norm_num))
-      (t_eqT' (tf 8 (by norm_num)) t0 (by omega)) (by norm_num)) (by norm_num)) (by norm_num))
-          (by norm_num))
+      (t_eqT' (tf 8 (by norm_num)) t0 (by omega)) (by norm_num)) (by norm_num))
+          (by norm_num)) (by norm_num))
       (val_trLeafT hB he) ?_
     rw [one_mul]; unfold trLeafN; split_ifs
     exacts [Nat.one_lt_two_pow (by omega), Nat.two_pow_pos _]
@@ -1874,8 +1872,8 @@ the tag, the index length, the leaf value and the code of every child. -/
 theorem val_tr_agree {st : St} (h : TrInv A Bv st) (hB : Val w env B Bv)
     (he : Val w env e (S.code st))
     (hix : Val w env i iv) :
-    Val w env (trTagT e) (AGen.kindTag (S.gen.kind st)) ∧ Val w env (trWidthT B e) (S.gen.width st)
-        ∧
+    Val w env (trTagT e) (AGen.kindTag (S.gen.kind st)) ∧ Val w env (trWidthT B e)
+        (S.gen.width st) ∧
       Val w env (trLeafT B e) (trLeafN Bv (S.code st)) ∧
       ((trLeafN Bv (S.code st) : ℕ) : ℤ) = S.gen.leafVal st ∧
       Val w env (trChildAllT B e i) (S.code (S.gen.child st iv)) := by

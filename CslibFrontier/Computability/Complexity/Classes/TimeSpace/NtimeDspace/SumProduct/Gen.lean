@@ -116,10 +116,10 @@ theorem testBit_sum_bits (b : ℕ → Bool) : ∀ P k, k < P →
     rw [Finset.sum_range_succ, Nat.add_comm, Nat.mul_comm,
       Nat.testBit_two_pow_mul_add _ (sum_bits_lt b P)]
     rcases Nat.lt_or_ge k P with hk | hk
-    · rw [if_pos hk]; exact testBit_sum_bits b P k hk
+    · rw [ite_eq_left hk]; exact testBit_sum_bits b P k hk
     · have hk' : k = P := by omega
       subst hk'
-      rw [if_neg (lt_irrefl k), Nat.sub_self]
+      rw [ite_eq_right (lt_irrefl k), Nat.sub_self]
       cases b k <;> simp
 
 theorem testBit_leafValue (st k : ℕ) (hk : k < g.prec st) :
@@ -152,13 +152,13 @@ theorem agrees_tree (H st₀ : ℕ) :
   rcases Nat.lt_or_ge ρ.length H with hlt | hge
   · obtain ⟨m, hm⟩ : ∃ m, H - ρ.length = m + 1 := ⟨H - ρ.length - 1, by omega⟩
     rw [hm]
-    refine ⟨by rw [genQ, if_pos hlt, info_tree_succ], fun k ht hk => ?_⟩
+    refine ⟨by rw [genQ, ite_eq_left hlt, info_tree_succ], fun k ht hk => ?_⟩
     simp only [tree] at ht hk ⊢
     split_ifs at ht hk ⊢ <;> simp_all [SPTree.tag, SPTree.prec, SPTree.value, genLB,
       Nat.mod_eq_of_lt (g.leafValue_lt _), g.testBit_leafValue _ _ hk]
   · have : H - ρ.length = 0 := by omega
     rw [this]
-    refine ⟨by rw [genQ, if_neg (by omega)]; rfl, fun k _ hk => ?_⟩
+    refine ⟨by rw [genQ, ite_eq_right (by omega)]; rfl, fun k _ hk => ?_⟩
     simp [tree, SPTree.prec] at hk
 
 end GenFun

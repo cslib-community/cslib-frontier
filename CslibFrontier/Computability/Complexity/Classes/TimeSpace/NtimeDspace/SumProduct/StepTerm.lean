@@ -78,17 +78,16 @@ theorem bnd_mkT {a b c d : ℕ} {env : List ℕ} (ha : a < env.length) (hb : b <
   refine ⟨h1.trans hB1, ?_, ?_⟩
   · exact bnd_consT (by lvl_disch) (by lvl_disch) (by simp) (by
       rw [lvl_cons hd, denote_lvl_let]; exact hB1)
-  · try simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]
+  · simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]
     refine ⟨bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_, ?_⟩
     · simp (disch := lvl_disch) only [denote_lvl_let]; exact h1
     · simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons]; exact hB2
-    · try simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]
-      refine ⟨bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_, ?_⟩
+    · refine ⟨bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_, ?_⟩
       · simp (disch := lvl_disch) only [denote_lvl_let]; exact h2
       · simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons]; exact hB3
       · refine bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_
-        · simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]; exact h3
-        · simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]; exact hB
+        · simp (disch := lvl_disch) only [denote_lvl_let]; exact h3
+        · simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons]; exact hB
 
 theorem bnd_pushT {k j l c F : ℕ} {env : List ℕ} (hk : k < env.length) (hj : j < env.length)
     (hl : l < env.length) (hc : c < env.length) (hF : F < env.length)
@@ -109,17 +108,16 @@ theorem bnd_pushT {k j l c F : ℕ} {env : List ℕ} (hk : k < env.length) (hj :
   have hB1 : consF vc vF ≤ B := (le_consF_right _ _ g1).trans hB2
   simp only [pushT, bnd_letT]
   refine ⟨bnd_consT hc hF h1 hB1, ?_⟩
-  try simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]
+  simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]
   refine ⟨bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_, ?_⟩
   · simp (disch := lvl_disch) only [denote_lvl_let]; exact g1
   · simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons]; exact hB2
-  · try simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]
-    refine ⟨bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_, ?_⟩
+  · refine ⟨bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_, ?_⟩
     · simp (disch := lvl_disch) only [denote_lvl_let]; exact g2
     · simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons]; exact hB3
     · refine bnd_consT (by lvl_disch) (by lvl_disch) ?_ ?_
-      · simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]; exact g3
-      · simp (disch := lvl_disch) only [denote_consT, denote_lvl_let, lvl_cons]; exact hB
+      · simp (disch := lvl_disch) only [denote_lvl_let]; exact g3
+      · simp (disch := lvl_disch) only [denote_lvl_let, lvl_cons]; exact hB
 
 /-! ### The branches -/
 
@@ -166,7 +164,7 @@ theorem lvl_val {a : ℕ} {env : List ℕ} {x : ℕ} (h : (lvl a).denote w env =
     (lvl a).denote w env = x := h
 
 theorem denote_advT {k j l c Fr ρ z o : ℕ} {env : List ℕ} (hk : k < env.length)
-    (hj : j < env.length) (hl : l < env.length) (hc : c < env.length) (hFr : Fr < env.length)
+    (hj : j < env.length) (_hl : l < env.length) (hc : c < env.length) (hFr : Fr < env.length)
     (hρ : ρ < env.length) (hz : z < env.length) (ho : o < env.length)
     (hz0 : (lvl z).denote w env = 0) (ho1 : (lvl o).denote w env = 1) :
     (advT (lvl k) (lvl j) (lvl l) (lvl c) (lvl Fr) (lvl ρ) (lvl z) (lvl o)).denote w env =
@@ -176,8 +174,8 @@ theorem denote_advT {k j l c Fr ρ z o : ℕ} {env : List ℕ} (hk : k < env.len
     denote_letT, denote_add, denote_div, denote_mod, denote_const, denote_pushT, denote_consT,
     denote_mkT, denote_lvl_let, lvl_cons, hz0, ho1]
 
-theorem denote_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : v < env.length)
-    (hk : k < env.length) (hj : j < env.length) (hl : l < env.length) (hc : c < env.length)
+theorem denote_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (_hv : v < env.length)
+    (hk : k < env.length) (hj : j < env.length) (hl : l < env.length) (_hc : c < env.length)
     (hFr : Fr < env.length) (hi : i < env.length) (hρ : ρ < env.length)
     (hpar : par < env.length) (hz : z < env.length) (ho : o < env.length)
     (hz0 : (lvl z).denote w env = 0) (ho1 : (lvl o).denote w env = 1) :
@@ -190,9 +188,9 @@ theorem denote_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : 
     denote_letT, denote_add, denote_div, denote_mod, denote_const, denote_pow2, denote_pushT,
     denote_consT, denote_mkT, denote_lvl_let, lvl_cons, hz0, ho1]
 
-theorem denote_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (hv : v < env.length)
+theorem denote_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (_hv : v < env.length)
     (hk : k < env.length) (hj : j < env.length) (hl : l < env.length) (hc : c < env.length)
-    (hFr : Fr < env.length) (hi : i < env.length) (hρ : ρ < env.length)
+    (hFr : Fr < env.length) (_hi : i < env.length) (hρ : ρ < env.length)
     (hz : z < env.length) (ho : o < env.length)
     (hz0 : (lvl z).denote w env = 0) (ho1 : (lvl o).denote w env = 1) :
     (prodRetT (lvl v) (lvl k) (lvl j) (lvl l) (lvl c) (lvl Fr) (lvl i) (lvl ρ) (lvl z)
@@ -203,7 +201,7 @@ theorem denote_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (hv : v <
   have hz0' : ∀ x, (lvl z).denote w (x :: env) = 0 := fun x => by rw [lvl_cons hz, hz0]
   have ho1' : ∀ x, (lvl o).denote w (x :: env) = 1 := fun x => by rw [lvl_cons ho, ho1]
   simp (disch := lvl_disch) only [prodRetT, prodRetF, denote_ite_lt,
-    denote_letT, denote_sub, denote_add, denote_const, denote_pushT, denote_consT, denote_mkT,
+    denote_letT, denote_sub, denote_add, denote_pushT, denote_consT, denote_mkT,
     denote_lvl_let, lvl_cons, hz0, ho1]
   rw [denote_advT (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch)
     (by lvl_disch) (by lvl_disch) (by lvl_disch) (hz0' _) (ho1' _),
@@ -367,7 +365,7 @@ theorem bnd_pushBranch {a b k j l c Fr x ρ : ℕ} {env : List ℕ} (ha : a < en
   exact hout
 
 theorem bnd_advT {k j l c Fr ρ z o : ℕ} {env : List ℕ} (hk : k < env.length)
-    (hj : j < env.length) (hl : l < env.length) (hc : c < env.length) (hFr : Fr < env.length)
+    (hj : j < env.length) (_hl : l < env.length) (hc : c < env.length) (hFr : Fr < env.length)
     (hρ : ρ < env.length) (hz : z < env.length) (ho : o < env.length)
     (hz0 : (lvl z).denote w env = 0) (ho1 : (lvl o).denote w env = 1)
     (hFr1 : 1 ≤ (lvl Fr).denote w env) (hρ1 : 1 ≤ (lvl ρ).denote w env)
@@ -384,7 +382,8 @@ theorem bnd_advT {k j l c Fr ρ z o : ℕ} {env : List ℕ} (hk : k < env.length
   by_cases h1 : (lvl l).denote w env < (lvl j).denote w env
   · simp only [h1, ite_true, zero_lt_one] at hout ⊢
     rw [bnd_letT]
-    refine ⟨by simp [ho1]; exact hsmall.1, ?_⟩
+    refine ⟨by simp only [bnd_add, bnd_lvl, ho1, Order.add_one_le_iff,
+        true_and]; exact hsmall.1, ?_⟩
     refine bnd_pushBranch (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch)
       (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch)
       (by simp (disch := lvl_disch) only [lvl_cons]; exact hFr1)
@@ -398,7 +397,8 @@ theorem bnd_advT {k j l c Fr ρ z o : ℕ} {env : List ℕ} (hk : k < env.length
     by_cases h2 : (lvl j).denote w env < (lvl k).denote w env
     · simp only [h2, ite_true, zero_lt_one] at hout ⊢
       rw [bnd_letT]
-      refine ⟨by simp [ho1]; exact hsmall.2.1, ?_⟩
+      refine ⟨by simp only [bnd_add, bnd_lvl, ho1, Order.add_one_le_iff,
+          true_and]; exact hsmall.2.1, ?_⟩
       rw [bnd_letT]
       refine ⟨by simp [hsmall.2.2], ?_⟩
       refine bnd_pushBranch (a := o) (b := z) (k := k) (l := z) (Fr := Fr) (x := z) (ρ := ρ)
@@ -417,8 +417,8 @@ theorem bnd_advT {k j l c Fr ρ z o : ℕ} {env : List ℕ} (hk : k < env.length
       simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_mod, denote_const, hz0]
       exact hout
 
-theorem bnd_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : v < env.length)
-    (hk : k < env.length) (hj : j < env.length) (hl : l < env.length) (hc : c < env.length)
+theorem bnd_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (_hv : v < env.length)
+    (hk : k < env.length) (hj : j < env.length) (hl : l < env.length) (_hc : c < env.length)
     (hFr : Fr < env.length) (hi : i < env.length) (hρ : ρ < env.length)
     (hpar : par < env.length) (hz : z < env.length) (ho : o < env.length)
     (hz0 : (lvl z).denote w env = 0) (ho1 : (lvl o).denote w env = 1)
@@ -433,7 +433,7 @@ theorem bnd_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : v <
         (lvl o)).Bnd w B env := by
   unfold sumRetT sumRetF at *
   rw [bnd_letT]
-  refine ⟨by simp only [bnd_add, bnd_lvl, denote_add, true_and]; exact hsmall.1, ?_⟩
+  refine ⟨by simp only [bnd_add, bnd_lvl, true_and]; exact hsmall.1, ?_⟩
   rw [bnd_letT]
   refine ⟨by
     simp (disch := lvl_disch) only [bnd_add, bnd_lvl, denote_add, true_and, lvl_cons, ho1]
@@ -452,7 +452,7 @@ theorem bnd_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : v <
       (by lvl_disch) (by lvl_disch) (by lvl_disch) ?_ ?_ ?_
     · simp (disch := lvl_disch) only [lvl_cons]; exact hFr1
     · simp (disch := lvl_disch) only [lvl_cons]; exact hρ1
-    · simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_add, ho1]
+    · simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, ho1]
       exact hout
   · simp only [h1, ite_false, lt_irrefl] at hout ⊢
     rw [bnd_ite]
@@ -462,7 +462,7 @@ theorem bnd_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : v <
     · simp only [h2, ite_true, zero_lt_one] at hout ⊢
       rw [bnd_letT]
       refine ⟨by
-        simp (disch := lvl_disch) only [bnd_add, bnd_lvl, denote_add, true_and, lvl_cons, ho1]
+        simp (disch := lvl_disch) only [bnd_add, bnd_lvl, true_and, lvl_cons, ho1]
         exact hsmall.2.2.1, ?_⟩
       rw [bnd_letT]
       refine ⟨by simp [hsmall.2.2.2], ?_⟩
@@ -478,13 +478,12 @@ theorem bnd_sumRetT {v k j l c Fr i ρ par z o : ℕ} {env : List ℕ} (hv : v <
       rw [bnd_letT]
       refine ⟨by simp [hsmall.2.2.2], ?_⟩
       refine bnd_mkT (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch) ?_
-      simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_mod, denote_add,
-        denote_const, hz0]
+      simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_mod, denote_const, hz0]
       exact hout
 
-theorem bnd_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (hv : v < env.length)
+theorem bnd_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (_hv : v < env.length)
     (hk : k < env.length) (hj : j < env.length) (hl : l < env.length) (hc : c < env.length)
-    (hFr : Fr < env.length) (hi : i < env.length) (hρ : ρ < env.length)
+    (hFr : Fr < env.length) (_hi : i < env.length) (hρ : ρ < env.length)
     (hz : z < env.length) (ho : o < env.length)
     (hz0 : (lvl z).denote w env = 0) (ho1 : (lvl o).denote w env = 1)
     (hFr1 : 1 ≤ (lvl Fr).denote w env) (hρ1 : 1 ≤ (lvl ρ).denote w env)
@@ -502,7 +501,7 @@ theorem bnd_prodRetT {v k j l c Fr i ρ z o : ℕ} {env : List ℕ} (hv : v < en
   by_cases h1 : 0 < (lvl i).denote w env
   · simp only [h1, ite_true, zero_lt_one] at hout ⊢
     rw [bnd_letT]
-    refine ⟨by simp only [bnd_add, bnd_lvl, denote_add, true_and]; exact hsmall.1, ?_⟩
+    refine ⟨by simp only [bnd_add, bnd_lvl, true_and]; exact hsmall.1, ?_⟩
     refine bnd_advT (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch)
       (by lvl_disch) (by lvl_disch) (by lvl_disch) ?_ ?_ ?_ ?_ ?_ ?_
     · simp (disch := lvl_disch) only [lvl_cons]; exact hz0
@@ -606,7 +605,7 @@ theorem bnd_callT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : 
           simp (disch := lvl_disch) only [lvl_cons]; exact hPa1) (by
           simp (disch := lvl_disch) only [lvl_cons, hz0]; exact hparts.2), ?_⟩
       rw [bnd_ite]
-      refine ⟨by simp [h4]; omega, ?_⟩
+      refine ⟨by simp; omega, ?_⟩
       simp (disch := lvl_disch) only [denote_lt, lvl_cons, denote_lvl_let, denote_const]
       by_cases h3 : Q.tag.eval w [(lvl Pa).denote w env, (lvl len).denote w env] < 3
       · simp only [h3, ite_true, zero_lt_one] at hout ⊢
@@ -621,16 +620,15 @@ theorem bnd_callT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : 
         simp only [ht4, ite_true, zero_lt_one] at hout ⊢
         rw [bnd_letT]
         refine ⟨by
-          simp (disch := lvl_disch) only [bnd_add, bnd_lvl, true_and, denote_add, lvl_cons,
-            denote_lvl_let, denote_callT2 Q.param_closed]
+          simp (disch := lvl_disch) only [bnd_add, bnd_lvl, true_and, lvl_cons, denote_lvl_let]
           exact (mkF_le _ _ _ _).2.1.trans hout, ?_⟩
         refine bnd_mkT (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch) ?_
         simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, denote_pushT, denote_consT, hz0,
-          ho1, denote_add, denote_callT2 Q.param_closed]
+          ho1, denote_add]
         exact hout
   · simp only [h1, ite_false, lt_irrefl] at hout ⊢
     refine bnd_mkT (by lvl_disch) (by lvl_disch) (by lvl_disch) (by lvl_disch) ?_
-    simp (disch := lvl_disch) only [lvl_cons, denote_lvl_let, hz0]
+    simp (disch := lvl_disch) only [lvl_cons, hz0]
     exact hout
 
 set_option hygiene false in
@@ -657,7 +655,7 @@ theorem bnd_retT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : l
   unfold retT
   unfold retF at hout
   rw [bnd_ite]
-  refine ⟨by simp [h4]; omega, ?_⟩
+  refine ⟨by simp; omega, ?_⟩
   simp only [denote_lt, denote_const]
   by_cases h : (lvl F).denote w env < 2
   · simp only [h, ite_true, zero_lt_one] at hout ⊢
@@ -689,23 +687,23 @@ theorem bnd_retT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : l
     rw [bnd_letT]
     refine ⟨bnd_hdT_code hF hFv (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_hdT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
-    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals <;> rfl) (by omega), ?_⟩
+    refine ⟨bnd_tlT_code (by lvl_disch) (by ret_vals; rfl) (by omega), ?_⟩
     rw [bnd_letT]
     refine ⟨bnd_callT2 Q.tag_closed (by lvl_disch) (by lvl_disch) (by ret_vals; exact hqt), ?_⟩
     rw [bnd_letT]
@@ -721,7 +719,7 @@ theorem bnd_retT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : l
       ret_vals; exact hout
     · simp only [t0, ite_false, lt_irrefl] at hout ⊢
       rw [bnd_ite]
-      refine ⟨by simp [h4]; omega, ?_⟩
+      refine ⟨by simp; omega, ?_⟩
       simp only [denote_lt, denote_const]
       ret_vals
       by_cases t1 : Q.tag.eval w [enc ρ, (lvl len).denote w env] < 2
@@ -733,7 +731,7 @@ theorem bnd_retT (Q : Queries) {len v F Pa z o : ℕ} {env : List ℕ} (hlen : l
           (by ret_vals; exact hout)
       · simp only [t1, ite_false, lt_irrefl] at hout ⊢
         rw [bnd_ite]
-        refine ⟨by simp [h4]; omega, ?_⟩
+        refine ⟨by simp; omega, ?_⟩
         simp only [denote_lt, denote_const]
         ret_vals
         by_cases t2 : Q.tag.eval w [enc ρ, (lvl len).denote w env] < 3
@@ -791,17 +789,17 @@ theorem bnd_stepT (Q : Queries) {len S : ℕ} {env : List ℕ} (hlen : len < env
   rw [bnd_letT]
   refine ⟨bnd_hdT_code hS hSv (by omega), ?_⟩
   rw [bnd_letT]
-  refine ⟨bnd_tlT_code (by lvl_disch) (by step_vals <;> rfl) (by omega), ?_⟩
+  refine ⟨bnd_tlT_code (by lvl_disch) (by step_vals; rfl) (by omega), ?_⟩
   rw [bnd_letT]
-  refine ⟨bnd_hdT_code (by lvl_disch) (by step_vals <;> rfl) (by omega), ?_⟩
+  refine ⟨bnd_hdT_code (by lvl_disch) (by step_vals; rfl) (by omega), ?_⟩
   rw [bnd_letT]
-  refine ⟨bnd_tlT_code (by lvl_disch) (by step_vals <;> rfl) (by omega), ?_⟩
+  refine ⟨bnd_tlT_code (by lvl_disch) (by step_vals; rfl) (by omega), ?_⟩
   rw [bnd_letT]
-  refine ⟨bnd_hdT_code (by lvl_disch) (by step_vals <;> rfl) (by omega), ?_⟩
+  refine ⟨bnd_hdT_code (by lvl_disch) (by step_vals; rfl) (by omega), ?_⟩
   rw [bnd_letT]
-  refine ⟨bnd_tlT_code (by lvl_disch) (by step_vals <;> rfl) (by omega), ?_⟩
+  refine ⟨bnd_tlT_code (by lvl_disch) (by step_vals; rfl) (by omega), ?_⟩
   rw [bnd_letT]
-  refine ⟨bnd_hdT_code (by lvl_disch) (by step_vals <;> rfl) (by omega), ?_⟩
+  refine ⟨bnd_hdT_code (by lvl_disch) (by step_vals; rfl) (by omega), ?_⟩
   rw [bnd_letT]
   refine ⟨by simp, ?_⟩
   rw [bnd_letT]

@@ -184,12 +184,12 @@ elab_rules : tactic
     let some c := t.getAppFn.constName? | throwError "tame: no stability"
     let lem? : Option Name :=
       if c == ``Term.add then some ``StableAt.add else if c == ``Term.sub then some ``StableAt.sub
-      else if c == ``Term.mul then some ``StableAt.mul else if c == ``Term.div then some
-          ``StableAt.div
-      else if c == ``Term.mod then some ``StableAt.mod else if c == ``Term.lt then some
-          ``StableAt.lt
-      else if c == ``Term.bit then some ``StableAt.bit else if c == ``Term.ite then some
-          ``StableAt.ite
+      else if c == ``Term.mul then some ``StableAt.mul else if c ==
+          ``Term.div then some ``StableAt.div
+      else if c == ``Term.mod then some ``StableAt.mod else if c ==
+          ``Term.lt then some ``StableAt.lt
+      else if c == ``Term.bit then some ``StableAt.bit else if c ==
+          ``Term.ite then some ``StableAt.ite
       else if c == ``Term.const then some ``stableAt_const else none
     match lem? with
     | some lem => applyConst lem; return

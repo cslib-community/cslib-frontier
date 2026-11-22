@@ -141,8 +141,8 @@ theorem val_sumT {body : Term → Term} {g : ℕ → ℕ} (hn : Val w env n N)
     (hb : ∀ (pre : List ℕ) (x k : ℕ), k < N →
       Val w (x :: k :: (pre ++ env)) (body (lvl (pre ++ env).length)) (g k)) :
     Val w env (sumT n body) (∑ k ∈ Finset.range N, g k) := by
-  have := val_foldT (f := fun acc i => add acc (body i)) (step := fun x k => x + g k) hn
-      (val_const 0)
+  have := val_foldT (f := fun acc i => add acc (body i)) (step := fun x k => x + g k)
+      hn (val_const 0)
     fun pre x k hk => val_add (val_acc _ x k) (hb pre x k hk)
   rw [foldl_add_sum, Nat.zero_add] at this
   exact this
@@ -578,8 +578,8 @@ variable {K x W acc q : Term} {Kv xv Wv accv qv : ℕ}
 theorem val_topBitT (hK : Val w env K Kv) (hx : Val w env x xv) :
     Val w env (topBitT K x) (topBit Kv xv) := by
   refine val_foldT hK (val_const 0) fun pre a j _ => ?_
-  refine (val_ite (val_bit (hx.at2 pre a j) (val_idx _ a j)) (val_idx _ a j) (val_acc _ a j)).congr
-      ?_
+  refine (val_ite (val_bit (hx.at2 pre a j) (val_idx _ a j)) (val_idx _ a j)
+      (val_acc _ a j)).congr ?_
   cases xv.testBit j <;> simp
 
 theorem val_gammaNumT (hK : Val w env K Kv) (hx : Val w env x xv) :
@@ -656,8 +656,8 @@ theorem ocStepN_ocP {W : ℕ} {cnt : ℕ → ℕ} {s : ℕ × ℕ × ℕ} (h : O
   unfold ocStepN ocStep
   rw [u1, u2, u3]
   split_ifs
-  · simp only [ocP, appendN_snd_acc W (appendN W s.1 s.2.1 (k + 1 - s.2.2)).1, appendN_snd_acc W
-      s.1]
+  · simp only [ocP, appendN_snd_acc W (appendN W s.1 s.2.1 (k + 1 - s.2.2)).1,
+      appendN_snd_acc W s.1]
   · rfl
 
 theorem foldl_ocStepN {W : ℕ} {cnt : ℕ → ℕ} : ∀ (ks : List ℕ) (s : ℕ × ℕ × ℕ), OcInv W s →
@@ -725,8 +725,8 @@ theorem val_ocStepT {s k : Term} {sv kv : ℕ} (hW : Val w env W Wv) (hC : ValF1
   have hlen := val_mod (val_div hs hN) hN
   have hgap := val_sub (val_add hk (val_const 1)) (val_div (val_div hs hN) hN)
   refine (val_ite (val_lt (val_const 0) hc)
-    (val_add (val_appendAccT hW (val_appendAccT hW hcode hlen hgap) (val_appendPosT hW hlen hgap)
-        hc)
+    (val_add (val_appendAccT hW (val_appendAccT hW hcode hlen hgap)
+        (val_appendPosT hW hlen hgap) hc)
       (val_mul hN (val_add (val_appendPosT hW (val_appendPosT hW hlen hgap) hc)
         (val_mul hN (val_add hk (val_const 1)))))) hs).congr ?_
   unfold ocStepN
@@ -745,11 +745,11 @@ theorem val_ocFold_gen {n : Term} {nv : ℕ} (hW : Val w env W Wv) (hX : Val w e
     fun pre x k _ => val_ocStepT (hW.at2 pre x k) (fun pre' y Y hy => by
       have := hC (pre' ++ x :: k :: pre) y Y (by simpa using hy); simpa using this)
       (val_acc _ x k) (val_idx _ x k)
-  have hinv : OcInv Wv ((appendN Wv 0 0 (ocNum Xv C + 1)).1, (appendN Wv 0 0 (ocNum Xv C + 1)).2,
-      0) :=
+  have hinv : OcInv Wv ((appendN Wv 0 0 (ocNum Xv C + 1)).1,
+      (appendN Wv 0 0 (ocNum Xv C + 1)).2, 0) :=
     ⟨appendN_lt (by simp), appendN_snd_le _ 0 0 _⟩
-  have e : (appendN Wv 0 0 (ocNum Xv C + 1)).1 + 2 ^ (Wv + 1) * (appendN Wv 0 0 (ocNum Xv C + 1)).2
-      =
+  have e : (appendN Wv 0 0 (ocNum Xv C + 1)).1 + 2 ^ (Wv + 1) *
+      (appendN Wv 0 0 (ocNum Xv C + 1)).2 =
       ocP Wv ((appendN Wv 0 0 (ocNum Xv C + 1)).1, (appendN Wv 0 0 (ocNum Xv C + 1)).2, 0) := by
     simp [ocP]
   rw [e, foldl_ocStepN _ _ hinv] at this
@@ -904,14 +904,14 @@ theorem tm_foldT_st {n i : Term} {f : Term → Term → Term} {N dn di da : ℕ}
   have hN : n.denote w (pre ++ env) = N := (hn.ext pre).2
   have vn := (tn pre hp).2
   rw [hN] at vn
-  refine ⟨(bnd_foldT w _ n i f (pre ++ env)).mpr ⟨(tn pre hp).1, (ti pre hp).1, ?_, fun k hk => ?_⟩,
-      ?_⟩
+  refine ⟨(bnd_foldT w _ n i f (pre ++ env)).mpr
+      ⟨(tn pre hp).1, (ti pre hp).1, ?_, fun k hk => ?_⟩, ?_⟩
   · rw [hN]; exact vn.le.trans (pow_le_pow_tier (by omega))
   · rw [hN] at hk
     have hx := hpart pre hp k hk.le
     simp only [denote_foldT, denote_const] at hx
-    have he : Ext L (foldAcc w f (pre ++ env) (i.denote w (pre ++ env)) k :: k :: (pre ++ env))
-        env :=
+    have he : Ext L (foldAcc w f (pre ++ env) (i.denote w (pre ++ env)) k :: k ::
+        (pre ++ env)) env :=
       ⟨_ :: k :: pre, Small.cons (hx.trans_le (pow_le_pow_tier hda))
         (Small.cons ((hk.trans vn).trans_le (pow_le_pow_tier hdn)) hp), rfl⟩
     exact (tf pre _ k hp hk hx he).bnd
@@ -970,8 +970,8 @@ theorem tm_gammaEndT (hB : Val w env B Bv) (hc : Val w env c cv) (hq : Val w env
     (tB : Tm w L 1 B env) (tc : Tm w L dc c env) (tq : Tm w L dq q env) (hdq1 : 1 ≤ dq)
     (hdq : dq ≤ 100) (hL : 4 ≤ L) (hBL : Bv ≤ L) : Tm w L (dq + 1) (gammaEndT B c q) env := by
   have tz := tm_zeroRunT hB hc hq tB tc tq (by omega) hL hBL
-  refine tm_val (t_add (t_add tq (t_mul (t_small (k := 2) (by norm_num) (by omega)) tz
-      (by norm_num))
+  refine tm_val (t_add (t_add tq (t_mul (t_small (k := 2) (by norm_num) (by omega))
+      tz (by norm_num))
     (by omega) (by omega)) (t_one (by omega)) (by omega) (by omega)) (val_gammaEndT hB hc hq) ?_
   have vq := tq.lt; rw [hq.2] at vq
   have hz := zeroRun_le Bv cv qv
@@ -1273,8 +1273,8 @@ theorem tm_kthT {k d : Term} {kv dk dd : ℕ} (hB : Val w env B Bv) (hc : Val w 
     (hdq1 : 1 ≤ dq) (hdq : dq ≤ 64) (hL : 4 ≤ L) (hBL : Bv ≤ L) :
     Tm w L (max (max dk 3 + 1) dd) (kthT B c q k d) env := by
   have tS := tm_kthFoldT hB hc hq hk tB tc tq tk hdk hdq1 hdq hL hBL
-  exact t_ite (t_lt tk tS (by omega)) (t_sub tS (t_add tk (t_one (by omega)) (by omega) (by omega)))
-      td
+  exact t_ite (t_lt tk tS (by omega)) (t_sub tS
+      (t_add tk (t_one (by omega)) (by omega) (by omega))) td
 
 theorem tm_msLeT {c' q' : Term} {cv' qv' dc' dq' : ℕ} (hB : Val w env B Bv) (hc : Val w env c cv)
     (hq : Val w env q qv) (hc' : Val w env c' cv') (hq' : Val w env q' qv') (tB : Tm w L 1 B env)
@@ -1337,8 +1337,8 @@ theorem tm_sqrtT {n : Term} {nv dn : ℕ} (hn : Val w env n nv) (tn : Tm w L dn 
     t_add tn (t_one (by omega)) (by omega) (by omega)
   refine tm_val (t_sumT t1 (fun E hE x hx => t_lt (t_mul (t_add hx (t_one (by omega)) (by omega)
     (by omega)) (t_add hx (t_one (by omega)) (by omega) (by omega)) (by omega))
-      (t_add (tn.ext hE) (t_one (by omega)) (by omega) (by omega)) (by omega)) (by omega)
-          (by omega))
+      (t_add (tn.ext hE) (t_one (by omega)) (by omega) (by omega)) (by omega))
+          (by omega) (by omega))
     (val_sqrtT hn) ?_
   have := tn.lt; rw [hn.2] at this
   rw [sqrtN_eq]; exact (Nat.sqrt_le_self _).trans_lt this
@@ -1417,8 +1417,8 @@ theorem tm_appendPosT (hW : Val w env W Wv) (hq : Val w env q qv) (hx : Val w en
     (tW : Tm w L 1 W env) (tq : Tm w L dq q env) (tx : Tm w L dx x env) (hdq : dq ≤ 100)
     (hL : 4 ≤ L) (hWL : Wv ≤ L) : Tm w L 1 (appendPosT W q x) env := by
   have tz := tm_topBitT hW hx tW tx hL hWL
-  have t1 : Tm w L (max (max dq 2 + 1) 1 + 1) (add (add q (mul (const 2) (topBitT W x))) (const 1))
-      env :=
+  have t1 : Tm w L (max (max dq 2 + 1) 1 + 1)
+      (add (add q (mul (const 2) (topBitT W x))) (const 1)) env :=
     t_add (t_add tq (t_mul (t_small (k := 2) (by norm_num) (by omega)) tz (by norm_num)) (by omega)
       (by omega)) (t_one (by omega)) (by omega) (by omega)
   have t2 : Tm w L (max (max dq 2 + 1) 1 + 1) (add W (const 1)) env :=
@@ -1518,12 +1518,12 @@ theorem tm_ocFoldT (hW : Val w env W Wv) (hX : Val w env X Xv) (hC : ValF1 w cnt
   have tm := t_add (tm_ocNumT hX hC tX tC (by omega) hL) (t_one (by omega)) (by omega) (by omega)
   have vm := val_add (val_ocNumT hX hC) (val_const 1)
   have t0 : Tm w L 1 (const 0) env := t_small (by norm_num) (by omega)
-  have ti := t_add (tm_appendAccT hW (val_const 0) vm tW t0 t0 tm (by norm_num) (by norm_num) hL
-      hWL)
+  have ti := t_add (tm_appendAccT hW (val_const 0) vm tW t0 t0 tm (by norm_num)
+      (by norm_num) hL hWL)
     (t_mul tN (tm_appendPosT hW (val_const 0) vm tW t0 tm (by norm_num) hL hWL) (by norm_num))
     (by omega) (by norm_num)
-  have hinv : OcInv Wv ((appendN Wv 0 0 (ocNum Xv C + 1)).1, (appendN Wv 0 0 (ocNum Xv C + 1)).2,
-      0) :=
+  have hinv : OcInv Wv ((appendN Wv 0 0 (ocNum Xv C + 1)).1,
+      (appendN Wv 0 0 (ocNum Xv C + 1)).2, 0) :=
     ⟨appendN_lt (by simp), appendN_snd_le _ 0 0 _⟩
   refine tm_foldT_st hX tX (by omega) ti hdX (fun pre _ j hj => ?_) (fun pre x k _ hk hx he => ?_)
   · refine lt_of_eq_of_lt ((val_ocFold_gen hW hX hC (val_const j)).ext pre).2 ?_

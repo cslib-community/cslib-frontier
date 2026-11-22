@@ -79,7 +79,7 @@ theorem ipStart_eq (b : ℕ) (input : List Bool) (Jp Jm o : ℕ) :
     push_cast; ring
   rw [show (b : ℤ) * ((Jp : ℤ) - Jm) + o = (b : ℤ) * ((Jp : ℤ) - Jm) + o from rfl]
   split_ifs with h1 h2 h2
-  · simp only [Fin.val_mk]; rw [e1]; omega
+  · simp only; rw [e1]; omega
   · exfalso; apply h2; rw [e1] at h1; omega
   · exfalso; apply h1; rw [e1]; omega
   · rfl
@@ -99,7 +99,7 @@ theorem startComp_eq (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ)
   by_cases h0 : i = 0
   · subst h0; simp [comp, nStart]
   by_cases h1 : i = 1
-  · subst h1; simp only [comp, nStart, if_true, one_ne_zero, if_false]
+  · subst h1; simp only [comp, nStart, ite_true, one_ne_zero, ite_false]
     rw [hJ, hoff0, ipStart_eq]
   by_cases h2 : i = 2
   · subst h2; simp [comp, nStart]
@@ -107,21 +107,21 @@ theorem startComp_eq (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ)
   set h : Fin k := ⟨(i - 3) / 4, hh⟩
   have hi' : i = 3 + 4 * (h : ℕ) + (i - 3) % 4 := by simp only [h]; omega
   rw [hi', comp_tape _ h _ (Nat.mod_lt _ (by norm_num)), ← hi']
-  simp only [h0, h1, h2, if_false]
+  simp only [h0, h1, h2, ite_false]
   have hhv : (i - 3) / 4 = (h : ℕ) := rfl
   rw [hhv, hoff h]
   have hpos : b + cIn.2.1 (some h) < 3 * b := by have := hoffb h; omega
   by_cases f0 : (i - 3) % 4 = 0
-  · simp only [if_pos f0]
+  · simp only [ite_eq_left f0]
     rw [hcell h _ hpos]; rfl
   by_cases f1 : (i - 3) % 4 = 1
-  · simp only [if_neg f0, if_pos f1]
+  · simp only [ite_eq_right f0, ite_eq_left f1]
     simp only [nStart, NTape.ofCells]
     unfold leftN packDigits
     refine Finset.sum_congr rfl fun j hj => ?_
     rw [hcell h _ (by have := Finset.mem_range.mp hj; omega)]
   by_cases f2 : (i - 3) % 4 = 2
-  · simp only [if_neg f0, if_neg f1, if_pos f2]
+  · simp only [ite_eq_right f0, ite_eq_right f1, ite_eq_left f2]
     simp only [nStart, NTape.ofCells]
     unfold rightN packDigits
     rw [hlen h]
@@ -130,7 +130,7 @@ theorem startComp_eq (b : ℕ) (input : List Bool) (J : Option (Fin k) → ℤ)
     · rw [hcell h _ hc]
     · beta_reduce
       rw [List.getD_eq_default _ _ (by rw [hlen h]; omega)]; rfl
-  · simp only [if_neg f0, if_neg f1, if_neg f2]; rfl
+  · simp only [ite_eq_right f0, ite_eq_right f1, ite_eq_right f2]; rfl
 
 /-! ### The start term -/
 
