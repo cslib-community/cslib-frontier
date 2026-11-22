@@ -8390,6 +8390,7 @@ public import CslibFrontier.Logics.Propositional.TseitinCNF.Numbered
 public import CslibFrontier.Logics.Propositional.TseitinCNF.Refutation
 public import CslibFrontier.Logics.RealArithmetic.Basic
 public import CslibFrontier.Logics.RealArithmetic.Encoding
+public import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
 public import CslibFrontier.Logics.RealArithmetic.FormulaTokenDecoding
 public import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public import CslibFrontier.Logics.RealArithmetic.ModularEvaluation

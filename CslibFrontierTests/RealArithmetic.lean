@@ -10,9 +10,11 @@ module
 import CslibFrontier.Computability.Complexity.Classes.ExistsReal
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 public meta import CslibFrontier.Logics.RealArithmetic.Encoding
+public meta import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
 public meta import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 public meta import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.IntBinary.Decode
 import CslibFrontier.Logics.RealArithmetic.TokenEvaluationPolyTime
+import CslibFrontier.Logics.RealArithmetic.FormulaBooleanEvaluation
 import CslibFrontier.Logics.RealArithmetic.FormulaWordValidation
 
 /-! Semantic edge cases and strict decoding for the ported real-arithmetic input convention. -/
@@ -171,6 +173,15 @@ set_option linter.hashCommand false in
   let value := fun index => index == 1 || index == 3 || index == 5
   gate 0 value && !gate 0 (· == 1) && gate 1 value && !gate 2 value &&
     gate 3 value && !gate 4 value && gate 5 value && !gate (2 ^ 80) value
+
+-- A backward scan computes the operand values without a caller-provided gate table.
+set_option linter.hashCommand false in
+#guard
+  let term : Term 0 := .const (-1)
+  let word := encFormula 0 (.and (.not (.eqZero term)) (.or .false (.ltZero term)))
+  let termSign := fun bits => if bits == encTerm 0 term then (-1 : SignType) else 0
+  formulaWordGateValues word termSign == [true, true, false, true, false, true] &&
+    formulaWordGateValues [] termSign == [false]
 
 -- The total view preserves the existential semantics of a satisfiable formula.
 example :
