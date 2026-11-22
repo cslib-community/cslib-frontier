@@ -13,6 +13,7 @@ import CslibFrontier.Crypto.Primitives.UHF.Difference
 import CslibFrontier.Crypto.Primitives.UHF.PairwiseUnpredictability
 import CslibFrontier.Crypto.Primitives.UHF.PolynomialPrediction
 import CslibFrontier.Crypto.Primitives.UHF.XorHash.PRF
+import CslibFrontier.Crypto.Primitives.UHF.XorHash.Word
 import CslibFrontier.Crypto.Protocols.MAC.OneTime
 import CslibFrontier.Languages.Probabilistic.Semantics
 import CslibFrontier.Probability.HashFamily.Polynomial
@@ -192,6 +193,16 @@ example :
     (xorHashMultiQueryReduction 2 A).run oracle = pure false ∧
       (xorHashMultiQueryReduction 3 A).run oracle = pure true :=
   ⟨rfl, rfl⟩
+
+/-- Equal blocks at different positions use different queries, and the extra block is ignored. -/
+example :
+    (xorHashWordQueries 2 2 [[false], [false], [true]]).run
+        (fun q => pure (if q.2.headD false then [true, true] else [false, true])) =
+      pure [true, false] := rfl
+
+/-- No reply is needed to produce the initial zero digest for an empty message. -/
+example :
+    (xorHashWordQueries 2 2 []).run (fun _ => pure []) = pure [false, false] := rfl
 
 private def echoGuess (target : Bool) : PredictionAdversary Bool Bool Unit where
   choose _ := pure (false, ())
