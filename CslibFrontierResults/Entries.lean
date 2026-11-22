@@ -813,7 +813,8 @@ register_result "hoza-min-isolating-weight-generator" where
   title := "Hoza: a native log-space min-isolating weight generator"
   topic := "space complexity"
   sources := [
-    { paper := Hoza2026NLUL, theorem := "Theorem 1.3", locator := unverified }
+    { paper := Hoza2026NLUL, theorem := "Theorem 1.3",
+      locator := "ECCC TR26-323, §1.2, printed and PDF p. 2" }
   ]
   theorems := [Cslib.Reachability.Hoza.generatedWeight_certified]
   scope := "Rectangular layered digraphs on Fin (n + 1) × Fin w with edges advancing one layer. \
