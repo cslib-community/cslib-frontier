@@ -36,7 +36,7 @@ The check fails when
   presents a cited result (it cites a `references.bib` key, or its first sentence says "theorem" or
   opens with a bold title) without opening as a step or helper: its first sentence must contain
   the word "step" or "helper";
-* a results-inventory entry (`CslibFrontierResults/Entries.lean`) lists a theorem that rests on a
+* a results-inventory module (`CslibFrontierResults/`) lists a theorem that rests on a
   novel assumption.
 
 `scripts/hardness_assumptions_baseline.json` records the existing gaps of the third, fourth and
@@ -89,7 +89,7 @@ import lean_outputs as lo  # noqa: E402
 INVENTORY = ROOT / "manual/programs-crypto-and-probability/assumptions.md"
 BASELINE = ROOT / "scripts/hardness_assumptions_baseline.json"
 BIBLIOGRAPHY = ROOT / "references.bib"
-RESULTS = ROOT / "CslibFrontierResults/Entries.lean"
+RESULTS_DIR = ROOT / "CslibFrontierResults"
 UPSTREAM_BUILD = ROOT / ".lake/packages/cslib/.lake/build/lib/lean"
 HEADER = ["Assumption", "Status", "Source definition", "Deviations or relation", "Nonvacuity"]
 STATUSES = ("standard", "novel", "vocabulary")
@@ -172,6 +172,18 @@ def parse_inventory(text: str) -> tuple[list[Row], list[str]]:
 
 def bibliography_keys(text: str) -> set[str]:
     return set(BIB_KEY.findall(text))
+
+
+def results_text(directory: Path = RESULTS_DIR) -> str:
+    """Concatenate every registry module under `directory` (excluding `Registry.lean`)."""
+    if not directory.is_dir():
+        return ""
+    registry = (directory / "Registry.lean").resolve()
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(directory.rglob("*.lean"))
+        if not path.is_symlink() and path.resolve() != registry
+    )
 
 
 def cited_keys(text: str, keys: set[str]) -> list[str]:
@@ -427,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         print(listing(rows, reading))
         return 0
     keys = bibliography_keys(BIBLIOGRAPHY.read_text(encoding="utf-8"))
-    results = RESULTS.read_text(encoding="utf-8") if RESULTS.exists() else ""
+    results = results_text()
     problems = check(rows, format_errors, reading, keys, results, INVENTORY.parent)
     baseline = load_baseline(args.baseline) if args.baseline.exists() else \
         {s: {} for s in SECTIONS}

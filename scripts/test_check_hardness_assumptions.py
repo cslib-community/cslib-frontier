@@ -181,6 +181,25 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("results inventory lists `AdvicePRG.gmw`", errors[0])
 
+    def test_results_text_reads_nested_entry_modules_and_skips_registry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            results_dir = pathlib.Path(tmp) / "CslibFrontierResults"
+            (results_dir / "Entries").mkdir(parents=True)
+            (results_dir / "Registry.lean").write_text(
+                "-- Cslib.Crypto.AdvicePRG.ignored\n", encoding="utf-8")
+            (results_dir / "Entries.lean").write_text(
+                "theorems := [Cslib.Crypto.elGamal]\n", encoding="utf-8")
+            (results_dir / "Entries/Crypto.lean").write_text(
+                "theorems := [Cslib.Crypto.AdvicePRG.gmw]\n", encoding="utf-8")
+            collected = c.results_text(results_dir)
+            self.assertNotIn("AdvicePRG.ignored", collected)
+            r = reading({"Cslib.Crypto.AdvicePRG.gmw": ("", (ADVICE,)),
+                         "Cslib.Crypto.elGamal": ("", (DDH,))})
+            errors = run(INVENTORY, r, collected).errors
+            self.assertEqual(len(errors), 1)
+            self.assertIn("results inventory lists `AdvicePRG.gmw`", errors[0])
+            self.assertEqual(c.results_text(pathlib.Path(tmp) / "Missing"), "")
+
     def test_nonvacuity_links(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = pathlib.Path(tmp)
