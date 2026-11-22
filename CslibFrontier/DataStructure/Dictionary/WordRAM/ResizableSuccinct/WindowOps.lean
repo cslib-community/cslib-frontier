@@ -60,6 +60,64 @@ attribute [local simp] prog_memoryCost_write
 
 /-! ## Section 1: Item Copy/Clear and Metadata Array Accessors -/
 
+private theorem encode_fst {α β : Type} [WordEncoding α] [WordEncoding β]
+    (a : α) (b : β) (i : Fin (WordEncoding.width α)) :
+    WordEncoding.encode (a, b) (Fin.castAdd (WordEncoding.width β) i) =
+      WordEncoding.encode a i :=
+  Fin.append_left _ _ i
+
+private class HasCompEnv (δ : Type) [WordEncoding δ] where
+  eb : δ → CompParams × ℕ
+  ix : Fin 37 → Fin (WordEncoding.width δ)
+  eq : ∀ d i, WordEncoding.encode (eb d) i = WordEncoding.encode d (ix i)
+
+private instance : HasCompEnv (CompParams × ℕ) := ⟨id, id, fun _ _ => rfl⟩
+
+private instance {δ β : Type} [WordEncoding δ] [WordEncoding β] [h : HasCompEnv δ] :
+    HasCompEnv (δ × β) where
+  eb x := h.eb x.1
+  ix i := Fin.castAdd _ (h.ix i)
+  eq x i := (h.eq x.1 i).trans (encode_fst x.1 x.2 (h.ix i)).symm
+
+@[simp] private theorem hasCompEnv_eb_base (e : CompParams × ℕ) : HasCompEnv.eb e = e := rfl
+@[simp] private theorem hasCompEnv_eb_prod {δ β : Type} [WordEncoding δ] [WordEncoding β]
+    [HasCompEnv δ] (x : δ × β) : HasCompEnv.eb x = HasCompEnv.eb x.1 := rfl
+
+private theorem liftComp1 {δ γ : Type} [WordEncoding δ] [WordEncoding γ] [hE : HasCompEnv δ]
+    {p : (CompParams × ℕ) × ℕ → Memory.Prog γ}
+    {safe : ℕ → (CompParams × ℕ) × ℕ → Memory.State → Prop}
+    (h : RealizesBounded .exact p (WordEncoding.encode (α := (CompParams × ℕ) × ℕ))
+      (WordEncoding.encode (α := γ)) safe (fun _ _ => 0))
+    (xOf : δ → ℕ) (ix_x : Fin (WordEncoding.width δ))
+    (hx : ∀ d, xOf d = WordEncoding.encode d ix_x) :
+    RealizesBounded .exact (fun d => p (hE.eb d, xOf d))
+      (WordEncoding.encode (α := δ)) (WordEncoding.encode (α := γ))
+      (fun w d s => safe w (hE.eb d, xOf d) s) (fun _ _ => 0) :=
+  h.reindex (fun d => (hE.eb d, xOf d)) _ (Fin.addCases hE.ix fun _ => ix_x) fun d i => by
+    refine Fin.addCases (fun i₀ => ?_) (fun j => ?_) i
+    · rw [Fin.addCases_left]; exact (encode_fst _ _ i₀).trans (hE.eq d i₀)
+    · fin_cases j; exact hx d
+
+private theorem liftComp2 {δ γ : Type} [WordEncoding δ] [WordEncoding γ] [hE : HasCompEnv δ]
+    {p : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog γ}
+    {safe : ℕ → ((CompParams × ℕ) × ℕ) × ℕ → Memory.State → Prop}
+    (h : RealizesBounded .exact p (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ))
+      (WordEncoding.encode (α := γ)) safe (fun _ _ => 0))
+    (xOf yOf : δ → ℕ) (ix_x ix_y : Fin (WordEncoding.width δ))
+    (hx : ∀ d, xOf d = WordEncoding.encode d ix_x)
+    (hy : ∀ d, yOf d = WordEncoding.encode d ix_y) :
+    RealizesBounded .exact (fun d => p ((hE.eb d, xOf d), yOf d))
+      (WordEncoding.encode (α := δ)) (WordEncoding.encode (α := γ))
+      (fun w d s => safe w ((hE.eb d, xOf d), yOf d) s) (fun _ _ => 0) :=
+  h.reindex (fun d => ((hE.eb d, xOf d), yOf d)) _
+    (Fin.addCases (Fin.addCases hE.ix fun _ => ix_x) fun _ => ix_y) fun d i => by
+    refine Fin.addCases (fun i₁ => ?_) (fun j₁ => ?_) i
+    · rw [Fin.addCases_left, encode_fst]
+      refine Fin.addCases (fun i₀ => ?_) (fun j₀ => ?_) i₁
+      · rw [Fin.addCases_left]; exact (encode_fst _ _ i₀).trans (hE.eq d i₀)
+      · fin_cases j₀; exact hx d
+    · fin_cases j₁; exact hy d
+
 /-- Copy `(quot, val)` from dense slot `src` to `dst` at `itemBase`. -/
 def copyCompItemGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
   | ((cp, itemBase), (src, dst)) => do
@@ -97,17 +155,29 @@ theorem realizesBounded_copyCompItemGen :
     RealizesBounded .exact copyCompItemGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
       CopyCompItemPre (fun _ _ => 0) := by
-  have hrq := realizesBounded_readCompQuotGen
-  have hrv := realizesBounded_readCompValGen
-  have hwq := realizesBounded_writeCompQuotGen
-  have hwv := realizesBounded_writeCompValGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, itemBase⟩, ⟨src, dst⟩⟩
-    obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hsrc, hdst⟩ := h
-    simp only [StateTransitionSpec.clientState, runClient_state_readCompQuotGenProg,
-      runClient_state_readCompValGenProg, runClient_state_writeCompQuotGenProg] at *)
-  all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
+  have hrq := liftComp1 (δ := (CompParams × ℕ) × (ℕ × ℕ)) realizesBounded_readCompQuotGen
+    (fun d => d.2.1) ⟨37, by decide⟩ fun ⟨_, _, _⟩ => rfl
+  have hrv := liftComp1 (δ := ((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) realizesBounded_readCompValGen
+    (fun d => d.1.2.1) ⟨37, by decide⟩ fun ⟨⟨_, _, _⟩, _⟩ => rfl
+  have hwq := liftComp2 (δ := (((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ)
+    realizesBounded_writeCompQuotGen (fun d => d.1.1.2.2) (fun d => d.1.2)
+    ⟨38, by decide⟩ ⟨39, by decide⟩ (fun ⟨⟨⟨_, _, _⟩, _⟩, _⟩ => rfl)
+    fun ⟨⟨⟨_, _, _⟩, _⟩, _⟩ => rfl
+  have hwv := liftComp2 (δ := ((((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × Unit)
+    realizesBounded_writeCompValGen (fun d => d.1.1.1.2.2) (fun d => d.1.2)
+    ⟨38, by decide⟩ ⟨40, by decide⟩ (fun ⟨⟨⟨⟨_, _, _⟩, _⟩, _⟩, _⟩ => rfl)
+    fun ⟨⟨⟨⟨_, _, _⟩, _⟩, _⟩, _⟩ => rfl
+  refine ((hrq.bind₀ (hrv.bind₀ (hwq.bind₀ hwv))).congr
+    fun ⟨⟨_, _⟩, _, _⟩ => rfl).consequence (fun w ⟨⟨_, itemBase⟩, src, dst⟩ s _ _ h => ?_)
+    (fun _ _ => le_rfl)
+  obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hsrc, hdst⟩ := h
+  have henv : CompItemEnv w (mkCompParams U V w N) itemBase m_items s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  simp only [hasCompEnv_eb_prod, hasCompEnv_eb_base, StateTransitionSpec.clientState,
+    runClient_state_readCompQuotGenProg, runClient_state_readCompValGenProg,
+    runClient_state_writeCompQuotGenProg]
+  exact ⟨⟨m_items, henv, hsrc⟩, ⟨m_items, henv, hsrc⟩, ⟨m_items, henv, hdst⟩,
+    by dsimp only [WriteCompValPre, CompItemEnv] at henv ⊢; exact ⟨m_items, henv, hdst⟩⟩
 
 /-- Clear `(quot, val)` to `(0, 0)` at dense index `d` before shrinking trailing words. -/
 def clearCompItemGenProg : (CompParams × ℕ) × ℕ → Memory.Prog Unit
@@ -134,18 +204,65 @@ theorem clientState_clearCompItemGenProg (U V w N itemBase d : ℕ) (s : Memory.
     memoryCost (clearCompItemGenProg d) s = 8 := by
   rcases d with ⟨⟨cp, itemBase⟩, idx⟩; simp [clearCompItemGenProg]
 
+private theorem realizesBounded_zeroUnit :
+    RealizesBounded .exact (fun _ : Unit => pure 0)
+      (WordEncoding.encode (α := Unit)) (WordEncoding.encode (α := ℕ))
+      (fun _ _ _ => True) (fun _ _ => 0) := by
+  realize
+
 theorem realizesBounded_clearCompItemGen :
     RealizesBounded .exact clearCompItemGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
       ReadCompQuotPre (fun _ _ => 0) := by
-  have hwq := realizesBounded_writeCompQuotGen
-  have hwv := realizesBounded_writeCompValGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, itemBase⟩, idx⟩
-    obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [StateTransitionSpec.clientState, runClient_state_writeCompQuotGenProg] at *)
-  all_goals exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩
+  have h0 := realizesBounded_zeroUnit.reindex (fun _ : (CompParams × ℕ) × ℕ => ())
+    (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) Fin.elim0 fun _ i => Fin.elim0 i
+  have hwv := liftComp2 (δ := (((CompParams × ℕ) × ℕ) × ℕ) × Unit) realizesBounded_writeCompValGen
+    (fun d => d.1.1.2) (fun d => d.1.2) ⟨37, by decide⟩ ⟨38, by decide⟩
+    (fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl) fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl
+  refine ((h0.bind₀ (realizesBounded_writeCompQuotGen.bind₀ hwv)).congr
+    fun ⟨⟨_, _⟩, _⟩ => rfl).consequence (fun w ⟨⟨_, itemBase⟩, idx⟩ s _ _ h => ?_)
+    (fun _ _ => le_rfl)
+  obtain ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
+  refine ⟨trivial, ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩, ?_⟩
+  change WriteCompValPre w _ ((Memory.spec 0).clientState s (writeCompQuotGenProg (_, 0)))
+  rw [clientState_writeCompQuotGenProg]
+  exact ⟨m_items, ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩
+
+private theorem realizesBounded_readCompPacked (offIdx kIdx : Fin 36) :
+    RealizesBounded .exact
+      (fun ((cp, metaBase), idx) =>
+        readPackedCompGenProg (((metaBase, cp offIdx), (cp kIdx, cpW cp)), idx))
+      (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
+      (fun w ((cp, metaBase), idx) s =>
+        ReadPackedCompPre w (((metaBase, cp offIdx), (cp kIdx, cpW cp)), idx) s)
+      (fun _ _ => 0) :=
+  realizesBounded_readPackedCompGen.reindex _ _
+    ![⟨36, by decide⟩, Fin.castAdd 1 (Fin.castAdd 1 offIdx),
+      Fin.castAdd 1 (Fin.castAdd 1 kIdx), ⟨0, by decide⟩, ⟨37, by decide⟩]
+    fun ⟨⟨cp, metaBase⟩, idx⟩ i => by
+      fin_cases i
+      all_goals first
+        | rfl
+        | exact ((encode_fst (cp, metaBase) idx _).trans (encode_fst cp metaBase _)).symm
+
+private theorem realizesBounded_writeCompPacked (offIdx kIdx : Fin 36) :
+    RealizesBounded .exact
+      (fun (((cp, metaBase), idx), val) =>
+        writePackedCompGenProg ((((metaBase, cp offIdx), (cp kIdx, cpW cp)), idx), val))
+      (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
+      (fun w (((cp, metaBase), idx), val) s =>
+        WritePackedCompPre w ((((metaBase, cp offIdx), (cp kIdx, cpW cp)), idx), val) s)
+      (fun _ _ => 0) :=
+  realizesBounded_writePackedCompGen.reindex _ _
+    ![⟨36, by decide⟩, Fin.castAdd 1 (Fin.castAdd 1 (Fin.castAdd 1 offIdx)),
+      Fin.castAdd 1 (Fin.castAdd 1 (Fin.castAdd 1 kIdx)),
+      ⟨0, by decide⟩, ⟨37, by decide⟩, ⟨38, by decide⟩]
+    fun ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩ i => by
+      fin_cases i
+      all_goals first
+        | rfl
+        | exact (((encode_fst ((cp, metaBase), idx) val _).trans
+            (encode_fst (cp, metaBase) idx _)).trans (encode_fst cp metaBase _)).symm
 
 /-- Read `LocalMeta[c, idx]` at `metaBase` in `Memory.Prog`. -/
 def readCompLMGenProg (c : Fin 9) : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -179,20 +296,30 @@ theorem clientState_readCompLMGenProg (c : Fin 9) (d : (CompParams × ℕ) × �
 @[expose] def CompLMPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < totalMicroBuckets (cpN cp)
 
+private theorem readPackedCompPre_lm (c : Fin 9) {w metaBase idx : ℕ} {cp : CompParams}
+    {s : Memory.State} (h : CompMetaEnv w cp metaBase s ∧ idx < totalMicroBuckets (cpN cp)) :
+    ReadPackedCompPre w (((metaBase, cp ⟨5 + c.val, by omega⟩), (cp 14, cpW cp)), idx) s := by
+  obtain ⟨⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr⟩, hidx⟩ := h
+  have hidx' : idx < totalMicroBuckets N := hidx
+  have hsub : mkCompParams U V w N ⟨5 + c.val, by omega⟩ = offCompLMSub U w N c.val := by
+    fin_cases c <;> rfl
+  change ReadPackedCompPre w
+    (((metaBase, mkCompParams U V w N ⟨5 + c.val, by omega⟩), (effBucketPosBits N, w)), idx) s
+  rw [hsub]
+  refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx', ?_⟩
+  have hle := Nat.mul_le_mul_right (lmSubWords N w) c.isLt
+  rw [Nat.add_one_mul] at hle
+  unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
+  change _ + lmSubWords N w ≤ s.frontier
+  omega
+
 theorem realizesBounded_readCompLMGen (c : Fin 9) :
     RealizesBounded .exact (readCompLMGenProg c)
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-      CompLMPre (fun _ _ => 0) := by
-  have hrp := realizesBounded_readPackedCompGen
-  fin_cases c <;>
-  · realize
-    rcases d with ⟨⟨cp, metaBase⟩, idx⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [cpOffLMSub_mk, cpLmBits_mk, cpW_mk, cpN_mk] at *
-    refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
-    change _ + lmSubWords N w ≤ s.frontier
-    omega
+      CompLMPre (fun _ _ => 0) :=
+  ((realizesBounded_readCompPacked ⟨5 + c.val, by omega⟩ 14).congr
+    fun ⟨⟨_, _⟩, _⟩ => by fin_cases c <;> rfl).consequence
+    (fun _ ⟨⟨_, _⟩, _⟩ _ _ _ h => readPackedCompPre_lm c h) (fun _ _ => le_rfl)
 
 /-- Write `val` into `LocalMeta[c, idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompLMGenProg (c : Fin 9) : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -235,17 +362,10 @@ theorem clientState_writeCompLMGenProg
 theorem realizesBounded_writeCompLMGen (c : Fin 9) :
     RealizesBounded .exact (writeCompLMGenProg c)
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-      WriteCompLMPre (fun _ _ => 0) := by
-  have hwp := realizesBounded_writePackedCompGen
-  fin_cases c <;>
-  · realize
-    rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-    simp only [cpOffLMSub_mk, cpLmBits_mk, cpW_mk, cpN_mk] at *
-    refine ⟨totalMicroBuckets N, hw, rfl, effBucketPosBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-    unfold offCompItems offDenseToTail offTailToDense offCompGM offCompLMSub offCompLM at *
-    change _ + lmSubWords N w ≤ s.frontier
-    omega
+      WriteCompLMPre (fun _ _ => 0) :=
+  ((realizesBounded_writeCompPacked ⟨5 + c.val, by omega⟩ 14).congr
+    fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => by fin_cases c <;> rfl).consequence
+    (fun _ ⟨⟨⟨_, _⟩, _⟩, _⟩ _ _ _ h => readPackedCompPre_lm c h) (fun _ _ => le_rfl)
 
 /-- Read `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def readCompGMGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -277,17 +397,20 @@ theorem clientState_readCompGMGenProg (d : (CompParams × ℕ) × ℕ) (s : Memo
 @[expose] def CompGMPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < globalMetaLen (cpN cp)
 
+private theorem readPackedCompPre_gm {w metaBase idx : ℕ} {cp : CompParams} {s : Memory.State}
+    (h : CompMetaEnv w cp metaBase s ∧ idx < globalMetaLen (cpN cp)) :
+    ReadPackedCompPre w (((metaBase, cp 15), (cp 16, cpW cp)), idx) s := by
+  obtain ⟨⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr⟩, hidx⟩ := h
+  exact ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, by
+    change _ + offCompGM _ _ N + packedWords (globalMetaLen N) (globalPtrBits N) w ≤ _
+    wram_omega⟩
+
 theorem realizesBounded_readCompGMGen :
     RealizesBounded .exact readCompGMGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-      CompGMPre (fun _ _ => 0) := by
-  have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, idx⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-  simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
-  refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  wram_omega
+      CompGMPre (fun _ _ => 0) :=
+  ((realizesBounded_readCompPacked 15 16).congr fun ⟨⟨_, _⟩, _⟩ => rfl).consequence
+    (fun _ ⟨⟨_, _⟩, _⟩ _ _ _ h => readPackedCompPre_gm h) (fun _ _ => le_rfl)
 
 /-- Write `val` into `GlobalMeta[idx]` at `metaBase` in `Memory.Prog`. -/
 def writeCompGMGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -327,14 +450,9 @@ theorem clientState_writeCompGMGenProg (U V w N metaBase idx val : ℕ) (s : Mem
 theorem realizesBounded_writeCompGMGen :
     RealizesBounded .exact writeCompGMGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-      WriteCompGMPre (fun _ _ => 0) := by
-  have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, idx⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hidx⟩ := h
-  simp only [cpOffGM_mk, cpGmBits_mk, cpW_mk, cpN_mk] at *
-  refine ⟨globalMetaLen N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, ?_⟩
-  wram_omega
+      WriteCompGMPre (fun _ _ => 0) :=
+  ((realizesBounded_writeCompPacked 15 16).congr fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl).consequence
+    (fun _ ⟨⟨⟨_, _⟩, _⟩, _⟩ _ _ _ h => readPackedCompPre_gm h) (fun _ _ => le_rfl)
 
 /-- Read `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def readCompTDGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -366,17 +484,24 @@ theorem clientState_readCompTDGenProg (d : (CompParams × ℕ) × ℕ) (s : Memo
 @[expose] def CompTailMapPre (w : ℕ) : (CompParams × ℕ) × ℕ → Memory.State → Prop
   | ((cp, metaBase), idx), s => CompMetaEnv w cp metaBase s ∧ idx < cpMaxTail cp
 
+private theorem readPackedCompPre_tail (isDT : Bool) {w metaBase idx : ℕ} {cp : CompParams}
+    {s : Memory.State} (h : CompMetaEnv w cp metaBase s ∧ idx < cpMaxTail cp) :
+    ReadPackedCompPre w (((metaBase, cp (isDT.casesOn 17 18)), (cp 16, cpW cp)), idx) s := by
+  obtain ⟨⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr⟩, hidx⟩ := h
+  cases isDT
+  · exact ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, by
+      change metaBase + offTailToDense U w N + packedWords (maxTailItems N) (globalPtrBits N) w ≤ _
+      wram_omega⟩
+  · exact ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hidx, by
+      change metaBase + offDenseToTail U w N + packedWords (maxTailItems N) (globalPtrBits N) w ≤ _
+      wram_omega⟩
+
 theorem realizesBounded_readCompTDGen :
     RealizesBounded .exact readCompTDGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-      CompTailMapPre (fun _ _ => 0) := by
-  have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, t⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
-  simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  wram_omega
+      CompTailMapPre (fun _ _ => 0) :=
+  ((realizesBounded_readCompPacked 17 16).congr fun ⟨⟨_, _⟩, _⟩ => rfl).consequence
+    (fun _ ⟨⟨_, _⟩, _⟩ _ _ _ h => readPackedCompPre_tail false h) (fun _ _ => le_rfl)
 
 /-- Write `val` into `TailToDense[t]` at `metaBase` in `Memory.Prog`. -/
 def writeCompTDGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -415,14 +540,9 @@ theorem clientState_writeCompTDGenProg (U V w N metaBase t val : ℕ) (s : Memor
 theorem realizesBounded_writeCompTDGen :
     RealizesBounded .exact writeCompTDGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-      WriteCompTailMapPre (fun _ _ => 0) := by
-  have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, t⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht⟩ := h
-  simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, ht, ?_⟩
-  wram_omega
+      WriteCompTailMapPre (fun _ _ => 0) :=
+  ((realizesBounded_writeCompPacked 17 16).congr fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl).consequence
+    (fun _ ⟨⟨⟨_, _⟩, _⟩, _⟩ _ _ _ h => readPackedCompPre_tail false h) (fun _ _ => le_rfl)
 
 /-- Read `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def readCompDTGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -453,14 +573,9 @@ theorem clientState_readCompDTGenProg (d : (CompParams × ℕ) × ℕ) (s : Memo
 theorem realizesBounded_readCompDTGen :
     RealizesBounded .exact readCompDTGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
-      CompTailMapPre (fun _ _ => 0) := by
-  have hrp := realizesBounded_readPackedCompGen
-  realize
-  rcases d with ⟨⟨cp, metaBase⟩, r⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
-  simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  wram_omega
+      CompTailMapPre (fun _ _ => 0) :=
+  ((realizesBounded_readCompPacked 18 16).congr fun ⟨⟨_, _⟩, _⟩ => rfl).consequence
+    (fun _ ⟨⟨_, _⟩, _⟩ _ _ _ h => readPackedCompPre_tail true h) (fun _ _ => le_rfl)
 
 /-- Write `val` into `DenseToTail[r]` at `metaBase` in `Memory.Prog`. -/
 def writeCompDTGenProg : ((CompParams × ℕ) × ℕ) × ℕ → Memory.Prog Unit
@@ -495,14 +610,9 @@ theorem clientState_writeCompDTGenProg (U V w N metaBase r val : ℕ) (s : Memor
 theorem realizesBounded_writeCompDTGen :
     RealizesBounded .exact writeCompDTGenProg
       (WordEncoding.encode (α := ((CompParams × ℕ) × ℕ) × ℕ)) (WordEncoding.encode (α := Unit))
-      WriteCompTailMapPre (fun _ _ => 0) := by
-  have hwp := realizesBounded_writePackedCompGen
-  realize
-  rcases d with ⟨⟨⟨cp, metaBase⟩, r⟩, val⟩
-  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hr⟩ := h
-  simp only [cpOffDT_mk, cpGmBits_mk, cpW_mk, cpMaxTail_mk] at *
-  refine ⟨maxTailItems N, hw, rfl, globalPtrBits_le_of_lt_pow hnU hU, hr, ?_⟩
-  wram_omega
+      WriteCompTailMapPre (fun _ _ => 0) :=
+  ((realizesBounded_writeCompPacked 18 16).congr fun ⟨⟨⟨_, _⟩, _⟩, _⟩ => rfl).consequence
+    (fun _ ⟨⟨⟨_, _⟩, _⟩, _⟩ _ _ _ h => readPackedCompPre_tail true h) (fun _ _ => le_rfl)
 
 /-! ## Section 2: Circular-Window Transitions, Owner-Bucket Recovery, and `fits_mkCompParams` -/
 
@@ -577,31 +687,54 @@ theorem clientState_denseOfCircGenProg (d : CompParams × (ℕ × ℕ)) (s : Mem
       (0 < maxTailItems N →
         c < maxTailItems N ∧ denseOfCirc (maxTailItems N) b_win c ≤ N)
 
+private def denseOfCircCoreProg : ℕ × (ℕ × ℕ) → Memory.Prog ℕ
+  | (M, (b_win, c)) => do
+    let z ← pure 0
+    if M = z then pure b_win
+    else do
+      let rem ← pure (b_win % M)
+      if c < rem then
+        pure (b_win + (c + (M - rem)))
+      else
+        pure (b_win + (c - rem))
+
+private def DenseOfCircCorePre (w : ℕ) : ℕ × (ℕ × ℕ) → Memory.State → Prop
+  | (M, (b_win, c)), _s =>
+    0 < M → c < M ∧ denseOfCirc M b_win c < 2 ^ w
+
+private theorem realizesBounded_denseOfCircCore :
+    RealizesBounded .exact denseOfCircCoreProg
+      (WordEncoding.encode (α := ℕ × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
+      DenseOfCircCorePre (fun _ _ => 0) := by
+  realize
+  all_goals (
+    rcases d with ⟨M, ⟨b_win, c⟩⟩
+    dsimp only [Fits] at *
+    have hM_pos : 0 < M := by omega
+    obtain ⟨hc_lt, hd_lt⟩ := h hM_pos
+    have hrem_lt : b_win % M < M := Nat.mod_lt _ hM_pos
+    unfold denseOfCirc at hd_lt
+    rw [ite_eq_right hM_pos.ne'] at hd_lt)
+  all_goals try omega
+  · have heq : c + M - b_win % M = c + (M - b_win % M) := by omega
+    rw [heq, Nat.mod_eq_of_lt (by omega)] at hd_lt
+    omega
+  · have heq : c + M - b_win % M = (c - b_win % M) + 1 * M := by omega
+    rw [heq, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)] at hd_lt
+    omega
+
 theorem realizesBounded_denseOfCircGen :
     RealizesBounded .exact denseOfCircGenProg
       (WordEncoding.encode (α := CompParams × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
       DenseOfCircPre (fun _ _ => 0) := by
-  realize
-  all_goals (
-    rcases d with ⟨cp, ⟨b_win, c⟩⟩
-    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hbN, hM_cond⟩ := h
-    simp only [cpMaxTail_mk] at *
-    have hM_pos : 0 < maxTailItems N := by omega
-    have hM_ne : maxTailItems N ≠ 0 := hM_pos.ne'
-    obtain ⟨hc_lt, hd_le⟩ := hM_cond hM_pos
-    have hMN : maxTailItems N ≤ N := maxTailItems_le_of_pos hM_pos
-    have hrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    unfold denseOfCirc at hd_le
-    rw [ite_eq_right hM_ne] at hd_le)
-  all_goals try omega
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        c + (maxTailItems N - b_win % maxTailItems N) := by omega
-    rw [heq, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
-  · have heq : c + maxTailItems N - b_win % maxTailItems N =
-        (c - b_win % maxTailItems N) + 1 * maxTailItems N := by omega
-    rw [heq, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt (by omega)] at hd_le
-    exact lt_of_le_of_lt (by omega) hU
+  refine ((realizesBounded_denseOfCircCore.reindex
+    (fun (cp, bc) => (cpMaxTail cp, bc))
+    (WordEncoding.encode (α := CompParams × (ℕ × ℕ))) ![19, 36, 37]
+    fun ⟨_, _, _⟩ i => by fin_cases i <;> rfl).congr fun ⟨_, _, _⟩ => rfl).consequence
+    (fun _ ⟨_, _, _⟩ _ _ _ h hM => ?_) (fun _ _ => le_rfl)
+  obtain ⟨_, _, _, _, _, hnU, hU, _, rfl, _, hM_cond⟩ := h
+  obtain ⟨hc, hd⟩ := hM_cond hM
+  exact ⟨hc, lt_of_le_of_lt (hd.trans hnU) hU⟩
 
 /-- Map physical slot `g < N` to dense index `denseOfPhys N gm td g` in `Memory.Prog`. -/
 def denseOfPhysGenProg : (CompParams × ℕ) × ℕ → Memory.Prog ℕ
@@ -672,32 +805,151 @@ theorem clientState_denseOfPhysGenProg (d : (CompParams × ℕ) × ℕ) (s : Mem
           denseOfCirc (maxTailItems N) (compGmAt metaBase U w N s.mem 0 * slabSize N)
             (compTDAt metaBase U w N s.mem (N - 1 - g)) ≤ N))
 
+private abbrev DenseOfPhysCoreArg :=
+  (((ℕ × (ℕ × ℕ)) × (ℕ × ℕ)) × ((ℕ × ℕ) × (ℕ × ℕ))) × ℕ
+
+private def denseOfPhysCoreProg : DenseOfPhysCoreArg → Memory.Prog ℕ
+  | ((((metaBase, (offGM, offTD)), (gmBits, wVal)),
+      ((bBits, sSize), (nSubOne, maxTail))), g) => do
+    let z ← pure 0
+    if bBits = z then pure g
+    else do
+      let n_slabs ← readPackedCompGenProg (((metaBase, offGM), (gmBits, wVal)), z)
+      let b_tail ← pure (n_slabs * sSize)
+      if g < b_tail then pure g
+      else do
+        let t ← pure (nSubOne - g)
+        let c ← readPackedCompGenProg (((metaBase, offTD), (gmBits, wVal)), t)
+        denseOfCircCoreProg (maxTail, (b_tail, c))
+
+private def DenseOfPhysCorePre (w : ℕ) : DenseOfPhysCoreArg → Memory.State → Prop
+  | ((((metaBase, (offGM, offTD)), (gmBits, wVal)),
+      ((bBits, sSize), (nSubOne, maxTail))), g), s =>
+    0 < bBits →
+      let b_tail := readPacked (metaBase + offGM) gmBits wVal s.mem 0 * sSize
+      ReadPackedCompPre w (((metaBase, offGM), (gmBits, wVal)), 0) s ∧
+      b_tail < 2 ^ w ∧
+      (¬(g < b_tail) →
+        g ≤ nSubOne ∧
+        ReadPackedCompPre w (((metaBase, offTD), (gmBits, wVal)), nSubOne - g) s ∧
+        DenseOfCircCorePre w
+          (maxTail, (b_tail, readPacked (metaBase + offTD) gmBits wVal s.mem (nSubOne - g))) s)
+
+private theorem realizesBounded_denseOfPhysCore :
+    RealizesBounded .exact denseOfPhysCoreProg
+      (WordEncoding.encode (α := DenseOfPhysCoreArg)) (WordEncoding.encode (α := ℕ))
+      DenseOfPhysCorePre (fun _ _ => 0) := by
+  have hrp := realizesBounded_readPackedCompGen
+  have hdoc := realizesBounded_denseOfCircCore
+  realize
+  all_goals (
+    rcases d with ⟨⟨⟨⟨metaBase, ⟨offGM, offTD⟩⟩, ⟨gmBits, wVal⟩⟩,
+      ⟨⟨bBits, sSize⟩, ⟨nSubOne, maxTail⟩⟩⟩, g⟩
+    obtain ⟨hgm, hbt, htail⟩ := h (Nat.pos_of_ne_zero (by assumption))
+    obtain ⟨_, _, hw_eq, _, _, _⟩ := id hgm
+    subst hw_eq
+    dsimp only [Fits] at *)
+  · exact hgm
+  all_goals (
+    simp only [StateTransitionSpec.clientState, clientResult_readPackedCompGenProg,
+      runClient_state_readPackedCompGenProg] at *)
+  · exact hbt
+  all_goals obtain ⟨hgle, htd, hcirc⟩ := htail (by assumption)
+  · exact hgle
+  · exact htd
+  · dsimp only [DenseOfCircCorePre] at hcirc ⊢
+    exact hcirc
+
 theorem realizesBounded_denseOfPhysGen :
     RealizesBounded .exact denseOfPhysGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × ℕ)) (WordEncoding.encode (α := ℕ))
       DenseOfPhysPre (fun _ _ => 0) := by
-  have hgm := realizesBounded_readCompGMGen
-  have htd := realizesBounded_readCompTDGen
-  have hdoc := realizesBounded_denseOfCircGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, metaBase⟩, g⟩
-    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hg_lt, hb_cond⟩ := h
-    simp only [cpBucketBits_mk, cpSlabSize_mk, cpNSubOne_mk] at *
-    have hb_pos : 0 < bucketBits N := by omega
-    have h0_lt : 0 < globalMetaLen N := by wram_omega
-    obtain ⟨hb_tail_le, htail_cond⟩ := hb_cond hb_pos
-    try simp only [StateTransitionSpec.clientState, clientResult_readCompGMGenProg h0_lt,
-      runClient_state_readCompGMGenProg] at *)
-  all_goals try (dsimp only [CompGMPre]; exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, h0_lt⟩)
-  all_goals try exact lt_of_le_of_lt (by omega) hU
-  all_goals try omega
-  all_goals (
-    have hg_ge : ¬(g < compGmAt metaBase U w N s.mem 0 * slabSize N) := by omega
+  refine ((realizesBounded_denseOfPhysCore.reindex
+    (fun ((cp, metaBase), g) =>
+      ((((metaBase, (cpOffGM cp, cpOffTD cp)), (cpGmBits cp, cpW cp)),
+        ((cpBucketBits cp, cpSlabSize cp), (cpNSubOne cp, cpMaxTail cp))), g))
+    (WordEncoding.encode (α := (CompParams × ℕ) × ℕ))
+    ![36, 15, 17, 16, 0, 20, 22, 2, 19, 37]
+    fun ⟨⟨_, _⟩, _⟩ i => by fin_cases i <;> rfl).congr fun ⟨⟨_, _⟩, _⟩ => rfl).consequence
+    (fun w ⟨⟨cp, metaBase⟩, g⟩ s _ _ h => ?_) (fun _ _ => le_rfl)
+  obtain ⟨U, V, N, hw, _, hnU, hU, _, rfl, hfr, hg_lt, hb_cond⟩ := h
+  intro hb_pos
+  have hb_pos' : 0 < bucketBits N := hb_pos
+  have h0_lt : 0 < globalMetaLen N := by wram_omega
+  have hgptr := globalPtrBits_le_of_lt_pow hnU hU
+  obtain ⟨hb_tail_le, htail_cond⟩ := hb_cond hb_pos'
+  have hgm_eq : readPacked (metaBase + offCompGM U w N) (globalPtrBits N) w s.mem 0 =
+      compGmAt metaBase U w N s.mem 0 := by simp [compGmAt, h0_lt]
+  refine ⟨⟨globalMetaLen N, hw, rfl, hgptr, h0_lt, by
+    change metaBase + offCompGM U w N + packedWords (globalMetaLen N) (globalPtrBits N) w ≤ _
+    wram_omega⟩, ?_, fun hg_ge => ?_⟩
+  · change readPacked (metaBase + offCompGM U w N) (globalPtrBits N) w s.mem 0 * slabSize N < 2 ^ w
+    rw [hgm_eq]
+    exact lt_of_le_of_lt (hb_tail_le.trans hnU) hU
+  · change ¬(g < readPacked (metaBase + offCompGM U w N) (globalPtrBits N) w s.mem 0 * slabSize N)
+      at hg_ge
+    rw [hgm_eq] at hg_ge
     obtain ⟨ht_lt, hc_lt, hd_le⟩ := htail_cond hg_ge
-    try simp only [clientResult_readCompTDGenProg ht_lt, runClient_state_readCompTDGenProg] at *)
-  · exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, ht_lt⟩
-  · exact ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hb_tail_le, fun _ => ⟨hc_lt, hd_le⟩⟩
+    have htd_eq : readPacked (metaBase + offTailToDense U w N) (globalPtrBits N) w s.mem
+        (N - 1 - g) = compTDAt metaBase U w N s.mem (N - 1 - g) := by simp [compTDAt, ht_lt]
+    refine ⟨by change g ≤ N - 1; omega,
+      ⟨maxTailItems N, hw, rfl, hgptr, ht_lt, by
+        change metaBase + offTailToDense U w N +
+          packedWords (maxTailItems N) (globalPtrBits N) w ≤ _
+        wram_omega⟩, fun _ => ?_⟩
+    simp only [cpOffTD_mk, cpGmBits_mk, cpW_mk, cpNSubOne_mk, cpMaxTail_mk,
+      cpOffGM_mk, cpSlabSize_mk]
+    rw [hgm_eq, htd_eq]
+    exact ⟨hc_lt, lt_of_le_of_lt (hd_le.trans hnU) hU⟩
+
+private theorem realizesBounded_winMod (addN : Bool) :
+    RealizesBounded .exact
+      (fun ((cp, _), (b, n)) =>
+        pure (addN.casesOn b (b + n) % cpMaxTail cp) : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog ℕ)
+      (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
+      (fun w ((cp, _), (b, n)) _ => 0 < cpMaxTail cp ∧ addN.casesOn b (b + n) < 2 ^ w)
+      (fun _ _ => 0) := by
+  have hcore : RealizesBounded .exact
+      (fun (M, (b, n)) => pure (addN.casesOn b (b + n) % M) : ℕ × (ℕ × ℕ) → Memory.Prog ℕ)
+      (WordEncoding.encode (α := ℕ × (ℕ × ℕ))) (WordEncoding.encode (α := ℕ))
+      (fun w (M, (b, n)) _ => 0 < M ∧ addN.casesOn b (b + n) < 2 ^ w) (fun _ _ => 0) := by
+    cases addN <;>
+    · realize
+      all_goals (rcases d with ⟨M, ⟨b, n⟩⟩; obtain ⟨hM, hlt⟩ := h; dsimp only [Fits] at *)
+      all_goals first | exact hM.ne' | exact hlt
+  exact hcore.reindex (fun d : (CompParams × ℕ) × (ℕ × ℕ) => (cpMaxTail d.1.1, d.2)) _
+    ![19, 37, 38] fun ⟨⟨_, _⟩, _, _⟩ i => by fin_cases i <;> rfl
+
+private theorem realizesBounded_winGrow (addN : Bool) :
+    RealizesBounded .exact
+      (fun ((cp, metaBase), (b_win, n_win)) => do
+        let c ← pure (addN.casesOn b_win (b_win + n_win) % cpMaxTail cp)
+        writeCompTDGenProg (((cp, metaBase), n_win), c)
+        writeCompDTGenProg (((cp, metaBase), c), n_win))
+      (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
+      (fun w ((cp, metaBase), (b_win, n_win)) s =>
+        CompMetaEnv w cp metaBase s ∧ n_win < cpMaxTail cp ∧
+          addN.casesOn b_win (b_win + n_win) ≤ cpN cp)
+      (fun _ _ => 0) := by
+  have hwtd := liftComp2 (δ := ((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) realizesBounded_writeCompTDGen
+    (fun d => d.1.2.2) (fun d => d.2) ⟨38, by decide⟩ ⟨39, by decide⟩
+    (fun ⟨⟨_, _, _⟩, _⟩ => rfl) fun ⟨⟨_, _, _⟩, _⟩ => rfl
+  have hwdt := liftComp2 (δ := (((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) × Unit)
+    realizesBounded_writeCompDTGen (fun d => d.1.2) (fun d => d.1.1.2.2)
+    ⟨39, by decide⟩ ⟨38, by decide⟩ (fun ⟨⟨⟨_, _, _⟩, _⟩, _⟩ => rfl)
+    fun ⟨⟨⟨_, _, _⟩, _⟩, _⟩ => rfl
+  refine (((realizesBounded_winMod addN).bind₀ (hwtd.bind₀ hwdt)).congr
+    fun ⟨⟨_, _⟩, _, _⟩ => rfl).consequence (fun w ⟨⟨_, metaBase⟩, b_win, n_win⟩ s _ _ h => ?_)
+    (fun _ _ => le_rfl)
+  obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, hnum_le⟩ := h
+  have hM_pos : 0 < maxTailItems N := by change _ < maxTailItems N at hn_lt; omega
+  have hnum_le' : addN.casesOn b_win (b_win + n_win) ≤ N := hnum_le
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  simp only [hasCompEnv_eb_prod, hasCompEnv_eb_base, cpMaxTail_mk, StateTransitionSpec.clientState,
+    prog_clientResult_pure, prog_runClient_state_pure, runClient_state_writeCompTDGenProg]
+  exact ⟨⟨hM_pos, lt_of_le_of_lt (hnum_le'.trans hnU) hU⟩, ⟨henv, hn_lt⟩,
+    by dsimp only [WriteCompTailMapPre, CompMetaEnv] at henv ⊢; exact ⟨henv, Nat.mod_lt _ hM_pos⟩⟩
 
 /-- Grow circular window `[b_win, b_win + n_win)` on the right by 1 (`winGrowRight`). -/
 def winGrowRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
@@ -719,20 +971,8 @@ def winGrowRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Un
 theorem realizesBounded_winGrowRightGen :
     RealizesBounded .exact winGrowRightGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
-      WinGrowRightPre (fun _ _ => 0) := by
-  have hwtd := realizesBounded_writeCompTDGen
-  have hwdt := realizesBounded_writeCompDTGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, hbn_le⟩ := h
-    simp only [cpMaxTail_mk, cpN_mk, StateTransitionSpec.clientState,
-      runClient_state_writeCompTDGenProg] at *
-    have hM_pos : 0 < maxTailItems N := by omega)
-  all_goals try omega
-  all_goals try exact lt_of_le_of_lt (by omega) hU
-  all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
-  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
+      WinGrowRightPre (fun _ _ => 0) :=
+  (realizesBounded_winGrow true).congr fun ⟨⟨_, _⟩, _, _⟩ => rfl
 
 theorem clientState_winGrowRightGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -764,19 +1004,8 @@ def winGrowLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Uni
 theorem realizesBounded_winGrowLeftGen :
     RealizesBounded .exact winGrowLeftGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
-      WinGrowLeftPre (fun _ _ => 0) := by
-  have hwtd := realizesBounded_writeCompTDGen
-  have hwdt := realizesBounded_writeCompDTGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
-    obtain ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt, hb_le⟩ := h
-    simp only [cpMaxTail_mk, cpN_mk, StateTransitionSpec.clientState,
-      runClient_state_writeCompTDGenProg] at *
-    have hM_pos : 0 < maxTailItems N := by omega)
-  all_goals try omega
-  all_goals try exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, hn_lt⟩
-  exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, Nat.mod_lt _ hM_pos⟩
+      WinGrowLeftPre (fun _ _ => 0) :=
+  (realizesBounded_winGrow false).congr fun ⟨⟨_, _⟩, _, _⟩ => rfl
 
 theorem clientState_winGrowLeftGenProg (U V w N metaBase b_win n_win : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientState s
@@ -787,6 +1016,56 @@ theorem clientState_winGrowLeftGenProg (U V w N metaBase b_win n_win : ℕ) (s :
           (b_win % maxTailItems N) n_win,
         frontier := s.frontier } := by
   unfold StateTransitionSpec.clientState; simp [winGrowLeftGenProg]
+
+private theorem realizesBounded_winShrink (addN : Bool) :
+    RealizesBounded .exact
+      (fun ((cp, metaBase), (b_win, n_win)) => do
+        let c_rem ← pure (addN.casesOn b_win (b_win + n_win) % cpMaxTail cp)
+        let t_rem ← readCompDTGenProg ((cp, metaBase), c_rem)
+        let c_last ← readCompTDGenProg ((cp, metaBase), n_win)
+        writeCompTDGenProg (((cp, metaBase), t_rem), c_last)
+        writeCompDTGenProg (((cp, metaBase), c_last), t_rem))
+      (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
+      (fun w ((cp, metaBase), (b_win, n_win)) s =>
+        ∃ U V N,
+          0 < w ∧ 0 < N ∧ N ≤ U ∧ U < 2 ^ w ∧ V ≤ 2 ^ w ∧
+          cp = mkCompParams U V w N ∧
+          metaBase + offCompItems U w N ≤ s.frontier ∧
+          n_win < maxTailItems N ∧ addN.casesOn b_win (b_win + n_win) ≤ N ∧
+          compDTAt metaBase U w N s.mem
+            (addN.casesOn b_win (b_win + n_win) % maxTailItems N) < maxTailItems N ∧
+          compTDAt metaBase U w N s.mem n_win < maxTailItems N)
+      (fun _ _ => 0) := by
+  have hrdt := liftComp1 (δ := ((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) realizesBounded_readCompDTGen
+    (fun d => d.2) ⟨39, by decide⟩ fun ⟨⟨_, _, _⟩, _⟩ => rfl
+  have hrtd := liftComp1 (δ := (((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ)
+    realizesBounded_readCompTDGen (fun d => d.1.1.2.2) ⟨38, by decide⟩
+    fun ⟨⟨⟨_, _, _⟩, _⟩, _⟩ => rfl
+  have hwtd := liftComp2 (δ := ((((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ)
+    realizesBounded_writeCompTDGen (fun d => d.1.2) (fun d => d.2)
+    ⟨40, by decide⟩ ⟨41, by decide⟩ (fun ⟨⟨⟨⟨_, _, _⟩, _⟩, _⟩, _⟩ => rfl)
+    fun ⟨⟨⟨⟨_, _, _⟩, _⟩, _⟩, _⟩ => rfl
+  have hwdt := liftComp2 (δ := (((((CompParams × ℕ) × (ℕ × ℕ)) × ℕ) × ℕ) × ℕ) × Unit)
+    realizesBounded_writeCompDTGen (fun d => d.1.2) (fun d => d.1.1.2)
+    ⟨41, by decide⟩ ⟨40, by decide⟩ (fun ⟨⟨⟨⟨⟨_, _, _⟩, _⟩, _⟩, _⟩, _⟩ => rfl)
+    fun ⟨⟨⟨⟨⟨_, _, _⟩, _⟩, _⟩, _⟩, _⟩ => rfl
+  refine (((realizesBounded_winMod addN).bind₀
+    (hrdt.bind₀ (hrtd.bind₀ (hwtd.bind₀ hwdt)))).congr
+    fun ⟨⟨_, _⟩, _, _⟩ => rfl).consequence (fun w ⟨⟨_, metaBase⟩, b_win, n_win⟩ s _ _ h => ?_)
+    (fun _ _ => le_rfl)
+  obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hnum_le, hdt_lt, htd_lt⟩ := h
+  have hM_pos : 0 < maxTailItems N := by omega
+  have hcrem_lt := Nat.mod_lt (addN.casesOn b_win (b_win + n_win)) hM_pos
+  have henv : CompMetaEnv w (mkCompParams U V w N) metaBase s :=
+    ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩
+  simp only [hasCompEnv_eb_prod, hasCompEnv_eb_base, cpMaxTail_mk, StateTransitionSpec.clientState,
+    prog_clientResult_pure, prog_runClient_state_pure,
+    clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
+    clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
+    runClient_state_writeCompTDGenProg]
+  exact ⟨⟨hM_pos, lt_of_le_of_lt (hnum_le.trans hnU) hU⟩, ⟨henv, hcrem_lt⟩,
+    ⟨henv, hn_lt⟩, ⟨henv, hdt_lt⟩,
+    by dsimp only [WriteCompTailMapPre, CompMetaEnv] at henv ⊢; exact ⟨henv, htd_lt⟩⟩
 
 /-- Shrink circular window `[b_win, b_win + n_win + 1)` on the right by 1 (`winShrinkRight`). -/
 def winShrinkRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
@@ -816,24 +1095,8 @@ def winShrinkRightGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog 
 theorem realizesBounded_winShrinkRightGen :
     RealizesBounded .exact winShrinkRightGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
-      WinShrinkRightPre (fun _ _ => 0) := by
-  have hrdt := realizesBounded_readCompDTGen
-  have hrtd := realizesBounded_readCompTDGen
-  have hwtd := realizesBounded_writeCompTDGen
-  have hwdt := realizesBounded_writeCompDTGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
-    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hbn_le, hdt_lt, htd_lt⟩ := h
-    have hM_pos : 0 < maxTailItems N := by omega
-    have hcrem_lt : (b_win + n_win) % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
-      clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
-      clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
-      runClient_state_writeCompTDGenProg] at *)
-  all_goals try omega
-  all_goals try exact lt_of_le_of_lt (by omega) hU
-  all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
+      WinShrinkRightPre (fun _ _ => 0) :=
+  (realizesBounded_winShrink true).congr fun ⟨⟨_, _⟩, _, _⟩ => rfl
 
 /-- Shrink circular window `[b_win, b_win + n_win + 1)` on the left by 1 (`winShrinkLeft`). -/
 def winShrinkLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog Unit
@@ -863,23 +1126,8 @@ def winShrinkLeftGenProg : (CompParams × ℕ) × (ℕ × ℕ) → Memory.Prog U
 theorem realizesBounded_winShrinkLeftGen :
     RealizesBounded .exact winShrinkLeftGenProg
       (WordEncoding.encode (α := (CompParams × ℕ) × (ℕ × ℕ))) (WordEncoding.encode (α := Unit))
-      WinShrinkLeftPre (fun _ _ => 0) := by
-  have hrdt := realizesBounded_readCompDTGen
-  have hrtd := realizesBounded_readCompTDGen
-  have hwtd := realizesBounded_writeCompTDGen
-  have hwdt := realizesBounded_writeCompDTGen
-  realize
-  all_goals (
-    rcases d with ⟨⟨cp, metaBase⟩, ⟨b_win, n_win⟩⟩
-    obtain ⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr, hn_lt, hb_le, hdt_lt, htd_lt⟩ := h
-    have hM_pos : 0 < maxTailItems N := by omega
-    have hcrem_lt : b_win % maxTailItems N < maxTailItems N := Nat.mod_lt _ hM_pos
-    simp only [cpMaxTail_mk, StateTransitionSpec.clientState,
-      clientResult_readCompDTGenProg hcrem_lt, runClient_state_readCompDTGenProg,
-      clientResult_readCompTDGenProg hn_lt, runClient_state_readCompTDGenProg,
-      runClient_state_writeCompTDGenProg] at *)
-  all_goals try omega
-  all_goals exact ⟨⟨U, V, N, hw, hN, hnU, hU, hV, rfl, hfr⟩, by assumption⟩
+      WinShrinkLeftPre (fun _ _ => 0) :=
+  (realizesBounded_winShrink false).congr fun ⟨⟨_, _⟩, _, _⟩ => rfl
 
 theorem clientState_winShrinkRightGenProg {U V w N metaBase b_win n_win : ℕ} {s : Memory.State}
     (hc : (b_win + n_win) % maxTailItems N < maxTailItems N) (hn : n_win < maxTailItems N) :
