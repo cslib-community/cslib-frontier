@@ -974,9 +974,12 @@ def analyzeGo (log : LRATLog φ) (T : ATrail) (p : ℕ) :
               rw [trail_level, lits_append, List.mem_append] at this
               exact this
           analyzeGo log T p k hA' (cur.clear (T.lit (p + 1 + k)).1) hcurA'
-            (Marks.absorb (cur.clear (T.lit (p + 1 + k)).1) ⟨m.seen, m.out, m.path - 1, m.vars⟩ R)
+            -- `Marks.absorb` of the state with one off the path, without building that state
+            (Marks.absorbGo (cur.clear (T.lit (p + 1 + k)).1) m.seen m.out (m.path - 1) m.vars R)
             hspec.1
             (by
+              change 1 ≤ (Marks.absorb (cur.clear (T.lit (p + 1 + k)).1)
+                ⟨m.seen, m.out, m.path - 1, m.vars⟩ R).path
               rw [hspec.1.path_eq]
               calc 1 ≤ m.path - 1 := by omega
                 _ = _ := hm₀.path_eq
