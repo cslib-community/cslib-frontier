@@ -1114,13 +1114,42 @@ theorem WExec.ProcInv.conflict_clause {S : WExec φ} {t : Literal ℕ} {w : Watc
       · exact h₂ ▸ hu'
     · exact hrest y hy
 
-/-- The result of visiting a watch list from a state of measure at most `m` with `c` conflicts:
-done, or a conflict, with a measure at most `m` and still `c` conflicts. The bounds are indices,
-so that every step of the visit has the same result type and calls the next one in tail
-position; they are only used in proofs. -/
-inductive ProcResult (φ : CNF ℕ) (m c : ℕ) (t : Literal ℕ) : Type
-  /-- Every watcher on the list was visited. -/
-  | done (S : WExec φ) (h : S.ProcInv t []) (hm : S.measure ≤ m) (hc : S.stats.conflicts = c)
+/-- The empty watch store, which the state holds while its store is taken out of it. A constant,
+so that taking the store out allocates nothing. -/
+@[expose] def WatchStore.empty : WatchStore := ⟨#[], #[]⟩
+
+/-- The empty assignment, which the state holds while its assignment is taken out of it. -/
+@[expose] def Assign.empty : Assign := ⟨#[]⟩
+
+/-- **The state `S` with its parts**: the watch store `st`, the trail `tr`, the assignment `A`,
+the head of the queue `q` and the count `p` of propagations. While the queue is processed, these
+are arguments of the loops, held apart from the rest of the state, so that moving a watch,
+propagating a literal or moving the head updates them without rebuilding the state; the invariants
+of the loops are stated on `S.withParts st tr A q p`. -/
+@[expose] def WExec.withParts (S : WExec φ) (st : WatchStore) (tr : ATrail) (A : Assign)
+    (q p : ℕ) : WExec φ :=
+  { S with
+    store := st, exec := { S.exec with tr := tr }, assign := A, qhead := q
+    stats := { S.stats with propagations := p } }
+
+/-- Propagating a literal of key `l` on the parts of the state: the trail and the assignment get
+it, with the clause numbered `id` as its reason. -/
+theorem WExec.withParts_propagateUnit (S : WExec φ) (st : WatchStore) (tr : ATrail) (A : Assign)
+    (q p l id : ℕ) :
+    (S.withParts st tr A q p).propagateUnit (litOfKey l) id =
+      S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l)) q p := by
+  simp only [WExec.propagateUnit, WExec.withParts, Exec.propagate, litKey_litOfKey]
+
+/-- The result of visiting a watch list, from the state `S₀.withParts st tr A q p` of measure at
+most `m` with `c` conflicts: done, with the parts of the state after the visit, or a conflict, with
+a measure at most `m` and still `c` conflicts. The bounds are indices, so that every step of the
+visit has the same result type and calls the next one in tail position; they are only used in
+proofs. -/
+inductive ProcResult (φ : CNF ℕ) (S₀ : WExec φ) (q p m c : ℕ) (t : Literal ℕ) : Type
+  /-- Every watcher on the list was visited: the watch store, the trail and the assignment. -/
+  | done (st : WatchStore) (tr : ATrail) (A : Assign) (h : (S₀.withParts st tr A q p).ProcInv t [])
+      (hm : (S₀.withParts st tr A q p).measure ≤ m)
+      (hc : (S₀.withParts st tr A q p).stats.conflicts = c)
   /-- A clause of the database is false. -/
   | conflict (S : WExec φ) (h : S.Inv) (e : ℕ × Clause ℕ) (he : e ∈ S.exec.db)
       (hconf : Trail.Falsifies S.M e.2) (hm : S.measure ≤ m) (hc : S.stats.conflicts = c)
@@ -1209,22 +1238,6 @@ theorem WExec.visitSpec_of {S : WExec φ} {t : Literal ℕ} {u k b : ℕ} {v : K
     VisitSpec S.store S.M t.negate ⟨k, litOfKey b⟩ v.lits := by
   subst hu; rw [← hv]; exact S.store.visit_spec hA t.negate k b
 
-/-- **The state `S` with the watch store `st`, the trail `tr` and the assignment `A`.** While a
-watch list is visited, these three are arguments of the loop, held apart from the rest of the state,
-so that moving a watch or propagating a literal updates them without rebuilding the state; the
-invariant of the visit is stated on `S.withParts st tr A`. -/
-@[expose] def WExec.withParts (S : WExec φ) (st : WatchStore) (tr : ATrail) (A : Assign) :
-    WExec φ :=
-  { S with store := st, exec := { S.exec with tr := tr }, assign := A }
-
-/-- Propagating a literal of key `l` on the parts of the state: the trail and the assignment get
-it, with the clause numbered `id` as its reason. -/
-theorem WExec.withParts_propagateUnit (S : WExec φ) (st : WatchStore) (tr : ATrail) (A : Assign)
-    (l id : ℕ) :
-    (S.withParts st tr A).propagateUnit (litOfKey l) id =
-      S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l)) := by
-  simp only [WExec.propagateUnit, WExec.withParts, Exec.propagate, litKey_litOfKey]
-
 /-- **Visiting a watch list**, the array `ws` read backwards from position `n`, two numbers per
 watcher, from a state of measure at most `m` with `c` conflicts: each watcher is visited in turn,
 until a conflict. The array is read by position, and the list of the watchers still to visit,
@@ -1233,7 +1246,7 @@ next in tail position, so the compiled visit is a loop. The falsified literal `u
 `t`, is computed once, by the caller.
 
 As in MiniSat, the state of the loop is in its arguments: the watch store `st`, the trail `tr` and
-the assignment `A`, apart from the rest of the state `S` (`WExec.withParts`), and the watchers kept,
+the assignment `A`, apart from the rest of the state (`WExec.withParts`), and the watchers kept,
 pushed on the array `kept`, which the store gets once, at the end. A watcher kept costs two pushes,
 a watch moved an update of the store, and a literal propagated a push on the trail and an update of
 the assignment, none of them a rebuilt state. At a conflict, the store gets the watchers kept
@@ -1241,44 +1254,45 @@ followed by those still to be visited, the current one included. -/
 @[expose]
 def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
     (m c : ℕ) : (n : ℕ) → (ws kept : Array ℕ) → (S : WExec φ) → (st : WatchStore) →
-    (tr : ATrail) → (A : Assign) → n ≤ ws.size →
-    ((S.withParts st tr A).withKept t kept).ProcInv t
+    (tr : ATrail) → (A : Assign) → (q p : ℕ) → n ≤ ws.size →
+    ((S.withParts st tr A q p).withKept t kept).ProcInv t
       (unpackWatchers (ws.toList.take n).reverse) →
-    (S.withParts st tr A).measure ≤ m → (S.withParts st tr A).stats.conflicts = c →
-    ProcResult φ m c t
-  | 0, _, kept, S, st, tr, A, _, h, hm, hc => .done ((S.withParts st tr A).withKept t kept) h hm hc
-  | 1, ws, kept, S, st, tr, A, _, h, hm, hc =>
-    .done ((S.withParts st tr A).withKept t kept)
+    (S.withParts st tr A q p).measure ≤ m → (S.withParts st tr A q p).stats.conflicts = c →
+    ProcResult φ S q p m c t
+  | 0, _, kept, S, st, tr, A, q, p, _, h, hm, hc =>
+    .done { st with watches := setWatch st.watches (negKey t) kept } tr A h hm hc
+  | 1, ws, kept, S, st, tr, A, q, p, _, h, hm, hc =>
+    .done { st with watches := setWatch st.watches (negKey t) kept } tr A
       (by rwa [unpackWatchers_of_length_le_one (by simp)] at h) hm hc
-  | n + 2, ws, kept, S, st, tr, A, hn, h₀, hm, hc =>
+  | n + 2, ws, kept, S, st, tr, A, q, p, hn, h₀, hm, hc =>
     let k := ws[n]
     let b := ws[n + 1]
-    have h : ((S.withParts st tr A).withKept t kept).ProcInv t
+    have h : ((S.withParts st tr A q p).withKept t kept).ProcInv t
         (⟨k, litOfKey b⟩ :: unpackWatchers (ws.toList.take n).reverse) :=
       unpackWatchers_take_add_two hn ▸ h₀
     have hn' : n ≤ ws.size := by omega
-    have hA : ((S.withParts st tr A).withKept t kept).assign.Agrees
-        ((S.withParts st tr A).withKept t kept).M := h.assign
+    have hA : ((S.withParts st tr A q p).withKept t kept).assign.Agrees
+        ((S.withParts st tr A q p).withKept t kept).M := h.assign
     match hv : st.visit A u k b with
     | .skip =>
-      have hs : VisitSpec ((S.withParts st tr A).withKept t kept).store
-          ((S.withParts st tr A).withKept t kept).M t.negate ⟨k, litOfKey b⟩ .skip :=
+      have hs : VisitSpec ((S.withParts st tr A q p).withKept t kept).store
+          ((S.withParts st tr A q p).withKept t kept).M t.negate ⟨k, litOfKey b⟩ .skip :=
         WExec.visitSpec_of hu hA hv
-      WExec.processFrom t u hu m c n ws ((kept.push k).push b) S st tr A hn'
-        ((S.withParts st tr A).withKept_putBack t kept k b ▸ h.skip hs) hm hc
+      WExec.processFrom t u hu m c n ws ((kept.push k).push b) S st tr A q p hn'
+        ((S.withParts st tr A q p).withKept_putBack t kept k b ▸ h.skip hs) hm hc
     | .keep b' =>
-      have hs : VisitSpec ((S.withParts st tr A).withKept t kept).store
-          ((S.withParts st tr A).withKept t kept).M t.negate ⟨k, litOfKey b⟩
+      have hs : VisitSpec ((S.withParts st tr A q p).withKept t kept).store
+          ((S.withParts st tr A q p).withKept t kept).M t.negate ⟨k, litOfKey b⟩
           (.keep (litOfKey b')) :=
         WExec.visitSpec_of hu hA hv
-      WExec.processFrom t u hu m c n ws ((kept.push k).push b') S st tr A hn'
+      WExec.processFrom t u hu m c n ws ((kept.push k).push b') S st tr A q p hn'
         (by
           have h' := h.keep hs
           rw [litKey_litOfKey] at h'
-          exact (S.withParts st tr A).withKept_putBack t kept k b' ▸ h') hm hc
+          exact (S.withParts st tr A q p).withKept_putBack t kept k b' ▸ h') hm hc
     | .move j x b' =>
-      have hs : VisitSpec ((S.withParts st tr A).withKept t kept).store
-          ((S.withParts st tr A).withKept t kept).M t.negate ⟨k, litOfKey b⟩
+      have hs : VisitSpec ((S.withParts st tr A q p).withKept t kept).store
+          ((S.withParts st tr A q p).withKept t kept).M t.negate ⟨k, litOfKey b⟩
           (.move j (litOfKey x) (litOfKey b')) :=
         WExec.visitSpec_of hu hA hv
       have hx : x ≠ negKey t := by
@@ -1288,54 +1302,110 @@ def WExec.processFrom (t : Literal ℕ) (u : ℕ) (hu : u = litKey t.negate)
         rw [hxt, litOfKey_negKey, negate_negate]
         exact h.queue_trail t h.t_mem
       -- the store is updated in place: the loop is its only holder
-      WExec.processFrom t u hu m c n ws kept S (st.moveTo k j b' x u) tr A hn' (by
+      WExec.processFrom t u hu m c n ws kept S (st.moveTo k j b' x u) tr A q p hn' (by
           have h' := h.move hs
           simp only [litKey_litOfKey, ← hu] at h'
-          have h'' := (S.withParts st tr A).withKept_moveTo t kept hx ▸ h'
+          have h'' := (S.withParts st tr A q p).withKept_moveTo t kept hx ▸ h'
           exact h'') hm hc
     | .unit l id =>
-      have hs : VisitSpec ((S.withParts st tr A).withKept t kept).store
-          ((S.withParts st tr A).withKept t kept).M t.negate ⟨k, litOfKey b⟩
+      have hs : VisitSpec ((S.withParts st tr A q p).withKept t kept).store
+          ((S.withParts st tr A q p).withKept t kept).M t.negate ⟨k, litOfKey b⟩
           (.unit (litOfKey l) id) :=
         WExec.visitSpec_of hu hA hv
       have hun := h.unit hs
-      have heq : (((S.withParts st tr A).withKept t kept).propagateUnit (litOfKey l) id).putBack t
-            k (litKey (litOfKey l)) =
-          (S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l))).withKept t
+      have heq : (((S.withParts st tr A q p).withKept t kept).propagateUnit (litOfKey l) id).putBack
+            t k (litKey (litOfKey l)) =
+          (S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l)) q p).withKept t
             ((kept.push k).push l) := by
-        rw [litKey_litOfKey, ← S.withParts_propagateUnit st tr A l id]
-        exact ((S.withParts st tr A).propagateUnit (litOfKey l) id).withKept_putBack t kept _ _
-      have hlt : (S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l))).measure <
-          (S.withParts st tr A).measure := by
+        rw [litKey_litOfKey, ← S.withParts_propagateUnit st tr A q p l id]
+        exact ((S.withParts st tr A q p).propagateUnit (litOfKey l) id).withKept_putBack t kept _ _
+      have hlt : (S.withParts st (tr.push l (id + 1)) (A.assign (litOfKey l)) q p).measure <
+          (S.withParts st tr A q p).measure := by
         have h2 := hun.2
         rw [heq] at h2
         exact h2
       WExec.processFrom t u hu m c n ws ((kept.push k).push l) S st (tr.push l (id + 1))
-        (A.assign (litOfKey l)) hn' (heq ▸ hun.1) (hlt.le.trans hm) hc
+        (A.assign (litOfKey l)) q p hn' (heq ▸ hun.1) (hlt.le.trans hm) hc
     | .conflict id =>
-      have hs : VisitSpec ((S.withParts st tr A).withKept t kept).store
-          ((S.withParts st tr A).withKept t kept).M t.negate ⟨k, litOfKey b⟩ (.conflict id) :=
+      have hs : VisitSpec ((S.withParts st tr A q p).withKept t kept).store
+          ((S.withParts st tr A q p).withKept t kept).M t.negate ⟨k, litOfKey b⟩ (.conflict id) :=
         WExec.visitSpec_of hu hA hv
       match hcl₀ : S.exec.log.clause? id with
       | some cl =>
-        have hcl : ((S.withParts st tr A).withKept t kept).exec.log.clause? id = some cl := hcl₀
+        have hcl : ((S.withParts st tr A q p).withKept t kept).exec.log.clause? id = some cl := hcl₀
         have hcc := h.conflict_clause hs
         -- the watchers still to be visited, the current one included, as pairs of numbers
         let rest := ws.extract ((n + 2) % 2) (n + 2)
         have hr := WExec.ProcInv.restore_inv (rest := rest)
           (by rw [unpackWatchers_extract ws hn]; exact h₀) (size_extract_mod_two ws hn)
-        .conflict ((S.withParts st tr A).withKept t (kept ++ rest)) hr.1 (id, cl)
+        .conflict ((S.withParts st tr A q p).withKept t (kept ++ rest)) hr.1 (id, cl)
           (by obtain ⟨c', hc', hlog, -⟩ := hcc; rw [hlog] at hcl; cases hcl; exact hc')
           (by obtain ⟨c', -, hlog, hf⟩ := hcc; rw [hlog] at hcl; cases hcl; exact hf)
           (hr.2.le.trans hm) hc
       | none =>
-        have hcl : ((S.withParts st tr A).withKept t kept).exec.log.clause? id = none := hcl₀
+        have hcl : ((S.withParts st tr A q p).withKept t kept).exec.log.clause? id = none := hcl₀
         absurd hcl (by obtain ⟨c', -, hlog, -⟩ := h.conflict_clause hs; simp [hlog])
     | .drop =>
-      have hs : VisitSpec ((S.withParts st tr A).withKept t kept).store
-          ((S.withParts st tr A).withKept t kept).M t.negate ⟨k, litOfKey b⟩ .drop :=
+      have hs : VisitSpec ((S.withParts st tr A q p).withKept t kept).store
+          ((S.withParts st tr A q p).withKept t kept).M t.negate ⟨k, litOfKey b⟩ .drop :=
         WExec.visitSpec_of hu hA hv
-      WExec.processFrom t u hu m c n ws kept S st tr A hn' (h.drop hs) hm hc
+      WExec.processFrom t u hu m c n ws kept S st tr A q p hn' (h.drop hs) hm hc
+
+/-- The result of processing the queue from a state of measure at most `m` with `c` conflicts:
+stopped, at an empty queue or after enough literals, with a lower measure, or a conflict, with a
+measure at most `m`; with still `c` conflicts either way. -/
+inductive QueueResult (φ : CNF ℕ) (m c : ℕ) : Type
+  /-- The literals processed, with no conflict. -/
+  | stop (T : WExec φ) (hT : T.Inv) (hm : T.measure < m) (hc : T.stats.conflicts = c)
+  /-- A clause of the database is false. -/
+  | conflict (T : WExec φ) (hT : T.Inv) (e : ℕ × Clause ℕ) (he : e ∈ T.exec.db)
+      (hconf : Trail.Falsifies T.M e.2) (hm : T.measure ≤ m) (hc : T.stats.conflicts = c)
+
+/-- **Processing the queue**, from the state `S₀.withParts st tr A q p` with the literal at the
+head `q` still to process: the watch list of its negation is visited (`WExec.processFrom`), and,
+with no conflict, the head moves past it and the next literal is processed, until the queue is
+empty, a conflict, or `fuel` more literals. As in MiniSat's `propagate`, the parts of the state
+are the arguments of the loop, so that the state is rebuilt once, at the end, instead of once per
+literal. Each literal processed lowers the measure, so the result has a lower measure than the
+state processed. -/
+@[expose] def WExec.processQueue (S₀ : WExec φ) (m c : ℕ) :
+    (fuel : ℕ) → (st : WatchStore) → (tr : ATrail) → (A : Assign) → (q p : ℕ) → q < tr.size →
+    (S₀.withParts st tr A q p).Inv → (S₀.withParts st tr A q p).measure ≤ m →
+    (S₀.withParts st tr A q p).stats.conflicts = c → QueueResult φ m c
+  | fuel, st, tr, A, q, p, hq, hS, hm, hc =>
+    -- the literal at the head of the queue
+    let t := tr.lit q
+    have ht : t ∈ (S₀.withParts st tr A q p).queue := by
+      rw [WExec.queue_of_lt hq]; exact List.mem_cons_self
+    -- the watch list is read before its slot is emptied, so that it is not shared
+    let ws := st.watches.getD (negKey t) #[]
+    let st₀ : WatchStore := { st with watches := setWatch st.watches (negKey t) #[] }
+    have hS₀ : S₀.withParts st₀ tr A q (p + 1) = (S₀.withParts st tr A q p).start t := rfl
+    -- the watchers kept go to a fresh array, twice as long as the list, so that they are pushed in
+    -- place, and the watchers added to the list later are pushed in place too
+    match WExec.processFrom t (negKey t) (litKey_negate t).symm m c ws.size ws
+        (Array.emptyWithCapacity (2 * ws.size)) S₀ st₀ tr A q (p + 1) le_rfl
+        (by
+          rw [List.take_of_length_le (by simp), hS₀]
+          have hk : ((S₀.withParts st tr A q p).start t).withKept t
+              (Array.emptyWithCapacity (2 * ws.size)) = (S₀.withParts st tr A q p).start t := by
+            simp only [WExec.withKept, WExec.start, setWatch_setWatch]; rfl
+          have := WExec.start_procInv hS ht rfl
+          rw [hk]
+          rwa [watchList, litKey_negate] at this) (by rw [hS₀]; exact hm) (by rw [hS₀]; exact hc)
+    with
+    | .done st' tr' A' h hm' hc' =>
+      -- finishing `t` moves the head past it
+      have hfin := WExec.finish_inv h
+      have hlt : (S₀.withParts st' tr' A' (q + 1) (p + 1)).measure < m :=
+        lt_of_lt_of_le hfin.2 hm'
+      match fuel with
+      | 0 => .stop (S₀.withParts st' tr' A' (q + 1) (p + 1)) hfin.1 hlt hc'
+      | fuel + 1 =>
+        if hq' : q + 1 < tr'.size then
+          WExec.processQueue S₀ m c fuel st' tr' A' (q + 1) (p + 1) hq' hfin.1 hlt.le hc'
+        else .stop (S₀.withParts st' tr' A' (q + 1) (p + 1)) hfin.1 hlt hc'
+    | .conflict T hT e he hconf hm' hc' => .conflict T hT e he hconf hm' hc'
 
 /-! ### Moves at the top level -/
 
@@ -2636,45 +2706,20 @@ a restarted state has fewer conflicts than that. -/
         have : T₁.stats.conflicts = T.stats.conflicts := rfl
         omega)
   if hlt : S.qhead < S.exec.tr.size then
-    -- the literal at the head of the queue
-    let t := S.exec.tr.lit S.qhead
-    have ht : t ∈ S.queue := by rw [WExec.queue_of_lt hlt]; exact List.mem_cons_self
-    -- the watch list is read before its slot is emptied, so that it is not shared
-    let ws := S.store.watches.getD (negKey t) #[]
-    -- the store, the trail and the assignment are taken out of the state, so that the visit
-    -- updates them in place (`WExec.withParts`); the state left is `S.start t` without them
+    -- the store, the trail, the assignment, the head of the queue and the count of propagations
+    -- are taken out of the state, so that processing the queue updates them in place
+    -- (`WExec.withParts`)
     let st := S.store
     let ex := S.exec
     let A := S.assign
     let S₀ : WExec φ :=
       { S with
-        store := ⟨#[], #[]⟩
-        exec := { ex with tr := ATrail.empty }
-        assign := ⟨#[]⟩
-        stats := S.stats.propagation }
-    let st₀ : WatchStore := { st with watches := setWatch st.watches (negKey t) #[] }
-    have hS₀ : S₀.withParts st₀ ex.tr A = S.start t := rfl
-    -- the watchers kept go to a fresh array, twice as long as the list, so that they are pushed in
-    -- place, and the watchers added to the list later are pushed in place too
-    match S₀.processFrom t (negKey t) (litKey_negate t).symm S.measure S.stats.conflicts
-        ws.size ws (Array.emptyWithCapacity (2 * ws.size)) st₀ ex.tr A le_rfl
-        (by
-          rw [List.take_of_length_le (by simp), hS₀]
-          have hk : (S.start t).withKept t (Array.emptyWithCapacity (2 * ws.size)) = S.start t := by
-            simp only [WExec.withKept, WExec.start, setWatch_setWatch]; rfl
-          have := WExec.start_procInv hS ht rfl
-          rw [hk]
-          rwa [watchList, litKey_negate] at this) (by rw [hS₀]; exact le_rfl) rfl with
-    | .done S' h hm hc =>
-      have hfin := WExec.finish_inv h
-      .move (S'.finish t) hfin.1 (by
-        have : (S.start t).measure = S.measure := rfl
-        omega) (by
-        have : (S'.finish t).stats.conflicts = S'.stats.conflicts := rfl
-        have : (S.start t).stats.conflicts = S.stats.conflicts := rfl
-        omega)
-    | .conflict S' h e he hconf hm hc =>
-      onConflict S' h e he hconf (by have : (S.start t).measure = S.measure := rfl; omega) hc
+        store := WatchStore.empty, exec := { ex with tr := ATrail.empty }, assign := Assign.empty }
+    have hS₀ : S₀.withParts st ex.tr A S.qhead S.stats.propagations = S := rfl
+    match S₀.processQueue S.measure S.stats.conflicts A.vals.size st ex.tr A S.qhead
+        S.stats.propagations hlt (by rw [hS₀]; exact hS) (by rw [hS₀]) (by rw [hS₀]) with
+    | .stop T hT hm hc => .move T hT hm (by omega)
+    | .conflict T hT e he hconf hm hc => onConflict T hT e he hconf hm hc
   else
     have hq : S.queue = [] := WExec.queue_of_le (by omega)
     match hc : S.short.find? (fun e => S.assign.falsifies e.2) with
