@@ -472,6 +472,30 @@ theorem formulaWordComparisonRequest_polyTime :
       (encPair encBits encNat) (encOption encFormulaComparisonRequest) :=
   comparisonRequest_polyTime.comp formulaWordTokenAt_polyTime
 
+/-- Test a supplied sign against the comparison requested at a gate. Gates without a
+comparison request return `false`. -/
+@[expose] def formulaWordComparisonAnswer (word : List Bool) (index : ℕ) (sign : SignType) : Bool :=
+  (formulaWordComparisonRequest word index).elim false fun request =>
+    decide (sign = request.requestedSign)
+
+/-- Testing an indexed comparison is polynomial time in the formula word, binary gate index,
+and supplied sign using `encSign`. -/
+theorem formulaWordComparisonAnswer_polyTime {α : Type} {input : α ↪ List Bool}
+    {word : α → List Bool} {index : α → ℕ} {sign : α → SignType}
+    (hword : ComputableInPolyTime word input encBits)
+    (hindex : ComputableInPolyTime index input encNat)
+    (hsign : ComputableInPolyTime sign input encSign) :
+    ComputableInPolyTime (fun a => formulaWordComparisonAnswer (word a) (index a) (sign a))
+      input encBool := by
+  have hrequest := formulaWordComparisonRequest_polyTime.comp (hword.prod hindex)
+  have hstrict : ComputableInPolyTime FormulaComparisonRequest.isStrict
+      encFormulaComparisonRequest encBool := by fun_prop
+  have htest := of_finite (encIn := encPair encSign encBool) (encOut := encBool)
+    (fun p : SignType × Bool => decide (p.1 = if p.2 then -1 else 0))
+  exact hrequest.optionElimWithInput (const false)
+    (htest.comp ((hsign.comp (fst input encFormulaComparisonRequest)).prod
+      (hstrict.comp (snd input encFormulaComparisonRequest))))
+
 /-- Read the comparison request of a serialized subformula, retaining its exact term word. -/
 theorem formulaWordComparisonRequest_of_prefix {n : ℕ} {word : List Bool} (p : Formula n)
     (before after : List FormulaToken)

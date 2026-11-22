@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.BandInput
+import CslibFrontier.Computability.WordRAM.Width
 
 /-!
 # Flat native preparation of every public band encoding
@@ -51,27 +52,39 @@ theorem catalogueValue_right {L m N : ℕ} (hm : m ≤ L)
   simpa only [Equiv.symm_apply_apply] using
     (bandValue_right hm Y matrix (fun i k => hY k i) β (finFunctionFinEquiv u))
 
-set_option maxRecDepth 4096 in
--- Static size arithmetic traverses the new finite blocks, reusing both encoder size bounds.
 /-- One finite code-size bound for the 96-register program and its final halt. -/
 theorem program_length_le : (program.program catalogue).length ≤ 16384 := by
   have hl := Encoding.program_length_le false
   have hr := Encoding.program_length_le true
   simp only [Code.program, List.length_append, Code.length_assemble,
     List.length_cons, List.length_nil] at hl hr ⊢
-  simp only [program, header, headerLoads, headerPowers, headerLayout, powerCode,
-    saveInput, countCode, countMasks, countBody, populationCode, rootCode,
-    NatSqrt.program, NatSqrt.body,
-    bandCount, tablesCode, tableBody, tableWrite, encodeBands, bandBody, prepareBand,
-    prepareHead, prepareBody, splitCode, splitHead, splitBody, readCell, collectBand,
-    collectHead, restoreInput, Code.size, Code.size_rename, Power.program, Power.body,
-    ArrayCopy.program, ArrayCopy.body, Bool.false_eq_true, ↓reduceIte, Nat.reduceAdd]
+  have hpre : (Code.seq header (.seq saveInput (.seq countCode tablesCode))).size ≤ 512 := by
+    decide +kernel
+  have hpF : (prepareBand false).size ≤ 256 := by decide +kernel
+  have hpT : (prepareBand true).size ≤ 256 := by decide +kernel
+  have hcF : (collectBand false).size ≤ 64 := by decide +kernel
+  have hcT : (collectBand true).size ≤ 64 := by decide +kernel
+  have hrest : restoreInput.size ≤ 64 := by decide +kernel
+  simp only [program, encodeBands, bandBody, Code.size, Code.size_rename] at hpre ⊢
   omega
 
-set_option maxRecDepth 4096 in
--- This finite structural check covers the same fixed instruction list, not an execution.
 /-- The uniform program does not inspect its target word width. -/
-theorem not_readsWidth : ¬program.ReadsWidth := by decide
+theorem not_readsWidth : ¬program.ReadsWidth := by
+  have hpre : ¬(Code.seq header (.seq saveInput (.seq countCode tablesCode))).ReadsWidth := by
+    decide +kernel
+  have henc (side : Bool) : ¬(encodeBands side).ReadsWidth := by
+    have hp : ¬(prepareBand side).ReadsWidth := by cases side <;> decide +kernel
+    have hc : ¬(collectBand side).ReadsWidth := by cases side <;> decide +kernel
+    have h0 : ¬(ram[ band ← #0 ] : Code .standard 96).ReadsWidth := by decide +kernel
+    have h1 : ¬(ram[ band ← band + one ] : Code .standard 96).ReadsWidth := by decide +kernel
+    have he := Encoding.program_readsWidth side
+    simp only [encodeBands, bandBody, Code.ReadsWidth, Code.readsWidth_rename]
+    tauto
+  have hrest : ¬restoreInput.ReadsWidth := by decide +kernel
+  have hf := henc false
+  have ht := henc true
+  simp only [program, Code.ReadsWidth] at hpre ⊢
+  tauto
 
 /-- Every row and column band is encoded exactly once into its shared flat block. The
 actual input contains only the three scalar parameters and signed matrices. `w` is the signed

@@ -36,16 +36,12 @@ PRF advantage of any adaptive adversary `A` against `hashThenPRF H F` by the PRF
 (`Cslib.Probability.IsUniversalHash`) and `A` makes at most `Q` queries on every path,
 `Cslib.Crypto.PRF.advantage_hashThenPRF_le` bounds that second term by `Q.choose 2 * ε`.
 
-These bounds are steps toward [BonehShoup2023], Theorem 7.7, not the cited result. This module
-stays at the finite query-bound level without running-time certificates:
-`hashReduction` and `idealQueries` carry query-count / output-length certificates
-(`Cslib.Crypto.PRF.isQueryBounded_hashReduction`,
-`Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`), not `IsPPT` or `IsOraclePPT`
-certificates, and `IsUniversalHash` is an `ε`-bounded UHF for one fixed instance (the `ε`-UHF of
-Definition 7.2) rather than a computational UHF. No asymptotic negligible-advantage theorem is
-proved here: these are concrete, finite-type bounds, `hashReduction` has no efficiency witness
-yet, and the asymptotic Theorem 7.7 with that witness is owned by
-[#5790](https://github.com/cslib-community/cslib-frontier/issues/5790).
+These finite-type bounds give query-count and output-length guarantees through
+`Cslib.Crypto.PRF.isQueryBounded_hashReduction` and
+`Cslib.Crypto.PRF.length_le_of_mem_support_idealQueries`. `IsUniversalHash` supplies a collision
+bound at one instance. The computational form of Theorem 7.7, with strict PPT certificates and
+negligible advantage, is `Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable` in
+`CslibFrontier/Crypto/Computational/PseudorandomFunction/HashThenPRF.lean`.
 
 Conversely, `Cslib.Crypto.PRF.toOuterMeasure_collision_le_advantage_collisionDistinguisher`
 formalizes the observation of Section 7.3 (p. 263) that two distinct messages colliding with
@@ -224,9 +220,8 @@ theorem advantage_idealExperiment_hashReduction_le [Fintype K₁] [Nonempty K₁
 (Version 0.6, Section 7.3, pp. 262–263), not the cited result: for every `H`, `F`, and adversary
 `A`, the distinguishing advantage against `hashThenPRF H F` is bounded by the advantage of
 `hashReduction H A` against `F` plus the probability that `idealQueries A` wins the multi-query
-UHF game against `H`. In the book `B_F` and `B'_H` are elementary wrappers around `A`, and the
-theorem concludes that the composition is a secure PRF; nothing here certifies `hashReduction` as
-efficient, and the asymptotic theorem is open (#5790). -/
+UHF game against `H`. This finite result counts oracle queries. The computational form is
+`Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable`. -/
 theorem advantage_hashThenPRF_le_add_multiQuery [Fintype K₁] [Nonempty K₁] [Fintype K₂]
     [Nonempty K₂] [Fintype M] [DecidableEq M] [Fintype Y] [DecidableEq Y] [Fintype Z]
     [Nonempty Z] (H : K₁ → M → Y) (F : K₂ → Y → Z) (A : Adversary M Z) :
@@ -246,10 +241,8 @@ theorem advantage_hashThenPRF_le_add_multiQuery [Fintype K₁] [Nonempty K₁] [
 /-- Concrete bound for finite types and an `ε`-bounded UHF, a step toward [BonehShoup2023],
 Theorem 7.7 (Version 0.6, Section 7.3, p. 262), not the cited result: for an adversary making at
 most `Q` queries, `advantage (hashThenPRF H F) A ≤ advantage F (hashReduction H A) + C(Q, 2) · ε`.
-Theorem 7.7 assumes only a computational UHF, uses efficient wrappers and concludes that the
-composition is a secure PRF; here the hash is `ε`-bounded for one fixed instance, with any `ε`
-(Definition 7.2 calls it statistical only when `ε` is negligible), `hashReduction` has no
-efficiency certificate, and the asymptotic theorem is open (#5790). -/
+This finite result assumes an `ε` collision bound at one instance and counts oracle queries.
+The computational form is `Cslib.Crypto.PRF.hashThenPRFWord_indistinguishable`. -/
 theorem advantage_hashThenPRF_le [Fintype K₁] [Nonempty K₁] [Fintype K₂] [Nonempty K₂]
     [Fintype M] [DecidableEq M] [Fintype Y] [DecidableEq Y] [Fintype Z] [Nonempty Z]
     {H : K₁ → M → Y} {ε : ℝ≥0∞} (hH : IsUniversalHash (PMF.uniformOfFintype K₁) H ε)
