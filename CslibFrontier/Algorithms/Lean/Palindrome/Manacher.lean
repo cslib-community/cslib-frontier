@@ -243,18 +243,8 @@ structure Span where
   stop : ℕ
   deriving DecidableEq, Repr
 
-/-- `bestCenter w` is always one of the `2 * w.length + 1` centers `0, …, 2 * w.length`. -/
-theorem bestCenter_le (w : List α) : bestCenter w ≤ 2 * w.length := by
-  unfold bestCenter
-  cases hm : (List.range (2 * w.length + 1)).argmax (fun c => 2 * radius w c + c % 2) with
-  | none => exact Nat.zero_le _
-  | some m =>
-    have hmem := List.mem_range.mp (List.argmax_mem hm)
-    simp only [Option.getD_some]
-    omega
-
 /-- The interval `[start, stop)` of `longestPalindrome w.toList`, read off `manacher w`. -/
-@[expose] def longestPalindromeSpan (w : Array α) : Span :=
+def longestPalindromeSpan (w : Array α) : Span :=
   let rad := manacher w
   let c := ((List.range rad.size).argmax fun c => 2 * rad.getD c 0 + c % 2).getD 0
   let k := rad.getD c 0

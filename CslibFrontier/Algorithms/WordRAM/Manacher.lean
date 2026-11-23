@@ -39,7 +39,8 @@ the strictly advancing right endpoint `R` of the furthest palindrome seen so far
 
 ## Main definitions
 
-* `Cslib.Algorithms.WordRAM.Manacher.Reg`: register names (`Fin 16`).
+* `Cslib.Algorithms.WordRAM.Manacher.Reg.regl`, `Reg.regr`, `Reg.out`: output span and
+  array-header registers (`Fin 16`).
 * `Cslib.Algorithms.WordRAM.Manacher.radiiCode`, `radiiProgram`: structured and flat programs
   computing all `2 * |xs| + 1` maximal palindromic radii.
 * `Cslib.Algorithms.WordRAM.Manacher.longestCode`, `longestProgram`: structured and flat programs
@@ -62,7 +63,7 @@ the strictly advancing right endpoint `R` of the furthest palindrome seen so far
   string*][ApostolicoBreslauerGalil1995]
 -/
 
-@[expose] public section
+public section
 
 namespace Cslib.Algorithms.WordRAM.Manacher
 
@@ -74,35 +75,35 @@ open Cslib.Algorithms.Lean.Palindrome
 namespace Reg
 
 /-- Constant zero (`0`). -/
-abbrev zero : Fin 16 := 0
+private abbrev zero : Fin 16 := 0
 /-- Constant one (`1`). -/
-abbrev one : Fin 16 := 1
+private abbrev one : Fin 16 := 1
 /-- Constant two (`2`). -/
-abbrev two : Fin 16 := 2
+private abbrev two : Fin 16 := 2
 /-- Input word length `n = |xs|`. -/
-abbrev len : Fin 16 := 3
+private abbrev len : Fin 16 := 3
 /-- Number of centers `2 * n + 1`. -/
-abbrev limit : Fin 16 := 4
+private abbrev limit : Fin 16 := 4
 /-- Base address `n + 2` of the radii entries `rad[0 .. 2 * n]`. -/
-abbrev radBase : Fin 16 := 5
+private abbrev radBase : Fin 16 := 5
 /-- Current center `c`. -/
-abbrev regc : Fin 16 := 6
+private abbrev regc : Fin 16 := 6
 /-- Center `C` whose maximal palindrome reaches furthest right so far. -/
-abbrev regC : Fin 16 := 7
+private abbrev regC : Fin 16 := 7
 /-- Right endpoint `R = (C + 1) / 2 + radius xs C` of the furthest palindrome. -/
-abbrev regR : Fin 16 := 8
+private abbrev regR : Fin 16 := 8
 /-- Left extension cursor `l` (1-indexed input address), and output span `start`. -/
 abbrev regl : Fin 16 := 9
 /-- Right extension cursor `r` (0-indexed input position), and output span `stop`. -/
 abbrev regr : Fin 16 := 10
 /-- Extension count `ext`, and best palindrome length in the argmax scan. -/
-abbrev ext : Fin 16 := 11
+private abbrev ext : Fin 16 := 11
 /-- Inner-loop flag `go`, and best center `bestCenter` in the argmax scan. -/
-abbrev go : Fin 16 := 12
+private abbrev go : Fin 16 := 12
 /-- Scratch register `t0`. -/
-abbrev t0 : Fin 16 := 13
+private abbrev t0 : Fin 16 := 13
 /-- Scratch register `t1`. -/
-abbrev t1 : Fin 16 := 14
+private abbrev t1 : Fin 16 := 14
 /-- Address register `out` of the length-prefixed output array. -/
 abbrev out : Fin 16 := 15
 
@@ -112,7 +113,7 @@ open Reg
 
 /-- Initialize constants, read input length `n`, write the radii header `2 * n + 1` at `n + 1`,
 store `rad[0] = 0` at `n + 2`, and start at center `c = 1` with `C = 0`, `R = 0`. -/
-def radiiSetup : Code .standard 16 := ram[
+private def radiiSetup : Code .standard 16 := ram[
   zero ← #0;
   one ← #1;
   two ← #2;
@@ -129,7 +130,7 @@ def radiiSetup : Code .standard 16 := ram[
 
 /-- One step of the outward character-extension loop. In `Data.init xs`, `xs[l - 1]` is at address
 `l` when `0 < l`, and `xs[r]` is at address `r + 1`. -/
-def extBody : Code .standard 16 := ram[
+private def extBody : Code .standard 16 := ram[
   if zero < regl then [
     if regr < len then [
       t0 ← regr + one;
@@ -150,14 +151,14 @@ def extBody : Code .standard 16 := ram[
   ] ]
 
 /-- Outward character-extension loop starting from `[regl, regr)`. -/
-def extLoop : Code .standard 16 := ram[
+private def extLoop : Code .standard 16 := ram[
   ext ← #0;
   go ← #1;
   while zero < go do [ ⟪extBody⟫ ] ]
 
 /-- Process center `regc`: compute mirror center `2 * C - c = C - (c - C)`, look up `m = rad[2C-c]`
 and truncation `b = R - (c + 1) / 2`, and either copy `m` or extend outward and advance `(C, R)`. -/
-def manacherBody : Code .standard 16 := ram[
+private def manacherBody : Code .standard 16 := ram[
   t0 ← regc - regC;
   t0 ← regC - t0;
   ⟪readAt t1 t0 radBase t0⟫;
@@ -192,7 +193,7 @@ def radiiCode : Code .standard 16 :=
 def radiiProgram : Program .standard 16 := radiiCode.program out
 
 /-- Body of the linear scan computing `bestCenter xs` across centers `1, …, 2 * n`. -/
-def argmaxBody : Code .standard 16 := ram[
+private def argmaxBody : Code .standard 16 := ram[
   ⟪readAt t1 t0 radBase regc⟫;
   t0 ← two * t0;
   t1 ← regc % two;
@@ -207,11 +208,11 @@ def argmaxBody : Code .standard 16 := ram[
 
 /-- Injective bank embedding `ArrayCopy`'s seven registers into `Fin 16`, keeping `regl`, `regr`,
 and `out` outside the bank. -/
-def copyBank : Fin 7 → Fin 16 := ![t1, regC, t0, regc, regR, ext, one]
+private def copyBank : Fin 7 → Fin 16 := ![t1, regC, t0, regc, regR, ext, one]
 
 /-- Scan the radii array at `radBase` for `bestCenter`, compute `longestPalindromeSpan` in
 `(regl, regr)`, and copy `xs[regl .. regr)` to a length-prefixed block at `out = 3 * |xs| + 3`. -/
-def extractLongestCode : Code .standard 16 :=
+private def extractLongestCode : Code .standard 16 :=
   .seq (ram[ go ← zero; ext ← zero; regc ← one ]) <|
   .seq (.loop (.lt regc limit) argmaxBody) <|
   .seq (ram[
@@ -626,7 +627,9 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
       y.regs regl = (longestPalindromeSpan xs.toArray).start ∧
       y.regs regr = (longestPalindromeSpan xs.toArray).stop ∧
       outputList y.mem (y.regs out) = longestPalindrome xs ∧
-      Fits w (y.regs out + (longestPalindrome xs).length) := by
+      y.regs out = 3 * xs.length + 3 ∧
+      Fits w (y.regs out + (longestPalindrome xs).length) ∧
+      Block.HoldsList 1 xs y.mem := by
   let f : ℕ → ℕ := fun i => 2 * radius xs i + i % 2
   let y₂ := ((y₁.set go 0).set ext 0).set regc 1
   have hinit : ExecWithin (B := .standard) w
@@ -769,8 +772,14 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
   have hlen_lp : (longestPalindrome xs).length = sp - st := by
     rw [← hextract_eq, List.extract_eq_take_drop, List.length_take, List.length_drop]
     omega
-  refine ⟨y, htotal, hy_regl.trans hst_eq, hy_regr.trans hsp_eq, ?_,
-    by rw [hy_out, hlen_lp]; exact hw.of_le (by omega)⟩
+  have hhold_xs : Block.HoldsList 1 xs y.mem := by
+    intro i
+    have hi : i.val < xs.length := i.isLt
+    change y.mem (1 + i.val) = xs[i.val]
+    rw [hy_mem, ArrayCopy.copyPrefix_outside (by omega), hy₄_mem, Function.update_of_ne (by omega)]
+    exact hy₁.input_holds i
+  refine ⟨y, htotal, hy_regl.trans hst_eq, hy_regr.trans hsp_eq, ?_, hy_out,
+    by rw [hy_out, hlen_lp]; exact hw.of_le (by omega), hhold_xs⟩
   rw [hy_out, ← hextract_eq, outputList_eq_iff]
   have hlen_ext : (xs.extract st sp).length = sp - st := by
     rw [List.extract_eq_take_drop, List.length_take, List.length_drop]
@@ -790,16 +799,19 @@ private theorem extractLongestCode_spec {w : ℕ} (xs : List ℕ) (hw : Fits w (
 word width `w` with `Fits w (4 * xs.length + 4)`, `longestCode` executes within
 `116 * xs.length + 36` instructions, leaving `(longestPalindromeSpan xs.toArray).start` in `regl`,
 `(longestPalindromeSpan xs.toArray).stop` in `regr`, and `longestPalindrome xs` as the
-length-prefixed array at `y.regs out = 3 * xs.length + 3`. -/
+length-prefixed array at `y.regs out = 3 * xs.length + 3`, while preserving `xs` at `1 .. |xs|`. -/
 theorem longestCode_exec {w : ℕ} (xs : List ℕ) (hw : Fits w (4 * xs.length + 4)) :
     ∃ y, ExecWithin w longestCode (Data.init xs) y (116 * xs.length + 36) ∧
       y.regs regl = (longestPalindromeSpan xs.toArray).start ∧
       y.regs regr = (longestPalindromeSpan xs.toArray).stop ∧
       outputList y.mem (y.regs out) = longestPalindrome xs ∧
-      Fits w (y.regs out + (longestPalindrome xs).length) := by
+      y.regs out = 3 * xs.length + 3 ∧
+      Fits w (y.regs out + (longestPalindrome xs).length) ∧
+      Block.HoldsList 1 xs y.mem := by
   obtain ⟨y₁, hradii, hy₁, hc_end⟩ := radiiCode_inv_exec xs (hw.of_le (by omega))
-  obtain ⟨y, hext, hst, hsp, hout, hfit⟩ := extractLongestCode_spec xs hw y₁ hy₁ hc_end
-  exact ⟨y, (hradii.seq hext).mono (by omega), hst, hsp, hout, hfit⟩
+  obtain ⟨y, hext, hst, hsp, hout, hout_eq, hfit, hhold⟩ :=
+    extractLongestCode_spec xs hw y₁ hy₁ hc_end
+  exact ⟨y, (hradii.seq hext).mono (by omega), hst, hsp, hout, hout_eq, hfit, hhold⟩
 
 /-- `longestProgram` computes `longestPalindrome xs` in `116 * |xs| + 37` instructions on every
 fitting word array at every word width fitting `4 * |xs| + 4`. -/
@@ -807,7 +819,7 @@ theorem longestProgram_computesListInTime :
     longestProgram.ComputesListInTime (fun _ xs => xs) (fun xs _ => 116 * xs.length + 37)
       (fun xs w => Fits w (4 * xs.length + 4)) longestPalindrome :=
   longestCode.computesListInTime_program out fun xs _ hw _ => by
-    obtain ⟨y, hexec, _, _, hout, hfit⟩ := longestCode_exec xs hw
+    obtain ⟨y, hexec, _, _, hout, _, hfit, _⟩ := longestCode_exec xs hw
     exact ⟨y, hexec, hout, hfit⟩
 
 end Cslib.Algorithms.WordRAM.Manacher

@@ -4,13 +4,16 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
+module
 -- upstream: local-only (test driver)
 
 import CslibFrontier.Init
 import CslibFrontier.Algorithms.Lean.Palindrome.Basic
 import CslibFrontier.Algorithms.Lean.Palindrome.Manacher
 import CslibFrontier.Algorithms.WordRAM.Manacher
-import CslibFrontier.Computability.WordRAM.Structured.FastEval
+meta import CslibFrontier.Algorithms.Lean.Palindrome.Manacher
+meta import CslibFrontier.Algorithms.WordRAM.Manacher
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 
 /-!
 # Manacher's Algorithm Tests
@@ -18,8 +21,11 @@ import CslibFrontier.Computability.WordRAM.Structured.FastEval
 Kernel-checked (`decide`) and executable (`#guard`) instances for the maximal palindromic radii
 `Cslib.Algorithms.Lean.Palindrome.radius`, the pure reference implementation
 `CslibFrontier.Algorithms.Lean.Palindrome.Manacher`, and the linear-time Word-RAM implementation
-`CslibFrontier.Algorithms.WordRAM.Manacher`, including boundary-width and non-vacuity checks.
+`CslibFrontier.Algorithms.WordRAM.Manacher`, including module-encapsulated client checks,
+boundary-width runs, and non-vacuity instantiations.
 -/
+
+set_option linter.privateModule false
 
 namespace Cslib.Algorithms.Lean.Palindrome.Tests
 
@@ -109,11 +115,11 @@ example : ¬ (['a', 'b', 'a', 'c', 'a', 'b', 'a'].take 2).Palindrome := by
 
 /-! ## Word-RAM execution and linear running-time checks -/
 
-private def evalRadii (w : ℕ) (xs : List ℕ) : Option (List ℕ × ℕ) :=
+private meta def evalRadii (w : ℕ) (xs : List ℕ) : Option (List ℕ × ℕ) :=
   (radiiCode.eval w (2 * xs.length + 2) (Data.init xs)).map fun (y, steps) =>
     (outputList y.mem (y.regs Reg.out), steps)
 
-private def evalLongest (w : ℕ) (xs : List ℕ) : Option (Span × List ℕ × ℕ) :=
+private meta def evalLongest (w : ℕ) (xs : List ℕ) : Option (Span × List ℕ × ℕ) :=
   (longestCode.eval w (2 * xs.length + 2) (Data.init xs)).map fun (y, steps) =>
     (⟨y.regs Reg.regl, y.regs Reg.regr⟩, outputList y.mem (y.regs Reg.out), steps)
 
@@ -134,10 +140,30 @@ private def evalLongest (w : ℕ) (xs : List ℕ) : Option (Span × List ℕ × 
     sp == ⟨0, 4⟩ && pal == [1, 2, 2, 1] && steps ≤ 116 * 4 + 36
   | none => false
 
+-- All-equal letters [1, 1, 1, 1].
+#guard match evalRadii 5 [1, 1, 1, 1] with
+  | some (rads, steps) =>
+    rads == [0, 0, 1, 1, 2, 1, 1, 0, 0] && steps ≤ 87 * 4 + 15
+  | none => false
+
+#guard match evalLongest 5 [1, 1, 1, 1] with
+  | some (sp, pal, steps) =>
+    sp == ⟨0, 4⟩ && pal == [1, 1, 1, 1] && steps ≤ 116 * 4 + 36
+  | none => false
+
 -- Distinct letters [1, 2, 3, 4]: tie-breaking selects first letter span ⟨0, 1⟩.
 #guard match evalLongest 6 [1, 2, 3, 4] with
   | some (sp, pal, steps) =>
     sp == ⟨0, 1⟩ && pal == [1] && steps ≤ 116 * 4 + 36
+  | none => false
+
+-- Single-letter word [7] at width 4 (2^4 = 16 > 4 * 1 + 4 = 8).
+#guard match evalRadii 4 [7] with
+  | some (rads, steps) => rads == [0, 0, 0] && steps ≤ 87 + 15
+  | none => false
+
+#guard match evalLongest 4 [7] with
+  | some (sp, pal, steps) => sp == ⟨0, 1⟩ && pal == [7] && steps ≤ 116 + 36
   | none => false
 
 -- Empty word at minimal valid widths: w = 2 for `radiiCode` (3*0+2 = 2 < 4)
