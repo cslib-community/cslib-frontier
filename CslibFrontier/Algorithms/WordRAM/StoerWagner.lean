@@ -150,8 +150,8 @@ end
 /-! ### Local `Memory.Prog` simplification and loop-invariant combinators -/
 
 -- Local `simp`-indexed forms matching `StateTransitionSpec.fst_snd_runClient_bind`.
-attribute [local client_simps] fst_snd_runClient_read fst_snd_runClient_write
-  fst_snd_runClient_allocDirty fst_snd_runClient_ite map_eq_pure_bind
+attribute [local client_simps] StateTransitionSpec.clientState
+  runClient_read runClient_write runClient_allocDirty runClient_ite map_eq_pure_bind
 
 private theorem iterate_spec {δ σ : Type} (body : δ × σ → Memory.Prog σ)
     (Safe : ℕ → δ × σ → Memory.State → Prop) (w : ℕ) (d : δ) (stepCost N : ℕ)
@@ -810,9 +810,9 @@ private theorem maPickMaxProg_spec {w : ℕ} (a : InitMAArgs)
       · unfold maPickStep
         dsimp only
         rw [hst_i]
-        simp only [client_simps, hu_k, hk_k]
+        simp only [client_simps, hu_k]
         cases huk : used kFin
-        · simp only [Bool.false_eq_true, ↓reduceIte, client_simps]
+        · simp only [Bool.false_eq_true, ↓reduceIte, client_simps, hk_k]
           rcases hinv with ⟨hhas, hall⟩ | ⟨hhas, b, hbk, hbi, hbk_eq, hub, hmax, hfirst⟩
           · simp only [hhas, ↓reduceIte, client_simps]
             refine ⟨trivial, trivial,
@@ -998,9 +998,9 @@ private theorem maUpdateKeysProg_spec {w : ℕ} (a : MAUpdArgs)
         · simp [h1, client_simps]
       · unfold maUpdateStep
         dsimp only
-        simp only [client_simps, hu_k, hm_k]
+        simp only [client_simps, hu_k]
         cases huy : used yFin
-        · simp only [Bool.false_eq_true, ↓reduceIte, client_simps]
+        · simp only [Bool.false_eq_true, ↓reduceIte, client_simps, hm_k]
           have hky : s.mem (a.kb + k) = attachWeight W A yFin := by
             simpa [yFin] using hkeys yFin huy
           refine ⟨trivial, hfr, fun addr haddr => ?_, fun y hy => ?_⟩

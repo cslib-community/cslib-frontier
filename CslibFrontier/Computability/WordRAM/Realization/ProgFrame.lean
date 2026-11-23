@@ -36,8 +36,6 @@ This module provides width-independent reasoning principles for `Memory.Prog` cl
 * `clientState_read`, `clientResult_read`, `clientState_write`, `clientResult_write`,
   `clientState_allocDirty`, `clientResult_allocDirty`,
   `runClient_allocDirty`, `runClient_map`, `runClient_ite`,
-  `fst_snd_runClient_read`, `fst_snd_runClient_write`, `fst_snd_runClient_allocDirty`,
-  `fst_snd_runClient_ite`,
   `prog_clientResult_map`, `prog_clientState_ite`, `prog_clientResult_ite`,
   `state_frontier_ite`, `state_mem_ite`, `memoryCost_read`, `memoryCost_write`,
   `memoryCost_alloc`, `memoryCost_allocDirty`, `memoryCost_ite`: primitive state, result, and cost
@@ -112,29 +110,6 @@ theorem runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
     (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
     (Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α) =
       if c then (Memory.spec w).runClient s p₁ else (Memory.spec w).runClient s p₂ := by
-  split_ifs <;> rfl
-
-/-- `runClient` state projection for `Memory.read`, matching `fst_snd_runClient_bind`. -/
-theorem fst_snd_runClient_read (w : ℕ) (s : Memory.State) (a : ℕ) :
-    Prod.fst (Prod.snd ((Memory.spec w).runClient s (Memory.read a))) = s := rfl
-
-/-- `runClient` state projection for `Memory.write`, matching `fst_snd_runClient_bind`. -/
-theorem fst_snd_runClient_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
-    Prod.fst (Prod.snd ((Memory.spec w).runClient s (Memory.write a v))) =
-      ⟨Function.update s.mem a v, s.frontier⟩ :=
-  Eq.trans rfl rfl
-
-/-- `runClient` state projection for `Memory.allocDirty`, matching `fst_snd_runClient_bind`. -/
-theorem fst_snd_runClient_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
-    Prod.fst (Prod.snd ((Memory.spec w).runClient s (Memory.allocDirty k))) =
-      ⟨s.mem, s.frontier + k⟩ :=
-  Eq.trans rfl rfl
-
-/-- `runClient` state projection for a conditional branch, matching `fst_snd_runClient_bind`. -/
-theorem fst_snd_runClient_ite {α : Type} (w : ℕ) (c : Prop) [Decidable c]
-    (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
-    Prod.fst (Prod.snd ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α))) =
-      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
   split_ifs <;> rfl
 
 @[client_simps] theorem prog_clientResult_map {α β : Type} (w : ℕ)

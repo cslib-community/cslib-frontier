@@ -110,14 +110,30 @@ open Cslib.WordRAM.Realization
 open Cslib.WordRAM.Realization.Signed
 
 -- Local `simp`-indexed forms matching `StateTransitionSpec.fst_snd_runClient_bind`.
-attribute [local client_simps] fst_snd_runClient_read fst_snd_runClient_write
-  fst_snd_runClient_allocDirty fst_snd_runClient_ite
+@[local client_simps] private theorem local_fst_snd_read (w : ℕ) (s : Memory.State) (a : ℕ) :
+    ((Memory.spec w).runClient s (Memory.read a)).2.1 = s := by
+  rw [runClient_read]
+
+@[local client_simps] private theorem local_fst_snd_write (w : ℕ) (s : Memory.State) (a v : ℕ) :
+    ((Memory.spec w).runClient s (Memory.write a v)).2.1 =
+      ⟨Function.update s.mem a v, s.frontier⟩ := by
+  rw [runClient_write]
+
+@[local client_simps] private theorem local_fst_snd_allocDirty (w : ℕ) (s : Memory.State) (k : ℕ) :
+    ((Memory.spec w).runClient s (Memory.allocDirty k)).2.1 = ⟨s.mem, s.frontier + k⟩ := by
+  rw [runClient_allocDirty]
 
 @[local client_simps] private theorem local_fst_snd_map {α β : Type} (w : ℕ)
     (s : Memory.State) (g : α → β) (p : Memory.Prog α) :
     ((Memory.spec w).runClient s (g <$> p : Memory.Prog β)).2.1 =
       (Memory.spec w).clientState s p := by
   rw [runClient_map]
+
+@[local client_simps] private theorem local_fst_snd_ite {α : Type} (w : ℕ)
+    (c : Prop) [Decidable c] (p₁ p₂ : Memory.Prog α) (s : Memory.State) :
+    ((Memory.spec w).runClient s (if c then p₁ else p₂ : Memory.Prog α)).2.1 =
+      if c then (Memory.spec w).clientState s p₁ else (Memory.spec w).clientState s p₂ := by
+  rw [runClient_ite]; split_ifs <;> rfl
 
 @[local client_simps] private theorem local_fst_snd_signedNegProg (w : ℕ)
     (s : Memory.State) (u : ℕ) :
