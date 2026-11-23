@@ -1108,7 +1108,9 @@ public import CslibFrontier.Computability.Circuit.Approximation.Hamming
 public import CslibFrontier.Computability.Circuit.Arithmetic
 public import CslibFrontier.Computability.Circuit.Arithmetic.Adjugate
 public import CslibFrontier.Computability.Circuit.Arithmetic.BitBlast
+public import CslibFrontier.Computability.Circuit.Arithmetic.Border
 public import CslibFrontier.Computability.Circuit.Arithmetic.CircuitLowerBound
+public import CslibFrontier.Computability.Circuit.Arithmetic.ComputedWithin
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.Asymptotics
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.CircuitRank
 public import CslibFrontier.Computability.Circuit.Arithmetic.DepthFive.DegreeEstimates
@@ -1146,6 +1148,8 @@ public import CslibFrontier.Computability.Circuit.Arithmetic.FormulaInterpolatio
 public import CslibFrontier.Computability.Circuit.Arithmetic.FormulaOps
 public import CslibFrontier.Computability.Circuit.Arithmetic.GeneralLowerBound
 public import CslibFrontier.Computability.Circuit.Arithmetic.Gradient
+public import CslibFrontier.Computability.Circuit.Arithmetic.GridSum
+public import CslibFrontier.Computability.Circuit.Arithmetic.HamiltonianCycle
 public import CslibFrontier.Computability.Circuit.Arithmetic.Hessian
 public import CslibFrontier.Computability.Circuit.Arithmetic.Hessian.SourceComplexity
 public import CslibFrontier.Computability.Circuit.Arithmetic.HittingSet.AlgebraicIndependent
@@ -7697,12 +7701,15 @@ public import CslibFrontier.Foundations.Data.List.TakeQuantifiers
 public import CslibFrontier.Foundations.Data.List.TwoBitTable
 public import CslibFrontier.Foundations.Data.List.UnaryCode
 public import CslibFrontier.Foundations.Data.Matrix.Binary
+public import CslibFrontier.Foundations.Data.Matrix.HamiltonianCycle
+public import CslibFrontier.Foundations.Data.Matrix.HamiltonianCycle.Grid
 public import CslibFrontier.Foundations.Data.Matrix.IntegerBits
 public import CslibFrontier.Foundations.Data.Matrix.PairChunks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Blocks
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.BooleanSum
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Determinant
+public import CslibFrontier.Foundations.Data.Matrix.Permanent.Grid
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Line
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Relay
 public import CslibFrontier.Foundations.Data.Matrix.Permanent.Split
@@ -8358,6 +8365,7 @@ public import CslibFrontier.Foundations.RingTheory.CyclicIntRing.Coefficients
 public import CslibFrontier.Foundations.RingTheory.Derivation.Determinant
 public import CslibFrontier.Foundations.RingTheory.Derivation.Wronskian
 public import CslibFrontier.Foundations.RingTheory.GaloisRing
+public import CslibFrontier.Foundations.RingTheory.LaurentSeries
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.Basis
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CharpolyCoeffNorm
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CoordinateCharacteristicPolynomial
