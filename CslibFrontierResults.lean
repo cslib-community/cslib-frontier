@@ -1,4 +1,5 @@
 import CslibFrontierResults.Entries
+import CslibFrontierResults.Entries.AlternatingTimeSpace
 import CslibFrontierResults.Entries.CBCMAC
 import CslibFrontierResults.Entries.DFSWordRAM
 import CslibFrontierResults.Entries.DeterminantalUniversality
@@ -6,6 +7,7 @@ import CslibFrontierResults.Entries.DistributedConcurrentObjects
 import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
+import CslibFrontierResults.Entries.HalfBlockPRPCCA
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
@@ -15,8 +17,11 @@ import CslibFrontierResults.Entries.ODonnellNearlyConstantNoise
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
+import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevBkSequence
+import CslibFrontierResults.Entries.SergeevMonotoneShift
+import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Registry

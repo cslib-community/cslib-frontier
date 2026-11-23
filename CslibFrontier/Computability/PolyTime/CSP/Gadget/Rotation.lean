@@ -48,17 +48,12 @@ binary entries as data and uses only the table length as its iteration clock. -/
 theorem computableInPolyTime_cycleWord :
     ComputableInPolyTime (fun p : Graph.RotationCertificate × ℕ => cycleWord p.1 p.2)
       (encPair Graph.encRotationCertificate encNat) (encList encNat) := by
-  have hs := Graph.RotationCertificate.computableInPolyTime_successor
-  have hw := Graph.RotationCertificate.computableInPolyTime_walk
   have hf : ComputableInPolyTime (fun p : Graph.RotationCertificate × ℕ =>
       (List.range p.1.successor.length).map fun k =>
         Graph.RotationCertificate.walk p.1.successor (k + 1) p.2)
       (encPair Graph.encRotationCertificate encNat) (encList encNat) := by
     apply ComputableInPolyTime.mapWithInput (encA := encUnary) (by fun_prop)
-    exact hw.comp (g := fun p : (Graph.RotationCertificate × ℕ) × ℕ =>
-      ((p.1.1.successor, p.2 + 1), p.1.2)) (by
-        unfold Graph.RotationCertificate.encRotationWalk
-        fun_prop)
+    fun_prop
   unfold cycleWord
   fun_prop
 
@@ -335,8 +330,7 @@ theorem computableInPolyTime_certificate (encRel : Rel ↪ List Bool) :
       (ComputableInPolyTime.unary_to_binary.comp
         (ComputableInPolyTime.snd (encTargetCycles encRel) encUnary))
     simpa only [Function.comp_def, List.map_id'] using h
-  have hmk := Graph.encRotationCertificate_mk_deg.computableInPolyTime
-  exact hmk.comp hbinary
+  exact Graph.encRotationCertificate_mk_polyTime hbinary
 
 /-- Full native computation of the explicit candidate target certificate from the original
 CSP and original binary source certificate. There is no valid-input premise on this bound. -/
