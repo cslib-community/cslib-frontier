@@ -15,10 +15,10 @@ import CslibFrontier.Tactic.StrideOmega
 import CslibFrontier.Tactic.WramOmega
 
 /-!
-# In-Epoch Resizable Succinct Compacted Representation and In-Epoch Primitives (Milestone M3a)
+# In-Epoch Resizable Succinct Compacted Representation and Primitives
 
-This module formalizes Milestone `M3a` (part of `#3167`) of the resizable succinct dynamic
-dictionary on the word-granular **Resizable Word RAM** (`Cslib.WordRAM.Resizable`).
+This module formalizes the compacted epoch representation and live invariants of the resizable
+succinct dynamic dictionary on the word-granular **Resizable Word RAM** (`Cslib.WordRAM.Resizable`).
 
 It establishes:
 1. **Static `1 · OPT` compacted epoch footprint bounds** (`compactedEpochWords_le_succinctWords`,
@@ -28,16 +28,10 @@ It establishes:
    `11 = 5 + 6` bounds the quotient-bit slack (5 from Feistel quotient/val vs `optBits` and
    6 from `quotientBits U N ≤ quotientBits U n + 6` via `N ≤ 4 * n`), and `1344 = 16 * 84`
    bounds the `84 * N * logLogFactor N` metadata arrays via `N ≤ 4 * n` and
-   `logLogFactor N ≤ 4 * logLogFactor n` (the static footprint formula constant is 1355;
-   ≤ 680 is the T59 §5.3 window-shift constant for operational dynamic windows in M3b).
+   `logLogFactor N ≤ 4 * logLogFactor n`.
 2. **Dense key reconstruction and live representation invariants** (`reconstructKeyAt_spec`,
    `CompactedSplitRep`, `CompactedRep`, `compactedRep_empty`): every dense slot $d < n$
    reconstructs a live $(u, v)$ in $s_{\mathrm{abs}}$ injectively and surjectively.
-
-Operational execution (`inEpochOpCode`, `PeakFrontierLe ≤ base + compactedEpochWords`, and $O(1)$
-expected amortized dynamic step bounds) is deferred to Milestone `M3b` (see GitHub issue
-comment https://github.com/cslib-community/cslib-frontier/issues/3167#issuecomment-6871600467
-and `ROADMAP.md`).
 
 ## Main definitions
 

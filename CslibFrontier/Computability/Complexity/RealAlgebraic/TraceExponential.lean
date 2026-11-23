@@ -11,6 +11,7 @@ public import Mathlib.Algebra.Polynomial.OfFn
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.CoefficientEvaluation
 public import CslibFrontier.Computability.Complexity.RealAlgebraic.Factorial
 public import CslibFrontier.Foundations.Data.Polynomial.FiniteExponential
+import CslibFrontier.Computability.Complexity.Classes.CountingHierarchy.PolynomialEvaluation
 
 /-!
 # Modular coefficients of a finite exponential
@@ -36,33 +37,27 @@ namespace Cslib.Complexity.RealAlgebraic
 open Cslib Cslib.Complexity Turing.MultiTapeTM Polynomial
 open scoped BigOperators
 
-/-- Modular evaluation of a polynomial from its uniform coefficient residues. -/
-@[expose] noncomputable def coefficientPolynomialResidue (p D z : ℕ) (c : ℕ → ℕ) : ℕ :=
-  (∑ k ∈ Finset.range (D + 1), c k * powMod p z k) % p
-
 /-- Modular evaluation of the truncated exponential, using only short indices. -/
-@[expose] noncomputable def truncatedExponentialResidue (p D z : ℕ) (c : ℕ → ℕ) : ℕ :=
+noncomputable def truncatedExponentialResidue (p D z : ℕ) (c : ℕ → ℕ) : ℕ :=
   (∑ j ∈ Finset.range (D + 1),
     powMod p (factorialResidue p j) (p - 2) *
-      powMod p (coefficientPolynomialResidue p D z c) j) % p
+      powMod p (polynomialResidue p D z c) j) % p
 
 /-- Coefficient reconstruction is one more uniform Fourier sum. -/
 @[expose] noncomputable def truncatedExponentialCoefficient (p D k : ℕ) (c : ℕ → ℕ) : ℕ :=
   coefficientResidue p k (fun z => truncatedExponentialResidue p D z c)
 
-theorem coefficientPolynomialResidue_cast {p : ℕ} [Fact p.Prime] (D z : ℕ) (c : ℕ → ℕ) :
-    (coefficientPolynomialResidue p D z c : ZMod p) =
-      (ofFn (D + 1) (fun k => (c k : ZMod p))).eval (z : ZMod p) := by
-  rw [ofFn_eq_sum_monomial]
-  simp only [coefficientPolynomialResidue, ZMod.natCast_mod, Nat.cast_sum,
-    Polynomial.eval_finsetSum, Polynomial.eval_monomial, Nat.cast_mul,
-    powMod_of_ne_zero (Fact.out : p.Prime).ne_zero, ZMod.natCast_mod, Nat.cast_pow,
-    Finset.sum_range]
-
 theorem truncatedExponentialResidue_cast {p : ℕ} [Fact p.Prime] {D : ℕ}
     (hD : D < p) (z : ℕ) (c : ℕ → ℕ) :
     (truncatedExponentialResidue p D z c : ZMod p) =
       (finiteExponential D (ofFn (D + 1) (fun k => (c k : ZMod p)))).eval (z : ZMod p) := by
+  have heval : (polynomialResidue p D z c : ZMod p) =
+      (ofFn (D + 1) (fun k => (c k : ZMod p))).eval (z : ZMod p) := by
+    rw [← Polynomial.eval₂_id]
+    apply polynomialResidue_cast (Fact.out : p.Prime).ne_zero
+      _ _ _ _ (Nat.le_of_lt_succ (ofFn_natDegree_lt (Nat.zero_lt_succ D) _))
+    intro k hk
+    rw [ofFn_coeff_eq_val_of_lt _ (Nat.lt_succ_of_le hk), RingHom.id_apply]
   simp only [truncatedExponentialResidue, ZMod.natCast_mod, Nat.cast_sum,
     finiteExponential, Polynomial.eval_finsetSum, Polynomial.eval_mul,
     Polynomial.eval_C, Polynomial.eval_pow, Nat.cast_mul]
@@ -70,7 +65,7 @@ theorem truncatedExponentialResidue_cast {p : ℕ} [Fact p.Prime] {D : ℕ}
   intro j hj
   rw [factorialResidue_inverse (by have := Finset.mem_range.mp hj; omega),
     powMod_of_ne_zero (Fact.out : p.Prime).ne_zero, ZMod.natCast_mod,
-    Nat.cast_pow, coefficientPolynomialResidue_cast]
+    Nat.cast_pow, heval]
 
 /-- Correct canonical coefficients of the actual truncated-exponential polynomial. -/
 theorem truncatedExponentialCoefficient_eq {p : ℕ} [Fact p.Prime] {D k : ℕ}
@@ -89,23 +84,6 @@ theorem truncatedExponentialCoefficient_eq {p : ℕ} [Fact p.Prime] {D k : ℕ}
 
 variable {α : Type} {enc : α ↪ List Bool} {a : ℕ}
 
-/-- One sum evaluates a coefficient-specified polynomial with binary degree bound. -/
-theorem coefficientPolynomialResidue_mem (E : Decoder enc) {p D z : α → ℕ}
-    {c : α × ℕ → ℕ} (hp : ComputableInPolyTime p enc encNat)
-    (hD : ComputableInPolyTime D enc encNat) (hz : ComputableInPolyTime z enc encNat)
-    (hc : c ∈ CountingFunction a (encPair enc encNat) encNat) :
-    (fun w => coefficientPolynomialResidue (p w) (D w) (z w) (fun k => c (w, k))) ∈
-      CountingFunction (a + 1) enc encNat := by
-  have hp' := hp.comp (ComputableInPolyTime.fst enc encNat)
-  have hz' := hz.comp (ComputableInPolyTime.fst enc encNat)
-  have hpower := CountingFunction.powMod (a := a) (CountingFunction.of_polyTime hp')
-    (CountingFunction.of_polyTime hz')
-    (CountingFunction.of_polyTime (ComputableInPolyTime.snd enc encNat))
-  exact CountingFunction.nat_mod
-    (CountingFunction.sum_range E (CountingFunction.nat_mul hc hpower)
-      (ComputableInPolyTime.binary_add' hD (.const 1)))
-    (CountingFunction.of_polyTime hp)
-
 /-- The factorial and inner-sum oracles combine at one fixed maximum level. -/
 theorem truncatedExponentialResidue_mem (E : Decoder enc) {p D z : α → ℕ}
     {c : α × ℕ → ℕ} (hp : ComputableInPolyTime p enc encNat)
@@ -114,7 +92,7 @@ theorem truncatedExponentialResidue_mem (E : Decoder enc) {p D z : α → ℕ}
     (fun w => truncatedExponentialResidue (p w) (D w) (z w) (fun k => c (w, k))) ∈
       CountingFunction (max (a + 1) 3 + 1) enc encNat := by
   have hp' := hp.comp (ComputableInPolyTime.fst enc encNat)
-  have hs := coefficientPolynomialResidue_mem E hp hD hz hc
+  have hs := polynomialResidue_mem E hp hD hz hc
   have hs' := CountingFunction.preprocess (input := encPair enc encNat) hs
     (g := fun q : α × ℕ => q.1) (ComputableInPolyTime.fst enc encNat)
   have hfac := CountingFunction.preprocess (input := encPair enc encNat) factorialResidue_mem
