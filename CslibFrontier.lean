@@ -4209,6 +4209,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.S
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Savitch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.SavitchWalk
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.SpaceInTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Sublinear
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Translate
@@ -5869,6 +5870,7 @@ public import CslibFrontier.Crypto.Computational.Pseudoentropy.WordSeedExtractio
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.CircuitLowerBound
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Coins
+public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Domain
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Finite
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.HashThenPRF
 public import CslibFrontier.Crypto.Computational.PseudorandomFunction.Label
@@ -6483,7 +6485,13 @@ public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeR
 public import CslibFrontier.DataStructure.Dictionary.SubconstantRedundancy.TreeRouting
 public import CslibFrontier.DataStructure.Dictionary.SuccinctBucket
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpBufferTrie
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFallback
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpFastProb
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModel
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelStep
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpModelTick
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpParams
+public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpProb
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTree
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTreeInsert
 public import CslibFrontier.DataStructure.Dictionary.SuccinctWhpSwarBTreeSpec
@@ -6536,6 +6544,19 @@ public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlabPool
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSlotInv
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctTailOps
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctValidHistory
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhp
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBTreeProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpBufferTrieProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpEpochTickProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastBaseProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpFastOpProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpHashProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpLayout
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpPermHealProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSeedCheckProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSmallCsrProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpSwarProg
+public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctWhpTickHealProg
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.UniformProbing
 public import CslibFrontier.DataStructure.DisjointSet.Spec
 public import CslibFrontier.DataStructure.DisjointSet.UnionFind
@@ -6970,6 +6991,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Choose
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Dimension
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.OrTest
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegree.Polynomial
+public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeGranularity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeMoments
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreeParity
 public import CslibFrontier.Foundations.BooleanAnalysis.LowDegreePart
@@ -9026,6 +9048,7 @@ public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Circu
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.GGM
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.Inversion
 public import CslibFrontier.MachineLearning.UniformLearning.CryptoHardness.NaturalProperty
+public import CslibFrontier.MachineLearning.UniformLearning.ExactLowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.KushilevitzMansour
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegree
 public import CslibFrontier.MachineLearning.UniformLearning.LowDegreeClasses
