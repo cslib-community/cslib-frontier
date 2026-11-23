@@ -517,10 +517,7 @@ theorem run_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F B
       intro o ho
       exact of_decide_eq_true (List.mem_filter.mp ho).2
 termination_by remaining.length
-decreasing_by
-  have hm : _ ∈ remaining := List.mem_of_find?_eq_some ‹_›
-  have := List.length_pos_of_mem hm
-  exact (List.length_filter_le _ _).trans_lt (by rw [List.length_erase_of_mem hm]; omega)
+decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
 
 /-- Every terminal event in a fresh run has evidence obtained from its real scans. -/
 theorem search_trace (sem : Rel → List Bool → Bool) (f : OccurrenceLabeling F Bool)

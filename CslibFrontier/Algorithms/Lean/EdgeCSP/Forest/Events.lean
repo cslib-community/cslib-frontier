@@ -944,10 +944,7 @@ theorem run_event_roots (sem : Rel → List Bool → Bool) (f : OccurrenceLabeli
       · assumption
     next os => exact run_event_roots sem f rs _ _
 termination_by remaining.length
-decreasing_by
-  have hm : _ ∈ remaining := List.mem_of_find?_eq_some ‹_›
-  have := List.length_pos_of_mem hm
-  exact (List.length_filter_le _ _).trans_lt (by rw [List.length_erase_of_mem hm]; omega)
+decreasing_by exact length_filter_erase_lt (List.mem_of_find?_eq_some ‹_›)
 
 /-- Source Proposition 38 for a fresh executable run: an actual returned augmentation is
 an augmenting f-walk and its flip is valid and removes exactly two defects. -/
