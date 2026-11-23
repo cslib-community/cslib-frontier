@@ -2868,7 +2868,6 @@ private theorem partitionLive_realizes :
   · exact h.2.1.of_le (by omega)
   · exact h.2.1.of_le (by omega)
   · exact h.2.1.of_le (by omega)
-  · exact h.2.1.of_le (by omega)
   · obtain ⟨h1, hfit, live, hlen, hlive⟩ := h
     let bBase := s.frontier
     let rBuf := s.frontier + 4 * d.liveLen
@@ -5410,7 +5409,6 @@ private theorem initFactors_realizes :
   unfold initFactors
   realize [writeDesc_realizes]
   · obtain ⟨_, _, hfit, _, _⟩ := h; exact hfit.of_le (by omega)
-  · obtain ⟨_, h4, _, _, _⟩ := h; exact h4
   · obtain ⟨factors₀, _, hfit, hlen₀, hraw₀⟩ := h
     let s₁ : Memory.State := ⟨s.mem, s.frontier + 4 * d.2⟩
     have hwf₁ : Memory.WellFormed w s₁ := ⟨hfit, hmem.mem_fits⟩

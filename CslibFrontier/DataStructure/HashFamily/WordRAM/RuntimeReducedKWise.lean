@@ -391,7 +391,7 @@ theorem realizesBounded_evalHashGen :
     rcases d with ⟨hp, hashBase, scratchBase, uVal⟩
     obtain ⟨U, w₀, b, b', k, θ, u, hw₀_pos, hw₀, hU, hb', hk_pos, hc_lt, rfl, rfl,
       hfr_h, hfit_h, hfr_s, hfit_s, hdisj, hrep⟩ := h
-    try (dsimp only [hpL0_mk, hpK_mk, hpB'_mk] at *)
+    dsimp only [hpL0_mk, hpK_mk, hpB'_mk] at *
     dsimp only [accWords, prodWords, scratchWords] at *
     have hL_le : rLimbs w₀ b b' ≤ 54 := reducedLimbCount_le _
     have h2L0 : 2 * rHalf w₀ b b' = rLimbs w₀ b b' := rfl

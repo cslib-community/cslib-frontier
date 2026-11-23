@@ -553,7 +553,7 @@ private theorem realizesBounded_karatsubaHalf :
   all_goals (
     rcases d with ⟨hp, α, x'⟩
     obtain ⟨w₀, b, b', k, hw₀_pos, hw₀_le, hc_lt, rfl, hα_lt, hx'_lt⟩ := h
-    try (dsimp only [hpMaskM_mk, hpHalfM_mk, hpMaskH_mk, hpMaskMH_mk, hpMaskM2H_mk] at *)
+    dsimp only [hpMaskM_mk, hpHalfM_mk, hpMaskH_mk, hpMaskMH_mk, hpMaskM2H_mk] at *
     have _ := reducedChunkBits_pos (rStep w₀ b b')
     have _ : Fits w w := Nat.lt_two_pow_self
     have h_le : (w₀ - 1) / 2 ≤ w₀ - 1 := Nat.div_le_self _ 2
