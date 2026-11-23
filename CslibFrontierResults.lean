@@ -7,6 +7,7 @@ import CslibFrontierResults.Entries.DistributedVectorClock
 import CslibFrontierResults.Entries.FGLSS
 import CslibFrontierResults.Entries.HadamardRigidity
 import CslibFrontierResults.Entries.HalfBlockPRPCCA
+import CslibFrontierResults.Entries.HashThenPRF
 import CslibFrontierResults.Entries.MACVerificationQueries
 import CslibFrontierResults.Entries.MatrixRigidity
 import CslibFrontierResults.Entries.MinimumSpanningTree
@@ -20,5 +21,8 @@ import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.SergeevMonotoneShift
+import CslibFrontierResults.Entries.SergeevORComplement
+import CslibFrontierResults.Entries.SergeevPrefixDepth
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
+import CslibFrontierResults.Entries.TwoSATWordRAM
 import CslibFrontierResults.Registry

@@ -9,6 +9,9 @@ module
 
 public import CslibFrontier.Algorithms.Lean.DFS.SCC
 public import CslibFrontier.Algorithms.Lean.TwoSAT
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT
+public meta import CslibFrontier.Algorithms.WordRAM.TwoSAT
+meta import CslibFrontier.Computability.WordRAM.Structured.FastEval
 public import CslibFrontier.Computability.Complexity.Problems.TwoSAT.PolyTime
 public import CslibFrontier.Computability.Complexity.Problems.HornSAT
 
@@ -19,7 +22,8 @@ Kernel-checked examples (zero `native_decide`) exercising:
 1. Kosaraju's strongly connected components (`Cslib.Algorithms.Lean.DFS.sccs`, `sccsM`,
    `indexComponents`, `IsSCCCondensation`) on DAGs, cycles, and multi-component graphs with exact
    `3 * (|V| + |E|)` tick counts;
-2. Aspvall–Plass–Tarjan linear-time 2-SAT in `TimeM` (`Cslib.Algorithms.Lean.TwoSAT`);
+2. Aspvall–Plass–Tarjan linear-time 2-SAT (`Cslib.Algorithms.Lean.TwoSAT` and standard-basis
+   Word-RAM `Cslib.Algorithms.WordRAM.TwoSAT`);
 3. Native multi-tape Turing-machine polynomial-time `TwoSAT` decision and witness construction
    (`Cslib.Complexity.TwoSAT.solve`, `TwoSAT.assignment`, `TwoSAT.mem_P`), including sparse binary
    variable names;
@@ -34,6 +38,7 @@ namespace CslibFrontierTests.SCCAndTwoSAT
 open Cslib.Algorithms.Lean.DFS
 open Cslib.Logic.PL
 open Cslib.Complexity
+open Cslib.WordRAM
 
 /-! ### 1. Kosaraju strongly connected components -/
 
@@ -82,7 +87,12 @@ example :
 example : IsSCCCondensation twoCycles (sccs twoCycles (List.finRange 4)) :=
   isSCCCondensation_sccs List.mem_finRange
 
-/-! ### 2. Linear-time `TimeM` 2-SAT solver -/
+/-! ### 2. Linear-time 2-SAT solver (pure & standard-basis Word-RAM) -/
+
+private meta def runTwoSAT (G : Cslib.Algorithms.WordRAM.TwoSAT.Instance) (w : ℕ) :
+    Option (List ℕ × Bool) :=
+  (Cslib.Algorithms.WordRAM.TwoSAT.solver.eval w w (Data.init G.encode)).map fun (y, t) =>
+    (outputList y.mem G.outAddrBase, decide (t < 512 * (G.n + G.φ.length + 1)))
 
 /-- `(x₀ ∨ x₁) ∧ (¬x₀ ∨ x₂) ∧ (¬x₁ ∨ x₂)` forces `x₂ = true`. -/
 def satFin : CNF (Fin 3) :=
@@ -92,9 +102,71 @@ example :
     ((Cslib.Algorithms.Lean.TwoSAT.solveFin 3 satFin).any fun σ =>
       satFin.eval σ && σ 2) = true := by decide +kernel
 
-example :
-    (Cslib.Algorithms.Lean.TwoSAT.solveFinM 3 satFin).time ≤ 12 * 3 + 8 * satFin.length + 1 :=
-  Cslib.Algorithms.Lean.TwoSAT.time_solveFinM_le 3 satFin
+abbrev satInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨3, satFin⟩
+
+example : InputFits 16 satInst.encode := satInst.inputFits_encode (by decide +kernel)
+
+example : ∃ steps ≤ 512 * (3 + 3 + 1),
+    ExecutesList 16 Cslib.Algorithms.WordRAM.TwoSAT.program (State.init satInst.encode)
+      (Cslib.Algorithms.WordRAM.TwoSAT.answerWords satInst) steps :=
+  Cslib.Algorithms.WordRAM.TwoSAT.program_spec satInst (by decide +kernel)
+
+/-- info: some ([1, 0, 1, 1], true) -/
+#guard_msgs in
+#eval runTwoSAT satInst 16
+
+/-- Unsatisfiable `CNF (Fin 2)` instance returns `[]`. -/
+abbrev unsatFinInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
+  ⟨2, [[(0, true), (1, true)], [(0, true), (1, false)],
+       [(0, false), (1, true)], [(0, false), (1, false)]]⟩
+
+example : ∃ steps ≤ 512 * (2 + 4 + 1),
+    ExecutesList 16 Cslib.Algorithms.WordRAM.TwoSAT.program (State.init unsatFinInst.encode)
+      [] steps := by
+  have hans : Cslib.Algorithms.WordRAM.TwoSAT.answerWords unsatFinInst = [] := by decide +kernel
+  have h := Cslib.Algorithms.WordRAM.TwoSAT.program_spec unsatFinInst (w := 16) (by decide +kernel)
+  rwa [hans] at h
+
+/-- info: some ([], true) -/
+#guard_msgs in
+#eval runTwoSAT unsatFinInst 16
+
+/-- `n = 0` with empty formula `[]` returns `[1]` (satisfied by `Fin.elim0`), whereas `n = 0` with
+an empty clause `[[]]` returns `[]`. -/
+abbrev emptyFin0Inst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨0, []⟩
+abbrev emptyClauseFin0Inst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨0, [[]]⟩
+abbrev threeLitFinInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
+  ⟨3, [[(0, true), (1, true), (2, true)]]⟩
+
+/-- info: (some ([1], true), some ([], true), some ([], true)) -/
+#guard_msgs in
+#eval (runTwoSAT emptyFin0Inst 16, runTwoSAT emptyClauseFin0Inst 16, runTwoSAT threeLitFinInst 16)
+
+/-- Model boundaries of the implication graph: a unit clause `x₀` with `¬x₀ ∨ x₁` (unit arc
+`¬x₀ → x₀`), repeated-literal clauses `x₀ ∨ x₀` and `¬x₀ ∨ ¬x₀` (doubled self-implication arcs),
+a tautology `x₀ ∨ ¬x₀` (self-loop arcs `¬x₀ → ¬x₀` and `x₀ → x₀`), and contradictory unit
+clauses. -/
+abbrev unitInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
+  ⟨2, [[(0, true)], [(0, false), (1, true)]]⟩
+abbrev dupPosInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨1, [[(0, true), (0, true)]]⟩
+abbrev dupNegInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨1, [[(0, false), (0, false)]]⟩
+abbrev tautInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance := ⟨1, [[(0, true), (0, false)]]⟩
+abbrev unitClashInst : Cslib.Algorithms.WordRAM.TwoSAT.Instance :=
+  ⟨1, [[(0, true)], [(0, false)]]⟩
+
+example : Cslib.Algorithms.WordRAM.TwoSAT.answerWords unitInst = [1, 1, 1] := by decide +kernel
+
+example : Cslib.Algorithms.WordRAM.TwoSAT.answerWords dupPosInst = [1, 1] ∧
+    Cslib.Algorithms.WordRAM.TwoSAT.answerWords dupNegInst = [1, 0] ∧
+    Cslib.Algorithms.WordRAM.TwoSAT.answerWords unitClashInst = [] := by decide +kernel
+
+/-- info: (some ([1, 1, 1], true), some ([1, 1], true), some ([1, 0], true)) -/
+#guard_msgs in
+#eval (runTwoSAT unitInst 16, runTwoSAT dupPosInst 16, runTwoSAT dupNegInst 16)
+
+/-- info: (some ([1, 0], true), some ([], true)) -/
+#guard_msgs in
+#eval (runTwoSAT tautInst 16, runTwoSAT unitClashInst 16)
 
 /-- Symmetry-breaking `x₀ ↔ ¬x₁`: two incomparable literal SCCs. -/
 def xorTwo : CNF ℕ :=

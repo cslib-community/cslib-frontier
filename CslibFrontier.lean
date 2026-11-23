@@ -606,6 +606,7 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WriteMatrices
 public import CslibFrontier.Algorithms.WordRAM.Freivalds
 public import CslibFrontier.Algorithms.WordRAM.GomoryHu
+public import CslibFrontier.Algorithms.WordRAM.HeldKarp
 public import CslibFrontier.Algorithms.WordRAM.Histogram
 public import CslibFrontier.Algorithms.WordRAM.Huffman
 public import CslibFrontier.Algorithms.WordRAM.Hungarian
@@ -614,6 +615,7 @@ public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
 public import CslibFrontier.Algorithms.WordRAM.KargerMinCut
 public import CslibFrontier.Algorithms.WordRAM.KargerStein
+public import CslibFrontier.Algorithms.WordRAM.Kruskal
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Checker
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Program
 public import CslibFrontier.Algorithms.WordRAM.LRAT.Propagate
@@ -1050,6 +1052,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.LowerBound
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
+public import CslibFrontier.Algorithms.WordRAM.TwoSAT
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination
 public import CslibFrontier.Algorithms.WordRAM.ZFunction
 public import CslibFrontier.Computability.Automata.DPDA.Basic
@@ -1880,6 +1883,9 @@ public import CslibFrontier.Computability.Circuit.Parallel
 public import CslibFrontier.Computability.Circuit.Pebbling
 public import CslibFrontier.Computability.Circuit.Pi
 public import CslibFrontier.Computability.Circuit.Pointwise
+public import CslibFrontier.Computability.Circuit.Prefix.Basic
+public import CslibFrontier.Computability.Circuit.Prefix.ConsistentTree
+public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth
 public import CslibFrontier.Computability.Circuit.Program
 public import CslibFrontier.Computability.Circuit.Quantum.AcceptOperator
 public import CslibFrontier.Computability.Circuit.Quantum.Approximation
@@ -1965,6 +1971,8 @@ public import CslibFrontier.Computability.Circuit.Rational.Runtime.Parameters
 public import CslibFrontier.Computability.Circuit.Rational.Runtime.Point
 public import CslibFrontier.Computability.Circuit.Rational.SmallExpansion
 public import CslibFrontier.Computability.Circuit.Rational.Wronskian
+public import CslibFrontier.Computability.Circuit.Rectifier.Basic
+public import CslibFrontier.Computability.Circuit.Rectifier.ComplementSeparation
 public import CslibFrontier.Computability.Circuit.ReedMullerDecoding
 public import CslibFrontier.Computability.Circuit.Replication
 public import CslibFrontier.Computability.Circuit.ReplicationDepth
@@ -6982,6 +6990,7 @@ public import CslibFrontier.Foundations.Combinatorics.BalancedSchedules
 public import CslibFrontier.Foundations.Combinatorics.BinaryTreeCover
 public import CslibFrontier.Foundations.Combinatorics.BinomialTail
 public import CslibFrontier.Foundations.Combinatorics.Bregman
+public import CslibFrontier.Foundations.Combinatorics.BrownMatrix
 public import CslibFrontier.Foundations.Combinatorics.BudgetTuples
 public import CslibFrontier.Foundations.Combinatorics.CentralBinomial
 public import CslibFrontier.Foundations.Combinatorics.CompositionMoment
@@ -7116,6 +7125,7 @@ public import CslibFrontier.Foundations.Combinatorics.PerfectHashFamily.LinearHa
 public import CslibFrontier.Foundations.Combinatorics.PessimisticEstimator
 public import CslibFrontier.Foundations.Combinatorics.PowersetTail
 public import CslibFrontier.Foundations.Combinatorics.Quiver.Path.Chain
+public import CslibFrontier.Foundations.Combinatorics.RectangleFreeMatrix
 public import CslibFrontier.Foundations.Combinatorics.ReplacementCounting
 public import CslibFrontier.Foundations.Combinatorics.ReplacementDesignBridge
 public import CslibFrontier.Foundations.Combinatorics.SetFamily.Oddtown
