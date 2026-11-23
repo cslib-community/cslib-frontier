@@ -9,10 +9,10 @@ import Lean
 /-!
 # Declaration data for `scripts/lean_outputs.py`
 
-Run as `lake env lean --run scripts/LeanOutputs.lean [--no-duplicates] [--exported-only]
-[<lib-dir>] < modules.txt`, with one module name per line on standard input. For every module it
-reads the built `.olean` parts (exported, server and, unless `--exported-only` is given, private)
-without importing them, and prints one JSON line per constant:
+Run as `lake env lean --run scripts/LeanOutputs.lean [--exported-only] [<lib-dir>] < modules.txt`,
+with one module name per line on standard input. For every module it reads the built `.olean` parts
+(exported, server and, unless `--exported-only` is given, private) without importing them, and
+prints one JSON line per constant:
 
 * `n`, `m`: the constant and its module;
 * `k`: its kind in the private part (`def`, `thm`, `induct`, `ctor`, `rec`, `opaque`, `quot`,
@@ -28,12 +28,12 @@ without importing them, and prints one JSON line per constant:
 * `r`: its declaration range `[line, column, endLine, endColumn, selLine, selColumn, selEndLine,
   selEndColumn]`, with 1-based lines and code-point columns, when one is recorded.
 
-Unless `--no-duplicates` (or `--exported-only`) is given, it then prints `{"dup": [...], "k": ...}`
-lines grouping exported constants of different modules whose types are alpha-equivalent
-(`k = "thm"`), or whose types and exposed bodies are (`k = "def"`). Universe parameters are renamed
-positionally before comparing. With `--exported-only`, `.olean.private` is still checked to exist
-for split `module` outputs, but is not mapped; only exported constants are printed, with `k` equal
-to `e`.
+Unless `--exported-only` is given, it then prints `{"dup": [...], "k": ...}` lines grouping
+exported constants of different modules whose types are alpha-equivalent (`k = "thm"`), or whose
+types and exposed bodies are (`k = "def"`). Universe parameters are renamed positionally before
+comparing. With `--exported-only`, `.olean.private` is still checked to exist for split `module`
+outputs, but is not mapped; only exported constants are printed, with `k` equal to `e`, and
+duplicate-group lines are omitted.
 -/
 
 open Lean
@@ -118,32 +118,12 @@ def normalize (c : ConstantInfo) (e : Expr) : Expr :=
   let us := c.levelParams.length.fold (fun i _ acc => acc.push (Level.param (.num `u i))) #[]
   e.instantiateLevelParams c.levelParams us.toList
 
-structure Options where
-  libDir : System.FilePath := ".lake/build/lib/lean"
-  includeDuplicates : Bool := true
-  exportedOnly : Bool := false
-
-def parseArgs : List String → IO Options := go {} false
-where
-  usage := "usage: LeanOutputs [--no-duplicates] [--exported-only] [<lib-dir>] < modules.txt"
-  go (opts : Options) (sawDir : Bool) : List String → IO Options
-    | [] => pure opts
-    | "--no-duplicates" :: rest => go { opts with includeDuplicates := false } sawDir rest
-    | "--exported-only" :: rest =>
-      go { opts with includeDuplicates := false, exportedOnly := true } sawDir rest
-    | arg :: rest =>
-      if arg.startsWith "-" || sawDir then
-        throw <| IO.userError usage
-      else
-        go { opts with libDir := arg } true rest
-
-unsafe def run (opts : Options) : IO Unit := do
-  let libDir := opts.libDir
+unsafe def run (libDir : System.FilePath) (exportedOnly : Bool := false) : IO Unit := do
   let stdin ← IO.getStdin
   let stdout ← IO.getStdout
   let mut theorems : Std.HashMap Expr (Array (String × Name)) := {}
   let mut defs : Std.HashMap (Expr × Expr) (Array (String × Name)) := {}
-  -- The mapped regions must stay alive while `theorems` and `defs` refer to their expressions.
+  -- The mapped regions must stay alive while `deferred`, `theorems` and `defs` refer to them.
   let mut regions : Array CompactedRegion := #[]
   -- Rows of exposed definitions whose body mentions a tidy constant wait for `tidyBodies`.
   let mut deferred : Array (Name × List (String × Json)) := #[]
@@ -163,28 +143,27 @@ unsafe def run (opts : Options) : IO Unit := do
       throw <| IO.userError s!"incomplete split module outputs for {base}"
     let paths :=
       if !split then #[base]
-      else if opts.exportedOnly then #[base, base.addExtension "server"]
+      else if exportedOnly then #[base, base.addExtension "server"]
       else #[base, base.addExtension "server", base.addExtension "private"]
     let parts ← readModuleDataParts paths
     let some (exportedData, r0) := parts[0]? | throw <| IO.userError s!"cannot read {base}"
     unless exportedData.isModule == split do
       throw <| IO.userError s!"incomplete split module outputs for {base}"
-    let fullIdx := if !split then 0 else if opts.exportedOnly then 1 else 2
+    let fullIdx := if !split then 0 else if exportedOnly then 1 else 2
     let some (lastData, rLast) := parts[fullIdx]? |
       throw <| IO.userError s!"cannot read module data of {base}"
-    if opts.includeDuplicates then
-      regions := regions ++ #[r0, rLast]
-    let fullData := if opts.exportedOnly then exportedData else lastData
+    regions := regions ++ #[r0, rLast]
+    let fullData := if exportedOnly then exportedData else lastData
     let rangeEntries :=
-      if split && opts.exportedOnly then exportedData.entries ++ lastData.entries
+      if split && exportedOnly then exportedData.entries ++ lastData.entries
       else lastData.entries
     let mut exported : Std.HashMap Name ConstantInfo := {}
-    unless opts.exportedOnly do
+    unless exportedOnly do
       for c in exportedData.constants do
         exported := exported.insert c.name c
     let ranges := declRanges rangeEntries
     for c in fullData.constants do
-      let e := if opts.exportedOnly then some c else exported[c.name]?
+      let e := if exportedOnly then some c else exported[c.name]?
       let tidy := c.type.getUsedConstants.filter isTidy |>.map (·.toString)
       let row : List (String × Json) := [
         ("n", c.name.toString), ("m", mod), ("k", kindOf c), ("e", (e.map kindOf).getD ""),
@@ -198,7 +177,7 @@ unsafe def run (opts : Options) : IO Unit := do
         bodyModules := bodyModules.insert mod.toName
       else
         stdout.putStrLn <| Json.compress <| Json.mkObj (row ++ [("tb", Json.arr #[])])
-      if opts.includeDuplicates then
+      unless exportedOnly do
         if let some ec := e then
           unless c.name.isInternalDetail do
             match c, ec with
@@ -213,17 +192,28 @@ unsafe def run (opts : Options) : IO Unit := do
   for (n, row) in deferred do
     let tb := (bodies.find? n).getD #[]
     stdout.putStrLn <| Json.compress <| Json.mkObj (row ++ [("tb", toJson tb)])
-  if opts.includeDuplicates then
+  unless exportedOnly do
     let emit (kind : String) (group : Array (String × Name)) : IO Unit := do
       if (group.map (·.1)).toList.eraseDups.length > 1 then
         stdout.putStrLn <| Json.compress <| Json.mkObj [
           ("dup", toJson (group.map fun (m, n) => #[m, n.toString])), ("k", kind)]
     for (_, group) in theorems do emit "thm" group
     for (_, group) in defs do emit "def" group
-  -- Keep the regions reachable until every expression has been used.
+  -- Keep the regions reachable until every expression and deferred name has been used.
   if regions.isEmpty then stdout.flush
 
 end CslibFrontierScripts.LeanOutputs
 
-unsafe def main (args : List String) : IO Unit := do
-  CslibFrontierScripts.LeanOutputs.run (← CslibFrontierScripts.LeanOutputs.parseArgs args)
+unsafe def main (args : List String) : IO Unit :=
+  match args with
+  | [] => CslibFrontierScripts.LeanOutputs.run ".lake/build/lib/lean"
+  | ["--exported-only"] => CslibFrontierScripts.LeanOutputs.run ".lake/build/lib/lean" true
+  | [libDir] =>
+    if libDir.startsWith "-" then throw <| IO.userError usage
+    else CslibFrontierScripts.LeanOutputs.run libDir
+  | ["--exported-only", libDir] | [libDir, "--exported-only"] =>
+    if libDir.startsWith "-" then throw <| IO.userError usage
+    else CslibFrontierScripts.LeanOutputs.run libDir true
+  | _ => throw <| IO.userError usage
+where
+  usage := "usage: LeanOutputs [--exported-only] [<lib-dir>] < modules.txt"

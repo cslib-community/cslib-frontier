@@ -364,9 +364,9 @@ class InventoryLakeTests(cache_tests.IsolatedLakeFixture):
 
 
 @unittest.skipUnless(shutil.which("lake") and (lo.ROOT / ".lake/packages").is_dir(),
-                     "needs Lean and the repository's packages (CI runs this after the build)")
+                     "needs Lean and the repository's packages (skipped in Lean-free source-checks)")
 class CompiledConstantsTests(unittest.TestCase):
-    """Exercise `scripts/LeanOutputs.lean` flags on split `module` and classic `.olean` outputs."""
+    """Exercise `scripts/LeanOutputs.lean` on split `module` and classic `.olean` outputs."""
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -406,15 +406,9 @@ class CompiledConstantsTests(unittest.TestCase):
         cls.modules = ["SplitA", "SplitB", "ClassicC"]
         cls.full_constants, cls.full_dups = lo.load_constants(cls.build, cls.modules)
 
-    def test_no_duplicates_preserves_all_constant_metadata(self) -> None:
-        self.assertEqual({row["k"] for row in self.full_dups}, {"thm", "def"})
-        constants, dups = lo.load_constants(self.build, self.modules, include_duplicates=False)
-        self.assertEqual(dups, [])
-        self.assertEqual(constants, self.full_constants)
-
     def test_exported_only_preserves_exported_surface_and_rejects_incomplete_splits(self) -> None:
-        constants, dups = lo.load_constants(
-            self.build, self.modules, include_duplicates=False, exported_only=True)
+        self.assertEqual({row["k"] for row in self.full_dups}, {"thm", "def"})
+        constants, dups = lo.load_constants(self.build, self.modules, exported_only=True)
         self.assertEqual(dups, [])
         expected_names = {n for n, row in self.full_constants.items() if row["e"]}
         self.assertEqual(set(constants), expected_names)
@@ -439,12 +433,13 @@ class CompiledConstantsTests(unittest.TestCase):
             self.assertIn("incomplete split module outputs", proc.stderr)
 
     def test_invalid_arguments_report_usage(self) -> None:
-        for bad in (["--unknown"], ["dir1", "dir2"]):
+        for bad in (["--unknown"], ["--no-duplicates"], ["--exported-only", "--exported-only"],
+                    ["dir1", "dir2"]):
             proc = subprocess.run(
                 ["lake", "env", "lean", "--run", "scripts/LeanOutputs.lean", *bad],
                 cwd=lo.ROOT, input="", text=True, capture_output=True)
             self.assertNotEqual(proc.returncode, 0)
-            self.assertIn("usage: LeanOutputs [--no-duplicates] [--exported-only]", proc.stderr)
+            self.assertIn("usage: LeanOutputs [--exported-only] [<lib-dir>]", proc.stderr)
 
 
 if __name__ == "__main__":

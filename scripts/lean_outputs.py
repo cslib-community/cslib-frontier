@@ -215,16 +215,13 @@ def load_ileans(build_dir: Path, glob=glob_modules,
     return ileans
 
 
-def load_constants(build_dir: Path, modules: list[str], include_duplicates: bool = True,
+def load_constants(build_dir: Path, modules: list[str],
                    exported_only: bool = False) -> tuple[dict[str, dict], list[dict]]:
-    """Constants of `modules`, and (when `include_duplicates`) groups of constants with
-    alpha-equivalent statements. When `exported_only` is true, skip `.olean.private`: only
-    exported constants are loaded, with `k` equal to `e`."""
-    flags = []
-    if not include_duplicates:
-        flags.append("--no-duplicates")
-    if exported_only:
-        flags.append("--exported-only")
+    """Constants of `modules`, and (unless `exported_only`) groups of constants with
+    alpha-equivalent statements. When `exported_only` is true, skip `.olean.private` and
+    duplicate-group computation (`duplicates == []`): only exported constants are loaded,
+    with `k` equal to `e`."""
+    flags = ["--exported-only"] if exported_only else []
     out = run(["lake", "env", "lean", "--run", "scripts/LeanOutputs.lean", *flags, str(build_dir)],
               input="\n".join(modules) + "\n", capture_output=True).stdout
     constants, duplicates = {}, []
@@ -264,13 +261,12 @@ class Library:
     """Build outputs and sources of `roots`, loaded lazily where possible."""
 
     def __init__(self, build_dir: Path, roots: tuple[str, ...] = ROOTS,
-                 include_duplicates: bool = True, exported_only: bool = False):
+                 exported_only: bool = False):
         self.build_dir = build_dir
         self.ileans = load_ileans(build_dir, roots=roots)
         self.modules = sorted(m for m in self.ileans if m.startswith("CslibFrontier."))
         self.constants, self.duplicate_rows = load_constants(
-            build_dir, self.modules, include_duplicates=include_duplicates,
-            exported_only=exported_only)
+            build_dir, self.modules, exported_only=exported_only)
         self.sources: dict[str, Source] = {}
 
     def source(self, module: str) -> Source:

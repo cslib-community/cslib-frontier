@@ -122,8 +122,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.allow_increase and not args.update:
         parser.error("--allow-increase needs --update")
     lo.check_outputs(lo.DEFAULT_BUILD_DIR, args.no_build_check, roots=LIBRARY_ROOTS)
-    lib = lo.Library(lo.DEFAULT_BUILD_DIR, roots=LIBRARY_ROOTS,
-                     include_duplicates=False, exported_only=True)
+    lib = lo.Library(lo.DEFAULT_BUILD_DIR, roots=LIBRARY_ROOTS, exported_only=True)
     found = tidy_statements(lib, load_allowlist(args.allowlist))
     counts = {path: len(rows) for path, rows in found.items()}
     baseline = load_baseline(args.baseline) if args.baseline.exists() else {}
