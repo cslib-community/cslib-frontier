@@ -381,7 +381,9 @@ public import CslibFrontier.Algorithms.WordRAM.AKS.PerfectPower
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyArray
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyMul
 public import CslibFrontier.Algorithms.WordRAM.AKS.PolyPow
+public import CslibFrontier.Algorithms.WordRAM.BellmanFord
 public import CslibFrontier.Algorithms.WordRAM.BurrowsWheeler
+public import CslibFrontier.Algorithms.WordRAM.CSR
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Program
 public import CslibFrontier.Algorithms.WordRAM.DPLL.Scan
@@ -598,7 +600,9 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Finite
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Program
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WriteMatrices
+public import CslibFrontier.Algorithms.WordRAM.Freivalds
 public import CslibFrontier.Algorithms.WordRAM.Histogram
+public import CslibFrontier.Algorithms.WordRAM.Hungarian
 public import CslibFrontier.Algorithms.WordRAM.KMP
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Algorithms.WordRAM.Karger.OutputLaw
@@ -884,11 +888,13 @@ public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Res
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.State
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Traversal
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Zero
+public import CslibFrontier.Algorithms.WordRAM.MaxCut
 public import CslibFrontier.Algorithms.WordRAM.NatClog
 public import CslibFrontier.Algorithms.WordRAM.NatGcd
 public import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Algorithms.WordRAM.NatNthRoot
 public import CslibFrontier.Algorithms.WordRAM.NatSqrt
+public import CslibFrontier.Algorithms.WordRAM.OptimalBST
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Amplify
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Clauses
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Implied
@@ -1034,6 +1040,7 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Width
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.LowerBound
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
+public import CslibFrontier.Algorithms.WordRAM.ZFunction
 public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Emptiness
@@ -2035,7 +2042,9 @@ public import CslibFrontier.Computability.Communication.Nondeterministic.Basic
 public import CslibFrontier.Computability.Communication.Nondeterministic.CoverNumber
 public import CslibFrontier.Computability.Communication.Nondeterministic.ExtensionComplexity
 public import CslibFrontier.Computability.Communication.Nondeterministic.Functions
+public import CslibFrontier.Computability.Communication.Nondeterministic.PartitionCover
 public import CslibFrontier.Computability.Communication.Nondeterministic.UniqueDisjointness
+public import CslibFrontier.Computability.Communication.Nondeterministic.UniqueDisjointnessUpper
 public import CslibFrontier.Computability.Communication.OneOut
 public import CslibFrontier.Computability.Communication.OneOutLargeRectangle
 public import CslibFrontier.Computability.Communication.OneOutRectangle
@@ -5245,6 +5254,7 @@ public import CslibFrontier.Computability.WordRAM.Randomized.Expected
 public import CslibFrontier.Computability.WordRAM.Randomized.Law
 public import CslibFrontier.Computability.WordRAM.Randomized.LoopSegment
 public import CslibFrontier.Computability.WordRAM.Randomized.LoopSegmentLaw
+public import CslibFrontier.Computability.WordRAM.Randomized.SampleBits
 public import CslibFrontier.Computability.WordRAM.Randomized.Structured
 public import CslibFrontier.Computability.WordRAM.Randomized.SymbolicExec
 public import CslibFrontier.Computability.WordRAM.Randomized.UniformLoopExit
@@ -5321,6 +5331,7 @@ public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Experi
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Protocol
 public import CslibFrontier.Crypto.Computational.AuthenticatedKeyExchange.Static
 public import CslibFrontier.Crypto.Computational.Basic
+public import CslibFrontier.Crypto.Computational.CBCMAC
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol.Verifier
 public import CslibFrontier.Crypto.Computational.CircularCorrelationRobust
@@ -5432,6 +5443,7 @@ public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA
 public import CslibFrontier.Crypto.Computational.Encryption.LoRCPA.FromSingle
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt
 public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.EncForge
+public import CslibFrontier.Crypto.Computational.Encryption.MACThenEncrypt.RandomPads
 public import CslibFrontier.Crypto.Computational.Encryption.MessageRecovery
 public import CslibFrontier.Crypto.Computational.Encryption.Nested
 public import CslibFrontier.Crypto.Computational.Encryption.NonceBased
@@ -6313,6 +6325,7 @@ public import CslibFrontier.DataStructure.ApproximateMembership.QuotientFilter.P
 public import CslibFrontier.DataStructure.ApproximateMembership.Spec
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Cluster
+public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.Code
 public import CslibFrontier.DataStructure.ApproximateMembership.WordRAM.QuotientFilter.SlotArray
 public import CslibFrontier.DataStructure.BPlusTree.Basic
 public import CslibFrontier.DataStructure.BPlusTree.Height
@@ -6855,6 +6868,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Invariance
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceLevy
 public import CslibFrontier.Foundations.BooleanAnalysis.InvarianceNoise
 public import CslibFrontier.Foundations.BooleanAnalysis.KahnKalaiLinial
+public import CslibFrontier.Foundations.BooleanAnalysis.LargeCoefficient
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelOneInequality
 public import CslibFrontier.Foundations.BooleanAnalysis.LevelWeight
 public import CslibFrontier.Foundations.BooleanAnalysis.LightPatterns
@@ -6905,6 +6919,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
+public import CslibFrontier.Foundations.BooleanAnalysis.UncertaintyPrinciple
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
 public import CslibFrontier.Foundations.Combinatorics.Additive.BkSequence
 public import CslibFrontier.Foundations.Combinatorics.Additive.SumsetCover
@@ -7038,6 +7053,7 @@ public import CslibFrontier.Foundations.Combinatorics.LineCode.Menu
 public import CslibFrontier.Foundations.Combinatorics.LineCode.Menu.Collision
 public import CslibFrontier.Foundations.Combinatorics.LineCode.Menu.Counting
 public import CslibFrontier.Foundations.Combinatorics.LittlewoodOfford
+public import CslibFrontier.Foundations.Combinatorics.LovaszSteinCover
 public import CslibFrontier.Foundations.Combinatorics.MajorityTree
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote
 public import CslibFrontier.Foundations.Combinatorics.MajorityVote.Weighted
@@ -7270,6 +7286,7 @@ public import CslibFrontier.Foundations.Data.Code.FlipDecoding
 public import CslibFrontier.Foundations.Data.Code.GuruswamiSudan
 public import CslibFrontier.Foundations.Data.Code.Hadamard
 public import CslibFrontier.Foundations.Data.Code.HammingBound
+public import CslibFrontier.Foundations.Data.Code.HammingCode
 public import CslibFrontier.Foundations.Data.Code.HintDecoding
 public import CslibFrontier.Foundations.Data.Code.Johnson
 public import CslibFrontier.Foundations.Data.Code.Justesen
@@ -7797,6 +7814,7 @@ public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RankSupport
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RealRankLindsey
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.RectPermanent
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity
+public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Hadamard
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.Random
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.Rigidity.TotallyRegular
 public import CslibFrontier.Foundations.LinearAlgebra.Matrix.SchurComplement
@@ -9228,6 +9246,7 @@ public import CslibFrontier.Tactic.FOOperator.Init
 public import CslibFrontier.Tactic.FailureNote
 public import CslibFrontier.Tactic.FinIndex
 public import CslibFrontier.Tactic.FinIndex.Init
+public import CslibFrontier.Tactic.FinsetCard
 public import CslibFrontier.Tactic.FirstOrder
 public import CslibFrontier.Tactic.FirstOrder.Init
 public import CslibFrontier.Tactic.FirstOrder.Simp
