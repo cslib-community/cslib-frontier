@@ -4,7 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
-import CslibFrontier.Computability.Complexity.Classes.Space.Quantitative
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Midpoint
@@ -23,6 +25,9 @@ The file declares the edge test and certifies it with `space`; the frames, the s
 recursion are those of `Turing.MultiTapeTM.ComputableInSpace.reach`.
 -/
 
+-- This module contains only checked clients.
+set_option linter.privateModule false
+
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace Cslib.Reachability
 
 namespace SpaceMidpointTest
@@ -40,6 +45,25 @@ example : edge [false, true, false, false] [false] [true] = true := by decide
 example : connected (1, [false, true, false, false]) = true := by decide
 example : connected (1, [false, false, true, false]) = false := by decide
 example : connected (0, []) = true := by decide
+
+-- On four vertices, the directed path `00 → 10 → 01 → 11` (values `0 → 1 → 2 → 3`, least
+-- significant bit first) with no other edge: the ends are joined only through midpoints that
+-- differ from both, at depth `2`; one level is not enough, and without the middle edge the ends
+-- are not joined at all.
+/-- The matrix with exactly the edges `0 → 1`, `1 → 2` and `2 → 3`. -/
+def path : List Bool :=
+  [false, true, false, false, false, false, true, false,
+    false, false, false, true, false, false, false, false]
+
+/-- The matrix of `path` without its middle edge `1 → 2`. -/
+def broken : List Bool :=
+  [false, true, false, false, false, false, false, false,
+    false, false, false, true, false, false, false, false]
+
+example : connected (2, path) = true := by decide
+example : reach (edge path) 2 1 [false, false] [true, true] = false := by decide
+example : reach (edge path) 2 1 [false, false] [false, true] = true := by decide
+example : connected (2, broken) = false := by decide
 
 /-- The edge test, from two stored words, the stored width and the matrix: within the stored
 words and the logarithm of the length of the matrix. -/
@@ -67,7 +91,7 @@ theorem connected_inSpace : ComputableInSpace connected (encPair encUnary encBit
   have hreach := reach (encA := encPair encUnary encBits) (edge := fun a => edge a.2)
     (S := fun a => (encUnary a.1).length + Nat.log2 (encBits a.2).length)
     (E := fun a => 13 * a.1 + 2 * Nat.log2 a.2.length + 12)
-    hW (budget_unaryToNat hW) (budget_replicateFalse hW) (budget_replicateTrue hW)
+    hW (budget_unaryToNat hW) (budget_bitsReplicate false hW) (budget_bitsReplicate true hW)
     (assoc_context edge_inSpace)
     (fun a x y hx hy => by
       simp only [length_encPair, encBits_apply, encUnary_apply, List.length_replicate, hx, hy]
