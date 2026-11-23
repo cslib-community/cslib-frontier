@@ -75,8 +75,7 @@ theorem general_parameter_certificate {B N D : ℝ} {a k : ℕ}
       nlinarith
     calc
       _ ≤ (2 * B ^ 2) * B ^ (128 * k + 1) * (1 / (4 * B ^ (128 * k + 3))) :=
-        mul_le_mul_of_nonneg_right (mul_le_mul_of_nonneg_right hNN (by positivity))
-          (by positivity)
+        by gcongr
       _ = 1 / 2 := by
         have he : B ^ (128 * k + 3) = B ^ 2 * B ^ (128 * k + 1) := by
           rw [← pow_add]
@@ -123,12 +122,9 @@ theorem general_parameter_certificate {B N D : ℝ} {a k : ℕ}
       apply div_le_div_of_nonneg_left (by positivity) (by positivity)
       exact mul_le_mul_of_nonneg_left hNB (by norm_num)
     calc
-      _ ≤ 16384 * (B ^ (96 * k) * N ^ 2) ^ 4 * (B ^ (1024 * k))⁻¹ :=
-        mul_le_mul_of_nonneg_left hD (by positivity)
+      _ ≤ 16384 * (B ^ (96 * k) * N ^ 2) ^ 4 * (B ^ (1024 * k))⁻¹ := by gcongr
       _ ≤ 16384 * (B ^ (96 * k + 2)) ^ 4 * (B ^ (1024 * k))⁻¹ :=
-        mul_le_mul_of_nonneg_right
-          (mul_le_mul_of_nonneg_left (pow_le_pow_left₀ (by positivity) hKle 4)
-            (by norm_num)) (by positivity)
+        by gcongr
       _ ≤ ((1 / (4 * B ^ (128 * k + 3))) / (2 * B)) ^ 4 := hbound
       _ ≤ _ := pow_le_pow_left₀ (by positivity) hfrac 4
 

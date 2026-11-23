@@ -37,8 +37,27 @@ The checker agrees with `checkLRAT` on every formula and certificate
 (`Cslib.Logic.PL.CNF.checkLRATFast_eq_checkLRAT`), so it is sound
 (`Cslib.Logic.PL.CNF.not_satisfiable_of_checkLRATFast`). It is also complete: rewriting
 `Cslib.Algorithms.Lean.DPLL.exists_checkLRAT_iff` with `checkLRATFast_eq_checkLRAT` shows that a
-formula has a certificate this checker accepts exactly when it is unsatisfiable. The kernel cannot
-evaluate it efficiently, and `decide` keeps using `checkLRAT`.
+formula has a certificate this checker accepts exactly when it is unsatisfiable.
+
+It is the checker for compiled and interpreted code. The kernel's `Array` wraps a list, so the
+kernel cannot evaluate it efficiently: for kernel reduction, `decide` uses
+`Cslib.Logic.PL.CNF.checkLRATKernel`, which checks the same certificates with a binary trie and a
+bitmask. Each wins in its own setting. Measured on one machine with the two checkers alternating
+in one process (2026-11; [#7225](https://github.com/cslib-community/cslib-frontier/issues/7225),
+milestone 4):
+
+* compiled, `checkLRATKernel` takes 6.0 to 6.5 times as long on the CDCL solver's certificates for
+  SATLIB's `uuf100` to `uuf250` (on 583226 steps, 22.4 s against 3.4 s), 4.8 to 6.1 times as long
+  on CaDiCaL's for PHP(7, 6) to PHP(9, 8) and for `uuf175` to `uuf250` (on 233006 steps, 5.4 s
+  against 0.9 s), and 2 to 7 times as long on the trimmed certificates of `lrat_tauto`'s benchmark
+  families. Almost half of its time is `Nat.testBit` on the bitmask, which is a multi-word number
+  once there are more than about 30 variables;
+* interpreted, as in `lrat_tauto`'s check of its trimmed certificate, `checkLRATKernel` takes 1.8 to
+  4 times as long on those families;
+* in the kernel (`decide +kernel`), `checkLRATFast` took 62.8 s on `lrat_tauto`'s certificate for
+  the chain of 80 implications, against 0.67 s for `checkLRATKernel` and 6.8 s for `checkLRAT`, and
+  exceeded 14 GB of memory on those for `dist 5`, `iff 5`, `php 4` and `php 5`, which
+  `checkLRATKernel` checks in 0.9 to 8.4 s.
 
 The arrays are updated in place when uniquely referenced, so that a step costs about the total
 length of its clause and its hinted clauses. That speed is an engineering property, measured, not
@@ -216,7 +235,8 @@ private def checkLRATFastAux :
 /-- **The array-based LRAT checker**: it accepts exactly the certificates that
 `CNF.checkLRAT` accepts (`CNF.checkLRATFast_eq_checkLRAT`), with the clauses of `φ` numbered from
 `1`. Clauses are looked up in an array indexed by number, and literals in an array of marks
-indexed by literal, reset after each step. -/
+indexed by literal, reset after each step. It is for compiled and interpreted code, where it is
+about 2 to 7 times as fast as `CNF.checkLRATKernel`; in the kernel, use `CNF.checkLRATKernel`. -/
 def checkLRATFast (φ : CNF ℕ) (cert : Array LRAT.IntAction) : Bool :=
   checkLRATFastAux (dbOfList (φ.zipIdx.map fun e => (e.2 + 1, e.1))) #[] cert.toList
 

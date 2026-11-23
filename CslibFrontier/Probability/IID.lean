@@ -255,9 +255,7 @@ private theorem pow_mul_pow_le {a b : ℝ} (ha : 0 ≤ a) (hab : a ≤ b) {r t u
   obtain rfl : r = u + d := by omega
   have hb : 0 ≤ b := ha.trans hab
   calc a ^ (u + d + d) * b ^ u = a ^ u * a ^ d * b ^ u * a ^ d := by ring
-    _ ≤ a ^ u * a ^ d * b ^ u * b ^ d :=
-        mul_le_mul_of_nonneg_left (pow_le_pow_left₀ ha hab d)
-          (mul_nonneg (mul_nonneg (pow_nonneg ha _) (pow_nonneg ha _)) (pow_nonneg hb _))
+    _ ≤ a ^ u * a ^ d * b ^ u * b ^ d := by gcongr
     _ = (a * b) ^ (u + d) := by ring
 
 /-- **The majority tail bound**: among `2 r` independent bits that are each `true` with

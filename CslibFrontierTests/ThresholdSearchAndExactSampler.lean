@@ -22,9 +22,12 @@ import CslibFrontier.Tactic.EncLen
 # Checked examples for threshold optimization and self-reducible exact sampling
 
 Covers:
-1. `MaxThresholdSpec` and `MinThresholdSpec` `TimeM` optimization and witness recovery on feasible,
-   boundary, and infeasible instances, together with `computableInPolyTimeWithOracleQueries_bisect`
-   on an exponentially large binary search range `[0, 2 ^ n)`.
+1. `lowerBound` / `lowerBoundQ` (`Cslib.Query.ProbeQuery`) and `MaxThresholdSpec` /
+   `MinThresholdSpec` pure and `FreeM` query optimization and witness recovery on feasible,
+   boundary, and infeasible instances (checking separate `SumQuery.countInl` decision-query and
+   `SumQuery.countInr` witness-query counts), together with
+   `computableInPolyTimeWithOracleQueries_bisect` on an exponentially large binary search range
+   `[0, 2 ^ n)`.
 2. `MaxSAT` threshold optimization and variable-by-variable optimal witness recovery on an
    unsatisfiable 4-clause 2-CNF (`maxClauseScore = 3`), the empty formula (`maxClauseScore = 0`),
    and a formula with gapped/repeated variable labels, plus `MaxSATThreshold ∈ NP`,
@@ -45,10 +48,37 @@ open scoped ENNReal
 
 namespace CslibFrontierTests.ThresholdAndExactSampling
 
-open Cslib Cslib.Algorithms.Lean Cslib.Complexity Cslib.Logic.PL
+open Cslib Cslib.Algorithms.Lean Cslib.Query Cslib.Complexity Cslib.Logic.PL
   Cslib.Probability Turing.MultiTapeTM
 
-/-! ### 1. `TimeM` maximization, minimization, and exponential-range oracle bisection -/
+/-! ### 1. Query-model binary search, threshold specs, and exponential-range oracle bisection -/
+
+/-- Direct checks on `lowerBound` and `lowerBoundQ` for nonempty (`[0, 100)`) and empty (`[5, 5)`)
+intervals. -/
+theorem lowerBoundQ_concrete_checks :
+    let o : {ι : Type} → ProbeQuery ι → ι :=
+      ProbeQuery.oracleOf (fun m => decide (m * m ≤ 50))
+    (lowerBoundQ 0 100).eval o = 8 ∧
+      (lowerBoundQ 0 100).countQueries o ≤ Nat.log 2 100 + 1 ∧
+      (lowerBoundQ 5 5).eval (ProbeQuery.oracleOf fun _ => true) = 5 ∧
+      (lowerBoundQ 5 5).countQueries (ProbeQuery.oracleOf fun _ => true) = 0 := by
+  refine ⟨?_, countQueries_lowerBoundQ_le _ 0 100,
+    by rw [eval_lowerBoundQ, lowerBound_of_le _ le_rfl],
+    countQueries_lowerBoundQ_of_le _ le_rfl⟩
+  rw [eval_lowerBoundQ]
+  simp only [ProbeQuery.oracleOf_probe]
+  obtain ⟨_, _, htrue, hfalse⟩ :=
+    lowerBound_spec (fun m => decide (m * m ≤ 50)) (lo := 0) (hi := 100)
+      fun m m' _ hmm' _ hm' => by
+        simp only [decide_eq_true_eq] at hm' ⊢
+        exact (Nat.mul_le_mul hmm' hmm').trans hm'
+  have hge8 : 8 ≤ lowerBound (fun m => decide (m * m ≤ 50)) 0 100 := by
+    by_contra hlt
+    exact absurd (hfalse 7 (by omega) (by omega)) (by decide)
+  have hle8 : lowerBound (fun m => decide (m * m ≤ 50)) 0 100 ≤ 8 := by
+    by_contra hgt
+    exact absurd (htrue 8 (by omega) (by omega)) (by decide)
+  omega
 
 /-- Bounded maximization spec: on upper cap `B`, valid witnesses are `w ≤ min B 7` when `0 < B`
 (and none when `B = 0`), with score `w`. -/
@@ -58,52 +88,77 @@ def capMaxSpec : MaxThresholdSpec ℕ ℕ where
   bound B := B
   score_le_bound B _ h := h.2.trans (min_le_left B 7)
 
-/-- Unit-cost threshold probe for `capMaxSpec`. -/
-def capMaxProbe (B q : ℕ) : TimeM ℕ Bool :=
-  ⟨decide (0 < B ∧ q ≤ min B 7), 1⟩
+/-- Pure threshold probe for `capMaxSpec`. -/
+def capMaxProbe (B q : ℕ) : Bool :=
+  decide (0 < B ∧ q ≤ min B 7)
 
-/-- Constant-cost witness finder at threshold `q` for `capMaxSpec`. -/
-def capMaxFinder (B _q : ℕ) : TimeM ℕ ℕ :=
-  ⟨min B 7, 1⟩
+/-- Pure witness finder at threshold `q` for `capMaxSpec`. -/
+def capMaxFinder (B _q : ℕ) : ℕ :=
+  min B 7
 
 theorem capMaxProbe_iff (B q : ℕ) :
-    (capMaxProbe B q).ret = true ↔ capMaxSpec.atLeast B q := by
+    capMaxProbe B q = true ↔ capMaxSpec.atLeast B q := by
   simp only [capMaxProbe, decide_eq_true_eq, capMaxSpec, MaxThresholdSpec.atLeast]
   exact ⟨fun ⟨hB, hq⟩ => ⟨min B 7, ⟨hB, le_refl _⟩, hq⟩,
     fun ⟨_, ⟨hB, hw⟩, hq⟩ => ⟨hB, hq.trans hw⟩⟩
 
-/-- On `B = 10`, `maxOptWitnessM` recovers `optValue = 7` and `witness = 7` in at most `5` ticks. -/
+/-- On `B = 10`, `maxOptWitnessQ` recovers `optValue = 7` and `witness = 7` using at most `4`
+decision queries (`countInl`) and `1` witness query (`countInr`), for `≤ 5` total queries. -/
 theorem capMax_ten_eval :
-    (capMaxSpec.maxOptWitnessM capMaxProbe capMaxFinder 10).ret = some ⟨7, 7⟩ ∧
-      (capMaxSpec.maxOptWitnessM capMaxProbe capMaxFinder 10).time ≤ 5 := by
+    let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+      ThresholdWitnessQuery.oracleOf (capMaxProbe 10) (capMaxFinder 10)
+    (capMaxSpec.maxOptWitnessQ 10).eval o = some ⟨7, 7⟩ ∧
+      SumQuery.countInl o (capMaxSpec.maxOptWitnessQ 10) ≤ 4 ∧
+      SumQuery.countInr o (capMaxSpec.maxOptWitnessQ 10) = 1 ∧
+      (capMaxSpec.maxOptWitnessQ 10).countQueries o ≤ 5 := by
   have hprobe : ∀ q, q ≤ capMaxSpec.bound 10 →
-      ((capMaxProbe 10 q).ret = true ↔ capMaxSpec.atLeast 10 q) := fun q _ => capMaxProbe_iff 10 q
+      (capMaxProbe 10 q = true ↔ capMaxSpec.atLeast 10 q) := fun q _ => capMaxProbe_iff 10 q
   have hwit : ∀ q, q ≤ capMaxSpec.bound 10 → capMaxSpec.atLeast 10 q →
-      capMaxSpec.valid 10 (capMaxFinder 10 q).ret ∧
-        q ≤ capMaxSpec.score 10 (capMaxFinder 10 q).ret := by
-    rintro q _ ⟨w, ⟨_, hw⟩, hq⟩
+      capMaxSpec.valid 10 (capMaxFinder 10 q) ∧
+        q ≤ capMaxSpec.score 10 (capMaxFinder 10 q) := by
+    rintro q _ ⟨_, ⟨_, hw⟩, hq⟩
     exact ⟨⟨by decide, le_refl _⟩, hq.trans hw⟩
-  obtain ⟨hnone, hsome⟩ := capMaxSpec.maxOptWitnessM_spec hprobe hwit
-  have htime := capMaxSpec.maxOptWitnessM_time_le capMaxProbe capMaxFinder (cp := 1) (cw := 1)
-    (fun _ => le_refl 1) (fun _ _ => le_refl 1) hprobe
-  have ht5 : 1 * (Nat.log 2 (capMaxSpec.bound 10 + 1) + 1) + 1 = 5 := by decide
-  refine ⟨?_, htime.trans_eq ht5⟩
-  cases hret : (capMaxSpec.maxOptWitnessM capMaxProbe capMaxFinder 10).ret with
-  | none => exact False.elim (hnone.mp hret ⟨7, by decide, by decide⟩)
-  | some sol =>
-    rcases sol with ⟨v, w⟩
-    obtain ⟨_, ⟨_, hw7⟩, hsc, hmax⟩ := hsome ⟨v, w⟩ hret
-    have h7 : 7 ≤ v := hmax 7 ⟨by decide, by decide⟩
-    simp only [capMaxSpec] at hw7 hsc h7
-    congr 1
-    congr <;> omega
+  obtain ⟨hnone, hsome⟩ := capMaxSpec.maxOptWitness_spec hprobe hwit
+  let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+    ThresholdWitnessQuery.oracleOf (capMaxProbe 10) (capMaxFinder 10)
+  obtain ⟨hinl, _, htot⟩ := capMaxSpec.maxOptWitnessQ_query_bounds o 10
+  have hl4 : Nat.log 2 (capMaxSpec.bound 10 + 1) + 1 = 4 := by decide
+  have ht5 : Nat.log 2 (capMaxSpec.bound 10 + 1) + 2 = 5 := by decide
+  have heval : (capMaxSpec.maxOptWitnessQ 10).eval o =
+      capMaxSpec.maxOptWitness capMaxProbe capMaxFinder 10 := by
+    simp only [o, MaxThresholdSpec.eval_maxOptWitnessQ, ThresholdWitnessQuery.oracleOf_probe,
+      ThresholdWitnessQuery.oracleOf_find]
+    rfl
+  have hval : (capMaxSpec.maxOptWitnessQ 10).eval o = some ⟨7, 7⟩ := by
+    rw [heval]
+    cases hret : capMaxSpec.maxOptWitness capMaxProbe capMaxFinder 10 with
+    | none => exact False.elim (hnone.mp hret ⟨7, by decide, by decide⟩)
+    | some sol =>
+      rcases sol with ⟨v, w⟩
+      obtain ⟨_, ⟨_, hw7⟩, hsc, hmax⟩ := hsome ⟨v, w⟩ hret
+      have h7 : 7 ≤ v := hmax 7 ⟨by decide, by decide⟩
+      simp only [capMaxSpec] at hw7 hsc h7
+      congr 1
+      congr <;> omega
+  exact ⟨hval, hinl.trans_eq hl4,
+    by rw [MaxThresholdSpec.countInr_maxOptWitnessQ, hval]; rfl, htot.trans_eq ht5⟩
 
-/-- On infeasible `B = 0`, `maxOptWitnessM` returns `none`. -/
+/-- On infeasible `B = 0`, `maxOptWitnessQ` returns `none` and makes `0` witness queries. -/
 theorem capMax_infeasible_eval :
-    (capMaxSpec.maxOptWitnessM capMaxProbe capMaxFinder 0).ret = none :=
-  (capMaxSpec.maxOptWitnessM_spec (fun q _ => capMaxProbe_iff 0 q)
-    (fun _ _ ⟨_, ⟨h0, _⟩, _⟩ => by omega)).1.mpr
-    (fun ⟨_, h0, _⟩ => by omega)
+    let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+      ThresholdWitnessQuery.oracleOf (capMaxProbe 0) (capMaxFinder 0)
+    (capMaxSpec.maxOptWitnessQ 0).eval o = none ∧
+      SumQuery.countInr o (capMaxSpec.maxOptWitnessQ 0) = 0 := by
+  let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+    ThresholdWitnessQuery.oracleOf (capMaxProbe 0) (capMaxFinder 0)
+  have hval : (capMaxSpec.maxOptWitnessQ 0).eval o = none := by
+    simp only [o, MaxThresholdSpec.eval_maxOptWitnessQ, ThresholdWitnessQuery.oracleOf_probe,
+      ThresholdWitnessQuery.oracleOf_find]
+    exact (capMaxSpec.maxOptWitness_spec (probe := capMaxProbe) (findWitness := capMaxFinder)
+      (fun q _ => capMaxProbe_iff 0 q)
+      (fun _ _ ⟨_, ⟨h0, _⟩, _⟩ => by omega)).1.mpr
+      (fun ⟨_, h0, _⟩ => by omega)
+  exact ⟨hval, by rw [MaxThresholdSpec.countInr_maxOptWitnessQ, hval]; rfl⟩
 
 /-- Bounded minimization spec: on target floor `L`, valid witnesses are `L ≤ w ≤ 12`, with cost `w`
 bounded by `12`. -/
@@ -113,60 +168,75 @@ def floorMinSpec : MinThresholdSpec ℕ ℕ where
   bound _ := 12
   cost_le_bound _ _ h := h.2
 
-/-- Unit-cost threshold probe for `floorMinSpec`. -/
-def floorMinProbe (L q : ℕ) : TimeM ℕ Bool :=
-  ⟨decide (L ≤ 12 ∧ L ≤ q), 1⟩
+/-- Pure threshold probe for `floorMinSpec`. -/
+def floorMinProbe (L q : ℕ) : Bool :=
+  decide (L ≤ 12 ∧ L ≤ q)
 
-/-- Witness finder at threshold `q` for `floorMinSpec`. -/
-def floorMinFinder (L _q : ℕ) : TimeM ℕ ℕ :=
-  ⟨L, 1⟩
+/-- Pure witness finder at threshold `q` for `floorMinSpec`. -/
+def floorMinFinder (L _q : ℕ) : ℕ :=
+  L
 
 theorem floorMinProbe_iff (L q : ℕ) :
-    (floorMinProbe L q).ret = true ↔ floorMinSpec.atMost L q := by
+    floorMinProbe L q = true ↔ floorMinSpec.atMost L q := by
   simp only [floorMinProbe, decide_eq_true_eq, floorMinSpec, MinThresholdSpec.atMost]
   exact ⟨fun ⟨h12, hq⟩ => ⟨L, ⟨le_refl L, h12⟩, hq⟩,
     fun ⟨_, ⟨hL, h12⟩, hq⟩ => ⟨hL.trans h12, hL.trans hq⟩⟩
 
-/-- On `L = 5`, `minOptWitnessM` recovers minimum cost `5` and witness `5` in at most `5` ticks. -/
+/-- On `L = 5`, `minOptWitnessQ` recovers minimum cost `5` and witness `5` using at most `4`
+decision queries and `1` witness query (`≤ 5` total queries). -/
 theorem floorMin_five_eval :
-    (floorMinSpec.minOptWitnessM floorMinProbe floorMinFinder 5).ret = some ⟨5, 5⟩ ∧
-      (floorMinSpec.minOptWitnessM floorMinProbe floorMinFinder 5).time ≤ 5 := by
+    let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+      ThresholdWitnessQuery.oracleOf (floorMinProbe 5) (floorMinFinder 5)
+    (floorMinSpec.minOptWitnessQ 5).eval o = some ⟨5, 5⟩ ∧
+      SumQuery.countInl o (floorMinSpec.minOptWitnessQ 5) ≤ 4 ∧
+      SumQuery.countInr o (floorMinSpec.minOptWitnessQ 5) = 1 ∧
+      (floorMinSpec.minOptWitnessQ 5).countQueries o ≤ 5 := by
   have hprobe : ∀ q, q ≤ floorMinSpec.bound 5 →
-      ((floorMinProbe 5 q).ret = true ↔ floorMinSpec.atMost 5 q) := fun q _ => floorMinProbe_iff 5 q
+      (floorMinProbe 5 q = true ↔ floorMinSpec.atMost 5 q) := fun q _ => floorMinProbe_iff 5 q
   have hwit : ∀ q, q ≤ floorMinSpec.bound 5 → floorMinSpec.atMost 5 q →
-      floorMinSpec.valid 5 (floorMinFinder 5 q).ret ∧
-        floorMinSpec.cost 5 (floorMinFinder 5 q).ret ≤ q := by
-    rintro q _ ⟨w, ⟨h5, _⟩, hq⟩
+      floorMinSpec.valid 5 (floorMinFinder 5 q) ∧
+        floorMinSpec.cost 5 (floorMinFinder 5 q) ≤ q := by
+    rintro q _ ⟨_, ⟨h5, _⟩, hq⟩
     dsimp only [floorMinSpec, floorMinFinder] at h5 ⊢
     exact ⟨⟨le_refl 5, by decide⟩, h5.trans hq⟩
-  obtain ⟨hnone, hsome⟩ := floorMinSpec.minOptWitnessM_spec hprobe hwit
-  have htime := floorMinSpec.minOptWitnessM_time_le floorMinProbe floorMinFinder
-    (x := 5) (cp := 1) (cw := 1) (fun _ => le_refl 1) (fun _ _ => le_refl 1)
-  have ht5 : 1 * (Nat.log 2 (floorMinSpec.bound 5 + 1) + 1) + 1 = 5 := by decide
-  refine ⟨?_, htime.trans_eq ht5⟩
-  cases hret : (floorMinSpec.minOptWitnessM floorMinProbe floorMinFinder 5).ret with
-  | none => exact False.elim (hnone.mp hret ⟨5, le_refl 5, by decide⟩)
-  | some sol =>
-    rcases sol with ⟨v, w⟩
-    obtain ⟨_, ⟨h5w, _⟩, hcost, hmin⟩ := hsome ⟨v, w⟩ hret
-    have hv5 : v ≤ 5 := hmin 5 ⟨le_refl 5, by decide⟩
-    dsimp only [floorMinSpec] at h5w hcost hv5
-    congr 1
-    congr <;> omega
+  obtain ⟨hnone, hsome⟩ := floorMinSpec.minOptWitness_spec hprobe hwit
+  let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+    ThresholdWitnessQuery.oracleOf (floorMinProbe 5) (floorMinFinder 5)
+  obtain ⟨hinl, _, htot⟩ := floorMinSpec.minOptWitnessQ_query_bounds o 5
+  have hl4 : Nat.log 2 (floorMinSpec.bound 5 + 1) + 1 = 4 := by decide
+  have ht5 : Nat.log 2 (floorMinSpec.bound 5 + 1) + 2 = 5 := by decide
+  have heval : (floorMinSpec.minOptWitnessQ 5).eval o =
+      floorMinSpec.minOptWitness floorMinProbe floorMinFinder 5 := by
+    simp only [o, MinThresholdSpec.eval_minOptWitnessQ, ThresholdWitnessQuery.oracleOf_probe,
+      ThresholdWitnessQuery.oracleOf_find]
+    rfl
+  have hval : (floorMinSpec.minOptWitnessQ 5).eval o = some ⟨5, 5⟩ := by
+    rw [heval]
+    cases hret : floorMinSpec.minOptWitness floorMinProbe floorMinFinder 5 with
+    | none => exact False.elim (hnone.mp hret ⟨5, le_refl 5, by decide⟩)
+    | some sol =>
+      rcases sol with ⟨v, w⟩
+      obtain ⟨_, ⟨h5w, _⟩, hcost, hmin⟩ := hsome ⟨v, w⟩ hret
+      have hv5 : v ≤ 5 := hmin 5 ⟨le_refl 5, by decide⟩
+      dsimp only [floorMinSpec] at h5w hcost hv5
+      congr 1
+      congr <;> omega
+  exact ⟨hval, hinl.trans_eq hl4,
+    by rw [MinThresholdSpec.countInr_minOptWitnessQ, hval]; rfl, htot.trans_eq ht5⟩
 
-/-- On zero-cost `L = 0`, `minOptWitnessM` recovers minimum cost `0` and witness `0`. -/
+/-- On zero-cost `L = 0`, `minOptWitness` recovers minimum cost `0` and witness `0`. -/
 theorem floorMin_zero_eval :
-    (floorMinSpec.minOptWitnessM floorMinProbe floorMinFinder 0).ret = some ⟨0, 0⟩ := by
+    floorMinSpec.minOptWitness floorMinProbe floorMinFinder 0 = some ⟨0, 0⟩ := by
   have hprobe : ∀ q, q ≤ floorMinSpec.bound 0 →
-      ((floorMinProbe 0 q).ret = true ↔ floorMinSpec.atMost 0 q) := fun q _ => floorMinProbe_iff 0 q
+      (floorMinProbe 0 q = true ↔ floorMinSpec.atMost 0 q) := fun q _ => floorMinProbe_iff 0 q
   have hwit : ∀ q, q ≤ floorMinSpec.bound 0 → floorMinSpec.atMost 0 q →
-      floorMinSpec.valid 0 (floorMinFinder 0 q).ret ∧
-        floorMinSpec.cost 0 (floorMinFinder 0 q).ret ≤ q := by
+      floorMinSpec.valid 0 (floorMinFinder 0 q) ∧
+        floorMinSpec.cost 0 (floorMinFinder 0 q) ≤ q := by
     intro q _ _
     dsimp only [floorMinSpec, floorMinFinder]
     exact ⟨⟨le_refl 0, by decide⟩, Nat.zero_le q⟩
-  obtain ⟨hnone, hsome⟩ := floorMinSpec.minOptWitnessM_spec hprobe hwit
-  cases hret : (floorMinSpec.minOptWitnessM floorMinProbe floorMinFinder 0).ret with
+  obtain ⟨hnone, hsome⟩ := floorMinSpec.minOptWitness_spec hprobe hwit
+  cases hret : floorMinSpec.minOptWitness floorMinProbe floorMinFinder 0 with
   | none => exact False.elim (hnone.mp hret ⟨0, le_refl 0, by decide⟩)
   | some sol =>
     rcases sol with ⟨v, w⟩
@@ -176,12 +246,22 @@ theorem floorMin_zero_eval :
     congr 1
     congr <;> omega
 
-/-- On infeasible `L = 15 > 12`, `minOptWitnessM` returns `none`. -/
+/-- On infeasible `L = 15 > 12`, `minOptWitnessQ` returns `none` and makes `0` witness queries. -/
 theorem floorMin_infeasible_eval :
-    (floorMinSpec.minOptWitnessM floorMinProbe floorMinFinder 15).ret = none :=
-  (floorMinSpec.minOptWitnessM_spec (fun q _ => floorMinProbe_iff 15 q)
-    (fun _ _ ⟨_, ⟨h1, h2⟩, _⟩ => by omega)).1.mpr
-    (fun ⟨_, h1, h2⟩ => by omega)
+    let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+      ThresholdWitnessQuery.oracleOf (floorMinProbe 15) (floorMinFinder 15)
+    (floorMinSpec.minOptWitnessQ 15).eval o = none ∧
+      SumQuery.countInr o (floorMinSpec.minOptWitnessQ 15) = 0 := by
+  let o : {ι : Type} → ThresholdWitnessQuery ℕ ι → ι :=
+    ThresholdWitnessQuery.oracleOf (floorMinProbe 15) (floorMinFinder 15)
+  have hval : (floorMinSpec.minOptWitnessQ 15).eval o = none := by
+    simp only [o, MinThresholdSpec.eval_minOptWitnessQ, ThresholdWitnessQuery.oracleOf_probe,
+      ThresholdWitnessQuery.oracleOf_find]
+    exact (floorMinSpec.minOptWitness_spec (probe := floorMinProbe) (findWitness := floorMinFinder)
+      (fun q _ => floorMinProbe_iff 15 q)
+      (fun _ _ ⟨_, ⟨h1, h2⟩, _⟩ => by omega)).1.mpr
+      (fun ⟨_, h1, h2⟩ => by omega)
+  exact ⟨hval, by rw [MinThresholdSpec.countInr_minOptWitnessQ, hval]; rfl⟩
 
 open Classical in
 /-- Oracle bisection over an exponentially large binary range `[0, 2 ^ n)` (with `n` in unary)

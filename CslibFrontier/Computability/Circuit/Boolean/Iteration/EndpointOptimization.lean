@@ -89,8 +89,7 @@ theorem exists_circuit_of_endpoint_tradeoff {n a C : ℕ} (f : BitString n → B
     rw [min_eq_right hz]
     calc
       _ ≤ (C : ℝ) * (L * a + 2 ^ n / L + 2 ^ ((n + 1) / 2) : ℕ) := by exact_mod_cast hs
-      _ ≤ C * (8 * Real.sqrt ((2 : ℝ) ^ n * a)) :=
-        mul_le_mul_of_nonneg_left hopt (Nat.cast_nonneg _)
+      _ ≤ C * (8 * Real.sqrt ((2 : ℝ) ^ n * a)) := by gcongr
       _ = (8 * C) * Real.sqrt ((2 : ℝ) ^ n * a) := by ring
       _ ≤ _ := mul_le_mul_of_nonneg_right (le_max_right _ _) (Real.sqrt_nonneg _)
   · obtain ⟨d, hd, hs⟩ := exists_denseLookup f

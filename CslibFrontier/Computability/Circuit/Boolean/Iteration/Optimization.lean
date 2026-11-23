@@ -102,8 +102,7 @@ theorem exists_le_three_mul_add_sqrt (a b M N : ℕ) (hb : 0 < b) (hba : b ≤ a
       (by rw [mul_add, mul_div_cancel₀ _ ha.ne', mul_one])
   have hquot : ((M / L : ℕ) : ℝ) * L ≤ M := by exact_mod_cast Nat.div_mul_le_self M L
   have hterm : (b : ℝ) * (M / L : ℕ) ≤ z := le_of_mul_le_mul_right (a0 := hzpos) <|
-    calc (b : ℝ) * (M / L : ℕ) * z ≤ b * (M / L : ℕ) * ((a : ℝ) * L) :=
-          mul_le_mul_of_nonneg_left hlo (by positivity)
+    calc (b : ℝ) * (M / L : ℕ) * z ≤ b * (M / L : ℕ) * ((a : ℝ) * L) := by gcongr
       _ = b * (((M / L : ℕ) : ℝ) * L) * a := by ring
       _ ≤ b * M * a := by gcongr
       _ = z * z := by rw [← sq, hz2]

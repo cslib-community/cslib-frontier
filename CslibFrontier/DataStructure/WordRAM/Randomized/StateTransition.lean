@@ -1578,8 +1578,7 @@ theorem seq_expected_amortized (C : StateTransitionImpl P D w base params s₀)
   calc
     C.initTime + T_ops + ∑' q, ν_final q * (C.potential q.seed q.data : ℝ≥0∞)
       = C.initTime + (T_ops + ∑' q, ν_final q * (C.potential q.seed q.data : ℝ≥0∞)) := by ac_rfl
-    _ ≤ C.initTime + (C_ops + ∑' t, ν₀_rel t * (C.potential t.seed t.data : ℝ≥0∞)) :=
-        add_le_add le_rfl hamort
+    _ ≤ C.initTime + (C_ops + ∑' t, ν₀_rel t * (C.potential t.seed t.data : ℝ≥0∞)) := by gcongr
     _ ≤ C.initTime + (C_ops + (C.initPotential : ℝ≥0∞)) :=
         add_le_add le_rfl (add_le_add le_rfl hpot₀)
     _ = C.initTime + (C.initPotential : ℝ≥0∞) + C_ops := by ac_rfl

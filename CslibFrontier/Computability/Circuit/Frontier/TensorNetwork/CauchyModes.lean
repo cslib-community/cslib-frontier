@@ -360,8 +360,7 @@ theorem not_dvd_sub_sub_of_testBit_eq {t : ℤ} {i x y₀ : ℕ} (hti : (2 : ℤ
   rcases le_or_gt (n - c - q) 0 with h0 | h0
   · have : (2 * K : ℤ) * (n - c - q) ≤ 0 := mul_nonpos_of_nonneg_of_nonpos (by positivity) h0
     linarith
-  · have : (2 * K : ℤ) * 1 ≤ 2 * K * (n - c - q) :=
-      mul_le_mul_of_nonneg_left (by omega) (by positivity)
+  · have : (2 * K : ℤ) * 1 ≤ 2 * K * (n - c - q) := by gcongr; omega
     linarith
 
 namespace TensorNetwork

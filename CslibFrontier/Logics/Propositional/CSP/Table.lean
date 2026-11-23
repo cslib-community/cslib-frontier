@@ -199,9 +199,7 @@ theorem arity_contract_lt {table : Table} {reference : List Bool} {positions : L
 @[simp] theorem wellFormed_contract (table : Table) (reference : List Bool) (positions : List ℕ) :
     (contract table reference positions).wellFormed = true := by
   unfold contract
-  split
-  · simp [wellFormed, project]
-  · simp [wellFormed]
+  grind [wellFormed, project]
 
 /-- Exact contraction membership, with the output connector computed from zero or one internal
 changes. The original row is retained as a witness for later lifting. -/

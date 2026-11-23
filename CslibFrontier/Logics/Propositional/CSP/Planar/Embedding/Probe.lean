@@ -151,8 +151,7 @@ private theorem side_probe_dart_of_body_vertex (F : CSP Rel V) (ports : List V)
   have hvo := hvar o
   have hvp := hvar p
   rw [← ho, ← hp, vertex_incidenceDart, vertex_incidenceDart] at hv
-  cases hds : d.2 <;> cases has : a.2 <;>
-    simp only [hds, has, Bool.false_eq_true, ite_false, ite_true] at hv ⊢ <;> omega
+  grind
 
 /-- At a vertex touched by a body dart, distinct boundary names leave at most one probe
 dart. Repeated body visits and cutvertices are unrestricted. The probe center is excluded
