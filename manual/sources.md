@@ -387,6 +387,11 @@ Avrim Blum, Merrick Furst, Michael Kearns and Richard J. Lipton. "Cryptographic 
 
 Avrim Blum and Yishay Mansour. "From External to Internal Regret." *Journal of Machine Learning Research* 8, 1307–1324, 2007. https://www.jmlr.org/papers/v8/blum07a.html . Read in the JMLR PDF on 2026-11-10. Locators checked there: the definition of swap regret as regret against all `N^N` modification rules (§2, p. 1311), Definition 2 (`ε`-correlated equilibrium) and Theorem 3 (`R/T`-correlated equilibria from swap regret `R`, p. 1311), the reduction with stationary `p = pQ` and Definition 4 (§3, p. 1312), and Theorem 5 (swap regret at most `∑ i, R_i`) with Corollaries 6 and 7 (`O(N √(T log N))` and `O(√(T N log N))`, p. 1313). The paper scales losses to `[0, 1]`; the library's Hedge-based bound uses losses in `[-1, 1]` and the second-order Hedge bound, which gives `2 √(T N ln N)` with explicit constants.
 
+<a id="blummansour07agt"></a>
+## blummansour07agt
+
+Avrim Blum and Yishay Mansour. "Learning, Regret Minimization, and Equilibria." Chapter 4 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 79–102 (content through p. 101; p. 102 is a blank verso). https://doi.org/10.1017/CBO9780511800481.006 (bibliography key `BlumMansour2007AGT`). Consulted in the 2007 book text on 2026-11-23 for §4.4.4 ("Dominated Strategies", pp. 91–92): pure and mixed `ε`-strict dominance (`IsEpsStrictlyDominated`, `IsEpsStrictlyDominatedMixed`) and Theorem 4.13 (p. 92), proving that over `T > 0` rounds in which player `i` incurs swap regret at most `R` against its expected-cost vectors, the time-averaged weight placed on any set of `ε`-strictly dominated strategies (`ε > 0`, dominated by pure or mixed strategies) is at most `R / (ε T)` (`timeAverage_weight_isEpsStrictlyDominatedMixed_set_le`, `timeAverage_weight_isEpsStrictlyDominatedMixed_le`, `timeAverage_weight_isEpsStrictlyDominated_set_le`, `timeAverage_weight_isEpsStrictlyDominated_le` in [Strategic/Dominance.lean](../CslibFrontier/GameTheory/Strategic/Dominance.lean)).
+
 <a id="bm15"></a>
 ## bm15
 
@@ -701,6 +706,11 @@ Avinandan Das, Pierre Fraigniaud, Ami Paz and Adi Rosén. "Semi-Streaming Algori
 
 Sanjoy Dasgupta, Anupam Gupta. “An Elementary Proof of a Theorem of Johnson and Lindenstrauss.” *Random Structures & Algorithms* 22(1), 60–65, 2003. https://doi.org/10.1002/rsa.10073 . Author-hosted copy: https://cseweb.ucsd.edu/~dasgupta/papers/jl.pdf . Checked against that copy on 2026-11-07 UTC: Theorem 2.1 on p. 61 (`0 < ε < 1` and `k ≥ 4 (ε²/2 - ε³/3)⁻¹ ln n`), and Lemma 2.2 on p. 62 (tails for the projection of a random unit vector onto `k` coordinates, proved with `𝔼 exp (sX²) = (1 - 2s)^(-1/2)` for a standard Gaussian `X`).
 
+<a id="daskalakismehtapapadimitriou06"></a>
+## daskalakismehtapapadimitriou06
+
+Constantinos Daskalakis, Aranyak Mehta and Christos H. Papadimitriou. "A Note on Approximate Nash Equilibria." *Internet and Network Economics (WINE 2006)*, LNCS 4286, 297–306, Springer, 2006. https://doi.org/10.1007/11944874_27 (bibliography key `DaskalakisMehtaPapadimitriou2006`). Bibliographic metadata from `references.bib`; the conference text was not directly inspected, so internal theorem numbers from WINE 2006 are not claimed. The `(1/2)`-approximate Nash equilibrium construction (`BimatrixGame.isApproxNash_half_dmp`, `BimatrixGame.exists_dmp_half_isApproxNash` in [Strategic/ApproxNash.lean](../CslibFrontier/GameTheory/Strategic/ApproxNash.lean)) was checked against [papadimitriou07](#papadimitriou07), §2.6.6, p. 45.
+
 <a id="demainehearn2008"></a>
 ## demainehearn2008
 
@@ -773,6 +783,11 @@ Irit Dinur. “The PCP Theorem by Gap Amplification.” *Journal of the ACM* 54(
 ## dinur2016
 
 Irit Dinur. “Mildly Exponential Reduction from Gap 3SAT to Polynomial-Gap Label-Cover.” *Electronic Colloquium on Computational Complexity*, Report TR16-128, 2016. https://eccc.weizmann.ac.il/report/2016/128/ . Bibliographic metadata checked against the ECCC report record; the report's full text was inspected for Hypothesis 2.5 (p. 5), which has at most $D n$ clauses and fixed soundness $< 0.9$. Used alongside [manurangsiraghavendra2017](#manurangsiraghavendra2017) to document the Gap Exponential Time Hypothesis adaptation (`GapETH`, `rGapETH`) in [FineGrained/GapETH.lean](../CslibFrontier/Computability/Complexity/FineGrained/GapETH.lean).
+
+<a id="dodisrabin07"></a>
+## dodisrabin07
+
+Yevgeniy Dodis and Tal Rabin. "Cryptography and Game Theory." Chapter 8 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 181–206 (content through p. 205; p. 206 is a blank verso). https://doi.org/10.1017/CBO9780511800481.010 (bibliography key `DodisRabin2007`). Consulted in the 2007 book text on 2026-11-23 for §8.5.2, Definition 8.8 and Footnote 9 (p. 200): weak dominance (`CostGame.IsWeaklyDominated`), simultaneous iterated deletion of weakly dominated strategies (`CostGame.idowdsSeq`, `CostGame.idowdsLimit`, `CostGame.SurvivesIDoWDS`), and relational order-dependent deletion (`CostGame.IDoWDSStep`, `CostGame.IDoWDS`) in [Strategic/Dominance.lean](../CslibFrontier/GameTheory/Strategic/Dominance.lean).
 
 <a id="dolev1982"></a>
 ## dolev1982
@@ -963,6 +978,11 @@ Alan Frieze and Michał Karoński. *Introduction to Random Graphs*. Cambridge Un
 ## fulkerson1956
 
 D. R. Fulkerson. "Note on Dilworth's Decomposition Theorem for Partially Ordered Sets." *Proceedings of the American Mathematical Society* 7(4), 701–702, 1956. https://doi.org/10.1090/S0002-9939-1956-0078334-6 . Bibliographic metadata from search summaries, checked on 2026-11-08. The publisher PDF returned HTTP 403 and was not inspected. The Dilworth module credits this note with the reduction of Dilworth's theorem to König's theorem through the bipartite graph of the strict order, following the customary attribution; the paper's own formulation is unverified.
+
+<a id="galekuhntucker50"></a>
+## galekuhntucker50
+
+David Gale, Harold W. Kuhn and Albert W. Tucker. "On Symmetric Games." In H. W. Kuhn and A. W. Tucker (eds.), *Contributions to the Theory of Games, Volume I*, Annals of Mathematics Studies 24, Princeton University Press, 81–87, 1950 (bibliography key `GaleKuhnTucker1950`). Bibliographic metadata from `references.bib`; the 1950 volume was not directly inspected, so internal theorem and page locators in that volume are not claimed. Credited as in [papadimitriou07](#papadimitriou07), §2.3.1 (p. 34), for the reduction to symmetric games (`BimatrixGame.symmReduction` and the three-block game `BimatrixGame.gktGame` in [Bimatrix/Symmetric.lean](../CslibFrontier/GameTheory/Bimatrix/Symmetric.lean)).
 
 <a id="gallagerhumbletspira1983"></a>
 ## gallagerhumbletspira1983
@@ -1544,6 +1564,11 @@ Jonathan Katz and Yehuda Lindell. *Introduction to Modern Cryptography*, 3rd edi
 
 Iordanis Kerenidis and Ronald de Wolf. "Exponential Lower Bound for 2-Query Locally Decodable Codes via a Quantum Argument." *Journal of Computer and System Sciences* 69(3), 395–420, 2004. https://doi.org/10.1016/j.jcss.2004.04.007 ; arXiv text https://arxiv.org/abs/quant-ph/0208062v2 . Checked on 2026-11-12 against `arXiv:quant-ph/0208062v2` (Appendix B Definition 3 and Theorem 9 on printed p. 14, and Appendix B Lemma 3 on printed p. 16); journal metadata from DOI record.
 
+<a id="kearns07"></a>
+## kearns07
+
+Michael Kearns. "Graphical Games." Chapter 7 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 159–180. https://doi.org/10.1017/CBO9780511800481.009 (bibliography key `Kearns2007`). Consulted in the 2007 book text on 2026-11-23 for §7.2 (p. 162): the additive `ε`-approximate mixed Nash equilibrium definition (`CostGame.IsApproxMixedNash` in [Strategic/ApproxNash.lean](../CslibFrontier/GameTheory/Strategic/ApproxNash.lean), negated from payoffs to costs).
+
 <a id="khot10"></a>
 ## khot10
 
@@ -1703,6 +1728,11 @@ Xin Li. *Two Source Extractors for Asymptotically Optimal Entropy, and (Many) Mo
 ## lindell17
 
 Yehuda Lindell. *How To Simulate It – A Tutorial on the Simulation Proof Technique*. Electronic Colloquium on Computational Complexity, Report TR17-112, 2017. https://eccc.weizmann.ac.il/report/2017/112/ . The ECCC PDF dated June 27, 2017 was read for Section 2 (computational indistinguishability against non-uniform polynomial-time distinguishers with one negligible function for all inputs, p. 3), Section 4.2 (Definition 4.1, security against static semi-honest adversaries for two parties, p. 7) and the remark on auxiliary information (p. 9); page numbers are those printed in the report.
+
+<a id="liptonmarkakismehta03"></a>
+## liptonmarkakismehta03
+
+Richard J. Lipton, Evangelos Markakis and Aranyak Mehta. "Playing Large Games Using Simple Strategies." *Proceedings of the 4th ACM Conference on Electronic Commerce (EC 2003)*, 36–41, 2003. https://doi.org/10.1145/779928.779933 (bibliography key `LiptonMarkakisMehta2003`). Bibliographic metadata from `references.bib`; the EC 2003 proceedings paper was not directly inspected, so internal theorem numbers from EC 2003 are not claimed. Uniform-multiset mixed strategies (`uniformMultiset`) and the `O(ln(|M| + |N|) / ε²)` `ε`-approximate Nash equilibrium existence theorem (`BimatrixGame.exists_uniformMultiset_isApproxNash_of_lt`, `BimatrixGame.exists_uniformMultiset_isApproxNash` in [Strategic/ApproxNash.lean](../CslibFrontier/GameTheory/Strategic/ApproxNash.lean)) were checked against [tardosvazirani07](#tardosvazirani07), Exercise 1.6 (p. 27), and [papadimitriou07](#papadimitriou07), §2.6.6 (p. 45).
 
 <a id="liptonyoung1994"></a>
 ## liptonyoung1994
@@ -1989,6 +2019,11 @@ Noam Nisan. "Introduction to Mechanism Design (for Computer Scientists)." Chapte
 
 Noam Nisan. *Pseudorandom Generators for Space-Bounded Computation*. Combinatorica 12(4), 449–461, 1992. DOI: [10.1007/BF01305237](https://doi.org/10.1007/BF01305237). The publisher copy is paywalled and was not consulted, so its theorem numbering is unverified. The statement was checked against S. Vadhan, *Pseudorandomness* (2012), §8.2.1, and P. Hatami and W. Hoza, *Paradigms for Unconditional Pseudorandom Generators* (2024), Definition 1.5 and §3.2. The Lean proof is the library's own derivation of the hashing argument in expectation form.
 
+<a id="nisanroughgardentardosvazirani07"></a>
+## nisanroughgardentardosvazirani07
+
+Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.). *Algorithmic Game Theory*. Cambridge University Press, 2007. https://doi.org/10.1017/CBO9780511800481 (bibliography key `NisanRoughgardenTardosVazirani2007`). Individual chapters consulted directly are recorded under [tardosvazirani07](#tardosvazirani07), [papadimitriou07](#papadimitriou07), [blummansour07agt](#blummansour07agt), [kearns07](#kearns07), [dodisrabin07](#dodisrabin07), [nisan07](#nisan07), [tardoswexler07](#tardoswexler07), and [babaioffchuangfeldman07](#babaioffchuangfeldman07).
+
 <a id="nisanwigderson94"></a>
 ## nisanwigderson94
 
@@ -2075,6 +2110,11 @@ OpenAI. *The Exponential Time Hypothesis is False*. Manuscript dated 17 October 
 ## orzelsrinivasantavenasyehudayoff25
 
 Ian Orzel, Srikanth Srinivasan, Sébastien Tavenas and Amir Yehudayoff. "The Algebraic Cost of a Boolean Sum." *45th IARCS Annual Conference on Foundations of Software Technology and Theoretical Computer Science (FSTTCS 2025)*, LIPIcs 360, 47:1–47:13, Schloss Dagstuhl, 2025 (bibliography key `OrzelSrinivasanTavenasYehudayoff2025`). https://doi.org/10.4230/LIPIcs.FSTTCS.2025.47 ; open HTML https://drops.dagstuhl.de/storage/00lipics/lipics-vol360-fsttcs2025/html/LIPIcs.FSTTCS.2025.47/LIPIcs.FSTTCS.2025.47.html . Checked against the open Dagstuhl edition on 2026-11-22: §1.2 Definition 1 (p. 47:3, when a polynomial sequence simulates formulas via polynomial-size projections), Lemma 4 (p. 47:4, attributing to [Valiant 1979](#valiant79algebra) that both `perm` and `det` simulate formulas), Lemma 5 (p. 47:4, two variable instances suffice for Boolean sums), and §2 (pp. 47:5–47:6, field of characteristic not two, scalar-permitting projection conventions, projection-based determinantal complexity `dc(f)` as the minimum `k` such that `f` is a projection of `det_k`, and the statement that `dc(f) < ∞` for all `f`). [Permanent/Formula.lean](../CslibFrontier/Computability/Circuit/Arithmetic/Permanent/Formula.lean), [Determinant/Projection.lean](../CslibFrontier/Computability/Circuit/Arithmetic/Determinant/Projection.lean), and [Determinant/Formula.lean](../CslibFrontier/Computability/Circuit/Arithmetic/Determinant/Formula.lean) prove the explicit `(F.size + 1) × (F.size + 1)` plain-projection (`IsProjection`, without outer scalar multiplier) formula-simulation bounds and projection universality over arbitrary commutative semirings (for `permanent`) and commutative rings (for `det`, using `-1` along the subdiagonal of `N - 1` via `IsSubstABP`), which in turn upper-bounds the affine-linear `determinantalComplexity` of [DeterminantalComplexity.lean](../CslibFrontier/Computability/Circuit/Arithmetic/DeterminantalComplexity.lean).
+
+<a id="papadimitriou07"></a>
+## papadimitriou07
+
+Christos H. Papadimitriou. "The Complexity of Finding Nash Equilibria." Chapter 2 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 29–52 (content through p. 51; p. 52 is a blank verso). https://doi.org/10.1017/CBO9780511800481.004 (bibliography key `Papadimitriou2007`). Consulted in the 2007 book text on 2026-11-23 for Example 2.2 (pp. 30–31, symmetric bimatrix games `B = Aᵀ` and the `3 × 3` game `[[0, 3, 0], [0, 0, 3], [2, 2, 2]]` with symmetric equilibrium `(0, 1/3, 2/3)`), §2.3.1 and Theorem 2.4 (p. 34, symmetric Nash existence and the two-block reduction `C = [[0, A], [Bᵀ, 0]]` from positive bimatrix games to symmetric games), §2.6.6 (p. 45, additive `ε`-approximate Nash equilibria, the Daskalakis–Mehta–Papadimitriou `1/2`-approximate construction, and the Lipton–Markakis–Mehta `O(log n / ε²)` uniform-multiset existence theorem), and §2.7 (pp. 45–47, convexity of the correlated-equilibrium polytope and convex combinations of Nash equilibria). Formalized in [Strategic/Symmetric.lean](../CslibFrontier/GameTheory/Strategic/Symmetric.lean), [Bimatrix/Symmetric.lean](../CslibFrontier/GameTheory/Bimatrix/Symmetric.lean), and [Strategic/ApproxNash.lean](../CslibFrontier/GameTheory/Strategic/ApproxNash.lean).
 
 <a id="papadimitriou94ppad"></a>
 ## papadimitriou94ppad
@@ -2420,6 +2460,11 @@ Mechthild Stoer and Frank Wagner. "A Simple Min-Cut Algorithm." *Journal of the 
 ## sudantrevisanvadhan01
 
 Madhu Sudan, Luca Trevisan and Salil Vadhan. *Pseudorandom Generators without the XOR Lemma*. Journal of Computer and System Sciences 62(2), 236–266, 2001. DOI: [10.1006/jcss.2000.1730](https://doi.org/10.1006/jcss.2000.1730). Publisher metadata and abstract checked by the coordinated source pass on 2026-11-02; the proof-route attribution comes from the pinned Lean module.
+
+<a id="tardosvazirani07"></a>
+## tardosvazirani07
+
+Éva Tardos and Vijay V. Vazirani. "Basic Solution Concepts and Computational Issues." Chapter 1 of Noam Nisan, Tim Roughgarden, Éva Tardos and Vijay V. Vazirani (eds.), *Algorithmic Game Theory*, Cambridge University Press, 2007, 3–28. https://doi.org/10.1017/CBO9780511800481.003 (bibliography key `TardosVazirani2007`). Consulted in the 2007 book text on 2026-11-23 for §§1.3.1–1.3.3 (pp. 10–12, dominant strategies, dominant-strategy equilibria, and uniqueness of strictly dominant Nash equilibria), §1.3.6 (pp. 14–15, correlated equilibria), and Exercise 1.6 (p. 27, uniform-multiset `ε`-approximate Nash equilibria of size `O(log n)` for nonnegative payoffs bounded by `M`). Formalized in [Strategic/Dominance.lean](../CslibFrontier/GameTheory/Strategic/Dominance.lean) and [Strategic/ApproxNash.lean](../CslibFrontier/GameTheory/Strategic/ApproxNash.lean).
 
 <a id="tardoswexler07"></a>
 ## tardoswexler07
