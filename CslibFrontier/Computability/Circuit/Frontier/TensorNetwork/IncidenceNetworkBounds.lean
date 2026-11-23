@@ -179,7 +179,7 @@ theorem two_pow_clog_choose_le (N d : ℕ) :
   split_ifs with hd
   · have hC := Nat.choose_pos hd
     rcases Nat.lt_or_ge 1 (N.choose d) with h1 | h1
-    · have h2 := Nat.pow_pred_clog_lt_self one_lt_two h1
+    · have h2 := Nat.pow_pred_clog_lt_self 2 h1
       have h3 : 1 ≤ Nat.clog 2 (N.choose d) := Nat.succ_le_of_lt (Nat.clog_pos one_lt_two h1)
       calc 2 ^ Nat.clog 2 (N.choose d) = 2 * 2 ^ (Nat.clog 2 (N.choose d)).pred := by
             conv_lhs => rw [← Nat.succ_pred_eq_of_pos h3]

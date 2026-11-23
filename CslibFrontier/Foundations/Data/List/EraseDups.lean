@@ -68,7 +68,7 @@ theorem find?_eraseDups [BEq α] [LawfulBEq α] (p : α → Bool) (l : List α) 
       | false =>
         subst hn
         rw [ih _ (Nat.lt_succ_of_le (length_filter_le _ _)) _ rfl, find?_filter]
-        refine find?_congr fun x _ => ?_
+        refine find?_congr rfl fun x _ => ?_
         by_cases hx : x = a
         · subst hx; simp [hp]
         · simp [hx]

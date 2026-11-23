@@ -77,13 +77,13 @@ theorem exists_submatrix_det_ne_zero {m n K : Type*} [Field K] [Finite m] [Finty
   have : Finite κ := Finite.of_injective c hc
   let _ : Fintype κ := Fintype.ofFinite κ
   have hcard_c : Fintype.card κ = A.rank := by
-    rw [rank_eq_finrank_span_cols, ← hspan_c, finrank_span_eq_card hli_c]
+    rw [← finrank_span_range_col, ← hspan_c, finrank_span_eq_card hli_c]
   have hcol_eq : Set.range (A.submatrix id c).col = Set.range (A.col ∘ c) := by
     ext v
     simp only [Set.mem_range, Function.comp_apply]
     exact ⟨fun ⟨i, hi⟩ => ⟨i, hi⟩, fun ⟨i, hi⟩ => ⟨i, hi⟩⟩
   have hrank_sub : (A.submatrix id c).rank = Fintype.card κ := by
-    rw [rank_eq_finrank_span_cols, hcol_eq, finrank_span_eq_card hli_c]
+    rw [← finrank_span_range_col, hcol_eq, finrank_span_eq_card hli_c]
   obtain ⟨μ, r, hr, hspan_r, hli_r⟩ := exists_linearIndependent' K (A.submatrix id c).row
   have : Finite μ := Finite.of_injective r hr
   let _ : Fintype μ := Fintype.ofFinite μ

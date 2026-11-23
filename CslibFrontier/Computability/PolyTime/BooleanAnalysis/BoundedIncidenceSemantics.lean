@@ -314,7 +314,7 @@ private theorem auxDim_le_of_twenty_le {n' : ℕ} (hn : 20 ≤ n') :
   calc ReplacementParams.auxDim n'
       ≤ 2 ^ (Nat.clog 2 n' / 128) := ReplacementParams.auxDim_le_two_pow n'
     _ ≤ 2 ^ (Nat.clog 2 n' - 1) := Nat.pow_le_pow_right (by omega) hdiv
-    _ ≤ n' := (Nat.pow_pred_clog_lt_self (by omega : 1 < 2) (by omega : 1 < n')).le
+    _ ≤ n' := (Nat.pow_pred_clog_lt_self 2 (by omega : 1 < n')).le
 
 private theorem scheduleParams_bounds_of_feasible {β n' b w M' : ℕ}
     (hF : ReplacementParams.Feasible β n' b w M') :

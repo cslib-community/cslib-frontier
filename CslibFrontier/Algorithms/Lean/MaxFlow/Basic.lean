@@ -332,6 +332,7 @@ theorem getLast?_loopErase [DecidableEq V] (p : List V) :
         rw [hnil] at hhead
         simp at hhead
       rw [loopErase]
+      dsimp only
       split_ifs with hx
       · obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
         obtain ⟨pre, hpre⟩ := hsuf
@@ -356,6 +357,7 @@ theorem mem_pathArcs_loopErase [DecidableEq V] {p : List V} {e : V × V}
   | nil => simp [loopErase] at he
   | cons x xs ih =>
     rw [loopErase] at he
+    dsimp only at he
     split_ifs at he with hx
     · obtain ⟨rest, hdrop, hsuf⟩ := suffixFrom_eq_cons_and_suffix hx
       rw [hdrop] at he

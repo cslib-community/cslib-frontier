@@ -78,8 +78,7 @@ theorem rank_endpointIncidence_add_one (u v : E → V) (root : V)
     rw [← (endpointIncidenceKernelEquiv u v root hconn).finrank_eq]
     exact Module.finrank_self _
   have h := (endpointIncidence u v).transpose.mulVecLin.finrank_range_add_finrank_ker
-  change (endpointIncidence u v).transpose.rank +
-    Module.finrank (ZMod 2) (endpointIncidence u v).transpose.mulVecLin.ker = _ at h
+  rw [finrank_range_mulVecLin] at h
   simpa only [rank_transpose, hk, Module.finrank_pi, Module.finrank_self, mul_one] using h
 
 omit [DecidableEq V] in
@@ -98,9 +97,9 @@ theorem range_transpose_eq_ker_of_euler (B : Matrix V E (ZMod 2))
     rw [mulVec_mulVec, hzero, zero_mulVec]
   apply Submodule.eq_of_le_of_finrank_eq (K := ZMod 2) hle
   have hnull := D.mulVecLin.finrank_range_add_finrank_ker
-  change D.rank + Module.finrank (ZMod 2) D.mulVecLin.ker = _ at hnull
+  rw [finrank_range_mulVecLin] at hnull
   simp only [Module.finrank_pi] at hnull
-  rw [← rank, rank_transpose]
+  rw [finrank_range_mulVecLin, rank_transpose]
   omega
 
 end Matrix

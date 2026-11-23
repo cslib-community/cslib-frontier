@@ -794,7 +794,7 @@ theorem finrank_ker_mulVecLin_of_bareiss_terminal {A : Matrix (Fin m) (Fin n) K}
     Module.finrank K (LinearMap.ker A.mulVecLin) = n - k := by
   have hrn := A.mulVecLin.finrank_range_add_finrank_ker
   have hrk := rank_eq_of_bareiss_terminal hΔ hterm
-  change A.rank + Module.finrank K (LinearMap.ker A.mulVecLin) = _ at hrn
+  rw [finrank_range_mulVecLin] at hrn
   rw [hrk, Module.finrank_fintype_fun_eq_card, Fintype.card_fin] at hrn
   omega
 
@@ -891,6 +891,7 @@ theorem rrefOfBareiss_augmentCol {A : Matrix (Fin m) (Fin n) K}
       rw [rrefOfBareiss_pivot_dotProduct hΔ, add_eq_left]
       exact Finset.sum_eq_zero fun c _ => by rw [solveVec_nonPivot A S C b c.2, mul_zero]
     rw [rrefOfBareiss_nonPivot_row hΔaug hi, mulVec]
+    dsimp only
     conv_rhs => rw [hAi, sum_dotProduct]
     simp [smul_dotProduct, hdot, hcol, hlast, hcast]
   refine ⟨hcol, fun hsol i hi => ?_, fun hzeros => funext fun i => ?_⟩

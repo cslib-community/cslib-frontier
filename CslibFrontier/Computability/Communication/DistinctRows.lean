@@ -63,7 +63,7 @@ theorem card_image_le_two_pow_rank [Fintype X] (K : Type*) [Field K] [DecidableE
   have hbfin : b.Finite := (Set.finite_range _).subset hbsub
   have : Fintype b := hbfin.fintype
   have hcard : Fintype.card b = M.rank := by
-    rw [Matrix.rank_eq_finrank_span_cols, ← hbspan, finrank_span_set_eq_card hbli,
+    rw [← Matrix.finrank_span_range_col, ← hbspan, finrank_span_set_eq_card hbli,
       Set.toFinset_card]
   -- a column index for every element of `b`
   have hpre : ∀ v : b, ∃ y, M.col y = v.1 := fun v => hbsub v.2

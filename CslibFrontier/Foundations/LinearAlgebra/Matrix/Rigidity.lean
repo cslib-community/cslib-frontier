@@ -229,7 +229,7 @@ private theorem exists_submatrix_mul_eq_one_of_le_rank {A : Matrix m n K} {r : �
   have : Finite κ' := Finite.of_injective b hb
   have := Fintype.ofFinite κ'
   have hκ' : Fintype.card κ' = r := by
-    rw [← finrank_span_eq_card hli', hspan', ← rank_eq_finrank_span_cols, hf_rank]
+    rw [← finrank_span_eq_card hli', hspan', finrank_span_range_col, hf_rank]
   let e₂ : Fin r ≃ κ' := Fintype.equivOfCardEq (by rw [Fintype.card_fin, hκ'])
   let g : Fin r → n := b ∘ e₂
   have hg : Function.Injective g := hb.comp e₂.injective

@@ -119,6 +119,6 @@ theorem coeff_det_eq_of_totalDegree_sub_lt {n : ℕ}
       simp only [Finset.card_univ, Fintype.card_fin] at hb
       omega
     have hz := coeff_eq_zero_of_totalDegree_lt (hdeg.trans_le he)
-    simpa only [coeff_sub, sub_eq_zero] using hz
+    simpa only [MvPolynomial.coeff_sub, sub_eq_zero] using hz
 
 end MvPolynomial

@@ -344,7 +344,7 @@ theorem numericalGenusZero_of_faceEven_lifts {G : Graph} (r : RotationSystem G)
   have hker := range_transpose_eq_ker_of_faceEven_lifts r hG hlift d
   have hnull := (dualMatrix r hG d).mulVecLin.finrank_range_add_finrank_ker
   rw [← hker] at hnull
-  change (dualMatrix r hG d).rank + (primalMatrix G hG d).transpose.rank = _ at hnull
+  simp only [Matrix.finrank_range_mulVecLin] at hnull
   rw [Matrix.rank_transpose] at hnull
   simp only [Module.finrank_pi] at hnull
   have hp := rank_primalMatrix G hG d

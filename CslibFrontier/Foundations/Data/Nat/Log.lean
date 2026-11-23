@@ -44,7 +44,7 @@ variable {b n : ℕ}
 theorem pow_clog_le_mul (hb : 1 < b) (hn : n ≠ 0) : b ^ clog b n ≤ b * n := by
   rcases (one_le_iff_ne_zero.2 hn).eq_or_lt with rfl | hn
   · simpa using hb.le
-  · have := pow_pred_clog_lt_self hb hn
+  · have := pow_pred_clog_lt_self b hn
     rw [← succ_pred_eq_of_pos (clog_pos hb hn), pow_succ']
     exact Nat.mul_le_mul_left _ this.le
 

@@ -222,7 +222,7 @@ theorem exists_size (c : ℕ) : ∃ C n₀ : ℕ, ∀ n, n₀ ≤ n → ∀ (K :
         have h2 := hL₀ lam (by omega)
         have h3 : 2 ^ (lam / 2) ≤ 2 ^ (lam - 1) := Nat.pow_le_pow_right (by norm_num) (by omega)
         have h4 : 2 ^ (lam - 1) < n := by
-          have := Nat.pow_pred_clog_lt_self one_lt_two (show 1 < n by omega)
+          have := Nat.pow_pred_clog_lt_self 2 (show 1 < n by omega)
           rwa [Nat.pred_eq_sub_one] at this
         omega
       have hns36 : n ^ 36 ≤ sizeParam n ^ 36 := Nat.pow_le_pow_left hns _

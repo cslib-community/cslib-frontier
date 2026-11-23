@@ -64,7 +64,8 @@ variable [Field K]
 /-- **Subadditivity of rank**: the rank of a sum of matrices over a field is at most the sum of
 their ranks. -/
 theorem rank_add_le (A B : Matrix m n K) : (A + B).rank ≤ A.rank + B.rank := by
-  rw [rank, rank, rank, mulVecLin_add]
+  rw [← finrank_range_mulVecLin, ← finrank_range_mulVecLin, ← finrank_range_mulVecLin,
+    mulVecLin_add]
   exact (Submodule.finrank_mono (LinearMap.range_add_le _ _)).trans
     (Submodule.finrank_add_le_finrank_add_finrank _ _)
 
@@ -80,7 +81,7 @@ theorem exists_eq_mul_rank (A : Matrix m n K) :
   classical
   have := Module.Finite.span_of_finite K (Set.finite_range A.col)
   let b := (Module.finBasis K (Submodule.span K (Set.range A.col))).reindex
-    (finCongr A.rank_eq_finrank_span_cols.symm)
+    (finCongr A.finrank_span_range_col)
   let col (j : n) : Submodule.span K (Set.range A.col) :=
     ⟨A.col j, Submodule.subset_span ⟨j, rfl⟩⟩
   refine ⟨of fun i k => (b k : m → K) i, of fun k j => b.repr (col j) k, ?_⟩
@@ -96,7 +97,8 @@ theorem exists_mul_eq_one_of_rank_eq_card [Fintype m] [DecidableEq m] {A : Matri
     (h : A.rank = Fintype.card m) : ∃ B : Matrix n m K, A * B = 1 := by
   refine mulVec_surjective_iff_exists_right_inverse.1 fun y => ?_
   have hA : LinearMap.range A.mulVecLin = ⊤ :=
-    Submodule.eq_top_of_finrank_eq (h.trans (Module.finrank_fintype_fun_eq_card K).symm)
+    Submodule.eq_top_of_finrank_eq
+      (A.finrank_range_mulVecLin.trans (h.trans (Module.finrank_fintype_fun_eq_card K).symm))
   exact LinearMap.range_eq_top.1 hA y
 
 /-- The rank of a matrix over a field does not change when its entries are mapped along a ring
@@ -139,14 +141,14 @@ theorem rank_map_of_field [Finite m] {L : Type*} [CommSemiring L] [StrongRankCon
 /-- The natural rank of a finite matrix agrees with the cardinal rank of its linear map. -/
 theorem natCast_rank_eq_rank_toLin' [DecidableEq n] (M : Matrix m n K) :
     (M.rank : Cardinal) = M.toLin'.rank := by
-  rw [Matrix.rank, Matrix.toLin'_apply']
+  rw [← finrank_range_mulVecLin, Matrix.toLin'_apply']
   exact Module.finrank_eq_rank _ _
 
 /-- A matrix over a field has rank zero exactly when it is zero. -/
 theorem rank_eq_zero_iff {C : Matrix m n K} : C.rank = 0 ↔ C = 0 := by
   classical
   refine ⟨fun h => ?_, fun h => h ▸ rank_zero⟩
-  rw [Matrix.rank, Submodule.finrank_eq_zero, LinearMap.range_eq_bot] at h
+  rw [← finrank_range_mulVecLin, Submodule.finrank_eq_zero, LinearMap.range_eq_bot] at h
   ext i j
   have := congrFun (LinearMap.congr_fun h (Pi.single j 1)) i
   rwa [mulVecLin_apply, mulVec_single_one, col_apply] at this

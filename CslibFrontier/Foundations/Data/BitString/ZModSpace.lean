@@ -420,10 +420,11 @@ theorem finrank_orthogonal_add_finrank {K ι : Type*} [Field K] [Fintype ι]
       exact funext (Fintype.linearIndependent_iff.mp b.linearIndependent c hsum)
   have hrankT : M.transpose.rank = finrank K W := by
     have h := LinearMap.finrank_range_add_finrank_ker M.transpose.mulVecLin
-    rw [LinearMap.ker_eq_bot.mpr hinj, finrank_bot, add_zero, Module.finrank_fin_fun] at h
+    rw [Matrix.finrank_range_mulVecLin, LinearMap.ker_eq_bot.mpr hinj, finrank_bot, add_zero,
+      Module.finrank_fin_fun] at h
     exact h
   have hnull := LinearMap.finrank_range_add_finrank_ker M.mulVecLin
-  change M.rank + finrank K (LinearMap.ker M.mulVecLin) = _ at hnull
+  rw [Matrix.finrank_range_mulVecLin] at hnull
   rw [← rank_transpose, hrankT, ← hker, Module.finrank_fintype_fun_eq_card, add_comm] at hnull
   exact hnull
 

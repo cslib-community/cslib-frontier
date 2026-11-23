@@ -250,7 +250,7 @@ theorem slabPtrOf_congr {n_max : ℕ} {gm₁ gm₂ : ℕ → ℕ}
   unfold slabPtrOf
   rw [← h0]
   congr 1
-  apply List.find?_congr
+  refine List.find?_congr rfl ?_
   intro p hp
   rw [List.mem_range] at hp
   rw [hB p hp, hS p hp]

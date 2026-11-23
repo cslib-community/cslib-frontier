@@ -368,7 +368,7 @@ private theorem clog_two_mul_two_pow {a : ℕ} (ha : 1 ≤ a) (m : ℕ) :
     · have hcpos : 0 < Nat.clog 2 a := Nat.clog_pos Nat.one_lt_two hlt
       have hsub : Nat.clog 2 a - 1 + m < Nat.clog 2 (a * 2 ^ m) := by
         rw [Nat.lt_clog_iff_pow_lt Nat.one_lt_two, Nat.pow_add]
-        exact Nat.mul_lt_mul_of_pos_right (Nat.pow_pred_clog_lt_self Nat.one_lt_two hlt)
+        exact Nat.mul_lt_mul_of_pos_right (Nat.pow_pred_clog_lt_self 2 hlt)
           (Nat.two_pow_pos m)
       omega
 

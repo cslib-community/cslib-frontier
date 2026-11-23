@@ -213,7 +213,7 @@ theorem height_pos (n : ℕ) : 1 ≤ height n :=
 /-- `2^(height n) ≤ 2⌊log₂ n⌋ + 2`. -/
 private theorem two_pow_height_le (n : ℕ) : 2 ^ height n ≤ 2 * Nat.log 2 n + 2 := by
   have hlt : 2 ^ (height n - 1) < Nat.log 2 n + 2 :=
-    Nat.pow_pred_clog_lt_self (b := 2) (x := Nat.log 2 n + 2) (by norm_num) (by omega)
+    Nat.pow_pred_clog_lt_self 2 (x := Nat.log 2 n + 2) (by omega)
   rw [← Nat.sub_add_cancel (height_pos n), pow_succ]
   omega
 

@@ -107,7 +107,7 @@ theorem bfind_eq_none {p : ℕ → Bool} {s n : ℕ} :
 theorem bfind_congr {p q : ℕ → Bool} {s n : ℕ} (h : ∀ i, s ≤ i → i < s + n → p i = q i) :
     bfind p s n = bfind q s n := by
   unfold bfind
-  exact List.find?_congr fun x hx => h x (List.mem_range'_1.1 hx).1 (List.mem_range'_1.1 hx).2
+  exact List.find?_congr rfl fun x hx => h x (List.mem_range'_1.1 hx).1 (List.mem_range'_1.1 hx).2
 
 /-! ### The priority run -/
 

@@ -255,10 +255,10 @@ theorem kernel_impossible {w q k e : ℕ} (hw : 1 ≤ w) (he : 0 < e)
     fun i => coefficient_image_le_concat A Pmat i
   have hd := no_shrunk_subspace he A X hX V W hVW
   have hV : finrank F V = k := by
-    rw [← Matrix.rank_eq_finrank_span_cols]
+    rw [Matrix.finrank_span_range_col]
     exact rank_coefficientMatrix f b
   have hW : finrank F W < k := by
-    rw [← Matrix.rank_eq_finrank_span_cols]
+    rw [Matrix.finrank_span_range_col]
     exact rank_concat_lt A T f b hker hex hw
   omega
 

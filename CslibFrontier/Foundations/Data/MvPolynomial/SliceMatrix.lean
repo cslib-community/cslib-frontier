@@ -77,7 +77,7 @@ theorem rank_sliceMatrix [Fintype {d : σ →₀ ℕ // weight w d = m}]
       (Set.range fun D : {d : σ →₀ ℕ // weight w d = m} => monomial D.1 (1 : K)) := by
     rw [weightedHomogeneousSubmodule_eq_finsupp_supported]
     exact (restrictSupport_eq_span K _).trans (by rw [Set.image_eq_range]; rfl)
-  rw [Matrix.rank_eq_finrank_span_cols, hcols, ← Submodule.map_span, ← hspan,
+  rw [← Matrix.finrank_span_range_col, hcols, ← Submodule.map_span, ← hspan,
     Submodule.map_comp]
   exact (LinearEquiv.ofBijective _ ⟨hinj, LinearMap.submoduleMap_surjective _ _⟩).finrank_eq.symm
 
