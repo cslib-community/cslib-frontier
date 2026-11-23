@@ -11,11 +11,11 @@ public import CslibFrontier.Algorithms.Lean.TwoSAT
 public import CslibFrontier.Algorithms.WordRAM.ClauseCode
 public import CslibFrontier.Computability.WordRAM.ListOutput
 public import CslibFrontier.Computability.WordRAM.Notation
+import CslibFrontier.Computability.WordRAM.Allocation
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
-import CslibFrontier.Computability.WordRAM.SymbolicExec.MemFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Data.List.GetD
-import Mathlib.Tactic.FinCases
+import Mathlib.Tactic.Ring
 
 /-!
 # Linear-time 2-SAT on the word RAM
@@ -41,23 +41,35 @@ so `decodeAnswer G (answerWords G) = TwoSAT.solveFin G.n G.φ` holds uncondition
 ## Main definitions
 
 * `Cslib.Algorithms.WordRAM.TwoSAT.Instance`: 2-SAT problem instance `(n, φ)`.
-* `Cslib.Algorithms.WordRAM.TwoSAT.Instance.encode`,
-  `Cslib.Algorithms.WordRAM.TwoSAT.Instance.wordBound`: input word list and linear word-width bound.
-* `Cslib.Algorithms.WordRAM.TwoSAT.answerWords`,
+* `Cslib.Algorithms.WordRAM.TwoSAT.Instance.totalLits`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.Instance.encode`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.Instance.outAddrBase`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.Instance.wordBound`: literal-occurrence count, input word list,
+  output-list base address, and linear word-width bound.
+* `Cslib.Algorithms.WordRAM.TwoSAT.encodeAssignment`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.answerWords`,
   `Cslib.Algorithms.WordRAM.TwoSAT.decodeAnswer`: output word list and lossless decoder to
   `Option (Fin G.n → Bool)`.
+* `Cslib.Algorithms.WordRAM.TwoSAT.Reg.outBase`: output-list header register.
 * `Cslib.Algorithms.WordRAM.TwoSAT.solver`,
   `Cslib.Algorithms.WordRAM.TwoSAT.program`: structured and flat word-RAM programs.
 
 ## Main results
 
+* `Cslib.Algorithms.WordRAM.TwoSAT.Instance.encode_length`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.Instance.inputFits_encode`: encoded word count and input-fit
+  certificate from `Fits w G.wordBound`.
 * `Cslib.Algorithms.WordRAM.TwoSAT.decodeAnswer_answerWords`: lossless output decoding.
 * `Cslib.Algorithms.WordRAM.TwoSAT.answerWords_eq_nil_iff`,
   `Cslib.Algorithms.WordRAM.TwoSAT.eval_of_decodeAnswer_eq_some`: decision characterization and
   witness soundness.
-* `Cslib.Algorithms.WordRAM.TwoSAT.program_spec`,
+* `Cslib.Algorithms.WordRAM.TwoSAT.solver_spec`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.program_spec`,
   `Cslib.Algorithms.WordRAM.TwoSAT.computesListInTime_program`: execution within
-  `600 * (G.n + G.φ.length + 1)` instructions at every word width `w` with `Fits w G.wordBound`.
+  `512 * (G.n + G.φ.length + 1)` instructions at every word width `w` with `Fits w G.wordBound`.
+* `Cslib.Algorithms.WordRAM.TwoSAT.not_readsWidth_program`,
+  `Cslib.Algorithms.WordRAM.TwoSAT.isRandFree_program`: width-independence and determinism
+  certificates for `program`.
 
 ## References
 
@@ -119,8 +131,9 @@ theorem encode_length (G : Instance) :
 
 private theorem totalLits_le_of_width (G : Instance) (hw : ∀ c ∈ G.φ, c.length ≤ 2) :
     G.totalLits ≤ 2 * G.φ.length := by
-  unfold totalLits
-  induction G.φ with
+  rcases G with ⟨n, φ⟩
+  dsimp only [totalLits] at hw ⊢
+  induction φ with
   | nil => simp
   | cons c cs ih =>
     have hc : c.length ≤ 2 := hw c List.mem_cons_self
@@ -131,6 +144,35 @@ private theorem totalLits_le_of_width (G : Instance) (hw : ∀ c ∈ G.φ, c.len
 private theorem fits_of_le {G : Instance} {w x : ℕ} (hfit : Fits w G.wordBound)
     (hle : x ≤ G.wordBound) : Fits w x :=
   hfit.of_le hle
+
+private theorem length_mem_le_sum {n : ℕ} :
+    ∀ {cs : CNF (Fin n)} {c : Clause (Fin n)}, c ∈ cs → c.length ≤ (cs.map List.length).sum
+  | _ :: _, _, hc => by
+    rcases List.mem_cons.1 hc with rfl | hmem
+    · simp
+    · have := length_mem_le_sum hmem
+      simp only [List.map_cons, List.sum_cons]
+      omega
+
+/-- Every word of `G.encode`, together with its length, fits in any word width admitting
+`G.wordBound`. -/
+theorem inputFits_encode (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
+    InputFits w G.encode := by
+  refine ⟨hfit.of_le (by rw [G.encode_length]; unfold wordBound; omega), fun v hv => ?_⟩
+  simp only [encode, List.mem_cons, List.mem_flatMap] at hv
+  rcases hv with rfl | rfl | ⟨c, hc, hvc⟩
+  · exact hfit.of_le (by unfold wordBound; omega)
+  · exact hfit.of_le (by unfold wordBound; omega)
+  · simp only [encodeClauseBy, List.mem_cons, List.mem_map] at hvc
+    rcases hvc with rfl | ⟨ℓ, _, rfl⟩
+    · have hle : c.length ≤ G.totalLits := length_mem_le_sum hc
+      exact hfit.of_le (by unfold wordBound; omega)
+    · have hlt : litCodeBy Fin.val ℓ < 2 * G.n := by
+        have := ℓ.1.isLt
+        have := Bool.toNat_le ℓ.2
+        unfold litCodeBy
+        omega
+      exact hfit.of_le (by unfold wordBound; omega)
 
 end Instance
 
@@ -199,8 +241,11 @@ private def litEquiv (n : ℕ) : Literal (Fin n) ≃ Fin (2 * n) where
   invFun u := (⟨u.val / 2, by omega⟩, decide (u.val % 2 = 1))
   left_inv := by
     rintro ⟨⟨v, hv⟩, b⟩
-    cases b <;> simp only [litCodeBy, Bool.toNat_false, Bool.toNat_true, Prod.mk.injEq,
-      Fin.mk.injEq] <;> omega
+    have hdiv1 : (2 * v + 1) / 2 = v := by omega
+    have hmod1 : (2 * v + 1) % 2 = 1 := by omega
+    cases b with
+    | false => simp [litCodeBy]
+    | true => simp [litCodeBy, hdiv1, hmod1]
   right_inv := by
     rintro ⟨u, hu⟩
     simp only [litCodeBy, Fin.mk.injEq]
@@ -412,38 +457,56 @@ private theorem Instance.indexComponents_adjFin (G : Instance) (ℓ : Literal (F
 
 namespace Reg
 
-private abbrev cZero : Fin 28 := 0
-private abbrev cOne : Fin 28 := 1
-private abbrev cTwo : Fin 28 := 2
-private abbrev cThree : Fin 28 := 3
-private abbrev nv : Fin 28 := 4
-private abbrev mClauses : Fin 28 := 5
-private abbrev nVerts : Fin 28 := 6
-private abbrev outBase : Fin 28 := 7
-private abbrev offB : Fin 28 := 8
-private abbrev edgeB : Fin 28 := 9
-private abbrev visB : Fin 28 := 10
-private abbrev finB : Fin 28 := 11
-private abbrev stkB : Fin 28 := 12
-private abbrev curB : Fin 28 := 13
-private abbrev revOffB : Fin 28 := 14
-private abbrev revEdgeB : Fin 28 := 15
-private abbrev ordB : Fin 28 := 16
-private abbrev compB : Fin 28 := 17
-private abbrev iReg : Fin 28 := 18
-private abbrev pReg : Fin 28 := 19
-private abbrev finCnt : Fin 28 := 20
-private abbrev compIdxReg : Fin 28 := 21
-private abbrev oldFinReg : Fin 28 := 22
-private abbrev uReg : Fin 28 := 23
-private abbrev vReg : Fin 28 := 24
-private abbrev jReg : Fin 28 := 25
-private abbrev jEndReg : Fin 28 := 26
-private abbrev addr : Fin 28 := 27
+private abbrev cZero : Fin 28 := ⟨0, by decide⟩
+private abbrev cOne : Fin 28 := ⟨1, by decide⟩
+private abbrev cTwo : Fin 28 := ⟨2, by decide⟩
+private abbrev cThree : Fin 28 := ⟨3, by decide⟩
+private abbrev nv : Fin 28 := ⟨4, by decide⟩
+private abbrev mClauses : Fin 28 := ⟨5, by decide⟩
+private abbrev nVerts : Fin 28 := ⟨6, by decide⟩
+/-- Output-list header register (`G.outAddrBase`). -/
+abbrev outBase : Fin 28 := ⟨7, by decide⟩
+private abbrev offB : Fin 28 := ⟨8, by decide⟩
+private abbrev edgeB : Fin 28 := ⟨9, by decide⟩
+private abbrev visB : Fin 28 := ⟨10, by decide⟩
+private abbrev finB : Fin 28 := ⟨11, by decide⟩
+private abbrev stkB : Fin 28 := ⟨12, by decide⟩
+private abbrev curB : Fin 28 := ⟨13, by decide⟩
+private abbrev revOffB : Fin 28 := ⟨14, by decide⟩
+private abbrev revEdgeB : Fin 28 := ⟨15, by decide⟩
+private abbrev ordB : Fin 28 := ⟨16, by decide⟩
+private abbrev compB : Fin 28 := ⟨17, by decide⟩
+private abbrev iReg : Fin 28 := ⟨18, by decide⟩
+private abbrev pReg : Fin 28 := ⟨19, by decide⟩
+private abbrev finCnt : Fin 28 := ⟨20, by decide⟩
+private abbrev compIdxReg : Fin 28 := ⟨21, by decide⟩
+private abbrev oldFinReg : Fin 28 := ⟨22, by decide⟩
+private abbrev uReg : Fin 28 := ⟨23, by decide⟩
+private abbrev vReg : Fin 28 := ⟨24, by decide⟩
+private abbrev jReg : Fin 28 := ⟨25, by decide⟩
+private abbrev jEndReg : Fin 28 := ⟨26, by decide⟩
+private abbrev addr : Fin 28 := ⟨27, by decide⟩
 
 end Reg
 
 open Reg
+
+local macro "reg_ne" : tactic =>
+  `(tactic| exact Fin.ne_of_val_ne (by
+    simp only [ne_eq, Fin.ext_iff, cZero, cOne, cTwo, cThree, nv, mClauses, nVerts, outBase, offB,
+      edgeB, visB, finB, stkB, curB, revOffB, revEdgeB, ordB, compB, iReg, pReg, finCnt,
+      compIdxReg, oldFinReg, uReg, vReg, jReg, jEndReg, addr] at *
+    omega))
+
+local macro "regs_lt" : tactic =>
+  `(tactic| (
+    repeat (first
+      | rw [Data.write_regs_apply]
+      | rw [Data.set_regs_of_ne (by reg_ne)])
+    try rfl))
+
+local macro "mem_upd" : tactic =>
+  `(tactic| simp only [Data.set_mem, Data.set_mem_apply, Data.write_mem])
 
 private def kOffAddr (wb : ℕ) : ℕ := wb
 private def kEdgeAddr (wb N : ℕ) : ℕ := wb + N + 1
@@ -573,21 +636,21 @@ private theorem checkClausesLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.
       wram_exec [hc0, hc1, hc2, hi, hpR, hok, hlen_p, hp_bound, hp_bound1, hi_bound]
       · dsimp only [StepPost]
         refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => ?_⟩
-        · try wram_simp
+        · wram_simp
           simp [isValidTwoClause, ‹c.length = 0›]
-        · wram_simp; fin_cases r <;> simp_all
+        · regs_lt
       · dsimp only [StepPost]
         refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => ?_⟩
-        · try wram_simp
+        · wram_simp
           have hc_gt : ¬ c.length ≤ 2 := by omega
           simp [isValidTwoClause, hc_gt]
-        · wram_simp; fin_cases r <;> simp_all
+        · regs_lt
       · dsimp only [StepPost]
         refine ⟨rfl, by wram_simp, by wram_simp; omega, ?_, fun r hr => ?_⟩
-        · try wram_simp
+        · wram_simp
           have hc_ok : 1 ≤ c.length ∧ c.length ≤ 2 := by omega
           simp [isValidTwoClause, hc_ok]
-        · wram_simp; fin_cases r <;> simp_all
+        · regs_lt
     obtain ⟨x₁, hx₁_ex, hx₁_mem, hx₁_i, hx₁_p, hx₁_ok, hx₁_fr⟩ := hstep
     have hlt : (Cond.lt iReg mClauses).Holds x := by
       change x.regs iReg < x.regs mClauses
@@ -652,6 +715,20 @@ private def CSRAt {N : ℕ} (adj : Fin N → List (Fin N)) (offBase edgeBase : �
     ∀ (u : Fin N) (k : ℕ) (hk : k < (adj u).length),
       mem (edgeBase + csrOffset adj u.val + k) = ((adj u)[k]).val
 
+private theorem CSRAt.of_eqOn {N : ℕ} {adj : Fin N → List (Fin N)} {offBase edgeBase : ℕ}
+    {mem₁ mem₂ : ℕ → ℕ} (h : CSRAt adj offBase edgeBase mem₁)
+    (hoff : ∀ u ≤ N, mem₂ (offBase + u) = mem₁ (offBase + u))
+    (hedge : ∀ e < csrOffset adj N, mem₂ (edgeBase + e) = mem₁ (edgeBase + e)) :
+    CSRAt adj offBase edgeBase mem₂ := by
+  refine ⟨fun u hu => (hoff u hu).trans (h.1 u hu), fun u k hk => ?_⟩
+  have hk_lt : csrOffset adj u.val + k < csrOffset adj N := by
+    have h1 := csrOffset_succ adj u.isLt
+    simp only [Fin.eta] at h1
+    have h2 := csrOffset_mono adj (by omega : u.val + 1 ≤ N)
+    omega
+  rw [Nat.add_assoc, hedge _ hk_lt, ← Nat.add_assoc]
+  exact h.2 u k hk
+
 private def PartialCSRAt {N : ℕ} (targetAdj part : Fin N → List (Fin N))
     (curBase edgeBase : ℕ) (mem : ℕ → ℕ) : Prop :=
   (∀ w : Fin N, (part w).length ≤ (targetAdj w).length) ∧
@@ -678,64 +755,53 @@ private theorem csrAt_of_partialCSRAt {N : ℕ} (targetAdj : Fin N → List (Fin
   have hget := hp.2.2 u k hk
   rwa [heq] at hget
 
-/-- Zero `[visB, visB + nVerts)` in `5 * N + 3` instructions. -/
-private def zeroVisBody : Code .standard 28 := ram[
-  addr ← visB + iReg; *addr ← cZero; iReg ← iReg + cOne ]
+/-- Zero `[baseReg, baseReg + nVerts)` in `4 * N + 4` instructions via `Cslib.WordRAM.zeroFill`. -/
+private def zeroBlockCode (baseReg : Fin 28) : Code .standard 28 :=
+  (ram[ addr ← baseReg; jEndReg ← baseReg + nVerts ]).seq
+    (zeroFill addr jEndReg cZero cOne)
 
-private def zeroVisCode : Code .standard 28 :=
-  (ram[ iReg ← cZero ]).seq (.loop (.lt iReg nVerts) zeroVisBody)
-
-private theorem zeroVisCode_spec {w : ℕ} (B N : ℕ) (hfit : Fits w (B + N + 1)) {x : Data 28}
+private theorem zeroBlockCode_spec {w : ℕ} (baseReg : Fin 28) (hbr : baseReg.val < 18)
+    (B N : ℕ) (hfit : Fits w (B + N)) {x : Data 28}
     (hc0 : x.regs cZero = 0) (hc1 : x.regs cOne = 1)
-    (hB : x.regs visB = B) (hN : x.regs nVerts = N) :
-    ∃ y, ExecWithin w zeroVisCode x y (5 * N + 3) ∧
+    (hB : x.regs baseReg = B) (hN : x.regs nVerts = N) :
+    ∃ y, ExecWithin w (zeroBlockCode baseReg) x y (4 * N + 4) ∧
       (∀ i < N, y.mem (B + i) = 0) ∧
       (∀ a, ¬ (B ≤ a ∧ a < B + N) → y.mem a = x.mem a) ∧
       (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) := by
-  have hprep : ∃ x₀, ExecWithin (B := .standard) w (ram[ iReg ← cZero ]) x x₀ 1 ∧
-      x₀.mem = x.mem ∧ x₀.regs iReg = 0 ∧
-      (∀ r : Fin 28, r.val < 18 → x₀.regs r = x.regs r) := by
-    let PrepPost (x₀ : Data 28) : Prop :=
-      x₀.mem = x.mem ∧ x₀.regs iReg = 0 ∧
-        (∀ r : Fin 28, r.val < 18 → x₀.regs r = x.regs r)
-    change ∃ x₀, ExecWithin (B := .standard) w (ram[ iReg ← cZero ]) x x₀ 1 ∧ PrepPost x₀
-    wram_exec [hc0]
-    refine ⟨rfl, by try wram_simp, fun r hr => ?_⟩
-    wram_simp; fin_cases r <;> simp_all
-  obtain ⟨x₀, hx₀_ex, hx₀_mem, hx₀_i, hx₀_fr⟩ := hprep
-  let P (k : ℕ) (y : Data 28) : Prop :=
-    (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) ∧
-      (∀ i < k, y.mem (B + i) = 0) ∧
-      (∀ a, ¬ (B ≤ a ∧ a < B + k) → y.mem a = x.mem a)
-  have hbody : ∀ y, P (y.regs iReg) y → y.regs iReg < N →
-      ∃ z, ExecWithin w zeroVisBody y z 3 ∧
-        P (y.regs iReg + 1) z ∧ z.regs iReg = y.regs iReg + 1 := by
-    intro y ⟨hy_fr, hy_zero, hy_out⟩ hlt
-    have hy0 : y.regs cZero = 0 := (hy_fr cZero (by decide)).trans hc0
-    have hy1 : y.regs cOne = 1 := (hy_fr cOne (by decide)).trans hc1
-    have hyB : y.regs visB = B := (hy_fr visB (by decide)).trans hB
-    have hf_addr : Fits w (B + y.regs iReg) := hfit.of_le (by omega)
-    have hf_inc : Fits w (y.regs iReg + 1) := hfit.of_le (by omega)
-    let BodyPost (z : Data 28) : Prop :=
-      P (y.regs iReg + 1) z ∧ z.regs iReg = y.regs iReg + 1
-    change ∃ z, ExecWithin w zeroVisBody y z 3 ∧ BodyPost z
-    unfold zeroVisBody
-    wram_exec [hy0, hy1, hyB, hf_addr, hf_inc]
-    have hpw := prefix_write_step (e := fun _ => 0) hy_zero hy_out (z := Function.update y.mem
-      (B + y.regs iReg) 0) rfl
-    refine ⟨⟨fun r hr => ?_, ?_, ?_⟩, by try wram_simp⟩
-    · wram_simp
-      have := hy_fr r hr
-      fin_cases r <;> simp_all
-    · try wram_simp
-      exact hpw.1
-    · try wram_simp
-      exact hpw.2
-  obtain ⟨y, hy_loop, hy_P, -⟩ := ExecWithin.loop_count P
-    (fun y hy => (hy.1 nVerts (by decide)).trans hN) hbody
-    (x := x₀) (by omega)
-    ⟨hx₀_fr, fun i hi => by omega, fun a _ => congrFun hx₀_mem a⟩
-  exact ⟨y, (hx₀_ex.seq hy_loop).mono (by omega), hy_P.2.1, hy_P.2.2, hy_P.1⟩
+  let x₁ := (x.set addr B).set jEndReg (B + N)
+  have hprep : ExecWithin (B := .standard) w
+      (ram[ addr ← baseReg; jEndReg ← baseReg + nVerts ]) x x₁ 2 := by
+    have hb_ne : baseReg ≠ addr := by reg_ne
+    have hn_ne : nVerts ≠ addr := by reg_ne
+    have heval : BinOp.add.eval ((x.set addr B).regs baseReg) ((x.set addr B).regs nVerts) =
+        B + N := by
+      rw [Data.set_regs_of_ne hb_ne, Data.set_regs_of_ne hn_ne, hB, hN]; rfl
+    have he1 : Exec (B := .standard) w (ram[ addr ← baseReg ]) x (x.set addr B) 1 := by
+      simpa [hB] using (Exec.copy (B := .standard) (w := w) (x := x) (d := addr) (s := baseReg))
+    have he2 : Exec (B := .standard) w (ram[ jEndReg ← baseReg + nVerts ]) (x.set addr B) x₁ 1 := by
+      have hfit' : Fits w (BinOp.add.eval ((x.set addr B).regs baseReg)
+          ((x.set addr B).regs nVerts)) := by rwa [heval]
+      have h : Exec (B := .standard) w (ram[ jEndReg ← baseReg + nVerts ]) (x.set addr B) _ 1 :=
+        Exec.bin hfit'
+      rwa [heval] at h
+    exact ⟨2, le_rfl, he1.seq he2⟩
+  have hx₁_addr : x₁.regs addr = B := by dsimp only [x₁]; wram_simp
+  have hx₁_stop : x₁.regs jEndReg = B + N := by dsimp only [x₁]; wram_simp
+  have hx₁_0 : x₁.regs cZero = 0 := by dsimp only [x₁]; wram_simp; exact hc0
+  have hx₁_1 : x₁.regs cOne = 1 := by dsimp only [x₁]; wram_simp; exact hc1
+  have hzf := zeroFill_exec (w := w) (cur := addr) (stop := jEndReg) (zero := cZero) (one := cOne)
+    (x := x₁) (by decide) (by decide) (by decide) hx₁_0 hx₁_1
+    (by rw [hx₁_addr, hx₁_stop]; omega) (by rw [hx₁_stop]; exact hfit)
+  rw [hx₁_addr, hx₁_stop, Nat.add_sub_cancel_left] at hzf
+  have hzf_w : ExecWithin w (zeroFill addr jEndReg cZero cOne) x₁
+      ⟨Function.update x₁.regs addr (B + N), clear x₁.mem B N⟩ (4 * N + 2) :=
+    ⟨4 * N + 2, le_rfl, hzf⟩
+  refine ⟨_, (hprep.seq hzf_w).mono (by omega), fun i hi => ?_, fun a ha => ?_, fun r hr => ?_⟩
+  · exact clear_of_owns ⟨Nat.le_add_right B i, Nat.add_lt_add_left hi B⟩
+  · exact clear_of_not_owns ha
+  · have hne1 : r ≠ addr := by reg_ne
+    simp only [x₁, Function.update_of_ne hne1]
+    regs_lt
 
 /-- Increment `mem[curB + vReg]` by `1` in `4` instructions. -/
 private def incCurCode : Code .standard 28 := ram[
@@ -762,15 +828,16 @@ private theorem incCurCode_spec {N w : ℕ} (curBase maxDeg : ℕ)
   change ∃ y, ExecWithin w incCurCode x y 4 ∧ IncPost y
   unfold incCurCode
   wram_exec [hc1, hcur, hsrc, hm_src, hf_addr, hf_val]
+  dsimp only [IncPost]
   refine ⟨fun u => ?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
-  · wram_simp
+  · mem_upd
     by_cases hu : u = src
     · subst hu; simp
     · have hne : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega))
       simp [Function.update_of_ne hne, Function.update_of_ne hu, hmem u]
-  · wram_simp
+  · mem_upd
     exact Function.update_of_ne (by omega) _ _
-  · wram_simp; fin_cases r <;> simp_all
+  · regs_lt
 
 /-- Compute CSR prefix sums `offB[0..N]` from degrees in `curB[0..N)` and set
 `curB[u] := offB[u + 1]` in `9 * N + 5` instructions. -/
@@ -811,8 +878,9 @@ private theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin 
     change ∃ x₀, ExecWithin (B := .standard) w
       (ram[ *offB ← cZero; pReg ← cZero; iReg ← cZero ]) x x₀ 3 ∧ PrepPost x₀
     wram_exec [hc0, hoffB]
-    refine ⟨by wram_simp, by try wram_simp, by try wram_simp, fun r hr => ?_⟩
-    wram_simp; fin_cases r <;> simp_all
+    dsimp only [PrepPost]
+    refine ⟨by wram_simp, by wram_simp, by wram_simp, fun r hr => ?_⟩
+    regs_lt
   obtain ⟨x₀, hx₀_ex, hx₀_mem, hx₀_p, hx₀_i, hx₀_fr⟩ := hprep
   let P (k : ℕ) (y : Data 28) : Prop :=
     (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) ∧
@@ -848,17 +916,16 @@ private theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin 
     change ∃ z, ExecWithin w prefixSumBody y z 7 ∧ BodyPost z
     unfold prefixSumBody
     wram_exec [hy1, hyD, hyO, hy_p, hdeg_k, hf_daddr, hf_psum, hf_k1, hf_oaddr]
-    refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by try wram_simp⟩
-    · wram_simp
-      have := hy_fr r hr
-      fin_cases r <;> simp_all
+    dsimp only [BodyPost, P]
+    refine ⟨⟨fun r hr => ?_, ?_, fun u hu => ?_, fun u => ?_, fun a ha => ?_⟩, by wram_simp⟩
+    · regs_lt; exact hy_fr r hr
     · wram_simp; exact hoff_succ.symm
-    · wram_simp
+    · mem_upd
       by_cases huk : u = y.regs iReg + 1
       · subst huk; simp [hoff_succ]
       · rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
         exact hy_off u (by omega)
-    · wram_simp
+    · mem_upd
       rw [Function.update_of_ne (by have := u.isLt; omega)]
       by_cases huk : u.val = y.regs iReg
       · rw [huk, Function.update_self]
@@ -869,7 +936,7 @@ private theorem prefixSumCode_spec {N w : ℕ} (targetAdj : Fin N → List (Fin 
           simp [hlt', hlt'']
         · have hlt'' : ¬ u.val < y.regs iReg + 1 := by omega
           simp [hlt', hlt'']
-    · wram_simp
+    · mem_upd
       rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega)]
       exact hy_out a (by omega)
   have hx₀_P : P (x₀.regs iReg) x₀ := by
@@ -920,9 +987,12 @@ private theorem partialCSRAt_step {N : ℕ}
     PartialCSRAt targetAdj (Function.update part src (dst :: part src)) curBase edgeBase mem' ∧
       (∀ a, ¬ ((curBase ≤ a ∧ a < curBase + N) ∨
           (edgeBase ≤ a ∧ a < edgeBase + csrOffset targetAdj N)) → mem' a = mem a) := by
+  dsimp only
   have hsrc_lt := src.isLt
   have hcur_eq := hp.2.1 src
-  have hoff_src := csrOffset_succ targetAdj hsrc_lt
+  have hoff_src : csrOffset targetAdj (src.val + 1) =
+      csrOffset targetAdj src.val + (targetAdj src).length := by
+    simpa using csrOffset_succ targetAdj hsrc_lt
   have hoff_le_N := csrOffset_mono targetAdj (by omega : src.val + 1 ≤ N)
   set c := mem (curBase + src.val) - 1
   set mem₁ := Function.update mem (curBase + src.val) c
@@ -938,18 +1008,16 @@ private theorem partialCSRAt_step {N : ℕ}
   · have hm_ne : edgeBase + c ≠ curBase + u.val := by have := u.isLt; omega
     rw [show mem' (curBase + u.val) = mem₁ (curBase + u.val) from
       Function.update_of_ne hm_ne.symm _ _]
-    by_cases hu : u = src
-    · subst hu
-      rw [Function.update_self, show mem₁ (curBase + src.val) = c from Function.update_self _ _ _,
+    rcases eq_or_ne src u with rfl | hu
+    · rw [Function.update_self, show mem₁ (curBase + src.val) = c from Function.update_self _ _ _,
         List.length_cons]
       omega
-    · have hne : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega))
-      rw [Function.update_of_ne hu,
+    · have hne : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega)).symm
+      rw [Function.update_of_ne hu.symm,
         show mem₁ (curBase + u.val) = mem (curBase + u.val) from Function.update_of_ne hne _ _]
       exact hp.2.1 u
-  · by_cases hu : u = src
-    · subst hu
-      have hlen_upd : (Function.update part src (dst :: part src) src).length =
+  · rcases eq_or_ne src u with rfl | hu
+    · have hlen_upd : (Function.update part src (dst :: part src) src).length =
           (part src).length + 1 := by simp
       have hm_cur : mem' (curBase + src.val) = c := by
         change Function.update mem₁ (edgeBase + c) dst.val (curBase + src.val) = c
@@ -976,14 +1044,15 @@ private theorem partialCSRAt_step {N : ℕ}
           ((part src)[k']).val
         rw [Function.update_of_ne (by omega)]
         exact hp.2.2 src k' hk'
-    · have hget_upd : ∀ j (hj : j < (Function.update part src (dst :: part src) u).length),
+    · have hu' : u ≠ src := hu.symm
+      have hget_upd : ∀ j (hj : j < (Function.update part src (dst :: part src) u).length),
           (Function.update part src (dst :: part src) u)[j] =
-            (part u)[j]'(by simpa [Function.update_of_ne hu] using hj) := by
+            (part u)[j]'(by simpa [Function.update_of_ne hu'] using hj) := by
         intro j hj
-        simp [Function.update_of_ne hu]
+        simp [Function.update_of_ne hu']
       rw [hget_upd k hk]
-      have hk_u : k < (part u).length := by simpa [Function.update_of_ne hu] using hk
-      have hne_c : curBase + u.val ≠ curBase + src.val := fun h => hu (Fin.ext (by omega))
+      have hk_u : k < (part u).length := by simpa [Function.update_of_ne hu'] using hk
+      have hne_c : curBase + u.val ≠ curBase + src.val := fun h => hu' (Fin.ext (by omega))
       have hm_cur : mem' (curBase + u.val) = mem (curBase + u.val) := by
         change Function.update mem₁ (edgeBase + c) dst.val (curBase + u.val) = mem (curBase + u.val)
         rw [Function.update_of_ne (by have := u.isLt; omega)]
@@ -991,11 +1060,13 @@ private theorem partialCSRAt_step {N : ℕ}
       rw [hm_cur]
       have hu_cur := hp.2.1 u
       have hu_len := hp.1 u
-      have hu_off := csrOffset_succ targetAdj u.isLt
+      have hu_off : csrOffset targetAdj (u.val + 1) =
+          csrOffset targetAdj u.val + (targetAdj u).length := by
+        simpa using csrOffset_succ targetAdj u.isLt
       have hq_low : csrOffset targetAdj u.val ≤ mem (curBase + u.val) + k := by omega
       have hq_high : mem (curBase + u.val) + k < csrOffset targetAdj (u.val + 1) := by omega
       have hne_edge : mem (curBase + u.val) + k ≠ c :=
-        csrOffset_disjoint targetAdj hu hq_low hq_high hc_low hc_high
+        csrOffset_disjoint targetAdj hu' hq_low hq_high hc_low hc_high
       have hq_lt_N : mem (curBase + u.val) + k < csrOffset targetAdj N :=
         lt_of_lt_of_le hq_high (csrOffset_mono targetAdj (by omega : u.val + 1 ≤ N))
       change Function.update mem₁ (edgeBase + c) dst.val (edgeBase + mem (curBase + u.val) + k) = _
@@ -1025,7 +1096,9 @@ private theorem backfillStepCode_spec {N w : ℕ}
       (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → y.regs r = x.regs r) := by
   have hsrc_lt := src.isLt
   have hcur_eq := hp.2.1 src
-  have hoff_src := csrOffset_succ targetAdj hsrc_lt
+  have hoff_src : csrOffset targetAdj (src.val + 1) =
+      csrOffset targetAdj src.val + (targetAdj src).length := by
+    simpa using csrOffset_succ targetAdj hsrc_lt
   have hoff_le_N := csrOffset_mono targetAdj (by omega : src.val + 1 ≤ N)
   set c := x.mem (curBase + src.val) - 1
   have hc_pos : 1 ≤ x.mem (curBase + src.val) := by omega
@@ -1043,10 +1116,11 @@ private theorem backfillStepCode_spec {N w : ℕ}
   change ∃ y, ExecWithin w backfillStepCode x y 6 ∧ BfPost y
   unfold backfillStepCode
   wram_exec [hc1, hcurB, hedgeB, hsrc, hdst, hf_caddr, hf_eaddr]
+  dsimp only [BfPost]
   refine ⟨?_, fun a ha => ?_, fun r h1 h2 => ?_⟩
-  · wram_simp; exact hstep.1
-  · wram_simp; exact hstep.2 a ha
-  · wram_simp; fin_cases r <;> simp_all
+  · mem_upd; exact hstep.1
+  · mem_upd; exact hstep.2 a ha
+  · regs_lt
 
 /-! ### Implication-graph CSR construction (`O(n + |φ|)`) -/
 
@@ -1063,8 +1137,12 @@ private theorem length_le_foldl_addClauseEdges {V : Type*} [DecidableEq V] :
       · dsimp only [addClauseEdges]
         by_cases h2 : w = b.negate
         · subst h2
-          by_cases h1 : b.negate = a.negate <;> simp [h1]
-        · by_cases h1 : w = a.negate <;> simp [h2, h1]
+          by_cases h1 : b.negate = a.negate
+          · rw [h1]; simp; omega
+          · simp [h1]
+        · by_cases h1 : w = a.negate
+          · subst h1; simp [h2]
+          · simp [h2, h1]
       · exact le_rfl
     exact h1.trans (length_le_foldl_addClauseEdges cs (addClauseEdges adj c) w)
 
@@ -1139,7 +1217,7 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
       x.regs cOne = 1 → x.regs mClauses = G.φ.length →
       x.regs curB = kCurAddr G.workBase (2 * G.n) (2 * G.φ.length) →
       x.regs iReg = idx → x.regs pReg = p →
-      ∃ y, ExecWithin w (.loop (.lt iReg mClauses) implDegBody) x y (18 * cs.length + 2) ∧
+      ∃ y, ExecWithin w (.loop (.lt iReg mClauses) implDegBody) x y (21 * cs.length + 2) ∧
         (∀ u : Fin (2 * G.n), y.mem (kCurAddr G.workBase (2 * G.n) (2 * G.φ.length) + u.val) =
           (mapAdj (litEquiv G.n) (cs.foldl addClauseEdges g) u).length) ∧
         (∀ a, ¬ (kCurAddr G.workBase (2 * G.n) (2 * G.φ.length) ≤ a ∧
@@ -1186,7 +1264,7 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
         (∀ a, ¬ (curBase ≤ a ∧ a < curBase + 2 * G.n) → x₁.mem a = x.mem a) ∧
         x₁.regs iReg = idx + 1 ∧ x₁.regs pReg = p + 1 + c.length ∧
         (∀ r : Fin 28, r.val < 18 → x₁.regs r = x.regs r)
-    have hstep : ∃ x₁, ExecWithin w implDegBody x x₁ 16 ∧ DegStepPost x₁ := by
+    have hstep : ∃ x₁, ExecWithin w implDegBody x x₁ 19 ∧ DegStepPost x₁ := by
       rcases c with _ | ⟨a, _ | ⟨b, _ | ⟨d, rest⟩⟩⟩
       · simp at hc
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by simpa using hlit_p 0 (by simp)
@@ -1216,17 +1294,22 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
         obtain ⟨y₁, hy₁_ex, hy₁_deg, hy₁_out, hy₁_fr⟩ :=
           incCurCode_spec (N := 2 * G.n) curBase (2 * G.φ.length) hfit_cur
             (fun u => (mapAdj (litEquiv G.n) g u).length) (litEquiv G.n a.negate) hroom_a
-            (x := st_v) (by simp [st_v, st_pre, hc1]) (by simp [st_v, st_pre, hcur])
-            (by simp [st_v, hxor_a]) (by simp [st_v, st_pre]; exact hdeg)
+            (x := st_v) (by dsimp only [st_v, st_pre]; wram_simp; exact hc1)
+            (by dsimp only [st_v, st_pre]; wram_simp; exact hcur)
+            (by dsimp only [st_v]; wram_simp; exact hxor_a)
+            (by dsimp only [st_v, st_pre]; exact hdeg)
+        have hlen_1 : x.mem p = 1 := by simpa using hlen_p
         unfold implDegBody
-        wram_exec [hc1, hpR, hi, hlen_p, hmem_a, hf_p1, hf_na]
+        wram_exec [hc1, hpR, hi, hlen_1, hmem_a, hf_p1, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         have hy₁_1 : y₁.regs cOne = 1 :=
-          (hy₁_fr cOne (by decide) (by decide)).trans (by simp [st_v, st_pre, hc1])
+          (hy₁_fr cOne (by decide) (by decide)).trans
+            (by dsimp only [st_v, st_pre]; wram_simp; exact hc1)
         have hy₁_p : y₁.regs pReg = p + 1 :=
-          (hy₁_fr pReg (by decide) (by decide)).trans (by simp [st_v, st_pre])
+          (hy₁_fr pReg (by decide) (by decide)).trans (by dsimp only [st_v, st_pre]; wram_simp)
         have hy₁_i : y₁.regs iReg = idx :=
-          (hy₁_fr iReg (by decide) (by decide)).trans (by simp [st_v, st_pre, hi])
+          (hy₁_fr iReg (by decide) (by decide)).trans
+            (by dsimp only [st_v, st_pre]; wram_simp; exact hi)
         wram_exec [hy₁_1, hy₁_p, hy₁_i, hf_p2, hf_i1]
         dsimp only [DegStepPost]
         refine ⟨fun u => ?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega,
@@ -1235,11 +1318,9 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
           rw [hy₁_deg u, mapAdj_addClauseEdges_one]
           by_cases hu : u = litEquiv G.n a.negate <;> simp [hu]
         · wram_simp; exact hy₁_out addr_a ha
-        · wram_simp
-          have := hy₁_fr r (by omega) (by omega)
-          have hlt18 : r ≠ jReg ∧ r ≠ pReg ∧ r ≠ uReg ∧ r ≠ vReg := by
-            fin_cases r <;> simp_all
-          simpa [st_v, st_pre, hlt18.1, hlt18.2.1, hlt18.2.2.1, hlt18.2.2.2] using this
+        · regs_lt
+          rw [hy₁_fr r (by reg_ne) (by reg_ne)]
+          dsimp only [st_v, st_pre]; regs_lt
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by simpa using hlit_p 0 (by simp)
         have hmem_b : x.mem (p + 1 + 1) = litCodeBy Fin.val b := by
           simpa [Nat.add_assoc] using hlit_p 1 (by simp)
@@ -1319,19 +1400,22 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
             (by dsimp only [st_v2]; wram_simp; exact hy₁_cur)
             (by dsimp only [st_v2]; wram_simp; exact hxor_b)
             (by dsimp only [st_v2]; exact hy₁_deg')
+        have hlen_2 : x.mem p = 2 := by simpa using hlen_p
         unfold implDegBody
-        wram_exec [hc1, hpR, hi, hlen_p, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
+        wram_exec [hc1, hpR, hi, hlen_2, hmem_a, hmem_b, hf_p1, hf_p2, hf_na]
         refine WP.of_execWithin hy₁_ex ?_
         wram_exec [hy₁_1, hy₁_b, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_
         have hy₂_1 : y₂.regs cOne = 1 :=
-          (hy₂_fr cOne (by decide) (by decide)).trans (by simp [st_v2, hy₁_1])
+          (hy₂_fr cOne (by decide) (by decide)).trans
+            (by dsimp only [st_v2]; wram_simp; exact hy₁_1)
         have hy₂_p : y₂.regs pReg = p + 1 + 1 :=
           (hy₂_fr pReg (by decide) (by decide)).trans
-            ((hy₁_fr pReg (by decide) (by decide)).trans (by simp [st_v1]))
+            ((hy₁_fr pReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp))
         have hy₂_i : y₂.regs iReg = idx :=
           (hy₂_fr iReg (by decide) (by decide)).trans
-            ((hy₁_fr iReg (by decide) (by decide)).trans (by simp [st_v1, hi]))
+            ((hy₁_fr iReg (by decide) (by decide)).trans
+              (by dsimp only [st_v1]; wram_simp; exact hi))
         wram_exec [hy₂_1, hy₂_p, hy₂_i, hf_p3, hf_i1]
         dsimp only [DegStepPost]
         refine ⟨fun u => ?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega,
@@ -1340,14 +1424,11 @@ private theorem implDegLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordB
           rw [hy₂_deg u, mapAdj_addClauseEdges_two, ← hg₁_map]
           by_cases hu : u = litEquiv G.n b.negate <;> simp [hu]
         · wram_simp; exact (hy₂_out addr_a ha).trans (hy₁_out addr_a ha)
-        · wram_simp
-          have h2 := hy₂_fr r (by omega) (by omega)
-          have h1 := hy₁_fr r (by omega) (by omega)
-          have hlt18 : r ≠ jReg ∧ r ≠ pReg ∧ r ≠ uReg ∧ r ≠ vReg ∧ r ≠ oldFinReg := by
-            fin_cases r <;> simp_all
-          rw [h2]
-          simpa [st_v2, st_v1, hlt18.1, hlt18.2.1, hlt18.2.2.1, hlt18.2.2.2.1,
-            hlt18.2.2.2.2] using h1
+        · regs_lt
+          rw [hy₂_fr r (by reg_ne) (by reg_ne)]
+          dsimp only [st_v2]; regs_lt
+          rw [hy₁_fr r (by reg_ne) (by reg_ne)]
+          dsimp only [st_v1]; regs_lt
       · simp at hc
     obtain ⟨x₁, hx₁_ex, hx₁_deg, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ := hstep
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := by
@@ -1484,15 +1565,13 @@ private theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.word
         wram_exec [hy₁_1, hy₁_pr, hy₁_i, hf_p2, hf_i1]
         dsimp only [FillStepPost]
         refine ⟨?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega, fun r hr => ?_⟩
-        · try wram_simp
-          rwa [mapAdj_addClauseEdges_one]
-        · try wram_simp
-          exact hy₁_out addr_a ha
         · wram_simp
-          have h1 := hy₁_fr r (by omega) (by omega)
-          have hlt18 : r ≠ jReg ∧ r ≠ pReg ∧ r ≠ oldFinReg ∧ r ≠ vReg ∧ r ≠ uReg := by
-            fin_cases r <;> simp_all
-          simpa [st_v, hlt18.1, hlt18.2.1, hlt18.2.2.1, hlt18.2.2.2.1, hlt18.2.2.2.2] using h1
+          rwa [mapAdj_addClauseEdges_one]
+        · wram_simp
+          exact hy₁_out addr_a ha
+        · regs_lt
+          rw [hy₁_fr r (by reg_ne) (by reg_ne)]
+          dsimp only [st_v]; regs_lt
       · have hmem_a : x.mem (p + 1) = litCodeBy Fin.val a := by simpa using hlit_p 0 (by simp)
         have hmem_b : x.mem (p + 1 + 1) = litCodeBy Fin.val b := by
           simpa [Nat.add_assoc] using hlit_p 1 (by simp)
@@ -1558,7 +1637,8 @@ private theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.word
         have hy₁_cur : y₁.regs curB = curBase :=
           (hy₁_fr curB (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp; exact hcur)
         have hy₁_edge : y₁.regs edgeB = edgeBase :=
-          (hy₁_fr edgeB (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp; exact hedge)
+          (hy₁_fr edgeB (by decide) (by decide)).trans
+            (by dsimp only [st_v1]; wram_simp; exact hedge)
         have hy₁_a : y₁.regs oldFinReg = litCodeBy Fin.val a :=
           (hy₁_fr oldFinReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp)
         have hy₁_b : y₁.regs jReg = litCodeBy Fin.val b :=
@@ -1579,28 +1659,27 @@ private theorem implFillLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.word
         wram_exec [hy₁_1, hy₁_a, hy₁_b, hf_nb]
         refine WP.of_execWithin hy₂_ex ?_
         have hy₂_1 : y₂.regs cOne = 1 :=
-          (hy₂_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v2]; wram_simp; exact hy₁_1)
+          (hy₂_fr cOne (by decide) (by decide)).trans
+            (by dsimp only [st_v2]; wram_simp; exact hy₁_1)
         have hy₂_pr : y₂.regs pReg = p + 1 + 1 :=
           (hy₂_fr pReg (by decide) (by decide)).trans
             ((hy₁_fr pReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp))
         have hy₂_i : y₂.regs iReg = idx :=
           (hy₂_fr iReg (by decide) (by decide)).trans
-            ((hy₁_fr iReg (by decide) (by decide)).trans (by dsimp only [st_v1]; wram_simp; exact hi))
+            ((hy₁_fr iReg (by decide) (by decide)).trans
+              (by dsimp only [st_v1]; wram_simp; exact hi))
         wram_exec [hy₂_1, hy₂_pr, hy₂_i, hf_p3, hf_i1]
         dsimp only [FillStepPost]
         refine ⟨?_, fun addr_a ha => ?_, by wram_simp, by wram_simp; omega, fun r hr => ?_⟩
-        · try wram_simp
-          rwa [mapAdj_addClauseEdges_two, ← hg₁_map]
-        · try wram_simp
-          exact (hy₂_out addr_a ha).trans (hy₁_out addr_a ha)
         · wram_simp
-          have h2 := hy₂_fr r (by omega) (by omega)
-          have h1 := hy₁_fr r (by omega) (by omega)
-          have hlt18 : r ≠ jReg ∧ r ≠ pReg ∧ r ≠ oldFinReg ∧ r ≠ vReg ∧ r ≠ uReg := by
-            fin_cases r <;> simp_all
-          rw [h2]
-          simpa [st_v2, st_v1, hlt18.1, hlt18.2.1, hlt18.2.2.1, hlt18.2.2.2.1,
-            hlt18.2.2.2.2] using h1
+          rwa [mapAdj_addClauseEdges_two, ← hg₁_map]
+        · wram_simp
+          exact (hy₂_out addr_a ha).trans (hy₁_out addr_a ha)
+        · regs_lt
+          rw [hy₂_fr r (by reg_ne) (by reg_ne)]
+          dsimp only [st_v2]; regs_lt
+          rw [hy₁_fr r (by reg_ne) (by reg_ne)]
+          dsimp only [st_v1]; regs_lt
       · simp at hc
     obtain ⟨x₁, hx₁_ex, hx₁_p_csr, hx₁_out, hx₁_i, hx₁_p, hx₁_fr⟩ := hstep
     have hcm_x₁ : ClauseMemAt x₁.mem (p + 1 + c.length) cs := by
@@ -1814,6 +1893,313 @@ private theorem visAt_insert {N : ℕ} {vis : Finset (Fin N)} {visAddr : ℕ} {m
     rw [Function.update_of_ne hne, h w]
     simp [hw]
 
+private theorem dfsStepBody_pop {N w : ℕ} (adj : Fin N → List (Fin N))
+    (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
+    (hdisj1 : offAddr + N + 1 ≤ visAddr)
+    (hdisj2 : edgeAddr + Mc ≤ visAddr)
+    (hdisj3 : visAddr + N ≤ finAddr)
+    (hdisj4 : finAddr + N ≤ stkAddr)
+    (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (stkAddr + 3 * N + Mc + 4))
+    (u : Fin N) (idx d F₀ : ℕ) (vis : Finset (Fin N)) {x : Data 28}
+    (hidx : idx = (adj u).length)
+    (hcons : F₀ + d + 1 + (N - vis.card) ≤ N)
+    (hregs : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
+    (hcsr : CSRAt adj offAddr edgeAddr x.mem)
+    (hvis : VisAt vis visAddr x.mem)
+    (hp : x.regs pReg = d + 1)
+    (hfc : x.regs finCnt = F₀)
+    (hstk0 : x.mem (stkAddr + 3 * d) = u.val)
+    (hstk1 : x.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + idx)
+    (hstk2 : x.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1)) :
+    ∃ x₁, ExecWithin w dfsStepBody x x₁ 16 ∧
+      DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+      CSRAt adj offAddr edgeAddr x₁.mem ∧
+      VisAt vis visAddr x₁.mem ∧
+      x₁.regs pReg = d ∧
+      x₁.regs finCnt = F₀ + 1 ∧
+      x₁.mem (finAddr + F₀) = u.val ∧
+      (∀ a, ¬ (a = finAddr + F₀) → x₁.mem a = x.mem a) ∧
+      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r) := by
+  have hoff_u := csrOffset_succ adj u.isLt
+  simp only [Fin.eta] at hoff_u
+  have hjeq : csrOffset adj u.val + idx = csrOffset adj (u.val + 1) := by omega
+  have hstk1' : x.mem (stkAddr + 3 * d + 1) = csrOffset adj (u.val + 1) := hstk1.trans hjeq
+  have hu_lt := u.isLt
+  have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
+  have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
+  have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
+  have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
+  have hf_fin : Fits w (finAddr + F₀) := hfit.of_le (by omega)
+  have hf_fc1 : Fits w (F₀ + 1) := hfit.of_le (by omega)
+  let PopPost (x₁ : Data 28) : Prop :=
+    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+      CSRAt adj offAddr edgeAddr x₁.mem ∧
+      VisAt vis visAddr x₁.mem ∧
+      x₁.regs pReg = d ∧
+      x₁.regs finCnt = F₀ + 1 ∧
+      x₁.mem (finAddr + F₀) = u.val ∧
+      (∀ a, ¬ (a = finAddr + F₀) → x₁.mem a = x.mem a) ∧
+      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
+  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 16 ∧ PopPost x₁
+  have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
+    simpa [Nat.add_assoc] using hstk2
+  unfold dfsStepBody
+  wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
+    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2',
+    hf_3d, hf_s0, hf_s1, hf_s2, hf_fin, hf_fc1]
+  dsimp only [PopPost]
+  refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp, ?_, fun a ha => ?_, fun r hr => ?_⟩
+  · refine dfsRegs_of_frame hregs fun r hr => ?_
+    regs_lt
+  · mem_upd
+    exact hcsr.of_eqOn
+      (fun _ _ => Function.update_of_ne (by omega) _ _)
+      (fun _ _ => Function.update_of_ne (by omega) _ _)
+  · intro w_v; mem_upd
+    rw [Function.update_of_ne (by have := w_v.isLt; omega)]; exact hvis w_v
+  · mem_upd; exact Function.update_self _ _ _
+  · mem_upd; exact Function.update_of_ne ha _ _
+  · have hv : r ≠ vReg := by reg_ne
+    have ha : r ≠ addr := by reg_ne
+    have hu' : r ≠ uReg := by reg_ne
+    have hj : r ≠ jReg := by reg_ne
+    have hje : r ≠ jEndReg := by reg_ne
+    have hp' : r ≠ pReg := by reg_ne
+    have hfc' : r ≠ finCnt := by reg_ne
+    simp only [Data.write_regs_apply, Data.set_regs_of_ne hv, Data.set_regs_of_ne ha,
+      Data.set_regs_of_ne hu', Data.set_regs_of_ne hj, Data.set_regs_of_ne hje,
+      Data.set_regs_of_ne hp', Data.set_regs_of_ne hfc']
+
+private theorem dfsStepBody_skip {N w : ℕ} (adj : Fin N → List (Fin N))
+    (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
+    (hdisj1 : offAddr + N + 1 ≤ visAddr)
+    (hdisj2 : edgeAddr + Mc ≤ visAddr)
+    (hdisj3 : visAddr + N ≤ finAddr)
+    (hdisj4 : finAddr + N ≤ stkAddr)
+    (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (stkAddr + 3 * N + Mc + 4))
+    (u v : Fin N) (idx d F₀ : ℕ) (vis : Finset (Fin N)) {x : Data 28}
+    (hidx_lt : idx < (adj u).length)
+    (hv_eq : (adj u)[idx]'hidx_lt = v)
+    (hmem : v ∈ vis)
+    (hcons : F₀ + d + 1 + (N - vis.card) ≤ N)
+    (hregs : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
+    (hcsr : CSRAt adj offAddr edgeAddr x.mem)
+    (hvis : VisAt vis visAddr x.mem)
+    (hp : x.regs pReg = d + 1)
+    (hfc : x.regs finCnt = F₀)
+    (hstk0 : x.mem (stkAddr + 3 * d) = u.val)
+    (hstk1 : x.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + idx)
+    (hstk2 : x.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1)) :
+    ∃ x₁, ExecWithin w dfsStepBody x x₁ 24 ∧
+      DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+      CSRAt adj offAddr edgeAddr x₁.mem ∧
+      VisAt vis visAddr x₁.mem ∧
+      x₁.regs pReg = d + 1 ∧
+      x₁.regs finCnt = F₀ ∧
+      x₁.mem (stkAddr + 3 * d) = u.val ∧
+      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
+      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
+      (∀ a, a ≠ stkAddr + 3 * d + 1 → x₁.mem a = x.mem a) ∧
+      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r) := by
+  have hoff_u := csrOffset_succ adj u.isLt
+  simp only [Fin.eta] at hoff_u
+  set j := csrOffset adj u.val + idx
+  have hj_lt_end : j < csrOffset adj (u.val + 1) := by omega
+  have hj_lt_N : j < csrOffset adj N :=
+    lt_of_lt_of_le hj_lt_end (csrOffset_mono adj (by have := u.isLt; omega : u.val + 1 ≤ N))
+  have hedge_j : x.mem (edgeAddr + j) = v.val := by
+    rw [show edgeAddr + j = edgeAddr + csrOffset adj u.val + idx by dsimp only [j]; omega,
+      hcsr.2 u idx hidx_lt, hv_eq]
+  have hvis_v1 : x.mem (visAddr + v.val) = 1 := by simpa [hmem] using hvis v
+  have hu_lt := u.isLt
+  have hv_lt := v.isLt
+  have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
+  have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
+  have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
+  have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
+  have hf_j1 : Fits w (j + 1) := hfit.of_le (by omega)
+  have hf_ej : Fits w (edgeAddr + j) := hfit.of_le (by omega)
+  have hf_vv : Fits w (visAddr + v.val) := hfit.of_le (by omega)
+  have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
+    simpa [Nat.add_assoc] using hstk2
+  let SkipPost (x₁ : Data 28) : Prop :=
+    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+      CSRAt adj offAddr edgeAddr x₁.mem ∧
+      VisAt vis visAddr x₁.mem ∧
+      x₁.regs pReg = d + 1 ∧
+      x₁.regs finCnt = F₀ ∧
+      x₁.mem (stkAddr + 3 * d) = u.val ∧
+      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
+      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
+      (∀ a, a ≠ stkAddr + 3 * d + 1 → x₁.mem a = x.mem a) ∧
+      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
+  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 24 ∧ SkipPost x₁
+  unfold dfsStepBody
+  wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
+    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end,
+    hf_3d, hf_s0, hf_s1, hf_s2, hf_j1, hf_ej, hf_vv]
+  dsimp only [SkipPost]
+  refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc, ?_, ?_, ?_,
+    fun a ha => ?_, fun r hr => ?_⟩
+  · refine dfsRegs_of_frame hregs fun r hr => ?_
+    regs_lt
+  · mem_upd
+    exact hcsr.of_eqOn
+      (fun _ _ => Function.update_of_ne (by omega) _ _)
+      (fun _ _ => Function.update_of_ne (by omega) _ _)
+  · intro w_v; mem_upd
+    rw [Function.update_of_ne (by have := w_v.isLt; omega)]; exact hvis w_v
+  · mem_upd; rw [Function.update_of_ne (by omega)]; exact hstk0
+  · mem_upd; rw [Function.update_self]; omega
+  · mem_upd; rw [Function.update_of_ne (by omega)]; exact hstk2
+  · mem_upd; exact Function.update_of_ne ha _ _
+  · have hv : r ≠ vReg := by reg_ne
+    have ha : r ≠ addr := by reg_ne
+    have hu' : r ≠ uReg := by reg_ne
+    have hj : r ≠ jReg := by reg_ne
+    have hje : r ≠ jEndReg := by reg_ne
+    have hp' : r ≠ pReg := by reg_ne
+    simp only [Data.write_regs_apply, Data.set_regs_of_ne hv, Data.set_regs_of_ne ha,
+      Data.set_regs_of_ne hu', Data.set_regs_of_ne hj, Data.set_regs_of_ne hje,
+      Data.set_regs_of_ne hp']
+
+private theorem dfsStepBody_push {N w : ℕ} (adj : Fin N → List (Fin N))
+    (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
+    (hdisj1 : offAddr + N + 1 ≤ visAddr)
+    (hdisj2 : edgeAddr + Mc ≤ visAddr)
+    (hdisj3 : visAddr + N ≤ finAddr)
+    (hdisj4 : finAddr + N ≤ stkAddr)
+    (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (stkAddr + 3 * N + Mc + 4))
+    (u v : Fin N) (idx d F₀ : ℕ) (vis : Finset (Fin N)) {x : Data 28}
+    (hidx_lt : idx < (adj u).length)
+    (hv_eq : (adj u)[idx]'hidx_lt = v)
+    (hmem : v ∉ vis)
+    (hcons_child : F₀ + (d + 1) + 1 + (N - (insert v vis).card) ≤ N)
+    (hregs : DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x)
+    (hcsr : CSRAt adj offAddr edgeAddr x.mem)
+    (hvis : VisAt vis visAddr x.mem)
+    (hp : x.regs pReg = d + 1)
+    (hfc : x.regs finCnt = F₀)
+    (hstk0 : x.mem (stkAddr + 3 * d) = u.val)
+    (hstk1 : x.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + idx)
+    (hstk2 : x.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1)) :
+    ∃ x₁, ExecWithin w dfsStepBody x x₁ 34 ∧
+      DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+      CSRAt adj offAddr edgeAddr x₁.mem ∧
+      VisAt (insert v vis) visAddr x₁.mem ∧
+      x₁.regs pReg = (d + 1) + 1 ∧
+      x₁.regs finCnt = F₀ ∧
+      x₁.mem (stkAddr + 3 * d) = u.val ∧
+      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
+      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
+      x₁.mem (stkAddr + 3 * (d + 1)) = v.val ∧
+      x₁.mem (stkAddr + 3 * (d + 1) + 1) = csrOffset adj v.val + 0 ∧
+      x₁.mem (stkAddr + 3 * (d + 1) + 2) = csrOffset adj (v.val + 1) ∧
+      (∀ a, ¬ (a = visAddr + v.val ∨
+          (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → x₁.mem a = x.mem a) ∧
+      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r) := by
+  have hoff_u := csrOffset_succ adj u.isLt
+  simp only [Fin.eta] at hoff_u
+  set j := csrOffset adj u.val + idx
+  have hj_lt_end : j < csrOffset adj (u.val + 1) := by omega
+  have hj_lt_N : j < csrOffset adj N :=
+    lt_of_lt_of_le hj_lt_end (csrOffset_mono adj (by have := u.isLt; omega : u.val + 1 ≤ N))
+  have hedge_j : x.mem (edgeAddr + j) = v.val := by
+    rw [show edgeAddr + j = edgeAddr + csrOffset adj u.val + idx by dsimp only [j]; omega,
+      hcsr.2 u idx hidx_lt, hv_eq]
+  have hvis_v0 : x.mem (visAddr + v.val) = 0 := by simpa [hmem] using hvis v
+  set vis₁ := insert v vis
+  have hcard_vis₁_le : vis₁.card ≤ N := by
+    have := Finset.card_le_univ vis₁; simpa using this
+  have hu_lt := u.isLt
+  have hv_lt := v.isLt
+  have hoff_v0 : x.mem (offAddr + v.val) = csrOffset adj v.val := hcsr.1 v.val (by omega)
+  have hoff_v1 : x.mem (offAddr + v.val + 1) = csrOffset adj (v.val + 1) := by
+    simpa [Nat.add_assoc] using hcsr.1 (v.val + 1) (by omega)
+  have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
+  have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
+  have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
+  have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
+  have hf_j1 : Fits w (j + 1) := hfit.of_le (by omega)
+  have hf_ej : Fits w (edgeAddr + j) := hfit.of_le (by omega)
+  have hf_vv : Fits w (visAddr + v.val) := hfit.of_le (by omega)
+  have hf_ov0 : Fits w (offAddr + v.val) := hfit.of_le (by omega)
+  have hf_ov1 : Fits w (offAddr + v.val + 1) := hfit.of_le (by omega)
+  have hf_3d1 : Fits w (3 * (d + 1)) := hfit.of_le (by omega)
+  have hf_c0 : Fits w (stkAddr + 3 * (d + 1)) := hfit.of_le (by omega)
+  have hf_c1 : Fits w (stkAddr + 3 * (d + 1) + 1) := hfit.of_le (by omega)
+  have hf_c2 : Fits w (stkAddr + 3 * (d + 1) + 1 + 1) := hfit.of_le (by omega)
+  have hf_p2 : Fits w (d + 1 + 1) := hfit.of_le (by omega)
+  have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
+    simpa [Nat.add_assoc] using hstk2
+  let PushPost (x₁ : Data 28) : Prop :=
+    DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
+      CSRAt adj offAddr edgeAddr x₁.mem ∧
+      VisAt vis₁ visAddr x₁.mem ∧
+      x₁.regs pReg = (d + 1) + 1 ∧
+      x₁.regs finCnt = F₀ ∧
+      x₁.mem (stkAddr + 3 * d) = u.val ∧
+      x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
+      x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
+      x₁.mem (stkAddr + 3 * (d + 1)) = v.val ∧
+      x₁.mem (stkAddr + 3 * (d + 1) + 1) = csrOffset adj v.val + 0 ∧
+      x₁.mem (stkAddr + 3 * (d + 1) + 2) = csrOffset adj (v.val + 1) ∧
+      (∀ a, ¬ (a = visAddr + v.val ∨
+          (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → x₁.mem a = x.mem a) ∧
+      (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
+  change ∃ x₁, ExecWithin w dfsStepBody x x₁ 34 ∧ PushPost x₁
+  unfold dfsStepBody
+  wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
+    hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v0, hj_lt_end,
+    hoff_v0, hoff_v1, hf_3d, hf_s0, hf_s1, hf_s2, hf_j1, hf_ej, hf_vv,
+    hf_ov0, hf_ov1, hf_3d1, hf_c0, hf_c1, hf_c2, hf_p2]
+  dsimp only [PushPost]
+  refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc,
+    ?_, ?_, ?_, ?_, ?_, ?_, fun a ha => ?_, fun r hr => ?_⟩
+  · refine dfsRegs_of_frame hregs fun r hr => ?_
+    regs_lt
+  · mem_upd
+    exact hcsr.of_eqOn
+      (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
+      (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
+  · intro w_v; mem_upd
+    have hw_lt := w_v.isLt
+    repeat rw [Function.update_of_ne (by omega)]
+    by_cases hwv : w_v = v
+    · subst hwv
+      rw [Function.update_self]
+      simp [vis₁]
+    · have hne : visAddr + w_v.val ≠ visAddr + v.val := fun h => hwv (Fin.ext (by omega))
+      rw [Function.update_of_ne hne, Function.update_of_ne (by omega)]
+      simpa [vis₁, hwv] using hvis w_v
+  · mem_upd; repeat rw [Function.update_of_ne (by omega)]
+    exact hstk0
+  · mem_upd; repeat rw [Function.update_of_ne (by omega)]
+    rw [Function.update_self]; omega
+  · mem_upd; repeat rw [Function.update_of_ne (by omega)]
+    exact hstk2
+  · mem_upd
+    rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega), Function.update_self]
+  · mem_upd
+    rw [Function.update_of_ne (by omega), Function.update_self]; omega
+  · mem_upd
+    rw [show stkAddr + 3 * (d + 1) + 2 = stkAddr + 3 * (d + 1) + 1 + 1 by omega,
+      Function.update_self]
+  · mem_upd
+    repeat rw [Function.update_of_ne (by omega)]
+  · have hv : r ≠ vReg := by reg_ne
+    have ha : r ≠ addr := by reg_ne
+    have hu' : r ≠ uReg := by reg_ne
+    have hj : r ≠ jReg := by reg_ne
+    have hje : r ≠ jEndReg := by reg_ne
+    have hp' : r ≠ pReg := by reg_ne
+    simp only [Data.write_regs_apply, Data.set_regs_of_ne hv, Data.set_regs_of_ne ha,
+      Data.set_regs_of_ne hu', Data.set_regs_of_ne hj, Data.set_regs_of_ne hje,
+      Data.set_regs_of_ne hp']
+
 private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
     (offAddr edgeAddr visAddr finAddr stkAddr Mc : ℕ)
     (hdisj1 : offAddr + N + 1 ≤ visAddr)
@@ -1863,93 +2249,37 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
     | nil =>
       intro idx d F₀ T_cont vis x Q hidx _ _ hcons hregs hcsr hvis hp hfc hstk0 hstk1 hstk2 hcont
       simp only [List.length_nil, Nat.add_zero] at hidx
-      have hoff_u := csrOffset_succ adj u.isLt
-      simp only [Fin.eta] at hoff_u
-      have hjeq : csrOffset adj u.val + idx = csrOffset adj (u.val + 1) := by omega
-      have hstk1' : x.mem (stkAddr + 3 * d + 1) = csrOffset adj (u.val + 1) := hstk1.trans hjeq
-      have hu_lt := u.isLt
-      have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
-      have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
-      have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
-      have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
-      have hf_fin : Fits w (finAddr + F₀) := hfit.of_le (by omega)
-      have hf_fc1 : Fits w (F₀ + 1) := hfit.of_le (by omega)
-      let PopPost (x₁ : Data 28) : Prop :=
-        DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-          CSRAt adj offAddr edgeAddr x₁.mem ∧
-          VisAt vis visAddr x₁.mem ∧
-          x₁.regs pReg = d ∧
-          x₁.regs finCnt = F₀ + 1 ∧
-          x₁.mem (finAddr + F₀) = u.val ∧
-          (∀ a, ¬ (a = finAddr + F₀) → x₁.mem a = x.mem a) ∧
-          (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-      have hstep : ∃ x₁, ExecWithin w dfsStepBody x x₁ 16 ∧ PopPost x₁ := by
-        change ∃ x₁, ExecWithin w dfsStepBody x x₁ 16 ∧ PopPost x₁
-        have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
-          simpa [Nat.add_assoc] using hstk2
-        unfold dfsStepBody
-        wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
-          hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1', hstk2',
-          hf_3d, hf_s0, hf_s1, hf_s2, hf_fin, hf_fc1]
-        dsimp only [PopPost]
-        refine ⟨?_, ?_, ?_, by try wram_simp, by wram_simp, ?_, fun a ha => ?_, fun r hr => ?_⟩
-        · refine dfsRegs_of_frame hregs fun r hr => ?_
-          wram_simp; fin_cases r <;> simp_all
-        · wram_simp
-          refine ⟨fun u' hu' => ?_, fun u' q hq => ?_⟩
-          · rw [Function.update_of_ne (by omega)]; exact hcsr.1 u' hu'
-          · have hq_lt : csrOffset adj u'.val + q < csrOffset adj N := by
-              have h1 := csrOffset_succ adj u'.isLt
-              simp only [Fin.eta] at h1
-              have h2 := csrOffset_mono adj (by omega : u'.val + 1 ≤ N)
-              omega
-            rw [Function.update_of_ne (by omega)]; exact hcsr.2 u' q hq
-        · intro w_v; wram_simp
-          rw [Function.update_of_ne (by have := w_v.isLt; omega)]; exact hvis w_v
-        · wram_simp; exact Function.update_self _ _ _
-        · wram_simp; exact Function.update_of_ne ha _ _
-        · wram_simp; fin_cases r <;> simp_all
       obtain ⟨x₁, ⟨t₁, ht₁, he₁⟩, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_fin0, hx₁_out,
-        hx₁_fr⟩ := hstep
+        hx₁_fr⟩ :=
+        dfsStepBody_pop adj offAddr edgeAddr visAddr finAddr stkAddr Mc
+          hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit u idx d F₀ vis hidx hcons
+          hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
       obtain ⟨z, ⟨t₂, ht₂, he₂⟩, hQz⟩ := hcont x₁ hx₁_r hx₁_csr hx₁_vis hx₁_p
         (by simpa [foldEmpty] using hx₁_fc)
         (fun q hq => by simp [foldEmpty] at hq)
         (by simpa [foldEmpty] using hx₁_fin0)
-        (fun a ha => hx₁_out a (by simp only [foldEmpty, List.length_nil] at ha; omega))
+        (fun a ha => hx₁_out a (by dsimp only [foldEmpty, List.length_nil] at ha; omega))
         hx₁_fr
       have hlt : (Cond.lt cZero pReg).Holds x := by
+        have := hregs.czero
         change x.regs cZero < x.regs pReg; omega
-      exact ⟨z, ⟨t₁ + t₂ + 2, by simp only [dfsFrameTime, foldEmpty, List.length_nil, outDegreeSum,
-        List.map_nil, List.sum_nil]; omega, Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
+      exact ⟨z, ⟨t₁ + t₂ + 2, by dsimp only [dfsFrameTime, foldEmpty, outDegreeSum]; omega,
+        Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
     | cons v es' ih_es =>
       intro idx d F₀ T_cont vis x Q hidx hes hk hcons hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
         hcont
       simp only [List.length_cons] at hidx
-      have hv_eq : (adj u)[idx]'(by omega) = v := by simpa using hes 0 (by simp)
-      have hoff_u := csrOffset_succ adj u.isLt
-      simp only [Fin.eta] at hoff_u
-      set j := csrOffset adj u.val + idx
-      have hj_lt_end : j < csrOffset adj (u.val + 1) := by omega
-      have hj_lt_N : j < csrOffset adj N :=
-        lt_of_lt_of_le hj_lt_end (csrOffset_mono adj (by omega : u.val + 1 ≤ N))
-      have hedge_j : x.mem (edgeAddr + j) = v.val := by
-        have := hcsr.2 u idx (by omega)
-        rwa [hv_eq] at this
-      have hvis_v : x.mem (visAddr + v.val) = (decide (v ∈ vis)).toNat := hvis v
-      have hu_lt := u.isLt
-      have hv_lt := v.isLt
-      have hf_3d : Fits w (3 * d) := hfit.of_le (by omega)
-      have hf_s0 : Fits w (stkAddr + 3 * d) := hfit.of_le (by omega)
-      have hf_s1 : Fits w (stkAddr + 3 * d + 1) := hfit.of_le (by omega)
-      have hf_s2 : Fits w (stkAddr + 3 * d + 1 + 1) := hfit.of_le (by omega)
-      have hf_j1 : Fits w (j + 1) := hfit.of_le (by omega)
-      have hf_ej : Fits w (edgeAddr + j) := hfit.of_le (by omega)
-      have hf_vv : Fits w (visAddr + v.val) := hfit.of_le (by omega)
-      have hstk2' : x.mem (stkAddr + 3 * d + 1 + 1) = csrOffset adj (u.val + 1) := by
-        simpa [Nat.add_assoc] using hstk2
+      have hv_eq : (adj u)[idx]'(by omega) = v := by
+        have h0 := hes 0 (by simp)
+        simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
+      have hes' : ∀ q (hq : q < es'.length), (adj u)[idx + 1 + q]'(by omega) = es'[q] := by
+        intro q hq
+        have h := hes (q + 1) (by simp only [List.length_cons]; omega)
+        have hcongr : (adj u)[idx + 1 + q]'(by omega) = (adj u)[idx + (q + 1)]'(by omega) := by
+          congr 1; omega
+        exact hcongr.trans (by simpa only [List.getElem_cons_succ] using h)
       by_cases hmem : v ∈ vis
       · -- Case 1: `v ∈ vis`
-        have hvis_v1 : x.mem (visAddr + v.val) = 1 := by simpa [hmem] using hvis_v
         have hvisit_v : visit adj k v ⟨vis, []⟩ = ⟨vis, []⟩ := by
           cases k with
           | zero => rfl
@@ -1957,51 +2287,11 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         have hfold_eq : foldEmpty adj k (v :: es') vis = foldEmpty adj k es' vis := by
           rw [foldEmpty_cons, hvisit_v]
           simp
-        let SkipPost (x₁ : Data 28) : Prop :=
-          DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-            CSRAt adj offAddr edgeAddr x₁.mem ∧
-            VisAt vis visAddr x₁.mem ∧
-            x₁.regs pReg = d + 1 ∧
-            x₁.regs finCnt = F₀ ∧
-            x₁.mem (stkAddr + 3 * d) = u.val ∧
-            x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
-            x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
-            (∀ a, a ≠ stkAddr + 3 * d + 1 → x₁.mem a = x.mem a) ∧
-            (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-        have hstep : ∃ x₁, ExecWithin w dfsStepBody x x₁ 24 ∧ SkipPost x₁ := by
-          change ∃ x₁, ExecWithin w dfsStepBody x x₁ 24 ∧ SkipPost x₁
-          unfold dfsStepBody
-          wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
-            hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v1, hj_lt_end,
-            hf_3d, hf_s0, hf_s1, hf_s2, hf_j1, hf_ej, hf_vv]
-          dsimp only [SkipPost]
-          refine ⟨?_, ?_, ?_, by try wram_simp, by wram_simp; exact hfc, ?_, ?_, ?_,
-            fun a ha => ?_, fun r hr => ?_⟩
-          · refine dfsRegs_of_frame hregs fun r hr => ?_
-            wram_simp; fin_cases r <;> simp_all
-          · wram_simp
-            refine ⟨fun u' hu' => ?_, fun u' q hq => ?_⟩
-            · rw [Function.update_of_ne (by omega)]; exact hcsr.1 u' hu'
-            · have hq_lt : csrOffset adj u'.val + q < csrOffset adj N := by
-                have h1 := csrOffset_succ adj u'.isLt
-                simp only [Fin.eta] at h1
-                have h2 := csrOffset_mono adj (by omega : u'.val + 1 ≤ N)
-                omega
-              rw [Function.update_of_ne (by omega)]; exact hcsr.2 u' q hq
-          · intro w_v; wram_simp
-            rw [Function.update_of_ne (by have := w_v.isLt; omega)]; exact hvis w_v
-          · wram_simp; rw [Function.update_of_ne (by omega)]; exact hstk0
-          · wram_simp; rw [Function.update_self]; omega
-          · wram_simp; rw [Function.update_of_ne (by omega)]; exact hstk2
-          · wram_simp; exact Function.update_of_ne ha _ _
-          · wram_simp; fin_cases r <;> simp_all
         obtain ⟨x₁, ⟨t₁, ht₁, he₁⟩, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1,
-          hx₁_s2, hx₁_out, hx₁_fr⟩ := hstep
-        have hes' : ∀ q (hq : q < es'.length), (adj u)[idx + 1 + q]'(by omega) = es'[q] := by
-          intro q hq
-          have h := hes (q + 1) (by simp; omega)
-          rw [show idx + (q + 1) = idx + 1 + q by omega] at h
-          simpa using h
+          hx₁_s2, hx₁_out, hx₁_fr⟩ :=
+          dfsStepBody_skip adj offAddr edgeAddr visAddr finAddr stkAddr Mc
+            hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit u v idx d F₀ vis (by omega) hv_eq hmem hcons
+            hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
         obtain ⟨z, ⟨t₂, ht₂, he₂⟩, hQz⟩ := ih_es (idx + 1) d F₀ T_cont vis x₁ Q (by omega) hes'
           hk hcons hx₁_r hx₁_csr hx₁_vis hx₁_p hx₁_fc hx₁_s0 hx₁_s1 hx₁_s2
           (fun y hy_r hy_csr hy_vis hy_p hy_fc hy_fin hy_u hy_out hy_fr => by
@@ -2010,6 +2300,7 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
               (fun a ha => (hy_out a ha).trans (hx₁_out a (by omega)))
               (fun r hr => (hy_fr r hr).trans (hx₁_fr r hr)))
         have hlt : (Cond.lt cZero pReg).Holds x := by
+          have := hregs.czero
           change x.regs cZero < x.regs pReg; omega
         refine ⟨z, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
         rw [hfold_eq]
@@ -2019,182 +2310,122 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
         have hcard_lt : vis.card < N := card_lt_of_notMem hmem
         rcases k with _ | k'
         · omega
-        have hvis_v0 : x.mem (visAddr + v.val) = 0 := by simpa [hmem] using hvis_v
         set vis₁ := insert v vis
         have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
         have hcard_vis₁_le : vis₁.card ≤ N := by
           have := Finset.card_le_univ vis₁; simpa using this
         have hk' : N - vis₁.card ≤ k' := by omega
         have hcons_child : F₀ + (d + 1) + 1 + (N - vis₁.card) ≤ N := by omega
-        have hoff_v0 : x.mem (offAddr + v.val) = csrOffset adj v.val :=
-          hcsr.1 v.val (by omega)
-        have hoff_v1 : x.mem (offAddr + v.val + 1) = csrOffset adj (v.val + 1) := by
-          simpa [Nat.add_assoc] using hcsr.1 (v.val + 1) (by omega)
-        have hf_ov0 : Fits w (offAddr + v.val) := hfit.of_le (by omega)
-        have hf_ov1 : Fits w (offAddr + v.val + 1) := hfit.of_le (by omega)
-        have hf_3d1 : Fits w (3 * (d + 1)) := hfit.of_le (by omega)
-        have hf_c0 : Fits w (stkAddr + 3 * (d + 1)) := hfit.of_le (by omega)
-        have hf_c1 : Fits w (stkAddr + 3 * (d + 1) + 1) := hfit.of_le (by omega)
-        have hf_c2 : Fits w (stkAddr + 3 * (d + 1) + 1 + 1) := hfit.of_le (by omega)
-        have hf_p2 : Fits w (d + 1 + 1) := hfit.of_le (by omega)
-        let PushPost (x₁ : Data 28) : Prop :=
-          DfsRegs offAddr edgeAddr visAddr finAddr stkAddr x₁ ∧
-            CSRAt adj offAddr edgeAddr x₁.mem ∧
-            VisAt vis₁ visAddr x₁.mem ∧
-            x₁.regs pReg = (d + 1) + 1 ∧
-            x₁.regs finCnt = F₀ ∧
-            x₁.mem (stkAddr + 3 * d) = u.val ∧
-            x₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) ∧
-            x₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) ∧
-            x₁.mem (stkAddr + 3 * (d + 1)) = v.val ∧
-            x₁.mem (stkAddr + 3 * (d + 1) + 1) = csrOffset adj v.val + 0 ∧
-            x₁.mem (stkAddr + 3 * (d + 1) + 2) = csrOffset adj (v.val + 1) ∧
-            (∀ a, ¬ (a = visAddr + v.val ∨
-                (stkAddr + 3 * d ≤ a ∧ a < stkAddr + 3 * N)) → x₁.mem a = x.mem a) ∧
-            (∀ r : Fin 28, (r.val < 19 ∨ r = compIdxReg ∨ r = oldFinReg) → x₁.regs r = x.regs r)
-        have hstep : ∃ x₁, ExecWithin w dfsStepBody x x₁ 34 ∧ PushPost x₁ := by
-          change ∃ x₁, ExecWithin w dfsStepBody x x₁ 34 ∧ PushPost x₁
-          unfold dfsStepBody
-          wram_exec [hregs.czero, hregs.cone, hregs.cthree, hregs.hoff, hregs.hedge, hregs.hvis,
-            hregs.hfin, hregs.hstk, hp, hfc, hstk0, hstk1, hstk2', hedge_j, hvis_v0, hj_lt_end,
-            hoff_v0, hoff_v1, hf_3d, hf_s0, hf_s1, hf_s2, hf_j1, hf_ej, hf_vv,
-            hf_ov0, hf_ov1, hf_3d1, hf_c0, hf_c1, hf_c2, hf_p2]
-          dsimp only [PushPost]
-          refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc,
-            ?_, ?_, ?_, ?_, ?_, ?_, fun a ha => ?_, fun r hr => ?_⟩
-          · refine dfsRegs_of_frame hregs fun r hr => ?_
-            wram_simp; fin_cases r <;> simp_all
-          · wram_simp
-            refine ⟨fun u' hu' => ?_, fun u' q hq => ?_⟩
-            · repeat rw [Function.update_of_ne (by omega)]
-              exact hcsr.1 u' hu'
-            · have hq_lt : csrOffset adj u'.val + q < csrOffset adj N := by
-                have h1 := csrOffset_succ adj u'.isLt
-                simp only [Fin.eta] at h1
-                have h2 := csrOffset_mono adj (by omega : u'.val + 1 ≤ N)
-                omega
-              repeat rw [Function.update_of_ne (by omega)]
-              exact hcsr.2 u' q hq
-          · intro w_v; wram_simp
-            have hw_lt := w_v.isLt
-            repeat rw [Function.update_of_ne (by omega)]
-            have hins := visAt_insert hvis v w_v
-            by_cases hwv : w_v = v
-            · subst hwv
-              rw [Function.update_self]
-              simpa [vis₁] using hins
-            · have hne : visAddr + w_v.val ≠ visAddr + v.val := fun h => hwv (Fin.ext (by omega))
-              rw [Function.update_of_ne hne, Function.update_of_ne (by omega)]
-              simpa [vis₁, hwv] using hvis w_v
-          · wram_simp; repeat rw [Function.update_of_ne (by omega)]
-            exact hstk0
-          · wram_simp; repeat rw [Function.update_of_ne (by omega)]
-            rw [Function.update_self]; omega
-          · wram_simp; repeat rw [Function.update_of_ne (by omega)]
-            exact hstk2
-          · wram_simp
-            rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
-              Function.update_self]
-          · wram_simp
-            rw [Function.update_of_ne (by omega), Function.update_self]; omega
-          · wram_simp
-            change Function.update _ (stkAddr + 3 * (d + 1) + 1 + 1) _ (stkAddr + 3 * (d + 1) + 2) = _
-            rw [show stkAddr + 3 * (d + 1) + 2 = stkAddr + 3 * (d + 1) + 1 + 1 by omega,
-              Function.update_self]
-          · wram_simp
-            repeat rw [Function.update_of_ne (by omega)]
-          · wram_simp; fin_cases r <;> simp_all
         obtain ⟨x₁, ⟨t₁, ht₁, he₁⟩, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_d0, hx₁_d1,
-          hx₁_d2, hx₁_c0, hx₁_c1, hx₁_c2, hx₁_out, hx₁_fr⟩ := hstep
-        set s₁ := visit adj (k' + 1) v ⟨vis, []⟩
-        set s_child := foldEmpty adj k' (adj v) vis₁
-        have hs₁_eq : s₁ = ⟨s_child.visited, v :: s_child.finished⟩ :=
-          visit_eq_foldEmpty hmem
-        set s₂ := foldEmpty adj (k' + 1) es' s₁.visited
+          hx₁_d2, hx₁_c0, hx₁_c1, hx₁_c2, hx₁_out, hx₁_fr⟩ :=
+          dfsStepBody_push adj offAddr edgeAddr visAddr finAddr stkAddr Mc
+            hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit u v idx d F₀ vis (by omega) hv_eq hmem
+            hcons_child hregs hcsr hvis hp hfc hstk0 hstk1 hstk2
+        obtain ⟨s₁, hs₁_def⟩ : ∃ s₁, visit adj (k' + 1) v ⟨vis, []⟩ = s₁ := ⟨_, rfl⟩
+        obtain ⟨s_child, hsc_def⟩ : ∃ s_child, foldEmpty adj k' (adj v) vis₁ = s_child := ⟨_, rfl⟩
+        have hs₁_eq : s₁ = ⟨s_child.visited, v :: s_child.finished⟩ := by
+          rw [← hs₁_def, ← hsc_def]; exact visit_eq_foldEmpty hmem
+        obtain ⟨s₂, hs₂_def⟩ : ∃ s₂, foldEmpty adj (k' + 1) es' s₁.visited = s₂ := ⟨_, rfl⟩
         have hfold_cons : foldEmpty adj (k' + 1) (v :: es') vis =
-            ⟨s₂.visited, s₂.finished ++ s₁.finished⟩ :=
-          foldEmpty_cons adj (k' + 1) v es' vis
+            ⟨s₂.visited, s₂.finished ++ s₁.finished⟩ := by
+          rw [← hs₂_def, ← hs₁_def]; exact foldEmpty_cons adj (k' + 1) v es' vis
         have hes' : ∀ q (hq : q < es'.length), (adj u)[idx + 1 + q]'(by omega) = es'[q] := by
           intro q hq
-          have h := hes (q + 1) (by simp; omega)
-          rw [show idx + (q + 1) = idx + 1 + q by omega] at h
-          simpa using h
-        have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length :=
-          card_visit_nil adj (k' + 1) v vis
+          have h := hes (q + 1) (by simp only [List.length_cons]; omega)
+          have hcongr : (adj u)[idx + 1 + q]'(by omega) = (adj u)[idx + (q + 1)]'(by omega) := by
+            congr 1; omega
+          exact hcongr.trans (by simpa only [List.getElem_cons_succ] using h)
+        have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length := by
+          rw [← hs₁_def]; exact card_visit_nil adj (k' + 1) v vis
         have hcard_s₁_le : s₁.visited.card ≤ N := by
-          have := Finset.card_le_univ s₁.visited; simpa using this
+          have := Finset.card_le_univ s₁.visited; simpa only [Fintype.card_fin] using this
         have hlen_s₁ : s₁.finished.length = s_child.finished.length + 1 := by
-          simp [hs₁_eq]
+          rw [hs₁_eq]; rfl
         have hk_s₁ : N - s₁.visited.card ≤ k' + 1 := by omega
         have hcons_after : (F₀ + s₁.finished.length) + d + 1 + (N - s₁.visited.card) ≤ N := by
           omega
         obtain ⟨z, ⟨t₂, ht₂, he₂⟩, hQz⟩ := ih_k k' (Nat.lt_succ_self k') v (adj v) 0 (d + 1) F₀
-          (dfsFrameTime adj es' s₂.finished + T_cont) vis₁ x₁ Q (by simp)
-          (fun q hq => by simp) hk' hcons_child hx₁_r hx₁_csr hx₁_vis hx₁_p hx₁_fc
-          hx₁_c0 hx₁_c1 hx₁_c2
+          (dfsFrameTime adj es' s₂.finished + T_cont) vis₁ x₁ Q (Nat.zero_add _)
+          (fun q hq => by simp only [Nat.zero_add]) hk' hcons_child hx₁_r hx₁_csr hx₁_vis hx₁_p
+          hx₁_fc hx₁_c0 hx₁_c1 hx₁_c2
           (fun y₁ hy₁_r hy₁_csr hy₁_vis hy₁_p hy₁_fc hy₁_fin hy₁_v hy₁_out hy₁_fr => by
-            have hy₁_vis' : VisAt s₁.visited visAddr y₁.mem := by simpa [hs₁_eq] using hy₁_vis
+            rw [hsc_def] at hy₁_vis hy₁_fc hy₁_fin hy₁_v hy₁_out
+            have hy₁_vis' : VisAt s₁.visited visAddr y₁.mem := by rw [hs₁_eq]; exact hy₁_vis
             have hy₁_fc' : y₁.regs finCnt = F₀ + s₁.finished.length := by
               rw [hlen_s₁]; exact hy₁_fc
             have hy₁_d0 : y₁.mem (stkAddr + 3 * d) = u.val :=
-              (hy₁_out _ (by omega)).trans hx₁_d0
+              (hy₁_out (stkAddr + 3 * d) (by omega)).trans hx₁_d0
             have hy₁_d1 : y₁.mem (stkAddr + 3 * d + 1) = csrOffset adj u.val + (idx + 1) :=
-              (hy₁_out _ (by omega)).trans hx₁_d1
+              (hy₁_out (stkAddr + 3 * d + 1) (by omega)).trans hx₁_d1
             have hy₁_d2 : y₁.mem (stkAddr + 3 * d + 2) = csrOffset adj (u.val + 1) :=
-              (hy₁_out _ (by omega)).trans hx₁_d2
+              (hy₁_out (stkAddr + 3 * d + 2) (by omega)).trans hx₁_d2
+            rw [← hs₂_def]
             exact ih_es (idx + 1) d (F₀ + s₁.finished.length) T_cont s₁.visited y₁ Q
               (by omega) hes' hk_s₁ hcons_after hy₁_r hy₁_csr hy₁_vis' hy₁_p hy₁_fc'
               hy₁_d0 hy₁_d1 hy₁_d2
               (fun y₂ hy₂_r hy₂_csr hy₂_vis hy₂_p hy₂_fc hy₂_fin hy₂_u hy₂_out hy₂_fr => by
+                rw [hs₂_def] at hy₂_vis hy₂_fc hy₂_fin hy₂_u hy₂_out
                 have hy₂_vis' : VisAt (foldEmpty adj (k' + 1) (v :: es') vis).visited
                     visAddr y₂.mem := by
-                  simpa [hfold_cons] using hy₂_vis
+                  rw [hfold_cons]; exact hy₂_vis
                 have hy₂_fc' : y₂.regs finCnt =
                     F₀ + (foldEmpty adj (k' + 1) (v :: es') vis).finished.length + 1 := by
                   rw [hfold_cons]; dsimp only; rw [List.length_append]; omega
                 have hy₂_u' : y₂.mem (finAddr + F₀ +
                     (foldEmpty adj (k' + 1) (v :: es') vis).finished.length) = u.val := by
                   rw [hfold_cons]; dsimp only; rw [List.length_append]
-                  simpa [Nat.add_assoc] using hy₂_u
-                have hy₂_fin_all : ∀ q (hq : q < (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse.length),
-                    y₂.mem (finAddr + F₀ + q) =
-                      ((foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse[q]).val := by
+                  rw [show finAddr + F₀ + (s₂.finished.length + s₁.finished.length) =
+                    finAddr + (F₀ + s₁.finished.length) + s₂.finished.length by omega]
+                  exact hy₂_u
+                have hy₂_fin_all :
+                    ∀ q (hq : q < (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse.length),
+                      y₂.mem (finAddr + F₀ + q) =
+                        ((foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse[q]).val := by
                   intro q hq
                   have hrev : (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse =
                       s_child.finished.reverse ++ [v] ++ s₂.finished.reverse := by
-                    simp [hfold_cons, hs₁_eq, List.reverse_append, List.append_assoc]
+                    rw [hfold_cons, hs₁_eq]
+                    simp only [List.reverse_append, List.reverse_cons, List.append_assoc]
+                  have hrev2 : (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse =
+                      s₁.finished.reverse ++ s₂.finished.reverse := by
+                    rw [hfold_cons]; dsimp only; exact List.reverse_append
                   have hq_tot : q < s_child.finished.length + 1 + s₂.finished.length := by
                     rw [hrev] at hq
-                    simpa [List.length_append] using hq
+                    simp only [List.length_append, List.length_reverse,
+                      List.length_singleton] at hq
+                    omega
                   by_cases hq1 : q < s_child.finished.length
                   · have hpres : y₂.mem (finAddr + F₀ + q) = y₁.mem (finAddr + F₀ + q) :=
-                      hy₂_out _ (by omega)
-                    rw [hpres, hy₁_fin q (by simpa using hq1)]
+                      hy₂_out (finAddr + F₀ + q) (by omega)
+                    rw [hpres, hy₁_fin q (by rw [List.length_reverse]; exact hq1)]
                     congr 1
                     simp only [hrev, List.append_assoc]
-                    rw [List.getElem_append_left (by simpa using hq1)]
+                    rw [List.getElem_append_left (by rw [List.length_reverse]; exact hq1)]
                   · by_cases hq2 : q = s_child.finished.length
                     · subst hq2
                       have hpres : y₂.mem (finAddr + F₀ + s_child.finished.length) =
                           y₁.mem (finAddr + F₀ + s_child.finished.length) :=
-                        hy₂_out _ (by omega)
+                        hy₂_out (finAddr + F₀ + s_child.finished.length) (by omega)
                       rw [hpres, hy₁_v]
                       congr 1
-                      simp [hrev]
+                      simp only [hrev, List.append_assoc]
+                      rw [List.getElem_append_right (by rw [List.length_reverse])]
+                      simp only [List.length_reverse, Nat.sub_self, List.singleton_append,
+                        List.getElem_cons_zero]
                     · set q' := q - s₁.finished.length
                       have hq'_lt : q' < s₂.finished.reverse.length := by
-                        simp only [List.length_reverse]; omega
-                      have haddr_eq : finAddr + F₀ + q = finAddr + (F₀ + s₁.finished.length) + q' := by
+                        rw [List.length_reverse]; omega
+                      have haddr_eq :
+                          finAddr + F₀ + q = finAddr + (F₀ + s₁.finished.length) + q' := by
                         omega
                       rw [haddr_eq, hy₂_fin q' hq'_lt]
                       congr 1
-                      have hrev2 : (foldEmpty adj (k' + 1) (v :: es') vis).finished.reverse =
-                          s₁.finished.reverse ++ s₂.finished.reverse := by
-                        simp [hfold_cons]
                       simp only [hrev2]
-                      have hge : s₁.finished.reverse.length ≤ q := by simp; omega
+                      have hge : s₁.finished.reverse.length ≤ q := by
+                        rw [List.length_reverse]; omega
                       rw [List.getElem_append_right hge]
-                      simp [q']
+                      congr 1
+                      rw [List.length_reverse]
                 exact hcont y₂ hy₂_r hy₂_csr hy₂_vis' hy₂_p hy₂_fc' hy₂_fin_all hy₂_u'
                   (fun a ha => by
                     rw [hfold_cons] at ha; dsimp only at ha
@@ -2205,17 +2436,20 @@ private theorem dfsLoop_cps {N w : ℕ} (adj : Fin N → List (Fin N))
                     exact h2.trans (h1.trans h0))
                   (fun r hr => (hy₂_fr r hr).trans ((hy₁_fr r hr).trans (hx₁_fr r hr)))))
         have hlt : (Cond.lt cZero pReg).Holds x := by
+          have := hregs.czero
           change x.regs cZero < x.regs pReg; omega
         refine ⟨z, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩, hQz⟩
+        rw [hsc_def] at ht₂
         have hout_eq : outDegreeSum adj (foldEmpty adj (k' + 1) (v :: es') vis).finished =
-            outDegreeSum adj s₂.finished + ((adj v).length + outDegreeSum adj s_child.finished) := by
+            outDegreeSum adj s₂.finished +
+              ((adj v).length + outDegreeSum adj s_child.finished) := by
           rw [hfold_cons, hs₁_eq]
           dsimp only
           rw [outDegreeSum_append_local]
-          simp [outDegreeSum]
+          simp only [outDegreeSum, List.map_cons, List.sum_cons]
         have hlen_eq : (foldEmpty adj (k' + 1) (v :: es') vis).finished.length =
             s₂.finished.length + (1 + s_child.finished.length) := by
-          rw [hfold_cons, hs₁_eq]; simp [Nat.add_comm]
+          rw [hfold_cons, hs₁_eq]; dsimp only; rw [List.length_append, List.length_cons]; omega
         simp only [dfsFrameTime, List.length_cons, hout_eq, hlen_eq] at ht₂ ⊢
         omega
 
@@ -2269,19 +2503,19 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
   change ∃ y, ExecWithin w visitRootCode x y _ ∧ RootPost y
   by_cases hmem : r ∈ vis
   · have hvis_1 : x.mem (visAddr + r.val) = 1 := by simpa [hmem] using hvis_r
-    have hs_eq : visit adj N r ⟨vis, []⟩ = ⟨vis, []⟩ := by
-      rw [hkN]; exact visit_of_mem hmem
+    have hs_eq : visit adj N r ⟨vis, []⟩ = ⟨vis, []⟩ :=
+      (congrArg (fun fuel => visit adj fuel r ⟨vis, []⟩) hkN).trans (visit_of_mem hmem)
     unfold visitRootCode
     wram_exec [hregs.czero, hregs.hvis, hu, hvis_1, hf_vr]
     dsimp only [RootPost]
     rw [hs_eq]
     refine ⟨?_, ?_, ?_, ?_, fun _ hq => by simp at hq, fun _ _ => rfl, fun reg hreg => ?_⟩
     · refine dfsRegs_of_frame hregs fun reg hreg => ?_
-      wram_simp; fin_cases reg <;> simp_all
-    · wram_simp; exact hcsr
-    · intro w_v; wram_simp; exact hvis w_v
+      regs_lt
+    · mem_upd; exact hcsr
+    · intro w_v; mem_upd; exact hvis w_v
     · wram_simp; simpa using hfc
-    · wram_simp; fin_cases reg <;> simp_all
+    · regs_lt
   · have hvis_0 : x.mem (visAddr + r.val) = 0 := by simpa [hmem] using hvis_r
     set vis₁ := insert r vis
     have hcard_vis₁ : vis₁.card = vis.card + 1 := Finset.card_insert_of_notMem hmem
@@ -2310,48 +2544,45 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         (∀ reg : Fin 28, (reg.val < 19 ∨ reg = compIdxReg ∨ reg = oldFinReg) →
           x₁.regs reg = x.regs reg)
     have hpush : ∃ x₁, ExecWithin w dfsPushRoot
-        ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 9 ∧ PushRootPost x₁ := by
-      change ∃ x₁, ExecWithin w dfsPushRoot _ x₁ 9 ∧ PushRootPost x₁
+        ((x.set addr (visAddr + r.val)).set jReg 0) x₁ 11 ∧ PushRootPost x₁ := by
       unfold dfsPushRoot
       wram_exec [hregs.cone, hregs.hoff, hregs.hstk, hu, hoff_r0, hoff_r1,
         hf_or0, hf_or1, hf_s1, hf_s2]
       dsimp only [PushRootPost]
-      refine ⟨?_, ?_, ?_, by try wram_simp, by wram_simp; exact hfc,
+      refine ⟨?_, ?_, ?_, by wram_simp, by wram_simp; exact hfc,
         ?_, ?_, ?_, fun a ha => ?_, fun reg hreg => ?_⟩
       · refine dfsRegs_of_frame hregs fun reg hreg => ?_
-        wram_simp; fin_cases reg <;> simp_all
-      · wram_simp
-        refine ⟨fun u' hu' => ?_, fun u' q hq => ?_⟩
-        · repeat rw [Function.update_of_ne (by omega)]
-          exact hcsr.1 u' hu'
-        · have hq_lt : csrOffset adj u'.val + q < csrOffset adj N := by
-            have h1 := csrOffset_succ adj u'.isLt
-            simp only [Fin.eta] at h1
-            have h2 := csrOffset_mono adj (by omega : u'.val + 1 ≤ N)
-            omega
-          repeat rw [Function.update_of_ne (by omega)]
-          exact hcsr.2 u' q hq
-      · intro w_v; wram_simp
+        regs_lt
+      · mem_upd
+        exact hcsr.of_eqOn
+          (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
+          (fun _ _ => by repeat rw [Function.update_of_ne (by omega)])
+      · intro w_v; mem_upd
         have hw_lt := w_v.isLt
         repeat rw [Function.update_of_ne (by omega)]
         exact visAt_insert hvis r w_v
-      · wram_simp
+      · mem_upd
         rw [Function.update_of_ne (by omega), Function.update_of_ne (by omega),
           Nat.add_zero, Function.update_self]
-      · wram_simp
+      · mem_upd
         rw [Function.update_of_ne (by omega), Nat.mul_zero, Nat.add_zero, Function.update_self]
         omega
-      · wram_simp
-        change Function.update _ (stkAddr + 1 + 1) _ (stkAddr + 2) = _
+      · mem_upd
         rw [show stkAddr + 2 = stkAddr + 1 + 1 by omega, Function.update_self]
-      · wram_simp
+      · mem_upd
         repeat rw [Function.update_of_ne (by omega)]
-      · wram_simp; fin_cases reg <;> simp_all
+      · have ha : reg ≠ addr := by reg_ne
+        have hj : reg ≠ jReg := by reg_ne
+        have hje : reg ≠ jEndReg := by reg_ne
+        have hp' : reg ≠ pReg := by reg_ne
+        simp only [Data.write_regs_apply, Data.set_regs_of_ne ha, Data.set_regs_of_ne hj,
+          Data.set_regs_of_ne hje, Data.set_regs_of_ne hp']
     obtain ⟨x₁, hx₁_ex, hx₁_r, hx₁_csr, hx₁_vis, hx₁_p, hx₁_fc, hx₁_s0, hx₁_s1, hx₁_s2,
       hx₁_out, hx₁_fr⟩ := hpush
     have hs_eq : visit adj N r ⟨vis, []⟩ =
-        ⟨(foldEmpty adj k' (adj r) vis₁).visited, r :: (foldEmpty adj k' (adj r) vis₁).finished⟩ := by
-      rw [hkN]; exact visit_eq_foldEmpty hmem
+        ⟨(foldEmpty adj k' (adj r) vis₁).visited,
+          r :: (foldEmpty adj k' (adj r) vis₁).finished⟩ :=
+      (congrArg (fun fuel => visit adj fuel r ⟨vis, []⟩) hkN).trans (visit_eq_foldEmpty hmem)
     obtain ⟨z, ⟨t_loop, ht_loop, he_loop⟩, hRz⟩ := dfsLoop_cps adj offAddr edgeAddr visAddr
       finAddr stkAddr Mc hdisj1 hdisj2 hdisj3 hdisj4 hmc hfit k' r (adj r) 0 0 F₀ 2 vis₁ x₁
       RootPost (by simp) (fun q hq => by simp) hk' hcons_root hx₁_r hx₁_csr hx₁_vis hx₁_p hx₁_fc
@@ -2364,7 +2595,7 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
         dsimp only [RootPost]
         rw [hs_eq]
         dsimp only
-        refine ⟨hy_r, hy_csr, hy_vis, by simpa [List.length_cons] using hy_fc,
+        refine ⟨hy_r, hy_csr, hy_vis, by rw [List.length_cons, hy_fc]; omega,
           fun q hq => ?_, fun a ha => ?_, fun reg hreg => (hy_fr reg hreg).trans (hx₁_fr reg hreg)⟩
         · simp only [List.reverse_cons, List.length_append, List.length_reverse,
             List.length_singleton] at hq
@@ -2379,25 +2610,2285 @@ private theorem visitRootCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → Lis
             congr 1
             simp
         · simp only [List.length_cons] at ha
-          have h1 := hy_out a (by simpa using ha)
+          have h1 := hy_out a (by omega)
           have h0 := hx₁_out a (by omega)
           exact h1.trans h0)
-    have hcomb : ExecWithin w (dfsPushRoot.seq dfsLoop)
-        ((x.set addr (visAddr + r.val)).set jReg 0) z
-        (11 + dfsFrameTime adj (adj r) (foldEmpty adj k' (adj r) vis₁).finished) :=
-      (hx₁_ex.seq ⟨t_loop, ht_loop, he_loop⟩).mono (by omega)
-    have hbound : 2 + 1 + (11 + dfsFrameTime adj (adj r)
-        (foldEmpty adj k' (adj r) vis₁).finished) ≤
+    have hbound : 2 + 1 + 11 + t_loop ≤
         16 + 60 * (visit adj N r ⟨vis, []⟩).finished.length +
           36 * outDegreeSum adj (visit adj N r ⟨vis, []⟩).finished := by
       rw [hs_eq]
-      dsimp only [dfsFrameTime, List.length_cons, outDegreeSum, List.map_cons, List.sum_cons]
+      simp only [dfsFrameTime, List.length_cons, outDegreeSum, List.map_cons,
+        List.sum_cons] at ht_loop ⊢
       omega
     unfold visitRootCode
     wram_exec [hregs.czero, hregs.hvis, hu, hvis_0, hf_vr]
-    refine WP.of_execWithin hcomb ?_
-    exact ⟨hbound, hRz⟩
+    refine WP.of_execWithin hx₁_ex ?_
+    refine WP.of_execWithin ⟨t_loop, le_rfl, he_loop⟩ ?_
+    exact ⟨by omega, hRz⟩
 
 
--- placeholder_part4
+/-! ### Pass 1: Forward DFS finishing order (`O(N + M)`) -/
+
+private def forwardDFSBody : Code .standard 28 :=
+  (ram[ uReg ← iReg ]).seq (visitRootCode.seq (ram[ iReg ← iReg + cOne ]))
+
+private def forwardDFSCode : Code .standard 28 :=
+  (zeroBlockCode visB).seq
+    ((ram[ finCnt ← cZero; iReg ← cZero ]).seq
+      (.loop (.lt iReg nVerts) forwardDFSBody))
+
+private theorem forwardDFSLoop_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) :
+    ∀ (rs : List (Fin N)) (idx : ℕ) (vis : Finset (Fin N)) (F₀ : ℕ) (x : Data 28)
+      (_ : idx + rs.length = N),
+      (∀ q (hq : q < rs.length), rs[q].val = idx + q) →
+      F₀ = vis.card →
+      DfsRegs (kOffAddr wb) (kEdgeAddr wb N) (kVisAddr wb N Mc) (kOrdAddr wb N Mc)
+        (kStkAddr wb N Mc) x →
+      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      VisAt vis (kVisAddr wb N Mc) x.mem →
+      x.regs nVerts = N →
+      x.regs iReg = idx →
+      x.regs finCnt = F₀ →
+      ∃ y,
+        let s := foldEmpty adj N rs vis
+        ExecWithin w (.loop (.lt iReg nVerts) forwardDFSBody) x y
+          (22 * rs.length + 60 * s.finished.length + 36 * outDegreeSum adj s.finished + 2) ∧
+        DfsRegs (kOffAddr wb) (kEdgeAddr wb N) (kVisAddr wb N Mc) (kOrdAddr wb N Mc)
+          (kStkAddr wb N Mc) y ∧
+        CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) y.mem ∧
+        VisAt s.visited (kVisAddr wb N Mc) y.mem ∧
+        y.regs finCnt = F₀ + s.finished.length ∧
+        (∀ q (hq : q < s.finished.reverse.length),
+          y.mem (kOrdAddr wb N Mc + F₀ + q) = (s.finished.reverse[q]).val) ∧
+        (∀ a, ¬ ((kVisAddr wb N Mc ≤ a ∧ a < kVisAddr wb N Mc + N) ∨
+            (kOrdAddr wb N Mc + F₀ ≤ a ∧ a < kOrdAddr wb N Mc + F₀ + s.finished.length) ∨
+            (kStkAddr wb N Mc ≤ a ∧ a < kStkAddr wb N Mc + 3 * N)) → y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
+  | [], idx, vis, F₀, x, hidx, _, _, hregs, hcsr, hvis, hNv, hi, hfc => by
+    simp only [List.length_nil, Nat.add_zero] at hidx
+    have hend : ¬ (Cond.lt iReg nVerts).Holds x := by
+      change ¬ x.regs iReg < x.regs nVerts; omega
+    refine ⟨x, ⟨2, by simp [foldEmpty, outDegreeSum], Exec.loop_exit hend⟩,
+      hregs, hcsr, hvis, by simpa [foldEmpty] using hfc,
+      fun _ hq => by simp [foldEmpty] at hq, fun _ _ => rfl, fun _ _ => rfl⟩
+  | r :: rs, idx, vis, F₀, x, hidx, hrs, hF₀, hregs, hcsr, hvis, hNv, hi, hfc => by
+    simp only [List.length_cons] at hidx
+    have hr_val : r.val = idx := by
+      have h0 := hrs 0 (by simp)
+      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+    have hcard_le : vis.card ≤ N := by have := Finset.card_le_univ vis; simpa using this
+    have hcons : F₀ + (N - vis.card) ≤ N := by omega
+    have hfit_stk : Fits w (kStkAddr wb N Mc + 3 * N + Mc + 4) :=
+      hfit.of_le (by simp only [kStkAddr, kTopAddr]; omega)
+    let st_u := x.set uReg idx
+    obtain ⟨y₁, hy₁_ex, hy₁_r, hy₁_csr, hy₁_vis, hy₁_fc, hy₁_ord, hy₁_out, hy₁_fr⟩ :=
+      visitRootCode_spec hN adj (kOffAddr wb) (kEdgeAddr wb N) (kVisAddr wb N Mc)
+        (kOrdAddr wb N Mc) (kStkAddr wb N Mc) Mc
+        (by simp only [kOffAddr, kVisAddr]; omega)
+        (by simp only [kEdgeAddr, kVisAddr]; omega)
+        (by simp only [kVisAddr, kOrdAddr]; omega)
+        (by simp only [kOrdAddr, kStkAddr]; omega)
+        hmc hfit_stk r F₀ vis hcons (x := st_u)
+        (dfsRegs_of_frame hregs fun reg hreg => by
+          dsimp only [st_u]; regs_lt)
+        hcsr hvis (by dsimp only [st_u]; wram_simp; omega)
+        (by dsimp only [st_u]; wram_simp; exact hfc)
+    set s₁ := visit adj N r ⟨vis, []⟩
+    have hy₁_i : y₁.regs iReg = idx :=
+      (hy₁_fr iReg (.inl (by decide))).trans (by dsimp only [st_u]; wram_simp; exact hi)
+    have hy₁_1 : y₁.regs cOne = 1 := hy₁_r.cone
+    have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
+    have hbody_ex : ExecWithin w forwardDFSBody x (y₁.set iReg (idx + 1))
+        (18 + 60 * s₁.finished.length + 36 * outDegreeSum adj s₁.finished) := by
+      have h1 : ExecWithin (B := .standard) w (ram[ uReg ← iReg ]) x st_u 1 := by
+        have htriv : st_u = x.set uReg idx := rfl
+        wram_exec [hi]
+      have h2 : ExecWithin w (ram[ iReg ← iReg + cOne ]) y₁ (y₁.set iReg (idx + 1)) 1 := by
+        wram_exec [hy₁_i, hy₁_1, hf_i1]
+      exact (h1.seq (hy₁_ex.seq h2)).mono (by omega)
+    set x₂ := y₁.set iReg (idx + 1)
+    have hcard_s₁ : s₁.visited.card = vis.card + s₁.finished.length :=
+      card_visit_nil adj N r vis
+    have hcard_s₁_le : s₁.visited.card ≤ N := by
+      have := Finset.card_le_univ s₁.visited; simpa using this
+    have hrs' : ∀ q (hq : q < rs.length), rs[q].val = (idx + 1) + q := by
+      intro q hq
+      have h := hrs (q + 1) (by simp; omega)
+      simpa [Nat.add_assoc, Nat.add_comm 1 q] using h
+    obtain ⟨y, hy_ex, hy_r, hy_csr, hy_vis, hy_fc, hy_ord, hy_out, hy_fr⟩ :=
+      forwardDFSLoop_spec hN adj wb Mc hmc hfit rs (idx + 1) s₁.visited
+        (F₀ + s₁.finished.length) x₂ (by omega) hrs' (by omega)
+        (dfsRegs_of_frame hy₁_r fun reg hreg => by
+          dsimp only [x₂]; regs_lt)
+        hy₁_csr hy₁_vis
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr nVerts (.inl (by decide))).trans
+            (by dsimp only [st_u]; wram_simp; exact hNv))
+        (by dsimp only [x₂]; wram_simp)
+        (by dsimp only [x₂]; wram_simp; exact hy₁_fc)
+    set s₂ := foldEmpty adj N rs s₁.visited
+    have hfold_cons : foldEmpty adj N (r :: rs) vis =
+        ⟨s₂.visited, s₂.finished ++ s₁.finished⟩ :=
+      foldEmpty_cons adj N r rs vis
+    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt iReg nVerts).Holds x := by
+      change x.regs iReg < x.regs nVerts; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩, hy_r, hy_csr,
+      by simpa [hfold_cons] using hy_vis,
+      by rw [hfold_cons]; dsimp only; rw [List.length_append]; omega,
+      fun q hq => ?_, fun a ha => ?_, fun reg hreg => ?_⟩
+    · rw [hfold_cons]; dsimp only
+      rw [List.length_cons, List.length_append, outDegreeSum_append_local]
+      omega
+    · have hrev : (foldEmpty adj N (r :: rs) vis).finished.reverse =
+          s₁.finished.reverse ++ s₂.finished.reverse := by
+        simp [hfold_cons]
+      simp only [hrev, List.length_append, List.length_reverse] at hq
+      by_cases hq1 : q < s₁.finished.length
+      · have hpres : y.mem (kOrdAddr wb N Mc + F₀ + q) = y₁.mem (kOrdAddr wb N Mc + F₀ + q) :=
+          hy_out (kOrdAddr wb N Mc + F₀ + q) (by
+            dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
+        rw [hpres, hy₁_ord q (by simpa using hq1)]
+        congr 1
+        simp only [hrev]
+        rw [List.getElem_append_left (by simpa using hq1)]
+      · set q' := q - s₁.finished.length
+        have hq'_lt : q' < s₂.finished.reverse.length := by simp; omega
+        have haddr : kOrdAddr wb N Mc + F₀ + q =
+            kOrdAddr wb N Mc + (F₀ + s₁.finished.length) + q' := by omega
+        rw [haddr, hy_ord q' hq'_lt]
+        congr 1
+        simp only [hrev]
+        rw [List.getElem_append_right (by simp; omega)]
+        simp [q']
+    · rw [hfold_cons] at ha; dsimp only at ha; rw [List.length_append] at ha
+      have h2 := hy_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
+      have h1 := hy₁_out a (by dsimp only [kVisAddr, kOrdAddr, kStkAddr] at *; omega)
+      exact h2.trans h1
+    · have h2 := hy_fr reg hreg
+      have h1 := hy₁_fr reg (.inl (by omega))
+      have hne_i : reg ≠ iReg := by reg_ne
+      have hne_u : reg ≠ uReg := by reg_ne
+      dsimp only [x₂] at h2
+      rw [h2, Data.set_regs_of_ne hne_i, h1]
+      dsimp only [st_u]
+      exact Data.set_regs_of_ne hne_u _
+
+private theorem length_topologicalSort_finRange {N : ℕ} (adj : Fin N → List (Fin N)) :
+    (topologicalSort adj (List.finRange N)).length = N := by
+  have hnd := nodup_topologicalSort (adj := adj) List.mem_finRange
+  have huniv : (topologicalSort adj (List.finRange N)).toFinset = Finset.univ := by
+    ext v; simp [mem_topologicalSort List.mem_finRange]
+  rw [← List.toFinset_card_of_nodup hnd, huniv]
+  simp
+
+private theorem forwardDFSCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) {x : Data 28}
+    (hregs : DfsRegs (kOffAddr wb) (kEdgeAddr wb N) (kVisAddr wb N Mc) (kOrdAddr wb N Mc)
+      (kStkAddr wb N Mc) x)
+    (hNv : x.regs nVerts = N)
+    (hcsr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem) :
+    let ord := topologicalSort adj (List.finRange N)
+    ∃ y, ExecWithin w forwardDFSCode x y (87 * N + 36 * Mc + 10) ∧
+      ord.length = N ∧
+      (∀ idx (hidx : idx < N),
+        y.mem (kOrdAddr wb N Mc + (N - 1 - idx)) =
+          (ord[idx]'(by rw [length_topologicalSort_finRange]; exact hidx)).val) ∧
+      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) y.mem ∧
+      (∀ a, ¬ ((kVisAddr wb N Mc ≤ a ∧ a < kVisAddr wb N Mc + N) ∨
+          (kOrdAddr wb N Mc ≤ a ∧ a < kOrdAddr wb N Mc + N) ∨
+          (kStkAddr wb N Mc ≤ a ∧ a < kStkAddr wb N Mc + 3 * N)) → y.mem a = x.mem a) ∧
+      (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) := by
+  have hfit_vis : Fits w (kVisAddr wb N Mc + N) :=
+    hfit.of_le (by simp only [kVisAddr, kTopAddr]; omega)
+  obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
+    zeroBlockCode_spec visB (by decide) (kVisAddr wb N Mc) N hfit_vis hregs.czero hregs.cone
+      hregs.hvis hNv
+  have hx₁_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₁.mem :=
+    hcsr.of_eqOn
+      (fun _ _ => hx₁_out _ (by dsimp only [kOffAddr, kVisAddr]; omega))
+      (fun _ _ => hx₁_out _ (by dsimp only [kEdgeAddr, kVisAddr]; omega))
+  have hx₁_vis : VisAt (∅ : Finset (Fin N)) (kVisAddr wb N Mc) x₁.mem := by
+    intro w_v; simp [hx₁_zero w_v.val w_v.isLt]
+  have hx₁_r := dfsRegs_of_frame hregs hx₁_fr
+  let x₂ := (x₁.set finCnt 0).set iReg 0
+  have hprep : ExecWithin (B := .standard) w (ram[ finCnt ← cZero; iReg ← cZero ]) x₁ x₂ 2 := by
+    have hc0 := hx₁_r.czero
+    wram_exec [hc0]
+  obtain ⟨y, hy_ex, -, hy_csr, -, -, hy_ord, hy_out, hy_fr⟩ :=
+    forwardDFSLoop_spec hN adj wb Mc hmc hfit (List.finRange N) 0 ∅ 0 x₂ (by simp)
+      (fun q hq => by simp) rfl
+      (dfsRegs_of_frame hx₁_r fun reg hreg => by
+        dsimp only [x₂]; regs_lt)
+      hx₁_csr hx₁_vis
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr nVerts (by decide)).trans hNv)
+      (by dsimp only [x₂]; wram_simp)
+      (by dsimp only [x₂]; wram_simp)
+  set ord := topologicalSort adj (List.finRange N)
+  have hfold_eq : (foldEmpty adj N (List.finRange N) ∅).finished = ord := by
+    simp [foldEmpty, ord, topologicalSort, dfs]
+  have hnd_ord : ord.Nodup := nodup_topologicalSort List.mem_finRange
+  have hmem_ord : ∀ v : Fin N, v ∈ ord := mem_topologicalSort List.mem_finRange
+  have huniv_ord : ord.toFinset = Finset.univ := by ext v; simp [hmem_ord v]
+  have hlen_ord : ord.length = N := length_topologicalSort_finRange adj
+  have hout_ord : outDegreeSum adj ord = csrOffset adj N := by
+    rw [csrOffset_eq_outDegreeSum]
+    unfold outDegreeSum
+    rw [← List.sum_toFinset _ hnd_ord, ← List.sum_toFinset _ (List.nodup_finRange N), huniv_ord]
+    have huniv2 : (List.finRange N).toFinset = Finset.univ := by ext v; simp
+    rw [huniv2]
+  rw [hfold_eq] at hy_ex hy_ord hy_out
+  rw [hlen_ord, hout_ord] at hy_ex
+  simp only [List.length_finRange, Nat.add_zero] at hy_ex hy_ord hy_out
+  refine ⟨y, (hx₁_ex.seq (hprep.seq hy_ex)).mono (by omega), hlen_ord,
+    fun idx hidx => ?_, hy_csr, fun a ha => ?_, fun r hr => ?_⟩
+  · have hrev_idx : N - 1 - idx < ord.reverse.length := by simp [hlen_ord]; omega
+    rw [hy_ord (N - 1 - idx) hrev_idx]
+    congr 1
+    rw [List.getElem_reverse]
+    congr 1
+    omega
+  · rw [hlen_ord] at hy_out
+    exact (hy_out a ha).trans (hx₁_out a (by omega))
+  · have h2 := hy_fr r hr
+    dsimp only [x₂] at h2
+    have hne1 : r ≠ iReg := by reg_ne
+    have hne2 : r ≠ finCnt := by reg_ne
+    rw [h2, Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
+    exact hx₁_fr r hr
+
+/-! ### Building the implication-graph CSR (`O(n + |φ|)`) -/
+
+private def buildImplCSRCode : Code .standard 28 :=
+  (zeroBlockCode curB).seq
+    ((ram[ iReg ← cZero; pReg ← cThree ]).seq
+      ((Code.loop (.lt iReg mClauses) implDegBody).seq
+        (prefixSumCode.seq
+          ((ram[ iReg ← cZero; pReg ← cThree ]).seq
+            (Code.loop (.lt iReg mClauses) implFillBody)))))
+
+private theorem buildImplCSRCode_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
+    (hcs : ∀ c ∈ G.φ, 1 ≤ c.length ∧ c.length ≤ 2) {x : Data 28}
+    (hcm : ClauseMemAt x.mem 3 G.φ)
+    (hc0 : x.regs cZero = 0) (hc1 : x.regs cOne = 1) (hc3 : x.regs cThree = 3)
+    (hm : x.regs mClauses = G.φ.length) (hNv : x.regs nVerts = 2 * G.n)
+    (hoffB : x.regs offB = kOffAddr G.workBase)
+    (hedgeB : x.regs edgeB = kEdgeAddr G.workBase (2 * G.n))
+    (hcurB : x.regs curB = kCurAddr G.workBase (2 * G.n) (2 * G.φ.length)) :
+    ∃ y, ExecWithin w buildImplCSRCode x y (26 * G.n + 49 * G.φ.length + 18) ∧
+      CSRAt G.adjFin (kOffAddr G.workBase) (kEdgeAddr G.workBase (2 * G.n)) y.mem ∧
+      (∀ a, a < G.workBase → y.mem a = x.mem a) ∧
+      (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) := by
+  set N := 2 * G.n
+  set Mc := 2 * G.φ.length
+  set curBase := kCurAddr G.workBase N Mc
+  set offBase := kOffAddr G.workBase
+  set edgeBase := kEdgeAddr G.workBase N
+  have hfit_cur : Fits w (curBase + N) :=
+    G.fits_of_le hfit (by
+      simp only [curBase, N, Mc, kCurAddr, Instance.workBase, Instance.outAddrBase,
+        G.encode_length, Instance.wordBound]; omega)
+  obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
+    zeroBlockCode_spec curB (by decide) curBase N hfit_cur hc0 hc1 hcurB hNv
+  have hcm₁ : ClauseMemAt x₁.mem 3 G.φ := by
+    intro k hk
+    rw [hx₁_out _ (by
+      rw [Instance.length_flatMap_encodeClauseBy] at hk
+      simp only [curBase, kCurAddr, Instance.workBase, Instance.outAddrBase, G.encode_length]
+      unfold Instance.totalLits at *; omega)]
+    exact hcm k hk
+  let x₂ := (x₁.set iReg 0).set pReg 3
+  have hp₁ : ExecWithin (B := .standard) w (ram[ iReg ← cZero; pReg ← cThree ]) x₁ x₂ 2 := by
+    have h0' : x₁.regs cZero = 0 := (hx₁_fr cZero (by decide)).trans hc0
+    have h3' : x₁.regs cThree = 3 := (hx₁_fr cThree (by decide)).trans hc3
+    wram_exec [h0', h3']
+  have hlen_enc : 3 + (G.φ.flatMap (encodeClauseBy Fin.val)).length = G.encode.length + 1 := by
+    rw [Instance.length_flatMap_encodeClauseBy, G.encode_length]
+    unfold Instance.totalLits; omega
+  obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
+    implDegLoop_spec G hfit G.φ (fun _ => []) 0 3 x₂ hcs (.inr rfl) (by simp) hlen_enc hcm₁
+      (fun u => by dsimp only [x₂]; simpa [mapAdj] using hx₁_zero u.val u.isLt)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr cOne (by decide)).trans hc1)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr mClauses (by decide)).trans hm)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr curB (by decide)).trans hcurB)
+      (by dsimp only [x₂]; wram_simp)
+      (by dsimp only [x₂]; wram_simp)
+  have hx₃_fr0 : ∀ r : Fin 28, r.val < 18 → x₃.regs r = x.regs r := fun r hr => by
+    have h3 := hx₃_fr r hr
+    have hne1 : r ≠ pReg := by reg_ne
+    have hne2 : r ≠ iReg := by reg_ne
+    dsimp only [x₂] at h3
+    rw [h3, Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
+    exact hx₁_fr r hr
+  have hfit_ps : Fits w (curBase + N + Mc + 2) :=
+    G.fits_of_le hfit (by
+      simp only [curBase, N, Mc, kCurAddr, Instance.workBase, Instance.outAddrBase,
+        G.encode_length, Instance.wordBound]; omega)
+  obtain ⟨x₄, hx₄_ex, hx₄_off, hx₄_cur, hx₄_out, hx₄_fr⟩ :=
+    prefixSumCode_spec G.adjFin curBase offBase Mc
+      (by simp only [offBase, curBase, kOffAddr, kCurAddr]; omega)
+      (csrOffset_adjFin_le G) hfit_ps
+      ((hx₃_fr0 cZero (by decide)).trans hc0)
+      ((hx₃_fr0 cOne (by decide)).trans hc1)
+      ((hx₃_fr0 curB (by decide)).trans hcurB)
+      ((hx₃_fr0 offB (by decide)).trans hoffB)
+      ((hx₃_fr0 nVerts (by decide)).trans hNv)
+      hx₃_deg
+  have hx₄_fr0 : ∀ r : Fin 28, r.val < 18 → x₄.regs r = x.regs r :=
+    fun r hr => (hx₄_fr r hr).trans (hx₃_fr0 r hr)
+  have hcm₄ : ClauseMemAt x₄.mem 3 G.φ := by
+    intro k hk
+    have hk_lt : 3 + k < G.workBase := by
+      rw [Instance.length_flatMap_encodeClauseBy] at hk
+      simp only [Instance.workBase, Instance.outAddrBase, G.encode_length]
+      unfold Instance.totalLits at *; omega
+    rw [hx₄_out _ (by dsimp only [offBase, curBase, N, Mc]; simp only [kOffAddr, kCurAddr]; omega),
+      hx₃_out _ (by dsimp only [kCurAddr]; omega)]
+    exact hcm₁ k hk
+  let x₅ := (x₄.set iReg 0).set pReg 3
+  have hp₂ : ExecWithin (B := .standard) w (ram[ iReg ← cZero; pReg ← cThree ]) x₄ x₅ 2 := by
+    have h0' : x₄.regs cZero = 0 := (hx₄_fr0 cZero (by decide)).trans hc0
+    have h3' : x₄.regs cThree = 3 := (hx₄_fr0 cThree (by decide)).trans hc3
+    wram_exec [h0', h3']
+  have hmap_empty : mapAdj (litEquiv G.n) (fun _ => []) = (fun _ => []) := funext fun _ => rfl
+  obtain ⟨y, hy_ex, hy_pcsr, hy_out, hy_fr⟩ :=
+    implFillLoop_spec G hfit G.φ (fun _ => []) 0 3 x₅ hcs (.inr rfl) (by simp) hlen_enc hcm₄
+      (hmap_empty ▸ partialCSRAt_init G.adjFin curBase edgeBase x₄.mem hx₄_cur)
+      (by dsimp only [x₅]; wram_simp; exact (hx₄_fr0 cOne (by decide)).trans hc1)
+      (by dsimp only [x₅]; wram_simp; exact (hx₄_fr0 mClauses (by decide)).trans hm)
+      (by dsimp only [x₅]; wram_simp; exact (hx₄_fr0 curB (by decide)).trans hcurB)
+      (by dsimp only [x₅]; wram_simp; exact (hx₄_fr0 edgeB (by decide)).trans hedgeB)
+      (by dsimp only [x₅]; wram_simp)
+      (by dsimp only [x₅]; wram_simp)
+  have hy_off : ∀ u ≤ N, y.mem (offBase + u) = csrOffset G.adjFin u := fun u hu => by
+    rw [hy_out _ (by dsimp only [offBase, N, kOffAddr, kCurAddr, kEdgeAddr]; omega)]
+    exact hx₄_off u hu
+  have hy_csr : CSRAt G.adjFin offBase edgeBase y.mem :=
+    csrAt_of_partialCSRAt G.adjFin offBase curBase edgeBase y.mem hy_off hy_pcsr
+  refine ⟨y,
+    (hx₁_ex.seq (hp₁.seq (hx₃_ex.seq (hx₄_ex.seq (hp₂.seq hy_ex))))).mono
+      (by dsimp only [N]; omega),
+    hy_csr, fun a ha => ?_, fun r hr => ?_⟩
+  · rw [hy_out _ (by dsimp only [kCurAddr, kEdgeAddr]; omega)]
+    dsimp only [x₅]; mem_upd
+    rw [hx₄_out _ (by dsimp only [offBase, curBase, N, Mc, kOffAddr, kCurAddr]; omega),
+      hx₃_out _ (by dsimp only [kCurAddr]; omega)]
+    dsimp only [x₂]; mem_upd
+    exact hx₁_out _ (by dsimp only [curBase, N, Mc, kCurAddr]; omega)
+  · have h5 := hy_fr r hr
+    have hne1 : r ≠ pReg := by reg_ne
+    have hne2 : r ≠ iReg := by reg_ne
+    dsimp only [x₅] at h5
+    rw [h5, Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
+    exact hx₄_fr0 r hr
+
+/-! ### Pass 2: CSR transpose construction (`O(N + M)`) -/
+
+private def revDegInnerBody : Code .standard 28 :=
+  (ram[ addr ← edgeB + jReg; vReg ← *addr ]).seq
+    (incCurCode.seq (ram[ jReg ← jReg + cOne ]))
+
+private def revDegOuterBody : Code .standard 28 :=
+  (ram[ addr ← offB + iReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
+    ((Code.loop (.lt jReg oldFinReg) revDegInnerBody).seq
+      (ram[ iReg ← iReg + cOne ]))
+
+private def revFillInnerBody : Code .standard 28 :=
+  (ram[ addr ← finCnt + jReg; vReg ← *addr ]).seq
+    (backfillStepCode.seq (ram[ jReg ← jReg + cOne ]))
+
+private def revFillOuterBody : Code .standard 28 :=
+  (ram[ addr ← offB + uReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ]).seq
+    ((Code.loop (.lt jReg oldFinReg) revFillInnerBody).seq
+      (ram[ uReg ← uReg + cOne ]))
+
+private def transposeCSRCode : Code .standard 28 :=
+  (zeroBlockCode curB).seq
+    ((ram[ iReg ← cZero ]).seq
+      ((Code.loop (.lt iReg nVerts) revDegOuterBody).seq
+        ((ram[ compIdxReg ← offB; offB ← revOffB ]).seq
+          (prefixSumCode.seq
+            ((ram[ offB ← compIdxReg; finCnt ← edgeB; edgeB ← revEdgeB; uReg ← cZero ]).seq
+              ((Code.loop (.lt uReg nVerts) revFillOuterBody).seq
+                (ram[ offB ← revOffB ])))))))
+
+private theorem length_foldl_rev_le {N : ℕ} (u : Fin N) :
+    ∀ (es : List (Fin N)) (rev : Fin N → List (Fin N)) (w : Fin N),
+      (rev w).length ≤
+        (es.foldl (fun r v => Function.update r v (u :: r v)) rev w).length
+  | [], _, _ => le_rfl
+  | v :: es, rev, w => by
+    have h1 : (rev w).length ≤ (Function.update rev v (u :: rev v) w).length := by
+      by_cases hw : w = v <;> simp [hw]
+    exact h1.trans (length_foldl_rev_le u es (Function.update rev v (u :: rev v)) w)
+
+private theorem length_foldl_vs_rev_le {N : ℕ} (adj : Fin N → List (Fin N)) :
+    ∀ (us : List (Fin N)) (rev : Fin N → List (Fin N)) (w : Fin N),
+      (rev w).length ≤
+        (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
+          rev w).length
+  | [], _, _ => le_rfl
+  | u :: us, rev, w =>
+    (length_foldl_rev_le u (adj u) rev w).trans
+      (length_foldl_vs_rev_le adj us _ w)
+
+private abbrev revGraph {N : ℕ} (adj : Fin N → List (Fin N)) : Fin N → List (Fin N) :=
+  transposeAdj adj (List.finRange N)
+
+private theorem csrOffset_transposeAdj_eq {N : ℕ} (adj : Fin N → List (Fin N)) :
+    csrOffset (transposeAdj adj (List.finRange N)) N = csrOffset adj N := by
+  rw [csrOffset_eq_outDegreeSum, csrOffset_eq_outDegreeSum, outDegreeSum, ← Fin.sum_univ_def,
+    sum_length_transposeAdj]
+
+private theorem revDegInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) (u : Fin N) :
+    ∀ (es : List (Fin N)) (k : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
+      (_ : k + es.length = (adj u).length),
+      (∀ q (hq : q < es.length), (adj u)[k + q]'(by omega) = es[q]) →
+      (∀ z : Fin N,
+        (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ Mc) →
+      (∀ z : Fin N, x.mem (kCurAddr wb N Mc + z.val) = (rev z).length) →
+      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      x.regs cOne = 1 →
+      x.regs edgeB = kEdgeAddr wb N →
+      x.regs curB = kCurAddr wb N Mc →
+      x.regs jReg = csrOffset adj u.val + k →
+      x.regs oldFinReg = csrOffset adj u.val + (adj u).length →
+      ∃ y, ExecWithin w (.loop (.lt jReg oldFinReg) revDegInnerBody) x y (9 * es.length + 2) ∧
+        (∀ z : Fin N, y.mem (kCurAddr wb N Mc + z.val) =
+          (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length) ∧
+        (∀ a, ¬ (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) → y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → r ≠ vReg → r ≠ jReg → y.regs r = x.regs r)
+  | [], k, rev, x, hk, _, _, hdeg, _, _, _, _, hj, hof => by
+    simp only [List.length_nil, Nat.add_zero] at hk
+    have hend : ¬ (Cond.lt jReg oldFinReg).Holds x := by
+      change ¬ x.regs jReg < x.regs oldFinReg; omega
+    exact ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hdeg, fun _ _ => rfl, fun _ _ _ _ _ => rfl⟩
+  | v :: es, k, rev, x, hk, hget, hroom_all, hdeg, hcsr, hc1, hedge, hcur, hj, hof => by
+    simp only [List.length_cons] at hk
+    have hk_lt : k < (adj u).length := by omega
+    have hv_eq : (adj u)[k] = v := by
+      have h0 := hget 0 (by simp)
+      simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
+    have hmem_e : x.mem (kEdgeAddr wb N + (csrOffset adj u.val + k)) = v.val := by
+      rw [← Nat.add_assoc, hcsr.2 u k hk_lt, hv_eq]
+    have hj_lt_M : csrOffset adj u.val + k < csrOffset adj N := by
+      have h1 := csrOffset_succ adj u.isLt; simp only [Fin.eta] at h1
+      have h2 := csrOffset_mono adj (by omega : u.val + 1 ≤ N); omega
+    have hf_eaddr : Fits w (kEdgeAddr wb N + (csrOffset adj u.val + k)) :=
+      hfit.of_le (by simp only [kEdgeAddr, kTopAddr]; omega)
+    have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
+      hfit.of_le (by simp only [kTopAddr]; omega)
+    have hf_cur : Fits w (kCurAddr wb N Mc + N + Mc + 1) :=
+      hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
+    have hroom_v : (rev v).length + 1 ≤ Mc := by
+      have hle := length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v
+      have hall := hroom_all v
+      simp only [List.foldl_cons] at hall
+      simpa using hle.trans hall
+    let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
+    obtain ⟨y₁, hy₁_ex, hy₁_deg, hy₁_out, hy₁_fr⟩ :=
+      incCurCode_spec (N := N) (kCurAddr wb N Mc) Mc hf_cur (fun z => (rev z).length) v hroom_v
+        (x := st_v)
+        (by dsimp only [st_v]; wram_simp; exact hc1)
+        (by dsimp only [st_v]; wram_simp; exact hcur)
+        (by dsimp only [st_v]; wram_simp)
+        (by dsimp only [st_v]; exact hdeg)
+    have hp1 : ExecWithin w (ram[ addr ← edgeB + jReg; vReg ← *addr ]) x st_v 2 := by
+      have htriv :
+          st_v = (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val := rfl
+      wram_exec [hedge, hj, hmem_e, hf_eaddr]
+    have hy₁_1 : y₁.regs cOne = 1 :=
+      (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hc1)
+    have hy₁_j : y₁.regs jReg = csrOffset adj u.val + k :=
+      (hy₁_fr jReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hj)
+    let x₂ := y₁.set jReg (csrOffset adj u.val + (k + 1))
+    have hp2 : ExecWithin w (ram[ jReg ← jReg + cOne ]) y₁ x₂ 1 := by
+      have htriv : x₂ = y₁.set jReg (csrOffset adj u.val + k + 1) := by
+        simp [x₂, Nat.add_assoc]
+      rw [htriv]
+      wram_exec [hy₁_j, hy₁_1, hf_j1]
+    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
+      hcsr.of_eqOn
+        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr]; omega))
+        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega))
+    have hx₂_deg : ∀ z : Fin N, x₂.mem (kCurAddr wb N Mc + z.val) =
+        (Function.update rev v (u :: rev v) z).length := by
+      intro z; dsimp only [x₂]; mem_upd; rw [hy₁_deg z]
+      by_cases hz : z = v <;> simp [hz]
+    obtain ⟨y, hy_ex, hy_deg, hy_out, hy_fr⟩ :=
+      revDegInner_spec adj wb Mc hmc hfit u es (k + 1) (Function.update rev v (u :: rev v)) x₂
+        (by omega)
+        (fun q hq => by
+          have h := hget (q + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+        (fun z => by simpa [List.foldl_cons] using hroom_all z)
+        hx₂_deg hx₂_csr
+        (by dsimp only [x₂]; wram_simp; exact hy₁_1)
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr edgeB (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hedge))
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr curB (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hcur))
+        (by dsimp only [x₂]; wram_simp)
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr oldFinReg (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hof))
+    have hbody_ex : ExecWithin w revDegInnerBody x x₂ 7 :=
+      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
+    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt jReg oldFinReg).Holds x := by
+      change x.regs jReg < x.regs oldFinReg; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega, Exec.loop_iter hlt he₁ he₂⟩,
+      hy_deg, fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r h1 h2 h3 h4 => ?_⟩
+    rw [hy_fr r h1 h2 h3 h4]
+    dsimp only [x₂]
+    rw [Data.set_regs_of_ne h4, hy₁_fr r h1 h2]
+    dsimp only [st_v]
+    rw [Data.set_regs_of_ne h3, Data.set_regs_of_ne h1]
+
+private theorem revDegOuter_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) :
+    ∀ (us : List (Fin N)) (idx : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
+      (_ : idx + us.length = N),
+      (∀ q (hq : q < us.length), us[q].val = idx + q) →
+      (∀ z : Fin N,
+        (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
+          rev z).length ≤ Mc) →
+      (∀ z : Fin N, x.mem (kCurAddr wb N Mc + z.val) = (rev z).length) →
+      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      x.regs cOne = 1 → x.regs nVerts = N →
+      x.regs offB = kOffAddr wb → x.regs edgeB = kEdgeAddr wb N →
+      x.regs curB = kCurAddr wb N Mc → x.regs iReg = idx →
+      ∃ y, ExecWithin w (.loop (.lt iReg nVerts) revDegOuterBody) x y
+          (9 * us.length + 9 * outDegreeSum adj us + 2) ∧
+        (∀ z : Fin N, y.mem (kCurAddr wb N Mc + z.val) =
+          (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
+            rev z).length) ∧
+        (∀ a, ¬ (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) → y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
+  | [], idx, rev, x, hidx, _, _, hdeg, _, _, _, _, _, _, _ => by
+    simp only [List.length_nil, Nat.add_zero] at hidx
+    have hend : ¬ (Cond.lt iReg nVerts).Holds x := by
+      change ¬ x.regs iReg < x.regs nVerts; omega
+    exact ⟨x, ⟨2, by simp [outDegreeSum], Exec.loop_exit hend⟩,
+      hdeg, fun _ _ => rfl, fun _ _ => rfl⟩
+  | u :: us, idx, rev, x, hidx, hus, hroom_all, hdeg, hcsr, hc1, hNv, hoff, hedge, hcur, hi => by
+    simp only [List.length_cons] at hidx
+    have hu_val : u.val = idx := by
+      have h0 := hus 0 (by simp)
+      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+    have hoff_u : x.mem (kOffAddr wb + idx) = csrOffset adj u.val := by
+      rw [← hu_val]; exact hcsr.1 u.val (by omega)
+    have hoff_u1 : x.mem (kOffAddr wb + idx + 1) = csrOffset adj u.val + (adj u).length := by
+      simpa [← hu_val, Nat.add_assoc, csrOffset_succ adj u.isLt] using
+        hcsr.1 (u.val + 1) (by omega)
+    have hf_oa : Fits w (kOffAddr wb + idx) :=
+      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
+    have hf_oa1 : Fits w (kOffAddr wb + idx + 1) :=
+      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
+    have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
+    let x₁ := (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
+      addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length)
+    have hp1 : ExecWithin w
+        (ram[ addr ← offB + iReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ])
+        x x₁ 4 := by
+      have htriv : x₁ = (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
+        addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length) := rfl
+      wram_exec [hoff, hi, hc1, hoff_u, hoff_u1, hf_oa, hf_oa1]
+    have hroom_u : ∀ z : Fin N,
+        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤ Mc := by
+      intro z
+      exact (length_foldl_vs_rev_le adj us _ z).trans
+        (by simpa [List.foldl_cons] using hroom_all z)
+    obtain ⟨y₁, hy₁_ex, hy₁_deg, hy₁_out, hy₁_fr⟩ :=
+      revDegInner_spec adj wb Mc hmc hfit u (adj u) 0 rev x₁ (by simp) (fun q _ => by simp)
+        hroom_u (by dsimp only [x₁]; exact hdeg) (by dsimp only [x₁]; exact hcsr)
+        (by dsimp only [x₁]; wram_simp; exact hc1)
+        (by dsimp only [x₁]; wram_simp; exact hedge)
+        (by dsimp only [x₁]; wram_simp; exact hcur)
+        (by dsimp only [x₁]; wram_simp)
+        (by dsimp only [x₁]; wram_simp)
+    have hy₁_i : y₁.regs iReg = idx :=
+      (hy₁_fr iReg (by decide) (by decide) (by decide) (by decide)).trans
+        (by dsimp only [x₁]; wram_simp; exact hi)
+    have hy₁_1 : y₁.regs cOne = 1 :=
+      (hy₁_fr cOne (by decide) (by decide) (by decide) (by decide)).trans
+        (by dsimp only [x₁]; wram_simp; exact hc1)
+    let x₂ := y₁.set iReg (idx + 1)
+    have hp2 : ExecWithin w (ram[ iReg ← iReg + cOne ]) y₁ x₂ 1 := by
+      wram_exec [hy₁_i, hy₁_1, hf_i1]
+    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
+      hcsr.of_eqOn
+        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr]; omega))
+        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega))
+    have hx₂_fr0 : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
+      have hne_i : r ≠ iReg := by reg_ne
+      have hne_of : r ≠ oldFinReg := by reg_ne
+      have hne_a : r ≠ addr := by reg_ne
+      have hne_j : r ≠ jReg := by reg_ne
+      dsimp only [x₂]
+      rw [Data.set_regs_of_ne hne_i, hy₁_fr r hne_a (by reg_ne) (by reg_ne) hne_j]
+      dsimp only [x₁]
+      simp [Data.set_regs_of_ne hne_of, Data.set_regs_of_ne hne_a, Data.set_regs_of_ne hne_j]
+    obtain ⟨y, hy_ex, hy_deg, hy_out, hy_fr⟩ :=
+      revDegOuter_spec adj wb Mc hmc hfit us (idx + 1)
+        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
+        (fun q hq => by
+          have h := hus (q + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+        (fun z => by simpa [List.foldl_cons] using hroom_all z)
+        hy₁_deg hx₂_csr
+        ((hx₂_fr0 cOne (by decide)).trans hc1)
+        ((hx₂_fr0 nVerts (by decide)).trans hNv)
+        ((hx₂_fr0 offB (by decide)).trans hoff)
+        ((hx₂_fr0 edgeB (by decide)).trans hedge)
+        ((hx₂_fr0 curB (by decide)).trans hcur)
+        (by dsimp only [x₂]; wram_simp)
+    have hbody_ex : ExecWithin w revDegOuterBody x x₂ (9 * (adj u).length + 7) :=
+      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
+    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt iReg nVerts).Holds x := by
+      change x.regs iReg < x.regs nVerts; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
+      hy_deg, fun a ha => (hy_out a ha).trans (hy₁_out a ha),
+      fun r hr => (hy_fr r hr).trans (hx₂_fr0 r hr)⟩
+    simp only [List.length_cons, outDegreeSum, List.map_cons, List.sum_cons] at ht₂ ⊢
+    omega
+
+private theorem revFillInner_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) (u : Fin N) :
+    ∀ (es : List (Fin N)) (k : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
+      (_ : k + es.length = (adj u).length),
+      (∀ q (hq : q < es.length), (adj u)[k + q]'(by omega) = es[q]) →
+      (∀ z : Fin N,
+        (es.foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤
+          (revGraph adj z).length) →
+      PartialCSRAt (revGraph adj) rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x.mem →
+      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      x.regs cOne = 1 →
+      x.regs finCnt = kEdgeAddr wb N →
+      x.regs edgeB = kRevEdgeAddr wb N Mc →
+      x.regs curB = kCurAddr wb N Mc →
+      x.regs uReg = u.val →
+      x.regs jReg = csrOffset adj u.val + k →
+      x.regs oldFinReg = csrOffset adj u.val + (adj u).length →
+      ∃ y, ExecWithin w (.loop (.lt jReg oldFinReg) revFillInnerBody) x y (11 * es.length + 2) ∧
+        PartialCSRAt (revGraph adj) (es.foldl (fun r v => Function.update r v (u :: r v)) rev)
+          (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) y.mem ∧
+        (∀ a, ¬ ((kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) ∨
+            (kRevEdgeAddr wb N Mc ≤ a ∧ a < kRevEdgeAddr wb N Mc + csrOffset (revGraph adj) N)) →
+          y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r ≠ addr → r ≠ jEndReg → r ≠ vReg → r ≠ jReg → y.regs r = x.regs r)
+  | [], k, rev, x, hk, _, _, hpcsr, _, _, _, _, _, _, hj, hof => by
+    simp only [List.length_nil, Nat.add_zero] at hk
+    have hend : ¬ (Cond.lt jReg oldFinReg).Holds x := by
+      change ¬ x.regs jReg < x.regs oldFinReg; omega
+    exact ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hpcsr, fun _ _ => rfl, fun _ _ _ _ _ => rfl⟩
+  | v :: es, k, rev, x, hk, hget, hroom_all, hpcsr, hcsr, hc1, hfedge, hredge, hcur,
+      huR, hj, hof => by
+    set revAdj := revGraph adj
+    simp only [List.length_cons] at hk
+    have hk_lt : k < (adj u).length := by omega
+    have hv_eq : (adj u)[k] = v := by
+      have h0 := hget 0 (by simp)
+      simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
+    have hmem_e : x.mem (kEdgeAddr wb N + (csrOffset adj u.val + k)) = v.val := by
+      rw [← Nat.add_assoc, hcsr.2 u k hk_lt, hv_eq]
+    have hj_lt_M : csrOffset adj u.val + k < csrOffset adj N := by
+      have h1 := csrOffset_succ adj u.isLt; simp only [Fin.eta] at h1
+      have h2 := csrOffset_mono adj (by omega : u.val + 1 ≤ N); omega
+    have hf_eaddr : Fits w (kEdgeAddr wb N + (csrOffset adj u.val + k)) :=
+      hfit.of_le (by simp only [kEdgeAddr, kTopAddr]; omega)
+    have hf_j1 : Fits w (csrOffset adj u.val + k + 1) :=
+      hfit.of_le (by simp only [kTopAddr]; omega)
+    have hf_bf : Fits w (kCurAddr wb N Mc + N + Mc + 1) :=
+      hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
+    have hmc_rev : csrOffset revAdj N ≤ Mc := by
+      dsimp only [revAdj, revGraph]
+      rwa [csrOffset_transposeAdj_eq]
+    have hroom_v : (rev v).length + 1 ≤ (revAdj v).length := by
+      have hle := length_foldl_rev_le u es (Function.update rev v (u :: rev v)) v
+      have hall := hroom_all v
+      simp only [List.foldl_cons] at hall
+      simpa using hle.trans hall
+    let st_v := (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val
+    obtain ⟨y₁, hy₁_ex, hy₁_pcsr, hy₁_out, hy₁_fr⟩ :=
+      backfillStepCode_spec revAdj rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) Mc
+        (by simp only [kRevEdgeAddr, kCurAddr]; omega) hmc_rev hf_bf v u hroom_v
+        (x := st_v)
+        (by dsimp only [st_v]; wram_simp; exact hc1)
+        (by dsimp only [st_v]; wram_simp; exact hcur)
+        (by dsimp only [st_v]; wram_simp; exact hredge)
+        (by dsimp only [st_v]; wram_simp)
+        (by dsimp only [st_v]; wram_simp; exact huR)
+        (by dsimp only [st_v]; exact hpcsr)
+    have hp1 : ExecWithin w (ram[ addr ← finCnt + jReg; vReg ← *addr ]) x st_v 2 := by
+      have htriv :
+          st_v = (x.set addr (kEdgeAddr wb N + (csrOffset adj u.val + k))).set vReg v.val := rfl
+      wram_exec [hfedge, hj, hmem_e, hf_eaddr]
+    have hy₁_1 : y₁.regs cOne = 1 :=
+      (hy₁_fr cOne (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hc1)
+    have hy₁_j : y₁.regs jReg = csrOffset adj u.val + k :=
+      (hy₁_fr jReg (by decide) (by decide)).trans (by dsimp only [st_v]; wram_simp; exact hj)
+    let x₂ := y₁.set jReg (csrOffset adj u.val + (k + 1))
+    have hp2 : ExecWithin w (ram[ jReg ← jReg + cOne ]) y₁ x₂ 1 := by
+      have htriv : x₂ = y₁.set jReg (csrOffset adj u.val + k + 1) := by
+        simp [x₂, Nat.add_assoc]
+      rw [htriv]
+      wram_exec [hy₁_j, hy₁_1, hf_j1]
+    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
+      hcsr.of_eqOn
+        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr, kRevEdgeAddr]; omega))
+        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr, kRevEdgeAddr]; omega))
+    obtain ⟨y, hy_ex, hy_pcsr, hy_out, hy_fr⟩ :=
+      revFillInner_spec adj wb Mc hmc hfit u es (k + 1) (Function.update rev v (u :: rev v)) x₂
+        (by omega)
+        (fun q hq => by
+          have h := hget (q + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+        (fun z => by simpa [List.foldl_cons] using hroom_all z)
+        hy₁_pcsr hx₂_csr
+        (by dsimp only [x₂]; wram_simp; exact hy₁_1)
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr finCnt (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hfedge))
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr edgeB (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hredge))
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr curB (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hcur))
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr uReg (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact huR))
+        (by dsimp only [x₂]; wram_simp)
+        (by
+          dsimp only [x₂]; wram_simp
+          exact (hy₁_fr oldFinReg (by decide) (by decide)).trans
+            (by dsimp only [st_v]; wram_simp; exact hof))
+    have hbody_ex : ExecWithin w revFillInnerBody x x₂ 9 :=
+      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
+    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt jReg oldFinReg).Holds x := by
+      change x.regs jReg < x.regs oldFinReg; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega, Exec.loop_iter hlt he₁ he₂⟩,
+      hy_pcsr, fun a ha => (hy_out a ha).trans (hy₁_out a ha), fun r h1 h2 h3 h4 => ?_⟩
+    rw [hy_fr r h1 h2 h3 h4]
+    dsimp only [x₂]
+    rw [Data.set_regs_of_ne h4, hy₁_fr r h1 h2]
+    dsimp only [st_v]
+    rw [Data.set_regs_of_ne h3, Data.set_regs_of_ne h1]
+
+private theorem revFillOuter_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) :
+    ∀ (us : List (Fin N)) (idx : ℕ) (rev : Fin N → List (Fin N)) (x : Data 28)
+      (_ : idx + us.length = N),
+      (∀ q (hq : q < us.length), us[q].val = idx + q) →
+      (∀ z : Fin N,
+        (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r)
+          rev z).length ≤ (revGraph adj z).length) →
+      PartialCSRAt (revGraph adj) rev (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x.mem →
+      CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem →
+      x.regs cOne = 1 → x.regs nVerts = N →
+      x.regs offB = kOffAddr wb → x.regs finCnt = kEdgeAddr wb N →
+      x.regs edgeB = kRevEdgeAddr wb N Mc → x.regs curB = kCurAddr wb N Mc →
+      x.regs uReg = idx →
+      ∃ y, ExecWithin w (.loop (.lt uReg nVerts) revFillOuterBody) x y
+          (9 * us.length + 11 * outDegreeSum adj us + 2) ∧
+        PartialCSRAt (revGraph adj)
+          (us.foldl (fun r u => (adj u).foldl (fun r v => Function.update r v (u :: r v)) r) rev)
+          (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) y.mem ∧
+        (∀ a, ¬ ((kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N) ∨
+            (kRevEdgeAddr wb N Mc ≤ a ∧ a < kRevEdgeAddr wb N Mc + csrOffset (revGraph adj) N)) →
+          y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
+  | [], idx, rev, x, hidx, _, _, hpcsr, _, _, _, _, _, _, _, _ => by
+    simp only [List.length_nil, Nat.add_zero] at hidx
+    have hend : ¬ (Cond.lt uReg nVerts).Holds x := by
+      change ¬ x.regs uReg < x.regs nVerts; omega
+    exact ⟨x, ⟨2, by simp [outDegreeSum], Exec.loop_exit hend⟩,
+      hpcsr, fun _ _ => rfl, fun _ _ => rfl⟩
+  | u :: us, idx, rev, x, hidx, hus, hroom_all, hpcsr, hcsr, hc1, hNv, hoff, hfedge,
+      hredge, hcur, huR => by
+    set revAdj := revGraph adj
+    simp only [List.length_cons] at hidx
+    have hu_val : u.val = idx := by
+      have h0 := hus 0 (by simp)
+      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+    have hoff_u : x.mem (kOffAddr wb + idx) = csrOffset adj u.val := by
+      rw [← hu_val]; exact hcsr.1 u.val (by omega)
+    have hoff_u1 : x.mem (kOffAddr wb + idx + 1) = csrOffset adj u.val + (adj u).length := by
+      simpa [← hu_val, Nat.add_assoc, csrOffset_succ adj u.isLt] using
+        hcsr.1 (u.val + 1) (by omega)
+    have hf_oa : Fits w (kOffAddr wb + idx) :=
+      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
+    have hf_oa1 : Fits w (kOffAddr wb + idx + 1) :=
+      hfit.of_le (by simp only [kOffAddr, kTopAddr]; omega)
+    have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
+    let x₁ := (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
+      addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length)
+    have hp1 : ExecWithin w
+        (ram[ addr ← offB + uReg; jReg ← *addr; addr ← addr + cOne; oldFinReg ← *addr ])
+        x x₁ 4 := by
+      have htriv : x₁ = (((x.set addr (kOffAddr wb + idx)).set jReg (csrOffset adj u.val)).set
+        addr (kOffAddr wb + idx + 1)).set oldFinReg (csrOffset adj u.val + (adj u).length) := rfl
+      wram_exec [hoff, huR, hc1, hoff_u, hoff_u1, hf_oa, hf_oa1]
+    have hroom_u : ∀ z : Fin N,
+        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev z).length ≤
+          (revAdj z).length := by
+      intro z
+      exact (length_foldl_vs_rev_le adj us _ z).trans
+        (by simpa [List.foldl_cons] using hroom_all z)
+    obtain ⟨y₁, hy₁_ex, hy₁_pcsr, hy₁_out, hy₁_fr⟩ :=
+      revFillInner_spec adj wb Mc hmc hfit u (adj u) 0 rev x₁ (by simp) (fun q _ => by simp)
+        hroom_u (by dsimp only [x₁]; exact hpcsr) (by dsimp only [x₁]; exact hcsr)
+        (by dsimp only [x₁]; wram_simp; exact hc1)
+        (by dsimp only [x₁]; wram_simp; exact hfedge)
+        (by dsimp only [x₁]; wram_simp; exact hredge)
+        (by dsimp only [x₁]; wram_simp; exact hcur)
+        (by dsimp only [x₁]; wram_simp; omega)
+        (by dsimp only [x₁]; wram_simp)
+        (by dsimp only [x₁]; wram_simp)
+    have hy₁_u : y₁.regs uReg = idx :=
+      (hy₁_fr uReg (by decide) (by decide) (by decide) (by decide)).trans
+        (by dsimp only [x₁]; wram_simp; exact huR)
+    have hy₁_1 : y₁.regs cOne = 1 :=
+      (hy₁_fr cOne (by decide) (by decide) (by decide) (by decide)).trans
+        (by dsimp only [x₁]; wram_simp; exact hc1)
+    let x₂ := y₁.set uReg (idx + 1)
+    have hp2 : ExecWithin w (ram[ uReg ← uReg + cOne ]) y₁ x₂ 1 := by
+      wram_exec [hy₁_u, hy₁_1, hf_i1]
+    have hmc_rev : csrOffset revAdj N ≤ Mc := by
+      dsimp only [revAdj, revGraph]; rwa [csrOffset_transposeAdj_eq]
+    have hx₂_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₂.mem :=
+      hcsr.of_eqOn
+        (fun _ _ => hy₁_out _ (by dsimp only [kOffAddr, kCurAddr, kRevEdgeAddr]; omega))
+        (fun _ _ => hy₁_out _ (by dsimp only [kEdgeAddr, kCurAddr, kRevEdgeAddr]; omega))
+    have hx₂_fr0 : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
+      have hne_u : r ≠ uReg := by reg_ne
+      have hne_of : r ≠ oldFinReg := by reg_ne
+      have hne_a : r ≠ addr := by reg_ne
+      have hne_j : r ≠ jReg := by reg_ne
+      dsimp only [x₂]
+      rw [Data.set_regs_of_ne hne_u, hy₁_fr r hne_a (by reg_ne) (by reg_ne) hne_j]
+      dsimp only [x₁]
+      simp [Data.set_regs_of_ne hne_of, Data.set_regs_of_ne hne_a, Data.set_regs_of_ne hne_j]
+    have hx₂_fc : x₂.regs finCnt = kEdgeAddr wb N := by
+      dsimp only [x₂]
+      rw [Data.set_regs_of_ne (by decide),
+        hy₁_fr finCnt (by decide) (by decide) (by decide) (by decide)]
+      dsimp only [x₁]; wram_simp; exact hfedge
+    obtain ⟨y, hy_ex, hy_pcsr, hy_out, hy_fr⟩ :=
+      revFillOuter_spec adj wb Mc hmc hfit us (idx + 1)
+        ((adj u).foldl (fun r v => Function.update r v (u :: r v)) rev) x₂ (by omega)
+        (fun q hq => by
+          have h := hus (q + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+        (fun z => by simpa [List.foldl_cons] using hroom_all z)
+        hy₁_pcsr hx₂_csr
+        ((hx₂_fr0 cOne (by decide)).trans hc1)
+        ((hx₂_fr0 nVerts (by decide)).trans hNv)
+        ((hx₂_fr0 offB (by decide)).trans hoff)
+        hx₂_fc
+        ((hx₂_fr0 edgeB (by decide)).trans hredge)
+        ((hx₂_fr0 curB (by decide)).trans hcur)
+        (by dsimp only [x₂]; wram_simp)
+    have hbody_ex : ExecWithin w revFillOuterBody x x₂ (11 * (adj u).length + 7) :=
+      (hp1.seq (hy₁_ex.seq hp2)).mono (by omega)
+    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt uReg nVerts).Holds x := by
+      change x.regs uReg < x.regs nVerts; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
+      hy_pcsr, fun a ha => (hy_out a ha).trans (hy₁_out a ha),
+      fun r hr => (hy_fr r hr).trans (hx₂_fr0 r hr)⟩
+    simp only [List.length_cons, outDegreeSum, List.map_cons, List.sum_cons] at ht₂ ⊢
+    omega
+
+private theorem transposeCSRCode_spec {N w : ℕ} (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) {x : Data 28}
+    (hc0 : x.regs cZero = 0) (hc1 : x.regs cOne = 1) (hNv : x.regs nVerts = N)
+    (hoff : x.regs offB = kOffAddr wb) (hedge : x.regs edgeB = kEdgeAddr wb N)
+    (hcur : x.regs curB = kCurAddr wb N Mc)
+    (hroff : x.regs revOffB = kRevOffAddr wb N Mc)
+    (hredge : x.regs revEdgeB = kRevEdgeAddr wb N Mc)
+    (hcsr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x.mem) :
+    let revAdj := transposeAdj adj (List.finRange N)
+    ∃ y, ExecWithin w transposeCSRCode x y (31 * N + 20 * Mc + 22) ∧
+      CSRAt revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) y.mem ∧
+      y.regs offB = kRevOffAddr wb N Mc ∧
+      y.regs edgeB = kRevEdgeAddr wb N Mc ∧
+      (∀ a, ¬ ((kRevOffAddr wb N Mc ≤ a ∧ a < kRevOffAddr wb N Mc + N + 1) ∨
+          (kRevEdgeAddr wb N Mc ≤ a ∧ a < kRevEdgeAddr wb N Mc + Mc) ∨
+          (kCurAddr wb N Mc ≤ a ∧ a < kCurAddr wb N Mc + N)) → y.mem a = x.mem a) ∧
+      (∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → y.regs r = x.regs r) := by
+  set revAdj := transposeAdj adj (List.finRange N)
+  have hmc_rev : csrOffset revAdj N ≤ Mc := by
+    dsimp only [revAdj]; rwa [csrOffset_transposeAdj_eq]
+  have hfit_cur : Fits w (kCurAddr wb N Mc + N) :=
+    hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
+  obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
+    zeroBlockCode_spec curB (by decide) (kCurAddr wb N Mc) N hfit_cur hc0 hc1 hcur hNv
+  have hx₁_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₁.mem :=
+    hcsr.of_eqOn
+      (fun _ _ => hx₁_out _ (by dsimp only [kOffAddr, kCurAddr]; omega))
+      (fun _ _ => hx₁_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega))
+  let x₂ := x₁.set iReg 0
+  have hp1 : ExecWithin (B := .standard) w (ram[ iReg ← cZero ]) x₁ x₂ 1 := by
+    have h0' : x₁.regs cZero = 0 := (hx₁_fr cZero (by decide)).trans hc0
+    wram_exec [h0']
+  have hroom_rev : ∀ z : Fin N, (revAdj z).length ≤ Mc := by
+    intro z
+    have h1 := csrOffset_succ revAdj z.isLt; simp only [Fin.eta] at h1
+    have h2 := csrOffset_mono revAdj (by omega : z.val + 1 ≤ N); omega
+  obtain ⟨x₃, hx₃_ex, hx₃_deg, hx₃_out, hx₃_fr⟩ :=
+    revDegOuter_spec adj wb Mc hmc hfit (List.finRange N) 0 (fun _ => []) x₂ (by simp)
+      (fun q _ => by simp) (fun z => hroom_rev z)
+      (fun z => by dsimp only [x₂]; exact hx₁_zero z.val z.isLt) hx₁_csr
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr cOne (by decide)).trans hc1)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr nVerts (by decide)).trans hNv)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr offB (by decide)).trans hoff)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr edgeB (by decide)).trans hedge)
+      (by dsimp only [x₂]; wram_simp; exact (hx₁_fr curB (by decide)).trans hcur)
+      (by dsimp only [x₂]; wram_simp)
+  have hx₃_fr0 : ∀ r : Fin 28, r.val < 18 → x₃.regs r = x.regs r := fun r hr => by
+    have h3 := hx₃_fr r hr
+    have hne : r ≠ iReg := by reg_ne
+    dsimp only [x₂] at h3
+    rw [h3, Data.set_regs_of_ne hne]
+    exact hx₁_fr r hr
+  let x₄ := (x₃.set compIdxReg (kOffAddr wb)).set offB (kRevOffAddr wb N Mc)
+  have hp2 : ExecWithin (B := .standard) w (ram[ compIdxReg ← offB; offB ← revOffB ]) x₃ x₄ 2 := by
+    have h_ob : x₃.regs offB = kOffAddr wb := (hx₃_fr0 offB (by decide)).trans hoff
+    have h_rob : x₃.regs revOffB = kRevOffAddr wb N Mc := (hx₃_fr0 revOffB (by decide)).trans hroff
+    wram_exec [h_ob, h_rob]
+  have hfit_ps : Fits w (kCurAddr wb N Mc + N + Mc + 2) :=
+    hfit.of_le (by simp only [kCurAddr, kTopAddr]; omega)
+  obtain ⟨x₅, hx₅_ex, hx₅_roff, hx₅_cur, hx₅_out, hx₅_fr⟩ :=
+    prefixSumCode_spec revAdj (kCurAddr wb N Mc) (kRevOffAddr wb N Mc) Mc
+      (by simp only [kRevOffAddr, kCurAddr]; omega) hmc_rev hfit_ps (x := x₄)
+      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 cZero (by decide)).trans hc0)
+      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 cOne (by decide)).trans hc1)
+      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 curB (by decide)).trans hcur)
+      (by dsimp only [x₄]; wram_simp)
+      (by dsimp only [x₄]; wram_simp; exact (hx₃_fr0 nVerts (by decide)).trans hNv)
+      hx₃_deg
+  have hx₅_comp : x₅.regs compIdxReg = kOffAddr wb :=
+    (hx₅_ex.regs_eq (by decide)).trans (by dsimp only [x₄]; wram_simp)
+  have hx₅_fr0 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → x₅.regs r = x.regs r := fun r hr hno => by
+    rw [hx₅_fr r hr]
+    dsimp only [x₄]
+    have hne_c : r ≠ compIdxReg := by reg_ne
+    rw [Data.set_regs_of_ne hno, Data.set_regs_of_ne hne_c]
+    exact hx₃_fr0 r hr
+  let x₆ := (((x₅.set offB (kOffAddr wb)).set finCnt (kEdgeAddr wb N)).set
+    edgeB (kRevEdgeAddr wb N Mc)).set uReg 0
+  have hp3 : ExecWithin (B := .standard) w
+      (ram[ offB ← compIdxReg; finCnt ← edgeB; edgeB ← revEdgeB; uReg ← cZero ]) x₅ x₆ 4 := by
+    have h_eb : x₅.regs edgeB = kEdgeAddr wb N :=
+      (hx₅_fr0 edgeB (by decide) (by decide)).trans hedge
+    have h_reb : x₅.regs revEdgeB = kRevEdgeAddr wb N Mc :=
+      (hx₅_fr0 revEdgeB (by decide) (by decide)).trans hredge
+    have h_c0 : x₅.regs cZero = 0 := (hx₅_fr0 cZero (by decide) (by decide)).trans hc0
+    wram_exec [hx₅_comp, h_eb, h_reb, h_c0]
+  have hx₅_csr : CSRAt adj (kOffAddr wb) (kEdgeAddr wb N) x₅.mem :=
+    hx₁_csr.of_eqOn
+      (fun _ _ => (hx₅_out _ (by dsimp only [kOffAddr, kRevOffAddr, kCurAddr]; omega)).trans
+        (hx₃_out _ (by dsimp only [kOffAddr, kCurAddr]; omega)))
+      (fun _ _ => (hx₅_out _ (by dsimp only [kEdgeAddr, kRevOffAddr, kCurAddr]; omega)).trans
+        (hx₃_out _ (by dsimp only [kEdgeAddr, kCurAddr]; omega)))
+  obtain ⟨x₇, hx₇_ex, hx₇_pcsr, hx₇_out, hx₇_fr⟩ :=
+    revFillOuter_spec adj wb Mc hmc hfit (List.finRange N) 0 (fun _ => []) x₆ (by simp)
+      (fun q _ => by simp) (fun z => le_rfl)
+      (partialCSRAt_init revAdj (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc) x₅.mem hx₅_cur)
+      hx₅_csr
+      (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 cOne (by decide) (by decide)).trans hc1)
+      (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 nVerts (by decide) (by decide)).trans hNv)
+      (by dsimp only [x₆]; wram_simp)
+      (by dsimp only [x₆]; wram_simp)
+      (by dsimp only [x₆]; wram_simp)
+      (by dsimp only [x₆]; wram_simp; exact (hx₅_fr0 curB (by decide) (by decide)).trans hcur)
+      (by dsimp only [x₆]; wram_simp)
+  have hx₇_roff : ∀ u ≤ N, x₇.mem (kRevOffAddr wb N Mc + u) = csrOffset revAdj u := fun u hu => by
+    rw [hx₇_out _ (by simp only [kRevOffAddr, kCurAddr, kRevEdgeAddr]; omega)]
+    exact hx₅_roff u hu
+  have hx₇_rcsr : CSRAt revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) x₇.mem :=
+    csrAt_of_partialCSRAt revAdj (kRevOffAddr wb N Mc) (kCurAddr wb N Mc) (kRevEdgeAddr wb N Mc)
+      x₇.mem hx₇_roff hx₇_pcsr
+  have hx₇_rob : x₇.regs revOffB = kRevOffAddr wb N Mc := by
+    rw [hx₇_fr revOffB (by decide)]
+    dsimp only [x₆]; wram_simp
+    exact (hx₅_fr0 revOffB (by decide) (by decide)).trans hroff
+  let y := x₇.set offB (kRevOffAddr wb N Mc)
+  have hp4 : ExecWithin (B := .standard) w (ram[ offB ← revOffB ]) x₇ y 1 := by
+    wram_exec [hx₇_rob]
+  have hout_sum : outDegreeSum adj (List.finRange N) = csrOffset adj N :=
+    (csrOffset_eq_outDegreeSum adj).symm
+  rw [List.length_finRange, hout_sum] at hx₃_ex hx₇_ex
+  refine ⟨y,
+    (hx₁_ex.seq (hp1.seq (hx₃_ex.seq (hp2.seq (hx₅_ex.seq (hp3.seq (hx₇_ex.seq hp4))))))).mono
+      (by omega),
+    hx₇_rcsr,
+    by dsimp only [y]; wram_simp,
+    by
+      dsimp only [y]; wram_simp
+      rw [hx₇_fr edgeB (by decide)]; dsimp only [x₆]; wram_simp,
+    fun a ha => ?_,
+    fun r hr hno hne => ?_⟩
+  · dsimp only [y]; mem_upd
+    rw [hx₇_out _ (by dsimp only [revAdj, revGraph] at *; omega)]
+    dsimp only [x₆]; mem_upd
+    rw [hx₅_out _ (by omega)]
+    dsimp only [x₄]; mem_upd
+    rw [hx₃_out _ (by omega)]
+    dsimp only [x₂]; mem_upd
+    exact hx₁_out _ (by omega)
+  · dsimp only [y]
+    rw [Data.set_regs_of_ne hno, hx₇_fr r hr]
+    dsimp only [x₆]
+    have hne_u : r ≠ uReg := by reg_ne
+    have hne_fc : r ≠ finCnt := by reg_ne
+    rw [Data.set_regs_of_ne hne_u, Data.set_regs_of_ne hne, Data.set_regs_of_ne hne_fc,
+      Data.set_regs_of_ne hno]
+    exact hx₅_fr0 r hr hno
+
+/-! ### Pass 3: Kosaraju SCC peeling and component indexing (`O(N + M)`) -/
+
+private def writeCompBody : Code .standard 28 := ram[
+  addr ← finB + pReg; vReg ← *addr;
+  addr ← compB + vReg; *addr ← compIdxReg;
+  pReg ← pReg + cOne ]
+
+private def peelStepBody : Code .standard 28 :=
+  (ram[ addr ← nVerts - cOne; addr ← addr - iReg; addr ← ordB + addr; uReg ← *addr;
+        oldFinReg ← finCnt ]).seq
+    (visitRootCode.seq
+      ((Code.branch (.lt oldFinReg finCnt)
+          ((ram[ pReg ← oldFinReg ]).seq
+            ((Code.loop (.lt pReg finCnt) writeCompBody).seq
+              (ram[ compIdxReg ← compIdxReg + cOne ])))
+          (ram[ compIdxReg ← compIdxReg ])).seq
+        (ram[ iReg ← iReg + cOne ])))
+
+private def kosarajuIndexCode : Code .standard 28 :=
+  (zeroBlockCode visB).seq
+    ((ram[ finCnt ← cZero; compIdxReg ← cZero; iReg ← cZero ]).seq
+      (.loop (.lt iReg nVerts) peelStepBody))
+
+private theorem writeCompLoop_spec {N w : ℕ} (finAddr compAddr : ℕ) (hdisj : finAddr + N ≤ compAddr)
+    (F₀ L cIdx : ℕ) (hFL : F₀ + L ≤ N) (hfit : Fits w (compAddr + N + 2))
+    (comp : List (Fin N)) (hnd : comp.Nodup) (hlen : comp.length = L) :
+    ∀ (rem k : ℕ) (f : Fin N → ℕ) (x : Data 28)
+      (_ : k + rem = L),
+      (∀ q (hq : q < L), x.mem (finAddr + F₀ + q) = (comp[q]'(hlen ▸ hq)).val) →
+      (∀ u : Fin N, x.mem (compAddr + u.val) =
+        if u ∈ comp.take k then cIdx else f u) →
+      x.regs cOne = 1 → x.regs finB = finAddr → x.regs compB = compAddr →
+      x.regs compIdxReg = cIdx → x.regs finCnt = F₀ + L → x.regs pReg = F₀ + k →
+      ∃ y, ExecWithin w (.loop (.lt pReg finCnt) writeCompBody) x y (7 * rem + 2) ∧
+        (∀ u : Fin N, y.mem (compAddr + u.val) = if u ∈ comp then cIdx else f u) ∧
+        (∀ a, ¬ (compAddr ≤ a ∧ a < compAddr + N) → y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r ≠ addr → r ≠ vReg → r ≠ pReg → y.regs r = x.regs r)
+  | 0, k, f, x, hk, _, hf_mem, _, _, _, _, hfc, hp => by
+    have hk_eq : k = L := by omega
+    subst hk_eq
+    have hend : ¬ (Cond.lt pReg finCnt).Holds x := by
+      change ¬ x.regs pReg < x.regs finCnt; omega
+    refine ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, fun u => ?_, fun _ _ => rfl, fun _ _ _ _ => rfl⟩
+    simpa [List.take_of_length_le (by omega : comp.length ≤ k)] using hf_mem u
+  | rem + 1, k, f, x, hk, hfin_mem, hf_mem, hc1, hfb, hcb, hcIdx, hfc, hp => by
+    have hk_lt : k < L := by omega
+    set v := comp[k]'(by omega)
+    have hm_v : x.mem (finAddr + (F₀ + k)) = v.val := by
+      rw [← Nat.add_assoc]; exact hfin_mem k hk_lt
+    have hf_fa : Fits w (finAddr + (F₀ + k)) := hfit.of_le (by omega)
+    have hf_ca : Fits w (compAddr + v.val) := hfit.of_le (by have := v.isLt; omega)
+    have hf_p1 : Fits w (F₀ + k + 1) := hfit.of_le (by omega)
+    let StepPost (x₁ : Data 28) : Prop :=
+      (∀ u : Fin N, x₁.mem (compAddr + u.val) =
+          if u ∈ comp.take (k + 1) then cIdx else f u) ∧
+        (∀ a, ¬ (compAddr ≤ a ∧ a < compAddr + N) → x₁.mem a = x.mem a) ∧
+        x₁.regs pReg = F₀ + (k + 1) ∧
+        (∀ r : Fin 28, r ≠ addr → r ≠ vReg → r ≠ pReg → x₁.regs r = x.regs r)
+    have hstep : ∃ x₁, ExecWithin w writeCompBody x x₁ 5 ∧ StepPost x₁ := by
+      unfold writeCompBody
+      wram_exec [hc1, hfb, hcb, hcIdx, hp, hm_v, hf_fa, hf_ca, hf_p1]
+      dsimp only [StepPost]
+      refine ⟨fun u => ?_, fun a ha => ?_, by wram_simp; omega, fun r h1 h2 h3 => ?_⟩
+      · mem_upd
+        have htake : comp.take (k + 1) = comp.take k ++ [v] := by
+          rw [List.take_add_one, List.getElem?_eq_getElem (by omega)]
+          rfl
+        rw [htake]
+        by_cases huv : u = v
+        · subst huv; simp
+        · have hne : compAddr + u.val ≠ compAddr + v.val := fun h => huv (Fin.ext (by omega))
+          rw [Function.update_of_ne hne, hf_mem u]
+          simp [huv]
+      · mem_upd
+        exact Function.update_of_ne (by have := v.isLt; omega) _ _
+      · regs_lt
+    obtain ⟨x₁, hx₁_ex, hx₁_f, hx₁_out, hx₁_p, hx₁_fr⟩ := hstep
+    have hfin_mem₁ : ∀ q (hq : q < L), x₁.mem (finAddr + F₀ + q) = (comp[q]'(hlen ▸ hq)).val :=
+      fun q hq => (hx₁_out _ (by omega)).trans (hfin_mem q hq)
+    obtain ⟨y, hy_ex, hy_f, hy_out, hy_fr⟩ :=
+      writeCompLoop_spec finAddr compAddr hdisj F₀ L cIdx hFL hfit comp hnd hlen rem (k + 1) f x₁
+        (by omega) hfin_mem₁ hx₁_f
+        ((hx₁_fr cOne (by decide) (by decide) (by decide)).trans hc1)
+        ((hx₁_fr finB (by decide) (by decide) (by decide)).trans hfb)
+        ((hx₁_fr compB (by decide) (by decide) (by decide)).trans hcb)
+        ((hx₁_fr compIdxReg (by decide) (by decide) (by decide)).trans hcIdx)
+        ((hx₁_fr finCnt (by decide) (by decide) (by decide)).trans hfc)
+        hx₁_p
+    obtain ⟨t₁, ht₁, he₁⟩ := hx₁_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt pReg finCnt).Holds x := by
+      change x.regs pReg < x.regs finCnt; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, by omega, Exec.loop_iter hlt he₁ he₂⟩,
+      hy_f, fun a ha => (hy_out a ha).trans (hx₁_out a ha),
+      fun r h1 h2 h3 => (hy_fr r h1 h2 h3).trans (hx₁_fr r h1 h2 h3)⟩
+
+private theorem peelLoop_spec {N w : ℕ} (hN : 0 < N) (revAdj : Fin N → List (Fin N))
+    (ord : List (Fin N)) (hord_len : ord.length = N)
+    (wb Mc : ℕ) (hmc : csrOffset revAdj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) :
+    ∀ (rs : List (Fin N)) (idx F₀ cIdx : ℕ) (vis : Finset (Fin N)) (f : Fin N → ℕ) (x : Data 28)
+      (_ : idx + rs.length = N),
+      (∀ q (hq : q < rs.length), rs[q] = ord[idx + q]'(by omega)) →
+      F₀ = vis.card →
+      cIdx ≤ F₀ →
+      DfsRegs (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) (kVisAddr wb N Mc) (kFinAddr wb N Mc)
+        (kStkAddr wb N Mc) x →
+      x.regs nVerts = N → x.regs ordB = kOrdAddr wb N Mc → x.regs compB = kCompAddr wb N Mc →
+      x.regs iReg = idx → x.regs finCnt = F₀ → x.regs compIdxReg = cIdx →
+      CSRAt revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) x.mem →
+      (∀ q (hq : q < N), x.mem (kOrdAddr wb N Mc + (N - 1 - q)) = (ord[q]'(by omega)).val) →
+      VisAt vis (kVisAddr wb N Mc) x.mem →
+      (∀ u : Fin N, u ∈ vis → x.mem (kCompAddr wb N Mc + u.val) = f u) →
+      ∃ y,
+        let comps := peelSCCs revAdj N vis rs
+        ExecWithin w (.loop (.lt iReg nVerts) peelStepBody) x y
+          (30 * rs.length + 68 * comps.flatten.length +
+            36 * outDegreeSum revAdj comps.flatten + 2) ∧
+        (∀ u : Fin N, u ∈ vis ∨ u ∈ comps.flatten →
+          y.mem (kCompAddr wb N Mc + u.val) = indexComponentsAux cIdx comps f u) ∧
+        (∀ a, a < kVisAddr wb N Mc → y.mem a = x.mem a) ∧
+        (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r)
+  | [], idx, F₀, cIdx, vis, f, x, hidx, _, _, _, _, _, _, _, _, _, _, _, _, _, hf_vis => by
+    simp only [List.length_nil, Nat.add_zero] at hidx
+    have hend : ¬ (Cond.lt iReg nVerts).Holds x := by
+      change ¬ x.regs iReg < x.regs nVerts; omega
+    refine ⟨x, ⟨2, by simp [peelSCCs, outDegreeSum], Exec.loop_exit hend⟩,
+      fun u hu => ?_, fun _ _ => rfl, fun _ _ => rfl⟩
+    simp only [peelSCCs, List.flatten_nil, List.not_mem_nil, or_false] at hu
+    simpa [peelSCCs, indexComponentsAux] using hf_vis u hu
+  | r :: rs, idx, F₀, cIdx, vis, f, x, hidx, hrs, hF₀, hcIdx_le, hregs, hNv, hordB, hcompB,
+      hi, hfc, hcIdx, hcsr, hord_mem, hvis, hf_vis => by
+    simp only [List.length_cons] at hidx
+    have hr_eq : r = ord[idx]'(by omega) := by
+      have h0 := hrs 0 (by simp)
+      simpa only [Nat.add_zero, List.getElem_cons_zero] using h0
+    have hm_ord : x.mem (kOrdAddr wb N Mc + (N - 1 - idx)) = r.val := by
+      rw [hr_eq]; exact hord_mem idx (by omega)
+    have hcard_le : vis.card ≤ N := by have := Finset.card_le_univ vis; simpa using this
+    have hcons : F₀ + (N - vis.card) ≤ N := by omega
+    have hf_n1 : Fits w (N - 1) := hfit.of_le (by simp only [kTopAddr]; omega)
+    have hf_sub : Fits w (N - 1 - idx) := hfit.of_le (by simp only [kTopAddr]; omega)
+    have hf_oa : Fits w (kOrdAddr wb N Mc + (N - 1 - idx)) :=
+      hfit.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
+    have hfit_stk : Fits w (kStkAddr wb N Mc + 3 * N + Mc + 4) :=
+      hfit.of_le (by simp only [kStkAddr, kTopAddr]; omega)
+    let x₁ := ((((x.set addr (N - 1)).set addr (N - 1 - idx)).set
+      addr (kOrdAddr wb N Mc + (N - 1 - idx))).set uReg r.val).set oldFinReg F₀
+    have hp1 : ExecWithin w
+        (ram[ addr ← nVerts - cOne; addr ← addr - iReg; addr ← ordB + addr; uReg ← *addr;
+              oldFinReg ← finCnt ]) x x₁ 5 := by
+      have hc1 := hregs.cone
+      have htriv : x₁ = ((((x.set addr (N - 1)).set addr (N - 1 - idx)).set
+        addr (kOrdAddr wb N Mc + (N - 1 - idx))).set uReg r.val).set oldFinReg F₀ := rfl
+      wram_exec [hNv, hc1, hi, hordB, hm_ord, hfc, hf_n1, hf_oa]
+    obtain ⟨y₁, hy₁_ex, hy₁_r, hy₁_csr, hy₁_vis, hy₁_fc, hy₁_fin_mem, hy₁_out, hy₁_fr⟩ :=
+      visitRootCode_spec hN revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc)
+        (kVisAddr wb N Mc) (kFinAddr wb N Mc) (kStkAddr wb N Mc) Mc
+        (by simp only [kRevOffAddr, kVisAddr]; omega)
+        (by simp only [kRevEdgeAddr, kVisAddr]; omega)
+        (by simp only [kVisAddr, kFinAddr]; omega)
+        (by simp only [kFinAddr, kStkAddr]; omega)
+        hmc hfit_stk r F₀ vis hcons (x := x₁)
+        (dfsRegs_of_frame hregs fun reg hreg => by
+          dsimp only [x₁]; regs_lt)
+        hcsr hvis (by dsimp only [x₁]; wram_simp) (by dsimp only [x₁]; wram_simp; exact hfc)
+    set s := visit revAdj N r ⟨vis, []⟩
+    obtain ⟨hnd_s, hdis_s, hvis_s⟩ := visit_nil_struct revAdj N r vis
+    have hcard_s : s.visited.card = vis.card + s.finished.length := card_visit_nil revAdj N r vis
+    have hy₁_of : y₁.regs oldFinReg = F₀ :=
+      (hy₁_fr oldFinReg (.inr (.inr rfl))).trans (by dsimp only [x₁]; wram_simp)
+    have hy₁_cIdx : y₁.regs compIdxReg = cIdx :=
+      (hy₁_fr compIdxReg (.inr (.inl rfl))).trans (by dsimp only [x₁]; wram_simp; exact hcIdx)
+    have hy₁_i : y₁.regs iReg = idx :=
+      (hy₁_fr iReg (.inl (by decide))).trans (by dsimp only [x₁]; wram_simp; exact hi)
+    have hy₁_fr0 : ∀ reg : Fin 28, reg.val < 18 → y₁.regs reg = x.regs reg := fun reg hreg => by
+      rw [hy₁_fr reg (.inl (by omega))]
+      dsimp only [x₁]; regs_lt
+    let f' : Fin N → ℕ :=
+      if s.finished.isEmpty then f
+      else s.finished.foldl (fun g v => Function.update g v cIdx) f
+    let cIdx' : ℕ := if s.finished.isEmpty then cIdx else cIdx + 1
+    have hf_i1 : Fits w (idx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
+    have hbranch : ∃ y₂,
+        ExecWithin w
+          ((Code.branch (.lt oldFinReg finCnt)
+              ((ram[ pReg ← oldFinReg ]).seq
+                ((Code.loop (.lt pReg finCnt) writeCompBody).seq
+                  (ram[ compIdxReg ← compIdxReg + cOne ])))
+              (ram[ compIdxReg ← compIdxReg ])).seq
+            (ram[ iReg ← iReg + cOne ]))
+          y₁ y₂ (7 * s.finished.length + 7) ∧
+        y₂.regs iReg = idx + 1 ∧ y₂.regs finCnt = F₀ + s.finished.length ∧
+        y₂.regs compIdxReg = cIdx' ∧
+        (∀ u : Fin N, u ∈ s.visited → y₂.mem (kCompAddr wb N Mc + u.val) = f' u) ∧
+        (∀ a, ¬ (kCompAddr wb N Mc ≤ a ∧ a < kCompAddr wb N Mc + N) → y₂.mem a = y₁.mem a) ∧
+        (∀ reg : Fin 28, reg.val < 18 → y₂.regs reg = y₁.regs reg) := by
+      have hFL : F₀ + s.finished.length ≤ N := by
+        have := Finset.card_le_univ s.visited
+        simp only [Fintype.card_fin] at this
+        omega
+      by_cases hempty : s.finished.isEmpty
+      · have hlen0 : s.finished = [] := List.isEmpty_iff.1 hempty
+        have hnlt : ¬ (Cond.lt oldFinReg finCnt).Holds y₁ := by
+          change ¬ y₁.regs oldFinReg < y₁.regs finCnt
+          simp [hy₁_of, hy₁_fc, hlen0]
+        let y₂ := (y₁.set compIdxReg cIdx).set iReg (idx + 1)
+        have hb : ExecWithin w
+            (.branch (.lt oldFinReg finCnt)
+              ((ram[ pReg ← oldFinReg ]).seq
+                ((Code.loop (.lt pReg finCnt) writeCompBody).seq
+                  (ram[ compIdxReg ← compIdxReg + cOne ])))
+              (ram[ compIdxReg ← compIdxReg ]))
+            y₁ (y₁.set compIdxReg cIdx) 3 := by
+          have hnop : Exec (B := .standard) w (ram[ compIdxReg ← compIdxReg ])
+              y₁ (y₁.set compIdxReg cIdx) 1 := by
+            simpa [hy₁_cIdx] using
+              Exec.op (B := .standard) (o := .copy compIdxReg compIdxReg) (x := y₁) (w := w) rfl
+          exact ⟨3, le_rfl, Exec.branch_neg hnlt hnop⟩
+        have hinc : ExecWithin w (ram[ iReg ← iReg + cOne ]) (y₁.set compIdxReg cIdx) y₂ 1 := by
+          have hc1' := hy₁_r.cone
+          wram_exec [hy₁_i, hc1', hf_i1]
+        refine ⟨y₂, (hb.seq hinc).mono (by omega),
+          by dsimp only [y₂]; wram_simp,
+          by dsimp only [y₂]; wram_simp; exact hy₁_fc,
+          by dsimp only [y₂, cIdx']; wram_simp; simp [hempty],
+          fun u hu => ?_, fun _ _ => rfl, fun reg hreg => ?_⟩
+        · dsimp only [y₂, f']; mem_upd
+          simp only [hempty, ↓reduceIte]
+          have huv : u ∈ vis := by simpa [s, hlen0] using (hvis_s u).1 hu
+          rw [hy₁_out (kCompAddr wb N Mc + u.val) (by
+            have := u.isLt
+            dsimp only [s, kVisAddr, kFinAddr, kStkAddr, kCompAddr] at hFL ⊢
+            omega)]
+          exact hf_vis u huv
+        · dsimp only [y₂]
+          have hne1 : reg ≠ iReg := by reg_ne
+          have hne2 : reg ≠ compIdxReg := by reg_ne
+          simp [Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2]
+      · have hpos : 0 < s.finished.length := by
+          cases hs_eq : s.finished with
+          | nil => simp [hs_eq] at hempty
+          | cons _ _ => simp
+        have hlt_br : (Cond.lt oldFinReg finCnt).Holds y₁ := by
+          change y₁.regs oldFinReg < y₁.regs finCnt
+          omega
+        let z₀ := y₁.set pReg F₀
+        have hp_z₀ : ExecWithin (B := .standard) w (ram[ pReg ← oldFinReg ]) y₁ z₀ 1 := by
+          wram_exec [hy₁_of]
+        have hf_comp : Fits w (kCompAddr wb N Mc + N + 2) :=
+          hfit.of_le (by simp only [kCompAddr, kTopAddr]; omega)
+        obtain ⟨z₁, hz₁_ex, hz₁_mem, hz₁_out, hz₁_fr⟩ :=
+          writeCompLoop_spec (kFinAddr wb N Mc) (kCompAddr wb N Mc)
+            (by simp only [kFinAddr, kCompAddr]; omega) F₀ s.finished.length cIdx hFL hf_comp
+            s.finished.reverse (List.nodup_reverse.2 hnd_s) (by simp) s.finished.length 0
+            (fun u => y₁.mem (kCompAddr wb N Mc + u.val)) z₀ (by simp)
+            (fun q hq => by dsimp only [z₀]; exact hy₁_fin_mem q (by simpa using hq))
+            (fun u => by dsimp only [z₀]; simp)
+            (by dsimp only [z₀]; wram_simp; exact hy₁_r.cone)
+            (by dsimp only [z₀]; wram_simp; exact hy₁_r.hfin)
+            (by dsimp only [z₀]; wram_simp; exact (hy₁_fr0 compB (by decide)).trans hcompB)
+            (by dsimp only [z₀]; wram_simp; exact hy₁_cIdx)
+            (by dsimp only [z₀]; wram_simp; exact hy₁_fc)
+            (by dsimp only [z₀]; wram_simp)
+        have hz₁_cIdx : z₁.regs compIdxReg = cIdx :=
+          (hz₁_fr compIdxReg (by decide) (by decide) (by decide)).trans
+            (by dsimp only [z₀]; wram_simp; exact hy₁_cIdx)
+        have hz₁_1 : z₁.regs cOne = 1 :=
+          (hz₁_fr cOne (by decide) (by decide) (by decide)).trans
+            (by dsimp only [z₀]; wram_simp; exact hy₁_r.cone)
+        have hz₁_i : z₁.regs iReg = idx :=
+          (hz₁_fr iReg (by decide) (by decide) (by decide)).trans
+            (by dsimp only [z₀]; wram_simp; exact hy₁_i)
+        have hf_c1 : Fits w (cIdx + 1) := hfit.of_le (by simp only [kTopAddr]; omega)
+        let y₂ := (z₁.set compIdxReg (cIdx + 1)).set iReg (idx + 1)
+        have hp_tail : ExecWithin w
+            ((ram[ compIdxReg ← compIdxReg + cOne ]).seq (ram[ iReg ← iReg + cOne ]))
+            z₁ y₂ 2 := by
+          have htriv : y₂ = (z₁.set compIdxReg (cIdx + 1)).set iReg (idx + 1) := rfl
+          wram_exec [hz₁_cIdx, hz₁_1, hz₁_i, hf_c1, hf_i1]
+        obtain ⟨tb, htb, heb⟩ := hp_z₀.seq (hz₁_ex.seq
+          (show ExecWithin w (ram[ compIdxReg ← compIdxReg + cOne ]) z₁
+              (z₁.set compIdxReg (cIdx + 1)) 1 by wram_exec [hz₁_cIdx, hz₁_1, hf_c1]))
+        have hbr_ex : ExecWithin w
+            (.branch (.lt oldFinReg finCnt)
+              ((ram[ pReg ← oldFinReg ]).seq
+                ((Code.loop (.lt pReg finCnt) writeCompBody).seq
+                  (ram[ compIdxReg ← compIdxReg + cOne ])))
+              (ram[ compIdxReg ← compIdxReg ]))
+            y₁ (z₁.set compIdxReg (cIdx + 1)) (7 * s.finished.length + 5) :=
+          ⟨tb + 1, by omega, Exec.branch_pos hlt_br heb⟩
+        have hinc_i : ExecWithin w (ram[ iReg ← iReg + cOne ])
+            (z₁.set compIdxReg (cIdx + 1)) y₂ 1 := by
+          wram_exec [hz₁_i, hz₁_1, hf_i1]
+        have hfold_upd : ∀ (l : List (Fin N)) (g : Fin N → ℕ) (u : Fin N),
+            l.foldl (fun h v => Function.update h v cIdx) g u = if u ∈ l then cIdx else g u := by
+          intro l
+          induction l with
+          | nil => intro g u; simp
+          | cons v l ih =>
+            intro g u; rw [List.foldl_cons, ih]
+            by_cases huv : u = v
+            · subst huv; by_cases hul : u ∈ l <;> simp [hul]
+            · simp [huv]
+        refine ⟨y₂, (hbr_ex.seq hinc_i).mono (by omega),
+          by dsimp only [y₂]; wram_simp,
+          by
+            dsimp only [y₂]; wram_simp
+            exact (hz₁_fr finCnt (by decide) (by decide) (by decide)).trans
+              (by dsimp only [z₀]; wram_simp; exact hy₁_fc),
+          by dsimp only [y₂, cIdx']; wram_simp; simp [hempty],
+          fun u hu => ?_, fun a ha => hz₁_out a ha, fun reg hreg => ?_⟩
+        · dsimp only [y₂, f']; mem_upd
+          simp only [hempty, Bool.false_eq_true, ↓reduceIte, hz₁_mem u, List.mem_reverse, hfold_upd]
+          by_cases huf : u ∈ s.finished
+          · simp [huf]
+          · simp only [huf, ↓reduceIte]
+            have huv : u ∈ vis := ((hvis_s u).1 hu).resolve_right huf
+            rw [hy₁_out (kCompAddr wb N Mc + u.val) (by
+              have := u.isLt; dsimp only [kVisAddr, kFinAddr, kStkAddr, kCompAddr]; omega)]
+            exact hf_vis u huv
+        · dsimp only [y₂]
+          have hne1 : reg ≠ iReg := by reg_ne
+          have hne2 : reg ≠ compIdxReg := by reg_ne
+          have hne3 : reg ≠ addr := by reg_ne
+          have hne4 : reg ≠ vReg := by reg_ne
+          have hne5 : reg ≠ pReg := by reg_ne
+          rw [Data.set_regs_of_ne hne1, Data.set_regs_of_ne hne2, hz₁_fr reg hne3 hne4 hne5]
+          dsimp only [z₀]
+          exact Data.set_regs_of_ne hne5 _
+    obtain ⟨y₂, hy₂_ex, hy₂_i, hy₂_fc, hy₂_cIdx, hy₂_comp, hy₂_out, hy₂_fr⟩ := hbranch
+    have hy₂_fr0 : ∀ reg : Fin 28, reg.val < 18 → y₂.regs reg = x.regs reg :=
+      fun reg hreg => (hy₂_fr reg hreg).trans (hy₁_fr0 reg hreg)
+    have hy₂_csr : CSRAt revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) y₂.mem :=
+      hy₁_csr.of_eqOn
+        (fun _ _ => hy₂_out _ (by dsimp only [kRevOffAddr, kCompAddr]; omega))
+        (fun _ _ => hy₂_out _ (by dsimp only [kRevEdgeAddr, kCompAddr]; omega))
+    have hy₂_ord : ∀ q (hq : q < N), y₂.mem (kOrdAddr wb N Mc + (N - 1 - q)) =
+        (ord[q]'(by omega)).val := fun q hq => by
+      rw [hy₂_out _ (by simp only [kOrdAddr, kCompAddr]; omega),
+        hy₁_out _ (by simp only [kVisAddr, kOrdAddr, kFinAddr, kStkAddr]; omega)]
+      exact hord_mem q hq
+    have hy₂_vis : VisAt s.visited (kVisAddr wb N Mc) y₂.mem := fun z => by
+      rw [hy₂_out _ (by have := z.isLt; simp only [kVisAddr, kCompAddr]; omega)]
+      exact hy₁_vis z
+    have hcIdx'_le : cIdx' ≤ F₀ + s.finished.length := by
+      dsimp only [cIdx']
+      split_ifs with he
+      · omega
+      · have hpos : 0 < s.finished.length := by
+          cases hs_eq : s.finished with
+          | nil => simp [hs_eq] at he
+          | cons _ _ => simp
+        omega
+    obtain ⟨y, hy_ex, hy_comp, hy_out, hy_fr⟩ :=
+      peelLoop_spec hN revAdj ord hord_len wb Mc hmc hfit rs (idx + 1)
+        (F₀ + s.finished.length) cIdx' s.visited f' y₂ (by omega)
+        (fun q hq => by
+          have h := hrs (q + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+        (by omega) hcIdx'_le
+        (dfsRegs_of_frame hy₁_r hy₂_fr)
+        ((hy₂_fr0 nVerts (by decide)).trans hNv)
+        ((hy₂_fr0 ordB (by decide)).trans hordB)
+        ((hy₂_fr0 compB (by decide)).trans hcompB)
+        hy₂_i hy₂_fc hy₂_cIdx hy₂_csr hy₂_ord hy₂_vis hy₂_comp
+    have hbody_ex : ExecWithin w peelStepBody x y₂
+        (28 + 67 * s.finished.length + 36 * outDegreeSum revAdj s.finished) :=
+      (hp1.seq (hy₁_ex.seq hy₂_ex)).mono (by omega)
+    obtain ⟨t₁, ht₁, he₁⟩ := hbody_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt iReg nVerts).Holds x := by
+      change x.regs iReg < x.regs nVerts; omega
+    refine ⟨y, ⟨t₁ + t₂ + 2, ?_, Exec.loop_iter hlt he₁ he₂⟩,
+      fun u hu => ?_, fun a ha => ?_, fun reg hreg => (hy_fr reg hreg).trans (hy₂_fr0 reg hreg)⟩
+    · rw [peelSCCs, show visit revAdj N r ⟨vis, []⟩ = s from rfl]
+      split_ifs with he
+      · have hlen0 : s.finished = [] := List.isEmpty_iff.1 he
+        simp only [hlen0, List.length_nil, outDegreeSum, List.map_nil, List.sum_nil] at ht₁
+        simp only [List.length_cons]
+        omega
+      · simp only [List.length_cons, List.flatten_cons, List.length_append,
+          outDegreeSum_append_local]
+        omega
+    · rw [peelSCCs, show visit revAdj N r ⟨vis, []⟩ = s from rfl] at hu ⊢
+      split_ifs with he
+      · simp only [he, ↓reduceIte] at hu
+        dsimp only [cIdx', f'] at hy_comp
+        simp only [he, ↓reduceIte] at hy_comp
+        exact hy_comp u (hu.imp (fun h => (hvis_s u).2 (.inl h)) id)
+      · simp only [he, Bool.false_eq_true, ↓reduceIte] at hu
+        dsimp only [cIdx', f', indexComponentsAux] at hy_comp ⊢
+        simp only [he, Bool.false_eq_true, ↓reduceIte] at hy_comp
+        refine hy_comp u ?_
+        rcases hu with huv | hflat
+        · exact .inl ((hvis_s u).2 (.inl huv))
+        · rcases List.mem_append.1 (by rwa [List.flatten_cons] at hflat) with huf | hrest
+          · exact .inl ((hvis_s u).2 (.inr huf))
+          · exact .inr hrest
+    · rw [hy_out a ha, hy₂_out a (by dsimp only [kVisAddr, kCompAddr] at *; omega),
+        hy₁_out a (by dsimp only [kVisAddr, kFinAddr, kStkAddr] at *; omega)]
+      dsimp only [x₁]; mem_upd
+
+private theorem kosarajuIndexCode_spec {N w : ℕ} (hN : 0 < N) (adj : Fin N → List (Fin N))
+    (wb Mc : ℕ) (hmc : csrOffset adj N ≤ Mc)
+    (hfit : Fits w (kTopAddr wb N Mc + Mc + 4)) {x : Data 28}
+    (hregs : DfsRegs (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) (kVisAddr wb N Mc)
+      (kFinAddr wb N Mc) (kStkAddr wb N Mc) x)
+    (hNv : x.regs nVerts = N) (hordB : x.regs ordB = kOrdAddr wb N Mc)
+    (hcompB : x.regs compB = kCompAddr wb N Mc)
+    (hcsr : CSRAt (transposeAdj adj (List.finRange N))
+      (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) x.mem)
+    (hord_len : (topologicalSort adj (List.finRange N)).length = N)
+    (hord_mem : ∀ idx (hidx : idx < N),
+      x.mem (kOrdAddr wb N Mc + (N - 1 - idx)) =
+        ((topologicalSort adj (List.finRange N))[idx]'(by
+          rw [length_topologicalSort_finRange]; exact hidx)).val) :
+    ∃ y, ExecWithin w kosarajuIndexCode x y (102 * N + 36 * Mc + 9) ∧
+      (∀ u : Fin N, y.mem (kCompAddr wb N Mc + u.val) =
+        indexComponents (sccs adj (List.finRange N)) u) ∧
+      (∀ a, a < kVisAddr wb N Mc → y.mem a = x.mem a) ∧
+      (∀ r : Fin 28, r.val < 18 → y.regs r = x.regs r) := by
+  set revAdj := transposeAdj adj (List.finRange N)
+  set ord := topologicalSort adj (List.finRange N)
+  have hmc_rev : csrOffset revAdj N ≤ Mc := by
+    dsimp only [revAdj]; rwa [csrOffset_transposeAdj_eq]
+  have hfit_vis : Fits w (kVisAddr wb N Mc + N) :=
+    hfit.of_le (by simp only [kVisAddr, kTopAddr]; omega)
+  obtain ⟨x₁, hx₁_ex, hx₁_zero, hx₁_out, hx₁_fr⟩ :=
+    zeroBlockCode_spec visB (by decide) (kVisAddr wb N Mc) N hfit_vis
+      hregs.czero hregs.cone hregs.hvis hNv
+  have hx₁_csr : CSRAt revAdj (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc) x₁.mem :=
+    hcsr.of_eqOn
+      (fun _ _ => hx₁_out _ (by dsimp only [kRevOffAddr, kVisAddr]; omega))
+      (fun _ _ => hx₁_out _ (by dsimp only [kRevEdgeAddr, kVisAddr]; omega))
+  have hx₁_ord : ∀ idx (hidx : idx < N),
+      x₁.mem (kOrdAddr wb N Mc + (N - 1 - idx)) =
+        (ord[idx]'(by rw [hord_len]; exact hidx)).val :=
+    fun idx hidx =>
+      (hx₁_out _ (by dsimp only [kVisAddr, kOrdAddr]; omega)).trans (hord_mem idx hidx)
+  have hx₁_vis : VisAt (∅ : Finset (Fin N)) (kVisAddr wb N Mc) x₁.mem := fun u => by
+    simp [hx₁_zero u.val u.isLt]
+  let x₂ := ((x₁.set finCnt 0).set compIdxReg 0).set iReg 0
+  have hp : ExecWithin (B := .standard) w
+      (ram[ finCnt ← cZero; compIdxReg ← cZero; iReg ← cZero ]) x₁ x₂ 3 := by
+    have hc0 : x₁.regs cZero = 0 := (hx₁_fr cZero (by decide)).trans hregs.czero
+    wram_exec [hc0]
+  have hx₂_fr0 : ∀ r : Fin 28, r.val < 18 → x₂.regs r = x.regs r := fun r hr => by
+    have h1 : r ≠ iReg := by reg_ne
+    have h2 : r ≠ compIdxReg := by reg_ne
+    have h3 : r ≠ finCnt := by reg_ne
+    dsimp only [x₂]
+    rw [Data.set_regs_of_ne h1, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3]
+    exact hx₁_fr r hr
+  obtain ⟨y, hy_ex, hy_comp, hy_out, hy_fr⟩ :=
+    peelLoop_spec hN revAdj ord hord_len wb Mc hmc_rev hfit ord 0 0 0 ∅ (fun _ => 0) x₂
+      (by omega) (fun q _ => by simp) rfl (le_refl 0)
+      (dfsRegs_of_frame hregs hx₂_fr0)
+      ((hx₂_fr0 nVerts (by decide)).trans hNv)
+      ((hx₂_fr0 ordB (by decide)).trans hordB)
+      ((hx₂_fr0 compB (by decide)).trans hcompB)
+      (by dsimp only [x₂]; wram_simp)
+      (by dsimp only [x₂]; wram_simp)
+      (by dsimp only [x₂]; wram_simp)
+      hx₁_csr hx₁_ord hx₁_vis (fun _ hu => by simp at hu)
+  have hsccs_eq : peelSCCs revAdj N ∅ ord = sccs adj (List.finRange N) := by
+    simp [sccs, revAdj, ord]
+  have hcond : IsSCCCondensation adj (sccs adj (List.finRange N)) :=
+    isSCCCondensation_sccs List.mem_finRange
+  have hflat_len : (sccs adj (List.finRange N)).flatten.length = N := by
+    simpa using hcond.length_flatten_eq_card
+  have hout_flat : outDegreeSum revAdj (sccs adj (List.finRange N)).flatten = csrOffset adj N := by
+    rw [outDegreeSum, ← List.sum_toFinset _ hcond.nodup_flatten]
+    have huniv : (sccs adj (List.finRange N)).flatten.toFinset = Finset.univ := by
+      ext v; simp [hcond.mem_flatten v]
+    rw [huniv, sum_length_transposeAdj, ← csrOffset_eq_outDegreeSum]
+  rw [hsccs_eq, hord_len, hflat_len, hout_flat] at hy_ex
+  refine ⟨y, (hx₁_ex.seq (hp.seq hy_ex)).mono (by omega), fun u => ?_, fun a ha => ?_,
+    fun r hr => (hy_fr r hr).trans (hx₂_fr0 r hr)⟩
+  · rw [hsccs_eq] at hy_comp
+    exact hy_comp u (.inr (hcond.mem_flatten u))
+  · exact (hy_out a ha).trans (hx₁_out a (by omega))
+
+/-! ### Pass 4: Witness extraction and top-level Word-RAM solver (`O(n + |φ|)`) -/
+
+private def extractVarBody : Code .standard 28 := ram[
+  uReg ← cTwo * iReg;
+  addr ← compB + uReg; jReg ← *addr;
+  addr ← addr + cOne; jEndReg ← *addr;
+  if jReg = jEndReg then [ compIdxReg ← cZero ]
+  else [
+    if jReg < jEndReg then [ vReg ← cOne ] else [ vReg ← cZero ];
+    addr ← outBase + cTwo; addr ← addr + iReg; *addr ← vReg ];
+  iReg ← iReg + cOne ]
+
+private def extractAssignmentCode : Code .standard 28 :=
+  (ram[ compIdxReg ← cOne; iReg ← cZero ]).seq
+    ((Code.loop (.lt iReg nv) extractVarBody).seq
+      (.branch (.eq compIdxReg cOne)
+        (ram[ addr ← nv + cOne; *outBase ← addr; addr ← outBase + cOne; *addr ← cOne ])
+        (ram[ *outBase ← cZero ])))
+
+private theorem extractVarLoop_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound)
+    (compIdx : Literal (Fin G.n) → ℕ) :
+    ∀ (vs : List (Fin G.n)) (idx : ℕ) (ok : Bool) (x : Data 28)
+      (_ : idx + vs.length = G.n),
+      (∀ q (hq : q < vs.length), vs[q].val = idx + q) →
+      (∀ u : Fin (2 * G.n),
+        x.mem (kCompAddr G.workBase (2 * G.n) (2 * G.φ.length) + u.val) =
+          compIdx ((litEquiv G.n).symm u)) →
+      (∀ q : Fin G.n, q.val < idx → compIdx (q, true) ≠ compIdx (q, false) →
+        x.mem (G.outAddrBase + 2 + q.val) =
+          (decide (compIdx (q, false) < compIdx (q, true))).toNat) →
+      x.regs cZero = 0 → x.regs cOne = 1 → x.regs cTwo = 2 → x.regs nv = G.n →
+      x.regs outBase = G.outAddrBase →
+      x.regs compB = kCompAddr G.workBase (2 * G.n) (2 * G.φ.length) →
+      x.regs iReg = idx → x.regs compIdxReg = ok.toNat →
+      ∃ y, ExecWithin w (.loop (.lt iReg nv) extractVarBody) x y (16 * vs.length + 2) ∧
+        y.regs outBase = G.outAddrBase ∧ y.regs nv = G.n ∧
+        y.regs cZero = 0 ∧ y.regs cOne = 1 ∧
+        y.regs compIdxReg =
+          (vs.foldl (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false)))
+            ok).toNat ∧
+        (∀ v : Fin G.n, compIdx (v, true) ≠ compIdx (v, false) →
+          y.mem (G.outAddrBase + 2 + v.val) =
+            (decide (compIdx (v, false) < compIdx (v, true))).toNat)
+  | [], idx, ok, x, hidx, _, _, hout_prev, hc0, hc1, _, hnv, hob, _, hi, hok => by
+    simp only [List.length_nil, Nat.add_zero] at hidx
+    have hend : ¬ (Cond.lt iReg nv).Holds x := by
+      change ¬ x.regs iReg < x.regs nv; omega
+    refine ⟨x, ⟨2, by simp, Exec.loop_exit hend⟩, hob, hnv, hc0, hc1, hok, fun v hne => ?_⟩
+    exact hout_prev v (by have := v.isLt; omega) hne
+  | v :: vs, idx, ok, x, hidx, hvs, hcomp, hout_prev, hc0, hc1, hc2, hnv, hob, hcb, hi, hok => by
+    simp only [List.length_cons] at hidx
+    have hv_val : v.val = idx := by
+      have h0 := hvs 0 (by simp)
+      rwa [List.getElem_cons_zero, Nat.add_zero] at h0
+    set compBase := kCompAddr G.workBase (2 * G.n) (2 * G.φ.length)
+    have hm_f : x.mem (compBase + 2 * idx) = compIdx (v, false) := by
+      have hu := hcomp (litEquiv G.n (v, false))
+      rw [Equiv.symm_apply_apply] at hu
+      simpa [litEquiv, litCodeBy, hv_val] using hu
+    have hm_t : x.mem (compBase + 2 * idx + 1) = compIdx (v, true) := by
+      have hu := hcomp (litEquiv G.n (v, true))
+      rw [Equiv.symm_apply_apply] at hu
+      simpa [litEquiv, litCodeBy, hv_val, Nat.add_assoc] using hu
+    have hf_2i : Fits w (2 * idx) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+    have hf_cf : Fits w (compBase + 2 * idx) :=
+      G.fits_of_le hfit (by
+        simp only [compBase, kCompAddr, Instance.workBase, Instance.outAddrBase,
+          G.encode_length, Instance.wordBound]; omega)
+    have hf_ct : Fits w (compBase + 2 * idx + 1) :=
+      G.fits_of_le hfit (by
+        simp only [compBase, kCompAddr, Instance.workBase, Instance.outAddrBase,
+          G.encode_length, Instance.wordBound]; omega)
+    have hf_ob2 : Fits w (G.outAddrBase + 2) :=
+      G.fits_of_le hfit (by
+        simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
+    have hf_ob2i : Fits w (G.outAddrBase + 2 + idx) :=
+      G.fits_of_le hfit (by
+        simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
+    have hf_i1 : Fits w (idx + 1) := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+    let VarPost (x₁ : Data 28) : Prop :=
+      (∀ u : Fin (2 * G.n), x₁.mem (compBase + u.val) = compIdx ((litEquiv G.n).symm u)) ∧
+        (∀ q : Fin G.n, q.val < idx + 1 → compIdx (q, true) ≠ compIdx (q, false) →
+          x₁.mem (G.outAddrBase + 2 + q.val) =
+            (decide (compIdx (q, false) < compIdx (q, true))).toNat) ∧
+        x₁.regs cZero = 0 ∧ x₁.regs cOne = 1 ∧ x₁.regs cTwo = 2 ∧ x₁.regs nv = G.n ∧
+        x₁.regs outBase = G.outAddrBase ∧ x₁.regs compB = compBase ∧
+        x₁.regs iReg = idx + 1 ∧
+        x₁.regs compIdxReg = (ok && decide (compIdx (v, true) ≠ compIdx (v, false))).toNat
+    have hstep : ∃ x₁, ExecWithin w extractVarBody x x₁ 14 ∧ VarPost x₁ := by
+      unfold extractVarBody
+      wram_exec [hc0, hc1, hc2, hnv, hob, hcb, hi, hok, hm_f, hm_t,
+        hf_2i, hf_cf, hf_ct, hf_ob2, hf_ob2i, hf_i1]
+      · -- equal components: compIdx (v, false) = compIdx (v, true)
+        dsimp only [VarPost]
+        refine ⟨hcomp, fun q hq hne_q => ?_, by wram_simp; exact hc0, by wram_simp; exact hc1,
+          by wram_simp; exact hc2, by wram_simp; exact hnv, by wram_simp; exact hob,
+          by wram_simp; exact hcb, by wram_simp, ?_⟩
+        · by_cases hqi : q = v
+          · subst hqi
+            exact absurd ‹compIdx (q, false) = compIdx (q, true)›.symm hne_q
+          · have hqv : q.val ≠ idx := fun h => hqi (Fin.ext (h.trans hv_val.symm))
+            exact hout_prev q (by omega) hne_q
+        · wram_simp
+          simp [‹compIdx (v, false) = compIdx (v, true)›]
+      · -- compIdx (v, false) < compIdx (v, true)
+        dsimp only [VarPost]
+        refine ⟨fun u => ?_, fun q hq hne_q => ?_, by wram_simp; exact hc0,
+          by wram_simp; exact hc1, by wram_simp; exact hc2, by wram_simp; exact hnv,
+          by wram_simp; exact hob, by wram_simp; exact hcb, by wram_simp, ?_⟩
+        · mem_upd
+          rw [Function.update_of_ne (by
+            simp only [compBase, kCompAddr, Instance.workBase]; omega)]
+          exact hcomp u
+        · mem_upd
+          by_cases hqi : q = v
+          · subst hqi
+            rw [hv_val, Function.update_self]
+            simp [‹compIdx (q, false) < compIdx (q, true)›]
+          · have hqv : q.val ≠ idx := fun h => hqi (Fin.ext (h.trans hv_val.symm))
+            rw [Function.update_of_ne (by omega)]
+            exact hout_prev q (by omega) hne_q
+        · wram_simp
+          have hne_v : compIdx (v, true) ≠ compIdx (v, false) := by omega
+          simp [hne_v, hok]
+      · -- compIdx (v, false) > compIdx (v, true)
+        dsimp only [VarPost]
+        refine ⟨fun u => ?_, fun q hq hne_q => ?_, by wram_simp; exact hc0,
+          by wram_simp; exact hc1, by wram_simp; exact hc2, by wram_simp; exact hnv,
+          by wram_simp; exact hob, by wram_simp; exact hcb, by wram_simp, ?_⟩
+        · mem_upd
+          rw [Function.update_of_ne (by
+            simp only [compBase, kCompAddr, Instance.workBase]; omega)]
+          exact hcomp u
+        · mem_upd
+          by_cases hqi : q = v
+          · subst hqi
+            rw [hv_val, Function.update_self]
+            simp [‹¬ compIdx (q, false) < compIdx (q, true)›]
+          · have hqv : q.val ≠ idx := fun h => hqi (Fin.ext (h.trans hv_val.symm))
+            rw [Function.update_of_ne (by omega)]
+            exact hout_prev q (by omega) hne_q
+        · wram_simp
+          have hne_v : compIdx (v, true) ≠ compIdx (v, false) :=
+            fun h => ‹compIdx (v, false) ≠ compIdx (v, true)› h.symm
+          simp [hne_v, hok]
+    obtain ⟨x₁, hx₁_ex, hx₁_comp, hx₁_prev, hx₁_0, hx₁_1, hx₁_2, hx₁_nv, hx₁_ob, hx₁_cb,
+      hx₁_i, hx₁_ok⟩ := hstep
+    obtain ⟨y, hy_ex, hy_ob, hy_nv, hy_0, hy_1, hy_ok, hy_bits⟩ :=
+      extractVarLoop_spec G hfit compIdx vs (idx + 1)
+        (ok && decide (compIdx (v, true) ≠ compIdx (v, false))) x₁ (by omega)
+        (fun q hq => by
+          have h := hvs (q + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 q] using h)
+        hx₁_comp hx₁_prev hx₁_0 hx₁_1 hx₁_2 hx₁_nv hx₁_ob hx₁_cb hx₁_i hx₁_ok
+    obtain ⟨t₁, ht₁, he₁⟩ := hx₁_ex
+    obtain ⟨t₂, ht₂, he₂⟩ := hy_ex
+    have hlt : (Cond.lt iReg nv).Holds x := by
+      change x.regs iReg < x.regs nv; omega
+    exact ⟨y, ⟨t₁ + t₂ + 2, by simp only [List.length_cons]; omega, Exec.loop_iter hlt he₁ he₂⟩,
+      hy_ob, hy_nv, hy_0, hy_1, hy_ok, hy_bits⟩
+
+private def setupWorkRegsCode : Code .standard 28 := ram[
+  nVerts ← cTwo * nv;
+  uReg ← cTwo * mClauses;
+  offB ← outBase + nv; offB ← offB + cTwo;
+  edgeB ← offB + nVerts; edgeB ← edgeB + cOne;
+  revOffB ← edgeB + uReg;
+  revEdgeB ← revOffB + nVerts; revEdgeB ← revEdgeB + cOne;
+  curB ← revEdgeB + uReg;
+  visB ← curB + nVerts; visB ← visB + cOne;
+  ordB ← visB + nVerts;
+  finB ← ordB;
+  stkB ← ordB + nVerts; stkB ← stkB + nVerts;
+  compB ← stkB + nVerts; compB ← compB + nVerts; compB ← compB + nVerts ]
+
+/-- Structured standard-basis Word-RAM solver for 2-SAT. -/
+def solver : Code .standard 28 :=
+  headerSetupCode.seq
+    (checkClausesCode.seq
+      (.branch (.eq compIdxReg cOne)
+        (.branch (.eq nv cZero)
+          (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
+          (setupWorkRegsCode.seq
+            (buildImplCSRCode.seq
+              (forwardDFSCode.seq
+                (transposeCSRCode.seq
+                  ((ram[ finB ← ordB + nVerts ]).seq
+                    (kosarajuIndexCode.seq
+                      extractAssignmentCode)))))))
+        (ram[ *outBase ← cZero ])))
+
+/-- Flat standard-basis Word-RAM 2-SAT program returning `answerWords G` via `ExecutesList`. -/
+def program : Program .standard 28 := solver.program outBase
+
+private theorem mem_of_foldl_and_true {α : Type*} (p : α → Bool) :
+    ∀ (l : List α) (b : Bool),
+      l.foldl (fun acc x => acc && p x) b = true → b = true ∧ ∀ x ∈ l, p x = true
+  | [], b, h => ⟨h, fun _ hx => absurd hx List.not_mem_nil⟩
+  | a :: l, b, h => by
+    obtain ⟨hb, hl⟩ := mem_of_foldl_and_true p l (b && p a) h
+    rw [Bool.and_eq_true] at hb
+    refine ⟨hb.1, fun x hx => ?_⟩
+    rcases List.mem_cons.1 hx with rfl | hx
+    · exact hb.2
+    · exact hl x hx
+
+/-- Structured execution of `solver` computes `answerWords G` at `outAddrBase` within
+`512 * (G.n + G.φ.length + 1) - 1` instructions. -/
+theorem solver_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
+    ∃ y, ExecWithin w solver (Data.init G.encode) y (512 * (G.n + G.φ.length + 1) - 1) ∧
+      y.regs outBase = G.outAddrBase ∧ outputList y.mem (y.regs outBase) = answerWords G := by
+  have hm0 : (Data.init G.encode : Data 28).mem 0 = G.encode.length := Data.init_mem_zero _
+  have hm1 : (Data.init G.encode : Data 28).mem 1 = G.n := rfl
+  have hm2 : (Data.init G.encode : Data 28).mem 2 = G.φ.length := rfl
+  have hf1 : Fits w 1 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+  have hf2 : Fits w 2 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+  have hf3 : Fits w 3 := G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+  have hf_ob : Fits w (G.encode.length + 1) :=
+    G.fits_of_le hfit (by simp only [G.encode_length, Instance.wordBound]; omega)
+  have hsetup0 : ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧
+      s₀.mem = (Data.init G.encode : Data 28).mem ∧
+      s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
+      s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length := by
+    let Setup0Post (s₀ : Data 28) : Prop :=
+      s₀.mem = (Data.init G.encode : Data 28).mem ∧
+        s₀.regs cZero = 0 ∧ s₀.regs cOne = 1 ∧ s₀.regs cTwo = 2 ∧ s₀.regs cThree = 3 ∧
+        s₀.regs outBase = G.outAddrBase ∧ s₀.regs nv = G.n ∧ s₀.regs mClauses = G.φ.length
+    change ∃ s₀, ExecWithin w headerSetupCode (Data.init G.encode) s₀ 8 ∧ Setup0Post s₀
+    unfold headerSetupCode
+    wram_exec [Data.init_regs, hm0, hm1, hm2, hf1, hf2, hf3, hf_ob]
+    dsimp only [Setup0Post]
+    exact ⟨rfl, by wram_simp, by wram_simp, by wram_simp, by wram_simp,
+      by wram_simp; rfl, by wram_simp, by wram_simp⟩
+  obtain ⟨s₀, hsetup, hs₀_mem, hs₀_0, hs₀_1, hs₀_2, hs₀_3, hs₀_ob, hs₀_nv, hs₀_mc⟩ := hsetup0
+  let s₁ := ((s₀.set compIdxReg 1).set pReg 3).set iReg 0
+  have hchk_prep : ExecWithin (B := .standard) w
+      (ram[ compIdxReg ← cOne; pReg ← cThree; iReg ← cZero ]) s₀ s₁ 3 := by
+    wram_exec [hs₀_1, hs₀_3, hs₀_0]
+  have hlen_enc : 3 + (G.φ.flatMap (encodeClauseBy Fin.val)).length = G.encode.length + 1 := by
+    rw [Instance.length_flatMap_encodeClauseBy, G.encode_length]
+    unfold Instance.totalLits; omega
+  obtain ⟨s₂, hs₂_ex, hs₂_mem, hs₂_ok, hs₂_fr⟩ :=
+    checkClausesLoop_spec G hfit G.φ 0 3 true s₁ (by simp) hlen_enc
+      (hs₀_mem ▸ clauseMemAt_init G)
+      (by dsimp only [s₁]; wram_simp; exact hs₀_0)
+      (by dsimp only [s₁]; wram_simp; exact hs₀_1)
+      (by dsimp only [s₁]; wram_simp; exact hs₀_2)
+      (by dsimp only [s₁]; wram_simp; exact hs₀_mc)
+      (by dsimp only [s₁]; wram_simp)
+      (by dsimp only [s₁]; wram_simp)
+      (by dsimp only [s₁]; wram_simp; rfl)
+  have hchk_ex : ExecWithin w checkClausesCode s₀ s₂ (12 * G.φ.length + 5) :=
+    (hchk_prep.seq hs₂_ex).mono (by omega)
+  have hs₂_fr0 : ∀ r : Fin 28, r.val < 18 → s₂.regs r = s₀.regs r := fun r hr => by
+    rw [hs₂_fr r hr]
+    dsimp only [s₁]
+    have h1 : r ≠ iReg := by reg_ne
+    have h2 : r ≠ pReg := by reg_ne
+    have h3 : r ≠ compIdxReg := by reg_ne
+    simp [Data.set_regs_of_ne h1, Data.set_regs_of_ne h2, Data.set_regs_of_ne h3]
+  have hs₂_0 : s₂.regs cZero = 0 := (hs₂_fr0 cZero (by decide)).trans hs₀_0
+  have hs₂_1 : s₂.regs cOne = 1 := (hs₂_fr0 cOne (by decide)).trans hs₀_1
+  have hs₂_2 : s₂.regs cTwo = 2 := (hs₂_fr0 cTwo (by decide)).trans hs₀_2
+  have hs₂_3 : s₂.regs cThree = 3 := (hs₂_fr0 cThree (by decide)).trans hs₀_3
+  have hs₂_ob : s₂.regs outBase = G.outAddrBase := (hs₂_fr0 outBase (by decide)).trans hs₀_ob
+  have hs₂_nv : s₂.regs nv = G.n := (hs₂_fr0 nv (by decide)).trans hs₀_nv
+  have hs₂_mc : s₂.regs mClauses = G.φ.length := (hs₂_fr0 mClauses (by decide)).trans hs₀_mc
+  cases hchk : checkClauses G.φ
+  · -- Invalid clause width: return `[]`
+    have hs₂_ok0 : s₂.regs compIdxReg = 0 := by
+      rw [hs₂_ok, show G.φ.foldl (fun acc c => acc && isValidTwoClause c) true =
+        checkClauses G.φ from rfl, hchk]
+      rfl
+    have hncond : ¬ (Cond.eq compIdxReg cOne).Holds s₂ := by
+      change ¬ s₂.regs compIdxReg = s₂.regs cOne; omega
+    have hneg : Exec (B := .standard) w (ram[ *outBase ← cZero ])
+        s₂ (s₂.write G.outAddrBase 0) 1 := by
+      have hst := Exec.store (B := .standard) (w := w) (x := s₂) (a := outBase) (s := cZero)
+      rwa [hs₂_ob, hs₂_0] at hst
+    have hbr : ExecWithin w
+        (.branch (.eq compIdxReg cOne)
+          (.branch (.eq nv cZero)
+            (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
+            (setupWorkRegsCode.seq
+              (buildImplCSRCode.seq
+                (forwardDFSCode.seq
+                  (transposeCSRCode.seq
+                    ((ram[ finB ← ordB + nVerts ]).seq
+                      (kosarajuIndexCode.seq
+                        extractAssignmentCode)))))))
+          (ram[ *outBase ← cZero ]))
+        s₂ (s₂.write G.outAddrBase 0) 3 :=
+      ⟨3, le_rfl, Exec.branch_neg hncond hneg⟩
+    refine ⟨s₂.write G.outAddrBase 0,
+      (hsetup.seq (hchk_ex.seq hbr)).mono (by omega),
+      hs₂_ob, ?_⟩
+    rw [Data.write_regs_apply, hs₂_ob, outputList_eq_iff]
+    have hans : answerWords G = [] := by simp [answerWords, solveFin, solve, hchk]
+    rw [hans]
+    exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
+  · -- Valid 2-CNF: every clause has `1 ≤ length ≤ 2`
+    have hs₂_ok1 : s₂.regs compIdxReg = 1 := by
+      rw [hs₂_ok, show G.φ.foldl (fun acc c => acc && isValidTwoClause c) true =
+        checkClauses G.φ from rfl, hchk]
+      rfl
+    have hcond_chk : (Cond.eq compIdxReg cOne).Holds s₂ := by
+      change s₂.regs compIdxReg = s₂.regs cOne; omega
+    obtain ⟨hw_φ, hnil_φ⟩ := (checkClauses_eq_true_iff G.φ).1 hchk
+    have hcs_φ : ∀ c ∈ G.φ, 1 ≤ c.length ∧ c.length ≤ 2 := fun c hc => by
+      refine ⟨?_, hw_φ c hc⟩
+      cases c with
+      | nil => exact absurd hc hnil_φ
+      | cons _ _ => simp
+    by_cases hn0 : G.n = 0
+    · -- `G.n = 0`: `G.φ = []`, `answerWords G = [1]`
+      have hφ_nil : G.φ = [] := by
+        cases hφ : G.φ with
+        | nil => rfl
+        | cons c cs =>
+          have hc1 := (hcs_φ c (by simp [hφ])).1
+          cases c with
+          | nil => simp at hc1
+          | cons ℓ _ =>
+            have := ℓ.1.isLt
+            omega
+      have hcond_n0 : (Cond.eq nv cZero).Holds s₂ := by
+        change s₂.regs nv = s₂.regs cZero; omega
+      have hf_ob1 : Fits w (G.outAddrBase + 1) :=
+        G.fits_of_le hfit (by
+          simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
+      let y_n0 := ((s₂.write G.outAddrBase 1).set addr (G.outAddrBase + 1)).write
+        (G.outAddrBase + 1) 1
+      have hpos_n0 : ExecWithin w
+          (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ]) s₂ y_n0 3 := by
+        have htriv : y_n0 = ((s₂.write G.outAddrBase 1).set addr (G.outAddrBase + 1)).write
+          (G.outAddrBase + 1) 1 := rfl
+        wram_exec [hs₂_ob, hs₂_1, hf_ob1]
+      obtain ⟨tn0, htn0, hen0⟩ := hpos_n0
+      have hbr_inner : Exec w
+          (.branch (.eq nv cZero)
+            (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
+            (setupWorkRegsCode.seq
+              (buildImplCSRCode.seq
+                (forwardDFSCode.seq
+                  (transposeCSRCode.seq
+                    ((ram[ finB ← ordB + nVerts ]).seq
+                      (kosarajuIndexCode.seq
+                        extractAssignmentCode)))))))
+          s₂ y_n0 (tn0 + 1) :=
+        Exec.branch_pos hcond_n0 hen0
+      have hbr_outer : ExecWithin w
+          (.branch (.eq compIdxReg cOne)
+            (.branch (.eq nv cZero)
+              (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
+              (setupWorkRegsCode.seq
+                (buildImplCSRCode.seq
+                  (forwardDFSCode.seq
+                    (transposeCSRCode.seq
+                      ((ram[ finB ← ordB + nVerts ]).seq
+                        (kosarajuIndexCode.seq
+                          extractAssignmentCode)))))))
+            (ram[ *outBase ← cZero ]))
+          s₂ y_n0 5 :=
+        ⟨tn0 + 2, by omega, Exec.branch_pos hcond_chk hbr_inner⟩
+      refine ⟨y_n0, (hsetup.seq (hchk_ex.seq hbr_outer)).mono (by omega),
+        by dsimp only [y_n0]; wram_simp; exact hs₂_ob, ?_⟩
+      have hob_y : y_n0.regs outBase = G.outAddrBase := by
+        dsimp only [y_n0]; wram_simp; exact hs₂_ob
+      rw [hob_y, outputList_eq_iff]
+      have hans : answerWords G = [1] := by
+        cases G with
+        | mk n φ =>
+          dsimp only at hn0 hφ_nil
+          subst hn0 hφ_nil
+          rfl
+      rw [hans]
+      refine ⟨?_, fun i => ?_⟩
+      · dsimp only [y_n0]
+        rw [Data.write_mem_of_ne (by omega), Data.set_mem, Data.write_mem_self]
+        rfl
+      · rcases i with ⟨_ | k, hlt⟩
+        · dsimp only [Block.read, y_n0]
+          rw [Nat.add_zero, Data.write_mem_self]
+          rfl
+        · change k + 1 < 1 at hlt
+          omega
+    · -- `0 < G.n`: full Kosaraju + witness extraction
+      have hn_pos : 0 < G.n := Nat.pos_of_ne_zero hn0
+      have hN_pos : 0 < 2 * G.n := by omega
+      have hncond_n0 : ¬ (Cond.eq nv cZero).Holds s₂ := by
+        change ¬ s₂.regs nv = s₂.regs cZero; omega
+      set wb := G.workBase
+      set N := 2 * G.n
+      set Mc := 2 * G.φ.length
+      have hfit_top : Fits w (kTopAddr wb N Mc + Mc + 4) :=
+        G.fits_of_le hfit (by
+          simp only [wb, N, Mc, kTopAddr, Instance.workBase, Instance.outAddrBase,
+            G.encode_length, Instance.wordBound]; omega)
+      have hsetup_regs : ∃ s₃, ExecWithin w setupWorkRegsCode s₂ s₃ 19 ∧
+          s₃.mem = s₂.mem ∧
+          s₃.regs cZero = 0 ∧ s₃.regs cOne = 1 ∧ s₃.regs cTwo = 2 ∧ s₃.regs cThree = 3 ∧
+          s₃.regs nv = G.n ∧ s₃.regs mClauses = G.φ.length ∧ s₃.regs nVerts = N ∧
+          s₃.regs outBase = G.outAddrBase ∧
+          s₃.regs offB = kOffAddr wb ∧ s₃.regs edgeB = kEdgeAddr wb N ∧
+          s₃.regs revOffB = kRevOffAddr wb N Mc ∧ s₃.regs revEdgeB = kRevEdgeAddr wb N Mc ∧
+          s₃.regs curB = kCurAddr wb N Mc ∧ s₃.regs visB = kVisAddr wb N Mc ∧
+          s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
+          s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc := by
+        let SetupPost (s₃ : Data 28) : Prop :=
+          s₃.mem = s₂.mem ∧
+            s₃.regs cZero = 0 ∧ s₃.regs cOne = 1 ∧ s₃.regs cTwo = 2 ∧ s₃.regs cThree = 3 ∧
+            s₃.regs nv = G.n ∧ s₃.regs mClauses = G.φ.length ∧ s₃.regs nVerts = N ∧
+            s₃.regs outBase = G.outAddrBase ∧
+            s₃.regs offB = kOffAddr wb ∧ s₃.regs edgeB = kEdgeAddr wb N ∧
+            s₃.regs revOffB = kRevOffAddr wb N Mc ∧ s₃.regs revEdgeB = kRevEdgeAddr wb N Mc ∧
+            s₃.regs curB = kCurAddr wb N Mc ∧ s₃.regs visB = kVisAddr wb N Mc ∧
+            s₃.regs ordB = kOrdAddr wb N Mc ∧ s₃.regs finB = kOrdAddr wb N Mc ∧
+            s₃.regs stkB = kStkAddr wb N Mc ∧ s₃.regs compB = kCompAddr wb N Mc
+        change ∃ s₃, ExecWithin w setupWorkRegsCode s₂ s₃ 19 ∧ SetupPost s₃
+        unfold setupWorkRegsCode
+        wram_exec [hs₂_0, hs₂_1, hs₂_2, hs₂_3, hs₂_ob, hs₂_nv, hs₂_mc]
+        · dsimp only [SetupPost]
+          refine ⟨rfl, by wram_simp; exact hs₂_0, by wram_simp; exact hs₂_1,
+            by wram_simp; exact hs₂_2, by wram_simp; exact hs₂_3,
+            by wram_simp; exact hs₂_nv, by wram_simp; exact hs₂_mc, by wram_simp; rfl,
+            by wram_simp; exact hs₂_ob, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+          all_goals wram_simp
+          all_goals
+            dsimp only [wb, N, Mc, Instance.workBase, kOffAddr, kEdgeAddr, kRevOffAddr,
+              kRevEdgeAddr, kCurAddr, kVisAddr, kOrdAddr, kStkAddr, kCompAddr]
+          all_goals omega
+        all_goals
+          exact hfit_top.of_le (by
+            dsimp only [wb, N, Mc, Instance.workBase, kTopAddr]
+            omega)
+      obtain ⟨s₃, hs₃_ex, hs₃_mem, hs₃_0, hs₃_1, hs₃_2, hs₃_3, hs₃_nv, hs₃_mc, hs₃_Nv, hs₃_ob,
+        hs₃_off, hs₃_edge, hs₃_roff, hs₃_redge, hs₃_cur, hs₃_vis, hs₃_ord, hs₃_fin,
+        hs₃_stk, hs₃_comp⟩ := hsetup_regs
+      have hcm₃ : ClauseMemAt s₃.mem 3 G.φ :=
+        hs₃_mem ▸ hs₂_mem ▸ hs₀_mem ▸ clauseMemAt_init G
+      obtain ⟨s₄, hs₄_ex, hs₄_csr, _, hs₄_fr⟩ :=
+        buildImplCSRCode_spec G hfit hcs_φ hcm₃ hs₃_0 hs₃_1 hs₃_3 hs₃_mc hs₃_Nv
+          hs₃_off hs₃_edge hs₃_cur
+      have hmc_adj : csrOffset G.adjFin N ≤ Mc := csrOffset_adjFin_le G
+      have hs₄_dregs : DfsRegs (kOffAddr wb) (kEdgeAddr wb N) (kVisAddr wb N Mc)
+          (kOrdAddr wb N Mc) (kStkAddr wb N Mc) s₄ :=
+        { czero := (hs₄_fr cZero (by decide)).trans hs₃_0
+          cone := (hs₄_fr cOne (by decide)).trans hs₃_1
+          cthree := (hs₄_fr cThree (by decide)).trans hs₃_3
+          hoff := (hs₄_fr offB (by decide)).trans hs₃_off
+          hedge := (hs₄_fr edgeB (by decide)).trans hs₃_edge
+          hvis := (hs₄_fr visB (by decide)).trans hs₃_vis
+          hfin := (hs₄_fr finB (by decide)).trans hs₃_fin
+          hstk := (hs₄_fr stkB (by decide)).trans hs₃_stk }
+      obtain ⟨s₅, hs₅_ex, hs₅_olen, hs₅_omem, hs₅_csr, _, hs₅_fr⟩ :=
+        forwardDFSCode_spec hN_pos G.adjFin wb Mc hmc_adj hfit_top hs₄_dregs
+          ((hs₄_fr nVerts (by decide)).trans hs₃_Nv) hs₄_csr
+      have hs₅_fr3 : ∀ r : Fin 28, r.val < 18 → s₅.regs r = s₃.regs r :=
+        fun r hr => (hs₅_fr r hr).trans (hs₄_fr r hr)
+      obtain ⟨s₆, hs₆_ex, hs₆_rcsr, hs₆_off, hs₆_edge, hs₆_out, hs₆_fr⟩ :=
+        transposeCSRCode_spec G.adjFin wb Mc hmc_adj hfit_top
+          ((hs₅_fr3 cZero (by decide)).trans hs₃_0)
+          ((hs₅_fr3 cOne (by decide)).trans hs₃_1)
+          ((hs₅_fr3 nVerts (by decide)).trans hs₃_Nv)
+          ((hs₅_fr3 offB (by decide)).trans hs₃_off)
+          ((hs₅_fr3 edgeB (by decide)).trans hs₃_edge)
+          ((hs₅_fr3 curB (by decide)).trans hs₃_cur)
+          ((hs₅_fr3 revOffB (by decide)).trans hs₃_roff)
+          ((hs₅_fr3 revEdgeB (by decide)).trans hs₃_redge)
+          hs₅_csr
+      have hs₆_fr3 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → s₆.regs r = s₃.regs r :=
+        fun r hr hno hne => (hs₆_fr r hr hno hne).trans (hs₅_fr3 r hr)
+      have hf_finB : Fits w (kFinAddr wb N Mc) :=
+        hfit_top.of_le (by simp only [kFinAddr, kTopAddr]; omega)
+      let s₆' := s₆.set finB (kFinAddr wb N Mc)
+      have hp_finB : ExecWithin w (ram[ finB ← ordB + nVerts ]) s₆ s₆' 1 := by
+        have h_ordB : s₆.regs ordB = kOrdAddr wb N Mc :=
+          (hs₆_fr3 ordB (by decide) (by decide) (by decide)).trans hs₃_ord
+        have h_Nv : s₆.regs nVerts = N :=
+          (hs₆_fr3 nVerts (by decide) (by decide) (by decide)).trans hs₃_Nv
+        have htriv : s₆' = s₆.set finB (kOrdAddr wb N Mc + N) := by
+          simp [s₆', kOrdAddr, kFinAddr]; ring_nf
+        rw [htriv]
+        have hf_on : Fits w (kOrdAddr wb N Mc + N) :=
+          hfit_top.of_le (by simp only [kOrdAddr, kTopAddr]; omega)
+        wram_exec [h_ordB, h_Nv, hf_on]
+      have hs₆'_dregs : DfsRegs (kRevOffAddr wb N Mc) (kRevEdgeAddr wb N Mc)
+          (kVisAddr wb N Mc) (kFinAddr wb N Mc) (kStkAddr wb N Mc) s₆' :=
+        { czero := by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 cZero (by decide) (by decide) (by decide)).trans hs₃_0
+          cone := by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 cOne (by decide) (by decide) (by decide)).trans hs₃_1
+          cthree := by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 cThree (by decide) (by decide) (by decide)).trans hs₃_3
+          hoff := by dsimp only [s₆']; wram_simp; exact hs₆_off
+          hedge := by dsimp only [s₆']; wram_simp; exact hs₆_edge
+          hvis := by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 visB (by decide) (by decide) (by decide)).trans hs₃_vis
+          hfin := by dsimp only [s₆']; wram_simp
+          hstk := by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 stkB (by decide) (by decide) (by decide)).trans hs₃_stk }
+      have hs₆'_omem : ∀ idx (hidx : idx < N),
+          s₆'.mem (kOrdAddr wb N Mc + (N - 1 - idx)) =
+            ((topologicalSort G.adjFin (List.finRange N))[idx]'(by
+              rw [length_topologicalSort_finRange]; exact hidx)).val :=
+        fun idx hidx => by
+          dsimp only [s₆']; mem_upd
+          rw [hs₆_out _ (by dsimp only [kRevOffAddr, kRevEdgeAddr, kCurAddr, kOrdAddr]; omega)]
+          exact hs₅_omem idx hidx
+      obtain ⟨s₇, hs₇_ex, hs₇_comp, _, hs₇_fr⟩ :=
+        kosarajuIndexCode_spec hN_pos G.adjFin wb Mc hmc_adj hfit_top hs₆'_dregs
+          (by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 nVerts (by decide) (by decide) (by decide)).trans hs₃_Nv)
+          (by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 ordB (by decide) (by decide) (by decide)).trans hs₃_ord)
+          (by
+            dsimp only [s₆']; wram_simp
+            exact (hs₆_fr3 compB (by decide) (by decide) (by decide)).trans hs₃_comp)
+          hs₆_rcsr hs₅_olen hs₆'_omem
+      have hs₇_fr3 : ∀ r : Fin 28, r.val < 18 → r ≠ offB → r ≠ edgeB → r ≠ finB →
+          s₇.regs r = s₃.regs r := fun r hr h1 h2 h3 => by
+        rw [hs₇_fr r hr]
+        dsimp only [s₆']
+        rw [Data.set_regs_of_ne h3]
+        exact hs₆_fr3 r hr h1 h2
+      set compIdx := indexComponents (sccs (implicationAdj G.φ) (literalList (List.finRange G.n)))
+      have hs₇_comp' : ∀ u : Fin (2 * G.n),
+          s₇.mem (kCompAddr wb N Mc + u.val) = compIdx ((litEquiv G.n).symm u) := fun u => by
+        rw [hs₇_comp u]
+        have htr := G.indexComponents_adjFin ((litEquiv G.n).symm u)
+        rwa [Equiv.apply_symm_apply] at htr
+      let s₇' := (s₇.set compIdxReg 1).set iReg 0
+      have hp_ext : ExecWithin (B := .standard) w (ram[ compIdxReg ← cOne; iReg ← cZero ])
+          s₇ s₇' 2 := by
+        have h1' : s₇.regs cOne = 1 :=
+          (hs₇_fr3 cOne (by decide) (by decide) (by decide) (by decide)).trans hs₃_1
+        have h0' : s₇.regs cZero = 0 :=
+          (hs₇_fr3 cZero (by decide) (by decide) (by decide) (by decide)).trans hs₃_0
+        wram_exec [h1', h0']
+      obtain ⟨s₈, hs₈_ex, hs₈_ob, hs₈_nv, hs₈_0, hs₈_1, hs₈_ok, hs₈_bits⟩ :=
+        extractVarLoop_spec G hfit compIdx (List.finRange G.n) 0 true s₇' (by simp)
+          (fun q _ => by simp) hs₇_comp' (fun _ hq _ => by omega)
+          (by
+            dsimp only [s₇']; wram_simp
+            exact (hs₇_fr3 cZero (by decide) (by decide) (by decide) (by decide)).trans hs₃_0)
+          (by
+            dsimp only [s₇']; wram_simp
+            exact (hs₇_fr3 cOne (by decide) (by decide) (by decide) (by decide)).trans hs₃_1)
+          (by
+            dsimp only [s₇']; wram_simp
+            exact (hs₇_fr3 cTwo (by decide) (by decide) (by decide) (by decide)).trans hs₃_2)
+          (by
+            dsimp only [s₇']; wram_simp
+            exact (hs₇_fr3 nv (by decide) (by decide) (by decide) (by decide)).trans hs₃_nv)
+          (by
+            dsimp only [s₇']; wram_simp
+            exact (hs₇_fr3 outBase (by decide) (by decide) (by decide) (by decide)).trans hs₃_ob)
+          (by
+            dsimp only [s₇']; wram_simp
+            exact (hs₇_fr3 compB (by decide) (by decide) (by decide) (by decide)).trans hs₃_comp)
+          (by dsimp only [s₇']; wram_simp)
+          (by dsimp only [s₇']; wram_simp; rfl)
+      rw [List.length_finRange] at hs₈_ex
+      have hfin_ext : ∃ y, ExecWithin w
+          (.branch (.eq compIdxReg cOne)
+            (ram[ addr ← nv + cOne; *outBase ← addr; addr ← outBase + cOne; *addr ← cOne ])
+            (ram[ *outBase ← cZero ]))
+          s₈ y 5 ∧ y.regs outBase = G.outAddrBase ∧
+          outputList y.mem G.outAddrBase = answerWords G := by
+        set ok_all := (List.finRange G.n).foldl
+          (fun acc v => acc && decide (compIdx (v, true) ≠ compIdx (v, false))) true
+        cases hok_all : ok_all
+        · have hs₈_ok0 : s₈.regs compIdxReg = 0 := by rw [hs₈_ok, hok_all]; rfl
+          have hncond_ok : ¬ (Cond.eq compIdxReg cOne).Holds s₈ := by
+            change ¬ s₈.regs compIdxReg = s₈.regs cOne; omega
+          have hneg : Exec (B := .standard) w (ram[ *outBase ← cZero ])
+              s₈ (s₈.write G.outAddrBase 0) 1 := by
+            have hst := Exec.store (B := .standard) (w := w) (x := s₈) (a := outBase) (s := cZero)
+            rwa [hs₈_ob, hs₈_0] at hst
+          refine ⟨s₈.write G.outAddrBase 0, ⟨3, by omega, Exec.branch_neg hncond_ok hneg⟩,
+            hs₈_ob, ?_⟩
+          rw [outputList_eq_iff]
+          have hans : answerWords G = [] := by
+            dsimp only [answerWords, solveFin, solve, extractAssignment]
+            have hfold_eq :
+                (List.finRange G.n).foldl
+                  (fun ok v => ok && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
+                ok_all := rfl
+            rw [hchk, hfold_eq, hok_all]
+            rfl
+          rw [hans]
+          exact ⟨Data.write_mem_self _ _ _, Block.holdsList_nil _ _⟩
+        · have hs₈_ok1 : s₈.regs compIdxReg = 1 := by rw [hs₈_ok, hok_all]; rfl
+          have hcond_ok : (Cond.eq compIdxReg cOne).Holds s₈ := by
+            change s₈.regs compIdxReg = s₈.regs cOne; omega
+          have hf_n1 : Fits w (G.n + 1) :=
+            G.fits_of_le hfit (by unfold Instance.wordBound; omega)
+          have hf_ob1 : Fits w (G.outAddrBase + 1) :=
+            G.fits_of_le hfit (by
+              simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
+          let y_sat := (((s₈.set addr (G.n + 1)).write G.outAddrBase (G.n + 1)).set
+            addr (G.outAddrBase + 1)).write (G.outAddrBase + 1) 1
+          have hpos_sat : ExecWithin w
+              (ram[ addr ← nv + cOne; *outBase ← addr; addr ← outBase + cOne; *addr ← cOne ])
+              s₈ y_sat 4 := by
+            have htriv : y_sat = (((s₈.set addr (G.n + 1)).write G.outAddrBase (G.n + 1)).set
+              addr (G.outAddrBase + 1)).write (G.outAddrBase + 1) 1 := rfl
+            wram_exec [hs₈_nv, hs₈_1, hs₈_ob, hf_n1, hf_ob1]
+          obtain ⟨ts, hts, hes⟩ := hpos_sat
+          have hdist_all : ∀ v : Fin G.n, compIdx (v, true) ≠ compIdx (v, false) := by
+            have hall := (mem_of_foldl_and_true
+              (fun v => decide (compIdx (v, true) ≠ compIdx (v, false)))
+              (List.finRange G.n) true hok_all).2
+            exact fun v => of_decide_eq_true (hall v (List.mem_finRange v))
+          refine ⟨y_sat, ⟨ts + 1, by omega, Exec.branch_pos hcond_ok hes⟩,
+            by dsimp only [y_sat]; wram_simp; exact hs₈_ob, ?_⟩
+          rw [outputList_eq_iff]
+          have hans : answerWords G =
+              1 :: (List.finRange G.n).map
+                (fun v => (decide (compIdx (v, false) < compIdx (v, true))).toNat) := by
+            dsimp only [answerWords, solveFin, solve, extractAssignment, encodeAssignment]
+            have hfold_eq :
+                (List.finRange G.n).foldl
+                  (fun ok v => ok && decide (compIdx (v, true) ≠ compIdx (v, false))) true =
+                ok_all := rfl
+            rw [hchk, hfold_eq, hok_all]
+            rfl
+          rw [hans]
+          refine ⟨?_, fun i => ?_⟩
+          · dsimp only [y_sat]
+            rw [Data.write_mem_of_ne (by omega), Data.set_mem, Data.write_mem_self]
+            simp
+          · dsimp only [Block.read, y_sat]
+            cases hi_eq : i.val with
+            | zero =>
+              rw [Nat.add_zero, Data.write_mem_self]
+              simp [hi_eq]
+            | succ q =>
+              have hq_lt : q < G.n := by have := i.isLt; simp at this; omega
+              rw [show G.outAddrBase + 1 + (q + 1) = G.outAddrBase + 2 + q by omega,
+                Data.write_mem_of_ne (by omega), Data.set_mem,
+                Data.write_mem_of_ne (by omega), Data.set_mem,
+                hs₈_bits ⟨q, hq_lt⟩ (hdist_all ⟨q, hq_lt⟩)]
+              simp [hi_eq]
+      obtain ⟨y, hy_br, hy_ob, hy_list⟩ := hfin_ext
+      have hext_ex : ExecWithin w extractAssignmentCode s₇ y (16 * G.n + 9) :=
+        (hp_ext.seq (hs₈_ex.seq hy_br)).mono (by omega)
+      have hfull_pos : ExecWithin w
+          (setupWorkRegsCode.seq
+            (buildImplCSRCode.seq
+              (forwardDFSCode.seq
+                (transposeCSRCode.seq
+                  ((ram[ finB ← ordB + nVerts ]).seq
+                    (kosarajuIndexCode.seq
+                      extractAssignmentCode))))))
+          s₂ y (498 * G.n + 245 * G.φ.length + 88) :=
+        (hs₃_ex.seq (hs₄_ex.seq (hs₅_ex.seq (hs₆_ex.seq (hp_finB.seq (hs₇_ex.seq hext_ex)))))).mono
+          (by dsimp only [N, Mc] at *; omega)
+      obtain ⟨tf, htf, hef⟩ := hfull_pos
+      have hbr_inner : Exec w
+          (.branch (.eq nv cZero)
+            (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
+            (setupWorkRegsCode.seq
+              (buildImplCSRCode.seq
+                (forwardDFSCode.seq
+                  (transposeCSRCode.seq
+                    ((ram[ finB ← ordB + nVerts ]).seq
+                      (kosarajuIndexCode.seq
+                        extractAssignmentCode)))))))
+          s₂ y (tf + 2) :=
+        Exec.branch_neg hncond_n0 hef
+      have hbr_outer : ExecWithin w
+          (.branch (.eq compIdxReg cOne)
+            (.branch (.eq nv cZero)
+              (ram[ *outBase ← cOne; addr ← outBase + cOne; *addr ← cOne ])
+              (setupWorkRegsCode.seq
+                (buildImplCSRCode.seq
+                  (forwardDFSCode.seq
+                    (transposeCSRCode.seq
+                      ((ram[ finB ← ordB + nVerts ]).seq
+                        (kosarajuIndexCode.seq
+                           extractAssignmentCode)))))))
+            (ram[ *outBase ← cZero ]))
+          s₂ y (498 * G.n + 245 * G.φ.length + 91) :=
+        ⟨tf + 3, by omega, Exec.branch_pos hcond_chk hbr_inner⟩
+      exact ⟨y, (hsetup.seq (hchk_ex.seq hbr_outer)).mono (by omega), hy_ob,
+        by rwa [hy_ob]⟩
+
+/-- **Linear-time 2-SAT on the word RAM (`O(n + |φ|)`).** At every word width `w` with
+`Fits w G.wordBound`, `program` halts within `512 * (G.n + G.φ.length + 1)` instructions and
+outputs `answerWords G`: `[]` if `G.φ` is either not a 2-CNF or unsatisfiable, and
+`1 :: [(σ 0).toNat, …, (σ (n - 1)).toNat]` for the canonical satisfying assignment `σ`
+otherwise. -/
+theorem program_spec (G : Instance) {w : ℕ} (hfit : Fits w G.wordBound) :
+    ∃ steps ≤ 512 * (G.n + G.φ.length + 1),
+      ExecutesList w program (State.init G.encode) (answerWords G) steps := by
+  obtain ⟨y, ⟨steps, hsteps, hexec⟩, hyout, hylist⟩ := solver_spec G hfit
+  have hlen := length_answerWords_le G
+  have hfit_out : Fits w (y.regs outBase + (outputList y.mem (y.regs outBase)).length) := by
+    rw [hylist, hyout]
+    exact G.fits_of_le hfit
+      (by simp only [Instance.outAddrBase, G.encode_length, Instance.wordBound]; omega)
+  refine ⟨steps + 1, by omega, ?_⟩
+  have hex := hexec.executesList outBase hfit_out
+  rwa [hylist] at hex
+
+/-- Fixed-program `Program.ComputesListInTime` certificate for Word-RAM 2-SAT. -/
+theorem computesListInTime_program :
+    program.ComputesListInTime (fun _ G => G.encode)
+      (fun G _ => 512 * (G.n + G.φ.length + 1))
+      (fun G w => Fits w G.wordBound)
+      answerWords := by
+  intro G w hfit _
+  obtain ⟨steps, hle, hex⟩ := program_spec G hfit
+  exact ⟨steps, hex, hle⟩
+
+/-- `program` does not read the word width (`width%`). -/
+theorem not_readsWidth_program : ¬ program.ReadsWidth := by
+  apply Code.not_readsWidth_program
+  decide +kernel
+
+/-- `program` is deterministic (`rand`-free). -/
+theorem isRandFree_program : program.IsRandFree := by
+  rw [program, Code.isRandFree_program]
+  decide +kernel
+
 end Cslib.Algorithms.WordRAM.TwoSAT
+

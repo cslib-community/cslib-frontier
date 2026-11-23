@@ -6021,7 +6021,7 @@ register_result "selected-entries-subset-convolution-timem" where
     |queries| sum_{s <= j <= 2t} (2t choose j)) is exact. Weights in a commutative ring."
 
 register_result "twosat-linear-timem" where
-  title := "Aspvall–Plass–Tarjan linear-time 2-SAT solver and witness construction in TimeM"
+  title := "Aspvall–Plass–Tarjan implication-graph 2-SAT solver and witness construction"
   topic := "algorithms"
   sources := [
     { paper := AspvallPlassTarjan1979, theorem := unverified, locator := unverified }
@@ -6029,12 +6029,13 @@ register_result "twosat-linear-timem" where
   theorems := [
     Cslib.Algorithms.Lean.TwoSAT.solve_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solve_iff,
-    Cslib.Algorithms.Lean.TwoSAT.time_solveFinM_le,
+    Cslib.Algorithms.Lean.TwoSAT.solveFin_eq_some,
     Cslib.Algorithms.Lean.TwoSAT.isSome_solveNat_iff
   ]
-  scope := "Linear-time 2-SAT decision and satisfying-assignment construction via Kosaraju SCCs \
-    of the implication graph in TimeM (at most 12 * n + 8 * |φ| + 1 steps on CNF (Fin n)), \
-    together with variable compaction connecting solveNat to Cslib.Complexity.TwoSAT."
+  scope := "Pure 2-SAT decision and satisfying-assignment construction via Kosaraju strongly \
+    connected components of the implication graph on CNF V and CNF (Fin n), together with \
+    variable compaction connecting solveNat to Cslib.Complexity.TwoSAT. Linear-time standard-basis \
+    Word-RAM execution is registered separately in twosat-linear-wordram."
 
 register_result "twosat-polytime" where
   title := "Native multi-tape polynomial-time 2-SAT decision and witness construction"
