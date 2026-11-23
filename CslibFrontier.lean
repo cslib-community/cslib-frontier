@@ -1223,6 +1223,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperserCore.Re
 public import CslibFrontier.Computability.Circuit.Boolean.AffineDisperserCore.State
 public import CslibFrontier.Computability.Circuit.Boolean.AltFormula
 public import CslibFrontier.Computability.Circuit.Boolean.AltFormula.TopDown
+public import CslibFrontier.Computability.Circuit.Boolean.ApproximateCount
 public import CslibFrontier.Computability.Circuit.Boolean.Arithmetic
 public import CslibFrontier.Computability.Circuit.Boolean.ArithmeticRing
 public import CslibFrontier.Computability.Circuit.Boolean.AtLeast
@@ -1512,6 +1513,7 @@ public import CslibFrontier.Computability.Circuit.Boolean.Tableau.ValueGame
 public import CslibFrontier.Computability.Circuit.Boolean.Threshold
 public import CslibFrontier.Computability.Circuit.Boolean.Threshold.Parity
 public import CslibFrontier.Computability.Circuit.Boolean.ThresholdNC1
+public import CslibFrontier.Computability.Circuit.Boolean.ThresholdReconstruction
 public import CslibFrontier.Computability.Circuit.Boolean.TopDown
 public import CslibFrontier.Computability.Circuit.Boolean.Tournament
 public import CslibFrontier.Computability.Circuit.Boolean.Tribes
