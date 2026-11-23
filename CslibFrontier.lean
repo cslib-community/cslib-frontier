@@ -6900,6 +6900,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
+public import CslibFrontier.Foundations.BooleanAnalysis.UncertaintyPrinciple
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
 public import CslibFrontier.Foundations.Combinatorics.Additive.BkSequence
 public import CslibFrontier.Foundations.Combinatorics.Additive.SumsetCover
