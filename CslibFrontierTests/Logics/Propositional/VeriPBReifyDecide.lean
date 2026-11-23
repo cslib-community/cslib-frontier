@@ -18,18 +18,16 @@ on small proofs, checked by `decide +kernel`:
 * the reification `x3 ⇔ 2 x1 + x2 ≥ 2` of a fresh variable, under an objective, as
   `runTop_reify` predicts, and its rejection for a variable that is not fresh;
 * `reifySteps`, which reifies `x3 ⇔ x1 + x2 ≥ 2`, wraps `x3` from the unit clauses `x1` and `x2`,
-  unwraps `x1 + x2 ≥ 2` and refutes `~x1 + ~x2 ≥ 1`;
-* `fusionSteps`, fusion resolution under the guard `x3`: from `x3 ∧ x2 ⇒ x1` and
-  `x3 ∧ ~x2 ⇒ x1`, derive `x3 ⇒ x1`.
+  unwraps `x1 + x2 ≥ 2` and refutes `~x1 + ~x2 ≥ 1`.
 
-Both proofs are also written out as kernel text, `reifyText` and `fusionText`, as a small printer
-of the steps renders them (the printer is outside the test suite), and the text front end accepts
-them. VeriPB 3.0.2 and CakePB both report `s VERIFIED UNSATISFIABLE` on these texts with
-`F₁Text` and `F₂Text`. -/
+The proof is also written out as kernel text, `reifyText`, as a small printer of the steps renders
+it (the printer is outside the test suite), and the text front end accepts it. VeriPB 3.0.2 and
+CakePB both report `s VERIFIED UNSATISFIABLE` on this text with `F₁Text`. The ordinary-import
+client of the same API is `CslibFrontierTests.Logics.Propositional.VeriPBReify`. -/
 
 set_option linter.privateModule false
 
-namespace CslibFrontierTests.Logics.Propositional.VeriPBReify
+namespace CslibFrontierTests.Logics.Propositional.VeriPBReifyDecide
 
 open Cslib.Logic.PL Cslib.Logic.PL.VeriPB PBConstr
 
@@ -92,43 +90,9 @@ def reifyText : String :=
   "pol 7 1 1 * + ;\npol 8 2 1 * + ;\npol 5 9 2 * + ;\npol 10 3 + ;\n" ++
   "output NONE ;\nconclusion UNSAT : 11 ;\nend pseudo-Boolean proof ;\n"
 
-
 def F₁Text : String :=
   "* #variable= 2 #constraint= 3\n1 x1 >= 1 ;\n1 x2 >= 1 ;\n1 ~x1 1 ~x2 >= 1 ;\n"
 
 example : Text.checkOPB F₁Text reifyText = some (.unsat 11) := by decide +kernel
 
-/-! ### Fusion resolution under an implication -/
-
-/-- `x3 ∧ x2 ⇒ x1`, `x3 ∧ ~x2 ⇒ x1`, `x3`, `~x1`. -/
-def F₂ : List PBConstr :=
-  [impl [(2, true), (1, true)] ⟨[(1, (0, true))], 1⟩,
-    impl [(2, true), (1, false)] ⟨[(1, (0, true))], 1⟩, ⟨[(1, (2, true))], 1⟩,
-    ⟨[(1, (0, false))], 1⟩]
-
-/-- Fuse `1` and `2` into `x3 ⇒ x1` (`9`, after the subproof `5` … `8`), unwrap `x1` with `3`
-(`10`), and add `4` (`11`). -/
-def fusionSteps : List TopStep :=
-  [.step (fusion [(2, true)] ⟨[(1, (0, true))], 1⟩ 1 2 1 1 5),
-    .step (resolveGuard 9 3 1), .step (.pol [.id 10, .id 4, .add])]
-
-example : checkRed F₂ none ⟨fusionSteps, .unsat 11⟩ = true := by decide +kernel
-
-/-- The fused constraint `9` is `x3 ⇒ x1`. -/
-example : (runTop F₂ none (State.init F₂ none none) fusionSteps).map (lookup ·.db 9) =
-    some (some (impl [(2, true)] ⟨[(1, (0, true))], 1⟩).normalize) := by decide +kernel
-
-def fusionText : String :=
-  "pseudo-Boolean proof version 3.0\nf 4 ;\n" ++
-  "pbc 1 ~x3 1 x1 >= 1 : subproof\npol 1 5 + 1 d ;\npol 2 5 + 1 d ;\nrup >= 1 : 5 6 7 ;\n" ++
-  "qed : 8 ;\npol 9 3 1 * + ;\npol 10 4 + ;\n" ++
-  "output NONE ;\nconclusion UNSAT : 11 ;\nend pseudo-Boolean proof ;\n"
-
-
-def F₂Text : String :=
-  "* #variable= 3 #constraint= 4\n1 ~x3 1 ~x2 1 x1 >= 1 ;\n1 ~x3 1 x2 1 x1 >= 1 ;\n1 x3 >= 1 ;\n" ++
-  "1 ~x1 >= 1 ;\n"
-
-example : Text.checkOPB F₂Text fusionText = some (.unsat 11) := by decide +kernel
-
-end CslibFrontierTests.Logics.Propositional.VeriPBReify
+end CslibFrontierTests.Logics.Propositional.VeriPBReifyDecide

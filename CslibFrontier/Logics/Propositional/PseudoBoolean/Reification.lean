@@ -30,21 +30,21 @@ rule is added.
   `red ¬z ⇒ ¬C : z ↦ 1`, each with an empty subproof, as the kernel format requires (CakePB
   rejects `red` without one). For `z` fresh, every goal is autoproven: `C|ω` and the objective goal
   are trivially true, `ω` touches no constraint of the database, and for the second step the goal
-  of `z ⇒ C` is weakly syntactically implied by `¬(C ⇒ z)`
-  (`Cslib.Logic.PL.PBConstr.weakImplies_reify`, proved through the linear forms of normalized
-  constraints). So `Cslib.Logic.PL.VeriPB.runTop_reify` derives both halves for every `C` not
-  mentioning `z` that is not a contradiction after normalization. That last hypothesis is needed:
-  for a contradiction of slack above `1`, `negate` truncates its degree and the autoproof fails.
+  of `z ⇒ C` is weakly syntactically implied by `¬(C ⇒ z)` (proved through the linear forms of
+  normalized constraints). So `Cslib.Logic.PL.VeriPB.runTop_reify` derives both halves for every
+  `C` not mentioning `z` that is not a contradiction after normalization. That last hypothesis is
+  needed: for a contradiction of slack above `1`, `negate` truncates its degree and the autoproof
+  fails.
 * **Wrapping and unwrapping** (§2.2). `resolveGuard a b K` adds `K` times the clause `b` to the
   implication `a`: from `r ⇒ C` and `s ⇒ r` it derives `s ⇒ C`, and from `r ⇒ C` and `r` it
   unwraps `C`; `runStep_resolveGuard_wrap` and `runStep_resolveGuard_unwrap` show that the derived
   constraint has exactly the linear form of `s ⇒ C`, or of `C`, so it is that constraint up to the
-  order of its terms. Lifting a whole derivation under a guard is Theorem 1, in
-  `CslibFrontier.Logics.Propositional.CuttingPlanes.Reification`.
-* **Fusion resolution** (§3.2). `fusion R C p q A A' n` derives `⋀ R ⇒ C ≥ min(A, A')` from
-  `⋀ R ∧ r ⇒ C ≥ A` and `⋀ R ∧ ¬r ⇒ C ≥ A'` by a `pbc` subproof: two cutting-planes steps and a
-  RUP step with hints. Its acceptance is checked on examples, not proved in general.
+  order of its terms. Lifting a whole integer cutting-planes derivation under a guard, an
+  unsaturated step after the paper's Theorem 1, is in
+  `CslibFrontier.Logics.Propositional.CuttingPlanes.Reification`; lifting VeriPB derivations,
+  with saturation and RUP, remains open in #7222.
 
+Fusion resolution under implications (§3.2) is not provided here; it is also open in #7222.
 The knapsack proofs of the paper's milestone use these combinators: its layer states
 `S^i_{w,p}` reify sums by `reify`, and its transitions are guard resolutions and RUP steps.
 
@@ -54,8 +54,7 @@ The knapsack proofs of the paper's milestone use these combinators: its layer st
 * `Cslib.Logic.PL.VeriPB.State.fresh`: a variable occurs nowhere in the checker state.
 * `Cslib.Logic.PL.VeriPB.reifyFwd`, `Cslib.Logic.PL.VeriPB.reifyBwd`,
   `Cslib.Logic.PL.VeriPB.reify`: the reification steps.
-* `Cslib.Logic.PL.VeriPB.resolveGuard`, `Cslib.Logic.PL.VeriPB.fusion`: wrapping, unwrapping and
-  fusion resolution.
+* `Cslib.Logic.PL.VeriPB.resolveGuard`: wrapping and unwrapping.
 
 ## Main results
 
@@ -112,11 +111,6 @@ theorem holds_impl (σ : ℕ → Bool) (R : List (Literal ℕ)) (c : PBConstr) :
         ⟨(c.degree, Std.Sat.Literal.negate l), List.mem_map.2 ⟨l, hl, rfl⟩, rfl⟩))
       simp [termVal, hf]
     exact ⟨fun _ h' => absurd (h' l hl) hf, fun _ => le_trans hle (Nat.le_add_right _ _)⟩
-
-/-- `z ⇒ c`. -/
-theorem holds_impl_pos (σ : ℕ → Bool) (z : ℕ) (c : PBConstr) :
-    (impl [(z, true)] c).Holds σ ↔ (σ z = true → c.Holds σ) := by
-  simp [holds_impl]
 
 /-- `c ⇒ z`, as `¬z ⇒ ¬c`. -/
 theorem holds_impl_neg_negate (σ : ℕ → Bool) (z : ℕ) (c : PBConstr) :
@@ -177,15 +171,6 @@ private theorem nodup_keys_subLinear {L : List (ℕ × ℤ)} (h : (keys L).Nodup
     ∀ L' : List (ℕ × ℤ), (keys (VeriPB.subLinear L L')).Nodup
   | [] => h
   | _ :: L' => nodup_keys_insertCoeff (nodup_keys_subLinear h L')
-
-private theorem insertCoeff_of_not_mem {v : ℕ} {a : ℤ} {L : List (ℕ × ℤ)} (h : v ∉ keys L) :
-    insertCoeff v a L = L ++ [(v, a)] := by
-  induction L with
-  | nil => rfl
-  | cons e L ih =>
-    obtain ⟨u, b⟩ := e
-    simp only [List.map_cons, List.mem_cons, not_or] at h
-    simp [insertCoeff, Ne.symm h.1, ih h.2]
 
 private theorem sing_insertCoeff (v : ℕ) (a : ℤ) (L : List (ℕ × ℤ)) :
     sing (insertCoeff v a L) = Finsupp.single v a + sing L := by
@@ -518,7 +503,7 @@ private theorem substC_one {z : ℕ} {c : PBConstr}
 /-- **The reverse reification is autoproven against the forward one**: `¬(c ⇒ z)` weakly
 syntactically implies `(z ⇒ c)|_{z ↦ 1}`, for `z` not in `c` and `c` not a contradiction after
 normalization. Both have the linear form of `c`, and the first adds `-K z`. -/
-theorem weakImplies_reify {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
+private theorem weakImplies_reify {z : ℕ} {c : PBConstr} (hz : z ∉ c.vars)
     (hnc : ¬ c.normalize.IsContradiction) :
     VeriPB.weakImplies (impl [(z, false)] c.negate).negate
       (VeriPB.Witness.substC [(z, .one)] (impl [(z, true)] c).normalize) = true := by
@@ -671,12 +656,12 @@ private theorem substC_impl_single {z : ℕ} {w : VeriPB.WVal} {b : Bool} {c : P
   rw [this]; exact normalize_degree_of_degree_zero _
 
 /-- `(z ⇒ c)|_{z ↦ 0}` is trivially true. -/
-theorem substC_zero_impl_pos {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
+private theorem substC_zero_impl_pos {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
     (VeriPB.Witness.substC [(z, .zero)] (impl [(z, true)] c)).normalize.degree = 0 :=
   substC_impl_single h (by simp [VeriPB.Witness.substTerm, find_single, Std.Sat.Literal.negate])
 
 /-- `(c ⇒ z)|_{z ↦ 1}` is trivially true. -/
-theorem substC_one_impl_neg {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
+private theorem substC_one_impl_neg {z : ℕ} {c : PBConstr} (h : z ∉ c.vars) :
     (VeriPB.Witness.substC [(z, .one)] (impl [(z, false)] c)).normalize.degree = 0 :=
   substC_impl_single h (by simp [VeriPB.Witness.substTerm, find_single, Std.Sat.Literal.negate])
 
@@ -1019,7 +1004,7 @@ theorem runTop_reify {F : List PBConstr} {obj : Option Objective} {s : State} {z
         · exact absurd hz (hdb e (List.mem_append_right _ he))
       · exact absurd hz (hdb e (List.mem_append_right _ he))
 
-/-! ### Wrapping, unwrapping and fusion -/
+/-! ### Wrapping and unwrapping -/
 
 /-- **Resolving a guard**: `pol a b K * +`, the constraint `a` plus `K` times the constraint `b`.
 For `a` the implication `r ⇒ C` with reification coefficient `K` and `b` the clause `¬s ∨ r`
@@ -1057,16 +1042,6 @@ theorem runStep_resolveGuard_unwrap {db : List (ℕ × PBConstr)} {n a b z : ℕ
       d.toIneq = c.normalize.toIneq ∧ ∀ σ, d.Holds σ ↔ c.Holds σ := by
   refine ⟨_, runStep_resolveGuard ha hb hK, toIneq_resolveGuard_unit hz, fun σ => ?_⟩
   rw [← holds_toIneq_iff, toIneq_resolveGuard_unit hz, holds_toIneq_iff, holds_normalize]
-
-/-- **Fusion resolution under implications** (§3.2 of the paper): from `p`, the implication
-`⋀ R ∧ r ⇒ C ≥ A`, and `q`, the implication `⋀ R ∧ ¬r ⇒ C ≥ A'`, derive `⋀ R ⇒ c`, for `c` the
-constraint `C ≥ min(A, A')`, by contradiction. With `¬(⋀ R ⇒ c)` numbered `n`, the next number,
-the constraint `p` plus it, divided by `A`, is `¬r` under the guard; likewise `q` gives `r`; and
-`0 ≥ 1` follows by RUP along these three. -/
-def fusion (R : List (Literal ℕ)) (c : PBConstr) (p q A A' n : ℕ) : Step :=
-  .pbc (impl R c)
-    [.pol [.id p, .id n, .add, .div A], .pol [.id q, .id n, .add, .div A'],
-      .rup ⟨[], 1⟩ [.id n, .id (n + 1), .id (n + 2)]] (n + 3)
 
 end VeriPB
 
