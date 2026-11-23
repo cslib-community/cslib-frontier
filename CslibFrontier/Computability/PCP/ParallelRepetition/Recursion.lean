@@ -105,9 +105,7 @@ theorem le_pow_of_step {b : ℝ} (hb : 0 < b) (hvb : v ≤ b) (hp0 : p 0 = 1)
     have herr : C * Real.sqrt ((m * L + Real.log (1 / p m)) / (n - m)) ≤ b - v :=
       calc C * Real.sqrt ((m * L + Real.log (1 / p m)) / (n - m))
           ≤ |C| * Real.sqrt ((m * L + (m + 1) * Real.log (1 / b)) / (n - m)) :=
-            mul_le_mul (le_abs_self C)
-              (Real.sqrt_le_sqrt (div_le_div_of_nonneg_right (add_le_add le_rfl hlog) hnm.le))
-              (Real.sqrt_nonneg _) (abs_nonneg C)
+            by gcongr; exact le_abs_self C
         _ = Real.sqrt (C ^ 2 * ((m * L + (m + 1) * Real.log (1 / b)) / (n - m))) := by
             rw [Real.sqrt_mul (sq_nonneg C), Real.sqrt_sq_eq_abs]
         _ ≤ Real.sqrt ((b - v) ^ 2) := by

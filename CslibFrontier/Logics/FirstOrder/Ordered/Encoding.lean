@@ -196,9 +196,7 @@ private theorem shifted_frame_true_iff (w : List Bool) (base p : ℕ) :
 private theorem append_true_iff (u w : List Bool) (p : ℕ) :
     (u ++ w)[p]? = some true ↔
       u[p]? = some true ∨ (u.length ≤ p ∧ w[p - u.length]? = some true) := by
-  by_cases hp : p < u.length
-  · simp [List.getElem?_append_left hp, Nat.not_le.mpr hp]
-  · simp [List.getElem?_append_right (Nat.le_of_not_gt hp), Nat.le_of_not_gt hp]
+  grind
 
 private theorem prefix_length_lt {a : EncodedStructure} (ha : v.WellFormed a)
     {B : ℕ} (hB : (encStructure a).length < B) {m : ℕ} (hm : m ≤ v.count) :

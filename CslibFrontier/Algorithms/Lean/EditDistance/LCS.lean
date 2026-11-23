@@ -31,7 +31,6 @@ and an insertion keeps the cost, so this is also the least cost of a script with
 
 * `Cslib.Algorithms.Lean.EditDistance.lcsLength`: the table entry.
 * `Cslib.Algorithms.Lean.EditDistance.lcs`: a longest common subsequence, by traceback.
-* `Cslib.Algorithms.Lean.EditDistance.lcsLengthM`: the algorithm in `TimeM`.
 * `Cslib.Algorithms.Lean.EditDistance.EditScript.kept`: the letters a script keeps.
 * `Cslib.Algorithms.Lean.EditDistance.EditScript.IsIndel`: a script with no replacement by a
   different letter; `EditScript.splitSubs` turns a script into one.
@@ -39,7 +38,8 @@ and an insertion keeps the cost, so this is also the least cost of a script with
 ## Main results
 
 * `Cslib.Algorithms.Lean.EditDistance.length_le_lcsLength`: every common subsequence has length at
-  most `lcsLength x y`.
+  most `lcsLength x y` (`lcsLength_le_left` and `lcsLength_le_right` bound `lcsLength x y` by `|x|`
+  and `|y|`).
 * `Cslib.Algorithms.Lean.EditDistance.lcs_spec`: `lcs x y` is a common subsequence of length
   `lcsLength x y`.
 * `Cslib.Algorithms.Lean.EditDistance.isGreatest_lcsLength`: `lcsLength x y` is the greatest
@@ -48,9 +48,9 @@ and an insertion keeps the cost, so this is also the least cost of a script with
   `editDist Costs.indel x y + 2 · lcsLength x y = |x| + |y|`.
 * `Cslib.Algorithms.Lean.EditDistance.isLeast_editDist_indel`: `editDist Costs.indel x y` is the
   least cost of a script from `x` to `y` with no replacement by a different letter.
-* `Cslib.Algorithms.Lean.EditDistance.ret_lcsLengthM`, `time_lcsLengthM`: `lcsLengthM` returns
-  `lcsLength x y` and costs exactly `(|x| + 1) (|y| + 1)`, one unit per table entry (see the cost
-  model of `Cslib.Algorithms.Lean.EditDistance.GridDP.valueM`).
+
+Word-RAM running-time bounds for longest-common-subsequence length are proved in
+`CslibFrontier.Algorithms.WordRAM.EditDistance`.
 
 ## References
 
@@ -76,9 +76,6 @@ variable {α : Type*} [DecidableEq α]
 
 /-- The length of a longest common subsequence of `x` and `y`: the table entry. -/
 @[expose] def lcsLength (x y : List α) : ℕ := lcsTable.value x y
-
-/-- The longest-common-subsequence algorithm in `TimeM`, charging one unit per table entry. -/
-@[expose] def lcsLengthM (x y : List α) : TimeM ℕ ℕ := lcsTable.valueM x y
 
 @[simp] theorem lcsLength_nil_left (y : List α) : lcsLength [] y = 0 := by
   induction y with
@@ -173,15 +170,13 @@ theorem isGreatest_lcsLength (x y : List α) :
   rintro k ⟨z, hx, hy, rfl⟩
   exact length_le_lcsLength hx hy
 
-/-- `lcsLengthM` computes `lcsLength`. -/
-@[simp] theorem ret_lcsLengthM (x y : List α) : (lcsLengthM x y).ret = lcsLength x y :=
-  lcsTable.ret_valueM x y
+theorem lcsLength_le_left (x y : List α) : lcsLength x y ≤ x.length := by
+  obtain ⟨hx, _, hlen⟩ := lcs_spec x y
+  exact hlen ▸ hx.length_le
 
-/-- The longest-common-subsequence algorithm costs exactly `(|x| + 1) (|y| + 1)`, one unit per
-table entry. -/
-theorem time_lcsLengthM (x y : List α) :
-    (lcsLengthM x y).time = (x.length + 1) * (y.length + 1) :=
-  lcsTable.time_valueM x y
+theorem lcsLength_le_right (x y : List α) : lcsLength x y ≤ y.length := by
+  obtain ⟨_, hy, hlen⟩ := lcs_spec x y
+  exact hlen ▸ hy.length_le
 
 /-! ### Insertion–deletion distance -/
 
@@ -339,12 +334,7 @@ theorem editDist_indel_nil_left (y : List α) : editDist Costs.indel [] y = y.le
 /-- Deleting every letter of `x` and inserting every letter of `y`. -/
 theorem editDist_indel_le_length_add (x y : List α) :
     editDist Costs.indel x y ≤ x.length + y.length := by
-  induction x with
-  | nil => exact Nat.le_of_eq (by rw [editDist_indel_nil_left, List.length_nil, Nat.zero_add])
-  | cons a x ih =>
-    have := editDist_cons_left_le Costs.indel a x y
-    simp only [Costs.indel_del, List.length_cons] at this ⊢
-    omega
+  simpa [Costs.indel] using editDist_le_sum_del_ins (Costs.indel (α := α)) x y
 
 /-- A common subsequence `z` of `x` and `y` gives a script keeping `z`. -/
 theorem editDist_indel_add_two_mul_le : ∀ {x y z : List α}, z <+ x → z <+ y →

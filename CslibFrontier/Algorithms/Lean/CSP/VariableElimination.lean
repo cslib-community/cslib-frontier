@@ -966,8 +966,7 @@ private theorem time_elimVarM_le {R V : Type} [Semiring R] [DecidableEq V] {d : 
                 (d ^ (bucketOutScope x bucket).length * d) *
                   (1 + bucket.length + (bucket.map fun f => f.scope.length).sum)) := by ring
         _ ≤ M + (d ^ W * W + d ^ W * (1 + bucket.length + bucket.length * max S W)) :=
-            Nat.add_le_add hlen (Nat.add_le_add (Nat.mul_le_mul hpow_out hout_le)
-              (Nat.mul_le_mul hpow_joint (by omega)))
+            by gcongr
         _ = M + d ^ W * (W + (bucket.length * (max S W + 1) + 1)) := by ring
         _ ≤ M + 1 + d ^ W * (W + (bucket.length * (max S W + 1) + 1)) := by omega
   · simp only [elimVarM, hx, ↓reduceIte, TimeM.time_pure]
@@ -1017,8 +1016,7 @@ theorem time_eliminateOrderM_le {R V : Type} [Semiring R] [DecidableEq V] {d : �
                 (xs.length * (init.live.length + 1) +
                   d ^ W * ((W + 1) * xs.length +
                     ((traceOrder d xs (elimVar d x s)).map
-                      ElimStepStats.bucketFactors).sum * (max S₀ W + 1))) :=
-              Nat.add_le_add hhead htail
+                      ElimStepStats.bucketFactors).sum * (max S₀ W + 1))) := by gcongr
           _ = (xs.length + 1) * (init.live.length + 1) +
                 d ^ W * ((W + 1) * (xs.length + 1) +
                   ((stepStats d x s).bucketFactors +
