@@ -130,9 +130,6 @@ theorem shiftRight_lt_pow_sub {m h a : ℕ} (hle : h ≤ m) (ha : a < 2 ^ m) :
 private theorem fits_mask_of_le {w n : ℕ} (h : n ≤ w) : Fits w (2 ^ n - 1) :=
   (Nat.sub_lt (Nat.two_pow_pos n) one_pos).trans_le (Nat.pow_le_pow_right two_pos h)
 
-private theorem fits_and_mask {w a n : ℕ} (h : n ≤ w) : Fits w (a &&& (2 ^ n - 1)) :=
-  (and_two_pow_sub_one_lt a n).trans_le (Nat.pow_le_pow_right two_pos h)
-
 /-- Bit offset `(idx &&& (2 ^ reducedPackShift t w - 1)) * (2 * reducedChunkBits t)` of a packed
 carryless-multiplication table slot fits below the word width `w`. -/
 theorem packSlot_sh_lt {t w idx : ℕ} (h2c : 2 * reducedChunkBits t ≤ w) :
@@ -565,16 +562,12 @@ theorem clmulTabLoop_exec {w tBase t : ℕ}
       exact ⟨by omega, hy0.trans (by wram_simp), hyword, hyentry,
         fun a ha => (hyout a (by omega)).trans (by wram_simp)⟩
     all_goals first
-      | exact fits_and_mask (by omega)
-      | exact hsh_lt.trans Nat.lt_two_pow_self
-      | exact hprevSh_lt.trans Nat.lt_two_pow_self
       | exact ((Nat.shiftLeft_lt hval_lt).trans_eq
           (congrArg (2 ^ ·) (by rw [add_comm, ← Nat.succ_mul]))).trans_le
           (hpow_sub1.trans hpow_pack)
       | exact ((Nat.shiftRight_le _ _).trans_lt (update_word_lt
           (hmasked_lt.trans_le (Nat.pow_le_pow_right two_pos (Nat.mul_le_mul_right _ hsub_lt.le)))
           hword hprevWIdx_le)).trans_le hpow_pack
-      | exact ((Nat.and_le_left (m := 1)).trans_lt hv_lt).trans_le hpow_c_le |>.trans hfit_2c
 
 private theorem tableSetup_fits {w base w₀ b b' k : ℕ}
     (hc_lt : 2 * reducedChunkBits (reducedTrinomialStep w₀ b b') < w)
@@ -968,16 +961,7 @@ theorem reduceKeyCode_exec {w w₀ b : ℕ} (hw₀_pos : 0 < w₀) (hw₀ : w₀
   obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, hodd⟩ := oddMulModWord_parts_lt hw₀_pos hα hu
   unfold reduceKeyCode halfMulSetupCode halfMulCombineCode finishReduceCode
   wram_exec
-  · wram_simp [oddMulModWord, halfMulMod]
-  all_goals
-    first
-    | exact fits_mask_of_le (by omega)
-    | exact fits_and_mask (by omega)
-    | exact Nat.lt_of_le_of_lt (by omega : _ ≤ w) Nat.lt_two_pow_self
-    | exact ((Nat.shiftRight_le _ _).trans_lt hα_w).trans_le hpow_w0
-    | exact ((Nat.shiftRight_le _ _).trans_lt
-        ((and_two_pow_sub_one_lt _ _).trans hpow_m)).trans_le hpow_w0
-    | exact ((Nat.shiftRight_le _ _).trans_lt hodd).trans_le hpow_w0
+  wram_simp [oddMulModWord, halfMulMod]
 
 /-- Step `m` of Stage 2 (`5` instructions): extracts limb `m` of `r_val` from `reg 3` into `xReg m`,
 shifts `reg 3` right by `c`, and zeroes `accReg m`. -/

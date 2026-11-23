@@ -160,14 +160,16 @@ theorem IsFPAUS.closeTo_retrySampler (hS : IsFPAUS enc W S) (x : α) (q : ℕ) :
   set ε := (1 / 2 : ℝ) ^ q
   have he : 0 ≤ ε := by positivity
   have hf : (μ none).toReal ≤ ε / 4 := by
-    rw [hnone, ENNReal.toReal_pow]
+    rw [hnone]
+    ennreal_to_real
     calc _ ≤ (1 / 2 : ℝ) ^ (q + 2) := by gcongr
       _ = _ := by rw [pow_add]; ring
   obtain ⟨φ, -, hφ⟩ := hS.pointwise x
-  let K := (∑ i ∈ Finset.range (q + 2), p none ^ i).toReal
-  have hK : 0 ≤ K := ENNReal.toReal_nonneg
+  let K := ∑ i ∈ Finset.range (q + 2), (p none).toReal ^ i
+  have hK : 0 ≤ K := Finset.sum_nonneg fun _ _ => pow_nonneg ENNReal.toReal_nonneg _
   have hm (v : List Bool) : (μ (some v)).toReal = (p (some v)).toReal * K := by
-    rw [hsome, ENNReal.toReal_mul]
+    dsimp only [K]
+    ennreal_to_real using hsome v
   have hε' : (1 / 2 : ℝ) ^ (q + 2 + 1) = ε / 8 := by rw [pow_add, pow_add]; ring
   have hp (v : List Bool) (hv : v ∈ W x) := hφ (q + 2) v hv
   have hl := (hp w hw).1
@@ -184,8 +186,8 @@ theorem IsFPAUS.closeTo_retrySampler (hS : IsFPAUS enc W S) (x : α) (q : ℕ) :
   rw [nsmul_eq_mul] at hsum
   have htotal := μ.tsum_coe
   rw [Probability.tsum_option_eq, tsum_eq_sum (s := W x) hvalid] at htotal
-  ennreal_to_real at htotal
-  rw [ENNReal.ofReal_le_iff_le_toReal (PMF.apply_ne_top _ _), div_le_iff₀ hN]
+  ennreal_to_real at htotal ⊢
+  rw [div_le_iff₀ hN]
   have hc : (1 - ε) * (1 + ε / 8) ^ 2 ≤ 1 - ε / 4 := by
     nlinarith [sq_nonneg ε, mul_nonneg (sq_nonneg ε) he]
   have hge : 1 - ε / 4 ≤ ((μ (some w)).toReal * (W x).card) * (1 + ε / 8) ^ 2 := by

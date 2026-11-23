@@ -204,14 +204,10 @@ private theorem exec_borrow_framed {w : ℕ} (hw : 2 ≤ w) (bs ds : List (Fin (
     ram_eval [z, radix_fits hw, fits_one (by omega : w ≠ 0), base, one, borrow]
   have he' : Exec w (program w bs ds) x y (6 * ds.length + 4) := by
     convert hsetup.seq he using 1 <;> [rfl; omega]
-  refine ⟨y, he', hyd, hyc, ?_, ?_, hyf.1,
+  refine ⟨y, he', hyd, hyc, (hyf.zero_regs hds).trans (by simp [z, one, borrow]), ?_, hyf.1,
     fun i hi hid => he'.regs_eq (preserves_program w bs ds i hi hid)⟩
-  · rw [hyf.2 one (fun hm => ?_) (by simp [one, total]) (by simp [one])]
-    · simp [z, one, borrow]
-    · have := hds one hm
-      simp [IsDigit] at this
-  · have hzb : z.regs borrow = 0 := by simp [z]
-    simpa only [hzvalue bs hbs, hzvalue ds hds, hzb, Nat.add_zero] using hyeq
+  have hzb : z.regs borrow = 0 := by simp [z]
+  simpa only [hzvalue bs hbs, hzvalue ds hds, hzb, Nat.add_zero] using hyeq
 
 /-- Subtraction followed by clearing its output exactly when the final borrow is one.
 The second alternative is a self-copy, so both branches are executable for empty lists. -/

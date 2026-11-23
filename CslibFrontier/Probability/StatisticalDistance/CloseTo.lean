@@ -11,7 +11,9 @@ public import CslibFrontier.Init
 public import CslibFrontier.Probability.PMF
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.ToReal
+import CslibFrontier.Tactic.ENNRealToReal
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
+import Mathlib.Tactic.Linarith
 
 /-!
 # Statistical distance (`CloseTo`) on probability mass functions
@@ -174,12 +176,9 @@ every event by `ε`. -/
 theorem CloseTo.abs_toReal_sub_le {β : Type} {μ ν : PMF β} {ε : ℝ} (hε : 0 ≤ ε)
     (h : CloseTo μ ν (ENNReal.ofReal ε)) (E : Set β) :
     |(μ.toOuterMeasure E).toReal - (ν.toOuterMeasure E).toReal| ≤ ε := by
-  have hμ := PMF.toOuterMeasure_ne_top μ E
-  have hν := PMF.toOuterMeasure_ne_top ν E
-  have h₁ := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hν, ENNReal.ofReal_ne_top⟩) (h E)
-  have h₂ := ENNReal.toReal_mono (ENNReal.add_ne_top.2 ⟨hμ, ENNReal.ofReal_ne_top⟩) (h.symm E)
-  rw [ENNReal.toReal_add hν ENNReal.ofReal_ne_top, ENNReal.toReal_ofReal hε] at h₁
-  rw [ENNReal.toReal_add hμ ENNReal.ofReal_ne_top, ENNReal.toReal_ofReal hε] at h₂
+  have h₁ := h E
+  have h₂ := h.symm E
+  ennreal_to_real at h₁ h₂
   rw [abs_le]
   constructor <;> linarith
 
@@ -213,14 +212,7 @@ theorem CloseTo.toReal_apply_le_of_uniformOfFintype {α : Type} [Fintype α] [No
   have ha := h.symm {a}
   rw [PMF.toOuterMeasure_apply_singleton, PMF.toOuterMeasure_apply_singleton,
     PMF.uniformOfFintype_apply] at ha
-  have hinv_ne : (Fintype.card α : ℝ≥0∞)⁻¹ ≠ ⊤ :=
-    ENNReal.inv_ne_top.mpr (Nat.cast_ne_zero.mpr Fintype.card_ne_zero)
-  have hne : (Fintype.card α : ℝ≥0∞)⁻¹ + (δ : ℝ≥0∞) ≠ ⊤ :=
-    ENNReal.add_ne_top.mpr ⟨hinv_ne, ENNReal.coe_ne_top⟩
-  calc (ν a).toReal
-      ≤ ((Fintype.card α : ℝ≥0∞)⁻¹ + δ).toReal := ENNReal.toReal_mono hne ha
-    _ = 1 / Fintype.card α + δ := by
-      rw [ENNReal.toReal_add hinv_ne ENNReal.coe_ne_top,
-        ENNReal.toReal_inv, ENNReal.toReal_natCast, ENNReal.coe_toReal, one_div]
+  ennreal_to_real at ha
+  linarith [one_div (Fintype.card α : ℝ)]
 
 end Cslib.Probability

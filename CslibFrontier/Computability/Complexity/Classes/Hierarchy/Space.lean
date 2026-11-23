@@ -157,21 +157,15 @@ theorem computableInTimeAndSpace_spaceDiagonal {G : ℕ → ℕ} (hG : SpaceCons
     ∃ c t, ComputableInTimeAndSpace (spaceDiagonal G) encBits encBool t
       fun x => c * (G x.length + Nat.log2 x.length + 1) := by
   -- the description and the symbols of the input, in logarithmic space
-  have hD : ComputableInLogSpace (fun x => decodeDesc (tinyCut x)) encBits (encFramed eDesc) :=
-    (ComputableInLogSpace.of_frame (encIn := eDesc) (encOut := encFramed eDesc)
-      (f := fun d => d) fun _ => rfl).comp computableInLogSpace_decodeDesc_tinyCut
-  have hS : ComputableInLogSpace (fun x : List Bool => x.map eBit) encBits
-      (encFramed (encList encUnary)) :=
-    (ComputableInLogSpace.of_frame (encIn := encList encUnary)
-      (encOut := encFramed (encList encUnary)) (f := fun l => l) fun _ => rfl).comp
-      ((symbolsT.computableInLogSpace (encIn := encTrueDoubled) (encOut := encList encUnary)
-        (f := fun x : List Bool => x.map eBit) fun x => (symbolsT_run x).symm).comp
-        (trueDoubleT.computableInLogSpace (encIn := encBits) (encOut := encTrueDoubled)
-          (f := fun x => x) fun x => (trueDoubleT_run x).symm))
-  have hAB := ComputableInLogSpace.append (encOut := encBits)
-    (g := fun x => frame (eDesc (decodeDesc (tinyCut x))) ++
-      frame (encList encUnary (x.map eBit))) hD hS fun _ => rfl
-  obtain ⟨tAB, cAB, hAB⟩ := hAB
+  have hD := computableInLogSpace_decodeDesc_tinyCut
+  have hS : ComputableInLogSpace (fun x : List Bool => x.map eBit) encBits (encList encUnary) :=
+    (symbolsT.computableInLogSpace (encIn := encTrueDoubled) (encOut := encList encUnary)
+      (f := fun x : List Bool => x.map eBit) fun x => (symbolsT_run x).symm).comp
+      (trueDoubleT.computableInLogSpace (encIn := encBits) (encOut := encTrueDoubled)
+        (f := fun x => x) fun x => (trueDoubleT_run x).symm)
+  obtain ⟨tAB, cAB, hAB⟩ : ComputableInLogSpace
+      (fun x => frame (eDesc (decodeDesc (tinyCut x))) ++ frame (encList encUnary (x.map eBit)))
+      encBits encBits := by fun_prop
   obtain ⟨dAB, hAB⟩ := hAB.exists_computableTidilyInTimeAndSpace
   -- the clock and the budget, within space `O(G n)`
   obtain ⟨TG, hGb⟩ := hG.computableInO

@@ -10,7 +10,7 @@ module
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Cell
 
 import CslibFrontier.Computability.WordRAM.CountingLoop
-import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 
 /-!
 # Charged shared-coordinate array loop
@@ -111,10 +111,6 @@ instance (i : Fin 32) : Decidable (StageLocal i) :=
   inferInstanceAs (Decidable (CellLocal i ∨ i = stride ∨ i = stageSize ∨ i = src ∨
     i = dst ∨ i = prefixes ∨ i = stage))
 
-private theorem stage_preserves (side : Bool) (i : Fin 32) :
-    9 ≤ i.val → ¬StageLocal i → (stageBody side).Preserves i := by
-  decide +kernel +revert
-
 /-- A complete coordinate stage, including stride division, stage-size arithmetic, both
 cell-loop control instructions per entry, buffer alternation and the next-stage counters. -/
 theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
@@ -140,40 +136,24 @@ theorem exec_stageBody {w : ℕ} (hw : 0 < w) (side : Bool) (x : Data 32)
   have hN : Fits (w + 2) (P * 10 * n) := haddr.of_le (by nlinarith)
   have hnfit : Fits (w + 2) n := haddr.of_le (by nlinarith)
   have hdiv : 7 * n / 7 = n := by omega
-  let z := (((x.set stride n).set stageSize (P * 10)).set stageSize (P * 10 * n)).set cell 0
-  have hz : ExecWithin (w + 2) stageHead x z 4 := by
-    ram_eval [stageHead, z, hn, hseven, hp, hten, hdiv, hnfit, h10P, hN,
-      stride, prefixes, ten, seven, stageSize, cell, Fin.mk.injEq]
-  obtain ⟨u, hu, hum, huf, hur⟩ := exec_cells hw side z P n s d hP hnpos
-    (by regs_frame) (by regs_frame)
-    (by simp [z]) (by simp [z, stride, stageSize, cell])
-    (by regs_frame) (by regs_frame) (by regs_frame)
-    (by simp [z, stageSize, cell, Nat.mul_comm]) v B hB hv hmem hval haddr hdisj
-  have us : u.regs dst = d := by regs_frame
-  have uo : u.regs output = o := by regs_frame
-  have uq : u.regs scratch = q := by regs_frame
-  have up : u.regs prefixes = P := by regs_frame
-  have uj : u.regs stage = j := by regs_frame
-  have ut : u.regs ten = 10 := by regs_frame
-  have u1 : u.regs one = 1 := by regs_frame
+  refine WP.exists_execWithin ?_
+  unfold stageBody stageHead stageTail
+  wram_exec [hn, hseven, hp, hten, hdiv, hnfit, h10P, hN]
+  wram_call (exec_cells hw side _ P n s d hP hnpos (by wram_simp [hsrc]) (by wram_simp [hdst])
+    (by wram_simp) (by wram_simp) (by wram_simp [hseven]) (by wram_simp [hten])
+    (by wram_simp [hone]) (by wram_simp; ring) v B hB hv hmem hval haddr hdisj)
+    with u ⟨hum, huf, hur⟩
   have un : u.regs stride = n := by
     rw [hur stride (by decide) (by decide)]
-    simp [z, stride, stageSize, cell]
-  let y := (((u.set src d).set dst (if d = o then q else o)).set prefixes (P * 10)).set
-    stage (j + 1)
-  have hy : ExecWithin (w + 2) stageTail u y 6 := by
-    by_cases hdo : d = o
-    all_goals ram_eval [stageTail, y, us, uo, uq, up, uj, ut, u1, hdo, h10P, hjfit,
-      src, dst, output, scratch, prefixes, stage, ten, one, Fin.mk.injEq]
-  have he : ExecWithin (w + 2) (stageBody side) x y (207 * (10 * P * n) + 12) :=
-    (hz.seq (hu.seq hy)).mono (by omega)
-  refine ⟨y, he, hum, huf, ?_, ?_, ?_, ?_, ?_, ?_⟩
-  · simp [y, src, dst, prefixes, stage]
-  · simp [y, dst, prefixes, stage]
-  · simpa [y, src, dst, prefixes, stage, stride] using un
-  · simp [y, prefixes, stage, Nat.mul_comm]
-  · simp [y]
-  · intro a ha hl
-    exact he.regs_eq (stage_preserves side a ha hl)
+    wram_simp
+  wram_exec * [h10P, hjfit]
+  all_goals
+    refine ⟨hum, huf, by wram_simp, by wram_simp; simp [hc], by wram_simp; exact un,
+      by wram_simp; ring, by wram_simp, fun a ha hl => ?_⟩
+    simp only [StageLocal, CellLocal, not_or] at hl
+    rcases hl with ⟨⟨h1, h2, h3, h4, h5, h6, h7, h8⟩, h9, h10, h11, h12, h13, h14⟩
+    wram_simp
+    rw [hur a ha (by simp [CellLocal, h1, h2, h3, h4, h5, h6, h7, h8])]
+    wram_simp
 
 end Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Encoding

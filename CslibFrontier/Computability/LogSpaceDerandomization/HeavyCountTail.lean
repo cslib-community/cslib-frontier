@@ -138,13 +138,12 @@ private theorem vertexNormPow_add_le_budgets {p : ℕ} (hp : p ≠ 0) {N u : ℝ
     (hf : vertexNormPow p N u X f ≤ a ^ p) (hg : vertexNormPow p N u X g ≤ b ^ p) :
     vertexNormPow p N u X (fun σ x => f σ x + g σ x) ≤ (a + b) ^ p := by
   have h := vertexNormPow_add_rpow_le (X := X) hp hNu f g
-  have hf' := (Real.rpow_le_rpow (vertexNormPow_nonneg hNu f) hf (by positivity)).trans_eq
+  have hf' := (Real.rpow_le_rpow (by positivity) hf (by positivity)).trans_eq
     (Real.pow_rpow_inv_natCast ha hp)
-  have hg' := (Real.rpow_le_rpow (vertexNormPow_nonneg hNu g) hg (by positivity)).trans_eq
+  have hg' := (Real.rpow_le_rpow (by positivity) hg (by positivity)).trans_eq
     (Real.pow_rpow_inv_natCast hb hp)
-  have hpow := pow_le_pow_left₀
-    (Real.rpow_nonneg (vertexNormPow_nonneg hNu _) _) (h.trans (add_le_add hf' hg')) p
-  rwa [Real.rpow_inv_natCast_pow (vertexNormPow_nonneg hNu _) hp] at hpow
+  have hpow := pow_le_pow_left₀ (by positivity) (h.trans (add_le_add hf' hg')) p
+  rwa [Real.rpow_inv_natCast_pow (by positivity) hp] at hpow
 
 open Classical in
 /-- A deterministic rare mean tail and actual correlated first-overflow noise add their rooted
