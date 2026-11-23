@@ -194,6 +194,7 @@ public import CslibFrontier.Algorithms.Lean.Query.Arith.Karatsuba.Cost
 public import CslibFrontier.Algorithms.Lean.Query.Arith.Karatsuba.Defs
 public import CslibFrontier.Algorithms.Lean.Query.Arith.Lemmas
 public import CslibFrontier.Algorithms.Lean.Query.Arith.MatMul
+public import CslibFrontier.Algorithms.Lean.Query.BinarySearch
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.CostHom
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.FilterM
 public import CslibFrontier.Algorithms.Lean.Query.FreeM.MOfFn
