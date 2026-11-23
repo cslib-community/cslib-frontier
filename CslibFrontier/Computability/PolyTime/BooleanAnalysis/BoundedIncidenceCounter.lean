@@ -545,8 +545,7 @@ private theorem exists_computableInO_signedMeasJet :
       2 * (2 * (encMeasStepCtx (mkMeasCtx dc)).length +
         2 * jetFoldBound dc.2.jetOrder dc.2.precision
           (dc.2.2.1.1 * ((dc.2.2.1.2).size + 1) + 1) (co1 * (L_wc dc + 1) ^ do1) + 1) + 1
-  have hBout_pb : PolyBounded (fun dc => (eDC dc).length) B_outer := by
-    dsimp only [B_outer, jetFoldBound]; growth_poly
+  have hBout_pb : PolyBounded (fun dc => (eDC dc).length) B_outer := by growth_poly
   let cCnt := MeasurementFold.clock.comp (.ofPolyTime hparDC)
   have hcCnt := NativeCertificate.comp_isPolynomial _ _ MeasurementFold.clock_isPolynomial
     (NativeCertificate.ofPolyTime_isPolynomial hparDC)
@@ -718,8 +717,7 @@ private theorem exists_computableInO_nodeJet :
   let P_sm (qs : ℕ × SubsetStepCtx) := cp2 * (L_dc qs + 1) ^ dp2
   let B_sub (qs : ℕ × SubsetStepCtx) := 2 * (encSubsetStepCtx qs.2).length +
     2 * jetFoldBound qs.2.jetOrder qs.2.precision (2 * qs.2.numVars + 1) (M_entry qs) + 1
-  have hBsub_pb : PolyBounded (fun qs => (eQS qs).length) B_sub := by
-    dsimp only [B_sub, jetFoldBound]; growth_poly
+  have hBsub_pb : PolyBounded (fun qs => (eQS qs).length) B_sub := by growth_poly
   have hdp_len (qs : ℕ × SubsetStepCtx) (i : ℕ) :
       (eDC (SubsetPairFold.unrankSubsetPair qs.2.numVars qs.1 i, qs.2)).length ≤ L_dc qs := by
     have hdp := length_unrankSubsetPair_le qs.2.numVars qs.1 i
@@ -772,7 +770,7 @@ private theorem exists_computableInO_nodeJet :
     ((eQS qs).length + cn.time qs + cq.time qs + ci.time qs + hd_ov qs) +
     (NativeCertificate.snd cSubRun).space qs
   refine ⟨P_out,
-    by dsimp only [P_out, NativeCertificate.snd, NativeCertificate.post]; growth_poly [hS_pb],
+    by growth_poly [hS_pb],
     (NativeCertificate.snd cSubRun).computes.mono_le (fun qs => ?_) fun _ => Nat.le_add_left _ _⟩
   clear_value L_dc P_sm B_sub L_sub Q_sub Ov_sub
   set S_cnt := SubsetPairFold.subsetPairCount qs.2.numVars qs.1 + 1

@@ -8,7 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.Dijkstra.ListInstance
-public import CslibFrontier.Computability.WordRAM.Time
+public import CslibFrontier.Algorithms.WordRAM.CSR
 
 /-!
 # Dijkstra's algorithm on the word RAM with adjacency lists: statements
@@ -59,16 +59,14 @@ variable (G : ListInstance)
 /-- The offset of the adjacency list of vertex `u` in the edge array: the number of edges out of
 the vertices below `u`. The offset of `n` is the number `m` of edges. -/
 def offset (u : ℕ) : ℕ :=
-  (((List.finRange G.n).take u).map fun x => (G.adj x).length).sum
+  Cslib.Algorithms.WordRAM.CSR.offset G.n G.adj u
 
 /-- The input words: `n`, the source, the offsets of the vertices `0, …, n`, and then the edges of
 the lists `adj 0, …, adj (n - 1)` in order, each as its target and its weight. Edge `j` in this
 order has its target at word `n + 3 + 2 j` and its weight at word `n + 4 + 2 j`, and the edges
 out of `u` are those with `offset u ≤ j < offset (u + 1)`. -/
 def encode : List ℕ :=
-  G.n :: (G.source : ℕ) ::
-    ((List.range (G.n + 1)).map G.offset ++
-      (List.finRange G.n).flatMap fun u => (G.adj u).flatMap fun e => [(e.1 : ℕ), e.2])
+  Cslib.Algorithms.WordRAM.CSR.encode G.n G.source G.adj id
 
 /-- The output address of vertex `v`: the `n` cells just past the input, which has `n + 2 m + 3`
 words and so ends at address `n + 2 m + 3`. -/

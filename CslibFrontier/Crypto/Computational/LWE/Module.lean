@@ -84,9 +84,7 @@ uniform (see `DecisionModuleLWEWith`).
 encoded sample), so a typed distinguisher is a word-level distinguisher run on its input's words
 (`IsPPTOn.exists_bool_factor`). The converse direction of `decisionModuleLWEWith_iff_encoded`
 therefore replaces the typed distinguisher by that word-level one outright, with no congruence
-argument for the games. This factoring was written by the Jetski readability worker `rerand` on the
-branch `readability/rerand-modulelwe-factor` (commit `cada1603`) and is carried over here to
-explicit secret and error laws.
+argument for the games.
 
 ## References
 

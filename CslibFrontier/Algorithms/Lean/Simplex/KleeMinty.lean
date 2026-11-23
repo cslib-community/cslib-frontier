@@ -717,8 +717,7 @@ theorem blandLeaving_dict {N : ℕ} {j : Fin n} (hj : N.testBit j = false) :
     have hrj := rowConst_pos (K := K) N j
     have h1 : rowConst N j * -(-2 * X * bitSign N ((j : ℕ) + (d + 1))) ≤
         rowConst N j * (2 * X) := mul_le_mul_of_nonneg_left hc hrj.le
-    have h2 : rowConst N j * (2 * X) ≤ 100 ^ (j : ℕ) * (2 * X) :=
-      mul_le_mul_of_nonneg_right hjhi (by linarith)
+    have h2 : rowConst N j * (2 * X) ≤ 100 ^ (j : ℕ) * (2 * X) := by gcongr
     have h3 : 0 < 100 ^ (j : ℕ) * X * (4 * X - 10) := by
       apply mul_pos (mul_pos hpos (by linarith)); linarith
     nlinarith

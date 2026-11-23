@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Callable.Program
 public import CslibFrontier.Computability.WordRAM.MemoryWindow.Dynamic
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Computed virtual width and register normalization
@@ -43,19 +44,16 @@ theorem exec_setup {W b N Q : ℕ} (x : Data 163) (hb : x.regs Reg.base = b)
       MemoryWindow.Matches (sourceWidth N Q) b
         (MemoryWindow.view (sourceWidth N Q) b y) y ∧
       (MemoryWindow.view (sourceWidth N Q) b y).Bounded (sourceWidth N Q) := by
-  change x.regs (160 : Fin 163) = b at hb
   obtain ⟨-, hS, -⟩ := setup_fits hfit
-  have hb4 : Fits W (b + 4) := hfit.of_le (by omega)
   have hsize : Fits W (N + Q + 3) := hfit.of_le (by omega)
   obtain ⟨s, hs, ss, sm, sb⟩ :
       ∃ s, ExecWithin W readSize x s 9 ∧ s.regs (powerBank 0) = N + Q + 3 ∧
         s.mem = x.mem ∧ s.regs MemoryWindow.Reg.base = b := by
-    refine ⟨?s, ?run, ?result, ?memory, ?base⟩
-    case run => ram_eval [readSize, hb, hN, hQ, hb4, hsize,
-        Reg.result, Reg.second, Reg.base, Reg.address, Fin.mk.injEq]
-    case result => simp +decide [powerBank]
-    case memory => rfl
-    case base => simpa +decide [MemoryWindow.Reg.base, Function.update_apply] using hb
+    unfold readSize
+    wram_exec [hb, hN, hQ, hsize]
+    refine ⟨rfl, rfl, ?_⟩
+    wram_simp
+    exact hb
   have hbase_ne (k : Fin 5) : powerBank k ≠ MemoryWindow.Reg.base := by
     have hk := k.isLt
     simp only [powerBank, MemoryWindow.Reg.base, ne_eq, Fin.ext_iff, Fin.val_castAdd]

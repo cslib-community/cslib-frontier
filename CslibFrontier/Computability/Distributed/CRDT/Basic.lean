@@ -458,6 +458,21 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
     {s : GossipState P UId S} {act : GossipAction P UId Op S}
     (hinv : GossipInv C s) (hen : C.GossipEnabled G s act) :
     GossipInv C (C.gossipStep s act) := by
+  have hmerge_local : ∀ pkt ∈ s.inFlight,
+      (∀ q, Function.update s.history pkt.dest (s.history pkt.dest ∪ pkt.ghostHist) q ⊆
+        s.generated) ∧
+      (∀ q, Function.update s.replica pkt.dest (s.replica pkt.dest ⊔ pkt.payload) q =
+        evalHistory C.init s.postState
+          (Function.update s.history pkt.dest (s.history pkt.dest ∪ pkt.ghostHist) q)) := by
+    intro pkt hpkt_in
+    refine ⟨fun q => ?_, fun q => ?_⟩
+    · rcases eq_or_ne q pkt.dest with rfl | hqd
+      · simp only [Function.update_self]
+        exact Finset.union_subset (hinv.hist_sub _) (hinv.pkt_sub pkt hpkt_in)
+      · simp [Function.update_of_ne hqd, hinv.hist_sub q]
+    · rcases eq_or_ne q pkt.dest with rfl | hqd
+      · simp [evalHistory_union, ← hinv.rep_eq pkt.dest, ← hinv.pkt_eq pkt hpkt_in]
+      · simp [Function.update_of_ne hqd, hinv.rep_eq q]
   cases act with
   | update p uid op =>
     have huid_not : uid ∉ s.generated := hen
@@ -503,47 +518,17 @@ private theorem gossipInv_step (C : CvRDT S Op Q) {G : Digraph P}
       · exact hinv.rep_eq src
       · exact hinv.pkt_eq pkt hmem
   | mergeConsume pkt =>
-    have hpkt_in : pkt ∈ s.inFlight := hen
-    refine
-      { hist_sub := fun q => ?_
+    exact
+      { hist_sub := (hmerge_local pkt hen).1
         pkt_sub := fun m hm => hinv.pkt_sub m (Multiset.mem_of_mem_erase hm)
-        rep_eq := fun q => ?_
+        rep_eq := (hmerge_local pkt hen).2
         pkt_eq := fun m hm => hinv.pkt_eq m (Multiset.mem_of_mem_erase hm) }
-    · simp only [CvRDT.gossipStep]
-      by_cases hqd : q = pkt.dest
-      · subst hqd
-        simp only [Function.update_self]
-        exact Finset.union_subset (hinv.hist_sub pkt.dest) (hinv.pkt_sub pkt hpkt_in)
-      · simp only [Function.update_of_ne hqd]
-        exact hinv.hist_sub q
-    · simp only [CvRDT.gossipStep]
-      by_cases hqd : q = pkt.dest
-      · subst hqd
-        simp only [Function.update_self, evalHistory_union, ← hinv.rep_eq pkt.dest,
-          ← hinv.pkt_eq pkt hpkt_in]
-      · simp only [Function.update_of_ne hqd]
-        exact hinv.rep_eq q
   | mergeDuplicate pkt =>
-    have hpkt_in : pkt ∈ s.inFlight := hen
-    refine
-      { hist_sub := fun q => ?_
+    exact
+      { hist_sub := (hmerge_local pkt hen).1
         pkt_sub := hinv.pkt_sub
-        rep_eq := fun q => ?_
+        rep_eq := (hmerge_local pkt hen).2
         pkt_eq := hinv.pkt_eq }
-    · simp only [CvRDT.gossipStep]
-      by_cases hqd : q = pkt.dest
-      · subst hqd
-        simp only [Function.update_self]
-        exact Finset.union_subset (hinv.hist_sub pkt.dest) (hinv.pkt_sub pkt hpkt_in)
-      · simp only [Function.update_of_ne hqd]
-        exact hinv.hist_sub q
-    · simp only [CvRDT.gossipStep]
-      by_cases hqd : q = pkt.dest
-      · subst hqd
-        simp only [Function.update_self, evalHistory_union, ← hinv.rep_eq pkt.dest,
-          ← hinv.pkt_eq pkt hpkt_in]
-      · simp only [Function.update_of_ne hqd]
-        exact hinv.rep_eq q
   | drop pkt =>
     exact
       { hist_sub := hinv.hist_sub

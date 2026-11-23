@@ -16,6 +16,7 @@ import Mathlib.Data.Finset.Sum
 import Mathlib.Data.Fintype.Sum
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
+import CslibFrontier.Tactic.LRATTauto
 
 /-!
 # Negative errors of matching approximators
@@ -237,7 +238,7 @@ private theorem card_filter_contains_mul_two_pow_of_determined {U V : Finset (Fi
         S'.filter fun c => c (.inl e.1) = c (.inr e.2) := by
       ext c
       simp only [S', mem_filter, contains_ofColoring_iff, mem_insert, forall_eq_or_imp]
-      tauto
+      lrat_tauto
     rw [hfilter, card_insert_of_notMem he, pow_succ, ← ih', ← h2]
     ring
 
@@ -348,7 +349,7 @@ theorem card_filter_forall_not_contains_mul_le {𝒟 : Finset (Finset (Fin n × 
         ¬Contains (ofColoring c) D') = S.filter fun c => ¬Contains (ofColoring c) D := by
       ext c
       simp only [S, mem_filter, mem_univ, true_and, mem_insert, forall_eq_or_imp]
-      tauto
+      lrat_tauto
     have hstep := card_filter_not_contains_mul_le hS (hmatch D hD) hfresh (hcard D hD)
     rw [hfilter]
     calc #(S.filter fun c => ¬Contains (ofColoring c) D) * 2 ^ (s * (k + 1))
@@ -394,7 +395,12 @@ most `stepCap n s q` negative errors. -/
 theorem card_stepExceptions_le_of_step {F G : Finset (Finset (Fin n × Fin n))}
     (hF : F ⊆ matchings n s) (h : Step r (matchings n s) F G) (hq : (q * s) ^ 2 < r) :
     (stepExceptions F G).card ≤ stepCap n s q := by
-  obtain ⟨W, -, ⟨-, V, hV, hVW⟩, rfl⟩ := h
+  obtain ⟨W, -, ⟨-, ⟨V₀, hV₀, hV₀W⟩ | ⟨-, V, hV, hVW⟩⟩, rfl⟩ := h
+  · refine (card_eq_zero.2 (eq_empty_of_forall_notMem fun c hc => ?_)).trans_le (Nat.zero_le _)
+    obtain ⟨⟨t, ht, hct⟩, hF'⟩ := mem_stepExceptions.1 hc
+    rcases mem_insert.1 ht with rfl | ht
+    · exact hF' ⟨V₀, hV₀, hct.mono hV₀W⟩
+    · exact hF' ⟨t, ht, hct⟩
   rw [stepCap, Nat.le_div_iff_mul_le (by positivity)]
   have hexc (c : Coloring n) (hc : c ∈ stepExceptions F (insert W F)) :
       Contains (ofColoring c) W ∧ ∀ i, ¬Contains (ofColoring c) (V i) := by
@@ -499,8 +505,6 @@ theorem card_exceptions_le (hq : (q * s) ^ 2 < r) (op : Op)
       (union_subset (A 0).subset_matchings (A 1).subset_matchings) hq
   | const | and => simp [exceptions]
 
-variable [Fact (2 ≤ r)]
-
 /-- Away from its exceptions, a gate is negatively correct on the graphs of colourings. -/
 theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n r s)
     (c : Coloring n) (hc : c ∉ exceptions op A) :
@@ -524,6 +528,8 @@ theorem gate_correct (op : Op) (A : Fin (signature.Arity op) → Approximator n 
     rcases mem_union.1 hW with hW | hW
     · exact Or.inl ⟨W, hW, hcW⟩
     · exact Or.inr ⟨W, hW, hcW⟩
+
+variable [Fact (2 ≤ r)]
 
 /-- **Negative errors.** If `(q s) ^ 2 < r`, the approximation scheme on the graphs of colourings:
 the approximate value is at most the exact one away from the errors of closing. -/

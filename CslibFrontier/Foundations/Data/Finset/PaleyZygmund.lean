@@ -134,8 +134,7 @@ theorem sq_one_sub_sq_le_mul_dens_of_expect_pow_four_le {f : ι → ℝ} {B : �
   refine le_of_mul_le_mul_right ?_ (pow_pos hf 2)
   calc (1 - t ^ 2) ^ 2 * m ^ 2 = ((1 - t ^ 2) * m) ^ 2 := by ring
     _ ≤ _ := hpz
-    _ ≤ (dens {i | t * √m < |f i|} : ℝ) * (B * m ^ 2) :=
-      mul_le_mul_of_nonneg_left hB (by positivity)
+    _ ≤ (dens {i | t * √m < |f i|} : ℝ) * (B * m ^ 2) := by gcongr
     _ = _ := by ring
 
 /-- **A random variable with no rare values is reasonable**: if `f` takes each of its values with
