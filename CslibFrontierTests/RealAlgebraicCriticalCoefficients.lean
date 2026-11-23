@@ -32,6 +32,7 @@ import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseIntegerRootLa
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootDeterminant
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.SparseRootProduct
 import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.DerivativeFingerprint
+import CslibFrontier.Foundations.Algebra.Polynomial.RealRoot.FingerprintIntegerRootLabel
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomial
 import CslibFrontier.Foundations.Algebra.Polynomial.SignLabelPolynomialBounds
 import CslibFrontier.Foundations.Analysis.Complex.ConjugateProduct
@@ -851,6 +852,32 @@ example :
   simpa only [hDegree, hNorm] using
     Polynomial.fingerprintLabelPolynomial_bounds 1 2 g (fun _ => 2) (-2) hD hb
       (by simp only [Fin.sum_univ_one, le_refl]) (by decide)
+
+-- The prescribed root 1 of X² − 1 can be selected with a margin against the root −1.
+example :
+    let p : Polynomial ℤ := Polynomial.X ^ 2 - 1
+    ∃ μ t : ℕ, ∃ target : ℤ,
+      let label := Polynomial.fingerprintIntegerRootLabel p 1 2 1 μ t target
+      (1 : ℝ) / 2 ≤ label.eval₂ (Int.castRingHom ℝ) 1 ∧
+        label.eval₂ (Int.castRingHom ℝ) (-1) ≤ -(1 : ℝ) / 2 := by
+  intro p
+  have hp : p ≠ 0 := by
+    intro hz
+    have hc := congrArg (fun q : Polynomial ℤ => q.coeff 2) hz
+    exact (one_ne_zero : (1 : ℤ) ≠ 0) (by
+      simpa only [p, Polynomial.coeff_sub, Polynomial.coeff_X_pow_self, Polynomial.coeff_one,
+        Polynomial.coeff_zero, ite_eq_right (show (2 : ℕ) ≠ 0 by decide), sub_zero] using hc)
+  have hD : p.natDegree ≤ 2 := (Polynomial.natDegree_sub_le _ _).trans (by simp)
+  have hb : p.coeffNorm1 ≤ 2 ^ 1 := by
+    apply (Polynomial.coeffNorm1_sub_le _ _).trans
+    rw [pow_two, Polynomial.coeffNorm1_X_mul, Polynomial.coeffNorm1_X, Polynomial.coeffNorm1_one]
+    decide
+  have hx : p.eval₂ (Int.castRingHom ℝ) 1 = 0 := by norm_num [p]
+  have hy : p.eval₂ (Int.castRingHom ℝ) (-1) = 0 := by norm_num [p]
+  obtain ⟨μ, t, target, _, _, _, _, _, hpos, hneg⟩ :=
+    Polynomial.exists_fingerprintIntegerRootLabel (q := 1) hp hD (by simp) hb (by simp)
+      hx (by simp)
+  exact ⟨μ, t, target, hpos, hneg (-1) hy (by norm_num)⟩
 
 -- One precision covers all derivative orders at the real root of 2X.
 example (k : ℕ) :
