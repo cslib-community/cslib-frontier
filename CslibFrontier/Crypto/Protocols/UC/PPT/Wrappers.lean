@@ -123,6 +123,22 @@ program by translating each query with `queryMap` and each reply with `replyBack
     (program : ProbOracleComp J α) : ProbOracleComp K α :=
   ProbOracleComp.simulate (fun j => m.replyBack j <$> ProbOracleComp.query (m.queryMap j)) program
 
+/-- Library construction (no cited definition): the left-injection `PortMap` embedding `iL` into
+`iL.sum iR`. -/
+@[expose] def WordInterface.PortMap.inl {ιL ιR : Type} {L : ιL → Type} {R : ιR → Type}
+    (iL : WordInterface L) (iR : WordInterface R) :
+    WordInterface.PortMap iL (iL.sum iR) where
+  queryMap := Sum.inl
+  replyBack _ r := r
+  channelMap := Sum.inl
+  wordMap _ w := w
+  replyMap _ w := w
+  channelMap_channel _ := rfl
+  wordMap_request _ := rfl
+  decodeReply_replyMap _ _ := rfl
+  wordMap_poly := ComputableInPolyTime.snd (encFinite iL.Channel) encBits
+  replyMap_poly := ComputableInPolyTime.snd (encFinite iL.Channel) encBits
+
 /-- Library construction (no cited definition): the right-injection `PortMap` embedding `iR` into
 `iL.sum iR`. Its `adapt` equals `Machine.liftRightProgram L`. -/
 @[expose] def WordInterface.PortMap.inr {ιL ιR : Type} {L : ιL → Type} {R : ιR → Type}
