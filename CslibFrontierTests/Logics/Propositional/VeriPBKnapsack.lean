@@ -20,11 +20,11 @@ public meta import CslibFrontier.Algorithms.Lean.Knapsack.ProfitDP
 ordinary client, which imports the module without `import all`:
 
 * the end-to-end theorem applied to an accepted proof, and the encoding theorems on an instance;
-* compiled runs of the checker on the proofs of the dynamic program: they are accepted, their
+* `#guard` runs of the checker on the proofs of the dynamic program: they are accepted, their
   optimum agrees with `Cslib.Algorithms.Lean.Knapsack.profitDP`, and a proof claiming a larger
   or a smaller optimum is rejected; on boundary instances (no items, capacity `0`, items heavier
   than the capacity, zero weights and profits, a capacity above the total weight) and on random
-  instances of up to `40` items;
+  instances of up to `20` items;
 * a printer of the proofs as kernel text (`pbpText`) and of the instances as OPB (`opbText`),
   whose output the text front end parses and accepts with the same conclusion. VeriPB 3.0.2 and
   CakePB (cakepb `438b8f8`) report `s VERIFIED BOUNDS` on the printed texts of the instances
@@ -54,7 +54,7 @@ example : ¬ (capacity ![2, 3, 4] 5).Holds (fun v => v == 0 || v == 2) ∧
   rw [holds_capacity_iff, eval_objective]
   decide
 
-/-! ### Compiled runs -/
+/-! ### Evaluated runs -/
 
 /-- Run the dynamic program on the weights `ws`, the profits `ps` and the capacity `B`: its
 optimum, whether the checker accepts its proof, and the profit of `profitDP`'s selection. -/
