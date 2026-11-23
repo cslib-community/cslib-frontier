@@ -608,7 +608,6 @@ public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WitnessScan.Setup
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.WriteMatrices
 public import CslibFrontier.Algorithms.WordRAM.Freivalds
 public import CslibFrontier.Algorithms.WordRAM.GomoryHu
-public import CslibFrontier.Algorithms.WordRAM.HamiltonianCount
 public import CslibFrontier.Algorithms.WordRAM.HeldKarp
 public import CslibFrontier.Algorithms.WordRAM.Histogram
 public import CslibFrontier.Algorithms.WordRAM.HopcroftKarp
@@ -1061,7 +1060,6 @@ public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 public import CslibFrontier.Algorithms.WordRAM.TrimmedYates
 public import CslibFrontier.Algorithms.WordRAM.TwoSAT
 public import CslibFrontier.Algorithms.WordRAM.VariableElimination
-public import CslibFrontier.Algorithms.WordRAM.Yates
 public import CslibFrontier.Algorithms.WordRAM.ZFunction
 public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
@@ -4209,6 +4207,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.S
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.Savitch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Space.SavitchWalk
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.SpaceInTime
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.StreamFold
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Streaming
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Sublinear
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Translate
