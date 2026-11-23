@@ -32,7 +32,7 @@ in `ChildNumbering.childEdgeEquiv`:
   ports, *in the parent's order*, each renumbered to its child edge: a row port by its position
   among the row ports of group `g`, a column port by the number of row ports plus its position
   among the column ports (`NativeChild.childEdgeOf`). A retained vertex reads its ports in its own
-  order, so its ports are not sorted;
+  order, so its ports need not be sorted;
 * the packet `q` is a new vertex whose ports are its child edges in increasing order
   (`ChildNumbering.childPorts`), each tagged with whether it is a row port and with the slot of its
   parent edge, and whose descriptor carries the node, the value `ζ`, the symbols of `q` against

@@ -7,25 +7,25 @@ Authors: Sam McGuire
 module
 -- upstream: candidate
 
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointLoop
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TailCallGround
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.RootEndpointCheck
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ExtendTapes
 
 /-!
-# Native ground branch of the descendant endpoint controller
+# Native root endpoint branch for tail-call controllers
 
 A true ground flag dispatches directly to the real marked-schedule endpoint checker. Its private
-query tapes can be embedded in any larger finite controller. The recursive client therefore
-supplies a physical tape-layout and clock bound at depth zero, together with the nonempty local
-segments. It does not supply a machine or acceptance hypothesis for a root endpoint lookup.
+query tapes can be embedded in any larger finite controller. A client supplies the physical
+tape layout and its surrounding controller; `exists_ground` constructs the root lookup and
+proves its verdict and clock. The complete encoded descendant controller is provided separately
+by the DescendantEndpoint module.
 -/
 
 public section
 
 namespace Turing.MultiTapeATM.RootEndpointGround
 
-open MultiTapeTM MultiTapePTM Cslib.Circuits.Frontier NativeChild EndpointQuery
+open MultiTapeTM
 
 /-- At the ground dispatcher, the state reads the flag and the projected root tapes contain
 exactly the serialized claim. -/
@@ -88,45 +88,5 @@ theorem exists_ground (k : ℕ) :
   rw [hz] at ht he
   rw [acceptsWithin_extendTapes_iff, hview] at he
   exact ⟨ht, he.trans ha⟩
-
-/-- The descendant clock and numbered-endpoint semantics with the ground acceptance premise
-discharged. At an empty stack only the tape layout and the promised terminal budget remain. -/
-theorem exists_descendant_controller (k : ℕ) :
-    ∃ (u : ℕ) (G : Type) (_ : Finite G) (ground : MultiTapeATM (u + 2) Bool G) (C d : ℕ),
-      ∀ {K copies q : ℕ} {S R : Type} (emb : Fin (u + 2) ↪ Fin K) (flag : Fin K)
-        (node : MultiTapeATM K Bool S) (mark : S → Bool)
-        (source : MultiTapePTM k Bool R) (word : List Bool) (b σ : ℕ)
-        (code : BlockLetter k R b → Fin copies → Bool) {input : List Bool}
-        (read : Cfg K Bool (TailCallGround.State S G) input → ℕ × (ℕ × ℕ))
-        (ready : List Labels → Cfg K Bool (TailCallGround.State S G) input → Prop)
-        (cost : Labels → ℕ) (terminal : ℕ),
-        let raw := ScheduleBits.rows (List.ofFn (scheduleOfNat k q σ))
-        let root := RootEndpointQuery.endpointQuery k copies raw
-        let argument z : RootEndpointCheck.Input := ((read z).2, ⟨raw, copies, (read z).1⟩)
-        let meaning (stack : List Labels) z :=
-          (DescendantEndpointLoop.atStack root stack).accepts (read z).1 (read z).2
-        let body := TailCallGround.body flag node (ground.extendTapes emb)
-        let again := TailCallGround.again (G := G) mark
-        let atm := TailCall.machine body again
-        (∀ z, ready [] z → Ready flag emb (argument z) z ∧
-          C * (raw.length + RootEndpointCheck.shortSize (argument z) ^ d + 1) + 1 ≤ terminal) →
-        (∀ l ls z, ready (l :: ls) z → TailCall.Segment body again (ready ls) (meaning ls)
-          (cost l) z (meaning (l :: ls) z)) →
-        ∀ stack z, ready stack z →
-          let time := stack.foldr (fun l t => cost l + 1 + t) terminal
-          let edges := stack.foldr (fun l es => l.edges es) (RootPortGraph.ends (q := q)
-            source word b σ code)
-          atm.HaltsWithin time z ∧ (atm.AcceptsWithin time z ↔
-            (read z).1 < edges.length ∧ edges.getD (read z).1 (0, 0) = (read z).2) := by
-  obtain ⟨u, G, hG, ground, C, d, hg⟩ := exists_ground k
-  refine ⟨u, G, hG, ground, C, d, ?_⟩
-  intro K copies q S R emb flag node mark source word b σ code input read ready cost terminal raw
-    root argument meaning body again atm hbase hstep stack z hz
-  apply DescendantEndpointLoop.run (q := q) source word b σ code body again read ready
-    cost terminal ?_ hstep stack z hz
-  intro c hc
-  obtain ⟨hl, ht⟩ := hbase c hc
-  obtain ⟨hh, ha⟩ := hg emb flag node mark (argument c) c hl
-  exact ⟨hh.mono ht, ⟨fun h => ha.mp (h.of_halted_stepCoins hh), fun h => (ha.mpr h).mono ht⟩⟩
 
 end Turing.MultiTapeATM.RootEndpointGround

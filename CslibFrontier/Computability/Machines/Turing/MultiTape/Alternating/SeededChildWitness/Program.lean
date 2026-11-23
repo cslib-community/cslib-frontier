@@ -8,7 +8,6 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SeededChildWitness.Instruction
-import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 
@@ -51,6 +50,14 @@ def program (p : Header × List Bool) : Instruction :=
   data.2.elim (fun parent => if parent then .inr (data.1.edge, data.1.ends)
       else .inl (localCheck h data.1))
     (fun r => r.elim (.inl true) (countTask h (xs.drop (wordCut h))))
+
+/-- A direct parent dispatch emits exactly its proposed edge and endpoints, independently of
+the unused count suffix. This equation exposes the routing behavior while keeping the local
+arithmetic and count-word parser private. -/
+theorem program_of_dispatch_parent {h : Header} {xs : List Bool} {p : Proposal}
+    (hd : Dispatch.run (h.graph, xs.take (witnessFlags (width h.graph)).length) =
+      (p, .inl true)) : program (h, xs) = .inr (p.edge, p.ends) := by
+  simp only [program, wordCut, hd, Sum.elim_inl, ↓reduceIte]
 
 private theorem common_polyTime {α : Type} {enc : α ↪ List Bool} {h : α → Header}
     (hh : ComputableInPolyTime h enc encHeader) :
@@ -124,8 +131,6 @@ theorem computableInPolyTime_flags : ComputableInPolyTime flags encPublic encBit
     ((IntervalCountGame.computableInPolyTime_flags.comp hN).bitsAppend
       (hf.bitsAppend (hf.bitsAppend (const [true]))))
 
-set_option maxHeartbeats 1200000 in
--- Elaborating the nested branch machines requires the encodings of each intermediate record.
 /-- The complete runtime terminal requires polynomial time only in its short header and
 choice word. It produces at most one positive endpoint request on every branch. -/
 theorem computableInPolyTime_program : ComputableInPolyTime program (encPair encHeader encBits)
@@ -151,11 +156,68 @@ theorem computableInPolyTime_program : ComputableInPolyTime program (encPair enc
       countTask x.1.1 (x.1.2.drop (wordCut x.1.1)) r) (snd enc (encOption encBitQuery))
     (const (encOut := encInstruction) (Sum.inl true))
     (countTask_polyTime (hh.comp (ho.comp hz)) htail (snd z encBitQuery))
-  exact Complexity.CSP.EdgeSolver.NativeCases.sumElimWithInput
+  exact ComputableInPolyTime.sumElimWithInput
+    (eg := enc) (ed := encInstruction) (ea := encBool) (eb := encOption encBitQuery)
     (left := fun x parent => let p := (Dispatch.run (x.1.graph, x.2.take (wordCut x.1))).1
       if parent then Sum.inr (p.edge, p.ends) else Sum.inl (localCheck x.1 p))
     (right := fun x r =>
-    r.elim (.inl true) (countTask x.1 (x.2.drop (wordCut x.1)))) (.inl false) hd.snd' hl hr
+    r.elim (.inl true) (countTask x.1 (x.2.drop (wordCut x.1)))) hd.snd' hl hr
+
+/-- Every emitted parent request has three bounded binary fields. The bound depends only on
+the parent graph sizes, independently of the requested child index or the length of the supplied
+choice word. It prevents successive compressed ancestry frames from amplifying query lengths. -/
+theorem program_inr_bounds {h : Header} {xs : List Bool} {edge row column : ℕ}
+    (hp : program (h, xs) = .inr (edge, (row, column))) :
+    edge < 2 ^ width h.graph ∧ row < 2 ^ width h.graph ∧ column < 2 ^ width h.graph := by
+  let data := Dispatch.run (h.graph, xs.take (wordCut h))
+  have hfields : ∀ n ∈ data.1.fields, n < 2 ^ width h.graph :=
+    parse_fields_lt (width h.graph) (xs.take (wordCut h))
+  change data.2.elim
+    (fun parent => if parent then .inr (data.1.edge, data.1.ends)
+      else .inl (localCheck h data.1))
+    (fun r => r.elim (.inl true) (countTask h (xs.drop (wordCut h)))) = _ at hp
+  cases hb : data.2 with
+  | inl parent =>
+    cases parent with
+    | false => simp [hb] at hp
+    | true =>
+      simp only [hb, Sum.elim_inl, ↓reduceIte, Sum.inr.injEq, Prod.mk.injEq] at hp
+      have he := hfields data.1.edge (by simp [Proposal.fields])
+      have hr := hfields data.1.ends.1 (by simp [Proposal.fields])
+      have hc := hfields data.1.ends.2 (by simp [Proposal.fields])
+      refine ⟨hp.1 ▸ he, ?_⟩
+      simpa only [hp.2] using And.intro hr hc
+  | inr r =>
+    cases r with
+    | none => simp [hb] at hp
+    | some r =>
+      simp only [hb, Sum.elim_inr, Option.elim_some, countTask] at hp
+      cases hroute : IntervalCountGame.route (common h) (min (width h.graph) r.2.1) r.2.2
+          ((xs.drop (wordCut h)).take (countCut h)) with
+      | none =>
+        rw [hroute] at hp
+        cases hp
+      | some kv =>
+        simp only [hroute, Option.elim_some] at hp
+        obtain ⟨hq, he⟩ := singleton_inr_bounds hp
+        have hrow := congrArg (fun q : ℕ × (ℕ × ℕ) => q.2.1) hq
+        have hcol := congrArg (fun q : ℕ × (ℕ × ℕ) => q.2.2) hq
+        have hedge := congrArg Prod.fst hq
+        have hread (bits : List Bool) : ofBits (bits.take h.graph.vertices.size) <
+            2 ^ width h.graph :=
+          (ofBits_lt_two_pow _).trans_le (Nat.pow_le_pow_right two_pos
+            ((List.length_take_le _ _).trans
+              (Nat.size_le_size (Nat.le_max_right h.graph.edges h.graph.vertices))))
+        refine ⟨?_, ?_, ?_⟩
+        · change edge = kv.1 at hedge
+          rw [hedge]
+          exact he.trans_le ((Nat.le_max_left _ _).trans (Nat.lt_size_self _).le)
+        · change row = _ at hrow
+          rw [hrow]
+          exact hread _
+        · change column = _ at hcol
+          rw [hcol]
+          exact hread _
 
 /-- The native terminal computes exactly the leaf proposition of the complete shared game. -/
 theorem program_spec {U a : ℕ} (seed : SeededLabels.Seed U (6 * a)) (i : Fin a)

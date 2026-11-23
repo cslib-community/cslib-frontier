@@ -67,6 +67,17 @@ example : (emitCoin.explicitBlockNetwork [] 2 (scheduleOfNat 0 1 0)
   rw [map_fst_vertices_explicitBlockNetwork]
   decide
 
+-- Actual root-network port lists satisfy the invariant preserved by native child construction.
+example : ∀ v ∈ (emitCoin.explicitBlockNetwork [] 2 (scheduleOfNat 0 1 0)
+    (Equiv.ofUnique Unit (Fin 1))).vertices, v.1.Pairwise (· < ·) := by
+  intro v hv
+  have hp : v.1 ∈ (emitCoin.explicitBlockNetwork [] 2 (scheduleOfNat 0 1 0)
+      (Equiv.ofUnique Unit (Fin 1))).vertices.map Prod.fst := List.mem_map.mpr ⟨v, hv, rfl⟩
+  rw [map_fst_vertices_explicitBlockNetwork] at hp
+  obtain ⟨i, _, hi⟩ := List.mem_map.mp hp
+  rw [← hi]
+  exact pairwise_explicitPortsNum _ _ _ _ _
+
 -- `walk` with two intervals, every head staying except the work head, which moves right in
 -- interval `0`: digits `1, 2, 1, 1`, so `σ = 1 + 2 * 3 + 9 + 27 = 43`. The block edge `(0, 0, 2)`,
 -- number `2 + 2 = 4`, carries block `1`, which is in the window of interval `1`. The block edge

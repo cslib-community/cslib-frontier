@@ -10,7 +10,6 @@ module
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.SeededChildWitness.Joined
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.IntervalCountNative
 public import CslibFrontier.Computability.PolyTime.SeededChildWitness.CountingRequest
-import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Nat.OfBits
 
@@ -84,6 +83,15 @@ def singleton (s : Singleton) (c : Count) : Instruction :=
     select s needs (needs && (decide (hash h s.ends.1 = hash h ref.1) &&
       decide (hash h s.ends.2 = hash h ref.2)))
 
+/-- A recursive singleton request keeps the proposed endpoints and names an actual parent
+edge. This bound holds for every choice word, including choices on rejecting branches. -/
+theorem singleton_inr_bounds {s : Singleton} {c : Count} {query : ℕ × (ℕ × ℕ)}
+    (h : singleton s c = .inr query) :
+    query = (s.index, s.ends) ∧ s.index < s.header.graph.edges := by
+  rcases c with n | (⟨col, n⟩ | ⟨edge, ends⟩) <;>
+    simp only [singleton, select] at h
+  all_goals split_ifs at h; simp_all
+
 private theorem select_polyTime {α : Type} {enc : α ↪ List Bool} {s : α → Singleton}
     {n v : α → Bool} (hs : ComputableInPolyTime s enc encSingleton)
     (hn : ComputableInPolyTime n enc encBool) (hv : ComputableInPolyTime v enc encBool) :
@@ -156,10 +164,10 @@ theorem computableInPolyTime_singleton : ComputableInPolyTime (Function.uncurry 
     have h₁ := decide_eq' (hash_polyTime hh he.fst') (hash_polyTime hh ht.snd'.fst')
     have h₂ := decide_eq' (hash_polyTime hh he.snd') (hash_polyTime hh ht.snd'.snd')
     exact select_polyTime hs hn (bool_and' hn (bool_and' h₁ h₂))
-  have hr := Complexity.CSP.EdgeSolver.NativeCases.sumElimSnd (.inl false) hp hk
-  exact (Complexity.CSP.EdgeSolver.NativeCases.sumElimSnd
+  have hr := ComputableInPolyTime.sumElimSnd hp hk
+  exact (ComputableInPolyTime.sumElimSnd
     (right := fun s c => c.elim (port s) (pack s))
-    (.inl false) hv hr).of_enc_eq fun p => by
+    hv hr).of_enc_eq fun p => by
     rcases p with ⟨s, n | (p | e)⟩ <;> rfl
 
 /-- Operational interpretation of an emitted instruction. -/

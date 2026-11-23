@@ -33,4 +33,14 @@ example {α β Input : Type} (left : α ↪ List Bool) (right : β ↪ List Bool
   fail_if_success (clear hf; fun_prop)
   fun_prop
 
+-- Sum elimination needs no fallback output: captured work data can be arbitrary even when
+-- both payload types and the result are empty. The branch certificates are ordinary projections.
+example (empty : Empty ↪ List Bool) :
+    ComputableInPolyTime (fun p : List Bool × (Empty ⊕ Empty) => p.2.elim id id)
+      (encPair encBits (encSum empty empty)) empty :=
+  ComputableInPolyTime.sumElimSnd
+    (eg := encBits) (ea := empty) (eb := empty) (ed := empty)
+    (left := fun _ => id) (right := fun _ => id)
+    (ComputableInPolyTime.snd encBits empty) (ComputableInPolyTime.snd encBits empty)
+
 end CslibFrontierTests.PolyTimeSum

@@ -1717,6 +1717,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeC
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChild
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildBounds
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPolyTime
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPorts
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeRecovery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEntry
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEvaluator
@@ -3566,7 +3567,10 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CountingTerminalDispatch
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CountingTerminalLayout
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.CountingTerminalPrepare
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointLoop
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpoint
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointGround
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointTerminal
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DescendantEndpointTime
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Deterministic
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DeterministicPhase
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.DeterministicTime
@@ -3585,6 +3589,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonProduct
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.OuterRootLeafRunner
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ProtectedWordGame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Append
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Check
@@ -3640,6 +3645,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TailCallGround
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TruthTable
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordInput
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordPredicate
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Views
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.WordGame
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.WordGameLeaf
@@ -3653,6 +3659,9 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplier
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplierCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.ConcreteSupplierSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpoint
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpointBounds
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DescendantEndpointCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.Driver
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DriverBounds
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.DriverComputable
@@ -4720,7 +4729,6 @@ public import CslibFrontier.Computability.PolyTime.CSP.Edge.Forest.Spec
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Agreement
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Ancestry
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.AncestryPolyTime
-public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Cases
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Contraction
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Driver
 public import CslibFrontier.Computability.PolyTime.CSP.Edge.Solver.Endpoint

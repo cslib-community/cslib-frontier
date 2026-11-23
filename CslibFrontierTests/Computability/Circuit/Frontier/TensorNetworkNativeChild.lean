@@ -7,6 +7,7 @@ module
 -- upstream: local-only (test driver)
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeCall
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeChildPorts
 
 public section
 
@@ -53,6 +54,38 @@ example : (child.vertices.getD 2 ([], .inl [])).2.getRight?.map (fun d => d.2.1)
 example : childRows 1 0 path (([[0]], [[0], [1]]), 1, [(0, 0), (0, 1)]) 0 = 2 := by decide
 
 example : child.IsRowsFirstBipartite 2 := by decide
+
+-- Rows-first validity permits unsorted ports, and the native child does preserve that order.
+-- Consequently the sorted-port preservation theorem needs its parent-order hypothesis.
+example : ¬ (path.vertices.getD 0 ([], .inl [])).1.Pairwise (· < ·) ∧
+    ¬ (child.vertices.getD 0 ([], .inl [])).1.Pairwise (· < ·) := by decide
+
+private def sortedPath : DescribedNetwork (VertexDesc (List ℕ)) :=
+  ⟨2, [([0, 1], table 4), ([0], table 2), ([1], table 2)]⟩
+
+private theorem sortedPath_ports : ∀ v ∈ sortedPath.vertices, v.1.Pairwise (· < ·) := by
+  intro v hv
+  simp only [sortedPath, List.mem_cons, List.not_mem_nil, or_false] at hv
+  rcases hv with rfl | rfl | rfl <;> decide
+
+-- The same topology with sorted parent ports propagates the invariant to retained vertices and
+-- the new packet together, without a separate permutation witness.
+example : ∀ v ∈ (nativeChild [1] 1 0 3 (-1) [0] 1 sortedPath
+    (([[0]], [[0], [1]]), 1, [(0, 0), (0, 1)]) [] 0).vertices,
+    v.1.Pairwise (· < ·) := by
+  exact pairwise_ports_nativeChild (by decide) sortedPath_ports _ _ _ _ _ _ _ _ _
+
+-- Endpoint incidence recovers the precise ordered ports for this invariant, including columns.
+example (v : Fin sortedPath.vertices.length) :
+    sortedPath.vertices[v].1 = (List.range sortedPath.numEdges).filter (fun e =>
+      (sortedPath.edgeEnds.getD e (0, 0)).1 = v ∨
+        (sortedPath.edgeEnds.getD e (0, 0)).2 = v) :=
+  DescribedNetwork.ports_eq_filter_edgeEnds (r := 1) (by decide) v
+    (sortedPath_ports _ (List.getElem_mem _))
+
+-- Equal incidence alone does not recover the arbitrary order of the unsorted parent.
+example : path.vertices[0].1 ≠ (List.range path.numEdges).filter (fun e =>
+    (path.edgeEnds.getD e (0, 0)).1 = 0 ∨ (path.edgeEnds.getD e (0, 0)).2 = 0) := by decide
 
 /-! ### The modes of a node -/
 

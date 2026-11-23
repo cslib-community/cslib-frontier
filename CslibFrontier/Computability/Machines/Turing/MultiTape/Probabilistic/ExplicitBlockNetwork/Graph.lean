@@ -360,6 +360,11 @@ it, in increasing order. -/
   (List.range (2 * (q * (3 * k + 1) * m))).filter fun j =>
     decide (explicitSrcNum k q m σ j = v ∨ explicitTgtNum k q m j = v)
 
+/-- The original block network lists every vertex's ports in increasing edge order. -/
+theorem pairwise_explicitPortsNum (k q m σ v : ℕ) :
+    (explicitPortsNum k q m σ v).Pairwise (· < ·) :=
+  List.pairwise_lt_range.filter _
+
 variable {State : Type} (machine : MultiTapePTM k Bool State) (input : List Bool) (b : ℕ)
   [NeZero b]
 

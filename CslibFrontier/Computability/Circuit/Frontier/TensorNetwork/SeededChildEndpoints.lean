@@ -50,18 +50,44 @@ keys have code zero. -/
   ((Seeded.wordEquiv l.coordinates (l.code v)) l.coordinate).val
 
 /-- Native group table used only to state the edge-list semantics. -/
-def Labels.groups (l : Labels) : List ℕ := (List.range l.vertices).map l.symbol
+@[expose] def Labels.groups (l : Labels) : List ℕ := (List.range l.vertices).map l.symbol
 
 /-- Native packing on the ordered parent edges, using the very same vertex codes. -/
-noncomputable def Labels.packing (l : Labels) (es : List (ℕ × ℕ)) :=
+@[expose] noncomputable def Labels.packing (l : Labels) (es : List (ℕ × ℕ)) :=
   let row := fun i : Fin es.length => (es.getD i.val (0, 0)).1
   let col := fun i : Fin es.length => (es.getD i.val (0, 0)).2
   let label := fun v => Seeded.wordEquiv l.coordinates (l.code v)
   Packing.ofLabels row col label label
 
 /-- The genuine child edge table of a split of this parent. -/
-noncomputable def Labels.edges (l : Labels) (es : List (ℕ × ℕ)) : List (ℕ × ℕ) :=
+@[expose] noncomputable def Labels.edges (l : Labels) (es : List (ℕ × ℕ)) : List (ℕ × ℕ) :=
   childEdgeList l.groups l.group es (List.ofFn fun i => ((l.packing es).packet i).val)
+
+/-- Every child endpoint fits the exact vertex universe: retained vertices followed by all
+packet vertices. In particular this is the universe used by the seed of a subsequent split. -/
+theorem Labels.edges_keys (l : Labels) (es : List (ℕ × ℕ)) :
+    ∀ p ∈ l.edges es,
+      p.1 < l.groups.count l.group + (l.packing es).numPackets ∧
+        p.2 < l.groups.count l.group + (l.packing es).numPackets := by
+  have half (sel : ℕ × ℕ → ℕ) :
+      ∀ p ∈ ((es.zip (List.ofFn fun i => ((l.packing es).packet i).val)).filter
+          (fun q => l.groups.getD (sel q.1) 0 = l.group)).map
+          (fun q => ((l.groups.take (sel q.1)).count l.group,
+            l.groups.count l.group + q.2)),
+        p.1 < l.groups.count l.group + (l.packing es).numPackets ∧
+          p.2 < l.groups.count l.group + (l.packing es).numPackets := by
+    intro p hp
+    simp only [List.mem_map, List.mem_filter] at hp
+    obtain ⟨⟨ends, packet⟩, ⟨hz, _⟩, rfl⟩ := hp
+    obtain ⟨e, he⟩ := List.mem_ofFn.mp (List.of_mem_zip hz).2
+    have hpacket : packet < (l.packing es).numPackets := by
+      rw [← he]
+      exact Fin.isLt _
+    have hcount := (List.take_sublist (sel ends) l.groups).count_le l.group
+    constructor <;> dsimp only <;> omega
+  intro p hp
+  simp only [Labels.edges, childEdgeList, List.mem_append] at hp
+  exact hp.elim (half Prod.fst p) (half Prod.snd p)
 
 /-- Rank of the proposed pair of labels among the preceding edge numbers. Each summand
 refers only to the parent endpoint verifier on its candidate. -/
