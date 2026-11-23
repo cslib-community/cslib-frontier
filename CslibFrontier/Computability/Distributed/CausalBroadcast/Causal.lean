@@ -1333,18 +1333,8 @@ theorem deliverable_stable_until_delivered {F : Set P} {ss : ωSequence (BSSStat
 private theorem broadcastIn_extract_mono (xs : ωSequence (BSSAction P V)) {M N : ℕ}
     (hMN : M ≤ N) :
     BroadcastIn (xs.extract 0 M : List (BSSAction P V)) ⊆
-      BroadcastIn (xs.extract 0 N : List (BSSAction P V)) := by
-  intro b ⟨i, hi, hbi⟩
-  have hiM : i < M := by simp only [ωSequence.length_extract, Nat.sub_zero] at hi; exact hi
-  have hiN_num : i < N := Nat.lt_of_lt_of_le hiM hMN
-  have hiN : i < (xs.extract 0 N).length := by
-    simp only [ωSequence.length_extract, Nat.sub_zero]; exact hiN_num
-  refine ⟨i, hiN, ?_⟩
-  have htake : (xs.extract 0 N).take i = (xs.extract 0 M).take i := by
-    rw [extract_take_eq xs (Nat.le_of_lt hiN_num), extract_take_eq xs (Nat.le_of_lt hiM)]
-  have hget : (xs.extract 0 N)[i] = (xs.extract 0 M)[i] := by
-    rw [ωSequence.get_extract (by omega), ωSequence.get_extract (by omega)]
-  simpa [bssStateAt, htake, hget] using hbi
+      BroadcastIn (xs.extract 0 N : List (BSSAction P V)) :=
+  extract_take_eq xs hMN ▸ broadcastIn_take_subset (xs.extract 0 N) M
 
 private theorem emittedPacket_mem_broadcastIn {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (hinit : ss 0 = bssInit P V)
@@ -1468,18 +1458,9 @@ theorem bss_live_of_packetSentTo {F : Set P} {ss : ωSequence (BSSState P V)}
           have hb_r_in : b_r ∈ BroadcastIn (xs.extract 0 (k₀ + 1)) :=
             broadcastIn_extract_mono xs (Nat.le_succ k₀) hb_r_in_k₀
           have hb_r_lt_b : b_r.ts < b.ts := by
-            have hle_s : b_r.ts ≤ ((bssRun (bssInit P V) (xs.extract 0 k₀)).proc b.sender).vt :=
-              hinv_k₀.ts_le_vt b.sender b_r hb_r_del
-            rw [← hrun_k₀] at hle_s
-            have hlt_s : ((ss k₀).proc b.sender).vt < b.ts := by
-              rw [hb_ts_eq, Pi.lt_def]
-              refine ⟨fun x => ?_, ⟨b.sender, ?_⟩⟩
-              · simp only [bssNextTimestamp]
-                by_cases hx : x = b.sender
-                · subst hx; simp
-                · simp [Function.update_of_ne hx]
-              · simp [bssNextTimestamp]
-            exact lt_of_le_of_lt hle_s hlt_s
+            have hle_s : b_r.ts ≤ ((ss k₀).proc b.sender).vt :=
+              hrun_k₀ ▸ hinv_k₀.ts_le_vt b.sender b_r hb_r_del
+            exact lt_of_le_of_lt hle_s (hb_ts_eq ▸ lt_update_self_iff.mpr (Nat.lt_succ_self _))
           have hmtr_k₀1 := omega_mTr_prefix hinit he (k₀ + 1)
           have hprec_r : CausalPrec (xs.extract 0 (k₀ + 1)) b_r b :=
             (bss_causalPrec_iff_ts_lt hmtr_k₀1 hb_r_in hb_in).mpr hb_r_lt_b

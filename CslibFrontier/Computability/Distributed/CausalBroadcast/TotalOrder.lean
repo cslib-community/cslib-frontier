@@ -1857,10 +1857,8 @@ theorem zeroFaultTotalOrderAlg_solves {P V : Type*} [Fintype P] [DecidableEq P] 
     have hpref_q : ((ss k₂).proc q).delivered <+: mkRunLog xs K := by
       rw [(hrunLog_inv inp ss xs hs0 he k₂).2.2.2.2.2.2 q |>.2]
       exact (List.take_prefix _ _).trans (hrunLog_prefix xs (Nat.le_max_right k₁ k₂))
-    have hidx_pref : ∀ {l₁ l₂ : List (BcastMsg P V)}, l₁ <+: l₂ → ∀ {x}, x ∈ l₁ →
-        l₂.idxOf x = l₁.idxOf x := fun ⟨_, ht⟩ _ hx => ht ▸ List.idxOf_append_of_mem hx
-    rw [← hidx_pref hpref_p hm₁p, ← hidx_pref hpref_p hm₂p,
-      ← hidx_pref hpref_q hm₁q, ← hidx_pref hpref_q hm₂q]
+    rw [hpref_p.idxOf_eq_of_mem hm₁p, hpref_p.idxOf_eq_of_mem hm₂p,
+      hpref_q.idxOf_eq_of_mem hm₁q, hpref_q.idxOf_eq_of_mem hm₂q]
 
 /-- Exact `t = 0` crash-fault solvability characterization step for one-shot
 `TotalOrderBroadcastAlg` (toward #7297): on any finite process set `P` with `2 ≤ Fintype.card P` and
@@ -2250,10 +2248,10 @@ theorem totalOrderBroadcast_of_consensusSlotExec {P Msg : Type*} [Finite P] [Lin
         (E.aDelivered q t₂).idxOf m₁ < (E.aDelivered q t₂).idxOf m₂) := by
     intro p q t₁ t₂ m₁ m₂ hm₁p hm₂p hm₁q hm₂q
     rcases le_total (E.decidedBatches p t₁).length (E.decidedBatches q t₂).length with hle | hge
-    · obtain ⟨tail, htail⟩ := E.aDelivered_prefix_of_length_le hle
-      rw [← htail, List.idxOf_append_of_mem hm₁p, List.idxOf_append_of_mem hm₂p]
-    · obtain ⟨tail, htail⟩ := E.aDelivered_prefix_of_length_le hge
-      rw [← htail, List.idxOf_append_of_mem hm₁q, List.idxOf_append_of_mem hm₂q]
+    · have hpref := E.aDelivered_prefix_of_length_le hle
+      rw [hpref.idxOf_eq_of_mem hm₁p, hpref.idxOf_eq_of_mem hm₂p]
+    · have hpref := E.aDelivered_prefix_of_length_le hge
+      rw [hpref.idxOf_eq_of_mem hm₁q, hpref.idxOf_eq_of_mem hm₂q]
   have hagr : ∀ p ∉ F, ∀ q ∉ F, ∀ m t₁, m ∈ E.aDelivered p t₁ → ∃ t₂, m ∈ E.aDelivered q t₂ := by
     intro p hp q hq m t₁ hm
     obtain ⟨batch, hbatch_mem, hm_in⟩ := (mem_runConsensusSlots _ m).mp hm

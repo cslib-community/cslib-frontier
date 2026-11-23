@@ -550,12 +550,6 @@ private theorem filter_update_eq {n : ℕ} (P : FilterPhase n → Bool) (f : Fin
       Finset.univ.filter fun q => P (f q) := by
   ext q; by_cases hqp : q = p <;> simp [hqp, h]
 
-private theorem filter_update_true {n : ℕ} (P : FilterPhase n → Bool) (f : Fin n → FilterPhase n)
-    (p : Fin n) (ph' : FilterPhase n) (h : P ph' = true) :
-    (Finset.univ.filter fun q => P (Function.update f p ph' q)) =
-      insert p (Finset.univ.filter fun q => P (f q)) := by
-  ext q; by_cases hqp : q = p <;> simp [hqp, h]
-
 private theorem filter_update_false {n : ℕ} (P : FilterPhase n → Bool) (f : Fin n → FilterPhase n)
     (p : Fin n) (ph' : FilterPhase n) (h : P ph' = false) :
     (Finset.univ.filter fun q => P (Function.update f p ph' q)) =
@@ -701,8 +695,8 @@ private theorem filterInv_step {n : ℕ} {s s' : FilterState n} {μ : FilterActi
       filter_update_eq (·.atOrAboveRoom r) s.phase p _ (by
         have := Fin.val_ne_of_ne hr
         simp only [hph, FilterPhase.atOrAboveRoom, decide_eq_decide]; omega)
-    have hat_eq_r₀ : atRoomSet s₁ r₀ = insert p (atRoomSet s r₀) :=
-      filter_update_true (·.atOrAboveRoom r₀) s.phase p _ (by simp [FilterPhase.atOrAboveRoom])
+    have hat_eq_r₀ : atRoomSet s₁ r₀ = insert p (atRoomSet s r₀) := by
+      ext q; by_cases hqp : q = p <;> simp [atRoomSet, s₁, hqp, FilterPhase.atOrAboveRoom]
     have hab_all : ∀ r, aboveRoomSet s₁ r = aboveRoomSet s r := fun r =>
       filter_update_eq (·.aboveRoom r) s.phase p _ (by simp [hph, FilterPhase.aboveRoom])
     refine ⟨hloc', ?_, ?_, ?_⟩
