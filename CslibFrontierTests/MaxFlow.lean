@@ -296,9 +296,7 @@ open Cslib.Algorithms.WordRAM.EdmondsKarp Cslib.WordRAM
 
 example : ekWorkspace 4 = 44 := rfl
 example : ekBound 4 1 = 84 := rfl
-example : bmWorkspace 3 4 = 202 := rfl
 example : ekBound 9 1 = 814 := rfl
-example : sepWorkspace 5 = 364 := rfl
 example : ekBound 12 6 = 2611 := rfl
 
 /-- Dense Word-RAM Edmonds–Karp on `unitDiamondNet` (`B = 1`, width `7`): returns max flow `2`. -/
@@ -350,7 +348,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       M.card = 2 ∧ cov.size = 2 := by
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_bipartiteMatching_program
   obtain ⟨y, steps, res, M, cov, hruns, hhalt, htime, hM, hCmin, hMC, hres, _, _, _⟩ :=
-    hprog (w := 10) asymGraph (by decide) (by decide)
+    hprog (w := 10) asymGraph (by decide)
   have hcard : M.card = 2 := by
     have hge : ({(0, 1), (1, 0)} : Finset (Fin 3 × Fin 4)).card ≤ M.card := hM.2 _ (by decide)
     have hle : M.card ≤ (⟨{0}, {0}⟩ : VertexCover (Fin 3) (Fin 4)).size :=
@@ -369,7 +367,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       step 5 prog ⟨pc, y⟩ = .halt 0 ∧ steps + 1 ≤ C := by
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_bipartiteMatching_program
   obtain ⟨y, steps, res, M, _, hruns, hhalt, htime, _, _, _, hres, _, _, _⟩ :=
-    hprog (w := 5) (fun p : Fin 0 × Fin 0 => Fin.elim0 p.1) (by decide) (by decide)
+    hprog (w := 5) (fun p : Fin 0 × Fin 0 => Fin.elim0 p.1) (by decide)
   have hM0 : M.card = 0 := by
     rw [Finset.eq_empty_of_isEmpty M]; rfl
   rw [hres, hM0] at hhalt
@@ -385,9 +383,9 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       Runs 10 prog (State.init (encodeBipartiteInput noPerfGraph)) ⟨pc, y⟩ steps ∧
       step 10 prog ⟨pc, y⟩ = .halt 0 ∧ steps + 1 ≤ C * 4 ^ 5) := by
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_perfectMatching_program
-  obtain ⟨y1, s1, r1, hr1, hh1, ht1, hiff1, _⟩ := hprog (w := 10) perfGraph (by decide) (by decide)
+  obtain ⟨y1, s1, r1, hr1, hh1, ht1, hiff1, _⟩ := hprog (w := 10) perfGraph (by decide)
   obtain ⟨y0, s0, r0, hr0, hh0, ht0, hiff0, hle0⟩ :=
-    hprog (w := 10) noPerfGraph (by decide) (by decide)
+    hprog (w := 10) noPerfGraph (by decide)
   have hr1_eq : r1 = 1 := hiff1.mpr perfGraph_hasPerfectMatching
   have hr0_eq : r0 = 0 := by
     have hne : r0 ≠ 1 := fun h => noPerfGraph_not_hasPerfectMatching (hiff0.mp h)
@@ -424,7 +422,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   let B : Vector Bool 5 := Vector.ofFn fun v => decide (3 ≤ v.1)
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_minSeparator_program
   obtain ⟨y, steps, res, out, hruns, hhalt, htime, _, _, hsep, hmin, _, hsideA, hsideB,
-    hres, hout_mem, hside_mem⟩ := hprog (w := 12) hourglassGraph Z A B (by decide) (by decide)
+    hres, hout_mem, hside_mem⟩ := hprog (w := 12) hourglassGraph Z A B (by decide)
   have hY2 : hourglassGraph.IsSeparator {v | vget A v = true} {v | vget B v = true}
       ({v | vget Z v = true} ∪ ↑({(2 : Fin 5)} : Finset (Fin 5))) := by
     refine SimpleGraph.isSeparator_of_forall_adj (fun v : Fin 5 => decide (v.1 < 2)) ?_ ?_ ?_
@@ -499,7 +497,7 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   let empty : Vector Bool 0 := Vector.ofFn Fin.elim0
   obtain ⟨R, C, pc, hC, prog, hprog⟩ := exists_minSeparator_program
   obtain ⟨y, steps, res, out, hruns, hhalt, htime, _, _, _, _, _, _, _, hres, _, _⟩ :=
-    hprog (w := 5) (⊥ : SimpleGraph (Fin 0)) empty empty empty (by decide) (by decide)
+    hprog (w := 5) (⊥ : SimpleGraph (Fin 0)) empty empty empty (by decide)
   have hlen0 : out.sep.length = 0 := by
     cases h : out.sep with
     | nil => rfl

@@ -14,7 +14,6 @@ public import CslibFrontier.Algorithms.Lean.GomoryHu.WeightedCut
 public import CslibFrontier.Algorithms.WordRAM.Karger.Contract
 public import CslibFrontier.Computability.WordRAM.Realization.Absorb
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
-public import CslibFrontier.Computability.WordRAM.Time
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Foundations.Data.List.RowMajor
@@ -29,7 +28,9 @@ A relocatable memory-client subroutine `ekProg` implementing the shortest-augmen
 flow algorithm of Edmonds and Karp ([EdmondsKarp1972]; [CLRS2009], Theorem 26.8), together with
 uniform flat programs over `Cslib.WordRAM.Basis.exact` for dense maximum flow / minimum `s`–`t`
 cut, maximum bipartite matching with König minimum vertex cover and perfect-matching decision, and
-minimum vertex separators by vertex splitting.
+minimum vertex separators by vertex splitting. All programs use `Basis.exact` for unit-cost
+multiplication in dense row-major matrix indexing, matching
+`CslibFrontier.Algorithms.WordRAM.GomoryHu`.
 
 Each round of `ekProg` runs a layered breadth-first search on the residual graph, storing residual
 distances `Flow.resDist` at `distAddr` and parent pointers, then walks parent pointers from `t`
@@ -49,11 +50,11 @@ so a round costs `O(n ^ 2)` memory operations and the whole computation `O(n ^ 5
   `ekWorkspace`: input encoding, output flow and cut addresses, and workspace frontier for dense
   maximum flow.
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.encodeBipartiteMatrix`, `encodeBipartiteInput`,
-  `bmMatchAddr`, `bmCovLAddr`, `bmCovRAddr`, `bmWorkspace`: input encoding, output matching and
-  König cover addresses, and workspace frontier for bipartite matching.
+  `bmMatchAddr`, `bmCovLAddr`, `bmCovRAddr`: input encoding and output matching and König cover
+  addresses for bipartite matching.
 * `Cslib.Algorithms.WordRAM.EdmondsKarp.encodeBoolVec`, `encodeSepInput`, `sepOutAddr`,
-  `sepSideAddr`, `sepWorkspace`: input encoding, output separator and side-labelling addresses, and
-  workspace frontier for minimum vertex separators.
+  `sepSideAddr`: input encoding and output separator and side-labelling addresses for minimum
+  vertex separators.
 
 ## Main results
 
@@ -2606,8 +2607,10 @@ private theorem validHistory_ekFullProg {n B w : ℕ} (N : Network (Fin n))
 Theorem 26.8): one uniform flat program over `Basis.exact` that, on `encodeFlowInput N` for any
 network `N : Network (Fin n)` with `N.s ≠ N.t` and capacities at most `B`, halts within
 `C * (n + 1) ^ 5` instructions at every word width fitting `ekWorkspace n` and `ekBound n B`.
-It returns the maximum flow value `N.cutCapacity C_cut`, stores a maximum flow `f` at `ekFlowAddr`,
-and marks the minimum cut `C_cut = f.reachableCut` at `ekCutAddr < n`. -/
+This formalizes the dense `O((n + 1) ^ 5)` adjacency-matrix variant rather than the sparse
+`O(|V| |E| ^ 2)` adjacency-list bound of [CLRS2009], Theorem 26.8. It returns the maximum flow
+value `N.cutCapacity C_cut`, stores a maximum flow `f` at `ekFlowAddr`, and marks the minimum cut
+`C_cut = f.reachableCut` at `ekCutAddr < n`. -/
 theorem exists_edmondsKarp_program :
     ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       ∀ {n : ℕ} (N : Network (Fin n)) (B w : ℕ), N.s ≠ N.t →
@@ -2730,9 +2733,7 @@ private abbrev bmScratch (m r : ℕ) : ℕ :=
 @[expose] def bmCovRAddr (m r v : ℕ) : ℕ :=
   3 + m * r + 2 * ((2 + (m + r)) * (2 + (m + r))) + 2 * (2 + (m + r)) + m + v
 
-/-- Memory frontier required by `exists_bipartiteMatching_program` and
-`exists_perfectMatching_program`. -/
-@[expose] def bmWorkspace (m r : ℕ) : ℕ :=
+private abbrev bmWorkspace (m r : ℕ) : ℕ :=
   3 + m * r + 2 * ((2 + (m + r)) * (2 + (m + r))) + 2 * (2 + (m + r)) + m + r
 
 private theorem idx_lt_rect {u v m r : ℕ} (hu : u < m) (hv : v < r) : u * r + v < m * r := by
@@ -3177,9 +3178,7 @@ private theorem validHistory_bmMain {w m r : ℕ} {st : Memory.State}
         (validHistory_iterate_nat (Inv := BmReady w m r) r 0 (fun v hv t' ht' => ⟨?_, ?_⟩) ht)
         (validHistory_pure _ _ _)
       · unfold bmEdgeInner
-        have h1 : u * r + v < m * r := by
-          have : (u + 1) * r ≤ m * r := Nat.mul_le_mul_right r (by omega)
-          rw [Nat.succ_mul] at this; omega
+        have h1 : u * r + v < m * r := idx_lt_rect (by omega) (by omega)
         have h2 : (2 + u) * bmNodes m r + (2 + m + v) < bmNodes m r * bmNodes m r :=
           idx_lt_sq (by dsimp only [bmNodes]; omega) (by dsimp only [bmNodes]; omega)
         refine validHistory_read_bind (by have := ht'.2; bm_omega) ?_
@@ -3366,9 +3365,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
         (fun remv kv t' ⟨hsumv, hlo', hmat'⟩ => by
           have hkv : kv < r := by omega
           have hgread : t'.mem (3 + ku * r + kv) = if G (⟨ku, hku⟩, ⟨kv, hkv⟩) then 1 else 0 := by
-            have hlt : ku * r + kv < m * r := by
-              have : (ku + 1) * r ≤ m * r := Nat.mul_le_mul_right r hku
-              rw [Nat.succ_mul] at this; omega
+            have hlt : ku * r + kv < m * r := idx_lt_rect hku hkv
             rw [hlo' _ (by dsimp only [bmMatBase]; omega)]
             exact hG1 ⟨ku, hku⟩ ⟨kv, hkv⟩
           unfold bmEdgeInner
@@ -3459,9 +3456,7 @@ private theorem bmBuild_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Mem
   have h4r : (Memory.spec 0).clientResult st3 (iterate bmEdgeOuter (m, r) m 0) = m := by
     have := h4.1; omega
   refine ⟨fun u v => ?_, fun x y => ?_⟩
-  · have hlt : u.1 * r + v.1 < m * r := by
-      have : (u.1 + 1) * r ≤ m * r := Nat.mul_le_mul_right r u.2
-      rw [Nat.succ_mul] at this; have := v.2; omega
+  · have hlt : u.1 * r + v.1 < m * r := idx_lt_rect u.2 v.2
     rw [h4.2.1 _ (by dsimp only [bmMatBase]; omega)]
     exact hG1 u v
   · have hm4 := h4.2.2 x y
@@ -3559,9 +3554,7 @@ private theorem bmCovL_spec {m r : ℕ} (G : Fin m × Fin r → Bool) {st : Memo
             then 1 else 0)
         (fun remv kv t' ⟨hsumv, hne, hcur⟩ => by
           have hkv : kv < r := by omega
-          have hlt : ku * r + kv < m * r := by
-            have : (ku + 1) * r ≤ m * r := Nat.mul_le_mul_right r hku
-            rw [Nat.succ_mul] at this; omega
+          have hlt : ku * r + kv < m * r := idx_lt_rect hku hkv
           have hg : t'.mem (3 + ku * r + kv) = if G (⟨ku, hku⟩, ⟨kv, hkv⟩) then 1 else 0 := by
             rw [hne _ (by bm_omega), hfr _ (Or.inl (by bm_omega))]
             exact hG ⟨ku, hku⟩ ⟨kv, hkv⟩
@@ -3816,13 +3809,13 @@ private theorem bmInit_setup {m r w : ℕ} (G : Fin m × Fin r → Bool)
 /-- **Maximum bipartite matching and König vertex cover on the Word-RAM** ([Koenig1931];
 [CLRS2009], Section 26.3): one uniform flat program over `Basis.exact` that, on
 `encodeBipartiteInput G` for any `G : Fin m × Fin r → Bool`, halts within `C * (m + r + 1) ^ 5`
-instructions at every word width fitting `bmWorkspace m r` and `ekBound (2 + (m + r)) 1`. It
-returns the maximum matching cardinality `M.card = C.size`, stores `M` at `bmMatchAddr`, and stores
-a minimum König vertex cover `C` at `bmCovLAddr` and `bmCovRAddr`. -/
+instructions at every word width fitting `ekBound (2 + (m + r)) 1`. It returns the maximum
+matching cardinality `M.card = C.size`, stores `M` at `bmMatchAddr`, and stores a minimum König
+vertex cover `C` at `bmCovLAddr` and `bmCovRAddr`. -/
 theorem exists_bipartiteMatching_program :
     ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       ∀ {m r w : ℕ} (G : Fin m × Fin r → Bool),
-        Fits w (bmWorkspace m r) → Fits w (ekBound (2 + (m + r)) 1) →
+        Fits w (ekBound (2 + (m + r)) 1) →
         ∃ (y : Data R) (steps res : ℕ) (M : Finset (Fin m × Fin r))
           (cov : VertexCover (Fin m) (Fin r)),
           Runs w prog (State.init (encodeBipartiteInput G)) ⟨pc, y⟩ steps ∧
@@ -3836,7 +3829,8 @@ theorem exists_bipartiteMatching_program :
   obtain ⟨R, C₀, pc, prog, _, _, hprog⟩ :=
     bmProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨R, 5204 * C₀ + 2, pc, by omega, prog, ?_⟩
-  intro m r w G hw hwB
+  intro m r w G hwB
+  have hw : Fits w (bmWorkspace m r) := hwB.of_le (by dsimp only [bmWorkspace, ekBound]; nlinarith)
   set st := Memory.State.init (encodeBipartiteInput G)
   obtain ⟨hfr, h1, h2, hlen, hwf⟩ := bmInit_setup G hw
   have hvh : (Memory.spec w).ValidHistory st ((Memory.spec w).clientHistory st (bmProg ())) := by
@@ -3881,13 +3875,12 @@ theorem exists_bipartiteMatching_program :
 
 /-- **Bipartite perfect matching decision on the Word-RAM:** one uniform flat program over
 `Basis.exact` that, on `encodeBipartiteInput G` for any `G : Fin n × Fin n → Bool`, halts within
-`C * (n + 1) ^ 5` instructions at every word width fitting `bmWorkspace n n` and
-`ekBound (2 + (n + n)) 1`, returning `1` iff `Cslib.Circuits.BipartiteMatching.HasPerfectMatching G`
-and `0` otherwise. -/
+`C * (n + 1) ^ 5` instructions at every word width fitting `ekBound (2 + (n + n)) 1`, returning `1`
+iff `Cslib.Circuits.BipartiteMatching.HasPerfectMatching G` and `0` otherwise. -/
 theorem exists_perfectMatching_program :
     ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       ∀ {n w : ℕ} (G : Fin n × Fin n → Bool),
-        Fits w (bmWorkspace n n) → Fits w (ekBound (2 + (n + n)) 1) →
+        Fits w (ekBound (2 + (n + n)) 1) →
         ∃ (y : Data R) (steps res : ℕ),
           Runs w prog (State.init (encodeBipartiteInput G)) ⟨pc, y⟩ steps ∧
           step w prog ⟨pc, y⟩ = .halt res ∧
@@ -3897,7 +3890,8 @@ theorem exists_perfectMatching_program :
   obtain ⟨R, C₀, pc, prog, _, _, hprog⟩ :=
     pmProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨R, 168000 * C₀ + 2, pc, by omega, prog, ?_⟩
-  intro n w G hw hwB
+  intro n w G hwB
+  have hw : Fits w (bmWorkspace n n) := hwB.of_le (by dsimp only [bmWorkspace, ekBound]; nlinarith)
   set st := Memory.State.init (encodeBipartiteInput G)
   obtain ⟨hfr, h1, h2, hlen, hwf⟩ := bmInit_setup G hw
   have hvh : (Memory.spec w).ValidHistory st ((Memory.spec w).clientHistory st (pmProg ())) := by
@@ -3987,8 +3981,7 @@ private abbrev sepScratch (n : ℕ) : ℕ :=
 @[expose] def sepSideAddr (n v : ℕ) : ℕ :=
   2 + 3 * n + n * n + 2 * ((n + n + 2) * (n + n + 2)) + 2 * (n + n + 2) + n + v
 
-/-- Memory frontier required by `exists_minSeparator_program`. -/
-@[expose] def sepWorkspace (n : ℕ) : ℕ :=
+private abbrev sepWorkspace (n : ℕ) : ℕ :=
   2 + 3 * n + n * n + 2 * ((n + n + 2) * (n + n + 2)) + 2 * (n + n + 2) + n + n
 
 private theorem length_encodeBoolVec {n : ℕ} (v : Vector Bool n) :
@@ -4822,13 +4815,13 @@ private theorem sepExtract_spec {n : ℕ} (st : Memory.State) :
 /-- **Minimum vertex separator by vertex splitting on the Word-RAM:** one uniform flat program over
 `Basis.exact` that, on `encodeSepInput G Z A B` for any `G : SimpleGraph (Fin n)` and `Z A B :
 Vector Bool n`, halts within `C * (n + 1) ^ 5` instructions at every word width fitting
-`sepWorkspace n` and `ekBound (n + n + 2) (n + 1)`. It returns the minimum separator size
-`out.sep.length`, stores the `0`/`1` separator indicator at `sepOutAddr`, and stores the side
-labelling certificate `out.side` at `sepSideAddr`. -/
+`ekBound (n + n + 2) (n + 1)`. It returns the minimum separator size `out.sep.length`, stores the
+`0`/`1` separator indicator at `sepOutAddr`, and stores the side labelling certificate `out.side` at
+`sepSideAddr`. -/
 theorem exists_minSeparator_program :
     ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
       ∀ {n w : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (Z A B : Vector Bool n),
-        Fits w (sepWorkspace n) → Fits w (ekBound (n + n + 2) (n + 1)) →
+        Fits w (ekBound (n + n + 2) (n + 1)) →
         ∃ (y : Data R) (steps res : ℕ) (out : SeparatorOutput n),
           Runs w prog (State.init (encodeSepInput G Z A B)) ⟨pc, y⟩ steps ∧
           step w prog ⟨pc, y⟩ = .halt res ∧
@@ -4851,7 +4844,8 @@ theorem exists_minSeparator_program :
   obtain ⟨R, C₀, pc, prog, _, _, hprog⟩ :=
     sepProg_realizes.exists_standard_init_program_state_from_words 0
   refine ⟨R, 5204 * C₀ + 2, pc, by omega, prog, ?_⟩
-  intro n w G _ Z A B hw hwB
+  intro n w G _ Z A B hwB
+  have hw : Fits w (sepWorkspace n) := hwB.of_le (by dsimp only [sepWorkspace, ekBound]; nlinarith)
   set st := Memory.State.init (encodeSepInput G Z A B)
   have hfr : st.frontier = 2 + 3 * n + n * n := by
     simp only [st, Memory.State.init, length_encodeSepInput]; omega
@@ -4909,19 +4903,8 @@ theorem exists_minSeparator_program :
     Finset.univ.filter fun x =>
       st4.mem (distAddr ⟨sepNodes n, sepMatBase n, sepScrBase n, n + 1⟩ x.1) < sepNodes n
   set S : Finset (SplitNode n) := Network.cutOfReindex (SplitNode.equivFin n) CFin
-  have hS_min : (vertexSplitNetwork G Z A B).IsMinCut S := by
-    refine ⟨Network.isCut_cutOfReindex (SplitNode.equivFin n) hminFin.1, fun T hT => ?_⟩
-    have hT' : NFin.IsCut (T.map (SplitNode.equivFin n).toEmbedding) := by
-      simp only [NFin, Network.IsCut, Network.reindex, Finset.mem_map_equiv,
-        Equiv.symm_apply_apply]
-      exact hT
-    have h := hminFin.2 _ hT'
-    rw [← Network.cutCapacity_cutOfReindex, ← Network.cutCapacity_cutOfReindex] at h
-    have hround :
-        Network.cutOfReindex (SplitNode.equivFin n)
-          (T.map (SplitNode.equivFin n).toEmbedding) = T := by
-      ext x; simp [Network.cutOfReindex]
-    rwa [hround] at h
+  have hS_min : (vertexSplitNetwork G Z A B).IsMinCut S :=
+    Network.isMinCut_cutOfReindex (SplitNode.equivFin n) hminFin
   set out := separatorOfCut Z S
   obtain ⟨hOut_mem, hSide_mem⟩ := sepExtract_spec (n := n) st4
   set st5 := (Memory.spec 0).clientState st4 (iterate sepExtractStep n n 0)

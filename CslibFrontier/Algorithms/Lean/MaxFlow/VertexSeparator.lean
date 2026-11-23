@@ -64,6 +64,12 @@ and `side v` records whether the out-copy of `v` lies in `S`. `minSeparator` ins
 * `Cslib.Algorithms.Lean.MaxFlow.minSeparator_side_eq_of_adj`,
   `Cslib.Algorithms.Lean.MaxFlow.minSeparator_side_eq_true`,
   `Cslib.Algorithms.Lean.MaxFlow.minSeparator_side_eq_false`: the side labelling certificate.
+
+## References
+
+* [J. Edmonds and R. M. Karp, *Theoretical Improvements in Algorithmic Efficiency for Network Flow
+  Problems*][EdmondsKarp1972]
+* [L. R. Ford, Jr. and D. R. Fulkerson, *Flows in Networks*][FordFulkerson1962]
 -/
 
 public section
@@ -402,19 +408,9 @@ private theorem reindex_s_ne_t :
   (SplitNode.equivFin n).injective.ne (by simp [vertexSplitNetwork])
 
 private theorem isMinCut_minCut : (vertexSplitNetwork G Z A B).IsMinCut (minCut G Z A B) := by
-  set e := SplitNode.equivFin n
-  set N := vertexSplitNetwork G Z A B
-  obtain ⟨-, hmin, -⟩ := edmondsKarpDense_correct (N := N.reindex e) reindex_s_ne_t
-  refine ⟨Network.isCut_cutOfReindex e hmin.1, fun T hT => ?_⟩
-  have hT' : (N.reindex e).IsCut (T.map e.toEmbedding) := by
-    simp only [Network.IsCut, Network.reindex, Finset.mem_map_equiv, Equiv.symm_apply_apply]
-    exact hT
-  have h := hmin.2 _ hT'
-  rw [← Network.cutCapacity_cutOfReindex, ← Network.cutCapacity_cutOfReindex] at h
-  have hround : Network.cutOfReindex e (T.map e.toEmbedding) = T := by
-    ext x
-    simp [Network.cutOfReindex]
-  rwa [hround] at h
+  obtain ⟨-, hmin, -⟩ := edmondsKarpDense_correct
+    (N := (vertexSplitNetwork G Z A B).reindex (SplitNode.equivFin n)) reindex_s_ne_t
+  exact Network.isMinCut_cutOfReindex (SplitNode.equivFin n) hmin
 
 variable (G Z A B)
 
