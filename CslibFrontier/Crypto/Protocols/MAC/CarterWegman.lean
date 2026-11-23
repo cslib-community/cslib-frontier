@@ -119,14 +119,10 @@ arbitrary-pad and single-query PRF-pad hybrid bounds, and the shared word-level 
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfPadDistinguisher_wordProbPadTest`:
   arbitrary-pad and single-query PRF-pad bounds and `IsOraclePPT` certificates.
 * `Cslib.Crypto.Protocols.CarterWegman.isPPTOn_carterWegmanKeyGen`,
-  `Cslib.Crypto.Protocols.CarterWegman.computableInPolyTime_hash_comp`,
-  `Cslib.Crypto.Protocols.CarterWegman.computableInPolyTime_prfOracle_comp`,
-  `Cslib.Crypto.Protocols.CarterWegman.computableInPolyTime_encPair_coe`,
   `Cslib.Crypto.Protocols.CarterWegman.isOraclePPT_prfLogDistinguisher`,
   `Cslib.Crypto.Protocols.CarterWegman.eval_prfRealGame_prfLogDistinguisher`,
-  `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfLogDistinguisher_le`,
-  `Cslib.Crypto.Protocols.CarterWegman.toReal_eval_le_add_prfAdvantage`: shared polynomial-time
-  composition, `IsOraclePPT` admissibility, real/ideal game simulation, and PRF game-hop lemmas for
+  `Cslib.Crypto.Protocols.CarterWegman.eval_prfIdealGame_prfLogDistinguisher_le`: shared key-sampler
+  PPT certificate, `IsOraclePPT` admissibility, and real/ideal game simulation for
   `prfLogDistinguisher`.
 
 ## References
@@ -411,7 +407,6 @@ def checkCounterSlot (hash : K → M → Y) (k : K) (pads : List (M × Y))
 the target counter `idx` was issued (`pads[idx]? = some (_, r_idx)`, returning `false` on unissued
 indices), `m'` was never queried in any issued slot (`!(pads.map Prod.fst).contains m'`), and
 `verify hash k r_idx m' t' = true`. -/
-@[expose]
 def checkCounterEUF (hash : K → M → Y) (k : K) (pads : List (M × Y))
     (out : ℕ × M × Y) : Bool :=
   let idx := out.1
@@ -939,57 +934,9 @@ theorem isOraclePPT_prfPadDistinguisher_wordProbPadTest
 
 end PRFPad
 
-/-! ### Shared word-level tag computability and stateful log-handler simulation -/
+/-! ### Shared stateful log-handler PRF reduction -/
 
 section LogHandlerSim
-
-/-- Composing a polynomial-time keyed hash `hash : ℕ → List Bool → List Bool → List Bool` with
-polynomial-time parameter, key, and message extractors is polynomial-time. -/
-theorem computableInPolyTime_hash_comp {γ : Type} {encIn : γ ↪ List Bool}
-    {hash : ℕ → List Bool → List Bool → List Bool}
-    (hhash : ComputableInPolyTime
-      (fun ((n, k, m) : ℕ × List Bool × List Bool) => hash n k m)
-      (encKeyedInput encBits) encBits)
-    {n : γ → ℕ} {k m : γ → List Bool}
-    (hn : ComputableInPolyTime n encIn encUnary)
-    (hk : ComputableInPolyTime k encIn encBits)
-    (hm : ComputableInPolyTime m encIn encBits) :
-    ComputableInPolyTime (fun a => hash (n a) (k a) (m a)) encIn encBits := by
-  have hhash' : ComputableInPolyTime
-      (fun p : ℕ × List Bool × List Bool => hash p.1 p.2.1 p.2.2)
-      (encKeyedInput encBits) encBits := hhash
-  exact hhash'.comp (hn.prod (hk.prod hm))
-
-/-- Evaluating `prfOracle family (key a).length (key a) (input a)` is polynomial-time whenever
-`family`, `key`, and `input` are polynomial-time. -/
-theorem computableInPolyTime_prfOracle_comp {γ : Type} {encIn : γ ↪ List Bool}
-    {family : List Bool → List Bool → List Bool}
-    (hfamily : ComputableInPolyTime
-      (fun p : List Bool × List Bool => family p.1 p.2)
-      (encPair encBits encBits) encBits)
-    {key input : γ → List Bool}
-    (hkey : ComputableInPolyTime key encIn encBits)
-    (hinput : ComputableInPolyTime input encIn encBits) :
-    ComputableInPolyTime
-      (fun a => prfOracle family (key a).length (key a) (input a))
-      encIn encBits := by
-  have hfam : ComputableInPolyTime (fun a => family (key a) (input a)) encIn encBits :=
-    hfamily.comp (hkey.prod hinput)
-  have heq : (fun a => prfOracle family (key a).length (key a) (input a)) =
-      (fun a => if (input a).length == (key a).length then family (key a) (input a) else []) := by
-    funext a
-    simp [prfOracle]
-  rw [heq]
-  fun_prop
-
-/-- Encoding a pair of polynomial-time bit-word extractors `(u a, v a)` via
-`encPair encBits encBits` is polynomial-time. -/
-theorem computableInPolyTime_encPair_coe {γ : Type} {encIn : γ ↪ List Bool}
-    {u v : γ → List Bool}
-    (hu : ComputableInPolyTime u encIn encBits)
-    (hv : ComputableInPolyTime v encIn encBits) :
-    ComputableInPolyTime (fun a => (encPair encBits encBits) (u a, v a)) encIn encBits :=
-  ComputableInPolyTime.encoding_comp (hu.prod hv)
 
 private theorem interpret_deterministic_run_interpret {State α : Type}
     (g : List Bool → List Bool)
@@ -1302,25 +1249,6 @@ theorem eval_prfIdealGame_prfLogDistinguisher_le
     (hstep k table)
     (hcheck k table)
     (adversary n []) [] initTState hinit
-
-/-- Bound the real-valued acceptance probability of an experiment `game` simulated in
-`prfRealGame id family distinguisher n` by an upper bound `B` on
-`prfIdealGame id id distinguisher n` plus the PRF distinguishing advantage of `distinguisher`. -/
-theorem toReal_eval_le_add_prfAdvantage
-    {family : List Bool → List Bool → List Bool}
-    {distinguisher : OracleDistinguisher} {game : ProbComp Bool} {n : ℕ} {B : ℝ}
-    (hreal : ProbComp.eval (prfRealGame id family distinguisher n) = ProbComp.eval game)
-    (hideal : (ProbComp.eval (prfIdealGame id id distinguisher n) true).toReal ≤ B) :
-    (ProbComp.eval game true).toReal ≤
-      B + (Game.advantage
-        (ProbComp.eval (prfRealGame id family distinguisher n))
-        (ProbComp.eval (prfIdealGame id id distinguisher n)) : ℝ) := by
-  rw [← hreal]
-  have hstep := Game.coe_succProbability_le_add_of_advantage_le
-    (g₀ := ProbComp.eval (prfRealGame id family distinguisher n))
-    (g₁ := ProbComp.eval (prfIdealGame id id distinguisher n)) le_rfl
-  rw [Game.coe_succProbability, Game.coe_succProbability] at hstep
-  exact hstep.trans (add_le_add hideal le_rfl)
 
 end LogHandlerSim
 

@@ -20,6 +20,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Probability.HashFamily.UniformOffset
@@ -63,7 +64,6 @@ Boolean-matrix linear hashing) live in
   `Cslib.Crypto.Protocols.CarterWegman.nonceGame`: nonce-based Carter–Wegman handlers, pad
   reconstruction, verification predicates, and experiments (Boneh–Shoup Attack Game 7.4).
 * `Cslib.Crypto.Protocols.CarterWegman.carterWegmanNonceMAC`,
-  `Cslib.Crypto.Protocols.CarterWegman.cwNonceLogHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.prfNonceToPrfDistinguisher`: word-level `NonceMACScheme`
   packaging and `OracleDistinguisher` PRF reduction.
 
@@ -102,10 +102,6 @@ namespace Cslib.Crypto.Protocols.CarterWegman
 
 open Cslib.Probability Cslib.Probability.PMF Turing.MultiTapeTM
 open scoped NNReal ENNReal
-
-attribute [local fun_prop]
-  computableInPolyTime_prfOracle_comp
-  computableInPolyTime_encPair_coe
 
 /-! ### Full nonce-based Carter–Wegman MAC (Boneh–Shoup Attack Game 7.4 and Theorem 7.10) -/
 
@@ -409,7 +405,6 @@ def checkNonceSUF (hash : K → M → Y) (k : K) (padFn : N → Y) (tr : List ((
 and pad function `padFn`: all signing queries in `tr` used distinct nonces, the message
 `m'` was never queried (`!(tr.map (fun ((m, _), _) => m)).contains m'`), and
 `verify hash k (padFn x') m' t' = true`. -/
-@[expose]
 def checkNonceEUF (hash : K → M → Y) (k : K) (padFn : N → Y) (tr : List ((M × N) × Y))
     (out : (M × N) × Y) : Bool :=
   let cand := out.1
@@ -643,19 +638,21 @@ noncomputable def carterWegmanNonceMAC (msgLen : ℕ → ℕ)
       (BitString.listXor n [hash n k msg, (prfOracle family n prfKey nonce).take n] == tag)
   keyGen_ppt := isPPTOn_carterWegmanKeyGen hseed
   sign_ppt := by
-    have hh := computableInPolyTime_hash_comp hhash
-      (encIn := encPair encBits (encPair encBits encBits))
-      (n := fun p : List Bool × List Bool × List Bool => (dropFrame p.1).length)
-      (k := fun p => unframe p.1) (m := fun p => p.2.1)
-      (by fun_prop) (by fun_prop) (by fun_prop)
+    have hh : ComputableInPolyTime
+        (fun p : List Bool × List Bool × List Bool =>
+          hash (dropFrame p.1).length (unframe p.1) p.2.1)
+        (encPair encBits (encPair encBits encBits)) encBits :=
+      hhash.comp (ComputableInPolyTime.prod (by fun_prop)
+        (ComputableInPolyTime.prod (by fun_prop) (by fun_prop)))
     apply ComputableInPolyTime.isPPTOn
     fun_prop
   verify_polyTime := by
-    have hh := computableInPolyTime_hash_comp hhash
-      (encIn := encPair encBits (encPair encBits (encPair encBits encBits)))
-      (n := fun p : List Bool × List Bool × List Bool × List Bool => (dropFrame p.1).length)
-      (k := fun p => unframe p.1) (m := fun p => p.2.1)
-      (by fun_prop) (by fun_prop) (by fun_prop)
+    have hh : ComputableInPolyTime
+        (fun p : List Bool × List Bool × List Bool × List Bool =>
+          hash (dropFrame p.1).length (unframe p.1) p.2.1)
+        (encPair encBits (encPair encBits (encPair encBits encBits))) encBits :=
+      hhash.comp (ComputableInPolyTime.prod (by fun_prop)
+        (ComputableInPolyTime.prod (by fun_prop) (by fun_prop)))
     dsimp only
     fun_prop
   verify_sign := by
@@ -670,15 +667,7 @@ noncomputable def carterWegmanNonceMAC (msgLen : ℕ → ℕ)
     subst htag
     simp
 
-/-- Open stateful handler for the nonce-based Carter–Wegman PRF reduction
-([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274): given the hash key `k` and a framed
-signing request `request.2`, it decodes `msg := unframe request.2` and
-`nonce := dropFrame request.2`. When `msg.length == msgLen n` and `nonce.length == n`, it queries
-the external oracle on `((), nonce)` (reading `n` bits `pad`), computes
-`tag := BitString.listXor n [hash n k msg, pad]`, and prepends `((msg, nonce), tag)` to
-`queriedTriples`; otherwise it returns `[]` without querying the external oracle or recording the
-request, as the nonce-based tagging oracle does. -/
-def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List Bool → List Bool)
+private def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List Bool → List Bool)
     (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
     StateT (List ((List Bool × List Bool) × List Bool)) (WordOracleComp Unit) (List Bool) :=
   fun queriedTriples =>
@@ -694,7 +683,7 @@ def cwNonceLogHandler (msgLen : ℕ → ℕ) (hash : ℕ → List Bool → List 
 
 /-- Oracle reduction turning an adaptive word-level `NonceMACForger` into an `OracleDistinguisher`
 for the PRF security game ([BonehShoup2023], Section 7.5.1, Theorem 7.10, p. 274) via
-`prfLogDistinguisher` with `cwNonceLogHandler msgLen hash`. -/
+`prfLogDistinguisher`. -/
 def prfNonceToPrfDistinguisher (msgLen : ℕ → ℕ) (seed : ℕ → ProbComp (List Bool))
     (hash : ℕ → List Bool → List Bool → List Bool) (adversary : NonceMACForger) :
     OracleDistinguisher :=
@@ -1006,8 +995,10 @@ theorem sufCmaGame_carterWegmanNonceMAC_toReal_le
             (prfRealGame id family (prfNonceToPrfDistinguisher msgLen seed hash adversary) n))
           (ProbComp.eval (prfIdealGame id id
             (prfNonceToPrfDistinguisher msgLen seed hash adversary) n)) : ℝ) := by
-  refine toReal_eval_le_add_prfAdvantage
-    (eval_prfRealGame_prfNonceToPrfDistinguisher hmsgLen hseed hhash hfamily adversary n) ?_
+  rw [← eval_prfRealGame_prfNonceToPrfDistinguisher hmsgLen hseed hhash hfamily adversary n,
+    ← Game.coe_succProbability]
+  refine (Game.coe_succProbability_le_add_of_advantage_le le_rfl).trans (add_le_add ?_ le_rfl)
+  rw [Game.coe_succProbability]
   have hle := (eval_prfIdealGame_prfNonceToPrfDistinguisher_le hh adversary).trans
     (max_le_add_of_nonneg zero_le zero_le)
   simpa only [ENNReal.toReal_inv, ENNReal.toReal_pow, ENNReal.toReal_ofNat] using

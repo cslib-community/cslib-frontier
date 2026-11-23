@@ -17,6 +17,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Finite
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Length
 import CslibFrontier.Computability.Probabilistic.PPT.Capture
 import CslibFrontier.Computability.Probabilistic.Sampling
+import CslibFrontier.Crypto.Game.Order
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Languages.Probabilistic.Oracle.Norm
 import CslibFrontier.Languages.Probabilistic.QueryCount.Sum
@@ -60,7 +61,6 @@ hashing) live in `CslibFrontier.Crypto.Protocols.MAC.CarterWegman.Instantiations
   `Cslib.Crypto.Protocols.CarterWegman.randomNonceGame`: randomized Carter–Wegman handlers,
   verification predicates, and experiments (Boneh–Shoup Section 7.4, Theorem 7.9).
 * `Cslib.Crypto.Protocols.CarterWegman.carterWegmanRandomMAC`,
-  `Cslib.Crypto.Protocols.CarterWegman.cwRandomNonceLogHandler`,
   `Cslib.Crypto.Protocols.CarterWegman.prfRandomNonceToPrfDistinguisher`: word-level `MACScheme`
   packaging and `OracleDistinguisher` PRF reduction.
 
@@ -102,9 +102,13 @@ namespace Cslib.Crypto.Protocols.CarterWegman
 open Cslib.Probability Cslib.Probability.PMF Turing.MultiTapeTM
 open scoped NNReal ENNReal
 
-attribute [local fun_prop]
-  computableInPolyTime_prfOracle_comp
-  computableInPolyTime_encPair_coe
+@[local fun_prop]
+private theorem computableInPolyTime_encPair_coe {γ : Type} {encIn : γ ↪ List Bool}
+    {u v : γ → List Bool}
+    (hu : ComputableInPolyTime u encIn encBits)
+    (hv : ComputableInPolyTime v encIn encBits) :
+    ComputableInPolyTime (fun a => (encPair encBits encBits) (u a, v a)) encIn encBits :=
+  ComputableInPolyTime.encoding_comp (hu.prod hv)
 
 /-! ### Randomized Carter–Wegman MAC (Boneh–Shoup Section 7.4, Theorem 7.9) -/
 
@@ -329,7 +333,6 @@ def checkRandomNonceSUF (hash : K → M → Y) (k : K) (padFn : N → Y) (tr : L
 /-- Randomized Carter–Wegman EUF-CMA (message-freshness) verification predicate: the message
 `m'` was never queried (`!(tr.map (fun ((m, _), _) => m)).contains m'`) and
 `verify hash k (padFn x') m' t' = true`. -/
-@[expose]
 def checkRandomNonceEUF (hash : K → M → Y) (k : K) (padFn : N → Y) (tr : List ((M × N) × Y))
     (out : (M × N) × Y) : Bool :=
   let cand := out.1
@@ -602,20 +605,22 @@ noncomputable def carterWegmanRandomMAC (msgLen : ℕ → ℕ)
       (encPair encBits encBits (nonce, tag) == fullTag)
   keyGen_ppt := isPPTOn_carterWegmanKeyGen hseed
   sign_ppt := by
-    have hh := computableInPolyTime_hash_comp hhash
-      (encIn := encPair (encPair encBits encBits) encBits)
-      (n := fun p : (List Bool × List Bool) × List Bool => (dropFrame p.1.1).length)
-      (k := fun p => unframe p.1.1) (m := fun p => p.1.2)
-      (by fun_prop) (by fun_prop) (by fun_prop)
+    have hh : ComputableInPolyTime
+        (fun p : (List Bool × List Bool) × List Bool =>
+          hash (dropFrame p.1.1).length (unframe p.1.1) p.1.2)
+        (encPair (encPair encBits encBits) encBits) encBits :=
+      hhash.comp (ComputableInPolyTime.prod (by fun_prop)
+        (ComputableInPolyTime.prod (by fun_prop) (by fun_prop)))
     refine (ComputableInPolyTime.sampleList (by fun_prop)).bind_with ?_
     apply ComputableInPolyTime.isPPTOn
     fun_prop
   verify_polyTime := by
-    have hh := computableInPolyTime_hash_comp hhash
-      (encIn := encPair encBits (encPair encBits encBits))
-      (n := fun p : List Bool × List Bool × List Bool => (dropFrame p.1).length)
-      (k := fun p => unframe p.1) (m := fun p => p.2.1)
-      (by fun_prop) (by fun_prop) (by fun_prop)
+    have hh : ComputableInPolyTime
+        (fun p : List Bool × List Bool × List Bool =>
+          hash (dropFrame p.1).length (unframe p.1) p.2.1)
+        (encPair encBits (encPair encBits encBits)) encBits :=
+      hhash.comp (ComputableInPolyTime.prod (by fun_prop)
+        (ComputableInPolyTime.prod (by fun_prop) (by fun_prop)))
     dsimp only
     fun_prop
   verify_sign := by
@@ -630,15 +635,7 @@ noncomputable def carterWegmanRandomMAC (msgLen : ℕ → ℕ)
     have hnonceLen : nonce.length = n := BitString.length_of_mem_support_uniformList hnonce
     simp [hnonceLen]
 
-/-- Open stateful handler for the randomized Carter–Wegman PRF reduction
-([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270): given the hash key `k` and a signing request
-`msg := request.2`, when `msg.length == msgLen n` it samples a fresh uniform `n`-bit nonce
-`nonce ← BitString.sampleList n`, queries the external oracle on `((), nonce)` (reading `n` bits
-`pad`), computes `tag := BitString.listXor n [hash n k msg, pad]` and
-`fullTag := encPair encBits encBits (nonce, tag)`, and prepends `(msg, fullTag)` to `queriedPairs`;
-otherwise it returns `[]` without querying the external oracle or recording the request, as the
-tagging oracle does. -/
-noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
+private noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
     (hash : ℕ → List Bool → List Bool → List Bool)
     (n : ℕ) (k : List Bool) (request : Unit × List Bool) :
     StateT (List (List Bool × List Bool)) (WordOracleComp Unit) (List Bool) :=
@@ -656,7 +653,7 @@ noncomputable def cwRandomNonceLogHandler (msgLen : ℕ → ℕ)
 
 /-- Oracle reduction turning an adaptive word-level `Forger` into an `OracleDistinguisher`
 for the PRF security game ([BonehShoup2023], Section 7.4, Theorem 7.9, p. 270) via
-`prfLogDistinguisher` with `cwRandomNonceLogHandler msgLen hash`. -/
+`prfLogDistinguisher`. -/
 noncomputable def prfRandomNonceToPrfDistinguisher (msgLen : ℕ → ℕ)
     (seed : ℕ → ProbComp (List Bool))
     (hash : ℕ → List Bool → List Bool → List Bool) (adversary : Forger) :
@@ -977,8 +974,10 @@ theorem sufCmaGame_carterWegmanRandomMAC_toReal_le
           (ProbComp.eval
             (prfIdealGame id id
               (prfRandomNonceToPrfDistinguisher msgLen seed hash adversary) n)) : ℝ) := by
-  refine toReal_eval_le_add_prfAdvantage
-    (eval_prfRealGame_prfRandomNonceToPrfDistinguisher hmsgLen hseed hhash hfamily adversary n) ?_
+  rw [← eval_prfRealGame_prfRandomNonceToPrfDistinguisher hmsgLen hseed hhash hfamily adversary n,
+    ← Game.coe_succProbability]
+  refine (Game.coe_succProbability_le_add_of_advantage_le le_rfl).trans (add_le_add ?_ le_rfl)
+  rw [Game.coe_succProbability]
   have hcol_ne_top : (Q : ℝ≥0∞) ^ 2 / (2 * (2 : ℝ≥0∞) ^ n) ≠ ⊤ :=
     ENNReal.div_ne_top (ENNReal.pow_ne_top (ENNReal.natCast_ne_top Q))
       (mul_ne_zero (by norm_num) (pow_ne_zero n (by norm_num)))
