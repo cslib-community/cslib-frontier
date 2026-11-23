@@ -11,6 +11,7 @@ import CslibFrontier.Computability.Machines.ReadMachine.VirtualWord.Native
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.QueryLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.ListSlice
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.HaltsAt
 
 /-!
@@ -45,6 +46,8 @@ length. Nothing is inferred about the loop.
 
 * `Turing.MultiTapeTM.ComputableInSpace.loopWith`: a loop whose body is any function of stored
   registers and the input, within the space of the body and of the registers.
+* `Turing.MultiTapeTM.ComputableInSpace.comp_logSpace_context`: a budgeted function after a
+  logspace rearrangement of registers and context, in context form.
 * `Turing.MultiTapeTM.ComputableInLogSpace.inSpace_context`: a logspace function of registers and
   the input with a short value, in context form.
 
@@ -317,6 +320,30 @@ private theorem log2_add_le (u v : ℕ) : Nat.log2 (u + v) ≤ u + Nat.log2 v + 
           (Nat.pow_le_pow_right (by norm_num) (by omega))
       _ = 2 ^ (u + Nat.log2 v + 1 + 1) := by rw [pow_succ]; ring
 
+/-- **A budgeted function after a logspace rearrangement of registers and context.** If `g` is
+computable within the budget `Sg`, `f` is a logspace function of stored registers and a context,
+and the budget of `g` at `f p` is within the registers plus a budget `S` of the context that is at
+least the logarithm of its length, then `g ∘ f` is in context form with the budget `S`: the
+logarithm of the length of the encoded pair, which composition by recomputation
+(`Turing.MultiTapeTM.ComputableInSpace.comp_logSpace`) adds, is within the registers plus the
+logarithm of the length of the context. This substitutes the registers or the context of a
+function in context form. -/
+theorem _root_.Turing.MultiTapeTM.ComputableInSpace.comp_logSpace_context
+    {α ρ β γ : Type} {encA : α ↪ List Bool} {encR : ρ ↪ List Bool}
+    {encB : β ↪ List Bool} {encC : γ ↪ List Bool} {g : β → γ} {f : ρ × α → β} {Sg : β → ℕ}
+    {S : α → ℕ} (hg : ComputableInSpace g encB encC Sg)
+    (hf : ComputableInLogSpace f (encPair encR encA) encB)
+    (hS : (fun p => Sg (f p)) ≼ fun p => (encR p.1).length + S p.2)
+    (hlog : ∀ a, Nat.log2 (encA a).length ≤ S a) :
+    ComputableInSpace (fun p => g (f p)) (encPair encR encA) encC
+      fun p => (encR p.1).length + S p.2 :=
+  (hg.comp_logSpace hf).weaken (.add hS ⟨3, fun p => by
+    have h := log2_add_le (2 * (encR p.1).length + 1) (encA p.2).length
+    have := hlog p.2
+    dsimp only
+    rw [length_encPair]
+    omega⟩)
+
 /-- **A logspace function of stored registers and the input, with a short value, in context
 form.** Logarithmic space in the length of the encoded pair is within the registers plus the
 logarithm of the length of the input, so the function is computable within that budget once its
@@ -326,22 +353,11 @@ projections and composition with a function of the input alone, into bodies of
 theorem _root_.Turing.MultiTapeTM.ComputableInLogSpace.inSpace_context {α ρ β : Type}
     {encA : α ↪ List Bool} {encR : ρ ↪ List Bool} {encB : β ↪ List Bool} {f : ρ × α → β}
     (h : ComputableInLogSpace f (encPair encR encA) encB)
-    (hlen : ∃ L, ∀ p, (encB (f p)).length ≤
-      L * ((encR p.1).length + Nat.log2 (encA p.2).length + 1)) :
+    (hlen : (fun p => (encB (f p)).length) ≼
+      fun p => (encR p.1).length + Nat.log2 (encA p.2).length) :
     ComputableInSpace f (encPair encR encA) encB
-      fun p => (encR p.1).length + Nat.log2 (encA p.2).length := by
-  obtain ⟨t, c, h⟩ := h
-  obtain ⟨L, hL⟩ := hlen
-  refine ⟨t, max (3 * c) L, h.mono (fun _ => le_rfl) fun p => ?_,
-    fun p => (hL p).trans (Nat.mul_le_mul_right _ (le_max_right _ _))⟩
-  have hlog := log2_add_le (MultiTapeTM.frame (encR p.1)).length (encA p.2).length
-  rw [length_frame] at hlog
-  rw [encPair_apply, List.length_append, length_frame]
-  calc c * (Nat.log2 (2 * (encR p.1).length + 1 + (encA p.2).length) + 1)
-      ≤ c * (3 * ((encR p.1).length + Nat.log2 (encA p.2).length + 1)) :=
-        Nat.mul_le_mul_left c (by omega)
-    _ = 3 * c * ((encR p.1).length + Nat.log2 (encA p.2).length + 1) := by ring
-    _ ≤ _ := Nat.mul_le_mul_right _ (le_max_left _ _)
+      fun p => (encR p.1).length + Nat.log2 (encA p.2).length :=
+  (ComputableInSpace.budget_id (.refl _)).comp_logSpace_context h hlen fun _ => le_rfl
 
 /-- **A loop whose body is any function of stored registers and the input.** The body
 `step : ρ × α → Option ρ` takes the registers and the input, and returns the next registers or
