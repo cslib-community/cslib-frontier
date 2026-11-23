@@ -87,7 +87,7 @@ abbrev ekScratch (n : ℕ) : ℕ := n * n + 2 * n
 
 /-- Every word the solver computes or stores is at most `ekBound n B`: round counts below `n ^ 3`,
 cut sums up to `n * n * B`, residual capacities up to `2 * B`, flow updates up to `3 * B`. -/
-abbrev ekBound (n B : ℕ) : ℕ := n * n * (n + B) + 3 * B + 1
+abbrev ekBound (n B : ℕ) : ℕ := n * n * n + n * n * B + 3 * B + 1
 
 /-- Layout and word-size requirements on a context: the matrix lies below the scratch area and
 both the scratch area and `ekBound` fit a word. -/
@@ -311,16 +311,207 @@ def ekProg (d : Ctx × (ℕ × ℕ)) : Memory.Prog ℕ := do
   let r ← iterate cutOuterStep c c.1 (0, 0)
   pure r.2
 
-/-! ### Interface (proofs in progress) -/
+/-! ### Compilation (`Realizes`) -/
 
-/-- Memory-operation budget of `ekProg` on `n` vertices, `O(n ^ 5)`. -/
-abbrev ekCost (n : ℕ) : ℕ := 20 * (n + 1) ^ 5
+/-- Close the arithmetic side goals of `realize` for the solver's programs. -/
+local macro "ek_side" : tactic => `(tactic| (
+  dsimp -failIfUnchanged only [CtxFits, ekScratch, ekBound, capAddr, flowAddr, distAddr,
+    predAddr] at *
+  first
+  | assumption
+  | (constructor <;> first | assumption | (constructor <;> assumption))
+  | omega
+  | (apply Fits.of_le ‹Fits _ (_ + (_ * _ + 2 * _))›; first | omega | nlinarith)
+  | (apply Fits.of_le ‹Fits _ (_ * _ * _ + _ * _ * _ + 3 * _ + 1)›; first | omega | nlinarith)))
+
+private theorem idx_lt_sq {u v n : ℕ} (hu : u < n) (hv : v < n) : u * n + v < n * n := by
+  have : (u + 1) * n ≤ n * n := Nat.mul_le_mul_right n hu
+  rw [Nat.succ_mul] at this
+  omega
+
+private theorem fillStep_realizes :
+    Realizes .exact fillStep (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => Fits w (d.1.1 + d.2) ∧ Fits w (d.2 + 1)) (fun _ _ => 0) := by
+  unfold fillStep
+  realize
+  · exact h.1
+  · exact h.2
+
+private theorem fillRange_realizes :
+    Realizes .exact fillRange (WordEncoding.encode (α := (ℕ × ℕ) × ℕ))
+      (WordEncoding.encode (α := Unit))
+      (fun w d _ => Fits w (d.1.1 + d.2)) (fun _ _ => 0) := by
+  unfold fillRange
+  realize [fillStep_realizes]
+  refine iterationSafe_of_stepInv _ _ w d
+    (fun rem (idx : ℕ) _ => idx + rem = d.2 ∧ Fits w (d.1.1 + d.2)) ?_ ⟨Nat.zero_add _, h⟩
+  intro rem idx t ⟨hsum, hfit⟩
+  dsimp only [fillStep]
+  simp only [client_simps]
+  exact ⟨⟨by apply hfit.of_le; omega, by apply hfit.of_le; omega⟩, by omega, hfit⟩
+
+private theorem readResCap_realizes :
+    Realizes .exact readResCap (WordEncoding.encode (α := (Ctx × ℕ) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => CtxFits w d.1.1 ∧ d.1.2 < d.1.1.1 ∧ d.2 < d.1.1.1) (fun _ _ => 0) := by
+  unfold readResCap
+  realize
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hu, hv⟩ := h
+    have h1 := idx_lt_sq hu hv
+    have h2 := idx_lt_sq hv hu
+    ek_side
+
+private theorem bfsInnerStep_realizes :
+    Realizes .exact bfsInnerStep (WordEncoding.encode (α := ((Ctx × ℕ) × ℕ) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => CtxFits w d.1.1.1 ∧ d.1.1.2 < d.1.1.1.1 ∧ d.1.2 < d.1.1.1.1 ∧
+        d.2 < d.1.1.1.1) (fun _ _ => 0) := by
+  unfold bfsInnerStep
+  realize [readResCap_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hl, hu, hv⟩ := h
+    ek_side
+
+private theorem bfsMidStep_realizes :
+    Realizes .exact bfsMidStep (WordEncoding.encode (α := (Ctx × ℕ) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => CtxFits w d.1.1 ∧ d.1.2 < d.1.1.1 ∧ d.2 < d.1.1.1) (fun _ _ => 0) := by
+  unfold bfsMidStep
+  realize [bfsInnerStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hl, hu⟩ := h
+    try ek_side
+  refine iterationSafe_of_stepInv _ _ w _
+    (fun rem (v : ℕ) _ => v + rem = d.1.1.1) ?_ (Nat.zero_add _)
+  intro rem v t hsum
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, hl, hu, by omega⟩, ?_⟩
+  dsimp only [bfsInnerStep]
+  simp_client <;> omega
+
+private theorem bfsLayerStep_realizes :
+    Realizes .exact bfsLayerStep (WordEncoding.encode (α := Ctx × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => CtxFits w d.1 ∧ d.2 < d.1.1) (fun _ _ => 0) := by
+  unfold bfsLayerStep
+  realize [bfsMidStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hl⟩ := h
+    try ek_side
+  refine iterationSafe_of_stepInv _ _ w _
+    (fun rem (u : ℕ) _ => u + rem = d.1.1) ?_ (Nat.zero_add _)
+  intro rem u t hsum
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, hl, by omega⟩, ?_⟩
+  dsimp only [bfsMidStep]
+  simp_client <;> omega
+
+private theorem bfsProg_realizes :
+    Realizes .exact bfsProg (WordEncoding.encode (α := Ctx × ℕ))
+      (WordEncoding.encode (α := Unit))
+      (fun w d _ => CtxFits w d.1 ∧ d.2 < d.1.1) (fun _ _ => 0) := by
+  unfold bfsProg
+  realize [fillRange_realizes, bfsLayerStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hs⟩ := h
+    try ek_side
+  refine iterationSafe_of_stepInv _ _ w _
+    (fun rem (layer : ℕ) _ => layer + rem = d.1.1 - 1) ?_ (Nat.zero_add _)
+  intro rem layer t hsum
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, by omega⟩, ?_⟩
+  dsimp only [bfsLayerStep]
+  simp only [client_simps]
+  omega
+
+private theorem bnStep_realizes :
+    Realizes .exact bnStep (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
+      (WordEncoding.encode (α := ℕ × ℕ))
+      (fun w d _ => CtxFits w d.1) (fun _ _ => 0) := by
+  unfold bnStep
+  realize [readResCap_realizes]
+  all_goals
+    obtain ⟨hlay, hws, hwb⟩ := h
+    ek_side
+
+private theorem augStep_realizes :
+    Realizes .exact augStep (WordEncoding.encode (α := (Ctx × ℕ) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => CtxFits w d.1.1) (fun _ _ => 0) := by
+  unfold augStep
+  realize
+  all_goals
+    obtain ⟨hlay, hws, hwb⟩ := h
+    ek_side
+
+private theorem roundStep_realizes :
+    Realizes .exact roundStep (WordEncoding.encode (α := (Ctx × (ℕ × ℕ)) × ℕ))
+      (WordEncoding.encode (α := ℕ))
+      (fun w d _ => CtxFits w d.1.1 ∧ d.1.2.1 < d.1.1.1 ∧ d.1.2.2 < d.1.1.1) (fun _ _ => 0) := by
+  unfold roundStep
+  realize [bfsProg_realizes, bnStep_realizes, augStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hs, ht⟩ := h
+    try ek_side
+  all_goals
+    refine iterationSafe_of_stepInv _ _ w _ (fun _ _ _ => True) ?_ trivial
+    intro _ _ _ _
+    exact ⟨⟨hlay, hws, hwb⟩, trivial⟩
+
+private theorem cutInnerStep_realizes :
+    Realizes .exact cutInnerStep (WordEncoding.encode (α := (Ctx × ℕ) × (ℕ × ℕ)))
+      (WordEncoding.encode (α := ℕ × ℕ))
+      (fun w d _ => CtxFits w d.1.1 ∧ d.1.2 < d.1.1.1 ∧ d.2.1 < d.1.1.1) (fun _ _ => 0) := by
+  unfold cutInnerStep
+  realize
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hu, hv⟩ := h
+    have h1 := idx_lt_sq hu hv
+    ek_side
+
+private theorem cutOuterStep_realizes :
+    Realizes .exact cutOuterStep (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
+      (WordEncoding.encode (α := ℕ × ℕ))
+      (fun w d _ => CtxFits w d.1 ∧ d.2.1 < d.1.1) (fun _ _ => 0) := by
+  unfold cutOuterStep
+  realize [cutInnerStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hu⟩ := h
+    try ek_side
+  refine iterationSafe_of_stepInv _ _ w _
+    (fun rem (va : ℕ × ℕ) _ => va.1 + rem = d.1.1) ?_ (Nat.zero_add _)
+  intro rem va t hsum
+  dsimp only at *
+  refine ⟨⟨⟨hlay, hws, hwb⟩, hu, by omega⟩, ?_⟩
+  dsimp only [cutInnerStep]
+  simp_client <;> omega
 
 theorem ekProg_realizes :
     Realizes .exact ekProg (WordEncoding.encode (α := Ctx × (ℕ × ℕ)))
       (WordEncoding.encode (α := ℕ))
       (fun w d _ => CtxFits w d.1 ∧ d.2.1 < d.1.1 ∧ d.2.2 < d.1.1) (fun _ _ => 0) := by
-  sorry
+  unfold ekProg
+  realize [fillRange_realizes, roundStep_realizes, cutOuterStep_realizes]
+  all_goals
+    obtain ⟨⟨hlay, hws, hwb⟩, hs, ht⟩ := h
+    try ek_side
+  · refine iterationSafe_of_stepInv _ _ w _ (fun _ _ _ => True) ?_ trivial
+    intro _ _ _ _
+    exact ⟨⟨⟨hlay, hws, hwb⟩, hs, ht⟩, trivial⟩
+  · refine iterationSafe_of_stepInv _ _ w _
+      (fun rem (ua : ℕ × ℕ) _ => ua.1 + rem = d.1.1) ?_ (Nat.zero_add _)
+    intro rem ua t hsum
+    dsimp only at *
+    refine ⟨⟨⟨hlay, hws, hwb⟩, by omega⟩, ?_⟩
+    dsimp only [cutOuterStep]
+    simp_client <;> omega
+
+/-! ### Interface (proofs in progress) -/
+
+/-- Memory-operation budget of `ekProg` on `n` vertices, `O(n ^ 5)`. -/
+abbrev ekCost (n : ℕ) : ℕ := 20 * (n + 1) ^ 5
 
 theorem preservesAt_ekProg {a : ℕ} {d : Ctx × (ℕ × ℕ)}
     (ha : a < d.1.2.2.1 ∨ d.1.2.2.1 + ekScratch d.1.1 ≤ a) : PreservesAt a (ekProg d) := by
