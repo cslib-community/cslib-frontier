@@ -903,6 +903,7 @@ public import CslibFrontier.Algorithms.WordRAM.NatGcd
 public import CslibFrontier.Algorithms.WordRAM.NatLog
 public import CslibFrontier.Algorithms.WordRAM.NatNthRoot
 public import CslibFrontier.Algorithms.WordRAM.NatSqrt
+public import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal
 public import CslibFrontier.Algorithms.WordRAM.OptimalBST
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Amplify
 public import CslibFrontier.Algorithms.WordRAM.PPSZ.Clauses
@@ -1885,6 +1886,9 @@ public import CslibFrontier.Computability.Circuit.Parallel
 public import CslibFrontier.Computability.Circuit.Pebbling
 public import CslibFrontier.Computability.Circuit.Pi
 public import CslibFrontier.Computability.Circuit.Pointwise
+public import CslibFrontier.Computability.Circuit.Prefix.Basic
+public import CslibFrontier.Computability.Circuit.Prefix.ConsistentTree
+public import CslibFrontier.Computability.Circuit.Prefix.OptimalDepth
 public import CslibFrontier.Computability.Circuit.Program
 public import CslibFrontier.Computability.Circuit.Quantum.AcceptOperator
 public import CslibFrontier.Computability.Circuit.Quantum.Approximation
@@ -6944,8 +6948,10 @@ public import CslibFrontier.Foundations.BooleanAnalysis.Mobius
 public import CslibFrontier.Foundations.BooleanAnalysis.Monotone
 public import CslibFrontier.Foundations.BooleanAnalysis.MultilinearExtension
 public import CslibFrontier.Foundations.BooleanAnalysis.Noise
+public import CslibFrontier.Foundations.BooleanAnalysis.NoiseSensitivityInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.OddForm
 public import CslibFrontier.Foundations.BooleanAnalysis.OrDegree
+public import CslibFrontier.Foundations.BooleanAnalysis.Peres
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialCorrelation
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThreshold
 public import CslibFrontier.Foundations.BooleanAnalysis.PolynomialThresholdWeight
@@ -6970,6 +6976,7 @@ public import CslibFrontier.Foundations.BooleanAnalysis.TransitiveSymmetric
 public import CslibFrontier.Foundations.BooleanAnalysis.Tribes
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesInfluence
 public import CslibFrontier.Foundations.BooleanAnalysis.TribesJunta
+public import CslibFrontier.Foundations.BooleanAnalysis.Unate
 public import CslibFrontier.Foundations.BooleanAnalysis.UncertaintyPrinciple
 public import CslibFrontier.Foundations.BooleanAnalysis.Variance
 public import CslibFrontier.Foundations.Combinatorics.Additive.BkSequence
