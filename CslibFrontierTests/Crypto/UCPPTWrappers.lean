@@ -500,11 +500,7 @@ theorem logAdv_liftAdversary_forwards_party_and_normalizes (p : PPTParam 2) (w :
     have hmem : false ∈ ([false] : List Bool) := by simp
     rw [← h, encUnary_apply] at hmem
     simp at hmem
-  · have htake : List.take 1 (windowPartyPort.reply (none : Option (List Bool))) =
-        windowPartyPort.reply none := by
-      rw [List.take_of_length_le]
-      simp [windowPartyPort, WordPort.party, encOption_none]
-    have hfwd2 := hfwd ⟨p.secParam, 1, p.corrupted⟩ [false]
+  · have hfwd2 := hfwd ⟨p.secParam, 1, p.corrupted⟩ [false]
     dsimp only at hfwd2
     change ProbOracleComp.runWith _
         (wordHandle (fun κ C => liftAdversary (In := Bool) (Out := List Bool) (logAdv κ C))
@@ -512,12 +508,9 @@ theorem logAdv_liftAdversary_forwards_party_and_normalizes (p : PPTParam 2) (w :
           (WordInterface.exec windowPartyPort msgPort)
           (logAdvCert.liftAdversary windowPartyPort).codec ⟨p.secParam, 1, p.corrupted⟩
           (.inl (), w) [false]) () = _
-    rw [hfwd2, ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery]
-    rw [ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
-      ProbOracleComp.runWith_query]
-    rw [PMF.pure_map, PMF.pure_map, PMF.pure_map]
-    simp only [WordInterface.protocol, WordInterface.sum, WordInterface.net,
-      htake, windowPartyPort.replyDecoder.decode_enc]
+    rw [hfwd2, ProbOracleComp.lowerWith, ProbOracleComp.simulate_query, WordInterface.lowerQuery,
+      ProbOracleComp.runWith_map, ProbOracleComp.runWith_map, ProbOracleComp.runWith_map,
+      ProbOracleComp.runWith_query, PMF.pure_map, PMF.pure_map, PMF.pure_map]
     rfl
 
 end LiftAdversaryWitness
