@@ -7,14 +7,7 @@ Authors: Samuel Schlesinger
 module
 -- upstream: candidate
 
-public import CslibFrontier.Algorithms.Lean.TimeM.Loops
 public import CslibFrontier.Computability.Languages.ChomskyNormalForm
-import Mathlib.Algebra.BigOperators.Intervals
-import Mathlib.Algebra.BigOperators.Ring.Finset
-import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Data.Nat.Choose.Basic
-import Mathlib.Tactic.Linarith
-import Mathlib.Tactic.Ring
 
 /-!
 # The Cocke–Younger–Kasami algorithm
@@ -30,14 +23,13 @@ grammar has the rule `S → ε`.
 
 This is the algorithm in the proof of [Sipser, Theorem 7.16][Sipser2013] that every context-free
 language is in P, for a grammar that is already in Chomsky normal form. Conversion of an arbitrary
-context-free grammar to Chomsky normal form is not formalized here, and neither is a
-machine-level polynomial-time decider; the cost below is in the `TimeM` model.
+context-free grammar to Chomsky normal form is not formalized here; a Word-RAM implementation and
+`O((|R| + 1)(|w| + 1)³)` running-time bound are proved in `CslibFrontier.Algorithms.WordRAM.CYK`.
 
 ## Main definitions
 
 * `Cslib.Algorithms.Lean.CYK.table`: the table, filled level by level (by subword length).
 * `Cslib.Algorithms.Lean.CYK.cyk`: the membership test.
-* `Cslib.Algorithms.Lean.CYK.cykM`: the same algorithm in `TimeM`.
 
 ## Main results
 
@@ -49,28 +41,6 @@ machine-level polynomial-time decider; the cost below is in the `TimeM` model.
   Chomsky normal form is decidable.
 * `Cslib.Algorithms.Lean.CYK.nodup_table_and_length_le`: every cell is a list without repetitions
   of at most `|R|` nonterminals.
-* `Cslib.Algorithms.Lean.CYK.ret_cykM`: `cykM` returns `cyk`.
-* `Cslib.Algorithms.Lean.CYK.time_cykM`: the cost is exactly `(|R| + 1) (n + C(n + 1, 3))` on a
-  word of length `n ≥ 1` with `|R|` rules (and `0` on the empty word), so
-  `Cslib.Algorithms.Lean.CYK.time_cykM_le` bounds it by `(|R| + 1) (n + 1)³`, that is
-  `O(n³ · |G|)`.
-
-## Cost model
-
-`Cslib.Algorithms.Lean.CYK.cykM` charges one unit for each rule examined in each scan of the rule
-list. A cell of length one costs one unit to read its letter and one scan. A cell of length
-`l ≥ 2` costs, for each of its `l - 1` split points, one unit to read the two subcells and one
-scan. Reading and writing a table cell, testing membership of a nonterminal in a cell and adding
-a nonterminal to a cell are counted as constant-time steps, as on a random-access machine holding
-the table as an array of sets of nonterminals. The cells are lists without repetitions of at most
-`|R|` nonterminals (`Cslib.Algorithms.Lean.CYK.nodup_table_and_length_le`), so for a fixed grammar
-these operations act on sets of bounded size. The final lookup of the start symbol and the test
-for the empty word are not charged.
-
-The pure `Cslib.Algorithms.Lean.CYK.cyk` is a specification of the algorithm, convenient for
-proofs and for `decide` on small inputs, not a fast executable: its table is a function built by
-a chain of updates, so evaluating a cell recomputes earlier cells. The cost statements are about
-`Cslib.Algorithms.Lean.CYK.cykM` in the `TimeM` model above.
 
 ## References
 
@@ -252,6 +222,18 @@ theorem level_apply (tbl : Table G) (l i' l' : ℕ) :
   apply propext
   constructor <;> rintro ⟨rfl, h⟩ <;> exact ⟨rfl, by omega⟩
 
+/-- Once level `l` has been filled (`l ≤ L`), cells of length `l` are unchanged by later levels. -/
+theorem table_eq_of_le {l L : ℕ} (hl : l ≤ L) (i : ℕ) :
+    table G w L i l = table G w l i l := by
+  induction L with
+  | zero =>
+    obtain rfl : l = 0 := by omega
+    rfl
+  | succ L ih =>
+    rcases eq_or_lt_of_le hl with rfl | hlt
+    · rfl
+    · rw [table, level_apply, ite_eq_right (fun h => by omega), ih (by omega)]
+
 omit [DecidableEq T] [DecidableEq G.NT] in
 private theorem exists_split_iff {s : List T} {P : List T → List T → Prop} :
     (∃ u v, u ≠ [] ∧ v ≠ [] ∧ s = u ++ v ∧ P u v) ↔
@@ -402,157 +384,5 @@ theorem nodup_table_and_length_le (L i l : ℕ) :
     split_ifs
     · exact ⟨nodup_cell _ _ _, length_cell_le _ _ _⟩
     · exact ih i l
-
-/-! ### Cost -/
-
-open TimeM
-
-variable (G w)
-
-/-- `scan` in `TimeM`, charging one unit per rule examined. -/
-@[expose] def scanM (f : ChomskyNormalFormRule T G.NT → Option G.NT) (acc : List G.NT) :
-    TimeM ℕ (List G.NT) :=
-  G.rules.foldlM (fun acc r => do ✓ return (f r).elim acc (acc.insert ·)) acc
-
-/-- `leafCell` in `TimeM`: one unit to read the letter, and one scan. -/
-@[expose] def leafCellM (i : ℕ) : TimeM ℕ (List G.NT) := do
-  ✓ scanM G (leafMatch G w[i]?) []
-
-/-- `nodeCell` in `TimeM`: for each split point, one unit to read the two subcells, and one
-scan. -/
-@[expose] def nodeCellM (tbl : Table G) (i l : ℕ) : TimeM ℕ (List G.NT) :=
-  (List.range (l - 1)).foldlM (fun acc k => do
-    ✓ scanM G (nodeMatch G (tbl i (k + 1)) (tbl (i + k + 1) (l - k - 1))) acc) []
-
-/-- `cell` in `TimeM`. -/
-@[expose] def cellM (tbl : Table G) (i l : ℕ) : TimeM ℕ (List G.NT) :=
-  if l = 1 then leafCellM G w i else nodeCellM G tbl i l
-
-/-- `level` in `TimeM`. -/
-@[expose] def levelM (tbl : Table G) (l : ℕ) : TimeM ℕ (Table G) :=
-  (List.range (w.length + 1 - l)).foldlM (fun t i => do
-    let c ← cellM G w tbl i l
-    return setCell G t i l c) tbl
-
-/-- `table` in `TimeM`. -/
-@[expose] def tableM : ℕ → TimeM ℕ (Table G)
-  | 0 => return fun _ _ => []
-  | L + 1 => do
-    let tbl ← tableM L
-    levelM G w tbl (L + 1)
-
-/-- CYK in `TimeM`. -/
-@[expose] def cykM : TimeM ℕ Bool :=
-  if w = [] then return G.nilRule else do
-    let tbl ← tableM G w w.length
-    return G.initial ∈ tbl 0 w.length
-
-/-- The charge for one cell of length `l`. -/
-def cellCost (l : ℕ) : ℕ :=
-  if l = 1 then G.rules.length + 1 else (l - 1) * (G.rules.length + 1)
-
-omit [DecidableEq T] in
-@[simp] theorem ret_scanM (f) (acc) : (scanM G f acc).ret = scan G f acc := by
-  time_spec scanM
-
-omit [DecidableEq T] in
-@[simp] theorem time_scanM (f) (acc) : (scanM G f acc).time = G.rules.length := by
-  rw [scanM, time_foldlM_of_time_eq _ _ _ (c := 1) (fun _ _ => rfl), mul_one]
-
-@[simp] theorem ret_cellM (tbl : Table G) (i l : ℕ) :
-    (cellM G w tbl i l).ret = cell G w tbl i l := by
-  unfold cellM cell
-  split_ifs
-  · simp [leafCellM, leafCell]
-  · rw [nodeCellM, ret_foldlM]
-    simp [nodeCell]
-
-@[time_simps]
-theorem time_cellM (tbl : Table G) (i l : ℕ) : (cellM G w tbl i l).time = cellCost G l := by
-  unfold cellM cellCost
-  split_ifs
-  · simp [leafCellM, Nat.add_comm]
-  · rw [nodeCellM, time_foldlM_of_time_eq _ _ _ (c := 1 + G.rules.length)
-      (fun _ _ => by simp), List.length_range, Nat.add_comm 1]
-
-@[simp] theorem ret_levelM (tbl : Table G) (l : ℕ) :
-    (levelM G w tbl l).ret = level G w tbl l := by
-  rw [levelM, ret_foldlM]
-  simp [level]
-
-@[time_simps]
-theorem time_levelM (tbl : Table G) (l : ℕ) :
-    (levelM G w tbl l).time = (w.length + 1 - l) * cellCost G l := by
-  time_spec levelM [List.length_range]
-
-@[simp] theorem ret_tableM (L : ℕ) : (tableM G w L).ret = table G w L := by
-  induction L with
-  | zero => rfl
-  | succ L ih => simp [tableM, table, ih]
-
-theorem time_tableM (L : ℕ) :
-    (tableM G w L).time = ∑ j ∈ Finset.range L, (w.length - j) * cellCost G (j + 1) := by
-  time_spec tableM [Finset.sum_range_succ]
-
-/-- `cykM` computes `cyk`. -/
-@[simp] theorem ret_cykM : (cykM G w).ret = cyk G w := by
-  unfold cykM cyk
-  split_ifs <;> simp
-
-private theorem sum_sub_mul (n : ℕ) :
-    ∑ j ∈ Finset.range n, (n - j) * j = (n + 1).choose 3 := by
-  induction n with
-  | zero => rfl
-  | succ n ih =>
-    have h : ∀ j ∈ Finset.range n, (n + 1 - j) * j = (n - j) * j + j := by
-      intro j hj
-      rw [Finset.mem_range] at hj
-      rw [Nat.sub_add_comm hj.le, Nat.succ_mul]
-    have hs : ∑ j ∈ Finset.range n, j + n = (n + 1).choose 2 := by
-      rw [Nat.choose_two_right, ← Finset.sum_range_id]
-      exact (Finset.sum_range_succ _ _).symm
-    rw [Finset.sum_range_succ, Nat.add_sub_cancel_left, one_mul, Finset.sum_congr rfl h,
-      Finset.sum_add_distrib, ih, add_assoc, hs, add_comm]
-    exact (Nat.choose_succ_succ (n + 1) 2).symm
-
-/-- **Cost of CYK**: exactly `(|R| + 1) (n + C(n + 1, 3))` charged steps on a word of length `n`,
-for a grammar with `|R|` rules (`n` cells of length one, and `C(n + 1, 3)` pairs of a longer cell
-and a split point). The empty word costs nothing. -/
-theorem time_cykM :
-    (cykM G w).time = (G.rules.length + 1) * (w.length + (w.length + 1).choose 3) := by
-  unfold cykM
-  split_ifs with hw
-  · subst hw
-    rfl
-  rw [time_bind, time_tableM, time_pure, add_zero]
-  obtain ⟨n, hn⟩ : ∃ n, w.length = n + 1 :=
-    Nat.exists_eq_add_one_of_ne_zero (by simpa using hw)
-  rw [hn, Finset.sum_range_succ', Nat.sub_zero]
-  have h : ∀ j ∈ Finset.range n, (n + 1 - (j + 1)) * cellCost G (j + 1 + 1) =
-      (G.rules.length + 1) * ((n - j) * (j + 1)) := by
-    intro j _
-    rw [cellCost, ite_eq_right (by omega), Nat.add_sub_cancel, Nat.add_sub_add_right]
-    ring
-  have hsum : ∑ j ∈ Finset.range n, (n - j) * (j + 1) = (n + 1 + 1).choose 3 := by
-    rw [← sum_sub_mul (n + 1), Finset.sum_range_succ', mul_zero, add_zero]
-    exact Finset.sum_congr rfl fun j _ => by rw [Nat.add_sub_add_right]
-  rw [Finset.sum_congr rfl h, ← Finset.mul_sum, hsum,
-    show cellCost G (0 + 1) = G.rules.length + 1 from rfl]
-  ring
-
-/-- **CYK runs in cubic time**: at most `(|R| + 1) (n + 1)³` charged steps on a word of length
-`n`, for a grammar with `|R|` rules. -/
-theorem time_cykM_le : (cykM G w).time ≤ (G.rules.length + 1) * (w.length + 1) ^ 3 := by
-  rw [time_cykM]
-  refine Nat.mul_le_mul_left _ ?_
-  set n := w.length
-  have h : (n + 1).choose 3 ≤ n ^ 3 := by
-    rw [← sum_sub_mul]
-    calc ∑ j ∈ Finset.range n, (n - j) * j ≤ ∑ _j ∈ Finset.range n, n * n :=
-          Finset.sum_le_sum fun j hj => Nat.mul_le_mul (Nat.sub_le _ _)
-            (Finset.mem_range.mp hj).le
-      _ = n ^ 3 := by rw [Finset.sum_const, Finset.card_range, Nat.nsmul_eq_mul]; ring
-  calc n + (n + 1).choose 3 ≤ n + n ^ 3 := Nat.add_le_add_left h _
-    _ ≤ (n + 1) ^ 3 := by nlinarith [Nat.zero_le n]
 
 end Cslib.Algorithms.Lean.CYK

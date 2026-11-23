@@ -9,8 +9,6 @@ module
 public import CslibFrontier.Init
 public import CslibFrontier.Foundations.Analysis.MvPolynomial.CriticalCoercive
 public import CslibFrontier.Foundations.RingTheory.MvPolynomial.PurePower.CriticalValuePolynomial
-import CslibFrontier.Foundations.Analysis.MvPolynomial.CoordinateDerivative
-import Mathlib.Analysis.Calculus.LocalExtr.Basic
 import Mathlib.Topology.Algebra.MvPolynomial
 
 /-!
@@ -58,19 +56,8 @@ theorem isRoot_valuePolynomial_criticalMinimumValue {ell : ℕ} (hell : 1 ≤ el
     (valuePolynomial hell a u F hF).IsRoot (criticalMinimumValue ell a F u) := by
   obtain ⟨x, hx⟩ := exists_isMinOn_eval_deformedPolynomial ell hell he a ha F hFn u hu
   let p := deformedPolynomial ell a u F
-  have hzero (i : Fin n) : eval x (pderiv i p) = 0 := by
-    have hmin : IsMinOn (fun t => eval (Function.update x i t) p) univ (x i) := by
-      intro t _
-      change eval (Function.update x i (x i)) p ≤ eval (Function.update x i t) p
-      rw [Function.update_eq_self]
-      exact hx (mem_univ _)
-    exact (hmin.isLocalMin Filter.univ_mem).hasDerivAt_eq_zero (hasDerivAt_eval_update p x i)
-  have hrel (i : Fin n) : aeval x (criticalLower ell a u F i) = x i ^ ell := by
-    have hi := hzero i
-    dsimp only [p] at hi
-    rw [pderiv_deformedPolynomial, map_mul, eval_C, map_sub, map_pow, eval_X] at hi
-    have hc : ((ell + 1 : ℕ) : ℝ) ≠ 0 := by positivity
-    simpa only [aeval_eq_eval] using (sub_eq_zero.mp ((mul_eq_zero.mp hi).resolve_left hc)).symm
+  have hrel := aeval_criticalLower_eq_pow_of_isLocalMin_eval_deformedPolynomial ell a u F
+    (hx.isLocalMin Filter.univ_mem)
   rw [criticalMinimumValue_eq_of_isMinOn ell a F u hx]
   simpa only [valuePolynomial, aeval_eq_eval] using
     isRoot_charpoly_multiplicationMatrix_of_aeval_eq hell (criticalLower ell a u F)

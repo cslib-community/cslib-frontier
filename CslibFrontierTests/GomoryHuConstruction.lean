@@ -4,12 +4,15 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Samuel Schlesinger
 -/
 
-import CslibFrontier.Algorithms.Lean.GomoryHu.Construction
+module
+-- upstream: local-only (test driver)
+
+public import CslibFrontier.Algorithms.Lean.GomoryHu.Construction
 
 /-!
 # Tests for Gusfield's Gomory–Hu tree algorithm
 
-Exercise `Cslib.Algorithms.Lean.GomoryHu.gomoryHuM` (Gusfield's algorithm with one Edmonds–Karp
+Exercise `Cslib.Algorithms.Lean.GomoryHu.gomoryHu` (Gusfield's algorithm with one Edmonds–Karp
 computation per non-root vertex) on the weighted graph on `Fin 4` with edges `01:4`, `12:2`,
 `23:3`, `02:1`, `13:1` (the graph of `CslibFrontierTests.GomoryHu`):
 
@@ -18,11 +21,12 @@ computation per non-root vertex) on the weighted graph on `Fin 4` with edges `01
 * rooted at `3`, it returns `[1, 2, 3, 3]` with weights `[5, 4, 4, 0]`. This run takes the swap
   branch of Gusfield's step: when `s = 1` is processed, it takes the place of its parent `0` and
   inherits `0`'s recorded weight `4` while `0` receives `5`;
-* the charged running time, and its instances of the sparse and dense bounds;
 * non-minimum cut and inconsistent value oracles refuting the conclusions of
   `isGomoryHuTree_gusfieldParent` and `gusfieldWithWeights_weight_eq`;
 * edge cases: one vertex, and an edgeless graph with empty adjacency lists.
 -/
+
+public section
 
 namespace CslibFrontierTests.GomoryHuConstruction
 
@@ -31,7 +35,7 @@ open Cslib.WeightedCut Cslib.Algorithms.Lean Cslib.Algorithms.Lean.MaxFlow
 open SimpleGraph (parentGraph parentGraph_adj edgeSide edgeSide_eq_of_forall_adj)
 
 /-- The weighted graph on `Fin 4` with edges `01:4`, `12:2`, `23:3`, `02:1`, `13:1`. -/
-private def W : Fin 4 → Fin 4 → ℕ := fun u v =>
+def W : Fin 4 → Fin 4 → ℕ := fun u v =>
   match u.val, v.val with
   | 0, 1 => 4 | 1, 0 => 4
   | 1, 2 => 2 | 2, 1 => 2
@@ -59,10 +63,10 @@ example : ¬ ∀ u v, u ≠ v → 0 < W u v + W v u → v ∈ (fun _ => [] : Fin
 
 /-! ### The tree and edge weights computed from the root `0` -/
 
-private theorem gomoryHuM_zero_parent : (gomoryHuM W adjW 0).ret.parent = #v[0, 0, 1, 2] := by
+private theorem gomoryHu_zero_parent : (gomoryHu W adjW 0).parent = #v[0, 0, 1, 2] := by
   decide
 
-private theorem gomoryHuM_zero_weight : (gomoryHuM W adjW 0).ret.weight = #v[0, 5, 4, 4] := by
+private theorem gomoryHu_zero_weight : (gomoryHu W adjW 0).weight = #v[0, 5, 4, 4] := by
   decide
 
 /-- The Edmonds–Karp minimum cuts and maximum flow values used by the run rooted at `0`. -/
@@ -74,38 +78,38 @@ example : ekValue W adjW 2 1 = 4 := by decide
 example : ekValue W adjW 3 2 = 4 := by decide
 
 /-- The output tree is the path `0 - 1 - 2 - 3`. -/
-private theorem parentGraph_gomoryHuM_zero :
-    parentGraph (vget (gomoryHuM W adjW 0).ret.parent) = SimpleGraph.pathGraph 4 := by
+private theorem parentGraph_gomoryHu_zero :
+    parentGraph (vget (gomoryHu W adjW 0).parent) = SimpleGraph.pathGraph 4 := by
   ext x y
-  rw [parentGraph_adj, SimpleGraph.pathGraph_adj, gomoryHuM_zero_parent]
+  rw [parentGraph_adj, SimpleGraph.pathGraph_adj, gomoryHu_zero_parent]
   revert x y
   decide
 
 /-- The output is also a parent array rooted at `0` in the sense of `SimpleGraph.parentTree`. -/
-example : SimpleGraph.parentTree (vget (gomoryHuM W adjW 0).ret.parent) =
+example : SimpleGraph.parentTree (vget (gomoryHu W adjW 0).parent) =
     SimpleGraph.pathGraph 4 := by
-  rw [SimpleGraph.parentTree_eq_parentGraph (by rw [gomoryHuM_zero_parent]; decide),
-    parentGraph_gomoryHuM_zero]
+  rw [SimpleGraph.parentTree_eq_parentGraph (by rw [gomoryHu_zero_parent]; decide),
+    parentGraph_gomoryHu_zero]
 
 /-- Correctness of the tree and edge weights, instantiated at root `0`. -/
-example : IsGomoryHuTree (cutWeight W) (parentGraph (vget (gomoryHuM W adjW 0).ret.parent)) :=
-  isGomoryHuTree_gomoryHuM hW hadjW 0
+example : IsGomoryHuTree (cutWeight W) (parentGraph (vget (gomoryHu W adjW 0).parent)) :=
+  isGomoryHuTree_gomoryHu hW hadjW 0
 
 example (u : Fin 4) :
-    vget (gomoryHuM W adjW 0).ret.weight u =
-      minCutBetween W u (vget (gomoryHuM W adjW 0).ret.parent u) :=
-  vget_gomoryHuM_weight_eq_minCutBetween hW hadjW 0 u
+    vget (gomoryHu W adjW 0).weight u =
+      minCutBetween W u (vget (gomoryHu W adjW 0).parent u) :=
+  vget_gomoryHu_weight_eq_minCutBetween hW hadjW 0 u
 
 example : minCutBetween W 1 0 = 5 ∧ minCutBetween W 2 1 = 4 ∧ minCutBetween W 3 2 = 4 := by
-  have h1 := vget_gomoryHuM_weight_eq_minCutBetween hW hadjW 0 1
-  have h2 := vget_gomoryHuM_weight_eq_minCutBetween hW hadjW 0 2
-  have h3 := vget_gomoryHuM_weight_eq_minCutBetween hW hadjW 0 3
-  rw [gomoryHuM_zero_weight, gomoryHuM_zero_parent] at h1 h2 h3
+  have h1 := vget_gomoryHu_weight_eq_minCutBetween hW hadjW 0 1
+  have h2 := vget_gomoryHu_weight_eq_minCutBetween hW hadjW 0 2
+  have h3 := vget_gomoryHu_weight_eq_minCutBetween hW hadjW 0 3
+  rw [gomoryHu_zero_weight, gomoryHu_zero_parent] at h1 h2 h3
   exact ⟨h1.symm, h2.symm, h3.symm⟩
 
 /-- Hence the path `0 - 1 - 2 - 3` is a Gomory–Hu tree of `W`. -/
 example : IsGomoryHuTree (cutWeight W) (SimpleGraph.pathGraph 4) :=
-  parentGraph_gomoryHuM_zero ▸ isGomoryHuTree_gomoryHuM hW hadjW 0
+  parentGraph_gomoryHu_zero ▸ isGomoryHuTree_gomoryHu hW hadjW 0
 
 /-! ### The tree and edge weights computed from the root `3` (swap branch) -/
 
@@ -122,40 +126,25 @@ re-hangs `1` below `0` and sets `fl[0] = 4`. Processing `s = 1` (parent `t = 0`,
 flow `5`) takes the swap branch, since the cut contains the parent `3` of `t`: `1` takes the place
 of `0` and inherits `fl[0] = 4`, while `0` is hung below `1` with `fl[0] = 5`. Processing `s = 2`
 (parent `3`, cut `{0, 1, 2}`, flow `4`) re-hangs `1` below `2` and sets `fl[2] = 4`. -/
-example : (gomoryHuLoopM W adjW 3 [0] (Vector.replicate 4 3) (Vector.replicate 4 0)).ret =
+example : (gomoryHuLoop W adjW 3 [0] (Vector.replicate 4 3) (Vector.replicate 4 0)) =
     { parent := #v[3, 0, 3, 3], weight := #v[4, 0, 0, 0] } := by decide
-example : (gomoryHuLoopM W adjW 3 [0, 1] (Vector.replicate 4 3) (Vector.replicate 4 0)).ret =
+example : (gomoryHuLoop W adjW 3 [0, 1] (Vector.replicate 4 3) (Vector.replicate 4 0)) =
     { parent := #v[1, 3, 3, 3], weight := #v[5, 4, 0, 0] } := by decide
-example : (gomoryHuM W adjW 3).ret =
+example : (gomoryHu W adjW 3) =
     { parent := #v[1, 2, 3, 3], weight := #v[5, 4, 4, 0] } := by decide
 
 /-- The root `3` gives the same path `0 - 1 - 2 - 3` and matching edge weights `5, 4, 4`. -/
-example : parentGraph (vget (gomoryHuM W adjW 3).ret.parent) = SimpleGraph.pathGraph 4 := by
+example : parentGraph (vget (gomoryHu W adjW 3).parent) = SimpleGraph.pathGraph 4 := by
   ext x y
   rw [parentGraph_adj, SimpleGraph.pathGraph_adj,
-    show (gomoryHuM W adjW 3).ret.parent = #v[1, 2, 3, 3] by decide]
+    show (gomoryHu W adjW 3).parent = #v[1, 2, 3, 3] by decide]
   revert x y
   decide
 
 example (u : Fin 4) :
-    vget (gomoryHuM W adjW 3).ret.weight u =
-      minCutBetween W u (vget (gomoryHuM W adjW 3).ret.parent u) :=
-  vget_gomoryHuM_weight_eq_minCutBetween hW hadjW 3 u
-
-/-! ### Running time -/
-
-/-- The charged running time of the run rooted at `0`. -/
-example : (gomoryHuM W adjW 0).time = 313 := by decide
-
-/-- The general bound: `adjSteps adjW = 10`, so the bound is
-`3 * 4 + 3 * ((10 * 2 + 2) * (10 + 5 * 4) + 4 + 3) = 2013`. -/
-example : (gomoryHuM W adjW 0).time ≤ 2013 := by
-  have h := gomoryHuM_time_le hadjW 0
-  rwa [show adjSteps adjW = 10 by decide] at h
-
-/-- The dense bound on `Fin 4`. -/
-example : (gomoryHuM W (defaultAdj 4) 0).time ≤ 3705 :=
-  gomoryHuM_time_le_dense 0
+    vget (gomoryHu W adjW 3).weight u =
+      minCutBetween W u (vget (gomoryHu W adjW 3).parent u) :=
+  vget_gomoryHu_weight_eq_minCutBetween hW hadjW 3 u
 
 /-! ### Non-minimum cut and inconsistent value oracles -/
 
@@ -206,7 +195,7 @@ example :
     revert x y
     decide
   have htree : IsGomoryHuTree (cutWeight W) (SimpleGraph.pathGraph 4) :=
-    parentGraph_gomoryHuM_zero ▸ isGomoryHuTree_gomoryHuM hW hadjW 0
+    parentGraph_gomoryHu_zero ▸ isGomoryHuTree_gomoryHu hW hadjW 0
   have hadj : (SimpleGraph.pathGraph 4).Adj 1 0 := by decide
   have hside : edgeSide (SimpleGraph.pathGraph 4) 1 0 = {1, 2, 3} := by
     refine edgeSide_eq_of_forall_adj htree.isTree hadj (by decide) (by decide) ?_
@@ -219,25 +208,24 @@ example :
 
 /-! ### Edge cases -/
 
-/-- One vertex: parent array `[0]` and weight array `[0]`, in `3` charged steps. -/
-example : (gomoryHuM (fun _ _ => 0) (defaultAdj 1) 0).ret =
+/-- One vertex: parent array `[0]` and weight array `[0]`. -/
+example : (gomoryHu (fun _ _ => 0) (defaultAdj 1) 0) =
     { parent := #v[0], weight := #v[0] } := by decide
-example : (gomoryHuM (fun _ _ => 0) (defaultAdj 1) 0).time = 3 := by decide
 
 /-- An edgeless graph with empty adjacency lists: the star centred at the root is a Gomory–Hu
 tree, every cut and recorded edge weight having weight `0`. -/
-example : (gomoryHuM (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).ret =
+example : (gomoryHu (fun _ _ => 0) (fun _ => []) (0 : Fin 3)) =
     { parent := #v[0, 0, 0], weight := #v[0, 0, 0] } := by decide
 
 example : IsGomoryHuTree (cutWeight fun _ _ : Fin 3 => 0)
-    (parentGraph (vget (gomoryHuM (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).ret.parent)) :=
-  isGomoryHuTree_gomoryHuM ⟨fun _ _ => rfl, fun _ => rfl⟩ (fun _ _ _ h => absurd h (by decide)) 0
+    (parentGraph (vget (gomoryHu (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).parent)) :=
+  isGomoryHuTree_gomoryHu ⟨fun _ _ => rfl, fun _ => rfl⟩ (fun _ _ _ h => absurd h (by decide)) 0
 
 example (u : Fin 3) :
-    vget (gomoryHuM (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).ret.weight u =
+    vget (gomoryHu (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).weight u =
       minCutBetween (fun _ _ : Fin 3 => 0) u
-        (vget (gomoryHuM (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).ret.parent u) :=
-  vget_gomoryHuM_weight_eq_minCutBetween ⟨fun _ _ => rfl, fun _ => rfl⟩
+        (vget (gomoryHu (fun _ _ => 0) (fun _ => []) (0 : Fin 3)).parent u) :=
+  vget_gomoryHu_weight_eq_minCutBetween ⟨fun _ _ => rfl, fun _ => rfl⟩
     (fun _ _ _ h => absurd h (by decide)) 0 u
 
 end CslibFrontierTests.GomoryHuConstruction
