@@ -100,15 +100,14 @@ private theorem valBits_lt_two_pow : ∀ bs : List Bool, valBits bs < 2 ^ bs.len
     cases b <;> simp <;> omega
 
 private theorem valBits_bits (n : ℕ) : valBits n.bits = n := by
-  induction n using Nat.strong_induction_on with
-  | _ n ih =>
-    rcases Nat.even_or_odd' n with ⟨m, rfl | rfl⟩
-    · rcases Nat.eq_zero_or_pos m with rfl | hm
-      · rfl
-      · rw [Nat.bit0_bits m hm.ne', valBits, ih m (by omega)]
-        simp
-    · rw [Nat.bit1_bits m, valBits, ih m (by omega)]
-      simp [Nat.add_comm]
+  rcases Nat.even_or_odd' n with ⟨m, rfl | rfl⟩
+  · rcases Nat.eq_zero_or_pos m with rfl | hm
+    · rfl
+    · rw [Nat.bit0_bits m hm.ne', valBits, valBits_bits m]
+      simp
+  · rw [Nat.bit1_bits m, valBits, valBits_bits m]
+    simp [Nat.add_comm]
+termination_by n
 
 private theorem valBits_take_succ :
     ∀ (bs : List Bool) (j : ℕ) (hj : j < bs.length),
