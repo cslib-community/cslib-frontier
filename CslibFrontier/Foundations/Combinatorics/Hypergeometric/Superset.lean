@@ -159,8 +159,7 @@ theorem sum_powersetCard_ite_half_pow_le {n u r : ℕ} (hu : 0 < u) (hun : u ≤
     _ = (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V *
           ∑ J ∈ (univ : Finset (Fin n)).powersetCard u, (2 * y) ^ #(J ∩ V) := by
         rw [mul_sum]
-    _ ≤ (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (n.choose u * 2 ^ #V) :=
-        mul_le_mul_of_nonneg_left hsum (by positivity)
+    _ ≤ (y ^ r)⁻¹ * ((1 : ℝ) / 2) ^ #V * (n.choose u * 2 ^ #V) := by gcongr
     _ = (y ^ r)⁻¹ * n.choose u * (((1 : ℝ) / 2) ^ #V * 2 ^ #V) := by ring
     _ = n.choose u * (2 * u / (n + u) : ℝ) ^ r := by
         rw [← mul_pow, hyinv, inv_pow]

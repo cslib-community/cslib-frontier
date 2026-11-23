@@ -113,8 +113,7 @@ theorem dist_embed_le (P : PMF (X × Y)) (KX : X → PMF S) (KY : Y → PMF S) (
   have h := dist_localSample_le KX KY K xy.1 xy.2
   have hp := ENNReal.toReal_nonneg (a := P xy)
   calc (P xy).toReal * dist (localSample KX KY K xy.1 xy.2) ((K xy).map fun s => (s, s))
-      ≤ (P xy).toReal * (2 * dist (KX xy.1) (K xy) + 2 * dist (KY xy.2) (K xy)) :=
-        mul_le_mul_of_nonneg_left h hp
+      ≤ (P xy).toReal * (2 * dist (KX xy.1) (K xy) + 2 * dist (KY xy.2) (K xy)) := by gcongr
     _ = _ := by ring
 
 end Cslib.Probability.CorrelatedSampling

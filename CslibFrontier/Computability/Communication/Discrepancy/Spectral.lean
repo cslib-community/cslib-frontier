@@ -70,8 +70,7 @@ theorem discrepancy_uniformOfFintype_le_l2_opNorm (f : X → Y → Bool) :
           simpa only [signMatrix_apply_eq_signVal] using
             Matrix.abs_sum_sum_le_l2_opNorm (signMatrix ℝ f) A B
       _ ≤ ‖signMatrix ℝ f‖ * √(Fintype.card X) * √(Fintype.card Y) :=
-        mul_le_mul (mul_le_mul_of_nonneg_left (Real.sqrt_le_sqrt hA) (norm_nonneg _))
-          (Real.sqrt_le_sqrt hB) (Real.sqrt_nonneg _) (by positivity)
+        by gcongr
       _ = ‖signMatrix ℝ f‖ * √N := by
         rw [mul_assoc, ← Real.sqrt_mul (Nat.cast_nonneg _)]
   apply (le_div_iff₀ hs).mpr
