@@ -6027,11 +6027,16 @@ register_result "selected-entries-subset-convolution" where
     sum_{j <= s} (d choose j) + |queries| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) and \
     exec_solveFromTries_subsetConvolution (from pre-built input tries, 200 * (d + 1)^2 * \
     (sum_{j <= s} (d choose j) + |Cs| * sum_{s <= j <= t₁ + t₂} (t₁ + t₂ choose j))) \
-    specialize to ranked integer subsetConvolution when leftEntries/rightEntries have nonzero \
-    ranks t₁, t₂ (Theorem 2.2 sets t₁ = t₂ = t), every query C has size t₁ + t₂, s <= t₁ + t₂, \
-    and w satisfies explicit address (Fits w (solveSpace ...)) and signed-magnitude (Fits w \
-    (valueEnvelope d weightSum)) premises. Pure commutative-ring correctness is in \
-    CslibFrontier.Algorithms.Lean.TrimmedYates; Theorem 2.3 (3SUM hashing) remains open (#4667)."
+    specialize to ranked integer subsetConvolution when entries with nonzero weight (for \
+    executesList_program) / sets with nonzero value (for exec_solveFromTries_subsetConvolution) \
+    have cardinalities t₁, t₂ (Theorem 2.2 sets t₁ = t₂ = t), every query C has size t₁ + t₂, and \
+    s <= t₁ + t₂. executesList_program requires Fits w (solveSpace ...) and Fits w \
+    (valueEnvelope inst.d inst.weightSum); exec_solveFromTries_subsetConvolution takes sound \
+    read-only trie representations (HoldsTrie) of f, g with a bound W on |f S|, |g S| \
+    (∀ S, (f S).natAbs ≤ W and (g S).natAbs ≤ W) and requires Fits w (solveSpace baseFree d s \
+    Cs.length (highCount (t₁ + t₂) s)) and Fits w (valueEnvelope d W). Pure commutative-ring \
+    correctness is in CslibFrontier.Algorithms.Lean.TrimmedYates; Theorem 2.3 (3SUM hashing) \
+    remains open (#4667)."
 
 register_result "twosat-linear-timem" where
   title := "Aspvall–Plass–Tarjan linear-time 2-SAT solver and witness construction in TimeM"
