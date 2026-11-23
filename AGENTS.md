@@ -180,7 +180,9 @@ to reach a count. A review does the following, in this order.
    it parallel a neighbouring API? Name what you asked the author to delete, merge or make
    private, or say that you looked and found nothing to remove. A review without an answer to
    this question is incomplete. A zero reference count alone does not justify removing expected
-   mathematical API.
+   mathematical API. Automation justified by the code it removes must shrink the diff overall,
+   and each new branch must serve callers beyond one definition or module
+   ([details](policy/review.md#review-cycle)).
 3. **Name the first real property.** For each new definition, construction or transcribed
    algorithm, say what its first non-trivial property is (signatures verify, the padding is
    block-aligned, the simulator's output is close) and whether this PR proves it. Unfoldings,
@@ -464,6 +466,9 @@ more than repaired proofs: adapt to each in the bump, or defer it as the cleanup
   The tidy computability calculus is being deleted (#862); tidiness survives only as a machine-level
   kernel inside the Machines layer, used inside proofs of plain rules.
 - Programs are `PFunctor.FreeM` values; a machine's clocked run is itself a program.
+- Running times are Word-RAM or multi-tape Turing-machine theorems. `TimeM` is deprecated (#7636):
+  its ticks are unchecked annotations. Add no new uses; port existing bounds
+  ([Running-time claims](policy/statements.md#running-time-claims)).
 - The universal machine is an interpreter program certified by the calculus, not a hand-built
   machine.
 - Do not cite the unpublished draft "A Small Calculus of Finite Computation" in source or PR text.

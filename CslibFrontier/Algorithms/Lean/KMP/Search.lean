@@ -271,21 +271,13 @@ theorem ret_computePrefixM {α : Type*} [DecidableEq α] (p : Array α) :
 private theorem computePrefixLoopM_time_le {α : Type*} [DecidableEq α]
     (p : Array α) (q k : ℕ) (pi : Array ℕ) :
     (computePrefixLoopM p q k pi).time ≤ k + 2 * (p.size - q) := by
-  generalize hrem : p.size - q = rem
-  induction rem generalizing q k pi with
-  | zero =>
-    rw [computePrefixLoopM]
-    have hnot : ¬ (q < p.size) := by omega
-    simp only [hnot, ↓reduceDIte, TimeM.time_pure]
-    omega
-  | succ rem ih =>
-    have hq : q < p.size := by omega
-    rw [computePrefixLoopM]
-    simp only [hq, ↓reduceDIte, TimeM.time_bind]
+  fun_induction computePrefixLoopM p q k pi with
+  | case1 q k pi hq ih => -- q < p.size: advance
+    simp only [TimeM.time_bind]
     have hadv := advanceM_time_add_ret_le p pi k (p[q]'hq)
-    set k' := (advanceM p pi k (p[q]'hq)).ret
-    have hsub := ih (q + 1) k' (pi.push k') (by omega)
+    have hsub := ih (advanceM p pi k (p[q]'hq)).ret
     omega
+  | case2 => simp only [TimeM.time_pure]; omega -- q ≥ p.size: done
 
 /-- `computePrefixM p` performs at most `2 * (p.size - 1)` character comparisons
 (`[KnuthMorrisPratt1977]`, Section 2; `[CLRS2009]`, Section 32.4). -/
@@ -303,16 +295,9 @@ private theorem computePrefixLoopM_spec {α : Type*} [DecidableEq α]
     (htab : IsPrefixTableFor p pi) (hk : k = borderLen p.toList q) :
     (computePrefixLoopM p q k pi).ret.size = p.size ∧
       IsPrefixTableFor p (computePrefixLoopM p q k pi).ret := by
-  generalize hrem : p.size - q = rem
-  induction rem generalizing q k pi with
-  | zero =>
-    have hqe : q = p.size := by omega
-    subst hqe
-    rw [computePrefixLoopM]
-    simp only [Nat.lt_irrefl, ↓reduceDIte, TimeM.ret_pure]
-    exact ⟨hsize, htab⟩
-  | succ rem ih =>
-    have hqlt : q < p.size := by omega
+  fun_induction computePrefixLoopM p q k pi with
+  | case2 q k pi hq => exact ⟨hsize.trans (by omega), htab⟩ -- q ≥ p.size: done
+  | case1 q k pi hqlt ih => -- q < p.size: advance
     have hqlist : q < p.toList.length := by simpa only [Array.length_toList] using hqlt
     have hpne : p.toList ≠ [] := by
       intro hnil
@@ -334,9 +319,7 @@ private theorem computePrefixLoopM_spec {α : Type*} [DecidableEq α]
         subst hj_eq
         rw [Array.getElem_push_eq, hsize]
         exact hadv_eq
-    rw [computePrefixLoopM]
-    simp only [hqlt, ↓reduceDIte, TimeM.ret_bind]
-    exact ih (by omega) (by omega) (by simp only [Array.size_push, hsize]) htab' hadv_eq (by omega)
+    exact ih _ (by omega) (by omega) (by simp only [Array.size_push, hsize]) htab' hadv_eq
 
 theorem isPrefixTableFor_computePrefix {α : Type*} [DecidableEq α] (p : Array α) :
     (computePrefix p).size = p.size ∧ IsPrefixTableFor p (computePrefix p) := by
@@ -430,26 +413,19 @@ theorem ret_kmpSearchM {α : Type*} [DecidableEq α] (p t : Array α) :
 private theorem kmpSearchLoopM_time_le {α : Type*} [DecidableEq α]
     (p : Array α) {pi : Array ℕ} (hdec : IsDecreasingTable pi) (t : Array α) (i k : ℕ) :
     (kmpSearchLoopM p pi t i k).time ≤ k + 2 * (t.size - i) := by
-  generalize hrem : t.size - i = rem
-  induction rem generalizing i k with
-  | zero =>
-    rw [kmpSearchLoopM]
-    have hnot : ¬ (i < t.size) := by omega
-    simp only [hnot, ↓reduceDIte, TimeM.time_pure]
-    omega
-  | succ rem ih =>
-    have hi : i < t.size := by omega
-    rw [kmpSearchLoopM]
-    simp only [hi, ↓reduceDIte, TimeM.time_bind]
+  fun_induction kmpSearchLoopM p pi t i k with
+  | case1 i k hi ihFull ih => -- i < t.size: advance
+    simp only [TimeM.time_bind]
     have hadv := advanceM_time_add_ret_le p pi k (t[i]'hi)
     set k' := (advanceM p pi k (t[i]'hi)).ret
     split_ifs with hfull
     · simp only [time_simps]
       have hkNext_le : resetFullMatch p.size pi ≤ k' := hfull ▸ resetFullMatch_le hdec
-      have hsub := ih (i + 1) (resetFullMatch p.size pi) (by omega)
+      have hsub := ihFull k'
       omega
-    · have hsub := ih (i + 1) k' (by omega)
+    · have hsub := ih k'
       omega
+  | case2 => simp only [TimeM.time_pure]; omega -- i ≥ t.size: done
 
 /-- With any decreasing failure table `pi` (such as `computePrefix p`), `kmpSearchWithPrefixM`
 performs at most `2 * t.size` character comparisons. -/
@@ -480,18 +456,12 @@ private theorem kmpSearchLoopM_spec {α : Type*} [DecidableEq α]
     (hk : k = maxPrefixSuffixUpTo p.toList (t.toList.take i) (p.size - 1)) :
     (∀ s, s ∈ (kmpSearchLoopM p pi t i k).ret ↔ i + 1 ≤ s + p.size ∧ IsMatchAt p t s) ∧
       (kmpSearchLoopM p pi t i k).ret.Pairwise (· < ·) := by
-  generalize hrem : t.size - i = rem
-  induction rem generalizing i k with
-  | zero =>
-    have hie : i = t.size := by omega
-    subst hie
-    rw [kmpSearchLoopM]
-    simp only [Nat.lt_irrefl, ↓reduceDIte, TimeM.ret_pure, List.not_mem_nil, false_iff,
-      List.Pairwise.nil, and_true]
+  fun_induction kmpSearchLoopM p pi t i k with
+  | case2 i k hi => -- i ≥ t.size: done
+    simp only [TimeM.ret_pure, List.not_mem_nil, false_iff, List.Pairwise.nil, and_true]
     rintro s ⟨hge, hs_le, _⟩
     omega
-  | succ rem ih =>
-    have hilt : i < t.size := by omega
+  | case1 i k hilt ihFull ih => -- i < t.size: advance
     have hilt_list : i < t.toList.length := by simpa only [Array.length_toList] using hilt
     have hplist : 0 < p.toList.length := by simpa only [Array.length_toList] using hp
     have hkp : k < p.size := by
@@ -509,8 +479,7 @@ private theorem kmpSearchLoopM_spec {α : Type*} [DecidableEq α]
       rw [hget, htake, ← hpsub]
       exact hstep.symm
     set k' := (advanceM p pi k (t[i]'hilt)).ret
-    rw [kmpSearchLoopM]
-    simp only [hilt, ↓reduceDIte, TimeM.ret_bind]
+    simp only [TimeM.ret_bind]
     split_ifs with hfull
     · have hfull_max : maxPrefixSuffixUpTo p.toList (t.toList.take (i + 1)) p.toList.length =
           p.toList.length := by
@@ -528,7 +497,7 @@ private theorem kmpSearchLoopM_spec {α : Type*} [DecidableEq α]
         have hsub1 : p.size - 1 + 1 = p.toList.length := by
           rw [Array.length_toList]; omega
         rw [hsub1, ← maxPrefixSuffixUpTo_pred_of_eq_length hplist hfull_max, Array.length_toList]
-      obtain ⟨hmem_rest, hpw_rest⟩ := ih (by omega) hkNext_eq (by omega)
+      obtain ⟨hmem_rest, hpw_rest⟩ := ihFull k' (by omega) hkNext_eq
       refine ⟨fun s => ?_, List.Pairwise.cons (fun s hs => ?_) hpw_rest⟩
       · simp only [List.mem_cons, hmem_rest]
         constructor
@@ -557,7 +526,7 @@ private theorem kmpSearchLoopM_spec {α : Type*} [DecidableEq α]
         have hle := le_maxPrefixSuffixUpTo (B := p.toList.length) (Nat.le_refl _) (Nat.le_refl _)
           (by simpa only [List.take_length] using hsuf)
         omega
-      obtain ⟨hmem_rest, hpw_rest⟩ := ih (by omega) hk'_pred (by omega)
+      obtain ⟨hmem_rest, hpw_rest⟩ := ih k' (by omega) hk'_pred
       refine ⟨fun s => ?_, hpw_rest⟩
       rw [hmem_rest]
       constructor

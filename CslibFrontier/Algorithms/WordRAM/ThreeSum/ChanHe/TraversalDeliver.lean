@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalCall
 import CslibFrontier.Algorithms.WordRAM.ThreeSum.ChanHe.TraversalLocalDelivery
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 
 /-!
 # Charged native output delivery for one traversal node
@@ -177,46 +178,9 @@ theorem deliver_exec {w : ℕ} (x : Data 128)
       (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
       4 * x.regs groups + x.regs selected)) :
     Exec w deliver x (deliveryState x) 24 := by
-  have hbound (v : ℕ) (hv : v ≤ x.regs heap + 3 + 2 *
-      (x.regs (slot 2) + x.regs (slot 4) + x.regs (slot 6)) +
-      4 * x.regs groups + x.regs selected) : Fits w v := hfit.of_le hv
-  have h3 : Fits w 3 := hbound _ (by omega)
-  have hp₀ := hbound (x.regs heap + 3) (by omega)
-  have hp₁ := hbound (x.regs heap + 3 + x.regs (slot 2)) (by omega)
-  have hp₂ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4)) (by omega)
-  have hp := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6)) (by omega)
-  have ho := hbound (x.regs outputs + x.regs outputCount) (by omega)
-  have hc := hbound (x.regs outputCount + 1) (by omega)
-  have hd₀ := hbound (x.regs heap + 1) (by omega)
-  have hd₁ := hbound (x.regs heap + 1 + x.regs (slot 2)) (by omega)
-  have hd₁' := hbound (x.regs heap + 1 + x.regs (slot 2) + 1) (by omega)
-  have hd₂ := hbound (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4)) (by omega)
-  have hd₂' := hbound (x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) + 1) (by omega)
-  have he₀ := hbound (x.regs groups + x.regs groups) (by omega)
-  have he₁ := hbound (4 * x.regs groups) (by omega)
-  have he₂ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups) (by omega)
-  have he₃ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2)) (by omega)
-  have he₄ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4)) (by omega)
-  have he₅ := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6)) (by omega)
-  have he := hbound (x.regs heap + 3 + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + 4 * x.regs groups + x.regs (slot 2) + x.regs (slot 4) +
-    x.regs (slot 6) + x.regs selected) (by omega)
-  have hne₀ : x.regs heap ≠ x.regs outputs + x.regs outputCount := by omega
-  have hne₁ : x.regs heap + 1 + x.regs (slot 2) ≠
-      x.regs outputs + x.regs outputCount := by omega
-  have hne₂ : x.regs heap + 1 + x.regs (slot 2) + 1 + x.regs (slot 4) ≠
-      x.regs outputs + x.regs outputCount := by omega
-  dsimp only [heap, slot, groups, selected, outputs, outputCount, one] at *
-  ram_eval [deliver, deliveryState, heavyBase, heavyLength, heap, slot, groups, selected,
-    outputs, outputCount, packed, temporary, endpoint, one, hone, h3, hp₀, hp₁, hp₂, hp, ho,
-    hc, hd₀, hd₁, hd₁', hd₂, hd₂', he₀, he₁, he₂, he₃, he₄, he₅, he,
-    hne₀, hne₁, hne₂, Function.update_of_ne, Nat.mul_comm, Nat.mul_left_comm, Nat.mul_assoc,
-    show ∀ n : ℕ, n + n + (n + n) = 4 * n by omega]
+  unfold deliver deliveryState
+  wram_exec [hone]
+  simp only [show x.regs groups + x.regs groups + (x.regs groups + x.regs groups) =
+    4 * x.regs groups by omega]
 
 end Cslib.Algorithms.WordRAM.ThreeSum.ChanHe.Traversal
