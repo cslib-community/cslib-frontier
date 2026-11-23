@@ -23,6 +23,7 @@ import CslibFrontier.Probability.PMF.Bind
 import CslibFrontier.Tactic.GameHop
 import CslibFrontier.Tactic.PMFSwap
 import CslibFrontier.Tactic.SuppCases
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Key exchange secure against eavesdroppers
@@ -571,11 +572,8 @@ theorem DDH.dhKeyExchangeProb_eavSecure {F : PrimeOrderGroupFamily} {setup : ℕ
     (F.dhKeyExchangeProb setup).EavSecure F.encDHTranscript F.encDHKey fun _ => F.dhIdealKey := by
   intro adversary hA
   have hideal := hDDH.dhKeyExchange_eavSecure_ideal adversary hA
-  have h4 : Negligible fun n => (4 : ℝ≥0) / 2 ^ n := negligible_const_div_two_pow 4
-  refine negligible_of_le (hideal.add h4) fun n => ?_
-  dsimp only [Pi.add_apply]
-  rw [F.realGame_dhKeyExchange, F.idealGame_dhKeyExchange]
-  exact F.advantage_eavGame_dhKeyExchangeProb_le setup adversary n
+  simp only [F.realGame_dhKeyExchange, F.idealGame_dhKeyExchange] at hideal
+  negligible using F.advantage_eavGame_dhKeyExchangeProb_le setup adversary
 
 /-! ### The man-in-the-middle attack -/
 

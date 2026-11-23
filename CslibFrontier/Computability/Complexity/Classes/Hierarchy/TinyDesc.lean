@@ -94,18 +94,16 @@ theorem tinyDesc_frame_append {w pad : List Bool} (h : 2 ^ 2 ^ w.length ≤ pad.
 /-! ### Tiny descriptions in logarithmic space -/
 
 /-- **Tininess is decided in logarithmic space**, by comparing unary numbers. -/
-theorem computableInLogSpace_tinyDesc : ComputableInLogSpace tinyDesc encBits encBool := by
-  have hu : ComputableInLogSpace (fun x : List Bool => (unframe x).length) encBits encUnary :=
-    ComputableInLogSpace.bitsLength.comp (ComputableInLogSpace.of_unframe (encIn := encBits)
-      (encOut := encBits) (f := unframe) fun _ => rfl)
-  have hn := ComputableInLogSpace.unarySize
-    (ComputableInLogSpace.unarySize ComputableInLogSpace.bitsLength)
-  exact (ComputableInLogSpace.unaryLt hu hn).congr_fun tinyDesc_eq_decide
+theorem computableInLogSpace_tinyDesc : ComputableInLogSpace tinyDesc encBits encBool :=
+  (by fun_prop :
+    ComputableInLogSpace (fun x : List Bool => decide ((unframe x).length < x.length.size.size))
+      encBits encBool).congr_fun tinyDesc_eq_decide
 
 /-- **Tiny descriptions are cut out in logarithmic space.** -/
-theorem computableInLogSpace_tinyCut : ComputableInLogSpace tinyCut encBits encBits :=
-  ComputableInLogSpace.ite computableInLogSpace_tinyDesc
-    (ComputableInLogSpace.of_unframe fun _ => rfl) (ComputableInLogSpace.const [])
+theorem computableInLogSpace_tinyCut : ComputableInLogSpace tinyCut encBits encBits := by
+  have := computableInLogSpace_tinyDesc
+  unfold tinyCut
+  fun_prop
 
 /-- **Tiny descriptions are decoded in logarithmic space.** Decoding takes space polynomial in the
 length `L` of the description, which is `O(2 ^ L) = O(log n)` on a tiny description, and the

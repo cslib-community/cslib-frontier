@@ -38,18 +38,11 @@ theorem exec_advance {w : ℕ} (x : Data 160) (ho : x.regs Reg.one = 1)
     ∃ y, ExecWithin w advance x y 2 ∧ y.regs Reg.cursor = x.regs Reg.cursor + 1 ∧
       y.regs Reg.square = (x.regs Reg.cursor + 1) * (x.regs Reg.cursor + 1) ∧
       y.mem = x.mem ∧ ∀ i, i ≠ Reg.cursor → i ≠ Reg.square → y.regs i = x.regs i := by
-  have hinc : Fits w (x.regs Reg.cursor + 1) := hfit.of_le (by
-    simpa only [Nat.mul_one] using
-      Nat.mul_le_mul_left (x.regs Reg.cursor + 1) (show 1 ≤ x.regs Reg.cursor + 1 by omega))
-  let y := (x.set Reg.cursor (x.regs Reg.cursor + 1)).set Reg.square
-    ((x.regs Reg.cursor + 1) * (x.regs Reg.cursor + 1))
-  have he : ExecWithin w advance x y 2 := by
-    ram_eval [advance, y, ho, hfit, hinc, Reg.cursor, Reg.square, Reg.one, Fin.mk.injEq]
-  refine ⟨y, he, ?_, ?_, rfl, ?_⟩
-  · simp +decide [y, Reg.cursor, Reg.square]
-  · simp +decide [y, Reg.cursor, Reg.square]
-  · intro i hc hs
-    simp only [y, Data.set_regs, Function.update_of_ne hs, Function.update_of_ne hc]
+  have hinc : x.regs Reg.cursor + 1 ≤ (x.regs Reg.cursor + 1) * (x.regs Reg.cursor + 1) :=
+    Nat.le_mul_self _
+  unfold advance
+  wram_exec [ho]
+  exact ⟨by wram_simp, by wram_simp, rfl, fun i hc hs => by wram_simp [hc, hs]⟩
 
 private theorem exec_keep_bestBefore {w D : ℕ} (score : ℕ → ℕ) (x : Data 160)
     (hz : x.regs Reg.zero = 0) (ho : x.regs Reg.one = 1)

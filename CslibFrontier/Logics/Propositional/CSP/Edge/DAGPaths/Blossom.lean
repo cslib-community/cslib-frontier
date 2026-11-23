@@ -80,18 +80,14 @@ theorem blossomDAG_supported [DecidableEq V] (w : Walk F) (times : List ℕ) (pi
 /-- Every generated arc uses one of the supplied step timestamps. -/
 theorem blossomArcs_time_mem {ss : List (Occurrence F × Occurrence F)} {ts : List ℕ}
     {pivot : ℕ} {a : Arc F} (ha : a ∈ blossomArcs ss ts pivot) : a.time ∈ ts := by
-  induction ss generalizing ts pivot with
-  | nil => simp [blossomArcs] at ha
-  | cons s ss ih =>
-    cases ts with
-    | nil => simp [blossomArcs] at ha
-    | cons t ts =>
-      rcases s with ⟨o, p⟩
-      simp only [blossomArcs, List.mem_cons] at ha
-      rcases ha with rfl | rfl | ha
-      · exact List.mem_cons_self
-      · exact List.mem_cons_self
-      · exact List.mem_cons_of_mem _ (ih ha)
+  fun_induction blossomArcs ss ts pivot with
+  | case3 o p ss t ts pivot ih => -- (o, p) :: ss, t :: ts
+    simp only [List.mem_cons] at ha
+    rcases ha with rfl | rfl | ha
+    · exact List.mem_cons_self
+    · exact List.mem_cons_self
+    · exact List.mem_cons_of_mem _ (ih ha)
+  | _ => simp at ha -- no steps or no timestamps
 
 /-- Every copied constraint in the cycle graph retains its supplied timestamp. -/
 theorem blossomDAG_copy_time_mem [DecidableEq V] (w : Walk F) (times : List ℕ) (pivot : ℕ)

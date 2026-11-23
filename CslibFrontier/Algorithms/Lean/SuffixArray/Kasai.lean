@@ -200,20 +200,11 @@ theorem extendM_time_add_le_of_size_le (w : Array α) (j i h : ℕ)
 `h + List.lcpLen (w.drop (j + h)) (w.drop (i + h))`. -/
 theorem ret_extendM (w : Array α) (j i h : ℕ) :
     (extendM w j i h).ret = h + List.lcpLen (w.toList.drop (j + h)) (w.toList.drop (i + h)) := by
-  generalize hk : w.size - (i + h) = k
-  induction k generalizing h with
-  | zero =>
-    rw [extendM]
-    simp only [show ¬(j + h < w.size ∧ i + h < w.size) by omega, ↓reduceDIte, TimeM.ret_pure]
-    have := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
-    simp only [List.length_drop, Array.length_toList] at this
-    omega
-  | succ k ih =>
-    rw [extendM]
-    split_ifs with hlt heq
+  fun_induction extendM w j i h with
+  | case1 h hlt ih => -- both positions in range: compare
+    split_ifs with heq
     · simp only [TimeM.ret_bind]
-      rw [ih (h + 1) (by omega),
-        List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
+      rw [ih, List.drop_eq_getElem_cons (i := j + h) (l := w.toList) (by simpa using hlt.1),
         List.drop_eq_getElem_cons (i := i + h) (l := w.toList) (by simpa using hlt.2),
         Array.getElem_toList, Array.getElem_toList, heq, List.lcpLen_cons_cons_self,
         show j + (h + 1) = j + h + 1 by omega, show i + (h + 1) = i + h + 1 by omega]
@@ -224,11 +215,12 @@ theorem ret_extendM (w : Array α) (j i h : ℕ) :
         Array.getElem_toList, Array.getElem_toList, List.lcpLen_cons_cons]
       simp only [heq, ↓reduceIte]
       omega
-    · simp only [TimeM.ret_pure]
-      have h1 := List.lcpLen_le_length_left (w.toList.drop (j + h)) (w.toList.drop (i + h))
-      have h2 := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
-      simp only [List.length_drop, Array.length_toList] at h1 h2
-      omega
+  | case2 h hlt => -- a position out of range: stop
+    simp only [TimeM.ret_pure]
+    have h1 := List.lcpLen_le_length_left (w.toList.drop (j + h)) (w.toList.drop (i + h))
+    have h2 := List.lcpLen_le_length_right (w.toList.drop (j + h)) (w.toList.drop (i + h))
+    simp only [List.length_drop, Array.length_toList] at h1 h2
+    omega
 
 /-- `extendM` never extends past the end of the suffix at `i`. -/
 theorem ret_extendM_le (w : Array α) (j i h : ℕ) :
@@ -242,25 +234,15 @@ theorem ret_extendM_le (w : Array α) (j i h : ℕ) :
 private theorem kasaiLoopM_time_add_le (w : Array α) (sa rk : Array ℕ) (i h : ℕ)
     (lcp : Array ℕ) :
     (kasaiLoopM w sa rk i h lcp).time + min h (w.size - i) ≤ 2 * (w.size - i) := by
-  generalize hk : w.size - i = k
-  induction k generalizing i h lcp with
-  | zero =>
-    rw [kasaiLoopM]
-    simp only [show ¬(i < w.size) by omega, ↓reduceDIte, TimeM.time_pure]
+  fun_induction kasaiLoopM w sa rk i h lcp with
+  | case1 => omega -- rank 0: skip
+  | case2 i h lcp hi hr ih => -- extend from h
+    simp only [TimeM.time_bind]
+    have h1 := extendM_time_add_le w sa[rk[i]! - 1]! i h
+    have h2 := ret_extendM_le w sa[rk[i]! - 1]! i h
+    have := ih (extendM w sa[rk[i]! - 1]! i h).ret
     omega
-  | succ k ih =>
-    have hi : i < w.size := by omega
-    rw [kasaiLoopM]
-    simp only [hi, ↓reduceDIte]
-    split_ifs with hr
-    · have := ih (i + 1) h lcp (by omega)
-      omega
-    · simp only [TimeM.time_bind]
-      have h1 := extendM_time_add_le w sa[rk[i]! - 1]! i h
-      have h2 := ret_extendM_le w sa[rk[i]! - 1]! i h
-      have := ih (i + 1) ((extendM w sa[rk[i]! - 1]! i h).ret - 1)
-        (lcp.set! rk[i]! (extendM w sa[rk[i]! - 1]! i h).ret) (by omega)
-      omega
+  | case3 => simp only [TimeM.time_pure]; omega -- i ≥ w.size: done
 
 /-- **Kasai et al.'s linear bound.** `kasaiM w sa` performs at most `2 * |w|` character
 comparisons, for every input (including inputs where `sa` is not a suffix array). -/
@@ -298,68 +280,65 @@ private theorem kasaiLoopM_spec {w : Array α} {sa rk : Array ℕ}
     intro r hr
     have := hsa.getElem_lt (r := r) (by simpa using hr)
     simpa only [Array.getElem_toList, Array.length_toList] using this
-  generalize hk : w.size - i = k
-  induction k generalizing i h lcp with
-  | zero =>
-    rw [kasaiLoopM]
-    simp only [show ¬(i < w.size) by omega, ↓reduceDIte, TimeM.ret_pure]
+  fun_induction kasaiLoopM w sa rk i h lcp
+  case case3 i h lcp hiw => -- i ≥ w.size: done
+    simp only [TimeM.ret_pure]
     apply List.ext_getElem (by simp only [Array.length_toList, length_lcpArray]; omega)
     intro r h1 h2
     simp only [Array.length_toList] at h1
     rw [Array.getElem_toList]
     exact hdone r (by omega) (Or.inr (by have := hsalt r (by omega); omega))
-  | succ k ih =>
-    have hiw : i < w.size := by omega
-    rw [kasaiLoopM]
-    simp only [hiw, ↓reduceDIte]
+  all_goals
+    rename_i i h lcp hiw hr0 ih
     obtain ⟨r, hr, hri⟩ := hsa.exists_getElem_eq (by simpa only [Array.length_toList] using hiw)
     simp only [Array.length_toList, Array.getElem_toList] at hr hri
     have hrki : rk[i]! = r := hri ▸ hrk r hr
-    rw [hrki]
-    split_ifs with hr0
-    · subst hr0
-      refine ih (by omega) hsize (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_) (by omega)
-      · have h0 := hh 0 hr hri
-        rw [getElem_lcpArray_zero] at h0
-        omega
-      · rcases hr'd with h0 | hlt
+    simp only [hrki] at hr0 ih ⊢
+  case case1 => -- rank 0: skip
+    subst hr0
+    refine ih (by omega) hsize (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
+    · have h0 := hh 0 hr hri
+      rw [getElem_lcpArray_zero] at h0
+      omega
+    · rcases hr'd with h0 | hlt
+      · exact hdone r' hr' (Or.inl h0)
+      · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
+        · exact hdone r' hr' (Or.inr hlt)
+        · exact hdone r' hr' (Or.inl (hinj r' 0 hr' hr (heq.trans hri.symm)))
+  case case2 => -- extend from h
+    simp only [TimeM.ret_bind]
+    have hr1 : r - 1 < sa.size := by omega
+    rw [getElem!_pos sa (r - 1) hr1]
+    obtain ⟨j, hj⟩ : ∃ j, sa[r - 1] = j := ⟨_, rfl⟩
+    have hlcpr : (lcpArray w.toList sa.toList)[r]'(by simpa using hr) =
+        List.lcpLen (w.toList.drop j) (w.toList.drop i) := by
+      rw [getElem_lcpArray_of_pos _ _ _ (Nat.pos_of_ne_zero hr0)]
+      simp only [Array.getElem_toList, hj, hri]
+    have hhr := hh r hr hri
+    rw [hlcpr] at hhr
+    have hext : (extendM w sa[r - 1] i h).ret = (lcpArray w.toList sa.toList)[r]'(by
+        simpa using hr) := by
+      rw [hj, ret_extendM, hlcpr, List.lcpLen_eq_add_lcpLen_drop hhr, List.drop_drop,
+        List.drop_drop]
+    rw [hext]
+    have hsize' : (lcp.set! r ((lcpArray w.toList sa.toList)[r]'(by simpa using hr))).size =
+        w.size := by
+      rw [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
+      exact hsize
+    refine ih _ (by omega) hsize' (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_)
+    · have := hsa.getElem_lcpArray_sub_one_le (r := r) (r' := r') (by simpa using hr)
+        (by simpa using hr') (by simp only [Array.getElem_toList, hri, hr'i])
+      exact this
+    · simp only [Array.set!_eq_setIfInBounds]
+      by_cases hrr : r = r'
+      · subst hrr
+        rw [Array.getElem_setIfInBounds_self]
+      · rw [Array.getElem_setIfInBounds_ne (by omega) hrr]
+        rcases hr'd with h0 | hlt
         · exact hdone r' hr' (Or.inl h0)
         · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
           · exact hdone r' hr' (Or.inr hlt)
-          · exact hdone r' hr' (Or.inl (hinj r' 0 hr' hr (heq.trans hri.symm)))
-    · simp only [TimeM.ret_bind]
-      have hr1 : r - 1 < sa.size := by omega
-      rw [getElem!_pos sa (r - 1) hr1]
-      obtain ⟨j, hj⟩ : ∃ j, sa[r - 1] = j := ⟨_, rfl⟩
-      have hlcpr : (lcpArray w.toList sa.toList)[r]'(by simpa using hr) =
-          List.lcpLen (w.toList.drop j) (w.toList.drop i) := by
-        rw [getElem_lcpArray_of_pos _ _ _ (Nat.pos_of_ne_zero hr0)]
-        simp only [Array.getElem_toList, hj, hri]
-      have hhr := hh r hr hri
-      rw [hlcpr] at hhr
-      have hext : (extendM w sa[r - 1] i h).ret = (lcpArray w.toList sa.toList)[r]'(by
-          simpa using hr) := by
-        rw [hj, ret_extendM, hlcpr, List.lcpLen_eq_add_lcpLen_drop hhr, List.drop_drop,
-          List.drop_drop]
-      rw [hext]
-      have hsize' : (lcp.set! r ((lcpArray w.toList sa.toList)[r]'(by simpa using hr))).size =
-          w.size := by
-        rw [Array.set!_eq_setIfInBounds, Array.size_setIfInBounds]
-        exact hsize
-      refine ih (by omega) hsize' (fun r' hr' hr'i => ?_) (fun r' hr' hr'd => ?_) (by omega)
-      · have := hsa.getElem_lcpArray_sub_one_le (r := r) (r' := r') (by simpa using hr)
-          (by simpa using hr') (by simp only [Array.getElem_toList, hri, hr'i])
-        exact this
-      · simp only [Array.set!_eq_setIfInBounds]
-        by_cases hrr : r = r'
-        · subst hrr
-          rw [Array.getElem_setIfInBounds_self]
-        · rw [Array.getElem_setIfInBounds_ne (by omega) hrr]
-          rcases hr'd with h0 | hlt
-          · exact hdone r' hr' (Or.inl h0)
-          · rcases Nat.lt_or_eq_of_le (Nat.le_of_lt_succ hlt) with hlt | heq
-            · exact hdone r' hr' (Or.inr hlt)
-            · exact absurd (hinj r r' hr hr' (hri.trans heq.symm)) hrr
+          · exact absurd (hinj r r' hr hr' (hri.trans heq.symm)) hrr
 
 /-- **Correctness of Kasai et al.'s algorithm**: on a suffix array, `kasaiM` returns the LCP
 array. -/

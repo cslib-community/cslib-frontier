@@ -397,8 +397,6 @@ private theorem hgArgminM_time (s : HgState n) : (hgArgminM s).time = n := by
 
 @[time_simps]
 private theorem hgDualM_mate (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.mate = s.mate := rfl
-private theorem hgDualM_used (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.used = s.used := rfl
-private theorem hgDualM_tree (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.tree = s.tree := rfl
 @[time_simps]
 private theorem hgDualM_path (s : HgState n) (δ : ℤ) : (hgDualM s δ).ret.path = s.path := rfl
 
@@ -418,15 +416,6 @@ private theorem hgDualM_minv (s : HgState n) (δ : ℤ) (j : Fin n) :
 @[time_simps]
 private theorem hgDualM_time (s : HgState n) (δ : ℤ) : (hgDualM s δ).time = 3 * n := by
   time_spec hgDualM
-
-private theorem hgRelaxM_y (s : HgState n) (i j₁ : Fin n) : (hgRelaxM s c i j₁).ret.y = s.y := rfl
-private theorem hgRelaxM_z (s : HgState n) (i j₁ : Fin n) : (hgRelaxM s c i j₁).ret.z = s.z := rfl
-private theorem hgRelaxM_mate (s : HgState n) (i j₁ : Fin n) :
-    (hgRelaxM s c i j₁).ret.mate = s.mate := rfl
-private theorem hgRelaxM_used (s : HgState n) (i j₁ : Fin n) :
-    (hgRelaxM s c i j₁).ret.used = s.used := rfl
-private theorem hgRelaxM_tree (s : HgState n) (i j₁ : Fin n) :
-    (hgRelaxM s c i j₁).ret.tree = s.tree := rfl
 
 private theorem hgRelaxM_minv (s : HgState n) (i j₁ j : Fin n) :
     vget (hgRelaxM s c i j₁).ret.minv j =
@@ -846,9 +835,6 @@ private theorem hgInv_extendM {r : Fin n} {s : HgState n}
       (hgExtendM c s j₁ i₀).ret.tree (hgExtendM c s j₁ i₀).ret.minv
       (hgExtendM c s j₁ i₀).ret.path :=
   hgInv_extend h hj₁ hz hm
-
-private theorem hgExtendM_mate (s : HgState n) (j₁ i₀ : Fin n) :
-    (hgExtendM c s j₁ i₀).ret.mate = s.mate := rfl
 
 private theorem hgExtendM_used (s : HgState n) (j₁ i₀ : Fin n) :
     (hgExtendM c s j₁ i₀).ret.used = vset s.used j₁ true := rfl

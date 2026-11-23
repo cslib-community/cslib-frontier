@@ -41,7 +41,7 @@ standard instruction per digit. Scalar arithmetic is provided separately in `Ban
 namespace Cslib.WordRAM.Multiword.Bank
 
 open Workspace
-open Schoolbook (registers)
+open Schoolbook (registers registers_bounds nodup_registers)
 
 variable {n : ℕ}
 
@@ -146,12 +146,10 @@ theorem size_clear (n : ℕ) : (clear n).size = 18 * n + 1 := by
 theorem exec_clear {w : ℕ} (hw : 2 ≤ w) (x : Data (capacity n + 4)) :
     ∃ y, Exec w (clear n) x y (18 * n + 1) ∧ Encodes w y (fun _ => 0) ∧
       y.mem = x.mem ∧ y.regs inputReg = x.regs inputReg := by
-  have hnd : (allRegs n).Nodup := by
-    apply List.nodup_ofFn_ofInjective
-    fin_index
   obtain ⟨y, he, hm, hf, hp⟩ := Transfer.exec_constants (w := w) (allRegs n)
     (List.replicate (18 * n) 0)
-    (by simp only [allRegs, registers, List.length_ofFn, List.length_replicate]) hnd
+    (by simp only [allRegs, registers, List.length_ofFn, List.length_replicate])
+    (nodup_registers _ _ _)
     (by intro c hc; have := (List.mem_replicate.mp hc).2; subst c; exact fits_zero w) x
   have hzero (j : Fin n) (i : Fin (capacity n + 4)) (hi : i ∈ regs j) : y.regs i = 0 := by
     have hh : y.regs i ∈ (allRegs n).map y.regs :=
@@ -167,8 +165,9 @@ theorem exec_clear {w : ℕ} (hw : 2 ≤ w) (x : Data (capacity n + 4)) :
       omega
     · exact value_eq_zero_of_forall (hzero j)
   · intro hi
-    obtain ⟨i, heq⟩ := List.mem_ofFn.mp hi
-    fin_index
+    have := registers_bounds hi
+    dsimp [inputReg] at this
+    omega
 
 /-- Load the sole input from the usual RAM input memory, then split it into a bank entry.
 The input memory contains its length at address zero and its value at address one. -/
