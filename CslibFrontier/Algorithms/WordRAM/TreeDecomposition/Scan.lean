@@ -11,6 +11,7 @@ public import CslibFrontier.Algorithms.Lean.TreeDecomposition.BagMask
 public import CslibFrontier.Computability.WordRAM.ListArray
 public import CslibFrontier.Computability.WordRAM.Realization.ProgFrame
 public import CslibFrontier.Computability.WordRAM.Realization.WordEncoding.Equiv
+import CslibFrontier.Computability.WordRAM.InputArray
 import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Tactic.Realize
 
@@ -138,9 +139,8 @@ theorem HoldsIn.drop {base : ℕ} {xs : List ℕ} {s : Memory.State}
 
 theorem holdsIn_init (words : List ℕ) : HoldsIn 1 words (Memory.State.init words) := by
   refine ⟨by simp [Memory.State.init, Nat.add_comm], fun i => ?_⟩
-  change (if 1 + i.val = 0 then words.length else words.getD (1 + i.val - 1) 0) = words[i.val]
-  rw [ite_eq_right (by omega), show 1 + i.val - 1 = i.val by omega,
-    List.getD_eq_getElem?_getD, List.getElem?_eq_getElem i.isLt, Option.getD_some]
+  have h := Data.init_realizes_append (r := 0) [] words [] i
+  simpa [Memory.State.init] using h
 
 theorem holdsIn_alloc_zero (s : Memory.State) (k : ℕ) :
     HoldsIn s.frontier (List.replicate k 0) ((Memory.spec 0).clientState s (Memory.alloc k)) := by
@@ -203,6 +203,29 @@ theorem powProg_state (args : PowArgs) (s : Memory.State) :
   unfold powProg
   exact clientState_iterate_eq_of powStep args.base (fun _ _ => rfl) args.exp 1 s
 
+theorem powProg_result (args : PowArgs) (s : Memory.State) :
+    (Memory.spec 0).clientResult s (powProg args) = args.base ^ args.exp := by
+  unfold powProg
+  suffices ∀ k acc,
+      (Memory.spec 0).clientResult s (iterate powStep args.base k acc) = acc * args.base ^ k by
+    simpa only [Nat.one_mul] using this args.exp 1
+  intro k
+  induction k with
+  | zero =>
+    intro acc
+    have h0 : iterate powStep args.base 0 acc = pure acc := rfl
+    rw [h0]
+    simp only [Nat.pow_zero, Nat.mul_one]
+    rfl
+  | succ k ih =>
+    intro acc
+    change (Memory.spec 0).clientResult s
+      (powStep (args.base, acc) >>= iterate powStep args.base k) = acc * args.base ^ (k + 1)
+    rw [StateTransitionSpec.clientResult_bind]
+    change (Memory.spec 0).clientResult s
+      (iterate powStep args.base k (acc * args.base)) = acc * args.base ^ (k + 1)
+    rw [ih (acc * args.base), Nat.pow_succ, Nat.mul_comm (args.base ^ k), ← Nat.mul_assoc]
+
 theorem powProg_spec {w : ℕ} (args : PowArgs) {s : Memory.State} (hs : 0 < s.frontier) :
     (Memory.spec w).ValidHistory s ((Memory.spec w).clientHistory s (powProg args)) ∧
     (Memory.spec 0).clientState s (powProg args) = s ∧
@@ -245,24 +268,28 @@ theorem powProg_spec {w : ℕ} (args : PowArgs) {s : Memory.State} (hs : 0 < s.f
 
 theorem powProg_realizes :
     Realizes .exact powProg WordEncoding.encode WordEncoding.encode
-      (fun w args s => Fits w 1 ∧ 0 < s.frontier ∧ Fits w (args.base ^ args.exp))
+      (fun w args _ => Fits w 1 ∧ Fits w (args.base ^ args.exp))
       (fun _ _ => 0) := by
   unfold powProg
   realize
-  obtain ⟨h1, hs, hpow⟩ := h
-  refine iterationSafe_of_stepInv _ _ w _
-    (fun (j : ℕ) (acc : ℕ) (st : Memory.State) =>
-      0 < st.frontier ∧ acc = d.base ^ j ∧ Fits w acc)
-    ⟨hs, by simp only [Nat.pow_zero], h1⟩ ?_
-  intro j hj acc st ⟨hst, hacc, _⟩
-  have hprod : acc * d.base = d.base ^ (j + 1) := by rw [hacc, Nat.pow_succ]
-  have hfit_next : Fits w (acc * d.base) := by
-    rw [hprod]
-    rcases Nat.eq_zero_or_pos d.base with hb0 | hb_pos
-    · rw [hb0, zero_pow (Nat.succ_ne_zero j)]
-      exact fits_zero w
-    · exact hpow.of_le (Nat.pow_le_pow_right hb_pos (Nat.succ_le_of_lt hj))
-  exact ⟨⟨h1, hst, hfit_next⟩, hst, hprod, hfit_next⟩
+  · exact h.1
+  · obtain ⟨h1, hpow⟩ := h
+    refine iterationSafe_of_stepInv _ _ w _
+      (fun (j : ℕ) (acc : ℕ) (_ : Memory.State) =>
+        j ≤ d.exp ∧ acc = d.base ^ (d.exp - j) ∧ Fits w acc)
+      (fun j acc _ ⟨hj_le, hacc, _⟩ => ?_)
+      ⟨le_rfl, by simp only [Nat.sub_self, Nat.pow_zero], h1⟩
+    dsimp only [powStep]
+    have hexp_step : d.exp - j = (d.exp - (j + 1)) + 1 := by omega
+    have hprod : acc * d.base = d.base ^ (d.exp - j) := by
+      rw [hacc, hexp_step, Nat.pow_succ]
+    have hfit_next : Fits w (acc * d.base) := by
+      rw [hprod]
+      rcases Nat.eq_zero_or_pos d.base with hb0 | hb_pos
+      · rw [hb0, zero_pow (by omega)]
+        exact fits_zero w
+      · exact hpow.of_le (Nat.pow_le_pow_right hb_pos (Nat.sub_le _ _))
+    exact ⟨hfit_next, Nat.le_of_succ_le hj_le, hprod, hfit_next⟩
 
 /-! ### Linear bag membership scan (`bagMemProg`) -/
 
@@ -394,19 +421,27 @@ theorem bagMemProg_spec {w : ℕ} (args : BagScanArgs) {xs : List ℕ} {s : Memo
 
 theorem bagMemProg_realizes :
     Realizes .exact bagMemProg WordEncoding.encode WordEncoding.encode
-      (fun w args _ => Fits w 1 ∧ Fits w (args.base + args.len)) (fun _ _ => 0) := by
+      (fun w args _ => Fits w 1 ∧ Fits w (args.base + args.len))
+      (fun _ _ => 0) := by
   unfold bagMemProg
   realize
   obtain ⟨h1, hfit⟩ := h
   refine iterationSafe_of_stepInv _ _ w _
     (fun (j : ℕ) (st : BagScanState) (_ : Memory.State) =>
-      st.cur = d.base + j ∧ st.found ≤ 1)
-    ⟨Nat.add_zero _, Nat.zero_le _⟩ ?_
-  intro j hj st m ⟨hcur, hfd⟩
+      st.cur + j = d.base + d.len ∧ st.found ≤ 1)
+    (fun j st m ⟨hcur, hfd⟩ => ?_)
+    ⟨rfl, Nat.zero_le _⟩
+  dsimp only [bagMemStep]
   have hcur_fit : Fits w (st.cur + 1) := hfit.of_le (by omega)
   have hfd' : (if m.mem st.cur = d.target then 1 else st.found) ≤ 1 := by
     split_ifs <;> omega
-  exact ⟨⟨h1, hcur_fit, by split_ifs; exact h1; exact h1.of_le hfd⟩, by omega, hfd'⟩
+  refine ⟨?_, ?_, ?_⟩
+  · split
+    · exact ⟨hcur_fit, h1⟩
+    · exact hcur_fit
+  · change (st.cur + 1) + j = d.base + d.len
+    omega
+  · exact hfd'
 
 /-! ### Word-by-word block copy (`copyBagProg`) -/
 
@@ -541,18 +576,21 @@ theorem copyBagProg_spec {w : ℕ} (args : BagCopyArgs) {xs : List ℕ} {s : Mem
 
 theorem copyBagProg_realizes :
     Realizes .exact copyBagProg WordEncoding.encode WordEncoding.encode
-      (fun w args s => Fits w 1 ∧ Fits w (args.src + args.len) ∧ Fits w (args.dst + args.len) ∧
-        args.dst + args.len ≤ s.frontier)
+      (fun w args _ => Fits w 1 ∧ Fits w (args.src + args.len) ∧ Fits w (args.dst + args.len))
       (fun _ _ => 0) := by
   unfold copyBagProg
   realize
-  obtain ⟨h1, hsrc_fit, hdst_fit, hdst_fr⟩ := h
+  obtain ⟨_, hsrc_fit, hdst_fit⟩ := h
   refine iterationSafe_of_stepInv _ _ w _
-    (fun (j : ℕ) (st : CopyBagState) (m : Memory.State) =>
-      st.srcCur = d.src + j ∧ st.dstCur = d.dst + j ∧ d.dst + d.len ≤ m.frontier)
-    ⟨Nat.add_zero _, Nat.add_zero _, hdst_fr⟩ ?_
-  intro j hj st m ⟨hsrc, hdst, hm_fr⟩
-  exact ⟨⟨h1, hsrc_fit.of_le (by omega), hdst_fit.of_le (by omega)⟩,
-    by omega, by omega, hm_fr⟩
+    (fun (j : ℕ) (st : CopyBagState) (_ : Memory.State) =>
+      st.srcCur + j = d.src + d.len ∧ st.dstCur + j = d.dst + d.len)
+    (fun j st _ ⟨hsrc, hdst⟩ => ?_)
+    ⟨rfl, rfl⟩
+  dsimp only [copyBagStep]
+  refine ⟨⟨hsrc_fit.of_le (by omega), hdst_fit.of_le (by omega)⟩, ?_, ?_⟩
+  · change (st.srcCur + 1) + j = d.src + d.len
+    omega
+  · change (st.dstCur + 1) + j = d.dst + d.len
+    omega
 
 end Cslib.Algorithms.WordRAM.TreeDecomposition

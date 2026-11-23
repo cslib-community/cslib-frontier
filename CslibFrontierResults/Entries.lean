@@ -69,7 +69,7 @@ import CslibFrontier.Algorithms.Lean.MaxTwoSAT.GoemansWilliamsonMaxTwoSAT
 import CslibFrontier.Algorithms.Lean.TwoSAT
 import CslibFrontier.Algorithms.Lean.TrimmedYates
 import CslibFrontier.Algorithms.LinearAlgebra.BareissElimination
-import CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP
+import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP
 import CslibFrontier.Algorithms.WordRAM.Schoening.Amplify
 import CslibFrontier.Crypto.Computational.Encryption.IVStream.Malleability
 import CslibFrontier.Crypto.Computational.RSACRT
@@ -9683,19 +9683,21 @@ register_result "csp-bounded-treewidth" where
     { paper := CyganEtAl2015, theorem := "Lemma 7.4 (nice trees)", locator := "p.161" }
   ]
   theorems := [
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspCountRootedM,
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspDecideRootedM,
-    Cslib.Algorithms.Lean.TreeDecomposition.time_cspCountRootedM_le,
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspCountActiveRootedM,
-    Cslib.Algorithms.Lean.TreeDecomposition.ret_cspCountNiceM_equiv
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspDecide_rooted,
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspCount_rooted,
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspDecide_nice,
+    Cslib.Algorithms.WordRAM.TreeDecomposition.exists_program_cspCount_nice
   ]
   scope := "Finite constraint domains Fin q (and arbitrary Fintype/Inhabited D via Equiv D \
-    (Fin q)) over a supplied RootedTreeDecomposition of the primal or active primal graph. \
-    Normalizes via toNiceTreePruned to at most (3 w + 5)(|V| + 1) nice nodes (size, not runtime \
-    bound) and charges unit-cost TimeM inner-loop ticks bounded by (3 w + 5)(|V| + 1) · q^(w + 1) \
-    · dpNodeCost w F (excluding recursive list-manipulation overhead like bagList, sem \
-    evaluations, and unbounded integer arithmetic). The generic CSP-counting DP extension is an \
-    adaptation/original implementation. Computing the tree decomposition is external."
+    (Fin q)) over a supplied RootedTreeDecomposition or NiceTreeDecomposition of the primal \
+    graph. Normalizes via toNiceTreePruned to at most (3 w + 5)(|V| + 1) nice nodes and proves a \
+    Word-RAM instruction bound O(m · (w + 1) · q^(w + 1) · (w^2 + |F| + totalArity F · w)) \
+    at word width w satisfying Fits w inst.wordBound, charging bag construction/erasure, \
+    materialized constraint truth-table lookups, radix projections, and bounded-word \
+    arithmetic. Pure DP correctness (cspCountRooted_eq_modelCount, cspDecideRooted_eq_true_iff, \
+    cspCountActiveRooted_eq_modelCount, cspCountNice_equiv) is in \
+    CslibFrontier.Algorithms.Lean.TreeDecomposition.CSP; nice-tree normalization, truth-table \
+    materialization, and tree-decomposition computation are external to the Word-RAM program."
 
 register_result "kleene-post-incomparable" where
   title := "Kleene–Post theorem: existence of Turing-incomparable degrees"

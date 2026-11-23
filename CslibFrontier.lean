@@ -1029,6 +1029,9 @@ public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Host.Width
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.LowerBound
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Memory
 public import CslibFrontier.Algorithms.WordRAM.ThreeSum.Weight
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.CSP
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.IndependentSet
+public import CslibFrontier.Algorithms.WordRAM.TreeDecomposition.Scan
 public import CslibFrontier.Computability.Automata.DPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Basic
 public import CslibFrontier.Computability.Automata.MPDA.Emptiness
@@ -7380,6 +7383,7 @@ public import CslibFrontier.Foundations.Data.List.FlatMapPositions
 public import CslibFrontier.Foundations.Data.List.FlatMapRange
 public import CslibFrontier.Foundations.Data.List.Flatten
 public import CslibFrontier.Foundations.Data.List.Fold
+public import CslibFrontier.Foundations.Data.List.FoldMax
 public import CslibFrontier.Foundations.Data.List.FoldlIdx
 public import CslibFrontier.Foundations.Data.List.FoldrForall
 public import CslibFrontier.Foundations.Data.List.Forall2
