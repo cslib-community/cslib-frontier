@@ -79,9 +79,6 @@ example : (encRotationCertificate (ofRotation loopRotation)).length ≤
 
 -- Automation composes the native checker with a concrete certificate supplier.
 example : ComputableInPolyTime (fun G : Graph => verifyGenusZero G ⟨[]⟩) encGraph encBool := by
-  have hi : ComputableInPolyTime (fun G : Graph => (G, (⟨[]⟩ : RotationCertificate)))
-      encGraph encGraphRotationCertificate :=
-    ComputableInPolyTime.id'.prod (ComputableInPolyTime.const (⟨[]⟩ : RotationCertificate))
-  exact computableInPolyTime_verifyGenusZero.comp hi
+  fun_prop
 
 end RotationCertificateTests
