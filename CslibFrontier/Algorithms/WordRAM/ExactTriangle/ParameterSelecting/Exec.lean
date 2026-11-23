@@ -117,14 +117,21 @@ theorem exec_at {W n F ap bp cp b : ℕ} (values : List ℤ)
         (Int.ofNat_le.mpr (hv (values.getD q 0) (List.getD_mem 0 (by omega))))
     obtain ⟨r, hr, rf, riff, rm, regs⟩ := exec_slow a A B C aN (aAB ▸ hab) (aBC ▸ hbc) (aAC ▸ hac)
       (slow_fits values hW)
-      (fun i j => by rw [aAB, aMem]; simpa only [A, V, pairIndex, Nat.add_assoc] using vab _ (pairIndex_lt (i, j)))
-      (fun i j => by rw [aBC, aMem]; simpa only [B, V, pairIndex, Nat.add_assoc] using vbc _ (pairIndex_lt (i, j)))
-      (fun i j => by rw [aAC, aMem]; simpa only [C, V, pairIndex, Nat.add_assoc] using vac _ (pairIndex_lt (i, j)))
+      (fun i j => by
+        rw [aAB, aMem]
+        simpa only [A, V, pairIndex, Nat.add_assoc] using vab _ (pairIndex_lt (i, j)))
+      (fun i j => by
+        rw [aBC, aMem]
+        simpa only [B, V, pairIndex, Nat.add_assoc] using vbc _ (pairIndex_lt (i, j)))
+      (fun i j => by
+        rw [aAC, aMem]
+        simpa only [C, V, pairIndex, Nat.add_assoc] using vac _ (pairIndex_lt (i, j)))
       (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
       (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
       (fun i j => abs_bound _ (by have := pairIndex_lt (i, j); omega))
     have hc : ¬cond.Holds a := by
-      simp only [cond, Cond.holds_lt, aPrime, aflag, ite_eq_right hfast, lt_self_iff_false, not_false_eq_true]
+      simp only [cond, Cond.holds_lt, aPrime, aflag, ite_eq_right hfast, lt_self_iff_false,
+        not_false_eq_true]
     have hstage : ExecWithin W slow a r (stageBudget n 0 values (fun _ => 0)) := by
       simpa only [stageBudget, dite_eq_right hfast] using hr
     refine ⟨0, fun _ => 0, finish 0 (fun _ => 0) r (ExecWithin.branch_neg hc hstage)

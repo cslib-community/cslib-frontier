@@ -142,7 +142,8 @@ theorem exec_source {w m n g p A : ℕ} (values : List ℤ)
   have hmem : Set.EqOn x.mem reference.mem (Set.Iio (reference.regs Instances.output)) :=
     fun q hq => by
       have hq0 : q < a.regs Instances.output := hq
-      exact (bmem (by simpa only [bo, Set.mem_Iio] using hq0)).trans (reference_mem q (by omega)).symm
+      exact (bmem (by simpa only [bo, Set.mem_Iio] using hq0)).trans
+        (reference_mem q (by omega)).symm
   obtain ⟨y, hy, yf, ys, yiff, yw, frame, _⟩ := exec_traverse values hlen hD hg hp hN hv hW
     reference x reference_out cursor ((xr _).trans bz) (by rw [xr, xr]; exact bh) hmem heap
   have domination := streamingCharge_le_timeBound

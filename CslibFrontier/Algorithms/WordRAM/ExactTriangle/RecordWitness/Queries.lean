@@ -131,7 +131,8 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
         by rw [zi, Nat.count_succ, ite_eq_left hact, ← ys]; exact zs,
         fun hz => let ⟨za, zb, zlo, zhi, zeq⟩ := zw hz
           ⟨i, by omega, ym ▸ hanswer, za, zb, zlo, zhi, zeq⟩⟩, ?_⟩
-      simpa only [ite_eq_left hact, Φ, zi, i] using potential_step active (T := 42 * length + 28) hilt
+      simpa only [ite_eq_left hact, Φ, zi, i] using
+        potential_step active (T := 42 * length + 28) hilt
     · have hskip : y.regs Reg.found ≠ 0 ∨ y.mem (out + i) = 0 := by
         by_cases hz : y.regs Reg.found = 0
         · refine Or.inr (by_contra fun hn => hact ?_)
@@ -155,7 +156,8 @@ theorem exec_queries {w U n first length out queries Q : ℕ}
           obtain ⟨j, hj, hm, hwa, hwb, hlo, hhi, hzsum⟩ := yw ((zreg Reg.found).symm.trans hz)
           exact ⟨j, by omega, hm, (zreg Reg.witnessA).trans hwa, (zreg Reg.witnessB).trans hwb,
             zreg Reg.witnessC ▸ hlo, zreg Reg.witnessC ▸ hhi, zreg Reg.witnessC ▸ hzsum⟩⟩, ?_⟩
-      simpa only [ite_eq_right hact, Φ, zi, i] using potential_step active (T := 42 * length + 28) hilt
+      simpa only [ite_eq_right hact, Φ, zi, i] using
+        potential_step active (T := 42 * length + 28) hilt
   obtain ⟨y, he, ⟨yFixed, ym, yi, yf, ys, yw⟩, hend⟩ := ExecWithin.loop_potential I Φ body hstart
   have yindex : y.regs Reg.index = Q := by
     have : ¬ y.regs Reg.index < Q := by simpa only [Cond.holds_lt, yFixed.count] using hend

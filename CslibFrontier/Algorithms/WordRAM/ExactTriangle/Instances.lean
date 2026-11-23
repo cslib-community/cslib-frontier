@@ -488,8 +488,10 @@ private theorem exec_loop {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
       (by rw [hreg pieces, hreg descriptors, hreg modulus, hreadonly _ (by omega)]; exact hrho _ hk)
       (by simpa only [hreg size, hreg modulus] using hL)
       (by simpa only [hreg size, hreg modulus] using hR)
-      (by intro i hi; rw [hreg size] at hi; rw [hreg srcLeft, hreadonly _ (by omega)]; exact hleft i hi)
-      (by intro i hi; rw [hreg size] at hi; rw [hreg srcRight, hreadonly _ (by omega)]; exact hright i hi)
+      (by intro i hi
+          rw [hreg size] at hi; rw [hreg srcLeft, hreadonly _ (by omega)]; exact hleft i hi)
+      (by intro i hi
+          rw [hreg size] at hi; rw [hreg srcRight, hreadonly _ (by omega)]; exact hright i hi)
       (by rw [hreg srcLeft, hreg size, hyheap]; omega)
       (by rw [hreg srcRight, hreg size, hyheap]; omega)
       (hfit.of_le (by
@@ -501,7 +503,8 @@ private theorem exec_loop {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
     let old := atInstance x (y.regs produced)
     have hmeta (i : Fin 64) (hi : 32 ≤ i.val) (hi' : i.val < 50) : y.regs i = old.regs i := by
       rcases eq_or_ne i produced with rfl | hp
-      · simp only [old, atInstance, Data.set_regs_of_ne (by decide : produced ≠ heap), Data.set_regs_self]
+      · simp only [old, atInstance, Data.set_regs_of_ne (by decide : produced ≠ heap),
+          Data.set_regs_self]
       · rcases eq_or_ne i heap with rfl | hh
         · simpa only [old, atInstance, Data.set_regs_self] using hyheap
         · simpa only [old, atInstance, Data.set_regs, Function.update_of_ne hh,
@@ -528,7 +531,8 @@ private theorem exec_loop {w : ℕ} (x : Data 64) (L R : ℕ → ℕ)
     · have hjlt : j < y.regs produced := by omega
       obtain ⟨hjrecord, hjL, hjR⟩ := hywritten j hjlt
       have hprev : j * x.regs stride + x.regs stride ≤ y.regs produced * x.regs stride := by
-        simpa only [Nat.succ_mul] using Nat.mul_le_mul_right (x.regs stride) (Nat.succ_le_of_lt hjlt)
+        simpa only [Nat.succ_mul] using
+          Nat.mul_le_mul_right (x.regs stride) (Nat.succ_le_of_lt hjlt)
       have hrealize {base len : ℕ} {f : Fin len → ℕ} (h : (Block.mk base len).Realizes y.mem f)
           (hle : base + len ≤ y.regs heap) : (Block.mk base len).Realizes z.mem f :=
         fun a => (hzframe _ (by have : a.val < len := a.isLt; dsimp only; omega)).trans (h a)

@@ -131,8 +131,10 @@ theorem exec_input {w m n g p A : ℕ} (values : List ℤ)
     obtain ⟨t, ht, hpref⟩ := hz
     cases hpref with
     | seq hp hs => exact (hp.within.seq (hs.within.seq he)).mono (by dsimp only [qs, q, Q]; omega)
-  obtain ⟨-, -, -, hfirst, -, (hcoords : ∀ i < Q, a.mem (q + 2 * i) < n ∧ a.mem (q + 2 * i + 1) < n), -⟩ :=
-    record_view V (.init (PreparationInput.input n (D m) g p values)) a hout hD hDn hg (by omega) idx hidx
+  obtain ⟨-, -, -, hfirst, -,
+      (hcoords : ∀ i < Q, a.mem (q + 2 * i) < n ∧ a.mem (q + 2 * i + 1) < n), -⟩ :=
+    record_view V (.init (PreparationInput.input n (D m) g p values)) a hout hD hDn hg
+      (by omega) idx hidx
   have card := QuerySpec.card_residueClass wAB (by omega : p ≠ 0)
     (fun q => (V q % (p : ℤ)).toNat) (fun _ => rfl) idx.residue
   obtain ⟨-, hnodup, hset⟩ := RecordProduct.decodedQueries_chunkOf V wAB hn (by omega)

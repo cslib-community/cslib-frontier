@@ -131,7 +131,8 @@ theorem exec_expand {w L t F : ℕ} (η : OutStr L) (xs : List Term)
       (u := usedFrom η 0 xs) (e := starsFrom η 0 xs) (p := 10 ^ xs.length)
       (cp := 10 ^ (xs.length + 1)) b
       bF bn bk bc bu be bp bcp b5 b1 b9 b0 (hcommon.of_le (by omega))
-    have hex : ExecWithin w expand x y 178 := (ha.seq ((hb'.seq hy).branch_pos acond)).mono (by omega)
+    have hex : ExecWithin w expand x y 178 :=
+      (ha.seq ((hb'.seq hy).branch_pos acond)).mono (by omega)
     have hch : children η t xs = (xs ++ [.P0]) :: mid := by
       dsimp [children, mid]; exact ite_eq_left hi
     refine ⟨y, hex, by simp only [hch, List.length_cons, yn]; omega, ?_, ?_,

@@ -61,9 +61,12 @@ public theorem exec {w L m N A : ℕ} (hw : 0 < w) (hm : m ≤ L) (bits : Bool)
   have hStamp : scratchBase L m N qs.length + 4 * (L + 1) + 2 * (L + 1) * 10 ^ L =
       stampBase L m N qs.length := rfl
   have hEnd : stampBase L m N qs.length + 10 ^ L = memoryEnd L m N qs.length := rfl
-  have hL : x.mem 1 = L := by simpa [State.init, Data.init, input] using hinput 1 (by decide) (by omega)
-  have hm' : x.mem 2 = m := by simpa [State.init, Data.init, input] using hinput 2 (by decide) (by omega)
-  have hN : x.mem 3 = N := by simpa [State.init, Data.init, input] using hinput 3 (by decide) (by omega)
+  have hL : x.mem 1 = L := by
+    simpa [State.init, Data.init, input] using hinput 1 (by decide) (by omega)
+  have hm' : x.mem 2 = m := by
+    simpa [State.init, Data.init, input] using hinput 2 (by decide) (by omega)
+  have hN : x.mem 3 = N := by
+    simpa [State.init, Data.init, input] using hinput 3 (by decide) (by omega)
   have hQ : x.mem 4 = qs.length := by
     simpa [State.init, Data.init, input] using hinput 4 (by decide) (by omega)
   have hqueries (i : ℕ) (hi : i < qs.length) :
