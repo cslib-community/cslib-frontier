@@ -23,13 +23,15 @@ import Mathlib.Tactic.Zify
 # Brown's explicit `3`-rectangle-free unit-sphere matrix
 
 For an odd prime `p ≡ 3 (mod 4)`, `-1` is a quadratic non-residue modulo `p`. W. G. Brown
-([Brown1966], as cited in [Sergeev2014ORComplement], p. 3) constructed an explicit `K_{3,3}`-free
-graph on `(ℤ/pℤ)^3` by joining points at squared Euclidean distance `1`. Viewed as an `m × m`
-Boolean incidence matrix `brownMatrix p` with `m = p ^ 3`, this gives an explicit
-`3`-rectangle-free Boolean matrix in which every row has exact weight `p (p - 1)` and the whole
-matrix has exact weight `p ^ 4 (p - 1) = Θ(m ^ {5/3})`, matching the Kővári–Sós–Turán
-`O(m ^ {5/3})` upper bound up to a constant factor and supplying the dense `3`-free base matrix in
-Sergeev's OR-complexity separation ([Sergeev2014ORComplement], Theorem 1(ii), p. 3).
+([Brown1966], §2, pp. 282–283, equation (2.1) and Lemma (2.3)) constructed an explicit
+`K_{3,3}`-free graph on `EG(3, p) = (ℤ/pℤ)^3` by joining points at squared Euclidean distance `α`
+for any nonzero quadratic residue `α ∈ (ℤ/pℤ)^×`. Taking the allowed radius parameter `α = 1` and
+viewing the adjacency relation as an `m × m` Boolean matrix `brownMatrix p` (`m = p ^ 3`), every
+row has exact weight `p ^ 2 - p = p (p - 1)` and the whole matrix has exact weight
+`p ^ 5 - p ^ 4 = p ^ 4 (p - 1) = Θ(m ^ {5/3})` (twice Brown's undirected edge count
+`(p ^ 5 - p ^ 4) / 2`), matching the Kővári–Sós–Turán `O(m ^ {5/3})` upper bound up to a constant
+factor and supplying the dense `3`-free base matrix in Sergeev's OR-complexity separation
+([Sergeev2014ORComplement], Theorem 1(ii), p. 3).
 
 ## Main definitions
 
@@ -47,7 +49,7 @@ Sergeev's OR-complexity separation ([Sergeev2014ORComplement], Theorem 1(ii), p.
 
 ## References
 
-* [W. G. Brown, *On graphs that do not contain a Thomsen graph*][Brown1966]
+* [W. G. Brown, *On graphs that do not contain a Thomsen graph*][Brown1966], §2, pp. 282–283
 * [I. S. Sergeev, *On relative OR-complexity of Boolean matrices and their
   complements*][Sergeev2014ORComplement], p. 3
 -/
@@ -58,8 +60,8 @@ namespace Cslib
 
 open Finset
 
-/-- **Brown's unit-sphere matrix** over `(ℤ/pℤ)^3` ([Brown1966], as cited in
-[Sergeev2014ORComplement], p. 3): entry `(x, y)` is `true` iff
+/-- **Brown's unit-sphere matrix** over `(ℤ/pℤ)^3` ([Brown1966], §2, p. 282, equation (2.1) at
+`α = 1`; [Sergeev2014ORComplement], p. 3): entry `(x, y)` is `true` iff
 `(x 0 - y 0) ^ 2 + (x 1 - y 1) ^ 2 + (x 2 - y 2) ^ 2 = 1` in `ZMod p`. -/
 @[expose] def brownMatrix (p : ℕ) : Matrix (Fin 3 → ZMod p) (Fin 3 → ZMod p) Bool :=
   Matrix.of fun x y =>
@@ -259,7 +261,8 @@ private theorem card_unitSphere_three (hp : p % 4 = 3) :
   zify [show 2 ≤ p by omega, show 1 ≤ p by omega]
   ring
 
-/-- Every row of `brownMatrix p` (`p` prime, `p ≡ 3 (mod 4)`) has exact weight `p * (p - 1)`. -/
+/-- Every row of `brownMatrix p` (`p` prime, `p ≡ 3 (mod 4)`) has exact weight `p * (p - 1)`
+([Brown1966], §2, p. 282). -/
 theorem card_row_brownMatrix (hp : p % 4 = 3) (x : Fin 3 → ZMod p) :
     #(univ.filter fun y : Fin 3 → ZMod p => brownMatrix p x y = true) = p * (p - 1) := by
   rw [← card_unitSphere_three hp]
@@ -274,8 +277,9 @@ theorem card_row_brownMatrix (hp : p % 4 = 3) (x : Fin 3 → ZMod p) :
     simpa only [mem_filter, mem_univ, true_and, brownMatrix_apply, decide_eq_true_eq,
       Pi.sub_apply, sub_sub_cancel] using hz
 
-/-- For prime `p ≡ 3 (mod 4)`, `brownMatrix p` has exact weight `p ^ 4 * (p - 1)`
-([Brown1966]; [Sergeev2014ORComplement], p. 3). -/
+/-- For prime `p ≡ 3 (mod 4)`, `brownMatrix p` has exact weight `p ^ 4 * (p - 1)` (twice the
+undirected edge count `(p ^ 5 - p ^ 4) / 2` of [Brown1966], §2, p. 282;
+[Sergeev2014ORComplement], p. 3). -/
 theorem boolMatrixWeight_brownMatrix (hp : p % 4 = 3) :
     boolMatrixWeight (brownMatrix p) = p ^ 4 * (p - 1) := by
   rw [boolMatrixWeight_eq_sum_row]
@@ -423,8 +427,9 @@ private theorem no_three_collinear_on_unit_sphere (hp : p % 4 = 3)
           (by linear_combination h0) (by linear_combination hnorm_w)
           (by linear_combination hdot_uw)))
 
-/-- **Brown's theorem** ([Brown1966]; [Sergeev2014ORComplement], p. 3): for prime `p ≡ 3 (mod 4)`,
-`brownMatrix p` is `3`-rectangle-free (`K_{3,3}`-free). -/
+/-- **Brown's theorem** ([Brown1966], §2, pp. 282–283, equation (2.1) and Lemma (2.3);
+[Sergeev2014ORComplement], p. 3): for prime `p ≡ 3 (mod 4)`, `brownMatrix p` is `3`-rectangle-free
+(`K_{3,3}`-free). -/
 theorem isRectangleFreeMatrix_brownMatrix (hp : p % 4 = 3) :
     IsRectangleFreeMatrix (brownMatrix p) 3 := by
   intro I J hI hJ hall

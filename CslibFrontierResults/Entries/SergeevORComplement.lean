@@ -16,8 +16,11 @@ register_result "nechiporuk-rectifier-k-free-lower-bound" where
     edges, and OR(A) = OR_d(A) = |A| when A is 2-free"
   topic := "circuit complexity"
   sources := [
+    { paper := JuknaSergeev2013,
+      theorem := "Theorem 3.9",
+      locator := "§3.3, pp. 32–33" },
     { paper := Sergeev2014ORComplement,
-      theorem := "Nechiporuk's K-free rectifier bound and 2-free identity (quoted)",
+      theorem := "2-free consequence and quoted K² rectifier bound",
       locator := "p. 1 (paragraph above Theorem 1) and p. 3, proof of Lemma 3" },
     { paper := Nechiporuk1970, theorem := unverified, locator := unverified }
   ]
@@ -30,9 +33,11 @@ register_result "nechiporuk-rectifier-k-free-lower-bound" where
   scope := "Unconditional over arbitrary finite row/column types [Fintype α] [Fintype β] and all \
     K : ℕ in the general directed-graph rectifier model with disjoint injective input and output \
     poles (requiring neither acyclicity nor source/sink degree restrictions for the lower bound). \
-    Proves the sharper factor (K - 1)² in |A| ≤ (K - 1)² · OR(A) rather than Sergeev's quoted K², \
-    yielding the exact identity OR(A) = OR_d(A) = |A| (for all 1 ≤ d) at K = 2. Nechiporuk1970 is \
-    cited through Sergeev2014ORComplement and was not inspected directly."
+    Instantiates both rectangle parameters k, l in Jukna–Sergeev Theorem 3.9 as K - 1 via \
+    Pippenger's threshold-edge cut argument to obtain |A| ≤ (K - 1)² · OR(A) and the K = 2 \
+    consequence OR(A) = OR_d(A) = |A| (for all 1 ≤ d). Sergeev2014ORComplement quotes the weaker \
+    denominator K² on p. 3 and records the 2-free consequence on p. 1; Nechiporuk1970 was not \
+    inspected directly."
 
 register_result "sergeev-two-rectangle-count-and-lift" where
   title := "Dense m × m Boolean matrices contain Ω((|A| / m)⁴) 2-rectangles, and the C(m, 2) × \
@@ -57,11 +62,13 @@ register_result "brown-k33-free-unit-sphere-matrix" where
     exact weight p⁴(p - 1)"
   topic := "combinatorics"
   sources := [
+    { paper := Brown1966,
+      theorem := "Graph G on EG(3, p) and Lemma (2.3)",
+      locator := "§2, pp. 282–283, equation (2.1) and Lemma (2.3)" },
     { paper := Sergeev2014ORComplement,
       theorem := "Brown's 3-free m × m matrix of weight Θ(m^{5/3}) \
         (used in proof of Theorem 1(ii))",
-      locator := "p. 3, proof of Theorem 1(ii)" },
-    { paper := Brown1966, theorem := unverified, locator := unverified }
+      locator := "p. 3, proof of Theorem 1(ii)" }
   ]
   theorems := [
     Cslib.card_row_brownMatrix,
@@ -69,9 +76,12 @@ register_result "brown-k33-free-unit-sphere-matrix" where
     Cslib.isRectangleFreeMatrix_brownMatrix
   ]
   scope := "Unconditional for every prime p with p % 4 = 3 ([Fact p.Prime]), over V = Fin 3 → \
-    ZMod p of cardinality m = p³. Proves exact uniform row weight p(p - 1), exact total weight \
-    p⁴(p - 1), and 3-rectangle-freeness (absence of 3 × 3 all-ones submatrices). Brown1966 is \
-    cited through Sergeev2014ORComplement and was not inspected directly."
+    ZMod p of cardinality m = p³. Specializes Brown's equation (2.1) at the allowed nonzero \
+    quadratic-residue radius parameter α = 1: each row of the p³ × p³ adjacency matrix has \
+    p² - p = p(p - 1) ones, so the matrix weight p⁵ - p⁴ = p⁴(p - 1) is twice Brown's undirected \
+    edge count (p⁵ - p⁴) / 2, and 3-rectangle-freeness (absence of 3 × 3 all-ones submatrices) \
+    follows from radical-plane reduction and non-collinearity of three points on a sphere \
+    (Lemma (2.3))."
 
 register_result "sergeev-or-complexity-complement-separation" where
   title := "Explicit n × n Boolean matrices C with OR₃(C) = O(n), 2-free complement C̄, and \
@@ -81,7 +91,9 @@ register_result "sergeev-or-complexity-complement-separation" where
     { paper := Sergeev2014ORComplement,
       theorem := "Lemma 3 and Theorem 1(ii)",
       locator := "pp. 1–3" },
-    { paper := Brown1966, theorem := unverified, locator := unverified }
+    { paper := Brown1966,
+      theorem := "Graph G on EG(3, p) and Lemma (2.3)",
+      locator := "§2, pp. 282–283, equation (2.1) and Lemma (2.3)" }
   ]
   theorems := [
     Cslib.Circuits.orDepthComplexity_three_compl_twoRectMatrix_le,

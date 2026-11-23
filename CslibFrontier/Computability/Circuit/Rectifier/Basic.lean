@@ -29,10 +29,12 @@ particular forces acyclicity).
 `orDepthComplexity d A` (`OR_d(A) : ℕ∞`) is the minimum size over circuits of depth at most `d`
 (`⊤` at `d = 0` when `A` has a `true` entry).
 
-For `K`-rectangle-free matrices `A`, **Nechiporuk's theorem** ([Nechiporuk1970];
-[Sergeev2014ORComplement], pp. 1, 3) charges each `true` entry `(i, j)` of `A` to a threshold edge
-along a walk from `inp j` to `out i` that covers at most `(K - 1) ^ 2` input-output pairs, yielding
-`boolMatrixWeight A ≤ (K - 1) ^ 2 * C.size`
+For `K`-rectangle-free matrices `A`, **Nechiporuk's theorem** ([JuknaSergeev2013], §3.3,
+Theorem 3.9, pp. 32–33, taking both rectangle parameters `k, l` to be `K - 1`; [Nechiporuk1970];
+[Sergeev2014ORComplement], p. 3 quotes the weaker denominator `K ^ 2` while p. 1 records the
+`2`-free consequence) charges each `true` entry `(i, j)` of `A` via Pippenger's threshold-edge
+argument to an edge along a walk from `inp j` to `out i` that covers at most `(K - 1) ^ 2`
+input-output pairs, yielding `boolMatrixWeight A ≤ (K - 1) ^ 2 * C.size`
 (`RectifierCircuit.Computes.boolMatrixWeight_le_sq_pred_mul_size`) and
 `boolMatrixWeight A ≤ (K - 1) ^ 2 * orComplexity A`
 (`boolMatrixWeight_le_sq_pred_mul_orComplexity`). At `K = 2` this matches the trivial depth-`1`
@@ -71,7 +73,8 @@ and `orDepthComplexity d A = boolMatrixWeight A` (`1 ≤ d`) for every `2`-free 
 
 * [O. B. Lupanov, *On rectifier and switching-and-rectifier schemes*][Lupanov1956]
 * [E. I. Nechiporuk, *On the topological principles of self-correction*][Nechiporuk1970]
-* [S. Jukna, I. Sergeev, *Complexity of linear Boolean operators*][JuknaSergeev2013]
+* [S. Jukna, I. Sergeev, *Complexity of linear Boolean operators*][JuknaSergeev2013], §3.3,
+  Theorem 3.9, pp. 32–33
 * [I. S. Sergeev, *On relative OR-complexity of Boolean matrices and their
   complements*][Sergeev2014ORComplement], pp. 1, 3
 -/
@@ -328,9 +331,10 @@ private theorem card_ite_filter_embedding_le {γ : Type*} [Fintype γ] [Decidabl
         f.injective ((mem_filter.mp hx₁).2.trans (mem_filter.mp hx₂).2.symm)
     omega
 
-/-- **Nechiporuk's rectangle-free rectifier bound** ([Nechiporuk1970];
-[Sergeev2014ORComplement], pp. 1, 3): if a rectifier circuit `C` computes a `K`-free Boolean
-matrix `A`, then `boolMatrixWeight A ≤ (K - 1) ^ 2 * C.size`. -/
+/-- **Nechiporuk's rectangle-free rectifier bound** ([JuknaSergeev2013], §3.3, Theorem 3.9,
+pp. 32–33, taking `k = l = K - 1`; [Nechiporuk1970]; [Sergeev2014ORComplement], p. 3 quotes the
+weaker denominator `K ^ 2`): if a rectifier circuit `C` computes a `K`-free Boolean matrix `A`, then
+`boolMatrixWeight A ≤ (K - 1) ^ 2 * C.size`. -/
 theorem Computes.boolMatrixWeight_le_sq_pred_mul_size [Fintype α] [Fintype β]
     {C : RectifierCircuit α β V} {A : Matrix α β Bool} (hC : C.Computes A) {K : ℕ}
     (hA : IsRectangleFreeMatrix A K) :
@@ -543,8 +547,9 @@ theorem orDepthComplexity_reindex (d : ℕ) (eα : α ≃ α') (eβ : β ≃ β'
   simpa only [← Matrix.reindex_symm, Equiv.symm_apply_apply] using
     orDepthComplexity_reindex_le d eα.symm eβ.symm (Matrix.reindex eα eβ A)
 
-/-- **Nechiporuk's theorem for `OR`-complexity** ([Nechiporuk1970];
-[Sergeev2014ORComplement], p. 3): for every `K`-rectangle-free finite Boolean matrix `A`,
+/-- **Nechiporuk's theorem for `OR`-complexity** ([JuknaSergeev2013], §3.3, Theorem 3.9, pp. 32–33,
+taking `k = l = K - 1`; [Nechiporuk1970]; [Sergeev2014ORComplement], p. 3 quotes the weaker
+denominator `K ^ 2`): for every `K`-rectangle-free finite Boolean matrix `A`,
 `boolMatrixWeight A ≤ (K - 1) ^ 2 * orComplexity A`. -/
 theorem boolMatrixWeight_le_sq_pred_mul_orComplexity [Fintype α] [Fintype β]
     {A : Matrix α β Bool} {K : ℕ} (hA : IsRectangleFreeMatrix A K) :
@@ -553,7 +558,8 @@ theorem boolMatrixWeight_le_sq_pred_mul_orComplexity [Fintype α] [Fintype β]
   exact (hC.boolMatrixWeight_le_sq_pred_mul_size hA).trans (Nat.mul_le_mul_left _ hs)
 
 /-- For every `2`-rectangle-free finite Boolean matrix `A`, `orComplexity A = boolMatrixWeight A`
-([Nechiporuk1970]; [Sergeev2014ORComplement], p. 1). -/
+([JuknaSergeev2013], §3.3, Theorem 3.9, p. 33; [Sergeev2014ORComplement], p. 1;
+[Nechiporuk1970]). -/
 theorem orComplexity_eq_boolMatrixWeight_of_isRectangleFree_two [Fintype α] [Fintype β]
     {A : Matrix α β Bool} (hA : IsRectangleFreeMatrix A 2) :
     orComplexity A = boolMatrixWeight A := by
@@ -562,7 +568,8 @@ theorem orComplexity_eq_boolMatrixWeight_of_isRectangleFree_two [Fintype α] [Fi
   linarith
 
 /-- For every `2`-rectangle-free finite Boolean matrix `A` and every `1 ≤ d`,
-`orDepthComplexity d A = boolMatrixWeight A` ([Nechiporuk1970]; [Sergeev2014ORComplement], p. 1). -/
+`orDepthComplexity d A = boolMatrixWeight A` ([JuknaSergeev2013], §3.3, Theorem 3.9, p. 33;
+[Sergeev2014ORComplement], p. 1; [Nechiporuk1970]). -/
 theorem orDepthComplexity_eq_boolMatrixWeight_of_isRectangleFree_two [Fintype α] [Fintype β]
     {A : Matrix α β Bool} (hA : IsRectangleFreeMatrix A 2) {d : ℕ} (hd : 1 ≤ d) :
     orDepthComplexity d A = boolMatrixWeight A := by
