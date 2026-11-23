@@ -43,9 +43,12 @@ so at most `4 / θ²` buckets survive at each level (`UniformLearning.mul_card_b
 The weights are estimated from samples `(x, y, z)` of three independent uniform points, as the
 average of `f (x, z) χ_S(x) f (y, z) χ_S(y)` (`UniformLearning.bucketEstimate`,
 `BitString.bucketWeight_eq_expect_sample`), where `(x, z)` takes the coordinates in `J` from `x` and
-the others from `z`. Here the same `m` samples serve every bucket of every level, so the queries are
-non-adaptive: the learner queries `f` at `x` and at the points `(x, z)`, `(y, z)` of every sample
-and every level, `m (2 n + 3)` queries for `n` coordinates
+the others from `z`. By Hoeffding's inequality one estimate from `(2 / γ²) log (2 / δ)` samples,
+reading `f` at two points each, is within `γ` except with probability `δ`
+(`UniformLearning.uniform_abs_bucketEstimate_sub_ge_le_of_log`), the sample bound in the proof of
+[O'Donnell, Proposition 3.40][ODonnell2014]. Here the same `m` samples serve every bucket of every
+level, so the queries are non-adaptive: the learner queries `f` at `x` and at the points `(x, z)`,
+`(y, z)` of every sample and every level, `m (2 n + 3)` queries for `n` coordinates
 (`UniformLearning.kmLearner_queriesAtMost`), and then runs the search on the answers. The analysis
 takes a union bound over all `2 ^ n` buckets of each level, which costs a factor `n` in the number
 of samples compared with fresh samples for each weighing. The hypothesis is the sign of the
@@ -103,11 +106,16 @@ restrict to `C` with `QueryLearner.Learns.mono`. This certifies the samples and 
 class, prove the samples accurate with `UniformLearning.uniform_not_accurate_le_of_log` and bound
 the weight of the small coefficients in `UniformLearning.uniformError_kmHypothesis_le_add`, for
 instance by `BitString.sum_fourierCoeff_sq_le_sum_compl_add` or
-`BitString.sum_fourierCoeff_sq_le_mul_sum_abs`. Turning another tail bound `c exp (-(a m))` into
-a sample size is `Real.mul_exp_neg_le_of_log`. Checked clients show that a parity is concentrated
-on one set and not on none, that the small-coefficient bound is attained by a parity, bound the
-hypothesis error for parities, instantiate the sample bound on two bits, learn the parities through
-`Learns.mono` and instantiate the query and sample step for `M = 3` on two bits, in
+`BitString.sum_fourierCoeff_sq_le_mul_sum_abs`. For a single bucket weight `bucketWeight F J S`,
+which is O'Donnell's `W^{S | J̄}[F]` for `S ⊆ J` and `0` otherwise,
+`UniformLearning.uniform_abs_bucketEstimate_sub_ge_le_of_log` takes `m ≥ (2 / γ²) log (2 / δ)`
+samples; the estimate reads `f` at `2 m` points, but that theorem certifies neither queries nor
+time. Turning another tail bound `c exp (-(a m))` into a sample size is
+`Real.mul_exp_neg_le_of_log`. Checked clients show that a parity is concentrated on one set and
+not on none, that the small-coefficient bound is attained by a parity, bound the hypothesis error
+for parities, instantiate the sample bound on two bits, learn the parities through `Learns.mono`,
+instantiate the query and sample step for `M = 3` on two bits and estimate two bucket weights of a
+parity, in
 [`CslibFrontierTests/KushilevitzMansourConcentrated.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/KushilevitzMansourConcentrated.lean);
 the spectral-norm and decision-tree theorems are checked in
 [`CslibFrontierTests/FourierLearning.lean`](https://github.com/cslib-community/cslib-frontier/blob/main/CslibFrontierTests/FourierLearning.lean).
@@ -136,6 +144,9 @@ the spectral-norm and decision-tree theorems are checked in
 * `Cslib.MachineLearning.UniformLearning.uniformError_kmHypothesis_le_add`,
   `Cslib.MachineLearning.UniformLearning.uniformError_kmHypothesis_le`: the error on accurate
   samples.
+* `Cslib.MachineLearning.UniformLearning.uniform_abs_bucketEstimate_sub_ge_le`,
+  `Cslib.MachineLearning.UniformLearning.uniform_abs_bucketEstimate_sub_ge_le_of_log`: the
+  sample bound in the proof of Proposition 3.40, estimating one bucket weight.
 * `Cslib.MachineLearning.UniformLearning.uniform_not_accurate_le`,
   `Cslib.MachineLearning.UniformLearning.uniform_not_accurate_le_of_log`: the samples are accurate
   with high probability.
@@ -460,6 +471,42 @@ private theorem abs_signVal_mul_chi_mul_le_one (a b : Bool) (S : Finset ι) (x y
   rw [abs_mul, abs_mul, abs_mul, abs_signVal, abs_signVal, abs_chi, abs_chi]
   norm_num
 
+/-- **Estimating a bucket weight**, the sample bound in the proof of
+[O'Donnell, Proposition 3.40][ODonnell2014]: from `m` samples of three independent uniform points,
+the empirical bucket weight of `f` on `S` with respect to `J` is off from the bucket weight of
+`f` read as signs, O'Donnell's `W^{S | J̄}[f]` when `S ⊆ J` and `0` otherwise, by at least `γ`
+with probability at most `2 exp (-m γ² / 2)`, by Hoeffding's inequality. The estimate reads `f`
+at the two points `(x, z)` and `(y, z)` of each sample. -/
+theorem uniform_abs_bucketEstimate_sub_ge_le (f : (ι → Bool) → Bool) (J S : Finset ι)
+    {γ : ℝ} (hγ : 0 ≤ γ) :
+    (PMF.uniformOfFintype (Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool))).toOuterMeasure
+      {ω | γ ≤ |bucketEstimate f ω J S - bucketWeight (fun x => signVal (f x)) J S|} ≤
+        ENNReal.ofReal (2 * Real.exp (-(m * γ ^ 2) / 2)) := by
+  have h := PMF.uniform_abs_sum_div_sub_expect_ge_le (m := m)
+    (fun ((x, y, z) : (ι → Bool) × (ι → Bool) × (ι → Bool)) =>
+      signVal (f (J.piecewise x z)) * chi ℝ S x * (signVal (f (J.piecewise y z)) * chi ℝ S y))
+    (fun (x, y, z) => abs_signVal_mul_chi_mul_le_one _ _ S _ _) hγ
+  rwa [show (𝔼 p : (ι → Bool) × (ι → Bool) × (ι → Bool),
+      let (x, y, z) := p
+      signVal (f (J.piecewise x z)) * chi ℝ S x * (signVal (f (J.piecewise y z)) * chi ℝ S y)) =
+      bucketWeight (fun x => signVal (f x)) J S by
+    rw [bucketWeight_eq_expect_sample]] at h
+
+/-- **Estimating a bucket weight with confidence**, the sample bound in the proof of
+[O'Donnell, Proposition 3.40][ODonnell2014]: from `m ≥ (2 / γ²) log (2 / δ)` samples, the
+empirical bucket weight is within `γ` of `W^{S | J̄}[f]` for `S ⊆ J` (and of `0` otherwise)
+except with probability at most `δ`. The estimate reads `f` at `2 m` points; queries and time are
+not certified here. -/
+theorem uniform_abs_bucketEstimate_sub_ge_le_of_log (f : (ι → Bool) → Bool) (J S : Finset ι)
+    {γ δ : ℝ} (hγ : 0 < γ) (hδ : 0 < δ) (hm : 2 / γ ^ 2 * Real.log (2 / δ) ≤ m) :
+    (PMF.uniformOfFintype (Fin m → (ι → Bool) × (ι → Bool) × (ι → Bool))).toOuterMeasure
+      {ω | γ ≤ |bucketEstimate f ω J S - bucketWeight (fun x => signVal (f x)) J S|} ≤
+        ENNReal.ofReal δ := by
+  refine (uniform_abs_bucketEstimate_sub_ge_le f J S hγ.le).trans (ENNReal.ofReal_le_ofReal ?_)
+  rw [show -(m * γ ^ 2) / 2 = -(γ ^ 2 / 2 * m) by ring]
+  exact Real.mul_exp_neg_le_of_log le_rfl two_pos (by positivity) hδ
+    (hm.trans_eq' (by ring))
+
 /-- **The samples are accurate with high probability**: `m` samples fail to be accurate at
 precision `θ² / 4` with probability at most `2 (n + 2) 2 ^ n exp (-m θ⁴ / 32)` for `n`
 coordinates. -/
@@ -478,16 +525,8 @@ theorem uniform_not_accurate_le (f : (ι → Bool) → Bool) (θ : ℝ) (m : ℕ
   -- one bucket estimate
   have hbucket (J S : Finset ι) :
       μ {ω | θ ^ 2 / 4 ≤ |bucketEstimate f ω J S - bucketWeight F J S|} ≤ ENNReal.ofReal c := by
-    have h := PMF.uniform_abs_sum_div_sub_expect_ge_le (m := m)
-      (fun ((x, y, z) : (ι → Bool) × (ι → Bool) × (ι → Bool)) =>
-        F (J.piecewise x z) * chi ℝ S x * (F (J.piecewise y z) * chi ℝ S y))
-      (fun (x, y, z) => abs_signVal_mul_chi_mul_le_one _ _ S _ _) hγ
-    rw [show (𝔼 p : (ι → Bool) × (ι → Bool) × (ι → Bool),
-        let (x, y, z) := p
-        F (J.piecewise x z) * chi ℝ S x * (F (J.piecewise y z) * chi ℝ S y)) =
-        bucketWeight F J S by
-      rw [bucketWeight_eq_expect_sample], hexp] at h
-    exact h
+    have h := uniform_abs_bucketEstimate_sub_ge_le (m := m) f J S hγ
+    rwa [hexp] at h
   -- one sample coefficient
   have hcoeff (S : Finset ι) :
       μ {ω | θ ^ 2 / 4 ≤ |sampleCoeff f ω S - fourierCoeff F S|} ≤ ENNReal.ofReal c := by

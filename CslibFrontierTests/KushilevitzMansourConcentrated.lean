@@ -23,7 +23,13 @@ error at most `1 / 4`. The sample bound `(32 / θ⁴) log (2 (n + 2) 2 ^ n / δ)
 two bits. The Kushilevitz–Mansour algorithm learns the parities as functions
 `ε / 4`-concentrated on at most one set; on two bits, with `ε = δ = 1 / 2`, it learns the
 functions `1 / 8`-concentrated on at most three sets from `⌈18432 log 64⌉` samples and `7`
-queries per sample. The step from a tail bound to a sample size gives `2 exp (-log 4) ≤ 1 / 2`. -/
+queries per sample.
+
+For Proposition 3.40, the empirical bucket weight of the parity of the first of two bits on `{0}`
+with respect to `∅`, whose bucket weight is `0`, is at least `γ` in absolute value with
+probability at most `2 exp (-m γ² / 2)`; and `⌈8 log 4⌉` samples estimate its bucket weight on
+`{0}` with respect to `{0}`, which is `1`, within `1 / 2` except with probability `1 / 2`. The
+step from a tail bound to a sample size gives `2 exp (-log 4) ≤ 1 / 2`. -/
 
 public section
 
@@ -125,6 +131,34 @@ theorem kmLearner_learns_concentrated_fin_two :
   simpa using kmLearner_learns_concentrated_and_queriesAtMost (ι := Fin 2) (M := 3)
     (by norm_num) (ε := 1 / 2) (δ := 1 / 2) (by norm_num) (by norm_num)
     ((le_of_eq (by norm_num)).trans (Nat.le_ceil _))
+
+/-- A bucket weight that vanishes, since `{0} ⊈ ∅`, is estimated near `0`. -/
+theorem uniform_abs_bucketEstimate_parityOn_empty_ge_le (m : ℕ) {γ : ℝ} (hγ : 0 ≤ γ) :
+    (PMF.uniformOfFintype (Fin m → (Fin 2 → Bool) × (Fin 2 → Bool) × (Fin 2 → Bool))).toOuterMeasure
+      {ω | γ ≤ |bucketEstimate (parityOn ({0} : Finset (Fin 2))) ω ∅ {0}|} ≤
+        ENNReal.ofReal (2 * Real.exp (-(m * γ ^ 2) / 2)) := by
+  have hW : bucketWeight (fun x => signVal (parityOn ({0} : Finset (Fin 2)) x)) ∅ {0} = 0 := by
+    simp [bucketWeight]
+  have h := uniform_abs_bucketEstimate_sub_ge_le (m := m) (parityOn ({0} : Finset (Fin 2))) ∅ {0} hγ
+  simpa only [hW, sub_zero] using h
+
+/-- The sample bound of Proposition 3.40 on two bits: `⌈8 log 4⌉` samples estimate the bucket
+weight `1` of the parity of the first bit on `{0}` with respect to `{0}` within `1 / 2` with
+confidence `1 / 2`. -/
+theorem uniform_abs_bucketEstimate_parityOn_ge_le :
+    (PMF.uniformOfFintype (Fin ⌈8 * Real.log 4⌉₊ →
+        (Fin 2 → Bool) × (Fin 2 → Bool) × (Fin 2 → Bool))).toOuterMeasure
+      {ω | 1 / 2 ≤ |bucketEstimate (parityOn ({0} : Finset (Fin 2))) ω {0} {0} - 1|} ≤
+        ENNReal.ofReal (1 / 2) := by
+  have hW : bucketWeight (fun x => signVal (parityOn ({0} : Finset (Fin 2)) x)) {0} {0} = 1 := by
+    rw [bucketWeight, sum_eq_single_of_mem {0} (by simp) fun U _ hU => by
+      rw [fourierCoeff_signVal_parityOn]; simp [hU]]
+    rw [fourierCoeff_signVal_parityOn]
+    simp
+  have h := uniform_abs_bucketEstimate_sub_ge_le_of_log (m := ⌈8 * Real.log 4⌉₊)
+    (parityOn ({0} : Finset (Fin 2))) {0} {0} (γ := 1 / 2) (δ := 1 / 2) (by norm_num) (by norm_num)
+    ((le_of_eq (by norm_num)).trans (Nat.le_ceil _))
+  rwa [hW] at h
 
 /-- A tail bound `2 exp (-(1 · log 4))` is at most `1 / 2`, by the sample-size step with
 `c = K = 2`, `a = 1` and `δ = 1 / 2`. -/
