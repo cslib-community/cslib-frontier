@@ -105,11 +105,6 @@ def derivedHints (T : XTrail) (memo : Assign) : List ℕ :=
     | .decision _ => none
 
 /-- `derivedHints` in one pass over the trail, newest first, without reversing it. -/
-def derivedHintsFast (T : XTrail) (memo : Assign) : List ℕ :=
-  T.foldl (fun acc x => match x with
-    | .implied l r => if memo.value l.1 == some true then r :: acc else acc
-    | .decision _ => acc) []
-
 private theorem foldl_derivedHints (memo : Assign) : ∀ (T : XTrail) (acc : List ℕ),
     T.foldl (fun acc x => match x with
       | .implied l r => if memo.value l.1 == some true then r :: acc else acc
@@ -121,10 +116,6 @@ private theorem foldl_derivedHints (memo : Assign) : ∀ (T : XTrail) (acc : Lis
     | decision d => simp [derivedHints]
     | implied l r =>
       by_cases h : memo.value l.1 = some true <;> simp [derivedHints, h]
-
-theorem derivedHintsFast_eq (T : XTrail) (memo : Assign) :
-    derivedHintsFast T memo = derivedHints T memo := by
-  rw [derivedHintsFast, foldl_derivedHints, List.append_nil]
 
 /-- The array marking the variables of the clause `C`, below `n`. -/
 def clauseVars (C : Clause ℕ) (n : ℕ) : Array Bool :=
@@ -589,10 +580,10 @@ theorem ATrail.reasonsBelow_eq (T : ATrail) (p n : ℕ) :
   rw [reasonsBelow, foldDown_eq, XTrail.reasons]
   congr 1
   funext a x
-  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litKey_div_two]
+  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litCode_div_two]
 
-/-- `derivedHintsFast` of the entries below position `p`, read from the arrays of the trail
-(`ATrail.derivedHintsBelow_eq`). -/
+/-- `derivedHints` of the entries below position `p`, read from the arrays of the trail in one
+pass, newest first, without reversing them (`ATrail.derivedHintsBelow_eq`). -/
 def ATrail.derivedHintsBelow (T : ATrail) (p : ℕ) (memo : Assign) : List ℕ :=
   T.foldDown (fun acc c r => match r with
     | 0 => acc
@@ -600,10 +591,10 @@ def ATrail.derivedHintsBelow (T : ATrail) (p : ℕ) (memo : Assign) : List ℕ :
 
 theorem ATrail.derivedHintsBelow_eq (T : ATrail) (p : ℕ) (memo : Assign) :
     T.derivedHintsBelow p memo = derivedHints (T.seg 0 p) memo := by
-  rw [derivedHintsBelow, foldDown_eq, ← derivedHintsFast_eq, derivedHintsFast]
+  rw [derivedHintsBelow, foldDown_eq, ← List.append_nil (derivedHints _ _), ← foldl_derivedHints]
   congr 1
   funext a x
-  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litKey_div_two]
+  cases x <;> simp only [XEntry.rsnCode, XEntry.lit, litCode_div_two]
 
 /-- `minimizeRedundant` on the entries below position `p`, with the reasons read from the arrays of
 the trail. -/

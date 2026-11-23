@@ -32,8 +32,10 @@ with:
 
 **Representation.** The solver's state `Cslib.Algorithms.Lean.CDCL.Exec` keeps the trail in two
 arrays of small numbers, oldest first: the code of each literal and the code of its reason
-(`Cslib.Algorithms.Lean.CDCL.ATrail`). An entry allocates nothing, Backjump and Restart pop the
-entries undone, and conflict analysis and the backjump read the arrays position by position. The
+(`Cslib.Algorithms.Lean.CDCL.ATrail`). Numbers in the scalar range of Lean's runtime are unboxed,
+so an entry makes no object; the arrays are written in place when they are not shared, growing or
+copying otherwise. Backjump and Restart pop the entries undone, and conflict analysis and the
+backjump read the arrays position by position. The
 trail read back as a list of entries, newest first (`Cslib.Algorithms.Lean.CDCL.ATrail.toX`), gives
 the state `Cslib.Algorithms.Lean.CDCL.ExecL` (`Cslib.Algorithms.Lean.CDCL.Exec.toL`), on which the
 moves are specified and the invariant is stated (`Cslib.Algorithms.Lean.CDCL.Exec.Inv`). Each move
@@ -116,6 +118,7 @@ a conflict, so the checker accepts the certificate by construction, with no chec
 namespace Cslib.Algorithms.Lean.CDCL
 
 open Cslib.Logic.PL Cslib.Logic.PL.CNF
+open Cslib.Algorithms.WordRAM.ClauseCode (litCode)
 
 variable {φ : CNF ℕ}
 
@@ -178,14 +181,15 @@ def XEntry.rsnCode : XEntry → ℕ
 /-! ### The trail as arrays -/
 
 /-- The variable of a literal is its key halved. -/
-theorem litKey_div_two (l : Literal ℕ) : litKey l / 2 = l.1 :=
-  congrArg Prod.fst (litOfKey_litKey l)
+theorem litCode_div_two (l : Literal ℕ) : litCode l / 2 = l.1 :=
+  congrArg Prod.fst (litOfKey_litCode l)
 
-/-- **The solver's trail as two arrays**, oldest first: the code of each literal (`litKey`), and
-the code of the reason of each entry (`Cslib.Algorithms.Lean.CDCL.XEntry.rsnCode`). Both hold small
-numbers only, so an entry allocates nothing, and backjumping pops the entries undone. The trail
-read back as a list of entries, newest first, is `Cslib.Algorithms.Lean.CDCL.ATrail.toX`, on which
-the invariants are stated. -/
+/-- **The solver's trail as two arrays**, oldest first: the code of each literal (`litCode`), and
+the code of the reason of each entry (`Cslib.Algorithms.Lean.CDCL.XEntry.rsnCode`). Codes in the
+scalar range of Lean's runtime are unboxed, so an entry makes no object; `push` and `shrink` write
+the arrays in place when they are not shared (and `push` has room), and grow or copy them
+otherwise. Backjumping pops the entries undone. The trail read back as a list of entries, newest
+first, is `Cslib.Algorithms.Lean.CDCL.ATrail.toX`, on which the invariants are stated. -/
 structure ATrail where
   /-- The codes of the literals, oldest first. -/
   lits : Array ℕ
@@ -232,7 +236,7 @@ theorem size_popN {α : Type} : ∀ (k : ℕ) (a : Array α), (popN k a).size = 
   | 0, _ => rfl
   | k + 1, a => by rw [popN, size_popN k, Array.size_pop]; omega
 
-theorem getD_popN : ∀ (k : ℕ) (a : Array ℕ) {i : ℕ}, i < a.size - k →
+private theorem getD_popN : ∀ (k : ℕ) (a : Array ℕ) {i : ℕ}, i < a.size - k →
     (popN k a).getD i 0 = a.getD i 0
   | 0, _, _, _ => rfl
   | k + 1, a, i, h => by
@@ -261,8 +265,8 @@ the right fold of the entries `T.seg lo k` (`ATrail.foldUp_eq`). -/
 theorem entry_lit (T : ATrail) (i : ℕ) : (T.entry i).lit = T.lit i := by
   unfold entry; split <;> rfl
 
-theorem litKey_entry_lit (T : ATrail) (i : ℕ) : litKey (T.entry i).lit = T.lits.getD i 0 := by
-  rw [entry_lit, lit, litKey_litOfKey]
+theorem litCode_entry_lit (T : ATrail) (i : ℕ) : litCode (T.entry i).lit = T.lits.getD i 0 := by
+  rw [entry_lit, lit, litCode_litOfKey]
 
 theorem rsnCode_entry (T : ATrail) (i : ℕ) : (T.entry i).rsnCode = T.rsns.getD i 0 := by
   unfold entry; split <;> simp_all [XEntry.rsnCode]
@@ -280,9 +284,9 @@ theorem isDecision_entry (T : ATrail) (i : ℕ) :
   unfold entry; split <;> simp_all [XEntry.isDecision]
 
 /-- The entry at a position holding the codes of `e` is `e`. -/
-theorem entry_eq_of {T : ATrail} {i : ℕ} {e : XEntry} (hl : T.lits.getD i 0 = litKey e.lit)
+theorem entry_eq_of {T : ATrail} {i : ℕ} {e : XEntry} (hl : T.lits.getD i 0 = litCode e.lit)
     (hr : T.rsns.getD i 0 = e.rsnCode) : T.entry i = e := by
-  cases e <;> simp only [entry, lit, hl, hr, XEntry.rsnCode, XEntry.lit, litOfKey_litKey]
+  cases e <;> simp only [entry, lit, hl, hr, XEntry.rsnCode, XEntry.lit, litOfKey_litCode]
 
 /-- Two trails with the same codes at a position have the same entry there. -/
 theorem entry_congr {T T' : ATrail} {i : ℕ} (hl : T'.lits.getD i 0 = T.lits.getD i 0)
@@ -334,19 +338,19 @@ theorem seg_congr {T T' : ATrail} {lo k : ℕ}
 
 theorem foldDown_eq {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) (lo : ℕ) :
     ∀ (k : ℕ) (b : β),
-      T.foldDown f lo k b = (T.seg lo k).foldl (fun b e => f b (litKey e.lit) e.rsnCode) b
+      T.foldDown f lo k b = (T.seg lo k).foldl (fun b e => f b (litCode e.lit) e.rsnCode) b
   | 0, _ => rfl
   | k + 1, b => by
-    rw [foldDown, foldDown_eq T f lo k, seg_succ, List.foldl_cons, litKey_entry_lit,
+    rw [foldDown, foldDown_eq T f lo k, seg_succ, List.foldl_cons, litCode_entry_lit,
       rsnCode_entry]
 
 theorem foldUp_eq {β : Type} (T : ATrail) (f : β → ℕ → ℕ → β) :
     ∀ (lo k : ℕ) (b : β),
-      T.foldUp f lo k b = (T.seg lo k).foldr (fun e b => f b (litKey e.lit) e.rsnCode) b
+      T.foldUp f lo k b = (T.seg lo k).foldr (fun e b => f b (litCode e.lit) e.rsnCode) b
   | _, 0, _ => rfl
   | lo, k + 1, b => by
     rw [foldUp, foldUp_eq T f (lo + 1) k, seg_succ_bottom, List.foldr_append, List.foldr_cons,
-      List.foldr_nil, litKey_entry_lit, rsnCode_entry]
+      List.foldr_nil, litCode_entry_lit, rsnCode_entry]
 
 @[simp] theorem size_push (T : ATrail) (c r : ℕ) : (T.push c r).size = T.size + 1 := by
   simp [push, size]
@@ -359,23 +363,24 @@ theorem entry_push_lt (T : ATrail) {c r i : ℕ} (h : i < T.size) :
     simp [push, Array.getD_eq_getD_getElem?, Array.getElem?_push, hl, h', Nat.ne_of_lt]
 
 theorem entry_push_size (T : ATrail) (e : XEntry) :
-    (T.push (litKey e.lit) e.rsnCode).entry T.size = e := by
-  have h₁ : (T.push (litKey e.lit) e.rsnCode).lits.getD T.size 0 = litKey e.lit := by
+    (T.push (litCode e.lit) e.rsnCode).entry T.size = e := by
+  have h₁ : (T.push (litCode e.lit) e.rsnCode).lits.getD T.size 0 = litCode e.lit := by
     simp [push, size]
-  have h₂ : (T.push (litKey e.lit) e.rsnCode).rsns.getD T.size 0 = e.rsnCode := by
+  have h₂ : (T.push (litCode e.lit) e.rsnCode).rsns.getD T.size 0 = e.rsnCode := by
     simp [push, size, T.size_eq]
   exact entry_eq_of h₁ h₂
 
 /-- **Pushing an entry** puts it at the head of the trail read back. -/
 theorem toX_push (T : ATrail) (e : XEntry) :
-    (T.push (litKey e.lit) e.rsnCode).toX = e :: T.toX := by
+    (T.push (litCode e.lit) e.rsnCode).toX = e :: T.toX := by
   rw [toX, size_push, seg_succ, Nat.zero_add, entry_push_size, toX]
   exact congrArg _ (seg_congr fun i _ h => T.entry_push_lt (by omega))
 
 @[simp] theorem size_shrink (T : ATrail) (q : ℕ) : (T.shrink q).size = min q T.size := by
   simp only [shrink, size, size_popN]; omega
 
-theorem entry_shrink (T : ATrail) {q i : ℕ} (h : i < q) : (T.shrink q).entry i = T.entry i := by
+private theorem entry_shrink (T : ATrail) {q i : ℕ} (h : i < q) :
+    (T.shrink q).entry i = T.entry i := by
   by_cases hi : i < T.size
   · have h₁ : i < T.lits.size - (T.lits.size - q) := by simp only [size] at hi; omega
     have h₂ : i < T.rsns.size - (T.lits.size - q) := by rw [← T.size_eq]; exact h₁
@@ -1260,7 +1265,7 @@ theorem firstDecGo_spec (T : ATrail) : ∀ i k, i ≤ T.firstDecGo i k ∧ T.fir
       · subst hji; simpa using h
       · exact h₃ j (by omega) hj₂
 
-theorem firstDecGo_succ (T : ATrail) : ∀ i k, T.firstDecGo i (k + 1) =
+private theorem firstDecGo_succ (T : ATrail) : ∀ i k, T.firstDecGo i (k + 1) =
     if T.firstDecGo i k < i + k then T.firstDecGo i k
     else if T.rsns.getD (i + k) 0 = 0 then i + k else i + k + 1
   | i, 0 => by
@@ -1271,7 +1276,7 @@ theorem firstDecGo_succ (T : ATrail) : ∀ i k, T.firstDecGo i (k + 1) =
     · simp [h]
     · simp only [h, beq_iff_eq, ↓reduceIte, show i + 1 + k = i + (k + 1) by omega]
 
-theorem any_seg_decision (T : ATrail) (k : ℕ) :
+private theorem any_seg_decision (T : ATrail) (k : ℕ) :
     (T.seg 0 k).any (·.entry.decision) = true ↔ T.firstDecGo 0 k < k := by
   obtain ⟨-, h₂, h₃, h₄⟩ := T.firstDecGo_spec 0 k
   rw [List.any_eq_true]
@@ -1431,7 +1436,7 @@ structure IsNewest (T : ATrail) (p : ℕ) : Prop where
 in statements: the solver reads the arrays. -/
 def splitAt (T : ATrail) (p : ℕ) : Split := ⟨T.seg (p + 1) (T.size - (p + 1)), T.lit p, T.seg 0 p⟩
 
-theorem newestDecision_none (T : ATrail) :
+private theorem newestDecision_none (T : ATrail) :
     ∀ k, T.newestDecision k = none → ∀ j < k, T.rsns.getD j 0 ≠ 0
   | 0, _, _, hj => absurd hj (Nat.not_lt_zero _)
   | k + 1, h, j, hj => by
@@ -1443,7 +1448,7 @@ theorem newestDecision_none (T : ATrail) :
       · subst hjk; simpa using hk
       · exact T.newestDecision_none k h j (by omega)
 
-theorem newestDecision_some (T : ATrail) : ∀ k p, T.newestDecision k = some p →
+private theorem newestDecision_some (T : ATrail) : ∀ k p, T.newestDecision k = some p →
     p < k ∧ T.rsns.getD p 0 = 0 ∧ ∀ j, p < j → j < k → T.rsns.getD j 0 ≠ 0
   | 0, _, h => by simp [newestDecision] at h
   | k + 1, p, h => by
@@ -1464,7 +1469,7 @@ theorem isNewest_of_newestDecision {T : ATrail} {p : ℕ} (h : T.newestDecision 
   let ⟨h₁, h₂, h₃⟩ := T.newestDecision_some _ p h
   ⟨h₁, h₂, h₃⟩
 
-theorem split_seg_none (T : ATrail) :
+private theorem split_seg_none (T : ATrail) :
     ∀ k, (∀ j < k, T.rsns.getD j 0 ≠ 0) → XTrail.split (T.seg 0 k) = none
   | 0, _ => rfl
   | k + 1, h => by
@@ -1473,7 +1478,7 @@ theorem split_seg_none (T : ATrail) :
       T.split_seg_none k fun j hj => h j (by omega)]
     rfl
 
-theorem split_seg_some (T : ATrail) {p : ℕ} (hp : T.rsns.getD p 0 = 0) :
+private theorem split_seg_some (T : ATrail) {p : ℕ} (hp : T.rsns.getD p 0 = 0) :
     ∀ k, p < k → (∀ j, p < j → j < k → T.rsns.getD j 0 ≠ 0) →
       XTrail.split (T.seg 0 k) = some ⟨T.seg (p + 1) (k - (p + 1)), T.lit p, T.seg 0 p⟩
   | 0, h, _ => absurd h (Nat.not_lt_zero _)
@@ -2106,7 +2111,8 @@ It is what `XTrail.dropLevels` finds on the trail below `p` read back
 (`ATrail.dropLevels_seg`). -/
 def cutPos (T : ATrail) (marked : ℕ → Bool) (p : ℕ) : ℕ := T.cutGo marked p p false
 
-theorem dropLevelsGo_seg (T : ATrail) (marked : ℕ → Bool) : ∀ (i cut : ℕ) (hit : Bool), i ≤ cut →
+private theorem dropLevelsGo_seg (T : ATrail) (marked : ℕ → Bool) :
+    ∀ (i cut : ℕ) (hit : Bool), i ≤ cut →
     T.cutGo marked i cut hit ≤ cut ∧
     XTrail.dropLevelsGo marked (T.seg i (cut - i)).reverse hit (T.seg 0 i) =
       (T.seg (T.cutGo marked i cut hit) (cut - T.cutGo marked i cut hit),
@@ -2217,7 +2223,7 @@ theorem init_inv (φ : CNF ℕ) : (init φ).Inv := ExecL.init_inv φ
 
 /-- **UnitPropagate**: the literal of a unit clause pushed, with that clause as its reason. -/
 def propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) : Exec φ :=
-  ⟨S.tr.push (litKey l) (e.1 + 1), S.db, S.log⟩
+  ⟨S.tr.push (litCode l) (e.1 + 1), S.db, S.log⟩
 
 theorem toL_propagate (S : Exec φ) (e : ℕ × Clause ℕ) (l : Literal ℕ) :
     (S.propagate e l).toL = S.toL.propagate e l := by
@@ -2236,7 +2242,7 @@ theorem propagate_spec {S : Exec φ} (hS : S.Inv) {e : ℕ × Clause ℕ} {l : L
   exact ExecL.propagate_spec hS he hl hundef hfalse
 
 /-- **Decide**: the literal of the variable `x` with polarity `b` pushed as a decision. -/
-def decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ := ⟨S.tr.push (litKey (x, b)) 0, S.db, S.log⟩
+def decide (S : Exec φ) (x : ℕ) (b : Bool) : Exec φ := ⟨S.tr.push (litCode (x, b)) 0, S.db, S.log⟩
 
 theorem toL_decide (S : Exec φ) (x : ℕ) (b : Bool) : (S.decide x b).toL = S.toL.decide x b := by
   simp only [toL, decide, ExecL.decide, ExecL.mk.injEq, and_true]
@@ -2292,7 +2298,7 @@ theorem rank_forget (S : Exec φ) (ids : List ℕ) :
 /-- The state after Backjump and Learn: the trail popped down to `q` entries, the asserting
 literal pushed with the learned clause as its reason, and the clause added to the log. -/
 def afterConflictAt {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) (q : ℕ) : Exec φ :=
-  ⟨(S.tr.shrink q).push (litKey L.lit) (L.id + 1), (L.id, L.clause) :: S.db, L.log⟩
+  ⟨(S.tr.shrink q).push (litCode L.lit) (L.id + 1), (L.id, L.clause) :: S.db, L.log⟩
 
 theorem toL_afterConflictAt {sp : Split} (S : Exec φ) (L : S.LearnedAt sp) {q : ℕ}
     (hq : q ≤ S.tr.size) :

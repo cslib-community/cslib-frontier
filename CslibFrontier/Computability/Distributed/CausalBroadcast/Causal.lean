@@ -1399,7 +1399,9 @@ private theorem omega_vt_mono {F : Set P} {ss : ωSequence (BSSState P V)}
   rw [hrun]
   exact bssRun_vt_le (ss i) (xs.extract i j) q
 
-private theorem omega_delivered_mono {F : Set P} {ss : ωSequence (BSSState P V)}
+/-- Monotonicity of `delivered` along an `OmegaExecution` of `bssLTS F`: once `pkt` has been
+delivered at `q` at step `i`, it remains in `((ss j).proc q).delivered` at every step `j ≥ i`. -/
+theorem bss_omega_delivered_mono {F : Set P} {ss : ωSequence (BSSState P V)}
     {xs : ωSequence (BSSAction P V)} (he : (bssLTS F).OmegaExecution ss xs)
     {i j : ℕ} (hij : i ≤ j) {q : P} {pkt : Packet P V}
     (h : pkt ∈ ((ss i).proc q).delivered) :
@@ -1420,7 +1422,7 @@ private theorem omega_pending_persist {F : Set P} {ss : ωSequence (BSSState P V
   | zero => simpa using hpend
   | succ d ih =>
     have hnot_d : pkt ∉ ((ss (k + d)).proc q).delivered := fun hd =>
-      hnot_del (by rw [← Nat.add_assoc]; exact omega_delivered_mono he (Nat.le_succ (k + d)) hd)
+      hnot_del (by rw [← Nat.add_assoc]; exact bss_omega_delivered_mono he (Nat.le_succ (k + d)) hd)
     have hpend_d : pkt ∈ ((ss (k + d)).proc q).pending := ih (Nat.le_add_right k d) hnot_d
     obtain ⟨_, hstep⟩ := he (k + d)
     rw [← Nat.add_assoc, hstep] at hnot_del ⊢

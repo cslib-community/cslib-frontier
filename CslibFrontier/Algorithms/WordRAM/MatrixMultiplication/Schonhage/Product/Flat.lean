@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Schonhage.Product.Exec
+import CslibFrontier.Computability.WordRAM.PreservesMask
 
 /-!
 # Initialized flat native queried products
@@ -29,18 +30,15 @@ namespace Cslib.Algorithms.WordRAM.MatrixMultiplication.Schonhage.QueriedProduct
 open Cslib.WordRAM
 open Cslib.Algorithms.MatrixMultiplication.Schonhage
 
-set_option maxRecDepth 8192 in
--- This closed structural check traverses the two fixed native program trees and signed kernels.
 /-- The full flattened instruction list, including halt, is fixed independently of the input. -/
 public theorem program_length_le (bits : Bool) :
     (program bits |>.program Reg.output).length ≤ 32768 := by
+  simp only [Code.program, List.length_append, Code.length_assemble, List.length_singleton]
   cases bits <;> decide +kernel
 
-set_option maxRecDepth 8192 in
--- This is a finite syntactic check of the actual code, including each renamed producer/kernel.
 /-- Neither mode reads the physical width; the same fixed code runs at every admitted width. -/
 public theorem not_readsWidth (bits : Bool) : ¬(program bits).ReadsWidth := by
-  cases bits <;> decide +kernel
+  cases bits <;> exact Code.not_readsWidth_of_readsWidthBool rfl
 
 /-- Original matrices and coordinates initialize the real native run. The charged prefix
 reaches the same memory that contains all product values, and its next instruction halts. -/

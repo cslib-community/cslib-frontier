@@ -60,8 +60,9 @@ variable.
 
 The choice of variable does not affect correctness: the solver only needs an unassigned variable
 of the database, or the fact that there is none. `Activity.pick` scans for one of greatest
-activity (`Activity.pick_some`, `Activity.pick_none`, `Activity.pick_max`); the solver uses it
-when the variable order runs out.
+activity (`Activity.pick_some`, `Activity.pick_none`, `Activity.pick_max`); the solver uses it,
+with every activity `0`, when VSIDS is off. With VSIDS, the order runs out only when every
+admitted variable is assigned (`VarOrder.pop_none`).
 
 ## Main definitions
 
@@ -90,6 +91,8 @@ when the variable order runs out.
   and the positions consistent.
 * `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_spec`: the variable popped has the greatest activity
   among the unassigned variables, and the order keeps its invariant.
+* `Cslib.Algorithms.Lean.CDCL.VarOrder.pop_none`: with enough fuel, popping finds no variable
+  only by emptying the heap.
 -/
 
 @[expose] public section
@@ -283,16 +286,10 @@ theorem Activity.isGE_compare_iff (A : Activity) (a b : ℕ) :
   rw [this, Activity.isLT_compare, Bool.not_eq_true', ← Bool.not_eq_true, Activity.below_iff]
   omega
 
-/-- Comparisons read the activities of the two variables only. -/
-theorem Activity.compare_congr {A A' : Activity} {a b : ℕ} (ha : A'.get a = A.get a)
-    (hb : A'.get b = A.get b) : @compare ℕ A'.keyOrd a b = @compare ℕ A.keyOrd a b := by
-  change compare (OrderKey.mk (A'.get a) a) _ = compare (OrderKey.mk (A.get a) a) _
-  rw [ha, hb]
-
 /-! #### Positions -/
 
 /-- The value at `v` after setting `x` to `b`: `b` if `x = v` within the array. -/
-theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
+private theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     (p.setIfInBounds x b).getD v 0 = if x = v ∧ v < p.size then b else p.getD v 0 := by
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_setIfInBounds]
   by_cases h : x = v
@@ -302,7 +299,8 @@ theorem VarOrder.getD_setIfInBounds (p : Array ℕ) (x b v : ℕ) :
     · simp [hx]
   · simp [h]
 
-theorem VarOrder.lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) : v < p.size := by
+private theorem VarOrder.lt_size_of_getD_ne {p : Array ℕ} {v : ℕ} (h : p.getD v 0 ≠ 0) :
+    v < p.size := by
   by_contra hv
   simp [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none (Nat.le_of_not_lt hv)] at h
 
@@ -834,12 +832,12 @@ theorem VarOrder.rebuild_spec (A : Activity) (H : VarOrder) (hp : VarOrder.PosOK
 
 /-! #### Bumping -/
 
-theorem Activity.get_modify_ne (A : Activity) {u v : ℕ} (f : ℕ → ℕ) (i : ℕ) (huv : u ≠ v) :
-    (⟨A.score.modify v f, i⟩ : Activity).get u = A.get u := by
+private theorem Activity.get_modify_ne (A : Activity) {u v : ℕ} (f : ℕ → ℕ) (i : ℕ)
+    (huv : u ≠ v) : (⟨A.score.modify v f, i⟩ : Activity).get u = A.get u := by
   simp only [Activity.get, Array.getD_eq_getD_getElem?, Array.getElem?_modify, Ne.symm huv,
     ↓reduceIte]
 
-theorem Activity.le_get_modify (A : Activity) (u v c i : ℕ) :
+private theorem Activity.le_get_modify (A : Activity) (u v c i : ℕ) :
     A.get u ≤ (⟨A.score.modify v (· + c), i⟩ : Activity).get u := by
   simp only [Activity.get, Array.getD_eq_getD_getElem?, Array.getElem?_modify]
   split
@@ -972,7 +970,7 @@ structure VarOrder.Popped where
 
 /-- **Popping the decision variable**, as MiniSat's `pickBranchLit`: the top of the heap is
 removed until it is an unassigned variable admitted by `occ`. `none` if the heap runs out, or the
-fuel does. -/
+fuel does; with more fuel than variables in the heap, the heap runs out (`VarOrder.pop_none`). -/
 def VarOrder.pop (A : Activity) (asg : Assign) (occ : ℕ → Bool) :
     (fuel : ℕ) → VarOrder → VarOrder.Popped
   | 0, H => ⟨none, H⟩
@@ -1044,5 +1042,33 @@ theorem VarOrder.pop_spec {A : Activity} {asg : Assign} {M : Trail} {V : List �
           exact absurd this (by decide)
         · exact (hm' v).2 ⟨hcov v hv hvM hvo, fun e => hne (by rw [e])⟩
     · exact ⟨hwf, hp, rfl, fun _ h => absurd h (by simp), fun v hv hvM hvo _ => hcov v hv hvM hvo⟩
+
+private theorem VarOrder.size_removeTop (A : Activity) (H : VarOrder) (h : 0 < H.heap.size) :
+    (H.removeTop A h).heap.size = H.heap.size - 1 := by
+  unfold VarOrder.removeTop
+  dsimp only
+  split <;> simp
+
+/-- **Popping with more fuel than variables** finds none only by emptying the heap. -/
+theorem VarOrder.pop_none (A : Activity) (asg : Assign) (occ : ℕ → Bool) :
+    ∀ (fuel : ℕ) (H : VarOrder), H.heap.size < fuel →
+    (VarOrder.pop A asg occ fuel H).var = none → (VarOrder.pop A asg occ fuel H).order.heap.size = 0
+  | 0, _, hf, _ => absurd hf (Nat.not_lt_zero _)
+  | fuel + 1, H, hf, hn => by
+    unfold VarOrder.pop at hn ⊢
+    split
+    · rename_i h
+      simp only [h, ↓reduceDIte] at hn
+      dsimp only at hn ⊢
+      split
+      · rename_i hskip
+        simp only [hskip, ↓reduceIte] at hn
+        exact VarOrder.pop_none A asg occ fuel _ (by rw [VarOrder.size_removeTop]; omega) hn
+      · rename_i hskip
+        simp only [hskip, Bool.false_eq_true, ↓reduceIte] at hn
+        exact absurd hn (by simp)
+    · rename_i h
+      change H.heap.size = 0
+      omega
 
 end Cslib.Algorithms.Lean.CDCL
