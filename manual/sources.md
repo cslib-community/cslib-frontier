@@ -64,6 +64,11 @@ Rudolf Ahlswede and Imre Csiszár. "On Oblivious Transfer Capacity." ISIT 2007, 
 
 Benny Applebaum, Yuval Ishai, Eyal Kushilevitz. "How to Garble Arithmetic Circuits." *52nd Annual IEEE Symposium on Foundations of Computer Science (FOCS 2011)*, 120–129, 2011. https://doi.org/10.1109/FOCS.2011.40 . Checked on 2026-11-10 against the author-hosted copy of the FOCS version, https://bennyapplebaum.sites.tau.ac.il/_files/ugd/f706bf_ccb157901f504e32a79d89a666f56de3.pdf , which has no printed page numbers: Definition 4.2 (affinization gadget), Definition 4.5 (perfect privacy of a gadget) and Section 5, Fact 5.1. Cited for the framework of affine key encodings over a ring (with per-wire keys) and for the notion of an affinization gadget; the four-value multiplication gadget formalized here is an explicit instance derived in the Lean source, not the general compiler of the paper.
 
+<a id="almanwilliams2017"></a>
+## almanwilliams2017
+
+Josh Alman and Ryan Williams. "Probabilistic Rank and Matrix Rigidity." [arXiv:1611.05558v2](https://arxiv.org/pdf/1611.05558v2), 7 January 2017 (bibliography key `AlmanWilliams2017`, PDF SHA-256 `8ca83b72bdc02cf3b637def97745bd2af57a6d8c4b598ca622e27e03b5ec31d0`). Section 3, Lemma 3.2 (printed p. 6, PDF p. 7) gives integer multilinear interpolation on consecutive Hamming layers, formalized as `Cslib.exists_multilinear_of_consecutive_weights`. The finite Sylvester–Hadamard rank and off-band edit bounds are steps toward [#3209](https://github.com/cslib-community/cslib-frontier/issues/3209). The asymptotic estimates in Lemmas 3.1 and 3.3 and the non-rigidity bound in Theorem 1.1 remain open in this development. [Independent agent source check of §§1–3](https://github.com/cslib-community/cslib-frontier/pull/7803#pullrequestreview-6016309173).
+
 <a id="alonbabaiitai1986"></a>
 ## alonbabaiitai1986
 
@@ -452,6 +457,11 @@ L. M. Brégman. "Some properties of nonnegative matrices and their permanents." 
 
 Andrei Z. Broder. “On the Resemblance and Containment of Documents.” *Proceedings of Compression and Complexity of Sequences 1997* (SEQUENCES 1997), IEEE, 21–29. https://doi.org/10.1109/SEQUEN.1997.666900 . DOI and metadata as reported by search indexes; neither the DOI nor the full text was resolved in this pass (no connection to the publisher). The manual credits it with the MinHash identity `Pr[min σ(A) = min σ(B)] = |A ∩ B|/|A ∪ B|` for a uniform permutation, which secondary sources attribute to it.
 
+<a id="brown1966"></a>
+## brown1966
+
+William G. Brown. "On Graphs That Do Not Contain a Thomsen Graph." *Canadian Mathematical Bulletin* 9(3), 281–285, 1966. https://doi.org/10.4153/CMB-1966-036-2 ; PDF https://web.vu.lt/mif/s.jukna/Knizka/Brown.pdf . Inspected the 5-page article PDF (pp. 281–285, SHA-256 `ff5a85c14c64cebc4d71a5054eee9a63449dc365299cd36fad8026a8b4d81e94`) on 2026-11-23 UTC for §2 (pp. 282–283): equation `(2.1)` defines the graph `G` on the `p^3` points of `EG(3, p)` with `y ∈ S(x)` iff `∑_{i=1}^3 (x_i - y_i)^2 = α`, where `α ∈ GF(p)` is chosen to be a nonzero quadratic residue when `p ≡ 3 (mod 4)` (so `α = 1` is an allowed radius parameter), giving `|S(x)| = p^2 - p` and `(p^5 - p^4)/2` undirected edges, and the radical-plane reduction `(2.2)` together with `(2.3) LEMMA` ("No three points of `S(x)` are collinear", p. 283) prove that `G` contains no `K_{3,3}`. [BrownMatrix.lean](../CslibFrontier/Foundations/Combinatorics/BrownMatrix.lean) specializes equation `(2.1)` at `α = 1` (`Cslib.brownMatrix` over `Fin 3 → ZMod p` for primes `p ≡ 3 (mod 4)`), so each row of the `p^3 × p^3` adjacency matrix has `p^2 - p = p(p - 1)` ones and the matrix weight `p^5 - p^4 = p^4(p - 1)` is twice Brown's undirected edge count `(p^5 - p^4)/2`.
+
 <a id="bs23"></a>
 ## bs23
 
@@ -566,6 +576,11 @@ Kevin L. Chang and Ravi Kannan. "The Space Complexity of Pass-Efficient Algorith
 ## changroberts1979
 
 Ernest Chang and Rosemary Roberts. "An Improved Algorithm for Decentralized Extrema-Finding in Circular Configurations of Processes." *Communications of the ACM* 22(5), 281–283, 1979. https://doi.org/10.1145/359104.359108 . The library's key is `ChangRoberts1979`. Bibliographic metadata checked via DOI and search summaries on 2026-11-22 UTC; the article PDF was not directly inspected, so internal theorem and page locators are not claimed. [RingElection/ChangRoberts.lean](../CslibFrontier/Computability/Distributed/RingElection/ChangRoberts.lean) formalizes simultaneous-all-initiator election-pass steps toward [#7200](https://github.com/cslib-community/cslib-frontier/issues/7200) (not the arbitrary-initiator or elected-announcement-pass endpoints) over an asynchronous FIFO unidirectional ring `Fin n` (`crAllInit`): unique-maximum termination (`crAllInit_terminates`), the `n * (n + 1) / 2` message bound (`crAllInit_messages_le`, `crAllInit_totalMsgs_rev_eq`), and the `n H_n` permutation-average formula (`crAllInit_avg_totalMsgs_eq`).
+
+<a id="chanitakuramayu2026"></a>
+## chanitakuramayu2026
+
+Timothy M. Chan, Reina Itakura, Zhiyuan Ma and Yuancheng Yu. "3SUM Made Simpler (Without Matrix Multiplication), `k`-SUM Hypothesis Refuted for Odd `k`, and Real 3SUM/APSP Derandomized." STOC submission 1421, manuscript dated November 3, 2026, https://github.com/sigact-stoc/stoc2027/releases/download/papers-2/1421.pdf . Checked against that manuscript (PDF SHA-256 `a21997be2b5840f7287e0995cef3c44b02ebdb3f81a5e53067c8b35b1a3d3996`): §2.1 Problem 2.1 and Theorem 2.2 on p. 5 (ranked supports of size `t`, query rank `2t`, deterministic `(n + binom(d, ≤s) + |C| · binom(2t, ≥s)) · d^{O(1)}` bound for `0 ≤ s ≤ 2t`), together with the preprocessing/query recurrences and word-RAM footnote 7 on pp. 5–6. In [TrimmedYates.lean](../CslibFrontier/Algorithms/Lean/TrimmedYates.lean) and [WordRAM/TrimmedYates.lean](../CslibFrontier/Algorithms/WordRAM/TrimmedYates.lean), Lean generalizes the input ranks to `t₁, t₂` with query size `t₁ + t₂` (`s ≤ t₁ + t₂`) and formalizes the standard-basis Word-RAM program (`computesListInTime_program` for general `coveringProduct` with `highPeak` bound; `executesList_program` and `exec_solveFromTries_subsetConvolution` for ranked signed-integer `subsetConvolution` at explicit word width `w`); the §2.2 hashing reduction (Theorem 2.3) and Sections 3–5 remain open in [#4667](https://github.com/cslib-community/cslib-frontier/issues/4667).
 
 <a id="charikar02"></a>
 ## charikar02
@@ -1504,6 +1519,11 @@ William B. Johnson, Joram Lindenstrauss. “Extensions of Lipschitz Mappings int
 
 Jake Januzelli, Mike Rosulek, Lawrence Roy. "Lower Bounds for Garbled Circuits from Shannon-Type Information Inequalities." *Advances in Cryptology – CRYPTO 2025*, 2025. Full version: Cryptology ePrint Archive, Paper 2025/876, https://eprint.iacr.org/2025/876 . Bibliographic metadata from the ePrint record; the paper's numbered lemmas were not checked against the full text. Cited at topic level as motivation for the generic one-world conditional-entropy transfer and Fano size bound; the paper's multi-world gate-specific Shannon-type inequalities and single-gate random-oracle model are not formalized.
 
+<a id="juknasergeev2013"></a>
+## juknasergeev2013
+
+Stasys Jukna and Igor Sergeev. "Complexity of Linear Boolean Operators." *Foundations and Trends in Theoretical Computer Science* 9(1), 1–123, 2013. https://doi.org/10.1561/0400000063 ; authors' PDF https://igorssergeev.github.io/papers/linear.pdf . Inspected the authors' monograph PDF (SHA-256 `57d43bce79dc0a5a28d2f6b3890c6b522cde3d8020610f7703d105226929896a`) on 2026-11-23 UTC for §3.3 ("Nechiporuk's bounds", pp. 31–33): Theorem 3.9 (pp. 32–33) proves via Pippenger's threshold-edge cut argument that every `(k + 1, l + 1)`-free Boolean matrix `A` satisfies `OR(A) ≥ |A| / (k · l)` (and `OR_2(A) ≥ |A| / max {k, l}`), and in particular `2`-free matrices satisfy `OR(A) = |A| = OR_1(A)` (p. 33). [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) formalizes the symmetric `k = l = K - 1` case (`IsRectangleFreeMatrix A K → boolMatrixWeight A ≤ (K - 1)^2 * orComplexity A`) and its `2`-free consequence `OR(A) = OR_d(A) = |A|` (`1 ≤ d`).
+
 <a id="kabanetscai2000"></a>
 ## kabanetscai2000
 
@@ -1613,6 +1633,11 @@ Ker-I Ko. *On the Complexity of Learning Minimum Time-Bounded Turing Machines*. 
 ## kobayashi1985
 
 Kojiro Kobayashi. "On proving time constructibility of functions." *Theoretical Computer Science* 35, 215–225, 1985. https://doi.org/10.1016/0304-3975(85)90015-5 . Bibliographic metadata checked through Crossref; the article body was not inspected in this pass. The manual cites it, as [Pighizzini 2009](#pighizzini2009) §4 does, as an independent proof of the `n log n` bound.
+
+<a id="kollarronyaiszabo1996"></a>
+## kollarronyaiszabo1996
+
+János Kollár, Lajos Rónyai and Tibor Szabó. "Norm-Graphs and Bipartite Turán Numbers." *Combinatorica* 16(3), 399–406, 1996. https://doi.org/10.1007/BF01261323 . Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [4], p. 3); the article was not inspected directly. Cited in [Rectifier/ComplementSeparation.lean](../CslibFrontier/Computability/Circuit/Rectifier/ComplementSeparation.lean) only to note that Sergeev's Theorem 1(i) projective norm-graph instantiation remains open under [#7622](https://github.com/cslib-community/cslib-frontier/issues/7622).
 
 <a id="kortevygen18"></a>
 ## kortevygen18
@@ -1793,6 +1818,11 @@ Jennifer Lundelius and Nancy Lynch. "An Upper and Lower Bound for Clock Synchron
 ## lundyannakakis1994
 
 Carsten Lund and Mihalis Yannakakis. "On the Hardness of Approximating Minimization Problems." *Journal of the ACM* 41(5), 960–981, 1994. https://doi.org/10.1145/185675.306789 . Bibliographic metadata checked via search records only; primary text uninspected and internal theorem locators unverified (no numbered paper theorems claimed). Cited for the constant-factor and logarithmic Set Cover inapproximability reductions from Label Cover using set-system partition gadgets.
+
+<a id="lupanov1956"></a>
+## lupanov1956
+
+O. B. Lupanov. "On Rectifier and Switching-and-Rectifier Schemes" (in Russian). *Doklady Akademii Nauk SSSR* 111(6), 1171–1174, 1956. Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [5], pp. 1, 3); the Russian original was not inspected. Cited by [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) as historical attribution for the rectifier `(m, n)`-circuit model.
 
 <a id="lynchshvartsman1997"></a>
 ## lynchshvartsman1997
@@ -1993,6 +2023,11 @@ John Nash. "Non-Cooperative Games." *Annals of Mathematics* 54(2), 286–295, 19
 ## nayakwu99
 
 Ashwin Nayak and Felix Wu. *The Quantum Query Complexity of Approximating the Median and Related Statistics*. STOC '99, 384–393, 1999. https://doi.org/10.1145/301250.301349 ; open version arXiv:quant-ph/9804066v2, https://arxiv.org/abs/quant-ph/9804066v2 . Bibliographic metadata taken from `references.bib` (`NayakWu1999`). The arXiv v2 LaTeX source (`main.tex`) was inspected on 2026-11-11 UTC for the Section 1 problem definitions (`ε`-approximate median, `Δ`-approximate `k`-th smallest element with its relaxed input-membership remark, and `Δ`-approximate count), Theorem 1.5 (`Ω(√(n/Δ) + √(k(n-k))/Δ)` for `k`-th smallest), Corollary 1.6 (`Ω(1/ε)` and `Ω(min {1/ε, n})` for approximate median), Theorem 1.11 (`Ω(√(n/Δ) + √(t(n-t))/Δ)` for approximate counting), and the Section 2 partial-function reductions (`Proof of Theorem 1.5`). Nayak and Wu prove the underlying threshold bound by the polynomial method (Corollary 1.2); the library derives the reductions from `one_sub_mul_add_le_four_mul_mul_abs_sub_of_weight` ([AmbainisAdversary/WeightLayers](../CslibFrontier/Computability/QueryComplexity/Quantum/AmbainisAdversary/WeightLayers.lean)).
+
+<a id="nechiporuk1970"></a>
+## nechiporuk1970
+
+E. I. Nechiporuk. "On the Topological Principles of Self-Correction" (in Russian). *Problemy Kibernetiki* 21, 5–102, 1970 (English translation in *Systems Theory Research* 21, 1–99, 1970). Bibliographic metadata as cited in [sergeev2014orcomplement](#sergeev2014orcomplement) (Reference [6], pp. 1, 3) and [juknasergeev2013](#juknasergeev2013) (§3.3, p. 32); neither the Russian original nor the translation was inspected directly (locator not verified). [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) proves `|A| ≤ (K - 1)^2 · OR(A)` and its `2`-free consequence `OR(A) = OR_d(A) = |A|` (`1 ≤ d`), checked against [juknasergeev2013](#juknasergeev2013) (§3.3, Theorem 3.9, pp. 32–33, taking `k = l = K - 1`); [sergeev2014orcomplement](#sergeev2014orcomplement) quotes the weaker denominator `K^2` on p. 3 and records the `2`-free consequence on p. 1.
 
 <a id="nisan07"></a>
 ## nisan07
@@ -2315,6 +2350,11 @@ James Schummer and Rakesh V. Vohra. "Mechanism Design without Money." Chapter 10
 ## selaherlihypetrank2021
 
 Gal Sela, Maurice Herlihy, and Erez Petrank. "Brief Announcement: Linearizability: A Typo." *Proceedings of the 2021 ACM Symposium on Principles of Distributed Computing (PODC)*, 2021 (bibliography key `SelaHerlihyPetrank2021`). https://doi.org/10.1145/3465084.3467944 ; full version "Linearizability: A Typo", https://arxiv.org/abs/2105.06737v2 . Inspected the arXiv v2 PDF https://arxiv.org/pdf/2105.06737v2 (13 pages, numbered pp. 1-13, dated 29 July 2021; SHA-256 `1a8b2fadcf89f16b89d0b544864ad10082d1330a56a08d816f5bd37e26b83893`) on 2026-11-22 UTC: Sections 2.1-2.2 (p. 3, Definitions 2.1-2.2 recalling the original printed linearizability definition of [herlihywing1990](#herlihywing1990), where `<_H` applies only to operations completed in `H`); Sections 3.1-3.3 (pp. 4-6, Figures 1-3 showing that original printed L2 allows pending invocations to linearize before earlier completed operations and fails both locality and the nonblocking property); Section 4 (p. 6, Definition 4.1 "Amended Linearizability", strengthening L2 to `<_{complete(H')} <= <_S`, equivalently `<_{H'} <= <_S` on operations completed in `H'`); Section 5.2 (pp. 7-9, Theorem 5.1 proving locality for Definition 4.1); Section 5.3 (p. 9, Theorem 5.2 proving the nonblocking property for pending invocations of total operations under Definition 4.1); and Section 6 (pp. 9-10, Definition 6.1 and Figure 5 showing why extending `<_H` to unlinearized pending invocations would be too strong). Cited by [ConcurrentObjects/Linearizability.lean](../CslibFrontier/Computability/Distributed/ConcurrentObjects/Linearizability.lean): `History.prec H e_0 e_1` sees invocations pending in `H`, and `IsLinearizable` enforces it on all operations completed in the extension `H'` (`History.IsCompletedOp H'`), which is equivalent to `<_{H'} <= <_S` by `History.prec_append_resp_iff` and matches Definition 4.1, with `isLinearizable_iff_forall_obj` and `exists_linearizable_append_resp_of_total` corresponding to Theorems 5.1 and 5.2.
+
+<a id="sergeev2014orcomplement"></a>
+## sergeev2014orcomplement
+
+Igor S. Sergeev. "On Relative OR-Complexity of Boolean Matrices and Their Complements." arXiv:1407.4626v1 [cs.CC], July 17, 2014. https://arxiv.org/abs/1407.4626v1 ; PDF https://arxiv.org/pdf/1407.4626v1 (mirror https://igorssergeev.github.io/papers/1407.4626v1.pdf ). Inspected the 3-page arXiv v1 PDF (SHA-256 `7e489989a639a6959543c812843d8b3a1c53c39e66ee8fa20d57063d931b44a6`, pp. 1–3) on 2026-11-22 UTC: rectifier `(m, n)`-circuit model, `OR(A)`, `OR_d(A)`, `k`-rectangle-freeness, Nechiporuk's `2`-free consequence `OR(Ā) = OR_2(Ā) = |Ā|`, and Theorem 1(i) on p. 1; Theorem 1(ii), Lemma 1 (`|A| ≥ 2 n^{3/2} → Ω((|A|/n)^4)` `2`-rectangles), the `n = C(m, 2)` `2`-rectangle lift `B` (noting the p. 2 line-above-Lemma-2 misprint "in `B`" for "in `A`"), Lemma 2 (`k`-free `A` implies `(C(k - 1, 2) + 1)`-free `B`), and Lemma 3 statement on p. 2; and the proof of Lemma 3 (depth-`3` circuit for `B̄` and quoted Nechiporuk bound `OR(B) ≥ |B| / K^2`, noting that Lemma 3 writes `Ω((|A| / (k n))^4)` by reusing Lemma 1's dimension letter `n` after setting `n = C(m, 2)` for an `m × m` matrix `A`, whereas Lemma 1 on `A` gives `|B| = Ω((|A| / m)^4)` and `OR(B) = Ω((|A| / (k m))^4)`, which is the bound yielding both Theorem 1(i) and Theorem 1(ii)) and the Theorem 1(ii) instantiation via Brown's `3`-free `m × m` matrix (`m = p^3`, `p ≡ 3 (mod 4)` prime, `n = C(p^3, 2)`) on p. 3. Formalized in [RectangleFreeMatrix.lean](../CslibFrontier/Foundations/Combinatorics/RectangleFreeMatrix.lean) (Lemmas 1–2), [BrownMatrix.lean](../CslibFrontier/Foundations/Combinatorics/BrownMatrix.lean) (Brown's `3`-free unit-sphere matrix of exact weight `p^4(p - 1)`, checked directly against [brown1966](#brown1966), §2, pp. 282–283), [Rectifier/Basic.lean](../CslibFrontier/Computability/Circuit/Rectifier/Basic.lean) (`RectifierCircuit`, `orComplexity`, `orDepthComplexity`, and the sharp `(K - 1)^2` Nechiporuk bound `|A| ≤ (K - 1)^2 · OR(A)` checked against [juknasergeev2013](#juknasergeev2013), §3.3, Theorem 3.9, pp. 32–33), and [Rectifier/ComplementSeparation.lean](../CslibFrontier/Computability/Circuit/Rectifier/ComplementSeparation.lean) (Lemma 3 and Theorem 1(ii)). Theorem 1(i)'s projective norm-graph instantiation ([kollarronyaiszabo1996](#kollarronyaiszabo1996)) remains open under [#7622](https://github.com/cslib-community/cslib-frontier/issues/7622).
 
 <a id="sergeev2020monotoneshift"></a>
 ## sergeev2020monotoneshift

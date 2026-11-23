@@ -10,7 +10,11 @@ module
 public import CslibFrontier.Foundations.Geometry.Polygonal.Concatenate
 public import CslibFrontier.Foundations.Geometry.Polygonal.RayParityIntersections
 public import CslibFrontier.Foundations.Geometry.Polygonal.Reverse
+public import Mathlib.Topology.Connected.PathConnected
+import CslibFrontier.Foundations.Geometry.Polygonal.SampledRoute
+import CslibFrontier.Foundations.Geometry.PuncturedPaths
 import Mathlib.Algebra.BigOperators.Fin
+import Mathlib.LinearAlgebra.Complex.FiniteDimensional
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.FinCases
 import Mathlib.Tactic.Linarith
@@ -24,7 +28,8 @@ import Mathlib.Tactic.NormNum
 on every actual segment, with explicit reciprocal closed endpoint exclusions. Route ray
 parity also adds under concatenation and is invariant under reversal, so a closed excursion
 retains the loop's parity when the connector is retraced. A sufficiently small triangular
-loop isolates any one ray-parity observation from a finite set.
+loop isolates any one ray-parity observation from a finite set. In an open path-connected
+region a polygonal connector bases this excursion at any unmarked point.
 -/
 
 public section
@@ -135,15 +140,19 @@ theorem rayParity_reverse (p : Route) (u z : ℂ) :
     _ = _ := Equiv.sum_comp e (fun i =>
       if RayCrosses (u * p.point i.castSucc) (u * p.point i.succ) (u * z) then true else 0)
 
+private theorem closed_excursion_return_join (p q : Route)
+    (hjoin : p.finish = q.start) (hclosed : q.finish = q.start) :
+    (p.concat q).finish = p.reverse.start := by
+  change (p.concat q).endpoint true = p.reverse.endpoint false
+  rw [endpoint_concat p q hjoin, endpoint_reverse]
+  simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
+
 /-- Following a connector to a closed route and retracing the connector contributes
 exactly the parity of the closed route. -/
 theorem rayParity_closed_excursion (c p : Route) (hjoin : c.finish = p.start)
     (hclosed : p.finish = p.start) (u z : ℂ) :
     ((c.concat p).concat c.reverse).rayParity u z = p.rayParity u z := by
-  have hreturn : (c.concat p).finish = c.reverse.start := by
-    change (c.concat p).endpoint true = c.reverse.endpoint false
-    rw [endpoint_concat c p hjoin, endpoint_reverse]
-    simpa only [endpoint, Bool.not_false, ↓reduceIte] using hclosed.trans hjoin.symm
+  have hreturn := closed_excursion_return_join c p hjoin hclosed
   rw [rayParity_concat (c.concat p) c.reverse hreturn, rayParity_concat c p hjoin,
     rayParity_reverse]
   calc
@@ -324,5 +333,74 @@ theorem exists_rayParity_isolating_loop (points : Finset ℂ) (c : ℂ)
     exact (not_lt_of_ge hle) (hpoints z hz hne)
   · exact fun z hz => (parityTriangle_support c hr hz).2.trans_lt hrε
   · exact fun z hz hne => parityTriangle_outside hr (hpoints z hz hne)
+
+/-- In an open path-connected region, start at an unmarked point and make a closed
+polygonal excursion around one chosen point of the region. The route stays in the region,
+avoids the finite observation set and the chosen point, and has odd ray parity exactly at
+the chosen point among these observations. Connector segments may be retraced. -/
+theorem exists_rayParity_isolating_excursion {U : Set ℂ} (hU : IsOpen U)
+    (hconn : IsPathConnected U) (points : Finset ℂ) {a c : ℂ} (ha : a ∈ U)
+    (hc : c ∈ U) (haPoints : a ∉ points) (hac : a ≠ c) :
+    ∃ p : Route, p.start = a ∧ p.finish = a ∧
+      p.support ⊆ U \ (↑(insert c points) : Set ℂ) ∧
+      p.rayParity 1 c = true ∧ ∀ z ∈ points, z ≠ c → p.rayParity 1 z = false := by
+  classical
+  let V := U \ (↑(insert c points) : Set ℂ)
+  have hfinite : ((↑(insert c points) : Set ℂ)).Finite := Finset.finite_toSet _
+  have hV : IsOpen V := hU.sdiff hfinite.isClosed
+  have hrank : 1 < Module.rank ℝ ℂ := by
+    rw [Complex.rank_real_complex]
+    simpa only [Nat.cast_one, Nat.cast_ofNat] using
+      (Nat.cast_lt.mpr (show (1 : ℕ) < 2 by decide) : (↑(1 : ℕ) : Cardinal) < ↑(2 : ℕ))
+  have hVconn : IsPathConnected V :=
+    isPathConnected_sdiff_finite_of_isOpen hrank hU hconn hfinite
+  obtain ⟨ε, hε, hball⟩ := Metric.isOpen_iff.mp hU c hc
+  obtain ⟨q, -, hclosed, -, hcenter, hpoints, hbound, hodd, heven⟩ :=
+    exists_rayParity_isolating_loop points c (half_pos hε)
+  have hq : q.support ⊆ V := by
+    intro z hz
+    have hmax := hbound z hz
+    have hx := (le_max_left _ _).trans_lt hmax
+    have hy := (le_max_right _ _).trans_lt hmax
+    have hd : dist z c < ε := by
+      rw [dist_eq_norm]
+      have hnorm := Complex.norm_le_abs_re_add_abs_im (z - c)
+      rw [Complex.sub_re, Complex.sub_im] at hnorm
+      linarith only [hx, hy, hnorm]
+    refine ⟨hball (Metric.mem_ball.mpr hd), ?_⟩
+    intro hz'
+    rcases Finset.mem_insert.mp hz' with rfl | hz'
+    · exact hcenter hz
+    · exact hpoints z hz' hz
+  have hqstart : q.start ∈ q.support := by
+    have hzero : (0 : ℝ) ∈ Set.Icc 0 1 := ⟨le_rfl, zero_le_one⟩
+    have he := q.at_eq_start 0 hzero (by simp [position])
+    exact he ▸ q.at_mem_support 0 hzero
+  have haV : a ∈ V := by
+    refine ⟨ha, ?_⟩
+    simpa only [Finset.mem_coe, Finset.mem_insert, not_or] using (And.intro hac haPoints)
+  obtain ⟨p, hstart, hjoin, hp⟩ :=
+    exists_support_subset_of_joinedIn hV (hVconn.joinedIn _ haV _ (hq hqstart))
+  have hreturn := closed_excursion_return_join p q hjoin hclosed
+  have hfirst : ((p.concat q).concat p.reverse).start = a := by
+    change ((p.concat q).concat p.reverse).endpoint false = a
+    rw [endpoint_concat _ _ hreturn]
+    change (p.concat q).endpoint false = a
+    rw [endpoint_concat _ _ hjoin]
+    exact hstart
+  have hlast : ((p.concat q).concat p.reverse).finish = a := by
+    change ((p.concat q).concat p.reverse).endpoint true = a
+    rw [endpoint_concat _ _ hreturn]
+    change p.reverse.endpoint true = a
+    rw [endpoint_reverse]
+    exact hstart
+  refine ⟨(p.concat q).concat p.reverse, hfirst, hlast, ?_, ?_, ?_⟩
+  · rw [support_concat _ _ hreturn, support_concat _ _ hjoin, support_reverse]
+    exact Set.union_subset (Set.union_subset hp hq) hp
+  · rw [rayParity_closed_excursion p q hjoin hclosed]
+    exact hodd
+  · intro z hz hne
+    rw [rayParity_closed_excursion p q hjoin hclosed]
+    exact heven z hz hne
 
 end Cslib.Polygonal.Route

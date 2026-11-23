@@ -16,9 +16,11 @@ import CslibFrontierResults.Entries.ODonnellNearlyConstantNoise
 import CslibFrontierResults.Entries.ODonnellStabilityDerivative
 import CslibFrontierResults.Entries.ODonnellTribes
 import CslibFrontierResults.Entries.ODonnellUncertainty
+import CslibFrontierResults.Entries.PolynomialHashing
 import CslibFrontierResults.Entries.RandomOracleKDF
 import CslibFrontierResults.Entries.SergeevBkSequence
 import CslibFrontierResults.Entries.SergeevMonotoneShift
+import CslibFrontierResults.Entries.SergeevORComplement
 import CslibFrontierResults.Entries.SergeevPrefixDepth
 import CslibFrontierResults.Entries.SergeevUniqueDisjointness
 import CslibFrontierResults.Registry
