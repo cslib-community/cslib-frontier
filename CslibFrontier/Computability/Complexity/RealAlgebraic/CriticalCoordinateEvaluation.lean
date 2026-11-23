@@ -20,7 +20,8 @@ The cost includes every coefficient query, starting from evaluations of the sour
 
 This adapts `LeanCanny.CountingHierarchy.coordinatePolynomialValue` at lean-canny
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`. Selection of the leading deformation coefficient
-and real coordinate coverage remain open.
+and real coordinate coverage remain open in
+[#6560](https://github.com/cslib-community/cslib-frontier/issues/6560).
 -/
 
 public section
