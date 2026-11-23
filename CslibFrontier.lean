@@ -1657,6 +1657,7 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ChildSi
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ClauseNetwork
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ClauseNetworkPolyTime
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.CoeffScheme
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.CoeffWordSum
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Constraint
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Deformation
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.DescribedContraction
@@ -1722,7 +1723,9 @@ public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeC
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.NativeRecovery
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEntry
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketEvaluator
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketGeometric
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketTerms
+public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketWordSum
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ParentEdgeWitness
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.Recursion
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.ReductionLift
@@ -3591,6 +3594,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonCorrection
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.NewtonProduct
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.OuterRootLeafRunner
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.PacketChoice
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.PortAssignment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.Prepend
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.ProtectedWordGame
@@ -3720,6 +3724,7 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputa
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchCorrect
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchParameters
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.OuterSearchSpace
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PacketChoice
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.PortAssignment
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplay
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.BlockComputation.QueryReplayAccess
@@ -7090,6 +7095,7 @@ public import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.ExchangeBoun
 public import CslibFrontier.Foundations.Data.BitString.DeltaMatroid.Operations
 public import CslibFrontier.Foundations.Data.BitString.Discriminator
 public import CslibFrontier.Foundations.Data.BitString.Enumeration
+public import CslibFrontier.Foundations.Data.BitString.FieldEnumeration
 public import CslibFrontier.Foundations.Data.BitString.FiniteEncoding
 public import CslibFrontier.Foundations.Data.BitString.Flip
 public import CslibFrontier.Foundations.Data.BitString.FunctionTables

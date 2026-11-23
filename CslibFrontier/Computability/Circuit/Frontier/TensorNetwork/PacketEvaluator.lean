@@ -213,13 +213,6 @@ theorem val_mul_inv_of_eq (c : List ℕ) {w : Ring p fl} (h : val p fl c = 1 + 2
   rw [hy, h]
   ring
 
-/-- An inverse is unique. -/
-private theorem eq_of_mul_eq_one {R : Type*} [CommRing R] {a b c : R} (hb : a * b = 1)
-    (hc : c * a = 1) : b = c := by
-  calc b = (c * a) * b := by rw [hc, one_mul]
-    _ = c * (a * b) := mul_assoc _ _ _
-    _ = c := by rw [hb, mul_one]
-
 /-- An odd integer is `1 + 2 w`. -/
 private theorem intCast_odd {R : Type*} [CommRing R] {u : ℤ} (hu : Odd u) :
     ∃ w : R, (u : R) = 1 + 2 * w := by
@@ -320,22 +313,26 @@ private theorem val_kernelUnitDen (L : ℕ) :
   simp only [List.mem_toFinset, List.mem_filter, mem_gridList, mem_erase, decide_eq_true_eq]
   tauto
 
-/-- **The kernel unit**: `kernelUnitList` is the reduction of `kernelUnit a`. -/
-theorem val_kernelUnitList {a L : ℕ} (hL : L = 2 ^ a) :
-    val p fl (kernelUnitList p fl L) = scalarHom p fl (kernelUnit a) := by
-  subst hL
-  have hne (q : ℤ) (hq : q ∈ (cauchyGrid (2 ^ a)).erase 0) : (0 : ℤ) - q ≠ 0 :=
+/-- The kernel denominator is one modulo two, for every grid length. -/
+theorem exists_val_kernelUnitDen_eq (L : ℕ) :
+    ∃ w : Ring p fl, val p fl (kernelUnitDen p fl L) = 1 + 2 * w := by
+  have hne (q : ℤ) (hq : q ∈ (cauchyGrid L).erase 0) : (0 : ℤ) - q ≠ 0 :=
     sub_ne_zero.mpr (Ne.symm (ne_of_mem_erase hq))
-  -- The odd part of `C'(0)` is one modulo two.
   obtain ⟨w, hw⟩ := exists_prod_eq_one_add_two_mul
-    (((cauchyGrid (2 ^ a)).erase 0).toList.map fun q =>
+    (((cauchyGrid L).erase 0).toList.map fun q =>
       (((0 - q) / 2 ^ padicValInt 2 (0 - q) : ℤ) : Ring p fl)) fun y hy => by
       obtain ⟨q, hq, rfl⟩ := List.mem_map.mp hy
       exact intCast_odd (odd_ediv_two_pow (hne q (Finset.mem_toList.mp hq)))
   rw [Finset.prod_map_toList] at hw
-  have hinv := val_mul_inv_of_eq (kernelUnitDen p fl (2 ^ a)) (w := w)
-    (by rw [val_kernelUnitDen, hw])
-  refine eq_of_mul_eq_one hinv ?_
+  exact ⟨w, (val_kernelUnitDen L).trans hw⟩
+
+/-- **The kernel unit**: `kernelUnitList` is the reduction of `kernelUnit a`. -/
+theorem val_kernelUnitList {a L : ℕ} (hL : L = 2 ^ a) :
+    val p fl (kernelUnitList p fl L) = scalarHom p fl (kernelUnit a) := by
+  subst hL
+  obtain ⟨w, hw⟩ := exists_val_kernelUnitDen_eq (p := p) (fl := fl) (2 ^ a)
+  have hinv := val_mul_inv_of_eq (kernelUnitDen p fl (2 ^ a)) hw
+  refine (left_inv_eq_right_inv ?_ hinv).symm
   -- `kernelUnit a` inverts the odd part of `C'(0)` in `ℤ_(2)`.
   have hunit : kernelUnit a * ∏ q ∈ (cauchyGrid (2 ^ a)).erase 0,
       (((0 - q) / 2 ^ padicValInt 2 (0 - q) : ℤ) : ℤ₍₂₎) = 1 := by
@@ -346,7 +343,8 @@ theorem val_kernelUnitList {a L : ℕ} (hL : L = 2 ^ a) :
     rw [coe_kernelUnit]
     simp only [map_intCast]
     refine inv_mul_cancel₀ (prod_ne_zero_iff.mpr fun q hq => ?_)
-    exact_mod_cast ediv_two_pow_ne_zero (hne q hq)
+    exact_mod_cast ediv_two_pow_ne_zero
+      (sub_ne_zero.mpr (Ne.symm (ne_of_mem_erase hq)))
   rw [val_kernelUnitDen]
   have := congrArg (scalarHom p fl) hunit
   rw [map_mul, map_prod, map_one] at this

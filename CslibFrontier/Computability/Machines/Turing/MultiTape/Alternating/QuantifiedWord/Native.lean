@@ -12,6 +12,8 @@ public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.TwoWordPredicate
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.FramedPrefixInput
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Alternating.QuantifiedWord.Fields
+import CslibFrontier.Computability.Machines.Turing.MultiTape.ResourceBounds.Polynomial.Envelope
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Plumbing.WorkTapePredicate
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Bounds
 
@@ -31,6 +33,10 @@ for the two-word checker. Its input context is preserved throughout all quantifi
   quantified program from one stored encoded input, with a complete polynomial clock.
 * `Turing.MultiTapeATM.QuantifiedWord.exists_of_terminal`: prepare flags from a stored input and
   invoke a supplied alternating terminal once per branch, preserving both clock components.
+* `Turing.MultiTapeATM.QuantifiedWord.exists_of_inO`: native deterministic terminal checks with
+  separate preparation and terminal clocks, including a charged rewind.
+* `Turing.MultiTapeATM.QuantifiedWord.exists_linear_evaluator`: retain linear dependence on a
+  long input component when all remaining work has polynomial short-data bounds.
 -/
 
 public section
@@ -216,5 +222,118 @@ theorem exists_of_terminal {α : Type} {enc : α ↪ List Bool} {flags : α → 
   have hplay := plays_append_prefix (fun word => P (word.drop pre.length)) pre [] (flags a)
   simp only [List.append_nil, List.drop_left] at hplay
   exact ⟨hp.1, hp.2.trans (hgame.2.trans hplay)⟩
+
+
+/-- A finite alternating evaluator from native preparation and deterministic-check certificates.
+The common terminal budget includes the completed word's rewind and the check's original clock;
+no polynomial envelope is imposed on either input-dependent resource function. -/
+theorem exists_of_inO {α : Type} {enc : α ↪ List Bool} {flags : α → List Bool}
+    {check : α × List Bool → Bool} {T : α → ℕ} {V W : α × List Bool → ℕ}
+    (hflags : ComputableInO (fun a => (a, flags a)) enc (encPair enc encBits) T T)
+    (hcheck : ComputableInO check (encPair enc encBits) encBool V W) :
+    ∃ (U : ℕ) (src : Fin U) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM U Bool Q)
+      (cPrepare cCheck : ℕ),
+      ∀ (host : List Bool) (a : α) (pos : ℕ), pos ≤ (enc a).length →
+        ∀ t : ℕ,
+        (∀ xs, xs.length = (flags a).length →
+          (encPair enc encBits (a, xs)).length + 2 + cCheck * (V (a, xs) + 1) ≤ t) →
+        let start := SharedWordFork.start src atm host (enc a) pos
+        let time := pos + cPrepare * (T a + 1) + 8 +
+          ((frame (enc a)).length + (t + 2 * (flags a).length + 1))
+        atm.HaltsWithin time start ∧
+          (atm.AcceptsWithin time start ↔ plays (fun xs => check (a, xs) = true) [] (flags a)) := by
+  obtain ⟨u, S, hS, runner, cCheck, hr⟩ := WorkTapePredicate.exists_of_inO hcheck
+  let deterministic := MultiTapeATM.ofTMs (fun _ => runner) (fun _ => false)
+  let source : Fin (u + 2) := Fin.natAdd u 0
+  let terminal := prependTM (TwoWordLoad.rewind source) deterministic
+  obtain ⟨U, src, Q, hQ, atm, cPrepare, hgame⟩ := exists_of_terminal hflags source terminal
+  refine ⟨U, src, Q, hQ, atm, cPrepare, cCheck, ?_⟩
+  intro host a pos hpos t hbound
+  apply hgame host a pos hpos t (fun xs => check (a, xs) = true)
+  intro xs hxs
+  let word := encPair enc encBits (a, xs)
+  have hd : deterministic.HaltsWithin (cCheck * (V (a, xs) + 1))
+      ((WorkTapePredicate.config host word).withState (some deterministic.toPTM.initial)) ∧
+      (deterministic.AcceptsWithin (cCheck * (V (a, xs) + 1))
+        ((WorkTapePredicate.config host word).withState (some deterministic.toPTM.initial)) ↔
+          check (a, xs) = true) := by
+    rw [MultiTapeATM.haltsWithin_ofTMs_const_iff, MultiTapeATM.acceptsWithin_ofTMs_const_iff]
+    rw [show deterministic.toPTM.initial = runner.q₀ from rfl, hr]
+    simp [WorkTapePredicate.config, Cfg.withState, tapesCfg]
+  rw [← SharedWordFork.start_eq_workTape deterministic host word] at hd
+  have h := SharedWordFork.rewind_spec source deterministic host word word.length _ le_rfl hd.1
+  have hb := hbound xs hxs
+  exact ⟨h.1.mono hb, ⟨fun acc => hd.2.mp (h.2.mp (acc.of_halted_stepCoins h.1)),
+    fun v => (h.2.mpr (hd.2.mpr v)).mono hb⟩⟩
+
+/-- A fixed finite evaluator with linear dependence on a long input component and polynomial
+short-data cost. The measured bounds `long`, `short`, and `challenge` accompany actual native
+preparation/check certificates. The only other premises bound encoding and completed-challenge
+lengths; the machine and clock constants are chosen before every runtime input. -/
+theorem exists_linear_evaluator {α : Type} {enc : α ↪ List Bool} {flags : α → List Bool}
+    {check : α × List Bool → Bool} {long short : α → ℕ} {challenge : α × List Bool → ℕ}
+    {dPrepare dCheck : ℕ}
+    (hflags : ComputableInO (fun a => (a, flags a)) enc (encPair enc encBits)
+      (fun a => long a + short a ^ dPrepare) (fun a => long a + short a ^ dPrepare))
+    (hcheck : ComputableInO check (encPair enc encBits) encBool
+      (fun x => long x.1 + challenge x ^ dCheck) (fun x => long x.1 + challenge x ^ dCheck))
+    (K : ℕ) (hshort : ∀ a, 1 ≤ short a)
+    (hinput : ∀ a, (enc a).length ≤ long a + K * short a + K)
+    (hflagLength : PolyBounded short (fun a => (flags a).length))
+    (hchallenge : ∀ a xs, xs.length = (flags a).length →
+      challenge (a, xs) ≤ K * short a + xs.length + K) :
+    ∃ (U : ℕ) (src : Fin U) (Q : Type) (_ : Finite Q) (atm : MultiTapeATM U Bool Q) (C D : ℕ),
+      ∀ (host : List Bool) (a : α),
+        let start := SharedWordFork.start src atm host (enc a) 0
+        let time := C * (long a + short a ^ D + 1)
+        atm.HaltsWithin time start ∧
+          (atm.AcceptsWithin time start ↔ plays (fun xs => check (a, xs) = true) [] (flags a)) := by
+  obtain ⟨U, src, Q, hQ, atm, cPrepare, cCheck, hgame⟩ := exists_of_inO hflags hcheck
+  let size := fun a => K * short a + (flags a).length + K
+  have hsize : PolyBounded short size :=
+    (((PolyBounded.const K).mul PolyBounded.self).add hflagLength).add (.const K)
+  let framing := fun a => 2 * (K * short a) + 2 * K + 1
+  have hprefix : PolyBounded short framing :=
+    (((PolyBounded.const 2).mul ((PolyBounded.const K).mul PolyBounded.self)).add
+      (.const (2 * K))).add (.const 1)
+  let tail := fun a => framing a + (flags a).length + 2 + cCheck * (size a ^ dCheck + 1)
+  have htail : PolyBounded short tail :=
+    ((hprefix.add hflagLength).add (.const 2)).add
+      ((PolyBounded.const cCheck).mul ((hsize.pow dCheck).add (.const 1)))
+  let minor := fun a => cPrepare * (short a ^ dPrepare + 1) + 8 +
+    (framing a + (tail a + 2 * (flags a).length + 1))
+  have hminor : PolyBounded short minor :=
+    (((PolyBounded.const cPrepare).mul ((PolyBounded.self.pow dPrepare).add (.const 1))).add
+      (.const 8)).add
+      (hprefix.add ((htail.add ((PolyBounded.const 2).mul hflagLength)).add (.const 1)))
+  obtain ⟨C, D, hbound⟩ := hminor.exists_le_linear_add_pow
+    long (cPrepare + 4 + cCheck) hshort
+  refine ⟨U, src, Q, hQ, atm, C, D, ?_⟩
+  intro host a start time
+  let t := (2 + cCheck) * long a + tail a
+  have ht (xs : List Bool) (hxs : xs.length = (flags a).length) :
+      (encPair enc encBits (a, xs)).length + 2 +
+        cCheck * (long a + challenge (a, xs) ^ dCheck + 1) ≤ t := by
+    have hsize' : challenge (a, xs) ≤ size a := by
+      simpa only [size, hxs] using hchallenge a xs hxs
+    have hlen := hinput a
+    have hp := Nat.pow_le_pow_left hsize' dCheck
+    have hm := Nat.mul_le_mul_left cCheck hp
+    simp only [length_encPair, encBits_apply, hxs]
+    dsimp only [t, tail, framing]
+    simp only [Nat.add_mul, Nat.mul_add, Nat.mul_one] at *
+    omega
+  have h := hgame host a 0 (Nat.zero_le _) t ht
+  simp only [Nat.zero_add] at h
+  have hclock : cPrepare * (long a + short a ^ dPrepare + 1) + 8 +
+      ((frame (enc a)).length + (t + 2 * (flags a).length + 1)) ≤ time := by
+    refine le_trans ?_ (hbound a)
+    have hlen := hinput a
+    simp only [length_frame]
+    dsimp only [minor, t, framing]
+    simp only [Nat.add_mul, Nat.mul_add, Nat.mul_one] at *
+    omega
+  exact ⟨h.1.mono hclock, ⟨fun acc => h.2.mp (acc.of_halted_stepCoins h.1),
+    fun v => (h.2.mpr v).mono hclock⟩⟩
 
 end Turing.MultiTapeATM.QuantifiedWord
