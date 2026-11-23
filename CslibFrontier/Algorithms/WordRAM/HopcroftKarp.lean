@@ -3296,23 +3296,29 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
           (∀ a, ¬(bOff + inst.m + 1 + inst.numEdges + inst.r + 3 * inst.m ≤ a ∧
               a < bOff + inst.m + 1 + inst.numEdges + 4 * inst.r + 6 * inst.m + 6) →
             x₁.mem a = x.mem a) := by
+        have wrap_root (s_mid : Data 34) {t_dfs : ℕ}
+            (he_dfs : ExecWithin w (.loop (.eq active one) dfsStepBody) x_in s_mid t_dfs)
+            (hr_mid : ∀ i : Fin 34, i.val < 25 → s_mid.regs i = x_in.regs i) :
+            ExecWithin w dfsRootBody x (s_mid.set qHead (pre.length + 1))
+              (2 + ((8 + t_dfs + 1) + 1)) := by
+          have hqh_mid : s_mid.regs qHead = pre.length :=
+            (hr_mid qHead (by decide)).trans ((hr_in qHead (by decide)).trans hqh)
+          have hone_mid : s_mid.regs one = 1 :=
+            (hr_mid one (by decide)).trans hfr_in.hb.hone
+          have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
+              s_mid (s_mid.set qHead (pre.length + 1)) 1 := by
+            refine WP.execWithin ?_
+            wram_exec [hqh_mid, hone_mid, hf_qh1]
+            rfl
+          exact he_chk.seq
+            (((he_in.seq he_dfs).branch_pos (neg := (ram[ tmp ← zero ] : Code .standard 34))
+              hc_val1).seq hinc)
         cases hr2 : (hkDfs inst.graph inst.adj mate dist k 0 u vis []).2 with
         | some q =>
           rw [hr2] at hdfs hcov_R hacc_eq
           obtain ⟨z_mid, he_dfs, hr_mid, hal_mid, hvis_mid, haug_mid, hf_mid⟩ := hdfs
           simp only [List.nil_append] at hal_mid haug_mid
-          have hqh_mid : z_mid.regs qHead = pre.length :=
-            (hr_mid qHead (by decide)).trans ((hr_in qHead (by decide)).trans hqh)
-          have hone_mid : z_mid.regs one = 1 :=
-            (hr_mid one (by decide)).trans hfr_in.hb.hone
-          have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
-              z_mid (z_mid.set qHead (pre.length + 1)) 1 := by
-            refine WP.execWithin ?_
-            wram_exec [hqh_mid, hone_mid, hf_qh1]
-            rfl
-          have he_full := he_chk.seq
-            (((he_in.seq he_dfs).branch_pos (neg := (ram[ tmp ← zero ] : Code .standard 34))
-              hc_val1).seq hinc)
+          have he_full := wrap_root z_mid he_dfs hr_mid
           have hq_len : q.length = k + 1 := hcov_R.2
           refine ⟨z_mid.set qHead (pre.length + 1), augPairs ++ q,
             he_full.mono (by rw [List.length_append, hq_len]; omega),
@@ -3332,18 +3338,7 @@ private theorem exec_dfsRootsLoop {w bOff k : ℕ} {inst : SparseInstance}
             rw [Cond.holds_eq, hact_mid, (hr_mid one (by decide)).trans hfr_in.hb.hone]
             simp
           have he_dfs := htrans y_mid 2 (ExecWithin.loop_exit hc_exit)
-          have hqh_mid : y_mid.regs qHead = pre.length :=
-            (hr_mid qHead (by decide)).trans ((hr_in qHead (by decide)).trans hqh)
-          have hone_mid : y_mid.regs one = 1 :=
-            (hr_mid one (by decide)).trans hfr_in.hb.hone
-          have hinc : ExecWithin w (ram[ qHead ← qHead + one ] : Code .standard 34)
-              y_mid (y_mid.set qHead (pre.length + 1)) 1 := by
-            refine WP.execWithin ?_
-            wram_exec [hqh_mid, hone_mid, hf_qh1]
-            rfl
-          have he_full := he_chk.seq
-            (((he_in.seq he_dfs).branch_pos (neg := (ram[ tmp ← zero ] : Code .standard 34))
-              hc_val1).seq hinc)
+          have he_full := wrap_root y_mid he_dfs hr_mid
           have haug_ymid : AugMem
               (bOff + inst.m + 1 + inst.numEdges + 2 * inst.r + 6 * inst.m + 6)
               (bOff + inst.m + 1 + inst.numEdges + 3 * inst.r + 6 * inst.m + 6)
@@ -4091,7 +4086,8 @@ theorem SparseInstance.hasPerfectMatching_iff (inst : SparseInstance) :
     exact ⟨rfl, hiff.mp hcard⟩
 
 instance (inst : SparseInstance) : Decidable inst.HasPerfectMatching :=
-  decidable_of_iff (inst.m = inst.r ∧ inst.maxMatchingCard = inst.m) inst.hasPerfectMatching_iff.symm
+  decidable_of_iff (inst.m = inst.r ∧ inst.maxMatchingCard = inst.m)
+    inst.hasPerfectMatching_iff.symm
 
 private def sparseSetupCode : Code .standard 34 :=
   .seq (ram[
