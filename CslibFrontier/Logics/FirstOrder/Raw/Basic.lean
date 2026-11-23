@@ -161,11 +161,7 @@ theorem toNat_ofNat : ∀ n : ℕ, (ofNat n).toNat = n
     have hm : 4 * (m / 4) + m % 4 = m := Nat.div_add_mod m 4
     have hp := Nat.pair_unpair (m / 4)
     rw [ofNat_succ]
-    split_ifs with c0 c1 c2
-    · rw [toNat, hp]; omega
-    · rw [toNat, Denumerable.encode_ofNat, hp]; omega
-    · rw [toNat, ih1, ih2, hp]; omega
-    · rw [toNat, ih2, hp]; omega
+    grind [toNat, Denumerable.encode_ofNat]
 
 instance : Denumerable RawFormula :=
   Denumerable.mk' ⟨toNat, ofNat, ofNat_toNat, toNat_ofNat⟩
