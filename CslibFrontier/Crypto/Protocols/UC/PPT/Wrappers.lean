@@ -374,7 +374,8 @@ private theorem wordHandle_routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type
 /-- Library construction (no cited definition): lift a `PPTCertificate` through `routeCorrupt`,
 preserving the state codec and adding `cert.growth p w.tail` to cover tag-stripped routed
 requests. -/
-def PPTCertificate.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out NetQ NetR : Type}
+@[expose] def PPTCertificate.routeCorrupt
+    {n : ℕ} {ιI : Type} {I : ιI → Type} {In Out NetQ NetR : Type}
     {M : ℕ → Finset (Fin n) → Machine I (protocolSpec n In Out NetQ NetR)}
     {iI : WordInterface I}
     {party : WordPort (Fin n × In) (Option Out)} {netPort : WordPort NetQ NetR}
@@ -609,7 +610,7 @@ theorem Machine.IsPPTFamily.routeCorrupt {n : ℕ} {ιI : Type} {I : ιI → Typ
 
 /-- Library construction (no cited definition): lift a protocol's `PPTCertificate` through
 `corruptRouter`. -/
-def PPTCertificate.corruptRouter {n : ℕ} {In Out NetQ NetR : Type}
+@[expose] def PPTCertificate.corruptRouter {n : ℕ} {In Out NetQ NetR : Type}
     {π : Protocol n In Out NetQ NetR}
     {party : WordPort (Fin n × In) (Option Out)} {netPort : WordPort NetQ NetR}
     (hparty : ComputableInPolyTime (fun w => (party.queryDecoder.decode w).1)
@@ -703,7 +704,7 @@ private theorem wordHandle_liftRight_inr {n : ℕ} {ιL ιR ιE : Type}
 
 /-- Library construction (no cited definition): lift a `PPTCertificate` through
 `Machine.liftRight`, preserving the state codec and additive growth bound. -/
-def PPTCertificate.liftRight {n : ℕ} {ιL ιR ιE : Type}
+@[expose] def PPTCertificate.liftRight {n : ℕ} {ιL ιR ιE : Type}
     {L : ιL → Type} {R : ιR → Type} {E : ιE → Type}
     {M : ℕ → Finset (Fin n) → Machine R E}
     {iR : WordInterface R} {iE : WordInterface E}
@@ -874,7 +875,7 @@ theorem Machine.IsPPTFamily.liftRight {n : ℕ} {ιL ιR ιE : Type}
 
 /-- Library construction (no cited definition): lift an adversary's `PPTCertificate` through
 `liftAdversary`. -/
-def PPTCertificate.liftAdversary {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
+@[expose] def PPTCertificate.liftAdversary {n : ℕ} {In Out NetQ NetR AdvQ AdvR : Type}
     {A : Adversary n AdvQ AdvR NetQ NetR}
     {netPort : WordPort NetQ NetR} {adv : WordPort AdvQ AdvR}
     (party : WordPort (Fin n × In) (Option Out))
