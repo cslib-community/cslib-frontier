@@ -134,15 +134,20 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   obtain ⟨y, steps, res, p, hruns, hhalt, htime, hpar, hroot, htree, hwt⟩ :=
     hprog W 0 4 8 hW hWB (by decide) (by decide)
   have hne : ∀ u : Fin 4, u ≠ 0 → p u ≠ u := fun u hu => ne_self_of_isTree htree.isTree hroot hu
+  have h0 : y.mem (parAddr 4 0) = (p 0).1 := hpar 0
+  have hw0 : y.mem (wtAddr 4 0) = minCutBetween W 0 (p 0) := hwt 0
+  have hw1 : y.mem (wtAddr 4 1) = minCutBetween W 1 (p 1) := hwt 1
+  have hw2 : y.mem (wtAddr 4 2) = minCutBetween W 2 (p 2) := hwt 2
+  have hw3 : y.mem (wtAddr 4 3) = minCutBetween W 3 (p 3) := hwt 3
   refine ⟨R, C, pc, hC, prog, y, steps, res, p, hruns, hhalt, htime, htree, ?_, ?_, ?_, ?_, ?_⟩
-  · rw [hpar 0, hroot]
+  · rw [h0, hroot]
     rfl
-  · rw [hwt 0, hroot, minCutBetween_self]
-  · rw [hwt 1]
-    exact minCut_one _ (hne 1 (by decide)).symm
-  · rw [hwt 2]
+  · rw [hw0, hroot, minCutBetween_self]
+  · rw [hw1]
+    exact minCut_one _ (hne 1 (by decide))
+  · rw [hw2]
     exact minCut_two _ (hne 2 (by decide))
-  · rw [hwt 3]
+  · rw [hw3]
     exact minCut_three _ (hne 3 (by decide))
 
 /-- One vertex, at width `4`: the root is its own parent with weight `0`. -/
@@ -155,9 +160,11 @@ example : ∃ (R C pc : ℕ), 0 < C ∧ ∃ prog : Program .exact R,
   obtain ⟨y, steps, res, p, hruns, hhalt, htime, hpar, hroot, -, hwt⟩ :=
     hprog (fun _ _ : Fin 1 => 0) 0 0 4 ⟨fun _ _ => rfl, fun _ => rfl⟩ (fun _ _ => le_rfl)
       (by decide) (by decide)
+  have h0 : y.mem (parAddr 1 0) = (p 0).1 := hpar 0
+  have hw0 : y.mem (wtAddr 1 0) = minCutBetween (fun _ _ : Fin 1 => 0) 0 (p 0) := hwt 0
   refine ⟨R, C, pc, hC, prog, y, steps, res, hruns, hhalt, htime, ?_, ?_⟩
-  · rw [hpar 0, hroot]
+  · rw [h0, hroot]
     rfl
-  · rw [hwt 0, hroot, minCutBetween_self]
+  · rw [hw0, hroot, minCutBetween_self]
 
 end CslibFrontierTests.GomoryHuWordRAM
