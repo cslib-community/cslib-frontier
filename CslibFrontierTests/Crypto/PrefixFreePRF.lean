@@ -7,6 +7,7 @@ Authors: Samuel Schlesinger, Erik Demaine
 module
 
 import CslibFrontier.Crypto.Computational.CBCMAC
+import CslibFrontier.Crypto.Negligible.Dyadic
 import CslibFrontier.Crypto.Primitives.UHF.PrefixFreePRF
 
 /-!
@@ -25,19 +26,42 @@ open scoped NNReal
 private def properPrefixGuess : CollisionGuess (List Bool) :=
   ⟨[true, false], [true, false, false, false]⟩
 
-example : IsPrefixFreeOraclePPT (cbcBlockValid (fun _ => 3)) id
-    (prefixFreeCollisionReduction id id (cbcBlockValid (fun _ => 2))
-      (fun _ => pure properPrefixGuess)) := by
-  apply isPrefixFreeOraclePPT_prefixFreeCollisionReduction ComputableInPolyTime.id'
-    ComputableInPolyTime.id' (computableInPolyTime_cbcBlockValid (ComputableInPolyTime.const 2))
-    _ (ComputableInPolyTime.const properPrefixGuess).isPPTOn
-  intro n w hv
+private theorem aligned_of_cbcBlockValid {cap : ℕ → ℕ} {n : ℕ} {word : List Bool}
+    (hv : cbcBlockValid cap n word = true) : 0 < n ∧ n ∣ word.length := by
   simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hv
   obtain ⟨⟨hNonempty, hMod⟩, hCap⟩ := hv
   refine ⟨?_, Nat.dvd_of_mod_eq_zero hMod⟩
   cases n with
   | zero => exact False.elim (Nat.not_le_of_gt hNonempty (by simpa using hCap))
   | succ n => exact Nat.zero_lt_succ n
+
+private theorem cbcBlockValid_append {cap : ℕ → ℕ} {n : ℕ} {word block : List Bool}
+    (hWord : cbcBlockValid cap n word = true) (hBlock : block.length = n) :
+    cbcBlockValid (fun k => cap k + 1) n (word ++ block) = true := by
+  simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hWord ⊢
+  obtain ⟨⟨hPos, hMod⟩, hCap⟩ := hWord
+  rw [List.length_append, hBlock, Nat.add_mul, one_mul]
+  refine ⟨⟨hPos.trans_le (Nat.le_add_right _ _), ?_⟩, Nat.add_le_add_right hCap _⟩
+  rw [Nat.add_mod, hMod, Nat.mod_self, Nat.zero_add, Nat.zero_mod]
+
+private theorem cbcMacFamily_extend (family : List Bool → List Bool → List Bool)
+    {cap : ℕ → ℕ} {n : ℕ} {key left right block : List Bool} (hKey : key.length = n)
+    (hLeft : cbcBlockValid cap n left = true) (hRight : cbcBlockValid cap n right = true)
+    (hBlock : block.length = n)
+    (hEq : cbcMacFamily family key left = cbcMacFamily family key right) :
+    cbcMacFamily family key (left ++ block) = cbcMacFamily family key (right ++ block) := by
+  obtain ⟨hPos, hl⟩ := aligned_of_cbcBlockValid hLeft
+  have hr := (aligned_of_cbcBlockValid hRight).2
+  simp only [cbcMacFamily, hKey] at hEq ⊢
+  rw [cbcMacWord_append_block family hPos key hl hBlock,
+    cbcMacWord_append_block family hPos key hr hBlock, hEq]
+
+example : IsPrefixFreeOraclePPT (cbcBlockValid (fun _ => 3)) id
+    (prefixFreeCollisionReduction id id (cbcBlockValid (fun _ => 2))
+      (fun _ => pure properPrefixGuess)) := by
+  exact isPrefixFreeOraclePPT_prefixFreeCollisionReduction ComputableInPolyTime.id'
+    ComputableInPolyTime.id' (computableInPolyTime_cbcBlockValid (ComputableInPolyTime.const 2))
+    (fun _ _ => aligned_of_cbcBlockValid) (ComputableInPolyTime.const properPrefixGuess).isPPTOn
 
 example :
     wordQueryRunDist id
@@ -47,16 +71,17 @@ example :
   have hvalid : (cbcBlockValid (fun _ => 2) 2 properPrefixGuess.first &&
       cbcBlockValid (fun _ => 2) 2 properPrefixGuess.second &&
       decide (properPrefixGuess.first ≠ properPrefixGuess.second)) = true := by decide
-  simp only [prefixFreeCollisionReduction, wordQueryRunDist_sample_bind, ProbComp.eval_pure,
-    PMF.pure_bind, ite_eq_left hvalid, map_eq_bind_pure_comp, bind_assoc, pure_bind,
-    Function.comp_def, wordQueryRunDist_query_bind, wordQueryRunDist_pure, PMF.pure_map]
+  simp only [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap,
+    wordQueryRunDist_sample_bind, ProbComp.eval_pure, PMF.pure_bind, ite_eq_left hvalid,
+    map_eq_bind_pure_comp, bind_assoc, pure_bind, Function.comp_def, wordQueryRunDist_query_bind,
+    wordQueryRunDist_pure, PMF.pure_map]
   rfl
 
 example :
     wordQueryRunDist id
       (prefixFreeCollisionReduction id id (cbcBlockValid (fun _ => 2))
         (fun _ => pure ⟨[true, false], [true, false]⟩) 2 []) = PMF.pure (false, []) := by
-  simp [prefixFreeCollisionReduction]
+  simp [prefixFreeCollisionReduction, prefixFreeCollisionReductionWithCap]
 
 example (family : List Bool → List Bool → List Bool) :
     Game.succProbability (collisionGame pure (fun _ => cbcBlockValid (fun _ => 2))
@@ -68,17 +93,14 @@ example (family : List Bool → List Bool → List Bool) :
       (ProbComp.eval (prfRealGameOn (cbcBlockValid (fun _ => 3)) (cbcMacFamily family) reduction 2))
       (ProbComp.eval (prfIdealGameOn (cbcBlockValid (fun _ => 3)) id reduction 2)) +
       ((2 : ℝ≥0) ^ 2)⁻¹ := by
-  apply succProbability_collisionGame_le_prefixFreeCollisionReduction
-  · intro word block hWord hBlock
-    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hWord ⊢
-    obtain ⟨⟨hPos, hMod⟩, hCap⟩ := hWord
-    rw [List.length_append, hBlock, id_eq, Nat.add_mod, hMod]
-    norm_num at hCap ⊢
-    omega
-  · intro key left right block hKey hLeft hRight hBlock hEq
-    simp only [cbcBlockValid, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] at hLeft hRight
-    obtain ⟨⟨_, hl⟩, _⟩ := hLeft
-    obtain ⟨⟨_, hr⟩, _⟩ := hRight
-    simp only [cbcMacFamily, hKey] at hEq ⊢
-    rw [cbcMacWord_append_block family (by decide) key (Nat.dvd_of_mod_eq_zero hl) hBlock,
-      cbcMacWord_append_block family (by decide) key (Nat.dvd_of_mod_eq_zero hr) hBlock, hEq]
+  exact succProbability_collisionGame_le_prefixFreeCollisionReduction
+    (cbcMacFamily family) _ _ cbcBlockValid_append (cbcMacFamily_extend family)
+
+example {family : List Bool → List Bool → List Bool} (hF : PseudorandomFunction family)
+    {cap : ℕ → ℕ} (hcap : ComputableInPolyTime cap encUnary encUnary) :
+    IsComputationalUHF encUnary encBits pure (fun _ d => cbcBlockValid cap d)
+      (fun _ d (key : BitString d) => cbcMacFamily family (List.ofFn key)) := by
+  have hPRF := hF.prefixFreePRF_cbcMac (hcap.unary_add' (ComputableInPolyTime.const 1))
+  exact isComputationalUHF_of_extendable_prefixFreePRF hPRF ComputableInPolyTime.id'
+    (computableInPolyTime_cbcBlockValid hcap) (fun _ _ => aligned_of_cbcBlockValid)
+    cbcBlockValid_append (cbcMacFamily_extend family) negligible_inv_two_pow
