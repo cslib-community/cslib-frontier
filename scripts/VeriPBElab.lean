@@ -199,14 +199,17 @@ def main (args : List String) : IO UInt32 := do
     match r with
     | some c => IO.println s!"s VERIFIED {conclStr default c}"; return 0
     | none => IO.println "s REJECTED kernel text check"; return 1
-  let inst : Option Instance := if cnf then
-      (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩
-    else Text.parseOPB fmlText
+  -- The names of an OPB text are scanned once, for parsing and elaboration alike.
+  let names : Option Text.Names := if cnf then none else some (Text.opbNames fmlText)
+  let inst : Option Instance := match names with
+    | none => (Text.parseDIMACS fmlText).map fun φ => ⟨φ.map Clause.toPB, none, none⟩
+    | some N => Text.parseOPBWith N fmlText
   let some I := inst | IO.println "s REJECTED formula does not parse"; return 1
   let t₁ ← IO.monoMsNow
   IO.println s!"c read and parse formula {t₁ - t₀} ms ({I.constraints.length} constraints)"
-  let r := if cnf then Elab.elaborate I.constraints I.objective I.preserved pbpText
-    else Elab.elaborate I.constraints I.objective I.preserved pbpText (Text.opbNames fmlText)
+  let r := match names with
+    | none => Elab.elaborate I.constraints I.objective I.preserved pbpText
+    | some N => Elab.elaborate I.constraints I.objective I.preserved pbpText N
   match r with
   | .error e => IO.println s!"s REJECTED elaboration: {e}"; return 1
   | .ok res =>
