@@ -442,6 +442,12 @@ private theorem block_nonempty_subSums (hArity : σ.Arity addOp = 2)
       rw [hT_decomp, sum_map]
       rfl
 
+private theorem div_lt_ceilDiv {j m p : ℕ} (hj : j < m) (hp : 0 < p) :
+    j / p < m ⌈/⌉ p :=
+  (Nat.div_lt_iff_lt_mul hp).mpr <| by
+    rw [mul_comm]
+    exact lt_of_lt_of_le hj ((ceilDiv_le_iff_le_smul hp).mp le_rfl)
+
 /-- Partition `Fin k` into `k ⌈/⌉ width` blocks of length at most `width` and synthesize every
 nonempty block subset sum within `(k * 2 ^ width) / width` binary addition gates. -/
 private def blockIndices (k width q : ℕ) : Finset (Fin k) :=
@@ -449,15 +455,10 @@ private def blockIndices (k width q : ℕ) : Finset (Fin k) :=
 
 private theorem sum_card_blockIndices (k width : ℕ) (hw : 0 < width) :
     ∑ q ∈ range (k ⌈/⌉ width), #(blockIndices k width q) = k := by
-  have hmem (j : Fin k) : j.1 / width ∈ range (k ⌈/⌉ width) := by
-    rw [mem_range]
-    have hj : j.1 < width * (k ⌈/⌉ width) := by
-      have hk : k ≤ width * (k ⌈/⌉ width) := (ceilDiv_le_iff_le_smul hw).mp le_rfl
-      exact lt_of_lt_of_le j.isLt hk
-    exact (Nat.div_lt_iff_lt_mul hw).mpr (by rw [mul_comm]; exact hj)
   simpa only [blockIndices, card_univ, Fintype.card_fin] using
     (card_eq_sum_card_fiberwise (s := univ) (t := range (k ⌈/⌉ width))
-      (f := fun j : Fin k => j.1 / width) fun j _ => hmem j).symm
+      (f := fun j : Fin k => j.1 / width) fun j _ =>
+        mem_range.mpr (div_lt_ceilDiv j.isLt hw)).symm
 
 private theorem card_blockIndices_le (k width q : ℕ) (hw : 0 < width) :
     #(blockIndices k width q) ≤ width := by
@@ -503,11 +504,7 @@ private theorem all_group_subSums {k width : ℕ} (hw : 0 < width)
   refine hall.mono Set.Subset.rfl ?_ hsum_le (by simp)
   rintro _ ⟨q, T, hT, hTq, rfl⟩
   obtain ⟨j₀, hj₀⟩ := hT
-  have hq_lt : q < k ⌈/⌉ width := by
-    have hj : j₀.1 < width * (k ⌈/⌉ width) :=
-      lt_of_lt_of_le j₀.isLt ((ceilDiv_le_iff_le_smul hw).mp le_rfl)
-    rw [← hTq j₀ hj₀]
-    exact (Nat.div_lt_iff_lt_mul hw).mpr (by rw [mul_comm]; exact hj)
+  have hq_lt : q < k ⌈/⌉ width := hTq j₀ hj₀ ▸ div_lt_ceilDiv j₀.isLt hw
   rw [Set.mem_iUnion₂]
   let T' : Finset (Fin #(B q)) := univ.filter fun i => emb q i ∈ T
   have hT_map : T'.map (emb q).toEmbedding = T := by
@@ -590,23 +587,13 @@ private def sectionPeers (p : ℕ) (r : Fin m) : Finset (Fin m) :=
 
 private theorem card_sectionPeers_le {p : ℕ} (hp : 0 < p) (r : Fin m) :
     #(sectionPeers p r) ≤ p - 1 := by
-  let sec : Finset (Fin m) := univ.filter fun r' : Fin m => r'.1 / p = r.1 / p
-  have hsec_le : #sec ≤ p := by
-    have hinj : Set.InjOn (fun r' : Fin m => (⟨r'.1 % p, Nat.mod_lt _ hp⟩ : Fin p)) sec := by
-      intro a ha b hb heq
-      have ha' : a.1 / p = r.1 / p := (mem_filter.mp ha).2
-      have hb' : b.1 / p = r.1 / p := (mem_filter.mp hb).2
-      have hm : a.1 % p = b.1 % p := congrArg Fin.val heq
-      apply Fin.ext
-      rw [← Nat.div_add_mod a.1 p, ← Nat.div_add_mod b.1 p, ha', hb', hm]
-    exact (card_le_card_of_injOn _ (fun _ _ => mem_univ _) hinj).trans_eq (by simp)
-  have hpeers_eq : sectionPeers p r = sec.erase r := by
+  have hpeers_eq : sectionPeers p r = (blockIndices m p (r.1 / p)).erase r := by
     ext r'
-    simp only [sectionPeers, sec, mem_filter, mem_univ, true_and, mem_erase]
+    simp only [sectionPeers, blockIndices, mem_filter, mem_univ, true_and, mem_erase]
     tauto
-  have hr_mem : r ∈ sec := mem_filter.mpr ⟨mem_univ r, rfl⟩
+  have hr_mem : r ∈ blockIndices m p (r.1 / p) := mem_filter.mpr ⟨mem_univ r, rfl⟩
   rw [hpeers_eq, card_erase_of_mem hr_mem]
-  exact Nat.sub_le_sub_right hsec_le 1
+  exact Nat.sub_le_sub_right (card_blockIndices_le m p (r.1 / p) hp) 1
 
 /-- Every row's active columns partition into its paired columns with peers in the same section and
 its odd-leftover columns. This holds in any additive commutative monoid, without cancellation. -/
@@ -810,14 +797,10 @@ private theorem two_mul_sum_card_pairedCols_le (hasCol : Fin m → Col → Bool)
     _ = ∑ c : Col, ∑ u ∈ range (m ⌈/⌉ p), #(activeRows hasCol p u c) := sum_comm
     _ = ∑ c : Col, #{r : Fin m | hasCol r c = true} := by
         refine sum_congr rfl fun c _ => ?_
-        have hmem (r : Fin m) : r.1 / p ∈ range (m ⌈/⌉ p) := by
-          rw [mem_range]
-          have hr : r.1 < p * (m ⌈/⌉ p) :=
-            lt_of_lt_of_le r.isLt ((ceilDiv_le_iff_le_smul hp).mp le_rfl)
-          exact (Nat.div_lt_iff_lt_mul hp).mpr (by rw [mul_comm]; exact hr)
         have hpart := card_eq_sum_card_fiberwise
           (s := univ.filter fun r : Fin m => hasCol r c = true)
-          (t := range (m ⌈/⌉ p)) (f := fun r : Fin m => r.1 / p) fun r _ => hmem r
+          (t := range (m ⌈/⌉ p)) (f := fun r : Fin m => r.1 / p)
+          fun r _ => mem_range.mpr (div_lt_ceilDiv r.isLt hp)
         rw [hpart]
         refine sum_congr rfl fun u _ => congrArg card ?_
         ext r
@@ -830,12 +813,8 @@ private theorem two_mul_sum_card_pairedCols_le (hasCol : Fin m → Col → Bool)
 /-- The total number of odd-leftover columns across all rows is at most `(m ⌈/⌉ p) * |Col|`. -/
 private theorem sum_card_oddCols_le (hasCol : Fin m → Col → Bool) {p : ℕ} (hp : 0 < p) :
     (∑ r : Fin m, #(oddCols hasCol p r)) ≤ (m ⌈/⌉ p) * Fintype.card Col := by
-  have hmem (r : Fin m) : r.1 / p ∈ range (m ⌈/⌉ p) := by
-    rw [mem_range]
-    have hr : r.1 < p * (m ⌈/⌉ p) :=
-      lt_of_lt_of_le r.isLt ((ceilDiv_le_iff_le_smul hp).mp le_rfl)
-    exact (Nat.div_lt_iff_lt_mul hp).mpr (by rw [mul_comm]; exact hr)
-  rw [← sum_fiberwise_of_maps_to (fun r _ => hmem r)]
+  rw [← sum_fiberwise_of_maps_to (t := range (m ⌈/⌉ p))
+    fun r _ => mem_range.mpr (div_lt_ceilDiv r.isLt hp)]
   calc ∑ u ∈ range (m ⌈/⌉ p),
         ∑ r ∈ univ.filter (fun r : Fin m => r.1 / p = u), #(oddCols hasCol p r)
       ≤ ∑ _u ∈ range (m ⌈/⌉ p), Fintype.card Col := by
@@ -1028,6 +1007,12 @@ private def matrixOddVal (A : Matrix (Fin m) (Fin n) Bool) (s p : ℕ)
 private def matrixTailSet (A : Matrix (Fin m) (Fin n) Bool) (s : ℕ) (r : Fin m) :
     Finset (Fin n) :=
   univ.filter fun j : Fin n => n / s ≤ j.1 / s ∧ A r j = true
+
+private theorem div_eq_of_mem_matrixTailSet {A : Matrix (Fin m) (Fin n) Bool} {s : ℕ}
+    {r : Fin m} {j : Fin n} (hj : j ∈ matrixTailSet A s r) : j.1 / s = n / s := by
+  have hge : n / s ≤ j.1 / s := (mem_filter.mp hj).2.1
+  have hle : j.1 / s ≤ n / s := Nat.div_le_div_right j.isLt.le
+  omega
 
 private def matrixRowParts (A : Matrix (Fin m) (Fin n) Bool) (s p : ℕ) (r : Fin m) :
     Finset (Fin m ⊕ Bool) :=
@@ -1329,14 +1314,11 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
     · rcases mem_union.mp hk12 with hkpeer | hkodd
       · obtain ⟨r', hr', rfl⟩ := mem_map.mp hkpeer
         have hne := (mem_filter.mp hr').2
-        have hu_lt : r.1 / p < m ⌈/⌉ p := by
-          have hr_lt : r.1 < p * (m ⌈/⌉ p) :=
-            lt_of_lt_of_le r.isLt ((ceilDiv_le_iff_le_smul hp).mp le_rfl)
-          exact (Nat.div_lt_iff_lt_mul hp).mpr (by rw [mul_comm]; exact hr_lt)
         refine Or.inr (Or.inr (Or.inl ?_))
         rw [Set.mem_iUnion₂]
         exact ⟨(r.1 / p, (min r r', max r r')),
-          mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr hu_lt, mem_univ _⟩, hne⟩, rfl⟩
+          mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr (div_lt_ceilDiv r.isLt hp), mem_univ _⟩,
+            hne⟩, rfl⟩
       · split_ifs at hkodd with hne
         · rw [mem_singleton.mp hkodd]
           refine Or.inr (Or.inr (Or.inr ?_))
@@ -1345,11 +1327,8 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
         · exact (notMem_empty _ hkodd).elim
     · split_ifs at hktail with hne
       · rw [mem_singleton.mp hktail]
-        refine Or.inr (Or.inl ⟨n / s, matrixTailSet A s r, hne, ?_, rfl⟩)
-        intro j hj
-        have hge : n / s ≤ j.1 / s := (mem_filter.mp hj).2.1
-        have hle : j.1 / s ≤ n / s := Nat.div_le_div_right j.isLt.le
-        omega
+        exact Or.inr (Or.inl ⟨n / s, matrixTailSet A s r, hne,
+          fun _ hj => div_eq_of_mem_matrixTailSet hj, rfl⟩)
       · exact (notMem_empty _ hktail).elim
   let rowFn (r : Fin m) (x : Fin n → G) : G := ∑ j : Fin n, if A r j then x j else 0
   set nonempRows : Finset (Fin m) := univ.filter fun r : Fin m => (matrixRowParts A s p r).Nonempty
@@ -2711,13 +2690,10 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
             · exact (notMem_empty _ h1).elim
           · obtain ⟨r', hr', rfl⟩ := mem_map.mp h2
             have hne := (mem_filter.mp hr').2
-            have hu_lt : r.1 / p < (2 * M) ⌈/⌉ p := by
-              have hr_lt : r.1 < p * ((2 * M) ⌈/⌉ p) :=
-                lt_of_lt_of_le r.isLt ((ceilDiv_le_iff_le_smul hp).mp le_rfl)
-              exact (Nat.div_lt_iff_lt_mul hp).mpr (by linarith)
             let up : ℕ × (Fin (2 * M) × Fin (2 * M)) := (r.1 / p, (min r r', max r r'))
             have hup_mem : up ∈ zhegPairIdx d s p :=
-              mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr hu_lt, mem_univ _⟩, hne⟩
+              mem_filter.mpr ⟨mem_product.mpr ⟨mem_range.mpr (div_lt_ceilDiv r.isLt hp),
+                mem_univ _⟩, hne⟩
             have hmin_le : ((min r r').1 / 2) / s ≤ q₀ := by
               rw [← hr_stage]
               exact Nat.div_le_div_right (Nat.div_le_div_right (min_le_left r r'))
@@ -2747,12 +2723,9 @@ private theorem synth_row_in_stage (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 
           · exact (notMem_empty _ h3).elim
       · split_ifs at h4 with hne
         · rw [mem_singleton.mp h4]
-          have htail_mem : zhegPartVal d s p r .xTail ∈ xGroupSet n s := by
-            refine ⟨n / s, Additive.matrixTailSet d.aX s r, hne, ?_, rfl⟩
-            intro j hj
-            have hge : n / s ≤ j.1 / s := (mem_filter.mp hj).2.1
-            have hle : j.1 / s ≤ n / s := Nat.div_le_div_right j.isLt.le
-            omega
+          have htail_mem : zhegPartVal d s p r .xTail ∈ xGroupSet n s :=
+            ⟨n / s, Additive.matrixTailSet d.aX s r, hne,
+              fun _ hj => Additive.div_eq_of_mem_matrixTailSet hj, rfl⟩
           simp only [midSet, stageSet, Set.mem_union]
           tauto
         · exact (notMem_empty _ h4).elim
@@ -3157,6 +3130,8 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
   have hall_stages := hstage0.trans
     ((hstages Q).mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   -- Final output linear form from `stageSet d s p Q`.
+  have hdiv_Q {j : ℕ} (hj : j ≤ M) : j / s < Q :=
+    Nat.lt_succ_of_le (Nat.div_le_div_right hj)
   have hzero_Q : constZero n ∈ stageSet d s p Q :=
     Or.inl (Or.inl (Or.inl (Or.inl (Or.inr (Or.inl rfl)))))
   have hout_mem : ∀ idx ∈ outParts d, outPartVal d idx ∈ stageSet d s p Q := by
@@ -3164,10 +3139,7 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
     cases idx with
     | constOne => exact Or.inl (Or.inl (Or.inl (Or.inl (Or.inr (Or.inr rfl)))))
     | inX j => exact Or.inl (Or.inl (Or.inl (Or.inl (Or.inl ⟨j, rfl⟩))))
-    | gateG ℓ =>
-      have hℓ_lt : ℓ.1 / s < Q :=
-        Nat.lt_succ_of_le (Nat.div_le_div_right ℓ.isLt.le)
-      exact Or.inl (Or.inl (Or.inr ⟨ℓ, hℓ_lt, rfl⟩))
+    | gateG ℓ => exact Or.inl (Or.inl (Or.inr ⟨ℓ, hdiv_Q ℓ.isLt.le, rfl⟩))
   have hout_raw := sum_of_mem_of_zero (G := Bool) (I := interpretation) (w := andCost)
     (addOp := Op.xor) rfl (fun _ => rfl) rfl hzero_Q (outParts d) (outPartVal d) hout_mem
   have hout_fn : (fun x => ∑ idx ∈ outParts d, outPartVal d idx x) = f :=
@@ -3185,7 +3157,7 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
           (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1)) ≤
       (M * (M + 2 * n)) / (2 * s) := by
     have hmaps : ∀ up ∈ zhegPairIdx d s p, (up.2.1.1 / 2) / s ∈ range Q := fun up _ =>
-      mem_range.mpr (Nat.lt_succ_of_le (Nat.div_le_div_right (by omega : up.2.1.1 / 2 ≤ M)))
+      mem_range.mpr (hdiv_Q (by omega))
     rw [sum_fiberwise_of_maps_to hmaps]
     have h₁ : ∑ up ∈ zhegPairIdx d s p,
           (#(pairedCols (hasZhegCol d s) p up.1 up.2.1 up.2.2) - 1) ≤
@@ -3203,7 +3175,7 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
           (#(oddCols (hasZhegCol d s) p r) - 1)) ≤
       ((2 * M) ⌈/⌉ p) * 2 ^ s * ((n + M) ⌈/⌉ s) := by
     have hmaps : ∀ r ∈ zhegOddIdx d s p, (r.1 / 2) / s ∈ range Q := fun r _ =>
-      mem_range.mpr (Nat.lt_succ_of_le (Nat.div_le_div_right (by omega : r.1 / 2 ≤ M)))
+      mem_range.mpr (hdiv_Q (by omega))
     rw [sum_fiberwise_of_maps_to hmaps]
     calc ∑ r ∈ zhegOddIdx d s p, (#(oddCols (hasZhegCol d s) p r) - 1)
         ≤ ∑ r : Fin (2 * M), #(oddCols (hasZhegCol d s) p r) :=
@@ -3219,7 +3191,7 @@ theorem exists_circuit_of_andCost_le_bound {n M : ℕ} {f : BooleanFunction n}
         ∑ _ ∈ (univ : Finset (Fin M)).filter (fun i => i.1 / s = q₀), (2 * (p + s) + 1)) ≤
       2 * M * (p + s + 1) := by
     have hmaps : ∀ i ∈ (univ : Finset (Fin M)), i.1 / s ∈ range Q := fun i _ =>
-      mem_range.mpr (Nat.lt_succ_of_le (Nat.div_le_div_right i.isLt.le))
+      mem_range.mpr (hdiv_Q i.isLt.le)
     rw [sum_fiberwise_of_maps_to hmaps, sum_const, card_univ, Fintype.card_fin, smul_eq_mul]
     nlinarith
   have hgblock_sum :
