@@ -69,7 +69,6 @@ shorter. -/
     let ms ← medians (xs.drop 4)
     return m :: ms
 termination_by xs => xs.length
-decreasing_by simp only [List.length_drop, List.length_cons]; omega
 
 /-- Split `xs` into the elements below, equivalent to, and above the pivot `p`, preserving their
 order. An element `x` is above `p` when `x ≤ p` fails, below `p` when `x ≤ p` holds and `p ≤ x`

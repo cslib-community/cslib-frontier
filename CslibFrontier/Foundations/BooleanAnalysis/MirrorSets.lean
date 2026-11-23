@@ -194,8 +194,7 @@ private theorem fiber_completion_density (X : Finset (ι → Bool)) (s x : ι �
       have he := projectionAverage_uniformDensity_fiber X s x hX R u
       rw [he]
       calc
-        _ ≤ (2 : ℝ) ^ uniformDeficit (coordinateFiber X s x) * (2 : ℝ) ^ (-194 * k) :=
-          mul_le_mul_of_nonneg_left hb.le (by positivity)
+        _ ≤ (2 : ℝ) ^ uniformDeficit (coordinateFiber X s x) * (2 : ℝ) ^ (-194 * k) := by gcongr
         _ = (2 : ℝ) ^ (uniformDeficit (coordinateFiber X s x) - 194 * k) := by
           rw [← Real.rpow_add (by norm_num)]
           congr 1

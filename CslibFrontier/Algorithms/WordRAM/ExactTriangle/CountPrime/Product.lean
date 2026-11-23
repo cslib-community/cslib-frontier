@@ -8,6 +8,7 @@ module
 -- upstream: candidate
 
 import CslibFrontier.Computability.WordRAM.RegisterFrame
+import CslibFrontier.Computability.WordRAM.SymbolicExec.CanonicalCall
 public import CslibFrontier.Algorithms.WordRAM.ExactTriangle.CountPrime.Program
 public import CslibFrontier.Algorithms.WordRAM.MatrixMultiplication.Strassen.Exec
 
@@ -51,63 +52,22 @@ theorem exec_product {w p k : ℕ} (x : Data 128) (u v : ℕ → ℤ)
         (x.regs Reg.productScratch + 4 ^ k * p) (x.regs Reg.productScratch + 4 ^ k * p) d →
         y.mem d = x.mem d) ∧
       ∀ i, 64 ≤ i.val → y.regs i = x.regs i := by
-  let z := (((((x.set Reg.low32 (x.regs Reg.matrixP)).set Reg.low33 (x.regs Reg.matrixQ)).set
-    Reg.low34 (x.regs Reg.matrixR)).set Reg.low35 (x.regs Reg.productScratch)).set
-    Reg.low36 k).set Reg.low46 p
-  have hargs : ExecWithin (B := .standard) (w + 2)
-      (ram[ Reg.low32 ← Reg.matrixP; Reg.low33 ← Reg.matrixQ; Reg.low34 ← Reg.matrixR;
-        Reg.low35 ← Reg.productScratch; Reg.low36 ← Reg.depth;
-        Reg.low46 ← Reg.modulus ]) x z 6 := by
-    ram_eval [z, hpr, hkr, Reg.low32, Reg.low33, Reg.low34, Reg.low35, Reg.low36, Reg.low46,
-      Reg.matrixP, Reg.matrixQ, Reg.matrixR, Reg.productScratch, Reg.depth, Reg.modulus]
-  let f : Fin 64 → Fin 128 := Fin.castLE (by decide)
-  have ha : (z.comap f).regs Strassen.Reg.inputA = x.regs Reg.matrixP := by
-    simp +decide [z, f, Data.comap, Strassen.Reg.inputA, Reg.low32, Reg.low33,
-      Reg.low34, Reg.low35, Reg.low36, Reg.low46]
-  have hb : (z.comap f).regs Strassen.Reg.inputB = x.regs Reg.matrixQ := by
-    simp +decide [z, f, Data.comap, Strassen.Reg.inputB, Reg.low33,
-      Reg.low34, Reg.low35, Reg.low36, Reg.low46]
-  have ho : (z.comap f).regs Strassen.Reg.output = x.regs Reg.matrixR := by
-    simp +decide [z, f, Data.comap, Strassen.Reg.output,
-      Reg.low34, Reg.low35, Reg.low36, Reg.low46]
-  have hs : (z.comap f).regs Strassen.Reg.scratch = x.regs Reg.productScratch := by
-    simp +decide [z, f, Data.comap, Strassen.Reg.scratch, Reg.low35, Reg.low36, Reg.low46]
-  have hk : (z.comap f).regs Strassen.Reg.depth = k := by
-    simp +decide [z, f, Data.comap, Strassen.Reg.depth, Reg.low36, Reg.low46]
-  have hpp : (z.comap f).regs Strassen.Reg.modulus = p := by
-    simp [z, f, Data.comap, Strassen.Reg.modulus, Reg.low46]
   have hmag' : GenericRAM.Signed.Fits w (Strassen.magnitudeBound p 1 1 k : ℤ) := by
     convert hmag using 1
     simp [Strassen.magnitudeBound,
       CyclicConvolution.magnitudeBound, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm]
-  obtain ⟨s, he, result⟩ := Strassen.exec (z.comap f) u v hp hpp hk ha hb ho hs
+  refine WP.exists_execWithin ?_
+  unfold product
+  wram_exec [hpr, hkr]
+  wram_call (Strassen.exec _ u v hp (by wram_simp) (by wram_simp)
+    (by wram_simp) (by wram_simp) (by wram_simp) (by wram_simp)
     (by omega) (by omega) hRS (Or.inl (by omega)) (Or.inl hQR)
-    hu hv hleft hright hmag' haddr
-  let y := s.extend f z
-  have hcall : ExecWithin (w + 2) (Strassen.program.rename f) z y
-      (Strassen.traceBudget p k + 4 * k + 32) := he.rename (Fin.castLE_injective _)
-  have hproduct : ExecWithin (w + 2) product x y
-      (Strassen.traceBudget p k + 4 * k + 38) := by
-    obtain ⟨n, hn, argsRun⟩ := hargs
-    obtain ⟨m, hm, callRun⟩ := hcall
-    cases argsRun with
-    | seq h₁ rest₁ => cases rest₁ with
-      | seq h₂ rest₂ => cases rest₂ with
-        | seq h₃ rest₃ => cases rest₃ with
-          | seq h₄ rest₄ => cases rest₄ with
-            | seq h₅ h₆ =>
-              exact ⟨_, by omega, .seq h₁ (.seq h₂ (.seq h₃ (.seq h₄ (.seq h₅ (.seq h₆ callRun)))))⟩
-  refine ⟨y, hproduct, ?_, ?_, ?_⟩
-  · exact result.values
-  · exact result.outside
-  · intro i hi
-    refine (Data.extend_castLE_regs_of_le s z i hi).trans ?_
-    simp only [z, Data.set,
-      Function.update_of_ne (show i ≠ Reg.low32 by intro he; subst i; contradiction),
-      Function.update_of_ne (show i ≠ Reg.low33 by intro he; subst i; contradiction),
-      Function.update_of_ne (show i ≠ Reg.low34 by intro he; subst i; contradiction),
-      Function.update_of_ne (show i ≠ Reg.low35 by intro he; subst i; contradiction),
-      Function.update_of_ne (show i ≠ Reg.low36 by intro he; subst i; contradiction),
-      Function.update_of_ne (show i ≠ Reg.low46 by intro he; subst i; contradiction)]
+    hu hv hleft hright hmag' haddr)
+    canonical (Fin.castLE_injective _) with s result
+  refine ⟨by omega, result.values, result.outside, fun i hi => ?_⟩
+  refine (Data.extend_castLE_regs_of_le s _ i hi).trans ?_
+  have hne : i ≠ Reg.low32 ∧ i ≠ Reg.low33 ∧ i ≠ Reg.low34 ∧ i ≠ Reg.low35 ∧
+      i ≠ Reg.low36 ∧ i ≠ Reg.low46 := by revert i hi; decide
+  wram_simp [hne.1, hne.2.1, hne.2.2.1, hne.2.2.2.1, hne.2.2.2.2.1, hne.2.2.2.2.2]
 
 end Cslib.Algorithms.WordRAM.ExactTriangle.CountPrime

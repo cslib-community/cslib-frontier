@@ -13,6 +13,7 @@ public import CslibFrontier.Computability.WordRAM.Multiword.Compile
 public import CslibFrontier.Computability.WordRAM.Multiword.CircuitRun
 public import CslibFrontier.Computability.WordRAM.Compile
 import CslibFrontier.Computability.WordRAM.SymbolicExec
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Call
 import CslibFrontier.Foundations.Data.Nat.Power
 import Mathlib.Tactic.FinCases
 import CslibFrontier.Tactic.WramOmega
@@ -335,50 +336,31 @@ private theorem exec_finishCode {w z : ℕ} (hw : 3 ≤ w) (hz : z < 2 ^ w)
     (hin : x.regs Bank.inputReg = z) :
     ∃ y, ExecWithin w (finishCode w) x y 172048 ∧
       y.regs output = z.log2 ∧ y.mem = x.mem := by
-  let t := x.set zeroTest 0
-  have het : Exec (B := .standard) w (.op (.const zeroTest 0)) x t 1 :=
-    Exec.const (fits_zero w)
-  have htp : Bank.Encodes w t (Function.update (fun _ => 0) (0 : Fin 44) z) := by
-    intro j
-    have he (i : Fin (Bank.capacity 44 + 4)) (hi : i ∈ Bank.regs j) :
-        t.regs i = x.regs i := by
-      have hh := Bank.mem_regs hi
-      have hine : i ≠ zeroTest := by
-        intro h
-        have := congrArg Fin.val h
-        dsimp only [zeroTest] at this
-        omega
-      simp only [t, Data.set_regs, Function.update_of_ne hine]
-    refine ⟨fun i hi => ?_, ?_⟩
-    · rw [he i hi]; exact (hx j).1 i hi
-    · exact (congrArg (Nat.ofDigits (radix w)) (List.map_congr_left he)).trans (hx j).2
-  have htin : t.regs Bank.inputReg = z := by
-    simpa only [t, Data.set_regs, Function.update_of_ne (by decide :
-      (Bank.inputReg : Fin (Bank.capacity 44 + 4)) ≠ zeroTest)] using hin
-  have htzero : t.regs zeroTest = 0 := by simp [t]
+  unfold finishCode
   by_cases hz0 : z = 0
-  · let y := t.set output 0
-    have hey : Exec (B := .standard) w (.op (.const output 0)) t y 1 :=
-      Exec.const (fits_zero w)
-    have heb := Exec.branch_pos (c := Cond.eq Bank.inputReg zeroTest)
-      (neg := positiveCode w) (by simpa only [Cond.holds_eq, htin, htzero] using hz0) hey
-    exact ⟨y, (het.seq heb).within.mono (by decide), by simp [y, hz0], rfl⟩
-  · have hp : Function.update (fun _ => 0) (0 : Fin 44) z =
-        Circuit.prefix (values (clusterSize w) z) 1 := by
-      funext i
-      by_cases hi : i = 0
-      · subst i; simp [Circuit.prefix, values_input]
-      · have hi0 : 1 ≤ i.val := by
-          have : i.val ≠ 0 := fun h => hi (Fin.ext h)
-          omega
-        simp only [Function.update_of_ne hi, Circuit.prefix,
-          ite_eq_right (by omega : ¬i.val < 1)]
-    rw [hp] at htp
-    obtain ⟨y, hey, hy, hym⟩ := exec_positiveCode hw (by omega) hz t htp
-    have heb := ExecWithin.branch_neg (cond := Cond.eq Bank.inputReg zeroTest)
-      (pos := .op (.const output 0))
-      (by simpa only [Cond.holds_eq, htin, htzero] using hz0) hey
-    exact ⟨y, het.within.seq heb, hy, hym⟩
+  · wram_exec [hin, hz0]
+    exact ⟨by wram_simp [hz0, Nat.log2_zero], rfl⟩
+  · wram_exec [hin, hz0]
+    refine WP.name fun t ht => ?_
+    have htp : Bank.Encodes w t (Circuit.prefix (values (clusterSize w) z) 1) := by
+      intro j
+      have he (i : Fin (Bank.capacity 44 + 4)) (hi : i ∈ Bank.regs j) : t.regs i = x.regs i := by
+        have := Bank.mem_regs hi
+        subst ht
+        apply Data.set_regs_of_ne
+        rintro rfl
+        have : zeroTest.val = 5 := rfl
+        omega
+      have hpj : Function.update (fun _ => 0) (0 : Fin 44) z j =
+          Circuit.prefix (values (clusterSize w) z) 1 j := by
+        by_cases hj : j = 0
+        · subst hj; simp [Circuit.prefix, values_input]
+        · simp [Function.update_of_ne hj, Circuit.prefix,
+            show ¬j.val < 1 by have := Fin.val_ne_of_ne hj; omega]
+      exact ⟨fun i hi => he i hi ▸ (hx j).1 i hi,
+        (congrArg (Nat.ofDigits (radix w)) (List.map_congr_left he)).trans ((hx j).2.trans hpj)⟩
+    wram_call (exec_positiveCode hw (by omega) hz t htp) with y ⟨hy, hym⟩
+    exact ⟨by omega, hy, hym.trans (by subst ht; rfl)⟩
 
 /-- The complete standard-basis program executes at the original physical width, from the
 ordinary singleton RAM input, within a constant instruction count independent of width.
@@ -390,23 +372,15 @@ theorem exec_code {w z : ℕ} (hw : 2 ≤ w) (hz : z < 2 ^ w) :
   · subst w
     have hdiv : Fits 2 (z / 2) := (show Fits 2 z from hz).of_le (Nat.div_le_self z 2)
     have hmem : (Data.init [z] : Data (Bank.capacity 44 + 4)).mem 1 = z := rfl
-    have he : ∃ y, ExecWithin 2 twoBitCode (Data.init [z]) y 4 ∧ y.regs output = z / 2 ∧
-        y.mem = (Data.init [z] : Data (Bank.capacity 44 + 4)).mem := by
-      unfold twoBitCode
-      wram_exec [hmem, hdiv]
-      wram_simp
-    obtain ⟨y, he, hy, hm⟩ := he
-    have hlog : z / 2 = z.log2 := by
-      have hz4 : z < 4 := hz
-      interval_cases z <;> rfl
-    refine ⟨y, ?_, hy.trans hlog, hm⟩
-    change ExecWithin 2 twoBitCode (Data.init [z]) y 200000
-    exact he.mono (by decide)
+    have hlog : z / 2 = z.log2 := by have hz4 : z < 4 := hz; interval_cases z <;> rfl
+    unfold code twoBitCode
+    simp only [↓reduceIte]
+    wram_exec [hmem, hdiv]
+    exact ⟨by wram_simp [hlog], rfl⟩
   · obtain ⟨u, heu, hu, hum, huz⟩ := Bank.exec_input hw hz (0 : Fin 44)
     obtain ⟨y, hey, hy, hym⟩ := exec_finishCode (by omega) hz u hu huz
-    refine ⟨y, ?_, hy, hym.trans hum⟩
-    have hh := heu.within.seq hey
-    simpa only [code, finishCode, ite_eq_right hw2] using hh.mono (by decide : 172094 ≤ 200000)
+    exact ⟨y, by simpa only [code, finishCode, ite_eq_right hw2] using
+      (heu.within.seq hey).mono (by decide : 172094 ≤ 200000), hy, hym.trans hum⟩
 
 /-- Register entry point for composition. The caller supplies its fitting input in physical
 register four. All 792 bank digits are cleared, the input is split in 44 instructions, and
