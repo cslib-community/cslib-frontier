@@ -18,9 +18,6 @@ namespace CslibFrontierTests.RealAlgebraicCharpolyNorm
 
 open Polynomial Matrix
 
-private theorem coeffNorm1_parameter : coeffNorm1 (X : ℤ[X]) = 1 := by
-  simpa only [mul_one, coeffNorm1_one] using coeffNorm1_X_mul (1 : ℤ[X])
-
 /-- The one-entry matrix `[U]` has characteristic polynomial of bivariate norm at most two. -/
 theorem parameterMatrix :
     (Matrix.of (fun _ _ : Fin 1 => (X : ℤ[X]))).charpoly.bivariateCoeffNorm1 ≤ 2 := by
@@ -28,7 +25,7 @@ theorem parameterMatrix :
   · intro j hj hjD
     have hj1 : j = 1 := by rw [Fintype.card_fin] at hjD; omega
     subst j
-    simp [trace, coeffNorm1_parameter]
+    simp [trace]
   · decide
 
 /-- The bound applies to multiplication by `x` in the quotient with relation `x² = U`. -/
@@ -39,7 +36,7 @@ theorem quadraticQuotient :
       (MvPolynomial.X 0)).charpoly.bivariateCoeffNorm1 ≤ 768 := by
   dsimp only
   exact MvPolynomial.PurePower.bivariateCoeffNorm1_multiplicationMatrix_charpoly_le
-    (d := 1) (Ω := 1) (V := 1) (R := 1) (by decide) _ (by simp) (by simp [coeffNorm1_parameter])
+    (d := 1) (Ω := 1) (V := 1) (R := 1) (by decide) _ (by simp) (by simp)
     (by decide) _ (by simp) (by simp) (by decide)
 
 private noncomputable def quadratic : Polynomial (Polynomial ℤ) := X ^ 2 + C (X - 1)
@@ -52,7 +49,7 @@ private theorem quadratic_norm : quadratic.bivariateCoeffNorm1 ≤ 3 := by
       bivariateCoeffNorm1_mul_X_pow_le (1 : Polynomial (Polynomial ℤ)) 2
   have hC : (C (X - 1 : ℤ[X])).bivariateCoeffNorm1 ≤ 2 := by
     rw [bivariateCoeffNorm1_C]
-    simpa only [coeffNorm1_parameter, coeffNorm1_one] using coeffNorm1_sub_le (X : ℤ[X]) 1
+    simpa only [coeffNorm1_X, coeffNorm1_one] using coeffNorm1_sub_le (X : ℤ[X]) 1
   exact (bivariateCoeffNorm1_add_le _ _).trans (Nat.add_le_add hX hC)
 
 /-- Substituting `-2` for the outer variable of `Y² + U - 1` retains a polynomial in `U`. -/
