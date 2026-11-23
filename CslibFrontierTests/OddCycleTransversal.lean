@@ -19,7 +19,7 @@ meta import CslibFrontier.Algorithms.WordRAM.OddCycleTransversal
 /-!
 # Odd cycle transversal by iterative compression: tests
 
-* The minimum vertex separator (`Cslib.Algorithms.Lean.MaxFlow.minSeparatorM`) on a path and on a
+* The minimum vertex separator (`Cslib.Algorithms.Lean.MaxFlow.minSeparator`) on a path and on a
   four-cycle, with a forbidden vertex.
 * Theorem-level facts, by `decide` on colourings and the correctness theorem `oct_isSome_iff`:
   the triangle and the five-cycle need exactly one deleted vertex, `K₄` needs exactly two, and
@@ -67,21 +67,21 @@ private def checkOct {n : ℕ} (G : SimpleGraph (Fin n)) [DecidableRel G.Adj] (k
 
 -- In the path `0 - 1 - 2`, one vertex separates `0` from `2`. A separator may contain terminals:
 -- the cut nearest to the source returns `{0}`.
-#guard (minSeparatorM path3 #v[false, false, false] #v[true, false, false]
-  #v[false, false, true]).ret.sep == [0]
+#guard (minSeparator path3 #v[false, false, false] #v[true, false, false]
+  #v[false, false, true]).sep == [0]
 
 -- In the four-cycle `0 - 1 - 2 - 3 - 0`, separating `{0, 1}` from `{2, 3}` needs two vertices
 -- (the edges `0 - 3` and `1 - 2`).
-#guard (minSeparatorM (cyc 4) #v[false, false, false, false] #v[true, true, false, false]
-  #v[false, false, true, true]).ret.sep.length == 2
+#guard (minSeparator (cyc 4) #v[false, false, false, false] #v[true, true, false, false]
+  #v[false, false, true, true]).sep.length == 2
 
 -- With `1` forbidden as a separator vertex but blocking walks (in `Z`), one more vertex suffices.
-#guard (minSeparatorM (cyc 4) #v[false, true, false, false] #v[true, true, false, false]
-  #v[false, false, true, true]).ret.sep.length == 1
+#guard (minSeparator (cyc 4) #v[false, true, false, false] #v[true, true, false, false]
+  #v[false, false, true, true]).sep.length == 1
 
 -- If `Z` already separates, the separator is empty.
-#guard (minSeparatorM (cyc 4) #v[true, true, false, false] #v[true, true, false, false]
-  #v[false, false, true, true]).ret.sep == []
+#guard (minSeparator (cyc 4) #v[true, true, false, false] #v[true, true, false, false]
+  #v[false, false, true, true]).sep == []
 
 /-! ### Theorem-level facts -/
 

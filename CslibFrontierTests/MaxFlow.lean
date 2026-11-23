@@ -16,20 +16,20 @@ public import CslibFrontier.Algorithms.Lean.MaxFlow.BipartiteMatching
 Kernel-checked examples and non-vacuity witnesses (without `native_decide`) exercising:
 
 1. **CLRS 6-vertex network (CLRS 2nd ed., Figure 26.1(a), with antiparallel arcs `(1, 2)` and
-   `(2, 1)`; compare [CLRS2009], Figures 26.1–26.2, pp. 710–711):** both `edmondsKarpDenseM` and
-   sparse `edmondsKarpM` find a maximum flow of value `23` and minimum `s`-`t` cut `{0, 1, 2, 4}`
+   `(2, 1)`; compare [CLRS2009], Figures 26.1–26.2, pp. 710–711):** both `edmondsKarpDense` and
+   sparse `edmondsKarp` find a maximum flow of value `23` and minimum `s`-`t` cut `{0, 1, 2, 4}`
    of capacity `23`.
 2. **Large-capacity diamond (`M = 10^9`), backward-arc cancellation, and simultaneous antiparallel
-   flow:** `edmondsKarpDenseM` terminates in `2` shortest-path augmentations (`2 * 10^9` flow)
-   independent of capacity magnitude; augmenting along `[0, 1, 2, 3]` followed by `bfsM` exercises
+   flow:** `edmondsKarpDense` terminates in `2` shortest-path augmentations (`2 * 10^9` flow)
+   independent of capacity magnitude; augmenting along `[0, 1, 2, 3]` followed by `bfs` exercises
    residual backward-arc cancellation along `[0, 2, 1, 3]`; and `bothWaysFlow` exercises
    simultaneous forward push and reverse cancellation across an antiparallel pair carrying positive
    flow in both directions.
 3. **Bipartite matching, König's Theorem, and `HasPerfectMatching`:** asymmetric `Fin 3 × Fin 4`
-   matching/cover duality (`card = size = 2`), positive and negative `decidePerfectMatchingM`
+   matching/cover duality (`card = size = 2`), positive and negative `decidePerfectMatching`
    instances on `Fin 3 × Fin 3`, and universe-polymorphic `Type 1` instantiations.
 4. **Positive and negative witnesses** for `Network.IsCut`, `Network.Flow`, `Flow.IsAugmentingPath`,
-   `AdjValid`, `IsMatching`, `IsVertexCover`, and positive `Θ(n)` `bfsM` cost on edgeless graphs.
+   `AdjValid`, `IsMatching`, `IsVertexCover`, and `bfs` on edgeless graphs.
 -/
 
 public section
@@ -74,20 +74,20 @@ theorem clrsAdj_valid : AdjValid clrsNet clrsAdj := by decide
 
 example : ¬ AdjValid clrsNet (fun _ => []) := by decide
 
-example : (edmondsKarpDenseM clrsNet).ret.flow.value = 23 := by decide
+example : (edmondsKarpDense clrsNet).flow.value = 23 := by decide
 
-example : (edmondsKarpDenseM clrsNet).ret.cut = ({0, 1, 2, 4} : Finset (Fin 6)) := by decide
+example : (edmondsKarpDense clrsNet).cut = ({0, 1, 2, 4} : Finset (Fin 6)) := by decide
 
 example : clrsNet.cutCapacity ({0, 1, 2, 4} : Finset (Fin 6)) = 23 := by decide
 
-example : (edmondsKarpM clrsNet clrsAdj).ret.flow.value = 23 := by decide
+example : (edmondsKarp clrsNet clrsAdj).flow.value = 23 := by decide
 
-example : (edmondsKarpM clrsNet clrsAdj).ret.cut = ({0, 1, 2, 4} : Finset (Fin 6)) := by decide
+example : (edmondsKarp clrsNet clrsAdj).cut = ({0, 1, 2, 4} : Finset (Fin 6)) := by decide
 
 example :
-    (edmondsKarpM clrsNet clrsAdj).ret.flow.IsMaxFlow ∧
-      clrsNet.IsMinCut (edmondsKarpM clrsNet clrsAdj).ret.cut := by
-  obtain ⟨hmax, hmin, _⟩ := edmondsKarpM_correct clrsAdj_valid (by decide)
+    (edmondsKarp clrsNet clrsAdj).flow.IsMaxFlow ∧
+      clrsNet.IsMinCut (edmondsKarp clrsNet clrsAdj).cut := by
+  obtain ⟨hmax, hmin, _⟩ := edmondsKarp_correct clrsAdj_valid (by decide)
   exact ⟨hmax, hmin⟩
 
 /-! ### 2. Capacity-independent `2`-augmentation diamond and backward-arc cancellation -/
@@ -106,11 +106,11 @@ def largeDiamondNet : Network (Fin 4) where
   s := 0
   t := 3
 
-example : (edmondsKarpDenseM largeDiamondNet).ret.augmentations = 2 := rfl
+example : (edmondsKarpDense largeDiamondNet).augmentations = 2 := rfl
 
-example : (edmondsKarpDenseM largeDiamondNet).ret.flow.value = 2000000000 := by decide
+example : (edmondsKarpDense largeDiamondNet).flow.value = 2000000000 := by decide
 
-example : (edmondsKarpDenseM largeDiamondNet).ret.cut = ({0} : Finset (Fin 4)) := by decide
+example : (edmondsKarpDense largeDiamondNet).cut = ({0} : Finset (Fin 4)) := by decide
 
 example : largeDiamondNet.cutCapacity ({0} : Finset (Fin 4)) = 2000000000 := by decide
 
@@ -141,7 +141,7 @@ example : afterZigZag.value = 1 := by decide
 example : afterZigZag.resCap 2 1 = 1 ∧ afterZigZag.resCap 1 2 = 0 := by decide
 
 example :
-    (bfsM unitDiamondNet (defaultAdj 4) afterZigZag).ret.augPath = some [0, 2, 1, 3] := rfl
+    (bfs unitDiamondNet (defaultAdj 4) afterZigZag).augPath = some [0, 2, 1, 3] := rfl
 
 /-- Four-vertex antiparallel network (`cap 1 2 = 3`, `cap 2 1 = 2`) testing simultaneous positive
 flow in both directions (`f 1 2 = 2` and `f 2 1 = 1`). -/
@@ -181,13 +181,14 @@ example : bothWaysFlow 1 2 = 2 ∧ bothWaysFlow 2 1 = 1 ∧ bothWaysFlow.resCap 
 example :
     afterBothWays 1 2 = 3 ∧ afterBothWays 2 1 = 0 ∧ afterBothWays.value = 4 := by decide
 
-/-- Edgeless 4-vertex network verifying positive `Θ(n)` table/cut work in `bfsM`. -/
+/-- Edgeless 4-vertex network verifying `bfs` returns `augPath = none` and `cut = {0}`. -/
 def edgelessNet : Network (Fin 4) where
   cap _ _ := 0
   s := 0
   t := 3
 
-example : 4 ≤ (bfsM edgelessNet (fun _ => []) (Network.Flow.zero edgelessNet)).time := by decide
+example : (bfs edgelessNet (fun _ => []) (Network.Flow.zero edgelessNet)).augPath = none ∧
+    (bfs edgelessNet (fun _ => []) (Network.Flow.zero edgelessNet)).cut = {0} := by decide
 
 /-! ### 3. Bipartite matching, König's Theorem, and `HasPerfectMatching` -/
 
@@ -201,14 +202,14 @@ def asymGraph : Fin 3 × Fin 4 → Bool
   | (⟨2, _⟩, ⟨0, _⟩) => true
   | _ => false
 
-example : (bipartiteMatchingM asymGraph).ret.matching.card = 2 := by decide
+example : (bipartiteMatching asymGraph).matching.card = 2 := by decide
 
-example : (bipartiteMatchingM asymGraph).ret.cover.size = 2 := by decide
+example : (bipartiteMatching asymGraph).cover.size = 2 := by decide
 
 example :
-    IsMaxMatching asymGraph (bipartiteMatchingM asymGraph).ret.matching ∧
-      IsMinVertexCover asymGraph (bipartiteMatchingM asymGraph).ret.cover := by
-  obtain ⟨hmax, hmin, _⟩ := bipartiteMatchingM_correct asymGraph
+    IsMaxMatching asymGraph (bipartiteMatching asymGraph).matching ∧
+      IsMinVertexCover asymGraph (bipartiteMatching asymGraph).cover := by
+  obtain ⟨hmax, hmin, _⟩ := bipartiteMatching_correct asymGraph
   exact ⟨hmax, hmin⟩
 
 /-- `3 × 3` bipartite graph with a unique perfect matching `(0, 1), (1, 2), (2, 0)`. -/
@@ -229,11 +230,11 @@ def noPerfGraph : Fin 3 × Fin 3 → Bool
 
 theorem perfGraph_hasPerfectMatching :
     Cslib.Circuits.BipartiteMatching.HasPerfectMatching perfGraph :=
-  (decidePerfectMatchingM_eq_true_iff perfGraph).mp rfl
+  (decidePerfectMatching_eq_true_iff perfGraph).mp rfl
 
 theorem noPerfGraph_not_hasPerfectMatching :
     ¬ Cslib.Circuits.BipartiteMatching.HasPerfectMatching noPerfGraph := by
-  rw [← decidePerfectMatchingM_eq_true_iff noPerfGraph]
+  rw [← decidePerfectMatching_eq_true_iff noPerfGraph]
   decide
 
 /-! ### 4. Positive/negative predicate witnesses and `Type 1` polymorphism -/
