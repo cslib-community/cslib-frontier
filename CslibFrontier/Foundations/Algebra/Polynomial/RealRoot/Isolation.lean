@@ -45,10 +45,18 @@ separable (equivalently squarefree) rational polynomial.
 
 ## References
 
-* [BasuPollackRoy2006] (locator unverified)
-* [Mahler1964], pp. 257–262 (locator unverified)
-* [Mignotte1982], pp. 259–263 (locator unverified; left-root refinement packaging is specific to
-  this module)
+The `List ℚ` Sturm-bisection isolator `isolateRoots` (which can return touching intervals
+`I₁.upper ≤ I₂.lower`) and left-endpoint root refinement are this library's own construction,
+built on the Sturm counting and root-separation ingredients below; [BasuPollackRoy2006], §10.2,
+Algorithm 10.4 (pp. 373–374, over integer coefficients using Bernstein coefficient variation and
+returning open rational intervals and singleton rational roots) is related work.
+
+* [BasuPollackRoy2006], Theorem 2.50, p. 52 (Sturm counting ingredient; adapted to `(a, b]` over
+  `ℝ`)
+* [Mahler1964], pp. 257–262 (discriminant/Mahler-measure separation ingredient; equation locator
+  unverified)
+* [Mignotte1982], Theorem 3 (pp. 260–261) and Theorem 5 with integral corollary (p. 262; Landau
+  norm comparison and root-separation ingredients)
 -/
 
 public section

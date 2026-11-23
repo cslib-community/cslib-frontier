@@ -65,9 +65,11 @@ constant, yielding Sturm's root-counting identity on `(a, b]` both for general n
 
 ## References
 
-* [S. Basu, R. Pollack, and M.-F. Roy, *Algorithms in Real Algebraic Geometry*][BasuPollackRoy2006]
-  (locator unverified; Sturm's theorem proved here on `(a, b]` over `ℝ` by local constancy of
-  `sturmReducedVariations p x + #{r ≤ x}` on top of Mathlib's `Polynomial.sturmSeq`).
+* [S. Basu, R. Pollack, and M.-F. Roy, *Algorithms in Real Algebraic Geometry*][BasuPollackRoy2006],
+  Theorem 2.50, p. 52 (counts distinct roots in an open interval over a real closed field; the
+  reduced-variation theorem here uses finite real endpoints and counts roots in `(a, b]` over `ℝ`
+  via local constancy of `sturmReducedVariations p x + #{r ≤ x}` on top of Mathlib's
+  `Polynomial.sturmSeq`).
 -/
 
 public section
@@ -794,7 +796,8 @@ theorem sturmReducedVariations_antitone {p : ℝ[X]} (hp : p ≠ 0) :
   omega
 
 /-- **General Sturm's theorem** on `(a, b]` for any nonzero `p : ℝ[X]` whose multiple-root divisor
-`gcd p (derivative p)` does not vanish at `a` or `b` ([BasuPollackRoy2006], locator unverified). -/
+`gcd p (derivative p)` does not vanish at `a` or `b` (after [BasuPollackRoy2006], Theorem 2.50,
+p. 52, adapted to finite real endpoints on `(a, b]`). -/
 theorem sturmVariations_sub_eq_card_roots_Ioc_of_gcd_eval_ne_zero {p : ℝ[X]} (hp : p ≠ 0)
     {a b : ℝ} (hab : a ≤ b)
     (ha : (open Classical in EuclideanDomain.gcd p (derivative p)).eval a ≠ 0)
@@ -806,9 +809,9 @@ theorem sturmVariations_sub_eq_card_roots_Ioc_of_gcd_eval_ne_zero {p : ℝ[X]} (
   exact sturmReducedVariations_sub_eq_card_roots_Ioc hp hab
 
 /-- **Sturm's theorem** on half-open intervals `(a, b]` for separable `p : ℝ[X]`
-([BasuPollackRoy2006], locator unverified): the drop `sturmVariations p a - sturmVariations p b`
-equals the number of distinct real roots of `p` in `(a, b]`, with no nonvanishing assumption
-on the endpoints. -/
+(after [BasuPollackRoy2006], Theorem 2.50, p. 52, adapted to finite real endpoints on `(a, b]`):
+the drop `sturmVariations p a - sturmVariations p b` equals the number of distinct real roots of
+`p` in `(a, b]`, with no nonvanishing assumption on the endpoints. -/
 theorem sturmVariations_sub_eq_card_roots_Ioc {p : ℝ[X]} (hp : p.Separable) {a b : ℝ}
     (hab : a ≤ b) :
     sturmVariations p a - sturmVariations p b =

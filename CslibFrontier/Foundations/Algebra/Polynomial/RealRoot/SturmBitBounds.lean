@@ -49,8 +49,10 @@ This module also bounds the number of pairwise-disjoint intervals `(u, v]` on wh
 
 ## References
 
-* [BasuPollackRoy2006] (locator unverified; Habicht/Sylvester linear-system characterization of
-  polynomial remainder sequences and general Sturm sign-variation counting).
+`sturmBitBound`, the integer Sylvester-matrix Cramer/Hadamard bit-bound proof across
+`sturmSeqList cs`, and `card_active_sturm_intervals_le` are this library's own construction,
+using the reduced Sturm root-counting ingredient from [BasuPollackRoy2006], Theorem 2.50, p. 52
+(adapted in `Sturm.lean` to finite real endpoints on `(a, b]` over `ℝ`).
 -/
 
 public section

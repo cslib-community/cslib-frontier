@@ -53,10 +53,21 @@ explicit polynomial dyadic numerator and denominator bit bounds under `HasCoeffB
 
 ## References
 
-* [BasuPollackRoy2006] (locator unverified)
-* [Mahler1964], pp. 257–262 (locator unverified)
-* [Mignotte1982], pp. 259–263 (locator unverified; `separateTouching` boundary refinement is
-  specific to this module)
+`separateTouching`, `isolateRootsTotal` (refining `isolateRoots`, which may return touching
+intervals, into strictly separated pairwise-disjoint closed intervals on squarefree input, with
+dyadic endpoint bit bounds under `HasCoeffBitBound B cs`), and the polynomial-time certification
+in `CslibFrontier.Computability.Complexity.RealAlgebraic.RootIsolation` are this library's own
+construction, distinct from the mathematical Sturm-counting and root-separation ingredients below;
+[BasuPollackRoy2006], §10.2, Algorithm 10.4 (pp. 373–374, over integer coefficients using
+Bernstein coefficient variation and returning open rational intervals and singleton rational roots)
+is related work.
+
+* [BasuPollackRoy2006], Theorem 2.50, p. 52 (Sturm counting ingredient; adapted to `(a, b]` over
+  `ℝ`)
+* [Mahler1964], pp. 257–262 (discriminant/Mahler-measure separation ingredient; equation locator
+  unverified)
+* [Mignotte1982], Theorem 3 (pp. 260–261) and Theorem 5 with integral corollary (p. 262; Landau
+  norm comparison and root-separation ingredients)
 -/
 
 public section

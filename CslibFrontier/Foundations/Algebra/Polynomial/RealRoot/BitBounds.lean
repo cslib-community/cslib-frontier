@@ -41,10 +41,15 @@ coefficient bit-length bound `B`.
 
 ## References
 
-* [BasuPollackRoy2006] (locator unverified)
-* [Mahler1964], pp. 257–262 (locator unverified)
-* [Mignotte1982], pp. 259–263 (locator unverified; `HasCoeffBitBound`, `DyadicBounded`, and
-  `mignotteBisectionDepth_le_of_bitBound` are specific to this module)
+`HasCoeffBitBound`, `DyadicBounded`, and `mignotteBisectionDepth_le_of_bitBound` are this
+library's own construction on top of the root-separation ingredients below.
+
+* [BasuPollackRoy2006], Theorem 2.50, p. 52 (Sturm counting ingredient; §10.2 Algorithm 10.4 on
+  pp. 373–374 is related work)
+* [Mahler1964], pp. 257–262 (discriminant/Mahler-measure separation ingredient; equation locator
+  unverified)
+* [Mignotte1982], Theorem 3 (pp. 260–261) and Theorem 5 with integral corollary (p. 262; Landau
+  norm comparison and root-separation ingredients)
 -/
 
 public section
