@@ -30,6 +30,8 @@ whose words differ only in their first bit.
 * `Cslib.Circuits.Boolean.Iteration.synthesis_flaggedWords` and
   `Cslib.Circuits.Boolean.Iteration.synthesis_allMinterms` convert between binary words and
   families of flags with linear cost in the number of possible words.
+* `Cslib.Circuits.Boolean.Iteration.synthesis_payloadBlock` returns the bitwise OR of the
+  payloads of flagged table rows.
 
 This is a direct finite construction for the lookup used in fixed-power circuits.
 -/
@@ -76,8 +78,9 @@ theorem synthesis_flaggedWords (k : ℕ) (s : Set (BooleanFunction a))
       have := Nat.two_pow_pos k
       lia
 
-/-- Disjoint payload fibers charge each table entry only once. -/
-private theorem synthesize_payloadBlock {k : ℕ} (s : Set (BooleanFunction a))
+/-- Return the bitwise OR of the payloads of all marked entries. Grouping by the stored
+word charges each entry only once. -/
+theorem synthesis_payloadBlock {k : ℕ} (s : Set (BooleanFunction a))
     (marked : Fin M → BooleanFunction a) (hm : ∀ j, marked j ∈ s)
     (value : Fin M → BitString k) :
     Synthesis interpretation s
@@ -153,36 +156,85 @@ private theorem synthesize_matches {l r : ℕ} (keys : Fin M → BitString (l + 
   have hm := Synthesis.family (fun j x => decide (keys j = x)) (fun _ => 1) hmatch
   simpa using h.trans (hm.mono Set.subset_union_right Set.Subset.rfl le_rfl)
 
-private theorem exists_lookupOr_split {l r : ℕ} (keys values : Fin M → BitString (l + r)) :
-    ∃ c : Circuit signature (l + r) (l + r), c.Computes interpretation (lookupOr keys values) ∧
-      c.size ≤ 3 * M + 8 * 2 ^ l + 8 * 2 ^ r := by
-  let marked (j : Fin M) : BooleanFunction (l + r) := fun x => decide (keys j = x)
-  let s := inputs (l + r) ∪ Set.range marked
-  have hm (j : Fin M) : marked j ∈ s := Or.inr ⟨j, rfl⟩
-  have hl := synthesize_payloadBlock s marked hm (fun j => values j ∘ Fin.castAdd r)
-  have hr := synthesize_payloadBlock s marked hm (fun j => values j ∘ Fin.natAdd l)
-  have h := (synthesize_matches keys).trans (hl.union hr)
-  apply Synthesis.exists_circuit_outputs
-  apply h.mono Set.Subset.rfl ?_ (by lia)
+/-- Test an available `n`-bit word against every hardwired key, using a shared minterm
+table for each half of the word. -/
+theorem synthesis_tableMatches (s : Set (BooleanFunction a)) (bits : BitString a → BitString n)
+    (hb : wires bits ⊆ s) (keys : Fin M → BitString n) :
+    Synthesis interpretation s (Set.range fun j x => decide (keys j = bits x))
+      (M + 8 * 2 ^ ((n + 1) / 2)) := by
+  obtain ⟨l, r, rfl, hl, hr⟩ : ∃ l r, n = l + r ∧ l ≤ (n + 1) / 2 ∧ r ≤ (n + 1) / 2 :=
+    ⟨n / 2, n - n / 2, by lia, by lia, by lia⟩
+  obtain ⟨d, hd, hs⟩ := (synthesize_matches keys).exists_circuit_outputs
+  have h := Synthesis.circuit (I := interpretation) (s := s) d
+    (fun i x => bits x i) fun i => hb ⟨i, rfl⟩
+  apply h.mono Set.Subset.rfl ?_ ?_
+  · rintro _ ⟨j, rfl⟩
+    exact ⟨j, funext fun x => congrFun (hd (bits x)) j⟩
+  · have h₁ := Nat.pow_le_pow_right (by decide : 0 < 2) hl
+    have h₂ := Nat.pow_le_pow_right (by decide : 0 < 2) hr
+    lia
+
+/-- Emit a full payload word in two halves. The minterm budget is exponential only in a
+half-word, even with arbitrary flags or repeated payloads. -/
+theorem synthesis_tablePayload (s : Set (BooleanFunction a)) (marked : Fin M → BooleanFunction a)
+    (hm : ∀ j, marked j ∈ s) (values : Fin M → BitString n) :
+    Synthesis interpretation s
+      (wires fun x bit => decide (∃ j, marked j x = true ∧ values j bit = true))
+      (2 * M + 8 * 2 ^ ((n + 1) / 2)) := by
+  obtain ⟨l, r, rfl, hl, hr⟩ : ∃ l r, n = l + r ∧ l ≤ (n + 1) / 2 ∧ r ≤ (n + 1) / 2 :=
+    ⟨n / 2, n - n / 2, by lia, by lia, by lia⟩
+  have hleft := synthesis_payloadBlock s marked hm (fun j => values j ∘ Fin.castAdd r)
+  have hright := synthesis_payloadBlock s marked hm (fun j => values j ∘ Fin.natAdd l)
+  apply (hleft.union hright).mono Set.Subset.rfl ?_ ?_
+  · rintro _ ⟨i, rfl⟩
+    cases i using Fin.addCases with
+    | left i => exact Or.inl ⟨i, rfl⟩
+    | right i => exact Or.inr ⟨i, rfl⟩
+  · have h₁ := Nat.pow_le_pow_right (by decide : 0 < 2) hl
+    have h₂ := Nat.pow_le_pow_right (by decide : 0 < 2) hr
+    lia
+
+private theorem synthesis_singleLookupOr {k : ℕ} (s : Set (BooleanFunction a))
+    (key : BitString a → BitString n) (hk : wires key ⊆ s) (keys : Fin M → BitString n)
+    (values : Fin M → BitString k) :
+    Synthesis interpretation s (wires (lookupOr keys values ∘ key))
+      (3 * M + 8 * 2 ^ ((n + 1) / 2) + 8 * 2 ^ ((k + 1) / 2)) := by
+  let marked (j : Fin M) : BooleanFunction a := fun x => decide (keys j = key x)
+  have hm := synthesis_tableMatches s key hk keys
+  have hv := synthesis_tablePayload (s ∪ Set.range marked) marked
+    (fun j => Or.inr ⟨j, rfl⟩) values
+  apply (hm.trans hv).mono Set.Subset.rfl ?_ (by lia)
   rintro _ ⟨i, rfl⟩
-  cases i using Fin.addCases with
-  | left i =>
-    exact Or.inl ⟨i, funext fun x => Bool.eq_iff_iff.mpr (by simp [lookupOr, marked])⟩
-  | right i =>
-    exact Or.inr ⟨i, funext fun x => Bool.eq_iff_iff.mpr (by simp [lookupOr, marked])⟩
+  exact ⟨i, funext fun x => Bool.eq_iff_iff.mpr (by simp [marked, lookupOr])⟩
 
 /-- One query against a fixed table of `n`-bit keys and values. Repeated keys return the
 bitwise OR of their values, and missing keys return the all-false word. -/
 theorem exists_lookupOr (keys values : Fin M → BitString n) :
     ∃ c : Circuit signature n n, c.Computes interpretation (lookupOr keys values) ∧
       c.size ≤ 3 * M + 16 * 2 ^ ((n + 1) / 2) := by
-  obtain ⟨l, r, rfl, hl, hr⟩ : ∃ l r, n = l + r ∧ l ≤ (n + 1) / 2 ∧ r ≤ (n + 1) / 2 :=
-    ⟨n / 2, n - n / 2, by lia, by lia, by lia⟩
-  obtain ⟨c, hc, hs⟩ := exists_lookupOr_split keys values
-  refine ⟨c, hc, ?_⟩
-  have h₁ := Nat.pow_le_pow_right (by decide : 0 < 2) hl
-  have h₂ := Nat.pow_le_pow_right (by decide : 0 < 2) hr
-  lia
+  have h := synthesis_singleLookupOr (inputs n) id
+    (by rintro _ ⟨i, rfl⟩; exact ⟨i, rfl⟩) keys values
+  obtain ⟨c, hc, hs⟩ := h.exists_circuit_outputs
+  exact ⟨c, hc, by lia⟩
+
+/-- Read a hardwired word of any width on a finite domain, given the query wires. The key and
+payload each use two shared half-word tables. -/
+theorem exists_synthesis_sparseLookup {k : ℕ} (domain : Finset (BitString n))
+    (payload : BitString n → BitString k) (s : Set (BooleanFunction a))
+    (key : BitString a → BitString n) (hk : wires key ⊆ s) :
+    ∃ value : BitString a → BitString k,
+      Synthesis interpretation s (wires value)
+        (3 * domain.card + 8 * 2 ^ ((n + 1) / 2) + 8 * 2 ^ ((k + 1) / 2)) ∧
+      ∀ x, key x ∈ domain → value x = payload (key x) := by
+  classical
+  let e := Fintype.equivFin ↥domain
+  let keys (j : Fin (Fintype.card ↥domain)) : BitString n := (e.symm j).val
+  refine ⟨lookupOr keys (payload ∘ keys) ∘ key, ?_, ?_⟩
+  · simpa only [Fintype.card_coe] using synthesis_singleLookupOr s key hk keys (payload ∘ keys)
+  · intro x hx
+    have hinj : Function.Injective keys := Subtype.val_injective.comp e.symm.injective
+    have hj : keys (e ⟨key x, hx⟩) = key x := congrArg Subtype.val (e.symm_apply_apply _)
+    exact (lookupOr_of_eq (payload ∘ keys) hinj hj).trans (congrArg payload hj)
 
 /-- An arbitrary payload on a finite domain has a De Morgan circuit using at most
 `3 * domain.card + 16 * 2 ^ ⌈n/2⌉` gates. Constants are included in the bound. -/
@@ -190,16 +242,9 @@ theorem exists_sparseLookup (domain : Finset (BitString n))
     (payload : BitString n → BitString n) :
     ∃ c : Circuit signature n n, c.ComputesOn interpretation ↑domain payload ∧
       c.size ≤ 3 * domain.card + 16 * 2 ^ ((n + 1) / 2) := by
-  classical
-  let e := Fintype.equivFin ↥domain
-  let keys (j : Fin (Fintype.card ↥domain)) : BitString n := (e.symm j).val
-  have hinj : Function.Injective keys := Subtype.val_injective.comp e.symm.injective
-  obtain ⟨c, hc, hs⟩ := exists_lookupOr keys (payload ∘ keys)
-  refine ⟨c, ?_, by simpa using hs⟩
-  intro x hx
-  let j := e ⟨x, hx⟩
-  have hj : keys j = x := congrArg Subtype.val (e.symm_apply_apply _)
-  rw [hc x, lookupOr_of_eq (payload ∘ keys) hinj hj]
-  exact congrArg payload hj
+  obtain ⟨value, hv, hvalue⟩ := exists_synthesis_sparseLookup domain payload (inputs n) id
+    (by rintro _ ⟨i, rfl⟩; exact ⟨i, rfl⟩)
+  obtain ⟨c, hc, hs⟩ := hv.exists_circuit_outputs
+  exact ⟨c, fun x hx => (hc x).trans (hvalue x hx), by lia⟩
 
 end Cslib.Circuits.Boolean.Iteration

@@ -11,13 +11,15 @@ public import CslibFrontier.Algorithms.Lean.LubyMIS
 public import CslibFrontier.Computability.Distributed.LocalGraph.Basic
 public import CslibFrontier.Languages.Probabilistic.Rational
 public import CslibFrontier.Languages.Probabilistic.SampleEach
-import CslibFrontier.Probability.PMF.Bool
+import CslibFrontier.Languages.Probabilistic.Expect
+import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Probability.PMF.Event
 import CslibFrontier.Probability.PMF.Expect
-import CslibFrontier.Probability.PMF.Map
+import CslibFrontier.Probability.PMF.Markov
 import CslibFrontier.Probability.PMF.ToReal
 import CslibFrontier.Probability.PMF.Union
-import CslibFrontier.Probability.Product
+import CslibFrontier.Probability.Product.Event
+import CslibFrontier.Tactic.ENNRealToReal
 import CslibFrontier.Tactic.SuppCases
 import Mathlib.Tactic.Linarith
 
@@ -322,15 +324,13 @@ theorem eval_localPriorityRun (k : ℕ) :
     rw [sampleRankings, LubyMIS.run_zero, map_pure, foldPriorityStep]
   | succ k ih =>
     rw [LubyMIS.run_succ, ProbComp.eval_bind, ← ih]
-    simp only [sampleRankings, ProbComp.eval_map, ProbComp.eval_bind, _root_.PMF.bind_map,
-      _root_.PMF.map_bind, LubyMIS.eval_phase, ProbComp.eval_uniform]
+    simp only [sampleRankings, LubyMIS.eval_phase, ProbComp.eval_uniform, pmf_norm]
     congr 1 with σs : 1
     congr 1 with σ : 1
-    rw [ProbComp.eval_pure, _root_.PMF.pure_map]
-    simp only [Function.comp_apply, foldPriorityStep]
-    have heq : foldPriorityStep G (Function.update σs k σ) k = foldPriorityStep G σs k :=
-      foldPriorityStep_congr G fun p hp => Function.update_of_ne (Nat.ne_of_lt hp) _ _
-    rw [heq, Function.update_self]
+    congr 1
+    simp only [foldPriorityStep]
+    rw [foldPriorityStep_congr G fun p hp => Function.update_of_ne (Nat.ne_of_lt hp) _ _,
+      Function.update_self]
 
 /-- Running `priorityProtocol` for `2 * k` synchronous `LOCAL` rounds under fresh per-phase
 rankings has the exact same output `PMF` as `LubyMIS.lubyMIS G k`. -/
@@ -853,12 +853,6 @@ theorem isIndepSet_of_mem_support_localCoinLubyMIS {uid : V → ℕ} (huid : Fun
 
 /-! #### Product-coin independence helpers and single-phase progress -/
 
-private theorem toOuterMeasure_eq_map_true {α : Type*} (μ : _root_.PMF α) (E : α → Bool) :
-    μ.toOuterMeasure {a | E a = true} = (μ.map E) true := by
-  rw [_root_.PMF.toOuterMeasure_apply, _root_.PMF.map_apply]
-  refine tsum_congr fun a => ?_
-  by_cases h : E a = true <;> simp [h]
-
 private theorem eval_sampleMarks (s : LubyMIS.State V) :
     ProbComp.eval (sampleMarks G s) =
       PMF.pi fun v => ProbComp.eval (ProbComp.bernoulliRat (markProb G s v)) :=
@@ -868,69 +862,6 @@ private theorem toReal_eval_markCoin_true (s : LubyMIS.State V) (v : V) :
     (ProbComp.eval (ProbComp.bernoulliRat (markProb G s v)) true).toReal =
       (markProb G s v : ℝ) :=
   ProbComp.toReal_eval_bernoulliRat_true_of_mem_Icc (markProb_nonneg G s v) (markProb_le_one G s v)
-
-private theorem pi_map_of_update_eq {γ : Type*} (p : V → _root_.PMF Bool) (v : V)
-    (r : _root_.PMF Bool) (g : (V → Bool) → γ)
-    (hg : ∀ m b, g (Function.update m v b) = g m) :
-    (PMF.pi (Function.update p v r)).map g = (PMF.pi p).map g := by
-  let proj : (V → Bool) → (V → Bool) := fun m j => if j = v then false else m j
-  have hproj_eq : ∀ m, proj m = Function.update m v false := by
-    intro m
-    funext j
-    by_cases hj : j = v
-    · subst hj; simp [proj]
-    · simp [proj, hj]
-  have hg_comp : g ∘ proj = g := by
-    funext m
-    simp only [Function.comp_apply, hproj_eq, hg]
-  have hpi_proj : ∀ q : _root_.PMF Bool,
-      (PMF.pi (Function.update p v q)).map proj =
-        PMF.pi (Function.update p v (_root_.PMF.pure false)) := by
-    intro q
-    rw [← PMF.pi_map (Function.update p v q) (fun j b => if j = v then false else b)]
-    congr 1 with j : 1
-    by_cases hj : j = v
-    · subst hj
-      simp only [Function.update_self, ↓reduceIte]
-      exact _root_.PMF.map_const _ false
-    · simp only [Function.update_of_ne hj, hj, ↓reduceIte]
-      exact _root_.PMF.map_id _
-  calc (PMF.pi (Function.update p v r)).map g
-      = ((PMF.pi (Function.update p v r)).map proj).map g := by
-        rw [_root_.PMF.map_comp, hg_comp]
-    _ = (PMF.pi (Function.update p v (_root_.PMF.pure false))).map g := by rw [hpi_proj r]
-    _ = ((PMF.pi (Function.update p v (p v))).map proj).map g := by rw [hpi_proj (p v)]
-    _ = (PMF.pi p).map g := by
-        rw [_root_.PMF.map_comp, hg_comp, Function.update_eq_self]
-
-private theorem pi_map_and_true_of_update_eq (p : V → _root_.PMF Bool) (v : V)
-    (g : (V → Bool) → Bool) (hg : ∀ m b, g (Function.update m v b) = g m) :
-    ((PMF.pi p).map fun m => m v && g m) true = p v true * ((PMF.pi p).map g) true := by
-  conv_lhs => rw [← PMF.pi_bind_update p v, _root_.PMF.map_bind, _root_.PMF.bind_apply]
-  rw [tsum_bool]
-  have hfalse : ((PMF.pi (Function.update p v (_root_.PMF.pure false))).map
-      fun m => m v && g m) true = 0 := by
-    have hcongr : (PMF.pi (Function.update p v (_root_.PMF.pure false))).map
-        (fun m => m v && g m) =
-        (PMF.pi (Function.update p v (_root_.PMF.pure false))).map
-          (Function.const (V → Bool) false) := by
-      refine PMF.map_congr_on_support _ _ _ fun m hm => ?_
-      have hmv := (PMF.mem_support_pi_iff _ _).1 hm v
-      simp only [Function.update_self, _root_.PMF.mem_support_pure_iff] at hmv
-      simp [hmv]
-    rw [hcongr, _root_.PMF.map_const, _root_.PMF.pure_apply]
-    simp
-  have htrue : ((PMF.pi (Function.update p v (_root_.PMF.pure true))).map
-      fun m => m v && g m) true = ((PMF.pi p).map g) true := by
-    have hcongr : (PMF.pi (Function.update p v (_root_.PMF.pure true))).map
-        (fun m => m v && g m) =
-        (PMF.pi (Function.update p v (_root_.PMF.pure true))).map g := by
-      refine PMF.map_congr_on_support _ _ _ fun m hm => ?_
-      have hmv := (PMF.mem_support_pi_iff _ _).1 hm v
-      simp only [Function.update_self, _root_.PMF.mem_support_pure_iff] at hmv
-      simp [hmv]
-    rw [hcongr, pi_map_of_update_eq p v (_root_.PMF.pure true) g hg]
-  rw [hfalse, htrue, mul_zero, zero_add]
 
 /-- Step towards `#7505` and `#3270` (not the cited endpoint, after [Luby][Luby1986] and Algorithm
 7.6 of [Wattenhofer][Wattenhofer2016], §7.2, p. 73): whenever `s.live` is nonempty, a single phase
@@ -970,13 +901,11 @@ theorem inv_two_mul_card_le_prob_live_lt {s : LubyMIS.State V} (hs : s.live.None
         ((ProbComp.eval (coinPhase G uid s)).toOuterMeasure
           {t | t.live.card < s.live.card}).toReal := by
     rw [eval_coinPhase, _root_.PMF.toOuterMeasure_map_apply]
-    refine PMF.toOuterMeasure_toReal_mono _ fun m hm => ?_
-    exact hshrink m hm
+    exact PMF.toOuterMeasure_toReal_mono _ fun m hm => hshrink m hm
   refine le_trans ?_ hmono
-  rw [toOuterMeasure_eq_map_true, eval_sampleMarks, PMF.pi_map_eval, toReal_eval_markCoin_true]
+  rw [eval_sampleMarks, PMF.toOuterMeasure_pi_eq, toReal_eval_markCoin_true]
   have hcard_one : (1 : ℝ) ≤ Fintype.card V := by
-    have : 1 ≤ Fintype.card V := Fintype.card_pos_iff.2 ⟨v⟩
-    exact_mod_cast this
+    exact_mod_cast Fintype.card_pos_iff.2 ⟨v⟩
   unfold markProb
   dsimp only
   simp only [hv_live, ↓reduceIte]
@@ -1004,32 +933,23 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
   let p : V → _root_.PMF Bool := fun u =>
     ProbComp.eval (ProbComp.bernoulliRat (markProb G s u))
   set highNbrs : Finset V := (H.neighborFinset v).filter (higherPriority G s uid v)
-  let anyHigh : (V → Bool) → Bool := fun m => decide (∃ w ∈ highNbrs, m w = true)
-  let quiet : (V → Bool) → Bool := fun m => !anyHigh m
-  have hv_not_high : v ∉ highNbrs := by
-    intro hmem
-    exact H.loopless.irrefl v ((H.mem_neighborFinset v v).1 (Finset.mem_of_mem_filter v hmem))
-  have hquiet_upd : ∀ m b, quiet (Function.update m v b) = quiet m := by
-    intro m b
-    simp only [quiet, anyHigh]
-    congr 2
-    exact propext (exists_congr fun w => and_congr_right fun hw => by
-      have hwv : w ≠ v := fun h => hv_not_high (h ▸ hw)
-      rw [Function.update_of_ne hwv])
-  -- Equivalence between `v ∈ coinJoiners` and `m v && quiet m = true`.
+  have hv_not_high : v ∉ (highNbrs : Set V) := fun hmem =>
+    H.loopless.irrefl v ((H.mem_neighborFinset v v).1 (Finset.mem_of_mem_filter v hmem))
+  let anyHigh : Set (V → Bool) := ⋃ w ∈ highNbrs, {m | m w = true}
+  have hdep_high : DependsOn (· ∈ anyHighᶜ) (highNbrs : Set V) := fun m₁ m₂ h => by
+    simp only [anyHigh, Set.mem_compl_iff, Set.mem_iUnion, Set.mem_ofPred_eq]
+    exact propext (not_congr (exists_congr fun w => exists_congr fun hw => by rw [h w hw]))
   have hevent_eq : {m : V → Bool | v ∈ coinJoiners G s uid m} =
-      {m : V → Bool | (m v && quiet m) = true} := by
+      {m | m v = true} ∩ anyHighᶜ := by
     ext m
-    simp only [Set.mem_ofPred_eq, mem_coinJoiners, hv, true_and, Bool.and_eq_true, quiet, anyHigh,
-      Bool.not_eq_true', decide_eq_false_iff_not, not_exists, not_and, Bool.not_eq_true]
-    refine and_congr_right fun _ => ⟨fun h w hw => ?_, fun h w hwl hadj hprio => ?_⟩
-    · obtain ⟨hnbr, hprio⟩ := Finset.mem_filter.1 hw
-      have hadj := (H.mem_neighborFinset v w).1 hnbr
-      exact h w hadj.2.2 hadj.1 hprio
-    · exact h w (Finset.mem_filter.2 ⟨(H.mem_neighborFinset v w).2 ⟨hadj, hv, hwl⟩, hprio⟩)
-  rw [hevent_eq, toOuterMeasure_eq_map_true, eval_sampleMarks,
-    pi_map_and_true_of_update_eq p v quiet hquiet_upd, ENNReal.toReal_mul]
-  -- Compute `(p v true).toReal = 1 / (2 * H.degree v)`.
+    simp only [anyHigh, Set.mem_ofPred_eq, Set.mem_inter_iff, Set.mem_compl_iff, Set.mem_iUnion,
+      exists_prop, not_exists, not_and, Bool.not_eq_true, mem_coinJoiners, hv, true_and,
+      highNbrs, Finset.mem_filter, SimpleGraph.mem_neighborFinset]
+    exact and_congr_right fun _ =>
+      ⟨fun h w ⟨⟨hadj, _, hwl⟩, hprio⟩ => h w hwl hadj hprio,
+       fun h w hwl hadj hprio => h w ⟨⟨hadj, hv, hwl⟩, hprio⟩⟩
+  rw [hevent_eq, eval_sampleMarks, PMF.toOuterMeasure_pi_eq_inter p hv_not_high hdep_high,
+    ENNReal.toReal_mul]
   have hpv : (p v true).toReal = (1 : ℝ) / (2 * H.degree v) := by
     dsimp only [p]
     rw [toReal_eval_markCoin_true]
@@ -1039,24 +959,16 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
     simp only [hv, hne0, ↓reduceIte]
     push_cast
     rfl
-  -- Bound `((PMF.pi p).map anyHigh true).toReal ≤ 1 / 2` by the union bound over `highNbrs`.
-  have hany_le : (((PMF.pi p).map anyHigh) true).toReal ≤ 1 / 2 := by
-    have hub := PMF.map_true_le_sum (PMF.pi p) highNbrs
-      (E := anyHigh) (F := fun w m => m w) (fun m _ hm => by simpa [anyHigh] using hm)
-    have hsum_ne_top : (∑ w ∈ highNbrs, ((PMF.pi p).map fun m => m w) true) ≠ ⊤ :=
-      ENNReal.sum_ne_top.2 fun w _ => _root_.PMF.apply_ne_top _ _
-    have hreal := (ENNReal.toReal_mono hsum_ne_top hub).trans_eq
-      (ENNReal.toReal_sum fun w _ => _root_.PMF.apply_ne_top _ _)
-    refine hreal.trans ?_
+  have hany_le : ((PMF.pi p).toOuterMeasure anyHigh).toReal ≤ 1 / 2 := by
+    refine (PMF.toOuterMeasure_toReal_biUnion_finset_le (PMF.pi p) highNbrs _).trans ?_
     have hterm : ∀ w ∈ highNbrs,
-        (((PMF.pi p).map fun m => m w) true).toReal ≤ (1 : ℝ) / (2 * H.degree v) := by
+        ((PMF.pi p).toOuterMeasure {m | m w = true}).toReal ≤ (1 : ℝ) / (2 * H.degree v) := by
       intro w hw
-      rw [PMF.pi_map_eval]
+      rw [PMF.toOuterMeasure_pi_eq]
       dsimp only [p]
       rw [toReal_eval_markCoin_true]
       obtain ⟨hnbr, hprio⟩ := Finset.mem_filter.1 hw
-      have hadj : H.Adj v w := (H.mem_neighborFinset v w).1 hnbr
-      have hwl : w ∈ s.live := hadj.2.2
+      have hwl : w ∈ s.live := ((H.mem_neighborFinset v w).1 hnbr).2.2
       have hdw_ge : H.degree v ≤ H.degree w := degree_le_of_higherPriority G hprio
       have hdw_ne : (LubyMIS.liveGraph G s.live).degree w ≠ 0 := by
         dsimp only [H] at hdw_ge; omega
@@ -1066,14 +978,12 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
       push_cast
       have hdv_pos : (0 : ℝ) < H.degree v := by exact_mod_cast hdeg
       have hdw_le_r : (H.degree v : ℝ) ≤ H.degree w := by exact_mod_cast hdw_ge
-      have h2dv_pos : (0 : ℝ) < 2 * H.degree v := by positivity
-      exact one_div_le_one_div_of_le h2dv_pos (by dsimp only [H] at hdw_le_r ⊢; linarith)
+      exact one_div_le_one_div_of_le (by positivity) (by dsimp only [H] at hdw_le_r ⊢; linarith)
     have hcard_le : (highNbrs.card : ℝ) ≤ H.degree v := by
-      have hc : highNbrs.card ≤ H.degree v :=
-        (Finset.card_filter_le _ _).trans_eq (SimpleGraph.card_neighborFinset_eq_degree H v)
-      exact_mod_cast hc
+      exact_mod_cast (Finset.card_filter_le _ _).trans_eq
+        (SimpleGraph.card_neighborFinset_eq_degree H v)
     have hdv_pos : (0 : ℝ) < H.degree v := by exact_mod_cast hdeg
-    calc ∑ w ∈ highNbrs, (((PMF.pi p).map fun m => m w) true).toReal
+    calc ∑ w ∈ highNbrs, ((PMF.pi p).toOuterMeasure {m | m w = true}).toReal
         ≤ ∑ _w ∈ highNbrs, (1 : ℝ) / (2 * H.degree v) := Finset.sum_le_sum hterm
       _ = (highNbrs.card : ℝ) * ((1 : ℝ) / (2 * H.degree v)) := by
           rw [Finset.sum_const, nsmul_eq_mul]
@@ -1081,105 +991,57 @@ theorem one_div_four_deg_le_prob_coinJoiners {s : LubyMIS.State V} {uid : V → 
       _ = 1 / 2 := by
           have hne : (H.degree v : ℝ) ≠ 0 := ne_of_gt hdv_pos
           field_simp [hne]
-  have hquiet_ge : (1 / 2 : ℝ) ≤ (((PMF.pi p).map quiet) true).toReal := by
-    have hcomp : (((PMF.pi p).map quiet) true).toReal +
-        (((PMF.pi p).map anyHigh) true).toReal = 1 := by
-      have heq_false : ((PMF.pi p).map quiet) true = ((PMF.pi p).map anyHigh) false := by
-        rw [_root_.PMF.map_apply, _root_.PMF.map_apply]
-        refine tsum_congr fun m => ?_
-        dsimp only [quiet]
-        by_cases hb : anyHigh m = true <;> simp [hb]
-      rw [heq_false, add_comm]
-      exact PMF.toReal_true_add_toReal_false _
-    linarith
+  have hquiet_ge : (1 / 2 : ℝ) ≤ ((PMF.pi p).toOuterMeasure anyHighᶜ).toReal := by
+    linarith [PMF.toOuterMeasure_toReal_add_compl (PMF.pi p) anyHigh]
   rw [hpv]
-  have hdv_pos : (0 : ℝ) < H.degree v := by exact_mod_cast hdeg
   calc (1 : ℝ) / (4 * H.degree v)
       = ((1 : ℝ) / (2 * H.degree v)) * (1 / 2) := by ring
-    _ ≤ ((1 : ℝ) / (2 * H.degree v)) * (((PMF.pi p).map quiet) true).toReal := by gcongr
+    _ ≤ ((1 : ℝ) / (2 * H.degree v)) * ((PMF.pi p).toOuterMeasure anyHighᶜ).toReal := by gcongr
 
-omit [Fintype V] in
+omit [Fintype V] [DecidableEq V] in
 /-- Second-order inclusion–exclusion (Bonferroni) lower bound for finite distributions:
-`Pr[∃ u ∈ S, E u] ≥ ∑_{u ∈ S} Pr[E u] - ∑_{u ∈ S} ∑_{w ∈ S.erase u} Pr[E u ∧ E w]`. -/
+`Pr[⋃_{u ∈ S} E u] ≥ ∑_{u ∈ S} Pr[E u] - ∑_{(u, w) ∈ S.offDiag} Pr[E u ∩ E w]`. -/
 private theorem bonferroni_toReal {α : Type} [Finite α] (μ : _root_.PMF α) (S : Finset V)
-    (E : V → α → Bool) :
-    (∑ u ∈ S, ((μ.map (E u)) true).toReal) -
-        ∑ u ∈ S, ∑ w ∈ S.erase u, ((μ.map fun a => E u a && E w a) true).toReal ≤
-      ((μ.map fun a => decide (∃ u ∈ S, E u a = true)) true).toReal := by
+    (E : V → Set α) :
+    (∑ u ∈ S, (μ.toOuterMeasure (E u)).toReal) -
+        ∑ q ∈ S.offDiag, (μ.toOuterMeasure (E q.1 ∩ E q.2)).toReal ≤
+      (μ.toOuterMeasure (⋃ u ∈ S, E u)).toReal := by
+  classical
   let _ := Fintype.ofFinite α
-  have hind : ∀ B : α → Bool,
-      ((μ.map B) true).toReal = ∑ a : α, (μ a).toReal * if B a = true then 1 else 0 := by
-    intro B
-    rw [← toOuterMeasure_eq_map_true, PMF.toOuterMeasure_toReal_eq_sum_ite]
-    simp only [Set.mem_ofPred_eq]
-  simp_rw [hind]
-  have hswap1 : ∑ u ∈ S, ∑ a : α, (μ a).toReal * (if E u a = true then (1 : ℝ) else 0) =
-      ∑ a : α, (μ a).toReal * ∑ u ∈ S, if E u a = true then (1 : ℝ) else 0 := by
+  simp only [PMF.toOuterMeasure_toReal_eq_sum_ite]
+  have hswap1 : (∑ u ∈ S, ∑ a : α, (μ a).toReal * if a ∈ E u then (1 : ℝ) else 0) =
+      ∑ a : α, (μ a).toReal * ∑ u ∈ S, if a ∈ E u then (1 : ℝ) else 0 := by
     rw [Finset.sum_comm]
-    exact Finset.sum_congr rfl fun a _ => (Finset.mul_sum _ _ _).symm
-  have hswap2 :
-      (∑ u ∈ S, ∑ w ∈ S.erase u,
-        ∑ a : α, (μ a).toReal * (if (E u a && E w a) = true then (1 : ℝ) else 0)) =
-        ∑ a : α, (μ a).toReal *
-          ∑ u ∈ S, ∑ w ∈ S.erase u, if (E u a && E w a) = true then (1 : ℝ) else 0 := by
-    calc _ = ∑ u ∈ S, ∑ a : α, (μ a).toReal *
-            ∑ w ∈ S.erase u, if (E u a && E w a) = true then (1 : ℝ) else 0 := by
-          refine Finset.sum_congr rfl fun u _ => ?_
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun a _ => (Finset.mul_sum _ _ _).symm
-      _ = _ := by
-          rw [Finset.sum_comm]
-          exact Finset.sum_congr rfl fun a _ => (Finset.mul_sum _ _ _).symm
+    exact Finset.sum_congr rfl fun _ _ => (Finset.mul_sum _ _ _).symm
+  have hswap2 : (∑ q ∈ S.offDiag, ∑ a : α,
+        (μ a).toReal * if a ∈ E q.1 ∩ E q.2 then (1 : ℝ) else 0) =
+      ∑ a : α, (μ a).toReal * ∑ q ∈ S.offDiag, if a ∈ E q.1 ∩ E q.2 then (1 : ℝ) else 0 := by
+    rw [Finset.sum_comm]
+    exact Finset.sum_congr rfl fun _ _ => (Finset.mul_sum _ _ _).symm
   rw [hswap1, hswap2, ← Finset.sum_sub_distrib]
   refine Finset.sum_le_sum fun a _ => ?_
   rw [← mul_sub]
   refine mul_le_mul_of_nonneg_left ?_ ENNReal.toReal_nonneg
-  -- Pointwise check in terms of `k = |{u ∈ S | E u a = true}|`.
-  set T := S.filter fun u => E u a = true
-  have hsum1 : (∑ u ∈ S, if E u a = true then (1 : ℝ) else 0) = T.card := by
-    rw [← Finset.sum_filter, Finset.sum_const, nsmul_eq_mul, mul_one]
-  have hsum2 : (∑ u ∈ S, ∑ w ∈ S.erase u, if (E u a && E w a) = true then (1 : ℝ) else 0) =
+  set T := S.filter (a ∈ E ·)
+  have h1 : (∑ u ∈ S, if a ∈ E u then (1 : ℝ) else 0) = T.card := by simp [T]
+  have h2 : (∑ q ∈ S.offDiag, if a ∈ E q.1 ∩ E q.2 then (1 : ℝ) else 0) =
       (T.card : ℝ) * ((T.card : ℝ) - 1) := by
-    have houter :
-        (∑ u ∈ S, ∑ w ∈ S.erase u, if (E u a && E w a) = true then (1 : ℝ) else 0) =
-          ∑ u ∈ T, ((T.erase u).card : ℝ) := by
-      rw [Finset.sum_filter]
-      refine Finset.sum_congr rfl fun u _ => ?_
-      by_cases heu : E u a = true
-      · rw [ite_eq_left heu]
-        have hinner : (∑ w ∈ S.erase u, if (E u a && E w a) = true then (1 : ℝ) else 0) =
-            ∑ w ∈ (S.erase u).filter (fun w => E w a = true), (1 : ℝ) := by
-          rw [← Finset.sum_filter]
-          refine Finset.sum_congr ?_ fun _ _ => rfl
-          ext w
-          simp [heu]
-        rw [hinner, Finset.sum_const, nsmul_eq_mul, mul_one]
-        refine congrArg Nat.cast (congrArg Finset.card ?_)
-        ext w
-        simp [T, Finset.mem_erase, Finset.mem_filter, and_assoc]
-      · rw [ite_eq_right heu]
-        exact Finset.sum_eq_zero fun w _ => by simp [heu]
-    rw [houter]
-    rcases T.eq_empty_or_nonempty with hTe | hTne
-    · simp [hTe]
-    · have hk1 : 1 ≤ T.card := hTne.card_pos
-      have hcard_er : ∀ u ∈ T, ((T.erase u).card : ℝ) = (T.card : ℝ) - 1 := by
-        intro u hu
-        rw [Finset.card_erase_of_mem hu, Nat.cast_sub hk1, Nat.cast_one]
-      rw [Finset.sum_congr rfl hcard_er, Finset.sum_const, nsmul_eq_mul]
-  rw [hsum1, hsum2]
+    have hoff : T.offDiag = S.offDiag.filter (fun q => a ∈ E q.1 ∩ E q.2) := by
+      ext ⟨u, w⟩
+      simp only [T, Finset.mem_offDiag, Finset.mem_filter, Set.mem_inter_iff]
+      tauto
+    rw [← Finset.sum_filter, ← hoff, Finset.sum_const, nsmul_eq_mul, mul_one,
+      Finset.offDiag_card, Nat.cast_sub (Nat.le_mul_self _), Nat.cast_mul]
+    ring
+  rw [h1, h2]
   rcases T.eq_empty_or_nonempty with hTe | ⟨u₀, hu₀⟩
-  · have hno : ¬ ∃ u ∈ S, E u a = true := by
-      rintro ⟨u, huS, huE⟩
-      have : u ∈ T := Finset.mem_filter.2 ⟨huS, huE⟩
-      simp [hTe] at this
+  · have hno : a ∉ ⋃ u ∈ S, E u := fun h => by
+      obtain ⟨u, huS, huE⟩ := Set.mem_iUnion₂.1 h
+      exact Finset.notMem_empty u (hTe ▸ Finset.mem_filter.2 ⟨huS, huE⟩)
     simp [hTe, hno]
   · obtain ⟨huS, huE⟩ := Finset.mem_filter.1 hu₀
-    have hex : decide (∃ u ∈ S, E u a = true) = true := decide_eq_true ⟨u₀, huS, huE⟩
-    rw [ite_eq_left hex]
-    have hk1 : (1 : ℝ) ≤ T.card := by
-      have : 1 ≤ T.card := Finset.card_pos.2 ⟨u₀, hu₀⟩
-      exact_mod_cast this
+    rw [ite_eq_left (Set.mem_iUnion₂.2 ⟨u₀, huS, huE⟩)]
+    have hk1 : (1 : ℝ) ≤ T.card := by exact_mod_cast Finset.card_pos.2 ⟨u₀, hu₀⟩
     nlinarith [sq_nonneg ((T.card : ℝ) - 1)]
 
 omit [Fintype V] [DecidableEq V] in
@@ -1263,90 +1125,68 @@ theorem one_div_36_le_prob_removed_of_isGoodVertex {s : LubyMIS.State V} {uid : 
       dsimp only [wt]
       exact one_div_le_one_div_of_le (by norm_num) (by linarith)
     obtain ⟨S, hSN, hS_low, hS_high⟩ := exists_subset_sum_mem_Icc hwt0 hwt6 hgood
-    -- Apply Bonferroni to `E u m := decide (u ∈ coinJoiners G s uid m)` on `S`.
-    let E : V → (V → Bool) → Bool := fun u m => decide (u ∈ coinJoiners G s uid m)
+    let E : V → Set (V → Bool) := fun u => {m | u ∈ coinJoiners G s uid m}
     have hbonf := bonferroni_toReal (ProbComp.eval (sampleMarks G s)) S E
     have hsub_rem :
-        (((ProbComp.eval (sampleMarks G s)).map
-          fun m => decide (∃ u ∈ S, E u m = true)) true).toReal ≤
+        ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (⋃ u ∈ S, E u)).toReal ≤
           ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
-            {m | v ∉ (coinStep G s uid m).live}).toReal := by
-      rw [← toOuterMeasure_eq_map_true]
-      refine PMF.toOuterMeasure_toReal_mono _ fun m hm hvl => ?_
-      simp only [Set.mem_ofPred_eq, decide_eq_true_eq] at hm
-      obtain ⟨u, huS, huE⟩ := hm
-      have huJ : u ∈ coinJoiners G s uid m := of_decide_eq_true huE
-      have hadj : G.Adj v u := ((H.mem_neighborFinset v u).1 (hSN huS)).1
-      exact ((mem_coinStep_live G).1 hvl).2.2 u huJ hadj.symm
-    -- Lower-bound the linear sum `∑_{u ∈ S} Pr[u ∈ coinJoiners] ≥ (1 / 2) ∑_{u ∈ S} wt u`.
+            {m | v ∉ (coinStep G s uid m).live}).toReal :=
+      PMF.toOuterMeasure_toReal_mono _ fun m hm hvl => by
+        obtain ⟨u, huS, huJ⟩ := Set.mem_iUnion₂.1 hm
+        exact ((mem_coinStep_live G).1 hvl).2.2 u huJ
+          ((H.mem_neighborFinset v u).1 (hSN huS)).1.symm
     have hlin : (1 / 2 : ℝ) * ∑ u ∈ S, wt u ≤
-        ∑ u ∈ S, (((ProbComp.eval (sampleMarks G s)).map (E u)) true).toReal := by
+        ∑ u ∈ S, ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E u)).toReal := by
       rw [Finset.mul_sum]
       refine Finset.sum_le_sum fun u hu => ?_
       obtain ⟨hul, hud⟩ := hnbr_live_deg u (hSN hu)
-      rw [← toOuterMeasure_eq_map_true]
-      have hsub_eq :
-          {m : V → Bool | E u m = true} = {m : V → Bool | u ∈ coinJoiners G s uid m} := by
-        ext m; simp [E]
-      rw [hsub_eq]
       have h4 := one_div_four_deg_le_prob_coinJoiners G (uid := uid) hul hud
       have hhalf :
           (1 / 2 : ℝ) * wt u = (1 : ℝ) / (4 * (LubyMIS.liveGraph G s.live).degree u) := by
         dsimp only [wt, H]; ring
+      dsimp only [E]
       linarith
-    -- Upper-bound the quadratic sum by `(∑_{u ∈ S} wt u) ^ 2` via pairwise independence of marks.
     have hquad :
-        (∑ u ∈ S, ∑ w ∈ S.erase u,
-          (((ProbComp.eval (sampleMarks G s)).map fun m => E u m && E w m) true).toReal) ≤
+        (∑ q ∈ S.offDiag,
+          ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E q.1 ∩ E q.2)).toReal) ≤
           (∑ u ∈ S, wt u) ^ 2 := by
-      have hpair : ∀ u ∈ S, ∀ w ∈ S.erase u,
-          (((ProbComp.eval (sampleMarks G s)).map fun m => E u m && E w m) true).toReal ≤
-            wt u * wt w := by
-        intro u hu w hw
-        have hwu : w ≠ u := (Finset.mem_erase.1 hw).1
-        have hmono_mark :
-            ((ProbComp.eval (sampleMarks G s)).map fun m => E u m && E w m) true ≤
-              ((ProbComp.eval (sampleMarks G s)).map fun m => m u && m w) true := by
-          refine PMF.map_true_mono _ fun m _ hm => ?_
-          simp only [Bool.and_eq_true, E, decide_eq_true_eq, mem_coinJoiners] at hm ⊢
-          exact ⟨hm.1.2.1, hm.2.2.1⟩
-        have hreal := ENNReal.toReal_mono (_root_.PMF.apply_ne_top _ _) hmono_mark
-        refine hreal.trans_eq ?_
-        rw [eval_sampleMarks,
-          pi_map_and_true_of_update_eq p u (fun m => m w)
-            (fun m b => Function.update_of_ne hwu b m),
-          PMF.pi_map_eval, ENNReal.toReal_mul]
+      have hwt_mark : ∀ u ∈ S, (p u true).toReal = wt u := by
+        intro u hu
         obtain ⟨hul, hud⟩ := hnbr_live_deg u (hSN hu)
-        obtain ⟨hwl, hwd⟩ := hnbr_live_deg w (hSN (Finset.mem_of_mem_erase hw))
-        have hpu : (p u true).toReal = wt u := by
-          dsimp only [p, wt, H]
-          rw [toReal_eval_markCoin_true]
-          unfold markProb
-          dsimp only [H] at hud ⊢
-          have hu0 : (LubyMIS.liveGraph G s.live).degree u ≠ 0 := by omega
-          simp only [hul, hu0, ↓reduceIte]
-          push_cast; rfl
-        have hpw : (p w true).toReal = wt w := by
-          dsimp only [p, wt, H]
-          rw [toReal_eval_markCoin_true]
-          unfold markProb
-          dsimp only [H] at hwd ⊢
-          have hw0 : (LubyMIS.liveGraph G s.live).degree w ≠ 0 := by omega
-          simp only [hwl, hw0, ↓reduceIte]
-          push_cast; rfl
-        rw [hpu, hpw]
-      calc (∑ u ∈ S, ∑ w ∈ S.erase u,
-              (((ProbComp.eval (sampleMarks G s)).map fun m => E u m && E w m) true).toReal)
-          ≤ ∑ u ∈ S, ∑ w ∈ S.erase u, wt u * wt w :=
-            Finset.sum_le_sum fun u hu => Finset.sum_le_sum fun w hw => hpair u hu w hw
-        _ ≤ ∑ u ∈ S, ∑ w ∈ S, wt u * wt w := by
-            refine Finset.sum_le_sum fun u hu => ?_
-            exact Finset.sum_le_sum_of_subset_of_nonneg (Finset.erase_subset u S)
-              fun w hw _ => mul_nonneg (hwt0 u (hSN hu)) (hwt0 w (hSN hw))
+        dsimp only [p, wt, H] at hud ⊢
+        rw [toReal_eval_markCoin_true]
+        unfold markProb
+        have hu0 : (LubyMIS.liveGraph G s.live).degree u ≠ 0 := by omega
+        simp only [hul, hu0, ↓reduceIte]
+        push_cast; rfl
+      have hpair : ∀ q ∈ S.offDiag,
+          ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E q.1 ∩ E q.2)).toReal ≤
+            wt q.1 * wt q.2 := by
+        rintro ⟨u, w⟩ hq
+        obtain ⟨huS, hwS, huw⟩ := Finset.mem_offDiag.1 hq
+        dsimp only at huS hwS huw ⊢
+        have hmono_mark :
+            ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E u ∩ E w)).toReal ≤
+              ((ProbComp.eval (sampleMarks G s)).toOuterMeasure
+                ({m | m u = true} ∩ {m | m w = true})).toReal :=
+          PMF.toOuterMeasure_toReal_mono _ fun m ⟨hmu, hmw⟩ =>
+            ⟨((mem_coinJoiners G).1 hmu).2.1, ((mem_coinJoiners G).1 hmw).2.1⟩
+        refine hmono_mark.trans_eq ?_
+        rw [eval_sampleMarks,
+          PMF.toOuterMeasure_pi_eq_inter p (Set.notMem_singleton_iff.2 huw)
+            (E := {m | m w = true}) (fun _ _ h => propext <| by simp [h w rfl]),
+          PMF.toOuterMeasure_pi_eq, ENNReal.toReal_mul, hwt_mark u huS, hwt_mark w hwS]
+      calc (∑ q ∈ S.offDiag,
+              ((ProbComp.eval (sampleMarks G s)).toOuterMeasure (E q.1 ∩ E q.2)).toReal)
+          ≤ ∑ q ∈ S.offDiag, wt q.1 * wt q.2 := Finset.sum_le_sum hpair
+        _ ≤ ∑ q ∈ S ×ˢ S, wt q.1 * wt q.2 :=
+            Finset.sum_le_sum_of_subset_of_nonneg
+              (fun q hq => Finset.mem_product.2 ⟨(Finset.mem_offDiag.1 hq).1,
+                (Finset.mem_offDiag.1 hq).2.1⟩)
+              fun q hq _ => mul_nonneg (hwt0 q.1 (hSN (Finset.mem_product.1 hq).1))
+                (hwt0 q.2 (hSN (Finset.mem_product.1 hq).2))
         _ = (∑ u ∈ S, wt u) ^ 2 := by
-            rw [sq, Finset.sum_mul]
-            exact Finset.sum_congr rfl fun u _ => (Finset.mul_sum _ _ _).symm
-    -- Combine: `(1/2) X - X^2 ≥ 1/36` on `X ∈ [1/6, 1/3]`.
+            simp only [Finset.sum_product, sq, Finset.sum_mul, ← Finset.mul_sum]
     have halg : (1 / 36 : ℝ) ≤ (1 / 2 : ℝ) * (∑ u ∈ S, wt u) - (∑ u ∈ S, wt u) ^ 2 := by
       nlinarith
     linarith
@@ -1558,10 +1398,8 @@ theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
             refine Finset.sum_congr rfl fun v _ => ?_
             rw [PMF.toOuterMeasure_toReal_eq_sum_ite, Finset.mul_sum]
             refine Finset.sum_congr rfl fun m _ => ?_
-            by_cases hm_in : v ∈ (coinStep G s uid m).live
-            · simp only [Set.mem_ofPred_eq, hm_in, ↓reduceIte, mul_one]
-              ring
-            · simp only [Set.mem_ofPred_eq, hm_in, ↓reduceIte, mul_zero]
+            by_cases hm_in : v ∈ (coinStep G s uid m).live <;>
+              simp [hm_in, mul_comm]
     refine hstep1.trans ?_
     -- Split `V` into `goodSet` (survival `≤ 35 / 36`) and `badSet` (survival `≤ 1`).
     set goodSet := univ.filter (isGoodVertex G s)
@@ -1627,30 +1465,7 @@ theorem seventyTwo_mul_expect_liveEdges_coinPhase_le {uid : V → ℕ}
     linarith
   -- Transfer the finite expectation inequality from `ℝ` to `ℝ≥0∞`.
   rw [eval_coinPhase, PMF.tsum_map_mul, tsum_fintype]
-  have hne_top :
-      (72 * ∑ m : V → Bool,
-        ProbComp.eval (sampleMarks G s) m *
-          (LubyMIS.liveEdges G (coinStep G s uid m) : ℝ≥0∞)) ≠ ⊤ :=
-    ENNReal.mul_ne_top ENNReal.ofNat_ne_top
-      (ENNReal.sum_ne_top.2 fun m _ =>
-        ENNReal.mul_ne_top (_root_.PMF.apply_ne_top _ _) (ENNReal.natCast_ne_top _))
-  have hrhs_ne_top : (71 * (LubyMIS.liveEdges G s : ℝ≥0∞)) ≠ ⊤ :=
-    ENNReal.mul_ne_top ENNReal.ofNat_ne_top (ENNReal.natCast_ne_top _)
-  rw [← ENNReal.toReal_le_toReal hne_top hrhs_ne_top]
-  rw [ENNReal.toReal_mul, ENNReal.toReal_ofNat, ENNReal.toReal_mul, ENNReal.toReal_ofNat,
-    ENNReal.toReal_natCast,
-    ENNReal.toReal_sum fun m _ =>
-      ENNReal.mul_ne_top (_root_.PMF.apply_ne_top _ _) (ENNReal.natCast_ne_top _)]
-  have hsum_cast :
-      (∑ x : V → Bool,
-        (ProbComp.eval (sampleMarks G s) x *
-          (LubyMIS.liveEdges G (coinStep G s uid x) : ℝ≥0∞)).toReal) =
-      ∑ x : V → Bool,
-        (ProbComp.eval (sampleMarks G s) x).toReal *
-          (LubyMIS.liveEdges G (coinStep G s uid x) : ℝ) := by
-    refine Finset.sum_congr rfl fun x _ => ?_
-    rw [ENNReal.toReal_mul, ENNReal.toReal_natCast]
-  rw [hsum_cast]
+  ennreal_to_real
   linarith
 
 /-! #### Multi-phase geometric contraction and `O(log n)`-phase w.h.p. `MIS` convergence -/
@@ -1670,35 +1485,10 @@ theorem seventyTwo_pow_mul_expect_liveEdges_coinRun_le {uid : V → ℕ}
     (huid : Function.Injective uid) (k : ℕ) :
     (72 : ℝ≥0∞) ^ k * ∑' t, ProbComp.eval (coinRun G uid k) t * (LubyMIS.liveEdges G t : ℝ≥0∞) ≤
       (71 : ℝ≥0∞) ^ k * G.edgeFinset.card := by
-  induction k with
-  | zero =>
-    rw [pow_zero, pow_zero, one_mul, one_mul, coinRun_zero, ProbComp.eval_pure,
-      tsum_eq_single LubyMIS.init
-        (fun t ht => by rw [_root_.PMF.pure_apply, ite_eq_right ht, zero_mul]),
-      _root_.PMF.pure_apply, ite_eq_left rfl, one_mul, LubyMIS.liveEdges_init]
-  | succ k ih =>
-    rw [coinRun_succ, ProbComp.eval_bind, PMF.tsum_bind_mul]
-    calc (72 : ℝ≥0∞) ^ (k + 1) * ∑' a, ProbComp.eval (coinRun G uid k) a *
-          ∑' t, ProbComp.eval (coinPhase G uid a) t * (LubyMIS.liveEdges G t : ℝ≥0∞)
-        = (72 : ℝ≥0∞) ^ k * ∑' a, ProbComp.eval (coinRun G uid k) a *
-          (72 * ∑' t, ProbComp.eval (coinPhase G uid a) t * (LubyMIS.liveEdges G t : ℝ≥0∞)) := by
-          rw [pow_succ, mul_assoc, ← ENNReal.tsum_mul_left]
-          congr 1
-          refine tsum_congr fun a => ?_
-          ring
-      _ ≤ (72 : ℝ≥0∞) ^ k * ∑' a, ProbComp.eval (coinRun G uid k) a *
-            (71 * (LubyMIS.liveEdges G a : ℝ≥0∞)) := by
-          refine mul_le_mul_right ?_ _
-          exact tsum_le_tsum fun a =>
-            mul_le_mul_right (seventyTwo_mul_expect_liveEdges_coinPhase_le G huid a) _
-      _ = 71 * ((72 : ℝ≥0∞) ^ k * ∑' a, ProbComp.eval (coinRun G uid k) a *
-            (LubyMIS.liveEdges G a : ℝ≥0∞)) := by
-          rw [← ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_left, ← ENNReal.tsum_mul_left]
-          refine tsum_congr fun a => ?_
-          ring
-      _ ≤ 71 * ((71 : ℝ≥0∞) ^ k * G.edgeFinset.card) := mul_le_mul_right ih 71
-      _ = (71 : ℝ≥0∞) ^ (k + 1) * G.edgeFinset.card := by
-          rw [pow_succ', mul_assoc]
+  simpa only [coinRun, ProbComp.expect, LubyMIS.liveEdges_init] using
+    ProbComp.pow_mul_expect_iterate_le (coinPhase G uid) LubyMIS.init
+      (fun t => (LubyMIS.liveEdges G t : ℝ≥0∞))
+      (seventyTwo_mul_expect_liveEdges_coinPhase_le G huid) k
 
 /-- When no live edges remain (`liveEdges G s = 0`), every live vertex has live degree `0`, marks
 itself with probability `1` on every outcome in the support of `sampleMarks G s`, joins
@@ -1722,7 +1512,6 @@ private theorem live_coinStep_eq_empty_of_liveEdges_eq_zero {s : LubyMIS.State V
     intro w hw
     have hadj := ((LubyMIS.liveGraph G s.live).mem_neighborFinset v w).1 hw
     exact hno_adj v hv w hadj.2.2 hadj.1
-  -- Every live vertex `v` has `markProb G s v = 1`, hence `m v = true`.
   have hmv_true : ∀ v ∈ s.live, m v = true := by
     intro v hv
     rw [eval_sampleMarks] at hm
@@ -1730,18 +1519,8 @@ private theorem live_coinStep_eq_empty_of_liveEdges_eq_zero {s : LubyMIS.State V
     have hprob1 : markProb G s v = 1 := by
       unfold markProb
       simp [hv, hdeg0 v hv]
-    rw [hprob1] at hv_supp
-    by_contra hfalse
-    have hmf : m v = false := Bool.eq_false_iff.2 hfalse
-    rw [hmf] at hv_supp
-    have h1 : (ProbComp.eval (ProbComp.bernoulliRat 1) true).toReal = 1 := by
-      simpa using ProbComp.toReal_eval_bernoulliRat_true_of_mem_Icc
-        (zero_le_one : (0 : ℚ) ≤ 1) le_rfl
-    have hsum := PMF.toReal_true_add_toReal_false (ProbComp.eval (ProbComp.bernoulliRat 1))
-    have h0_real : (ProbComp.eval (ProbComp.bernoulliRat 1) false).toReal = 0 := by linarith
-    have hne0 := (_root_.PMF.mem_support_iff _ _).1 hv_supp
-    have hpos := ENNReal.toReal_pos hne0 (_root_.PMF.apply_ne_top _ _)
-    linarith
+    rwa [hprob1, ProbComp.eval_bernoulliRat_of_one_le le_rfl,
+      _root_.PMF.mem_support_pure_iff] at hv_supp
   refine Finset.eq_empty_iff_forall_notMem.2 fun v hv => ?_
   obtain ⟨hL, hnotJ, -⟩ := (mem_coinStep_live G).1 hv
   exact hnotJ ((mem_coinJoiners G).2
@@ -1755,17 +1534,11 @@ theorem seventyTwo_pow_mul_toOuterMeasure_live_nonempty_coinRun_le {uid : V → 
     (72 : ℝ≥0∞) ^ k *
         (ProbComp.eval (coinRun G uid (k + 1))).toOuterMeasure {s | s.live.Nonempty} ≤
       (71 : ℝ≥0∞) ^ k * G.edgeFinset.card := by
-  refine le_trans ?_ (seventyTwo_pow_mul_expect_liveEdges_coinRun_le G huid k)
-  rw [coinRun_succ, ProbComp.eval_bind, _root_.PMF.toOuterMeasure_bind_apply]
-  gcongr with a
-  rcases Nat.eq_zero_or_pos (LubyMIS.liveEdges G a) with h0 | hpos
-  · rw [h0, Nat.cast_zero, eval_coinPhase, _root_.PMF.toOuterMeasure_map_apply]
-    refine le_of_eq ((_root_.PMF.toOuterMeasure_apply_eq_zero_iff _ _).2 ?_)
-    refine Set.disjoint_left.2 fun m hsupp hpre => ?_
-    simp only [Set.mem_preimage, Set.mem_ofPred_eq,
-      live_coinStep_eq_empty_of_liveEdges_eq_zero G h0 uid hsupp,
-      Finset.not_nonempty_empty] at hpre
-  · exact (PMF.toOuterMeasure_le_one _ _).trans (Nat.one_le_cast.2 hpos)
+  rw [coinRun_succ, ProbComp.eval_bind]
+  refine (mul_le_mul_right (PMF.toOuterMeasure_bind_le_tsum_nat _ _ _ (LubyMIS.liveEdges G)
+    fun a _ h0 b hb => ?_) _).trans (seventyTwo_pow_mul_expect_liveEdges_coinRun_le G huid k)
+  supp_cases hb [eval_coinPhase] with ⟨m, hm, rfl⟩
+  simp [live_coinStep_eq_empty_of_liveEdges_eq_zero G h0 uid hm]
 
 private theorem two_mul_71_pow_50_le_72_pow_50 : 2 * 71 ^ 50 ≤ 72 ^ 50 := by decide
 
@@ -1790,65 +1563,38 @@ theorem toOuterMeasure_not_maximal_coinLubyMIS_le_inv_pow {uid : V → ℕ}
       (invariant_of_mem_support_coinRun G huid hsupp).maximal_iff] at hs ⊢
     exact nonempty_iff_ne_empty.2 hs
   refine (_root_.PMF.toOuterMeasure_mono _ hsub).trans ?_
-  have hmarkov := seventyTwo_pow_mul_toOuterMeasure_live_nonempty_coinRun_le G huid (50 * M)
-  -- Compare `(71 ^ 50) ^ M` vs `(72 ^ 50) ^ M` via `2 * 71 ^ 50 ≤ 72 ^ 50`.
-  have hpow_nat : 2 ^ M * 71 ^ (50 * M) ≤ 72 ^ (50 * M) := by
-    calc 2 ^ M * 71 ^ (50 * M)
-        = (2 * 71 ^ 50) ^ M := by rw [mul_pow, ← pow_mul]
-      _ ≤ (72 ^ 50) ^ M := Nat.pow_le_pow_left two_mul_71_pow_50_le_72_pow_50 M
-      _ = 72 ^ (50 * M) := (pow_mul 72 50 M).symm
-  have hpow_enn : (2 : ℝ≥0∞) ^ M * (71 : ℝ≥0∞) ^ (50 * M) ≤ (72 : ℝ≥0∞) ^ (50 * M) := by
-    exact_mod_cast hpow_nat
-  have hedges : (G.edgeFinset.card : ℝ≥0∞) ≤ (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) := by
-    have hnat : G.edgeFinset.card ≤ 2 ^ (2 * Nat.clog 2 (Fintype.card V)) :=
-      calc G.edgeFinset.card ≤ (Fintype.card V).choose 2 := G.card_edgeFinset_le_card_choose_two
-        _ ≤ Fintype.card V ^ 2 := Nat.choose_le_pow _ _
-        _ ≤ (2 ^ Nat.clog 2 (Fintype.card V)) ^ 2 :=
-            Nat.pow_le_pow_left (Nat.le_pow_clog one_lt_two _) 2
-        _ = 2 ^ (2 * Nat.clog 2 (Fintype.card V)) := by rw [← pow_mul, mul_comm]
-    exact_mod_cast hnat
-  set P := (ProbComp.eval (coinRun G uid (50 * M + 1))).toOuterMeasure {s | s.live.Nonempty}
-  have h71_pos : (71 : ℝ≥0∞) ^ (50 * M) ≠ 0 := pow_ne_zero _ (by norm_num)
-  have h71_top : (71 : ℝ≥0∞) ^ (50 * M) ≠ ⊤ := ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-  -- Multiply `hmarkov` and cancel `(71 : ℝ≥0∞) ^ (50 * M)`.
-  have h2P : (2 : ℝ≥0∞) ^ M * P ≤ G.edgeFinset.card := by
-    have hmul : ((2 : ℝ≥0∞) ^ M * P) * (71 : ℝ≥0∞) ^ (50 * M) ≤
-        (G.edgeFinset.card : ℝ≥0∞) * (71 : ℝ≥0∞) ^ (50 * M) := by
-      calc ((2 : ℝ≥0∞) ^ M * P) * (71 : ℝ≥0∞) ^ (50 * M)
-          = ((2 : ℝ≥0∞) ^ M * (71 : ℝ≥0∞) ^ (50 * M)) * P := by ring
-        _ ≤ (72 : ℝ≥0∞) ^ (50 * M) * P := mul_le_mul_left hpow_enn P
-        _ ≤ (71 : ℝ≥0∞) ^ (50 * M) * G.edgeFinset.card := hmarkov
-        _ = (G.edgeFinset.card : ℝ≥0∞) * (71 : ℝ≥0∞) ^ (50 * M) := mul_comm _ _
-    exact (ENNReal.mul_le_mul_iff_left h71_pos h71_top).1 hmul
-  -- Split `M = 2 * clog + c * clog`.
-  have hM_split : M = 2 * Nat.clog 2 (Fintype.card V) + c * Nat.clog 2 (Fintype.card V) := by
-    dsimp only [M]; ring
-  have h2c_pos : (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) ≠ 0 :=
-    pow_ne_zero _ two_ne_zero
-  have h2c_top : (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) ≠ ⊤ :=
-    ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-  have hP_le_2 : P ≤ ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)))⁻¹ := by
-    have hle1 : (2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) * P ≤ 1 := by
-      have hmul2 :
-          ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) * P) *
-            (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) ≤
-          1 * (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) := by
-        calc ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) * P) *
-              (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V))
-            = (2 : ℝ≥0∞) ^ M * P := by
-              rw [hM_split, pow_add]
-              ring
-          _ ≤ G.edgeFinset.card := h2P
-          _ ≤ 1 * (2 : ℝ≥0∞) ^ (2 * Nat.clog 2 (Fintype.card V)) := by
-              rw [one_mul]; exact hedges
-      exact (ENNReal.mul_le_mul_iff_left h2c_pos h2c_top).1 hmul2
-    have h2cc_pos : (2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) ≠ 0 :=
-      pow_ne_zero _ two_ne_zero
-    have h2cc_top : (2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)) ≠ ⊤ :=
-      ENNReal.pow_ne_top ENNReal.ofNat_ne_top
-    rw [mul_comm, ← ENNReal.le_div_iff_mul_le (Or.inl h2cc_pos) (Or.inl h2cc_top),
-      ENNReal.div_eq_inv_mul, mul_one] at hle1
-    exact hle1
+  have hP_le_2 :
+      (ProbComp.eval (coinRun G uid (50 * M + 1))).toOuterMeasure {s | s.live.Nonempty} ≤
+        ((2 : ℝ≥0∞) ^ (c * Nat.clog 2 (Fintype.card V)))⁻¹ := by
+    have hmarkov := seventyTwo_pow_mul_toOuterMeasure_live_nonempty_coinRun_le G huid (50 * M)
+    ennreal_to_real at hmarkov ⊢
+    have hpow : (2 : ℝ) ^ M * 71 ^ (50 * M) ≤ 72 ^ (50 * M) := by
+      have hnat : 2 ^ M * 71 ^ (50 * M) ≤ 72 ^ (50 * M) := by
+        calc 2 ^ M * 71 ^ (50 * M)
+            = (2 * 71 ^ 50) ^ M := by rw [mul_pow, ← pow_mul]
+          _ ≤ (72 ^ 50) ^ M := Nat.pow_le_pow_left two_mul_71_pow_50_le_72_pow_50 M
+          _ = 72 ^ (50 * M) := (pow_mul 72 50 M).symm
+      exact_mod_cast hnat
+    have hedges : (G.edgeFinset.card : ℝ) ≤ 2 ^ (2 * Nat.clog 2 (Fintype.card V)) := by
+      exact_mod_cast LubyMIS.card_edgeFinset_le_two_pow_two_mul_clog G
+    have hM : (2 : ℝ) ^ M =
+        2 ^ (2 * Nat.clog 2 (Fintype.card V)) * 2 ^ (c * Nat.clog 2 (Fintype.card V)) := by
+      rw [← pow_add, show 2 * Nat.clog 2 (Fintype.card V) + c * Nat.clog 2 (Fintype.card V) = M
+        by dsimp only [M]; ring]
+    rw [hM] at hpow
+    rw [inv_eq_one_div, le_div_iff₀ (by positivity)]
+    set K : ℝ := 71 ^ (50 * M) * 2 ^ (2 * Nat.clog 2 (Fintype.card V))
+    set P : ℝ := ((ProbComp.eval (coinRun G uid (50 * M + 1))).toOuterMeasure
+      {s | s.live.Nonempty}).toReal
+    have hBK : 2 ^ (c * Nat.clog 2 (Fintype.card V)) * K ≤ 72 ^ (50 * M) :=
+      le_of_eq_of_le (by dsimp only [K]; ring) hpow
+    refine le_of_mul_le_mul_left ?_ (by positivity : 0 < K)
+    calc K * (P * 2 ^ (c * Nat.clog 2 (Fintype.card V)))
+        = (2 ^ (c * Nat.clog 2 (Fintype.card V)) * K) * P := by ring
+      _ ≤ 72 ^ (50 * M) * P := mul_le_mul_of_nonneg_right hBK ENNReal.toReal_nonneg
+      _ ≤ K * 1 := by
+          rw [mul_one]
+          exact hmarkov.trans (mul_le_mul_of_nonneg_left hedges (by positivity))
   refine hP_le_2.trans (ENNReal.inv_le_inv.2 ?_)
   rw [mul_comm, pow_mul]
   gcongr

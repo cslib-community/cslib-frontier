@@ -32,7 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Lean.Parser.charLitFnAux/quotedCharCoreFn: one character, or a supported escape.
 # Apostrophes inside identifiers are primes, not the start of character literals.
 CHAR_LITERAL = re.compile(r"(?<![\w'!?])'(?:\\(?:[\\\"'rnt]|x[0-9a-fA-F]{2}|u[0-9a-fA-F]{4})|[^\\'])'")
-MODIFIERS = r"(?:(?:public|private|protected|noncomputable|unsafe|partial|nonrec|scoped|local)\s+)*"
+MODIFIERS = r"(?:(?:public|private|protected|noncomputable|unsafe|partial|nonrec|scoped|local|meta)\s+)*"
 DECL = re.compile(
     r"^(?:@\[[^\]\n]*\]\s*)*" + MODIFIERS + r"(theorem|lemma)\s+(\S+)", re.M
 )
@@ -73,18 +73,41 @@ GROUPS = [
     ("Complexity classes and reductions", "Computability/Complexity/"),
     ("PCP", "Computability/PCP/"),
     ("Logspace derandomization", "Computability/LogSpaceDerandomization/"),
+    ("Decision trees", "Computability/DecisionTree/"),
+    ("Communication complexity", "Computability/Communication/"),
+    ("Distributed computing", "Computability/Distributed/"),
+    ("Polynomial-time computability", "Computability/PolyTime/"),
+    ("Word RAM", "Computability/WordRAM/"),
+    ("Query complexity", "Computability/QueryComplexity/"),
+    ("MCSP", "Computability/MCSP/"),
+    ("Wang tiles", "Computability/WangTile/"),
+    ("Probabilistic computability", "Computability/Probabilistic/"),
+    ("Computability: other", "Computability/"),
     ("Boolean analysis", "Foundations/BooleanAnalysis/"),
     ("Expanders", "Foundations/Combinatorics/Expander/"),
     ("Linear algebra", "Foundations/LinearAlgebra/"),
     ("Combinatorics: other", "Foundations/Combinatorics/"),
     ("Shared data structures", "Foundations/Data/"),
     ("Probability foundations", "Foundations/Probability/"),
+    ("Geometry foundations", "Foundations/Geometry/"),
+    ("Analysis foundations", "Foundations/Analysis/"),
+    ("Quantum foundations", "Foundations/Quantum/"),
+    ("Algebra foundations", "Foundations/Algebra/"),
+    ("Foundations: other", "Foundations/"),
     ("Probability constructions", "Probability/"),
     ("Propositional logic", "Logics/Propositional/"),
     ("First/second-order logic", "Logics/"),
-    ("Decision trees", "Computability/DecisionTree/"),
-    ("Communication complexity", "Computability/Communication/"),
+    ("Algorithms: Word RAM", "Algorithms/WordRAM/"),
+    ("Algorithms: Lean", "Algorithms/Lean/"),
+    ("Algorithms: other", "Algorithms/"),
+    ("Data structures: dictionaries", "DataStructure/Dictionary/"),
+    ("Data structures: other", "DataStructure/"),
     ("Cryptography", "Crypto/"),
+    ("Game theory", "GameTheory/"),
+    ("Machine learning", "MachineLearning/"),
+    ("Languages", "Languages/"),
+    ("Privacy", "Privacy/"),
+    ("Tactics", "Tactic/"),
 ]
 
 
@@ -377,6 +400,17 @@ theorem statement_have (i : Fin 3) :
 set_option maxRecDepth 1000 in
 theorem prefixed : True := by
   trivial
+private meta def excluded_meta : Nat :=
+  1 +
+  2
+public meta section
+private meta partial def excluded_meta_partial : Nat :=
+  3
+end
+theorem before_meta_section : True := True.intro
+public meta section
+meta def helper_meta : Nat := 0
+end
 universe u
 end Sample
 """
@@ -386,9 +420,10 @@ end Sample
         ("type_let", 1), ("after_annotated", 1), ("after_multi_line", 1), ("do_let", 1),
         ("absolute", 1), ("absolute_argument", 1), ("or_patterns", 2), ("match_statement", 2),
         ("match_lines", 1), ("nested_match", 1), ("bar_discriminant", 1),
-        ("match_discriminant", 1), ("structure_body", 1), ("statement_have", 1), ("prefixed", 1)
+        ("match_discriminant", 1), ("structure_body", 1), ("statement_have", 1), ("prefixed", 1),
+        ("before_meta_section", 1)
     ]
-    for row in rows[-2:]:
+    for row in rows[-3:]:
         assert row["name"] in sample.splitlines()[row["line"] - 1]
 
 
