@@ -42,8 +42,8 @@ and `orDepthComplexity d A = boolMatrixWeight A` (`1 ≤ d`) for every `2`-free 
 ## Main definitions
 
 * `Cslib.Circuits.RectifierCircuit`: directed graph with disjoint injective input and output poles.
-* `Cslib.Circuits.RectifierCircuit.Walk`, `Walk.length`, `Walk.append`: directed walks in a
-  rectifier circuit.
+* `Cslib.Circuits.RectifierCircuit.Walk`, `Walk.length`, `Walk.append`, `Walk.uncons`: directed
+  walks in a rectifier circuit.
 * `Cslib.Circuits.RectifierCircuit.size`, `RectifierCircuit.HasDepthLE`,
   `RectifierCircuit.Computes`: edge count, bounded walk depth, and Boolean matrix implementation.
 * `Cslib.Circuits.RectifierCircuit.direct`: canonical depth-`1` rectifier circuit of size
@@ -52,6 +52,9 @@ and `orDepthComplexity d A = boolMatrixWeight A` (`1 ≤ d`) for every `2`-free 
 
 ## Main results
 
+* `Cslib.Circuits.le_orComplexity`, `Cslib.Circuits.le_orDepthComplexity`,
+  `Cslib.Circuits.orDepthComplexity_zero_eq_top`: lower-bound introduction rules and the `d = 0`
+  `⊤` boundary for nonzero matrices.
 * `Cslib.Circuits.orComplexity_le_orDepthComplexity`, `Cslib.Circuits.orDepthComplexity_anti`,
   `Cslib.Circuits.orDepthComplexity_one_le_boolMatrixWeight`,
   `Cslib.Circuits.orComplexity_le_boolMatrixWeight`: monotonicity and depth-`1` upper bounds.
@@ -289,7 +292,9 @@ theorem hasDepthLE_one_direct [Fintype α] [Fintype β] (A : Matrix α β Bool) 
     rfl
   · rintro (j | i) <;> simp only [Sum.elim_inl, Sum.elim_inr, zero_le, le_refl]
 
-private theorem Walk.uncons {C : RectifierCircuit α β V} {u w : V} (hne : u ≠ w) :
+/-- Any walk between distinct vertices `u ≠ w` begins with at least one directed edge `(u, v)`
+followed by a walk from `v` to `w`. -/
+theorem Walk.uncons {C : RectifierCircuit α β V} {u w : V} (hne : u ≠ w) :
     C.Walk u w → ∃ v : V, (u, v) ∈ C.edges ∧ Nonempty (C.Walk v w)
   | .nil _ => False.elim (hne rfl)
   | .cons he q => ⟨_, he, ⟨q⟩⟩
@@ -458,19 +463,41 @@ theorem RectifierCircuit.Computes.orDepthComplexity_le [Finite V]
     iInf_le_of_le (hd.reindexVertices _) <|
     Nat.cast_le.mpr (C.size_reindexVertices _).le
 
+/-- A lower bound holds for `orComplexity A` whenever it holds for the size of every finite
+rectifier circuit computing `A`. -/
+theorem le_orComplexity [Finite α] [Finite β] {A : Matrix α β Bool} {m : ℕ}
+    (h : ∀ (k : ℕ) (C : RectifierCircuit α β (Fin k)), C.Computes A → m ≤ C.size) :
+    m ≤ orComplexity A := by
+  obtain ⟨k, C, hC, hs⟩ := Nat.sInf_mem (exists_fin_rectifierCircuit A)
+  exact (h k C hC).trans hs
+
+/-- A lower bound holds for `orDepthComplexity d A` whenever it holds for the size of every finite
+rectifier circuit of depth at most `d` computing `A`. -/
+theorem le_orDepthComplexity {d : ℕ} {A : Matrix α β Bool} {m : ℕ∞}
+    (h : ∀ (k : ℕ) (C : RectifierCircuit α β (Fin k)),
+      C.Computes A → C.HasDepthLE d → m ≤ C.size) :
+    m ≤ orDepthComplexity d A := by
+  rw [orDepthComplexity]
+  exact le_iInf fun k => le_iInf fun C => le_iInf fun hC => le_iInf fun hd => h k C hC hd
+
+/-- At depth `0`, any Boolean matrix with a `true` entry has `orDepthComplexity 0 A = ⊤`, since
+distinct input and output poles admit no zero-edge walk. -/
+theorem orDepthComplexity_zero_eq_top {A : Matrix α β Bool} {i : α} {j : β}
+    (hij : A i j = true) : orDepthComplexity 0 A = ⊤ := by
+  refine top_unique (le_orDepthComplexity fun _ C hC hd => False.elim ?_)
+  obtain ⟨p⟩ := (hC i j).mp hij
+  obtain ⟨_, he, ⟨q⟩⟩ := p.uncons (C.inp_ne_out j i)
+  exact Nat.not_succ_le_zero q.length (hd (.cons he q))
+
 /-- Unrestricted `OR`-complexity never exceeds depth-`d` `OR`-complexity. -/
 theorem orComplexity_le_orDepthComplexity (d : ℕ) (A : Matrix α β Bool) :
-    (orComplexity A : ℕ∞) ≤ orDepthComplexity d A := by
-  rw [orDepthComplexity]
-  exact le_iInf fun _ => le_iInf fun _ => le_iInf fun hC => le_iInf fun _ =>
-    Nat.cast_le.mpr hC.orComplexity_le
+    (orComplexity A : ℕ∞) ≤ orDepthComplexity d A :=
+  le_orDepthComplexity fun _ _ hC _ => Nat.cast_le.mpr hC.orComplexity_le
 
 /-- Increasing the allowed depth `d` can only decrease `orDepthComplexity d A`. -/
 theorem orDepthComplexity_anti {d₁ d₂ : ℕ} (hd : d₁ ≤ d₂) (A : Matrix α β Bool) :
-    orDepthComplexity d₂ A ≤ orDepthComplexity d₁ A := by
-  nth_rw 2 [orDepthComplexity]
-  exact le_iInf fun _ => le_iInf fun _ => le_iInf fun hC => le_iInf fun hd₁ =>
-    hC.orDepthComplexity_le (hd₁.mono hd)
+    orDepthComplexity d₂ A ≤ orDepthComplexity d₁ A :=
+  le_orDepthComplexity fun _ _ hC hd₁ => hC.orDepthComplexity_le (hd₁.mono hd)
 
 /-- Depth-`1` `OR`-complexity is at most `boolMatrixWeight A`. -/
 theorem orDepthComplexity_one_le_boolMatrixWeight [Fintype α] [Fintype β] (A : Matrix α β Bool) :
@@ -487,12 +514,10 @@ theorem orComplexity_le_boolMatrixWeight [Fintype α] [Fintype β] (A : Matrix �
 
 private theorem orComplexity_reindex_le [Finite α] [Finite β]
     (eα : α ≃ α') (eβ : β ≃ β') (A : Matrix α β Bool) :
-    orComplexity (Matrix.reindex eα eβ A) ≤ orComplexity A := by
-  obtain ⟨k, C, hC, hs⟩ := Nat.sInf_mem (exists_fin_rectifierCircuit A)
-  calc orComplexity (Matrix.reindex eα eβ A)
-      ≤ (C.reindexPoles eα eβ).size := (hC.reindexPoles eα eβ).orComplexity_le
-    _ = C.size := C.size_reindexPoles eα eβ
-    _ ≤ orComplexity A := hs
+    orComplexity (Matrix.reindex eα eβ A) ≤ orComplexity A :=
+  le_orComplexity fun _ C hC => by
+    simpa only [RectifierCircuit.size_reindexPoles] using
+      (hC.reindexPoles eα eβ).orComplexity_le
 
 /-- Reindexing rows and columns preserves `orComplexity`. -/
 theorem orComplexity_reindex [Finite α] [Finite β]
@@ -506,11 +531,10 @@ theorem orComplexity_reindex [Finite α] [Finite β]
 
 private theorem orDepthComplexity_reindex_le (d : ℕ)
     (eα : α ≃ α') (eβ : β ≃ β') (A : Matrix α β Bool) :
-    orDepthComplexity d (Matrix.reindex eα eβ A) ≤ orDepthComplexity d A := by
-  nth_rw 2 [orDepthComplexity]
-  refine le_iInf fun _ => le_iInf fun C => le_iInf fun hC => le_iInf fun hd => ?_
-  simpa only [RectifierCircuit.size_reindexPoles] using
-    (hC.reindexPoles eα eβ).orDepthComplexity_le (hd.reindexPoles eα eβ)
+    orDepthComplexity d (Matrix.reindex eα eβ A) ≤ orDepthComplexity d A :=
+  le_orDepthComplexity fun _ _ hC hd => by
+    simpa only [RectifierCircuit.size_reindexPoles] using
+      (hC.reindexPoles eα eβ).orDepthComplexity_le (hd.reindexPoles eα eβ)
 
 /-- Reindexing rows and columns preserves `orDepthComplexity`. -/
 theorem orDepthComplexity_reindex (d : ℕ) (eα : α ≃ α') (eβ : β ≃ β') (A : Matrix α β Bool) :

@@ -67,6 +67,14 @@ example (n : ℕ) :
         (isRectangleFreeMatrix_idMatrix n) le_rfl,
       boolMatrixWeight_idMatrix]
 
+/-- Depth-`0` `⊤` boundary and direct `le_orComplexity` / `Walk.uncons` lower-bound check on
+`idMatrix 1`. -/
+example : orDepthComplexity 0 (idMatrix 1) = ⊤ ∧ 1 ≤ orComplexity (idMatrix 1) := by
+  refine ⟨orDepthComplexity_zero_eq_top (i := 0) (j := 0) rfl, le_orComplexity fun _ C hC => ?_⟩
+  obtain ⟨p⟩ := (hC 0 0).mp rfl
+  obtain ⟨v, he, -⟩ := p.uncons (C.inp_ne_out 0 0)
+  exact card_pos.mpr ⟨(C.inp 0, v), he⟩
+
 /-- Asymmetric `2 × 3` matrix with row `0 = [true, true, false]` and row `1 = [true, true, true]`:
 contains one `2 × 2` all-ones rectangle (`{0, 1} × {0, 1}`) and one `false` entry `(0, 2)`. -/
 private def asymMatrix : Matrix (Fin 2) (Fin 3) Bool :=

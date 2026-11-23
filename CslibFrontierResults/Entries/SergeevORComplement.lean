@@ -18,7 +18,7 @@ register_result "nechiporuk-rectifier-k-free-lower-bound" where
   sources := [
     { paper := Sergeev2014ORComplement,
       theorem := "Nechiporuk's K-free rectifier bound and 2-free identity (quoted)",
-      locator := "p. 1, l. 31 and p. 3, proof of Lemma 3" },
+      locator := "p. 1 (paragraph above Theorem 1) and p. 3, proof of Lemma 3" },
     { paper := Nechiporuk1970, theorem := unverified, locator := unverified }
   ]
   theorems := [
@@ -60,7 +60,7 @@ register_result "brown-k33-free-unit-sphere-matrix" where
     { paper := Sergeev2014ORComplement,
       theorem := "Brown's 3-free m × m matrix of weight Θ(m^{5/3}) \
         (used in proof of Theorem 1(ii))",
-      locator := "p. 3, l. 120" },
+      locator := "p. 3, proof of Theorem 1(ii)" },
     { paper := Brown1966, theorem := unverified, locator := unverified }
   ]
   theorems := [
@@ -86,7 +86,6 @@ register_result "sergeev-or-complexity-complement-separation" where
   theorems := [
     Cslib.Circuits.orDepthComplexity_three_compl_twoRectMatrix_le,
     Cslib.Circuits.orDepthComplexity_three_compl_twoRectMatrix_le_seven_mul,
-    Cslib.Circuits.pow_four_boolMatrixWeight_le_mul_orComplexity_twoRectMatrix,
     Cslib.Circuits.pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix,
     Cslib.Circuits.orDepthComplexity_three_sergeevComplementMatrix_le,
     Cslib.Circuits.orComplexity_sergeevComplementMatrix_le,
@@ -96,10 +95,10 @@ register_result "sergeev-or-complexity-complement-separation" where
     Cslib.Circuits.exists_gt_sergeev_or_complement_separation
   ]
   scope := "Lemma 3 proves OR₃(B̄) ≤ 4 C(m, 2) + |Ā| ≤ 7 C(m, 2) (for 3 ≤ m) via the explicit \
-    4-layer circuit complTwoRectCircuit and proves |A|⁴ ≤ 32 C(k - 1, 2)² m⁴ OR(B) ≤ \
-    8 (k m)⁴ OR(B) when A is k-free and 4 m³ ≤ |A|² (correcting the printed variable slip \
-    (|A| / (k n))⁴ on pp. 2–3 to (|A| / (k m))⁴). Theorem 1(ii) instantiates C = \
-    sergeevComplementMatrix p of dimension n = C(p³, 2) for every prime p ≡ 3 (mod 4), proving \
-    OR(C) ≤ OR₃(C) ≤ 7 n, C̄ is 2-free, OR(C̄) = |C̄|, and n⁴ ≤ 2²³ OR(C̄)³, together with an \
-    unbounded Fin n × Fin n family via Dirichlet's theorem. Theorem 1(i)'s projective norm-graph \
-    instantiation (KollarRonyaiSzabo1996) is outside this entry (#7622)."
+    4-layer circuit complTwoRectCircuit and proves |A|⁴ ≤ 8 (k m)⁴ OR(B) when A is k-free and \
+    4 m³ ≤ |A|² (correcting the printed variable slip (|A| / (k n))⁴ on pp. 2–3 to \
+    (|A| / (k m))⁴). Theorem 1(ii) instantiates C = sergeevComplementMatrix p of dimension \
+    n = C(p³, 2) for every prime p ≡ 3 (mod 4), proving OR(C) ≤ OR₃(C) ≤ 7 n, C̄ is 2-free, \
+    OR(C̄) = |C̄|, and n⁴ ≤ 2²³ OR(C̄)³, together with an unbounded Fin n × Fin n family via \
+    Dirichlet's theorem. Theorem 1(i)'s projective norm-graph instantiation \
+    (KollarRonyaiSzabo1996) is outside this entry (#7622)."

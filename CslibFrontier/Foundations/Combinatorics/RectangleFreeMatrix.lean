@@ -95,6 +95,19 @@ theorem boolMatrixWeight_add_compl [Fintype α] [Fintype β] (A : Matrix α β B
   ext p
   simp only [Matrix.map_apply, Bool.not_eq_true', Bool.not_eq_true]
 
+/-- The weight of a Boolean matrix equals the sum of its row weights. -/
+theorem boolMatrixWeight_eq_sum_row [Fintype α] [Fintype β] (A : Matrix α β Bool) :
+    boolMatrixWeight A = ∑ i : α, #(univ.filter fun j : β => A i j = true) := by
+  rw [boolMatrixWeight, ← card_sigma]
+  refine card_bij (fun p _ => ⟨p.1, p.2⟩) ?_ ?_ ?_
+  · intro p hp
+    simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp
+  · rintro ⟨i₁, j₁⟩ - ⟨i₂, j₂⟩ - h
+    simp only [Sigma.mk.injEq, heq_eq_eq] at h
+    rw [h.1, h.2]
+  · rintro ⟨i, j⟩ hp
+    exact ⟨(i, j), by simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp, rfl⟩
+
 /-- Reindexing rows and columns by equivalences preserves Boolean matrix weight. -/
 theorem boolMatrixWeight_reindex [Fintype α] [Fintype β] [Fintype α'] [Fintype β']
     (e₁ : α ≃ α') (e₂ : β ≃ β') (A : Matrix α β Bool) :
@@ -189,22 +202,6 @@ private theorem two_mul_choose_two_add (d : ℕ) : 2 * d.choose 2 + d = d ^ 2 :=
     rw [Nat.choose_succ_succ, Nat.choose_one_right]
     linarith [ih, show (d + 1) ^ 2 = d ^ 2 + 2 * d + 1 by ring]
 
-private def rowOnes [Fintype β] (A : Matrix α β Bool) (i : α) : ℕ :=
-  #(univ.filter fun j : β => A i j = true)
-
-private theorem sum_rowOnes [Fintype α] [Fintype β] (A : Matrix α β Bool) :
-    ∑ i : α, rowOnes A i = boolMatrixWeight A := by
-  unfold rowOnes boolMatrixWeight
-  rw [← card_sigma]
-  refine card_bij (fun p _ => (p.1, p.2)) ?_ ?_ ?_
-  · intro p hp
-    simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp
-  · rintro ⟨i₁, j₁⟩ - ⟨i₂, j₂⟩ - h
-    simp only [Prod.mk.injEq] at h
-    rw [h.1, h.2]
-  · rintro ⟨i, j⟩ hp
-    exact ⟨⟨i, j⟩, by simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hp, rfl⟩
-
 private theorem card_twoSubsets_subset [Fintype α] [DecidableEq α] (S : Finset α) :
     #(univ.filter fun r : {r : Finset α // #r = 2} => r.1 ⊆ S) = (#S).choose 2 := by
   rw [← card_powersetCard 2 S]
@@ -221,7 +218,7 @@ private theorem card_twoSubsets_subset [Fintype α] [DecidableEq α] (S : Finset
 /-- Core Cauchy–Schwarz step counting `2 × 2` rectangles via `σ = ∑ i, C(a_i, 2)`. -/
 private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix
     [Fintype α] [Fintype β] (A : Matrix α β Bool) :
-    let σ := ∑ i : α, (rowOnes A i).choose 2
+    let σ := ∑ i : α, (#(univ.filter fun j : β => A i j = true)).choose 2
     let n := (Fintype.card β).choose 2
     σ * (σ - n) ≤ 2 * n * boolMatrixWeight (twoRectMatrix A) := by
   classical
@@ -240,9 +237,9 @@ private theorem rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRec
       _ = ∑ i : α, #(univ.filter fun c : {c : Finset β // #c = 2} => P i c) := by
           refine sum_congr rfl fun i _ => ?_
           rw [card_filter]
-      _ = ∑ i : α, (rowOnes A i).choose 2 := by
+      _ = ∑ i : α, (#(univ.filter fun j : β => A i j = true)).choose 2 := by
           refine sum_congr rfl fun i _ => ?_
-          rw [rowOnes, ← card_twoSubsets_subset]
+          rw [← card_twoSubsets_subset]
           congr 1
           ext c
           simp only [P, mem_filter, mem_univ, true_and, subset_iff]
@@ -300,10 +297,11 @@ theorem mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix [Fintype α
     (hd : ∀ i : α, d ≤ #(univ.filter fun j : β => A i j = true)) :
     (Fintype.card α * d.choose 2) * (Fintype.card α * d.choose 2 - (Fintype.card β).choose 2) ≤
       2 * (Fintype.card β).choose 2 * boolMatrixWeight (twoRectMatrix A) := by
-  have hle : Fintype.card α * d.choose 2 ≤ ∑ i : α, (rowOnes A i).choose 2 := by
+  have hle : Fintype.card α * d.choose 2 ≤
+      ∑ i : α, (#(univ.filter fun j : β => A i j = true)).choose 2 := by
     calc Fintype.card α * d.choose 2
         = ∑ _i : α, d.choose 2 := by rw [sum_const, card_univ, smul_eq_mul]
-      _ ≤ ∑ i : α, (rowOnes A i).choose 2 :=
+      _ ≤ ∑ i : α, (#(univ.filter fun j : β => A i j = true)).choose 2 :=
           sum_le_sum fun i _ => Nat.choose_le_choose 2 (hd i)
   exact (Nat.mul_le_mul hle (Nat.sub_le_sub_right hle _)).trans
     (rowPairSum_mul_sub_le_two_mul_choose_mul_boolMatrixWeight_twoRectMatrix A)
@@ -324,16 +322,17 @@ theorem pow_four_boolMatrixWeight_le_mul_boolMatrixWeight_twoRectMatrix [Fintype
     rw [hW0]
     simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, Nat.zero_le]
   -- First Cauchy–Schwarz step over the `m` rows: `W ^ 2 ≤ 4 * m * σ`.
-  set σ := ∑ i : α, (rowOnes A i).choose 2
-  have hsq_a : 2 * σ + W = ∑ i : α, rowOnes A i ^ 2 := by
-    rw [hW_def, ← sum_rowOnes A, mul_sum, ← sum_add_distrib]
+  let rowWt : α → ℕ := fun i => #(univ.filter fun j : α => A i j = true)
+  set σ := ∑ i : α, (rowWt i).choose 2
+  have hsq_a : 2 * σ + W = ∑ i : α, rowWt i ^ 2 := by
+    rw [hW_def, boolMatrixWeight_eq_sum_row A, mul_sum, ← sum_add_distrib]
     exact sum_congr rfl fun i _ => two_mul_choose_two_add _
   have hcs_a : W ^ 2 ≤ m * (2 * σ + W) := by
-    have hpow : (∑ i : α, rowOnes A i) ^ 2 ≤
-        #(univ : Finset α) ^ 1 * ∑ i : α, rowOnes A i ^ 2 :=
-      pow_sum_le_card_mul_sum_pow (s := (univ : Finset α)) (f := rowOnes A)
+    have hpow : (∑ i : α, rowWt i) ^ 2 ≤
+        #(univ : Finset α) ^ 1 * ∑ i : α, rowWt i ^ 2 :=
+      pow_sum_le_card_mul_sum_pow (s := (univ : Finset α)) (f := rowWt)
         (fun _ _ => Nat.zero_le _) 1
-    rw [pow_one, card_univ, ← hm_def, sum_rowOnes A, ← hW_def, ← hsq_a] at hpow
+    rw [pow_one, card_univ, ← hm_def, ← boolMatrixWeight_eq_sum_row A, ← hW_def, ← hsq_a] at hpow
     exact hpow
   have h2m_le_W : 2 * m ≤ W := by
     have h1 : (2 * m) ^ 2 ≤ W ^ 2 := by

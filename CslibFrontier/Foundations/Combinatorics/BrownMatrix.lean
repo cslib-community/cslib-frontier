@@ -23,13 +23,13 @@ import Mathlib.Tactic.Zify
 # Brown's explicit `3`-rectangle-free unit-sphere matrix
 
 For an odd prime `p ≡ 3 (mod 4)`, `-1` is a quadratic non-residue modulo `p`. W. G. Brown
-([Brown1966], pp. 281–285) constructed an explicit `K_{3,3}`-free graph on `(ℤ/pℤ)^3` by joining
-points at squared Euclidean distance `1`. Viewed as an `m × m` Boolean incidence matrix
-`brownMatrix p` with `m = p ^ 3`, this gives an explicit `3`-rectangle-free Boolean matrix in which
-every row has exact weight `p (p - 1)` and the whole matrix has exact weight
-`p ^ 4 (p - 1) = Θ(m ^ {5/3})`, matching the Kővári–Sós–Turán `O(m ^ {5/3})` upper bound up to a
-constant factor and supplying the dense `3`-free base matrix in Sergeev's OR-complexity separation
-([Sergeev2014ORComplement], Theorem 1(ii), p. 3).
+([Brown1966], as cited in [Sergeev2014ORComplement], p. 3) constructed an explicit `K_{3,3}`-free
+graph on `(ℤ/pℤ)^3` by joining points at squared Euclidean distance `1`. Viewed as an `m × m`
+Boolean incidence matrix `brownMatrix p` with `m = p ^ 3`, this gives an explicit
+`3`-rectangle-free Boolean matrix in which every row has exact weight `p (p - 1)` and the whole
+matrix has exact weight `p ^ 4 (p - 1) = Θ(m ^ {5/3})`, matching the Kővári–Sós–Turán
+`O(m ^ {5/3})` upper bound up to a constant factor and supplying the dense `3`-free base matrix in
+Sergeev's OR-complexity separation ([Sergeev2014ORComplement], Theorem 1(ii), p. 3).
 
 ## Main definitions
 
@@ -47,7 +47,7 @@ constant factor and supplying the dense `3`-free base matrix in Sergeev's OR-com
 
 ## References
 
-* [W. G. Brown, *On graphs that do not contain a Thomsen graph*][Brown1966], pp. 281–285
+* [W. G. Brown, *On graphs that do not contain a Thomsen graph*][Brown1966]
 * [I. S. Sergeev, *On relative OR-complexity of Boolean matrices and their
   complements*][Sergeev2014ORComplement], p. 3
 -/
@@ -84,6 +84,16 @@ private theorem two_ne_zero_zmod (hp : p % 4 = 3) : (2 : ZMod p) ≠ 0 := by
   have hle : p ≤ 2 := Nat.le_of_dvd (by decide) hdvd
   omega
 
+private theorem isSquare_neg_one_of_sq_eq_neg_sq {z w : ZMod p} (hw : w ≠ 0)
+    (hzw : z ^ 2 = -w ^ 2) : IsSquare (-1 : ZMod p) := by
+  refine ⟨z * w⁻¹, ?_⟩
+  have hww : w * w ≠ 0 := mul_ne_zero hw hw
+  apply mul_right_cancel₀ hww
+  calc (-1 : ZMod p) * (w * w) = -w ^ 2 := by ring
+    _ = z ^ 2 := hzw.symm
+    _ = z * z * (w⁻¹ * w) * (w⁻¹ * w) := by rw [inv_mul_cancel₀ hw]; ring
+    _ = z * w⁻¹ * (z * w⁻¹) * (w * w) := by ring
+
 private theorem sq_add_sq_eq_zero_iff (hp : p % 4 = 3) (u v : ZMod p) :
     u ^ 2 + v ^ 2 = 0 ↔ u = 0 ∧ v = 0 := by
   refine ⟨fun huv => ?_, ?_⟩
@@ -92,14 +102,8 @@ private theorem sq_add_sq_eq_zero_iff (hp : p % 4 = 3) (u v : ZMod p) :
       simp only [ne_eq, OfNat.ofNat_ne_zero, not_false_eq_true, zero_pow, add_zero,
         sq_eq_zero_iff] at huv
       exact ⟨huv, rfl⟩
-    · exfalso
-      refine not_isSquare_neg_one hp ⟨u * v⁻¹, ?_⟩
-      have hvv : v * v ≠ 0 := mul_ne_zero hv hv
-      apply mul_right_cancel₀ hvv
-      calc (-1 : ZMod p) * (v * v) = -v ^ 2 := by ring
-        _ = u ^ 2 := by linear_combination -huv
-        _ = u * u * (v⁻¹ * v) * (v⁻¹ * v) := by rw [inv_mul_cancel₀ hv]; ring
-        _ = u * v⁻¹ * (u * v⁻¹) * (v * v) := by ring
+    · exact False.elim (not_isSquare_neg_one hp
+        (isSquare_neg_one_of_sq_eq_neg_sq (z := u) hv (by linear_combination huv)))
   · rintro ⟨rfl, rfl⟩
     ring
 
@@ -274,18 +278,7 @@ theorem card_row_brownMatrix (hp : p % 4 = 3) (x : Fin 3 → ZMod p) :
 ([Brown1966]; [Sergeev2014ORComplement], p. 3). -/
 theorem boolMatrixWeight_brownMatrix (hp : p % 4 = 3) :
     boolMatrixWeight (brownMatrix p) = p ^ 4 * (p - 1) := by
-  have hsplit : boolMatrixWeight (brownMatrix p) =
-      ∑ x : Fin 3 → ZMod p, #(univ.filter fun y : Fin 3 → ZMod p => brownMatrix p x y = true) := by
-    rw [boolMatrixWeight, ← card_sigma]
-    refine card_bij (fun q _ => ⟨q.1, q.2⟩) ?_ ?_ ?_
-    · intro q hq
-      simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hq
-    · rintro ⟨x₁, y₁⟩ - ⟨x₂, y₂⟩ - h
-      simp only [Sigma.mk.injEq, heq_eq_eq] at h
-      rw [h.1, h.2]
-    · rintro ⟨x, y⟩ hxy
-      exact ⟨(x, y), by simpa only [mem_sigma, mem_univ, mem_filter, true_and] using hxy, rfl⟩
-  rw [hsplit]
+  rw [boolMatrixWeight_eq_sum_row]
   calc ∑ x : Fin 3 → ZMod p, #(univ.filter fun y => brownMatrix p x y = true)
       = ∑ _x : Fin 3 → ZMod p, p * (p - 1) :=
         sum_congr rfl fun x _ => card_row_brownMatrix hp x
@@ -386,16 +379,6 @@ private theorem lagrange_coord_sq (u₀ u₁ u₂ w₀ w₁ w₂ : ZMod p)
           (u₀ ^ 2 + u₁ ^ 2 + u₂ ^ 2) * w₀ ^ 2 -
           (u₀ * w₀ + u₁ * w₁ + u₂ * w₂) * (u₁ * w₁ + u₂ * w₂ - u₀ * w₀) := by ring
     _ = -w₀ ^ 2 := by rw [hu, hw, huw]; ring
-
-private theorem isSquare_neg_one_of_sq_eq_neg_sq {z w : ZMod p} (hw : w ≠ 0)
-    (hzw : z ^ 2 = -w ^ 2) : IsSquare (-1 : ZMod p) := by
-  refine ⟨z * w⁻¹, ?_⟩
-  have hww : w * w ≠ 0 := mul_ne_zero hw hw
-  apply mul_right_cancel₀ hww
-  calc (-1 : ZMod p) * (w * w) = -w ^ 2 := by ring
-    _ = z ^ 2 := hzw.symm
-    _ = z * z * (w⁻¹ * w) * (w⁻¹ * w) := by rw [inv_mul_cancel₀ hw]; ring
-    _ = z * w⁻¹ * (z * w⁻¹) * (w * w) := by ring
 
 private theorem no_three_collinear_on_unit_sphere (hp : p % 4 = 3)
     {u w : Fin 3 → ZMod p} (hw : w ≠ 0) {s₁ s₂ : ZMod p}

@@ -30,13 +30,12 @@ Given an `m × m` Boolean matrix `A`, let `B = twoRectMatrix A` be its `n × n` 
   edges), and row `i` to output `r` whenever `i ∈ r` (`2 n` edges), giving
   `OR_3(B̄) ≤ 4 n + |Ā| ≤ 7 n` (`3 ≤ m`).
 * **General `k`-free separation (`Lemma 3`)**
-  (`pow_four_boolMatrixWeight_le_mul_orComplexity_twoRectMatrix`,
-  `pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix`): if `A` is `k`-free and
+  (`pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix`): if `A` is `k`-free and
   `4 * m ^ 3 ≤ |A| ^ 2`, combining Lemma 1, Lemma 2, and Nechiporuk's bound yields
-  `|A| ^ 4 ≤ 32 * C(k - 1, 2) ^ 2 * m ^ 4 * OR(B) ≤ 8 * (k * m) ^ 4 * OR(B)` (note that
-  [Sergeev2014ORComplement], Lemma 3, pp. 2–3 writes `(|A| / (k n)) ^ 4` due to reusing Lemma 1's
-  dimension variable `n` after setting `n = C(m, 2)` for an `m × m` matrix `A`; Lemma 1 on the
-  `m × m` matrix `A` gives `|B| = Ω((|A| / m) ^ 4)` and `OR(B) = Ω((|A| / (k m)) ^ 4)`).
+  `|A| ^ 4 ≤ 8 * (k * m) ^ 4 * OR(B)` (note that [Sergeev2014ORComplement], Lemma 3, pp. 2–3
+  writes `(|A| / (k n)) ^ 4` due to reusing Lemma 1's dimension variable `n` after setting
+  `n = C(m, 2)` for an `m × m` matrix `A`; Lemma 1 on the `m × m` matrix `A` gives
+  `|B| = Ω((|A| / m) ^ 4)` and `OR(B) = Ω((|A| / (k m)) ^ 4)`).
 * **Explicit `O(n)` vs. `Ω(n^{4/3})` separation (`Theorem 1(ii)`)**
   (`sergeevComplementMatrix`, `orDepthComplexity_three_sergeevComplementMatrix_le`,
   `isRectangleFreeMatrix_compl_sergeevComplementMatrix`,
@@ -46,9 +45,10 @@ Given an `m × m` Boolean matrix `A`, let `B = twoRectMatrix A` be its `n × n` 
   `p` prime with `p ≡ 3 (mod 4)`) produces explicit `n × n` matrices `C = B̄` (`n = C(p ^ 3, 2)`)
   satisfying `OR(C) ≤ OR_3(C) ≤ 7 * n`, `C̄` is `2`-free, `OR(C̄) = |C̄|`, and
   `n ^ 4 ≤ 2 ^ 23 * OR(C̄) ^ 3` (for arbitrarily large `n` via Dirichlet's theorem). Theorem 1(i)'s
-  projective norm-graph instantiation ([KollarRonyaiSzabo1996]) remains open under
-  [#7622](https://github.com/cslib-community/cslib-frontier/issues/7622), with Lemma 3 supplying
-  its general reduction step.
+  projective norm-graph instantiation ([KollarRonyaiSzabo1996], with
+  `Δ = 2^{O(√(log m log log m))}` giving `OR(C̄) / OR(C) = n · 2^{-O(√(ln n ln ln n))}`) remains
+  open under [#7622](https://github.com/cslib-community/cslib-frontier/issues/7622), with Lemma 3
+  supplying its general reduction step.
 
 ## Main definitions
 
@@ -64,12 +64,10 @@ Given an `m × m` Boolean matrix `A`, let `B = twoRectMatrix A` be its `n × n` 
   `Cslib.Circuits.computes_complTwoRectCircuit`: size, depth `3`, and correctness of
   `complTwoRectCircuit`.
 * `Cslib.Circuits.orDepthComplexity_three_compl_twoRectMatrix_le`,
-  `Cslib.Circuits.orDepthComplexity_three_compl_twoRectMatrix_le_seven_mul`,
-  `Cslib.Circuits.orComplexity_compl_twoRectMatrix_le_seven_mul`: Sergeev's Lemma 3 upper bounds
-  `OR_3(B̄) ≤ 4 n + |Ā| ≤ 7 n`.
-* `Cslib.Circuits.pow_four_boolMatrixWeight_le_mul_orComplexity_twoRectMatrix`,
-  `Cslib.Circuits.pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix`: Sergeev's
-  Lemma 3 lower bounds on `OR(twoRectMatrix A)`.
+  `Cslib.Circuits.orDepthComplexity_three_compl_twoRectMatrix_le_seven_mul`: Sergeev's Lemma 3
+  upper bounds `OR_3(B̄) ≤ 4 n + |Ā| ≤ 7 n`.
+* `Cslib.Circuits.pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix`: Sergeev's
+  Lemma 3 lower bound `|A| ^ 4 ≤ 8 * (k * m) ^ 4 * OR(twoRectMatrix A)`.
 * `Cslib.Circuits.orDepthComplexity_three_sergeevComplementMatrix_le`,
   `Cslib.Circuits.orComplexity_sergeevComplementMatrix_le`,
   `Cslib.Circuits.isRectangleFreeMatrix_compl_sergeevComplementMatrix`,
@@ -81,7 +79,7 @@ Given an `m × m` Boolean matrix `A`, let `B = twoRectMatrix A` be its `n × n` 
 
 * [I. S. Sergeev, *On relative OR-complexity of Boolean matrices and their
   complements*][Sergeev2014ORComplement], Theorem 1(ii) and Lemma 3, pp. 1–3
-* [W. G. Brown, *On graphs that do not contain a Thomsen graph*][Brown1966], pp. 281–285
+* [W. G. Brown, *On graphs that do not contain a Thomsen graph*][Brown1966]
 -/
 
 public section
@@ -125,13 +123,6 @@ instance [Finite α] [Finite β] : Finite (ComplTwoRectVertex α β) := by
   cases nonempty_fintype α
   cases nonempty_fintype β
   exact Finite.of_equiv _ (complTwoRectVertexEquiv α β).symm
-
-private theorem walk_uncons {C : RectifierCircuit {r : Finset α // #r = 2}
-    {c : Finset β // #c = 2} (ComplTwoRectVertex α β)}
-    {u w : ComplTwoRectVertex α β} (hne : u ≠ w) :
-    C.Walk u w → ∃ v, (u, v) ∈ C.edges ∧ Nonempty (C.Walk v w)
-  | .nil _ => False.elim (hne rfl)
-  | .cons he q => ⟨_, he, ⟨q⟩⟩
 
 private def inpEdges [Fintype β] [DecidableEq α] [DecidableEq β] :
     Finset (ComplTwoRectVertex α β × ComplTwoRectVertex α β) :=
@@ -358,15 +349,15 @@ theorem computes_complTwoRectCircuit (A : Matrix α β Bool) :
     have he₃ : (.row i, .out r) ∈ (complTwoRectCircuit A).edges :=
       mem_union_right _ (mem_biUnion.mpr ⟨r, mem_univ r, mem_map.mpr ⟨i, hir, rfl⟩⟩)
     exact ⟨.cons he₁ (.cons he₂ (.cons he₃ (.nil _)))⟩
-  · obtain ⟨v₁, he₁, ⟨q₁⟩⟩ := walk_uncons (fun h => by nomatch h) p
+  · obtain ⟨v₁, he₁, ⟨q₁⟩⟩ := p.uncons (fun h => by nomatch h)
     obtain ⟨j, hjc, rfl⟩ := step_from_inp he₁
-    obtain ⟨v₂, he₂, ⟨q₂⟩⟩ := walk_uncons (fun h => by nomatch h) q₁
+    obtain ⟨v₂, he₂, ⟨q₂⟩⟩ := q₁.uncons (fun h => by nomatch h)
     obtain ⟨i, hij, rfl⟩ := step_from_col he₂
-    obtain ⟨v₃, he₃, ⟨q₃⟩⟩ := walk_uncons (fun h => by nomatch h) q₂
+    obtain ⟨v₃, he₃, ⟨q₃⟩⟩ := q₂.uncons (fun h => by nomatch h)
     obtain ⟨r', hir', rfl⟩ := step_from_row he₃
     have hr_eq : r' = r := by
       by_contra hne
-      obtain ⟨_, he₄, -⟩ := walk_uncons (fun h => hne (ComplTwoRectVertex.out.inj h)) q₃
+      obtain ⟨_, he₄, -⟩ := q₃.uncons (fun h => hne (ComplTwoRectVertex.out.inj h))
       exact no_step_from_out he₄
     subst hr_eq
     simp only [Matrix.map_apply, Bool.not_eq_true', Bool.eq_false_iff, ne_eq, twoRectMatrix_apply]
@@ -415,34 +406,6 @@ theorem orDepthComplexity_three_compl_twoRectMatrix_le_seven_mul [Fintype α]
   have hch := sq_le_three_mul_choose_two hm
   omega
 
-/-- Unrestricted linear `OR`-complexity upper bound `OR((twoRectMatrix A).map (! ·)) ≤ 7 * C(m, 2)`
-for `3 ≤ m` ([Sergeev2014ORComplement], Lemma 3, pp. 2–3). -/
-theorem orComplexity_compl_twoRectMatrix_le_seven_mul [Fintype α]
-    (A : Matrix α α Bool) (hm : 3 ≤ Fintype.card α) :
-    orComplexity ((twoRectMatrix A).map (! ·)) ≤ 7 * (Fintype.card α).choose 2 := by
-  exact Nat.cast_le.mp ((orComplexity_le_orDepthComplexity 3 _).trans
-    (orDepthComplexity_three_compl_twoRectMatrix_le_seven_mul A hm))
-
-/-- **Sergeev's Lemma 3, sharp binomial lower bound** ([Sergeev2014ORComplement], pp. 2–3): if an
-`m × m` Boolean matrix `A` is `k`-free and `4 * m ^ 3 ≤ |A| ^ 2`, then
-`|A| ^ 4 ≤ 32 * C(k - 1, 2) ^ 2 * m ^ 4 * orComplexity (twoRectMatrix A)`. -/
-theorem pow_four_boolMatrixWeight_le_mul_orComplexity_twoRectMatrix [Fintype α]
-    {A : Matrix α α Bool} {k : ℕ} (hA : IsRectangleFreeMatrix A k)
-    (hdense : 4 * Fintype.card α ^ 3 ≤ boolMatrixWeight A ^ 2) :
-    boolMatrixWeight A ^ 4 ≤
-      32 * ((k - 1).choose 2) ^ 2 * Fintype.card α ^ 4 * orComplexity (twoRectMatrix A) := by
-  have hB : boolMatrixWeight (twoRectMatrix A) ≤
-      ((k - 1).choose 2) ^ 2 * orComplexity (twoRectMatrix A) := by
-    simpa only [Nat.add_sub_cancel] using
-      boolMatrixWeight_le_sq_pred_mul_orComplexity hA.twoRectMatrix
-  calc boolMatrixWeight A ^ 4
-      ≤ 32 * Fintype.card α ^ 4 * boolMatrixWeight (twoRectMatrix A) :=
-        pow_four_boolMatrixWeight_le_mul_boolMatrixWeight_twoRectMatrix A hdense
-    _ ≤ 32 * Fintype.card α ^ 4 * (((k - 1).choose 2) ^ 2 * orComplexity (twoRectMatrix A)) :=
-        Nat.mul_le_mul_left _ hB
-    _ = 32 * ((k - 1).choose 2) ^ 2 * Fintype.card α ^ 4 * orComplexity (twoRectMatrix A) := by
-        ring
-
 /-- **Sergeev's Lemma 3, polynomial lower bound** ([Sergeev2014ORComplement], pp. 2–3): if an
 `m × m` Boolean matrix `A` is `k`-free and `4 * m ^ 3 ≤ |A| ^ 2`, then
 `|A| ^ 4 ≤ 8 * (k * m) ^ 4 * orComplexity (twoRectMatrix A)` (that is,
@@ -451,6 +414,10 @@ theorem pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix [Finty
     {A : Matrix α α Bool} {k : ℕ} (hA : IsRectangleFreeMatrix A k)
     (hdense : 4 * Fintype.card α ^ 3 ≤ boolMatrixWeight A ^ 2) :
     boolMatrixWeight A ^ 4 ≤ 8 * (k * Fintype.card α) ^ 4 * orComplexity (twoRectMatrix A) := by
+  have hB : boolMatrixWeight (twoRectMatrix A) ≤
+      ((k - 1).choose 2) ^ 2 * orComplexity (twoRectMatrix A) := by
+    simpa only [Nat.add_sub_cancel] using
+      boolMatrixWeight_le_sq_pred_mul_orComplexity hA.twoRectMatrix
   have hch2 : 2 * (k - 1).choose 2 ≤ k ^ 2 := by
     rw [two_mul_choose_two]
     calc (k - 1) * (k - 1 - 1) ≤ (k - 1) * (k - 1) :=
@@ -462,8 +429,10 @@ theorem pow_four_boolMatrixWeight_le_eight_mul_orComplexity_twoRectMatrix [Finty
       _ ≤ (k ^ 2) ^ 2 := Nat.pow_le_pow_left hch2 2
       _ = k ^ 4 := by ring
   calc boolMatrixWeight A ^ 4
-      ≤ 32 * ((k - 1).choose 2) ^ 2 * Fintype.card α ^ 4 * orComplexity (twoRectMatrix A) :=
-        pow_four_boolMatrixWeight_le_mul_orComplexity_twoRectMatrix hA hdense
+      ≤ 32 * Fintype.card α ^ 4 * boolMatrixWeight (twoRectMatrix A) :=
+        pow_four_boolMatrixWeight_le_mul_boolMatrixWeight_twoRectMatrix A hdense
+    _ ≤ 32 * Fintype.card α ^ 4 * (((k - 1).choose 2) ^ 2 * orComplexity (twoRectMatrix A)) :=
+        Nat.mul_le_mul_left _ hB
     _ = 8 * (4 * ((k - 1).choose 2) ^ 2) * Fintype.card α ^ 4 *
           orComplexity (twoRectMatrix A) := by ring
     _ ≤ 8 * k ^ 4 * Fintype.card α ^ 4 * orComplexity (twoRectMatrix A) := by gcongr
@@ -508,10 +477,9 @@ theorem orDepthComplexity_three_sergeevComplementMatrix_le (hp : p % 4 = 3) :
 pp. 1–2): for prime `p ≡ 3 (mod 4)`,
 `orComplexity (sergeevComplementMatrix p) ≤ 7 * C(p ^ 3, 2)`. -/
 theorem orComplexity_sergeevComplementMatrix_le (hp : p % 4 = 3) :
-    orComplexity (sergeevComplementMatrix p) ≤ 7 * (p ^ 3).choose 2 := by
-  simpa only [sergeevComplementMatrix, card_fin3_zmod] using
-    orComplexity_compl_twoRectMatrix_le_seven_mul (brownMatrix p)
-      (three_le_card_fin3_zmod hp)
+    orComplexity (sergeevComplementMatrix p) ≤ 7 * (p ^ 3).choose 2 :=
+  Nat.cast_le.mp ((orComplexity_le_orDepthComplexity 3 _).trans
+    (orDepthComplexity_three_sergeevComplementMatrix_le hp))
 
 /-- **Sergeev's Theorem 1(ii), `2`-freeness of the complement** ([Sergeev2014ORComplement], p. 2):
 for prime `p ≡ 3 (mod 4)`, `(sergeevComplementMatrix p).map (! ·)` is `2`-rectangle-free. -/
