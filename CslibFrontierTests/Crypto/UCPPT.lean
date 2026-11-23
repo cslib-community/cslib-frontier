@@ -49,12 +49,14 @@ namespace CslibFrontierTests.Crypto.UCPPT
 
 open Cslib Cslib.Crypto.Protocols.UC Cslib.Probability Turing.MultiTapeTM
 
+/-- Trivial polynomial-time decoder for `encUnit`. -/
 @[expose] public def unitDecoder : Decoder encUnit where
   decode _ := ()
   decode_enc _ := rfl
   computable :=
     (ComputableInPolyTime.const (encIn := encBits) (encOut := encUnit) ()).exists_degree
 
+/-- Trivial `Unit`/`Unit` word port. -/
 @[expose] public def unitPort : WordPort Unit Unit where
   query := encUnit
   queryDecoder := unitDecoder
@@ -67,12 +69,14 @@ private def bitsPort : WordPort Unit (List Bool) where
   reply := encBits
   replyDecoder := Decoder.bits
 
+/-- Single-party `Bool`/`List Bool` word port for `coinStore`. -/
 @[expose] public def coinInputPort : WordPort Bool (List Bool) where
   query := encBool
   queryDecoder := Decoder.bool
   reply := encBits
   replyDecoder := Decoder.bits
 
+/-- Two-party indexed port for `coinStore`. -/
 @[expose] public def coinPartyPort : WordPort (Fin 2 × Bool) (Option (List Bool)) :=
   WordPort.party (n := 2) coinInputPort
 
