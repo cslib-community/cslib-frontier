@@ -9,7 +9,6 @@ module
 
 public import CslibFrontier.Computability.Distributed.SharedMemory.Basic
 public import Mathlib.Algebra.Group.Defs
-import CslibFrontier.Tactic.UpdateSimp
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.Fintype.EquivFin
 
@@ -699,12 +698,13 @@ theorem solvesWaitFreeConsensus_testAndSetProtocol {P R : Type*} {V : Type u}
         cases hinit.writeProp_eq q vq hsq
         rw [π.step_of_active hact_q, hsq]
         dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec, registerObj]
-        refine hinit.of_proc_step q _ _ (fun _ h => (nomatch h)) (by update_simp)
-          (fun p hpq => by update_simp [hreg.ne hpq]) (fun h => (nomatch h))
-          (fun htf => ⟨by update_simp at htf; exact htf,
+        refine hinit.of_proc_step q _ _ (fun _ h => (nomatch h)) (Function.update_self ..)
+          (fun p hpq => Function.update_of_ne (mt TASObjId.propReg.inj (hreg.ne hpq)) ..)
+          (fun h => (nomatch h))
+          (fun htf => ⟨by rwa [Function.update_of_ne (by nofun)] at htf,
             fun _ h => (nomatch h), fun h => (nomatch h), rfl⟩)
           fun htt => ?_
-        update_simp at htt
+        rw [Function.update_of_ne (by nofun)] at htt
         obtain ⟨w, hw_st, hw_rw, hw_dec⟩ := hinit.tas_true htt
         have hwq : w ≠ q := fun h => by
           subst h; rcases hw_st with h | h <;> rw [hsq] at h <;> nomatch h
@@ -720,8 +720,9 @@ theorem solvesWaitFreeConsensus_testAndSetProtocol {P R : Type*} {V : Type u}
           dsimp only [π, testAndSetProtocol, tasObjFamily, tasKind, TASRegKind.toObjSpec]
           rw [htas_cell]
           refine hinit.of_proc_step q _ _ (fun _ h => (nomatch h))
-            (by rw [← hreg_q]; update_simp) (fun _ _ => by update_simp) (fun h => (nomatch h))
-            (fun htf => by update_simp at htf; exact Bool.noConfusion htf) fun _ => ?_
+            (by rw [Function.update_of_ne (by nofun), hreg_q])
+            (fun _ _ => Function.update_of_ne (by nofun) ..) (fun h => (nomatch h))
+            (fun htf => by rw [Function.update_self] at htf; exact Bool.noConfusion htf) fun _ => ?_
           cases btas with
           | false =>
             have hprev_f := hinit.tas_false (by rw [htas_cell])
