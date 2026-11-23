@@ -81,9 +81,9 @@ theorem IsClosed.inter (hF : IsClosed r P F) (hG : IsClosed r P G) : IsClosed r 
 theorem isClosed_self : IsClosed r P P :=
   fun _ h => h.1
 
-/-- For `r ≥ 1`, the empty family is closed: no set is implied by members of it. -/
-theorem isClosed_empty (hr : 1 ≤ r) : IsClosed r P ∅ :=
-  fun _ ⟨_, _, hV, _⟩ => absurd (hV ⟨0, hr⟩) (notMem_empty _)
+/-- The empty family is closed: no set is implied by members of it. -/
+theorem isClosed_empty : IsClosed r P ∅ :=
+  fun _ ⟨_, h⟩ => absurd h not_impliedBy_empty
 
 /-- A closure step: add one derived set. -/
 def Step (r : ℕ) (P F G : Finset (Finset α)) : Prop :=

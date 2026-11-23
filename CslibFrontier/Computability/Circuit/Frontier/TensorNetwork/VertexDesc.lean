@@ -9,10 +9,9 @@ module
 
 public import CslibFrontier.Computability.Circuit.Frontier.TensorNetwork.PacketTerms
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Sum
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.Degree.Bounds
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.BitString
-import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.DegreeOptionPrimitives
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Option
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.PolyTime.Sum
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListBinaryLookup
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Internal.PolyTimeListPrimitives
 import CslibFrontier.Foundations.Data.BitString.Binary
@@ -174,26 +173,21 @@ variable {encT : T ↪ List Bool}
 /-- The left summand of a descriptor and its bits. -/
 theorem getLeft_polyTime :
     ComputableInPolyTime (fun q : VertexDesc T × List Bool => q.1.getLeft?)
-      (encPair (enc encT) encBits) (encOption encT) :=
-  (ComputableInO.getLeft?_deg _ _).computableInPolyTime.comp (ComputableInPolyTime.fst _ _)
+      (encPair (enc encT) encBits) (encOption encT) := by
+  fun_prop
 
 /-- The input of the packet evaluator at a descriptor and its bits, the default packet standing for
 a root. -/
 theorem packetInput_polyTime :
     ComputableInPolyTime (fun q : VertexDesc T × List Bool => (q.1.getRight?.getD default, q.2))
       (encPair (enc encT) encBits) (encPair encPacketDesc encBits) := by
-  have hright : ComputableInPolyTime (fun q : VertexDesc T × List Bool => q.1.getRight?)
-      (encPair (enc encT) encBits) (encOption encPacketDesc) :=
-    (ComputableInO.getRight?_deg _ _).computableInPolyTime.comp (ComputableInPolyTime.fst _ _)
-  exact ((ComputableInDegree.getD (enc₁ := encPacketDesc) (enc := encOption encPacketDesc)
-    default).computableInPolyTime.comp hright).prod (ComputableInPolyTime.snd _ _)
+  fun_prop
 
 /-- The input of the root's entry procedure from a descriptor's bits and its root descriptor. -/
 theorem rootInput_polyTime :
     ComputableInPolyTime (fun (((_, bs), t) : (VertexDesc T × List Bool) × T) => (t, bs))
-      (encPair (encPair (enc encT) encBits) encT) (encPair encT encBits) :=
-  (ComputableInPolyTime.snd _ _).prod
-    ((ComputableInPolyTime.snd (enc encT) encBits).comp (ComputableInPolyTime.fst _ _))
+      (encPair (encPair (enc encT) encBits) encT) (encPair encT encBits) := by
+  fun_prop
 
 variable {ev : T → List Bool → List ℕ}
 

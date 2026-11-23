@@ -10,6 +10,7 @@ module
 public import CslibFrontier.Computability.Distributed.Byzantine.Basic
 public import Mathlib.Data.Fintype.Card
 import CslibFrontier.Computability.Distributed.Byzantine.RecursiveOralMessages
+import CslibFrontier.Tactic.FinsetCard
 import Mathlib.Data.Fintype.EquivFin
 
 /-!
@@ -329,11 +330,7 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
       · intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
         rw [Nat.add_zero] at hk
         subst hk
-        have hcard : (insert p C).card < (Finset.univ : Finset P).card := by
-          rw [Finset.card_univ]
-          have := Finset.card_insert_le p C
-          omega
-        obtain ⟨q₀, -, hq₀⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard
+        obtain ⟨q₀, hq₀⟩ : ∃ q₀, q₀ ∉ insert p C := by finset_card
         have hq₀C : q₀ ∉ C := fun hmem => hq₀ (Finset.mem_insert_of_mem hmem)
         have h₁ := π.crashDecision_agree hagr m₀ hC
           (fun r _ j hj i => extAlive_honest halive₁ r j hj i) x₁ hi₁ hq₀C
@@ -358,8 +355,7 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
           (fun r _ j hj i => extAlive_honest halive r j hj i) i₁ hi₁ i₂ hi₂
         rw [extAlive_succ_extAlive, ← silenceAt_empty] at hstep1
         -- Step 2: silence `p` in round `k` one recipient at a time across `U : Finset P`.
-        have hC' : (insert p C).card ≤ k + 1 :=
-          (Finset.card_insert_le p C).trans (by omega)
+        have hC' : (insert p C).card ≤ k + 1 := by finset_card
         have hstep2 : ∀ U : Finset P,
             π.output i₂ (π.crashState m₀ (silenceAt k C p ∅ alive) x R i₂) =
               π.output i₂ (π.crashState m₀ (silenceAt k C p U alive) x R i₂) := by
@@ -380,11 +376,7 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
         exact hstep1.trans huniv
       refine ⟨hsil, ?_⟩
       intro k hk C hC p alive₁ alive₂ x₁ x₂ halive₁ halive₂ hagree i₁ hi₁ i₂ hi₂
-      have hcard : (insert p C).card < (Finset.univ : Finset P).card := by
-        rw [Finset.card_univ]
-        have := Finset.card_insert_le p C
-        omega
-      obtain ⟨q₀, -, hq₀⟩ := Finset.exists_mem_notMem_of_card_lt_card hcard
+      obtain ⟨q₀, hq₀⟩ : ∃ q₀, q₀ ∉ insert p C := by finset_card
       have h₁ := hsil k hk C hC p alive₁ x₁ halive₁ i₁ hi₁ q₀ hq₀
       have h₂ := hsil k hk C hC p alive₂ x₂ halive₂ i₂ hi₂ q₀ hq₀
       have hmid := π.crashState_extAlive_eq_of_agree m₀ hagree (d + 1) q₀ hq₀
@@ -433,8 +425,7 @@ private theorem not_agreement_and_zero_unanimity [Fintype P] {R : ℕ}
 private theorem not_solvesByzantineAgreement_self [Fintype P] {R : ℕ}
     (hn : R + 2 ≤ Fintype.card P) : ¬ π.SolvesByzantineAgreement R R := by
   intro h
-  obtain ⟨p₀, -, -⟩ := Finset.exists_mem_notMem_of_card_lt_card (s := (∅ : Finset P))
-    (t := Finset.univ) (by rw [Finset.card_empty, Finset.card_univ]; omega)
+  obtain ⟨p₀, -⟩ : ∃ p₀ : P, p₀ ∈ Finset.univ := by finset_card
   exact π.not_agreement_and_zero_unanimity hn h.agreement (p₀ := p₀) fun adv =>
     ⟨h.validity ∅ (Nat.zero_le R) adv (fun _ => false) false (fun _ _ => rfl) p₀
       (Finset.notMem_empty p₀),
@@ -620,8 +611,7 @@ theorem not_solvesInteractiveConsistency_of_rounds_le [Fintype P] [Nontrivial V]
   classical
   intro h
   obtain ⟨v₀, v₁, hv⟩ := exists_pair_ne V
-  obtain ⟨p₀, -, -⟩ := Finset.exists_mem_notMem_of_card_lt_card (s := (∅ : Finset P))
-    (t := Finset.univ) (by rw [Finset.card_empty, Finset.card_univ]; omega)
+  obtain ⟨p₀, -⟩ : ∃ p₀ : P, p₀ ∈ Finset.univ := by finset_card
   let π₀ : Protocol P S M := {
     init := fun i b => π.init i (if b then v₁ else v₀)
     send := π.send
@@ -690,17 +680,13 @@ theorem solvesByzantineAgreement_toByzantineAgreement {t R : ℕ}
         have htrue : π.decision F adv x R i q = true := (Finset.mem_filter.1 hq).2
         rw [h.validity F hF adv x i hi q hqF, hv q hqF] at htrue
         exact Bool.false_ne_true htrue
-      have hle : ones.card ≤ t := (Finset.card_le_card hsub).trans hF
-      exact decide_eq_false (by omega)
+      exact decide_eq_false (by finset_card)
     | true =>
       have hsub : Finset.univ \ F ⊆ ones := fun q hq => by
         have hqF : q ∉ F := (Finset.mem_sdiff.1 hq).2
         exact Finset.mem_filter.2 ⟨Finset.mem_univ q,
           (h.validity F hF adv x i hi q hqF).trans (hv q hqF)⟩
-      have hge : Fintype.card P - F.card ≤ ones.card := by
-        simpa only [Finset.card_sdiff_of_subset (Finset.subset_univ F), Finset.card_univ] using
-          Finset.card_le_card hsub
-      exact decide_eq_true (by omega)
+      exact decide_eq_true (by finset_card)
 
 end Bridge
 

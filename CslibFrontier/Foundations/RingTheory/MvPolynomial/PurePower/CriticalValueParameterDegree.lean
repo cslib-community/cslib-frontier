@@ -114,6 +114,18 @@ namespace MvPolynomial.CriticalSystem
 
 open PurePower
 
+/-- Critical lower relations with constant centers are affine in the deformation parameter. -/
+theorem criticalLower_hasParameterDegree {n : ℕ} (ell : ℕ) (a : Fin n → ℤ)
+    (F : MvPolynomial (Fin n) ℤ) (i : Fin n) :
+    HasParameterDegree
+      (criticalLower ell (fun j => Polynomial.C (a j)) Polynomial.X (F.map Polynomial.C) i) 1 := by
+  have hc := HasParameterDegree.C (ι := Fin n) (Polynomial.C (a i) ^ ell) (h := 0) (by
+    rw [← map_pow, Polynomial.natDegree_C])
+  have hx := HasParameterDegree.C (ι := Fin n) (Polynomial.X : Polynomial ℤ)
+    (h := 1) Polynomial.natDegree_X.le
+  simpa only [criticalLower, Nat.add_zero, Nat.zero_max] using
+    hc.sub (hx.mul ((HasParameterDegree.map_C F).pderiv i))
+
 /-- The symbolic critical relations and objective are affine in the coefficient parameter. -/
 theorem criticalSystem_hasParameterDegree {n : ℕ} (ell : ℕ)
     (F : MvPolynomial (Fin n) ℤ) :
@@ -124,14 +136,7 @@ theorem criticalSystem_hasParameterDegree {n : ℕ} (ell : ℕ)
   intro a G
   have hFparam : HasParameterDegree G 0 := HasParameterDegree.map_C F
   constructor
-  · intro i
-    have hc := HasParameterDegree.C (ι := Fin n) (a i ^ ell) (h := 0) (by
-      change (Polynomial.C (separatedCenters ell i : ℤ) ^ ell).natDegree ≤ 0
-      rw [← map_pow, Polynomial.natDegree_C])
-    have hx := HasParameterDegree.C (ι := Fin n) (Polynomial.X : Polynomial ℤ)
-      (h := 1) Polynomial.natDegree_X.le
-    simpa only [criticalLower, Nat.add_zero, Nat.zero_max] using
-      hc.sub (hx.mul (hFparam.pderiv i))
+  · exact criticalLower_hasParameterDegree ell (fun i => (separatedCenters ell i : ℤ)) F
   · have hp := HasParameterDegree.map_C
       (potentialPolynomial ell (fun i : Fin n => (separatedCenters ell i : ℤ)))
     rw [potentialPolynomial_map] at hp
