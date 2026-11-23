@@ -127,12 +127,9 @@ theorem exec_tileStep {w L m t N A j : ℕ} (hw : 0 < w) (hm : m ≤ L) (ht : t 
   have hVorder : D0 ≤ R0 ∧ R0 ≤ V ∧ V + K ≤ O := horder.2.2.2
   have hpaD : pa ≤ D0 := (Nat.le_add_right pa (10 ^ L)).trans (hpab.1.trans hbefore)
   have hpbD : pb ≤ D0 := (Nat.le_add_right pb (10 ^ L)).trans (hpab.2.trans hbefore)
-  have hpaV : pa + 10 ^ L ≤ V :=
-    hpab.1.trans (hbefore.trans (hVorder.1.trans hVorder.2.1))
-  have hpbV : pb + 10 ^ L ≤ V :=
-    hpab.2.trans (hbefore.trans (hVorder.1.trans hVorder.2.1))
-  have hqD : QueriedProduct.codeBase L m N qs.length + a ≤ D0 :=
-    (Nat.add_le_add_left (habQ.1.trans habQ.2) _).trans hqueries
+  have hpaV : pa + 10 ^ L ≤ V := by omega
+  have hpbV : pb + 10 ^ L ≤ V := by omega
+  have hqD : QueriedProduct.codeBase L m N qs.length + a ≤ D0 := by omega
   have hleft (c : Fin (10 ^ L)) :
       arg.mem (pa + c.val) = Signed.encode (encA (BoxTable.leafAt c)) := by
     rw [arm]

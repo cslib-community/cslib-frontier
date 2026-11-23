@@ -43,7 +43,7 @@ abbrev budget (p : Pow × List Bool) : ℕ := (encPow p.1).length + Nat.log2 (en
 /-- The registers, in context form. -/
 theorem reg_inSpace :
     ComputableInSpace (fun p : Pow × List Bool => p.1) (encPair encPow encBits) encPow budget :=
-  (ComputableInLogSpace.fst encPow encBits).inSpace_context ⟨1, fun p => by omega⟩
+  (ComputableInLogSpace.fst encPow encBits).inSpace_context ⟨1, fun p => by dsimp only; omega⟩
 
 /-- The counting routine on the input, in context form. -/
 theorem count_inSpace : ComputableInSpace (fun p : Pow × List Bool => p.2.count true)
@@ -51,6 +51,7 @@ theorem count_inSpace : ComputableInSpace (fun p : Pow × List Bool => p.2.count
   (SpaceQueryLoopTest.count_inSpace.computableInLogSpace.comp'
     (ComputableInLogSpace.snd encPow encBits)).inSpace_context ⟨1, fun p => by
       have := length_encNat_le_log2 (List.count_le_length (a := true) (l := p.2))
+      dsimp only
       rw [encBits_apply]
       omega⟩
 

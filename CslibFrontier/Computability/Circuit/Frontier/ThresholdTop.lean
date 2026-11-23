@@ -527,8 +527,7 @@ theorem exists_halfspaceCombBias {ι : Type*} [Fintype ι] (t K : ℕ) {b : ℝ}
         calc 2 ^ n * ((2 ^ n) ^ k₁ * ((2 ^ n) ^ k₂ * (2 ^ 2 ^ t * ((k₁ + k₂) ^ (k₁ + k₂)) ^ t)))
             ≤ 2 ^ n * ((2 ^ (n + 1)) ^ k₁ * ((2 ^ (n + 1)) ^ k₂ *
                 (2 ^ 2 ^ t * ((2 ^ (n + 1)) ^ (k₁ + k₂)) ^ t))) :=
-              Nat.mul_le_mul_left _ (Nat.mul_le_mul hpow_n1
-                (Nat.mul_le_mul hpow_n2 (Nat.mul_le_mul_left _ hpow_rk)))
+              by gcongr
           _ = 2 ^ (2 ^ t + n) * 2 ^ ((t + 1) * (n + 1) * (k₁ + k₂)) := by
               simp only [← pow_mul, ← pow_add]
               congr 1
@@ -1047,8 +1046,7 @@ private theorem step_exponent_le {A ε₀ C : ℝ} (hA : 0 < A) (hε₀ : 0 < ε
       have := mul_le_mul_of_nonneg_left hsize hA.le
       have heq : A * ((1 + 1 / A - ε₀) * n) = (1 + A - A * ε₀) * n := by field_simp; ring
       linarith
-    have hdiv : A * se / (1 + A) ≤ (1 + A - A * ε₀) * n / (1 + A) :=
-      div_le_div_of_nonneg_right hse' (by positivity)
+    have hdiv : A * se / (1 + A) ≤ (1 + A - A * ε₀) * n / (1 + A) := by gcongr
     have hmu_eq : (1 + A - A * ε₀) * n / (1 + A) = (1 - 4 * μ) * n := by
       simp only [μ]; field_simp
     linarith [show A / (1 + A) * se = A * se / (1 + A) by ring]
@@ -1359,12 +1357,10 @@ theorem eventually_agreement_thresholdTop_le_of_layoutBound {A : ℝ} (hA : 0 < 
   have hnum_le : (((K' n - 1) ^ 2 * realizedSize B₀ : ℕ) : ℝ) ≤ (q : ℝ) ^ ((1 - μ) * n) := by
     rw [Nat.cast_mul]
     calc (((K' n - 1) ^ 2 : ℕ) : ℝ) * (realizedSize B₀ : ℝ)
-        ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) * ((V + 1 : ℝ) * (q : ℝ) ^ M_exp) :=
-          mul_le_mul hK'_rpow hrealized (Nat.cast_nonneg _) (by positivity)
+        ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) * ((V + 1 : ℝ) * (q : ℝ) ^ M_exp) := by gcongr
       _ ≤ (q : ℝ) ^ (2 * Real.logb q (K' n)) * ((q : ℝ) ^ (κ * Real.log (V + 1)) *
             (q : ℝ) ^ M_exp) :=
-          mul_le_mul_of_nonneg_left
-            (mul_le_mul_of_nonneg_right hV1_rpow (by positivity)) (by positivity)
+          by gcongr
       _ = (q : ℝ) ^ (2 * Real.logb q (K' n) + (κ * Real.log (V + 1) + M_exp)) := by
           rw [← Real.rpow_add (by positivity), ← Real.rpow_add (by positivity)]
       _ ≤ (q : ℝ) ^ ((1 - μ) * n) := by

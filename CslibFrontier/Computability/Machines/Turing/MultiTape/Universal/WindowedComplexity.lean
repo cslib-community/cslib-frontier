@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedP
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedInit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.DivConq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.FunPropLists
 import CslibFrontier.Tactic.Degree
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
@@ -110,11 +111,6 @@ lemma isBase_inO : ComputableInO simDC.isBase eProb encBool (fun a => (eProb a).
     encUnary encBool 1 0).inO_one.comp_linear prob_n).of_enc_eq fun a =>
       congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
 
-/-- `Option.toList` on symbols, in linear time. -/
-lemma toList_inO : ComputableInO Option.toList eSym (encList encUnary)
-    (fun o => (eSym o).length) (fun o => (eSym o).length) :=
-  (ComputableInDegree.optionToList encUnary).inO_one
-
 lemma length_dw_le (a : Prob) : (encPair eDesc eWin (a.1, a.2.2)).length ≤ (eProb a).length := by
   simp only [length_encPair]; omega
 
@@ -124,7 +120,7 @@ def Tb (a : Prob) : ℕ := ((eProb a).length + 1) ^ 3
 /-- Base problems: no step, or one windowed step. -/
 lemma base_inO : ComputableInO simDC.base eProb eSol Tb Tb := by
   have hstep := wstep_inO.comp (prob_d.prod prob_w)
-  have hlive := hstep.fst'.prod (toList_inO.comp_linear hstep.snd')
+  have hlive := hstep.fst'.prod hstep.snd'.optionToList'
   have hidle := prob_w.prod (const (encMid := encList encUnary) [])
   refine ((((by degree : ComputableInDegree (fun n : ℕ => decide (n = 0))
     encUnary encBool 1 0).inO_one.comp_linear prob_n).ite hidle
@@ -217,8 +213,7 @@ lemma join_inO : ComputableInO simDC.join (encPair eSaved eSol) eSol Tj Tj := by
   have hw2 := (fst eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have ho2 := (snd eWin (encList encUnary)).comp_linear (snd eSaved eSol)
   have hres := restore_inO.comp (hr.prod (hs.fst'.prod hw2))
-  have happ := (ComputableInDegree.listAppend encUnary).inO_one.comp_linear
-    (hs.snd'.prod ho2)
+  have happ := hs.snd'.listAppend' ho2
   refine ((hres.prod happ).mono 8 (fun q => ?_) (fun q => ?_)).of_enc_eq fun q => rfl
   all_goals
     obtain ⟨⟨r, w₁, o₁⟩, w₂', o₂⟩ := q
