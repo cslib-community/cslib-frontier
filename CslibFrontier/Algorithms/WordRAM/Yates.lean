@@ -15,6 +15,7 @@ import CslibFrontier.Computability.WordRAM.Realization.Program.Standard
 import CslibFrontier.Computability.WordRAM.Realization.Signed
 import CslibFrontier.Computability.WordRAM.Realization.Structure
 import CslibFrontier.DataStructure.StateTransition
+import CslibFrontier.Foundations.Data.List.RowMajor
 import CslibFrontier.Tactic.Realize
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Tactic.Ring
@@ -215,70 +216,31 @@ end
 
 /-! ## Butterfly index arithmetic -/
 
-private theorem testBit_add_of_div {i step : ℕ} (hstep : step = 2 ^ i) :
-    ∀ q j, j < step →
-      (q * (2 * step) + j).testBit i = false ∧
-      (q * (2 * step) + step + j).testBit i = true := by
-  intro q j hj
-  have hpos : 0 < 2 ^ i := Nat.two_pow_pos i
-  rw [Nat.testBit_eq_decide_div_mod_eq, Nat.testBit_eq_decide_div_mod_eq]
-  subst hstep
-  have h1 : (q * (2 * 2 ^ i) + j) / 2 ^ i = 2 * q := by
-    rw [show q * (2 * 2 ^ i) + j = 2 * q * 2 ^ i + j by ring,
-      Nat.add_div_of_dvd_right (dvd_mul_left _ _), Nat.mul_div_cancel _ hpos,
-      Nat.div_eq_of_lt hj, add_zero]
-  have h2 : (q * (2 * 2 ^ i) + 2 ^ i + j) / 2 ^ i = 2 * q + 1 := by
-    rw [show q * (2 * 2 ^ i) + 2 ^ i + j = (2 * q + 1) * 2 ^ i + j by ring,
-      Nat.add_div_of_dvd_right (dvd_mul_left _ _), Nat.mul_div_cancel _ hpos,
-      Nat.div_eq_of_lt hj, add_zero]
-  simp [h1, h2]
+private theorem testBit_even_odd_block {i q j : ℕ} (hj : j < 2 ^ i) (r : ℕ) :
+    (2 ^ i * (2 * q) + j).testBit r =
+        (if r < i then j.testBit r else if r = i then false else q.testBit (r - i - 1)) ∧
+      (2 ^ i * (2 * q + 1) + j).testBit r =
+        (if r < i then j.testBit r else if r = i then true else q.testBit (r - i - 1)) := by
+  rw [Nat.testBit_two_pow_mul_add _ hj, Nat.testBit_two_pow_mul_add _ hj]
+  split_ifs with hlt heq
+  · exact ⟨rfl, rfl⟩
+  · subst heq
+    simp [Nat.testBit_zero]
+  · have hsucc : r - i = (r - i - 1).succ := by omega
+    have hd0 : 2 * q / 2 = q := by omega
+    have hd1 : (2 * q + 1) / 2 = q := by omega
+    rw [hsucc, Nat.testBit_succ, Nat.testBit_succ, hd0, hd1]
+    exact ⟨rfl, rfl⟩
 
 private theorem xor_two_pow_of_block {i q j : ℕ} (hj : j < 2 ^ i) :
-    (q * (2 * 2 ^ i) + 2 ^ i + j) ^^^ 2 ^ i = q * (2 * 2 ^ i) + j := by
+    (2 ^ i * (2 * q + 1) + j) ^^^ 2 ^ i = 2 ^ i * (2 * q) + j := by
   refine Nat.eq_of_testBit_eq fun r => ?_
-  rw [Nat.testBit_xor, Nat.testBit_two_pow]
-  rcases lt_trichotomy r i with hri | rfl | hir
-  · have hpow : 2 ^ i = 2 ^ (r + 1) * 2 ^ (i - 1 - r) := by
-      rw [← pow_add, show r + 1 + (i - 1 - r) = i by omega]
-    have hposr : 0 < 2 ^ r := Nat.two_pow_pos r
-    have hpow2 : 2 ^ (r + 1) = 2 * 2 ^ r := by rw [pow_succ']
-    have ha : (q * (2 * 2 ^ i) + 2 ^ i + j) / 2 ^ r % 2 = j / 2 ^ r % 2 := by
-      have hm : q * (2 * 2 ^ i) + 2 ^ i = (q * 2 + 1) * (2 * 2 ^ (i - 1 - r)) * 2 ^ r := by
-        rw [show q * (2 * 2 ^ i) + 2 ^ i = (q * 2 + 1) * 2 ^ i by ring, hpow, hpow2]; ring
-      rw [show q * (2 * 2 ^ i) + 2 ^ i + j = j + (q * 2 + 1) * 2 ^ (i - 1 - r) * 2 * 2 ^ r by
-          rw [hm]; ring,
-        Nat.add_mul_div_right _ _ hposr, Nat.add_mul_mod_self_right]
-    have hb : (q * (2 * 2 ^ i) + j) / 2 ^ r % 2 = j / 2 ^ r % 2 := by
-      have hm : q * (2 * 2 ^ i) = q * (2 * 2 ^ (i - 1 - r)) * 2 * 2 ^ r := by
-        rw [hpow, hpow2]; ring
-      rw [show q * (2 * 2 ^ i) + j = j + q * (2 * 2 ^ (i - 1 - r)) * 2 * 2 ^ r by rw [hm]; ring,
-        Nat.add_mul_div_right _ _ hposr, Nat.add_mul_mod_self_right]
-    simp [Nat.testBit_eq_decide_div_mod_eq, ha, hb, Nat.ne_of_gt hri]
-  · have hpos : 0 < 2 ^ r := Nat.two_pow_pos r
-    have h1 : (q * (2 * 2 ^ r) + 2 ^ r + j) / 2 ^ r = 2 * q + 1 := by
-      rw [show q * (2 * 2 ^ r) + 2 ^ r + j = j + (2 * q + 1) * 2 ^ r by ring,
-        Nat.add_mul_div_right _ _ hpos, Nat.div_eq_of_lt hj, zero_add]
-    have h2 : (q * (2 * 2 ^ r) + j) / 2 ^ r = 2 * q := by
-      rw [show q * (2 * 2 ^ r) + j = j + (2 * q) * 2 ^ r by ring,
-        Nat.add_mul_div_right _ _ hpos, Nat.div_eq_of_lt hj, zero_add]
-    simp [Nat.testBit_eq_decide_div_mod_eq, h1, h2]
-  · have hpos1 : 0 < 2 ^ (i + 1) := Nat.two_pow_pos (i + 1)
-    have hpowr : 2 ^ r = 2 ^ (i + 1) * 2 ^ (r - i - 1) := by
-      rw [← pow_add, show i + 1 + (r - i - 1) = r by omega]
-    have hdiv1 : (2 ^ i + j) / 2 ^ (i + 1) = 0 :=
-      Nat.div_eq_of_lt (by rw [pow_succ']; omega)
-    have hdiv2 : j / 2 ^ (i + 1) = 0 :=
-      Nat.div_eq_of_lt (lt_of_lt_of_le hj (by rw [pow_succ']; omega))
-    have ha : (q * (2 * 2 ^ i) + 2 ^ i + j) / 2 ^ r = q / 2 ^ (r - i - 1) := by
-      rw [hpowr, ← Nat.div_div_eq_div_mul,
-        show q * (2 * 2 ^ i) + 2 ^ i + j = (2 ^ i + j) + q * 2 ^ (i + 1) by
-          rw [pow_succ']; ring,
-        Nat.add_mul_div_right _ _ hpos1, hdiv1, zero_add]
-    have hb : (q * (2 * 2 ^ i) + j) / 2 ^ r = q / 2 ^ (r - i - 1) := by
-      rw [hpowr, ← Nat.div_div_eq_div_mul,
-        show q * (2 * 2 ^ i) + j = j + q * 2 ^ (i + 1) by rw [pow_succ']; ring,
-        Nat.add_mul_div_right _ _ hpos1, hdiv2, zero_add]
-    simp [Nat.testBit_eq_decide_div_mod_eq, ha, hb, Nat.ne_of_lt hir]
+  obtain ⟨heven, hodd⟩ := testBit_even_odd_block hj r
+  rw [Nat.testBit_xor, Nat.testBit_two_pow, hodd, heven]
+  split_ifs with hlt heq
+  · simp [Nat.ne_of_gt hlt]
+  · simp [heq]
+  · simp [Ne.symm heq]
 
 private def loIdx (step p : ℕ) : ℕ :=
   p + (p / step) * step
@@ -287,13 +249,13 @@ private def hiIdx (step p : ℕ) : ℕ :=
   loIdx step p + step
 
 private theorem loIdx_eq_block (step p : ℕ) :
-    loIdx step p = (p / step) * (2 * step) + p % step := by
+    loIdx step p = step * (2 * (p / step)) + p % step := by
   have hdiv := Nat.div_add_mod p step
   unfold loIdx
-  linarith [show (p / step) * (2 * step) = (p / step) * step + step * (p / step) by ring]
+  linarith [show step * (2 * (p / step)) = step * (p / step) + (p / step) * step by ring]
 
 private theorem hiIdx_eq_block (step p : ℕ) :
-    hiIdx step p = (p / step) * (2 * step) + step + p % step := by
+    hiIdx step p = step * (2 * (p / step) + 1) + p % step := by
   unfold hiIdx
   rw [loIdx_eq_block]
   ring
@@ -301,22 +263,21 @@ private theorem hiIdx_eq_block (step p : ℕ) :
 private theorem hiIdx_lt_two_pow {n i p : ℕ} (hi : i < n) (hp : p < 2 ^ (n - 1)) :
     hiIdx (2 ^ i) p < 2 ^ n := by
   have hpos : 0 < 2 ^ i := Nat.two_pow_pos i
-  have hpow_half : 2 ^ (n - 1) = 2 ^ (n - 1 - i) * 2 ^ i := by
-    rw [← pow_add, show n - 1 - i + i = n - 1 by omega]
+  have hpow_half : 2 ^ (n - 1) = 2 ^ i * 2 ^ (n - 1 - i) := by
+    rw [← pow_add, show i + (n - 1 - i) = n - 1 by omega]
   have hq : p / 2 ^ i < 2 ^ (n - 1 - i) :=
-    Nat.div_lt_of_lt_mul (by rw [mul_comm, ← hpow_half]; exact hp)
+    Nat.div_lt_of_lt_mul (by rw [← hpow_half]; exact hp)
   have hj : p % 2 ^ i < 2 ^ i := Nat.mod_lt p hpos
-  have hpow_full : 2 ^ (n - 1 - i) * (2 * 2 ^ i) = 2 ^ n := by
+  have hpow_full : 2 ^ i * (2 * 2 ^ (n - 1 - i)) = 2 ^ n := by
     calc
-      2 ^ (n - 1 - i) * (2 * 2 ^ i) = 2 * (2 ^ (n - 1 - i) * 2 ^ i) := by ring
+      2 ^ i * (2 * 2 ^ (n - 1 - i)) = 2 * (2 ^ i * 2 ^ (n - 1 - i)) := by ring
       _ = 2 * 2 ^ (n - 1) := by rw [← hpow_half]
       _ = 2 ^ n := by rw [← pow_succ', show n - 1 + 1 = n by omega]
-  have hblock : (p / 2 ^ i + 1) * (2 * 2 ^ i) ≤ 2 ^ n := by
+  have hblock : 2 ^ i * (2 * (p / 2 ^ i) + 2) ≤ 2 ^ n := by
     rw [← hpow_full]
-    exact Nat.mul_le_mul_right _ hq
+    exact Nat.mul_le_mul_left _ (by omega)
   rw [hiIdx_eq_block]
-  linarith [show (p / 2 ^ i + 1) * (2 * 2 ^ i) =
-    (p / 2 ^ i) * (2 * 2 ^ i) + 2 ^ i + 2 ^ i by ring]
+  linarith [show 2 ^ i * (2 * (p / 2 ^ i) + 2) = 2 ^ i * (2 * (p / 2 ^ i) + 1) + 2 ^ i by ring]
 
 private theorem loIdx_lt_hiIdx {step : ℕ} (hpos : 0 < step) (p : ℕ) :
     loIdx step p < hiIdx step p := by
@@ -326,12 +287,12 @@ private theorem loIdx_lt_hiIdx {step : ℕ} (hpos : 0 < step) (p : ℕ) :
 private theorem loIdx_testBit_false (i p : ℕ) :
     (loIdx (2 ^ i) p).testBit i = false := by
   rw [loIdx_eq_block]
-  exact (testBit_add_of_div rfl (p / 2 ^ i) (p % 2 ^ i) (Nat.mod_lt _ (Nat.two_pow_pos i))).1
+  simpa using (testBit_even_odd_block (q := p / 2 ^ i) (Nat.mod_lt _ (Nat.two_pow_pos i)) i).1
 
 private theorem hiIdx_testBit_true (i p : ℕ) :
     (hiIdx (2 ^ i) p).testBit i = true := by
   rw [hiIdx_eq_block]
-  exact (testBit_add_of_div rfl (p / 2 ^ i) (p % 2 ^ i) (Nat.mod_lt _ (Nat.two_pow_pos i))).2
+  simpa using (testBit_even_odd_block (q := p / 2 ^ i) (Nat.mod_lt _ (Nat.two_pow_pos i)) i).2
 
 private theorem hiIdx_xor_two_pow (i p : ℕ) :
     hiIdx (2 ^ i) p ^^^ 2 ^ i = loIdx (2 ^ i) p := by
@@ -352,40 +313,38 @@ private theorem exists_hiIdx_iff_testBit {n i m : ℕ} (hi : i < n) (hm : m < 2 
     exact hiIdx_testBit_true i p
   · intro hbit
     have hpos : 0 < 2 ^ i := Nat.two_pow_pos i
-    have hpos2 : 0 < 2 * 2 ^ i := by omega
-    set q := m / (2 * 2 ^ i)
-    set rem := m % (2 * 2 ^ i)
-    have hm_eq : m = q * (2 * 2 ^ i) + rem := by
-      have hdiv : (2 * 2 ^ i) * q + rem = m := Nat.div_add_mod m (2 * 2 ^ i)
-      linarith [show (2 * 2 ^ i) * q = q * (2 * 2 ^ i) by ring]
-    have hrem_lt : rem < 2 * 2 ^ i := Nat.mod_lt m hpos2
-    have hrem_ge : 2 ^ i ≤ rem := by
-      by_contra hlt
-      have hfalse := (testBit_add_of_div rfl q rem (Nat.lt_of_not_ge hlt)).1
-      rw [← hm_eq, hbit] at hfalse
-      cases hfalse
-    set j := rem - 2 ^ i
-    have hj : j < 2 ^ i := by omega
-    have hpow_full : 2 ^ (n - 1 - i) * (2 * 2 ^ i) = 2 ^ n := by
-      rw [show 2 * 2 ^ i = 2 ^ (i + 1) by rw [pow_succ'], ← pow_add,
-        show n - 1 - i + (i + 1) = n by omega]
-    have hq_lt : q < 2 ^ (n - 1 - i) :=
-      Nat.div_lt_of_lt_mul (by rw [mul_comm, hpow_full]; exact hm)
-    refine ⟨q * 2 ^ i + j, ?_, ?_⟩
-    · have hpow_half : 2 ^ (n - 1 - i) * 2 ^ i = 2 ^ (n - 1) := by
-        rw [← pow_add, show n - 1 - i + i = n - 1 by omega]
-      have hq1 : (q + 1) * 2 ^ i ≤ 2 ^ (n - 1) := by
+    set b := m / 2 ^ i
+    set j := m % 2 ^ i
+    have hm_eq : 2 ^ i * b + j = m := Nat.div_add_mod m (2 ^ i)
+    have hj : j < 2 ^ i := Nat.mod_lt m hpos
+    have hb_odd : b % 2 = 1 := by
+      have hb0 := Nat.testBit_two_pow_mul_add b hj i
+      rw [hm_eq, hbit] at hb0
+      simpa [Nat.testBit_zero] using hb0.symm
+    set q := b / 2
+    have hb_eq : b = 2 * q + 1 := by omega
+    have hpow_half : 2 ^ i * 2 ^ (n - 1 - i) = 2 ^ (n - 1) := by
+      rw [← pow_add, show i + (n - 1 - i) = n - 1 by omega]
+    have hpow_full : 2 ^ i * (2 * 2 ^ (n - 1 - i)) = 2 ^ n := by
+      calc
+        2 ^ i * (2 * 2 ^ (n - 1 - i)) = 2 * (2 ^ i * 2 ^ (n - 1 - i)) := by ring
+        _ = 2 * 2 ^ (n - 1) := by rw [hpow_half]
+        _ = 2 ^ n := by rw [← pow_succ', show n - 1 + 1 = n by omega]
+    have hb_lt : b < 2 * 2 ^ (n - 1 - i) :=
+      Nat.div_lt_of_lt_mul (by rw [hpow_full]; exact hm)
+    have hq_lt : q < 2 ^ (n - 1 - i) := by omega
+    refine ⟨2 ^ i * q + j, ?_, ?_⟩
+    · have hq1 : 2 ^ i * (q + 1) ≤ 2 ^ (n - 1) := by
         rw [← hpow_half]
-        exact Nat.mul_le_mul_right _ hq_lt
-      linarith [show (q + 1) * 2 ^ i = q * 2 ^ i + 2 ^ i by ring]
-    · have hp_div : (q * 2 ^ i + j) / 2 ^ i = q := by
-        rw [show q * 2 ^ i + j = j + q * 2 ^ i by ring,
+        exact Nat.mul_le_mul_left _ hq_lt
+      linarith [show 2 ^ i * (q + 1) = 2 ^ i * q + 2 ^ i by ring]
+    · have hp_div : (2 ^ i * q + j) / 2 ^ i = q := by
+        rw [show 2 ^ i * q + j = j + q * 2 ^ i by ring,
           Nat.add_mul_div_right _ _ hpos, Nat.div_eq_of_lt hj, zero_add]
-      have hp_mod : (q * 2 ^ i + j) % 2 ^ i = j := by
-        rw [show q * 2 ^ i + j = j + q * 2 ^ i by ring,
+      have hp_mod : (2 ^ i * q + j) % 2 ^ i = j := by
+        rw [show 2 ^ i * q + j = j + q * 2 ^ i by ring,
           Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
-      rw [hiIdx_eq_block, hp_div, hp_mod]
-      omega
+      rw [hiIdx_eq_block, hp_div, hp_mod, ← hb_eq, hm_eq]
 
 /-! ## `Memory.Prog` butterfly client and `Realizes` certificates -/
 
@@ -758,9 +717,8 @@ private theorem butterflyProg_spec {w n : ℕ}
       let prev := ((List.finRange n).take i).foldl (fun t j => stepTable j t) t₀
       let idxFin : Fin n := ⟨i, hi⟩
       let next := stepTable idxFin prev
-      have htake_succ : (List.finRange n).take (i + 1) = (List.finRange n).take i ++ [idxFin] := by
-        rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hi)]
-        simp [idxFin]
+      have htake_succ : (List.finRange n).take (i + 1) = (List.finRange n).take i ++ [idxFin] :=
+        List.take_succ_finRange hi
       have hpass := passProg_spec (w := w) opWord prev next Pval hi
         (fun k => hstep_def idxFin prev k) hop_exec
         (fun k => hP_fold i (Nat.le_of_lt hi) k) s (by rw [hs_fr]; exact hfr) hfit_addr hs_arr
@@ -944,34 +902,34 @@ private theorem foldl_nat_eq_zeta (I : NatInstance) :
     ← getElem_zeta I.entries (fun S => I.entries[(maskIndex S).1])
       (getElem_eq_maskIndex_maskSet I.entries) k hk']
 
-private theorem foldl_int_yatesPass_eq {n : ℕ} (c : ℤ) (F₀ : Finset (Fin n) → ℤ) :
-    ∀ (l : List (Fin n)) (k : Fin (2 ^ n)),
-      (l.foldl (fun t (i : Fin n) => fun m : Fin (2 ^ n) =>
-        if m.1.testBit i.1 then
-          Cslib.WordRAM.Signed.encode (Cslib.WordRAM.Signed.decode (t m) +
-            c * Cslib.WordRAM.Signed.decode (t ⟨m.1 ^^^ 2 ^ i.1,
-              Nat.xor_lt_two_pow m.isLt (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩))
-        else t m)
-        (fun m => Cslib.WordRAM.Signed.encode (F₀ (maskSet n m.1)))) k =
-      Cslib.WordRAM.Signed.encode (yatesTransform c l F₀ (maskSet n k.1))
-  | [], _ => rfl
-  | i :: l, k => by
-    simp only [List.foldl_cons, yatesTransform_cons]
-    have hstep : (fun m : Fin (2 ^ n) =>
-        if m.1.testBit i.1 then
-          Cslib.WordRAM.Signed.encode
-            (Cslib.WordRAM.Signed.decode (Cslib.WordRAM.Signed.encode (F₀ (maskSet n m.1))) +
-              c * Cslib.WordRAM.Signed.decode
-                (Cslib.WordRAM.Signed.encode (F₀ (maskSet n (m.1 ^^^ 2 ^ i.1)))))
-        else Cslib.WordRAM.Signed.encode (F₀ (maskSet n m.1))) =
-        fun m : Fin (2 ^ n) => Cslib.WordRAM.Signed.encode (yatesPass c i F₀ (maskSet n m.1)) := by
+private theorem foldl_int_yatesPass_eq {n : ℕ} (c : ℤ) (F₀ : Finset (Fin n) → ℤ)
+    (l : List (Fin n)) (k : Fin (2 ^ n)) :
+    (l.foldl (fun t (i : Fin n) => fun m : Fin (2 ^ n) =>
+      if m.1.testBit i.1 then
+        Cslib.WordRAM.Signed.encode (Cslib.WordRAM.Signed.decode (t m) +
+          c * Cslib.WordRAM.Signed.decode (t ⟨m.1 ^^^ 2 ^ i.1,
+            Nat.xor_lt_two_pow m.isLt (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩))
+      else t m)
+      (fun m => Cslib.WordRAM.Signed.encode (F₀ (maskSet n m.1)))) k =
+      Cslib.WordRAM.Signed.encode (yatesTransform c l F₀ (maskSet n k.1)) := by
+  let encTbl : (Fin (2 ^ n) → ℤ) → Fin (2 ^ n) → ℕ := fun t m => Cslib.WordRAM.Signed.encode (t m)
+  have hhom := List.foldl_hom encTbl
+    (g₁ := fun t (i : Fin n) => fun m : Fin (2 ^ n) =>
+      if m.1.testBit i.1 then t m + c • t ⟨m.1 ^^^ 2 ^ i.1,
+        Nat.xor_lt_two_pow m.isLt (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩ else t m)
+    (g₂ := fun t (i : Fin n) => fun m : Fin (2 ^ n) =>
+      if m.1.testBit i.1 then
+        Cslib.WordRAM.Signed.encode (Cslib.WordRAM.Signed.decode (t m) +
+          c * Cslib.WordRAM.Signed.decode (t ⟨m.1 ^^^ 2 ^ i.1,
+            Nat.xor_lt_two_pow m.isLt (Nat.pow_lt_pow_right (by norm_num) i.isLt)⟩))
+      else t m)
+    (l := l) (init := fun m => F₀ (maskSet n m.1))
+    fun t i => by
       funext m
-      simp only [yatesPass, mem_maskSet, Cslib.WordRAM.Signed.decode_encode, smul_eq_mul]
-      split_ifs with hm
-      · rw [maskSet_xor_two_pow hm]
-      · rfl
-    rw [hstep]
-    exact foldl_int_yatesPass_eq c (yatesPass c i F₀) l k
+      dsimp only [encTbl]
+      split_ifs <;> simp [Cslib.WordRAM.Signed.decode_encode]
+  exact (congrFun hhom k).trans
+    (congrArg Cslib.WordRAM.Signed.encode (foldl_yatesPass_eq_of_fn c F₀ l k))
 
 private theorem foldl_int_eq_transform (I : IntInstance) (c : ℤ) (hc : c = 1 ∨ c = -1) :
     List.ofFn ((List.finRange I.n).foldl
