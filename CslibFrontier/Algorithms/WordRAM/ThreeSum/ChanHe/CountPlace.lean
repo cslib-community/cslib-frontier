@@ -109,8 +109,9 @@ def program : Code .standard 64 :=
 counter can change. All caller registers at least 46 are included in this frame. -/
 theorem preserves (i : Fin 64) (hi : 32 ≤ i.val) (hm : i ≠ CountCall.modulus)
     (hc : i ≠ CountCall.result 2) : program.Preserves i := by
-  have h : 32 ≤ i.val ∧ i ≠ CountCall.modulus ∧ i ≠ CountCall.result 2 := ⟨hi, hm, hc⟩
-  fin_cases i <;> norm_num [CountCall.modulus, CountCall.result] at h <;> decide
+  have h : ∀ i : Fin 64, 32 ≤ i.val → i ≠ CountCall.modulus → i ≠ CountCall.result 2 →
+      program.Preserves i := by decide +kernel
+  exact h i hi hm hc
 
 /-- Polynomial envelope for addresses, counters, encoded magnitudes and every scan intermediate. -/
 def budget (x : Data 64) (M N U t : ℕ) : ℕ :=

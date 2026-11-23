@@ -769,8 +769,7 @@ theorem randomPrefixGame_forgery_le_freshExpansionGame (C : QuantumSigningForger
     C.privateMaskSeedGame_le_freshExpansionGame s base ((by decide : 528 ≤ 1024).trans ha)
       (width.trans hb) hn seedSize hm
   apply (C.randomPrefixGame_forgery_le_of_query_budget s base ha hb hn hsize hm).trans
-  exact add_le_add (add_le_add (add_le_add (pow_le_pow_left₀ (by positivity)
-    (add_le_add (Real.sqrt_le_sqrt (add_le_add fresh le_rfl)) le_rfl) 2) le_rfl) le_rfl) le_rfl
+  gcongr
 
 end QuantumSigningForger
 

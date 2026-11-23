@@ -9,6 +9,8 @@ module
 
 public import CslibFrontier.DataStructure.Dictionary.WordRAM.SuccinctSearch
 import CslibFrontier.Tactic.Realize
+import CslibFrontier.Tactic.UpdateSimp
+import CslibFrontier.Tactic.ValidProg
 import CslibFrontier.Tactic.WramOmega
 
 /-!
@@ -134,6 +136,7 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
         (by rw [hhead b' hb' m' hm', ite_eq_right hbm])
         (fun x hx => ?_) (fun x hx => ?_)
       · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx
+        have hx_ne_new : b' = b → x ≠ j_new := fun hb_eq heq => hj_not m' hm' (hb_eq ▸ heq ▸ hx)
         rw [hprev b' hb' x hx_cap]
         split_ifs with hb_eq hpos
         · subst hb_eq
@@ -141,18 +144,15 @@ theorem lmPrependProg_allChainsValid {U V w n_max h_space base b m j_new : ℕ}
           have hold_mem := ((hvalid.1 b' hb' m hm).head_sub_one_mem hpos).1
           have hx_ne_old : x ≠ lmHead n_max (lmAt base U V w n_max h_space s.mem) b' m - 1 :=
             fun heq => hm_ne (hvalid.2 b' hb' m' hm' m hm x hx (heq ▸ hold_mem))
-          have hx_ne_new : x ≠ j_new := fun heq => hj_not m' hm' (heq ▸ hx)
-          rw [Function.update_of_ne hx_ne_old, Function.update_of_ne hx_ne_new]
-        · subst hb_eq
-          have hx_ne_new : x ≠ j_new := fun heq => hj_not m' hm' (heq ▸ hx)
-          rw [Function.update_of_ne hx_ne_new]
+          have := hx_ne_new rfl
+          update_simp
+        · subst hb_eq; have := hx_ne_new rfl; update_simp
         · rfl
       · have hx_cap := (hvalid.1 b' hb' m' hm').lt_cap_of_mem hx
         rw [hnext b' hb' x hx_cap]
         split_ifs with hb_eq
-        · subst hb_eq
-          have hx_ne_new : x ≠ j_new := fun heq => hj_not m' hm' (heq ▸ hx)
-          rw [Function.update_of_ne hx_ne_new]
+        · subst hb_eq; have : x ≠ j_new := fun heq => hj_not m' hm' (heq ▸ hx)
+          update_simp
         · rfl
   · dsimp only [L'] at hj₁ hj₂
     by_cases h1 : b' = b ∧ m₁ = m <;> by_cases h2 : b' = b ∧ m₂ = m
@@ -294,10 +294,7 @@ theorem memoryCost_prependIfIndexedProg_le (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (prependIfIndexedProg U V w n_max h_space d) s ≤ 18 := by
   simp only [prependIfIndexedProg, prependIfIndexedGenProg, p_minCap_mk, lmPrependGenProg_mk]
-  simp only [pure_bind]
-  split_ifs
-  · exact memoryCost_lmPrependProg_le U V w n_max h_space d s
-  · simp [memoryCost_pure]
+  prog_cost [memoryCost_lmPrependProg_le]
 
 /-- Precondition for `prependIfIndexedProg` in `Realizes`. -/
 @[expose]
@@ -440,10 +437,7 @@ theorem memoryCost_unlinkIfIndexedProg_le (U V w n_max h_space : ℕ)
     (d : ((ℕ × ℕ) × ℕ) × ℕ) (s : Memory.State) :
     memoryCost (unlinkIfIndexedProg U V w n_max h_space d) s ≤ 12 := by
   simp only [unlinkIfIndexedProg, unlinkIfIndexedGenProg, p_minCap_mk, lmUnlinkGenProg_mk]
-  simp only [pure_bind]
-  split_ifs
-  · exact memoryCost_lmUnlinkProg_le U V w n_max h_space d s
-  · simp [memoryCost_pure]
+  prog_cost [memoryCost_lmUnlinkProg_le]
 
 /-- Precondition for `unlinkIfIndexedProg` in `Realizes`. -/
 @[expose]
@@ -580,9 +574,7 @@ theorem memoryCost_readTotalSlotsProg_le (U V w n_max h_space : ℕ) (base : ℕ
     memoryCost (readTotalSlotsProg U V w n_max h_space base) s ≤ 4 := by
   simp only [readTotalSlotsProg, readTotalSlotsGenProg, ite_bucketBits_mk, readGMGenProg_mk,
     p_slabSize_mk]
-  split_ifs
-  · change 2 ≤ 4; omega
-  · change 4 ≤ 4; omega
+  prog_cost [memoryCost_readGMProg]
 
 theorem clientResult_readTotalSlotsProg (U V w n_max h_space : ℕ) (base : ℕ) (s : Memory.State) :
     (Memory.spec 0).clientResult s (readTotalSlotsProg U V w n_max h_space base) =
@@ -653,11 +645,9 @@ theorem memoryCost_copyLastPayloadProg_le (U V w n_max h_space : ℕ)
     memoryCost (copyLastPayloadProg U V w n_max h_space d) s ≤ 20 := by
   simp only [copyLastPayloadProg, copyLastPayloadGenProg, lastSlotOfGenProg_mk, readQuotGenProg_mk,
     readValGenProg_mk, writeQuotGenProg_mk, writeValGenProg_mk]
-  simp only [← PFunctor.FreeM.bind_eq_bind, memoryCost_bind,
-    memoryCost_readQuotProg, memoryCost_readValProg,
-    memoryCost_writeQuotProg, memoryCost_writeValProg]
   have := memoryCost_lastSlotOfProg_le U V w n_max h_space d.1 s
-  omega
+  prog_cost [memoryCost_readQuotProg, memoryCost_readValProg,
+    memoryCost_writeQuotProg, memoryCost_writeValProg]
 
 /-- Precondition for `copyLastPayloadProg` in `Realizes`. -/
 @[expose]

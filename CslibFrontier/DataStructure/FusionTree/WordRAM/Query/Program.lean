@@ -10,6 +10,7 @@ module
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Node
 public import CslibFrontier.DataStructure.FusionTree.WordRAM.Binary
 public import CslibFrontier.Computability.WordRAM.Compile
+import CslibFrontier.Computability.WordRAM.SymbolicExec.Frame
 
 /-!
 # Actual fusion-tree traversal instructions
@@ -140,10 +141,8 @@ def initialized (x : Data registers) : Data registers :=
 /-- Five charged constant instructions establish all traversal constants. -/
 theorem exec_initialize {w : ℕ} (x : Data registers) (hw : Fits w 1) :
     Exec w setup x (initialized x) 5 ∧
-      Entry (x.regs query) (x.regs pointer) (initialized x) := by
-  refine ⟨?_, ?_⟩
-  · ram_eval [setup, initialized, hw, fits_zero w]
-  · constructor <;> simp +decide [initialized]
+      Entry (x.regs query) (x.regs pointer) (initialized x) :=
+  ⟨by unfold setup initialized; wram_exec, by constructor <;> simp +decide [initialized]⟩
 
 /-- Updating traversal scratch preserves the entry invariant. -/
 theorem Entry.set_scratch {q p : ℕ} {x : Data registers} (hx : Entry q p x)
@@ -171,13 +170,10 @@ def leafResult (x : Data registers) (p q : ℕ) : Data registers :=
 theorem exec_leaf {w q p : ℕ} {x : Data registers} (hx : Entry q p x)
     (ha : Fits w (p + 2)) :
     ExecWithin w leaf x (leafResult x p q) 12 := by
-  have hp1 := ha.of_le (show p + 1 ≤ p + 2 by omega)
-  rcases hx with ⟨hq, hp, _, _, _, ho, hz⟩
   by_cases hn : x.mem (p + 1) = 0
-  · ram_eval [leaf, leafResult, hp, hq, ho, hz, hn, hp1, ha, fits_zero w]
-  · by_cases hlt : q < x.mem (p + 2)
-    · ram_eval [leaf, leafResult, hp, hq, ho, hz, hn, hlt, hp1, ha, fits_zero w]
-    · ram_eval [leaf, leafResult, hp, hq, ho, hz, hn, hlt, hp1, ha, fits_zero w]
+  · simp only [leaf, leafResult, hn, ↓reduceIte]; wram_exec *
+  · by_cases hlt : q < x.mem (p + 2) <;>
+      (simp only [leaf, leafResult, hn, hlt, ↓reduceIte]; wram_exec *)
 
 /-- Leaf execution stops, preserves memory and query, and returns a canonical option. -/
 theorem leafResult_spec {q p : ℕ} {x : Data registers} (hx : Entry q p x) :
@@ -203,14 +199,8 @@ def followResult (x : Data registers) (p r : ℕ) : Data registers :=
 theorem exec_follow {w q p r : ℕ} {x : Data registers} (hx : Entry q p x)
     (hr : x.regs rank = r) (ha : Fits w (p + 19 + 2 * (r - 1))) :
     Exec w follow x (followResult x p r) 6 := by
-  have h19 := ha.of_le (show 19 ≤ p + 19 + 2 * (r - 1) by omega)
-  have hr1 := ha.of_le (show r - 1 ≤ p + 19 + 2 * (r - 1) by omega)
-  have hr2 := ha.of_le (show 2 * (r - 1) ≤ p + 19 + 2 * (r - 1) by omega)
-  have hp2 := ha.of_le (show p + 2 * (r - 1) ≤ p + 19 + 2 * (r - 1) by omega)
-  have ha' : Fits w (p + 2 * (r - 1) + 19) := by convert ha using 1; omega
-  rcases hx with ⟨hq, hp, _, _, _, ho, hz⟩
-  ram_eval [follow, followResult, hr, hp, ho, h19, hr1, hr2, hp2, ha',
-    ← two_mul, show p + 2 * (r - 1) + 19 = p + 19 + 2 * (r - 1) by omega, ha]
+  unfold follow followResult
+  wram_exec * [← two_mul, show p + 2 * (r - 1) + 19 = p + 19 + 2 * (r - 1) by omega]
 
 /-- Following a child preserves the invariant, changing only the current record address. -/
 theorem followResult_entry {q p r : ℕ} {x : Data registers} (hx : Entry q p x) :

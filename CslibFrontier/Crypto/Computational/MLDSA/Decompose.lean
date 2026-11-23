@@ -330,8 +330,7 @@ theorem decompose_intCast_mul_add (hγ : 0 < γ₂) (hdvd : 2 * γ₂ ∣ q - 1)
   by_cases hx : 0 ≤ a * (2 * γ₂) + b
   · -- No reduction modulo `q` happens, and this is not the wrap-around case.
     have hxq : a * (2 * γ₂) + b < q := by
-      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) :=
-        mul_le_mul_of_nonneg_right (by omega) (by positivity)
+      have : a * (2 * γ₂) ≤ (m - 1) * (2 * γ₂) := by gcongr; omega
       linarith
     have hv : (r.val : ℤ) = a * (2 * γ₂) + b := by
       rw [hval, Int.emod_eq_of_lt hx hxq]
