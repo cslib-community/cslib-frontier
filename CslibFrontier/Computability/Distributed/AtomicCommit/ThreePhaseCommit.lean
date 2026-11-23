@@ -355,53 +355,34 @@ private theorem threePC_canReach_trans {s₁ s₂ s₃ : ThreePCState P}
   rcases h₂ with ⟨tr₂, hm₂⟩
   exact ⟨tr₁ ++ tr₂, hm₁.comp _ hm₂⟩
 
+omit [Fintype P] in
+private theorem threePC_decision_update {st : P → ThreePCLocalState} {q p : P}
+    {newSt : ThreePCLocalState} {d : Decision}
+    (hq : ∀ d', (st q).decision = some d' → newSt.decision = some d')
+    (hd : (st p).decision = some d) :
+    (Function.update st q newSt p).decision = some d := by
+  by_cases hp : p = q
+  · subst hp; rw [Function.update_self]; exact hq d hd
+  · rwa [Function.update_of_ne hp]
+
 private theorem step_threePC_decision_stable {s s' : ThreePCState P} {act : ThreePCAction P}
     (hstep : threePCStep? votes s act = some s') {p : P} {d : Decision}
     (hd : s.decision p = some d) : s'.decision p = some d := by
   cases act <;> dsimp only [threePCStep?] at hstep <;> split at hstep <;> cases hstep <;>
     dsimp only [ThreePCState.decision] at hd ⊢
-  · rename_i q hg
-    by_cases hp : p = q
-    · subst hp; simp [hg.2.2] at hd
-    · simpa [Function.update, hp] using hd
+  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2]) hd
+  · rename_i hg; exact threePC_decision_update (by simp [hg.2.2.2 s.coord hg.1]) hd
   · rename_i hg
-    by_cases hp : p = s.coord
-    · rw [hp] at hd
-      have hunc : s.localState s.coord = .uncertain := hg.2.2.2 s.coord hg.1
-      simp [hunc] at hd
-    · simpa [Function.update, hp] using hd
+    exact threePC_decision_update
+      (by have := hg.2.2.1; cases h : s.localState s.coord <;>
+            simp_all [ThreePCLocalState.isCommittable]) hd
+  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2.2]) hd
   · rename_i hg
-    by_cases hp : p = s.coord
-    · rw [hp] at hd ⊢
-      rw [Function.update_self]
-      have hnc := hg.2.2.1
-      cases hst : s.localState s.coord <;>
-        simp [hst, ThreePCLocalState.isCommittable] at hd hnc
-      exact hd.symm ▸ rfl
-    · simpa [Function.update, hp] using hd
+    exact threePC_decision_update
+      (by have := hg.2.2.1; cases h : s.localState s.coord <;> simp_all) hd
+  · rename_i q hg; exact threePC_decision_update (by simp [hg.2.2.2]) hd
   · rename_i q hg
-    by_cases hp : p = q
-    · subst hp; simp [hg.2.2.2] at hd
-    · simpa [Function.update, hp] using hd
-  · rename_i hg
-    by_cases hp : p = s.coord
-    · rw [hp] at hd ⊢
-      rw [Function.update_self]
-      have hna := hg.2.2.1
-      cases hst : s.localState s.coord <;> simp [hst] at hd hna
-      exact hd.symm ▸ rfl
-    · simpa [Function.update, hp] using hd
-  · rename_i q hg
-    by_cases hp : p = q
-    · subst hp; simp [hg.2.2.2] at hd
-    · simpa [Function.update, hp] using hd
-  · rename_i q hg
-    by_cases hp : p = q
-    · subst hp
-      rcases hg.2.2.2 with hinit | hunc
-      · simp [hinit] at hd
-      · simp [hunc] at hd
-    · simpa [Function.update, hp] using hd
+    exact threePC_decision_update (by rcases hg.2.2.2 with h | h <;> simp [h]) hd
   · exact hd
   · exact hd
 
@@ -516,80 +497,70 @@ private theorem threePCInvariant_set_committed {s : ThreePCState P} (r : P)
       phase_committing := fun _ => ⟨fun q => ⟨(hyes_ni q).1, hnew_ni q⟩, hnew_nab, hnew_alive⟩
       phase_aborting := fun h => by cases h }
 
+omit [DecidableEq P] [Fintype P] in
+private theorem backupPhase_ne_collectingVotes (al : Finset P) (st : P → ThreePCLocalState) :
+    backupPhase al st ≠ .collectingVotes := by
+  unfold backupPhase; split_ifs <;> decide
+
+omit [Fintype P] in
+private theorem threePCInvariant_of_all_noncommittable {s : ThreePCState P}
+    {ph : ThreePCPhase} (r : P) (v : ThreePCLocalState)
+    (hinv : ThreePCInvariant votes s)
+    (hph : ph = .collectingVotes ∨ ph = .aborting)
+    (hv_nc : v.isCommittable = false)
+    (hv_vote : v ≠ .init → v = .aborted ∨ votes r = .yes)
+    (hno_comm : ∀ q, (s.localState q).isCommittable = false) :
+    ThreePCInvariant votes
+      { s with phase := ph, localState := Function.update s.localState r v } :=
+  have hnew_nc := functionUpdate_forall r v (·.isCommittable = false) hv_nc hno_comm
+  { noninit_votes := fun p hp => by
+      dsimp only at hp ⊢
+      by_cases hpr : p = r
+      · subst hpr; rw [Function.update_self] at hp ⊢; exact hv_vote hp
+      · rw [Function.update_of_ne hpr] at hp ⊢; exact hinv.noninit_votes p hp
+    committable_all_yes := fun ⟨p, hp⟩ => by rw [hnew_nc p] at hp; cases hp
+    aborted_disjoint_alive_committable := fun _ p _ => hnew_nc p
+    committed_disjoint_aborted := fun p _ hp =>
+      absurd hp (not_committed_of_not_committable (hnew_nc p))
+    committed_imp_alive_committable := fun ⟨p, hp⟩ =>
+      False.elim (not_committed_of_not_committable (hnew_nc p) hp)
+    phase_collecting := fun _ p => hnew_nc p
+    phase_preCommitting := fun h => by rcases hph with rfl | rfl <;> cases h
+    phase_committing := fun h => by rcases hph with rfl | rfl <;> cases h
+    phase_aborting := fun _ =>
+      ⟨fun q => not_committed_of_not_committable (hnew_nc q), fun q _ => hnew_nc q⟩ }
+
 private theorem threePCInvariant_step {s s' : ThreePCState P} {act : ThreePCAction P}
     (hinv : ThreePCInvariant votes s) (hstep : threePCStep? votes s act = some s') :
     ThreePCInvariant votes s' := by
   cases act <;> dsimp only [threePCStep?] at hstep <;> split at hstep <;> cases hstep
   case castVote.isTrue p₀ hg =>
-    have hno_comm : ∀ r, (s.localState r).isCommittable = false := hinv.phase_collecting hg.2.1
-    have hnew_ncomm : ∀ r,
-        (Function.update s.localState p₀
-          (if votes p₀ = .yes then .uncertain else .aborted) r).isCommittable = false := by
-      intro r
-      by_cases hr : r = p₀
-      · subst hr; rw [Function.update_self]; split <;> rfl
-      · rw [Function.update_of_ne hr _ _]; exact hno_comm r
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro p hp; dsimp only at hp ⊢
-      by_cases hpp : p = p₀
-      · subst hpp; rw [Function.update_self]
-        cases hv : votes p with
-        | yes => simp
-        | no => simp
-      · rw [Function.update_of_ne hpp _ _] at hp ⊢
-        exact hinv.noninit_votes p hp
-    · rintro ⟨p, hp⟩; dsimp only at hp; rw [hnew_ncomm p] at hp; cases hp
-    · intro _ p _; exact hnew_ncomm p
-    · intro p _ hp; dsimp only at hp
-      exact absurd hp (not_committed_of_not_committable (hnew_ncomm p))
-    · rintro ⟨p, hp⟩; dsimp only at hp
-      exact False.elim (not_committed_of_not_committable (hnew_ncomm p) hp)
-    · intro _ p; exact hnew_ncomm p
-    · intro h; dsimp only at h; rw [hg.2.1] at h; cases h
-    · intro h; dsimp only at h; rw [hg.2.1] at h; cases h
-    · intro h; dsimp only at h; rw [hg.2.1] at h; cases h
+    let v := if votes p₀ = .yes then ThreePCLocalState.uncertain else .aborted
+    have hs_eq : { s with localState := Function.update s.localState p₀ v } =
+        { s with phase := .collectingVotes, localState := Function.update s.localState p₀ v } := by
+      cases s; dsimp only at hg ⊢; rw [hg.2.1]
+    rw [hs_eq]
+    exact threePCInvariant_of_all_noncommittable p₀ v hinv (Or.inl rfl)
+      (by dsimp only [v]; split <;> rfl)
+      (fun _ => by dsimp only [v]; cases hv : votes p₀ <;> simp)
+      (hinv.phase_collecting hg.2.1)
   case startPreCommit.isTrue hg =>
     have hall_unc : ∀ q : P, s.localState q = .uncertain := fun q =>
       hg.2.2.2 q (hg.2.2.1.symm ▸ Finset.mem_univ q)
-    have hall_yes : ∀ q : P, votes q = .yes := by
-      intro q
-      have hni : s.localState q ≠ .init := by rw [hall_unc q]; decide
-      rcases hinv.noninit_votes q hni with hab | hyes
-      · rw [hall_unc q] at hab; cases hab
-      · exact hyes
+    have hall_yes : ∀ q : P, votes q = .yes := fun q =>
+      (hinv.noninit_votes q (by rw [hall_unc q]; decide)).resolve_left (by rw [hall_unc q]; decide)
     exact threePCInvariant_set_preCommitted s.coord hall_yes
       (fun q => by rw [hall_unc q]; decide)
       (fun q => by rw [hall_unc q]; decide)
       (fun q => by rw [hall_unc q]; decide)
   case primaryAbort.isTrue hg =>
-    have hno_comm : ∀ r, (s.localState r).isCommittable = false := hinv.phase_collecting hg.2.1
-    have hnew_ncomm :=
-      functionUpdate_forall s.coord .aborted (fun st => st.isCommittable = false) rfl hno_comm
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
-    · intro p hp; dsimp only at hp ⊢
-      by_cases hpc : p = s.coord
-      · subst hpc; exact Or.inl (Function.update_self _ _ _)
-      · rw [Function.update_of_ne hpc _ _] at hp ⊢
-        exact hinv.noninit_votes p hp
-    · rintro ⟨p, hp⟩; dsimp only at hp; rw [hnew_ncomm p] at hp; cases hp
-    · intro _ p _; exact hnew_ncomm p
-    · intro p _ hp; dsimp only at hp
-      exact False.elim (not_committed_of_not_committable (hnew_ncomm p) hp)
-    · rintro ⟨p, hp⟩; dsimp only at hp
-      exact False.elim (not_committed_of_not_committable (hnew_ncomm p) hp)
-    · intro h; cases h
-    · intro h; cases h
-    · intro h; cases h
-    · intro _
-      exact ⟨fun q => not_committed_of_not_committable (hnew_ncomm q),
-        fun q _ => hnew_ncomm q⟩
+    exact threePCInvariant_of_all_noncommittable s.coord .aborted hinv (Or.inr rfl)
+      rfl (fun _ => Or.inl rfl) (hinv.phase_collecting hg.2.1)
   case stepPreCommit.isTrue p₀ hg =>
     obtain ⟨hyes_ni, hnab⟩ := hinv.phase_preCommitting hg.2.2.1
-    have hno_com : ∀ r, s.localState r ≠ .committed := by
-      intro r hrc
+    have hno_com : ∀ r, s.localState r ≠ .committed := fun r hrc => by
       have hcomm := hinv.committed_imp_alive_committable ⟨r, hrc⟩ p₀ hg.2.1
-      rw [hg.2.2.2] at hcomm
-      cases hcomm
+      rw [hg.2.2.2] at hcomm; cases hcomm
     have hs_eq : { s with localState := Function.update s.localState p₀ .preCommitted } =
         { s with
           phase := .preCommitting
@@ -612,111 +583,73 @@ private theorem threePCInvariant_step {s s' : ThreePCState P} {act : ThreePCActi
     exact threePCInvariant_set_committed p₀ hyes_ni hnab halive_c
   case stepAbort.isTrue p₀ hg =>
     obtain ⟨hncom, halive_nc⟩ := hinv.phase_aborting hg.2.2.1
-    have hnew_ncom : ∀ q, Function.update s.localState p₀ .aborted q ≠ .committed := by
-      intro q
-      by_cases hqp : q = p₀
-      · subst hqp; rw [Function.update_self]; decide
-      · rw [Function.update_of_ne hqp _ _]; exact hncom q
+    have hnew_ncom := functionUpdate_forall p₀ .aborted (· ≠ .committed) (by decide) hncom
     have hnew_alive : ∀ q ∈ s.alive,
         (Function.update s.localState p₀ .aborted q).isCommittable = false := by
       intro q hq
       by_cases hqp : q = p₀
       · subst hqp; rw [Function.update_self]; rfl
-      · rw [Function.update_of_ne hqp _ _]; exact halive_nc q hq
-    refine ⟨?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+      · rw [Function.update_of_ne hqp]; exact halive_nc q hq
+    refine ⟨?_, ?_, fun _ q hq => hnew_alive q hq, fun p _ hp => False.elim (hnew_ncom p hp),
+      fun ⟨p, hp⟩ => False.elim (hnew_ncom p hp),
+      (fun h => by cases hg.2.2.1.symm.trans h),
+      (fun h => by cases hg.2.2.1.symm.trans h),
+      (fun h => by cases hg.2.2.1.symm.trans h),
+      fun _ => ⟨hnew_ncom, hnew_alive⟩⟩
     · intro p hp; dsimp only at hp ⊢
       by_cases hqp : p = p₀
       · subst hqp; exact Or.inl (Function.update_self _ _ _)
-      · rw [Function.update_of_ne hqp _ _] at hp ⊢
-        exact hinv.noninit_votes p hp
+      · rw [Function.update_of_ne hqp] at hp ⊢; exact hinv.noninit_votes p hp
     · rintro ⟨p, hp⟩ q; dsimp only at hp ⊢
       have hp_old : (s.localState p).isCommittable = true := by
         by_cases hpp : p = p₀
         · subst hpp; rw [Function.update_self] at hp; cases hp
-        · rwa [Function.update_of_ne hpp _ _] at hp
-      have ⟨hyq, hniq⟩ := hinv.committable_all_yes ⟨p, hp_old⟩ q
-      refine ⟨hyq, ?_⟩
-      by_cases hqp : q = p₀
-      · subst hqp; rw [Function.update_self]; decide
-      · rw [Function.update_of_ne hqp _ _]; exact hniq
-    · intro _ q hq; exact hnew_alive q hq
-    · intro p _ hp; exact False.elim (hnew_ncom p hp)
-    · rintro ⟨p, hp⟩; exact False.elim (hnew_ncom p hp)
-    · intro h; dsimp only at h; rw [hg.2.2.1] at h; cases h
-    · intro h; dsimp only at h; rw [hg.2.2.1] at h; cases h
-    · intro h; dsimp only at h; rw [hg.2.2.1] at h; cases h
-    · intro _; exact ⟨hnew_ncom, hnew_alive⟩
+        · rwa [Function.update_of_ne hpp] at hp
+      exact ⟨(hinv.committable_all_yes ⟨p, hp_old⟩ q).1,
+        functionUpdate_forall p₀ .aborted (· ≠ .init) (by decide)
+          (fun x => (hinv.committable_all_yes ⟨p, hp_old⟩ x).2) q⟩
   case crash.isTrue p₀ hg =>
-    refine ⟨hinv.noninit_votes, hinv.committable_all_yes, ?_, hinv.committed_disjoint_aborted,
-      ?_, hinv.phase_collecting, hinv.phase_preCommitting, ?_, ?_⟩
-    · intro hab q hq
-      exact hinv.aborted_disjoint_alive_committable hab q (Finset.mem_of_mem_erase hq)
-    · intro hcom q hq
-      exact hinv.committed_imp_alive_committable hcom q (Finset.mem_of_mem_erase hq)
-    · intro hph
-      obtain ⟨h1, h2, h3⟩ := hinv.phase_committing hph
-      exact ⟨h1, h2, fun q hq => h3 q (Finset.mem_of_mem_erase hq)⟩
-    · intro hph
-      obtain ⟨h1, h2⟩ := hinv.phase_aborting hph
-      exact ⟨h1, fun q hq => h2 q (Finset.mem_of_mem_erase hq)⟩
+    exact ⟨hinv.noninit_votes, hinv.committable_all_yes,
+      fun hab q hq => hinv.aborted_disjoint_alive_committable hab q (Finset.mem_of_mem_erase hq),
+      hinv.committed_disjoint_aborted,
+      fun hcom q hq => hinv.committed_imp_alive_committable hcom q (Finset.mem_of_mem_erase hq),
+      hinv.phase_collecting, hinv.phase_preCommitting,
+      fun hph => let ⟨h1, h2, h3⟩ := hinv.phase_committing hph
+        ⟨h1, h2, fun q hq => h3 q (Finset.mem_of_mem_erase hq)⟩,
+      fun hph => let ⟨h1, h2⟩ := hinv.phase_aborting hph
+        ⟨h1, fun q hq => h2 q (Finset.mem_of_mem_erase hq)⟩⟩
   case electBackup.isTrue b hg =>
     refine ⟨hinv.noninit_votes, hinv.committable_all_yes, hinv.aborted_disjoint_alive_committable,
-      hinv.committed_disjoint_aborted, hinv.committed_imp_alive_committable, ?_, ?_, ?_, ?_⟩
-    · intro hph; dsimp only [backupPhase] at hph
-      split at hph
-      · cases hph
-      · split at hph
-        · cases hph
-        · split at hph <;> cases hph
-    · intro hph; dsimp only [backupPhase] at hph
-      by_cases hab : ∃ p ∈ s.alive, s.localState p = .aborted
-      · simp [hab] at hph
-      · simp only [hab, ↓reduceIte] at hph
-        by_cases hcom : ∃ p ∈ s.alive, s.localState p = .committed
-        · simp [hcom] at hph
-        · simp only [hcom, ↓reduceIte] at hph
-          by_cases hpre : ∃ p ∈ s.alive, s.localState p = .preCommitted
-          · rcases hpre with ⟨p, hp_al, hp_eq⟩
-            have hp_comm : (s.localState p).isCommittable = true := by rw [hp_eq]; rfl
-            refine ⟨hinv.committable_all_yes ⟨p, hp_comm⟩, ?_⟩
-            intro q hqa
-            have hfalse := hinv.aborted_disjoint_alive_committable ⟨q, hqa⟩ p hp_al
-            rw [hp_comm] at hfalse
-            cases hfalse
-          · simp [hpre] at hph
-    · intro hph; dsimp only [backupPhase] at hph
-      by_cases hab : ∃ p ∈ s.alive, s.localState p = .aborted
-      · simp [hab] at hph
-      · simp only [hab, ↓reduceIte] at hph
-        by_cases hcom : ∃ p ∈ s.alive, s.localState p = .committed
-        · rcases hcom with ⟨p, _, hp_eq⟩
-          have hp_comm : (s.localState p).isCommittable = true := by rw [hp_eq]; rfl
-          exact ⟨hinv.committable_all_yes ⟨p, hp_comm⟩,
-            fun q => hinv.committed_disjoint_aborted p q hp_eq,
-            hinv.committed_imp_alive_committable ⟨p, hp_eq⟩⟩
-        · simp only [hcom, ↓reduceIte] at hph
-          split at hph <;> cases hph
-    · intro hph; dsimp only [backupPhase] at hph
-      by_cases hab : ∃ p ∈ s.alive, s.localState p = .aborted
+      hinv.committed_disjoint_aborted, hinv.committed_imp_alive_committable,
+      fun hph => absurd hph (backupPhase_ne_collectingVotes _ _), ?_, ?_, ?_⟩
+    · intro hph
+      unfold backupPhase at hph
+      split_ifs at hph with hab hcom hpre
+      rcases hpre with ⟨p, hp_al, hp_eq⟩
+      have hp_comm : (s.localState p).isCommittable = true := by rw [hp_eq]; rfl
+      refine ⟨hinv.committable_all_yes ⟨p, hp_comm⟩, fun q hqa => ?_⟩
+      have hfalse := hinv.aborted_disjoint_alive_committable ⟨q, hqa⟩ p hp_al
+      rw [hp_comm] at hfalse; cases hfalse
+    · intro hph
+      unfold backupPhase at hph
+      split_ifs at hph with hab hcom hpre
+      rcases hcom with ⟨p, _, hp_eq⟩
+      exact ⟨hinv.committable_all_yes ⟨p, by rw [hp_eq]; rfl⟩,
+        fun q => hinv.committed_disjoint_aborted p q hp_eq,
+        hinv.committed_imp_alive_committable ⟨p, hp_eq⟩⟩
+    · intro hph
+      unfold backupPhase at hph
+      split_ifs at hph with hab hcom hpre
       · rcases hab with ⟨p, _, hp_eq⟩
         exact ⟨fun q hqc => hinv.committed_disjoint_aborted q p hqc hp_eq,
           hinv.aborted_disjoint_alive_committable ⟨p, hp_eq⟩⟩
-      · simp only [hab, ↓reduceIte] at hph
-        by_cases hcom : ∃ p ∈ s.alive, s.localState p = .committed
-        · simp [hcom] at hph
-        · simp only [hcom, ↓reduceIte] at hph
-          by_cases hpre : ∃ p ∈ s.alive, s.localState p = .preCommitted
-          · simp [hpre] at hph
-          · have halive_nc : ∀ q ∈ s.alive, (s.localState q).isCommittable = false := by
-              intro q hq
-              cases hst : s.localState q <;> try rfl
-              · exact False.elim (hpre ⟨q, hq, hst⟩)
-              · exact False.elim (hcom ⟨q, hq, hst⟩)
-            refine ⟨?_, halive_nc⟩
-            intro q hqc
-            have hb_comm := hinv.committed_imp_alive_committable ⟨q, hqc⟩ b hg.2
-            rw [halive_nc b hg.2] at hb_comm
-            cases hb_comm
+      · have halive_nc : ∀ q ∈ s.alive, (s.localState q).isCommittable = false := fun q hq => by
+          cases hst : s.localState q <;> try rfl
+          · exact False.elim (hpre ⟨q, hq, hst⟩)
+          · exact False.elim (hcom ⟨q, hq, hst⟩)
+        refine ⟨fun q hqc => ?_, halive_nc⟩
+        have hb_comm := hinv.committed_imp_alive_committable ⟨q, hqc⟩ b hg.2
+        rw [halive_nc b hg.2] at hb_comm; cases hb_comm
 
 private theorem threePCInvariant_of_reachable {s : ThreePCState P}
     (hreach : ThreePCReachable coord₀ votes s) : ThreePCInvariant votes s := by
@@ -1061,20 +994,10 @@ theorem threePCTerminate_mTr_globalPhase {s : ThreePCState P}
   have hcf_tail : CrashFreeMTr votes sB (threePCTerminate b s) := by
     dsimp only [threePCTerminate]
     cases hph : backupPhase s.alive s.localState with
-    | collectingVotes =>
-      exfalso
-      dsimp only [backupPhase] at hph
-      split at hph
-      · cases hph
-      · split at hph
-        · cases hph
-        · split at hph <;> cases hph
-    | committing =>
-      exact crashFree_finish_from_committing hinvB hb hph
-    | preCommitting =>
-      exact crashFree_finish_from_preCommitting hinvB hb hph
-    | aborting =>
-      exact crashFree_finish_from_aborting hinvB hb hph
+    | collectingVotes => exact absurd hph (backupPhase_ne_collectingVotes _ _)
+    | committing => exact crashFree_finish_from_committing hinvB hb hph
+    | preCommitting => exact crashFree_finish_from_preCommitting hinvB hb hph
+    | aborting => exact crashFree_finish_from_aborting hinvB hb hph
   have htot := CrashFreeMTr.step rfl hstep_el hcf_tail
   rcases htot with ⟨tr, hcf, hmtr⟩
   have hreach_fin : ThreePCReachable coord₀ votes (threePCTerminate b s) :=

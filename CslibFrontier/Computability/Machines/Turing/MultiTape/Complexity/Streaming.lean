@@ -208,21 +208,12 @@ theorem ComputableTidilyInTimeAndSpace.foldl_bits_stream_spec {σ : Type}
       (fun l => c * (l.length * (R l + B l + 1) + B l + 1))
       (fun l => c * (Q l + B l + 1))) ∧
       ∀ l, invariant l l.length (l.foldl step init) := by
-  obtain ⟨⟨c, h⟩, hpost⟩ := hstep.foldl_bits_stream_sum_spec init invariant hbase hpreserve
-    (R := fun l _ => R l + 2 * B l + 1) (Q := Q) (B := B)
-    (fun l i hi state hs => by
-      have hc := hcost l i hi state hs
-      have h₀ := hsize l i hi.le state hs
-      have h₁ := hsize l (i + 1) hi _ (hpreserve l i hi state hs)
-      exact ⟨by lia, hc.2⟩) hsize
-  refine ⟨⟨c * 2, h.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
-  · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
-    rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    nlinarith
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    lia
+  have htrace (l : List Bool) :=
+    List.foldl_take_invariant l step init (invariant l) (hbase l) (hpreserve l)
+  exact ⟨hstep.foldl_bits_stream init (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).1)
+    (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).2)
+    (fun l i hi => hsize l i hi _ (htrace l i hi)),
+    fun l => by simpa using htrace l l.length le_rfl⟩
 
 /-- A fold with a fixed finite state type takes linear time and constant work space. The constant
 may depend on the state type, its encoding and the transition function; this is not a uniform bound
@@ -601,21 +592,12 @@ theorem ComputableInTimeAndSpace.foldl_bits_stream_spec {σ : Type}
       (fun l => c * (l.length * (R l + B l + 1) + B l + 1))
       (fun l => c * (Q l + B l + 1))) ∧
       ∀ l, invariant l l.length (l.foldl step init) := by
-  obtain ⟨⟨c, h⟩, hpost⟩ := hstep.foldl_bits_stream_sum_spec init invariant hbase hpreserve
-    (R := fun l _ => R l + 2 * B l + 1) (Q := Q) (B := B)
-    (fun l i hi state hs => by
-      have hc := hcost l i hi state hs
-      have h₀ := hsize l i hi.le state hs
-      have h₁ := hsize l (i + 1) hi _ (hpreserve l i hi state hs)
-      exact ⟨by lia, hc.2⟩) hsize
-  refine ⟨⟨c * 2, h.mono (fun l => ?_) (fun l => ?_)⟩, hpost⟩
-  · simp only [Finset.sum_const, Finset.card_range, smul_eq_mul]
-    rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    nlinarith
-  · rw [Nat.mul_assoc]
-    apply Nat.mul_le_mul_left c
-    lia
+  have htrace (l : List Bool) :=
+    List.foldl_take_invariant l step init (invariant l) (hbase l) (hpreserve l)
+  exact ⟨hstep.foldl_bits_stream init (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).1)
+    (fun l i hi => (hcost l i hi _ (htrace l i hi.le)).2)
+    (fun l i hi => hsize l i hi _ (htrace l i hi)),
+    fun l => by simpa using htrace l l.length le_rfl⟩
 
 /-- Normalize plain callbacks once and retain the cumulative streaming contract. -/
 theorem ComputableInTimeAndSpace.foldl_bits_pair_stream_sum {σ : Type}

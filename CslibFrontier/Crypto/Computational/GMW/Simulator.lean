@@ -16,11 +16,11 @@ import CslibFrontier.Computability.Probabilistic.PPT.Extension
 import CslibFrontier.Computability.Probabilistic.Repeat
 import CslibFrontier.Computability.Probabilistic.Sampling
 import CslibFrontier.Foundations.Data.BitString.Basic
-import CslibFrontier.Foundations.Data.Nat.PolynomialBound.Closure
 import CslibFrontier.Languages.Probabilistic.Norm
 import CslibFrontier.Logics.Propositional.CNF.PolyTime
 import CslibFrontier.Probability.BitString.List
 import CslibFrontier.Probability.PMF.Bind
+import CslibFrontier.Tactic.Negligible
 
 /-!
 # Pointwise reduction and zero-knowledge simulation for the 3-copy GMW protocol
@@ -1021,17 +1021,11 @@ theorem AdvicePRG.gmwView_negligible {α : Type} {enc : α ↪ List Bool}
     simp only [length_encPair, encBits_apply]
     exact (((PolynomiallyBounded.const 2).mul hz).add (.const 1)).add hz'
   have hneg := hAdv.negligible_encoded hclock ha hw haux
-  have hcount_poly :=
+  dsimp only at hneg
+  have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
     (((computableInPolyTime_totalLen hf).polyBounded).comp
       ⟨_, ha, fun _ => le_rfl⟩).polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (n + 1) * dyadicSize (totalLen (f (a n)))) :=
-    (dyadicSize_polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1))).mul
-      (dyadicSize_polynomiallyBounded.comp hcount_poly)
-  have herr := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [ProbComp.eval_bind, Nat.cast_mul] using
+  negligible using fun n =>
     gmwView_advantage_le generator length f Vstar
       (fun m a _ view => adversary m a (z' n) view) n (a n) (w n) (z n) (hw_sat n)
 
@@ -1118,17 +1112,12 @@ theorem gmwView_indistinguishable_gmwSimulator {α : Type} {enc : α ↪ List Bo
       ((hfst.prod ((ha.comp hfst).prod ((hw_comp.comp hfst).prod (hz.comp hfst)))).prod
         (.snd encUnary encBits))
   have hneg := (hG.indistinguishable.shift 7) red hred
-  have hcount_poly := ((computableInPolyTime_totalLen (hf.comp ha))).polynomiallyBounded
-  have hloss : PolynomiallyBounded
-      (fun n => dyadicSize (n + 1) * dyadicSize (totalLen (f (a n)))) :=
-    (dyadicSize_polynomiallyBounded.comp (PolynomiallyBounded.id.add (.const 1))).mul
-      (dyadicSize_polynomiallyBounded.comp hcount_poly)
-  have herr := (negligible_geometric (by norm_num : (7 / 8 : ℝ≥0) < 1)).shift 1
-  apply negligible_of_le (herr.add_fun (hneg.polynomiallyBounded_mul hloss))
-  intro n
-  simpa only [pmf_norm, distinguishingGame_eq_bind, BitString.eval_sampleList, generatorEnsemble,
-    Nat.cast_mul, red] using
-    gmwView_advantage_le generator length f Vstar (fun n _ _ view => adversary n view)
-      n (a n) (w n) (z n) (hw_sat n)
+  simp only [pmf_norm, distinguishingGame_eq_bind, generatorEnsemble, red] at hneg
+  have hcount_poly : PolynomiallyBounded (fun n => totalLen (f (a n))) :=
+    (computableInPolyTime_totalLen (hf.comp ha)).polynomiallyBounded
+  negligible using fun n => by
+    simpa only [pmf_norm, BitString.eval_sampleList] using
+      gmwView_advantage_le generator length f Vstar (fun n _ _ view => adversary n view)
+        n (a n) (w n) (z n) (hw_sat n)
 
 end Cslib.Crypto.GMW

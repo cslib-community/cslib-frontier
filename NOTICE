@@ -25,6 +25,12 @@ Copyright 2026 Anthropic, PBC
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
 
+CslibFrontier/Languages/Probabilistic/QueryCount/Demand.lean adapts the vector-charge laws in
+PolyFun/PFunctor/Handler/CertifiedVec.lean from Verified-zkEVM/PolyFun, revision
+ae1b2a3b9cb5f28f43c4b41138481f68b901838d. The source is by Bas Spitters, copyright (c) 2026
+PolyFun Contributors, and licensed under the Apache License, Version 2.0. The adapted
+module credits Bas Spitters and Devon Tuma.
+
 The prime-window proof also adapts Mathlib/NumberTheory/Bertrand.lean,
 Copyright (c) 2020 Patrick Stevens; authors Patrick Stevens, Bolton Bailey,
 under the Apache License, Version 2.0.

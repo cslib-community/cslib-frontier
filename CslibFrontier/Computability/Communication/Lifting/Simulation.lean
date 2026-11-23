@@ -230,8 +230,7 @@ private theorem Good.alice_Y_large {send : (Fin n → Fin m) → Bool} {p₀ p�
   refine le_of_mul_le_mul_right ?_ (by positivity : (0 : ℝ) < 2 ^ (m * #q.I))
   calc (2 : ℝ) ^ (#(st.J ∪ q.I)ᶜ * m) * 2 ^ (m * #q.I)
       ≤ 2 ^ st.t * (4 * τ) ^ #st.J * #st.Y := h1
-    _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * (#(allowing st.Y q.I q.α ρ') * (4 * τ) ^ #q.I) :=
-      mul_le_mul_of_nonneg_left h2 hA
+    _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * (#(allowing st.Y q.I q.α ρ') * (4 * τ) ^ #q.I) := by gcongr
     _ ≤ 2 ^ st.t * (4 * τ) ^ #st.J * ((4 * τ) ^ #q.I * (#Y' * 2 ^ (m * #q.I))) := by
       refine mul_le_mul_of_nonneg_left ?_ hA
       rw [mul_comm]

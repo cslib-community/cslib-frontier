@@ -15,6 +15,7 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedP
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Universal.WindowedInit
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Combinators.DivConq
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.BigO.Constructible
+import CslibFrontier.Tactic.Degree
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Ring
 
@@ -105,19 +106,14 @@ lemma length_eProb (a : Prob) : (eProb a).length =
 /-- The test for base problems, in linear time. -/
 lemma isBase_inO : ComputableInO simDC.isBase eProb encBool (fun a => (eProb a).length)
     (fun a => (eProb a).length) :=
-  (((ComputableInDegree.unary_isZero.comp ComputableInDegree.unary_pred).mono
-    (d' := 1) (e' := 1)).inO_one.comp_linear prob_n).of_enc_eq fun a =>
-    congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
+  ((by degree : ComputableInDegree (fun n : ℕ => decide (n - 1 = 0))
+    encUnary encBool 1 0).inO_one.comp_linear prob_n).of_enc_eq fun a =>
+      congrArg encBool (decide_eq_decide.mpr (by dsimp only; omega))
 
 /-- `Option.toList` on symbols, in linear time. -/
 lemma toList_inO : ComputableInO Option.toList eSym (encList encUnary)
     (fun o => (eSym o).length) (fun o => (eSym o).length) :=
-  ((((ComputableInDegree.isSome encUnary).inO_one).ite
-    ((ComputableInDegree.snoc encUnary).inO_one.comp_linear
-      ((const []).prod (ComputableInDegree.getD (enc₁ := encUnary) 0).inO_one))
-    (const [])).mono 4 (fun o => by dsimp only [eSym]; split_ifs <;> omega)
-      (fun o => by dsimp only [eSym]; split_ifs <;> omega)).of_enc_eq
-    fun o => by cases o <;> rfl
+  (ComputableInDegree.optionToList encUnary).inO_one
 
 lemma length_dw_le (a : Prob) : (encPair eDesc eWin (a.1, a.2.2)).length ≤ (eProb a).length := by
   simp only [length_encPair]; omega
@@ -130,8 +126,9 @@ lemma base_inO : ComputableInO simDC.base eProb eSol Tb Tb := by
   have hstep := wstep_inO.comp (prob_d.prod prob_w)
   have hlive := hstep.fst'.prod (toList_inO.comp_linear hstep.snd')
   have hidle := prob_w.prod (const (encMid := encList encUnary) [])
-  refine ((((ComputableInDegree.unary_isZero.inO_one.comp_linear prob_n).ite hidle
-    hlive).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_)
+  refine ((((by degree : ComputableInDegree (fun n : ℕ => decide (n = 0))
+    encUnary encBool 1 0).inO_one.comp_linear prob_n).ite hidle
+    hlive).mono 8 (fun a => ?_) (fun a => ?_)).of_enc_eq fun a => ?_
   all_goals
     have h₁ := length_dw_le a
     have h₂ : (eProb a).length + 1 ≤ ((eProb a).length + 1) ^ 3 := Nat.le_self_pow (by omega) _

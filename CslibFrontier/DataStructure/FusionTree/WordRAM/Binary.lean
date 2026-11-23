@@ -9,6 +9,7 @@ module
 
 public import CslibFrontier.Computability.WordRAM.Notation
 public import CslibFrontier.DataStructure.FusionTree.Correction
+import CslibFrontier.Computability.WordRAM.SymbolicExec
 import Mathlib.Algebra.BigOperators.Fin
 
 /-!
@@ -108,23 +109,10 @@ theorem exec {w : ℕ} (x : Data registers) (ha : Fits w (x.regs pointer + 20)) 
     ExecWithin w code x (result x) 11 ∧ (result x).mem = x.mem ∧
       (result x).regs out = rank (x.regs query)
         (x.mem (x.regs pointer + 18)) (x.mem (x.regs pointer + 20)) := by
-  have h0 := fits_zero w
-  have h1 : Fits w 1 := ha.of_le (by omega)
-  have h2 : Fits w 2 := ha.of_le (by omega)
-  have h18 : Fits w 18 := ha.of_le (by omega)
-  have hp18 : Fits w (x.regs pointer + 18) := ha.of_le (by omega)
-  have hp20 : Fits w (x.regs pointer + 18 + 2) := by simpa only [Nat.add_assoc] using ha
-  have hresult : (result x).regs out = rank (x.regs query)
-      (x.mem (x.regs pointer + 18)) (x.mem (x.regs pointer + 20)) := by
-    simp only [result, Data.set_regs, Function.update_self]
-  refine ⟨?_, rfl, hresult⟩
+  refine ⟨?_, rfl, by simp only [result, Data.set_regs, Function.update_self]⟩
   by_cases hfirst : x.regs query < x.mem (x.regs pointer + 18)
-  · refine ⟨8, by omega, ?_⟩
-    ram_eval [code, result, rank, h0, h1, h2, h18, hp18, hp20, hfirst, Nat.add_assoc]
-  · by_cases hsecond : x.regs query < x.mem (x.regs pointer + 20)
-    · refine ⟨10, by omega, ?_⟩
-      ram_eval [code, result, rank, h0, h1, h2, h18, hp18, hp20, hfirst, hsecond, Nat.add_assoc]
-    · refine ⟨11, le_rfl, ?_⟩
-      ram_eval [code, result, rank, h0, h1, h2, h18, hp18, hp20, hfirst, hsecond, Nat.add_assoc]
+  · simp only [code, result, rank, hfirst, ↓reduceIte]; wram_exec [Nat.add_assoc]
+  · by_cases hsecond : x.regs query < x.mem (x.regs pointer + 20) <;>
+      (simp only [code, result, rank, hfirst, hsecond, ↓reduceIte]; wram_exec [Nat.add_assoc])
 
 end Cslib.DataStructure.FusionTree.WordRAM.BinaryNodeProgram
