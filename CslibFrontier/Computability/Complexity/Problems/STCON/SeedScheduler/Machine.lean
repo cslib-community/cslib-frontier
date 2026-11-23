@@ -189,7 +189,7 @@ theorem init_withContext_budget {α κ σ : Type} {enc : α ↪ List Bool} {S : 
     (hcontext : ComputableInSpace context enc encContext S) :
     ComputableInSpace (fun a => (machine (setup a) scan (fun r => start (r, context a))
       verdict).init) enc (encState encScan) S := by
-  have hzero := (constZero (encIn := enc) (encB := encNat) 0).mono_le (fun a => Nat.zero_le (S a))
+  have hzero := budget_const (encIn := enc) (Bs := S) (encB := encNat) 0
   have hcandidate := seedSchedulerCandidate_budget hsetup hzero
   have hframe := snd encContext encSeedSchedulerFrame
   have hreadContext := fst encContext encSeedSchedulerFrame
@@ -214,7 +214,7 @@ theorem init_budget {α σ : Type} {enc : α ↪ List Bool} {S : α → ℕ}
     {setup : α → SeedSearchSetup} (hsetup : ComputableInSpace setup enc encSeedSearchSetup S) :
     ComputableInSpace (fun a => (machine (setup a) scan start verdict).init)
       enc (encState encScan) S := by
-  have hunit := (constZero (encIn := enc) (encB := encUnit) ()).mono_le (fun a => Nat.zero_le (S a))
+  have hunit := budget_const (encIn := enc) (Bs := S) (encB := encUnit) ()
   exact init_withContext_budget encUnit encScan scan (fun p => start p.1) verdict
     (budget_comp_linear hstart (fst encSeedScanRequest encUnit)) hsetup hunit
 

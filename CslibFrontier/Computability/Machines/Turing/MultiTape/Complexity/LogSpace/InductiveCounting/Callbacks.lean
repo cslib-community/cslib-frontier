@@ -100,15 +100,15 @@ private theorem controller_budget {s : α → Runtime}
 /-- Test the finite phase against a fixed one. -/
 private theorem phaseEq_budget {s : α → Cslib.InductiveCounting.State}
     (hs : ComputableInSpace s enc encState S) (p : Cslib.InductiveCounting.Phase)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => (s a).phase == p) enc encBool S :=
-  phaseCases_budget hs (fun q _ => q == p) (fun _ => budget_const _) hin
+  phaseCases_budget hs (fun q _ => q == p) (fun _ => budget_const _)
 
 /-- Detect a complete final count check meeting a bad vertex. -/
 private theorem overflowed_budget {s : α → Cslib.InductiveCounting.State}
-    (hs : ComputableInSpace s enc encState S) (hin : (fun a => (enc a).length) ≼ S) :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => overflowed (s a)) enc encBool S :=
-  (and_budget (and_budget (and_budget (phaseEq_budget hs .done hin) (finalScan_budget hs))
+  (and_budget (and_budget (and_budget (phaseEq_budget hs .done) (finalScan_budget hs))
     (budget_natEq (selected_budget hs) (count_budget hs))) (hit_budget hs)).of_enc_eq
     fun a => by simp only [overflowed, Bool.beq_eq_decide_eq]
 
@@ -119,7 +119,7 @@ request. -/
 private theorem controllerQuery_budget {B : α → ℕ} {s : α → Cslib.InductiveCounting.State}
     (hB : ComputableInSpace B enc encNat S)
     (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => controllerQuery k (B a) (s a)) enc encNat S := by
   have hbranches (p : Cslib.InductiveCounting.Phase) : ComputableInSpace
       (fun a => controllerQuery k (B a) { s a with phase := p }) enc encNat S := by
@@ -129,7 +129,7 @@ private theorem controllerQuery_budget {B : α → ℕ} {s : α → Cslib.Induct
     · exact (queryIndex_budget hB
         (candidate_budget hs)).of_enc_eq fun a => by
         cases (s a).finalScan <;> rfl
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
@@ -142,7 +142,7 @@ private theorem localAnswer_budget (ntm : MultiTapeNTM k Bool State)
     (hchk : ComputableInSpace chk enc encBool S)
     (hs : ComputableInSpace s enc encState S)
     (hsymbol : ComputableInSpace symbol enc (encOption encBool) S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => localAnswer ntm (B a) (n a) (chk a) (s a) (symbol a))
       enc encBool S := by
   have hmode : ComputableInSpace
@@ -167,40 +167,40 @@ private theorem localAnswer_budget (ntm : MultiTapeNTM k Bool State)
           (candidate_budget hs) (target_budget hs)
           hsymbol)
       ).of_enc_eq fun a => by cases (s a).finalScan <;> rfl
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
 /-- Runtime input lookup preserves any common budget covering the encoded arguments. -/
 private theorem runtimeQuery_budget {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => runtimeQuery k (s a)) enc encNat S := by
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
-    (controllerQuery_budget (k := k) (runtimeRadix_budget hs) (controller_budget hs) hin)
+    (controllerQuery_budget (k := k) (runtimeRadix_budget hs) (controller_budget hs))
     (runtimeLength_budget hs)).of_enc_eq fun a => by
       cases h : (s a).counting <;> simp [runtimeQuery, h]
 
 /-- Halt detection includes the bootstrap phase and accepts arbitrary runtime data. -/
 private theorem runtimeHalted_budget {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => runtimeHalted (s a)) enc encBool S := by
   have hc := controller_budget hs
   exact (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
-    (or_budget (phaseEq_budget hc .reject hin)
-      (and_budget (runtimeChecked_budget hs) (phaseEq_budget hc .accept hin)))
+    (or_budget (phaseEq_budget hc .reject)
+      (and_budget (runtimeChecked_budget hs) (phaseEq_budget hc .accept)))
     (budget_const false)).of_enc_eq fun a => by
       cases h : (s a).counting <;> simp [runtimeHalted, h]
 
 /-- Acceptance detection includes the bootstrap phase and accepts arbitrary runtime data. -/
 private theorem runtimeAccept_budget {s : α → Runtime}
     (hs : ComputableInSpace s enc encRuntime S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => runtimeAccept (s a)) enc encBool S := by
   exact (and_budget (runtimeChecked_budget hs)
     (budget_ite (budget_optionIsSome (runtimeCounting_budget hs))
-      (accepting_budget (controller_budget hs) hin) (budget_const false))).of_enc_eq
+      (accepting_budget (controller_budget hs)) (budget_const false))).of_enc_eq
     fun a => by cases h : (s a).counting <;> simp [runtimeAccept, h]
 
 /-- Installing the controller on a computed radix. -/
@@ -218,7 +218,7 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
     (hs : ComputableInSpace s enc encRuntime S)
     (hsymbol : ComputableInSpace symbol enc (encOption encBool) S)
     (hchoice : ComputableInSpace choice enc encBool S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace
       (fun a => runtimeNext ntm (s a) (symbol a) (choice a)) enc encRuntime S := by
   have hn := runtimeLength_budget hs
@@ -228,17 +228,17 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
   have hN := (vertexBound_budget (k := k) hB)
   have hw := budget_comp_linear natSizeUnary hN
   have hsource := (startID_budget ntm hB)
-  have ha := localAnswer_budget ntm hB hn hchk hc hsymbol hin
+  have ha := localAnswer_budget ntm hB hn hchk hc hsymbol
   have hadvance := runtime_budget hn hB hchk
-    (budget_optionSome (advance_budget hN hw hsource hc ha hchoice hin))
+    (budget_optionSome (advance_budget hN hw hsource hc ha hchoice))
   have hB₄ := budget_natMul (budget_const 4) hB
   have hgrow := runtime_budget hn hB₄ (budget_const false)
     (budget_optionSome (install_budget ntm hB₄))
   have hcheck := runtime_budget hn hB (budget_const true)
     (budget_optionSome (install_budget ntm hB))
   have hnot := budget_finite (encC := encBool) Bool.not hchk
-  have hcounting := budget_ite (and_budget hnot (overflowed_budget hc hin)) hgrow
-    (budget_ite (and_budget hnot (phaseEq_budget hc .accept hin)) hcheck hadvance)
+  have hcounting := budget_ite (and_budget hnot (overflowed_budget hc)) hgrow
+    (budget_ite (and_budget hnot (phaseEq_budget hc .accept)) hcheck hadvance)
   have hstart := budget_natMul (budget_natAdd hn (budget_const 2))
     (budget_const (2 ^ (Fintype.card (Option State) + 2)))
   have hscan := budget_ite (budget_finite Option.isSome hsymbol)
@@ -253,7 +253,7 @@ private theorem runtimeNext_budget (ntm : MultiTapeNTM k Bool State)
 theorem query_inSpace :
     ComputableInSpace (runtimeQuery k) encRuntime encNat
       (fun s => (encRuntime s).length) :=
-  runtimeQuery_budget (of_inO (.of_linear (.of_eq fun _ => rfl))) (.refl _)
+  runtimeQuery_budget (of_inO (.of_linear (.of_eq fun _ => rfl)))
 
 /-- Native linear workspace for the full next-state callback on its exact input tuple. -/
 theorem next_inSpace (ntm : MultiTapeNTM k Bool State) :
@@ -263,18 +263,18 @@ theorem next_inSpace (ntm : MultiTapeNTM k Bool State) :
       (fun p => (encPair encRuntime (encPair (encOption encBool) encBool) p).length) := by
   have hs := fst encRuntime (encPair (encOption encBool) encBool)
   have hrest := snd encRuntime (encPair (encOption encBool) encBool)
-  exact runtimeNext_budget ntm hs hrest.fst' hrest.snd' (.refl _)
+  exact runtimeNext_budget ntm hs hrest.fst' hrest.snd'
 
 /-- Native linear workspace for full runtime halt detection. -/
 theorem halted_inSpace :
     ComputableInSpace runtimeHalted encRuntime encBool
       (fun s => (encRuntime s).length) :=
-  runtimeHalted_budget (of_inO (.of_linear (.of_eq fun _ => rfl))) (.refl _)
+  runtimeHalted_budget (of_inO (.of_linear (.of_eq fun _ => rfl)))
 
 /-- Native linear workspace for full runtime acceptance detection. -/
 theorem accept_inSpace :
     ComputableInSpace runtimeAccept encRuntime encBool
       (fun s => (encRuntime s).length) :=
-  runtimeAccept_budget (of_inO (.of_linear (.of_eq fun _ => rfl))) (.refl _)
+  runtimeAccept_budget (of_inO (.of_linear (.of_eq fun _ => rfl)))
 
 end Turing.InductiveCounting

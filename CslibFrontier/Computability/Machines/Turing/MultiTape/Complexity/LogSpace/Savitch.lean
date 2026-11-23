@@ -956,8 +956,7 @@ private theorem initRound_budget {mode : α → Bool} {B n : α → ℕ}
   exact (budget_prod (budget_prod hparams hW) hstate).of_enc_eq fun _ => rfl
 
 /-- The first radix, within a budget. -/
-private theorem startRadix_budget {n : α → ℕ} (hn : ComputableInSpace n enc encNat S)
-    :
+private theorem startRadix_budget {n : α → ℕ} (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => startRadix State (n a)) enc encNat S :=
   budget_natMul (budget_natAdd hn (budget_const 2)) (budget_const _)
 

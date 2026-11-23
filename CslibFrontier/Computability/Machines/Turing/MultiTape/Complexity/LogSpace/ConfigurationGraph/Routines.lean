@@ -46,16 +46,14 @@ open MultiTapeTM ComputableInSpace
 variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 
 private theorem all_inSpace {ι : Type} (l : List ι) {f : ι → α → Bool}
-    (hf : ∀ i, ComputableInSpace (f i) enc encBool S)
-    :
+    (hf : ∀ i, ComputableInSpace (f i) enc encBool S) :
     ComputableInSpace (fun a => (l.map fun i => f i a).all id) enc encBool S := by
   induction l with
   | nil => exact budget_const true
   | cons i l ih => exact budget_boolAnd (hf i) ih
 
 private theorem any_inSpace {ι : Type} (l : List ι) {f : ι → α → Bool}
-    (hf : ∀ i, ComputableInSpace (f i) enc encBool S)
-    :
+    (hf : ∀ i, ComputableInSpace (f i) enc encBool S) :
     ComputableInSpace (fun a => l.any fun i => f i a) enc encBool S := by
   induction l with
   | nil => exact budget_const false
@@ -72,22 +70,19 @@ theorem readRegisters_budget (hB : ComputableInSpace B enc encNat S)
 
 /-- Computing the configuration radix for a fixed exponent preserves the space budget
 of the binary input length. -/
-theorem radix_budget (D : ℕ) (hn : ComputableInSpace n enc encNat S)
-    :
+theorem radix_budget (D : ℕ) (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => radix D (n a)) enc encNat S :=
   budget_natPow (budget_natAdd hn (budget_const 2)) D
 
 /-- The ambient graph size is computable from the radix. -/
-theorem vertexBound_budget (hB : ComputableInSpace B enc encNat S)
-    :
+theorem vertexBound_budget (hB : ComputableInSpace B enc encNat S) :
     ComputableInSpace (fun a => vertexBound (k := k) (B a)) enc encNat S :=
   budget_natPow hB (Fintype.card (Register k))
 
 /-- Syntactic validity of a packed ID preserves a common space budget. -/
 theorem valid_budget (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
-    (hu : ComputableInSpace u enc encNat S)
-    :
+    (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => valid (k := k) (State := State) (B a) (n a) (u a))
       enc encBool S := by
   have hr := readRegisters_budget (k := k) hB hu
@@ -108,8 +103,7 @@ theorem valid_budget (hB : ComputableInSpace B enc encNat S)
 private theorem inputSymbol_budget {p : α → ℕ}
     (hn : ComputableInSpace n enc encNat S)
     (hp : ComputableInSpace p enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => inputSymbol (n a) (p a) (symbol a))
       enc (encOption encBool) S := by
   have hc := budget_boolOr (budget_natIsZero hp) (budget_natEq hp (budget_natSucc hn))
@@ -177,8 +171,7 @@ theorem matchesEntry_budget {r : α → Register k → ℕ}
 /-- Checking that every register fits below the radix preserves a common space budget. -/
 theorem fitsB_budget {r : α → Register k → ℕ}
     (hB : ComputableInSpace B enc encNat S)
-    (hr : ∀ i, ComputableInSpace (fun a => r a i) enc encNat S)
-    :
+    (hr : ∀ i, ComputableInSpace (fun a => r a i) enc encNat S) :
     ComputableInSpace (fun a => fitsB (B a) (r a)) enc encBool S := by
   simpa only [fitsB, List.all_map, Function.comp_def, id_eq] using
     all_inSpace (Finset.univ.toList : List (Register k)) (fun i => budget_natLt (hr i) hB)
@@ -189,8 +182,7 @@ theorem edgeWithSymbol_budget (ntm : MultiTapeNTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => edgeWithSymbol ntm (B a) (n a) (u a) (v a) (symbol a))
       enc encBool S := by
   have hr := readRegisters_budget (k := k) hB hu
@@ -209,8 +201,7 @@ theorem overflow_budget (ntm : MultiTapeNTM k Bool State)
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => overflow ntm (B a) (n a) (u a) (symbol a))
       enc encBool S := by
   have hr := readRegisters_budget (k := k) hB hu
@@ -229,8 +220,7 @@ theorem queryIndex_budget (hB : ComputableInSpace B enc encNat S)
 /-- Recognize the accepting halted vertices in native deterministic linear workspace. -/
 theorem bad_budget (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
-    (hu : ComputableInSpace u enc encNat S)
-    :
+    (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => bad (State := State) (k := k) (B a) (n a) (u a))
       enc encBool S := by
   have hr := readRegisters_budget (k := k) hB hu
@@ -240,8 +230,7 @@ theorem bad_budget (hB : ComputableInSpace B enc encNat S)
 
 /-- Compute the input-independent start ID from the radix. -/
 theorem startID_budget (ntm : MultiTapeNTM k Bool State)
-    (hB : ComputableInSpace B enc encNat S)
-    :
+    (hB : ComputableInSpace B enc encNat S) :
     ComputableInSpace (fun a => startID ntm (B a)) enc encNat S :=
   pack_inSpace hB (fun _ => budget_const _)
 

@@ -135,7 +135,7 @@ private theorem routines : Nonempty (Routines (machine edge start verdict 1 movi
   refine Turing.DoubleCounting.BoundedWalk.exists_routines edge start verdict 1 moving
     (encOption encBool) hstart (budget_const 0) edgeNext_inSpace
     (budget_optionIsSome hresult) (budget_optionGetD false hresult) (fun _ => moving) ?_ ?_ ?_ ?_
-  · exact (ComputableInSpace.constZero moving).mono_le fun _ => Nat.zero_le _
+  · exact (ComputableInSpace.budget_const moving)
   · intro input
     rw [budget, encBits_apply]
     omega

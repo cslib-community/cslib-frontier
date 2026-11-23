@@ -267,7 +267,7 @@ private theorem nativeRoutines : Nonempty
       encBits nativeBudget) := by
   refine exists_routines encUnit encUnit encUnit initialRegisters done callbackInit stableReply
     done callbackInit negativeReply encBits nativeBudget (fun _ => initialRegisters)
-    ((ComputableInSpace.constZero initialRegisters).mono_le fun _ => Nat.zero_le _) ?_
+    (ComputableInSpace.budget_const initialRegisters) ?_
     (budget_const ()) (budget_const ())
     (budget_const (stableReply ())) (budget_const (some false))
     (budget_const 0) (budget_const 0)

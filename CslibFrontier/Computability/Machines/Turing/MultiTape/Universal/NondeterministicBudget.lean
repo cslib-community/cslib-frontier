@@ -364,8 +364,7 @@ private lemma keepTwo_budget {o : γ → List ℕ} {a : γ → Option ℕ}
   exact budget_comp_linear (f := fun x => (o x, a x)) hk (budget_prod ho ha)
 
 private lemma nuNext_budget {p : γ → NUState × Option Bool × Bool}
-    (hp : ComputableInSpace p encIn (encPair eNU (encPair (encOption encBool) encBool)) Bs)
-    :
+    (hp : ComputableInSpace p encIn (encPair eNU (encPair (encOption encBool) encBool)) Bs) :
     ComputableInSpace (fun x => nuNext (p x)) encIn eNU Bs := by
   have hs := hp.fst'
   have hans := hp.snd'.fst'
@@ -520,7 +519,7 @@ public theorem nuStart_budget {α : Type} {enc : α ↪ List Bool} {D : α → D
   have hI : ComputableInSpace (fun a => init (D a)) enc eCfg S :=
     budget_comp_lin (of_inO init_inO) linear_succ hD
   have hO : ComputableInSpace (fun _ : α => ([] : List ℕ)) enc (encList encUnary) S :=
-    (constZero []).mono_le fun _ => Nat.zero_le _
+    budget_const []
   exact eNU_mk_budget hT hT hB hI hO
 
 /-! ### Machines within a space bound -/

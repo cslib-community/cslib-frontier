@@ -257,8 +257,7 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 
 private theorem insertSortedFuel_budget (fuel : ℕ) {x : α → ℕ} {l : α → List ℕ}
     (hx : ComputableInSpace x enc encNat S)
-    (hl : ComputableInSpace l enc (encList encNat) S)
-    :
+    (hl : ComputableInSpace l enc (encList encNat) S) :
     ComputableInSpace (fun a => insertSortedFuel fuel (x a) (l a)) enc (encList encNat) S := by
   induction fuel generalizing l with
   | zero =>
@@ -274,8 +273,7 @@ private theorem insertSortedFuel_budget (fuel : ℕ) {x : α → ℕ} {l : α �
 
 private theorem getElemOptFuel_budget (fuel : ℕ) {l : α → List ℕ} {q : α → ℕ}
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hq : ComputableInSpace q enc encNat S)
-    :
+    (hq : ComputableInSpace q enc encNat S) :
     ComputableInSpace (fun a => getElemOptFuel fuel (l a) (q a)) enc (encOption encNat) S := by
   induction fuel generalizing l q with
   | zero =>
@@ -291,8 +289,7 @@ budget. -/
 private theorem getElem?_budget (fuel : ℕ) {l : α → List ℕ} {q : α → ℕ}
     (hlen : ∀ a, (l a).length ≤ fuel)
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hq : ComputableInSpace q enc encNat S)
-    :
+    (hq : ComputableInSpace q enc encNat S) :
     ComputableInSpace (fun a => (l a)[q a]?) enc (encOption encNat) S :=
   (getElemOptFuel_budget fuel hl hq).of_enc_eq fun a => by
     rw [getElemOptFuel_eq fuel (l a) (q a) (hlen a)]
@@ -302,15 +299,13 @@ preserves a common space budget. -/
 theorem getElem?_getD_zero_budget (fuel : ℕ) {l : α → List ℕ} {q : α → ℕ}
     (hlen : ∀ a, (l a).length ≤ fuel)
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hq : ComputableInSpace q enc encNat S)
-    :
+    (hq : ComputableInSpace q enc encNat S) :
     ComputableInSpace (fun a => ((l a)[q a]?).getD 0) enc encNat S :=
   budget_optionGetD 0 (getElem?_budget fuel hlen hl hq)
 
 private theorem idxOfFuel_budget (fuel : ℕ) {l : α → List ℕ} {u : α → ℕ}
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hu : ComputableInSpace u enc encNat S)
-    :
+    (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => idxOfFuel fuel (l a) (u a)) enc encNat S := by
   induction fuel generalizing l with
   | zero =>
@@ -326,16 +321,14 @@ private theorem idxOfFuel_budget (fuel : ℕ) {l : α → List ℕ} {u : α → 
 private theorem idxOf_budget (fuel : ℕ) {l : α → List ℕ} {u : α → ℕ}
     (hlen : ∀ a, (l a).length ≤ fuel)
     (hl : ComputableInSpace l enc (encList encNat) S)
-    (hu : ComputableInSpace u enc encNat S)
-    :
+    (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => (l a).idxOf (u a)) enc encNat S :=
   (idxOfFuel_budget fuel hl hu).of_enc_eq fun a => by
     rw [idxOfFuel_eq fuel (l a) (u a) (hlen a)]
 
 private theorem pairSortedTargets_budget {a b : α → Option ℕ}
     (ha : ComputableInSpace a enc (encOption encNat) S)
-    (hb : ComputableInSpace b enc (encOption encNat) S)
-    :
+    (hb : ComputableInSpace b enc (encOption encNat) S) :
     ComputableInSpace (fun x => pairSortedTargets (a x) (b x)) enc (encList encNat) S := by
   have hva := budget_optionGetD 0 ha
   have hvb := budget_optionGetD 0 hb
@@ -477,8 +470,7 @@ theorem stepTargetWithSymbol_budget (tm : MultiTapeTM k Bool State)
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => stepTargetWithSymbol tm (B a) (n a) (u a) (symbol a))
       enc (encOption encNat) S := by
   have hr := readRegisters_budget (k := k) hB hu
@@ -594,8 +586,7 @@ theorem coinOutTargetsWithSymbol_budget {α : Type} {enc : α ↪ List Bool} {S 
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => coinOutTargetsWithSymbol machine (B a) (n a) (u a) (symbol a))
       enc (encList encNat) S :=
   pairSortedTargets_budget
@@ -1176,8 +1167,7 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 /-- Evaluate a fixed `PredRecipe` within any common space budget. -/
 theorem evalPredRecipe_budget (rec : PredRecipe k State) {B v : α → ℕ}
     (hB : ComputableInSpace B enc encNat S)
-    (hv : ComputableInSpace v enc encNat S)
-    :
+    (hv : ComputableInSpace v enc encNat S) :
     ComputableInSpace (fun a => evalPredRecipe rec (B a) (v a)) enc encNat S := by
   cases rec with
   | self => exact hv
@@ -1237,8 +1227,7 @@ theorem coinInSourcesWithSymbols_ofFn_budget (machine : MultiTapePTM k Bool Stat
     (hB : ComputableInSpace B enc encNat S)
     (hn : ComputableInSpace n enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hsym : ∀ i, ComputableInSpace (symAt i) enc (encOption encBool) S)
-    :
+    (hsym : ∀ i, ComputableInSpace (symAt i) enc (encOption encBool) S) :
     ComputableInSpace
       (fun a => coinInSourcesWithSymbols machine (B a) (n a) (v a)
         (List.ofFn fun i : Fin (inPortBound machine) => symAt i a))
@@ -1275,8 +1264,7 @@ private theorem clockedOutTarget_budget (machine : MultiTapePTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (ha : ComputableInSpace a enc encNat S)
     (hp : ComputableInSpace p enc encNat S)
-    (hsym : ComputableInSpace symOut enc (encOption encBool) S)
-    :
+    (hsym : ComputableInSpace symOut enc (encOption encBool) S) :
     let B x := radix D (n x)
     let N x := vertexBound (k := k) (B x)
     let u x := a x % N x
@@ -1307,8 +1295,7 @@ theorem clockedOutCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (ha : ComputableInSpace a enc encNat S)
     (hp : ComputableInSpace p enc encNat S)
-    (hsym : ComputableInSpace symOut enc (encOption encBool) S)
-    :
+    (hsym : ComputableInSpace symOut enc (encOption encBool) S) :
     ComputableInSpace
       (fun x => clockedOutCountWithSymbol machine D d (n x) (a x) (p x) (symOut x))
       enc encNat S := by
@@ -1328,8 +1315,7 @@ theorem clockedOutPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
     (ha : ComputableInSpace a enc encNat S)
     (hp : ComputableInSpace p enc encNat S)
     (hsymOut : ComputableInSpace symOut enc (encOption encBool) S)
-    (hinSym : ∀ i, ComputableInSpace (inSymAt i) enc (encOption encBool) S)
-    :
+    (hinSym : ∀ i, ComputableInSpace (inSymAt i) enc (encOption encBool) S) :
     ComputableInSpace
       (fun x => clockedOutPortWithSymbols machine D d (n x) (a x) (p x) (symOut x)
         (List.ofFn fun i => inSymAt i x))
@@ -1357,8 +1343,7 @@ theorem clockedInPortWithSymbols_budget (machine : MultiTapePTM k Bool State)
     (hb : ComputableInSpace b enc encNat S)
     (hq : ComputableInSpace q enc encNat S)
     (hinSym : ∀ i, ComputableInSpace (inSymAt i) enc (encOption encBool) S)
-    (hsymPred : ComputableInSpace symPred enc (encOption encBool) S)
-    :
+    (hsymPred : ComputableInSpace symPred enc (encOption encBool) S) :
     ComputableInSpace
       (fun x => clockedInPortWithSymbols machine D d (n x) (b x) (q x)
         (List.ofFn fun i => inSymAt i x) (symPred x))

@@ -266,7 +266,7 @@ example :
       simp only [budget, encBool_apply, List.length_singleton]
       omega
   have hparams : ComputableInSpace (fun _ : Bool => expanded) encBool encContext budget :=
-    (ComputableInSpace.constZero expanded).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const expanded
   have hsource : expanded.source < expanded.size := by decide
   have hroutines : Nonempty
       (Routines tally (fun flag => retainedInitial flag expanded) encBool budget) :=
@@ -327,7 +327,7 @@ private theorem routines : Nonempty
     negativeContext (fun _ => negativeContext) encUnit ?_ ?_
     (budget_const ()) (budget_const 0) (budget_const ())
     (budget_const true) (budget_const false) (fun _ => 0) ?_ ?_
-  · exact (ComputableInSpace.constZero negativeContext).mono_le fun _ => Nat.zero_le _
+  · exact (ComputableInSpace.budget_const negativeContext)
   · intro input
     rw [encBits_apply]
     unfold budget

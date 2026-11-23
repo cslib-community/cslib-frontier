@@ -54,8 +54,7 @@ theorem component_inSpace (i : ι) :
 /-- Packing a fixed tuple of computed components preserves a common space budget. -/
 theorem pack_inSpace {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {B : α → ℕ}
     {f : α → ι → ℕ} (hB : ComputableInSpace B enc encNat S)
-    (hf : ∀ i, ComputableInSpace (fun a => f a i) enc encNat S)
-    :
+    (hf : ∀ i, ComputableInSpace (fun a => f a i) enc encNat S) :
     ComputableInSpace (fun a => Cslib.Radix.pack (B a) (f a)) enc encNat S := by
   have hlist : ∀ l : List ι, ComputableInSpace
       (fun a => Nat.ofDigits (B a) (l.map (f a))) enc encNat S := by

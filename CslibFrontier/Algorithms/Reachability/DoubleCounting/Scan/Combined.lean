@@ -255,7 +255,7 @@ theorem start_inSpace : ComputableInSpace start encInput encContext
   have hw := budget_comp_linear natSize (encParameters_width_budget hp)
   have hone : ComputableInSpace (fun _ : Input => 1) encInput encNat
       (fun x => (encParameters x.parameters).length) :=
-    (constZero 1).weaken (.of_le fun _ => by omega)
+    budget_const 1
   have hlen := budget_natAdd (budget_natAdd (budget_natAdd hn hn) hone) hw
   have hoff := budget_natAdd (budget_natAdd hlen hlen) hone
   have hprep := budget_comp_linear prepare_inSpace hp

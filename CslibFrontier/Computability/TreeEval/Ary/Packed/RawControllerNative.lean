@@ -252,8 +252,7 @@ private theorem beginRound_budget {α : Type} {encIn : α ↪ List Bool} {S : α
     (hr : ComputableInSpace r encIn encNat S) (hi : ComputableInSpace round encIn encNat S)
     (hc : ComputableInSpace c encIn encNat S) (ht : ComputableInSpace t encIn encNat S)
     (hb : ComputableInSpace bank encIn (encList encNat) S)
-    (hs : ComputableInSpace stack encIn (encList encFrame) S)
-    :
+    (hs : ComputableInSpace stack encIn (encList encFrame) S) :
     ComputableInSpace (fun a => checkedBeginRound (p a) (d a) (r a) (round a) (c a) (t a)
       (bank a) (stack a)) encIn encState S := by
   have hz := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 0
@@ -277,8 +276,7 @@ private theorem call_budget {α : Type} {encIn : α ↪ List Bool} {S : α → �
     (ht : ComputableInSpace t encIn encNat S) (htag : ComputableInSpace tag encIn encNat S)
     (hb : ComputableInSpace bank encIn (encList encNat) S)
     (hv : ComputableInSpace values encIn (encList encNat) S)
-    (hs : ComputableInSpace stack encIn (encList encFrame) S)
-    :
+    (hs : ComputableInSpace stack encIn (encList encFrame) S) :
     ComputableInSpace (fun a => checkedCall (p a) (d a) (r a) (tag a, values a)
       (bank a) (stack a) (c a, t a)) encIn encState S := by
   have hz := budget_const (encIn := encIn) (Bs := S) (encB := encNat) 0
@@ -329,8 +327,7 @@ private theorem return_budget {α : Type} {encIn : α ↪ List Bool} {S : α →
     (hb : ComputableInSpace bank encIn (encList encNat) S)
     (hv : ComputableInSpace values encIn (encList encNat) S)
     (hf : ComputableInSpace fr encIn encFrame S)
-    (hs : ComputableInSpace st encIn (encList encFrame) S)
-    :
+    (hs : ComputableInSpace st encIn (encList encFrame) S) :
     ComputableInSpace (fun a => checkedReturn (p a) (d a) (r a) (0, values a)
       (bank a) (fr a) (st a)) encIn encState S := by
   have hround := fst' hf

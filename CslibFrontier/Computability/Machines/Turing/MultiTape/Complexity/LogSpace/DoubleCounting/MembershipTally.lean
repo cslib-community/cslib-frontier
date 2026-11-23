@@ -1022,8 +1022,8 @@ private theorem rankOr_budget {α : Type} {enc : α ↪ List Bool} {budget : α 
     (fallback : Fin N) {rank : α → ℕ} (hr : ComputableInSpace rank enc encNat budget) :
     ComputableInSpace (fun a => rankOr fallback (rank a)) enc
       (Fin.valEmbedding.trans encNat) budget := by
-  refine (budget_ite (budget_natLt hr ((constZero N).mono_le fun _ => Nat.zero_le _)) hr
-    ((constZero fallback.val).mono_le fun _ => Nat.zero_le _)).of_enc_eq fun a => ?_
+  refine (budget_ite (budget_natLt hr (budget_const N)) hr
+    (budget_const fallback.val)).of_enc_eq fun a => ?_
   by_cases h : rank a < N <;> simp [rankOr, h]
 
 private theorem enterWalk_inSpace (encCallee : τ ↪ List Bool) :

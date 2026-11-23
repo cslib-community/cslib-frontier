@@ -325,7 +325,7 @@ theorem exists_decidesInLogSpace (P : CounterProgram) {α : Type} {enc : α ↪ 
     (query_inSpace (P := P)) hnext (halted_inSpace (P := P))
     (accept_inSpace (P := P)) (fun _ => P.toNondeterministicQueryMachine.init) time hhalt hA
     (fun a => Nat.log2 (enc a).length + 1) (fun _ => le_rfl)
-    ((ComputableInSpace.constZero _).mono_le fun _ => Nat.zero_le _)
+    (ComputableInSpace.budget_const _)
     ⟨2 * (encNat P.maxLabel).length + 1 + P.registers * (2 * d + 3), fun a choices => ?_⟩
   have hinit : P.init.1 ≤ P.maxLabel ∧ P.init.2.length = P.registers :=
     ⟨Nat.zero_le _, List.length_replicate⟩

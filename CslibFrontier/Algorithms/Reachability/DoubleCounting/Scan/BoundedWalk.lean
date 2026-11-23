@@ -876,10 +876,6 @@ open MultiTapeTM ComputableInSpace
 
 variable {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ} {encCallee : τ ↪ List Bool}
 
-private theorem constZero_budget {β : Type} {encB : β ↪ List Bool} (c : β) :
-    ComputableInSpace (fun _ : α => c) encIn encB budget :=
-  (constZero c).mono_le fun _ => Nat.zero_le _
-
 /-- Assemble a walk's binary register word even when the vertex count depends on the input. -/
 theorem registersWord_budget {dimension : α → ℕ} {r : (a : α) → Registers (dimension a)}
     (hcurrent : ComputableInSpace (fun a => (r a).current.val) encIn encNat budget)
@@ -916,7 +912,7 @@ theorem init_budget (edge : QueryMachine τ) (start : Fin N → Fin N → τ)
     (hr : ComputableInSpace registers encIn (encRegisters N) budget) :
     ComputableInSpace (fun a => (machine edge start verdict clock (registers a)).init)
       encIn (encState encCallee) budget :=
-  choose_budget hr (constZero_budget _)
+  choose_budget hr (budget_const _)
 
 private abbrev encCallWord (encCallee : τ ↪ List Bool) :=
   encCallFields encBits encNat encCallee
@@ -989,13 +985,13 @@ theorem advanceChoice_budget {dimension : α → ℕ} {r : (a : α) → Register
     budget_natMod hvNat hdim
   have hvalid := budget_boolAnd (budget_optionIsSome hvOpt) (budget_natLt hvNat hdim)
   have hreject := doneWord_budget (dimension := dimension) (encCallee := encCallee)
-    (encIn := encIn) (budget := budget) (constZero_budget none)
+    (encIn := encIn) (budget := budget) (budget_const none)
   have hstopAnswer := budget_ite (budget_natEq hcurrent htarget)
     (doneWord_budget (dimension := dimension) (encCallee := encCallee)
       (budget_optionSome hfuel)) hreject
   have hrest := registersWord_budget (r := fun a => { r a with fuel := (r a).fuel - 1 })
     hcurrent htarget (budget_natPred hfuel)
-  have hcall := callWord_budget (v := v) hrest hv (constZero_budget clock) (hstart v hv)
+  have hcall := callWord_budget (v := v) hrest hv (budget_const clock) (hstart v hv)
   have hroute := budget_ite hselector hreject
     (budget_ite hstop hstopAnswer
       (budget_ite (budget_boolAnd (budget_boolNot (budget_natIsZero hfuel)) hvalid)
@@ -1070,7 +1066,7 @@ theorem advanceCall_budget {edge : QueryMachine τ} {verdict : τ → Bool} {dim
     (registersWord_budget (r := fun a => { r a with current := v a })
       hv (fst' (snd' hregs)) (snd' (snd' hregs))) (NondeterministicChoice.init_budget hdim)
   have hreject := doneWord_budget (dimension := dimension) (encCallee := encCallee)
-    (encIn := encIn) (budget := budget) (constZero_budget none)
+    (encIn := encIn) (budget := budget) (budget_const none)
   refine (budget_ite hselector hreject
     (budget_ite (budget_natIsZero hticks)
       (budget_ite (budget_boolAnd hhalt hvd) hresume hreject) hcontinue)).of_enc_eq fun a => ?_

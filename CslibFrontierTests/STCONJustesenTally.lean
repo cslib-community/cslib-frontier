@@ -246,8 +246,8 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       MembershipTally.encContext budget :=
     MembershipTally.encContext_mk_budget hn (encSeedSearchSetup_sourceID_budget hsetup)
       (encSeedSearchSetup_targetID_budget hsetup)
-      ((ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _)
-      ((ComputableInSpace.constZero (⟨0, 0⟩ : Tally)).mono_le fun _ => Nat.zero_le _)
+      (ComputableInSpace.budget_const 0)
+      (ComputableInSpace.budget_const (⟨0, 0⟩ : Tally))
   have hrank (w : List Bool) :
       0 < (configurationSeedSearchParameters ntm c (encBits w)).search.seedLimit :=
     Nat.two_pow_pos _
@@ -510,7 +510,7 @@ example {k : ℕ} {State : Type} [Fintype State] (ntm : MultiTapeNTM k Bool Stat
       encJustesenSubdivisionContext budget :=
     hadj.mono_le fun _ => Nat.le_succ _
   have hzero : ComputableInSpace (fun _ => 0) encBits encNat budget :=
-    (ComputableInSpace.constZero 0).mono_le fun _ => Nat.zero_le _
+    ComputableInSpace.budget_const 0
   have hc := encJustesenSourceContext_mk_budget hadj' hzero hzero
   have hreg := SourceRoundLoop.start_budget encJustesenSourceContext hc
     (encJustesenSourceContext_size_budget hc)

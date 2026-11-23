@@ -134,7 +134,7 @@ private theorem nativeRoutines :
   refine withSourceRound_exists_routines oneVertex source callback entry (fun _ => some true)
     () 1 encBits nativeBudget encUnit encUnit encUnit callback memberEntry (fun _ => some false)
     (fun _ => ()) (fun _ => 1)
-    ((ComputableInSpace.constZero (start () 1)).mono_le fun _ => Nat.zero_le _) ?_
+    (ComputableInSpace.budget_const (start () 1)) ?_
     (budget_const 1) (budget_const 0)
     (budget_const ()) (budget_const (some true)) (budget_const 0)
     (budget_const true) (budget_const ()) (budget_const ())

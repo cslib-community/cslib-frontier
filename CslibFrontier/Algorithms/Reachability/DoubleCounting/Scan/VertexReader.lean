@@ -181,9 +181,9 @@ theorem init_budget {α : Type} {encIn : α ↪ List Bool} {budget : α → ℕ}
     {dimension : α → ℕ} (hdim : ComputableInSpace dimension encIn encNat budget) :
     ComputableInSpace (fun a => (machine (dimension a)).init) encIn encState budget :=
   encState_mk_budget hdim (budget_comp_linear natSize hdim)
-    ((constZero 0).mono_le fun _ => Nat.zero_le _)
-    ((constZero 0).mono_le fun _ => Nat.zero_le _)
-    ((constZero false).mono_le fun _ => Nat.zero_le _)
+    (budget_const 0)
+    (budget_const 0)
+    (budget_const false)
 
 /-- The actual input query is a native binary-register projection. -/
 theorem query_inSpace (N : ℕ) :

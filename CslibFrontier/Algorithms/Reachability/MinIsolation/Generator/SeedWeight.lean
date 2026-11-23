@@ -244,9 +244,9 @@ private theorem enter_budget {α : Type} {enc : α ↪ List Bool}
     (h : ComputableInSpace loc enc (encLocated Context encContext) budget) :
     ComputableInSpace (fun x => enter (loc x)) enc encRuntimeState budget := by
   have hzero : ComputableInSpace (fun _ : α => 0) enc encNat budget :=
-    (constZero 0).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const 0
   have hflag : ComputableInSpace (fun _ : α => false) enc encBool budget :=
-    (constZero false).weaken (.of_le fun _ => Nat.zero_le _)
+    budget_const false
   exact encLocated_mk_budget ScanState encScanState
     (QueryMachine.encLocated_offset_budget Context encContext h)
     (SeedDigits.encState_mk_budget Context encContext

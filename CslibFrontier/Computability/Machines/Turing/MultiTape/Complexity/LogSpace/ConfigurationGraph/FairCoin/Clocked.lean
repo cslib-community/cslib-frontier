@@ -69,16 +69,14 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ} {B n T u : α →
 
 /-- Computing the polynomial clock preserves any common native space budget for the input
 length. The exponent is fixed with the source machine. -/
-theorem polyClock_budget (d : ℕ) (hn : ComputableInSpace n enc encNat S)
-    :
+theorem polyClock_budget (d : ℕ) (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => polyClock d (n a)) enc encNat S := by
   have htwo : ComputableInSpace (fun _ : α => 2) enc encNat S := budget_const 2
   exact budget_natMul htwo (budget_natPow (budget_natMul htwo (budget_natSucc hn)) d)
 
 /-- Computing the clocked dimension preserves any common native space budget for the input
 length. The exponents are fixed with the source machine. -/
-theorem clockedVertexBound_budget (D d : ℕ) (hn : ComputableInSpace n enc encNat S)
-    :
+theorem clockedVertexBound_budget (D d : ℕ) (hn : ComputableInSpace n enc encNat S) :
     ComputableInSpace (fun a => clockedVertexBound (k := k) D d (n a)) enc encNat S :=
   budget_natMul (budget_natSucc (polyClock_budget d hn))
     (vertexBound_budget (k := k) (radix_budget D hn))
@@ -86,8 +84,7 @@ theorem clockedVertexBound_budget (D d : ℕ) (hn : ComputableInSpace n enc encN
 /-- The terminal reward test preserves the native space budget of its binary arguments. -/
 theorem clockedAccept_budget {State : Type} [Fintype State]
     (hB : ComputableInSpace B enc encNat S) (hn : ComputableInSpace n enc encNat S)
-    (hT : ComputableInSpace T enc encNat S) (hu : ComputableInSpace u enc encNat S)
-    :
+    (hT : ComputableInSpace T enc encNat S) (hu : ComputableInSpace u enc encNat S) :
     ComputableInSpace (fun a => clockedAccept (k := k) (State := State)
       (B a) (n a) (T a) (u a)) enc encBool S := by
   have hN := vertexBound_budget (k := k) hB
@@ -155,8 +152,7 @@ variable {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}
 theorem clockedCoinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hB : ComputableInSpace B enc encNat S) (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S) (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => clockedCoinCountWithSymbol machine
       (B a) (n a) (u a) (v a) (symbol a)) enc encNat S := by
   have hN := vertexBound_budget (k := k) hB

@@ -163,10 +163,10 @@ theorem seedSchedulerCandidate_budget {α : Type} {enc : α ↪ List Bool} {S : 
   have hsource := encSeedSearchSetup_sourceID_budget hsetup
   have hrequest := encSeedScanRequest_mk_budget hsetup hseed hsource
   have hframe := encSeedSchedulerFrame_mk_budget hrequest
-    ((constZero (encB := encNat) 0).mono_le fun _ => Nat.zero_le _)
-    ((constZero (encB := encOption encBool) none).mono_le fun _ => Nat.zero_le _)
+    (budget_const (encB := encNat) 0)
+    (budget_const (encB := encOption encBool) none)
   exact budget_iteProp (budget_natLt hseed hlimit) (budget_optionSome hframe)
-    ((constZero (encB := encOption encSeedSchedulerFrame) none).mono_le fun _ => Nat.zero_le _)
+    (budget_const (encB := encOption encSeedSchedulerFrame) none)
 
 /-- Testing whether a frame needs a scan uses the budget of the frame producer. -/
 theorem SeedSchedulerFrame.needsScan_budget {α : Type} {enc : α ↪ List Bool} {S : α → ℕ}

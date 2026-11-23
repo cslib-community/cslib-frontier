@@ -100,8 +100,7 @@ theorem coinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace (fun a => coinCountWithSymbol machine (B a) (n a) (u a) (v a) (symbol a))
       enc encNat S :=
   budget_natAdd
@@ -116,8 +115,7 @@ theorem liveCoinCountWithSymbol_budget (machine : MultiTapePTM k Bool State)
     (hn : ComputableInSpace n enc encNat S)
     (hu : ComputableInSpace u enc encNat S)
     (hv : ComputableInSpace v enc encNat S)
-    (hs : ComputableInSpace symbol enc (encOption encBool) S)
-    :
+    (hs : ComputableInSpace symbol enc (encOption encBool) S) :
     ComputableInSpace
       (fun a => liveCoinCountWithSymbol machine (B a) (n a) (u a) (v a) (symbol a))
       enc encNat S := by

@@ -135,7 +135,7 @@ private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
     (l : List κ) (d : κ) (F : κ → α → β)
     (hF : ∀ p, ComputableInSpace (F p) enc encB S) {i : α → ℕ}
     (hi : ComputableInSpace i enc encNat S)
-    (_hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => F (l.getD (i a) d) a) enc encB S := by
   induction l generalizing i with
   | nil => simpa using hF d
@@ -148,11 +148,11 @@ private theorem dispatch_budget {κ β : Type} {encB : β ↪ List Bool}
 theorem phaseCases_budget {β : Type} {encB : β ↪ List Bool} {s : α → State}
     (hs : ComputableInSpace s enc encState S) (F : Phase → α → β)
     (hF : ∀ p, ComputableInSpace (F p) enc encB S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => F (s a).phase a) enc encB S := by
   refine (dispatch_budget
     [.round, .target, .candidate, .walk, .guess, .edge, .observe, .done, .accept, .reject]
-    .reject F hF (phaseCode_budget hs) hin).of_enc_eq fun a => ?_
+    .reject F hF (phaseCode_budget hs)).of_enc_eq fun a => ?_
   cases (s a).phase <;> rfl
 
 /-- Constructing a state from its finite label, ten binary registers and two flags. -/
@@ -169,8 +169,7 @@ theorem state_budget {s : α → State}
     (hguess : ComputableInSpace (fun a => (s a).guess) enc encNat S)
     (hbits : ComputableInSpace (fun a => (s a).bits) enc encNat S)
     (hhit : ComputableInSpace (fun a => (s a).hit) enc encBool S)
-    (hfinal : ComputableInSpace (fun a => (s a).finalScan) enc encBool S)
-    :
+    (hfinal : ComputableInSpace (fun a => (s a).finalScan) enc encBool S) :
     ComputableInSpace s enc encState S := by
   have hregs := budget_cons hround (budget_cons hcount (budget_cons htarget
     (budget_cons hnext (budget_cons hcandidate (budget_cons hselected
@@ -266,17 +265,17 @@ private theorem not_budget {f : α → Bool}
 /-- Halt detection reads only the finite phase. -/
 theorem halted_budget {s : α → State}
     (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => halted (s a)) enc encBool S := by
   refine (phaseCases_budget hs (fun p _ => p == .accept || p == .reject)
-    (fun p => budget_const _) hin).of_enc_eq fun _ => rfl
+    (fun p => budget_const _)).of_enc_eq fun _ => rfl
 
 /-- Acceptance detection reads only the finite phase. -/
 theorem accepting_budget {s : α → State}
     (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => (s a).phase == .accept) enc encBool S :=
-  phaseCases_budget hs (fun p _ => p == .accept) (fun _ => budget_const _) hin
+  phaseCases_budget hs (fun p _ => p == .accept) (fun _ => budget_const _)
 
 variable {N width source : α → ℕ} {s : α → State} {answer choice : α → Bool}
 
@@ -287,8 +286,7 @@ theorem widthBinary_budget (hw : ComputableInSpace width enc encUnary S) :
 
 /-- The complete register bound, with unary width, uses linear space on all inputs. -/
 theorem registerBound_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encUnary S)
-    :
+    (hw : ComputableInSpace width enc encUnary S) :
     ComputableInSpace (fun a => registerBound (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natAdd (budget_natAdd hN
     (budget_comp_linear unaryTwoPow_inSpace hw)) (widthBinary_budget hw))
@@ -301,7 +299,7 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
     (hs : ComputableInSpace s enc encState S)
     (hanswer : ComputableInSpace answer enc encBool S)
     (hchoice : ComputableInSpace choice enc encBool S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace
       (fun a => instruction (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
@@ -403,29 +401,26 @@ theorem instruction_budget (hN : ComputableInSpace N enc encNat S)
       exact (state_budget (budget_const 9)
           h_round h_count h_target h_nextCount h_candidate h_selected h_remaining h_current
             h_guess h_bits h_hit h_finalScan)
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
 /-- The candidate cost is a fixed arithmetic expression in the supplied parameters. -/
 theorem candidateCost_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encNat S)
-    :
+    (hw : ComputableInSpace width enc encNat S) :
     ComputableInSpace (fun a => candidateCost (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natMul hN (budget_natAdd hw (budget_const 3))) (budget_const 4)
 
 /-- The target cost uses a fixed number of binary arithmetic operations. -/
 theorem targetCost_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encNat S)
-    :
+    (hw : ComputableInSpace width enc encNat S) :
     ComputableInSpace (fun a => targetCost (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natMul (budget_natSucc hN) (candidateCost_budget hN hw))
     (budget_const 6)
 
 /-- The round cost uses a fixed number of binary arithmetic operations. -/
 theorem roundCost_budget (hN : ComputableInSpace N enc encNat S)
-    (hw : ComputableInSpace width enc encNat S)
-    :
+    (hw : ComputableInSpace width enc encNat S) :
     ComputableInSpace (fun a => roundCost (N a) (width a)) enc encNat S :=
   budget_natAdd (budget_natMul (budget_natSucc hN) (targetCost_budget hN hw))
     (budget_const 2)
@@ -434,7 +429,7 @@ theorem roundCost_budget (hN : ComputableInSpace N enc encNat S)
 theorem rank_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encNat S)
     (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => rank (N a) (width a) (s a)) enc encNat S := by
   have hc := candidateCost_budget hN hw
   have ht := targetCost_budget hN hw
@@ -476,15 +471,14 @@ theorem rank_budget (hN : ComputableInSpace N enc encNat S)
     | done => exact budget_natAdd hb (budget_const 3)
     | accept => exact budget_const 0
     | reject => exact budget_const 0
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
 /-- All ten storage checks are executable within the budget, including on malformed states. -/
 theorem bounded_budget (hN : ComputableInSpace N enc encNat S)
     (hw : ComputableInSpace width enc encUnary S)
-    (hs : ComputableInSpace s enc encState S)
-    :
+    (hs : ComputableInSpace s enc encState S) :
     ComputableInSpace (fun a => decide (Bounded (N a) (width a) (s a)))
       enc encBool S := by
   have hB := registerBound_budget hN hw
@@ -510,14 +504,14 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
     (hs : ComputableInSpace s enc encState S)
     (hanswer : ComputableInSpace answer enc encBool S)
     (hchoice : ComputableInSpace choice enc encBool S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace
       (fun a => advance (N a) (width a) (source a) (s a) (answer a) (choice a))
       enc encState S := by
   have hw' := widthBinary_budget hw
-  have hi := instruction_budget hN hw' hsource hs hanswer hchoice hin
+  have hi := instruction_budget hN hw' hsource hs hanswer hchoice
   have hb := bounded_budget hN hw hi
-  have hr := budget_natLt (rank_budget hN hw' hi hin) (rank_budget hN hw' hs hin)
+  have hr := budget_natLt (rank_budget hN hw' hi) (rank_budget hN hw' hs)
   have hcheck := (and_budget hb hr).of_enc_eq (encC := encBool)
     (g := fun a => decide (Bounded (N a) (width a)
       (instruction (N a) (width a) (source a) (s a) (answer a) (choice a)) ∧
@@ -525,13 +519,12 @@ theorem advance_budget (hN : ComputableInSpace N enc encNat S)
         (instruction (N a) (width a) (source a) (s a) (answer a) (choice a)) <
       rank (N a) (width a) (s a))) (fun a => by
         congr 1)
-  exact (budget_ite (halted_budget hs hin) hs
+  exact (budget_ite (halted_budget hs) hs
     (iteProp_budget hcheck hi (budget_const reject))).of_enc_eq fun _ => rfl
 
 /-- Initializing the controller includes its source-range check. -/
 theorem initial_budget (hN : ComputableInSpace N enc encNat S)
-    (hsource : ComputableInSpace source enc encNat S)
-    :
+    (hsource : ComputableInSpace source enc encNat S) :
     ComputableInSpace (fun a => initial (N a) (source a)) enc encState S := by
   exact iteProp_budget (budget_natLt hsource hN) (budget_const ({} : State))
     (budget_const reject)
@@ -553,7 +546,7 @@ def encQuery : Query ↪ List Bool :=
 
 /-- The explicit request, including the finite-phase and final-scan selection. -/
 theorem query_budget (hs : ComputableInSpace s enc encState S)
-    (hin : (fun a => (enc a).length) ≼ S) :
+    :
     ComputableInSpace (fun a => query (s a)) enc (encOption encQuery) S := by
   have hedge {u v : α → ℕ} (hu : ComputableInSpace u enc encNat S)
       (hv : ComputableInSpace v enc encNat S) :
@@ -572,7 +565,7 @@ theorem query_budget (hs : ComputableInSpace s enc encState S)
     · exact hsome (hedge (current_budget hs) (guess_budget hs))
     · exact hsome (budget_ite (finalScan_budget hs) hbad
         (hedge (candidate_budget hs) (target_budget hs)))
-  refine (phaseCases_budget hs _ hbranches hin).of_enc_eq fun a => ?_
+  refine (phaseCases_budget hs _ hbranches).of_enc_eq fun a => ?_
   cases s a
   rfl
 
@@ -591,6 +584,6 @@ theorem advance_inSpace :
   have hrest := snd encNat
     (encPair encUnary (encPair encNat (encPair encState (encPair encBool encBool))))
   exact advance_budget hN hrest.fst' hrest.snd'.fst' hrest.snd'.snd'.fst'
-    hrest.snd'.snd'.snd'.fst' hrest.snd'.snd'.snd'.snd' (.refl _)
+    hrest.snd'.snd'.snd'.fst' hrest.snd'.snd'.snd'.snd'
 
 end Turing.InductiveCounting
