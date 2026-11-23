@@ -547,8 +547,8 @@ private partial def witness (L : Lexer σ) : PM σ Witness := do
     else pure (WVal.lit (← lit L))
   return (x, w) :: (← witness L)
 
-/-- The operations of a `pol` step, up to `;`, which is consumed. -/
-private partial def polOps (L : Lexer σ) : PM σ (List AOp) := do
+/-- The operations of a `pol` step, up to `;`, which is consumed, read token by token. -/
+private partial def polOpsSlow (L : Lexer σ) : PM σ (List AOp) := do
   let t ← L.next
   if t == ";" then return []
   let op ← do
@@ -572,7 +572,55 @@ private partial def polOps (L : Lexer σ) : PM σ (List AOp) := do
             let v ← var L t
             if (← L.peek) == "w" then let _ ← L.next; pure (AOp.weaken v)
             else pure (AOp.lit (v, true))
-  return op :: (← polOps L)
+  return op :: (← polOpsSlow L)
+
+/-- The fast path of `polOps`: read operations straight from the bytes from `p` on, while no token
+has been read ahead: `+`, `s`, `k *`, `k d`, `k c`, `k n`, `k m`, `k -`, and the references
+`k` and `-k`, `k > 0`; whether the closing `;` was read. It stops before the first other token,
+which the slow path then reads. -/
+private partial def polFast (L : Lexer σ) (p : ℕ) (ops : Array AOp) :
+    ST σ (ℕ × Array AOp × Bool) := do
+  let b := L.bytes
+  let p := Lexer.skipWs b p
+  if p ≥ b.size then return (p, ops, false)
+  let c := b.get! p
+  let at? (q : ℕ) : UInt8 := if q < b.size then b.get! q else 0
+  if c == 59 then
+    L.last.set p
+    return (p + 1, ops, true)
+  if c == 43 && !Lexer.isDigit (at? (p + 1)) then return ← polFast L (p + 1) (ops.push .add)
+  if c == 115 && !Lexer.isIdChar (at? (p + 1)) then return ← polFast L (p + 1) (ops.push .sat)
+  let neg := c == 45 && Lexer.isDigit (at? (p + 1))
+  if !(Lexer.isDigit c || neg) then return (p, ops, false)
+  let d := if neg then p + 1 else p
+  let e := Lexer.runEnd b Lexer.isDigit d
+  if at? e == 46 then return (p, ops, false)
+  let k := Lexer.digitsVal b d e 0
+  if k == 0 then return (p, ops, false)
+  if neg then return ← polFast L e (ops.push (.ref (.rel k)))
+  let q := Lexer.skipWs b e
+  let o := at? q
+  let single := !Lexer.isIdChar (at? (q + 1))
+  let op? : Option AOp :=
+    if o == 42 then some (.mul k)
+    else if o == 100 && single then some (.div k)
+    else if o == 99 && single then some (.vdiv k)
+    else if o == 110 && single then some (.nmir k)
+    else if o == 109 && single then some (.vmir k)
+    else if o == 45 && !Lexer.isDigit (at? (q + 1)) && at? (q + 1) != 62 then some (.minus k)
+    else none
+  match op? with
+  | some op => polFast L (q + 1) (ops.push op)
+  | none => polFast L e (ops.push (.ref (.abs k)))
+
+/-- The operations of a `pol` step up to `;`, which is consumed. -/
+private partial def polOps (L : Lexer σ) : PM σ (List AOp) := do
+  if (← L.ahead.get).isEmpty then
+    let (p, ops, done) ← polFast L (← L.pos.get) #[]
+    L.pos.set p
+    if done then return ops.toList
+    return ops.toList ++ (← polOpsSlow L)
+  polOpsSlow L
 
 /-- RUP hints up to `;`, which is consumed. -/
 private partial def hints (L : Lexer σ) : PM σ (List AHint) := do
