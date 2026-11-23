@@ -261,8 +261,7 @@ end FactorTimePolySpace
 `C` and `d`, its time is at most `C 2 ^ E a (n + 1) ^ d` and its space at most `C (n + 1) ^ d` on
 inputs `a` of encoded length `n`. -/
 @[expose] def ExpTimePolySpace (c : NativeCertificate f enc eβ) (E : α → ℕ) : Prop :=
-  ∃ C d : ℕ, ∀ a, c.time a ≤ C * 2 ^ E a * ((enc a).length + 1) ^ d ∧
-    c.space a ≤ C * ((enc a).length + 1) ^ d
+  c.FactorTimePolySpace (fun a => 2 ^ E a)
 
 namespace ExpTimePolySpace
 
