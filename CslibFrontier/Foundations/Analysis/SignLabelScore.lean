@@ -11,7 +11,6 @@ public import Mathlib.Algebra.BigOperators.Fin
 public import Mathlib.Basic.Real.Basic
 public import Mathlib.Basic.Sign.Basic
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
-import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.NormNum
 import Mathlib.Tactic.Ring
@@ -24,7 +23,8 @@ separated from zero by at least one half. The score is positive exactly when
 all `m` target signs agree with the true signs. The empty family is included.
 
 For weighted signs, a separate score tests equality with the integer fingerprint and
-positivity of a qualifying test. The approximation tolerance uses the total weight.
+positivity of a qualifying test. Its tolerance is `1 / (4 * (M + 1))` for total weight at
+most `M`, and `1 / 4` for the qualifying test.
 
 Adapted from `RootLabelScore` and `RationalSignMargin` in lean-canny at commit
 `970f28a5ecefc1327402ade16c068aa4b1b2c183`. The larger tolerance still gives
@@ -44,6 +44,20 @@ private theorem one_le_abs_sub_of_ne (s t : SignType) (h : s ≠ t) :
     (1 : ℝ) ≤ |(s : ℝ) - (t : ℝ)| := by
   cases s <;> cases t <;> norm_num at *
 
+private theorem mul_inv_four_mul_succ_le (m : ℕ) :
+    (m : ℝ) * (4 * ((m : ℝ) + 1))⁻¹ ≤ 1 / 4 := by
+  rw [← div_eq_mul_inv, div_le_iff₀ (by positivity)]
+  linarith
+
+private theorem three_quarters_sq_le_sq_sub {a actual target : ℝ}
+    (ha : |a - actual| ≤ (1 : ℝ) / 4) (hgap : 1 ≤ |actual - target|) :
+    ((3 : ℝ) / 4) ^ 2 ≤ (a - target) ^ 2 := by
+  have htri := abs_sub_le actual a target
+  rw [abs_sub_comm actual a] at htri
+  have h := pow_le_pow_left₀ (by norm_num : (0 : ℝ) ≤ 3 / 4)
+    (show (3 : ℝ) / 4 ≤ |a - target| by linarith) 2
+  rwa [sq_abs] at h
+
 /-- With uniformly accurate approximations, the score is at least one half
 on agreement and at most minus one half on mismatch. Its sign characterizes agreement. -/
 theorem labelScore_margin {m : ℕ} (a : Fin m → ℝ) (s target : Fin m → SignType)
@@ -57,10 +71,7 @@ theorem labelScore_margin {m : ℕ} (a : Fin m → ℝ) (s target : Fin m → Si
     rw [one_div]
     exact inv_anti₀ (by norm_num) (show (4 : ℝ) ≤ 4 * ((m : ℝ) + 1) by linarith)
   by_cases hmatch : ∀ i, s i = target i
-  · have hmul : (m : ℝ) * δ ≤ (1 : ℝ) / 4 := by
-      dsimp only [δ]
-      rw [← div_eq_mul_inv, div_le_iff₀ (by positivity)]
-      linarith
+  · have hmul : (m : ℝ) * δ ≤ (1 : ℝ) / 4 := mul_inv_four_mul_succ_le m
     have hsum : (∑ i, (a i - (target i : ℝ)) ^ 2) ≤ (1 : ℝ) / 16 := by
       calc
         _ ≤ ∑ _i : Fin m, δ ^ 2 := by
@@ -75,14 +86,8 @@ theorem labelScore_margin {m : ℕ} (a : Fin m → ℝ) (s target : Fin m → Si
       linarith
     exact ⟨Or.inl hscore, ⟨fun _ => hmatch, fun _ => by linarith⟩⟩
   · obtain ⟨i, hi⟩ := not_forall.mp hmatch
-    have hgap := one_le_abs_sub_of_ne (s i) (target i) hi
-    have htri := abs_sub_le (s i : ℝ) (a i) (target i : ℝ)
-    rw [abs_sub_comm (s i : ℝ) (a i)] at htri
-    have hdist : (3 : ℝ) / 4 ≤ |a i - (target i : ℝ)| := by
-      have he : |a i - (s i : ℝ)| ≤ δ := ha i
-      linarith
-    have hsq := pow_le_pow_left₀ (by norm_num : (0 : ℝ) ≤ 3 / 4) hdist 2
-    rw [sq_abs] at hsq
+    have hsq := three_quarters_sq_le_sq_sub ((ha i).trans hδ₁)
+      (one_le_abs_sub_of_ne (s i) (target i) hi)
     have hsum : (a i - (target i : ℝ)) ^ 2 ≤ ∑ j, (a j - (target j : ℝ)) ^ 2 :=
       Finset.single_le_sum (f := fun j : Fin m => (a j - (target j : ℝ)) ^ 2)
         (fun j _ => sq_nonneg (a j - (target j : ℝ))) (Finset.mem_univ i)
@@ -97,12 +102,12 @@ qualifying target `1`. The inputs are the approximate weighted sum and qualifyin
   1 - 4 * ((A - target) ^ 2 + (b - 1) ^ 2)
 
 private theorem abs_weightedSignError_le {m : ℕ} (w : Fin m → ℕ) (a : Fin m → ℝ)
-    (s : Fin m → SignType) {M : ℕ} (hM : 1 ≤ M) (hw : ∑ i, w i ≤ M)
-    (ha : ∀ i, |a i - (s i : ℝ)| ≤ (16 * (M : ℝ))⁻¹) :
+    (s : Fin m → SignType) {M : ℕ} (hw : ∑ i, w i ≤ M)
+    (ha : ∀ i, |a i - (s i : ℝ)| ≤ (4 * ((M : ℝ) + 1))⁻¹) :
     |(∑ i, (w i : ℝ) * a i) - ((∑ i, (w i : ℤ) * (s i : ℤ) : ℤ) : ℝ)| ≤
-      (1 : ℝ) / 16 := by
-  have hpos : (0 : ℝ) < M := by exact_mod_cast (show 0 < M by omega)
+      (1 : ℝ) / 4 := by
   have hweight : (∑ i, (w i : ℝ)) ≤ M := by exact_mod_cast hw
+  let δ : ℝ := (4 * ((M : ℝ) + 1))⁻¹
   simp only [Int.cast_sum, Int.cast_mul, Int.cast_natCast, SignType.intCast_cast]
   rw [← Finset.sum_sub_distrib]
   calc
@@ -112,36 +117,27 @@ private theorem abs_weightedSignError_le {m : ℕ} (w : Fin m → ℕ) (a : Fin 
       apply Finset.sum_congr rfl
       intro i _
       rw [← mul_sub, abs_mul, abs_of_nonneg (Nat.cast_nonneg _)]
-    _ ≤ ∑ i, (w i : ℝ) * (16 * (M : ℝ))⁻¹ :=
+    _ ≤ ∑ i, (w i : ℝ) * δ :=
       Finset.sum_le_sum fun i _ => mul_le_mul_of_nonneg_left (ha i) (Nat.cast_nonneg _)
-    _ = (∑ i, (w i : ℝ)) * (16 * (M : ℝ))⁻¹ := (Finset.sum_mul _ _ _).symm
-    _ ≤ M * (16 * (M : ℝ))⁻¹ := mul_le_mul_of_nonneg_right hweight (by positivity)
-    _ = (1 : ℝ) / 16 := by field_simp
-
-private theorem fingerprint_gap_sq {a actual target : ℝ}
-    (ha : |a - actual| ≤ (1 : ℝ) / 16) (hgap : 1 ≤ |actual - target|) :
-    ((15 : ℝ) / 16) ^ 2 ≤ (a - target) ^ 2 := by
-  have htri := abs_sub_le actual a target
-  rw [abs_sub_comm actual a] at htri
-  have h := pow_le_pow_left₀ (by norm_num : (0 : ℝ) ≤ 15 / 16)
-    (show (15 : ℝ) / 16 ≤ |a - target| by linarith) 2
-  rwa [sq_abs] at h
+    _ = (∑ i, (w i : ℝ)) * δ := (Finset.sum_mul _ _ _).symm
+    _ ≤ M * δ := mul_le_mul_of_nonneg_right hweight (by dsimp only [δ]; positivity)
+    _ ≤ (1 : ℝ) / 4 := mul_inv_four_mul_succ_le M
 
 /-- With approximations accurate to the total-weight tolerance, the fingerprint score has
 margin at least one half. It is positive exactly when the weighted integer signs match
 the target and the qualifying sign is positive. -/
 theorem fingerprintScore_margin {m : ℕ} (w : Fin m → ℕ) (a : Fin m → ℝ)
     (s : Fin m → SignType) (b : ℝ) (sigma : SignType) (target : ℤ)
-    {M : ℕ} (hM : 1 ≤ M) (hw : ∑ i, w i ≤ M)
-    (ha : ∀ i, |a i - (s i : ℝ)| ≤ (16 * (M : ℝ))⁻¹)
-    (hb : |b - (sigma : ℝ)| ≤ (1 : ℝ) / 16) :
+    {M : ℕ} (hw : ∑ i, w i ≤ M)
+    (ha : ∀ i, |a i - (s i : ℝ)| ≤ (4 * ((M : ℝ) + 1))⁻¹)
+    (hb : |b - (sigma : ℝ)| ≤ (1 : ℝ) / 4) :
     let actual := ∑ i, (w i : ℤ) * (s i : ℤ)
     let score := fingerprintScore (∑ i, (w i : ℝ) * a i) b target
     ((1 : ℝ) / 2 ≤ score ∨ score ≤ -(1 : ℝ) / 2) ∧
       (0 < score ↔ actual = target ∧ sigma = 1) := by
   intro actual score
   let A := ∑ i, (w i : ℝ) * a i
-  have hA : |A - (actual : ℝ)| ≤ (1 : ℝ) / 16 := abs_weightedSignError_le w a s hM hw ha
+  have hA : |A - (actual : ℝ)| ≤ (1 : ℝ) / 4 := abs_weightedSignError_le w a s hw ha
   by_cases hmatch : actual = target ∧ sigma = 1
   · have hAsq := pow_le_pow_left₀ (abs_nonneg _) hA 2
     have hbsq := pow_le_pow_left₀ (abs_nonneg _) hb 2
@@ -157,10 +153,10 @@ theorem fingerprintScore_margin {m : ℕ} (w : Fin m → ℕ) (a : Fin m → ℝ
       by_cases he : actual = target
       · have hgap := one_le_abs_sub_of_ne sigma 1 (fun hs => hmatch ⟨he, hs⟩)
         rw [SignType.coe_one] at hgap
-        nlinarith [fingerprint_gap_sq hb hgap, sq_nonneg (A - (target : ℝ))]
+        nlinarith [three_quarters_sq_le_sq_sub hb hgap, sq_nonneg (A - (target : ℝ))]
       · have hgap : (1 : ℝ) ≤ |(actual : ℝ) - (target : ℝ)| := by
           exact_mod_cast Int.one_le_abs (sub_ne_zero.mpr he)
-        nlinarith [fingerprint_gap_sq hA hgap, sq_nonneg (b - 1)]
+        nlinarith [three_quarters_sq_le_sq_sub hA hgap, sq_nonneg (b - 1)]
     exact ⟨Or.inr hn, ⟨fun hp => by linarith, fun h => (hmatch h).elim⟩⟩
 
 end SignType
