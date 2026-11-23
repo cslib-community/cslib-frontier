@@ -4,8 +4,12 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.BitWord
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
 import CslibFrontier.Tactic.Space
 
 /-!
@@ -17,6 +21,9 @@ counter points. Its budget charges the registers and the logarithm of the length
 the word. The leaves are the registers and the input bit at a computed position; `space` composes
 the rest, including the constants, which need no allowance for the length of the input.
 -/
+
+-- This module contains only checked clients.
+set_option linter.privateModule false
 
 open Turing Turing.MultiTapeTM Turing.MultiTapeTM.ComputableInSpace
 
@@ -48,6 +55,41 @@ theorem step_inSpace :
       (encPair encReg encBits) (encOption encBool) budget :=
     budget_inputBit (budget_ofBits hreg.fst') (.refl _)
   space [step]
+
+/-- The same body under the budget written inline, with the registers and the input bit as local
+certificates: `space` rewrites the function of the goal and leaves its budget as written. -/
+example : ComputableInSpace step (encPair encReg encBits) (encOption encReg)
+    fun p => (encReg p.1).length + Nat.log2 (encBits p.2).length := by
+  have hreg := budget_registers (encR := encReg) (encA := encBits)
+    (Bs := fun p => (encReg p.1).length + Nat.log2 (encBits p.2).length) (.refl _)
+  have hbit : ComputableInSpace
+      (fun p : (List Bool × List Bool) × List Bool => p.2[ofBits p.1.1]?)
+      (encPair encReg encBits) (encOption encBool)
+      fun p => (encReg p.1).length + Nat.log2 (encBits p.2).length :=
+    budget_inputBit (budget_ofBits hreg.fst') (.refl _)
+  space [step]
+
+/-- A budget with a third summand: the registers are found by `space`, which proves that the
+budget covers them as a bound of a sum by a sum that contains its terms. -/
+example {S : List Bool → ℕ} : ComputableInSpace
+    (fun p : (List Bool × List Bool) × List Bool => (Cslib.BitString.increment p.1.1, p.1.2))
+    (encPair encReg encBits) encReg
+    fun p => (encReg p.1).length + S p.2 + Nat.log2 (encBits p.2).length := by
+  space
+
+/-- A certified function of one stored word and the input, applied to the first register
+(`budget_subst`), next to the concatenation of the registers. `space` turns its unary value into
+binary (`budget_unaryToNat`) and concatenates (`budget_bitsAppend`). -/
+example {g : List Bool × List Bool → ℕ}
+    (hg : ComputableInSpace g (encPair encBits encBits) encUnary
+      fun q => (encBits q.1).length + Nat.log2 (encBits q.2).length) :
+    ComputableInSpace
+      (fun p : (List Bool × List Bool) × List Bool => (p.1.2 ++ p.1.1, g (p.1.1, p.2)))
+      (encPair encReg encBits) (encPair encBits encNat) budget := by
+  have hsub := budget_subst (encR := encReg) (Bs := budget) hg
+    ((ComputableInLogSpace.fst encBits encBits).comp' (.fst encReg encBits)) (.refl _)
+    (.of_le fun p => by simp only [budget, length_encPair]; omega)
+  space
 
 /-- A constant, the word of zeros of a stored width and the length of the input, under a budget
 that does not cover the input. -/

@@ -28,8 +28,10 @@ the search fails, the `fun_prop` error ends with a note naming these inputs.
 
 A local certificate is also reused when its function is not a routine applied to the argument,
 for example `h : ComputableInSpace (fun p => edge p.2 p.1.1) …` or the bit of the input at a
-computed position: when a first search fails, `space` unfolds the indicated definitions, replaces
-every occurrence of the certified expression by a variable and searches again.
+computed position: when a first search fails, `space` unfolds the indicated definitions in the
+function of the goal, replaces every occurrence of the certified expression there by a variable
+and searches again. The budget of the goal is left as written, so that it still is the budget of
+the certificates.
 
 This tactic does not assert logarithmic space in the original input: the goal specifies the
 encoding and budget. In particular, a Savitch callback is linear-space in the stored state,
@@ -187,7 +189,7 @@ private partial def foldInstances (f body : Expr) (e : Expr) (depth : Nat) : Exp
 applied to `x` itself, such as `fun p => edge p.2 p.1.1`. `fun_prop` uses a local certificate of
 a variable only when the variable is applied to the argument. -/
 private def compositeCertificate? (decl : LocalDecl) : MetaM (Option Expr) := do
-  if decl.isImplementationDetail then return none
+  if decl.isImplementationDetail || decl.isLet then return none
   let type := (← instantiateMVars decl.type).consumeMData
   unless type.isAppOf ``Turing.MultiTapeTM.ComputableInSpace do return none
   let some f := type.getAppArgs[2]? | return none
@@ -201,7 +203,7 @@ them, so that a certificate obtained by substitution states the expression it ce
 private def normalizeCertificates : TacticM Unit := withMainContext do
   let ctx ← Simp.mkContext (simpTheorems := #[]) (congrTheorems := ← getSimpCongrTheorems)
   for decl in ← getLCtx do
-    if decl.isImplementationDetail then continue
+    if decl.isImplementationDetail || decl.isLet then continue
     let type ← instantiateMVars decl.type
     unless type.consumeMData.isAppOf ``Turing.MultiTapeTM.ComputableInSpace do continue
     let some f := type.consumeMData.getAppArgs[2]? | continue
@@ -212,14 +214,21 @@ private def normalizeCertificates : TacticM Unit := withMainContext do
         let args := type.consumeMData.getAppArgs.set! 2 f'
         goal.replaceLocalDeclDefEq decl.fvarId (mkAppN type.consumeMData.getAppFn args)
 
-/-- Unfold the definitions `defs` in the goal and replace every expression that a local
-certificate certifies by a fresh variable applied to the argument, so that `fun_prop` uses the
-certificate. -/
-private def abstractCertificates (defs : Array Name) : TacticM Unit := do
+/-- Rewrite the function `g` of a goal `ComputableInSpace g encIn encOut S`, and nothing else:
+the budget `S` has to stay the budget of the local certificates. -/
+private def rewriteFunction (k : Expr → MetaM Expr) : TacticM Unit :=
   liftMetaTactic1 fun goal => do
-    let target ← deltaExpand (← instantiateMVars (← goal.getType)) defs.contains
-    goal.replaceTargetDefEq (← Core.betaReduce target)
-  normalizeCertificates
+    let target := (← instantiateMVars (← goal.getType)).consumeMData
+    let args := target.getAppArgs
+    let some g := args[2]? | return some goal
+    return some (← goal.replaceTargetDefEq (mkAppN target.getAppFn (args.set! 2 (← k g))))
+
+/-- Unfold the definitions `defs` in the function of the goal and replace every expression in it
+that a local certificate certifies by a fresh variable applied to the argument, so that `fun_prop`
+uses the certificate. The local certificates are expected in the form that
+`normalizeCertificates` leaves. -/
+private def abstractCertificates (defs : Array Name) : TacticM Unit := do
+  rewriteFunction fun g => do Core.betaReduce (← deltaExpand g defs.contains)
   repeat
     let goal ← getMainGoal
     -- the largest certified expression first, so that it is not broken up by a part of it
@@ -231,14 +240,16 @@ private def abstractCertificates (defs : Array Name) : TacticM Unit := do
       return best
     let some f := found | break
     let .lam _ _ body _ := f | break
-    let goal ← goal.replaceTargetDefEq
-      (foldInstances f body (← instantiateMVars (← goal.getType)) 0)
+    rewriteFunction fun g => pure (foldInstances f body g 0)
+    let goal ← getMainGoal
     let hyps ← goal.withContext do
       (← getLCtx).foldlM (init := #[]) fun acc decl => do
-        if !decl.isImplementationDetail &&
+        if !decl.isImplementationDetail && !decl.isLet &&
             ((← instantiateMVars decl.type).find? (· == f)).isSome then
           return acc.push decl.fvarId
         return acc
+    -- without a hypothesis to generalize, the same certificate would be found again
+    if hyps.isEmpty then break
     let (_, _, goal) ← goal.generalizeHyp #[{ expr := f, xName? := some `certified }] hyps
     replaceMainGoal [goal]
 

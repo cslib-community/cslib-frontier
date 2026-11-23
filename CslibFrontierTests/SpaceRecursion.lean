@@ -4,6 +4,9 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Christian Reitwiessner
 -/
 
+module
+-- upstream: local-only (tests)
+
 import CslibFrontier.Computability.Complexity.Classes.Space.Quantitative
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.NestedLoop
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunPropFinite
@@ -11,7 +14,12 @@ import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Context
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.BitsGetElem
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Structure
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.Sum
+import CslibFrontier.Foundations.Data.Nat.BinarySize
 import CslibFrontier.Tactic.Space
 
 /-!
@@ -25,6 +33,9 @@ a leaf. `Turing.MultiTapeTM.ComputableInSpace.recWith` runs it: the caller state
 returns, a rank and the potential `(height + 1) * F` for frames of `F` bits. No stack, machine or
 run is declared, and the space is `O(log² n)` for depth and frames of `O(log n)`.
 -/
+
+-- This module contains only checked clients.
+set_option linter.privateModule false
 
 open Turing Turing.MultiTapeTM
 
@@ -49,7 +60,7 @@ structure Frame where
   /-- Whether the second subtree is being evaluated. -/
   second : Bool
 
-enc_structure encFrame : Frame where height : encNat, index : encNat, second : encBool
+private enc_structure encFrame : Frame where height : encNat, index : encNat, second : encBool
 
 /-- A frame with the value just returned to it, if any. -/
 abbrev encConfig : Frame × Option Bool ↪ List Bool := encPair encFrame (encOption encBool)

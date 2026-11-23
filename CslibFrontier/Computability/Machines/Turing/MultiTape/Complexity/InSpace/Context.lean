@@ -8,10 +8,9 @@ module
 -- upstream: candidate
 
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.FunProp
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Recursion
-public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredBind
 public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Words
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.InputBit
+import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.StoredBind
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.Composition.Recompute
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.LogSpace.CounterProgram.Unary
 import CslibFrontier.Computability.Machines.Turing.MultiTape.Encodings.NatLength
@@ -52,8 +51,6 @@ namespace Turing.MultiTapeTM.ComputableInSpace
 
 variable {α ρ σ β γ : Type} {encA : α ↪ List Bool} {encR : ρ ↪ List Bool}
   {encS : σ ↪ List Bool} {encB : β ↪ List Bool} {encC : γ ↪ List Bool} {Bs : ρ × α → ℕ}
-
-attribute [fun_prop] budget_sumInl budget_sumInr
 
 /-- The budget `Bs` covers the registers and the logarithm of the length of the input. -/
 abbrev CoversContext (encR : ρ ↪ List Bool) (encA : α ↪ List Bool) (Bs : ρ × α → ℕ) : Prop :=
