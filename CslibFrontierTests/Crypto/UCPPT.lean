@@ -501,7 +501,8 @@ theorem coinEnv_run_coinStore_wordHandle_isOraclePPTOn :
   rcases coinStore_toProtocol_isPPT with ⟨cert⟩
   exact ⟨cert, coinEnv_isPPT.isOraclePPTOn_run_wordHandle cert ∅⟩
 
-private noncomputable def emptyWordOracle :
+/-- Empty word oracle on `WordInterface.empty`. -/
+@[expose] public noncomputable def emptyWordOracle :
     WordInterface.empty.Channel × List Bool → StateT Unit PMF (List Bool)
   | cw, _ => cw.1.elim
 

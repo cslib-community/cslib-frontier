@@ -36,8 +36,7 @@ model (not Definition 6 of [Canetti2020]).
   `party : WordPort (Fin n × In) (Option Out)`, `party.queryDecoder` certifies only the re-encoded
   pair `party.query ∘ party.queryDecoder.decode`, which does not in general expose the party index
   `Fin n` in polynomial time. Accordingly, `PPTCertificate.routeCorrupt`,
-  `Machine.IsPPTFamily.routeCorrupt`, `PPTCertificate.corruptRouter`, and
-  `Protocol.IsPPT.corruptRouter` take the minimal hypothesis
+  `Machine.IsPPTFamily.routeCorrupt`, and `Protocol.IsPPT.corruptRouter` take the minimal hypothesis
   `ComputableInPolyTime (fun w => (party.queryDecoder.decode w).1) encBits (encFinite (Fin n))`,
   which `WordPort.computable_partyIndex` discharges automatically whenever
   `party = WordPort.party input`.

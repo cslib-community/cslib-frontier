@@ -51,10 +51,6 @@ private def unaryCodec : WordCodec ℕ where
   decode := Decoder.unary.decode
   decode_enc := Decoder.unary.decode_enc
 
-private noncomputable def emptyWordOracle :
-    WordInterface.empty.Channel × List Bool → StateT Unit PMF (List Bool)
-  | cw, _ => cw.1.elim
-
 /-! ### 1. Length-changing `PortMap` adapter witness -/
 
 section LengthChangingAdapterWitness
