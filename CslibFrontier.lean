@@ -9429,6 +9429,7 @@ public import CslibFrontier.Computability.WordRAM.Realization.BackendFrame
 public import CslibFrontier.Foundations.Combinatorics.SimpleGraph.TreeDecomposition.Nice
 public import CslibFrontier.Foundations.BooleanAnalysis.SparseIncidence
 public import CslibFrontier.Foundations.Data.Finset.UniqueTail
+public import CslibFrontier.Computability.Machines.Turing.MultiTape.Complexity.InSpace.Midpoint
 public import CslibFrontier.Crypto.Computational.ChaumPedersenProtocol
 public import CslibFrontier.Tactic.PMFSwap
 public import CslibFrontier.Computability.Circuit.Boolean.Razborov.Useful
