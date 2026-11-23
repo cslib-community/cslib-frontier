@@ -886,15 +886,26 @@ section MatrixSynthesis
 
 variable {G : Type*} [AddCommMonoid G] {m n : ℕ}
 
+private def fullBlockEmb {n s : ℕ} (q : Fin (n / s)) : Fin s ↪ Fin n where
+  toFun a := ⟨q.1 * s + a.1, by
+    have hq : (q.1 + 1) * s ≤ n :=
+      (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
+    have := a.isLt
+    nlinarith⟩
+  inj' a₁ a₂ h := Fin.ext (by
+    have hv : q.1 * s + a₁.1 = q.1 * s + a₂.1 := congrArg Fin.val h
+    omega)
+
+private theorem fullBlockEmb_div {n s : ℕ} (q : Fin (n / s)) (a : Fin s) :
+    (fullBlockEmb q a).1 / s = q.1 := by
+  have hs : 0 < s := Nat.zero_lt_of_lt a.isLt
+  change (q.1 * s + a.1) / s = q.1
+  rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
+
 /-- Subset of `Fin s` where row `r` of `A` has `true` in full width-`s` block `q < n / s`. -/
 private def fullRowPattern (A : Matrix (Fin m) (Fin n) Bool) (s : ℕ) (r : Fin m)
     (q : Fin (n / s)) : Finset (Fin s) :=
-  univ.filter fun a : Fin s =>
-    A r ⟨q.1 * s + a.1, by
-      have hq : (q.1 + 1) * s ≤ n :=
-        (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
-      have := a.isLt
-      nlinarith⟩ = true
+  univ.filter fun a : Fin s => A r (fullBlockEmb q a) = true
 
 /-- Columns of the compressed full-block matrix: pairs `(q, T)` with `q < n / s` and `T` a nonempty
 subset of `Fin s`. -/
@@ -951,29 +962,17 @@ private theorem mul_sum_hasFullCol_le_activeSquare (A : Matrix (Fin m) (Fin n) B
   rw [mul_sum]
   let blockPts (r : Fin m) : Finset (Fin m × Fin n) :=
     (univ.filter fun q : Fin (n / s) => (fullRowPattern A s r q).Nonempty).biUnion fun q =>
-      univ.image fun a : Fin s =>
-        (r, (⟨q.1 * s + a.1, by
-          have hq : (q.1 + 1) * s ≤ n :=
-            (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
-          have := a.isLt
-          nlinarith⟩ : Fin n))
+      univ.image fun a : Fin s => (r, fullBlockEmb q a)
   have hcard_pts (r : Fin m) :
       s * #{q : Fin (n / s) | (fullRowPattern A s r q).Nonempty} = #(blockPts r) := by
     dsimp only [blockPts]
     rw [card_biUnion]
     · have hcard_one (q : Fin (n / s)) :
-          #(univ.image fun a : Fin s =>
-            (r, (⟨q.1 * s + a.1, by
-              have hq : (q.1 + 1) * s ≤ n :=
-                (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
-              have := a.isLt
-              nlinarith⟩ : Fin n))) = s := by
+          #(univ.image fun a : Fin s => (r, fullBlockEmb q a)) = s := by
         rw [card_image_of_injective]
         · simp
         · intro a₁ a₂ h
-          have hval : q.1 * s + a₁.1 = q.1 * s + a₂.1 :=
-            congrArg (fun p : Fin m × Fin n => p.2.1) h
-          exact Fin.ext (by omega)
+          exact (fullBlockEmb q).injective (congrArg Prod.snd h)
       rw [sum_congr rfl fun q _ => hcard_one q, sum_const, smul_eq_mul, mul_comm]
     · intro q₁ _ q₂ _ hne
       change Disjoint _ _
@@ -981,17 +980,8 @@ private theorem mul_sum_hasFullCol_le_activeSquare (A : Matrix (Fin m) (Fin n) B
       intro p hp₁ hp₂
       obtain ⟨a₁, _, rfl⟩ := mem_image.mp hp₁
       obtain ⟨a₂, _, heq⟩ := mem_image.mp hp₂
-      have hval : q₂.1 * s + a₂.1 = q₁.1 * s + a₁.1 :=
-        congrArg (fun x : Fin m × Fin n => x.2.1) heq
-      have hq_eq : q₁.1 = q₂.1 := by
-        have h₁ : (q₁.1 * s + a₁.1) / s = q₁.1 := by
-          rw [mul_comm, Nat.mul_add_div (by have := a₁.isLt; omega),
-            Nat.div_eq_of_lt a₁.isLt, add_zero]
-        have h₂ : (q₂.1 * s + a₂.1) / s = q₂.1 := by
-          rw [mul_comm, Nat.mul_add_div (by have := a₂.isLt; omega),
-            Nat.div_eq_of_lt a₂.isLt, add_zero]
-        rw [← h₁, ← hval, h₂]
-      exact hne (Fin.ext hq_eq)
+      have hemb : fullBlockEmb q₂ a₂ = fullBlockEmb q₁ a₁ := congrArg Prod.snd heq
+      exact hne (Fin.ext (by rw [← fullBlockEmb_div q₁ a₁, ← hemb, fullBlockEmb_div q₂ a₂]))
   simp_rw [hcard_pts]
   have hdisj_rows : ((univ : Finset (Fin m)) : Set (Fin m)).PairwiseDisjoint blockPts := by
     intro r₁ _ r₂ _ hne
@@ -1015,26 +1005,12 @@ private theorem mul_sum_hasFullCol_le_activeSquare (A : Matrix (Fin m) (Fin n) B
   obtain ⟨a, _, rfl⟩ := mem_image.mp hp
   obtain ⟨a₀, ha₀⟩ := (mem_filter.mp hq).2
   have hA₀ := (mem_filter.mp ha₀).2
-  refine mem_filter.mpr ⟨mem_univ _, ⟨q.1 * s + a₀.1, by
-    have hq' : (q.1 + 1) * s ≤ n :=
-      (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
-    have := a₀.isLt
-    nlinarith⟩, hA₀, ?_⟩
-  dsimp only
+  refine mem_filter.mpr ⟨mem_univ _, fullBlockEmb q a₀, hA₀, ?_⟩
+  change Nat.dist (q.1 * s + a.1) (q.1 * s + a₀.1) ≤ Nat.log 2 m
   unfold Nat.dist
   have := a.isLt
   have := a₀.isLt
   omega
-
-private def fullBlockEmb {n s : ℕ} (q : Fin (n / s)) : Fin s ↪ Fin n where
-  toFun a := ⟨q.1 * s + a.1, by
-    have hq : (q.1 + 1) * s ≤ n :=
-      (Nat.mul_le_mul_right s (Nat.succ_le_of_lt q.isLt)).trans (Nat.div_mul_le_self n s)
-    have := a.isLt
-    nlinarith⟩
-  inj' a₁ a₂ h := Fin.ext (by
-    have hv : q.1 * s + a₁.1 = q.1 * s + a₂.1 := congrArg Fin.val h
-    omega)
 
 private def fullColVal {n s : ℕ} (c : FullCol n s) (x : Fin n → G) : G :=
   ∑ a ∈ c.2.1, x (fullBlockEmb c.1 a)
@@ -1089,6 +1065,72 @@ private theorem card_matrixRowParts_le (A : Matrix (Fin m) (Fin n) Bool) (s : �
   have hu2 := card_union_le peerPart oddPart
   omega
 
+private theorem sum_fullCol_lt_eq {m K s Q : ℕ} (A : Matrix (Fin m) (Fin K) Bool)
+    (hs : 0 < s) (hQ : Q ≤ K / s) (r : Fin m) (v : Fin K → G) :
+    (∑ c : FullCol K s with decide (c.1.1 < Q ∧ fullRowPattern A s r c.1 = c.2.1) = true,
+      fullColVal c v) =
+    ∑ j ∈ univ.filter (fun j : Fin K => j.1 / s < Q ∧ A r j = true), v j := by
+  rw [sum_filter, Fintype.sum_prod_type]
+  have hblocks :
+      (∑ q : Fin (K / s), ∑ T : {T : Finset (Fin s) // T.Nonempty},
+        if decide (q.1 < Q ∧ fullRowPattern A s r q = T.1) = true then
+          fullColVal (q, T) v
+        else 0) =
+      ∑ q : Fin (K / s),
+        if q.1 < Q then
+          ∑ a ∈ fullRowPattern A s r q, v (fullBlockEmb q a)
+        else 0 := by
+    refine sum_congr rfl fun q _ => ?_
+    by_cases hq : q.1 < Q
+    · simp only [hq, true_and, ↓reduceIte]
+      rcases (fullRowPattern A s r q).eq_empty_or_nonempty with hempty | hne
+      · rw [hempty, sum_empty, sum_eq_zero]
+        intro ⟨T, hT⟩ _
+        have hneT : (∅ : Finset (Fin s)) ≠ T := hT.ne_empty.symm
+        simp [hneT]
+      · rw [sum_eq_single ⟨fullRowPattern A s r q, hne⟩]
+        · simp [fullColVal]
+        · intro ⟨T, _⟩ _ hne_sub
+          have hneT : fullRowPattern A s r q ≠ T :=
+            fun h => hne_sub (Subtype.ext h.symm)
+          simp [hneT]
+        · intro habs
+          exact (habs (mem_univ _)).elim
+    · simp only [hq, false_and, ↓reduceIte]
+      rw [sum_eq_zero]
+      intro _ _
+      simp
+  rw [hblocks, ← sum_filter]
+  let blockJ (q : Fin (K / s)) : Finset (Fin K) :=
+    (fullRowPattern A s r q).map (fullBlockEmb q)
+  have hdisj_q :
+      ((univ.filter fun q : Fin (K / s) => q.1 < Q) :
+        Set (Fin (K / s))).PairwiseDisjoint blockJ := by
+    intro q₁ _ q₂ _ hne
+    change Disjoint _ _
+    rw [Finset.disjoint_left]
+    intro j hj₁ hj₂
+    obtain ⟨a₁, _, rfl⟩ := mem_map.mp hj₁
+    obtain ⟨a₂, _, heq⟩ := mem_map.mp hj₂
+    exact hne (Fin.ext (by rw [← fullBlockEmb_div q₁ a₁, ← heq, fullBlockEmb_div q₂ a₂]))
+  have hbi :
+      (univ.filter fun q : Fin (K / s) => q.1 < Q).biUnion blockJ =
+        univ.filter (fun j : Fin K => j.1 / s < Q ∧ A r j = true) := by
+    ext j
+    simp only [mem_biUnion, mem_filter, mem_univ, true_and, blockJ, mem_map, fullRowPattern]
+    constructor
+    · rintro ⟨q, hq, a, hA, rfl⟩
+      exact ⟨by rwa [fullBlockEmb_div], hA⟩
+    · rintro ⟨hlt, hA⟩
+      refine ⟨⟨j.1 / s, lt_of_lt_of_le hlt hQ⟩, hlt, ⟨j.1 % s, Nat.mod_lt _ hs⟩, ?_, ?_⟩
+      · have heq : (j.1 / s) * s + j.1 % s = j.1 := Nat.div_add_mod' j.1 s
+        convert hA using 2
+        exact Fin.ext heq
+      · exact Fin.ext (Nat.div_add_mod' j.1 s)
+  rw [← hbi, sum_biUnion hdisj_q]
+  refine sum_congr rfl fun q _ => ?_
+  rw [sum_map]
+
 private theorem sum_row_eq_fullCol_add_tail (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ} (hs : 0 < s)
     (r : Fin m) (x : Fin n → G) :
     (∑ j : Fin n, if A r j then x j else 0) =
@@ -1118,56 +1160,10 @@ private theorem sum_row_eq_fullCol_add_tail (A : Matrix (Fin m) (Fin n) Bool) {s
     omega
   rw [hsplit_j]
   congr 1
-  have hfull_blocks :
-      (∑ j ∈ univ.filter (fun j : Fin n => j.1 / s < n / s ∧ A r j = true), x j) =
-        ∑ q : Fin (n / s), ∑ a ∈ fullRowPattern A s r q, x (fullBlockEmb q a) := by
-    let blockJ (q : Fin (n / s)) : Finset (Fin n) :=
-      (fullRowPattern A s r q).map (fullBlockEmb q)
-    have hdisj_q : ((univ : Finset (Fin (n / s))) : Set (Fin (n / s))).PairwiseDisjoint blockJ := by
-      intro q₁ _ q₂ _ hne
-      change Disjoint _ _
-      rw [Finset.disjoint_left]
-      intro j hj₁ hj₂
-      obtain ⟨a₁, _, rfl⟩ := mem_map.mp hj₁
-      obtain ⟨a₂, _, heq⟩ := mem_map.mp hj₂
-      have hval : q₂.1 * s + a₂.1 = q₁.1 * s + a₁.1 := congrArg Fin.val heq
-      have h₁ : (q₁.1 * s + a₁.1) / s = q₁.1 := by
-        rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a₁.isLt, add_zero]
-      have h₂ : (q₂.1 * s + a₂.1) / s = q₂.1 := by
-        rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a₂.isLt, add_zero]
-      exact hne (Fin.ext (by rw [← h₁, ← hval, h₂]))
-    have hbi : univ.biUnion blockJ =
-        univ.filter (fun j : Fin n => j.1 / s < n / s ∧ A r j = true) := by
-      ext j
-      simp only [mem_biUnion, mem_univ, true_and, blockJ, mem_map, fullRowPattern, mem_filter]
-      constructor
-      · rintro ⟨q, a, hA, rfl⟩
-        have hdiv : (q.1 * s + a.1) / s = q.1 := by
-          rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
-        exact ⟨hdiv ▸ q.isLt, hA⟩
-      · rintro ⟨hlt, hA⟩
-        refine ⟨⟨j.1 / s, hlt⟩, ⟨j.1 % s, Nat.mod_lt _ hs⟩, ?_, ?_⟩
-        · have heq : (j.1 / s) * s + j.1 % s = j.1 := Nat.div_add_mod' j.1 s
-          convert hA using 2
-          exact Fin.ext heq
-        · exact Fin.ext (Nat.div_add_mod' j.1 s)
-    rw [← hbi, sum_biUnion hdisj_q]
-    refine sum_congr rfl fun q _ => ?_
-    rw [sum_map]
-  rw [hfull_blocks, sum_filter, Fintype.sum_prod_type]
-  refine sum_congr rfl fun q _ => ?_
-  rcases (fullRowPattern A s r q).eq_empty_or_nonempty with hempty | hne
-  · rw [hempty, sum_empty, eq_comm, sum_eq_zero]
-    intro ⟨T, hT⟩ _
-    have hneT : fullRowPattern A s r q ≠ T := hempty ▸ hT.ne_empty.symm
-    simp [hasFullCol, hneT]
-  · rw [eq_comm, sum_eq_single ⟨fullRowPattern A s r q, hne⟩]
-    · simp [hasFullCol, fullColVal]
-    · intro ⟨T, hT⟩ _ hne_sub
-      have hneT : fullRowPattern A s r q ≠ T := fun h => hne_sub (Subtype.ext h.symm)
-      simp [hasFullCol, hneT]
-    · intro habs
-      exact (habs (mem_univ _)).elim
+  rw [← sum_fullCol_lt_eq A hs le_rfl r x]
+  refine sum_congr ?_ fun _ _ => rfl
+  ext c
+  simp [hasFullCol]
 
 private theorem sum_matrixRowParts_eq (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ} (hs : 0 < s)
     (p : ℕ) (r : Fin m) (x : Fin n → G) :
@@ -1238,7 +1234,9 @@ private theorem sum_matrixRowParts_eq (A : Matrix (Fin m) (Fin n) Bool) {s : ℕ
 ([Sergeev, Lemma 1, pp. 2–3][Sergeev2013AdditiveMultiplicative]):
 over any additive commutative monoid `G`, every `m × n` Boolean matrix `A` is computed by an
 additive `{0, +}`-circuit of size at most `matrixBound A s p` whenever `0 < s ≤ Nat.log 2 m + 1`
-and `0 < p`. -/
+and `0 < p` (`AddCommMonoid G` supplies `0` for all-zero rows on total output wires, whereas
+Sergeev's p. 2 footnote 4 states a commutative semigroup `(G, +)` and the construction here emits
+zero `Op.zero` gates whenever every row of `A` has a `true` entry). -/
 theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
     (A : Matrix (Fin m) (Fin n) Bool) {s p : ℕ} (hs : 0 < s) (hs_log : s ≤ Nat.log 2 m + 1)
     (hp : 0 < p) :
@@ -1264,8 +1262,7 @@ theorem exists_circuit_matrix_le_bound (G : Type*) [AddCommMonoid G]
     refine Or.inr ⟨c.1.1, c.2.1.map (fullBlockEmb c.1), c.2.2.map, ?_, ?_⟩
     · intro j hj
       obtain ⟨a, _, rfl⟩ := mem_map.mp hj
-      change (c.1.1 * s + a.1) / s = c.1.1
-      rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
+      exact fullBlockEmb_div c.1 a
     · funext x
       rw [sum_map]
       rfl
@@ -2616,77 +2613,8 @@ private theorem sum_zhegRowParts_eq (d : PaddedDecomp f M k) {s : ℕ} (hs : 0 <
         ∑ a ∈ cg.2.1, d.gFn (Additive.fullBlockEmb cg.1 a) x) =
       ∑ ℓ ∈ univ.filter (fun ℓ : Fin M => ℓ.1 / s < (r.1 / 2) / s ∧ d.aG r ℓ = true),
         d.gFn ℓ x := by
-    rw [sum_filter, Fintype.sum_prod_type]
-    have hblocks :
-        (∑ q : Fin (M / s), ∑ T : {T : Finset (Fin s) // T.Nonempty},
-          if decide (q.1 < (r.1 / 2) / s ∧ Additive.fullRowPattern d.aG s r q = T.1) = true then
-            ∑ a ∈ T.1, d.gFn (Additive.fullBlockEmb q a) x
-          else 0) =
-        ∑ q : Fin (M / s),
-          if q.1 < (r.1 / 2) / s then
-            ∑ a ∈ Additive.fullRowPattern d.aG s r q, d.gFn (Additive.fullBlockEmb q a) x
-          else 0 := by
-      refine sum_congr rfl fun q _ => ?_
-      by_cases hq : q.1 < (r.1 / 2) / s
-      · simp only [hq, ↓reduceIte]
-        rcases (Additive.fullRowPattern d.aG s r q).eq_empty_or_nonempty with hempty | hne
-        · rw [hempty, sum_empty, sum_eq_zero]
-          intro ⟨T, hT⟩ _
-          have hneT : (∅ : Finset (Fin s)) ≠ T := hT.ne_empty.symm
-          simp [hneT]
-        · rw [sum_eq_single ⟨Additive.fullRowPattern d.aG s r q, hne⟩]
-          · simp
-          · intro ⟨T, _⟩ _ hne_sub
-            have hneT : Additive.fullRowPattern d.aG s r q ≠ T :=
-              fun h => hne_sub (Subtype.ext h.symm)
-            simp [hneT]
-          · intro habs
-            exact (habs (mem_univ _)).elim
-      · simp only [hq, ↓reduceIte]
-        rw [sum_eq_zero]
-        intro _ _
-        simp
-    rw [hblocks, ← sum_filter]
-    let blockL (q : Fin (M / s)) : Finset (Fin M) :=
-      (Additive.fullRowPattern d.aG s r q).map (Additive.fullBlockEmb q)
-    have hdisj_q :
-        ((univ.filter fun q : Fin (M / s) => q.1 < (r.1 / 2) / s) :
-          Set (Fin (M / s))).PairwiseDisjoint blockL := by
-      intro q₁ _ q₂ _ hne
-      change Disjoint _ _
-      rw [Finset.disjoint_left]
-      intro ℓ hℓ₁ hℓ₂
-      obtain ⟨a₁, _, rfl⟩ := mem_map.mp hℓ₁
-      obtain ⟨a₂, _, heq⟩ := mem_map.mp hℓ₂
-      have hval : q₂.1 * s + a₂.1 = q₁.1 * s + a₁.1 := congrArg Fin.val heq
-      have h₁ : (q₁.1 * s + a₁.1) / s = q₁.1 := by
-        rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a₁.isLt, add_zero]
-      have h₂ : (q₂.1 * s + a₂.1) / s = q₂.1 := by
-        rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a₂.isLt, add_zero]
-      exact hne (Fin.ext (by rw [← h₁, ← hval, h₂]))
-    have hbi :
-        (univ.filter fun q : Fin (M / s) => q.1 < (r.1 / 2) / s).biUnion blockL =
-          univ.filter (fun ℓ : Fin M => ℓ.1 / s < (r.1 / 2) / s ∧ d.aG r ℓ = true) := by
-      ext ℓ
-      simp only [mem_biUnion, mem_filter, mem_univ, true_and, blockL, mem_map,
-        Additive.fullRowPattern]
-      constructor
-      · rintro ⟨q, hq, a, haG, rfl⟩
-        have hdiv : (q.1 * s + a.1) / s = q.1 := by
-          rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
-        exact ⟨hdiv ▸ hq, haG⟩
-      · rintro ⟨hlt, haG⟩
-        have hlt_Ms : ℓ.1 / s < M / s := by
-          have hr_lt : r.1 / 2 < M := by omega
-          exact lt_of_lt_of_le hlt (Nat.div_le_div_right hr_lt.le)
-        refine ⟨⟨ℓ.1 / s, hlt_Ms⟩, hlt, ⟨ℓ.1 % s, Nat.mod_lt _ hs⟩, ?_, ?_⟩
-        · have heq : (ℓ.1 / s) * s + ℓ.1 % s = ℓ.1 := Nat.div_add_mod' ℓ.1 s
-          convert haG using 2
-          exact Fin.ext heq
-        · exact Fin.ext (Nat.div_add_mod' ℓ.1 s)
-    rw [← hbi, sum_biUnion hdisj_q]
-    refine sum_congr rfl fun q _ => ?_
-    rw [sum_map]
+    have hQ : (r.1 / 2) / s ≤ M / s := Nat.div_le_div_right (by omega)
+    exact Additive.sum_fullCol_lt_eq d.aG hs hQ r (fun ℓ => d.gFn ℓ x)
   have hg_split :
       (∑ ℓ ∈ univ.filter (fun ℓ : Fin M => ℓ.1 / s < (r.1 / 2) / s ∧ d.aG r ℓ = true),
         d.gFn ℓ x) +
@@ -2986,8 +2914,7 @@ private theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
         refine ⟨cx.1.1, cx.2.1.map (Additive.fullBlockEmb cx.1), cx.2.2.map, ?_, ?_⟩
         · intro j hj
           obtain ⟨a, _, rfl⟩ := mem_map.mp hj
-          change (cx.1.1 * s + a.1) / s = cx.1.1
-          rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
+          exact Additive.fullBlockEmb_div cx.1 a
         · funext x
           rw [sum_map]
           rfl
@@ -3047,83 +2974,62 @@ private theorem synth_stage_step (d : PaddedDecomp f M k) {s p : ℕ} (hs : 0 < 
   have hmid_intra := hmid.comp
     (hintra.mono Set.subset_union_right Set.Subset.rfl le_rfl le_rfl)
   -- Substep C: Full `g`-block subset sums if `q₀ < M / s`.
-  by_cases hq_lt : q₀ < M / s
-  · let qFin : Fin (M / s) := ⟨q₀, hq_lt⟩
-    let Fg : Fin s → BooleanFunction n := fun a => d.gFn (Additive.fullBlockEmb qFin a)
-    have hFg_mem : ∀ a : Fin s, Fg a ∈ stageSet d s p q₀ ∪
-        (midSet d s p q₀ ∪ intraSet d s q₀ s) := by
-      intro a
-      refine Or.inr (Or.inr ⟨Additive.fullBlockEmb qFin a, ?_, Nat.mod_lt _ hs, rfl⟩)
-      change (q₀ * s + a.1) / s = q₀
-      rw [mul_comm, Nat.mul_add_div hs, Nat.div_eq_of_lt a.isLt, add_zero]
-    have hgblock := block_nonempty_subSums (G := Bool) (I := interpretation) (w := andCost)
-      (addOp := Op.xor) rfl (fun _ => rfl) rfl Fg hFg_mem
-    have hall := hmid_intra.comp hgblock
-    refine hall.mono Set.Subset.rfl ?_ (by dsimp only [pairQ, oddQ]; simp [hq_lt]) (by simp)
-    -- Prove `stageSet d s p (q₀ + 1)` is contained in the synthesized union.
-    intro g hg
-    rcases hg with
-      (((((hg_in | hg_c) | hg_x) | ⟨i, hi, rfl⟩) | ⟨cg, hcg, rfl⟩) | ⟨up, hup, hq, rfl⟩)
-    · simp only [midSet, stageSet, Set.mem_union]; tauto
-    · simp only [midSet, stageSet, Set.mem_union]; tauto
-    · simp only [midSet, stageSet, Set.mem_union]; tauto
-    · rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | heq
-      · have h_old : d.gFn i ∈ {g | ∃ i' : Fin M, i'.1 / s < q₀ ∧ g = d.gFn i'} :=
-          ⟨i, hlt, rfl⟩
-        simp only [midSet, stageSet, Set.mem_union]; tauto
-      · have h_new : d.gFn i ∈ intraSet d s q₀ s := ⟨i, heq, Nat.mod_lt i.1 hs, rfl⟩
-        simp only [Set.mem_union]; tauto
-    · rcases Nat.lt_succ_iff_lt_or_eq.mp hcg with hlt | heq
-      · have h_old : zhegColVal d (.inr cg) ∈
-            {g | ∃ cg' : Additive.FullCol M s, cg'.1.1 < q₀ ∧ g = zhegColVal d (.inr cg')} :=
-          ⟨cg, hlt, rfl⟩
-        simp only [midSet, stageSet, Set.mem_union]; tauto
-      · rcases cg with ⟨q', T, hT⟩
-        have hq_eq : q' = qFin := Fin.ext heq
-        subst hq_eq
-        exact Or.inr ⟨T, hT, rfl⟩
-    · rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hlt | heq
-      · have h_old : zhegPairVal d s p up ∈
-            {g | ∃ up' ∈ zhegPairIdx d s p,
-              (up'.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up'} :=
-          ⟨up, hup, hlt, rfl⟩
-        simp only [midSet, stageSet, Set.mem_union]; tauto
-      · have h_new : zhegPairVal d s p up ∈
-            ⋃ up' ∈ (zhegPairIdx d s p).filter (fun up' => (up'.2.1.1 / 2) / s = q₀),
-              {zhegPairVal d s p up'} := by
-          rw [Set.mem_iUnion₂]
-          exact ⟨up, mem_filter.mpr ⟨hup, heq⟩, rfl⟩
-        simp only [midSet, Set.mem_union]; tauto
-  · refine hmid_intra.mono Set.Subset.rfl ?_ (by dsimp only [pairQ, oddQ]; simp [hq_lt]) (by simp)
-    intro g hg
-    rcases hg with
-      (((((hg_in | hg_c) | hg_x) | ⟨i, hi, rfl⟩) | ⟨cg, hcg, rfl⟩) | ⟨up, hup, hq, rfl⟩)
-    · simp only [midSet, stageSet, Set.mem_union]; tauto
-    · simp only [midSet, stageSet, Set.mem_union]; tauto
-    · simp only [midSet, stageSet, Set.mem_union]; tauto
-    · rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | heq
-      · have h_old : d.gFn i ∈ {g | ∃ i' : Fin M, i'.1 / s < q₀ ∧ g = d.gFn i'} :=
-          ⟨i, hlt, rfl⟩
-        simp only [midSet, stageSet, Set.mem_union]; tauto
-      · exact Or.inr ⟨i, heq, Nat.mod_lt i.1 hs, rfl⟩
-    · rcases Nat.lt_succ_iff_lt_or_eq.mp hcg with hlt | heq
-      · have h_old : zhegColVal d (.inr cg) ∈
-            {g | ∃ cg' : Additive.FullCol M s, cg'.1.1 < q₀ ∧ g = zhegColVal d (.inr cg')} :=
-          ⟨cg, hlt, rfl⟩
-        simp only [midSet, stageSet, Set.mem_union]; tauto
-      · exact (hq_lt (heq ▸ cg.1.isLt)).elim
-    · rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hlt | heq
-      · have h_old : zhegPairVal d s p up ∈
-            {g | ∃ up' ∈ zhegPairIdx d s p,
-              (up'.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up'} :=
-          ⟨up, hup, hlt, rfl⟩
-        simp only [midSet, stageSet, Set.mem_union]; tauto
-      · have h_new : zhegPairVal d s p up ∈
-            ⋃ up' ∈ (zhegPairIdx d s p).filter (fun up' => (up'.2.1.1 / 2) / s = q₀),
-              {zhegPairVal d s p up'} := by
-          rw [Set.mem_iUnion₂]
-          exact ⟨up, mem_filter.mpr ⟨hup, heq⟩, rfl⟩
-        simp only [midSet, Set.mem_union]; tauto
+  let curGBlockSet : Set (BooleanFunction n) :=
+    {g | ∃ cg : Additive.FullCol M s, cg.1.1 = q₀ ∧ g = zhegColVal d (.inr cg)}
+  have hgblock_step : CostSynthesis interpretation andCost
+      (stageSet d s p q₀ ∪ (midSet d s p q₀ ∪ intraSet d s q₀ s)) curGBlockSet
+      (if q₀ < M / s then 2 ^ s - s - 1 else 0) 0 := by
+    by_cases hq_lt : q₀ < M / s
+    · let qFin : Fin (M / s) := ⟨q₀, hq_lt⟩
+      let Fg : Fin s → BooleanFunction n := fun a => d.gFn (Additive.fullBlockEmb qFin a)
+      have hFg_mem : ∀ a : Fin s, Fg a ∈ stageSet d s p q₀ ∪
+          (midSet d s p q₀ ∪ intraSet d s q₀ s) := fun a =>
+        Or.inr (Or.inr ⟨Additive.fullBlockEmb qFin a, Additive.fullBlockEmb_div qFin a,
+          Nat.mod_lt _ hs, rfl⟩)
+      have hgblock := block_nonempty_subSums (G := Bool) (I := interpretation) (w := andCost)
+        (addOp := Op.xor) rfl (fun _ => rfl) rfl Fg hFg_mem
+      refine hgblock.mono Set.Subset.rfl ?_ (by simp [hq_lt]) le_rfl
+      rintro _ ⟨⟨q', T, hT⟩, hcg, rfl⟩
+      have hq_eq : q' = qFin := Fin.ext hcg
+      subst hq_eq
+      exact ⟨T, hT, rfl⟩
+    · refine (CostSynthesis.of_subset ?_).mono Set.Subset.rfl Set.Subset.rfl (by simp [hq_lt])
+        le_rfl
+      rintro _ ⟨cg, hcg, rfl⟩
+      exact (hq_lt (hcg ▸ cg.1.isLt)).elim
+  have hall := hmid_intra.comp hgblock_step
+  refine hall.mono Set.Subset.rfl ?_ (by dsimp only [pairQ, oddQ]; rfl) (by simp)
+  -- Prove `stageSet d s p (q₀ + 1)` is contained in the synthesized union.
+  intro g hg
+  rcases hg with
+    (((((hg_in | hg_c) | hg_x) | ⟨i, hi, rfl⟩) | ⟨cg, hcg, rfl⟩) | ⟨up, hup, hq, rfl⟩)
+  · simp only [midSet, stageSet, Set.mem_union]; tauto
+  · simp only [midSet, stageSet, Set.mem_union]; tauto
+  · simp only [midSet, stageSet, Set.mem_union]; tauto
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp hi with hlt | heq
+    · have h_old : d.gFn i ∈ {g | ∃ i' : Fin M, i'.1 / s < q₀ ∧ g = d.gFn i'} :=
+        ⟨i, hlt, rfl⟩
+      simp only [midSet, stageSet, Set.mem_union]; tauto
+    · have h_new : d.gFn i ∈ intraSet d s q₀ s := ⟨i, heq, Nat.mod_lt i.1 hs, rfl⟩
+      simp only [Set.mem_union]; tauto
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp hcg with hlt | heq
+    · have h_old : zhegColVal d (.inr cg) ∈
+          {g | ∃ cg' : Additive.FullCol M s, cg'.1.1 < q₀ ∧ g = zhegColVal d (.inr cg')} :=
+        ⟨cg, hlt, rfl⟩
+      simp only [midSet, stageSet, Set.mem_union]; tauto
+    · exact Or.inr ⟨cg, heq, rfl⟩
+  · rcases Nat.lt_succ_iff_lt_or_eq.mp hq with hlt | heq
+    · have h_old : zhegPairVal d s p up ∈
+          {g | ∃ up' ∈ zhegPairIdx d s p,
+            (up'.2.1.1 / 2) / s < q₀ ∧ g = zhegPairVal d s p up'} :=
+        ⟨up, hup, hlt, rfl⟩
+      simp only [midSet, stageSet, Set.mem_union]; tauto
+    · have h_new : zhegPairVal d s p up ∈
+          ⋃ up' ∈ (zhegPairIdx d s p).filter (fun up' => (up'.2.1.1 / 2) / s = q₀),
+            {zhegPairVal d s p up'} := by
+        rw [Set.mem_iUnion₂]
+        exact ⟨up, mem_filter.mpr ⟨hup, heq⟩, rfl⟩
+      simp only [midSet, Set.mem_union]; tauto
 
 private inductive OutPartIdx (n M : ℕ) where
   | constOne

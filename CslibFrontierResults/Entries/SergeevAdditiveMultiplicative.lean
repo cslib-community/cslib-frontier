@@ -24,7 +24,10 @@ register_result "sergeev-2013-lemma-1-additive-matrix" where
   scope := "Unconditional over any additive commutative monoid G ([AddCommMonoid G]), using \
     Cslib.Circuits.Additive.signature ({0, +}) and Matrix.activeSquare A (entries within \
     horizontal distance Nat.log 2 m of a true entry in the same row, equivalent to Real.logb 2 m \
-    for integer column distances when 1 ≤ m). Proves both the explicit (s, p) gate bound \
+    for integer column distances when 1 ≤ m; [AddCommMonoid G] supplies 0 for all-zero rows on \
+    total output wires, whereas Sergeev's p. 2 footnote 4 states a commutative semigroup (G, +) \
+    and exists_circuit_matrix_le_bound emits zero Op.zero gates whenever every row of A is \
+    nonzero). Proves both the explicit (s, p) gate bound \
     (n * 2 ^ s) / s + A.activeSquare / (2 * s) + m * p + (m ⌈/⌉ p) * 2 ^ s * (n ⌈/⌉ s) for all \
     0 < s ≤ Nat.log 2 m + 1 and 0 < p (exists_circuit_matrix_le_bound) and the asymptotic \
     A.activeSquare / (2 * Real.logb 2 m) + ε * ((m + n) ^ 2 / Real.logb 2 m) form for all 2 ≤ m \
